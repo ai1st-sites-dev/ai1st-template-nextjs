@@ -291,12 +291,13 @@ async function main() {
             stdio: ['pipe', 'pipe', 'pipe'],
           });
           debug('load-site-config.js sync complete');
-          // Touch src/lib/config.ts to trigger Next.js dev server hot-reload
+          // Modify src/lib/config.ts content to force webpack to re-read all JSON imports
           const configTs = path.join(rootDir, 'src/lib/config.ts');
           if (fs.existsSync(configTs)) {
-            const now = new Date();
-            fs.utimesSync(configTs, now, now);
-            debug('Touched src/lib/config.ts to trigger hot-reload');
+            let content = fs.readFileSync(configTs, 'utf-8');
+            content = content.replace(/\/\/ hmr: \d+\n?/, '');
+            fs.writeFileSync(configTs, content.trimEnd() + `\n// hmr: ${Date.now()}\n`);
+            debug('Modified config.ts to force HMR reload');
           }
         } catch (e) {
           debug(`load-site-config.js sync error: ${e.message}`);
