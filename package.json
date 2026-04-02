@@ -1,0 +1,47 @@
+{
+  "name": "xsite-jamstack",
+  "version": "1.0.0",
+  "description": "JAMstack template system — config-driven static websites",
+  "scripts": {
+    "predev": "node scripts/load-site-config.js",
+    "dev": "next dev",
+    "prebuild": "node scripts/load-site-config.js && node scripts/move-build-output.js backup",
+    "build": "next build && node scripts/move-build-output.js restore",
+    "start": "next start",
+    "create-site": "node scripts/create-site-cli.js",
+    "build:all": "npm run build:88-realty && npm run build:chinese-toronto-realtor && npm run build:cindy-insurance && npm run build:lucky-realty && npm run build:test-salon",
+    "dev:cindy-insurance": "SITE_CONFIG=cindy-insurance npm run dev",
+    "build:cindy-insurance": "SITE_CONFIG=cindy-insurance npm run build",
+    "dev:chinese-toronto-realtor": "SITE_CONFIG=chinese-toronto-realtor npm run dev",
+    "build:chinese-toronto-realtor": "SITE_CONFIG=chinese-toronto-realtor npm run build",
+    "dev:lucky-realty": "SITE_CONFIG=lucky-realty npm run dev",
+    "build:lucky-realty": "SITE_CONFIG=lucky-realty npm run build",
+    "dev:88-realty": "SITE_CONFIG=88-realty npm run dev",
+    "build:88-realty": "SITE_CONFIG=88-realty npm run build",
+    "dev:test-salon": "SITE_CONFIG=test-salon npm run dev",
+    "build:test-salon": "SITE_CONFIG=test-salon npm run build"
+  },
+  "keywords": [
+    "security systems",
+    "surveillance",
+    "alarm systems",
+    "smart home"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.74.0",
+    "next": "^14.2.35",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/typography": "^0.5.19",
+    "@types/node": "^25.2.3",
+    "@types/react": "^19.2.14",
+    "autoprefixer": "^10.4.24",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^5.9.3"
+  }
+}

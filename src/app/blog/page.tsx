@@ -1,0 +1,84 @@
+import type { Metadata } from 'next';
+import Link from 'next/link';
+import { BreadcrumbJsonLd } from '@/components/JsonLd';
+import { brand, seo, blogPosts } from '@/lib/config';
+
+export const metadata: Metadata = {
+  title: 'Blog',
+  description: `Read the latest articles and insights from ${brand.name}.`,
+  alternates: {
+    canonical: '/blog',
+  },
+  openGraph: {
+    title: `Blog | ${brand.name}`,
+    description: `Read the latest articles and insights from ${brand.name}.`,
+    url: '/blog',
+  },
+};
+
+const colors = [
+  'from-primary-100 to-primary-200',
+  'from-accent-100 to-accent-200',
+  'from-primary-50 to-accent-100',
+  'from-gray-100 to-gray-200',
+  'from-accent-50 to-primary-100',
+  'from-primary-200 to-primary-100',
+];
+
+export default function BlogPage() {
+  return (
+    <>
+      <BreadcrumbJsonLd
+        items={[
+          { name: 'Home', url: seo.domain },
+          { name: 'Blog', url: `${seo.domain}/blog` },
+        ]}
+      />
+      <section className="section-padding">
+        <div className="container-width">
+          <div className="text-center">
+            <h1 className="text-4xl font-bold text-gray-900 sm:text-5xl">Blog</h1>
+            <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-600">
+              Latest articles and insights from {brand.name}
+            </p>
+          </div>
+
+          {blogPosts.length === 0 ? (
+            <p className="mt-12 text-center text-gray-500">No articles yet. Check back soon!</p>
+          ) : (
+            <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+              {blogPosts.map((post, index) => (
+                <Link
+                  key={post.slug}
+                  href={`/blog/${post.slug}`}
+                  className="group overflow-hidden rounded-xl bg-white shadow-sm transition-shadow hover:shadow-md"
+                >
+                  <div className={`bg-gradient-to-br ${colors[index % colors.length]} h-48 transition-transform group-hover:scale-105`} />
+                  <div className="p-6">
+                    <div className="flex items-center gap-3">
+                      {post.category && (
+                        <span className="rounded-full bg-primary-50 px-3 py-1 text-xs font-medium text-primary-700">
+                          {post.category}
+                        </span>
+                      )}
+                      <span className="text-xs text-gray-400">{post.publishedAt}</span>
+                    </div>
+                    <h2 className="mt-3 text-lg font-semibold text-gray-900 group-hover:text-primary-600">
+                      {post.title}
+                    </h2>
+                    <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-gray-600">
+                      {post.excerpt}
+                    </p>
+                    <div className="mt-4 text-sm font-medium text-primary-600">
+                      Read more &rarr;
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+    </>
+  );
+}
