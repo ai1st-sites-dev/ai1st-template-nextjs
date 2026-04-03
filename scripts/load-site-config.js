@@ -14,12 +14,7 @@ if (!fs.existsSync(sourceDir)) {
   process.exit(1);
 }
 
-// Clean target directory
-if (fs.existsSync(targetDir)) {
-  fs.rmSync(targetDir, { recursive: true });
-}
-
-// Copy source to target recursively
+// Sync source to target (overwrite in-place to preserve webpack file watchers for HMR)
 function copyDir(src, dest) {
   fs.mkdirSync(dest, { recursive: true });
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
@@ -30,6 +25,16 @@ function copyDir(src, dest) {
     } else {
       fs.copyFileSync(srcPath, destPath);
     }
+  }
+}
+
+fs.mkdirSync(targetDir, { recursive: true });
+
+// Clear subdirectories (pages/, blog/) to remove stale files when switching sites
+// but keep top-level config/ directory alive so webpack watchers stay intact
+for (const entry of fs.readdirSync(targetDir, { withFileTypes: true })) {
+  if (entry.isDirectory()) {
+    fs.rmSync(path.join(targetDir, entry.name), { recursive: true });
   }
 }
 
