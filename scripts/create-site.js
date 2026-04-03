@@ -338,7 +338,7 @@ async function main() {
   progress('Setting up project...', 5);
 
   const rootDir = path.resolve(__dirname, '..');
-  const siteDir = path.join(rootDir, 'sites', siteName);
+  const siteDir = path.join(rootDir, 'site');
 
   // Clean up existing site dir if present (container re-runs)
   if (fs.existsSync(siteDir)) {
@@ -457,7 +457,7 @@ async function main() {
     fs.writeFileSync(pagePath, JSON.stringify(page, null, 2) + '\n');
   }
 
-  debug(`Site config written to sites/${siteName}/`);
+  debug(`Site config written to site/`);
   debug(`Pages: ${content.pages.map(p => p.slug).join(', ')}`);
 
   // ─── Git Push (repo was cloned by entrypoint.sh, just commit generated configs) ─
@@ -467,7 +467,7 @@ async function main() {
     try {
       const { execSync: gitExec } = require('child_process');
       const gitOpts = { cwd: rootDir, stdio: 'pipe' };
-      gitExec(`git add sites/${siteName}`, gitOpts);
+      gitExec('git add site/', gitOpts);
       gitExec(`git commit -m "Generate site: ${siteName}"`, gitOpts);
       gitExec('git push origin main', gitOpts);
       const repoPageUrl = repoUrl.replace(/\.git$/, '');
@@ -482,17 +482,16 @@ async function main() {
   // ─── Build static site + deploy to R2 ──────────────────────────────────────
   const { execSync } = require('child_process');
 
-  // Run load-site-config.js first (needed for both build and dev)
+  // Run sync-config.js first (needed for both build and dev)
   try {
-    execSync('node scripts/load-site-config.js', {
+    execSync('node scripts/sync-config.js', {
       cwd: rootDir,
-      env: { ...process.env, SITE_CONFIG: siteName },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
-    debug('load-site-config.js completed for', siteName);
+    debug('sync-config.js completed');
   } catch (e) {
-    debug('load-site-config.js failed:', e.stderr?.toString() || e.message);
-    fatal('Failed to load site config: ' + (e.stderr?.toString() || e.message));
+    debug('sync-config.js failed:', e.stderr?.toString() || e.message);
+    fatal('Failed to sync site config: ' + (e.stderr?.toString() || e.message));
   }
 
   // Build static site (non-fatal — skip R2 if build fails)

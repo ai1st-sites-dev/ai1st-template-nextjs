@@ -181,8 +181,8 @@ export default function PricingTableSection({ data }: PricingTableSectionProps) 
             <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-600">{data.subheadline}</p>
           )}
         </div>
-        <div className={`mt-12 grid gap-8 ${data.tiers.length === 2 ? 'mx-auto max-w-3xl md:grid-cols-2' : 'md:grid-cols-3'}`}>
-          {data.tiers.map((tier, index) => (
+        <div className={`mt-12 grid gap-8 ${(data.tiers?.length ?? 0) === 2 ? 'mx-auto max-w-3xl md:grid-cols-2' : 'md:grid-cols-3'}`}>
+          {(data.tiers ?? []).map((tier, index) => (
             <div key={index} className={`relative rounded-2xl p-8 shadow-sm ${tier.highlighted ? 'border-2 border-primary-500 bg-white ring-1 ring-primary-500' : 'border border-gray-200 bg-white'}`}>
               {tier.highlighted && (
                 <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary-500 px-4 py-1 text-xs font-semibold text-white">

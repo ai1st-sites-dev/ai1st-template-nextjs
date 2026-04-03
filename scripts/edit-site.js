@@ -5,7 +5,7 @@
  *
  * Reads JSON input from stdin (siteName, message, conversationHistory),
  * uses Claude tool_use to read/write site config files,
- * then syncs changes via load-site-config.js for HMR preview refresh.
+ * then syncs changes via sync-config.js for HMR preview refresh.
  *
  * Usage: echo '{"siteName":"test","message":"Change hero title"}' | ANTHROPIC_API_KEY=xxx node scripts/edit-site.js
  */
@@ -207,10 +207,10 @@ async function main() {
   if (!process.env.ANTHROPIC_API_KEY) fatal('ANTHROPIC_API_KEY is required');
 
   const rootDir = path.resolve(__dirname, '..');
-  const siteDir = path.join(rootDir, 'sites', siteName);
+  const siteDir = path.join(rootDir, 'site');
 
   if (!fs.existsSync(siteDir)) {
-    fatal(`Site directory not found: sites/${siteName}`);
+    fatal('Site directory not found: site/');
   }
 
   emit('progress', { message: 'Reading your request...' });
@@ -286,13 +286,27 @@ async function main() {
       if (filesModified) {
         emit('progress', { message: 'Syncing changes to preview...' });
         try {
-          execSync(`SITE_CONFIG=${siteName} node scripts/load-site-config.js`, {
+          execSync('node scripts/sync-config.js', {
             cwd: rootDir,
             stdio: ['pipe', 'pipe', 'pipe'],
           });
-          debug('load-site-config.js sync complete');
+          debug('sync-config.js sync complete');
         } catch (e) {
-          debug(`load-site-config.js sync error: ${e.message}`);
+          debug(`sync-config.js sync error: ${e.message}`);
+        }
+
+        // Auto-save: git commit + push
+        emit('progress', { message: 'Saving changes...' });
+        try {
+          const commitMsg = 'Edit: ' + finalMessage.substring(0, 72).replace(/["`$\\]/g, '');
+          execSync(`git add -A && git commit -m "${commitMsg}"`, {
+            cwd: rootDir,
+            stdio: ['pipe', 'pipe', 'pipe'],
+          });
+          execSync('git push origin main', { cwd: rootDir, stdio: ['pipe', 'pipe', 'pipe'] });
+          debug('git commit + push complete');
+        } catch (e) {
+          debug(`git auto-save error: ${e.message}`);
         }
       }
 
