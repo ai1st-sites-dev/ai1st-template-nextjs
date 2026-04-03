@@ -467,7 +467,7 @@ async function main() {
     try {
       const { execSync: gitExec } = require('child_process');
       const gitOpts = { cwd: rootDir, stdio: 'pipe' };
-      gitExec(`git add -f sites/${siteName}`, gitOpts);
+      gitExec(`git add sites/${siteName}`, gitOpts);
       gitExec(`git commit -m "Generate site: ${siteName}"`, gitOpts);
       gitExec('git push origin main', gitOpts);
       const repoPageUrl = repoUrl.replace(/\.git$/, '');
