@@ -24,7 +24,7 @@ export interface BrandConfig {
   fonts: BrandFonts;
   email: string;
   locations: BrandLocation[];
-  socialLinks?: Record<string, string>;
+  socialLinks?: { platform: string; url: string }[] | Record<string, string>;
   googleFormUrl: string;
   googleFormEntries: {
     source: string;

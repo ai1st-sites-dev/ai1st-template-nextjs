@@ -1026,12 +1026,28 @@ CRITICAL RULES:
 - Service detail pages should NOT appear in the header nav — they go in the footer only.
 - Include a "service-related-pages" section on each service detail page with serviceSlug matching the service id.`;
 
+  const model = 'claude-sonnet-4-5-20250929';
+
+  // $/M tokens by model family
+  const MODEL_PRICING = {
+    'claude-opus-4':   { input: 15, output: 75 },
+    'claude-sonnet-4': { input: 3,  output: 15 },
+    'claude-haiku-4':  { input: 0.80, output: 4 },
+  };
+  function getModelPricing(modelId) {
+    for (const [prefix, pricing] of Object.entries(MODEL_PRICING)) {
+      if (modelId.startsWith(prefix)) return pricing;
+    }
+    return { input: 3, output: 15 };
+  }
+  const pricing = getModelPricing(model);
+
   emit('prompt', { name: 'Base Site', content: prompt });
   progress('AI is generating content and layout...', 25);
 
   const call1Start = Date.now();
   const stream = await client.messages.stream({
-    model: 'claude-sonnet-4-5-20250929',
+    model,
     max_tokens: 64000,
     messages: [{ role: 'user', content: prompt }]
   });
@@ -1043,7 +1059,7 @@ CRITICAL RULES:
 
   // Emit cost for Call 1 (base site)
   const usage1 = response.usage || {};
-  const cost1 = ((usage1.input_tokens || 0) * 3 + (usage1.output_tokens || 0) * 15) / 1_000_000;
+  const cost1 = ((usage1.input_tokens || 0) * pricing.input + (usage1.output_tokens || 0) * pricing.output) / 1_000_000;
   emit('cost', {
     api: 'create-site',
     cost: cost1,
@@ -1251,7 +1267,7 @@ CRITICAL RULES:
 
   const call2Start = Date.now();
   const stream = await client.messages.stream({
-    model: 'claude-sonnet-4-5-20250929',
+    model,
     max_tokens: 64000,
     messages: [{ role: 'user', content: prompt }],
   });
@@ -1261,7 +1277,7 @@ CRITICAL RULES:
 
   // Emit cost for Call 2 (keyword pages)
   const usage2 = response.usage || {};
-  const cost2 = ((usage2.input_tokens || 0) * 3 + (usage2.output_tokens || 0) * 15) / 1_000_000;
+  const cost2 = ((usage2.input_tokens || 0) * pricing.input + (usage2.output_tokens || 0) * pricing.output) / 1_000_000;
   emit('cost', {
     api: 'create-site',
     cost: cost2,

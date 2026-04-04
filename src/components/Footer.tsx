@@ -16,7 +16,12 @@ const socialIcons: Record<string, { label: string; icon: React.ReactNode }> = {
 export default function Footer() {
   const { footer } = navigation;
   const currentYear = new Date().getFullYear();
-  const links = brand.socialLinks ? Object.entries(brand.socialLinks).filter(([, url]) => url) : [];
+  const links = brand.socialLinks
+    ? (Array.isArray(brand.socialLinks)
+        ? brand.socialLinks.map(l => [l.platform, l.url] as [string, string])
+        : Object.entries(brand.socialLinks)
+      ).filter(([, url]) => url)
+    : [];
   const serviceDetailSlugs = new Set(
     allPages.filter(p => p.slug.startsWith('services/') && p.slug !== 'services').map(p => p.slug.replace('services/', ''))
   );

@@ -183,12 +183,13 @@ Hero variants: left, centered, split, minimal, video-style, gradient-overlay
 
 ## Rules
 
-1. Always read a file before modifying it
-2. Write the COMPLETE file content (not partial updates)
-3. All written content must be valid JSON
-4. Keep content SEO-friendly and professional
-5. When adding sections, follow existing data patterns from the file
-6. Preserve all existing fields you don't need to change`;
+1. You MUST call read_file to check current file contents before responding — never rely on conversation history to know file state
+2. Only call write_file if changes are actually needed. Only claim changes were made if you called write_file
+3. Write the COMPLETE file content (not partial updates)
+4. All written content must be valid JSON
+5. Keep content SEO-friendly and professional
+6. When adding sections, follow existing data patterns from the file
+7. Preserve all existing fields you don't need to change`;
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
@@ -226,6 +227,22 @@ async function main() {
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
   let filesModified = false;
+  let commitHash = '';
+
+  const model = 'claude-sonnet-4-5-20250929';
+
+  // $/M tokens by model family
+  const MODEL_PRICING = {
+    'claude-opus-4':   { input: 15, output: 75 },
+    'claude-sonnet-4': { input: 3,  output: 15 },
+    'claude-haiku-4':  { input: 0.80, output: 4 },
+  };
+  function getModelPricing(modelId) {
+    for (const [prefix, pricing] of Object.entries(MODEL_PRICING)) {
+      if (modelId.startsWith(prefix)) return pricing;
+    }
+    return { input: 3, output: 15 }; // default to sonnet
+  }
 
   // Tool use loop
   let currentMessages = messages;
@@ -235,7 +252,7 @@ async function main() {
     debug(`Iteration ${i + 1}: sending ${currentMessages.length} messages`);
 
     const response = await client.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
+      model,
       max_tokens: 8192,
       system: SYSTEM_PROMPT,
       tools,
@@ -303,15 +320,17 @@ async function main() {
             cwd: rootDir,
             stdio: ['pipe', 'pipe', 'pipe'],
           });
+          commitHash = execSync('git rev-parse --short HEAD', { cwd: rootDir }).toString().trim();
           execSync('git push origin main', { cwd: rootDir, stdio: ['pipe', 'pipe', 'pipe'] });
-          debug('git commit + push complete');
+          debug(`git commit + push complete (${commitHash})`);
         } catch (e) {
           debug(`git auto-save error: ${e.message}`);
         }
       }
 
       // Emit cost
-      const cost = ((totalInputTokens * 3) + (totalOutputTokens * 15)) / 1_000_000;
+      const pricing = getModelPricing(model);
+      const cost = ((totalInputTokens * pricing.input) + (totalOutputTokens * pricing.output)) / 1_000_000;
       const duration = elapsed();
       emit('cost', {
         api: 'edit-site',
@@ -321,7 +340,13 @@ async function main() {
         duration,
       });
 
-      emit('edit-complete', { message: finalMessage });
+      emit('edit-complete', {
+        message: finalMessage,
+        ...(commitHash ? { commitHash } : {}),
+        inputTokens: totalInputTokens,
+        outputTokens: totalOutputTokens,
+        cost,
+      });
       debug(`Edit complete: ${totalInputTokens} in / ${totalOutputTokens} out, cost $${cost.toFixed(4)}`);
       return;
     }
