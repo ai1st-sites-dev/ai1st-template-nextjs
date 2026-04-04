@@ -326,12 +326,27 @@ async function main() {
       return;
     }
 
-    // If stop_reason is tool_use, append assistant response + tool results and continue
-    if (response.stop_reason === 'tool_use' && toolResults.length > 0) {
+    // If there are tool results (from tool_use or max_tokens with partial tool calls), continue the loop
+    if (toolResults.length > 0) {
       currentMessages = [
         ...currentMessages,
         { role: 'assistant', content: response.content },
         { role: 'user', content: toolResults },
+      ];
+      // If max_tokens, tell Claude it was truncated so it can continue
+      if (response.stop_reason === 'max_tokens') {
+        debug('Response truncated (max_tokens), continuing with tool results');
+      }
+      continue;
+    }
+
+    // max_tokens with no tool calls — ask Claude to continue
+    if (response.stop_reason === 'max_tokens') {
+      debug('Response truncated (max_tokens) with no tool calls, asking to continue');
+      currentMessages = [
+        ...currentMessages,
+        { role: 'assistant', content: response.content },
+        { role: 'user', content: 'Your response was truncated. Please continue where you left off.' },
       ];
       continue;
     }
