@@ -11,7 +11,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { spawn } = require('child_process');
+const { execSync } = require('child_process');
 const Anthropic = require('@anthropic-ai/sdk');
 
 // ─── Emit structured events to stdout ─────────────────────────────────────────
@@ -460,128 +460,25 @@ async function main() {
   debug(`Site config written to site/`);
   debug(`Pages: ${content.pages.map(p => p.slug).join(', ')}`);
 
-  // ─── Git Push (repo was cloned by entrypoint.sh, just commit generated configs) ─
+  // ─── Git Commit (push is handled async by entrypoint.sh after dev server starts) ─
   const { repoUrl } = input;
   if (repoUrl) {
-    progress('Pushing to GitHub...', 80);
+    progress('Committing to git...', 80);
     try {
-      const { execSync: gitExec } = require('child_process');
       const gitOpts = { cwd: rootDir, stdio: 'pipe' };
-      gitExec('git add site/', gitOpts);
-      gitExec(`git commit -m "Generate site: ${siteName}"`, gitOpts);
-      gitExec('git push origin main', gitOpts);
+      execSync('git add site/', gitOpts);
+      execSync(`git commit -m "Generate site: ${siteName}"`, gitOpts);
       const repoPageUrl = repoUrl.replace(/\.git$/, '');
       emit('repo', { url: repoPageUrl });
-      debug('Pushed to GitHub:', repoUrl);
+      debug('Committed site config, push deferred to entrypoint.sh');
     } catch (e) {
-      debug('Git push failed:', e.stderr?.toString() || e.message);
-      fatal('Git push failed: ' + (e.stderr?.toString()?.split('\n')[0] || e.message));
+      debug('Git commit failed:', e.stderr?.toString() || e.message);
+      fatal('Git commit failed: ' + (e.stderr?.toString()?.split('\n')[0] || e.message));
     }
   }
 
-  // ─── Build static site + deploy to R2 ──────────────────────────────────────
-  const { execSync } = require('child_process');
-
-  // Run sync-config.js first (needed for both build and dev)
-  try {
-    execSync('node scripts/sync-config.js', {
-      cwd: rootDir,
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    debug('sync-config.js completed');
-  } catch (e) {
-    debug('sync-config.js failed:', e.stderr?.toString() || e.message);
-    fatal('Failed to sync site config: ' + (e.stderr?.toString() || e.message));
-  }
-
-  // Build static site (non-fatal — skip R2 if build fails)
-  let buildSuccess = false;
-  progress('Building static site...', 85);
-  try {
-    execSync('npx next build', {
-      cwd: rootDir,
-      env: { ...process.env, SITE_CONFIG: siteName },
-      stdio: ['ignore', 'pipe', 'pipe'],
-      timeout: 120000,
-    });
-    buildSuccess = true;
-    debug('next build completed successfully');
-  } catch (e) {
-    debug('next build failed (non-fatal):', e.stderr?.toString()?.slice(0, 500) || e.message);
-    emit('warning', { message: 'Static build failed, skipping deployment. Preview still available.' });
-  }
-
-  // Signal Worker to deploy (Worker does docker cp + R2 upload)
-  if (buildSuccess) {
-    emit('build-ready');
-  }
-
-  // ─── Start preview server ─────────────────────────────────────────────────
-
-  progress('Starting preview server...', 95);
-
-  // Find an available port (use env PORT or default 3456)
-  const port = process.env.PREVIEW_PORT || '3456';
-
-  // Start next dev for preview
-  const devServer = spawn('npx', ['next', 'dev', '--port', port], {
-    cwd: rootDir,
-    env: { ...process.env, SITE_CONFIG: siteName },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-
-  // Wait for "Ready" message from Next.js
-  const ready = await new Promise((resolve) => {
-    let started = false;
-    const timeout = setTimeout(() => {
-      if (!started) {
-        started = true;
-        // Even if we don't see "Ready", assume it might be working
-        resolve(true);
-      }
-    }, 30000);
-
-    devServer.stdout.on('data', (data) => {
-      const text = data.toString();
-      debug('[next dev stdout]', text.trim());
-      if (!started && (text.includes('Ready') || text.includes('started server') || text.includes('localhost'))) {
-        started = true;
-        clearTimeout(timeout);
-        resolve(true);
-      }
-    });
-
-    devServer.stderr.on('data', (data) => {
-      debug('[next dev stderr]', data.toString().trim());
-    });
-
-    devServer.on('error', (err) => {
-      if (!started) {
-        started = true;
-        clearTimeout(timeout);
-        debug('Failed to start next dev:', err.message);
-        resolve(false);
-      }
-    });
-
-    devServer.on('exit', (code) => {
-      if (!started) {
-        started = true;
-        clearTimeout(timeout);
-        debug('next dev exited with code', code);
-        resolve(false);
-      }
-    });
-  });
-
-  if (ready) {
-    emit('complete', { previewUrl: `http://localhost:${port}`, percent: 100 });
-  } else {
-    fatal('Failed to start preview server');
-  }
-
-  // Keep process alive while dev server is running
-  devServer.on('exit', () => process.exit(0));
+  // Done — entrypoint.sh handles sync-config + dev server startup
+  progress('Site generated, starting preview...', 85);
 }
 
 // ─── Reference Site Fetching ─────────────────────────────────────────────────
@@ -1026,7 +923,7 @@ CRITICAL RULES:
 - Service detail pages should NOT appear in the header nav — they go in the footer only.
 - Include a "service-related-pages" section on each service detail page with serviceSlug matching the service id.`;
 
-  const model = 'claude-sonnet-4-5-20250929';
+  const model = 'claude-sonnet-4-6';
 
   // $/M tokens by model family
   const MODEL_PRICING = {
@@ -1048,7 +945,7 @@ CRITICAL RULES:
   const call1Start = Date.now();
   const stream = await client.messages.stream({
     model,
-    max_tokens: 64000,
+    max_tokens: 32000,
     messages: [{ role: 'user', content: prompt }]
   });
 
@@ -1268,7 +1165,7 @@ CRITICAL RULES:
   const call2Start = Date.now();
   const stream = await client.messages.stream({
     model,
-    max_tokens: 64000,
+    max_tokens: 32000,
     messages: [{ role: 'user', content: prompt }],
   });
 
