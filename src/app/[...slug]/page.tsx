@@ -6,10 +6,6 @@ import { brand, seo, services, getNonHomePages, getPage } from '@/lib/config';
 
 const RESERVED_SLUGS = ['blog', '_next'];
 
-interface PageProps {
-  params: { slug: string[] };
-}
-
 export async function generateStaticParams() {
   const pages = getNonHomePages().filter(
     (p) => !RESERVED_SLUGS.some((r) => p.slug === r || p.slug.startsWith(r + '/'))
@@ -20,8 +16,9 @@ export async function generateStaticParams() {
   return pages.map((p) => ({ slug: p.slug.split('/') }));
 }
 
-export function generateMetadata({ params }: PageProps): Metadata {
-  const slug = params.slug.join('/');
+export async function generateMetadata({ params }: { params: Promise<{ slug: string[] }> }): Promise<Metadata> {
+  const { slug: slugArray } = await params;
+  const slug = slugArray.join('/');
   const page = getPage(slug);
   if (!page) return {};
 
@@ -39,8 +36,9 @@ export function generateMetadata({ params }: PageProps): Metadata {
   };
 }
 
-export default function DynamicPage({ params }: PageProps) {
-  const slug = params.slug.join('/');
+export default async function DynamicPage({ params }: { params: Promise<{ slug: string[] }> }) {
+  const { slug: slugArray } = await params;
+  const slug = slugArray.join('/');
   const page = getPage(slug);
   if (!page) redirect('/');
 

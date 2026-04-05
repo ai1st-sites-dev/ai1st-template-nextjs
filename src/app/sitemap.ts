@@ -1,6 +1,8 @@
 import { MetadataRoute } from 'next';
 import { seo, blogPosts, allPages } from '@/lib/config';
 
+export const dynamic = 'force-static';
+
 export default function sitemap(): MetadataRoute.Sitemap {
   const pages: MetadataRoute.Sitemap = allPages.map((page) => ({
     url: `${seo.domain}${page.slug === 'home' ? '' : `/${page.slug}`}`,

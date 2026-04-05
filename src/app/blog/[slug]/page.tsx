@@ -4,10 +4,6 @@ import { redirect } from 'next/navigation';
 import { ArticleJsonLd, BreadcrumbJsonLd } from '@/components/JsonLd';
 import { brand, seo, blogPosts } from '@/lib/config';
 
-interface BlogPostPageProps {
-  params: { slug: string };
-}
-
 export async function generateStaticParams() {
   if (blogPosts.length === 0) {
     // Next.js static export requires at least one param for dynamic routes.
@@ -17,8 +13,9 @@ export async function generateStaticParams() {
   return blogPosts.map((post) => ({ slug: post.slug }));
 }
 
-export function generateMetadata({ params }: BlogPostPageProps): Metadata {
-  const post = blogPosts.find((p) => p.slug === params.slug);
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const post = blogPosts.find((p) => p.slug === slug);
   if (!post) return {};
 
   return {
@@ -39,8 +36,9 @@ export function generateMetadata({ params }: BlogPostPageProps): Metadata {
   };
 }
 
-export default function BlogPostPage({ params }: BlogPostPageProps) {
-  const post = blogPosts.find((p) => p.slug === params.slug);
+export default async function BlogPostPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const post = blogPosts.find((p) => p.slug === slug);
   if (!post) redirect('/blog');
 
   return (
