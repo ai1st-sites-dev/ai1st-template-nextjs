@@ -12,6 +12,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
 const { execSync } = require('child_process');
 const Anthropic = require('@anthropic-ai/sdk');
 
@@ -37,6 +38,36 @@ function fatal(message) {
 console.log = () => {};
 console.warn = () => {};
 const debug = (...args) => process.stderr.write(args.join(' ') + '\n');
+
+// ─── Dev server health check ─────────────────────────────────────────────────
+
+/**
+ * HTTP GET the dev server root. Resolves with the status code, or 0 on error.
+ */
+function checkDevServer(port) {
+  return new Promise(resolve => {
+    const req = http.get(`http://localhost:${port}/`, res => {
+      res.resume(); // drain
+      resolve(res.statusCode);
+    });
+    req.on('error', () => resolve(0));
+    req.setTimeout(5000, () => { req.destroy(); resolve(0); });
+  });
+}
+
+/**
+ * Poll the dev server until it responds with < 500 (or timeout).
+ * Returns true if healthy, false if timed out.
+ */
+async function waitForDevServer(port, timeoutMs = 30000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const status = await checkDevServer(port);
+    if (status > 0 && status < 500) return true;
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  return false;
+}
 
 // ─── Read stdin ───────────────────────────────────────────────────────────────
 
@@ -310,6 +341,30 @@ async function main() {
           debug('sync-config.js sync complete');
         } catch (e) {
           debug(`sync-config.js sync error: ${e.message}`);
+        }
+
+        // Health check: wait for hot reload, then verify dev server isn't 500
+        const port = process.env.PREVIEW_PORT || '4000';
+        debug('Waiting 3s for hot reload...');
+        await new Promise(r => setTimeout(r, 3000));
+
+        const status = await checkDevServer(port);
+        debug(`Dev server health check: ${status}`);
+
+        if (status >= 500 || status === 0) {
+          emit('progress', { message: 'Dev server error detected, restarting...' });
+          debug('Dev server unhealthy, killing next dev to trigger restart...');
+          try {
+            execSync('pkill -f "next dev"', { stdio: 'pipe' });
+          } catch (e) {
+            // pkill returns non-zero if no process found — that's fine
+          }
+          const recovered = await waitForDevServer(port, 30000);
+          if (recovered) {
+            debug('Dev server recovered after restart');
+          } else {
+            debug('Dev server did not recover within 30s');
+          }
         }
 
         // Auto-save: git commit + push
