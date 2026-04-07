@@ -325,6 +325,7 @@ async function main() {
     onlinePresence = {},
     hours,
     priceRange,
+    uploadedImages = [],
   } = input;
 
   if (!siteName) fatal('siteName is required');
@@ -367,7 +368,7 @@ async function main() {
     companyName, industry, location, address, phone, email,
     services, usp, targetCustomers, brandDescription,
     theme, languageName, refSite, refPrefs, refAnalysis,
-    reviews, onlinePresence, hours, priceRange,
+    reviews, onlinePresence, hours, priceRange, uploadedImages,
   });
 
   progress('Writing base configuration files...', 50);
@@ -544,7 +545,7 @@ async function generateContent(opts) {
     companyName, industry, location, address, phone, email,
     services, usp, targetCustomers, brandDescription,
     theme, languageName, refSite, refPrefs = [], refAnalysis = null,
-    reviews = [], onlinePresence = {}, hours, priceRange,
+    reviews = [], onlinePresence = {}, hours, priceRange, uploadedImages = [],
   } = opts;
 
   const client = new Anthropic();
@@ -733,6 +734,25 @@ ${servicesList.length >= 3 ? `Generate an individual service detail page for EAC
 - Vary layouts and section variants across service detail pages — don't repeat the same structure
 - Write unique, detailed SEO content for each service` : `Skip service detail pages — only ${servicesList.length} service(s), not enough to warrant individual pages.`}`;
 
+  // Build uploaded images instruction
+  let imagesInstruction = '';
+  if (uploadedImages.length > 0) {
+    const imageList = uploadedImages.map((img, i) => `  ${i + 1}. "${img.filename}" → ${img.url}`).join('\n');
+    imagesInstruction = `
+UPLOADED BUSINESS IMAGES:
+The business owner has uploaded the following photos. Use them in sections that support imageUrl.
+${imageList}
+
+IMAGE PLACEMENT RULES:
+- "hero" (split variant): set imageUrl on the hero data to show the best/most general business photo
+- "content-split" (text-left, text-right, text-right-list variants): set imageUrl to show a relevant photo next to the text
+- "gallery": set imageUrl on individual items to show the photos in the gallery grid
+- Match images to sections by filename context (e.g., "storefront.jpg" → hero, "team.jpg" → about page content-split, "product1.jpg" → gallery item)
+- You may reuse the same image URL across multiple sections if it fits
+- If there are more sections than images, leave imageUrl unset (gradient placeholder will show)
+- Prefer "split" variant for hero when images are available`;
+  }
+
   progress('AI is writing content...', 15);
 
   const prompt = `You are an expert SEO copywriter AND web layout designer. Generate complete website content AND page layouts for a local service business. Return ONLY valid JSON, no markdown fences, no explanation.
@@ -748,6 +768,7 @@ ${businessContext}
 ${reviewsInstruction}
 ${socialLinksInstruction}
 ${refSiteInstruction}
+${imagesInstruction}
 ${pagesInstruction}
 
 AVAILABLE ICONS (pick the most relevant for each service):
@@ -757,8 +778,8 @@ AVAILABLE SECTION TYPES AND THEIR VARIANTS:
 You are a layout designer. For each page, you choose WHICH sections to include, in WHAT order, and with WHICH variant. Not every page needs every section. Mix it up based on what makes sense for this industry.
 
 HOMEPAGE SECTIONS (pick 7-10 from these, in any order):
-- "hero" — variants: "left" (headline left-aligned), "centered" (centered), "split" (two-column with gradient block), "minimal" (white bg, underline accent, single CTA), "video-style" (dark cinematic with play button), "gradient-overlay" (full gradient bg with decorative circles, white text)
-  data: { variant, headline, subheadline, ctaPrimary: {label, href}, ctaSecondary: {label, href} }
+- "hero" — variants: "left" (headline left-aligned), "centered" (centered), "split" (two-column with image/gradient block), "minimal" (white bg, underline accent, single CTA), "video-style" (dark cinematic with play button), "gradient-overlay" (full gradient bg with decorative circles, white text)
+  data: { variant, headline, subheadline, ctaPrimary: {label, href}, ctaSecondary: {label, href}, imageUrl?: string }
 - "announcement-bar" — variants: "solid" (accent bg), "bordered" (white bg, accent border), "dismissible" (with close button), "floating" (centered pill with shadow)
   data: { message, link?: {label, href}, variant }
 - "trusted-brands" — variants: "default" (text logos), "pill" (rounded pill badges), "dark" (dark bg)
@@ -770,8 +791,8 @@ HOMEPAGE SECTIONS (pick 7-10 from these, in any order):
   NOTE: This section auto-renders services from services.json. Only provide headline/subheadline.
 - "values-grid" — style: "numbered", "checkmark", "icon" (decorative SVG icons), "highlight" (first item large), "minimal" (no cards, divider lines)
   data: { headline, items: [{title, description}], style }
-- "content-split" — variants: "text-left" (text left, gradient right), "text-right" (flipped), "text-left-stats" (text left, stats box right), "text-right-list" (gradient left, checklist right), "centered-overlay" (full-width gradient with white card), "cards-row" (headline above, 3 cards below using bullets as titles)
-  data: { headline, content, bullets?: [string], stats?: [{value, label}], variant }
+- "content-split" — variants: "text-left" (text left, image/gradient right), "text-right" (flipped), "text-left-stats" (text left, stats box right), "text-right-list" (image/gradient left, checklist right), "centered-overlay" (full-width gradient with white card), "cards-row" (headline above, 3 cards below using bullets as titles)
+  data: { headline, content, bullets?: [string], stats?: [{value, label}], variant, imageUrl?: string }
 - "benefits-list" — variants: "alternating" (zigzag text+gradient), "icon-large" (oversized icons), "numbered-large" (big faded numbers), "cards-horizontal" (horizontal scroll cards)
   data: { headline, subheadline?, items: [{title, description}], variant }
 - "process-steps" — variants: "horizontal" (4 cols with connector), "vertical" (timeline), "cards" (standalone cards with watermark numbers), "zigzag" (alternating left-right with center line), "icon-strip" (compact horizontal strip, titles only)
@@ -786,8 +807,8 @@ HOMEPAGE SECTIONS (pick 7-10 from these, in any order):
   data: { headline, subheadline?, items: [{question, answer}], variant }
 - "pricing-table" — variants: "cards" (standalone cards), "comparison" (side-by-side columns), "minimal" (no cards, text-link CTAs), "toggle" (monthly/annual toggle)
   data: { headline, subheadline?, tiers: [{name, price, description, features:[], highlighted?:bool}], variant }
-- "gallery" — variants: "grid" (equal cards), "masonry" (varied heights), "carousel" (horizontal scrollable), "overlay" (gradient bg with text overlay)
-  data: { headline, subheadline?, items: [{title, description?, category?}], variant }
+- "gallery" — variants: "grid" (equal cards), "masonry" (varied heights), "carousel" (horizontal scrollable), "overlay" (image/gradient bg with text overlay)
+  data: { headline, subheadline?, items: [{title, description?, category?, imageUrl?: string}], variant }
 - "team-grid" — variants: "grid" (large cards with bio), "compact" (small inline cards), "card-with-social" (cards with gradient header + social icons), "centered" (single column centered)
   data: { headline, subheadline?, members: [{name, role, bio?}], variant }
 - "logo-carousel" — variants: "scroll" (animated marquee), "grid" (static grid), "bordered" (cards with accent bottom border), "dark" (dark bg)
@@ -914,7 +935,7 @@ CRITICAL RULES:
 - For the SERVICES page cta-banner, choose a variant other than "solid" — try "gradient", "split", or "dark".
 - Generate 6-8 services, 6 unique testimonials, 4-6 FAQ items, 3-4 process steps, 2-3 pricing tiers, 5-7 comparison features, 3-5 benefits, and 3-4 social proof badges/platforms if you use those sections.
 - For stats, use realistic numbers (e.g., "500+", "15+", "98%", "24/7").
-- For gallery items, use project/work descriptions (no actual images — the component renders gradient placeholders).
+- For gallery items, use project/work descriptions. If uploaded images are available, set imageUrl on items; otherwise the component renders gradient placeholders.
 - All meta titles under 60 characters, all meta descriptions under 155 characters.
 - Use specific language, not generic fluff. Testimonials should mention the company name.
 - Include location names naturally in content.

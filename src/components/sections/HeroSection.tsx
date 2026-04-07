@@ -7,6 +7,7 @@ interface HeroSectionProps {
     ctaPrimary: { label: string; href: string };
     ctaSecondary: { label: string; href: string };
     variant?: 'left' | 'centered' | 'split' | 'minimal' | 'video-style' | 'gradient-overlay';
+    imageUrl?: string;
   };
 }
 
@@ -36,7 +37,11 @@ export default function HeroSection({ data }: HeroSectionProps) {
               </div>
             </div>
             <div className="flex items-center justify-center">
-              <div className="aspect-square w-full max-w-lg rounded-2xl bg-gradient-to-br from-primary-200 to-accent-200" />
+              {data.imageUrl ? (
+                <img src={data.imageUrl} alt={data.headline} className="aspect-square w-full max-w-lg rounded-2xl object-cover" />
+              ) : (
+                <div className="aspect-square w-full max-w-lg rounded-2xl bg-gradient-to-br from-primary-200 to-accent-200" />
+              )}
             </div>
           </div>
         </div>

@@ -6,6 +6,7 @@ interface GalleryItem {
   title: string;
   description?: string;
   category?: string;
+  imageUrl?: string;
 }
 
 interface GallerySectionProps {
@@ -84,7 +85,11 @@ export default function GallerySection({ data }: GallerySectionProps) {
                 key={index}
                 className="min-w-[300px] flex-shrink-0 snap-center overflow-hidden rounded-xl bg-white shadow-sm"
               >
-                <div className={`bg-gradient-to-br ${colors[index % colors.length]} h-48`} />
+                {item.imageUrl ? (
+                  <img src={item.imageUrl} alt={item.title} className="h-48 w-full object-cover" />
+                ) : (
+                  <div className={`bg-gradient-to-br ${colors[index % colors.length]} h-48`} />
+                )}
                 <div className="p-5">
                   {item.category && (
                     <span className="mb-2 inline-block rounded-full bg-primary-50 px-3 py-1 text-xs font-medium text-primary-700">
@@ -120,8 +125,11 @@ export default function GallerySection({ data }: GallerySectionProps) {
             {data.items.map((item, index) => (
               <div
                 key={index}
-                className={`relative h-64 overflow-hidden rounded-2xl bg-gradient-to-br ${colors[index % colors.length]}`}
+                className={`relative h-64 overflow-hidden rounded-2xl ${item.imageUrl ? '' : `bg-gradient-to-br ${colors[index % colors.length]}`}`}
               >
+                {item.imageUrl && (
+                  <img src={item.imageUrl} alt={item.title} className="absolute inset-0 h-full w-full object-cover" />
+                )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                 <div className="absolute bottom-0 p-6">
                   {item.category && (
@@ -159,16 +167,22 @@ export default function GallerySection({ data }: GallerySectionProps) {
               const heights = ['h-48', 'h-64', 'h-56', 'h-72', 'h-52', 'h-60'];
               return (
                 <div key={index} className="mb-6 break-inside-avoid overflow-hidden rounded-xl">
-                  <div className={`bg-gradient-to-br ${colors[index % colors.length]} ${heights[index % heights.length]} flex items-end p-6`}>
-                    <div>
+                  <div className={`${item.imageUrl ? '' : `bg-gradient-to-br ${colors[index % colors.length]}`} ${heights[index % heights.length]} relative flex items-end p-6`}>
+                    {item.imageUrl && (
+                      <>
+                        <img src={item.imageUrl} alt={item.title} className="absolute inset-0 h-full w-full object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+                      </>
+                    )}
+                    <div className="relative">
                       {item.category && (
-                        <span className="mb-2 inline-block rounded-full bg-white/80 px-3 py-1 text-xs font-medium text-gray-700">
+                        <span className={`mb-2 inline-block rounded-full px-3 py-1 text-xs font-medium ${item.imageUrl ? 'bg-white/20 text-white' : 'bg-white/80 text-gray-700'}`}>
                           {item.category}
                         </span>
                       )}
-                      <h3 className="text-lg font-semibold text-gray-900">{item.title}</h3>
+                      <h3 className={`text-lg font-semibold ${item.imageUrl ? 'text-white' : 'text-gray-900'}`}>{item.title}</h3>
                       {item.description && (
-                        <p className="mt-1 text-sm text-gray-700">{item.description}</p>
+                        <p className={`mt-1 text-sm ${item.imageUrl ? 'text-white/80' : 'text-gray-700'}`}>{item.description}</p>
                       )}
                     </div>
                   </div>
@@ -195,7 +209,11 @@ export default function GallerySection({ data }: GallerySectionProps) {
         <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {data.items.map((item, index) => (
             <div key={index} className="group overflow-hidden rounded-xl bg-white shadow-sm transition-shadow hover:shadow-md">
-              <div className={`bg-gradient-to-br ${colors[index % colors.length]} h-48`} />
+              {item.imageUrl ? (
+                <img src={item.imageUrl} alt={item.title} className="h-48 w-full object-cover" />
+              ) : (
+                <div className={`bg-gradient-to-br ${colors[index % colors.length]} h-48`} />
+              )}
               <div className="p-6">
                 {item.category && (
                   <span className="mb-2 inline-block rounded-full bg-primary-50 px-3 py-1 text-xs font-medium text-primary-700">

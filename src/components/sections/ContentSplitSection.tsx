@@ -5,6 +5,7 @@ interface ContentSplitSectionProps {
     bullets?: string[];
     stats?: { value: string; label: string }[];
     variant?: 'text-left' | 'text-right' | 'text-left-stats' | 'text-right-list' | 'centered-overlay' | 'cards-row';
+    imageUrl?: string;
   };
 }
 
@@ -33,7 +34,11 @@ export default function ContentSplitSection({ data }: ContentSplitSectionProps) 
               </p>
             </div>
             <div className="lg:order-1">
-              <div className="h-80 rounded-2xl bg-gradient-to-br from-primary-100 to-accent-100" aria-hidden="true" />
+              {data.imageUrl ? (
+                <img src={data.imageUrl} alt={data.headline} className="h-80 w-full rounded-2xl object-cover" />
+              ) : (
+                <div className="h-80 rounded-2xl bg-gradient-to-br from-primary-100 to-accent-100" aria-hidden="true" />
+              )}
             </div>
           </div>
         </div>
@@ -78,7 +83,11 @@ export default function ContentSplitSection({ data }: ContentSplitSectionProps) 
         <div className="container-width">
           <div className="grid items-center gap-12 lg:grid-cols-2">
             <div>
-              <div className="h-80 rounded-2xl bg-gradient-to-br from-primary-100 to-accent-100" aria-hidden="true" />
+              {data.imageUrl ? (
+                <img src={data.imageUrl} alt={data.headline} className="h-80 w-full rounded-2xl object-cover" />
+              ) : (
+                <div className="h-80 rounded-2xl bg-gradient-to-br from-primary-100 to-accent-100" aria-hidden="true" />
+              )}
             </div>
             <div>
               <h2 id="content-split-heading" className="text-3xl font-bold text-gray-900">
@@ -190,7 +199,11 @@ export default function ContentSplitSection({ data }: ContentSplitSectionProps) 
             </p>
           </div>
           <div>
-            <div className="h-80 rounded-2xl bg-gradient-to-br from-primary-100 to-accent-100" aria-hidden="true" />
+            {data.imageUrl ? (
+              <img src={data.imageUrl} alt={data.headline} className="h-80 w-full rounded-2xl object-cover" />
+            ) : (
+              <div className="h-80 rounded-2xl bg-gradient-to-br from-primary-100 to-accent-100" aria-hidden="true" />
+            )}
           </div>
         </div>
       </div>
