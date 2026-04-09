@@ -6,7 +6,7 @@
  * Reads JSON config from stdin, generates a website using Claude API,
  * outputs JSON lines progress events to stdout, then starts next dev for preview.
  *
- * Usage: echo '{"siteName":"test",...}' | ANTHROPIC_API_KEY=xxx node scripts/create-site.js
+ * Usage: echo '{"siteId":"a1b2c3d4",...}' | ANTHROPIC_API_KEY=xxx node scripts/create-site.js
  */
 
 const fs = require('fs');
@@ -324,7 +324,7 @@ async function main() {
   }
 
   const {
-    siteName,
+    siteId,
     companyName,
     industry,
     location,
@@ -353,7 +353,7 @@ async function main() {
   if (input.model) { model = input.model; pricing = getModelPricing(model); }
   if (input.maxTokens) maxTokens = parseInt(input.maxTokens, 10) || maxTokens;
 
-  if (!siteName) fatal('siteName is required');
+  if (!siteId) fatal('siteId is required');
   if (!companyName) fatal('companyName is required');
   if (!industry) fatal('industry is required');
 
@@ -493,7 +493,7 @@ async function main() {
     try {
       const gitOpts = { cwd: rootDir, stdio: 'pipe' };
       execSync('git add site/', gitOpts);
-      execSync(`git commit -m "Generate site: ${siteName}"`, gitOpts);
+      execSync(`git commit -m "Generate site: ${siteId}"`, gitOpts);
       const repoPageUrl = repoUrl.replace(/\.git$/, '');
       emit('repo', { url: repoPageUrl });
       debug('Committed site config, push deferred to entrypoint.sh');

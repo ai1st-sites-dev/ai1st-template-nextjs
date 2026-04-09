@@ -3,11 +3,11 @@
 /**
  * edit-site.js — AI chat editing via Claude tool_use
  *
- * Reads JSON input from stdin (siteName, message, conversationHistory),
+ * Reads JSON input from stdin (siteId, message, conversationHistory),
  * uses Claude tool_use to read/write site config files,
  * then syncs changes via sync-config.js for HMR preview refresh.
  *
- * Usage: echo '{"siteName":"test","message":"Change hero title"}' | ANTHROPIC_API_KEY=xxx node scripts/edit-site.js
+ * Usage: echo '{"siteId":"a1b2c3d4","message":"Change hero title"}' | ANTHROPIC_API_KEY=xxx node scripts/edit-site.js
  */
 
 const fs = require('fs');
@@ -232,11 +232,11 @@ async function main() {
     fatal('Failed to read input: ' + e.message);
   }
 
-  const { siteName, message, conversationHistory = [] } = input;
+  const { siteId, message, conversationHistory = [] } = input;
   const configModel = input.model || 'claude-sonnet-4-6';
   const configMaxTokens = parseInt(input.maxTokens, 10) || 8192;
 
-  if (!siteName) fatal('siteName is required');
+  if (!siteId) fatal('siteId is required');
   if (!message) fatal('message is required');
   if (!process.env.ANTHROPIC_API_KEY) fatal('ANTHROPIC_API_KEY is required');
 
