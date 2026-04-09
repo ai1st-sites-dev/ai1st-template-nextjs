@@ -14,6 +14,26 @@ const path = require('path');
 const { execSync } = require('child_process');
 const Anthropic = require('@anthropic-ai/sdk');
 
+// ─── AI Model Config ─────────────────────────────────────────────────────────
+
+let model = 'claude-sonnet-4-6';
+let maxTokens = 32000;
+
+const MODEL_PRICING = {
+  'claude-opus-4':   { input: 15, output: 75 },
+  'claude-sonnet-4': { input: 3,  output: 15 },
+  'claude-haiku-4':  { input: 0.80, output: 4 },
+};
+
+function getModelPricing(modelId) {
+  for (const [prefix, pricing] of Object.entries(MODEL_PRICING)) {
+    if (modelId.startsWith(prefix)) return pricing;
+  }
+  return { input: 3, output: 15 };
+}
+
+let pricing = getModelPricing(model);
+
 // ─── Emit structured events to stdout ─────────────────────────────────────────
 
 const startTime = Date.now();
@@ -326,7 +346,12 @@ async function main() {
     hours,
     priceRange,
     uploadedImages = [],
+    logoUrl = '',
   } = input;
+
+  // Override AI model/tokens from Admin Settings (passed through by Manager)
+  if (input.model) { model = input.model; pricing = getModelPricing(model); }
+  if (input.maxTokens) maxTokens = parseInt(input.maxTokens, 10) || maxTokens;
 
   if (!siteName) fatal('siteName is required');
   if (!companyName) fatal('companyName is required');
@@ -944,29 +969,13 @@ CRITICAL RULES:
 - Service detail pages should NOT appear in the header nav — they go in the footer only.
 - Include a "service-related-pages" section on each service detail page with serviceSlug matching the service id.`;
 
-  const model = 'claude-sonnet-4-6';
-
-  // $/M tokens by model family
-  const MODEL_PRICING = {
-    'claude-opus-4':   { input: 15, output: 75 },
-    'claude-sonnet-4': { input: 3,  output: 15 },
-    'claude-haiku-4':  { input: 0.80, output: 4 },
-  };
-  function getModelPricing(modelId) {
-    for (const [prefix, pricing] of Object.entries(MODEL_PRICING)) {
-      if (modelId.startsWith(prefix)) return pricing;
-    }
-    return { input: 3, output: 15 };
-  }
-  const pricing = getModelPricing(model);
-
   emit('prompt', { name: 'Base Site', content: prompt });
   progress('AI is generating content and layout...', 25);
 
   const call1Start = Date.now();
   const stream = await client.messages.stream({
     model,
-    max_tokens: 32000,
+    max_tokens: maxTokens,
     messages: [{ role: 'user', content: prompt }]
   });
 
@@ -981,7 +990,7 @@ CRITICAL RULES:
   emit('cost', {
     api: 'create-site',
     cost: cost1,
-    duration: call1Duration + 's',
+    duration: Date.now() - call1Start,
     detail: `Base site (${usage1.input_tokens || 0} in / ${usage1.output_tokens || 0} out)`,
   });
   debug(`Call 1 cost: $${cost1.toFixed(4)} (${usage1.input_tokens} in / ${usage1.output_tokens} out)`);
@@ -1013,6 +1022,7 @@ CRITICAL RULES:
     name: companyName,
     tagline: ai.brand.tagline,
     logoIcon: ai.brand.logoIcon,
+    logoUrl: logoUrl || '',
     colors: theme.colors,
     fonts: theme.fonts,
     email: ai.brand.email || email || 'info@example.com',
@@ -1186,7 +1196,7 @@ CRITICAL RULES:
   const call2Start = Date.now();
   const stream = await client.messages.stream({
     model,
-    max_tokens: 32000,
+    max_tokens: maxTokens,
     messages: [{ role: 'user', content: prompt }],
   });
 
@@ -1199,7 +1209,7 @@ CRITICAL RULES:
   emit('cost', {
     api: 'create-site',
     cost: cost2,
-    duration: call2Duration + 's',
+    duration: Date.now() - call2Start,
     detail: `Keyword pages (${usage2.input_tokens || 0} in / ${usage2.output_tokens || 0} out)`,
   });
   debug(`Call 2 cost: $${cost2.toFixed(4)} (${usage2.input_tokens} in / ${usage2.output_tokens} out)`);

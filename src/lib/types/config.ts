@@ -20,6 +20,7 @@ export interface BrandConfig {
   name: string;
   tagline: string;
   logoIcon: string;
+  logoUrl?: string;
   colors: BrandColors;
   fonts: BrandFonts;
   email: string;

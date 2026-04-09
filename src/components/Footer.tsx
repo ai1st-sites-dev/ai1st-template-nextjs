@@ -33,10 +33,16 @@ export default function Footer() {
           {/* Company Info */}
           <div>
             <div className="mb-4 flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-500">
-                <ServiceIcon icon={brand.logoIcon} className="h-5 w-5 text-white" />
-              </div>
-              <span className="text-lg font-bold text-white">{brand.name}</span>
+              {brand.logoUrl ? (
+                <img src={brand.logoUrl} alt={brand.name} className="h-8 w-auto max-w-[140px] object-contain brightness-0 invert" />
+              ) : (
+                <>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-500">
+                    <ServiceIcon icon={brand.logoIcon} className="h-5 w-5 text-white" />
+                  </div>
+                  <span className="text-lg font-bold text-white">{brand.name}</span>
+                </>
+              )}
             </div>
             <p className="text-sm leading-relaxed">{footer.description}</p>
             {links.length > 0 && (

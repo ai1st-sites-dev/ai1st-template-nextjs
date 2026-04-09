@@ -233,6 +233,8 @@ async function main() {
   }
 
   const { siteName, message, conversationHistory = [] } = input;
+  const configModel = input.model || 'claude-sonnet-4-6';
+  const configMaxTokens = parseInt(input.maxTokens, 10) || 8192;
 
   if (!siteName) fatal('siteName is required');
   if (!message) fatal('message is required');
@@ -260,7 +262,7 @@ async function main() {
   let filesModified = false;
   let commitHash = '';
 
-  const model = 'claude-sonnet-4-5-20250929';
+  const model = configModel;
 
   // $/M tokens by model family
   const MODEL_PRICING = {
@@ -284,7 +286,7 @@ async function main() {
 
     const response = await client.messages.create({
       model,
-      max_tokens: 8192,
+      max_tokens: configMaxTokens,
       system: SYSTEM_PROMPT,
       tools,
       messages: currentMessages,
@@ -386,7 +388,7 @@ async function main() {
       // Emit cost
       const pricing = getModelPricing(model);
       const cost = ((totalInputTokens * pricing.input) + (totalOutputTokens * pricing.output)) / 1_000_000;
-      const duration = elapsed();
+      const duration = Date.now() - startTime;
       emit('cost', {
         api: 'edit-site',
         provider: 'Claude',

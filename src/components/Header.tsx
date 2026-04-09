@@ -13,10 +13,14 @@ export default function Header() {
     <header className="sticky top-0 z-50 bg-white shadow-sm">
       <nav className="container-width flex items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
         <Link href="/" className="flex items-center gap-2" aria-label={`${brand.name} - Home`}>
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-500">
-            <ServiceIcon icon={brand.logoIcon} className="h-6 w-6 text-white" />
-          </div>
-          <span className="text-xl font-bold text-primary-900">{brand.name}</span>
+          {brand.logoUrl ? (
+            <img src={brand.logoUrl} alt={brand.name} className="h-10 w-auto max-w-[160px] object-contain" />
+          ) : (
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-500">
+              <ServiceIcon icon={brand.logoIcon} className="h-6 w-6 text-white" />
+            </div>
+          )}
+          {!brand.logoUrl && <span className="text-xl font-bold text-primary-900">{brand.name}</span>}
         </Link>
 
         {/* Desktop Navigation */}
