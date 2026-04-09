@@ -393,7 +393,7 @@ async function main() {
     companyName, industry, location, address, phone, email,
     services, usp, targetCustomers, brandDescription,
     theme, languageName, refSite, refPrefs, refAnalysis,
-    reviews, onlinePresence, hours, priceRange, uploadedImages,
+    reviews, onlinePresence, hours, priceRange, uploadedImages, logoUrl,
   });
 
   progress('Writing base configuration files...', 50);
@@ -571,6 +571,7 @@ async function generateContent(opts) {
     services, usp, targetCustomers, brandDescription,
     theme, languageName, refSite, refPrefs = [], refAnalysis = null,
     reviews = [], onlinePresence = {}, hours, priceRange, uploadedImages = [],
+    logoUrl = '',
   } = opts;
 
   const client = new Anthropic();
@@ -1009,8 +1010,8 @@ CRITICAL RULES:
     ai = JSON.parse(jsonStr);
   } catch (e) {
     // Save raw response for debugging
-    const debugPath = path.join(siteDir, '_ai-response.txt');
-    fs.writeFileSync(debugPath, text);
+    const debugPath = path.join(__dirname, '..', 'site', '_ai-response.txt');
+    try { fs.writeFileSync(debugPath, text); } catch {}
     debug('Raw AI response saved to:', debugPath);
     fatal('Failed to parse AI response as JSON');
   }
@@ -1250,5 +1251,5 @@ CRITICAL RULES:
 // ─── Run ──────────────────────────────────────────────────────────────────────
 
 main().catch(err => {
-  fatal(err.message || String(err));
+  fatal(err.stack || err.message || String(err));
 });

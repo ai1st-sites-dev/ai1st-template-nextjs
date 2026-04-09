@@ -444,5 +444,5 @@ async function main() {
 // ─── Run ──────────────────────────────────────────────────────────────────────
 
 main().catch(err => {
-  fatal(err.message || String(err));
+  fatal(err.stack || err.message || String(err));
 });

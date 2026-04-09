@@ -8,7 +8,7 @@
     "prebuild": "node scripts/sync-config.js && node scripts/move-build-output.js backup",
     "build": "next build && node scripts/move-build-output.js restore",
     "start": "next start",
-    "create-site": "node scripts/create-site-cli.js"
+    "lint:scripts": "eslint scripts/create-site.js scripts/edit-site.js"
   },
   "keywords": [
     "security systems",
@@ -29,6 +29,7 @@
     "@types/node": "^25.2.3",
     "@types/react": "^19.2.14",
     "autoprefixer": "^10.4.24",
+    "eslint": "^8.57.1",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.19",
     "typescript": "^5.9.3"
