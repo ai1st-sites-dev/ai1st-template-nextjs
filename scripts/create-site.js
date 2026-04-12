@@ -554,6 +554,8 @@ function getDemoConfig(siteId) {
       email: 'hello@demo.com',
       locations: [{ label: 'Main Office', address: '123 Demo Street, Toronto, ON', phone: '416-555-0000' }],
       socialLinks: {},
+      googleFormUrl: '',
+      googleFormEntries: { source: '', services: '', propertyType: '', urgency: '' },
     },
     navigation: {
       header: {
@@ -579,7 +581,7 @@ function getDemoConfig(siteId) {
       siteDescription: 'Demo Company provides professional services in the Greater Toronto Area.',
       keywords: 'demo, services, toronto',
       verification: {},
-      schema: { areaServed: ['Toronto, ON'], addresses: [{ street: '123 Demo Street', city: 'Toronto', province: 'ON', postalCode: 'M5V 1A1', country: 'CA' }], openingHours: { weekdays: '9:00 AM - 5:00 PM', weekends: 'Closed' }, priceRange: '$$' },
+      schema: { areaServed: [{ type: 'City', name: 'Toronto, ON' }], addresses: [{ locality: 'Toronto', region: 'ON', country: 'CA' }], openingHours: { days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], opens: '09:00', closes: '17:00' }, priceRange: '$$', offerCatalogName: 'Demo Services' },
     },
     services: [
       { id: 'demo-service', name: 'Demo Service', shortDescription: 'Our core service offering.', fullDescription: 'We provide professional demo services to businesses of all sizes.', icon: 'lightbulb', features: ['Fast turnaround', 'Quality results', 'Affordable pricing'], products: [] },
