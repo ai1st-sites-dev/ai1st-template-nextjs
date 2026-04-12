@@ -357,12 +357,6 @@ async function main() {
   if (!companyName) fatal('companyName is required');
   if (!industry) fatal('industry is required');
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    fatal('ANTHROPIC_API_KEY environment variable is required');
-  }
-
-  progress('Setting up project...', 5);
-
   const rootDir = path.resolve(__dirname, '..');
   const siteDir = path.join(rootDir, 'site');
 
@@ -371,6 +365,35 @@ async function main() {
     fs.rmSync(siteDir, { recursive: true });
   }
   fs.mkdirSync(path.join(siteDir, 'pages'), { recursive: true });
+
+  // ── Skip AI mode: use demo config ──
+  if (input.skipAI) {
+    progress('Setting up demo site (no AI)...', 10);
+    const content = getDemoConfig(siteId);
+    writeSiteConfig(siteDir, content);
+    debug(`Demo site config written to site/`);
+    if (input.repoUrl) {
+      progress('Committing to git...', 80);
+      try {
+        const gitOpts = { cwd: rootDir, stdio: 'pipe' };
+        execSync('git add site/', gitOpts);
+        execSync(`git commit -m "Generate site: ${siteId} (demo)"`, gitOpts);
+        const repoPageUrl = input.repoUrl.replace(/\.git$/, '');
+        emit('repo', { url: repoPageUrl });
+      } catch (e) {
+        debug('Git commit failed:', e.stderr?.toString() || e.message);
+        fatal('Git commit failed: ' + (e.stderr?.toString()?.split('\n')[0] || e.message));
+      }
+    }
+    progress('Demo site generated, starting preview...', 85);
+    return;
+  }
+
+  if (!process.env.ANTHROPIC_API_KEY) {
+    fatal('ANTHROPIC_API_KEY environment variable is required');
+  }
+
+  progress('Setting up project...', 5);
 
   // Pick theme
   const themeName = (template && template !== 'ai' && themes[template]) ? template : pickThemeForIndustry(industry);
@@ -460,31 +483,7 @@ async function main() {
   }
 
   progress('Writing configuration files...', 70);
-
-  // Write config files
-  const configFiles = {
-    'brand.json': content.brand,
-    'navigation.json': content.navigation,
-    'seo.json': content.seo,
-    'services.json': content.services,
-  };
-
-  for (const [filename, data] of Object.entries(configFiles)) {
-    fs.writeFileSync(
-      path.join(siteDir, filename),
-      JSON.stringify(data, null, 2) + '\n'
-    );
-  }
-
-  // Write page files (supports nested slugs like "dog-grooming/dog-grooming-near-me")
-  for (const page of content.pages) {
-    const pagePath = path.join(siteDir, 'pages', `${page.slug}.json`);
-    fs.mkdirSync(path.dirname(pagePath), { recursive: true });
-    fs.writeFileSync(pagePath, JSON.stringify(page, null, 2) + '\n');
-  }
-
-  debug(`Site config written to site/`);
-  debug(`Pages: ${content.pages.map(p => p.slug).join(', ')}`);
+  writeSiteConfig(siteDir, content);
 
   // ─── Git Commit (push is handled async by entrypoint.sh after dev server starts) ─
   const { repoUrl } = input;
@@ -505,6 +504,118 @@ async function main() {
 
   // Done — entrypoint.sh handles sync-config + dev server startup
   progress('Site generated, starting preview...', 85);
+}
+
+// ─── Write Site Config Files ─────────────────────────────────────────────────
+
+function writeSiteConfig(siteDir, content) {
+  const configFiles = {
+    'brand.json': content.brand,
+    'navigation.json': content.navigation,
+    'seo.json': content.seo,
+    'services.json': content.services,
+  };
+
+  for (const [filename, data] of Object.entries(configFiles)) {
+    fs.writeFileSync(
+      path.join(siteDir, filename),
+      JSON.stringify(data, null, 2) + '\n'
+    );
+  }
+
+  for (const page of content.pages) {
+    const pagePath = path.join(siteDir, 'pages', `${page.slug}.json`);
+    fs.mkdirSync(path.dirname(pagePath), { recursive: true });
+    fs.writeFileSync(pagePath, JSON.stringify(page, null, 2) + '\n');
+  }
+
+  debug(`Site config written to site/`);
+  debug(`Pages: ${content.pages.map(p => p.slug).join(', ')}`);
+}
+
+// ─── Demo Config (No AI) ────────────────────────────────────────────────────
+
+function getDemoConfig(siteId) {
+  return {
+    brand: {
+      name: 'Demo Company',
+      tagline: 'Your trusted local business',
+      logoIcon: 'shield-check',
+      logoUrl: '',
+      colors: {
+        primary: { 50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a' },
+        accent: { 50: '#fefce8', 100: '#fef9c3', 200: '#fef08a', 300: '#fde047', 400: '#facc15', 500: '#eab308', 600: '#ca8a04' },
+      },
+      fonts: {
+        heading: ['Inter', 'sans-serif'],
+        body: ['Inter', 'sans-serif'],
+        googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
+      },
+      email: 'hello@demo.com',
+      locations: [{ label: 'Main Office', address: '123 Demo Street, Toronto, ON', phone: '416-555-0000' }],
+      socialLinks: {},
+    },
+    navigation: {
+      header: {
+        links: [
+          { label: 'Home', href: '/' },
+          { label: 'About', href: '/about' },
+          { label: 'Services', href: '/services' },
+        ],
+        cta: { label: 'Get a Quote', href: '/quote' },
+      },
+      footer: {
+        description: 'Demo Company — Your trusted local business.',
+        columns: [
+          { title: 'Quick Links', links: [{ label: 'Home', href: '/' }, { label: 'About', href: '/about' }, { label: 'Services', href: '/services' }] },
+        ],
+        copyright: `© ${new Date().getFullYear()} Demo Company. All rights reserved.`,
+      },
+    },
+    seo: {
+      domain: `https://${siteId}.xeoai.io`,
+      locale: 'en_CA',
+      siteTitle: 'Demo Company — Professional Services',
+      siteDescription: 'Demo Company provides professional services in the Greater Toronto Area.',
+      keywords: 'demo, services, toronto',
+      verification: {},
+      schema: { areaServed: ['Toronto, ON'], addresses: [{ street: '123 Demo Street', city: 'Toronto', province: 'ON', postalCode: 'M5V 1A1', country: 'CA' }], openingHours: { weekdays: '9:00 AM - 5:00 PM', weekends: 'Closed' }, priceRange: '$$' },
+    },
+    services: [
+      { id: 'demo-service', name: 'Demo Service', shortDescription: 'Our core service offering.', fullDescription: 'We provide professional demo services to businesses of all sizes.', icon: 'lightbulb', features: ['Fast turnaround', 'Quality results', 'Affordable pricing'], products: [] },
+    ],
+    pages: [
+      {
+        slug: 'home', title: 'Home', description: 'Welcome to Demo Company', navLabel: 'Home', navOrder: 0, changeFrequency: 'weekly', priority: 1,
+        sections: [
+          { type: 'hero', data: { variant: 'centered', headline: 'Welcome to Demo Company', subheadline: 'Your trusted local business partner', ctaPrimary: { label: 'Get Started', href: '/quote' }, ctaSecondary: { label: 'Learn More', href: '/about' } } },
+          { type: 'features-grid', data: { headline: 'Why Choose Us', features: [{ icon: 'shield-check', title: 'Trusted', description: 'Years of experience serving the community' }, { icon: 'lightbulb', title: 'Innovative', description: 'Modern solutions for modern problems' }, { icon: 'leaf', title: 'Sustainable', description: 'Eco-friendly practices in everything we do' }] } },
+          { type: 'cta-banner', data: { headline: 'Ready to get started?', description: 'Contact us today for a free consultation.', cta: { label: 'Contact Us', href: '/quote' } } },
+        ],
+      },
+      {
+        slug: 'about', title: 'About Us', description: 'Learn about Demo Company', navLabel: 'About', navOrder: 1, changeFrequency: 'monthly', priority: 0.8,
+        sections: [
+          { type: 'page-header', data: { title: 'About Us', description: 'Learn more about our company and mission' } },
+          { type: 'text-block', data: { content: '<h2>Our Story</h2><p>Demo Company was founded with a simple mission: to provide exceptional service to our community. We have been serving the Greater Toronto Area for years, building lasting relationships with our clients.</p><h2>Our Mission</h2><p>We are committed to delivering quality results with integrity and professionalism.</p>' } },
+        ],
+      },
+      {
+        slug: 'services', title: 'Our Services', description: 'Professional services by Demo Company', navLabel: 'Services', navOrder: 2, changeFrequency: 'monthly', priority: 0.8,
+        sections: [
+          { type: 'page-header', data: { title: 'Our Services', description: 'Discover what we can do for you' } },
+          { type: 'services-list', data: {} },
+        ],
+      },
+      {
+        slug: 'quote', title: 'Get a Quote', description: 'Request a free quote from Demo Company', navLabel: 'Get a Quote', navOrder: 3, changeFrequency: 'monthly', priority: 0.7,
+        sections: [
+          { type: 'page-header', data: { title: 'Get a Free Quote', description: 'Fill out the form below and we will get back to you within 24 hours' } },
+          { type: 'quote-form', data: {} },
+        ],
+      },
+    ],
+  };
 }
 
 // ─── Reference Site Fetching ─────────────────────────────────────────────────
