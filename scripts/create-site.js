@@ -589,29 +589,29 @@ function getDemoConfig(siteId) {
         slug: 'home', title: 'Home', description: 'Welcome to Demo Company', navLabel: 'Home', navOrder: 0, changeFrequency: 'weekly', priority: 1,
         sections: [
           { type: 'hero', data: { variant: 'centered', headline: 'Welcome to Demo Company', subheadline: 'Your trusted local business partner', ctaPrimary: { label: 'Get Started', href: '/quote' }, ctaSecondary: { label: 'Learn More', href: '/about' } } },
-          { type: 'features-grid', data: { headline: 'Why Choose Us', features: [{ icon: 'shield-check', title: 'Trusted', description: 'Years of experience serving the community' }, { icon: 'lightbulb', title: 'Innovative', description: 'Modern solutions for modern problems' }, { icon: 'leaf', title: 'Sustainable', description: 'Eco-friendly practices in everything we do' }] } },
-          { type: 'cta-banner', data: { headline: 'Ready to get started?', description: 'Contact us today for a free consultation.', cta: { label: 'Contact Us', href: '/quote' } } },
+          { type: 'features-grid', data: { headline: 'Why Choose Us', subheadline: 'What sets us apart from the rest' } },
+          { type: 'cta-banner', data: { headline: 'Ready to get started?', description: 'Contact us today for a free consultation.', button: { label: 'Contact Us', href: '/quote' } } },
         ],
       },
       {
         slug: 'about', title: 'About Us', description: 'Learn about Demo Company', navLabel: 'About', navOrder: 1, changeFrequency: 'monthly', priority: 0.8,
         sections: [
-          { type: 'page-header', data: { title: 'About Us', description: 'Learn more about our company and mission' } },
+          { type: 'page-header', data: { title: 'About Us', subtitle: 'Learn more about our company and mission' } },
           { type: 'text-block', data: { content: '<h2>Our Story</h2><p>Demo Company was founded with a simple mission: to provide exceptional service to our community. We have been serving the Greater Toronto Area for years, building lasting relationships with our clients.</p><h2>Our Mission</h2><p>We are committed to delivering quality results with integrity and professionalism.</p>' } },
         ],
       },
       {
         slug: 'services', title: 'Our Services', description: 'Professional services by Demo Company', navLabel: 'Services', navOrder: 2, changeFrequency: 'monthly', priority: 0.8,
         sections: [
-          { type: 'page-header', data: { title: 'Our Services', description: 'Discover what we can do for you' } },
+          { type: 'page-header', data: { title: 'Our Services', subtitle: 'Discover what we can do for you' } },
           { type: 'services-list', data: {} },
         ],
       },
       {
         slug: 'quote', title: 'Get a Quote', description: 'Request a free quote from Demo Company', navLabel: 'Get a Quote', navOrder: 3, changeFrequency: 'monthly', priority: 0.7,
         sections: [
-          { type: 'page-header', data: { title: 'Get a Free Quote', description: 'Fill out the form below and we will get back to you within 24 hours' } },
-          { type: 'quote-form', data: {} },
+          { type: 'page-header', data: { title: 'Get a Free Quote', subtitle: 'Fill out the form below and we will get back to you within 24 hours' } },
+          { type: 'quote-form', data: { formIntro: 'Tell us about your project and we will get back to you within 24 hours.', propertyTypes: ['Residential', 'Commercial', 'Other'], urgencyOptions: ['Not urgent', 'Within a week', 'ASAP'], benefits: ['Free consultation', 'No obligation', 'Fast response'], redirectMessage: 'Thank you! We will be in touch soon.', buttonText: 'Submit Request' } },
         ],
       },
     ],
