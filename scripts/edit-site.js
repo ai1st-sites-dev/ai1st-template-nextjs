@@ -51,7 +51,7 @@ function checkDevServer(port) {
       resolve(res.statusCode);
     });
     req.on('error', () => resolve(0));
-    req.setTimeout(5000, () => { req.destroy(); resolve(0); });
+    req.setTimeout(1000, () => { req.destroy(); resolve(0); });
   });
 }
 
@@ -345,13 +345,17 @@ async function main() {
           debug(`sync-config.js sync error: ${e.message}`);
         }
 
-        // Health check: wait for hot reload, then verify dev server isn't 500
+        // Health check: poll dev server until ready (replaces fixed 3s wait)
         const port = process.env.PREVIEW_PORT || '4000';
-        debug('Waiting 3s for hot reload...');
-        await new Promise(r => setTimeout(r, 3000));
-
-        const status = await checkDevServer(port);
-        debug(`Dev server health check: ${status}`);
+        debug('Polling dev server up to 5s for hot reload...');
+        const startWait = Date.now();
+        let status = 0;
+        while (Date.now() - startWait < 5000) {
+          status = await checkDevServer(port);
+          if (status === 200) break;
+          await new Promise(r => setTimeout(r, 200));
+        }
+        debug(`Dev server check after ${Date.now() - startWait}ms: ${status}`);
 
         if (status >= 500 || status === 0) {
           emit('progress', { message: 'Dev server error detected, restarting...' });
