@@ -1102,7 +1102,7 @@ CRITICAL RULES:
   const usage1 = response.usage || {};
   const cost1 = ((usage1.input_tokens || 0) * pricing.input + (usage1.output_tokens || 0) * pricing.output) / 1_000_000;
   emit('cost', {
-    api: 'create-site',
+    operation: 'create-site',
     cost: cost1,
     duration: Date.now() - call1Start,
     detail: `Base site (${usage1.input_tokens || 0} in / ${usage1.output_tokens || 0} out)`,
@@ -1321,7 +1321,7 @@ CRITICAL RULES:
   const usage2 = response.usage || {};
   const cost2 = ((usage2.input_tokens || 0) * pricing.input + (usage2.output_tokens || 0) * pricing.output) / 1_000_000;
   emit('cost', {
-    api: 'create-site',
+    operation: 'create-site',
     cost: cost2,
     duration: Date.now() - call2Start,
     detail: `Keyword pages (${usage2.input_tokens || 0} in / ${usage2.output_tokens || 0} out)`,

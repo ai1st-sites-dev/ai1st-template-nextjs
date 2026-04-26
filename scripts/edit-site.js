@@ -394,7 +394,7 @@ async function main() {
       const cost = ((totalInputTokens * pricing.input) + (totalOutputTokens * pricing.output)) / 1_000_000;
       const duration = Date.now() - startTime;
       emit('cost', {
-        api: 'edit-site',
+        operation: 'edit-site',
         provider: 'Claude',
         cost,
         detail: `Edit (${totalInputTokens} in / ${totalOutputTokens} out)`,
