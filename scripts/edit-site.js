@@ -232,7 +232,8 @@ async function main() {
     fatal('Failed to read input: ' + e.message);
   }
 
-  const { siteId, message, conversationHistory = [] } = input;
+  // TICKET-093: optional images attached by the user as multimodal content blocks.
+  const { siteId, message, conversationHistory = [], images = [] } = input;
   const configModel = input.model || 'claude-sonnet-4-6';
   const configMaxTokens = parseInt(input.maxTokens, 10) || 8192;
 
@@ -251,10 +252,18 @@ async function main() {
 
   const client = new Anthropic();
 
-  // Build messages: conversation history + current user message
+  // Build messages: conversation history + current user message.
+  // TICKET-093: when the user attaches images, send multimodal content blocks
+  // (text + url-source images) so Claude Sonnet can see them.
+  const userContent = images.length > 0
+    ? [
+        { type: 'text', text: message },
+        ...images.map(img => ({ type: 'image', source: { type: 'url', url: img.url } })),
+      ]
+    : message;
   const messages = [
     ...conversationHistory,
-    { role: 'user', content: message },
+    { role: 'user', content: userContent },
   ];
 
   let totalInputTokens = 0;
