@@ -876,7 +876,7 @@ ${servicesList.length >= 3 ? `Generate an individual service detail page for EAC
   // Build uploaded images instruction
   let imagesInstruction = '';
   if (uploadedImages.length > 0) {
-    const imageList = uploadedImages.map((img, i) => `  ${i + 1}. "${img.filename}" → ${img.url}`).join('\n');
+    const imageList = uploadedImages.map((img, i) => `  ${i + 1}. "${img.originalFilename || img.filename}" → ${img.url}`).join('\n');
     imagesInstruction = `
 UPLOADED BUSINESS IMAGES:
 The business owner has uploaded the following photos. Use them in sections that support imageUrl.
