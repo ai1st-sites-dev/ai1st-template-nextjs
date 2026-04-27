@@ -255,12 +255,29 @@ async function main() {
   // Build messages: conversation history + current user message.
   // TICKET-093: when the user attaches images, send multimodal content blocks
   // (text + url-source images) so Claude Sonnet can see them.
-  const userContent = images.length > 0
+  // TICKET-105: SVG is not supported by Anthropic Vision (only jpeg/png/gif/webp).
+  // Filter SVGs out of the vision blocks but tell the AI about them in the
+  // text prompt so it can mention the format limit to the user instead of
+  // silently dropping them.
+  const isSvg = (img) => {
+    const url = (img && img.url || '').toLowerCase();
+    return url.endsWith('.svg') || url.includes('image/svg');
+  };
+  const svgImages = images.filter(isSvg);
+  const visibleImages = images.filter(img => !isSvg(img));
+
+  let textPart = message;
+  if (svgImages.length > 0) {
+    const names = svgImages.map(img => img.originalFilename || img.url.split('/').pop()).join(', ');
+    textPart = `[System note: User attached ${svgImages.length} SVG file(s) (${names}). Anthropic vision API does not support SVG format. If the user wants visual analysis, suggest they convert to PNG/JPG/WEBP. The SVG file(s) can still be referenced by URL in site config.]\n\n${message}`;
+  }
+
+  const userContent = visibleImages.length > 0
     ? [
-        { type: 'text', text: message },
-        ...images.map(img => ({ type: 'image', source: { type: 'url', url: img.url } })),
+        { type: 'text', text: textPart },
+        ...visibleImages.map(img => ({ type: 'image', source: { type: 'url', url: img.url } })),
       ]
-    : message;
+    : textPart;
   const messages = [
     ...conversationHistory,
     { role: 'user', content: userContent },
