@@ -39,6 +39,34 @@ console.log = () => {};
 console.warn = () => {};
 const debug = (...args) => process.stderr.write(args.join(' ') + '\n');
 
+// TICKET-105 v2: provider-agnostic image-error classifier.
+// Returns a user-friendly string when the error looks like the AI provider
+// rejected an image format, or null when it's some other error (network,
+// auth, etc.) that should fall through to the existing error handler.
+function classifyVisionError(err, images) {
+  if (!images || images.length === 0) return null;
+
+  const errMsg = (err?.message || (err && err.toString && err.toString()) || '').toLowerCase();
+  const looksLikeImageError =
+    errMsg.includes('image') &&
+    (errMsg.includes('format') || errMsg.includes('unsupported') || errMsg.includes('invalid'));
+  if (!looksLikeImageError) return null;
+
+  // Heuristic list of formats commonly NOT supported by AI vision providers.
+  // Used only to give the user a helpful "which file?" hint — we do not
+  // hardcode this list as a filter, so a provider that adds support later
+  // automatically benefits with zero code change.
+  const suspectExts = /\.(svg|heic|avif|tiff?|raw|psd)$/i;
+  const suspectFiles = images
+    .filter(img => suspectExts.test(img.url || ''))
+    .map(img => img.originalFilename || (img.url || '').split('/').pop());
+
+  if (suspectFiles.length > 0) {
+    return `The AI vision model can't read one of your uploaded image formats (${suspectFiles.join(', ')}). Please convert to PNG, JPG, or WEBP and try again. The original file is still saved in your library and can be referenced in your site.`;
+  }
+  return `The AI vision model couldn't process one of the uploaded images. Please try a different format (PNG, JPG, or WEBP). Original error: ${err?.message || 'unknown'}`;
+}
+
 // ─── Dev server health check ─────────────────────────────────────────────────
 
 /**
@@ -255,29 +283,16 @@ async function main() {
   // Build messages: conversation history + current user message.
   // TICKET-093: when the user attaches images, send multimodal content blocks
   // (text + url-source images) so Claude Sonnet can see them.
-  // TICKET-105: SVG is not supported by Anthropic Vision (only jpeg/png/gif/webp).
-  // Filter SVGs out of the vision blocks but tell the AI about them in the
-  // text prompt so it can mention the format limit to the user instead of
-  // silently dropping them.
-  const isSvg = (img) => {
-    const url = (img && img.url || '').toLowerCase();
-    return url.endsWith('.svg') || url.includes('image/svg');
-  };
-  const svgImages = images.filter(isSvg);
-  const visibleImages = images.filter(img => !isSvg(img));
-
-  let textPart = message;
-  if (svgImages.length > 0) {
-    const names = svgImages.map(img => img.originalFilename || img.url.split('/').pop()).join(', ');
-    textPart = `[System note: User attached ${svgImages.length} SVG file(s) (${names}). Anthropic vision API does not support SVG format. If the user wants visual analysis, suggest they convert to PNG/JPG/WEBP. The SVG file(s) can still be referenced by URL in site config.]\n\n${message}`;
-  }
-
-  const userContent = visibleImages.length > 0
+  // TICKET-105 v2: do NOT filter formats here. Pass everything to the AI; if
+  // the provider can't handle a format we'll catch the error around the API
+  // call and surface a friendly message. Provider-agnostic — when we swap AI
+  // providers, this code Just Works without listing which formats they accept.
+  const userContent = images.length > 0
     ? [
-        { type: 'text', text: textPart },
-        ...visibleImages.map(img => ({ type: 'image', source: { type: 'url', url: img.url } })),
+        { type: 'text', text: message },
+        ...images.map(img => ({ type: 'image', source: { type: 'url', url: img.url } })),
       ]
-    : textPart;
+    : message;
   const messages = [
     ...conversationHistory,
     { role: 'user', content: userContent },
@@ -310,13 +325,31 @@ async function main() {
   for (let i = 0; i < maxIterations; i++) {
     debug(`Iteration ${i + 1}: sending ${currentMessages.length} messages`);
 
-    const response = await client.messages.create({
-      model,
-      max_tokens: configMaxTokens,
-      system: SYSTEM_PROMPT,
-      tools,
-      messages: currentMessages,
-    });
+    let response;
+    try {
+      response = await client.messages.create({
+        model,
+        max_tokens: configMaxTokens,
+        system: SYSTEM_PROMPT,
+        tools,
+        messages: currentMessages,
+      });
+    } catch (err) {
+      // TICKET-105 v2: catch image-format errors and surface a friendly message
+      // instead of leaking the raw provider stack trace. Provider-agnostic —
+      // we match on standard error vocabulary, not on hardcoded format names.
+      const friendly = classifyVisionError(err, images);
+      if (friendly) {
+        emit('edit-complete', {
+          message: friendly,
+          inputTokens: totalInputTokens,
+          outputTokens: totalOutputTokens,
+          cost: 0,
+        });
+        return;
+      }
+      throw err; // non-image error → existing error path (caught by main()'s outer handler)
+    }
 
     totalInputTokens += response.usage?.input_tokens || 0;
     totalOutputTokens += response.usage?.output_tokens || 0;
