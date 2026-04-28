@@ -322,18 +322,29 @@ async function main() {
   let currentMessages = messages;
   const maxIterations = 20;
 
+  // TICKET-099: in discuss mode, skip the tool-use loop entirely. The AI gets a
+  // chat-completion-only round (no tools, no read_file/edit_file capability)
+  // and we wrap its single response into the same edit-complete payload that
+  // the Manager / frontend already know how to handle. commitHash stays empty
+  // so 097 Revert button hides automatically and the cost comes out lower
+  // because there are no tool-use round-trips.
+  const mode = (input.mode === 'discuss') ? 'discuss' : 'edit';
+
   for (let i = 0; i < maxIterations; i++) {
-    debug(`Iteration ${i + 1}: sending ${currentMessages.length} messages`);
+    debug(`Iteration ${i + 1}: sending ${currentMessages.length} messages (mode=${mode})`);
 
     let response;
     try {
-      response = await client.messages.create({
+      const reqParams = {
         model,
         max_tokens: configMaxTokens,
         system: SYSTEM_PROMPT,
-        tools,
         messages: currentMessages,
-      });
+      };
+      if (mode === 'edit') {
+        reqParams.tools = tools;
+      }
+      response = await client.messages.create(reqParams);
     } catch (err) {
       // TICKET-105 v2: catch image-format errors and surface a friendly message
       // instead of leaking the raw provider stack trace. Provider-agnostic —
@@ -475,7 +486,10 @@ async function main() {
       // Runs in this same process, after edit-complete, so the user perceives
       // suggestions as a small additional latency (~1-2s) without delaying the
       // main response.
-      try {
+      // TICKET-099: skip suggestions in discuss mode — saves Haiku cost and
+      // matches the UI rule that chips don't appear during a discussion.
+      if (mode === 'edit') {
+       try {
         const suggestionsResp = await client.messages.create({
           model: 'claude-haiku-4-5',
           max_tokens: 300,
@@ -512,10 +526,11 @@ Each suggestion must be 6 words or fewer. No explanations, no markdown, no comme
         if (suggestions.length > 0) {
           emit('suggestions', { suggestions });
         }
-      } catch (sErr) {
+       } catch (sErr) {
         // PM boundary 6: failure is silent. Don't surface to user.
         debug(`[suggestions] failed: ${sErr.message || sErr}`);
-      }
+       }
+      } // end if (mode === 'edit') TICKET-099
       return;
     }
 
