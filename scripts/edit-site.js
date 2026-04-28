@@ -322,29 +322,18 @@ async function main() {
   let currentMessages = messages;
   const maxIterations = 20;
 
-  // TICKET-099: in discuss mode, skip the tool-use loop entirely. The AI gets a
-  // chat-completion-only round (no tools, no read_file/edit_file capability)
-  // and we wrap its single response into the same edit-complete payload that
-  // the Manager / frontend already know how to handle. commitHash stays empty
-  // so 097 Revert button hides automatically and the cost comes out lower
-  // because there are no tool-use round-trips.
-  const mode = (input.mode === 'discuss') ? 'discuss' : 'edit';
-
   for (let i = 0; i < maxIterations; i++) {
-    debug(`Iteration ${i + 1}: sending ${currentMessages.length} messages (mode=${mode})`);
+    debug(`Iteration ${i + 1}: sending ${currentMessages.length} messages`);
 
     let response;
     try {
-      const reqParams = {
+      response = await client.messages.create({
         model,
         max_tokens: configMaxTokens,
         system: SYSTEM_PROMPT,
         messages: currentMessages,
-      };
-      if (mode === 'edit') {
-        reqParams.tools = tools;
-      }
-      response = await client.messages.create(reqParams);
+        tools,
+      });
     } catch (err) {
       // TICKET-105 v2: catch image-format errors and surface a friendly message
       // instead of leaking the raw provider stack trace. Provider-agnostic —
@@ -479,58 +468,6 @@ async function main() {
         cost,
       });
       debug(`Edit complete: ${totalInputTokens} in / ${totalOutputTokens} out, cost $${cost.toFixed(4)}`);
-
-      // TICKET-098: after the main edit response is delivered (and the user is
-      // already looking at the assistant bubble), call Haiku to suggest 3-5
-      // follow-up actions. Failure is silent — the main edit isn't affected.
-      // Runs in this same process, after edit-complete, so the user perceives
-      // suggestions as a small additional latency (~1-2s) without delaying the
-      // main response.
-      // TICKET-099: skip suggestions in discuss mode — saves Haiku cost and
-      // matches the UI rule that chips don't appear during a discussion.
-      if (mode === 'edit') {
-       try {
-        const suggestionsResp = await client.messages.create({
-          model: 'claude-haiku-4-5',
-          max_tokens: 300,
-          messages: [{
-            role: 'user',
-            content: `You just helped edit a website. Suggest 3-5 short next steps the user might want to do.
-
-Last user request: "${message}"
-
-Output ONLY a JSON array of strings, like:
-["Add client reviews", "Enable email notifications", "Add FAQ section"]
-
-Each suggestion must be 6 words or fewer. No explanations, no markdown, no commentary — just the JSON array.`,
-          }],
-        });
-        const text = suggestionsResp.content.find(b => b.type === 'text')?.text || '[]';
-        const jsonMatch = text.match(/\[[\s\S]*\]/);
-        const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
-        const suggestions = Array.isArray(parsed)
-          ? parsed.filter(s => typeof s === 'string' && s.trim().length > 0).slice(0, 5)
-          : [];
-        // Emit cost for the haiku call so it lands in operation_runs (PM boundary 5).
-        const haikuPricing = getModelPricing('claude-haiku-4-5');
-        const haikuIn = suggestionsResp.usage?.input_tokens || 0;
-        const haikuOut = suggestionsResp.usage?.output_tokens || 0;
-        const haikuCost = ((haikuIn * haikuPricing.input) + (haikuOut * haikuPricing.output)) / 1_000_000;
-        emit('cost', {
-          operation: 'edit-site',
-          provider: 'Claude',
-          cost: haikuCost,
-          detail: `Suggestions (${haikuIn} in / ${haikuOut} out)`,
-          duration: 0,
-        });
-        if (suggestions.length > 0) {
-          emit('suggestions', { suggestions });
-        }
-       } catch (sErr) {
-        // PM boundary 6: failure is silent. Don't surface to user.
-        debug(`[suggestions] failed: ${sErr.message || sErr}`);
-       }
-      } // end if (mode === 'edit') TICKET-099
       return;
     }
 
