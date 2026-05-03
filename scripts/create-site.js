@@ -357,6 +357,19 @@ async function main() {
   if (!companyName) fatal('companyName is required');
   if (!industry) fatal('industry is required');
 
+  // TICKET-118 regression guard: if refPrefs were sent but refAnalysis is empty
+  // shape, the dashboard/manager API contract is likely broken again.
+  if (refPrefs.length > 0 && refAnalysis) {
+    const checks = ['primaryColor', 'sections', 'navLinks'];
+    const missing = checks.filter(k => {
+      const v = refAnalysis[k];
+      return v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0);
+    });
+    if (missing.length === checks.length) {
+      debug(`⚠️ refAnalysis received but all key fields missing (${missing.join(', ')}). Likely a shape mismatch — check dashboard/manager API contract.`);
+    }
+  }
+
   const rootDir = path.resolve(__dirname, '..');
   const siteDir = path.join(rootDir, 'site');
 
