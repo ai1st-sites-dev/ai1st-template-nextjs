@@ -13,6 +13,7 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 const Anthropic = require('@anthropic-ai/sdk');
+const { parseRefSections } = require('./ref-section-mapping');
 
 // ─── AI Model Config ─────────────────────────────────────────────────────────
 
@@ -432,6 +433,22 @@ async function main() {
     reviews, onlinePresence, hours, priceRange, uploadedImages, logoUrl,
   });
 
+  // TICKET-119: Layout hard-copy compliance check
+  if (refPrefs.includes('layout') && refAnalysis && refAnalysis.sections && Array.isArray(content?.pages)) {
+    const expected = parseRefSections(refAnalysis.sections);
+    const homePage = content.pages.find(p => p.slug === 'home');
+    if (homePage && Array.isArray(homePage.sections) && expected.length > 0) {
+      const actual = homePage.sections.map(s => s.type);
+      const lenMismatch = actual.length !== expected.length;
+      const typeMismatch = expected.filter((t, i) => actual[i] !== t).length;
+      if (lenMismatch || typeMismatch > 0) {
+        debug(`⚠️ [layout hard-copy] Claude deviated from mapped reference layout. Expected ${expected.length} sections [${expected.join(', ')}], got ${actual.length} [${actual.join(', ')}]. Mismatched: ${typeMismatch}.`);
+      } else {
+        debug(`[layout hard-copy] ✓ Claude followed reference layout exactly (${expected.length} sections).`);
+      }
+    }
+  }
+
   progress('Writing base configuration files...', 50);
 
   // ── Call 2: Generate keyword pages (if any keywords selected) ──
@@ -811,10 +828,22 @@ ${refAnalysis.accentColor ? `Use ${refAnalysis.accentColor} as the basis for the
 Do NOT ignore these colors. The generated site MUST use a color scheme matching this reference.`;
         }
         if (refPrefs.includes('layout') && refAnalysis.sections) {
-          designInstruction += `
-REFERENCE SITE LAYOUT (for inspiration):
-Sections observed: ${refAnalysis.sections}
-Draw inspiration from this layout — adopt section types and ordering that work well for a ${industry} business, but adapt freely. You are not limited to copying this layout exactly.`;
+          // TICKET-119: hard-copy layout via mapped reference sections
+          const mappedSections = parseRefSections(refAnalysis.sections);
+          if (mappedSections.length > 0) {
+            designInstruction += `
+REFERENCE SITE LAYOUT (HARD COPY — MUST FOLLOW EXACTLY):
+The HOME page sections array MUST be EXACTLY these ${mappedSections.length} types in EXACTLY this order:
+${mappedSections.map((t, i) => `${i + 1}. ${t}`).join('\n')}
+
+Generate appropriate "data" payload for each section based on the ${companyName}'s ${industry} business. Do NOT add sections. Do NOT remove sections. Do NOT reorder.
+
+This OVERRIDES the general "Choose 7-10 sections" rule for the home page when reference layout is provided.
+
+Reference site original observation: ${refAnalysis.sections}
+`;
+            debug(`[layout hard-copy] Reference layout mapped to ${mappedSections.length} types: ${mappedSections.join(', ')}`);
+          }
         }
         if (refPrefs.includes('structure') && refAnalysis.navLinks && refAnalysis.navLinks.length > 0) {
           designInstruction += `
