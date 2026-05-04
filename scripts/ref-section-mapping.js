@@ -60,6 +60,7 @@ const REF_SECTION_MAPPING = {
   'who-we-are': 'content-split',
   'mission': 'content-split',
   'quote-banner': 'text-block',
+  'quote': 'text-block',
   'banner': 'text-block',
   'tagline': 'text-block',
   'intro': 'text-block',
@@ -78,6 +79,7 @@ const REF_SECTION_MAPPING = {
   'product-grid': 'features-grid',
   'locations': 'map-area',
   'locations-grid': 'map-area',
+  'locations-carousel': 'map-area',
   'location': 'map-area',
   'find-us': 'map-area',
   'reviews': 'testimonials',
@@ -135,7 +137,11 @@ function mapRefSection(refName) {
 
 function parseRefSections(sectionsStr) {
   if (!sectionsStr || typeof sectionsStr !== 'string') return [];
-  return sectionsStr
+  // Strip paren-wrapped descriptions BEFORE splitting on comma — Gemini sometimes
+  // puts ", " inside parens (e.g. "services-list (two-column with prices, image on right)")
+  // which would otherwise mis-split a single section into two fragments.
+  const stripped = sectionsStr.replace(/\s*\([^)]*\)\s*/g, ' ');
+  return stripped
     .split(',')
     .map(s => mapRefSection(s))
     .filter(s => s !== null && s !== undefined);
