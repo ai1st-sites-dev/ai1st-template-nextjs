@@ -147,4 +147,89 @@ function parseRefSections(sectionsStr) {
     .filter(s => s !== null && s !== undefined);
 }
 
-module.exports = { REF_SECTION_MAPPING, mapRefSection, parseRefSections, normalizeRefName };
+// ─── TICKET-120: Reference nav → page archetype mapping ──────────────────────
+//
+// Maps reference site navigation labels (Gemini-extracted) to our page slug
+// archetypes. Used by create-site.js when refPrefs.includes('structure') to
+// hard-copy the reference site's header navigation.
+
+const REF_NAV_MAPPING = {
+  // Home is auto-rendered by template, never a header nav archetype
+  'home': null,
+
+  // Direct slug match
+  'about': 'about',
+  'about-us': 'about',
+  'who-we-are': 'about',
+  'services': 'services',
+  'service': 'services',
+  'gallery': 'gallery',
+  'menu': 'menu',
+  'team': 'team',
+  'staff': 'team',
+  'our-team': 'team',
+  'faq': 'faq',
+  'faqs': 'faq',
+  'process': 'process',
+  'how-it-works': 'process',
+  'testimonials': 'testimonials',
+  'reviews': 'testimonials',
+
+  // Pricing variants
+  'price': 'pricing',
+  'pricing': 'pricing',
+  'prices': 'pricing',
+  'rates': 'pricing',
+  'plans': 'pricing',
+
+  // Contact variants → quote page (existing quote-form section archetype)
+  'contact': 'quote',
+  'contact-us': 'quote',
+  'get-in-touch': 'quote',
+  'book': 'quote',
+  'booking': 'quote',
+  'book-appointment': 'quote',
+  'book-now': 'quote',
+  'quote': 'quote',
+  'get-a-quote': 'quote',
+
+  // Portfolio / case studies
+  'projects': 'case-studies',
+  'work': 'case-studies',
+  'portfolio': 'case-studies',
+  'case-studies': 'case-studies',
+  'our-work': 'case-studies',
+
+  // Skipped — independent routes / not-an-archetype
+  'blog': null,
+  'news': null,
+  'login': null,
+  'sign-in': null,
+  'sign-up': null,
+};
+
+function mapRefNav(navName) {
+  const normalized = normalizeRefName(navName);
+  if (!normalized) return null;
+  if (Object.prototype.hasOwnProperty.call(REF_NAV_MAPPING, normalized)) {
+    return REF_NAV_MAPPING[normalized];
+  }
+  // Unknown nav names: skip (safer than inventing a slug — keep header nav clean)
+  return null;
+}
+
+function parseRefNavLinks(navLinks) {
+  // Manager Go struct guarantees navLinks is string[] (or undefined)
+  if (!Array.isArray(navLinks)) return [];
+  return navLinks.map(n => mapRefNav(n)).filter(Boolean);
+}
+
+module.exports = {
+  REF_SECTION_MAPPING,
+  REF_NAV_MAPPING,
+  mapRefSection,
+  mapRefNav,
+  parseRefSections,
+  parseRefNavLinks,
+  normalizeRefName,
+};

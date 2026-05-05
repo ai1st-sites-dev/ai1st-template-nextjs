@@ -13,7 +13,7 @@ const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 const Anthropic = require('@anthropic-ai/sdk');
-const { parseRefSections } = require('./ref-section-mapping');
+const { parseRefSections, parseRefNavLinks } = require('./ref-section-mapping');
 
 // ─── AI Model Config ─────────────────────────────────────────────────────────
 
@@ -449,6 +449,26 @@ async function main() {
     }
   }
 
+  // TICKET-120: Structure hard-copy compliance check
+  if (refPrefs.includes('structure') && refAnalysis && Array.isArray(refAnalysis.navLinks) && refAnalysis.navLinks.length > 0 && Array.isArray(content?.pages)) {
+    const expected = parseRefNavLinks(refAnalysis.navLinks);
+    if (expected.length > 0) {
+      // Header nav excludes home (auto-rendered) and service detail pages
+      // (independent SEO landing route, slug "services/{id}", navOrder 10-19).
+      const actualNavSlugs = content.pages
+        .filter(p => p.slug !== 'home' && !p.serviceDetailPage && p.navLabel)
+        .sort((a, b) => (a.navOrder ?? 99) - (b.navOrder ?? 99))
+        .map(p => p.slug);
+      const lenMismatch = actualNavSlugs.length !== expected.length;
+      const slugMismatch = expected.filter((s, i) => actualNavSlugs[i] !== s).length;
+      if (lenMismatch || slugMismatch > 0) {
+        debug(`⚠️ [structure hard-copy] Claude deviated from mapped reference nav. Expected ${expected.length} archetypes [${expected.join(', ')}], got ${actualNavSlugs.length} [${actualNavSlugs.join(', ')}]. Mismatched: ${slugMismatch}.`);
+      } else {
+        debug(`[structure hard-copy] ✓ Claude followed reference nav exactly (${expected.length} archetypes).`);
+      }
+    }
+  }
+
   progress('Writing base configuration files...', 50);
 
   // ── Call 2: Generate keyword pages (if any keywords selected) ──
@@ -846,10 +866,28 @@ Reference site original observation: ${refAnalysis.sections}
           }
         }
         if (refPrefs.includes('structure') && refAnalysis.navLinks && refAnalysis.navLinks.length > 0) {
-          designInstruction += `
-REFERENCE SITE NAVIGATION (for inspiration, not copying):
-Header nav: ${refAnalysis.navLinks.join(', ')}${refAnalysis.footerLinks && refAnalysis.footerLinks.length > 0 ? `\nFooter nav: ${refAnalysis.footerLinks.join(', ')}` : ''}
-Use your judgment as an experienced web designer: adopt page types that make sense for this ${industry} business, skip ones that don't fit. Our sites are SEO-first — we generate keyword landing pages separately for organic traffic, so the reference site's page structure is design inspiration, not a template.`;
+          // TICKET-120: hard-copy header navigation via mapped page archetypes
+          const mappedNav = parseRefNavLinks(refAnalysis.navLinks);
+          if (mappedNav.length > 0) {
+            designInstruction += `
+REFERENCE SITE NAVIGATION (HARD COPY — MUST FOLLOW EXACTLY):
+The header navigation MUST have EXACTLY these ${mappedNav.length} page archetypes in this exact order (excluding home which auto-renders):
+${mappedNav.map((slug, i) => `${i + 1}. slug "${slug}"`).join('\n')}
+
+For each archetype, generate one entry in the "pages" array with:
+- slug = exactly the archetype name (e.g., "pricing", "gallery", "quote")
+- navLabel = a friendly label appropriate for the ${industry} industry (e.g., "Pricing" or "Our Prices" or "Rates" — choose one that fits)
+- navOrder = position in the list (1, 2, 3, ... matching the order above)
+- title / description / sections = appropriate for this page archetype
+
+Do NOT add nav pages outside this list. Do NOT skip any. Do NOT reorder.
+
+IMPORTANT — service detail pages (slug "services/{id}", serviceDetailPage: true, navOrder 10-19) are SEPARATE from header nav and continue to be generated normally — they don't count as nav archetypes in this list.
+
+Reference original nav labels: ${refAnalysis.navLinks.join(', ')}
+`;
+            debug(`[structure hard-copy] Reference nav mapped to ${mappedNav.length} archetypes: ${mappedNav.join(', ')}`);
+          }
         }
         const designSummary = [refAnalysis.primaryColor, refAnalysis.accentColor, refAnalysis.headingFont].filter(Boolean).join(', ') || 'analyzed';
         progress(`Reference design: ${designSummary}`, 9);
@@ -890,7 +928,14 @@ ${designInstruction}\n`;
   }
 
   // Page selection — always include home + services. AI picks the rest.
-  const pagesInstruction = `DYNAMIC PAGE SELECTION: Always include "home". Because this business has ${servicesList.length} services, always include a "services" page.
+  // TICKET-120: when structure hard-copy is active, the REFERENCE SITE NAVIGATION
+  // block above is the source of truth for nav pages — suppress the generic
+  // "always include services" and "choose 2-4 more archetypes" mandates that
+  // would otherwise pull Claude away from the hard-copied list.
+  const structureHardCopy = refPrefs.includes('structure') && refAnalysis && Array.isArray(refAnalysis.navLinks) && parseRefNavLinks(refAnalysis.navLinks).length > 0;
+  const pagesInstruction = `${structureHardCopy
+    ? `DYNAMIC PAGE SELECTION: Always include "home". The header nav pages are SPECIFIED by the REFERENCE SITE NAVIGATION (HARD COPY) block above — generate ONLY those archetypes as regular nav pages. Do NOT add any other regular pages. Do NOT add a "services" page unless it appears in the hard-copy archetypes list above.`
+    : `DYNAMIC PAGE SELECTION: Always include "home". Because this business has ${servicesList.length} services, always include a "services" page.
 Additionally, choose 2-4 more pages from these archetypes that make sense for a ${industry} business:
 - "about" — Company story, team, values
 - "quote" — Quote/contact request form
@@ -902,7 +947,7 @@ Additionally, choose 2-4 more pages from these archetypes that make sense for a 
 - "areas" — Service area coverage (home services, delivery, contractors)
 - "testimonials" — Customer reviews page
 - "process" — How it works / our process
-- "case-studies" — Project showcases with details
+- "case-studies" — Project showcases with details`}
 
 SERVICE DETAIL PAGES:
 ${servicesList.length >= 3 ? `Generate an individual service detail page for EACH service (${servicesList.length} pages total).
