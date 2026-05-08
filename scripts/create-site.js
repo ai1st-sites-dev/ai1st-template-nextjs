@@ -358,6 +358,30 @@ async function main() {
   if (!companyName) fatal('companyName is required');
   if (!industry) fatal('industry is required');
 
+  // TICKET-122a (4th round, QA3 feedback): validate language is a single ISO 639-1
+  // code (e.g. 'en') or natural-language name (e.g. 'English'). Reject any input
+  // containing non-letter characters — this rejects multi-locale separators
+  // (',' ';' '|' '/' space), path-traversal characters ('.' '/'), and any other
+  // unsafe input that would propagate into path.join() / site_meta.json / URLs.
+  // Empty string and null fall through to the 'en' default below.
+  if (typeof language === 'string' && language.length > 0 && !/^[a-zA-Z]{2,}$/.test(language)) {
+    fatal(`Invalid language "${language}". Must be ISO 639-1 code (e.g. en, zh, fr) or natural-language name (e.g. English, Chinese). Multi-language generation lands in TICKET-122b/c.`);
+  }
+  // Derive defaultLocale: case-insensitive lookup for natural-language names
+  // (so 'ENGLISH' / 'english' / 'English' all map to 'en'). ISO codes are kept
+  // in lowercase form. Empty/null fall through to 'en'.
+  const defaultLocale = (() => {
+    if (!language) return 'en';
+    const langMapInverse = {
+      'english': 'en', 'chinese': 'zh', 'french': 'fr', 'spanish': 'es',
+      'japanese': 'ja', 'korean': 'ko', 'german': 'de', 'italian': 'it',
+      'portuguese': 'pt', 'russian': 'ru', 'vietnamese': 'vi', 'arabic': 'ar',
+      'hindi': 'hi', 'thai': 'th',
+    };
+    const k = language.toLowerCase();
+    return langMapInverse[k] || k;
+  })();
+
   // TICKET-118 regression guard: if refPrefs were sent but refAnalysis is empty
   // shape, the dashboard/manager API contract is likely broken again.
   if (refPrefs.length > 0 && refAnalysis) {
@@ -378,13 +402,18 @@ async function main() {
   if (fs.existsSync(siteDir)) {
     fs.rmSync(siteDir, { recursive: true });
   }
-  fs.mkdirSync(path.join(siteDir, 'pages'), { recursive: true });
+  // TICKET-122a: multi-locale schema — site_meta.json + site/<defaultLocale>/pages/
+  fs.mkdirSync(path.join(siteDir, defaultLocale, 'pages'), { recursive: true });
+  fs.writeFileSync(
+    path.join(siteDir, 'site_meta.json'),
+    JSON.stringify({ defaultLocale, locales: [defaultLocale] }, null, 2) + '\n'
+  );
 
   // ── Skip AI mode: use demo config ──
   if (input.skipAI) {
     progress('Setting up demo site (no AI)...', 10);
     const content = getDemoConfig(siteId);
-    writeSiteConfig(siteDir, content);
+    writeSiteConfig(siteDir, content, defaultLocale);
     debug(`Demo site config written to site/`);
     if (input.repoUrl) {
       progress('Committing to git...', 80);
@@ -423,7 +452,11 @@ async function main() {
     'pt': 'Portuguese', 'ru': 'Russian', 'vi': 'Vietnamese', 'ar': 'Arabic',
     'hi': 'Hindi', 'th': 'Thai',
   };
-  const languageName = langMap[language] || 'English';
+  // TICKET-122a (5th round, QA3 feedback): use defaultLocale (already normalized to
+  // ISO code via langMapInverse + toLowerCase above) so natural-name inputs like
+  // 'Chinese' / 'chinese' / 'CHINESE' all resolve to languageName='Chinese' instead
+  // of falling back to 'English'. Symmetric to defaultLocale derivation.
+  const languageName = langMap[defaultLocale] || 'English';
 
   // ── Call 1: Generate base site (brand + seo + services + regular pages) ──
   const content = await generateContent({
@@ -533,7 +566,7 @@ async function main() {
   }
 
   progress('Writing configuration files...', 70);
-  writeSiteConfig(siteDir, content);
+  writeSiteConfig(siteDir, content, defaultLocale);
 
   // ─── Git Commit (push is handled async by entrypoint.sh after dev server starts) ─
   const { repoUrl } = input;
@@ -558,28 +591,47 @@ async function main() {
 
 // ─── Write Site Config Files ─────────────────────────────────────────────────
 
-function writeSiteConfig(siteDir, content) {
-  const configFiles = {
-    'brand.json': content.brand,
+function writeSiteConfig(siteDir, content, defaultLocale) {
+  // TICKET-122a: multi-locale schema (layout B — locale top-level subtree).
+  //   brand.json:           cross-locale shared (kept at site/ root); brand.tagline wrapped to { [defaultLocale]: string } here
+  //   <locale>/seo.json
+  //   <locale>/services.json
+  //   <locale>/navigation.json (sync-config.js regenerates header.links/footer.columns but preserves cta.href — so we still write it here as init)
+  //   <locale>/pages/<slug>.json
+  const localeDir = path.join(siteDir, defaultLocale);
+  fs.mkdirSync(localeDir, { recursive: true });
+
+  // brand: cross-locale shared, wrap tagline to i18n object
+  const brand = { ...content.brand };
+  if (typeof brand.tagline === 'string') {
+    brand.tagline = { [defaultLocale]: brand.tagline };
+  }
+  fs.writeFileSync(
+    path.join(siteDir, 'brand.json'),
+    JSON.stringify(brand, null, 2) + '\n'
+  );
+
+  // per-locale config files
+  const localeFiles = {
     'navigation.json': content.navigation,
     'seo.json': content.seo,
     'services.json': content.services,
   };
-
-  for (const [filename, data] of Object.entries(configFiles)) {
+  for (const [filename, data] of Object.entries(localeFiles)) {
     fs.writeFileSync(
-      path.join(siteDir, filename),
+      path.join(localeDir, filename),
       JSON.stringify(data, null, 2) + '\n'
     );
   }
 
+  // pages → <locale>/pages/<slug>.json
   for (const page of content.pages) {
-    const pagePath = path.join(siteDir, 'pages', `${page.slug}.json`);
+    const pagePath = path.join(localeDir, 'pages', `${page.slug}.json`);
     fs.mkdirSync(path.dirname(pagePath), { recursive: true });
     fs.writeFileSync(pagePath, JSON.stringify(page, null, 2) + '\n');
   }
 
-  debug(`Site config written to site/`);
+  debug(`Site config written to site/ (locale: ${defaultLocale})`);
   debug(`Pages: ${content.pages.map(p => p.slug).join(', ')}`);
 }
 
