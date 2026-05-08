@@ -7,7 +7,6 @@ out/
 
 # generated at runtime
 config/
-site/
 sites/
 src/lib/config-data.ts
 
