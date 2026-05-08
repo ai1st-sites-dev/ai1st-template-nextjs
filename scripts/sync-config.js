@@ -11,28 +11,49 @@ if (!fs.existsSync(siteDir) || !fs.existsSync(path.join(siteDir, 'brand.json')))
   process.exit(1);
 }
 
+// TICKET-127: backward-compat for pre-122a legacy single-locale schema. Old
+// sites have a flat `site/{brand,seo,services,navigation}.json + site/pages/`
+// layout with no site_meta.json and `brand.tagline` as a string (not Record).
+// Detecting absence of site_meta.json triggers legacy mode: defaultLocale='en',
+// locales=['en'], localeDir=siteDir (no <locale>/ subdir), and brand.tagline
+// gets wrapped to { en: <string> } so templates that read getTagline(locale)
+// keep working uniformly.
 const siteMetaPath = path.join(siteDir, 'site_meta.json');
+let defaultLocale, locales;
+let isLegacySchema = false;
+
 if (!fs.existsSync(siteMetaPath)) {
-  console.error(`site_meta.json not found: ${siteMetaPath}`);
-  console.error('Multi-locale mode requires site_meta.json with { defaultLocale, locales: [...] }');
-  process.exit(1);
+  console.log('[backward-compat] site_meta.json missing, inferring legacy single-locale schema (defaultLocale=en)');
+  defaultLocale = 'en';
+  locales = ['en'];
+  isLegacySchema = true;
+} else {
+  const siteMeta = JSON.parse(fs.readFileSync(siteMetaPath, 'utf-8'));
+  ({ defaultLocale, locales } = siteMeta);
+
+  if (!defaultLocale || !Array.isArray(locales) || locales.length === 0) {
+    console.error(`site_meta.json invalid: must contain defaultLocale (string) and locales (non-empty array)`);
+    process.exit(1);
+  }
+  if (!locales.includes(defaultLocale)) {
+    console.error(`site_meta.json invalid: defaultLocale "${defaultLocale}" not in locales [${locales.join(', ')}]`);
+    process.exit(1);
+  }
 }
 
-const siteMeta = JSON.parse(fs.readFileSync(siteMetaPath, 'utf-8'));
-const { defaultLocale, locales } = siteMeta;
-
-if (!defaultLocale || !Array.isArray(locales) || locales.length === 0) {
-  console.error(`site_meta.json invalid: must contain defaultLocale (string) and locales (non-empty array)`);
-  process.exit(1);
-}
-if (!locales.includes(defaultLocale)) {
-  console.error(`site_meta.json invalid: defaultLocale "${defaultLocale}" not in locales [${locales.join(', ')}]`);
-  process.exit(1);
-}
-
-console.log(`Syncing site config (locales: ${locales.join(', ')}, default: ${defaultLocale})...`);
+console.log(`Syncing site config (locales: ${locales.join(', ')}, default: ${defaultLocale})${isLegacySchema ? ' [legacy schema]' : ''}...`);
 
 const brand = JSON.parse(fs.readFileSync(path.join(siteDir, 'brand.json'), 'utf-8'));
+
+// TICKET-127: legacy brand.tagline is a string; new schema is Record<locale, string>.
+// Wrap legacy form so templates' getTagline(locale) returns the right value uniformly.
+// Defensive: missing / null / non-object tagline becomes empty Record so getTagline()
+// falls through to its '' default instead of crashing on `null[locale]` or similar.
+if (typeof brand.tagline === 'string') {
+  brand.tagline = { [defaultLocale]: brand.tagline };
+} else if (!brand.tagline || typeof brand.tagline !== 'object' || Array.isArray(brand.tagline)) {
+  brand.tagline = { [defaultLocale]: '' };
+}
 
 const seoByLocale = {};
 const servicesByLocale = {};
@@ -56,8 +77,11 @@ function readPagesRecursive(dir, prefix, accumulator) {
 }
 
 for (const locale of locales) {
-  const localeDir = path.join(siteDir, locale);
-  if (!fs.existsSync(localeDir)) {
+  // TICKET-127: legacy schema reads from site/ root (flat); new schema from
+  // site/<locale>/ subdir. localeDir abstraction lets the rest of the loop
+  // work uniformly for both layouts.
+  const localeDir = isLegacySchema ? siteDir : path.join(siteDir, locale);
+  if (!isLegacySchema && !fs.existsSync(localeDir)) {
     console.error(`Locale directory missing: ${localeDir}`);
     process.exit(1);
   }
