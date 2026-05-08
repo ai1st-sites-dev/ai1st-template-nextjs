@@ -296,6 +296,61 @@ const availableIcons = [
   'shovel', 'snowflake', 'lightbulb'
 ];
 
+// ─── TICKET-122b: Secondary locale pipeline helpers ──────────────────────────
+
+// Tier thresholds — calibration tunable post-deploy without code changes.
+// PM v2 §59-83 starting heuristics; revisit after 5+ bilingual sites in production.
+const TIER_THRESHOLDS = {
+  // Tier 1 = rich data: real keywords cover the 5 SEO touchpoints
+  TIER_1_MIN_KEYWORDS: 5,
+  TIER_1_MIN_HIGH_VOLUME_COUNT: 1,    // ≥1 keyword with monthly search volume above threshold
+  TIER_1_HIGH_VOLUME_THRESHOLD: 100,  // monthly searches (DataForSEO Organic SERP)
+  // Tier 2 = sparse: some real keywords + some translation
+  TIER_2_MIN_KEYWORDS: 1,
+  // (else → Tier 3: no keyword data, pure SEO-friendly translation + AI judgment)
+};
+
+function computeTier(kwArray) {
+  if (!Array.isArray(kwArray) || kwArray.length < TIER_THRESHOLDS.TIER_2_MIN_KEYWORDS) return 3;
+  const highVolCount = kwArray.filter(k => (k && typeof k.volume === 'number' && k.volume >= TIER_THRESHOLDS.TIER_1_HIGH_VOLUME_THRESHOLD)).length;
+  if (kwArray.length >= TIER_THRESHOLDS.TIER_1_MIN_KEYWORDS && highVolCount >= TIER_THRESHOLDS.TIER_1_MIN_HIGH_VOLUME_COUNT) return 1;
+  return 2;
+}
+
+// Generic per-call retry with exponential backoff (5s / 15s / 45s by default).
+// Throws the final error if all attempts fail.
+async function retryWithBackoff(fn, { retries = 3, backoff = [5000, 15000, 45000], label = 'op' } = {}) {
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (attempt === retries) break;
+      const delay = backoff[attempt] !== undefined ? backoff[attempt] : backoff[backoff.length - 1];
+      debug(`[retry] ${label} attempt ${attempt + 1}/${retries + 1} failed: ${err.message}. Retrying in ${delay}ms...`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  throw lastErr;
+}
+
+// Map natural-language names → ISO 639-1 codes (case-insensitive). Both primary
+// (`language` input) and secondary (`secondaryLocales[]`) inputs flow through this.
+const LANG_NAME_TO_ISO = {
+  'english': 'en', 'chinese': 'zh', 'french': 'fr', 'spanish': 'es',
+  'japanese': 'ja', 'korean': 'ko', 'german': 'de', 'italian': 'it',
+  'portuguese': 'pt', 'russian': 'ru', 'vietnamese': 'vi', 'arabic': 'ar',
+  'hindi': 'hi', 'thai': 'th',
+};
+
+function normalizeLocale(input) {
+  if (!input || typeof input !== 'string') return null;
+  if (!/^[a-zA-Z]{2,}$/.test(input)) return null; // reject any non-letter chars (TICKET-122a §367 same regex)
+  const k = input.toLowerCase();
+  return LANG_NAME_TO_ISO[k] || k;
+}
+
 // ─── Read stdin ───────────────────────────────────────────────────────────────
 
 async function readStdin() {
@@ -338,6 +393,12 @@ async function main() {
     targetCustomers,
     brandDescription,
     language = 'en',
+    // TICKET-122b: optional secondary locales (ISO codes or natural names like "zh"/"Chinese")
+    // Empty / missing → single-locale site (preserves all pre-122b behavior).
+    // secondaryLocaleKeywords: optional { [locale]: { [pageSlug]: [{keyword, volume}, ...] } }
+    // for Tier 1/2 prompts; missing → all secondary pages fall through to Tier 3.
+    secondaryLocales = [],
+    secondaryLocaleKeywords = {},
     template = 'ai',
     refSite,
     refPrefs = [],
@@ -358,29 +419,35 @@ async function main() {
   if (!companyName) fatal('companyName is required');
   if (!industry) fatal('industry is required');
 
-  // TICKET-122a (4th round, QA3 feedback): validate language is a single ISO 639-1
-  // code (e.g. 'en') or natural-language name (e.g. 'English'). Reject any input
-  // containing non-letter characters — this rejects multi-locale separators
-  // (',' ';' '|' '/' space), path-traversal characters ('.' '/'), and any other
-  // unsafe input that would propagate into path.join() / site_meta.json / URLs.
-  // Empty string and null fall through to the 'en' default below.
+  // TICKET-122a (4th round, QA3 feedback) + 122b: validate language is a single
+  // ISO 639-1 code (e.g. 'en') or natural-language name (e.g. 'English'). Reject
+  // any input containing non-letter characters — this rejects multi-locale
+  // separators (',' ';' '|' '/' space), path-traversal characters ('.' '/'), and
+  // any other unsafe input that would propagate into path.join() / site_meta.json.
+  // Empty string and null fall through to the 'en' default.
   if (typeof language === 'string' && language.length > 0 && !/^[a-zA-Z]{2,}$/.test(language)) {
-    fatal(`Invalid language "${language}". Must be ISO 639-1 code (e.g. en, zh, fr) or natural-language name (e.g. English, Chinese). Multi-language generation lands in TICKET-122b/c.`);
+    fatal(`Invalid language "${language}". Must be ISO 639-1 code (e.g. en, zh, fr) or natural-language name (e.g. English, Chinese).`);
   }
-  // Derive defaultLocale: case-insensitive lookup for natural-language names
-  // (so 'ENGLISH' / 'english' / 'English' all map to 'en'). ISO codes are kept
-  // in lowercase form. Empty/null fall through to 'en'.
-  const defaultLocale = (() => {
-    if (!language) return 'en';
-    const langMapInverse = {
-      'english': 'en', 'chinese': 'zh', 'french': 'fr', 'spanish': 'es',
-      'japanese': 'ja', 'korean': 'ko', 'german': 'de', 'italian': 'it',
-      'portuguese': 'pt', 'russian': 'ru', 'vietnamese': 'vi', 'arabic': 'ar',
-      'hindi': 'hi', 'thai': 'th',
-    };
-    const k = language.toLowerCase();
-    return langMapInverse[k] || k;
-  })();
+  const defaultLocale = normalizeLocale(language) || 'en';
+
+  // TICKET-122b: validate + normalize secondary locales (same regex + dedup vs primary)
+  if (!Array.isArray(secondaryLocales)) {
+    fatal(`secondaryLocales must be an array, got ${typeof secondaryLocales}`);
+  }
+  const normalizedSecondaryLocales = [];
+  const seenLocales = new Set([defaultLocale]);
+  for (const sl of secondaryLocales) {
+    if (typeof sl !== 'string' || sl.length === 0) continue;
+    if (!/^[a-zA-Z]{2,}$/.test(sl)) {
+      fatal(`Invalid secondaryLocale "${sl}". Must be ISO 639-1 code (e.g. zh, fr) or natural-language name (e.g. Chinese, French).`);
+    }
+    const norm = normalizeLocale(sl);
+    if (norm && !seenLocales.has(norm)) {
+      normalizedSecondaryLocales.push(norm);
+      seenLocales.add(norm);
+    }
+  }
+  const allLocales = [defaultLocale, ...normalizedSecondaryLocales];
 
   // TICKET-118 regression guard: if refPrefs were sent but refAnalysis is empty
   // shape, the dashboard/manager API contract is likely broken again.
@@ -402,11 +469,12 @@ async function main() {
   if (fs.existsSync(siteDir)) {
     fs.rmSync(siteDir, { recursive: true });
   }
-  // TICKET-122a: multi-locale schema — site_meta.json + site/<defaultLocale>/pages/
+  // TICKET-122a + 122b: multi-locale schema — site_meta.json + site/<defaultLocale>/pages/
+  // (secondary locale subdirs are created later by writeSecondaryLocaleConfig)
   fs.mkdirSync(path.join(siteDir, defaultLocale, 'pages'), { recursive: true });
   fs.writeFileSync(
     path.join(siteDir, 'site_meta.json'),
-    JSON.stringify({ defaultLocale, locales: [defaultLocale] }, null, 2) + '\n'
+    JSON.stringify({ defaultLocale, locales: allLocales }, null, 2) + '\n'
   );
 
   // ── Skip AI mode: use demo config ──
@@ -415,6 +483,22 @@ async function main() {
     const content = getDemoConfig(siteId);
     writeSiteConfig(siteDir, content, defaultLocale);
     debug(`Demo site config written to site/`);
+    // TICKET-122b: in skipAI mode, secondary locales get a verbatim copy of the
+    // primary demo content (no real translation), with seo.locale rewritten so
+    // the BCP-47 marker reflects the secondary locale. Lets schema/build pipeline
+    // round-trip multi-locale layouts without burning tokens.
+    for (const secLocale of normalizedSecondaryLocales) {
+      const secContent = {
+        brand: { tagline: content.brand.tagline },
+        seo: { ...content.seo, locale: localeMapForBcp47(secLocale) },
+        services: content.services,
+        navigation: content.navigation,
+        pages: content.pages,
+        tierDistribution: { 1: 0, 2: 0, 3: content.pages.length },
+      };
+      writeSecondaryLocaleConfig(siteDir, secContent, secLocale, content.brand);
+      debug(`Demo secondary locale "${secLocale}" written (verbatim copy of primary)`);
+    }
     if (input.repoUrl) {
       progress('Committing to git...', 80);
       try {
@@ -568,6 +652,44 @@ async function main() {
   progress('Writing configuration files...', 70);
   writeSiteConfig(siteDir, content, defaultLocale);
 
+  // ─── TICKET-122b: Secondary locale generation ────────────────────────────────
+  // After primary locale ships, generate secondary locales sequentially. Each
+  // locale runs independently — failure of one doesn't abort the others or the
+  // primary. retryWithBackoff handles transient errors; final failure for a
+  // locale emits a `secondary-locale-failed` event that Manager surfaces to
+  // dashboard so the user sees a retry button (122b2 scope).
+  const secondaryFailures = [];
+  if (normalizedSecondaryLocales.length > 0) {
+    progress('Generating secondary locales...', 72);
+    for (let i = 0; i < normalizedSecondaryLocales.length; i++) {
+      const secLocale = normalizedSecondaryLocales[i];
+      const secLanguageName = langMap[secLocale] || secLocale;
+      const pct = 72 + Math.round(((i + 1) / normalizedSecondaryLocales.length) * 8); // 72→80
+      progress(`Generating secondary locale: ${secLanguageName}...`, pct);
+      try {
+        const secContent = await generateSecondaryLocale({
+          primaryContent: content,
+          primaryLanguageName: languageName,
+          secondaryLocale: secLocale,
+          secondaryLanguageName: secLanguageName,
+          secondaryKeywordsByPage: secondaryLocaleKeywords[secLocale] || {},
+          industry, location, companyName,
+        });
+        writeSecondaryLocaleConfig(siteDir, secContent, secLocale, content.brand);
+        debug(`Secondary locale "${secLocale}" generated (${secContent.pages.length} pages, tier dist: ${JSON.stringify(secContent.tierDistribution)})`);
+        emit('secondary-locale-success', {
+          locale: secLocale,
+          pageCount: secContent.pages.length,
+          tierDistribution: secContent.tierDistribution,
+        });
+      } catch (err) {
+        debug(`Secondary locale "${secLocale}" failed after retries: ${err.message}`);
+        secondaryFailures.push({ locale: secLocale, error: err.message });
+        emit('secondary-locale-failed', { locale: secLocale, error: err.message });
+      }
+    }
+  }
+
   // ─── Git Commit (push is handled async by entrypoint.sh after dev server starts) ─
   const { repoUrl } = input;
   if (repoUrl) {
@@ -587,6 +709,313 @@ async function main() {
 
   // Done — entrypoint.sh handles sync-config + dev server startup
   progress('Site generated, starting preview...', 85);
+}
+
+// ─── TICKET-122b: Secondary Locale Generation ────────────────────────────────
+
+// Generates a complete secondary locale version of the primary content via Claude.
+// Per-page translation is wrapped in retryWithBackoff (3 attempts, 5s/15s/45s).
+// brand.tagline + seo + services + navigation are batched in a single Claude call
+// to keep round-trips proportional to pages, not page+4. tierDistribution is
+// returned for observability (122b2 will wire into operation_runs metadata).
+//
+// On total failure (any retried call still throws), this throws upward; caller
+// in main() catches per-locale and emits secondary-locale-failed event.
+async function generateSecondaryLocale({
+  primaryContent,
+  primaryLanguageName,
+  secondaryLocale,
+  secondaryLanguageName,
+  secondaryKeywordsByPage,
+  industry,
+  location,
+  companyName,
+}) {
+  const client = new Anthropic();
+
+  // Step 1: per-page translation (each retried independently).
+  const tierDistribution = { 1: 0, 2: 0, 3: 0 };
+  const secondaryPages = [];
+  for (const page of primaryContent.pages) {
+    const pageKeywords = (secondaryKeywordsByPage && secondaryKeywordsByPage[page.slug]) || [];
+    const tier = computeTier(pageKeywords);
+    tierDistribution[tier]++;
+
+    const translated = await retryWithBackoff(
+      () => translatePageWithClaude({
+        client, page, tier, keywords: pageKeywords,
+        primaryLanguageName, secondaryLanguageName, secondaryLocale,
+        industry, location, companyName,
+      }),
+      { retries: 3, backoff: [5000, 15000, 45000], label: `translate page ${page.slug} → ${secondaryLocale}` }
+    );
+    secondaryPages.push(translated);
+  }
+
+  // Step 2: brand.tagline + seo + services + navigation batch translation.
+  const supportingFiles = await retryWithBackoff(
+    () => translateSupportingFilesWithClaude({
+      client,
+      brand: primaryContent.brand,
+      seo: primaryContent.seo,
+      services: primaryContent.services,
+      navigation: primaryContent.navigation,
+      primaryLanguageName, secondaryLanguageName, secondaryLocale,
+      industry, location, companyName,
+    }),
+    { retries: 3, backoff: [5000, 15000, 45000], label: `translate supporting files → ${secondaryLocale}` }
+  );
+
+  return {
+    brand: { tagline: supportingFiles.brandTagline },
+    seo: supportingFiles.seo,
+    services: supportingFiles.services,
+    navigation: supportingFiles.navigation,
+    pages: secondaryPages,
+    tierDistribution,
+  };
+}
+
+// Single Claude call to translate one page. Schema preserved verbatim (slug,
+// section.type, section.data shape) — only user-visible content fields translated.
+// Tier 1: real keywords MUST appear in 5 SEO touchpoints. Tier 2: use available
+// keywords + supplement with translation. Tier 3: pure translation, AI judgment.
+async function translatePageWithClaude({
+  client, page, tier, keywords, primaryLanguageName, secondaryLanguageName, secondaryLocale, industry, location, companyName,
+}) {
+  const tierInstruction =
+    tier === 1
+      ? `Tier 1 (rich keyword data): USE the provided keywords below in at least one SEO touchpoint each — meta title/description (page.title/page.description), section headlines (sections[].data.headline / .subheadline / .title), alt text where applicable, anchor text for internal links. Aim for natural integration, not stuffing.`
+      : tier === 2
+      ? `Tier 2 (sparse keyword data): USE the provided keywords below where natural; supplement with SEO-friendly translation when keywords don't cover all touchpoints.`
+      : `Tier 3 (no keyword data): pure SEO-friendly translation using your judgment for the ${secondaryLanguageName} market. Prefer natural ${secondaryLanguageName} phrasing over literal translation; preserve brand voice.`;
+
+  const keywordList = keywords.length > 0
+    ? keywords.map(k => `- ${k.keyword}${typeof k.volume === 'number' ? ` (${k.volume}/mo)` : ''}`).join('\n')
+    : '(none)';
+
+  const prompt = `You are translating a website page from ${primaryLanguageName} to ${secondaryLanguageName} for SEO.
+
+INDUSTRY: ${industry}
+LOCATION: ${location}
+COMPANY: ${companyName}
+
+PRIMARY LOCALE PAGE (reference for content/brand/structure):
+\`\`\`json
+${JSON.stringify(page, null, 2)}
+\`\`\`
+
+SECONDARY LOCALE KEYWORDS (Tier ${tier}):
+${keywordList}
+
+INSTRUCTIONS:
+- ${tierInstruction}
+- Translate ALL user-visible string fields to ${secondaryLanguageName}: title, description, navLabel, every section's headline/subheadline/title/text/items/labels/etc.
+- DO NOT translate: page.slug (kept ASCII), page.changeFrequency, page.priority, page.navOrder, section.type, section.data field names (keys), URLs/hrefs (kept as-is).
+- DO NOT add new sections or fields. Schema must round-trip identically.
+- Output: a JSON object matching the input page schema exactly, with content translated.
+- Return ONLY the JSON object, no preamble, no \`\`\`json fence.`;
+
+  const stream = await client.messages.stream({
+    model,
+    max_tokens: maxTokens,
+    messages: [{ role: 'user', content: prompt }],
+  });
+  const response = await stream.finalMessage();
+  if (response.stop_reason === 'max_tokens') {
+    throw new Error(`Translation truncated for page ${page.slug} (max_tokens hit)`);
+  }
+  const usage = response.usage || {};
+  const cost = ((usage.input_tokens || 0) * pricing.input + (usage.output_tokens || 0) * pricing.output) / 1_000_000;
+  emit('cost', {
+    operation: 'translate-secondary-locale',
+    cost,
+    duration: 0,
+    detail: `${page.slug} → ${secondaryLocale} (Tier ${tier}, ${usage.input_tokens || 0} in / ${usage.output_tokens || 0} out)`,
+  });
+
+  const text = response.content[0].text.trim();
+  const jsonStr = text.replace(/^```[\w]*\n?/, '').replace(/\n?```$/, '');
+  let translated;
+  try {
+    translated = JSON.parse(jsonStr);
+  } catch (e) {
+    throw new Error(`Failed to parse translated page ${page.slug}: ${e.message}`);
+  }
+  // Defensive: preserve immutable fields (slug, type, etc.) even if Claude misbehaves.
+  translated.slug = page.slug;
+  translated.changeFrequency = page.changeFrequency;
+  translated.priority = page.priority;
+  translated.navOrder = page.navOrder;
+  if (Array.isArray(translated.sections) && Array.isArray(page.sections)) {
+    for (let i = 0; i < translated.sections.length && i < page.sections.length; i++) {
+      if (translated.sections[i] && page.sections[i]) {
+        translated.sections[i].type = page.sections[i].type;
+      }
+    }
+  }
+  return translated;
+}
+
+// Batch-translate brand.tagline + seo + services + navigation in one Claude call.
+// These are smaller than pages and translation-only (no Tier reasoning needed).
+async function translateSupportingFilesWithClaude({
+  client, brand, seo, services, navigation, primaryLanguageName, secondaryLanguageName, secondaryLocale, industry, location, companyName,
+}) {
+  const prompt = `You are translating website supporting config from ${primaryLanguageName} to ${secondaryLanguageName} for SEO.
+
+INDUSTRY: ${industry}
+LOCATION: ${location}
+COMPANY: ${companyName}
+
+PRIMARY LOCALE INPUTS:
+\`\`\`json
+${JSON.stringify({
+  brandTagline: brand.tagline,
+  seo: { siteTitle: seo.siteTitle, siteDescription: seo.siteDescription, keywords: seo.keywords, schema: { offerCatalogName: seo.schema?.offerCatalogName, priceRange: seo.schema?.priceRange } },
+  services: services.map(s => ({ id: s.id, name: s.name, shortDescription: s.shortDescription, fullDescription: s.fullDescription, features: s.features, products: s.products })),
+  navigation: { header: { cta: navigation.header.cta }, footer: { description: navigation.footer.description, copyright: navigation.footer.copyright } },
+}, null, 2)}
+\`\`\`
+
+INSTRUCTIONS:
+- Translate ALL user-visible string fields to ${secondaryLanguageName}, preserving brand voice and SEO intent.
+- DO NOT translate: service.id (kept ASCII slug), navigation.header.cta.href (URL).
+- For seo.keywords: produce a SEO-friendly comma-separated keyword string in ${secondaryLanguageName} (you may add 1-2 high-volume locale-native keywords if natural).
+- Output JSON shape:
+\`\`\`json
+{
+  "brandTagline": "<translated>",
+  "seo": { "siteTitle": "...", "siteDescription": "...", "keywords": "...", "schema": { "offerCatalogName": "...", "priceRange": "..." } },
+  "services": [ { "id": "<unchanged>", "name": "...", "shortDescription": "...", "fullDescription": "...", "features": [...], "products": [...] }, ... ],
+  "navigation": { "header": { "cta": { "label": "...", "href": "<unchanged>" } }, "footer": { "description": "...", "copyright": "..." } }
+}
+\`\`\`
+- Return ONLY the JSON object, no preamble, no \`\`\`json fence.`;
+
+  const stream = await client.messages.stream({
+    model,
+    max_tokens: maxTokens,
+    messages: [{ role: 'user', content: prompt }],
+  });
+  const response = await stream.finalMessage();
+  if (response.stop_reason === 'max_tokens') {
+    throw new Error(`Supporting files translation truncated (max_tokens hit)`);
+  }
+  const usage = response.usage || {};
+  const cost = ((usage.input_tokens || 0) * pricing.input + (usage.output_tokens || 0) * pricing.output) / 1_000_000;
+  emit('cost', {
+    operation: 'translate-secondary-locale',
+    cost,
+    duration: 0,
+    detail: `supporting files → ${secondaryLocale} (${usage.input_tokens || 0} in / ${usage.output_tokens || 0} out)`,
+  });
+
+  const text = response.content[0].text.trim();
+  const jsonStr = text.replace(/^```[\w]*\n?/, '').replace(/\n?```$/, '');
+  let parsed;
+  try {
+    parsed = JSON.parse(jsonStr);
+  } catch (e) {
+    throw new Error(`Failed to parse supporting files translation: ${e.message}`);
+  }
+
+  // Build output, defensively preserving immutable fields.
+  const outServices = services.map((origSvc, i) => {
+    const aiSvc = (parsed.services && parsed.services[i]) || {};
+    return {
+      ...origSvc,
+      name: aiSvc.name || origSvc.name,
+      shortDescription: aiSvc.shortDescription || origSvc.shortDescription,
+      fullDescription: aiSvc.fullDescription || origSvc.fullDescription,
+      features: Array.isArray(aiSvc.features) ? aiSvc.features : origSvc.features,
+      products: Array.isArray(aiSvc.products) ? aiSvc.products : origSvc.products,
+    };
+  });
+  const outSeo = {
+    ...seo,
+    siteTitle: parsed.seo?.siteTitle || seo.siteTitle,
+    siteDescription: parsed.seo?.siteDescription || seo.siteDescription,
+    keywords: parsed.seo?.keywords || seo.keywords,
+    schema: {
+      ...seo.schema,
+      offerCatalogName: parsed.seo?.schema?.offerCatalogName || seo.schema?.offerCatalogName,
+    },
+    locale: localeMapForBcp47(secondaryLocale),
+  };
+  const outNavigation = {
+    ...navigation,
+    header: {
+      ...navigation.header,
+      cta: {
+        ...navigation.header.cta,
+        label: parsed.navigation?.header?.cta?.label || navigation.header.cta.label,
+      },
+    },
+    footer: {
+      ...navigation.footer,
+      description: parsed.navigation?.footer?.description || navigation.footer.description,
+      copyright: parsed.navigation?.footer?.copyright || navigation.footer.copyright,
+    },
+  };
+
+  return {
+    brandTagline: parsed.brandTagline || (typeof brand.tagline === 'string' ? brand.tagline : ''),
+    seo: outSeo,
+    services: outServices,
+    navigation: outNavigation,
+  };
+}
+
+// Map ISO code → BCP-47-style locale string for seo.locale (e.g. zh → zh_CN, fr → fr_CA).
+// Defaults pick the most common variant per locale; can be overridden later.
+function localeMapForBcp47(iso) {
+  const map = {
+    en: 'en_CA', zh: 'zh_CN', fr: 'fr_CA', es: 'es_MX', ja: 'ja_JP',
+    ko: 'ko_KR', de: 'de_DE', it: 'it_IT', pt: 'pt_BR', ru: 'ru_RU',
+    vi: 'vi_VN', ar: 'ar_SA', hi: 'hi_IN', th: 'th_TH',
+  };
+  return map[iso] || `${iso}_${iso.toUpperCase()}`;
+}
+
+// Writes a fully translated secondary locale to site/<secondaryLocale>/. Mirrors
+// writeSiteConfig structure but: (a) merges brand.tagline into existing site/brand.json
+// (Record<locale, string>) instead of overwriting, (b) uses secondary-locale-specific
+// outputs for seo/services/navigation/pages.
+function writeSecondaryLocaleConfig(siteDir, secContent, secondaryLocale, primaryBrand) {
+  const localeDir = path.join(siteDir, secondaryLocale);
+  fs.mkdirSync(localeDir, { recursive: true });
+
+  // Merge brand.tagline into root site/brand.json (Record<locale, string>).
+  const brandPath = path.join(siteDir, 'brand.json');
+  const existingBrand = JSON.parse(fs.readFileSync(brandPath, 'utf-8'));
+  if (typeof existingBrand.tagline === 'string') {
+    existingBrand.tagline = { [Object.keys(primaryBrand.tagline || {})[0] || 'en']: existingBrand.tagline };
+  }
+  if (typeof existingBrand.tagline !== 'object' || existingBrand.tagline === null || Array.isArray(existingBrand.tagline)) {
+    existingBrand.tagline = {};
+  }
+  existingBrand.tagline[secondaryLocale] = secContent.brand?.tagline || '';
+  fs.writeFileSync(brandPath, JSON.stringify(existingBrand, null, 2) + '\n');
+
+  // Per-locale config files.
+  const localeFiles = {
+    'navigation.json': secContent.navigation,
+    'seo.json': secContent.seo,
+    'services.json': secContent.services,
+  };
+  for (const [filename, data] of Object.entries(localeFiles)) {
+    fs.writeFileSync(path.join(localeDir, filename), JSON.stringify(data, null, 2) + '\n');
+  }
+
+  // pages → <secondaryLocale>/pages/<slug>.json
+  for (const page of secContent.pages) {
+    const pagePath = path.join(localeDir, 'pages', `${page.slug}.json`);
+    fs.mkdirSync(path.dirname(pagePath), { recursive: true });
+    fs.writeFileSync(pagePath, JSON.stringify(page, null, 2) + '\n');
+  }
+
+  debug(`Secondary locale config written: site/${secondaryLocale}/ (${secContent.pages.length} pages)`);
 }
 
 // ─── Write Site Config Files ─────────────────────────────────────────────────
