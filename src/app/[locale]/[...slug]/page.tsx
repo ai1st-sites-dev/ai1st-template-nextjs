@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import SectionRenderer from '@/components/SectionRenderer';
 import { BreadcrumbJsonLd, ServiceJsonLd } from '@/components/JsonLd';
-import { brand, getSeo, getServices, getNonHomePages, getPage, isValidLocale, locales } from '@/lib/config';
+import { brand, getSeo, getServices, getNonHomePages, getPage, getAlternateLanguages, getXDefaultHref, isValidLocale, locales } from '@/lib/config';
 
 const RESERVED_SLUGS = ['blog', '_next'];
 
@@ -29,12 +29,17 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   const slug = slugArray.join('/');
   const page = getPage(slug, locale);
   if (!page) return {};
+  const seo = getSeo(locale);
+  const altLanguages = getAlternateLanguages(page.slug, seo.domain);
 
   return {
     title: page.title,
     description: page.description,
     alternates: {
       canonical: `/${locale}/${page.slug}`,
+      ...(Object.keys(altLanguages).length > 0 ? {
+        languages: { ...altLanguages, 'x-default': getXDefaultHref(page.slug, seo.domain) },
+      } : {}),
     },
     openGraph: {
       title: `${page.title} | ${brand.name}`,

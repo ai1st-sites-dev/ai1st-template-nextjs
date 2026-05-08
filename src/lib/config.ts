@@ -60,3 +60,70 @@ export function getNonHomePages(locale: string): DynamicPageConfig[] {
 export function getNavPages(locale: string): DynamicPageConfig[] {
   return (pagesByLocale[locale] ?? []).filter((p) => p.navLabel);
 }
+
+// TICKET-124: cross-locale slug → locales[] reverse index, built once at module
+// load (O(N×P) where N=locales, P=pages, ~14×6=84 ops). Used by hreflang +
+// sitemap alternates to determine which locales actually have a given page.
+const slugToLocales: Record<string, string[]> = (() => {
+  const idx: Record<string, string[]> = {};
+  for (const loc of locales) {
+    for (const p of pagesByLocale[loc] ?? []) {
+      (idx[p.slug] ??= []).push(loc);
+    }
+  }
+  return idx;
+})();
+
+// Returns hreflang locale → absolute URL map for a given page slug. Returns {}
+// when the slug exists in 0 or 1 locales (single-locale sites stay byte-identical
+// to pre-TICKET-124, no `hreflang="en"` self-reference noise). Caller is
+// responsible for adding the `x-default` entry via getXDefaultHref.
+//
+// `kind` distinguishes between regular pages (use slugToLocales index), the blog
+// index (locales with at least 1 published post), and individual blog posts (the
+// `slug` argument is matched against blogPostsByLocale[loc][*].slug).
+export function getAlternateLanguages(
+  slug: string,
+  domain: string,
+  kind: 'page' | 'blogIndex' | 'blogPost' = 'page'
+): Record<string, string> {
+  let matching: string[];
+  if (kind === 'blogIndex') {
+    matching = locales.filter((l) => (blogPostsByLocale[l] ?? []).length > 0);
+  } else if (kind === 'blogPost') {
+    matching = locales.filter((l) => (blogPostsByLocale[l] ?? []).some((p) => p.slug === slug));
+  } else {
+    matching = slugToLocales[slug] ?? [];
+  }
+  if (matching.length <= 1) return {};
+  const buildPath = (loc: string): string => {
+    if (kind === 'blogIndex') return `/${loc}/blog`;
+    if (kind === 'blogPost') return `/${loc}/blog/${slug}`;
+    return slug === 'home' ? `/${loc}` : `/${loc}/${slug}`;
+  };
+  return Object.fromEntries(matching.map((l) => [l, `${domain}${buildPath(l)}`]));
+}
+
+// Returns the absolute URL for the x-default hreflang (defaultLocale's version
+// of this page). Used in tandem with getAlternateLanguages — only call when
+// getAlternateLanguages returned a non-empty map (single-locale sites must NOT
+// emit x-default either, per TICKET-124 backward-compat AC).
+export function getXDefaultHref(
+  slug: string,
+  domain: string,
+  kind: 'page' | 'blogIndex' | 'blogPost' = 'page'
+): string {
+  const path =
+    kind === 'blogIndex' ? `/${defaultLocale}/blog` :
+    kind === 'blogPost' ? `/${defaultLocale}/blog/${slug}` :
+    slug === 'home' ? `/${defaultLocale}` : `/${defaultLocale}/${slug}`;
+  return `${domain}${path}`;
+}
+
+// Returns BCP-47 language code (e.g. "en-CA" / "zh-CN") for Schema.org
+// inLanguage field. Reads seo.locale (which uses underscore form like "en_CA"
+// for OpenGraph) and converts to dash form per BCP-47 spec.
+export function getInLanguage(locale: string): string {
+  const seo = getSeo(locale);
+  return (seo.locale || locale).replace('_', '-');
+}

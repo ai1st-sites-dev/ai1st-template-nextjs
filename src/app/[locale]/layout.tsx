@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { LocalBusinessJsonLd, WebSiteJsonLd } from '@/components/JsonLd';
-import { brand, getSeo, isValidLocale, locales } from '@/lib/config';
+import { brand, getSeo, getAlternateLanguages, getXDefaultHref, isValidLocale, locales } from '@/lib/config';
 
 export async function generateStaticParams() {
   return locales.map((locale) => ({ locale }));
@@ -13,6 +13,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   const { locale } = await params;
   if (!isValidLocale(locale)) return {};
   const seo = getSeo(locale);
+  const altLanguages = getAlternateLanguages('home', seo.domain);
   return {
     title: {
       default: seo.siteTitle,
@@ -22,6 +23,9 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     keywords: seo.keywords,
     alternates: {
       canonical: `/${locale}`,
+      ...(Object.keys(altLanguages).length > 0 ? {
+        languages: { ...altLanguages, 'x-default': getXDefaultHref('home', seo.domain) },
+      } : {}),
     },
     openGraph: {
       title: seo.siteTitle,

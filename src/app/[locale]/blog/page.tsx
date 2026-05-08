@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { BreadcrumbJsonLd } from '@/components/JsonLd';
-import { brand, getSeo, getBlogPosts, isValidLocale, locales } from '@/lib/config';
+import { brand, getSeo, getBlogPosts, getAlternateLanguages, getXDefaultHref, isValidLocale, locales } from '@/lib/config';
 
 export async function generateStaticParams() {
   return locales.map((locale) => ({ locale }));
@@ -11,11 +11,16 @@ export async function generateStaticParams() {
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
   if (!isValidLocale(locale)) return {};
+  const seo = getSeo(locale);
+  const altLanguages = getAlternateLanguages('', seo.domain, 'blogIndex');
   return {
     title: 'Blog',
     description: `Read the latest articles and insights from ${brand.name}.`,
     alternates: {
       canonical: `/${locale}/blog`,
+      ...(Object.keys(altLanguages).length > 0 ? {
+        languages: { ...altLanguages, 'x-default': getXDefaultHref('', seo.domain, 'blogIndex') },
+      } : {}),
     },
     openGraph: {
       title: `Blog | ${brand.name}`,
