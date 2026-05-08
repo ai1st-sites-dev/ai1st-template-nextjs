@@ -19,10 +19,32 @@ function localizeHref(href: string, locale: string): string {
   return `/${locale}${href}`;
 }
 
+// TICKET-123: minimal i18n map for Footer-internal labels (Services / Contact Us
+// are hardcoded here; per-locale nav links / column titles already come from
+// getNavigation(locale)). Keeps the 14-lang whitelist aligned with TICKET-122a's
+// langMap so future副语言 ticket auto-covers. Unknown locales fall back to en.
+const FOOTER_LABELS: Record<string, { services: string; contact: string }> = {
+  en: { services: 'Services',  contact: 'Contact Us' },
+  zh: { services: '服务',        contact: '联系我们' },
+  fr: { services: 'Services',  contact: 'Nous contacter' },
+  es: { services: 'Servicios', contact: 'Contáctenos' },
+  ja: { services: 'サービス',     contact: 'お問い合わせ' },
+  ko: { services: '서비스',       contact: '문의하기' },
+  de: { services: 'Dienste',   contact: 'Kontakt' },
+  it: { services: 'Servizi',   contact: 'Contattaci' },
+  pt: { services: 'Serviços',  contact: 'Contato' },
+  ru: { services: 'Услуги',      contact: 'Связаться с нами' },
+  vi: { services: 'Dịch vụ',   contact: 'Liên hệ' },
+  ar: { services: 'الخدمات',       contact: 'اتصل بنا' },
+  hi: { services: 'सेवाएँ',        contact: 'संपर्क करें' },
+  th: { services: 'บริการ',        contact: 'ติดต่อเรา' },
+};
+
 export default function Footer({ locale }: { locale: string }) {
   const { footer } = getNavigation(locale);
   const services = getServices(locale);
   const localePages = pagesByLocale[locale] ?? [];
+  const labels = FOOTER_LABELS[locale] ?? FOOTER_LABELS.en;
   const currentYear = new Date().getFullYear();
   const links = brand.socialLinks
     ? (Array.isArray(brand.socialLinks)
@@ -90,7 +112,7 @@ export default function Footer({ locale }: { locale: string }) {
 
           {/* Services */}
           <div>
-            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-white">Services</h3>
+            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-white">{labels.services}</h3>
             <ul className="space-y-2">
               {services.slice(0, 6).map((service) => (
                 <li key={service.id}>
@@ -102,7 +124,7 @@ export default function Footer({ locale }: { locale: string }) {
 
           {/* Contact */}
           <div>
-            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-white">Contact Us</h3>
+            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-white">{labels.contact}</h3>
             <ul className="space-y-3 text-sm">
               {brand.locations.map((location) => (
                 <li key={location.label}>

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import ServiceIcon from '@/components/ServiceIcon';
+import LanguageSwitcher from '@/components/LanguageSwitcher';
 import { brand, getNavigation } from '@/lib/config';
 
 function localizeHref(href: string, locale: string): string {
@@ -37,6 +38,7 @@ export default function Header({ locale }: { locale: string }) {
             </Link>
           ))}
           <Link href={localizeHref(header.cta.href, locale)} className="btn-accent text-sm">{header.cta.label}</Link>
+          <LanguageSwitcher currentLocale={locale} />
         </div>
 
         {/* Mobile Menu Button */}
@@ -66,6 +68,9 @@ export default function Header({ locale }: { locale: string }) {
           <Link href={localizeHref(header.cta.href, locale)} className="mt-2 block w-full text-center btn-accent text-sm" onClick={() => setMobileMenuOpen(false)}>
             {header.cta.label}
           </Link>
+          <div className="mt-2 border-t pt-2">
+            <LanguageSwitcher currentLocale={locale} />
+          </div>
         </div>
       )}
     </header>
