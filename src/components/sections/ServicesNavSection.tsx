@@ -1,6 +1,7 @@
-import { services } from '@/lib/config';
+import { getServices } from '@/lib/config';
 
-export default function ServicesNavSection() {
+export default function ServicesNavSection({ locale }: { locale: string }) {
+  const services = getServices(locale);
   return (
     <section className="sticky top-[73px] z-40 border-b bg-white shadow-sm" aria-label="Service quick navigation">
       <div className="container-width overflow-x-auto px-4 sm:px-6 lg:px-8">

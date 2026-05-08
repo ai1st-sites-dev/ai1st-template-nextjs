@@ -1,9 +1,10 @@
 import { MetadataRoute } from 'next';
-import { seo } from '@/lib/config';
+import { getSeo, defaultLocale } from '@/lib/config';
 
 export const dynamic = 'force-static';
 
 export default function robots(): MetadataRoute.Robots {
+  const seo = getSeo(defaultLocale);
   return {
     rules: {
       userAgent: '*',

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { blogPosts } from '@/lib/config';
+import { getBlogPosts } from '@/lib/config';
 import type { BlogPostConfig } from '@/lib/types/config';
 
 interface BlogPost {
@@ -18,12 +18,13 @@ interface BlogPreviewSectionProps {
     fromBlog?: boolean;
     maxPosts?: number;
   };
+  locale: string;
 }
 
-export default function BlogPreviewSection({ data }: BlogPreviewSectionProps) {
+export default function BlogPreviewSection({ data, locale }: BlogPreviewSectionProps) {
   const variant = data.variant || 'cards';
+  const blogPosts = getBlogPosts(locale);
 
-  // When fromBlog is true, use real blog posts instead of hardcoded data
   const displayPosts: BlogPost[] = data.fromBlog && blogPosts.length > 0
     ? blogPosts.slice(0, data.maxPosts || 6).map((p: BlogPostConfig) => ({
         title: p.title,
@@ -34,7 +35,6 @@ export default function BlogPreviewSection({ data }: BlogPreviewSectionProps) {
       }))
     : data.posts;
 
-  // Helper to get slug for linking (only available for real blog posts)
   const getSlug = (index: number): string | undefined => {
     if (data.fromBlog && blogPosts.length > 0) {
       return blogPosts[index]?.slug;
@@ -74,7 +74,7 @@ export default function BlogPreviewSection({ data }: BlogPreviewSectionProps) {
 
     const slug = getSlug(index);
     if (slug) {
-      return <Link key={index} href={`/blog/${slug}`} className="group">{content}</Link>;
+      return <Link key={index} href={`/${locale}/blog/${slug}`} className="group">{content}</Link>;
     }
     return <div key={index}>{content}</div>;
   }
@@ -116,7 +116,7 @@ export default function BlogPreviewSection({ data }: BlogPreviewSectionProps) {
               );
               const slug = getSlug(index);
               return slug
-                ? <Link key={index} href={`/blog/${slug}`}>{inner}</Link>
+                ? <Link key={index} href={`/${locale}/blog/${slug}`}>{inner}</Link>
                 : <div key={index}>{inner}</div>;
             })}
           </div>
@@ -162,7 +162,7 @@ export default function BlogPreviewSection({ data }: BlogPreviewSectionProps) {
               );
               const slug = getSlug(0);
               return slug
-                ? <Link href={`/blog/${slug}`}>{featuredContent}</Link>
+                ? <Link href={`/${locale}/blog/${slug}`}>{featuredContent}</Link>
                 : featuredContent;
             })()}
             {/* Remaining posts */}

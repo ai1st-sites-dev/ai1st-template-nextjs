@@ -3,9 +3,10 @@ import { sectionRegistry } from '@/lib/sections/registry';
 
 interface SectionRendererProps {
   sections: SectionConfig[];
+  locale: string;
 }
 
-export default function SectionRenderer({ sections }: SectionRendererProps) {
+export default function SectionRenderer({ sections, locale }: SectionRendererProps) {
   return (
     <>
       {sections.map((section, index) => {
@@ -14,7 +15,7 @@ export default function SectionRenderer({ sections }: SectionRendererProps) {
           console.warn(`Unknown section type: ${section.type}`);
           return null;
         }
-        return <Component key={`${section.type}-${index}`} data={section.data} />;
+        return <Component key={`${section.type}-${index}`} data={section.data} locale={locale} />;
       })}
     </>
   );

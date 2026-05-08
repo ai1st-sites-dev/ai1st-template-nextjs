@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import ServiceIcon from '@/components/ServiceIcon';
-import { services, allPages } from '@/lib/config';
+import { getServices, pagesByLocale } from '@/lib/config';
 
 interface FeaturesGridSectionProps {
   data: {
@@ -9,6 +9,7 @@ interface FeaturesGridSectionProps {
     columns?: 2 | 3 | 4;
     variant?: 'card' | 'icon-top' | 'list' | 'alternating' | 'bordered' | 'minimal';
   };
+  locale: string;
 }
 
 const colClasses = {
@@ -17,13 +18,15 @@ const colClasses = {
   4: 'sm:grid-cols-2 lg:grid-cols-4',
 };
 
-export default function FeaturesGridSection({ data }: FeaturesGridSectionProps) {
+export default function FeaturesGridSection({ data, locale }: FeaturesGridSectionProps) {
+  const services = getServices(locale);
+  const allPages = pagesByLocale[locale] ?? [];
   const columns = data.columns || 4;
   const variant = data.variant || 'card';
   const serviceDetailSlugs = new Set(
     allPages.filter(p => p.slug.startsWith('services/') && p.slug !== 'services').map(p => p.slug.replace('services/', ''))
   );
-  const getServiceHref = (id: string) => serviceDetailSlugs.has(id) ? `/services/${id}` : `/services#${id}`;
+  const getServiceHref = (id: string) => serviceDetailSlugs.has(id) ? `/${locale}/services/${id}` : `/${locale}/services#${id}`;
 
   if (variant === 'list') {
     return (

@@ -1,8 +1,10 @@
 import Link from 'next/link';
 import ServiceIcon from '@/components/ServiceIcon';
-import { services, allPages } from '@/lib/config';
+import { getServices, pagesByLocale } from '@/lib/config';
 
-export default function ServicesListSection() {
+export default function ServicesListSection({ locale }: { locale: string }) {
+  const services = getServices(locale);
+  const allPages = pagesByLocale[locale] ?? [];
   const serviceDetailSlugs = new Set(
     allPages.filter(p => p.slug.startsWith('services/') && p.slug !== 'services').map(p => p.slug.replace('services/', ''))
   );
@@ -27,11 +29,11 @@ export default function ServicesListSection() {
                 {service.fullDescription}
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
-                <Link href="/quote" className="btn-primary">
+                <Link href={`/${locale}/quote`} className="btn-primary">
                   Get a Quote for {service.name}
                 </Link>
                 {serviceDetailSlugs.has(service.id) && (
-                  <Link href={`/services/${service.id}`} className="btn-secondary">
+                  <Link href={`/${locale}/services/${service.id}`} className="btn-secondary">
                     Learn More
                   </Link>
                 )}

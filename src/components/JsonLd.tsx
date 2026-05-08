@@ -1,7 +1,9 @@
-import { brand, seo, services } from '@/lib/config';
+import { brand, getSeo, getServices } from '@/lib/config';
 import type { BlogPostConfig } from '@/lib/types/config';
 
-export function LocalBusinessJsonLd() {
+export function LocalBusinessJsonLd({ locale }: { locale: string }) {
+  const seo = getSeo(locale);
+  const services = getServices(locale);
   const schema = {
     '@context': 'https://schema.org',
     '@type': 'LocalBusiness',
@@ -49,7 +51,8 @@ export function LocalBusinessJsonLd() {
   );
 }
 
-export function WebSiteJsonLd() {
+export function WebSiteJsonLd({ locale }: { locale: string }) {
+  const seo = getSeo(locale);
   const schema = {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
@@ -58,7 +61,7 @@ export function WebSiteJsonLd() {
     description: seo.siteDescription,
     potentialAction: {
       '@type': 'SearchAction',
-      target: `${seo.domain}/services`,
+      target: `${seo.domain}/${locale}/services`,
       'query-input': 'required name=search_term_string',
     },
   };
@@ -71,7 +74,8 @@ export function WebSiteJsonLd() {
   );
 }
 
-export function ServiceJsonLd({ serviceName, serviceDescription, serviceUrl }: { serviceName: string; serviceDescription: string; serviceUrl: string }) {
+export function ServiceJsonLd({ locale, serviceName, serviceDescription, serviceUrl }: { locale: string; serviceName: string; serviceDescription: string; serviceUrl: string }) {
+  const seo = getSeo(locale);
   const schema = {
     '@context': 'https://schema.org',
     '@type': 'Service',
@@ -118,7 +122,8 @@ export function BreadcrumbJsonLd({ items }: { items: { name: string; url: string
   );
 }
 
-export function ArticleJsonLd({ post }: { post: BlogPostConfig }) {
+export function ArticleJsonLd({ locale, post }: { locale: string; post: BlogPostConfig }) {
+  const seo = getSeo(locale);
   const schema = {
     '@context': 'https://schema.org',
     '@type': 'Article',
@@ -134,7 +139,7 @@ export function ArticleJsonLd({ post }: { post: BlogPostConfig }) {
       url: seo.domain,
     },
     datePublished: post.publishedAt,
-    url: `${seo.domain}/blog/${post.slug}`,
+    url: `${seo.domain}/${locale}/blog/${post.slug}`,
     keywords: post.tags.join(', '),
   };
 

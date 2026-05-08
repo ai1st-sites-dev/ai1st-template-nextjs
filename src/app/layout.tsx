@@ -1,11 +1,9 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import Header from '@/components/Header';
-import Footer from '@/components/Footer';
-import { LocalBusinessJsonLd, WebSiteJsonLd } from '@/components/JsonLd';
-import { brand, seo } from '@/lib/config';
+import { brand, getSeo, defaultLocale } from '@/lib/config';
 
-// Generate SVG favicon data URI from brand name + primary color
+const seo = getSeo(defaultLocale);
+
 function buildFaviconSvg(): string {
   const letter = (brand.name || 'X').charAt(0).toUpperCase();
   const bg = brand.colors.primary[500] || '#6366f1';
@@ -13,7 +11,6 @@ function buildFaviconSvg(): string {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
-// Build CSS custom properties string from brand config
 function buildCssVariables(): string {
   const vars: string[] = [];
   for (const [shade, value] of Object.entries(brand.colors.primary)) {
@@ -84,14 +81,8 @@ export default function RootLayout({
             <link rel="icon" href="/favicon.ico" sizes="any" />
           </>
         )}
-        <LocalBusinessJsonLd />
-        <WebSiteJsonLd />
       </head>
-      <body className="flex min-h-screen flex-col font-sans">
-        <Header />
-        <main className="flex-1">{children}</main>
-        <Footer />
-      </body>
+      <body className="flex min-h-screen flex-col font-sans">{children}</body>
     </html>
   );
 }

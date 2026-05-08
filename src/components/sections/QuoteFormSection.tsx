@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import ServiceIcon from '@/components/ServiceIcon';
-import { brand, services } from '@/lib/config';
+import { brand, getServices } from '@/lib/config';
 
 interface QuoteFormSectionProps {
   data: {
@@ -13,9 +13,11 @@ interface QuoteFormSectionProps {
     redirectMessage: string;
     buttonText: string;
   };
+  locale: string;
 }
 
-export default function QuoteFormSection({ data }: QuoteFormSectionProps) {
+export default function QuoteFormSection({ data, locale }: QuoteFormSectionProps) {
+  const services = getServices(locale);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [propertyType, setPropertyType] = useState('');
   const [urgency, setUrgency] = useState('');

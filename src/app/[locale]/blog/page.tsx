@@ -1,20 +1,29 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import { BreadcrumbJsonLd } from '@/components/JsonLd';
-import { brand, seo, blogPosts } from '@/lib/config';
+import { brand, getSeo, getBlogPosts, isValidLocale, locales } from '@/lib/config';
 
-export const metadata: Metadata = {
-  title: 'Blog',
-  description: `Read the latest articles and insights from ${brand.name}.`,
-  alternates: {
-    canonical: '/blog',
-  },
-  openGraph: {
-    title: `Blog | ${brand.name}`,
+export async function generateStaticParams() {
+  return locales.map((locale) => ({ locale }));
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale } = await params;
+  if (!isValidLocale(locale)) return {};
+  return {
+    title: 'Blog',
     description: `Read the latest articles and insights from ${brand.name}.`,
-    url: '/blog',
-  },
-};
+    alternates: {
+      canonical: `/${locale}/blog`,
+    },
+    openGraph: {
+      title: `Blog | ${brand.name}`,
+      description: `Read the latest articles and insights from ${brand.name}.`,
+      url: `/${locale}/blog`,
+    },
+  };
+}
 
 const colors = [
   'from-primary-100 to-primary-200',
@@ -25,13 +34,18 @@ const colors = [
   'from-primary-200 to-primary-100',
 ];
 
-export default function BlogPage() {
+export default async function BlogPage({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale } = await params;
+  if (!isValidLocale(locale)) notFound();
+  const seo = getSeo(locale);
+  const blogPosts = getBlogPosts(locale);
+
   return (
     <>
       <BreadcrumbJsonLd
         items={[
-          { name: 'Home', url: seo.domain },
-          { name: 'Blog', url: `${seo.domain}/blog` },
+          { name: 'Home', url: `${seo.domain}/${locale}` },
+          { name: 'Blog', url: `${seo.domain}/${locale}/blog` },
         ]}
       />
       <section className="section-padding">
@@ -50,7 +64,7 @@ export default function BlogPage() {
               {blogPosts.map((post, index) => (
                 <Link
                   key={post.slug}
-                  href={`/blog/${post.slug}`}
+                  href={`/${locale}/blog/${post.slug}`}
                   className="group overflow-hidden rounded-xl bg-white shadow-sm transition-shadow hover:shadow-md"
                 >
                   <div className={`bg-gradient-to-br ${colors[index % colors.length]} h-48 transition-transform group-hover:scale-105`} />

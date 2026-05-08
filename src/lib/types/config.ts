@@ -1,3 +1,9 @@
+// ---- Site Meta ----
+export interface SiteMetaConfig {
+  defaultLocale: string;
+  locales: string[];
+}
+
 // ---- Brand ----
 export interface BrandColors {
   primary: Record<string, string>;
@@ -18,7 +24,7 @@ export interface BrandLocation {
 
 export interface BrandConfig {
   name: string;
-  tagline: string;
+  tagline: Record<string, string>;
   logoIcon: string;
   logoUrl?: string;
   colors: BrandColors;

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { allPages } from '@/lib/config';
+import { pagesByLocale } from '@/lib/config';
 
 interface ServiceRelatedPagesSectionProps {
   data: {
@@ -7,9 +7,11 @@ interface ServiceRelatedPagesSectionProps {
     headline: string;
     subheadline?: string;
   };
+  locale: string;
 }
 
-export default function ServiceRelatedPagesSection({ data }: ServiceRelatedPagesSectionProps) {
+export default function ServiceRelatedPagesSection({ data, locale }: ServiceRelatedPagesSectionProps) {
+  const allPages = pagesByLocale[locale] ?? [];
   const relatedPages = allPages.filter(
     (p) => p.slug.startsWith(`${data.serviceSlug}/`) && p.slug !== data.serviceSlug
   );
@@ -31,7 +33,7 @@ export default function ServiceRelatedPagesSection({ data }: ServiceRelatedPages
           {relatedPages.map((page) => (
             <Link
               key={page.slug}
-              href={`/${page.slug}`}
+              href={`/${locale}/${page.slug}`}
               className="group rounded-xl border border-gray-200 bg-white p-6 transition-all hover:border-primary-300 hover:shadow-lg"
             >
               <h3 className="font-semibold text-gray-900 group-hover:text-primary-600">
