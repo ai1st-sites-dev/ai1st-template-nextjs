@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import ServiceIcon from '@/components/ServiceIcon';
-import { getServices, pagesByLocale } from '@/lib/config';
+import { getServices, pagesByLocale, localeUrl } from '@/lib/config';
 
 export default function ServicesListSection({ locale }: { locale: string }) {
   const services = getServices(locale);
@@ -29,11 +29,11 @@ export default function ServicesListSection({ locale }: { locale: string }) {
                 {service.fullDescription}
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
-                <Link href={`/${locale}/quote`} className="btn-primary">
+                <Link href={localeUrl('quote', locale)} className="btn-primary">
                   Get a Quote for {service.name}
                 </Link>
                 {serviceDetailSlugs.has(service.id) && (
-                  <Link href={`/${locale}/services/${service.id}`} className="btn-secondary">
+                  <Link href={localeUrl(`services/${service.id}`, locale)} className="btn-secondary">
                     Learn More
                   </Link>
                 )}

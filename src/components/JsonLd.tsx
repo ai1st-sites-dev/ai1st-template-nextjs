@@ -1,4 +1,4 @@
-import { brand, getSeo, getServices, getInLanguage } from '@/lib/config';
+import { brand, getSeo, getServices, getInLanguage, localeUrl } from '@/lib/config';
 import type { BlogPostConfig } from '@/lib/types/config';
 
 export function LocalBusinessJsonLd({ locale }: { locale: string }) {
@@ -63,7 +63,7 @@ export function WebSiteJsonLd({ locale }: { locale: string }) {
     description: seo.siteDescription,
     potentialAction: {
       '@type': 'SearchAction',
-      target: `${seo.domain}/${locale}/services`,
+      target: `${seo.domain}${localeUrl('services', locale)}`,
       'query-input': 'required name=search_term_string',
     },
   };
@@ -143,7 +143,7 @@ export function ArticleJsonLd({ locale, post }: { locale: string; post: BlogPost
       url: seo.domain,
     },
     datePublished: post.publishedAt,
-    url: `${seo.domain}/${locale}/blog/${post.slug}`,
+    url: `${seo.domain}${localeUrl(post.slug, locale, 'blogPost')}`,
     keywords: post.tags.join(', '),
   };
 

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { pagesByLocale } from '@/lib/config';
+import { pagesByLocale, localeUrl } from '@/lib/config';
 
 interface ServiceRelatedPagesSectionProps {
   data: {
@@ -33,7 +33,7 @@ export default function ServiceRelatedPagesSection({ data, locale }: ServiceRela
           {relatedPages.map((page) => (
             <Link
               key={page.slug}
-              href={`/${locale}/${page.slug}`}
+              href={localeUrl(page.slug, locale)}
               className="group rounded-xl border border-gray-200 bg-white p-6 transition-all hover:border-primary-300 hover:shadow-lg"
             >
               <h3 className="font-semibold text-gray-900 group-hover:text-primary-600">

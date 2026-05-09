@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { ArticleJsonLd, BreadcrumbJsonLd } from '@/components/JsonLd';
-import { brand, getSeo, getBlogPosts, getAlternateLanguages, getXDefaultHref, isValidLocale, locales } from '@/lib/config';
+import { brand, getSeo, getBlogPosts, getAlternateLanguages, getXDefaultHref, isValidLocale, locales, localeUrl } from '@/lib/config';
 
 export async function generateStaticParams() {
   const params: { locale: string; slug: string }[] = [];
@@ -26,12 +26,14 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   if (!post) return {};
   const seo = getSeo(locale);
   const altLanguages = getAlternateLanguages(post.slug, seo.domain, 'blogPost');
+  // TICKET-129: defaultLocale blog post uses root URL `/blog/<slug>`.
+  const canonicalPath = localeUrl(post.slug, locale, 'blogPost');
 
   return {
     title: post.seo.metaTitle,
     description: post.seo.metaDescription,
     alternates: {
-      canonical: `/${locale}/blog/${post.slug}`,
+      canonical: canonicalPath,
       ...(Object.keys(altLanguages).length > 0 ? {
         languages: { ...altLanguages, 'x-default': getXDefaultHref(post.slug, seo.domain, 'blogPost') },
       } : {}),
@@ -39,7 +41,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     openGraph: {
       title: post.seo.metaTitle,
       description: post.seo.metaDescription,
-      url: `/${locale}/blog/${post.slug}`,
+      url: canonicalPath,
       type: 'article',
       publishedTime: post.publishedAt,
       authors: [post.author],
@@ -52,7 +54,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ local
   const { locale, slug } = await params;
   if (!isValidLocale(locale)) notFound();
   const post = getBlogPosts(locale).find((p) => p.slug === slug);
-  if (!post) redirect(`/${locale}/blog`);
+  if (!post) redirect(localeUrl('', locale, 'blogIndex'));
 
   const seo = getSeo(locale);
 
@@ -60,9 +62,9 @@ export default async function BlogPostPage({ params }: { params: Promise<{ local
     <>
       <BreadcrumbJsonLd
         items={[
-          { name: 'Home', url: `${seo.domain}/${locale}` },
-          { name: 'Blog', url: `${seo.domain}/${locale}/blog` },
-          { name: post.title, url: `${seo.domain}/${locale}/blog/${post.slug}` },
+          { name: 'Home', url: `${seo.domain}${localeUrl('home', locale)}` },
+          { name: 'Blog', url: `${seo.domain}${localeUrl('', locale, 'blogIndex')}` },
+          { name: post.title, url: `${seo.domain}${localeUrl(post.slug, locale, 'blogPost')}` },
         ]}
       />
       <ArticleJsonLd locale={locale} post={post} />
@@ -71,7 +73,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ local
         <div className="container-width">
           <div className="mx-auto max-w-3xl">
             <Link
-              href={`/${locale}/blog`}
+              href={localeUrl('', locale, 'blogIndex')}
               className="inline-flex items-center text-sm text-primary-600 hover:text-primary-700"
             >
               &larr; Back to Blog

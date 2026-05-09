@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import SectionRenderer from '@/components/SectionRenderer';
 import { BreadcrumbJsonLd, ServiceJsonLd } from '@/components/JsonLd';
-import { brand, getSeo, getServices, getNonHomePages, getPage, getAlternateLanguages, getXDefaultHref, isValidLocale, locales } from '@/lib/config';
+import { brand, getSeo, getServices, getNonHomePages, getPage, getAlternateLanguages, getXDefaultHref, isValidLocale, locales, localeUrl } from '@/lib/config';
 
 const RESERVED_SLUGS = ['blog', '_next'];
 
@@ -31,12 +31,14 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   if (!page) return {};
   const seo = getSeo(locale);
   const altLanguages = getAlternateLanguages(page.slug, seo.domain);
+  // TICKET-129: defaultLocale uses root URL (e.g. /about) instead of /<locale>/about.
+  const canonicalPath = localeUrl(page.slug, locale);
 
   return {
     title: page.title,
     description: page.description,
     alternates: {
-      canonical: `/${locale}/${page.slug}`,
+      canonical: canonicalPath,
       ...(Object.keys(altLanguages).length > 0 ? {
         languages: { ...altLanguages, 'x-default': getXDefaultHref(page.slug, seo.domain) },
       } : {}),
@@ -44,7 +46,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     openGraph: {
       title: `${page.title} | ${brand.name}`,
       description: page.description,
-      url: `/${locale}/${page.slug}`,
+      url: canonicalPath,
     },
   };
 }
@@ -54,7 +56,7 @@ export default async function DynamicPage({ params }: { params: Promise<{ locale
   if (!isValidLocale(locale)) notFound();
   const slug = slugArray.join('/');
   const page = getPage(slug, locale);
-  if (!page) redirect(`/${locale}`);
+  if (!page) redirect(localeUrl('home', locale));
 
   const seo = getSeo(locale);
   const services = getServices(locale);
@@ -75,18 +77,18 @@ export default async function DynamicPage({ params }: { params: Promise<{ locale
     const serviceDetailSlug = `services/${slugParts[0]}`;
     const serviceDetailPage = getPage(serviceDetailSlug, locale);
     const middleBreadcrumb = serviceDetailPage
-      ? { name: serviceDetailPage.title, url: `${seo.domain}/${locale}/${serviceDetailSlug}` }
-      : { name: slugParts[0].replace(/-/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()), url: `${seo.domain}/${locale}/${slugParts[0]}` };
+      ? { name: serviceDetailPage.title, url: `${seo.domain}${localeUrl(serviceDetailSlug, locale)}` }
+      : { name: slugParts[0].replace(/-/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()), url: `${seo.domain}${localeUrl(slugParts[0], locale)}` };
 
     breadcrumbItems = [
-      { name: 'Home', url: `${seo.domain}/${locale}` },
+      { name: 'Home', url: `${seo.domain}${localeUrl('home', locale)}` },
       middleBreadcrumb,
-      { name: page.title, url: `${seo.domain}/${locale}/${slug}` },
+      { name: page.title, url: `${seo.domain}${localeUrl(slug, locale)}` },
     ];
   } else {
     breadcrumbItems = [
-      { name: 'Home', url: `${seo.domain}/${locale}` },
-      { name: page.title, url: `${seo.domain}/${locale}/${slug}` },
+      { name: 'Home', url: `${seo.domain}${localeUrl('home', locale)}` },
+      { name: page.title, url: `${seo.domain}${localeUrl(slug, locale)}` },
     ];
   }
 
@@ -100,7 +102,7 @@ export default async function DynamicPage({ params }: { params: Promise<{ locale
             locale={locale}
             serviceName={service.name}
             serviceDescription={service.fullDescription}
-            serviceUrl={`${seo.domain}/${locale}/${slug}#${service.id}`}
+            serviceUrl={`${seo.domain}${localeUrl(slug, locale)}#${service.id}`}
           />
         ))}
       {matchedService && (
@@ -108,7 +110,7 @@ export default async function DynamicPage({ params }: { params: Promise<{ locale
           locale={locale}
           serviceName={matchedService.name}
           serviceDescription={matchedService.fullDescription}
-          serviceUrl={`${seo.domain}/${locale}/${slug}`}
+          serviceUrl={`${seo.domain}${localeUrl(slug, locale)}`}
         />
       )}
       <SectionRenderer sections={page.sections} locale={locale} />

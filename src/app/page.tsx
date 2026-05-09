@@ -1,21 +1,16 @@
+// TICKET-129: root URL aliases the default-locale Home content.
+//   /                 → renders default-locale Home (was a meta-refresh redirect)
+//   /<defaultLocale>  → still works (alias kept for backward compat / hreflang sources)
+// SiteShell + LocaleHomePage are reused from the [locale] subtree so the rendered
+// HTML is byte-equivalent (modulo the canonical URL adjusted in generateMetadata).
+import LocaleHomePage from './[locale]/page';
+import SiteShell from '@/components/SiteShell';
 import { defaultLocale } from '@/lib/config';
 
-export const metadata = {
-  alternates: { canonical: `/${defaultLocale}` },
-  robots: { index: false, follow: true },
-};
-
-export default function HomePage() {
-  const target = `/${defaultLocale}`;
+export default async function HomePage() {
   return (
-    <>
-      <meta httpEquiv="refresh" content={`0;url=${target}`} />
-      <p>
-        Redirecting to <a href={target}>{target}</a>...
-      </p>
-      <script
-        dangerouslySetInnerHTML={{ __html: `window.location.replace(${JSON.stringify(target)});` }}
-      />
-    </>
+    <SiteShell locale={defaultLocale}>
+      <LocaleHomePage params={Promise.resolve({ locale: defaultLocale })} />
+    </SiteShell>
   );
 }

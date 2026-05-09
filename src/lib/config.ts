@@ -74,6 +74,25 @@ const slugToLocales: Record<string, string[]> = (() => {
   return idx;
 })();
 
+// TICKET-129: build a path / absolute URL for a given (slug, locale, kind).
+// defaultLocale uses root URL alias (no /<locale> prefix); other locales keep
+// /<locale>/* prefix. Used by hreflang + sitemap + canonical to produce SEO-
+// consolidating links pointing at the root URL for default locale.
+//
+// Returns the path-only form (no domain). Callers prefix the domain themselves.
+export function localeUrl(
+  slug: string,
+  locale: string,
+  kind: 'page' | 'blogIndex' | 'blogPost' = 'page'
+): string {
+  const isDefault = locale === defaultLocale;
+  const prefix = isDefault ? '' : `/${locale}`;
+  if (kind === 'blogIndex') return `${prefix}/blog`;
+  if (kind === 'blogPost') return `${prefix}/blog/${slug}`;
+  if (slug === 'home') return prefix || '/';
+  return `${prefix}/${slug}`;
+}
+
 // Returns hreflang locale → absolute URL map for a given page slug. Returns {}
 // when the slug exists in 0 or 1 locales (single-locale sites stay byte-identical
 // to pre-TICKET-124, no `hreflang="en"` self-reference noise). Caller is
@@ -96,28 +115,22 @@ export function getAlternateLanguages(
     matching = slugToLocales[slug] ?? [];
   }
   if (matching.length <= 1) return {};
-  const buildPath = (loc: string): string => {
-    if (kind === 'blogIndex') return `/${loc}/blog`;
-    if (kind === 'blogPost') return `/${loc}/blog/${slug}`;
-    return slug === 'home' ? `/${loc}` : `/${loc}/${slug}`;
-  };
-  return Object.fromEntries(matching.map((l) => [l, `${domain}${buildPath(l)}`]));
+  // TICKET-129: defaultLocale uses root URL via localeUrl (no /<locale> prefix).
+  return Object.fromEntries(matching.map((l) => [l, `${domain}${localeUrl(slug, l, kind)}`]));
 }
 
 // Returns the absolute URL for the x-default hreflang (defaultLocale's version
 // of this page). Used in tandem with getAlternateLanguages — only call when
 // getAlternateLanguages returned a non-empty map (single-locale sites must NOT
 // emit x-default either, per TICKET-124 backward-compat AC).
+//
+// TICKET-129: x-default points to the root URL (no /<defaultLocale> prefix).
 export function getXDefaultHref(
   slug: string,
   domain: string,
   kind: 'page' | 'blogIndex' | 'blogPost' = 'page'
 ): string {
-  const path =
-    kind === 'blogIndex' ? `/${defaultLocale}/blog` :
-    kind === 'blogPost' ? `/${defaultLocale}/blog/${slug}` :
-    slug === 'home' ? `/${defaultLocale}` : `/${defaultLocale}/${slug}`;
-  return `${domain}${path}`;
+  return `${domain}${localeUrl(slug, defaultLocale, kind)}`;
 }
 
 // Returns BCP-47 language code (e.g. "en-CA" / "zh-CN") for Schema.org

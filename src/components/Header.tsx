@@ -4,10 +4,12 @@ import Link from 'next/link';
 import { useState } from 'react';
 import ServiceIcon from '@/components/ServiceIcon';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
-import { brand, getNavigation } from '@/lib/config';
+import { brand, defaultLocale, getNavigation } from '@/lib/config';
 
+// TICKET-129: defaultLocale uses root URL alias (no /<locale> prefix).
 function localizeHref(href: string, locale: string): string {
   if (!href.startsWith('/') || href.startsWith('//')) return href;
+  if (locale === defaultLocale) return href;
   if (href === '/') return `/${locale}`;
   return `/${locale}${href}`;
 }
@@ -19,7 +21,7 @@ export default function Header({ locale }: { locale: string }) {
   return (
     <header className="sticky top-0 z-50 bg-white shadow-sm">
       <nav className="container-width flex items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-        <Link href={`/${locale}`} className="flex items-center gap-2" aria-label={`${brand.name} - Home`}>
+        <Link href={localizeHref('/', locale)} className="flex items-center gap-2" aria-label={`${brand.name} - Home`}>
           {brand.logoUrl ? (
             <img src={brand.logoUrl} alt={brand.name} className="h-10 w-auto max-w-[160px] object-contain" />
           ) : (

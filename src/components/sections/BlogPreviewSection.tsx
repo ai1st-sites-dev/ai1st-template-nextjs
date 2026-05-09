@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { getBlogPosts } from '@/lib/config';
+import { getBlogPosts, localeUrl } from '@/lib/config';
 import type { BlogPostConfig } from '@/lib/types/config';
 
 interface BlogPost {
@@ -74,7 +74,7 @@ export default function BlogPreviewSection({ data, locale }: BlogPreviewSectionP
 
     const slug = getSlug(index);
     if (slug) {
-      return <Link key={index} href={`/${locale}/blog/${slug}`} className="group">{content}</Link>;
+      return <Link key={index} href={localeUrl(slug, locale, "blogPost")} className="group">{content}</Link>;
     }
     return <div key={index}>{content}</div>;
   }
@@ -116,7 +116,7 @@ export default function BlogPreviewSection({ data, locale }: BlogPreviewSectionP
               );
               const slug = getSlug(index);
               return slug
-                ? <Link key={index} href={`/${locale}/blog/${slug}`}>{inner}</Link>
+                ? <Link key={index} href={localeUrl(slug, locale, "blogPost")}>{inner}</Link>
                 : <div key={index}>{inner}</div>;
             })}
           </div>
@@ -162,7 +162,7 @@ export default function BlogPreviewSection({ data, locale }: BlogPreviewSectionP
               );
               const slug = getSlug(0);
               return slug
-                ? <Link href={`/${locale}/blog/${slug}`}>{featuredContent}</Link>
+                ? <Link href={localeUrl(slug, locale, "blogPost")}>{featuredContent}</Link>
                 : featuredContent;
             })()}
             {/* Remaining posts */}

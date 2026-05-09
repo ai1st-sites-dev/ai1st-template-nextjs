@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { BreadcrumbJsonLd } from '@/components/JsonLd';
-import { brand, getSeo, getBlogPosts, getAlternateLanguages, getXDefaultHref, isValidLocale, locales } from '@/lib/config';
+import { brand, getSeo, getBlogPosts, getAlternateLanguages, getXDefaultHref, isValidLocale, locales, localeUrl } from '@/lib/config';
 
 export async function generateStaticParams() {
   return locales.map((locale) => ({ locale }));
@@ -13,11 +13,13 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   if (!isValidLocale(locale)) return {};
   const seo = getSeo(locale);
   const altLanguages = getAlternateLanguages('', seo.domain, 'blogIndex');
+  // TICKET-129: defaultLocale uses root URL `/blog`; other locales `/<locale>/blog`.
+  const canonicalPath = localeUrl('', locale, 'blogIndex');
   return {
     title: 'Blog',
     description: `Read the latest articles and insights from ${brand.name}.`,
     alternates: {
-      canonical: `/${locale}/blog`,
+      canonical: canonicalPath,
       ...(Object.keys(altLanguages).length > 0 ? {
         languages: { ...altLanguages, 'x-default': getXDefaultHref('', seo.domain, 'blogIndex') },
       } : {}),
@@ -25,7 +27,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     openGraph: {
       title: `Blog | ${brand.name}`,
       description: `Read the latest articles and insights from ${brand.name}.`,
-      url: `/${locale}/blog`,
+      url: canonicalPath,
     },
   };
 }
@@ -49,8 +51,8 @@ export default async function BlogPage({ params }: { params: Promise<{ locale: s
     <>
       <BreadcrumbJsonLd
         items={[
-          { name: 'Home', url: `${seo.domain}/${locale}` },
-          { name: 'Blog', url: `${seo.domain}/${locale}/blog` },
+          { name: 'Home', url: `${seo.domain}${localeUrl('home', locale)}` },
+          { name: 'Blog', url: `${seo.domain}${localeUrl('', locale, 'blogIndex')}` },
         ]}
       />
       <section className="section-padding">
@@ -69,7 +71,7 @@ export default async function BlogPage({ params }: { params: Promise<{ locale: s
               {blogPosts.map((post, index) => (
                 <Link
                   key={post.slug}
-                  href={`/${locale}/blog/${post.slug}`}
+                  href={localeUrl(post.slug, locale, 'blogPost')}
                   className="group overflow-hidden rounded-xl bg-white shadow-sm transition-shadow hover:shadow-md"
                 >
                   <div className={`bg-gradient-to-br ${colors[index % colors.length]} h-48 transition-transform group-hover:scale-105`} />

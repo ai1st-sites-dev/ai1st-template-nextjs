@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import ServiceIcon from '@/components/ServiceIcon';
-import { getServices, pagesByLocale } from '@/lib/config';
+import { getServices, pagesByLocale, localeUrl } from '@/lib/config';
 
 interface FeaturesGridSectionProps {
   data: {
@@ -26,7 +26,7 @@ export default function FeaturesGridSection({ data, locale }: FeaturesGridSectio
   const serviceDetailSlugs = new Set(
     allPages.filter(p => p.slug.startsWith('services/') && p.slug !== 'services').map(p => p.slug.replace('services/', ''))
   );
-  const getServiceHref = (id: string) => serviceDetailSlugs.has(id) ? `/${locale}/services/${id}` : `/${locale}/services#${id}`;
+  const getServiceHref = (id: string) => serviceDetailSlugs.has(id) ? localeUrl(`services/${id}`, locale) : `${localeUrl('services', locale)}#${id}`;
 
   if (variant === 'list') {
     return (
