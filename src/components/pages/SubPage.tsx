@@ -1,69 +1,17 @@
-import type { Metadata } from 'next';
 import { notFound, redirect } from 'next/navigation';
 import SectionRenderer from '@/components/SectionRenderer';
 import { BreadcrumbJsonLd, ServiceJsonLd } from '@/components/JsonLd';
-import { brand, getSeo, getServices, getNonHomePages, getPage, getAlternateLanguages, getXDefaultHref, isValidLocale, locales, localeUrl } from '@/lib/config';
+import { getSeo, getServices, getPage, isValidLocale, localeUrl } from '@/lib/config';
 
-const RESERVED_SLUGS = ['blog', '_next'];
-
-export async function generateStaticParams() {
-  const params: { locale: string; slug: string[] }[] = [];
-  for (const locale of locales) {
-    const pages = getNonHomePages(locale).filter(
-      (p) => !RESERVED_SLUGS.some((r) => p.slug === r || p.slug.startsWith(r + '/'))
-    );
-    if (pages.length === 0) {
-      params.push({ locale, slug: ['_'] });
-    } else {
-      for (const p of pages) {
-        params.push({ locale, slug: p.slug.split('/') });
-      }
-    }
-  }
-  return params;
-}
-
-export async function generateMetadata({ params }: { params: Promise<{ locale: string; slug: string[] }> }): Promise<Metadata> {
-  const { locale, slug: slugArray } = await params;
-  if (!isValidLocale(locale)) return {};
-  const slug = slugArray.join('/');
-  const page = getPage(slug, locale);
-  if (!page) return {};
-  const seo = getSeo(locale);
-  const altLanguages = getAlternateLanguages(page.slug, seo.domain);
-  // TICKET-129: defaultLocale uses root URL (e.g. /about) instead of /<locale>/about.
-  const canonicalPath = localeUrl(page.slug, locale);
-
-  return {
-    title: page.title,
-    description: page.description,
-    alternates: {
-      canonical: canonicalPath,
-      ...(Object.keys(altLanguages).length > 0 ? {
-        languages: { ...altLanguages, 'x-default': getXDefaultHref(page.slug, seo.domain) },
-      } : {}),
-    },
-    openGraph: {
-      title: `${page.title} | ${brand.name}`,
-      description: page.description,
-      url: canonicalPath,
-    },
-  };
-}
-
-export default async function DynamicPage({ params }: { params: Promise<{ locale: string; slug: string[] }> }) {
-  const { locale, slug: slugArray } = await params;
+export default function SubPage({ locale, slug }: { locale: string; slug: string }) {
   if (!isValidLocale(locale)) notFound();
-  const slug = slugArray.join('/');
   const page = getPage(slug, locale);
   if (!page) redirect(localeUrl('home', locale));
 
   const seo = getSeo(locale);
   const services = getServices(locale);
 
-  const hasServicesList = page.sections.some(
-    (s) => s.type === 'services-list'
-  );
+  const hasServicesList = page.sections.some((s) => s.type === 'services-list');
 
   const isServiceDetail = slug.startsWith('services/') && slug !== 'services';
   const matchedService = isServiceDetail

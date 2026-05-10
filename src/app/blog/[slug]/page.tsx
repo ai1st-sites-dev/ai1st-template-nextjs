@@ -1,30 +1,27 @@
-// TICKET-129: default-locale blog post alias.
-//   /blog/<post-slug>  → renders default-locale post (PM补完)
+// TICKET-129b: default-locale blog post. Uses shared BlogPostPage component
+// since app/[locale]/* is deleted.
 import type { Metadata } from 'next';
-import LocaleBlogPost, {
-  generateStaticParams as localeGenerate,
-  generateMetadata as localeMetadata,
-} from '../../[locale]/blog/[slug]/page';
 import SiteShell from '@/components/SiteShell';
-import { defaultLocale } from '@/lib/config';
+import BlogPostPage from '@/components/pages/BlogPostPage';
+import { blogPostMetadata } from '@/lib/metadata';
+import { defaultLocale, getBlogPosts } from '@/lib/config';
 
 export async function generateStaticParams() {
-  const localeParams = await localeGenerate();
-  return localeParams
-    .filter((p) => p.locale === defaultLocale)
-    .map((p) => ({ slug: p.slug }));
+  const posts = getBlogPosts(defaultLocale);
+  if (posts.length === 0) return [{ slug: '_' }];
+  return posts.map((post) => ({ slug: post.slug }));
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  return localeMetadata({ params: Promise.resolve({ locale: defaultLocale, slug }) });
+  return blogPostMetadata(defaultLocale, slug);
 }
 
 export default async function RootBlogPost({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   return (
     <SiteShell locale={defaultLocale}>
-      <LocaleBlogPost params={Promise.resolve({ locale: defaultLocale, slug })} />
+      <BlogPostPage locale={defaultLocale} slug={slug} />
     </SiteShell>
   );
 }

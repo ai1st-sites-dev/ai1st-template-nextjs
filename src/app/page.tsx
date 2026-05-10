@@ -1,16 +1,20 @@
-// TICKET-129: root URL aliases the default-locale Home content.
-//   /                 → renders default-locale Home (was a meta-refresh redirect)
-//   /<defaultLocale>  → still works (alias kept for backward compat / hreflang sources)
-// SiteShell + LocaleHomePage are reused from the [locale] subtree so the rendered
-// HTML is byte-equivalent (modulo the canonical URL adjusted in generateMetadata).
-import LocaleHomePage from './[locale]/page';
+// TICKET-129b: root URL renders default-locale Home (was forwarding to
+// app/[locale]/page; now uses shared components/pages/HomePage component since
+// app/[locale]/* is deleted to fix Next.js routing precision collision).
+import type { Metadata } from 'next';
 import SiteShell from '@/components/SiteShell';
+import HomePage from '@/components/pages/HomePage';
+import { homeMetadata } from '@/lib/metadata';
 import { defaultLocale } from '@/lib/config';
 
-export default async function HomePage() {
+export async function generateMetadata(): Promise<Metadata> {
+  return homeMetadata(defaultLocale);
+}
+
+export default async function RootHomePage() {
   return (
     <SiteShell locale={defaultLocale}>
-      <LocaleHomePage params={Promise.resolve({ locale: defaultLocale })} />
+      <HomePage locale={defaultLocale} />
     </SiteShell>
   );
 }

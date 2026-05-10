@@ -82,7 +82,18 @@ export default function RootLayout({
           </>
         )}
       </head>
-      <body className="flex min-h-screen flex-col font-sans">{children}</body>
+      <body className="flex min-h-screen flex-col font-sans">
+        {/* TICKET-131: when this page is embedded in an iframe (dashboard
+            PreviewPanel), notify the parent on every navigation so the URL bar
+            stays in sync. Standalone production users (window.parent === window)
+            short-circuit immediately — script is a no-op for them. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){if(window.parent===window)return;function n(){try{window.parent.postMessage({type:"xsite:nav",path:window.location.pathname+window.location.search+window.location.hash},"*");}catch(e){}}n();var p=history.pushState;history.pushState=function(){p.apply(this,arguments);n();};var r=history.replaceState;history.replaceState=function(){r.apply(this,arguments);n();};window.addEventListener("popstate",n);})();`,
+          }}
+        />
+        {children}
+      </body>
     </html>
   );
 }

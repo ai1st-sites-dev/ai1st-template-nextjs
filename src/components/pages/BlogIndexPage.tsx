@@ -1,36 +1,7 @@
-import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { BreadcrumbJsonLd } from '@/components/JsonLd';
-import { brand, getSeo, getBlogPosts, getAlternateLanguages, getXDefaultHref, isValidLocale, locales, localeUrl } from '@/lib/config';
-
-export async function generateStaticParams() {
-  return locales.map((locale) => ({ locale }));
-}
-
-export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
-  const { locale } = await params;
-  if (!isValidLocale(locale)) return {};
-  const seo = getSeo(locale);
-  const altLanguages = getAlternateLanguages('', seo.domain, 'blogIndex');
-  // TICKET-129: defaultLocale uses root URL `/blog`; other locales `/<locale>/blog`.
-  const canonicalPath = localeUrl('', locale, 'blogIndex');
-  return {
-    title: 'Blog',
-    description: `Read the latest articles and insights from ${brand.name}.`,
-    alternates: {
-      canonical: canonicalPath,
-      ...(Object.keys(altLanguages).length > 0 ? {
-        languages: { ...altLanguages, 'x-default': getXDefaultHref('', seo.domain, 'blogIndex') },
-      } : {}),
-    },
-    openGraph: {
-      title: `Blog | ${brand.name}`,
-      description: `Read the latest articles and insights from ${brand.name}.`,
-      url: canonicalPath,
-    },
-  };
-}
+import { brand, getSeo, getBlogPosts, isValidLocale, localeUrl } from '@/lib/config';
 
 const colors = [
   'from-primary-100 to-primary-200',
@@ -41,8 +12,7 @@ const colors = [
   'from-primary-200 to-primary-100',
 ];
 
-export default async function BlogPage({ params }: { params: Promise<{ locale: string }> }) {
-  const { locale } = await params;
+export default function BlogIndexPage({ locale }: { locale: string }) {
   if (!isValidLocale(locale)) notFound();
   const seo = getSeo(locale);
   const blogPosts = getBlogPosts(locale);

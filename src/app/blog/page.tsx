@@ -1,19 +1,19 @@
-// TICKET-129: default-locale blog index alias.
-//   /blog               → renders default-locale blog (PM补完, user §60-63 missed it)
-//   /<defaultLocale>/blog → still works (existing path, alias kept)
+// TICKET-129b: default-locale blog index. Uses shared BlogIndexPage component
+// since app/[locale]/* is deleted.
 import type { Metadata } from 'next';
-import LocaleBlogIndex, { generateMetadata as localeMetadata } from '../[locale]/blog/page';
 import SiteShell from '@/components/SiteShell';
+import BlogIndexPage from '@/components/pages/BlogIndexPage';
+import { blogIndexMetadata } from '@/lib/metadata';
 import { defaultLocale } from '@/lib/config';
 
 export async function generateMetadata(): Promise<Metadata> {
-  return localeMetadata({ params: Promise.resolve({ locale: defaultLocale }) });
+  return blogIndexMetadata(defaultLocale);
 }
 
 export default async function RootBlogIndex() {
   return (
     <SiteShell locale={defaultLocale}>
-      <LocaleBlogIndex params={Promise.resolve({ locale: defaultLocale })} />
+      <BlogIndexPage locale={defaultLocale} />
     </SiteShell>
   );
 }

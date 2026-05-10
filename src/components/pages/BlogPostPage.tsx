@@ -1,57 +1,9 @@
-import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { ArticleJsonLd, BreadcrumbJsonLd } from '@/components/JsonLd';
-import { brand, getSeo, getBlogPosts, getAlternateLanguages, getXDefaultHref, isValidLocale, locales, localeUrl } from '@/lib/config';
+import { getSeo, getBlogPosts, isValidLocale, localeUrl } from '@/lib/config';
 
-export async function generateStaticParams() {
-  const params: { locale: string; slug: string }[] = [];
-  for (const locale of locales) {
-    const posts = getBlogPosts(locale);
-    if (posts.length === 0) {
-      params.push({ locale, slug: '_' });
-    } else {
-      for (const post of posts) {
-        params.push({ locale, slug: post.slug });
-      }
-    }
-  }
-  return params;
-}
-
-export async function generateMetadata({ params }: { params: Promise<{ locale: string; slug: string }> }): Promise<Metadata> {
-  const { locale, slug } = await params;
-  if (!isValidLocale(locale)) return {};
-  const post = getBlogPosts(locale).find((p) => p.slug === slug);
-  if (!post) return {};
-  const seo = getSeo(locale);
-  const altLanguages = getAlternateLanguages(post.slug, seo.domain, 'blogPost');
-  // TICKET-129: defaultLocale blog post uses root URL `/blog/<slug>`.
-  const canonicalPath = localeUrl(post.slug, locale, 'blogPost');
-
-  return {
-    title: post.seo.metaTitle,
-    description: post.seo.metaDescription,
-    alternates: {
-      canonical: canonicalPath,
-      ...(Object.keys(altLanguages).length > 0 ? {
-        languages: { ...altLanguages, 'x-default': getXDefaultHref(post.slug, seo.domain, 'blogPost') },
-      } : {}),
-    },
-    openGraph: {
-      title: post.seo.metaTitle,
-      description: post.seo.metaDescription,
-      url: canonicalPath,
-      type: 'article',
-      publishedTime: post.publishedAt,
-      authors: [post.author],
-      tags: post.tags,
-    },
-  };
-}
-
-export default async function BlogPostPage({ params }: { params: Promise<{ locale: string; slug: string }> }) {
-  const { locale, slug } = await params;
+export default function BlogPostPage({ locale, slug }: { locale: string; slug: string }) {
   if (!isValidLocale(locale)) notFound();
   const post = getBlogPosts(locale).find((p) => p.slug === slug);
   if (!post) redirect(localeUrl('', locale, 'blogIndex'));
