@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { ArticleJsonLd, BreadcrumbJsonLd } from '@/components/JsonLd';
 import { getSeo, getBlogPosts, isValidLocale, localeUrl } from '@/lib/config';
+import { getLabels } from '@/lib/component-labels';
 
 export default function BlogPostPage({ locale, slug }: { locale: string; slug: string }) {
   if (!isValidLocale(locale)) notFound();
@@ -9,13 +10,14 @@ export default function BlogPostPage({ locale, slug }: { locale: string; slug: s
   if (!post) redirect(localeUrl('', locale, 'blogIndex'));
 
   const seo = getSeo(locale);
+  const labels = getLabels(locale);
 
   return (
     <>
       <BreadcrumbJsonLd
         items={[
           { name: 'Home', url: `${seo.domain}${localeUrl('home', locale)}` },
-          { name: 'Blog', url: `${seo.domain}${localeUrl('', locale, 'blogIndex')}` },
+          { name: labels.blog, url: `${seo.domain}${localeUrl('', locale, 'blogIndex')}` },
           { name: post.title, url: `${seo.domain}${localeUrl(post.slug, locale, 'blogPost')}` },
         ]}
       />
@@ -28,7 +30,7 @@ export default function BlogPostPage({ locale, slug }: { locale: string; slug: s
               href={localeUrl('', locale, 'blogIndex')}
               className="inline-flex items-center text-sm text-primary-600 hover:text-primary-700"
             >
-              &larr; Back to Blog
+              &larr; {labels.backToBlog}
             </Link>
 
             <header className="mt-6">

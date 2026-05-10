@@ -23,7 +23,10 @@ export interface BrandLocation {
 }
 
 export interface BrandConfig {
-  name: string;
+  // TICKET-136: brand.name is per-locale (mirrors tagline). sync-config.js
+  // auto-wraps legacy string into Record at load time, so all downstream code
+  // can treat name as Record without typecheck branches.
+  name: Record<string, string>;
   tagline: Record<string, string>;
   logoIcon: string;
   logoUrl?: string;

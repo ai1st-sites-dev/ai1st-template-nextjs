@@ -1,9 +1,11 @@
 import Link from 'next/link';
 import ServiceIcon from '@/components/ServiceIcon';
 import { getServices, pagesByLocale, localeUrl } from '@/lib/config';
+import { getLabels } from '@/lib/component-labels';
 
 export default function ServicesListSection({ locale }: { locale: string }) {
   const services = getServices(locale);
+  const labels = getLabels(locale);
   const allPages = pagesByLocale[locale] ?? [];
   const serviceDetailSlugs = new Set(
     allPages.filter(p => p.slug.startsWith('services/') && p.slug !== 'services').map(p => p.slug.replace('services/', ''))
@@ -30,11 +32,11 @@ export default function ServicesListSection({ locale }: { locale: string }) {
               </p>
               <div className="mt-8 flex flex-wrap gap-3">
                 <Link href={localeUrl('quote', locale)} className="btn-primary">
-                  Get a Quote for {service.name}
+                  {labels.getAQuoteFor} {service.name}
                 </Link>
                 {serviceDetailSlugs.has(service.id) && (
                   <Link href={localeUrl(`services/${service.id}`, locale)} className="btn-secondary">
-                    Learn More
+                    {labels.learnMore}
                   </Link>
                 )}
               </div>
@@ -42,7 +44,7 @@ export default function ServicesListSection({ locale }: { locale: string }) {
 
             <div>
               <div className="rounded-xl bg-gray-50 p-8">
-                <h3 className="mb-4 text-lg font-semibold text-gray-900">Key Features</h3>
+                <h3 className="mb-4 text-lg font-semibold text-gray-900">{labels.keyFeatures}</h3>
                 <ul className="space-y-3">
                   {service.features.map((feature, i) => (
                     <li key={i} className="flex items-start gap-3">
@@ -57,7 +59,7 @@ export default function ServicesListSection({ locale }: { locale: string }) {
 
               {service.products.length > 0 && (
                 <div className="mt-6 rounded-xl border border-gray-200 p-8">
-                  <h3 className="mb-4 text-lg font-semibold text-gray-900">Products We Offer</h3>
+                  <h3 className="mb-4 text-lg font-semibold text-gray-900">{labels.productsWeOffer}</h3>
                   <div className="space-y-4">
                     {service.products.map((product) => (
                       <div key={product.name}>

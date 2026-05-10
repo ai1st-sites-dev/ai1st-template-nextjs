@@ -1,3 +1,5 @@
+import { getLabels } from '@/lib/component-labels';
+
 interface FeatureComparisonSectionProps {
   data: {
     headline: string;
@@ -7,6 +9,7 @@ interface FeatureComparisonSectionProps {
     themLabel?: string;
     variant?: 'table' | 'cards' | 'columns' | 'stacked';
   };
+  locale: string;
 }
 
 function CheckIcon({ className }: { className?: string }) {
@@ -25,10 +28,11 @@ function XIcon({ className }: { className?: string }) {
   );
 }
 
-export default function FeatureComparisonSection({ data }: FeatureComparisonSectionProps) {
+export default function FeatureComparisonSection({ data, locale }: FeatureComparisonSectionProps) {
   const variant = data.variant || 'table';
   const usLabel = data.usLabel || 'Us';
   const themLabel = data.themLabel || 'Them';
+  const labels = getLabels(locale);
 
   if (variant === 'cards') {
     return (
@@ -98,7 +102,7 @@ export default function FeatureComparisonSection({ data }: FeatureComparisonSect
           <div className="mx-auto mt-16 max-w-3xl">
             <div className="grid grid-cols-3 gap-4">
               {/* Header row */}
-              <div className="py-3 font-bold text-gray-900">Feature</div>
+              <div className="py-3 font-bold text-gray-900">{labels.feature}</div>
               <div className="py-3 text-center font-bold text-gray-500">{themLabel}</div>
               <div className="py-3 text-center font-bold text-primary-600">{usLabel}</div>
               {/* Data rows */}
@@ -182,7 +186,7 @@ export default function FeatureComparisonSection({ data }: FeatureComparisonSect
           <table className="w-full" role="table">
             <thead>
               <tr className="bg-gray-50">
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900" scope="col">Feature</th>
+                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900" scope="col">{labels.feature}</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-primary-600" scope="col">{usLabel}</th>
                 <th className="px-6 py-4 text-center text-sm font-semibold text-gray-500" scope="col">{themLabel}</th>
               </tr>

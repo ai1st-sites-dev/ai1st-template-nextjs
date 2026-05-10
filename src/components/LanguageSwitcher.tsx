@@ -37,7 +37,7 @@ export default function LanguageSwitcher({ currentLocale }: { currentLocale: str
       : pathname || '/';
 
   return (
-    <details className="relative">
+    <details className="relative inline-block">
       <summary className="cursor-pointer text-sm font-medium text-gray-600 list-none">
         {renderLocale(currentLocale)}
       </summary>

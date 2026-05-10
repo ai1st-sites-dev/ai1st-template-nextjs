@@ -1,3 +1,5 @@
+import { getLabels } from '@/lib/component-labels';
+
 interface ContentSplitSectionProps {
   data: {
     headline: string;
@@ -7,10 +9,12 @@ interface ContentSplitSectionProps {
     variant?: 'text-left' | 'text-right' | 'text-left-stats' | 'text-right-list' | 'centered-overlay' | 'cards-row';
     imageUrl?: string;
   };
+  locale: string;
 }
 
-export default function ContentSplitSection({ data }: ContentSplitSectionProps) {
+export default function ContentSplitSection({ data, locale }: ContentSplitSectionProps) {
   const variant = data.variant || 'text-left';
+  const labels = getLabels(locale);
 
   if (variant === 'text-right') {
     return (
@@ -26,7 +30,7 @@ export default function ContentSplitSection({ data }: ContentSplitSectionProps) 
               </p>
               <p className="mt-6">
                 <span className="inline-flex items-center gap-1 font-medium text-primary-600 hover:text-primary-700">
-                  Learn More
+                  {labels.learnMore}
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                   </svg>
@@ -191,7 +195,7 @@ export default function ContentSplitSection({ data }: ContentSplitSectionProps) 
             </p>
             <p className="mt-6">
               <span className="inline-flex items-center gap-1 font-medium text-primary-600 hover:text-primary-700">
-                Learn More
+                {labels.learnMore}
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                 </svg>

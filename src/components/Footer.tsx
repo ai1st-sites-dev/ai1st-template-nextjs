@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import ServiceIcon from '@/components/ServiceIcon';
-import { brand, defaultLocale, getNavigation, getServices, pagesByLocale } from '@/lib/config';
+import { brand, defaultLocale, getNavigation, getServices, getBrandName, pagesByLocale } from '@/lib/config';
 
 const socialIcons: Record<string, { label: string; icon: React.ReactNode }> = {
   google: { label: 'Google', icon: <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/></svg> },
@@ -66,13 +66,13 @@ export default function Footer({ locale }: { locale: string }) {
           <div>
             <div className="mb-4 flex items-center gap-2">
               {brand.logoUrl ? (
-                <img src={brand.logoUrl} alt={brand.name} className="h-8 w-auto max-w-[140px] object-contain brightness-0 invert" />
+                <img src={brand.logoUrl} alt={getBrandName(locale)} className="h-8 w-auto max-w-[140px] object-contain brightness-0 invert" />
               ) : (
                 <>
                   <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-500">
                     <ServiceIcon icon={brand.logoIcon} className="h-5 w-5 text-white" />
                   </div>
-                  <span className="text-lg font-bold text-white">{brand.name}</span>
+                  <span className="text-lg font-bold text-white">{getBrandName(locale)}</span>
                 </>
               )}
             </div>

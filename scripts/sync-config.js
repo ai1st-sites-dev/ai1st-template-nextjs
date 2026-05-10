@@ -55,6 +55,15 @@ if (typeof brand.tagline === 'string') {
   brand.tagline = { [defaultLocale]: '' };
 }
 
+// TICKET-136: legacy brand.name is a string; new schema is Record<locale, string>.
+// Auto-wrap so downstream code (lib/config.ts getBrandName + components reading
+// brand.name) can treat the field uniformly as a Record without typecheck.
+if (typeof brand.name === 'string') {
+  brand.name = { [defaultLocale]: brand.name };
+} else if (!brand.name || typeof brand.name !== 'object' || Array.isArray(brand.name)) {
+  brand.name = { [defaultLocale]: '' };
+}
+
 const seoByLocale = {};
 const servicesByLocale = {};
 const navigationByLocale = {};

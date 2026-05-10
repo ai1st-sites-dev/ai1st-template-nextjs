@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { BreadcrumbJsonLd } from '@/components/JsonLd';
-import { brand, getSeo, getBlogPosts, isValidLocale, localeUrl } from '@/lib/config';
+import { brand, getSeo, getBlogPosts, getBrandName, isValidLocale, localeUrl } from '@/lib/config';
+import { getLabels } from '@/lib/component-labels';
 
 const colors = [
   'from-primary-100 to-primary-200',
@@ -16,26 +17,27 @@ export default function BlogIndexPage({ locale }: { locale: string }) {
   if (!isValidLocale(locale)) notFound();
   const seo = getSeo(locale);
   const blogPosts = getBlogPosts(locale);
+  const labels = getLabels(locale);
 
   return (
     <>
       <BreadcrumbJsonLd
         items={[
           { name: 'Home', url: `${seo.domain}${localeUrl('home', locale)}` },
-          { name: 'Blog', url: `${seo.domain}${localeUrl('', locale, 'blogIndex')}` },
+          { name: labels.blog, url: `${seo.domain}${localeUrl('', locale, 'blogIndex')}` },
         ]}
       />
       <section className="section-padding">
         <div className="container-width">
           <div className="text-center">
-            <h1 className="text-4xl font-bold text-gray-900 sm:text-5xl">Blog</h1>
+            <h1 className="text-4xl font-bold text-gray-900 sm:text-5xl">{labels.blog}</h1>
             <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-600">
-              Latest articles and insights from {brand.name}
+              {labels.latestArticlesFrom} {getBrandName(locale)}
             </p>
           </div>
 
           {blogPosts.length === 0 ? (
-            <p className="mt-12 text-center text-gray-500">No articles yet. Check back soon!</p>
+            <p className="mt-12 text-center text-gray-500">{labels.noArticlesYet}</p>
           ) : (
             <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
               {blogPosts.map((post, index) => (
@@ -61,7 +63,7 @@ export default function BlogIndexPage({ locale }: { locale: string }) {
                       {post.excerpt}
                     </p>
                     <div className="mt-4 text-sm font-medium text-primary-600">
-                      Read more &rarr;
+                      {labels.readMore} &rarr;
                     </div>
                   </div>
                 </Link>

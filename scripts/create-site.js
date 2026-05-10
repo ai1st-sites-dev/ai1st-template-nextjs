@@ -335,6 +335,75 @@ async function retryWithBackoff(fn, { retries = 3, backoff = [5000, 15000, 45000
   throw lastErr;
 }
 
+// TICKET-132: AI-call-level retry for JSON.parse failures only. Pairs with
+// retryWithBackoff: the outer one handles API/network/transient 5xx errors;
+// this inner one handles AI hallucinating malformed JSON (trailing commas,
+// unquoted strings, mid-stream truncation other than max_tokens).
+//
+// Each attempt re-streams the call, parses the response, and on JSON.parse
+// failure augments `messages` with a short assistant excerpt + an explicit
+// "respond AGAIN with ONLY valid JSON" user instruction. Non-parse errors
+// (API errors, network, max_tokens) throw immediately so the outer
+// retryWithBackoff (or fatal handler) can react.
+//
+// `costContext` shape: { operation, detail, pricing, durationStart? } —
+// detail gets ` [retry N]` appended on attempt 2+ for dashboard transparency.
+async function callAIWithRetry({ client, baseOptions, costContext, label, maxAttempts = 3 }) {
+  let messages = baseOptions.messages;
+  let lastParseError;
+  let lastText = '';
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const stream = await client.messages.stream({ ...baseOptions, messages });
+    const response = await stream.finalMessage();
+
+    // Emit cost on EVERY attempt — user paid for each token.
+    const usage = response.usage || {};
+    const cost = ((usage.input_tokens || 0) * costContext.pricing.input + (usage.output_tokens || 0) * costContext.pricing.output) / 1_000_000;
+    const retryTag = attempt > 1 ? ` [retry ${attempt - 1}]` : '';
+    emit('cost', {
+      operation: costContext.operation,
+      cost,
+      duration: costContext.durationStart ? (Date.now() - costContext.durationStart) : 0,
+      detail: `${costContext.detail}${retryTag} (${usage.input_tokens || 0} in / ${usage.output_tokens || 0} out)`,
+    });
+
+    // max_tokens is a prompt-size problem — retrying the same prompt would
+    // hit the same wall. Throw so caller (or outer retryWithBackoff) reacts.
+    if (response.stop_reason === 'max_tokens') {
+      throw new Error(`${label}: response was truncated (max_tokens hit) — try reducing prompt size`);
+    }
+
+    const text = response.content[0].text.trim();
+    lastText = text;
+    const jsonStr = text.replace(/^```[\w]*\n?/, '').replace(/\n?```$/, '');
+    try {
+      debug(`[ai-retry] ${label} attempt ${attempt}/${maxAttempts}: parse succeeded`);
+      return { parsed: JSON.parse(jsonStr), response, text };
+    } catch (parseErr) {
+      lastParseError = parseErr;
+      debug(`[ai-retry] ${label} attempt ${attempt}/${maxAttempts}: JSON.parse failed: ${parseErr.message}`);
+      if (attempt >= maxAttempts) break;
+
+      // Augment messages: truncated excerpt (cost-control) + retry instruction.
+      const excerpt = text.substring(0, 500) + (text.length > 500 ? '... [truncated]' : '');
+      messages = [
+        ...messages,
+        { role: 'assistant', content: `[Response was malformed. Excerpt: ${excerpt}]` },
+        { role: 'user', content: `Previous response failed JSON.parse with error: "${parseErr.message}". Respond AGAIN with ONLY valid JSON — no markdown fences, no comments, no trailing commas, no explanatory text. Same content/structure as originally requested.` },
+      ];
+
+      // Short exponential backoff (1s, 2s, 4s) — JSON parse failure is not
+      // a rate-limit issue so no need to wait long.
+      await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt - 1)));
+    }
+  }
+  const err = new Error(`${label}: failed to parse AI response as JSON after ${maxAttempts} attempts. Last error: ${lastParseError.message}`);
+  // Attach last raw response so callers can persist it for postmortem.
+  err.lastText = lastText;
+  err.lastParseError = lastParseError;
+  throw err;
+}
+
 // Map natural-language names → ISO 639-1 codes (case-insensitive). Both primary
 // (`language` input) and secondary (`secondaryLocales[]`) inputs flow through this.
 const LANG_NAME_TO_ISO = {
@@ -399,6 +468,10 @@ async function main() {
     // for Tier 1/2 prompts; missing → all secondary pages fall through to Tier 3.
     secondaryLocales = [],
     secondaryLocaleKeywords = {},
+    // TICKET-136: optional per-locale brand name overrides keyed by ISO code
+    // (e.g. {"zh":"耐克"} for an English-primary Nike site). Missing or empty
+    // keys fall back to companyName via getBrandName's per-key fallback.
+    brandNameByLocale = {},
     template = 'ai',
     refSite,
     refPrefs = [],
@@ -481,6 +554,17 @@ async function main() {
   if (input.skipAI) {
     progress('Setting up demo site (no AI)...', 10);
     const content = getDemoConfig(siteId);
+    // TICKET-136: getDemoConfig returns name as a string; convert to Record
+    // keyed by defaultLocale and merge in any brandNameByLocale overrides so
+    // brand.json matches the per-locale schema even in skipAI fixtures.
+    const skipAiPrimaryName = companyName || (typeof content.brand.name === 'string' ? content.brand.name : 'Demo Company');
+    content.brand.name = { [defaultLocale]: skipAiPrimaryName };
+    for (const [loc, name] of Object.entries(brandNameByLocale)) {
+      const norm = normalizeLocale(loc);
+      if (norm && typeof name === 'string' && name.trim()) {
+        content.brand.name[norm] = name.trim();
+      }
+    }
     writeSiteConfig(siteDir, content, defaultLocale);
     debug(`Demo site config written to site/`);
     // TICKET-122b: in skipAI mode, secondary locales get a verbatim copy of the
@@ -548,6 +632,9 @@ async function main() {
     services, usp, targetCustomers, brandDescription,
     theme, languageName, refSite, refPrefs, refAnalysis,
     reviews, onlinePresence, hours, priceRange, uploadedImages, logoUrl,
+    // TICKET-140: pass per-locale brand-name inputs through so generateContent
+    // can assemble brand.name as a Record<locale, string> (136 regression fix).
+    defaultLocale, brandNameByLocale,
   });
 
   // TICKET-119: Layout hard-copy compliance check
@@ -809,6 +896,9 @@ SECONDARY LOCALE KEYWORDS (Tier ${tier}):
 ${keywordList}
 
 INSTRUCTIONS:
+- CRITICAL BRAND NAME RULE (TICKET-137): The brand name "${companyName}" MUST appear LITERALLY VERBATIM in all translated content. DO NOT translate, transliterate, or localize the brand name even when generating ${secondaryLanguageName} text. The exact characters of "${companyName}" (including apostrophes / capitalization / special chars) must be preserved. Examples:
+    ✗ WRONG: "Happy Paws宠物美容" (translated brand to zh) / "McDonalds" (dropped ') / "麦当劳 has been serving"
+    ✓ RIGHT: "Happy Paws Pet Grooming 是您的最佳选择" (English brand verbatim in zh sentence) / "McDonald's"
 - ${tierInstruction}
 - Translate ALL user-visible string fields to ${secondaryLanguageName}: title, description, navLabel, every section's headline/subheadline/title/text/items/labels/etc.
 - DO NOT translate: page.slug (kept ASCII), page.changeFrequency, page.priority, page.navOrder, section.type, section.data field names (keys), URLs/hrefs (kept as-is).
@@ -816,32 +906,18 @@ INSTRUCTIONS:
 - Output: a JSON object matching the input page schema exactly, with content translated.
 - Return ONLY the JSON object, no preamble, no \`\`\`json fence.`;
 
-  const stream = await client.messages.stream({
-    model,
-    max_tokens: maxTokens,
-    messages: [{ role: 'user', content: prompt }],
+  // TICKET-132: callAIWithRetry handles JSON.parse failures (≤3 attempts);
+  // max_tokens and other errors throw, escaping to the outer retryWithBackoff.
+  const { parsed: translated } = await callAIWithRetry({
+    client,
+    baseOptions: { model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] },
+    costContext: {
+      operation: 'translate-secondary-locale',
+      detail: `${page.slug} → ${secondaryLocale} (Tier ${tier})`,
+      pricing,
+    },
+    label: `translate page ${page.slug}`,
   });
-  const response = await stream.finalMessage();
-  if (response.stop_reason === 'max_tokens') {
-    throw new Error(`Translation truncated for page ${page.slug} (max_tokens hit)`);
-  }
-  const usage = response.usage || {};
-  const cost = ((usage.input_tokens || 0) * pricing.input + (usage.output_tokens || 0) * pricing.output) / 1_000_000;
-  emit('cost', {
-    operation: 'translate-secondary-locale',
-    cost,
-    duration: 0,
-    detail: `${page.slug} → ${secondaryLocale} (Tier ${tier}, ${usage.input_tokens || 0} in / ${usage.output_tokens || 0} out)`,
-  });
-
-  const text = response.content[0].text.trim();
-  const jsonStr = text.replace(/^```[\w]*\n?/, '').replace(/\n?```$/, '');
-  let translated;
-  try {
-    translated = JSON.parse(jsonStr);
-  } catch (e) {
-    throw new Error(`Failed to parse translated page ${page.slug}: ${e.message}`);
-  }
   // Defensive: preserve immutable fields (slug, type, etc.) even if Claude misbehaves.
   translated.slug = page.slug;
   translated.changeFrequency = page.changeFrequency;
@@ -874,13 +950,29 @@ ${JSON.stringify({
   brandTagline: brand.tagline,
   seo: { siteTitle: seo.siteTitle, siteDescription: seo.siteDescription, keywords: seo.keywords, schema: { offerCatalogName: seo.schema?.offerCatalogName, priceRange: seo.schema?.priceRange } },
   services: services.map(s => ({ id: s.id, name: s.name, shortDescription: s.shortDescription, fullDescription: s.fullDescription, features: s.features, products: s.products })),
-  navigation: { header: { cta: navigation.header.cta }, footer: { description: navigation.footer.description, copyright: navigation.footer.copyright } },
+  navigation: {
+    header: { cta: navigation.header.cta },
+    footer: {
+      description: navigation.footer.description,
+      copyright: navigation.footer.copyright,
+      // TICKET-135: include columns so AI can translate column.title (e.g.
+      // "Quick Links" → "快速链接") and links[*].label.
+      columns: (navigation.footer.columns || []).map(c => ({
+        title: c.title,
+        links: (c.links || []).map(l => ({ label: l.label, href: l.href })),
+      })),
+    },
+  },
 }, null, 2)}
 \`\`\`
 
 INSTRUCTIONS:
+- CRITICAL BRAND NAME RULE (TICKET-137): The brand name "${companyName}" MUST appear LITERALLY VERBATIM in any translated string that references the brand (footer description, copyright, seo.siteTitle/siteDescription, navigation.header.cta.label, etc). DO NOT translate, transliterate, or localize the brand name in ${secondaryLanguageName}. Examples:
+    ✗ WRONG: "Happy Paws宠物美容" / "麦当劳" / "McDonalds" (dropped apostrophe)
+    ✓ RIGHT: "Happy Paws Pet Grooming" / "McDonald's" (verbatim regardless of locale)
 - Translate ALL user-visible string fields to ${secondaryLanguageName}, preserving brand voice and SEO intent.
-- DO NOT translate: service.id (kept ASCII slug), navigation.header.cta.href (URL).
+- DO NOT translate: service.id (kept ASCII slug), navigation.header.cta.href (URL), navigation.footer.columns[*].links[*].href (URL).
+- TICKET-135: navigation.footer.columns[*].title and links[*].label MUST be translated too (e.g. "Quick Links" → native locale word, "Home" → "首页" etc).
 - For seo.keywords: produce a SEO-friendly comma-separated keyword string in ${secondaryLanguageName} (you may add 1-2 high-volume locale-native keywords if natural).
 - Output JSON shape:
 \`\`\`json
@@ -888,37 +980,30 @@ INSTRUCTIONS:
   "brandTagline": "<translated>",
   "seo": { "siteTitle": "...", "siteDescription": "...", "keywords": "...", "schema": { "offerCatalogName": "...", "priceRange": "..." } },
   "services": [ { "id": "<unchanged>", "name": "...", "shortDescription": "...", "fullDescription": "...", "features": [...], "products": [...] }, ... ],
-  "navigation": { "header": { "cta": { "label": "...", "href": "<unchanged>" } }, "footer": { "description": "...", "copyright": "..." } }
+  "navigation": {
+    "header": { "cta": { "label": "...", "href": "<unchanged>" } },
+    "footer": {
+      "description": "...",
+      "copyright": "...",
+      "columns": [ { "title": "...", "links": [ { "label": "...", "href": "<unchanged>" }, ... ] }, ... ]
+    }
+  }
 }
 \`\`\`
 - Return ONLY the JSON object, no preamble, no \`\`\`json fence.`;
 
-  const stream = await client.messages.stream({
-    model,
-    max_tokens: maxTokens,
-    messages: [{ role: 'user', content: prompt }],
+  // TICKET-132: callAIWithRetry handles JSON.parse failures; max_tokens and
+  // other errors throw to the outer retryWithBackoff wrapping the caller.
+  const { parsed } = await callAIWithRetry({
+    client,
+    baseOptions: { model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] },
+    costContext: {
+      operation: 'translate-secondary-locale',
+      detail: `supporting files → ${secondaryLocale}`,
+      pricing,
+    },
+    label: 'translate supporting files',
   });
-  const response = await stream.finalMessage();
-  if (response.stop_reason === 'max_tokens') {
-    throw new Error(`Supporting files translation truncated (max_tokens hit)`);
-  }
-  const usage = response.usage || {};
-  const cost = ((usage.input_tokens || 0) * pricing.input + (usage.output_tokens || 0) * pricing.output) / 1_000_000;
-  emit('cost', {
-    operation: 'translate-secondary-locale',
-    cost,
-    duration: 0,
-    detail: `supporting files → ${secondaryLocale} (${usage.input_tokens || 0} in / ${usage.output_tokens || 0} out)`,
-  });
-
-  const text = response.content[0].text.trim();
-  const jsonStr = text.replace(/^```[\w]*\n?/, '').replace(/\n?```$/, '');
-  let parsed;
-  try {
-    parsed = JSON.parse(jsonStr);
-  } catch (e) {
-    throw new Error(`Failed to parse supporting files translation: ${e.message}`);
-  }
 
   // Build output, defensively preserving immutable fields.
   const outServices = services.map((origSvc, i) => {
@@ -956,6 +1041,22 @@ INSTRUCTIONS:
       ...navigation.footer,
       description: parsed.navigation?.footer?.description || navigation.footer.description,
       copyright: parsed.navigation?.footer?.copyright || navigation.footer.copyright,
+      // TICKET-135: merge translated footer columns (title + links[].label).
+      // Defensive: keep original column shape (icons, slug-keyed identity) and
+      // only swap in translated text fields. href is never translated.
+      columns: (navigation.footer.columns || []).map((col, i) => {
+        const aiCol = parsed.navigation?.footer?.columns?.[i];
+        return {
+          ...col,
+          title: aiCol?.title || col.title,
+          links: Array.isArray(col.links)
+            ? col.links.map((link, j) => ({
+                ...link,
+                label: aiCol?.links?.[j]?.label || link.label,
+              }))
+            : col.links,
+        };
+      }),
     },
   };
 
@@ -1216,6 +1317,11 @@ async function generateContent(opts) {
     theme, languageName, refSite, refPrefs = [], refAnalysis = null,
     reviews = [], onlinePresence = {}, hours, priceRange, uploadedImages = [],
     logoUrl = '',
+    // TICKET-140: per-locale brand inputs (136 regression). defaultLocale is
+    // always set by the main-scope `normalizeLocale(language) || 'en'`, so no
+    // default is needed; brandNameByLocale = {} guards against the dashboard
+    // omitting the field entirely.
+    defaultLocale, brandNameByLocale = {},
   } = opts;
 
   const client = new Anthropic();
@@ -1478,6 +1584,27 @@ ${refSiteInstruction}
 ${imagesInstruction}
 ${pagesInstruction}
 
+CRITICAL BRAND NAME RULE (TICKET-137):
+The brand name "${companyName}" is canonical and MUST appear LITERALLY VERBATIM in all
+generated content — hero headlines, subtitles, page descriptions, footer description,
+copyright, breadcrumbs, CTA text, and ANY user-visible string that references the brand.
+
+DO NOT translate, transliterate, localize, or create alternative versions of the brand name.
+This rule applies in ALL languages — even when the surrounding text is non-English, the brand
+name MUST remain in its original "${companyName}" form, INCLUDING all apostrophes, capitalization,
+and special characters.
+
+Examples — WRONG (DO NOT generate):
+  ✗ "Happy Paws宠物美容 是您的最佳选择" (translated brand name in zh)
+  ✗ "麦当劳 has been serving" (translated brand name in en sentence)
+  ✗ "Coca-Cola 可口可乐 of course" (mixing original + translated)
+  ✗ "Bienvenido a McDonalds" (apostrophe dropped from "McDonald's")
+
+Examples — RIGHT:
+  ✓ "Happy Paws Pet Grooming 是您的最佳选择" (English brand verbatim in zh sentence)
+  ✓ "McDonald's has been serving" (verbatim, exact apostrophe)
+  ✓ "Welcome to Happy Paws Pet Grooming"
+
 AVAILABLE ICONS (pick the most relevant for each service):
 ${availableIcons.join(', ')}
 
@@ -1654,54 +1781,62 @@ CRITICAL RULES:
   emit('prompt', { name: 'Base Site', content: prompt });
   progress('AI is generating content and layout...', 25);
 
-  const call1Start = Date.now();
-  const stream = await client.messages.stream({
-    model,
-    max_tokens: maxTokens,
-    messages: [{ role: 'user', content: prompt }]
-  });
-
   progress('Waiting for AI response...', 35);
 
-  const response = await stream.finalMessage();
-  const call1Duration = ((Date.now() - call1Start) / 1000).toFixed(1);
-
-  // Emit cost for Call 1 (base site)
-  const usage1 = response.usage || {};
-  const cost1 = ((usage1.input_tokens || 0) * pricing.input + (usage1.output_tokens || 0) * pricing.output) / 1_000_000;
-  emit('cost', {
-    operation: 'create-site',
-    cost: cost1,
-    duration: Date.now() - call1Start,
-    detail: `Base site (${usage1.input_tokens || 0} in / ${usage1.output_tokens || 0} out)`,
-  });
-  debug(`Call 1 cost: $${cost1.toFixed(4)} (${usage1.input_tokens} in / ${usage1.output_tokens} out)`);
-
-  if (response.stop_reason === 'max_tokens') {
-    fatal('AI response was truncated (hit token limit). Try fewer services.');
-  }
-
-  progress('Parsing AI response...', 42);
-
-  const text = response.content[0].text.trim();
-  const jsonStr = text.replace(/^```[\w]*\n?/, '').replace(/\n?```$/, '');
-
-  let ai;
+  // TICKET-132: callAIWithRetry retries up to 3 times on JSON.parse failures
+  // (AI hallucinating malformed JSON). max_tokens still throws immediately
+  // (prompt-size issue, retry won't help).
+  const call1Start = Date.now();
+  let ai, response;
   try {
-    ai = JSON.parse(jsonStr);
+    const result = await callAIWithRetry({
+      client,
+      baseOptions: { model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] },
+      costContext: {
+        operation: 'create-site',
+        detail: 'Base site',
+        pricing,
+        durationStart: call1Start,
+      },
+      label: 'Call 1 base site',
+    });
+    ai = result.parsed;
+    response = result.response;
   } catch (e) {
-    // Save raw response for debugging
-    const debugPath = path.join(__dirname, '..', 'site', '_ai-response.txt');
-    try { fs.writeFileSync(debugPath, text); } catch {}
-    debug('Raw AI response saved to:', debugPath);
+    // Preserve original debug behavior: save raw response on final failure.
+    if (e.lastText) {
+      const debugPath = path.join(__dirname, '..', 'site', '_ai-response.txt');
+      try { fs.writeFileSync(debugPath, e.lastText); } catch {}
+      debug('Raw AI response saved to:', debugPath);
+    }
+    // max_tokens hit, all retries exhausted, or any other terminal error.
+    if (/max_tokens hit/.test(e.message)) {
+      fatal('AI response was truncated (hit token limit). Try fewer services.');
+    }
     fatal('Failed to parse AI response as JSON');
   }
+  const usage1 = response.usage || {};
+  const cost1 = ((usage1.input_tokens || 0) * pricing.input + (usage1.output_tokens || 0) * pricing.output) / 1_000_000;
+  const call1Duration = ((Date.now() - call1Start) / 1000).toFixed(1);
+  debug(`Call 1 cost: $${cost1.toFixed(4)} (${usage1.input_tokens} in / ${usage1.output_tokens} out)`);
+
+  progress('Parsing AI response...', 42);
 
   progress('Assembling configuration...', 45);
 
   // Assemble config files
+  // TICKET-136: brand.name is per-locale. Default to companyName for the
+  // primary locale; merge in any explicit per-locale overrides from the
+  // dashboard form (e.g. {"zh":"耐克"} for a Nike site).
+  const brandName = { [defaultLocale]: companyName };
+  for (const [loc, name] of Object.entries(brandNameByLocale)) {
+    const norm = normalizeLocale(loc);
+    if (norm && typeof name === 'string' && name.trim()) {
+      brandName[norm] = name.trim();
+    }
+  }
   const brand = {
-    name: companyName,
+    name: brandName,
     tagline: ai.brand.tagline,
     logoIcon: ai.brand.logoIcon,
     logoUrl: logoUrl || '',
@@ -1823,6 +1958,15 @@ ${location ? `- Location: ${location}` : ''}
 - Brand tagline: ${brand.tagline}
 - Site description: ${seo.siteDescription}
 ${languageInstruction}
+
+CRITICAL BRAND NAME RULE (TICKET-137):
+The brand name "${companyName}" is canonical and MUST appear LITERALLY VERBATIM in all
+generated content — page titles, descriptions, breadcrumbs, CTA labels, hero subtitles,
+and ANY user-visible string that references the brand. DO NOT translate, transliterate,
+or localize the brand name in ANY language. Examples:
+  ✗ WRONG: "Happy Paws宠物美容" (translated brand) / "McDonalds" (dropped apostrophe)
+  ✓ RIGHT: "Happy Paws Pet Grooming" / "McDonald's" (verbatim regardless of locale)
+
 ${Object.keys(serviceDetailMap).length > 0 ? `SERVICE DETAIL PAGES (link breadcrumbs to these when available):
 ${Object.entries(serviceDetailMap).map(([svcId, slug]) => `- ${svcId}: /${slug}`).join('\n')}
 ` : ''}
@@ -1875,45 +2019,37 @@ CRITICAL RULES:
   emit('prompt', { name: 'Keyword Pages', content: prompt });
   progress('AI is generating keyword page content...', 60);
 
+  // TICKET-132: callAIWithRetry retries on JSON.parse failures (≤3 attempts);
+  // max_tokens hit also throws (caught below). Keyword pages are non-critical
+  // so any final failure returns [] rather than failing the build.
   const call2Start = Date.now();
-  const stream = await client.messages.stream({
-    model,
-    max_tokens: maxTokens,
-    messages: [{ role: 'user', content: prompt }],
-  });
-
-  const response = await stream.finalMessage();
-  const call2Duration = ((Date.now() - call2Start) / 1000).toFixed(1);
-
-  // Emit cost for Call 2 (keyword pages)
-  const usage2 = response.usage || {};
-  const cost2 = ((usage2.input_tokens || 0) * pricing.input + (usage2.output_tokens || 0) * pricing.output) / 1_000_000;
-  emit('cost', {
-    operation: 'create-site',
-    cost: cost2,
-    duration: Date.now() - call2Start,
-    detail: `Keyword pages (${usage2.input_tokens || 0} in / ${usage2.output_tokens || 0} out)`,
-  });
-  debug(`Call 2 cost: $${cost2.toFixed(4)} (${usage2.input_tokens} in / ${usage2.output_tokens} out)`);
-
-  if (response.stop_reason === 'max_tokens') {
-    debug('WARNING: Keyword pages response was truncated');
-  }
-
-  progress('Parsing keyword pages...', 65);
-
-  const text = response.content[0].text.trim();
-  const jsonStr = text.replace(/^```[\w]*\n?/, '').replace(/\n?```$/, '');
-
-  let pages;
+  let pages, response;
   try {
-    pages = JSON.parse(jsonStr);
+    const result = await callAIWithRetry({
+      client,
+      baseOptions: { model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] },
+      costContext: {
+        operation: 'create-site',
+        detail: 'Keyword pages',
+        pricing,
+        durationStart: call2Start,
+      },
+      label: 'Call 2 keyword pages',
+    });
+    pages = result.parsed;
+    response = result.response;
   } catch (e) {
-    debug('Failed to parse keyword pages JSON:', e.message);
-    debug('Raw response (first 500 chars):', text.substring(0, 500));
-    // Return empty — don't fail the whole build for keyword pages
+    debug('Failed to generate keyword pages (after retries):', e.message);
+    if (e.lastText) debug('Raw response (first 500 chars):', e.lastText.substring(0, 500));
+    // Return empty — don't fail the whole build for keyword pages.
     return [];
   }
+  const usage2 = response.usage || {};
+  const cost2 = ((usage2.input_tokens || 0) * pricing.input + (usage2.output_tokens || 0) * pricing.output) / 1_000_000;
+  const call2Duration = ((Date.now() - call2Start) / 1000).toFixed(1);
+  debug(`Call 2 cost: $${cost2.toFixed(4)} (${usage2.input_tokens} in / ${usage2.output_tokens} out)`);
+
+  progress('Parsing keyword pages...', 65);
 
   if (!Array.isArray(pages)) {
     debug('Keyword pages response is not an array, wrapping');

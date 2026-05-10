@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import ServiceIcon from '@/components/ServiceIcon';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
-import { brand, defaultLocale, getNavigation } from '@/lib/config';
+import { brand, defaultLocale, getNavigation, getBrandName } from '@/lib/config';
 
 // TICKET-129: defaultLocale uses root URL alias (no /<locale> prefix).
 function localizeHref(href: string, locale: string): string {
@@ -21,15 +21,15 @@ export default function Header({ locale }: { locale: string }) {
   return (
     <header className="sticky top-0 z-50 bg-white shadow-sm">
       <nav className="container-width flex items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-        <Link href={localizeHref('/', locale)} className="flex items-center gap-2" aria-label={`${brand.name} - Home`}>
+        <Link href={localizeHref('/', locale)} className="flex items-center gap-2" aria-label={`${getBrandName(locale)} - Home`}>
           {brand.logoUrl ? (
-            <img src={brand.logoUrl} alt={brand.name} className="h-10 w-auto max-w-[160px] object-contain" />
+            <img src={brand.logoUrl} alt={getBrandName(locale)} className="h-10 w-auto max-w-[160px] object-contain" />
           ) : (
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-500">
               <ServiceIcon icon={brand.logoIcon} className="h-6 w-6 text-white" />
             </div>
           )}
-          {!brand.logoUrl && <span className="text-xl font-bold text-primary-900">{brand.name}</span>}
+          {!brand.logoUrl && <span className="text-xl font-bold text-primary-900">{getBrandName(locale)}</span>}
         </Link>
 
         {/* Desktop Navigation */}

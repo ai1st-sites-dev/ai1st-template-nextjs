@@ -1,11 +1,15 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { brand, getSeo, defaultLocale } from '@/lib/config';
+import { brand, getSeo, getBrandName, defaultLocale } from '@/lib/config';
 
 const seo = getSeo(defaultLocale);
+// TICKET-136: layout.tsx is a server component with no locale prop — use the
+// default-locale brand name for the site-wide baseline metadata (per-page
+// metadata builders in lib/metadata.ts already pass locale through).
+const defaultBrandName = getBrandName(defaultLocale);
 
 function buildFaviconSvg(): string {
-  const letter = (brand.name || 'X').charAt(0).toUpperCase();
+  const letter = (defaultBrandName || 'X').charAt(0).toUpperCase();
   const bg = brand.colors.primary[500] || '#6366f1';
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="${bg}"/><text x="16" y="23" text-anchor="middle" fill="white" font-family="system-ui,sans-serif" font-size="20" font-weight="bold">${letter}</text></svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
@@ -26,7 +30,7 @@ function buildCssVariables(): string {
 export const metadata: Metadata = {
   title: {
     default: seo.siteTitle,
-    template: `%s | ${brand.name}`,
+    template: `%s | ${defaultBrandName}`,
   },
   description: seo.siteDescription,
   keywords: seo.keywords,
@@ -38,7 +42,7 @@ export const metadata: Metadata = {
     title: seo.siteTitle,
     description: seo.siteDescription,
     url: seo.domain,
-    siteName: brand.name,
+    siteName: defaultBrandName,
     locale: seo.locale,
     type: 'website',
   },

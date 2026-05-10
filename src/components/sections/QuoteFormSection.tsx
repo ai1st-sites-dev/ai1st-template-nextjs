@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import ServiceIcon from '@/components/ServiceIcon';
 import { brand, getServices } from '@/lib/config';
+import { getLabels } from '@/lib/component-labels';
 
 interface QuoteFormSectionProps {
   data: {
@@ -18,6 +19,7 @@ interface QuoteFormSectionProps {
 
 export default function QuoteFormSection({ data, locale }: QuoteFormSectionProps) {
   const services = getServices(locale);
+  const labels = getLabels(locale);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [propertyType, setPropertyType] = useState('');
   const [urgency, setUrgency] = useState('');
@@ -66,7 +68,7 @@ export default function QuoteFormSection({ data, locale }: QuoteFormSectionProps
               <h2 className="text-xl font-semibold text-gray-900">
                 1. Which services are you interested in?
               </h2>
-              <p className="mt-1 text-sm text-gray-500">Select all that apply</p>
+              <p className="mt-1 text-sm text-gray-500">{labels.selectAllThatApply}</p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {services.map((service) => (
                   <button
@@ -157,7 +159,7 @@ export default function QuoteFormSection({ data, locale }: QuoteFormSectionProps
           <aside className="lg:col-span-1">
             <div className="sticky top-32 rounded-xl bg-gray-50 p-8">
               <h3 className="text-lg font-semibold text-gray-900">
-                What You Get
+                {labels.whatYouGet}
               </h3>
               <ul className="mt-4 space-y-3">
                 {data.benefits.map((benefit, index) => (
@@ -171,8 +173,8 @@ export default function QuoteFormSection({ data, locale }: QuoteFormSectionProps
               </ul>
 
               <div className="mt-8 rounded-lg bg-primary-50 p-4">
-                <h4 className="font-medium text-primary-900">Need immediate help?</h4>
-                <p className="mt-1 text-sm text-primary-700">Call us directly:</p>
+                <h4 className="font-medium text-primary-900">{labels.needImmediateHelp}</h4>
+                <p className="mt-1 text-sm text-primary-700">{labels.callUsDirectly}</p>
                 {brand.locations.map((location) => (
                   <p key={location.label} className="mt-1 text-sm font-semibold text-primary-900">
                     {location.label.replace(' Office', '')}: {location.phone}

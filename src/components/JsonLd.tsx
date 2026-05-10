@@ -1,4 +1,4 @@
-import { brand, getSeo, getServices, getInLanguage, localeUrl } from '@/lib/config';
+import { brand, getSeo, getServices, getInLanguage, getBrandName, localeUrl } from '@/lib/config';
 import type { BlogPostConfig } from '@/lib/types/config';
 
 export function LocalBusinessJsonLd({ locale }: { locale: string }) {
@@ -8,7 +8,7 @@ export function LocalBusinessJsonLd({ locale }: { locale: string }) {
     '@context': 'https://schema.org',
     '@type': 'LocalBusiness',
     inLanguage: getInLanguage(locale),
-    name: brand.name,
+    name: getBrandName(locale),
     description: seo.siteDescription,
     url: seo.domain,
     telephone: brand.locations[0]?.phone,
@@ -58,7 +58,7 @@ export function WebSiteJsonLd({ locale }: { locale: string }) {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
     inLanguage: getInLanguage(locale),
-    name: brand.name,
+    name: getBrandName(locale),
     url: seo.domain,
     description: seo.siteDescription,
     potentialAction: {
@@ -85,7 +85,7 @@ export function ServiceJsonLd({ locale, serviceName, serviceDescription, service
     serviceType: serviceName,
     provider: {
       '@type': 'LocalBusiness',
-      name: brand.name,
+      name: getBrandName(locale),
       telephone: brand.locations[0]?.phone,
     },
     name: serviceName,
@@ -139,7 +139,7 @@ export function ArticleJsonLd({ locale, post }: { locale: string; post: BlogPost
     },
     publisher: {
       '@type': 'Organization',
-      name: brand.name,
+      name: getBrandName(locale),
       url: seo.domain,
     },
     datePublished: post.publishedAt,

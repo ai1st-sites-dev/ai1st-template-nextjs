@@ -44,6 +44,14 @@ export function getTagline(locale: string): string {
   return brand.tagline[locale] ?? brand.tagline[defaultLocale] ?? '';
 }
 
+// TICKET-136: per-locale brand name with 3-level fallback. Mirrors getTagline
+// shape so call sites read identical to taglines. Final fallback to the first
+// non-empty entry covers the edge case where neither the requested locale nor
+// the default-locale entry are populated.
+export function getBrandName(locale: string): string {
+  return brand.name[locale] ?? brand.name[defaultLocale] ?? Object.values(brand.name)[0] ?? '';
+}
+
 export function getPage(slug: string, locale: string): DynamicPageConfig | undefined {
   return (pagesByLocale[locale] ?? []).find((p) => p.slug === slug);
 }

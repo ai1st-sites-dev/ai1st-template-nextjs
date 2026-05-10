@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { brand, getSeo, getPage, getBlogPosts, getAlternateLanguages, getXDefaultHref, isValidLocale, localeUrl } from '@/lib/config';
+import { getSeo, getPage, getBlogPosts, getAlternateLanguages, getXDefaultHref, getBrandName, isValidLocale, localeUrl } from '@/lib/config';
 
 // Shared metadata builders. Used by route files (app/page.tsx, app/[...slug]/page.tsx,
 // app/blog/page.tsx, app/blog/[slug]/page.tsx) so each entry point produces canonical /
@@ -14,7 +14,7 @@ export function homeMetadata(locale: string): Metadata {
   return {
     title: {
       default: seo.siteTitle,
-      template: `%s | ${brand.name}`,
+      template: `%s | ${getBrandName(locale)}`,
     },
     description: seo.siteDescription,
     keywords: seo.keywords,
@@ -28,7 +28,7 @@ export function homeMetadata(locale: string): Metadata {
       title: seo.siteTitle,
       description: seo.siteDescription,
       url: ogUrl,
-      siteName: brand.name,
+      siteName: getBrandName(locale),
       locale: seo.locale,
       type: 'website',
     },
@@ -49,7 +49,11 @@ export function subPageMetadata(locale: string, slug: string): Metadata {
   const canonicalPath = localeUrl(page.slug, locale);
 
   return {
-    title: page.title,
+    // TICKET-136: use absolute title so the per-locale brand name appears in
+    // <title>. The layout-level title.template uses defaultLocale brand which
+    // would otherwise show e.g. "About | Nike" on a zh page that should read
+    // "About | 耐克".
+    title: { absolute: `${page.title} | ${getBrandName(locale)}` },
     description: page.description,
     alternates: {
       canonical: canonicalPath,
@@ -58,7 +62,7 @@ export function subPageMetadata(locale: string, slug: string): Metadata {
       } : {}),
     },
     openGraph: {
-      title: `${page.title} | ${brand.name}`,
+      title: `${page.title} | ${getBrandName(locale)}`,
       description: page.description,
       url: canonicalPath,
     },
@@ -72,7 +76,7 @@ export function blogIndexMetadata(locale: string): Metadata {
   const canonicalPath = localeUrl('', locale, 'blogIndex');
   return {
     title: 'Blog',
-    description: `Read the latest articles and insights from ${brand.name}.`,
+    description: `Read the latest articles and insights from ${getBrandName(locale)}.`,
     alternates: {
       canonical: canonicalPath,
       ...(Object.keys(altLanguages).length > 0 ? {
@@ -80,8 +84,8 @@ export function blogIndexMetadata(locale: string): Metadata {
       } : {}),
     },
     openGraph: {
-      title: `Blog | ${brand.name}`,
-      description: `Read the latest articles and insights from ${brand.name}.`,
+      title: `Blog | ${getBrandName(locale)}`,
+      description: `Read the latest articles and insights from ${getBrandName(locale)}.`,
       url: canonicalPath,
     },
   };

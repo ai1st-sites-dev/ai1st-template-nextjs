@@ -1,3 +1,5 @@
+import { getLabels } from '@/lib/component-labels';
+
 interface NewsletterSignupSectionProps {
   data: {
     headline: string;
@@ -5,11 +7,13 @@ interface NewsletterSignupSectionProps {
     buttonText?: string;
     variant?: 'inline' | 'card' | 'split' | 'minimal';
   };
+  locale: string;
 }
 
-export default function NewsletterSignupSection({ data }: NewsletterSignupSectionProps) {
+export default function NewsletterSignupSection({ data, locale }: NewsletterSignupSectionProps) {
+  const labels = getLabels(locale);
   const variant = data.variant || 'inline';
-  const buttonText = data.buttonText || 'Subscribe';
+  const buttonText = data.buttonText || labels.subscribe;
 
   if (variant === 'card') {
     return (
@@ -25,9 +29,9 @@ export default function NewsletterSignupSection({ data }: NewsletterSignupSectio
             <form action="#" className="mt-6">
               <input
                 type="email"
-                placeholder="Enter your email"
+                placeholder={labels.enterYourEmail}
                 className="mb-3 w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-500"
-                aria-label="Email address"
+                aria-label={labels.emailAddress}
                 readOnly
               />
               <button
@@ -53,9 +57,9 @@ export default function NewsletterSignupSection({ data }: NewsletterSignupSectio
             </h2>
             <input
               type="email"
-              placeholder="Enter your email"
+              placeholder={labels.enterYourEmail}
               className="w-full max-w-xs rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-500 sm:w-auto"
-              aria-label="Email address"
+              aria-label={labels.emailAddress}
               readOnly
             />
             <button
@@ -87,9 +91,9 @@ export default function NewsletterSignupSection({ data }: NewsletterSignupSectio
               <form action="#">
                 <input
                   type="email"
-                  placeholder="Enter your email"
+                  placeholder={labels.enterYourEmail}
                   className="mb-4 w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-500"
-                  aria-label="Email address"
+                  aria-label={labels.emailAddress}
                   readOnly
                 />
                 <button
@@ -119,9 +123,9 @@ export default function NewsletterSignupSection({ data }: NewsletterSignupSectio
         <form action="#" className="mx-auto mt-4 flex max-w-md">
           <input
             type="email"
-            placeholder="Enter your email"
+            placeholder={labels.enterYourEmail}
             className="flex-1 rounded-l-lg bg-white px-4 py-3 text-gray-500"
-            aria-label="Email address"
+            aria-label={labels.emailAddress}
             readOnly
           />
           <button
