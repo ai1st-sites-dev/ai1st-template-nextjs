@@ -61,6 +61,17 @@ const navigationByLocale = {};
 const pagesByLocale = {};
 const blogPostsByLocale = {};
 
+// TICKET-133: defensive fallback for the home page navLabel. AI translation
+// and translatePageWithClaude both already translate page.navLabel, so the
+// happy path is `homePage.navLabel` — this map is only used when navLabel is
+// missing (old sites pre-122a / partial translation failure / etc).
+const HOME_LABELS = {
+  en: 'Home', zh: '首页', fr: 'Accueil', es: 'Inicio',
+  ja: 'ホーム', ko: '홈', de: 'Startseite', it: 'Home',
+  pt: 'Início', ru: 'Главная', vi: 'Trang chủ',
+  ar: 'الرئيسية', hi: 'होम', th: 'หน้าแรก',
+};
+
 function readPagesRecursive(dir, prefix, accumulator) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
@@ -166,16 +177,21 @@ for (const locale of locales) {
   const regularPages = nonHomePages.filter(p => !isKeywordPage(p) && !isServiceDetailPage(p));
   const keywordPages = nonHomePages.filter(p => isKeywordPage(p));
 
+  // TICKET-133: bypass-translation bug — these arrays previously hardcoded
+  // 'Home' here, overwriting AI-translated navigation.json on every prebuild.
+  // Use the home page's own navLabel (already translated by AI / 122b
+  // translatePageWithClaude); fall back to a native-language map if missing.
+  const homeLabel = homePage.navLabel || HOME_LABELS[locale] || 'Home';
   const ctaSlug = existingNav.header.cta.href.replace(/^\//, '');
   const headerLinks = [
-    { label: 'Home', href: '/' },
+    { label: homeLabel, href: '/' },
     ...regularPages
       .filter(p => p.navLabel && p.slug !== ctaSlug)
       .map(p => ({ label: p.navLabel, href: `/${p.slug}` }))
   ];
 
   const footerLinks = [
-    { label: 'Home', href: '/' },
+    { label: homeLabel, href: '/' },
     ...regularPages
       .filter(p => p.navLabel)
       .map(p => ({ label: p.navLabel, href: `/${p.slug}` }))
@@ -186,8 +202,13 @@ for (const locale of locales) {
     existingNav.footer.columns[0].links = footerLinks;
   }
 
-  // Group keyword pages by service — one footer column per service
-  const hasKeywordColumns = existingNav.footer.columns.some(c => c.title !== 'Quick Links');
+  // Group keyword pages by service — one footer column per service.
+  // TICKET-135: column 0 is always the "Quick Links" column (potentially
+  // translated as "快速链接" / "Liens rapides" / etc), and any column at
+  // index ≥1 was added by this loop on a prior run as a keyword grouping.
+  // Detect by index rather than the literal English title so this still works
+  // after translateSupportingFiles localizes column 0's title.
+  const hasKeywordColumns = existingNav.footer.columns.length > 1;
   if (keywordPages.length > 0 && !hasKeywordColumns) {
     const groups = {};
     for (const p of keywordPages) {
