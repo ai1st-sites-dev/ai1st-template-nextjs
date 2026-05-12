@@ -589,6 +589,10 @@ async function main() {
         const gitOpts = { cwd: rootDir, stdio: 'pipe' };
         execSync('git add site/', gitOpts);
         execSync(`git commit -m "Generate site: ${siteId} (demo)"`, gitOpts);
+        // TICKET-142: emit chat-message anchor for the initial commit so the
+        // dashboard's first user edit can Revert back to the AI-generated site.
+        const initialCommitHash = execSync('git rev-parse --short HEAD', gitOpts).toString().trim();
+        emit('chat-message', { role: 'system', content: 'Site created', commit_hash: initialCommitHash });
         const repoPageUrl = input.repoUrl.replace(/\.git$/, '');
         emit('repo', { url: repoPageUrl });
       } catch (e) {
@@ -785,6 +789,10 @@ async function main() {
       const gitOpts = { cwd: rootDir, stdio: 'pipe' };
       execSync('git add site/', gitOpts);
       execSync(`git commit -m "Generate site: ${siteId}"`, gitOpts);
+      // TICKET-142: emit chat-message anchor for the initial commit so the
+      // dashboard's first user edit can Revert back to the AI-generated site.
+      const initialCommitHash = execSync('git rev-parse --short HEAD', gitOpts).toString().trim();
+      emit('chat-message', { role: 'system', content: 'Site created', commit_hash: initialCommitHash });
       const repoPageUrl = repoUrl.replace(/\.git$/, '');
       emit('repo', { url: repoPageUrl });
       debug('Committed site config, push deferred to entrypoint.sh');
