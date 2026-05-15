@@ -335,16 +335,33 @@ async function retryWithBackoff(fn, { retries = 3, backoff = [5000, 15000, 45000
   throw lastErr;
 }
 
-// TICKET-132: AI-call-level retry for JSON.parse failures only. Pairs with
-// retryWithBackoff: the outer one handles API/network/transient 5xx errors;
-// this inner one handles AI hallucinating malformed JSON (trailing commas,
-// unquoted strings, mid-stream truncation other than max_tokens).
+// TICKET-148: Classify an Anthropic SDK error as retryable (overloaded/rate-limit/5xx)
+// vs terminal (bad request/auth/etc). 3-way fallback to absorb SDK or server format
+// drift: status code first, then err.error.type, then regex on message. Mirrored
+// (independent copy) in edit-site.js per PM § decision E (no shared module).
+function isRetryableApiError(err) {
+  // Path 1: HTTP status code (Anthropic SDK v0.74+ exposes this on APIError)
+  const retryableStatuses = [429, 500, 502, 503, 529];
+  if (err && err.status && retryableStatuses.includes(err.status)) return true;
+  // Path 2: server-returned error.type JSON field
+  if (err && err.error && err.error.type && /overloaded|rate_limit_error/.test(err.error.type)) return true;
+  // Path 3: regex on message (covers SDK parsing failure or older versions)
+  if (err && /overloaded|rate.?limit|too many requests/i.test(err.message || '')) return true;
+  return false;
+}
+
+// TICKET-132 + TICKET-148: AI-call-level retry layered as:
+//   - API errors (429/5xx/529/overloaded) → 3 attempts with 5s/10s/20s backoff (TICKET-148)
+//   - JSON.parse failures (AI hallucinating malformed JSON) → 3 attempts with 1s/2s/4s
+//     backoff + augmented prompt asking for valid JSON (TICKET-132)
+//   - max_tokens or other terminal errors → throw immediately
 //
-// Each attempt re-streams the call, parses the response, and on JSON.parse
-// failure augments `messages` with a short assistant excerpt + an explicit
-// "respond AGAIN with ONLY valid JSON" user instruction. Non-parse errors
-// (API errors, network, max_tokens) throw immediately so the outer
-// retryWithBackoff (or fatal handler) can react.
+// Each attempt re-streams the call. On API error: retry the same prompt. On JSON
+// parse failure: augment `messages` with a short assistant excerpt + explicit
+// "respond AGAIN with ONLY valid JSON" user instruction.
+//
+// Outer `retryWithBackoff` (L322) still wraps secondary-locale translate paths
+// (L919 / L1005) so they get an additional retry tier — accepted layered cost.
 //
 // `costContext` shape: { operation, detail, pricing, durationStart? } —
 // detail gets ` [retry N]` appended on attempt 2+ for dashboard transparency.
@@ -353,8 +370,29 @@ async function callAIWithRetry({ client, baseOptions, costContext, label, maxAtt
   let lastParseError;
   let lastText = '';
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const stream = await client.messages.stream({ ...baseOptions, messages });
-    const response = await stream.finalMessage();
+    let response;
+    // TICKET-148: API-error retry around stream/finalMessage. Independent retry
+    // budget from the JSON-parse-retry below (an attempt can hit API error
+    // multiple times and still get its JSON parse attempt).
+    let apiAttempt = 0;
+    const maxApiAttempts = 3;
+    while (true) {
+      try {
+        const stream = await client.messages.stream({ ...baseOptions, messages });
+        response = await stream.finalMessage();
+        break; // API call succeeded — proceed to cost / JSON parse below.
+      } catch (apiErr) {
+        apiAttempt++;
+        if (isRetryableApiError(apiErr) && apiAttempt < maxApiAttempts) {
+          const waitMs = 1000 * Math.pow(2, apiAttempt - 1) * 5; // 5s, 10s, 20s
+          debug(`[ai-retry] ${label} API error ${apiErr.status || 'unknown'} (${apiAttempt}/${maxApiAttempts - 1}): ${apiErr.message?.substring(0, 200) || 'no message'} — retrying in ${waitMs}ms`);
+          await new Promise(r => setTimeout(r, waitMs));
+          continue;
+        }
+        // Not retryable, or budget exhausted — propagate.
+        throw apiErr;
+      }
+    }
 
     // Emit cost on EVERY attempt — user paid for each token.
     const usage = response.usage || {};
@@ -1817,11 +1855,17 @@ CRITICAL RULES:
       try { fs.writeFileSync(debugPath, e.lastText); } catch {}
       debug('Raw AI response saved to:', debugPath);
     }
-    // max_tokens hit, all retries exhausted, or any other terminal error.
-    if (/max_tokens hit/.test(e.message)) {
+    // TICKET-148: classify outer fatal by error type to avoid the "Failed to
+    // parse AI response as JSON" misnomer for Anthropic API overload errors.
+    if (/max_tokens hit/.test(e.message || '')) {
       fatal('AI response was truncated (hit token limit). Try fewer services.');
+    } else if (e.constructor?.name === 'APIError' || isRetryableApiError(e) || (e.status && e.status >= 400)) {
+      fatal(`AI service error: ${e.message}`);
+    } else if (e.lastText) {
+      fatal(`Failed to parse AI response as JSON after retries`);
+    } else {
+      fatal(`AI call failed: ${e.message}`);
     }
-    fatal('Failed to parse AI response as JSON');
   }
   const usage1 = response.usage || {};
   const cost1 = ((usage1.input_tokens || 0) * pricing.input + (usage1.output_tokens || 0) * pricing.output) / 1_000_000;

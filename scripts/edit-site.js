@@ -43,6 +43,16 @@ const debug = (...args) => process.stderr.write(args.join(' ') + '\n');
 // Returns a user-friendly string when the error looks like the AI provider
 // rejected an image format, or null when it's some other error (network,
 // auth, etc.) that should fall through to the existing error handler.
+// TICKET-148: independent copy from create-site.js (PM § decision E — no shared
+// module across scripts). Classify Anthropic SDK error as retryable.
+function isRetryableApiError(err) {
+  const retryableStatuses = [429, 500, 502, 503, 529];
+  if (err && err.status && retryableStatuses.includes(err.status)) return true;
+  if (err && err.error && err.error.type && /overloaded|rate_limit_error/.test(err.error.type)) return true;
+  if (err && /overloaded|rate.?limit|too many requests/i.test(err.message || '')) return true;
+  return false;
+}
+
 function classifyVisionError(err, images) {
   if (!images || images.length === 0) return null;
 
@@ -326,29 +336,49 @@ async function main() {
     debug(`Iteration ${i + 1}: sending ${currentMessages.length} messages`);
 
     let response;
-    try {
-      response = await client.messages.create({
-        model,
-        max_tokens: configMaxTokens,
-        system: SYSTEM_PROMPT,
-        messages: currentMessages,
-        tools,
-      });
-    } catch (err) {
-      // TICKET-105 v2: catch image-format errors and surface a friendly message
-      // instead of leaking the raw provider stack trace. Provider-agnostic —
-      // we match on standard error vocabulary, not on hardcoded format names.
-      const friendly = classifyVisionError(err, images);
-      if (friendly) {
-        emit('edit-complete', {
-          message: friendly,
-          inputTokens: totalInputTokens,
-          outputTokens: totalOutputTokens,
-          cost: 0,
-        });
-        return;
+    // TICKET-148: API-error retry inside this iteration. Per-iteration retry budget
+    // (3 attempts with 5s/10s/20s backoff). On retryable error → wait + retry.
+    // Image errors (classifyVisionError matches) and other terminal errors fall
+    // through to existing handler. iteration state (totalInputTokens, currentMessages)
+    // is untouched on retry → success continues this iteration normally.
+    {
+      let apiAttempt = 0;
+      const maxApiAttempts = 3;
+      while (true) {
+        try {
+          response = await client.messages.create({
+            model,
+            max_tokens: configMaxTokens,
+            system: SYSTEM_PROMPT,
+            messages: currentMessages,
+            tools,
+          });
+          break; // success → continue with normal flow below
+        } catch (err) {
+          apiAttempt++;
+          if (isRetryableApiError(err) && apiAttempt < maxApiAttempts) {
+            const waitMs = 1000 * Math.pow(2, apiAttempt - 1) * 5; // 5s, 10s, 20s
+            debug(`[ai-retry] iteration ${i + 1} API error ${err.status || 'unknown'} (${apiAttempt}/${maxApiAttempts - 1}): ${err.message?.substring(0, 200) || 'no message'} — retrying in ${waitMs}ms`);
+            await new Promise(r => setTimeout(r, waitMs));
+            continue;
+          }
+          // Not retryable, or budget exhausted — fall through to friendly/throw path.
+          // TICKET-105 v2: catch image-format errors and surface a friendly message
+          // instead of leaking the raw provider stack trace. Provider-agnostic —
+          // we match on standard error vocabulary, not on hardcoded format names.
+          const friendly = classifyVisionError(err, images);
+          if (friendly) {
+            emit('edit-complete', {
+              message: friendly,
+              inputTokens: totalInputTokens,
+              outputTokens: totalOutputTokens,
+              cost: 0,
+            });
+            return;
+          }
+          throw err; // non-image error → existing error path (caught by main()'s outer handler)
+        }
       }
-      throw err; // non-image error → existing error path (caught by main()'s outer handler)
     }
 
     totalInputTokens += response.usage?.input_tokens || 0;
