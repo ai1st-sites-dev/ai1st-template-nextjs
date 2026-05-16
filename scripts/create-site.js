@@ -267,9 +267,10 @@ const themes = {
 
 // ─── Auto Theme Selection ─────────────────────────────────────────────────────
 
-// TICKET-159: Imagen 4 prompt-style adjectives per theme. Keys MUST stay in
-// sync with `themes` above (11 entries). Fallback `'minimal modern flat 2D'`
-// applies if a theme name isn't in the map (e.g. future themes pre-registration).
+// TICKET-159 / TICKET-160: Logo prompt-style adjectives per theme (used by
+// Nano Banana logo gen, see generateLogoViaNanoBanana). Keys MUST stay in sync
+// with `themes` above (11 entries). Fallback `'minimal modern flat 2D'` applies
+// if a theme name isn't in the map (e.g. future themes pre-registration).
 const THEME_STYLE_MAP = {
   'bold-red':       'bold confident strong red accent',
   'ocean-blue':     'modern professional clean blue',
@@ -284,46 +285,29 @@ const THEME_STYLE_MAP = {
   'golden-yellow':  'warm trustworthy industrial yellow',
 };
 
-// TICKET-159: Brand Site AI Logo Generation (v1) — silent build-time via
-// Imagen 4 standard. Returns a Buffer (PNG) on success; throws on failure
-// (caller catches and falls back to text logo).
-async function generateLogoViaImagen({ companyName, industry, primaryColor, accentColor, themeName, apiKey }) {
+// TICKET-160: Brand Site AI Logo Generation — switched from Imagen 4 to Nano
+// Banana (Gemini 2.5 Flash Image). Same silent build-time semantics, same
+// fallback (caller catches and falls back to text logo). $0.04 → $0.005/image.
+// Delegates to callNanoBanana helper (added by TICKET-161). Returns Buffer.
+//
+// Prompt design (TICKET-160 addendum, Stage A v2 verified 6/6 zero-text):
+//   - Natural-language paragraph (NOT label:value structure — 159 shipped with
+//     label:value prompt that Imagen 4 mis-rendered AS text in the image,
+//     leaking design brief / hex codes / wordmarks into the PNG).
+//   - companyName is intentionally NOT embedded in the prompt body — model
+//     can't hallucinate a wordmark for a name it never saw. The parameter is
+//     kept in the signature for caller-compatibility / future use.
+//   - ALL CAPS negative block enumerating every form of text (letters, words,
+//     numbers, hex codes, labels, captions, writing, monograms, initials,
+//     typography) to suppress all text leakage variants.
+async function generateLogoViaNanoBanana({ companyName: _companyName, industry, primaryColor, accentColor, themeName, apiKey }) {
   if (!apiKey) throw new Error('GEMINI_API_KEY missing (no key in stdin payload)');
   const styleAdjective = THEME_STYLE_MAP[themeName] || 'minimal modern flat 2D';
-  const prompt = `A minimalist icon-only logo for "${companyName}", a ${industry} business.
-Style: ${styleAdjective}, flat 2D design, clean lines.
-Colors: ${primaryColor} as primary, ${accentColor} as accent.
-Composition: centered abstract or symbolic icon, no text.
-Background: pure white, isolated icon, no shadow.
-Output: square 1:1, high resolution.`;
+  const prompt = `Create a minimalist abstract symbolic icon representing a ${industry} business. The icon should be ${styleAdjective}, flat 2D, with clean geometric lines and a single centered composition. Use the color ${primaryColor} as the main color and ${accentColor} as a small accent, with no other colors. Place the icon on a pure white background with no shadow, no border, no frame.
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${encodeURIComponent(apiKey)}`;
-  const body = {
-    instances: [{ prompt }],
-    parameters: { sampleCount: 1, aspectRatio: '1:1', personGeneration: 'dont_allow' },
-  };
+ABSOLUTELY NO TEXT IN THE IMAGE. The image must contain ZERO letters, ZERO words, ZERO numbers, ZERO hex codes, ZERO labels, ZERO captions, ZERO writing, ZERO monograms, ZERO initials, ZERO typography of any kind. Pure visual icon only — a single symbolic geometric shape with no characters or text elements anywhere in the image.`;
 
-  // 30s timeout via AbortController
-  const ac = new AbortController();
-  const timer = setTimeout(() => ac.abort(new Error('Imagen 4 request timeout 30s')), 30_000);
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: ac.signal,
-    });
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`Imagen 4 HTTP ${res.status}: ${errText.substring(0, 300)}`);
-    }
-    const json = await res.json();
-    const b64 = json?.predictions?.[0]?.bytesBase64Encoded;
-    if (!b64) throw new Error('Imagen 4 response missing predictions[0].bytesBase64Encoded');
-    return Buffer.from(b64, 'base64');
-  } finally {
-    clearTimeout(timer);
-  }
+  return await callNanoBanana({ prompt, apiKey });
 }
 
 // TICKET-161: Nano Banana (Gemini 2.5 Flash Image) — generateContent-style
@@ -813,9 +797,10 @@ async function main() {
     // TICKET-140: pass per-locale brand-name inputs through so generateContent
     // can assemble brand.name as a Record<locale, string> (136 regression fix).
     defaultLocale, brandNameByLocale,
-    // TICKET-159: container's create-site.js calls Imagen 4 via the same
-    // generativelanguage.googleapis.com endpoint as Manager's Gemini; forward
-    // the key through opts so generateLogoViaImagen can pick it up.
+    // TICKET-159 / TICKET-160: container's create-site.js calls Nano Banana
+    // via the same generativelanguage.googleapis.com endpoint as Manager's
+    // Gemini; forward the key through opts so generateLogoViaNanoBanana can
+    // pick it up.
     geminiApiKey,
   });
 
@@ -1508,9 +1493,9 @@ async function generateContent(opts) {
     // default is needed; brandNameByLocale = {} guards against the dashboard
     // omitting the field entirely.
     defaultLocale, brandNameByLocale = {},
-    // TICKET-159: Imagen 4 logo gen key — forwarded from main scope (stdin
-    // payload). Empty string when not configured → generateLogoViaImagen
-    // throws + caller falls back to text logo.
+    // TICKET-159 / TICKET-160: Nano Banana logo gen key — forwarded from main
+    // scope (stdin payload). Empty string when not configured →
+    // generateLogoViaNanoBanana throws + caller falls back to text logo.
     geminiApiKey = '',
   } = opts;
 
@@ -2103,24 +2088,24 @@ CRITICAL RULES:
     }
   }
 
-  // TICKET-159: Brand Site AI Logo Generation (v1) — silent build-time. If
-  // the user uploaded a logo (logoUrl non-empty), trust it has a wordmark
-  // (logoHasWordmark=true) → Header/Footer skip rendering the company name
-  // text alongside the image. If no upload, call Imagen 4 standard for an
-  // icon-only logo (logoHasWordmark=false) → Header/Footer DO render the
-  // company name text alongside. On any failure, brand.logoUrl stays empty
-  // and template falls back to ServiceIcon + text (current behavior).
+  // TICKET-159 + TICKET-160: Brand Site AI Logo Generation — silent build-time
+  // via Nano Banana (Gemini 2.5 Flash Image). If the user uploaded a logo
+  // (logoUrl non-empty), trust it has a wordmark (logoHasWordmark=true) →
+  // Header/Footer skip rendering the company name text alongside the image.
+  // If no upload, call Nano Banana for an icon-only logo (logoHasWordmark=false)
+  // → Header/Footer DO render the company name text alongside. On any failure,
+  // brand.logoUrl stays empty and template falls back to ServiceIcon + text.
   if (logoUrl) {
     brand.logoHasWordmark = true;
   } else {
     const logoStart = Date.now();
     try {
-      progress('Generating AI logo via Imagen 4...', 47);
+      progress('Generating AI logo via Nano Banana...', 47);
       // Reverse-lookup themeName from the theme object so we can pick the
       // right styleAdjective from THEME_STYLE_MAP (themeName itself isn't
       // passed into generateContent — only the theme object is).
       const resolvedThemeName = Object.keys(themes).find(k => themes[k] === theme) || '';
-      const logoBuf = await generateLogoViaImagen({
+      const logoBuf = await generateLogoViaNanoBanana({
         companyName,
         industry,
         primaryColor: brand.colors.primary['500'],
@@ -2134,15 +2119,15 @@ CRITICAL RULES:
       brand.logoUrl = '/logo.png';
       brand.logoHasWordmark = false;
       emit('cost', {
-        operation: 'imagen-4-logo',
+        operation: 'nano-banana-logo',
         provider: 'Google',
-        cost: 0.04,
+        cost: 0.005,
         duration: Date.now() - logoStart,
         detail: `Logo for ${companyName}`,
       });
-      debug(`[imagen] generated logo for ${companyName} (${logoBuf.length} bytes) in ${Date.now() - logoStart}ms`);
+      debug(`[nano-banana-logo] generated logo for ${companyName} (${logoBuf.length} bytes) in ${Date.now() - logoStart}ms`);
     } catch (err) {
-      debug(`[imagen] gen failed, fallback to text: ${err.message}`);
+      debug(`[nano-banana-logo] gen failed, fallback to text: ${err.message}`);
       emit('debug', { logoFallback: 'text', reason: err.message });
       // brand.logoUrl stays '' → Header/Footer render ServiceIcon + text.
     }
