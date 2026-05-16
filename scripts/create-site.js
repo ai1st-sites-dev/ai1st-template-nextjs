@@ -344,46 +344,119 @@ async function callNanoBanana({ prompt, apiKey, timeoutMs = 30_000 }) {
   }
 }
 
-// TICKET-161: Generate 3 business photos (hero / interior / detail) via Nano
-// Banana. Serial calls (per-photo independent try/catch) to stay under the
-// 60 RPM rate limit. Shares a `scene` prompt prefix so the 3 photos come back
-// with cohesive style (same lighting, brand color accents, theme aesthetic).
-// Returns an array of {key, url} for successful photos; failures emit `debug`
-// events and are silently skipped (others still proceed).
-async function generateBusinessPhotosViaNanoBanana({ companyName, industry, primaryColor, accentColor, themeName, apiKey, outputDir, emitFn }) {
-  const themeWord = themeName || 'minimal';
-  const scene = `${industry} business "${companyName}", warm natural lighting, ${primaryColor} accents in branding/signage, ${themeWord} aesthetic, photorealistic, no people's faces visible`;
+// TICKET-164: v2 slot-driven photo generation. Replaces the v1 fixed-3
+// (hero/interior/detail) model with a 2-pass scan-and-fill: Claude generates
+// `ai.pages` first (no image info), then we walk each section, collect every
+// image slot (hero/cta-banner/content-split single imageUrl + gallery
+// items[].imageUrl), generate a per-slot context-aware prompt, call Nano
+// Banana, write `/public/photos/<key>.jpg`, and mutate the ai.pages section
+// to fill imageUrl. Hard cap 100 per memory `feedback_scope_cap_5x_normal.md`
+// (typical site 5-25 photos, 5x normal peak ~125, rounded down to 100).
+const PHOTO_HARD_CAP = 100;
 
-  const photos = [
-    { key: 'hero',     prompt: `Exterior storefront wide-angle 16:9 view of ${scene}. Daytime, inviting entrance.` },
-    { key: 'interior', prompt: `Interior workspace 4:3 view of ${scene}. Clean, organized, brand-aligned decor.` },
-    { key: 'detail',   prompt: `Close-up 1:1 detail shot showing core product or service of ${scene}. Industry-specific representative element.` },
-  ];
-
-  fs.mkdirSync(outputDir, { recursive: true });
-
-  const results = [];
-  for (const photo of photos) {
-    const startMs = Date.now();
-    try {
-      const imageBytes = await callNanoBanana({ prompt: photo.prompt, apiKey });
-      const filePath = path.join(outputDir, `${photo.key}.jpg`);
-      fs.writeFileSync(filePath, imageBytes);
-      results.push({ key: photo.key, url: `/photos/${photo.key}.jpg`, bytes: imageBytes.length });
-      if (emitFn) {
-        emitFn('cost', {
-          operation: 'nano-banana-photo',
-          provider: 'Google',
-          cost: 0.005,
-          duration: Date.now() - startMs,
-          detail: `${photo.key} photo for ${companyName}`,
-        });
+function collectImageSlots(pages) {
+  const slots = [];
+  for (const page of pages || []) {
+    const sections = page.sections || [];
+    for (let i = 0; i < sections.length; i++) {
+      const sec = sections[i];
+      const t = sec.type;
+      if (t === 'hero' || t === 'cta-banner' || t === 'content-split') {
+        slots.push({ pageSlug: page.slug, secIdx: i, secType: t, itemIdx: null });
+      } else if (t === 'gallery' && sec.data && Array.isArray(sec.data.items)) {
+        for (let j = 0; j < sec.data.items.length; j++) {
+          slots.push({ pageSlug: page.slug, secIdx: i, secType: 'gallery', itemIdx: j });
+        }
       }
-    } catch (err) {
-      if (emitFn) emitFn('debug', { photoFailure: photo.key, reason: err.message });
     }
   }
-  return results;
+  return slots;
+}
+
+function buildSlotPrompt({ secType, industry, primaryColor, themeWord }) {
+  // Shared scene prefix → visual cohesion across all photos in same site.
+  // TICKET-164 v2 (path B): apply 160 PM addendum §1 "ABSOLUTELY NO TEXT"
+  // pattern verbatim (proven 2/2 industries prod-clean Florist + Realty
+  // commit 577b22e). Root-cause fix:
+  // (a) drop "accents in signage" → ${primaryColor} now binds to "decor and
+  //     ambient lighting" only, removing signage invitation into scene
+  // (b) replace weak "AVOID logos or text overlays" with ABSOLUTELY NO TEXT
+  //     block enumerating 9 visual-text variants (signage / wordmarks / labels /
+  //     etc.) — model can no longer interpret AVOID as post-process overlay
+  //     suppression only.
+  // Faces ALLOWED (preserves v1 user decision — no walk-back).
+  const scene = `${industry} business interior or exterior scene, warm natural lighting, photorealistic, ${themeWord} aesthetic. Use ${primaryColor} as the dominant color tone in the decor, walls, furnishings, and ambient lighting. Professional friendly diverse people (varied ages and ethnicities) may appear naturally. AVOID children unless industry is pediatric/childcare/school; AVOID medical surgery, distress, or sensitive scenes; AVOID religious symbols not relevant to the brand.
+
+ABSOLUTELY NO TEXT IN THE IMAGE. The scene must contain ZERO visible business signage with letters, ZERO storefront signs with words, ZERO wall-mounted signs with text, ZERO printed wordmarks or brand names, ZERO menu boards with readable words, ZERO product labels with letters, ZERO English or any-language words, ZERO numbers or digits, ZERO logos with characters, ZERO typography of any kind anywhere in the scene. Buildings, products, walls, and decor must be free of any written or printed text elements.`;
+
+  switch (secType) {
+    case 'hero':
+      return `Wide-angle 16:9 exterior storefront or entrance view of ${scene} Daytime, inviting, welcoming atmosphere with depth.`;
+    case 'cta-banner':
+      return `Atmospheric 16:9 mood-setting background image evoking ${scene} Soft lighting suitable for overlay text. No prominent foreground subject.`;
+    case 'content-split':
+      return `4:3 contextual scene of ${scene} Authentic candid moment, not posed.`;
+    case 'gallery':
+      return `4:3 detail or moment shot of ${scene} Variety: product close-up / service action / interior detail / candid interaction (different from other gallery photos).`;
+    default:
+      return null;  // shouldn't happen given collectImageSlots filter
+  }
+}
+
+function setSlotImageUrl(pages, slot, url) {
+  const page = pages.find(p => p.slug === slot.pageSlug);
+  if (!page) return;
+  const section = page.sections[slot.secIdx];
+  if (!section) return;
+  if (slot.secType === 'gallery') {
+    if (!section.data?.items?.[slot.itemIdx]) return;
+    section.data.items[slot.itemIdx].imageUrl = url;
+  } else {
+    if (!section.data) section.data = {};
+    section.data.imageUrl = url;
+  }
+}
+
+// Returns { attempted, success, totalSlots } so caller can log + emit. Failures
+// are silent (per-slot try/catch + debug event) so a single Nano Banana 5xx
+// can't take the build down.
+async function generateSlotPhotos({ pages, industry, primaryColor, themeName, apiKey, outputDir, emitFn }) {
+  const themeWord = themeName || 'minimal';
+  fs.mkdirSync(outputDir, { recursive: true });
+
+  let slots = collectImageSlots(pages);
+  const originalCount = slots.length;
+  if (slots.length > PHOTO_HARD_CAP) {
+    slots = slots.slice(0, PHOTO_HARD_CAP);
+    if (emitFn) emitFn('debug', { photoCapped: true, originalCount, capped: PHOTO_HARD_CAP });
+  }
+
+  let successCount = 0;
+  for (const slot of slots) {
+    const startMs = Date.now();
+    const keyParts = [slot.pageSlug, `s${slot.secIdx}`, slot.secType];
+    if (slot.itemIdx !== null) keyParts.push(`i${slot.itemIdx}`);
+    const uniqueKey = keyParts.join('-').replace(/[^a-zA-Z0-9-]/g, '_');
+    try {
+      const prompt = buildSlotPrompt({ secType: slot.secType, industry, primaryColor, themeWord });
+      if (!prompt) continue;
+      const imageBytes = await callNanoBanana({ prompt, apiKey });
+      fs.writeFileSync(path.join(outputDir, `${uniqueKey}.jpg`), imageBytes);
+      setSlotImageUrl(pages, slot, `/photos/${uniqueKey}.jpg`);
+      successCount++;
+      if (emitFn) emitFn('cost', {
+        operation: 'nano-banana-photo',
+        provider: 'Google',
+        cost: 0.005,
+        duration: Date.now() - startMs,
+        detail: uniqueKey,
+      });
+    } catch (err) {
+      if (emitFn) emitFn('debug', { photoFailure: uniqueKey, reason: err.message });
+      // per-slot independent: skip, others continue. imageUrl 留空 → template fallback.
+    }
+  }
+  return { attempted: slots.length, success: successCount, totalSlots: originalCount };
 }
 
 const themeKeywords = {
@@ -1499,34 +1572,11 @@ async function generateContent(opts) {
     geminiApiKey = '',
   } = opts;
 
-  // TICKET-161: Nano Banana business photos gen — runs BEFORE Claude content
-  // call (L1742 imagesInstruction needs uploadedImages populated) so the AI
-  // prompt picks up AI photos and assigns them to hero / gallery / content-split
-  // sections same as user-uploaded photos.
-  if (!uploadedImages || uploadedImages.length === 0) {
-    progress('Generating AI business photos via Nano Banana...', 12);
-    const resolvedThemeName = Object.keys(themes).find(k => themes[k] === theme) || '';
-    const aiPhotos = await generateBusinessPhotosViaNanoBanana({
-      companyName,
-      industry,
-      primaryColor: theme.colors.primary['500'],
-      accentColor: theme.colors.accent['500'],
-      themeName: resolvedThemeName,
-      apiKey: geminiApiKey,
-      outputDir: path.join(path.resolve(__dirname, '..'), 'public', 'photos'),
-      emitFn: emit,
-    });
-    for (const p of aiPhotos) {
-      uploadedImages.push({
-        filename: `ai-${p.key}.jpg`,
-        originalFilename: `AI generated ${p.key}`,
-        url: p.url,
-        source: 'ai',
-      });
-    }
-    debug(`[nano-banana] generated ${aiPhotos.length}/3 photos for ${companyName}`);
-  }
-
+  // TICKET-164: v2 replaces 161 v1's pre-Claude photo gen with a 2-pass
+  // scan-and-fill post-Claude (below, after `ai = result.parsed`). With v2,
+  // when there are no user-uploaded photos, `imagesInstruction` stays empty
+  // and Claude doesn't assign any imageUrl in the sections it generates —
+  // Pass 2 walks ai.pages and fills imageUrl deterministically per slot.
   const client = new Anthropic();
 
   const localeMap = {
@@ -2131,6 +2181,30 @@ CRITICAL RULES:
       emit('debug', { logoFallback: 'text', reason: err.message });
       // brand.logoUrl stays '' → Header/Footer render ServiceIcon + text.
     }
+  }
+
+  // TICKET-164: v2 slot-driven photo gen — Pass 2 walks ai.pages sections,
+  // collects every image slot (hero/cta-banner/content-split single +
+  // gallery items[]), generates per-slot context-aware prompts, calls Nano
+  // Banana, writes /public/photos/<key>.jpg, mutates ai.pages to fill imageUrl.
+  // Faces allowed per TICKET-164 user decision. Hard cap PHOTO_HARD_CAP (100).
+  // Per-slot independent failure (build never blocks). Skipped when the user
+  // uploaded their own photos (imagesInstruction already fed Claude → Claude
+  // assigned imageUrl from uploadedImages).
+  if (uploadedImages.length === 0) {
+    progress('Generating AI business photos via Nano Banana (slot-driven)...', 75);
+    const resolvedThemeName = Object.keys(themes).find(k => themes[k] === theme) || '';
+    const photosOutputDir = path.join(path.resolve(__dirname, '..'), 'public', 'photos');
+    const result = await generateSlotPhotos({
+      pages: ai.pages,
+      industry,
+      primaryColor: brand.colors.primary['500'],
+      themeName: resolvedThemeName,
+      apiKey: geminiApiKey,
+      outputDir: photosOutputDir,
+      emitFn: emit,
+    });
+    debug(`[nano-banana-photo] v2 slot-driven: ${result.success}/${result.attempted} succeeded (total slots ${result.totalSlots}, cap ${PHOTO_HARD_CAP})`);
   }
 
   const ctaPage = ai.navigation.ctaPage || 'quote';
