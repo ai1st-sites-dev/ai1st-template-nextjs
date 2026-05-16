@@ -30,6 +30,11 @@ export interface BrandConfig {
   tagline: Record<string, string>;
   logoIcon: string;
   logoUrl?: string;
+  // TICKET-159: true when the logoUrl is a user-uploaded image that already
+  // includes the wordmark (header/footer skip rendering the company name text).
+  // false (or undefined) when AI-generated icon-only — companyName text is
+  // rendered alongside the image. Backfilled via sync-config.js for legacy sites.
+  logoHasWordmark?: boolean;
   colors: BrandColors;
   fonts: BrandFonts;
   email: string;
