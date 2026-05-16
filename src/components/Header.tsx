@@ -29,7 +29,12 @@ export default function Header({ locale }: { locale: string }) {
               <ServiceIcon icon={brand.logoIcon} className="h-6 w-6 text-white" />
             </div>
           )}
-          {!brand.logoUrl && <span className="text-xl font-bold text-primary-900">{getBrandName(locale)}</span>}
+          {/* TICKET-159: render company-name text alongside the logo when the
+              logo is icon-only (AI-generated, logoHasWordmark=false) OR when
+              there is no logo at all (logoUrl empty). User-uploaded logos are
+              assumed to include their own wordmark (logoHasWordmark=true) so
+              we skip the duplicate text. */}
+          {(!brand.logoUrl || !brand.logoHasWordmark) && <span className="text-xl font-bold text-primary-900">{getBrandName(locale)}</span>}
         </Link>
 
         {/* Desktop Navigation */}

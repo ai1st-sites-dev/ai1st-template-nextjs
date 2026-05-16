@@ -267,6 +267,141 @@ const themes = {
 
 // ─── Auto Theme Selection ─────────────────────────────────────────────────────
 
+// TICKET-159: Imagen 4 prompt-style adjectives per theme. Keys MUST stay in
+// sync with `themes` above (11 entries). Fallback `'minimal modern flat 2D'`
+// applies if a theme name isn't in the map (e.g. future themes pre-registration).
+const THEME_STYLE_MAP = {
+  'bold-red':       'bold confident strong red accent',
+  'ocean-blue':     'modern professional clean blue',
+  'forest-green':   'natural organic balanced green',
+  'royal-purple':   'elegant creative refined purple',
+  'slate-pro':      'minimal professional neutral slate',
+  'sunset-orange':  'warm energetic vibrant orange',
+  'rose-gold':      'soft elegant warm rose-gold',
+  'midnight':       'modern luxury deep dark',
+  'earth-tone':     'natural organic warm earthy',
+  'electric':       'bold energetic vibrant neon',
+  'golden-yellow':  'warm trustworthy industrial yellow',
+};
+
+// TICKET-159: Brand Site AI Logo Generation (v1) — silent build-time via
+// Imagen 4 standard. Returns a Buffer (PNG) on success; throws on failure
+// (caller catches and falls back to text logo).
+async function generateLogoViaImagen({ companyName, industry, primaryColor, accentColor, themeName, apiKey }) {
+  if (!apiKey) throw new Error('GEMINI_API_KEY missing (no key in stdin payload)');
+  const styleAdjective = THEME_STYLE_MAP[themeName] || 'minimal modern flat 2D';
+  const prompt = `A minimalist icon-only logo for "${companyName}", a ${industry} business.
+Style: ${styleAdjective}, flat 2D design, clean lines.
+Colors: ${primaryColor} as primary, ${accentColor} as accent.
+Composition: centered abstract or symbolic icon, no text.
+Background: pure white, isolated icon, no shadow.
+Output: square 1:1, high resolution.`;
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${encodeURIComponent(apiKey)}`;
+  const body = {
+    instances: [{ prompt }],
+    parameters: { sampleCount: 1, aspectRatio: '1:1', personGeneration: 'dont_allow' },
+  };
+
+  // 30s timeout via AbortController
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(new Error('Imagen 4 request timeout 30s')), 30_000);
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: ac.signal,
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Imagen 4 HTTP ${res.status}: ${errText.substring(0, 300)}`);
+    }
+    const json = await res.json();
+    const b64 = json?.predictions?.[0]?.bytesBase64Encoded;
+    if (!b64) throw new Error('Imagen 4 response missing predictions[0].bytesBase64Encoded');
+    return Buffer.from(b64, 'base64');
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// TICKET-161: Nano Banana (Gemini 2.5 Flash Image) — generateContent-style
+// endpoint. Returns a Buffer (PNG/JPG) on success; throws on failure. Field
+// name is `inlineData` (camelCase) per v1beta generateContent API; SDK aliases
+// fall back to `inline_data` historically.
+const NANO_BANANA_ENDPOINT =
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent';
+
+async function callNanoBanana({ prompt, apiKey, timeoutMs = 30_000 }) {
+  if (!apiKey) throw new Error('GEMINI_API_KEY missing (no key in stdin payload)');
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(new Error('Nano Banana request timeout 30s')), timeoutMs);
+  try {
+    const url = `${NANO_BANANA_ENDPOINT}?key=${encodeURIComponent(apiKey)}`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+      signal: ac.signal,
+    });
+    if (!resp.ok) {
+      const errBody = await resp.text();
+      throw new Error(`Nano Banana ${resp.status}: ${errBody.slice(0, 200)}`);
+    }
+    const json = await resp.json();
+    const parts = json?.candidates?.[0]?.content?.parts || [];
+    const imagePart = parts.find(p => p.inlineData?.data || p.inline_data?.data);
+    if (!imagePart) throw new Error('Nano Banana response missing image part');
+    const b64 = imagePart.inlineData?.data || imagePart.inline_data?.data;
+    return Buffer.from(b64, 'base64');
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// TICKET-161: Generate 3 business photos (hero / interior / detail) via Nano
+// Banana. Serial calls (per-photo independent try/catch) to stay under the
+// 60 RPM rate limit. Shares a `scene` prompt prefix so the 3 photos come back
+// with cohesive style (same lighting, brand color accents, theme aesthetic).
+// Returns an array of {key, url} for successful photos; failures emit `debug`
+// events and are silently skipped (others still proceed).
+async function generateBusinessPhotosViaNanoBanana({ companyName, industry, primaryColor, accentColor, themeName, apiKey, outputDir, emitFn }) {
+  const themeWord = themeName || 'minimal';
+  const scene = `${industry} business "${companyName}", warm natural lighting, ${primaryColor} accents in branding/signage, ${themeWord} aesthetic, photorealistic, no people's faces visible`;
+
+  const photos = [
+    { key: 'hero',     prompt: `Exterior storefront wide-angle 16:9 view of ${scene}. Daytime, inviting entrance.` },
+    { key: 'interior', prompt: `Interior workspace 4:3 view of ${scene}. Clean, organized, brand-aligned decor.` },
+    { key: 'detail',   prompt: `Close-up 1:1 detail shot showing core product or service of ${scene}. Industry-specific representative element.` },
+  ];
+
+  fs.mkdirSync(outputDir, { recursive: true });
+
+  const results = [];
+  for (const photo of photos) {
+    const startMs = Date.now();
+    try {
+      const imageBytes = await callNanoBanana({ prompt: photo.prompt, apiKey });
+      const filePath = path.join(outputDir, `${photo.key}.jpg`);
+      fs.writeFileSync(filePath, imageBytes);
+      results.push({ key: photo.key, url: `/photos/${photo.key}.jpg`, bytes: imageBytes.length });
+      if (emitFn) {
+        emitFn('cost', {
+          operation: 'nano-banana-photo',
+          provider: 'Google',
+          cost: 0.005,
+          duration: Date.now() - startMs,
+          detail: `${photo.key} photo for ${companyName}`,
+        });
+      }
+    } catch (err) {
+      if (emitFn) emitFn('debug', { photoFailure: photo.key, reason: err.message });
+    }
+  }
+  return results;
+}
+
 const themeKeywords = {
   'bold-red':       ['security', 'fire', 'emergency', 'alarm', 'protection', 'martial arts', 'boxing'],
   'ocean-blue':     ['tech', 'software', 'consulting', 'insurance', 'finance', 'accounting', 'plumbing', 'pool', 'marine'],
@@ -520,6 +655,7 @@ async function main() {
     priceRange,
     uploadedImages = [],
     logoUrl = '',
+    geminiApiKey = '',
   } = input;
 
   // Override AI model/tokens from Admin Settings (passed through by Manager)
@@ -677,6 +813,10 @@ async function main() {
     // TICKET-140: pass per-locale brand-name inputs through so generateContent
     // can assemble brand.name as a Record<locale, string> (136 regression fix).
     defaultLocale, brandNameByLocale,
+    // TICKET-159: container's create-site.js calls Imagen 4 via the same
+    // generativelanguage.googleapis.com endpoint as Manager's Gemini; forward
+    // the key through opts so generateLogoViaImagen can pick it up.
+    geminiApiKey,
   });
 
   // TICKET-119: Layout hard-copy compliance check
@@ -1368,7 +1508,39 @@ async function generateContent(opts) {
     // default is needed; brandNameByLocale = {} guards against the dashboard
     // omitting the field entirely.
     defaultLocale, brandNameByLocale = {},
+    // TICKET-159: Imagen 4 logo gen key — forwarded from main scope (stdin
+    // payload). Empty string when not configured → generateLogoViaImagen
+    // throws + caller falls back to text logo.
+    geminiApiKey = '',
   } = opts;
+
+  // TICKET-161: Nano Banana business photos gen — runs BEFORE Claude content
+  // call (L1742 imagesInstruction needs uploadedImages populated) so the AI
+  // prompt picks up AI photos and assigns them to hero / gallery / content-split
+  // sections same as user-uploaded photos.
+  if (!uploadedImages || uploadedImages.length === 0) {
+    progress('Generating AI business photos via Nano Banana...', 12);
+    const resolvedThemeName = Object.keys(themes).find(k => themes[k] === theme) || '';
+    const aiPhotos = await generateBusinessPhotosViaNanoBanana({
+      companyName,
+      industry,
+      primaryColor: theme.colors.primary['500'],
+      accentColor: theme.colors.accent['500'],
+      themeName: resolvedThemeName,
+      apiKey: geminiApiKey,
+      outputDir: path.join(path.resolve(__dirname, '..'), 'public', 'photos'),
+      emitFn: emit,
+    });
+    for (const p of aiPhotos) {
+      uploadedImages.push({
+        filename: `ai-${p.key}.jpg`,
+        originalFilename: `AI generated ${p.key}`,
+        url: p.url,
+        source: 'ai',
+      });
+    }
+    debug(`[nano-banana] generated ${aiPhotos.length}/3 photos for ${companyName}`);
+  }
 
   const client = new Anthropic();
 
@@ -1928,6 +2100,51 @@ CRITICAL RULES:
       debug(`Fonts overridden from reference site: heading=${refAnalysis.headingFont}, body=${refAnalysis.bodyFont || refAnalysis.headingFont}`);
     } else {
       debug(`Font "${refAnalysis.headingFont}" not in whitelist, keeping theme fonts`);
+    }
+  }
+
+  // TICKET-159: Brand Site AI Logo Generation (v1) — silent build-time. If
+  // the user uploaded a logo (logoUrl non-empty), trust it has a wordmark
+  // (logoHasWordmark=true) → Header/Footer skip rendering the company name
+  // text alongside the image. If no upload, call Imagen 4 standard for an
+  // icon-only logo (logoHasWordmark=false) → Header/Footer DO render the
+  // company name text alongside. On any failure, brand.logoUrl stays empty
+  // and template falls back to ServiceIcon + text (current behavior).
+  if (logoUrl) {
+    brand.logoHasWordmark = true;
+  } else {
+    const logoStart = Date.now();
+    try {
+      progress('Generating AI logo via Imagen 4...', 47);
+      // Reverse-lookup themeName from the theme object so we can pick the
+      // right styleAdjective from THEME_STYLE_MAP (themeName itself isn't
+      // passed into generateContent — only the theme object is).
+      const resolvedThemeName = Object.keys(themes).find(k => themes[k] === theme) || '';
+      const logoBuf = await generateLogoViaImagen({
+        companyName,
+        industry,
+        primaryColor: brand.colors.primary['500'],
+        accentColor: brand.colors.accent['500'],
+        themeName: resolvedThemeName,
+        apiKey: geminiApiKey,
+      });
+      const publicDir = path.join(path.resolve(__dirname, '..'), 'public');
+      fs.mkdirSync(publicDir, { recursive: true });
+      fs.writeFileSync(path.join(publicDir, 'logo.png'), logoBuf);
+      brand.logoUrl = '/logo.png';
+      brand.logoHasWordmark = false;
+      emit('cost', {
+        operation: 'imagen-4-logo',
+        provider: 'Google',
+        cost: 0.04,
+        duration: Date.now() - logoStart,
+        detail: `Logo for ${companyName}`,
+      });
+      debug(`[imagen] generated logo for ${companyName} (${logoBuf.length} bytes) in ${Date.now() - logoStart}ms`);
+    } catch (err) {
+      debug(`[imagen] gen failed, fallback to text: ${err.message}`);
+      emit('debug', { logoFallback: 'text', reason: err.message });
+      // brand.logoUrl stays '' → Header/Footer render ServiceIcon + text.
     }
   }
 

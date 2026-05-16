@@ -68,12 +68,16 @@ export default function Footer({ locale }: { locale: string }) {
               {brand.logoUrl ? (
                 <img src={brand.logoUrl} alt={getBrandName(locale)} className="h-8 w-auto max-w-[140px] object-contain brightness-0 invert" />
               ) : (
-                <>
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-500">
-                    <ServiceIcon icon={brand.logoIcon} className="h-5 w-5 text-white" />
-                  </div>
-                  <span className="text-lg font-bold text-white">{getBrandName(locale)}</span>
-                </>
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-500">
+                  <ServiceIcon icon={brand.logoIcon} className="h-5 w-5 text-white" />
+                </div>
+              )}
+              {/* TICKET-159: render company-name text alongside the logo when
+                  the logo is icon-only (AI-generated, logoHasWordmark=false)
+                  OR when there is no logo at all. User-uploaded logos are
+                  assumed to include their own wordmark (logoHasWordmark=true). */}
+              {(!brand.logoUrl || !brand.logoHasWordmark) && (
+                <span className="text-lg font-bold text-white">{getBrandName(locale)}</span>
               )}
             </div>
             <p className="text-sm leading-relaxed">{footer.description}</p>
