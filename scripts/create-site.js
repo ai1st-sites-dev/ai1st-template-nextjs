@@ -352,7 +352,10 @@ async function callNanoBanana({ prompt, apiKey, timeoutMs = 30_000 }) {
 // Banana, write `/public/photos/<key>.jpg`, and mutate the ai.pages section
 // to fill imageUrl. Hard cap 100 per memory `feedback_scope_cap_5x_normal.md`
 // (typical site 5-25 photos, 5x normal peak ~125, rounded down to 100).
-const PHOTO_HARD_CAP = 100;
+// TICKET-164: 5x normal usage default per memory feedback_scope_cap_5x_normal.md.
+// TICKET-166: changed const → let so caller can override via stdin payload
+// `input.maxImagesPerSite` (sourced from Admin Settings → xsite.site.maxImagesPerSite).
+let photoHardCap = 100;
 
 function collectImageSlots(pages) {
   const slots = [];
@@ -417,6 +420,37 @@ function setSlotImageUrl(pages, slot, url) {
   }
 }
 
+// TICKET-172 (hotfix): AI sometimes invents placeholder strings like
+// "gradient-about" / "tbd" for slots that exceed photoHardCap or fail Nano
+// Banana generation — instead of leaving imageUrl unset per prompt. Those
+// invalid strings leak to <img src="..."> → broken image. Drop anything that
+// isn't a valid URL pattern so the template falls back to its gradient placeholder.
+function isValidImageUrl(s) {
+  return typeof s === 'string' &&
+         (s.startsWith('/') || s.startsWith('http://') || s.startsWith('https://') || s.startsWith('data:'));
+}
+
+function sanitizeImageUrls(pages) {
+  let dropped = 0;
+  for (const page of pages || []) {
+    for (const section of page.sections || []) {
+      if (section.data?.imageUrl && !isValidImageUrl(section.data.imageUrl)) {
+        delete section.data.imageUrl;
+        dropped++;
+      }
+      if (Array.isArray(section.data?.items)) {
+        for (const item of section.data.items) {
+          if (item.imageUrl && !isValidImageUrl(item.imageUrl)) {
+            delete item.imageUrl;
+            dropped++;
+          }
+        }
+      }
+    }
+  }
+  return dropped;
+}
+
 // Returns { attempted, success, totalSlots } so caller can log + emit. Failures
 // are silent (per-slot try/catch + debug event) so a single Nano Banana 5xx
 // can't take the build down.
@@ -426,9 +460,9 @@ async function generateSlotPhotos({ pages, industry, primaryColor, themeName, ap
 
   let slots = collectImageSlots(pages);
   const originalCount = slots.length;
-  if (slots.length > PHOTO_HARD_CAP) {
-    slots = slots.slice(0, PHOTO_HARD_CAP);
-    if (emitFn) emitFn('debug', { photoCapped: true, originalCount, capped: PHOTO_HARD_CAP });
+  if (slots.length > photoHardCap) {
+    slots = slots.slice(0, photoHardCap);
+    if (emitFn) emitFn('debug', { photoCapped: true, originalCount, capped: photoHardCap });
   }
 
   let successCount = 0;
@@ -718,6 +752,8 @@ async function main() {
   // Override AI model/tokens from Admin Settings (passed through by Manager)
   if (input.model) { model = input.model; pricing = getModelPricing(model); }
   if (input.maxTokens) maxTokens = parseInt(input.maxTokens, 10) || maxTokens;
+  // TICKET-166: admin override for AI image hard cap (default 100).
+  if (input.maxImagesPerSite) photoHardCap = parseInt(input.maxImagesPerSite, 10) || photoHardCap;
 
   if (!siteId) fatal('siteId is required');
   if (!companyName) fatal('companyName is required');
@@ -1815,7 +1851,7 @@ IMAGE PLACEMENT RULES:
 - "gallery": set imageUrl on individual items to show the photos in the gallery grid
 - Match images to sections by filename context (e.g., "storefront.jpg" → hero, "team.jpg" → about page content-split, "product1.jpg" → gallery item)
 - You may reuse the same image URL across multiple sections if it fits
-- If there are more sections than images, leave imageUrl unset (gradient placeholder will show)
+- If there are more sections than images, **OMIT the imageUrl field entirely** (do not write the key). Do NOT invent placeholder strings like "gradient-about", "tbd", "placeholder", or any descriptive name — only valid paths starting with "/" or "http(s)://" are acceptable. The template will render a gradient automatically when imageUrl is absent.
 - Prefer "split" variant for hero when images are available`;
   }
 
@@ -2187,7 +2223,7 @@ CRITICAL RULES:
   // collects every image slot (hero/cta-banner/content-split single +
   // gallery items[]), generates per-slot context-aware prompts, calls Nano
   // Banana, writes /public/photos/<key>.jpg, mutates ai.pages to fill imageUrl.
-  // Faces allowed per TICKET-164 user decision. Hard cap PHOTO_HARD_CAP (100).
+  // Faces allowed per TICKET-164 user decision. Hard cap photoHardCap (100).
   // Per-slot independent failure (build never blocks). Skipped when the user
   // uploaded their own photos (imagesInstruction already fed Claude → Claude
   // assigned imageUrl from uploadedImages).
@@ -2204,7 +2240,15 @@ CRITICAL RULES:
       outputDir: photosOutputDir,
       emitFn: emit,
     });
-    debug(`[nano-banana-photo] v2 slot-driven: ${result.success}/${result.attempted} succeeded (total slots ${result.totalSlots}, cap ${PHOTO_HARD_CAP})`);
+    debug(`[nano-banana-photo] v2 slot-driven: ${result.success}/${result.attempted} succeeded (total slots ${result.totalSlots}, cap ${photoHardCap})`);
+  }
+
+  // TICKET-172 (hotfix): scrub AI-invented placeholder strings (e.g. "gradient-about")
+  // from imageUrl fields that didn't get backfilled with a real Nano Banana URL.
+  // Without this, broken <img src="gradient-about"> renders for capped/failed slots.
+  const droppedPlaceholders = sanitizeImageUrls(ai.pages);
+  if (droppedPlaceholders > 0) {
+    debug(`[sanitize-image-urls] dropped ${droppedPlaceholders} invalid imageUrl placeholder(s) — template will render gradient fallback`);
   }
 
   const ctaPage = ai.navigation.ctaPage || 'quote';
