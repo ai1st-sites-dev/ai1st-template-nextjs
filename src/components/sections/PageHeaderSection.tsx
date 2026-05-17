@@ -24,7 +24,7 @@ export default function PageHeaderSection({ data }: PageHeaderSectionProps) {
           {data.breadcrumbs && (
             <nav aria-label="Breadcrumb" className="mb-4">
               <ol className="flex items-center gap-2 text-sm text-gray-500">
-                {data.breadcrumbs.map((crumb, i) => (
+                {data.breadcrumbs?.map((crumb, i) => (
                   <li key={i}>
                     {i > 0 && <span aria-hidden="true" className="mr-2">/</span>}
                     {crumb.href ? (
@@ -57,7 +57,7 @@ export default function PageHeaderSection({ data }: PageHeaderSectionProps) {
           {data.breadcrumbs && (
             <nav aria-label="Breadcrumb" className="mb-4">
               <ol className="flex items-center justify-center gap-2 text-sm text-primary-200">
-                {data.breadcrumbs.map((crumb, i) => (
+                {data.breadcrumbs?.map((crumb, i) => (
                   <li key={i}>
                     {i > 0 && <span aria-hidden="true" className="mr-2">/</span>}
                     {crumb.href ? (
@@ -92,7 +92,7 @@ export default function PageHeaderSection({ data }: PageHeaderSectionProps) {
               {data.breadcrumbs && (
                 <nav aria-label="Breadcrumb" className="mb-4">
                   <ol className="flex items-center gap-2 text-sm text-primary-200">
-                    {data.breadcrumbs.map((crumb, i) => (
+                    {data.breadcrumbs?.map((crumb, i) => (
                       <li key={i}>
                         {i > 0 && <span aria-hidden="true" className="mr-2">/</span>}
                         {crumb.href ? (
@@ -128,7 +128,7 @@ export default function PageHeaderSection({ data }: PageHeaderSectionProps) {
         {data.breadcrumbs && (
           <nav aria-label="Breadcrumb" className="mb-4">
             <ol className="flex items-center gap-2 text-sm text-primary-200">
-              {data.breadcrumbs.map((crumb, i) => (
+              {data.breadcrumbs?.map((crumb, i) => (
                 <li key={i}>
                   {i > 0 && <span aria-hidden="true" className="mr-2">/</span>}
                   {crumb.href ? (

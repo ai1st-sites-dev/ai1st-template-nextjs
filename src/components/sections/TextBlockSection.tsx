@@ -94,9 +94,9 @@ export default function TextBlockSection({ data }: TextBlockSectionProps) {
             <p className={`${data.headline ? 'mt-6 ' : ''}text-lg leading-relaxed text-gray-700`}>
               {data.content}
             </p>
-            {data.items && data.items.length > 0 && (
+            {data.items && data.items?.length > 0 && (
               <ul className="mt-8 grid gap-3 sm:grid-cols-2">
-                {data.items.map((item, index) => (
+                {data.items?.map((item, index) => (
                   <li key={index} className="flex items-start gap-3">
                     <svg className="mt-1 h-5 w-5 shrink-0 text-primary-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />

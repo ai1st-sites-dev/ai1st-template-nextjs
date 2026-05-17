@@ -39,10 +39,10 @@ export default function PricingTableSection({ data }: PricingTableSectionProps) 
             )}
           </div>
           <div className="mt-12 grid gap-0 md:grid-cols-3">
-            {data.tiers.map((tier, index) => (
+            {data.tiers?.map((tier, index) => (
               <div
                 key={index}
-                className={`p-8 ${tier.highlighted ? 'rounded-xl bg-accent-50' : ''} ${index < data.tiers.length - 1 ? 'md:border-r md:border-gray-200' : ''}`}
+                className={`p-8 ${tier.highlighted ? 'rounded-xl bg-accent-50' : ''} ${index < (data.tiers?.length ?? 0) - 1 ? 'md:border-r md:border-gray-200' : ''}`}
               >
                 <h3 className="font-bold text-gray-900">{tier.name}</h3>
                 <p className="mt-2 text-3xl font-extrabold text-primary-600">{tier.price}</p>
@@ -95,8 +95,8 @@ export default function PricingTableSection({ data }: PricingTableSectionProps) 
               </button>
             </div>
           </div>
-          <div className={`mt-12 grid gap-8 ${data.tiers.length === 2 ? 'mx-auto max-w-3xl md:grid-cols-2' : 'md:grid-cols-3'}`}>
-            {data.tiers.map((tier, index) => (
+          <div className={`mt-12 grid gap-8 ${data.tiers?.length === 2 ? 'mx-auto max-w-3xl md:grid-cols-2' : 'md:grid-cols-3'}`}>
+            {data.tiers?.map((tier, index) => (
               <div key={index} className={`relative rounded-2xl p-8 shadow-sm ${tier.highlighted ? 'border-2 border-primary-500 bg-white ring-1 ring-primary-500' : 'border border-gray-200 bg-white'}`}>
                 {tier.highlighted && (
                   <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary-500 px-4 py-1 text-xs font-semibold text-white">
@@ -143,7 +143,7 @@ export default function PricingTableSection({ data }: PricingTableSectionProps) 
           </div>
           <div className="mx-auto mt-12 max-w-4xl overflow-hidden rounded-xl border border-gray-200">
             <div className="grid grid-cols-1 divide-y divide-gray-200 md:grid-cols-3 md:divide-x md:divide-y-0">
-              {data.tiers.map((tier, index) => (
+              {data.tiers?.map((tier, index) => (
                 <div key={index} className={`p-8 ${tier.highlighted ? 'bg-primary-50' : 'bg-white'}`}>
                   <h3 className="text-lg font-bold text-gray-900">{tier.name}</h3>
                   <p className="mt-2 text-3xl font-extrabold text-primary-600">{tier.price}</p>

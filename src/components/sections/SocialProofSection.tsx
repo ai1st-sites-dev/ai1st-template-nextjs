@@ -53,9 +53,9 @@ export default function SocialProofSection({ data }: SocialProofSectionProps) {
               {data.headline}
             </h2>
           </div>
-          {data.badges && data.badges.length > 0 && (
+          {data.badges && data.badges?.length > 0 && (
             <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {data.badges.map((badge, index) => (
+              {data.badges?.map((badge, index) => (
                 <div key={index} className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-6">
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary-50" aria-hidden="true">
                     <svg className="h-6 w-6 text-primary-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -81,9 +81,9 @@ export default function SocialProofSection({ data }: SocialProofSectionProps) {
               {data.headline}
             </h2>
           </div>
-          {data.platforms && data.platforms.length > 0 && (
+          {data.platforms && data.platforms?.length > 0 && (
             <div className="mt-12 flex flex-wrap items-center justify-center gap-8 divide-x divide-gray-200">
-              {data.platforms.map((platform, index) => (
+              {data.platforms?.map((platform, index) => (
                 <div key={index} className={`text-center ${index > 0 ? 'pl-8' : ''}`}>
                   <p className="font-bold text-gray-900">{platform.name}</p>
                   <div className="mt-2 flex justify-center">
@@ -115,10 +115,10 @@ export default function SocialProofSection({ data }: SocialProofSectionProps) {
               <div className="mt-10">
                 <span className="text-6xl font-serif text-primary-700" aria-hidden="true">&ldquo;</span>
                 <blockquote className="mt-2 text-xl leading-relaxed text-white">
-                  {data.featuredQuote.text}
+                  {data.featuredQuote?.text}
                 </blockquote>
                 <p className="mt-6 text-sm font-medium text-primary-300">
-                  &mdash; {data.featuredQuote.author}
+                  &mdash; {data.featuredQuote?.author}
                 </p>
               </div>
             )}

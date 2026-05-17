@@ -28,7 +28,7 @@ export default function ProcessStepsSection({ data }: ProcessStepsSectionProps) 
             )}
           </div>
           <div className="mt-16 grid gap-8 md:grid-cols-2 lg:grid-cols-4">
-            {data.steps.map((step, index) => (
+            {data.steps?.map((step, index) => (
               <div key={index} className="relative overflow-hidden rounded-xl border border-gray-200 bg-white p-8">
                 <span className="absolute right-4 top-2 text-7xl font-extrabold text-primary-100">
                   {index + 1}
@@ -60,7 +60,7 @@ export default function ProcessStepsSection({ data }: ProcessStepsSectionProps) 
           <div className="relative mx-auto mt-16 max-w-3xl">
             {/* Vertical center line */}
             <div className="absolute left-1/2 top-0 h-full w-px bg-primary-200" />
-            {data.steps.map((step, index) => (
+            {data.steps?.map((step, index) => (
               <div
                 key={index}
                 className={`relative flex items-center gap-6 py-8 ${index % 2 === 1 ? 'flex-row-reverse' : ''}`}
@@ -94,7 +94,7 @@ export default function ProcessStepsSection({ data }: ProcessStepsSectionProps) 
             )}
           </div>
           <div className="mt-16 flex items-center justify-between">
-            {data.steps.map((step, index) => (
+            {data.steps?.map((step, index) => (
               <div key={index} className="flex items-center">
                 <div className="flex flex-col items-center">
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-500 text-sm font-bold text-white">
@@ -102,7 +102,7 @@ export default function ProcessStepsSection({ data }: ProcessStepsSectionProps) 
                   </div>
                   <span className="mt-2 text-sm font-semibold text-gray-900">{step.title}</span>
                 </div>
-                {index < data.steps.length - 1 && (
+                {index < (data.steps?.length ?? 0) - 1 && (
                   <div className="mx-3 h-0.5 flex-1 bg-primary-200" style={{ minWidth: '2rem' }} />
                 )}
               </div>
@@ -126,10 +126,10 @@ export default function ProcessStepsSection({ data }: ProcessStepsSectionProps) 
             )}
           </div>
           <div className="mx-auto mt-16 max-w-2xl">
-            {data.steps.map((step, index) => (
+            {data.steps?.map((step, index) => (
               <div key={index} className="relative flex gap-6 pb-12 last:pb-0">
                 {/* Vertical line */}
-                {index < data.steps.length - 1 && (
+                {index < (data.steps?.length ?? 0) - 1 && (
                   <div className="absolute left-6 top-12 h-full w-px bg-primary-200" />
                 )}
                 {/* Step number */}
@@ -160,10 +160,10 @@ export default function ProcessStepsSection({ data }: ProcessStepsSectionProps) 
           )}
         </div>
         <div className="mt-16 grid gap-8 md:grid-cols-2 lg:grid-cols-4">
-          {data.steps.map((step, index) => (
+          {data.steps?.map((step, index) => (
             <div key={index} className="relative text-center">
               {/* Connector line */}
-              {index < data.steps.length - 1 && (
+              {index < (data.steps?.length ?? 0) - 1 && (
                 <div className="absolute left-1/2 top-6 hidden h-px w-full bg-primary-200 lg:block" />
               )}
               <div className="relative mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary-500 text-lg font-bold text-white">

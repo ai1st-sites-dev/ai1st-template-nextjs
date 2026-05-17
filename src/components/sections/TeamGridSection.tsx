@@ -29,7 +29,7 @@ export default function TeamGridSection({ data }: TeamGridSectionProps) {
             )}
           </div>
           <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-            {data.members.map((member, index) => (
+            {data.members?.map((member, index) => (
               <div key={index} className="overflow-hidden rounded-xl bg-white shadow-sm">
                 <div className="h-2 bg-gradient-to-r from-primary-500 to-accent-500 rounded-t-xl" />
                 <div className="p-8 text-center">
@@ -68,8 +68,8 @@ export default function TeamGridSection({ data }: TeamGridSectionProps) {
             )}
           </div>
           <div className="mx-auto mt-12 max-w-2xl">
-            {data.members.map((member, index) => (
-              <div key={index} className={`py-10 text-center ${index < data.members.length - 1 ? 'border-b border-gray-200' : ''}`}>
+            {data.members?.map((member, index) => (
+              <div key={index} className={`py-10 text-center ${index < (data.members?.length ?? 0) - 1 ? 'border-b border-gray-200' : ''}`}>
                 <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-primary-100 text-primary-700">
                   <span className="text-3xl font-bold">{member.name.charAt(0)}</span>
                 </div>
@@ -99,7 +99,7 @@ export default function TeamGridSection({ data }: TeamGridSectionProps) {
             )}
           </div>
           <div className="mx-auto mt-12 grid max-w-4xl gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {data.members.map((member, index) => (
+            {data.members?.map((member, index) => (
               <div key={index} className="flex items-center gap-4 rounded-lg border border-gray-200 p-4">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-700">
                   <span className="text-lg font-bold">{member.name.charAt(0)}</span>
@@ -128,7 +128,7 @@ export default function TeamGridSection({ data }: TeamGridSectionProps) {
           )}
         </div>
         <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-          {data.members.map((member, index) => (
+          {data.members?.map((member, index) => (
             <div key={index} className="rounded-xl bg-white p-8 text-center shadow-sm">
               <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-primary-100 text-primary-700">
                 <span className="text-2xl font-bold">{member.name.charAt(0)}</span>

@@ -41,7 +41,7 @@ export default function ServiceHighlightsSection({ data }: ServiceHighlightsSect
           <div className="mx-auto mt-12 max-w-3xl">
             {/* Tab bar */}
             <div className="flex gap-0 border-b border-gray-200">
-              {data.highlights.map((highlight, index) => (
+              {data.highlights?.map((highlight, index) => (
                 <button
                   key={index}
                   onClick={() => setActiveTab(index)}
@@ -91,7 +91,7 @@ export default function ServiceHighlightsSection({ data }: ServiceHighlightsSect
           </div>
           <div className="mx-auto mt-12 max-w-3xl">
             <div className="divide-y divide-gray-200 rounded-xl border border-gray-200">
-              {data.highlights.map((highlight, index) => (
+              {data.highlights?.map((highlight, index) => (
                 <div key={index}>
                   <button
                     onClick={() => toggleAccordion(index)}
@@ -145,10 +145,10 @@ export default function ServiceHighlightsSection({ data }: ServiceHighlightsSect
             )}
           </div>
           <div className="mt-12">
-            {data.highlights.map((highlight, index) => (
+            {data.highlights?.map((highlight, index) => (
               <div
                 key={index}
-                className={`grid items-start gap-12 py-12 lg:grid-cols-2 ${index < data.highlights.length - 1 ? 'border-b border-gray-200' : ''}`}
+                className={`grid items-start gap-12 py-12 lg:grid-cols-2 ${index < (data.highlights?.length ?? 0) - 1 ? 'border-b border-gray-200' : ''}`}
               >
                 <div>
                   <h3 className="text-2xl font-bold text-gray-900">{highlight.title}</h3>
@@ -178,9 +178,9 @@ export default function ServiceHighlightsSection({ data }: ServiceHighlightsSect
 
   // Default: cards-large
   const gridCols =
-    data.highlights.length === 1
+    data.highlights?.length === 1
       ? ''
-      : data.highlights.length === 2
+      : data.highlights?.length === 2
         ? 'md:grid-cols-2'
         : 'md:grid-cols-3';
 
@@ -196,7 +196,7 @@ export default function ServiceHighlightsSection({ data }: ServiceHighlightsSect
           )}
         </div>
         <div className={`mt-12 grid gap-8 ${gridCols}`}>
-          {data.highlights.map((highlight, index) => (
+          {data.highlights?.map((highlight, index) => (
             <div key={index} className="overflow-hidden rounded-2xl border border-gray-200 p-10">
               {/* Gradient accent strip */}
               <div className="-mx-10 -mt-10 mb-8 h-1 bg-gradient-to-r from-primary-500 to-accent-500" />

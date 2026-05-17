@@ -17,7 +17,7 @@ export default function TrustedBrandsSection({ data }: TrustedBrandsSectionProps
             {data.headline}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
-            {data.brands.map((brand) => (
+            {data.brands?.map((brand) => (
               <span key={brand} className="rounded-full border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-600">
                 {brand}
               </span>
@@ -36,7 +36,7 @@ export default function TrustedBrandsSection({ data }: TrustedBrandsSectionProps
             {data.headline}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-8 md:gap-16">
-            {data.brands.map((brand) => (
+            {data.brands?.map((brand) => (
               <span key={brand} className="text-lg font-bold text-primary-300 transition-colors hover:text-primary-100">
                 {brand}
               </span>
@@ -54,7 +54,7 @@ export default function TrustedBrandsSection({ data }: TrustedBrandsSectionProps
           {data.headline}
         </p>
         <div className="flex flex-wrap items-center justify-center gap-8 md:gap-16">
-          {data.brands.map((brand) => (
+          {data.brands?.map((brand) => (
             <span key={brand} className="text-lg font-bold text-gray-400 transition-colors hover:text-gray-600">
               {brand}
             </span>

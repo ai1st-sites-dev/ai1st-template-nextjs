@@ -23,8 +23,8 @@ export default function CtaBannerSection({ data }: CtaBannerSectionProps) {
             {data.description}
           </p>
           <div className="mt-8">
-            <Link href={data.button.href} className="inline-flex items-center justify-center rounded-lg bg-white px-8 py-3 text-lg font-semibold text-primary-700 transition-all hover:bg-gray-100">
-              {data.button.label}
+            <Link href={data.button?.href ?? "#"} className="inline-flex items-center justify-center rounded-lg bg-white px-8 py-3 text-lg font-semibold text-primary-700 transition-all hover:bg-gray-100">
+              {data.button?.label}
             </Link>
           </div>
         </div>
@@ -46,8 +46,8 @@ export default function CtaBannerSection({ data }: CtaBannerSectionProps) {
               </p>
             </div>
             <div className="flex items-center justify-center rounded-2xl bg-accent-50 px-8 py-12">
-              <Link href={data.button.href} className="btn-primary text-lg">
-                {data.button.label}
+              <Link href={data.button?.href ?? "#"} className="btn-primary text-lg">
+                {data.button?.label}
               </Link>
             </div>
           </div>
@@ -68,8 +68,8 @@ export default function CtaBannerSection({ data }: CtaBannerSectionProps) {
             {data.description}
           </p>
           <div className="mt-8">
-            <Link href={data.button.href} className="btn-accent text-lg">
-              {data.button.label}
+            <Link href={data.button?.href ?? "#"} className="btn-accent text-lg">
+              {data.button?.label}
             </Link>
           </div>
         </div>
@@ -89,8 +89,8 @@ export default function CtaBannerSection({ data }: CtaBannerSectionProps) {
               {data.description}
             </p>
             <div className="mt-8">
-              <Link href={data.button.href} className="btn-primary text-lg">
-                {data.button.label}
+              <Link href={data.button?.href ?? "#"} className="btn-primary text-lg">
+                {data.button?.label}
               </Link>
             </div>
           </div>
@@ -109,8 +109,8 @@ export default function CtaBannerSection({ data }: CtaBannerSectionProps) {
           {data.description}
         </p>
         <div className="mt-8">
-          <Link href={data.button.href} className="btn-accent text-lg">
-            {data.button.label}
+          <Link href={data.button?.href ?? "#"} className="btn-accent text-lg">
+            {data.button?.label}
           </Link>
         </div>
       </div>

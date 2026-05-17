@@ -19,7 +19,7 @@ export default function LogoCarouselSection({ data }: LogoCarouselSectionProps) 
             </h2>
           )}
           <div className="flex flex-wrap items-center justify-center gap-8">
-            {data.logos.map((logo, index) => (
+            {data.logos?.map((logo, index) => (
               <div key={index} className="rounded-lg border-b-2 border-accent-500 bg-white p-6">
                 <span className="text-sm font-bold text-gray-400">{logo}</span>
               </div>
@@ -40,7 +40,7 @@ export default function LogoCarouselSection({ data }: LogoCarouselSectionProps) 
             </p>
           )}
           <div className="grid grid-cols-2 gap-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-            {data.logos.map((logo, index) => (
+            {data.logos?.map((logo, index) => (
               <div key={index} className="flex items-center justify-center px-6 py-8">
                 <span className="text-center text-sm font-bold text-primary-300">{logo}</span>
               </div>
@@ -61,7 +61,7 @@ export default function LogoCarouselSection({ data }: LogoCarouselSectionProps) 
             </h2>
           )}
           <div className="grid grid-cols-2 gap-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-            {data.logos.map((logo, index) => (
+            {data.logos?.map((logo, index) => (
               <div key={index} className="flex items-center justify-center rounded-lg border border-gray-200 bg-white px-6 py-8">
                 <span className="text-center text-sm font-bold text-gray-400">{logo}</span>
               </div>
@@ -84,7 +84,7 @@ export default function LogoCarouselSection({ data }: LogoCarouselSectionProps) 
       </div>
       <div className="relative flex">
         <div className="flex shrink-0 animate-[scroll_20s_linear_infinite] gap-12 px-6">
-          {[...data.logos, ...data.logos].map((logo, index) => (
+          {[...(data.logos ?? []), ...(data.logos ?? [])].map((logo, index) => (
             <span key={index} className="whitespace-nowrap text-lg font-bold text-gray-400">
               {logo}
             </span>

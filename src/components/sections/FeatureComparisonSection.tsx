@@ -52,7 +52,7 @@ export default function FeatureComparisonSection({ data, locale }: FeatureCompar
             <div className="rounded-xl bg-gray-100 p-8">
               <h3 className="text-xl font-bold text-gray-900">{themLabel}</h3>
               <ul className="mt-6 space-y-4" role="list">
-                {data.comparisons.map((comparison, index) => (
+                {data.comparisons?.map((comparison, index) => (
                   <li key={index} className="flex items-center gap-3">
                     {comparison.them ? (
                       <CheckIcon className="h-5 w-5 shrink-0 text-green-500" />
@@ -67,7 +67,7 @@ export default function FeatureComparisonSection({ data, locale }: FeatureCompar
             <div className="rounded-xl border-2 border-primary-500 bg-primary-50 p-8">
               <h3 className="text-xl font-bold text-primary-900">{usLabel}</h3>
               <ul className="mt-6 space-y-4" role="list">
-                {data.comparisons.map((comparison, index) => (
+                {data.comparisons?.map((comparison, index) => (
                   <li key={index} className="flex items-center gap-3">
                     {comparison.us ? (
                       <CheckIcon className="h-5 w-5 shrink-0 text-green-500" />
@@ -106,7 +106,7 @@ export default function FeatureComparisonSection({ data, locale }: FeatureCompar
               <div className="py-3 text-center font-bold text-gray-500">{themLabel}</div>
               <div className="py-3 text-center font-bold text-primary-600">{usLabel}</div>
               {/* Data rows */}
-              {data.comparisons.map((comparison, index) => (
+              {data.comparisons?.map((comparison, index) => (
                 <div key={index} className="contents">
                   <div className={`flex items-center py-3 ${index % 2 === 0 ? 'bg-gray-50' : ''} rounded-l-lg pl-3`}>
                     <span className="text-gray-700">{comparison.feature}</span>
@@ -141,7 +141,7 @@ export default function FeatureComparisonSection({ data, locale }: FeatureCompar
             )}
           </div>
           <div className="mx-auto mt-16 max-w-2xl space-y-6">
-            {data.comparisons.map((comparison, index) => (
+            {data.comparisons?.map((comparison, index) => (
               <div key={index} className="rounded-xl border border-gray-200 bg-white p-6 text-center">
                 <p className="font-semibold text-gray-900">{comparison.feature}</p>
                 <div className="mt-4 flex items-center justify-center gap-4">
@@ -192,7 +192,7 @@ export default function FeatureComparisonSection({ data, locale }: FeatureCompar
               </tr>
             </thead>
             <tbody>
-              {data.comparisons.map((comparison, index) => (
+              {data.comparisons?.map((comparison, index) => (
                 <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                   <td className="px-6 py-4 text-sm text-gray-700">{comparison.feature}</td>
                   <td className="px-6 py-4">

@@ -28,11 +28,11 @@ export default function HeroSection({ data }: HeroSectionProps) {
                 {data.subheadline}
               </p>
               <div className="mt-10 flex flex-col gap-4 sm:flex-row">
-                <Link href={data.ctaPrimary.href} className="btn-accent text-lg">
-                  {data.ctaPrimary.label}
+                <Link href={data.ctaPrimary?.href ?? "#"} className="btn-accent text-lg">
+                  {data.ctaPrimary?.label}
                 </Link>
-                <Link href={data.ctaSecondary.href} className="inline-flex items-center justify-center rounded-lg border-2 border-white px-6 py-3 text-lg font-semibold text-white transition-all hover:bg-white hover:text-primary-900">
-                  {data.ctaSecondary.label}
+                <Link href={data.ctaSecondary?.href ?? "#"} className="inline-flex items-center justify-center rounded-lg border-2 border-white px-6 py-3 text-lg font-semibold text-white transition-all hover:bg-white hover:text-primary-900">
+                  {data.ctaSecondary?.label}
                 </Link>
               </div>
             </div>
@@ -61,8 +61,8 @@ export default function HeroSection({ data }: HeroSectionProps) {
               {data.subheadline}
             </p>
             <div className="mt-12">
-              <Link href={data.ctaPrimary.href} className="btn-primary text-lg">
-                {data.ctaPrimary.label}
+              <Link href={data.ctaPrimary?.href ?? "#"} className="btn-primary text-lg">
+                {data.ctaPrimary?.label}
               </Link>
             </div>
           </div>
@@ -88,11 +88,11 @@ export default function HeroSection({ data }: HeroSectionProps) {
               {data.subheadline}
             </p>
             <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-              <Link href={data.ctaPrimary.href} className="btn-accent text-lg">
-                {data.ctaPrimary.label}
+              <Link href={data.ctaPrimary?.href ?? "#"} className="btn-accent text-lg">
+                {data.ctaPrimary?.label}
               </Link>
-              <Link href={data.ctaSecondary.href} className="inline-flex items-center justify-center rounded-lg border-2 border-white px-6 py-3 text-lg font-semibold text-white transition-all hover:bg-white hover:text-primary-900">
-                {data.ctaSecondary.label}
+              <Link href={data.ctaSecondary?.href ?? "#"} className="inline-flex items-center justify-center rounded-lg border-2 border-white px-6 py-3 text-lg font-semibold text-white transition-all hover:bg-white hover:text-primary-900">
+                {data.ctaSecondary?.label}
               </Link>
             </div>
           </div>
@@ -118,16 +118,16 @@ export default function HeroSection({ data }: HeroSectionProps) {
             </p>
             <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
               <Link
-                href={data.ctaPrimary.href}
+                href={data.ctaPrimary?.href ?? "#"}
                 className="inline-flex items-center justify-center rounded-lg bg-white px-8 py-3 text-lg font-semibold text-primary-600 transition-all hover:bg-white/90"
               >
-                {data.ctaPrimary.label}
+                {data.ctaPrimary?.label}
               </Link>
               <Link
-                href={data.ctaSecondary.href}
+                href={data.ctaSecondary?.href ?? "#"}
                 className="inline-flex items-center justify-center rounded-lg border-2 border-white/60 px-6 py-3 text-lg font-semibold text-white transition-all hover:border-white hover:bg-white/10"
               >
-                {data.ctaSecondary.label}
+                {data.ctaSecondary?.label}
               </Link>
             </div>
           </div>
@@ -149,11 +149,11 @@ export default function HeroSection({ data }: HeroSectionProps) {
               {data.subheadline}
             </p>
             <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-              <Link href={data.ctaPrimary.href} className="btn-accent text-lg">
-                {data.ctaPrimary.label}
+              <Link href={data.ctaPrimary?.href ?? "#"} className="btn-accent text-lg">
+                {data.ctaPrimary?.label}
               </Link>
-              <Link href={data.ctaSecondary.href} className="inline-flex items-center justify-center rounded-lg border-2 border-white px-6 py-3 text-lg font-semibold text-white transition-all hover:bg-white hover:text-primary-900">
-                {data.ctaSecondary.label}
+              <Link href={data.ctaSecondary?.href ?? "#"} className="inline-flex items-center justify-center rounded-lg border-2 border-white px-6 py-3 text-lg font-semibold text-white transition-all hover:bg-white hover:text-primary-900">
+                {data.ctaSecondary?.label}
               </Link>
             </div>
           </div>
@@ -174,11 +174,11 @@ export default function HeroSection({ data }: HeroSectionProps) {
             {data.subheadline}
           </p>
           <div className="mt-10 flex flex-col gap-4 sm:flex-row">
-            <Link href={data.ctaPrimary.href} className="btn-accent text-lg">
-              {data.ctaPrimary.label}
+            <Link href={data.ctaPrimary?.href ?? "#"} className="btn-accent text-lg">
+              {data.ctaPrimary?.label}
             </Link>
-            <Link href={data.ctaSecondary.href} className="inline-flex items-center justify-center rounded-lg border-2 border-white px-6 py-3 text-lg font-semibold text-white transition-all hover:bg-white hover:text-primary-900">
-              {data.ctaSecondary.label}
+            <Link href={data.ctaSecondary?.href ?? "#"} className="inline-flex items-center justify-center rounded-lg border-2 border-white px-6 py-3 text-lg font-semibold text-white transition-all hover:bg-white hover:text-primary-900">
+              {data.ctaSecondary?.label}
             </Link>
           </div>
         </div>

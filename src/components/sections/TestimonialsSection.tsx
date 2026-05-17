@@ -53,7 +53,7 @@ export default function TestimonialsSection({ data }: TestimonialsSectionProps) 
               </div>
             </div>
             <nav className="mt-10 flex items-center justify-center gap-2" aria-label="Testimonial navigation">
-              {data.items.map((_, index) => (
+              {data.items?.map((_, index) => (
                 <button
                   key={index}
                   onClick={() => setActiveIndex(index)}
@@ -84,7 +84,7 @@ export default function TestimonialsSection({ data }: TestimonialsSectionProps) 
             </p>
           </div>
           <div className="mt-16 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-            {data.items.map((testimonial) => (
+            {data.items?.map((testimonial) => (
               <div
                 key={testimonial.id}
                 className="rounded-xl bg-primary-800 p-8"
@@ -118,7 +118,7 @@ export default function TestimonialsSection({ data }: TestimonialsSectionProps) 
             </p>
           </div>
           <div className="mt-16 space-y-0 divide-y divide-gray-200">
-            {data.items.map((testimonial) => (
+            {data.items?.map((testimonial) => (
               <div key={testimonial.id} className="py-10 first:pt-0 last:pb-0">
                 <blockquote>
                   <span className="text-4xl font-serif text-primary-200" aria-hidden="true">&ldquo;</span>
@@ -216,7 +216,7 @@ export default function TestimonialsSection({ data }: TestimonialsSectionProps) 
           </p>
         </div>
         <div className="mt-16 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-          {data.items.map((testimonial) => (
+          {data.items?.map((testimonial) => (
             <div
               key={testimonial.id}
               className="flex flex-col rounded-xl border border-gray-200 bg-white p-8 transition-all hover:border-primary-300 hover:shadow-lg"

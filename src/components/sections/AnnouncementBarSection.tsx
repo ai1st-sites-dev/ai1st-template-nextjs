@@ -26,8 +26,8 @@ export default function AnnouncementBarSection({ data }: AnnouncementBarSectionP
             {data.link && (
               <>
                 {' '}
-                <Link href={data.link.href} className="underline text-white hover:text-white/80">
-                  {data.link.label}
+                <Link href={data.link?.href ?? "#"} className="underline text-white hover:text-white/80">
+                  {data.link?.label}
                 </Link>
               </>
             )}
@@ -58,9 +58,9 @@ export default function AnnouncementBarSection({ data }: AnnouncementBarSectionP
             </p>
             {data.link && (
               <Link
-                href={data.link.href}
+                href={data.link?.href ?? "#"}
                 className="shrink-0 flex items-center justify-center h-8 w-8 rounded-full bg-primary-500 text-white transition-colors hover:bg-primary-600"
-                aria-label={data.link.label}
+                aria-label={data.link?.label}
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
@@ -82,8 +82,8 @@ export default function AnnouncementBarSection({ data }: AnnouncementBarSectionP
             {data.link && (
               <>
                 {' '}
-                <Link href={data.link.href} className="font-medium text-accent-600 hover:text-accent-700">
-                  {data.link.label}
+                <Link href={data.link?.href ?? "#"} className="font-medium text-accent-600 hover:text-accent-700">
+                  {data.link?.label}
                 </Link>
               </>
             )}
@@ -102,8 +102,8 @@ export default function AnnouncementBarSection({ data }: AnnouncementBarSectionP
           {data.link && (
             <>
               {' '}
-              <Link href={data.link.href} className="underline text-white hover:text-white/80">
-                {data.link.label}
+              <Link href={data.link?.href ?? "#"} className="underline text-white hover:text-white/80">
+                {data.link?.label}
               </Link>
             </>
           )}

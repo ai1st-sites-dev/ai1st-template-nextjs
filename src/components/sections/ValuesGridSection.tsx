@@ -44,7 +44,7 @@ export default function ValuesGridSection({ data }: ValuesGridSectionProps) {
             {data.headline}
           </h2>
           <div className="mt-12 grid gap-8 md:grid-cols-3">
-            {data.items.map((item, index) => (
+            {data.items?.map((item, index) => (
               <div key={index} className="rounded-xl border border-gray-200 p-8">
                 <div className="mb-4 text-primary-500">
                   {valueIcons[index % valueIcons.length]}
@@ -98,7 +98,7 @@ export default function ValuesGridSection({ data }: ValuesGridSectionProps) {
             {data.headline}
           </h2>
           <div className="mt-16 grid gap-12 md:grid-cols-3">
-            {data.items.map((item, index) => (
+            {data.items?.map((item, index) => (
               <div key={index}>
                 <h3 className="font-bold text-gray-900">{item.title}</h3>
                 <div className="mt-3 h-0.5 w-12 bg-accent-500" aria-hidden="true" />
@@ -120,7 +120,7 @@ export default function ValuesGridSection({ data }: ValuesGridSectionProps) {
           {data.headline}
         </h2>
         <div className="mt-12 grid gap-8 md:grid-cols-3">
-          {data.items.map((item, index) => (
+          {data.items?.map((item, index) => (
             <div key={index} className={`rounded-xl ${isNumbered ? 'bg-white p-8 shadow-sm' : 'border border-gray-200 p-8'}`}>
               <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-full ${isNumbered ? 'bg-accent-50 text-accent-500' : 'bg-primary-50 text-primary-500'}`}>
                 {isNumbered ? (

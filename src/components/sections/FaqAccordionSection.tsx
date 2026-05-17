@@ -26,7 +26,7 @@ export default function FaqAccordionSection({ data }: FaqAccordionSectionProps) 
 
   const faqList = (
     <div className="divide-y divide-gray-200 rounded-xl border border-gray-200">
-      {data.items.map((item, index) => (
+      {data.items?.map((item, index) => (
         <div key={index}>
           <button
             onClick={() => toggle(index)}
@@ -65,7 +65,7 @@ export default function FaqAccordionSection({ data }: FaqAccordionSectionProps) 
               )}
             </div>
             <div className="mt-12">
-              {data.items.map((item, index) => (
+              {data.items?.map((item, index) => (
                 <div
                   key={index}
                   className={`mb-4 rounded-xl border shadow-sm transition-all ${openIndex === index ? 'border-primary-300 shadow-md' : 'border-gray-200'}`}
@@ -111,7 +111,7 @@ export default function FaqAccordionSection({ data }: FaqAccordionSectionProps) 
               )}
             </div>
             <div className="mt-12">
-              {data.items.map((item, index) => (
+              {data.items?.map((item, index) => (
                 <div key={index} className="border-b border-gray-200">
                   <button
                     onClick={() => toggle(index)}

@@ -80,7 +80,7 @@ export default function GallerySection({ data }: GallerySectionProps) {
             className="mt-10 flex gap-6 overflow-x-auto snap-x snap-mandatory pb-4 scrollbar-hide"
             style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
           >
-            {data.items.map((item, index) => (
+            {data.items?.map((item, index) => (
               <div
                 key={index}
                 className="min-w-[300px] flex-shrink-0 snap-center overflow-hidden rounded-xl bg-white shadow-sm"
@@ -122,7 +122,7 @@ export default function GallerySection({ data }: GallerySectionProps) {
             )}
           </div>
           <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {data.items.map((item, index) => (
+            {data.items?.map((item, index) => (
               <div
                 key={index}
                 className={`relative h-64 overflow-hidden rounded-2xl ${item.imageUrl ? '' : `bg-gradient-to-br ${colors[index % colors.length]}`}`}
@@ -163,7 +163,7 @@ export default function GallerySection({ data }: GallerySectionProps) {
             )}
           </div>
           <div className="mt-12 columns-1 gap-6 sm:columns-2 lg:columns-3">
-            {data.items.map((item, index) => {
+            {data.items?.map((item, index) => {
               const heights = ['h-48', 'h-64', 'h-56', 'h-72', 'h-52', 'h-60'];
               return (
                 <div key={index} className="mb-6 break-inside-avoid overflow-hidden rounded-xl">
@@ -207,7 +207,7 @@ export default function GallerySection({ data }: GallerySectionProps) {
           )}
         </div>
         <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {data.items.map((item, index) => (
+          {data.items?.map((item, index) => (
             <div key={index} className="group overflow-hidden rounded-xl bg-white shadow-sm transition-shadow hover:shadow-md">
               {item.imageUrl ? (
                 <img src={item.imageUrl} alt={item.title} className="h-48 w-full object-cover" />

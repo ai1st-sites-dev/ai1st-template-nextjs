@@ -50,7 +50,7 @@ export default function StatsCounterSection({ data }: StatsCounterSectionProps) 
             </h2>
           )}
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {data.stats.map((stat, index) => (
+            {data.stats?.map((stat, index) => (
               <div key={index} className="rounded-xl border border-gray-200 bg-white p-8 text-center shadow-sm">
                 <p className="text-4xl font-extrabold text-primary-600">{stat.value}</p>
                 <p className="mt-2 text-sm font-medium text-gray-600">{stat.label}</p>
@@ -72,7 +72,7 @@ export default function StatsCounterSection({ data }: StatsCounterSectionProps) 
             </h2>
           )}
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {data.stats.map((stat, index) => (
+            {data.stats?.map((stat, index) => (
               <div
                 key={index}
                 className={`rounded-xl bg-gradient-to-br ${gradientClasses[index % gradientClasses.length]} p-8 text-center text-white`}
@@ -97,7 +97,7 @@ export default function StatsCounterSection({ data }: StatsCounterSectionProps) 
             </h2>
           )}
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {data.stats.map((stat, index) => (
+            {data.stats?.map((stat, index) => (
               <div key={index} className="rounded-xl bg-gray-50 p-8 text-center">
                 <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary-100 text-primary-500">
                   {statIcons[index % statIcons.length]}
@@ -122,11 +122,11 @@ export default function StatsCounterSection({ data }: StatsCounterSectionProps) 
             </h2>
           )}
           <div className="flex flex-wrap items-center justify-center">
-            {data.stats.map((stat, index) => (
+            {data.stats?.map((stat, index) => (
               <div
                 key={index}
                 className={`px-10 py-4 text-center ${
-                  index < data.stats.length - 1 ? 'border-r border-primary-700' : ''
+                  index < (data.stats?.length ?? 0) - 1 ? 'border-r border-primary-700' : ''
                 }`}
               >
                 <p className="text-5xl font-extrabold text-white">{stat.value}</p>
@@ -149,7 +149,7 @@ export default function StatsCounterSection({ data }: StatsCounterSectionProps) 
             </p>
           )}
           <div className="flex flex-wrap items-center justify-center divide-x divide-gray-300">
-            {data.stats.map((stat, index) => (
+            {data.stats?.map((stat, index) => (
               <div key={index} className="px-8 py-2 text-center">
                 <p className="text-3xl font-extrabold text-gray-900">{stat.value}</p>
                 <p className="mt-1 text-sm font-medium text-gray-600">{stat.label}</p>
@@ -170,7 +170,7 @@ export default function StatsCounterSection({ data }: StatsCounterSectionProps) 
           </p>
         )}
         <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
-          {data.stats.map((stat, index) => (
+          {data.stats?.map((stat, index) => (
             <div key={index} className="text-center">
               <p className="text-3xl font-extrabold text-white sm:text-4xl">{stat.value}</p>
               <p className="mt-1 text-sm font-medium text-primary-300">{stat.label}</p>

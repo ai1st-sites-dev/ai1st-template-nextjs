@@ -64,9 +64,9 @@ export default function ContentSplitSection({ data, locale }: ContentSplitSectio
               </p>
             </div>
             <div className="rounded-2xl bg-primary-50 p-8">
-              {data.stats && data.stats.length > 0 && (
+              {data.stats && data.stats?.length > 0 && (
                 <div className="grid grid-cols-2 gap-6">
-                  {data.stats.map((stat, index) => (
+                  {data.stats?.map((stat, index) => (
                     <div key={index} className="text-center">
                       <p className="text-2xl font-bold text-primary-600">{stat.value}</p>
                       <p className="mt-1 text-sm text-gray-600">{stat.label}</p>
@@ -100,9 +100,9 @@ export default function ContentSplitSection({ data, locale }: ContentSplitSectio
               <p className="mt-4 leading-relaxed text-gray-600">
                 {data.content}
               </p>
-              {data.bullets && data.bullets.length > 0 && (
+              {data.bullets && data.bullets?.length > 0 && (
                 <ul className="mt-6 space-y-3" role="list">
-                  {data.bullets.map((bullet, index) => (
+                  {data.bullets?.map((bullet, index) => (
                     <li key={index} className="flex items-start gap-3">
                       <svg className="mt-0.5 h-5 w-5 shrink-0 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
@@ -120,7 +120,7 @@ export default function ContentSplitSection({ data, locale }: ContentSplitSectio
   }
 
   if (variant === 'cards-row') {
-    const cards = data.bullets && data.bullets.length > 0 ? data.bullets.slice(0, 3) : [];
+    const cards = data.bullets && data.bullets?.length > 0 ? data.bullets?.slice(0, 3) : [];
     return (
       <section className="section-padding" aria-labelledby="content-split-heading">
         <div className="container-width">
@@ -163,9 +163,9 @@ export default function ContentSplitSection({ data, locale }: ContentSplitSectio
             <p className="mt-4 text-center leading-relaxed text-gray-600">
               {data.content}
             </p>
-            {data.bullets && data.bullets.length > 0 && (
+            {data.bullets && data.bullets?.length > 0 && (
               <ul className="mt-6 space-y-3" role="list">
-                {data.bullets.map((bullet, index) => (
+                {data.bullets?.map((bullet, index) => (
                   <li key={index} className="flex items-start gap-3">
                     <svg className="mt-0.5 h-5 w-5 shrink-0 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />

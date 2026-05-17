@@ -32,11 +32,11 @@ export default function BenefitsListSection({ data }: BenefitsListSectionProps) 
             )}
           </div>
           <div className="mt-16">
-            {data.items.map((item, index) => (
+            {data.items?.map((item, index) => (
               <div
                 key={index}
                 className={`flex items-start gap-6 py-8 ${
-                  index < data.items.length - 1 ? 'border-b border-gray-200' : ''
+                  index < (data.items?.length ?? 0) - 1 ? 'border-b border-gray-200' : ''
                 }`}
               >
                 <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primary-100" aria-hidden="true">
@@ -71,7 +71,7 @@ export default function BenefitsListSection({ data }: BenefitsListSectionProps) 
             )}
           </div>
           <div className="mt-16 space-y-16">
-            {data.items.map((item, index) => (
+            {data.items?.map((item, index) => (
               <div key={index} className="relative">
                 <span
                   className="absolute -top-4 left-0 select-none text-7xl font-extrabold text-primary-100"
@@ -107,7 +107,7 @@ export default function BenefitsListSection({ data }: BenefitsListSectionProps) 
           </div>
           <div className="relative mt-16">
             <div className="flex gap-6 overflow-x-auto pb-4" role="list">
-              {data.items.map((item, index) => (
+              {data.items?.map((item, index) => (
                 <div
                   key={index}
                   role="listitem"
@@ -141,7 +141,7 @@ export default function BenefitsListSection({ data }: BenefitsListSectionProps) 
           )}
         </div>
         <div className="mt-16 space-y-12">
-          {data.items.map((item, index) => (
+          {data.items?.map((item, index) => (
             <div key={index} className="grid items-center gap-8 lg:grid-cols-2">
               {index % 2 === 0 ? (
                 <>

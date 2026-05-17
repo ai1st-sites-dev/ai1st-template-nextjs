@@ -100,7 +100,7 @@ export default function QuoteFormSection({ data, locale }: QuoteFormSectionProps
                 2. What type of property?
               </h2>
               <div className="mt-4 flex flex-wrap gap-3">
-                {data.propertyTypes.map((type) => (
+                {data.propertyTypes?.map((type) => (
                   <button
                     key={type}
                     type="button"
@@ -123,7 +123,7 @@ export default function QuoteFormSection({ data, locale }: QuoteFormSectionProps
                 3. How soon do you need this?
               </h2>
               <div className="mt-4 flex flex-wrap gap-3">
-                {data.urgencyOptions.map((option) => (
+                {data.urgencyOptions?.map((option) => (
                   <button
                     key={option}
                     type="button"
@@ -162,7 +162,7 @@ export default function QuoteFormSection({ data, locale }: QuoteFormSectionProps
                 {labels.whatYouGet}
               </h3>
               <ul className="mt-4 space-y-3">
-                {data.benefits.map((benefit, index) => (
+                {data.benefits?.map((benefit, index) => (
                   <li key={index} className="flex items-start gap-3">
                     <svg className="mt-0.5 h-5 w-5 flex-shrink-0 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75" />

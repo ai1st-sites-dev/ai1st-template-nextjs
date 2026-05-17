@@ -25,7 +25,7 @@ export default function AwardsCertificationsSection({ data }: AwardsCertificatio
               {data.headline}
             </h2>
             <div className="flex flex-wrap items-center justify-center gap-y-4">
-              {data.awards.map((award, index) => (
+              {data.awards?.map((award, index) => (
                 <div key={index} className="flex items-center gap-2 px-6">
                   {index > 0 && (
                     <div className="hidden h-8 w-px bg-gray-300 sm:block" aria-hidden="true" />
@@ -59,7 +59,7 @@ export default function AwardsCertificationsSection({ data }: AwardsCertificatio
             )}
           </div>
           <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-            {data.awards.map((award, index) => (
+            {data.awards?.map((award, index) => (
               <div key={index} className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
                 <div className="h-1 bg-gradient-to-r from-primary-500 to-accent-500" />
                 <div className="p-8">
@@ -91,7 +91,7 @@ export default function AwardsCertificationsSection({ data }: AwardsCertificatio
           )}
         </div>
         <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {data.awards.map((award, index) => (
+          {data.awards?.map((award, index) => (
             <div key={index} className="rounded-xl border border-gray-200 bg-white p-6 text-center transition-all hover:border-primary-300 hover:shadow-md">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-accent-50">
                 <svg className="h-7 w-7 text-accent-500" fill="currentColor" viewBox="0 0 24 24">
