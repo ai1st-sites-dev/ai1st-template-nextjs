@@ -15,7 +15,7 @@ export default function SectionRenderer({ sections, locale }: SectionRendererPro
           console.warn(`Unknown section type: ${section.type}`);
           return null;
         }
-        return <Component key={`${section.type}-${index}`} data={section.data} locale={locale} />;
+        return <Component key={`${section.type}-${index}`} data={section.data || {}} locale={locale} />;
       })}
     </>
   );
