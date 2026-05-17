@@ -6,7 +6,7 @@
     "predev": "node scripts/sync-config.js",
     "dev": "next dev",
     "prebuild": "node scripts/sync-config.js && node scripts/move-build-output.js backup",
-    "build": "next build && node scripts/move-build-output.js restore",
+    "build": "next build --webpack && node scripts/move-build-output.js restore",
     "start": "next start",
     "lint:scripts": "eslint scripts/create-site.js scripts/edit-site.js"
   },
