@@ -879,7 +879,10 @@ async function main() {
       progress('Committing to git...', 80);
       try {
         const gitOpts = { cwd: rootDir, stdio: 'pipe' };
-        execSync('git add site/', gitOpts);
+        // TICKET-170: include public/ so AI-generated logo (159) + business photos
+        // (161/164) persist into the per-site git repo. Without this, container
+        // restart → fresh clone → public/ empty → preview / deploy break image.
+        execSync('git add site/ public/', gitOpts);
         execSync(`git commit -m "Generate site: ${siteId} (demo)"`, gitOpts);
         // TICKET-142: emit chat-message anchor for the initial commit so the
         // dashboard's first user edit can Revert back to the AI-generated site.
@@ -1088,7 +1091,10 @@ async function main() {
     progress('Committing to git...', 80);
     try {
       const gitOpts = { cwd: rootDir, stdio: 'pipe' };
-      execSync('git add site/', gitOpts);
+      // TICKET-170: include public/ so AI-generated logo (159) + business photos
+      // (161/164) persist into the per-site git repo. Without this, container
+      // restart → fresh clone → public/ empty → preview / deploy break image.
+      execSync('git add site/ public/', gitOpts);
       execSync(`git commit -m "Generate site: ${siteId}"`, gitOpts);
       // TICKET-142: emit chat-message anchor for the initial commit so the
       // dashboard's first user edit can Revert back to the AI-generated site.
