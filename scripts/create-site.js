@@ -675,13 +675,38 @@ const LANG_NAME_TO_ISO = {
   'japanese': 'ja', 'korean': 'ko', 'german': 'de', 'italian': 'it',
   'portuguese': 'pt', 'russian': 'ru', 'vietnamese': 'vi', 'arabic': 'ar',
   'hindi': 'hi', 'thai': 'th',
+  // TICKET-169: explicit Simplified / Traditional Chinese variants. 'zh' alone
+  // stays Simplified (preserves all historic sites). 'zh-tw' is the new opt-in
+  // Traditional variant. Natural-language aliases ("simplified chinese" /
+  // "traditional chinese" / "taiwanese") accepted from dashboard / docs.
+  'simplified chinese': 'zh',
+  'traditional chinese': 'zh-tw',
+  'taiwanese': 'zh-tw',
 };
 
 function normalizeLocale(input) {
   if (!input || typeof input !== 'string') return null;
-  if (!/^[a-zA-Z]{2,}$/.test(input)) return null; // reject any non-letter chars (TICKET-122a §367 same regex)
+  // TICKET-169: allow BCP-47 simple form `lang-REGION` (e.g. zh-TW). Pattern:
+  // 2-3 letter primary + optional `-` + 2-4 letter region.
+  if (!/^[a-zA-Z]{2,}(-[a-zA-Z]{2,4})?$/.test(input)) return null;
   const k = input.toLowerCase();
   return LANG_NAME_TO_ISO[k] || k;
+}
+
+// TICKET-169: returns a sentence-level prompt addendum the AI uses to pick the
+// right Chinese character variant. The root cause of "user picks Chinese →
+// site comes back Traditional sometimes" was that the LANGUAGE instruction
+// just said "Write in Chinese" — Claude flipped a coin. This pins it.
+function chineseVariantHint(languageName) {
+  if (!languageName) return '';
+  const n = languageName.toLowerCase();
+  if (n === 'traditional chinese' || n === 'taiwanese' || n === 'cantonese') {
+    return ' Use Traditional Chinese characters (Taiwan / Hong Kong convention, 繁體). Do NOT use Simplified Chinese characters anywhere.';
+  }
+  if (n === 'chinese' || n === 'mandarin' || n === 'simplified chinese') {
+    return ' Use Simplified Chinese characters (mainland China convention, 简体). Do NOT use Traditional Chinese characters anywhere.';
+  }
+  return '';
 }
 
 // ─── Read stdin ───────────────────────────────────────────────────────────────
@@ -765,7 +790,7 @@ async function main() {
   // separators (',' ';' '|' '/' space), path-traversal characters ('.' '/'), and
   // any other unsafe input that would propagate into path.join() / site_meta.json.
   // Empty string and null fall through to the 'en' default.
-  if (typeof language === 'string' && language.length > 0 && !/^[a-zA-Z]{2,}$/.test(language)) {
+  if (typeof language === 'string' && language.length > 0 && !/^[a-zA-Z]{2,}(-[a-zA-Z]{2,4})?$/.test(language)) {
     fatal(`Invalid language "${language}". Must be ISO 639-1 code (e.g. en, zh, fr) or natural-language name (e.g. English, Chinese).`);
   }
   const defaultLocale = normalizeLocale(language) || 'en';
@@ -778,7 +803,7 @@ async function main() {
   const seenLocales = new Set([defaultLocale]);
   for (const sl of secondaryLocales) {
     if (typeof sl !== 'string' || sl.length === 0) continue;
-    if (!/^[a-zA-Z]{2,}$/.test(sl)) {
+    if (!/^[a-zA-Z]{2,}(-[a-zA-Z]{2,4})?$/.test(sl)) {
       fatal(`Invalid secondaryLocale "${sl}". Must be ISO 639-1 code (e.g. zh, fr) or natural-language name (e.g. Chinese, French).`);
     }
     const norm = normalizeLocale(sl);
@@ -885,8 +910,12 @@ async function main() {
   progress('AI is designing your website...', 15);
 
   // Language map
+  // TICKET-169: 'zh' stays Simplified Chinese (historic default, preserves
+  // existing sites). 'zh-tw' is the new Traditional Chinese variant — maps to
+  // languageName 'Traditional Chinese' so downstream prompt builder can detect
+  // and add Simplified-vs-Traditional disambiguation hint.
   const langMap = {
-    'en': 'English', 'zh': 'Chinese', 'fr': 'French', 'es': 'Spanish',
+    'en': 'English', 'zh': 'Chinese', 'zh-tw': 'Traditional Chinese', 'fr': 'French', 'es': 'Spanish',
     'ja': 'Japanese', 'ko': 'Korean', 'de': 'German', 'it': 'Italian',
     'pt': 'Portuguese', 'ru': 'Russian', 'vi': 'Vietnamese', 'ar': 'Arabic',
     'hi': 'Hindi', 'th': 'Thai',
@@ -1161,7 +1190,7 @@ async function translatePageWithClaude({
     ? keywords.map(k => `- ${k.keyword}${typeof k.volume === 'number' ? ` (${k.volume}/mo)` : ''}`).join('\n')
     : '(none)';
 
-  const prompt = `You are translating a website page from ${primaryLanguageName} to ${secondaryLanguageName} for SEO.
+  const prompt = `You are translating a website page from ${primaryLanguageName} to ${secondaryLanguageName}.${chineseVariantHint(secondaryLanguageName)} For SEO.
 
 INDUSTRY: ${industry}
 LOCATION: ${location}
@@ -1218,7 +1247,7 @@ INSTRUCTIONS:
 async function translateSupportingFilesWithClaude({
   client, brand, seo, services, navigation, primaryLanguageName, secondaryLanguageName, secondaryLocale, industry, location, companyName,
 }) {
-  const prompt = `You are translating website supporting config from ${primaryLanguageName} to ${secondaryLanguageName} for SEO.
+  const prompt = `You are translating website supporting config from ${primaryLanguageName} to ${secondaryLanguageName}.${chineseVariantHint(secondaryLanguageName)} For SEO.
 
 INDUSTRY: ${industry}
 LOCATION: ${location}
@@ -1352,7 +1381,9 @@ INSTRUCTIONS:
 // Defaults pick the most common variant per locale; can be overridden later.
 function localeMapForBcp47(iso) {
   const map = {
-    en: 'en_CA', zh: 'zh_CN', fr: 'fr_CA', es: 'es_MX', ja: 'ja_JP',
+    // TICKET-169: 'zh' (Simplified) and 'zh-tw' (Traditional) map to canonical
+    // BCP-47 region-suffixed forms used in hreflang / JsonLd inLanguage.
+    en: 'en_CA', zh: 'zh_CN', 'zh-tw': 'zh_TW', fr: 'fr_CA', es: 'es_MX', ja: 'ja_JP',
     ko: 'ko_KR', de: 'de_DE', it: 'it_IT', pt: 'pt_BR', ru: 'ru_RU',
     vi: 'vi_VN', ar: 'ar_SA', hi: 'hi_IN', th: 'th_TH',
   };
@@ -1624,7 +1655,7 @@ async function generateContent(opts) {
   };
 
   const languageInstruction = languageName !== 'English'
-    ? `\nLANGUAGE: Write ALL content in ${languageName}. This includes: taglines, descriptions, headlines, subheadlines, testimonial quotes, FAQ answers, service names, navigation labels, page titles, meta descriptions, keywords, and all other user-facing text. Only JSON keys and technical values (slugs, hrefs, icon names, variant names, section type names) should remain in English.\n`
+    ? `\nLANGUAGE: Write ALL content in ${languageName}.${chineseVariantHint(languageName)} This includes: taglines, descriptions, headlines, subheadlines, testimonial quotes, FAQ answers, service names, navigation labels, page titles, meta descriptions, keywords, and all other user-facing text. Only JSON keys and technical values (slugs, hrefs, icon names, variant names, section type names) should remain in English.\n`
     : '';
 
   // Build services instruction from real form data
@@ -2318,7 +2349,7 @@ async function generateKeywordPages(opts) {
   const client = new Anthropic();
 
   const languageInstruction = languageName !== 'English'
-    ? `\nLANGUAGE: Write ALL content in ${languageName}. Only JSON keys and technical values (slugs, hrefs, icon names, variant names, section type names) should remain in English.\n`
+    ? `\nLANGUAGE: Write ALL content in ${languageName}.${chineseVariantHint(languageName)} Only JSON keys and technical values (slugs, hrefs, icon names, variant names, section type names) should remain in English.\n`
     : '';
 
   const prompt = `You are an expert SEO copywriter. Generate keyword-optimized landing pages for a local service business. Return ONLY a valid JSON array, no markdown fences, no explanation.

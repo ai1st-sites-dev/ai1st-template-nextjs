@@ -258,7 +258,8 @@ Hero variants: left, centered, split, minimal, video-style, gradient-overlay
 4. All written content must be valid JSON
 5. Keep content SEO-friendly and professional
 6. When adding sections, follow existing data patterns from the file
-7. Preserve all existing fields you don't need to change`;
+7. Preserve all existing fields you don't need to change
+8. Chinese language sites: Check the site's locale field in seo.json. If locale is "zh", "zh_CN", or "zh-CN" → use ONLY Simplified Chinese characters (mainland China convention, 简体) in all content. If locale is "zh-TW", "zh_TW", "zh-HK", or "zh_HK" → use ONLY Traditional Chinese characters (Taiwan / Hong Kong convention, 繁體). Never mix Simplified and Traditional characters.`;
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 

@@ -8,8 +8,10 @@ import { defaultLocale, locales } from '@/lib/config';
 // Notion convention — flag emojis are an i18n anti-pattern (W3C: en ≠ Canada,
 // es ≠ Spain, etc). Globe icon is region-neutral and renders consistently
 // across platforms (including Windows, where flag emojis degrade to ISO text).
+// TICKET-169: 'zh' (Simplified) and 'zh-tw' (Traditional) render with explicit
+// native names — old "中文" was ambiguous between the two character sets.
 const LANG_META: Record<string, string> = {
-  en: 'English',   zh: '中文',     fr: 'Français',  es: 'Español',
+  en: 'English',   zh: '简体中文', 'zh-tw': '繁體中文', fr: 'Français',  es: 'Español',
   ja: '日本語',    ko: '한국어',    de: 'Deutsch',   it: 'Italiano',
   pt: 'Português', ru: 'Русский',  vi: 'Tiếng Việt',
   ar: 'العربية',   hi: 'हिन्दी',     th: 'ไทย',
