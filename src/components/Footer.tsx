@@ -66,7 +66,16 @@ export default function Footer({ locale }: { locale: string }) {
           <div>
             <div className="mb-4 flex items-center gap-2">
               {brand.logoUrl ? (
-                <img src={brand.logoUrl} alt={getBrandName(locale)} className="h-8 w-auto max-w-[140px] object-contain brightness-0 invert" />
+                // TICKET-192: white pill container so footer logo is visible on
+                // dark bg-primary-900 regardless of logo's own colors / alpha
+                // channel. Pre-fix a brightness+invert filter assumed the logo
+                // had a transparent background and produced a white silhouette
+                // — but AI-generated PNGs (Nano Banana prompt forces "pure
+                // white background") and user JPG uploads broke that
+                // assumption, turning the whole bounding box solid white.
+                <span className="inline-flex items-center bg-white p-1.5 rounded-md">
+                  <img src={brand.logoUrl} alt={getBrandName(locale)} className="h-7 w-auto max-w-[120px] object-contain" />
+                </span>
               ) : (
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-500">
                   <ServiceIcon icon={brand.logoIcon} className="h-5 w-5 text-white" />
