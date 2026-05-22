@@ -303,7 +303,13 @@ const THEME_STYLE_MAP = {
 async function generateLogoViaNanoBanana({ companyName: _companyName, industry, primaryColor, accentColor, themeName, apiKey }) {
   if (!apiKey) throw new Error('GEMINI_API_KEY missing (no key in stdin payload)');
   const styleAdjective = THEME_STYLE_MAP[themeName] || 'minimal modern flat 2D';
-  const prompt = `Create a minimalist abstract symbolic icon representing a ${industry} business. The icon should be ${styleAdjective}, flat 2D, with clean geometric lines and a single centered composition. Use the color ${primaryColor} as the main color and ${accentColor} as a small accent, with no other colors. Place the icon on a pure white background with no shadow, no border, no frame.
+  const prompt = `Create a LARGE, dominant single-mark icon representing a ${industry} business — a professionally designed brand identity logo with a polished, commercial-grade aesthetic suitable for a modern company's website header. The icon must be ${styleAdjective}, flat 2D, designed as ONE cohesive integrated symbol with smooth curves and refined silhouettes.
+
+UNIFIED MARK (CRITICAL): Choose ONE primary concept and refine it into a single integrated shape. Do NOT combine 2 or more separate iconic objects (e.g. a house AND a plate AND a fork; or a shield AND an arrow AND a scale). Such composite logos look amateurish. Instead, pick ONE strong visual metaphor (e.g. just a stylized bowl with steam, or just an upward arrow with refined geometry) and execute it with confident craft.
+
+CANVAS FILL (MANDATORY): The icon must fill AT LEAST 70% of the image canvas — both its width and height should occupy ~80-90% of the frame, with minimal padding (~5-10% margin on each side maximum). Icons that occupy less than half the canvas are UNACCEPTABLE — this is a hard requirement. Imagine the icon as a postage-stamp-sized commercial logo blown up to fill the frame — large, bold, dominating the composition. Do NOT leave large empty whitespace around the icon.
+
+COLORS: Use ${primaryColor} as the dominant color and ${accentColor} sparingly as a small accent for visual interest only. Pure white background, no shadow, no border, no frame.
 
 ABSOLUTELY NO TEXT IN THE IMAGE. The image must contain ZERO letters, ZERO words, ZERO numbers, ZERO hex codes, ZERO labels, ZERO captions, ZERO writing, ZERO monograms, ZERO initials, ZERO typography of any kind. Pure visual icon only — a single symbolic geometric shape with no characters or text elements anywhere in the image.`;
 
