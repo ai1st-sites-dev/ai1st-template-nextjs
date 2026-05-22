@@ -316,6 +316,68 @@ ABSOLUTELY NO TEXT IN THE IMAGE. The image must contain ZERO letters, ZERO words
   return await callNanoBanana({ prompt, apiKey });
 }
 
+// TICKET-197: deterministic post-processing for Nano Banana logo output.
+// Gemini 2.5 Flash Image doesn't reliably honor "AT LEAST 70% canvas fill"
+// prompt instructions (see 194 V2 — lawyer 99.8% extreme / restaurant 19.4%
+// / IT 19.9% — split distribution). This crops to the non-white bounding
+// box then resizes so the icon occupies ~targetOccupancyPct of the canvas
+// with the longest dimension scaled to that target (aspect-ratio preserved).
+// No-ops when the icon is already at-or-above the target (avoids re-processing
+// the lawyer 99.8% extreme case).
+const Jimp = require('jimp');
+async function cropAndResizeLogo(logoBuf, targetOccupancyPct = 80) {
+  const img = await Jimp.read(logoBuf);
+  const W = img.bitmap.width;
+  const H = img.bitmap.height;
+
+  // 1. Detect non-white bounding box (tolerance 240 — pixel "non-white" if
+  // any RGB channel < 240; matches 194 V2 occupancy.py PIL detection).
+  let minX = W, minY = H, maxX = -1, maxY = -1;
+  img.scan(0, 0, W, H, (x, y, idx) => {
+    const r = img.bitmap.data[idx];
+    const g = img.bitmap.data[idx + 1];
+    const b = img.bitmap.data[idx + 2];
+    if (r < 240 || g < 240 || b < 240) {
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+    }
+  });
+
+  if (maxX < 0 || maxY < 0) {
+    // All-white / empty input — return original buffer untouched (safety fallback).
+    return logoBuf;
+  }
+
+  const bboxW = maxX - minX + 1;
+  const bboxH = maxY - minY + 1;
+
+  // 2. No-op skip if the icon's longer dimension already exceeds the target
+  // (e.g. lawyer 99.8% extreme). Avoids re-processing an already-large icon
+  // and prevents accidental upscaling artifacts.
+  const longerDimPct = Math.max(bboxW / W, bboxH / H) * 100;
+  if (longerDimPct >= targetOccupancyPct) {
+    return logoBuf;
+  }
+
+  // 3. Crop to bbox, then resize so the longer side equals the target px count.
+  const cropped = img.clone().crop(minX, minY, bboxW, bboxH);
+  const targetSize = Math.floor(Math.min(W, H) * (targetOccupancyPct / 100));
+  const scale = targetSize / Math.max(bboxW, bboxH);
+  const newW = Math.floor(bboxW * scale);
+  const newH = Math.floor(bboxH * scale);
+  cropped.resize(newW, newH); // jimp default: bilinear
+
+  // 4. Paste centered onto a new white canvas of the original dimensions.
+  const canvas = new Jimp(W, H, 0xFFFFFFFF); // RGBA opaque white
+  const offsetX = Math.floor((W - newW) / 2);
+  const offsetY = Math.floor((H - newH) / 2);
+  canvas.composite(cropped, offsetX, offsetY);
+
+  return await canvas.getBufferAsync(Jimp.MIME_PNG);
+}
+
 // TICKET-161: Nano Banana (Gemini 2.5 Flash Image) — generateContent-style
 // endpoint. Returns a Buffer (PNG/JPG) on success; throws on failure. Field
 // name is `inlineData` (camelCase) per v1beta generateContent API; SDK aliases
@@ -2244,7 +2306,21 @@ CRITICAL RULES:
       });
       const publicDir = path.join(path.resolve(__dirname, '..'), 'public');
       fs.mkdirSync(publicDir, { recursive: true });
-      fs.writeFileSync(path.join(publicDir, 'logo.png'), logoBuf);
+      // TICKET-197: deterministic canvas fill — Nano Banana doesn't reliably
+      // honor "AT LEAST 70%" canvas-fill prompt instructions (see 194 V2 split
+      // 19-99% occupancy). cropAndResizeLogo crops to the non-white bbox and
+      // resizes so the icon occupies ~80% of the canvas. Falls back to the raw
+      // Nano Banana buffer if jimp throws (PNG decode failure / OOM / etc) —
+      // worst case is the pre-197 V2 behavior, not a regression.
+      const postProcessStart = Date.now();
+      let finalLogoBuf;
+      try {
+        finalLogoBuf = await cropAndResizeLogo(logoBuf, 80);
+      } catch (err) {
+        debug(`[nano-banana-logo] post-process failed (using raw): ${err.message}`);
+        finalLogoBuf = logoBuf;
+      }
+      fs.writeFileSync(path.join(publicDir, 'logo.png'), finalLogoBuf);
       brand.logoUrl = '/logo.png';
       brand.logoHasWordmark = false;
       emit('cost', {
@@ -2254,7 +2330,7 @@ CRITICAL RULES:
         duration: Date.now() - logoStart,
         detail: `Logo for ${companyName}`,
       });
-      debug(`[nano-banana-logo] generated logo for ${companyName} (${logoBuf.length} bytes) in ${Date.now() - logoStart}ms`);
+      debug(`[nano-banana-logo] generated logo for ${companyName} (raw ${logoBuf.length} bytes, final ${finalLogoBuf.length} bytes, gen ${postProcessStart - logoStart}ms, post-process ${Date.now() - postProcessStart}ms)`);
     } catch (err) {
       debug(`[nano-banana-logo] gen failed, fallback to text: ${err.message}`);
       emit('debug', { logoFallback: 'text', reason: err.message });
