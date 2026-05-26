@@ -1592,7 +1592,9 @@ function getDemoConfig(siteId) {
       },
     },
     seo: {
-      domain: `https://${siteId}.xeoai.io`,
+      // PREVIEW_DOMAIN env var injected by worker/entrypoint.sh; manager populates
+      // it from cfg.PreviewDomain (ai1stsite.io for prod / ai1stsite.dev for dev)
+      domain: `https://${siteId}.${process.env.PREVIEW_DOMAIN || 'ai1stsite.io'}`,
       locale: 'en_CA',
       siteTitle: 'Demo Company — Professional Services',
       siteDescription: 'Demo Company provides professional services in the Greater Toronto Area.',
