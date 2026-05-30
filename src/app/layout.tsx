@@ -93,7 +93,7 @@ export default function RootLayout({
             short-circuit immediately — script is a no-op for them. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){if(window.parent===window)return;function n(){try{window.parent.postMessage({type:"xsite:nav",path:window.location.pathname+window.location.search+window.location.hash},"*");}catch(e){}}n();var p=history.pushState;history.pushState=function(){p.apply(this,arguments);n();};var r=history.replaceState;history.replaceState=function(){r.apply(this,arguments);n();};window.addEventListener("popstate",n);})();`,
+            __html: `(function(){if(window.parent===window)return;function n(){try{window.parent.postMessage({type:"ai1st:nav",path:window.location.pathname+window.location.search+window.location.hash},"*");}catch(e){}}n();var p=history.pushState;history.pushState=function(){p.apply(this,arguments);n();};var r=history.replaceState;history.replaceState=function(){r.apply(this,arguments);n();};window.addEventListener("popstate",n);})();`,
           }}
         />
         {children}

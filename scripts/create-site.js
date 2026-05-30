@@ -1647,7 +1647,7 @@ async function fetchRefSite(url) {
     const timeout = setTimeout(() => controller.abort(), 10000);
     const res = await fetch(url, {
       signal: controller.signal,
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; XSiteBot/1.0)' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AI1stBot/1.0)' },
     });
     clearTimeout(timeout);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1672,7 +1672,7 @@ async function fetchRefSite(url) {
         try {
           const cssRes = await fetch(cssUrl, {
             signal: AbortSignal.timeout(5000),
-            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; XSiteBot/1.0)' },
+            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AI1stBot/1.0)' },
           });
           if (cssRes.ok) return await cssRes.text();
         } catch {}
