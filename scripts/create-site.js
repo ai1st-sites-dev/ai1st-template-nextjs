@@ -422,7 +422,7 @@ async function callNanoBanana({ prompt, apiKey, timeoutMs = 30_000 }) {
 // (typical site 5-25 photos, 5x normal peak ~125, rounded down to 100).
 // TICKET-164: 5x normal usage default per memory feedback_scope_cap_5x_normal.md.
 // TICKET-166: changed const → let so caller can override via stdin payload
-// `input.maxImagesPerSite` (sourced from Admin Settings → xsite.site.maxImagesPerSite).
+// `input.maxImagesPerSite` (sourced from Admin Settings → ai1st.site.maxImagesPerSite).
 let photoHardCap = 100;
 
 function collectImageSlots(pages) {
