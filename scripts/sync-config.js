@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+// TICKET-219 decouple e2e: no-op comment — makes a templates/nextjs change so a
+// templates+manager push verifies templates skips (no token) without blocking manager.
+
 const fs = require('fs');
 const path = require('path');
 
