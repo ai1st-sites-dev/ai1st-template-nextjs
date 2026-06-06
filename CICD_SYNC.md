@@ -16,4 +16,9 @@ repos by hand:
 **Manual fallback** (if Actions is down): `ENV=dev ./deploy/deploy.sh --template`
 from the monorepo root does the same dev subtree push locally.
 
+**Gotcha (fixed):** the dev auto-sync job runs `actions/checkout` with
+`persist-credentials: false`. Otherwise checkout's default `GITHUB_TOKEN`
+extraheader (scoped to `webisca/ai1st` only) overrides the App token in the
+template remote URL and 404s the cross-org push.
+
 See `docs/DEPLOY.md` and TICKET-219 for the full design.
