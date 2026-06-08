@@ -22,5 +22,3 @@ extraheader (scoped to `webisca/ai1st` only) overrides the App token in the
 template remote URL and 404s the cross-org push.
 
 See `docs/DEPLOY.md` and TICKET-219 for the full design.
-
-<!-- client-id verify -->
