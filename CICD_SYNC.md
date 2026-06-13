@@ -7,7 +7,7 @@ repos by hand:
 
 | Mirror repo | Org | How it updates |
 |---|---|---|
-| `ai1st-sites-dev/ai1st-template-nextjs` | dev | **Auto** — every push to `main` that touches `templates/nextjs/**` triggers `.github/workflows/ci-cd.yml` → `deploy.sh --template` subtree-pushes here. |
+| `ai1st-sites-test/ai1st-template-nextjs` | dev | **Auto** — every push to `main` that touches `templates/nextjs/**` triggers `.github/workflows/ci-cd.yml` → `deploy.sh --template` subtree-pushes here. |
 | `ai1st-sites/ai1st-template-nextjs` | prod | **Manual promote** — run the `Deploy to prod` workflow (`deploy-prod.yml`) with the `template` input ticked. It copies the dev mirror's current bytes to prod, so prod always gets exactly what was validated on dev. |
 
 **Auth:** both flows mint short-lived (1h) GitHub App installation tokens from the
