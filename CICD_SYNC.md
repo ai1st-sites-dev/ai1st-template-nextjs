@@ -13,7 +13,7 @@ repos by hand:
 **Auth:** both flows mint short-lived (1h) GitHub App installation tokens from the
 `ghapp-ai1st-sites` App (app-id `3844782`, `contents:write` on both orgs). No PAT.
 
-**Manual fallback** (if Actions is down): `ENV=dev ./deploy/deploy.sh --template`
+**Manual fallback** (if Actions is down): `ENV=test ./deploy/deploy.sh --template`
 from the monorepo root does the same dev subtree push locally.
 
 **Gotcha (fixed):** the dev auto-sync job runs `actions/checkout` with
