@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { brand, getSeo, getBrandName, defaultLocale } from '@/lib/config';
+import { brand, getSeo, getBrandName, defaultLocale, siteId, leadApi } from '@/lib/config';
 
 const seo = getSeo(defaultLocale);
 // TICKET-136: layout.tsx is a server component with no locale prop — use the
@@ -97,6 +97,12 @@ export default function RootLayout({
           }}
         />
         {children}
+        {/* TICKET-273: AI chat widget. Always injected (siteId+leadApi from 268); the widget self-gates
+            at runtime via /api/chat/widget-config, so toggling chat_enabled off deactivates it on the
+            next load with no rebuild. Absent leadApi/siteId (dev) → skipped. */}
+        {siteId && leadApi && (
+          <script async src={`${leadApi.replace(/\/$/, '')}/widget.js?site=${siteId}`} />
+        )}
       </body>
     </html>
   );
