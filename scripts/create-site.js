@@ -907,7 +907,10 @@ async function main() {
   fs.mkdirSync(path.join(siteDir, defaultLocale, 'pages'), { recursive: true });
   fs.writeFileSync(
     path.join(siteDir, 'site_meta.json'),
-    JSON.stringify({ defaultLocale, locales: allLocales }, null, 2) + '\n'
+    // TICKET-268b: persist siteId (tenant id for POST /api/leads) + leadApi base (absolute manager URL;
+    // the site is served from R2, so the ContactFormSection POSTs cross-origin). leadApi is resolvable
+    // at build time via NEXT_PUBLIC_LEAD_API too — env wins over this baked value (sync-config.js).
+    JSON.stringify({ siteId, leadApi: process.env.LEAD_API_BASE || '', defaultLocale, locales: allLocales }, null, 2) + '\n'
   );
 
   // ── Skip AI mode: use demo config ──
@@ -1539,6 +1542,20 @@ function writeSiteConfig(siteDir, content, defaultLocale) {
     );
   }
 
+  // TICKET-268b: every generated site must ship a REAL platform contact form (the boss wants "every
+  // site"). If the AI didn't place a contact-form section anywhere, append one to the home page (else
+  // the first page). Idempotent — content.pages is shared across locales, so this only injects once.
+  if (!content.pages.some((p) => (p.sections || []).some((s) => s.type === 'contact-form'))) {
+    const home = content.pages.find((p) => p.slug === 'home') || content.pages[0];
+    if (home) {
+      home.sections = home.sections || [];
+      home.sections.push({
+        type: 'contact-form',
+        data: { heading: 'Contact us', intro: "Leave your details and we'll get back to you shortly.", buttonText: 'Send message' },
+      });
+    }
+  }
+
   // pages → <locale>/pages/<slug>.json
   for (const page of content.pages) {
     const pagePath = path.join(localeDir, 'pages', `${page.slug}.json`);
@@ -1612,6 +1629,7 @@ function getDemoConfig(siteId) {
           { type: 'hero', data: { variant: 'centered', headline: 'Welcome to Demo Company', subheadline: 'Your trusted local business partner', ctaPrimary: { label: 'Get Started', href: '/quote' }, ctaSecondary: { label: 'Learn More', href: '/about' } } },
           { type: 'features-grid', data: { headline: 'Why Choose Us', subheadline: 'What sets us apart from the rest' } },
           { type: 'cta-banner', data: { headline: 'Ready to get started?', description: 'Contact us today for a free consultation.', button: { label: 'Contact Us', href: '/quote' } } },
+          { type: 'contact-form', data: { heading: 'Contact us', intro: "Leave your details and we'll get back to you shortly.", buttonText: 'Send message' } }, // TICKET-268b
         ],
       },
       {

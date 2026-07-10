@@ -2,6 +2,8 @@ import type { BrandConfig, NavigationConfig, SeoConfig, ServiceConfig, BlogPostC
 
 import {
   brand as _brand,
+  siteId as _siteId,
+  leadApi as _leadApi,
   defaultLocale as _defaultLocale,
   locales as _locales,
   seoByLocale as _seoByLocale,
@@ -12,6 +14,9 @@ import {
 } from './config-data';
 
 export const brand = _brand as BrandConfig;
+// TICKET-268b: tenant id + lead API base for the ContactFormSection (POST /api/leads).
+export const siteId = _siteId as string;
+export const leadApi = _leadApi as string;
 export const defaultLocale = _defaultLocale as string;
 export const locales = _locales as string[];
 export const seoByLocale = _seoByLocale as Record<string, SeoConfig>;
