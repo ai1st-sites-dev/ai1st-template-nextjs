@@ -1545,15 +1545,19 @@ function writeSiteConfig(siteDir, content, defaultLocale) {
   // TICKET-268b: every generated site must ship a REAL platform contact form (the boss wants "every
   // site"). If the AI didn't place a contact-form section anywhere, append one to the home page (else
   // the first page). Idempotent — content.pages is shared across locales, so this only injects once.
-  if (!content.pages.some((p) => (p.sections || []).some((s) => s.type === 'contact-form'))) {
-    const home = content.pages.find((p) => p.slug === 'home') || content.pages[0];
-    if (home) {
-      home.sections = home.sections || [];
-      home.sections.push({
-        type: 'contact-form',
-        data: { heading: 'Contact us', intro: "Leave your details and we'll get back to you shortly.", buttonText: 'Send message' },
-      });
-    }
+  // TICKET-268e: every generated site must have a NAV-CLICKABLE Contact page (a home-section alone is
+  // easy to miss). If the AI didn't produce a `contact` page, add one with a contact-form (→ /api/leads).
+  // Idempotent — content.pages is shared across locales, so this only injects once.
+  if (!content.pages.some((p) => p.slug === 'contact')) {
+    const maxOrder = content.pages.reduce((m, p) => Math.max(m, p.navOrder ?? 0), 0);
+    content.pages.push({
+      slug: 'contact', title: 'Contact Us', description: `Get in touch with ${content.brand?.name || 'us'}`,
+      navLabel: 'Contact', navOrder: maxOrder + 1, changeFrequency: 'monthly', priority: 0.7,
+      sections: [
+        { type: 'page-header', data: { title: 'Contact Us', subtitle: "Send us a message and we'll get back to you shortly." } },
+        { type: 'contact-form', data: { heading: 'Get in touch', intro: 'Leave your details and we will reach out soon.', buttonText: 'Send message' } },
+      ],
+    });
   }
 
   // pages → <locale>/pages/<slug>.json
@@ -1651,6 +1655,15 @@ function getDemoConfig(siteId) {
         sections: [
           { type: 'page-header', data: { title: 'Get a Free Quote', subtitle: 'Fill out the form below and we will get back to you within 24 hours' } },
           { type: 'quote-form', data: { formIntro: 'Tell us about your project and we will get back to you within 24 hours.', propertyTypes: ['Residential', 'Commercial', 'Other'], urgencyOptions: ['Not urgent', 'Within a week', 'ASAP'], benefits: ['Free consultation', 'No obligation', 'Fast response'], redirectMessage: 'Thank you! We will be in touch soon.', buttonText: 'Submit Request' } },
+        ],
+      },
+      {
+        // TICKET-268e: a nav-clickable Contact page (not just a home-page section) so visitors have an
+        // obvious way to reach out → the form POSTs to /api/leads → the owner's Customers list.
+        slug: 'contact', title: 'Contact Us', description: 'Get in touch with Demo Company', navLabel: 'Contact', navOrder: 4, changeFrequency: 'monthly', priority: 0.7,
+        sections: [
+          { type: 'page-header', data: { title: 'Contact Us', subtitle: "Send us a message and we'll get back to you shortly." } },
+          { type: 'contact-form', data: { heading: 'Get in touch', intro: 'Leave your details and we will reach out soon.', buttonText: 'Send message' } },
         ],
       },
     ],
