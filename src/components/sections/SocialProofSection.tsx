@@ -32,7 +32,16 @@ function StarIcon({ filled, className }: { filled: boolean; className?: string }
 function StarRating({ rating, size }: { rating: number; size?: 'sm' | 'md' | 'lg' }) {
   const sizeClass = size === 'lg' ? 'h-8 w-8' : size === 'sm' ? 'h-4 w-4' : 'h-6 w-6';
   return (
-    <div className="flex gap-1 text-accent-500" aria-label={`${rating} out of 5 stars`}>
+    // 🔴 #652 (#646 QA3's AX-tree scan) — role="img" is REQUIRED here, not cosmetic. The five stars are pure SVG
+    // with no text, so this aria-label is the ONLY place the rating exists for a screen reader. On a bare <div>
+    // (role=generic) a name is not just an ARIA violation — assistive tech is entitled to drop it, and then the
+    // rating is simply not announced. Giving the group role="img" makes it a single named graphic, which is the
+    // standard shape for a star rating and keeps "4.8 out of 5 stars" reachable.
+    //
+    // 📌 Contrast with the other two instances this ticket fixes (www's .mockup): there the label DUPLICATED
+    // content that is already readable, so removing it was right. The test is not "is a name allowed here" but
+    // "does this name carry information the content itself does not".
+    <div className="flex gap-1 text-accent-500" role="img" aria-label={`${rating} out of 5 stars`}>
       {Array.from({ length: 5 }).map((_, i) => (
         <StarIcon key={i} filled={i < Math.round(rating)} className={sizeClass} />
       ))}
