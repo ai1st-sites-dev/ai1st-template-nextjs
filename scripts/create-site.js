@@ -14,6 +14,10 @@ const path = require('path');
 const { execSync } = require('child_process');
 const Anthropic = require('@anthropic-ai/sdk');
 const { parseRefSections, parseRefNavLinks } = require('./ref-section-mapping');
+// #924: the theme registry (colors + fonts + layout preferences + logo style adjective)
+// lives in scripts/themes.js and is the single source of truth. sync-config.js reads the
+// same file at build time.
+const { themes, themeStyle, pickThemeForIndustry, rotationIndexFromSiteId } = require('./themes');
 
 // ─── AI Model Config ─────────────────────────────────────────────────────────
 
@@ -172,119 +176,6 @@ function buildFontsFromRef(headingFont, bodyFont) {
   };
 }
 
-// ─── Theme Presets ────────────────────────────────────────────────────────────
-
-const themes = {
-  'bold-red': {
-    label: 'Bold Red — strong red primary, emerald accent',
-    colors: {
-      primary: { 50: '#fef2f2', 100: '#fee2e2', 200: '#fecaca', 300: '#fca5a5', 400: '#f87171', 500: '#dc2626', 600: '#b91c1c', 700: '#991b1b', 800: '#7f1d1d', 900: '#450a0a' },
-      accent: { 50: '#ecfdf5', 100: '#d1fae5', 200: '#a7f3d0', 300: '#6ee7b7', 400: '#34d399', 500: '#059669', 600: '#047857' }
-    },
-    fonts: { heading: ['Oswald', 'system-ui', 'sans-serif'], body: ['Open Sans', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Open+Sans:wght@400;500;600;700&display=swap' }
-  },
-  'ocean-blue': {
-    label: 'Ocean Blue — deep blue primary, amber accent',
-    colors: {
-      primary: { 50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa', 500: '#2563eb', 600: '#1d4ed8', 700: '#1e40af', 800: '#1e3a8a', 900: '#172554' },
-      accent: { 50: '#fffbeb', 100: '#fef3c7', 200: '#fde68a', 300: '#fcd34d', 400: '#fbbf24', 500: '#f59e0b', 600: '#d97706' }
-    },
-    fonts: { heading: ['Inter', 'system-ui', 'sans-serif'], body: ['Inter', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap' }
-  },
-  'forest-green': {
-    label: 'Forest Green — green primary, yellow accent',
-    colors: {
-      primary: { 50: '#f0fdf4', 100: '#dcfce7', 200: '#bbf7d0', 300: '#86efac', 400: '#4ade80', 500: '#16a34a', 600: '#15803d', 700: '#166534', 800: '#14532d', 900: '#052e16' },
-      accent: { 50: '#fefce8', 100: '#fef9c3', 200: '#fef08a', 300: '#fde047', 400: '#facc15', 500: '#eab308', 600: '#ca8a04' }
-    },
-    fonts: { heading: ['Montserrat', 'system-ui', 'sans-serif'], body: ['Open Sans', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap' }
-  },
-  'royal-purple': {
-    label: 'Royal Purple — purple primary, teal accent',
-    colors: {
-      primary: { 50: '#faf5ff', 100: '#f3e8ff', 200: '#e9d5ff', 300: '#d8b4fe', 400: '#c084fc', 500: '#9333ea', 600: '#7e22ce', 700: '#6b21a8', 800: '#581c87', 900: '#3b0764' },
-      accent: { 50: '#f0fdfa', 100: '#ccfbf1', 200: '#99f6e4', 300: '#5eead4', 400: '#2dd4bf', 500: '#14b8a6', 600: '#0d9488' }
-    },
-    fonts: { heading: ['Poppins', 'system-ui', 'sans-serif'], body: ['Poppins', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap' }
-  },
-  'slate-pro': {
-    label: 'Slate Pro — slate/charcoal primary, sky blue accent',
-    colors: {
-      primary: { 50: '#f8fafc', 100: '#f1f5f9', 200: '#e2e8f0', 300: '#cbd5e1', 400: '#94a3b8', 500: '#475569', 600: '#334155', 700: '#1e293b', 800: '#0f172a', 900: '#020617' },
-      accent: { 50: '#f0f9ff', 100: '#e0f2fe', 200: '#bae6fd', 300: '#7dd3fc', 400: '#38bdf8', 500: '#0ea5e9', 600: '#0284c7' }
-    },
-    fonts: { heading: ['Raleway', 'system-ui', 'sans-serif'], body: ['Raleway', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800&display=swap' }
-  },
-  'sunset-orange': {
-    label: 'Sunset Orange — warm orange primary, indigo accent',
-    colors: {
-      primary: { 50: '#fff7ed', 100: '#ffedd5', 200: '#fed7aa', 300: '#fdba74', 400: '#fb923c', 500: '#ea580c', 600: '#c2410c', 700: '#9a3412', 800: '#7c2d12', 900: '#431407' },
-      accent: { 50: '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe', 300: '#a5b4fc', 400: '#818cf8', 500: '#6366f1', 600: '#4f46e5' }
-    },
-    fonts: { heading: ['DM Sans', 'system-ui', 'sans-serif'], body: ['DM Sans', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap' }
-  },
-  'rose-gold': {
-    label: 'Rose Gold — rose primary, gold accent',
-    colors: {
-      primary: { 50: '#fff1f2', 100: '#ffe4e6', 200: '#fecdd3', 300: '#fda4af', 400: '#fb7185', 500: '#e11d48', 600: '#be123c', 700: '#9f1239', 800: '#881337', 900: '#4c0519' },
-      accent: { 50: '#fffbeb', 100: '#fef3c7', 200: '#fde68a', 300: '#fcd34d', 400: '#fbbf24', 500: '#d97706', 600: '#b45309' }
-    },
-    fonts: { heading: ['Playfair Display', 'serif'], body: ['Lato', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800&family=Lato:wght@400;500;600;700&display=swap' }
-  },
-  'midnight': {
-    label: 'Midnight — dark navy primary, cyan accent',
-    colors: {
-      primary: { 50: '#f0f4ff', 100: '#dbe4ff', 200: '#bac8ff', 300: '#91a7ff', 400: '#748ffc', 500: '#4263eb', 600: '#3b5bdb', 700: '#364fc7', 800: '#2b3ea0', 900: '#1b2a6b' },
-      accent: { 50: '#ecfeff', 100: '#cffafe', 200: '#a5f3fc', 300: '#67e8f9', 400: '#22d3ee', 500: '#06b6d4', 600: '#0891b2' }
-    },
-    fonts: { heading: ['Space Grotesk', 'system-ui', 'sans-serif'], body: ['Space Grotesk', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap' }
-  },
-  'earth-tone': {
-    label: 'Earth Tone — warm brown primary, sage green accent',
-    colors: {
-      primary: { 50: '#fdf8f1', 100: '#f5e6d3', 200: '#e8cba5', 300: '#d4a574', 400: '#c08552', 500: '#92643a', 600: '#7a5230', 700: '#634126', 800: '#4d321d', 900: '#352213' },
-      accent: { 50: '#f1f8f4', 100: '#dceee3', 200: '#b9dcc7', 300: '#8fc5a5', 400: '#6aad84', 500: '#4a9167', 600: '#3a7553' }
-    },
-    fonts: { heading: ['Merriweather', 'serif'], body: ['Source Sans 3', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Source+Sans+3:wght@400;500;600;700&display=swap' }
-  },
-  'electric': {
-    label: 'Electric — vibrant pink primary, lime accent',
-    colors: {
-      primary: { 50: '#fdf2f8', 100: '#fce7f3', 200: '#fbcfe8', 300: '#f9a8d4', 400: '#f472b6', 500: '#ec4899', 600: '#db2777', 700: '#be185d', 800: '#9d174d', 900: '#831843' },
-      accent: { 50: '#f7fee7', 100: '#ecfccb', 200: '#d9f99d', 300: '#bef264', 400: '#a3e635', 500: '#84cc16', 600: '#65a30d' }
-    },
-    fonts: { heading: ['Outfit', 'system-ui', 'sans-serif'], body: ['Outfit', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap' }
-  },
-  'golden-yellow': {
-    label: 'Golden Yellow — warm yellow/gold primary, charcoal accent',
-    colors: {
-      primary: { 50: '#fefce8', 100: '#fef9c3', 200: '#fef08a', 300: '#fde047', 400: '#facc15', 500: '#eab308', 600: '#ca8a04', 700: '#a16207', 800: '#854d0e', 900: '#713f12' },
-      accent: { 50: '#f8fafc', 100: '#f1f5f9', 200: '#e2e8f0', 300: '#cbd5e1', 400: '#94a3b8', 500: '#475569', 600: '#334155' }
-    },
-    fonts: { heading: ['Playfair Display', 'serif'], body: ['Source Sans 3', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap' }
-  }
-};
-
-// ─── Auto Theme Selection ─────────────────────────────────────────────────────
-
-// TICKET-159 / TICKET-160: Logo prompt-style adjectives per theme (used by
-// Nano Banana logo gen, see generateLogoViaNanoBanana). Keys MUST stay in sync
-// with `themes` above (11 entries). Fallback `'minimal modern flat 2D'` applies
-// if a theme name isn't in the map (e.g. future themes pre-registration).
-const THEME_STYLE_MAP = {
-  'bold-red':       'bold confident strong red accent',
-  'ocean-blue':     'modern professional clean blue',
-  'forest-green':   'natural organic balanced green',
-  'royal-purple':   'elegant creative refined purple',
-  'slate-pro':      'minimal professional neutral slate',
-  'sunset-orange':  'warm energetic vibrant orange',
-  'rose-gold':      'soft elegant warm rose-gold',
-  'midnight':       'modern luxury deep dark',
-  'earth-tone':     'natural organic warm earthy',
-  'electric':       'bold energetic vibrant neon',
-  'golden-yellow':  'warm trustworthy industrial yellow',
-};
-
 // TICKET-160: Brand Site AI Logo Generation — switched from Imagen 4 to Nano
 // Banana (Gemini 2.5 Flash Image). Same silent build-time semantics, same
 // fallback (caller catches and falls back to text logo). $0.04 → $0.005/image.
@@ -302,7 +193,7 @@ const THEME_STYLE_MAP = {
 //     typography) to suppress all text leakage variants.
 async function generateLogoViaNanoBanana({ companyName: _companyName, industry, primaryColor, accentColor, themeName, apiKey }) {
   if (!apiKey) throw new Error('GEMINI_API_KEY missing (no key in stdin payload)');
-  const styleAdjective = THEME_STYLE_MAP[themeName] || 'minimal modern flat 2D';
+  const styleAdjective = themeStyle(themeName);
   const prompt = `Create a LARGE, dominant single-mark icon representing a ${industry} business — a professionally designed brand identity logo with a polished, commercial-grade aesthetic suitable for a modern company's website header. The icon must be ${styleAdjective}, flat 2D, designed as ONE cohesive integrated symbol with smooth curves and refined silhouettes.
 
 UNIFIED MARK (CRITICAL): Choose ONE primary concept and refine it into a single integrated shape. Do NOT combine 2 or more separate iconic objects (e.g. a house AND a plate AND a fork; or a shield AND an arrow AND a scale). Such composite logos look amateurish. Instead, pick ONE strong visual metaphor (e.g. just a stylized bowl with steam, or just an upward arrow with refined geometry) and execute it with confident craft.
@@ -559,29 +450,6 @@ async function generateSlotPhotos({ pages, industry, primaryColor, themeName, ap
     }
   }
   return { attempted: slots.length, success: successCount, totalSlots: originalCount };
-}
-
-const themeKeywords = {
-  'bold-red':       ['security', 'fire', 'emergency', 'alarm', 'protection', 'martial arts', 'boxing'],
-  'ocean-blue':     ['tech', 'software', 'consulting', 'insurance', 'finance', 'accounting', 'plumbing', 'pool', 'marine'],
-  'forest-green':   ['landscaping', 'garden', 'organic', 'farm', 'eco', 'environment', 'natural', 'hemp', 'cannabis'],
-  'royal-purple':   ['salon', 'spa', 'beauty', 'creative', 'agency', 'design', 'art', 'dance', 'yoga'],
-  'slate-pro':      ['law', 'legal', 'corporate', 'real estate', 'realty', 'architect', 'engineering'],
-  'sunset-orange':  ['restaurant', 'food', 'catering', 'pizza', 'fitness', 'gym', 'sports', 'moving'],
-  'rose-gold':      ['dental', 'wedding', 'florist', 'boutique', 'fashion', 'jewelry', 'cosmetic'],
-  'midnight':       ['nightlife', 'music', 'gaming', 'cyber', 'auto', 'detailing', 'barber'],
-  'earth-tone':     ['bakery', 'cafe', 'coffee', 'woodwork', 'furniture', 'pottery', 'craft', 'vintage'],
-  'electric':       ['photography', 'video', 'media', 'marketing', 'social', 'event', 'party', 'entertainment'],
-  'golden-yellow':  ['construction', 'roofing', 'electrical', 'solar', 'handyman', 'contractor', 'renovation'],
-};
-
-function pickThemeForIndustry(industry) {
-  const lower = industry.toLowerCase();
-  for (const [theme, keywords] of Object.entries(themeKeywords)) {
-    if (keywords.some(kw => lower.includes(kw))) return theme;
-  }
-  const themeNames = Object.keys(themes);
-  return themeNames[Math.floor(Math.random() * themeNames.length)];
 }
 
 const availableIcons = [
@@ -976,10 +844,27 @@ async function main() {
 
   progress('Setting up project...', 5);
 
-  // Pick theme
-  const themeName = (template && template !== 'ai' && themes[template]) ? template : pickThemeForIndustry(industry);
+  // Pick theme.
+  // #924: when the caller doesn't name a theme we rotate through the candidate pool for the
+  // industry instead of always handing out the same one. Manager sends themeRotationIndex —
+  // a counter that goes up by one per site the user creates — so six shops in the same trade
+  // walk six different slots. No index (anonymous create / DB read failed) → hash the siteId,
+  // which still spreads, just without the guarantee.
+  const themeRotationIndex = Number.isInteger(input.themeRotationIndex) && input.themeRotationIndex >= 0
+    ? input.themeRotationIndex
+    : rotationIndexFromSiteId(siteId);
+  const themeName = (template && template !== 'ai' && themes[template]) ? template : pickThemeForIndustry(industry, themeRotationIndex);
   const theme = themes[themeName];
-  debug(`Theme: ${themeName} — ${theme.label}`);
+  debug(`Theme: ${themeName} — ${theme.label} (rotation index ${themeRotationIndex})`);
+
+  // #924: record which theme this site got. `applied: false` = the owner never actively
+  // changed themes, so the registry's layout preferences stay out of the build and the page
+  // JSON's own variants keep deciding — same output as before this file knew about themes.
+  // The Edit page's "change theme" flow (#925) rewrites this file with applied: true.
+  fs.writeFileSync(
+    path.join(siteDir, 'theme.json'),
+    JSON.stringify({ themeId: themeName, applied: false }, null, 2) + '\n'
+  );
 
   progress('AI is designing your website...', 15);
 
@@ -2326,7 +2211,7 @@ CRITICAL RULES:
     try {
       progress('Generating AI logo via Nano Banana...', 47);
       // Reverse-lookup themeName from the theme object so we can pick the
-      // right styleAdjective from THEME_STYLE_MAP (themeName itself isn't
+      // right styleAdjective out of the registry (themeName itself isn't
       // passed into generateContent — only the theme object is).
       const resolvedThemeName = Object.keys(themes).find(k => themes[k] === theme) || '';
       const logoBuf = await generateLogoViaNanoBanana({

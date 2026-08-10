@@ -5,6 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { themes, layoutFor } = require('./themes');
 
 const rootDir = path.resolve(__dirname, '..');
 const siteDir = path.join(rootDir, 'site');
@@ -13,6 +14,39 @@ if (!fs.existsSync(siteDir) || !fs.existsSync(path.join(siteDir, 'brand.json')))
   console.error(`Site config not found: ${siteDir}/brand.json`);
   process.exit(1);
 }
+
+// #924 — themes. site/theme.json records which theme this site got and whether its owner
+// ever actively changed themes:
+//
+//     { "themeId": "ocean-blue", "applied": true }
+//
+//   applied !== true, or no file at all (every site that existed before #924, and every
+//     newly created site) → nothing below touches the build. brand.json's own colors and the
+//     page JSON's own variants decide, exactly as they did before this file knew about themes.
+//   applied === true → the registry takes over the look: colors, fonts, and every section
+//     variant the theme states a preference for. Page JSON on disk is never rewritten — the
+//     override lives only in the generated config-data.ts.
+//
+// 🔴 Deliberately its own file. Whether site_meta.json exists is the legacy single-locale
+// switch (line ~34 below), so putting this in there would make an old flat site fail to build.
+function readAppliedThemeId() {
+  const themePath = path.join(siteDir, 'theme.json');
+  if (!fs.existsSync(themePath)) return null;
+  let meta;
+  try {
+    meta = JSON.parse(fs.readFileSync(themePath, 'utf-8'));
+  } catch (e) {
+    console.error(`theme.json is not valid JSON: ${e.message}`);
+    process.exit(1);
+  }
+  if (!meta || meta.applied !== true) return null;
+  if (!themes[meta.themeId]) {
+    console.error(`theme.json names theme "${meta.themeId}", which is not in the registry (${Object.keys(themes).join(', ')})`);
+    process.exit(1);
+  }
+  return meta.themeId;
+}
+const appliedThemeId = readAppliedThemeId();
 
 // TICKET-127: backward-compat for pre-122a legacy single-locale schema. Old
 // sites have a flat `site/{brand,seo,services,navigation}.json + site/pages/`
@@ -71,6 +105,14 @@ if (typeof brand.name === 'string') {
   brand.name = { [defaultLocale]: brand.name };
 } else if (!brand.name || typeof brand.name !== 'object' || Array.isArray(brand.name)) {
   brand.name = { [defaultLocale]: '' };
+}
+
+// #924: an applied theme owns the palette and the typefaces. brand.json keeps whatever it
+// had (name, logo, locations, form ids) — only these two fields are taken over, and only in
+// memory, so switching theme id is the whole of "change theme".
+if (appliedThemeId) {
+  brand.colors = themes[appliedThemeId].colors;
+  brand.fonts = themes[appliedThemeId].fonts;
 }
 
 const seoByLocale = {};
@@ -245,6 +287,26 @@ for (const locale of locales) {
   fs.writeFileSync(navPath, JSON.stringify(existingNav, null, 2));
   navigationByLocale[locale] = existingNav;
   console.log(`  [${locale}] Regenerated navigation.json`);
+}
+
+// #924: an applied theme also owns the layout. For every section type the theme has an
+// opinion about, its variant wins over the one the page JSON carries; section types it says
+// nothing about are left alone. Runs after the locale loop on purpose — navigation.json is
+// the one file written back to disk up there, and it must not pick any of this up.
+if (appliedThemeId) {
+  const layout = layoutFor(appliedThemeId);
+  let overridden = 0;
+  for (const locale of locales) {
+    for (const page of pagesByLocale[locale]) {
+      for (const section of page.sections) {
+        const preferred = layout[section.type];
+        if (!preferred) continue;
+        section.data = { ...(section.data || {}), variant: preferred };
+        overridden++;
+      }
+    }
+  }
+  console.log(`  Theme "${appliedThemeId}" applied: colors + fonts + ${overridden} section variant(s)`);
 }
 
 const configDataPath = path.join(rootDir, 'src', 'lib', 'config-data.ts');
