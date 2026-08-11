@@ -24,6 +24,12 @@ function buildCssVariables(): string {
     vars.push(`--color-accent-${shade}: ${value};`);
   }
   vars.push(`--font-sans: ${brand.fonts.body.join(', ')};`);
+  // #951: every theme has always carried a heading typeface (themes.js: 30/30, 16 of them different
+  // from the body one) and nothing read it, so `realty-noir`'s Cormorant Garamond rendered as Jost.
+  // The fallback is for a hand-written brand.json that predates the field — headings then keep the
+  // body font, which is exactly what they did before this line existed.
+  const headingFonts = brand.fonts.heading?.length ? brand.fonts.heading : brand.fonts.body;
+  vars.push(`--font-heading: ${headingFonts.join(', ')};`);
   return `:root { ${vars.join(' ')} }`;
 }
 
@@ -61,7 +67,8 @@ const previewTrustedOrigin = (() => {
 // Protocol (all four names namespaced `ai1st:theme-preview*`):
 //   in  ai1st:theme-preview-ping   → answer, change nothing. Lets the modal find out whether this
 //                                    build can preview at all before the owner clicks anything.
-//   in  ai1st:theme-preview        → { theme: { colors: {primary,accent}, fontSans, googleFontsUrl } }
+//   in  ai1st:theme-preview        → { theme: { colors: {primary,accent}, fontSans, fontHeading,
+//                                                googleFontsUrl } }
 //                                    paint it, then answer.
 //   in  ai1st:theme-preview-reset  → drop the paint (Cancel), then answer.
 //   out ai1st:theme-preview-ack    → the answer. Its ABSENCE within the modal's timeout is what
@@ -93,6 +100,7 @@ function paint(t){
     }
   }
   if(t&&typeof t.fontSans==='string'&&!/[;{}<>]/.test(t.fontSans)){out.push('--font-sans:'+t.fontSans+';');}
+  if(t&&typeof t.fontHeading==='string'&&!/[;{}<>]/.test(t.fontHeading)){out.push('--font-heading:'+t.fontHeading+';');}
   s.textContent=out.length?(':root{'+out.join('')+'}'):'';
   if(t&&typeof t.googleFontsUrl==='string'&&/^https:\\/\\/fonts\\.googleapis\\.com\\//.test(t.googleFontsUrl)){f.href=t.googleFontsUrl;}
   else{f.removeAttribute('href');}

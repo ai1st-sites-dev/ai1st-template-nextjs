@@ -10,6 +10,15 @@
   body {
     @apply text-gray-800 antialiased;
   }
+
+  /* #951: the theme's heading typeface. One rule instead of a `font-heading` class on every
+     heading in 32 section components — no heading in src carries a font-family class today, so
+     nothing overrides this. The fallback covers a site whose brand.json has no heading font. */
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-heading, var(--font-sans));
+  }
 }
 
 @layer components {

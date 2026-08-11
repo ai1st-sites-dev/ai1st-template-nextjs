@@ -32,6 +32,9 @@ const config: Config = {
       },
       fontFamily: {
         sans: ['var(--font-sans)'],
+        // #951: `font-heading` for anything that wants the heading typeface without being an
+        // h1-h3 (globals.css handles those). Headings themselves need no class.
+        heading: ['var(--font-heading)'],
       },
     },
   },
