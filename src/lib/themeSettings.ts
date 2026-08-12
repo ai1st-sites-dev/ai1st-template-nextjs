@@ -85,13 +85,33 @@ export const ALLOWED = {
 export function settingsToCssVars(s: Partial<ThemeSettings> | undefined | null): string[] {
   const out: string[] = [];
   if (!s) return out;
-  const radius = s.radius && RADIUS[s.radius];
+  const radius = own(RADIUS, s.radius);
   if (radius) for (const [k, v] of Object.entries(radius)) out.push(`--radius-${k}: ${v};`);
-  const shadow = s.shadow && SHADOW[s.shadow];
+  const shadow = own(SHADOW, s.shadow);
   if (shadow) for (const [k, v] of Object.entries(shadow)) out.push(`--shadow-${k}: ${v};`);
-  const density = s.density && DENSITY[s.density];
+  const density = own(DENSITY, s.density);
   if (density) for (const [k, v] of Object.entries(density)) out.push(`--section-${k}: ${v};`);
-  const button = s.buttonShape && BUTTON_SHAPE[s.buttonShape];
+  const button = own(BUTTON_SHAPE, s.buttonShape);
   if (button) out.push(`--radius-button: ${button};`);
   return out;
+}
+
+/**
+ * 查档位表 —— 问的是「这张表自己有没有这个键」，不是「查出来是不是真值」。
+ *
+ * 🔴 #953（来源 #961，QA3 报的）：上面四张表都是普通对象字面量，所以 `constructor` /
+ * `__proto__` / `toString` / `hasOwnProperty` 这四个词在原型链上查得到东西、算真值。
+ * `BUTTON_SHAPE` 的表值是**字符串**，于是一条固定的垃圾会被原样写进页面样式：
+ *
+ *   buttonShape: 'constructor'  ⟹  `--radius-button: function Object() { [native code] };`
+ *
+ * 浏览器当它是无效值、按钮圆角落回 0px。另外三组的表值是**对象**，`Object.entries(原型函数)`
+ * 是空数组，所以它们今天只是白跑一趟没有后果 —— 但四组用同一种查法，不留「今天恰好没事」的写法。
+ *
+ * 预览侧（`layout.tsx` 的 `paint()`）本来就是 `Object.prototype.hasOwnProperty.call` 查的。
+ * 同一张表两个消费者用了两种判断方式，松的是构建侧 —— 这里跟严的那侧对齐。
+ */
+function own<K extends string, V>(table: Record<K, V>, token: string | undefined): V | undefined {
+  if (typeof token !== 'string' || !Object.prototype.hasOwnProperty.call(table, token)) return undefined;
+  return (table as Record<string, V>)[token];
 }

@@ -13,7 +13,8 @@
 
   /* #951: the theme's heading typeface. One rule instead of a `font-heading` class on every
      heading in 32 section components — no heading in src carries a font-family class today, so
-     nothing overrides this. The fallback covers a site whose brand.json has no heading font. */
+     nothing overrides this. The fallback covers a site whose brand.json carries `fonts.heading: []` — an
+     empty list, not a missing field: a config missing the field cannot be built at all (#953 item 10). */
   h1,
   h2,
   h3 {

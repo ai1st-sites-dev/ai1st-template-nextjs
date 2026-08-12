@@ -27,8 +27,11 @@ function buildCssVariables(): string {
   vars.push(`--font-sans: ${brand.fonts.body.join(', ')};`);
   // #951: every theme has always carried a heading typeface (themes.js: 30/30, 16 of them different
   // from the body one) and nothing read it, so `realty-noir`'s Cormorant Garamond rendered as Jost.
-  // The fallback is for a hand-written brand.json that predates the field — headings then keep the
-  // body font, which is exactly what they did before this line existed.
+  // 🔴 #953 item 10 — WHAT THE FALLBACK COVERS IS `heading: []`, NOT A MISSING FIELD. This used to say it
+  // was for "a hand-written brand.json that predates the field"; such a config never reaches runtime at all,
+  // because `heading` is a required `string[]` (lib/types/config.ts) and `next build` stops at type check
+  // with "Property 'heading' is missing" — measured on this line's own baseline too, so it was never the
+  // shape being defended. An empty array does pass type check, and then headings keep the body font.
   const headingFonts = brand.fonts.heading?.length ? brand.fonts.heading : brand.fonts.body;
   vars.push(`--font-heading: ${headingFonts.join(', ')};`);
   // #961: 风格设定（圆角/留白/阴影/按钮形状）。没有 brand.settings 的站这里一条都不产出，
