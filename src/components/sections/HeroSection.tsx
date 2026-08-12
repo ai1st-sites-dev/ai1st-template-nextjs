@@ -6,7 +6,8 @@ interface HeroSectionProps {
     subheadline: string;
     ctaPrimary: { label: string; href: string };
     ctaSecondary: { label: string; href: string };
-    variant?: 'left' | 'centered' | 'split' | 'minimal' | 'video-style' | 'gradient-overlay';
+    variant?: 'left' | 'centered' | 'split' | 'minimal' | 'video-style' | 'gradient-overlay'
+      | 'light-split' | 'light-editorial' | 'light-showcase';
     imageUrl?: string;
   };
 }
@@ -66,6 +67,113 @@ export default function HeroSection({ data }: HeroSectionProps) {
               </Link>
             </div>
           </div>
+        </div>
+      </section>
+    );
+  }
+
+  // #959 — 浅底方向的三种写法。两条设计约束：
+  //
+  // 1. 它们跟深底那五种的区别不能只是颜色：#932 的读回工具把 class 里的颜色 token 归一化掉之后
+  //    再比骨架，只换颜色的写法会跟原写法算成同一种结构，读回直接报错不出标注。
+  // 2. 主按钮不用 `btn-primary`，改成 primary-700 的深底白字。`btn-primary` 是 primary-500 底白字，
+  //    实测在这 10 套用到浅底 hero 的 theme 里有 5 套不到 WCAG AA 4.5:1（arctic-mint 3.17 ·
+  //    coastal-teal 3.19 · forest-green 3.30 · assurance-teal 3.95 · sky-clinic 4.10）。
+  //    深底 hero 的主按钮是 btn-accent（浅底白字深字），不吃这个问题。primary-700 那一档这 10 套
+  //    最低 6.58。📌 `btn-primary` 本身没改 —— 它在别的 section 里也这么用，那是圈外的事。
+  const lightPrimaryCta = 'inline-flex items-center justify-center rounded-lg bg-primary-700 px-6 py-3 text-lg font-semibold text-white transition-colors hover:bg-primary-800';
+
+  if (variant === 'light-split') {
+    return (
+      <section className="bg-white">
+        <div className="container-width px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
+          <div className="grid items-center gap-12 lg:grid-cols-12 lg:gap-16">
+            <div className="lg:col-span-6">
+              <div className="h-1 w-12 rounded-full bg-accent-500" />
+              <h1 className="mt-8 text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">
+                {data.headline}
+              </h1>
+              <p className="mt-6 text-lg leading-relaxed text-gray-600">
+                {data.subheadline}
+              </p>
+              <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-center">
+                <Link href={data.ctaPrimary?.href ?? "#"} className={lightPrimaryCta}>
+                  {data.ctaPrimary?.label}
+                </Link>
+                <Link href={data.ctaSecondary?.href ?? "#"} className="inline-flex items-center gap-2 px-2 py-3 text-lg font-semibold text-primary-700 transition-colors hover:text-primary-900">
+                  {data.ctaSecondary?.label}
+                  <span aria-hidden="true">&rarr;</span>
+                </Link>
+              </div>
+            </div>
+            <div className="lg:col-span-6">
+              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3 shadow-sm">
+                {data.imageUrl ? (
+                  <img src={data.imageUrl} alt={data.headline} className="aspect-[4/3] w-full rounded-xl object-cover" />
+                ) : (
+                  <div className="aspect-[4/3] w-full rounded-xl bg-gradient-to-br from-primary-200 to-accent-200" />
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (variant === 'light-editorial') {
+    return (
+      <section className="bg-gray-50">
+        <div className="container-width px-4 py-24 sm:px-6 lg:px-8 lg:py-32">
+          <div className="mx-auto max-w-3xl text-center">
+            <h1 className="text-4xl font-semibold leading-tight tracking-tight text-gray-900 sm:text-5xl lg:text-6xl">
+              {data.headline}
+            </h1>
+            <div className="mx-auto mt-10 h-px w-24 bg-gray-400" />
+            <p className="mx-auto mt-10 max-w-2xl text-lg leading-loose text-gray-600 sm:text-xl">
+              {data.subheadline}
+            </p>
+            <div className="mt-12 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+              <Link href={data.ctaPrimary?.href ?? "#"} className={lightPrimaryCta}>
+                {data.ctaPrimary?.label}
+              </Link>
+              <Link href={data.ctaSecondary?.href ?? "#"} className="inline-flex items-center justify-center rounded-lg border border-gray-400 px-6 py-3 text-lg font-semibold text-gray-800 transition-colors hover:border-gray-900 hover:text-gray-900">
+                {data.ctaSecondary?.label}
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (variant === 'light-showcase') {
+    return (
+      <section className="bg-white">
+        <div className="container-width px-4 pt-20 sm:px-6 lg:px-8 lg:pt-24">
+          <div className="mx-auto max-w-4xl text-center">
+            <h1 className="text-4xl font-extrabold tracking-tight text-gray-900 sm:text-5xl lg:text-6xl">
+              {data.headline}
+            </h1>
+            <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-gray-600 sm:text-xl">
+              {data.subheadline}
+            </p>
+            <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+              <Link href={data.ctaPrimary?.href ?? "#"} className={lightPrimaryCta}>
+                {data.ctaPrimary?.label}
+              </Link>
+              <Link href={data.ctaSecondary?.href ?? "#"} className="inline-flex items-center justify-center rounded-lg bg-gray-100 px-6 py-3 text-lg font-semibold text-gray-800 transition-colors hover:bg-gray-200">
+                {data.ctaSecondary?.label}
+              </Link>
+            </div>
+          </div>
+        </div>
+        <div className="mt-16 w-full">
+          {data.imageUrl ? (
+            <img src={data.imageUrl} alt={data.headline} className="h-[420px] w-full object-cover" />
+          ) : (
+            <div className="h-[420px] w-full bg-gradient-to-r from-primary-200 via-primary-100 to-accent-200" />
+          )}
         </div>
       </section>
     );

@@ -57,7 +57,7 @@ const themes = {
     },
     fonts: { heading: ['Montserrat', 'system-ui', 'sans-serif'], body: ['Open Sans', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap' },
     layout: {
-      'hero': 'left', 'page-header': 'default', 'features-grid': 'card',
+      'hero': 'light-split', 'page-header': 'default', 'features-grid': 'card',
       'cta-banner': 'gradient', 'testimonials': 'quote-wall', 'process-steps': 'zigzag',
       'faq-accordion': 'centered', 'content-split': 'text-right', 'gallery': 'masonry',
       'team-grid': 'centered', 'stats-counter': 'icon', 'pricing-table': 'cards',
@@ -121,7 +121,7 @@ const themes = {
     },
     fonts: { heading: ['Playfair Display', 'serif'], body: ['Lato', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800&family=Lato:wght@400;500;600;700&display=swap' },
     layout: {
-      'hero': 'centered', 'page-header': 'centered', 'features-grid': 'minimal',
+      'hero': 'light-editorial', 'page-header': 'centered', 'features-grid': 'minimal',
       'cta-banner': 'outlined', 'testimonials': 'featured', 'process-steps': 'vertical',
       'faq-accordion': 'centered', 'content-split': 'text-right', 'gallery': 'carousel',
       'team-grid': 'centered', 'stats-counter': 'inline', 'pricing-table': 'minimal',
@@ -153,7 +153,7 @@ const themes = {
     },
     fonts: { heading: ['Merriweather', 'serif'], body: ['Source Sans 3', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Source+Sans+3:wght@400;500;600;700&display=swap' },
     layout: {
-      'hero': 'left', 'page-header': 'with-description', 'features-grid': 'alternating',
+      'hero': 'light-showcase', 'page-header': 'with-description', 'features-grid': 'alternating',
       'cta-banner': 'solid', 'testimonials': 'quote-wall', 'process-steps': 'zigzag',
       'faq-accordion': 'centered', 'content-split': 'text-left', 'gallery': 'masonry',
       'team-grid': 'compact', 'stats-counter': 'icon', 'pricing-table': 'cards',
@@ -270,7 +270,7 @@ const themes = {
     },
     fonts: { heading: ['Nunito Sans', 'system-ui', 'sans-serif'], body: ['Nunito Sans', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;500;600;700;800&display=swap' },
     layout: {
-      'hero': 'left', 'page-header': 'default', 'features-grid': 'card',
+      'hero': 'light-split', 'page-header': 'default', 'features-grid': 'card',
       'cta-banner': 'gradient', 'testimonials': 'carousel', 'process-steps': 'cards',
       'faq-accordion': 'cards', 'content-split': 'text-right-list', 'gallery': 'grid',
       'team-grid': 'compact', 'stats-counter': 'icon', 'pricing-table': 'cards',
@@ -302,7 +302,7 @@ const themes = {
     },
     fonts: { heading: ['Lora', 'serif'], body: ['Work Sans', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&family=Work+Sans:wght@400;500;600;700&display=swap' },
     layout: {
-      'hero': 'centered', 'page-header': 'centered', 'features-grid': 'minimal',
+      'hero': 'light-editorial', 'page-header': 'centered', 'features-grid': 'minimal',
       'cta-banner': 'dark', 'testimonials': 'featured', 'process-steps': 'vertical',
       'faq-accordion': 'centered', 'content-split': 'text-right', 'gallery': 'carousel',
       'team-grid': 'centered', 'stats-counter': 'inline', 'pricing-table': 'minimal',
@@ -318,7 +318,7 @@ const themes = {
     },
     fonts: { heading: ['Figtree', 'system-ui', 'sans-serif'], body: ['Figtree', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap' },
     layout: {
-      'hero': 'split', 'page-header': 'centered', 'features-grid': 'icon-top',
+      'hero': 'light-showcase', 'page-header': 'centered', 'features-grid': 'icon-top',
       'cta-banner': 'gradient', 'testimonials': 'grid', 'process-steps': 'icon-strip',
       'faq-accordion': 'two-column', 'content-split': 'text-left', 'gallery': 'grid',
       'team-grid': 'grid', 'stats-counter': 'cards', 'pricing-table': 'cards',
@@ -350,7 +350,7 @@ const themes = {
     },
     fonts: { heading: ['Alegreya', 'serif'], body: ['Rubik', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Alegreya:wght@400;500;600;700;800&family=Rubik:wght@400;500;600;700&display=swap' },
     layout: {
-      'hero': 'left', 'page-header': 'default', 'features-grid': 'alternating',
+      'hero': 'light-showcase', 'page-header': 'default', 'features-grid': 'alternating',
       'cta-banner': 'split', 'testimonials': 'quote-wall', 'process-steps': 'zigzag',
       'faq-accordion': 'cards', 'content-split': 'text-left', 'gallery': 'masonry',
       'team-grid': 'centered', 'stats-counter': 'icon', 'pricing-table': 'cards',
@@ -366,7 +366,7 @@ const themes = {
     },
     fonts: { heading: ['Quicksand', 'system-ui', 'sans-serif'], body: ['Quicksand', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap' },
     layout: {
-      'hero': 'centered', 'page-header': 'centered', 'features-grid': 'card',
+      'hero': 'light-editorial', 'page-header': 'centered', 'features-grid': 'card',
       'cta-banner': 'gradient', 'testimonials': 'carousel', 'process-steps': 'cards',
       'faq-accordion': 'centered', 'content-split': 'centered-overlay', 'gallery': 'carousel',
       'team-grid': 'centered', 'stats-counter': 'gradient', 'pricing-table': 'cards',
@@ -430,7 +430,7 @@ const themes = {
     },
     fonts: { heading: ['Josefin Sans', 'system-ui', 'sans-serif'], body: ['Urbanist', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@400;500;600;700&family=Urbanist:wght@400;500;600;700;800&display=swap' },
     layout: {
-      'hero': 'split', 'page-header': 'with-description', 'features-grid': 'card',
+      'hero': 'light-split', 'page-header': 'with-description', 'features-grid': 'card',
       'cta-banner': 'gradient', 'testimonials': 'carousel', 'process-steps': 'icon-strip',
       'faq-accordion': 'cards', 'content-split': 'text-right', 'gallery': 'carousel',
       'team-grid': 'card-with-social', 'stats-counter': 'gradient', 'pricing-table': 'toggle',
@@ -478,7 +478,7 @@ const themes = {
     },
     fonts: { heading: ['Nunito', 'system-ui', 'sans-serif'], body: ['Nunito', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap' },
     layout: {
-      'hero': 'left', 'page-header': 'with-description', 'features-grid': 'card',
+      'hero': 'light-split', 'page-header': 'with-description', 'features-grid': 'card',
       'cta-banner': 'solid', 'testimonials': 'grid', 'process-steps': 'horizontal',
       'faq-accordion': 'two-column', 'content-split': 'text-left', 'gallery': 'grid',
       'team-grid': 'grid', 'stats-counter': 'icon', 'pricing-table': 'cards',

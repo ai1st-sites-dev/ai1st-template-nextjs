@@ -1924,7 +1924,8 @@ AVAILABLE SECTION TYPES AND THEIR VARIANTS:
 You are a layout designer. For each page, you choose WHICH sections to include, in WHAT order, and with WHICH variant. Not every page needs every section. Mix it up based on what makes sense for this industry.
 
 HOMEPAGE SECTIONS (pick 7-10 from these, in any order):
-- "hero" — variants: "left" (headline left-aligned), "centered" (centered), "split" (two-column with image/gradient block), "minimal" (white bg, underline accent, single CTA), "video-style" (dark cinematic with play button), "gradient-overlay" (full gradient bg with decorative circles, white text)
+- "hero" — variants: "left" (headline left-aligned), "centered" (centered), "split" (two-column with image/gradient block), "minimal" (white bg, underline accent, single CTA), "video-style" (dark cinematic with play button), "gradient-overlay" (full gradient bg with decorative circles, white text), "light-split" (white bg, text left + framed image card right, accent rule), "light-editorial" (light gray bg, centered editorial headline with a thin divider rule), "light-showcase" (white bg, centered text above a full-width image band)
+  NOTE: "left", "centered", "split", "video-style" and "gradient-overlay" all render on a dark full-bleed background. The three "light-*" ones and "minimal" render on a light background — pick a light one when the brand should feel airy, clean or editorial rather than bold.
   data: { variant, headline, subheadline, ctaPrimary: {label, href}, ctaSecondary: {label, href}, imageUrl?: string }
 - "announcement-bar" — variants: "solid" (accent bg), "bordered" (white bg, accent border), "dismissible" (with close button), "floating" (centered pill with shadow)
   data: { message, link?: {label, href}, variant }

@@ -248,7 +248,8 @@ Each page has a \`sections\` array. Each section: \`{ "type": "...", "data": { .
 
 Available section types: hero, trusted-brands, features-grid, values-grid, testimonials, cta-banner, contact-info, text-block, page-header, services-nav, services-list, quote-form, stats-counter, faq-accordion, process-steps, team-grid, pricing-table, gallery, logo-carousel, content-split, feature-comparison, benefits-list, social-proof, divider, announcement-bar, timeline, service-highlights, newsletter-signup, map-area, checklist, awards-certifications, blog-preview
 
-Hero variants: left, centered, split, minimal, video-style, gradient-overlay
+Hero variants: left, centered, split, minimal, video-style, gradient-overlay, light-split, light-editorial, light-showcase
+(dark full-bleed: left, centered, split, video-style, gradient-overlay · light background: minimal, light-split, light-editorial, light-showcase)
 
 ## Rules
 
