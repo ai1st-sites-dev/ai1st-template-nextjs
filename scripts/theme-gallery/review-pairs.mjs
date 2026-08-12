@@ -80,6 +80,19 @@ if (LIMIT > 0 && LIMIT < pairs.length) {
 }
 
 // ── thumbnails: the cost lever ───────────────────────────────────────────────────────────────
+// 🔴 #971 item 15 — this step shells out to `python3` with `PIL` (Pillow), and neither is declared
+// anywhere in the repo: not in package.json (they are not npm packages), not in the README. On a
+// machine without them the failure arrives as a raw execFileSync stack trace from inside the loop
+// below, AFTER the pair list is built — which reads as "the review is broken", not "install two
+// things". Ask once, up front, and say what to do.
+try {
+  execFileSync('python3', ['-c', 'import PIL'], { stdio: 'pipe' });
+} catch {
+  console.error('🔴 this step needs python3 with Pillow, and one of them is missing.');
+  console.error('   It resizes each screenshot before sending it — thumbnail size is the cost lever (see the header).');
+  console.error('   Install:  apt-get install -y python3 python3-pil     (or: python3 -m pip install Pillow)');
+  process.exit(2);
+}
 const thumbDir = path.join(GAL, 'review-thumbs');
 fs.mkdirSync(thumbDir, { recursive: true });
 const thumbs = new Map();
@@ -172,7 +185,13 @@ const review = {
   pairs_failed: failures,
   // 🔴 the report says out loud what it did NOT look at — a truncated run must not read as a
   //    complete one
-  coverage: scored.length === pairs.length ? 'every pair' : `first ${scored.length} of ${pairs.length} pairs (--limit)`,
+  // 🔴 #971 item 14 — AND WHICH PICTURE OF EACH THEME. This only ever compares the home-page shot;
+  //    `<id>-about.png` is filtered out at the readdir above. Saying "every pair" alone reads as
+  //    "the whole gallery was looked at", and the person acting on this list has no way to tell
+  //    that the sub-page never entered it — two themes could differ only on /about and this would
+  //    still call them a near-duplicate.
+  coverage: (scored.length === pairs.length ? 'every pair' : `first ${scored.length} of ${pairs.length} pairs (--limit)`)
+    + ', home-page shot only (the -about.png sub-page shots are not compared)',
   thumbnail: `${THUMB_WIDTH}px wide, ≤${THUMB_MAX_HEIGHT}px tall`,
   usage: { input_tokens: inTok, output_tokens: outTok },
   cost_usd: Number(cost.toFixed(4)),
@@ -189,3 +208,12 @@ ranked.slice(0, TOP).forEach((r, i) => console.log(`  ${String(i + 1).padStart(2
 console.log(`\ntokens in ${inTok} / out ${outTok} · this round cost $${cost.toFixed(2)} (${review.price_basis})`);
 console.log(`wrote ${outPath}`);
 if (failures) console.log(`⚠️  ${failures} pair(s) could not be scored and are not in the ranking.`);
+// 🔴 #971 item 16 — every pair failing must not exit 0. This is a hint and not a gate (see the header),
+// so a few unscored pairs stay rc=0 and are disclosed in the line above. But when NOT ONE pair came
+// back, "the review ran and found nothing similar" and "the review did not run" produce the same
+// artifact: a review.json whose `top` is empty. Only the exit code can still tell them apart, and a
+// caller that chains on `&&` is the one who needs to know.
+if (failures > 0 && failures === scored.length) {
+  console.error(`🔴 all ${scored.length} pair(s) failed to score — this is NOT "nothing looks alike", it is "the review did not run".`);
+  process.exit(1);
+}

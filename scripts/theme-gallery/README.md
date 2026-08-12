@@ -11,6 +11,18 @@ These scripts used to live outside the repository, in one ticket's temporary wor
 paths hardcoded. They are here now because a tool that isn't in git can't ship and doesn't survive
 a directory cleanup — and this one is meant to run every time the theme registry changes.
 
+## What has to be installed first
+
+Two of these steps are not pure Node, and neither dependency can be expressed in `package.json`:
+
+| Needed by | What | Install |
+|---|---|---|
+| `layout-readback.py` | `python3` | `apt-get install -y python3` |
+| `review-pairs.mjs` | `python3` **with Pillow** — it resizes each screenshot before sending it, and thumbnail size is the cost lever | `apt-get install -y python3-pil` (or `python3 -m pip install Pillow`) |
+
+`review-pairs.mjs` checks for Pillow before it does anything else, so a missing one is a one-line
+message rather than a stack trace out of the middle of the run.
+
 ## Running it
 
 ```bash
