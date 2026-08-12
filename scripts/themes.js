@@ -134,6 +134,10 @@ const themes = {
       'header': 'solid-bar', 'footer': 'multi-column',
     },
     settings: { radius: 'round', density: 'standard', shadow: 'soft', buttonShape: 'rounded' },
+    rhythm: {
+      hide: ['logo-carousel', 'stats-counter'],
+      order: ['content-split', 'values-grid', 'process-steps', 'gallery', 'features-grid', 'testimonials'],
+    },
     style: 'natural organic balanced green',
     industries: ['landscaping', 'garden', 'organic', 'farm', 'eco', 'environment', 'natural', 'hemp', 'cannabis', 'cleaning', 'pest', 'tree', 'solar', 'veterinary', 'wellness', 'dental'],
   },
@@ -159,6 +163,10 @@ const themes = {
       'header': 'solid-bar', 'footer': 'cta-band',
     },
     settings: { radius: 'round', density: 'airy', shadow: 'soft', buttonShape: 'pill' },
+    rhythm: {
+      hide: ['stats-counter', 'trusted-brands'],
+      order: ['gallery', 'service-highlights', 'content-split', 'testimonials', 'pricing-table'],
+    },
     style: 'elegant creative refined purple',
     industries: ['salon', 'spa', 'beauty', 'creative', 'agency', 'design', 'art', 'dance', 'yoga', 'photography', 'event', 'wedding', 'boutique'],
   },
@@ -213,6 +221,10 @@ const themes = {
       'header': 'pill-floating', 'footer': 'cta-band',
     },
     settings: { radius: 'round', density: 'standard', shadow: 'soft', buttonShape: 'pill' },
+    rhythm: {
+      hide: ['blog-preview', 'logo-carousel'],
+      order: ['gallery', 'service-highlights', 'social-proof', 'features-grid', 'testimonials', 'contact-info'],
+    },
     style: 'warm energetic vibrant orange',
     industries: ['restaurant', 'food', 'catering', 'pizza', 'fitness', 'gym', 'sports', 'moving', 'bakery', 'cafe', 'coffee', 'event', 'party', 'painting', 'handyman', 'cleaning'],
   },
@@ -238,6 +250,10 @@ const themes = {
       'header': 'centered-logo', 'footer': 'cta-band',
     },
     settings: { radius: 'round', density: 'airy', shadow: 'soft', buttonShape: 'pill' },
+    rhythm: {
+      hide: ['announcement-bar', 'logo-carousel', 'stats-counter'],
+      order: ['gallery', 'testimonials', 'service-highlights', 'features-grid', 'faq-accordion'],
+    },
     style: 'soft elegant warm rose-gold',
     industries: ['dental', 'wedding', 'florist', 'boutique', 'fashion', 'jewelry', 'cosmetic', 'salon', 'spa', 'beauty', 'photography', 'bakery', 'cafe', 'coffee'],
   },
@@ -350,6 +366,10 @@ const themes = {
       'header': 'solid-bar', 'footer': 'cta-band',
     },
     settings: { radius: 'sharp', density: 'compact', shadow: 'none', buttonShape: 'square' },
+    rhythm: {
+      hide: ['blog-preview', 'social-proof'],
+      order: ['checklist', 'process-steps', 'awards-certifications', 'stats-counter', 'features-grid', 'testimonials'],
+    },
     style: 'warm trustworthy industrial yellow',
     industries: ['construction', 'roofing', 'electrical', 'solar', 'handyman', 'contractor', 'renovation', 'plumbing', 'hvac', 'moving', 'towing', 'painting', 'auto', 'insurance', 'landscaping'],
   },
@@ -438,6 +458,10 @@ const themes = {
       'header': 'centered-logo', 'footer': 'multi-column',
     },
     settings: { radius: 'subtle', density: 'airy', shadow: 'none', buttonShape: 'rounded' },
+    rhythm: {
+      hide: ['announcement-bar', 'social-proof', 'trusted-brands'],
+      order: ['gallery', 'content-split', 'team-grid', 'features-grid', 'testimonials', 'blog-preview'],
+    },
     style: 'airy warm ivory understated',
     industries: ['real estate', 'realty', 'realtor', 'property', 'home staging', 'interior design', 'renovation', 'furniture', 'photography', 'boutique'],
   },
@@ -492,6 +516,10 @@ const themes = {
       'header': 'solid-bar', 'footer': 'slim-row',
     },
     settings: { radius: 'round', density: 'standard', shadow: 'soft', buttonShape: 'pill' },
+    rhythm: {
+      hide: ['logo-carousel', 'trusted-brands'],
+      order: ['benefits-list', 'faq-accordion', 'checklist', 'features-grid', 'testimonials', 'contact-info'],
+    },
     style: 'friendly reassuring teal',
     industries: ['insurance', 'life insurance', 'health', 'benefits', 'clinic', 'medical', 'dental', 'wellness', 'pharmacy', 'senior care', 'home care'],
   },
@@ -517,6 +545,10 @@ const themes = {
       'header': 'solid-bar', 'footer': 'multi-column',
     },
     settings: { radius: 'subtle', density: 'standard', shadow: 'none', buttonShape: 'rounded' },
+    rhythm: {
+      hide: ['announcement-bar', 'blog-preview', 'logo-carousel'],
+      order: ['awards-certifications', 'benefits-list', 'faq-accordion', 'process-steps', 'features-grid', 'testimonials'],
+    },
     style: 'steady conservative forest green',
     industries: ['insurance', 'financial', 'finance', 'accounting', 'tax', 'estate', 'trust', 'advisor', 'credit union', 'agriculture', 'farm'],
   },
@@ -571,6 +603,10 @@ const themes = {
       'header': 'centered-logo', 'footer': 'cta-band',
     },
     settings: { radius: 'round', density: 'standard', shadow: 'soft', buttonShape: 'pill' },
+    rhythm: {
+      hide: ['logo-carousel', 'newsletter-signup', 'social-proof'],
+      order: ['team-grid', 'awards-certifications', 'checklist', 'faq-accordion', 'features-grid', 'testimonials'],
+    },
     style: 'clean clinical fresh ice blue',
     industries: ['medical', 'clinic', 'dental', 'pharmacy', 'optometry', 'physio', 'chiropractic', 'lab', 'skincare', 'spa', 'pool', 'hvac'],
   },
@@ -596,6 +632,10 @@ const themes = {
       'header': 'transparent-overlay', 'footer': 'slim-row',
     },
     settings: { radius: 'sharp', density: 'compact', shadow: 'strong', buttonShape: 'square' },
+    rhythm: {
+      hide: ['blog-preview', 'trusted-brands'],
+      order: ['service-highlights', 'process-steps', 'feature-comparison', 'features-grid', 'stats-counter', 'testimonials'],
+    },
     style: 'sharp technical high-contrast',
     industries: ['auto', 'detailing', 'mechanic', 'tire', 'fabrication', 'welding', 'industrial', 'equipment', 'tech', 'it', 'gaming', 'skate'],
   },
@@ -621,6 +661,10 @@ const themes = {
       'header': 'solid-bar', 'footer': 'slim-row',
     },
     settings: { radius: 'round', density: 'standard', shadow: 'soft', buttonShape: 'rounded' },
+    rhythm: {
+      hide: ['divider', 'stats-counter', 'trusted-brands'],
+      order: ['gallery', 'timeline', 'content-split', 'service-highlights', 'testimonials'],
+    },
     style: 'earthy mediterranean handmade',
     industries: ['restaurant', 'mexican', 'mediterranean', 'pottery', 'ceramics', 'craft', 'tile', 'market', 'bakery', 'cafe', 'yoga', 'studio'],
   },
@@ -646,6 +690,10 @@ const themes = {
       'header': 'centered-logo', 'footer': 'slim-row',
     },
     settings: { radius: 'round', density: 'airy', shadow: 'soft', buttonShape: 'pill' },
+    rhythm: {
+      hide: ['announcement-bar', 'social-proof', 'stats-counter', 'trusted-brands'],
+      order: ['content-split', 'service-highlights', 'process-steps', 'testimonials', 'faq-accordion'],
+    },
     style: 'soft calming pastel lavender',
     industries: ['spa', 'wellness', 'yoga', 'massage', 'therapy', 'counseling', 'mental health', 'salon', 'nail', 'beauty', 'childcare', 'doula'],
   },
@@ -787,6 +835,10 @@ const themes = {
       'header': 'transparent-overlay', 'footer': 'cta-band',
     },
     settings: { radius: 'round', density: 'standard', shadow: 'strong', buttonShape: 'pill' },
+    rhythm: {
+      hide: ['divider', 'logo-carousel', 'stats-counter'],
+      order: ['gallery', 'service-highlights', 'pricing-table', 'testimonials', 'contact-info'],
+    },
     style: 'modern glamorous plum',
     industries: ['beauty', 'boutique', 'event', 'wedding', 'planner', 'florist', 'cake', 'fashion', 'makeup', 'lashes', 'marketing'],
   },
@@ -812,6 +864,10 @@ const themes = {
       'header': 'transparent-overlay', 'footer': 'slim-row',
     },
     settings: { radius: 'sharp', density: 'standard', shadow: 'strong', buttonShape: 'square' },
+    rhythm: {
+      hide: ['newsletter-signup', 'social-proof', 'trusted-brands'],
+      order: ['gallery', 'timeline', 'service-highlights', 'features-grid', 'testimonials'],
+    },
     style: 'vintage workshop copper and iron',
     industries: ['barber', 'tattoo', 'brewery', 'whisky', 'roaster', 'leather', 'butcher', 'smokehouse', 'woodwork', 'forge', 'menswear'],
   },
@@ -866,6 +922,10 @@ const themes = {
       'header': 'pill-floating', 'footer': 'multi-column',
     },
     settings: { radius: 'sharp', density: 'compact', shadow: 'none', buttonShape: 'square' },
+    rhythm: {
+      hide: ['blog-preview', 'divider', 'logo-carousel', 'social-proof'],
+      order: ['service-highlights', 'process-steps', 'checklist', 'map-area', 'features-grid', 'stats-counter'],
+    },
     style: 'utilitarian graphite and amber',
     industries: ['logistics', 'moving', 'storage', 'warehouse', 'courier', 'freight', 'junk removal', 'towing', 'security', 'printing', 'signage', 'it'],
   },
@@ -940,8 +1000,18 @@ function knownSectionTypes() {
 
 const RHYTHM_KEYS = ['hide', 'order'];
 
-// #962 — the rhythm preference for a theme, validated, or null when it states none (the common
-// case: 15 of the 30 themes say nothing and pace pages exactly as the page JSON does).
+// #962 — the rhythm preference for a theme, validated.
+//
+// 🔴 #983 — STATING NONE IS NO LONGER LEGAL. Under #962 a rhythm was optional and 15 of the 30 themes
+// had none; `rhythmFor` returned null and the build paced pages exactly as the page JSON did. Chris hit
+// that on 2026-08-12 (assurance-teal): he switched theme, the page skeleton did not move a pixel, and
+// nothing anywhere told him whether that was the design or a break. Optional was #962's scaffolding for
+// landing this gradually, not a product reason. Every theme now defines its own rhythm, and a registry
+// that is missing one is a build error that names the themes — see `themesMissingRhythm` below.
+//
+// This function still returns null for a theme that has none, because it is not the thing that decides:
+// a caller asking about ONE theme cannot see that a DIFFERENT theme lost its rhythm, and that is exactly
+// the hole the registry-wide check closes. `sync-config.js` runs that check on every build.
 //
 // Throws on a malformed table rather than skipping it: a rhythm that quietly does nothing is the
 // failure we can't see. The message always names the theme and the offending key so the build log
@@ -976,6 +1046,26 @@ function rhythmFor(themeId) {
   const both = order.filter(type => hide.includes(type));
   if (both.length) bad(`rhythm lists "${both[0]}" in both hide and order — a hidden block has no position`);
   return { hide, order };
+}
+
+// #983 — which themes in the registry state no rhythm. Empty is the only healthy answer; the caller
+// turns a non-empty list into a build error (sync-config.js does, on every build).
+//
+// 🔴 IT ASKS ABOUT THE WHOLE REGISTRY, and that is the point of it existing at all. The obvious cheaper
+// fix — make `rhythmFor` throw instead of returning null — only fires for the theme the site being built
+// happens to use, so deleting `assurance-teal`'s rhythm would leave every build of every OTHER theme
+// green. That is the same shape of hole as the one this ticket closes: a missing rhythm that nothing says
+// anything about. A build of any one site now fails on a registry that is missing any one rhythm.
+//
+// 📌 It deliberately does NOT judge the CONTENT of a rhythm (that is `rhythmFor`'s job, and the two are
+// called from the same place) nor its variety across themes (that is a design property of the registry,
+// asserted by scripts/check-theme-rhythm.js — a build gate on "are these 30 different enough" would
+// block a legitimate edit for a reason that has nothing to do with the site being built).
+function themesMissingRhythm() {
+  return Object.keys(themes).filter((id) => {
+    const r = themes[id].rhythm;
+    return r === undefined || r === null;
+  });
 }
 
 // Every theme that suits this industry, in registry order (so rotation is predictable).
@@ -1025,6 +1115,7 @@ module.exports = {
   layoutFor,
   settingsFor,
   rhythmFor,
+  themesMissingRhythm,
   candidateThemesForIndustry,
   rotationIndexFromSiteId,
   pickThemeForIndustry,
