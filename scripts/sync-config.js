@@ -113,6 +113,10 @@ if (typeof brand.name === 'string') {
 if (appliedThemeId) {
   brand.colors = themes[appliedThemeId].colors;
   brand.fonts = themes[appliedThemeId].fonts;
+  // #961: 风格设定跟配色、字体走同一条路 —— 记进 brand，layout.tsx 翻成 CSS 变量。
+  // 没应用 theme 的站这里什么都不写 ⟹ 页面上一个覆盖都没有 ⟹ 落回 globals.css 的默认值，
+  // 也就是这张票改动之前的样子。
+  brand.settings = themes[appliedThemeId].settings;
 }
 
 const seoByLocale = {};

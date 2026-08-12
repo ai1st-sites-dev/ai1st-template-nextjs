@@ -21,21 +21,72 @@
   }
 }
 
+/* #961 — 风格设定的默认值。没有应用 theme 的站不产生任何覆盖，就落在这里，
+   而这些值与本票改动之前的字面值【逐字相同】，所以存量站算出来的样子一个像素都不变。
+   写了风格设定的站由 layout.tsx 在 `:root` 上覆盖同名变量（表在 src/lib/themeSettings.ts）。
+   🔴 改这里任何一个数，等于改掉全部存量站的样子 —— 这不是"调个默认值"。 */
+:root {
+  --radius-DEFAULT: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-button: 0.5rem; /* = 今天三个按钮类写死的 rounded-lg */
+  --shadow-DEFAULT: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  /* 区块留白的四档 = 今天 `px-4 py-16 sm:px-6 md:py-24 lg:px-8` 解析出来的值 */
+  --section-y: 4rem;
+  --section-x: 1rem;
+  --section-xSm: 1.5rem;
+  --section-yMd: 6rem;
+  --section-xLg: 2rem;
+}
+
 @layer components {
+  /* #961 — 按钮的圆角走自己的变量，不跟全局圆角共用一个。
+     🔴 必须独立：`buttonShape` 的「胶囊」档如果借用全局圆角，每一张卡片也会变成胶囊。 */
   .btn-primary {
-    @apply inline-flex items-center justify-center rounded-lg bg-primary-500 px-6 py-3 text-base font-semibold text-white transition-all hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+    @apply inline-flex items-center justify-center bg-primary-500 px-6 py-3 text-base font-semibold text-white transition-all hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+    border-radius: var(--radius-button);
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center rounded-lg border-2 border-primary-500 px-6 py-3 text-base font-semibold text-primary-500 transition-all hover:bg-primary-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+    @apply inline-flex items-center justify-center border-2 border-primary-500 px-6 py-3 text-base font-semibold text-primary-500 transition-all hover:bg-primary-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+    border-radius: var(--radius-button);
   }
 
   .btn-accent {
-    @apply inline-flex items-center justify-center rounded-lg bg-accent-400 px-6 py-3 text-base font-semibold text-gray-900 transition-all hover:bg-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-400 focus:ring-offset-2;
+    @apply inline-flex items-center justify-center bg-accent-400 px-6 py-3 text-base font-semibold text-gray-900 transition-all hover:bg-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-400 focus:ring-offset-2;
+    border-radius: var(--radius-button);
   }
 
+  /* #961 — 区块留白是 density 这一维【唯一】的落点（正文写死的收窄口径：不动 tailwind 全局
+     的 spacing scale）。这四档就是它原来那四个断点，值改从变量取。 */
   .section-padding {
-    @apply px-4 py-16 sm:px-6 md:py-24 lg:px-8;
+    padding: var(--section-y) var(--section-x);
+  }
+
+  @media (min-width: 640px) {
+    .section-padding {
+      padding-left: var(--section-xSm);
+      padding-right: var(--section-xSm);
+    }
+  }
+
+  @media (min-width: 768px) {
+    .section-padding {
+      padding-top: var(--section-yMd);
+      padding-bottom: var(--section-yMd);
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .section-padding {
+      padding-left: var(--section-xLg);
+      padding-right: var(--section-xLg);
+    }
   }
 
   .container-width {

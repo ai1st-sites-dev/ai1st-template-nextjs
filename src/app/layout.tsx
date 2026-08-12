@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { brand, getSeo, getBrandName, defaultLocale, siteId, leadApi } from '@/lib/config';
+import { settingsToCssVars, RADIUS, SHADOW, DENSITY, BUTTON_SHAPE } from '@/lib/themeSettings';
 
 const seo = getSeo(defaultLocale);
 // TICKET-136: layout.tsx is a server component with no locale prop — use the
@@ -30,6 +31,9 @@ function buildCssVariables(): string {
   // body font, which is exactly what they did before this line existed.
   const headingFonts = brand.fonts.heading?.length ? brand.fonts.heading : brand.fonts.body;
   vars.push(`--font-heading: ${headingFonts.join(', ')};`);
+  // #961: 风格设定（圆角/留白/阴影/按钮形状）。没有 brand.settings 的站这里一条都不产出，
+  // 于是全部落回 globals.css `:root` 的默认值 —— 存量站的样子因此不变。
+  vars.push(...settingsToCssVars(brand.settings));
   return `:root { ${vars.join(' ')} }`;
 }
 
@@ -101,6 +105,21 @@ function paint(t){
   }
   if(t&&typeof t.fontSans==='string'&&!/[;{}<>]/.test(t.fontSans)){out.push('--font-sans:'+t.fontSans+';');}
   if(t&&typeof t.fontHeading==='string'&&!/[;{}<>]/.test(t.fontHeading)){out.push('--font-heading:'+t.fontHeading+';');}
+  // #961 — 风格设定的四组。校验方式比颜色和字体那几条更严：这里【不接受任意字符串】，
+  // 只认 S 这张表里的档位名，值也全部来自表本身 ⟹ 拼进 <style> 的字符永远是我们自己写的。
+  // S 是构建时从 src/lib/themeSettings.ts 原样塞进来的同一张表，所以预览和构建不会对不上。
+  var S=${JSON.stringify({ radius: RADIUS, shadow: SHADOW, density: DENSITY, buttonShape: BUTTON_SHAPE })};
+  var grp=[['radius','--radius-'],['shadow','--shadow-'],['density','--section-']];
+  for(i=0;i<grp.length;i++){
+    var tok=t&&t[grp[i][0]],tbl=S[grp[i][0]];
+    if(typeof tok==='string'&&Object.prototype.hasOwnProperty.call(tbl,tok)){
+      var vs=tbl[tok];
+      for(k in vs){if(Object.prototype.hasOwnProperty.call(vs,k)){out.push(grp[i][1]+k+':'+vs[k]+';');}}
+    }
+  }
+  if(t&&typeof t.buttonShape==='string'&&Object.prototype.hasOwnProperty.call(S.buttonShape,t.buttonShape)){
+    out.push('--radius-button:'+S.buttonShape[t.buttonShape]+';');
+  }
   s.textContent=out.length?(':root{'+out.join('')+'}'):'';
   if(t&&typeof t.googleFontsUrl==='string'&&/^https:\\/\\/fonts\\.googleapis\\.com\\//.test(t.googleFontsUrl)){f.href=t.googleFontsUrl;}
   else{f.removeAttribute('href');}

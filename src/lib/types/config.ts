@@ -1,3 +1,5 @@
+import type { ThemeSettings } from '../themeSettings';
+
 // ---- Site Meta ----
 export interface SiteMetaConfig {
   defaultLocale: string;
@@ -37,6 +39,9 @@ export interface BrandConfig {
   logoHasWordmark?: boolean;
   colors: BrandColors;
   fonts: BrandFonts;
+  // #961: 风格设定（圆角/留白/阴影/按钮形状）。只有应用了 theme 的站有这一项；
+  // 没有它的站落回 globals.css `:root` 的默认值，也就是 #961 之前的样子。
+  settings?: Partial<ThemeSettings>;
   email: string;
   locations: BrandLocation[];
   socialLinks?: { platform: string; url: string }[] | Record<string, string>;
