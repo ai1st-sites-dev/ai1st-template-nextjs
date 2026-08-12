@@ -181,7 +181,7 @@ export default function HeroSection({ data }: HeroSectionProps) {
 
   if (variant === 'video-style') {
     return (
-      <section className="relative bg-primary-950 text-white">
+      <section className="relative bg-primary-900 text-white">
         <div className="container-width relative px-4 py-28 sm:px-6 md:py-36 lg:px-8 lg:py-44">
           <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
             <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-white transition-transform hover:scale-110">

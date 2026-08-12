@@ -82,7 +82,7 @@ export default function AnnouncementBarSection({ data }: AnnouncementBarSectionP
             {data.link && (
               <>
                 {' '}
-                <Link href={data.link?.href ?? "#"} className="font-medium text-accent-600 hover:text-accent-700">
+                <Link href={data.link?.href ?? "#"} className="font-medium text-accent-600 hover:underline">
                   {data.link?.label}
                 </Link>
               </>
