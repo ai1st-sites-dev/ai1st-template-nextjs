@@ -147,6 +147,10 @@ export interface BlogPostConfig {
 export interface SectionConfig {
   type: string;
   data?: Record<string, unknown>;
+  /** #962 — set by sync-config when the applied theme's rhythm hides this block type. The section
+   *  keeps its content and stays in this array; only SectionRenderer skips it. Anything that
+   *  reasons about what the page is *made of* (SubPage's Service JSON-LD) still sees it. */
+  hidden?: boolean;
 }
 
 export interface PageConfig {

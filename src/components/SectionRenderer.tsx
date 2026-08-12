@@ -10,6 +10,10 @@ export default function SectionRenderer({ sections, locale }: SectionRendererPro
   return (
     <>
       {sections.map((section, index) => {
+        // #962 — the applied theme's rhythm hid this block. It is still in `sections` on purpose
+        // (see SectionConfig.hidden): the page keeps its content, and whatever derives structured
+        // data from the page's composition keeps seeing it. Only the rendering skips it.
+        if (section.hidden) return null;
         const Component = sectionRegistry[section.type];
         if (!Component) {
           console.warn(`Unknown section type: ${section.type}`);

@@ -5,7 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { themes, layoutFor } = require('./themes');
+const { themes, layoutFor, rhythmFor } = require('./themes');
 
 const rootDir = path.resolve(__dirname, '..');
 const siteDir = path.join(rootDir, 'site');
@@ -311,6 +311,63 @@ if (appliedThemeId) {
     }
   }
   console.log(`  Theme "${appliedThemeId}" applied: colors + fonts + ${overridden} section variant(s)`);
+}
+
+// #962: an applied theme may also own the page's rhythm — which blocks show, and in what order.
+// Two actions, both keyed by block type (a type appearing twice on a page is one group):
+//
+//   hide    the section is flagged and SectionRenderer skips it. It is NOT removed: it stays in
+//           config-data.ts with its content untouched. That is what makes changing the theme back
+//           reproduce the page verbatim, and it is also why hiding a block cannot take a page's
+//           structured data with it — SubPage.tsx decides whether to emit Service JSON-LD by
+//           looking at what the page is made of (page.sections), and hidden sections are still
+//           in there. Removing them here would have made a theme able to silently strip the
+//           Schema.org markup off a services page.
+//   order   the listed types are permuted into that sequence among the positions they already
+//           occupy. A section whose type the theme says nothing about never moves, so a theme can
+//           say "proof before features" without knowing what else the page contains.
+//
+// Page JSON on disk is never touched, same as the layout table above.
+if (appliedThemeId) {
+  let rhythm;
+  try {
+    rhythm = rhythmFor(appliedThemeId);
+  } catch (e) {
+    console.error(e.message);
+    process.exit(1);
+  }
+  if (rhythm) {
+    const hide = new Set(rhythm.hide);
+    const rank = new Map(rhythm.order.map((type, i) => [type, i]));
+    let hidden = 0;
+    let repaced = 0;
+    for (const locale of locales) {
+      for (const page of pagesByLocale[locale]) {
+        // Slots = the positions the listed types hold right now; movers = the sections in them.
+        // Sorting by (rank of type, original index) is what keeps a repeated type together and in
+        // its own order, then writing them back into the same slots leaves everything else put.
+        const slots = [];
+        const movers = [];
+        page.sections.forEach((section, i) => {
+          if (rank.has(section.type)) {
+            slots.push(i);
+            movers.push({ section, i });
+          }
+        });
+        movers.sort((a, b) => (rank.get(a.section.type) - rank.get(b.section.type)) || (a.i - b.i));
+        if (slots.some((pos, k) => movers[k].i !== pos)) repaced++;
+        slots.forEach((pos, k) => { page.sections[pos] = movers[k].section; });
+
+        for (const section of page.sections) {
+          if (hide.has(section.type)) {
+            section.hidden = true;
+            hidden++;
+          }
+        }
+      }
+    }
+    console.log(`  Theme "${appliedThemeId}" rhythm: ${hidden} section(s) hidden, ${repaced} page(s) re-ordered`);
+  }
 }
 
 const configDataPath = path.join(rootDir, 'src', 'lib', 'config-data.ts');
