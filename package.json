@@ -8,7 +8,7 @@
     "prebuild": "node scripts/sync-config.js && node scripts/move-build-output.js backup",
     "build": "next build --webpack && node scripts/move-build-output.js restore",
     "start": "next start",
-    "lint:scripts": "eslint scripts/create-site.js scripts/edit-site.js scripts/themes.js"
+    "lint:scripts": "eslint scripts/create-site.js scripts/edit-site.js scripts/themes.js scripts/theme-gallery --ext .js,.mjs"
   },
   "keywords": [
     "security systems",
