@@ -1,4 +1,4 @@
-import type { BrandConfig, NavigationConfig, SeoConfig, ServiceConfig, BlogPostConfig, DynamicPageConfig } from './types/config';
+import type { BrandConfig, NavigationConfig, SeoConfig, ServiceConfig, BlogPostConfig, DynamicPageConfig, RegionLayoutConfig } from './types/config';
 
 import {
   brand as _brand,
@@ -11,6 +11,7 @@ import {
   navigationByLocale as _navigationByLocale,
   pagesByLocale as _pagesByLocale,
   blogPostsByLocale as _blogPostsByLocale,
+  regionLayout as _regionLayout,
 } from './config-data';
 
 export const brand = _brand as BrandConfig;
@@ -24,6 +25,9 @@ export const servicesByLocale = _servicesByLocale as Record<string, ServiceConfi
 export const navigationByLocale = _navigationByLocale as Record<string, NavigationConfig>;
 export const pagesByLocale = _pagesByLocale as Record<string, DynamicPageConfig[]>;
 export const blogPostsByLocale = _blogPostsByLocale as Record<string, BlogPostConfig[]>;
+// #960: 顶栏和页脚的结构。它们是 Region 不是 section,所以走的是自己的写出口(sync-config.js 的
+// §Regions),不是那张按 section.type 索引的偏好表 —— 那张表对它们按构造是瞎的。
+export const regionLayout = _regionLayout as RegionLayoutConfig;
 
 export function isValidLocale(locale: string): boolean {
   return locales.includes(locale);
@@ -64,6 +68,18 @@ export function getPage(slug: string, locale: string): DynamicPageConfig | undef
 export function getHomePage(locale: string): DynamicPageConfig {
   const pages = pagesByLocale[locale] ?? pagesByLocale[defaultLocale];
   return pages.find((p) => p.slug === 'home')!;
+}
+
+// #960 — 「这一页的第一段是不是 hero」。透明浮层顶栏只在它为真时才浮起来,所以这个判断必须跟
+// 构建期那条对比度规则(scripts/region-layout.js 的 firstSectionHero)说的是同一件事。
+//
+// 🔴 数的是**画得出来的**第一段,不是数组的第 0 个:#962 起 theme 可以让某一类 block 不显示
+// (`hidden`,SectionRenderer 直接 return null),而那一段仍然留在 sections 里。按第 0 个数会错两次 ——
+// ① 首段被藏起来、hero 排第二 ⟹ 屏幕上顶栏压着的就是 hero,却判成不浮
+// ② 藏的正好是 hero 本身 ⟹ 判成浮,而顶栏底下换成了下一段(多半是白底),白字压白底,谁都看不见。
+// ②今天造不出来(30 套没有一套藏 hero),但这条规则的立身之本就是不靠"今天的注册表恰好没有"。
+export function pageStartsWithHero(page: DynamicPageConfig | undefined): boolean {
+  return page?.sections.find((s) => !s.hidden)?.type === 'hero';
 }
 
 export function getNonHomePages(locale: string): DynamicPageConfig[] {

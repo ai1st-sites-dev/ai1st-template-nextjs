@@ -170,3 +170,16 @@ export interface DynamicPageConfig {
   parentService?: string;
   sections: SectionConfig[];
 }
+
+// #960 — 顶栏 / 页脚这两个 Region 的结构。唯一权威清单在 `scripts/region-layout.js`
+// (组件按它渲染、theme 注册表按它填、构建期校验也按它);这里的联合类型跟那份清单逐字对应。
+// `headerScrim` 是那条对比度规则的产物:透明浮层压在**不能被证明是深底**的首屏上时为 true。
+export type HeaderVariant = 'solid-bar' | 'transparent-overlay' | 'centered-logo' | 'pill-floating';
+export type FooterVariant = 'multi-column' | 'slim-row' | 'cta-band';
+
+export interface RegionLayoutConfig {
+  header: HeaderVariant;
+  footer: FooterVariant;
+  headerScrim: boolean;
+  notes: string[];
+}

@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import ServiceIcon from '@/components/ServiceIcon';
-import { brand, defaultLocale, getNavigation, getServices, getBrandName, pagesByLocale } from '@/lib/config';
+import { brand, defaultLocale, getNavigation, getServices, getBrandName, pagesByLocale, regionLayout } from '@/lib/config';
 
 const socialIcons: Record<string, { label: string; icon: React.ReactNode }> = {
   google: { label: 'Google', icon: <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/></svg> },
@@ -58,8 +58,154 @@ export default function Footer({ locale }: { locale: string }) {
     localePages.filter(p => p.slug.startsWith('services/') && p.slug !== 'services').map(p => p.slug.replace('services/', ''))
   );
 
+  // #960 — 页脚以前只有一个结构(多列大脚),30 套 theme 换下来它一个像素都不动。结构从
+  // `regionLayout.footer` 来,构建时定(sync-config.js 的 §Regions);没换装的站拿到的是 'multi-column',
+  // 也就是这一票之前那份 —— 下面那支的标记逐字没动过。
+  const variant = regionLayout.footer;
+
+  const logoBlock = (
+    <div className="mb-4 flex items-center gap-2">
+      {brand.logoUrl ? (
+        // TICKET-192: white pill container so footer logo is visible on
+        // dark bg-primary-900 regardless of logo's own colors / alpha
+        // channel. Pre-fix a brightness+invert filter assumed the logo
+        // had a transparent background and produced a white silhouette
+        // — but AI-generated PNGs (Nano Banana prompt forces "pure
+        // white background") and user JPG uploads broke that
+        // assumption, turning the whole bounding box solid white.
+        <span className="inline-flex items-center bg-white p-1.5 rounded-md">
+          <img src={brand.logoUrl} alt={getBrandName(locale)} className="h-7 w-auto max-w-[120px] object-contain" />
+        </span>
+      ) : (
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-500">
+          <ServiceIcon icon={brand.logoIcon} className="h-5 w-5 text-white" />
+        </div>
+      )}
+      {/* TICKET-159: render company-name text alongside the logo when
+          the logo is icon-only (AI-generated, logoHasWordmark=false)
+          OR when there is no logo at all. User-uploaded logos are
+          assumed to include their own wordmark (logoHasWordmark=true). */}
+      {(!brand.logoUrl || !brand.logoHasWordmark) && (
+        <span className="text-lg font-bold text-white">{getBrandName(locale)}</span>
+      )}
+    </div>
+  );
+
+  const socialRow = links.length > 0 && (
+    <div className="mt-4 flex gap-3">
+      {links.map(([platform, url]) => {
+        const info = socialIcons[platform];
+        return (
+          <a
+            key={platform}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={info?.label || platform}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-800 text-gray-400 transition-colors hover:bg-primary-700 hover:text-white"
+          >
+            {info?.icon || <span className="text-xs font-bold uppercase">{platform[0]}</span>}
+          </a>
+        );
+      })}
+    </div>
+  );
+
+  const serviceHref = (id: string) =>
+    localizeHref(serviceDetailSlugs.has(id) ? `/services/${id}` : `/services#${id}`, locale);
+
+  const copyright = <p>&copy; {currentYear} {footer.copyright}</p>;
+
+  // ── 单行小脚:一行 logo + 链接 + 版权,没有分栏 ─────────────────────────────────────────
+  if (variant === 'slim-row') {
+    return (
+      <footer className="bg-primary-900 text-gray-300" data-region-layout="slim-row">
+        <div className="container-width px-4 py-8 sm:px-6 lg:px-8">
+          <div className="flex flex-col items-center gap-6 md:flex-row md:justify-between">
+            <div className="flex items-center gap-2">{logoBlock}</div>
+            <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+              {footer.columns.flatMap(c => c.links).slice(0, 6).map((link) => (
+                <Link key={link.href} href={localizeHref(link.href, locale)} className="text-sm transition-colors hover:text-white">{link.label}</Link>
+              ))}
+              <a href={`mailto:${brand.email}`} className="text-sm transition-colors hover:text-white">{brand.email}</a>
+            </nav>
+            {links.length > 0 && (
+              <div className="flex gap-3">
+                {links.map(([platform, url]) => {
+                  const info = socialIcons[platform];
+                  return (
+                    <a key={platform} href={url} target="_blank" rel="noopener noreferrer" aria-label={info?.label || platform}
+                      className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-800 text-gray-400 transition-colors hover:bg-primary-700 hover:text-white">
+                      {info?.icon || <span className="text-xs font-bold uppercase">{platform[0]}</span>}
+                    </a>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <div className="mt-6 border-t border-gray-700 pt-6 text-center text-sm">{copyright}</div>
+        </div>
+      </footer>
+    );
+  }
+
+  // ── CTA 色带 + 小脚:强调色横幅压在页脚顶上,底下是一条紧凑的信息行 ─────────────────────
+  if (variant === 'cta-band') {
+    return (
+      <footer className="bg-primary-900 text-gray-300" data-region-layout="cta-band">
+        <div className="bg-accent-500" data-region="footer-cta-band">
+          <div className="container-width flex flex-col items-center gap-4 px-4 py-10 text-center sm:px-6 lg:flex-row lg:justify-between lg:px-8 lg:text-left">
+            <div>
+              <p className="text-2xl font-bold text-white">{getBrandName(locale)}</p>
+              <p className="mt-1 text-sm text-white/90">{footer.description}</p>
+            </div>
+            <Link href={localizeHref(getNavigation(locale).header.cta.href, locale)}
+              className="inline-flex items-center justify-center rounded-lg bg-white px-6 py-3 text-base font-semibold text-primary-900 transition-colors hover:bg-gray-100">
+              {getNavigation(locale).header.cta.label}
+            </Link>
+          </div>
+        </div>
+        <div className="container-width px-4 py-10 sm:px-6 lg:px-8">
+          <div className="grid gap-8 md:grid-cols-3">
+            <div>
+              {logoBlock}
+              {socialRow}
+            </div>
+            <div>
+              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-white">{labels.services}</h3>
+              <ul className="space-y-2">
+                {services.slice(0, 5).map((service) => (
+                  <li key={service.id}>
+                    <Link href={serviceHref(service.id)} className="text-sm transition-colors hover:text-white">{service.name}</Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-white">{labels.contact}</h3>
+              <ul className="space-y-3 text-sm">
+                {brand.locations.map((location) => (
+                  <li key={location.label}>
+                    <strong className="text-white">{location.label}</strong>
+                    <br />{location.address}
+                    <br />{location.phone}
+                  </li>
+                ))}
+                <li>
+                  <a href={`mailto:${brand.email}`} className="transition-colors hover:text-white">{brand.email}</a>
+                </li>
+              </ul>
+            </div>
+          </div>
+          <div className="mt-10 border-t border-gray-700 pt-6 text-center text-sm">{copyright}</div>
+        </div>
+      </footer>
+    );
+  }
+
+  // ── 多列大脚(现状,也是没换装时的默认) ──────────────────────────────────────────────────
   return (
-    <footer className="bg-primary-900 text-gray-300">
+    <footer className="bg-primary-900 text-gray-300" data-region-layout="multi-column">
       <div className="container-width section-padding">
         <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-4">
           {/* Company Info */}

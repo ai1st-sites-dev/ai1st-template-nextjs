@@ -6,6 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const { themes, layoutFor, rhythmFor } = require('./themes');
+const { resolveRegionLayout } = require('./region-layout');
 
 const rootDir = path.resolve(__dirname, '..');
 const siteDir = path.join(rootDir, 'site');
@@ -370,6 +371,21 @@ if (appliedThemeId) {
   }
 }
 
+// #960 — Header 和 Footer 是两个 Region,不是 section,所以它们【走不了】上面那个循环:那个循环按
+// `layout[section.type]` 取,而没有任何 section 的 type 是 header/footer ⟹ 往偏好表里加这两个键会被
+// `if (!preferred) continue` 静默跳过。这里是它们自己的写出口,理由与那条对比度规则写在 region-layout.js。
+// 📌 没换装的站(appliedThemeId 为空)传的是 {} ⟹ 两个 Region 都回到现状,「换装才接管」的语义不变。
+const regionLayout = resolveRegionLayout(
+  appliedThemeId ? layoutFor(appliedThemeId) : {},
+  // 🔴 全部 locale 的**全部**页面,不是只给首页:浮层在**任何**第一段是 hero 的页面上都会浮起来
+  // (SiteShell 的 overHero),所以那条对比度规则的证据面必须跟它的生效面一样宽(QA3 在 r2 上量的)。
+  locales.flatMap(loc => pagesByLocale[loc] || []),
+  brand.colors, // 判「那一段是不是深底」要查颜色档在不在 —— 一个 class 名字写着深色不等于它画得出来
+);
+console.log(`  Regions: header=${regionLayout.header} footer=${regionLayout.footer}` +
+  (regionLayout.headerScrim ? ' (+scrim)' : ''));
+for (const note of regionLayout.notes) console.log(`    · ${note}`);
+
 const configDataPath = path.join(rootDir, 'src', 'lib', 'config-data.ts');
 // TICKET-268b: build-time env overrides site_meta (lets the deploy pick the env's manager URL).
 const resolvedLeadApi = process.env.NEXT_PUBLIC_LEAD_API || leadApi || '';
@@ -384,6 +400,7 @@ export const servicesByLocale = ${JSON.stringify(servicesByLocale)};
 export const navigationByLocale = ${JSON.stringify(navigationByLocale)};
 export const pagesByLocale = ${JSON.stringify(pagesByLocale)};
 export const blogPostsByLocale = ${JSON.stringify(blogPostsByLocale)};
+export const regionLayout = ${JSON.stringify(regionLayout)};
 `;
 fs.writeFileSync(configDataPath, tsContent);
 console.log('  Generated src/lib/config-data.ts');

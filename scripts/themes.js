@@ -4,6 +4,10 @@
 //   colors      配色 — primary 50-900 + accent 50-600, copied into brand.json at creation
 //   fonts       字体 — heading/body families + the Google Fonts URL
 //   layout      版式偏好表 — section type → variant. `{}` means "no preference".
+//               🔴 #960 起它还带两个【不是 section】的键:`header` / `footer`,顶栏和页脚的结构。
+//               它们【走不了】sync-config 里那个按 `layout[section.type]` 取的循环(没有任何 section
+//               的 type 叫 header/footer,加了会被 `if (!preferred) continue` 静默跳过),所以由
+//               `scripts/region-layout.js` + sync-config 的 §Regions 单独消费。清单也在那个文件。
 //   rhythm      页面节奏偏好 — optional; which blocks show and in what order (#962, see below)
 //   style       风格形容词 — one phrase, used in the AI logo prompt (was THEME_STYLE_MAP)
 // plus `industries`, the keyword list the creation-time picker matches against.
@@ -68,6 +72,8 @@ const themes = {
       'map-area': 'grouped', 'newsletter-signup': 'split', 'service-highlights': 'tabs',
       'social-proof': 'highlight', 'text-block': 'highlight-box', 'timeline': 'milestone',
       'trusted-brands': 'dark',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'transparent-overlay', 'footer': 'cta-band',
     },
     settings: { radius: 'sharp', density: 'standard', shadow: 'strong', buttonShape: 'square' },
     rhythm: {
@@ -95,6 +101,8 @@ const themes = {
       'map-area': 'cards', 'newsletter-signup': 'split', 'service-highlights': 'tabs',
       'social-proof': 'review-platforms', 'text-block': 'with-list', 'timeline': 'horizontal',
       'trusted-brands': 'default',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'solid-bar', 'footer': 'multi-column',
     },
     settings: { radius: 'subtle', density: 'standard', shadow: 'soft', buttonShape: 'rounded' },
     rhythm: {
@@ -122,6 +130,8 @@ const themes = {
       'map-area': 'cards', 'newsletter-signup': 'inline', 'service-highlights': 'accordion',
       'social-proof': 'rating-bar', 'text-block': 'default', 'timeline': 'vertical',
       'trusted-brands': 'pill',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'solid-bar', 'footer': 'multi-column',
     },
     settings: { radius: 'round', density: 'standard', shadow: 'soft', buttonShape: 'rounded' },
     style: 'natural organic balanced green',
@@ -145,6 +155,8 @@ const themes = {
       'map-area': 'cards', 'newsletter-signup': 'split', 'service-highlights': 'cards-large',
       'social-proof': 'badges', 'text-block': 'highlight-box', 'timeline': 'milestone',
       'trusted-brands': 'pill',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'solid-bar', 'footer': 'cta-band',
     },
     settings: { radius: 'round', density: 'airy', shadow: 'soft', buttonShape: 'pill' },
     style: 'elegant creative refined purple',
@@ -168,6 +180,8 @@ const themes = {
       'map-area': 'grouped', 'newsletter-signup': 'minimal', 'service-highlights': 'accordion',
       'social-proof': 'review-platforms', 'text-block': 'quote', 'timeline': 'compact',
       'trusted-brands': 'default',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'pill-floating', 'footer': 'slim-row',
     },
     settings: { radius: 'sharp', density: 'standard', shadow: 'none', buttonShape: 'square' },
     rhythm: {
@@ -195,6 +209,8 @@ const themes = {
       'map-area': 'cards', 'newsletter-signup': 'card', 'service-highlights': 'cards-large',
       'social-proof': 'highlight', 'text-block': 'two-column', 'timeline': 'horizontal',
       'trusted-brands': 'pill',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'pill-floating', 'footer': 'cta-band',
     },
     settings: { radius: 'round', density: 'standard', shadow: 'soft', buttonShape: 'pill' },
     style: 'warm energetic vibrant orange',
@@ -218,6 +234,8 @@ const themes = {
       'map-area': 'list', 'newsletter-signup': 'card', 'service-highlights': 'cards-large',
       'social-proof': 'rating-bar', 'text-block': 'quote', 'timeline': 'vertical',
       'trusted-brands': 'pill',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'centered-logo', 'footer': 'cta-band',
     },
     settings: { radius: 'round', density: 'airy', shadow: 'soft', buttonShape: 'pill' },
     style: 'soft elegant warm rose-gold',
@@ -241,6 +259,8 @@ const themes = {
       'map-area': 'badge', 'newsletter-signup': 'card', 'service-highlights': 'split',
       'social-proof': 'highlight', 'text-block': 'highlight-box', 'timeline': 'milestone',
       'trusted-brands': 'dark',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'transparent-overlay', 'footer': 'slim-row',
     },
     settings: { radius: 'round', density: 'airy', shadow: 'strong', buttonShape: 'pill' },
     rhythm: {
@@ -268,6 +288,8 @@ const themes = {
       'map-area': 'list', 'newsletter-signup': 'inline', 'service-highlights': 'accordion',
       'social-proof': 'highlight', 'text-block': 'with-list', 'timeline': 'milestone',
       'trusted-brands': 'pill',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'solid-bar', 'footer': 'multi-column',
     },
     settings: { radius: 'subtle', density: 'airy', shadow: 'soft', buttonShape: 'rounded' },
     rhythm: {
@@ -295,6 +317,8 @@ const themes = {
       'map-area': 'badge', 'newsletter-signup': 'split', 'service-highlights': 'cards-large',
       'social-proof': 'highlight', 'text-block': 'highlight-box', 'timeline': 'milestone',
       'trusted-brands': 'dark',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'transparent-overlay', 'footer': 'cta-band',
     },
     settings: { radius: 'sharp', density: 'compact', shadow: 'strong', buttonShape: 'square' },
     rhythm: {
@@ -322,6 +346,8 @@ const themes = {
       'map-area': 'grouped', 'newsletter-signup': 'card', 'service-highlights': 'tabs',
       'social-proof': 'review-platforms', 'text-block': 'with-list', 'timeline': 'milestone',
       'trusted-brands': 'default',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'solid-bar', 'footer': 'cta-band',
     },
     settings: { radius: 'sharp', density: 'compact', shadow: 'none', buttonShape: 'square' },
     style: 'warm trustworthy industrial yellow',
@@ -350,6 +376,8 @@ const themes = {
       'map-area': 'grouped', 'newsletter-signup': 'card', 'service-highlights': 'accordion',
       'social-proof': 'review-platforms', 'text-block': 'quote', 'timeline': 'vertical',
       'trusted-brands': 'default',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'solid-bar', 'footer': 'multi-column',
     },
     settings: { radius: 'subtle', density: 'airy', shadow: 'soft', buttonShape: 'rounded' },
     rhythm: {
@@ -377,6 +405,8 @@ const themes = {
       'map-area': 'list', 'newsletter-signup': 'split', 'service-highlights': 'split',
       'social-proof': 'highlight', 'text-block': 'quote', 'timeline': 'vertical',
       'trusted-brands': 'dark',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'transparent-overlay', 'footer': 'slim-row',
     },
     settings: { radius: 'sharp', density: 'airy', shadow: 'none', buttonShape: 'square' },
     rhythm: {
@@ -404,6 +434,8 @@ const themes = {
       'map-area': 'list', 'newsletter-signup': 'inline', 'service-highlights': 'accordion',
       'social-proof': 'rating-bar', 'text-block': 'default', 'timeline': 'vertical',
       'trusted-brands': 'default',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'centered-logo', 'footer': 'multi-column',
     },
     settings: { radius: 'subtle', density: 'airy', shadow: 'none', buttonShape: 'rounded' },
     style: 'airy warm ivory understated',
@@ -427,6 +459,8 @@ const themes = {
       'map-area': 'grouped', 'newsletter-signup': 'card', 'service-highlights': 'tabs',
       'social-proof': 'badges', 'text-block': 'with-list', 'timeline': 'vertical',
       'trusted-brands': 'default',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'solid-bar', 'footer': 'multi-column',
     },
     settings: { radius: 'subtle', density: 'standard', shadow: 'soft', buttonShape: 'rounded' },
     rhythm: {
@@ -454,6 +488,8 @@ const themes = {
       'map-area': 'grouped', 'newsletter-signup': 'card', 'service-highlights': 'accordion',
       'social-proof': 'review-platforms', 'text-block': 'with-list', 'timeline': 'vertical',
       'trusted-brands': 'default',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'solid-bar', 'footer': 'slim-row',
     },
     settings: { radius: 'round', density: 'standard', shadow: 'soft', buttonShape: 'pill' },
     style: 'friendly reassuring teal',
@@ -477,6 +513,8 @@ const themes = {
       'map-area': 'list', 'newsletter-signup': 'inline', 'service-highlights': 'tabs',
       'social-proof': 'review-platforms', 'text-block': 'with-list', 'timeline': 'compact',
       'trusted-brands': 'default',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'solid-bar', 'footer': 'multi-column',
     },
     settings: { radius: 'subtle', density: 'standard', shadow: 'none', buttonShape: 'rounded' },
     style: 'steady conservative forest green',
@@ -500,6 +538,8 @@ const themes = {
       'map-area': 'grouped', 'newsletter-signup': 'card', 'service-highlights': 'accordion',
       'social-proof': 'highlight', 'text-block': 'quote', 'timeline': 'milestone',
       'trusted-brands': 'default',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'centered-logo', 'footer': 'multi-column',
     },
     settings: { radius: 'subtle', density: 'airy', shadow: 'soft', buttonShape: 'rounded' },
     rhythm: {
@@ -527,6 +567,8 @@ const themes = {
       'map-area': 'grouped', 'newsletter-signup': 'inline', 'service-highlights': 'tabs',
       'social-proof': 'rating-bar', 'text-block': 'two-column', 'timeline': 'horizontal',
       'trusted-brands': 'default',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'centered-logo', 'footer': 'cta-band',
     },
     settings: { radius: 'round', density: 'standard', shadow: 'soft', buttonShape: 'pill' },
     style: 'clean clinical fresh ice blue',
@@ -550,6 +592,8 @@ const themes = {
       'map-area': 'badge', 'newsletter-signup': 'split', 'service-highlights': 'split',
       'social-proof': 'rating-bar', 'text-block': 'highlight-box', 'timeline': 'horizontal',
       'trusted-brands': 'dark',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'transparent-overlay', 'footer': 'slim-row',
     },
     settings: { radius: 'sharp', density: 'compact', shadow: 'strong', buttonShape: 'square' },
     style: 'sharp technical high-contrast',
@@ -573,6 +617,8 @@ const themes = {
       'map-area': 'grouped', 'newsletter-signup': 'card', 'service-highlights': 'cards-large',
       'social-proof': 'rating-bar', 'text-block': 'quote', 'timeline': 'vertical',
       'trusted-brands': 'pill',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'solid-bar', 'footer': 'slim-row',
     },
     settings: { radius: 'round', density: 'standard', shadow: 'soft', buttonShape: 'rounded' },
     style: 'earthy mediterranean handmade',
@@ -596,6 +642,8 @@ const themes = {
       'map-area': 'cards', 'newsletter-signup': 'card', 'service-highlights': 'cards-large',
       'social-proof': 'badges', 'text-block': 'quote', 'timeline': 'vertical',
       'trusted-brands': 'pill',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'centered-logo', 'footer': 'slim-row',
     },
     settings: { radius: 'round', density: 'airy', shadow: 'soft', buttonShape: 'pill' },
     style: 'soft calming pastel lavender',
@@ -619,6 +667,8 @@ const themes = {
       'map-area': 'badge', 'newsletter-signup': 'split', 'service-highlights': 'tabs',
       'social-proof': 'highlight', 'text-block': 'highlight-box', 'timeline': 'milestone',
       'trusted-brands': 'default',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'transparent-overlay', 'footer': 'multi-column',
     },
     settings: { radius: 'sharp', density: 'compact', shadow: 'strong', buttonShape: 'square' },
     rhythm: {
@@ -646,6 +696,8 @@ const themes = {
       'map-area': 'list', 'newsletter-signup': 'minimal', 'service-highlights': 'accordion',
       'social-proof': 'rating-bar', 'text-block': 'default', 'timeline': 'compact',
       'trusted-brands': 'pill',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'centered-logo', 'footer': 'slim-row',
     },
     settings: { radius: 'subtle', density: 'airy', shadow: 'none', buttonShape: 'rounded' },
     rhythm: {
@@ -673,6 +725,8 @@ const themes = {
       'map-area': 'badge', 'newsletter-signup': 'minimal', 'service-highlights': 'split',
       'social-proof': 'highlight', 'text-block': 'quote', 'timeline': 'compact',
       'trusted-brands': 'default',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'pill-floating', 'footer': 'slim-row',
     },
     settings: { radius: 'sharp', density: 'airy', shadow: 'none', buttonShape: 'square' },
     rhythm: {
@@ -700,6 +754,8 @@ const themes = {
       'map-area': 'cards', 'newsletter-signup': 'inline', 'service-highlights': 'split',
       'social-proof': 'badges', 'text-block': 'two-column', 'timeline': 'horizontal',
       'trusted-brands': 'pill',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'pill-floating', 'footer': 'multi-column',
     },
     settings: { radius: 'round', density: 'airy', shadow: 'soft', buttonShape: 'pill' },
     rhythm: {
@@ -727,6 +783,8 @@ const themes = {
       'map-area': 'cards', 'newsletter-signup': 'split', 'service-highlights': 'split',
       'social-proof': 'highlight', 'text-block': 'highlight-box', 'timeline': 'milestone',
       'trusted-brands': 'pill',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'transparent-overlay', 'footer': 'cta-band',
     },
     settings: { radius: 'round', density: 'standard', shadow: 'strong', buttonShape: 'pill' },
     style: 'modern glamorous plum',
@@ -750,6 +808,8 @@ const themes = {
       'map-area': 'list', 'newsletter-signup': 'inline', 'service-highlights': 'split',
       'social-proof': 'highlight', 'text-block': 'highlight-box', 'timeline': 'milestone',
       'trusted-brands': 'dark',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'transparent-overlay', 'footer': 'slim-row',
     },
     settings: { radius: 'sharp', density: 'standard', shadow: 'strong', buttonShape: 'square' },
     style: 'vintage workshop copper and iron',
@@ -773,6 +833,8 @@ const themes = {
       'map-area': 'cards', 'newsletter-signup': 'card', 'service-highlights': 'accordion',
       'social-proof': 'rating-bar', 'text-block': 'with-list', 'timeline': 'vertical',
       'trusted-brands': 'pill',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'pill-floating', 'footer': 'cta-band',
     },
     settings: { radius: 'round', density: 'standard', shadow: 'soft', buttonShape: 'pill' },
     rhythm: {
@@ -800,6 +862,8 @@ const themes = {
       'map-area': 'grouped', 'newsletter-signup': 'minimal', 'service-highlights': 'tabs',
       'social-proof': 'review-platforms', 'text-block': 'with-list', 'timeline': 'compact',
       'trusted-brands': 'default',
+      // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
+      'header': 'pill-floating', 'footer': 'multi-column',
     },
     settings: { radius: 'sharp', density: 'compact', shadow: 'none', buttonShape: 'square' },
     style: 'utilitarian graphite and amber',
