@@ -2161,6 +2161,11 @@ CRITICAL RULES:
     logoUrl: logoUrl || '',
     colors: theme.colors,
     fonts: theme.fonts,
+    // #986: 风格设定（圆角/留白/阴影/按钮形状）跟配色、字体一起烤进 brand.json，新站第一次构建就带着它。
+    // 不加这行的话它们只在老板去后台换过一次装（theme.json 的 applied 翻成 true，sync-config.js:120
+    // 从注册表覆盖）之后才出现 —— 同一套 theme，「刚建好的站」和「换过装的站」长得不一样。
+    // 换装那条路不受影响：applied 为真时 sync-config 照旧用注册表覆盖内存里这份。
+    settings: theme.settings,
     email: ai.brand.email || email || 'info@example.com',
     locations: ai.brand.locations,
     googleFormUrl: "https://docs.google.com/forms/d/e/YOUR_FORM_ID/viewform",
