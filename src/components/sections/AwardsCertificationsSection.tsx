@@ -1,3 +1,5 @@
+import { blockAttrs } from '@/lib/sections/blockAttrs';
+
 interface Award {
   title: string;
   description?: string;
@@ -18,7 +20,7 @@ export default function AwardsCertificationsSection({ data }: AwardsCertificatio
 
   if (variant === 'banner') {
     return (
-      <section className="bg-gray-50 border-y border-gray-200 py-8" aria-labelledby="awards-heading">
+      <section {...blockAttrs('awards-certifications')} className="bg-gray-50 border-y border-gray-200 py-8" aria-labelledby="awards-heading">
         <div className="container-width">
           <div className="flex flex-col items-center gap-6 sm:flex-row sm:gap-0">
             <h2 id="awards-heading" className="shrink-0 text-sm font-semibold uppercase tracking-wider text-gray-500 sm:mr-8">
@@ -48,7 +50,7 @@ export default function AwardsCertificationsSection({ data }: AwardsCertificatio
 
   if (variant === 'detailed') {
     return (
-      <section className="section-padding" aria-labelledby="awards-heading">
+      <section {...blockAttrs('awards-certifications')} className="section-padding" aria-labelledby="awards-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="awards-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -80,7 +82,7 @@ export default function AwardsCertificationsSection({ data }: AwardsCertificatio
   }
 
   return (
-    <section className="section-padding" aria-labelledby="awards-heading">
+    <section {...blockAttrs('awards-certifications')} className="section-padding" aria-labelledby="awards-heading">
       <div className="container-width">
         <div className="text-center">
           <h2 id="awards-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">

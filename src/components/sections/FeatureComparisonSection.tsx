@@ -1,4 +1,5 @@
 import { getLabels } from '@/lib/component-labels';
+import { blockAttrs } from '@/lib/sections/blockAttrs';
 
 interface FeatureComparisonSectionProps {
   data: {
@@ -36,7 +37,7 @@ export default function FeatureComparisonSection({ data, locale }: FeatureCompar
 
   if (variant === 'cards') {
     return (
-      <section className="section-padding" aria-labelledby="comparison-heading">
+      <section {...blockAttrs('feature-comparison')} className="section-padding" aria-labelledby="comparison-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="comparison-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -87,7 +88,7 @@ export default function FeatureComparisonSection({ data, locale }: FeatureCompar
 
   if (variant === 'columns') {
     return (
-      <section className="section-padding" aria-labelledby="comparison-heading">
+      <section {...blockAttrs('feature-comparison')} className="section-padding" aria-labelledby="comparison-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="comparison-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -128,7 +129,7 @@ export default function FeatureComparisonSection({ data, locale }: FeatureCompar
 
   if (variant === 'stacked') {
     return (
-      <section className="section-padding" aria-labelledby="comparison-heading">
+      <section {...blockAttrs('feature-comparison')} className="section-padding" aria-labelledby="comparison-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="comparison-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -170,7 +171,7 @@ export default function FeatureComparisonSection({ data, locale }: FeatureCompar
 
   // Default: table
   return (
-    <section className="section-padding" aria-labelledby="comparison-heading">
+    <section {...blockAttrs('feature-comparison')} className="section-padding" aria-labelledby="comparison-heading">
       <div className="container-width">
         <div className="text-center">
           <h2 id="comparison-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">

@@ -1,3 +1,5 @@
+import { blockAttrs } from '@/lib/sections/blockAttrs';
+
 interface ValuesGridSectionProps {
   data: {
     headline: string;
@@ -38,7 +40,7 @@ export default function ValuesGridSection({ data }: ValuesGridSectionProps) {
 
   if (style === 'icon') {
     return (
-      <section className="section-padding" aria-labelledby="values-heading">
+      <section {...blockAttrs('values-grid')} className="section-padding" aria-labelledby="values-heading">
         <div className="container-width">
           <h2 id="values-heading" className="text-center text-3xl font-bold text-gray-900 sm:text-4xl">
             {data.headline}
@@ -62,7 +64,7 @@ export default function ValuesGridSection({ data }: ValuesGridSectionProps) {
   if (style === 'highlight') {
     const [first, ...rest] = data.items;
     return (
-      <section className="section-padding" aria-labelledby="values-heading">
+      <section {...blockAttrs('values-grid')} className="section-padding" aria-labelledby="values-heading">
         <div className="container-width">
           <h2 id="values-heading" className="text-center text-3xl font-bold text-gray-900 sm:text-4xl">
             {data.headline}
@@ -92,7 +94,7 @@ export default function ValuesGridSection({ data }: ValuesGridSectionProps) {
 
   if (style === 'minimal') {
     return (
-      <section className="section-padding" aria-labelledby="values-heading">
+      <section {...blockAttrs('values-grid')} className="section-padding" aria-labelledby="values-heading">
         <div className="container-width">
           <h2 id="values-heading" className="text-center text-3xl font-bold text-gray-900 sm:text-4xl">
             {data.headline}
@@ -114,7 +116,7 @@ export default function ValuesGridSection({ data }: ValuesGridSectionProps) {
   const isNumbered = style === 'numbered';
 
   return (
-    <section className={`${isNumbered ? 'bg-gray-50 ' : ''}section-padding`} aria-labelledby="values-heading">
+    <section {...blockAttrs('values-grid')} className={`${isNumbered ? 'bg-gray-50 ' : ''}section-padding`} aria-labelledby="values-heading">
       <div className="container-width">
         <h2 id="values-heading" className="text-center text-3xl font-bold text-gray-900 sm:text-4xl">
           {data.headline}

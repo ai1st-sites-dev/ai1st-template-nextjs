@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { pagesByLocale, localeUrl } from '@/lib/config';
+import { blockAttrs } from '@/lib/sections/blockAttrs';
 
 interface ServiceRelatedPagesSectionProps {
   data: {
@@ -19,7 +20,7 @@ export default function ServiceRelatedPagesSection({ data, locale }: ServiceRela
   if (relatedPages.length === 0) return null;
 
   return (
-    <section className="section-padding bg-gray-50" aria-labelledby="related-pages-heading">
+    <section {...blockAttrs('service-related-pages')} className="section-padding bg-gray-50" aria-labelledby="related-pages-heading">
       <div className="container-width">
         <div className="text-center">
           <h2 id="related-pages-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">

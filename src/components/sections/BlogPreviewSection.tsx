@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getBlogPosts, localeUrl } from '@/lib/config';
 import type { BlogPostConfig } from '@/lib/types/config';
+import { blockAttrs } from '@/lib/sections/blockAttrs';
 
 interface BlogPost {
   title: string;
@@ -81,7 +82,7 @@ export default function BlogPreviewSection({ data, locale }: BlogPreviewSectionP
 
   if (variant === 'list') {
     return (
-      <section className="section-padding" aria-labelledby="blog-heading">
+      <section {...blockAttrs('blog-preview')} className="section-padding" aria-labelledby="blog-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="blog-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -128,7 +129,7 @@ export default function BlogPreviewSection({ data, locale }: BlogPreviewSectionP
   if (variant === 'featured') {
     const [featured, ...rest] = displayPosts;
     return (
-      <section className="section-padding" aria-labelledby="blog-heading">
+      <section {...blockAttrs('blog-preview')} className="section-padding" aria-labelledby="blog-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="blog-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -180,7 +181,7 @@ export default function BlogPreviewSection({ data, locale }: BlogPreviewSectionP
   }
 
   return (
-    <section className="section-padding" aria-labelledby="blog-heading">
+    <section {...blockAttrs('blog-preview')} className="section-padding" aria-labelledby="blog-heading">
       <div className="container-width">
         <div className="text-center">
           <h2 id="blog-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">

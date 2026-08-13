@@ -1,3 +1,5 @@
+import { blockAttrs } from '@/lib/sections/blockAttrs';
+
 interface Step {
   title: string;
   description: string;
@@ -17,7 +19,7 @@ export default function ProcessStepsSection({ data }: ProcessStepsSectionProps) 
 
   if (variant === 'cards') {
     return (
-      <section className="section-padding" aria-labelledby="process-heading">
+      <section {...blockAttrs('process-steps')} className="section-padding" aria-labelledby="process-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="process-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -47,7 +49,7 @@ export default function ProcessStepsSection({ data }: ProcessStepsSectionProps) 
 
   if (variant === 'zigzag') {
     return (
-      <section className="section-padding" aria-labelledby="process-heading">
+      <section {...blockAttrs('process-steps')} className="section-padding" aria-labelledby="process-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="process-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -83,7 +85,7 @@ export default function ProcessStepsSection({ data }: ProcessStepsSectionProps) 
 
   if (variant === 'icon-strip') {
     return (
-      <section className="section-padding" aria-labelledby="process-heading">
+      <section {...blockAttrs('process-steps')} className="section-padding" aria-labelledby="process-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="process-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -115,7 +117,7 @@ export default function ProcessStepsSection({ data }: ProcessStepsSectionProps) 
 
   if (variant === 'vertical') {
     return (
-      <section className="section-padding" aria-labelledby="process-heading">
+      <section {...blockAttrs('process-steps')} className="section-padding" aria-labelledby="process-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="process-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -149,7 +151,7 @@ export default function ProcessStepsSection({ data }: ProcessStepsSectionProps) 
   }
 
   return (
-    <section className="bg-gray-50 section-padding" aria-labelledby="process-heading">
+    <section {...blockAttrs('process-steps')} className="bg-gray-50 section-padding" aria-labelledby="process-heading">
       <div className="container-width">
         <div className="text-center">
           <h2 id="process-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">

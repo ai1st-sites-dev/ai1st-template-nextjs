@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { blockAttrs } from '@/lib/sections/blockAttrs';
 
 interface Highlight {
   title: string;
@@ -28,7 +29,7 @@ export default function ServiceHighlightsSection({ data }: ServiceHighlightsSect
 
   if (variant === 'tabs') {
     return (
-      <section className="section-padding" aria-labelledby="highlights-heading">
+      <section {...blockAttrs('service-highlights')} className="section-padding" aria-labelledby="highlights-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="highlights-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -79,7 +80,7 @@ export default function ServiceHighlightsSection({ data }: ServiceHighlightsSect
 
   if (variant === 'accordion') {
     return (
-      <section className="section-padding" aria-labelledby="highlights-heading">
+      <section {...blockAttrs('service-highlights')} className="section-padding" aria-labelledby="highlights-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="highlights-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -134,7 +135,7 @@ export default function ServiceHighlightsSection({ data }: ServiceHighlightsSect
 
   if (variant === 'split') {
     return (
-      <section className="section-padding" aria-labelledby="highlights-heading">
+      <section {...blockAttrs('service-highlights')} className="section-padding" aria-labelledby="highlights-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="highlights-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -185,7 +186,7 @@ export default function ServiceHighlightsSection({ data }: ServiceHighlightsSect
         : 'md:grid-cols-3';
 
   return (
-    <section className="section-padding" aria-labelledby="highlights-heading">
+    <section {...blockAttrs('service-highlights')} className="section-padding" aria-labelledby="highlights-heading">
       <div className="container-width">
         <div className="text-center">
           <h2 id="highlights-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">

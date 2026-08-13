@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { blockAttrs } from '@/lib/sections/blockAttrs';
 
 interface Breadcrumb {
   label: string;
@@ -19,7 +20,7 @@ export default function PageHeaderSection({ data }: PageHeaderSectionProps) {
 
   if (variant === 'minimal') {
     return (
-      <section className="bg-white">
+      <section {...blockAttrs('page-header')} className="bg-white">
         <div className="container-width px-4 py-16 sm:px-6 md:py-20 lg:px-8">
           {data.breadcrumbs && (
             <nav aria-label="Breadcrumb" className="mb-4">
@@ -52,7 +53,7 @@ export default function PageHeaderSection({ data }: PageHeaderSectionProps) {
 
   if (variant === 'centered') {
     return (
-      <section className="bg-gradient-to-br from-primary-900 to-primary-700 text-white">
+      <section {...blockAttrs('page-header')} className="bg-gradient-to-br from-primary-900 to-primary-700 text-white">
         <div className="container-width px-4 py-24 text-center sm:px-6 lg:px-8">
           {data.breadcrumbs && (
             <nav aria-label="Breadcrumb" className="mb-4">
@@ -85,7 +86,7 @@ export default function PageHeaderSection({ data }: PageHeaderSectionProps) {
 
   if (variant === 'with-description') {
     return (
-      <section className="bg-gradient-to-br from-primary-900 to-primary-700 text-white">
+      <section {...blockAttrs('page-header')} className="bg-gradient-to-br from-primary-900 to-primary-700 text-white">
         <div className="container-width px-4 py-16 sm:px-6 md:py-20 lg:px-8">
           <div className="grid items-end gap-8 lg:grid-cols-2">
             <div>
@@ -123,7 +124,7 @@ export default function PageHeaderSection({ data }: PageHeaderSectionProps) {
   }
 
   return (
-    <section className="bg-gradient-to-br from-primary-900 to-primary-700 text-white">
+    <section {...blockAttrs('page-header')} className="bg-gradient-to-br from-primary-900 to-primary-700 text-white">
       <div className="container-width px-4 py-16 sm:px-6 md:py-20 lg:px-8">
         {data.breadcrumbs && (
           <nav aria-label="Breadcrumb" className="mb-4">

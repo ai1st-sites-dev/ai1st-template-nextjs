@@ -1,3 +1,5 @@
+import { blockAttrs } from '@/lib/sections/blockAttrs';
+
 interface TimelineEvent {
   year: string;
   title: string;
@@ -18,7 +20,7 @@ export default function TimelineSection({ data }: TimelineSectionProps) {
 
   if (variant === 'horizontal') {
     return (
-      <section className="section-padding" aria-labelledby="timeline-heading">
+      <section {...blockAttrs('timeline')} className="section-padding" aria-labelledby="timeline-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="timeline-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -54,7 +56,7 @@ export default function TimelineSection({ data }: TimelineSectionProps) {
 
   if (variant === 'milestone') {
     return (
-      <section className="section-padding" aria-labelledby="timeline-heading">
+      <section {...blockAttrs('timeline')} className="section-padding" aria-labelledby="timeline-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="timeline-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -87,7 +89,7 @@ export default function TimelineSection({ data }: TimelineSectionProps) {
 
   if (variant === 'compact') {
     return (
-      <section className="section-padding" aria-labelledby="timeline-heading">
+      <section {...blockAttrs('timeline')} className="section-padding" aria-labelledby="timeline-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="timeline-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -118,7 +120,7 @@ export default function TimelineSection({ data }: TimelineSectionProps) {
 
   // Default: vertical
   return (
-    <section className="section-padding" aria-labelledby="timeline-heading">
+    <section {...blockAttrs('timeline')} className="section-padding" aria-labelledby="timeline-heading">
       <div className="container-width">
         <div className="text-center">
           <h2 id="timeline-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">

@@ -1,4 +1,5 @@
 import { getLabels } from '@/lib/component-labels';
+import { blockAttrs } from '@/lib/sections/blockAttrs';
 
 interface NewsletterSignupSectionProps {
   data: {
@@ -17,7 +18,7 @@ export default function NewsletterSignupSection({ data, locale }: NewsletterSign
 
   if (variant === 'card') {
     return (
-      <section className="bg-gray-50 section-padding" aria-labelledby="newsletter-heading">
+      <section {...blockAttrs('newsletter-signup')} className="bg-gray-50 section-padding" aria-labelledby="newsletter-heading">
         <div className="container-width">
           <div className="mx-auto max-w-lg rounded-2xl bg-white p-10 text-center shadow-lg">
             <h2 id="newsletter-heading" className="text-2xl font-bold text-gray-900">
@@ -49,7 +50,7 @@ export default function NewsletterSignupSection({ data, locale }: NewsletterSign
 
   if (variant === 'minimal') {
     return (
-      <section className="border-y bg-gray-50 py-4" aria-labelledby="newsletter-heading">
+      <section {...blockAttrs('newsletter-signup')} className="border-y bg-gray-50 py-4" aria-labelledby="newsletter-heading">
         <div className="container-width">
           <form action="#" className="flex flex-col items-center gap-3 sm:flex-row">
             <h2 id="newsletter-heading" className="shrink-0 text-sm font-bold text-gray-900">
@@ -76,7 +77,7 @@ export default function NewsletterSignupSection({ data, locale }: NewsletterSign
 
   if (variant === 'split') {
     return (
-      <section className="section-padding" aria-labelledby="newsletter-heading">
+      <section {...blockAttrs('newsletter-signup')} className="section-padding" aria-labelledby="newsletter-heading">
         <div className="container-width">
           <div className="grid items-center gap-12 lg:grid-cols-2">
             <div>
@@ -112,7 +113,7 @@ export default function NewsletterSignupSection({ data, locale }: NewsletterSign
 
   // Default: inline
   return (
-    <section className="bg-primary-500 py-8" aria-labelledby="newsletter-heading">
+    <section {...blockAttrs('newsletter-signup')} className="bg-primary-500 py-8" aria-labelledby="newsletter-heading">
       <div className="container-width text-center">
         <h2 id="newsletter-heading" className="text-xl font-bold text-white">
           {data.headline}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { blockAttrs } from '@/lib/sections/blockAttrs';
 
 interface Testimonial {
   id: string;
@@ -28,7 +29,7 @@ export default function TestimonialsSection({ data }: TestimonialsSectionProps) 
   if (variant === 'carousel') {
     const current = data.items[activeIndex];
     return (
-      <section className="section-padding" aria-labelledby="testimonials-heading">
+      <section {...blockAttrs('testimonials')} className="section-padding" aria-labelledby="testimonials-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="testimonials-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -73,7 +74,7 @@ export default function TestimonialsSection({ data }: TestimonialsSectionProps) 
 
   if (variant === 'quote-wall') {
     return (
-      <section className="bg-primary-900 section-padding" aria-labelledby="testimonials-heading">
+      <section {...blockAttrs('testimonials')} className="bg-primary-900 section-padding" aria-labelledby="testimonials-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="testimonials-heading" className="text-3xl font-bold text-white sm:text-4xl">
@@ -107,7 +108,7 @@ export default function TestimonialsSection({ data }: TestimonialsSectionProps) 
 
   if (variant === 'minimal') {
     return (
-      <section className="section-padding" aria-labelledby="testimonials-heading">
+      <section {...blockAttrs('testimonials')} className="section-padding" aria-labelledby="testimonials-heading">
         <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <h2 id="testimonials-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -141,7 +142,7 @@ export default function TestimonialsSection({ data }: TestimonialsSectionProps) 
     // Large featured testimonial + smaller side cards
     const [featured, ...rest] = data.items;
     return (
-      <section className="bg-gray-50 section-padding" aria-labelledby="testimonials-heading">
+      <section {...blockAttrs('testimonials')} className="bg-gray-50 section-padding" aria-labelledby="testimonials-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="testimonials-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -205,7 +206,7 @@ export default function TestimonialsSection({ data }: TestimonialsSectionProps) 
   }
 
   return (
-    <section className="section-padding" aria-labelledby="testimonials-heading">
+    <section {...blockAttrs('testimonials')} className="section-padding" aria-labelledby="testimonials-heading">
       <div className="container-width">
         <div className="text-center">
           <h2 id="testimonials-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">

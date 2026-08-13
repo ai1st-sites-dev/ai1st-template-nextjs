@@ -1,3 +1,5 @@
+import { blockAttrs } from '@/lib/sections/blockAttrs';
+
 interface SocialProofSectionProps {
   data: {
     headline: string;
@@ -55,7 +57,7 @@ export default function SocialProofSection({ data }: SocialProofSectionProps) {
 
   if (variant === 'badges') {
     return (
-      <section className="section-padding" aria-labelledby="social-proof-heading">
+      <section {...blockAttrs('social-proof')} className="section-padding" aria-labelledby="social-proof-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="social-proof-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -83,7 +85,7 @@ export default function SocialProofSection({ data }: SocialProofSectionProps) {
 
   if (variant === 'review-platforms') {
     return (
-      <section className="section-padding" aria-labelledby="social-proof-heading">
+      <section {...blockAttrs('social-proof')} className="section-padding" aria-labelledby="social-proof-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="social-proof-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -110,7 +112,7 @@ export default function SocialProofSection({ data }: SocialProofSectionProps) {
 
   if (variant === 'highlight') {
     return (
-      <section className="bg-primary-900 section-padding" aria-labelledby="social-proof-heading">
+      <section {...blockAttrs('social-proof')} className="bg-primary-900 section-padding" aria-labelledby="social-proof-heading">
         <div className="container-width">
           <div className="mx-auto max-w-3xl text-center">
             <div className="flex justify-center">
@@ -147,7 +149,7 @@ export default function SocialProofSection({ data }: SocialProofSectionProps) {
   ];
 
   return (
-    <section className="section-padding" aria-labelledby="social-proof-heading">
+    <section {...blockAttrs('social-proof')} className="section-padding" aria-labelledby="social-proof-heading">
       <div className="container-width">
         <div className="mx-auto max-w-2xl text-center">
           <h2 id="social-proof-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { blockAttrs } from '@/lib/sections/blockAttrs';
 
 interface FaqItem {
   question: string;
@@ -53,7 +54,7 @@ export default function FaqAccordionSection({ data }: FaqAccordionSectionProps) 
 
   if (variant === 'cards') {
     return (
-      <section className="section-padding" aria-labelledby="faq-heading">
+      <section {...blockAttrs('faq-accordion')} className="section-padding" aria-labelledby="faq-heading">
         <div className="container-width">
           <div className="mx-auto max-w-3xl">
             <div className="text-center">
@@ -99,7 +100,7 @@ export default function FaqAccordionSection({ data }: FaqAccordionSectionProps) 
 
   if (variant === 'numbered') {
     return (
-      <section className="section-padding" aria-labelledby="faq-heading">
+      <section {...blockAttrs('faq-accordion')} className="section-padding" aria-labelledby="faq-heading">
         <div className="container-width">
           <div className="mx-auto max-w-3xl">
             <div className="text-center">
@@ -145,7 +146,7 @@ export default function FaqAccordionSection({ data }: FaqAccordionSectionProps) 
 
   if (variant === 'two-column') {
     return (
-      <section className="section-padding" aria-labelledby="faq-heading">
+      <section {...blockAttrs('faq-accordion')} className="section-padding" aria-labelledby="faq-heading">
         <div className="container-width">
           <div className="grid gap-12 lg:grid-cols-5">
             <div className="lg:col-span-2">
@@ -166,7 +167,7 @@ export default function FaqAccordionSection({ data }: FaqAccordionSectionProps) 
   }
 
   return (
-    <section className="section-padding" aria-labelledby="faq-heading">
+    <section {...blockAttrs('faq-accordion')} className="section-padding" aria-labelledby="faq-heading">
       <div className="container-width">
         <div className="mx-auto max-w-3xl">
           <div className="text-center">

@@ -1,3 +1,5 @@
+import { blockAttrs } from '@/lib/sections/blockAttrs';
+
 interface ChecklistSectionProps {
   data: {
     headline: string;
@@ -12,7 +14,7 @@ export default function ChecklistSection({ data }: ChecklistSectionProps) {
 
   if (variant === 'cards') {
     return (
-      <section className="section-padding" aria-labelledby="checklist-heading">
+      <section {...blockAttrs('checklist')} className="section-padding" aria-labelledby="checklist-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="checklist-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -39,7 +41,7 @@ export default function ChecklistSection({ data }: ChecklistSectionProps) {
 
   if (variant === 'icon-grid') {
     return (
-      <section className="section-padding" aria-labelledby="checklist-heading">
+      <section {...blockAttrs('checklist')} className="section-padding" aria-labelledby="checklist-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="checklist-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -68,7 +70,7 @@ export default function ChecklistSection({ data }: ChecklistSectionProps) {
 
   if (variant === 'numbered-steps') {
     return (
-      <section className="section-padding" aria-labelledby="checklist-heading">
+      <section {...blockAttrs('checklist')} className="section-padding" aria-labelledby="checklist-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="checklist-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -98,7 +100,7 @@ export default function ChecklistSection({ data }: ChecklistSectionProps) {
 
   // Default: two-column
   return (
-    <section className="section-padding" aria-labelledby="checklist-heading">
+    <section {...blockAttrs('checklist')} className="section-padding" aria-labelledby="checklist-heading">
       <div className="container-width">
         <div className="text-center">
           <h2 id="checklist-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">

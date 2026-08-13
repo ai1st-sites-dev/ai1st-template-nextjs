@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { blockAttrs } from '@/lib/sections/blockAttrs';
 
 interface AnnouncementBarSectionProps {
   data: {
@@ -19,7 +20,7 @@ export default function AnnouncementBarSection({ data }: AnnouncementBarSectionP
     if (hidden) return null;
 
     return (
-      <div className="bg-accent-500 py-3" role="banner" aria-label="Announcement">
+      <div {...blockAttrs('announcement-bar')} className="bg-accent-500 py-3" role="banner" aria-label="Announcement">
         <div className="container-width flex items-center justify-center">
           <p className="flex-1 text-center text-sm font-medium text-white">
             {data.message}
@@ -49,7 +50,7 @@ export default function AnnouncementBarSection({ data }: AnnouncementBarSectionP
 
   if (variant === 'floating') {
     return (
-      <div className="py-3" role="banner" aria-label="Announcement">
+      <div {...blockAttrs('announcement-bar')} className="py-3" role="banner" aria-label="Announcement">
         <div className="mx-auto max-w-2xl rounded-full bg-white px-6 py-3 shadow-lg">
           <div className="flex items-center justify-center gap-3">
             <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-accent-500" aria-hidden="true" />
@@ -75,7 +76,7 @@ export default function AnnouncementBarSection({ data }: AnnouncementBarSectionP
 
   if (variant === 'bordered') {
     return (
-      <div className="border-b-2 border-accent-500 bg-white py-3" role="banner" aria-label="Announcement">
+      <div {...blockAttrs('announcement-bar')} className="border-b-2 border-accent-500 bg-white py-3" role="banner" aria-label="Announcement">
         <div className="container-width text-center">
           <p className="text-sm font-medium text-gray-900">
             {data.message}
@@ -95,7 +96,7 @@ export default function AnnouncementBarSection({ data }: AnnouncementBarSectionP
 
   // Default: solid
   return (
-    <div className="bg-accent-500 py-3" role="banner" aria-label="Announcement">
+    <div {...blockAttrs('announcement-bar')} className="bg-accent-500 py-3" role="banner" aria-label="Announcement">
       <div className="container-width text-center">
         <p className="text-sm font-medium text-white">
           {data.message}

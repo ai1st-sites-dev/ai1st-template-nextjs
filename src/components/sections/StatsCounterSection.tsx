@@ -1,3 +1,5 @@
+import { blockAttrs } from '@/lib/sections/blockAttrs';
+
 interface Stat {
   value: string;
   label: string;
@@ -42,7 +44,7 @@ export default function StatsCounterSection({ data }: StatsCounterSectionProps) 
 
   if (variant === 'cards') {
     return (
-      <section className="section-padding" aria-label="Statistics">
+      <section {...blockAttrs('stats-counter')} className="section-padding" aria-label="Statistics">
         <div className="container-width">
           {data.headline && (
             <h2 className="mb-12 text-center text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -64,7 +66,7 @@ export default function StatsCounterSection({ data }: StatsCounterSectionProps) 
 
   if (variant === 'gradient') {
     return (
-      <section className="section-padding" aria-label="Statistics">
+      <section {...blockAttrs('stats-counter')} className="section-padding" aria-label="Statistics">
         <div className="container-width">
           {data.headline && (
             <h2 className="mb-12 text-center text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -89,7 +91,7 @@ export default function StatsCounterSection({ data }: StatsCounterSectionProps) 
 
   if (variant === 'icon') {
     return (
-      <section className="section-padding" aria-label="Statistics">
+      <section {...blockAttrs('stats-counter')} className="section-padding" aria-label="Statistics">
         <div className="container-width">
           {data.headline && (
             <h2 className="mb-12 text-center text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -114,7 +116,7 @@ export default function StatsCounterSection({ data }: StatsCounterSectionProps) 
 
   if (variant === 'dark') {
     return (
-      <section className="bg-primary-900 py-16" aria-label="Statistics">
+      <section {...blockAttrs('stats-counter')} className="bg-primary-900 py-16" aria-label="Statistics">
         <div className="container-width">
           {data.headline && (
             <h2 className="mb-12 text-center text-3xl font-bold text-white sm:text-4xl">
@@ -141,7 +143,7 @@ export default function StatsCounterSection({ data }: StatsCounterSectionProps) 
 
   if (variant === 'inline') {
     return (
-      <section className="border-y border-gray-200 py-8" aria-label="Statistics">
+      <section {...blockAttrs('stats-counter')} className="border-y border-gray-200 py-8" aria-label="Statistics">
         <div className="container-width">
           {data.headline && (
             <p className="mb-6 text-center text-sm font-semibold uppercase tracking-wider text-gray-500">
@@ -162,7 +164,7 @@ export default function StatsCounterSection({ data }: StatsCounterSectionProps) 
   }
 
   return (
-    <section className="border-y bg-primary-900 py-12" aria-label="Statistics">
+    <section {...blockAttrs('stats-counter')} className="border-y bg-primary-900 py-12" aria-label="Statistics">
       <div className="container-width">
         {data.headline && (
           <p className="mb-8 text-center text-sm font-semibold uppercase tracking-wider text-primary-300">

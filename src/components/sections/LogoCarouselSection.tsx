@@ -1,3 +1,5 @@
+import { blockAttrs } from '@/lib/sections/blockAttrs';
+
 interface LogoCarouselSectionProps {
   data: {
     headline?: string;
@@ -11,7 +13,7 @@ export default function LogoCarouselSection({ data }: LogoCarouselSectionProps) 
 
   if (variant === 'bordered') {
     return (
-      <section className="section-padding" aria-label="Partners and certifications">
+      <section {...blockAttrs('logo-carousel')} className="section-padding" aria-label="Partners and certifications">
         <div className="container-width">
           {data.headline && (
             <h2 className="mb-10 text-center text-2xl font-bold text-gray-900 sm:text-3xl">
@@ -32,7 +34,7 @@ export default function LogoCarouselSection({ data }: LogoCarouselSectionProps) 
 
   if (variant === 'dark') {
     return (
-      <section className="border-y border-primary-800 bg-primary-900 py-8" aria-label="Partners and certifications">
+      <section {...blockAttrs('logo-carousel')} className="border-y border-primary-800 bg-primary-900 py-8" aria-label="Partners and certifications">
         <div className="container-width">
           {data.headline && (
             <p className="mb-6 text-center text-sm font-semibold uppercase tracking-wider text-primary-400">
@@ -53,7 +55,7 @@ export default function LogoCarouselSection({ data }: LogoCarouselSectionProps) 
 
   if (variant === 'grid') {
     return (
-      <section className="section-padding" aria-label="Partners and certifications">
+      <section {...blockAttrs('logo-carousel')} className="section-padding" aria-label="Partners and certifications">
         <div className="container-width">
           {data.headline && (
             <h2 className="mb-10 text-center text-2xl font-bold text-gray-900 sm:text-3xl">
@@ -74,7 +76,7 @@ export default function LogoCarouselSection({ data }: LogoCarouselSectionProps) 
 
   // Scrolling marquee variant
   return (
-    <section className="overflow-hidden border-y bg-white py-8" aria-label="Partners and certifications">
+    <section {...blockAttrs('logo-carousel')} className="overflow-hidden border-y bg-white py-8" aria-label="Partners and certifications">
       <div className="container-width">
         {data.headline && (
           <p className="mb-6 text-center text-sm font-semibold uppercase tracking-wider text-gray-500">

@@ -1,3 +1,5 @@
+import { blockAttrs } from '@/lib/sections/blockAttrs';
+
 interface DividerSectionProps {
   data: {
     label?: string;
@@ -10,7 +12,7 @@ export default function DividerSection({ data }: DividerSectionProps) {
 
   if (variant === 'wave') {
     return (
-      <div className="w-full leading-none" aria-hidden="true">
+      <div {...blockAttrs('divider')} className="w-full leading-none" aria-hidden="true">
         <svg
           className="block w-full"
           viewBox="0 0 1440 60"
@@ -29,7 +31,7 @@ export default function DividerSection({ data }: DividerSectionProps) {
 
   if (variant === 'gradient-bar') {
     return (
-      <div className="w-full" role="separator">
+      <div {...blockAttrs('divider')} className="w-full" role="separator">
         {data.label && (
           <p className="mb-2 text-center text-sm text-gray-500">{data.label}</p>
         )}
@@ -40,7 +42,7 @@ export default function DividerSection({ data }: DividerSectionProps) {
 
   if (variant === 'icon') {
     return (
-      <div className="flex items-center py-8" role="separator" aria-label={data.label || 'Section divider'}>
+      <div {...blockAttrs('divider')} className="flex items-center py-8" role="separator" aria-label={data.label || 'Section divider'}>
         <div className="flex-1 border-t border-gray-300" aria-hidden="true" />
         <div className="mx-4 h-3 w-3 rounded-full bg-primary-500" aria-hidden="true" />
         <div className="flex-1 border-t border-gray-300" aria-hidden="true" />
@@ -50,7 +52,7 @@ export default function DividerSection({ data }: DividerSectionProps) {
 
   // Default: line
   return (
-    <div className="relative py-8" role="separator" aria-label={data.label || 'Section divider'}>
+    <div {...blockAttrs('divider')} className="relative py-8" role="separator" aria-label={data.label || 'Section divider'}>
       <div className="border-t border-gray-300" aria-hidden="true" />
       {data.label && (
         <div className="absolute inset-0 flex items-center justify-center">

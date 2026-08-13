@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import ServiceIcon from '@/components/ServiceIcon';
 import { getServices, pagesByLocale, localeUrl } from '@/lib/config';
+import { blockAttrs } from '@/lib/sections/blockAttrs';
 
 interface FeaturesGridSectionProps {
   data: {
@@ -30,7 +31,7 @@ export default function FeaturesGridSection({ data, locale }: FeaturesGridSectio
 
   if (variant === 'list') {
     return (
-      <section className="section-padding" aria-labelledby="services-heading">
+      <section {...blockAttrs('features-grid')} className="section-padding" aria-labelledby="services-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="services-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -66,7 +67,7 @@ export default function FeaturesGridSection({ data, locale }: FeaturesGridSectio
 
   if (variant === 'alternating') {
     return (
-      <section className="section-padding" aria-labelledby="services-heading">
+      <section {...blockAttrs('features-grid')} className="section-padding" aria-labelledby="services-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="services-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -102,7 +103,7 @@ export default function FeaturesGridSection({ data, locale }: FeaturesGridSectio
 
   if (variant === 'minimal') {
     return (
-      <section className="section-padding" aria-labelledby="services-heading">
+      <section {...blockAttrs('features-grid')} className="section-padding" aria-labelledby="services-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="services-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -138,7 +139,7 @@ export default function FeaturesGridSection({ data, locale }: FeaturesGridSectio
 
   if (variant === 'bordered') {
     return (
-      <section className="section-padding" aria-labelledby="services-heading">
+      <section {...blockAttrs('features-grid')} className="section-padding" aria-labelledby="services-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="services-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -169,7 +170,7 @@ export default function FeaturesGridSection({ data, locale }: FeaturesGridSectio
   }
 
   return (
-    <section className="section-padding" aria-labelledby="services-heading">
+    <section {...blockAttrs('features-grid')} className="section-padding" aria-labelledby="services-heading">
       <div className="container-width">
         <div className="text-center">
           <h2 id="services-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">

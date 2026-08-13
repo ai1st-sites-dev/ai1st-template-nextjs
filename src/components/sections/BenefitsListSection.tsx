@@ -1,3 +1,5 @@
+import { blockAttrs } from '@/lib/sections/blockAttrs';
+
 interface BenefitsListSectionProps {
   data: {
     headline: string;
@@ -19,7 +21,7 @@ export default function BenefitsListSection({ data }: BenefitsListSectionProps) 
 
   if (variant === 'icon-large') {
     return (
-      <section className="section-padding" aria-labelledby="benefits-heading">
+      <section {...blockAttrs('benefits-list')} className="section-padding" aria-labelledby="benefits-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="benefits-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -58,7 +60,7 @@ export default function BenefitsListSection({ data }: BenefitsListSectionProps) 
 
   if (variant === 'numbered-large') {
     return (
-      <section className="section-padding" aria-labelledby="benefits-heading">
+      <section {...blockAttrs('benefits-list')} className="section-padding" aria-labelledby="benefits-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="benefits-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -93,7 +95,7 @@ export default function BenefitsListSection({ data }: BenefitsListSectionProps) 
 
   if (variant === 'cards-horizontal') {
     return (
-      <section className="section-padding" aria-labelledby="benefits-heading">
+      <section {...blockAttrs('benefits-list')} className="section-padding" aria-labelledby="benefits-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="benefits-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -128,7 +130,7 @@ export default function BenefitsListSection({ data }: BenefitsListSectionProps) 
 
   // Default: alternating
   return (
-    <section className="section-padding" aria-labelledby="benefits-heading">
+    <section {...blockAttrs('benefits-list')} className="section-padding" aria-labelledby="benefits-heading">
       <div className="container-width">
         <div className="text-center">
           <h2 id="benefits-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">

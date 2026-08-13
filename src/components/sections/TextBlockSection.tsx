@@ -1,3 +1,5 @@
+import { blockAttrs } from '@/lib/sections/blockAttrs';
+
 interface TextBlockSectionProps {
   data: {
     headline?: string;
@@ -16,7 +18,7 @@ export default function TextBlockSection({ data }: TextBlockSectionProps) {
 
   if (variant === 'two-column') {
     return (
-      <section className={`${bgClass}section-padding`} aria-labelledby={data.headline ? 'text-block-heading' : undefined}>
+      <section {...blockAttrs('text-block')} className={`${bgClass}section-padding`} aria-labelledby={data.headline ? 'text-block-heading' : undefined}>
         <div className="container-width">
           <div className="mx-auto max-w-4xl">
             {data.headline && (
@@ -35,7 +37,7 @@ export default function TextBlockSection({ data }: TextBlockSectionProps) {
 
   if (variant === 'highlight-box') {
     return (
-      <section className={`${bgClass}section-padding`} aria-labelledby={data.headline ? 'text-block-heading' : undefined}>
+      <section {...blockAttrs('text-block')} className={`${bgClass}section-padding`} aria-labelledby={data.headline ? 'text-block-heading' : undefined}>
         <div className="container-width">
           <div className="mx-auto max-w-3xl rounded-r-xl border-l-4 border-primary-500 bg-primary-50 p-8">
             {data.headline && (
@@ -54,7 +56,7 @@ export default function TextBlockSection({ data }: TextBlockSectionProps) {
 
   if (variant === 'quote') {
     return (
-      <section className={`${bgClass}section-padding`} aria-labelledby={data.headline ? 'text-block-heading' : undefined}>
+      <section {...blockAttrs('text-block')} className={`${bgClass}section-padding`} aria-labelledby={data.headline ? 'text-block-heading' : undefined}>
         <div className="container-width">
           <div className="mx-auto max-w-3xl text-center">
             {data.headline && (
@@ -83,7 +85,7 @@ export default function TextBlockSection({ data }: TextBlockSectionProps) {
 
   if (variant === 'with-list') {
     return (
-      <section className={`${bgClass}section-padding`} aria-labelledby={data.headline ? 'text-block-heading' : undefined}>
+      <section {...blockAttrs('text-block')} className={`${bgClass}section-padding`} aria-labelledby={data.headline ? 'text-block-heading' : undefined}>
         <div className="container-width">
           <div className={`mx-auto max-w-3xl ${data.centered ? 'text-center' : ''}`}>
             {data.headline && (
@@ -113,7 +115,7 @@ export default function TextBlockSection({ data }: TextBlockSectionProps) {
   }
 
   return (
-    <section className={`${bgClass}section-padding`} aria-labelledby={data.headline ? 'text-block-heading' : undefined}>
+    <section {...blockAttrs('text-block')} className={`${bgClass}section-padding`} aria-labelledby={data.headline ? 'text-block-heading' : undefined}>
       <div className="container-width">
         <div className={`mx-auto max-w-3xl ${data.centered ? 'text-center' : ''}`}>
           {data.headline && (

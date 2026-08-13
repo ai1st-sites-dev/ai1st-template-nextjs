@@ -81,6 +81,47 @@ const previewTrustedOrigin = (() => {
 //   out ai1st:theme-preview-ack    → the answer. Its ABSENCE within the modal's timeout is what
 //                                    tells the modal this site was built before this code existed.
 //
+// #978 阶段 0 加了第二条通道，它自己的三个名字（`…-css*`）和自己的 ack：
+//   in  ai1st:theme-preview-css-ping → answer, change nothing. 顺带把这一页有哪些 block 报上去。
+//   in  ai1st:theme-preview-css      → { css: "<一段 CSS 文本>" } 注入它，然后答。
+//   out ai1st:theme-preview-css-ack  → { blocks:[{type,role}…], ignored:[type…], refused:bool }
+//   （清掉走的还是 `ai1st:theme-preview-reset` —— 一个 Cancel 收两条通道，不再多一个名字。）
+//
+// 🔴 为什么必须是【新名字】而不是给 `ai1st:theme-preview` 加字段（PM 在 #978 r1 量的）：下面那个
+// 监听器只对**不认识的类型**才不回话。沿用旧名字的话，老构建照样回 ack、弹窗以为版式预览成功了，
+// 而屏幕上只有颜色变了 —— UI 在说假话。新名字让老构建自然不认识 ⟹ 弹窗等不到回话，诚实地说
+// 「这个站要重建一次才能预览版式」。
+//
+// ── #978 版式那一半的四条理由（写在这里而不是脚本里面：脚本是个模板字符串，反引号进不去）──
+//
+// 🔴 ① 注入的 CSS 自带一行 `main{display:flex;flex-direction:column}`，不靠发的人记得带上。
+// block 全在 `<main class="flex-1">` 里面（`SiteShell.tsx:18`），而它是普通块级容器 ⟹ `order` 对它的
+// 子元素不生效。PM 在真产物上量过（1280×900、四个 block）：只注入 order，四个 y 坐标
+// `0 · 740 · 1343 · 1799` 一个都没动；先补那一行再注入 ⟹ `2074 · 0 · 603 · 1059`。
+// 另一种写法 `main{display:contents}` 同样有效（他两种都量了，都不改变原页面），但它把 main 的盒子整个
+// 去掉、`flex-1` 跟着失效，内容很短的页面页脚可能不再被顶到底部 —— 能不去掉盒子就不去掉（作者定）。
+// 四个页面入口（首页 / `[...slug]` / blog / blog 详情）全部经 `SiteShell`，补一次就够。
+//
+// 🔴 ② 「这个 essential 还看得见吗」判据是**它画不画得出盒子**（`getClientRects().length`），不是它自己的
+// computed display。后者对「祖先被藏了」按构造失明：父元素 `display:none` 时，子元素自己的 computed
+// display 仍然是 `block` —— 而藏掉整块 block 恰恰是最容易写出来的那种规则。
+// （同一个洞在 `scripts/theme-css-invariants.mjs:150` 那条不变量里也在，那是 #991 的面，本票没碰。）
+//
+// 🔴 ③ 挡下隐藏 essential 的判据是**量出来的后果**（这条规则命中了那个元素或它的某个祖先），不是拿正则去
+// 猜选择器长什么样。所以按角色写的 `[data-role="essential"]{display:none}`（契约 §3 点名的那一条）和按类型
+// 写的 `[data-block="contact-info"]{display:none}`（契约没写、而这是发的人真会写的那种）一起被盖住。
+// 摘的是我们自己那张表里的那条 display 声明，站点本来的样式一个字都不碰。
+//
+// 🔴 ④ 注入之前先量一次。本来就画不出盒子的那些（站点自己的响应式隐藏等）不是我们造成的，也不该报成
+// 「我们挡下了一条规则」。少了这一臂，读数就从"我们让谁不见了"变成"注入之后谁不见了"。
+//
+// 📌 `st` 是**现在注入着的那份 CSS 的性质**（挡下了哪几块 / 是不是整份没要），每一次回话都带上它，ping
+// 也带。发的人会反复 ping（它得知道预览框有没有换页、有没有重载），要是 ping 的回话把这两个数报成空的，
+// 弹窗上那句提示会在下一次 ping 时自己消失，而那条被挡下的规则还在。
+// 📌 摘不掉的那种（例如整块 block 被藏、而 essential 是它的子元素）⟹ 整份不要。essential 不许被藏是
+// 硬的，「只生效一半」比「没生效」更难解释。
+// 📌 脚本里一条注释都不留：它是内联进**每一个站的每一页**的字节。#925 那一半也是这个规矩。
+//
 // 🔴 Why an override <style> element and not writing on document.documentElement.style: Cancel has
 // to restore EXACTLY what the site had, and what it had is not always the registry's palette — an
 // AI edit can change brand.json's colours. Emptying an override element restores the original
@@ -90,10 +131,14 @@ function buildThemePreviewScript(trustedOrigin: string): string {
   return `(function(){
 if(window.parent===window)return;
 var T=${JSON.stringify(trustedOrigin)};
-var s=null,f=null;
+var s=null,f=null,c=null;
 function els(){
   if(!s){s=document.createElement('style');s.id='ai1st-theme-preview';document.head.appendChild(s);}
   if(!f){f=document.createElement('link');f.id='ai1st-theme-preview-font';f.rel='stylesheet';document.head.appendChild(f);}
+}
+function cssEl(){
+  if(!c){c=document.createElement('style');c.id='ai1st-theme-preview-css';document.head.appendChild(c);}
+  return c;
 }
 function paint(t){
   els();
@@ -127,11 +172,77 @@ function paint(t){
   if(t&&typeof t.googleFontsUrl==='string'&&/^https:\\/\\/fonts\\.googleapis\\.com\\//.test(t.googleFontsUrl)){f.href=t.googleFontsUrl;}
   else{f.removeAttribute('href');}
 }
-function clear(){if(s){s.textContent='';}if(f){f.removeAttribute('href');}}
+function clear(){if(s){s.textContent='';}if(f){f.removeAttribute('href');}if(c){c.textContent='';}st={ignored:[],refused:false};}
+var MAIN_FLEX='main{display:flex;flex-direction:column}';
+var st={ignored:[],refused:false};
+function blockList(){
+  var out=[],ns=document.querySelectorAll('[data-block]'),i;
+  for(i=0;i<ns.length;i++){out.push({type:ns[i].getAttribute('data-block'),role:ns[i].getAttribute('data-role')||''});}
+  return out;
+}
+function unseen(){
+  var out=[],ns=document.querySelectorAll('[data-role="essential"]'),i;
+  for(i=0;i<ns.length;i++){if(ns[i].getClientRects().length===0){out.push(ns[i]);}}
+  return out;
+}
+function nameOf(el){
+  var n=el;
+  while(n&&n!==document.body){if(n.getAttribute&&n.getAttribute('data-block')){return n.getAttribute('data-block');}n=n.parentNode;}
+  return '?';
+}
+function chainMatches(el,sel){
+  var n=el;
+  while(n&&n.nodeType===1){try{if(n.matches(sel))return true;}catch(err){return false;}if(n===document.body)break;n=n.parentNode;}
+  return false;
+}
+function unhide(els){
+  var names=[],sheet=c&&c.sheet;
+  if(!sheet)return names;
+  function scan(rules){
+    for(var j=0;j<rules.length;j++){
+      var r=rules[j];
+      if(r.cssRules&&r.cssRules.length){scan(r.cssRules);continue;}
+      if(!r.selectorText||!r.style)continue;
+      if((r.style.getPropertyValue('display')||'').replace(/\\s/g,'')!=='none')continue;
+      for(var k=0;k<els.length;k++){
+        if(chainMatches(els[k],r.selectorText)){
+          r.style.removeProperty('display');
+          var nm=nameOf(els[k]);
+          if(names.indexOf(nm)<0)names.push(nm);
+        }
+      }
+    }
+  }
+  scan(sheet.cssRules);
+  return names;
+}
+function paintCss(text){
+  var el=cssEl(),i,k,before=unseen(),newly=[],now,still=[];
+  el.textContent=MAIN_FLEX+text;
+  now=unseen();
+  for(i=0;i<now.length;i++){if(before.indexOf(now[i])<0){newly.push(now[i]);}}
+  if(newly.length===0){st={ignored:[],refused:false};return;}
+  var ignored=unhide(newly);
+  now=unseen();
+  for(i=0;i<now.length;i++){if(before.indexOf(now[i])<0){still.push(nameOf(now[i]));}}
+  if(still.length){
+    el.textContent='';
+    for(k=0;k<still.length;k++){if(ignored.indexOf(still[k])<0)ignored.push(still[k]);}
+    st={ignored:ignored,refused:true};
+    return;
+  }
+  st={ignored:ignored,refused:false};
+}
 window.addEventListener('message',function(e){
   if(e.origin!==T)return;
   var d=e.data;
   if(!d||typeof d!=='object')return;
+  if(d.type==='ai1st:theme-preview-css'||d.type==='ai1st:theme-preview-css-ping'){
+    if(d.type==='ai1st:theme-preview-css'){paintCss(typeof d.css==='string'?d.css:'');}
+    try{window.parent.postMessage({type:'ai1st:theme-preview-css-ack',blocks:blockList(),
+      ignored:st.ignored,refused:st.refused,applied:!!(c&&c.textContent)},T);}catch(err){}
+    return;
+  }
   if(d.type==='ai1st:theme-preview'){paint(d.theme);}
   else if(d.type==='ai1st:theme-preview-reset'){clear();}
   else if(d.type!=='ai1st:theme-preview-ping'){return;}

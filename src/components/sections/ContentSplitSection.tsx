@@ -1,4 +1,5 @@
 import { getLabels } from '@/lib/component-labels';
+import { blockAttrs } from '@/lib/sections/blockAttrs';
 
 interface ContentSplitSectionProps {
   data: {
@@ -18,7 +19,7 @@ export default function ContentSplitSection({ data, locale }: ContentSplitSectio
 
   if (variant === 'text-right') {
     return (
-      <section className="section-padding" aria-labelledby="content-split-heading">
+      <section {...blockAttrs('content-split')} className="section-padding" aria-labelledby="content-split-heading">
         <div className="container-width">
           <div className="grid items-center gap-12 lg:grid-cols-2">
             <div className="lg:order-2">
@@ -52,7 +53,7 @@ export default function ContentSplitSection({ data, locale }: ContentSplitSectio
 
   if (variant === 'text-left-stats') {
     return (
-      <section className="section-padding" aria-labelledby="content-split-heading">
+      <section {...blockAttrs('content-split')} className="section-padding" aria-labelledby="content-split-heading">
         <div className="container-width">
           <div className="grid items-center gap-12 lg:grid-cols-2">
             <div>
@@ -83,7 +84,7 @@ export default function ContentSplitSection({ data, locale }: ContentSplitSectio
 
   if (variant === 'text-right-list') {
     return (
-      <section className="section-padding" aria-labelledby="content-split-heading">
+      <section {...blockAttrs('content-split')} className="section-padding" aria-labelledby="content-split-heading">
         <div className="container-width">
           <div className="grid items-center gap-12 lg:grid-cols-2">
             <div>
@@ -122,7 +123,7 @@ export default function ContentSplitSection({ data, locale }: ContentSplitSectio
   if (variant === 'cards-row') {
     const cards = data.bullets && data.bullets?.length > 0 ? data.bullets?.slice(0, 3) : [];
     return (
-      <section className="section-padding" aria-labelledby="content-split-heading">
+      <section {...blockAttrs('content-split')} className="section-padding" aria-labelledby="content-split-heading">
         <div className="container-width">
           <div className="mx-auto max-w-3xl text-center">
             <h2 id="content-split-heading" className="text-3xl font-bold text-gray-900">
@@ -154,7 +155,7 @@ export default function ContentSplitSection({ data, locale }: ContentSplitSectio
 
   if (variant === 'centered-overlay') {
     return (
-      <section className="bg-gradient-to-br from-primary-100 to-accent-50 section-padding" aria-labelledby="content-split-heading">
+      <section {...blockAttrs('content-split')} className="bg-gradient-to-br from-primary-100 to-accent-50 section-padding" aria-labelledby="content-split-heading">
         <div className="container-width flex justify-center">
           <div className="max-w-3xl rounded-2xl bg-white/90 p-12 shadow-lg">
             <h2 id="content-split-heading" className="text-center text-3xl font-bold text-gray-900">
@@ -183,7 +184,7 @@ export default function ContentSplitSection({ data, locale }: ContentSplitSectio
 
   // Default: text-left
   return (
-    <section className="section-padding" aria-labelledby="content-split-heading">
+    <section {...blockAttrs('content-split')} className="section-padding" aria-labelledby="content-split-heading">
       <div className="container-width">
         <div className="grid items-center gap-12 lg:grid-cols-2">
           <div>

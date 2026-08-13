@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef } from 'react';
+import { blockAttrs } from '@/lib/sections/blockAttrs';
 
 interface GalleryItem {
   title: string;
@@ -43,7 +44,7 @@ export default function GallerySection({ data }: GallerySectionProps) {
 
   if (variant === 'carousel') {
     return (
-      <section className="section-padding" aria-labelledby="gallery-heading">
+      <section {...blockAttrs('gallery')} className="section-padding" aria-labelledby="gallery-heading">
         <div className="container-width">
           <div className="flex items-end justify-between">
             <div>
@@ -111,7 +112,7 @@ export default function GallerySection({ data }: GallerySectionProps) {
 
   if (variant === 'overlay') {
     return (
-      <section className="section-padding" aria-labelledby="gallery-heading">
+      <section {...blockAttrs('gallery')} className="section-padding" aria-labelledby="gallery-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="gallery-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -152,7 +153,7 @@ export default function GallerySection({ data }: GallerySectionProps) {
 
   if (variant === 'masonry') {
     return (
-      <section className="section-padding" aria-labelledby="gallery-heading">
+      <section {...blockAttrs('gallery')} className="section-padding" aria-labelledby="gallery-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="gallery-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -196,7 +197,7 @@ export default function GallerySection({ data }: GallerySectionProps) {
   }
 
   return (
-    <section className="bg-gray-50 section-padding" aria-labelledby="gallery-heading">
+    <section {...blockAttrs('gallery')} className="bg-gray-50 section-padding" aria-labelledby="gallery-heading">
       <div className="container-width">
         <div className="text-center">
           <h2 id="gallery-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">

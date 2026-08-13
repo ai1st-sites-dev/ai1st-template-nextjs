@@ -1,3 +1,5 @@
+import { blockAttrs } from '@/lib/sections/blockAttrs';
+
 interface Area {
   name: string;
   description?: string;
@@ -17,7 +19,7 @@ export default function MapAreaSection({ data }: MapAreaSectionProps) {
 
   if (variant === 'cards') {
     return (
-      <section className="section-padding" aria-labelledby="areas-heading">
+      <section {...blockAttrs('map-area')} className="section-padding" aria-labelledby="areas-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="areas-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -47,7 +49,7 @@ export default function MapAreaSection({ data }: MapAreaSectionProps) {
 
   if (variant === 'badge') {
     return (
-      <section className="section-padding" aria-labelledby="areas-heading">
+      <section {...blockAttrs('map-area')} className="section-padding" aria-labelledby="areas-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="areas-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -78,7 +80,7 @@ export default function MapAreaSection({ data }: MapAreaSectionProps) {
     const rightAreas = data.areas?.slice(midpoint);
 
     return (
-      <section className="section-padding" aria-labelledby="areas-heading">
+      <section {...blockAttrs('map-area')} className="section-padding" aria-labelledby="areas-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="areas-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -123,7 +125,7 @@ export default function MapAreaSection({ data }: MapAreaSectionProps) {
 
   // Default: list
   return (
-    <section className="section-padding" aria-labelledby="areas-heading">
+    <section {...blockAttrs('map-area')} className="section-padding" aria-labelledby="areas-heading">
       <div className="container-width">
         <div className="text-center">
           <h2 id="areas-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">

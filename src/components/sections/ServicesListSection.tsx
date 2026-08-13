@@ -2,6 +2,7 @@ import Link from 'next/link';
 import ServiceIcon from '@/components/ServiceIcon';
 import { getServices, pagesByLocale, localeUrl } from '@/lib/config';
 import { getLabels } from '@/lib/component-labels';
+import { blockAttrs } from '@/lib/sections/blockAttrs';
 
 export default function ServicesListSection({ locale }: { locale: string }) {
   const services = getServices(locale);
@@ -12,7 +13,7 @@ export default function ServicesListSection({ locale }: { locale: string }) {
   );
 
   return (
-    <div className="container-width px-4 py-16 sm:px-6 lg:px-8">
+    <div {...blockAttrs('services-list')} className="container-width px-4 py-16 sm:px-6 lg:px-8">
       {services.map((service, index) => (
         <article
           key={service.id}

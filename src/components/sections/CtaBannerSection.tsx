@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { blockAttrs } from '@/lib/sections/blockAttrs';
 
 interface CtaBannerSectionProps {
   data: {
@@ -14,7 +15,7 @@ export default function CtaBannerSection({ data }: CtaBannerSectionProps) {
 
   if (variant === 'gradient') {
     return (
-      <section className="bg-gradient-to-r from-primary-600 to-accent-500 section-padding" aria-labelledby="cta-heading">
+      <section {...blockAttrs('cta-banner')} className="bg-gradient-to-r from-primary-600 to-accent-500 section-padding" aria-labelledby="cta-heading">
         <div className="container-width text-center">
           <h2 id="cta-heading" className="text-3xl font-bold text-white sm:text-4xl">
             {data.headline}
@@ -34,7 +35,7 @@ export default function CtaBannerSection({ data }: CtaBannerSectionProps) {
 
   if (variant === 'split') {
     return (
-      <section className="section-padding" aria-labelledby="cta-heading">
+      <section {...blockAttrs('cta-banner')} className="section-padding" aria-labelledby="cta-heading">
         <div className="container-width">
           <div className="grid items-center gap-8 lg:grid-cols-2">
             <div>
@@ -58,7 +59,7 @@ export default function CtaBannerSection({ data }: CtaBannerSectionProps) {
 
   if (variant === 'dark') {
     return (
-      <section className="relative bg-primary-900 section-padding" aria-labelledby="cta-heading">
+      <section {...blockAttrs('cta-banner')} className="relative bg-primary-900 section-padding" aria-labelledby="cta-heading">
         <div className="absolute inset-0 bg-[url('/images/grid-pattern.svg')] opacity-10" />
         <div className="container-width relative text-center">
           <h2 id="cta-heading" className="text-3xl font-bold text-white sm:text-4xl">
@@ -79,7 +80,7 @@ export default function CtaBannerSection({ data }: CtaBannerSectionProps) {
 
   if (variant === 'outlined') {
     return (
-      <section className="section-padding" aria-labelledby="cta-heading">
+      <section {...blockAttrs('cta-banner')} className="section-padding" aria-labelledby="cta-heading">
         <div className="container-width">
           <div className="rounded-2xl border-2 border-primary-200 bg-primary-50 px-8 py-16 text-center sm:px-16">
             <h2 id="cta-heading" className="text-3xl font-bold text-primary-900 sm:text-4xl">
@@ -100,7 +101,7 @@ export default function CtaBannerSection({ data }: CtaBannerSectionProps) {
   }
 
   return (
-    <section className="bg-primary-500 section-padding" aria-labelledby="cta-heading">
+    <section {...blockAttrs('cta-banner')} className="bg-primary-500 section-padding" aria-labelledby="cta-heading">
       <div className="container-width text-center">
         <h2 id="cta-heading" className="text-3xl font-bold text-white sm:text-4xl">
           {data.headline}

@@ -1,4 +1,5 @@
 import { brand } from '@/lib/config';
+import { blockAttrs } from '@/lib/sections/blockAttrs';
 
 interface ContactInfoSectionProps {
   data: {
@@ -12,7 +13,7 @@ export default function ContactInfoSection({ data }: ContactInfoSectionProps) {
 
   if (variant === 'map-style') {
     return (
-      <section className="section-padding" aria-labelledby="locations-heading">
+      <section {...blockAttrs('contact-info')} className="section-padding" aria-labelledby="locations-heading">
         <div className="container-width">
           <h2 id="locations-heading" className="text-center text-3xl font-bold text-gray-900">
             {data.headline}
@@ -43,7 +44,7 @@ export default function ContactInfoSection({ data }: ContactInfoSectionProps) {
 
   if (variant === 'banner') {
     return (
-      <section className="border-y bg-gray-50 py-6" aria-labelledby="locations-heading">
+      <section {...blockAttrs('contact-info')} className="border-y bg-gray-50 py-6" aria-labelledby="locations-heading">
         <div className="container-width">
           <h2 id="locations-heading" className="sr-only">{data.headline}</h2>
           <div className="flex flex-wrap items-center justify-center">
@@ -67,7 +68,7 @@ export default function ContactInfoSection({ data }: ContactInfoSectionProps) {
 
   if (variant === 'inline') {
     return (
-      <section className="bg-gray-50 section-padding" aria-labelledby="locations-heading">
+      <section {...blockAttrs('contact-info')} className="bg-gray-50 section-padding" aria-labelledby="locations-heading">
         <div className="container-width">
           <h2 id="locations-heading" className="text-center text-3xl font-bold text-gray-900">
             {data.headline}
@@ -94,7 +95,7 @@ export default function ContactInfoSection({ data }: ContactInfoSectionProps) {
   }
 
   return (
-    <section className="section-padding" aria-labelledby="locations-heading">
+    <section {...blockAttrs('contact-info')} className="section-padding" aria-labelledby="locations-heading">
       <div className="container-width">
         <h2 id="locations-heading" className="text-center text-3xl font-bold text-gray-900">
           {data.headline}

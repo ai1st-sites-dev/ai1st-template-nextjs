@@ -1,3 +1,5 @@
+import { blockAttrs } from '@/lib/sections/blockAttrs';
+
 interface TeamMember {
   name: string;
   role: string;
@@ -18,7 +20,7 @@ export default function TeamGridSection({ data }: TeamGridSectionProps) {
 
   if (variant === 'card-with-social') {
     return (
-      <section className="section-padding" aria-labelledby="team-heading">
+      <section {...blockAttrs('team-grid')} className="section-padding" aria-labelledby="team-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="team-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -57,7 +59,7 @@ export default function TeamGridSection({ data }: TeamGridSectionProps) {
 
   if (variant === 'centered') {
     return (
-      <section className="section-padding" aria-labelledby="team-heading">
+      <section {...blockAttrs('team-grid')} className="section-padding" aria-labelledby="team-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="team-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -88,7 +90,7 @@ export default function TeamGridSection({ data }: TeamGridSectionProps) {
 
   if (variant === 'compact') {
     return (
-      <section className="section-padding" aria-labelledby="team-heading">
+      <section {...blockAttrs('team-grid')} className="section-padding" aria-labelledby="team-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="team-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -117,7 +119,7 @@ export default function TeamGridSection({ data }: TeamGridSectionProps) {
   }
 
   return (
-    <section className="bg-gray-50 section-padding" aria-labelledby="team-heading">
+    <section {...blockAttrs('team-grid')} className="bg-gray-50 section-padding" aria-labelledby="team-heading">
       <div className="container-width">
         <div className="text-center">
           <h2 id="team-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">

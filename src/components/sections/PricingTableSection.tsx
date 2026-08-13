@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { blockAttrs } from '@/lib/sections/blockAttrs';
 
 interface PricingTier {
   name: string;
@@ -28,7 +29,7 @@ export default function PricingTableSection({ data }: PricingTableSectionProps) 
 
   if (variant === 'minimal') {
     return (
-      <section className="section-padding" aria-labelledby="pricing-heading">
+      <section {...blockAttrs('pricing-table')} className="section-padding" aria-labelledby="pricing-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="pricing-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -71,7 +72,7 @@ export default function PricingTableSection({ data }: PricingTableSectionProps) 
   if (variant === 'toggle') {
     const suffix = billingPeriod === 'monthly' ? '/mo' : '/yr';
     return (
-      <section className="bg-gray-50 section-padding" aria-labelledby="pricing-heading">
+      <section {...blockAttrs('pricing-table')} className="bg-gray-50 section-padding" aria-labelledby="pricing-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="pricing-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -131,7 +132,7 @@ export default function PricingTableSection({ data }: PricingTableSectionProps) 
 
   if (variant === 'comparison') {
     return (
-      <section className="section-padding" aria-labelledby="pricing-heading">
+      <section {...blockAttrs('pricing-table')} className="section-padding" aria-labelledby="pricing-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="pricing-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -171,7 +172,7 @@ export default function PricingTableSection({ data }: PricingTableSectionProps) 
   }
 
   return (
-    <section className="bg-gray-50 section-padding" aria-labelledby="pricing-heading">
+    <section {...blockAttrs('pricing-table')} className="bg-gray-50 section-padding" aria-labelledby="pricing-heading">
       <div className="container-width">
         <div className="text-center">
           <h2 id="pricing-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
