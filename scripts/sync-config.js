@@ -5,7 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { themes, layoutFor, rhythmFor } = require('./themes');
+const { themes, layoutFor, rhythmFor, themesMissingRhythm } = require('./themes');
 const { resolveRegionLayout } = require('./region-layout');
 
 const rootDir = path.resolve(__dirname, '..');
@@ -329,6 +329,22 @@ if (appliedThemeId) {
 //           say "proof before features" without knowing what else the page contains.
 //
 // Page JSON on disk is never touched, same as the layout table above.
+//
+// 🔴 #983 — the registry is checked WHOLE here, before the applied theme's own rhythm is read, and a theme
+// with no rhythm — including one that states nothing, `{ hide: [], order: [] }`, which used to pass every
+// check while its build moved nothing — is now a build error rather than "pace the page as the JSON does".
+// It runs on every build
+// (this file is predev/prebuild) and it is deliberately NOT conditional on `appliedThemeId`: the failure it
+// catches is a registry that lost a rhythm, and that has nothing to do with which site is being built. The
+// old behaviour is what Chris hit on assurance-teal — the skeleton did not move and nothing said why.
+const missingRhythm = themesMissingRhythm();
+if (missingRhythm.length) {
+  console.error(`🔴 ${missingRhythm.length} theme(s) in scripts/themes.js define no Block rhythm (no key at ` +
+    'all, or one that states nothing), and every theme must define its own (#983 — Chris 2026-08-12: ' +
+    '"a theme with no rhythm has no reason to exist"). Give each of these a non-empty ' +
+    `\`rhythm: { hide: [...], order: [...] }\`:\n  ${missingRhythm.join('\n  ')}`);
+  process.exit(1);
+}
 if (appliedThemeId) {
   let rhythm;
   try {
