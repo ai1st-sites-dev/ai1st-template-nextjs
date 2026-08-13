@@ -781,10 +781,45 @@ async function main() {
     JSON.stringify({ siteId, leadApi: process.env.LEAD_API_BASE || '', defaultLocale, locales: allLocales }, null, 2) + '\n'
   );
 
+  // Pick theme.
+  // #924: when the caller doesn't name a theme we rotate through the candidate pool for the
+  // industry instead of always handing out the same one. Manager sends themeRotationIndex —
+  // a counter that goes up by one per site the user creates — so six shops in the same trade
+  // walk six different slots. No index (anonymous create / DB read failed) → hash the siteId,
+  // which still spreads, just without the guarantee.
+  // #984: this used to sit after the skipAI branch returned, so demo sites never got a theme at
+  // all — no site/theme.json (the Theme dialog had nothing to mark as current) and a hardcoded
+  // blue palette that belongs to no registered theme. Both paths pick here now.
+  const themeRotationIndex = Number.isInteger(input.themeRotationIndex) && input.themeRotationIndex >= 0
+    ? input.themeRotationIndex
+    : rotationIndexFromSiteId(siteId);
+  const themeName = (template && template !== 'ai' && themes[template]) ? template : pickThemeForIndustry(industry, themeRotationIndex);
+  const theme = themes[themeName];
+  debug(`Theme: ${themeName} — ${theme.label} (rotation index ${themeRotationIndex})`);
+
+  // #924: record which theme this site got. `applied: false` = the owner never actively
+  // changed themes, so the registry's layout preferences stay out of the build and the page
+  // JSON's own variants keep deciding — same output as before this file knew about themes.
+  // The Edit page's "change theme" flow (#925) rewrites this file with applied: true.
+  fs.writeFileSync(
+    path.join(siteDir, 'theme.json'),
+    JSON.stringify({ themeId: themeName, applied: false }, null, 2) + '\n'
+  );
+
   // ── Skip AI mode: use demo config ──
   if (input.skipAI) {
     progress('Setting up demo site (no AI)...', 10);
     const content = getDemoConfig(siteId);
+    // #984: the demo site wears the theme we just picked, same registry the AI path reads.
+    // getDemoConfig's own palette is a hardcoded blue that matches no registered theme, so
+    // without this the themeId in theme.json would name a theme the site isn't using — the
+    // Theme dialog's Current mark would be pointing at the wrong one.
+    // settings comes along for the same reason it does on the AI path (#986): a site that was
+    // never re-dressed in the dashboard would otherwise miss the theme's rounding/spacing/shadows
+    // until someone applied a theme once.
+    content.brand.colors = theme.colors;
+    content.brand.fonts = theme.fonts;
+    content.brand.settings = theme.settings;
     // TICKET-136: getDemoConfig returns name as a string; convert to Record
     // keyed by defaultLocale and merge in any brandNameByLocale overrides so
     // brand.json matches the per-locale schema even in skipAI fixtures.
@@ -843,28 +878,6 @@ async function main() {
   }
 
   progress('Setting up project...', 5);
-
-  // Pick theme.
-  // #924: when the caller doesn't name a theme we rotate through the candidate pool for the
-  // industry instead of always handing out the same one. Manager sends themeRotationIndex —
-  // a counter that goes up by one per site the user creates — so six shops in the same trade
-  // walk six different slots. No index (anonymous create / DB read failed) → hash the siteId,
-  // which still spreads, just without the guarantee.
-  const themeRotationIndex = Number.isInteger(input.themeRotationIndex) && input.themeRotationIndex >= 0
-    ? input.themeRotationIndex
-    : rotationIndexFromSiteId(siteId);
-  const themeName = (template && template !== 'ai' && themes[template]) ? template : pickThemeForIndustry(industry, themeRotationIndex);
-  const theme = themes[themeName];
-  debug(`Theme: ${themeName} — ${theme.label} (rotation index ${themeRotationIndex})`);
-
-  // #924: record which theme this site got. `applied: false` = the owner never actively
-  // changed themes, so the registry's layout preferences stay out of the build and the page
-  // JSON's own variants keep deciding — same output as before this file knew about themes.
-  // The Edit page's "change theme" flow (#925) rewrites this file with applied: true.
-  fs.writeFileSync(
-    path.join(siteDir, 'theme.json'),
-    JSON.stringify({ themeId: themeName, applied: false }, null, 2) + '\n'
-  );
 
   progress('AI is designing your website...', 15);
 
