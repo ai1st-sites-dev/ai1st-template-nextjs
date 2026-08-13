@@ -49,6 +49,53 @@ function readAppliedThemeId() {
 }
 const appliedThemeId = readAppliedThemeId();
 
+// #991 — THE THEME **CSS** SHEET, WHICH IS A DIFFERENT SWITCH FROM `applied` ABOVE.
+//
+//     { "themeId": "ocean-blue", "applied": true, "css": "hero-media-left" }
+//
+// `applied` decides whether the REGISTRY (a JS object) takes over colours, fonts and section
+// variants. `css` names a stylesheet in `public/themes/` that owns LAYOUT for the blocks that have
+// been made neutral — today that is hero and nothing else (phase 1 of
+// docs/superpowers/specs/2026-08-12-theme-css-architecture-design.md).
+//
+// 🔴 THE FIELD DOES TWO THINGS AT ONCE, AND THAT IS THE POINT. It emits the <link> in layout.tsx AND
+// it flips hero to its neutral markup. Neutral markup with no sheet is a hero with no layout at all,
+// so the two must not be separately settable. Absent (every site that exists today) ⟹ neither
+// happens and the build output is byte-for-byte what it was.
+//
+// 🔴 The name is checked against the FILE, not against a list kept here: a list is a second place to
+// forget. A missing sheet fails the build by name — same shape as #962's illegal rhythm key, and for
+// the same reason (a site that silently builds with no hero styling looks like a broken theme, and
+// nothing would say which of the two it was).
+function readThemeCss() {
+  const themePath = path.join(siteDir, 'theme.json');
+  if (!fs.existsSync(themePath)) return '';
+  let meta;
+  try {
+    meta = JSON.parse(fs.readFileSync(themePath, 'utf-8'));
+  } catch {
+    return ''; // readAppliedThemeId above already reported the parse error and exited.
+  }
+  const name = meta && typeof meta.css === 'string' ? meta.css.trim() : '';
+  if (!name) return '';
+  // Slug only. This value reaches an href and a filesystem path, and `../` in either is a way out
+  // of the directory — refuse rather than sanitise, so a typo is loud instead of silently rewritten.
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(name)) {
+    console.error(`theme.json css "${name}" is not a valid sheet name (lowercase letters, digits and hyphens)`);
+    process.exit(1);
+  }
+  const sheet = path.join(rootDir, 'public', 'themes', `${name}.css`);
+  if (!fs.existsSync(sheet)) {
+    const available = fs.existsSync(path.join(rootDir, 'public', 'themes'))
+      ? fs.readdirSync(path.join(rootDir, 'public', 'themes')).filter(f => f.endsWith('.css')).join(', ')
+      : '(public/themes does not exist)';
+    console.error(`theme.json css "${name}" names public/themes/${name}.css, which is not there. Available: ${available}`);
+    process.exit(1);
+  }
+  return name;
+}
+const themeCss = readThemeCss();
+
 // TICKET-127: backward-compat for pre-122a legacy single-locale schema. Old
 // sites have a flat `site/{brand,seo,services,navigation}.json + site/pages/`
 // layout with no site_meta.json and `brand.tagline` as a string (not Record).
@@ -401,6 +448,11 @@ const regionLayout = resolveRegionLayout(
 console.log(`  Regions: header=${regionLayout.header} footer=${regionLayout.footer}` +
   (regionLayout.headerScrim ? ' (+scrim)' : ''));
 for (const note of regionLayout.notes) console.log(`    · ${note}`);
+// #991 — say it out loud either way. "No sheet" and "a sheet that did nothing" look identical on the
+// page, and the theme-gallery loop greps this kind of line to tell a real application from a no-op.
+console.log(themeCss
+  ? `  Theme CSS: public/themes/${themeCss}.css — hero renders its neutral markup`
+  : '  Theme CSS: none — every block keeps its own variant markup');
 
 const configDataPath = path.join(rootDir, 'src', 'lib', 'config-data.ts');
 // TICKET-268b: build-time env overrides site_meta (lets the deploy pick the env's manager URL).
@@ -417,6 +469,8 @@ export const navigationByLocale = ${JSON.stringify(navigationByLocale)};
 export const pagesByLocale = ${JSON.stringify(pagesByLocale)};
 export const blogPostsByLocale = ${JSON.stringify(blogPostsByLocale)};
 export const regionLayout = ${JSON.stringify(regionLayout)};
+// #991 — name of the stylesheet in public/themes/ that owns block layout, '' when this site has none.
+export const themeCss = ${JSON.stringify(themeCss)};
 `;
 fs.writeFileSync(configDataPath, tsContent);
 console.log('  Generated src/lib/config-data.ts');

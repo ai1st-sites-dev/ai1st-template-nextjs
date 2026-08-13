@@ -1,0 +1,78 @@
+/* theme-css-contract: v1
+   hero-media-right — words on the left, a wide picture on the right, mid height, light and airy.
+
+   #991 phase 1. Same HTML as hero-media-left.css and hero-media-top.css; only this file differs. */
+
+.hero {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2.5rem;
+  min-height: 26rem;
+  padding: 3rem 1.5rem;
+  background-color: #ffffff;
+  color: #111827;
+}
+
+@media (min-width: 1024px) {
+  .hero {
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    gap: 3.5rem;
+    min-height: 32rem;
+    padding: 4rem 3rem;
+  }
+}
+
+.hero__media {
+  order: 3;
+  aspect-ratio: 16 / 10;
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid var(--color-primary-100);
+  background-color: var(--color-primary-50);
+}
+
+.hero__body {
+  order: 2;
+  max-width: 32rem;
+}
+
+.hero__title {
+  font-size: 2.25rem;
+  line-height: 1.15;
+  font-weight: 700;
+  color: var(--color-primary-900);
+}
+
+@media (min-width: 1024px) {
+  .hero__title {
+    font-size: 3rem;
+  }
+}
+
+.hero__sub {
+  margin-top: 1.25rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: #374151;
+}
+
+.hero__cta {
+  margin-top: 2rem;
+}
+
+/* Placed last, so the band sits under both columns. See the note in hero-media-left.css for why the
+   decoration must be given a cell rather than left to fall where it may. */
+.hero__deco {
+  order: 4;
+  grid-column: 1 / -1;
+  height: 0.375rem;
+  margin: 1rem -1.5rem -3rem;
+  background: linear-gradient(90deg, var(--color-primary-500), var(--color-accent-500));
+}
+
+@media (min-width: 1024px) {
+  .hero__deco {
+    margin: 2rem -3rem -4rem;
+  }
+}

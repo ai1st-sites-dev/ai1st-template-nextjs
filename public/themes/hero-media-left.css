@@ -1,0 +1,90 @@
+/* theme-css-contract: v1
+   hero-media-left — picture on the left, words on the right, tall and dark.
+
+   #991 phase 1. Layout lives here, not in the markup: the same HTML that produces this produces
+   hero-media-right.css and hero-media-top.css. Nothing below selects anything outside the contract's
+   hook list, and nothing sets a property outside its whitelist
+   (docs/reference/theme-css-contract.md). */
+
+.hero {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+  min-height: 34rem;
+  padding: 3rem 1.5rem;
+  background: linear-gradient(140deg, var(--color-primary-900), var(--color-primary-700));
+  color: #ffffff;
+}
+
+@media (min-width: 1024px) {
+  .hero {
+    grid-template-columns: 5fr 6fr;
+    align-items: center;
+    gap: 4rem;
+    min-height: 44rem;
+    padding: 5rem 4rem;
+  }
+}
+
+/* The picture comes FIRST here and second in hero-media-right.css. One property, and that is the
+   whole difference — swapping it in markup would have meant a second component. */
+.hero__media {
+  order: 2;
+  aspect-ratio: 4 / 5;
+  max-width: 34rem;
+  width: 100%;
+  border-radius: 1.5rem;
+  box-shadow: 0 30px 60px -20px rgb(0 0 0 / 0.55);
+  background-color: var(--color-primary-800);
+}
+
+.hero__body {
+  order: 3;
+  max-width: 34rem;
+}
+
+.hero__title {
+  font-size: 2.75rem;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+@media (min-width: 1024px) {
+  .hero__title {
+    font-size: 3.75rem;
+  }
+}
+
+.hero__sub {
+  margin-top: 1.5rem;
+  font-size: 1.125rem;
+  line-height: 1.7;
+  /* The lighter grey the old dark heroes used. Whether it clears 4.5:1 on this background is not
+     asserted here — the invariant checker measures it off the rendered page. */
+  color: #e5e7eb;
+}
+
+.hero__cta {
+  margin-top: 2.5rem;
+}
+
+/* 🔴 THE DECORATION IS A GRID ITEM LIKE ANY OTHER, AND IT IS PLACED, NOT FLOATED. It is a child of
+   `.hero`, so leaving it unplaced would give it a cell of its own and shove the picture across.
+   `grid-column: 1 / -1` + `order` is the contract-legal way to say "a full-width band, first".
+   `content` carries an empty string: a sheet may draw, never write — anything with words in it would
+   be on the page but absent from the DOM the structured data and the translations are built from. */
+.hero__deco {
+  order: 1;
+  grid-column: 1 / -1;
+  height: 0.5rem;
+  margin: -3rem -1.5rem 1rem;
+  background: linear-gradient(90deg, var(--color-accent-500), var(--color-primary-400));
+}
+
+@media (min-width: 1024px) {
+  .hero__deco {
+    margin: -5rem -4rem 2rem;
+  }
+}

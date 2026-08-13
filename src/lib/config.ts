@@ -12,6 +12,7 @@ import {
   pagesByLocale as _pagesByLocale,
   blogPostsByLocale as _blogPostsByLocale,
   regionLayout as _regionLayout,
+  themeCss as _themeCss,
 } from './config-data';
 
 export const brand = _brand as BrandConfig;
@@ -28,6 +29,10 @@ export const blogPostsByLocale = _blogPostsByLocale as Record<string, BlogPostCo
 // #960: 顶栏和页脚的结构。它们是 Region 不是 section,所以走的是自己的写出口(sync-config.js 的
 // §Regions),不是那张按 section.type 索引的偏好表 —— 那张表对它们按构造是瞎的。
 export const regionLayout = _regionLayout as RegionLayoutConfig;
+// #991 — the stylesheet in public/themes/ that owns block layout for this site, '' when it has none.
+// Empty is the state of every site built before this existed, and it is what keeps their output
+// identical: no <link> in layout.tsx, and hero keeps its variant markup.
+export const themeCss = _themeCss as string;
 
 export function isValidLocale(locale: string): boolean {
   return locales.includes(locale);

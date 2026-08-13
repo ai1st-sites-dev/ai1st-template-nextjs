@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { brand, getSeo, getBrandName, defaultLocale, siteId, leadApi } from '@/lib/config';
+import { brand, getSeo, getBrandName, defaultLocale, siteId, leadApi, themeCss } from '@/lib/config';
 import { settingsToCssVars, RADIUS, SHADOW, DENSITY, BUTTON_SHAPE } from '@/lib/themeSettings';
 
 const seo = getSeo(defaultLocale);
@@ -190,6 +190,14 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="stylesheet" href={brand.fonts.googleFontsUrl} />
+        {/* #991 — the theme stylesheet, and it is LAST on purpose: it is the layer that owns block
+            layout, so it has to win over globals.css without anyone reaching for `!important` (the
+            contract forbids that, and this is why it can). Absent for every site with no `css` field
+            in theme.json, which is all of them today — that is what keeps their HTML unchanged.
+            🔴 It lives in public/ rather than src/ so Tailwind's content globs (src/components,
+            src/app) cannot see it. If it moved under src/, Tailwind would not compile it — it would
+            SCAN it, and every word inside would become a candidate class name. */}
+        {themeCss && <link rel="stylesheet" href={`/themes/${themeCss}.css`} />}
         {brand.logoUrl ? (
           <link rel="icon" href={brand.logoUrl} />
         ) : (

@@ -94,3 +94,59 @@
     @apply mx-auto max-w-7xl;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   #991 — THE NEUTRAL HERO SKELETON. Structure only: what each part IS, never where it goes.
+   ══════════════════════════════════════════════════════════════════════════════════════════════
+   Phase 1 of docs/superpowers/specs/2026-08-12-theme-css-architecture-design.md. These rules match
+   ONLY the neutral markup, which HeroSection renders only when the site's theme.json names a
+   stylesheet — so on every site that exists today they select nothing and cost nothing.
+
+   🔴 WHAT BELONGS HERE vs IN A THEME SHEET. Here: the things that must be true whichever sheet is
+   loaded, so that a sheet which forgets a rule degrades instead of breaking (an <img> with no
+   object-fit stretches into a smear). There: layout, spacing, colour, size — the whole look.
+
+   🔴 `.hero__img` IS DELIBERATELY NOT A CONTRACT HOOK. Sheets size the picture through
+   `.hero__media`, and this rule makes the image fill whatever box they give it. Handing sheets the
+   <img> itself would let a generated theme set its own width/height and quietly fight the box it
+   sits in — two owners for one dimension.
+
+   🔴 NO `min-height` / `padding` / `background` HERE. A default for any of those would be a fourth
+   theme that every sheet has to override, and AC1's byte-identical HTML would not catch it: the
+   difference would be visual only. Sheets state their own.  */
+.hero {
+  display: block;
+  overflow: hidden;
+}
+
+.hero__media {
+  overflow: hidden;
+}
+
+.hero__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hero__cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+/* 🔴 THE OUTLINE BUTTON FOLLOWS THE HERO'S OWN TEXT COLOUR, AND IT HAS TO.
+   `.btn-secondary` is primary-500 text on a transparent background — written for a white page, and
+   the site's own class, which every other block uses unchanged. In the neutral hero the background
+   is the SHEET's decision: hero-media-left.css paints a dark blue gradient, and primary-500 on
+   primary-800 is a button you can barely see (measured on the first render of that sheet).
+   `currentColor` makes it inherit whatever `color` the sheet set on `.hero`, so it is legible on a
+   dark sheet and on a light one without either sheet saying anything about buttons.
+   📌 This lives in the structure layer, not in a theme sheet, on purpose: how a call-to-action looks
+   is the brand's decision, and letting 30 generated sheets each restyle it is a far bigger promise
+   than "the picture moves". The sheets have no hook for it (docs/reference/theme-css-contract.md). */
+.hero__cta .btn-secondary {
+  color: currentColor;
+  border-color: currentColor;
+}

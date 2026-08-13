@@ -5,5 +5,18 @@
   },
   "rules": {
     "no-undef": "error"
-  }
+  },
+  // #991 — .mjs files in this directory are ES modules. Without this override they parse as scripts
+  // and every `import` line is a syntax error. scripts/theme-gallery/ has carried its own copy of
+  // the same three lines since #963; theme-css-invariants.mjs is the first .mjs to live directly
+  // under scripts/, which is why the rule has to exist here too.
+  "overrides": [
+    {
+      "files": ["*.mjs"],
+      "parserOptions": {
+        "ecmaVersion": 2022,
+        "sourceType": "module"
+      }
+    }
+  ]
 }

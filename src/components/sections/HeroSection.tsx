@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { themeCss } from '@/lib/config';
 
 interface HeroSectionProps {
   data: {
@@ -14,6 +15,64 @@ interface HeroSectionProps {
 
 export default function HeroSection({ data }: HeroSectionProps) {
   const variant = data.variant || 'left';
+
+  // 🔴🔴 #991 — ONE MARKUP, THREE LOOKS. Phase 1 of the theme-CSS architecture
+  // (docs/superpowers/specs/2026-08-12-theme-css-architecture-design.md), proved on hero and on
+  // nothing else yet.
+  //
+  // Everything below this branch is the old world: nine variants, each one a different tree, with the
+  // layout written into Tailwind utilities (`lg:grid-cols-2`, `aspect-square`). A new look means new
+  // code, and a theme cannot move the picture from the right to the left because the picture's
+  // position IS the markup.
+  //
+  // Here the markup carries meaning only — what each part IS, never where it goes — and a stylesheet
+  // in public/themes/ decides the rest. The claim being tested is falsifiable and AC1 is how:
+  // build this three times with three different sheets and the HTML must come out byte-for-byte
+  // identical apart from the <link>. If any layout decision is still hiding in here, that fails.
+  //
+  // 🔴 WHY media AND body ARE SIBLINGS AND NOT NESTED: CSS grid only places CHILDREN. Wrapping them in
+  // the usual `<div class="container">` would let a sheet stack them but never swap their order or
+  // give one of them a different share of the row, which is exactly the difference the three sheets
+  // have to show. Flat is not tidiness here, it is the whole mechanism.
+  //
+  // 🔴 THE ROLE MARKS ARE LOAD-BEARING, NOT DECORATION (spec §4.2). `essential` is what a theme may
+  // never hide, and the invariant checker reads the computed display of exactly these attributes —
+  // with no `data-role` in the tree that check passes by having nothing to look at.
+  //
+  // 📌 The old branches stay. Phase 2 moves the remaining blocks one at a time and only then can any
+  // of this be deleted; a site with no `css` in its theme.json never reaches this line.
+  if (themeCss) {
+    return (
+      <section className="hero" data-block="hero">
+        {/* Decorative only, and empty on purpose: the contract gives sheets ::before/::after on this
+            hook to draw with. Anything a reader needs to KNOW belongs in the body below, where the
+            structured data and the translations can see it. */}
+        <div className="hero__deco" data-role="optional" aria-hidden="true" />
+        <div className="hero__media" data-role="optional">
+          {data.imageUrl ? (
+            <img className="hero__img" src={data.imageUrl} alt={data.headline} />
+          ) : null}
+        </div>
+        <div className="hero__body" data-role="essential">
+          <h1 className="hero__title">{data.headline}</h1>
+          <p className="hero__sub">{data.subheadline}</p>
+          <div className="hero__cta">
+            {/* 🔴 The buttons keep the SITE's button classes rather than getting hooks of their own.
+                A theme owns layout; what a primary button looks like is the brand's, and it already
+                follows the palette through CSS variables (globals.css @layer components). Giving
+                sheets a hook here would let one of the 30 themes quietly restyle every call to
+                action on the site, which is a much bigger promise than "the picture moves". */}
+            <Link href={data.ctaPrimary?.href ?? '#'} className="btn-accent text-lg">
+              {data.ctaPrimary?.label}
+            </Link>
+            <Link href={data.ctaSecondary?.href ?? '#'} className="btn-secondary text-lg">
+              {data.ctaSecondary?.label}
+            </Link>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   if (variant === 'split') {
     return (
