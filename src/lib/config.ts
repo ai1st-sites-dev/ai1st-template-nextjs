@@ -78,11 +78,12 @@ export function getHomePage(locale: string): DynamicPageConfig {
 // #960 — 「这一页的第一段是不是 hero」。透明浮层顶栏只在它为真时才浮起来,所以这个判断必须跟
 // 构建期那条对比度规则(scripts/region-layout.js 的 firstSectionHero)说的是同一件事。
 //
-// 🔴 数的是**画得出来的**第一段,不是数组的第 0 个:#962 起 theme 可以让某一类 block 不显示
+// 🔴 数的是**画得出来的**第一段,不是数组的第 0 个:站自己的页面 JSON 可以把某一段标成不显示
 // (`hidden`,SectionRenderer 直接 return null),而那一段仍然留在 sections 里。按第 0 个数会错两次 ——
 // ① 首段被藏起来、hero 排第二 ⟹ 屏幕上顶栏压着的就是 hero,却判成不浮
 // ② 藏的正好是 hero 本身 ⟹ 判成浮,而顶栏底下换成了下一段(多半是白底),白字压白底,谁都看不见。
-// ②今天造不出来(30 套没有一套藏 hero),但这条规则的立身之本就是不靠"今天的注册表恰好没有"。
+// ② 以前造不出来(那时只有主题能藏,30 套没有一套藏 hero);#993 之后藏不藏由站自己的页面 JSON 说了算,
+//    所以它现在是**造得出来的** —— 这两行本来就不该靠"今天恰好没有"活着。
 export function pageStartsWithHero(page: DynamicPageConfig | undefined): boolean {
   return page?.sections.find((s) => !s.hidden)?.type === 'hero';
 }

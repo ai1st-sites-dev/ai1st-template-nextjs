@@ -10,7 +10,8 @@ export default function SectionRenderer({ sections, locale }: SectionRendererPro
   return (
     <>
       {sections.map((section, index) => {
-        // #962 — the applied theme's rhythm hid this block. It is still in `sections` on purpose
+        // The site's own page JSON marked this block hidden — that is its only source since #993
+        // (spec D8 took the theme out of block placement). It is still in `sections` on purpose
         // (see SectionConfig.hidden): the page keeps its content, and whatever derives structured
         // data from the page's composition keeps seeing it. Only the rendering skips it.
         if (section.hidden) return null;

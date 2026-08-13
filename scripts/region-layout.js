@@ -95,7 +95,7 @@ function utilityShades() {
 
 // 一页的第一段是不是 hero。
 //
-// 🔴 数的是**画得出来的**第一段:#962 起 theme 可以让某一类 block 不显示(`hidden`,SectionRenderer
+// 🔴 数的是**画得出来的**第一段:站自己的页面 JSON 可以把某一段标成不显示(`hidden`,SectionRenderer
 // 直接 return null),而那一段仍然留在 sections 里。运行时那一侧是 `config.ts` 的 pageStartsWithHero,
 // 两处必须说同一件事 —— 一边判"浮不浮"、一边判"要不要遮罩",分歧的表现就是白字压白底。
 function firstSectionHero(page) {
