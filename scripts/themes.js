@@ -8,7 +8,7 @@
 //               它们【走不了】sync-config 里那个按 `layout[section.type]` 取的循环(没有任何 section
 //               的 type 叫 header/footer,加了会被 `if (!preferred) continue` 静默跳过),所以由
 //               `scripts/region-layout.js` + sync-config 的 §Regions 单独消费。清单也在那个文件。
-//   rhythm      页面节奏偏好 — optional; which blocks show and in what order (#962, see below)
+//   rhythm      页面节奏偏好 — required since #983; which blocks show and in what order (see below)
 //   style       风格形容词 — one phrase, used in the AI logo prompt (was THEME_STYLE_MAP)
 // plus `industries`, the keyword list the creation-time picker matches against.
 //
@@ -28,8 +28,9 @@
 //   ② 每个组件的每一种 variant，30 套里至少有一套用到 —— 否则 30 套在那种 block 上长得一样
 // 两条都能机械核，检查脚本在 #956 的交接留言里（本仓不存这类一次性检查脚本，同 #932）。
 //
-// #962 — `rhythm`, 页面节奏偏好. Optional; a theme without it paces pages exactly as the page JSON
-// says. It has two keys and nothing else:
+// #962 — `rhythm`, 页面节奏偏好. 🔴 #983: every theme must have one and it may not be empty — a build
+// on a registry that is missing one, or whose rhythm says nothing at all, fails by name. It has two
+// keys and nothing else:
 //
 //   hide: [type…]    these blocks are not rendered. Their content stays in the page JSON on disk
 //                    AND in the generated config-data.ts, untouched — that is what makes changing
@@ -44,6 +45,18 @@
 //
 // 🔴 Adding a block is deliberately impossible. A new block needs content written for it, which is
 // create-site's job, not a theme's. Any rhythm key other than hide/order fails the build by name.
+//
+// 🔴 #983 r2 — 两个清单只许点【真站上真有的】block，否则这套排布在屏幕上什么都不做。量过一次:
+// GitHub 上 13 个真 AI 建的站（另外 15 个是 skipAI / e2e 夹具站，不算）逐页数下来 ——
+//   常见: announcement-bar · stats-counter · social-proof · testimonials · features-grid ·
+//         content-split · divider 各 13/13 个站 · process-steps 与 faq-accordion 11/13 ·
+//         benefits-list 与 contact-info 9/13 · checklist 8/13
+//   罕见: blog-preview · logo-carousel · map-area 各 0/13 · trusted-brands · newsletter-signup ·
+//         pricing-table 各 1/13
+// assurance-teal 第一版的 hide 全落在罕见那半边（logo-carousel + trusted-brands）⟹ 真站上
+// `0 section(s) hidden, 0 page(s) re-ordered`，Chris 报的「换了主题骨架纹丝不动」原样回来，只是
+// 原因从「没有排布」变成「排布指着他站上没有的 block」（QA2 在 r1 抓到）。加主题时照这个词频挑，
+// 并且 order 至少要把两个常见类型的相对次序换过来 —— 只在一个类型上重排是换不动位置的。
 //
 // Both lists name **block types, not occurrences**: a type that appears twice on one page is one
 // group — hidden together, and kept in its own relative order when the group moves (PM's ruling on
@@ -222,7 +235,7 @@ const themes = {
     },
     settings: { radius: 'round', density: 'standard', shadow: 'soft', buttonShape: 'pill' },
     rhythm: {
-      hide: ['blog-preview', 'logo-carousel'],
+      hide: ['blog-preview', 'divider', 'logo-carousel'],
       order: ['gallery', 'service-highlights', 'social-proof', 'features-grid', 'testimonials', 'contact-info'],
     },
     style: 'warm energetic vibrant orange',
@@ -517,8 +530,8 @@ const themes = {
     },
     settings: { radius: 'round', density: 'standard', shadow: 'soft', buttonShape: 'pill' },
     rhythm: {
-      hide: ['logo-carousel', 'trusted-brands'],
-      order: ['benefits-list', 'faq-accordion', 'checklist', 'features-grid', 'testimonials', 'contact-info'],
+      hide: ['announcement-bar', 'divider', 'stats-counter'],
+      order: ['process-steps', 'faq-accordion', 'checklist', 'benefits-list', 'content-split', 'features-grid', 'testimonials', 'social-proof'],
     },
     style: 'friendly reassuring teal',
     industries: ['insurance', 'life insurance', 'health', 'benefits', 'clinic', 'medical', 'dental', 'wellness', 'pharmacy', 'senior care', 'home care'],
@@ -633,7 +646,7 @@ const themes = {
     },
     settings: { radius: 'sharp', density: 'compact', shadow: 'strong', buttonShape: 'square' },
     rhythm: {
-      hide: ['blog-preview', 'trusted-brands'],
+      hide: ['announcement-bar', 'blog-preview', 'trusted-brands'],
       order: ['service-highlights', 'process-steps', 'feature-comparison', 'features-grid', 'stats-counter', 'testimonials'],
     },
     style: 'sharp technical high-contrast',
@@ -1061,10 +1074,20 @@ function rhythmFor(themeId) {
 // called from the same place) nor its variety across themes (that is a design property of the registry,
 // asserted by scripts/check-theme-rhythm.js — a build gate on "are these 30 different enough" would
 // block a legitimate edit for a reason that has nothing to do with the site being built).
+//
+// 🔴 "Says nothing" counts as missing, not just an absent key. `rhythm: { hide: [], order: [] }`
+// parses, validates, and reports 30/30 — while the build of that theme prints
+// `0 section(s) hidden, 0 page(s) re-ordered` and the page skeleton does not move, which is the exact
+// symptom this ticket exists to remove. Chris's line was "a theme with no rhythm has no reason to
+// exist"; a rhythm that states nothing is that theme with an extra pair of brackets. (QA1 found this
+// hole on r1: every check passed on an empty rhythm. No theme in the registry has one, so closing it
+// changes no reading today — it stops the next edit from re-opening the hole silently.)
 function themesMissingRhythm() {
   return Object.keys(themes).filter((id) => {
     const r = themes[id].rhythm;
-    return r === undefined || r === null;
+    if (r === undefined || r === null) return true;
+    if (typeof r !== 'object' || Array.isArray(r)) return false;   // malformed — rhythmFor's throw owns it
+    return !(r.hide || []).length && !(r.order || []).length;
   });
 }
 

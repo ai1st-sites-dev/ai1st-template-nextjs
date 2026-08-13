@@ -16,7 +16,7 @@
 //    (组合 15/15 全不同 · hide 14/15 · order 14/15),等比放到 30 套即 30/30 与 28。②③ 因此各留了
 //    一对重复的余量 —— 今天用掉的就是那一对(ocean-blue / coastal-teal 的 hide、midnight / sage-minimal
 //    的 order),它们是 #962 就在的,本票没有动。
-const { themes } = require('./themes');
+const { themes, themesMissingRhythm } = require('./themes');
 
 const ids = Object.keys(themes);
 const N = ids.length;
@@ -45,7 +45,10 @@ const report = (m) => [...m.values()].filter(g => g.length > 1).map(g => g.join(
 console.log(`── #983 Block 排布:${N} 套`);
 
 // ① 每套都有(这一条同时是构建闸,见文件头)
-const missing = ids.filter(id => !themes[id].rhythm);
+// 🔴 判据只有一处实现:`themesMissingRhythm()`,构建闸(sync-config.js)读的是同一个函数。此前这里写的是
+//    `!themes[id].rhythm`,而 `rhythm: {}` 是真值 ⟹ 空排布在这里报 30/30、在构建里也是绿的,而那套主题
+//    换过去一处都不动(QA1 在 r1 量到)。两处各写一遍判据,必然分叉。
+const missing = themesMissingRhythm();
 if (missing.length === 0) ok(`${N}/${N} 套逐套有 rhythm`);
 else bad(`${missing.length} 套没有 rhythm:${missing.join(' ')}`);
 
