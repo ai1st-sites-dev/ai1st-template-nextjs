@@ -11,6 +11,16 @@ These scripts used to live outside the repository, in one ticket's temporary wor
 paths hardcoded. They are here now because a tool that isn't in git can't ship and doesn't survive
 a directory cleanup — and this one is meant to run every time the theme registry changes.
 
+Since #981 this is the **only** theme-screenshot pipeline. `tests/e2e/region-shots.mjs` used to do the
+same three things (build every theme, screenshot, put the pictures on one page) and is deleted; what it
+had that this did not is now here:
+
+| What region-shots.mjs had | Where it is now |
+|---|---|
+| Header/footer structure under each picture | `shoot.mjs` reads `data-region-layout` off the `<header>`/`<footer>` of the **home** page; `gallery.mjs` prints it. Its version read `themes[id].layout.header` — the registry, not the page — so it could not see `resolveRegionLayout` changing its mind (unknown variant → default; hero not provably dark → a scrim gets added). |
+| Multi-locale header close-up, for the language switcher | `shoot-themes.sh --header-closeup`, against a multi-locale sample site. Any theme, not the two it hardcoded. |
+| Made its own sample site with `create-site` | Still the caller's job (step 1 below) — that is what lets you shoot *your* sample. The multi-locale payload is written out in `shoot-themes.sh`'s header comment. |
+
 ## What has to be installed first
 
 Two of these steps are not pure Node, and neither dependency can be expressed in `package.json`:
@@ -32,6 +42,9 @@ export THEME_GALLERY_DIR=/root/theme-gallery/latest  # where the output goes
 # 1. a sample site must be in place at templates/nextjs/site/
 # 2. build + screenshot every theme (no AI, no cost)
 bash scripts/theme-gallery/shoot-themes.sh
+#    …or, with a MULTI-LOCALE sample site, also crop the top of each home page so the language
+#    switcher is big enough to judge (see that script's header for the create-site payload):
+# bash scripts/theme-gallery/shoot-themes.sh --header-closeup
 
 # 3. read the layout back out of the screenshots (this is what the captions are based on)
 python3 scripts/theme-gallery/layout-readback.py
@@ -53,8 +66,8 @@ R2 key for four hours.
 | File | What it does |
 |---|---|
 | `paths.mjs` | Where things are. The template directory comes from this file's own location; the output directory is `THEME_GALLERY_DIR`. |
-| `shoot-themes.sh` | For each theme: write `site/theme.json`, build, serve, screenshot. Refuses a screenshot whose page carries no theme colours or fonts. |
-| `shoot.mjs` | The browser half of the above, plus the per-theme `<id>.json` readings. |
+| `shoot-themes.sh` | For each theme: write `site/theme.json`, build, serve, screenshot. Refuses a screenshot whose page carries no theme colours or fonts. `--header-closeup` adds the header crop. |
+| `shoot.mjs` | The browser half of the above, plus the per-theme `<id>.json` readings — colours, fonts, and (since #981) the header/footer Region read off the home page's DOM. |
 | `layout-readback.py` | Works out which section on the page is which block type, by comparing two independent groupings. Writes `layout-readback.json`; the gallery captions read it. Refuses to write if the groupings disagree. |
 | `review-pairs.mjs` | Asks a vision model, for every pair, whether an ordinary visitor would call them the same design recoloured. Writes `review.json`. |
 | `gallery.mjs` | Builds `public/index.html`. |

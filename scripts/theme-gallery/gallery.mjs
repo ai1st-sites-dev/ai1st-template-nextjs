@@ -56,6 +56,37 @@ const seenTypes = (page) => RB.matched.filter(m => m.page === page).map(m => m.t
 const readback = (id, page) => seenTypes(page)
   .map(t => `${t} = <b>${RB.themes[id][t].variant}</b>`).join(' · ');
 
+// #981 条6/条7 —— 顶栏和页脚的读数。layout-readback.py 只看 <main> 里面的 <section>,而这两个在它外面
+// ⟹ 它们一直没有读数。**这一行读的是产物**:shoot.mjs 在浏览器里从 <header>/<footer> 身上的
+// `data-region-layout` 取的,不是把 themes[id].layout.header 抄一遍 —— 抄注册表会说假话,因为
+// resolveRegionLayout 会改主意(不认识的写法退回默认;首屏不能被证明是深底时自己加遮罩)。
+const REG = Object.fromEntries(ids.map(id => [id, JSON.parse(
+  fs.readFileSync(`${PUB}/shots/${id}.json`, 'utf-8')).regions || null]));
+const regionCaption = (id) => {
+  const r = REG[id];
+  if (!r) return '顶栏 / 页脚:<b>这一轮没读到</b>(这套的 shots/&lt;id&gt;.json 是旧的,重跑 shoot-themes.sh)';
+  const scrim = r.headerScrim === 'on' ? ' + 遮罩' : r.headerScrim === 'off' ? '(无遮罩)' : '';
+  return `顶栏 <b>${esc(r.header)}</b>${esc(scrim)} · 页脚 <b>${esc(r.footer)}</b>`;
+};
+// 注册表**声明**的那两个,只用来跟上面那个读数比对。两者不一致本身就是要给人看的东西。
+const declaredRegions = (id) => ({
+  header: (themes[id].layout || {}).header || '(没声明)',
+  footer: (themes[id].layout || {}).footer || '(没声明)',
+});
+const regionMismatch = (id) => {
+  const r = REG[id]; if (!r) return '';
+  const d = declaredRegions(id);
+  const bad = [];
+  if (r.header !== d.header) bad.push(`顶栏声明的是 ${d.header}`);
+  if (r.footer !== d.footer) bad.push(`页脚声明的是 ${d.footer}`);
+  return bad.length ? ` · ⚠️ 跟注册表不一致(${bad.map(esc).join(' · ')})` : '';
+};
+const tally = (pick) => {
+  const c = {};
+  for (const id of ids) { const r = REG[id]; if (r) c[pick(r)] = (c[pick(r)] || 0) + 1; }
+  return Object.entries(c).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${esc(k)} ${n} 套`).join(' · ') || '这一轮没读到';
+};
+
 const kw = (id) => themes[id].industries;
 const tag = (id) => {
   const t = [];
@@ -84,9 +115,14 @@ const card = (id) => {
     </header>
     <div class="shots">
       <figure>
-        <figcaption>首页 —— 版式：${readback(id, '首页')}</figcaption>
+        <figcaption>首页 —— 版式：${readback(id, '首页')}<br>${regionCaption(id)}${regionMismatch(id)}</figcaption>
         <a href="shots/${id}.png" target="_blank"><img loading="lazy" src="shots/${id}.png" alt="${id} 首页"></a>
       </figure>
+      ${fs.existsSync(`${PUB}/shots/${id}-header.png`) ? `<figure>
+        <figcaption>顶栏特写（多语言样例站）—— 最右那个语言开关要跟旁边导航一样读得清；这套页面上有
+          ${REG[id] ? REG[id].langSwitchers : 0} 个语言开关</figcaption>
+        <a href="shots/${id}-header.png" target="_blank"><img loading="lazy" src="shots/${id}-header.png" alt="${id} 顶栏特写"></a>
+      </figure>` : ''}
       <figure>
         <figcaption>内页（关于我们）—— 版式：${readback(id, '内页')}</figcaption>
         <a href="shots/${id}-about.png" target="_blank"><img loading="lazy" src="shots/${id}-about.png" alt="${id} 内页"></a>
@@ -151,7 +187,11 @@ const html = `<!doctype html>
     <p><b>这一页看不出差别的三样（也是量出来的）：</b></p>
     <ul>
       <li>每套的<b>页面组成完全相同</b> —— 首页都是 ${RB.facts.sections_home} 段、内页都是 ${RB.facts.sections_about} 段，顺序也一样。今天的换装只能给每一段挑一种写法，改不了「这页上有哪些段、按什么顺序排」。</li>
-      <li><b>顶栏和页脚 30 套是同一个结构</b>（各只有 1 种），它们身上没有「换装」这回事，变的只有颜色。</li>
+      <!-- #981 条6/条7 —— 这一条原来是一句写死的话，说这两个 Region 各只有一种结构、身上没有换装这回事。
+           #960 给了顶栏 4 种、页脚 3 种，那句话从那天起就是假的，而写死的话不会因为代码变了自己更新。
+           换成从每张图那份产物读回来的两个分布（读法见 shoot.mjs 的 readRegions）。 -->
+      <li><b>顶栏</b>（从每张图的产物读回来）：${tally(r => r.header)}。<b>页脚</b>：${tally(r => r.footer)}。
+        每张图下面第二行写着这一套是哪一种；跟注册表声明不一致的那几套，那行末尾会挂一个 ⚠️。</li>
       <!-- #963 —— 这句原来写死了「浅底的只有 minimal 那几套」。#959 之后浅底有四种写法，
            那个括号就成了页面上一句假话。改成只报从图上读回来的两个数。 -->
       <li>hero 一共 ${Object.keys(RB.facts.hero_distribution).length} 种写法：<b>${RB.facts.dark_hero} 套第一屏是深色满幅大标题</b>，${RB.facts.light_hero} 套是浅底。这两个数是从每张图那份产物的第一屏底色读回来的，不是按注册表数的。</li>
