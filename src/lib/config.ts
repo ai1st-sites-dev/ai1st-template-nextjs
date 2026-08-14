@@ -13,7 +13,7 @@ import {
   blogPostsByLocale as _blogPostsByLocale,
   regionLayout as _regionLayout,
   pageLayout as _pageLayout,
-  themeCss as _themeCss,
+  heroNeutralMarkup as _heroNeutralMarkup,
 } from './config-data';
 
 export const brand = _brand as BrandConfig;
@@ -34,10 +34,14 @@ export const regionLayout = _regionLayout as RegionLayoutConfig;
 // content / footer 的布局进不来(spec §4.4 / D11 的替身)。没有 site/page-layout.json 的站(今天全部)
 // 拿到的是 `standard`,也就是 header → content → footer 这一条老路。
 export const pageLayout = _pageLayout as PageLayoutConfig;
-// #991 — the stylesheet in public/themes/ that owns block layout for this site, '' when it has none.
-// Empty is the state of every site built before this existed, and it is what keeps their output
-// identical: no <link> in layout.tsx, and hero keeps its variant markup.
-export const themeCss = _themeCss as string;
+// #991 / #1002 — does hero render the neutral markup on this site? True exactly when theme.json names
+// a sheet in public/themes/ (its bytes are pasted into the generated theme.css). False is the state of
+// every site built before this existed, and it is what keeps their output identical: hero keeps its
+// variant markup. 🔴 It used to be called `themeCss` and used to carry the sheet NAME, because the same
+// value also picked the <link href="/themes/<name>.css">. #1002 made that link a fixed path, so the
+// only question left is yes/no — and a field still named after a filename would invite the next person
+// to point it somewhere.
+export const heroNeutralMarkup = _heroNeutralMarkup as boolean;
 
 export function isValidLocale(locale: string): boolean {
   return locales.includes(locale);

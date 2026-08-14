@@ -467,15 +467,22 @@ for (const sel of ['body', '.hero__sub']) {
 // bundle came out empty while the theme sheet was fine, and only the wide reading above catches that
 // (measured then: 112 of the page's 119 classes named). Two shapes, two readings, both kept.
 //
-// 📌 Which sheet is "the theme's": the one whose href is under `/themes/` — that is the <link> emitted
-//    by layout.tsx:311, and it is why base.css (`/base.css`) is deliberately not one of them. When
-//    #1002 moves it to a fixed `/theme.css`, this is the line that changes.
+// 📌 Which sheet is "the theme's": the one served at `/theme.css`. #996 wrote "the one under
+//    `/themes/`" and left a note saying this is the line that changes when #1002 moves it — this is
+//    that change (#1002 AC9). There is no `<link href="/themes/<id>.css">` any more: the block-layout
+//    sheet's bytes are pasted INTO `/theme.css` together with the palette, so `/themes/` matches
+//    nothing and the check reported "no stylesheet under /themes/ is loaded at all" on every dressed
+//    site — an invariant that can only fail is worth as little as one that can only pass.
+//    `/custom.css` (this site's own tweaks, #1006) and `/base.css` (#1001) are deliberately NOT the
+//    theme's sheet: the point of this second reading is that neither the floor nor the site's own
+//    overrides may stand in for a rule the theme was supposed to write.
+const THEME_SHEET_PATH = '/theme.css';
 // 📌 Only the CLASS hooks are asked for, and only the ones actually in the markup: `body`,
 //    `[data-block]`, `[data-role]` and `[data-region-layout]` are contract hooks too, but no theme
 //    selects them today, so requiring them would be inventing a rule nobody agreed to.
 const HOOK_CLASSES = ['hero', 'hero__media', 'hero__body', 'hero__title', 'hero__sub', 'hero__cta',
   'hero__deco'];
-const classAudit = await page.evaluate((hookClasses) => {
+const classAudit = await page.evaluate(([hookClasses, themeSheetPath]) => {
   const declared = new Set();
   const declaredByTheme = new Set();
   const themeSheets = [];
@@ -493,12 +500,12 @@ const classAudit = await page.evaluate((hookClasses) => {
     }
   };
   for (const sheet of document.styleSheets) {
-    // The theme's own sheet is the <link> layout.tsx:311 emits under /themes/. base.css (#1001) is
-    // deliberately NOT one of them: the point of the second reading is that the floor must not be able
-    // to stand in for a rule the theme was supposed to write.
+    // The theme's own sheet is the one at the fixed path (#1002). base.css (#1001) and custom.css
+    // (#1006) are deliberately NOT it: the point of the second reading is that neither the floor nor
+    // the site's own overrides may stand in for a rule the theme was supposed to write.
     let isTheme = false;
     try {
-      isTheme = !!sheet.href && new URL(sheet.href, window.location.href).pathname.startsWith('/themes/');
+      isTheme = !!sheet.href && new URL(sheet.href, window.location.href).pathname === themeSheetPath;
       if (isTheme) themeSheets.push(new URL(sheet.href, window.location.href).pathname);
     } catch { isTheme = false; }
     let rules;
@@ -521,7 +528,7 @@ const classAudit = await page.evaluate((hookClasses) => {
     hooksOnPage: hookClasses.filter((c) => used.has(c)),
     hooksMissingFromTheme: hookClasses.filter((c) => used.has(c) && !declaredByTheme.has(c)),
   };
-}, HOOK_CLASSES);
+}, [HOOK_CLASSES, THEME_SHEET_PATH]);
 readings.push(`  classes on the page: ${classAudit.used} · with no rule: ${classAudit.orphans.length}`
   + ` (${classAudit.sheets} stylesheets, ${classAudit.unreadableSheets} not readable from here)`);
 for (const orphan of classAudit.orphans) {
@@ -529,7 +536,7 @@ for (const orphan of classAudit.orphans) {
     + 'for it — the element is showing with whatever the browser defaults to');
 }
 // The second reading (#996): the same question asked of the theme's own sheet.
-readings.push(`  theme sheet(s): ${classAudit.themeSheets.join(', ') || '(none under /themes/)'}`
+readings.push(`  theme sheet(s): ${classAudit.themeSheets.join(', ') || `(${THEME_SHEET_PATH} is not loaded)`}`
   + ` · hooks in the markup: ${classAudit.hooksOnPage.length}`
   + ` · not dressed by the theme: ${classAudit.hooksMissingFromTheme.length}`);
 if (classAudit.hooksOnPage.length > 0 && classAudit.themeSheets.length === 0) {
@@ -537,7 +544,7 @@ if (classAudit.hooksOnPage.length > 0 && classAudit.themeSheets.length === 0) {
   // This is the shape phase 2 makes reachable: the markup moves to a block before some theme has a
   // sheet for it, and every hook then falls back to base.css.
   problems.push(`theme coverage: the page uses ${classAudit.hooksOnPage.length} contract hook(s) `
-    + 'but no stylesheet under /themes/ is loaded at all — nothing was measured for this check');
+    + `but ${THEME_SHEET_PATH} is not loaded at all — nothing was measured for this check`);
 } else {
   for (const hook of classAudit.hooksMissingFromTheme) {
     problems.push(`theme coverage: ".${hook}" is in the markup and the theme's own stylesheet `

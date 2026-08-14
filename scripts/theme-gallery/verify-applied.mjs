@@ -67,8 +67,12 @@ for (const [, list] of Object.entries(pages)) {
 if (!fail.length) ok.push(`layout: ${overridden} sections took the table's variant and all match; ${untouched} the table says nothing about are untouched`);
 else ok.push(`layout: ${overridden} overridden, ${untouched} untouched — see 🔴 below`);
 
-// ── colours + fonts: read out of the HTML the build actually produced ────────────────────────
-const html = fs.readFileSync(`${NEXT_DIR}/out/security-vendor/index.html`, 'utf-8');
+// ── colours + fonts: read out of the STYLESHEET the build actually produced ──────────────────
+// 🔴 #1002 moved them out of index.html. They used to be an inline <style> plus a <link> to Google
+// Fonts, both written into every page; now they are `out/<site>/theme.css` — one file with a fixed
+// name, which is what lets a theme change skip the rebuild. Reading the HTML here would report
+// "colour --color-primary-500 on the page is not #…" for all 17 shades of every theme.
+const html = fs.readFileSync(`${NEXT_DIR}/out/security-vendor/theme.css`, 'utf-8');
 let colorChecked = 0;
 for (const [group, shades] of [['primary', t.colors.primary], ['accent', t.colors.accent]]) {
   for (const [shade, hex] of Object.entries(shades)) {
@@ -81,8 +85,10 @@ for (const [group, shades] of [['primary', t.colors.primary], ['accent', t.color
 const colorFails = fail.filter(x => x.startsWith('colour')).length;
 if (!colorFails) ok.push(`colours: ${colorChecked} CSS variables each match the registry`);
 
-// 🔴 href in HTML is escaped (& becomes &amp;), so comparing the registry's raw URL with
-//    includes() never matches — unescape first.
+// 🔴 The URL used to live in an href, where `&` is escaped as `&amp;`, so comparing the registry's
+//    raw URL with includes() never matched. #1002 moved it into theme.css's `@import url("…")`,
+//    where nothing is escaped — the unescape is now a no-op and is kept only so this line does not
+//    become the thing that breaks if the URL ever goes back into markup.
 const unescaped = html.replace(/&amp;/g, '&');
 let fontOk = true;
 if (!html.includes(`--font-sans: ${t.fonts.body.join(', ')};`)) { fail.push(`font --font-sans is not ${t.fonts.body.join(', ')}`); fontOk = false; }

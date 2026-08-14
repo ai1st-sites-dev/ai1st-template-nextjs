@@ -17,6 +17,7 @@ const {
   readSiteBlocks, normalizeLocalePages, loadBlockManifests, validateBlockLayouts, MANIFEST_DIR,
 } = require('./blocks');
 const tweakLib = require('./tweaks');
+const { buildThemeCss } = require('./theme-css');
 
 const rootDir = path.resolve(__dirname, '..');
 const siteDir = path.join(rootDir, 'site');
@@ -134,16 +135,23 @@ const appliedThemeId = readAppliedThemeId();
 // been made neutral — today that is hero and nothing else (phase 1 of
 // docs/superpowers/specs/2026-08-12-theme-css-architecture-design.md).
 //
-// 🔴 THE FIELD DOES TWO THINGS AT ONCE, AND THAT IS THE POINT. It emits the <link> in layout.tsx AND
-// it flips hero to its neutral markup. Neutral markup with no sheet is a hero with no layout at all,
-// so the two must not be separately settable. Absent (every site that exists today) ⟹ neither
-// happens and the build output is byte-for-byte what it was.
+// 🔴 THE FIELD STILL DOES TWO THINGS AT ONCE, AND THAT IS STILL THE POINT — but #1002 changed what
+// the first one is. It used to emit `<link href="/themes/<name>.css">` in layout.tsx; now the sheet's
+// bytes are pasted into the generated `public/theme.css` (see §theme.css below) and the page only ever
+// links the fixed path `/theme.css`. The second thing is unchanged: it flips hero to its neutral
+// markup. Neutral markup with no sheet is a hero with no layout at all, so the two must not be
+// separately settable. Absent (every site that exists today) ⟹ neither happens.
+//
+// 🔴 THE EXPORT IS NOW CALLED `heroNeutralMarkup`, NOT `themeCss` (#1002). The old name meant "which
+// sheet", and after this ticket nothing downstream needs to know which sheet — the only consumer left
+// is HeroSection.tsx, which asks one yes/no question. Leaving it named `themeCss` would leave an
+// orphan field whose name invites the next person to change what it points at.
 //
 // 🔴 The name is checked against the FILE, not against a list kept here: a list is a second place to
 // forget. A missing sheet fails the build by name — same shape as #993's `rhythm` check below, and for
 // the same reason (a site that silently builds with no hero styling looks like a broken theme, and
 // nothing would say which of the two it was).
-function readThemeCss() {
+function readThemeSheet() {
   const themePath = path.join(siteDir, 'theme.json');
   if (!fs.existsSync(themePath)) return '';
   let meta;
@@ -154,8 +162,9 @@ function readThemeCss() {
   }
   const name = meta && typeof meta.css === 'string' ? meta.css.trim() : '';
   if (!name) return '';
-  // Slug only. This value reaches an href and a filesystem path, and `../` in either is a way out
-  // of the directory — refuse rather than sanitise, so a typo is loud instead of silently rewritten.
+  // Slug only. This value reaches a filesystem path (#1002 removed the href — the sheet is pasted
+  // into theme.css now), and `../` in it is a way out of the directory — refuse rather than
+  // sanitise, so a typo is loud instead of silently rewritten.
   if (!/^[a-z0-9][a-z0-9-]*$/.test(name)) {
     console.error(`theme.json css "${name}" is not a valid sheet name (lowercase letters, digits and hyphens)`);
     process.exit(1);
@@ -170,7 +179,7 @@ function readThemeCss() {
   }
   return name;
 }
-const themeCss = readThemeCss();
+const themeSheet = readThemeSheet();
 
 // TICKET-127: backward-compat for pre-122a legacy single-locale schema. Old
 // sites have a flat `site/{brand,seo,services,navigation}.json + site/pages/`
@@ -615,9 +624,55 @@ for (const note of regionLayout.notes) console.log(`    · ${note}`);
 // stopped being true the moment hero's nine variant branches were deleted: hero renders the neutral
 // markup with or without a sheet now, and with no sheet it has only base.css to lay it out. The blocks
 // that have NOT moved yet are the ones still keyed off `variant`, so name that instead of "every".
-console.log(themeCss
-  ? `  Theme CSS: public/themes/${themeCss}.css — hero styled by that sheet (base.css underneath)`
+console.log(themeSheet
+  ? `  Theme CSS: public/themes/${themeSheet}.css — pasted into theme.css, hero styled by those rules (base.css underneath)`
   : '  Theme CSS: none — hero falls back to base.css alone; the 33 unmoved blocks keep their variants');
+
+// ─── #1002 §theme.css —— 皮和微调，两个固定路径 ───────────────────────────────────────────────
+//
+// 页面引的是 `/theme.css` 和 `/custom.css`，文件名不随主题变。换主题 = 换掉 theme.css 的内容，
+// 所以产物 HTML 一个字节都不用重写，也就不用重建。custom.css 换主题时不动，「换了主题微调还在」
+// 因此是结构上自动成立的，不需要任何「把微调套回去」的逻辑。
+//
+// 🔴 三种来源，缺一种就有一批站掉色：
+//
+//   ① repo 里有 site/theme.css   →  逐字节拷过去，不重新生成也不覆盖
+//      这是换主题那一刻烤进 repo 的字节（worker 的 processThemeTask）。为什么存字节而不是只记
+//      themeId：重建时站读的是**它自己 repo 里那份 scripts/themes.js**（建站那天的快照 ——
+//      prod/test 的 local.templatePath 是空串，重建不拉新模板），而老板 Apply 时看到的是平台侧
+//      当前的主题池。只记 themeId 的话，这两份字节可以不一样，而且没有任何人会发现。
+//
+//   ② 没有 site/theme.css，theme.json 是 applied:true  →  按注册表生成
+//      （上面 §theme 已经把注册表的 colors/fonts/settings 写进了内存里的 brand，所以这里跟 ③
+//      走同一段代码。）
+//
+//   ③ 两者都没有（#1002 落地那天 100% 的站）  →  从 brand.json 生成
+//      内容逐字就是这张票之前 layout.tsx 里那段 inline <style>（`buildCssVariables()`）的产出，
+//      所以搬家不改变任何一个 computed style。🔴 这一支不能省：tailwind.config.ts 把
+//      primary-50…900 映射成 var(--color-primary-*) 且**没写兜底值**，globals.css 的 :root 里
+//      一个颜色变量都没有 —— 不给这些站生成 theme.css，它们不是落回默认配色，是整站掉色。
+const publicDir = path.join(rootDir, 'public');
+const siteThemeCssPath = path.join(siteDir, 'theme.css');
+let themeCssBytes;
+let themeCssOrigin;
+if (fs.existsSync(siteThemeCssPath)) {
+  themeCssBytes = fs.readFileSync(siteThemeCssPath); // Buffer —— 逐字节，不经过任何字符串处理
+  themeCssOrigin = 'site/theme.css (committed by a theme change)';
+} else {
+  themeCssBytes = Buffer.from(buildThemeCss({
+    colors: brand.colors,
+    fonts: brand.fonts,
+    settings: brand.settings,
+    blockLayoutCss: themeSheet
+      ? fs.readFileSync(path.join(publicDir, 'themes', `${themeSheet}.css`), 'utf-8')
+      : '',
+  }), 'utf-8');
+  themeCssOrigin = appliedThemeId
+    ? `generated from the registry theme "${appliedThemeId}"`
+    : 'generated from brand.json';
+}
+fs.writeFileSync(path.join(publicDir, 'theme.css'), themeCssBytes);
+console.log(`  Generated public/theme.css — ${themeCssOrigin} (${themeCssBytes.length} bytes)`);
 
 const configDataPath = path.join(rootDir, 'src', 'lib', 'config-data.ts');
 // ── #1006 每站微扰（tweaks）──────────────────────────────────────────────────────────────────────
@@ -739,6 +794,22 @@ function baseVarsForTweaks() {
     : '  Tweaks: none — 不产出 site/custom.css（这个站与本票之前逐字节相同）');
 }
 
+// custom.css —— 这个站自己的微调，送进页面的那一份。**永远写出来一份**：页面无条件引它，缺文件
+// 就是每页一个 404。没有微调时它是一份只有注释的空表。
+//
+// 🔴 这段必须排在上面 #1006 那段【生成】之后（那段注释里点名要求过）：`site/custom.css` 是
+// #1006 按当前这套皮的基准值现算出来的，排在它前面拷走的是**上一次构建**留下的字节 —— 症状是
+// 换完主题微调慢一拍，不是报错。判据在下面那行日志：它打印的字节数与 `Tweaks:` 那行一致。
+const siteCustomCssPath = path.join(siteDir, 'custom.css');
+const customCssBytes = fs.existsSync(siteCustomCssPath)
+  ? fs.readFileSync(siteCustomCssPath)
+  : Buffer.from('/* 这个站自己的微调。换主题时这份文件不动。 */\n', 'utf-8');
+fs.writeFileSync(path.join(publicDir, 'custom.css'), customCssBytes);
+const customCssOrigin = fs.existsSync(siteCustomCssPath)
+  ? 'from site/custom.css'
+  : 'empty (this site has no tweaks)';
+console.log(`  Generated public/custom.css — ${customCssOrigin} (${customCssBytes.length} bytes)`);
+
 // TICKET-268b: build-time env overrides site_meta (lets the deploy pick the env's manager URL).
 const resolvedLeadApi = process.env.NEXT_PUBLIC_LEAD_API || leadApi || '';
 const tsContent = `// Auto-generated by sync-config.js — do not edit manually
@@ -754,8 +825,9 @@ export const pagesByLocale = ${JSON.stringify(pagesByLocale)};
 export const blogPostsByLocale = ${JSON.stringify(blogPostsByLocale)};
 export const regionLayout = ${JSON.stringify(regionLayout)};
 export const pageLayout = ${JSON.stringify(pageLayout)};
-// #991 — name of the stylesheet in public/themes/ that owns block layout, '' when this site has none.
-export const themeCss = ${JSON.stringify(themeCss)};
+// #991 / #1002 — does this site's hero render the neutral markup? True exactly when theme.json names
+// a sheet in public/themes/ (whose bytes are now pasted into theme.css). One consumer: HeroSection.
+export const heroNeutralMarkup = ${JSON.stringify(!!themeSheet)};
 `;
 fs.writeFileSync(configDataPath, tsContent);
 console.log('  Generated src/lib/config-data.ts');

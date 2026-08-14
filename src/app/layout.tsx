@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { brand, getSeo, getBrandName, defaultLocale, siteId, leadApi, themeCss } from '@/lib/config';
-import { settingsToCssVars, RADIUS, SHADOW, DENSITY, BUTTON_SHAPE } from '@/lib/themeSettings';
+import { brand, getSeo, getBrandName, defaultLocale, siteId, leadApi } from '@/lib/config';
+import { RADIUS, SHADOW, DENSITY, BUTTON_SHAPE } from '@/lib/themeSettings';
 
 const seo = getSeo(defaultLocale);
 // TICKET-136: layout.tsx is a server component with no locale prop — use the
@@ -16,29 +16,16 @@ function buildFaviconSvg(): string {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
-function buildCssVariables(): string {
-  const vars: string[] = [];
-  for (const [shade, value] of Object.entries(brand.colors.primary)) {
-    vars.push(`--color-primary-${shade}: ${value};`);
-  }
-  for (const [shade, value] of Object.entries(brand.colors.accent)) {
-    vars.push(`--color-accent-${shade}: ${value};`);
-  }
-  vars.push(`--font-sans: ${brand.fonts.body.join(', ')};`);
-  // #951: every theme has always carried a heading typeface (themes.js: 30/30, 16 of them different
-  // from the body one) and nothing read it, so `realty-noir`'s Cormorant Garamond rendered as Jost.
-  // 🔴 #953 item 10 — WHAT THE FALLBACK COVERS IS `heading: []`, NOT A MISSING FIELD. This used to say it
-  // was for "a hand-written brand.json that predates the field"; such a config never reaches runtime at all,
-  // because `heading` is a required `string[]` (lib/types/config.ts) and `next build` stops at type check
-  // with "Property 'heading' is missing" — measured on this line's own baseline too, so it was never the
-  // shape being defended. An empty array does pass type check, and then headings keep the body font.
-  const headingFonts = brand.fonts.heading?.length ? brand.fonts.heading : brand.fonts.body;
-  vars.push(`--font-heading: ${headingFonts.join(', ')};`);
-  // #961: 风格设定（圆角/留白/阴影/按钮形状）。没有 brand.settings 的站这里一条都不产出，
-  // 于是全部落回 globals.css `:root` 的默认值 —— 存量站的样子因此不变。
-  vars.push(...settingsToCssVars(brand.settings));
-  return `:root { ${vars.join(' ')} }`;
-}
+// 🔴 #1002 —— `buildCssVariables()` 不在这里了。配色 / 字体族 / 风格设定以前是这个文件拼出来、
+// 用一段 inline <style> 烤进每一页 HTML 的；现在它们住在 `/theme.css` 里（生成器是
+// `scripts/theme-css.js`，由 `scripts/sync-config.js` 在每次构建时写出 `public/theme.css`）。
+// 声明的内容和顺序逐字没变，所以搬家不改变任何一个 computed style。
+//
+// 为什么要搬：只要主题的值烤在 HTML 里，换一次主题就得重写每一页的 HTML —— 也就是必须重建。
+// 搬进一个**文件名固定**的样式表之后，换主题就是替换那一个文件的内容，HTML 一个字节都不用动。
+//
+// 同一个理由带走了字体表的 <link>（`brand.fonts.googleFontsUrl`）：它的地址随主题变。它现在是
+// theme.css 的第一行 `@import`。下面两条 preconnect 留着 —— 它们跟主题无关，永远是这两个地址。
 
 // #925 — WHICH PARENT PAGE IS ALLOWED TO RECOLOUR THIS SITE.
 //
@@ -298,27 +285,29 @@ export default function RootLayout({
   return (
     <html lang={seo.locale.split('_')[0]}>
       <head>
-        <style dangerouslySetInnerHTML={{ __html: buildCssVariables() }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link rel="stylesheet" href={brand.fonts.googleFontsUrl} />
         {/* #1001 — the floor, and it is UNCONDITIONAL on purpose. The arm base.css exists for is
             "neutral markup with NO theme sheet" (an old site rebuilding on dev, or phase 2 having
-            moved a block before some sheet caught up), so gating it on `themeCss` would take the
+            moved a block before some sheet caught up), so gating it on the theme would take the
             fallback away in exactly the case it is the fallback for. It is one <link> and one
             request for sites that render the old markup, where its rules select nothing.
             🔴 It goes BEFORE the theme link and both are unlayered: same specificity (both files
             select single classes), so the later one wins — that ordering IS the mechanism by which
             a theme overrides the floor. See public/base.css's header. */}
         <link rel="stylesheet" href="/base.css" />
-        {/* #991 — the theme stylesheet, and it is LAST on purpose: it is the layer that owns block
-            layout, so it has to win over globals.css without anyone reaching for `!important` (the
-            contract forbids that, and this is why it can). Absent for every site with no `css` field
-            in theme.json, which is all of them today.
-            🔴 It lives in public/ rather than src/ so Tailwind's content globs (src/components,
-            src/app) cannot see it. If it moved under src/, Tailwind would not compile it — it would
-            SCAN it, and every word inside would become a candidate class name. */}
-        {themeCss && <link rel="stylesheet" href={`/themes/${themeCss}.css`} />}
+        {/* #1002 — 皮和微调，两个固定路径，无条件加载。
+            · /theme.css   主题的全部：字体表的 @import、配色 / 字体族 / 风格设定的 :root、以及
+              这个站的形态样式表（#991 的 public/themes/<name>.css，它的字节被贴进这份文件）。
+              换主题 = 换掉这个文件的内容，**文件名不变** ⟹ HTML 不用重写 ⟹ 不用重建。
+            · /custom.css  这个站自己的微调（#1006）。换主题时它一个字节都不动，所以「换了主题
+              微调还在」是结构上自动成立的，不需要任何把微调套回去的逻辑。它排在最后，所以它赢。
+            🔴 两份都排在 globals.css 打包出来的那个 <link> 之后（Next 把自己的样式表放在 <head>
+            最前面），主题层因此不用 `!important` 就能压过它 —— 契约禁止 !important，这是它能禁的原因。
+            🔴 它们生成在 public/ 而不是 src/：Tailwind 的 content glob 扫 src/，样式表落进去不会被
+            编译、只会被**扫**，里面每个词都会变成候选 class 名。 */}
+        <link rel="stylesheet" href="/theme.css" />
+        <link rel="stylesheet" href="/custom.css" />
         {brand.logoUrl ? (
           <link rel="icon" href={brand.logoUrl} />
         ) : (

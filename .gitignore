@@ -9,6 +9,10 @@ out/
 config/
 sites/
 src/lib/config-data.ts
+# #1002 — sync-config.js writes these on every build (the 'skin' and this site's tweaks).
+# The durable copies live in the SITE repo as site/theme.css / site/custom.css.
+public/theme.css
+public/custom.css
 
 # misc
 .DS_Store
