@@ -141,7 +141,8 @@ function heroIsProvablyDark(heroSection, palette) {
 // resolveRegionLayout —— 一次构建里这两个 Region 到底长什么样。
 //
 // 入参:
-//   layout   theme 的版式偏好表(`layoutFor(themeId)`);没换装时传 {},两个 Region 都回到现状
+//   layout   theme 对每个 block 用哪种写法的结论(`layoutFor(themeId)` —— 注册表里那张表 #1010 起
+//            叫 `supports`,装的是清单,这个函数吐结论);没换装时传 {},两个 Region 都回到现状
 //   pages    这个站**全部** locale 的**全部**页面 —— 见下面「为什么不是只给首页」
 //   palette  这个站的 brand.colors —— 判「深底」要查颜色档在不在,不传就等于查不过(⟹ 加遮罩)
 //

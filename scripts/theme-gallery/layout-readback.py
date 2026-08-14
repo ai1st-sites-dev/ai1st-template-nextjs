@@ -31,8 +31,12 @@ COLOR = re.compile(r'\b(primary|accent|gray|slate|zinc|neutral|stone|white|black
                    r'fuchsia|pink)(-\d{2,3})?\b')
 
 ids = sorted(os.listdir(BASE))
-themes = json.loads(subprocess.check_output(
-    ['node', '-e', f"console.log(JSON.stringify(require('{NEXT}/scripts/themes.js').themes))"]).decode())
+# 🔴 #1010 —— 注册表里那张表的键叫 `supports` 了(以前叫 `layout`),值也从「一个写法」变成
+# 「一个清单」。这里要的是「这套 theme 对每个 block 最终用哪个写法」,也就是 `layoutFor(id)` 吐的
+# 那份 —— 所以直接问那个函数,不要在这里重新实现一遍取清单第一项(两处实现必然分叉)。
+variants = json.loads(subprocess.check_output(
+    ['node', '-e', f"const r=require('{NEXT}/scripts/themes.js');console.log(JSON.stringify("
+                   "Object.fromEntries(Object.keys(r.themes).map(i=>[i,r.layoutFor(i)]))))"]).decode())
 
 
 def skeletons(path):
@@ -65,7 +69,7 @@ def partition(values):
     return frozenset(frozenset(v) for v in g.values())
 
 
-all_types = sorted({t for th in themes.values() for t in (th.get('layout') or {})})
+all_types = sorted({t for v in variants.values() for t in v})
 readback = {i: {} for i in ids}
 matched = []
 
@@ -79,13 +83,13 @@ for page in PAGES:
         if len(pa) == 1:
             continue                      # 30 套长得一样 ⟹ 这段的类型不在版式表里
         for stype in all_types:
-            pb = partition({i: (themes[i].get('layout') or {}).get(stype, '(无)') for i in ids})
+            pb = partition({i: variants[i].get(stype, '(无)') for i in ids})
             if pa != pb:
                 continue
             matched.append((PAGES[page], k + 1, stype))
             for i in ids:
                 readback[i][stype] = {
-                    'variant': themes[i]['layout'][stype],
+                    'variant': variants[i][stype],
                     'page': PAGES[page],
                     'nth': k + 1,
                     'skeleton': per[i][k],
@@ -124,7 +128,7 @@ def part_between(tag):
     return len(seen)
 
 
-hero_dist = collections.Counter(themes[i]['layout']['hero'] for i in ids)
+hero_dist = collections.Counter(variants[i]['hero'] for i in ids)
 light_hero = 0
 for i in ids:
     html = open(os.path.join(BASE, i, 'index.html'), encoding='utf8', errors='replace').read()

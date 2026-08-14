@@ -15,11 +15,14 @@ import fs from 'fs';
 import { NEXT_DIR, PLAYWRIGHT_MODULE } from './paths.mjs';
 
 const { chromium } = await import(PLAYWRIGHT_MODULE);
-const { themes } = await import(`${NEXT_DIR}/scripts/themes.js`);
+const { themes, layoutFor } = await import(`${NEXT_DIR}/scripts/themes.js`);
 
 const id = process.argv[2];
 const t = themes[id];
 if (!t) { console.log(`🔴 no theme "${id}" in the registry`); process.exit(2); }
+// #1010 —— 注册表里那张表叫 `supports` 了,装的是清单;「这套 theme 对每个 block 最终用哪个写法」
+// 由 `layoutFor()` 说,别在这里自己从清单里挑（两处实现必然分叉）。
+const variants = layoutFor(id);
 
 const fail = [];
 const ok = [];
@@ -49,7 +52,7 @@ for (const [, list] of Object.entries(pages)) {
     // config-data.ts 里是归一化之后的形状（#998 起恒为 blocks）
     (page.blocks || []).forEach((s, i) => {
       const key = `${page.slug}#${i}`;
-      const want = t.layout[s.type];
+      const want = variants[s.type];
       const got = s.data && s.data.variant;
       if (want) {
         overridden++;
@@ -145,7 +148,7 @@ if (!blocks) {
   }
 }
 
-const want = t.layout['hero'];
+const want = variants['hero'];
 const mark = HERO_MARK[want];
 const browser = await chromium.launch();
 const page = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();

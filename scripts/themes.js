@@ -3,9 +3,12 @@
 // A theme has four parts:
 //   colors      配色 — primary 50-900 + accent 50-600, copied into brand.json at creation
 //   fonts       字体 — heading/body families + the Google Fonts URL
-//   layout      版式偏好表 — section type → variant. `{}` means "no preference".
-//               🔴 #960 起它还带两个【不是 section】的键:`header` / `footer`,顶栏和页脚的结构。
-//               它们【走不了】sync-config 里那个按 `layout[section.type]` 取的循环(没有任何 section
+//   supports    我为哪些形态写了样式 — block 类型 → 形态清单。`{}` means "no preference".
+//               🔴 #1010 起这个键叫 supports,以前叫 layout(spec §4.5)。改名连着换了方向:
+//               `layout` 是主题**替站做选择**(一个值),`supports` 是主题**声明能力**(一个清单),
+//               站自己在页面 JSON 的 `block_layout` 里选。今天清单里恒一项,见下面 layoutFor 那段。
+//               🔴 #960 起它还带两个【不是 block】的键:`header` / `footer`,顶栏和页脚的结构。
+//               它们【走不了】sync-config 里那个按 `supports[block.type]` 取的循环(没有任何 block
 //               的 type 叫 header/footer,加了会被 `if (!preferred) continue` 静默跳过),所以由
 //               `scripts/region-layout.js` + sync-config 的 §Regions 单独消费。清单也在那个文件。
 //   style       风格形容词 — one phrase, used in the AI logo prompt (was THEME_STYLE_MAP)
@@ -16,14 +19,14 @@
 //                             feeds `style` to the logo prompt, records the id in site/theme.json
 //   scripts/sync-config.js  — at every build, when site/theme.json says the user applied a theme
 //
-// 🔴 The layout table is only consulted for sites the user actively dressed
+// 🔴 The supports table is only consulted for sites the user actively dressed
 // (site/theme.json `"applied": true`). For every other site — new sites included — the page
 // JSON's own variant still decides, exactly as before. See sync-config.js §theme.
 //
-// #956 — 每套的 layout 表覆盖 28 种 block：registry.ts 的 34 种类型减掉 6 个一个 variant 都没有的
+// #956 — 每套的 supports 表覆盖 28 种 block：registry.ts 的 34 种类型减掉 6 个一个 variant 都没有的
 // （contact-form · quote-form · services-list · services-nav · values-grid · service-related-pages）。
 // 加一种 block 类型、或给某个组件加一种 variant 时，这 30 张表都要跟着补，两条性质要保住：
-//   ① 每套的 key 集合 == 那些有 variant 可挑的类型
+//   ① 每套的 key 集合 == 那些有 variant 可挑的类型（键集合 #1010 改名时一个没动，仍是这 30 个）
 //   ② 每个组件的每一种 variant，30 套里至少有一套用到 —— 否则 30 套在那种 block 上长得一样
 // 两条都能机械核，检查脚本在 #956 的交接留言里（本仓不存这类一次性检查脚本，同 #932）。
 //
@@ -41,19 +44,19 @@ const themes = {
       accent: { 50: '#ecfdf5', 100: '#d1fae5', 200: '#a7f3d0', 300: '#6ee7b7', 400: '#34d399', 500: '#059669', 600: '#047857' }
     },
     fonts: { heading: ['Oswald', 'system-ui', 'sans-serif'], body: ['Open Sans', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Open+Sans:wght@400;500;600;700&display=swap' },
-    layout: {
-      'hero': 'gradient-overlay', 'page-header': 'centered', 'features-grid': 'bordered',
-      'cta-banner': 'dark', 'testimonials': 'featured', 'process-steps': 'horizontal',
-      'faq-accordion': 'numbered', 'content-split': 'text-left-stats', 'gallery': 'overlay',
-      'team-grid': 'compact', 'stats-counter': 'dark', 'pricing-table': 'comparison',
-      'announcement-bar': 'solid', 'awards-certifications': 'banner', 'benefits-list': 'numbered-large',
-      'blog-preview': 'featured', 'checklist': 'numbered-steps', 'contact-info': 'banner',
-      'divider': 'gradient-bar', 'feature-comparison': 'stacked', 'logo-carousel': 'dark',
-      'map-area': 'grouped', 'newsletter-signup': 'split', 'service-highlights': 'tabs',
-      'social-proof': 'highlight', 'text-block': 'highlight-box', 'timeline': 'milestone',
-      'trusted-brands': 'dark',
+    supports: {
+      'hero': ['gradient-overlay'], 'page-header': ['centered'], 'features-grid': ['bordered'],
+      'cta-banner': ['dark'], 'testimonials': ['featured'], 'process-steps': ['horizontal'],
+      'faq-accordion': ['numbered'], 'content-split': ['text-left-stats'], 'gallery': ['overlay'],
+      'team-grid': ['compact'], 'stats-counter': ['dark'], 'pricing-table': ['comparison'],
+      'announcement-bar': ['solid'], 'awards-certifications': ['banner'], 'benefits-list': ['numbered-large'],
+      'blog-preview': ['featured'], 'checklist': ['numbered-steps'], 'contact-info': ['banner'],
+      'divider': ['gradient-bar'], 'feature-comparison': ['stacked'], 'logo-carousel': ['dark'],
+      'map-area': ['grouped'], 'newsletter-signup': ['split'], 'service-highlights': ['tabs'],
+      'social-proof': ['highlight'], 'text-block': ['highlight-box'], 'timeline': ['milestone'],
+      'trusted-brands': ['dark'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'transparent-overlay', 'footer': 'cta-band',
+      'header': ['transparent-overlay'], 'footer': ['cta-band'],
     },
     settings: { radius: 'sharp', density: 'standard', shadow: 'strong', buttonShape: 'square' },
     style: 'bold confident strong red accent',
@@ -66,19 +69,19 @@ const themes = {
       accent: { 50: '#fffbeb', 100: '#fef3c7', 200: '#fde68a', 300: '#fcd34d', 400: '#fbbf24', 500: '#f59e0b', 600: '#d97706' }
     },
     fonts: { heading: ['Inter', 'system-ui', 'sans-serif'], body: ['Inter', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap' },
-    layout: {
-      'hero': 'split', 'page-header': 'with-description', 'features-grid': 'icon-top',
-      'cta-banner': 'solid', 'testimonials': 'grid', 'process-steps': 'horizontal',
-      'faq-accordion': 'two-column', 'content-split': 'text-left', 'gallery': 'grid',
-      'team-grid': 'grid', 'stats-counter': 'bar', 'pricing-table': 'cards',
-      'announcement-bar': 'dismissible', 'awards-certifications': 'detailed', 'benefits-list': 'cards-horizontal',
-      'blog-preview': 'featured', 'checklist': 'two-column', 'contact-info': 'cards',
-      'divider': 'gradient-bar', 'feature-comparison': 'table', 'logo-carousel': 'grid',
-      'map-area': 'cards', 'newsletter-signup': 'split', 'service-highlights': 'tabs',
-      'social-proof': 'review-platforms', 'text-block': 'with-list', 'timeline': 'horizontal',
-      'trusted-brands': 'default',
+    supports: {
+      'hero': ['split'], 'page-header': ['with-description'], 'features-grid': ['icon-top'],
+      'cta-banner': ['solid'], 'testimonials': ['grid'], 'process-steps': ['horizontal'],
+      'faq-accordion': ['two-column'], 'content-split': ['text-left'], 'gallery': ['grid'],
+      'team-grid': ['grid'], 'stats-counter': ['bar'], 'pricing-table': ['cards'],
+      'announcement-bar': ['dismissible'], 'awards-certifications': ['detailed'], 'benefits-list': ['cards-horizontal'],
+      'blog-preview': ['featured'], 'checklist': ['two-column'], 'contact-info': ['cards'],
+      'divider': ['gradient-bar'], 'feature-comparison': ['table'], 'logo-carousel': ['grid'],
+      'map-area': ['cards'], 'newsletter-signup': ['split'], 'service-highlights': ['tabs'],
+      'social-proof': ['review-platforms'], 'text-block': ['with-list'], 'timeline': ['horizontal'],
+      'trusted-brands': ['default'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'solid-bar', 'footer': 'multi-column',
+      'header': ['solid-bar'], 'footer': ['multi-column'],
     },
     settings: { radius: 'subtle', density: 'standard', shadow: 'soft', buttonShape: 'rounded' },
     style: 'modern professional clean blue',
@@ -91,19 +94,19 @@ const themes = {
       accent: { 50: '#fefce8', 100: '#fef9c3', 200: '#fef08a', 300: '#fde047', 400: '#facc15', 500: '#eab308', 600: '#ca8a04' }
     },
     fonts: { heading: ['Montserrat', 'system-ui', 'sans-serif'], body: ['Open Sans', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&family=Open+Sans:wght@400;500;600;700&display=swap' },
-    layout: {
-      'hero': 'light-split', 'page-header': 'default', 'features-grid': 'card',
-      'cta-banner': 'gradient', 'testimonials': 'quote-wall', 'process-steps': 'zigzag',
-      'faq-accordion': 'centered', 'content-split': 'text-right', 'gallery': 'masonry',
-      'team-grid': 'centered', 'stats-counter': 'icon', 'pricing-table': 'cards',
-      'announcement-bar': 'solid', 'awards-certifications': 'grid', 'benefits-list': 'alternating',
-      'blog-preview': 'list', 'checklist': 'cards', 'contact-info': 'map-style',
-      'divider': 'wave', 'feature-comparison': 'stacked', 'logo-carousel': 'scroll',
-      'map-area': 'cards', 'newsletter-signup': 'inline', 'service-highlights': 'accordion',
-      'social-proof': 'rating-bar', 'text-block': 'default', 'timeline': 'vertical',
-      'trusted-brands': 'pill',
+    supports: {
+      'hero': ['light-split'], 'page-header': ['default'], 'features-grid': ['card'],
+      'cta-banner': ['gradient'], 'testimonials': ['quote-wall'], 'process-steps': ['zigzag'],
+      'faq-accordion': ['centered'], 'content-split': ['text-right'], 'gallery': ['masonry'],
+      'team-grid': ['centered'], 'stats-counter': ['icon'], 'pricing-table': ['cards'],
+      'announcement-bar': ['solid'], 'awards-certifications': ['grid'], 'benefits-list': ['alternating'],
+      'blog-preview': ['list'], 'checklist': ['cards'], 'contact-info': ['map-style'],
+      'divider': ['wave'], 'feature-comparison': ['stacked'], 'logo-carousel': ['scroll'],
+      'map-area': ['cards'], 'newsletter-signup': ['inline'], 'service-highlights': ['accordion'],
+      'social-proof': ['rating-bar'], 'text-block': ['default'], 'timeline': ['vertical'],
+      'trusted-brands': ['pill'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'solid-bar', 'footer': 'multi-column',
+      'header': ['solid-bar'], 'footer': ['multi-column'],
     },
     settings: { radius: 'round', density: 'standard', shadow: 'soft', buttonShape: 'rounded' },
     style: 'natural organic balanced green',
@@ -116,19 +119,19 @@ const themes = {
       accent: { 50: '#f0fdfa', 100: '#ccfbf1', 200: '#99f6e4', 300: '#5eead4', 400: '#2dd4bf', 500: '#14b8a6', 600: '#0d9488' }
     },
     fonts: { heading: ['Poppins', 'system-ui', 'sans-serif'], body: ['Poppins', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap' },
-    layout: {
-      'hero': 'centered', 'page-header': 'centered', 'features-grid': 'minimal',
-      'cta-banner': 'gradient', 'testimonials': 'carousel', 'process-steps': 'cards',
-      'faq-accordion': 'cards', 'content-split': 'centered-overlay', 'gallery': 'masonry',
-      'team-grid': 'card-with-social', 'stats-counter': 'gradient', 'pricing-table': 'toggle',
-      'announcement-bar': 'floating', 'awards-certifications': 'detailed', 'benefits-list': 'icon-large',
-      'blog-preview': 'featured', 'checklist': 'icon-grid', 'contact-info': 'cards',
-      'divider': 'gradient-bar', 'feature-comparison': 'cards', 'logo-carousel': 'scroll',
-      'map-area': 'cards', 'newsletter-signup': 'split', 'service-highlights': 'cards-large',
-      'social-proof': 'badges', 'text-block': 'highlight-box', 'timeline': 'milestone',
-      'trusted-brands': 'pill',
+    supports: {
+      'hero': ['centered'], 'page-header': ['centered'], 'features-grid': ['minimal'],
+      'cta-banner': ['gradient'], 'testimonials': ['carousel'], 'process-steps': ['cards'],
+      'faq-accordion': ['cards'], 'content-split': ['centered-overlay'], 'gallery': ['masonry'],
+      'team-grid': ['card-with-social'], 'stats-counter': ['gradient'], 'pricing-table': ['toggle'],
+      'announcement-bar': ['floating'], 'awards-certifications': ['detailed'], 'benefits-list': ['icon-large'],
+      'blog-preview': ['featured'], 'checklist': ['icon-grid'], 'contact-info': ['cards'],
+      'divider': ['gradient-bar'], 'feature-comparison': ['cards'], 'logo-carousel': ['scroll'],
+      'map-area': ['cards'], 'newsletter-signup': ['split'], 'service-highlights': ['cards-large'],
+      'social-proof': ['badges'], 'text-block': ['highlight-box'], 'timeline': ['milestone'],
+      'trusted-brands': ['pill'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'solid-bar', 'footer': 'cta-band',
+      'header': ['solid-bar'], 'footer': ['cta-band'],
     },
     settings: { radius: 'round', density: 'airy', shadow: 'soft', buttonShape: 'pill' },
     style: 'elegant creative refined purple',
@@ -141,19 +144,19 @@ const themes = {
       accent: { 50: '#f0f9ff', 100: '#e0f2fe', 200: '#bae6fd', 300: '#7dd3fc', 400: '#38bdf8', 500: '#0ea5e9', 600: '#0284c7' }
     },
     fonts: { heading: ['Raleway', 'system-ui', 'sans-serif'], body: ['Raleway', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Raleway:wght@400;500;600;700;800&display=swap' },
-    layout: {
-      'hero': 'minimal', 'page-header': 'minimal', 'features-grid': 'list',
-      'cta-banner': 'outlined', 'testimonials': 'minimal', 'process-steps': 'vertical',
-      'faq-accordion': 'two-column', 'content-split': 'text-right-list', 'gallery': 'grid',
-      'team-grid': 'grid', 'stats-counter': 'inline', 'pricing-table': 'minimal',
-      'announcement-bar': 'bordered', 'awards-certifications': 'grid', 'benefits-list': 'alternating',
-      'blog-preview': 'list', 'checklist': 'two-column', 'contact-info': 'inline',
-      'divider': 'line', 'feature-comparison': 'table', 'logo-carousel': 'bordered',
-      'map-area': 'grouped', 'newsletter-signup': 'minimal', 'service-highlights': 'accordion',
-      'social-proof': 'review-platforms', 'text-block': 'quote', 'timeline': 'compact',
-      'trusted-brands': 'default',
+    supports: {
+      'hero': ['minimal'], 'page-header': ['minimal'], 'features-grid': ['list'],
+      'cta-banner': ['outlined'], 'testimonials': ['minimal'], 'process-steps': ['vertical'],
+      'faq-accordion': ['two-column'], 'content-split': ['text-right-list'], 'gallery': ['grid'],
+      'team-grid': ['grid'], 'stats-counter': ['inline'], 'pricing-table': ['minimal'],
+      'announcement-bar': ['bordered'], 'awards-certifications': ['grid'], 'benefits-list': ['alternating'],
+      'blog-preview': ['list'], 'checklist': ['two-column'], 'contact-info': ['inline'],
+      'divider': ['line'], 'feature-comparison': ['table'], 'logo-carousel': ['bordered'],
+      'map-area': ['grouped'], 'newsletter-signup': ['minimal'], 'service-highlights': ['accordion'],
+      'social-proof': ['review-platforms'], 'text-block': ['quote'], 'timeline': ['compact'],
+      'trusted-brands': ['default'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'pill-floating', 'footer': 'slim-row',
+      'header': ['pill-floating'], 'footer': ['slim-row'],
     },
     settings: { radius: 'sharp', density: 'standard', shadow: 'none', buttonShape: 'square' },
     style: 'minimal professional neutral slate',
@@ -166,19 +169,19 @@ const themes = {
       accent: { 50: '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe', 300: '#a5b4fc', 400: '#818cf8', 500: '#6366f1', 600: '#4f46e5' }
     },
     fonts: { heading: ['DM Sans', 'system-ui', 'sans-serif'], body: ['DM Sans', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap' },
-    layout: {
-      'hero': 'split', 'page-header': 'default', 'features-grid': 'card',
-      'cta-banner': 'gradient', 'testimonials': 'grid', 'process-steps': 'icon-strip',
-      'faq-accordion': 'cards', 'content-split': 'text-left', 'gallery': 'grid',
-      'team-grid': 'grid', 'stats-counter': 'cards', 'pricing-table': 'cards',
-      'announcement-bar': 'solid', 'awards-certifications': 'banner', 'benefits-list': 'icon-large',
-      'blog-preview': 'cards', 'checklist': 'cards', 'contact-info': 'banner',
-      'divider': 'gradient-bar', 'feature-comparison': 'cards', 'logo-carousel': 'scroll',
-      'map-area': 'cards', 'newsletter-signup': 'card', 'service-highlights': 'cards-large',
-      'social-proof': 'highlight', 'text-block': 'two-column', 'timeline': 'horizontal',
-      'trusted-brands': 'pill',
+    supports: {
+      'hero': ['split'], 'page-header': ['default'], 'features-grid': ['card'],
+      'cta-banner': ['gradient'], 'testimonials': ['grid'], 'process-steps': ['icon-strip'],
+      'faq-accordion': ['cards'], 'content-split': ['text-left'], 'gallery': ['grid'],
+      'team-grid': ['grid'], 'stats-counter': ['cards'], 'pricing-table': ['cards'],
+      'announcement-bar': ['solid'], 'awards-certifications': ['banner'], 'benefits-list': ['icon-large'],
+      'blog-preview': ['cards'], 'checklist': ['cards'], 'contact-info': ['banner'],
+      'divider': ['gradient-bar'], 'feature-comparison': ['cards'], 'logo-carousel': ['scroll'],
+      'map-area': ['cards'], 'newsletter-signup': ['card'], 'service-highlights': ['cards-large'],
+      'social-proof': ['highlight'], 'text-block': ['two-column'], 'timeline': ['horizontal'],
+      'trusted-brands': ['pill'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'pill-floating', 'footer': 'cta-band',
+      'header': ['pill-floating'], 'footer': ['cta-band'],
     },
     settings: { radius: 'round', density: 'standard', shadow: 'soft', buttonShape: 'pill' },
     style: 'warm energetic vibrant orange',
@@ -191,19 +194,19 @@ const themes = {
       accent: { 50: '#fffbeb', 100: '#fef3c7', 200: '#fde68a', 300: '#fcd34d', 400: '#fbbf24', 500: '#d97706', 600: '#b45309' }
     },
     fonts: { heading: ['Playfair Display', 'serif'], body: ['Lato', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800&family=Lato:wght@400;500;600;700&display=swap' },
-    layout: {
-      'hero': 'light-editorial', 'page-header': 'centered', 'features-grid': 'minimal',
-      'cta-banner': 'outlined', 'testimonials': 'featured', 'process-steps': 'vertical',
-      'faq-accordion': 'centered', 'content-split': 'text-right', 'gallery': 'carousel',
-      'team-grid': 'centered', 'stats-counter': 'inline', 'pricing-table': 'minimal',
-      'announcement-bar': 'bordered', 'awards-certifications': 'grid', 'benefits-list': 'icon-large',
-      'blog-preview': 'featured', 'checklist': 'two-column', 'contact-info': 'cards',
-      'divider': 'icon', 'feature-comparison': 'columns', 'logo-carousel': 'bordered',
-      'map-area': 'list', 'newsletter-signup': 'card', 'service-highlights': 'cards-large',
-      'social-proof': 'rating-bar', 'text-block': 'quote', 'timeline': 'vertical',
-      'trusted-brands': 'pill',
+    supports: {
+      'hero': ['light-editorial'], 'page-header': ['centered'], 'features-grid': ['minimal'],
+      'cta-banner': ['outlined'], 'testimonials': ['featured'], 'process-steps': ['vertical'],
+      'faq-accordion': ['centered'], 'content-split': ['text-right'], 'gallery': ['carousel'],
+      'team-grid': ['centered'], 'stats-counter': ['inline'], 'pricing-table': ['minimal'],
+      'announcement-bar': ['bordered'], 'awards-certifications': ['grid'], 'benefits-list': ['icon-large'],
+      'blog-preview': ['featured'], 'checklist': ['two-column'], 'contact-info': ['cards'],
+      'divider': ['icon'], 'feature-comparison': ['columns'], 'logo-carousel': ['bordered'],
+      'map-area': ['list'], 'newsletter-signup': ['card'], 'service-highlights': ['cards-large'],
+      'social-proof': ['rating-bar'], 'text-block': ['quote'], 'timeline': ['vertical'],
+      'trusted-brands': ['pill'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'centered-logo', 'footer': 'cta-band',
+      'header': ['centered-logo'], 'footer': ['cta-band'],
     },
     settings: { radius: 'round', density: 'airy', shadow: 'soft', buttonShape: 'pill' },
     style: 'soft elegant warm rose-gold',
@@ -216,19 +219,19 @@ const themes = {
       accent: { 50: '#ecfeff', 100: '#cffafe', 200: '#a5f3fc', 300: '#67e8f9', 400: '#22d3ee', 500: '#06b6d4', 600: '#0891b2' }
     },
     fonts: { heading: ['Space Grotesk', 'system-ui', 'sans-serif'], body: ['Space Grotesk', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap' },
-    layout: {
-      'hero': 'video-style', 'page-header': 'minimal', 'features-grid': 'alternating',
-      'cta-banner': 'dark', 'testimonials': 'carousel', 'process-steps': 'icon-strip',
-      'faq-accordion': 'numbered', 'content-split': 'cards-row', 'gallery': 'overlay',
-      'team-grid': 'card-with-social', 'stats-counter': 'dark', 'pricing-table': 'toggle',
-      'announcement-bar': 'solid', 'awards-certifications': 'detailed', 'benefits-list': 'numbered-large',
-      'blog-preview': 'list', 'checklist': 'numbered-steps', 'contact-info': 'banner',
-      'divider': 'line', 'feature-comparison': 'columns', 'logo-carousel': 'dark',
-      'map-area': 'badge', 'newsletter-signup': 'card', 'service-highlights': 'split',
-      'social-proof': 'highlight', 'text-block': 'highlight-box', 'timeline': 'milestone',
-      'trusted-brands': 'dark',
+    supports: {
+      'hero': ['video-style'], 'page-header': ['minimal'], 'features-grid': ['alternating'],
+      'cta-banner': ['dark'], 'testimonials': ['carousel'], 'process-steps': ['icon-strip'],
+      'faq-accordion': ['numbered'], 'content-split': ['cards-row'], 'gallery': ['overlay'],
+      'team-grid': ['card-with-social'], 'stats-counter': ['dark'], 'pricing-table': ['toggle'],
+      'announcement-bar': ['solid'], 'awards-certifications': ['detailed'], 'benefits-list': ['numbered-large'],
+      'blog-preview': ['list'], 'checklist': ['numbered-steps'], 'contact-info': ['banner'],
+      'divider': ['line'], 'feature-comparison': ['columns'], 'logo-carousel': ['dark'],
+      'map-area': ['badge'], 'newsletter-signup': ['card'], 'service-highlights': ['split'],
+      'social-proof': ['highlight'], 'text-block': ['highlight-box'], 'timeline': ['milestone'],
+      'trusted-brands': ['dark'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'transparent-overlay', 'footer': 'slim-row',
+      'header': ['transparent-overlay'], 'footer': ['slim-row'],
     },
     settings: { radius: 'round', density: 'airy', shadow: 'strong', buttonShape: 'pill' },
     style: 'modern luxury deep dark',
@@ -241,19 +244,19 @@ const themes = {
       accent: { 50: '#f1f8f4', 100: '#dceee3', 200: '#b9dcc7', 300: '#8fc5a5', 400: '#6aad84', 500: '#4a9167', 600: '#3a7553' }
     },
     fonts: { heading: ['Merriweather', 'serif'], body: ['Source Sans 3', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&family=Source+Sans+3:wght@400;500;600;700&display=swap' },
-    layout: {
-      'hero': 'light-showcase', 'page-header': 'with-description', 'features-grid': 'alternating',
-      'cta-banner': 'solid', 'testimonials': 'quote-wall', 'process-steps': 'zigzag',
-      'faq-accordion': 'centered', 'content-split': 'text-left', 'gallery': 'masonry',
-      'team-grid': 'compact', 'stats-counter': 'icon', 'pricing-table': 'cards',
-      'announcement-bar': 'solid', 'awards-certifications': 'banner', 'benefits-list': 'alternating',
-      'blog-preview': 'featured', 'checklist': 'numbered-steps', 'contact-info': 'map-style',
-      'divider': 'wave', 'feature-comparison': 'columns', 'logo-carousel': 'bordered',
-      'map-area': 'list', 'newsletter-signup': 'inline', 'service-highlights': 'accordion',
-      'social-proof': 'highlight', 'text-block': 'with-list', 'timeline': 'milestone',
-      'trusted-brands': 'pill',
+    supports: {
+      'hero': ['light-showcase'], 'page-header': ['with-description'], 'features-grid': ['alternating'],
+      'cta-banner': ['solid'], 'testimonials': ['quote-wall'], 'process-steps': ['zigzag'],
+      'faq-accordion': ['centered'], 'content-split': ['text-left'], 'gallery': ['masonry'],
+      'team-grid': ['compact'], 'stats-counter': ['icon'], 'pricing-table': ['cards'],
+      'announcement-bar': ['solid'], 'awards-certifications': ['banner'], 'benefits-list': ['alternating'],
+      'blog-preview': ['featured'], 'checklist': ['numbered-steps'], 'contact-info': ['map-style'],
+      'divider': ['wave'], 'feature-comparison': ['columns'], 'logo-carousel': ['bordered'],
+      'map-area': ['list'], 'newsletter-signup': ['inline'], 'service-highlights': ['accordion'],
+      'social-proof': ['highlight'], 'text-block': ['with-list'], 'timeline': ['milestone'],
+      'trusted-brands': ['pill'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'solid-bar', 'footer': 'multi-column',
+      'header': ['solid-bar'], 'footer': ['multi-column'],
     },
     settings: { radius: 'subtle', density: 'airy', shadow: 'soft', buttonShape: 'rounded' },
     style: 'natural organic warm earthy',
@@ -266,19 +269,19 @@ const themes = {
       accent: { 50: '#f7fee7', 100: '#ecfccb', 200: '#d9f99d', 300: '#bef264', 400: '#a3e635', 500: '#84cc16', 600: '#65a30d' }
     },
     fonts: { heading: ['Outfit', 'system-ui', 'sans-serif'], body: ['Outfit', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap' },
-    layout: {
-      'hero': 'gradient-overlay', 'page-header': 'centered', 'features-grid': 'icon-top',
-      'cta-banner': 'gradient', 'testimonials': 'carousel', 'process-steps': 'cards',
-      'faq-accordion': 'cards', 'content-split': 'cards-row', 'gallery': 'carousel',
-      'team-grid': 'card-with-social', 'stats-counter': 'gradient', 'pricing-table': 'toggle',
-      'announcement-bar': 'solid', 'awards-certifications': 'banner', 'benefits-list': 'numbered-large',
-      'blog-preview': 'featured', 'checklist': 'icon-grid', 'contact-info': 'banner',
-      'divider': 'gradient-bar', 'feature-comparison': 'cards', 'logo-carousel': 'dark',
-      'map-area': 'badge', 'newsletter-signup': 'split', 'service-highlights': 'cards-large',
-      'social-proof': 'highlight', 'text-block': 'highlight-box', 'timeline': 'milestone',
-      'trusted-brands': 'dark',
+    supports: {
+      'hero': ['gradient-overlay'], 'page-header': ['centered'], 'features-grid': ['icon-top'],
+      'cta-banner': ['gradient'], 'testimonials': ['carousel'], 'process-steps': ['cards'],
+      'faq-accordion': ['cards'], 'content-split': ['cards-row'], 'gallery': ['carousel'],
+      'team-grid': ['card-with-social'], 'stats-counter': ['gradient'], 'pricing-table': ['toggle'],
+      'announcement-bar': ['solid'], 'awards-certifications': ['banner'], 'benefits-list': ['numbered-large'],
+      'blog-preview': ['featured'], 'checklist': ['icon-grid'], 'contact-info': ['banner'],
+      'divider': ['gradient-bar'], 'feature-comparison': ['cards'], 'logo-carousel': ['dark'],
+      'map-area': ['badge'], 'newsletter-signup': ['split'], 'service-highlights': ['cards-large'],
+      'social-proof': ['highlight'], 'text-block': ['highlight-box'], 'timeline': ['milestone'],
+      'trusted-brands': ['dark'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'transparent-overlay', 'footer': 'cta-band',
+      'header': ['transparent-overlay'], 'footer': ['cta-band'],
     },
     settings: { radius: 'sharp', density: 'compact', shadow: 'strong', buttonShape: 'square' },
     style: 'bold energetic vibrant neon',
@@ -291,19 +294,19 @@ const themes = {
       accent: { 50: '#f8fafc', 100: '#f1f5f9', 200: '#e2e8f0', 300: '#cbd5e1', 400: '#94a3b8', 500: '#475569', 600: '#334155' }
     },
     fonts: { heading: ['Playfair Display', 'serif'], body: ['Source Sans 3', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap' },
-    layout: {
-      'hero': 'left', 'page-header': 'default', 'features-grid': 'bordered',
-      'cta-banner': 'split', 'testimonials': 'grid', 'process-steps': 'horizontal',
-      'faq-accordion': 'two-column', 'content-split': 'text-left-stats', 'gallery': 'grid',
-      'team-grid': 'compact', 'stats-counter': 'bar', 'pricing-table': 'comparison',
-      'announcement-bar': 'solid', 'awards-certifications': 'banner', 'benefits-list': 'cards-horizontal',
-      'blog-preview': 'cards', 'checklist': 'numbered-steps', 'contact-info': 'banner',
-      'divider': 'gradient-bar', 'feature-comparison': 'table', 'logo-carousel': 'grid',
-      'map-area': 'grouped', 'newsletter-signup': 'card', 'service-highlights': 'tabs',
-      'social-proof': 'review-platforms', 'text-block': 'with-list', 'timeline': 'milestone',
-      'trusted-brands': 'default',
+    supports: {
+      'hero': ['left'], 'page-header': ['default'], 'features-grid': ['bordered'],
+      'cta-banner': ['split'], 'testimonials': ['grid'], 'process-steps': ['horizontal'],
+      'faq-accordion': ['two-column'], 'content-split': ['text-left-stats'], 'gallery': ['grid'],
+      'team-grid': ['compact'], 'stats-counter': ['bar'], 'pricing-table': ['comparison'],
+      'announcement-bar': ['solid'], 'awards-certifications': ['banner'], 'benefits-list': ['cards-horizontal'],
+      'blog-preview': ['cards'], 'checklist': ['numbered-steps'], 'contact-info': ['banner'],
+      'divider': ['gradient-bar'], 'feature-comparison': ['table'], 'logo-carousel': ['grid'],
+      'map-area': ['grouped'], 'newsletter-signup': ['card'], 'service-highlights': ['tabs'],
+      'social-proof': ['review-platforms'], 'text-block': ['with-list'], 'timeline': ['milestone'],
+      'trusted-brands': ['default'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'solid-bar', 'footer': 'cta-band',
+      'header': ['solid-bar'], 'footer': ['cta-band'],
     },
     settings: { radius: 'sharp', density: 'compact', shadow: 'none', buttonShape: 'square' },
     style: 'warm trustworthy industrial yellow',
@@ -321,19 +324,19 @@ const themes = {
       accent: { 50: '#fdf8ed', 100: '#f9edd0', 200: '#f2dba1', 300: '#e8c469', 400: '#dbaa3c', 500: '#b8860b', 600: '#8f6708' }
     },
     fonts: { heading: ['Libre Baskerville', 'serif'], body: ['Public Sans', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Public+Sans:wght@400;500;600;700;800&display=swap' },
-    layout: {
-      'hero': 'left', 'page-header': 'with-description', 'features-grid': 'bordered',
-      'cta-banner': 'solid', 'testimonials': 'grid', 'process-steps': 'horizontal',
-      'faq-accordion': 'two-column', 'content-split': 'text-left-stats', 'gallery': 'grid',
-      'team-grid': 'grid', 'stats-counter': 'bar', 'pricing-table': 'comparison',
-      'announcement-bar': 'dismissible', 'awards-certifications': 'detailed', 'benefits-list': 'alternating',
-      'blog-preview': 'list', 'checklist': 'two-column', 'contact-info': 'cards',
-      'divider': 'line', 'feature-comparison': 'table', 'logo-carousel': 'grid',
-      'map-area': 'grouped', 'newsletter-signup': 'card', 'service-highlights': 'accordion',
-      'social-proof': 'review-platforms', 'text-block': 'quote', 'timeline': 'vertical',
-      'trusted-brands': 'default',
+    supports: {
+      'hero': ['left'], 'page-header': ['with-description'], 'features-grid': ['bordered'],
+      'cta-banner': ['solid'], 'testimonials': ['grid'], 'process-steps': ['horizontal'],
+      'faq-accordion': ['two-column'], 'content-split': ['text-left-stats'], 'gallery': ['grid'],
+      'team-grid': ['grid'], 'stats-counter': ['bar'], 'pricing-table': ['comparison'],
+      'announcement-bar': ['dismissible'], 'awards-certifications': ['detailed'], 'benefits-list': ['alternating'],
+      'blog-preview': ['list'], 'checklist': ['two-column'], 'contact-info': ['cards'],
+      'divider': ['line'], 'feature-comparison': ['table'], 'logo-carousel': ['grid'],
+      'map-area': ['grouped'], 'newsletter-signup': ['card'], 'service-highlights': ['accordion'],
+      'social-proof': ['review-platforms'], 'text-block': ['quote'], 'timeline': ['vertical'],
+      'trusted-brands': ['default'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'solid-bar', 'footer': 'multi-column',
+      'header': ['solid-bar'], 'footer': ['multi-column'],
     },
     settings: { radius: 'subtle', density: 'airy', shadow: 'soft', buttonShape: 'rounded' },
     style: 'refined trustworthy deep navy',
@@ -346,19 +349,19 @@ const themes = {
       accent: { 50: '#fdfaef', 100: '#faf2d5', 200: '#f4e3a8', 300: '#ecd074', 400: '#e0b944', 500: '#c9a227', 600: '#a2811d' }
     },
     fonts: { heading: ['Cormorant Garamond', 'serif'], body: ['Jost', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Jost:wght@400;500;600;700&display=swap' },
-    layout: {
-      'hero': 'gradient-overlay', 'page-header': 'centered', 'features-grid': 'minimal',
-      'cta-banner': 'dark', 'testimonials': 'featured', 'process-steps': 'vertical',
-      'faq-accordion': 'centered', 'content-split': 'centered-overlay', 'gallery': 'overlay',
-      'team-grid': 'card-with-social', 'stats-counter': 'dark', 'pricing-table': 'minimal',
-      'announcement-bar': 'solid', 'awards-certifications': 'banner', 'benefits-list': 'alternating',
-      'blog-preview': 'featured', 'checklist': 'numbered-steps', 'contact-info': 'inline',
-      'divider': 'line', 'feature-comparison': 'stacked', 'logo-carousel': 'dark',
-      'map-area': 'list', 'newsletter-signup': 'split', 'service-highlights': 'split',
-      'social-proof': 'highlight', 'text-block': 'quote', 'timeline': 'vertical',
-      'trusted-brands': 'dark',
+    supports: {
+      'hero': ['gradient-overlay'], 'page-header': ['centered'], 'features-grid': ['minimal'],
+      'cta-banner': ['dark'], 'testimonials': ['featured'], 'process-steps': ['vertical'],
+      'faq-accordion': ['centered'], 'content-split': ['centered-overlay'], 'gallery': ['overlay'],
+      'team-grid': ['card-with-social'], 'stats-counter': ['dark'], 'pricing-table': ['minimal'],
+      'announcement-bar': ['solid'], 'awards-certifications': ['banner'], 'benefits-list': ['alternating'],
+      'blog-preview': ['featured'], 'checklist': ['numbered-steps'], 'contact-info': ['inline'],
+      'divider': ['line'], 'feature-comparison': ['stacked'], 'logo-carousel': ['dark'],
+      'map-area': ['list'], 'newsletter-signup': ['split'], 'service-highlights': ['split'],
+      'social-proof': ['highlight'], 'text-block': ['quote'], 'timeline': ['vertical'],
+      'trusted-brands': ['dark'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'transparent-overlay', 'footer': 'slim-row',
+      'header': ['transparent-overlay'], 'footer': ['slim-row'],
     },
     settings: { radius: 'sharp', density: 'airy', shadow: 'none', buttonShape: 'square' },
     style: 'luxury black and gold editorial',
@@ -371,19 +374,19 @@ const themes = {
       accent: { 50: '#fdf4f0', 100: '#fae5db', 200: '#f4c9b6', 300: '#eaa88c', 400: '#dd845f', 500: '#c25f38', 600: '#9c4a2b' }
     },
     fonts: { heading: ['Fraunces', 'serif'], body: ['Karla', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Fraunces:wght@400;500;600;700&family=Karla:wght@400;500;600;700;800&display=swap' },
-    layout: {
-      'hero': 'minimal', 'page-header': 'minimal', 'features-grid': 'list',
-      'cta-banner': 'outlined', 'testimonials': 'minimal', 'process-steps': 'zigzag',
-      'faq-accordion': 'centered', 'content-split': 'text-right', 'gallery': 'masonry',
-      'team-grid': 'centered', 'stats-counter': 'inline', 'pricing-table': 'minimal',
-      'announcement-bar': 'bordered', 'awards-certifications': 'grid', 'benefits-list': 'alternating',
-      'blog-preview': 'list', 'checklist': 'cards', 'contact-info': 'inline',
-      'divider': 'wave', 'feature-comparison': 'columns', 'logo-carousel': 'bordered',
-      'map-area': 'list', 'newsletter-signup': 'inline', 'service-highlights': 'accordion',
-      'social-proof': 'rating-bar', 'text-block': 'default', 'timeline': 'vertical',
-      'trusted-brands': 'default',
+    supports: {
+      'hero': ['minimal'], 'page-header': ['minimal'], 'features-grid': ['list'],
+      'cta-banner': ['outlined'], 'testimonials': ['minimal'], 'process-steps': ['zigzag'],
+      'faq-accordion': ['centered'], 'content-split': ['text-right'], 'gallery': ['masonry'],
+      'team-grid': ['centered'], 'stats-counter': ['inline'], 'pricing-table': ['minimal'],
+      'announcement-bar': ['bordered'], 'awards-certifications': ['grid'], 'benefits-list': ['alternating'],
+      'blog-preview': ['list'], 'checklist': ['cards'], 'contact-info': ['inline'],
+      'divider': ['wave'], 'feature-comparison': ['columns'], 'logo-carousel': ['bordered'],
+      'map-area': ['list'], 'newsletter-signup': ['inline'], 'service-highlights': ['accordion'],
+      'social-proof': ['rating-bar'], 'text-block': ['default'], 'timeline': ['vertical'],
+      'trusted-brands': ['default'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'centered-logo', 'footer': 'multi-column',
+      'header': ['centered-logo'], 'footer': ['multi-column'],
     },
     settings: { radius: 'subtle', density: 'airy', shadow: 'none', buttonShape: 'rounded' },
     style: 'airy warm ivory understated',
@@ -396,19 +399,19 @@ const themes = {
       accent: { 50: '#ecfdf5', 100: '#d1fae5', 200: '#a7f3d0', 300: '#6ee7b7', 400: '#34d399', 500: '#10b981', 600: '#059669' }
     },
     fonts: { heading: ['Manrope', 'system-ui', 'sans-serif'], body: ['Manrope', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap' },
-    layout: {
-      'hero': 'split', 'page-header': 'with-description', 'features-grid': 'icon-top',
-      'cta-banner': 'solid', 'testimonials': 'grid', 'process-steps': 'horizontal',
-      'faq-accordion': 'two-column', 'content-split': 'text-left', 'gallery': 'grid',
-      'team-grid': 'grid', 'stats-counter': 'bar', 'pricing-table': 'comparison',
-      'announcement-bar': 'bordered', 'awards-certifications': 'detailed', 'benefits-list': 'icon-large',
-      'blog-preview': 'cards', 'checklist': 'icon-grid', 'contact-info': 'banner',
-      'divider': 'line', 'feature-comparison': 'table', 'logo-carousel': 'grid',
-      'map-area': 'grouped', 'newsletter-signup': 'card', 'service-highlights': 'tabs',
-      'social-proof': 'badges', 'text-block': 'with-list', 'timeline': 'vertical',
-      'trusted-brands': 'default',
+    supports: {
+      'hero': ['split'], 'page-header': ['with-description'], 'features-grid': ['icon-top'],
+      'cta-banner': ['solid'], 'testimonials': ['grid'], 'process-steps': ['horizontal'],
+      'faq-accordion': ['two-column'], 'content-split': ['text-left'], 'gallery': ['grid'],
+      'team-grid': ['grid'], 'stats-counter': ['bar'], 'pricing-table': ['comparison'],
+      'announcement-bar': ['bordered'], 'awards-certifications': ['detailed'], 'benefits-list': ['icon-large'],
+      'blog-preview': ['cards'], 'checklist': ['icon-grid'], 'contact-info': ['banner'],
+      'divider': ['line'], 'feature-comparison': ['table'], 'logo-carousel': ['grid'],
+      'map-area': ['grouped'], 'newsletter-signup': ['card'], 'service-highlights': ['tabs'],
+      'social-proof': ['badges'], 'text-block': ['with-list'], 'timeline': ['vertical'],
+      'trusted-brands': ['default'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'solid-bar', 'footer': 'multi-column',
+      'header': ['solid-bar'], 'footer': ['multi-column'],
     },
     settings: { radius: 'subtle', density: 'standard', shadow: 'soft', buttonShape: 'rounded' },
     style: 'calm dependable corporate blue',
@@ -421,19 +424,19 @@ const themes = {
       accent: { 50: '#fff8ed', 100: '#ffefd4', 200: '#fedca8', 300: '#fcc272', 400: '#f8a13c', 500: '#e2811a', 600: '#b96413' }
     },
     fonts: { heading: ['Nunito Sans', 'system-ui', 'sans-serif'], body: ['Nunito Sans', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;500;600;700;800&display=swap' },
-    layout: {
-      'hero': 'light-split', 'page-header': 'default', 'features-grid': 'card',
-      'cta-banner': 'gradient', 'testimonials': 'carousel', 'process-steps': 'cards',
-      'faq-accordion': 'cards', 'content-split': 'text-right-list', 'gallery': 'grid',
-      'team-grid': 'compact', 'stats-counter': 'icon', 'pricing-table': 'cards',
-      'announcement-bar': 'dismissible', 'awards-certifications': 'detailed', 'benefits-list': 'icon-large',
-      'blog-preview': 'cards', 'checklist': 'two-column', 'contact-info': 'cards',
-      'divider': 'icon', 'feature-comparison': 'table', 'logo-carousel': 'grid',
-      'map-area': 'grouped', 'newsletter-signup': 'card', 'service-highlights': 'accordion',
-      'social-proof': 'review-platforms', 'text-block': 'with-list', 'timeline': 'vertical',
-      'trusted-brands': 'default',
+    supports: {
+      'hero': ['light-split'], 'page-header': ['default'], 'features-grid': ['card'],
+      'cta-banner': ['gradient'], 'testimonials': ['carousel'], 'process-steps': ['cards'],
+      'faq-accordion': ['cards'], 'content-split': ['text-right-list'], 'gallery': ['grid'],
+      'team-grid': ['compact'], 'stats-counter': ['icon'], 'pricing-table': ['cards'],
+      'announcement-bar': ['dismissible'], 'awards-certifications': ['detailed'], 'benefits-list': ['icon-large'],
+      'blog-preview': ['cards'], 'checklist': ['two-column'], 'contact-info': ['cards'],
+      'divider': ['icon'], 'feature-comparison': ['table'], 'logo-carousel': ['grid'],
+      'map-area': ['grouped'], 'newsletter-signup': ['card'], 'service-highlights': ['accordion'],
+      'social-proof': ['review-platforms'], 'text-block': ['with-list'], 'timeline': ['vertical'],
+      'trusted-brands': ['default'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'solid-bar', 'footer': 'slim-row',
+      'header': ['solid-bar'], 'footer': ['slim-row'],
     },
     settings: { radius: 'round', density: 'standard', shadow: 'soft', buttonShape: 'pill' },
     style: 'friendly reassuring teal',
@@ -446,19 +449,19 @@ const themes = {
       accent: { 50: '#fdf9ef', 100: '#faf0d6', 200: '#f3dfab', 300: '#e9c877', 400: '#dcae46', 500: '#c08f22', 600: '#97701a' }
     },
     fonts: { heading: ['Bitter', 'serif'], body: ['Cabin', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Bitter:wght@400;500;600;700&family=Cabin:wght@400;500;600;700&display=swap' },
-    layout: {
-      'hero': 'left', 'page-header': 'with-description', 'features-grid': 'alternating',
-      'cta-banner': 'solid', 'testimonials': 'quote-wall', 'process-steps': 'vertical',
-      'faq-accordion': 'numbered', 'content-split': 'text-left-stats', 'gallery': 'grid',
-      'team-grid': 'grid', 'stats-counter': 'bar', 'pricing-table': 'comparison',
-      'announcement-bar': 'dismissible', 'awards-certifications': 'detailed', 'benefits-list': 'numbered-large',
-      'blog-preview': 'cards', 'checklist': 'two-column', 'contact-info': 'cards',
-      'divider': 'line', 'feature-comparison': 'table', 'logo-carousel': 'bordered',
-      'map-area': 'list', 'newsletter-signup': 'inline', 'service-highlights': 'tabs',
-      'social-proof': 'review-platforms', 'text-block': 'with-list', 'timeline': 'compact',
-      'trusted-brands': 'default',
+    supports: {
+      'hero': ['left'], 'page-header': ['with-description'], 'features-grid': ['alternating'],
+      'cta-banner': ['solid'], 'testimonials': ['quote-wall'], 'process-steps': ['vertical'],
+      'faq-accordion': ['numbered'], 'content-split': ['text-left-stats'], 'gallery': ['grid'],
+      'team-grid': ['grid'], 'stats-counter': ['bar'], 'pricing-table': ['comparison'],
+      'announcement-bar': ['dismissible'], 'awards-certifications': ['detailed'], 'benefits-list': ['numbered-large'],
+      'blog-preview': ['cards'], 'checklist': ['two-column'], 'contact-info': ['cards'],
+      'divider': ['line'], 'feature-comparison': ['table'], 'logo-carousel': ['bordered'],
+      'map-area': ['list'], 'newsletter-signup': ['inline'], 'service-highlights': ['tabs'],
+      'social-proof': ['review-platforms'], 'text-block': ['with-list'], 'timeline': ['compact'],
+      'trusted-brands': ['default'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'solid-bar', 'footer': 'multi-column',
+      'header': ['solid-bar'], 'footer': ['multi-column'],
     },
     settings: { radius: 'subtle', density: 'standard', shadow: 'none', buttonShape: 'rounded' },
     style: 'steady conservative forest green',
@@ -471,19 +474,19 @@ const themes = {
       accent: { 50: '#fdfaef', 100: '#faf3d6', 200: '#f3e4a9', 300: '#e9d075', 400: '#dbb944', 500: '#c19b26', 600: '#99791d' }
     },
     fonts: { heading: ['Lora', 'serif'], body: ['Work Sans', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&family=Work+Sans:wght@400;500;600;700&display=swap' },
-    layout: {
-      'hero': 'light-editorial', 'page-header': 'centered', 'features-grid': 'minimal',
-      'cta-banner': 'dark', 'testimonials': 'featured', 'process-steps': 'vertical',
-      'faq-accordion': 'centered', 'content-split': 'text-right', 'gallery': 'carousel',
-      'team-grid': 'centered', 'stats-counter': 'inline', 'pricing-table': 'minimal',
-      'announcement-bar': 'solid', 'awards-certifications': 'detailed', 'benefits-list': 'numbered-large',
-      'blog-preview': 'featured', 'checklist': 'two-column', 'contact-info': 'inline',
-      'divider': 'line', 'feature-comparison': 'columns', 'logo-carousel': 'bordered',
-      'map-area': 'grouped', 'newsletter-signup': 'card', 'service-highlights': 'accordion',
-      'social-proof': 'highlight', 'text-block': 'quote', 'timeline': 'milestone',
-      'trusted-brands': 'default',
+    supports: {
+      'hero': ['light-editorial'], 'page-header': ['centered'], 'features-grid': ['minimal'],
+      'cta-banner': ['dark'], 'testimonials': ['featured'], 'process-steps': ['vertical'],
+      'faq-accordion': ['centered'], 'content-split': ['text-right'], 'gallery': ['carousel'],
+      'team-grid': ['centered'], 'stats-counter': ['inline'], 'pricing-table': ['minimal'],
+      'announcement-bar': ['solid'], 'awards-certifications': ['detailed'], 'benefits-list': ['numbered-large'],
+      'blog-preview': ['featured'], 'checklist': ['two-column'], 'contact-info': ['inline'],
+      'divider': ['line'], 'feature-comparison': ['columns'], 'logo-carousel': ['bordered'],
+      'map-area': ['grouped'], 'newsletter-signup': ['card'], 'service-highlights': ['accordion'],
+      'social-proof': ['highlight'], 'text-block': ['quote'], 'timeline': ['milestone'],
+      'trusted-brands': ['default'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'centered-logo', 'footer': 'multi-column',
+      'header': ['centered-logo'], 'footer': ['multi-column'],
     },
     settings: { radius: 'subtle', density: 'airy', shadow: 'soft', buttonShape: 'rounded' },
     style: 'classic refined burgundy',
@@ -496,19 +499,19 @@ const themes = {
       accent: { 50: '#f0fdf7', 100: '#dcfcec', 200: '#b6f6d7', 300: '#82e9bb', 400: '#4dd49b', 500: '#21b57c', 600: '#189062' }
     },
     fonts: { heading: ['Figtree', 'system-ui', 'sans-serif'], body: ['Figtree', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap' },
-    layout: {
-      'hero': 'light-showcase', 'page-header': 'centered', 'features-grid': 'icon-top',
-      'cta-banner': 'gradient', 'testimonials': 'grid', 'process-steps': 'icon-strip',
-      'faq-accordion': 'two-column', 'content-split': 'text-left', 'gallery': 'grid',
-      'team-grid': 'grid', 'stats-counter': 'cards', 'pricing-table': 'cards',
-      'announcement-bar': 'dismissible', 'awards-certifications': 'grid', 'benefits-list': 'cards-horizontal',
-      'blog-preview': 'cards', 'checklist': 'icon-grid', 'contact-info': 'cards',
-      'divider': 'line', 'feature-comparison': 'columns', 'logo-carousel': 'grid',
-      'map-area': 'grouped', 'newsletter-signup': 'inline', 'service-highlights': 'tabs',
-      'social-proof': 'rating-bar', 'text-block': 'two-column', 'timeline': 'horizontal',
-      'trusted-brands': 'default',
+    supports: {
+      'hero': ['light-showcase'], 'page-header': ['centered'], 'features-grid': ['icon-top'],
+      'cta-banner': ['gradient'], 'testimonials': ['grid'], 'process-steps': ['icon-strip'],
+      'faq-accordion': ['two-column'], 'content-split': ['text-left'], 'gallery': ['grid'],
+      'team-grid': ['grid'], 'stats-counter': ['cards'], 'pricing-table': ['cards'],
+      'announcement-bar': ['dismissible'], 'awards-certifications': ['grid'], 'benefits-list': ['cards-horizontal'],
+      'blog-preview': ['cards'], 'checklist': ['icon-grid'], 'contact-info': ['cards'],
+      'divider': ['line'], 'feature-comparison': ['columns'], 'logo-carousel': ['grid'],
+      'map-area': ['grouped'], 'newsletter-signup': ['inline'], 'service-highlights': ['tabs'],
+      'social-proof': ['rating-bar'], 'text-block': ['two-column'], 'timeline': ['horizontal'],
+      'trusted-brands': ['default'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'centered-logo', 'footer': 'cta-band',
+      'header': ['centered-logo'], 'footer': ['cta-band'],
     },
     settings: { radius: 'round', density: 'standard', shadow: 'soft', buttonShape: 'pill' },
     style: 'clean clinical fresh ice blue',
@@ -521,19 +524,19 @@ const themes = {
       accent: { 50: '#f7fee7', 100: '#ecfccb', 200: '#d9f99d', 300: '#bef264', 400: '#a3e635', 500: '#7ab317', 600: '#5e8b12' }
     },
     fonts: { heading: ['Archivo', 'system-ui', 'sans-serif'], body: ['Archivo', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap' },
-    layout: {
-      'hero': 'video-style', 'page-header': 'minimal', 'features-grid': 'bordered',
-      'cta-banner': 'dark', 'testimonials': 'minimal', 'process-steps': 'icon-strip',
-      'faq-accordion': 'numbered', 'content-split': 'cards-row', 'gallery': 'overlay',
-      'team-grid': 'compact', 'stats-counter': 'dark', 'pricing-table': 'toggle',
-      'announcement-bar': 'solid', 'awards-certifications': 'grid', 'benefits-list': 'numbered-large',
-      'blog-preview': 'featured', 'checklist': 'icon-grid', 'contact-info': 'banner',
-      'divider': 'line', 'feature-comparison': 'table', 'logo-carousel': 'dark',
-      'map-area': 'badge', 'newsletter-signup': 'split', 'service-highlights': 'split',
-      'social-proof': 'rating-bar', 'text-block': 'highlight-box', 'timeline': 'horizontal',
-      'trusted-brands': 'dark',
+    supports: {
+      'hero': ['video-style'], 'page-header': ['minimal'], 'features-grid': ['bordered'],
+      'cta-banner': ['dark'], 'testimonials': ['minimal'], 'process-steps': ['icon-strip'],
+      'faq-accordion': ['numbered'], 'content-split': ['cards-row'], 'gallery': ['overlay'],
+      'team-grid': ['compact'], 'stats-counter': ['dark'], 'pricing-table': ['toggle'],
+      'announcement-bar': ['solid'], 'awards-certifications': ['grid'], 'benefits-list': ['numbered-large'],
+      'blog-preview': ['featured'], 'checklist': ['icon-grid'], 'contact-info': ['banner'],
+      'divider': ['line'], 'feature-comparison': ['table'], 'logo-carousel': ['dark'],
+      'map-area': ['badge'], 'newsletter-signup': ['split'], 'service-highlights': ['split'],
+      'social-proof': ['rating-bar'], 'text-block': ['highlight-box'], 'timeline': ['horizontal'],
+      'trusted-brands': ['dark'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'transparent-overlay', 'footer': 'slim-row',
+      'header': ['transparent-overlay'], 'footer': ['slim-row'],
     },
     settings: { radius: 'sharp', density: 'compact', shadow: 'strong', buttonShape: 'square' },
     style: 'sharp technical high-contrast',
@@ -546,19 +549,19 @@ const themes = {
       accent: { 50: '#f0fbfa', 100: '#d8f4f1', 200: '#ade7e1', 300: '#79d3cb', 400: '#45b7ad', 500: '#1f958b', 600: '#17786f' }
     },
     fonts: { heading: ['Alegreya', 'serif'], body: ['Rubik', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Alegreya:wght@400;500;600;700;800&family=Rubik:wght@400;500;600;700&display=swap' },
-    layout: {
-      'hero': 'light-showcase', 'page-header': 'default', 'features-grid': 'alternating',
-      'cta-banner': 'split', 'testimonials': 'quote-wall', 'process-steps': 'zigzag',
-      'faq-accordion': 'cards', 'content-split': 'text-left', 'gallery': 'masonry',
-      'team-grid': 'centered', 'stats-counter': 'icon', 'pricing-table': 'cards',
-      'announcement-bar': 'bordered', 'awards-certifications': 'detailed', 'benefits-list': 'numbered-large',
-      'blog-preview': 'list', 'checklist': 'cards', 'contact-info': 'map-style',
-      'divider': 'icon', 'feature-comparison': 'stacked', 'logo-carousel': 'scroll',
-      'map-area': 'grouped', 'newsletter-signup': 'card', 'service-highlights': 'cards-large',
-      'social-proof': 'rating-bar', 'text-block': 'quote', 'timeline': 'vertical',
-      'trusted-brands': 'pill',
+    supports: {
+      'hero': ['light-showcase'], 'page-header': ['default'], 'features-grid': ['alternating'],
+      'cta-banner': ['split'], 'testimonials': ['quote-wall'], 'process-steps': ['zigzag'],
+      'faq-accordion': ['cards'], 'content-split': ['text-left'], 'gallery': ['masonry'],
+      'team-grid': ['centered'], 'stats-counter': ['icon'], 'pricing-table': ['cards'],
+      'announcement-bar': ['bordered'], 'awards-certifications': ['detailed'], 'benefits-list': ['numbered-large'],
+      'blog-preview': ['list'], 'checklist': ['cards'], 'contact-info': ['map-style'],
+      'divider': ['icon'], 'feature-comparison': ['stacked'], 'logo-carousel': ['scroll'],
+      'map-area': ['grouped'], 'newsletter-signup': ['card'], 'service-highlights': ['cards-large'],
+      'social-proof': ['rating-bar'], 'text-block': ['quote'], 'timeline': ['vertical'],
+      'trusted-brands': ['pill'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'solid-bar', 'footer': 'slim-row',
+      'header': ['solid-bar'], 'footer': ['slim-row'],
     },
     settings: { radius: 'round', density: 'standard', shadow: 'soft', buttonShape: 'rounded' },
     style: 'earthy mediterranean handmade',
@@ -571,19 +574,19 @@ const themes = {
       accent: { 50: '#fff5f2', 100: '#ffe8e1', 200: '#ffcdbe', 300: '#ffab93', 400: '#fb8465', 500: '#ef6440', 600: '#cf4c2b' }
     },
     fonts: { heading: ['Quicksand', 'system-ui', 'sans-serif'], body: ['Quicksand', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap' },
-    layout: {
-      'hero': 'light-editorial', 'page-header': 'centered', 'features-grid': 'card',
-      'cta-banner': 'gradient', 'testimonials': 'carousel', 'process-steps': 'cards',
-      'faq-accordion': 'centered', 'content-split': 'centered-overlay', 'gallery': 'carousel',
-      'team-grid': 'centered', 'stats-counter': 'gradient', 'pricing-table': 'cards',
-      'announcement-bar': 'floating', 'awards-certifications': 'grid', 'benefits-list': 'icon-large',
-      'blog-preview': 'cards', 'checklist': 'cards', 'contact-info': 'cards',
-      'divider': 'icon', 'feature-comparison': 'cards', 'logo-carousel': 'scroll',
-      'map-area': 'cards', 'newsletter-signup': 'card', 'service-highlights': 'cards-large',
-      'social-proof': 'badges', 'text-block': 'quote', 'timeline': 'vertical',
-      'trusted-brands': 'pill',
+    supports: {
+      'hero': ['light-editorial'], 'page-header': ['centered'], 'features-grid': ['card'],
+      'cta-banner': ['gradient'], 'testimonials': ['carousel'], 'process-steps': ['cards'],
+      'faq-accordion': ['centered'], 'content-split': ['centered-overlay'], 'gallery': ['carousel'],
+      'team-grid': ['centered'], 'stats-counter': ['gradient'], 'pricing-table': ['cards'],
+      'announcement-bar': ['floating'], 'awards-certifications': ['grid'], 'benefits-list': ['icon-large'],
+      'blog-preview': ['cards'], 'checklist': ['cards'], 'contact-info': ['cards'],
+      'divider': ['icon'], 'feature-comparison': ['cards'], 'logo-carousel': ['scroll'],
+      'map-area': ['cards'], 'newsletter-signup': ['card'], 'service-highlights': ['cards-large'],
+      'social-proof': ['badges'], 'text-block': ['quote'], 'timeline': ['vertical'],
+      'trusted-brands': ['pill'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'centered-logo', 'footer': 'slim-row',
+      'header': ['centered-logo'], 'footer': ['slim-row'],
     },
     settings: { radius: 'round', density: 'airy', shadow: 'soft', buttonShape: 'pill' },
     style: 'soft calming pastel lavender',
@@ -596,19 +599,19 @@ const themes = {
       accent: { 50: '#fff6ed', 100: '#ffe9d5', 200: '#fed0aa', 300: '#fdb174', 400: '#fb8a3c', 500: '#f26a0f', 600: '#cc520a' }
     },
     fonts: { heading: ['Barlow Condensed', 'system-ui', 'sans-serif'], body: ['Barlow', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Barlow:wght@400;500;600;700&display=swap' },
-    layout: {
-      'hero': 'gradient-overlay', 'page-header': 'default', 'features-grid': 'bordered',
-      'cta-banner': 'split', 'testimonials': 'grid', 'process-steps': 'horizontal',
-      'faq-accordion': 'numbered', 'content-split': 'text-left-stats', 'gallery': 'grid',
-      'team-grid': 'compact', 'stats-counter': 'bar', 'pricing-table': 'comparison',
-      'announcement-bar': 'solid', 'awards-certifications': 'banner', 'benefits-list': 'numbered-large',
-      'blog-preview': 'cards', 'checklist': 'numbered-steps', 'contact-info': 'banner',
-      'divider': 'line', 'feature-comparison': 'stacked', 'logo-carousel': 'dark',
-      'map-area': 'badge', 'newsletter-signup': 'split', 'service-highlights': 'tabs',
-      'social-proof': 'highlight', 'text-block': 'highlight-box', 'timeline': 'milestone',
-      'trusted-brands': 'default',
+    supports: {
+      'hero': ['gradient-overlay'], 'page-header': ['default'], 'features-grid': ['bordered'],
+      'cta-banner': ['split'], 'testimonials': ['grid'], 'process-steps': ['horizontal'],
+      'faq-accordion': ['numbered'], 'content-split': ['text-left-stats'], 'gallery': ['grid'],
+      'team-grid': ['compact'], 'stats-counter': ['bar'], 'pricing-table': ['comparison'],
+      'announcement-bar': ['solid'], 'awards-certifications': ['banner'], 'benefits-list': ['numbered-large'],
+      'blog-preview': ['cards'], 'checklist': ['numbered-steps'], 'contact-info': ['banner'],
+      'divider': ['line'], 'feature-comparison': ['stacked'], 'logo-carousel': ['dark'],
+      'map-area': ['badge'], 'newsletter-signup': ['split'], 'service-highlights': ['tabs'],
+      'social-proof': ['highlight'], 'text-block': ['highlight-box'], 'timeline': ['milestone'],
+      'trusted-brands': ['default'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'transparent-overlay', 'footer': 'multi-column',
+      'header': ['transparent-overlay'], 'footer': ['multi-column'],
     },
     settings: { radius: 'sharp', density: 'compact', shadow: 'strong', buttonShape: 'square' },
     style: 'rugged industrial high-visibility',
@@ -621,19 +624,19 @@ const themes = {
       accent: { 50: '#fdfbf3', 100: '#faf4e0', 200: '#f3e6ba', 300: '#ead28a', 400: '#ddb95a', 500: '#c79f36', 600: '#9e7d2a' }
     },
     fonts: { heading: ['Marcellus', 'serif'], body: ['Mulish', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Marcellus&family=Mulish:wght@400;500;600;700;800&display=swap' },
-    layout: {
-      'hero': 'minimal', 'page-header': 'minimal', 'features-grid': 'list',
-      'cta-banner': 'outlined', 'testimonials': 'minimal', 'process-steps': 'vertical',
-      'faq-accordion': 'centered', 'content-split': 'text-right-list', 'gallery': 'masonry',
-      'team-grid': 'centered', 'stats-counter': 'inline', 'pricing-table': 'minimal',
-      'announcement-bar': 'bordered', 'awards-certifications': 'grid', 'benefits-list': 'alternating',
-      'blog-preview': 'list', 'checklist': 'two-column', 'contact-info': 'map-style',
-      'divider': 'wave', 'feature-comparison': 'columns', 'logo-carousel': 'bordered',
-      'map-area': 'list', 'newsletter-signup': 'minimal', 'service-highlights': 'accordion',
-      'social-proof': 'rating-bar', 'text-block': 'default', 'timeline': 'compact',
-      'trusted-brands': 'pill',
+    supports: {
+      'hero': ['minimal'], 'page-header': ['minimal'], 'features-grid': ['list'],
+      'cta-banner': ['outlined'], 'testimonials': ['minimal'], 'process-steps': ['vertical'],
+      'faq-accordion': ['centered'], 'content-split': ['text-right-list'], 'gallery': ['masonry'],
+      'team-grid': ['centered'], 'stats-counter': ['inline'], 'pricing-table': ['minimal'],
+      'announcement-bar': ['bordered'], 'awards-certifications': ['grid'], 'benefits-list': ['alternating'],
+      'blog-preview': ['list'], 'checklist': ['two-column'], 'contact-info': ['map-style'],
+      'divider': ['wave'], 'feature-comparison': ['columns'], 'logo-carousel': ['bordered'],
+      'map-area': ['list'], 'newsletter-signup': ['minimal'], 'service-highlights': ['accordion'],
+      'social-proof': ['rating-bar'], 'text-block': ['default'], 'timeline': ['compact'],
+      'trusted-brands': ['pill'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'centered-logo', 'footer': 'slim-row',
+      'header': ['centered-logo'], 'footer': ['slim-row'],
     },
     settings: { radius: 'subtle', density: 'airy', shadow: 'none', buttonShape: 'rounded' },
     style: 'quiet natural sage minimal',
@@ -646,19 +649,19 @@ const themes = {
       accent: { 50: '#fef2f2', 100: '#fee2e2', 200: '#fecaca', 300: '#fca5a5', 400: '#f87171', 500: '#ef4444', 600: '#dc2626' }
     },
     fonts: { heading: ['Syne', 'system-ui', 'sans-serif'], body: ['Inter', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap' },
-    layout: {
-      'hero': 'minimal', 'page-header': 'minimal', 'features-grid': 'minimal',
-      'cta-banner': 'dark', 'testimonials': 'minimal', 'process-steps': 'vertical',
-      'faq-accordion': 'two-column', 'content-split': 'cards-row', 'gallery': 'masonry',
-      'team-grid': 'compact', 'stats-counter': 'dark', 'pricing-table': 'minimal',
-      'announcement-bar': 'bordered', 'awards-certifications': 'grid', 'benefits-list': 'alternating',
-      'blog-preview': 'featured', 'checklist': 'numbered-steps', 'contact-info': 'inline',
-      'divider': 'line', 'feature-comparison': 'stacked', 'logo-carousel': 'dark',
-      'map-area': 'badge', 'newsletter-signup': 'minimal', 'service-highlights': 'split',
-      'social-proof': 'highlight', 'text-block': 'quote', 'timeline': 'compact',
-      'trusted-brands': 'default',
+    supports: {
+      'hero': ['minimal'], 'page-header': ['minimal'], 'features-grid': ['minimal'],
+      'cta-banner': ['dark'], 'testimonials': ['minimal'], 'process-steps': ['vertical'],
+      'faq-accordion': ['two-column'], 'content-split': ['cards-row'], 'gallery': ['masonry'],
+      'team-grid': ['compact'], 'stats-counter': ['dark'], 'pricing-table': ['minimal'],
+      'announcement-bar': ['bordered'], 'awards-certifications': ['grid'], 'benefits-list': ['alternating'],
+      'blog-preview': ['featured'], 'checklist': ['numbered-steps'], 'contact-info': ['inline'],
+      'divider': ['line'], 'feature-comparison': ['stacked'], 'logo-carousel': ['dark'],
+      'map-area': ['badge'], 'newsletter-signup': ['minimal'], 'service-highlights': ['split'],
+      'social-proof': ['highlight'], 'text-block': ['quote'], 'timeline': ['compact'],
+      'trusted-brands': ['default'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'pill-floating', 'footer': 'slim-row',
+      'header': ['pill-floating'], 'footer': ['slim-row'],
     },
     settings: { radius: 'sharp', density: 'airy', shadow: 'none', buttonShape: 'square' },
     style: 'stark monochrome editorial',
@@ -671,19 +674,19 @@ const themes = {
       accent: { 50: '#fff7f0', 100: '#ffecdb', 200: '#ffd5b3', 300: '#ffb884', 400: '#ff9557', 500: '#f5762f', 600: '#cf5c1e' }
     },
     fonts: { heading: ['Josefin Sans', 'system-ui', 'sans-serif'], body: ['Urbanist', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Josefin+Sans:wght@400;500;600;700&family=Urbanist:wght@400;500;600;700;800&display=swap' },
-    layout: {
-      'hero': 'light-split', 'page-header': 'with-description', 'features-grid': 'card',
-      'cta-banner': 'gradient', 'testimonials': 'carousel', 'process-steps': 'icon-strip',
-      'faq-accordion': 'cards', 'content-split': 'text-right', 'gallery': 'carousel',
-      'team-grid': 'card-with-social', 'stats-counter': 'gradient', 'pricing-table': 'toggle',
-      'announcement-bar': 'floating', 'awards-certifications': 'grid', 'benefits-list': 'alternating',
-      'blog-preview': 'list', 'checklist': 'icon-grid', 'contact-info': 'map-style',
-      'divider': 'wave', 'feature-comparison': 'cards', 'logo-carousel': 'scroll',
-      'map-area': 'cards', 'newsletter-signup': 'inline', 'service-highlights': 'split',
-      'social-proof': 'badges', 'text-block': 'two-column', 'timeline': 'horizontal',
-      'trusted-brands': 'pill',
+    supports: {
+      'hero': ['light-split'], 'page-header': ['with-description'], 'features-grid': ['card'],
+      'cta-banner': ['gradient'], 'testimonials': ['carousel'], 'process-steps': ['icon-strip'],
+      'faq-accordion': ['cards'], 'content-split': ['text-right'], 'gallery': ['carousel'],
+      'team-grid': ['card-with-social'], 'stats-counter': ['gradient'], 'pricing-table': ['toggle'],
+      'announcement-bar': ['floating'], 'awards-certifications': ['grid'], 'benefits-list': ['alternating'],
+      'blog-preview': ['list'], 'checklist': ['icon-grid'], 'contact-info': ['map-style'],
+      'divider': ['wave'], 'feature-comparison': ['cards'], 'logo-carousel': ['scroll'],
+      'map-area': ['cards'], 'newsletter-signup': ['inline'], 'service-highlights': ['split'],
+      'social-proof': ['badges'], 'text-block': ['two-column'], 'timeline': ['horizontal'],
+      'trusted-brands': ['pill'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'pill-floating', 'footer': 'multi-column',
+      'header': ['pill-floating'], 'footer': ['multi-column'],
     },
     settings: { radius: 'round', density: 'airy', shadow: 'soft', buttonShape: 'pill' },
     style: 'breezy coastal turquoise',
@@ -696,19 +699,19 @@ const themes = {
       accent: { 50: '#fdfaef', 100: '#fbf3d5', 200: '#f5e5a5', 300: '#edd06f', 400: '#e0b73f', 500: '#c99b1f', 600: '#a07a18' }
     },
     fonts: { heading: ['Sora', 'system-ui', 'sans-serif'], body: ['Sora', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap' },
-    layout: {
-      'hero': 'gradient-overlay', 'page-header': 'centered', 'features-grid': 'icon-top',
-      'cta-banner': 'gradient', 'testimonials': 'featured', 'process-steps': 'cards',
-      'faq-accordion': 'cards', 'content-split': 'centered-overlay', 'gallery': 'overlay',
-      'team-grid': 'card-with-social', 'stats-counter': 'gradient', 'pricing-table': 'toggle',
-      'announcement-bar': 'floating', 'awards-certifications': 'grid', 'benefits-list': 'icon-large',
-      'blog-preview': 'featured', 'checklist': 'cards', 'contact-info': 'banner',
-      'divider': 'gradient-bar', 'feature-comparison': 'columns', 'logo-carousel': 'dark',
-      'map-area': 'cards', 'newsletter-signup': 'split', 'service-highlights': 'split',
-      'social-proof': 'highlight', 'text-block': 'highlight-box', 'timeline': 'milestone',
-      'trusted-brands': 'pill',
+    supports: {
+      'hero': ['gradient-overlay'], 'page-header': ['centered'], 'features-grid': ['icon-top'],
+      'cta-banner': ['gradient'], 'testimonials': ['featured'], 'process-steps': ['cards'],
+      'faq-accordion': ['cards'], 'content-split': ['centered-overlay'], 'gallery': ['overlay'],
+      'team-grid': ['card-with-social'], 'stats-counter': ['gradient'], 'pricing-table': ['toggle'],
+      'announcement-bar': ['floating'], 'awards-certifications': ['grid'], 'benefits-list': ['icon-large'],
+      'blog-preview': ['featured'], 'checklist': ['cards'], 'contact-info': ['banner'],
+      'divider': ['gradient-bar'], 'feature-comparison': ['columns'], 'logo-carousel': ['dark'],
+      'map-area': ['cards'], 'newsletter-signup': ['split'], 'service-highlights': ['split'],
+      'social-proof': ['highlight'], 'text-block': ['highlight-box'], 'timeline': ['milestone'],
+      'trusted-brands': ['pill'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'transparent-overlay', 'footer': 'cta-band',
+      'header': ['transparent-overlay'], 'footer': ['cta-band'],
     },
     settings: { radius: 'round', density: 'standard', shadow: 'strong', buttonShape: 'pill' },
     style: 'modern glamorous plum',
@@ -721,19 +724,19 @@ const themes = {
       accent: { 50: '#f4f6f9', 100: '#e6ebf2', 200: '#c9d5e3', 300: '#a3b7cd', 400: '#7692b0', 500: '#4d6c8d', 600: '#3d5772' }
     },
     fonts: { heading: ['Bebas Neue', 'system-ui', 'sans-serif'], body: ['Heebo', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Heebo:wght@400;500;600;700;800&display=swap' },
-    layout: {
-      'hero': 'video-style', 'page-header': 'default', 'features-grid': 'alternating',
-      'cta-banner': 'dark', 'testimonials': 'quote-wall', 'process-steps': 'zigzag',
-      'faq-accordion': 'numbered', 'content-split': 'text-right-list', 'gallery': 'overlay',
-      'team-grid': 'compact', 'stats-counter': 'dark', 'pricing-table': 'comparison',
-      'announcement-bar': 'solid', 'awards-certifications': 'detailed', 'benefits-list': 'numbered-large',
-      'blog-preview': 'featured', 'checklist': 'cards', 'contact-info': 'banner',
-      'divider': 'icon', 'feature-comparison': 'stacked', 'logo-carousel': 'dark',
-      'map-area': 'list', 'newsletter-signup': 'inline', 'service-highlights': 'split',
-      'social-proof': 'highlight', 'text-block': 'highlight-box', 'timeline': 'milestone',
-      'trusted-brands': 'dark',
+    supports: {
+      'hero': ['video-style'], 'page-header': ['default'], 'features-grid': ['alternating'],
+      'cta-banner': ['dark'], 'testimonials': ['quote-wall'], 'process-steps': ['zigzag'],
+      'faq-accordion': ['numbered'], 'content-split': ['text-right-list'], 'gallery': ['overlay'],
+      'team-grid': ['compact'], 'stats-counter': ['dark'], 'pricing-table': ['comparison'],
+      'announcement-bar': ['solid'], 'awards-certifications': ['detailed'], 'benefits-list': ['numbered-large'],
+      'blog-preview': ['featured'], 'checklist': ['cards'], 'contact-info': ['banner'],
+      'divider': ['icon'], 'feature-comparison': ['stacked'], 'logo-carousel': ['dark'],
+      'map-area': ['list'], 'newsletter-signup': ['inline'], 'service-highlights': ['split'],
+      'social-proof': ['highlight'], 'text-block': ['highlight-box'], 'timeline': ['milestone'],
+      'trusted-brands': ['dark'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'transparent-overlay', 'footer': 'slim-row',
+      'header': ['transparent-overlay'], 'footer': ['slim-row'],
     },
     settings: { radius: 'sharp', density: 'standard', shadow: 'strong', buttonShape: 'square' },
     style: 'vintage workshop copper and iron',
@@ -746,19 +749,19 @@ const themes = {
       accent: { 50: '#f2fbf5', 100: '#e0f6e8', 200: '#bfead0', 300: '#92d9ae', 400: '#61c288', 500: '#37a566', 600: '#2a8552' }
     },
     fonts: { heading: ['Nunito', 'system-ui', 'sans-serif'], body: ['Nunito', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800&display=swap' },
-    layout: {
-      'hero': 'light-split', 'page-header': 'with-description', 'features-grid': 'card',
-      'cta-banner': 'solid', 'testimonials': 'grid', 'process-steps': 'horizontal',
-      'faq-accordion': 'two-column', 'content-split': 'text-left', 'gallery': 'grid',
-      'team-grid': 'grid', 'stats-counter': 'icon', 'pricing-table': 'cards',
-      'announcement-bar': 'dismissible', 'awards-certifications': 'grid', 'benefits-list': 'icon-large',
-      'blog-preview': 'cards', 'checklist': 'icon-grid', 'contact-info': 'cards',
-      'divider': 'icon', 'feature-comparison': 'cards', 'logo-carousel': 'grid',
-      'map-area': 'cards', 'newsletter-signup': 'card', 'service-highlights': 'accordion',
-      'social-proof': 'rating-bar', 'text-block': 'with-list', 'timeline': 'vertical',
-      'trusted-brands': 'pill',
+    supports: {
+      'hero': ['light-split'], 'page-header': ['with-description'], 'features-grid': ['card'],
+      'cta-banner': ['solid'], 'testimonials': ['grid'], 'process-steps': ['horizontal'],
+      'faq-accordion': ['two-column'], 'content-split': ['text-left'], 'gallery': ['grid'],
+      'team-grid': ['grid'], 'stats-counter': ['icon'], 'pricing-table': ['cards'],
+      'announcement-bar': ['dismissible'], 'awards-certifications': ['grid'], 'benefits-list': ['icon-large'],
+      'blog-preview': ['cards'], 'checklist': ['icon-grid'], 'contact-info': ['cards'],
+      'divider': ['icon'], 'feature-comparison': ['cards'], 'logo-carousel': ['grid'],
+      'map-area': ['cards'], 'newsletter-signup': ['card'], 'service-highlights': ['accordion'],
+      'social-proof': ['rating-bar'], 'text-block': ['with-list'], 'timeline': ['vertical'],
+      'trusted-brands': ['pill'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'pill-floating', 'footer': 'cta-band',
+      'header': ['pill-floating'], 'footer': ['cta-band'],
     },
     settings: { radius: 'round', density: 'standard', shadow: 'soft', buttonShape: 'pill' },
     style: 'friendly approachable healthcare blue',
@@ -771,19 +774,19 @@ const themes = {
       accent: { 50: '#fffbeb', 100: '#fef3c7', 200: '#fde68a', 300: '#fcd34d', 400: '#fbbf24', 500: '#f59e0b', 600: '#d97706' }
     },
     fonts: { heading: ['IBM Plex Sans', 'system-ui', 'sans-serif'], body: ['IBM Plex Sans', 'system-ui', 'sans-serif'], googleFontsUrl: 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap' },
-    layout: {
-      'hero': 'left', 'page-header': 'default', 'features-grid': 'list',
-      'cta-banner': 'split', 'testimonials': 'grid', 'process-steps': 'horizontal',
-      'faq-accordion': 'numbered', 'content-split': 'text-left-stats', 'gallery': 'grid',
-      'team-grid': 'grid', 'stats-counter': 'inline', 'pricing-table': 'comparison',
-      'announcement-bar': 'bordered', 'awards-certifications': 'grid', 'benefits-list': 'cards-horizontal',
-      'blog-preview': 'cards', 'checklist': 'two-column', 'contact-info': 'inline',
-      'divider': 'line', 'feature-comparison': 'table', 'logo-carousel': 'bordered',
-      'map-area': 'grouped', 'newsletter-signup': 'minimal', 'service-highlights': 'tabs',
-      'social-proof': 'review-platforms', 'text-block': 'with-list', 'timeline': 'compact',
-      'trusted-brands': 'default',
+    supports: {
+      'hero': ['left'], 'page-header': ['default'], 'features-grid': ['list'],
+      'cta-banner': ['split'], 'testimonials': ['grid'], 'process-steps': ['horizontal'],
+      'faq-accordion': ['numbered'], 'content-split': ['text-left-stats'], 'gallery': ['grid'],
+      'team-grid': ['grid'], 'stats-counter': ['inline'], 'pricing-table': ['comparison'],
+      'announcement-bar': ['bordered'], 'awards-certifications': ['grid'], 'benefits-list': ['cards-horizontal'],
+      'blog-preview': ['cards'], 'checklist': ['two-column'], 'contact-info': ['inline'],
+      'divider': ['line'], 'feature-comparison': ['table'], 'logo-carousel': ['bordered'],
+      'map-area': ['grouped'], 'newsletter-signup': ['minimal'], 'service-highlights': ['tabs'],
+      'social-proof': ['review-platforms'], 'text-block': ['with-list'], 'timeline': ['compact'],
+      'trusted-brands': ['default'],
       // #960 Region:顶栏 / 页脚的结构(section 之外的两个键,由 sync-config 的 §Regions 单独消费)
-      'header': 'pill-floating', 'footer': 'multi-column',
+      'header': ['pill-floating'], 'footer': ['multi-column'],
     },
     settings: { radius: 'sharp', density: 'compact', shadow: 'none', buttonShape: 'square' },
     style: 'utilitarian graphite and amber',
@@ -806,11 +809,29 @@ function themeStyle(themeId) {
   return (t && t.style) || DEFAULT_LOGO_STYLE;
 }
 
-// The layout preference table for a theme, or {} when the theme is unknown / states no
-// preference. Callers treat {} as "page JSON decides".
+// 一套主题对每个 block 用哪种写法的结论，或者 {}（主题不认识 / 什么都没声明）。调用方把 {}
+// 当成「页面 JSON 说了算」。
+//
+// 🔴 #1010 —— 注册表那边的键已经从 `layout` 改成 `supports`，值也从「一个写法」变成「一个清单」，
+// 而这个函数**仍然吐一个写法**：`supports` 里每个 block 取清单的第一项。为什么要有这一步转换：
+//
+//   · 声明能力（`supports`，主题）和做选择（`block_layout`，站）是两件事，spec §4.5 / §4.6 把它们
+//     分开了。而**站那边今天还不做这个选择** —— #998 落地的 `block_layout` 与 `data.variant` 是
+//     并存的两个字段、彼此不换算（`scripts/blocks.js:21-22`），建站 AI 也还不供 `block_layout`。
+//   · 所以在站真的开始选之前，得有人替它选，而唯一不改变任何一个站的选法就是「主题声明的第一项」
+//     —— 今天每份清单恒一项，取第一项 == 改名前那个值，逐字节相同（#1010 对 30 套 × 30 个键全量比过）。
+//   · 这个函数因此是**过渡态的适配器**，不是新能力。阶段 2 逐块把外观搬进 CSS 之后，`supports` 的值
+//     会从外观词（`gradient-overlay`）换成结构词（`with-media`），那时消费方改成读清单、这一层就删掉。
+//     🔴 在那之前别给它加第二个用途 —— 它存在的理由只有「让改名这一步产物不变」这一条。
 function layoutFor(themeId) {
   const t = themes[themeId];
-  return (t && t.layout) || {};
+  if (!t || !t.supports) return {};
+  const out = {};
+  for (const [type, forms] of Object.entries(t.supports)) {
+    if (Array.isArray(forms)) { if (forms.length) out[type] = forms[0]; }
+    else out[type] = forms;
+  }
+  return out;
 }
 
 // #961 — 风格设定（theme settings）：圆角 / 留白 / 阴影 / 按钮形状。

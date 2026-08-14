@@ -4,7 +4,7 @@
 import fs from 'fs';
 import { NEXT_DIR, galleryDir } from './paths.mjs';
 
-const { themes } = await import(`${NEXT_DIR}/scripts/themes.js`);
+const { themes, layoutFor } = await import(`${NEXT_DIR}/scripts/themes.js`);
 
 const GAL = galleryDir();
 // 🔴 #932 r2 —— 页面和图都写进 public/，那一层才是 caddy 对外开的 root（见 shoot-themes.sh 的注释）。
@@ -58,7 +58,7 @@ const readback = (id, page) => seenTypes(page)
 
 // #981 条6/条7 —— 顶栏和页脚的读数。layout-readback.py 只看 <main> 里面的 <section>,而这两个在它外面
 // ⟹ 它们一直没有读数。**这一行读的是产物**:shoot.mjs 在浏览器里从 <header>/<footer> 身上的
-// `data-region-layout` 取的,不是把 themes[id].layout.header 抄一遍 —— 抄注册表会说假话,因为
+// `data-region-layout` 取的,不是把注册表的 supports.header 抄一遍 —— 抄注册表会说假话,因为
 // resolveRegionLayout 会改主意(不认识的写法退回默认;首屏不能被证明是深底时自己加遮罩)。
 const REG = Object.fromEntries(ids.map(id => [id, JSON.parse(
   fs.readFileSync(`${PUB}/shots/${id}.json`, 'utf-8')).regions || null]));
@@ -70,8 +70,8 @@ const regionCaption = (id) => {
 };
 // 注册表**声明**的那两个,只用来跟上面那个读数比对。两者不一致本身就是要给人看的东西。
 const declaredRegions = (id) => ({
-  header: (themes[id].layout || {}).header || '(没声明)',
-  footer: (themes[id].layout || {}).footer || '(没声明)',
+  header: layoutFor(id).header || '(没声明)',
+  footer: layoutFor(id).footer || '(没声明)',
 });
 const regionMismatch = (id) => {
   const r = REG[id]; if (!r) return '';

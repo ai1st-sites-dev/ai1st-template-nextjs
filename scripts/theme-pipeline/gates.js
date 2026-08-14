@@ -287,13 +287,34 @@ function settingsVarsOf(settings) {
  * @param layoutVocab 池子在每个版式键上出现过哪些取值（`{ hero: Set(['split', …]) }`）。
  *        不传就按「池子里只有 existing 这一套」算 —— 单套池子的口径，跟 gateSimilarity 一致。
  */
+// 🔴 一套主题「在这个版式键上认哪些值」—— 答案统一成一个集合，因为注册表和生成器的形状不一样
+// （#1010）。注册表那 30 套现在写的是 `supports: { hero: ['with-media', …] }`（我为哪些形态写了
+// 样式），而生成器写出来的候选仍然是 `layout: { hero: 'split' }`（一个值）。两种都在这个函数里，
+// 老形状 = 单元素集合。
+//
+// 🔴 为什么必须在这里认第二种形状，而不是等它自己冒出来：这段代码**绕过 `layoutFor()` 直接读字段**，
+// 而字段改名对"直接读"的一方是静默的 —— `(t||{}).layout` 对新形状答 `undefined`，于是词表是空的、
+// `comparable` 是空的、`parts.layout` 变成 `null`，被加权平均**从分母里去掉**。这道闸不会报错，
+// 它会少一维继续给分（权重 0.2 的那一维），而输出里那句 `layout 没法比` 是唯一的痕迹。实测：
+// 用改名后的注册表跑，30 套逐套 `layout 没法比`；接上这个函数之后，30 套的读数与改名前**逐个相同**
+// （改名把每个值转成「恰好含它一项的清单」，所以今天的算术一个数都不动）。
+const layoutSetsOf = (t) => {
+  const sets = new Map();
+  for (const [k, v] of Object.entries((t || {}).layout || {})) {
+    sets.set(k, new Set([String(v)]));
+  }
+  for (const [k, v] of Object.entries((t || {}).supports || {})) {
+    sets.set(k, new Set((Array.isArray(v) ? v : [v]).map(String)));
+  }
+  return sets;
+};
 // 池子在每个版式键上出现过哪些取值。第③道用它判「候选说的是不是同一套词表」。
 function layoutVocabOf(pool) {
   const vocab = new Map();
   for (const t of Object.values(pool || {})) {
-    for (const [k, v] of Object.entries((t || {}).layout || {})) {
+    for (const [k, values] of layoutSetsOf(t)) {
       if (!vocab.has(k)) vocab.set(k, new Set());
-      vocab.get(k).add(String(v));
+      for (const v of values) vocab.get(k).add(v);
     }
   }
   return vocab;
@@ -333,12 +354,16 @@ function similarity(candidate, existing, layoutVocab) {
     parts.settings = null;
   }
 
-  const lA = candidate.layout || {}; const lB = e.layout || {};
+  // 候选那一边是「一个值」（生成器写的 `<id>.layout.json`），池子那一边可能是「一个清单」
+  // （注册表的 `supports`，#1010）—— 所以问的是「这一套认不认候选说的那个值」。对今天的 30 套
+  // 来说每个清单恰好一项，这个问法与改名前的 `lA[k] === lB[k]` 逐个同值（读数在 layoutSetsOf 上面）。
+  const lA = candidate.layout || {};
+  const lB = layoutSetsOf(e);
   const vocab = layoutVocab || layoutVocabOf({ _: e });
-  const comparable = Object.keys(lA).filter((k) => Object.prototype.hasOwnProperty.call(lB, k)
+  const comparable = Object.keys(lA).filter((k) => lB.has(k)
     && vocab.get(k) && vocab.get(k).has(String(lA[k])));
   parts.layout = comparable.length
-    ? comparable.filter((k) => lA[k] === lB[k]).length / comparable.length : null;
+    ? comparable.filter((k) => lB.get(k).has(String(lA[k]))).length / comparable.length : null;
 
   const WEIGHTS = { colour: 0.45, fonts: 0.2, settings: 0.15, layout: 0.2 };
   let num = 0; let den = 0;

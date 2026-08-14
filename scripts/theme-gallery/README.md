@@ -17,7 +17,7 @@ had that this did not is now here:
 
 | What region-shots.mjs had | Where it is now |
 |---|---|
-| Header/footer structure under each picture | `shoot.mjs` reads `data-region-layout` off the `<header>`/`<footer>` of the **home** page; `gallery.mjs` prints it. Its version read `themes[id].layout.header` — the registry, not the page — so it could not see `resolveRegionLayout` changing its mind (unknown variant → default; hero not provably dark → a scrim gets added). |
+| Header/footer structure under each picture | `shoot.mjs` reads `data-region-layout` off the `<header>`/`<footer>` of the **home** page; `gallery.mjs` prints it. Its version read `themes[id].supports.header` (called `layout` before #1010) — the registry, not the page — so it could not see `resolveRegionLayout` changing its mind (unknown variant → default; hero not provably dark → a scrim gets added). |
 | Multi-locale header close-up, for the language switcher | `shoot-themes.sh --header-closeup`, against a multi-locale sample site. Any theme, not the two it hardcoded. |
 | Made its own sample site with `create-site` | Still the caller's job (step 1 below) — that is what lets you shoot *your* sample. The multi-locale payload is written out in `shoot-themes.sh`'s header comment. |
 

@@ -2,7 +2,8 @@
 // #963 — paths parameterised (see paths.mjs); behaviour unchanged.
 // #981 条6/条7 — also reads the header/footer Region back off the page, and can shoot a header close-up.
 //   This is where tests/e2e/region-shots.mjs was folded in; that file is gone. Its captions came out of the
-//   theme registry (`themes[id].layout.header`), which is a claim, not a reading: resolveRegionLayout can
+//   theme registry (`themes[id].supports.header`, called `layout` before #1010), which is a claim, not a
+//   reading: resolveRegionLayout can
 //   hand back something else entirely — it falls back to the default when the variant is unknown, and it
 //   adds a scrim on its own when the first block on a page is not provably a dark hero. So the caption could
 //   say "transparent-overlay, no scrim" about a page that rendered a scrim. Here it comes off the DOM.
