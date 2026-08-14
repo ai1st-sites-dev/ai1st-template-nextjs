@@ -8,7 +8,7 @@
     "prebuild": "node scripts/sync-config.js && node scripts/move-build-output.js backup",
     "build": "next build --webpack && node scripts/move-build-output.js restore",
     "start": "next start",
-    "lint:scripts": "eslint scripts/blocks.js scripts/create-site.js scripts/edit-site.js scripts/themes.js scripts/region-layout.js scripts/lib/theme-tokens.js scripts/tweaks.js scripts/lib/page-layout.js scripts/theme-css-lint.js scripts/base-css-lint.js scripts/css-contract-check.js scripts/lib/block-manifest.js scripts/theme-css-invariants.mjs scripts/theme-gallery --ext .js,.mjs"
+    "lint:scripts": "eslint scripts/blocks.js scripts/create-site.js scripts/edit-site.js scripts/themes.js scripts/region-layout.js scripts/theme-pipeline scripts/lib/theme-tokens.js scripts/tweaks.js scripts/lib/page-layout.js scripts/theme-css-lint.js scripts/base-css-lint.js scripts/css-contract-check.js scripts/lib/block-manifest.js scripts/theme-css-invariants.mjs scripts/theme-gallery --ext .js,.mjs"
   },
   "keywords": [
     "security systems",

@@ -1,0 +1,211 @@
+#!/usr/bin/env node
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+// run.js — 端到端跑一遍流水线：生成 → 四道闸 → 报告（#1004 AC5）
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+//
+//   node scripts/theme-pipeline/run.js --count 3 --site <一个样例站目录>
+//   node scripts/theme-pipeline/run.js --candidates /tmp/cands   # 跑已经生成好的那批
+//
+// 每套候选走的路：
+//   ① 静态（tokens 对 schema · CSS 对契约）—— 不用建站，先拦掉能静态拦的
+//   ② 动态：把 tokens 写进样例站的 brand.json、把表放进 public/themes/、`npm run build`、
+//      起一个静态服务器、跑 `theme-css-invariants.mjs`，外加「钩子在这套主题自己的表里有规则」
+//   ③ 相似度：跟注册表里的 30 套比
+//   ④ 人审：不自动化 —— 打印图册怎么出，然后停在这里
+//
+// 🔴 ①没过就不进②：建一次站 + 起浏览器要几十秒，而静态那道能拦的东西不值这个钱。
+//    报告里会写清每套停在哪一道。
+const fs = require('fs');
+const path = require('path');
+const cp = require('child_process');
+
+const NEXT = path.resolve(__dirname, '..', '..');
+const { generateCandidates } = require('./generate');
+const { gateStatic, gateInvariants, gateSimilarity, gateHumanReview } = require('./gates');
+const { shootCandidate, writeComparisonPage } = require('./gallery');
+
+function arg(name, dflt) {
+  const i = process.argv.indexOf(name);
+  return i >= 0 && process.argv[i + 1] !== undefined ? process.argv[i + 1] : dflt;
+}
+
+// 静态服务器 —— **必须是另一个进程**。
+//
+// 🔴 第一版用 `http.createServer()` 起在本进程里，然后用 `spawnSync` 跑不变量检查器：那个探针
+// 每一格都读到「did not answer with a page (no response)」，报告里三套全是「退出码 2」。真因不是
+// 主题、也不是探针 —— `spawnSync` **同步阻塞本进程的事件循环**，所以本进程里的服务器在子进程活着
+// 的整段时间里一个请求都答不了。判据：同一份产物用 `python3 -m http.server` 端出去，同一个探针
+// 立刻 rc=0。⟹ 阻塞式地等一个子进程时，任何跟它对话的东西都不能住在同一个进程里。
+function serve(dir, port) {
+  const child = cp.spawn('python3', ['-m', 'http.server', String(port), '--bind', '127.0.0.1'],
+    { cwd: dir, stdio: 'ignore', detached: false });
+  // 等它真的开始应答，别用 sleep 猜。
+  const deadline = Date.now() + 10_000;
+  for (;;) {
+    const probe = cp.spawnSync('curl', ['-s', '-o', '/dev/null', '-w', '%{http_code}',
+      `http://127.0.0.1:${port}/index.html`], { encoding: 'utf8' });
+    if ((probe.stdout || '').trim() === '200') break;
+    if (Date.now() > deadline) { child.kill(); throw new Error(`静态服务器起不来（端口 ${port}）`); }
+    cp.spawnSync('sleep', ['0.2']);
+  }
+  return { close: () => child.kill() };
+}
+
+/**
+ * 这一次 `npm run build` 把产物放进了 `out/` 下的哪个目录。
+ *
+ * 判据**派生**自产品自己那一处默认值（`scripts/move-build-output.js` 里的
+ * `process.env.SITE_CONFIG || '<名>'`），不在这里抄第二份：两份默认值总会分叉，而分叉是静默的。
+ * 读不出来 ⟹ 返回空串，调用方当场停下 —— 「我不知道该量哪个目录」不是通过。
+ */
+function builtSiteName() {
+  if (process.env.SITE_CONFIG) return process.env.SITE_CONFIG;
+  const src = fs.readFileSync(path.join(NEXT, 'scripts', 'move-build-output.js'), 'utf-8');
+  const m = src.match(/SITE_CONFIG\s*\|\|\s*'([^']+)'/);
+  return m ? m[1] : '';
+}
+
+/**
+ * 上面那个目录真的是**刚给这套候选建出来的**吗 → 不是就返回一句人话，是就返回空串。
+ *
+ * 🔴 第二道核对，问的是**字节**而不是路径算术：那份 `index.html` 自己引没引这套候选的表
+ * （`installCandidate` 把 `theme.json` 的 `css` 写成候选 id，`sync-config` 据此发
+ * `<link href="/themes/<id>.css">`）。路径算错和字节不对要各答一次 —— 错一个不会两个都错，
+ * 而 QA2 在 r2 量到的那两个方向（该拦的被放过 / 好的被冤枉）都是「量了另一个站」。
+ */
+function whyNotThisBuild(outRoot, outDir, candidate) {
+  const inOut = fs.existsSync(outRoot) ? fs.readdirSync(outRoot).join(' ') : '（没有 out/ 目录）';
+  if (!builtSiteName()) {
+    return 'scripts/move-build-output.js 里已经没有 `SITE_CONFIG || \'<名>\'` 那个默认值可读了 ——'
+      + ' 无从知道产物落在 out/ 的哪个目录（现在有：' + inOut + '）。设 SITE_CONFIG 再跑。';
+  }
+  const index = path.join(outDir, 'index.html');
+  if (!fs.existsSync(index)) {
+    return `${index} 不存在 —— 什么都没量到（out/ 里有：${inOut}）。这不是通过。`;
+  }
+  const html = fs.readFileSync(index, 'utf-8');
+  if (!html.includes(`/themes/${candidate.id}.css`)) {
+    return `${index} 里没有引 /themes/${candidate.id}.css —— 这个目录不是刚给这套候选建出来的那份`
+      + `（out/ 里有：${inOut}）。什么都没量到，这不是通过。`;
+  }
+  return '';
+}
+
+/** 把一套候选装进样例站：tokens 进 brand.json、表进 public/themes/、theme.json 指向它。 */
+function installCandidate(candidate, siteDir) {
+  const brandPath = path.join(siteDir, 'brand.json');
+  const brand = JSON.parse(fs.readFileSync(brandPath, 'utf-8'));
+  brand.colors = candidate.tokens.colors;
+  brand.fonts = candidate.tokens.fonts;
+  brand.settings = candidate.tokens.settings;
+  fs.writeFileSync(brandPath, `${JSON.stringify(brand, null, 2)}\n`);
+  const dest = path.join(NEXT, 'public', 'themes', `${candidate.id}.css`);
+  fs.copyFileSync(candidate.sheetPath, dest);
+  // 🔴 `applied` 必须是 false：为真时 sync-config 会用**注册表**里那套覆盖 brand 的颜色/字体/settings
+  //    （sync-config.js:167），而候选还不在注册表里 —— 那样量到的是别人的 tokens。
+  fs.writeFileSync(path.join(siteDir, 'theme.json'),
+    `${JSON.stringify({ themeId: candidate.id, applied: false, css: candidate.id }, null, 2)}\n`);
+  return dest;
+}
+
+async function main() {
+  const count = Number(arg('--count', 3));
+  const seed = Number(arg('--seed', 7));
+  const siteDir = arg('--site', path.join(NEXT, 'site'));
+  const workDir = arg('--work', fs.mkdtempSync('/tmp/theme-pipeline-'));
+  const port = Number(arg('--port', 18450));
+  const galleryDir = arg('--gallery', '');
+
+  const candidates = arg('--candidates', '')
+    ? fs.readdirSync(arg('--candidates', '')).filter((f) => f.endsWith('.css')).map((f) => {
+      const id = path.basename(f, '.css');
+      const dir = arg('--candidates', '');
+      // 🔴 版式从 `<id>.layout.json` 读回来（生成器写的），不再写死成 `{}`：写死那一版让第三道闸的
+      //    版式那一项在这条路上永远「没得比」，而它当时算成 0 分 = 完全不像 ⟹ 上限 0.8 < 阈值 0.9，
+      //    整道闸不可能开火（QA2 在 #1004 r2 端到端量的）。手工放进来的候选没有这个文件，那就是
+      //    真的没有版式可比 —— gates.js 的 `similarity` 现在会把这一项从分母里去掉，不当成 0。
+      const layoutFile = path.join(dir, `${id}.layout.json`);
+      return {
+        id,
+        sheetPath: path.join(dir, f),
+        tokens: JSON.parse(fs.readFileSync(path.join(dir, `${id}.tokens.json`), 'utf-8')),
+        layout: fs.existsSync(layoutFile) ? JSON.parse(fs.readFileSync(layoutFile, 'utf-8')) : {},
+      };
+    })
+    : generateCandidates(count, { seed, outDir: workDir });
+
+  const { themes } = require(path.join(NEXT, 'scripts', 'themes.js'));
+  const report = [];
+
+  for (const c of candidates) {
+    const gates = [];
+    let shot = null;
+    gates.push(gateStatic(c));
+    if (gates[0].pass) {
+      installCandidate(c, siteDir);
+      const build = cp.spawnSync('npm', ['run', 'build'], { cwd: NEXT, encoding: 'utf8' });
+      if (build.status !== 0) {
+        gates.push({ gate: '② 动态', pass: false, problems: [`样例站建不出来：${String(build.stdout || '').split('\n').slice(-6).join(' ')}`] });
+      } else {
+        // 🔴 哪个目录是**刚建出来的这个站**，不许用 `fs.readdirSync(outRoot)[0]` 挑（QA2 在 #1004 r2
+        // 的真机上量的）。`out/` 按设计装多个站：`npm run build` 自己调的 `move-build-output.js` 会
+        // 把别的站的旧构建放回来（它自己的注释：restore previous out/ with other sites' builds），
+        // 站名来自 `SITE_CONFIG`。第二个目录一出现，readdir 的第一项就可能不是候选那份，而两个方向
+        // 都真机复现过：旁边站健康时，本该被拦的 low-contrast 三道全过 rc=0；干净树上 3/3 过的
+        // gen-07-1 反而红，报出来的对比度数字属于另一套主题。
+        // 名字从产品自己那处默认值派生（`move-build-output.js` 的 `SITE_CONFIG || '…'`），不在这里
+        // 抄第二份；派生不出来就当场停，「我不知道该量哪个」永远不是通过。
+        const outRoot = path.join(NEXT, 'out');
+        const outDir = path.join(outRoot, builtSiteName());
+        const notThisBuild = whyNotThisBuild(outRoot, outDir, c);
+        if (notThisBuild) {
+          gates.push({ gate: '② 动态', pass: false, problems: [notThisBuild] });
+        } else {
+          const server = serve(outDir, port);
+          try {
+            gates.push(gateInvariants(c, { outDir, baseUrl: `http://127.0.0.1:${port}` }));
+            // 🔴 拍图就在这里，趁站还在服着 —— 不是"回头再跑一遍图册"。第四道闸要的是这一套【被这
+            //    一轮闸量过的那份产物】的图；分两次跑就有两份产物，图上那套和读数那套可以不是同一个。
+            if (galleryDir) {
+              shot = shootCandidate(c, { baseUrl: `http://127.0.0.1:${port}`, galleryDir });
+            }
+          } finally { server.close(); }
+        }
+      }
+    }
+    if (gates.every((g) => g.pass)) gates.push(gateSimilarity(c, themes));
+    if (gates.every((g) => g.pass)) {
+      gates.push(gateHumanReview(c, { galleryDir, shot }));
+    }
+    report.push({
+      id: c.id, gates, facts: shot && shot.facts, shot: !!(shot && shot.ok), shotLog: shot && shot.log,
+    });
+  }
+
+  console.log('\n════ 流水线报告 ════');
+  for (const r of report) {
+    const stopped = r.gates.find((g) => g.pass === false);
+    console.log(`\n${r.id}: ${stopped ? `🔴 停在【${stopped.gate}】` : '✅ 前三道全过,等人审'}`);
+    for (const g of r.gates) {
+      const mark = g.pass === true ? '✅' : g.pass === false ? '🔴' : '⏸';
+      console.log(`  ${mark} ${g.gate}${g.note ? ` —— ${g.note}` : ''}`);
+      for (const p of g.problems) console.log(`       ${p}`);
+    }
+  }
+  const passed = report.filter((r) => r.gates.every((g) => g.pass !== false)).length;
+  console.log(`\n${passed}/${report.length} 套过了前三道闸。第四道是人。`);
+  if (galleryDir) {
+    const page = writeComparisonPage(galleryDir, report);
+    const shots = report.filter((r) => r.shot).length;
+    console.log(`  对照图：${page}（${shots}/${report.length} 套有图）`);
+    console.log('  请 Chris 翻这一页 —— 第四道闸没有机器能给的答案。');
+  } else {
+    // 🔴 不给 --gallery 就直说没图，不打印一条"跑这个就有了"的命令。
+    //    第一版打印的是 `shoot-themes.sh` + `gallery.mjs` 那两条 —— 它们跑的是**注册表里的老 30 套**，
+    //    照着跑真的会出一本图册，里面一张候选都没有，而翻图的人看不出来（QA1 r1 抓到的就是这个）。
+    console.log('  没有传 --gallery ⟹ 这一轮没出图。要出图：--gallery <目录>，然后打开 <目录>/public/index.html');
+  }
+  process.exit(passed === report.length ? 0 : 1);
+}
+
+if (require.main === module) main().catch((e) => { console.error(e); process.exit(2); });
