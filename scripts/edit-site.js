@@ -15,6 +15,12 @@ const path = require('path');
 const http = require('http');
 const { execSync } = require('child_process');
 const Anthropic = require('@anthropic-ai/sdk');
+// #1013 洞 4 —— 块校验（#999）此前在这条路上一条都不跑：write_file 只看「是合法 JSON」就落盘。
+// 跑的是**同一个函数**，不是第二份实现（#999 定的规矩，本票 AC6）。
+const { validateSite: validateBlocks } = require('./lib/block-manifest');
+// 页面的**形状**（哪个数组、每一格是什么）由 #998 那个模块说了算 —— 这里不写第二份，见
+// pageJsonBlockError 上面那段。
+const { readPageBlocks, normalizeLocalePages } = require('./blocks');
 
 // ─── Emit structured events to stdout ─────────────────────────────────────────
 
@@ -172,6 +178,116 @@ function validatePath(relPath) {
   return true;
 }
 
+// ─── #1013 洞 4：页面 JSON 落盘之前过一遍块校验 ────────────────────────────────────────────────
+//
+// 之前这条路只校验「是合法 JSON」，于是模型可以把 `items` 写成 `plans`、把 `benefits-list` 的
+// `items` 写成 `benefits`，页面上那一块就此空着 —— 而聊天窗口说「改好了」、构建也是绿的。
+// #1012 是它的实物：两个 prod 站上 4 块空白，其中一个站是 2026-08-07 建的。
+//
+// 🔴 返回 `{error}` 而不是退出。它成为一条 tool_result 回到模型手里，模型在同一轮对话里重写一遍
+// （主循环最多 20 轮），磁盘上一个字节都没动过，用户那边也不会看到一次失败的编辑。这就是
+// 「拦得住又修得回来」在这条路上的样子 —— 详见 block-manifest.js 里 `scope: 'edit'` 那段。
+//
+// 只管页面 JSON：`pages/` 底下的每一个 `.json`，多语言站是 `<locale>/pages/` 底下的。brand / seo /
+// services 这些不由块 manifest 描述，一个字不碰。
+//
+// 🔴 语言那一段不写死成 `[a-z]{2}` 之类的形状：locale 目录名来自 site_meta.json，`zh_CN` / `zh-TW`
+// 都出现过，而这里认不出路径的后果是**这次写入不被校验**（也就是回到本票要治的那个状态），
+// 所以匹配的是「路径里有一段 pages/，文件是 .json」这件事，不是我以为 locale 长什么样。
+//
+// 🔴 `pages/` 底下**还有几层也算**，判据是构建期自己怎么读的：`sync-config.js:279` 的
+// `readPagesRecursive` 递归读 `pages/`，任何一层的 `.json` 都是一个真页面（子目录名会拼进 slug）。
+// 服务详情页就长这样 —— `create-site.js:2027` 生成的 slug 是 `services/{service-id}`，落盘就是
+// `<locale>/pages/services/<id>.json`。r3 那版写的是 `[^/]+\.json`（只认一层），后果被 QA2 在真机上
+// 量出来了：同一个块、同一个键、同一句话，改首页拦得住，改 `pages/services/engagement-sessions.json`
+// 就 `{"success":true}` 落盘，跟着 `sync-config` rc=0、`npm run build` rc=0，产物里那一块标题在、
+// 条目 0 条 —— 正是 #1012 那个形状。12 个真站仓 136 个页面里这类页面占 49 个（36%）。
+const PAGE_JSON = /(?:^|\/)pages\/(?:[^/]+\/)*[^/]+\.json$/i;
+
+// 一页里模型自己写下内容的那些块。`{ "ref": "<id>" }` 那种不算 —— 它的内容在
+// `<locale>/blocks/site-blocks.json` 里，不在这次写入的这个文件里。拿它的内容来拒这次写入，
+// 模型在这一轮里改不动，那个页面就再也编辑不了了。
+function ownBlocksOf(page, where) {
+  return readPageBlocks(page, where).blocks.filter((b) => !b || typeof b.ref !== 'string');
+}
+
+function pageJsonBlockError(relPath, parsed) {
+  if (!PAGE_JSON.test(relPath)) return null;
+
+  const locale = relPath.includes('/pages/') ? relPath.split('/pages/')[0] : '(site)';
+  const where = `Locale "${locale}" page "${(parsed && parsed.slug) || path.basename(relPath, '.json')}"`;
+
+  // ── 第一关：形状（哪个数组、每一格是什么）──────────────────────────────────────────────
+  //
+  // 🔴 判据不是「有没有 sections」，是「构建期收不收这份形状」——所以这里**调构建期自己那个函数**
+  // （`blocks.js` 的 `normalizeLocalePages`，#998 的交付物），不写第二份规则。
+  //
+  // r2 那版在这里手写了一份 `pageShapeProblems`，里面写死了 `Array.isArray(page.sections)`。
+  // 而 #998 之后 `create-site.js:1416/:1486` 落盘走的是 `pageWithBlocks()`，它自己
+  // `delete out.sections` —— 也就是**新建出来的每一个站，页面在磁盘上都是 `blocks`**。
+  // 后果是那道门把这些站的每一次**正当**编辑都拒掉，而且它给模型的指示（改成 sections）跟
+  // 提示词自己写的「keep whichever array the file already has」互相矛盾：照做违反提示词，
+  // 不照做永远写不进去 —— 这个站从此改不动。（QA2 在 #1013 r2 上量出来的。）
+  //
+  // 抛错 = 构建期会 exit 1 的那一族：两个数组都写了 / 都没有 / 不是数组 / 某一格不是对象 /
+  // 某一格既没 type 也没 ref / 一格同时写了 ref 和 type。这些都是**内容的问题**、模型改得动，
+  // 所以退回去让它重写。构建期只「点名 + 继续」的那些（role 拼错、weight 不是数字、ref 指不到）
+  // 不在这里拦 —— 它们有明确的兜底行为，拦了就是把「一个字段被忽略」升级成「站改不动」。
+  //
+  // 站级块库传的是**空的**：这一关只问这一页自己的形状。真去读 site-blocks.json 的话，那个文件
+  // 里的毛病会让这次写入被拒，而模型在这一轮里修不了它。
+  try {
+    normalizeLocalePages([JSON.parse(JSON.stringify(parsed))], {}, locale, {});
+  } catch (e) {
+    debug(`[blocks] 这份页面构建不出来，写入被拒：${e.message}`);
+    return 'This page cannot be built. Fix it and write the file again:\n'
+      + `  - ${e.message}\n`
+      + '\nNothing was written. A page has exactly one of "blocks" or "sections" — keep whichever '
+      + 'array the file already has, and every entry in it is an object with a "type" (or a "ref").';
+  }
+
+  // ── 第二关：内容（每个块的槽填对了没有）────────────────────────────────────────────────
+  //
+  // 🔴 喂给它的是 `blocks`，不是 `parsed.sections`：r2 那版写的是 `sections: parsed.sections`，
+  // 对 `blocks` 形状的页面等于喂了个 `undefined` ⟹ `blocksOf` 返回空数组 ⟹ 这一关**一条都不查**
+  // 而且不说话。也就是 #998 之后新建的站里，本票要治的那个缺陷（#1012 那种错键名）会原样回来，
+  // 三盏灯全绿。两种形状都由 `readPageBlocks` 认出来，跟构建期同一个函数。
+  let problems;
+  try {
+    ({ problems } = validateBlocks({
+      pages: [{ slug: parsed.slug || path.basename(relPath, '.json'), blocks: ownBlocksOf(parsed, where) }],
+      scope: 'edit',
+    }));
+  } catch (e) {
+    // 校验器抛错了。两种完全不同的原因，处置也相反 —— 所以这里**先分清是哪一种**：
+    //
+    //   · 工具坏了（blocks/ 读不出来、某份 manifest 形状不合法）—— 模型修不了，拿它当「你写错了」
+    //     会让这个站改不动 ⟹ 说一句，照原样放行。
+    //   · 这份内容把校验器弄崩了 —— 那是内容的问题 ⟹ 退回去重写。
+    //
+    // 🔴 r1 只写了前一种，于是后一种（QA3 用 `sections` 里塞一个 null 量到的）也走了放行那条路，
+    // 而且**同一份内容里那些本来会被拦下的毛病跟着一起免检进去了**。分辨的办法是问一个与这份内容
+    // 无关的合规样例：样例也跑不起来 ⟹ 工具坏了；样例跑得起来 ⟹ 是这份内容。
+    let toolIsBroken = false;
+    try {
+      validateBlocks({ pages: [{ slug: '(probe)', blocks: [] }], scope: 'edit' });
+    } catch (probeErr) {
+      toolIsBroken = true;
+      debug(`[blocks] 校验器自己跑不起来（合规样例同样报错：${probeErr.message}），这次写入照原样放行`);
+    }
+    if (toolIsBroken) return null;
+    debug(`[blocks] 这份内容让校验器报错，写入被拒：${e.message}`);
+    return 'This page broke the block checker, so it cannot be checked or built:\n'
+      + `  - ${e.message}\n`
+      + '\nNothing was written. Every entry in the page\'s block array must be an object like '
+      + '{"type": "hero", "data": {…}} — write the whole file again.';
+  }
+  if (problems.length === 0) return null;
+  return `This page breaks the block library (blocks/*.json). Fix these and write the file again:\n`
+    + problems.map((p) => `  - ${p}`).join('\n')
+    + '\n\nNothing was written. Read the block\'s manifest if you need the exact slot names.';
+}
+
 function executeTool(toolName, toolInput, siteDir) {
   switch (toolName) {
     case 'read_file': {
@@ -185,11 +301,14 @@ function executeTool(toolName, toolInput, siteDir) {
       const relPath = toolInput.path;
       if (!validatePath(relPath)) return { error: 'Invalid path: must be relative, no ".."' };
       // Validate JSON
+      let parsed;
       try {
-        JSON.parse(toolInput.content);
+        parsed = JSON.parse(toolInput.content);
       } catch (e) {
         return { error: `Invalid JSON: ${e.message}` };
       }
+      const blockError = pageJsonBlockError(relPath, parsed);
+      if (blockError) return { error: blockError };
       const fullPath = path.join(siteDir, relPath);
       fs.mkdirSync(path.dirname(fullPath), { recursive: true });
       fs.writeFileSync(fullPath, toolInput.content);

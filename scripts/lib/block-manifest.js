@@ -18,6 +18,88 @@ const path = require('path');
 
 const BLOCKS_DIR = path.join(__dirname, '..', '..', 'blocks');
 
+// ── manifest 自己的形状（#1013 洞 2）────────────────────────────────────────────────────────────
+//
+// 🔴 为什么 manifest 也要有人校验：下面那五条检查**读的就是 manifest**，所以 manifest 里一个拼错的
+// 字就等于把某一条检查静默关掉。实测（#999 ship 时 QA3 量的）：把 `blocks/hero.json` 的
+// `roleDefault` 拼成 `"Essential"`（大写 E），②「角色只能加不能降」那条就再也不会报 ——
+// `ROLE_RANK["Essential"]` 是 `undefined`，`ROLE_RANK[sec.role] < undefined` 恒为假。
+// 三盏灯全绿，而那条检查已经不在了。同族的还有：`block_layout` 写成字符串（`includes` 于是变成
+// 子串匹配，`"with"` 会被当成合法值）、`industries.required` 写成字符串（`.some` 报 TypeError 或
+// 逐字符匹配）。
+//
+// 今天 34 份全部合法，所以这一条守的是**将来的编辑** —— 而将来的编辑正是它唯一会犯错的时候。
+//
+// 失败方式是 throw：manifest 是模板自己的文件（跟 registry.ts 同一类），不是某个站的数据。改坏它
+// 的人此刻就在改模板，当场报错是他能修的；放过去则是 34 个块里某一个从此形同不存在。
+const ROLE_NAMES = ['essential', 'lead', 'optional'];
+// 提示词里的三组。`homepage` / `page-specific` 各由 `promptSection()` 印成一段清单；`page-rule` 的
+// 四个块（quote-form / services-nav / services-list / contact-form）不进清单，它们由 create-site.js
+// 里写死的页面规则点名（`create-site.js:1960-1962`，data 那行仍从 manifest 来）。
+const PROMPT_GROUPS = ['homepage', 'page-specific', 'page-rule'];
+
+function checkManifestShape(name, m) {
+  const bad = (msg) => { throw new Error(`blocks/${name}: ${msg}`); };
+  const isStr = (v) => typeof v === 'string' && v.length > 0;
+  const strArray = (v) => Array.isArray(v) && v.every(isStr);
+
+  if (!isStr(m.category)) bad('category 必须是非空字符串');
+  if (!ROLE_NAMES.includes(m.roleDefault)) {
+    bad(`roleDefault 是 ${JSON.stringify(m.roleDefault)} —— 只能是 ${ROLE_NAMES.join(' / ')}`
+      + '（全小写，大小写错会让「角色只能加不能降」那条检查静默失效）');
+  }
+  if (!strArray(m.block_layout) || m.block_layout.length === 0) {
+    bad(`block_layout 是 ${JSON.stringify(m.block_layout)} —— 必须是非空的字符串【数组】`
+      + '（写成字符串的话 includes 会退化成子串匹配，"with" 之类的半个词就成了合法值）');
+  }
+  if (m.slots === null || typeof m.slots !== 'object' || Array.isArray(m.slots)) bad('slots 必须是对象');
+  for (const [slot, s] of Object.entries(m.slots)) {
+    if (s === null || typeof s !== 'object') bad(`slots.${slot} 必须是对象`);
+    if (!isStr(s.kind)) bad(`slots.${slot}.kind 必须是非空字符串`);
+    if (typeof s.required !== 'boolean') bad(`slots.${slot}.required 必须是 true/false（现在是 ${JSON.stringify(s.required)}）`);
+    if (typeof s.promptOptional !== 'boolean') bad(`slots.${slot}.promptOptional 必须是 true/false`);
+    if (s.shape !== undefined && !isStr(s.shape)) bad(`slots.${slot}.shape 有的话必须是非空字符串`);
+  }
+  if (m.variants === null || typeof m.variants !== 'object' || Array.isArray(m.variants)) {
+    bad('variants 必须是对象（外观词 → 一句说明）');
+  }
+  if (m.variantKey !== undefined && !isStr(m.variantKey)) bad('variantKey 有的话必须是非空字符串');
+
+  const ind = m.industries;
+  if (ind === null || typeof ind !== 'object' || Array.isArray(ind)) bad('industries 必须是对象');
+  for (const key of ['required', 'recommended', 'discouraged']) {
+    if (!strArray(ind[key])) {
+      bad(`industries.${key} 是 ${JSON.stringify(ind[key])} —— 必须是字符串【数组】（没有就写 []）`);
+    }
+    for (const word of ind[key]) {
+      // 🔴 受控词表（#1013 洞 1 的另一半）：行业词只许用 INDUSTRY_VOCABULARY 里的键。行业本身是自由
+      // 文本（payload 里由调用方给），所以「哪些写法算这个行业」收在一处、由词表说；manifest 只引用键。
+      // 少了这一条，一个拼错的 "photograpy" 会让「摄影站必须有 gallery」永远不生效，而没有东西会红。
+      if (key === 'required' && word === '*') continue;
+      if (!Object.prototype.hasOwnProperty.call(INDUSTRY_VOCABULARY, word)) {
+        bad(`industries.${key} 里的 "${word}" 不在行业词表里。`
+          + `能用的是：${Object.keys(INDUSTRY_VOCABULARY).join(' / ')}`
+          + `${key === 'required' ? '（required 还可以写 "*" = 每个站都要）' : ''}。`
+          + '要加新行业就往 block-manifest.js 的 INDUSTRY_VOCABULARY 里加一个键 + 它的写法');
+      }
+    }
+  }
+
+  const p = m.prompt;
+  if (p !== undefined) {
+    if (p === null || typeof p !== 'object' || Array.isArray(p)) bad('prompt 必须是对象');
+    if (!PROMPT_GROUPS.includes(p.group)) {
+      bad(`prompt.group 是 ${JSON.stringify(p.group)} —— 只能是 ${PROMPT_GROUPS.join(' / ')}`
+        + '（写错的话这个块在提示词里整块消失，AI 从此不会选它）');
+    }
+    if (!Number.isInteger(p.order)) bad(`prompt.order 必须是整数（现在是 ${JSON.stringify(p.order)}）`);
+    if (p.lines !== undefined && !strArray(p.lines)) bad('prompt.lines 有的话必须是字符串数组');
+    if (p.headExtra !== undefined && p.headExtra !== null && !isStr(p.headExtra)) {
+      bad('prompt.headExtra 只能是字符串或 null');
+    }
+  }
+}
+
 let cache = null;
 function loadManifests(dir = BLOCKS_DIR) {
   if (cache && cache.dir === dir) return cache.byType;
@@ -40,6 +122,7 @@ function loadManifests(dir = BLOCKS_DIR) {
         + '如果这个块真的不需要任何数据，用 slotsNote 说一句为什么（它从哪儿取内容）；'
         + '如果是漏了，把槽补上 —— 空 slots 会让提示词里那行退化成 "data: {  }"，而校验永远不会报。');
     }
+    checkManifestShape(name, m);
     byType.set(m.type, m);
   }
   cache = { dir, byType };
@@ -142,10 +225,85 @@ function blocksOf(page) {
   return [];
 }
 
-/** 行业匹配跟 themes.js:856 同一条口径：把用户填的行业串小写化，再看它 includes 哪个词。 */
+/**
+ * 一个行业词能被认出来的写法（#1013 洞 1）。**这份表就是行业词表本身** —— manifest 的
+ * `industries.*` 只许写这里的键（`checkManifestShape` 拦），所以「哪些写法算这个行业」只有一处。
+ *
+ * 🔴 为什么不能继续用「小写化之后 includes」（原来那一条，跟 themes.js:856 同源）：它两个方向都错。
+ *   放过：`photographer` / `wedding photographer` / `photo studio` 都不含 "photography" 这个子串
+ *         ⟹ gallery 的「摄影站必须有」等于没有（#999 ship 时 QA3 量的，本票开工前我又复量了一次）。
+ *   误伤：`law` 是 `lawn care` 和 `flawless cleaning` 的子串 ⟹ 真出现 `required: ["law"]` 的那天，
+ *         割草公司会被要求放律师事务所才有的块。
+ *
+ * 写法两种，由词表作者选，不靠猜：
+ *   `'spa'`         —— 整词：左右都要挨着非字母（所以 "space" / "spanish" 不算）
+ *   `'photograph-'` —— 词干：左边挨着非字母，右边可以再接字母（photography / photographer /
+ *                      photographie 全算）。French 那个例子是这么免费拿到的。
+ *   中文没有词边界，所以中文写法一律按**子串**判（`'摄影'` 命中 `婚纱摄影工作室`）。
+ *
+ * 📌 这张表只影响一件事：`validateSite` 的第 ④ 条「行业必需的块，整个站里一个都没有」。提示词里印的
+ *    是**键**（`every photography site must have this block`），所以改这张表不会动提示词的字节，
+ *    也就不会改 AI 吐什么 —— 那是要花钱才能测的东西（本票交付时对着 origin/main 逐字节比过）。
+ */
+const INDUSTRY_VOCABULARY = {
+  photography:  ['photograph-', 'photo studio', 'photo shoot', 'headshot-', '摄影'],
+  roofing:      ['roof-', '屋顶', '房顶'],
+  construction: ['construct-', 'builder-', 'contractor-', 'renovation-', 'remodel-', 'masonry',
+    '建筑', '装修', '施工'],
+  security:     ['security', 'alarm-', 'surveillance', 'cctv', 'locksmith-', '安防', '监控'],
+  // 🔴 `law` 在这里是**整词**写法，不是词干 —— 这正是原来那条子串检查错的地方：整词形式下
+  //    `lawn care` 的 "law" 右边挨着字母 n、`flawless` 的左边挨着字母 f，两个都不算命中，
+  //    而 `law` / `law firm` 算。（少了这一条，把行业直接填成 "law" 的站会认不出来。）
+  law:          ['law', 'law firm', 'law office', 'law practice', 'lawyer-', 'attorney-', 'legal',
+    'solicitor-', '律师', '法律'],
+  insurance:    ['insur-', '保险'],
+  medical:      ['medical', 'medicine', 'clinic-', 'physician-', 'doctor-', 'physio-', '医疗', '诊所'],
+  dental:       ['dental', 'dentist-', 'orthodont-', '牙科', '牙医'],
+  landscaping:  ['landscap-', 'lawn care', 'lawn mowing', 'garden-', 'tree service', 'tree removal',
+    '园艺', '绿化', '景观'],
+  restaurant:   ['restaurant-', 'cafe', 'café', 'coffee shop', 'bakery', 'bistro', 'diner',
+    'catering', 'caterer-', 'pizzeria', 'food truck', '餐厅', '餐馆', '烘焙'],
+  salon:        ['salon-', 'barber-', 'hairdress-', 'hair salon', 'hair studio', 'hair styl-',
+    'nail salon', 'nail bar', 'spa', 'beauty', '美发', '美容', '沙龙'],
+  plumbing:     ['plumb-', '水暖', '管道'],
+  cleaning:     ['clean-', 'janitorial', 'maid service', 'housekeeping', '保洁', '清洁'],
+  fitness:      ['fitness', 'gym', 'yoga', 'pilates', 'crossfit', 'personal train-', '健身', '瑜伽'],
+};
+
+const NOT_A_LETTER = /[^a-z]/;
+function stemHits(text, stem) {
+  // 中文写法没有词边界可言 —— 直接看在不在里面。
+  if (!/^[a-z][a-z .'-]*$/.test(stem)) return text.includes(stem);
+  const prefixForm = stem.endsWith('-');
+  const needle = prefixForm ? stem.slice(0, -1) : stem;
+  let from = 0;
+  for (;;) {
+    const at = text.indexOf(needle, from);
+    if (at < 0) return false;
+    const before = at === 0 ? ' ' : text[at - 1];
+    const afterIdx = at + needle.length;
+    const after = afterIdx >= text.length ? ' ' : text[afterIdx];
+    // 左边一律要词边界；右边:整词形式也要，词干形式允许再接字母。
+    if (NOT_A_LETTER.test(before) && (prefixForm || NOT_A_LETTER.test(after))) return true;
+    from = at + 1;
+  }
+}
+
+/** 这段自由文本被认出来是哪些行业。认不出来就是空数组 —— 而空数组要被**说出来**，见 validateSite。 */
+function recogniseIndustry(industry) {
+  const text = String(industry || '').toLowerCase();
+  if (!text.trim()) return [];
+  return Object.keys(INDUSTRY_VOCABULARY)
+    .filter((key) => INDUSTRY_VOCABULARY[key].some((stem) => stemHits(text, stem)));
+}
+
+/** manifest 里的一个行业词，配不配得上这段自由文本。`"*"` = 每个站都算。 */
 function industryMatches(industry, word) {
   if (word === '*') return true;
-  return String(industry || '').toLowerCase().includes(word);
+  const stems = INDUSTRY_VOCABULARY[word];
+  if (!stems) return false; // 词表里没有的键早在 checkManifestShape 就被拦了，这里是第二道
+  const text = String(industry || '').toLowerCase();
+  return stems.some((stem) => stemHits(text, stem));
 }
 
 /**
@@ -174,6 +332,19 @@ function industryMatches(industry, word) {
  *
  *    构建期该做的是**说出来**：warning 照常打印在构建日志里，一条都不少。
  *    真正的闸在建站那一刻（scope 'create'），那里拦得住、也修得回来。
+ *
+ *   'edit'（#1013 洞 4，AI 改站那条路）—— 逐个 section 的毛病算 problem（调用方据此**拒绝这次写入**
+ *      并把原因退给模型，模型在同一轮对话里重写，见 edit-site.js 的 write_file），
+ *      而第 ④ 条「整个站里没有某个块」**不查**。
+ *
+ *   🔴 为什么 'edit' 既不是 'create' 也不是 'build'：
+ *      · 不是 'build'（只警告）—— 编辑这一刻有救。模型就在旁边，`executeTool` 返回 `{error}` 就是
+ *        一条 tool_result，它会拿着原因重写一遍（`edit-site.js` 的循环最多 20 轮），
+ *        磁盘上一个字节都还没动。#1012 那 4 块空白正是从这条路进来的，而它当时只校验「是合法 JSON」。
+ *      · 也不是照搬 'create' 全套 —— 第 ④ 条问的是**整个站**有没有某个块，而这一刻手上只有正在被写的
+ *        那一个页面。拿一页去回答整站的问题，结果是：编辑 about.json 会因为「整个站里没有
+ *        contact-info」被拒，而那件事既不是这次编辑造成的，模型也没法在 about.json 里修好它
+ *        ⟹ 那个站从此改不动了。整站那条检查的家在建站那一刻和构建期，不在这里。
  */
 function validateSite({ pages, industry = '', dir, scope = 'create' } = {}) {
   const manifests = loadManifests(dir);
@@ -222,16 +393,31 @@ function validateSite({ pages, industry = '', dir, scope = 'create' } = {}) {
     }
   }
 
-  // ④ 行业必需的块，整个站里一个都没有
-  for (const m of manifests.values()) {
-    const req = (m.industries && m.industries.required) || [];
-    if (!req.some((w) => industryMatches(industry, w))) continue;
-    if (seenTypes.has(m.type)) continue;
-    const why = req.includes('*') ? '每个站都要有它' : `"${industry}" 属于 ${req.join(' / ')}`;
-    flag(`整个站里没有 "${m.type}" —— ${why}（blocks/${m.type}.json 的 industries.required）`);
+  // ④ 行业必需的块，整个站里一个都没有。
+  //    'edit' 不查这一条 —— 手上只有一个页面，答不了整站的问题（理由整段写在函数头上）。
+  const industryKeys = recogniseIndustry(industry);
+  if (scope !== 'edit') {
+    for (const m of manifests.values()) {
+      const req = (m.industries && m.industries.required) || [];
+      if (!req.some((w) => industryMatches(industry, w))) continue;
+      if (seenTypes.has(m.type)) continue;
+      const why = req.includes('*') ? '每个站都要有它' : `"${industry}" 属于 ${req.join(' / ')}`;
+      flag(`整个站里没有 "${m.type}" —— ${why}（blocks/${m.type}.json 的 industries.required）`);
+    }
+
+    // 🔴 说出这条检查的射程（#1013 洞 1）。行业是自由文本，认不出来的写法一定存在 —— 而
+    //    「认不出来」和「这个行业不需要任何特定的块」今天长得一模一样：两种情况都是一条 problem 都没有。
+    //    所以认不出来的时候必须自己说一句，否则读日志的人会以为查过了。
+    //    永远是 warning，从不阻断：认不出行业不是这个站的错。
+    if (String(industry || '').trim() && industryKeys.length === 0) {
+      warnings.push(`行业 "${industry}" 不在我认得的写法里，所以「某些行业必须有的块」这条`
+        + `只按 required: "*"（每个站都要）查了一遍。我认得的行业是：`
+        + `${Object.keys(INDUSTRY_VOCABULARY).join(' / ')} —— 写法收在 block-manifest.js 的`
+        + ' INDUSTRY_VOCABULARY 里，要加就往那儿加一行');
+    }
   }
 
-  return { problems, warnings };
+  return { problems, warnings, industryKeys };
 }
 
 /**
@@ -241,16 +427,96 @@ function validateSite({ pages, industry = '', dir, scope = 'create' } = {}) {
  * 加第 35 个块的人不会记得来 blocks/ 补一份。少了 manifest 的块，提示词里不会出现（AI 永远不选它）、
  * 校验也不认它 —— 而这两件事都不会红，只是那个块从此形同不存在。
  */
+
+/**
+ * `sectionRegistry` 那个对象里登记了哪些块名 —— 用 TypeScript 自己的解析器读，不看源码长什么样
+ * （#1013 洞 3）。
+ *
+ * 🔴 原来那一版是一条正则：`/^ {2}'([a-z0-9-]+)':/gm`。它要求**行首正好两个空格 + 单引号**，
+ * 于是同一份注册表的三种合法写法它都看不见（本票开工前逐个量过）：
+ *
+ *   写法                                        原来的读数              后果
+ *   `  "fake": FakeSection,`（双引号）           known 仍是 34           新块不会被要求补 manifest
+ *   `    'fake': FakeSection,`（4 空格缩进）      known 仍是 34           同上
+ *   多行 `/* … *\/` 里包着一条正常写法的登记       known 变 35，含被注释的   注释掉的块被当成还在
+ *
+ * 三种都是「放行」方向：检查说没事，而它其实没看见。而且这类洞**改不干净** —— 下一种写法（模板字符串
+ * 键、`as const`、prettier 换个缩进）照样绕过。所以判据不该是源码的字面格式，而该是**代码本身的结构**。
+ * `typescript` 已经是 templates/nextjs 的依赖（`package.json` devDependencies，容器里的
+ * `npm ci --ignore-scripts` 不带 --omit=dev，而且 `next build` 本来就要它），所以这不是新依赖。
+ *
+ * 🔴 读不出来 ≠ 对不上。拿不到解析器就返回 null，由调用方说一句然后继续 —— 把「工具没装」判成
+ * 「注册表对不上」会让 sync-config 当场 exit 1，也就是让那个站从此重建不出来（同 #1009 的形状）。
+ */
+function registryNames(registryPath) {
+  let ts;
+  try {
+    ts = require('typescript');
+  } catch (e) {
+    if (e.code !== 'MODULE_NOT_FOUND') throw e;
+    return null;
+  }
+  const src = fs.readFileSync(registryPath, 'utf-8');
+  const sf = ts.createSourceFile(registryPath, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  let names = null;
+  const visit = (node) => {
+    if (names) return;
+    if (ts.isVariableDeclaration(node)
+        && ts.isIdentifier(node.name) && node.name.text === 'sectionRegistry'
+        && node.initializer && ts.isObjectLiteralExpression(node.initializer)) {
+      names = node.initializer.properties.map((p) => {
+        if (ts.isPropertyAssignment(p) || ts.isShorthandPropertyAssignment(p)) {
+          const n = p.name;
+          if (ts.isStringLiteral(n) || ts.isIdentifier(n) || ts.isNoSubstitutionTemplateLiteral(n)) {
+            return n.text;
+          }
+        }
+        // 展开、计算出来的键、方法写法 —— 名字不是静态可读的。**不许静默跳过**：跳过的方向是
+        // 「registry 里有个块我没数」，而那正是这个检查要防的事。
+        throw new Error(`${registryPath}: sectionRegistry 里有一项的键读不出来`
+          + `（${ts.SyntaxKind[p.kind]}，第 ${sf.getLineAndCharacterOfPosition(p.getStart()).line + 1} 行）`
+          + ' —— 块名必须是写死的字符串键，这个检查才数得准');
+      });
+      return;
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return names;
+}
+
 function registryCoverage(registryPath, dir) {
-  const ts = fs.readFileSync(registryPath, 'utf-8');
-  const start = ts.indexOf('sectionRegistry');
-  const known = [...ts.slice(start).matchAll(/^ {2}'([a-z0-9-]+)':/gm)].map((m) => m[1]);
+  const known = registryNames(registryPath);
   const manifests = [...loadManifests(dir).keys()];
+  if (known === null) {
+    return {
+      known: [],
+      manifests: manifests.slice().sort(),
+      missingManifest: [],
+      unknownBlock: [],
+      unavailable: `读不到 typescript 这个模块，没法解析 ${path.basename(registryPath)}`
+        + ' —— 这不是关于注册表的读数，什么都没查（在 templates/nextjs 里跑 npm ci）',
+    };
+  }
+  if (known.length === 0) {
+    // 一个键都没读到 = 没找到 sectionRegistry 那个对象（改名了 / 换成别的写法了）。
+    // 「什么都没数到」不是「全都对得上」：那样 34 个 manifest 会全部变成 unknownBlock，
+    // 而这里说清楚它是仪器的问题。
+    return {
+      known: [],
+      manifests: manifests.slice().sort(),
+      missingManifest: [],
+      unknownBlock: [],
+      unavailable: `在 ${path.basename(registryPath)} 里没找到 sectionRegistry 那个对象字面量`
+        + ' —— 什么都没查（它改名或换写法了？）',
+    };
+  }
   return {
-    known: known.sort(),
+    known: known.slice().sort(),
     manifests: manifests.slice().sort(),
     missingManifest: known.filter((t) => !manifests.includes(t)).sort(),
     unknownBlock: manifests.filter((t) => !known.includes(t)).sort(),
+    unavailable: null,
   };
 }
 
@@ -272,6 +538,7 @@ function applyRoleDefaults(pages, dir) {
 module.exports = {
   BLOCKS_DIR,
   blocksOf,
+  INDUSTRY_VOCABULARY,
   loadManifests,
   promptSection,
   promptEntry,
@@ -282,4 +549,5 @@ module.exports = {
   registryCoverage,
   applyRoleDefaults,
   industryMatches,
+  recogniseIndustry,
 };

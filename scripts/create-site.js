@@ -2120,7 +2120,13 @@ CRITICAL RULES:
   // 🔴 只重试一次。再失败就退出并把问题逐条打出来 —— 一直重试等于把「AI 今天不听话」变成一笔看不见
   // 的账单，而这些问题（缺必填槽、把 essential 降成 optional、行业必需的块没放）都是提示词里写着的。
   {
-    let issues = validateBlocks({ pages: ai.pages, industry }).problems;
+    const first = validateBlocks({ pages: ai.pages, industry });
+    // #1013 洞 1 —— 行业是自由文本，认不出来的写法一定存在。校验器会为此产出一条 warning，
+    // 而「认不出行业」跟「这个行业不需要任何特定的块」在读数上长得一模一样（两种都是零 problem）
+    // ⟹ 它必须被打出来，否则日志里那句「校验通过」是关于一次没做的检查说的。
+    for (const w of first.warnings) debug(`[blocks] ⚠️  ${w}`);
+    debug(`[blocks] 行业 "${industry}" 认出来是: ${first.industryKeys.join(' / ') || '（一个都没认出来）'}`);
+    let issues = first.problems;
     if (issues.length) {
       debug(`[blocks] 第一次输出有 ${issues.length} 处不合规,重试一次:\n  ${issues.join('\n  ')}`);
       progress('Checking the layout against the block library...', 40);
