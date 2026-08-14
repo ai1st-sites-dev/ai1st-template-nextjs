@@ -206,16 +206,57 @@ for sheet in "${SHEETS[@]}"; do
     unmeasured=1
     continue
   fi
-  # Second, independent guard on the same mistake: the page about to be served must itself reference
+  # Second, independent guard on the same mistake: the build about to be served must itself be wearing
   # the sheet under test. This asks the bytes, not the path arithmetic above, so a wrong directory
-  # cannot pass by both. 📌 The href form (`/themes/<id>.css`, src/app/layout.tsx) is what #1002 turns
-  # into the fixed `/theme.css`; that ticket's AC9 already owns following the same rename through
-  # scripts/theme-css-invariants.mjs, and this line is the other place it has to touch. If it is missed,
-  # this reads "not this build" and exits 2 — loud, and never a false pass.
-  if ! grep -q "/themes/$sheet.css" "$built/index.html"; then
-    echo "🔴 $sheet: $built/index.html does not reference /themes/$sheet.css — that directory is not"
-    echo "     the build we just made, so nothing was measured. (out/ holds:"
-    echo "     $(ls -1 "$NEXT/out" 2>/dev/null | tr '\n' ' '))"
+  # cannot pass by both.
+  #
+  # 🔴 #1002 changed the QUESTION, not just the string. This used to grep the built index.html for
+  # `/themes/<sheet>.css`, the <link> src/app/layout.tsx emitted. That href is gone: #1002 pastes the
+  # sheet's bytes INTO the fixed-path `/theme.css` (scripts/theme-css.js, `blockLayoutCss`) precisely so
+  # that no byte of the HTML depends on which theme the site wears — that is the whole mechanism behind
+  # "changing a theme needs no rebuild". So "which sheet is this build wearing" has to be asked of
+  # theme.css's bytes now. Left unmigrated it read "not this build" for every sheet and exited 2 (that
+  # is what it did on main at `eceda5a5`) — loud, and never a false pass, which is why it is still here
+  # to fix rather than a green that meant nothing.
+  #
+  # 🔴 WHOLE-SHEET CONTAINMENT, not "a selector out of it". A rule-level probe would swallow the very
+  # mutation this guard exists to let through: deleting one hook's rule from the sheet has to come out
+  # of the fifth invariant below as exit 1 naming that hook, and a probe for that rule would turn it
+  # into exit 2 "nothing was measured" instead — the check would look like it still worked while having
+  # stopped answering. Containment is read against the sheet file as it is now, so the mutation keeps it
+  # true and the reading stays the invariant's to make.
+  #
+  # 🔴 An empty sheet is not a measurement either: "" is contained in anything, so it is refused
+  # explicitly rather than passing every directory in existence.
+  #
+  # 📌 THIS TICKET ALREADY MIGRATED THE SAME READING ONCE, ONE FILE OVER — scripts/theme-pipeline/run.js
+  # `whyNotThisBuild` (the function is #1004's; #1002 r5b, commit 4a56adf5, moved it off the href for
+  # exactly this reason, measured there as 0/2 candidates admitted with the reason "没有引
+  # /themes/gen-07-1.css"). It landed on the same predicate: does the built theme.css carry this sheet's
+  # bytes. Two implementations rather than one call, because that one is a CLI internal and not an
+  # export — so if theme-css.js ever stops pasting the sheet verbatim, BOTH have to move. It is also
+  # the harder question of the two: two sheets can share a filename, they cannot share their bytes.
+  if ! probe="$(node -e '
+    const fs = require("fs");
+    const [sheetPath, servedPath, sheetName, siteDir, indexPath] = process.argv.slice(1);
+    // index.html is what gets served; the old grep read it, so keep asking whether it is there at all.
+    if (!fs.existsSync(indexPath)) { console.log("there is no index.html in it"); process.exit(1); }
+    let served;
+    try { served = fs.readFileSync(servedPath, "utf-8"); }
+    catch { console.log("there is no theme.css in it at all"); process.exit(1); }
+    const sheet = fs.readFileSync(sheetPath, "utf-8").trimEnd();  // == what theme-css.js pastes
+    if (!sheet) { console.log("public/themes/" + sheetName + ".css is empty — an empty sheet is contained in every file, so nothing would be measured"); process.exit(1); }
+    if (!served.includes(sheet)) {
+      const frozen = fs.existsSync(siteDir + "/theme.css");
+      console.log("its theme.css (" + served.length + " chars) does not contain the " + sheet.length
+        + " chars of public/themes/" + sheetName + ".css"
+        + (frozen ? " — and site/theme.css exists, which sync-config copies byte-for-byte in preference to generating one (§theme.css), so this build is wearing THAT instead of the sheet under test" : ""));
+      process.exit(1);
+    }
+  ' "$THEMES_DIR/$sheet.css" "$built/theme.css" "$sheet" "$NEXT/site" "$built/index.html" 2>&1)"; then
+    echo "🔴 $sheet: $built is not a build wearing this sheet, so nothing was measured —"
+    echo "     $probe"
+    echo "     (out/ holds: $(ls -1 "$NEXT/out" 2>/dev/null | tr '\n' ' '))"
     unmeasured=1
     continue
   fi
