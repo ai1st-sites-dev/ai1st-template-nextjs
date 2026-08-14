@@ -31,8 +31,20 @@ const FOOTER_VARIANTS = [
   'cta-band', // 强调色 CTA 色带 + 小脚
 ];
 
+// #1000 —— topbar 是 page layout 库里的第四种区（`with-topbar`）。它渲染的是既有的
+// `AnnouncementBarSection`，所以这张清单逐字抄它的 props（`AnnouncementBarSection.tsx:11`）。
+// 放在这里而不是那个组件里，理由跟 header/footer 一样：组件按它渲染、主题注册表按它填、校验按它，
+// 多一处清单就会有一处漂。
+const TOPBAR_VARIANTS = [
+  'solid', // 现状默认:强调色实底细条
+  'bordered', // 白底 + 强调色描边
+  'dismissible', // 带关闭按钮
+  'floating', // 居中圆角胶囊
+];
+
 const DEFAULT_HEADER = 'solid-bar';
 const DEFAULT_FOOTER = 'multi-column';
+const DEFAULT_TOPBAR = 'solid';
 
 // 🔴 每一种「能证明是深底」的 hero 写法,都要在这里写出它**靠哪一档颜色**深下来 —— 而且那一档要真的
 // 画得出来。判据不是我读源码时觉得它深(r1 就是这么写的,五行里三行跟源码对不上),而是两件当场能查的事:
@@ -156,6 +168,17 @@ function resolveRegionLayout(layout, pages, palette) {
     }
   }
 
+  // #1000 —— topbar 的结构跟 header / footer 走同一条路:主题注册表想要什么就给什么,给不出来
+  // 就退回默认并把理由记进 notes。没有 topbar 区的站也照样算出这个值(不占字节、不影响产物)。
+  let topbar = DEFAULT_TOPBAR;
+  if (wanted.topbar) {
+    if (TOPBAR_VARIANTS.includes(wanted.topbar)) {
+      topbar = wanted.topbar;
+    } else {
+      notes.push(`theme 想要的 topbar 版式 "${wanted.topbar}" 不在清单里,退回 ${DEFAULT_TOPBAR}`);
+    }
+  }
+
   // 对比度:透明浮层压在它下面那一段上,那就得知道那一段是什么颜色。**任何一页**只要不能证明是深底,
   // 就整站加遮罩 —— 遮罩是一层半透明的深色底,加了在深底上也看不出来,而少加会让字消失。
   //
@@ -185,14 +208,16 @@ function resolveRegionLayout(layout, pages, palette) {
     }
   }
 
-  return { header, footer, headerScrim, notes };
+  return { header, footer, topbar, headerScrim, notes };
 }
 
 module.exports = {
   HEADER_VARIANTS,
   FOOTER_VARIANTS,
+  TOPBAR_VARIANTS,
   DEFAULT_HEADER,
   DEFAULT_FOOTER,
+  DEFAULT_TOPBAR,
   PROVABLY_DARK_HERO_EVIDENCE,
   utilityShades,
   firstSectionHero,

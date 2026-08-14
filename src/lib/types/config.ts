@@ -75,6 +75,13 @@ export interface NavigationConfig {
     columns: FooterColumn[];
     copyright: string;
   };
+  // #1000 — 顶栏那条细带的内容。可选：只有选了带 topbar 区的 page layout 的站才需要它，
+  // 而那种站缺了它构建期就被拒绝（sync-config.js）。放在这个文件里是因为 Header / Footer 的导航
+  // 内容今天就在这儿；它的**结构**（solid / bordered / …）不在这里，跟 header / footer 一样由主题定。
+  topbar?: {
+    message: string;
+    link?: NavLink;
+  };
 }
 
 // ---- SEO ----
@@ -181,6 +188,17 @@ export type FooterVariant = 'multi-column' | 'slim-row' | 'cta-band';
 export interface RegionLayoutConfig {
   header: HeaderVariant;
   footer: FooterVariant;
+  // #1000 — page layout 库里 topbar 区的结构，取值同 AnnouncementBarSection 的 variant。
+  topbar: 'solid' | 'bordered' | 'dismissible' | 'floating';
   headerScrim: boolean;
   notes: string[];
+}
+
+// #1000 — 「这个站的页面由哪些区组成」。构建期从 page-layouts/ 里选出来并校验过（缺 header /
+// content / footer 的布局根本进不来，spec §4.4 / D11）。
+export interface PageLayoutConfig {
+  id: string;
+  regions: string[];
+  /** 同一种区出现多次时，每一个用哪种结构（只有这种情况才轮到布局说话）。 */
+  repeatVariants?: Record<string, string>;
 }

@@ -95,7 +95,8 @@ const previewTrustedOrigin = (() => {
 // ── #978 版式那一半的四条理由（写在这里而不是脚本里面：脚本是个模板字符串，反引号进不去）──
 //
 // 🔴 ① 注入的 CSS 自带一行 `main{display:flex;flex-direction:column}`，不靠发的人记得带上。
-// block 全在 `<main class="flex-1">` 里面（`SiteShell.tsx:18`），而它是普通块级容器 ⟹ `order` 对它的
+// block 全在 `<main class="flex-1">` 里面（`SiteShell.tsx:46` 的 `case 'content'` —— #1000 之后外壳按
+// 区渲染，而外壳区不带 `data-block`，所以「block 全在 main 里面」这条仍然成立），而它是普通块级容器 ⟹ `order` 对它的
 // 子元素不生效。PM 在真产物上量过（1280×900、四个 block）：只注入 order，四个 y 坐标
 // `0 · 740 · 1343 · 1799` 一个都没动；先补那一行再注入 ⟹ `2074 · 0 · 603 · 1059`。
 // 另一种写法 `main{display:contents}` 同样有效（他两种都量了，都不改变原页面），但它把 main 的盒子整个

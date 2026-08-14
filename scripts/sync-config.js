@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const blockManifest = require('./lib/block-manifest');
 const { themes, layoutFor, themesWithRhythm } = require('./themes');
+const pageLayoutLib = require('./lib/page-layout');
 const { resolveRegionLayout } = require('./region-layout');
 
 const rootDir = path.resolve(__dirname, '..');
@@ -425,6 +426,68 @@ const regionLayout = resolveRegionLayout(
 );
 console.log(`  Regions: header=${regionLayout.header} footer=${regionLayout.footer}` +
   (regionLayout.headerScrim ? ' (+scrim)' : ''));
+
+// #1000 —— 这个站的页面由哪些区组成。库在 page-layouts/，站在 site/page-layout.json 里挑一个
+// （缺文件 ⟹ standard，也就是今天所有站的那一条路）。
+//
+// 🔴 这里的校验是 D11 的替身。以前「页面写不出没有 Header 的站」是 SiteShell 写死保证的；按库拼区
+// 之后那条保证降级成「库里定义的」，所以 schema 强制每个布局都得有 header / content / footer，
+// 缺一个就在这里拒绝并点名。**库里每一份都校验**，不只校验被选中的那份：一份坏的布局躺在库里，
+// 下一个选它的站才炸，那时没人记得是谁放进去的。
+const allLayouts = pageLayoutLib.loadLayouts();
+const layoutProblems = [];
+for (const l of allLayouts.values()) layoutProblems.push(...pageLayoutLib.validateLayout(l));
+const picked = pageLayoutLib.resolveSiteLayout(siteDir);
+layoutProblems.push(...picked.problems);
+if (layoutProblems.length) {
+  console.error('page layout 库不合法（page-layouts/ 与 site/page-layout.json）：');
+  for (const problem of [...new Set(layoutProblems)]) console.error(`  · ${problem}`);
+  process.exit(1);
+}
+const pageLayout = { id: picked.layout.id, regions: picked.layout.regions,
+  ...(picked.layout.repeatVariants ? { repeatVariants: picked.layout.repeatVariants } : {}) };
+console.log(`  Page layout: ${pageLayout.id} → ${pageLayout.regions.join(' · ')}`
+  + (picked.explicit ? '' : '（站没挑，按默认）'));
+
+// 🔴 #1000 r2（QA1 抓的那条，作者裁定在本票修）—— 有 topbar 区 + 顶栏是透明浮层 = 那条横带
+// 渲染出来但一个像素看不见，而且没有任何东西会报错。
+//
+// 量到的形状（QA1 与我各在浏览器里读过一次，读数一致）：浮层是 `absolute inset-x-0 top-0`、
+// `z-index:50`、高 92px（`Header.tsx:125`），topbar 占 0–44px ⟹ **重叠 44px = topbar 整条**，
+// `elementFromPoint(topbar 中点)` 拿到的是 header 里的 nav。而 `bold-red` 这类主题就会解析成
+// `transparent-overlay`（`themes.js` 的 layout.header）。
+//
+// 🔴 为什么在这里拒绝，而不是「渲染时躲一下」：躲要么给 header 加 top 偏移（那会打断浮层压在
+// 首屏 hero 上这件事本身，#960 那条对比度规则就是围着它写的），要么把 topbar 塞进 header 里面
+// （那它就不是一个区了）。两条都是把一个**组合不成立**的事实改写成一个看起来能跑的样子。
+// 拒绝是诚实的那条：站要么换一个不带 topbar 的布局，要么换一套顶栏不是浮层的主题。
+//
+// 🔴 用 `needsTopbar` 而不是自己再数一遍 regions：上面那道「有 topbar 区就必须有 topbar 内容」
+// 用的就是它，两道判的必须是同一件事，否则总有一天一个说有、一个说没有。
+if (pageLayoutLib.needsTopbar(picked.layout) && regionLayout.header === 'transparent-overlay') {
+  console.error(`page layout "${pageLayout.id}" 有 topbar 区，而这个站的顶栏解析成 `
+    + '"transparent-overlay"（透明浮层）—— 浮层是 absolute top-0、高 92px、z-index 50，会把 '
+    + 'topbar 那 44px 整条压在底下：横条会渲染出来，但用户一个像素都看不见。');
+  console.error('  · 换一个不带 topbar 区的 page layout，或者换一套顶栏不是透明浮层的主题'
+    + '（themes.js 里 layout.header 不是 transparent-overlay 的那些）');
+  process.exit(1);
+}
+
+// 选了带 topbar 的布局，就必须有 topbar 的内容 —— 否则那个区渲染出来是空的，而"少了一条横带"
+// 没有任何东西会红。逐 locale 查：内容是按语言存的。
+if (pageLayoutLib.needsTopbar(picked.layout)) {
+  const missing = locales.filter((loc) => {
+    const t = (navigationByLocale[loc] || {}).topbar;
+    return !t || !String(t.message || '').trim();
+  });
+  if (missing.length) {
+    console.error(`page layout "${pageLayout.id}" 有 topbar 区，但这些语言的 navigation.json 里没有 `
+      + `topbar 内容：${missing.join(', ')}`);
+    console.error('  · 在 navigation.json 里加 { "topbar": { "message": "…", "link": { "label": "…", "href": "…" } } }，'
+      + '或者换一个不带 topbar 区的 page layout');
+    process.exit(1);
+  }
+}
 for (const note of regionLayout.notes) console.log(`    · ${note}`);
 // #991 — say it out loud either way. "No sheet" and "a sheet that did nothing" look identical on the
 // page, and the theme-gallery loop greps this kind of line to tell a real application from a no-op.
@@ -447,6 +510,7 @@ export const navigationByLocale = ${JSON.stringify(navigationByLocale)};
 export const pagesByLocale = ${JSON.stringify(pagesByLocale)};
 export const blogPostsByLocale = ${JSON.stringify(blogPostsByLocale)};
 export const regionLayout = ${JSON.stringify(regionLayout)};
+export const pageLayout = ${JSON.stringify(pageLayout)};
 // #991 — name of the stylesheet in public/themes/ that owns block layout, '' when this site has none.
 export const themeCss = ${JSON.stringify(themeCss)};
 `;

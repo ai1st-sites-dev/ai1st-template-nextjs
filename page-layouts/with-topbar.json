@@ -1,0 +1,5 @@
+{
+  "id": "with-topbar",
+  "description": "A thin announcement strip above the header — for a promotion, a seasonal notice or opening hours.",
+  "regions": ["topbar", "header", "content", "footer"]
+}

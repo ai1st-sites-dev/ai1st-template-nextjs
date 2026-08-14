@@ -1,0 +1,5 @@
+{
+  "id": "standard",
+  "description": "Header, the page's own blocks, footer. What every site built before #1000 renders.",
+  "regions": ["header", "content", "footer"]
+}

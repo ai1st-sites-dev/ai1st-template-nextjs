@@ -1,4 +1,4 @@
-import type { BrandConfig, NavigationConfig, SeoConfig, ServiceConfig, BlogPostConfig, DynamicPageConfig, RegionLayoutConfig } from './types/config';
+import type { BrandConfig, NavigationConfig, SeoConfig, ServiceConfig, BlogPostConfig, DynamicPageConfig, RegionLayoutConfig, PageLayoutConfig } from './types/config';
 
 import {
   brand as _brand,
@@ -12,6 +12,7 @@ import {
   pagesByLocale as _pagesByLocale,
   blogPostsByLocale as _blogPostsByLocale,
   regionLayout as _regionLayout,
+  pageLayout as _pageLayout,
   themeCss as _themeCss,
 } from './config-data';
 
@@ -29,6 +30,10 @@ export const blogPostsByLocale = _blogPostsByLocale as Record<string, BlogPostCo
 // #960: 顶栏和页脚的结构。它们是 Region 不是 section,所以走的是自己的写出口(sync-config.js 的
 // §Regions),不是那张按 section.type 索引的偏好表 —— 那张表对它们按构造是瞎的。
 export const regionLayout = _regionLayout as RegionLayoutConfig;
+// #1000: 这个站的页面由哪些区组成(page-layouts/ 里的一个)。构建期选出来并校验过 —— 缺 header /
+// content / footer 的布局进不来(spec §4.4 / D11 的替身)。没有 site/page-layout.json 的站(今天全部)
+// 拿到的是 `standard`,也就是 header → content → footer 这一条老路。
+export const pageLayout = _pageLayout as PageLayoutConfig;
 // #991 — the stylesheet in public/themes/ that owns block layout for this site, '' when it has none.
 // Empty is the state of every site built before this existed, and it is what keeps their output
 // identical: no <link> in layout.tsx, and hero keeps its variant markup.

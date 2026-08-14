@@ -42,7 +42,11 @@ const FOOTER_LABELS: Record<string, { services: string; contact: string }> = {
   th: { services: 'บริการ',        contact: 'ติดต่อเรา' },
 };
 
-export default function Footer({ locale }: { locale: string }) {
+// #1000 — `variant` 这个 prop 只在**同一个布局里出现多个页脚区**时才传（`tri-footer` 的
+// footer-a/b/c）：主题每类区只给一个值，分不出第几个，所以那时由布局自己钉（`page-layouts/*.json`
+// 的 `repeatVariants`，构建期对着 `region-layout.js` 那张清单校验过）。只有一个页脚的布局不传它，
+// 走的还是老路 —— 主题说了算。
+export default function Footer({ locale, variant: variantOverride }: { locale: string; variant?: string }) {
   const { footer } = getNavigation(locale);
   const services = getServices(locale);
   const localePages = pagesByLocale[locale] ?? [];
@@ -61,7 +65,7 @@ export default function Footer({ locale }: { locale: string }) {
   // #960 — 页脚以前只有一个结构(多列大脚),30 套 theme 换下来它一个像素都不动。结构从
   // `regionLayout.footer` 来,构建时定(sync-config.js 的 §Regions);没换装的站拿到的是 'multi-column',
   // 也就是这一票之前那份 —— 下面那支的标记逐字没动过。
-  const variant = regionLayout.footer;
+  const variant = variantOverride || regionLayout.footer;
 
   const logoBlock = (
     <div className="mb-4 flex items-center gap-2">

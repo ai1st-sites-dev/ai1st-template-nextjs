@@ -1,0 +1,10 @@
+{
+  "id": "tri-footer",
+  "description": "The footer is three bands: a call to action, the link columns, then a slim copyright row.",
+  "regions": ["header", "content", "footer-a", "footer-b", "footer-c"],
+  "repeatVariants": {
+    "footer-a": "cta-band",
+    "footer-b": "multi-column",
+    "footer-c": "slim-row"
+  }
+}
