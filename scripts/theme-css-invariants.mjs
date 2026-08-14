@@ -1,9 +1,10 @@
-// theme-css-invariants.mjs — the five things that must still be true after a theme is applied
-// (#991; the fifth and the tightening of the first two are #992).
+// theme-css-invariants.mjs — the things that must still be true after a theme is applied
+// (#991; the fifth and the tightening of the first two are #992; #996 added the lead-on-the-first-screen
+// and touch-target rules spec §5.5 already stated, and a second reading of the fifth.)
 //
 //   node scripts/theme-css-invariants.mjs http://127.0.0.1:8991
 //
-// Exit 0 = all five hold. Exit 1 = at least one does not. Exit 2 = could not take the reading.
+// Exit 0 = they all hold. Exit 1 = at least one does not. Exit 2 = could not take the reading.
 //
 // The contract's static half (scripts/theme-css-lint.js) can only say the sheet is well-formed. It
 // cannot say the page came out readable, and that distinction is the whole reason this file exists:
@@ -220,8 +221,20 @@ for (const sel of TEXT_TARGETS) {
   const colorRaw = await el.evaluate((n) => getComputedStyle(n).color);
   const color = parseRgb(colorRaw);
   const box = await el.boundingBox();
-  if (!color || !box || box.width < 2 || box.height < 2) {
-    problems.push(`contrast: "${sel}" has no measurable colour or box`);
+  // 🔴 #996 — TWO DIFFERENT FAILURES USED TO SHARE ONE SENTENCE ("no measurable colour or box"), and
+  // the reader could not tell which. `color: color-mix(in srgb, white 50%, black)` is a colour this
+  // parser cannot read while the box is perfectly fine, and the message sent people looking at layout.
+  // Refusing to measure is still the right direction in both cases — it is the wording that was wrong.
+  if (!color) {
+    problems.push(`contrast: "${sel}" — this checker cannot read its computed colour, so no ratio was `
+      + `measured (the value is ${colorRaw}). Its box is fine`
+      + `${box ? ` (${Math.round(box.width)}×${Math.round(box.height)}px)` : ''}.`);
+    continue;
+  }
+  if (!box || box.width < 2 || box.height < 2) {
+    problems.push(`contrast: "${sel}" has no measurable box`
+      + `${box ? ` — it is ${Math.round(box.width)}×${Math.round(box.height)}px, under 2px on a side`
+        : ' — the element has no layout box at all'}`);
     continue;
   }
   // How much of that colour actually reaches the screen: the ancestor chain's opacities multiplied
@@ -324,6 +337,76 @@ for (const e of essentials) {
   }
 }
 
+// ── ②b the lead block is on the first screen ────────────────────────────────────────────────────
+// 🔴 #996 — spec §5.5 has said this since #991 and nothing implemented it, which QA3 demonstrated on
+// #992 r3 with a sheet that is entirely legal: `.hero { margin-top: 2500px }` pushes the hero off the
+// first screen, and all five invariants stayed green — the words ARE readable, they are just nowhere
+// a visitor will look. `[data-role="lead"]` is the theme-independent way of asking "what is the first
+// thing this page is about" (HeroSection sets it on the <section>).
+// 🔴 MEASURED IN DOCUMENT COORDINATES, NOT VIEWPORT ONES. `getBoundingClientRect()` is relative to
+// wherever the page happens to be scrolled, and check ① above has already scrolled it: taking an
+// element's screenshot scrolls it into view. Measured on the driving mutation for this very check
+// (`.hero { margin-top: 2500px }`, the sheet QA3 used on #992 r3): the viewport-relative version read
+// `top 41px` and passed — the hero really was 2500px down the page, and the reading was taken from
+// 2535px down. Adding `window.scrollY` back makes the number mean "how far into the page is this",
+// which is the question, and it cannot be moved by anything the checker did earlier.
+const leads = await page.$$eval('[data-role="lead"]', (nodes) => nodes.map((n) => {
+  const r = n.getBoundingClientRect();
+  return {
+    top: r.top + window.scrollY,
+    bottom: r.bottom + window.scrollY,
+    height: r.height,
+    where: n.getAttribute('class') || n.tagName,
+  };
+}));
+const viewportH = await page.evaluate(() => window.innerHeight);
+if (leads.length === 0) {
+  problems.push('first screen: the page has no [data-role="lead"] at all — this check had nothing to '
+    + 'look at, which is not the same as passing');
+}
+for (const l of leads) {
+  readings.push(`  lead "${l.where}": top ${Math.round(l.top)}px, bottom ${Math.round(l.bottom)}px `
+    + `(viewport height ${viewportH}px)`);
+  // Some of it has to be inside the first screen. `top < viewportH` alone would pass an element that
+  // starts above the fold and ends above it too (a sheet can pull a block up as easily as push it down).
+  if (!(l.top < viewportH && l.bottom > 0 && l.height > 0)) {
+    problems.push(`first screen: [data-role="lead"] "${l.where}" is not in the first screen — its box `
+      + `is ${Math.round(l.top)}px..${Math.round(l.bottom)}px against a ${viewportH}px viewport, so a `
+      + 'visitor sees none of it without scrolling');
+  }
+}
+
+// ── ②c the hero's call-to-action is big enough to hit ───────────────────────────────────────────
+// 🔴 #996 — the other rule spec §5.5 states and nothing measured. 44px is the size a finger needs
+// (the number the platform guidelines settled on); a sheet can shrink a button with `padding` or
+// `font-size`, both on the contract's whitelist, without touching anything the other checks read.
+// 📌 Scope is the hero's own buttons on purpose. Every other block still renders the old markup, so
+//    measuring the whole page would be judging things no theme can style yet (phase 2 moves them).
+const MIN_TOUCH_PX = 44;
+const ctaCount = await page.locator('.hero__cta').count();
+if (ctaCount === 0) {
+  problems.push('touch target: the page has no ".hero__cta" — this check had nothing to look at, '
+    + 'which is not the same as passing');
+} else {
+  const buttons = await page.$$eval('.hero__cta a, .hero__cta button', (nodes) => nodes.map((n) => {
+    const r = n.getBoundingClientRect();
+    return { w: r.width, h: r.height, label: (n.textContent || '').trim().slice(0, 30) || n.tagName };
+  }));
+  if (buttons.length === 0) {
+    problems.push('touch target: ".hero__cta" is on the page but contains no <a> or <button> — '
+      + 'nothing was measured');
+  }
+  readings.push(`  hero buttons: ${buttons.map((b) => `"${b.label}" ${Math.round(b.w)}×${Math.round(b.h)}`)
+    .join(' · ') || '(none)'}`);
+  for (const b of buttons) {
+    if (b.w < MIN_TOUCH_PX || b.h < MIN_TOUCH_PX) {
+      problems.push(`touch target: hero button "${b.label}" is ${Math.round(b.w)}×${Math.round(b.h)}px `
+        + `— below ${MIN_TOUCH_PX}px on ${b.w < MIN_TOUCH_PX && b.h < MIN_TOUCH_PX ? 'both sides'
+          : b.w < MIN_TOUCH_PX ? 'width' : 'height'}`);
+    }
+  }
+}
+
 // ── ③ no sideways scroll ────────────────────────────────────────────────────────────────────────
 // 🔴 THE COMPARISON IS AGAINST THE VIEWPORT, NOT AGAINST `body.clientWidth`. The obvious version of
 // this check — `body.scrollWidth` vs `body.clientWidth` — cannot fail: when a sheet widens the body,
@@ -375,23 +458,52 @@ for (const sel of ['body', '.hero__sub']) {
 // first screen was exactly that shape (`bg-primary-950`, a colour the palette did not have), and
 // the other four checks pass straight through it: black text on white has fine contrast, nothing is
 // hidden, nothing scrolls sideways, the type is 16px. It is the failure that looks healthy.
-const classAudit = await page.evaluate(() => {
+//
+// 🔴 #996 — AND THE SAME QUESTION ASKED OF THE THEME SHEET ALONE, WHICH IS A SECOND READING, NOT A
+// REPLACEMENT. spec §5.5 narrows the HOOK half of this invariant to "the theme's own stylesheet has a
+// rule for it", because a hook that only base.css styles (#1001) is a theme that forgot to dress the
+// block — and the reading above cannot see that: base.css is a loaded stylesheet, so it satisfies it.
+// The narrow reading alone would be a step back, though: #967's page was blank because the TAILWIND
+// bundle came out empty while the theme sheet was fine, and only the wide reading above catches that
+// (measured then: 112 of the page's 119 classes named). Two shapes, two readings, both kept.
+//
+// 📌 Which sheet is "the theme's": the one whose href is under `/themes/` — that is the <link> emitted
+//    by layout.tsx:311, and it is why base.css (`/base.css`) is deliberately not one of them. When
+//    #1002 moves it to a fixed `/theme.css`, this is the line that changes.
+// 📌 Only the CLASS hooks are asked for, and only the ones actually in the markup: `body`,
+//    `[data-block]`, `[data-role]` and `[data-region-layout]` are contract hooks too, but no theme
+//    selects them today, so requiring them would be inventing a rule nobody agreed to.
+const HOOK_CLASSES = ['hero', 'hero__media', 'hero__body', 'hero__title', 'hero__sub', 'hero__cta',
+  'hero__deco'];
+const classAudit = await page.evaluate((hookClasses) => {
   const declared = new Set();
+  const declaredByTheme = new Set();
+  const themeSheets = [];
   let unreadableSheets = 0;
-  const collect = (rules) => {
+  const collect = (rules, into) => {
     for (const r of rules) {
       if (r.selectorText) {
         for (const m of r.selectorText.matchAll(/\.((?:\\.|[-\w -￿])+)/g)) {
-          declared.add(m[1].replace(/\\(.)/g, '$1'));
+          const name = m[1].replace(/\\(.)/g, '$1');
+          declared.add(name);
+          if (into) into.add(name);
         }
       }
-      if (r.cssRules) collect(r.cssRules); // @media, @supports, @layer …
+      if (r.cssRules) collect(r.cssRules, into); // @media, @supports, @layer …
     }
   };
   for (const sheet of document.styleSheets) {
+    // The theme's own sheet is the <link> layout.tsx:311 emits under /themes/. base.css (#1001) is
+    // deliberately NOT one of them: the point of the second reading is that the floor must not be able
+    // to stand in for a rule the theme was supposed to write.
+    let isTheme = false;
+    try {
+      isTheme = !!sheet.href && new URL(sheet.href, window.location.href).pathname.startsWith('/themes/');
+      if (isTheme) themeSheets.push(new URL(sheet.href, window.location.href).pathname);
+    } catch { isTheme = false; }
     let rules;
     try { rules = sheet.cssRules; } catch { unreadableSheets++; continue; } // cross-origin (fonts)
-    collect(rules);
+    collect(rules, isTheme ? declaredByTheme : null);
   }
   const used = new Map();
   for (const el of document.querySelectorAll('[class]')) {
@@ -404,13 +516,34 @@ const classAudit = await page.evaluate(() => {
     sheets: document.styleSheets.length,
     used: used.size,
     orphans: [...used.entries()].filter(([c]) => !declared.has(c)).map(([c, tag]) => `${tag}.${c}`),
+    themeSheets,
+    // The hooks actually present in this page's markup, and which of them the theme sheet dresses.
+    hooksOnPage: hookClasses.filter((c) => used.has(c)),
+    hooksMissingFromTheme: hookClasses.filter((c) => used.has(c) && !declaredByTheme.has(c)),
   };
-});
+}, HOOK_CLASSES);
 readings.push(`  classes on the page: ${classAudit.used} · with no rule: ${classAudit.orphans.length}`
   + ` (${classAudit.sheets} stylesheets, ${classAudit.unreadableSheets} not readable from here)`);
 for (const orphan of classAudit.orphans) {
   problems.push(`unstyled class: "${orphan}" is in the markup and no loaded stylesheet has a rule `
     + 'for it — the element is showing with whatever the browser defaults to');
+}
+// The second reading (#996): the same question asked of the theme's own sheet.
+readings.push(`  theme sheet(s): ${classAudit.themeSheets.join(', ') || '(none under /themes/)'}`
+  + ` · hooks in the markup: ${classAudit.hooksOnPage.length}`
+  + ` · not dressed by the theme: ${classAudit.hooksMissingFromTheme.length}`);
+if (classAudit.hooksOnPage.length > 0 && classAudit.themeSheets.length === 0) {
+  // 🔴 Nothing to look at is not a pass — same rule as the missing [data-role="essential"] above.
+  // This is the shape phase 2 makes reachable: the markup moves to a block before some theme has a
+  // sheet for it, and every hook then falls back to base.css.
+  problems.push(`theme coverage: the page uses ${classAudit.hooksOnPage.length} contract hook(s) `
+    + 'but no stylesheet under /themes/ is loaded at all — nothing was measured for this check');
+} else {
+  for (const hook of classAudit.hooksMissingFromTheme) {
+    problems.push(`theme coverage: ".${hook}" is in the markup and the theme's own stylesheet `
+      + `(${classAudit.themeSheets.join(', ')}) has no rule for it — whatever it looks like comes from `
+      + 'base.css or the site\'s own CSS, which is the same block on every theme');
+  }
 }
 
 await browser.close();
@@ -418,7 +551,7 @@ await browser.close();
 console.log(`readings for ${baseUrl}:`);
 for (const r of readings) console.log(r);
 if (problems.length === 0) {
-  console.log('✅ all five invariants hold');
+  console.log('✅ every invariant holds');
   process.exit(0);
 }
 console.log(`🔴 ${problems.length} invariant violation(s)`);
