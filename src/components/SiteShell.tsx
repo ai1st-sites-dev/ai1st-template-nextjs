@@ -46,6 +46,10 @@ export default function SiteShell({ locale, overHero = false, children }: { loca
           case 'content':
             return <main key={region} className="flex-1">{children}</main>;
           case 'footer':
+            // 🔴 #1014 — footer 是唯一接了 `variant` 线的区。上面 topbar / header 两支不传，所以布局
+            // 里写 `repeatVariants` 给它们是不生效的 —— 那件事现在由 schema 直接拒绝
+            // （`scripts/lib/page-layout.js` 的 `REPEATABLE_KINDS`）。给它们也接上线的话，记得
+            // 同时把那个常量改掉，两处必须一起动。
             return <Footer key={region} locale={locale} variant={repeatVariants[region]} />;
           default:
             // 构建期的 schema 已经把不认识的区拦掉了（scripts/lib/page-layout.js）。这一支是为了
