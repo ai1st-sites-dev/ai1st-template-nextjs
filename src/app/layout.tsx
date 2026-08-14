@@ -301,10 +301,19 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="stylesheet" href={brand.fonts.googleFontsUrl} />
+        {/* #1001 — the floor, and it is UNCONDITIONAL on purpose. The arm base.css exists for is
+            "neutral markup with NO theme sheet" (an old site rebuilding on dev, or phase 2 having
+            moved a block before some sheet caught up), so gating it on `themeCss` would take the
+            fallback away in exactly the case it is the fallback for. It is one <link> and one
+            request for sites that render the old markup, where its rules select nothing.
+            🔴 It goes BEFORE the theme link and both are unlayered: same specificity (both files
+            select single classes), so the later one wins — that ordering IS the mechanism by which
+            a theme overrides the floor. See public/base.css's header. */}
+        <link rel="stylesheet" href="/base.css" />
         {/* #991 — the theme stylesheet, and it is LAST on purpose: it is the layer that owns block
             layout, so it has to win over globals.css without anyone reaching for `!important` (the
             contract forbids that, and this is why it can). Absent for every site with no `css` field
-            in theme.json, which is all of them today — that is what keeps their HTML unchanged.
+            in theme.json, which is all of them today.
             🔴 It lives in public/ rather than src/ so Tailwind's content globs (src/components,
             src/app) cannot see it. If it moved under src/, Tailwind would not compile it — it would
             SCAN it, and every word inside would become a candidate class name. */}
