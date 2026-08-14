@@ -11,7 +11,7 @@ export default function SubPage({ locale, slug }: { locale: string; slug: string
   const seo = getSeo(locale);
   const services = getServices(locale);
 
-  const hasServicesList = page.sections.some((s) => s.type === 'services-list');
+  const hasServicesList = page.blocks.some((b) => b.type === 'services-list');
 
   const isServiceDetail = slug.startsWith('services/') && slug !== 'services';
   const matchedService = isServiceDetail
@@ -61,7 +61,7 @@ export default function SubPage({ locale, slug }: { locale: string; slug: string
           serviceUrl={`${seo.domain}${localeUrl(slug, locale)}`}
         />
       )}
-      <SectionRenderer sections={page.sections} locale={locale} />
+      <SectionRenderer blocks={page.blocks} locale={locale} />
     </>
   );
 }

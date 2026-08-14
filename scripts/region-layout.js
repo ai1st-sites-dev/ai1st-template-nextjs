@@ -108,11 +108,14 @@ function utilityShades() {
 // 一页的第一段是不是 hero。
 //
 // 🔴 数的是**画得出来的**第一段:站自己的页面 JSON 可以把某一段标成不显示(`hidden`,SectionRenderer
-// 直接 return null),而那一段仍然留在 sections 里。运行时那一侧是 `config.ts` 的 pageStartsWithHero,
+// 直接 return null),而那一段仍然留在数组里。运行时那一侧是 `config.ts` 的 pageStartsWithHero,
 // 两处必须说同一件事 —— 一边判"浮不浮"、一边判"要不要遮罩",分歧的表现就是白字压白底。
+//
+// 📌 #998 起入参是**归一化之后**的页面(`blocks`);sync-config 在调用这里之前已经把老站的 `sections`
+// 映过去了,所以这里只认一种形状。
 function firstSectionHero(page) {
-  const sections = page && Array.isArray(page.sections) ? page.sections : [];
-  const first = sections.find(s => s && !s.hidden) || null;
+  const blocks = page && Array.isArray(page.blocks) ? page.blocks : [];
+  const first = blocks.find(b => b && !b.hidden) || null;
   return first && first.type === 'hero' ? first : null;
 }
 

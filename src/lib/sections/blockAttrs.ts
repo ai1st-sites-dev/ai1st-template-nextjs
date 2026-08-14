@@ -13,9 +13,17 @@
 // 各 6 个……每种写法一支早返回）。只给默认那一支加钩子的话，theme 挑了别的写法，那块就没有钩子 ——
 // 而这种失败是静默的：页面照样好看，只是 theme 的 CSS 点不到它。`blockRootCoverage()`（978 的 spec）
 // 逐支数这件事。
+import blockRoles from './block-roles.json';
+import type { BlockConfig } from '@/lib/types/config';
+
 export type BlockRole = 'essential' | 'lead' | 'optional';
 
 // 兜底默认表 —— 每种 block 类型一个角色。
+//
+// 🔴 #998：数据搬到了 `block-roles.json`，这里只剩它的说明和读它的代码。为什么要搬：`create-site.js`
+// 写页面 JSON 时要把 `role` 填进去（#998 的 AC1），而那是个 CommonJS 的 node 脚本，读不了 .ts。
+// 两边各抄一份表就是「两个地方要记得改」——正是本文件下面那条注释在防的事。JSON 两边都读得了
+// （tsconfig 有 resolveJsonModule；node 直接 require），所以表只有一份。
 //
 // 三个角色的意思（spec §4.2，原话）：
 //   essential  不许隐藏。承载结构化数据和 AI 能回答的事实（contact / services / areas / hours / faq）
@@ -39,52 +47,34 @@ export type BlockRole = 'essential' | 'lead' | 'optional';
 // 📌 lead 只有 hero：spec §4.2 说 lead 是「这门生意的主角」，那是**每个生意各不相同**的判断，由建站
 // AI 在默认之上加标记（阶段 2 的内容层，spec §4.1 的 `role` 字段）。类型这一层能确定的只有 hero ——
 // 它按构造就是开场那一块。本票不对 lead 做任何强制（spec 里「不许挤出前 N」是构建期校验的事）。
-export const BLOCK_ROLES: Record<string, BlockRole> = {
-  'hero': 'lead',
-  'contact-info': 'essential',
-  'contact-form': 'essential',
-  'quote-form': 'essential',
-  'services-list': 'essential',
-  'services-nav': 'essential',
-  'map-area': 'essential',
-  'faq-accordion': 'essential',
-  'trusted-brands': 'optional',
-  'features-grid': 'optional',
-  'values-grid': 'optional',
-  'testimonials': 'optional',
-  'cta-banner': 'optional',
-  'text-block': 'optional',
-  'page-header': 'optional',
-  'stats-counter': 'optional',
-  'process-steps': 'optional',
-  'team-grid': 'optional',
-  'pricing-table': 'optional',
-  'gallery': 'optional',
-  'logo-carousel': 'optional',
-  'content-split': 'optional',
-  'feature-comparison': 'optional',
-  'benefits-list': 'optional',
-  'social-proof': 'optional',
-  'divider': 'optional',
-  'announcement-bar': 'optional',
-  'timeline': 'optional',
-  'service-highlights': 'optional',
-  'newsletter-signup': 'optional',
-  'checklist': 'optional',
-  'awards-certifications': 'optional',
-  'blog-preview': 'optional',
-  'service-related-pages': 'optional',
-};
+export const BLOCK_ROLES: Record<string, BlockRole> = blockRoles as Record<string, BlockRole>;
 
 export interface BlockAttrs {
   'data-block': string;
   'data-role': BlockRole;
+  'data-block-layout'?: string;
 }
 
 // 🔴 表里没有这个类型时给 'essential'，不是 'optional'。两个方向的错法不对称：
 // 标成 optional = theme 可以把它藏了，而没人会发现（spec D4 点名的那个静默失败）；
 // 标成 essential = theme 动不了它，页面上多一块，肉眼就看得见。所以往安全那边错。
 // （真正的防线是 978 spec 里那格「这张表的键集合 == 注册表的键集合」，新加 block 忘了标会当场红。）
-export function blockAttrs(type: string): BlockAttrs {
-  return { 'data-block': type, 'data-role': BLOCK_ROLES[type] || 'essential' };
+//
+// #998 加了第二个参数 `block` —— 这个块在页面 JSON 里的那条记录。它带来两件事：
+//
+//   data-role         页面 JSON 自己写的 `role` 优先，没写才落回上面那张类型级默认表。
+//                     spec §4.6：「兜底默认表定底线，建站 AI 只能加不能降级」——「不能降级」那一半
+//                     的校验在 #999（建站脚本内），这里只负责让写下的那个值真的到达 DOM。
+//   data-block-layout 第三个钩子（前两个是 #978 立的）。**只有页面 JSON 真写了 `block_layout`
+//                     才出现这个属性** —— 没写就一个字符都不多，所以今天所有既有站的产物逐字节不变。
+//
+// 🔴 不给 `block_layout` 造兜底值。造一个（比如 "default"）会让主题 CSS 的
+// `[data-block-layout="default"]` 选中一批「其实没人选过形态」的块，而那是静默的：页面照样打开。
+export function blockAttrs(type: string, block?: BlockConfig): BlockAttrs {
+  const role = block && block.role ? block.role : (BLOCK_ROLES[type] || 'essential');
+  const attrs: BlockAttrs = { 'data-block': type, 'data-role': role };
+  if (block && typeof block.block_layout === 'string' && block.block_layout) {
+    attrs['data-block-layout'] = block.block_layout;
+  }
+  return attrs;
 }

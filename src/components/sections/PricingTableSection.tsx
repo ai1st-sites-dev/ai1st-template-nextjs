@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import type { BlockConfig } from '@/lib/types/config';
 
 interface PricingTier {
   name: string;
@@ -20,16 +21,18 @@ interface PricingTableSectionProps {
     ctaHref?: string;
     variant?: 'cards' | 'comparison' | 'minimal' | 'toggle';
   };
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  block?: BlockConfig;
 }
 
-export default function PricingTableSection({ data }: PricingTableSectionProps) {
+export default function PricingTableSection({ data, block }: PricingTableSectionProps) {
   const ctaHref = data.ctaHref || '/quote';
   const variant = data.variant || 'cards';
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly');
 
   if (variant === 'minimal') {
     return (
-      <section {...blockAttrs('pricing-table')} className="section-padding" aria-labelledby="pricing-heading">
+      <section {...blockAttrs('pricing-table', block)} className="section-padding" aria-labelledby="pricing-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="pricing-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -72,7 +75,7 @@ export default function PricingTableSection({ data }: PricingTableSectionProps) 
   if (variant === 'toggle') {
     const suffix = billingPeriod === 'monthly' ? '/mo' : '/yr';
     return (
-      <section {...blockAttrs('pricing-table')} className="bg-gray-50 section-padding" aria-labelledby="pricing-heading">
+      <section {...blockAttrs('pricing-table', block)} className="bg-gray-50 section-padding" aria-labelledby="pricing-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="pricing-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -132,7 +135,7 @@ export default function PricingTableSection({ data }: PricingTableSectionProps) 
 
   if (variant === 'comparison') {
     return (
-      <section {...blockAttrs('pricing-table')} className="section-padding" aria-labelledby="pricing-heading">
+      <section {...blockAttrs('pricing-table', block)} className="section-padding" aria-labelledby="pricing-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="pricing-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -172,7 +175,7 @@ export default function PricingTableSection({ data }: PricingTableSectionProps) 
   }
 
   return (
-    <section {...blockAttrs('pricing-table')} className="bg-gray-50 section-padding" aria-labelledby="pricing-heading">
+    <section {...blockAttrs('pricing-table', block)} className="bg-gray-50 section-padding" aria-labelledby="pricing-heading">
       <div className="container-width">
         <div className="text-center">
           <h2 id="pricing-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">

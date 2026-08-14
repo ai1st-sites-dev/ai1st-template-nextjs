@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { themeCss } from '@/lib/config';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import type { BlockConfig } from '@/lib/types/config';
 
 interface HeroSectionProps {
   data: {
@@ -12,9 +13,11 @@ interface HeroSectionProps {
       | 'light-split' | 'light-editorial' | 'light-showcase';
     imageUrl?: string;
   };
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  block?: BlockConfig;
 }
 
-export default function HeroSection({ data }: HeroSectionProps) {
+export default function HeroSection({ data, block }: HeroSectionProps) {
   const variant = data.variant || 'left';
 
   // 🔴🔴 #991 — ONE MARKUP, THREE LOOKS. Phase 1 of the theme-CSS architecture
@@ -44,7 +47,7 @@ export default function HeroSection({ data }: HeroSectionProps) {
   // of this be deleted; a site with no `css` in its theme.json never reaches this line.
   if (themeCss) {
     return (
-      <section {...blockAttrs('hero')} className="hero">
+      <section {...blockAttrs('hero', block)} className="hero">
         {/* Decorative only, and empty on purpose: the contract gives sheets ::before/::after on this
             hook to draw with. Anything a reader needs to KNOW belongs in the body below, where the
             structured data and the translations can see it. */}
@@ -77,7 +80,7 @@ export default function HeroSection({ data }: HeroSectionProps) {
 
   if (variant === 'split') {
     return (
-      <section {...blockAttrs('hero')} className="relative bg-gradient-to-b from-primary-900 via-primary-800 to-primary-700 text-white">
+      <section {...blockAttrs('hero', block)} className="relative bg-gradient-to-b from-primary-900 via-primary-800 to-primary-700 text-white">
         <div className="absolute inset-0 bg-[url('/images/grid-pattern.svg')] opacity-10" />
         <div className="container-width relative px-4 py-24 sm:px-6 md:py-32 lg:px-8 lg:py-40">
           <div className="grid items-center gap-12 lg:grid-cols-2">
@@ -112,7 +115,7 @@ export default function HeroSection({ data }: HeroSectionProps) {
 
   if (variant === 'minimal') {
     return (
-      <section {...blockAttrs('hero')} className="bg-white">
+      <section {...blockAttrs('hero', block)} className="bg-white">
         <div className="container-width px-4 py-20 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-3xl text-center">
             <h1 className="text-4xl font-extrabold tracking-tight text-gray-900 sm:text-5xl lg:text-6xl">
@@ -145,7 +148,7 @@ export default function HeroSection({ data }: HeroSectionProps) {
 
   if (variant === 'light-split') {
     return (
-      <section {...blockAttrs('hero')} className="bg-white">
+      <section {...blockAttrs('hero', block)} className="bg-white">
         <div className="container-width px-4 py-20 sm:px-6 lg:px-8 lg:py-28">
           <div className="grid items-center gap-12 lg:grid-cols-12 lg:gap-16">
             <div className="lg:col-span-6">
@@ -183,7 +186,7 @@ export default function HeroSection({ data }: HeroSectionProps) {
 
   if (variant === 'light-editorial') {
     return (
-      <section {...blockAttrs('hero')} className="bg-gray-50">
+      <section {...blockAttrs('hero', block)} className="bg-gray-50">
         <div className="container-width px-4 py-24 sm:px-6 lg:px-8 lg:py-32">
           <div className="mx-auto max-w-3xl text-center">
             <h1 className="text-4xl font-semibold leading-tight tracking-tight text-gray-900 sm:text-5xl lg:text-6xl">
@@ -209,7 +212,7 @@ export default function HeroSection({ data }: HeroSectionProps) {
 
   if (variant === 'light-showcase') {
     return (
-      <section {...blockAttrs('hero')} className="bg-white">
+      <section {...blockAttrs('hero', block)} className="bg-white">
         <div className="container-width px-4 pt-20 sm:px-6 lg:px-8 lg:pt-24">
           <div className="mx-auto max-w-4xl text-center">
             <h1 className="text-4xl font-extrabold tracking-tight text-gray-900 sm:text-5xl lg:text-6xl">
@@ -241,7 +244,7 @@ export default function HeroSection({ data }: HeroSectionProps) {
 
   if (variant === 'video-style') {
     return (
-      <section {...blockAttrs('hero')} className="relative bg-primary-900 text-white">
+      <section {...blockAttrs('hero', block)} className="relative bg-primary-900 text-white">
         <div className="container-width relative px-4 py-28 sm:px-6 md:py-36 lg:px-8 lg:py-44">
           <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
             <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-white transition-transform hover:scale-110">
@@ -271,7 +274,7 @@ export default function HeroSection({ data }: HeroSectionProps) {
 
   if (variant === 'gradient-overlay') {
     return (
-      <section {...blockAttrs('hero')} className="relative overflow-hidden bg-gradient-to-br from-primary-600 to-accent-600 text-white">
+      <section {...blockAttrs('hero', block)} className="relative overflow-hidden bg-gradient-to-br from-primary-600 to-accent-600 text-white">
         {/* Decorative circles */}
         <div className="absolute -left-20 -top-20 h-72 w-72 rounded-full bg-white/10" aria-hidden="true" />
         <div className="absolute -bottom-16 right-10 h-56 w-56 rounded-full bg-white/10" aria-hidden="true" />
@@ -306,7 +309,7 @@ export default function HeroSection({ data }: HeroSectionProps) {
 
   if (variant === 'centered') {
     return (
-      <section {...blockAttrs('hero')} className="relative bg-gradient-to-b from-primary-900 via-primary-800 to-primary-700 text-white">
+      <section {...blockAttrs('hero', block)} className="relative bg-gradient-to-b from-primary-900 via-primary-800 to-primary-700 text-white">
         <div className="absolute inset-0 bg-[url('/images/grid-pattern.svg')] opacity-10" />
         <div className="container-width relative px-4 py-28 sm:px-6 md:py-36 lg:px-8 lg:py-44">
           <div className="mx-auto max-w-3xl text-center">
@@ -331,7 +334,7 @@ export default function HeroSection({ data }: HeroSectionProps) {
   }
 
   return (
-    <section {...blockAttrs('hero')} className="relative bg-gradient-to-br from-primary-900 via-primary-800 to-primary-700 text-white">
+    <section {...blockAttrs('hero', block)} className="relative bg-gradient-to-br from-primary-900 via-primary-800 to-primary-700 text-white">
       <div className="absolute inset-0 bg-[url('/images/grid-pattern.svg')] opacity-10" />
       <div className="container-width relative px-4 py-24 sm:px-6 md:py-32 lg:px-8 lg:py-40">
         <div className="max-w-3xl">

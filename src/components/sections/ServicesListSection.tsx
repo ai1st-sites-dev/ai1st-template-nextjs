@@ -3,8 +3,9 @@ import ServiceIcon from '@/components/ServiceIcon';
 import { getServices, pagesByLocale, localeUrl } from '@/lib/config';
 import { getLabels } from '@/lib/component-labels';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import type { BlockConfig } from '@/lib/types/config';
 
-export default function ServicesListSection({ locale }: { locale: string }) {
+export default function ServicesListSection({ locale, block }: { locale: string; block?: BlockConfig }) {
   const services = getServices(locale);
   const labels = getLabels(locale);
   const allPages = pagesByLocale[locale] ?? [];
@@ -13,7 +14,7 @@ export default function ServicesListSection({ locale }: { locale: string }) {
   );
 
   return (
-    <div {...blockAttrs('services-list')} className="container-width px-4 py-16 sm:px-6 lg:px-8">
+    <div {...blockAttrs('services-list', block)} className="container-width px-4 py-16 sm:px-6 lg:px-8">
       {services.map((service, index) => (
         <article
           key={service.id}

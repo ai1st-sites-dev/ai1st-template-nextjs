@@ -5,6 +5,7 @@ import ServiceIcon from '@/components/ServiceIcon';
 import { brand, siteId, leadApi, getServices } from '@/lib/config';
 import { getLabels } from '@/lib/component-labels';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import type { BlockConfig } from '@/lib/types/config';
 
 // TICKET-268e: the quote form now submits to the PLATFORM lead endpoint (POST /api/leads) instead of
 // opening the owner's Google Form — so quote requests land in the owner's Customers list (source="quote").
@@ -21,11 +22,13 @@ interface QuoteFormSectionProps {
     buttonText: string;
   };
   locale: string;
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  block?: BlockConfig;
 }
 
 type SubmitState = 'idle' | 'submitting' | 'success' | 'error';
 
-export default function QuoteFormSection({ data, locale }: QuoteFormSectionProps) {
+export default function QuoteFormSection({ data, locale, block }: QuoteFormSectionProps) {
   const services = getServices(locale);
   const labels = getLabels(locale);
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
@@ -83,7 +86,7 @@ export default function QuoteFormSection({ data, locale }: QuoteFormSectionProps
 
   if (state === 'success') {
     return (
-      <section {...blockAttrs('quote-form')} className="section-padding">
+      <section {...blockAttrs('quote-form', block)} className="section-padding">
         <div className="container-width max-w-2xl text-center">
           <div className="rounded-xl bg-green-50 p-10">
             <svg className="mx-auto h-12 w-12 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
@@ -97,7 +100,7 @@ export default function QuoteFormSection({ data, locale }: QuoteFormSectionProps
   }
 
   return (
-    <section {...blockAttrs('quote-form')} className="section-padding">
+    <section {...blockAttrs('quote-form', block)} className="section-padding">
       <div className="container-width">
         <form onSubmit={handleSubmit} className="grid gap-12 lg:grid-cols-3">
           <div className="lg:col-span-2">

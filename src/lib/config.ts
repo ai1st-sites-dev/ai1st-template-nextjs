@@ -90,7 +90,7 @@ export function getHomePage(locale: string): DynamicPageConfig {
 // ② 以前造不出来(那时只有主题能藏,30 套没有一套藏 hero);#993 之后藏不藏由站自己的页面 JSON 说了算,
 //    所以它现在是**造得出来的** —— 这两行本来就不该靠"今天恰好没有"活着。
 export function pageStartsWithHero(page: DynamicPageConfig | undefined): boolean {
-  return page?.sections.find((s) => !s.hidden)?.type === 'hero';
+  return page?.blocks.find((b) => !b.hidden)?.type === 'hero';
 }
 
 export function getNonHomePages(locale: string): DynamicPageConfig[] {

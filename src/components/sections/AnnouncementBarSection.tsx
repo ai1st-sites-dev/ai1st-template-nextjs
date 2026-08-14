@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import type { BlockConfig } from '@/lib/types/config';
 
 interface AnnouncementBarSectionProps {
   data: {
@@ -15,15 +16,17 @@ interface AnnouncementBarSectionProps {
   // 为什么外壳那身不带块属性，三个理由写在 `TopbarRegion.tsx` 的头注里（主题的块选择器 / #992 按
   // `[data-role]` 找的那套不变量 / #1002 枚举 `[data-block]` 的那份基线）——都是能查的，不是偏好。
   asRegion?: boolean;
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  block?: BlockConfig;
 }
 
-export default function AnnouncementBarSection({ data, asRegion = false }: AnnouncementBarSectionProps) {
+export default function AnnouncementBarSection({ data, asRegion = false, block }: AnnouncementBarSectionProps) {
   const variant = data.variant || 'solid';
   const [hidden, setHidden] = useState(false);
   // 一个块只带一种身份的属性：要么是块，要么是区。
   const idAttrs = asRegion
     ? { 'data-region-layout': variant }
-    : blockAttrs('announcement-bar');
+    : blockAttrs('announcement-bar', block);
 
   if (variant === 'dismissible') {
     if (hidden) return null;

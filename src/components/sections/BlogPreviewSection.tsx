@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getBlogPosts, localeUrl } from '@/lib/config';
 import type { BlogPostConfig } from '@/lib/types/config';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import type { BlockConfig } from '@/lib/types/config';
 
 interface BlogPost {
   title: string;
@@ -20,9 +21,11 @@ interface BlogPreviewSectionProps {
     maxPosts?: number;
   };
   locale: string;
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  block?: BlockConfig;
 }
 
-export default function BlogPreviewSection({ data, locale }: BlogPreviewSectionProps) {
+export default function BlogPreviewSection({ data, locale, block }: BlogPreviewSectionProps) {
   const variant = data.variant || 'cards';
   const blogPosts = getBlogPosts(locale);
 
@@ -82,7 +85,7 @@ export default function BlogPreviewSection({ data, locale }: BlogPreviewSectionP
 
   if (variant === 'list') {
     return (
-      <section {...blockAttrs('blog-preview')} className="section-padding" aria-labelledby="blog-heading">
+      <section {...blockAttrs('blog-preview', block)} className="section-padding" aria-labelledby="blog-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="blog-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -129,7 +132,7 @@ export default function BlogPreviewSection({ data, locale }: BlogPreviewSectionP
   if (variant === 'featured') {
     const [featured, ...rest] = displayPosts;
     return (
-      <section {...blockAttrs('blog-preview')} className="section-padding" aria-labelledby="blog-heading">
+      <section {...blockAttrs('blog-preview', block)} className="section-padding" aria-labelledby="blog-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="blog-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -181,7 +184,7 @@ export default function BlogPreviewSection({ data, locale }: BlogPreviewSectionP
   }
 
   return (
-    <section {...blockAttrs('blog-preview')} className="section-padding" aria-labelledby="blog-heading">
+    <section {...blockAttrs('blog-preview', block)} className="section-padding" aria-labelledby="blog-heading">
       <div className="container-width">
         <div className="text-center">
           <h2 id="blog-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">

@@ -1,4 +1,5 @@
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import type { BlockConfig } from '@/lib/types/config';
 
 interface ValuesGridSectionProps {
   data: {
@@ -6,6 +7,8 @@ interface ValuesGridSectionProps {
     items: { title: string; description: string }[];
     style?: 'numbered' | 'checkmark' | 'icon' | 'highlight' | 'minimal';
   };
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  block?: BlockConfig;
 }
 
 const valueIcons = [
@@ -35,12 +38,12 @@ const valueIcons = [
   </svg>,
 ];
 
-export default function ValuesGridSection({ data }: ValuesGridSectionProps) {
+export default function ValuesGridSection({ data, block }: ValuesGridSectionProps) {
   const style = data.style || 'checkmark';
 
   if (style === 'icon') {
     return (
-      <section {...blockAttrs('values-grid')} className="section-padding" aria-labelledby="values-heading">
+      <section {...blockAttrs('values-grid', block)} className="section-padding" aria-labelledby="values-heading">
         <div className="container-width">
           <h2 id="values-heading" className="text-center text-3xl font-bold text-gray-900 sm:text-4xl">
             {data.headline}
@@ -64,7 +67,7 @@ export default function ValuesGridSection({ data }: ValuesGridSectionProps) {
   if (style === 'highlight') {
     const [first, ...rest] = data.items;
     return (
-      <section {...blockAttrs('values-grid')} className="section-padding" aria-labelledby="values-heading">
+      <section {...blockAttrs('values-grid', block)} className="section-padding" aria-labelledby="values-heading">
         <div className="container-width">
           <h2 id="values-heading" className="text-center text-3xl font-bold text-gray-900 sm:text-4xl">
             {data.headline}
@@ -94,7 +97,7 @@ export default function ValuesGridSection({ data }: ValuesGridSectionProps) {
 
   if (style === 'minimal') {
     return (
-      <section {...blockAttrs('values-grid')} className="section-padding" aria-labelledby="values-heading">
+      <section {...blockAttrs('values-grid', block)} className="section-padding" aria-labelledby="values-heading">
         <div className="container-width">
           <h2 id="values-heading" className="text-center text-3xl font-bold text-gray-900 sm:text-4xl">
             {data.headline}
@@ -116,7 +119,7 @@ export default function ValuesGridSection({ data }: ValuesGridSectionProps) {
   const isNumbered = style === 'numbered';
 
   return (
-    <section {...blockAttrs('values-grid')} className={`${isNumbered ? 'bg-gray-50 ' : ''}section-padding`} aria-labelledby="values-heading">
+    <section {...blockAttrs('values-grid', block)} className={`${isNumbered ? 'bg-gray-50 ' : ''}section-padding`} aria-labelledby="values-heading">
       <div className="container-width">
         <h2 id="values-heading" className="text-center text-3xl font-bold text-gray-900 sm:text-4xl">
           {data.headline}

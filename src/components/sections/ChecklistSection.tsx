@@ -1,4 +1,5 @@
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import type { BlockConfig } from '@/lib/types/config';
 
 interface ChecklistSectionProps {
   data: {
@@ -7,14 +8,16 @@ interface ChecklistSectionProps {
     items: string[];
     variant?: 'two-column' | 'cards' | 'numbered-steps' | 'icon-grid';
   };
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  block?: BlockConfig;
 }
 
-export default function ChecklistSection({ data }: ChecklistSectionProps) {
+export default function ChecklistSection({ data, block }: ChecklistSectionProps) {
   const variant = data.variant || 'two-column';
 
   if (variant === 'cards') {
     return (
-      <section {...blockAttrs('checklist')} className="section-padding" aria-labelledby="checklist-heading">
+      <section {...blockAttrs('checklist', block)} className="section-padding" aria-labelledby="checklist-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="checklist-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -41,7 +44,7 @@ export default function ChecklistSection({ data }: ChecklistSectionProps) {
 
   if (variant === 'icon-grid') {
     return (
-      <section {...blockAttrs('checklist')} className="section-padding" aria-labelledby="checklist-heading">
+      <section {...blockAttrs('checklist', block)} className="section-padding" aria-labelledby="checklist-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="checklist-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -70,7 +73,7 @@ export default function ChecklistSection({ data }: ChecklistSectionProps) {
 
   if (variant === 'numbered-steps') {
     return (
-      <section {...blockAttrs('checklist')} className="section-padding" aria-labelledby="checklist-heading">
+      <section {...blockAttrs('checklist', block)} className="section-padding" aria-labelledby="checklist-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="checklist-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -100,7 +103,7 @@ export default function ChecklistSection({ data }: ChecklistSectionProps) {
 
   // Default: two-column
   return (
-    <section {...blockAttrs('checklist')} className="section-padding" aria-labelledby="checklist-heading">
+    <section {...blockAttrs('checklist', block)} className="section-padding" aria-labelledby="checklist-heading">
       <div className="container-width">
         <div className="text-center">
           <h2 id="checklist-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">

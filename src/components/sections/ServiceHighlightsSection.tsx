@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import type { BlockConfig } from '@/lib/types/config';
 
 interface Highlight {
   title: string;
@@ -16,9 +17,11 @@ interface ServiceHighlightsSectionProps {
     highlights: Highlight[];
     variant?: 'tabs' | 'accordion' | 'cards-large' | 'split';
   };
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  block?: BlockConfig;
 }
 
-export default function ServiceHighlightsSection({ data }: ServiceHighlightsSectionProps) {
+export default function ServiceHighlightsSection({ data, block }: ServiceHighlightsSectionProps) {
   const [activeTab, setActiveTab] = useState(0);
   const [openIndex, setOpenIndex] = useState<number | null>(0);
   const variant = data.variant || 'cards-large';
@@ -29,7 +32,7 @@ export default function ServiceHighlightsSection({ data }: ServiceHighlightsSect
 
   if (variant === 'tabs') {
     return (
-      <section {...blockAttrs('service-highlights')} className="section-padding" aria-labelledby="highlights-heading">
+      <section {...blockAttrs('service-highlights', block)} className="section-padding" aria-labelledby="highlights-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="highlights-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -80,7 +83,7 @@ export default function ServiceHighlightsSection({ data }: ServiceHighlightsSect
 
   if (variant === 'accordion') {
     return (
-      <section {...blockAttrs('service-highlights')} className="section-padding" aria-labelledby="highlights-heading">
+      <section {...blockAttrs('service-highlights', block)} className="section-padding" aria-labelledby="highlights-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="highlights-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -135,7 +138,7 @@ export default function ServiceHighlightsSection({ data }: ServiceHighlightsSect
 
   if (variant === 'split') {
     return (
-      <section {...blockAttrs('service-highlights')} className="section-padding" aria-labelledby="highlights-heading">
+      <section {...blockAttrs('service-highlights', block)} className="section-padding" aria-labelledby="highlights-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="highlights-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -186,7 +189,7 @@ export default function ServiceHighlightsSection({ data }: ServiceHighlightsSect
         : 'md:grid-cols-3';
 
   return (
-    <section {...blockAttrs('service-highlights')} className="section-padding" aria-labelledby="highlights-heading">
+    <section {...blockAttrs('service-highlights', block)} className="section-padding" aria-labelledby="highlights-heading">
       <div className="container-width">
         <div className="text-center">
           <h2 id="highlights-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">

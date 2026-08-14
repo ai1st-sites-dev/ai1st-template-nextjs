@@ -1,5 +1,6 @@
 import { getLabels } from '@/lib/component-labels';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import type { BlockConfig } from '@/lib/types/config';
 
 interface FeatureComparisonSectionProps {
   data: {
@@ -11,6 +12,8 @@ interface FeatureComparisonSectionProps {
     variant?: 'table' | 'cards' | 'columns' | 'stacked';
   };
   locale: string;
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  block?: BlockConfig;
 }
 
 function CheckIcon({ className }: { className?: string }) {
@@ -29,7 +32,7 @@ function XIcon({ className }: { className?: string }) {
   );
 }
 
-export default function FeatureComparisonSection({ data, locale }: FeatureComparisonSectionProps) {
+export default function FeatureComparisonSection({ data, locale, block }: FeatureComparisonSectionProps) {
   const variant = data.variant || 'table';
   const usLabel = data.usLabel || 'Us';
   const themLabel = data.themLabel || 'Them';
@@ -37,7 +40,7 @@ export default function FeatureComparisonSection({ data, locale }: FeatureCompar
 
   if (variant === 'cards') {
     return (
-      <section {...blockAttrs('feature-comparison')} className="section-padding" aria-labelledby="comparison-heading">
+      <section {...blockAttrs('feature-comparison', block)} className="section-padding" aria-labelledby="comparison-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="comparison-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -88,7 +91,7 @@ export default function FeatureComparisonSection({ data, locale }: FeatureCompar
 
   if (variant === 'columns') {
     return (
-      <section {...blockAttrs('feature-comparison')} className="section-padding" aria-labelledby="comparison-heading">
+      <section {...blockAttrs('feature-comparison', block)} className="section-padding" aria-labelledby="comparison-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="comparison-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -129,7 +132,7 @@ export default function FeatureComparisonSection({ data, locale }: FeatureCompar
 
   if (variant === 'stacked') {
     return (
-      <section {...blockAttrs('feature-comparison')} className="section-padding" aria-labelledby="comparison-heading">
+      <section {...blockAttrs('feature-comparison', block)} className="section-padding" aria-labelledby="comparison-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="comparison-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -171,7 +174,7 @@ export default function FeatureComparisonSection({ data, locale }: FeatureCompar
 
   // Default: table
   return (
-    <section {...blockAttrs('feature-comparison')} className="section-padding" aria-labelledby="comparison-heading">
+    <section {...blockAttrs('feature-comparison', block)} className="section-padding" aria-labelledby="comparison-heading">
       <div className="container-width">
         <div className="text-center">
           <h2 id="comparison-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">

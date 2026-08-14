@@ -10,6 +10,11 @@ const { themes, layoutFor, themesWithRhythm } = require('./themes');
 const pageLayoutLib = require('./lib/page-layout');
 const { resolveRegionLayout } = require('./region-layout');
 const { checkCssContracts } = require('./css-contract-check');
+// #998 — 页面内容层的形状（sections → blocks）。归一化、站级块库、校验都在那个文件里，
+// `create-site.js` 写盘时读的是同一份实现。
+const {
+  readSiteBlocks, normalizeLocalePages, loadBlockManifests, validateBlockLayouts, MANIFEST_DIR,
+} = require('./blocks');
 
 const rootDir = path.resolve(__dirname, '..');
 const siteDir = path.join(rootDir, 'site');
@@ -311,28 +316,35 @@ for (const locale of locales) {
   // covered by the all-pages loop below.
   const homePage = localePages.find((p) => p.slug === 'home');
   if (!homePage) {
-    console.error(`Locale "${locale}" missing required home page: pages/home.json must contain { "slug": "home", "sections": [...] }`);
+    console.error(`Locale "${locale}" missing required home page: pages/home.json must contain { "slug": "home", "blocks": [...] }`);
     process.exit(1);
   }
 
-  // Validate every page's sections invariant. Both [locale]/page.tsx (home,
-  // via getHomePage(locale).sections) and [locale]/[...slug]/page.tsx
-  // (non-home, via page.sections.some(s => s.type === ...)) unconditionally
-  // access page.sections and individual section.type. SectionRenderer expects
-  // each section to be an object with a "type" string field.
-  for (const p of localePages) {
-    if (!Array.isArray(p.sections)) {
-      const t = p.sections === undefined ? 'undefined' : p.sections === null ? 'null' : typeof p.sections;
-      console.error(`Locale "${locale}" page "${p.slug}" missing "sections" array (current type: ${t})`);
-      process.exit(1);
+  // #998 — 把这个 locale 的全部页面归一化成 blocks 形状（老站磁盘上是 sections，1:1 映过来），
+  // 顺便把站级块库的 ref 解开、按 visibility 注入、按 weight 排序。全部校验都在 blocks.js 里：
+  // 页面必须有 blocks 或 sections 之一且是数组、每个块要么带 type 要么带 ref、role 取值合法、
+  // ref 指向的 id 存在、visibility 里的 slug 是真实存在的页面。
+  //
+  // 上面那段旧注释说的不变量没变，只是搬了家：`[locale]/page.tsx` 走 getHomePage(locale).blocks、
+  // `[locale]/[...slug]/page.tsx` 走 page.blocks，SectionRenderer 要求每个块是带 "type" 的对象。
+  //
+  // 🔴 校验分两种待遇（PM 在 #998 r4 定的，整段理由写在 blocks.js 的 normalizeLocalePages 头上，
+  // 与本文件下面那条「构建期只说不拦」同源）：一个字段的值不合法但有明确默认行为的 → 打印点名 +
+  // 继续（下面那个 notes 循环）；形状本身矛盾、兜底只能靠猜的 → 抛错 → exit 1（下面那个 catch）。
+  try {
+    const blocksReport = {};
+    normalizeLocalePages(localePages, readSiteBlocks(localeDir), locale, blocksReport);
+    // 被忽略的字段：每一条都要打印。一个被忽略的字段和一份完全正常的配置，在日志里长得一模一样
+    // —— 那正是本票要治的那一族毛病，所以这里没有「太吵就不打」这一档。
+    for (const n of blocksReport.notes || []) console.log(`  ⚠️  ${n}`);
+    // 一页都没用上的站级块：不是错误（草稿态合法），但要点名 —— 静默跳过跟「一切正常」在日志里
+    // 长得一模一样。口径同下面 block_layout 那条「跳过要打印」。
+    if (blocksReport.unusedSiteBlockIds && blocksReport.unusedSiteBlockIds.length) {
+      console.log(`  [${locale}] 站级块没被任何页面用到（没人 ref、visibility 也没命中，构建不报错）：${blocksReport.unusedSiteBlockIds.join(', ')}`);
     }
-    for (let i = 0; i < p.sections.length; i++) {
-      const s = p.sections[i];
-      if (!s || typeof s !== 'object' || typeof s.type !== 'string') {
-        console.error(`Locale "${locale}" page "${p.slug}" sections[${i}] invalid (must be object with "type" string field)`);
-        process.exit(1);
-      }
-    }
+  } catch (e) {
+    console.error(e.message);
+    process.exit(1);
   }
 
   // #999 —— 「渲染器认得的块」与「有 manifest 的块」必须是同一个集合。加了块忘了补 manifest 的话，
@@ -439,6 +451,24 @@ for (const locale of locales) {
   console.log(`  [${locale}] Regenerated navigation.json`);
 }
 
+// #998 — 每个块的 `block_layout` 必须落在它自己 manifest 声明的清单里（manifest 是 #999 的交付物，
+// `blocks/<type>.json`）。还没有 manifest 的块类型**跳过并点名** —— 静默跳过跟「校验通过」在日志里
+// 长得一模一样，而它们是两件完全不同的事。没有任何块写 `block_layout` 时这里一个字都不打印。
+//
+// 🔴 值不在清单里也是**点名 + 摘掉这个属性**，不是 exit 1（PM r4 的口径，同上面那一段）。这个 catch
+// 留着不是装饰：`loadBlockManifests` 读到一份不是合法 JSON 的 manifest 仍然会抛 —— 那是模板自己的
+// 文件坏了，不是某个站的数据写错了。
+try {
+  const { skipped, notes } = validateBlockLayouts(pagesByLocale, loadBlockManifests(rootDir));
+  for (const n of notes) console.log(`  ⚠️  ${n}`);
+  if (skipped.length) {
+    console.log(`  block_layout 校验跳过（${MANIFEST_DIR}/ 里还没有这些块的 manifest）：${skipped.join(', ')}`);
+  }
+} catch (e) {
+  console.error(e.message);
+  process.exit(1);
+}
+
 // #924: an applied theme also owns the layout. For every section type the theme has an
 // opinion about, its variant wins over the one the page JSON carries; section types it says
 // nothing about are left alone. Runs after the locale loop on purpose — navigation.json is
@@ -448,10 +478,10 @@ if (appliedThemeId) {
   let overridden = 0;
   for (const locale of locales) {
     for (const page of pagesByLocale[locale]) {
-      for (const section of page.sections) {
-        const preferred = layout[section.type];
+      for (const block of page.blocks) {
+        const preferred = layout[block.type];
         if (!preferred) continue;
-        section.data = { ...(section.data || {}), variant: preferred };
+        block.data = { ...(block.data || {}), variant: preferred };
         overridden++;
       }
     }

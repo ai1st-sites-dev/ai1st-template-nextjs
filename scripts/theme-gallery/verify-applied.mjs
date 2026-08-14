@@ -37,14 +37,17 @@ const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).forEach(e => 
   if (e.isDirectory()) return walk(p);
   if (!e.name.endsWith('.json')) return;
   const j = JSON.parse(fs.readFileSync(p, 'utf-8'));
-  (j.sections || []).forEach((s, i) => { baseline[`${j.slug}#${i}`] = s.data && s.data.variant; });
+  // #998: 磁盘上的页面新旧两种形状都可能有（新的是 blocks，老的是 sections）。这里读的是原始文件，
+  // 不是 sync-config 归一化之后的东西，所以两种都要认。
+  (j.blocks || j.sections || []).forEach((s, i) => { baseline[`${j.slug}#${i}`] = s.data && s.data.variant; });
 });
 walk(`${NEXT_DIR}/site/pages`);
 
 let overridden = 0, untouched = 0;
 for (const [, list] of Object.entries(pages)) {
   for (const page of list) {
-    (page.sections || []).forEach((s, i) => {
+    // config-data.ts 里是归一化之后的形状（#998 起恒为 blocks）
+    (page.blocks || []).forEach((s, i) => {
       const key = `${page.slug}#${i}`;
       const want = t.layout[s.type];
       const got = s.data && s.data.variant;

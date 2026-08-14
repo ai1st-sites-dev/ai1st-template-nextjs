@@ -1,4 +1,5 @@
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import type { BlockConfig } from '@/lib/types/config';
 
 interface Step {
   title: string;
@@ -12,14 +13,16 @@ interface ProcessStepsSectionProps {
     steps: Step[];
     variant?: 'horizontal' | 'vertical' | 'cards' | 'zigzag' | 'icon-strip';
   };
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  block?: BlockConfig;
 }
 
-export default function ProcessStepsSection({ data }: ProcessStepsSectionProps) {
+export default function ProcessStepsSection({ data, block }: ProcessStepsSectionProps) {
   const variant = data.variant || 'horizontal';
 
   if (variant === 'cards') {
     return (
-      <section {...blockAttrs('process-steps')} className="section-padding" aria-labelledby="process-heading">
+      <section {...blockAttrs('process-steps', block)} className="section-padding" aria-labelledby="process-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="process-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -49,7 +52,7 @@ export default function ProcessStepsSection({ data }: ProcessStepsSectionProps) 
 
   if (variant === 'zigzag') {
     return (
-      <section {...blockAttrs('process-steps')} className="section-padding" aria-labelledby="process-heading">
+      <section {...blockAttrs('process-steps', block)} className="section-padding" aria-labelledby="process-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="process-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -85,7 +88,7 @@ export default function ProcessStepsSection({ data }: ProcessStepsSectionProps) 
 
   if (variant === 'icon-strip') {
     return (
-      <section {...blockAttrs('process-steps')} className="section-padding" aria-labelledby="process-heading">
+      <section {...blockAttrs('process-steps', block)} className="section-padding" aria-labelledby="process-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="process-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -117,7 +120,7 @@ export default function ProcessStepsSection({ data }: ProcessStepsSectionProps) 
 
   if (variant === 'vertical') {
     return (
-      <section {...blockAttrs('process-steps')} className="section-padding" aria-labelledby="process-heading">
+      <section {...blockAttrs('process-steps', block)} className="section-padding" aria-labelledby="process-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="process-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -151,7 +154,7 @@ export default function ProcessStepsSection({ data }: ProcessStepsSectionProps) 
   }
 
   return (
-    <section {...blockAttrs('process-steps')} className="bg-gray-50 section-padding" aria-labelledby="process-heading">
+    <section {...blockAttrs('process-steps', block)} className="bg-gray-50 section-padding" aria-labelledby="process-heading">
       <div className="container-width">
         <div className="text-center">
           <h2 id="process-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">

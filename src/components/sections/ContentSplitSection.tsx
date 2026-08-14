@@ -1,5 +1,6 @@
 import { getLabels } from '@/lib/component-labels';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import type { BlockConfig } from '@/lib/types/config';
 
 interface ContentSplitSectionProps {
   data: {
@@ -11,15 +12,17 @@ interface ContentSplitSectionProps {
     imageUrl?: string;
   };
   locale: string;
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  block?: BlockConfig;
 }
 
-export default function ContentSplitSection({ data, locale }: ContentSplitSectionProps) {
+export default function ContentSplitSection({ data, locale, block }: ContentSplitSectionProps) {
   const variant = data.variant || 'text-left';
   const labels = getLabels(locale);
 
   if (variant === 'text-right') {
     return (
-      <section {...blockAttrs('content-split')} className="section-padding" aria-labelledby="content-split-heading">
+      <section {...blockAttrs('content-split', block)} className="section-padding" aria-labelledby="content-split-heading">
         <div className="container-width">
           <div className="grid items-center gap-12 lg:grid-cols-2">
             <div className="lg:order-2">
@@ -53,7 +56,7 @@ export default function ContentSplitSection({ data, locale }: ContentSplitSectio
 
   if (variant === 'text-left-stats') {
     return (
-      <section {...blockAttrs('content-split')} className="section-padding" aria-labelledby="content-split-heading">
+      <section {...blockAttrs('content-split', block)} className="section-padding" aria-labelledby="content-split-heading">
         <div className="container-width">
           <div className="grid items-center gap-12 lg:grid-cols-2">
             <div>
@@ -84,7 +87,7 @@ export default function ContentSplitSection({ data, locale }: ContentSplitSectio
 
   if (variant === 'text-right-list') {
     return (
-      <section {...blockAttrs('content-split')} className="section-padding" aria-labelledby="content-split-heading">
+      <section {...blockAttrs('content-split', block)} className="section-padding" aria-labelledby="content-split-heading">
         <div className="container-width">
           <div className="grid items-center gap-12 lg:grid-cols-2">
             <div>
@@ -123,7 +126,7 @@ export default function ContentSplitSection({ data, locale }: ContentSplitSectio
   if (variant === 'cards-row') {
     const cards = data.bullets && data.bullets?.length > 0 ? data.bullets?.slice(0, 3) : [];
     return (
-      <section {...blockAttrs('content-split')} className="section-padding" aria-labelledby="content-split-heading">
+      <section {...blockAttrs('content-split', block)} className="section-padding" aria-labelledby="content-split-heading">
         <div className="container-width">
           <div className="mx-auto max-w-3xl text-center">
             <h2 id="content-split-heading" className="text-3xl font-bold text-gray-900">
@@ -155,7 +158,7 @@ export default function ContentSplitSection({ data, locale }: ContentSplitSectio
 
   if (variant === 'centered-overlay') {
     return (
-      <section {...blockAttrs('content-split')} className="bg-gradient-to-br from-primary-100 to-accent-50 section-padding" aria-labelledby="content-split-heading">
+      <section {...blockAttrs('content-split', block)} className="bg-gradient-to-br from-primary-100 to-accent-50 section-padding" aria-labelledby="content-split-heading">
         <div className="container-width flex justify-center">
           <div className="max-w-3xl rounded-2xl bg-white/90 p-12 shadow-lg">
             <h2 id="content-split-heading" className="text-center text-3xl font-bold text-gray-900">
@@ -184,7 +187,7 @@ export default function ContentSplitSection({ data, locale }: ContentSplitSectio
 
   // Default: text-left
   return (
-    <section {...blockAttrs('content-split')} className="section-padding" aria-labelledby="content-split-heading">
+    <section {...blockAttrs('content-split', block)} className="section-padding" aria-labelledby="content-split-heading">
       <div className="container-width">
         <div className="grid items-center gap-12 lg:grid-cols-2">
           <div>

@@ -29,6 +29,9 @@ const {
   applyRoleDefaults: applyBlockRoleDefaults,
 } = require('./lib/block-manifest');
 const blockDataLine = (type) => blockDataLineFor(loadBlockManifests().get(type));
+// #998 — 写页面 JSON 时把 AI 产出的 `sections` 转成 `blocks`（补 id / role / region / weight）。
+// 归一化和角色兜底表跟 sync-config.js 用的是同一份实现，两处各写一遍必然分叉。
+const { pageWithBlocks } = require('./blocks');
 
 // ─── AI Model Config ─────────────────────────────────────────────────────────
 
@@ -1406,11 +1409,11 @@ function writeSecondaryLocaleConfig(siteDir, secContent, secondaryLocale, primar
     fs.writeFileSync(path.join(localeDir, filename), JSON.stringify(data, null, 2) + '\n');
   }
 
-  // pages → <secondaryLocale>/pages/<slug>.json
+  // pages → <secondaryLocale>/pages/<slug>.json（#998：同上，写盘时转成 blocks 形状）
   for (const page of secContent.pages) {
     const pagePath = path.join(localeDir, 'pages', `${page.slug}.json`);
     fs.mkdirSync(path.dirname(pagePath), { recursive: true });
-    fs.writeFileSync(pagePath, JSON.stringify(page, null, 2) + '\n');
+    fs.writeFileSync(pagePath, JSON.stringify(pageWithBlocks(page), null, 2) + '\n');
   }
 
   debug(`Secondary locale config written: site/${secondaryLocale}/ (${secContent.pages.length} pages)`);
@@ -1475,10 +1478,12 @@ function writeSiteConfig(siteDir, content, defaultLocale) {
   applyBlockRoleDefaults(content.pages);
 
   // pages → <locale>/pages/<slug>.json
+  // #998: 磁盘上的形状是 `blocks`。转换只发生在写盘这一刻 —— 上面那些校验、参考站对照、翻译
+  // 都还读 `content.pages[].sections`，形状迁移不该顺手改掉 AI 那一侧的行为。
   for (const page of content.pages) {
     const pagePath = path.join(localeDir, 'pages', `${page.slug}.json`);
     fs.mkdirSync(path.dirname(pagePath), { recursive: true });
-    fs.writeFileSync(pagePath, JSON.stringify(page, null, 2) + '\n');
+    fs.writeFileSync(pagePath, JSON.stringify(pageWithBlocks(page), null, 2) + '\n');
   }
 
   debug(`Site config written to site/ (locale: ${defaultLocale})`);

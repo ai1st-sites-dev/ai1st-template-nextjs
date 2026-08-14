@@ -2,6 +2,7 @@
 
 import { useRef } from 'react';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import type { BlockConfig } from '@/lib/types/config';
 
 interface GalleryItem {
   title: string;
@@ -17,9 +18,11 @@ interface GallerySectionProps {
     items: GalleryItem[];
     variant?: 'grid' | 'masonry' | 'carousel' | 'overlay';
   };
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  block?: BlockConfig;
 }
 
-export default function GallerySection({ data }: GallerySectionProps) {
+export default function GallerySection({ data, block }: GallerySectionProps) {
   const variant = data.variant || 'grid';
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -44,7 +47,7 @@ export default function GallerySection({ data }: GallerySectionProps) {
 
   if (variant === 'carousel') {
     return (
-      <section {...blockAttrs('gallery')} className="section-padding" aria-labelledby="gallery-heading">
+      <section {...blockAttrs('gallery', block)} className="section-padding" aria-labelledby="gallery-heading">
         <div className="container-width">
           <div className="flex items-end justify-between">
             <div>
@@ -112,7 +115,7 @@ export default function GallerySection({ data }: GallerySectionProps) {
 
   if (variant === 'overlay') {
     return (
-      <section {...blockAttrs('gallery')} className="section-padding" aria-labelledby="gallery-heading">
+      <section {...blockAttrs('gallery', block)} className="section-padding" aria-labelledby="gallery-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="gallery-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -153,7 +156,7 @@ export default function GallerySection({ data }: GallerySectionProps) {
 
   if (variant === 'masonry') {
     return (
-      <section {...blockAttrs('gallery')} className="section-padding" aria-labelledby="gallery-heading">
+      <section {...blockAttrs('gallery', block)} className="section-padding" aria-labelledby="gallery-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="gallery-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -197,7 +200,7 @@ export default function GallerySection({ data }: GallerySectionProps) {
   }
 
   return (
-    <section {...blockAttrs('gallery')} className="bg-gray-50 section-padding" aria-labelledby="gallery-heading">
+    <section {...blockAttrs('gallery', block)} className="bg-gray-50 section-padding" aria-labelledby="gallery-heading">
       <div className="container-width">
         <div className="text-center">
           <h2 id="gallery-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">

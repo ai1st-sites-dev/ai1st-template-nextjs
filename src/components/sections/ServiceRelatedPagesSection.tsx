@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { pagesByLocale, localeUrl } from '@/lib/config';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import type { BlockConfig } from '@/lib/types/config';
 
 interface ServiceRelatedPagesSectionProps {
   data: {
@@ -9,9 +10,11 @@ interface ServiceRelatedPagesSectionProps {
     subheadline?: string;
   };
   locale: string;
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  block?: BlockConfig;
 }
 
-export default function ServiceRelatedPagesSection({ data, locale }: ServiceRelatedPagesSectionProps) {
+export default function ServiceRelatedPagesSection({ data, locale, block }: ServiceRelatedPagesSectionProps) {
   const allPages = pagesByLocale[locale] ?? [];
   const relatedPages = allPages.filter(
     (p) => p.slug.startsWith(`${data.serviceSlug}/`) && p.slug !== data.serviceSlug
@@ -20,7 +23,7 @@ export default function ServiceRelatedPagesSection({ data, locale }: ServiceRela
   if (relatedPages.length === 0) return null;
 
   return (
-    <section {...blockAttrs('service-related-pages')} className="section-padding bg-gray-50" aria-labelledby="related-pages-heading">
+    <section {...blockAttrs('service-related-pages', block)} className="section-padding bg-gray-50" aria-labelledby="related-pages-heading">
       <div className="container-width">
         <div className="text-center">
           <h2 id="related-pages-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">

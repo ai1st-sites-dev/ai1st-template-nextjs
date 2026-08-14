@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import type { BlockConfig } from '@/lib/types/config';
 
 interface Testimonial {
   id: string;
@@ -20,16 +21,18 @@ interface TestimonialsSectionProps {
     items: Testimonial[];
     variant?: 'grid' | 'featured' | 'carousel' | 'quote-wall' | 'minimal';
   };
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  block?: BlockConfig;
 }
 
-export default function TestimonialsSection({ data }: TestimonialsSectionProps) {
+export default function TestimonialsSection({ data, block }: TestimonialsSectionProps) {
   const variant = data.variant || 'grid';
   const [activeIndex, setActiveIndex] = useState(0);
 
   if (variant === 'carousel') {
     const current = data.items[activeIndex];
     return (
-      <section {...blockAttrs('testimonials')} className="section-padding" aria-labelledby="testimonials-heading">
+      <section {...blockAttrs('testimonials', block)} className="section-padding" aria-labelledby="testimonials-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="testimonials-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -74,7 +77,7 @@ export default function TestimonialsSection({ data }: TestimonialsSectionProps) 
 
   if (variant === 'quote-wall') {
     return (
-      <section {...blockAttrs('testimonials')} className="bg-primary-900 section-padding" aria-labelledby="testimonials-heading">
+      <section {...blockAttrs('testimonials', block)} className="bg-primary-900 section-padding" aria-labelledby="testimonials-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="testimonials-heading" className="text-3xl font-bold text-white sm:text-4xl">
@@ -108,7 +111,7 @@ export default function TestimonialsSection({ data }: TestimonialsSectionProps) 
 
   if (variant === 'minimal') {
     return (
-      <section {...blockAttrs('testimonials')} className="section-padding" aria-labelledby="testimonials-heading">
+      <section {...blockAttrs('testimonials', block)} className="section-padding" aria-labelledby="testimonials-heading">
         <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <h2 id="testimonials-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -142,7 +145,7 @@ export default function TestimonialsSection({ data }: TestimonialsSectionProps) 
     // Large featured testimonial + smaller side cards
     const [featured, ...rest] = data.items;
     return (
-      <section {...blockAttrs('testimonials')} className="bg-gray-50 section-padding" aria-labelledby="testimonials-heading">
+      <section {...blockAttrs('testimonials', block)} className="bg-gray-50 section-padding" aria-labelledby="testimonials-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="testimonials-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -206,7 +209,7 @@ export default function TestimonialsSection({ data }: TestimonialsSectionProps) 
   }
 
   return (
-    <section {...blockAttrs('testimonials')} className="section-padding" aria-labelledby="testimonials-heading">
+    <section {...blockAttrs('testimonials', block)} className="section-padding" aria-labelledby="testimonials-heading">
       <div className="container-width">
         <div className="text-center">
           <h2 id="testimonials-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">

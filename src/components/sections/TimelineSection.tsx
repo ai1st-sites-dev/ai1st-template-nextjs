@@ -1,4 +1,5 @@
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import type { BlockConfig } from '@/lib/types/config';
 
 interface TimelineEvent {
   year: string;
@@ -13,14 +14,16 @@ interface TimelineSectionProps {
     events: TimelineEvent[];
     variant?: 'vertical' | 'horizontal' | 'compact' | 'milestone';
   };
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  block?: BlockConfig;
 }
 
-export default function TimelineSection({ data }: TimelineSectionProps) {
+export default function TimelineSection({ data, block }: TimelineSectionProps) {
   const variant = data.variant || 'vertical';
 
   if (variant === 'horizontal') {
     return (
-      <section {...blockAttrs('timeline')} className="section-padding" aria-labelledby="timeline-heading">
+      <section {...blockAttrs('timeline', block)} className="section-padding" aria-labelledby="timeline-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="timeline-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -56,7 +59,7 @@ export default function TimelineSection({ data }: TimelineSectionProps) {
 
   if (variant === 'milestone') {
     return (
-      <section {...blockAttrs('timeline')} className="section-padding" aria-labelledby="timeline-heading">
+      <section {...blockAttrs('timeline', block)} className="section-padding" aria-labelledby="timeline-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="timeline-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -89,7 +92,7 @@ export default function TimelineSection({ data }: TimelineSectionProps) {
 
   if (variant === 'compact') {
     return (
-      <section {...blockAttrs('timeline')} className="section-padding" aria-labelledby="timeline-heading">
+      <section {...blockAttrs('timeline', block)} className="section-padding" aria-labelledby="timeline-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="timeline-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -120,7 +123,7 @@ export default function TimelineSection({ data }: TimelineSectionProps) {
 
   // Default: vertical
   return (
-    <section {...blockAttrs('timeline')} className="section-padding" aria-labelledby="timeline-heading">
+    <section {...blockAttrs('timeline', block)} className="section-padding" aria-labelledby="timeline-heading">
       <div className="container-width">
         <div className="text-center">
           <h2 id="timeline-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">

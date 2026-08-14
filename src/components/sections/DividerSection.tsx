@@ -1,18 +1,21 @@
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import type { BlockConfig } from '@/lib/types/config';
 
 interface DividerSectionProps {
   data: {
     label?: string;
     variant?: 'line' | 'wave' | 'gradient-bar' | 'icon';
   };
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  block?: BlockConfig;
 }
 
-export default function DividerSection({ data }: DividerSectionProps) {
+export default function DividerSection({ data, block }: DividerSectionProps) {
   const variant = data.variant || 'line';
 
   if (variant === 'wave') {
     return (
-      <div {...blockAttrs('divider')} className="w-full leading-none" aria-hidden="true">
+      <div {...blockAttrs('divider', block)} className="w-full leading-none" aria-hidden="true">
         <svg
           className="block w-full"
           viewBox="0 0 1440 60"
@@ -31,7 +34,7 @@ export default function DividerSection({ data }: DividerSectionProps) {
 
   if (variant === 'gradient-bar') {
     return (
-      <div {...blockAttrs('divider')} className="w-full" role="separator">
+      <div {...blockAttrs('divider', block)} className="w-full" role="separator">
         {data.label && (
           <p className="mb-2 text-center text-sm text-gray-500">{data.label}</p>
         )}
@@ -42,7 +45,7 @@ export default function DividerSection({ data }: DividerSectionProps) {
 
   if (variant === 'icon') {
     return (
-      <div {...blockAttrs('divider')} className="flex items-center py-8" role="separator" aria-label={data.label || 'Section divider'}>
+      <div {...blockAttrs('divider', block)} className="flex items-center py-8" role="separator" aria-label={data.label || 'Section divider'}>
         <div className="flex-1 border-t border-gray-300" aria-hidden="true" />
         <div className="mx-4 h-3 w-3 rounded-full bg-primary-500" aria-hidden="true" />
         <div className="flex-1 border-t border-gray-300" aria-hidden="true" />
@@ -52,7 +55,7 @@ export default function DividerSection({ data }: DividerSectionProps) {
 
   // Default: line
   return (
-    <div {...blockAttrs('divider')} className="relative py-8" role="separator" aria-label={data.label || 'Section divider'}>
+    <div {...blockAttrs('divider', block)} className="relative py-8" role="separator" aria-label={data.label || 'Section divider'}>
       <div className="border-t border-gray-300" aria-hidden="true" />
       {data.label && (
         <div className="absolute inset-0 flex items-center justify-center">

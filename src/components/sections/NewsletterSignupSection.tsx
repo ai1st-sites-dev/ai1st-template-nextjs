@@ -1,5 +1,6 @@
 import { getLabels } from '@/lib/component-labels';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import type { BlockConfig } from '@/lib/types/config';
 
 interface NewsletterSignupSectionProps {
   data: {
@@ -9,16 +10,18 @@ interface NewsletterSignupSectionProps {
     variant?: 'inline' | 'card' | 'split' | 'minimal';
   };
   locale: string;
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  block?: BlockConfig;
 }
 
-export default function NewsletterSignupSection({ data, locale }: NewsletterSignupSectionProps) {
+export default function NewsletterSignupSection({ data, locale, block }: NewsletterSignupSectionProps) {
   const labels = getLabels(locale);
   const variant = data.variant || 'inline';
   const buttonText = data.buttonText || labels.subscribe;
 
   if (variant === 'card') {
     return (
-      <section {...blockAttrs('newsletter-signup')} className="bg-gray-50 section-padding" aria-labelledby="newsletter-heading">
+      <section {...blockAttrs('newsletter-signup', block)} className="bg-gray-50 section-padding" aria-labelledby="newsletter-heading">
         <div className="container-width">
           <div className="mx-auto max-w-lg rounded-2xl bg-white p-10 text-center shadow-lg">
             <h2 id="newsletter-heading" className="text-2xl font-bold text-gray-900">
@@ -50,7 +53,7 @@ export default function NewsletterSignupSection({ data, locale }: NewsletterSign
 
   if (variant === 'minimal') {
     return (
-      <section {...blockAttrs('newsletter-signup')} className="border-y bg-gray-50 py-4" aria-labelledby="newsletter-heading">
+      <section {...blockAttrs('newsletter-signup', block)} className="border-y bg-gray-50 py-4" aria-labelledby="newsletter-heading">
         <div className="container-width">
           <form action="#" className="flex flex-col items-center gap-3 sm:flex-row">
             <h2 id="newsletter-heading" className="shrink-0 text-sm font-bold text-gray-900">
@@ -77,7 +80,7 @@ export default function NewsletterSignupSection({ data, locale }: NewsletterSign
 
   if (variant === 'split') {
     return (
-      <section {...blockAttrs('newsletter-signup')} className="section-padding" aria-labelledby="newsletter-heading">
+      <section {...blockAttrs('newsletter-signup', block)} className="section-padding" aria-labelledby="newsletter-heading">
         <div className="container-width">
           <div className="grid items-center gap-12 lg:grid-cols-2">
             <div>
@@ -113,7 +116,7 @@ export default function NewsletterSignupSection({ data, locale }: NewsletterSign
 
   // Default: inline
   return (
-    <section {...blockAttrs('newsletter-signup')} className="bg-primary-500 py-8" aria-labelledby="newsletter-heading">
+    <section {...blockAttrs('newsletter-signup', block)} className="bg-primary-500 py-8" aria-labelledby="newsletter-heading">
       <div className="container-width text-center">
         <h2 id="newsletter-heading" className="text-xl font-bold text-white">
           {data.headline}

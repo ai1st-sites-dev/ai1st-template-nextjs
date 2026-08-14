@@ -11,7 +11,7 @@
 //
 // 🔴 `variants` 是过渡字段（阶段 3 随旧外观退役整字段删除）。它装的是**外观**词，而 `block_layout`
 // 装的是**内容结构**（D5：同一份 markup 能画出图左/图右/图上，#991 已证）。两者并存不是含糊，是因为
-// 组件今天真的靠 variant 选分支（`HeroSection.tsx:18` 的 `data.variant || 'left'`）——把它挤掉，
+// 组件今天真的靠 variant 选分支（`HeroSection.tsx:21` 的 `data.variant || 'left'`）——把它挤掉，
 // 建站 AI 就不再吐 variant，全站 hero 退回 `left`，而构建照样绿。
 const fs = require('fs');
 const path = require('path');
@@ -123,6 +123,25 @@ function promptSection(group, dir, { legacyOnly = false } = {}) {
 // 函数** —— 两处各写一遍必然分叉，而分叉的方向永远是「建站放过的东西构建期才炸」。
 const ROLE_RANK = { optional: 0, lead: 1, essential: 2 };
 
+/**
+ * 一页里的块 —— **两种形状都要认**（#998 把 `sections` 迁成了 `blocks`，老站磁盘上仍是 `sections`）。
+ *
+ * 🔴 只读 `page.sections` 会让这个函数在构建期整个瞎掉，而且是静默的：构建期这条路上
+ * `normalizeLocalePages` 先跑（`sync-config.js:265`），它把页面转成 blocks 形状并**删掉**
+ * `sections`，`validateSite` 在它之后才跑（`:302`）。于是下面两个循环恒空 ——
+ * 逐块那几条检查一条都不执行（真毛病不再说），而「整个站里没有 X」那条因为 `seenTypes` 恒空，
+ * 会对**每一个**站凭空报一条假的。两个方向都错，而 rc 仍是 0。（QA1 在 #998 r3 上量出来的。）
+ *
+ * 建站那条路正相反：这里跑在 AI 刚吐回来那份上，那时还是 `sections`。所以判据不是「哪条路」，
+ * 是「这一页自己是什么形状」。
+ */
+function blocksOf(page) {
+  if (!page) return [];
+  if (Array.isArray(page.blocks)) return page.blocks;
+  if (Array.isArray(page.sections)) return page.sections;
+  return [];
+}
+
 /** 行业匹配跟 themes.js:856 同一条口径：把用户填的行业串小写化，再看它 includes 哪个词。 */
 function industryMatches(industry, word) {
   if (word === '*') return true;
@@ -131,7 +150,7 @@ function industryMatches(industry, word) {
 
 /**
  * validateSite({ pages, industry, dir, scope }) → { problems, warnings }
- * pages: [{ slug, sections: [{ type, data, role? }] }]
+ * pages: [{ slug, blocks: [{ type, data, role? }] }]（老形状的 `sections` 同样认，见 blocksOf）
  *
  * 两处跑的是同一个函数、同一套五条检查；`scope` 只决定**发现之后怎么办**：
  *
@@ -165,8 +184,8 @@ function validateSite({ pages, industry = '', dir, scope = 'create' } = {}) {
   const flag = (msg) => (scope === 'build' ? warnings : problems).push(msg);
 
   for (const page of pages || []) {
-    for (const [i, sec] of (page.sections || []).entries()) {
-      const where = `${page.slug || '(no slug)'} 第 ${i + 1} 个 section ("${sec.type}")`;
+    for (const [i, sec] of blocksOf(page).entries()) {
+      const where = `${page.slug || '(no slug)'} 第 ${i + 1} 个块 ("${sec.type}")`;
       const m = manifests.get(sec.type);
       if (!m) {
         flag(`${where}: 没有这种块 —— blocks/ 里没有 ${sec.type}.json，registry 也不会认它`);
@@ -240,7 +259,7 @@ function applyRoleDefaults(pages, dir) {
   const manifests = loadManifests(dir);
   let filled = 0;
   for (const page of pages || []) {
-    for (const sec of page.sections || []) {
+    for (const sec of blocksOf(page)) {
       const m = manifests.get(sec.type);
       if (!m || sec.role !== undefined) continue;
       sec.role = m.roleDefault;
@@ -252,6 +271,7 @@ function applyRoleDefaults(pages, dir) {
 
 module.exports = {
   BLOCKS_DIR,
+  blocksOf,
   loadManifests,
   promptSection,
   promptEntry,

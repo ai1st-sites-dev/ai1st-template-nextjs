@@ -1,4 +1,5 @@
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import type { BlockConfig } from '@/lib/types/config';
 
 interface TeamMember {
   name: string;
@@ -13,14 +14,16 @@ interface TeamGridSectionProps {
     members: TeamMember[];
     variant?: 'grid' | 'compact' | 'card-with-social' | 'centered';
   };
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  block?: BlockConfig;
 }
 
-export default function TeamGridSection({ data }: TeamGridSectionProps) {
+export default function TeamGridSection({ data, block }: TeamGridSectionProps) {
   const variant = data.variant || 'grid';
 
   if (variant === 'card-with-social') {
     return (
-      <section {...blockAttrs('team-grid')} className="section-padding" aria-labelledby="team-heading">
+      <section {...blockAttrs('team-grid', block)} className="section-padding" aria-labelledby="team-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="team-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -59,7 +62,7 @@ export default function TeamGridSection({ data }: TeamGridSectionProps) {
 
   if (variant === 'centered') {
     return (
-      <section {...blockAttrs('team-grid')} className="section-padding" aria-labelledby="team-heading">
+      <section {...blockAttrs('team-grid', block)} className="section-padding" aria-labelledby="team-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="team-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -90,7 +93,7 @@ export default function TeamGridSection({ data }: TeamGridSectionProps) {
 
   if (variant === 'compact') {
     return (
-      <section {...blockAttrs('team-grid')} className="section-padding" aria-labelledby="team-heading">
+      <section {...blockAttrs('team-grid', block)} className="section-padding" aria-labelledby="team-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="team-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -119,7 +122,7 @@ export default function TeamGridSection({ data }: TeamGridSectionProps) {
   }
 
   return (
-    <section {...blockAttrs('team-grid')} className="bg-gray-50 section-padding" aria-labelledby="team-heading">
+    <section {...blockAttrs('team-grid', block)} className="bg-gray-50 section-padding" aria-labelledby="team-heading">
       <div className="container-width">
         <div className="text-center">
           <h2 id="team-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">

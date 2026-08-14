@@ -1,19 +1,22 @@
 import { brand } from '@/lib/config';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import type { BlockConfig } from '@/lib/types/config';
 
 interface ContactInfoSectionProps {
   data: {
     headline: string;
     variant?: 'cards' | 'inline' | 'map-style' | 'banner';
   };
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  block?: BlockConfig;
 }
 
-export default function ContactInfoSection({ data }: ContactInfoSectionProps) {
+export default function ContactInfoSection({ data, block }: ContactInfoSectionProps) {
   const variant = data.variant || 'cards';
 
   if (variant === 'map-style') {
     return (
-      <section {...blockAttrs('contact-info')} className="section-padding" aria-labelledby="locations-heading">
+      <section {...blockAttrs('contact-info', block)} className="section-padding" aria-labelledby="locations-heading">
         <div className="container-width">
           <h2 id="locations-heading" className="text-center text-3xl font-bold text-gray-900">
             {data.headline}
@@ -44,7 +47,7 @@ export default function ContactInfoSection({ data }: ContactInfoSectionProps) {
 
   if (variant === 'banner') {
     return (
-      <section {...blockAttrs('contact-info')} className="border-y bg-gray-50 py-6" aria-labelledby="locations-heading">
+      <section {...blockAttrs('contact-info', block)} className="border-y bg-gray-50 py-6" aria-labelledby="locations-heading">
         <div className="container-width">
           <h2 id="locations-heading" className="sr-only">{data.headline}</h2>
           <div className="flex flex-wrap items-center justify-center">
@@ -68,7 +71,7 @@ export default function ContactInfoSection({ data }: ContactInfoSectionProps) {
 
   if (variant === 'inline') {
     return (
-      <section {...blockAttrs('contact-info')} className="bg-gray-50 section-padding" aria-labelledby="locations-heading">
+      <section {...blockAttrs('contact-info', block)} className="bg-gray-50 section-padding" aria-labelledby="locations-heading">
         <div className="container-width">
           <h2 id="locations-heading" className="text-center text-3xl font-bold text-gray-900">
             {data.headline}
@@ -95,7 +98,7 @@ export default function ContactInfoSection({ data }: ContactInfoSectionProps) {
   }
 
   return (
-    <section {...blockAttrs('contact-info')} className="section-padding" aria-labelledby="locations-heading">
+    <section {...blockAttrs('contact-info', block)} className="section-padding" aria-labelledby="locations-heading">
       <div className="container-width">
         <h2 id="locations-heading" className="text-center text-3xl font-bold text-gray-900">
           {data.headline}

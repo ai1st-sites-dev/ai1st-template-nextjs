@@ -40,7 +40,16 @@ const HOOKS = new Set([
 ]);
 // `[data-region-layout="pill-floating"]` and friends: the attribute is on the list, its values are
 // the region names #960 already ships, so a value-qualified form is legal.
-const HOOK_PATTERNS = [/^\[data-region-layout="[a-z-]+"\]$/];
+//
+// #998 adds `[data-block-layout="…"]` on the same footing — the third hook (spec §5.2). Its values are
+// each block's own content-structure list, which lives in that block's manifest (#999), so this file
+// checks the SHAPE of the value and the build checks that the site only ever writes a value the
+// manifest declares. Two checkers, two different questions: "is this a legal selector" is not "does
+// this site use that layout".
+const HOOK_PATTERNS = [
+  /^\[data-region-layout="[a-z-]+"\]$/,
+  /^\[data-block-layout="[a-z0-9-]+"\]$/,
+];
 
 // ── §2 properties ───────────────────────────────────────────────────────────────────────────────
 const PROP_EXACT = new Set([
@@ -180,12 +189,31 @@ function isSingleMinWidth(params) {
 }
 
 // Split a selector list on top-level commas, then a complex selector on its combinators, then peel
-// pseudo-elements off each compound. What is left has to be one hook, exactly.
+// pseudo-elements off each compound. Every simple selector inside what is left has to be a hook.
 function compoundsOf(selector) {
   return selector
     .split(/\s*[\s>+~]\s*/)
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+// #998 — A COMPOUND MAY BE SEVERAL HOOKS ON ONE ELEMENT, AND THE THIRD HOOK IS WHY.
+//
+// Until now a compound had to be exactly one hook, so `[data-block="hero"][data-block-layout="with-media"]`
+// was refused. That form is the entire point of `data-block-layout`: the layout values are each block's own
+// list, and different blocks reuse the same word — `with-media` on hero and on features-grid mean different
+// pictures in different places. Without the qualifier a sheet could only write the value alone, which would
+// style every block that happens to share the word. So the rule becomes: split the compound into its simple
+// selectors and require EVERY one of them to be on the list.
+//
+// 🔴 This does not widen what a sheet can reach. `div[data-block="hero"]` still fails (a tag selector is not
+// a hook), `.md\:flex[data-role="lead"]` still fails, `#id[data-block="hero"]` still fails — one non-hook part
+// refuses the whole compound, exactly as before. What changed is only that a compound made ENTIRELY of hooks
+// is now legal, which is the same rule the descendant form has always had (`.hero .hero__title`).
+function simpleSelectorsOf(compound) {
+  // attribute · class (with CSS escapes) · id · everything else (tag / `*` / leftovers)
+  const parts = compound.match(/\[[^\]]*\]|\.(?:\\.|[\w-])+|#[\w-]+|[^.#[]+/g);
+  return parts ? parts.map((s) => s.trim()).filter(Boolean) : [compound];
 }
 
 function checkSelector(sel, report) {
@@ -197,8 +225,10 @@ function checkSelector(sel, report) {
       // is not on the list — refused with the rest.
       const m = compound.match(/^(.*?)(::(?:before|after))?$/);
       const base = (m && m[1]) || compound;
-      if (!isHook(base)) {
-        report(`selector "${complex}" reaches for "${base}", which is not a contract hook`);
+      for (const simple of simpleSelectorsOf(base)) {
+        if (!isHook(simple)) {
+          report(`selector "${complex}" reaches for "${simple}", which is not a contract hook`);
+        }
       }
     }
   }

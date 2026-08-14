@@ -1,4 +1,5 @@
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import type { BlockConfig } from '@/lib/types/config';
 
 interface SocialProofSectionProps {
   data: {
@@ -10,6 +11,8 @@ interface SocialProofSectionProps {
     featuredQuote?: { text: string; author: string };
     variant?: 'rating-bar' | 'badges' | 'review-platforms' | 'highlight';
   };
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  block?: BlockConfig;
 }
 
 function StarIcon({ filled, className }: { filled: boolean; className?: string }) {
@@ -51,13 +54,13 @@ function StarRating({ rating, size }: { rating: number; size?: 'sm' | 'md' | 'lg
   );
 }
 
-export default function SocialProofSection({ data }: SocialProofSectionProps) {
+export default function SocialProofSection({ data, block }: SocialProofSectionProps) {
   const variant = data.variant || 'rating-bar';
   const ratingNum = parseFloat(data.overallRating) || 0;
 
   if (variant === 'badges') {
     return (
-      <section {...blockAttrs('social-proof')} className="section-padding" aria-labelledby="social-proof-heading">
+      <section {...blockAttrs('social-proof', block)} className="section-padding" aria-labelledby="social-proof-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="social-proof-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -85,7 +88,7 @@ export default function SocialProofSection({ data }: SocialProofSectionProps) {
 
   if (variant === 'review-platforms') {
     return (
-      <section {...blockAttrs('social-proof')} className="section-padding" aria-labelledby="social-proof-heading">
+      <section {...blockAttrs('social-proof', block)} className="section-padding" aria-labelledby="social-proof-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="social-proof-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -112,7 +115,7 @@ export default function SocialProofSection({ data }: SocialProofSectionProps) {
 
   if (variant === 'highlight') {
     return (
-      <section {...blockAttrs('social-proof')} className="bg-primary-900 section-padding" aria-labelledby="social-proof-heading">
+      <section {...blockAttrs('social-proof', block)} className="bg-primary-900 section-padding" aria-labelledby="social-proof-heading">
         <div className="container-width">
           <div className="mx-auto max-w-3xl text-center">
             <div className="flex justify-center">
@@ -149,7 +152,7 @@ export default function SocialProofSection({ data }: SocialProofSectionProps) {
   ];
 
   return (
-    <section {...blockAttrs('social-proof')} className="section-padding" aria-labelledby="social-proof-heading">
+    <section {...blockAttrs('social-proof', block)} className="section-padding" aria-labelledby="social-proof-heading">
       <div className="container-width">
         <div className="mx-auto max-w-2xl text-center">
           <h2 id="social-proof-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">

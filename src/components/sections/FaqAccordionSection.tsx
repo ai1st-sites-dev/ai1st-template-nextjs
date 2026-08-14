@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import type { BlockConfig } from '@/lib/types/config';
 
 interface FaqItem {
   question: string;
@@ -15,9 +16,11 @@ interface FaqAccordionSectionProps {
     items: FaqItem[];
     variant?: 'centered' | 'two-column' | 'cards' | 'numbered';
   };
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  block?: BlockConfig;
 }
 
-export default function FaqAccordionSection({ data }: FaqAccordionSectionProps) {
+export default function FaqAccordionSection({ data, block }: FaqAccordionSectionProps) {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
   const variant = data.variant || 'centered';
 
@@ -54,7 +57,7 @@ export default function FaqAccordionSection({ data }: FaqAccordionSectionProps) 
 
   if (variant === 'cards') {
     return (
-      <section {...blockAttrs('faq-accordion')} className="section-padding" aria-labelledby="faq-heading">
+      <section {...blockAttrs('faq-accordion', block)} className="section-padding" aria-labelledby="faq-heading">
         <div className="container-width">
           <div className="mx-auto max-w-3xl">
             <div className="text-center">
@@ -100,7 +103,7 @@ export default function FaqAccordionSection({ data }: FaqAccordionSectionProps) 
 
   if (variant === 'numbered') {
     return (
-      <section {...blockAttrs('faq-accordion')} className="section-padding" aria-labelledby="faq-heading">
+      <section {...blockAttrs('faq-accordion', block)} className="section-padding" aria-labelledby="faq-heading">
         <div className="container-width">
           <div className="mx-auto max-w-3xl">
             <div className="text-center">
@@ -146,7 +149,7 @@ export default function FaqAccordionSection({ data }: FaqAccordionSectionProps) 
 
   if (variant === 'two-column') {
     return (
-      <section {...blockAttrs('faq-accordion')} className="section-padding" aria-labelledby="faq-heading">
+      <section {...blockAttrs('faq-accordion', block)} className="section-padding" aria-labelledby="faq-heading">
         <div className="container-width">
           <div className="grid gap-12 lg:grid-cols-5">
             <div className="lg:col-span-2">
@@ -167,7 +170,7 @@ export default function FaqAccordionSection({ data }: FaqAccordionSectionProps) 
   }
 
   return (
-    <section {...blockAttrs('faq-accordion')} className="section-padding" aria-labelledby="faq-heading">
+    <section {...blockAttrs('faq-accordion', block)} className="section-padding" aria-labelledby="faq-heading">
       <div className="container-width">
         <div className="mx-auto max-w-3xl">
           <div className="text-center">

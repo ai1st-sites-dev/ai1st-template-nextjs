@@ -1,4 +1,5 @@
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import type { BlockConfig } from '@/lib/types/config';
 
 interface BenefitsListSectionProps {
   data: {
@@ -7,6 +8,8 @@ interface BenefitsListSectionProps {
     items: { title: string; description: string }[];
     variant?: 'alternating' | 'icon-large' | 'numbered-large' | 'cards-horizontal';
   };
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  block?: BlockConfig;
 }
 
 const gradientCycles = [
@@ -16,12 +19,12 @@ const gradientCycles = [
   'bg-gradient-to-br from-accent-50 to-primary-50',
 ];
 
-export default function BenefitsListSection({ data }: BenefitsListSectionProps) {
+export default function BenefitsListSection({ data, block }: BenefitsListSectionProps) {
   const variant = data.variant || 'alternating';
 
   if (variant === 'icon-large') {
     return (
-      <section {...blockAttrs('benefits-list')} className="section-padding" aria-labelledby="benefits-heading">
+      <section {...blockAttrs('benefits-list', block)} className="section-padding" aria-labelledby="benefits-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="benefits-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -60,7 +63,7 @@ export default function BenefitsListSection({ data }: BenefitsListSectionProps) 
 
   if (variant === 'numbered-large') {
     return (
-      <section {...blockAttrs('benefits-list')} className="section-padding" aria-labelledby="benefits-heading">
+      <section {...blockAttrs('benefits-list', block)} className="section-padding" aria-labelledby="benefits-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="benefits-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -95,7 +98,7 @@ export default function BenefitsListSection({ data }: BenefitsListSectionProps) 
 
   if (variant === 'cards-horizontal') {
     return (
-      <section {...blockAttrs('benefits-list')} className="section-padding" aria-labelledby="benefits-heading">
+      <section {...blockAttrs('benefits-list', block)} className="section-padding" aria-labelledby="benefits-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="benefits-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -130,7 +133,7 @@ export default function BenefitsListSection({ data }: BenefitsListSectionProps) 
 
   // Default: alternating
   return (
-    <section {...blockAttrs('benefits-list')} className="section-padding" aria-labelledby="benefits-heading">
+    <section {...blockAttrs('benefits-list', block)} className="section-padding" aria-labelledby="benefits-heading">
       <div className="container-width">
         <div className="text-center">
           <h2 id="benefits-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">

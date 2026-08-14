@@ -150,19 +150,41 @@ export interface BlogPostConfig {
   };
 }
 
-// ---- Page Sections ----
-export interface SectionConfig {
+// ---- Page Blocks ----
+//
+// #998 — 页面的内容层是 `blocks`，不再是 `sections`。这个类型描述的是 **sync-config 归一化之后**
+// 的形状：老站磁盘上仍然是 `sections: [{type, data, hidden}]`，`scripts/blocks.js` 把它 1:1 映成
+// 下面这个形状，所以运行时只有一种形状要读（spec §4.6）。
+export type BlockRoleName = 'essential' | 'lead' | 'optional';
+
+export interface BlockConfig {
+  /** 站内唯一的名字。跨页复用的块靠它被 `{ "ref": "<id>" }` 引用。老站归一化出来的块没有 id。 */
+  id?: string;
   type: string;
+  /** 内容结构（`with-media` / `text-only` …），**不是外观**（spec D5）。外观今天仍由
+   *  `data.variant` 决定（`HeroSection.tsx:21`），两个字段并存、各管各的，不做换算。
+   *  写了才会变成 DOM 上的 `data-block-layout`；没写就一个属性都不多。 */
+  block_layout?: string;
+  /** 没写就落回类型级默认表（`sections/block-roles.json`）。 */
+  role?: BlockRoleName;
+  /** 页面的哪个区。取值清单归 #1000，本票只把它原样带过去。 */
+  region?: string;
+  /** 排布顺序。没写就按它在数组里的位置算（见 `scripts/blocks.js` 的 effectiveWeight）。 */
+  weight?: number;
   data?: Record<string, unknown>;
   /** Written in the site's own page JSON — and nowhere else. #993 (spec D8) removed the theme's
    *  ability to set it: which blocks a page shows is the site's decision, not the theme's.
-   *  The section keeps its content and stays in this array; only SectionRenderer skips it. Anything
+   *  The block keeps its content and stays in this array; only SectionRenderer skips it. Anything
    *  that reasons about what the page is *made of* (SubPage's Service JSON-LD) still sees it. */
   hidden?: boolean;
 }
 
+/** @deprecated #998 起用 `BlockConfig`。留着是因为 `blocks` 与 `sections` 的字段是超集关系，
+ *  老名字还出现在注释和历史票据里，删它不属于本票的范围（机械改名归 spec §4.5 那张票）。 */
+export type SectionConfig = BlockConfig;
+
 export interface PageConfig {
-  sections: SectionConfig[];
+  blocks: BlockConfig[];
 }
 
 // ---- Dynamic Pages ----
@@ -176,7 +198,7 @@ export interface DynamicPageConfig {
   priority?: number;
   serviceDetailPage?: boolean;
   parentService?: string;
-  sections: SectionConfig[];
+  blocks: BlockConfig[];
 }
 
 // #960 — 顶栏 / 页脚这两个 Region 的结构。唯一权威清单在 `scripts/region-layout.js`

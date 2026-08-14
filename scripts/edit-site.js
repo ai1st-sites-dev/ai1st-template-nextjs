@@ -242,9 +242,17 @@ brand.json colors use shade notation:
 
 When changing colors, update ALL shades consistently (lighter for low numbers, darker for high).
 
-## Page Sections
+## Page Blocks
 
-Each page has a \`sections\` array. Each section: \`{ "type": "...", "data": { ... } }\`
+Each page has a \`blocks\` array. Each block:
+\`{ "id": "...", "type": "...", "role": "essential|lead|optional", "region": "content", "weight": 0, "data": { ... } }\`
+A block may also carry \`"block_layout": "..."\` (its content structure) and \`"hidden": true\`.
+
+🔴 Older sites still use a \`sections\` array of \`{ "type": "...", "data": { ... } }\` instead. **Keep whichever
+array the file already has** — never convert one into the other, and never drop \`id\` / \`role\` / \`weight\` /
+\`block_layout\` from a block you are editing. A page must have exactly one of the two arrays; a file with both
+fails the build. When you add a block to a \`blocks\` page, give it an \`id\` unique within that page and a
+\`weight\` that puts it where you want it (blocks are ordered by \`weight\`, smaller first).
 
 Available section types: hero, trusted-brands, features-grid, values-grid, testimonials, cta-banner, contact-info, text-block, page-header, services-nav, services-list, quote-form, stats-counter, faq-accordion, process-steps, team-grid, pricing-table, gallery, logo-carousel, content-split, feature-comparison, benefits-list, social-proof, divider, announcement-bar, timeline, service-highlights, newsletter-signup, map-area, checklist, awards-certifications, blog-preview
 

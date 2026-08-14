@@ -1,4 +1,5 @@
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import type { BlockConfig } from '@/lib/types/config';
 
 interface Area {
   name: string;
@@ -12,14 +13,16 @@ interface MapAreaSectionProps {
     areas: Area[];
     variant?: 'list' | 'cards' | 'grouped' | 'badge';
   };
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  block?: BlockConfig;
 }
 
-export default function MapAreaSection({ data }: MapAreaSectionProps) {
+export default function MapAreaSection({ data, block }: MapAreaSectionProps) {
   const variant = data.variant || 'list';
 
   if (variant === 'cards') {
     return (
-      <section {...blockAttrs('map-area')} className="section-padding" aria-labelledby="areas-heading">
+      <section {...blockAttrs('map-area', block)} className="section-padding" aria-labelledby="areas-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="areas-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -49,7 +52,7 @@ export default function MapAreaSection({ data }: MapAreaSectionProps) {
 
   if (variant === 'badge') {
     return (
-      <section {...blockAttrs('map-area')} className="section-padding" aria-labelledby="areas-heading">
+      <section {...blockAttrs('map-area', block)} className="section-padding" aria-labelledby="areas-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="areas-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -80,7 +83,7 @@ export default function MapAreaSection({ data }: MapAreaSectionProps) {
     const rightAreas = data.areas?.slice(midpoint);
 
     return (
-      <section {...blockAttrs('map-area')} className="section-padding" aria-labelledby="areas-heading">
+      <section {...blockAttrs('map-area', block)} className="section-padding" aria-labelledby="areas-heading">
         <div className="container-width">
           <div className="text-center">
             <h2 id="areas-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
@@ -125,7 +128,7 @@ export default function MapAreaSection({ data }: MapAreaSectionProps) {
 
   // Default: list
   return (
-    <section {...blockAttrs('map-area')} className="section-padding" aria-labelledby="areas-heading">
+    <section {...blockAttrs('map-area', block)} className="section-padding" aria-labelledby="areas-heading">
       <div className="container-width">
         <div className="text-center">
           <h2 id="areas-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">

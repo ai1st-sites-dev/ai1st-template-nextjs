@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { brand, siteId, leadApi } from '@/lib/config';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import type { BlockConfig } from '@/lib/types/config';
 
 // TICKET-268b: a REAL contact form that POSTs to the platform lead endpoint (268a POST /api/leads),
 // so leads land in the platform (visible to the site owner in the dashboard) instead of a Google Form
@@ -17,11 +18,13 @@ interface ContactFormSectionProps {
     buttonText?: string;
     successMessage?: string;
   };
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  block?: BlockConfig;
 }
 
 type SubmitState = 'idle' | 'submitting' | 'success' | 'error';
 
-export default function ContactFormSection({ data }: ContactFormSectionProps) {
+export default function ContactFormSection({ data, block }: ContactFormSectionProps) {
   const heading = data?.heading ?? 'Get in touch';
   const intro = data?.intro ?? "Leave your details and we'll get back to you shortly.";
   const buttonText = data?.buttonText ?? 'Send message';
@@ -70,7 +73,7 @@ export default function ContactFormSection({ data }: ContactFormSectionProps) {
 
   if (state === 'success') {
     return (
-      <section {...blockAttrs('contact-form')} className="section-padding">
+      <section {...blockAttrs('contact-form', block)} className="section-padding">
         <div className="container-width max-w-2xl text-center">
           <div className="rounded-xl bg-green-50 p-10">
             <svg className="mx-auto h-12 w-12 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
@@ -84,7 +87,7 @@ export default function ContactFormSection({ data }: ContactFormSectionProps) {
   }
 
   return (
-    <section {...blockAttrs('contact-form')} className="section-padding">
+    <section {...blockAttrs('contact-form', block)} className="section-padding">
       <div className="container-width max-w-2xl">
         <h2 className="text-3xl font-bold text-gray-900">{heading}</h2>
         <p className="mt-2 text-lg text-gray-600">{intro}</p>

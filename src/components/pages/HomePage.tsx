@@ -4,5 +4,5 @@ import { getHomePage, isValidLocale } from '@/lib/config';
 
 export default function HomePage({ locale }: { locale: string }) {
   if (!isValidLocale(locale)) notFound();
-  return <SectionRenderer sections={getHomePage(locale).sections} locale={locale} />;
+  return <SectionRenderer blocks={getHomePage(locale).blocks} locale={locale} />;
 }
