@@ -135,17 +135,21 @@ const appliedThemeId = readAppliedThemeId();
 // been made neutral — today that is hero and nothing else (phase 1 of
 // docs/superpowers/specs/2026-08-12-theme-css-architecture-design.md).
 //
-// 🔴 THE FIELD STILL DOES TWO THINGS AT ONCE, AND THAT IS STILL THE POINT — but #1002 changed what
-// the first one is. It used to emit `<link href="/themes/<name>.css">` in layout.tsx; now the sheet's
-// bytes are pasted into the generated `public/theme.css` (see §theme.css below) and the page only ever
-// links the fixed path `/theme.css`. The second thing is unchanged: it flips hero to its neutral
-// markup. Neutral markup with no sheet is a hero with no layout at all, so the two must not be
-// separately settable. Absent (every site that exists today) ⟹ neither happens.
+// 🔴 THE FIELD NOW DOES ONE THING: it names the sheet whose bytes get pasted into the generated
+// `public/theme.css` (see §theme.css below); the page only ever links the fixed path `/theme.css`.
+// It used to do two — emit `<link href="/themes/<name>.css">` (#1002 replaced that with the fixed
+// path) and flip hero to its neutral markup (#1008 deleted the nine variant branches, so the neutral
+// markup renders whether or not a sheet is named). 🔴 The pairing that used to be load-bearing is
+// therefore gone in one direction only: neutral markup with NO sheet is a hero laid out by base.css
+// alone (#1001's floor), which is a real state now, not a broken one. Absent on every site that
+// exists today ⟹ theme.css carries colours/fonts/settings and no block-layout rules.
 //
-// 🔴 THE EXPORT IS NOW CALLED `heroNeutralMarkup`, NOT `themeCss` (#1002). The old name meant "which
-// sheet", and after this ticket nothing downstream needs to know which sheet — the only consumer left
-// is HeroSection.tsx, which asks one yes/no question. Leaving it named `themeCss` would leave an
-// orphan field whose name invites the next person to change what it points at.
+// 🔴 IT IS NOT EXPORTED TO THE APP ANY MORE (it used to be `themeCss` in config-data.ts). Two tickets
+// each took one of its two consumers: #1002 replaced the `<link href="/themes/<name>.css">` with the
+// fixed path, and #1008 deleted hero's nine variant branches so the neutral markup renders
+// unconditionally. Nothing at runtime asks the question any more — which sheet to paste is decided
+// here, at build time, and stays here. An export nobody reads is a field the next person will wire
+// something new onto.
 //
 // 🔴 The name is checked against the FILE, not against a list kept here: a list is a second place to
 // forget. A missing sheet fails the build by name — same shape as #993's `rhythm` check below, and for
@@ -825,9 +829,6 @@ export const pagesByLocale = ${JSON.stringify(pagesByLocale)};
 export const blogPostsByLocale = ${JSON.stringify(blogPostsByLocale)};
 export const regionLayout = ${JSON.stringify(regionLayout)};
 export const pageLayout = ${JSON.stringify(pageLayout)};
-// #991 / #1002 — does this site's hero render the neutral markup? True exactly when theme.json names
-// a sheet in public/themes/ (whose bytes are now pasted into theme.css). One consumer: HeroSection.
-export const heroNeutralMarkup = ${JSON.stringify(!!themeSheet)};
 `;
 fs.writeFileSync(configDataPath, tsContent);
 console.log('  Generated src/lib/config-data.ts');

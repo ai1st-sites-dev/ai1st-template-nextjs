@@ -13,7 +13,6 @@ import {
   blogPostsByLocale as _blogPostsByLocale,
   regionLayout as _regionLayout,
   pageLayout as _pageLayout,
-  heroNeutralMarkup as _heroNeutralMarkup,
 } from './config-data';
 
 export const brand = _brand as BrandConfig;
@@ -34,14 +33,12 @@ export const regionLayout = _regionLayout as RegionLayoutConfig;
 // content / footer 的布局进不来(spec §4.4 / D11 的替身)。没有 site/page-layout.json 的站(今天全部)
 // 拿到的是 `standard`,也就是 header → content → footer 这一条老路。
 export const pageLayout = _pageLayout as PageLayoutConfig;
-// #991 / #1002 — does hero render the neutral markup on this site? True exactly when theme.json names
-// a sheet in public/themes/ (its bytes are pasted into the generated theme.css). False is the state of
-// every site built before this existed, and it is what keeps their output identical: hero keeps its
-// variant markup. 🔴 It used to be called `themeCss` and used to carry the sheet NAME, because the same
-// value also picked the <link href="/themes/<name>.css">. #1002 made that link a fixed path, so the
-// only question left is yes/no — and a field still named after a filename would invite the next person
-// to point it somewhere.
-export const heroNeutralMarkup = _heroNeutralMarkup as boolean;
+// 🔴 #991 的 `themeCss` 不在这里了（#1002 + #1008 各拿走它的一个消费者，加起来一个都不剩）：
+// 它以前同时管两件事 —— 挑 `<link href="/themes/<name>.css">` 的文件名（#1002 改成固定路径
+// `/theme.css`，那张表的字节现在被贴进生成的 theme.css），以及让 hero 渲染中性 markup（#1008 把
+// hero 那九个变体分支删掉了，中性 markup 现在无条件生效）。哪张表要贴进 theme.css 仍然由
+// `site/theme.json` 的 `css` 字段决定，但那是**构建期**的事，只有 sync-config.js 需要知道
+// （§readThemeSheet），运行时的组件一个都不问了。
 
 export function isValidLocale(locale: string): boolean {
   return locales.includes(locale);
