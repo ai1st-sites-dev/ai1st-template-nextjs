@@ -88,3 +88,73 @@
     margin: -5rem -4rem 2rem;
   }
 }
+
+/* ── #1018 cta-banner — the words on the left, the button in a column of its own on the right ─────
+   This is the theme that shows a block layout can be a COLUMN SPLIT with no extra markup: the three
+   parts are siblings, so `grid-template-columns` + `grid-row` put the button beside the text instead
+   of under it. Under 1024 it stacks, like everything else in this sheet.
+   The old `dark` variant's pattern overlay is drawn here as a background layer on the block itself —
+   no extra element, and `background` is on the contract's property list where `position` is not. */
+.cta-banner {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-900);
+  /* The old `dark` variant's pattern, drawn with tokens: a lighter wedge of the same ramp rather
+     than a white wash. A literal `rgb(255 255 255 / .08)` reads better on paper and is exactly what
+     contract §3 forbids — a colour that no longer follows the site's palette. The linter caught it
+     here; keeping the note so the next sheet does not reach for it either. */
+  background-image: linear-gradient(120deg, var(--color-primary-800) 0 35%, transparent 35% 100%);
+  color: var(--color-primary-50);
+  border-radius: 0;
+}
+
+@media (min-width: 1024px) {
+  .cta-banner {
+    grid-template-columns: 1.5fr 1fr;
+    align-items: center;
+    gap: 3rem;
+    padding: 4.5rem 4rem;
+  }
+}
+
+.cta-banner__headline {
+  font-size: 2rem;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  font-weight: 800;
+  color: var(--color-primary-50);
+}
+
+@media (min-width: 1024px) {
+  .cta-banner__headline {
+    font-size: 2.75rem;
+  }
+}
+
+.cta-banner__desc {
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+/* The button's cell: second column, and spanning both rows so it sits beside the two text parts
+   rather than under the headline. `justify-content: end` is the sheet's decision, not the markup's. */
+@media (min-width: 1024px) {
+  .cta-banner__headline {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .cta-banner__desc {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .cta-banner__action {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    justify-content: flex-end;
+  }
+}

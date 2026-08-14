@@ -76,3 +76,68 @@
     margin: 2rem -3rem -4rem;
   }
 }
+
+/* ── #1018 cta-banner — the mirror of hero-media-left: the button's column comes FIRST ───────────
+   Same three siblings, same sheet-only decision, opposite side. `order` is what puts the button on
+   the left without the markup knowing anything about it — the identical mechanism this sheet already
+   uses on `.hero__media` above (order: 3 with the picture written first in the HTML).
+   Light ground here, because this sheet is the light and airy one; the old `outlined` look's card is
+   drawn with `border` + `border-radius`, both on the contract's property list. */
+.cta-banner {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+  padding: 2.5rem 1.5rem;
+  background-color: var(--color-primary-50);
+  border: 2px solid var(--color-primary-200);
+  border-radius: 1rem;
+  color: var(--color-primary-900);
+}
+
+@media (min-width: 1024px) {
+  .cta-banner {
+    grid-template-columns: 1fr 2fr;
+    align-items: center;
+    gap: 2.5rem;
+    padding: 3rem 3rem;
+  }
+}
+
+.cta-banner__headline {
+  font-size: 1.875rem;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--color-primary-900);
+}
+
+@media (min-width: 1024px) {
+  .cta-banner__headline {
+    font-size: 2.5rem;
+  }
+}
+
+.cta-banner__desc {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--color-primary-800);
+}
+
+/* The two text parts share the second column; the button takes the first and spans both rows.
+   Under 1024 the source order applies and the button goes back to the bottom. */
+@media (min-width: 1024px) {
+  .cta-banner__headline {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .cta-banner__desc {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .cta-banner__action {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    justify-content: flex-start;
+  }
+}

@@ -628,9 +628,24 @@ for (const note of regionLayout.notes) console.log(`    · ${note}`);
 // stopped being true the moment hero's nine variant branches were deleted: hero renders the neutral
 // markup with or without a sheet now, and with no sheet it has only base.css to lay it out. The blocks
 // that have NOT moved yet are the ones still keyed off `variant`, so name that instead of "every".
+// 🔴 #1018 — the count in the second line is the thing that goes stale, so it is spelled out from the
+// list of blocks that have moved rather than typed as a number: two moved (hero #1008, cta-banner
+// #1018), 32 to go. The next migration ticket edits MOVED_BLOCKS and the sentence stays true.
+//
+// 📌 #1018 r3 (rebased onto #1002's ship) keeps both halves of the collision here: the variable is
+//    #1002's `themeSheet` and the wording is its "pasted into theme.css" (the sheet's bytes go INTO
+//    the fixed-path theme.css now — there is no `<link>` per theme any more), while the block list
+//    and the count come from MOVED_BLOCKS.
+// 🔴 The text up to `.css` is READ BY A MACHINE — theme-css-invariants-all-sheets.sh:193 greps
+//    `Theme CSS: public/themes/<sheet>.css` to tell "this build wore the sheet under test" from "it
+//    did not", and scripts/theme-pipeline/gallery.js documents the same prefix. Reword what follows
+//    the em dash freely; do not touch what precedes it.
+const MOVED_BLOCKS = ['hero', 'cta-banner'];
+const movedList = MOVED_BLOCKS.join(' + ');
 console.log(themeSheet
-  ? `  Theme CSS: public/themes/${themeSheet}.css — pasted into theme.css, hero styled by those rules (base.css underneath)`
-  : '  Theme CSS: none — hero falls back to base.css alone; the 33 unmoved blocks keep their variants');
+  ? `  Theme CSS: public/themes/${themeSheet}.css — pasted into theme.css, ${movedList} styled by those rules (base.css underneath)`
+  : `  Theme CSS: none — ${movedList} fall back to base.css alone; `
+    + `the ${34 - MOVED_BLOCKS.length} unmoved blocks keep their variants`);
 
 // ─── #1002 §theme.css —— 皮和微调，两个固定路径 ───────────────────────────────────────────────
 //

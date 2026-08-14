@@ -150,3 +150,31 @@
   color: currentColor;
   border-color: currentColor;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   #1018 — THE NEUTRAL CTA-BANNER SKELETON. Same division of labour as the hero above.
+   ══════════════════════════════════════════════════════════════════════════════════════════════
+   Here: the things that must be true whichever sheet is loaded. In a theme sheet: the whole look.
+
+   🔴 `overflow: hidden` is the same guard hero has, and it is the one that keeps a phone from getting
+   a horizontal scrollbar when a sheet paints something wider than the block (a full-bleed background
+   band, a negative margin). No sheet sets `overflow`, so nothing here reaches a themed page by accident.
+
+   🔴 NO padding / background / colour / text-align HERE. Any default for those would be a fourth theme
+   that all three sheets have to override, and it would be invisible to a byte comparison of the HTML —
+   the difference would be visual only. The floor for a page with NO sheet is public/base.css's job, and
+   the two files split it the same way they do for hero: this one owns what a part IS, base.css owns
+   spacing and readable type.
+
+   🔴 NOT `.cta-banner__action .btn-secondary { color: currentColor }` (hero has that rule): this block
+   renders `btn-accent`, whose own colours are legible on any ground, and adding a rule for a class the
+   block does not render would be a rule nobody can measure. */
+.cta-banner {
+  overflow: hidden;
+}
+
+.cta-banner__action {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}

@@ -71,3 +71,53 @@
   margin-top: 1.75rem;
   justify-content: center;
 }
+
+/* ── #1018 cta-banner — one centred column, nothing beside anything ──────────────────────────────
+   The sheet that makes the point hardest keeps making it: at no width does this block have columns.
+   The three parts stack, centred, with a measure on the words — which is the old `solid` look, and
+   is also the layout the other two sheets deliberately do NOT use, so the three geometries differ
+   pairwise (AC4). The gradient the old `gradient` variant painted is a `background-image` here. */
+.cta-banner {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 1rem;
+  padding: 3.5rem 1.5rem;
+  background-image: linear-gradient(135deg, var(--color-primary-600), var(--color-accent-500));
+  color: var(--color-primary-50);
+  text-align: center;
+}
+
+@media (min-width: 1024px) {
+  .cta-banner {
+    gap: 1.25rem;
+    padding: 4.5rem 2rem;
+  }
+}
+
+.cta-banner__headline {
+  max-width: 40rem;
+  font-size: 1.875rem;
+  line-height: 1.2;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--color-primary-50);
+}
+
+@media (min-width: 1024px) {
+  .cta-banner__headline {
+    font-size: 2.5rem;
+  }
+}
+
+.cta-banner__desc {
+  max-width: 36rem;
+  font-size: 1.0625rem;
+  line-height: 1.75;
+  color: var(--color-primary-50);
+}
+
+.cta-banner__action {
+  justify-content: center;
+}

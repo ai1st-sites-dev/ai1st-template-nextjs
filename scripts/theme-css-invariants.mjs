@@ -35,7 +35,13 @@
 // heading is legal and normal; the question is never "is the average readable" but "is the WORST end
 // readable". Taking only the modal colour would pass a gradient that runs into the text colour at
 // one end — which is #966's failure with an extra step.
+import { createRequire } from 'node:module';
 import { PLAYWRIGHT_MODULE } from './theme-gallery/paths.mjs';
+
+// theme-css-lint.js is CommonJS. `createRequire` rather than a named import from it: named imports
+// out of CJS work only when Node's lexer can see the shape of `module.exports`, and that is a
+// property of how that file happens to be written today, not something this file should depend on.
+const { HOOK_CLASSES } = createRequire(import.meta.url)('./theme-css-lint.js');
 
 const { chromium } = await import(PLAYWRIGHT_MODULE);
 // jimp 0.22 is CommonJS with a default export (`Jimp.read`). Named-importing `{ Jimp }` gets
@@ -480,8 +486,18 @@ const THEME_SHEET_PATH = '/theme.css';
 // 📌 Only the CLASS hooks are asked for, and only the ones actually in the markup: `body`,
 //    `[data-block]`, `[data-role]` and `[data-region-layout]` are contract hooks too, but no theme
 //    selects them today, so requiring them would be inventing a rule nobody agreed to.
-const HOOK_CLASSES = ['hero', 'hero__media', 'hero__body', 'hero__title', 'hero__sub', 'hero__cta',
-  'hero__deco'];
+// 🔴 #1018 — READ FROM `theme-css-lint.js`, NOT COPIED (the import is at the top of this file). This
+//    list used to be written out right here, and when cta-banner moved it stayed on phase 1's seven
+//    hero names: delete every cta-banner rule from a theme sheet and this check still printed
+//    `hooks in the markup: 7 · not dressed by the theme: 0` and exited 0 — the check passing while
+//    checking nothing, which is exactly the shape spec §8 says it exists to catch. 31 more blocks are
+//    going to lean on it.
+//
+// 📌 Both halves of the 2026-08-14 collision are kept here on purpose (#1018 r3, rebased onto #1002's
+//    ship): the list is derived, AND the callback still takes `themeSheetPath` as its second argument
+//    so #1002's `/theme.css` predicate below survives. Either half dropped is a check that stops
+//    answering — the derived list without #1002's path finds no theme sheet at all, and #1002's path
+//    with a hardcoded list never asks about any block past hero.
 const classAudit = await page.evaluate(([hookClasses, themeSheetPath]) => {
   const declared = new Set();
   const declaredByTheme = new Set();

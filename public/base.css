@@ -47,8 +47,8 @@
    · `.hero__img` / `.hero__cta { display }` — already owned by the structure layer in globals.css
      (#991). One owner per property.
 
-   📌 This is the hero, because the hero is the only block with neutral markup today. Phase 2 moves
-   the blocks one at a time and each of those tickets brings its own base rules with it. */
+   📌 Phase 2 moves the blocks one at a time and each of those tickets brings its own base rules with
+   it. Today: hero (#1008) and cta-banner (#1018). */
 
 .hero {
   /* Grid rather than the structure layer's `display: block`, for one reason: it puts the gap
@@ -101,4 +101,72 @@
 
 .hero__cta {
   margin-top: 2rem;
+}
+
+/* ── #1018 cta-banner ───────────────────────────────────────────────────────────────────────────
+   Same two jobs as the hero rules above, and the same test for what may go in here: "would every
+   sheet want to state this itself?". Checked against all three phase-1 sheets after their
+   cta-banner sections were written:
+
+     .cta-banner            display / gap / padding      all three set them → base leaks nothing
+     .cta-banner__headline  font-size / line-height      all three set them
+     .cta-banner__desc      font-size / line-height      all three set them
+
+   The deliberate leftovers are the same pair hero has — `overflow-wrap` and the reading measure on
+   `__desc`: no sheet sets either, both only prevent something unreadable, and a sheet that wanted
+   the overflow back can say so.
+
+   🔴 THE SPACING BETWEEN THE THREE PARTS IS A GRID GAP, NOT MARGINS. All three parts are direct
+   children of `.cta-banner` (that is what lets a sheet put the button in a column of its own — the
+   old `split` look), so one `gap` spaces them; margins on top of it would double-space every themed
+   page whose sheet sets its own gap.
+
+   🔴 NO text-align HERE. Four of the five old looks were centred and one was not, which makes it a
+   look, not a floor — and a default would fight every sheet that wants the other one. */
+.cta-banner {
+  display: grid;
+  gap: 1rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .cta-banner {
+    padding: 4rem 2rem;
+  }
+}
+
+/* 🔴 `min-width: 0` ON ALL THREE, the same rule and the same reason `.hero__media` / `.hero__body`
+   have it above: a grid item's automatic minimum size is its CONTENT's size, so one unbreakable word
+   pushes the track wider than the screen. `overflow-wrap: break-word` does NOT prevent that — it
+   allows a break when the box is already too narrow, but it does not shrink the box's min-content
+   size, so without this the two properties fight and the word wins.
+   Measured on a phone (375) before this rule existed: the headline came out 787px wide with a 50
+   character word in it, and `.cta-banner { overflow: hidden }` (globals.css) then CLIPPED it — no
+   horizontal scrollbar, which is why the page-level reading looked fine while the word was cut in
+   half. With the rule: 327px, and the word wraps. */
+.cta-banner__headline,
+.cta-banner__desc,
+.cta-banner__action {
+  min-width: 0;
+}
+
+.cta-banner__headline {
+  font-size: 1.75rem;
+  line-height: 1.25;
+  /* A business name or a URL with no spaces in it is one word to a browser, and one word longer than
+     the screen is a horizontal scrollbar. */
+  overflow-wrap: break-word;
+}
+
+@media (min-width: 1024px) {
+  .cta-banner__headline {
+    font-size: 2.25rem;
+  }
+}
+
+.cta-banner__desc {
+  /* Roughly 70 characters — the same reading measure the hero body gets, for the same reason. */
+  max-width: 42rem;
+  line-height: 1.6;
+  overflow-wrap: break-word;
 }

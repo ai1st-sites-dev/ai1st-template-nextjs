@@ -35,9 +35,29 @@ const CONTRACT_VERSION = 'v1';
 const HOOKS = new Set([
   '.hero', '.hero__media', '.hero__body', '.hero__title', '.hero__sub', '.hero__cta', '.hero__deco',
   '[data-block="hero"]',
+  // #1018 — cta-banner, phase 2's first paid-in-full move. One class per part, no part for the
+  // button itself: the box around it is a theme's business, the button's own look is the brand's.
+  '.cta-banner', '.cta-banner__headline', '.cta-banner__desc', '.cta-banner__action',
+  '[data-block="cta-banner"]',
   '[data-role="essential"]', '[data-role="lead"]', '[data-role="optional"]',
   'body', '[data-region-layout]',
 ]);
+
+// 🔴 WHICH TICKET ADDED WHICH HOOKS — and why this list is here rather than in the version number.
+// #1018 decided that a migration which only ADDS hooks does not bump CONTRACT_VERSION (the reasoning
+// and the reading behind it are in that ticket): `HOOKS` is a whitelist, so a longer list can only
+// make an older sheet MORE legal, and the three phase-1 sheets stay green against it — measured, not
+// assumed. What a bump costs instead is one edit to the header of every sheet that exists at that
+// moment: 3 today, 60-80 after phase 3, times the 31 blocks still to move. So the thing a bump would
+// have told you — when did the markup grow — is written down here, where it costs nothing:
+//
+//   #991  hero parts, block/role/page hooks           (phase 1)
+//   #998  [data-block-layout="…"]                     (the third hook)
+//   #1018 cta-banner parts + [data-block="cta-banner"]
+//
+// A BREAKING change (renaming a hook, removing one, changing what one means) still MUST bump: that
+// is the case where an old sheet keeps loading and quietly points at nothing, which is the reason
+// the version line exists at all.
 // `[data-region-layout="pill-floating"]` and friends: the attribute is on the list, its values are
 // the region names #960 already ships, so a value-qualified form is legal.
 //
@@ -50,6 +70,23 @@ const HOOK_PATTERNS = [
   /^\[data-region-layout="[a-z-]+"\]$/,
   /^\[data-block-layout="[a-z0-9-]+"\]$/,
 ];
+
+// 🔴 THE CLASS HOOKS ALONE, WITHOUT THE LEADING DOT — derived here so nobody keeps a second copy.
+// The two RUNTIME checks (`theme-css-invariants.mjs`, `theme-pipeline/gates.js`) ask a different
+// question from the linter above: not "is this selector legal" but "this class is on the page — did
+// the theme write a rule for it?". They match against class NAMES, so they need this shape.
+//
+// Why derived and not hand-written (#1018 QA2 caught it): both of them used to carry their own
+// literal list, and both were still holding phase 1's seven hero names after cta-banner moved. The
+// failure is silent in the worst possible direction — delete every cta-banner rule from a theme
+// sheet and the check still reports `hooks in the markup: 7 · not dressed by the theme: 0` and exits
+// 0. spec §8 names that exact scenario as the thing this check exists to stop, and 31 more blocks
+// are going to lean on it.
+//
+// Only class hooks: `body`, `[data-block]`, `[data-role]`, `[data-region-layout]` are contract hooks
+// too, but no theme selects them today, so requiring a rule for them would invent a rule nobody
+// agreed to (the reasoning is written out at the invariants call site).
+const HOOK_CLASSES = [...HOOKS].filter((h) => /^\.[\w-]+$/.test(h)).map((h) => h.slice(1));
 
 // ── §2 properties ───────────────────────────────────────────────────────────────────────────────
 const PROP_EXACT = new Set([
@@ -540,4 +577,7 @@ function main() {
 // disagree the first time either changed. Running it by hand is unchanged.
 if (require.main === module) main();
 
-module.exports = { lint, CONTRACT_VERSION };
+// #1018 — `HOOKS` / `isHook` are exported so the docs↔code check in css-contract-check.js can read
+// the list instead of keeping a second hand-written copy of it. The contract table in
+// docs/reference/theme-css-contract.md is written for people; THIS is what a sheet is judged by.
+module.exports = { lint, CONTRACT_VERSION, HOOKS, HOOK_CLASSES, isHook };

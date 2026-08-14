@@ -24,9 +24,13 @@ const LINT = path.join(NEXT, 'scripts', 'theme-css-lint.js');
 const INVARIANTS = path.join(NEXT, 'scripts', 'theme-css-invariants.mjs');
 const TOKENS_LIB = path.join(NEXT, 'scripts', 'lib', 'theme-tokens.js');
 
-// 契约 §1 的 class 钩子（`docs/reference/theme-css-contract.md`）。②里那条自查用它。
-const HOOK_CLASSES = ['hero', 'hero__media', 'hero__body', 'hero__title', 'hero__sub', 'hero__cta',
-  'hero__deco'];
+// 契约 §1 的 class 钩子。②里那条自查用它。
+// 🔴 从 `theme-css-lint.js` 的 `HOOKS` 派生，不再手抄一份（#1018 QA2 抓到的）：这里原来写死了
+//    phase 1 那七个 hero 名字，cta-banner 搬完之后没跟上 —— 于是把某套主题里 cta-banner 那段规则
+//    整个删掉，这道闸照样打「钩子 7 个,全部有规则」然后放行。后面 31 个块都要靠它。
+//    读不到那个文件时给空清单，不是崩：②里那条「一个契约钩子都没有 ⟹ 这道闸没东西可看，不算通过」
+//    会接住它 —— 跟这个文件其余部分同一个失败方向（拒跑，不放行）。
+const { HOOK_CLASSES } = fs.existsSync(LINT) ? require(LINT) : { HOOK_CLASSES: [] };
 
 const ok = (name, note) => ({ gate: name, pass: true, problems: [], note: note || '' });
 const bad = (name, problems) => ({ gate: name, pass: false, problems });
