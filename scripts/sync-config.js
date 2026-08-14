@@ -9,6 +9,7 @@ const blockManifest = require('./lib/block-manifest');
 const { themes, layoutFor, themesWithRhythm } = require('./themes');
 const pageLayoutLib = require('./lib/page-layout');
 const { resolveRegionLayout } = require('./region-layout');
+const { checkCssContracts } = require('./css-contract-check');
 
 const rootDir = path.resolve(__dirname, '..');
 const siteDir = path.join(rootDir, 'site');
@@ -16,6 +17,72 @@ const siteDir = path.join(rootDir, 'site');
 if (!fs.existsSync(siteDir) || !fs.existsSync(path.join(siteDir, 'brand.json'))) {
   console.error(`Site config not found: ${siteDir}/brand.json`);
   process.exit(1);
+}
+
+// ─── #1009 — THE CSS CONTRACTS ARE CHECKED HERE, AT EVERY BUILD ──────────────────────────────────
+//
+// 🔴 WHY IN THIS FILE AND NOT IN npm's `prebuild` HOOK. `prebuild` is what a person runs
+// (`npm run build`); the product does not. Every build a real site gets is `npx next build`, which
+// does not fire npm's lifecycle hooks — worker/main.go:1447 says so in its own comment, and it is why
+// each of those call sites runs `node scripts/sync-config.js` itself:
+//
+//     worker/entrypoint.sh:204   preview mode:  sync-config, then `npx next build` in the serve loop
+//     worker/entrypoint.sh:216   create mode:   create-site.js → sync-config → same loop
+//     worker/main.go:1511        after an edit: `node scripts/sync-config.js && npx next build`
+//     worker/main.go:1457/999/1264   apply a theme / the other rebuild flows: sync-config, explicitly
+//
+// So this file is the one place every build of every site passes through — including the dev overlay
+// path, which is the exposure this ticket named first (new markup from the template landing on a site
+// repo's older sheet). Hanging the gate on `prebuild` would have covered `npm run build` and nothing
+// the product does, while looking exactly like a gate.
+//
+// 🔴 A VIOLATION REFUSES THE BUILD; A MISSING TOOL DOES NOT. The two are told apart on purpose:
+//   · violations → exit 1 here, so out/ keeps the last good site instead of being rebuilt into a
+//     silently degraded one. Same shape as the `rhythm` and `theme.json css` refusals below.
+//   · a sheet that is there but will not parse → exit 1 as well, for the reason in the next block.
+//   · no postcss → say so loudly and carry on. It is not a reading about the sheets, and `next build`
+//     is two seconds behind us with the same missing node_modules, so nothing gets published on the
+//     strength of a skipped check.
+//   · nothing to check → one line, carry on. Sites created before #991/#1001 have neither
+//     public/themes/ nor public/base.css in their repo; refusing those would brick every rebuild of
+//     every site that already exists.
+const cssContracts = checkCssContracts(rootDir);
+if (cssContracts.problems.length > 0) {
+  console.error(`🔴 CSS contract violations (${cssContracts.problems.length}) in `
+    + `${cssContracts.checked.join(', ')} — this build is refused:`);
+  for (const p of cssContracts.problems) console.error(`   ${p}`);
+  console.error('  · docs/reference/theme-css-contract.md says what is allowed; each line above says '
+    + 'which file and which line broke it.');
+  process.exit(1);
+}
+// 🔴 AN UNPARSEABLE SHEET REFUSES THE BUILD TOO (#1009 r1, QA3 measured the way past this gate).
+// Until this block existed, "present but will not parse" arrived here merged into "the tool did not
+// run", and the policy for that is the warning below — so the way past the check was to make the file
+// WORSE, not better: append the illegal `@import`, then append one extra `}`. Measured on this tree:
+// `@import` alone → refused; `@import` plus the stray `}` → rc=0, one warning line, and the `@import`
+// sitting in out/<site>/themes/<sheet>.css after a green `npx next build`. Hand-editing a sheet into a
+// syntax error is more likely than hand-editing it into a legal-looking violation, so the hole was
+// wider than the door.
+//   · It cannot brick an existing site: sites whose repo predates #991/#1001 have no such files at
+//     all, which is `skipped`, not `unreadable` (measured in a real container on r1: /app/repo/scripts
+//     has no css-contract-check.js, so those sites never reach this code in the first place).
+//   · The only way to land here is a sheet that has been broken, which is the case that should stop.
+if (cssContracts.unreadable.length > 0) {
+  console.error(`🔴 CSS sheet(s) that will not parse (${cssContracts.unreadable.length}) — this build `
+    + 'is refused:');
+  for (const u of cssContracts.unreadable) console.error(`   ${u}`);
+  console.error('  · the 🔴 line above says what postcss choked on. A sheet nobody can parse cannot be '
+    + 'judged against the contract, and this build will not go out wearing an unjudged sheet.');
+  process.exit(1);
+}
+// Say it out loud in all three cases (#991's rule for the theme sheet, same reason): a build log with
+// no such line means the check did not run, and that has to be visible without reading this file.
+if (cssContracts.unavailable) {
+  console.log(`  ⚠️  CSS contracts NOT checked — ${cssContracts.unavailable}`);
+} else {
+  console.log(cssContracts.checked.length > 0
+    ? `  CSS contracts: ${cssContracts.checked.length} file(s) legal — ${cssContracts.checked.join(', ')}`
+    : `  CSS contracts: nothing to check in this tree — ${cssContracts.skipped.join(' · ')}`);
 }
 
 // #924 — themes. site/theme.json records which theme this site got and whether its owner

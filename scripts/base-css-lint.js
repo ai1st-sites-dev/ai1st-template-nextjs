@@ -184,25 +184,33 @@ function lint(file) {
   return problems;
 }
 
-const files = process.argv.slice(2);
-if (files.length === 0) {
-  console.error('usage: node scripts/base-css-lint.js <base.css> [more.css …]');
-  process.exit(2);
-}
-
-let illegal = 0;
-let unreadable = 0;
-for (const f of files) {
-  const problems = lint(f);
-  if (problems === null) { unreadable++; continue; }
-  if (problems.length === 0) {
-    console.log(`✅ ${path.basename(f)}`);
-    continue;
+function main() {
+  const files = process.argv.slice(2);
+  if (files.length === 0) {
+    console.error('usage: node scripts/base-css-lint.js <base.css> [more.css …]');
+    process.exit(2);
   }
-  illegal++;
-  console.log(`🔴 ${path.basename(f)} — ${problems.length} violation(s)`);
-  for (const p of problems) console.log(`   ${p}`);
+
+  let illegal = 0;
+  let unreadable = 0;
+  for (const f of files) {
+    const problems = lint(f);
+    if (problems === null) { unreadable++; continue; }
+    if (problems.length === 0) {
+      console.log(`✅ ${path.basename(f)}`);
+      continue;
+    }
+    illegal++;
+    console.log(`🔴 ${path.basename(f)} — ${problems.length} violation(s)`);
+    for (const p of problems) console.log(`   ${p}`);
+  }
+
+  if (unreadable) process.exit(2);
+  process.exit(illegal ? 1 : 0);
 }
 
-if (unreadable) process.exit(2);
-process.exit(illegal ? 1 : 0);
+// #1009 — a command AND a module, same reason as scripts/theme-css-lint.js: the build-time gate
+// (scripts/css-contract-check.js) calls `lint()` rather than re-implementing what it refuses.
+if (require.main === module) main();
+
+module.exports = { lint, CONTRACT_VERSION };

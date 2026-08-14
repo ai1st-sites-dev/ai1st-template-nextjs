@@ -302,28 +302,38 @@ function lint(file) {
   return problems;
 }
 
-const files = process.argv.slice(2);
-if (files.length === 0) {
-  console.error('usage: node scripts/theme-css-lint.js <sheet.css> [more.css …]');
-  process.exit(2);
-}
-
-let illegal = 0;
-let unreadable = 0;
-for (const f of files) {
-  const problems = lint(f);
-  if (problems === null) { unreadable++; continue; }
-  if (problems.length === 0) {
-    console.log(`✅ ${path.basename(f)}`);
-    continue;
+function main() {
+  const files = process.argv.slice(2);
+  if (files.length === 0) {
+    console.error('usage: node scripts/theme-css-lint.js <sheet.css> [more.css …]');
+    process.exit(2);
   }
-  illegal++;
-  console.log(`🔴 ${path.basename(f)} — ${problems.length} violation(s)`);
-  for (const p of problems) console.log(`   ${p}`);
+
+  let illegal = 0;
+  let unreadable = 0;
+  for (const f of files) {
+    const problems = lint(f);
+    if (problems === null) { unreadable++; continue; }
+    if (problems.length === 0) {
+      console.log(`✅ ${path.basename(f)}`);
+      continue;
+    }
+    illegal++;
+    console.log(`🔴 ${path.basename(f)} — ${problems.length} violation(s)`);
+    for (const p of problems) console.log(`   ${p}`);
+  }
+
+  // 🔴 "Could not read it" and "it breaks the contract" exit differently on purpose. They are not the
+  // same answer, and a caller that treats a missing file as a clean bill of health is the failure this
+  // repo keeps writing down (#741).
+  if (unreadable) process.exit(2);
+  process.exit(illegal ? 1 : 0);
 }
 
-// 🔴 "Could not read it" and "it breaks the contract" exit differently on purpose. They are not the
-// same answer, and a caller that treats a missing file as a clean bill of health is the failure this
-// repo keeps writing down (#741).
-if (unreadable) process.exit(2);
-process.exit(illegal ? 1 : 0);
+// #1009 — the file is both a command and a module now. `lint()` is what the build-time gate
+// (scripts/css-contract-check.js) calls, so the rules a sheet is judged by exist ONCE: a second
+// implementation for the automatic caller is a second thing to keep in step, and the two would
+// disagree the first time either changed. Running it by hand is unchanged.
+if (require.main === module) main();
+
+module.exports = { lint, CONTRACT_VERSION };
