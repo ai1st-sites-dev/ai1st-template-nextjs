@@ -1,4 +1,4 @@
-import type { ThemeSettings } from '../themeSettings';
+import type { ThemeSettings, NumericThemeSettings } from '../themeSettings';
 
 // ---- Site Meta ----
 export interface SiteMetaConfig {
@@ -41,7 +41,9 @@ export interface BrandConfig {
   fonts: BrandFonts;
   // #961: 风格设定（圆角/留白/阴影/按钮形状）。只有应用了 theme 的站有这一项；
   // 没有它的站落回 globals.css `:root` 的默认值，也就是 #961 之前的样子。
-  settings?: Partial<ThemeSettings>;
+  // #1003: 两种形状 —— #961 的枚举词，或生成的主题用的数值。二选一，同一套主题不许混写
+  // （schemas/theme-tokens.schema.json 判这件事）；`settingsToCssVars` 按 `radius` 的类型分支。
+  settings?: Partial<ThemeSettings> | Partial<NumericThemeSettings>;
   email: string;
   locations: BrandLocation[];
   socialLinks?: { platform: string; url: string }[] | Record<string, string>;

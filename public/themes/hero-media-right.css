@@ -9,8 +9,8 @@
   gap: 2.5rem;
   min-height: 26rem;
   padding: 3rem 1.5rem;
-  background-color: #ffffff;
-  color: #111827;
+  background-color: var(--color-primary-50);
+  color: var(--color-primary-900);
 }
 
 @media (min-width: 1024px) {
@@ -54,7 +54,7 @@
   margin-top: 1.25rem;
   font-size: 1.0625rem;
   line-height: 1.7;
-  color: #374151;
+  color: var(--color-primary-800);
 }
 
 .hero__cta {

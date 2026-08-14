@@ -8,6 +8,7 @@ const path = require('path');
 const blockManifest = require('./lib/block-manifest');
 const { themes, layoutFor, themesWithRhythm } = require('./themes');
 const pageLayoutLib = require('./lib/page-layout');
+const themeTokens = require('./lib/theme-tokens');
 const { resolveRegionLayout } = require('./region-layout');
 const { checkCssContracts } = require('./css-contract-check');
 // #998 — 页面内容层的形状（sections → blocks）。归一化、站级块库、校验都在那个文件里，
@@ -233,6 +234,22 @@ if (typeof brand.name === 'string') {
 // #924: an applied theme owns the palette and the typefaces. brand.json keeps whatever it
 // had (name, logo, locations, form ids) — only these two fields are taken over, and only in
 // memory, so switching theme id is the whole of "change theme".
+// #1003 —— 主题的颜色 / 字体 / settings 是 tokens，按 schema 校验（schemas/theme-tokens.schema.json）。
+// 🔴 校验的是**整张注册表**，不是只校验这个站用的那一套：一套写坏的主题躺在池子里，等下一个站
+// 换到它才炸，而那时没人记得是谁改的。30 套跑一遍是毫秒级的事。
+// 🔴 两种 settings 形状（#961 的枚举 / #1003 的数值）二选一、不许混写，也由那份 schema 判 ——
+// 判据只有一处，别在这里再写一遍。
+{
+  const badThemes = themeTokens.validateRegistry(themes);
+  const ids = Object.keys(badThemes);
+  if (ids.length) {
+    console.error(`主题 tokens 不符合 schemas/theme-tokens.schema.json（${ids.length} 套）：`);
+    for (const id of ids) for (const problem of badThemes[id]) console.error(`  · ${id}: ${problem}`);
+    process.exit(1);
+  }
+  console.log(`  Theme tokens: ${Object.keys(themes).length} 套全部通过 schema`);
+}
+
 if (appliedThemeId) {
   brand.colors = themes[appliedThemeId].colors;
   brand.fonts = themes[appliedThemeId].fonts;

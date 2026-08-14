@@ -13,7 +13,7 @@
   min-height: 34rem;
   padding: 3rem 1.5rem;
   background: linear-gradient(140deg, var(--color-primary-900), var(--color-primary-700));
-  color: #ffffff;
+  color: var(--color-primary-50);
 }
 
 @media (min-width: 1024px) {
@@ -48,7 +48,7 @@
   line-height: 1.05;
   letter-spacing: -0.02em;
   font-weight: 800;
-  color: #ffffff;
+  color: var(--color-primary-50);
 }
 
 @media (min-width: 1024px) {
@@ -63,7 +63,7 @@
   line-height: 1.7;
   /* The lighter grey the old dark heroes used. Whether it clears 4.5:1 on this background is not
      asserted here — the invariant checker measures it off the rendered page. */
-  color: #e5e7eb;
+  color: var(--color-primary-100);
 }
 
 .hero__cta {

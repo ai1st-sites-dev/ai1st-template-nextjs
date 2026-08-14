@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ai1st.site/schemas/theme-tokens.schema.json",
+  "title": "Theme tokens (#1003, spec §4.6 / §5.1 / D9)",
+  "description": "A theme's colours, fonts and style settings — everything that CAN be declared instead of written as free CSS. What cannot be declared (which structure a block takes) stays in the restricted stylesheet, and that half may not contain a literal colour or font name (docs/reference/theme-css-contract.md §3). The top level is closed (additionalProperties false) like every level below it: QA3 measured on #1003 that it was the one open level of three, so an unknown key such as 'zcolors' passed while the same mistake one level down was named. The only caller hands in exactly {colors, fonts, settings} (scripts/lib/theme-tokens.js validateRegistry), so closing it names a typo instead of ignoring it. Per-site tweaks are NOT a token key — they live in site/theme.json (#1006).",
+  "type": "object",
+  "required": ["colors", "fonts"],
+  "properties": {
+    "colors": {
+      "type": "object",
+      "required": ["primary", "accent"],
+      "properties": {
+        "primary": {
+          "type": "object",
+          "description": "Ten shades. 50 / 500 / 900 are the ones the templates cannot do without.",
+          "required": ["50", "500", "900"],
+          "propertyNames": { "pattern": "^(50|[1-9]00)$" },
+          "additionalProperties": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }
+        },
+        "accent": {
+          "type": "object",
+          "required": ["50", "500", "600"],
+          "propertyNames": { "pattern": "^(50|[1-9]00)$" },
+          "additionalProperties": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "fonts": {
+      "type": "object",
+      "required": ["heading", "body", "googleFontsUrl"],
+      "properties": {
+        "heading": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "body": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "googleFontsUrl": { "type": "string", "pattern": "^https://fonts\\.googleapis\\.com/" }
+      },
+      "additionalProperties": false
+    },
+    "settings": {
+      "description": "Two shapes, one theme picks ONE of them — never a mix. The enum shape is what the 30 themes shipped by #961 use; the numeric shape is what a generated theme may use, and it is the one a per-site tweak can scale (#1006).",
+      "oneOf": [
+        {
+          "title": "enum shape (#961)",
+          "type": "object",
+          "required": ["radius", "density", "shadow", "buttonShape"],
+          "properties": {
+            "radius": { "enum": ["subtle", "sharp", "round"] },
+            "density": { "enum": ["standard", "compact", "airy"] },
+            "shadow": { "enum": ["soft", "none", "strong"] },
+            "buttonShape": { "enum": ["rounded", "square", "pill"] }
+          },
+          "additionalProperties": false
+        },
+        {
+          "title": "numeric shape (#1003)",
+          "type": "object",
+          "required": ["radius", "density", "shadowStrength", "buttonShape"],
+          "properties": {
+            "radius": {
+              "description": "Corner radius of the DEFAULT step, in px. 0 = square corners; 24 is as round as a card gets before it reads as a pill.",
+              "type": "number", "minimum": 0, "maximum": 24
+            },
+            "density": {
+              "description": "Vertical rhythm multiplier over the standard section padding. 0.6 = tight, 1.6 = airy.",
+              "type": "number", "minimum": 0.6, "maximum": 1.6
+            },
+            "shadowStrength": {
+              "description": "Alpha of the shadow colour. 0 = no shadow at all, 0.4 is heavier than any hand-made theme.",
+              "type": "number", "minimum": 0, "maximum": 0.4
+            },
+            "buttonShape": { "enum": ["rounded", "square", "pill"] }
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  "additionalProperties": false
+}

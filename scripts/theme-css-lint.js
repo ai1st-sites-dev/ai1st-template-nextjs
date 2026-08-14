@@ -234,6 +234,171 @@ function checkSelector(sel, report) {
   }
 }
 
+// ── §4 #1003 —— 受限 CSS 里不许出现字面色值和字面字体名 ─────────────────────────────────────────
+//
+// 🔴 没有这一条，D9（「能声明的就别让 AI 自由写」）不成立：属性白名单里有 `color` / `background*` /
+// `font-*`，所以一份完全合法的表可以写 `color: #ff0000` 直接绕开 tokens 那份 schema。本票落地前实测：
+// 三份已上线的表里有 9 处字面色值，这个检查器对它们**全绿、退出码 0**。
+//
+// 🔴 只盯 `color:` 和 `font-family:` 两个属性的实现会放行真问题：颜色能从 `background` / `border` /
+// `box-shadow` 里以四种语法进来（#rrggbb · 颜色名 · rgb() · hsl()），所以这里查的是**每一条声明的值**。
+//
+// 🔴 一个例外，写进契约 §3：`box-shadow` 里的**纯黑 / 纯白 + alpha**。理由是阴影本来就是中性色，
+// 而它的强度在 tokens 里有自己的字段（`shadowStrength`）；把 `rgb(0 0 0 / .55)` 也禁掉，等于逼每份表
+// 用 `var(--shadow-*)` 那四档现成阴影，而那四档是给卡片用的、不是给一张 60px 模糊的大投影用的。
+// 例外**只认这两个颜色**：任何带色相的阴影仍然被拦。
+const CSS_NAMED_COLOURS = new Set(['aliceblue', 'antiquewhite', 'aqua', 'aquamarine', 'azure', 'beige',
+  'bisque', 'black', 'blanchedalmond', 'blue', 'blueviolet', 'brown', 'burlywood', 'cadetblue',
+  'chartreuse', 'chocolate', 'coral', 'cornflowerblue', 'cornsilk', 'crimson', 'cyan', 'darkblue',
+  'darkcyan', 'darkgoldenrod', 'darkgray', 'darkgreen', 'darkgrey', 'darkkhaki', 'darkmagenta',
+  'darkolivegreen', 'darkorange', 'darkorchid', 'darkred', 'darksalmon', 'darkseagreen',
+  'darkslateblue', 'darkslategray', 'darkslategrey', 'darkturquoise', 'darkviolet', 'deeppink',
+  'deepskyblue', 'dimgray', 'dimgrey', 'dodgerblue', 'firebrick', 'floralwhite', 'forestgreen',
+  'fuchsia', 'gainsboro', 'ghostwhite', 'gold', 'goldenrod', 'gray', 'green', 'greenyellow', 'grey',
+  'honeydew', 'hotpink', 'indianred', 'indigo', 'ivory', 'khaki', 'lavender', 'lavenderblush',
+  'lawngreen', 'lemonchiffon', 'lightblue', 'lightcoral', 'lightcyan', 'lightgoldenrodyellow',
+  'lightgray', 'lightgreen', 'lightgrey', 'lightpink', 'lightsalmon', 'lightseagreen', 'lightskyblue',
+  'lightslategray', 'lightslategrey', 'lightsteelblue', 'lightyellow', 'lime', 'limegreen', 'linen',
+  'magenta', 'maroon', 'mediumaquamarine', 'mediumblue', 'mediumorchid', 'mediumpurple',
+  'mediumseagreen', 'mediumslateblue', 'mediumspringgreen', 'mediumturquoise', 'mediumvioletred',
+  'midnightblue', 'mintcream', 'mistyrose', 'moccasin', 'navajowhite', 'navy', 'oldlace', 'olive',
+  'olivedrab', 'orange', 'orangered', 'orchid', 'palegoldenrod', 'palegreen', 'paleturquoise',
+  'palevioletred', 'papayawhip', 'peachpuff', 'peru', 'pink', 'plum', 'powderblue', 'purple',
+  'rebeccapurple', 'red', 'rosybrown', 'royalblue', 'saddlebrown', 'salmon', 'sandybrown', 'seagreen',
+  'seashell', 'sienna', 'silver', 'skyblue', 'slateblue', 'slategray', 'slategrey', 'snow',
+  'springgreen', 'steelblue', 'tan', 'teal', 'thistle', 'tomato', 'turquoise', 'violet', 'wheat',
+  'white', 'whitesmoke', 'yellow', 'yellowgreen']);
+const COLOUR_FUNCTIONS = new Set(['rgb', 'rgba', 'hsl', 'hsla', 'hwb', 'lab', 'lch', 'oklab', 'oklch',
+  'color', 'color-mix']);
+const GENERIC_FAMILIES = new Set(['serif', 'sans-serif', 'monospace', 'cursive', 'fantasy',
+  'system-ui', 'ui-serif', 'ui-sans-serif', 'ui-monospace', 'ui-rounded', 'math', 'emoji', 'fangsong',
+  'inherit', 'initial', 'unset', 'revert']);
+
+/** `box-shadow` 里那一格例外：纯黑或纯白（可带 alpha），别的一律不算。 */
+function isNeutralShadowColour(node) {
+  const nums = (node.nodes || []).filter((n) => n.type === 'word').map((n) => n.value);
+  const rgb = nums.slice(0, 3).map(Number);
+  if (rgb.length < 3 || rgb.some((n) => Number.isNaN(n))) return false;
+  return rgb.every((n) => n === 0) || rgb.every((n) => n === 255);
+}
+
+function collectLiteralColours(prop, value, found) {
+  const inShadow = prop === 'box-shadow' || prop === 'text-shadow';
+  const parsed = valueParser(value);
+  parsed.walk((node) => {
+    if (node.type === 'function') {
+      const fn = node.value.toLowerCase();
+      if (!COLOUR_FUNCTIONS.has(fn)) return undefined;
+      if (inShadow && (fn === 'rgb' || fn === 'rgba') && isNeutralShadowColour(node)) return false;
+      found.push(`${fn}(…)`);
+      return false;  // 里面的东西已经由这一条代表了
+    }
+    if (node.type === 'word') {
+      const w = node.value;
+      if (/^#[0-9a-fA-F]{3,8}$/.test(w)) { found.push(w); return undefined; }
+      // 颜色名只在【不是字体】的地方查:字体那半由下面 literalFontsIn 管,不然 "Red Hat Display" 会被
+      // 当成颜色报一遍,同一处报两个理由。
+      if (prop !== 'font-family' && prop !== 'font' && CSS_NAMED_COLOURS.has(w.toLowerCase())) {
+        found.push(w);
+      }
+    }
+    return undefined;
+  });
+}
+
+/**
+ * 一条声明里有没有字面色值 → string[]（每条是给人看的理由）。
+ *
+ * 🔴 要读两遍：原文一遍，解转义之后再一遍，取并集 —— 跟 `urlsIn()` 同一个理由，也是同一个坑
+ * （#992 为 URL 写的 `decodeEscapes()` 就在上面，契约 §3 也已经写着 `URL(…)` 和 `\75 rl(…)` 是同一个请求）。
+ * 颜色这半是**黑名单**（颜色名集合 + `#` 正则 + 函数名集合），而 CSS 允许把标识符里的任何字符写成
+ * 转义，所以黑名单的每一项都有另一种拼法。真浏览器实测（#1003 r2，`getComputedStyle` + 读 `cssRules`）：
+ *
+ *     color: r\65 d              → 保留成 `red`             黑名单漏了（颜色名）
+ *     background-color: \72 gb(0 128 0) → 保留成 `rgb(0,128,0)`  黑名单漏了（函数名）
+ *     color: \23 ff0000          → 整条被浏览器丢掉          不是漏，`#` 起的是 hash token，转义拼不出来
+ *
+ * 字体那半不需要这一遍：它是**白名单**（不是 `var()`、不是通用字体族就报），转义只会让一个值更不像
+ * 白名单里的东西 ⟹ 方向是更严，不是绕过。
+ *
+ * 并集而不是"只读解码后那一份"：那样等于信任解码器没毁掉别的东西，而并集无论解码器做了什么都不会丢。
+ */
+function literalColoursIn(prop, value) {
+  const found = [];
+  collectLiteralColours(prop, value, found);
+  const decoded = decodeEscapes(value);
+  if (decoded !== value) collectLiteralColours(prop, decoded, found);
+  return [...new Set(found)];
+}
+
+/**
+ * `font-family` / `font` 里有没有字面字体名 → string[]。
+ *
+ * 🔴 `var()` 的**兜底值**要按同一把标准再查一遍（QA3 在 #1003 终审量出来的）。第一版的规则是
+ * 「这一格以 `var(` 开头就放行」，于是这条通过了、退出码 0：
+ *
+ *     font-family: var(--font-nope, "Inter"), sans-serif
+ *
+ * 而真浏览器里 `--font-nope` 不存在时，计算值就是 `Inter, sans-serif` —— 字面字体真的上屏了
+ * （QA3 用 `getComputedStyle` 量的，`var(--font-nope, Georgia), serif` 算出来是 `Georgia, serif`）。
+ * **白名单要安全，它的原子必须是「浏览器不再往下解析的终端」**，而 `var()` 是带参数的包装，
+ * 浏览器还会往兜底参数里再解析一层。颜色那半早就在查函数参数了（`color: var(--x, #ff0000)` 一直报），
+ * 所以这不是苛求，是两半口径没对齐。
+ *
+ * 兜底里的通用字体族（`var(--x, sans-serif)`）照常放行，跟顶层同一条规则；嵌套的
+ * `var(--a, var(--b, "Inter"))` 靠递归走到底。
+ */
+function literalFontsIn(prop, value) {
+  if (prop !== 'font-family' && prop !== 'font') return [];
+  const found = [];
+  collectLiteralFonts(splitByComma(valueParser(value).nodes), found);
+  return [...new Set(found)];
+}
+
+function collectLiteralFonts(groups, found) {
+  for (const group of groups) {
+    const text = valueParser.stringify(group).trim();
+    if (!text) continue;
+    const meaningful = group.filter((n) => n.type !== 'space');
+    if (meaningful.length === 1 && meaningful[0].type === 'function'
+      && meaningful[0].value.toLowerCase() === 'var') {
+      // splitByComma 的第一格是自定义属性名（`--font-nope`），它不是字体名；其余每一格都是兜底值，
+      // 按顶层同一条规则再判一次。
+      collectLiteralFonts(splitByComma(meaningful[0].nodes).slice(1), found);
+      continue;
+    }
+    const bare = text.replace(/^["']|["']$/g, '').toLowerCase();
+    if (GENERIC_FAMILIES.has(bare)) continue;                 // sans-serif / system-ui …
+    // 🔴 这里曾经还有一行跳过（QA3 在 #1003 r3 终审量出来的）：
+    //
+    //     if (/^[0-9.]|^(bold|normal|italic|oblique|small-caps|lighter|bolder)$/i.test(bare)) continue;
+    //
+    // 它想跳过的是 `font:` 简写里字体名前面那些不是字体名的词（`bold 14px/1.4`），但它判的是
+    // **整个逗号分组的文本**，不是分组里的单个词 —— 于是它在两个方向上都是坏的：
+    //
+    //   · `font-family: "8514oem", sans-serif`  剥掉引号后以数字开头 ⟹ 整组被跳过，退出码 0。
+    //     而真浏览器把这条原样收下，计算值就是 `"8514oem", sans-serif` —— 装了这个字体的访客
+    //     屏上就是它。以数字开头的字体真实存在（Windows 的 8514oem、SAP 的 72、29LT Bukra）。
+    //     `font-family` 里根本不存在「字号前缀」这回事，这个跳过从一开始就不该走到这个属性。
+    //   · `font: 14px "Inter", sans-serif`      同一行代码把**字体名连同字号一起**跳掉了，
+    //     所以它连自己那扇门也没守住（QA1 在 r3 量的）。
+    //
+    // 删掉它，两个方向一起关。它唯一想服务的 `font:` 简写本来就不在属性白名单上
+    // （`PROP_EXACT` 没有 `font`，`'font'.startsWith('font-')` 为假），写它的表照样被拒——
+    // 只是现在那条表会连字体名一起被点名，而不是被这行跳过悄悄放行。
+    found.push(text);
+  }
+}
+
+function splitByComma(nodes) {
+  const out = [[]];
+  for (const n of nodes) {
+    if (n.type === 'div' && n.value === ',') { out.push([]); continue; }
+    out[out.length - 1].push(n);
+  }
+  return out;
+}
+
 function checkDecl(decl, report) {
   const prop = decl.prop.toLowerCase();
   const value = decl.value;
@@ -261,6 +426,15 @@ function checkDecl(decl, report) {
     if (isThirdPartyUrl(url)) {
       report(`"${prop}: ${value}" loads a third-party resource (${url.trim()})`);
     }
+  }
+  for (const lit of literalColoursIn(prop, value)) {
+    report(`"${prop}: ${value}" writes the colour ${lit} into the stylesheet — colours are tokens `
+      + '(schemas/theme-tokens.schema.json). Use var(--color-primary-…) / var(--color-accent-…). '
+      + 'The one exception is a pure black or white shadow colour in box-shadow (contract §3).');
+  }
+  for (const font of literalFontsIn(prop, value)) {
+    report(`"${prop}: ${value}" names the font ${font} — fonts are tokens too. Use `
+      + 'var(--font-heading) or var(--font-sans).');
   }
   if (!isAllowedProp(prop)) {
     report(`"${prop}" is not on the contract's property whitelist`);

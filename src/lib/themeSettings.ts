@@ -27,6 +27,16 @@ export interface ThemeSettings {
   buttonShape: ButtonShapeToken;
 }
 
+// #1003 — 第二种形状：数值。生成的主题用它，因为**每站微扰（#1006）是整套缩放**，缩放一个枚举词
+// 没有意义。两种形状二选一、同一套主题不许混写（schema 在 schemas/theme-tokens.schema.json 里定死，
+// 边界也在那儿：radius 0–24px · density 0.6–1.6 · shadowStrength 0–0.4）。
+export interface NumericThemeSettings {
+  radius: number;          // DEFAULT 档的圆角,px
+  density: number;         // 竖向留白相对 standard 的倍数
+  shadowStrength: number;  // 阴影颜色的 alpha
+  buttonShape: ButtonShapeToken;
+}
+
 // 圆角 —— 对应 tailwind 的 borderRadius 档位（DEFAULT/md/lg/xl/2xl；full 不在内）
 export const RADIUS: Record<RadiusToken, Record<string, string>> = {
   subtle: { DEFAULT: '0.25rem', md: '0.375rem', lg: '0.5rem', xl: '0.75rem', '2xl': '1rem' },
@@ -82,9 +92,62 @@ export const ALLOWED = {
  * 认不出来的档位【整组跳过】，不是塞个瞎猜的值：跳过意味着那一组落回 globals.css `:root` 的
  * 默认值，也就是老站今天的样子 —— 失败方向是「没变」，不是「变成别的」。
  */
-export function settingsToCssVars(s: Partial<ThemeSettings> | undefined | null): string[] {
+export function settingsToCssVars(
+  s: Partial<ThemeSettings> | Partial<NumericThemeSettings> | undefined | null,
+): string[] {
   const out: string[] = [];
   if (!s) return out;
+  // #1003 — 数值形状走另一条路，判据只有一个：`radius` 是不是数字。两种形状不许混写，所以
+  // 一个键就能分辨整套（schema 拦住了混写的那种，这里不用再逐键判）。
+  if (typeof (s as Partial<NumericThemeSettings>).radius === 'number') {
+    return numericSettingsToCssVars(s as Partial<NumericThemeSettings>);
+  }
+  const e = s as Partial<ThemeSettings>;
+  return enumSettingsToCssVars(e);
+}
+
+/**
+ * 数值形状 → 同一批 CSS 变量。
+ *
+ * 🔴 变量名与档位数量跟枚举形状**逐个相同** —— 消费它们的是 tailwind.config.ts 里那些
+ * `var(--radius-*)` / `var(--shadow-*)`（#961/#986 接的），下游不该知道这套主题用的是哪种形状。
+ *
+ * 🔴 每一档的算法都写成「相对 DEFAULT 的比例」，比例取自枚举表里 `subtle` 那一档（0.25/0.375/
+ * 0.5/0.75/1 rem = 1 : 1.5 : 2 : 3 : 4）。这样 `radius: 4`（px）算出来的五档与 `subtle` 逐字相同，
+ * 也就是说数值形状能表达枚举形状的每一个档位,而不是另起一套手感。
+ */
+function numericSettingsToCssVars(s: Partial<NumericThemeSettings>): string[] {
+  const out: string[] = [];
+  const px = (n: number) => `${Math.round(n * 1000) / 1000}px`;
+  if (typeof s.radius === 'number' && Number.isFinite(s.radius)) {
+    const r = s.radius;
+    for (const [k, mult] of Object.entries({ DEFAULT: 1, md: 1.5, lg: 2, xl: 3, '2xl': 4 })) {
+      out.push(`--radius-${k}: ${px(r * mult)};`);
+    }
+  }
+  if (typeof s.shadowStrength === 'number' && Number.isFinite(s.shadowStrength)) {
+    const a = s.shadowStrength;
+    const a2 = Math.round(a * 100) / 100;
+    const soft = Math.round(a * 50) / 100;   // 第二段阴影一向比第一段淡一半（照 SHADOW.soft 的比例）
+    out.push(`--shadow-DEFAULT: 0 1px 3px 0 rgb(0 0 0 / ${a2}), 0 1px 2px -1px rgb(0 0 0 / ${a2});`);
+    out.push(`--shadow-sm: 0 1px 2px 0 rgb(0 0 0 / ${soft});`);
+    out.push(`--shadow-md: 0 4px 6px -1px rgb(0 0 0 / ${a2}), 0 2px 4px -2px rgb(0 0 0 / ${a2});`);
+    out.push(`--shadow-lg: 0 10px 15px -3px rgb(0 0 0 / ${a2}), 0 4px 6px -4px rgb(0 0 0 / ${a2});`);
+  }
+  if (typeof s.density === 'number' && Number.isFinite(s.density)) {
+    const d = s.density;
+    const rem = (n: number) => `${Math.round(n * d * 1000) / 1000}rem`;
+    // 基准是 DENSITY.standard 那一档（也就是 globals.css :root 的默认值）。
+    out.push(`--section-y: ${rem(4)};`, `--section-x: ${rem(1)};`, `--section-xSm: ${rem(1.5)};`,
+      `--section-yMd: ${rem(6)};`, `--section-xLg: ${rem(2)};`);
+  }
+  const button = own(BUTTON_SHAPE, s.buttonShape);
+  if (button) out.push(`--radius-button: ${button};`);
+  return out;
+}
+
+function enumSettingsToCssVars(s: Partial<ThemeSettings>): string[] {
+  const out: string[] = [];
   const radius = own(RADIUS, s.radius);
   if (radius) for (const [k, v] of Object.entries(radius)) out.push(`--radius-${k}: ${v};`);
   const shadow = own(SHADOW, s.shadow);
