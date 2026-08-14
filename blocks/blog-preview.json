@@ -1,0 +1,56 @@
+{
+  "type": "blog-preview",
+  "category": "blog",
+  "roleDefault": "optional",
+  "block_layout": [
+    "default"
+  ],
+  "slots": {
+    "headline": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false
+    },
+    "subheadline": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true
+    },
+    "posts": {
+      "kind": "list",
+      "required": true,
+      "promptOptional": false,
+      "shape": "[{title, excerpt, category?, date?}]"
+    },
+    "variant": {
+      "kind": "variant",
+      "required": false,
+      "promptOptional": false
+    }
+  },
+  "variants": {
+    "cards": "3-col post cards",
+    "list": "compact horizontal rows",
+    "featured": "hero post + grid below"
+  },
+  "variantKey": "variants",
+  "industries": {
+    "required": [],
+    "recommended": [
+      "law",
+      "insurance",
+      "medical"
+    ],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "homepage",
+    "order": 26,
+    "headPrefix": "",
+    "headSuffix": "",
+    "headExtra": null,
+    "lines": [
+      "@data"
+    ]
+  }
+}

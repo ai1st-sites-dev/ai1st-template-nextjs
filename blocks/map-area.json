@@ -1,0 +1,59 @@
+{
+  "type": "map-area",
+  "category": "location",
+  "roleDefault": "essential",
+  "block_layout": [
+    "default"
+  ],
+  "slots": {
+    "headline": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false
+    },
+    "subheadline": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true
+    },
+    "areas": {
+      "kind": "list",
+      "required": true,
+      "promptOptional": false,
+      "shape": "[{name, description?}]"
+    },
+    "variant": {
+      "kind": "variant",
+      "required": false,
+      "promptOptional": false
+    }
+  },
+  "variants": {
+    "list": "checkmark grid",
+    "cards": "bordered cards",
+    "grouped": "two-column split",
+    "badge": "inline pills"
+  },
+  "variantKey": "variants",
+  "industries": {
+    "required": [],
+    "recommended": [
+      "plumbing",
+      "roofing",
+      "landscaping",
+      "cleaning",
+      "construction"
+    ],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "homepage",
+    "order": 23,
+    "headPrefix": "",
+    "headSuffix": "",
+    "headExtra": null,
+    "lines": [
+      "@data"
+    ]
+  }
+}

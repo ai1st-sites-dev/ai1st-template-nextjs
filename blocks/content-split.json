@@ -1,0 +1,68 @@
+{
+  "type": "content-split",
+  "category": "text",
+  "roleDefault": "optional",
+  "block_layout": [
+    "with-media",
+    "text-only"
+  ],
+  "slots": {
+    "headline": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false
+    },
+    "content": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false
+    },
+    "bullets": {
+      "kind": "list",
+      "required": false,
+      "promptOptional": true,
+      "shape": "[string]"
+    },
+    "stats": {
+      "kind": "list",
+      "required": false,
+      "promptOptional": true,
+      "shape": "[{value, label}]"
+    },
+    "variant": {
+      "kind": "variant",
+      "required": false,
+      "promptOptional": false
+    },
+    "imageUrl": {
+      "kind": "image",
+      "required": false,
+      "promptOptional": true,
+      "shape": "string"
+    }
+  },
+  "variants": {
+    "text-left": "text left, image/gradient right",
+    "text-right": "flipped",
+    "text-left-stats": "text left, stats box right",
+    "text-right-list": "image/gradient left, checklist right",
+    "centered-overlay": "full-width gradient with white card",
+    "cards-row": "headline above, 3 cards below using bullets as titles"
+  },
+  "variantKey": "variants",
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "homepage",
+    "order": 6,
+    "headPrefix": "",
+    "headSuffix": "",
+    "headExtra": null,
+    "lines": [
+      "@data"
+    ]
+  }
+}

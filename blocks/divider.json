@@ -1,0 +1,42 @@
+{
+  "type": "divider",
+  "category": "divider",
+  "roleDefault": "optional",
+  "block_layout": [
+    "default"
+  ],
+  "slots": {
+    "label": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true
+    },
+    "variant": {
+      "kind": "variant",
+      "required": false,
+      "promptOptional": false
+    }
+  },
+  "variants": {
+    "line": "hr with optional label",
+    "wave": "SVG wave shape",
+    "gradient-bar": "thin gradient strip",
+    "icon": "centered dot with lines"
+  },
+  "variantKey": "variants",
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "homepage",
+    "order": 19,
+    "headPrefix": "",
+    "headSuffix": "",
+    "headExtra": null,
+    "lines": [
+      "@data"
+    ]
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "type": "gallery",
+  "category": "gallery",
+  "roleDefault": "optional",
+  "block_layout": [
+    "default"
+  ],
+  "slots": {
+    "headline": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false
+    },
+    "subheadline": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true
+    },
+    "items": {
+      "kind": "list",
+      "required": true,
+      "promptOptional": false,
+      "shape": "[{title, description?, category?, imageUrl?: string}]"
+    },
+    "variant": {
+      "kind": "variant",
+      "required": false,
+      "promptOptional": false
+    }
+  },
+  "variants": {
+    "grid": "equal cards",
+    "masonry": "varied heights",
+    "carousel": "horizontal scrollable",
+    "overlay": "image/gradient bg with text overlay"
+  },
+  "variantKey": "variants",
+  "industries": {
+    "required": [
+      "photography"
+    ],
+    "recommended": [
+      "construction",
+      "landscaping",
+      "restaurant",
+      "salon"
+    ],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "homepage",
+    "order": 14,
+    "headPrefix": "",
+    "headSuffix": "",
+    "headExtra": null,
+    "lines": [
+      "@data"
+    ]
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "type": "service-related-pages",
+  "category": "services",
+  "roleDefault": "optional",
+  "block_layout": [
+    "default"
+  ],
+  "slots": {
+    "serviceSlug": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false,
+      "shape": "\"<service-id>\""
+    },
+    "headline": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false,
+      "shape": "\"Related Topics\""
+    },
+    "subheadline": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true,
+      "shape": "string"
+    }
+  },
+  "variants": {},
+  "variantKey": "variants",
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "homepage",
+    "order": 27,
+    "headPrefix": "",
+    "headSuffix": "",
+    "headExtra": "auto-discovers keyword pages under the given service slug. Use ONLY on service detail pages.",
+    "lines": [
+      "@data",
+      "NOTE: Returns null if no keyword pages exist — safe to include on all service detail pages."
+    ]
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "type": "logo-carousel",
+  "category": "gallery",
+  "roleDefault": "optional",
+  "block_layout": [
+    "with-media",
+    "text-only"
+  ],
+  "slots": {
+    "headline": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true
+    },
+    "logos": {
+      "kind": "image",
+      "required": true,
+      "promptOptional": false,
+      "shape": "[string]"
+    },
+    "variant": {
+      "kind": "variant",
+      "required": false,
+      "promptOptional": false
+    }
+  },
+  "variants": {
+    "scroll": "animated marquee",
+    "grid": "static grid",
+    "bordered": "cards with accent bottom border",
+    "dark": "dark bg"
+  },
+  "variantKey": "variants",
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "homepage",
+    "order": 16,
+    "headPrefix": "",
+    "headSuffix": "",
+    "headExtra": null,
+    "lines": [
+      "@data"
+    ]
+  }
+}

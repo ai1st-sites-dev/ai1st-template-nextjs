@@ -1,0 +1,56 @@
+{
+  "type": "awards-certifications",
+  "category": "testimonial",
+  "roleDefault": "optional",
+  "block_layout": [
+    "default"
+  ],
+  "slots": {
+    "headline": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false
+    },
+    "subheadline": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true
+    },
+    "awards": {
+      "kind": "list",
+      "required": true,
+      "promptOptional": false,
+      "shape": "[{title, description?, year?}]"
+    },
+    "variant": {
+      "kind": "variant",
+      "required": false,
+      "promptOptional": false
+    }
+  },
+  "variants": {
+    "grid": "cards with star icons",
+    "banner": "compact horizontal strip",
+    "detailed": "large cards with gradient strip + faded year"
+  },
+  "variantKey": "variants",
+  "industries": {
+    "required": [],
+    "recommended": [
+      "roofing",
+      "construction",
+      "security"
+    ],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "homepage",
+    "order": 25,
+    "headPrefix": "",
+    "headSuffix": "",
+    "headExtra": null,
+    "lines": [
+      "@data"
+    ]
+  }
+}

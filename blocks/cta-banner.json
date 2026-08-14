@@ -1,0 +1,54 @@
+{
+  "type": "cta-banner",
+  "category": "cta",
+  "roleDefault": "optional",
+  "block_layout": [
+    "default"
+  ],
+  "slots": {
+    "headline": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false
+    },
+    "description": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false
+    },
+    "button": {
+      "kind": "link",
+      "required": true,
+      "promptOptional": false,
+      "shape": "{label, href}"
+    },
+    "variant": {
+      "kind": "variant",
+      "required": false,
+      "promptOptional": false
+    }
+  },
+  "variants": {
+    "solid": "colored bg",
+    "outlined": "bordered card",
+    "gradient": "diagonal gradient",
+    "split": "two-column",
+    "dark": "dark bg with pattern"
+  },
+  "variantKey": "variants",
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "homepage",
+    "order": 17,
+    "headPrefix": "",
+    "headSuffix": "",
+    "headExtra": null,
+    "lines": [
+      "@data"
+    ]
+  }
+}

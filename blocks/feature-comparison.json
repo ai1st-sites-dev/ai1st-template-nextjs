@@ -1,0 +1,65 @@
+{
+  "type": "feature-comparison",
+  "category": "feature",
+  "roleDefault": "optional",
+  "block_layout": [
+    "default"
+  ],
+  "slots": {
+    "headline": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false
+    },
+    "subheadline": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true
+    },
+    "comparisons": {
+      "kind": "list",
+      "required": true,
+      "promptOptional": false,
+      "shape": "[{feature, us: true, them: false}]"
+    },
+    "usLabel": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true,
+      "shape": "string"
+    },
+    "themLabel": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true,
+      "shape": "string"
+    },
+    "variant": {
+      "kind": "variant",
+      "required": false,
+      "promptOptional": false
+    }
+  },
+  "variants": {
+    "table": "comparison table",
+    "cards": "two side-by-side",
+    "columns": "three-column",
+    "stacked": "vertical badges"
+  },
+  "variantKey": "variants",
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "homepage",
+    "order": 11,
+    "headPrefix": "",
+    "headSuffix": "",
+    "headExtra": null,
+    "lines": [
+      "@data"
+    ]
+  }
+}

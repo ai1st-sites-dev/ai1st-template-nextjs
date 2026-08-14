@@ -5,6 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const blockManifest = require('./lib/block-manifest');
 const { themes, layoutFor, themesWithRhythm } = require('./themes');
 const { resolveRegionLayout } = require('./region-layout');
 
@@ -265,6 +266,35 @@ for (const locale of locales) {
       }
     }
   }
+
+  // #999 —— 「渲染器认得的块」与「有 manifest 的块」必须是同一个集合。加了块忘了补 manifest 的话，
+  // 那个块从此在提示词里不出现、校验也不认它，而没有任何东西会红。
+  {
+    const cov = blockManifest.registryCoverage(path.join(rootDir, 'src', 'lib', 'sections', 'registry.ts'));
+    if (cov.missingManifest.length || cov.unknownBlock.length) {
+      console.error('blocks/ 与 src/lib/sections/registry.ts 对不上：');
+      if (cov.missingManifest.length) console.error(`  registry 有、blocks/ 没有: ${cov.missingManifest.join(' ')}`);
+      if (cov.unknownBlock.length) console.error(`  blocks/ 有、registry 没有: ${cov.unknownBlock.join(' ')}`);
+      process.exit(1);
+    }
+  }
+
+  // #999 —— 块 manifest 校验的构建期兜底。建站脚本拿到 AI 输出时已经跑过同一个函数（那时还能重试），
+  // 这一处把**手改**过的 site/pages/*.json 里的毛病说出来：改坏一个必填槽、把 essential 降成
+  // optional、写一个 manifest 里没有的 block_layout，今天没有任何东西会发现，页面就那么少一块地
+  // 渲染出来。
+  //
+  // 🔴 构建期只说、不拦（`scope: 'build'` 让 validateSite 一条 problem 都不产出，理由整段写在
+  //    block-manifest.js 的 validateSite 头上）。一句话版：构建期没有救，只有毁 —— 这里退出码 1
+  //    的唯一后果是这个站从此重建不出来、预览也开不出来（`worker/entrypoint.sh:198-206` 的 preview
+  //    分支带 `set -e`）。实测 GitHub 上真实存在的 28 个站，硬拦会当场废掉 prod 的两个。
+  //    ⟹ 所以这里不接 problems：它恒为空，接了就是死代码。
+  //
+  // 📌 `industry` 在构建期是不知道的（seo.json 里没有这个字段），所以「行业必需的块缺了」这条
+  //    在这里只可能按 `"*"` 那一档说话。
+  const { warnings: blockWarnings } =
+    blockManifest.validateSite({ pages: localePages, industry: '', scope: 'build' });
+  for (const w of blockWarnings) console.log(`  [${locale}] ⚠️  ${w}`);
 
   // Aggregate blog posts (optional)
   const blogDir = path.join(localeDir, 'blog');

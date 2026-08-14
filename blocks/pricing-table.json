@@ -1,0 +1,58 @@
+{
+  "type": "pricing-table",
+  "category": "pricing",
+  "roleDefault": "optional",
+  "block_layout": [
+    "default"
+  ],
+  "slots": {
+    "headline": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false
+    },
+    "subheadline": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true
+    },
+    "tiers": {
+      "kind": "list",
+      "required": true,
+      "promptOptional": false,
+      "shape": "[{name, price, description, features:[], highlighted?:bool}]"
+    },
+    "variant": {
+      "kind": "variant",
+      "required": false,
+      "promptOptional": false
+    }
+  },
+  "variants": {
+    "cards": "standalone cards",
+    "comparison": "side-by-side columns",
+    "minimal": "no cards, text-link CTAs",
+    "toggle": "monthly/annual toggle"
+  },
+  "variantKey": "variants",
+  "industries": {
+    "required": [],
+    "recommended": [
+      "cleaning",
+      "landscaping",
+      "fitness",
+      "salon"
+    ],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "homepage",
+    "order": 13,
+    "headPrefix": "",
+    "headSuffix": "",
+    "headExtra": null,
+    "lines": [
+      "@data"
+    ]
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "type": "text-block",
+  "category": "text",
+  "roleDefault": "optional",
+  "block_layout": [
+    "default"
+  ],
+  "slots": {
+    "headline": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true
+    },
+    "content": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false
+    },
+    "background": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true,
+      "shape": "\"gray\""
+    },
+    "centered": {
+      "kind": "flag",
+      "required": false,
+      "promptOptional": true,
+      "shape": "true"
+    },
+    "variant": {
+      "kind": "variant",
+      "required": false,
+      "promptOptional": true
+    },
+    "items": {
+      "kind": "list",
+      "required": false,
+      "promptOptional": true,
+      "shape": "[string]"
+    },
+    "attribution": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true,
+      "shape": "string"
+    }
+  },
+  "variants": {
+    "default": "",
+    "two-column": "CSS columns",
+    "highlight-box": "callout with left border",
+    "with-list": "paragraph + checklist",
+    "quote": "blockquote with large decorative marks"
+  },
+  "variantKey": "variants",
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "page-specific",
+    "order": 1,
+    "headPrefix": "",
+    "headSuffix": "",
+    "headExtra": null,
+    "lines": [
+      "@data"
+    ]
+  }
+}

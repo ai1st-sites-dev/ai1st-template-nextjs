@@ -1,0 +1,53 @@
+{
+  "type": "page-header",
+  "category": "banner",
+  "roleDefault": "optional",
+  "block_layout": [
+    "default"
+  ],
+  "slots": {
+    "title": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false
+    },
+    "subtitle": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true
+    },
+    "breadcrumbs": {
+      "kind": "list",
+      "required": false,
+      "promptOptional": false,
+      "shape": "[{label:\"Home\", href:\"/\"}, {label:\"<Page Name>\"}]"
+    },
+    "variant": {
+      "kind": "variant",
+      "required": false,
+      "promptOptional": true
+    }
+  },
+  "variants": {
+    "default": "gradient left-aligned",
+    "minimal": "white bg, underline",
+    "centered": "gradient centered",
+    "with-description": "two-column"
+  },
+  "variantKey": "variants",
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "page-specific",
+    "order": 0,
+    "headPrefix": "always the first section on non-home pages. ",
+    "headSuffix": "",
+    "headExtra": null,
+    "lines": [
+      "@data"
+    ]
+  }
+}

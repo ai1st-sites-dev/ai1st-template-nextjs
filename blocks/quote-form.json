@@ -1,0 +1,64 @@
+{
+  "type": "quote-form",
+  "category": "contact",
+  "roleDefault": "essential",
+  "block_layout": [
+    "with-form"
+  ],
+  "slots": {
+    "formIntro": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false
+    },
+    "propertyTypes": {
+      "kind": "list",
+      "required": true,
+      "promptOptional": false,
+      "shape": "[3-4]"
+    },
+    "urgencyOptions": {
+      "kind": "list",
+      "required": true,
+      "promptOptional": false,
+      "shape": "[\"ASAP\",\"Within 1 week\",\"Within 1 month\",\"Just exploring\"]"
+    },
+    "benefits": {
+      "kind": "list",
+      "required": true,
+      "promptOptional": false,
+      "shape": "[5]"
+    },
+    "redirectMessage": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false,
+      "shape": "\"You will be redirected to our secure form.\""
+    },
+    "buttonText": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false
+    }
+  },
+  "variants": {},
+  "variantKey": "variants",
+  "industries": {
+    "required": [],
+    "recommended": [
+      "roofing",
+      "plumbing",
+      "construction",
+      "landscaping"
+    ],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "page-rule",
+    "headSuffix": "",
+    "order": 0,
+    "headPrefix": "",
+    "headExtra": null,
+    "lines": []
+  }
+}

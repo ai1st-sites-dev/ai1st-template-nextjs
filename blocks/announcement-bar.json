@@ -1,0 +1,48 @@
+{
+  "type": "announcement-bar",
+  "category": "banner",
+  "roleDefault": "optional",
+  "block_layout": [
+    "default"
+  ],
+  "slots": {
+    "message": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false
+    },
+    "link": {
+      "kind": "link",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{label, href}"
+    },
+    "variant": {
+      "kind": "variant",
+      "required": false,
+      "promptOptional": false
+    }
+  },
+  "variants": {
+    "solid": "accent bg",
+    "bordered": "white bg, accent border",
+    "dismissible": "with close button",
+    "floating": "centered pill with shadow"
+  },
+  "variantKey": "variants",
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "homepage",
+    "order": 1,
+    "headPrefix": "",
+    "headSuffix": "",
+    "headExtra": null,
+    "lines": [
+      "@data"
+    ]
+  }
+}

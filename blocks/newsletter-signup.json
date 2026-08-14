@@ -1,0 +1,52 @@
+{
+  "type": "newsletter-signup",
+  "category": "cta",
+  "roleDefault": "optional",
+  "block_layout": [
+    "default"
+  ],
+  "slots": {
+    "headline": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false
+    },
+    "description": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true
+    },
+    "buttonText": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true
+    },
+    "variant": {
+      "kind": "variant",
+      "required": false,
+      "promptOptional": false
+    }
+  },
+  "variants": {
+    "inline": "accent bg with inline form",
+    "card": "centered card",
+    "split": "two-column",
+    "minimal": "compact single-row strip"
+  },
+  "variantKey": "variants",
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "homepage",
+    "order": 22,
+    "headPrefix": "",
+    "headSuffix": "",
+    "headExtra": null,
+    "lines": [
+      "@data"
+    ]
+  }
+}

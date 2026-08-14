@@ -18,6 +18,17 @@ const { parseRefSections, parseRefNavLinks } = require('./ref-section-mapping');
 // lives in scripts/themes.js and is the single source of truth. sync-config.js reads the
 // same file at build time.
 const { themes, themeStyle, pickThemeForIndustry, rotationIndexFromSiteId } = require('./themes');
+// #999 — 块清单（槽 / 形态 / 外观词 / 角色兜底 / 哪些行业需要它）住在 blocks/*.json，34 份。
+// 下面提示词里那两段块清单**从它们生成**，AI 吐回来之后的校验读的也是同一份 —— 在这之前，
+// 「hero 有哪些槽」只存在于这个文件的散文里，填错没人管。
+const {
+  promptSection: blockPromptSection,
+  dataLineFor: blockDataLineFor,
+  loadManifests: loadBlockManifests,
+  validateSite: validateBlocks,
+  applyRoleDefaults: applyBlockRoleDefaults,
+} = require('./lib/block-manifest');
+const blockDataLine = (type) => blockDataLineFor(loadBlockManifests().get(type));
 
 // ─── AI Model Config ─────────────────────────────────────────────────────────
 
@@ -1458,6 +1469,11 @@ function writeSiteConfig(siteDir, content, defaultLocale) {
     });
   }
 
+  // #999 — 角色兜底在**写盘前**再补一次，不能只在 AI 输出那一刻补。
+  // 上面这两段（268b / 268e）是脚本自己插进去的页面，它们在校验之后才出现 ⟹ 第一版实测:真 AI 建站
+  // 60 个 section 里 58 个带上了 role，剩下 2 个正是 contact 页那两块。写盘前补一次覆盖全部来源。
+  applyBlockRoleDefaults(content.pages);
+
   // pages → <locale>/pages/<slug>.json
   for (const page of content.pages) {
     const pagePath = path.join(localeDir, 'pages', `${page.slug}.json`);
@@ -1937,75 +1953,13 @@ AVAILABLE SECTION TYPES AND THEIR VARIANTS:
 You are a layout designer. For each page, you choose WHICH sections to include, in WHAT order, and with WHICH variant. Not every page needs every section. Mix it up based on what makes sense for this industry.
 
 HOMEPAGE SECTIONS (pick 7-10 from these, in any order):
-- "hero" — variants: "left" (headline left-aligned), "centered" (centered), "split" (two-column with image/gradient block), "minimal" (white bg, underline accent, single CTA), "video-style" (dark cinematic with play button), "gradient-overlay" (full gradient bg with decorative circles, white text), "light-split" (white bg, text left + framed image card right, accent rule), "light-editorial" (light gray bg, centered editorial headline with a thin divider rule), "light-showcase" (white bg, centered text above a full-width image band)
-  NOTE: "left", "centered", "split", "video-style" and "gradient-overlay" all render on a dark full-bleed background. The three "light-*" ones and "minimal" render on a light background — pick a light one when the brand should feel airy, clean or editorial rather than bold.
-  data: { variant, headline, subheadline, ctaPrimary: {label, href}, ctaSecondary: {label, href}, imageUrl?: string }
-- "announcement-bar" — variants: "solid" (accent bg), "bordered" (white bg, accent border), "dismissible" (with close button), "floating" (centered pill with shadow)
-  data: { message, link?: {label, href}, variant }
-- "trusted-brands" — variants: "default" (text logos), "pill" (rounded pill badges), "dark" (dark bg)
-  data: { headline, brands: [6 brand name strings], variant }
-- "stats-counter" — variants: "bar" (dark full-width), "cards" (white cards), "gradient" (gradient cards), "icon" (with decorative icons), "inline" (compact horizontal strip), "dark" (dark bg with separators)
-  data: { headline?, stats: [{value:"500+", label:"Projects Completed"}], variant }
-- "features-grid" — variants: "card", "icon-top", "list" (single column rows), "alternating" (alternating emphasis), "bordered" (left border cards), "minimal" (ultra-clean, no cards/borders); columns: 2, 3, or 4
-  data: { headline, subheadline, variant, columns }
-  NOTE: This section auto-renders services from services.json. Only provide headline/subheadline.
-- "values-grid" — style: "numbered", "checkmark", "icon" (decorative SVG icons), "highlight" (first item large), "minimal" (no cards, divider lines)
-  data: { headline, items: [{title, description}], style }
-- "content-split" — variants: "text-left" (text left, image/gradient right), "text-right" (flipped), "text-left-stats" (text left, stats box right), "text-right-list" (image/gradient left, checklist right), "centered-overlay" (full-width gradient with white card), "cards-row" (headline above, 3 cards below using bullets as titles)
-  data: { headline, content, bullets?: [string], stats?: [{value, label}], variant, imageUrl?: string }
-- "benefits-list" — variants: "alternating" (zigzag text+gradient), "icon-large" (oversized icons), "numbered-large" (big faded numbers), "cards-horizontal" (horizontal scroll cards)
-  data: { headline, subheadline?, items: [{title, description}], variant }
-- "process-steps" — variants: "horizontal" (4 cols with connector), "vertical" (timeline), "cards" (standalone cards with watermark numbers), "zigzag" (alternating left-right with center line), "icon-strip" (compact horizontal strip, titles only)
-  data: { headline, subheadline?, steps: [{title, description}], variant }
-- "testimonials" — variants: "grid" (3-col cards), "featured" (1 large + 3 side), "carousel" (one at a time with dots), "quote-wall" (dark bg grid), "minimal" (stacked, no cards)
-  data: { headline, subheadline, variant, items: [{id, name, role, location, quote, rating:5, service}] }
-- "social-proof" — variants: "rating-bar" (star bars with distribution), "badges" (trust badges grid), "review-platforms" (platform ratings row), "highlight" (dark bg, big rating + quote)
-  data: { headline, overallRating: "4.9", totalReviews: "500+", platforms?: [{name, rating, reviews}], badges?: [string], featuredQuote?: {text, author}, variant }
-- "feature-comparison" — variants: "table" (comparison table), "cards" (two side-by-side), "columns" (three-column), "stacked" (vertical badges)
-  data: { headline, subheadline?, comparisons: [{feature, us: true, them: false}], usLabel?: string, themLabel?: string, variant }
-- "faq-accordion" — variants: "centered" (single column), "two-column" (heading left, FAQ right), "cards" (each FAQ as separate card), "numbered" (zero-padded numbers prefix)
-  data: { headline, subheadline?, items: [{question, answer}], variant }
-- "pricing-table" — variants: "cards" (standalone cards), "comparison" (side-by-side columns), "minimal" (no cards, text-link CTAs), "toggle" (monthly/annual toggle)
-  data: { headline, subheadline?, tiers: [{name, price, description, features:[], highlighted?:bool}], variant }
-- "gallery" — variants: "grid" (equal cards), "masonry" (varied heights), "carousel" (horizontal scrollable), "overlay" (image/gradient bg with text overlay)
-  data: { headline, subheadline?, items: [{title, description?, category?, imageUrl?: string}], variant }
-- "team-grid" — variants: "grid" (large cards with bio), "compact" (small inline cards), "card-with-social" (cards with gradient header + social icons), "centered" (single column centered)
-  data: { headline, subheadline?, members: [{name, role, bio?}], variant }
-- "logo-carousel" — variants: "scroll" (animated marquee), "grid" (static grid), "bordered" (cards with accent bottom border), "dark" (dark bg)
-  data: { headline?, logos: [string], variant }
-- "cta-banner" — variants: "solid" (colored bg), "outlined" (bordered card), "gradient" (diagonal gradient), "split" (two-column), "dark" (dark bg with pattern)
-  data: { headline, description, button: {label, href}, variant }
-- "contact-info" — variants: "cards" (location cards), "inline" (compact list), "map-style" (two-column with map placeholder), "banner" (horizontal compact strip)
-  data: { headline, variant }
-  NOTE: This section auto-renders locations from brand.json. Only provide headline + variant.
-- "divider" — variants: "line" (hr with optional label), "wave" (SVG wave shape), "gradient-bar" (thin gradient strip), "icon" (centered dot with lines)
-  data: { label?, variant }
-- "timeline" — variants: "vertical" (alternating left-right), "horizontal" (scrollable row), "compact" (stacked list), "milestone" (large cards with faded year)
-  data: { headline, subheadline?, events: [{year, title, description}], variant }
-- "service-highlights" — variants: "tabs" (tabbed interface), "accordion" (expandable panels), "cards-large" (large cards with gradient strip), "split" (two-column blocks)
-  data: { headline, subheadline?, highlights: [{title, description, features?: [string]}], variant }
-- "newsletter-signup" — variants: "inline" (accent bg with inline form), "card" (centered card), "split" (two-column), "minimal" (compact single-row strip)
-  data: { headline, description?, buttonText?, variant }
-- "map-area" — variants: "list" (checkmark grid), "cards" (bordered cards), "grouped" (two-column split), "badge" (inline pills)
-  data: { headline, subheadline?, areas: [{name, description?}], variant }
-- "checklist" — variants: "two-column" (2-col checkmarks), "cards" (bordered card grid), "numbered-steps" (numbered list), "icon-grid" (square icon tiles)
-  data: { headline, subheadline?, items: [string], variant }
-- "awards-certifications" — variants: "grid" (cards with star icons), "banner" (compact horizontal strip), "detailed" (large cards with gradient strip + faded year)
-  data: { headline, subheadline?, awards: [{title, description?, year?}], variant }
-- "blog-preview" — variants: "cards" (3-col post cards), "list" (compact horizontal rows), "featured" (hero post + grid below)
-  data: { headline, subheadline?, posts: [{title, excerpt, category?, date?}], variant }
-- "service-related-pages" — auto-discovers keyword pages under the given service slug. Use ONLY on service detail pages.
-  data: { serviceSlug: "<service-id>", headline: "Related Topics", subheadline?: string }
-  NOTE: Returns null if no keyword pages exist — safe to include on all service detail pages.
+${blockPromptSection('homepage')}
 
 PAGE-SPECIFIC SECTION RULES:
-- "page-header" — always the first section on non-home pages. variants: "default" (gradient left-aligned), "minimal" (white bg, underline), "centered" (gradient centered), "with-description" (two-column)
-  data: { title, subtitle?, breadcrumbs: [{label:"Home", href:"/"}, {label:"<Page Name>"}], variant? }
-- "text-block" — variants: "default", "two-column" (CSS columns), "highlight-box" (callout with left border), "with-list" (paragraph + checklist), "quote" (blockquote with large decorative marks)
-  data: { headline?, content, background?: "gray", centered?: true, variant?, items?: [string], attribution?: string }
+${blockPromptSection('page-specific')}
 - SERVICES pages must include: "page-header", "services-nav", "services-list", "cta-banner"
 - QUOTE pages must include: "page-header", "quote-form"
-  quote-form data: { formIntro, propertyTypes: [3-4], urgencyOptions: ["ASAP","Within 1 week","Within 1 month","Just exploring"], benefits: [5], redirectMessage: "You will be redirected to our secure form.", buttonText }
+  quote-form ${blockDataLine('quote-form')}
 
 Generate a JSON object with this EXACT structure:
 
@@ -2151,6 +2105,47 @@ CRITICAL RULES:
   const cost1 = ((usage1.input_tokens || 0) * pricing.input + (usage1.output_tokens || 0) * pricing.output) / 1_000_000;
   const call1Duration = ((Date.now() - call1Start) / 1000).toFixed(1);
   debug(`Call 1 cost: $${cost1.toFixed(4)} (${usage1.input_tokens} in / ${usage1.output_tokens} out)`);
+
+  // ── #999 块 manifest 校验：AI 吐回来立刻校，不合格就把问题原样退给它重来一次 ─────────────────
+  //
+  // 为什么在这里而不是只在构建期：这一刻还能重试，构建期只能整个站建不出来。两处跑的是同一个函数
+  // （`scripts/lib/block-manifest.js`）—— 两处各写一遍必然分叉，而分叉的方向永远是「建站放过、
+  // 构建期才炸」。构建期那一处是兜底，防的是有人手改 site/pages/*.json。
+  //
+  // 🔴 只重试一次。再失败就退出并把问题逐条打出来 —— 一直重试等于把「AI 今天不听话」变成一笔看不见
+  // 的账单，而这些问题（缺必填槽、把 essential 降成 optional、行业必需的块没放）都是提示词里写着的。
+  {
+    let issues = validateBlocks({ pages: ai.pages, industry }).problems;
+    if (issues.length) {
+      debug(`[blocks] 第一次输出有 ${issues.length} 处不合规,重试一次:\n  ${issues.join('\n  ')}`);
+      progress('Checking the layout against the block library...', 40);
+      const retry = await callAIWithRetry({
+        client,
+        baseOptions: {
+          model,
+          max_tokens: maxTokens,
+          messages: [
+            { role: 'user', content: prompt },
+            { role: 'assistant', content: JSON.stringify(ai) },
+            { role: 'user', content: `Your JSON breaks the block library rules below. Fix ONLY these and `
+              + `respond AGAIN with the COMPLETE JSON (same structure, no markdown fences):\n`
+              + issues.map((p) => `- ${p}`).join('\n') },
+          ],
+        },
+        costContext: { operation: 'create-site', detail: 'Base site (block re-check)', pricing, durationStart: Date.now() },
+        label: 'Call 1b block re-check',
+      });
+      ai = retry.parsed;
+      issues = validateBlocks({ pages: ai.pages, industry }).problems;
+      if (issues.length) {
+        fatal(`The generated layout still breaks the block library after a retry:\n  ${issues.join('\n  ')}`);
+      }
+      debug('[blocks] 重试之后全部通过');
+    }
+    // 没写 role 的块按 manifest 的 roleDefault 补上（D4 的兜底那一半;上面那条只拦"写了但降级"）。
+    const filled = applyBlockRoleDefaults(ai.pages);
+    debug(`[blocks] 校验通过;按 roleDefault 补了 ${filled} 个 role`);
+  }
 
   progress('Parsing AI response...', 42);
 

@@ -1,0 +1,72 @@
+{
+  "type": "social-proof",
+  "category": "testimonial",
+  "roleDefault": "optional",
+  "block_layout": [
+    "default"
+  ],
+  "slots": {
+    "headline": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false
+    },
+    "overallRating": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false,
+      "shape": "\"4.9\""
+    },
+    "totalReviews": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false,
+      "shape": "\"500+\""
+    },
+    "platforms": {
+      "kind": "list",
+      "required": false,
+      "promptOptional": true,
+      "shape": "[{name, rating, reviews}]"
+    },
+    "badges": {
+      "kind": "list",
+      "required": false,
+      "promptOptional": true,
+      "shape": "[string]"
+    },
+    "featuredQuote": {
+      "kind": "object",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{text, author}"
+    },
+    "variant": {
+      "kind": "variant",
+      "required": false,
+      "promptOptional": false
+    }
+  },
+  "variants": {
+    "rating-bar": "star bars with distribution",
+    "badges": "trust badges grid",
+    "review-platforms": "platform ratings row",
+    "highlight": "dark bg, big rating + quote"
+  },
+  "variantKey": "variants",
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "homepage",
+    "order": 10,
+    "headPrefix": "",
+    "headSuffix": "",
+    "headExtra": null,
+    "lines": [
+      "@data"
+    ]
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "type": "contact-info",
+  "category": "contact",
+  "roleDefault": "essential",
+  "block_layout": [
+    "default"
+  ],
+  "slots": {
+    "headline": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false
+    },
+    "variant": {
+      "kind": "variant",
+      "required": false,
+      "promptOptional": false
+    }
+  },
+  "variants": {
+    "cards": "location cards",
+    "inline": "compact list",
+    "map-style": "two-column with map placeholder",
+    "banner": "horizontal compact strip"
+  },
+  "variantKey": "variants",
+  "industries": {
+    "required": [
+      "*"
+    ],
+    "recommended": [],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "homepage",
+    "order": 18,
+    "headPrefix": "",
+    "headSuffix": "",
+    "headExtra": null,
+    "lines": [
+      "@data",
+      "NOTE: This section auto-renders locations from brand.json. Only provide headline + variant."
+    ]
+  }
+}

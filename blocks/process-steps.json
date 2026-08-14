@@ -1,0 +1,58 @@
+{
+  "type": "process-steps",
+  "category": "process",
+  "roleDefault": "optional",
+  "block_layout": [
+    "default"
+  ],
+  "slots": {
+    "headline": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false
+    },
+    "subheadline": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true
+    },
+    "steps": {
+      "kind": "list",
+      "required": true,
+      "promptOptional": false,
+      "shape": "[{title, description}]"
+    },
+    "variant": {
+      "kind": "variant",
+      "required": false,
+      "promptOptional": false
+    }
+  },
+  "variants": {
+    "horizontal": "4 cols with connector",
+    "vertical": "timeline",
+    "cards": "standalone cards with watermark numbers",
+    "zigzag": "alternating left-right with center line",
+    "icon-strip": "compact horizontal strip, titles only"
+  },
+  "variantKey": "variants",
+  "industries": {
+    "required": [],
+    "recommended": [
+      "roofing",
+      "construction",
+      "cleaning"
+    ],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "homepage",
+    "order": 8,
+    "headPrefix": "",
+    "headSuffix": "",
+    "headExtra": null,
+    "lines": [
+      "@data"
+    ]
+  }
+}

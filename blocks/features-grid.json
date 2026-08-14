@@ -1,0 +1,55 @@
+{
+  "type": "features-grid",
+  "category": "feature",
+  "roleDefault": "optional",
+  "block_layout": [
+    "default"
+  ],
+  "slots": {
+    "headline": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false
+    },
+    "subheadline": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false
+    },
+    "variant": {
+      "kind": "variant",
+      "required": false,
+      "promptOptional": false
+    },
+    "columns": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": false
+    }
+  },
+  "variants": {
+    "card": "",
+    "icon-top": "",
+    "list": "single column rows",
+    "alternating": "alternating emphasis",
+    "bordered": "left border cards",
+    "minimal": "ultra-clean, no cards/borders"
+  },
+  "variantKey": "variants",
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "homepage",
+    "order": 4,
+    "headPrefix": "",
+    "headSuffix": "; columns: 2, 3, or 4",
+    "headExtra": null,
+    "lines": [
+      "@data",
+      "NOTE: This section auto-renders services from services.json. Only provide headline/subheadline."
+    ]
+  }
+}

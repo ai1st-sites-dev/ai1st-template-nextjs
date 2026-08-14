@@ -1,0 +1,27 @@
+{
+  "type": "services-nav",
+  "category": "services",
+  "roleDefault": "essential",
+  "block_layout": [
+    "default"
+  ],
+  "slots": {},
+  "slotsNote": "Auto-renders the services from services.json — this block takes no data.",
+  "variants": {},
+  "variantKey": "variants",
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "page-rule",
+    "headSuffix": "",
+    "order": 1,
+    "headPrefix": "",
+    "headExtra": null,
+    "lines": [
+      "Auto-renders the services from services.json — no data needed."
+    ]
+  }
+}
