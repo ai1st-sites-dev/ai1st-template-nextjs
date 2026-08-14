@@ -15,6 +15,7 @@ const { checkCssContracts } = require('./css-contract-check');
 const {
   readSiteBlocks, normalizeLocalePages, loadBlockManifests, validateBlockLayouts, MANIFEST_DIR,
 } = require('./blocks');
+const tweakLib = require('./tweaks');
 
 const rootDir = path.resolve(__dirname, '..');
 const siteDir = path.join(rootDir, 'site');
@@ -593,6 +594,125 @@ console.log(themeCss
   : '  Theme CSS: none — every block keeps its own variant markup');
 
 const configDataPath = path.join(rootDir, 'src', 'lib', 'config-data.ts');
+// ── #1006 每站微扰（tweaks）──────────────────────────────────────────────────────────────────────
+//
+// `site/theme.json` 的 `tweaks` 是唯一真相（值），`site/custom.css` 是**生成物**：拿当前这套皮的
+// 基准值 + 那组偏移算出来的具体字节。走的是【G】—— 换主题时 tweaks 的值不动，custom.css 拿新基准
+// 重算一遍，所以「换了主题微调还在」（spec §5.6）。
+//
+// 🔴 这里只【生成】，不负责把它送进页面。把 `site/custom.css` 拷成 `public/custom.css` 并在
+// layout.tsx 里发 `<link rel="stylesheet" href="/custom.css">` 是 **#1002** 的交付面（那张票的
+// sync-config 里那段注释直接点了本票的名）。两张票合并时，本段必须排在它那段拷贝**之前**，
+// 否则拷走的是上一次的字节。
+//
+// 🔴 基准值从哪来 —— 必须跟【页面上真正生效的那一组】同源，否则微扰是相对一个不存在的基准算的。
+// 颜色：`brand.colors`（换过装的站，上面第 161 行已经把它换成了那套主题的调色板）。
+// 圆角 / 留白 / 按钮形状：写了风格设定的站由那张档位表说了算，没写的站落在 `globals.css` 的
+// `:root` 默认值上。**两者不是同一组数**：30 套主题里只有 3 套的设定恰好等于默认值，
+// 其余 27 套不是（实测：`round/airy/pill` 5 套、`sharp/compact/square` 5 套…）。只读 globals.css
+// 的话，一个 `radius: 'round'`（0.5rem）的站会被按 0.25rem 去乘 —— 圆角不是变大，是**变小一半**。
+/** 再读一次 theme.json，只为拿 `tweaks`（上面那两个读它的函数各自只取自己那一个键）。 */
+function readTweaks() {
+  const themePath = path.join(siteDir, 'theme.json');
+  if (!fs.existsSync(themePath)) return undefined;
+  try {
+    return JSON.parse(fs.readFileSync(themePath, 'utf-8')).tweaks;
+  } catch {
+    return undefined;   // 不是合法 JSON 的情况上面 readAppliedThemeId 已经报过并退出了
+  }
+}
+
+/**
+ * 风格设定那张档位表（`radius: 'round'` → `--radius-lg: 1rem` 那一步）。
+ *
+ * 🔴 表只有一份，住在 `scripts/theme-settings.js` —— 那是 **#1002** 从 `src/lib/themeSettings.ts`
+ * 搬出来的（普通 node 脚本 require 不了 `.ts`，而本层就是那样一个普通脚本）。**本票不再搬一次**：
+ * 同一张表两份拷贝正是 #961 / #1002 一路在堵的东西。
+ *
+ * #1002 落地之前它不存在，这时返回 null，下面退回 `globals.css` 的默认值。**那一格不会算错任何
+ * 已上线的站**：把 `custom.css` 引进页面的那个 `<link>` 也是 #1002 的东西 ⟹ 在它落地之前，
+ * custom.css 没有任何消费者。判据：`git grep -c 'custom\.css' origin/main -- templates` 今天是 0。
+ */
+function settingsTable() {
+  try {
+    // eslint-disable-next-line global-require
+    return require('./theme-settings');
+  } catch {
+    return null;
+  }
+}
+
+/** `globals.css` 的 `:root` 默认值 → [[名, 值], …]。没写风格设定的站，页面上生效的就是这一组。 */
+function globalsRootDefaults() {
+  const out = [];
+  const src = fs.readFileSync(path.join(rootDir, 'src', 'app', 'globals.css'), 'utf-8');
+  const at = src.indexOf(':root {');
+  if (at < 0) return out;
+  const block = src.slice(at, src.indexOf('}', at));
+  for (const m of block.matchAll(/(--(?:radius|section)-[A-Za-z0-9-]+)\s*:\s*([^;]+);/g)) {
+    out.push([m[1], m[2].trim()]);
+  }
+  return out;
+}
+
+/**
+ * 微扰要乘的那一组基准值 → [[变量名, 值], …]，外加一句「圆角/留白是从哪儿取的」给日志用。
+ *
+ * 🔴 这里【只取本层认识的三族】（`--color-*` / `--radius-*` / `--section-*`），阴影和字体不在
+ * 微扰会碰的范围里：阴影改了会动对比度观感、字体没有可乘的量（fontScale 不在本票）。
+ */
+function baseVarsForTweaks() {
+  const out = [];
+  for (const [shade, value] of Object.entries(brand.colors.primary || {})) {
+    out.push([`--color-primary-${shade}`, value]);
+  }
+  for (const [shade, value] of Object.entries(brand.colors.accent || {})) {
+    out.push([`--color-accent-${shade}`, value]);
+  }
+  const table = settingsTable();
+  // `settingsToCssVars` 吐的是 `--radius-lg: 0.5rem;` 这样的整条声明，拆回名/值。
+  const fromSettings = table
+    ? table.settingsToCssVars(brand.settings)
+      .map((decl) => /^\s*(--[A-Za-z0-9-]+)\s*:\s*(.+?);?\s*$/.exec(decl))
+      .filter(Boolean)
+      .filter((m) => /^--(radius|section)-/.test(m[1]))   // 阴影不在微扰范围里
+      .map((m) => [m[1], m[2].trim()])
+    : [];
+  // 没有风格设定的站（`settingsToCssVars` 返回空）落回 globals.css 的默认值 —— 那正是页面上生效的值。
+  const shapes = fromSettings.length ? fromSettings : globalsRootDefaults();
+  const source = fromSettings.length ? 'theme settings' : (table ? 'globals.css :root' : 'globals.css :root（#1002 的 scripts/theme-settings.js 还没落地）');
+  out.push(...shapes);
+  return { vars: out, source };
+}
+
+{
+  const tweaks = readTweaks();
+  const problems = tweakLib.validateTweaks(tweaks);
+  if (problems.length) {
+    console.error(`site/theme.json 的 tweaks 不合法（${problems.length} 条）：`);
+    for (const p of problems) console.error(`  · ${p}`);
+    console.error('  · 允许区间：'
+      + Object.entries(tweakLib.TWEAK_BOUNDS).map(([k, b]) => `${k} ∈ [${b.min}, ${b.max}]`).join(' · '));
+    process.exit(1);
+  }
+  const customCssPath = path.join(siteDir, 'custom.css');
+  const base = baseVarsForTweaks();
+  const css = tweakLib.buildCustomCss(base.vars, tweaks);
+  // 🔴 空的时候【删掉文件】，不是写一份 0 字节的进去：AC1 要求「tweaks 全为 0 的站与不带 tweaks 的
+  // 站产物逐字节相同」，而这两条路只有在「都没有这个文件」时才真的收敛 —— 一个从没有过 tweaks 的站
+  // 根本没有 site/custom.css，#1002 于是给它写那份占位注释；留一个 0 字节文件会走到另一支。
+  if (!css) {
+    if (fs.existsSync(customCssPath)) fs.unlinkSync(customCssPath);
+  } else if (css !== (fs.existsSync(customCssPath) ? fs.readFileSync(customCssPath, 'utf-8') : '')) {
+    fs.writeFileSync(customCssPath, css);
+  }
+  console.log(css
+    ? `  Tweaks: ${Object.entries(tweakLib.withDefaults(tweaks))
+      .map(([k, v]) => `${k}=${v}`).join(' · ')} → site/custom.css (${css.length} bytes)`
+      + `; 圆角/留白的基准取自 ${base.source}`
+    : '  Tweaks: none — 不产出 site/custom.css（这个站与本票之前逐字节相同）');
+}
+
 // TICKET-268b: build-time env overrides site_meta (lets the deploy pick the env's manager URL).
 const resolvedLeadApi = process.env.NEXT_PUBLIC_LEAD_API || leadApi || '';
 const tsContent = `// Auto-generated by sync-config.js — do not edit manually
