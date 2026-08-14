@@ -33,18 +33,6 @@ const VARIANTS_BY_KIND = {
   topbar: TOPBAR_VARIANTS,
 };
 
-/**
- * 哪些区可以在一个布局里出现多次。
- *
- * 🔴 这张表说的不是「哪些区重复起来有意义」，而是**渲染器真的接了线的那些**（#1014）：
- * `SiteShell.tsx` 只给 footer 区传了 `variant`，header / topbar 重复几次都只会按主题那一个值画。
- * 以前 schema 收下 `{"regions":["header-a","header-b",…]}` 并要求它们各自声明结构，而渲染出来两个
- * 一模一样 —— schema 答应的事没人兑现，且构建全绿。
- * 🔴 要让 header / topbar 也能重复，得先在 `SiteShell.tsx` 把 `variant` 传给它们，**再**把它加到这里。
- * 只加这里等于把 #1014 那一格重新打开。
- */
-const REPEATABLE_KINDS = ['footer'];
-
 function kindOf(region) {
   if (REGION_KINDS.includes(region)) return region;
   const dash = region.indexOf('-');
@@ -102,15 +90,6 @@ function validateLayout(layout) {
   const repeats = REGION_KINDS.filter((k) => kinds.filter((x) => x === k).length > 1);
   const declared = (layout && layout.repeatVariants) || {};
   for (const kind of repeats) {
-    // content 上面那条已经点过名，理由还更具体（页面的块只有一份），别报第二遍。
-    if (kind === 'content') continue;
-    if (!REPEATABLE_KINDS.includes(kind)) {
-      problems.push(`${where}: "${kind}" 出现了不止一次 —— 现在只有 `
-        + `${REPEATABLE_KINDS.join(' / ')} 能重复。渲染器（src/components/SiteShell.tsx）只给 `
-        + `${REPEATABLE_KINDS.join(' / ')} 区传了它自己那份结构，${kind} 重复几次都只会按主题的那一个值`
-        + `画出来，repeatVariants 里写什么都不生效`);
-      continue;
-    }
     for (const r of regions.filter((x) => kindOf(x) === kind)) {
       const v = declared[r];
       if (!v) {
@@ -126,36 +105,6 @@ function validateLayout(layout) {
     if (!regions.includes(r)) problems.push(`${where}: repeatVariants 写了 "${r}"，而 regions 里没有这个区`);
   }
   return problems;
-}
-
-/**
- * `page-layout.json` 里的 layoutId 能不能用 → 不能用时返回一句说清哪里坏了的话，能用时返回 null。
- *
- * 🔴 为什么单独一支（#1014）：这个文件此前两种坏法一种响一种不响 —— 坏 JSON 会拒绝并点名，而
- *    「文件在、但 layoutId 是数字 / 空串 / 缺键 / 键名大小写写错 / 是数组」全部静默按 standard 走，
- *    还顺便打印「站没挑，按默认」。站明明挑了，选的布局被悄悄换成另一个，而构建是绿的。
- *    「这个站没挑」的唯一诚实形态是**文件不存在**；文件留着而里面拿不出东西，是坏了，不是没挑。
- */
-function badLayoutId(meta) {
-  if (meta === null) return '文件内容是 null';
-  if (typeof meta !== 'object' || Array.isArray(meta)) {
-    return `文件顶层不是一个对象（是 ${Array.isArray(meta) ? '数组' : typeof meta}）`;
-  }
-  if (!('layoutId' in meta)) {
-    const keys = Object.keys(meta);
-    const near = keys.find((k) => k.toLowerCase() === 'layoutid');
-    if (near) return `没有 layoutId 这个键，只有 "${near}" —— 大小写不一样`;
-    return keys.length
-      ? `没有 layoutId 这个键（文件里的键是：${keys.join(' / ')}）`
-      : '没有 layoutId 这个键（文件里一个键都没有）';
-  }
-  const value = meta.layoutId;
-  if (value === null) return 'layoutId 是 null，不是字符串';
-  if (typeof value !== 'string') {
-    return `layoutId 是 ${Array.isArray(value) ? '数组' : typeof value}，不是字符串`;
-  }
-  if (!value.trim()) return 'layoutId 是空字符串';
-  return null;
 }
 
 /**
@@ -178,15 +127,10 @@ function resolveSiteLayout(siteDir, dir) {
       problems.push(`site/page-layout.json 不是合法 JSON：${e.message}`);
       return { layout: layouts.get(DEFAULT_LAYOUT_ID), layoutId: DEFAULT_LAYOUT_ID, explicit: false, problems };
     }
-    const bad = badLayoutId(meta);
-    if (bad) {
-      problems.push(`site/page-layout.json 在，但拿不出一个能用的 layoutId：${bad}。`
-        + `写成 {"layoutId":"…"}（库里有的是：${[...layouts.keys()].join(' / ')}），`
-        + `或者把这个文件删掉 —— 删掉才是「这个站没挑，按 ${DEFAULT_LAYOUT_ID} 走」`);
-      return { layout: layouts.get(DEFAULT_LAYOUT_ID), layoutId: DEFAULT_LAYOUT_ID, explicit: false, problems };
+    if (meta && typeof meta.layoutId === 'string' && meta.layoutId.trim()) {
+      layoutId = meta.layoutId.trim();
+      explicit = true;
     }
-    layoutId = meta.layoutId.trim();
-    explicit = true;
   }
   const layout = layouts.get(layoutId);
   if (!layout) {
@@ -207,7 +151,6 @@ module.exports = {
   DEFAULT_LAYOUT_ID,
   REGION_KINDS,
   REQUIRED_KINDS,
-  REPEATABLE_KINDS,
   kindOf,
   loadLayouts,
   validateLayout,
