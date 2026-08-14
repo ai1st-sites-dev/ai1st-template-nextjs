@@ -606,9 +606,13 @@ if (pageLayoutLib.needsTopbar(picked.layout)) {
 for (const note of regionLayout.notes) console.log(`    · ${note}`);
 // #991 — say it out loud either way. "No sheet" and "a sheet that did nothing" look identical on the
 // page, and the theme-gallery loop greps this kind of line to tell a real application from a no-op.
+// 🔴 #1008 rewrote the second line. It used to read "every block keeps its own variant markup", which
+// stopped being true the moment hero's nine variant branches were deleted: hero renders the neutral
+// markup with or without a sheet now, and with no sheet it has only base.css to lay it out. The blocks
+// that have NOT moved yet are the ones still keyed off `variant`, so name that instead of "every".
 console.log(themeCss
-  ? `  Theme CSS: public/themes/${themeCss}.css — hero renders its neutral markup`
-  : '  Theme CSS: none — every block keeps its own variant markup');
+  ? `  Theme CSS: public/themes/${themeCss}.css — hero styled by that sheet (base.css underneath)`
+  : '  Theme CSS: none — hero falls back to base.css alone; the 33 unmoved blocks keep their variants');
 
 const configDataPath = path.join(rootDir, 'src', 'lib', 'config-data.ts');
 // ── #1006 每站微扰（tweaks）──────────────────────────────────────────────────────────────────────
