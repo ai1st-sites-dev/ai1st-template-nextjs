@@ -68,10 +68,15 @@ function builtSiteName() {
 /**
  * 上面那个目录真的是**刚给这套候选建出来的**吗 → 不是就返回一句人话，是就返回空串。
  *
- * 🔴 第二道核对，问的是**字节**而不是路径算术：那份 `index.html` 自己引没引这套候选的表
- * （`installCandidate` 把 `theme.json` 的 `css` 写成候选 id，`sync-config` 据此发
- * `<link href="/themes/<id>.css">`）。路径算错和字节不对要各答一次 —— 错一个不会两个都错，
+ * 🔴 第二道核对，问的是**字节**而不是路径算术。路径算错和字节不对要各答一次 —— 错一个不会两个都错，
  * 而 QA2 在 r2 量到的那两个方向（该拦的被放过 / 好的被冤枉）都是「量了另一个站」。
+ *
+ * 🔴 问的是哪一份字节，#1002 改了。以前是「`index.html` 引没引 `/themes/<id>.css>`」：那个
+ * `<link>` 的文件名随主题变，而正是它逼着换主题必须重建，所以 #1002 把表的**字节贴进了
+ * `public/theme.css`**，页面只引固定路径。照旧查那个 `<link>` 的话，这道闸在 #1002 之后**永远拦下
+ * 每一套候选**（实测：0/2 过，理由是「没有引 /themes/gen-07-1.css」）。换成查产物里那份
+ * `theme.css` 有没有这套候选那张表的字节 —— 同一个问题、同一个方向，而且比查文件名更硬：
+ * 文件名相同的两套表分不出来，字节分得出来。
  */
 function whyNotThisBuild(outRoot, outDir, candidate) {
   const inOut = fs.existsSync(outRoot) ? fs.readdirSync(outRoot).join(' ') : '（没有 out/ 目录）';
@@ -83,9 +88,14 @@ function whyNotThisBuild(outRoot, outDir, candidate) {
   if (!fs.existsSync(index)) {
     return `${index} 不存在 —— 什么都没量到（out/ 里有：${inOut}）。这不是通过。`;
   }
-  const html = fs.readFileSync(index, 'utf-8');
-  if (!html.includes(`/themes/${candidate.id}.css`)) {
-    return `${index} 里没有引 /themes/${candidate.id}.css —— 这个目录不是刚给这套候选建出来的那份`
+  const skin = path.join(outDir, 'theme.css');
+  if (!fs.existsSync(skin)) {
+    return `${skin} 不存在 —— 页面无条件引 /theme.css（#1002），所以这份产物不是这个模板建的`
+      + `（out/ 里有：${inOut}）。什么都没量到，这不是通过。`;
+  }
+  const sheet = fs.readFileSync(candidate.sheetPath, 'utf-8').trimEnd();
+  if (!fs.readFileSync(skin, 'utf-8').includes(sheet)) {
+    return `${skin} 里没有这套候选那张表的字节 —— 这个目录不是刚给这套候选建出来的那份`
       + `（out/ 里有：${inOut}）。什么都没量到，这不是通过。`;
   }
   return '';
