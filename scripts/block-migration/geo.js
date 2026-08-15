@@ -14,7 +14,10 @@ const partsIdx = argv.indexOf('--parts');
 const PARTS = partsIdx >= 0
   ? argv[partsIdx + 1].split(',').map((s) => s.trim()).filter(Boolean)
   : ['.hero__media', '.hero__body', '.hero__title'];
-const arms = argv.filter((a, i) => i !== partsIdx && i !== partsIdx + 1); // 形如 name=url
+// 🔴 `partsIdx < 0 ||` 这一半不能省：没写 --parts 时 partsIdx 是 -1，partsIdx + 1 就是 0，
+//    于是第一个臂被当成"--parts 的值"悄悄滤掉 —— 剩下两臂照样算得出「两两不同 = True」，
+//    少量一臂看不出来（#1019 r1 QA1 抓到）。
+const arms = argv.filter((a, i) => partsIdx < 0 || (i !== partsIdx && i !== partsIdx + 1)); // 形如 name=url
 
 (async () => {
   const browser = await chromium.launch();
