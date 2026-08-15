@@ -2,7 +2,12 @@
 // (#991; the fifth and the tightening of the first two are #992; #996 added the lead-on-the-first-screen
 // and touch-target rules spec §5.5 already stated, and a second reading of the fifth.)
 //
-//   node scripts/theme-css-invariants.mjs http://127.0.0.1:8991
+//   node scripts/theme-css-invariants.mjs http://127.0.0.1:8991 [page …]
+//
+// The first argument is the site's home page: every check below is measured on it. The rest are the
+// site's OTHER pages, and check ⑤ — does the theme's own sheet have a rule for each hook in the markup —
+// is measured on those too (#1023). With none given they are read off the site's own /sitemap.xml, so
+// the ordinary call stays a one-argument one.
 //
 // Exit 0 = they all hold. Exit 1 = at least one does not. Exit 2 = could not take the reading.
 //
@@ -53,6 +58,12 @@ if (!baseUrl) {
   console.error('usage: node scripts/theme-css-invariants.mjs <baseUrl>   e.g. http://127.0.0.1:8991');
   process.exit(2);
 }
+
+// The path half of a URL, for naming a page in a reading. `/` when there is none, so the home page has a
+// name rather than an empty string.
+const pathOf = (u) => {
+  try { return new URL(u, baseUrl).pathname || '/'; } catch { return String(u); }
+};
 
 const MIN_CONTRAST = 4.5;
 const MIN_BODY_PX = 14;
@@ -498,7 +509,17 @@ const THEME_SHEET_PATH = '/theme.css';
 //    so #1002's `/theme.css` predicate below survives. Either half dropped is a check that stops
 //    answering — the derived list without #1002's path finds no theme sheet at all, and #1002's path
 //    with a hardcoded list never asks about any block past hero.
-const classAudit = await page.evaluate(([hookClasses, themeSheetPath]) => {
+//
+// 🔴 #1023 — AND THE SAME QUESTION IS ASKED OF EVERY PAGE OF THE SITE, NOT OF THIS ONE PAGE (⑤b, at the
+//    bottom of this file). That is why the callback is a named const rather than the inline arrow it was:
+//    ⑤b hands the very same one to a browser standing on a different page, so there is one definition of
+//    what this question means. Until #1023 only the home page was ever looked at, and a home page carries
+//    hero and cta-banner and nothing else — so `page-header`, which this sample site puts on four of its
+//    five pages and on none of its first one, could have every rule deleted from all three sheets while
+//    this check printed `hooks in the markup: 11 · not dressed by the theme: 0` and exited 0. That is
+//    measured, not feared: QA2 did it on #1019. 30 more blocks are still to move (#1007) and most of them
+//    are not home-page blocks either, so the blind spot was about to become the normal case.
+const classAuditInBrowser = ([hookClasses, themeSheetPath]) => {
   const declared = new Set();
   const declaredByTheme = new Set();
   const themeSheets = [];
@@ -544,30 +565,12 @@ const classAudit = await page.evaluate(([hookClasses, themeSheetPath]) => {
     hooksOnPage: hookClasses.filter((c) => used.has(c)),
     hooksMissingFromTheme: hookClasses.filter((c) => used.has(c) && !declaredByTheme.has(c)),
   };
-}, [HOOK_CLASSES, THEME_SHEET_PATH]);
-readings.push(`  classes on the page: ${classAudit.used} · with no rule: ${classAudit.orphans.length}`
-  + ` (${classAudit.sheets} stylesheets, ${classAudit.unreadableSheets} not readable from here)`);
-for (const orphan of classAudit.orphans) {
-  problems.push(`unstyled class: "${orphan}" is in the markup and no loaded stylesheet has a rule `
-    + 'for it — the element is showing with whatever the browser defaults to');
-}
-// The second reading (#996): the same question asked of the theme's own sheet.
-readings.push(`  theme sheet(s): ${classAudit.themeSheets.join(', ') || `(${THEME_SHEET_PATH} is not loaded)`}`
-  + ` · hooks in the markup: ${classAudit.hooksOnPage.length}`
-  + ` · not dressed by the theme: ${classAudit.hooksMissingFromTheme.length}`);
-if (classAudit.hooksOnPage.length > 0 && classAudit.themeSheets.length === 0) {
-  // 🔴 Nothing to look at is not a pass — same rule as the missing [data-role="essential"] above.
-  // This is the shape phase 2 makes reachable: the markup moves to a block before some theme has a
-  // sheet for it, and every hook then falls back to base.css.
-  problems.push(`theme coverage: the page uses ${classAudit.hooksOnPage.length} contract hook(s) `
-    + `but ${THEME_SHEET_PATH} is not loaded at all — nothing was measured for this check`);
-} else {
-  for (const hook of classAudit.hooksMissingFromTheme) {
-    problems.push(`theme coverage: ".${hook}" is in the markup and the theme's own stylesheet `
-      + `(${classAudit.themeSheets.join(', ')}) has no rule for it — whatever it looks like comes from `
-      + 'base.css or the site\'s own CSS, which is the same block on every theme');
-  }
-}
+};
+// The reading for the page every check above measured. It is REPORTED at ⑤b rather than here, together
+// with the other pages' — one hook that four pages are missing a rule for is one finding, not four, and a
+// finding that repeats itself four times is one nobody finishes reading. The reading itself has to be
+// taken here, while this is the page the browser is standing on.
+const audits = [{ where: pathOf(baseUrl), audit: await page.evaluate(classAuditInBrowser, [HOOK_CLASSES, THEME_SHEET_PATH]) }];
 
 // ── ⑥ the order things are painted in is the order the DOM has them in ─────────────────────────
 // #1011 — a screen reader and the Tab key walk the DOM. A sheet that changes what a person SEES
@@ -1066,6 +1069,155 @@ readings.push('  paint order not covered: '
       + 'block\'s computed `order` really is -1 today and nothing moves). The last two are refused by '
       + 'nothing in the contract; this check would still see them, at the widths it measures'].join(' · '));
 if (orderViewport) await page.setViewportSize({ width: orderViewport.width, height: orderViewport.height });
+
+// ── ⑤b the same question, asked of the site's other pages ───────────────────────────────────────
+// #1023. Everything above is a reading about ONE page, and check ⑤ is the one where that is a hole
+// rather than a choice: "the theme's own sheet has a rule for every hook in the markup" is a statement
+// about the SITE, and the hooks a home page happens to carry are a small part of it. Measured on this
+// sample site: the home page holds hero and cta-banner, 11 hooks — while `.page-header` is on about,
+// services, quote and contact, so all three sheets could lose every page-header rule with the check
+// still exiting 0 (QA2 did exactly that on #1019 and the run stayed green). Phase 2 has 30 more blocks
+// to move (#1007) and a home page is not where most of them live.
+//
+// 🔴 ONLY CHECK ⑤ IS MEASURED HERE, AND THAT LINE IS DELIBERATE — it is printed below rather than left
+// for a reader to work out. The other checks are about the hero (`.hero__title`'s contrast, the lead
+// block on the first screen, the hero's touch targets) or they repeat per page at a cost the readings
+// above show is the expensive part: the grown-window stage alone takes a dozen relayouts. #1023's own
+// words are "别让它变慢到没人跑". Widening the rest is a separate decision with its own price tag.
+//
+// 🔴 WHICH PAGES: the site's own /sitemap.xml, not a list written here and not a crawl of the nav. The
+// sitemap is generated from the same `pagesByLocale` the pages themselves are (src/app/sitemap.ts), so
+// it cannot fall behind the site the way a hand-written list falls behind the markup — which is the
+// #1018 lesson one file over, where a copied hook list stayed on phase 1's seven names.
+const OTHER_PAGE_CAP = 24;
+const explicitPages = process.argv.slice(3);
+let discovery = '';
+let otherPaths = [];
+if (explicitPages.length > 0) {
+  discovery = `${explicitPages.length} page(s) named on the command line`;
+  otherPaths = explicitPages.map(pathOf);
+} else {
+  const sitemapUrl = new URL('/sitemap.xml', baseUrl).href;
+  let xml = null;
+  let why = '';
+  try {
+    const r = await fetch(sitemapUrl);
+    if (r.ok) xml = await r.text();
+    else why = `${sitemapUrl} answered ${r.status}`;
+  } catch (e) {
+    why = `${sitemapUrl} could not be fetched (${e.message})`;
+  }
+  if (xml === null) {
+    // 🔴 Not being able to read the page list is not a pass: it puts the check straight back to
+    // home-page-only, which is the state #1023 exists to leave, and it does it silently.
+    problems.push(`other pages: this site's page list could not be read — ${why} — so only `
+      + `${pathOf(baseUrl)} was measured for check ⑤, and every block that is not on it went unlooked `
+      + 'at. That is the hole #1023 closed, not a pass');
+    discovery = 'nothing — the sitemap could not be read';
+  } else {
+    const locs = [...xml.matchAll(/<loc>\s*([^<]+?)\s*<\/loc>/g)]
+      // The five XML entities, `&amp;` last so a `&amp;lt;` in a slug does not become `<`.
+      .map((m) => m[1].replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+        .replace(/&apos;/g, "'").replace(/&amp;/g, '&'));
+    otherPaths = [...new Set(locs.map(pathOf))];
+    discovery = `${otherPaths.length} page(s) in /sitemap.xml`;
+  }
+}
+const homePath = pathOf(baseUrl);
+otherPaths = otherPaths.filter((p) => p !== homePath && `${p}.html` !== homePath);
+// 🔴 The cap is announced rather than applied quietly, same rule as the viewport cap above: a page
+// dropped in silence reads exactly like a page that was measured.
+const droppedPages = otherPaths.slice(OTHER_PAGE_CAP);
+// 🔴 A STATIC EXPORT IS SERVED TWO DIFFERENT WAYS AND ONLY ONE OF THEM ANSWERS `/about`. `next build`
+// with `output: 'export'` writes `out/about.html`, and it ALSO writes an `out/about/` directory of RSC
+// payloads — so the plain python server the CI caller runs answers `/about` with a 301 to `/about/` and
+// then a 200 DIRECTORY LISTING. A listing has no stylesheet and no hook, so a check that accepted it
+// would report `hooks in the markup: 0 · not dressed by the theme: 0` and pass, on a page it never saw.
+// Measured on this build before this loop was written: `/about` → 301, `/about/` → 200, listing.
+// So `<path>.html` is tried first (the file the export actually wrote), the clean path second (a real
+// host — the Cloudflare Worker that serves these sites — has no `.html` to offer), and 200 is not the
+// test: the document has to have a `<main>`, which every page of this app has and no listing does.
+const openPage = async (p) => {
+  const clean = p.replace(/\/+$/, '');
+  const candidates = (p === '/' || p.endsWith('.html') || clean === '') ? [p] : [`${clean}.html`, p];
+  const tried = [];
+  for (const c of candidates) {
+    const r = await page.goto(new URL(c, baseUrl).href, { waitUntil: 'load', timeout: 30_000 })
+      .catch((e) => ({ err: e.message }));
+    if (!r || r.err) { tried.push(`${c} → ${r ? r.err : 'no response'}`); continue; }
+    if (!r.ok()) { tried.push(`${c} → HTTP ${r.status()}`); continue; }
+    if (!await page.evaluate(() => !!document.querySelector('main'))) {
+      tried.push(`${c} → HTTP ${r.status()} but the document has no <main> in it, so it is not a page `
+        + 'of this site (a directory listing answers like this)');
+      continue;
+    }
+    return { at: c };
+  }
+  return { error: tried.join('; ') };
+};
+for (const p of otherPaths.slice(0, OTHER_PAGE_CAP)) {
+  const opened = await openPage(p);
+  if (opened.error) {
+    problems.push(`other pages: "${p}" is in this site's page list but could not be opened, so check ⑤ `
+      + `was not measured on it — tried ${opened.error}`);
+    continue;
+  }
+  audits.push({ where: opened.at, audit: await page.evaluate(classAuditInBrowser, [HOOK_CLASSES, THEME_SHEET_PATH]) });
+}
+
+// ── the report for ⑤ and ⑤b together ────────────────────────────────────────────────────────────
+readings.push(`  pages measured for check ⑤: ${audits.map((a) => a.where).join(', ')} — the first is the `
+  + `page every other check above was measured on, the rest come from ${discovery}`
+  + `${droppedPages.length ? ` · 🔴 ${droppedPages.length} page(s) past the ${OTHER_PAGE_CAP}-page cap `
+    + `were NOT measured: ${droppedPages.join(', ')}` : ''}`
+  + '. On the pages after the first, ONLY check ⑤ is measured (which classes have a rule anywhere, and '
+  + 'whether the theme\'s own sheet dresses each hook in the markup). Contrast, the first screen, touch '
+  + 'targets, sideways scroll, type size and paint order are measured on the first page alone');
+for (const { where, audit } of audits) {
+  readings.push(`  ${where} — classes on the page: ${audit.used} · with no rule: ${audit.orphans.length}`
+    + ` (${audit.sheets} stylesheets, ${audit.unreadableSheets} not readable from here)`
+    // The second reading (#996): the same question asked of the theme's own sheet.
+    + ` · theme sheet(s): ${audit.themeSheets.join(', ') || `(${THEME_SHEET_PATH} is not loaded)`}`
+    + ` · hooks in the markup: ${audit.hooksOnPage.length}`
+    + ` · not dressed by the theme: ${audit.hooksMissingFromTheme.length}`);
+  for (const orphan of audit.orphans) {
+    problems.push(`unstyled class: "${orphan}" is in the markup of ${where} and no loaded stylesheet has `
+      + 'a rule for it — the element is showing with whatever the browser defaults to');
+  }
+  if (audit.hooksOnPage.length > 0 && audit.themeSheets.length === 0) {
+    // 🔴 Nothing to look at is not a pass — same rule as the missing [data-role="essential"] above.
+    // This is the shape phase 2 makes reachable: the markup moves to a block before some theme has a
+    // sheet for it, and every hook then falls back to base.css.
+    problems.push(`theme coverage: ${where} uses ${audit.hooksOnPage.length} contract hook(s) `
+      + `but ${THEME_SHEET_PATH} is not loaded at all — nothing was measured for this check`);
+  }
+}
+// One finding per hook, naming every page it was found unstyled on. Reported this way round because the
+// fix is one rule in one sheet whichever page it was spotted from, and four copies of the same sentence
+// is how a real red gets skimmed past.
+const missingByHook = new Map();
+for (const { where, audit } of audits) {
+  if (audit.themeSheets.length === 0) continue; // already reported above; there is no sheet to blame
+  for (const hook of audit.hooksMissingFromTheme) {
+    if (!missingByHook.has(hook)) missingByHook.set(hook, { pages: [], sheets: audit.themeSheets });
+    missingByHook.get(hook).pages.push(where);
+  }
+}
+// 🔴 What is STILL not measured, said at the reading rather than left for someone to notice: a hook no
+// page of this site puts in its markup. `.page-header__crumbs` is one today — the demo pages carry no
+// breadcrumb trail — so a sheet could forget it and every page here would still be green. This check can
+// only ever be as wide as the sample site is, and that is the sample site's job to fix, not this file's.
+const seenHooks = new Set(audits.flatMap((a) => a.audit.hooksOnPage));
+const unusedHooks = HOOK_CLASSES.filter((h) => !seenHooks.has(h));
+readings.push(`  contract hooks not on any page measured: ${unusedHooks.length}`
+  + `${unusedHooks.length ? ` (${unusedHooks.map((h) => `.${h}`).join(', ')}) — no page of this site puts `
+    + 'them in its markup, so whether the theme dresses them is not a question these readings answer'
+    : ' — every class hook in the contract was on at least one page'}`);
+for (const [hook, { pages, sheets }] of missingByHook) {
+  problems.push(`theme coverage: ".${hook}" is in the markup of ${pages.join(', ')} and the theme's own `
+    + `stylesheet (${sheets.join(', ')}) has no rule for it — whatever it looks like comes from base.css `
+    + 'or the site\'s own CSS, which is the same block on every theme');
+}
 
 await browser.close();
 
