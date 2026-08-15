@@ -588,7 +588,7 @@ console.log(`  Page layout: ${pageLayout.id} → ${pageLayout.regions.join(' · 
 // 量到的形状（QA1 与我各在浏览器里读过一次，读数一致）：浮层是 `absolute inset-x-0 top-0`、
 // `z-index:50`、高 92px（`Header.tsx:125`），topbar 占 0–44px ⟹ **重叠 44px = topbar 整条**，
 // `elementFromPoint(topbar 中点)` 拿到的是 header 里的 nav。而 `bold-red` 这类主题就会解析成
-// `transparent-overlay`（`themes.js` 的 layout.header）。
+// `transparent-overlay`（`themes.js` 的 supports.header）。
 //
 // 🔴 为什么在这里拒绝，而不是「渲染时躲一下」：躲要么给 header 加 top 偏移（那会打断浮层压在
 // 首屏 hero 上这件事本身，#960 那条对比度规则就是围着它写的），要么把 topbar 塞进 header 里面
@@ -602,7 +602,7 @@ if (pageLayoutLib.needsTopbar(picked.layout) && regionLayout.header === 'transpa
     + '"transparent-overlay"（透明浮层）—— 浮层是 absolute top-0、高 92px、z-index 50，会把 '
     + 'topbar 那 44px 整条压在底下：横条会渲染出来，但用户一个像素都看不见。');
   console.error('  · 换一个不带 topbar 区的 page layout，或者换一套顶栏不是透明浮层的主题'
-    + '（themes.js 里 layout.header 不是 transparent-overlay 的那些）');
+    + '（themes.js 里 supports.header 不是 transparent-overlay 的那些）');
   process.exit(1);
 }
 

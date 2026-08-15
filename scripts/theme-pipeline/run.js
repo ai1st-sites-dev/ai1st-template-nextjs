@@ -118,6 +118,62 @@ function installCandidate(candidate, siteDir) {
   return dest;
 }
 
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+// 🔴 #1015 打磨批次 #13（来源 #1004）—— 跑完要把样例站放回去，正常退出也一样
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+// installCandidate 会改样例站的三处：`brand.json`（颜色/字体/settings 被换成候选的）、`theme.json`
+// （指向候选那个 id）、`public/themes/<id>.css`（多出一份表）。跑完这三处原样留在树里，而候选**不在
+// 注册表里** ⟹ 同一棵树里下一次任何构建当场失败：
+//     theme.json names theme "gen-07-3", which is not in the registry
+// role-user 撞到的后果是三份已上线的表全部测不了（`theme-css-invariants-all-sheets.sh` → rc=2）。
+// 🔴 EXIT=0 的那条路也一样会留 —— "跑成功了"和"跑失败了"留下同样的污染，所以这不是错误处理，是收工。
+// 放在 finally 里：中途抛异常、闸红、Ctrl-C 之后的那次 catch，都要走这一步。
+const T1015_SHEETS = path.join(NEXT, 'public', 'themes');
+
+function snapshotSite(siteDir) {
+  const read = (p) => (fs.existsSync(p) ? fs.readFileSync(p) : null);
+  return {
+    siteDir,
+    brand: read(path.join(siteDir, 'brand.json')),
+    theme: read(path.join(siteDir, 'theme.json')),
+    // 表是**加进来**的，所以记下"跑之前有哪些"，跑完把多出来的删掉 —— 别去猜候选叫什么名字。
+    sheets: new Set(fs.existsSync(T1015_SHEETS) ? fs.readdirSync(T1015_SHEETS) : []),
+  };
+}
+
+/** 把 snapshotSite 记下的那三处放回去，返回一行人话说明动了什么。 */
+function restoreSite(snap) {
+  const done = [];
+  for (const [name, bytes] of [['brand.json', snap.brand], ['theme.json', snap.theme]]) {
+    const p = path.join(snap.siteDir, name);
+    const now = fs.existsSync(p) ? fs.readFileSync(p) : null;
+    if (bytes === null) {
+      if (now !== null) { fs.unlinkSync(p); done.push(`删掉 ${name}（跑之前没有）`); }
+    } else if (now === null || !now.equals(bytes)) {
+      fs.writeFileSync(p, bytes); done.push(`还原 ${name}`);
+    }
+  }
+  if (fs.existsSync(T1015_SHEETS)) {
+    for (const f of fs.readdirSync(T1015_SHEETS)) {
+      if (snap.sheets.has(f)) continue;
+      fs.unlinkSync(path.join(T1015_SHEETS, f));
+      done.push(`删掉 public/themes/${f}（这一轮放进去的）`);
+    }
+  }
+  // 🔴 自证：放回去之后再读一次真字节去比。没有这一步，"我恢复了"就只是一句声明 ——
+  //    而它失败的方向是静默的（下一次构建才炸，那时没人记得是这一轮留下的）。
+  const still = [];
+  for (const [name, bytes] of [['brand.json', snap.brand], ['theme.json', snap.theme]]) {
+    const p = path.join(snap.siteDir, name);
+    const now = fs.existsSync(p) ? fs.readFileSync(p) : null;
+    const same = bytes === null ? now === null : now !== null && now.equals(bytes);
+    if (!same) still.push(name);
+  }
+  const extra = fs.existsSync(T1015_SHEETS)
+    ? fs.readdirSync(T1015_SHEETS).filter((f) => !snap.sheets.has(f)) : [];
+  return { done, bad: still.concat(extra.map((f) => `public/themes/${f}`)) };
+}
+
 async function main() {
   const count = Number(arg('--count', 3));
   const seed = Number(arg('--seed', 7));
@@ -147,6 +203,10 @@ async function main() {
   const { themes } = require(path.join(NEXT, 'scripts', 'themes.js'));
   const report = [];
 
+  // #1015：跑之前先存一份，finally 里放回去（理由写在 snapshotSite 头上）。
+  const t1015Snap = snapshotSite(siteDir);
+  let t1015Restore = null;
+  try {
   for (const c of candidates) {
     const gates = [];
     let shot = null;
@@ -191,6 +251,9 @@ async function main() {
       id: c.id, gates, facts: shot && shot.facts, shot: !!(shot && shot.ok), shotLog: shot && shot.log,
     });
   }
+  } finally {
+    t1015Restore = restoreSite(t1015Snap);
+  }
 
   console.log('\n════ 流水线报告 ════');
   for (const r of report) {
@@ -204,6 +267,17 @@ async function main() {
   }
   const passed = report.filter((r) => r.gates.every((g) => g.pass !== false)).length;
   console.log(`\n${passed}/${report.length} 套过了前三道闸。第四道是人。`);
+  // #1015：收工这一步要说出来 —— 沉默的清理和"根本没清理"在屏幕上长得一样。
+  if (t1015Restore && t1015Restore.done.length) {
+    console.log(`  样例站已收工：${t1015Restore.done.join('、')}`);
+  } else if (t1015Restore) {
+    console.log('  样例站没被改动（这一轮没有候选走到②动态那一步）。');
+  }
+  if (t1015Restore && t1015Restore.bad.length) {
+    console.log(`  🔴 这几处没能放回去：${t1015Restore.bad.join('、')}`);
+    console.log('     ⟹ 同一棵树里下一次构建会失败（theme.json 指着一个不在注册表里的 id）。先手工恢复再跑别的。');
+    process.exit(2);
+  }
   if (galleryDir) {
     const page = writeComparisonPage(galleryDir, report);
     const shots = report.filter((r) => r.shot).length;

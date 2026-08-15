@@ -19,7 +19,7 @@ function localizeHref(href: string, locale: string): string {
 //
 // 结构从 `regionLayout.header` 来,而它是**构建时**定的(sync-config.js 的 §Regions):
 //   · 没换装的站 ⟹ 'solid-bar',也就是这一票之前的样子,一个字节不差
-//   · 换了装 ⟹ theme 注册表 layout.header 说了算
+//   · 换了装 ⟹ theme 注册表 supports.header 说了算
 //
 // 🔴 `transparent-overlay` 只在 `overHero` 为真时真的浮起来。它压的是首屏那张图,而一个 about 页的第一段
 // 是 page-header —— 浮上去就是标题被压在横条底下。所以这个判断由**页面**给(SiteShell 的参数),不是这里猜。
