@@ -198,6 +198,10 @@ export interface DynamicPageConfig {
   navOrder?: number;
   changeFrequency?: string;
   priority?: number;
+  // #1026 — 这一页上次什么时候变的（ISO 8601）。sitemap 的 <lastmod> 用它。不写在
+  // site/pages/*.json 里 —— 每次构建由 sync-config.js 量出来（git 提交时间 → 文件修改时间 →
+  // 构建时刻，规则在 scripts/lib/page-lastmod.js 的文件头上）。
+  lastModified?: string;
   serviceDetailPage?: boolean;
   parentService?: string;
   blocks: BlockConfig[];

@@ -18,6 +18,8 @@ const {
 } = require('./blocks');
 const tweakLib = require('./tweaks');
 const { buildThemeCss } = require('./theme-css');
+// #1026 — sitemap 的 <lastmod> 要写「这一页上次什么时候变的」，不是构建时刻。取值规则整段写在那个文件头上。
+const { createLastModifiedResolver } = require('./lib/page-lastmod');
 
 const rootDir = path.resolve(__dirname, '..');
 const siteDir = path.join(rootDir, 'site');
@@ -289,20 +291,33 @@ const HOME_LABELS = {
   ar: 'الرئيسية', hi: 'होम', th: 'หน้าแรก',
 };
 
-function readPagesRecursive(dir, prefix, accumulator) {
+// #1026 —— `sourceBySlug` 记下每个页面是从哪个文件读出来的。sitemap 的 <lastmod> 要问那个文件
+// 上次什么时候变的，而这里是唯一还知道文件路径的地方（下面的流程只剩页面对象）。
+function readPagesRecursive(dir, prefix, accumulator, sourceBySlug) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
-      readPagesRecursive(path.join(dir, entry.name), prefix ? `${prefix}/${entry.name}` : entry.name, accumulator);
+      readPagesRecursive(path.join(dir, entry.name), prefix ? `${prefix}/${entry.name}` : entry.name, accumulator, sourceBySlug);
     } else if (entry.name.endsWith('.json')) {
-      const content = JSON.parse(fs.readFileSync(path.join(dir, entry.name), 'utf-8'));
+      const filePath = path.join(dir, entry.name);
+      const content = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
       if (prefix) {
         const baseName = entry.name.replace(/\.json$/, '');
         content.slug = `${prefix}/${baseName}`;
       }
       accumulator.push(content);
+      if (sourceBySlug) sourceBySlug.set(content.slug, filePath);
     }
   }
 }
+
+// #1026 —— 这次构建的时刻。只在「既拿不到 git 提交时间、也读不到文件修改时间」时才会被用上，
+// 而且那时会在日志里点名说出来。
+const buildTime = new Date().toISOString();
+const lastModified = createLastModifiedResolver({
+  rootDir,
+  pathspec: path.relative(rootDir, siteDir) || 'site',
+  buildTime,
+});
 
 for (const locale of locales) {
   // TICKET-127: legacy schema reads from site/ root (flat); new schema from
@@ -333,8 +348,9 @@ for (const locale of locales) {
   // Aggregate pages (recursive)
   const pagesDir = path.join(localeDir, 'pages');
   const localePages = [];
+  const pageSourceBySlug = new Map();
   if (fs.existsSync(pagesDir)) {
-    readPagesRecursive(pagesDir, '', localePages);
+    readPagesRecursive(pagesDir, '', localePages, pageSourceBySlug);
     localePages.sort((a, b) => (a.navOrder ?? 99) - (b.navOrder ?? 99));
   }
   pagesByLocale[locale] = localePages;
@@ -377,6 +393,25 @@ for (const locale of locales) {
     console.error(e.message);
     process.exit(1);
   }
+
+  // #1026 —— 给每一页配上「它上次什么时候变的」。sitemap.ts 的 <lastmod> 读的就是这个字段；
+  // 在这之前它写的是构建时刻，于是站每重建一次就等于告诉搜索引擎「所有页面都更新了」。
+  // 🔴 位置在归一化之后：那之前页面对象还没定型。取值规则（git 提交时间 → 文件时间 → 构建时刻）
+  //    整段写在 scripts/lib/page-lastmod.js 的文件头上。
+  const lastModifiedTally = { git: 0, mtime: 0, build: 0 };
+  for (const page of localePages) {
+    const source = pageSourceBySlug.get(page.slug);
+    const got = lastModified.resolve(source);
+    page.lastModified = got.value;
+    lastModifiedTally[got.source] += 1;
+    // 退回构建时刻的必须点名 —— 静默退回构建时刻正是本票要治的那个毛病本身。
+    if (got.source === 'build') {
+      console.log(`  [${locale}] ⚠️  ${page.slug}（${source || '找不到源文件'}）：既拿不到 git 提交时间`
+        + '也读不到文件修改时间，sitemap 的 <lastmod> 退回构建时刻');
+    }
+  }
+  console.log(`  [${locale}] sitemap <lastmod> 取自：git 提交时间 ${lastModifiedTally.git} 页 · `
+    + `文件修改时间 ${lastModifiedTally.mtime} 页 · 构建时刻 ${lastModifiedTally.build} 页`);
 
   // #999 —— 「渲染器认得的块」与「有 manifest 的块」必须是同一个集合。加了块忘了补 manifest 的话，
   // 那个块从此在提示词里不出现、校验也不认它，而没有任何东西会红。
