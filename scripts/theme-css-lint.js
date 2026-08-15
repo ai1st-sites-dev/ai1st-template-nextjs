@@ -17,6 +17,78 @@
 // 🔴 IT USES POSTCSS, NOT A REGULAR EXPRESSION. `content: "}"` and a comment containing a brace both
 // defeat brace counting, and the second one is not hypothetical — every sheet in public/themes/
 // opens with a comment. postcss is already a devDependency here (tailwind's own).
+//
+// ══ EVERY JUDGEMENT IN THIS FILE, AND WHICH SHAPE IT IS (#1011 r10) ══════════════════════════════
+//
+// A rule written as "refuse these words" is only as good as the list of words. #1011 was bounced
+// five times and four of those were one more spelling of an idea already refused: `min()/max()/
+// clamp()` → `abs()` → a part's margin collapsing into its block → five more spellings of
+// `overflow: visible`. So every judgement here is written as an ALLOWED SET with refusal as the
+// default, and the two that are not say why. The table is the deliverable of that round — keep it
+// true when a rule is added.
+//
+//   judgement (function)          shape          refused by default?
+//   ─────────────────────────────────────────────────────────────────────────────────────────────
+//   isHook / checkSelector        allowed set    yes — a simple selector not on §1's list refuses
+//                                                the whole compound; `::before`/`::after` are the
+//                                                only pseudo anything
+//   isSingleMinWidth              allowed set    yes — `@media (min-width: …)` and nothing else
+//   isAllowedProp                 allowed set    yes — §2's property list, prefixes included
+//   content: only `""` / `''`     allowed set    yes — every other value refused
+//   isThirdPartyUrl               allowed set    yes — a URL passes only with no scheme at all or
+//                                                `data:`; `//host` and every other scheme refuse
+//   literalFontsIn                allowed set    yes — only `var()` (recursively, fallbacks and
+//                                                all) and the generic families pass
+//   CONSTANT_UNITS / isWindowUnit allowed set    yes, in the SAFE direction — a unit this file has
+//                                                never heard of counts as window-relative, so a new
+//                                                CSS unit makes it stricter, never blinder
+//   SEPARATE_ARG_FUNCTIONS        allowed set    yes — a function not on it cannot build a length
+//                                                (see the 🔴 note there: this is why `abs()` and
+//                                                next year's function are refused unnamed)
+//   walkArithmetic/checkOneLength allowed set    yes — numbers with units, `0`, `+ - * /`, `calc()`
+//                                                and `var()`; one window-relative unit per length
+//   onlyAddsToLayout              allowed set    yes — only a margin/padding/border/background/gap/
+//                                                font/shadow/filter position may hold a
+//                                                window-relative length; sizes and tracks refuse,
+//                                                including whatever §2 gains later
+//   negativeMarginRisksIn         allowed set    yes — a margin passes only when every added-up
+//                                                piece is provably ≥ 0; unreadable (a `var()`, a
+//                                                function) is refused, not assumed positive
+//   isContainingOverflow          allowed set    yes — `hidden`/`auto`/`scroll`; this is the one
+//                                                r9 got wrong (it matched the word `visible`) and
+//                                                QA2 walked five other spellings through it
+//   PART_HOOKS                    exemption list yes, in the SAFE direction — the list says which
+//                                                hooks are PARTS (exempt); a hook nobody has added
+//                                                to it is judged as a block, which is stricter.
+//                                                📌 A block whose parts arrive later (phase 2 adds
+//                                                one per ticket) is judged strictly until its part
+//                                                hooks are added here — that is a real cost, and
+//                                                the safe direction to pay it in
+//   ─────────────────────────────────────────────────────────────────────────────────────────────
+//   literalColoursIn              BLACKLIST      #1003's rule, and its reason is written there: it
+//                                                names the colour syntaxes (hex, the CSS named
+//                                                colours, the colour functions) and pairs that with
+//                                                decoding escapes twice, because a colour can be
+//                                                spelled four ways in any of a dozen properties and
+//                                                there is no "value position that must be a token"
+//                                                to allow-list against. 🔴 The residual risk is
+//                                                real and belongs to #1003, not here: a colour
+//                                                syntax CSS adds later (`color(display-p3 …)`)
+//                                                would pass. Named here rather than fixed, because
+//                                                changing #1003's rule is outside this ticket
+//   `!important`                  one token      it is not a spelling: postcss parses it into
+//                                                `decl.important`, so this reads the parse tree,
+//                                                and CSS has exactly one form of it
+//   ─────────────────────────────────────────────────────────────────────────────────────────────
+//   📌 A second table, above `checkDecl`, answers the other half of the same question (#1011 r12):
+//   not "what shape is this rule" but "what does the pipeline already hand every rule, and did the
+//   three new ones pick it up". Reading each value twice — as written and with escapes decoded — is
+//   on it, because r11 shipped without it and `-1000\70x` walked past a rule Chris himself set.
+//   ─────────────────────────────────────────────────────────────────────────────────────────────
+//   §4's own checks (the runtime half, scripts/theme-css-invariants.mjs) are measurements rather
+//   than classifications: the paint-order one compares geometry against the DOM at a list of widths
+//   it prints, and it names every element it could not compare. What makes that sampling sound is
+//   the length rules above, not a list of properties.
 const fs = require('fs');
 const path = require('path');
 const postcss = require('postcss');
@@ -399,9 +471,665 @@ function splitByComma(nodes) {
   return out;
 }
 
-function checkDecl(decl, report) {
+// ── §2 #1011 — on a block or a region, a length may only move ONE WAY as the window grows ────────
+//
+// 🔴 WHY THIS IS A SYNTAX RULE AND NOT ONE MORE MEASUREMENT. That the page is PAINTED in the order
+// the DOM has it is measured on the real page (`scripts/theme-css-invariants.mjs`, contract §4), and
+// any such reading is taken at a finite set of window sizes. #1011 tried three ways of choosing them
+// — a fixed list, then the thresholds the page itself declares, then doubling the window while the
+// distances between neighbours keep closing — and each time a legal declaration was found that swaps
+// two blocks inside a narrow band of widths and is back in order on both sides of it. All three were
+// measured on a real build, all three passed this checker and that one:
+//
+//	.hero { margin-bottom: calc(-1200px + 8 * abs(100vw - 1900px)) }        swapped at 1900 and 1901
+//	.hero { margin-bottom: calc(-1 * mod(100vw, 1200px)) }                  swapped from 2300 to 2399
+//	.hero { margin-bottom: calc(-1px * ((100vw / 1px) - 1800)
+//	                            * (2000 - (100vw / 1px)) / 10) }            swapped at 1900
+//
+// A peak cannot be sampled away: wherever a check puts its widths, a sheet can put the peak between
+// two of them. So the peaks are taken out of the language instead, and the measuring check stops
+// needing luck — past every threshold a page declares, a distance that has started closing goes on
+// closing, so widening the window has to run into it.
+//
+// 🔴 THE PROOF THIS RULE OWES, because the other check's argument stands on it. Inside one length:
+// at most one window-relative token · nothing window-relative may be a divisor · the only functions
+// are `calc()` and `var()`. `var()` is a constant here, measured both ways: every custom property
+// this template defines is a plain `rem`/`px` literal (15 definitions across `src/app/globals.css`
+// and `public/base.css`, not one with `calc()` / `min()` / `max()` / `clamp()`), and a theme's own
+// tokens cannot be lengths at all (`schemas/theme-tokens.schema.json` — colours are `#rrggbb`,
+// fonts are names, settings are enums or bare numbers). So a length here is arithmetic in which
+// exactly one leaf, k·w, follows the window; `+` and `-` against constants, `*` by constants and `/`
+// by constants all leave it k′·w + c, and a straight line moves one way. That is the whole proof.
+// 📌 A percentage resolves against the containing block rather than the window, and that saturates
+// (the content column stops growing while the window keeps going). Saturating is still one-way, and
+// one-way of one-way is one-way — so `-50%` stays legal here and it is the measuring check, widening
+// the window, that catches what it does.
+// 🔴 IF EITHER MEASUREMENT ABOVE EVER CHANGES, THIS RULE HAS TO CHANGE WITH IT: an app-side token
+// defined as `clamp(…)` would be a peak arriving through `var()`, and this file would not see it.
+
+// Units that do not move when the window does. Everything NOT on this list counts as window-relative,
+// which is the safe direction to be wrong in: a unit nobody here has heard of (`cqw`, `dvh`, whatever
+// comes after them) is treated as following the window, so it can only make this rule stricter — never
+// open a hole.
+//
+// 🔴 `fr` IS ON IT BECAUSE IT IS NOT A LENGTH. It is a share of what is left over after every real
+// length in the same track list has been taken out, it can be written nowhere but a grid track list
+// (`calc()` will not take it), and a track sized in `fr` cannot come out bigger than the box it is
+// dividing. So it can neither be the straight line this rule is about nor bend one. It has to be here
+// rather than counted as window-relative, because `grid-template-columns: 5fr 6fr` is what two of the
+// three shipped sheets write and the rule below refuses a window-relative length in a track size.
+//
+// 🔴 `em` AND ITS FAMILY ARE NOT ON THIS LIST, AND I FOUND THAT OUT BY MEASURING IT. They resolve
+// against the ELEMENT'S OWN font — and `font-*` and `line-height` are on the property whitelist, so a
+// sheet may write `font-size: 5vw` on the very hook it then measures in `em`. That gives it a second
+// quantity that follows the window without a second `vw` token, and two of those multiply. Measured on
+// this build, legal against the first version of this rule, both checkers green:
+//
+//	.hero { font-size: 5vw;
+//	        margin-bottom: calc(-1200px + (1em - 95px) * ((100vw / 1px) - 1900)) }
+//
+// `1em - 95px` is 0.05·(w − 1900)px, times `(w − 1900)` it is a parabola: the blocks swap from about
+// 1837 to 1963 and are in order at 1440 and at 2100 (probe: −1075px at 1850, −1200px at 1900, +9380px
+// at 1440, +800px at 2100). Counting `em` as window-relative makes it two tokens in one length, refused.
+// 🔴 The `r*` twins stay: they resolve against the ROOT element, and `:root` / `html` is not a hook, so
+// no sheet can move them. Measured, not assumed — the same fixture with `1rem` in place of `1em` and
+// `body { font-size: 5vw }` added does not move a single block (`rem` never follows `body`).
+const CONSTANT_UNITS = new Set([
+  'px', 'cm', 'mm', 'q', 'in', 'pt', 'pc',
+  'rem', 'rex', 'rch', 'ric', 'rcap', 'rlh', 'fr',
+  'deg', 'grad', 'rad', 'turn', 's', 'ms', 'hz', 'khz', 'dpi', 'dpcm', 'dppx', 'x',
+]);
+
+// Functions whose arguments are separate values rather than one number: colours, gradients, filters,
+// images, grid track sizes. A length inside one of those is judged on its own — a gradient's
+// `var(--a) 50%` stop is a length like any other — which is not the same as the function being allowed
+// to build a length.
+//
+// 🔴 REFUSAL IS THE DEFAULT, AND THAT IS THE ONLY REASON THIS LIST IS SAFE TO KEEP. `min()` / `max()` /
+// `clamp()` / `abs()` / `mod()` / `round()` / `sign()` are not on it, and neither is next year's math
+// function, so every one of them is refused WITHOUT BEING NAMED. Naming them would be the blacklist
+// this rule exists to replace: the first draft of #1011 named three of them and `abs()` walked past it
+// the same afternoon. Forgetting a colour or filter function here makes this checker stricter, never
+// blinder — which is the direction a list is allowed to be wrong in.
+//
+// 🔴 `minmax()` AND `fit-content()` CAME OFF THIS LIST (#1011 r6, QA1). Their arguments look separate
+// and are not: `minmax(a, b)` is the browser taking a min and a max between them and the content, which
+// is `clamp()` spelled as a track size — QA1 measured `grid-template-rows: minmax(calc(100vw - 1800px),
+// calc(2200px - 100vw))` swapping two blocks from 1950 to 2050 with both checkers green. Being on this
+// list meant each argument was judged alone and neither was a peak. `repeat()` stays: its arguments
+// really are separate (a count, then a track list), and each track inside it is judged on its own.
+const SEPARATE_ARG_FUNCTIONS = new Set([...COLOUR_FUNCTIONS,
+  'linear-gradient', 'radial-gradient', 'conic-gradient', 'repeating-linear-gradient',
+  'repeating-radial-gradient', 'repeating-conic-gradient', 'image-set', '-webkit-image-set',
+  'cross-fade', 'url', 'blur', 'brightness', 'contrast', 'drop-shadow', 'grayscale', 'hue-rotate',
+  'invert', 'opacity', 'saturate', 'sepia', 'repeat',
+]);
+
+// ── §2 #1011 — and a length that follows the window may only ADD to the page, never SIZE a box ────
+//
+// 🔴 BEING A STRAIGHT LINE IS NOT ENOUGH ON ITS OWN, AND QA1 MEASURED WHY. The browser takes a min and
+// a max of its own accord wherever a length SIZES a box: the height a box comes out at is
+// `max(min-height, min(max-height, what the content needs))`. Two straight lines written into two of
+// those slots come out of it as a V, and a V is the peak this whole section exists to remove. Both of
+// these are legal against everything above, and both were measured on the real build with the static
+// checker at rc=0 and the paint-order check printing `✅ every invariant holds`:
+//
+//	.hero { min-height: calc(100vw - 1800px); max-height: calc(2200px - 100vw);
+//	        margin-bottom: -500px }
+//	     — the second block is painted above the page header from 1800px to 2200px of window, and in
+//	       order at 1440, 1700, 2400 and 3072 (QA1's, reproduced here)
+//	.hero { min-height: calc(100vw - 1800px); margin-bottom: calc(350px - 50vw) }
+//	     — swapped at 2704 and 2800, in order at 1440, 1536, 2400, 3072 and 6144. ONE bound is enough,
+//	       because the browser's other operand is the content: `max(904px, w − 1800px)` has a corner in
+//	       it, and a straight line added to a corner is a V.
+//
+// So the question this asks is not "is the value a straight line" — that is the rule above — but "does
+// this property let the browser bend it". The list below is where a window-relative length is allowed
+// at all: places where the value is ADDED to what is already there (a margin, a padding, a gap, a
+// border) or does not take part in layout at all (a shadow, a radius, a background, a filter).
+// Everything else refuses one, INCLUDING EVERY PROPERTY §2 MAY GAIN LATER — a size, a track, a flex
+// basis, and whatever tomorrow's §2 adds all default to refusal, which is the direction a list is
+// allowed to be wrong in. What it costs today, measured: `.hero { width: 100% }` and
+// `.hero { grid-template-columns: repeat(2, minmax(20%, 1fr)) }` were legal before this line and are
+// refused by it. Neither is in the pool — all three shipped sheets size in `rem` and `fr`, and their
+// only `width: 100%` is on a part — and a sheet that wants either writes a constant.
+//
+// 🔴 WHY NOT COUNT WINDOW-RELATIVE LENGTHS PER ELEMENT INSTEAD, which would also refuse both fixtures
+// above: because that count is only accidentally enough. The corner is in the hero's own height, while
+// the straight line that turns it into a V may sit on the NEXT block — one window-relative length on
+// each of two elements. `.hero { min-height: calc(100vw - 1800px) }` with
+// `[data-role="optional"] { margin-top: calc(350px - 50vw) }` reorders this build from 2400px up
+// (measured). That the reorder is wide rather than narrow here is a fact about THIS page's hooks —
+// `[data-role="optional"]` is the only way to reach that neighbour and it reaches three other blocks
+// with it — not a fact about the rule. A per-element count would be a rule whose proof depends on how
+// coarse the hooks happen to be this quarter.
+const ADDS_ONLY_PROPS = new Set([
+  'gap', 'row-gap', 'column-gap', 'line-height', 'letter-spacing', 'box-shadow', 'filter',
+  'object-position',
+]);
+const ADDS_ONLY_PREFIXES = ['margin', 'padding', 'border', 'background', 'font-'];
+const onlyAddsToLayout = (prop) => ADDS_ONLY_PROPS.has(prop)
+  || ADDS_ONLY_PREFIXES.some((pre) => prop.startsWith(pre));
+
+// The parts INSIDE a block are outside this rule: which part comes first is the theme's business, and
+// all three phase-1 sheets reorder them with `order`. Everything else on the hook list — the page, a
+// region, a block, a role — is the order the page is READ in, which is the site's.
+//
+// 🔴 `.hero` IS NOT A PART, however §1's hook table groups it. That table lists it on the "Hero parts"
+// row next to `.hero__media` (contract §1), and an implementation that classified by that row would
+// exempt the one selector all three narrow-peak attacks above used. `.hero` is a class on the block
+// element itself.
+const PART_HOOKS = new Set(['.hero__media', '.hero__body', '.hero__title', '.hero__sub', '.hero__cta',
+  '.hero__deco']);
+
+// Does this rule style a block or a region (rather than a part inside one)? The subject of a complex
+// selector is its LAST compound — `.hero .hero__title` styles the title — and one selector in the list
+// being in scope is enough for the declaration to be judged.
+// A pseudo-element on a block (`.hero::before`) counts as in scope: its box is drawn by that block's
+// rule, and being stricter there costs nothing (no sheet in the pool has one).
+function stylesABlockOrRegion(selector) {
+  return selector.split(',').some((raw) => {
+    const complex = raw.trim();
+    if (!complex) return false;
+    const compounds = compoundsOf(complex);
+    const subject = compounds[compounds.length - 1] || complex;
+    const m = subject.match(/^(.*?)(::(?:before|after))?$/);
+    const base = (m && m[1]) || subject;
+    return !simpleSelectorsOf(base).some((s) => PART_HOOKS.has(s));
+  });
+}
+
+// ── §2 #1011 r11 — A BLOCK HAS TO KEEP ITS OWN BOX ───────────────────────────────────────────────
+//
+// 🔴 THE FIFTH WAY ROUND, AND IT DOES NOT TOUCH `overflow` OR A MARGIN ON A HOOK (QA1 measured it
+// while r10 was being written). Two legal declarations:
+//
+//	[data-block="hero"] { display: contents }
+//	.hero__deco { margin-bottom: calc(-1200px + 8 * abs(100vw - 1900px)) }
+//
+// `display: contents` throws away the BLOCK's box while its parts keep theirs, so the parts become
+// siblings of the other blocks inside <main>. The parts are where §2 leaves values free on purpose —
+// all three shipped sheets pull `.hero__deco` up with a negative margin — so the peak lives there
+// legally, and with the block's own box gone there is nothing between that peak and the neighbouring
+// blocks. Reproduced here: swapped at 1900 and 1901, in order at 1440 / 1850 / 1950 / 3072; take out
+// only the `display: contents` line and every one of those widths is in the DOM order.
+//
+// It walks past everything else in §2 because each of those rules is about a different thing: the
+// margin is on a PART (allowed), the value is a peak (allowed on a part), `overflow` is not written
+// at all, and the §4 runtime check SKIPS the block — correctly, it has no box (AC3b) — while the
+// parts it left behind go on pushing the blocks around it.
+//
+// So: on a BLOCK hook, `display` may only be a value that still generates a box for the block itself.
+// Written as an allowed set, like every other rule here (#1011 AC11): `contents` is refused because
+// it is not on the list, not because it is named — and so is `inline`, `table`, `list-item`, a
+// CSS-wide keyword and the two-value syntax. `none` IS on the list: it takes the parts away with the
+// box, so nothing is left to push anything, and hiding an optional block is what themes do today
+// (AC3b).
+//
+// 🔴 REGIONS ARE DELIBERATELY NOT IN THIS RULE'S SCOPE, and AC3b says so in as many words:
+// `[data-region-layout] { display: contents }` must keep passing. It is not the same case, and the
+// difference is measurable rather than a matter of taste: the attack needs a hook INSIDE the
+// box-less element to hang the peak on, and no hook on §1's list reaches inside a header or a
+// footer (measured on the real page: every hook selector, run against the region subtrees, matches
+// nothing). A region that loses its box takes its whole subtree out of this file's reach with it.
+// What that does cost is a blind spot in the §4 check, which is why AC3b makes it print who it
+// skipped.
+const REGION_HOOKS = new Set(['body']);
+const isRegionHook = (s) => REGION_HOOKS.has(s) || s.startsWith('[data-region-layout');
+function stylesABlock(selector) {
+  return selector.split(',').some((raw) => {
+    const complex = raw.trim();
+    if (!complex) return false;
+    const compounds = compoundsOf(complex);
+    const subject = compounds[compounds.length - 1] || complex;
+    const m = subject.match(/^(.*?)(::(?:before|after))?$/);
+    const base = (m && m[1]) || subject;
+    const simples = simpleSelectorsOf(base);
+    if (simples.some((s) => PART_HOOKS.has(s))) return false;   // a part
+    if (simples.some((s) => isRegionHook(s))) return false;     // a region
+    return true;
+  });
+}
+
+// Values of `display` a block may take: each of them keeps a box for the element itself (or, for
+// `none`, takes the element and everything in it away together).
+const BLOCK_DISPLAY = new Set([
+  'block', 'flow-root', 'flex', 'inline-flex', 'grid', 'inline-grid', 'inline-block', 'none',
+]);
+const isBlockDisplay = (value) => {
+  const words = valueParser(value).nodes
+    .filter((n) => n.type !== 'space' && n.type !== 'div')
+    .map((n) => (n.type === 'word' ? n.value.toLowerCase() : `<${n.type}>`));
+  return words.length === 1 && BLOCK_DISPLAY.has(words[0]);
+};
+
+// `-45vw` → `vw` · `0` and `1.5` → `''` (a bare number) · `auto`, `--gap`, `#ff0000` → null, not a
+// number at all. The unit is whatever letters (or `%`) follow the number, lower-cased — this does not
+// need to know which units exist, only which ones stand still (above).
+const DIMENSION = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?([a-zA-Z%]*)$/;
+function unitOf(word) {
+  const m = DIMENSION.exec(word);
+  return m ? m[1].toLowerCase() : null;
+}
+const isWindowUnit = (unit) => unit !== '' && !CONSTANT_UNITS.has(unit);
+
+/** Every window-relative token anywhere under this node, as written. */
+function windowTokens(node, found) {
+  if (node.type === 'word') {
+    const unit = unitOf(node.value);
+    if (unit !== null && isWindowUnit(unit)) found.push(node.value);
+    return found;
+  }
+  for (const child of node.nodes || []) windowTokens(child, found);
+  return found;
+}
+
+// At the top level of a value — and inside a function whose arguments are separate values — `,` and `/`
+// separate one value from the next (`border-radius: 50% / 20%`, `rgb(0 0 0 / .55)`, `aspect-ratio:
+// 4 / 5`), and so does a space (`padding: 3rem 1.5rem` is two lengths). Inside `calc()` a slash is
+// division, which is why the arithmetic is walked separately rather than split here.
+function splitValues(nodes) {
+  const out = [[]];
+  for (const n of nodes) {
+    if (n.type === 'space' || (n.type === 'div' && (n.value === ',' || n.value === '/'))) {
+      out.push([]);
+      continue;
+    }
+    out[out.length - 1].push(n);
+  }
+  return out.filter((g) => g.length);
+}
+
+const MATH_OPERATORS = new Set(['+', '-', '*', '/']);
+const isOperator = (n) => (n.type === 'word' || n.type === 'div') && MATH_OPERATORS.has(n.value);
+// `calc()` itself, and a bare `( … )` group inside one, which postcss-value-parser hands back as a
+// function with an empty name.
+const isArithmetic = (n) => n.type === 'function'
+  && (n.value === '' || n.value.toLowerCase() === 'calc' || n.value.toLowerCase() === '-webkit-calc');
+
+/** One length. Anything that does not follow the window is left alone — a constant is already one-way. */
+function checkOneLength(nodes, report) {
+  // A single function whose arguments are separate values is not one length but a value with lengths
+  // inside it, so each argument is its own length. Counting across them would add up two gradient
+  // stops and call the pair a peak.
+  if (nodes.length === 1 && nodes[0].type === 'function') {
+    const fn = nodes[0].value.toLowerCase();
+    if (fn === 'var' || SEPARATE_ARG_FUNCTIONS.has(fn)) {
+      // For `var()` the first group is the custom property's NAME, which is not a number and drops out
+      // of this on its own. Every later group is a fallback, and a fallback really does reach the page
+      // — #1003 was shipped with a font hiding in one.
+      for (const group of splitValues(nodes[0].nodes || [])) checkOneLength(group, report);
+      return;
+    }
+  }
+  const tokens = [];
+  for (const n of nodes) windowTokens(n, tokens);
+  if (tokens.length === 0) return;
+  for (const n of nodes) walkArithmetic(n, report);
+  if (tokens.length > 1) {
+    report(`puts ${tokens.length} window-relative lengths (${tokens.join(', ')}) in one length. One of `
+      + 'them is a straight line in the window size; two of them multiply into a curve that can be in '
+      + 'order at two widths and swapped between them');
+  }
+}
+
+/** Inside a length that follows the window: only numbers, `+ - * /`, `calc()`, `var()`. */
+function walkArithmetic(node, report) {
+  if (node.type === 'space') return;
+  if (isOperator(node)) return;
+  if (node.type === 'word') {
+    if (unitOf(node.value) === null) {
+      report(`writes "${node.value}" into a length that follows the window, which is not a number`);
+    }
+    return;
+  }
+  if (node.type === 'div') {
+    report(`uses "${node.value}" inside a length that follows the window; only + - * / may join the `
+      + 'pieces of one');
+    return;
+  }
+  if (node.type !== 'function') {
+    report(`writes ${node.type === 'string' ? `"${node.value}"` : node.value} into a length that `
+      + 'follows the window');
+    return;
+  }
+  const fn = node.value.toLowerCase();
+  if (isArithmetic(node)) {
+    const pieces = (node.nodes || []).filter((n) => n.type !== 'space');
+    pieces.forEach((piece, i) => {
+      // 🔴 DIVIDING BY SOMETHING THAT FOLLOWS THE WINDOW IS NOT A STRAIGHT LINE, and the form that
+      // matters here is `100vw / 1px`: it turns a length into a plain NUMBER, and a number may be
+      // multiplied by another number, which is how the parabola at the top of this section is built
+      // out of nothing but `calc()`. The count above catches that one (two tokens); this catches the
+      // other half of the family — `1000px / ((100vw / 1px) - 1900)` uses ONE token and has a pole,
+      // so it runs off to infinity on one side of 1900px and comes back on the other.
+      const previous = pieces[i - 1];
+      if (previous && isOperator(previous) && previous.value === '/'
+        && windowTokens(piece, []).length > 0) {
+        report(`divides by ${valueParser.stringify(piece)}, which follows the window — dividing by `
+          + 'something that moves makes a curve, and one that can pass through zero makes two');
+      }
+      walkArithmetic(piece, report);
+    });
+    return;
+  }
+  if (fn === 'var') {
+    for (const group of splitValues(node.nodes || [])) checkOneLength(group, report);
+    return;
+  }
+  if (SEPARATE_ARG_FUNCTIONS.has(fn)) {
+    for (const group of splitValues(node.nodes || [])) checkOneLength(group, report);
+    return;
+  }
+  report(`builds a length that follows the window with ${fn}(). A length on a block or a region may `
+    + 'only be a number with a unit, a bare 0, calc() with + - * /, or var() — a function that can '
+    + 'turn round makes a peak, and no set of measured widths can be trusted to find one');
+}
+
+// ── §2 #1011 — and a margin on a block or a region may never be negative ─────────────────────────
+//
+// 🔴 CHRIS DECIDED THIS ONE (2026-08-14). Asked whether a theme should still be able to make two
+// blocks OVERLAP — which is what a negative margin is honestly for, a hero pulled up over the band
+// under it — his answer was "不要！": blocks queue up one after another, always.
+//
+// 🔴 WHY IT IS A CEILING AND NOT A FIFTH WAY OF SAMPLING. What a page reads in is the order of the
+// tops of the blocks, and a later block's top is the earlier one's top plus a height plus the margins
+// between them. A used height is never negative. So the ONLY way a sheet can put a later block above
+// an earlier one is to hand it a negative offset, and §2's whitelist leaves exactly two ways to do
+// that: `order` (which does not follow the window at all, so the check that measures the real page
+// catches it at every viewport it looks at, this build's `[data-region-layout="slim-row"]
+// { order: -1 }` included) and a negative margin. `position`, `transform`, `float` and `inset` are all
+// off the whitelist. Take negative margins off the hooks and the second lever is gone: a sheet can
+// still build a curve out of lengths, and the curve can still move things, but it cannot move
+// anything PAST anything. Four rounds of #1011 were spent proving "the order did not change" against
+// an opponent free to choose the value — which needs sampling and lost every time. This asks a
+// question that can simply be answered.
+//
+// 🔴 WHAT COUNTS IS THE SIGN AT EVERY WINDOW WIDTH, NOT THE PRINTED MINUS. `calc(100px - 100vw)` has
+// no minus in front of it and is negative on any window wider than 100px. So the test below is over
+// the whole value: every additive term in it has to be non-negative on its own, because every unit
+// CSS has is a non-negative quantity and only the numbers written next to them carry a sign. A sum of
+// terms that are each ≥ 0 is ≥ 0 at every width — that is the whole proof, and it needs no arithmetic
+// on window sizes and no list of thresholds to be true at.
+//
+// 📌 That is a SUFFICIENT test, not an exact one: `calc(1000px - 100px)` is never negative and this
+// refuses it anyway, because reading its sign would mean converting `rem` and `%` and `vw` into one
+// another, which cannot be done without knowing the page. The cost of being coarse there, measured:
+// zero. All three shipped sheets keep every margin on a PART (`.hero__sub`, `.hero__cta`,
+// `.hero__deco`, `.hero__body` — 12 of 12, including all four negative ones), so not one of them
+// writes a margin this rule even looks at, and a sheet that wants a constant difference writes the
+// constant.
+//
+// 🔴 `var()` IS REFUSED HERE, and that is the disposition #1011's AC10 asked to have written down.
+// It is allowed in a length everywhere else in §2 — treated as a constant, for reasons measured in
+// the block above — but "constant" is not "positive", and a theme's own tokens cannot be lengths at
+// all (`schemas/theme-tokens.schema.json`), so a `var()` in a margin can only be reaching for an
+// APP-side custom property. Its sign would then be asserted by a sheet that does not own the value
+// and is not rechecked when the app changes it. Measured cost, again zero: `grep 'var('` over the
+// three shipped sheets is 19 hits, every one of them a colour or a gradient, none in a margin. A
+// sheet that wants the app's spacing writes the length.
+// 🔴 AND THE HALF OF THE SAME CEILING THAT LIVES ON `overflow`, WHICH I FOUND BY MEASURING AC10
+// RATHER THAN BY READING IT. Banning negative margins on the hooks is not on its own enough to make
+// "a block never sits over its neighbour" true, because a margin does not have to be written ON the
+// block to become the block's. A first child's top margin COLLAPSES INTO ITS PARENT — the parent's
+// border box moves, not the child's — and the parts inside a block keep their negative margins on
+// purpose (all three shipped sheets pull `.hero__deco` up that way; AC10 says so in as many words).
+// What stops that today is app-side, not theme-side: `globals.css` gives `.hero { overflow: hidden }`,
+// which makes the hero its own formatting context, and a formatting context does not collapse with
+// its children. §2 hands a sheet the one key that unlocks it. Measured on this build, three legal
+// declarations, both checkers green at every width either of them looks at:
+//
+//	[data-block="hero"] { display: block; padding: 0 }
+//	.hero { overflow: visible }
+//	.hero__deco { margin-top: calc(-1200px + 8 * abs(100vw - 1900px)) }
+//
+//	375 / 768 / 1440 / 1536 / 3072 / 6144   in the DOM order (the margin is POSITIVE there: +11000px
+//	                                        at 375, +2480px at 1440, +8176px at 3072)
+//	1850 / 1900 / 1901 / 1950               the hero and the two blocks after it are painted ABOVE the
+//	                                        page header (hero at y −724 … −1124 against a header at 0)
+//
+// The peak is on a PART, where §2 leaves values free on purpose, and the collapse carries it onto the
+// block. Drop the `overflow: visible` line and the same fixture is in the DOM order at all eleven
+// widths — the margin then hangs the decoration outside the hero's box and leaves the box where it
+// was (measured: `.hero` stays at y=76 at 1900 while `.hero__deco` goes to −1124). So a hook may only
+// carry a value of `overflow` that keeps the block a formatting context: that is what keeps its top
+// where the flow put it, and it is the cheapest thing to hold on to — no shipped sheet writes
+// `overflow` at all (`grep -c overflow public/themes/*.css` → 0, 0, 0).
+// 🔴 THIS RULE IS PROPPED UP BY AN APP-SIDE DECLARATION, AND IF THAT GOES SO DOES THE RULE:
+// `globals.css`'s `.hero, .hero__media { overflow: hidden }`. Take it away and a block is a plain
+// block box again, and then `display: block` + `padding: 0` on the hook is enough on its own.
+// 📌 Only the shorthand needs saying, because `overflow-x` / `overflow-y` are not on §2's list at all
+// (they are neither in `PROP_EXACT` nor under a prefix).
+// 🔴 r9 SAID HERE THAT `visible` IS "THE ONLY VALUE OF IT THAT IS NOT A FORMATTING CONTEXT". THAT
+// SENTENCE WAS FALSE, and the rule written from it leaked: QA2 measured `clip` (on both axes) not
+// being one either, and `initial` / `unset` / `revert` / `revert-layer` computing to `visible`. Six
+// spellings, one attack, both checkers green. The fix is not six names — it is the allowed set below.
+const MARGIN_PROP = (prop) => prop === 'margin' || prop.startsWith('margin-');
+
+// ── §2 #1011 r10 — WHICH VALUES OF `overflow` KEEP A BLOCK A FORMATTING CONTEXT ──────────────────
+//
+// 🔴 THIS IS AN ALLOWED SET, AND IT IS ONE BECAUSE THE BLACKLIST IT REPLACES WAS MEASURED LEAKING.
+// r9 wrote this rule as `/\bvisible\b/i.test(value)` — the word as it is SPELLED. QA2 measured five
+// other spellings whose computed value is exactly `visible` (`initial`, `unset`, `revert`,
+// `revert-layer`) or which is not a formatting context on both axes (`clip`), and the same collapse
+// attack walked through all five with the static check at rc=0 and the §4 check printing
+// `✅ every invariant holds`. That is the identical mistake §2's length rule already refuses to make:
+// "not a function-name blacklist — an allowed set, everything else refused, whether or not this
+// ticket named it, so next year's addition cannot quietly open the hole".
+//
+// So: three words pass. `hidden`, `auto` and `scroll` each establish a block formatting context on
+// their own, and any pair of them does too (a shorthand may name one value per axis). Everything
+// else is refused WITHOUT BEING NAMED — `visible`, `clip`, the four CSS-wide keywords, `overlay`,
+// a `var()` whose value this file cannot see, and whatever CSS gains next.
+//
+// 📌 `clip` is refused although `overflow: clip hidden` really would be a formatting context: one
+// axis of `clip` next to one that is not IS one, and two axes of `clip` are not (QA2 measured both).
+// Keeping the rule at "is every word in the allowed set" rather than "which combination is safe"
+// costs nothing — `grep -c overflow public/themes/*.css` is 0, 0, 0 — and a rule about spelling
+// combinations is the shape that just leaked.
+//
+// 📌 Only the shorthand needs a rule: `overflow-x` / `overflow-y` are not on §2's property list at
+// all, so a sheet cannot write them (they hit the whitelist refusal at the bottom of checkDecl).
+const CONTAINING_OVERFLOW = new Set(['hidden', 'auto', 'scroll']);
+function isContainingOverflow(value) {
+  const words = valueParser(value).nodes
+    .filter((n) => n.type !== 'space' && n.type !== 'div')
+    .map((n) => (n.type === 'word' ? n.value.toLowerCase() : `<${n.type}>`));
+  if (words.length === 0 || words.length > 2) return false;
+  return words.every((w) => CONTAINING_OVERFLOW.has(w));
+}
+
+/** +1 = provably ≥ 0 · -1 = provably ≤ 0 · null = not readable here (a var(), a function, a word). */
+function signOfFactor(node) {
+  if (node.type === 'word') {
+    const unit = unitOf(node.value);
+    if (unit === null) return null; // `auto` inside arithmetic, a token name, anything unreadable
+    return parseFloat(node.value) < 0 ? -1 : 1; // every CSS unit is a non-negative quantity
+  }
+  if (node.type === 'function' && isArithmetic(node)) return signOfSum(node.nodes || []);
+  return null; // var(), min(), max(), clamp(), and whatever CSS gains next
+}
+
+/** The sign of one `a * b - c / d`-shaped sum. Mixed signs are not readable, so they come back null. */
+function signOfSum(nodes) {
+  const pieces = nodes.filter((n) => n.type !== 'space');
+  const terms = [];
+  let sign = 1;
+  let factors = [];
+  for (const piece of pieces) {
+    const additive = isOperator(piece) && (piece.value === '+' || piece.value === '-');
+    if (additive && factors.length === 0) { // a leading `- 5px`, or the sign after another operator
+      if (piece.value === '-') sign = -sign;
+      continue;
+    }
+    if (additive) {
+      terms.push({ sign, factors });
+      factors = [];
+      sign = piece.value === '-' ? -1 : 1;
+      continue;
+    }
+    if (isOperator(piece)) continue; // `*` and `/` stay inside the term
+    factors.push(piece);
+  }
+  if (factors.length) terms.push({ sign, factors });
+  if (terms.length === 0) return null;
+  let seen = null;
+  for (const term of terms) {
+    let s = term.sign;
+    for (const f of term.factors) {
+      const fs = signOfFactor(f);
+      if (fs === null) return null;
+      s *= fs;
+    }
+    if (seen === null) seen = s;
+    else if (seen !== s) return null; // `100vw - 1800px`: positive somewhere, negative somewhere else
+  }
+  return seen;
+}
+
+// ── #1011 r12 — THE THREE LENGTH RULES READ THE VALUE TWICE, LIKE EVERY OTHER RULE HERE ─────────
+//
+// 🔴 What this fixes (QA3, r11, measured on the r11 delivery): `.hero { margin-bottom: -1000\70x }`
+// was rc=0. `\70` is `p`, so the browser lays that out as `-1000px` and the page really does swap at
+// 1440 — a sheet AC10 exists to refuse was called legal. `-100\76w`, `50\76w` and `80\76h` walked
+// through the same gap. It is not a new idea: contract §3 already says the checker "reads each
+// declaration twice — once as written, once decoded — and takes the union", and `urlsIn()` (#992)
+// and `literalColoursIn()` / `literalFontsIn()` (#1003) do exactly that, less than 200 lines above.
+// The rules this ticket added did not, so the escape was invisible to `unitOf()`: `DIMENSION` never
+// matches `-1000\70x`, `unitOf` returns null, and null means "a keyword, not a length" in all three.
+//
+// 🔴 WHY A UNION AND NOT "JUST READ THE DECODED TEXT". The decoded pass can only ADD reasons to
+// refuse; reading it alone would mean trusting the decoder not to have destroyed something on the
+// way. A union cannot lose a risk, whatever the decoder does to the rest of the value — the same
+// sentence is written over `urlsIn()`, and it is the same argument.
+//
+// 📌 It costs a second parse of every declaration on a block or a region, and only when the value
+// actually contains a backslash (`decoded !== value`); the three shipped sheets contain none.
+function overBothSpellings(value, collect) {
+  const found = collect(value);
+  const decoded = decodeEscapes(value);
+  if (decoded !== value) found.push(...collect(decoded));
+  return [...new Set(found)];
+}
+
+/** Every length in this margin value that is not provably ≥ 0 → ["-50%", "calc(100px - 100vw)"]. */
+const negativeMarginRisksIn = (value) => overBothSpellings(value, negativeMarginRisksAsWritten);
+function negativeMarginRisksAsWritten(value) {
+  const bad = [];
+  for (const group of splitValues(valueParser(value).nodes)) {
+    const nodes = group.filter((n) => n.type !== 'space');
+    if (nodes.length === 0) continue;
+    // A keyword is not a length and has no sign to read — `margin: 0 auto` and `margin: inherit` are
+    // both fine. `auto` resolves to a free-space share, never below zero; `inherit` can only reach a
+    // parent whose own margin this same rule has already been over (a block's parent is `<main>`,
+    // which no selector on the hook list can touch, and a region's is `body`, which is a hook).
+    if (nodes.length === 1 && nodes[0].type === 'word' && unitOf(nodes[0].value) === null) continue;
+    const s = nodes.length === 1 ? signOfFactor(nodes[0]) : signOfSum(nodes);
+    if (s !== 1) bad.push(valueParser.stringify(group));
+  }
+  return bad;
+}
+
+/**
+ * Reasons this declaration's lengths might not move one way with the window → string[].
+ * Empty means every length in it is a straight line in the window size (or does not follow it at all).
+ */
+const windowPeakRisksIn = (value) => overBothSpellings(value, windowPeakRisksAsWritten);
+function windowPeakRisksAsWritten(value) {
+  const found = [];
+  const report = (why) => { if (!found.includes(why)) found.push(why); };
+  for (const group of splitValues(valueParser(value).nodes)) checkOneLength(group, report);
+  return found;
+}
+
+/** Every window-relative token in this value, wherever it sits — `["100vw", "-50%"]`. */
+const windowLengthsIn = (value) => overBothSpellings(value, windowLengthsAsWritten);
+function windowLengthsAsWritten(value) {
+  const found = [];
+  for (const node of valueParser(value).nodes) windowTokens(node, found);
+  return found;
+}
+
+// ══ WHAT THIS PIPELINE ALREADY GUARANTEES, AND WHETHER #1011'S RULES INHERIT IT (r12) ════════════
+//
+// The table above says what SHAPE each judgement is. This one says what the pipeline around them
+// hands every judgement for free — and it exists because three rounds in a row were bounced for the
+// same reason: a discipline this file already had, that the new rule did not pick up.
+//
+//   r9   `overflow` written as the word `visible`      → `clip` / `initial` / `unset` / `revert` walk through
+//   r10  `display` not narrowed to an allowed set      → `display: contents` walks through
+//   r11  the three length rules read the value once    → `-1000\70x` IS `-1000px`, walks through
+//
+// Each was one more spelling of an idea already refused. So the guarantees are listed one per line,
+// with the answer for each of this ticket's three rules — `windowPeakRisksIn` (a length has to move
+// one way), `windowLengthsIn` (a window-relative length may not size a box) and
+// `negativeMarginRisksIn` (a margin on a block or a region is never negative).
+//
+//   guarantee                       who provides it            do the three inherit it?
+//   ─────────────────────────────────────────────────────────────────────────────────────────────
+//   the value is read TWICE — as     `overBothSpellings`,      YES, as of r12; before that, no —
+//   written and with CSS escapes     the same union `urlsIn`   that is the bug QA3 measured. All
+//   decoded — and the union of the   (#992) and                three go through it; the union is
+//   two readings is judged           `literalColoursIn` /      taken over the RISKS, so a decoder
+//                                    `literalFontsIn` (#1003)  bug can only add, never hide
+//                                    already used
+//   a line continuation inside a     `decodeEscapes` (its      YES, same call. Measured: a
+//   value (backslash + newline) is   `CSS_CONTINUATION` half,  `margin-bottom: -1000p\<newline>x`
+//   removed before judging           #992 r4)                  was rc=0 in r11 and is rc=1 now
+//   the property name is lower-      `checkDecl`'s first line  YES — `MARGIN_PROP` and
+//   cased once, so every test on it                            `onlyAddsToLayout` are handed the
+//   is case-insensitive                                        lower-cased name, never `decl.prop`
+//   shorthand and longhand are both  `MARGIN_PROP` (`margin`   YES — `margin`, `margin-block-end`
+//   covered by prefix, not by a      + `margin-*`),            and next year's `margin-*` are all
+//   list of the properties that      `ADDS_ONLY_PREFIXES`      the same rule. 🔴 The refusal is
+//   exist today                                                what the prefix widens, so a new
+//                                                              longhand lands on the strict side
+//   units and function names are     `unitOf`, `isArithmetic`, YES — the three rules do not compare
+//   compared lower-cased             `SEPARATE_ARG_FUNCTIONS`  spellings themselves, they ask these
+//   the value is walked as a PARSE   `postcss-value-parser`    YES — `splitValues` / `windowTokens`
+//   TREE, never matched as text, so  via `splitValues`,        / `signOfSum` all walk nodes. No
+//   comments, odd whitespace and     `windowTokens`,           regex is run over a whole value
+//   multi-value shorthands do not    `negativeMarginRisks…`    anywhere in the three
+//   need a rule of their own
+//   `!important` is read off the     `decl.important`          n/a — it is judged once for every
+//   parse tree rather than the text                            declaration, above, and none of the
+//                                                              three needs to ask
+//   what cannot be READ is REFUSED   `signOfFactor` → null,    YES — a `var()` in a margin, an
+//   rather than assumed harmless     `isWindowUnit` on an      unknown function and a unit this
+//                                    unknown unit              file has never heard of are all
+//                                                              refused, not waved through
+//   ─────────────────────────────────────────────────────────────────────────────────────────────
+//   NOT inherited, and measured to be safe without it:
+//   an escaped PROPERTY NAME (`marg\69n-bottom`) is not decoded — `checkDecl` lower-cases
+//   `decl.prop` and nothing else. It does not need to be: `isAllowedProp` is an allowed set, so the
+//   escaped spelling is not on §2's list and the declaration is refused there instead (measured:
+//   `.hero { marg\69n-bottom: -1000px }` is rc=1 both before and after r12, with the whitelist
+//   speaking). Decoding it would move which sentence the author reads, not whether it is refused.
+//   an escaped SELECTOR (`.h\65ro`, `[data-block="h\65ro"]`) is likewise not decoded, and likewise
+//   refused by an allowed set — `checkSelector` says "not a contract hook" (measured: rc=1 before
+//   and after). 🔴 Both of these are safe only in that direction: the escape makes the checker see
+//   LESS of a hook than the browser does, and less means stricter here. A rule that ever refuses by
+//   naming what it dislikes — rather than by naming what it allows — would have the opposite sign,
+//   and that is what the table above is for.
+function checkDecl(decl, report, stylesOrder, onABlock) {
   const prop = decl.prop.toLowerCase();
   const value = decl.value;
+
+  // §2 #1011 r11 — a block keeps its own box. See the 🔴 block above `stylesABlock` for the two
+  // declarations this refuses and the measurement behind them.
+  if (onABlock && prop === 'display' && !isBlockDisplay(value)) {
+    report(`"display: ${value}" on a block leaves the block without a box of its own while the parts `
+      + 'inside it keep theirs (contract §2). Those parts then lay out as siblings of the OTHER '
+      + 'blocks, and a part is the one place §2 still allows a negative margin and a value that turns '
+      + 'round — so a peak written on a part moves whole blocks past one another, with the §4 check '
+      + 'skipping this block because it has no box. Measured: `[data-block="hero"] { display: '
+      + 'contents }` next to `.hero__deco { margin-bottom: calc(-1200px + 8 * abs(100vw - 1900px)) }` '
+      + `paints the second block above the page header at 1900px and 1901px. What passes is `
+      + `${[...BLOCK_DISPLAY].map((w) => `\`${w}\``).join(' / ')} — one keyword, each of which keeps a `
+      + 'box (or, for `none`, takes the parts away with it). A region may still be `display: '
+      + 'contents`: no hook on §1\'s list reaches inside a header or a footer, so there is nowhere to '
+      + 'hang the peak');
+  }
 
   if (decl.important) {
     report(`"${prop}: … !important" — the theme sheet already loads last, so it never needs this`);
@@ -435,6 +1163,62 @@ function checkDecl(decl, report) {
   for (const font of literalFontsIn(prop, value)) {
     report(`"${prop}: ${value}" names the font ${font} — fonts are tokens too. Use `
       + 'var(--font-heading) or var(--font-sans).');
+  }
+  // §2's last rule (#1011): on a block or a region, a length has to move one way as the window grows.
+  // It asks nothing about WHICH property this is — a list of properties that can reorder a page was
+  // written four times on that ticket and was wrong four times (`order`, then a `flex-flow` spelling,
+  // then `margin`, then a region-level hook). What it asks is how the VALUE is built.
+  if (stylesOrder) {
+    for (const why of windowPeakRisksIn(value)) {
+      report(`"${prop}: ${value}" ${why} (contract §2). Past the last (min-width: …) a sheet declares, `
+        + 'the check that the page is painted in the DOM order has only the page\'s own numbers to go '
+        + 'on, and a peak between two of its widths is invisible to it');
+    }
+    // The other half of the same rule: a straight line only stays one is if nothing bends it, and the
+    // browser bends one wherever a length sizes a box.
+    const following = onlyAddsToLayout(prop) ? [] : windowLengthsIn(value);
+    if (following.length) {
+      report(`"${prop}: ${value}" gives ${following.join(', ')} — a length that follows the window — to `
+        + `"${prop}", which SIZES a box rather than adding to it (contract §2). What a box comes out `
+        + 'as there is a min and a max between what is written, what the content needs and any other '
+        + 'bound, so two window-relative lengths meeting in one of those come out as a peak, and one '
+        + 'meeting the content comes out as a corner. On a block or a region a length that follows the '
+        + 'window belongs in a margin, a padding, a gap, a border or somewhere that does not lay the '
+        + 'page out at all; a size here has to be a constant');
+    }
+    // And the ceiling over both of them: a margin here may never be negative, at any window width.
+    if (MARGIN_PROP(prop)) {
+      for (const length of negativeMarginRisksIn(value)) {
+        report(`"${prop}: ${value}" gives "${length}" to a margin on a block or a region, and this `
+          + 'file cannot read that as never-negative at any window width (contract §2). Blocks and '
+          + 'regions queue up one after another — a block never sits over its neighbour — and a '
+          + 'negative margin is the only way left in §2 to move one PAST another, so it is refused '
+          + 'here rather than measured for. What passes is a length whose every added-up piece is '
+          + 'non-negative on its own (`2rem`, `0`, `calc(100vw / 3)`, `calc(2rem + 5vw)`); what does '
+          + 'not is a minus (`-50%`), a subtraction whose sign depends on the window '
+          + '(`calc(100px - 100vw)` is negative on anything wider than 100px), a difference of two '
+          + 'units this file cannot compare (`calc(1000px - 100px)` — write the constant), and a '
+          + 'var(), whose value belongs to the app rather than to this sheet. The parts inside a '
+          + 'block keep their negative margins: all three shipped sheets pull `.hero__deco` up that '
+          + 'way, and a part cannot move the block it is in past anything');
+      }
+    }
+    // …as long as the block stays a formatting context, which is the only thing keeping a part's
+    // negative margin from collapsing into it and becoming the block's own.
+    if (prop === 'overflow' && !isContainingOverflow(value)) {
+      report(`"overflow: ${value}" on a block or a region does not keep it a formatting context `
+        + '(contract §2). A first child\'s top margin then COLLAPSES INTO IT — the block\'s own box '
+        + 'moves, not the child\'s — and the parts inside a block are the one place §2 still allows a '
+        + 'negative margin and a value that turns round. Measured on this build: with '
+        + '`[data-block="hero"] { display: block; padding: 0 }` and '
+        + '`.hero__deco { margin-top: calc(-1200px + 8 * abs(100vw - 1900px)) }`, this one line is the '
+        + 'difference between the hero being painted above the page header from about 1750px to '
+        + '2050px of window and the page being in its DOM order at every width. What passes here is '
+        + `${[...CONTAINING_OVERFLOW].map((w) => `\`${w}\``).join(' / ')}, one value for both axes or `
+        + 'one per axis; everything else is refused, including `visible`, the CSS-wide keywords that '
+        + 'resolve to it (`initial` / `unset` / `revert` / `revert-layer`) and `clip`, which is not a '
+        + 'formatting context when it is on both axes');
+    }
   }
   if (!isAllowedProp(prop)) {
     report(`"${prop}" is not on the contract's property whitelist`);
@@ -490,7 +1274,11 @@ function lint(file) {
   });
 
   root.walkRules((rule) => checkSelector(rule.selector, (m) => at(rule, m)));
-  root.walkDecls((decl) => checkDecl(decl, (m) => at(decl, m)));
+  // The §2 length rule needs to know what the declaration is ON, so the selector comes with it. A
+  // declaration inside `@media` still has its rule as its parent, so nothing special is needed there.
+  root.walkDecls((decl) => checkDecl(decl, (m) => at(decl, m),
+    decl.parent && decl.parent.type === 'rule' && stylesABlockOrRegion(decl.parent.selector),
+    decl.parent && decl.parent.type === 'rule' && stylesABlock(decl.parent.selector)));
 
   // §3's last line: the second defence for essential content. Written as its own pass because it is
   // a property AND a selector together — neither check above can see the pair.
