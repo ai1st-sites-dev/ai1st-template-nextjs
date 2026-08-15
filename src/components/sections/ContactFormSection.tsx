@@ -24,6 +24,41 @@ interface ContactFormSectionProps {
 
 type SubmitState = 'idle' | 'submitting' | 'success' | 'error';
 
+// 🔴🔴 #1027 — ONE MARKUP, AND NOTHING ELSE. Phase 2's batch B (hero #1008, cta-banner #1018,
+// page-header #1019 went first). This block had NO variant branch to delete: the move here is the
+// other half of the same job — every Tailwind class that decided a LOOK is gone from the markup and
+// the parts now carry BEM hooks the three proof sheets dress.
+//
+// 🔴 THIS BLOCK IS `essential` (blocks/contact-form.json `roleDefault`), and what that means in
+// practice is written at blockAttrs.ts:35: it is the path a customer actually reaches the business
+// through. Breaking it is not a cosmetic regression, it silently switches the business's lead
+// collection off. So the thing that had to be measured before and after is not "does the button
+// react" — it is a REAL POST to `${leadApi}/api/leads` and the row read back on the platform side.
+// Every field name in the request body below (`siteId` / `name` / `email` / `phone` / `message` /
+// `source` / `hp`) is UNCHANGED by this ticket; only the elements around them are.
+//
+// 🔴 THERE ARE TWO ROOTS AND THEY ARE NOT MERGED. The second `blockAttrs()` call below is the state
+// after a successful submit — a RUNTIME STATE, not a variant. A variant is a choice about how one
+// piece of content looks and belongs in a stylesheet; "the message has been sent" is different
+// content. Both roots carry the block's hooks so a sheet dresses the block either way (a sheet that
+// only styled the idle form would leave the thank-you note wearing base.css alone).
+//
+// 🔴 THE DECORATIVE TICK IS GONE. The old success state drew a green check `<svg>`; a sheet paints
+// the same mark with `::before { content: "" }` + `background-image`, which is the boundary #1018 drew
+// when it deleted the `dark` variant's overlay div. An empty element in every site's HTML for the
+// benefit of one look is exactly the markup phase 2 exists to remove.
+//
+// 🔴 THE FIELDS THEMSELVES CARRY NO CLASS — the structure layer reaches them through the part hook
+// (`.contact-form__form label`, `… input`, globals.css). That is page-header's precedent for the
+// crumb `<ol>`/`<li>` (#1019): what a part IS is the structure layer's, where it sits is the sheet's.
+// The honeypot keeps its inline off-screen style: it is not a look, it is the thing that makes it
+// invisible to a human and visible to a bot, and a theme must not be able to switch it on.
+//
+// 🔴 THE THIRD HOOK IS NOT OPTIONAL — `blockAttrs('contact-form', block)`, never
+// `blockAttrs('contact-form')`. #998 puts the page JSON's `block_layout` and `role` on the root
+// element through that second argument, and dropping it is silent in every instrument we own
+// (`registry.ts` types the components as `ComponentType<any>`, so `tsc` cannot see it). #1008 r1 was
+// bounced for exactly that.
 export default function ContactFormSection({ data, block }: ContactFormSectionProps) {
   const heading = data?.heading ?? 'Get in touch';
   const intro = data?.intro ?? "Leave your details and we'll get back to you shortly.";
@@ -73,65 +108,50 @@ export default function ContactFormSection({ data, block }: ContactFormSectionPr
 
   if (state === 'success') {
     return (
-      <section {...blockAttrs('contact-form', block)} className="section-padding">
-        <div className="container-width max-w-2xl text-center">
-          <div className="rounded-xl bg-green-50 p-10">
-            <svg className="mx-auto h-12 w-12 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <p className="mt-4 text-lg font-medium text-green-900">{successMessage}</p>
-          </div>
-        </div>
+      <section {...blockAttrs('contact-form', block)} className="contact-form">
+        <p className="contact-form__success">{successMessage}</p>
       </section>
     );
   }
 
   return (
-    <section {...blockAttrs('contact-form', block)} className="section-padding">
-      <div className="container-width max-w-2xl">
-        <h2 className="text-3xl font-bold text-gray-900">{heading}</h2>
-        <p className="mt-2 text-lg text-gray-600">{intro}</p>
+    <section {...blockAttrs('contact-form', block)} className="contact-form">
+      <h2 className="contact-form__heading">{heading}</h2>
+      <p className="contact-form__intro">{intro}</p>
 
-        <form onSubmit={handleSubmit} className="mt-8 space-y-5">
-          <div>
-            <label htmlFor="cf-name" className="block text-sm font-medium text-gray-700">Name</label>
-            <input id="cf-name" type="text" value={name} onChange={(e) => setName(e.target.value)} maxLength={200}
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500" />
-          </div>
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div>
-              <label htmlFor="cf-email" className="block text-sm font-medium text-gray-700">Email</label>
-              <input id="cf-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={320}
-                className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500" />
-            </div>
-            <div>
-              <label htmlFor="cf-phone" className="block text-sm font-medium text-gray-700">Phone</label>
-              <input id="cf-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={50}
-                className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500" />
-            </div>
-          </div>
-          <div>
-            <label htmlFor="cf-message" className="block text-sm font-medium text-gray-700">Message</label>
-            <textarea id="cf-message" value={message} onChange={(e) => setMessage(e.target.value)} rows={4} maxLength={5000}
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500" />
-          </div>
+      <form onSubmit={handleSubmit} className="contact-form__form">
+        <label htmlFor="cf-name">Name</label>
+        <input id="cf-name" type="text" value={name} onChange={(e) => setName(e.target.value)} maxLength={200} />
 
-          {/* Honeypot: visually hidden + off-screen; real users never fill it. */}
-          <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, overflow: 'hidden' }}>
-            <label htmlFor="cf-hp">Leave this field empty</label>
-            <input id="cf-hp" type="text" tabIndex={-1} autoComplete="off" value={hp} onChange={(e) => setHp(e.target.value)} />
-          </div>
+        <label htmlFor="cf-email">Email</label>
+        <input id="cf-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={320} />
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+        <label htmlFor="cf-phone">Phone</label>
+        <input id="cf-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={50} />
 
-          <button type="submit" disabled={state === 'submitting'} className="btn-accent text-lg disabled:opacity-60">
-            {state === 'submitting' ? 'Sending…' : buttonText}
-          </button>
-          <p className="text-xs text-gray-400">
-            {brand.email ? `Or email us at ${brand.email}` : ''}
-          </p>
-        </form>
-      </div>
+        <label htmlFor="cf-message">Message</label>
+        <textarea id="cf-message" value={message} onChange={(e) => setMessage(e.target.value)} rows={4} maxLength={5000} />
+
+        {/* Honeypot: visually hidden + off-screen; real users never fill it. Inline style on purpose —
+            see the note above the component. */}
+        <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, overflow: 'hidden' }}>
+          <label htmlFor="cf-hp">Leave this field empty</label>
+          <input id="cf-hp" type="text" tabIndex={-1} autoComplete="off" value={hp} onChange={(e) => setHp(e.target.value)} />
+        </div>
+
+        {error && <p className="contact-form__error">{error}</p>}
+
+        {/* 🔴 The button keeps the SITE's button class rather than getting a hook of its own — the same
+            boundary hero and cta-banner draw. A theme owns layout; what a call to action looks like is
+            the brand's, and it already follows the palette through CSS variables. */}
+        <button type="submit" disabled={state === 'submitting'} className="btn-accent">
+          {state === 'submitting' ? 'Sending…' : buttonText}
+        </button>
+      </form>
+
+      {brand.email && (
+        <p className="contact-form__note">Or email us at {brand.email}</p>
+      )}
     </section>
   );
 }

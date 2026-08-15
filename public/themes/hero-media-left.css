@@ -212,3 +212,306 @@
   line-height: 1.7;
   color: var(--color-primary-100);
 }
+
+/* ── #1027 batch B — the dark, generous, single-column treatment ──────────────────────────────────
+   Six blocks, one sheet's opinion about all of them: one column, hard left, roomy padding, the same
+   dark ground the hero and page header above paint. Nothing here has a counterpart in the markup —
+   the other two sheets draw the same HTML as two columns and as centred bands, which is the whole
+   claim phase 2 makes about these six blocks. */
+
+.contact-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+  background: linear-gradient(140deg, var(--color-primary-900), var(--color-primary-700));
+  color: var(--color-primary-50);
+}
+
+@media (min-width: 1024px) {
+  .contact-form {
+    gap: 2rem;
+    padding: 5rem 4rem;
+  }
+}
+
+.contact-form__heading {
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 800;
+  color: var(--color-primary-50);
+}
+
+@media (min-width: 1024px) {
+  .contact-form__heading {
+    font-size: 2.75rem;
+  }
+}
+
+.contact-form__intro {
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.contact-form__form {
+  display: grid;
+  gap: 1rem;
+  max-width: 40rem;
+}
+
+.contact-form__error {
+  font-size: 0.9375rem;
+  color: var(--color-accent-300);
+}
+
+.contact-form__note {
+  font-size: 0.8125rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-primary-200);
+}
+
+.contact-form__success {
+  padding: 2.5rem;
+  border-radius: 1rem;
+  background-color: var(--color-primary-800);
+  font-size: 1.25rem;
+  line-height: 1.6;
+  color: var(--color-primary-50);
+}
+
+.quote-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-900);
+  color: var(--color-primary-50);
+}
+
+@media (min-width: 1024px) {
+  .quote-form {
+    padding: 5rem 4rem;
+  }
+}
+
+/* One column at every width — the sidebar sits UNDER the steps here. hero-media-right.css puts it
+   beside them; that difference is one property in a sheet, and no markup knows about it. */
+.quote-form__form {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2.5rem;
+}
+
+.quote-form__intro {
+  max-width: 34rem;
+  font-size: 1.125rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.quote-form__main {
+  display: grid;
+  gap: 2.5rem;
+}
+
+.quote-form__step {
+  display: grid;
+  gap: 1rem;
+  padding: 1.5rem;
+  border-radius: 1rem;
+  background-color: var(--color-primary-800);
+}
+
+.quote-form__error {
+  font-size: 0.9375rem;
+  color: var(--color-accent-300);
+}
+
+.quote-form__action {
+  gap: 1.5rem;
+}
+
+.quote-form__aside {
+  padding: 2rem;
+  border-radius: 1rem;
+  border-color: var(--color-primary-600);
+  background-color: var(--color-primary-800);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+.quote-form__success {
+  padding: 2.5rem;
+  border-radius: 1rem;
+  background-color: var(--color-primary-800);
+  font-size: 1.25rem;
+  color: var(--color-primary-50);
+}
+
+.services-list {
+  display: grid;
+  gap: 3rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-900);
+  color: var(--color-primary-50);
+}
+
+@media (min-width: 1024px) {
+  .services-list {
+    padding: 5rem 4rem;
+  }
+}
+
+.services-list__item {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+  padding-bottom: 3rem;
+  border-bottom: 1px solid var(--color-primary-700);
+}
+
+.services-list__icon {
+  width: 3rem;
+  height: 3rem;
+  color: var(--color-accent-400);
+}
+
+.services-list__title {
+  font-size: 1.875rem;
+  line-height: 1.15;
+  font-weight: 800;
+  color: var(--color-primary-50);
+}
+
+.services-list__desc {
+  max-width: 40rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.services-list__actions {
+  gap: 1rem;
+}
+
+.services-list__features {
+  padding: 1.5rem;
+  border-radius: 1rem;
+  border-color: var(--color-primary-700);
+  background-color: var(--color-primary-800);
+}
+
+.services-list__products {
+  padding: 1.5rem;
+  border-radius: 1rem;
+  border-color: var(--color-primary-700);
+  background-color: var(--color-primary-800);
+}
+
+.values-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-900);
+  color: var(--color-primary-50);
+}
+
+/* Three across on a wide screen, with the headline spanning the row above them. The other two sheets
+   choose two and one; the markup is a flat list of items either way. */
+@media (min-width: 1024px) {
+  .values-grid {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 2rem;
+    padding: 5rem 4rem;
+  }
+}
+
+.values-grid__headline {
+  grid-column: 1 / -1;
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 800;
+  color: var(--color-primary-50);
+}
+
+.values-grid__item {
+  display: grid;
+  gap: 0.75rem;
+  padding: 2rem;
+  border-radius: 1rem;
+  background-color: var(--color-primary-800);
+}
+
+.values-grid__title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-primary-50);
+}
+
+.values-grid__desc {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.services-nav {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.75rem 1.5rem;
+  background-color: var(--color-primary-900);
+  border-bottom: 1px solid var(--color-primary-700);
+}
+
+.services-nav__link {
+  padding: 0.625rem 1.25rem;
+  border-radius: 0.5rem;
+  background-color: var(--color-primary-800);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--color-primary-50);
+}
+
+.service-related-pages {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-800);
+  color: var(--color-primary-50);
+}
+
+@media (min-width: 1024px) {
+  .service-related-pages {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 2rem;
+    padding: 5rem 4rem;
+  }
+}
+
+.service-related-pages__headline {
+  grid-column: 1 / -1;
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 800;
+  color: var(--color-primary-50);
+}
+
+.service-related-pages__sub {
+  grid-column: 1 / -1;
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.service-related-pages__card {
+  padding: 1.75rem;
+  border-radius: 1rem;
+  border-color: var(--color-primary-600);
+  background-color: var(--color-primary-900);
+  color: var(--color-primary-50);
+}

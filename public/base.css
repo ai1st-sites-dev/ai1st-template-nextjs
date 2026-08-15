@@ -245,3 +245,170 @@
   font-size: 0.875rem;
   overflow-wrap: break-word;
 }
+
+/* ── #1027 batch B: contact-form · quote-form · services-list · values-grid · services-nav ·
+      service-related-pages ─────────────────────────────────────────────────────────────────────
+   Same test as the three blocks above — "would every sheet want to state this itself?" — checked
+   against all three phase-1 sheets after their batch-B rules were written:
+
+     the six block hooks       display / gap / padding      all three set them → base leaks nothing
+     every __title / __heading font-size / line-height      all three set them
+     every __desc / __sub      font-size / line-height      all three set them
+     .services-nav__link       padding / border-radius      all three set them
+
+   🔴 `min-width: 0` ON EVERY PART THAT IS A GRID OR FLEX ITEM, the same rule and the same reason the
+   hero, cta-banner and page-header parts have it: a grid item's automatic minimum size is its
+   CONTENT's size, so one long word pushes the track wider than the screen and the block's
+   `overflow: hidden` (globals.css) then CLIPS it — while the page-level "no horizontal scroll"
+   reading says everything is fine. `overflow-wrap: break-word` does not prevent it. Measured per
+   block on a 375px viewport, which is the only width where it is visible (#1008: without base the
+   font size drops to 16px and the long word fits, so a 1280px reading says the protection is there
+   when it is not).
+
+   🔴 THE FORM CONTROLS THEMSELVES ARE NOT HERE. `input` / `textarea` / `label` / `ol` / `li` cannot
+   be selected by any theme (contract §1 refuses tag selectors), so they are not a floor a sheet
+   might want to raise — they are unreachable, and globals.css lays them out. One owner per property.  */
+
+.contact-form,
+.quote-form,
+.values-grid,
+.services-list,
+.services-nav,
+.service-related-pages {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .contact-form,
+  .quote-form,
+  .values-grid,
+  .services-list,
+  .service-related-pages {
+    padding: 4rem 2rem;
+  }
+}
+
+.contact-form__heading,
+.contact-form__intro,
+.contact-form__form,
+.contact-form__error,
+.contact-form__note,
+.contact-form__success,
+.quote-form__form,
+.quote-form__intro,
+.quote-form__main,
+.quote-form__aside,
+.quote-form__step,
+.quote-form__error,
+.quote-form__action,
+.quote-form__success,
+.services-list__item,
+.services-list__icon,
+.services-list__title,
+.services-list__desc,
+.services-list__actions,
+.services-list__features,
+.services-list__products,
+.values-grid__headline,
+.values-grid__item,
+.values-grid__title,
+.values-grid__desc,
+.services-nav__link,
+.service-related-pages__headline,
+.service-related-pages__sub,
+.service-related-pages__card {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+/* ── headings and body copy: the readable floor ────────────────────────────────────────────────── */
+.contact-form__heading,
+.values-grid__headline,
+.service-related-pages__headline {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.services-list__title {
+  font-size: 1.5rem;
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+.values-grid__title {
+  font-size: 1.125rem;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.contact-form__intro,
+.quote-form__intro,
+.services-list__desc,
+.values-grid__desc,
+.service-related-pages__sub {
+  /* Roughly 70 characters — the same reading measure the hero body, the cta-banner description and
+     the page-header subtitle get. */
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+}
+
+.contact-form__note,
+.contact-form__error,
+.quote-form__error {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.contact-form__success,
+.quote-form__success {
+  font-size: 1.125rem;
+  line-height: 1.6;
+  padding: 2rem 1.5rem;
+}
+
+/* ── the repeated units: a form's fields, a service, a value, a related page ───────────────────── */
+.contact-form__form,
+.quote-form__form,
+.quote-form__main,
+.quote-form__step,
+.services-list__item,
+.values-grid__item {
+  display: grid;
+  gap: 1rem;
+}
+
+.quote-form__aside,
+.services-list__features,
+.services-list__products,
+.service-related-pages__card {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  border-width: 1px;
+  border-style: solid;
+  border-color: currentColor;
+  border-radius: 0.75rem;
+}
+
+.services-list__icon {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+/* ── services-nav: without a sheet this is still a row of links, not a stack ───────────────────── */
+.services-nav {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+}
+
+.services-nav__link {
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}

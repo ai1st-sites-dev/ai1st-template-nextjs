@@ -5,6 +5,34 @@ import { getLabels } from '@/lib/component-labels';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig } from '@/lib/types/config';
 
+// 🔴🔴 #1027 — ONE MARKUP, AND NOTHING ELSE. Phase 2's batch B. No variant branch to delete here
+// either; the move is the other half of the job — the Tailwind classes that decided a look are gone
+// and each part carries one BEM hook the three proof sheets dress.
+//
+// 🔴 THIS BLOCK IS `essential`, AND IT CARRIES A SECOND JOB NOBODY WOULD GUESS FROM ITS MARKUP:
+// `SubPage.tsx:14` reads whether a page HAS a `services-list` block and emits the Service structured
+// data on that basis (`blockAttrs.ts:37` says the same). That switch reads the page JSON, not the
+// DOM — so this rewrite cannot move it, and the reading that proves it is the JSON-LD in the built
+// pages coming out byte-identical either side of the change.
+//
+// 🔴 THE SIX PARTS OF ONE SERVICE ARE SIBLINGS, NOT TWO COLUMNS OF WRAPPERS. The old markup nested
+// them in a `grid lg:grid-cols-2` with a left `<div>` and a right `<div>`; that IS the two-column
+// look, and CSS grid only places CHILDREN, so making them children of `.services-list__item` is what
+// lets a sheet decide one column or two — and which side each part lands on — without the markup
+// having an opinion. `hero-media-right.css` puts the features box on the left for exactly that reason.
+//
+// 🔴 THE `<article id={service.id}>` AND ITS `scroll-mt` ARE NOT COSMETIC. `services-nav` links to
+// `#<service.id>`, so the id stays; the scroll offset that keeps the sticky nav from covering the
+// heading moves to globals.css (`scroll-margin-top` on `.services-list__item`), because it is a
+// property of the structure, not of any theme, and `scroll-margin-*` is not on the contract's list.
+//
+// 🔴 THE PER-FEATURE TICK `<svg>` IS GONE — a sheet paints a mark with `::before { content: "" }` +
+// `background-image`, which is the boundary #1018 drew when it deleted the `dark` variant's overlay.
+// The service's OWN icon stays: it comes from services.json, so it is content, not decoration, and
+// `.services-list__icon` is the hook the sheet sizes it through.
+//
+// 🔴 THE THIRD HOOK IS NOT OPTIONAL — `blockAttrs('services-list', block)`, never
+// `blockAttrs('services-list')` (#998's `data-block-layout`, invisible to `tsc`; #1008 r1's bounce).
 export default function ServicesListSection({ locale, block }: { locale: string; block?: BlockConfig }) {
   const services = getServices(locale);
   const labels = getLabels(locale);
@@ -14,66 +42,46 @@ export default function ServicesListSection({ locale, block }: { locale: string;
   );
 
   return (
-    <div {...blockAttrs('services-list', block)} className="container-width px-4 py-16 sm:px-6 lg:px-8">
-      {services.map((service, index) => (
-        <article
-          key={service.id}
-          id={service.id}
-          className={`scroll-mt-32 py-16 ${index !== 0 ? 'border-t border-gray-200' : ''}`}
-        >
-          <div className="grid gap-12 lg:grid-cols-2">
-            <div>
-              <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-xl bg-primary-50 text-primary-500">
-                <ServiceIcon icon={service.icon} className="h-7 w-7" />
-              </div>
-              <h2 className="text-2xl font-bold text-gray-900 sm:text-3xl">
-                {service.name}
-              </h2>
-              <p className="mt-4 text-lg leading-relaxed text-gray-600">
-                {service.fullDescription}
-              </p>
-              <div className="mt-8 flex flex-wrap gap-3">
-                <Link href={localeUrl('quote', locale)} className="btn-primary">
-                  {labels.getAQuoteFor} {service.name}
-                </Link>
-                {serviceDetailSlugs.has(service.id) && (
-                  <Link href={localeUrl(`services/${service.id}`, locale)} className="btn-secondary">
-                    {labels.learnMore}
-                  </Link>
-                )}
-              </div>
-            </div>
+    <div {...blockAttrs('services-list', block)} className="services-list">
+      {services.map((service) => (
+        <article key={service.id} id={service.id} className="services-list__item">
+          <ServiceIcon icon={service.icon} className="services-list__icon" />
 
-            <div>
-              <div className="rounded-xl bg-gray-50 p-8">
-                <h3 className="mb-4 text-lg font-semibold text-gray-900">{labels.keyFeatures}</h3>
-                <ul className="space-y-3">
-                  {service.features.map((feature, i) => (
-                    <li key={i} className="flex items-start gap-3">
-                      <svg className="mt-0.5 h-5 w-5 flex-shrink-0 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75" />
-                      </svg>
-                      <span className="text-gray-700">{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+          <h2 className="services-list__title">{service.name}</h2>
 
-              {service.products.length > 0 && (
-                <div className="mt-6 rounded-xl border border-gray-200 p-8">
-                  <h3 className="mb-4 text-lg font-semibold text-gray-900">{labels.productsWeOffer}</h3>
-                  <div className="space-y-4">
-                    {service.products.map((product) => (
-                      <div key={product.name}>
-                        <h4 className="font-medium text-gray-900">{product.name}</h4>
-                        <p className="mt-1 text-sm text-gray-600">{product.description}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+          <p className="services-list__desc">{service.fullDescription}</p>
+
+          <div className="services-list__actions">
+            <Link href={localeUrl('quote', locale)} className="btn-primary">
+              {labels.getAQuoteFor} {service.name}
+            </Link>
+            {serviceDetailSlugs.has(service.id) && (
+              <Link href={localeUrl(`services/${service.id}`, locale)} className="btn-secondary">
+                {labels.learnMore}
+              </Link>
+            )}
           </div>
+
+          <div className="services-list__features">
+            <h3>{labels.keyFeatures}</h3>
+            <ul>
+              {service.features.map((feature, i) => (
+                <li key={i}>{feature}</li>
+              ))}
+            </ul>
+          </div>
+
+          {service.products.length > 0 && (
+            <div className="services-list__products">
+              <h3>{labels.productsWeOffer}</h3>
+              {service.products.map((product) => (
+                <div key={product.name}>
+                  <h4>{product.name}</h4>
+                  <p>{product.description}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </article>
       ))}
     </div>

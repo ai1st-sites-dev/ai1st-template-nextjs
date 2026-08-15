@@ -219,3 +219,185 @@
   align-items: center;
   gap: 0.5rem;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   #1027 — THE NEUTRAL SKELETONS FOR BATCH B: contact-form · quote-form · services-list ·
+   values-grid · services-nav · service-related-pages. Same division of labour as the three above.
+   ══════════════════════════════════════════════════════════════════════════════════════════════
+   Here: the things that must be true whichever sheet is loaded. In a theme sheet: the whole look.
+   The floor for a page with NO sheet — spacing and readable type on the HOOKS — is public/base.css.
+
+   🔴 THIS BATCH ADDS A THIRD CATEGORY, AND IT IS THE REASON THIS SECTION IS LONGER THAN THE OTHER
+   THREE: FORM CONTROLS AND LIST INTERNALS THAT NO SHEET CAN EVER REACH. Contract §1 refuses tag
+   selectors, so `input`, `textarea`, `label`, `ol`, `li` and the card internals are unreachable from
+   a theme by construction — not "left to base", UNREACHABLE. base.css's rule ("would all three
+   sheets state this themselves? then base must not") does not apply to them, because no sheet can
+   state them at all. They are laid out here, where selecting a tag is allowed. What a sheet still
+   owns on these blocks is everything with a hook: the block's ground and padding, each part's size,
+   type and placement.
+
+   🔴 BORDERS AND TEXT COLOUR ON THE CONTROLS ARE `currentColor`, WHICH IS THE SAME TRICK
+   `.hero__cta .btn-secondary` uses and for the same measured reason. A sheet decides the block's
+   ground — hero-media-left.css paints a dark gradient — and a form whose inputs are fixed grey-300
+   on white is invisible on it. Inheriting the colour the sheet set means the fields are legible on a
+   dark sheet and on a light one without any sheet mentioning form controls.
+
+   🔴 `overflow: hidden` ON EACH BLOCK is the guard hero, cta-banner and page-header have: it keeps a
+   phone from getting a horizontal scrollbar when a sheet paints something wider than the block. No
+   sheet sets `overflow`, so nothing here reaches a themed page by accident. `.services-nav` is the
+   exception and takes `overflow-x: auto` instead — its row of service links is MEANT to scroll
+   sideways when a business has eight services, and that is the thing that keeps the page from doing
+   it instead.
+
+   🔴 WHAT THIS BATCH GAVE UP, WRITTEN DOWN RATHER THAN LEFT TO BE FOUND: the quote form's sidebar
+   was `position: sticky` and is not any more. A sheet cannot make it sticky (contract §2 admits no
+   value of `position`) and this file cannot keep it, because `overflow: hidden` on the block — the
+   guard above, which every migrated block has — stops a sticky descendant from tracking the page.
+   Keeping both would have meant one of them silently not working. The sidebar is short; it scrolls
+   with the form. */
+.contact-form,
+.quote-form,
+.values-grid,
+.service-related-pages {
+  overflow: hidden;
+}
+
+/* 🔴 `.services-list` IS DELIBERATELY NOT IN THAT LIST, and this is the one place in the batch where
+   the guard is left off on purpose. It is the block whose own overflow was REAL (a quote button that
+   could not shrink — see the note further down), and clipping it would have turned the page-level
+   "no horizontal scroll at 375px" reading green while the button still stuck out of its box. That is
+   the same shape as `min-width: 0` versus "the page does not scroll": one of them is the property,
+   the other is a symptom that can be suppressed. The property is fixed below; the reading stays able
+   to see it. Named cost of leaving it off: a sheet that paints this block wider than the viewport
+   scrolls the page, and nothing in the static checks would say so — the runtime invariants check
+   (`scripts/theme-css-invariants.mjs`) is what looks at that. */
+
+/* ── the two forms: controls a sheet cannot select ─────────────────────────────────────────────── */
+.contact-form__form label,
+.contact-form__form input,
+.contact-form__form textarea,
+.quote-form__step input,
+.quote-form__step textarea {
+  display: block;
+  width: 100%;
+}
+
+.contact-form__form input,
+.contact-form__form textarea,
+.quote-form__step input,
+.quote-form__step textarea {
+  border-width: 1px;
+  border-style: solid;
+  border-color: currentColor;
+  background-color: transparent;
+  color: inherit;
+}
+
+/* The choice buttons in steps 1-3. `aria-pressed` carries the selection now (the old markup toggled
+   six Tailwind classes), so the selected look is drawn from the state itself — which also means a
+   screen reader says which services are chosen, which the classes never did. */
+.quote-form__step button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-width: 1px;
+  border-style: solid;
+  border-color: currentColor;
+  color: inherit;
+}
+
+.quote-form__step button[aria-pressed='true'] {
+  border-width: 2px;
+  font-weight: 700;
+}
+
+.quote-form__step button svg {
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: none;
+}
+
+/* 🔴 MEASURED, NOT PRECAUTIONARY — and it is the same defect as the quote button further down.
+   A choice button's label is a SERVICE NAME, so a business with one long service name puts an
+   unbreakable word inside a grid item; the item's automatic minimum size is its content's size, the
+   step's column grows to fit it, and every sibling in that step — including the step's heading —
+   is dragged out to the same width. On the batch-B fixture at 375px the step heading measured 545px
+   inside a 375px block and was CLIPPED by `overflow: hidden` above, while the page-level "no
+   horizontal scroll" reading said everything was fine. That is the reading `min-width: 0` exists to
+   make honest. `anywhere` rather than `break-word` because the button is `inline-flex`: only
+   `anywhere` feeds into min-content sizing, which is what lets the word actually break. After: the
+   widest thing inside the block is 327px and nothing is clipped. */
+.quote-form__step button {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.quote-form__action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* ── services-list: the parts a sheet cannot select ───────────────────────────────────────────── */
+/* `services-nav` links to `#<service.id>`, which is the id on each item. Without this the sticky bar
+   lands on top of the heading it just scrolled to. `scroll-margin-*` is not on the contract's
+   property list, so this is the only file that can say it. */
+.services-list__item {
+  scroll-margin-top: 6rem;
+}
+
+.services-list__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+/* 🔴 MEASURED, NOT PRECAUTIONARY. The quote button's label is "<Get a quote for> <service name>", so
+   a business whose service name is one long word puts that word inside a flex item — and a flex
+   item's automatic minimum size is its CONTENT's size, so the button refuses to shrink and the whole
+   PAGE grows a horizontal scrollbar. On the batch-B fixture at 375px: 580px document width without
+   these two lines, 375px with them (the same reading on `origin/main`'s markup is 915px, so this is
+   an old defect this rewrite inherits rather than one it introduces). `min-width: 0` alone is not
+   enough — it lets the item shrink, and `overflow-wrap` is what lets the word break once it has.
+   These two go here and not in base.css because no sheet can select the link: contract §1 refuses
+   tag selectors, and the anchor carries the SITE's `btn-primary`, not a hook.
+
+   🔴 `anywhere`, NOT `break-word`, AND THE DIFFERENCE IS THE WHOLE FIX. `.btn-primary` is
+   `inline-flex`, so its text is an anonymous flex item — and `overflow-wrap: break-word` explicitly
+   does NOT change an element's min-content size, so that item still refused to shrink and the button
+   still measured 418px inside a 327px box (measured, one build apart). `anywhere` is the value that
+   DOES feed into min-content, which is what lets the item shrink and the word break. Same reading,
+   after: 375px document, nothing wider than its box. */
+.services-list__actions > a {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.services-list__features ul {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.services-list__products > div + div {
+  margin-top: 1rem;
+}
+
+/* ── services-nav: the two properties no sheet may write ──────────────────────────────────────── */
+.services-nav {
+  position: sticky;
+  top: 73px;
+  z-index: 40;
+  overflow-x: auto;
+}
+
+/* The row scrolls sideways instead of breaking a service name in half — that is what makes the
+   `overflow-x` above the right guard rather than a hidden clip. */
+.services-nav__link {
+  white-space: nowrap;
+}
+
+/* ── service-related-pages: the card is an <a>, and an <a> is inline ──────────────────────────── */
+.service-related-pages__card {
+  display: block;
+}

@@ -673,7 +673,12 @@ for (const note of regionLayout.notes) console.log(`    · ${note}`);
 //    `Theme CSS: public/themes/<sheet>.css` to tell "this build wore the sheet under test" from "it
 //    did not", and scripts/theme-pipeline/gallery.js documents the same prefix. Reword what follows
 //    the em dash freely; do not touch what precedes it.
-const MOVED_BLOCKS = ['hero', 'cta-banner', 'page-header'];
+const MOVED_BLOCKS = ['hero', 'cta-banner', 'page-header',
+  // #1027 batch B — six at once. `values-grid` belongs on this list even though its five looks were
+  // keyed off `data.style` rather than `data.variant`: what this list means is "this block's markup
+  // no longer decides how it looks", and that is now true of all six.
+  'contact-form', 'quote-form', 'services-list', 'values-grid', 'services-nav',
+  'service-related-pages'];
 const movedList = MOVED_BLOCKS.join(' + ');
 console.log(themeSheet
   ? `  Theme CSS: public/themes/${themeSheet}.css — pasted into theme.css, ${movedList} styled by those rules (base.css underneath)`

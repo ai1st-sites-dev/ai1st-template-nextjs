@@ -172,3 +172,292 @@
   line-height: 1.65;
   color: var(--color-primary-800);
 }
+
+/* ── #1027 batch B — the centred, banded, one-column treatment ────────────────────────────────────
+   The same six blocks and the same HTML as the other two sheets. This is the one that makes the
+   point hardest, the way this sheet's hero does: everything is centred and capped to a reading
+   width, the service list runs as a single stack of cards, and the related pages sit one under the
+   other. No markup anywhere knows which of the three it is going to get. */
+
+.contact-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 1rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-100);
+  color: var(--color-primary-900);
+  text-align: center;
+}
+
+.contact-form__heading {
+  font-size: 1.75rem;
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--color-primary-900);
+}
+
+.contact-form__intro {
+  max-width: 30rem;
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--color-primary-700);
+}
+
+.contact-form__form {
+  display: grid;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 32rem;
+  margin-top: 1rem;
+  text-align: left;
+}
+
+.contact-form__error {
+  font-size: 0.875rem;
+  color: var(--color-accent-600);
+}
+
+.contact-form__note {
+  font-size: 0.8125rem;
+  color: var(--color-primary-600);
+}
+
+.contact-form__success {
+  width: 100%;
+  max-width: 32rem;
+  padding: 2rem;
+  border-radius: 1.5rem;
+  background-color: var(--color-primary-50);
+  font-size: 1.0625rem;
+  line-height: 1.6;
+}
+
+.quote-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-100);
+  color: var(--color-primary-900);
+}
+
+.quote-form__form {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 2rem;
+  width: 100%;
+  max-width: 44rem;
+}
+
+.quote-form__intro {
+  max-width: 30rem;
+  font-size: 1rem;
+  line-height: 1.7;
+  text-align: center;
+  color: var(--color-primary-700);
+}
+
+.quote-form__main {
+  display: grid;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.quote-form__step {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  border-radius: 1.5rem;
+  background-color: var(--color-primary-50);
+}
+
+.quote-form__error {
+  font-size: 0.875rem;
+  color: var(--color-accent-600);
+}
+
+.quote-form__action {
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.quote-form__aside {
+  width: 100%;
+  padding: 1.25rem;
+  border-radius: 1.5rem;
+  border-color: var(--color-primary-200);
+  background-color: var(--color-primary-50);
+  font-size: 0.875rem;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.quote-form__success {
+  width: 100%;
+  max-width: 32rem;
+  padding: 2rem;
+  border-radius: 1.5rem;
+  background-color: var(--color-primary-50);
+  font-size: 1.0625rem;
+  text-align: center;
+}
+
+.services-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-100);
+  color: var(--color-primary-900);
+}
+
+.services-list__item {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 0.875rem;
+  width: 100%;
+  max-width: 40rem;
+  padding: 1.75rem;
+  border-radius: 1.5rem;
+  background-color: var(--color-primary-50);
+  text-align: center;
+}
+
+.services-list__icon {
+  width: 2rem;
+  height: 2rem;
+  color: var(--color-accent-500);
+}
+
+.services-list__title {
+  font-size: 1.375rem;
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+.services-list__desc {
+  max-width: 34rem;
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--color-primary-700);
+}
+
+.services-list__actions {
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.services-list__features {
+  width: 100%;
+  padding: 1rem;
+  border-radius: 1rem;
+  border-color: var(--color-primary-200);
+  text-align: left;
+}
+
+.services-list__products {
+  width: 100%;
+  padding: 1rem;
+  border-radius: 1rem;
+  border-color: var(--color-primary-200);
+  text-align: left;
+}
+
+.values-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 1rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-100);
+  color: var(--color-primary-900);
+  text-align: center;
+}
+
+.values-grid__headline {
+  max-width: 34rem;
+  font-size: 1.75rem;
+  line-height: 1.15;
+  font-weight: 700;
+}
+
+/* One column, capped — not three across (hero-media-left.css) and not two (hero-media-right.css). */
+.values-grid__item {
+  display: grid;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 34rem;
+  padding: 1.25rem;
+  border-radius: 1.5rem;
+  background-color: var(--color-primary-50);
+}
+
+.values-grid__title {
+  font-size: 1.0625rem;
+  font-weight: 700;
+}
+
+.values-grid__desc {
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: var(--color-primary-700);
+}
+
+.services-nav {
+  display: flex;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.375rem 1rem;
+  background-color: var(--color-primary-100);
+  border-bottom: 1px solid var(--color-primary-300);
+}
+
+.services-nav__link {
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-primary-800);
+}
+
+.service-related-pages {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 1rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-50);
+  color: var(--color-primary-900);
+  text-align: center;
+}
+
+.service-related-pages__headline {
+  max-width: 34rem;
+  font-size: 1.75rem;
+  line-height: 1.15;
+  font-weight: 700;
+}
+
+.service-related-pages__sub {
+  max-width: 30rem;
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--color-primary-700);
+}
+
+.service-related-pages__card {
+  width: 100%;
+  max-width: 36rem;
+  padding: 1.25rem;
+  border-radius: 1.5rem;
+  border-color: var(--color-primary-200);
+  background-color: var(--color-primary-100);
+}

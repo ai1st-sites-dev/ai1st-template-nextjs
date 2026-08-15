@@ -14,6 +14,31 @@ interface ServiceRelatedPagesSectionProps {
   block?: BlockConfig;
 }
 
+// 🔴🔴 #1027 — ONE MARKUP, AND NOTHING ELSE. Phase 2's batch B, the least exposed block in it
+// (0.05 instances per site, #1007) — and the one with a trap in it for whoever measures the batch:
+//
+// 🔴 IT RENDERS NOTHING WHEN THE SITE HAS NO SUB-PAGES UNDER THE SLUG (`return null`, below). A
+// fixture that does not put two pages under `<serviceSlug>/` measures this block by measuring an
+// empty string, in both arms, and calls it unchanged. `scripts/block-migration/README.md` says the
+// same thing about the same block; the fixture for this ticket carries `services/alpha` and
+// `services/beta` for that reason.
+//
+// 🔴 THE CARDS ARE CHILDREN OF THE BLOCK, beside the headline and the subtitle rather than inside a
+// wrapper — CSS grid only places CHILDREN, so this is what lets a sheet run them in two columns or
+// three, and put the heading across the top with `grid-column: 1 / -1`. hero's `.hero__deco` is
+// placed the same way (#991).
+//
+// 🔴 THE ARROW `<svg>` IS GONE. "Learn more" is content and stays; the arrow beside it was decoration,
+// and a sheet draws that with `::before` / `::after` — #1018's boundary when it deleted the `dark`
+// variant's overlay div.
+//
+// 🔴 THE CARD'S OWN PARTS CARRY NO CLASS — the structure layer reaches them through the card hook
+// (`.service-related-pages__card h3`, globals.css). That is page-header's precedent for the crumb
+// `<ol>`/`<li>` (#1019): a sheet decides where the card sits and how big it is; what a card IS
+// belongs to the structure layer.
+//
+// 🔴 THE THIRD HOOK IS NOT OPTIONAL — `blockAttrs('service-related-pages', block)`, never
+// `blockAttrs('service-related-pages')` (#998's `data-block-layout`, invisible to `tsc`).
 export default function ServiceRelatedPagesSection({ data, locale, block }: ServiceRelatedPagesSectionProps) {
   const allPages = pagesByLocale[locale] ?? [];
   const relatedPages = allPages.filter(
@@ -23,37 +48,20 @@ export default function ServiceRelatedPagesSection({ data, locale, block }: Serv
   if (relatedPages.length === 0) return null;
 
   return (
-    <section {...blockAttrs('service-related-pages', block)} className="section-padding bg-gray-50" aria-labelledby="related-pages-heading">
-      <div className="container-width">
-        <div className="text-center">
-          <h2 id="related-pages-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
-            {data.headline}
-          </h2>
-          {data.subheadline && (
-            <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-600">{data.subheadline}</p>
-          )}
-        </div>
-        <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {relatedPages.map((page) => (
-            <Link
-              key={page.slug}
-              href={localeUrl(page.slug, locale)}
-              className="group rounded-xl border border-gray-200 bg-white p-6 transition-all hover:border-primary-300 hover:shadow-lg"
-            >
-              <h3 className="font-semibold text-gray-900 group-hover:text-primary-600">
-                {page.title}
-              </h3>
-              <p className="mt-2 text-sm leading-relaxed text-gray-600">{page.description}</p>
-              <span className="mt-4 inline-flex items-center text-sm font-medium text-primary-600">
-                Learn more
-                <svg className="ml-1 h-4 w-4 transition-transform group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                </svg>
-              </span>
-            </Link>
-          ))}
-        </div>
-      </div>
+    <section {...blockAttrs('service-related-pages', block)} className="service-related-pages" aria-labelledby="related-pages-heading">
+      <h2 id="related-pages-heading" className="service-related-pages__headline">
+        {data.headline}
+      </h2>
+      {data.subheadline && (
+        <p className="service-related-pages__sub">{data.subheadline}</p>
+      )}
+      {relatedPages.map((page) => (
+        <Link key={page.slug} href={localeUrl(page.slug, locale)} className="service-related-pages__card">
+          <h3>{page.title}</h3>
+          <p>{page.description}</p>
+          <span>Learn more</span>
+        </Link>
+      ))}
     </section>
   );
 }

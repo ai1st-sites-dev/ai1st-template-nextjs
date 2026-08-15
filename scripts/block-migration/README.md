@@ -31,9 +31,18 @@
 归一成「选择器 → x,y,width」再比（#1019 r2 实测：输出 md5 `39da9069c822` vs `bcec1cea1c7d` 不同，
 归一后相同）。r1 这里写的是「逐字节是同一件事」，那句跟下面那条 📌 自相矛盾。
 
+🔴 **`dom-compare.py` 的第三个参数 #1027 起可以是【一串】块，而且不再假定块的根元素是 `<section>`**
+（缺省仍是 `hero` 一个块，所以不带参数跑跟 #1008 / #1019 那两次可比）：
+
+- 一批搬六个块时逐个跑六遍，每一遍都会把另外五个的改动读成「别的 block 被误伤」——那个红说明不了任何事。
+- `services-list` 的根元素是 `<div>`。写死 `<section>` 的老写法在两臂都摘不到它，**尺子不报错，只报红**，
+  而红的样子看起来像「别的块也变了」。34 个块里根元素不是 `<section>` 的不止这一个，下一批会再撞上。
+
 ```bash
-# AC5：其余 33 个 block 有没有被误伤（第三个参数 = 本票搬的那个块）
+# AC5：其余 33 个 block 有没有被误伤（第三个参数 = 本票搬的那些块）
 python3 scripts/block-migration/dom-compare.py <改动前产物> <改动后产物> page-header
+python3 scripts/block-migration/dom-compare.py <改动前产物> <改动后产物> \
+     contact-form,quote-form,services-list,values-grid,services-nav,service-related-pages
 
 # AC4：三套表画不画得出三个样（--parts 给本票那个块的部件）
 node scripts/block-migration/geo.js --parts .page-header__title,.page-header__sub \

@@ -116,6 +116,29 @@ const HOOKS = new Set([
   // rather than the <ol> inside it, because only a direct child of the block can be given `order`.
   '.page-header', '.page-header__crumbs', '.page-header__title', '.page-header__sub',
   '[data-block="page-header"]',
+  // #1027 — batch B, six blocks at once, four of them `essential`. None of them had a `variant`
+  // branch to delete (values-grid's five looks were keyed off `data.style`, which its manifest
+  // declares as `kind: "variant"`), so this batch is the other half of a migration: the Tailwind
+  // classes that decided a look left the markup and these hooks arrived in its place.
+  '.contact-form', '.contact-form__heading', '.contact-form__intro', '.contact-form__form',
+  '.contact-form__error', '.contact-form__note', '.contact-form__success',
+  '[data-block="contact-form"]',
+  '.quote-form', '.quote-form__form', '.quote-form__intro', '.quote-form__main',
+  '.quote-form__aside', '.quote-form__step', '.quote-form__error', '.quote-form__action',
+  '.quote-form__success',
+  '[data-block="quote-form"]',
+  '.services-list', '.services-list__item', '.services-list__icon', '.services-list__title',
+  '.services-list__desc', '.services-list__actions', '.services-list__features',
+  '.services-list__products',
+  '[data-block="services-list"]',
+  '.values-grid', '.values-grid__headline', '.values-grid__item', '.values-grid__title',
+  '.values-grid__desc',
+  '[data-block="values-grid"]',
+  '.services-nav', '.services-nav__link',
+  '[data-block="services-nav"]',
+  '.service-related-pages', '.service-related-pages__headline', '.service-related-pages__sub',
+  '.service-related-pages__card',
+  '[data-block="service-related-pages"]',
   '[data-role="essential"]', '[data-role="lead"]', '[data-role="optional"]',
   'body', '[data-region-layout]',
 ]);
@@ -132,6 +155,8 @@ const HOOKS = new Set([
 //   #998  [data-block-layout="…"]                     (the third hook)
 //   #1018 cta-banner parts + [data-block="cta-banner"]
 //   #1019 page-header parts + [data-block="page-header"]
+//   #1027 contact-form / quote-form / services-list / values-grid / services-nav /
+//         service-related-pages parts + their six [data-block="…"]
 //
 // A BREAKING change (renaming a hook, removing one, changing what one means) still MUST bump: that
 // is the case where an old sheet keeps loading and quietly points at nothing, which is the reason
@@ -680,7 +705,24 @@ const PART_HOOKS = new Set(['.hero__media', '.hero__body', '.hero__title', '.her
   '.cta-banner__headline', '.cta-banner__desc', '.cta-banner__action',
   // #1019 — page-header's three parts. `.page-header` itself is NOT here, for the same reason
   // `.hero` and `.cta-banner` are not: it is the class on the block element.
-  '.page-header__crumbs', '.page-header__title', '.page-header__sub']);
+  '.page-header__crumbs', '.page-header__title', '.page-header__sub',
+  // #1027 — batch B's parts. The six BLOCK classes (`.contact-form`, `.quote-form`,
+  // `.services-list`, `.values-grid`, `.services-nav`, `.service-related-pages`) are deliberately
+  // NOT here, for the same reason `.hero` and `.cta-banner` are not: they are the class on the block
+  // element, and exempting them would hand the three narrow-peak attacks above the one selector they
+  // all used. 🔴 The note above this list says leaving a part OFF is the safe direction and nothing
+  // goes red for it — so this is the edit that has no test of its own, and the one to check by hand:
+  // the count below has to equal the number of `__`-suffixed names this ticket added to `HOOKS`.
+  '.contact-form__heading', '.contact-form__intro', '.contact-form__form', '.contact-form__error',
+  '.contact-form__note', '.contact-form__success',
+  '.quote-form__form', '.quote-form__intro', '.quote-form__main', '.quote-form__aside',
+  '.quote-form__step', '.quote-form__error', '.quote-form__action', '.quote-form__success',
+  '.services-list__item', '.services-list__icon', '.services-list__title', '.services-list__desc',
+  '.services-list__actions', '.services-list__features', '.services-list__products',
+  '.values-grid__headline', '.values-grid__item', '.values-grid__title', '.values-grid__desc',
+  '.services-nav__link',
+  '.service-related-pages__headline', '.service-related-pages__sub',
+  '.service-related-pages__card']);
 
 // Does this rule style a block or a region (rather than a part inside one)? The subject of a complex
 // selector is its LAST compound — `.hero .hero__title` styles the title — and one selector in the list
