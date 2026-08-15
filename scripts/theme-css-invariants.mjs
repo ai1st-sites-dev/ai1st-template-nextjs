@@ -143,7 +143,7 @@ function parseRgb(str) {
   return parts.slice(0, 3);
 }
 
-/* global document, getComputedStyle, window */
+/* global document, getComputedStyle, window, requestAnimationFrame */
 // 🔴 The four blocks below hand functions to `page.evaluate`, so their bodies run in the BROWSER,
 // not in node. Same declaration `scripts/theme-gallery/shoot.mjs:41` carries, for the same reason:
 // without it eslint's no-undef reports `document` and `getComputedStyle` as typos.
@@ -568,6 +568,500 @@ if (classAudit.hooksOnPage.length > 0 && classAudit.themeSheets.length === 0) {
       + 'base.css or the site\'s own CSS, which is the same block on every theme');
   }
 }
+
+// ── ⑥ the order things are painted in is the order the DOM has them in ─────────────────────────
+// #1011 — a screen reader and the Tab key walk the DOM. A sheet that changes what a person SEES
+// first without moving a byte of markup makes those two different pages, and every check above stays
+// green: the words are readable, nothing is hidden, nothing scrolls sideways.
+//
+// 🔴 IT DOES NOT ASK WHICH PROPERTIES CAN DO THIS. Four rounds of this ticket tried to write that
+// list and missed something each time — `order`, then a `flex-flow` spelling, then `margin` from a
+// different group of §2 altogether. §4 above already reached the same conclusion about colour ("the
+// set of properties that change what colour reaches the screen is not something to enumerate") and
+// answered it the same way: don't predict, read the finished page. So this compares two orders and
+// never looks at a declaration.
+//
+// 🔴 WHAT IT COVERS, AND THAT LINE IS THE DESIGN'S, NOT THIS FILE'S: spec §7.4 "骨 vs 皮" (:731)
+// puts which blocks and in what order on the site's side of the fence, and the shape of a block on
+// the theme's. So: the page's regions (`<body>`'s own children) and the blocks inside them — all in
+// ONE sequence, see the note in `collectOrder` for why one and not one per layer. Reordering the PARTS
+// inside a block (`.hero__media` before `.hero__body`) is what all three phase-1 sheets do with
+// `order`, and it stays legal.
+//
+// 🔴 THE COMPARISON IS (y, THEN x), NOT y ALONE. Measured by PM on the real build: with the blocks
+// laid out in a row, all four sit at y=76 with x running backwards — y alone reads "same order" on a
+// page whose reading order is reversed. Nothing legal can do that today (`main` is not a hook, and
+// `body`'s Tailwind classes out-specify it) but the reading costs nothing and is not built on those
+// two facts staying true.
+//
+// 🔴 AN ELEMENT WITH NO BOX IS NOT COMPARED AND IS NOT A FAILURE, AND THE ONES SKIPPED ARE NAMED.
+// `[data-role="optional"] { display: none }` is legal (§3 only refuses it on `essential`) and is what
+// these themes hide the eight `rhythm.hide` blocks with. Such an element answers y=0, x=0 — sorting
+// on that alone sends it to the front and reports a swap a person cannot see, and a check that cries
+// wolf gets loosened. `getClientRects().length === 0` is the first half of the question, because it is
+// the browser's own answer to "was this laid out at all".
+// 🔴 The second half is that it has some extent, and it is not theoretical: Next appends
+// `<next-route-announcer style="position:absolute">` as `<body>`'s LAST child, and it is laid out
+// (`getClientRects().length` 1) at y=0, x=0 with width and height 0. On the untouched build, with no
+// sheet of any kind added, the first version of this check reported it painted before `<main>` and
+// before `<footer>` — two false reds at each of three viewports, on a page nobody had touched.
+// Nothing with zero extent in both directions puts anything anywhere a person can see it. A box that
+// is 1440×0 still sits at a real place in the flow, so `height: 0` and `max-height: 0` — like
+// `visibility: hidden` and `opacity: 0` — go on being compared.
+const ORDER_VIEWPORTS = [{ w: 1440, h: 900 }, { w: 768, h: 1024 }, { w: 375, h: 812 }];
+// 🔴 Metadata elements are left out rather than skipped-and-named: `<script>` and friends can never
+// have a box, so naming them every run would bury the skips that matter (the ones above).
+const NON_RENDERED = ['script', 'style', 'link', 'meta', 'noscript', 'template', 'title', 'base'];
+const collectOrder = (nonRendered) => {
+  const label = (n) => {
+    const block = n.getAttribute('data-block');
+    if (block) return `[data-block="${block}"]`;
+    const region = n.getAttribute('data-region-layout');
+    const tag = n.tagName.toLowerCase();
+    return region ? `<${tag} data-region-layout="${region}">` : `<${tag}>`;
+  };
+  const skip = new Set(nonRendered.map((t) => t.toUpperCase()));
+  // 🔴 ONE SEQUENCE FOR THE WHOLE PAGE, NOT ONE PER LAYER (#1011 r2, found by QA3 on the real build).
+  // The first version compared the regions among themselves and the blocks among themselves, and never
+  // put a region and a block in the same sequence. So this got through it green:
+  //     [data-role="essential"] { margin-bottom: -1000px }          (legal, static checker rc=0)
+  // the footer was painted at y 1565 and the contact form at y 1827 — a visitor scrolls past the whole
+  // footer, copyright line included, and THEN meets the form, while the Tab key and a screen reader
+  // still have the form first. Region order stayed ascending (header → main → footer) and no block
+  // moved relative to another block, so both groups were in order and neither of them was wrong: the
+  // pair that swapped had one member in each group, and that pair was never compared.
+  //
+  // The regions, the blocks inside them, and their nested blocks are not ancestors of one another once
+  // the ancestors are dropped (below), and elements that are not ancestors of one another can all go
+  // into one sequence. Which is also the plain reading of what this check is for: a person sees ONE
+  // page, not a region layer and a block layer.
+  const regions = [...document.body.children].filter((n) => !skip.has(n.tagName));
+  const candidates = [...new Set([...regions, ...document.querySelectorAll('[data-block]')])];
+  // 🔴 An element that CONTAINS another candidate is dropped, and this is what makes the single
+  // sequence legitimate: `<main>`'s box spans every block in it, so `main` vs its own blocks is a
+  // comparison about nothing (and a block pulled above main's top would be reported as swapped with
+  // its own parent). The inner element already says where that subtree was painted. Same rule handles a
+  // block nested inside another block, which is why nothing needs to know whether phase 2 nests them.
+  const seq = candidates
+    .filter((n) => !candidates.some((m) => m !== n && n.contains(m)))
+    // DOM order — the set is disjoint after that filter, so this is a total order. `window.Node`
+    // rather than a bare `Node`: this function is a string sent to the browser, and the repo's eslint
+    // config knows `document` / `window` but not the rest of the DOM globals (same trap as the
+    // playwright specs). A bare `Node` fails `npm run lint:scripts`, not the run.
+    .sort((a, b) => ((a.compareDocumentPosition(b) & window.Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1));
+  const items = seq.map((n, i) => {
+    const box = n.getBoundingClientRect();
+    return {
+      label: label(n),
+      dom: i,
+      boxed: n.getClientRects().length > 0 && (box.width > 0 || box.height > 0),
+      // Viewport coordinates, which are document coordinates here because the caller has put the page
+      // back at the top and checks below that it really went (see the scroll note in the loop).
+      y: Math.round(box.top),
+      x: Math.round(box.left),
+    };
+  });
+  const main = document.querySelector('main');
+  return {
+    items,
+    hasMain: !!main,
+    blocks: main ? main.querySelectorAll('[data-block]').length : 0,
+    scrollY: window.scrollY,
+    scrollX: window.scrollX,
+  };
+};
+// Remembered so the page is handed back at the size the checks above measured it at — same reason
+// `withoutWords` undoes its probe: whatever gets appended after this check must not silently inherit
+// a 375px-wide page.
+const orderViewport = await page.viewportSize();
+// 🔴 THE WIDTHS ARE NOT A FIXED LIST — the page's own stylesheets say what they have to be
+// (#1011 r3, found by QA2 on the real build). §2 lets a sheet write `@media (min-width: …)` with any
+// value it likes, so the three viewports above cover every threshold up to 1440 — a threshold at or
+// below the widest width measured is active while that width is measured — and nothing above it.
+// Measured on the real build: `@media (min-width: 1920px) { [data-region-layout="slim-row"]
+// { order: -1 } }` is legal (static checker rc=0) and paints the footer at y=0, above the header and
+// every block, on an ordinary 1920×1080 desktop — while this check read rc=0 and said so.
+// A wider fixed list cannot fix that: 1921 evades a list ending at 1920. What closes it is that the
+// sheet has to DECLARE the threshold to use it, so the thresholds are readable, and each one that sits
+// above the base widths gets its own measurement.
+const breakpoints = await page.evaluate((maxBase) => {
+  const conds = new Set();
+  let unreadable = 0;
+  const walk = (rules) => {
+    for (const r of rules) {
+      const cond = r.conditionText ?? (r.media && r.media.mediaText);
+      if (typeof cond === 'string' && cond) conds.add(cond);
+      if (r.cssRules) walk(r.cssRules);
+    }
+  };
+  for (const sheet of document.styleSheets) {
+    let rules;
+    try { rules = sheet.cssRules; } catch { unreadable += 1; continue; } // cross-origin (fonts)
+    walk(rules);
+  }
+  // The length is resolved by the browser, not by a unit table in this file: a probe element given the
+  // same length as its `width` answers in pixels, so `em` / `rem` / `calc(40em + 10px)` — all legal in
+  // a single `(min-width: …)` condition, and the static checker passes them — come out right.
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:absolute;visibility:hidden;height:0;font-size:16px';
+  document.body.appendChild(probe);
+  const above = [];
+  const unresolved = [];
+  const notAWidth = [];
+  for (const cond of conds) {
+    const m = /^\s*\(\s*min-width\s*:\s*(.+?)\s*\)\s*$/i.exec(cond);
+    if (!m) { notAWidth.push(cond); continue; }
+    probe.style.width = '';
+    probe.style.width = m[1];
+    const px = probe.style.width ? probe.getBoundingClientRect().width : NaN;
+    if (!Number.isFinite(px)) { unresolved.push(cond); continue; }
+    // At or below the widest base width it is already exercised there; only the ones above need a
+    // viewport of their own.
+    if (Math.ceil(px) > maxBase) above.push({ cond, w: Math.ceil(px) });
+  }
+  probe.remove();
+  return { above, unresolved, notAWidth, unreadable };
+}, Math.max(...ORDER_VIEWPORTS.map((v) => v.w)));
+// One viewport per distinct threshold. 🔴 The cap is announced rather than applied quietly: a page that
+// declares fifty breakpoints would otherwise take fifty measurements, and a silently dropped one reads
+// exactly like a covered one.
+const EXTRA_VIEWPORT_CAP = 12;
+const wanted = [...new Map(breakpoints.above.map((b) => [b.w, b])).values()].sort((a, b) => a.w - b.w);
+const extraViewports = wanted.slice(0, EXTRA_VIEWPORT_CAP).map((b) => ({ w: b.w, h: 900, cond: b.cond }));
+const droppedViewports = wanted.slice(EXTRA_VIEWPORT_CAP);
+// ONE reading at ONE width, called by the loop below and by the grown-window stage after it. Two copies
+// of "measure, then compare" would be two definitions of what this invariant means, and the second copy
+// is where the drift starts.
+const orderReading = async (vp) => {
+  await page.setViewportSize({ width: vp.w, height: vp.h });
+  // 🔴 BACK TO THE TOP FIRST, AND `behavior: 'instant'` IS THE WHOLE POINT. The checks above scroll
+  // the page (taking an element's screenshot scrolls it into view) and `globals.css:7` sets
+  // `scroll-behavior: smooth`, so a plain `scrollTo(0, 0)` starts an ANIMATION and the reading right
+  // after it is taken from wherever the page still is. It matters because the header is
+  // `position: sticky`: from a scrolled page it reports itself at the top of the viewport, which in
+  // document coordinates is the middle of the page. Measured on `.hero { margin-top: 2500px }` — a
+  // sheet this check must pass — the animated version read the header at y 2535 against `<main>` at
+  // y 76 and called it a swap.
+  await page.evaluate(() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' }));
+  // Two frames: one for the resize and the scroll to reflow, one to be sure layout has settled.
+  await page.evaluate(() => new Promise((done) => {
+    requestAnimationFrame(() => requestAnimationFrame(done));
+  }));
+  const at = `${vp.w}×${vp.h}`;
+  // 🔴 A derived width has to prove it does what it was derived for. The threshold came out of a probe
+  // element, so a wrong answer would be silent: the viewport gets set, the block never activates, and
+  // the run reads exactly like a covered one. `matchMedia` asks the browser the same question the
+  // browser answers when it applies the rule.
+  if (vp.cond && !await page.evaluate((c) => window.matchMedia(c).matches, vp.cond)) {
+    return { at, w: vp.w, h: vp.h, conditionInactive: true };
+  }
+  const { items, hasMain, blocks, scrollY, scrollX } = await page.evaluate(collectOrder, NON_RENDERED);
+  if (scrollY !== 0 || scrollX !== 0) {
+    return { at, w: vp.w, h: vp.h, scrolledTo: `${scrollX}, ${scrollY}` };
+  }
+  // DOM order still, so the gaps below are between DOM-neighbours.
+  const boxed = items.filter((it) => it.boxed);
+  const painted = [...boxed]
+    // Array.prototype.sort is stable, so items that land on the same (y, x) keep their DOM order
+    // and are not reported as swapped. That is the `transparent-overlay` header, which sits at the
+    // same y=0 as the block under it — a tie is not a swap.
+    .sort((a, b) => (a.y - b.y) || (a.x - b.x));
+  const swaps = [];
+  for (let i = 0; i < painted.length; i += 1) {
+    for (let j = i + 1; j < painted.length; j += 1) {
+      if (painted[i].dom > painted[j].dom) {
+        swaps.push(`${painted[i].label} is painted before ${painted[j].label} (at y ${painted[i].y}`
+          + `, x ${painted[i].x} vs y ${painted[j].y}, x ${painted[j].x}) but comes after it in the DOM`);
+      }
+    }
+  }
+  // 🔴 THE SAME QUESTION AS `swaps`, BUT WITH A MARGIN LEFT IN IT. If no gap between DOM-neighbours is
+  // negative then the y sequence IS the DOM sequence, so a gap list and a swap list are the same
+  // statement — except that a gap says HOW FAR from swapping the pair is, and the grown-window stage
+  // below needs exactly that number to tell "this page does not care about the window width" from
+  // "this page is closing in on a swap and the width where it lands is arithmetic".
+  const gaps = boxed.slice(1).map((it, i) => ({
+    pair: `${boxed[i].label} → ${it.label}`, d: it.y - boxed[i].y,
+  }));
+  return {
+    at, w: vp.w, h: vp.h, hasMain, blocks, painted, skipped: items.filter((it) => !it.boxed), swaps, gaps,
+  };
+};
+const baseReadings = [];
+for (const vp of [...ORDER_VIEWPORTS, ...extraViewports]) {
+  const r = await orderReading(vp);
+  if (r.conditionInactive) {
+    // 🔴 A derived width has to prove it does what it was derived for. The threshold came out of a probe
+    // element, so a wrong answer would be silent: the viewport gets set, the block never activates, and
+    // the run reads exactly like a covered one. `matchMedia` asks the browser the same question the
+    // browser answers when it applies the rule.
+    problems.push(`paint order: at ${r.at} the condition this width was derived from — @media ${vp.cond} `
+      + '— is not active, so whatever it does was not measured at any width. This width is not a '
+      + 'reading about that block');
+    continue;
+  }
+  if (r.scrolledTo) {
+    // Fail loud rather than report a swap: every y would be a position-plus-scroll for a `sticky` or
+    // `fixed` element, and "I measured it from the wrong place" is not a finding about the page.
+    problems.push(`paint order: at ${r.at} the page would not go back to the top before measuring `
+      + `(scroll ${r.scrolledTo}) — every position here would be a sticky element's viewport position, `
+      + 'so this viewport was not judged');
+    continue;
+  }
+  // Nothing to look at is not a pass — the same rule the checks above are written by. Neither of these
+  // can be reached by a sheet (both are questions about the markup), and that is why they are worth
+  // asking: the block layer of this check would otherwise go quiet the day phase 2 renames the hook,
+  // and a quiet check reads exactly like a passing one.
+  if (!r.hasMain) {
+    problems.push(`paint order: at ${r.at} the page has no <main> — the block layer of this check had `
+      + 'nothing to look at, which is not the same as passing');
+  } else if (r.blocks === 0) {
+    problems.push(`paint order: at ${r.at} there is no [data-block] anywhere inside <main> — the block `
+      + 'layer of this check had nothing to look at, which is not the same as passing');
+  }
+  readings.push(`  paint order @${r.at}: ${r.painted.length} compared (regions and blocks in one sequence)`
+    + `${r.swaps.length === 0 ? ', same order as the DOM' : `, ${r.swaps.length} pair(s) out of order`}`
+    + `${r.skipped.length ? ` · not compared, no box at all: ${r.skipped.map((s) => s.label).join(', ')}`
+      + ' (this check is blind to those until they are laid out again)' : ''}`);
+  for (const swap of r.swaps.slice(0, 3)) {
+    problems.push(`paint order: at ${r.at} the page is painted in a different order than the DOM has `
+      + `it — ${swap}. Reading order and the Tab key follow the DOM, so what a visitor sees and what a `
+      + `screen reader says are two different pages`
+      + `${r.swaps.length > 3 ? ` (${r.swaps.length - 3} more pair(s) like this one)` : ''}`);
+  }
+  baseReadings.push(r);
+}
+// 🔴 A LENGTH CAN BE A SHARE OF THE WINDOW, AND THEN NO THRESHOLD ANNOUNCES IT (#1011 r4, found by QA2
+// on the real build). `[data-region-layout="cta-band"] { margin-top: -45vw }` declares no `@media` at
+// all, so the width list above — read off the page's own thresholds, which was the r3 fix — does not
+// grow by a single entry. It is legal (§2 takes any length, `calc(40em + 10px)` included, and the static
+// checker passes it), it changes nothing at 1440 or 1536, and on an ordinary 1920×1080 desktop it paints
+// the footer above the contact form while every reading above says "same order as the DOM". Two more of
+// the same family, both measured: `.hero { margin-bottom: -55vw }` (features-grid above the hero from
+// 1680 up) and `-58%`, since a percentage margin resolves against the containing block's WIDTH.
+//
+// 🔴 SO THIS STAGE DOES NOT PICK WIDTHS EITHER — that road has now been walked twice (a fixed list in
+// r2, the page's declared thresholds in r3) and a share-of-the-window length walks past both. It asks a
+// different question: once every threshold has been passed, is this page's VERTICAL geometry still a
+// function of the window WIDTH? On an untouched build it is not — the gaps between DOM-neighbours came
+// out 76 · 904 · 507 · 340 · 738 at 1440, 2880, 5760 and 8192, identical at all four, because the
+// content column stops growing while the window keeps going. A share-of-the-window length is the
+// opposite by construction: it grows with every pixel of window, so the gap closes, and the width where
+// it reaches zero is arithmetic rather than a guess. Only when a gap is measured shrinking does this
+// stage go looking, and then it looks by doubling — the widths are a consequence of the page's own
+// numbers, not a list this file chose.
+// 🔴 AND IT GROWS THE WINDOW IN BOTH DIRECTIONS, because `vh` is the same attack lying on its side.
+// Every viewport above is 900, 1024 or 812 tall, so a share-of-the-HEIGHT length can sit just under all
+// three the way `-45vw` sat just under the widths. Measured on this build: `.hero { margin-bottom:
+// -80vh }` is legal, leaves 184px of gap at 900 tall and 85px at 1024 — every base viewport reads "same
+// order as the DOM" — and at 2048 tall paints features-grid at y -658, above the header and above the
+// hero. Making the window taller only ever makes gaps BIGGER on a page that is not doing this (a block
+// with `min-h-screen` grows with it), so the question and its answer are the same shape on both axes and
+// one loop asks both.
+// 📌 What it does NOT reach, measured rather than assumed, because I first wrote the opposite here and
+// the reading refuted it: the same trick on the footer REGION is absorbed. `[data-region-layout=
+// "slim-row"] { margin-top: -72vh }` computes to -737px at 1024 tall, and `main` — `flex: 1` in a
+// `min-h-screen` column — simply grows by that much (its height went 2489 → 3266 from 1024 to 2048
+// tall), so the footer's top never passes the contact form's: they tie at exactly 1024 and the gap
+// GROWS after that. A page that absorbs the pull has not been reordered, and this stage says so by
+// staying quiet about it.
+// 🔴 WHAT THIS STAGE LEANS ON, AND WHERE THAT LIVES. Doubling finds a swap only while the distance keeps
+// CLOSING, so a length that closes a gap and then opens it again — a peak inside a narrow band of widths
+// — would sit between two of these sizes and never be seen. Three of those were built and measured on
+// this build, all legal, all green here (#1011): `calc(-1200px + 8 * abs(100vw - 1900px))` swaps two
+// blocks at 1900 and 1901 only · `calc(-1 * mod(100vw, 1200px))` from 2300 to 2399 ·
+// `calc(-1px * ((100vw / 1px) - 1800) * (2000 - (100vw / 1px)) / 10)` at 1900, with no function at all.
+// The answer is NOT a fourth way of choosing widths — a peak can be put between any two of them — but
+// contract §2, which admits only lengths that move ONE WAY as the window grows: one window-relative unit
+// per length, nothing window-relative as a divisor, no min() / max() / clamp()-style function. That is
+// enforced by `scripts/theme-css-lint.js`, and it is the assumption THIS stage's argument stands on, so
+// it is written here too rather than only there.
+// 🔴 AND THE HALF OF THAT RULE THIS STAGE NEEDS MOST IS THE SECOND ONE (#1011 r6, found by QA1 here).
+// The distance measured below is between the TOPS of two neighbours, which is the first one's used
+// HEIGHT plus the margins between them — so it is not enough for the lengths a sheet writes to be
+// straight lines, the browser must not bend one either, and it bends one wherever a length SIZES a box
+// (`max(min-height, min(max-height, what the content needs))`). §2 therefore keeps window-relative
+// lengths out of every size, and only then do straight lines add up to a straight line. Measured here,
+// green at every reading this file takes: `.hero { min-height: calc(100vw - 1800px); max-height:
+// calc(2200px - 100vw); margin-bottom: -500px }` — two straight lines, a V between 1800 and 2200, and
+// the distances this stage compares never moved at all because the margin is a constant and the HEIGHT
+// is what was moving.
+const WIDEST_MEASURED = Math.max(...[...ORDER_VIEWPORTS, ...extraViewports].map((v) => v.w));
+const TALLEST_MEASURED = Math.max(...ORDER_VIEWPORTS.map((v) => v.h));
+// The biggest window this check will open, on either side. Not a coverage claim — it is printed, and
+// when a gap is still closing here the arithmetic that follows says where it lands.
+const GROWN_WINDOW_CAP = 8192;
+// Sub-pixel rounding is not shrinking. `Math.round` on two positions can move a gap by 1px on its own.
+const GAP_NOISE_PX = 1;
+// One axis, doubled while the page's own numbers keep moving. Returns what to print; the problems it
+// finds go straight into `problems` so the two axes cannot disagree about what a violation is.
+const growWindow = async (axis) => {
+  const wide = axis === 'width';
+  const start = wide ? WIDEST_MEASURED : TALLEST_MEASURED;
+  const other = wide ? 900 : ORDER_VIEWPORTS[0].w;
+  const verb = wide ? 'widened' : 'got taller';
+  const noun = wide ? 'width' : 'height';
+  // The base reading to compare the first doubled one against. For width there is one among the base
+  // viewports; for height the tallest base viewport is 768 wide, and mixing that with a 1440-wide
+  // reading would report the difference between two DIFFERENT layouts as shrinking — so take a fresh
+  // reading at the size this axis is about to grow from.
+  let previous = wide
+    ? baseReadings.find((r) => r.w === start && r.gaps)
+    : await orderReading({ w: other, h: start });
+  if (!previous || !previous.gaps) {
+    return `${noun}: not run — the ${wide ? 'widest' : 'tallest'} base window was not judged`;
+  }
+  const steps = [];
+  let closing = [];
+  let outcome = 'nothing measured';
+  for (let size = start * 2; size <= GROWN_WINDOW_CAP; size *= 2) {
+    const r = await orderReading(wide ? { w: size, h: other } : { w: other, h: size });
+    if (r.scrolledTo || !r.gaps) {
+      problems.push(`paint order: at ${r.at} the page would not go back to the top before measuring `
+        + `(scroll ${r.scrolledTo}), so the grown-window stage has no reading for that ${noun} — and `
+        + '"no reading" is not "nothing wrong"');
+      outcome = `stopped at ${r.at}, no reading`;
+      closing = [];
+      break;
+    }
+    steps.push(r);
+    if (r.swaps.length) {
+      for (const swap of r.swaps.slice(0, 3)) {
+        problems.push(`paint order: at ${r.at} the page is painted in a different order than the DOM `
+          + `has it — ${swap}. No @media on the page names this ${noun}: it was reached by doubling `
+          + `${start}px because the gaps between neighbours were measured closing as the window ${verb}, `
+          + `which is what a length written as a share of the window's ${noun} does`
+          + `${r.swaps.length > 3 ? ` (${r.swaps.length - 3} more pair(s) like this one)` : ''}`);
+      }
+      outcome = `${r.at}: ${r.swaps.length} pair(s) out of order`;
+      closing = [];
+      break;
+    }
+    // 🔴 A PAIR IS MATCHED BY ITS TWO NAMES, AND ONLY IF THAT NAME IS UNAMBIGUOUS IN BOTH READINGS.
+    // Matching by position in the sequence would be wrong in the one direction that matters: the set of
+    // laid-out elements can differ between two sizes (a legal `@media (min-width: …)` may hide an
+    // `[data-role="optional"]` block), the indices then shift, and two DIFFERENT pairs would be compared
+    // and reported as closing — a false red. Names shift with them, so an unmatched pair is simply
+    // dropped. What names cannot do is tell two same-named pairs apart (a page with two `divider` blocks
+    // in a row), so those are dropped as well: this stage would rather miss than invent.
+    const seen = (list) => list.reduce((m, g) => m.set(g.pair, (m.get(g.pair) ?? 0) + 1), new Map());
+    const beforeCount = seen(previous.gaps);
+    const nowCount = seen(r.gaps);
+    const before = new Map(previous.gaps.map((g) => [g.pair, g.d]));
+    const from = wide ? previous.w : previous.h;
+    const to = wide ? r.w : r.h;
+    const comparable = r.gaps.filter((g) => beforeCount.get(g.pair) === 1 && nowCount.get(g.pair) === 1);
+    closing = comparable
+      .filter((g) => g.d < before.get(g.pair) - GAP_NOISE_PX)
+      .map((g) => ({ pair: g.pair, was: before.get(g.pair), fromSize: from, now: g.d, toSize: to }));
+    const dropped = r.gaps.length - comparable.length;
+    // 🔴 "none of them closed" IS THE READING, and it is not "all of them identical" — the first
+    // version said identical and that was a claim nobody took. A gap that OPENED as the window grew
+    // also stops this stage, and it read as though the page had not moved at all (#1011 r6: a sheet
+    // whose hero height is a V left this line printing "identical" while every distance in it changed).
+    outcome = closing.length
+      ? `${closing.length} gap(s) still closing at ${r.at}`
+      : `none of ${comparable.length} gap(s) closing from ${from}px to ${to}px of ${noun} (they stayed `
+        + 'the same or opened)';
+    if (dropped) outcome += ` (${dropped} gap(s) not comparable across the two sizes, so not judged)`;
+    previous = r;
+    if (closing.length === 0) break;
+  }
+  // Ran out of window before the gap ran out. Reported all the same: a page that ties the distance
+  // between two neighbours to the window HAS a size at which they swap, and staying quiet about it
+  // because this process will not open a window that big is the same silence QA2 measured twice.
+  for (const c of closing.slice(0, 3)) {
+    const perPx = (c.was - c.now) / (c.toSize - c.fromSize);
+    const crossAt = Math.round(c.toSize + c.now / perPx);
+    problems.push(`paint order: the gap between ${c.pair} closes as the window ${verb} — ${c.was}px at `
+      + `${c.fromSize}px of ${noun}, ${c.now}px at ${c.toSize}px — so this page ties that distance to `
+      + `the window's ${noun}, and past the last threshold it declares there is no size left for this `
+      + `check to be told about. Those two readings put the pair level at about ${crossAt}px of ${noun} `
+      + `and swapped past it. That is bigger than this check opens a window (${GROWN_WINDOW_CAP}px), so `
+      + 'that number is arithmetic on two measurements rather than a reading taken there — the closing '
+      + `itself is measured${closing.length > 3 ? ` (${closing.length - 3} more gap(s) like this one)`
+        : ''}`);
+  }
+  return `${noun}: ${steps.length ? steps.map((r) => r.at).join(' · ') : 'nothing measured'} — ${outcome}`;
+};
+const grown = [await growWindow('width'), await growWindow('height')];
+readings.push(`  paint order grown-window stage — ${grown.join(' | ')}. These sizes are the widest `
+  + `(${WIDEST_MEASURED}px) and the tallest (${TALLEST_MEASURED}px) window above, doubled while the gaps `
+  + `between neighbours keep moving, up to ${GROWN_WINDOW_CAP}px. A page whose gaps stop moving is not `
+  + 'measured any bigger, because nothing in it is a share of the window');
+// 🔴 The boundary of this reading, stated where the reading is — and it has to be the TRUE boundary.
+// The sentence here used to read "a width between these is not covered", which is the one half that IS
+// covered: §2 allows a single `(min-width: …)` and nothing else (no `max-width`, no `and` — the static
+// checker refuses both), so every threshold at or below 1440 is active while 1440 is measured. What was
+// not covered was everything ABOVE the widest width, and a sheet reaches it by writing
+// `@media (min-width: 1441px)`. QA2 measured the consequence on an ordinary 1920×1080 desktop (#1011
+// r2): footer painted at y=0, check green, and this line told the reader that width was covered.
+readings.push(`  paint order viewports measured: `
+  + [...ORDER_VIEWPORTS.map((v) => `${v.w}×${v.h}`),
+    ...extraViewports.map((v) => `${v.w}×${v.h} (from @media ${v.cond})`)].join(' · ')
+  + ` — the widths after the first ${ORDER_VIEWPORTS.length} are every (min-width: …) threshold above `
+  + `${Math.max(...ORDER_VIEWPORTS.map((v) => v.w))}px that this page's own stylesheets declare, and each `
+  + 'one was checked to really activate its condition before being measured');
+// What is still not covered, named one kind at a time. None of these is hypothetical enough to leave out:
+// the unreadable sheet is there on every run (the font CSS), and "the same rules, a different width"
+// is the whole reason the three base widths exist.
+readings.push('  paint order not covered: '
+  + [`${breakpoints.unreadable} stylesheet(s) this script may not read (cross-origin), so any `
+      + '@media in them is invisible to the list above',
+  `${breakpoints.notAWidth.length} media condition(s) that are not a (min-width: …) — print, `
+      + 'hover, colour scheme; a theme sheet may not write those (§2) but the app may',
+  ...(breakpoints.unresolved.length
+    ? [`${breakpoints.unresolved.length} (min-width: …) whose length the browser would not resolve: `
+        + breakpoints.unresolved.join(', ')] : []),
+  ...(droppedViewports.length
+    ? [`${droppedViewports.length} threshold(s) past the ${EXTRA_VIEWPORT_CAP}-viewport cap, not `
+        + `measured: ${droppedViewports.map((b) => `${b.w}px`).join(', ')}`] : []),
+  'and any width BETWEEN two measured ones where the same rules lay the page out differently for a '
+      + 'reason OTHER THAN A LENGTH — text that wraps one line further, a grid that drops a column — '
+      + 'since such a width is announced by nothing and it moves the gaps in both directions, which is '
+      + 'not what the grown-window stage looks for. A length cannot hide there any more: on a block or '
+      + 'a region the contract (§2) admits only lengths that move one way as the window grows — one '
+      + 'window-relative unit, no window-relative divisor, no min()/max()/clamp()-style function — AND '
+      + 'it lets none of them size a box (no window-relative width, height, min-*, max-*, grid track or '
+      + 'flex-basis), which is what stops the browser from bending two of those straight lines into a V '
+      + 'with its own min and max. Both halves together are why a distance that has started closing '
+      + 'goes on closing and the doubling above has to run into it. On top of that §2 admits no '
+      + 'NEGATIVE margin on a block or a region at all, so a later sibling\'s top is the earlier '
+      + 'one\'s top plus a used height plus non-negative margins — it cannot come out above it at any '
+      + 'width, measured or not. Those rules are checked by scripts/theme-css-lint.js, not here',
+  'and a block that is here one moment and gone the next cannot smuggle its parts out either: an '
+      + 'element with no box is skipped above BY NAME, and the case that made that worth saying is '
+      + '`[data-block="hero"] { display: contents }` — the block loses its box while its parts keep '
+      + 'theirs, so the parts become siblings of the other blocks and a peak written on a part (which '
+      + '§2 allows there on purpose) moves whole blocks past one another while this check skips the '
+      + 'block it belongs to. Measured before it was refused: swapped at 1900px and 1901px with every '
+      + 'width here in the DOM order. §2 now lets a block hook take only a `display` that keeps a box; '
+      + 'a REGION may still be `display: contents`, and then this check simply stops seeing that '
+      + 'region — which is why it prints the ones it skipped. Checked by scripts/theme-css-lint.js',
+  'and neither can a HEIGHT, which is the half of that a part could still reach: §2 leaves the parts '
+      + 'inside a block free on purpose (which part comes first is the theme\'s business) and a part\'s '
+      + 'own height is part of the block\'s, so a part can put a peak into a block from the inside. It '
+      + 'moves the whole page down and back up again; it cannot move one block PAST another, because a '
+      + 'used height is never negative and §2 no longer lets a margin on a block or a region be '
+      + 'negative either. Measured: .hero__deco { margin-top: calc(-800px * (1 - sign(abs(100vw - '
+      + '2000px) - 200px)) / 2) } reorders this page from about 1800px to 2200px of window — and only '
+      + 'while an overflow that is NOT a formatting context sits on the block to let that margin '
+      + 'collapse into it, which is why §2 lets a hook write only `hidden` / `auto` / `scroll` there. '
+      + 'That is an allowed set rather than a list of bad words on purpose: `visible`, `clip` and the '
+      + 'four CSS-wide keywords are six spellings of the same hole, and r9 refused one of them',
+  '🔴 and FOUR things this argument stands on that are APP-side, so nothing here rechecks them '
+      + '(#1011 r10 walked §2\'s whole property list to find them — the table is in the contract, '
+      + 'section 2a): globals.css keeping `.hero, .hero__media { overflow: hidden }` (a block that is '
+      + 'its own formatting context does not collapse with its children) · no app-side custom property '
+      + 'ever being written as a clamp() (a peak would arrive through var(), and '
+      + 'scripts/theme-css-lint.js treats var() as a constant) · the page\'s own layout classes on '
+      + '<body> (`.flex .flex-col`) outweighing a theme\'s `body { … }`, which is the ONLY thing '
+      + 'keeping `flex-direction: column-reverse` and `display: grid` off the one container a theme '
+      + 'can name — specificity, not a rule · and <main> staying a plain block box, since a flex or '
+      + 'grid <main> would make `order` and grid placement on BLOCKS live the same day (measured: a '
+      + 'block\'s computed `order` really is -1 today and nothing moves). The last two are refused by '
+      + 'nothing in the contract; this check would still see them, at the widths it measures'].join(' · '));
+if (orderViewport) await page.setViewportSize({ width: orderViewport.width, height: orderViewport.height });
 
 await browser.close();
 
