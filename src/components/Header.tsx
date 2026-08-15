@@ -23,8 +23,9 @@ function localizeHref(href: string, locale: string): string {
 //
 // 🔴 `transparent-overlay` 只在 `overHero` 为真时真的浮起来。它压的是首屏那张图,而一个 about 页的第一段
 // 是 page-header —— 浮上去就是标题被压在横条底下。所以这个判断由**页面**给(SiteShell 的参数),不是这里猜。
-// 🔴 `regionLayout.headerScrim` 是构建期那条对比度规则的产物:首屏不能被证明是深底时它为 true,这里加一层
-// 半透明深色底。规则本身(以及为什么它写成「能不能证明是深底」而不是一张禁配清单)在 scripts/region-layout.js。
+// 🔴 `regionLayout.headerScrim` 是构建期那条对比度规则的产物:#1024 起它就等于「顶栏是不是透明浮层」——
+// 浮层的字是白的,而首屏底色住在主题的样式表里,构建期证明不了它是深的,所以一律加一层半透明深色底。
+// 规则本身和它为什么从「能不能证明是深底」退成这样,写在 scripts/region-layout.js 的文件头。
 
 type HeaderProps = { locale: string; overHero?: boolean };
 
@@ -126,7 +127,7 @@ export default function Header({ locale, overHero = false }: HeaderProps) {
         data-region-layout="transparent-overlay"
         data-region-scrim={regionLayout.headerScrim ? 'on' : 'off'}
       >
-        {/* 遮罩:构建期判定首屏不能被证明是深底时才有。它是一条从上往下的深色渐变,深底首屏上几乎看不出来,
+        {/* 遮罩:一条从上往下的深色渐变,深底首屏上几乎看不出来,
             而浅底首屏上正是它让白字还读得出来。
             🔴 浓度是按**最坏情况**定的:首屏是纯白时,导航文字那一行(距顶约 56px)底下要压到 rgb(118) 或更深,
             白字才有 4.5:1(小字的 WCAG AA 线)。r1 那版是 `h-32 from-black/60`,同一处实测只有 **2.38:1** ——

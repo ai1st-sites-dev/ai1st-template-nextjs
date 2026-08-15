@@ -59,7 +59,7 @@ const readback = (id, page) => seenTypes(page)
 // #981 条6/条7 —— 顶栏和页脚的读数。layout-readback.py 只看 <main> 里面的 <section>,而这两个在它外面
 // ⟹ 它们一直没有读数。**这一行读的是产物**:shoot.mjs 在浏览器里从 <header>/<footer> 身上的
 // `data-region-layout` 取的,不是把注册表的 supports.header 抄一遍 —— 抄注册表会说假话,因为
-// resolveRegionLayout 会改主意(不认识的写法退回默认;首屏不能被证明是深底时自己加遮罩)。
+// resolveRegionLayout 会改主意(不认识的写法退回默认;透明浮层自己带一层遮罩)。
 const REG = Object.fromEntries(ids.map(id => [id, JSON.parse(
   fs.readFileSync(`${PUB}/shots/${id}.json`, 'utf-8')).regions || null]));
 const regionCaption = (id) => {

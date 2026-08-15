@@ -81,8 +81,12 @@ export function getHomePage(locale: string): DynamicPageConfig {
   return pages.find((p) => p.slug === 'home')!;
 }
 
-// #960 — 「这一页的第一段是不是 hero」。透明浮层顶栏只在它为真时才浮起来,所以这个判断必须跟
-// 构建期那条对比度规则(scripts/region-layout.js 的 firstSectionHero)说的是同一件事。
+// #960 — 「这一页的第一段是不是 hero」。透明浮层顶栏只在它为真时才浮起来,连带那层遮罩也只在
+// 这些页面上渲染(Header.tsx 的 floating 分支)。
+//
+// 📌 #1024:构建期那一侧原本也有一份同样的判断(region-layout.js 的 firstSectionHero,用来挑
+//    「拿哪些页当首屏底色的证据」)。那条判断整条去掉了 —— 透明浮层现在一律配遮罩,不再需要
+//    知道哪一页第一段是 hero。于是这个谓词只剩这一处实现,不会再有两处分叉的问题。
 //
 // 🔴 数的是**画得出来的**第一段,不是数组的第 0 个:站自己的页面 JSON 可以把某一段标成不显示
 // (`hidden`,SectionRenderer 直接 return null),而那一段仍然留在 sections 里。按第 0 个数会错两次 ——

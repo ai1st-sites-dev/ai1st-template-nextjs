@@ -550,13 +550,10 @@ if (withRhythm.length) {
 // `layout[section.type]` 取,而没有任何 section 的 type 是 header/footer ⟹ 往偏好表里加这两个键会被
 // `if (!preferred) continue` 静默跳过。这里是它们自己的写出口,理由与那条对比度规则写在 region-layout.js。
 // 📌 没换装的站(appliedThemeId 为空)传的是 {} ⟹ 两个 Region 都回到现状,「换装才接管」的语义不变。
-const regionLayout = resolveRegionLayout(
-  appliedThemeId ? layoutFor(appliedThemeId) : {},
-  // 🔴 全部 locale 的**全部**页面,不是只给首页:浮层在**任何**第一段是 hero 的页面上都会浮起来
-  // (SiteShell 的 overHero),所以那条对比度规则的证据面必须跟它的生效面一样宽(QA3 在 r2 上量的)。
-  locales.flatMap(loc => pagesByLocale[loc] || []),
-  brand.colors, // 判「那一段是不是深底」要查颜色档在不在 —— 一个 class 名字写着深色不等于它画得出来
-);
+// 📌 #1024:以前还往这里传「全部 locale 的全部页面」和这个站的调色板,用来判首屏是不是深底。
+// 那条判断已经没有依据了(hero 的底色住在主题样式表里,不在 variant 的名字里),现在透明浮层
+// 一律配遮罩,所以这个函数只要 theme 的那份结论。
+const regionLayout = resolveRegionLayout(appliedThemeId ? layoutFor(appliedThemeId) : {});
 console.log(`  Regions: header=${regionLayout.header} footer=${regionLayout.footer}` +
   (regionLayout.headerScrim ? ' (+scrim)' : ''));
 
