@@ -655,9 +655,23 @@ const onlyAddsToLayout = (prop) => ADDS_ONLY_PROPS.has(prop)
 // 🔴 `.hero` IS NOT A PART, however §1's hook table groups it. That table lists it on the "Hero parts"
 // row next to `.hero__media` (contract §1), and an implementation that classified by that row would
 // exempt the one selector all three narrow-peak attacks above used. `.hero` is a class on the block
-// element itself.
+// element itself. The same goes for `.cta-banner`.
+//
+// 🔴 EVERY PHASE-2 TICKET ADDS ITS BLOCK'S PARTS HERE, and the note at the top of this file (the
+// "PART_HOOKS · exemption list" row) says why the list is written out by hand rather than derived
+// from `__` in the name: leaving a part off is the SAFE direction — it gets judged as a block, which
+// is stricter — so nothing goes red when a ticket forgets, and the cost lands on the theme instead.
+// #1018 is the first ticket to pay it: without the three names below, the SAME declaration passes on
+// a hero part and is refused on a cta-banner part (`.hero__sub { margin-top: -8px }` rc=0 vs
+// `.cta-banner__headline { margin-top: -8px }` rc=1), while §2 of the contract says in as many words
+// that the parts inside a block keep their negative margins — the refusal message contradicts itself.
+// Measured after adding them: those two cells turn legal and fifteen reverse ones do not move — a
+// block or a region carrying the same thing, reached by class, by `[data-block=…]`, through a
+// pseudo-element, from a selector list, behind an escape, sizing itself off the window, and a part
+// name nobody put on this list.
 const PART_HOOKS = new Set(['.hero__media', '.hero__body', '.hero__title', '.hero__sub', '.hero__cta',
-  '.hero__deco']);
+  '.hero__deco',
+  '.cta-banner__headline', '.cta-banner__desc', '.cta-banner__action']);
 
 // Does this rule style a block or a region (rather than a part inside one)? The subject of a complex
 // selector is its LAST compound — `.hero .hero__title` styles the title — and one selector in the list
