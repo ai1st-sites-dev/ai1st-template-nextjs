@@ -141,3 +141,71 @@
     justify-content: flex-start;
   }
 }
+
+/* ── #1019 page-header — the two-column one: heading left, description beside it ─────────────────
+   This is the old `with-description` look, and it is the reason that variant is a SKIN and not a
+   content shape: the same three parts, the same `data.subtitle`, put in a second column by a sheet.
+   The crumb trail spans the row above both columns. Under 1024 it all stacks in source order.
+   Light ground, a rule under the trail instead of a filled band — this sheet is the airy one. */
+.page-header {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  padding: 2.5rem 1.5rem;
+  background-color: var(--color-primary-50);
+  border-bottom: 1px solid var(--color-primary-200);
+  color: var(--color-primary-900);
+}
+
+@media (min-width: 1024px) {
+  .page-header {
+    grid-template-columns: 1fr 1fr;
+    align-items: end;
+    gap: 2rem 3rem;
+    padding: 4rem 3rem;
+  }
+}
+
+.page-header__crumbs {
+  font-size: 0.875rem;
+  color: var(--color-primary-600);
+}
+
+.page-header__title {
+  font-size: 1.875rem;
+  line-height: 1.15;
+  font-weight: 700;
+  color: var(--color-primary-900);
+}
+
+@media (min-width: 1024px) {
+  .page-header__title {
+    font-size: 2.75rem;
+  }
+}
+
+.page-header__sub {
+  max-width: 32rem;
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--color-primary-700);
+}
+
+/* The trail takes the whole first row; the heading and the description share the second one. This
+   is the whole two-column look — three declarations, no markup involved. */
+@media (min-width: 1024px) {
+  .page-header__crumbs {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  .page-header__title {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .page-header__sub {
+    grid-column: 2;
+    grid-row: 2;
+  }
+}

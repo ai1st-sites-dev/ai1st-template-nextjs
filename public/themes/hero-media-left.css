@@ -158,3 +158,57 @@
     justify-content: flex-end;
   }
 }
+
+/* ── #1019 page-header — the deep dark band, words hard left ─────────────────────────────────────
+   This sheet's page header is the old `default` / `centered` family without the choice: one column,
+   left aligned, and the same dark gradient the hero above paints, so a subpage opens the way the
+   home page did. The subtitle sits UNDER the heading with a reading measure on it — which is the
+   layout the other two sheets deliberately do not use, so the three geometries differ pairwise (AC4).
+   The old `minimal` variant's underlined heading is drawn here as a `border-bottom` on the title;
+   `border` is on the contract's property list, an <hr> would have been markup. */
+.page-header {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  padding: 3rem 1.5rem;
+  background: linear-gradient(140deg, var(--color-primary-900), var(--color-primary-700));
+  color: var(--color-primary-50);
+}
+
+@media (min-width: 1024px) {
+  .page-header {
+    gap: 1.25rem;
+    padding: 5rem 4rem;
+  }
+}
+
+.page-header__crumbs {
+  order: 1;
+  font-size: 0.8125rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-primary-200);
+}
+
+.page-header__title {
+  order: 2;
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--color-primary-50);
+}
+
+@media (min-width: 1024px) {
+  .page-header__title {
+    font-size: 3rem;
+  }
+}
+
+.page-header__sub {
+  order: 3;
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}

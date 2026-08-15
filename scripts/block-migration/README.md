@@ -16,10 +16,38 @@
 | 文件 | 干什么 |
 |---|---|
 | `gen-allblocks.js` | 造 `site/en/pages/allblocks.json` —— 34 种 block 每种一节。data 是**从每个组件自己的 props 类型现读出来**再合成的（`items` 在一处是 `string[]`、另一处是对象数组，一份通用 data 服务不了；命名 interface 如 `TeamMember[]` 也会展开）。**在 `templates/nextjs/` 下跑** |
-| `dom-compare.py` | 「别的 block 没被误伤」的尺子（#1008 的 AC6）：剔掉 Next 自己的 script/preload 和资源哈希 → 把 hero 那一节整个摘掉 → 剩下的逐字节比两臂 |
+| `dom-compare.py` | 「别的 block 没被误伤」的尺子（#1008 的 AC6）：剔掉 Next 自己的 script/preload 和资源哈希 → 把**被搬那个 block** 的每一节整个摘掉 → 剩下的逐字节比两臂 |
 | `ac4-compare.py` | 「三套表画得出三个样」第一半（#1008 的 AC4）：三臂 HTML 逐字节比。buildId 按**每臂实测到的那个字符串**整串替换，不用「看起来像 id 的正则」 |
-| `geo.js` | 同上第二半：各臂取 `.hero__media` / `.hero__body` 的 `getBoundingClientRect()`（1280×900） |
+| `geo.js` | 同上第二半：各臂取**被搬那个 block 的部件**的 `getBoundingClientRect()`（1280×900） |
 | `ac3.js` · `ac3-wrap.js` | 「没有主题表时不塌」的四个读数（桌面 1280 + 手机 375），以及长词那条在两个宽度上的对照 |
+
+## 🔴 这三把尺子是【带参数的】，不是每张票各抄一份（#1019 改的）
+
+`dom-compare.py` / `geo.js` / `ac3.js` 原来把 hero 的块名和部件名写死在代码里。#1019（第三个搬迁块）
+把它们变成参数，**缺省值仍是 hero 那几个** —— 所以不带参数跑跟 #1008 那次逐字节是同一件事。
+
+```bash
+# AC5：其余 33 个 block 有没有被误伤（第三个参数 = 本票搬的那个块）
+python3 scripts/block-migration/dom-compare.py <改动前产物> <改动后产物> page-header
+
+# AC4：三套表画不画得出三个样（--parts 给本票那个块的部件）
+node scripts/block-migration/geo.js --parts .page-header__title,.page-header__sub \
+     left=http://…/ph-only.html right=http://…/ph-only.html top=http://…/ph-only.html
+
+# AC3：没有主题表时的四个读数
+node scripts/block-migration/ac3.js http://…/ph-only.html base-only \
+     --root .page-header --title .page-header__title --sub .page-header__sub
+```
+
+**为什么加参数而不是各票复制一份**：31 张搬迁票的验收标准里都写着「其余 33 个 block 逐字节不变」，
+各票各造一把尺子的话那**不再是同一句话** —— 这正是本目录开头那段写下的理由。
+
+📌 `ac3.js` 的③那一条对**没有图片的块**也答得出来：块里没有 `<img>`（page-header 就没有）时它改问
+「块里最宽的那个后代有没有撑破块自己的盒子」，同一个性质，量的是这个块真有的东西；读数里的
+`imageArm` 写明走的是哪一条，而且它由**页面上有没有那个 `<img>`** 决定，不由调用方声明。
+
+📌 `geo.js` 的输出形状随之变了：原来是 `{media, body, title}` 三个固定键，现在是
+`{sheets, boxes: {"<选择器>": {x,y,width}}}`。**数是同一批数**，只是键由 `--parts` 决定。
 | `paths.js` | 上面三个用浏览器的脚本从这里取 playwright。**它是这次搬家唯一改过的东西** —— 原来三个文件各自写死 `/root/wt/1008/tests/e2e/node_modules/playwright-core`。要指别处就设 `PLAYWRIGHT_CORE_MODULE` |
 
 ## 怎么把夹具重建出来

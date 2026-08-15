@@ -178,3 +178,44 @@
   flex-wrap: wrap;
   gap: 1rem;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   #1019 — THE NEUTRAL PAGE-HEADER SKELETON. Same division of labour as the two blocks above.
+   ══════════════════════════════════════════════════════════════════════════════════════════════
+   Here: the things that must be true whichever sheet is loaded. In a theme sheet: the whole look.
+
+   🔴 THE HOOK IS ON THE <nav>, NOT ON THE <ol> INSIDE IT, and the reason is `order`. All three parts
+   are direct children of `.page-header` so a sheet can place them in its grid; the <ol> is a
+   grandchild, and `order` on a grandchild moves nothing. Putting the hook one level down would buy a
+   sheet `display`/`gap` on the list and cost it the ability to move the breadcrumb row at all.
+   The price is that a sheet's `display: flex` on `.page-header__crumbs` has one child to lay out —
+   which is why the ROW is laid out here instead, where selecting `ol` and `li` is allowed.
+
+   🔴 NO padding / background / colour / font-size / text-align HERE. Any default for those would be a
+   fourth theme that all three sheets have to override, and it would be invisible to a byte comparison
+   of the HTML — the difference would be visual only. The floor for a page with NO sheet is
+   public/base.css's job; the two files split it the way they do for hero and cta-banner: this one
+   owns what a part IS, base.css owns spacing and readable type.
+
+   🔴 `overflow: hidden` is the same guard the other two have: it keeps a phone from getting a
+   horizontal scrollbar when a sheet paints something wider than the block (a full-bleed band, a
+   negative margin). No sheet sets `overflow`, so nothing here reaches a themed page by accident. */
+.page-header {
+  overflow: hidden;
+}
+
+/* The breadcrumb row. `flex-wrap` because a deep trail on a 375px screen has to go somewhere other
+   than off the side, and the separator sits INSIDE the <li> so it wraps with the crumb it precedes
+   rather than being orphaned at the start of a line. */
+.page-header__crumbs ol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.page-header__crumbs li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}

@@ -111,6 +111,11 @@ const HOOKS = new Set([
   // button itself: the box around it is a theme's business, the button's own look is the brand's.
   '.cta-banner', '.cta-banner__headline', '.cta-banner__desc', '.cta-banner__action',
   '[data-block="cta-banner"]',
+  // #1019 — page-header, phase 2's third block and the widest one on a site (7 instances per site,
+  // #1007). Three parts: the crumb trail, the heading, the subtitle. The hook is on the <nav>
+  // rather than the <ol> inside it, because only a direct child of the block can be given `order`.
+  '.page-header', '.page-header__crumbs', '.page-header__title', '.page-header__sub',
+  '[data-block="page-header"]',
   '[data-role="essential"]', '[data-role="lead"]', '[data-role="optional"]',
   'body', '[data-region-layout]',
 ]);
@@ -126,6 +131,7 @@ const HOOKS = new Set([
 //   #991  hero parts, block/role/page hooks           (phase 1)
 //   #998  [data-block-layout="…"]                     (the third hook)
 //   #1018 cta-banner parts + [data-block="cta-banner"]
+//   #1019 page-header parts + [data-block="page-header"]
 //
 // A BREAKING change (renaming a hook, removing one, changing what one means) still MUST bump: that
 // is the case where an old sheet keeps loading and quietly points at nothing, which is the reason
@@ -671,7 +677,10 @@ const onlyAddsToLayout = (prop) => ADDS_ONLY_PROPS.has(prop)
 // name nobody put on this list.
 const PART_HOOKS = new Set(['.hero__media', '.hero__body', '.hero__title', '.hero__sub', '.hero__cta',
   '.hero__deco',
-  '.cta-banner__headline', '.cta-banner__desc', '.cta-banner__action']);
+  '.cta-banner__headline', '.cta-banner__desc', '.cta-banner__action',
+  // #1019 — page-header's three parts. `.page-header` itself is NOT here, for the same reason
+  // `.hero` and `.cta-banner` are not: it is the class on the block element.
+  '.page-header__crumbs', '.page-header__title', '.page-header__sub']);
 
 // Does this rule style a block or a region (rather than a part inside one)? The subject of a complex
 // selector is its LAST compound — `.hero .hero__title` styles the title — and one selector in the list

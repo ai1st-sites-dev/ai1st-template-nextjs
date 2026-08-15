@@ -1,9 +1,21 @@
-// AC4 第二半 —— 三臂各取 .hero__media 与 .hero__body 的 getBoundingClientRect()。
+// AC4 第二半 —— 三臂各取被搬那个 block 的两个部件的 getBoundingClientRect()。
 // 判决归几何读数（作者 04:17 改的）：截图"看着不同"会被站的配色影响，而 media 分居两侧 / 在上方
 // 是布局决定的，跟配色无关。
+//
+// 用法：geo.js [--parts .a,.b,.c] name=url [name=url …]
+//
+// 🔴 #1019 —— `--parts` 是这次加的，缺省仍是 hero 的三个部件，所以不带它跑跟 #1008 那次是同一件事。
+//    加参数而不是各票复制一份：31 张搬迁票的 AC4 必须是同一把尺子（README 第一段）。
+//    #1019 用的是 `--parts .page-header__title,.page-header__sub`。
 const { chromium } = require(require('./paths').PLAYWRIGHT_CORE_MODULE); // #1020 —— 原来这里写死 /root/wt/1008/…
 
-const arms = process.argv.slice(2); // 形如 name=url
+const argv = process.argv.slice(2);
+const partsIdx = argv.indexOf('--parts');
+const PARTS = partsIdx >= 0
+  ? argv[partsIdx + 1].split(',').map((s) => s.trim()).filter(Boolean)
+  : ['.hero__media', '.hero__body', '.hero__title'];
+const arms = argv.filter((a, i) => i !== partsIdx && i !== partsIdx + 1); // 形如 name=url
+
 (async () => {
   const browser = await chromium.launch();
   const out = {};
@@ -11,7 +23,7 @@ const arms = process.argv.slice(2); // 形如 name=url
     const [name, url] = spec.split('=');
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     await page.goto(url, { waitUntil: 'load' });
-    const r = await page.evaluate(() => {
+    const r = await page.evaluate((parts) => {
       const box = (sel) => {
         const el = document.querySelector(sel);
         if (!el) return null;
@@ -24,8 +36,10 @@ const arms = process.argv.slice(2); // 形如 name=url
         try { n = s.cssRules.length; } catch { n = -1; }
         return (s.href || 'inline').split('/').pop() + ':' + n + 'rules';
       });
-      return { sheets, media: box('.hero__media'), body: box('.hero__body'), title: box('.hero__title') };
-    });
+      const boxes = {};
+      for (const sel of parts) boxes[sel] = box(sel);
+      return { sheets, boxes };
+    }, PARTS);
     out[name] = r;
     await page.close();
   }

@@ -121,3 +121,54 @@
 .cta-banner__action {
   justify-content: center;
 }
+
+/* ── #1019 page-header — one centred column, short ───────────────────────────────────────────────
+   The sheet that makes the point hardest keeps making it: at no width does this block have columns.
+   The three parts stack, centred, with a measure on both the heading and the subtitle — so its
+   geometry differs from the left sheet's (which is hard left) and from the right sheet's (which is
+   two columns) at every viewport (AC4). Short, because a subpage header on this sheet is a label,
+   not a stage. */
+.page-header {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 0.75rem;
+  padding: 2.5rem 1.5rem;
+  background-color: var(--color-primary-100);
+  color: var(--color-primary-900);
+  text-align: center;
+}
+
+@media (min-width: 1024px) {
+  .page-header {
+    gap: 1rem;
+    padding: 3rem 2rem;
+  }
+}
+
+.page-header__crumbs {
+  font-size: 0.8125rem;
+  color: var(--color-primary-700);
+}
+
+.page-header__title {
+  max-width: 40rem;
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--color-primary-900);
+}
+
+@media (min-width: 1024px) {
+  .page-header__title {
+    font-size: 2.25rem;
+  }
+}
+
+.page-header__sub {
+  max-width: 30rem;
+  font-size: 1rem;
+  line-height: 1.65;
+  color: var(--color-primary-800);
+}

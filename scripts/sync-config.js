@@ -629,8 +629,9 @@ for (const note of regionLayout.notes) console.log(`    · ${note}`);
 // markup with or without a sheet now, and with no sheet it has only base.css to lay it out. The blocks
 // that have NOT moved yet are the ones still keyed off `variant`, so name that instead of "every".
 // 🔴 #1018 — the count in the second line is the thing that goes stale, so it is spelled out from the
-// list of blocks that have moved rather than typed as a number: two moved (hero #1008, cta-banner
-// #1018), 32 to go. The next migration ticket edits MOVED_BLOCKS and the sentence stays true.
+// list of blocks that have moved rather than typed as a number: three moved (hero #1008, cta-banner
+// #1018, page-header #1019), 31 to go. The next migration ticket edits MOVED_BLOCKS and both the
+// sentence and the count stay true — #1019 only had to correct this comment's own prose.
 //
 // 📌 #1018 r3 (rebased onto #1002's ship) keeps both halves of the collision here: the variable is
 //    #1002's `themeSheet` and the wording is its "pasted into theme.css" (the sheet's bytes go INTO
@@ -640,7 +641,7 @@ for (const note of regionLayout.notes) console.log(`    · ${note}`);
 //    `Theme CSS: public/themes/<sheet>.css` to tell "this build wore the sheet under test" from "it
 //    did not", and scripts/theme-pipeline/gallery.js documents the same prefix. Reword what follows
 //    the em dash freely; do not touch what precedes it.
-const MOVED_BLOCKS = ['hero', 'cta-banner'];
+const MOVED_BLOCKS = ['hero', 'cta-banner', 'page-header'];
 const movedList = MOVED_BLOCKS.join(' + ');
 console.log(themeSheet
   ? `  Theme CSS: public/themes/${themeSheet}.css — pasted into theme.css, ${movedList} styled by those rules (base.css underneath)`

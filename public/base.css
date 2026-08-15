@@ -48,7 +48,7 @@
      (#991). One owner per property.
 
    📌 Phase 2 moves the blocks one at a time and each of those tickets brings its own base rules with
-   it. Today: hero (#1008) and cta-banner (#1018). */
+   it. Today: hero (#1008), cta-banner (#1018) and page-header (#1019). */
 
 .hero {
   /* Grid rather than the structure layer's `display: block`, for one reason: it puts the gap
@@ -168,5 +168,80 @@
   /* Roughly 70 characters — the same reading measure the hero body gets, for the same reason. */
   max-width: 42rem;
   line-height: 1.6;
+  overflow-wrap: break-word;
+}
+
+/* ── #1019 page-header ──────────────────────────────────────────────────────────────────────────
+   Same two jobs as the rules above, and the same test for what may go in here: "would every sheet
+   want to state this itself?". Checked against all three phase-1 sheets after their page-header
+   sections were written:
+
+     .page-header           display / gap / padding      all three set them → base leaks nothing
+     .page-header__title    font-size / line-height      all three set them
+     .page-header__sub      font-size / line-height / max-width   all three set them
+     .page-header__crumbs   font-size                    all three set it
+
+   The deliberate leftovers are the same pair the other two blocks have — `overflow-wrap` and
+   `min-width: 0`: no sheet sets either, both only prevent something unreadable, and a sheet that
+   wanted the overflow back can say so.
+
+   🔴 THE SPACING BETWEEN THE THREE PARTS IS A GRID GAP, NOT MARGINS. The crumbs, the heading and the
+   subtitle are direct children of `.page-header` (that is what lets a sheet put the subtitle in a
+   column of its own — the old `with-description` look), so one `gap` spaces them; margins on top of
+   it would double-space every themed page whose sheet sets its own gap.
+
+   🔴 NO text-align AND NO background HERE, and this block is the one where that matters most: two of
+   the four deleted looks were centred and two were not, and three of them painted a dark gradient
+   while `minimal` was white. Both are therefore looks, not floors — a default would fight whichever
+   sheet wanted the other one, on every page of the site except the home page. */
+.page-header {
+  display: grid;
+  gap: 1rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .page-header {
+    padding: 4rem 2rem;
+  }
+}
+
+/* 🔴 `min-width: 0` ON ALL THREE, the same rule and the same reason `.hero__media` / `.hero__body`
+   and the cta-banner parts have it above: a grid item's automatic minimum size is its CONTENT's
+   size, so one unbreakable word pushes the track wider than the screen. `overflow-wrap: break-word`
+   does NOT prevent that — it allows a break once the box is already too narrow, but it does not
+   shrink the box's min-content size, so without this the two properties fight and the word wins. */
+.page-header__crumbs,
+.page-header__title,
+.page-header__sub {
+  min-width: 0;
+}
+
+.page-header__title {
+  font-size: 1.875rem;
+  line-height: 1.2;
+  /* A service name, a city name joined by hyphens, or a URL with no spaces in it is one word to a
+     browser, and one word longer than the screen is a horizontal scrollbar. */
+  overflow-wrap: break-word;
+}
+
+@media (min-width: 1024px) {
+  .page-header__title {
+    font-size: 2.5rem;
+  }
+}
+
+.page-header__sub {
+  /* Roughly 70 characters — the same reading measure the hero body and the cta-banner description
+     get, for the same reason. */
+  max-width: 42rem;
+  line-height: 1.6;
+  overflow-wrap: break-word;
+}
+
+/* The crumb trail is navigation, not reading matter: smaller than the body text on every sheet, and
+   it wraps rather than pushing the page sideways when a page sits three levels deep. */
+.page-header__crumbs {
+  font-size: 0.875rem;
   overflow-wrap: break-word;
 }
