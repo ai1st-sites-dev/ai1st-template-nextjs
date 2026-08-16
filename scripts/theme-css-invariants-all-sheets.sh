@@ -86,6 +86,16 @@ if [ ! -f "$NEXT/site/brand.json" ]; then
     echo "🔴 cannot take the reading: create-site.js (skipAI) failed" >&2
     exit 2
   fi
+  # 🔴 那个演示站只有 5 页 / 8 种块，而契约有 213 条钩子 —— 实测 171 条一次都没被量到，
+  # 而整条命令照样 rc=0（#1052）。所以造完站再把它撑到覆盖全部块，否则这道检查对阶段 2 新搬进来的
+  # 块永远是空绿：主题表漏了规则，CI 什么都不会说。
+  #
+  # 🔴 只在**这个脚本自己造的站**上做（就在这个 if 里面）—— 上面那条「site 已经存在就一个字节都
+  # 不动」的规矩不能破：一个悄悄改掉你指给它的样例的工具，你没法用第二次。
+  if ! ( cd "$NEXT" && node scripts/theme-css-invariants-sample-pages.js "$NEXT/site" ); then
+    echo "🔴 cannot take the reading: could not widen the demo site to cover every block" >&2
+    exit 2
+  fi
 fi
 
 THEME_JSON="$NEXT/site/theme.json"
