@@ -193,12 +193,34 @@ function promptEntryLegacyOnly(m) {
     .join('\n');
 }
 
-/** 提示词里某一组（homepage / page-specific）的全部块条目。顺序 = manifest 里记的 promptOrder。 */
-function promptSection(group, dir, { legacyOnly = false } = {}) {
+/**
+ * 提示词里某一组（homepage / page-specific）的全部块条目。顺序 = manifest 里记的 promptOrder。
+ *
+ * `order`（#1034）：给一份 type 名单，就按那份名单的顺序印。**只换顺序，一块都不加不减** ——
+ * 名单里没提到的块照旧按 prompt.order 接在后面，名单里有而这一组没有的块直接忽略。
+ * 为什么要能换：实测被 AI 选中的那批几乎就是清单靠前的那批，清单顺序本身在参与选择
+ * （6 个真实站 100% 以 `announcement-bar → hero` 开场）。判据是「印出来的块集合逐个不变」，
+ * 见 `scripts/lib/homepage-recipe.test.js`。
+ */
+function promptSection(group, dir, { legacyOnly = false, order = null } = {}) {
   const all = [...loadManifests(dir).values()]
     .filter((m) => m.prompt && m.prompt.group === group)
     .sort((a, b) => a.prompt.order - b.prompt.order);
-  return all.map(legacyOnly ? promptEntryLegacyOnly : promptEntry).join('\n');
+  const ordered = order ? reorderByNames(all, order) : all;
+  return ordered.map(legacyOnly ? promptEntryLegacyOnly : promptEntry).join('\n');
+}
+
+/** 按名单重排；名单没提到的按原顺序接在后面（所以永远不会掉块）。 */
+function reorderByNames(manifests, names) {
+  const byType = new Map(manifests.map((m) => [m.type, m]));
+  const out = [];
+  const taken = new Set();
+  for (const t of names) {
+    const m = byType.get(t);
+    if (m && !taken.has(t)) { out.push(m); taken.add(t); }
+  }
+  for (const m of manifests) if (!taken.has(m.type)) out.push(m);
+  return out;
 }
 
 // ── 校验 ─────────────────────────────────────────────────────────────────────────────────────────

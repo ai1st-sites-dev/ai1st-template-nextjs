@@ -29,6 +29,15 @@ const {
   applyRoleDefaults: applyBlockRoleDefaults,
 } = require('./lib/block-manifest');
 const blockDataLine = (type) => blockDataLineFor(loadBlockManifests().get(type));
+// #1034 — 每个站一份首页开场配方（开头四块 + 两个必须出现的块 + 候选清单的印刷顺序）。
+// 治的是「6 个真实站 100% 以 announcement-bar → hero 开场」那件事，理由整段在那个文件头上。
+const {
+  tryHomepageRecipe,
+  recipePromptLines,
+  recipeProblems,
+  fingerprintEnabled,
+  afterRetry,
+} = require('./lib/homepage-recipe');
 // #998 — 写页面 JSON 时把 AI 产出的 `sections` 转成 `blocks`（补 id / role / region / weight）。
 // 归一化和角色兜底表跟 sync-config.js 用的是同一份实现，两处各写一遍必然分叉。
 const { pageWithBlocks } = require('./blocks');
@@ -811,6 +820,55 @@ async function main() {
   const theme = themes[themeName];
   debug(`Theme: ${themeName} — ${theme.label} (rotation index ${themeRotationIndex})`);
 
+  // #1034 — 骨这一半:自己的索引，自己的池子。
+  //
+  // 🔴 r1 用的是上面那个 `themeRotationIndex`，那是错的，而错法只有在【跨用户】才看得见:
+  //    它是 `SELECT COUNT(*) FROM sites WHERE user_id = $1`（`manager/sites.go:428-433`），
+  //    也就是**这个用户已经有几个站** ⟹ 每一个客户的第一个站，这个数恒为 0，拿到同一份配方。
+  //    PM 2026-08-16 在平台库上算过它会落成什么样:116 个站 / 73 个用户,73 个站的 index 是 0、
+  //    33 个是 1 ⟹ **91% 的站落在两份配方上**，正是本票要治的那个形状。
+  //    (那条 SQL 上方 #924 自己写着「nothing downstream depends on this number being unique」——
+  //     本票一度让某个东西依赖上了，而依赖的方向是跨用户，那句话没覆盖到。)
+  //
+  // 🔴 所以骨这一半改由 **siteId** 算(`rotationIndexFromSiteId`,主题拿不到计数器时走的同一条路)。
+  //    siteId 每个站唯一 ⟹ 不同站主各自的第一个站也拿到不同的配方。
+  //    📌 顺带解掉了 r1 那条注释里写的代价:皮和骨不再按同一个索引轮换，两个站主题相同也不会
+  //       连骨架一起相同。
+  //
+  // 📌 配方的类数是有限的，而且枚举得出来（`homepage-recipe.test.js` ⑪ 那一节现算，别照抄这里）:
+  //    整份配方按 `index % 308` 循环、308 种互不相同 ⟹ 随机两个站拿到**完全相同的一份约束**
+  //    是 **0.32%**;只看开场是 **33** 种 ⟹ 开场完全相同 **3.4%**。
+  //    基线那 6 个真实站的「前 4 块完全相同」是 13%、「前 2 块」是 100%（票面 AC1）。
+  //
+  // 🔴 三种情况不参与:
+  //   · payload 写了 homepageFingerprint: false —— AC3 的反向对照走这条
+  //   · skipAI —— 那条路根本不问 AI，首页是 getDemoConfig 写死的四块（`:1551-1556`）
+  //   · 用户点名要照抄参照站的布局（refPrefs 里有 layout）—— 那是他明确要的东西，
+  //     提示词里那段自己就写着 "This OVERRIDES the general Choose 7-10 sections rule"。
+  //     两条硬要求同时在场只会让 AI 二选一，而这一次该赢的是用户点名的那个。
+  const wantsRefLayout = Array.isArray(refPrefs) && refPrefs.includes('layout')
+    && !!(refAnalysis && refAnalysis.sections);
+  const recipeIndex = rotationIndexFromSiteId(siteId);
+  const recipeAttempt = (fingerprintEnabled(input) && !input.skipAI && !wantsRefLayout)
+    ? tryHomepageRecipe(recipeIndex, loadBlockManifests(), industry)
+    : { recipe: null, error: null };
+  const homeRecipe = recipeAttempt.recipe;
+  if (homeRecipe) {
+    debug(`[fingerprint] 首页开场配方 #${homeRecipe.index}（siteId ${siteId} 算出来的）:`
+      + ` ${homeRecipe.opener.join(' → ')}`
+      + ` | 还必须有: ${homeRecipe.mustInclude.join(', ')} | 候选池 ${homeRecipe.poolSize} 种`);
+  } else if (recipeAttempt.error) {
+    // 🔴 块库跟配方的排除名单对不上（有人改名 / 删块）。r1 在这里是 `throw` ⟹ `create-site` 在
+    //    提示词发出去之前 0.1 秒就死，而 `origin/main` 上同样的树照样能建站 —— 那是本票**新开的**
+    //    失败方式，方向反了:骨架撞车不该让一次建站失败（本文件上面那段理由就是这么写的）。
+    //    这一趟不用配方 = 退回改动之前的行为，而不是把站丢掉；名字记在日志里，
+    //    CI 里那格 `npm run test:scripts` 会在改名的那次 push 上直接报红。
+    debug(`[fingerprint] 🔴 这一趟不用配方，因为块库跟排除名单对不上: ${recipeAttempt.error.message}`);
+  } else {
+    debug(`[fingerprint] 关着 —— ${!fingerprintEnabled(input) ? 'payload 里 homepageFingerprint: false'
+      : input.skipAI ? 'skipAI(首页是写死的四块)' : '用户点名照抄参照站布局'}`);
+  }
+
   // #924: record which theme this site got. `applied: false` = the owner never actively
   // changed themes, so the registry's layout preferences stay out of the build and the page
   // JSON's own variants keep deciding — same output as before this file knew about themes.
@@ -926,6 +984,8 @@ async function main() {
     // Gemini; forward the key through opts so generateLogoViaNanoBanana can
     // pick it up.
     geminiApiKey,
+    // #1034: 这个站的首页开场配方（null = 本次不参与，理由在上面 debug 那行里）
+    homeRecipe,
   });
 
   // TICKET-119: Layout hard-copy compliance check
@@ -1663,6 +1723,10 @@ async function generateContent(opts) {
     // scope (stdin payload). Empty string when not configured →
     // generateLogoViaNanoBanana throws + caller falls back to text logo.
     geminiApiKey = '',
+    // #1034: 这个站的首页开场配方。null = 不参与（payload 关了 / skipAI / 用户点名照抄参照站布局），
+    // 那时下面每一处都逐字回到改动之前 —— 判据是 `homepage-recipe.test.js` 那一格拿
+    // `git show origin/main:` 的提示词跟 recipe=null 的提示词逐字节比。
+    homeRecipe = null,
   } = opts;
 
   // TICKET-164: v2 replaces 161 v1's pre-Claude photo gen with a 2-pass
@@ -1958,7 +2022,7 @@ AVAILABLE SECTION TYPES AND THEIR VARIANTS:
 You are a layout designer. For each page, you choose WHICH sections to include, in WHAT order, and with WHICH variant. Not every page needs every section. Mix it up based on what makes sense for this industry.
 
 HOMEPAGE SECTIONS (pick 7-10 from these, in any order):
-${blockPromptSection('homepage')}
+${blockPromptSection('homepage', undefined, homeRecipe ? { order: homeRecipe.promptOrder } : undefined)}
 
 PAGE-SPECIFIC SECTION RULES:
 ${blockPromptSection('page-specific')}
@@ -2047,7 +2111,12 @@ CRITICAL RULES:
 - There are 32 section types with 130+ total variants. USE THIS VARIETY. Each site should feel different.
 - Vary the section ORDER. A dental site might lead with stats + process-steps. A security site might prioritize features-grid + testimonials.
 - Choose DIFFERENT variants for each section — don't use all "grid" or all "cards". Mix "minimal", "split", "gradient", "dark" etc.
-- Include at least TWO sections that most sites wouldn't have (e.g., content-split, social-proof, feature-comparison, benefits-list, announcement-bar, divider).
+${homeRecipe ? recipePromptLines(homeRecipe)
+  // #1034 — 关着的时候这一行逐字回到改动之前。它原来那份举例名单
+  // (content-split / social-proof / feature-comparison / benefits-list / announcement-bar / divider)
+  // 正好就是 6 个真实站实际选中的那批 —— 举例清单被当成了待办清单。开着的时候由上面那份
+  // 每站不同的硬要求取代它。
+  : '- Include at least TWO sections that most sites wouldn\'t have (e.g., content-split, social-proof, feature-comparison, benefits-list, announcement-bar, divider).'}
 - Use "divider" between sections occasionally (1-2 times per homepage) to break up the page visually.
 - Non-home pages should use 3-8 sections. Always start with "page-header". End with "cta-banner" when appropriate.
 - Use different page-header and text-block variants across pages — don't reuse the same variant on every page.
@@ -2127,8 +2196,16 @@ CRITICAL RULES:
     for (const w of first.warnings) debug(`[blocks] ⚠️  ${w}`);
     debug(`[blocks] 行业 "${industry}" 认出来是: ${first.industryKeys.join(' / ') || '（一个都没认出来）'}`);
     let issues = first.problems;
-    if (issues.length) {
-      debug(`[blocks] 第一次输出有 ${issues.length} 处不合规,重试一次:\n  ${issues.join('\n  ')}`);
+    // #1034 —— 首页开场配方是**另一类**问题,跟块库的问题一起进同一次重试,但**最后不 fatal**。
+    //
+    // 🔴 为什么两类不能同罪:块库那些(缺必填槽 / 把 essential 降级 / 行业必需的块一个都没有)
+    //    说的是「这个站建出来是坏的」;而「开场跟配方对不上」说的是「这个站跟别的站有点像」。
+    //    照 #999 写在 block-manifest.js 函数头上的那条理由:硬失败把「有一块地方不理想」换成
+    //    「整个站没了」。为了骨架撞车而让一次建站失败,方向反了。所以它只买一次重试。
+    let skinIssues = homeRecipe ? recipeProblems(ai.pages, homeRecipe) : [];
+    if (issues.length || skinIssues.length) {
+      const all = [...issues, ...skinIssues];
+      debug(`[blocks] 第一次输出有 ${all.length} 处不合规(块库 ${issues.length} · 首页骨架 ${skinIssues.length}),重试一次:\n  ${all.join('\n  ')}`);
       progress('Checking the layout against the block library...', 40);
       const retry = await callAIWithRetry({
         client,
@@ -2140,18 +2217,36 @@ CRITICAL RULES:
             { role: 'assistant', content: JSON.stringify(ai) },
             { role: 'user', content: `Your JSON breaks the block library rules below. Fix ONLY these and `
               + `respond AGAIN with the COMPLETE JSON (same structure, no markdown fences):\n`
-              + issues.map((p) => `- ${p}`).join('\n') },
+              + all.map((p) => `- ${p}`).join('\n') },
           ],
         },
         costContext: { operation: 'create-site', detail: 'Base site (block re-check)', pricing, durationStart: Date.now() },
         label: 'Call 1b block re-check',
       });
+      const before = ai;
       ai = retry.parsed;
       issues = validateBlocks({ pages: ai.pages, industry }).problems;
-      if (issues.length) {
-        fatal(`The generated layout still breaks the block library after a retry:\n  ${issues.join('\n  ')}`);
+      // #1034 —— 判决写在 lib/homepage-recipe.js 的 afterRetry() 里(纯函数,能测;这条分支
+      // 只有 AI 参与时才走得到)。'fatal' 逐字保持改动之前的行为;'revert' 是本票新开的口子
+      // 带来的风险的解药:第一次块库干净、只因骨架撞车才重试,而重试把它改坏了 —— 那就退回第一次。
+      switch (afterRetry({ firstBlockProblems: first.problems.length, retryBlockProblems: issues.length })) {
+        case 'fatal':
+          fatal(`The generated layout still breaks the block library after a retry:\n  ${issues.join('\n  ')}`);
+          break;
+        case 'revert':
+          debug(`[fingerprint] ⚠️  重试(只为首页骨架发起的)把块库改坏了 ${issues.length} 处,退回第一次那份输出:\n  ${issues.join('\n  ')}`);
+          ai = before;
+          issues = [];
+          break;
+        default:
+          break;
       }
-      debug('[blocks] 重试之后全部通过');
+      skinIssues = homeRecipe ? recipeProblems(ai.pages, homeRecipe) : [];
+      if (skinIssues.length) {
+        // 说出来,不拦。日志里看得见,才知道配方今天有多少次没被听进去。
+        debug(`[fingerprint] ⚠️  重试之后首页开场仍跟配方对不上,放行(不因为这个建不出站):\n  ${skinIssues.join('\n  ')}`);
+      }
+      debug('[blocks] 重试之后块库检查全部通过');
     }
     // 没写 role 的块按 manifest 的 roleDefault 补上（D4 的兜底那一半;上面那条只拦"写了但降级"）。
     const filled = applyBlockRoleDefaults(ai.pages);
