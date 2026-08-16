@@ -188,7 +188,11 @@ await page.evaluate(() => document.fonts.ready);
 // right size, while the browser paints nothing at all. Measured on the shipped checker: all four
 // invariants "held" on a hero with 0 text pixels out of 69215. That is #966 again, from inside the
 // whitelist, so what these checks read has to be the effect on the screen.
-await page.evaluate(() => {
+// 🔴 #1043 — NAMED, BECAUSE A NAVIGATION WIPES IT. This used to be an inline `page.evaluate` run once,
+// on the first page, which was enough while every check that used it also ran only there. Check ②
+// now runs on the site's other pages too (②c), and `window.__effective is not a function` is what a
+// fresh document answers — measured, on the first run of this change.
+const INSTALL_EFFECTIVE = () => {
   window.__effective = (n) => {
     let opacity = 1;
     let hiddenBy = null;
@@ -206,7 +210,8 @@ await page.evaluate(() => {
     }
     return { opacity, hiddenBy, zeroedBy, self: name(n) };
   };
-});
+};
+await page.evaluate(INSTALL_EFFECTIVE);
 
 // Photograph `el` with its own words made transparent and nothing else about the page touched —
 // whatever `opacity`, `filter` or gradient is acting on this box goes on acting on it, so the
@@ -329,31 +334,137 @@ for (const sel of TEXT_TARGETS) {
 // words were invisible: `opacity` never appeared in it, and an ancestor's `display: none` is not
 // this element's `display` either (it computes to whatever the sheet says — the browser simply
 // never lays the subtree out).
-const essentials = await page.$$eval('[data-role="essential"]', (nodes) => nodes.map((n) => {
-  const eff = window.__effective(n);
-  return {
-    display: getComputedStyle(n).display,
-    visibility: getComputedStyle(n).visibility,
-    opacity: eff.opacity,
-    hiddenBy: eff.hiddenBy,
-    zeroedBy: eff.zeroedBy,
-    where: n.getAttribute('class') || n.tagName,
-  };
-}));
+//
+// 🔴 #1043 — AND IT LOOKS INSIDE THE BLOCK, NOT ONLY AT ITS ROOT. `$$eval('[data-role="essential"]')`
+// returns the block's own element; `data-role` is written once, by `blockAttrs`, onto that element.
+// So a sheet that leaves the root alone and hides a PART of it was invisible to this check. QA3
+// measured it on #1028: two lines in a sheet —
+//     .contact-info__phone { display: none }
+//     .contact-info__email { display: none }
+// — and the page came out with both `tel:` links and the `mailto:` at 0×0 while the static check, the
+// contract check AND this file all printed ✅. `contact-info` is `essential`, so the one thing a
+// customer needs off that page (how to reach the business) was gone with every gate green.
+//
+// 🔴 THE PARTS ARE JUDGED ON THREE THINGS, AND THIS IS THE WHOLE LIST: the part's own box (0 wide or
+// 0 high), the effective opacity of its whole ancestor chain, and a `display: none` or a
+// `visibility: hidden` anywhere on that chain — `__effective` above plus one getBoundingClientRect,
+// and nothing else. That is enough to stop anyone having to enumerate the spellings WITHIN those
+// three: `display: none` and `max-height: 0` and an ancestor's `opacity: 0` arrive by different
+// declarations and are all read off the result. Measured on `.contact-info__phone` in the allblocks
+// fixture, `ocean-blue` + `hero-media-left`, 1440×900:
+//     .contact-info__phone { display: none }        box 0×0            → reported
+//     .contact-info__phone { visibility: hidden }   (off the chain)    → reported
+//     .contact-info { opacity: 0 }                  (off the chain)    → reported, 7 findings
+//     .contact-info__phone { max-height: 0 }        box 576×0          → reported
+//
+// 🔴 AND THIS IS WHAT IT DOES NOT READ: WHERE THE BOX IS, AND WHETHER ANYTHING CUT IT AWAY. There is
+// no document coordinate in the readings above and no intersection with a clipping ancestor, so
+// every one of these left this check SILENT while the phone number was gone from the page (same
+// fixture, same part, one rule at a time):
+//     { filter: opacity(0) }                     box 576×27, computed opacity 1 — the static half
+//                                                catches this one by name
+//     { clip-path: inset(100%) }                 box 576×27 — the static half catches it too, as a
+//                                                property that is not on §2's whitelist at all
+//     { margin-top: -9999px }                    box at document y −6943; the text sits at y −6940,
+//                                                off the top of the page, unreachable by scrolling
+//     { margin-left: -9999px }                   box at document x −9907
+//     .contact-info { max-height: 1px }          the PART's box is untouched at 576×27, and the root
+//                                                is only ever asked about opacity and display, so
+//                                                this check sees nothing — while `.contact-info`'s
+//                                                own `overflow: hidden` (globals.css, #1028) leaves
+//                                                0 readable pixels. One line, out of two rules that
+//                                                are each correct on their own
+//     { max-height: 1px; overflow: hidden }      box 576×1, nothing readable inside it
+// The last four are caught by NEITHER half; QA3 found them on this ticket's terminal review and
+// #1049 is where position and ancestor clipping get added here. Until then, "this check is green"
+// means the three things above held — not "a customer can read it".
+//
+// 🔴 ONLY PARTS THAT HAVE SOMETHING IN THEM ARE JUDGED, and that is not leniency — it is the
+// difference between "the theme hid it" and "the app rendered it empty". `.contact-form__error` and
+// `.contact-form__success` are in the markup on every page and carry no text until a form is
+// submitted; a check that failed on a zero-height empty div would go red on a correct site, and a
+// check that goes red on correct sites gets switched off. So: text content, or an <img>, or a link
+// with an href — something a customer could have read or clicked.
+const ESSENTIAL_PARTS_PROBE = () => [...document.querySelectorAll('[data-role="essential"]')]
+  .flatMap((block) => {
+    const blockName = block.getAttribute('data-block') || block.className || 'essential block';
+    return [...block.querySelectorAll('[class*="__"]')]
+      .filter((el) => {
+        const hasText = (el.textContent || '').trim().length > 0;
+        const hasMedia = el.tagName === 'IMG' || el.querySelector('img');
+        const hasLink = el.tagName === 'A' ? el.getAttribute('href') : el.querySelector('a[href]');
+        return hasText || hasMedia || hasLink;
+      })
+      .map((el) => {
+        const eff = window.__effective(el);
+        const r = el.getBoundingClientRect();
+        return {
+          block: blockName,
+          where: (el.getAttribute('class') || el.tagName).trim().split(/\s+/)[0],
+          width: Math.round(r.width),
+          height: Math.round(r.height),
+          opacity: eff.opacity,
+          hiddenBy: eff.hiddenBy,
+          zeroedBy: eff.zeroedBy,
+          text: (el.textContent || '').trim().slice(0, 40),
+        };
+      });
+  });
+
+const ESSENTIAL_PROBE = () => ({
+  roots: [...document.querySelectorAll('[data-role="essential"]')].map((n) => {
+    const eff = window.__effective(n);
+    return {
+      display: getComputedStyle(n).display,
+      visibility: getComputedStyle(n).visibility,
+      opacity: eff.opacity,
+      hiddenBy: eff.hiddenBy,
+      zeroedBy: eff.zeroedBy,
+      where: n.getAttribute('class') || n.tagName,
+    };
+  }),
+  parts: window.__essentialParts(),
+});
+
+// Turn one page's reading into findings. Named, because ②c hands the very same one to a browser
+// standing on each of the site's other pages — one definition of what this question means (the same
+// reason check ⑤'s `classAuditInBrowser` is a named const).
+function judgeEssential(reading, where) {
+  const found = [];
+  for (const e of reading.roots) {
+    if (e.hiddenBy) {
+      found.push(`visibility${where}: [data-role="essential"] "${e.where}" is hidden by ${e.hiddenBy}`);
+    } else if (e.opacity === 0) {
+      found.push(`visibility${where}: [data-role="essential"] "${e.where}" is invisible — ${e.zeroedBy} `
+        + '(its own computed display and visibility say nothing about this)');
+    }
+  }
+  for (const p of reading.parts) {
+    const why = p.hiddenBy ? `hidden by ${p.hiddenBy}`
+      : p.opacity === 0 ? `invisible — ${p.zeroedBy}`
+        : (p.width === 0 || p.height === 0) ? `laid out ${p.width}×${p.height}` : null;
+    if (why) {
+      found.push(`visibility${where}: "${p.where}" inside the essential block "${p.block}" is ${why}`
+        + ` — it carries content a theme may never hide ("${p.text}"), contract §3`);
+    }
+  }
+  return found;
+}
+
+await page.evaluate(`window.__essentialParts = ${ESSENTIAL_PARTS_PROBE.toString()}`);
+const essentialReading = await page.evaluate(ESSENTIAL_PROBE);
+const essentials = essentialReading.roots;
 if (essentials.length === 0) {
   problems.push('visibility: the page has no [data-role="essential"] at all — this check had '
     + 'nothing to look at, which is not the same as passing');
 }
 readings.push(`  essential elements: ${essentials.length}`
-  + essentials.map((e) => ` · "${e.where}" opacity ${e.opacity}`).join(''));
-for (const e of essentials) {
-  if (e.hiddenBy) {
-    problems.push(`visibility: [data-role="essential"] "${e.where}" is hidden by ${e.hiddenBy}`);
-  } else if (e.opacity === 0) {
-    problems.push(`visibility: [data-role="essential"] "${e.where}" is invisible — ${e.zeroedBy} `
-      + '(its own computed display and visibility say nothing about this)');
-  }
-}
+  + essentials.map((e) => ` · "${e.where}" opacity ${e.opacity}`).join('')
+  + ` · parts with content inside them: ${essentialReading.parts.length}`);
+problems.push(...judgeEssential(essentialReading, ''));
+// Which pages this check actually covered — printed at the bottom next to check ⑤'s page list, so
+// "essential content is not hidden" states its own reach instead of leaving it to be assumed.
+const essentialPagesMeasured = [pathOf(baseUrl)];
 
 // ── ②b the lead block is on the first screen ────────────────────────────────────────────────────
 // 🔴 #996 — spec §5.5 has said this since #991 and nothing implemented it, which QA3 demonstrated on
@@ -1164,6 +1275,24 @@ for (const p of otherPaths.slice(0, OTHER_PAGE_CAP)) {
     continue;
   }
   audits.push({ where: opened.at, audit: await page.evaluate(classAuditInBrowser, [HOOK_CLASSES, THEME_SHEET_PATH]) });
+  // 🔴 #1043 ②c — ESSENTIAL VISIBILITY IS ASKED OF THIS PAGE TOO, and that is the half of #1043 that
+  // decides whether the fix reaches the case that prompted it. `contact-info` is a CONTACT-PAGE block:
+  // this sample site puts it on none of its home page and the six real site configs put it on none of
+  // theirs either. Check ② measured the first page alone, so a sheet hiding `.contact-info__phone`
+  // would still have gone green with the parts probe added — right answer, wrong page. The old
+  // behaviour was not even written down: the readings line said contrast, first screen, touch targets,
+  // sideways scroll, type size and paint order were first-page-only and did not mention this one.
+  // Both installers, in this order: a navigation left this document with neither, and
+  // `__essentialParts` calls `__effective`.
+  await page.evaluate(INSTALL_EFFECTIVE);
+  await page.evaluate(`window.__essentialParts = ${ESSENTIAL_PARTS_PROBE.toString()}`);
+  const otherReading = await page.evaluate(ESSENTIAL_PROBE);
+  problems.push(...judgeEssential(otherReading, ` on ${opened.at}`));
+  // Say what this page actually offered up. "Measured on 4 pages" with no counts cannot tell
+  // "checked and clean" from "there was nothing on any of them to check".
+  readings.push(`  ${opened.at} — essential elements: ${otherReading.roots.length}`
+    + ` · parts with content inside them: ${otherReading.parts.length}`);
+  essentialPagesMeasured.push(opened.at);
 }
 
 // ── the report for ⑤ and ⑤b together ────────────────────────────────────────────────────────────
@@ -1171,9 +1300,14 @@ readings.push(`  pages measured for check ⑤: ${audits.map((a) => a.where).join
   + `page every other check above was measured on, the rest come from ${discovery}`
   + `${droppedPages.length ? ` · 🔴 ${droppedPages.length} page(s) past the ${OTHER_PAGE_CAP}-page cap `
     + `were NOT measured: ${droppedPages.join(', ')}` : ''}`
-  + '. On the pages after the first, ONLY check ⑤ is measured (which classes have a rule anywhere, and '
-  + 'whether the theme\'s own sheet dresses each hook in the markup). Contrast, the first screen, touch '
+  + '. On the pages after the first, check ⑤ is measured (which classes have a rule anywhere, and '
+  + 'whether the theme\'s own sheet dresses each hook in the markup) AND check ② (essential content is '
+  + 'not hidden, roots and the parts inside them). Contrast, the first screen, touch '
   + 'targets, sideways scroll, type size and paint order are measured on the first page alone');
+// 🔴 #1043 — check ② states its own reach. It used to be first-page-only and say nothing about that,
+// while the block it most needs to protect (`contact-info`) is on no home page in this repo.
+readings.push(`  pages measured for check ② (essential content not hidden): `
+  + `${essentialPagesMeasured.join(', ')} — roots AND the parts with content inside them`);
 for (const { where, audit } of audits) {
   readings.push(`  ${where} — classes on the page: ${audit.used} · with no rule: ${audit.orphans.length}`
     + ` (${audit.sheets} stylesheets, ${audit.unreadableSheets} not readable from here)`

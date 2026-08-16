@@ -903,6 +903,64 @@ function stylesABlock(selector) {
   });
 }
 
+// ── #1043 — which blocks can this selector's subject be, and is any of them `essential`? ─────────
+//
+// The roles come from the SAME file the app renders `data-role` from
+// (`src/lib/sections/block-roles.json`), so this check and the runtime one cannot answer differently
+// about the same block. Read once, at load: it is a build-time file and re-reading it per rule would
+// only add a way for the two reads to disagree.
+//
+// 🔴 A MISSING OR UNREADABLE ROLES FILE IS AN ERROR, NOT AN EMPTY SET. An empty set here would make
+// this whole pass silently answer "nothing is essential" — the check would print ✅ on every sheet
+// forever, which is the exact failure shape #1043 exists to remove. Fail loudly instead.
+let BLOCK_ROLES;
+try {
+  BLOCK_ROLES = JSON.parse(fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'lib', 'sections', 'block-roles.json'), 'utf-8'));
+} catch (e) {
+  console.error(`theme-css-lint: cannot read src/lib/sections/block-roles.json (${e.message}) — `
+    + 'without it the essential-content check below cannot tell which blocks it protects, and a '
+    + 'silent empty answer would make it pass everything. Refusing to run.');
+  process.exit(2);
+}
+const roleOf = (block) => {
+  const r = BLOCK_ROLES[block];
+  return (r && typeof r === 'object') ? r.role : r;
+};
+const ESSENTIAL_BLOCKS = new Set(Object.keys(BLOCK_ROLES).filter((b) => roleOf(b) === 'essential'));
+
+// `.contact-info__phone` → `contact-info` · `.contact-info` → `contact-info` ·
+// `[data-block="contact-info"]` → `contact-info`. Anything else → null.
+function blockNameOf(simple) {
+  const cls = simple.match(/^\.((?:\\.|[\w-])+)$/);
+  if (cls) {
+    const name = cls[1].replace(/\\(.)/g, '$1');
+    return name.includes('__') ? name.split('__')[0] : name;
+  }
+  const attr = simple.match(/^\[data-block=["']?([\w-]+)["']?\]$/);
+  return attr ? attr[1] : null;
+}
+
+/** The `essential` blocks this selector's subject can be, by ANY spelling. Empty = none of them. */
+function essentialTargetsOf(selector) {
+  const hits = new Set();
+  for (const raw of selector.split(',')) {
+    const complex = raw.trim();
+    if (!complex) continue;
+    // The literal attribute keeps working exactly as before — it says `essential` without naming a
+    // block, so it cannot be resolved to one and is reported under its own name.
+    if (/\[data-role="essential"\]/.test(complex)) hits.add('[data-role="essential"]');
+    const compounds = compoundsOf(complex);
+    const subject = compounds[compounds.length - 1] || complex;
+    const m = subject.match(/^(.*?)(::(?:before|after))?$/);
+    for (const s of simpleSelectorsOf((m && m[1]) || subject)) {
+      const block = blockNameOf(s);
+      if (block && ESSENTIAL_BLOCKS.has(block)) hits.add(block);
+    }
+  }
+  return [...hits];
+}
+
 // Values of `display` a block may take: each of them keeps a box for the element itself (or, for
 // `none`, takes the element and everything in it away together).
 const BLOCK_DISPLAY = new Set([
@@ -1494,12 +1552,85 @@ function lint(file) {
 
   // §3's last line: the second defence for essential content. Written as its own pass because it is
   // a property AND a selector together — neither check above can see the pair.
+  //
+  // 🔴 #1043 — THIS PASS USED TO ASK FOR ONE SPELLING, AND EVERY OTHER SPELLING OF THE SAME TARGET
+  // WALKED PAST IT. The old body was `if (!/\[data-role="essential"\]/.test(rule.selector)) return;`
+  // — the attribute, written out literally. Measured on the shipped checker, all of these reached
+  // rc=0 while naming a block whose role is `essential` in `src/lib/sections/block-roles.json`:
+  //     .contact-info { display: none }                 ← the block's ROOT, reached by its class
+  //     [data-block="contact-info"] { display: none }   ← the same element, reached by the attribute
+  //     .contact-info__phone { display: none }          ← a PART inside it (QA3's finding on #1028:
+  //                                                       tel: ×2 and mailto: ×1 all 0×0 on the page,
+  //                                                       with this check, the contract check and the
+  //                                                       runtime invariants all printing ✅)
+  //     .contact-info__phone, .timeline__event { … }    ← one essential name in a selector LIST
+  // `display: none` on a block is deliberately legal (`BLOCK_DISPLAY` has `none`: a theme may hide an
+  // OPTIONAL block outright), so this pass is the ONLY thing standing between that permission and an
+  // essential block. Asking for one spelling made it the only thing standing nowhere.
+  //
+  // So the question became "which blocks can this selector's subject be?", answered from the same
+  // hook names the rest of this file already uses, and then "is any of them essential?", answered
+  // from `block-roles.json` — 🔴 which the runtime half reaches through the page, not by opening the
+  // file: `blockAttrs.ts` imports that JSON and writes `data-role` into the markup, and
+  // `theme-css-invariants.mjs` reads the attribute (it never names the file — grep it: 0 hits). One
+  // source, two readers, so the two halves cannot answer differently about the same block.
+  //
+  // 🔴 IT IS NOT A LIST OF FIVE BLOCK NAMES. Five essential blocks have part hooks TODAY
+  // (contact-info · contact-form · quote-form · services-list · services-nav); `block-roles.json`
+  // marks seven essential in all, and phase 2 adds part hooks with every batch. A list written here
+  // would be a sixth blind spot the day the next batch lands.
+  //
+  // 🔴 AND IT IS NOT ONLY `display: none`. Hiding has more than one spelling, and the ones below are
+  // the ones this file can decide WITHOUT running a browser. `visibility: hidden` is absent on
+  // purpose — it never reaches this pass, because `visibility` is not on §2's property list at all
+  // and `checkDecl`'s whitelist refuses it first (measured: rc=1, message names `visibility`);
+  // `clip-path` is refused the same way.
+  //
+  // 🔴 NEITHER HALF IS A COMPLETE ANSWER, AND THIS ONE IS NOT MERELY "EARLY". The runtime half
+  // (`theme-css-invariants.mjs`) reads three things — the box, the chain's opacity, `display` /
+  // `visibility` on the chain — so it needs nobody to predict the spellings WITHIN those, but it
+  // reads neither where the box is nor whether an ancestor clipped it. `filter: opacity(0)` is
+  // therefore caught HERE and nowhere else: measured on the allblocks fixture it leaves a 576×27 box
+  // computing `opacity: 1`, and the runtime check stays silent. Going the other way, `margin-top:
+  // -9999px` on a part (its text ends up at document y −6940, above the top of the page) and
+  // `.contact-info { max-height: 1px }` (the block's own `overflow: hidden` from globals.css does the
+  // rest, and 0 pixels of the phone number are left) pass BOTH halves today: rc=0 here, no finding
+  // there. QA3 drove those on this ticket's terminal review and #1049 is where the runtime half
+  // grows the two dimensions it is missing — where the box is, and what clipped it.
+  const HIDES = (prop, value) => {
+    const v = value.trim().toLowerCase();
+    if (prop === 'display') return v === 'none';
+    if (prop === 'opacity') return parseFloat(v) === 0;
+    if (prop === 'font-size') return /^0(?:[a-z%]*)$/.test(v) && parseFloat(v) === 0;
+    if (prop === 'color') return v === 'transparent' || /^rgba?\([^)]*,\s*0\s*\)$/.test(v);
+    // `filter: opacity(0)` paints nothing while `opacity` itself computes to 1 — a different
+    // spelling of the same result, and one this file can read. `blur()` is NOT here, and 🔴 NOTHING
+    // ELSE CATCHES IT EITHER — do not read this line as "the runtime half has it". That half reads
+    // the box, the chain's opacity and `display` / `visibility` (see the list in
+    // `theme-css-invariants.mjs`), and `blur` changes none of the three: measured on
+    // `.contact-info__phone` in the allblocks fixture, `ocean-blue` + `hero-media-left`, 1440×900,
+    // `blur(50px)` leaves the box at 576×27 and the runtime check silent, while inside that box not
+    // one pixel is off the background any more (0, against 1137 at baseline) — the phone number is
+    // gone with both halves green. What keeps it out of THIS pass is only that "how blurred is too
+    // blurred" has no static answer: `blur(8px)` still reads (3573 pixels off the background — blur
+    // spreads the same ink over more of them). That threshold is the same shape as the cases #1049
+    // is opening (a legal declaration that leaves essential content unreadable), except its six are
+    // geometric and `blur()` is not one of them: today this spelling has no owner.
+    if (prop === 'filter') return /(^|\s)opacity\(\s*0(?:\.0+)?%?\s*\)/.test(v);
+    if (['width', 'height', 'max-width', 'max-height'].includes(prop)) {
+      return /^0(?:[a-z%]*)$/.test(v) && parseFloat(v) === 0;
+    }
+    return false;
+  };
   root.walkRules((rule) => {
-    if (!/\[data-role="essential"\]/.test(rule.selector)) return;
-    rule.walkDecls('display', (decl) => {
-      if (decl.value.trim() === 'none') {
-        at(decl, `"${rule.selector} { display: none }" hides content a theme may never hide`);
-      }
+    const targets = essentialTargetsOf(rule.selector);
+    if (targets.length === 0) return;
+    rule.walkDecls((decl) => {
+      if (!HIDES(decl.prop.toLowerCase(), decl.value)) return;
+      at(decl, `"${rule.selector} { ${decl.prop}: ${decl.value} }" hides content a theme may never `
+        + `hide — that selector reaches ${targets.join(' / ')}, and `
+        + `${targets.length === 1 ? 'that block is' : 'those blocks are'} \`essential\` in `
+        + 'src/lib/sections/block-roles.json (contract §3)');
     });
   });
 
