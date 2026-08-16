@@ -751,3 +751,267 @@
   line-height: 1.7;
   color: var(--color-primary-100);
 }
+
+/* ── #1029 batch D — the dark, generous, multi-column treatment ────────────────────────────────────
+   Four blocks that used to carry their own variants in the markup; this sheet's opinion about all of
+   them is the one it has about every batch: the dark ground the hero and page header paint, roomy
+   padding, and columns where there is a list. The other two sheets draw the same HTML as one narrow
+   column and as centred wrapping rows — that is the whole claim phase 2 makes about these four. */
+
+.benefits-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-900);
+  color: var(--color-primary-50);
+}
+
+/* Two across on a wide screen — the old `cards-horizontal` band without the horizontal scroll. */
+@media (min-width: 1024px) {
+  .benefits-list {
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem 3rem;
+    padding: 5rem 4rem;
+  }
+}
+
+.benefits-list__headline {
+  grid-column: 1 / -1;
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 800;
+  color: var(--color-primary-50);
+}
+
+.benefits-list__sub {
+  grid-column: 1 / -1;
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.benefits-list__item {
+  display: grid;
+  align-content: start;
+  gap: 0.75rem;
+  padding: 2rem;
+  border-radius: 1rem;
+  background-color: var(--color-primary-800);
+}
+
+.benefits-list__title {
+  font-size: 1.375rem;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--color-primary-50);
+}
+
+.benefits-list__desc {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.team-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-900);
+  color: var(--color-primary-50);
+}
+
+/* Three across — the same count this sheet gives values-grid and testimonials. */
+@media (min-width: 1024px) {
+  .team-grid {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 2rem;
+    padding: 5rem 4rem;
+  }
+}
+
+.team-grid__headline {
+  grid-column: 1 / -1;
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 800;
+}
+
+.team-grid__sub {
+  grid-column: 1 / -1;
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.team-grid__member {
+  display: grid;
+  align-content: start;
+  gap: 0.5rem;
+  padding: 2rem;
+  border-radius: 1rem;
+  background-color: var(--color-primary-800);
+}
+
+/* Where the avatar circle used to be. A shape, not an initial — the contract admits `content: ""`
+   and nothing else, so this is the whole of what a sheet can put back there (#1029). */
+.team-grid__member::before {
+  content: "";
+  display: block;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 9999px;
+  background-color: var(--color-accent-500);
+}
+
+.team-grid__name {
+  font-size: 1.25rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.team-grid__role {
+  font-size: 0.875rem;
+  line-height: 1.4;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-accent-400);
+}
+
+.team-grid__bio {
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.checklist {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-900);
+  color: var(--color-primary-50);
+}
+
+/* Three across — the old `icon-grid` without the icons. */
+@media (min-width: 1024px) {
+  .checklist {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1rem 2rem;
+    padding: 5rem 4rem;
+  }
+}
+
+.checklist__headline {
+  grid-column: 1 / -1;
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 800;
+}
+
+.checklist__sub {
+  grid-column: 1 / -1;
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.checklist__item {
+  padding: 1rem 1.25rem;
+  border-radius: 0.75rem;
+  background-color: var(--color-primary-800);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+/* Where the check mark used to be. Same story as the avatar above: a shape is what a sheet can say. */
+.checklist__item::before {
+  content: "";
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-right: 0.625rem;
+  border-radius: 9999px;
+  background-color: var(--color-accent-400);
+}
+
+.blog-preview {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-900);
+  color: var(--color-primary-50);
+}
+
+@media (min-width: 1024px) {
+  .blog-preview {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 2rem;
+    padding: 5rem 4rem;
+  }
+}
+
+.blog-preview__headline {
+  grid-column: 1 / -1;
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 800;
+}
+
+.blog-preview__sub {
+  grid-column: 1 / -1;
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.blog-preview__post {
+  display: grid;
+  align-content: start;
+  gap: 0.5rem;
+  padding: 1.75rem;
+  border-radius: 1rem;
+  background-color: var(--color-primary-800);
+}
+
+/* Where the gradient strip on top of each card used to be. One colour for all of them: the old look
+   rotated four gradients by index, and a sheet cannot name "the third card" (#1029). */
+.blog-preview__post::before {
+  content: "";
+  display: block;
+  height: 0.375rem;
+  border-radius: 9999px;
+  background-color: var(--color-accent-500);
+}
+
+.blog-preview__category {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-accent-400);
+}
+
+.blog-preview__date {
+  font-size: 0.75rem;
+  color: var(--color-primary-200);
+}
+
+.blog-preview__title {
+  font-size: 1.25rem;
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+.blog-preview__excerpt {
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}

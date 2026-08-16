@@ -16,7 +16,6 @@ interface BlogPreviewSectionProps {
     headline: string;
     subheadline?: string;
     posts: BlogPost[];
-    variant?: 'cards' | 'list' | 'featured';
     fromBlog?: boolean;
     maxPosts?: number;
   };
@@ -25,181 +24,73 @@ interface BlogPreviewSectionProps {
   block?: BlockConfig;
 }
 
+// 🔴🔴 #1029 — 一份中性 markup，别的什么都没有。阶段 2 批 D。
+//
+// 三支走了：`cards`（默认，三列卡片，每张顶上一块渐变色）、`list`（单列，缩略色块在左、文字在右、
+// 条间分隔线）、`featured`（第一篇占一整块 256px 高的渐变图 + 白字压图，其余两列）。
+// 三支读的都是 `data.headline`、可选的 `data.subheadline`，以及每篇的 `title` / `excerpt` /
+// `category` / `date`，一个字段不多一个不少。
+//
+// 🔴 本块正文点名要量的那件事（#1029 第 6 条）：**三支画的篇数相同，`featured` 不少画。**
+// `slice(0, data.maxPosts || 6)` 在三支【之上】、只算一次，三支拿到的是同一个 `displayPosts`；
+// `featured` 把它拆成 `const [featured, ...rest]` 之后**两半都画**（1 + rest.length）。
+// 交付里贴了同一份夹具上三支各画几条的实测读数 —— 三个数相同。所以这里没有「代价落在谁头上」
+// 这一问，`maxPosts` 的取舍是搬迁之前就有的、跟本票无关。
+//
+// 🔴 每张卡顶上那块渐变色没了，主题表能补回来。它原来是一个按 `index % colors.length` 轮换的空
+// `<div>`（`featured` 那支还多一层 `from-black/60` 的压暗层）—— 那是 markup 在决定长相。
+// 主题用 `.blog-preview__post::before { content: "" }` + `background` 就能画一块，**但轮换那圈颜色
+// 回不来**：`::before` 选不到「第几篇」（契约 §1 拒 `nth-child`）。同族的还有 `list` 那支的缩略色块。
+//
+// 🔴 一篇文章是【一个元素】，链接与非链接两种情形都是它。老代码在有 slug 时把卡片外面再包一层
+// `<Link className="group">`，于是同一篇在两种情形下 DOM 层数不同，主题的 `>` 选择器会时灵时不灵。
+// 现在两种情形都只有一层：有 slug 就是 `<a class="blog-preview__post">`，没有就是
+// `<div class="blog-preview__post">`。主题选 `.blog-preview__post` 两种都选得到。
+//
+// 🔴 `variant` 照旧写在页面 JSON 里、照旧被 sync-config.js 从主题的 `supports` 覆盖，只是没人读了
+// （#1008 AC5 / #1018 的既定状态，别去「修」它），并且从上面的 props 类型里去掉了。
+// `fromBlog` / `maxPosts` 留着 —— 它们不是长相，是「这个块画哪些文章」。
+//
+// 🔴 第三个钩子不是可选的 —— `blockAttrs('blog-preview', block)`（#998 的 `data-block-layout`）。
 export default function BlogPreviewSection({ data, locale, block }: BlogPreviewSectionProps) {
-  const variant = data.variant || 'cards';
   const blogPosts = getBlogPosts(locale);
+  const fromBlog = data.fromBlog && blogPosts.length > 0;
 
-  const displayPosts: BlogPost[] = data.fromBlog && blogPosts.length > 0
+  const displayPosts: BlogPost[] = fromBlog
     ? blogPosts.slice(0, data.maxPosts || 6).map((p: BlogPostConfig) => ({
         title: p.title,
         excerpt: p.excerpt,
         category: p.category,
         date: p.publishedAt,
-        slug: p.slug,
       }))
     : data.posts;
 
-  const getSlug = (index: number): string | undefined => {
-    if (data.fromBlog && blogPosts.length > 0) {
-      return blogPosts[index]?.slug;
-    }
-    return undefined;
-  };
-
-  const colors = [
-    'from-primary-100 to-primary-200',
-    'from-accent-100 to-accent-200',
-    'from-primary-50 to-accent-100',
-    'from-gray-100 to-gray-200',
-    'from-accent-50 to-primary-100',
-    'from-primary-200 to-primary-100',
-  ];
-
-  function PostCard({ post, index, className }: { post: BlogPost; index: number; className?: string }) {
-    const content = (
-      <div className={className || "overflow-hidden rounded-xl bg-white shadow-sm transition-shadow hover:shadow-md"}>
-        <div className={`bg-gradient-to-br ${colors[index % colors.length]} h-40`} />
-        <div className="p-6">
-          <div className="flex items-center gap-3">
-            {post.category && (
-              <span className="rounded-full bg-primary-50 px-3 py-1 text-xs font-medium text-primary-700">
-                {post.category}
-              </span>
-            )}
-            {post.date && (
-              <span className="text-xs text-gray-400">{post.date}</span>
-            )}
-          </div>
-          <h3 className="mt-2 text-lg font-semibold text-gray-900">{post.title}</h3>
-          <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-gray-600">{post.excerpt}</p>
-        </div>
-      </div>
-    );
-
-    const slug = getSlug(index);
-    if (slug) {
-      return <Link key={index} href={localeUrl(slug, locale, "blogPost")} className="group">{content}</Link>;
-    }
-    return <div key={index}>{content}</div>;
-  }
-
-  if (variant === 'list') {
-    return (
-      <section {...blockAttrs('blog-preview', block)} className="section-padding" aria-labelledby="blog-heading">
-        <div className="container-width">
-          <div className="text-center">
-            <h2 id="blog-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
-              {data.headline}
-            </h2>
-            {data.subheadline && (
-              <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-600">{data.subheadline}</p>
-            )}
-          </div>
-          <div className="mx-auto mt-12 max-w-3xl">
-            {displayPosts.map((post, index) => {
-              const inner = (
-                <div
-                  className={`flex gap-5 py-6 ${index < displayPosts.length - 1 ? 'border-b border-gray-200' : ''}`}
-                >
-                  <div className={`h-20 w-20 shrink-0 rounded-lg bg-gradient-to-br ${colors[index % colors.length]}`} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-3">
-                      {post.category && (
-                        <span className="rounded-full bg-primary-50 px-3 py-1 text-xs font-medium text-primary-700">
-                          {post.category}
-                        </span>
-                      )}
-                      {post.date && (
-                        <span className="text-xs text-gray-400">{post.date}</span>
-                      )}
-                    </div>
-                    <h3 className="mt-1 text-lg font-semibold text-gray-900">{post.title}</h3>
-                    <p className="mt-1 truncate text-sm leading-relaxed text-gray-600">{post.excerpt}</p>
-                  </div>
-                </div>
-              );
-              const slug = getSlug(index);
-              return slug
-                ? <Link key={index} href={localeUrl(slug, locale, "blogPost")}>{inner}</Link>
-                : <div key={index}>{inner}</div>;
-            })}
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  if (variant === 'featured') {
-    const [featured, ...rest] = displayPosts;
-    return (
-      <section {...blockAttrs('blog-preview', block)} className="section-padding" aria-labelledby="blog-heading">
-        <div className="container-width">
-          <div className="text-center">
-            <h2 id="blog-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
-              {data.headline}
-            </h2>
-            {data.subheadline && (
-              <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-600">{data.subheadline}</p>
-            )}
-          </div>
-          <div className="mt-12">
-            {/* Featured post */}
-            {(() => {
-              const featuredContent = (
-                <div className={`relative h-64 overflow-hidden rounded-2xl bg-gradient-to-br ${colors[0]}`}>
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                  <div className="absolute bottom-0 p-8">
-                    <div className="flex items-center gap-3">
-                      {featured.category && (
-                        <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-medium text-white">
-                          {featured.category}
-                        </span>
-                      )}
-                      {featured.date && (
-                        <span className="text-xs text-white/70">{featured.date}</span>
-                      )}
-                    </div>
-                    <h3 className="mt-3 text-2xl font-bold text-white">{featured.title}</h3>
-                    <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/80">{featured.excerpt}</p>
-                  </div>
-                </div>
-              );
-              const slug = getSlug(0);
-              return slug
-                ? <Link href={localeUrl(slug, locale, "blogPost")}>{featuredContent}</Link>
-                : featuredContent;
-            })()}
-            {/* Remaining posts */}
-            {rest.length > 0 && (
-              <div className="mt-8 grid gap-6 sm:grid-cols-2">
-                {rest.map((post, index) => (
-                  <PostCard key={index} post={post} index={index + 1} />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-    );
-  }
-
   return (
-    <section {...blockAttrs('blog-preview', block)} className="section-padding" aria-labelledby="blog-heading">
-      <div className="container-width">
-        <div className="text-center">
-          <h2 id="blog-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
-            {data.headline}
-          </h2>
-          {data.subheadline && (
-            <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-600">{data.subheadline}</p>
-          )}
-        </div>
-        <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {displayPosts.map((post, index) => (
-            <PostCard key={index} post={post} index={index} />
-          ))}
-        </div>
-      </div>
+    <section {...blockAttrs('blog-preview', block)} className="blog-preview" aria-labelledby="blog-heading">
+      <h2 id="blog-heading" className="blog-preview__headline">
+        {data.headline}
+      </h2>
+      {data.subheadline && <p className="blog-preview__sub">{data.subheadline}</p>}
+      {displayPosts?.map((post, index) => {
+        const slug = fromBlog ? blogPosts[index]?.slug : undefined;
+        const parts = (
+          <>
+            {post.category && <span className="blog-preview__category">{post.category}</span>}
+            {post.date && <span className="blog-preview__date">{post.date}</span>}
+            <span className="blog-preview__title">{post.title}</span>
+            <span className="blog-preview__excerpt">{post.excerpt}</span>
+          </>
+        );
+        return slug ? (
+          <Link key={index} href={localeUrl(slug, locale, 'blogPost')} className="blog-preview__post">
+            {parts}
+          </Link>
+        ) : (
+          <div key={index} className="blog-preview__post">
+            {parts}
+          </div>
+        );
+      })}
     </section>
   );
 }

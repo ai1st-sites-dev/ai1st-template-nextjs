@@ -155,6 +155,26 @@ const HOOKS = new Set([
   '.timeline', '.timeline__headline', '.timeline__sub', '.timeline__event', '.timeline__year',
   '.timeline__title', '.timeline__desc',
   '[data-block="timeline"]',
+  // #1029 — batch D, four more blocks whose old branches were pure appearance. Nothing new about the
+  // shape of this list; the one thing worth writing down is what is NOT here:
+  //   · no hook for the check mark, the sparkle, the two-digit number, the avatar's initial or the
+  //     card's gradient strip. Every one of those was decoration or arithmetic living in the markup,
+  //     and the contract admits only `content: ""` — so a sheet can put a shape back in those places
+  //     (`::before` on the part below) but not that glyph, and not this person's initial.
+  //   · no per-post colour on `.blog-preview__post`. The old cards rotated four gradients by index;
+  //     `::before` cannot select "the third one" (§1 refuses `nth-child`), so the rotation is gone
+  //     and one colour for all of them is what a sheet can say.
+  '.benefits-list', '.benefits-list__headline', '.benefits-list__sub', '.benefits-list__item',
+  '.benefits-list__title', '.benefits-list__desc',
+  '[data-block="benefits-list"]',
+  '.team-grid', '.team-grid__headline', '.team-grid__sub', '.team-grid__member', '.team-grid__name',
+  '.team-grid__role', '.team-grid__bio',
+  '[data-block="team-grid"]',
+  '.checklist', '.checklist__headline', '.checklist__sub', '.checklist__item',
+  '[data-block="checklist"]',
+  '.blog-preview', '.blog-preview__headline', '.blog-preview__sub', '.blog-preview__post',
+  '.blog-preview__category', '.blog-preview__date', '.blog-preview__title', '.blog-preview__excerpt',
+  '[data-block="blog-preview"]',
   '[data-role="essential"]', '[data-role="lead"]', '[data-role="optional"]',
   'body', '[data-region-layout]',
 ]);
@@ -753,7 +773,19 @@ const PART_HOOKS = new Set(['.hero__media', '.hero__body', '.hero__title', '.her
   '.process-steps__headline', '.process-steps__sub', '.process-steps__step', '.process-steps__num',
   '.process-steps__title', '.process-steps__desc',
   '.timeline__headline', '.timeline__sub', '.timeline__event', '.timeline__year',
-  '.timeline__title', '.timeline__desc']);
+  '.timeline__title', '.timeline__desc',
+  // #1029 — batch D's parts. The four BLOCK classes (`.benefits-list`, `.team-grid`, `.checklist`,
+  // `.blog-preview`) are deliberately NOT here, same reason as every batch before.
+  // 🔴 Counted by hand, because leaving a part off goes nowhere red (see the note above): this ticket
+  // added **21** `__`-suffixed names to `HOOKS`, and there are 21 below.
+  '.benefits-list__headline', '.benefits-list__sub', '.benefits-list__item',
+  '.benefits-list__title', '.benefits-list__desc',
+  '.team-grid__headline', '.team-grid__sub', '.team-grid__member', '.team-grid__name',
+  '.team-grid__role', '.team-grid__bio',
+  '.checklist__headline', '.checklist__sub', '.checklist__item',
+  '.blog-preview__headline', '.blog-preview__sub', '.blog-preview__post',
+  '.blog-preview__category', '.blog-preview__date', '.blog-preview__title',
+  '.blog-preview__excerpt']);
 
 // Does this rule style a block or a region (rather than a part inside one)? The subject of a complex
 // selector is its LAST compound — `.hero .hero__title` styles the title — and one selector in the list

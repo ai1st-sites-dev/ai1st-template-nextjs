@@ -441,3 +441,52 @@
 .contact-info__email {
   color: inherit;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   #1029 — THE NEUTRAL SKELETONS FOR BATCH D: benefits-list · team-grid · checklist · blog-preview.
+   Same division of labour as every batch above.
+   ══════════════════════════════════════════════════════════════════════════════════════════════
+   Here: the things that must be true whichever sheet is loaded. In a theme sheet: the whole look.
+   The floor for a page with NO sheet — spacing and readable type on the HOOKS — is public/base.css.
+
+   🔴 EVERY ELEMENT IN ALL FOUR BLOCKS CARRIES A HOOK, so — as in batch C — there are no internals a
+   sheet cannot reach and nothing here to own but the guard and one link rule.
+
+   🔴 `overflow: hidden` ON EACH BLOCK is the guard every migrated block has: it keeps a phone from
+   getting a horizontal scrollbar when a sheet paints something wider than the block. No sheet sets
+   `overflow` on these four, so nothing here reaches a themed page by accident.
+
+   🔴 `.blog-preview__post` IS SOMETIMES AN `<a>`, AND THAT IS WHY IT GETS `color: inherit` — the same
+   exception `.contact-info__phone` gets above, for the same reason. A post links to the article when
+   the site has one; without this rule that card's whole text takes the browser's link blue, and a
+   sheet that paints this block's ground dark has unreadable cards with no way to say otherwise,
+   because the colour would be coming from the UA sheet rather than from anything a theme can
+   outrank. `display: block` for the same reason `.service-related-pages__card` has it: an `<a>` is
+   inline by default, so without it the card is not a box a grid can place. This is about which LAYER
+   owns those two properties, not what their values are — `.blog-preview__post` is a hook, so a sheet
+   that wants blue inline links writes them.
+
+   🔴 THE PARTS INSIDE A POST ARE `<span>`s AND HAVE TO BE TOLD TO BE BLOCKS, same as
+   `.gallery__caption > *` in batch G: they sit inside a link, where only phrasing content is valid.
+
+   🔴 NO padding / background / colour / font-size / text-align HERE. Any default for those would be a
+   fourth theme that all three sheets have to override, and it would be invisible to a byte comparison
+   of the HTML — the difference would be visual only. */
+.benefits-list,
+.team-grid,
+.checklist,
+.blog-preview {
+  overflow: hidden;
+}
+
+.blog-preview__post {
+  display: block;
+  color: inherit;
+}
+
+.blog-preview__category,
+.blog-preview__date,
+.blog-preview__title,
+.blog-preview__excerpt {
+  display: block;
+}

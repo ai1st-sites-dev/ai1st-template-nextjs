@@ -552,3 +552,128 @@
   border-color: currentColor;
   font-size: 0.875rem;
 }
+
+/* ── #1029 batch D: benefits-list · team-grid · checklist · blog-preview ────────────────────────
+   Same test as every batch before it — "would every sheet want to state this itself?" — checked
+   against all three phase-1 sheets after their batch-D rules were written:
+
+     the four block hooks      display / gap / padding      all three set them → base leaks nothing
+     every __headline          font-size / line-height      all three set them
+     every __sub / __desc      font-size / line-height      all three set them
+     .blog-preview__category   font-size                    all three set it
+
+   🔴 `min-width: 0` AND `max-width: 100%` ON EVERY PART, the pair batch G had to work out (#1036):
+   `min-width: 0` fixes a grid item's AUTOMATIC minimum — without it one long word makes the track
+   wider than the screen and the block's `overflow: hidden` (globals.css) CLIPS it, while the
+   page-level "no horizontal scroll" reading still says everything is fine. `max-width: 100%` covers
+   the other case, a part whose width is not `stretch` at all: a sheet that gives a part a
+   self-alignment (`justify-self: start` on a pill-shaped date or category) sizes it `fit-content`,
+   i.e. at least its min-content width, and `overflow-wrap: break-word` does not shrink min-content.
+   Measured per block, both on a 375px viewport and on the three-across sheet at 1280.
+
+   🔴 NO `list-style` / `<li>` RULES HERE, because none of these four renders a list element — the
+   check marks that used to make `checklist` look like a list were `<svg>`s, and they are gone
+   (#1029: the contract admits only `content: ""`, so a sheet draws a shape back, not that glyph). */
+.benefits-list,
+.team-grid,
+.checklist,
+.blog-preview {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .benefits-list,
+  .team-grid,
+  .checklist,
+  .blog-preview {
+    padding: 4rem 2rem;
+  }
+}
+
+.benefits-list__headline,
+.benefits-list__sub,
+.benefits-list__item,
+.benefits-list__title,
+.benefits-list__desc,
+.team-grid__headline,
+.team-grid__sub,
+.team-grid__member,
+.team-grid__name,
+.team-grid__role,
+.team-grid__bio,
+.checklist__headline,
+.checklist__sub,
+.checklist__item,
+.blog-preview__headline,
+.blog-preview__sub,
+.blog-preview__post,
+.blog-preview__category,
+.blog-preview__date,
+.blog-preview__title,
+.blog-preview__excerpt {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+/* ── headings and body copy: the readable floor ────────────────────────────────────────────────── */
+.benefits-list__headline,
+.team-grid__headline,
+.checklist__headline,
+.blog-preview__headline {
+  font-size: 1.75rem;
+  line-height: 1.2;
+}
+
+@media (min-width: 1024px) {
+  .benefits-list__headline,
+  .team-grid__headline,
+  .checklist__headline,
+  .blog-preview__headline {
+    font-size: 2.25rem;
+  }
+}
+
+.benefits-list__sub,
+.team-grid__sub,
+.checklist__sub,
+.blog-preview__sub {
+  /* Roughly 70 characters — the same reading measure every other block's sub gets. */
+  max-width: 34rem;
+  line-height: 1.6;
+}
+
+.benefits-list__title,
+.team-grid__name,
+.blog-preview__title {
+  font-size: 1.125rem;
+  line-height: 1.3;
+}
+
+.benefits-list__desc,
+.team-grid__bio,
+.checklist__item,
+.blog-preview__excerpt {
+  line-height: 1.6;
+}
+
+/* The two labels that are one short line each. Smaller than body copy without a sheet, because
+   without that they read as a sentence of their own above the name / the title. */
+.team-grid__role,
+.blog-preview__category,
+.blog-preview__date {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+/* A post is a box even with no sheet: its four parts have to hang together as one card rather than
+   run into the next post's. `display: grid` (not the structure layer's `display: block`) puts the
+   space between them in ONE place. All three sheets set both properties themselves. */
+.blog-preview__post,
+.benefits-list__item,
+.team-grid__member {
+  display: grid;
+  gap: 0.375rem;
+}

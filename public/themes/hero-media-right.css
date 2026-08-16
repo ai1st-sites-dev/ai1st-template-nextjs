@@ -808,3 +808,269 @@
   line-height: 1.7;
   color: var(--color-primary-700);
 }
+
+/* ── #1029 batch D — light ground, one narrow column, rules instead of cards ───────────────────────
+   The second of the three geometries. Where hero-media-left puts two and three across on a dark
+   ground, this sheet keeps everything in a single column on a light one and separates the entries
+   with a rule — the old `centered` / `list` looks, said in CSS. hero-media-top does the third. */
+
+.benefits-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+  padding: 2.5rem 1.5rem;
+  background-color: var(--color-primary-50);
+  color: var(--color-primary-900);
+}
+
+@media (min-width: 1024px) {
+  .benefits-list {
+    gap: 1.5rem;
+    padding: 4rem 3rem;
+  }
+}
+
+.benefits-list__headline {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--color-primary-900);
+}
+
+.benefits-list__sub {
+  max-width: 32rem;
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--color-primary-700);
+}
+
+.benefits-list__item {
+  display: grid;
+  gap: 0.375rem;
+  padding: 0 0 1.25rem;
+  border-bottom-width: 1px;
+  border-bottom-style: solid;
+  border-bottom-color: var(--color-primary-200);
+}
+
+.benefits-list__title {
+  font-size: 1.125rem;
+  line-height: 1.3;
+  font-weight: 700;
+  color: var(--color-primary-900);
+}
+
+.benefits-list__desc {
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: var(--color-primary-700);
+}
+
+.team-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+  padding: 2.5rem 1.5rem;
+  background-color: var(--color-primary-50);
+  color: var(--color-primary-900);
+}
+
+@media (min-width: 1024px) {
+  .team-grid {
+    gap: 1.5rem;
+    padding: 4rem 3rem;
+  }
+}
+
+.team-grid__headline {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.team-grid__sub {
+  max-width: 32rem;
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--color-primary-700);
+}
+
+/* The person's three lines sit to the RIGHT of the shape, not under it — the old `compact` look. */
+.team-grid__member {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.125rem 1rem;
+  padding: 0 0 1.25rem;
+  border-bottom-width: 1px;
+  border-bottom-style: solid;
+  border-bottom-color: var(--color-primary-200);
+}
+
+.team-grid__member::before {
+  content: "";
+  grid-row: 1 / -1;
+  display: block;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 9999px;
+  background-color: var(--color-primary-200);
+}
+
+/* All three lines sit in the SECOND column, beside the shape. Writing it on each of them rather than
+   letting auto-placement do it: `::before` spans `grid-row: 1 / -1`, and with no explicit rows that
+   resolves to one row — so rows 2 and 3 have a free first column and auto-placement puts the role
+   there, under the shape instead of beside the name. Measured before this line existed: name at
+   x=116, role at x=48. */
+.team-grid__name,
+.team-grid__role,
+.team-grid__bio {
+  grid-column: 2;
+}
+
+.team-grid__name {
+  font-size: 1.0625rem;
+  line-height: 1.3;
+  font-weight: 700;
+}
+
+.team-grid__role {
+  font-size: 0.8125rem;
+  line-height: 1.3;
+  color: var(--color-primary-600);
+}
+
+.team-grid__bio {
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: var(--color-primary-700);
+}
+
+.checklist {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  padding: 2.5rem 1.5rem;
+  background-color: var(--color-primary-50);
+  color: var(--color-primary-900);
+}
+
+@media (min-width: 1024px) {
+  .checklist {
+    gap: 0.875rem;
+    padding: 4rem 3rem;
+  }
+}
+
+.checklist__headline {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.checklist__sub {
+  max-width: 32rem;
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--color-primary-700);
+}
+
+.checklist__item {
+  padding: 0 0 0.75rem;
+  border-bottom-width: 1px;
+  border-bottom-style: solid;
+  border-bottom-color: var(--color-primary-200);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+/* A square rather than left's dot — the two sheets disagree about the mark, which is the point. */
+.checklist__item::before {
+  content: "";
+  display: inline-block;
+  width: 0.4375rem;
+  height: 0.4375rem;
+  margin-right: 0.75rem;
+  background-color: var(--color-accent-500);
+}
+
+.blog-preview {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+  padding: 2.5rem 1.5rem;
+  background-color: var(--color-primary-50);
+  color: var(--color-primary-900);
+}
+
+@media (min-width: 1024px) {
+  .blog-preview {
+    gap: 1.5rem;
+    padding: 4rem 3rem;
+  }
+}
+
+.blog-preview__headline {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.blog-preview__sub {
+  max-width: 32rem;
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--color-primary-700);
+}
+
+/* The thumbnail block sits to the LEFT of the words — the old `list` look. */
+.blog-preview__post {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 1.25rem;
+  padding: 0 0 1.25rem;
+  border-bottom-width: 1px;
+  border-bottom-style: solid;
+  border-bottom-color: var(--color-primary-200);
+}
+
+.blog-preview__post::before {
+  content: "";
+  grid-row: 1 / -1;
+  display: block;
+  width: 5rem;
+  height: 5rem;
+  border-radius: 0.5rem;
+  background-color: var(--color-primary-200);
+}
+
+/* Same as team-grid above: every line of text goes in the second column, beside the thumbnail. */
+.blog-preview__category,
+.blog-preview__date,
+.blog-preview__title,
+.blog-preview__excerpt {
+  grid-column: 2;
+}
+
+.blog-preview__category {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-accent-600);
+}
+
+.blog-preview__date {
+  font-size: 0.75rem;
+  color: var(--color-primary-500);
+}
+
+.blog-preview__title {
+  font-size: 1.0625rem;
+  line-height: 1.3;
+  font-weight: 700;
+}
+
+.blog-preview__excerpt {
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: var(--color-primary-700);
+}

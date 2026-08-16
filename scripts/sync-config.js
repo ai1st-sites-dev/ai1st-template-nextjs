@@ -727,7 +727,11 @@ const MOVED_BLOCKS = ['hero', 'cta-banner', 'page-header',
   'service-related-pages',
   // #1028 batch C — four more. Same meaning as above: these blocks' markup no longer decides how
   // they look.
-  'contact-info', 'stats-counter', 'process-steps', 'timeline'];
+  'contact-info', 'stats-counter', 'process-steps', 'timeline',
+  // #1029 batch D — four more. Same meaning as above: these blocks' markup no longer decides how
+  // they look. `blog-preview` keeps reading `data.fromBlog` / `data.maxPosts`, and that is not a
+  // contradiction: those two say WHICH articles the block draws, not what it looks like.
+  'benefits-list', 'team-grid', 'checklist', 'blog-preview'];
 const movedList = MOVED_BLOCKS.join(' + ');
 console.log(themeSheet
   ? `  Theme CSS: public/themes/${themeSheet}.css — pasted into theme.css, ${movedList} styled by those rules (base.css underneath)`
