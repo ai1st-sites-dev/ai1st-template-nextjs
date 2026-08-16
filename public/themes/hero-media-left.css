@@ -681,17 +681,21 @@
   color: var(--color-primary-50);
 }
 
-/* 🔴 #1028 — THE ONE DELIBERATE `display: none` IN THIS FILE, AND THE TICKET'S OWN DISPOSITION.
-   Four of the five old branches rendered `step.description`; `icon-strip` did not. The neutral markup
-   takes the union, so the strip look now has a paragraph it never had, and a sheet is the layer that
-   takes it back off. It is legal because `process-steps` is `optional` (`block-roles.json`) — contract
-   §3's last line refuses `display: none` only under `[data-role="essential"]` — and §4 skips rather
-   than judges a box the browser laid out nowhere. The paragraph is still in the HTML and still read
-   by anything that does not load this sheet, which is every site that has no theme (100% of new sites
-   today). */
-.process-steps__desc {
-  display: none;
-}
+/* 🔴 #1042 — 这里【曾经】有一条 `.process-steps__desc { display: none }`，#1028 加的，现已删除。
+   别再加回来，理由是两个读数：
+
+   ① 一条 CSS 规则分不出这个站原来用的是哪一支变体。#1028 的推理是「icon-strip 原来不渲染
+      step.description，搬成中性 markup 后取超集，所以用表把多出来的那段藏掉」——但那条规则是
+      无条件的，它对穿这套表的**所有**站生效。30 套主题点名 process-steps 的变体分布是
+      horizontal 8 · vertical 7 · zigzag 5 · cards 5 · icon-strip 5 ⟹ 藏它等于让 **25 套**主题
+      少掉本该显示的描述，换来 5 套不多出一段。而且搬完之后「icon-strip 的站」这个概念已经不存在了：
+      长相由表决定，不由变体决定。
+
+   ② 「process-steps 是 optional 所以合法」也不成立。页面 JSON 把某个 process-steps 块的 `role`
+      写成 `essential` 是合法输入（spec §4.6 只能升不能降级），那样建出来根元素就是
+      `data-role="essential"`，这条规则照样命中，而运行时检查还打绿。
+
+   语料读数（6 站 / 31 个 process-steps 实例 / 140 个步骤）：140 个步骤**全都**带 description。 */
 
 .timeline {
   display: grid;

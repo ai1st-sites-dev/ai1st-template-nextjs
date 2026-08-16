@@ -615,14 +615,10 @@
   color: var(--color-primary-900);
 }
 
-/* 🔴 #1028 — the ticket's disposition for the union, and the sheet where it is most obviously right:
-   this is the strip. `icon-strip` never rendered `step.description`, the neutral markup does, and a
-   sheet is the layer that takes it back off. Legal because `process-steps` is `optional` (contract §3
-   refuses `display: none` only under `[data-role="essential"]`); still in the HTML for every site
-   with no theme. */
-.process-steps__desc {
-  display: none;
-}
+/* 🔴 #1042 — 这里【曾经】有一条 `.process-steps__desc { display: none }`，#1028 加的，现已删除。
+   #1028 的注释说这套表「最明显该藏，因为这就是那个 strip」—— 那句话正是本票要推翻的那个前提：
+   表决定长相，而**穿这套表的站不一定原来用 icon-strip**，一条无条件的 CSS 规则分不出这件事。
+   完整理由写在 `hero-media-left.css` 同一位置。 */
 
 .timeline {
   display: flex;
