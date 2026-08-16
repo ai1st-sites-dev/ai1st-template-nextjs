@@ -84,6 +84,36 @@ function validateTweaks(tweaks) {
   return problems;
 }
 
+/**
+ * 微扰要乘的那一组基准值 → [[变量名, 值], …]（#1037 从 `sync-config.js` 的 `baseVarsForTweaks()`
+ * 里搬出来的，**逐行同样的算法**，只是现在有两个调用方）。
+ *
+ * 第二个调用方是 dashboard 的 Customize 弹窗：它要在浏览器里现算「这三个旋钮会把页面变成什么样」，
+ * 而那份预览只有在**跟构建算的是同一件事**时才值钱。留在 sync-config 里就得在 TypeScript 里再写一遍。
+ *
+ * 🔴 只取本层认识的三族（`--color-*` / `--radius-*` / `--section-*`）：阴影改了会动对比度观感、
+ * 字体没有可乘的量（fontScale 不在 #1006）。
+ *
+ * @param colors      `{ primary: {50:…,…}, accent: {…} }` —— 页面上真正生效的那套调色板
+ * @param settingsDecls `settingsToCssVars()` 吐出来的整条声明（`--radius-lg: 0.5rem;`），或 []
+ */
+function baseVarsFrom(colors, settingsDecls = []) {
+  const out = [];
+  for (const [shade, value] of Object.entries((colors && colors.primary) || {})) {
+    out.push([`--color-primary-${shade}`, value]);
+  }
+  for (const [shade, value] of Object.entries((colors && colors.accent) || {})) {
+    out.push([`--color-accent-${shade}`, value]);
+  }
+  const shapes = (settingsDecls || [])
+    .map((decl) => /^\s*(--[A-Za-z0-9-]+)\s*:\s*(.+?);?\s*$/.exec(decl))
+    .filter(Boolean)
+    .filter((m) => /^--(radius|section)-/.test(m[1]))
+    .map((m) => [m[1], m[2].trim()]);
+  out.push(...shapes);
+  return { vars: out, shapeCount: shapes.length };
+}
+
 /** 把一组 tweaks 补齐成完整的一组（缺的取中性值）。 */
 function withDefaults(tweaks) {
   const out = { ...NEUTRAL };
@@ -296,6 +326,8 @@ function buildCustomCss(baseVars, tweaks) {
 module.exports = {
   TWEAK_BOUNDS,
   TWEAK_KEYS,
+  NEUTRAL,
+  baseVarsFrom,
   validateTweaks,
   withDefaults,
   isNeutral,

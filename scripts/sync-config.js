@@ -849,27 +849,20 @@ function globalsRootDefaults() {
  * 微扰会碰的范围里：阴影改了会动对比度观感、字体没有可乘的量（fontScale 不在本票）。
  */
 function baseVarsForTweaks() {
-  const out = [];
-  for (const [shade, value] of Object.entries(brand.colors.primary || {})) {
-    out.push([`--color-primary-${shade}`, value]);
-  }
-  for (const [shade, value] of Object.entries(brand.colors.accent || {})) {
-    out.push([`--color-accent-${shade}`, value]);
-  }
   const table = settingsTable();
-  // `settingsToCssVars` 吐的是 `--radius-lg: 0.5rem;` 这样的整条声明，拆回名/值。
-  const fromSettings = table
-    ? table.settingsToCssVars(brand.settings)
-      .map((decl) => /^\s*(--[A-Za-z0-9-]+)\s*:\s*(.+?);?\s*$/.exec(decl))
-      .filter(Boolean)
-      .filter((m) => /^--(radius|section)-/.test(m[1]))   // 阴影不在微扰范围里
-      .map((m) => [m[1], m[2].trim()])
-    : [];
-  // 没有风格设定的站（`settingsToCssVars` 返回空）落回 globals.css 的默认值 —— 那正是页面上生效的值。
-  const shapes = fromSettings.length ? fromSettings : globalsRootDefaults();
-  const source = fromSettings.length ? 'theme settings' : (table ? 'globals.css :root' : 'globals.css :root（#1002 的 scripts/theme-settings.js 还没落地）');
-  out.push(...shapes);
-  return { vars: out, source };
+  // 🔴 #1037 —— 颜色的枚举 + 形状那两族的筛选搬进了 `tweaks.js` 的 `baseVarsFrom()`，因为
+  // dashboard 的 Customize 弹窗要在浏览器里算同一件事（预览跟构建必须算得一模一样）。
+  // **算法一行没改**：同样的入参进去，同样的 [[名, 值], …] 出来。
+  // 留在这里的是这份文件独有的那一半 —— 没写风格设定的站落回 globals.css 的默认值，
+  // 那需要读磁盘上的 globals.css，浏览器里没有。
+  const fromSettings = table ? tweakLib.baseVarsFrom(brand.colors, table.settingsToCssVars(brand.settings)) : null;
+  if (fromSettings && fromSettings.shapeCount) {
+    return { vars: fromSettings.vars, source: 'theme settings' };
+  }
+  const { vars } = tweakLib.baseVarsFrom(brand.colors, []);
+  vars.push(...globalsRootDefaults());
+  const source = table ? 'globals.css :root' : 'globals.css :root（#1002 的 scripts/theme-settings.js 还没落地）';
+  return { vars, source };
 }
 
 {
