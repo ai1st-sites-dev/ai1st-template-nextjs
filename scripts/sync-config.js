@@ -740,7 +740,14 @@ const MOVED_BLOCKS = ['hero', 'cta-banner', 'page-header',
   // #1031 batch F — seven at once. All seven had a `data.variant` branch and nothing else: none of
   // them is a `'use client'` component, so there was no behaviour to keep on the way out.
   'content-split', 'text-block', 'divider', 'social-proof', 'features-grid',
-  'awards-certifications', 'newsletter-signup'];
+  'awards-certifications', 'newsletter-signup',
+  // #1036 batch G — the six blocks that had behaviour in at least one variant. `announcement-bar`
+  // belongs on this list even though it still reads `data.variant`: that read is the REGION path
+  // (`TopbarRegion.tsx` passes `regionLayout.topbar` through the same prop and it lands on
+  // `data-region-layout`), and regions are `scripts/region-layout.js`'s business, not phase 2's.
+  // As a BLOCK its markup no longer decides how it looks, which is what this list means.
+  'faq-accordion', 'testimonials', 'announcement-bar', 'service-highlights', 'pricing-table',
+  'gallery'];
 const movedList = MOVED_BLOCKS.join(' + ');
 console.log(themeSheet
   ? `  Theme CSS: public/themes/${themeSheet}.css — pasted into theme.css, ${movedList} styled by those rules (base.css underneath)`

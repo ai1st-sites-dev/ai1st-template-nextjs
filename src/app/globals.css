@@ -606,3 +606,91 @@
 .blog-preview__excerpt {
   display: block;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   #1036 — THE NEUTRAL SKELETONS FOR BATCH G: faq-accordion · testimonials · announcement-bar ·
+   service-highlights · pricing-table · gallery. Same division of labour as the batches above.
+   ══════════════════════════════════════════════════════════════════════════════════════════════
+   Here: the things that must be true whichever sheet is loaded. In a theme sheet: the whole look.
+   The floor for a page with NO sheet — spacing and readable type on the HOOKS — is public/base.css.
+
+   🔴 THIS IS THE BATCH WITH BEHAVIOUR IN IT, AND ALL OF THE BEHAVIOUR THAT SURVIVED LIVES HERE.
+   `faq-accordion` is native `<details>/<summary>` now: opening and closing costs no JavaScript and
+   no CSS, but a sheet cannot reach `[open]` either (contract §1 refuses attribute selectors that are
+   not on its list, and `:has()` with them). So what an OPEN question looks like is the browser's
+   default plus this file. A sheet still owns the closed state, the question, the answer, the item
+   and the block — everything with a hook.
+
+   🔴 `<summary>`, `<li>`, `<figcaption>` AND `<blockquote>` ARE LAID OUT HERE FOR THE SAME REASON
+   batch B's form controls are: no theme can select a tag (contract §1), so they are not "left to
+   base", they are UNREACHABLE from a sheet. base.css's rule ("would all three sheets state this
+   themselves? then base must not") does not apply to something no sheet can state.
+
+   🔴 `overflow: hidden` ON EACH BLOCK is the guard every migrated block has: it keeps a phone from
+   getting a horizontal scrollbar when a sheet paints something wider than the block. No sheet sets
+   `overflow` on these six, so nothing here reaches a themed page by accident.
+
+   🔴 WHAT THIS BATCH GAVE UP, WRITTEN DOWN RATHER THAN LEFT TO BE FOUND (the readings are in #1036):
+   the check marks in front of every feature, the numbered FAQ's `01.` prefixes, the gallery
+   placeholder's six-colour rotation and its six masonry heights, the testimonial avatar's initial,
+   and pricing-table's monthly/annual switch. The first five are decoration or arithmetic that lived
+   in the markup, and the contract admits only `content: ""`, so no sheet can put them back. The
+   sixth was removed because it was wrong: it changed `/mo` to `/yr` and left the price alone. */
+.faq-accordion,
+.testimonials,
+.announcement-bar,
+.service-highlights,
+.pricing-table,
+.gallery {
+  overflow: hidden;
+}
+
+/* ── faq-accordion: the one surviving behaviour ────────────────────────────────────────────────── */
+/* `<details>` is a block box already; what it needs from this file is a question that reads as
+   clickable and an answer that does not inherit the summary's list marker. */
+.faq-accordion__question {
+  cursor: pointer;
+  list-style-position: inside;
+}
+
+.faq-accordion__answer {
+  margin-top: 0.5rem;
+}
+
+/* ── list internals no sheet can reach ────────────────────────────────────────────────────────── */
+.service-highlights__features,
+.pricing-table__features {
+  list-style: disc;
+  padding-left: 1.25rem;
+}
+
+.service-highlights__features li,
+.pricing-table__features li {
+  /* The list is a grid (base.css), so each item is a grid item and needs its own minimum reset for
+     the same reason every other part gets one. */
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+/* ── testimonials: a <blockquote> carries UA margins that fight every sheet's `gap` ─────────────── */
+.testimonials__quote {
+  margin: 0;
+}
+
+/* ── gallery: <figure> and <figcaption> carry UA margins for the same reason ───────────────────── */
+.gallery__item {
+  margin: 0;
+}
+
+.gallery__caption > * {
+  display: block;
+}
+
+/* ── announcement-bar: the message must not push the link off the strip ───────────────────────── */
+.announcement-bar__message {
+  margin: 0;
+}
+
+.announcement-bar__link {
+  white-space: nowrap;
+}

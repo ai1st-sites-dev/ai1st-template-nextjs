@@ -1455,3 +1455,406 @@
   border-radius: 1rem;
   background-color: var(--color-primary-800);
 }
+
+/* ── #1036 batch G — the dark, generous, three-across treatment ────────────────────────────────────
+   Six blocks that used to carry their own variants in the markup; this sheet's opinion about all of
+   them is the same one it has about batch B: the dark ground the hero and page header paint, roomy
+   padding, and three columns where there is a list. The other two sheets draw the same HTML as two
+   columns and as centred single-column bands — that is the whole claim phase 2 makes about these six.
+
+   🔴 Nothing here reaches `[open]` on an FAQ question: the contract has no attribute selector for it
+   (§1), so how an OPEN answer sits is the browser's plus globals.css. This sheet owns the rest. */
+
+.faq-accordion {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-900);
+  color: var(--color-primary-50);
+}
+
+@media (min-width: 1024px) {
+  .faq-accordion {
+    grid-template-columns: 2fr 3fr;
+    gap: 1.25rem 4rem;
+    padding: 5rem 4rem;
+  }
+}
+
+.faq-accordion__headline {
+  grid-column: 1 / -1;
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 800;
+  color: var(--color-primary-50);
+}
+
+.faq-accordion__sub {
+  grid-column: 1 / -1;
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.faq-accordion__item {
+  grid-column: 1 / -1;
+  padding: 1.5rem 1.75rem;
+  border-radius: 1rem;
+  background-color: var(--color-primary-800);
+}
+
+.faq-accordion__question {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--color-primary-50);
+}
+
+.faq-accordion__answer {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.testimonials {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-900);
+  color: var(--color-primary-50);
+}
+
+/* Three across on a wide screen — the same count this sheet gives values-grid. */
+@media (min-width: 1024px) {
+  .testimonials {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 2rem;
+    padding: 5rem 4rem;
+  }
+}
+
+.testimonials__headline {
+  grid-column: 1 / -1;
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 800;
+}
+
+.testimonials__sub {
+  grid-column: 1 / -1;
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.testimonials__item {
+  display: grid;
+  align-content: start;
+  gap: 0.75rem;
+  padding: 2rem;
+  border-radius: 1rem;
+  background-color: var(--color-primary-800);
+}
+
+.testimonials__rating {
+  display: flex;
+  gap: 0.25rem;
+  color: var(--color-accent-400);
+}
+
+.testimonials__star {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.testimonials__quote {
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--color-primary-50);
+}
+
+.testimonials__name {
+  font-size: 1.0625rem;
+  font-weight: 700;
+}
+
+.testimonials__meta {
+  font-size: 0.875rem;
+  color: var(--color-primary-200);
+}
+
+.testimonials__service {
+  justify-self: start;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  background-color: var(--color-primary-700);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.announcement-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem 1.5rem;
+  background-color: var(--color-accent-600);
+  color: var(--color-primary-50);
+}
+
+.announcement-bar__message {
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.announcement-bar__link {
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.375rem;
+  background-color: var(--color-primary-900);
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--color-primary-50);
+}
+
+.service-highlights {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-900);
+  color: var(--color-primary-50);
+}
+
+@media (min-width: 1024px) {
+  .service-highlights {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 2rem;
+    padding: 5rem 4rem;
+  }
+}
+
+.service-highlights__headline {
+  grid-column: 1 / -1;
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 800;
+}
+
+.service-highlights__sub {
+  grid-column: 1 / -1;
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.service-highlights__item {
+  display: grid;
+  align-content: start;
+  gap: 0.75rem;
+  padding: 2rem;
+  border-radius: 1rem;
+  background-color: var(--color-primary-800);
+}
+
+/* The gradient strip the old `cards-large` markup carried as an empty div — one property on the
+   element that is already there (#1018's reasoning for cta-banner's overlay). */
+.service-highlights__item::before {
+  content: "";
+  display: block;
+  height: 0.25rem;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, var(--color-primary-400), var(--color-accent-500));
+}
+
+.service-highlights__title {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.service-highlights__desc {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.service-highlights__features {
+  display: grid;
+  gap: 0.5rem;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--color-primary-100);
+}
+
+.pricing-table {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-900);
+  color: var(--color-primary-50);
+}
+
+@media (min-width: 1024px) {
+  .pricing-table {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 2rem;
+    padding: 5rem 4rem;
+  }
+}
+
+.pricing-table__headline {
+  grid-column: 1 / -1;
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 800;
+}
+
+.pricing-table__sub {
+  grid-column: 1 / -1;
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.pricing-table__item {
+  display: grid;
+  align-content: start;
+  gap: 0.75rem;
+  padding: 2rem;
+  border-radius: 1rem;
+  background-color: var(--color-primary-800);
+}
+
+/* The tier's own `highlighted` boolean, arriving as a class because a sheet cannot select "the
+   third card" (contract §1's note on this hook). */
+.pricing-table__item--featured {
+  border-width: 2px;
+  border-style: solid;
+  border-color: var(--color-accent-500);
+}
+
+.pricing-table__badge {
+  justify-self: start;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  background-color: var(--color-accent-500);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-primary-900);
+}
+
+.pricing-table__name {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.pricing-table__price {
+  font-size: 2.5rem;
+  line-height: 1;
+  font-weight: 800;
+  color: var(--color-accent-400);
+}
+
+.pricing-table__desc {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.pricing-table__features {
+  display: grid;
+  gap: 0.5rem;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--color-primary-100);
+}
+
+.pricing-table__action {
+  margin-top: 0.5rem;
+}
+
+.gallery {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-900);
+  color: var(--color-primary-50);
+}
+
+@media (min-width: 1024px) {
+  .gallery {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 2rem;
+    padding: 5rem 4rem;
+  }
+}
+
+.gallery__headline {
+  grid-column: 1 / -1;
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 800;
+}
+
+.gallery__sub {
+  grid-column: 1 / -1;
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.gallery__item {
+  display: grid;
+  align-content: start;
+  gap: 0.75rem;
+}
+
+.gallery__image,
+.gallery__placeholder {
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  border-radius: 1rem;
+  object-fit: cover;
+}
+
+.gallery__placeholder {
+  /* 🔴 accent only goes up to 600 in brand.json — `var(--color-accent-700)` resolves to nothing and
+     takes the whole declaration with it, which would leave the placeholder with no ground at all. */
+  background: linear-gradient(140deg, var(--color-primary-700), var(--color-accent-600));
+  opacity: 1;
+}
+
+.gallery__caption {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.gallery__category {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-accent-400);
+}
+
+.gallery__title {
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.gallery__desc {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--color-primary-100);
+}

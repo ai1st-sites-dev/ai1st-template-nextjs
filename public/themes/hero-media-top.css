@@ -1319,3 +1319,349 @@
   padding: 0;
   background-color: transparent;
 }
+
+/* ── #1036 batch G — the centred, single-column, capped treatment ──────────────────────────────────
+   Same six blocks, same HTML, this sheet's own opinion: one column at every width, everything
+   centred and capped at a reading measure — not three across (hero-media-left.css) and not two
+   (hero-media-right.css). */
+
+.faq-accordion {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 0.75rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-100);
+  color: var(--color-primary-900);
+  text-align: center;
+}
+
+.faq-accordion__headline {
+  max-width: 34rem;
+  font-size: 1.75rem;
+  line-height: 1.15;
+  font-weight: 700;
+}
+
+.faq-accordion__sub {
+  max-width: 34rem;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--color-primary-700);
+}
+
+.faq-accordion__item {
+  width: 100%;
+  max-width: 34rem;
+  padding: 1.25rem;
+  border-radius: 1.5rem;
+  background-color: var(--color-primary-50);
+  text-align: left;
+}
+
+.faq-accordion__question {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.faq-accordion__answer {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--color-primary-700);
+}
+
+.testimonials {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 1rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-100);
+  color: var(--color-primary-900);
+  text-align: center;
+}
+
+.testimonials__headline {
+  max-width: 34rem;
+  font-size: 1.75rem;
+  line-height: 1.15;
+  font-weight: 700;
+}
+
+.testimonials__sub {
+  max-width: 34rem;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--color-primary-700);
+}
+
+.testimonials__item {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 34rem;
+  padding: 1.5rem;
+  border-radius: 1.5rem;
+  background-color: var(--color-primary-50);
+}
+
+.testimonials__rating {
+  display: flex;
+  justify-content: center;
+  gap: 0.1875rem;
+  color: var(--color-accent-500);
+}
+
+.testimonials__star {
+  width: 1rem;
+  height: 1rem;
+}
+
+.testimonials__quote {
+  font-size: 1.0625rem;
+  line-height: 1.75;
+  color: var(--color-primary-800);
+}
+
+.testimonials__name {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.testimonials__meta {
+  font-size: 0.8125rem;
+  color: var(--color-primary-600);
+}
+
+.testimonials__service {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--color-accent-600);
+}
+
+.announcement-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.5rem;
+  background-color: var(--color-primary-100);
+  color: var(--color-primary-900);
+  text-align: center;
+}
+
+.announcement-bar__message {
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.announcement-bar__link {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--color-accent-600);
+}
+
+.service-highlights {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 1rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-100);
+  color: var(--color-primary-900);
+  text-align: center;
+}
+
+.service-highlights__headline {
+  max-width: 34rem;
+  font-size: 1.75rem;
+  line-height: 1.15;
+  font-weight: 700;
+}
+
+.service-highlights__sub {
+  max-width: 34rem;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--color-primary-700);
+}
+
+.service-highlights__item {
+  display: grid;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 34rem;
+  padding: 1.25rem;
+  border-radius: 1.5rem;
+  background-color: var(--color-primary-50);
+  text-align: left;
+}
+
+.service-highlights__title {
+  font-size: 1.0625rem;
+  font-weight: 700;
+}
+
+.service-highlights__desc {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--color-primary-700);
+}
+
+.service-highlights__features {
+  display: grid;
+  gap: 0.375rem;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--color-primary-600);
+}
+
+.pricing-table {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 1rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-100);
+  color: var(--color-primary-900);
+  text-align: center;
+}
+
+.pricing-table__headline {
+  max-width: 34rem;
+  font-size: 1.75rem;
+  line-height: 1.15;
+  font-weight: 700;
+}
+
+.pricing-table__sub {
+  max-width: 34rem;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--color-primary-700);
+}
+
+.pricing-table__item {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 34rem;
+  padding: 1.5rem;
+  border-radius: 1.5rem;
+  background-color: var(--color-primary-50);
+}
+
+.pricing-table__item--featured {
+  background-color: var(--color-accent-50);
+}
+
+.pricing-table__badge {
+  justify-self: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--color-accent-600);
+}
+
+.pricing-table__name {
+  font-size: 1.0625rem;
+  font-weight: 700;
+}
+
+.pricing-table__price {
+  font-size: 2.25rem;
+  line-height: 1.05;
+  font-weight: 800;
+  color: var(--color-primary-800);
+}
+
+.pricing-table__desc {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--color-primary-700);
+}
+
+.pricing-table__features {
+  display: grid;
+  gap: 0.375rem;
+  justify-self: start;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--color-primary-600);
+  text-align: left;
+}
+
+.pricing-table__action {
+  margin-top: 0.5rem;
+}
+
+.gallery {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: 1rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-100);
+  color: var(--color-primary-900);
+  text-align: center;
+}
+
+.gallery__headline {
+  max-width: 34rem;
+  font-size: 1.75rem;
+  line-height: 1.15;
+  font-weight: 700;
+}
+
+.gallery__sub {
+  max-width: 34rem;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--color-primary-700);
+}
+
+.gallery__item {
+  display: grid;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 34rem;
+}
+
+.gallery__image,
+.gallery__placeholder {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 1.5rem;
+  object-fit: cover;
+}
+
+.gallery__placeholder {
+  background-color: var(--color-primary-200);
+  opacity: 1;
+}
+
+.gallery__caption {
+  display: grid;
+  gap: 0.125rem;
+}
+
+.gallery__category {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--color-accent-600);
+}
+
+.gallery__title {
+  font-size: 1.0625rem;
+  font-weight: 700;
+}
+
+.gallery__desc {
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--color-primary-600);
+}

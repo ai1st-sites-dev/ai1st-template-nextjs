@@ -208,6 +208,42 @@ const HOOKS = new Set([
   '.newsletter-signup', '.newsletter-signup__headline', '.newsletter-signup__desc',
   '.newsletter-signup__form',
   '[data-block="newsletter-signup"]',
+  // #1036 — batch G, the six blocks that had BEHAVIOUR in at least one variant. Five of those
+  // behaviours went away for want of a live user (measured on all six production sites: `carousel`,
+  // `toggle` and `dismissible` have zero instances between them); the one that stayed —
+  // faq-accordion's open/close — is native `<details>/<summary>` now, so no hook of its own is
+  // needed for it and no sheet can reach `[open]` (contract §1 refuses attribute selectors, which
+  // is written down in the component). What a sheet CAN reach is every part below.
+  //
+  // 🔴 Two of these names are not "a part of the markup" but a piece of DATA the markup had no other
+  // way to expose, and they are the reason this batch is not purely subtractive:
+  //   · `.pricing-table__item--featured` — the tier's own `highlighted` boolean. All four old
+  //     variants expressed it with Tailwind classes; a sheet cannot select "the third card", it can
+  //     only select a class, so the boolean has to arrive as one.
+  //   · `.testimonials__star` — the rating is N stars, and N comes from the data. A sheet decides
+  //     how big and what colour a star is; it cannot decide how many there are.
+  '.faq-accordion', '.faq-accordion__headline', '.faq-accordion__sub', '.faq-accordion__item',
+  '.faq-accordion__question', '.faq-accordion__answer',
+  '[data-block="faq-accordion"]',
+  '.testimonials', '.testimonials__headline', '.testimonials__sub', '.testimonials__item',
+  '.testimonials__rating', '.testimonials__star', '.testimonials__quote', '.testimonials__name',
+  '.testimonials__meta', '.testimonials__service',
+  '[data-block="testimonials"]',
+  '.announcement-bar', '.announcement-bar__message', '.announcement-bar__link',
+  '[data-block="announcement-bar"]',
+  '.service-highlights', '.service-highlights__headline', '.service-highlights__sub',
+  '.service-highlights__item', '.service-highlights__title', '.service-highlights__desc',
+  '.service-highlights__features',
+  '[data-block="service-highlights"]',
+  '.pricing-table', '.pricing-table__headline', '.pricing-table__sub', '.pricing-table__item',
+  '.pricing-table__item--featured', '.pricing-table__badge', '.pricing-table__name',
+  '.pricing-table__price', '.pricing-table__desc', '.pricing-table__features',
+  '.pricing-table__action',
+  '[data-block="pricing-table"]',
+  '.gallery', '.gallery__headline', '.gallery__sub', '.gallery__item', '.gallery__image',
+  '.gallery__placeholder', '.gallery__caption', '.gallery__category', '.gallery__title',
+  '.gallery__desc',
+  '[data-block="gallery"]',
   '[data-role="essential"]', '[data-role="lead"]', '[data-role="optional"]',
   'body', '[data-region-layout]',
 ]);
