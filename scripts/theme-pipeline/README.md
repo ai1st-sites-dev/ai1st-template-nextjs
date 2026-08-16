@@ -15,7 +15,47 @@ open /tmp/gal/public/index.html
 
 # 行业覆盖度：每个行业关键词能匹配到几套主题
 node scripts/theme-pipeline/coverage.js
+
+# 一份表画到了几个钩子、几个块，每块画了多少（不用建站，改一行就能问一次）
+node scripts/theme-pipeline/hook-coverage.js /tmp/cands/*.css
+
+# 一份表自己画的字，压在它自己画的底上读不读得出来（同样不用建站）
+node scripts/theme-pipeline/ink-contrast.js /tmp/cands/*.css
+node scripts/theme-pipeline/ink-contrast.js --verbose /tmp/cands/gen-07-5.css   # 逐条列不达标的
+
+# 配方本身的三条承重性质（跟着 `node scripts/run-script-tests.js` 一起跑）
+node scripts/theme-pipeline/sheet-recipes.test.js
 ```
+
+## 一套候选的 CSS 是怎么出来的（#1051）
+
+`generate.js` 出调色板、字体对和一组手感参数，表本身由 `sheet-recipes.js` 出，**34 个块全都画到**。
+在 #1051 之前 `generate.js` 里是三段写死的 hero CSS，候选只画 hero 一个块（7/213 钩子 · 1/34 块）——
+第②道闸会把「页面上出现、而这套主题自己表里没有规则」的钩子逐个点名，照那个跑一套都进不了池。
+
+配方按**部件扮演的角色**出样式（标题拿字体/字号/字重，卡片拿内边距/圆角/表面色，徽标拿胶囊形状和
+大写字距……），不是「每个钩子吐一条声明」。后者钩子和块当场全绿，而每块只有 213/34 ≈ 6 条声明，
+60-80 套主题在 33 个块上仍然长得一模一样。`hook-coverage.js` 因此同时量**每块的声明数**，下限照三套
+实证表定（min ≥ 11 · 中位 ≥ 28）。密度只是代理，不是「好看」的证明 —— 那一关是 #1016 的人审。
+
+另外三条性质由 `sheet-recipes.test.js` 守着。它们在写出来之前都是坏的，**而且三条都不会让覆盖率
+那把尺变红**（表照样生成、契约 lint rc=0、覆盖率照样 213/213）：
+
+1. **`layout.json` 说的版式，产物里要真的看得出来。** r1 只分「是不是 text-only」，于是
+   `with-media-left` 与 `with-media-top` 吐同一份 CSS —— 而第③道闸把版式当一整项（0.2 的权重），
+   于是那道闸是靠一个产物里不存在的差别在给分。
+2. **表本身不许有双胞胎。** r1 各档模数没错开，整份表的周期只有 36，跑 200 套只出 24 份不同的 CSS。
+   🔴 第③道闸看不见这件事：它只读 tokens 和 layout，**一个字节的 CSS 都不读**。
+3. **表画的字要读得出来。** r3 之前 `contact` / `figure` / `star` / `yes` 四个角色的字色是**写死的
+   `accent-500`**，跟它压在什么底上无关。实测那批 80 套里 20 套的 `contact-info__phone` / `__email`
+   落在 1.45–2.49:1，而第②道闸对 essential 块的下限是 2.5:1 ⟹ 候选当场被拦；同一个毛病还落在
+   另外 8 个钩子上，只是那些块不是 essential，**闸看不见，客人一样读不出来**。
+   现在字色由 `surfaceFor()` 按这套候选真实的调色板挑（见 `sheet-recipes.js` 的 §INK_FLOOR），
+   判据是 `ink-contrast.js`——它只读产物 + 这套候选的 tokens，不 import 生成器的取色逻辑。
+
+🔴 **`sheet-recipes.js` 的 `sheetFor(i, seed)` 要跟 `generate.js` 用同一个 seed** —— 从 r4 起表里的
+字色是按 `paletteFor(i, seed)` 挑的。seed 对不上 = 表按 A 的颜色挑、站里装的是 B 的颜色，那条对比度
+保证当场作废，**而没有任何东西会为此报错**。调色板因此只有一个定义（`palette.js`），两边都从它取。
 
 ## 四道闸
 

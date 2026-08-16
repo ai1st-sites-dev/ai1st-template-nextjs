@@ -14,23 +14,10 @@
 const fs = require('fs');
 const path = require('path');
 
-// 色相 → 十档色阶。HSL 转 hex，饱和度和亮度曲线照抄注册表里既有主题的手感
-// （50 很浅、500 是主色、900 很深），这样生成出来的调色板与人手写的那 30 套是同一类东西。
-function hslToHex(h, s, l) {
-  const a = s * Math.min(l, 1 - l);
-  const f = (n) => {
-    const k = (n + h / 30) % 12;
-    const c = l - a * Math.max(-1, Math.min(k - 3, Math.min(9 - k, 1)));
-    return Math.round(255 * c).toString(16).padStart(2, '0');
-  };
-  return `#${f(0)}${f(8)}${f(4)}`;
-}
-const SHADES = { 50: 0.96, 100: 0.9, 200: 0.82, 300: 0.7, 400: 0.6, 500: 0.5, 600: 0.42, 700: 0.34, 800: 0.26, 900: 0.16 };
-function rampFor(hue, sat, keys) {
-  const out = {};
-  for (const k of keys) out[k] = hslToHex(hue, sat, SHADES[k]);
-  return out;
-}
+// 🔴 调色板（色阶怎么算、为什么要为按钮压亮度）住在 `palette.js`，只有那一个定义 ——
+// `sheet-recipes.js` 挑字色时要按**这套候选真实的颜色**算对比度（r4），而它不能反过来 require
+// 这个文件（成环）。两处各算一遍同一件事就会分叉，这条流水线为此付过账（见 `heroLayoutFor`）。
+const { paletteFor } = require('./palette.js');
 
 // 🔴 非通用字体族一律**带引号**。这些名字最后被 `layout.tsx` 的 `join(', ')` 拼成 `--font-sans` /
 // `--font-heading` 的值，而 CSS 里一个不带引号的字体族是一串标识符 —— 标识符不能以数字开头，所以
@@ -48,89 +35,57 @@ const FONT_PAIRS = [
   { heading: quoted(['Fraunces', 'Georgia', 'serif']), body: quoted(['Inter', 'system-ui', 'sans-serif']), url: 'https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap' },
   { heading: quoted(['Space Grotesk', 'system-ui', 'sans-serif']), body: quoted(['IBM Plex Sans', 'system-ui', 'sans-serif']), url: 'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap' },
   { heading: quoted(['Playfair Display', 'Georgia', 'serif']), body: quoted(['Source Sans 3', 'system-ui', 'sans-serif']), url: 'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap' },
+  // 🔴 第 4、5 对是 #1051 加的，而加它们是为了**数量**不是为了好看：只有 3 对时，第 i 套与第 i+3 套
+  // 的字体逐字相同，那 0.2 的权重在相似度闸里永远满分（实测见 AC4 的读数）。5 与下面那几个模数互质。
+  { heading: quoted(['Bricolage Grotesque', 'system-ui', 'sans-serif']), body: quoted(['Public Sans', 'system-ui', 'sans-serif']), url: 'https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700&family=Public+Sans:wght@400;500;600&display=swap' },
+  { heading: quoted(['Libre Baskerville', 'Georgia', 'serif']), body: quoted(['Karla', 'system-ui', 'sans-serif']), url: 'https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Karla:wght@400;500;600;700&display=swap' },
+  // 🔴 第 6、7 对是 r3 加的，理由同上一条但更具体：**5 整除 45**。字体档周期 5、hero 版式周期 9
+  // ⟹ 第 i 套与第 i+45 套的字体和版式两项**同时**满分，那是 0.4 的权重白送，剩下的 colour + settings
+  // 再怎么散也压不到 0.9 以下（实测那五对是 0.896–0.905，全部贴着线）。7 不整除 45，那五对的字体
+  // 从此不同；下一次两项同时撞回来要走到 lcm(7, 9) = 63。
+  { heading: quoted(['Outfit', 'system-ui', 'sans-serif']), body: quoted(['Work Sans', 'system-ui', 'sans-serif']), url: 'https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Work+Sans:wght@400;500;600&display=swap' },
+  { heading: quoted(['Lora', 'Georgia', 'serif']), body: quoted(['Nunito Sans', 'system-ui', 'sans-serif']), url: 'https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Nunito+Sans:wght@400;500;600&display=swap' },
 ];
 
-// 受限 CSS 的样板。🔴 只用契约 §1 的钩子、只用 §2 白名单里的属性、**颜色一律走变量**
-// （#1003 那条「不许字面色值」）。三种排布轮换 —— 图在左 / 图在上 / 只有字。
-const SHEET_TEMPLATES = [
-  { layout: 'with-media-left', css: `.hero {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 2rem;
-  padding: 3rem 1.5rem;
-  background-color: var(--color-primary-900);
-  color: var(--color-primary-50);
-}
-
-@media (min-width: 1024px) {
-  .hero { grid-template-columns: 5fr 6fr; align-items: center; gap: 3.5rem; padding: 4.5rem 3rem; }
-}
-
-.hero__media { order: 2; aspect-ratio: 4 / 3; width: 100%; border-radius: 1.25rem; background-color: var(--color-primary-800); }
-.hero__body { order: 3; max-width: 34rem; }
-.hero__title { font-size: 2.5rem; line-height: 1.1; font-weight: 700; color: var(--color-primary-50); }
-.hero__sub { margin-top: 1.25rem; font-size: 1.0625rem; line-height: 1.7; color: var(--color-primary-100); }
-.hero__cta { margin-top: 2rem; }
-.hero__deco { order: 1; grid-column: 1 / -1; height: 0.375rem; background-color: var(--color-accent-500); }
-` },
-  { layout: 'with-media-top', css: `.hero {
-  display: grid;
-  gap: 0;
-  padding: 0 0 3rem;
-  background-color: var(--color-primary-50);
-  color: var(--color-primary-900);
-  text-align: center;
-}
-
-.hero__media { order: 1; width: 100%; height: 15rem; background-color: var(--color-primary-100); }
-.hero__deco { order: 2; width: 4rem; height: 0.25rem; margin: 2rem auto 0; background-color: var(--color-accent-500); }
-.hero__body { order: 3; max-width: 44rem; margin: 0 auto; padding: 1.25rem 1.5rem 0; }
-.hero__title { font-size: 2.25rem; line-height: 1.2; font-weight: 700; color: var(--color-primary-900); }
-.hero__sub { margin-top: 1rem; font-size: 1rem; line-height: 1.75; color: var(--color-primary-800); }
-.hero__cta { margin-top: 1.75rem; justify-content: center; }
-` },
-  { layout: 'text-only', css: `.hero {
-  display: grid;
-  gap: 1.5rem;
-  padding: 4rem 1.5rem;
-  background-color: var(--color-primary-800);
-  color: var(--color-primary-50);
-}
-
-.hero__media { order: 4; display: none; }
-.hero__deco { order: 1; width: 5rem; height: 0.25rem; background-color: var(--color-accent-400); }
-.hero__body { order: 2; max-width: 40rem; }
-.hero__title { font-size: 3rem; line-height: 1.05; font-weight: 800; letter-spacing: -0.02em; color: var(--color-primary-50); }
-.hero__sub { margin-top: 1.5rem; font-size: 1.125rem; line-height: 1.7; color: var(--color-primary-100); }
-.hero__cta { margin-top: 2.25rem; }
-` },
-];
+// 每套候选的受限 CSS 由 `sheet-recipes.js` 出（#1051）。🔴 在它之前这里是三段写死的 hero CSS，
+// 于是候选只画 hero 一个块 —— 实测 7/213 钩子 · 1/34 块，而三套实证表是 213/213 · 34/34，
+// 准入闸②会把「页面上出现、这套主题表里没有」的钩子逐个点名 ⟹ #1016 照那个跑一套都进不了池。
+// 版式那个名字仍然从这里出（`layout.json` 写的就是它），配方模块与它共用同一份清单。
+const { sheetFor, heroLayoutFor } = require('./sheet-recipes.js');
 
 /** 生成 n 套候选。同一个 seed 出同一批 —— 闸的每一格都要能被同一个输入反复驱动。 */
 function generateCandidates(n = 3, { seed = 7, outDir } = {}) {
   const out = [];
   for (let i = 0; i < n; i += 1) {
-    const hue = (seed * 47 + i * 113) % 360;
-    const accentHue = (hue + 150 + i * 17) % 360;
+    // 🔴 每一档各用一个**互质的**模数（5 · 4 · 3 · 5 · 3），而不是一起 `% 3`。一起用同一个模数时，
+    // 整组参数每 3 套就原样重复一次；互质之后要走到 lcm = 60 套才第一次整组重复，而 #1016 要的是
+    // 60-80 套。这是本票唯一一处不在「画满 34 个块」射程里的改动，理由写在 AC4 的读数里。
     const fonts = FONT_PAIRS[i % FONT_PAIRS.length];
-    const tpl = SHEET_TEMPLATES[i % SHEET_TEMPLATES.length];
+    const heroLayout = heroLayoutFor(i);
     const id = `gen-${String(seed).padStart(2, '0')}-${i + 1}`;
     const tokens = {
-      colors: {
-        primary: rampFor(hue, 0.55, Object.keys(SHADES)),
-        accent: rampFor(accentHue, 0.6, ['50', '100', '200', '300', '400', '500', '600']),
-      },
+      // 色相怎么排、色阶怎么压，全在 `palette.js`；`sheet-recipes.js` 挑字色时也从同一个函数取（r4）。
+      colors: paletteFor(i, seed),
       fonts: { heading: fonts.heading, body: fonts.body, googleFontsUrl: fonts.url },
       // 数值形状（#1003）——生成的主题用它，因为每站微扰是整套缩放（#1006）。
+      // 🔴 这几档的模数要**除不尽 45**（r3 改的）。字体档周期 5、hero 版式周期 9 ⟹ 第 i 套与第
+      // i+45 套的「字体」和「版式」两项必然满分，于是那一对能不能过线全压在 colour + settings 上。
+      // 而 `% 3` 与 `% 5` 都整除 45 ⟹ 那两项在 45 距离上也相同，settings 只剩 radius 一项在动
+      // （相似度 0.67）。实测：r2 那批 80 套里 i↔i+45 的五对是 0.896–0.898，贴着 0.9 那条线；
+      // r3 为了按钮可读性压了一点色阶的亮度范围（见上面 §rampFor），colour 从 0.89 抬到 0.90，
+      // 那五对当场全部越线（被拦 10/80）。把 density 换成 4 档、shadowStrength 换成 6 档之后，
+      // 45 距离上这两项都不同（45%4=1 · 45%6=3），settings 相似度掉下来，最像的一对回到 0.85 以下。
+      // 取值范围仍在 schema 里（density 0.6–1.6 · shadowStrength 0–0.4，见 schemas/theme-tokens.schema.json）。
       settings: {
-        radius: [4, 12, 20][i % 3],
-        density: [0.9, 1, 1.2][i % 3],
-        shadowStrength: [0.08, 0.14, 0.2][i % 3],
+        radius: [4, 10, 16, 22][i % 4],
+        density: [0.85, 0.95, 1.05, 1.2][i % 4],
+        shadowStrength: [0.06, 0.1, 0.14, 0.18, 0.22, 0.26][i % 6],
         buttonShape: ['rounded', 'pill', 'square'][i % 3],
       },
     };
-    const sheet = `/* theme-css-contract: v1\n   ${id} — generated by scripts/theme-pipeline/generate.js (#1004). */\n\n${tpl.css}`;
-    const entry = { id, tokens, layout: { hero: tpl.layout }, sheet };
+    const sheet = `/* theme-css-contract: v1\n   ${id} — generated by scripts/theme-pipeline/generate.js`
+      + ` (#1004; all 34 blocks since #1051). */\n\n${sheetFor(i, seed)}`;
+    const entry = { id, tokens, layout: { hero: heroLayout }, sheet };
     if (outDir) {
       fs.mkdirSync(outDir, { recursive: true });
       entry.sheetPath = path.join(outDir, `${id}.css`);
