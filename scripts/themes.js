@@ -898,9 +898,13 @@ function rotationIndexFromSiteId(siteId) {
   return h;
 }
 
-// rotationIndex is a counter that goes up by one per site the same user creates (Manager
-// passes it as themeRotationIndex). N consecutive creates in one industry therefore walk
-// N different slots of the candidate pool.
+// rotationIndex says which slot of the industry's pool to take. Manager passes it as
+// themeRotationIndex, and it goes up by exactly one per site the same user creates — so N
+// consecutive creates in one industry still walk N different slots of the candidate pool.
+// #1041: it is no longer that counter on its own. Manager now adds a per-user starting offset
+// (`themeRotationOffset` in manager/sites.go), because the bare counter made EVERY user's first
+// site index 0, i.e. one fixed theme per industry for every first site on the platform. Only the
+// starting point moved; the +1-per-site part is what keeps the guarantee in the line above.
 function pickThemeForIndustry(industry, rotationIndex) {
   const pool = candidateThemesForIndustry(industry);
   const n = Number.isInteger(rotationIndex) && rotationIndex >= 0

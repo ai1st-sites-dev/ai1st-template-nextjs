@@ -806,10 +806,13 @@ async function main() {
 
   // Pick theme.
   // #924: when the caller doesn't name a theme we rotate through the candidate pool for the
-  // industry instead of always handing out the same one. Manager sends themeRotationIndex —
-  // a counter that goes up by one per site the user creates — so six shops in the same trade
-  // walk six different slots. No index (anonymous create / DB read failed) → hash the siteId,
-  // which still spreads, just without the guarantee.
+  // industry instead of always handing out the same one. Manager sends themeRotationIndex, which
+  // goes up by one per site the user creates — so six shops in the same trade walk six different
+  // slots. No index (anonymous create / DB read failed) → hash the siteId, which still spreads,
+  // just without the guarantee.
+  // #1041: that index now also carries a per-user starting offset (manager/sites.go
+  // `themeRotationOffset`). Nothing here recomputes or unpacks it — this file has always treated
+  // the number as an opaque slot index, which is exactly why the fix needed no change on this side.
   // #984: this used to sit after the skipAI branch returned, so demo sites never got a theme at
   // all — no site/theme.json (the Theme dialog had nothing to mark as current) and a hardcoded
   // blue palette that belongs to no registered theme. Both paths pick here now.
@@ -822,18 +825,24 @@ async function main() {
 
   // #1034 — 骨这一半:自己的索引，自己的池子。
   //
-  // 🔴 r1 用的是上面那个 `themeRotationIndex`，那是错的，而错法只有在【跨用户】才看得见:
-  //    它是 `SELECT COUNT(*) FROM sites WHERE user_id = $1`（`manager/sites.go:428-433`），
-  //    也就是**这个用户已经有几个站** ⟹ 每一个客户的第一个站，这个数恒为 0，拿到同一份配方。
-  //    PM 2026-08-16 在平台库上算过它会落成什么样:116 个站 / 73 个用户,73 个站的 index 是 0、
-  //    33 个是 1 ⟹ **91% 的站落在两份配方上**，正是本票要治的那个形状。
+  // 🔴 r1 用的是上面那个 `themeRotationIndex`，那是错的。**当时**的错法只有在【跨用户】才看得见:
+  //    那时它就是 `SELECT COUNT(*) FROM sites WHERE user_id = $1` 的结果，也就是**这个用户已经有
+  //    几个站** ⟹ 每一个客户的第一个站，这个数恒为 0，拿到同一份配方。PM 2026-08-16 在平台库上
+  //    算过它落成什么样:116 个站 / 73 个用户,73 个站的 index 是 0、33 个是 1 ⟹ **91% 的站落在
+  //    两份配方上**，正是 #1034 要治的那个形状。
   //    (那条 SQL 上方 #924 自己写着「nothing downstream depends on this number being unique」——
-  //     本票一度让某个东西依赖上了，而依赖的方向是跨用户，那句话没覆盖到。)
+  //     #1034 一度让某个东西依赖上了，而依赖的方向是跨用户，那句话没覆盖到。)
   //
-  // 🔴 所以骨这一半改由 **siteId** 算(`rotationIndexFromSiteId`,主题拿不到计数器时走的同一条路)。
-  //    siteId 每个站唯一 ⟹ 不同站主各自的第一个站也拿到不同的配方。
-  //    📌 顺带解掉了 r1 那条注释里写的代价:皮和骨不再按同一个索引轮换，两个站主题相同也不会
-  //       连骨架一起相同。
+  // 🔴 **上面那段是 #1041 之前的事，别当成今天的机制。** 今天 manager 送来的是
+  //    `themeRotationIndexFor(user.ID, siteCount)`（`manager/sites.go:458`，函数在 `:1049-1058`；
+  //    那条 `SELECT COUNT(*)` 现在在 `:455`），= **按 user id 算的一个起点 + 这个用户已有几个站**
+  //    ⟹「每个客户的第一个站恒为 0」这句话今天**不成立**，不同用户的第一个站拿到的是不同的数。
+  //
+  // 🔴 即便如此，骨这一半仍然由 **siteId** 算(`rotationIndexFromSiteId`,主题拿不到计数器时走的
+  //    同一条路)，理由换成了一条不随 #1041 变的:**皮和骨不能共用同一个索引**。共用的话，两个站
+  //    只要主题相同（同行业的候选池只有 3-6 套，撞车降不到 0 —— #1041 票面那节量过），骨架就
+  //    必然也相同 —— 两种「看起来一样」会被绑在一起，而它们本该互相稀释。siteId 每个站唯一，
+  //    跟主题那条路完全独立。
   //
   // 📌 配方的类数是有限的，而且枚举得出来（`homepage-recipe.test.js` ⑪ 那一节现算，别照抄这里）:
   //    整份配方按 `index % 308` 循环、308 种互不相同 ⟹ 随机两个站拿到**完全相同的一份约束**
