@@ -743,6 +743,24 @@
    换来 5 套（icon-strip）不多出一段；而「icon-strip 的站」这个概念在搬成中性 markup 之后已不存在。
    「optional 所以合法」也不成立：页面 JSON 可以合法地把这个块的 role 升成 essential。 */
 
+/* #1047 — 补排版（理由写在 `hero-media-left.css` 同一位置）。这一套是浅底、一列横排的行，
+   宽屏下每一步是「编号 | 文字」两栏。
+   🔴 `grid-column: 2` 是这里承重的一条：`.process-steps__step` 在宽屏是 `auto 1fr` 两栏，而这一步
+   有三个孩子，自动排布会把第三个（描述）放到第二行第一栏 —— 也就是压在编号那一栏的宽度里。
+   描述一显示出来这件事才看得见，所以它跟上面那条规则是同一次交付。 */
+.process-steps__desc {
+  font-size: 0.9375rem;
+  line-height: 1.65;
+  color: var(--color-primary-700);
+}
+
+@media (min-width: 1024px) {
+  .process-steps__desc {
+    grid-column: 2;
+    max-width: 34rem;
+  }
+}
+
 .timeline {
   display: grid;
   grid-template-columns: 1fr;

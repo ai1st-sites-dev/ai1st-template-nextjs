@@ -620,6 +620,18 @@
    表决定长相，而**穿这套表的站不一定原来用 icon-strip**，一条无条件的 CSS 规则分不出这件事。
    完整理由写在 `hero-media-left.css` 同一位置。 */
 
+/* #1047 — 补排版（理由写在 `hero-media-left.css` 同一位置）。这一套是居中的窄条：每一步只有
+   8–12rem 宽，所以描述跟着它走 —— 字最小、行距最紧、限一个更窄的行长再居中，跟这套表对
+   `.process-steps__sub` 的处理是同一个手法。这不是把它压小到看不见：字号 0.8125rem 比
+   `base.css` 给的 0.875rem 只小一档，`.process-steps__num` 在这套表里是 0.8125rem。 */
+.process-steps__desc {
+  max-width: 11rem;
+  margin: 0 auto;
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--color-primary-700);
+}
+
 .timeline {
   display: flex;
   flex-wrap: wrap;

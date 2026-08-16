@@ -697,6 +697,17 @@
 
    语料读数（6 站 / 31 个 process-steps 实例 / 140 个步骤）：140 个步骤**全都**带 description。 */
 
+/* #1047 — 那条规则删掉之后，这个钩子在三套表里一条规则都没有了：契约的 120 个部件钩子里唯一
+   这样的一个，运行时的第五条不变量（「页面上的钩子，这套表自己管不管」）为此报红。所以补的是
+   排版，不是把它藏回去。三套表各画各的，跟它们对 `.process-steps__sub` / `.timeline__desc`
+   的处理保持同一套口吻 —— 这一套是深底、四栏、字大行宽。 */
+.process-steps__desc {
+  max-width: 22rem;
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
 .timeline {
   display: grid;
   grid-template-columns: 1fr;
