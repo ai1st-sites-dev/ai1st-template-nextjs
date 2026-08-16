@@ -11,175 +11,69 @@ interface ProcessStepsSectionProps {
     headline: string;
     subheadline?: string;
     steps: Step[];
-    variant?: 'horizontal' | 'vertical' | 'cards' | 'zigzag' | 'icon-strip';
   };
   /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
   block?: BlockConfig;
 }
 
+// 🔴🔴 #1028 — ONE MARKUP, AND NOTHING ELSE. Phase 2's batch C.
+//
+// Five branches went out of here — `horizontal` (the default), `vertical`, `cards`, `zigzag` and
+// `icon-strip`. Four of the five read exactly `data.headline` / `data.subheadline` and
+// `data.steps[].title` / `.description`.
+//
+// 🔴 THE FIFTH, `icon-strip`, READ ONE FIELD FEWER: it never rendered `step.description`. That is a
+// SUBSET, not a different set — which is why this block stayed in batch C rather than moving to the
+// judgement batch with testimonials and announcement-bar (#1031) — but it is not free, and the ticket
+// wrote the disposition down rather than leaving it to be found: the markup below takes the UNION, so
+// a site that used to wear `icon-strip` now has a paragraph it did not have, and the three phase-1
+// sheets take it away again with `display: none` on `.process-steps__desc`. That rule is legal
+// because this block is `optional` (`src/lib/sections/block-roles.json`) — contract §3's last line
+// refuses `display: none` only under `[data-role="essential"]` (`theme-css-lint.js`'s own pass for
+// it), and §4 skips rather than judges a box the browser laid out nowhere. Measured cost of the
+// union: `icon-strip` appears 0 times in the 6 real site configs, and 5 of the 30 registry themes ask
+// for it through `supports` — which is the second producer of a variant value that #1028's PM review
+// established (`sync-config.js` applies the theme's `supports` OVER the page JSON's `variant`), and
+// the reason this cost is stated in themes rather than in pages.
+//
+// 🔴 THE STEP NUMBER STAYS IN THE MARKUP, AND THIS IS THE ONE PLACE THIS BATCH DEPARTS FROM
+// values-grid's precedent (#1027). There the numeral went away with the branch, because ONE of five
+// looks printed it and contract §2 allows `content` to be the empty string only, so no sheet could
+// draw it back. Here ALL FIVE printed `{index + 1}` — a numeral in a circle, in a badge, at the head
+// of a row. A thing every look showed is not one look's decoration; dropping it would be this
+// migration deleting content, and no sheet could restore it. It is a part of its own
+// (`.process-steps__num`), so a sheet that wants the old `icon-strip` strip-without-numbers can hide
+// it the same way it hides the description.
+//
+// 🔴 THE CONNECTOR LINES ARE GONE AND A SHEET DRAWS THEM BACK. Four of the five branches drew a rule
+// between steps with an absolutely-positioned `<div>` — an empty box whose only purpose was to be
+// painted. `border` on `.process-steps__step` and `::before { content: "" }` + `background` are both
+// in §2, and an empty div is the markup deciding a look.
+//
+// 🔴 `variant` IS STILL WRITTEN AND NO LONGER READ (#1008 AC5's precedent), gone from the props type
+// above; `blocks/process-steps.json` still declares the slot and its five-key `variants` table.
+//
+// 🔴 THE STEPS ARE CHILDREN OF THE BLOCK AND THEIR THREE PARTS ARE CHILDREN OF THE STEP — one flat
+// level each, because CSS grid and flex only place CHILDREN. That is what lets a sheet do the old
+// `zigzag` (alternating columns through `grid-column`), `vertical` (one column) and `horizontal`
+// (a 4-up row) without the markup choosing.
+//
+// 🔴 THE THIRD HOOK IS NOT OPTIONAL — `blockAttrs('process-steps', block)`, never
+// `blockAttrs('process-steps')` (#998's `data-block-layout`, invisible to `tsc`; #1008 r1's bounce).
 export default function ProcessStepsSection({ data, block }: ProcessStepsSectionProps) {
-  const variant = data.variant || 'horizontal';
-
-  if (variant === 'cards') {
-    return (
-      <section {...blockAttrs('process-steps', block)} className="section-padding" aria-labelledby="process-heading">
-        <div className="container-width">
-          <div className="text-center">
-            <h2 id="process-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
-              {data.headline}
-            </h2>
-            {data.subheadline && (
-              <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-600">{data.subheadline}</p>
-            )}
-          </div>
-          <div className="mt-16 grid gap-8 md:grid-cols-2 lg:grid-cols-4">
-            {data.steps?.map((step, index) => (
-              <div key={index} className="relative overflow-hidden rounded-xl border border-gray-200 bg-white p-8">
-                <span className="absolute right-4 top-2 text-7xl font-extrabold text-primary-100">
-                  {index + 1}
-                </span>
-                <div className="relative">
-                  <h3 className="text-lg font-semibold text-gray-900">{step.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-gray-600">{step.description}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  if (variant === 'zigzag') {
-    return (
-      <section {...blockAttrs('process-steps', block)} className="section-padding" aria-labelledby="process-heading">
-        <div className="container-width">
-          <div className="text-center">
-            <h2 id="process-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
-              {data.headline}
-            </h2>
-            {data.subheadline && (
-              <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-600">{data.subheadline}</p>
-            )}
-          </div>
-          <div className="relative mx-auto mt-16 max-w-3xl">
-            {/* Vertical center line */}
-            <div className="absolute left-1/2 top-0 h-full w-px bg-primary-200" />
-            {data.steps?.map((step, index) => (
-              <div
-                key={index}
-                className={`relative flex items-center gap-6 py-8 ${index % 2 === 1 ? 'flex-row-reverse' : ''}`}
-              >
-                <div className={`flex-1 ${index % 2 === 1 ? 'text-left' : 'text-right'}`}>
-                  <h3 className="text-xl font-semibold text-gray-900">{step.title}</h3>
-                  <p className="mt-2 leading-relaxed text-gray-600">{step.description}</p>
-                </div>
-                <div className="relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary-500 text-lg font-bold text-white">
-                  {index + 1}
-                </div>
-                <div className="flex-1" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  if (variant === 'icon-strip') {
-    return (
-      <section {...blockAttrs('process-steps', block)} className="section-padding" aria-labelledby="process-heading">
-        <div className="container-width">
-          <div className="text-center">
-            <h2 id="process-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
-              {data.headline}
-            </h2>
-            {data.subheadline && (
-              <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-600">{data.subheadline}</p>
-            )}
-          </div>
-          <div className="mt-16 flex items-center justify-between">
-            {data.steps?.map((step, index) => (
-              <div key={index} className="flex items-center">
-                <div className="flex flex-col items-center">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-500 text-sm font-bold text-white">
-                    {index + 1}
-                  </div>
-                  <span className="mt-2 text-sm font-semibold text-gray-900">{step.title}</span>
-                </div>
-                {index < (data.steps?.length ?? 0) - 1 && (
-                  <div className="mx-3 h-0.5 flex-1 bg-primary-200" style={{ minWidth: '2rem' }} />
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  if (variant === 'vertical') {
-    return (
-      <section {...blockAttrs('process-steps', block)} className="section-padding" aria-labelledby="process-heading">
-        <div className="container-width">
-          <div className="text-center">
-            <h2 id="process-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
-              {data.headline}
-            </h2>
-            {data.subheadline && (
-              <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-600">{data.subheadline}</p>
-            )}
-          </div>
-          <div className="mx-auto mt-16 max-w-2xl">
-            {data.steps?.map((step, index) => (
-              <div key={index} className="relative flex gap-6 pb-12 last:pb-0">
-                {/* Vertical line */}
-                {index < (data.steps?.length ?? 0) - 1 && (
-                  <div className="absolute left-6 top-12 h-full w-px bg-primary-200" />
-                )}
-                {/* Step number */}
-                <div className="relative z-10 flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary-500 text-lg font-bold text-white">
-                  {index + 1}
-                </div>
-                <div className="pt-1">
-                  <h3 className="text-xl font-semibold text-gray-900">{step.title}</h3>
-                  <p className="mt-2 leading-relaxed text-gray-600">{step.description}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-    );
-  }
-
   return (
-    <section {...blockAttrs('process-steps', block)} className="bg-gray-50 section-padding" aria-labelledby="process-heading">
-      <div className="container-width">
-        <div className="text-center">
-          <h2 id="process-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
-            {data.headline}
-          </h2>
-          {data.subheadline && (
-            <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-600">{data.subheadline}</p>
-          )}
+    <section {...blockAttrs('process-steps', block)} className="process-steps" aria-labelledby="process-heading">
+      <h2 id="process-heading" className="process-steps__headline">
+        {data.headline}
+      </h2>
+      {data.subheadline && <p className="process-steps__sub">{data.subheadline}</p>}
+      {data.steps?.map((step, index) => (
+        <div key={index} className="process-steps__step">
+          <span className="process-steps__num">{index + 1}</span>
+          <h3 className="process-steps__title">{step.title}</h3>
+          <p className="process-steps__desc">{step.description}</p>
         </div>
-        <div className="mt-16 grid gap-8 md:grid-cols-2 lg:grid-cols-4">
-          {data.steps?.map((step, index) => (
-            <div key={index} className="relative text-center">
-              {/* Connector line */}
-              {index < (data.steps?.length ?? 0) - 1 && (
-                <div className="absolute left-1/2 top-6 hidden h-px w-full bg-primary-200 lg:block" />
-              )}
-              <div className="relative mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary-500 text-lg font-bold text-white">
-                {index + 1}
-              </div>
-              <h3 className="mt-4 text-lg font-semibold text-gray-900">{step.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-gray-600">{step.description}</p>
-            </div>
-          ))}
-        </div>
-      </div>
+      ))}
     </section>
   );
 }

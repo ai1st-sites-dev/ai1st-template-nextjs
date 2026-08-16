@@ -139,6 +139,22 @@ const HOOKS = new Set([
   '.service-related-pages', '.service-related-pages__headline', '.service-related-pages__sub',
   '.service-related-pages__card',
   '[data-block="service-related-pages"]',
+  // #1028 — batch C, four blocks whose old branches were pure appearance. One of them
+  // (`contact-info`) is `essential`, and its hooks are the ones a sheet needs to lay out a phone
+  // number and an address without the markup deciding: `__location` is the child grid/flex places,
+  // `__phone` and `__email` are the two links a customer actually uses.
+  '.contact-info', '.contact-info__headline', '.contact-info__location', '.contact-info__label',
+  '.contact-info__address', '.contact-info__phone', '.contact-info__email',
+  '[data-block="contact-info"]',
+  '.stats-counter', '.stats-counter__headline', '.stats-counter__stat', '.stats-counter__value',
+  '.stats-counter__label',
+  '[data-block="stats-counter"]',
+  '.process-steps', '.process-steps__headline', '.process-steps__sub', '.process-steps__step',
+  '.process-steps__num', '.process-steps__title', '.process-steps__desc',
+  '[data-block="process-steps"]',
+  '.timeline', '.timeline__headline', '.timeline__sub', '.timeline__event', '.timeline__year',
+  '.timeline__title', '.timeline__desc',
+  '[data-block="timeline"]',
   '[data-role="essential"]', '[data-role="lead"]', '[data-role="optional"]',
   'body', '[data-region-layout]',
 ]);
@@ -157,6 +173,8 @@ const HOOKS = new Set([
 //   #1019 page-header parts + [data-block="page-header"]
 //   #1027 contact-form / quote-form / services-list / values-grid / services-nav /
 //         service-related-pages parts + their six [data-block="…"]
+//   #1028 contact-info / stats-counter / process-steps / timeline parts + their four
+//         [data-block="…"]  (batch C)
 //
 // A BREAKING change (renaming a hook, removing one, changing what one means) still MUST bump: that
 // is the case where an old sheet keeps loading and quietly points at nothing, which is the reason
@@ -722,7 +740,20 @@ const PART_HOOKS = new Set(['.hero__media', '.hero__body', '.hero__title', '.her
   '.values-grid__headline', '.values-grid__item', '.values-grid__title', '.values-grid__desc',
   '.services-nav__link',
   '.service-related-pages__headline', '.service-related-pages__sub',
-  '.service-related-pages__card']);
+  '.service-related-pages__card',
+  // #1028 — batch C's parts, 22 of them. The four BLOCK classes (`.contact-info`, `.stats-counter`,
+  // `.process-steps`, `.timeline`) are deliberately NOT here, for the same reason `.hero` and
+  // `.cta-banner` are not. The count below has to equal the number of `__`-suffixed names this
+  // ticket added to `HOOKS`, and that is the check to do by hand: leaving a part off is the safe
+  // direction, so nothing goes red for it.
+  '.contact-info__headline', '.contact-info__location', '.contact-info__label',
+  '.contact-info__address', '.contact-info__phone', '.contact-info__email',
+  '.stats-counter__headline', '.stats-counter__stat', '.stats-counter__value',
+  '.stats-counter__label',
+  '.process-steps__headline', '.process-steps__sub', '.process-steps__step', '.process-steps__num',
+  '.process-steps__title', '.process-steps__desc',
+  '.timeline__headline', '.timeline__sub', '.timeline__event', '.timeline__year',
+  '.timeline__title', '.timeline__desc']);
 
 // Does this rule style a block or a region (rather than a part inside one)? The subject of a complex
 // selector is its LAST compound — `.hero .hero__title` styles the title — and one selector in the list

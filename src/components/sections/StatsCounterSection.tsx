@@ -10,179 +10,53 @@ interface StatsCounterSectionProps {
   data: {
     headline?: string;
     stats: Stat[];
-    variant?: 'bar' | 'cards' | 'gradient' | 'icon' | 'inline' | 'dark';
   };
   /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
   block?: BlockConfig;
 }
 
-const gradientClasses = [
-  'from-primary-500 to-primary-600',
-  'from-accent-400 to-accent-500',
-  'from-primary-600 to-accent-500',
-  'from-primary-400 to-primary-600',
-];
-
-const statIcons = [
-  // trending-up
-  <svg key="trending" className="h-8 w-8" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18L9 11.25l4.306 4.306a11.95 11.95 0 015.814-5.518l2.74-1.22m0 0l-5.94-2.281m5.94 2.28l-2.28 5.941" />
-  </svg>,
-  // users
-  <svg key="users" className="h-8 w-8" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
-  </svg>,
-  // clock
-  <svg key="clock" className="h-8 w-8" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-  </svg>,
-  // award
-  <svg key="award" className="h-8 w-8" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
-    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 01-.982-3.172M9.497 14.25a7.454 7.454 0 00.981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 007.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M18.75 4.236c.982.143 1.954.317 2.916.52A6.003 6.003 0 0016.27 9.728M18.75 4.236V4.5c0 2.108-.966 3.99-2.48 5.228m0 0a6.023 6.023 0 01-2.27.308 6.023 6.023 0 01-2.27-.308" />
-  </svg>,
-];
-
+// 🔴🔴 #1028 — ONE MARKUP, AND NOTHING ELSE. Phase 2's batch C.
+//
+// Six branches went out of here — `bar` (the default), `cards`, `gradient`, `icon`, `inline` and
+// `dark`. All six read exactly `data.headline` and `data.stats[].value` / `.label`: the same fields,
+// no more and no less. Nothing about content structure differed, so all six were skins, and skins
+// belong in a stylesheet (spec §4.1, D5). `block_layout` therefore keeps its single value.
+//
+// 🔴 THE FOUR DECORATIVE SVGs ARE GONE AND A SHEET DRAWS THEM BACK. `icon` picked one of four inline
+// SVGs per stat by index; they carried no content (`aria-hidden`) and existed to give each card a
+// picture. That is the category #1027 named for values-grid's icons and ticks: a sheet paints them
+// with `::before { content: "" }` + `background-image` on `.stats-counter__stat`, both of which §2
+// allows. What a sheet cannot draw back is a DIFFERENT picture per stat — the old code cycled through
+// four — because a rule cannot count its subjects. Said out loud rather than left to be found; the
+// same accepted degradation #1018 and #1027 booked, and the pool being retired in phase 3 is where
+// the replacement lands.
+//
+// 🔴 THE HEADLINE IS AN `<h2>` IN ALL SIX NOW. Four branches used `<h2>`, two (`bar`, `inline`) used
+// a small uppercase `<p>` — and "small and uppercase" is `font-size` + `text-transform`, which is
+// what a sheet is for. The element the browser puts in the document outline is not a look, so it
+// cannot be one of the things a look changes; the two branches that dropped it out of the outline
+// were losing an outline entry to get a font size.
+//
+// 🔴 `variant` IS STILL WRITTEN AND NO LONGER READ (#1008 AC5's precedent), gone from the props type
+// above; `blocks/stats-counter.json` still declares the slot and its six-key `variants` table.
+//
+// 🔴 THE VALUE AND THE LABEL ARE CHILDREN OF THE STAT, AND THE STATS ARE CHILDREN OF THE BLOCK — one
+// flat level each, because CSS grid and flex only place CHILDREN. That is what lets a sheet do the old
+// `bar` (a 2×2 / 4-up grid), `inline` (a wrapping row with rules between) and `cards` (bordered boxes)
+// looks without the markup choosing.
+//
+// 🔴 THE THIRD HOOK IS NOT OPTIONAL — `blockAttrs('stats-counter', block)`, never
+// `blockAttrs('stats-counter')` (#998's `data-block-layout`, invisible to `tsc`; #1008 r1's bounce).
 export default function StatsCounterSection({ data, block }: StatsCounterSectionProps) {
-  const variant = data.variant || 'bar';
-
-  if (variant === 'cards') {
-    return (
-      <section {...blockAttrs('stats-counter', block)} className="section-padding" aria-label="Statistics">
-        <div className="container-width">
-          {data.headline && (
-            <h2 className="mb-12 text-center text-3xl font-bold text-gray-900 sm:text-4xl">
-              {data.headline}
-            </h2>
-          )}
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {data.stats?.map((stat, index) => (
-              <div key={index} className="rounded-xl border border-gray-200 bg-white p-8 text-center shadow-sm">
-                <p className="text-4xl font-extrabold text-primary-600">{stat.value}</p>
-                <p className="mt-2 text-sm font-medium text-gray-600">{stat.label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  if (variant === 'gradient') {
-    return (
-      <section {...blockAttrs('stats-counter', block)} className="section-padding" aria-label="Statistics">
-        <div className="container-width">
-          {data.headline && (
-            <h2 className="mb-12 text-center text-3xl font-bold text-gray-900 sm:text-4xl">
-              {data.headline}
-            </h2>
-          )}
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {data.stats?.map((stat, index) => (
-              <div
-                key={index}
-                className={`rounded-xl bg-gradient-to-br ${gradientClasses[index % gradientClasses.length]} p-8 text-center text-white`}
-              >
-                <p className="text-4xl font-extrabold">{stat.value}</p>
-                <p className="mt-2 text-sm font-medium text-white/80">{stat.label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  if (variant === 'icon') {
-    return (
-      <section {...blockAttrs('stats-counter', block)} className="section-padding" aria-label="Statistics">
-        <div className="container-width">
-          {data.headline && (
-            <h2 className="mb-12 text-center text-3xl font-bold text-gray-900 sm:text-4xl">
-              {data.headline}
-            </h2>
-          )}
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {data.stats?.map((stat, index) => (
-              <div key={index} className="rounded-xl bg-gray-50 p-8 text-center">
-                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary-100 text-primary-500">
-                  {statIcons[index % statIcons.length]}
-                </div>
-                <p className="text-4xl font-extrabold text-primary-600">{stat.value}</p>
-                <p className="mt-2 text-sm font-medium text-gray-600">{stat.label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  if (variant === 'dark') {
-    return (
-      <section {...blockAttrs('stats-counter', block)} className="bg-primary-900 py-16" aria-label="Statistics">
-        <div className="container-width">
-          {data.headline && (
-            <h2 className="mb-12 text-center text-3xl font-bold text-white sm:text-4xl">
-              {data.headline}
-            </h2>
-          )}
-          <div className="flex flex-wrap items-center justify-center">
-            {data.stats?.map((stat, index) => (
-              <div
-                key={index}
-                className={`px-10 py-4 text-center ${
-                  index < (data.stats?.length ?? 0) - 1 ? 'border-r border-primary-700' : ''
-                }`}
-              >
-                <p className="text-5xl font-extrabold text-white">{stat.value}</p>
-                <p className="mt-2 text-sm font-medium text-primary-300">{stat.label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  if (variant === 'inline') {
-    return (
-      <section {...blockAttrs('stats-counter', block)} className="border-y border-gray-200 py-8" aria-label="Statistics">
-        <div className="container-width">
-          {data.headline && (
-            <p className="mb-6 text-center text-sm font-semibold uppercase tracking-wider text-gray-500">
-              {data.headline}
-            </p>
-          )}
-          <div className="flex flex-wrap items-center justify-center divide-x divide-gray-300">
-            {data.stats?.map((stat, index) => (
-              <div key={index} className="px-8 py-2 text-center">
-                <p className="text-3xl font-extrabold text-gray-900">{stat.value}</p>
-                <p className="mt-1 text-sm font-medium text-gray-600">{stat.label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-    );
-  }
-
   return (
-    <section {...blockAttrs('stats-counter', block)} className="border-y bg-primary-900 py-12" aria-label="Statistics">
-      <div className="container-width">
-        {data.headline && (
-          <p className="mb-8 text-center text-sm font-semibold uppercase tracking-wider text-primary-300">
-            {data.headline}
-          </p>
-        )}
-        <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
-          {data.stats?.map((stat, index) => (
-            <div key={index} className="text-center">
-              <p className="text-3xl font-extrabold text-white sm:text-4xl">{stat.value}</p>
-              <p className="mt-1 text-sm font-medium text-primary-300">{stat.label}</p>
-            </div>
-          ))}
+    <section {...blockAttrs('stats-counter', block)} className="stats-counter" aria-label="Statistics">
+      {data.headline && <h2 className="stats-counter__headline">{data.headline}</h2>}
+      {data.stats?.map((stat, index) => (
+        <div key={index} className="stats-counter__stat">
+          <p className="stats-counter__value">{stat.value}</p>
+          <p className="stats-counter__label">{stat.label}</p>
         </div>
-      </div>
+      ))}
     </section>
   );
 }

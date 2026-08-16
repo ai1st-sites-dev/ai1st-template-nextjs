@@ -461,3 +461,230 @@
   border-color: var(--color-primary-200);
   background-color: var(--color-primary-100);
 }
+
+/* ── #1028 batch C — centred, everything in a single wrapping row ──────────────────────────────── */
+
+.contact-info {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 1rem 2rem;
+  padding: 2.5rem 1.5rem;
+  background-color: var(--color-primary-100);
+  color: var(--color-primary-900);
+  text-align: center;
+}
+
+.contact-info__headline {
+  flex-basis: 100%;
+  font-size: 1.5rem;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--color-primary-900);
+}
+
+/* The locations sit side by side in one wrapping row — the old `banner` look, and the third of the
+   three geometries: left stacks them two-up in a grid, right lists them in one column. */
+.contact-info__location {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0 1.5rem;
+  border-left: 1px solid var(--color-primary-300);
+}
+
+.contact-info__label {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--color-primary-900);
+}
+
+.contact-info__address {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--color-primary-700);
+}
+
+.contact-info__phone {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--color-primary-600);
+}
+
+.contact-info__email {
+  flex-basis: 100%;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-primary-600);
+}
+
+.stats-counter {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem 2.5rem;
+  padding: 2rem 1.5rem;
+  background-color: var(--color-primary-900);
+  color: var(--color-primary-50);
+  text-align: center;
+}
+
+.stats-counter__headline {
+  flex-basis: 100%;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-primary-300);
+}
+
+.stats-counter__stat {
+  display: grid;
+  gap: 0.125rem;
+  padding: 0 1.25rem;
+}
+
+.stats-counter__value {
+  font-size: 1.75rem;
+  line-height: 1.1;
+  font-weight: 800;
+  color: var(--color-primary-50);
+}
+
+.stats-counter__label {
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-primary-300);
+}
+
+.process-steps {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 1.5rem 1rem;
+  padding: 2.5rem 1.5rem;
+  background-color: var(--color-primary-50);
+  color: var(--color-primary-900);
+  text-align: center;
+}
+
+.process-steps__headline {
+  flex-basis: 100%;
+  font-size: 1.5rem;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--color-primary-900);
+}
+
+.process-steps__sub {
+  flex-basis: 100%;
+  max-width: 34rem;
+  margin: 0 auto;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--color-primary-700);
+}
+
+/* The strip: the steps run across in one row, each one a narrow column of number over title. */
+.process-steps__step {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  flex-basis: 8rem;
+  flex-grow: 1;
+  max-width: 12rem;
+}
+
+.process-steps__num {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9999px;
+  border-width: 0;
+  background-color: var(--color-primary-900);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--color-primary-50);
+}
+
+.process-steps__title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--color-primary-900);
+}
+
+/* 🔴 #1028 — the ticket's disposition for the union, and the sheet where it is most obviously right:
+   this is the strip. `icon-strip` never rendered `step.description`, the neutral markup does, and a
+   sheet is the layer that takes it back off. Legal because `process-steps` is `optional` (contract §3
+   refuses `display: none` only under `[data-role="essential"]`); still in the HTML for every site
+   with no theme. */
+.process-steps__desc {
+  display: none;
+}
+
+.timeline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 2.5rem 1.5rem;
+  background-color: var(--color-primary-100);
+  color: var(--color-primary-900);
+  text-align: center;
+}
+
+.timeline__headline,
+.timeline__sub {
+  flex-basis: 100%;
+}
+
+.timeline__headline {
+  font-size: 1.5rem;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--color-primary-900);
+}
+
+.timeline__sub {
+  max-width: 34rem;
+  margin: 0 auto;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--color-primary-700);
+}
+
+/* The events run across instead of down — the third geometry again (left: one wide column, right:
+   two columns). 🔴 `overflow-x: auto` is NOT here and cannot be: `overflow` is off the contract's
+   property whitelist (§2), and the block's own `overflow: hidden` in globals.css is what keeps a row
+   too wide for a phone from scrolling the whole page. So the row has to fit — `flex-basis` plus
+   `flex-grow` lets each event shrink to the track it gets instead of demanding 11rem. */
+.timeline__event {
+  display: grid;
+  gap: 0.25rem;
+  flex-basis: 11rem;
+  flex-grow: 1;
+  padding: 1rem;
+  border-top: 3px solid var(--color-accent-500);
+  background-color: var(--color-primary-50);
+}
+
+.timeline__year {
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--color-accent-500);
+}
+
+.timeline__title {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--color-primary-900);
+}
+
+.timeline__desc {
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: var(--color-primary-700);
+}

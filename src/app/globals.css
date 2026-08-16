@@ -401,3 +401,43 @@
 .service-related-pages__card {
   display: block;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   #1028 — THE NEUTRAL SKELETONS FOR BATCH C: contact-info · stats-counter · process-steps ·
+   timeline. Same division of labour as everything above.
+   ══════════════════════════════════════════════════════════════════════════════════════════════
+   Here: the things that must be true whichever sheet is loaded. In a theme sheet: the whole look.
+   The floor for a page with NO sheet — spacing and readable type on the HOOKS — is public/base.css.
+
+   🔴 THIS SECTION IS SHORT, AND THAT IS THE POINT. Batch B needed 180 lines here because two of its
+   blocks are forms: `input`, `textarea`, `label`, `ol`, `li` cannot be selected by any sheet
+   (contract §1 refuses tag selectors), so somebody had to lay them out and this is the only file
+   allowed to. Batch C's four blocks have no such internals — every element in all four carries a
+   hook — so a sheet reaches all of them and there is nothing here to own but the guard.
+
+   🔴 `overflow: hidden` ON EACH BLOCK is the guard hero, cta-banner, page-header and batch B have: it
+   keeps a phone from getting a horizontal scrollbar when a sheet paints something wider than the
+   block. No sheet sets `overflow`, so nothing here reaches a themed page by accident.
+
+   🔴 NO padding / background / colour / font-size / text-align HERE. Any default for those would be a
+   fourth theme that all three sheets have to override, and it would be invisible to a byte comparison
+   of the HTML — the difference would be visual only.
+
+   🔴 THE TWO LINKS IN `contact-info` ARE THE ONE EXCEPTION, and it is the same one `.hero__cta
+   .btn-secondary` and batch B's form controls make: `color: inherit`. Without it the phone number and
+   the email address take the browser's link blue, and a sheet that paints this block's ground dark —
+   hero-media-left.css does — has an unreadable phone number on it and no way to say otherwise, since
+   the colour would be coming from the UA sheet rather than from anything a theme can outrank. This is
+   about which LAYER owns the colour, not what the colour is: `.contact-info__phone` is a hook, so a
+   sheet that wants blue links writes blue. */
+.contact-info,
+.stats-counter,
+.process-steps,
+.timeline {
+  overflow: hidden;
+}
+
+.contact-info__phone,
+.contact-info__email {
+  color: inherit;
+}

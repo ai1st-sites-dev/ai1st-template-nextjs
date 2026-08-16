@@ -678,7 +678,10 @@ const MOVED_BLOCKS = ['hero', 'cta-banner', 'page-header',
   // keyed off `data.style` rather than `data.variant`: what this list means is "this block's markup
   // no longer decides how it looks", and that is now true of all six.
   'contact-form', 'quote-form', 'services-list', 'values-grid', 'services-nav',
-  'service-related-pages'];
+  'service-related-pages',
+  // #1028 batch C — four more. Same meaning as above: these blocks' markup no longer decides how
+  // they look.
+  'contact-info', 'stats-counter', 'process-steps', 'timeline'];
 const movedList = MOVED_BLOCKS.join(' + ');
 console.log(themeSheet
   ? `  Theme CSS: public/themes/${themeSheet}.css — pasted into theme.css, ${movedList} styled by those rules (base.css underneath)`

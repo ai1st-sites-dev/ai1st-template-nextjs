@@ -515,3 +515,239 @@
   background-color: var(--color-primary-900);
   color: var(--color-primary-50);
 }
+
+/* ── #1028 batch C — dark ground, two columns, everything left ─────────────────────────────────── */
+
+.contact-info {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-900);
+  color: var(--color-primary-50);
+}
+
+/* Two locations side by side with the headline spanning above them. hero-media-right stacks them in
+   one column and hero-media-top lays them out as a centred row. */
+@media (min-width: 1024px) {
+  .contact-info {
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem 3rem;
+    padding: 5rem 4rem;
+  }
+}
+
+.contact-info__headline {
+  grid-column: 1 / -1;
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 800;
+  color: var(--color-primary-50);
+}
+
+.contact-info__location {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1.75rem;
+  border-radius: 1rem;
+  background-color: var(--color-primary-800);
+}
+
+.contact-info__label {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--color-primary-50);
+}
+
+.contact-info__address {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.contact-info__phone {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--color-accent-400);
+}
+
+.contact-info__email {
+  grid-column: 1 / -1;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-accent-400);
+}
+
+.stats-counter {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-800);
+  color: var(--color-primary-50);
+}
+
+/* Four across. hero-media-right keeps two and hero-media-top runs them as one centred row. */
+@media (min-width: 1024px) {
+  .stats-counter {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2.5rem;
+    padding: 4rem 4rem;
+  }
+}
+
+.stats-counter__headline {
+  grid-column: 1 / -1;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-primary-300);
+}
+
+.stats-counter__stat {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.stats-counter__value {
+  font-size: 2.5rem;
+  line-height: 1;
+  font-weight: 800;
+  color: var(--color-primary-50);
+}
+
+.stats-counter__label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-primary-300);
+}
+
+.process-steps {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-900);
+  color: var(--color-primary-50);
+}
+
+/* Four steps across, the number above each title. */
+@media (min-width: 1024px) {
+  .process-steps {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2.5rem;
+    padding: 5rem 4rem;
+  }
+}
+
+.process-steps__headline {
+  grid-column: 1 / -1;
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 800;
+  color: var(--color-primary-50);
+}
+
+.process-steps__sub {
+  grid-column: 1 / -1;
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.process-steps__step {
+  display: grid;
+  gap: 0.75rem;
+  align-content: start;
+}
+
+.process-steps__num {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 9999px;
+  border-width: 0;
+  background-color: var(--color-accent-500);
+  font-size: 1.125rem;
+  font-weight: 800;
+  color: var(--color-primary-900);
+}
+
+.process-steps__title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--color-primary-50);
+}
+
+/* 🔴 #1028 — THE ONE DELIBERATE `display: none` IN THIS FILE, AND THE TICKET'S OWN DISPOSITION.
+   Four of the five old branches rendered `step.description`; `icon-strip` did not. The neutral markup
+   takes the union, so the strip look now has a paragraph it never had, and a sheet is the layer that
+   takes it back off. It is legal because `process-steps` is `optional` (`block-roles.json`) — contract
+   §3's last line refuses `display: none` only under `[data-role="essential"]` — and §4 skips rather
+   than judges a box the browser laid out nowhere. The paragraph is still in the HTML and still read
+   by anything that does not load this sheet, which is every site that has no theme (100% of new sites
+   today). */
+.process-steps__desc {
+  display: none;
+}
+
+.timeline {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-800);
+  color: var(--color-primary-50);
+}
+
+/* One column of wide cards, each with the year first. hero-media-right splits into two columns and
+   hero-media-top runs the events across in a single row. */
+@media (min-width: 1024px) {
+  .timeline {
+    gap: 1.5rem;
+    padding: 5rem 8rem;
+  }
+}
+
+.timeline__headline {
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 800;
+  color: var(--color-primary-50);
+}
+
+.timeline__sub {
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.timeline__event {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1.75rem 2rem;
+  border-radius: 1rem;
+  background-color: var(--color-primary-900);
+}
+
+.timeline__year {
+  font-size: 2rem;
+  line-height: 1;
+  font-weight: 800;
+  color: var(--color-accent-400);
+}
+
+.timeline__title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-primary-50);
+}
+
+.timeline__desc {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}

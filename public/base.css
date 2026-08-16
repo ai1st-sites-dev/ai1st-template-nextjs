@@ -412,3 +412,143 @@
   font-size: 0.875rem;
   line-height: 1.25rem;
 }
+
+/* ── #1028 batch C: contact-info · stats-counter · process-steps · timeline ─────────────────────
+   Same test as every block above — "would all three sheets want to state this themselves?" —
+   checked against the three phase-1 sheets after their batch-C rules were written:
+
+     the four block hooks      display / gap / padding        all three set them → base leaks nothing
+     every __headline          font-size / line-height        all three set them
+     every __title / __label   font-size / line-height        all three set them
+     .stats-counter__value     font-size                      all three set it
+     .process-steps__num       width / height / border-radius all three set them
+
+   🔴 `min-width: 0` ON EVERY PART THAT IS A GRID OR FLEX ITEM, the same rule and the same reason the
+   hero, cta-banner, page-header and batch-B parts have it: a grid item's automatic minimum size is
+   its CONTENT's size, so one long word pushes the track wider than the screen and the block's
+   `overflow: hidden` (globals.css) then CLIPS it — while the page-level "no horizontal scroll"
+   reading says everything is fine. `overflow-wrap: break-word` does not prevent it. Measured per
+   block on a 375px viewport, which is the only width where it is visible (#1008: without base the
+   font size drops to 16px and the long word fits, so a 1280px reading says the protection is there
+   when it is not).
+
+   🔴 A PHONE NUMBER AND AN EMAIL ADDRESS ARE THE TWO STRINGS ON A SMALL BUSINESS SITE THAT MUST NOT
+   BE HALF-VISIBLE, and `contact-info` is the batch's one `essential` block. `overflow-wrap: anywhere`
+   on those two parts rather than `break-word`: an email address has no space in it and `break-word`
+   only breaks a word that is alone on its line, so at 375 an address inside a padded card was still
+   the thing that set the card's width. */
+
+.contact-info,
+.stats-counter,
+.process-steps,
+.timeline {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .contact-info,
+  .stats-counter,
+  .process-steps,
+  .timeline {
+    padding: 4rem 2rem;
+  }
+}
+
+.contact-info__headline,
+.contact-info__location,
+.contact-info__label,
+.contact-info__address,
+.contact-info__phone,
+.contact-info__email,
+.stats-counter__headline,
+.stats-counter__stat,
+.stats-counter__value,
+.stats-counter__label,
+.process-steps__headline,
+.process-steps__sub,
+.process-steps__step,
+.process-steps__num,
+.process-steps__title,
+.process-steps__desc,
+.timeline__headline,
+.timeline__sub,
+.timeline__event,
+.timeline__year,
+.timeline__title,
+.timeline__desc {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.contact-info__phone,
+.contact-info__email {
+  overflow-wrap: anywhere;
+}
+
+/* ── the headlines and the sub-headlines ──────────────────────────────────────────────────────── */
+.contact-info__headline,
+.stats-counter__headline,
+.process-steps__headline,
+.timeline__headline {
+  font-size: 1.75rem;
+  line-height: 1.25;
+}
+
+.process-steps__sub,
+.timeline__sub {
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+/* ── the repeated units: a location, a stat, a step, an event ─────────────────────────────────── */
+.contact-info__location,
+.stats-counter__stat,
+.process-steps__step,
+.timeline__event {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.contact-info__label,
+.stats-counter__label,
+.process-steps__title,
+.timeline__title {
+  font-size: 1.125rem;
+  line-height: 1.4;
+}
+
+.contact-info__address,
+.process-steps__desc,
+.timeline__desc {
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+/* The number a customer dials and the number a business is proud of: both are the thing their own
+   part exists to show, so without a sheet they are still the biggest thing in it. */
+.stats-counter__value {
+  font-size: 2rem;
+  line-height: 1.1;
+}
+
+.timeline__year {
+  font-size: 1.25rem;
+  line-height: 1.2;
+}
+
+/* The step number. A circle without a sheet, because `.process-steps__num` is a `<span>` and an
+   unstyled numeral in the flow reads as part of the title next to it. */
+.process-steps__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9999px;
+  border-width: 1px;
+  border-style: solid;
+  border-color: currentColor;
+  font-size: 0.875rem;
+}
