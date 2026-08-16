@@ -1109,3 +1109,122 @@
   font-size: 0.875rem;
   line-height: 1.25rem;
 }
+/* ── #1030 batch E: feature-comparison · logo-carousel · map-area · trusted-brands ──────────────
+   Same test as every batch before it — "would every sheet want to state this itself?" — checked
+   against all three phase-1 sheets after their batch-E rules were written:
+
+     the four block hooks        display / gap / padding       all three set them → base leaks nothing
+     every __headline            font-size / line-height       all three set them
+     .feature-comparison__head
+       and __row                 display / grid-template-columns  all three set them
+     .feature-comparison__mark   text-align                    all three set it
+
+   🔴 `min-width: 0` AND `max-width: 100%` ON EVERY PART, the pair batch G worked out (#1036) and
+   batch D measured per block: `min-width: 0` fixes a grid item's AUTOMATIC minimum, without which one
+   long word makes the track wider than the screen while the block's `overflow: hidden` (globals.css)
+   clips it and the page-level "no horizontal scroll" reading still says everything is fine.
+   `max-width: 100%` covers the part a sheet sizes as `fit-content` (a self-aligned pill).
+
+   🔴 THE COMPARISON'S THREE COLUMNS ARE A FLOOR, NOT A LOOK. Without a rule here the feature name
+   and its two marks are three stacked lines, and the block stops saying which mark belongs to which
+   side — the one thing it exists to say. All three sheets state their own column widths on the same
+   hooks, so nothing here reaches a themed page; what it covers is the site with no sheet at all.
+
+   🔴 NO `list-style` RULES HERE: none of these four renders a list element. map-area's ticks and
+   bullets were `<svg>`s and `<span>`s in the markup and they are gone (#1030) — the contract admits
+   only `content: ""`, so a sheet draws a shape back, not that glyph. */
+.feature-comparison,
+.logo-carousel,
+.map-area,
+.trusted-brands {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .feature-comparison,
+  .logo-carousel,
+  .map-area,
+  .trusted-brands {
+    padding: 4rem 2rem;
+  }
+}
+
+.feature-comparison__headline,
+.feature-comparison__sub,
+.feature-comparison__head,
+.feature-comparison__label,
+.feature-comparison__row,
+.feature-comparison__feature,
+.feature-comparison__mark,
+.logo-carousel__headline,
+.logo-carousel__logo,
+.map-area__headline,
+.map-area__sub,
+.map-area__area,
+.map-area__name,
+.map-area__desc,
+.trusted-brands__headline,
+.trusted-brands__brand {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+/* ── headings and body copy: the readable floor ────────────────────────────────────────────────── */
+.feature-comparison__headline,
+.map-area__headline {
+  font-size: 1.75rem;
+  line-height: 1.2;
+}
+
+@media (min-width: 1024px) {
+  .feature-comparison__headline,
+  .map-area__headline {
+    font-size: 2.25rem;
+  }
+}
+
+.feature-comparison__sub,
+.map-area__sub {
+  /* Roughly 70 characters — the same reading measure every other block's sub gets. */
+  max-width: 34rem;
+  line-height: 1.6;
+}
+
+.map-area__name {
+  font-size: 1.125rem;
+  line-height: 1.3;
+}
+
+.map-area__desc,
+.feature-comparison__feature {
+  line-height: 1.6;
+}
+
+/* ── the comparison's rows: which mark belongs to which side ───────────────────────────────────── */
+.feature-comparison__head,
+.feature-comparison__row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+/* Only the marks are centred here. The header row's three labels are one class, so telling the first
+   one apart needs a descendant selector — and base.css refuses those on purpose (a specificity above
+   a theme's is a floor a theme cannot lift). A sheet may write it: §1 lets a sheet combine two hooks
+   as ancestor and descendant, and all three do. */
+.feature-comparison__mark {
+  text-align: center;
+}
+
+/* ── the two lists of names ────────────────────────────────────────────────────────────────────── */
+.logo-carousel__headline,
+.trusted-brands__headline {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}

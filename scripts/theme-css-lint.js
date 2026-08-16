@@ -244,6 +244,38 @@ const HOOKS = new Set([
   '.gallery__placeholder', '.gallery__caption', '.gallery__category', '.gallery__title',
   '.gallery__desc',
   '[data-block="gallery"]',
+  // #1030 — batch E, four blocks whose old branches were pure appearance. Two things in this batch
+  // are not in any batch before it:
+  //   · `.feature-comparison__mark--yes` / `--no` is a MODIFIER hook, the second one in the contract
+  //     (`.pricing-table__item--featured` from batch G is the first). Whether a row's cell is a yes
+  //     or a no is DATA, and a sheet cannot select data: §1 refuses `nth-child` and there is no
+  //     attribute for it. Without these two a sheet can size and place the mark but cannot say the
+  //     one thing every old variant said about it — green for yes, red for no.
+  //   · `.map-area__desc` belongs to an `essential` block whose `badge` variant did not draw it at
+  //     all. The neutral markup draws it (superset), so that sentence is now in every site's HTML
+  //     and 🔴 A SHEET CANNOT TAKE IT BACK OUT: the pass further down this file refuses `display:
+  //     none` on a part of an `essential` block since #1043 (measured here: `.map-area__desc
+  //     { display: none }` → rc=1 naming map-area; `{ letter-spacing: .01em }` → rc=0; the same
+  //     `display: none` on `.trusted-brands__brand`, an `optional` block → rc=0). What the three
+  //     shipped sheets give this part is a typographic rule, which was already this batch's
+  //     decision for a different reason (#1042 / PM 2026-08-16: an unconditional `display:none` in
+  //     a sheet lands on every site wearing it). The old `badge` look has no legal path today.
+  // What no hook brings back: the check mark `<svg>` and the bullet `<span>` in map-area, the
+  // marquee in logo-carousel (`animation` and `@keyframes` are not in §2), the `columns` variant's
+  // zebra striping (a sheet cannot name "every other row"), and the default feature-comparison's
+  // `<table>` semantics.
+  '.feature-comparison', '.feature-comparison__headline', '.feature-comparison__sub',
+  '.feature-comparison__head', '.feature-comparison__label', '.feature-comparison__row',
+  '.feature-comparison__feature', '.feature-comparison__mark', '.feature-comparison__mark--yes',
+  '.feature-comparison__mark--no',
+  '[data-block="feature-comparison"]',
+  '.logo-carousel', '.logo-carousel__headline', '.logo-carousel__logo',
+  '[data-block="logo-carousel"]',
+  '.map-area', '.map-area__headline', '.map-area__sub', '.map-area__area', '.map-area__name',
+  '.map-area__desc',
+  '[data-block="map-area"]',
+  '.trusted-brands', '.trusted-brands__headline', '.trusted-brands__brand',
+  '[data-block="trusted-brands"]',
   '[data-role="essential"]', '[data-role="lead"]', '[data-role="optional"]',
   'body', '[data-region-layout]',
 ]);
@@ -267,6 +299,9 @@ const HOOKS = new Set([
 //   #1031 content-split / text-block / divider / social-proof / features-grid /
 //         awards-certifications / newsletter-signup parts + their seven [data-block="…"]
 //         (batch F, seven blocks at once)
+//   #1030 feature-comparison / logo-carousel / map-area / trusted-brands parts + their four
+//         [data-block="…"]  (batch E; `__mark--yes` / `--no` is the second pair of modifier
+//         hooks, after batch G's `.pricing-table__item--featured` — that batch left no line here)
 //
 // A BREAKING change (renaming a hook, removing one, changing what one means) still MUST bump: that
 // is the case where an old sheet keeps loading and quietly points at nothing, which is the reason

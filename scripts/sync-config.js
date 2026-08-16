@@ -747,7 +747,12 @@ const MOVED_BLOCKS = ['hero', 'cta-banner', 'page-header',
   // `data-region-layout`), and regions are `scripts/region-layout.js`'s business, not phase 2's.
   // As a BLOCK its markup no longer decides how it looks, which is what this list means.
   'faq-accordion', 'testimonials', 'announcement-bar', 'service-highlights', 'pricing-table',
-  'gallery'];
+  'gallery',
+  // #1030 batch E — four more. Same meaning as above. `feature-comparison` still renders a ✓ or a ✗
+  // per cell, and that is not a contradiction: those two characters say WHAT the site claims about
+  // itself and a competitor, not what the block looks like — how they LOOK (colour, size, whether
+  // there is a shape behind them) is the sheet's, through `.feature-comparison__mark--yes` / `--no`.
+  'feature-comparison', 'logo-carousel', 'map-area', 'trusted-brands'];
 const movedList = MOVED_BLOCKS.join(' + ');
 console.log(themeSheet
   ? `  Theme CSS: public/themes/${themeSheet}.css — pasted into theme.css, ${movedList} styled by those rules (base.css underneath)`

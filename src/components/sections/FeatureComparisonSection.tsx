@@ -9,212 +9,78 @@ interface FeatureComparisonSectionProps {
     comparisons: { feature: string; us: boolean; them: boolean }[];
     usLabel?: string;
     themLabel?: string;
-    variant?: 'table' | 'cards' | 'columns' | 'stacked';
   };
   locale: string;
   /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
   block?: BlockConfig;
 }
 
-function CheckIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className || 'h-5 w-5 text-green-500'} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-    </svg>
-  );
-}
-
-function XIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className || 'h-5 w-5 text-red-500'} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-    </svg>
-  );
-}
-
+// 🔴🔴 #1030 — 一份中性 markup，别的什么都没有。阶段 2 批 E。
+//
+// 四支走了：`table`（默认，一张真 `<table>`）、`cards`（两张卡，一张「他们」一张「我们」）、
+// `columns`（三列网格 + 隔行底色）、`stacked`（每条一张卡，两个圆角标签）。删之前逐支量过字段集：
+// 四支读的都是 `data.headline` · 可选 `data.subheadline` · `data.comparisons[].feature / .us / .them` ·
+// 可选 `data.usLabel / .themLabel`（缺省 `Us` / `Them`）· `getLabels(locale).feature`，一个字段不多
+// 一个不少。列的顺序四支各不相同（默认是 功能 / 我们 / 他们，`columns` 是 功能 / 他们 / 我们）——
+// 中性 markup 取默认那一支的顺序。
+//
+// 🔴🔴 **✓ / ✗ 是数据，不是装饰，所以它留在 markup 里，并且带自己的钩子。** 旧代码有两种画法：
+// 三支画 `<svg aria-hidden>`（对勾绿、叉红），`stacked` 那支直接写字符 `✓` / `✗`。契约只
+// 放行 `content: ""`，画不出那个字形 ⟹ 中性 markup 照 `stacked` 的做法写**字符**。副作用是好的：
+// 三支旧变体里这个「有没有」对读屏软件和抓取的机器是**完全不存在**的（`aria-hidden="true"`），
+// 现在它是页面上的真文字。
+// 🔴 而「这一格是有还是没有」是**数据驱动的状态**，主题选不到它（§1 拒 `nth-child`，也没有属性
+// 选择器可用）—— 所以它跟 #1036 的 `.pricing-table__item--featured` 同一处置：一个修饰钩子
+// `.feature-comparison__mark--yes` / `--no`，主题爱怎么区分怎么区分（三套表给了两种颜色）。
+//
+// 🔴🔴 **一处用户看得见的变化：默认那一支的 `<table>` / `<th scope="col">` 语义没了。** 读屏软件在
+// 那一支里能按列头念每一格，现在念到的是「功能名 · ✓ · ✗」三段文字，没有列的关系。换来的是这块
+// 归主题排（`<thead>` / `<tbody>` / `<tr>` 是标签，契约 §1 拒标签选择器 ⟹ 只要它们还在，主题就
+// **永远**够不到表格内部）。写在明处交 PM 裁，不当成纯长相。
+//
+// 🔴 表头单独一个部件 `.feature-comparison__head`，不复用 `__row`：主题分不出「第一行」
+// （§1 拒 `nth-child`），少了它就没法把表头排得跟数据行不一样。
+// 🔴 而表头**第一格用的是 `__feature`**（跟数据行同一个类），只有右边两格是 `__label`：这样「功能
+// 这一列」在主题眼里从头到尾是同一个钩子，一条规则就能对齐整列。三格全写 `__label` 的话，主题
+// 只能把三格排成同一个样子 —— 想让第一格靠左、另外两格居中就没有办法（`:first-child` 同样被 §1 拒）。
+//
+// 🔴 `columns` 那支的隔行底色（`index % 2 === 0`）没了 —— 同上，主题点不到「偶数行」。
+//
+// 🔴 每一行是块的**直接子元素**，格子是行的直接子元素 —— 各一层，因为 grid / flex 只摆子元素。
+//
+// 🔴 `variant` 照旧写在页面 JSON 里、照旧被 sync-config.js 从主题的 `supports` 覆盖，只是没人读了
+// （#1008 AC5 / #1018 的既定状态，别去「修」它），并且从上面的 props 类型里去掉了。
+//
+// 🔴 第三个钩子不是可选的 —— `blockAttrs('feature-comparison', block)`（#998 的 `data-block-layout`，
+// `tsc` 看不见它漏没漏）。
 export default function FeatureComparisonSection({ data, locale, block }: FeatureComparisonSectionProps) {
-  const variant = data.variant || 'table';
   const usLabel = data.usLabel || 'Us';
   const themLabel = data.themLabel || 'Them';
   const labels = getLabels(locale);
+  const mark = (has: boolean) => (
+    <span className={`feature-comparison__mark feature-comparison__mark--${has ? 'yes' : 'no'}`}>
+      {has ? '✓' : '✗'}
+    </span>
+  );
 
-  if (variant === 'cards') {
-    return (
-      <section {...blockAttrs('feature-comparison', block)} className="section-padding" aria-labelledby="comparison-heading">
-        <div className="container-width">
-          <div className="text-center">
-            <h2 id="comparison-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
-              {data.headline}
-            </h2>
-            {data.subheadline && (
-              <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-600">
-                {data.subheadline}
-              </p>
-            )}
-          </div>
-          <div className="mt-16 grid gap-8 md:grid-cols-2">
-            <div className="rounded-xl bg-gray-100 p-8">
-              <h3 className="text-xl font-bold text-gray-900">{themLabel}</h3>
-              <ul className="mt-6 space-y-4" role="list">
-                {data.comparisons?.map((comparison, index) => (
-                  <li key={index} className="flex items-center gap-3">
-                    {comparison.them ? (
-                      <CheckIcon className="h-5 w-5 shrink-0 text-green-500" />
-                    ) : (
-                      <XIcon className="h-5 w-5 shrink-0 text-red-500" />
-                    )}
-                    <span className="text-gray-700">{comparison.feature}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="rounded-xl border-2 border-primary-500 bg-primary-50 p-8">
-              <h3 className="text-xl font-bold text-primary-900">{usLabel}</h3>
-              <ul className="mt-6 space-y-4" role="list">
-                {data.comparisons?.map((comparison, index) => (
-                  <li key={index} className="flex items-center gap-3">
-                    {comparison.us ? (
-                      <CheckIcon className="h-5 w-5 shrink-0 text-green-500" />
-                    ) : (
-                      <XIcon className="h-5 w-5 shrink-0 text-red-500" />
-                    )}
-                    <span className="text-gray-700">{comparison.feature}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  if (variant === 'columns') {
-    return (
-      <section {...blockAttrs('feature-comparison', block)} className="section-padding" aria-labelledby="comparison-heading">
-        <div className="container-width">
-          <div className="text-center">
-            <h2 id="comparison-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
-              {data.headline}
-            </h2>
-            {data.subheadline && (
-              <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-600">
-                {data.subheadline}
-              </p>
-            )}
-          </div>
-          <div className="mx-auto mt-16 max-w-3xl">
-            <div className="grid grid-cols-3 gap-4">
-              {/* Header row */}
-              <div className="py-3 font-bold text-gray-900">{labels.feature}</div>
-              <div className="py-3 text-center font-bold text-gray-500">{themLabel}</div>
-              <div className="py-3 text-center font-bold text-primary-600">{usLabel}</div>
-              {/* Data rows */}
-              {data.comparisons?.map((comparison, index) => (
-                <div key={index} className="contents">
-                  <div className={`flex items-center py-3 ${index % 2 === 0 ? 'bg-gray-50' : ''} rounded-l-lg pl-3`}>
-                    <span className="text-gray-700">{comparison.feature}</span>
-                  </div>
-                  <div className={`flex items-center justify-center py-3 ${index % 2 === 0 ? 'bg-gray-50' : ''}`}>
-                    {comparison.them ? <CheckIcon /> : <XIcon />}
-                  </div>
-                  <div className={`flex items-center justify-center py-3 ${index % 2 === 0 ? 'bg-gray-50' : ''} rounded-r-lg`}>
-                    {comparison.us ? <CheckIcon /> : <XIcon />}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  if (variant === 'stacked') {
-    return (
-      <section {...blockAttrs('feature-comparison', block)} className="section-padding" aria-labelledby="comparison-heading">
-        <div className="container-width">
-          <div className="text-center">
-            <h2 id="comparison-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
-              {data.headline}
-            </h2>
-            {data.subheadline && (
-              <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-600">
-                {data.subheadline}
-              </p>
-            )}
-          </div>
-          <div className="mx-auto mt-16 max-w-2xl space-y-6">
-            {data.comparisons?.map((comparison, index) => (
-              <div key={index} className="rounded-xl border border-gray-200 bg-white p-6 text-center">
-                <p className="font-semibold text-gray-900">{comparison.feature}</p>
-                <div className="mt-4 flex items-center justify-center gap-4">
-                  <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium ${
-                    comparison.us
-                      ? 'bg-green-50 text-green-700'
-                      : 'bg-red-50 text-red-700'
-                  }`}>
-                    {usLabel} {comparison.us ? '\u2713' : '\u2717'}
-                  </span>
-                  <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium ${
-                    comparison.them
-                      ? 'bg-green-50 text-green-700'
-                      : 'bg-red-50 text-red-700'
-                  }`}>
-                    {themLabel} {comparison.them ? '\u2713' : '\u2717'}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  // Default: table
   return (
-    <section {...blockAttrs('feature-comparison', block)} className="section-padding" aria-labelledby="comparison-heading">
-      <div className="container-width">
-        <div className="text-center">
-          <h2 id="comparison-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
-            {data.headline}
-          </h2>
-          {data.subheadline && (
-            <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-600">
-              {data.subheadline}
-            </p>
-          )}
-        </div>
-        <div className="mx-auto mt-16 max-w-3xl overflow-hidden rounded-xl border border-gray-200">
-          <table className="w-full" role="table">
-            <thead>
-              <tr className="bg-gray-50">
-                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-900" scope="col">{labels.feature}</th>
-                <th className="px-6 py-4 text-center text-sm font-semibold text-primary-600" scope="col">{usLabel}</th>
-                <th className="px-6 py-4 text-center text-sm font-semibold text-gray-500" scope="col">{themLabel}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.comparisons?.map((comparison, index) => (
-                <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                  <td className="px-6 py-4 text-sm text-gray-700">{comparison.feature}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex justify-center">
-                      {comparison.us ? <CheckIcon /> : <XIcon />}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex justify-center">
-                      {comparison.them ? <CheckIcon /> : <XIcon />}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+    <section {...blockAttrs('feature-comparison', block)} className="feature-comparison" aria-labelledby="comparison-heading">
+      <h2 id="comparison-heading" className="feature-comparison__headline">
+        {data.headline}
+      </h2>
+      {data.subheadline && <p className="feature-comparison__sub">{data.subheadline}</p>}
+      <div className="feature-comparison__head">
+        <span className="feature-comparison__feature">{labels.feature}</span>
+        <span className="feature-comparison__label">{usLabel}</span>
+        <span className="feature-comparison__label">{themLabel}</span>
       </div>
+      {data.comparisons?.map((comparison, index) => (
+        <div key={index} className="feature-comparison__row">
+          <span className="feature-comparison__feature">{comparison.feature}</span>
+          {mark(comparison.us)}
+          {mark(comparison.them)}
+        </div>
+      ))}
     </section>
   );
 }

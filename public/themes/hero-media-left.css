@@ -1858,3 +1858,215 @@
   line-height: 1.6;
   color: var(--color-primary-100);
 }
+/* ── #1030 batch E — the dark, generous, multi-column treatment ────────────────────────────────────
+   Four blocks that used to carry their own variants in the markup; this sheet's opinion about all of
+   them is the one it has about every batch: the dark ground the hero and page header paint, roomy
+   padding, and columns where there is a list. The other two sheets draw the same HTML as one narrow
+   light column and as centred wrapping rows.
+
+   🔴 The two mark modifiers are where this sheet says what the old `<svg>`s said — a tick in the
+   accent colour, a cross in a muted one. That distinction is data (`.us` / `.them` in the page JSON),
+   which is why it has a hook at all: a sheet cannot select "the cells that are true". */
+
+.feature-comparison {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-900);
+  color: var(--color-primary-50);
+}
+
+@media (min-width: 1024px) {
+  .feature-comparison {
+    gap: 1rem;
+    padding: 5rem 4rem;
+  }
+}
+
+.feature-comparison__headline {
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 800;
+  color: var(--color-primary-50);
+}
+
+.feature-comparison__sub {
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.feature-comparison__head,
+.feature-comparison__row {
+  display: grid;
+  grid-template-columns: 3fr 1fr 1fr;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.875rem 1.5rem;
+  border-radius: 0.75rem;
+}
+
+.feature-comparison__head {
+  background-color: var(--color-primary-800);
+}
+
+.feature-comparison__row {
+  border-bottom: 1px solid var(--color-primary-800);
+}
+
+.feature-comparison__label {
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--color-primary-200);
+}
+
+.feature-comparison__feature {
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--color-primary-50);
+}
+
+/* The header row's first cell is the same hook as the column below it — this is the one rule that
+   tells the two apart (§1 lets a sheet stack two hooks as ancestor and descendant). */
+.feature-comparison__head .feature-comparison__feature {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-primary-200);
+}
+
+.feature-comparison__mark {
+  font-size: 1.25rem;
+  line-height: 1.2;
+  font-weight: 700;
+  text-align: center;
+}
+
+.feature-comparison__mark--yes {
+  color: var(--color-accent-400);
+}
+
+.feature-comparison__mark--no {
+  color: var(--color-primary-400);
+}
+
+.logo-carousel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem 3rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-900);
+  color: var(--color-primary-50);
+}
+
+.logo-carousel__headline {
+  flex-basis: 100%;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--color-primary-400);
+}
+
+.logo-carousel__logo {
+  font-size: 1.125rem;
+  line-height: 1.3;
+  font-weight: 700;
+  color: var(--color-primary-300);
+}
+
+.map-area {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-900);
+  color: var(--color-primary-50);
+}
+
+/* Three across — the same count this sheet gives values-grid and team-grid. */
+@media (min-width: 1024px) {
+  .map-area {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 2rem;
+    padding: 5rem 4rem;
+  }
+}
+
+.map-area__headline {
+  grid-column: 1 / -1;
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 800;
+  color: var(--color-primary-50);
+}
+
+.map-area__sub {
+  grid-column: 1 / -1;
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.map-area__area {
+  display: grid;
+  align-content: start;
+  gap: 0.5rem;
+  padding: 1.75rem;
+  border-radius: 1rem;
+  background-color: var(--color-primary-800);
+}
+
+.map-area__name {
+  font-size: 1.25rem;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--color-primary-50);
+}
+
+.map-area__desc {
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.trusted-brands {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem 3rem;
+  padding: 2.5rem 1.5rem;
+  background-color: var(--color-primary-900);
+  color: var(--color-primary-50);
+}
+
+.trusted-brands__headline {
+  flex-basis: 100%;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--color-primary-400);
+}
+
+.trusted-brands__brand {
+  font-size: 1.125rem;
+  line-height: 1.3;
+  font-weight: 700;
+  color: var(--color-primary-300);
+}
