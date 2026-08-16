@@ -20,6 +20,9 @@ const tweakLib = require('./tweaks');
 const { buildThemeCss } = require('./theme-css');
 // #1026 — sitemap 的 <lastmod> 要写「这一页上次什么时候变的」，不是构建时刻。取值规则整段写在那个文件头上。
 const { createLastModifiedResolver } = require('./lib/page-lastmod');
+// #1033 — 一页读的不只是它自己那份 JSON：跨页共享的 services.json / 站级块库也是它的内容。
+// 哪一页读了哪些文件由这个文件算，边界（算什么、不算什么）写在它的文件头上。
+const { blockTypesReadingServices, createPageDeps, isServiceDetailPage } = require('./lib/page-deps');
 
 const rootDir = path.resolve(__dirname, '..');
 const siteDir = path.join(rootDir, 'site');
@@ -319,6 +322,36 @@ const lastModified = createLastModifiedResolver({
   buildTime,
 });
 
+// #1033 —— 哪些块类型会读 services.json，从 registry.ts + 组件源码里量出来（不是手写清单，理由在
+// page-deps.js 的文件头上）。一次构建只扫一遍。
+const servicesReaders = blockTypesReadingServices(rootDir);
+if (servicesReaders.unavailable) {
+  // 🔴 「读不出来」不是「没有块读 services」：那时 services.json 算给所有页面（多报），并且必须
+  //    说出来 —— 少报是静默的，它跟「一切正常」在日志里长得一模一样。
+  console.log(`  ⚠️  没量出哪些块读 services.json（${servicesReaders.unavailable}）`
+    + ' —— sitemap 的 <lastmod> 把 services.json 算给每一页（宁可多报）');
+} else {
+  console.log(`  sitemap <lastmod>：读 services.json 的块类型 ${servicesReaders.types.size} 种`
+    + `（${[...servicesReaders.types].sort().join(', ') || '一种都没有'}）`);
+  for (const f of servicesReaders.unmapped) {
+    console.log(`  ⚠️  src/components/sections/${f} 用了 getServices，但它不在 registry.ts 的映射里`
+      + ' —— 用它的页面不会因为 services.json 改了而报新日期');
+  }
+  // #1033 r2 —— 块不是唯一的读法：服务详情页那份 Service 结构化数据是页面外壳自己发的。所以每一处
+  // getServices 都要有归属，归不了属的在这里点名，并且 services.json 算给每一页（多报，看得见）。
+  for (const f of servicesReaders.unaccounted) {
+    console.log(`  ⚠️  ${f} 用了 getServices，而它既不是注册表里的块组件、也不在 page-deps.js 的`
+      + ' ACCOUNTED 归属表里 —— 算不出它到达哪些页面，sitemap 的 <lastmod> 把 services.json 算给每一页'
+      + '（宁可多报）。要修就在那张表里给它一条归属');
+  }
+}
+if (lastModified.shallow) {
+  // #1033 —— 浅克隆里 git 只有一个提交，每个文件「上次被哪次提交碰过」都是那一次 ⟹ 全站页面的日期
+  // 并成一个。worker/entrypoint.sh 现在克隆带完整历史，所以看到这行说明这个仓库是用别的方式拉下来的。
+  console.log('  ⚠️  这是一个浅克隆（git 历史被砍掉了）：所有页面的 <lastmod> 会并成同一次提交的'
+    + '时间，而不是各自上次真的变化的时间');
+}
+
 for (const locale of locales) {
   // TICKET-127: legacy schema reads from site/ root (flat); new schema from
   // site/<locale>/ subdir. localeDir abstraction lets the rest of the loop
@@ -378,8 +411,10 @@ for (const locale of locales) {
   // 🔴 校验分两种待遇（PM 在 #998 r4 定的，整段理由写在 blocks.js 的 normalizeLocalePages 头上，
   // 与本文件下面那条「构建期只说不拦」同源）：一个字段的值不合法但有明确默认行为的 → 打印点名 +
   // 继续（下面那个 notes 循环）；形状本身矛盾、兜底只能靠猜的 → 抛错 → exit 1（下面那个 catch）。
+  // #1033 —— 归一化之后还要用它：里面记着每一页各自用上了哪些站级块（那是 <lastmod> 要问的
+  // 「这一页读了哪些文件」的一半）。所以声明搬到 try 外面，try 里的用法一个字没动。
+  const blocksReport = {};
   try {
-    const blocksReport = {};
     normalizeLocalePages(localePages, readSiteBlocks(localeDir), locale, blocksReport);
     // 被忽略的字段：每一条都要打印。一个被忽略的字段和一份完全正常的配置，在日志里长得一模一样
     // —— 那正是本票要治的那一族毛病，所以这里没有「太吵就不打」这一档。
@@ -398,18 +433,29 @@ for (const locale of locales) {
   // 在这之前它写的是构建时刻，于是站每重建一次就等于告诉搜索引擎「所有页面都更新了」。
   // 🔴 位置在归一化之后：那之前页面对象还没定型。取值规则（git 提交时间 → 文件时间 → 构建时刻）
   //    整段写在 scripts/lib/page-lastmod.js 的文件头上。
+  //
+  // 🔴 #1033 起问的是「这一页读到的**所有**文件里最晚的那个」，不再只问页面自己那份 JSON：
+  //    改 services.json 或站级块库，用到它们的那几页 HTML 真的变了 —— 之前一页都不报。
+  //    算哪几份文件、以及为什么页脚那条路不算，整段写在 scripts/lib/page-deps.js 的文件头上。
   const lastModifiedTally = { git: 0, mtime: 0, build: 0 };
+  const sharedTally = { services: 0, siteBlocks: 0 };
+  const pageDeps = createPageDeps({ localeDir, services: servicesReaders });
   for (const page of localePages) {
     const source = pageSourceBySlug.get(page.slug);
-    const got = lastModified.resolve(source);
+    const dep = pageDeps.filesFor(page, source, (blocksReport.siteBlockIdsByPage || {})[page.slug]);
+    const got = lastModified.resolveLatest(dep.files);
     page.lastModified = got.value;
     lastModifiedTally[got.source] += 1;
+    if (dep.usesServices) sharedTally.services += 1;
+    if (dep.usesSiteBlocks) sharedTally.siteBlocks += 1;
     // 退回构建时刻的必须点名 —— 静默退回构建时刻正是本票要治的那个毛病本身。
     if (got.source === 'build') {
-      console.log(`  [${locale}] ⚠️  ${page.slug}（${source || '找不到源文件'}）：既拿不到 git 提交时间`
-        + '也读不到文件修改时间，sitemap 的 <lastmod> 退回构建时刻');
+      console.log(`  [${locale}] ⚠️  ${page.slug}（${got.from || source || '找不到源文件'}）：既拿不到`
+        + ' git 提交时间也读不到文件修改时间，sitemap 的 <lastmod> 退回构建时刻');
     }
   }
+  console.log(`  [${locale}] sitemap <lastmod> 还算进了共享内容：services.json ${sharedTally.services} 页 · `
+    + `blocks/site-blocks.json ${sharedTally.siteBlocks} 页（共 ${localePages.length} 页）`);
   console.log(`  [${locale}] sitemap <lastmod> 取自：git 提交时间 ${lastModifiedTally.git} 页 · `
     + `文件修改时间 ${lastModifiedTally.mtime} 页 · 构建时刻 ${lastModifiedTally.build} 页`);
 
@@ -437,7 +483,7 @@ for (const locale of locales) {
   //
   // 🔴 构建期只说、不拦（`scope: 'build'` 让 validateSite 一条 problem 都不产出，理由整段写在
   //    block-manifest.js 的 validateSite 头上）。一句话版：构建期没有救，只有毁 —— 这里退出码 1
-  //    的唯一后果是这个站从此重建不出来、预览也开不出来（`worker/entrypoint.sh:198-206` 的 preview
+  //    的唯一后果是这个站从此重建不出来、预览也开不出来（`worker/entrypoint.sh:226-234` 的 preview
   //    分支带 `set -e`）。实测 GitHub 上真实存在的 28 个站，硬拦会当场废掉 prod 的两个。
   //    ⟹ 所以这里不接 problems：它恒为空，接了就是死代码。
   //
@@ -465,7 +511,7 @@ for (const locale of locales) {
   const existingNav = JSON.parse(fs.readFileSync(navPath, 'utf-8'));
 
   const nonHomePages = localePages.filter(p => p.slug !== 'home');
-  const isServiceDetailPage = p => p.serviceDetailPage === true || (p.slug.startsWith('services/') && p.slug !== 'services');
+  // #1033 r2 —— 这个判断搬去了 lib/page-deps.js（那边算 <lastmod> 也要问同一件事），逐字未改。
   const isKeywordPage = p => (p.keywordPage === true || p.slug.includes('/')) && !isServiceDetailPage(p);
   const regularPages = nonHomePages.filter(p => !isKeywordPage(p) && !isServiceDetailPage(p));
   const keywordPages = nonHomePages.filter(p => isKeywordPage(p));

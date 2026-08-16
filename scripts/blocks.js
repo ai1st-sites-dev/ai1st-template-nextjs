@@ -147,6 +147,10 @@ function normalizeLocalePages(pages, siteBlocks, locale, report) {
   // 点名这一半一个字不减：每条都说出哪个 locale、哪一页、第几个块、哪个字段、落回了什么。
   const notes = [];
   const note = (m) => notes.push(m);
+  // #1033 —— 每一页各自用上了哪些站级块。sitemap 的 <lastmod> 要问「这一页读了哪些文件」，而
+  // `blocks/site-blocks.json` 只算到真的用上它的那几页（ref 或 visibility 命中）。这里是唯一
+  // 算得出这件事的地方 —— 归一化之后页面上只剩块，看不出哪个块是从站级块库来的。
+  const siteBlockIdsByPage = {};
 
   // 站级块自己的形状 + visibility 的 slug
   for (const id of siteBlockIds) {
@@ -257,10 +261,12 @@ function normalizeLocalePages(pages, siteBlocks, locale, report) {
 
     // visibility 命中但这一页没有 ref 它的 → 追加（位置按它自己的 weight，见 effectiveWeight）
     let extra = raw.length;
+    const visibilityHitsHere = new Set();
     for (const id of siteBlockIds) {
       if (seenRefs.has(id)) continue;
       if (!visibilityMatches(siteBlocks[id], page.slug)) continue;
       usedSiteBlockIds.add(id);
+      visibilityHitsHere.add(id);
       resolved.push({ ...siteBlocks[id], id, __order: extra++ });
     }
 
@@ -287,6 +293,9 @@ function normalizeLocalePages(pages, siteBlocks, locale, report) {
 
     page.blocks = resolved;
     delete page.sections;
+    // ref 命中的（seenRefs，只有真找到目标才进）+ visibility 命中的（上面那个循环塞进 usedSiteBlockIds
+    // 的那些），合起来就是这一页用上的站级块。
+    siteBlockIdsByPage[page.slug] = [...new Set([...seenRefs, ...visibilityHitsHere])].sort();
   }
 
   // 一个站级块可以没被任何页面用上：没人 `ref` 它，`visibility` 也没命中任何页面（写成 `[]`、
@@ -297,6 +306,8 @@ function normalizeLocalePages(pages, siteBlocks, locale, report) {
   // 打印交给调用方（sync-config.js），这里只把名单交出去 —— 跟 validateBlockLayouts 同一个分工。
   if (report && typeof report === 'object') {
     report.unusedSiteBlockIds = siteBlockIds.filter(id => !usedSiteBlockIds.has(id)).sort();
+    // #1033 —— 每页各自用上的站级块（见上面 siteBlockIdsByPage 那段）。
+    report.siteBlockIdsByPage = siteBlockIdsByPage;
     // 上面每一处「点名 + 继续」的话都在这里交给调用方去打印。🔴 调用方**必须**打印它：一个被忽略的
     // 字段和一份完全正常的配置，在日志里长得一模一样 —— 而这正是本票要治的那一族毛病。
     report.notes = notes;
