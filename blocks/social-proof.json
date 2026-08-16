@@ -3,7 +3,10 @@
   "category": "testimonial",
   "roleDefault": "optional",
   "block_layout": [
-    "default"
+    "default",
+    "with-platforms",
+    "with-badges",
+    "with-quote"
   ],
   "slots": {
     "headline": {

@@ -403,6 +403,122 @@
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
+   #1031 — THE NEUTRAL SKELETONS FOR BATCH F: content-split · text-block · divider · social-proof ·
+   features-grid · awards-certifications · newsletter-signup. Same division of labour as above.
+   ══════════════════════════════════════════════════════════════════════════════════════════════
+   Here: the things that must be true whichever sheet is loaded, plus the things NO SHEET CAN EVER
+   REACH. In a theme sheet: the whole look. The floor for a page with no sheet is public/base.css.
+
+   🔴 THE UNREACHABLE SET IN THIS BATCH IS `li`, `img`, `input`, `button` AND THE `<span>`s INSIDE A
+   PLATFORM OR A STATISTIC. Contract §1 refuses tag selectors, so none of them can be named by a
+   theme — not "left to base", UNREACHABLE. base.css's test ("would all three sheets state this
+   themselves? then base must not") does not apply to them because no sheet can state them at all.
+
+   🔴 `overflow: hidden` ON EACH BLOCK is the guard hero, cta-banner, page-header and batch B have:
+   it keeps a phone from getting a horizontal scrollbar when a sheet paints something wider than the
+   block. No sheet sets `overflow`, so nothing here reaches a themed page by accident. */
+.content-split,
+.text-block,
+.divider,
+.social-proof,
+.features-grid,
+.awards-certifications,
+.newsletter-signup {
+  overflow: hidden;
+}
+
+/* ── the picture: the box is the sheet's, the picture fills it ────────────────────────────────── */
+/* `.hero__img` is deliberately absent from the contract and `.content-split__media`'s `<img>` is
+   absent for the same reason — two owners for one dimension is a bug generator. The sheet gives the
+   box a size; this makes the picture fill whatever box it got. */
+.content-split__media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ── lists: a sheet places the list, this lays out what is inside it ──────────────────────────── */
+.content-split__bullets,
+.text-block__list {
+  list-style: none;
+  padding-left: 0;
+}
+
+.content-split__bullets li,
+.text-block__list li {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+/* 🔴 MEASURED, NOT PRECAUTIONARY, and it is the same defect batch B found on the quote button. A
+   bullet or a statistic label can be one long unbreakable word — a product name, a URL — and a grid
+   item's automatic minimum size is its CONTENT's size, so that word drags the whole track wider than
+   the screen and the block's `overflow: hidden` above then CLIPS it, while the page-level "no
+   horizontal scroll" reading says everything is fine. The two lines above are what make that reading
+   honest. `break-word` is enough here because these are block-level items, not `inline-flex` ones:
+   that was the distinction #1027 had to make for `.btn-primary`, and it does not apply to an `<li>`
+   or a `<span>` in grid flow. */
+
+/* ── a statistic's two halves and a platform's three: spans a sheet cannot select ─────────────── */
+.content-split__stat,
+.social-proof__platform {
+  display: grid;
+}
+
+.content-split__stat span,
+.social-proof__platform span {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+/* ── the newsletter's controls: unreachable from a theme, legible on any ground ───────────────── */
+/* Same `currentColor` trick and the same measured reason as batch B's two forms: a sheet decides the
+   block's ground, and a field fixed at grey-300 on white disappears on a dark one. Inheriting the
+   colour the sheet set means the field is legible on either without any sheet mentioning controls. */
+.newsletter-signup__form input {
+  flex: 1 1 12rem;
+  min-width: 0;
+  border-width: 1px;
+  border-style: solid;
+  border-color: currentColor;
+  background-color: transparent;
+  color: inherit;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+}
+
+.newsletter-signup__form button {
+  flex: 0 0 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  border-width: 1px;
+  border-style: solid;
+  border-color: currentColor;
+  color: inherit;
+  padding: 0.75rem 1.25rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+}
+
+/* ── the quote's own two parts ────────────────────────────────────────────────────────────────── */
+/* A `<blockquote>` carries a browser default margin that would fight whatever gap the sheet set. */
+.social-proof__quote {
+  margin: 0;
+}
+
+.social-proof__quote p {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+/* ── features-grid: the card is an <a>, and an <a> is inline ──────────────────────────────────── */
+.features-grid__item {
+  display: grid;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
    #1028 — THE NEUTRAL SKELETONS FOR BATCH C: contact-info · stats-counter · process-steps ·
    timeline. Same division of labour as everything above.
    ══════════════════════════════════════════════════════════════════════════════════════════════

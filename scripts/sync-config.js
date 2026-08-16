@@ -736,7 +736,11 @@ const MOVED_BLOCKS = ['hero', 'cta-banner', 'page-header',
   // #1029 batch D — four more. Same meaning as above: these blocks' markup no longer decides how
   // they look. `blog-preview` keeps reading `data.fromBlog` / `data.maxPosts`, and that is not a
   // contradiction: those two say WHICH articles the block draws, not what it looks like.
-  'benefits-list', 'team-grid', 'checklist', 'blog-preview'];
+  'benefits-list', 'team-grid', 'checklist', 'blog-preview',
+  // #1031 batch F — seven at once. All seven had a `data.variant` branch and nothing else: none of
+  // them is a `'use client'` component, so there was no behaviour to keep on the way out.
+  'content-split', 'text-block', 'divider', 'social-proof', 'features-grid',
+  'awards-certifications', 'newsletter-signup'];
 const movedList = MOVED_BLOCKS.join(' + ');
 console.log(themeSheet
   ? `  Theme CSS: public/themes/${themeSheet}.css — pasted into theme.css, ${movedList} styled by those rules (base.css underneath)`

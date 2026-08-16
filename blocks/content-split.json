@@ -4,7 +4,9 @@
   "roleDefault": "optional",
   "block_layout": [
     "with-media",
-    "text-only"
+    "text-only",
+    "with-stats",
+    "with-bullets"
   ],
   "slots": {
     "headline": {

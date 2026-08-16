@@ -3,7 +3,9 @@
   "category": "text",
   "roleDefault": "optional",
   "block_layout": [
-    "default"
+    "default",
+    "quote",
+    "with-list"
   ],
   "slots": {
     "headline": {

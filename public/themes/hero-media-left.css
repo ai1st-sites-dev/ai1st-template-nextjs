@@ -1019,3 +1019,428 @@
   line-height: 1.7;
   color: var(--color-primary-100);
 }
+
+/* ══ #1031 batch F ═══════════════════════════════════════════════════════════════════════════════
+   content-split · text-block · divider · social-proof · features-grid · awards-certifications ·
+   newsletter-signup. This sheet's answer everywhere: dark ground, three across where there is a
+   repeated unit, and the picture on the LEFT — the same choice its hero makes. */
+
+.content-split {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-900);
+  color: var(--color-primary-50);
+}
+
+/* The picture takes the first column and the words stack in the second. `grid-row: 1 / span 5` and
+   not `1 / -1`: the rows here are implicit (the block has between two and five parts depending on
+   what the page JSON carries), and `-1` on an implicit grid resolves to the end of the EXPLICIT
+   one — i.e. one row. Five is the number of parts this block can have. */
+@media (min-width: 1024px) {
+  .content-split {
+    grid-template-columns: 5fr 6fr;
+    align-items: center;
+    gap: 3rem;
+    padding: 5rem 4rem;
+  }
+
+  .content-split__media {
+    grid-column: 1;
+    grid-row: 1 / span 5;
+  }
+
+  .content-split__headline,
+  .content-split__body,
+  .content-split__bullets,
+  .content-split__stats {
+    grid-column: 2;
+  }
+}
+
+.content-split__media {
+  aspect-ratio: 4 / 5;
+  border-radius: 1.5rem;
+  background-color: var(--color-primary-800);
+  box-shadow: 0 30px 60px -20px rgb(0 0 0 / 0.55);
+}
+
+.content-split__headline {
+  font-size: 2.25rem;
+  line-height: 1.1;
+  font-weight: 800;
+  color: var(--color-primary-50);
+}
+
+.content-split__body {
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.content-split__bullets {
+  display: grid;
+  gap: 0.75rem;
+  color: var(--color-primary-100);
+}
+
+.content-split__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.content-split__stat {
+  padding: 1.25rem;
+  border-radius: 1rem;
+  background-color: var(--color-primary-800);
+}
+
+.content-split__stat-value {
+  font-size: 1.75rem;
+  line-height: 1.1;
+  font-weight: 800;
+  color: var(--color-accent-500);
+}
+
+.content-split__stat-label {
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--color-primary-200);
+}
+
+.text-block {
+  display: grid;
+  gap: 1.25rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-900);
+  color: var(--color-primary-50);
+}
+
+@media (min-width: 1024px) {
+  .text-block {
+    padding: 4rem 4rem;
+  }
+}
+
+/* The old `highlight-box` look, drawn by a sheet instead of by a branch: a rule down the left of the
+   heading rather than a box around everything. */
+.text-block__headline {
+  padding-left: 1rem;
+  border-left: 4px solid var(--color-accent-500);
+  font-size: 2rem;
+  line-height: 1.15;
+  font-weight: 800;
+  color: var(--color-primary-50);
+}
+
+.text-block__body {
+  max-width: 38rem;
+  font-size: 1.0625rem;
+  line-height: 1.75;
+  color: var(--color-primary-100);
+}
+
+.text-block__attribution {
+  font-size: 0.9375rem;
+  font-style: italic;
+  color: var(--color-accent-500);
+}
+
+.text-block__list {
+  display: grid;
+  gap: 0.75rem;
+  color: var(--color-primary-100);
+}
+
+@media (min-width: 1024px) {
+  .text-block__list {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem 2rem;
+  }
+}
+
+.divider {
+  display: grid;
+  gap: 0.5rem;
+  padding: 2rem 1.5rem;
+  background-color: var(--color-primary-900);
+}
+
+/* The old `gradient-bar` branch, as a rule instead of markup. */
+.divider__rule {
+  order: 2;
+  height: 0.25rem;
+  border-radius: 9999px;
+  background-image: linear-gradient(90deg, var(--color-primary-500), var(--color-accent-500));
+  opacity: 1;
+}
+
+.divider__label {
+  order: 1;
+  font-size: 0.8125rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--color-primary-200);
+}
+
+.social-proof {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-900);
+  color: var(--color-primary-50);
+}
+
+@media (min-width: 1024px) {
+  .social-proof {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1.5rem;
+    padding: 5rem 4rem;
+  }
+
+  .social-proof__headline,
+  .social-proof__quote {
+    grid-column: 1 / -1;
+  }
+}
+
+.social-proof__headline {
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 800;
+  color: var(--color-primary-50);
+}
+
+/* The five stars the old markup drew as inline SVG. Contract §2 gives `content` the empty string
+   only, so the glyph arrives as a background image — and `theme-css-lint.js` keeps `data:` URLs
+   legal on purpose (bytes in the sheet, not a request to a third party). */
+.social-proof__rating::before {
+  content: "";
+  display: block;
+  width: 7.5rem;
+  height: 1.25rem;
+  background-repeat: repeat-x;
+  background-size: 1.5rem 1.25rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23f59e0b'%3E%3Cpath d='M12 2l3 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.9 21l1.2-6.8-5-4.9 6.9-1z'/%3E%3C/svg%3E");
+}
+
+.social-proof__rating {
+  font-size: 3rem;
+  line-height: 1.05;
+  font-weight: 800;
+  color: var(--color-primary-50);
+}
+
+.social-proof__reviews {
+  font-size: 0.9375rem;
+  color: var(--color-primary-200);
+}
+
+.social-proof__platform {
+  display: grid;
+  gap: 0.25rem;
+  padding: 1.5rem;
+  border-radius: 1rem;
+  background-color: var(--color-primary-800);
+  font-size: 0.9375rem;
+  color: var(--color-primary-100);
+}
+
+.social-proof__badge {
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  background-color: var(--color-primary-800);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-primary-50);
+}
+
+.social-proof__quote {
+  max-width: 44rem;
+  padding: 1.5rem 0 0;
+  border-top: 1px solid var(--color-primary-700);
+  font-size: 1.375rem;
+  line-height: 1.6;
+  color: var(--color-primary-50);
+}
+
+.social-proof__quote-author {
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-accent-500);
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-900);
+  color: var(--color-primary-50);
+}
+
+/* Three across, with the heading and the subtitle spanning the row above them. The other two sheets
+   choose two and one; the markup is a flat list of cards either way. */
+@media (min-width: 1024px) {
+  .features-grid {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 2rem;
+    padding: 5rem 4rem;
+  }
+
+  .features-grid__headline,
+  .features-grid__sub {
+    grid-column: 1 / -1;
+  }
+}
+
+.features-grid__headline {
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 800;
+  color: var(--color-primary-50);
+}
+
+.features-grid__sub {
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.features-grid__item {
+  display: grid;
+  gap: 0.75rem;
+  padding: 2rem;
+  border-radius: 1rem;
+  background-color: var(--color-primary-800);
+}
+
+.features-grid__icon {
+  width: 2.75rem;
+  height: 2.75rem;
+  color: var(--color-accent-500);
+}
+
+.features-grid__title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--color-primary-50);
+}
+
+.features-grid__desc {
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.awards-certifications {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-800);
+  color: var(--color-primary-50);
+}
+
+@media (min-width: 1024px) {
+  .awards-certifications {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 2rem;
+    padding: 5rem 4rem;
+  }
+
+  .awards-certifications__headline,
+  .awards-certifications__sub {
+    grid-column: 1 / -1;
+  }
+}
+
+.awards-certifications__headline {
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 800;
+  color: var(--color-primary-50);
+}
+
+.awards-certifications__sub {
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.awards-certifications__item {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1.75rem;
+  border-radius: 1rem;
+  background-color: var(--color-primary-900);
+}
+
+/* The star each old branch drew as inline SVG, on the same footing as the rating's above. */
+.awards-certifications__item::before {
+  content: "";
+  display: block;
+  width: 1.75rem;
+  height: 1.75rem;
+  background-repeat: no-repeat;
+  background-size: contain;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23f59e0b'%3E%3Cpath d='M12 2l3 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.9 21l1.2-6.8-5-4.9 6.9-1z'/%3E%3C/svg%3E");
+}
+
+.awards-certifications__title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--color-primary-50);
+}
+
+.awards-certifications__year {
+  font-size: 0.8125rem;
+  letter-spacing: 0.08em;
+  color: var(--color-accent-500);
+}
+
+.awards-certifications__desc {
+  font-size: 0.9375rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.newsletter-signup {
+  display: grid;
+  gap: 1rem;
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: 3rem 1.5rem;
+  background-color: var(--color-primary-900);
+  color: var(--color-primary-50);
+  text-align: center;
+}
+
+.newsletter-signup__headline {
+  font-size: 1.75rem;
+  line-height: 1.15;
+  font-weight: 800;
+  color: var(--color-primary-50);
+}
+
+.newsletter-signup__desc {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--color-primary-100);
+}
+
+.newsletter-signup__form {
+  display: flex;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  border-radius: 1rem;
+  background-color: var(--color-primary-800);
+}

@@ -1,3 +1,4 @@
+import { getLabels } from '@/lib/component-labels';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig } from '@/lib/types/config';
 
@@ -9,182 +10,109 @@ interface SocialProofSectionProps {
     platforms?: { name: string; rating: string; reviews: string }[];
     badges?: string[];
     featuredQuote?: { text: string; author: string };
-    variant?: 'rating-bar' | 'badges' | 'review-platforms' | 'highlight';
   };
+  locale: string;
   /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
   block?: BlockConfig;
 }
 
-function StarIcon({ filled, className }: { filled: boolean; className?: string }) {
+// 🔴🔴 #1031 — ONE MARKUP, AND NOTHING ELSE. Phase 2's batch F, and the block whose four branches
+// disagreed most about WHAT THEY SHOW.
+//
+// Four looks went out (`badges`, `review-platforms`, `highlight` and the `rating-bar` fallback),
+// selected by `data.variant`. Measured before deleting them, per branch and per field — four
+// branches, four different field sets, which is the widest spread in this batch:
+//
+//     rating-bar          headline · overallRating · totalReviews
+//     badges              headline · badges
+//     review-platforms    headline · platforms
+//     highlight           headline · overallRating · featuredQuote
+//
+// So `block_layout` grows from one value to four: `default` (the rating on its own), plus
+// `with-platforms`, `with-badges`, `with-quote`. Nothing converts `variant` into `block_layout`
+// (`blocks.js:21-22`, spec D5).
+//
+// 🔴 BUT THE FOUR FIELD SETS ARE NOT DISJOINT IN REAL DATA, AND THAT CHANGES WHAT THIS BLOCK SHOWS
+// TODAY — the loudest consequence in this batch, so it is written here rather than left to be found.
+// On the six live sites all 12 instances carry `overallRating` AND `totalReviews`, 11 carry
+// `featuredQuote`, 10 carry `platforms`, 6 carry `badges` — while the variant they chose
+// (`review-platforms` 6, `highlight` 6) drew exactly one of those. A neutral markup renders what is
+// there, so most of these blocks will now show a quote AND the platforms AND the badges where they
+// used to show one. The content was always in the page JSON; the old branches were hiding it. If a
+// site wants less shown, the answer is to take it out of the page JSON — not to have the component
+// silently drop it.
+//
+// 🔴 THE INVENTED RATING DISTRIBUTION IS GONE, AND IT IS THE BIGGEST THING THIS FILE DELETES. The
+// old `rating-bar` branch printed a five-row bar chart from a CONSTANT — `{5: 85%, 4: 10%, 3: 3%,
+// 2: 1%, 1: 1%}`, hard-coded in the component, identical on every site that ever used it, with
+// `aria-valuenow` on each bar so assistive tech read the invented numbers out as fact. No site's
+// data ever reached it. Deleting it is not a migration decision; a stylesheet cannot and must not
+// bring it back.
+//
+// 🔴 THE FIVE STAR SVGs ARE GONE AND THE RATING IS TEXT. Contract §1 refuses tag selectors, so no
+// sheet can reach an inline `<svg>`; stars belong on a hook as
+// `.social-proof__rating::before { content: ""; background-image: url(data:image/svg+xml,…) }`,
+// which is legal (§2 admits `background*`, and `theme-css-lint.js` keeps `data:` URLs legal on
+// purpose) and is what the three sheets below do. The accessibility side gets better rather than
+// worse: the old markup put the score in an `aria-label` on a `role="img"` div because the stars
+// carried no text (#652 had to fight for that label), and now "4.8" and "out of 5" are ordinary
+// text that everything can read — screen readers, search engines and AI alike.
+//
+// 🔴 `/5` AND `reviews` COME FROM THE LOCALE TABLE, NOT FROM THE MARKUP. The old branches wrote
+// `{rating}/5 from {n} reviews` and `{n} reviews` in English regardless of the site's language.
+// `component-labels.ts` is where the template's own words live; this block now uses it like every
+// other block that has words of its own. Two keys were added there — `outOfFive` and `reviews` — in
+// all 14 locales rather than in `en` alone: that file's own note says per-key fallback makes the
+// English-first shortcut legal, and it is legal, but the fallback's failure is a Chinese page
+// quietly printing "reviews", which is the defect being removed here.
+//
+// 🔴 `variant` IS STILL WRITTEN AND NO LONGER READ (#1008 AC5) — see `AwardsCertificationsSection.tsx`.
+// Live: `review-platforms` 6 · `highlight` 6.
+//
+// 🔴 THE PARTS ARE FLAT, one level under the block, because CSS grid only places CHILDREN. Each
+// platform, each badge and the quote are siblings of the headline, so a sheet can put the score in
+// its own column, run the badges along one row, or stack everything — without the markup choosing.
+// A platform's own three pieces sit inside it and are laid out by the structure layer in
+// `globals.css` (contract §1 refuses tag selectors, so no sheet could reach them anyway).
+//
+// 🔴 THE THIRD HOOK IS NOT OPTIONAL — `blockAttrs('social-proof', block)` (#998's
+// `data-block-layout`, invisible to `tsc`; #1008 r1's bounce).
+export default function SocialProofSection({ data, locale, block }: SocialProofSectionProps) {
+  const labels = getLabels(locale);
+
   return (
-    <svg
-      className={className || 'h-6 w-6'}
-      fill={filled ? 'currentColor' : 'none'}
-      stroke="currentColor"
-      strokeWidth={filled ? 0 : 1.5}
-      viewBox="0 0 24 24"
-      aria-hidden="true"
+    <section
+      {...blockAttrs('social-proof', block)}
+      className="social-proof"
+      aria-labelledby="social-proof-heading"
     >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z"
-      />
-    </svg>
-  );
-}
-
-function StarRating({ rating, size }: { rating: number; size?: 'sm' | 'md' | 'lg' }) {
-  const sizeClass = size === 'lg' ? 'h-8 w-8' : size === 'sm' ? 'h-4 w-4' : 'h-6 w-6';
-  return (
-    // 🔴 #652 (#646 QA3's AX-tree scan) — role="img" is REQUIRED here, not cosmetic. The five stars are pure SVG
-    // with no text, so this aria-label is the ONLY place the rating exists for a screen reader. On a bare <div>
-    // (role=generic) a name is not just an ARIA violation — assistive tech is entitled to drop it, and then the
-    // rating is simply not announced. Giving the group role="img" makes it a single named graphic, which is the
-    // standard shape for a star rating and keeps "4.8 out of 5 stars" reachable.
-    //
-    // 📌 Contrast with the other two instances this ticket fixes (www's .mockup): there the label DUPLICATED
-    // content that is already readable, so removing it was right. The test is not "is a name allowed here" but
-    // "does this name carry information the content itself does not".
-    <div className="flex gap-1 text-accent-500" role="img" aria-label={`${rating} out of 5 stars`}>
-      {Array.from({ length: 5 }).map((_, i) => (
-        <StarIcon key={i} filled={i < Math.round(rating)} className={sizeClass} />
+      <h2 id="social-proof-heading" className="social-proof__headline">
+        {data.headline}
+      </h2>
+      {data.overallRating && (
+        <p className="social-proof__rating">
+          {data.overallRating} <span>{labels.outOfFive}</span>
+        </p>
+      )}
+      {data.totalReviews && (
+        <p className="social-proof__reviews">{data.totalReviews} {labels.reviews}</p>
+      )}
+      {data.platforms?.map((platform, index) => (
+        <div key={index} className="social-proof__platform">
+          <span>{platform.name}</span>
+          <span>{platform.rating} {labels.outOfFive}</span>
+          <span>{platform.reviews} {labels.reviews}</span>
+        </div>
       ))}
-    </div>
-  );
-}
-
-export default function SocialProofSection({ data, block }: SocialProofSectionProps) {
-  const variant = data.variant || 'rating-bar';
-  const ratingNum = parseFloat(data.overallRating) || 0;
-
-  if (variant === 'badges') {
-    return (
-      <section {...blockAttrs('social-proof', block)} className="section-padding" aria-labelledby="social-proof-heading">
-        <div className="container-width">
-          <div className="text-center">
-            <h2 id="social-proof-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
-              {data.headline}
-            </h2>
-          </div>
-          {data.badges && data.badges?.length > 0 && (
-            <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {data.badges?.map((badge, index) => (
-                <div key={index} className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-6">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary-50" aria-hidden="true">
-                    <svg className="h-6 w-6 text-primary-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-                    </svg>
-                  </div>
-                  <span className="font-semibold text-gray-900">{badge}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
-    );
-  }
-
-  if (variant === 'review-platforms') {
-    return (
-      <section {...blockAttrs('social-proof', block)} className="section-padding" aria-labelledby="social-proof-heading">
-        <div className="container-width">
-          <div className="text-center">
-            <h2 id="social-proof-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
-              {data.headline}
-            </h2>
-          </div>
-          {data.platforms && data.platforms?.length > 0 && (
-            <div className="mt-12 flex flex-wrap items-center justify-center gap-8 divide-x divide-gray-200">
-              {data.platforms?.map((platform, index) => (
-                <div key={index} className={`text-center ${index > 0 ? 'pl-8' : ''}`}>
-                  <p className="font-bold text-gray-900">{platform.name}</p>
-                  <div className="mt-2 flex justify-center">
-                    <StarRating rating={parseFloat(platform.rating) || 0} size="sm" />
-                  </div>
-                  <p className="mt-1 text-sm text-gray-500">{platform.reviews} reviews</p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
-    );
-  }
-
-  if (variant === 'highlight') {
-    return (
-      <section {...blockAttrs('social-proof', block)} className="bg-primary-900 section-padding" aria-labelledby="social-proof-heading">
-        <div className="container-width">
-          <div className="mx-auto max-w-3xl text-center">
-            <div className="flex justify-center">
-              <StarRating rating={ratingNum} size="lg" />
-            </div>
-            <p className="mt-4 text-5xl font-extrabold text-white">{data.overallRating}<span className="text-2xl font-normal text-primary-300">/5</span></p>
-            <h2 id="social-proof-heading" className="mt-2 text-lg font-medium text-primary-300">
-              {data.headline}
-            </h2>
-            {data.featuredQuote && (
-              <div className="mt-10">
-                <span className="text-6xl font-serif text-primary-700" aria-hidden="true">&ldquo;</span>
-                <blockquote className="mt-2 text-xl leading-relaxed text-white">
-                  {data.featuredQuote?.text}
-                </blockquote>
-                <p className="mt-6 text-sm font-medium text-primary-300">
-                  &mdash; {data.featuredQuote?.author}
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  // Default: rating-bar
-  const ratingDistribution = [
-    { stars: 5, percent: 85 },
-    { stars: 4, percent: 10 },
-    { stars: 3, percent: 3 },
-    { stars: 2, percent: 1 },
-    { stars: 1, percent: 1 },
-  ];
-
-  return (
-    <section {...blockAttrs('social-proof', block)} className="section-padding" aria-labelledby="social-proof-heading">
-      <div className="container-width">
-        <div className="mx-auto max-w-2xl text-center">
-          <h2 id="social-proof-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
-            {data.headline}
-          </h2>
-          <div className="mt-8 flex justify-center">
-            <StarRating rating={ratingNum} size="lg" />
-          </div>
-          <p className="mt-4 text-2xl font-bold text-gray-900">
-            {data.overallRating}/5 from {data.totalReviews} reviews
-          </p>
-          <div className="mt-10 space-y-3">
-            {ratingDistribution.map((row) => (
-              <div key={row.stars} className="flex items-center gap-3">
-                <span className="w-12 text-right text-sm font-medium text-gray-600">{row.stars} star</span>
-                <div className="flex-1 overflow-hidden rounded-full bg-gray-200">
-                  <div
-                    className="h-3 rounded-full bg-accent-500 transition-all"
-                    style={{ width: `${row.percent}%` }}
-                    role="progressbar"
-                    aria-valuenow={row.percent}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-label={`${row.stars} star: ${row.percent}%`}
-                  />
-                </div>
-                <span className="w-10 text-sm text-gray-500">{row.percent}%</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      {data.badges?.map((badge, index) => (
+        <p key={index} className="social-proof__badge">{badge}</p>
+      ))}
+      {data.featuredQuote && (
+        <blockquote className="social-proof__quote">
+          <p>{data.featuredQuote.text}</p>
+          <footer className="social-proof__quote-author">{data.featuredQuote.author}</footer>
+        </blockquote>
+      )}
     </section>
   );
 }

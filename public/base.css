@@ -677,3 +677,211 @@
   display: grid;
   gap: 0.375rem;
 }
+
+/* ── #1031 batch F: content-split · text-block · divider · social-proof · features-grid ·
+      awards-certifications · newsletter-signup ───────────────────────────────────────────────────
+   Same test as every block above — "would every sheet want to state this itself?" — checked against
+   all three phase-1 sheets after their batch-F rules were written:
+
+     the seven block hooks    display / gap / padding      all three set them → base leaks nothing
+     every __headline         font-size / line-height      all three set them
+     every __body / __desc /
+       __sub                  font-size / line-height      all three set them
+     .features-grid__item,
+       .awards-…__item        padding / border-radius      all three set them
+     .divider__rule           height / background          all three set them
+
+   🔴 `min-width: 0` ON EVERY PART THAT IS A GRID OR FLEX ITEM, the same rule and the same measured
+   reason the earlier blocks have it: a grid item's automatic minimum size is its CONTENT's size, so
+   one long word pushes the track wider than the screen and the block's `overflow: hidden`
+   (globals.css) then CLIPS it — while the page-level "no horizontal scroll" reading says everything
+   is fine. `overflow-wrap: break-word` alone does not prevent it. Taken per block on a 375px
+   viewport, which is the only width where it is visible at all (#1008: without base the font size
+   drops to 16px and the long word fits, so a 1280px reading says the protection is there when it
+   is not).
+
+   🔴 THE LIST ITEMS AND THE NEWSLETTER'S CONTROLS ARE NOT HERE. `li`, `input` and `button` cannot be
+   selected by any theme (contract §1 refuses tag selectors), so they are not a floor a sheet might
+   want to raise — they are unreachable, and globals.css lays them out. One owner per property.  */
+
+.content-split,
+.text-block,
+.divider,
+.social-proof,
+.features-grid,
+.awards-certifications,
+.newsletter-signup {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .content-split,
+  .text-block,
+  .social-proof,
+  .features-grid,
+  .awards-certifications,
+  .newsletter-signup {
+    padding: 4rem 2rem;
+  }
+}
+
+/* The divider is a rule between two blocks, not a block with content in it — a 3rem floor above and
+   below would make every site's page twice as long. It is the one block in this batch whose padding
+   base states differently from the six. */
+.divider {
+  padding: 1.5rem 1.5rem;
+}
+
+.content-split__media,
+.content-split__headline,
+.content-split__body,
+.content-split__bullets,
+.content-split__stats,
+.content-split__stat,
+.content-split__stat-value,
+.content-split__stat-label,
+.text-block__headline,
+.text-block__body,
+.text-block__attribution,
+.text-block__list,
+.divider__rule,
+.divider__label,
+.social-proof__headline,
+.social-proof__rating,
+.social-proof__reviews,
+.social-proof__platform,
+.social-proof__badge,
+.social-proof__quote,
+.social-proof__quote-author,
+.features-grid__headline,
+.features-grid__sub,
+.features-grid__item,
+.features-grid__title,
+.features-grid__desc,
+.awards-certifications__headline,
+.awards-certifications__sub,
+.awards-certifications__item,
+.awards-certifications__title,
+.awards-certifications__year,
+.awards-certifications__desc,
+.newsletter-signup__headline,
+.newsletter-signup__desc,
+.newsletter-signup__form {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+/* ── headings: the readable floor ─────────────────────────────────────────────────────────────── */
+.content-split__headline,
+.text-block__headline,
+.social-proof__headline,
+.features-grid__headline,
+.awards-certifications__headline,
+.newsletter-signup__headline {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.features-grid__title,
+.awards-certifications__title {
+  font-size: 1.25rem;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+/* ── body copy: roughly 70 characters, the same reading measure every migrated block gets ─────── */
+.content-split__body,
+.text-block__body,
+.features-grid__sub,
+.awards-certifications__sub,
+.newsletter-signup__desc {
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+}
+
+.features-grid__desc,
+.awards-certifications__desc,
+.social-proof__reviews,
+.awards-certifications__year {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+/* The score and the quote are the two things this block exists to show, so without a sheet they are
+   still the two biggest things in it. */
+.social-proof__rating {
+  font-size: 2.5rem;
+  line-height: 1.1;
+  font-weight: 700;
+}
+
+.social-proof__quote,
+.text-block__attribution {
+  font-size: 1.125rem;
+  line-height: 1.6;
+}
+
+/* ── the repeated units ───────────────────────────────────────────────────────────────────────── */
+.features-grid__item,
+.awards-certifications__item,
+.social-proof__platform,
+.social-proof__badge,
+.content-split__stat {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1.5rem;
+  border-width: 1px;
+  border-style: solid;
+  border-color: currentColor;
+  border-radius: 0.75rem;
+}
+
+.content-split__stat-value {
+  font-size: 1.5rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.content-split__stats,
+.content-split__bullets,
+.text-block__list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.features-grid__icon {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+/* Without a sheet the media box would be a zero-height nothing when the page JSON has no picture,
+   and the block would read as a gap. An aspect ratio gives it a shape either way; every sheet sets
+   its own, so this reaches no themed page. */
+.content-split__media {
+  aspect-ratio: 16 / 10;
+  border-radius: 0.75rem;
+}
+
+/* The divider's whole job. Without a sheet it is a hairline; sheets paint bars, waves and dots on
+   the same hook. */
+.divider__rule {
+  display: block;
+  height: 1px;
+  background-color: currentColor;
+  opacity: 0.25;
+}
+
+.divider__label {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.newsletter-signup__form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}

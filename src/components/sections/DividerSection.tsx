@@ -4,64 +4,43 @@ import type { BlockConfig } from '@/lib/types/config';
 interface DividerSectionProps {
   data: {
     label?: string;
-    variant?: 'line' | 'wave' | 'gradient-bar' | 'icon';
   };
   /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
   block?: BlockConfig;
 }
 
+// 🔴🔴 #1031 — ONE MARKUP, AND NOTHING ELSE. Phase 2's batch F, the cheapest of its seven.
+//
+// Four branches went out of here (`wave`, `gradient-bar`, `icon` and the `line` fallback), selected
+// by `data.variant`. Measured before deleting them, the way #1018 / #1019 / #1027 measured theirs:
+// every branch reads exactly one field, `data.label`, and three of the four do not even draw it. So
+// the difference between them was never content — it was a rule, a bar or a wave, i.e. a picture.
+// `block_layout` therefore keeps its single value and the picture moves to the sheets.
+//
+// 🔴 WHAT NO SHEET CAN REDRAW, SAID OUT LOUD RATHER THAN LEFT TO BE FOUND — nothing, on this block.
+// The old `wave` branch shipped an inline `<svg>` path, and that is the one case where "a sheet can
+// paint it" needed checking rather than assuming: contract §2 admits `background*`, and
+// `theme-css-lint.js` refuses third-party URLs but keeps `data:` legal on purpose ("bytes in the
+// sheet, not a request to a third party", the comment at its URL rule). A `background-image:
+// url(data:image/svg+xml,…)` on `.divider__rule` is the same wave. `hero-media-top.css` draws it
+// that way below, so this is a measured claim and not an argument.
+//
+// 🔴 THE INVENTED ENGLISH IS GONE, AND THAT IS A FIX RATHER THAN A LOSS. Two of the four branches
+// set `aria-label={data.label || 'Section divider'}` — a hard-coded English string on a block whose
+// own content is translated, so a Chinese site announced "Section divider" to a screen reader. 16 of
+// the 18 dividers on the six live sites carry no label at all, so that string is what almost every
+// divider announced today. `role="separator"` is a structural role and is perfectly legal without a
+// name; when there IS a label the visible text is the name, which is the ordinary way to give one.
+//
+// 🔴 THE THIRD HOOK IS NOT OPTIONAL — `blockAttrs('divider', block)`, never `blockAttrs('divider')`
+// (#998's `data-block-layout`, invisible to `tsc`; #1008 r1's bounce).
 export default function DividerSection({ data, block }: DividerSectionProps) {
-  const variant = data.variant || 'line';
-
-  if (variant === 'wave') {
-    return (
-      <div {...blockAttrs('divider', block)} className="w-full leading-none" aria-hidden="true">
-        <svg
-          className="block w-full"
-          viewBox="0 0 1440 60"
-          preserveAspectRatio="none"
-          xmlns="http://www.w3.org/2000/svg"
-          style={{ height: '60px' }}
-        >
-          <path
-            d="M0,30 C240,60 480,0 720,30 C960,60 1200,0 1440,30 L1440,60 L0,60 Z"
-            className="fill-primary-100"
-          />
-        </svg>
-      </div>
-    );
-  }
-
-  if (variant === 'gradient-bar') {
-    return (
-      <div {...blockAttrs('divider', block)} className="w-full" role="separator">
-        {data.label && (
-          <p className="mb-2 text-center text-sm text-gray-500">{data.label}</p>
-        )}
-        <div className="h-1 w-full bg-gradient-to-r from-primary-500 to-accent-500" aria-hidden="true" />
-      </div>
-    );
-  }
-
-  if (variant === 'icon') {
-    return (
-      <div {...blockAttrs('divider', block)} className="flex items-center py-8" role="separator" aria-label={data.label || 'Section divider'}>
-        <div className="flex-1 border-t border-gray-300" aria-hidden="true" />
-        <div className="mx-4 h-3 w-3 rounded-full bg-primary-500" aria-hidden="true" />
-        <div className="flex-1 border-t border-gray-300" aria-hidden="true" />
-      </div>
-    );
-  }
-
-  // Default: line
   return (
-    <div {...blockAttrs('divider', block)} className="relative py-8" role="separator" aria-label={data.label || 'Section divider'}>
-      <div className="border-t border-gray-300" aria-hidden="true" />
-      {data.label && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span className="bg-white px-4 text-sm text-gray-500">{data.label}</span>
-        </div>
-      )}
+    <div {...blockAttrs('divider', block)} className="divider" role="separator">
+      {/* Decorative and empty on purpose, exactly like `.hero__deco`: this is the hook a sheet paints
+          the rule / bar / wave onto. Anything a reader needs to KNOW goes in the label below. */}
+      <span className="divider__rule" aria-hidden="true" />
+      {data.label ? <span className="divider__label">{data.label}</span> : null}
     </div>
   );
 }

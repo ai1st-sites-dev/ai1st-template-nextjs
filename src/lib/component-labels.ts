@@ -25,6 +25,8 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     backToBlog: 'Back to Blog',
     whatYouGet: 'What You Get',
     subscribe: 'Subscribe',
+    outOfFive: 'out of 5',
+    reviews: 'reviews',
   },
   zh: {
     keyFeatures: '主要特色',
@@ -44,6 +46,8 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     backToBlog: '返回博客',
     whatYouGet: '您将获得',
     subscribe: '订阅',
+    outOfFive: '/ 5 分',
+    reviews: '条评价',
   },
   fr: {
     keyFeatures: 'Caractéristiques',
@@ -63,6 +67,8 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     backToBlog: 'Retour au blog',
     whatYouGet: 'Ce que vous obtenez',
     subscribe: 'S\'abonner',
+    outOfFive: 'sur 5',
+    reviews: 'avis',
   },
   es: {
     keyFeatures: 'Características',
@@ -82,6 +88,8 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     backToBlog: 'Volver al blog',
     whatYouGet: 'Lo que obtiene',
     subscribe: 'Suscribirse',
+    outOfFive: 'de 5',
+    reviews: 'reseñas',
   },
   ja: {
     keyFeatures: '主な特徴',
@@ -101,6 +109,8 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     backToBlog: 'ブログに戻る',
     whatYouGet: '提供内容',
     subscribe: '登録する',
+    outOfFive: '/ 5',
+    reviews: '件のレビュー',
   },
   ko: {
     keyFeatures: '주요 기능',
@@ -120,6 +130,8 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     backToBlog: '블로그로 돌아가기',
     whatYouGet: '받으시는 것',
     subscribe: '구독하기',
+    outOfFive: '/ 5',
+    reviews: '개 리뷰',
   },
   de: {
     keyFeatures: 'Hauptmerkmale',
@@ -139,6 +151,8 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     backToBlog: 'Zurück zum Blog',
     whatYouGet: 'Was Sie erhalten',
     subscribe: 'Abonnieren',
+    outOfFive: 'von 5',
+    reviews: 'Bewertungen',
   },
   it: {
     keyFeatures: 'Caratteristiche',
@@ -158,6 +172,8 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     backToBlog: 'Torna al blog',
     whatYouGet: 'Cosa ottieni',
     subscribe: 'Iscriviti',
+    outOfFive: 'su 5',
+    reviews: 'recensioni',
   },
   pt: {
     keyFeatures: 'Características',
@@ -177,6 +193,8 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     backToBlog: 'Voltar ao blog',
     whatYouGet: 'O que você recebe',
     subscribe: 'Inscrever-se',
+    outOfFive: 'de 5',
+    reviews: 'avaliações',
   },
   ru: {
     keyFeatures: 'Ключевые особенности',
@@ -196,6 +214,8 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     backToBlog: 'Назад к блогу',
     whatYouGet: 'Что вы получаете',
     subscribe: 'Подписаться',
+    outOfFive: 'из 5',
+    reviews: 'отзывов',
   },
   vi: {
     keyFeatures: 'Tính năng chính',
@@ -215,6 +235,8 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     backToBlog: 'Quay lại Blog',
     whatYouGet: 'Bạn nhận được gì',
     subscribe: 'Đăng ký',
+    outOfFive: 'trên 5',
+    reviews: 'đánh giá',
   },
   ar: {
     keyFeatures: 'الميزات الرئيسية',
@@ -234,6 +256,8 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     backToBlog: 'العودة إلى المدونة',
     whatYouGet: 'ما ستحصل عليه',
     subscribe: 'اشترك',
+    outOfFive: 'من 5',
+    reviews: 'تقييمات',
   },
   hi: {
     keyFeatures: 'मुख्य विशेषताएं',
@@ -253,6 +277,8 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     backToBlog: 'ब्लॉग पर वापस जाएं',
     whatYouGet: 'आपको क्या मिलेगा',
     subscribe: 'सदस्यता लें',
+    outOfFive: 'में से 5',
+    reviews: 'समीक्षाएं',
   },
   th: {
     keyFeatures: 'คุณสมบัติหลัก',
@@ -272,6 +298,8 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     backToBlog: 'กลับไปที่บล็อก',
     whatYouGet: 'สิ่งที่คุณจะได้รับ',
     subscribe: 'สมัครสมาชิก',
+    outOfFive: 'จาก 5',
+    reviews: 'รีวิว',
   },
 };
 

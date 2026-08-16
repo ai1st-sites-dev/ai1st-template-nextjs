@@ -57,7 +57,11 @@
 //   isContainingOverflow          allowed set    yes — `hidden`/`auto`/`scroll`; this is the one
 //                                                r9 got wrong (it matched the word `visible`) and
 //                                                QA2 walked five other spellings through it
-//   PART_HOOKS                    exemption list yes, in the SAFE direction — the list says which
+//   PART_HOOKS                    exemption list 🔴 #1031: DERIVED from `HOOKS` (a class hook with
+//                                                `__` in its name), no longer hand-written, and the
+//                                                "safe direction" claim below is wrong — see the
+//                                                note at its definition. Kept verbatim otherwise:
+//                                 (old wording)  yes, in the SAFE direction — the list says which
 //                                                hooks are PARTS (exempt); a hook nobody has added
 //                                                to it is judged as a block, which is stricter.
 //                                                📌 A block whose parts arrive later (phase 2 adds
@@ -175,6 +179,35 @@ const HOOKS = new Set([
   '.blog-preview', '.blog-preview__headline', '.blog-preview__sub', '.blog-preview__post',
   '.blog-preview__category', '.blog-preview__date', '.blog-preview__title', '.blog-preview__excerpt',
   '[data-block="blog-preview"]',
+  // #1031 — batch F, seven blocks whose branches were only ever a look or a content shape (no
+  // interaction: not one of them is a `'use client'` component). Three of them grew their
+  // `block_layout` list at the same time, because their branches really did carry different
+  // content: text-block (default / quote / with-list), content-split (with-media / text-only /
+  // with-stats / with-bullets) and social-proof (default / with-platforms / with-badges /
+  // with-quote). The other four keep one value.
+  '.content-split', '.content-split__media', '.content-split__headline', '.content-split__body',
+  '.content-split__bullets', '.content-split__stats', '.content-split__stat',
+  '.content-split__stat-value', '.content-split__stat-label',
+  '[data-block="content-split"]',
+  '.text-block', '.text-block__headline', '.text-block__body', '.text-block__attribution',
+  '.text-block__list',
+  '[data-block="text-block"]',
+  '.divider', '.divider__rule', '.divider__label',
+  '[data-block="divider"]',
+  '.social-proof', '.social-proof__headline', '.social-proof__rating', '.social-proof__reviews',
+  '.social-proof__platform', '.social-proof__badge', '.social-proof__quote',
+  '.social-proof__quote-author',
+  '[data-block="social-proof"]',
+  '.features-grid', '.features-grid__headline', '.features-grid__sub', '.features-grid__item',
+  '.features-grid__icon', '.features-grid__title', '.features-grid__desc',
+  '[data-block="features-grid"]',
+  '.awards-certifications', '.awards-certifications__headline', '.awards-certifications__sub',
+  '.awards-certifications__item', '.awards-certifications__title',
+  '.awards-certifications__year', '.awards-certifications__desc',
+  '[data-block="awards-certifications"]',
+  '.newsletter-signup', '.newsletter-signup__headline', '.newsletter-signup__desc',
+  '.newsletter-signup__form',
+  '[data-block="newsletter-signup"]',
   '[data-role="essential"]', '[data-role="lead"]', '[data-role="optional"]',
   'body', '[data-region-layout]',
 ]);
@@ -195,6 +228,9 @@ const HOOKS = new Set([
 //         service-related-pages parts + their six [data-block="…"]
 //   #1028 contact-info / stats-counter / process-steps / timeline parts + their four
 //         [data-block="…"]  (batch C)
+//   #1031 content-split / text-block / divider / social-proof / features-grid /
+//         awards-certifications / newsletter-signup parts + their seven [data-block="…"]
+//         (batch F, seven blocks at once)
 //
 // A BREAKING change (renaming a hook, removing one, changing what one means) still MUST bump: that
 // is the case where an old sheet keeps loading and quietly points at nothing, which is the reason
@@ -726,66 +762,41 @@ const onlyAddsToLayout = (prop) => ADDS_ONLY_PROPS.has(prop)
 // exempt the one selector all three narrow-peak attacks above used. `.hero` is a class on the block
 // element itself. The same goes for `.cta-banner`.
 //
-// 🔴 EVERY PHASE-2 TICKET ADDS ITS BLOCK'S PARTS HERE, and the note at the top of this file (the
-// "PART_HOOKS · exemption list" row) says why the list is written out by hand rather than derived
-// from `__` in the name: leaving a part off is the SAFE direction — it gets judged as a block, which
-// is stricter — so nothing goes red when a ticket forgets, and the cost lands on the theme instead.
-// #1018 is the first ticket to pay it: without the three names below, the SAME declaration passes on
-// a hero part and is refused on a cta-banner part (`.hero__sub { margin-top: -8px }` rc=0 vs
-// `.cta-banner__headline { margin-top: -8px }` rc=1), while §2 of the contract says in as many words
-// that the parts inside a block keep their negative margins — the refusal message contradicts itself.
-// Measured after adding them: those two cells turn legal and fifteen reverse ones do not move — a
-// block or a region carrying the same thing, reached by class, by `[data-block=…]`, through a
-// pseudo-element, from a selector list, behind an escape, sizing itself off the window, and a part
-// name nobody put on this list.
-const PART_HOOKS = new Set(['.hero__media', '.hero__body', '.hero__title', '.hero__sub', '.hero__cta',
-  '.hero__deco',
-  '.cta-banner__headline', '.cta-banner__desc', '.cta-banner__action',
-  // #1019 — page-header's three parts. `.page-header` itself is NOT here, for the same reason
-  // `.hero` and `.cta-banner` are not: it is the class on the block element.
-  '.page-header__crumbs', '.page-header__title', '.page-header__sub',
-  // #1027 — batch B's parts. The six BLOCK classes (`.contact-form`, `.quote-form`,
-  // `.services-list`, `.values-grid`, `.services-nav`, `.service-related-pages`) are deliberately
-  // NOT here, for the same reason `.hero` and `.cta-banner` are not: they are the class on the block
-  // element, and exempting them would hand the three narrow-peak attacks above the one selector they
-  // all used. 🔴 The note above this list says leaving a part OFF is the safe direction and nothing
-  // goes red for it — so this is the edit that has no test of its own, and the one to check by hand:
-  // the count below has to equal the number of `__`-suffixed names this ticket added to `HOOKS`.
-  '.contact-form__heading', '.contact-form__intro', '.contact-form__form', '.contact-form__error',
-  '.contact-form__note', '.contact-form__success',
-  '.quote-form__form', '.quote-form__intro', '.quote-form__main', '.quote-form__aside',
-  '.quote-form__step', '.quote-form__error', '.quote-form__action', '.quote-form__success',
-  '.services-list__item', '.services-list__icon', '.services-list__title', '.services-list__desc',
-  '.services-list__actions', '.services-list__features', '.services-list__products',
-  '.values-grid__headline', '.values-grid__item', '.values-grid__title', '.values-grid__desc',
-  '.services-nav__link',
-  '.service-related-pages__headline', '.service-related-pages__sub',
-  '.service-related-pages__card',
-  // #1028 — batch C's parts, 22 of them. The four BLOCK classes (`.contact-info`, `.stats-counter`,
-  // `.process-steps`, `.timeline`) are deliberately NOT here, for the same reason `.hero` and
-  // `.cta-banner` are not. The count below has to equal the number of `__`-suffixed names this
-  // ticket added to `HOOKS`, and that is the check to do by hand: leaving a part off is the safe
-  // direction, so nothing goes red for it.
-  '.contact-info__headline', '.contact-info__location', '.contact-info__label',
-  '.contact-info__address', '.contact-info__phone', '.contact-info__email',
-  '.stats-counter__headline', '.stats-counter__stat', '.stats-counter__value',
-  '.stats-counter__label',
-  '.process-steps__headline', '.process-steps__sub', '.process-steps__step', '.process-steps__num',
-  '.process-steps__title', '.process-steps__desc',
-  '.timeline__headline', '.timeline__sub', '.timeline__event', '.timeline__year',
-  '.timeline__title', '.timeline__desc',
-  // #1029 — batch D's parts. The four BLOCK classes (`.benefits-list`, `.team-grid`, `.checklist`,
-  // `.blog-preview`) are deliberately NOT here, same reason as every batch before.
-  // 🔴 Counted by hand, because leaving a part off goes nowhere red (see the note above): this ticket
-  // added **21** `__`-suffixed names to `HOOKS`, and there are 21 below.
-  '.benefits-list__headline', '.benefits-list__sub', '.benefits-list__item',
-  '.benefits-list__title', '.benefits-list__desc',
-  '.team-grid__headline', '.team-grid__sub', '.team-grid__member', '.team-grid__name',
-  '.team-grid__role', '.team-grid__bio',
-  '.checklist__headline', '.checklist__sub', '.checklist__item',
-  '.blog-preview__headline', '.blog-preview__sub', '.blog-preview__post',
-  '.blog-preview__category', '.blog-preview__date', '.blog-preview__title',
-  '.blog-preview__excerpt']);
+// 🔴 DERIVED FROM `HOOKS`, NOT WRITTEN OUT BY HAND — #1031 changed this, and the reason is that the
+// old note (still quoted in the table at the top of this file) turned out to be wrong about which
+// direction the failure runs in. It said leaving a part off is SAFE because "nothing goes red when a
+// ticket forgets, and the cost lands on the theme instead". Measured on this batch: things DO go red,
+// and they go red in the theme sheet, one ticket away from the list that caused it —
+// `.content-split__media { width: 100% }` was refused with the §2 block-sizing message, five times
+// across two sheets, because the part was not on this list and was therefore judged as a block. That
+// is a message about a rule the author never broke. `CLAUDE.md`'s standing line covers the shape:
+// two copies of one judgement necessarily drift, and this pair had already drifted four times in
+// four tickets (#1018 paid it first, then #1019, #1027 and this one).
+//
+// The predicate is exactly what every ticket was applying by hand: a CLASS hook whose name has a
+// `__` in it is a part; everything else on the hook list — the block classes, `[data-block=…]`,
+// `[data-role=…]`, `body`, the region attribute — is not. Proven equal before the switch, by
+// evaluating BOTH constants out of `origin/main`'s own copy of this file and comparing the sets:
+// 41 names each, identical member for member. (Evaluated rather than grepped on purpose — a first
+// pass that pulled the names out with a regex read 38 on both sides, because the quoted words inside
+// the comments between the entries had eaten three of them. Two wrong numbers that agree still
+// agree.)
+//
+// 🔴 `.hero` IS STILL NOT A PART and neither is any other block class, which is the property the
+// hand-written list existed to guarantee and the one this must not lose: `.hero` has no `__`, so the
+// predicate refuses it — and exempting a block class is what would hand the three narrow-peak
+// attacks above the one selector they all used. #1018's original reading also still holds: with the
+// parts recognised, `.cta-banner__headline { margin-top: -8px }` passes exactly as
+// `.hero__sub { margin-top: -8px }` does, while the fifteen reverse cells (a block or a region
+// carrying the same thing, reached by class, by `[data-block=…]`, through a pseudo-element, from a
+// selector list, behind an escape, sizing itself off the window) do not move.
+const PART_HOOKS = new Set([...HOOKS].filter((h) => /^\.[\w-]*__[\w-]+$/.test(h)));
+// 🔴 #1028 那 22 个名字(批 C 的部件)和 #1029 那 21 个(批 D 的部件)都不在这里手写,它们由上面
+//    这一行从 HOOKS 派生出来。每次跟 main 合并都重新求值核一遍,#1031 r5 这次的读数:main 那份
+//    手写清单 84 条,拿这个谓词从 main 自己的 HOOKS 派生也是 84 条,逐条相同(手写有而派生没有的
+//    0 条,反之也是 0)。上一轮(r4,对手是 #1028)是 63 == 63,两个数不一样是因为中间落了 #1029。
+//    🔴 求值不是 grep —— 条目之间注释里带引号的词会被正则当成条目,那样两边都读成 38,
+//    而两个错数彼此还一致。
 
 // Does this rule style a block or a region (rather than a part inside one)? The subject of a complex
 // selector is its LAST compound — `.hero .hero__title` styles the title — and one selector in the list

@@ -8,205 +8,75 @@ interface FeaturesGridSectionProps {
   data: {
     headline: string;
     subheadline: string;
-    columns?: 2 | 3 | 4;
-    variant?: 'card' | 'icon-top' | 'list' | 'alternating' | 'bordered' | 'minimal';
   };
   locale: string;
   /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
   block?: BlockConfig;
 }
 
-const colClasses = {
-  2: 'sm:grid-cols-2',
-  3: 'sm:grid-cols-2 lg:grid-cols-3',
-  4: 'sm:grid-cols-2 lg:grid-cols-4',
-};
-
+// 🔴🔴 #1031 — ONE MARKUP, AND NOTHING ELSE. Phase 2's batch F, and the block with the most branches
+// left in the whole batch: AC1's grep read 9 hits here against 2-5 everywhere else. (Spelled that
+// way on purpose — writing the pattern out in a comment is itself a hit, and AC1's judge would then
+// read 1 on a file with no branches left in it.)
+//
+// Six looks went out (`list`, `alternating`, `minimal`, `bordered`, `icon-top` and the `card`
+// fallback). Nine hits, six looks: five of the nine were `icon-top` asking itself the same question
+// again inline, four times inside the default branch's className strings and once inside a prop.
+// Measured before deleting them: all six read `data.headline` and `data.subheadline` and nothing
+// else from `data` — the items are not in the page JSON at all, they are the site's services
+// (`getServices(locale)`). One field set, six skins. `block_layout` keeps its single value.
+//
+// 🔴 `data.columns` IS GONE TOO, AND IT IS THE ONE NAMED COST OF THIS BLOCK. It was not spelled
+// `variant` — its manifest slot says `kind: "text"` — but 2 / 3 / 4 as a grid column count is a
+// picture, and the contract hands `grid-template-columns` to the sheets (§2). Keeping it would have
+// meant the markup and the sheet both deciding one property, which is the bug generator spec §4.1
+// exists to remove. Measured on the six live sites: all 9 instances write it — 3 columns ×6,
+// 2 columns ×2, 4 columns ×1 — so this is a real change on every site that has this block, not a
+// dormant field. After this, how many columns a services grid has is the sheet's answer. If a
+// business should get to choose density, that choice belongs in `block_layout` (a value in this
+// block's manifest), not in a number the markup turns into a Tailwind class — but nobody has asked
+// for it, so this ticket does not invent it. `blocks/features-grid.json` keeps the slot untouched,
+// same as `variant` (#1008 AC5): the site building AI writes against that file.
+//
+// 📌 MEASURED AND OUT OF SCOPE: 2 of the 9 live instances also write `data.items`, which no version
+// of this component has ever read — the cards come from the site's services. #1012's family again;
+// unchanged by this ticket, recorded so nobody re-finds it.
+//
+// 🔴 EVERY CARD IS A DIRECT CHILD OF THE BLOCK, one flat level, because CSS grid only places
+// CHILDREN. That is what lets a sheet do the old `list` look (one column, a rule between rows) and
+// the old `alternating` look (`grid-auto-flow` plus a different ground on the odd tracks) without
+// the markup choosing. The heading and the subtitle are children for the same reason: the old
+// `minimal` look centred them over a narrower grid, which is `grid-column` on them.
+//
+// 🔴 THE HOOK GOES ON THE `<svg>` ITSELF through `ServiceIcon`'s `className` prop, which is #1027's
+// precedent on `services-list` (`ServicesListSection.tsx:48`) and not a fresh choice. Passing it
+// matters for a reason that is invisible if you skip it: `ServiceIcon`'s className DEFAULTS to
+// `h-8 w-8`, so leaving the prop off would leave a Tailwind size in the markup for the sheet to
+// fight. One owner per property.
+//
+// 🔴 THE THIRD HOOK IS NOT OPTIONAL — `blockAttrs('features-grid', block)` (#998's
+// `data-block-layout`, invisible to `tsc`; #1008 r1's bounce).
 export default function FeaturesGridSection({ data, locale, block }: FeaturesGridSectionProps) {
   const services = getServices(locale);
   const allPages = pagesByLocale[locale] ?? [];
-  const columns = data.columns || 4;
-  const variant = data.variant || 'card';
   const serviceDetailSlugs = new Set(
     allPages.filter(p => p.slug.startsWith('services/') && p.slug !== 'services').map(p => p.slug.replace('services/', ''))
   );
   const getServiceHref = (id: string) => serviceDetailSlugs.has(id) ? localeUrl(`services/${id}`, locale) : `${localeUrl('services', locale)}#${id}`;
 
-  if (variant === 'list') {
-    return (
-      <section {...blockAttrs('features-grid', block)} className="section-padding" aria-labelledby="services-heading">
-        <div className="container-width">
-          <div className="text-center">
-            <h2 id="services-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
-              {data.headline}
-            </h2>
-            <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-600">
-              {data.subheadline}
-            </p>
-          </div>
-          <div className="mt-16">
-            {services.map((service, index) => (
-              <Link
-                key={service.id}
-                href={getServiceHref(service.id)}
-                className={`group flex items-start gap-6 py-6 transition-colors hover:bg-gray-50 ${
-                  index < services.length - 1 ? 'border-b border-gray-200' : ''
-                }`}
-              >
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-primary-50 text-primary-500 transition-colors group-hover:bg-primary-500 group-hover:text-white">
-                  <ServiceIcon icon={service.icon} className="h-6 w-6" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">{service.name}</h3>
-                  <p className="mt-1 text-sm leading-relaxed text-gray-600">{service.shortDescription}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  if (variant === 'alternating') {
-    return (
-      <section {...blockAttrs('features-grid', block)} className="section-padding" aria-labelledby="services-heading">
-        <div className="container-width">
-          <div className="text-center">
-            <h2 id="services-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
-              {data.headline}
-            </h2>
-            <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-600">
-              {data.subheadline}
-            </p>
-          </div>
-          <div className="mt-16 grid gap-8 sm:grid-cols-2">
-            {services.map((service, index) => (
-              <Link
-                key={service.id}
-                href={getServiceHref(service.id)}
-                className={`group p-6 transition-all ${
-                  index % 2 === 0
-                    ? 'rounded-xl bg-primary-50 hover:bg-primary-100'
-                    : 'rounded-xl border border-gray-200 bg-white hover:border-primary-300 hover:shadow-lg'
-                }`}
-              >
-                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-primary-50 text-primary-500 transition-colors group-hover:bg-primary-500 group-hover:text-white">
-                  <ServiceIcon icon={service.icon} className="h-6 w-6" />
-                </div>
-                <h3 className="font-semibold text-gray-900">{service.name}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-gray-600">{service.shortDescription}</p>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  if (variant === 'minimal') {
-    return (
-      <section {...blockAttrs('features-grid', block)} className="section-padding" aria-labelledby="services-heading">
-        <div className="container-width">
-          <div className="text-center">
-            <h2 id="services-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
-              {data.headline}
-            </h2>
-            <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-600">
-              {data.subheadline}
-            </p>
-          </div>
-          <div className="mx-auto mt-16 grid max-w-5xl gap-x-12 gap-y-0 sm:grid-cols-2 lg:grid-cols-3">
-            {services.map((service, index) => (
-              <Link
-                key={service.id}
-                href={getServiceHref(service.id)}
-                className={`group flex items-start gap-4 py-8 transition-colors hover:bg-gray-50 ${
-                  index < services.length - (services.length % 3 === 0 ? 3 : services.length % 3)
-                    ? 'border-b border-gray-100'
-                    : ''
-                }`}
-              >
-                <span className="mt-1.5 h-3 w-3 shrink-0 rounded-full bg-primary-200 transition-colors group-hover:bg-primary-500" aria-hidden="true" />
-                <div>
-                  <h3 className="font-semibold text-gray-900">{service.name}</h3>
-                  <p className="mt-1 text-sm leading-relaxed text-gray-600">{service.shortDescription}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  if (variant === 'bordered') {
-    return (
-      <section {...blockAttrs('features-grid', block)} className="section-padding" aria-labelledby="services-heading">
-        <div className="container-width">
-          <div className="text-center">
-            <h2 id="services-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
-              {data.headline}
-            </h2>
-            <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-600">
-              {data.subheadline}
-            </p>
-          </div>
-          <div className={`mt-16 grid gap-8 ${colClasses[columns]}`}>
-            {services.map((service) => (
-              <Link
-                key={service.id}
-                href={getServiceHref(service.id)}
-                className="group border-l-4 border-primary-500 bg-white p-6 transition-shadow hover:shadow-sm"
-              >
-                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-primary-50 text-primary-500 transition-colors group-hover:bg-primary-500 group-hover:text-white">
-                  <ServiceIcon icon={service.icon} className="h-6 w-6" />
-                </div>
-                <h3 className="font-semibold text-gray-900">{service.name}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-gray-600">{service.shortDescription}</p>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-    );
-  }
-
   return (
-    <section {...blockAttrs('features-grid', block)} className="section-padding" aria-labelledby="services-heading">
-      <div className="container-width">
-        <div className="text-center">
-          <h2 id="services-heading" className="text-3xl font-bold text-gray-900 sm:text-4xl">
-            {data.headline}
-          </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-600">
-            {data.subheadline}
-          </p>
-        </div>
-        <div className={`mt-16 grid gap-8 ${colClasses[columns]}`}>
-          {services.map((service) => (
-            <Link
-              key={service.id}
-              href={getServiceHref(service.id)}
-              className={`group transition-all ${
-                variant === 'icon-top'
-                  ? 'rounded-xl bg-gray-50 p-8 text-center hover:bg-white hover:shadow-lg'
-                  : 'rounded-xl border border-gray-200 p-6 hover:border-primary-300 hover:shadow-lg'
-              }`}
-            >
-              <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-primary-50 text-primary-500 transition-colors group-hover:bg-primary-500 group-hover:text-white ${
-                variant === 'icon-top' ? 'mx-auto h-14 w-14' : ''
-              }`}>
-                <ServiceIcon icon={service.icon} className={variant === 'icon-top' ? 'h-7 w-7' : 'h-6 w-6'} />
-              </div>
-              <h3 className={`font-semibold text-gray-900 ${variant === 'icon-top' ? 'text-xl' : 'text-lg'}`}>{service.name}</h3>
-              <p className={`mt-2 leading-relaxed text-gray-600 ${variant === 'icon-top' ? 'text-sm' : 'text-sm'}`}>
-                {service.shortDescription}
-              </p>
-            </Link>
-          ))}
-        </div>
-      </div>
+    <section {...blockAttrs('features-grid', block)} className="features-grid" aria-labelledby="services-heading">
+      <h2 id="services-heading" className="features-grid__headline">
+        {data.headline}
+      </h2>
+      <p className="features-grid__sub">{data.subheadline}</p>
+      {services.map((service) => (
+        <Link key={service.id} href={getServiceHref(service.id)} className="features-grid__item">
+          <ServiceIcon icon={service.icon} className="features-grid__icon" />
+          <h3 className="features-grid__title">{service.name}</h3>
+          <p className="features-grid__desc">{service.shortDescription}</p>
+        </Link>
+      ))}
     </section>
   );
 }

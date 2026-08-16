@@ -1,4 +1,3 @@
-import { getLabels } from '@/lib/component-labels';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig } from '@/lib/types/config';
 
@@ -8,213 +7,106 @@ interface ContentSplitSectionProps {
     content: string;
     bullets?: string[];
     stats?: { value: string; label: string }[];
-    variant?: 'text-left' | 'text-right' | 'text-left-stats' | 'text-right-list' | 'centered-overlay' | 'cards-row';
     imageUrl?: string;
   };
-  locale: string;
   /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
   block?: BlockConfig;
 }
 
-export default function ContentSplitSection({ data, locale, block }: ContentSplitSectionProps) {
-  const variant = data.variant || 'text-left';
-  const labels = getLabels(locale);
-
-  if (variant === 'text-right') {
-    return (
-      <section {...blockAttrs('content-split', block)} className="section-padding" aria-labelledby="content-split-heading">
-        <div className="container-width">
-          <div className="grid items-center gap-12 lg:grid-cols-2">
-            <div className="lg:order-2">
-              <h2 id="content-split-heading" className="text-3xl font-bold text-gray-900">
-                {data.headline}
-              </h2>
-              <p className="mt-4 leading-relaxed text-gray-600">
-                {data.content}
-              </p>
-              <p className="mt-6">
-                <span className="inline-flex items-center gap-1 font-medium text-primary-600 hover:text-primary-700">
-                  {labels.learnMore}
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                  </svg>
-                </span>
-              </p>
-            </div>
-            <div className="lg:order-1">
-              {data.imageUrl ? (
-                <img src={data.imageUrl} alt={data.headline} className="h-80 w-full rounded-2xl object-cover" />
-              ) : (
-                <div className="h-80 rounded-2xl bg-gradient-to-br from-primary-100 to-accent-100" aria-hidden="true" />
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  if (variant === 'text-left-stats') {
-    return (
-      <section {...blockAttrs('content-split', block)} className="section-padding" aria-labelledby="content-split-heading">
-        <div className="container-width">
-          <div className="grid items-center gap-12 lg:grid-cols-2">
-            <div>
-              <h2 id="content-split-heading" className="text-3xl font-bold text-gray-900">
-                {data.headline}
-              </h2>
-              <p className="mt-4 leading-relaxed text-gray-600">
-                {data.content}
-              </p>
-            </div>
-            <div className="rounded-2xl bg-primary-50 p-8">
-              {data.stats && data.stats?.length > 0 && (
-                <div className="grid grid-cols-2 gap-6">
-                  {data.stats?.map((stat, index) => (
-                    <div key={index} className="text-center">
-                      <p className="text-2xl font-bold text-primary-600">{stat.value}</p>
-                      <p className="mt-1 text-sm text-gray-600">{stat.label}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  if (variant === 'text-right-list') {
-    return (
-      <section {...blockAttrs('content-split', block)} className="section-padding" aria-labelledby="content-split-heading">
-        <div className="container-width">
-          <div className="grid items-center gap-12 lg:grid-cols-2">
-            <div>
-              {data.imageUrl ? (
-                <img src={data.imageUrl} alt={data.headline} className="h-80 w-full rounded-2xl object-cover" />
-              ) : (
-                <div className="h-80 rounded-2xl bg-gradient-to-br from-primary-100 to-accent-100" aria-hidden="true" />
-              )}
-            </div>
-            <div>
-              <h2 id="content-split-heading" className="text-3xl font-bold text-gray-900">
-                {data.headline}
-              </h2>
-              <p className="mt-4 leading-relaxed text-gray-600">
-                {data.content}
-              </p>
-              {data.bullets && data.bullets?.length > 0 && (
-                <ul className="mt-6 space-y-3" role="list">
-                  {data.bullets?.map((bullet, index) => (
-                    <li key={index} className="flex items-start gap-3">
-                      <svg className="mt-0.5 h-5 w-5 shrink-0 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                      </svg>
-                      <span className="text-gray-700">{bullet}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  if (variant === 'cards-row') {
-    const cards = data.bullets && data.bullets?.length > 0 ? data.bullets?.slice(0, 3) : [];
-    return (
-      <section {...blockAttrs('content-split', block)} className="section-padding" aria-labelledby="content-split-heading">
-        <div className="container-width">
-          <div className="mx-auto max-w-3xl text-center">
-            <h2 id="content-split-heading" className="text-3xl font-bold text-gray-900">
-              {data.headline}
-            </h2>
-            <p className="mt-4 leading-relaxed text-gray-600">
-              {data.content}
-            </p>
-          </div>
-          {cards.length > 0 && (
-            <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {cards.map((card, index) => (
-                <div key={index} className="overflow-hidden rounded-xl border border-gray-200">
-                  <div className="h-2 bg-gradient-to-r from-primary-500 to-accent-500" aria-hidden="true" />
-                  <div className="p-6">
-                    <h3 className="font-semibold text-gray-900">{card}</h3>
-                    <p className="mt-2 text-sm leading-relaxed text-gray-600">
-                      Learn more about how this helps your business grow and succeed.
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
-    );
-  }
-
-  if (variant === 'centered-overlay') {
-    return (
-      <section {...blockAttrs('content-split', block)} className="bg-gradient-to-br from-primary-100 to-accent-50 section-padding" aria-labelledby="content-split-heading">
-        <div className="container-width flex justify-center">
-          <div className="max-w-3xl rounded-2xl bg-white/90 p-12 shadow-lg">
-            <h2 id="content-split-heading" className="text-center text-3xl font-bold text-gray-900">
-              {data.headline}
-            </h2>
-            <p className="mt-4 text-center leading-relaxed text-gray-600">
-              {data.content}
-            </p>
-            {data.bullets && data.bullets?.length > 0 && (
-              <ul className="mt-6 space-y-3" role="list">
-                {data.bullets?.map((bullet, index) => (
-                  <li key={index} className="flex items-start gap-3">
-                    <svg className="mt-0.5 h-5 w-5 shrink-0 text-green-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                    </svg>
-                    <span className="text-gray-700">{bullet}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  // Default: text-left
+// 🔴🔴 #1031 — ONE MARKUP, AND NOTHING ELSE. Phase 2's batch F, and the block with the widest reach
+// in it: 51 instances across the six live sites, 8.50 per site, more than any other block this
+// batch touches.
+//
+// Six looks went out (`text-right`, `text-left-stats`, `text-right-list`, `cards-row`,
+// `centered-overlay` and the `text-left` fallback), selected by `data.variant`. Measured before
+// deleting them, per branch and per field:
+//
+//     text-left / text-right      headline · content · imageUrl
+//     text-left-stats             headline · content · stats
+//     text-right-list             headline · content · imageUrl · bullets
+//     cards-row                   headline · content · bullets   (sliced to the first 3)
+//     centered-overlay            headline · content · bullets
+//
+// `text-left` and `text-right` are one content shape drawn two ways — the picture moves from one
+// side to the other, which is `order` on a grid child and is the whole point of the architecture
+// (it is literally the difference between the three phase-1 proof sheets). The other three carry
+// DIFFERENT THINGS: a picture, a set of statistics, a list of bullets. That is content structure, so
+// it goes to `block_layout` (spec §5.2). Its manifest already declared `with-media` and `text-only`
+// from #998; this ticket adds `with-stats` and `with-bullets` — the judgement table PM approved on
+// 2026-08-16 named three carriers, and `text-only` is the fourth case (no carrier at all), which was
+// already there. Nothing converts `variant` into `block_layout` and nothing should (`blocks.js:21-22`,
+// spec D5): they are two coexisting fields, and today no live page writes `block_layout` at all.
+//
+// 🔴 THE MARKUP RENDERS WHAT THE DATA HAS. `block_layout` is a hook for the sheet; the picture
+// appears when there is an `imageUrl`, the bullets when there are bullets, the statistics when there
+// are statistics. On the live corpus that is 44 of 51 with a picture, 27 with bullets, 11 with
+// statistics — several instances carry more than one, and used to show only the one their variant
+// happened to draw.
+//
+// 🔴 TWO THINGS THIS DELETES ON PURPOSE, both measured rather than argued:
+//
+//   ① The "Learn more →" line in `text-left` / `text-right`. It was a `<span>`, not a link — no
+//      `href`, nothing to click. Two of the six looks drew it and four did not, so a single markup
+//      has to choose, and shipping an inert call to action on all 51 instances is the worse half of
+//      that choice. `getLabels` is no longer imported here as a result; `locale` is no longer a prop.
+//   ② `cards-row`'s `.slice(0, 3)` and its hard-coded English filler ("Learn more about how this
+//      helps your business grow and succeed.") printed under every card. The cap is gone, so all
+//      the bullets render — more of the page's own content in the DOM, which is the direction this
+//      whole architecture is going (search engines and AI read what is in the DOM). The filler is
+//      gone because it was never the site's words. One live instance uses `cards-row`.
+//
+// 🔴 THE PLACEHOLDER GRADIENT IS GONE FROM THE MARKUP, WHICH IS NOT A LOSS. Every old branch drew a
+// `<div class="h-80 bg-gradient-to-br …">` when there was no picture. `.content-split__media` is
+// always in the tree now and a sheet paints its ground — that is `background*` on a hook, which is
+// contract §2's first line. Exactly hero's split (`.hero__media` always present, `<img>` only when
+// there is one), and for the same reason: the box is the sheet's, the picture is the content's.
+//
+// 🔴 `variant` IS STILL WRITTEN AND NO LONGER READ (#1008 AC5) — see the note in
+// `AwardsCertificationsSection.tsx`. Live values, in case a later ticket needs them:
+// `text-right-list` 13 · `text-left` 12 · `text-left-stats` 11 · `text-right` 9 ·
+// `centered-overlay` 5 · `cards-row` 1.
+//
+// 🔴 THE PARTS ARE FLAT, one level under the block, because CSS grid only places CHILDREN — the
+// media, the headline, the body, the bullet list and the statistics are all siblings. Wrapping text
+// in the usual container would let a sheet stack the two but never swap their order or change their
+// share of the row, which is the whole mechanism (the note on `HeroSection.tsx` says this at length).
+// The `<li>`s and the `<img>` are NOT hooks: contract §1 refuses tag selectors and `.hero__img` is
+// deliberately absent for the same reason — the structure layer in `globals.css` owns them, one
+// owner per property.
+//
+// 🔴 THE THIRD HOOK IS NOT OPTIONAL — `blockAttrs('content-split', block)` (#998's
+// `data-block-layout`, invisible to `tsc`; #1008 r1's bounce).
+export default function ContentSplitSection({ data, block }: ContentSplitSectionProps) {
   return (
-    <section {...blockAttrs('content-split', block)} className="section-padding" aria-labelledby="content-split-heading">
-      <div className="container-width">
-        <div className="grid items-center gap-12 lg:grid-cols-2">
-          <div>
-            <h2 id="content-split-heading" className="text-3xl font-bold text-gray-900">
-              {data.headline}
-            </h2>
-            <p className="mt-4 leading-relaxed text-gray-600">
-              {data.content}
-            </p>
-            <p className="mt-6">
-              <span className="inline-flex items-center gap-1 font-medium text-primary-600 hover:text-primary-700">
-                {labels.learnMore}
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
-                </svg>
-              </span>
-            </p>
-          </div>
-          <div>
-            {data.imageUrl ? (
-              <img src={data.imageUrl} alt={data.headline} className="h-80 w-full rounded-2xl object-cover" />
-            ) : (
-              <div className="h-80 rounded-2xl bg-gradient-to-br from-primary-100 to-accent-100" aria-hidden="true" />
-            )}
-          </div>
-        </div>
+    <section
+      {...blockAttrs('content-split', block)}
+      className="content-split"
+      aria-labelledby="content-split-heading"
+    >
+      <div className="content-split__media">
+        {data.imageUrl ? <img src={data.imageUrl} alt={data.headline} /> : null}
       </div>
+      <h2 id="content-split-heading" className="content-split__headline">
+        {data.headline}
+      </h2>
+      <p className="content-split__body">{data.content}</p>
+      {data.bullets && data.bullets.length > 0 && (
+        <ul className="content-split__bullets">
+          {data.bullets.map((bullet, index) => (
+            <li key={index}>{bullet}</li>
+          ))}
+        </ul>
+      )}
+      {data.stats && data.stats.length > 0 && (
+        <div className="content-split__stats">
+          {data.stats.map((stat, index) => (
+            <div key={index} className="content-split__stat">
+              <span className="content-split__stat-value">{stat.value}</span>
+              <span className="content-split__stat-label">{stat.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
