@@ -631,6 +631,106 @@ function judgeEssentialText(reading, where) {
 //
 // 🔴 IT RUNS ONLY ON RUNS ②d PASSED. A run ②d already reported is somewhere unreachable, and asking
 // a camera about it would either report it twice or fail to photograph it at all.
+//
+// ══ #1050: "SOME PIXELS CHANGED" IS NOT THE SAME ANSWER AS "A PERSON CAN READ IT" ════════════════
+// `painted === 0` alone was the whole judgement until #1050, and it leaves a band this wide open.
+// Measured on the sample site (/allblocks.html, ocean-blue + hero-media-left, 1440×900), one rule
+// added to the sheet and nothing else touched — the phone number in the `essential` contact-info
+// block, one line of 16px text, 2816px² of visible rectangle:
+//
+//     rule on .contact-info__phone    ②e before #1050   ink vs ground   pixels painted
+//     ── none (the sheet as shipped)         pass           6.19:1        1097/2816
+//        filter: blur(2px)                   pass           2.81:1        2141/2816
+//        filter: blur(4px)                   pass           2.18:1        2684/2816
+//        filter: blur(8px)                   pass           1.68:1        2816/2816
+//        filter: blur(12px)                  pass           1.31:1        2815/2816
+//        filter: blur(20px)                  pass           1.16:1        2619/2816
+//        filter: blur(30px)                  pass           1.10:1        1039/2816
+//        filter: blur(50px)                  FAIL             —              0/2816
+//
+// The last row is the only one the old judgement caught, and it is caught for an accidental reason:
+// 50px happens to spread the ink until literally nothing is left. Photographed, everything from
+// blur(4px) down is a shapeless smudge on the blue — not one digit of a phone number a customer is
+// meant to dial — and all of it was a pass.
+//
+// 🔴 THE COUNT OF PAINTED PIXELS CANNOT BE THE THRESHOLD, and that last column is why. It goes UP as
+// the text gets less readable: the untouched sheet paints 1097 of 2816, and blur(8px) — which no one
+// can read — paints ALL 2816. Blurring does not remove ink, it spreads it. So every "at least N
+// pixels" or "at least X% of the rectangle" rule ranks the unreadable row ABOVE the correct one, and
+// the more unreadable it gets the better it scores, until the ink finally runs out. The column that
+// falls all the way down is the contrast between the colour the ink came out and what is behind it.
+// That is the one judged.
+//
+// 🔴 AND IT IS NOT check ①'s 4.5:1. This reading is taken on ARBITRARY runs of body text, not on the
+// two big hero elements check ① was tuned for: a thin 16px stroke is mostly antialiased edge, which
+// pulls the measured ink toward the ground even on a page that reads perfectly. The lowest any
+// untouched sheet comes out, measured over all three of them:
+//
+//     the site CI builds (create-site skipAI, 5 pages)   8.84:1   contact-form__note
+//     the 8-page fixture this ticket used                5.00:1   btn-primary in services-list
+//
+// 4.5 would leave the fixture half a point of room, and the first sheet to dip under it turns CI red
+// on a page nobody can fault. A check that reddens correct pages is a check someone switches off.
+//
+// 🔴 WHY 2.5. It is half the LOWER of those two floors, and it lands in the gap the pictures show:
+// the digits survive blur(2px) (2.81) and are gone by blur(3px) (2.39) — so the number refuses the
+// first radius at which this phone number stops being a phone number, and still leaves 2× the room
+// under everything a real sheet does today. 🔴 The reach of those floors: two sample sites under
+// three sheets. Neither is a statement about customer sites, and no check runs there.
+// Corpus, arithmetic and how to re-take it: `docs/reference/theme-css-contract.md` §4.
+const MIN_ESSENTIAL_INK_CONTRAST = 2.5;
+
+// The colour a run of text came out, and the worst thing it sits on — check ①'s construction
+// (#992 r4) narrowed from "this element's box" to "these rectangles", because a run is some lines
+// inside a block's picture and the rest of that picture is other people's text.
+//
+// `rects` are in document coordinates and `origin` is the block picture's top-left, also in document
+// coordinates; both come from the caller, which already had to line the two up to count pixels.
+// Returns null when there is nothing to measure — the caller says so rather than calling it a pass.
+function inkContrast(img, bare, mask, rects, origin) {
+  const { width, height } = img.bitmap;
+  const inRects = new Uint8Array(width * height);
+  let area = 0;
+  for (const rect of rects) {
+    const x0 = Math.max(0, Math.floor(rect.x - origin.x));
+    const y0 = Math.max(0, Math.floor(rect.y - origin.y));
+    const x1 = Math.min(width, Math.ceil(rect.x + rect.w - origin.x));
+    const y1 = Math.min(height, Math.ceil(rect.y + rect.h - origin.y));
+    for (let y = y0; y < y1; y += 1) {
+      for (let x = x0; x < x1; x += 1) {
+        const i = y * width + x;
+        if (!inRects[i]) { inRects[i] = 1; area += 1; }
+      }
+    }
+  }
+  if (area === 0) return null;
+  const ink = new Uint8Array(width * height);
+  let painted = 0;
+  for (let i = 0; i < width * height; i += 1) {
+    if (inRects[i] && mask[i]) { ink[i] = 1; painted += 1; }
+  }
+  if (painted === 0) return { painted: 0, area, ratio: null, textRgb: null, groundRgb: null };
+  // Grounds come from the picture WITHOUT the words, so the text is never mistaken for its own
+  // background — check ①'s reason, unchanged. The 5% cut is against the rectangles' area rather
+  // than the block's: a colour covering 5% of one line is a ground, 5% of the whole block is not.
+  const grounds = coloursOf(bare, inRects).filter((c, i) => i === 0 || c.n / area >= 0.05);
+  // The stroke groups, then the one FURTHEST from the commonest ground: the middle of the letters.
+  // Antialiased edges are on their way to the background and judging by them fails pages that read
+  // perfectly. Under 2% of the ink is left out so one stray pixel cannot stand for the words.
+  const all = coloursOf(img, ink);
+  const strokes = all.filter((c) => c.n >= Math.max(4, painted * 0.02));
+  const textRgb = (strokes.length ? strokes : all)
+    .reduce((a, b) => (contrast(b.rgb, grounds[0].rgb) > contrast(a.rgb, grounds[0].rgb) ? b : a))
+    .rgb;
+  let ratio = Infinity;
+  let groundRgb = grounds[0].rgb;
+  for (const cand of grounds) {
+    const r = contrast(textRgb, cand.rgb);
+    if (r < ratio) { ratio = r; groundRgb = cand.rgb; }
+  }
+  return { painted, area, ratio, textRgb, groundRgb };
+}
+
 async function judgeEssentialPaint(reading, where) {
   const found = [];
   const blocks = await page.$$('[data-role="essential"]');
@@ -707,23 +807,40 @@ async function judgeEssentialPaint(reading, where) {
     }
     const { mask } = wordPixels(img, bare);
     for (const r of candidates) {
-      let painted = 0;
-      for (const rect of r.visRects) {
-        const x0 = Math.max(0, Math.floor(rect.x - box.x));
-        const y0 = Math.max(0, Math.floor(rect.y - box.y));
-        const x1 = Math.min(width, Math.ceil(rect.x + rect.w - box.x));
-        const y1 = Math.min(height, Math.ceil(rect.y + rect.h - box.y));
-        for (let y = y0; y < y1; y += 1) {
-          for (let x = x0; x < x1; x += 1) if (mask[y * width + x]) painted += 1;
-        }
+      const ink = inkContrast(img, bare, mask, r.visRects, box);
+      if (!ink) {
+        // No rectangle left to look at once it was mapped onto the picture. Not a pass: ②d said
+        // this run was reachable, so the two disagree and that is worth a line rather than silence.
+        found.push(`visibility${where}: the text in "${r.where}" inside the essential block "${r.block}" `
+          + `("${r.text}") has ${r.visArea}px² of reachable text by check ②d, but none of it lands inside `
+          + 'the picture of its own block — check ②e was not measured on it, which is not the same as '
+          + 'passing.');
+        continue;
       }
-      if (painted === 0) {
+      // #1050 — kept on the run so the reading line below can print the corpus. The day someone
+      // wants to move MIN_ESSENTIAL_INK_CONTRAST, every number that decides it is already on screen.
+      r.ink = ink;
+      if (ink.painted === 0) {
         found.push(`visibility${where}: the text in "${r.where}" inside the essential block "${r.block}" `
           + `("${r.text}") is laid out where a customer could see it — ${r.alive} of ${r.lines} line(s), `
           + `${r.visArea}px² — but not one pixel of it is painted: photographing the block with and `
           + 'without its own words changes 0 pixels inside that text. That is what opacity: 0.0001, '
           + `filter: opacity(0), clip-path: inset(100%) and color: transparent all look like. `
           + `Contract §3. ${NOT_EXEMPT}.`);
+        continue;
+      }
+      // #1050 — the ink IS on the screen; the question this half asks is whether any of it came out
+      // as letters. Said as "smeared / washed out" rather than "low contrast" because the cause is
+      // usually not a colour: the reading that made this check exist was `filter: blur(30px)`, whose
+      // declared `color` is untouched and perfectly legible.
+      if (ink.ratio < MIN_ESSENTIAL_INK_CONTRAST) {
+        found.push(`visibility${where}: the text in "${r.where}" inside the essential block "${r.block}" `
+          + `("${r.text}") is painted, but not as anything a customer could read: the ink came out `
+          + `rgb(${ink.textRgb}) against rgb(${ink.groundRgb}) behind it = ${ink.ratio.toFixed(2)}:1, `
+          + `under ${MIN_ESSENTIAL_INK_CONTRAST}:1 (${ink.painted} of ${ink.area}px² changed when its own `
+          + 'words were taken away). That is what filter: blur(20px), a colour that matches the '
+          + 'background, and a gradient painted over the words all look like — the words are still '
+          + `there, spread or washed out until no letter is left. Contract §3. ${NOT_EXEMPT}.`);
       }
     }
   }
@@ -742,7 +859,19 @@ function textReading(reading, where) {
     + ` · partly cut: ${partly.length}${partly.length ? ` (${partly.map((r) => `${r.where} ${r.alive}/${r.lines} lines`).join(', ')})` : ''}`
     + ` · nowhere reachable: ${runs.filter((r) => !r.exempt && r.alive === 0).length}`
     + ` · skipped because the markup says they are off: ${exempt.length}`
-    + `${exempt.length ? ` (${exempt.map((r) => `${r.where} — ${r.exempt}`).join('; ')})` : ''}`;
+    + `${exempt.length ? ` (${exempt.map((r) => `${r.where} — ${r.exempt}`).join('; ')})` : ''}`
+    // #1050 — the ink readings ②e took, as numbers. "Clean" with no number under it cannot be told
+    // from "nothing was photographed here", and the lowest one is what MIN_ESSENTIAL_INK_CONTRAST
+    // has to stay under: whoever tightens it needs to see how much room three shipped sheets leave.
+    + (() => {
+      const inks = runs.filter((r) => r.ink && r.ink.ratio !== null);
+      if (!inks.length) return ' · ink measured on: none of them';
+      const worst = inks.reduce((a, b) => (b.ink.ratio < a.ink.ratio ? b : a));
+      return ` · ink measured on ${inks.length} of them (how far what got painted is from what is behind`
+        + ` it, ${MIN_ESSENTIAL_INK_CONTRAST}:1 is the floor) · lowest "${worst.where}" in "${worst.block}"`
+        + ` ${worst.ink.ratio.toFixed(2)}:1 · all: `
+        + inks.map((r) => `${r.where} ${r.ink.ratio.toFixed(2)}`).join(', ');
+    })();
 }
 
 const ESSENTIAL_PROBE = () => ({
