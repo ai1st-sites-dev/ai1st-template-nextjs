@@ -1,3 +1,7 @@
+// #1046 条 20 —— `document` / `getComputedStyle` 出现在传给 page.evaluate 的函数体里，跑在浏览器
+// 里而不是这个 node 进程里。同 scripts/theme-gallery/shoot.mjs 的写法，用 eslint 的 global 声明
+// 告诉它们存在（本票把这个目录接进 `lint:scripts`，在那之前没有任何东西检查这几个文件）。
+/* global document, getComputedStyle */
 // AC3 —— 没有主题表时的四个读数，每条对应票正文那张表里的一行（含 owner）。
 // 桌面 1280 量前三条，手机 375 量第四条。
 //

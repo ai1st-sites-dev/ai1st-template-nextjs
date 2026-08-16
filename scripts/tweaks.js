@@ -26,8 +26,10 @@
  *
  * 📌 AC4 那一格（拿实证那几套主题在每个 tweak 的两端各建一次样例站、跑一遍不变量检查）仍然要跑，
  * 但它证明的是「这几套皮在两端没坏」，**不是**「整个区间都安全」—— 后者靠的是上面那条性质。
- * 🔴 也要知道那份检查量的是什么：`theme-css-invariants.mjs` 的 `TEXT_TARGETS` 只有
- * `.hero__title` / `.hero__sub` 两个选择器，**按钮不在里面**。QA1 抓到的正是这个盲区。
+ * 🔴 也要知道那份检查量的是什么：`theme-css-invariants.mjs` 量的是 `TEXT_TARGETS`
+ * （`.hero__title` / `.hero__sub`，首页必须有）加上 #1046 条 9 补的 `MOVED_TEXT_TARGETS`
+ * （cta-banner 和 page-header 的标题/副标题，在哪一页出现就在那一页量）。**按钮上的字仍然不在里面**
+ * —— 按钮只被量了触摸目标够不够大（`.hero__cta`），没被量对比度。QA1 抓到的正是这个盲区。
  *
  * 📌 `fontScale` 不在这里：全仓没有任何字号变量可以缩放（字号今天走 Tailwind 的 text-* 工具类），
  * 所以它阻塞在「没有字号 token」上，等排版 token 立项时另开票补（作者 2026-08-14 定，走 B）。

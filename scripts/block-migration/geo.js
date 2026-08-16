@@ -1,3 +1,7 @@
+// #1046 条 20 —— `document` / `getComputedStyle` 出现在传给 page.evaluate 的函数体里，跑在浏览器
+// 里而不是这个 node 进程里。同 scripts/theme-gallery/shoot.mjs 的写法，用 eslint 的 global 声明
+// 告诉它们存在（本票把这个目录接进 `lint:scripts`，在那之前没有任何东西检查这几个文件）。
+/* global document, getComputedStyle */
 // AC4 第二半 —— 三臂各取被搬那个 block 的两个部件的 getBoundingClientRect()。
 // 判决归几何读数（作者 04:17 改的）：截图"看着不同"会被站的配色影响，而 media 分居两侧 / 在上方
 // 是布局决定的，跟配色无关。

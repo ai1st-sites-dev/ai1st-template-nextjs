@@ -122,10 +122,17 @@ function installCandidate(candidate, siteDir) {
 // 🔴 #1015 打磨批次 #13（来源 #1004）—— 跑完要把样例站放回去，正常退出也一样
 // ══════════════════════════════════════════════════════════════════════════════════════════════════
 // installCandidate 会改样例站的三处：`brand.json`（颜色/字体/settings 被换成候选的）、`theme.json`
-// （指向候选那个 id）、`public/themes/<id>.css`（多出一份表）。跑完这三处原样留在树里，而候选**不在
-// 注册表里** ⟹ 同一棵树里下一次任何构建当场失败：
-//     theme.json names theme "gen-07-3", which is not in the registry
-// role-user 撞到的后果是三份已上线的表全部测不了（`theme-css-invariants-all-sheets.sh` → rc=2）。
+// （指向候选那个 id）、`public/themes/<id>.css`（多出一份表）。跑完这三处原样留在树里，就是污染。
+//
+// 🔴 #1046 条 12 —— 这里原来写的因果是假的，改掉：它说「候选不在注册表里 ⟹ 同一棵树里下一次任何
+//    构建当场失败：theme.json names theme "gen-07-3", which is not in the registry」。那句报文来自
+//    `sync-config.js` 的 `readAppliedThemeId`，而那个函数**第一件事就是 `if (meta.applied !== true)
+//    return null`** —— 上面 installCandidate 写进去的恒是 `applied: false`（就在它自己那条 🔴 注释
+//    里，为的是不让注册表盖掉候选的 tokens）。所以留在树里的 theme.json 走不到那句话，QA2 在污染态
+//    实测构建 rc=0。真正会失败的是**另一种**残留：表被删掉而 theme.json 留着，那时 `readThemeSheet`
+//    报的是「names public/themes/<id>.css, which is not there」，另一句话。
+//    已经真实发生过的后果只有一个，而它跟构建无关：role-user 撞到三份已上线的表全部测不了
+//    （`theme-css-invariants-all-sheets.sh` → rc=2）—— 那才是这段收工代码存在的理由。
 // 🔴 EXIT=0 的那条路也一样会留 —— "跑成功了"和"跑失败了"留下同样的污染，所以这不是错误处理，是收工。
 // 放在 finally 里：中途抛异常、闸红、Ctrl-C 之后的那次 catch，都要走这一步。
 const T1015_SHEETS = path.join(NEXT, 'public', 'themes');
@@ -275,7 +282,8 @@ async function main() {
   }
   if (t1015Restore && t1015Restore.bad.length) {
     console.log(`  🔴 这几处没能放回去：${t1015Restore.bad.join('、')}`);
-    console.log('     ⟹ 同一棵树里下一次构建会失败（theme.json 指着一个不在注册表里的 id）。先手工恢复再跑别的。');
+    console.log('     ⟹ 样例站还指着这一轮的候选，`theme-css-invariants-all-sheets.sh` 之类拿它当基准的'
+      + '检查会读到候选而不是已上线的表。先手工恢复再跑别的。');
     process.exit(2);
   }
   if (galleryDir) {

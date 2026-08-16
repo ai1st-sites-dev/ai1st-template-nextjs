@@ -36,14 +36,31 @@ if (!fs.existsSync(siteDir) || !fs.existsSync(path.join(siteDir, 'brand.json')))
 //
 // 🔴 WHY IN THIS FILE AND NOT IN npm's `prebuild` HOOK. `prebuild` is what a person runs
 // (`npm run build`); the product does not. Every build a real site gets is `npx next build`, which
-// does not fire npm's lifecycle hooks — worker/main.go:1447 says so in its own comment, and it is why
-// each of those call sites runs `node scripts/sync-config.js` itself:
+// does not fire npm's lifecycle hooks. The evidence is the call sites themselves: each of them spells
+// out `node scripts/sync-config.js` rather than relying on a hook to do it.
+//
+// 🔴 #1046 条 2 — THE CALL SITES ARE NAMED BY FUNCTION, NOT BY LINE NUMBER. The five line numbers
+// that stood here (`worker/main.go:1447/1457/1511/999/1264`) were ALL pointing at unrelated lines on
+// `origin/main` — `:1447` is `// asks for nothing at all.` today — and one of them carried a claim
+// that has no anchor left at all: it said main.go "says so in its own comment" about npm's hooks,
+// and `grep -n 'prebuild\|predev\|npm lifecycle\|lifecycle hook' worker/main.go` returns nothing.
+// Function names survive an edit above them; line numbers into another file do not.
+//     🔴 That grep is narrow on purpose (QA1 caught the first version of this very comment, #1046).
+//     Bare `lifecycle` returns two lines today (`:191` / `:318`) and both are about CONTAINER
+//     lifecycle — nothing to do with npm. A comment whose own evidence command does not return what
+//     the comment says it returns is the exact defect items 22/23/24 of this batch were opened for.
 //
 //     worker/entrypoint.sh, the `"$MODE" = "preview"` branch — sync-config, then `npx next build`
 //                                in the serve loop (see `start_preview_server()`)
 //     worker/entrypoint.sh, the create path — create-site.js → sync-config → same loop
-//     worker/main.go:1511        after an edit: `node scripts/sync-config.js && npx next build`
-//     worker/main.go:1457/999/1264   apply a theme / the other rebuild flows: sync-config, explicitly
+//     worker/main.go `processDeployTask`   the publish build:
+//                                `node scripts/sync-config.js && … npx next build --webpack`
+//     worker/main.go `processEditTask`     before an edit is applied: sync-config on its own
+//     worker/main.go `processRevertTask`   after a revert: sync-config on its own
+//     worker/main.go `processThemeTask`    apply a theme: sync-config with its own `|| exit 8`
+//     worker/main.go `undoThemeWrite`      putting a theme change back: sync-config again
+//                                (`applyThemeByRebuilding`, the older-website path, is NOT a call
+//                                 site of its own — processThemeTask has already run it by then)
 //
 // So this file is the one place every build of every site passes through — including the dev overlay
 // path, which is the exposure this ticket named first (new markup from the template landing on a site
@@ -438,7 +455,16 @@ for (const locale of locales) {
   // 🔴 #1033 起问的是「这一页读到的**所有**文件里最晚的那个」，不再只问页面自己那份 JSON：
   //    改 services.json 或站级块库，用到它们的那几页 HTML 真的变了 —— 之前一页都不报。
   //    算哪几份文件、以及为什么页脚那条路不算，整段写在 scripts/lib/page-deps.js 的文件头上。
+  // 🔴 #1046 条 1 —— 这张表的键必须覆盖 `resolveLatest` 会返回的**全部** source 值，而它有五个不是
+  //    三个：#1025 条 12 的上界（未来的日期压回构建时刻）会把 `git` / `mtime` 变成 `git-capped` /
+  //    `mtime-capped`（scripts/lib/page-lastmod.js 的 `capFuture`）。缺键时 `undefined + 1` 是 NaN，
+  //    写进一个没人读的新键 ⟹ **被压回的那些页从下面那行统计里整个消失**，而三个数照样打出来、看不出
+  //    少了人（实测：15 页的站、一页的 mtime 拨到 2030，那行打 0+14+0=14）。sitemap 的值本身一直是对的。
+  //    归并回原档而不是给表补两个键：被压回的页仍然是「从 git / 文件时间来的」，只是取值被上界改写了 ——
+  //    分成四档会让这行读数变成两个问题的答案。压回了几页单独说，因为那是「有页面的日期在未来」的
+  //    唯一信号，而它不会自愈（要等有人再编辑一次那个文件）。
   const lastModifiedTally = { git: 0, mtime: 0, build: 0 };
+  let lastModifiedCapped = 0;
   const sharedTally = { services: 0, siteBlocks: 0 };
   const pageDeps = createPageDeps({ localeDir, services: servicesReaders });
   for (const page of localePages) {
@@ -446,7 +472,9 @@ for (const locale of locales) {
     const dep = pageDeps.filesFor(page, source, (blocksReport.siteBlockIdsByPage || {})[page.slug]);
     const got = lastModified.resolveLatest(dep.files);
     page.lastModified = got.value;
-    lastModifiedTally[got.source] += 1;
+    const capped = got.source.endsWith('-capped');
+    if (capped) lastModifiedCapped += 1;
+    lastModifiedTally[capped ? got.source.slice(0, -'-capped'.length) : got.source] += 1;
     if (dep.usesServices) sharedTally.services += 1;
     if (dep.usesSiteBlocks) sharedTally.siteBlocks += 1;
     // 退回构建时刻的必须点名 —— 静默退回构建时刻正是本票要治的那个毛病本身。
@@ -458,7 +486,10 @@ for (const locale of locales) {
   console.log(`  [${locale}] sitemap <lastmod> 还算进了共享内容：services.json ${sharedTally.services} 页 · `
     + `blocks/site-blocks.json ${sharedTally.siteBlocks} 页（共 ${localePages.length} 页）`);
   console.log(`  [${locale}] sitemap <lastmod> 取自：git 提交时间 ${lastModifiedTally.git} 页 · `
-    + `文件修改时间 ${lastModifiedTally.mtime} 页 · 构建时刻 ${lastModifiedTally.build} 页`);
+    + `文件修改时间 ${lastModifiedTally.mtime} 页 · 构建时刻 ${lastModifiedTally.build} 页`
+    + (lastModifiedCapped
+      ? ` · 其中 ${lastModifiedCapped} 页原本的时间在未来，已压回构建时刻`
+      : ''));
 
   // #999 —— 「渲染器认得的块」与「有 manifest 的块」必须是同一个集合。加了块忘了补 manifest 的话，
   // 那个块从此在提示词里不出现、校验也不认它，而没有任何东西会红。

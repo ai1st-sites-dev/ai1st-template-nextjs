@@ -9,7 +9,13 @@
 //
 //   1. **git 提交时间**。每个站本身就是一个 git 仓库 —— 建站时 `git add site/ public/` 提交
 //      （create-site.js），之后每次编辑 `git add -A && git commit`（edit-site.js:598），换主题只提交
-//      theme.json（worker/main.go:1612）。所以「这个页面文件上次被哪一次提交碰过」就是权威答案，
+//      site/ 下那几份皮肤文件（`worker/main.go` 的 `processThemeTask`：`site/theme.json` ·
+//      `site/theme.css` · `site/custom.css` 三条路径逐个 `git add -A --`；同文件的
+//      `applyThemeByRebuilding` 那条老站路径只提交 `site/theme.json`）。
+//      🔴 #1046 条 3：这里原来写的是「换主题只提交 theme.json（worker/main.go:1612）」——
+//      行号指到了一段 #1002 的注释，而那句话本身也已经过期（#1002 加了 theme.css、#1037 加了
+//      custom.css）。承重的结论不变：换一次主题碰不到 `site/pages/**`。
+//      所以「这个页面文件上次被哪一次提交碰过」就是权威答案，
 //      而且它跨重建、跨容器重建都不变：没有新提交 = 读数一个字符都不变。
 //      🔴 前提是**克隆带着完整历史**。#1033 之前站容器跑的是 `git clone --depth 1`，浅克隆里只有
 //      一个提交，`git log --name-only` 会把所有文件都算成它碰过的 ⟹ 容器一重新拉代码，全站每一页
@@ -169,7 +175,11 @@ function createLastModifiedResolver({ rootDir, pathspec, buildTime }) {
     // 之后那个单文件版本没有调用方了，所以没留。
     //
     // 返回 { value, source, from }：value 恒是一个可用的 ISO 时间（这个函数不会返回空值），
-    // source 是 'git' / 'mtime' / 'build' 三档之一、from 是赢的那个文件 —— 日志和排查都要它们，
+    // 🔴 #1046 条 1 —— source 有【五个】取值，不是三个：`git` / `mtime` / `build`，外加 `capFuture`
+    // 上界改写出来的 `git-capped` / `mtime-capped`。这一行原来写的是「三档之一」，而 sync-config 那张
+    // 按它建的统计表就只有三个键 ⟹ 被压回的页面 `undefined + 1` 成了 NaN，从构建日志的统计行里整个
+    // 消失。改这里的时候把调用方一起看一遍：这句话就是那张表的契约。
+    // from 是赢的那个文件 —— 日志和排查都要它们，
     // 否则「为什么这一页是这个日期」没法回答。日志由调用方打，因为只有它知道这一页属于哪个语言。
     // 🔴 空数组（一页一个源文件都说不出来）落到最后那一档：构建时刻 + 调用方点名。
     resolveLatest(absPaths) {

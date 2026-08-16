@@ -1,3 +1,7 @@
+// #1046 条 20 —— `document` / `getComputedStyle` 出现在传给 page.evaluate 的函数体里，跑在浏览器
+// 里而不是这个 node 进程里。同 scripts/theme-gallery/shoot.mjs 的写法，用 eslint 的 global 声明
+// 告诉它们存在（本票把这个目录接进 `lint:scripts`，在那之前没有任何东西检查这几个文件）。
+/* global document, getComputedStyle */
 const { chromium } = require(require('./paths').PLAYWRIGHT_CORE_MODULE); // #1020 —— 原来这里写死 /root/wt/1008/…
 (async () => {
   const b = await chromium.launch();

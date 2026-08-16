@@ -52,7 +52,11 @@ interface ProcessStepsSectionProps {
 //
 // 🔴 THAT COUNT USED TO READ "0 times", AND HOW IT GOT THERE IS THE POINT OF THIS NOTE. All three
 // instances live under `pages/services/`, and a scan of `pages/*.json` — one level, no recursion —
-// finds none of them: `find` reads 90 page files where a flat glob reads 43. "Nobody uses icon-strip"
+// finds none of them. Measured on the six live site configs: recursing reads 90 page files, while
+// scanning one level of every locale reads 49 and one level of the default locale alone reads 43 —
+// and all three of those scans miss the three instances, because they all live one directory deeper
+// (#1046 条 7: this line used to say "a flat glob reads 43" without saying which of the two flat
+// scans it meant, so a reader recounting it could land on either number). "Nobody uses icon-strip"
 // was then exactly the premise that made hiding its paragraph look free in #1028. So the corrected
 // number is not a footnote to the argument above, it is the argument: sites DO use this variant, and
 // their content was being hidden along with everyone else's. Count block instances by recursing into

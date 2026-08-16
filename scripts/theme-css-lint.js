@@ -335,6 +335,28 @@ const HOOK_PATTERNS = [
 // too, but no theme selects them today, so requiring a rule for them would invent a rule nobody
 // agreed to (the reasoning is written out at the invariants call site).
 const HOOK_CLASSES = [...HOOKS].filter((h) => /^\.[\w-]+$/.test(h)).map((h) => h.slice(1));
+// 🔴 #1046 条 10 — WHAT THE FILTER ABOVE THREW AWAY IS CHECKED, BECAUSE IT THROWS AWAY SILENTLY.
+// The regexp accepts a PLAIN class and nothing else. That is right for the 39 hooks it drops today —
+// they are `body` and the `[data-…]` attributes named above — but it is a coverage decision made by a
+// pattern, and a pattern cannot tell "deliberately not a class" from "a class the pattern happens not
+// to match". #1018 QA3 measured the second case: add `.cta-banner__ghost:hover` to `HOOKS` and the
+// derived count does not move and nothing is said, so the runtime coverage check would never look at
+// it while the doc↔code reconciliation in css-contract-check.js stays green. There is no such hook
+// today; the point is that the day someone writes one, it has to be a decision rather than a
+// disappearance. So: everything dropped must be `body` or a `[data-…]` attribute, and anything else
+// stops the run the same way an unreadable roles file does.
+{
+  const dropped = [...HOOKS].filter((h) => !/^\.[\w-]+$/.test(h));
+  const unexpected = dropped.filter((h) => h !== 'body' && !h.startsWith('[data-'));
+  if (unexpected.length > 0) {
+    console.error(`theme-css-lint: ${unexpected.length} contract hook(s) are neither a plain class `
+      + `nor one of the attribute hooks: ${unexpected.join(', ')}. A hook shaped like that is dropped `
+      + 'from HOOK_CLASSES without a word, and HOOK_CLASSES is what the runtime coverage check '
+      + '(theme-css-invariants.mjs) asks the page about — so the hook would exist in the contract and '
+      + 'be looked at by nothing. Either write it as a plain class or widen this rule on purpose.');
+    process.exit(2);
+  }
+}
 
 // ── §2 properties ───────────────────────────────────────────────────────────────────────────────
 const PROP_EXACT = new Set([
@@ -869,6 +891,21 @@ const PART_HOOKS = new Set([...HOOKS].filter((h) => /^\.[\w-]*__[\w-]+$/.test(h)
 //    🔴 求值不是 grep —— 条目之间注释里带引号的词会被正则当成条目,那样两边都读成 38,
 //    而两个错数彼此还一致。
 
+// 🔴 #1046 条 10 — A COMPOUND CARRYING BOTH A BLOCK HOOK AND A PART HOOK IS NOT A PART.
+// The part exemption exists because a part's own box is a theme's business; it is keyed off "is any
+// simple selector in the subject a part hook?", and that question answers yes for
+// `.cta-banner.cta-banner__headline`, which is the BLOCK's class with a part class written next to
+// it. #1018 QA3 measured the consequence: `.cta-banner.cta-banner__headline { margin-bottom: -1000px }`
+// exits 0, and the same shape on hero (`.hero.hero__title`) has done so since #1011. No element in the
+// real markup carries both classes today, so nothing in the pool is being let through — but the whole
+// point of §2 is that it holds for sheets nobody has written yet, and this is a one-token way past it.
+// So: when the subject names a block AND a part, the block wins. It cannot make anything that used to
+// pass on the strength of a genuine part hook start failing — a compound with no block hook in it is
+// untouched.
+const BLOCK_HOOKS = new Set([...HOOKS].filter((h) => /^\.[\w-]+$/.test(h) && !h.includes('__')));
+const namesABlockAndAPart = (simples) => simples.some((s) => PART_HOOKS.has(s))
+  && simples.some((s) => BLOCK_HOOKS.has(s) || /^\[data-block=/.test(s));
+
 // Does this rule style a block or a region (rather than a part inside one)? The subject of a complex
 // selector is its LAST compound — `.hero .hero__title` styles the title — and one selector in the list
 // being in scope is enough for the declaration to be judged.
@@ -882,7 +919,9 @@ function stylesABlockOrRegion(selector) {
     const subject = compounds[compounds.length - 1] || complex;
     const m = subject.match(/^(.*?)(::(?:before|after))?$/);
     const base = (m && m[1]) || subject;
-    return !simpleSelectorsOf(base).some((s) => PART_HOOKS.has(s));
+    const simples = simpleSelectorsOf(base);
+    if (namesABlockAndAPart(simples)) return true;
+    return !simples.some((s) => PART_HOOKS.has(s));
   });
 }
 
@@ -932,6 +971,9 @@ function stylesABlock(selector) {
     const m = subject.match(/^(.*?)(::(?:before|after))?$/);
     const base = (m && m[1]) || subject;
     const simples = simpleSelectorsOf(base);
+    // #1046 条 10 — same rule as in `stylesABlockOrRegion`: a block class written next to a part class
+    // is the block, so it does not get the part's exemption.
+    if (namesABlockAndAPart(simples)) return true;
     if (simples.some((s) => PART_HOOKS.has(s))) return false;   // a part
     if (simples.some((s) => isRegionHook(s))) return false;     // a region
     return true;
@@ -941,9 +983,12 @@ function stylesABlock(selector) {
 // ── #1043 — which blocks can this selector's subject be, and is any of them `essential`? ─────────
 //
 // The roles come from the SAME file the app renders `data-role` from
-// (`src/lib/sections/block-roles.json`), so this check and the runtime one cannot answer differently
-// about the same block. Read once, at load: it is a build-time file and re-reading it per rule would
-// only add a way for the two reads to disagree.
+// (`src/lib/sections/block-roles.json`). 🔴 #1046 条 24 — that used to be written "so this check and
+// the runtime one cannot answer differently about the same block", and it is not true: that file is
+// the TYPE-LEVEL DEFAULT and a page's own JSON may override `role` per block, which is what the
+// browser then sees. The measured consequence and which half a real site build actually runs are
+// written out at the essential-content pass below (§3's last line). Read once, at load: it is a
+// build-time file and re-reading it per rule would only add a way for the two reads to disagree.
 //
 // 🔴 A MISSING OR UNREADABLE ROLES FILE IS AN ERROR, NOT AN EMPTY SET. An empty set here would make
 // this whole pass silently answer "nothing is essential" — the check would print ✅ on every sheet
@@ -963,6 +1008,19 @@ const roleOf = (block) => {
   return (r && typeof r === 'object') ? r.role : r;
 };
 const ESSENTIAL_BLOCKS = new Set(Object.keys(BLOCK_ROLES).filter((b) => roleOf(b) === 'essential'));
+// 🔴 #1046 条 15 — AND ZERO ESSENTIAL BLOCKS IS THE SAME FAILURE AS AN UNREADABLE FILE. The `catch`
+// above only covers "could not read it"; a file that reads fine but yields an EMPTY set gets past it
+// and leaves `essentialTargetsOf` returning [] for every rule, so the pass below prints ✅ on every
+// sheet forever — the exact shape #1043 exists to remove, reached by `{}` on disk or by anyone
+// changing the shape (`{"blocks": {…}}` would parse and produce nothing). Measured before this line
+// existed: contents `{}` ⟹ rc=0 on all three shipped sheets. This is #679's denominator contract —
+// a check whose population is 0 may not report a pass — so it refuses the same way, exit 2.
+if (ESSENTIAL_BLOCKS.size === 0) {
+  console.error('theme-css-lint: src/lib/sections/block-roles.json parsed, but not one block in it '
+    + 'has role "essential" — the essential-content check would then have nothing to protect and '
+    + 'would pass every stylesheet. That is not a reading about the sheets. Refusing to run.');
+  process.exit(2);
+}
 
 // `.contact-info__phone` → `contact-info` · `.contact-info` → `contact-info` ·
 // `[data-block="contact-info"]` → `contact-info`. Anything else → null.
@@ -988,6 +1046,18 @@ function essentialTargetsOf(selector) {
     const compounds = compoundsOf(complex);
     const subject = compounds[compounds.length - 1] || complex;
     const m = subject.match(/^(.*?)(::(?:before|after))?$/);
+    // 🔴 #1046 条 17 — A PSEUDO-ELEMENT IS THE THEME'S OWN BOX, SO HIDING IT HIDES NOTHING OF THE
+    // SITE'S. What a `::before` / `::after` draws comes from the `content` this same sheet wrote;
+    // there is no path by which a customer's phone number or a service name gets in there. This pass
+    // used to strip the pseudo and then judge the element behind it, so
+    // `.services-nav__link::after { width: 0 }` — a hover underline being taken away, an ordinary
+    // thing to write — was refused as hiding essential content (measured: rc=1). No sheet in the pool
+    // has a pseudo-element today, so nothing changes for the three that exist; phase 3 generates 60-80
+    // more, and this would have been a refusal none of their authors could have predicted.
+    // 📌 Deliberately narrow: only THIS pass, and only when the pseudo is on the SUBJECT.
+    // `.hero::before` is still in scope for §2's box rules one screen up — a pseudo-element's box is
+    // laid out by the block's rule, and being stricter there costs nothing.
+    if (m && m[2]) continue;
     for (const s of simpleSelectorsOf((m && m[1]) || subject)) {
       const block = blockNameOf(s);
       if (block && ESSENTIAL_BLOCKS.has(block)) hits.add(block);
@@ -1607,8 +1677,19 @@ function lint(file) {
   // hook names the rest of this file already uses, and then "is any of them essential?", answered
   // from `block-roles.json` — 🔴 which the runtime half reaches through the page, not by opening the
   // file: `blockAttrs.ts` imports that JSON and writes `data-role` into the markup, and
-  // `theme-css-invariants.mjs` reads the attribute (it never names the file — grep it: 0 hits). One
-  // source, two readers, so the two halves cannot answer differently about the same block.
+  // `theme-css-invariants.mjs` reads the attribute (it never names the file — grep it: 0 hits).
+  //
+  // 🔴 #1046 条 24 — AND THAT DOES **NOT** MEAN THE TWO HALVES ALWAYS AGREE. This used to end "one
+  // source, two readers, so the two halves cannot answer differently about the same block", and both
+  // directions of that were measured false (#1043 QA1 r3, two real builds): `block-roles.json` is the
+  // TYPE-LEVEL DEFAULT, and a page's own JSON may write `role` on the block, which `blockAttrs()`
+  // puts in the markup instead. Demote `contact-info` to `optional` in the page JSON ⟹ this pass
+  // still refuses the rule (rc=1) while the browser says `✅ every invariant holds`; promote
+  // `timeline` to `essential` there ⟹ this pass lets it through while the browser reports 12.
+  // Which half a real site actually gets is not symmetric either (#1043 QA3): a site build runs ONLY
+  // this static half (`sync-config.js` → `css-contract-check.js`); the runtime half runs in CI over a
+  // sample site. What IS true is the floor: for the blocks `block-roles.json` marks essential, this
+  // pass is a permanent refusal that no page JSON can widen.
   //
   // 🔴 IT IS NOT A LIST OF FIVE BLOCK NAMES. Five essential blocks have part hooks TODAY
   // (contact-info · contact-form · quote-form · services-list · services-nav); `block-roles.json`
@@ -1645,12 +1726,20 @@ function lint(file) {
     // `theme-css-invariants.mjs`), and `blur` changes none of the three: measured on
     // `.contact-info__phone` in the allblocks fixture, `ocean-blue` + `hero-media-left`, 1440×900,
     // `blur(50px)` leaves the box at 576×27 and the runtime check silent, while inside that box not
-    // one pixel is off the background any more (0, against 1137 at baseline) — the phone number is
-    // gone with both halves green. What keeps it out of THIS pass is only that "how blurred is too
-    // blurred" has no static answer: `blur(8px)` still reads (3573 pixels off the background — blur
-    // spreads the same ink over more of them). That threshold is the same shape as the cases #1049
-    // is opening (a legal declaration that leaves essential content unreadable), except its six are
-    // geometric and `blur()` is not one of them: today this spelling has no owner.
+    // one pixel is off the background any more — the phone number is gone with both halves green.
+    // What keeps it out of THIS pass is only that "how blurred is too blurred" has no static answer:
+    // `blur(8px)` still reads, because blur spreads the same ink over more pixels rather than
+    // removing it. 🔴 #1046 条 23 — THE PIXEL COUNTS THAT USED TO BE HERE (1137 at baseline, 3573 at
+    // `blur(8px)`) DID NOT SAY HOW THEY WERE COUNTED, and there is more than one way: they are pixels
+    // inside the 576×27 box (15552 of them) whose distance from the background colour, summed over
+    // the three channels, is more than 24. Counting instead by the LARGEST single-channel difference
+    // over the same threshold gives 1109 and 2878 on the same build and the same box — both readings
+    // are true, and a reader recounting one of them with the other rule would think the comment lied.
+    // The reading that carries the argument is the one that needs no threshold at all: at
+    // `blur(50px)` it is 0. 🔴 #1046 条 22 — that threshold is the same shape as the cases #1049 is
+    // opening (a legal declaration that leaves essential content unreadable), except that FIVE of its
+    // six are geometric and the sixth is `opacity: 0.0001` — `blur()` is none of the six either way:
+    // today this spelling has no owner.
     if (prop === 'filter') return /(^|\s)opacity\(\s*0(?:\.0+)?%?\s*\)/.test(v);
     if (['width', 'height', 'max-width', 'max-height'].includes(prop)) {
       return /^0(?:[a-z%]*)$/.test(v) && parseFloat(v) === 0;

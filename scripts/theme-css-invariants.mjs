@@ -247,13 +247,37 @@ async function withoutWords(el, shoot) {
 }
 
 // ── ① the words are on the screen, and readable where they are ─────────────────────────────────
-for (const sel of TEXT_TARGETS) {
+// 🔴 #1046 条 9 — IT IS NOT ONLY THE HERO ANY MORE. `TEXT_TARGETS` above is the pair that must be on
+// the page every other first-page check is taken on, and it stayed hero-only while phase 2 moved
+// block after block into the theme's hands. cta-banner (#1018) and page-header (#1019) carry a
+// headline and a subtitle each, a sheet may colour all four, and #966 — the failure this check
+// exists for — was white text on a white background. Nothing was looking at them.
+//
+// Two lists rather than one, because the two questions are different:
+//   · TEXT_TARGETS — must be here. Missing is a finding (see the comment in `measureText`).
+//   · MOVED_TEXT_TARGETS — measured wherever they turn up. `.page-header__title` is on no home page
+//     by construction (it is the sub-pages' heading), so requiring it on the first page would be a
+//     permanent red about the sample site rather than about any sheet. They are measured on the
+//     other pages too, in the ⑤b loop below, and what was never found anywhere is PRINTED — an
+//     unmeasured hook that says nothing is how this check would grow a hole again.
+const MOVED_TEXT_TARGETS = [
+  '.cta-banner__headline', '.cta-banner__desc',
+  '.page-header__title', '.page-header__sub',
+];
+const movedTextMeasured = new Map();   // selector → [where …]
+// One target on the page the browser is looking at now. `required` decides what "it is not here"
+// means; everything after that is the same measurement either way.
+const measureText = async (sel, where, required) => {
   const el = page.locator(sel).first();
   if ((await el.count()) === 0) {
     // 🔴 A missing target is NOT a pass. This checker's whole job is to fail loudly, and "the
     // element I was going to measure is not there" is the shape a vacuous green takes.
-    problems.push(`contrast: "${sel}" is not on the page — nothing was measured for it`);
-    continue;
+    if (required) problems.push(`contrast: "${sel}" is not on ${where} — nothing was measured for it`);
+    return;
+  }
+  if (!required) {
+    if (!movedTextMeasured.has(sel)) movedTextMeasured.set(sel, []);
+    movedTextMeasured.get(sel).push(where);
   }
   const colorRaw = await el.evaluate((n) => getComputedStyle(n).color);
   const color = parseRgb(colorRaw);
@@ -263,16 +287,16 @@ for (const sel of TEXT_TARGETS) {
   // parser cannot read while the box is perfectly fine, and the message sent people looking at layout.
   // Refusing to measure is still the right direction in both cases — it is the wording that was wrong.
   if (!color) {
-    problems.push(`contrast: "${sel}" — this checker cannot read its computed colour, so no ratio was `
+    problems.push(`contrast: "${sel}" on ${where} — this checker cannot read its computed colour, so no ratio was `
       + `measured (the value is ${colorRaw}). Its box is fine`
       + `${box ? ` (${Math.round(box.width)}×${Math.round(box.height)}px)` : ''}.`);
-    continue;
+    return;
   }
   if (!box || box.width < 2 || box.height < 2) {
-    problems.push(`contrast: "${sel}" has no measurable box`
+    problems.push(`contrast: "${sel}" on ${where} has no measurable box`
       + `${box ? ` — it is ${Math.round(box.width)}×${Math.round(box.height)}px, under 2px on a side`
         : ' — the element has no layout box at all'}`);
-    continue;
+    return;
   }
   // How much of that colour actually reaches the screen: the ancestor chain's opacities multiplied
   // together, times the alpha in the text's own `color`. Both are ways to write "this text is not
@@ -289,9 +313,9 @@ for (const sel of TEXT_TARGETS) {
     // Nothing of this text reaches the screen. Named as the declaration that did it, because
     // "contrast is 1:1" sends the reader looking at colours when the cause is an opacity three
     // elements up. `eff.zeroedBy` is that element, spelled the way the sheet spells it.
-    problems.push(`visibility: "${sel}" is not painted at all — ${eff.zeroedBy || `effective opacity ${painted}`}`
+    problems.push(`visibility: "${sel}" on ${where} is not painted at all — ${eff.zeroedBy || `effective opacity ${painted}`}`
       + ` (text pixels ${declaredPx}/${total}, cumulative opacity ${eff.opacity}, colour ${colorRaw})`);
-    continue;
+    return;
   }
   // The same box again with only this element's words made transparent. `-webkit-text-fill-color`
   // is set alongside `color` because it wins over `color` where both apply, and the descendant
@@ -300,9 +324,9 @@ for (const sel of TEXT_TARGETS) {
   if (bare.bitmap.width !== img.bitmap.width || bare.bitmap.height !== img.bitmap.height) {
     // Fail loud: the two pictures have to be of the same box or the comparison below is nonsense,
     // and "I could not compare them" is not a pass.
-    problems.push(`visibility: "${sel}" changed size between the two pictures `
+    problems.push(`visibility: "${sel}" on ${where} changed size between the two pictures `
       + `(${img.bitmap.width}x${img.bitmap.height} vs ${bare.bitmap.width}x${bare.bitmap.height}) — not measured`);
-    continue;
+    return;
   }
   const words = wordPixels(img, bare);
   // Backgrounds come from the picture WITHOUT the words, so the text cannot be mistaken for its own
@@ -315,10 +339,10 @@ for (const sel of TEXT_TARGETS) {
     // the screen: white on white, `filter: opacity(0)`, text pushed out of its own box. Said as the
     // finding rather than as an apology — a reader who thinks the instrument gave up goes looking
     // for a bug in the checker instead of at the page.
-    problems.push(`visibility: "${sel}" paints nothing that can be told apart from what is behind `
+    problems.push(`visibility: "${sel}" on ${where} paints nothing that can be told apart from what is behind `
       + `it — taking its words away changes 0 of ${total} pixels in its box `
       + `(declared colour ${colorRaw}, background rgb(${backgrounds[0].rgb}))`);
-    continue;
+    return;
   }
   // The colour the words came out. Among the groups of changed pixels, the one furthest from the
   // background is the middle of the strokes; the rest are antialiased edges on their way to the
@@ -334,13 +358,18 @@ for (const sel of TEXT_TARGETS) {
     const ratio = contrast(textRgb, cand.rgb);
     if (ratio < worst) { worst = ratio; worstRgb = cand.rgb; }
   }
-  readings.push(`  ${sel}: text painted rgb(${textRgb}) (declared ${colorRaw}) on rgb(${worstRgb}) `
+  readings.push(`  ${sel} on ${where}: text painted rgb(${textRgb}) (declared ${colorRaw}) on rgb(${worstRgb}) `
     + `= ${worst.toFixed(2)}:1 · text pixels ${words.n}/${total}`);
   if (worst < MIN_CONTRAST) {
-    problems.push(`contrast: "${sel}" is ${worst.toFixed(2)}:1 against rgb(${worstRgb}) — below ${MIN_CONTRAST}:1`
+    problems.push(`contrast: "${sel}" on ${where} is ${worst.toFixed(2)}:1 against rgb(${worstRgb}) — below ${MIN_CONTRAST}:1`
       + ` (measured on the colour it came out, rgb(${textRgb}); declared ${colorRaw})`);
   }
-}
+};
+
+// The pair that must be here, on the page every first-page check is taken on.
+for (const sel of TEXT_TARGETS) await measureText(sel, pathOf(baseUrl), true);
+// And the moved blocks that happen to be on this page as well (cta-banner usually is; page-header is not).
+for (const sel of MOVED_TEXT_TARGETS) await measureText(sel, pathOf(baseUrl), false);
 
 // ── ② essential content is not hidden ───────────────────────────────────────────────────────────
 // 🔴 READ OFF THE CHAIN, NOT OFF THE ELEMENT. The old version asked each essential element for its
@@ -1308,6 +1337,61 @@ const breakpoints = await page.evaluate((maxBase) => {
   probe.remove();
   return { above, unresolved, notAWidth, unreadable };
 }, Math.max(...ORDER_VIEWPORTS.map((v) => v.w)));
+// ── #1046 条 18 — IS THERE ANYTHING ON THIS PAGE THAT COULD TIE A DISTANCE TO THE WINDOW? ────────
+//
+// The grown-window stage below reports "the gap between A and B closes as the window widens" as a
+// violation, on the reasoning that only a window-relative length makes a distance shrink monotonically.
+// It cannot tell that apart from PLAIN CONTENT REFLOW — text that wraps one line fewer as the window
+// grows — and it says so itself, two readings further down, in the list of what it does not cover.
+// Measured on #1036's allblocks fixture with `hero-media-left`: `testimonials → divider` reads 845px at
+// 3072 and 787px at 6144, which extrapolates to the pair meeting at about 47828px, while this stage
+// never opens a window past 8192. Two readings from the same tree said what it really was: not one
+// window-relative length in the three sheets, `base.css` or `globals.css`, and the only `100vh` in the
+// whole built site is `min-h-screen` on <body> — a region, not a block.
+//
+// So the finding gets a second half. The claim is "this page ties that distance to the window", and a
+// page with no window-relative length anywhere cannot be doing that — whatever else is moving. Without
+// a length to point at it is a reading, not a violation. 🔴 The absence is only as good as what could
+// be read: sheets this script may not open are counted and the sentence says so, so "found none" never
+// gets to mean "there are none" when some were unreadable.
+// 🔴 AND IT ASKS WHETHER THAT LENGTH IS ON ANYTHING INSIDE THE PAGE, NOT JUST WHETHER IT EXISTS.
+// The first version of this counted every window-relative length in every sheet, and on the demo site
+// that is 1: `.min-h-screen { min-height: 100vh }`, which the app puts on <body>. A height on <body>
+// cannot shrink the distance between two of its grandchildren as the window widens — so counting it
+// would have left the #1036 case reported exactly as before, and this check would have been an
+// elaborate way of changing nothing. What has to be true for the claim is that some element OTHER than
+// <html>/<body> is being given such a length. That is a question the browser can answer directly.
+const windowRelative = await page.evaluate(() => {
+  // `vw`/`vh` and their small/large/dynamic spellings, `vmin`/`vmax`, and the three functions that can
+  // bend two straight lines into a V. `min-width:` cannot match `\bmin\(` — the `-` breaks the word.
+  const RE = /(?:^|[^\w-])\d*\.?\d+(?:vw|vh|vmin|vmax|svw|svh|svmin|svmax|lvw|lvh|lvmin|lvmax|dvw|dvh|dvmin|dvmax)\b|\b(?:clamp|min|max)\(/i;
+  const hits = [];
+  const onlyRoot = [];        // has such a length, but reaches nothing below <body>
+  let unreadable = 0;
+  let unmatchable = 0;        // a selector this browser will not run (an @-rule shape, a typo)
+  const walk = (rules, sheetName) => {
+    for (const r of rules) {
+      if (r.style && r.cssText && RE.test(r.cssText)) {
+        const text = `${sheetName}: ${r.cssText.slice(0, 160)}`;
+        let reaches = 0;
+        try {
+          for (const n of document.querySelectorAll(r.selectorText)) {
+            if (n !== document.documentElement && n !== document.body) reaches += 1;
+          }
+        } catch { unmatchable += 1; reaches = 1; }   // cannot tell ⟹ count it, the safe direction
+        if (reaches > 0) { if (hits.length < 8) hits.push(text); } else if (onlyRoot.length < 8) onlyRoot.push(text);
+      }
+      if (r.cssRules) walk(r.cssRules, sheetName);
+    }
+  };
+  for (const sheet of document.styleSheets) {
+    let rules;
+    try { rules = sheet.cssRules; } catch { unreadable += 1; continue; }
+    walk(rules, sheet.href ? new URL(sheet.href).pathname : '(inline <style>)');
+  }
+  return { hits, onlyRoot, unreadable, unmatchable };
+});
+
 // One viewport per distinct threshold. 🔴 The cap is announced rather than applied quietly: a page that
 // declares fifty breakpoints would otherwise take fifty measurements, and a silently dropped one reads
 // exactly like a covered one.
@@ -1556,9 +1640,23 @@ const growWindow = async (axis) => {
   // Ran out of window before the gap ran out. Reported all the same: a page that ties the distance
   // between two neighbours to the window HAS a size at which they swap, and staying quiet about it
   // because this process will not open a window that big is the same silence QA2 measured twice.
+  // #1046 条 18 — the second half of the claim, computed once for both axes.
+  const canExplain = windowRelative.hits.length > 0 || windowRelative.unreadable > 0;
   for (const c of closing.slice(0, 3)) {
     const perPx = (c.was - c.now) / (c.toSize - c.fromSize);
     const crossAt = Math.round(c.toSize + c.now / perPx);
+    if (!canExplain) {
+      readings.push(`  paint order — the gap between ${c.pair} closed as the window ${verb} `
+        + `(${c.was}px at ${c.fromSize}px of ${noun}, ${c.now}px at ${c.toSize}px, level at about `
+        + `${crossAt}px), and this is a READING rather than a violation: no element below <body> on `
+        + 'this page is given a length that is a share of the window, and every stylesheet was '
+        + 'readable — so no rule on this page can be tying that distance to the window, and what moved '
+        + 'it is content that lays out differently at the two sizes (text wrapping one line fewer, a '
+        + 'grid dropping a column). Put a `vw`/`vh`/`clamp()`-style length on anything inside the page '
+        + 'and the same closing is reported as a violation again'
+        + `${closing.length > 3 ? ` (${closing.length - 3} more gap(s) like this one)` : ''}`);
+      continue;
+    }
     problems.push(`paint order: the gap between ${c.pair} closes as the window ${verb} — ${c.was}px at `
       + `${c.fromSize}px of ${noun}, ${c.now}px at ${c.toSize}px — so this page ties that distance to `
       + `the window's ${noun}, and past the last threshold it declares there is no size left for this `
@@ -1575,6 +1673,21 @@ readings.push(`  paint order grown-window stage — ${grown.join(' | ')}. These 
   + `(${WIDEST_MEASURED}px) and the tallest (${TALLEST_MEASURED}px) window above, doubled while the gaps `
   + `between neighbours keep moving, up to ${GROWN_WINDOW_CAP}px. A page whose gaps stop moving is not `
   + 'measured any bigger, because nothing in it is a share of the window');
+// #1046 条 18 — the second half of that stage's claim, printed whether or not it fired, because it
+// decides whether a closing gap is reported as a violation or as a reading.
+readings.push('  paint order grown-window stage, window-relative lengths reaching something below '
+  + `<body>: ${windowRelative.hits.length}`
+  + `${windowRelative.hits.length ? ` (${windowRelative.hits.join(' · ')})` : ''}`
+  + ` · ${windowRelative.onlyRoot.length} more that reach only <html>/<body>`
+  + `${windowRelative.onlyRoot.length ? ` (${windowRelative.onlyRoot.join(' · ')})` : ''}`
+  + ` · ${windowRelative.unreadable} stylesheet(s) could not be read from here`
+  + `${windowRelative.unmatchable ? ` · ${windowRelative.unmatchable} selector(s) this browser would `
+    + 'not run, counted as reaching something' : ''}`
+  + (windowRelative.hits.length === 0 && windowRelative.unreadable === 0
+    ? ' — so a gap measured closing is reported as a reading, not a violation: nothing below <body> '
+      + 'is given a length that is a share of the window, so no rule on this page can be tying a '
+      + 'distance between two blocks to it'
+    : ' — so a gap measured closing is reported as a violation'));
 // 🔴 The boundary of this reading, stated where the reading is — and it has to be the TRUE boundary.
 // The sentence here used to read "a width between these is not covered", which is the one half that IS
 // covered: §2 allows a single `(min-width: …)` and nothing else (no `max-width`, no `and` — the static
@@ -1662,11 +1775,14 @@ if (orderViewport) await page.setViewportSize({ width: orderViewport.width, heig
 // still exiting 0 (QA2 did exactly that on #1019 and the run stayed green). Phase 2 has 30 more blocks
 // to move (#1007) and a home page is not where most of them live.
 //
-// 🔴 ONLY CHECK ⑤ IS MEASURED HERE, AND THAT LINE IS DELIBERATE — it is printed below rather than left
-// for a reader to work out. The other checks are about the hero (`.hero__title`'s contrast, the lead
-// block on the first screen, the hero's touch targets) or they repeat per page at a cost the readings
-// above show is the expensive part: the grown-window stage alone takes a dozen relayouts. #1023's own
-// words are "别让它变慢到没人跑". Widening the rest is a separate decision with its own price tag.
+// 🔴 WHICH CHECKS ARE MEASURED HERE IS DELIBERATE, AND IT IS PRINTED BELOW rather than left for a
+// reader to work out. Three are: ⑤ (this loop's reason for existing), ② (#1043 — `contact-info` is a
+// contact-page block, so first-page-only meant never) and, since #1046 条 9, the part of ① that is
+// about the blocks phase 2 has moved: `.page-header__title` is a sub-page heading and is on no home
+// page at all. The rest stay first-page-only — they are about the hero (its contrast pair, the lead
+// block on the first screen, its touch targets) or they repeat per page at a cost the readings above
+// show is the expensive part: the grown-window stage alone takes a dozen relayouts. #1023's own words
+// are "别让它变慢到没人跑". Widening those is a separate decision with its own price tag.
 //
 // 🔴 WHICH PAGES: the site's own /sitemap.xml, not a list written here and not a crawl of the nav. The
 // sitemap is generated from the same `pagesByLocale` the pages themselves are (src/app/sitemap.ts), so
@@ -1741,8 +1857,13 @@ const openPage = async (p) => {
 for (const p of otherPaths.slice(0, OTHER_PAGE_CAP)) {
   const opened = await openPage(p);
   if (opened.error) {
-    problems.push(`other pages: "${p}" is in this site's page list but could not be opened, so check ⑤ `
-      + `was not measured on it — tried ${opened.error}`);
+    // 🔴 #1046 条 16 — IT NAMES BOTH CHECKS. This used to say "so check ⑤ was not measured on it",
+    // which was true when it was written and stopped being true when #1043 added check ② to this
+    // loop. A page that will not open is unmeasured for both, and the half that goes unsaid is the
+    // one nobody goes looking for.
+    problems.push(`other pages: "${p}" is in this site's page list but could not be opened, so `
+      + `neither check ⑤ (every hook has a rule) nor check ② (essential content is not hidden) was `
+      + `measured on it — tried ${opened.error}`);
     continue;
   }
   audits.push({ where: opened.at, audit: await page.evaluate(classAuditInBrowser, [HOOK_CLASSES, THEME_SHEET_PATH]) });
@@ -1769,6 +1890,11 @@ for (const p of otherPaths.slice(0, OTHER_PAGE_CAP)) {
   problems.push(...judgeEssentialText(otherText, ` on ${opened.at}`));
   problems.push(...await judgeEssentialPaint(otherText, ` on ${opened.at}`));
   readings.push(textReading(otherText, opened.at));
+  // 🔴 #1046 条 9 — AND THE MOVED BLOCKS' WORDS, HERE, because here is where they are.
+  // `.page-header__title` is the heading of every sub-page and is on no home page, so measuring it
+  // only on the first page would have been measuring it never. Costs two screenshots per hook that
+  // is actually present; a page with none of them costs four `count()` calls.
+  for (const sel of MOVED_TEXT_TARGETS) await measureText(sel, opened.at, false);
   // Say what this page actually offered up. "Measured on 4 pages" with no counts cannot tell
   // "checked and clean" from "there was nothing on any of them to check".
   readings.push(`  ${opened.at} — essential elements: ${otherReading.roots.length}`
@@ -1782,11 +1908,28 @@ readings.push(`  pages measured for check ⑤: ${audits.map((a) => a.where).join
   + `${droppedPages.length ? ` · 🔴 ${droppedPages.length} page(s) past the ${OTHER_PAGE_CAP}-page cap `
     + `were NOT measured: ${droppedPages.join(', ')}` : ''}`
   + '. On the pages after the first, check ⑤ is measured (which classes have a rule anywhere, and '
-  + 'whether the theme\'s own sheet dresses each hook in the markup) AND check ② (essential content is '
-  + 'not hidden, roots and the parts inside them). Contrast, the first screen, touch '
-  + 'targets, sideways scroll, type size and paint order are measured on the first page alone');
+  + 'whether the theme\'s own sheet dresses each hook in the markup), check ② (essential content is '
+  + 'not hidden, roots and the parts inside them) AND the moved-block half of check ① (the contrast of '
+  + `${MOVED_TEXT_TARGETS.join(', ')}, wherever they are present). The hero's own contrast pair, the `
+  + 'first screen, touch targets, sideways scroll, type size and paint order are measured on the first '
+  + 'page alone');
 // 🔴 #1043 — check ② states its own reach. It used to be first-page-only and say nothing about that,
 // while the block it most needs to protect (`contact-info`) is on no home page in this repo.
+// 🔴 #1046 条 9 — check ① says how far it reached, per hook. The two hero hooks are required and
+// their readings are printed above; these four are measured wherever they turn up, and a hook that
+// turned up nowhere has to SAY so — otherwise "no finding for `.page-header__title`" reads like a
+// pass on a hook nothing looked at, which is the hole this item was opened for.
+readings.push('  pages measured for check ① on the blocks phase 2 has moved: '
+  + MOVED_TEXT_TARGETS.map((sel) => `${sel} → ${(movedTextMeasured.get(sel) || []).join(', ')
+    || '🔴 on no page measured'}`).join(' · ')
+  + `. The two hero hooks (${TEXT_TARGETS.join(', ')}) are required on `
+  + `${pathOf(baseUrl)} and are reported above`);
+// 🔴 #1046 条 16 — and it states the cap the same way check ⑤'s line does. Check ② is measured in the
+// same loop, so the pages past the cap are missing from BOTH readings; only one of the two said so.
+// 🔴 The cap clause goes LAST, after ②d/②e's own blindness note. Put it right after the page list and
+// "on each of them" lands next to the pages that were NOT measured, which reads as the opposite of what
+// it says — this one line now has to carry two different reaches (#1046 条 16 and #1049's ②d/②e), and
+// the order is the only thing keeping them apart.
 readings.push(`  pages measured for check ② (essential content not hidden): `
   + `${essentialPagesMeasured.join(', ')} — roots AND the parts with content inside them, and on each of `
   + 'them ②d (where every run of text ended up, and what survives the clipping ancestors and the edge of '
@@ -1794,7 +1937,10 @@ readings.push(`  pages measured for check ② (essential content not hidden): `
   + 'pixels of that run were painted, photographed with and without its own words). 🔴 What ②d/②e do NOT '
   + 'answer: text a visitor has to interact with to reveal — the exemption skips anything the markup '
   + 'declares off (aria-hidden="true", the hidden attribute, an aria-expanded="false" control naming it), '
-  + 'and a theme cannot write an attribute, so what it skips is the app\'s statement, not the theme\'s');
+  + 'and a theme cannot write an attribute, so what it skips is the app\'s statement, not the theme\'s'
+  + `${droppedPages.length ? ` · 🔴 ${droppedPages.length} page(s) past the ${OTHER_PAGE_CAP}-page `
+    + `cap were NOT measured for this check either — not for ②, and not for ②d/②e: `
+    + `${droppedPages.join(', ')}` : ''}`);
 for (const { where, audit } of audits) {
   readings.push(`  ${where} — classes on the page: ${audit.used} · with no rule: ${audit.orphans.length}`
     + ` (${audit.sheets} stylesheets, ${audit.unreadableSheets} not readable from here)`

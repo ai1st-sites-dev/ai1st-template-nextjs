@@ -819,6 +819,11 @@ async function main() {
   const themeRotationIndex = Number.isInteger(input.themeRotationIndex) && input.themeRotationIndex >= 0
     ? input.themeRotationIndex
     : rotationIndexFromSiteId(siteId);
+  // 🔴 #1046 条 14 —— 左边那一支【整条绕过轮换】：显式传一个已注册的主题名当 `template`，
+  //    `pickThemeForIndustry` 和 `themeRotationIndex` 一个都不参与。生产路径踩不到（manager 从不往
+  //    payload 里塞 `template`，默认值是 `'ai'`），但**造语料 / 造夹具的脚本很容易踩到**，而失败方向
+  //    是假绿：绕开之后「改之前」和「改之后」两臂都读「没变化」，反向对照那一格看上去还是绿的。
+  //    要量轮换，别传 `template`（或传 `'ai'`）。
   const themeName = (template && template !== 'ai' && themes[template]) ? template : pickThemeForIndustry(industry, themeRotationIndex);
   const theme = themes[themeName];
   debug(`Theme: ${themeName} — ${theme.label} (rotation index ${themeRotationIndex})`);
