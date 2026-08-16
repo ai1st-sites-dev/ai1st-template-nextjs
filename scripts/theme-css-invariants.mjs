@@ -219,9 +219,23 @@ await page.evaluate(INSTALL_EFFECTIVE);
 async function withoutWords(el, shoot) {
   await el.evaluate((n) => n.setAttribute('data-inv-probe', ''));
   const style = await page.addStyleTag({
-    content: '[data-inv-probe], [data-inv-probe] * { color: transparent !important;'
+    // 🔴 TRANSITIONS ARE TURNED OFF IN THE SAME RULE THAT BLANKS THE WORDS, AND THAT IS LOAD-BEARING
+    // (#1049). Taking the colour away STARTS A TRANSITION on anything that has one, and the second
+    // picture is then taken while the words are still most of the way to being painted — so the two
+    // pictures come back the same and the reading is "these words are not on the screen" about text
+    // a person can read perfectly. Measured on this repo's sample site with the `hero-media-right`
+    // sheet: `.btn-accent` carries `transition-property: all; transition-duration: .15s` from
+    // globals.css, and "Get Started" — dark on a green button, plainly legible in the screenshot —
+    // came back as 0 painted pixels. The same cause makes `getComputedStyle(el).color` answer with
+    // the OLD colour while the transition runs, which is why even an inline `!important` looks
+    // inert when you go asking why. Check ① never met this because the two elements it measures
+    // (`.hero__title`, `.hero__sub`) have no transition; ②e photographs whatever a block contains.
+    content: '*, *::before, *::after { transition: none !important; animation: none !important }'
+      + ' [data-inv-probe], [data-inv-probe] * { color: transparent !important;'
       + ' -webkit-text-fill-color: transparent !important }',
   });
+  // One frame for the style recalculation to land before the camera opens.
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   try {
     return await shoot();
   } finally {
@@ -357,10 +371,10 @@ for (const sel of TEXT_TARGETS) {
 //     .contact-info { opacity: 0 }                  (off the chain)    → reported, 7 findings
 //     .contact-info__phone { max-height: 0 }        box 576×0          → reported
 //
-// 🔴 AND THIS IS WHAT IT DOES NOT READ: WHERE THE BOX IS, AND WHETHER ANYTHING CUT IT AWAY. There is
-// no document coordinate in the readings above and no intersection with a clipping ancestor, so
-// every one of these left this check SILENT while the phone number was gone from the page (same
-// fixture, same part, one rule at a time):
+// 🔴 THOSE THREE READ THE PART'S BOX AND NOTHING ELSE — NOT WHERE THE BOX IS, NOT WHETHER ANYTHING
+// CUT IT AWAY, NOT WHETHER A SINGLE PIXEL OF THE WORDS WAS PAINTED. Every one of these left this
+// check SILENT while the phone number was gone from the page (same fixture, same part, one rule at
+// a time), which is why #1049 added ②d and ②e below:
 //     { filter: opacity(0) }                     box 576×27, computed opacity 1 — the static half
 //                                                catches this one by name
 //     { clip-path: inset(100%) }                 box 576×27 — the static half catches it too, as a
@@ -375,9 +389,11 @@ for (const sel of TEXT_TARGETS) {
 //                                                0 readable pixels. One line, out of two rules that
 //                                                are each correct on their own
 //     { max-height: 1px; overflow: hidden }      box 576×1, nothing readable inside it
-// The last four are caught by NEITHER half; QA3 found them on this ticket's terminal review and
-// #1049 is where position and ancestor clipping get added here. Until then, "this check is green"
-// means the three things above held — not "a customer can read it".
+// 🔴 THE THREE ABOVE ARE STILL THE WHOLE LIST FOR THE *BOX*; the seven writings are now caught by ②d
+// (where the text ended up, and what is left of it after every clipping ancestor) and ②e (how many
+// pixels of it were painted). What THIS paragraph's three still buy is a named cause — "hidden by
+// div.contact-info { display: none }" points at the declaration, where ②d/②e can only point at the
+// effect. Keep all five: none of them subsumes another.
 //
 // 🔴 ONLY PARTS THAT HAVE SOMETHING IN THEM ARE JUDGED, and that is not leniency — it is the
 // difference between "the theme hid it" and "the app rendered it empty". `.contact-form__error` and
@@ -410,6 +426,324 @@ const ESSENTIAL_PARTS_PROBE = () => [...document.querySelectorAll('[data-role="e
         };
       });
   });
+
+// ── ②d/②e the probe: every run of text an essential block owns, where it ended up, and what is ────
+//      left of it after the clipping ancestors and the edge of the scrollable document
+//
+// 🔴 THE UNIT IS A RUN OF TEXT, NOT AN ELEMENT'S BOX — that difference is the whole point (#1049).
+// `max-height: 1px` on a block does not make the block 1px: Tailwind's `box-sizing: border-box`
+// plus the block's own `padding: 80px 64px` floor it at 160px, measured, and its headline goes on
+// being perfectly readable. The four runs BELOW the headline are the ones that disappear. An
+// element-box reading answers "is this box small" and cannot tell those apart; `Range.getClientRects()`
+// over the element's own text nodes answers "where are these words", one rect per line box.
+//
+// 🔴 WHY A THRESHOLD PER LINE RATHER THAN AN AREA FOR THE WHOLE RUN: "the theme cut this paragraph
+// short" is a design decision (the first lines are whole), and "the theme squeezed every line into a
+// slit" is hiding. Those two have the same total area. A run is reported when NO line of it keeps
+// `min(that line's own height, MIN_BODY_PX)` of visible height — MIN_BODY_PX is the contract's own
+// number (§4 "Body text ≥ 14px", the same constant check ④ judges by), not one invented here, and
+// taking the line's own height when it is smaller is what stops a legitimately small caption from
+// being reported for being small.
+//
+// 🔴 THE ONE EXEMPTION IS AN ATTRIBUTE, AND THAT IS WHY IT CANNOT BE ABUSED BY A THEME. A carousel's
+// off-screen slides, a closed mobile drawer and a collapsed accordion panel are all "text with no
+// visible area", and a check that reported them would be red on a correct site — a check that is red
+// on correct sites gets switched off, which this repo has paid for. What separates them from hiding
+// is that the author SAID SO in the markup: `aria-hidden="true"`, the `hidden` attribute, or an
+// `aria-expanded="false"` control naming the element through `aria-controls`. A theme is a
+// stylesheet, and CSS cannot write an attribute (contract §1 refuses attribute selectors off the
+// hook list and `content` may only be the empty string), so this exemption is out of a theme's
+// reach by construction. It is also exactly what a screen reader is told, so the rule it enforces is
+// "a run of text is either there for everyone or gone for everyone".
+// 🔴 It is not optional, either: `QuoteFormSection.tsx` and `ContactFormSection.tsx` each render a
+// honeypot field as `aria-hidden="true"` + `left: -9999px`, inside `quote-form` / `contact-form`,
+// which are `essential`. Without the exemption this check is red on a site nobody has themed.
+const ESSENTIAL_TEXT_PROBE = () => {
+  const name = (e) => e.tagName.toLowerCase()
+    + (e.getAttribute && e.getAttribute('class') ? '.' + e.getAttribute('class').trim().split(/\s+/).join('.') : '');
+  // Document coordinates throughout: `getBoundingClientRect` is relative to wherever the page happens
+  // to be scrolled, and taking a screenshot scrolls it. Same reason check ②b adds `window.scrollY`.
+  const docBox = (r) => ({ x: r.left + window.scrollX, y: r.top + window.scrollY, w: r.width, h: r.height });
+  const intersect = (a, b) => {
+    const x = Math.max(a.x, b.x);
+    const y = Math.max(a.y, b.y);
+    const w = Math.min(a.x + a.w, b.x + b.w) - x;
+    const h = Math.min(a.y + a.h, b.y + b.h) - y;
+    return { x, y, w: Math.max(0, w), h: Math.max(0, h) };
+  };
+  const collapsed = [...document.querySelectorAll('[aria-controls][aria-expanded="false"]')];
+  const exemptedBy = (el) => {
+    for (let e = el; e; e = e.parentElement) {
+      if (e.getAttribute('aria-hidden') === 'true') return `${name(e)} carries aria-hidden="true"`;
+      if (e.hasAttribute('hidden')) return `${name(e)} carries the hidden attribute`;
+      if (e.id) {
+        const ctrl = collapsed.find((c) => (c.getAttribute('aria-controls') || '').trim().split(/\s+/).includes(e.id));
+        if (ctrl) {
+          return `${name(e)} is named by ${name(ctrl)}'s aria-controls and that control says aria-expanded="false"`;
+        }
+      }
+    }
+    return null;
+  };
+  // Every element that can cut this text away. `overflow` is asked of all three axes because
+  // `overflow-x: hidden` alone computes `overflow: hidden auto` and a check reading only the shorthand
+  // would miss it. The clip is taken as the border box: the padding box is the exact answer, and the
+  // difference can only make this check MORE forgiving, which is the safe direction for a check whose
+  // false reds are the failure mode.
+  //
+  // 🔴 THE WALK STARTS AT THE ELEMENT ITSELF, NOT AT ITS PARENT, and that is not an off-by-one — an
+  // element's own `overflow` clips its OWN text, and starting at the parent is a hole exactly the
+  // width of the rule that is easiest to write. Measured on /allblocks.html of this repo's sample
+  // site, before this line said `el`: `.contact-info__phone { max-height: 10px; overflow: hidden }`
+  // squeezed a 24px line of the phone number into a 10px slit and the whole check came back rc=0 —
+  // ②d never applied the clip, and ②e passed because the tops of the digits still painted some
+  // pixels. That is the very case ②d's per-line threshold exists to name ("the theme squeezed every
+  // line into a slit"), so the criterion was sound and only the walk was short. An element whose
+  // overflow is hidden but whose box already fits its text intersects to a no-op, so this costs
+  // nothing on a correct page (measured: the 117-run baseline is unchanged).
+  const clippersOf = (el) => {
+    const out = [];
+    for (let e = el; e; e = e.parentElement) {
+      const cs = getComputedStyle(e);
+      if (cs.overflow !== 'visible' || cs.overflowX !== 'visible' || cs.overflowY !== 'visible') {
+        out.push({ who: `${name(e)} { overflow: ${cs.overflow} }`, rect: docBox(e.getBoundingClientRect()) });
+      }
+    }
+    return out;
+  };
+  // Where a visitor can actually get to. Negative document coordinates and anything past
+  // scrollWidth/scrollHeight are unreachable by scrolling, which is what `margin-left: -9999px` buys.
+  const reachable = {
+    x: 0,
+    y: 0,
+    w: Math.max(document.documentElement.scrollWidth, document.body ? document.body.scrollWidth : 0),
+    h: Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0),
+  };
+  return [...document.querySelectorAll('[data-role="essential"]')].map((block) => {
+    const blockName = block.getAttribute('data-block')
+      || (block.getAttribute('class') || block.tagName).trim().split(/\s+/)[0];
+    const runs = [];
+    for (const el of [block, ...block.querySelectorAll('*')]) {
+      // Only the text this element OWNS — its direct text-node children. Walking `textContent`
+      // instead would report an ancestor and every descendant for the same words.
+      const texts = [...el.childNodes].filter((n) => n.nodeType === 3 && n.textContent.trim().length > 0);
+      if (texts.length === 0) continue;
+      const lines = [];
+      for (const t of texts) {
+        const range = document.createRange();
+        range.selectNodeContents(t);
+        for (const r of range.getClientRects()) lines.push(docBox(r));
+      }
+      const clippers = clippersOf(el);
+      const measured = lines.map((line) => {
+        let vis = line;
+        let cutBy = null;
+        for (const c of clippers) {
+          vis = intersect(vis, c.rect);
+          if (!cutBy && (vis.w <= 0 || vis.h <= 0)) cutBy = c.who;
+        }
+        vis = intersect(vis, reachable);
+        if (!cutBy && (vis.w <= 0 || vis.h <= 0)) {
+          cutBy = 'it sits outside the part of the document that can be scrolled to';
+        }
+        const alive = vis.w > 0 && vis.h > 0 && vis.h >= Math.min(line.h, 14);
+        return { line, vis, cutBy, alive };
+      });
+      runs.push({
+        block: blockName,
+        where: (el.getAttribute('class') || el.tagName).trim().split(/\s+/)[0],
+        text: texts.map((t) => t.textContent.trim()).join(' ').replace(/\s+/g, ' ').slice(0, 40),
+        exempt: exemptedBy(el),
+        lines: measured.length,
+        alive: measured.filter((m) => m.alive).length,
+        rawArea: Math.round(measured.reduce((n, m) => n + m.line.w * m.line.h, 0)),
+        visArea: Math.round(measured.reduce((n, m) => n + m.vis.w * m.vis.h, 0)),
+        at: measured.length ? { x: Math.round(measured[0].line.x), y: Math.round(measured[0].line.y) } : null,
+        cutBy: (measured.find((m) => m.cutBy) || {}).cutBy || null,
+        // What ②e photographs. Only the lines that survived ②d — a run ②d already reported does not
+        // need a second finding, and the rectangles of the others are empty anyway.
+        visRects: measured.filter((m) => m.alive).map((m) => m.vis),
+      });
+    }
+    return { block: blockName, runs };
+  });
+};
+
+// ── the page has to STOP MOVING before either dimension is measured ─────────────────────────────
+// 🔴 THIS IS NOT TIDINESS, IT IS THE DIFFERENCE BETWEEN A READING AND A FALSE RED, and it cost a
+// round to find. ②d measures where a run of text is; ②e photographs the block it lives in — and
+// `el.screenshot()` SCROLLS THE PAGE, which is what makes a `loading="lazy"` image above that block
+// finally load. Measured on /allblocks.html of this repo's sample site, before this function existed:
+// `quote-form`'s box was at document y 4577.6 when the geometry was read and 91px lower when it was
+// photographed, so every rectangle pointed at the wrong rows of the picture and
+// `quote-form__intro` — a line of text a person can read perfectly — was reported as "not one pixel
+// painted". The picture proved it: its top 91 rows were the block ABOVE quote-form.
+// So: turn every lazy image eager and wait for it, wait for the web fonts, then let the browser lay
+// out twice. Cheap (one evaluate per page) and it makes the two readings comparable by construction.
+const settlePage = async () => {
+  await page.evaluate(async () => {
+    const imgs = [...document.querySelectorAll('img')];
+    for (const i of imgs) i.loading = 'eager';
+    await Promise.all(imgs.map((i) => (i.complete ? null : new Promise((done) => {
+      i.addEventListener('load', done, { once: true });
+      i.addEventListener('error', done, { once: true });
+    }))));
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  });
+};
+
+// The sentence every ②d/②e finding ends with. PM's requirement on this ticket: a person reading the
+// red has to be told, in the red itself, that the exemption was considered and did not apply — and
+// therefore what to write in the markup if this text really is meant to be off right now.
+const NOT_EXEMPT = 'It was not skipped: neither it nor any ancestor carries aria-hidden="true" or the '
+  + 'hidden attribute, and no aria-expanded="false" control names it through aria-controls — so as far '
+  + 'as the markup says, this text is on right now';
+
+// ── ②d where the text ended up, and what is left of it ──────────────────────────────────────────
+function judgeEssentialText(reading, where) {
+  const found = [];
+  for (const b of reading) {
+    for (const r of b.runs) {
+      if (r.exempt) continue;
+      if (r.alive > 0) continue;
+      const cause = r.lines === 0 || r.rawArea === 0
+        ? `the words have no box of their own at all (${r.lines} line box(es), ${r.rawArea}px² before any clipping)`
+        : `${r.cutBy || 'nothing a visitor can reach is left of it'} — ${r.rawArea}px² of text, `
+          + `${r.visArea}px² of it reachable`;
+      found.push(`visibility${where}: the text in "${r.where}" inside the essential block "${r.block}" `
+        + `("${r.text}") is on the page but nowhere a customer could read it: 0 of ${r.lines} line(s) keep `
+        + `${MIN_BODY_PX}px of visible height${r.at ? ` (first line at document ${r.at.x},${r.at.y})` : ''}. `
+        + `${cause}. Contract §3. ${NOT_EXEMPT}.`);
+    }
+  }
+  return found;
+}
+
+// ── ②e how many pixels of that text were actually painted ───────────────────────────────────────
+// 🔴 THIS DIMENSION NAMES NO PROPERTY, WHICH IS THE POINT. `opacity: 0.0001`, `filter: opacity(0)`,
+// `clip-path: inset(100%)` and `color: transparent` are four spellings of one outcome, and #1043
+// established where the other road ends: mutating around the words a detector KNOWS never catches
+// the writings that grow out of the allowed set. So the reading is the outcome — photograph the
+// block, photograph it again with its own words made transparent, and count how many pixels changed
+// inside each run's visible rectangle. Zero means those words were not on the screen. Same
+// construction check ① has used since #966, applied per run of text instead of per hero element.
+//
+// 🔴 IT RUNS ONLY ON RUNS ②d PASSED. A run ②d already reported is somewhere unreachable, and asking
+// a camera about it would either report it twice or fail to photograph it at all.
+async function judgeEssentialPaint(reading, where) {
+  const found = [];
+  const blocks = await page.$$('[data-role="essential"]');
+  for (let i = 0; i < reading.length; i += 1) {
+    const b = reading[i];
+    const candidates = b.runs.filter((r) => !r.exempt && r.alive > 0 && r.visRects.length > 0);
+    if (candidates.length === 0) continue;
+    const el = blocks[i];
+    if (!el) {
+      // Fail loud: the probe saw a block this handle list does not have, so nothing was measured.
+      found.push(`visibility${where}: the essential block "${b.block}" was in the reading but could not be `
+        + 'photographed (no element handle for it) — check ②e was not measured on it');
+      continue;
+    }
+    const box = await el.evaluate((n) => {
+      const r = n.getBoundingClientRect();
+      return { x: r.left + window.scrollX, y: r.top + window.scrollY, w: r.width, h: r.height };
+    });
+    // 🔴 THE PICTURE IS TAKEN BY DOCUMENT RECTANGLE, NOT BY ELEMENT, and that is the second half of
+    // the same lesson as `settlePage()` above. `el.screenshot()` scrolls the element into view and
+    // works out its clip from where the page then is; measured on /allblocks.html, once the four
+    // blocks before it had each been photographed, `quote-form`'s picture came back 91px off — its
+    // top rows were the END OF THE BLOCK ABOVE, while the element's box (asked before and after) had
+    // not moved by a pixel, so no staleness guard could have caught it. The same block photographed
+    // on its own came back right, which is why this only shows up in a full run.
+    // `page.screenshot({ clip, fullPage: true })` takes the clip in DOCUMENT coordinates — the same
+    // coordinates the text rectangles are in — so the mapping below is exact by construction rather
+    // than by trust. Measured on all 8 essential blocks of that page: the two methods agree on 5 and
+    // disagree on 3 (contact-info 5542px, quote-form 93724px, map-area 6672px), and it is this one
+    // that agrees with the block photographed alone.
+    const shootBox = () => page.screenshot({
+      type: 'png', fullPage: true, clip: { x: box.x, y: box.y, width: box.w, height: box.h },
+    });
+    let img;
+    let bare;
+    try {
+      img = await Jimp.read(await shootBox());
+      bare = await Jimp.read(await withoutWords(el, shootBox));
+    } catch (e) {
+      found.push(`visibility${where}: the essential block "${b.block}" could not be photographed `
+        + `(${e.message.split('\n')[0]}) — check ②e was not measured on it, which is not the same as passing`);
+      continue;
+    }
+    const { width, height } = img.bitmap;
+    if (bare.bitmap.width !== width || bare.bitmap.height !== height) {
+      found.push(`visibility${where}: the essential block "${b.block}" changed size between the two `
+        + `pictures (${width}×${height} vs ${bare.bitmap.width}×${bare.bitmap.height}) — not measured`);
+      continue;
+    }
+    // The two pictures have to be OF the box the rectangles are measured against, or every count
+    // below is off by however far they disagree. 2px of tolerance for the browser's own rounding.
+    if (Math.abs(width - box.w) > 2 || Math.abs(height - box.h) > 2) {
+      found.push(`visibility${where}: the picture of the essential block "${b.block}" is ${width}×${height} `
+        + `while its box is ${Math.round(box.w)}×${Math.round(box.h)} — the two do not line up, so check ②e `
+        + 'was not measured on it');
+      continue;
+    }
+    // 🔴 AND ASK AGAIN AFTERWARDS. `settlePage()` above removes the cause that was measured, but a
+    // rectangle that no longer means anything is the one failure this dimension must never turn into
+    // a red on a correct site — so the box is re-read once the pictures are taken, and a block that
+    // moved is reported as NOT MEASURED rather than judged. Two pixels of tolerance for rounding.
+    const boxAfter = await el.evaluate((n) => {
+      const r = n.getBoundingClientRect();
+      return { x: r.left + window.scrollX, y: r.top + window.scrollY, w: r.width, h: r.height };
+    });
+    if (Math.abs(boxAfter.x - box.x) > 2 || Math.abs(boxAfter.y - box.y) > 2
+      || Math.abs(boxAfter.w - box.w) > 2 || Math.abs(boxAfter.h - box.h) > 2) {
+      found.push(`visibility${where}: the essential block "${b.block}" moved while it was being `
+        + `photographed (${Math.round(box.x)},${Math.round(box.y)} ${Math.round(box.w)}×${Math.round(box.h)} `
+        + `→ ${Math.round(boxAfter.x)},${Math.round(boxAfter.y)} ${Math.round(boxAfter.w)}×${Math.round(boxAfter.h)}), `
+        + 'so the picture and the text rectangles are of two different layouts — check ②e was not '
+        + 'measured on it, which is not the same as passing');
+      continue;
+    }
+    const { mask } = wordPixels(img, bare);
+    for (const r of candidates) {
+      let painted = 0;
+      for (const rect of r.visRects) {
+        const x0 = Math.max(0, Math.floor(rect.x - box.x));
+        const y0 = Math.max(0, Math.floor(rect.y - box.y));
+        const x1 = Math.min(width, Math.ceil(rect.x + rect.w - box.x));
+        const y1 = Math.min(height, Math.ceil(rect.y + rect.h - box.y));
+        for (let y = y0; y < y1; y += 1) {
+          for (let x = x0; x < x1; x += 1) if (mask[y * width + x]) painted += 1;
+        }
+      }
+      if (painted === 0) {
+        found.push(`visibility${where}: the text in "${r.where}" inside the essential block "${r.block}" `
+          + `("${r.text}") is laid out where a customer could see it — ${r.alive} of ${r.lines} line(s), `
+          + `${r.visArea}px² — but not one pixel of it is painted: photographing the block with and `
+          + 'without its own words changes 0 pixels inside that text. That is what opacity: 0.0001, '
+          + `filter: opacity(0), clip-path: inset(100%) and color: transparent all look like. `
+          + `Contract §3. ${NOT_EXEMPT}.`);
+      }
+    }
+  }
+  return found;
+}
+
+// One reading line per page for ②d/②e — counts, not adjectives, so "checked and clean" can be told
+// apart from "there was nothing on this page to check". The per-line survival counts are here on
+// purpose (PM, #1049): the day someone wants to tighten MIN_BODY_PX, the corpus is already printed.
+function textReading(reading, where) {
+  const runs = reading.flatMap((b) => b.runs);
+  const exempt = runs.filter((r) => r.exempt);
+  const partly = runs.filter((r) => !r.exempt && r.alive > 0 && r.alive < r.lines);
+  return `  ${where} — runs of text inside essential blocks: ${runs.length}`
+    + ` · fully reachable: ${runs.filter((r) => !r.exempt && r.alive === r.lines).length}`
+    + ` · partly cut: ${partly.length}${partly.length ? ` (${partly.map((r) => `${r.where} ${r.alive}/${r.lines} lines`).join(', ')})` : ''}`
+    + ` · nowhere reachable: ${runs.filter((r) => !r.exempt && r.alive === 0).length}`
+    + ` · skipped because the markup says they are off: ${exempt.length}`
+    + `${exempt.length ? ` (${exempt.map((r) => `${r.where} — ${r.exempt}`).join('; ')})` : ''}`;
+}
 
 const ESSENTIAL_PROBE = () => ({
   roots: [...document.querySelectorAll('[data-role="essential"]')].map((n) => {
@@ -462,6 +796,14 @@ readings.push(`  essential elements: ${essentials.length}`
   + essentials.map((e) => ` · "${e.where}" opacity ${e.opacity}`).join('')
   + ` · parts with content inside them: ${essentialReading.parts.length}`);
 problems.push(...judgeEssential(essentialReading, ''));
+// ②d/②e on this page. Installed and judged right here rather than folded into ESSENTIAL_PROBE
+// because ②e needs a camera, which lives in node, not in the document.
+await page.evaluate(`window.__essentialText = ${ESSENTIAL_TEXT_PROBE.toString()}`);
+await settlePage();
+const textReadingHome = await page.evaluate(() => window.__essentialText());
+problems.push(...judgeEssentialText(textReadingHome, ''));
+problems.push(...await judgeEssentialPaint(textReadingHome, ''));
+readings.push(textReading(textReadingHome, pathOf(baseUrl)));
 // Which pages this check actually covered — printed at the bottom next to check ⑤'s page list, so
 // "essential content is not hidden" states its own reach instead of leaving it to be assumed.
 const essentialPagesMeasured = [pathOf(baseUrl)];
@@ -1288,6 +1630,16 @@ for (const p of otherPaths.slice(0, OTHER_PAGE_CAP)) {
   await page.evaluate(`window.__essentialParts = ${ESSENTIAL_PARTS_PROBE.toString()}`);
   const otherReading = await page.evaluate(ESSENTIAL_PROBE);
   problems.push(...judgeEssential(otherReading, ` on ${opened.at}`));
+  // 🔴 #1049 — ②d/②e ON EVERY PAGE TOO, AND THAT IS A DELIBERATE 5.6s (PM's call on this ticket).
+  // The block these two dimensions exist for is `contact-info`, which lives on /contact and /quote and
+  // on no home page in this repo — measuring the first page alone would be blind on exactly the block
+  // that prompted the ticket. The corpus is its own argument: /quote 23 runs, /contact 9, home 13.
+  await page.evaluate(`window.__essentialText = ${ESSENTIAL_TEXT_PROBE.toString()}`);
+  await settlePage();
+  const otherText = await page.evaluate(() => window.__essentialText());
+  problems.push(...judgeEssentialText(otherText, ` on ${opened.at}`));
+  problems.push(...await judgeEssentialPaint(otherText, ` on ${opened.at}`));
+  readings.push(textReading(otherText, opened.at));
   // Say what this page actually offered up. "Measured on 4 pages" with no counts cannot tell
   // "checked and clean" from "there was nothing on any of them to check".
   readings.push(`  ${opened.at} — essential elements: ${otherReading.roots.length}`
@@ -1307,7 +1659,13 @@ readings.push(`  pages measured for check ⑤: ${audits.map((a) => a.where).join
 // 🔴 #1043 — check ② states its own reach. It used to be first-page-only and say nothing about that,
 // while the block it most needs to protect (`contact-info`) is on no home page in this repo.
 readings.push(`  pages measured for check ② (essential content not hidden): `
-  + `${essentialPagesMeasured.join(', ')} — roots AND the parts with content inside them`);
+  + `${essentialPagesMeasured.join(', ')} — roots AND the parts with content inside them, and on each of `
+  + 'them ②d (where every run of text ended up, and what survives the clipping ancestors and the edge of '
+  + `the scrollable document — ${MIN_BODY_PX}px of visible height on at least one line) and ②e (how many `
+  + 'pixels of that run were painted, photographed with and without its own words). 🔴 What ②d/②e do NOT '
+  + 'answer: text a visitor has to interact with to reveal — the exemption skips anything the markup '
+  + 'declares off (aria-hidden="true", the hidden attribute, an aria-expanded="false" control naming it), '
+  + 'and a theme cannot write an attribute, so what it skips is the app\'s statement, not the theme\'s');
 for (const { where, audit } of audits) {
   readings.push(`  ${where} — classes on the page: ${audit.used} · with no rule: ${audit.orphans.length}`
     + ` (${audit.sheets} stylesheets, ${audit.unreadableSheets} not readable from here)`
