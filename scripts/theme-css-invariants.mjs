@@ -478,8 +478,9 @@ const ESSENTIAL_PARTS_PROBE = () => [...document.querySelectorAll('[data-role="e
 // off-screen slides, a closed mobile drawer and a collapsed accordion panel are all "text with no
 // visible area", and a check that reported them would be red on a correct site — a check that is red
 // on correct sites gets switched off, which this repo has paid for. What separates them from hiding
-// is that the author SAID SO in the markup: `aria-hidden="true"`, the `hidden` attribute, or an
-// `aria-expanded="false"` control naming the element through `aria-controls`. A theme is a
+// is that the author SAID SO in the markup: `aria-hidden="true"`, the `hidden` attribute, an
+// `aria-expanded="false"` control naming the element through `aria-controls`, or — since #1056 — a
+// native `<details>` with no `open` attribute above it. A theme is a
 // stylesheet, and CSS cannot write an attribute (contract §1 refuses attribute selectors off the
 // hook list and `content` may only be the empty string), so this exemption is out of a theme's
 // reach by construction. It is also exactly what a screen reader is told, so the rule it enforces is
@@ -487,6 +488,27 @@ const ESSENTIAL_PARTS_PROBE = () => [...document.querySelectorAll('[data-role="e
 // 🔴 It is not optional, either: `QuoteFormSection.tsx` and `ContactFormSection.tsx` each render a
 // honeypot field as `aria-hidden="true"` + `left: -9999px`, inside `quote-form` / `contact-form`,
 // which are `essential`. Without the exemption this check is red on a site nobody has themed.
+//
+// ══ #1056: THE COLLAPSED ACCORDION PANEL NAMED THREE LINES UP WAS THE ONE FORM NOT RECOGNISED ════
+// The list above already said a collapsed accordion panel must not be reported, and this repo's own
+// FAQ is exactly that — `FaqAccordionSection.tsx:65` renders each question as a native `<details>`
+// with no `open`, which has needed no `aria-expanded` control since it stopped being a `useState`
+// widget. So the panel text fell through every branch and was judged as ordinary body text, in both
+// directions at once (PM measured both on `a14e39e7`, /allblocks.html of the sample site):
+//   · ②e handed `.faq-accordion__answer` an ink score — 12.20 / 16.41 / 16.57 / 17.00 / 17.15 across
+//     the three shipped sheets. A number saying "a customer can read this comfortably", about words
+//     `checkVisibility({checkOpacity: true, checkVisibilityCSS: true})` answers `false` for.
+//   · ②d called it hiding on sheets whose geometry differs: #1051's generated candidates were
+//     stopped by `gates.js` with "laid out where a customer could see it … but not one pixel of it
+//     is painted", 3 runs in each of 3 candidates.
+//
+// 🔴 THE EXEMPTION IS THE CLOSED `<details>`, NOT THE BLOCK. Open the panel and those same words are
+// body text a customer reads, so a theme hiding them still has to be reported — which is why this is
+// a walk up the ancestors asking about `open`, not a class name on a skip list.
+// 🔴 AND IT STOPS AT THE `<summary>`: the question stays on screen while the panel is closed, so the
+// walk remembers which child it came up through and lets the summary's own text keep being measured.
+// Measured on the same page: `.faq-accordion__question` goes on getting an ink score after this
+// change, and only `.faq-accordion__answer` stops.
 const ESSENTIAL_TEXT_PROBE = () => {
   const name = (e) => e.tagName.toLowerCase()
     + (e.getAttribute && e.getAttribute('class') ? '.' + e.getAttribute('class').trim().split(/\s+/).join('.') : '');
@@ -502,9 +524,21 @@ const ESSENTIAL_TEXT_PROBE = () => {
   };
   const collapsed = [...document.querySelectorAll('[aria-controls][aria-expanded="false"]')];
   const exemptedBy = (el) => {
-    for (let e = el; e; e = e.parentElement) {
+    // `from` is the child this walk came up through — `null` on the first step, when `e` IS the
+    // element that owns the text. It exists for the `<details>` branch below and nothing else.
+    for (let e = el, from = null; e; from = e, e = e.parentElement) {
       if (e.getAttribute('aria-hidden') === 'true') return `${name(e)} carries aria-hidden="true"`;
       if (e.hasAttribute('hidden')) return `${name(e)} carries the hidden attribute`;
+      // A closed native `<details>` hides everything under it EXCEPT its own first `<summary>` —
+      // that one is the control a visitor clicks and is on screen the whole time. So the branch is
+      // not "am I inside a closed <details>", it is "am I inside the part of it that is closed":
+      // coming up through the summary is the one way past this. `:scope > summary` picks the first
+      // such child, which is the only one the element treats as its control (any later `<summary>`
+      // is ordinary panel content, and is hidden with the rest).
+      if (e.tagName === 'DETAILS' && !e.hasAttribute('open')
+          && from !== e.querySelector(':scope > summary')) {
+        return `${name(e)} is a <details> with no open attribute, and this text is in the panel it keeps closed`;
+      }
       if (e.id) {
         const ctrl = collapsed.find((c) => (c.getAttribute('aria-controls') || '').trim().split(/\s+/).includes(e.id));
         if (ctrl) {
@@ -626,8 +660,8 @@ const settlePage = async () => {
 // red has to be told, in the red itself, that the exemption was considered and did not apply — and
 // therefore what to write in the markup if this text really is meant to be off right now.
 const NOT_EXEMPT = 'It was not skipped: neither it nor any ancestor carries aria-hidden="true" or the '
-  + 'hidden attribute, and no aria-expanded="false" control names it through aria-controls — so as far '
-  + 'as the markup says, this text is on right now';
+  + 'hidden attribute, no aria-expanded="false" control names it through aria-controls, and it is not '
+  + 'in the closed panel of a <details> — so as far as the markup says, this text is on right now';
 
 // ── ②d where the text ended up, and what is left of it ──────────────────────────────────────────
 function judgeEssentialText(reading, where) {
@@ -1936,7 +1970,8 @@ readings.push(`  pages measured for check ② (essential content not hidden): `
   + `the scrollable document — ${MIN_BODY_PX}px of visible height on at least one line) and ②e (how many `
   + 'pixels of that run were painted, photographed with and without its own words). 🔴 What ②d/②e do NOT '
   + 'answer: text a visitor has to interact with to reveal — the exemption skips anything the markup '
-  + 'declares off (aria-hidden="true", the hidden attribute, an aria-expanded="false" control naming it), '
+  + 'declares off (aria-hidden="true", the hidden attribute, an aria-expanded="false" control naming it, '
+  + 'the closed panel of a <details>), '
   + 'and a theme cannot write an attribute, so what it skips is the app\'s statement, not the theme\'s'
   + `${droppedPages.length ? ` · 🔴 ${droppedPages.length} page(s) past the ${OTHER_PAGE_CAP}-page `
     + `cap were NOT measured for this check either — not for ②, and not for ②d/②e: `
