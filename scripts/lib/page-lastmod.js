@@ -134,14 +134,24 @@ function gitIndex(rootDir, pathspec) {
 function createLastModifiedResolver({ rootDir, pathspec, buildTime }) {
   const index = gitIndex(rootDir, pathspec);
 
+  // 🔴 #1025 条 12 —— 上界。文件的 mtime 可以是未来（`touch -d 2030-01-01` 就够了，QA3 在 #1026
+  //    实测过：`config-data.ts` 里当场写出 `"2030-01-01T00:00:00.000Z"`）。一个未来的 <lastmod>
+  //    对搜索引擎是明确的坏信号，而它不会自己好——要等到有人真的再编辑一次这个文件才自愈。
+  //    压回构建时刻是安全方向：构建时刻本来就是这个函数最后那一档的取值。
+  //    只压上界、不碰下界：很旧的日期是真话，没有理由改它。
+  function capFuture(iso, source) {
+    if (iso && buildTime && iso > buildTime) return { value: buildTime, source: `${source}-capped` };
+    return { value: iso, source };
+  }
+
   function resolveOne(absPath) {
     if (absPath && index && !index.dirty.has(absPath) && index.dates.has(absPath)) {
-      return { value: index.dates.get(absPath), source: 'git' };
+      return capFuture(index.dates.get(absPath), 'git');
     }
     if (absPath) {
       try {
         const iso = toIso(fs.statSync(absPath).mtime);
-        if (iso) return { value: iso, source: 'mtime' };
+        if (iso) return capFuture(iso, 'mtime');
       } catch {
         // 读不到这个文件 —— 落到下面那一档，调用方会点名。
       }
@@ -175,4 +185,6 @@ function createLastModifiedResolver({ rootDir, pathspec, buildTime }) {
   };
 }
 
-module.exports = { createLastModifiedResolver, toIso };
+// 🔴 #1025 条 11 —— `toIso` 不再导出:全仓外部调用点 0 个(它只被本文件内部用了 3 次)。
+//    留着一个没人调的导出，下一个人会以为它是这个模块对外契约的一部分而不敢动它。
+module.exports = { createLastModifiedResolver };

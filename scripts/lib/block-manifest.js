@@ -340,8 +340,8 @@ function industryMatches(industry, word) {
  *
  * 🔴 为什么构建期一条都不拦（#999 r3，QA2 在真站上量出来的）：**构建期没有救，只有毁。**
  *    那时 site/ 里的 JSON 已经是既成事实，没有重试、没有人在旁边、也没有第二次机会 ——
- *    退出码 1 唯一的后果是**这个站从此重建不出来、预览也开不出来**（worker/entrypoint.sh:226-234
- *    的 preview 分支带着 `set -e`，sync-config 一挂就走不到起服务那一步）。
+ *    退出码 1 唯一的后果是**这个站从此重建不出来、预览也开不出来**（worker/entrypoint.sh 里
+ *    `"$MODE" = "preview"` 那个分支带着 `set -e`，sync-config 一挂就走不到起服务那一步）。
  *    也就是说硬失败把「有一块地方是空的」换成了「整个站没了」，而后者严重得多。
  *
  *    这不是假设：拿交付版对 GitHub 上**真实存在的 28 个站**跑一遍（dev 20 / test 2 / prod 6），

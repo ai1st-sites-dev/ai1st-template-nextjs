@@ -55,7 +55,8 @@ const Jimp = (await import('jimp')).default;
 
 const baseUrl = process.argv[2];
 if (!baseUrl) {
-  console.error('usage: node scripts/theme-css-invariants.mjs <baseUrl>   e.g. http://127.0.0.1:8991');
+  console.error('usage: node scripts/theme-css-invariants.mjs <baseUrl> [page …]   e.g. http://127.0.0.1:8991');
+  console.error('       页面不给就从站点自己的 /sitemap.xml 读(#1023)');
   process.exit(2);
 }
 

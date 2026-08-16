@@ -39,8 +39,9 @@ if (!fs.existsSync(siteDir) || !fs.existsSync(path.join(siteDir, 'brand.json')))
 // does not fire npm's lifecycle hooks — worker/main.go:1447 says so in its own comment, and it is why
 // each of those call sites runs `node scripts/sync-config.js` itself:
 //
-//     worker/entrypoint.sh:204   preview mode:  sync-config, then `npx next build` in the serve loop
-//     worker/entrypoint.sh:216   create mode:   create-site.js → sync-config → same loop
+//     worker/entrypoint.sh, the `"$MODE" = "preview"` branch — sync-config, then `npx next build`
+//                                in the serve loop (see `start_preview_server()`)
+//     worker/entrypoint.sh, the create path — create-site.js → sync-config → same loop
 //     worker/main.go:1511        after an edit: `node scripts/sync-config.js && npx next build`
 //     worker/main.go:1457/999/1264   apply a theme / the other rebuild flows: sync-config, explicitly
 //
@@ -483,8 +484,8 @@ for (const locale of locales) {
   //
   // 🔴 构建期只说、不拦（`scope: 'build'` 让 validateSite 一条 problem 都不产出，理由整段写在
   //    block-manifest.js 的 validateSite 头上）。一句话版：构建期没有救，只有毁 —— 这里退出码 1
-  //    的唯一后果是这个站从此重建不出来、预览也开不出来（`worker/entrypoint.sh:226-234` 的 preview
-  //    分支带 `set -e`）。实测 GitHub 上真实存在的 28 个站，硬拦会当场废掉 prod 的两个。
+  //    的唯一后果是这个站从此重建不出来、预览也开不出来（`worker/entrypoint.sh` 里 `"$MODE" = "preview"` 那个
+  //    分支带 `set -e`，就是检查 `site/brand.json` 在不在的那一段）。实测 GitHub 上真实存在的 28 个站，硬拦会当场废掉 prod 的两个。
   //    ⟹ 所以这里不接 problems：它恒为空，接了就是死代码。
   //
   // 📌 `industry` 在构建期是不知道的（seo.json 里没有这个字段），所以「行业必需的块缺了」这条
@@ -708,8 +709,12 @@ for (const note of regionLayout.notes) console.log(`    · ${note}`);
 // that have NOT moved yet are the ones still keyed off `variant`, so name that instead of "every".
 // 🔴 #1018 — the count in the second line is the thing that goes stale, so it is spelled out from the
 // list of blocks that have moved rather than typed as a number: three moved (hero #1008, cta-banner
-// #1018, page-header #1019), 31 to go. The next migration ticket edits MOVED_BLOCKS and both the
-// sentence and the count stay true — #1019 only had to correct this comment's own prose.
+// #1018, page-header #1019), 31 to go — 🔴 that pair of numbers is #1019's state, not today's; it is
+// kept as the worked example of what the line USED to print. Today's numbers come from MOVED_BLOCKS
+// below and are printed on every build; do not type them anywhere. The next migration ticket edits
+// MOVED_BLOCKS and both the sentence and the count stay true — #1019 only had to correct this
+// comment's own prose. (#1025 条 16: the same count hand-written into theme-css-contract.md went
+// 31 → 25 → 21 → 17 in one week, which is what this design avoids.)
 //
 // 📌 #1018 r3 (rebased onto #1002's ship) keeps both halves of the collision here: the variable is
 //    #1002's `themeSheet` and the wording is its "pasted into theme.css" (the sheet's bytes go INTO
