@@ -32,6 +32,41 @@ const TOKENS_LIB = path.join(NEXT, 'scripts', 'lib', 'theme-tokens.js');
 //    会接住它 —— 跟这个文件其余部分同一个失败方向（拒跑，不放行）。
 const { HOOK_CLASSES } = fs.existsSync(LINT) ? require(LINT) : { HOOK_CLASSES: [] };
 
+// ── 「这份表真的给哪几个钩子写了规则」──────────────────────────────────────────────────────────────
+//
+// 🔴 判据是 postcss **解析出来的选择器**，不是表的原始字节（#1058）。原来这里对整份表跑一次
+//    `/\.([A-Za-z_][\w-]*)/g`，于是「有规则」的字面意思是「这个名字带一个点出现在文件的某处」——
+//    注释里算、属性值里算、散文里也算。外科实验（作者做的、PM 复现、我又复现一遍）：从真的出货表
+//    `hero-media-left.css` 里把 `.faq-accordion__answer` 的规则块整块删掉、只留一行
+//    `/* TODO: .faq-accordion__answer 以后再画 */`，旧判据照样判它「有规则」。
+//
+// 🔴 为什么现在改（前提变了，不是加严了口味）：#996 → #1015 → #1046 三轮都判「不修」，理由是
+//    今天零现实命中 —— 而那句话成立是因为**表是人写的**。#1051 的生成器已经在 main 上
+//    （`a52aa06d`），#1016 要拿它跑 60-80 套直接进池子。一个按「让每个钩子的名字出现在文件里」
+//    优化的机器，正是这个文本判据唯一防不住的对手。
+//
+// 🔴 不自己写第二份解析：`hook-coverage.js`（就在这个目录里）已经用 postcss 的 `rule.selector`
+//    回答同一个问题，而且它是本票那个外科实验里**唯一抓到**的那把（EXIT=1 逐字点名，原表 EXIT=0）。
+//    抄一份必然分叉，而分叉的方向是「这把说画了、那把说没画」。
+//    require 放在函数里而不是文件顶上：上面第 33 行有意容忍 `theme-css-lint.js` 不在（给空清单，
+//    不崩），而 `hook-coverage.js` 顶层就 require 它 —— 顶上 require 会把那条容忍变成加载即崩。
+//    调用方只在「产物里确实有钩子」时才走到这里，所以那条路上它一定在。
+//
+// 🔴 r2（QA3 抓到的）：「有规则」还要求**那条规则带着至少一条声明**。`.faq-accordion__answer {}`
+//    改的像素是零，跟「名字只出现在注释里」同一个性质，只是换了个位置藏 —— 而它当时四道尺全部放行。
+//    收紧写在 `hook-coverage.js` 的 `measureSheet` 里，不写在这里：那样这道闸和 #1051 自己那把尺
+//    是同一句话，不会一把说画了、另一把说没画。误伤面量过是零（83 份表：3 套出货 + #1016 的 80 套池成员，
+//    空规则块 0 个）。📌 本票正文 AC5 的表把 `hook-coverage.js` 列成「不改」—— 那一栏的读数是拿
+//    **注释**那种形状取的，对空规则块不成立，交接留言里把这笔账写给 PM 了。
+const HOOK_COVERAGE = path.join(__dirname, 'hook-coverage.js');
+function hooksDeclaredIn(sheetText) {
+  // eslint-disable-next-line global-require
+  const { measureSheet } = require(HOOK_COVERAGE);
+  const declared = new Set(HOOK_CLASSES);
+  for (const h of measureSheet(sheetText).missingHooks) declared.delete(h);
+  return declared;
+}
+
 const ok = (name, note) => ({ gate: name, pass: true, problems: [], note: note || '' });
 const bad = (name, problems) => ({ gate: name, pass: false, problems });
 
@@ -120,19 +155,26 @@ function gateInvariants(candidate, { outDir, baseUrl }) {
   // ②b 🔴 本票自己那条：页面上出现的钩子，必须在【这套主题自己那份 CSS】里有规则。
   // 判据是「读 theme 那一份表」，不是「读产物里所有 CSS」—— 后者会被 base.css / 站自己的
   // Tailwind 产物顶过去，于是「主题整块没写」也全绿（AC2 驱动的就是这个形状）。
-  const sheetText = fs.existsSync(candidate.sheetPath) ? fs.readFileSync(candidate.sheetPath, 'utf-8') : '';
-  const declared = new Set();
-  for (const m of sheetText.matchAll(/\.([A-Za-z_][\w-]*)/g)) declared.add(m[1]);
   const html = fs.existsSync(path.join(outDir, 'index.html'))
     ? fs.readFileSync(path.join(outDir, 'index.html'), 'utf-8') : '';
   const onPage = HOOK_CLASSES.filter((c) => new RegExp(`class="[^"]*\\b${c}\\b`).test(html));
-  const missing = onPage.filter((c) => !declared.has(c));
   if (!onPage.length) {
     problems.push('theme coverage: 产物里一个契约钩子都没有 —— 这道闸没东西可看，不算通过');
-  }
-  for (const c of missing) {
-    problems.push(`theme coverage: 页面上有 ".${c}"，而这套主题自己的表里没有它的规则`
-      + '（别的表兜底不算 —— 那样每套主题的这一块都长一个样）');
+  } else {
+    const sheetText = fs.existsSync(candidate.sheetPath) ? fs.readFileSync(candidate.sheetPath, 'utf-8') : '';
+    let declared;
+    try {
+      declared = hooksDeclaredIn(sheetText);
+    } catch (e) {
+      // 解析不了就没量成 —— 空清单会把 213 个钩子全报一遍，那是噪音不是读数。
+      // （这条路在流水线里到不了：①静态先跑 `theme-css-lint.js`，它也用 postcss。）
+      return bad('② 动态', [...problems, `theme coverage: ${path.basename(candidate.sheetPath || '')}`
+        + ` 解析不了（${String(e.message).split('\n')[0]}）—— 这一格没量成，不算通过`]);
+    }
+    for (const c of onPage.filter((c2) => !declared.has(c2))) {
+      problems.push(`theme coverage: 页面上有 ".${c}"，而这套主题自己的表里没有它的规则`
+        + '（别的表兜底不算 —— 那样每套主题的这一块都长一个样）');
+    }
   }
   return problems.length ? bad('② 动态', problems)
     : ok('② 动态', `钩子 ${onPage.length} 个,全部在这套主题自己的表里有规则`);
@@ -441,6 +483,8 @@ function gateHumanReview(candidate, { galleryDir, shot } = {}) {
 
 module.exports = {
   HOOK_CLASSES,
+  // 复核 ②b 的人要能不建站就问「这份表给哪几个钩子写了规则」—— 那正是本票换掉的那个判据（#1058）。
+  hooksDeclaredIn,
   gateStatic,
   gateInvariants,
   gateSimilarity,

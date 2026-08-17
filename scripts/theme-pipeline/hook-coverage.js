@@ -42,6 +42,21 @@ const blockOf = (hook) => (hook.includes('__') ? hook.split('__')[0] : hook);
 const ALL_HOOKS = new Set(HOOK_CLASSES);
 const ALL_BLOCKS = [...new Set(HOOK_CLASSES.map(blockOf))];
 
+// 🔴 **「画了这个钩子」= 有一条规则【带着至少一条声明】选中它**（#1058 r2，QA3 抓到的那条）。
+//    只看选择器不看声明数，`.faq-accordion__answer {}` 就算「画了」—— 一条声明都没有、改的像素是零，
+//    跟 #1058 本来要治的「名字只出现在注释里」是同一个性质，只是换了个位置藏。
+//
+//    实测（从真出货表 `hero-media-left.css` 上把那个钩子的规则块掏空、保留选择器）：
+//      ①静态 `theme-css-lint.js`  EXIT=0        ← 放行
+//      这把尺（收紧之前）          EXIT=0        ← 也放行；那个块的声明数由兄弟钩子撑着，按钩子的空看不见
+//      准入闸②b（`gates.js`，它问的就是这里的 `missingHooks`）  判它「有规则」
+//    ⟹ 四道尺没有一道说话。而**按判据优化的生成器，给不会画的钩子吐一个空块正是最省事的产出**。
+//
+// 🔴 收紧的误伤面量过，是零：三套出货表 + #1016 那 80 套池成员，一共 83 份，
+//    空规则块 0 个、「只被空规则提及的钩子」0 个 ⟹ 收紧前后 `missingHooks` 逐份相同。
+//
+// 📌 密度那两个数（`perBlock`）本来就只加声明数，空规则块对它恒加 0 —— 所以这一条只动
+//    「有没有画」那一维，密度那一维一个数都不变。
 /** 一份表的读数。`css` 是表的文本。 */
 function measureSheet(css) {
   const root = postcss.parse(css);
@@ -56,7 +71,7 @@ function measureSheet(css) {
     const blocks = new Set();
     for (const m of rule.selector.matchAll(/\.([A-Za-z_][\w-]*)/g)) {
       if (!ALL_HOOKS.has(m[1])) continue;
-      hooks.add(m[1]);
+      if (n > 0) hooks.add(m[1]);
       blocks.add(blockOf(m[1]));
     }
     for (const b of blocks) perBlock.set(b, perBlock.get(b) + n);
@@ -85,7 +100,10 @@ function measureSheet(css) {
 function problemsIn(m, { minDecls, minMedian }) {
   const out = [];
   if (m.missingHooks.length) {
-    out.push(`钩子 ${m.hooks}/${m.hooksTotal} —— 这份表里没有规则的钩子：${m.missingHooks.join(', ')}`);
+    // 措辞跟上面那条判据对齐：空规则块现在也算「没画」，说成「没有规则」会让人去 grep 名字然后
+    // 发现它在（#1058 r2）。
+    out.push(`钩子 ${m.hooks}/${m.hooksTotal} —— 这份表里没画的钩子`
+      + `（没有任何一条带声明的规则选中它）：${m.missingHooks.join(', ')}`);
   }
   if (m.missingBlocks.length) {
     out.push(`块 ${m.blocks}/${m.blocksTotal} —— 一条规则都没有的块：${m.missingBlocks.join(', ')}`);
