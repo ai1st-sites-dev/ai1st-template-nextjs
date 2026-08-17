@@ -577,12 +577,19 @@ async function main() {
 
         if (status >= 500 || status === 0) {
           emit('progress', { message: 'Dev server error detected, restarting...' });
-          debug('Dev server unhealthy, killing next dev to trigger restart...');
-          try {
-            execSync('pkill -f "next dev"', { stdio: 'pipe' });
-          } catch (e) {
-            // pkill returns non-zero if no process found — that's fine
-          }
+          // 🔴 WE DO NOT KILL ANYTHING HERE — WE WAIT FOR THE ENTRYPOINT'S LOOP. Since TICKET-275a the
+          // preview is a production static build served by `serve out` (see the comment above
+          // start_preview_server() in worker/entrypoint.sh), and that loop is what brings it back when
+          // it dies. #1059 deleted a `pkill -f "next dev"` that used to stand here: there is no
+          // `next dev` on such a container for it to match, so it restarted nothing.
+          //
+          // 🔴 And it was not free. `execSync` runs on WHICHEVER MACHINE this script is on. In
+          // production that is the site's own container, but we run this script by hand on the shared
+          // dev box to verify things — and there `pkill -f "next dev"` matches by command line without
+          // caring whose process it is, so it killed other people's dev servers. Two separate
+          // avoidance rules had been written down for that (point PREVIEW_PORT at a stand-in that
+          // always answers 200, so this branch is never reached); deleting the line retires both.
+          debug('Dev server unhealthy — waiting for the preview server to come back on its own');
           const recovered = await waitForDevServer(port, 30000);
           if (recovered) {
             debug('Dev server recovered after restart');
