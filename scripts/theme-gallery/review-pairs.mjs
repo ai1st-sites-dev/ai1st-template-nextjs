@@ -24,6 +24,9 @@ import fs from 'fs';
 import path from 'path';
 import { execFileSync } from 'child_process';
 import { NEXT_DIR, galleryDir } from './paths.mjs';
+import shotFiles from './shot-files.js';
+
+const { SHOT_SUFFIXES } = shotFiles;
 
 const MODEL = process.env.THEME_REVIEW_MODEL || 'claude-opus-5';
 // list price per million tokens, only used to print a cost estimate next to the result
@@ -58,10 +61,39 @@ const { default: Anthropic } = await import(`${NEXT_DIR}/node_modules/@anthropic
 const client = new Anthropic({ apiKey });
 
 // ── which images to compare ──────────────────────────────────────────────────────────────────
+// 🔴 #1061 —— 判据是「这张图旁边有没有 `<id>.json`」，不是文件名黑名单。
+//
+//   shoot.mjs 每套主题写**一份** `<id>.json`（那些读数），而图有好几张：`<id>.png` 是首页，
+//   `<id>-about.png` / `<id>-allblocks.png` / `<id>-header.png` 都是同一套的别的页。所以
+//   「有同名 JSON」正好就是「这是一套主题的首页图」。
+//
+//   原来写的是 `!f.endsWith('-about.png')` —— 一条黑名单，每加一张图就漏一次：
+//   `--header-closeup` 写的 `<id>-header.png` 今天就在漏（它被当成一套独立的主题参与两两比对，
+//   30 套变 60 套、435 对变 1770 对，花的是真钱）；#1061 加的 `-allblocks.png` 会是第三次。
+//   换成上面那个判据之后，以后再加页面不用回来改这里。
+//
+// 📌 #1061 r2 —— 这条判据的静默方向是「有图但没有 json」：`<id>.json` 是 shoot.mjs 最后才写的，
+//   所以一套中途崩掉的主题，首页图在盘上、却配不上 json ⟹ 它不参与两两比对，而这一节看起来一切正常
+//   （旧的文件名黑名单会把它带上 —— 带上更糟，那是拿一张来路不明的图去比）。判据不改，改成**点名**：
+//   掉出比对的那几套在下面打印出来，不让它无声消失。QA3 在 r1 上把这一条标成不阻断。
 const shots = new Map();
+const orphans = new Set();
 for (const f of fs.readdirSync(SHOTS)) {
-  // the home-page shot is <id>.png; <id>-about.png is the sub-page, not compared here
-  if (f.endsWith('.png') && !f.endsWith('-about.png')) shots.set(f.replace(/\.png$/, ''), path.join(SHOTS, f));
+  if (!f.endsWith('.png')) continue;
+  const id = f.replace(/\.png$/, '');
+  if (fs.existsSync(path.join(SHOTS, `${id}.json`))) { shots.set(id, path.join(SHOTS, f)); continue; }
+  // 同一套的别的页（-about / -allblocks / -header）本来就配不上 json，那是正常的，别报它们。
+  orphans.add(SHOT_SUFFIXES.reduce((b, s) => (s && b.endsWith(s) ? b.slice(0, -s.length) : b), id));
+}
+for (const id of [...orphans]) if (shots.has(id)) orphans.delete(id);
+if (orphans.size) {
+  console.log(`⚠️  ${orphans.size} 套只有图、没有 <id>.json，没参与比对：${[...orphans].sort().join(' ')}`);
+  console.log('    （那一轮多半中途崩了 —— json 是 shoot.mjs 最后写的。重拍它们再跑。）');
+}
+if (!shots.size) {
+  console.error(`${SHOTS} 里没有一张图配得上 <id>.json —— 那是 shoot.mjs 给每套主题写的读数文件。`);
+  console.error('这个目录不是 shoot-themes.sh 出的，或者那一轮没跑完。什么都没比对。');
+  process.exit(2);
 }
 for (const spec of argAll('--extra')) {
   const [id, p] = spec.split('=');
@@ -186,12 +218,13 @@ const review = {
   // 🔴 the report says out loud what it did NOT look at — a truncated run must not read as a
   //    complete one
   // 🔴 #971 item 14 — AND WHICH PICTURE OF EACH THEME. This only ever compares the home-page shot;
-  //    `<id>-about.png` is filtered out at the readdir above. Saying "every pair" alone reads as
-  //    "the whole gallery was looked at", and the person acting on this list has no way to tell
-  //    that the sub-page never entered it — two themes could differ only on /about and this would
+  //    every other page's shot is filtered out at the readdir above. Saying "every pair" alone reads
+  //    as "the whole gallery was looked at", and the person acting on this list has no way to tell
+  //    that the sub-pages never entered it — two themes could differ only on /about and this would
   //    still call them a near-duplicate.
+  //    #1061 — 而 sub-page 现在不止一张（-about / -allblocks / -header），所以这句话也改成说全。
   coverage: (scored.length === pairs.length ? 'every pair' : `first ${scored.length} of ${pairs.length} pairs (--limit)`)
-    + ', home-page shot only (the -about.png sub-page shots are not compared)',
+    + ', home-page shot only (the -about / -allblocks / -header shots of the same theme are not compared)',
   thumbnail: `${THUMB_WIDTH}px wide, ≤${THUMB_MAX_HEIGHT}px tall`,
   usage: { input_tokens: inTok, output_tokens: outTok },
   cost_usd: Number(cost.toFixed(4)),

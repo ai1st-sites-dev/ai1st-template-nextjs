@@ -14,6 +14,10 @@
 #
 # It rebuilds one theme, so it costs a build plus one full review round (~$2 for 30 themes).
 # Run it when the review prompt, the model, or the thumbnail size changes — not every gallery run.
+#
+# 📌 #1061 — 它跟图册用的是同一个样例站（$NEXT/site），而 shoot.mjs 现在**必须**拍得到那一页
+#    「每种块各一次」。站没撑开的话这里会停在下面那句「control screenshot failed」，
+#    shoot.mjs 打出来的那行会告诉你撑开的命令。
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -14,6 +14,7 @@
 //   readable against the hero — is a 12px word in them. That is why #960 r2's defect (the switcher was the
 //   one child the overlay never re-coloured) was invisible to a human paging through the full-page shots.
 import { PLAYWRIGHT_MODULE } from './paths.mjs';
+import shotFiles from './shot-files.js';
 
 const { chromium } = await import(PLAYWRIGHT_MODULE);
 
@@ -22,7 +23,49 @@ const HEADER_CLOSEUP = flags.includes('--header-closeup');
 // 🔴 A static export writes about.html, not about/index.html — requesting /about returns the
 //    404 page, and the 404 page screenshots just fine. The first version of this script shipped
 //    a picture of a 404 that way.
-const PAGES = [['', ''], ['about.html', '-about']];
+//
+// #1061 — 第三页 allblocks.html 是**必须**拍的，不是可选的。
+//
+// 🔴 为什么：翻这些图的人是第四道闸，而前两页加起来只摆得出 34 种块里的一小部分。整整两轮的实例：
+//    #1060 把样例站 FAQ 的第一条问答改成打开的，为的是让「主题把答案压成一条 3px 的缝」重新被看见 ——
+//    改那一行之前和之后，图册里两张图逐字节相同，因为 faq-accordion 这个块**根本不在图上**。
+//    #1016 要按最终契约批量出 60-80 套主题，第四道闸就是人翻这本图册：图上没有的块，翻多少套都看不见。
+//    所以拍的那一页必须是「每种块各出现一次」的那一页。
+//
+// 🔴 页面不在就红（`rc=1`），不静默跳过。「这个站没有那一页」跟「这套主题没问题」必须是两个读数 ——
+//    静默跳过正好是本票要治的那个毛病的翻版。撑开样例站的做法写在下面的 hint 里，
+//    `shoot-themes.sh` 在建第一套主题之前就先替你问一遍（那里失败得早、只说一次）。
+//
+// 🔴 URL 是扁平的 `allblocks.html`，不是 `en/allblocks.html`：多语言站里 `en/` 那份只是重定向壳
+//    （#1018 r3 量过：10968 字节、`data-block` 命中 0；扁平那份 100439 字节、34 种块 —— 本票在
+//    今天的样例站上复量过同一对数）。
+const WIDEN = 'cd templates/nextjs && node scripts/theme-css-invariants-sample-pages.js "$PWD/site"';
+const PAGES = [
+  ['', '', ''],
+  ['about.html', '-about', ''],
+  ['allblocks.html', '-allblocks',
+    `样例站没有「每种块各一次」那一页 ⟹ 这本图册对 34 种块里的大多数是瞎的。撑开它：${WIDEN}`],
+];
+
+// 🔴 #1061 r2 —— 开拍之前先把这个 id 上一轮的产物清掉。理由整段写在 `shot-files.js` 头上，一句话版：
+//    这一轮失败时盘上会留着上一轮的图和读数，而对照页问的是「盘上有哪几张」—— 不清，人审就会
+//    翻到上一轮的像素、读到上一轮那套表的色号。清掉之后「盘上有这张图」才重新等于「这一轮拍到了它」。
+//
+// 🔴 先自查再动手：拍哪几页是这个文件说了算，清哪几个文件是 `shot-files.js` 说了算。两处分开写是因为
+//    清理还要盖住**根本走不到这里**的路（见那个文件的「谁调它」），代价是它们会分叉 —— 所以这里对一次，
+//    漏了当场退 2，不留给下一轮变成一张跨轮活下来的图。
+//
+// 📌 下面两句都走 stderr，不走 stdout：`theme-pipeline/gates.js` 把 stdout 的**第一行**当成「这一轮
+//    出了什么事」印在人审那张卡片上，一句家务话挤到第一行就会顶掉真正的原因。
+const unlisted = PAGES.map(([, suffix]) => suffix)
+  .filter((s) => !shotFiles.SHOT_SUFFIXES.includes(s));
+if (unlisted.length) {
+  console.error(`🔴 shot-files.js 的清理清单里没有这些后缀：${unlisted.join(' ')}`
+    + ' —— 补进 SHOT_SUFFIXES，否则这几张图会跨轮活下来被当成新拍的。');
+  process.exit(2);
+}
+const stale = shotFiles.clearShots(outDir, id);
+if (stale.length) console.error(`🧹 ${id} 清掉上一轮的 ${stale.length} 个产物：${stale.join(' ')}`);
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
@@ -56,10 +99,14 @@ const readRegions = () => page.evaluate(() => {
 
 let rc = 0;
 let regions = null;
-for (const [slug, suffix] of PAGES) {
+for (const [slug, suffix, hint] of PAGES) {
   const url = `${baseUrl}/${slug}`;
   const resp = await page.goto(url, { waitUntil: 'networkidle', timeout: 60000 });
-  if (!resp || resp.status() !== 200) { console.log(`🔴 ${id}${suffix} HTTP ${resp && resp.status()}`); rc = 1; continue; }
+  if (!resp || resp.status() !== 200) {
+    console.log(`🔴 ${id}${suffix} HTTP ${resp && resp.status()}${hint ? ` —— ${hint}` : ''}`);
+    rc = 1;
+    continue;
+  }
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(400);
   await page.screenshot({ path: `${outDir}/${id}${suffix}.png`, fullPage: true });
@@ -74,6 +121,12 @@ for (const [slug, suffix] of PAGES) {
 
 // Read back what this theme actually put on the page, so the gallery has a checkable reading
 // next to each picture rather than only the picture.
+//
+// 📌 #1061 —— 这一段跑在**循环停下的那一页**上，而那一页现在是 allblocks.html（以前是 about.html）。
+//    下面读的四个值全部来自 `:root` 和 `<body>`，每一页都一样，所以换页不改这四个读数
+//    （`regions` 那一项不在这里，它在循环里、只在首页取，理由见上面 readRegions 的注释）。
+//    真变了的只有 `consoleErrors`：它现在也收 allblocks.html 上的报错 —— 那是多出来的覆盖面，
+//    不是噪音，34 种块里有块在浏览器里炸了，本来就该让翻图的人看见。
 //
 // The callback below is serialised and runs INSIDE the browser, so its globals are the page's.
 // The directive tells eslint that — it does not make them available to the Node code in this

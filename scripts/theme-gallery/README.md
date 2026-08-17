@@ -39,7 +39,10 @@ message rather than a stack trace out of the middle of the run.
 cd templates/nextjs
 export THEME_GALLERY_DIR=/root/theme-gallery/latest  # where the output goes
 
-# 1. a sample site must be in place at templates/nextjs/site/
+# 1. a sample site must be in place at templates/nextjs/site/ …
+#    …and it must carry the "every block once" page, or the gallery is blind to most block types
+#    (#1061). Widening it costs nothing and calls no AI:
+node scripts/theme-css-invariants-sample-pages.js "$PWD/site"
 # 2. build + screenshot every theme (no AI, no cost)
 bash scripts/theme-gallery/shoot-themes.sh
 #    …or, with a MULTI-LOCALE sample site, also crop the top of each home page so the language
@@ -66,8 +69,8 @@ R2 key for four hours.
 | File | What it does |
 |---|---|
 | `paths.mjs` | Where things are. The template directory comes from this file's own location; the output directory is `THEME_GALLERY_DIR`. |
-| `shoot-themes.sh` | For each theme: write `site/theme.json`, build, serve, screenshot. Refuses a screenshot whose page carries no theme colours or fonts. `--header-closeup` adds the header crop. |
-| `shoot.mjs` | The browser half of the above, plus the per-theme `<id>.json` readings — colours, fonts, and (since #981) the header/footer Region read off the home page's DOM. |
+| `shoot-themes.sh` | For each theme: write `site/theme.json`, build, serve, screenshot. Refuses a screenshot whose page carries no theme colours or fonts. Refuses to start at all if the sample site has no all-blocks page (#1061). `--header-closeup` adds the header crop. |
+| `shoot.mjs` | The browser half of the above, plus the per-theme `<id>.json` readings — colours, fonts, and (since #981) the header/footer Region read off the home page's DOM. Shoots three pages since #1061: home, about, and the all-blocks page — the first two together hold only a handful of the block types, so without the third a theme that breaks any of the others passes a human review of every picture. |
 | `layout-readback.py` | Works out which section on the page is which block type, by comparing two independent groupings. Writes `layout-readback.json`; the gallery captions read it. Refuses to write if the groupings disagree. |
 | `review-pairs.mjs` | Asks a vision model, for every pair, whether an ordinary visitor would call them the same design recoloured. Writes `review.json`. |
 | `gallery.mjs` | Builds `public/index.html`. |

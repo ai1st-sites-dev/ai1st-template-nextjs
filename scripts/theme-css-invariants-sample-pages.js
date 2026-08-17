@@ -85,6 +85,17 @@ console.log(`  sample site: ${String(gen.stdout || '').trim()}`);
 
 // ── ② 三处块数据 ─────────────────────────────────────────────────────────────────────────────
 const page = readJson(allblocks);
+// 🔴 #1061 — 这一页不进导航。`gen-allblocks.js` 给它写的是 `navLabel: 'All Blocks'`，而导航是
+//    sync-config 从每一页的 navLabel 生成的（sync-config.js:560/567）⟹ 撑开这个站会给**每一页**的
+//    页头和页脚多一个「All Blocks」链接。它改的不只是这一页：#1061 让主题图册也拍这一页之后，
+//    首页和关于页那两张图上都会多出这个链接，而真实站上没有它。实测（bold-red，撑开前后两次构建，
+//    把 index.html 按 `>` 断行再 diff）：整页 DOM 唯一的差别就是那一个 <a>。
+//    下面那一页 services/oil-change 早就是这么处理的，理由同一条——它存在是为了让别的东西有东西可指，
+//    不是为了被人点。改完之后首页/关于页的 PNG 与撑开之前逐字节相同。
+//    📌 不影响这个脚本原本要服务的 CI 检查：`theme-css-invariants.mjs` 的页面清单读的是站自己的
+//    /sitemap.xml（它自己的注释：not a crawl of the nav），而 sitemap 不看 navLabel——
+//    实测撑开后的 sitemap 里 allblocks 和 services/oil-change 两条都在。
+page.navLabel = '';
 const sections = page.sections || page.blocks || [];
 if (!sections.length) die('the generated allblocks page has no sections');
 const sectionOf = (type) => sections.find((s) => s.type === type);
@@ -136,6 +147,7 @@ const SERVICE_SLUG = 'services';
   s.data.serviceSlug = SERVICE_SLUG;
   patched.push(`service-related-pages serviceSlug=${SERVICE_SLUG}`);
 }
+patched.push('allblocks navLabel is empty → 它不进任何一页的导航（#1061）');
 writeJson(allblocks, page);
 
 // ── ③ services.json 的 products（块的 data 管不到它）────────────────────────────────────────
@@ -185,6 +197,7 @@ writeJson(allblocks, page);
   const bs = back.sections || back.blocks || [];
   const find = (t) => bs.find((s) => s.type === t);
   const bad = [];
+  if (back.navLabel !== '') bad.push('allblocks navLabel is not empty — every page would grow a nav link to it');
   if (find('gallery').data.items[2].imageUrl !== undefined) bad.push('gallery item 3 still has imageUrl');
   if (find('feature-comparison').data.comparisons[0].them !== false) bad.push('feature-comparison row 1 them is not false');
   if (find('service-related-pages').data.serviceSlug !== SERVICE_SLUG) bad.push('serviceSlug did not stick');

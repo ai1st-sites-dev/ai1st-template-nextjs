@@ -469,10 +469,18 @@ function gateHumanReview(candidate, { galleryDir, shot } = {}) {
   // 🔴 「图册在 X，等人翻」这句话得先成立才能说。第一版只看有没有传 galleryDir 就这么写了，
   //    而那时候一张候选的图都还没有 —— 一个人照着那句话打开目录，看到的要么是空的，要么是
   //    别人（注册表 30 套）的图。所以这里问的是**这一套自己的图拍成了吗**。
+  // 🔴 #1061 —— 判据是**盘上有哪几张图**（`shot.shots`），不是 shoot.mjs 的退出码（`shot.ok`）。
+  //    那个退出码是好几件事的或，其中一件为真时三张图仍然可能都在盘上；照它判就会对着一页
+  //    摆得满满当当的图说「没有这一套的图，人无从翻起」。理由全文在 gallery.js 的 card() 头上。
+  const got = (shot && shot.shots) || [];
   let note;
   if (!galleryDir) note = '没有传 --gallery ⟹ 这一轮没出图，人无从翻起';
-  else if (shot && shot.ok) note = `图在 ${path.join(galleryDir, 'public')}，等人翻`;
-  else note = `🔴 ${galleryDir} 里没有这一套的图（${(shot && shot.log) || '这一轮没拍'}）—— 人无从翻起`;
+  else if (!got.length) note = `🔴 ${galleryDir} 里没有这一套的图（${(shot && shot.log) || '这一轮没拍'}）—— 人无从翻起`;
+  else if (shot.ok) note = `图在 ${path.join(galleryDir, 'public')}（${got.join(' / ')}），等人翻`;
+  else {
+    note = `图在 ${path.join(galleryDir, 'public')}（${got.join(' / ')}），等人翻`
+      + ` —— 📌 但 shoot.mjs 这一轮退的不是 0：${(shot.log || '').split('\n')[0]}`;
+  }
   return {
     gate: '④ 人审',
     pass: null,   // 🔴 null 不是 true：这一道没有机器能给的答案

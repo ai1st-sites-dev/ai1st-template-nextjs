@@ -9,6 +9,10 @@ cd templates/nextjs
 node scripts/theme-pipeline/generate.js --count 3 --out /tmp/cands
 
 # 端到端跑一遍（需要 templates/nextjs/site/ 里有一个样例站）
+# 🔴 #1061 —— 要出图（--gallery）的话，那个样例站还得有「每种块各一次」那一页，
+#    否则图上只有首页和内页摆得出的那几种块，人审对其余的一概看不见。撑开它（不调 AI、不花钱）：
+#      node scripts/theme-css-invariants-sample-pages.js "$PWD/site"
+#    run.js 在建第一套站之前就先替你问一遍，没有就退 2。
 # --gallery 给了就顺手拍图 + 出对照页，第四道闸（人审）要的就是那一页
 node scripts/theme-pipeline/run.js --candidates /tmp/cands --port 18450 --gallery /tmp/gal
 open /tmp/gal/public/index.html
@@ -71,6 +75,8 @@ node scripts/theme-pipeline/sheet-recipes.test.js
 照着它跑会真的出一本图册，里面一张候选都没有 —— 而翻图的人看不出来。所以候选的对照页由
 `gallery.js` 自己出；它**复用** `theme-gallery/shoot.mjs`（一个字没改），图旁每一行读数都是那份脚本
 从被拍的那张页面的 DOM 上读回来的。完整理由（含 A/B 两个接线形状为什么都不成立）写在 `gallery.js` 文件头。
+每套候选三张图：首页 / 内页 / **全部块**（#1061 加的第三张 —— 前两页加起来只摆得出一小部分块，
+不在那两页上的块，人翻多少套都看不见）。
 
 ## 第③道闸怎么判
 

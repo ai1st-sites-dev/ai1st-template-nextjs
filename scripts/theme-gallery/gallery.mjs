@@ -52,6 +52,16 @@ const reviewSection = () => {
     <ol class="pairs">${rows}</ol>
   </div>`;
 };
+// #1061 —— 「全部块」那一页上到底摆了多少种块。读的是**被拍的那份产物**（`sites/<id>/allblocks.html`
+// 里 `data-block` 属性的去重数），不是去数注册表 —— 注册表里有而页面上没渲染出来的块，正是这张图
+// 该让人发现的东西，拿注册表的数当说明就把它盖住了。读不到就说读不到。
+const blockTypesOnAllBlocks = (() => {
+  try {
+    const html = fs.readFileSync(`${GAL}/sites/${ids[0]}/allblocks.html`, 'utf-8');
+    return new Set([...html.matchAll(/data-block="([a-z0-9-]+)"/g)].map(m => m[1])).size;
+  } catch { return 0; }
+})();
+
 const seenTypes = (page) => RB.matched.filter(m => m.page === page).map(m => m.type);
 const readback = (id, page) => seenTypes(page)
   .map(t => `${t} = <b>${RB.themes[id][t].variant}</b>`).join(' · ');
@@ -60,11 +70,19 @@ const readback = (id, page) => seenTypes(page)
 // ⟹ 它们一直没有读数。**这一行读的是产物**:shoot.mjs 在浏览器里从 <header>/<footer> 身上的
 // `data-region-layout` 取的,不是把注册表的 supports.header 抄一遍 —— 抄注册表会说假话,因为
 // resolveRegionLayout 会改主意(不认识的写法退回默认;透明浮层自己带一层遮罩)。
-const REG = Object.fromEntries(ids.map(id => [id, JSON.parse(
-  fs.readFileSync(`${PUB}/shots/${id}.json`, 'utf-8')).regions || null]));
+//
+// 🔴 #1061 r2 —— 读不到那份 JSON 不再是"不可能"：shoot-themes.sh 现在每套开拍之前会先清掉它上一轮的
+//   产物（理由在 shot-files.js 头上），所以一套建不出来的主题在盘上就是**什么都没有**，不再是留着
+//   上一轮那份被当成这一轮的。这里跟着改成读不到就说读不到 —— 原来的写法会当场抛异常，让一套没建成
+//   把整本 30 套的图册一起打掉。
+const readFacts = (id) => {
+  const p = `${PUB}/shots/${id}.json`;
+  return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf-8')) : null;
+};
+const REG = Object.fromEntries(ids.map(id => [id, (readFacts(id) || {}).regions || null]));
 const regionCaption = (id) => {
   const r = REG[id];
-  if (!r) return '顶栏 / 页脚:<b>这一轮没读到</b>(这套的 shots/&lt;id&gt;.json 是旧的,重跑 shoot-themes.sh)';
+  if (!r) return '顶栏 / 页脚:<b>这一轮没读到</b>(这套这一轮没拍成 —— shots/&lt;id&gt;.json 不在了,重跑 shoot-themes.sh)';
   const scrim = r.headerScrim === 'on' ? ' + 遮罩' : r.headerScrim === 'off' ? '(无遮罩)' : '';
   return `顶栏 <b>${esc(r.header)}</b>${esc(scrim)} · 页脚 <b>${esc(r.footer)}</b>`;
 };
@@ -95,10 +113,19 @@ const tag = (id) => {
   return t;
 };
 
+// 🔴 一张 404 的图在页面上是一个小破图标，看起来像"这套没什么可看的"（这一句本来就写在下面「全部块」
+//   那一格上）。#1061 r2 之后首页和内页也到得了这个状态 —— 这一轮没拍成时盘上就是空的，不再有上一轮
+//   那张顶着 —— 所以三格用同一个写法：有就摆图，没有就说这一张没拍到、并且说清这不是关于这套皮的读数。
+const figImg = (id, suffix, alt) => (fs.existsSync(`${PUB}/shots/${id}${suffix}.png`)
+  ? `<a href="shots/${id}${suffix}.png" target="_blank">
+        <img loading="lazy" src="shots/${id}${suffix}.png" alt="${alt}"></a>`
+  : '<p class="meta">🔴 <b>这一轮没拍到这一张</b>（这不是关于这套皮的读数）—— 那一套可能没建出来，'
+    + '看 logs/build-&lt;id&gt;.log，重跑 shoot-themes.sh。</p>');
+
 const card = (id) => {
   const t = themes[id];
   const isNew = !OLD.includes(id);
-  const facts = JSON.parse(fs.readFileSync(`${PUB}/shots/${id}.json`, 'utf-8'));
+  const facts = readFacts(id);
   return `
   <section class="card" id="${id}">
     <header>
@@ -108,7 +135,7 @@ const card = (id) => {
       <p class="meta">
         <span class="sw" style="background:${t.colors.primary[500]}"></span>${t.colors.primary[500]}
         <span class="sw" style="background:${t.colors.accent[500]}"></span>${t.colors.accent[500]}
-        &nbsp;·&nbsp; 字体 ${facts.fontSans.split(',')[0]}
+        &nbsp;·&nbsp; 字体 ${facts && facts.fontSans ? facts.fontSans.split(',')[0] : '<b>这一轮没读到</b>'}
         &nbsp;·&nbsp; 风格 ${t.style}
       </p>
       <p class="meta">适用行业：${t.industries.join(' / ')}</p>
@@ -116,7 +143,7 @@ const card = (id) => {
     <div class="shots">
       <figure>
         <figcaption>首页 —— 版式：${readback(id, '首页')}<br>${regionCaption(id)}${regionMismatch(id)}</figcaption>
-        <a href="shots/${id}.png" target="_blank"><img loading="lazy" src="shots/${id}.png" alt="${id} 首页"></a>
+        ${figImg(id, '', `${id} 首页`)}
       </figure>
       ${fs.existsSync(`${PUB}/shots/${id}-header.png`) ? `<figure>
         <figcaption>顶栏特写（多语言样例站）—— 最右那个语言开关要跟旁边导航一样读得清；这套页面上有
@@ -125,7 +152,20 @@ const card = (id) => {
       </figure>` : ''}
       <figure>
         <figcaption>内页（关于我们）—— 版式：${readback(id, '内页')}</figcaption>
-        <a href="shots/${id}-about.png" target="_blank"><img loading="lazy" src="shots/${id}-about.png" alt="${id} 内页"></a>
+        ${figImg(id, '-about', `${id} 内页`)}
+      </figure>
+      <figure class="wide">
+        <figcaption>全部块（样例站的 allblocks 页）—— ${blockTypesOnAllBlocks
+    ? `这一页上有 <b>${blockTypesOnAllBlocks}</b> 种块，每种一次（从这张图那份产物的 <code>data-block</code> 数回来的）`
+    : '<b>这一轮没读到这一页上有几种块</b>（sites/ 里没有 allblocks.html，重跑 shoot-themes.sh）'}。
+          上面两张图上只有其中一部分，所以不在首页和关于页上的那些块，只有在这一张上看得见（#1061）。
+          这一页下面没有版式读数：layout-readback.py 只给首页和内页分了组，
+          <b>拿不到的读数就不摆一个看起来像读数的东西</b>。<br>
+          图很高，<b>在下面这个框里往下滚</b>；点它开原图。</figcaption>
+        ${fs.existsSync(`${PUB}/shots/${id}-allblocks.png`)
+    ? `<div class="scroller"><a href="shots/${id}-allblocks.png" target="_blank"><img loading="lazy" src="shots/${id}-allblocks.png" alt="${id} 全部块"></a></div>`
+    // 一张 404 的图在页面上是一个小破图标，看起来像"这套没什么可看的"。说出来。
+    : '<p class="meta">🔴 <b>这一轮没拍到这一页</b>（这不是关于这套皮的读数）—— 样例站可能没撑开，重跑 shoot-themes.sh，它会先告诉你怎么撑。</p>'}
       </figure>
     </div>
   </section>`;
@@ -155,6 +195,14 @@ const html = `<!doctype html>
  .meta{margin:2px 0;color:#666;font-size:13px}
  .sw{display:inline-block;width:12px;height:12px;border-radius:3px;border:1px solid #0002;margin:0 4px -1px 8px}
  .shots{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px 20px}
+ /* #1061 —— 「全部块」那张占满一行。它是 34 段堆一页的整页图，挤进半栏之后每一段只有一百多像素宽，
+    翻图的人分不出哪段是哪段 —— 那就等于没拍。
+    🔴 但它必须装在一个能滚的框里：那张图 1440×23569，铺到卡片宽度上是一万九千多像素高，
+    30 套就是六十多万像素的一页 —— 上下两套 theme 之间隔着二十几屏，人翻不动。
+    装进 820px 的框之后每张卡片高度可控，要看细节点开原图。 */
+ figure.wide{grid-column:1 / -1}
+ figure.wide .scroller{max-height:820px;overflow-y:auto;border:1px solid #e3e6ea;border-radius:4px}
+ figure.wide .scroller img{border:0;border-radius:0}
  figure{margin:0}
  figcaption{font-size:12px;color:#5b6169;margin-bottom:6px}
  /* 🔴 #932 r4 —— 版式读数要读得清:r3 那次 QA2 拦下来的正是「导航条上蓝底蓝字」，
@@ -181,7 +229,9 @@ const html = `<!doctype html>
 <div class="top">
   <h1>Theme 库存 ${ids.length} 套 — 请挑掉不好看的</h1>
   <p>同一个样例站（内容一个字没改）换了 ${ids.length} 次装，每套真构建一次后整页截图。${ids.filter(i => !OLD.includes(i)).length ? `<b>其中 ${ids.filter(i => !OLD.includes(i)).length} 套是 #932 之后新增的</b>，原有 ${ids.filter(i => OLD.includes(i)).length} 套一并放进来当参照。` : ''}</p>
-  <p>怎么看：每套两张图 —— 首页 + 内页。点图开原图。看着不行的，把它的名字（如 <code>plum-modern</code>）告诉我们就行。</p>
+  <p>怎么看：每套三张图 —— 首页 + 内页 + <b>全部块</b>（#1061 加的第三张：样例站里那一页把
+    ${blockTypesOnAllBlocks || '全部'} 种块各摆一次，首页和关于页上没有的块只有在它上面看得见）。
+    点图开原图。看着不行的，把它的名字（如 <code>plum-modern</code>）告诉我们就行。</p>
   <details class="ceiling"><summary>每张图下面那行「版式」是什么 / 这一页看不出什么（点开）</summary>
     <p><b>图下面那行版式是从这张图那份产物里读回来的</b>，不是把注册表抄一遍：把 30 套按「页面上真渲染出来的结构」分一次组，再按「注册表里声明的写法」分一次组，两次分组完全一样才敢写上去。所以你可以拿它当核对用——比如 hero 写着 <code>split</code> 的那 ${RB.facts.hero_distribution.split ?? 0} 套，图上就该是左文右图。</p>
     <p><b>这一页看不出差别的三样（也是量出来的）：</b></p>
