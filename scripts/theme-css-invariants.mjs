@@ -465,7 +465,14 @@ for (const sel of MOVED_TEXT_TARGETS) await measureText(sel, pathOf(baseUrl), fa
       + `(looked for ${CONTROL_TARGETS.join(', ')}) — so nothing was measured about what a visitor `
       + 'clicks. A home page with a hero and no `.btn-accent` is the first thing to look at.');
   } else {
-    readings.push(`  buttons/links measured: ${measured.length}/${CONTROL_TARGETS.length} — ${measured.join(', ')}`);
+    // 🔴 #1055 条 10 — this number is about the FIRST PAGE only, and it now says so. Left
+    // unqualified, `1/4` read as "this check looked at one of the four", when the truth was "one of
+    // the four is on the home page" — the other three are on /allblocks.html, which this run opens
+    // for checks ⑤ / ② / ① and does NOT measure these on (see the ⑤b loop for why, and for the
+    // reading that says what enabling it would cost).
+    readings.push(`  buttons/links on ${pathOf(baseUrl)}: ${measured.length}/${CONTROL_TARGETS.length}`
+      + ` — ${measured.join(', ')} · the site's other pages are NOT measured for these; which hook`
+      + ' was reached where is in the "pages measured for check ①" line at the end');
   }
 }
 
@@ -1993,8 +2000,15 @@ for (const p of otherPaths.slice(0, OTHER_PAGE_CAP)) {
     // which was true when it was written and stopped being true when #1043 added check ② to this
     // loop. A page that will not open is unmeasured for both, and the half that goes unsaid is the
     // one nobody goes looking for.
+    // 🔴 #1055 打磨批次 #16 条 7 — AND THE THIRD ONE, for the same reason and one round later. The
+    // same #1046 that widened this message also put the moved-block half of check ① in this loop
+    // (`MOVED_TEXT_TARGETS` below), so a page that will not open has been unmeasured for three checks
+    // while the sentence named two. The rule this keeps failing is the one it states about itself: a
+    // check widened into this loop has to be added to this list in the same edit, because nothing red
+    // ever appears when it is not.
     problems.push(`other pages: "${p}" is in this site's page list but could not be opened, so `
-      + `neither check ⑤ (every hook has a rule) nor check ② (essential content is not hidden) was `
+      + `none of check ⑤ (every hook has a rule), check ② (essential content is not hidden) and the `
+      + `part of check ① measured here (the contrast of ${MOVED_TEXT_TARGETS.join(', ')}) was `
       + `measured on it — tried ${opened.error}`);
     continue;
   }
@@ -2027,6 +2041,25 @@ for (const p of otherPaths.slice(0, OTHER_PAGE_CAP)) {
   // only on the first page would have been measuring it never. Costs two screenshots per hook that
   // is actually present; a page with none of them costs four `count()` calls.
   for (const sel of MOVED_TEXT_TARGETS) await measureText(sel, opened.at, false);
+  // 🔴 #1055 打磨批次 #16 条 10 — AND NOT, YET, THE BUTTONS AND LINKS. Adding
+  // `for (const sel of CONTROL_TARGETS) await measureText(sel, opened.at, false)` here is one line,
+  // it works, and it was measured on this sample site before being taken back out. What it found is
+  // why it is not here:
+  //
+  //   .announcement-bar__link on /allblocks.html: 3.46:1 against rgb(237,237,237)  → exit 1
+  //
+  // That is not a regression this batch introduced and not a defect of one demo theme. The three
+  // sheets all paint this hook `color: var(--color-accent-600)` on an `--color-primary-100` strip,
+  // and across the 30 themes in scripts/themes.js that pair reads below 4.5:1 on **25 of them**
+  // (arithmetic, no browser needed: scripts/theme-contrast.js on accent.600 vs primary.100).
+  // Turning the reading on therefore turns `theme-css` red on main, and the fix is a colour decision
+  // — which layer owns it, the sheets, base.css or the registry palettes — which is word for word the
+  // question #1055 条 14 fenced off as Chris's to make, not a polish batch's.
+  //
+  // 🔴 So the blindness is made LOUD instead of quietly widened: `.btn-primary`,
+  // `.announcement-bar__link` and `.services-nav__link` now print `🔴 on no page measured` in the
+  // check ① line below, every run, instead of being absent from it. Widening the measurement and
+  // deciding the colour layer have to ship together to be correct, so they belong in one ticket.
   // Say what this page actually offered up. "Measured on 4 pages" with no counts cannot tell
   // "checked and clean" from "there was nothing on any of them to check".
   readings.push(`  ${opened.at} — essential elements: ${otherReading.roots.length}`
@@ -2051,11 +2084,22 @@ readings.push(`  pages measured for check ⑤: ${audits.map((a) => a.where).join
 // their readings are printed above; these four are measured wherever they turn up, and a hook that
 // turned up nowhere has to SAY so — otherwise "no finding for `.page-header__title`" reads like a
 // pass on a hook nothing looked at, which is the hole this item was opened for.
-readings.push('  pages measured for check ① on the blocks phase 2 has moved: '
-  + MOVED_TEXT_TARGETS.map((sel) => `${sel} → ${(movedTextMeasured.get(sel) || []).join(', ')
-    || '🔴 on no page measured'}`).join(' · ')
+// 🔴 #1055 条 10 — the buttons and links are in this line now, and for most of them the answer is
+// `🔴 on no page measured`. That is the point: they are measured on the first page only, and three of
+// the four are not on it, so before this line said so the fact lived nowhere. What it would cost to
+// widen it — and why that is not this batch's call — is in the ⑤b loop above.
+// 🔴 #1055 条 7 — AND IT STATES THE CAP, which checks ⑤ and ② have said since #1046 条 16 and this
+// line did not. Check ① is measured in the same loop, so the pages past the cap are missing from it
+// too; a reading that lists four pages while four more went unlooked-at reads as complete coverage.
+readings.push('  pages measured for check ① on the blocks phase 2 has moved, and on the buttons and '
+  + 'links: '
+  + [...MOVED_TEXT_TARGETS, ...CONTROL_TARGETS]
+    .map((sel) => `${sel} → ${(movedTextMeasured.get(sel) || []).join(', ') || '🔴 on no page measured'}`)
+    .join(' · ')
   + `. The two hero hooks (${TEXT_TARGETS.join(', ')}) are required on `
-  + `${pathOf(baseUrl)} and are reported above`);
+  + `${pathOf(baseUrl)} and are reported above`
+  + `${droppedPages.length ? ` · 🔴 ${droppedPages.length} page(s) past the ${OTHER_PAGE_CAP}-page cap `
+    + `were NOT measured for this check either: ${droppedPages.join(', ')}` : ''}`);
 // 🔴 #1046 条 16 — and it states the cap the same way check ⑤'s line does. Check ② is measured in the
 // same loop, so the pages past the cap are missing from BOTH readings; only one of the two said so.
 // 🔴 The cap clause goes LAST, after ②d/②e's own blindness note. Put it right after the page list and
@@ -2110,10 +2154,48 @@ for (const { where, audit } of audits) {
 // only ever be as wide as the sample site is, and that is the sample site's job to fix, not this file's.
 const seenHooks = new Set(audits.flatMap((a) => a.audit.hooksOnPage));
 const unusedHooks = HOOK_CLASSES.filter((h) => !seenHooks.has(h));
+// 🔴 #1055 打磨批次 #16 条 11 — ON A WIDENED SAMPLE SITE THIS COUNT IS A GATE, NOT A NOTE.
+//
+// #1052 closed "the pages carry none of those blocks" by widening the demo site
+// (scripts/theme-css-invariants-sample-pages.js) until 171 of 213 hooks became 4. What it did not
+// close is the other half: a hook added to a block that IS on the page, but that only enters the DOM
+// when it is fed data. That hook joins this list, the count goes 4 → 5, and rc stays 0 — nothing
+// anywhere goes red. The only thing structure protects today is REGISTERING A NEW BLOCK TYPE, because
+// gen-allblocks.js derives its page from registry.ts.
+//
+// So: on a site this run widened itself, a hook on no page is a finding. Two things make that safe to
+// assert rather than merely report:
+//   · the exemption is a PROPERTY, not a list of four names — `__error` / `__success` are the states a
+//     form enters after the visitor submits, and this sample site is a static export with no
+//     /api/leads behind it, so they cannot be reached by feeding data (ContactFormSection.tsx and
+//     QuoteFormSection.tsx render them only after a submit). Every exempted hook is named below, so
+//     widening the exemption cannot happen quietly either.
+//   · it only fires when THEME_CSS_SAMPLE_WIDENED=1, which only
+//     scripts/theme-css-invariants-all-sheets.sh sets, and only on a site it made and widened itself.
+//     Pointed at somebody's own 5-page `site/`, this stays the note it has always been — otherwise the
+//     fix would turn every local reproduction run red, which is the opposite of the point (#1055 条 12
+//     is the other half of that seam: that script now says out loud which of the two you are getting).
+const reachableOnSubmitOnly = (h) => h.endsWith('__error') || h.endsWith('__success');
+const unusedExempt = unusedHooks.filter(reachableOnSubmitOnly);
+const unusedUnexpected = unusedHooks.filter((h) => !reachableOnSubmitOnly(h));
+const widened = process.env.THEME_CSS_SAMPLE_WIDENED === '1';
 readings.push(`  contract hooks not on any page measured: ${unusedHooks.length}`
   + `${unusedHooks.length ? ` (${unusedHooks.map((h) => `.${h}`).join(', ')}) — no page of this site puts `
     + 'them in its markup, so whether the theme dresses them is not a question these readings answer'
-    : ' — every class hook in the contract was on at least one page'}`);
+    : ' — every class hook in the contract was on at least one page'}`
+  + ` · this sample site ${widened ? 'WAS' : 'was NOT'} widened to cover every block, so that count `
+  + `${widened ? `is judged: ${unusedExempt.length} of them are the after-submit form states, which `
+    + 'a static export cannot reach, and any other is a finding'
+    : 'is reported and not judged — a hook can be missing here simply because this site is small'}`);
+if (widened && unusedUnexpected.length) {
+  problems.push(`sample coverage: ${unusedUnexpected.length} contract hook(s) are on no page of a `
+    + `sample site this run widened to cover every block — ${unusedUnexpected.map((h) => `.${h}`).join(', ')}`
+    + ' — so no reading above says anything about whether any theme dresses them. Either the block '
+    + 'that carries the hook needs data before it renders it (feed that data in '
+    + 'scripts/theme-css-invariants-sample-pages.js, the way `.gallery__placeholder` and '
+    + '`.feature-comparison__mark--no` are fed there), or the hook is in the contract and in no '
+    + 'component at all, which is its own bug');
+}
 for (const [hook, { pages, sheets }] of missingByHook) {
   problems.push(`theme coverage: ".${hook}" is in the markup of ${pages.join(', ')} and the theme's own `
     + `stylesheet (${sheets.join(', ')}) has no rule for it — whatever it looks like comes from base.css `

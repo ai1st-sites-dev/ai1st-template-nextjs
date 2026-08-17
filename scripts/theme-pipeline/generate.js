@@ -108,9 +108,30 @@ if (require.main === module) {
     const i = argv.indexOf(name);
     return i >= 0 ? argv[i + 1] : dflt;
   };
-  const cands = generateCandidates(Number(arg('--count', 3)), {
-    seed: Number(arg('--seed', 7)), outDir: arg('--out', undefined),
-  });
+  // 🔴 #1055 打磨批次 #16 条 8(来源 #1051)—— 两个入参都要校验,而理由不是「防手滑」。
+  //
+  // `Number('abc')` 是 NaN,而 NaN 一路走到底都不报错:调色算出来的每个值都是 NaN,
+  // `#${NaN}${NaN}${NaN}` 拼成 `#NaNNaNNaN` 写进 tokens,然后**下游那把检查器说全场通过** ——
+  // `ink-contrast.js` 打出「✅ 全场最低 NaN」,因为 `NaN < 门槛` 永远是 false。
+  // 一个静默产出垃圾、而且让检查器说好话的入口,比一个报错的入口危险得多。
+  // `--count 0` / `--count -3` 是同一族:循环一次都不转,rc=0,产出零套候选,输出是空的。
+  //
+  // 📌 第①道静态检查(`gates.js`)后来会拿 tokens 对 schema 把这种候选拒掉(`#NaNNaNNaN` 不符合
+  //    `^#[0-9a-fA-F]{6}$`),所以垃圾进不了池 —— 但那是**下游**兜的,而且中间那一段(生成器自己的
+  //    输出、ink-contrast 的判决)全是假读数。在入口拒绝,那一段就不存在。
+  const num = (flag, dflt, check, what) => {
+    const raw = arg(flag, undefined);
+    if (raw === undefined) return dflt;
+    const v = Number(raw);
+    if (!Number.isFinite(v) || !check(v)) {
+      console.error(`🔴 ${flag} ${JSON.stringify(raw)} 不是${what} —— 一套候选都没生成。`);
+      process.exit(2);
+    }
+    return v;
+  };
+  const count = num('--count', 3, (v) => Number.isInteger(v) && v >= 1, '一个 ≥1 的整数');
+  const seed = num('--seed', 7, (v) => Number.isInteger(v), '一个整数');
+  const cands = generateCandidates(count, { seed, outDir: arg('--out', undefined) });
   console.log(cands.map((c) => `${c.id}  ${c.layout.hero}  primary-500 ${c.tokens.colors.primary['500']}`).join('\n'));
 }
 

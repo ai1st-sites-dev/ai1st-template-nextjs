@@ -3,8 +3,16 @@
 /**
  * create-site.js — Docker container version
  *
- * Reads JSON config from stdin, generates a website using Claude API,
- * outputs JSON lines progress events to stdout, then starts next dev for preview.
+ * Reads JSON config from stdin, generates a website using Claude API, outputs JSON lines
+ * progress events to stdout, and stops once the config is written and committed. Preview is
+ * NOT this script's job: worker/entrypoint.sh runs sync-config and serves the site.
+ *
+ * 🔴 This used to say "then starts next dev for preview" (#1055 打磨批次 #16 条 1). Two things
+ * in it were wrong. Nothing in this file starts any server — the last thing it does is emit
+ * `progress('Site generated, starting preview...')`. And the preview has not been `next dev`
+ * since TICKET-275a: entrypoint.sh runs `next build` (output: 'export') and serves out/ with
+ * `serve`, which is what killed the HMR websocket that made TICKET-275 (worker/entrypoint.sh,
+ * `start_preview_server`).
  *
  * Usage: echo '{"siteId":"a1b2c3d4",...}' | ANTHROPIC_API_KEY=xxx node scripts/create-site.js
  */
@@ -1156,7 +1164,7 @@ async function main() {
     }
   }
 
-  // ─── Git Commit (push is handled async by entrypoint.sh after dev server starts) ─
+  // ─── Git Commit (push is handled async by entrypoint.sh once the preview answers) ─
   const { repoUrl } = input;
   if (repoUrl) {
     progress('Committing to git...', 80);
@@ -1180,7 +1188,7 @@ async function main() {
     }
   }
 
-  // Done — entrypoint.sh handles sync-config + dev server startup
+  // Done — entrypoint.sh handles sync-config + the static preview (`next build` → `serve out`)
   progress('Site generated, starting preview...', 85);
 }
 

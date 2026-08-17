@@ -96,6 +96,30 @@ if [ ! -f "$NEXT/site/brand.json" ]; then
     echo "🔴 cannot take the reading: could not widen the demo site to cover every block" >&2
     exit 2
   fi
+  WIDENED=1
+fi
+
+# 🔴 #1055 打磨批次 #16 条 12 — SAY WHICH SITE THIS IS, out loud, before any reading is taken.
+# The rule above ("a site you put there yourself is not touched") is deliberate and stays. What was
+# missing is that nothing said so: someone with a leftover `site/` runs the documented command, gets
+# `contract hooks not on any page measured: 171` and rc=0, and there is not one line in the output
+# telling them the widening step never ran. CI is unaffected (every run is a fresh checkout, so it
+# always makes and widens its own), which is exactly why this went unnoticed — the blind reading only
+# happens on the machines where someone is trying to reproduce a CI result.
+#
+# 🔴 It is also the seam check ⑪ needs: `THEME_CSS_SAMPLE_WIDENED` is what tells the checker whether
+# "a contract hook is on no page" means "the theme forgot it" or "this sample site is just small".
+# Exported rather than inferred — the checker cannot tell the two sites apart by looking at them.
+if [ "${WIDENED:-0}" = 1 ]; then
+  echo "── sample site: made by this script and widened to cover every block in the contract"
+  export THEME_CSS_SAMPLE_WIDENED=1
+else
+  echo "── sample site: the one already at $NEXT/site — 🔴 NOT made by this script, so the step that"
+  echo "   widens it to cover every block in the contract (scripts/theme-css-invariants-sample-pages.js)"
+  echo "   DID NOT RUN. The readings below are only as wide as that site is: every contract hook its"
+  echo "   pages do not carry goes unmeasured, and this command still exits 0. To get the CI reading,"
+  echo "   move $NEXT/site aside and re-run with --make-sample-site."
+  export THEME_CSS_SAMPLE_WIDENED=0
 fi
 
 THEME_JSON="$NEXT/site/theme.json"

@@ -47,13 +47,103 @@ if (presets.PRESET_KEYS.length === 3 && Object.values(presets.presetOptions()).e
 
 // ── ① 策展判据：每一组配色，三处白字/黑字都要 ≥ 4.5:1 ──────────────────────────────────────────
 //
-// 三处是从 globals.css 的 `@layer components` 里读出来的，不是想出来的：
+// 三处是从 globals.css 的 `@layer components` 里**现解出来的**：
 //   `.btn-primary`   白字压 `--color-primary-500`（hover 走 `-600`，一起判）
 //   `.btn-secondary` `--color-primary-500` 的字压白底
 //   `.btn-accent`    `gray-900`(#111827) 的字压 `--color-accent-400`（hover 走 `-500`，一起判）
+//
+// 🔴 #1055 打磨批次 #16 条 9（来源 #1038 QA3）——「现解」这三个字是本批改出来的，此前那三行是
+//    **抄在这个文件里的常量**，而 globals.css 那一头没有任何东西钉住它。QA3 在一次性树里把
+//    `.btn-primary` 改成白字压 `primary-100`（一眼就读不出来的组合），**37 过 / 0 失败，照样全绿**。
+//    主题表那一头早就是「每次现解配对 + md5 钉几何」（见下面 ⑨ 的 `judgeSheet`），只有 globals.css
+//    这一头是手抄的 —— 而这个文件顶上那段自己写着「只有前者会漏掉『主题表自己把按钮改成别的颜色』」。
+//    改成从文件里解，那句漏洞就不成立了：颜色搬到哪一档，判据就跟到哪一档。
 const MIN = 4.5;
 const WHITE = '#ffffff';
 const GRAY900 = '#111827';
+
+/**
+ * 从 `src/app/globals.css` 的 `@layer components` 里解出按钮的「字压底」配对。
+ *
+ * 读的是 Tailwind 的 `@apply` 那一行（`bg-primary-500` / `hover:bg-primary-600` / `text-white` /
+ * `text-gray-900`）。没写 `bg-*` 的按钮（`.btn-secondary`）压的是页面本身的白底 —— 那不是猜的，
+ * 是 globals.css 自己在 `.hero__cta .btn-secondary` 那段注释里写的：它「written for a white page」，
+ * 深色底上由 `currentColor` 接管，而 `currentColor` 取的是主题表给的颜色，属于下面 ⑨ 的地盘。
+ *
+ * 🔴 解不出来 = 跑不起来（die，退 2），不是「没有配对要判」。空的配对表会让 ① 和 ⑨ 的按钮那一段
+ *    整节空过，而那正是本条要治的形状：一个什么都没判的判据长得跟全绿一模一样。
+ *
+ * 每一条是 `{ what, fg, bg }`，`fg`/`bg` 各是 `{ hex }`（字面色）或 `{ group, shade }`（跟着配色走
+ * 的那一档）。`.btn-secondary` 因此是唯一一条 fg 是 token、bg 是字面白的。
+ */
+function buttonPairsFromGlobals() {
+  const fs = require('fs');
+  const path = require('path');
+  const file = path.join(__dirname, '..', 'src', 'app', 'globals.css');
+  let css;
+  try { css = fs.readFileSync(file, 'utf8'); } catch { die(`读不到 ${file} —— 按钮那两节会整节空过`); }
+  // Tailwind 默认色板里的字面色。按钮上今天只用得到这两个；第三种出现时下面会点名拒测。
+  const LITERAL = { white: WHITE, 'gray-900': GRAY900 };
+  const colourWord = /^(?:hover:)?(bg|text)-([a-z]+)(?:-(\d{2,3}))?$/;
+  /** `bg-primary-500` → {group,shade}；`text-white` → {hex}；认不出来 → null */
+  const specOf = (word) => {
+    const m = word.match(colourWord);
+    if (!m) return null;
+    const [, , name, shade] = m;
+    const key = shade ? `${name}-${shade}` : name;
+    if (LITERAL[key]) return { hex: LITERAL[key], label: key };
+    if (shade) return { group: name, shade, label: key };
+    return null;
+  };
+  // 🔴 `text-` 在 Tailwind 里管三件事：字号、对齐、颜色。`.btn-primary` 那一行同时写着 `text-base`
+  //    和 `text-white`，取第一个命中的会取到字号 —— 第一版就是这么写的，三个按钮全部报「字色认不
+  //    出来」。所以先把不是颜色的那些排掉，剩下的 `text-*` 必须是颜色（认不出来就拒测，不是跳过）。
+  const NOT_A_COLOUR = /^text-(xs|sm|base|lg|\d?xl|left|center|right|justify|start|end|wrap|nowrap|balance|pretty|ellipsis|clip)$/;
+  const pairs = [];
+  const unknown = [];
+  for (const m of css.matchAll(/\.(btn-[a-z]+)\s*\{([^}]*)\}/g)) {
+    const [, cls, body] = m;
+    const words = ((body.match(/@apply([^;]*);/) || [, ''])[1]).split(/\s+/).filter(Boolean);
+    const textWord = words.find((w) => /^text-[a-z]+(-\d{2,3})?$/.test(w) && !NOT_A_COLOUR.test(w));
+    if (!textWord) continue;                       // 没写字色的不判（今天没有这种）
+    const fg = specOf(textWord);
+    if (!fg) { unknown.push(`.${cls} 的字色 ${textWord} 认不出来`); continue; }
+    const bgWord = words.find((w) => /^bg-[a-z]+-\d{2,3}$/.test(w));
+    const hoverWord = words.find((w) => /^hover:bg-[a-z]+-\d{2,3}$/.test(w));
+    if (!bgWord) {
+      // 没写底色 = 压着页面本身的白底。不是猜的：globals.css 在 `.hero__cta .btn-secondary` 那段
+      // 注释里写着它 "written for a white page"，深色底上由 `currentColor` 接管，而 currentColor
+      // 取的是主题表给的颜色 —— 那是下面 ⑨ 的地盘，不是这一节的。
+      pairs.push({ what: `.${cls} ${fg.label} 的字压白底`, fg, bg: { hex: WHITE, label: 'white' } });
+      continue;
+    }
+    for (const [suffix, word] of [['', bgWord], [':hover', hoverWord]]) {
+      if (!word) continue;
+      const bg = specOf(word);
+      if (!bg) { unknown.push(`.${cls}${suffix} 的底色 ${word} 认不出来`); continue; }
+      pairs.push({ what: `.${cls}${suffix} ${fg.label} 的字压 ${bg.label}`, fg, bg });
+    }
+  }
+  if (unknown.length) {
+    die(`globals.css 里的按钮配色解不出来：${unknown.join('；')} —— 解不出来不是「没有配对要判」`);
+  }
+  // 分母自检。判据是**解到了这三个类**，不是「解到了 N 条」：条数会随 hover 的有无变，而三个类
+  // 是这一节存在的理由（少一个就等于那个按钮没人判）。
+  const classes = [...new Set(pairs.map((p) => p.what.split(' ')[0].replace(/:hover$/, '')))];
+  for (const need of ['.btn-primary', '.btn-secondary', '.btn-accent']) {
+    if (!classes.includes(need)) {
+      die(`从 globals.css 解不到 ${need} 的字压底配对（解到的是：${classes.join(' · ') || '一个都没有'}）`
+        + ' —— 这一节会空过');
+    }
+  }
+  return pairs;
+}
+const BUTTON_PAIRS = buttonPairsFromGlobals();
+/** 一条配对在某组配色（可选再偏 `hue` 度）下的两个具体颜色。 */
+const pairColours = (p, colors, shift) => [p.fg, p.bg].map((s) => {
+  const hex = s.hex !== undefined ? s.hex : colors[s.group][s.shade];
+  return shift ? shift(hex) : hex;
+});
 function lin(c) { const s = c / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; }
 function lum(hex) {
   const h = hex.replace('#', '');
@@ -62,15 +152,12 @@ function lum(hex) {
     + 0.0722 * lin(parseInt(h.slice(4, 6), 16));
 }
 function ratio(a, b) { const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); }
-/** 一组配色的四个承重读数。返回 [[名字, 比值], …]。 */
+/** 一组配色的承重读数，配对从 globals.css 现解（#1055 条 9）。返回 [[名字, 比值], …]。 */
 function buttonRatios(colors) {
-  return [
-    ['.btn-primary 白字压 primary-500', ratio(colors.primary['500'], WHITE)],
-    ['.btn-primary:hover 白字压 primary-600', ratio(colors.primary['600'], WHITE)],
-    ['.btn-secondary primary-500 的字压白底', ratio(colors.primary['500'], WHITE)],
-    ['.btn-accent gray-900 的字压 accent-400', ratio(colors.accent['400'], GRAY900)],
-    ['.btn-accent:hover gray-900 的字压 accent-500', ratio(colors.accent['500'], GRAY900)],
-  ];
+  return BUTTON_PAIRS.map((p) => {
+    const [fg, bg] = pairColours(p, colors);
+    return [p.what, ratio(bg, fg)];
+  });
 }
 for (const [name, p] of Object.entries(presets.PALETTES)) {
   const rows = buttonRatios(p.colors);
@@ -375,6 +462,27 @@ const HUE_ONLY_BREACH_PRIMARY_600 = '#7923c5';
     }
   }
 
+  // 判哪几条:见下面 judgeButtons 上方那段注释（#1055 条 9）。
+  const JUDGED_BUTTON_PAIRS = BUTTON_PAIRS.filter((p) => p.bg.group !== undefined);
+  const SKIPPED_BUTTON_PAIRS = BUTTON_PAIRS.filter((p) => p.bg.group === undefined);
+
+  // #1055 条 9 —— 按钮那一段自己的分母，连同它**没判**的那条一起说出来。
+  // 「这一节判了几条」和「哪条被留在外面、为什么」是两个读数，而只打前一个的话，
+  // 把某条悄悄拿掉会跟从来没有过它长得一模一样。
+  {
+    const named = (list) => (list.length ? list.map((p) => p.what).join(' · ') : '（没有）');
+    if (JUDGED_BUTTON_PAIRS.length >= 4) {
+      ok(`从 globals.css 现解出 ${BUTTON_PAIRS.length} 条按钮配对，这一节判其中 `
+        + `${JUDGED_BUTTON_PAIRS.length} 条（底色跟着配色走的那些）：${named(JUDGED_BUTTON_PAIRS)}`
+        + ` · 留在外面 ${SKIPPED_BUTTON_PAIRS.length} 条（底是固定白、动的是字）：`
+        + `${named(SKIPPED_BUTTON_PAIRS)} —— 它们在上面第 ① 节判过（滑块归零那一档），`
+        + '要不要连色相一起判见本函数上方那段注释（#1055 条 9）');
+    } else {
+      bad(`按钮那一段只解到 ${JUDGED_BUTTON_PAIRS.length} 条有 token 底色的配对（${named(BUTTON_PAIRS)}）`
+        + ' —— 期望至少 4 条（btn-primary / btn-accent 各含 hover），这一节会空过');
+    }
+  }
+
   /**
    * 按钮那两处也要过一遍色相滑块。
    *
@@ -382,18 +490,23 @@ const HUE_ONLY_BREACH_PRIMARY_600 = '#7923c5';
    * 所以上面从表里解配对时解不到它们，而第 ① 节只在滑块归零那一档判过。色相偏移**保住每个颜色
    * 自己的相对亮度**，纯色底上因此几乎不动对比度 —— 但那是个应该被量出来的性质，不是可以直接
    * 拿来当结论的断言。这一段就是把它量了。
+   *
+   * 🔴 #1055 条 9 —— 配对改成从 globals.css 现解（`BUTTON_PAIRS`），这里原来抄的是四行常量。
+   *
+   * 🔴 **判的仍然是「底色跟着配色走」的那几条**，也就是恰好原来那四行。`.btn-secondary` 是
+   * primary-500 的字压页面的白底：底是固定的，动的是字，而这一段的算法（`mixBytes(fg, bg,
+   * PAINT_BLEND)`，把字色往底色里掺一点再比）是为「字色固定、底色跟着配色走」写的。把它一起判
+   * **不是没有代价的**：实测 forest 那一组在色相 −15…−3° 上读到 4.45–4.49:1，也就是 CI 当场变红。
+   * 那个红是真是假、门槛该不该对这一条也是 4.5 —— 那是产品判断，不是打磨批次能顺手拍的板，而
+   * 「会让 main 变红的东西」按本票正文第 3 条本来就不许进这一批。所以这里**明确地**只判有 token
+   * 底色的那几条，并且下面把判了几条、留了哪条打印出来 —— 少判一条不许是静默的。
    */
   const judgeButtons = (colors, hues = contrast.hueSteps()) => {
     const problems = [];
     let worst = null;
     for (const hue of hues) {
-      const at = (group, shade) => tweaks.shiftHue(colors[group][shade], hue);
-      const rows = [
-        ['.btn-primary 白字压 primary-500', WHITE, at('primary', '500')],
-        ['.btn-primary:hover 白字压 primary-600', WHITE, at('primary', '600')],
-        ['.btn-accent gray-900 的字压 accent-400', GRAY900, at('accent', '400')],
-        ['.btn-accent:hover gray-900 的字压 accent-500', GRAY900, at('accent', '500')],
-      ];
+      const shift = (hex) => tweaks.shiftHue(hex, hue);
+      const rows = JUDGED_BUTTON_PAIRS.map((p) => [p.what, ...pairColours(p, colors, shift)]);
       for (const [what, fg, bg] of rows) {
         const bgRgb = contrast.hexToRgb(bg);
         const r = contrast.contrast(contrast.mixBytes(contrast.hexToRgb(fg), bgRgb, contrast.PAINT_BLEND), bgRgb);
