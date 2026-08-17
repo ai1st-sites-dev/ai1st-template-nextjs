@@ -163,15 +163,52 @@ const hexOfToken = (token, palette) => {
   return palette[ramp][shade];
 };
 
+// ── 挑档位这件事要在【换掉调色板之后】仍然成立 ─────────────────────────────────────────────────────
+//
+// 🔴 表里存下来的是 **token 名字**（`var(--color-accent-500)`），受限 CSS 不许写字面色值。所以
+//    「accent-500 压在这块底上够黑」这句话是**在这套候选自己的调色板下**量出来的，而站主可以：
+//    ① 点一个配色预设 —— `theme-presets.js` 的 6 组把整组 `--color-*` 换掉（#1037 已上线 `58280213`）；
+//    ② 拖色相滑块 —— `tweaks.js` 的 `shiftHue` 在上面再转 ±15°。
+//    两件事都不改表里的名字，于是这句保证被静默作废。实测（#1016 r3）：只按自己的调色板挑，
+//    `theme-presets.test.js` 报 **242 行破线 / 30 过 7 失败**，其中 52 行就在色相 0° 那一档 ——
+//    也就是「只点一下配色、滑块都不用拖」就撞得到。
+//
+// 判据因此扩成：这个档位要在【这套候选自己的调色板】**和**【6 组预设 × 全部色相档】下都 ≥ floor。
+// 口径跟 `theme-presets.test.js` 判红时用的是同一套：先换成预设的绝对值、再转色相，顺序与
+// `buildCustomCss` 一致（反过来会得出另一批颜色）。
+const PRESET_COLOURS = Object.values(require(path.join(__dirname, '..', 'theme-presets.js')).PALETTES)
+  .map((p) => p.colors);
+const HUE_STEPS = require(path.join(__dirname, '..', 'theme-contrast.js')).hueSteps();
+const { shiftHue } = require(path.join(__dirname, '..', 'tweaks.js'));
+
+/**
+ * 这个前景 token 压在这些背景 token 上，在【每一组预设 × 每一档色相】下都 ≥ floor 吗？
+ * 🔴 参数是 **token 名**而不是颜色值 —— 换调色板这件事换掉的正是名字背后的值，传值进来就问不出这件事。
+ */
+function okUnderPresets(token, bgTokens, floor) {
+  for (const colors of PRESET_COLOURS) {
+    for (const hue of HUE_STEPS) {
+      const fg = shiftHue(hexOfToken(token, colors), hue);
+      for (const bt of bgTokens) {
+        if (contrast(fg, shiftHue(hexOfToken(bt, colors), hue)) < floor) return false;
+      }
+    }
+  }
+  return true;
+}
+
 /**
  * 按 `order` 挨个试，返回第一个【压在 backdrops 每一块底上都 ≥ floor】的档位；一个都没有就 null。
  * `avoid` 里的档位跳过 —— 用来保证「✓ 和 ✗ 不是同一个颜色」这类必须分得开的两处。
+ * `bgTokens` 是那两块底的 **token 名**：传了就再过一遍上面那道预设 × 色相的检查。
  */
-function pickInk(order, backdrops, palette, floor, avoid = []) {
+function pickInk(order, backdrops, palette, floor, avoid = [], bgTokens = null) {
   for (const token of order) {
     if (avoid.includes(token)) continue;
     const hex = hexOfToken(token, palette);
-    if (backdrops.every((bg) => contrast(hex, bg) >= floor)) return token;
+    if (!backdrops.every((bg) => contrast(hex, bg) >= floor)) continue;
+    if (bgTokens && !okUnderPresets(token, bgTokens, floor)) continue;
+    return token;
   }
   return null;
 }
@@ -197,32 +234,40 @@ const towards = (keys, from, to, prefix) => [...keys]
 function surfaceFor(kind, palette) {
   const s = SURFACES[kind];
   const backdrops = [palette.primary[s.bg], palette.primary[s.card]];
+  // 同样两块底，但给的是 **token 名** —— 换掉调色板之后要按名字重算（见 `okUnderPresets` 上面那段）。
+  const bgTokens = [`primary-${s.bg}`, `primary-${s.card}`];
   const fg = `primary-${s.fg}`;
   // 强调色当字：先在 accent 那条色阶上找（从 500 往两边），找不到退到主色（从 500 往两边），
   // 再找不到就用块根自己那个字色。
-  const ink = pickInk(nearest(ACCENT_KEYS, 500, 'accent'), backdrops, palette, INK_FLOOR)
-    || pickInk(nearest(PRIMARY_KEYS, 500, 'primary'), backdrops, palette, INK_FLOOR)
+  const ink = pickInk(nearest(ACCENT_KEYS, 500, 'accent'), backdrops, palette, INK_FLOOR, [], bgTokens)
+    || pickInk(nearest(PRIMARY_KEYS, 500, 'primary'), backdrops, palette, INK_FLOOR, [], bgTokens)
     || fg;
   // 大号字那一档（只有 `figure` 用）：同一条挑法，门槛换成 3。
-  const inkLarge = pickInk(nearest(ACCENT_KEYS, 500, 'accent'), backdrops, palette, LARGE_INK_FLOOR)
-    || pickInk(nearest(PRIMARY_KEYS, 500, 'primary'), backdrops, palette, LARGE_INK_FLOOR)
+  const inkLarge = pickInk(nearest(ACCENT_KEYS, 500, 'accent'), backdrops, palette, LARGE_INK_FLOOR, [], bgTokens)
+    || pickInk(nearest(PRIMARY_KEYS, 500, 'primary'), backdrops, palette, LARGE_INK_FLOOR, [], bgTokens)
     || fg;
   // 弱化的字（对照表里的 ✗）：从边框那一档起，朝**离底色越来越远**的方向走，取第一个读得出来的
   // —— 「在读得出来的前提下尽量弱」。
   // 🔴 `avoid: [ink]`：✓ 和 ✗ 是同一个颜色的话，那张对照表就不说话了。不加这一条时浅色表面上
   //    80 套里有 71 套两者落在同一档（都退成 primary-600）。
-  const muted = pickInk(towards(PRIMARY_KEYS, s.line, s.fg, 'primary'), backdrops, palette, INK_FLOOR, [ink])
-    || pickInk(nearest(PRIMARY_KEYS, s.line, 'primary'), backdrops, palette, INK_FLOOR, [ink])
+  const muted = pickInk(towards(PRIMARY_KEYS, s.line, s.fg, 'primary'), backdrops, palette, INK_FLOOR, [ink], bgTokens)
+    || pickInk(nearest(PRIMARY_KEYS, s.line, 'primary'), backdrops, palette, INK_FLOOR, [ink], bgTokens)
     || fg;
   // 次要正文：本来就该是够的，但「本来就该」不是读数 —— 一样过一遍。
-  const soft = pickInk(nearest(PRIMARY_KEYS, s.soft, 'primary'), backdrops, palette, INK_FLOOR) || fg;
+  const soft = pickInk(nearest(PRIMARY_KEYS, s.soft, 'primary'), backdrops, palette, INK_FLOOR, [], bgTokens) || fg;
   // 药丸/图标/序号那种自带底的小东西：底和它上面的字是一对，一起挑。
+  //
+  // 🔴 这一对**不走 `pickInk`**，它自己挑（底在 accent 那条色阶上走，字在 primary-900/50 里取更分得开
+  //    的那一档）。所以上面那道预设检查扩了也管不到它 —— 只扩 `pickInk` 时实测还剩 **128 行破线，
+  //    全部是同一个选择器 `.services-nav__link`**（`services-nav` 的 `link` 角色正是 `chip`）。
+  //    ⟹ 两条产生路径都要过同一道检查，一个症状只补一条路等于没补（#1016 r4）。
   let fill = s.chip; let fillFg = 'primary-900';
   for (const cand of nearest(ACCENT_KEYS, Number(s.chip.slice(7)), 'accent')) {
     const bg = hexOfToken(cand, palette);
     const best = contrast(palette.primary['900'], bg) >= contrast(palette.primary['50'], bg)
       ? 'primary-900' : 'primary-50';
-    if (contrast(hexOfToken(best, palette), bg) >= INK_FLOOR) { fill = cand; fillFg = best; break; }
+    if (contrast(hexOfToken(best, palette), bg) >= INK_FLOOR
+      && okUnderPresets(best, [cand], INK_FLOOR)) { fill = cand; fillFg = best; break; }
     if (cand === s.chip) fillFg = best;   // 一个都不够时至少用分得开的那一档
   }
   return {
@@ -302,6 +347,33 @@ const SHAPES = {
 // 🔴 `text-only` 里 `.hero__media` 照样有规则，不是 `display: none` —— 契约 §3 不许藏部件（#1043/#1050），
 //    而且没有规则 = 那个钩子没被覆盖，正是本票要治的东西。它拿到的是「万一这个站真放了图，
 //    它作为一条宽横幅落在正文下面」。
+// 🔴 #1016 —— 说「居中」的那两个 shape 要把**两个不受 `text-align` 管的部件**一起摆正。
+//
+// Chris 人审 80 张图时看出来的：hero 的标题居中，按钮却贴左（`gen-07-14` 上先看出来，
+// `gen-07-31` / `gen-07-32` 上确认）。他第一张截图上量到的是三层递进偏移：
+// 标题中心 839px · 副标题 753px · 按钮 633px，而容器中心是 839.5px。
+//
+// 真因是 `text-align: center` 按 CSS 规范只管**行内内容**，管不到这两样：
+//   · `.hero__cta` 是 flex 容器（`ROLES.actions` 给的 `display: flex`）—— 主轴上的位置由
+//     `justify-content` 决定，`text-align` 对它没有作用。
+//   · `.hero__sub` 是块级、还带 `max-width: 36rem`（`ROLES.lede`）—— 它比外面那个 46/48rem 的
+//     `__body` 窄，而块级元素的左右位置由外边距决定，同样不看 `text-align`。
+// 所以表自己声明了居中，产物画出来是左 —— 说的和画的不一致。
+//
+// 🔴 只给声明了居中的那两个 shape 加，**不改 `ROLES.actions` / `ROLES.lede` 本身**：那两个角色
+//    被别的 33 个块共用（`.cta-banner__action`、`.page-header__sub` …），在那里居中是错的。
+//    `with-media-left` 那 27 套本来就该左对齐，这里一个字不动 —— 它也是这次的反向对照：
+//    改前改后那 27 份表必须逐字节相同。
+//
+// 🔴 展开写在 `partExtra` 的**最前面**，让 shape 自己写的那个键赢。两种顺序都有静默失败的方向，
+//    但只有一个方向有东西守着：写在最后 ⟹ 以后哪个 shape 自己写了 `cta` 会被这里悄悄顶掉，
+//    没有任何一格会说话；写在最前 ⟹ 被顶掉的是居中那两处，而那正是 `sheet-recipes.test.js`
+//    第④格在问的事（声明了居中、产物却没居中 = 当场点名）。挑失败方向已经有尺子的那一种。
+const CENTERED_INLINE_PARTS = {
+  cta: () => ({ 'justify-content': 'center' }),
+  sub: () => ({ 'margin-left': 'auto', 'margin-right': 'auto' }),
+};
+
 const HERO_SHAPES = {
   'with-media-left': {
     cols: '5fr 6fr',
@@ -321,6 +393,7 @@ const HERO_SHAPES = {
       'align-items': 'start', 'text-align': 'center', 'min-height': '0', padding: `0 0 ${v.pad}`,
     }),
     partExtra: {
+      ...CENTERED_INLINE_PARTS,
       media: () => ({ order: 1, width: '100%', height: '16rem', 'aspect-ratio': 'auto', 'border-radius': '0' }),
       deco: () => ({ order: 2, 'max-width': '4rem', 'margin-left': 'auto', 'margin-right': 'auto' }),
       body: () => ({ order: 3, 'max-width': '46rem', 'margin-left': 'auto', 'margin-right': 'auto', 'padding-top': '1.5rem' }),
@@ -333,6 +406,7 @@ const HERO_SHAPES = {
       'align-items': 'center', 'justify-items': 'center', 'text-align': 'center', 'min-height': '26rem',
     }),
     partExtra: {
+      ...CENTERED_INLINE_PARTS,
       deco: () => ({ order: 1, 'max-width': '5rem', 'margin-left': 'auto', 'margin-right': 'auto' }),
       body: () => ({ order: 2, 'max-width': '48rem', 'margin-left': 'auto', 'margin-right': 'auto' }),
       media: (v) => ({ order: 3, 'aspect-ratio': '21 / 9', width: '100%', 'margin-top': '2rem', 'border-radius': v.radius }),

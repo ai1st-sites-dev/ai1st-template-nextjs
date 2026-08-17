@@ -23,6 +23,15 @@
 # three and stay green on the other two — which is exactly the failure spec §8 describes: "the block
 # is left with only base.css's look, and the page still opens, and the build is still green".
 #
+# ══ AND EVERY SHEET UNDER ITS OWN PALETTE (#1016 r5) ═════════════════════════════════════════════
+# Which sheet a site wears is decided by its theme's name: `public/themes/<theme name>.css`. So the
+# colours a sheet is judged against are the ones its own theme brings, and this script pairs them that
+# way — one palette per sheet, not one for the whole run. The three hand-written `hero-media-*` sheets
+# have no theme named after them, so there is no palette that is theirs; they keep the sample site's,
+# and their CONTRAST reading is printed without being judged (a pairing no site can be built with is
+# not a fact about any theme). Everything else about them is judged, hook coverage above all — that is
+# what this job exists for and it has nothing to do with colour.
+#
 # ══ WHY IT IS NOT PART OF THE SITE BUILD (today) ═════════════════════════════════════════════════
 # It needs a browser. `scripts/theme-css-invariants.mjs` borrows the playwright the e2e suite
 # installs (scripts/theme-gallery/paths.mjs), and templates/nextjs does not depend on playwright —
@@ -149,19 +158,82 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# `applied: true` needs a themeId that is in the registry — keep the one the site already has so this
-# script is not also choosing the palette.
-THEME_ID="$(node -e "
+# ── which palette each sheet is measured under ──────────────────────────────────────────────────
+# 🔴 #1016 r5 — ONE PALETTE PER SHEET, AND IT IS THE SHEET'S OWN. This used to be decided once, before
+# the loop: whatever theme the sample site happened to be wearing dressed all of them. That is not how
+# a site is put together — which sheet a site wears is decided BY its theme name and by nothing else
+# (`create-site.js:907` calls `sheetNameForTheme()`, and `theme-sheet.js:41` is the whole rule: use
+# `public/themes/<theme name>.css` if it is there). The pipeline pairs them the same way
+# (`theme-pipeline/run.js:119` writes `{themeId: <candidate id>, applied: false, css: <candidate id>}`).
+#
+# Deciding it once therefore measured a pairing no customer's site can be built with, and the reading
+# was real arithmetic about it: with the 80-sheet pool in place the sample site is dressed `jade-60`,
+# and `hero-media-top.css` under `jade-60` puts the CTA banner's two lines at 4.00:1 / 3.96:1. Nothing
+# is wrong with either of them — no theme is named `hero-media-*`, so that pair does not exist.
+#
+# 🔴 THE SITE'S OWN THEME IS STILL READ, ONCE, HERE — NOT INSIDE THE LOOP. The loop rewrites
+# theme.json on every iteration, so a per-iteration read of it would answer with the PREVIOUS sheet's
+# themeId from iteration two onwards. Read it before the first write, keep it, and let the fallback be
+# the same value it has always been.
+SITE_THEME_ID="$(node -e "
   const fs=require('fs');
   let id='';
   try { id=(JSON.parse(fs.readFileSync('$THEME_JSON','utf-8')).themeId)||''; } catch {}
   if(!id) id=Object.keys(require('$NEXT/scripts/themes.js').themes)[0];
   process.stdout.write(id);
 ")"
-if [ -z "$THEME_ID" ]; then
+if [ -z "$SITE_THEME_ID" ]; then
   echo "🔴 cannot take the reading: no themeId to build with" >&2
   exit 2
 fi
+
+# Is there a theme in the registry named after this sheet? `applied: true` REQUIRES a themeId the
+# registry knows — `sync-config.js:144-147` exits 1 by name otherwise, so naming a sheet that is not a
+# theme would not measure the wrong colours, it would stop the build. So this question is asked of the
+# registry, and the sheets that have no theme of their own keep the site's palette (there is nothing
+# else to give them) with their contrast reading left unjudged — see THEME_CSS_PALETTE_NOT_THE_SHEETS_OWN
+# below.
+#
+# 🔴🔴 THREE ANSWERS, NOT TWO (#1016 r6, QA3's finding). r5 wrote this as `process.exit(has ? 0 : 1)`,
+# so "node could not answer" — a crash, an EMFILE, a syntax error in the registry — came out as the
+# SAME non-zero code as "the registry does not have it". The caller then took the second branch: the
+# sheet was dressed in the sample site's palette and its contrast was left UNJUDGED, and the whole
+# command still exited 0. QA3 drove it with a node wrapper that fails only this probe: the pool sheet
+# `azure-50` — which HAS a theme of its own — was reported as "not this sheet's own palette", its
+# contrast went unjudged, and rc was 0. On this machine `EMFILE: too many open files` is a recorded
+# routine event, so that is not a hypothetical.
+#
+# ⟹ "I could not ask" is its own answer (2) and the caller sends it to the unmeasured bucket, which is
+# exit 2 for the whole run. This is the same discipline PM's r4 ruling asked for on `sheet-fresh.js`
+# and the same one #1062 is about: "this machine had a problem" and "this thing does not qualify" are
+# different sentences, and collapsing them makes the second one swallow the first.
+#
+#   0 = the registry has a theme of this name   1 = it does not   2 = the question could not be asked
+registry_has() {
+  local out rc
+  # The answer is a WORD on stdout, not an exit code, precisely so that a crash cannot forge it: node
+  # dying prints nothing and the `case` below falls through to 2.
+  #
+  # 🔴 STDERR IS NOT CAPTURED, ON PURPOSE. The first cut of this wrote `2>&1`, which puts node's own
+  # talk into the same string as the answer — and then ONE unrelated line on stderr (a deprecation
+  # warning, an ExperimentalWarning) stops matching `yes`/`no` and turns every sheet into "could not
+  # ask", i.e. the whole run into a loud rc=2 about nothing. Letting stderr through to the script's own
+  # stderr keeps the answer clean AND keeps the reason visible, which is the only thing `2>&1` bought.
+  out="$(node -e "
+    const { themes } = require('$NEXT/scripts/themes.js');
+    process.stdout.write(Object.prototype.hasOwnProperty.call(themes, process.argv[1]) ? 'yes' : 'no');
+  " "$1")"
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    printf '     node exited %s (its reason is on stderr above)\n' "$rc" >&2
+    return 2
+  fi
+  case "$out" in
+    yes) return 0 ;;
+    no) return 1 ;;
+    *) printf '     node exited 0 but said %s, which is neither yes nor no\n' "${out:-<nothing>}" >&2; return 2 ;;
+  esac
+}
 
 # ── which directory under out/ is the site we just built ────────────────────────────────────────
 # 🔴 NOT `find out -maxdepth 1 -type d | head -1` (#1009 r1, QA3). out/ deliberately keeps other
@@ -201,6 +273,7 @@ PY
 
 fail=0
 unmeasured=0
+NOT_OWN_PALETTE=()
 echo "checking ${#SHEETS[@]} sheet(s) against the runtime invariants: ${SHEETS[*]}"
 
 for sheet in "${SHEETS[@]}"; do
@@ -210,9 +283,39 @@ for sheet in "${SHEETS[@]}"; do
     unmeasured=1
     continue
   fi
+  # The palette for THIS sheet, and it is said out loud before the reading is taken — a reader who sees
+  # a contrast finding has to be able to tell which of the two arrangements produced it.
+  registry_has "$sheet"
+  case $? in
+  0)
+    theme_id="$sheet"
+    export THEME_CSS_PALETTE_NOT_THE_SHEETS_OWN=0
+    echo "   palette: $theme_id — the theme named after this sheet, which is the pairing a real site gets"
+    ;;
+  1)
+    theme_id="$SITE_THEME_ID"
+    export THEME_CSS_PALETTE_NOT_THE_SHEETS_OWN=1
+    echo "   palette: $theme_id — 🔴 NOT this sheet's own: no theme in scripts/themes.js is named"
+    echo "   \"$sheet\", so there is no palette that belongs to it and this pairing is one no site can be"
+    echo "   built with. Its contrast ratios are measured and printed below and NOT judged; every other"
+    echo "   check on it, hook coverage included, is judged exactly as for any other sheet."
+    ;;
+  *)
+    # 🔴 The probe itself failed (#1016 r6). This must NOT fall into the branch above: that branch
+    # leaves contrast unjudged, so a node hiccup would silently drop the contrast dimension for a sheet
+    # that has a perfectly good palette of its own — measured by QA3 on `azure-50`, whole run rc=0.
+    # "I could not find out" is never a pass, so it goes to the unmeasured bucket (exit 2 at the end).
+    echo "🔴 $sheet: could not ask scripts/themes.js whether a theme of this name exists, so which"
+    echo "   palette this sheet should be judged under is unknown — nothing was measured for it."
+    echo "   (The reason node printed is on stderr above. This is exit 2 territory: an instrument"
+    echo "   failure, not a statement about this sheet.)"
+    unmeasured=1
+    continue
+    ;;
+  esac
   node -e "
     require('fs').writeFileSync('$THEME_JSON',
-      JSON.stringify({ themeId: '$THEME_ID', applied: true, css: '$sheet' }, null, 2) + '\n');
+      JSON.stringify({ themeId: '$theme_id', applied: true, css: '$sheet' }, null, 2) + '\n');
   "
   log="$(mktemp)"
   if ! ( cd "$NEXT" && env -u ANTHROPIC_API_KEY npm run build ) > "$log" 2>&1; then
@@ -313,13 +416,33 @@ for sheet in "${SHEETS[@]}"; do
   node "$NEXT/scripts/theme-css-invariants.mjs" "http://127.0.0.1:$port"
   rc=$?
   kill "$SRV_PID" 2>/dev/null; wait "$SRV_PID" 2>/dev/null; SRV_PID=""
+  # 🔴 #1016 r5 — the per-sheet line carries the reach of its own verdict. `✅ hero-media-top` and
+  # `✅ jade-60` are not the same statement and the summary at the end cannot tell them apart, so the
+  # difference is said on the line that says ✅. The list below is what the closing line then counts.
+  if [ "$THEME_CSS_PALETTE_NOT_THE_SHEETS_OWN" = "1" ]; then
+    NOT_OWN_PALETTE+=("$sheet")
+    unjudged_note=" (contrast NOT judged — the palette is not this sheet's own; everything else was)"
+  else
+    unjudged_note=""
+  fi
   case $rc in
-    0) echo "✅ $sheet" ;;
-    1) echo "🔴 $sheet — an invariant does not hold (the lines above name it)"; fail=1 ;;
+    0) echo "✅ $sheet$unjudged_note" ;;
+    1) echo "🔴 $sheet — an invariant does not hold (the lines above name it)$unjudged_note"; fail=1 ;;
     *) echo "🔴 $sheet — the checker could not take the reading (rc=$rc)"; unmeasured=1 ;;
   esac
 done
 
+# 🔴 The closing lines name the sheets whose contrast went unjudged, so the count is visible from the
+# summary alone. It is a number that must not be able to grow quietly: every sheet in it is a sheet
+# whose colours nothing checks, and the way that number grows is someone adding a hand-written sheet
+# with no theme behind it.
+if [ ${#NOT_OWN_PALETTE[@]} -gt 0 ]; then
+  echo "ℹ️ ${#NOT_OWN_PALETTE[@]} of ${#SHEETS[@]} sheet(s) have no theme named after them, so there is no"
+  echo "   palette that is theirs: ${NOT_OWN_PALETTE[*]}"
+  echo "   For those, contrast was measured and printed but NOT judged. Every other check on them was"
+  echo "   judged, hook coverage included. To bring their colours back under a verdict, give each one a"
+  echo "   theme of the same name in scripts/themes.js — that is the same pairing a real site uses."
+fi
 if [ "$fail" = "1" ]; then
   echo "🔴 at least one sheet breaks an invariant."
   exit 1
@@ -327,6 +450,11 @@ fi
 if [ "$unmeasured" = "1" ]; then
   echo "🔴 at least one sheet was never measured — that is not a pass."
   exit 2
+fi
+if [ ${#NOT_OWN_PALETTE[@]} -gt 0 ]; then
+  echo "✅ every sheet holds every invariant (${#SHEETS[@]} sheet(s)) — with the contrast of"
+  echo "   ${#NOT_OWN_PALETTE[@]} of them left unjudged, as the line above says."
+  exit 0
 fi
 echo "✅ every sheet holds every invariant (${#SHEETS[@]} sheet(s))."
 exit 0

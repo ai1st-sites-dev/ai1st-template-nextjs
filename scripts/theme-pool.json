@@ -1,0 +1,5782 @@
+{
+  "magenta-01": {
+    "label": "Magenta 01 — angular compact magenta with fern accent, for law & professional services",
+    "colors": {
+      "primary": {
+        "50": "#f9f1f5",
+        "100": "#f0dbe6",
+        "200": "#e4bed2",
+        "300": "#d392b4",
+        "400": "#c46e9a",
+        "500": "#b54a81",
+        "600": "#983e6d",
+        "700": "#7b3258",
+        "800": "#5e2643",
+        "900": "#3a1829"
+      },
+      "accent": {
+        "50": "#effbef",
+        "100": "#d7f5d6",
+        "200": "#b6edb6",
+        "300": "#86e085",
+        "400": "#5ed65c",
+        "500": "#36cc33",
+        "600": "#2dab2b"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Fraunces\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Inter\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-left"
+      ],
+      "header": [
+        "solid-bar"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 4,
+      "density": 0.85,
+      "shadowStrength": 0.06,
+      "buttonShape": "rounded"
+    },
+    "style": "angular flat magenta and fern",
+    "industries": [
+      "legal",
+      "corporate",
+      "consulting",
+      "accounting",
+      "tax",
+      "escrow",
+      "title",
+      "trust",
+      "estate",
+      "auction",
+      "appraisal",
+      "surveying"
+    ],
+    "sheet": "magenta-01"
+  },
+  "fern-02": {
+    "label": "Fern 02 — softly rounded compact fern with magenta accent, for law & professional services",
+    "colors": {
+      "primary": {
+        "50": "#edf9ea",
+        "100": "#d3f0cb",
+        "200": "#b0e4a1",
+        "300": "#7cd263",
+        "400": "#54bb36",
+        "500": "#3d8627",
+        "600": "#337121",
+        "700": "#295b1b",
+        "800": "#1f4614",
+        "900": "#132b0c"
+      },
+      "accent": {
+        "50": "#fceffa",
+        "100": "#f8d6f3",
+        "200": "#f3b5e9",
+        "300": "#eb84db",
+        "400": "#e45bce",
+        "500": "#de32c2",
+        "600": "#c420aa"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Space Grotesk\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"IBM Plex Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-top"
+      ],
+      "header": [
+        "transparent-overlay"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 10,
+      "density": 0.95,
+      "shadowStrength": 0.1,
+      "buttonShape": "pill"
+    },
+    "style": "softly rounded flat fern and magenta",
+    "industries": [
+      "law",
+      "corporate",
+      "consulting",
+      "accounting",
+      "tax",
+      "escrow",
+      "title",
+      "trust",
+      "estate",
+      "auction",
+      "appraisal",
+      "surveying"
+    ],
+    "sheet": "fern-02"
+  },
+  "indigo-03": {
+    "label": "Indigo 03 — rounded airy indigo with fern accent, for law & professional services",
+    "colors": {
+      "primary": {
+        "50": "#efeefc",
+        "100": "#d6d4f7",
+        "200": "#b6b2f0",
+        "300": "#857ee7",
+        "400": "#5d54de",
+        "500": "#3429d6",
+        "600": "#2c22b4",
+        "700": "#241c92",
+        "800": "#1b156f",
+        "900": "#110d45"
+      },
+      "accent": {
+        "50": "#effaf3",
+        "100": "#d8f3e1",
+        "200": "#b9e9c9",
+        "300": "#8bdaa5",
+        "400": "#64ce87",
+        "500": "#3dc269",
+        "600": "#33a359"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Playfair Display\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Source Sans 3\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "header": [
+        "centered-logo"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 16,
+      "density": 1.05,
+      "shadowStrength": 0.14,
+      "buttonShape": "square"
+    },
+    "style": "rounded shadowed indigo and fern",
+    "industries": [
+      "law",
+      "legal",
+      "consulting",
+      "accounting",
+      "tax",
+      "escrow",
+      "title",
+      "trust",
+      "estate",
+      "auction",
+      "appraisal",
+      "surveying"
+    ],
+    "sheet": "indigo-03"
+  },
+  "ember-04": {
+    "label": "Ember 04 — rounded airy ember with rose accent, for law & professional services",
+    "colors": {
+      "primary": {
+        "50": "#f9f2ee",
+        "100": "#f1dfd5",
+        "200": "#e6c6b4",
+        "300": "#d5a082",
+        "400": "#c78058",
+        "500": "#ae633a",
+        "600": "#925431",
+        "700": "#764427",
+        "800": "#5a341e",
+        "900": "#382013"
+      },
+      "accent": {
+        "50": "#fcf1f6",
+        "100": "#f6dce9",
+        "200": "#efc0d7",
+        "300": "#e596bd",
+        "400": "#dc73a7",
+        "500": "#d35191",
+        "600": "#c43179"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Bricolage Grotesque\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"Public Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700&family=Public+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-top"
+      ],
+      "header": [
+        "pill-floating"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 22,
+      "density": 1.2,
+      "shadowStrength": 0.18,
+      "buttonShape": "rounded"
+    },
+    "style": "rounded shadowed ember and rose",
+    "industries": [
+      "law",
+      "legal",
+      "corporate",
+      "accounting",
+      "tax",
+      "escrow",
+      "title",
+      "trust",
+      "estate",
+      "auction",
+      "appraisal",
+      "surveying"
+    ],
+    "sheet": "ember-04"
+  },
+  "jade-05": {
+    "label": "Jade 05 — angular compact jade with jade accent, for law & professional services",
+    "colors": {
+      "primary": {
+        "50": "#edf7f4",
+        "100": "#d1ece3",
+        "200": "#acddcc",
+        "300": "#75c7aa",
+        "400": "#49b28d",
+        "500": "#368469",
+        "600": "#2d6f58",
+        "700": "#255a47",
+        "800": "#1c4537",
+        "900": "#112a22"
+      },
+      "accent": {
+        "50": "#edfcf7",
+        "100": "#d3f8ec",
+        "200": "#b0f2dd",
+        "300": "#7beac7",
+        "400": "#50e2b4",
+        "500": "#24dba1",
+        "600": "#1eb887"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Libre Baskerville\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Karla\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Karla:wght@400;500;600;700&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "header": [
+        "solid-bar"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 4,
+      "density": 0.85,
+      "shadowStrength": 0.22,
+      "buttonShape": "pill"
+    },
+    "style": "angular shadowed jade and jade",
+    "industries": [
+      "law",
+      "legal",
+      "corporate",
+      "consulting",
+      "tax",
+      "escrow",
+      "title",
+      "trust",
+      "estate",
+      "auction",
+      "appraisal",
+      "surveying"
+    ],
+    "sheet": "jade-05"
+  },
+  "violet-06": {
+    "label": "Violet 06 — softly rounded compact violet with crimson accent, for finance & insurance",
+    "colors": {
+      "primary": {
+        "50": "#faeffa",
+        "100": "#f2d7f4",
+        "200": "#e7b8ea",
+        "300": "#d888dd",
+        "400": "#cb61d1",
+        "500": "#bd39c6",
+        "600": "#9f30a6",
+        "700": "#812786",
+        "800": "#631e67",
+        "900": "#3d123f"
+      },
+      "accent": {
+        "50": "#fbf2f3",
+        "100": "#f5dfe2",
+        "200": "#edc5ca",
+        "300": "#e09ea7",
+        "400": "#d67d8a",
+        "500": "#cc5d6c",
+        "600": "#bd3c4e"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Outfit\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"Work Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Work+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-left"
+      ],
+      "header": [
+        "transparent-overlay"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 10,
+      "density": 0.95,
+      "shadowStrength": 0.26,
+      "buttonShape": "square"
+    },
+    "style": "softly rounded shadowed violet and crimson",
+    "industries": [
+      "financial",
+      "bank",
+      "credit union",
+      "mortgage",
+      "broker",
+      "brokerage",
+      "advisor",
+      "retirement",
+      "insurance",
+      "life insurance",
+      "underwriting",
+      "claims",
+      "benefits"
+    ],
+    "sheet": "violet-06"
+  },
+  "lime-07": {
+    "label": "Lime 07 — rounded airy lime with teal accent, for finance & insurance",
+    "colors": {
+      "primary": {
+        "50": "#f6fae7",
+        "100": "#e8f4c3",
+        "200": "#d6ea93",
+        "300": "#bbdd4a",
+        "400": "#98bc24",
+        "500": "#677f18",
+        "600": "#576b14",
+        "700": "#465711",
+        "800": "#36420d",
+        "900": "#212908"
+      },
+      "accent": {
+        "50": "#effbfb",
+        "100": "#d6f4f5",
+        "200": "#b6ebed",
+        "300": "#85dde0",
+        "400": "#5cd2d6",
+        "500": "#33c7cc",
+        "600": "#2ba7ab"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Lora\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Nunito Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Nunito+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "header": [
+        "centered-logo"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 16,
+      "density": 1.05,
+      "shadowStrength": 0.06,
+      "buttonShape": "rounded"
+    },
+    "style": "rounded flat lime and teal",
+    "industries": [
+      "finance",
+      "bank",
+      "credit union",
+      "mortgage",
+      "broker",
+      "brokerage",
+      "advisor",
+      "retirement",
+      "insurance",
+      "life insurance",
+      "underwriting",
+      "claims",
+      "benefits"
+    ],
+    "sheet": "lime-07"
+  },
+  "azure-08": {
+    "label": "Azure 08 — rounded airy azure with crimson accent, for finance & insurance",
+    "colors": {
+      "primary": {
+        "50": "#eff4fa",
+        "100": "#d8e4f2",
+        "200": "#b9cfe8",
+        "300": "#8aafd8",
+        "400": "#6394cb",
+        "500": "#3e79bb",
+        "600": "#34669d",
+        "700": "#2a537f",
+        "800": "#203f61",
+        "900": "#14273c"
+      },
+      "accent": {
+        "50": "#fcf1ee",
+        "100": "#f8ddd5",
+        "200": "#f3c1b4",
+        "300": "#eb9882",
+        "400": "#e47558",
+        "500": "#dd532e",
+        "600": "#c1411f"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Fraunces\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Inter\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-left"
+      ],
+      "header": [
+        "pill-floating"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 22,
+      "density": 1.2,
+      "shadowStrength": 0.1,
+      "buttonShape": "pill"
+    },
+    "style": "rounded flat azure and crimson",
+    "industries": [
+      "finance",
+      "financial",
+      "credit union",
+      "mortgage",
+      "broker",
+      "brokerage",
+      "advisor",
+      "retirement",
+      "insurance",
+      "life insurance",
+      "underwriting",
+      "claims",
+      "benefits"
+    ],
+    "sheet": "azure-08"
+  },
+  "crimson-09": {
+    "label": "Crimson 09 — angular compact crimson with teal accent, for finance & insurance",
+    "colors": {
+      "primary": {
+        "50": "#f9f1f2",
+        "100": "#f0dbdf",
+        "200": "#e4bec5",
+        "300": "#d3929e",
+        "400": "#c46e7e",
+        "500": "#b54a5e",
+        "600": "#983e4f",
+        "700": "#7b3240",
+        "800": "#5e2631",
+        "900": "#3a181e"
+      },
+      "accent": {
+        "50": "#eff6fa",
+        "100": "#d8e9f3",
+        "200": "#b9d7e9",
+        "300": "#8bbcda",
+        "400": "#64a5ce",
+        "500": "#3d8fc2",
+        "600": "#3378a3"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Space Grotesk\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"IBM Plex Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-top"
+      ],
+      "header": [
+        "solid-bar"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 4,
+      "density": 0.85,
+      "shadowStrength": 0.14,
+      "buttonShape": "square"
+    },
+    "style": "angular shadowed crimson and teal",
+    "industries": [
+      "finance",
+      "financial",
+      "bank",
+      "mortgage",
+      "broker",
+      "brokerage",
+      "advisor",
+      "retirement",
+      "insurance",
+      "life insurance",
+      "underwriting",
+      "claims",
+      "benefits"
+    ],
+    "sheet": "crimson-09"
+  },
+  "fern-10": {
+    "label": "Fern 10 — softly rounded compact fern with ember accent, for finance & insurance",
+    "colors": {
+      "primary": {
+        "50": "#eaf9ec",
+        "100": "#cbf0cf",
+        "200": "#a2e4a9",
+        "300": "#64d270",
+        "400": "#37bc45",
+        "500": "#288832",
+        "600": "#21732a",
+        "700": "#1b5d22",
+        "800": "#15471a",
+        "900": "#0d2c10"
+      },
+      "accent": {
+        "50": "#fbf6ef",
+        "100": "#f5e7d6",
+        "200": "#edd4b6",
+        "300": "#e0b885",
+        "400": "#d6a05c",
+        "500": "#cc8833",
+        "600": "#ab732b"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Playfair Display\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Source Sans 3\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-left"
+      ],
+      "header": [
+        "transparent-overlay"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 10,
+      "density": 0.95,
+      "shadowStrength": 0.18,
+      "buttonShape": "rounded"
+    },
+    "style": "softly rounded shadowed fern and ember",
+    "industries": [
+      "finance",
+      "financial",
+      "bank",
+      "credit union",
+      "broker",
+      "brokerage",
+      "advisor",
+      "retirement",
+      "insurance",
+      "life insurance",
+      "underwriting",
+      "claims",
+      "benefits"
+    ],
+    "sheet": "fern-10"
+  },
+  "indigo-11": {
+    "label": "Indigo 11 — rounded airy indigo with azure accent, for real estate & property",
+    "colors": {
+      "primary": {
+        "50": "#f3eefc",
+        "100": "#e2d4f7",
+        "200": "#cbb2f0",
+        "300": "#a87ee7",
+        "400": "#8b54de",
+        "500": "#6e29d6",
+        "600": "#5d22b4",
+        "700": "#4b1c92",
+        "800": "#39156f",
+        "900": "#230d45"
+      },
+      "accent": {
+        "50": "#f1f4fd",
+        "100": "#dde5f9",
+        "200": "#c2cff5",
+        "300": "#99b0ee",
+        "400": "#7795e9",
+        "500": "#557be3",
+        "600": "#2a59dc"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Bricolage Grotesque\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"Public Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700&family=Public+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-top"
+      ],
+      "header": [
+        "centered-logo"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 16,
+      "density": 1.05,
+      "shadowStrength": 0.22,
+      "buttonShape": "pill"
+    },
+    "style": "rounded shadowed indigo and azure",
+    "industries": [
+      "realty",
+      "realtor",
+      "property",
+      "penthouse",
+      "luxury",
+      "home staging",
+      "interior design",
+      "concierge",
+      "rental",
+      "cottage",
+      "resort",
+      "hotel"
+    ],
+    "sheet": "indigo-11"
+  },
+  "ember-12": {
+    "label": "Ember 12 — rounded airy ember with amber accent, for real estate & property",
+    "colors": {
+      "primary": {
+        "50": "#f9f5ec",
+        "100": "#efe5cf",
+        "200": "#e2d1a9",
+        "300": "#cfb270",
+        "400": "#bf9840",
+        "500": "#907230",
+        "600": "#796028",
+        "700": "#624e21",
+        "800": "#4b3c19",
+        "900": "#2e250f"
+      },
+      "accent": {
+        "50": "#faf9ef",
+        "100": "#f3f0d8",
+        "200": "#e9e5b9",
+        "300": "#dad38b",
+        "400": "#cec464",
+        "500": "#c2b63d",
+        "600": "#a39933"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Libre Baskerville\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Karla\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Karla:wght@400;500;600;700&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "header": [
+        "pill-floating"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 22,
+      "density": 1.2,
+      "shadowStrength": 0.26,
+      "buttonShape": "square"
+    },
+    "style": "rounded shadowed ember and amber",
+    "industries": [
+      "real estate",
+      "realtor",
+      "property",
+      "penthouse",
+      "luxury",
+      "home staging",
+      "interior design",
+      "concierge",
+      "rental",
+      "cottage",
+      "resort",
+      "hotel"
+    ],
+    "sheet": "ember-12"
+  },
+  "jade-13": {
+    "label": "Jade 13 — angular compact jade with indigo accent, for real estate & property",
+    "colors": {
+      "primary": {
+        "50": "#ecf7f7",
+        "100": "#d1ecec",
+        "200": "#acdddc",
+        "300": "#74c6c5",
+        "400": "#48b1af",
+        "500": "#358281",
+        "600": "#2d6e6d",
+        "700": "#245958",
+        "800": "#1c4443",
+        "900": "#112a29"
+      },
+      "accent": {
+        "50": "#f4f4fc",
+        "100": "#e5e3f8",
+        "200": "#d0ccf2",
+        "300": "#b0abea",
+        "400": "#968fe3",
+        "500": "#7b73dc",
+        "600": "#5348d1"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Outfit\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"Work Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Work+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-top"
+      ],
+      "header": [
+        "solid-bar"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 4,
+      "density": 0.85,
+      "shadowStrength": 0.06,
+      "buttonShape": "rounded"
+    },
+    "style": "angular flat jade and indigo",
+    "industries": [
+      "real estate",
+      "realty",
+      "property",
+      "penthouse",
+      "luxury",
+      "home staging",
+      "interior design",
+      "concierge",
+      "rental",
+      "cottage",
+      "resort",
+      "hotel"
+    ],
+    "sheet": "jade-13"
+  },
+  "magenta-14": {
+    "label": "Magenta 14 — softly rounded compact magenta with lime accent, for real estate & property",
+    "colors": {
+      "primary": {
+        "50": "#faeff7",
+        "100": "#f4d7ec",
+        "200": "#eab8dc",
+        "300": "#dd88c5",
+        "400": "#d161b2",
+        "500": "#c6399f",
+        "600": "#a63086",
+        "700": "#86276c",
+        "800": "#671e53",
+        "900": "#3f1233"
+      },
+      "accent": {
+        "50": "#f8fced",
+        "100": "#eef8d3",
+        "200": "#e1f2b0",
+        "300": "#cdea7b",
+        "400": "#bce250",
+        "500": "#acdb24",
+        "600": "#90b81e"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Lora\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Nunito Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Nunito+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "header": [
+        "transparent-overlay"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 10,
+      "density": 0.95,
+      "shadowStrength": 0.1,
+      "buttonShape": "pill"
+    },
+    "style": "softly rounded flat magenta and lime",
+    "industries": [
+      "real estate",
+      "realty",
+      "realtor",
+      "penthouse",
+      "luxury",
+      "home staging",
+      "interior design",
+      "concierge",
+      "rental",
+      "cottage",
+      "resort",
+      "hotel"
+    ],
+    "sheet": "magenta-14"
+  },
+  "lime-15": {
+    "label": "Lime 15 — rounded airy lime with indigo accent, for real estate & property",
+    "colors": {
+      "primary": {
+        "50": "#f0fbe7",
+        "100": "#d9f4c4",
+        "200": "#baeb95",
+        "300": "#8cdd4e",
+        "400": "#68c025",
+        "500": "#488519",
+        "600": "#3d7015",
+        "700": "#315b11",
+        "800": "#26450d",
+        "900": "#172b08"
+      },
+      "accent": {
+        "50": "#f7f3fb",
+        "100": "#eae1f6",
+        "200": "#d9caee",
+        "300": "#c0a6e3",
+        "400": "#ab88d9",
+        "500": "#976bd0",
+        "600": "#7c44c4"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Fraunces\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Inter\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-left"
+      ],
+      "header": [
+        "centered-logo"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 16,
+      "density": 1.05,
+      "shadowStrength": 0.14,
+      "buttonShape": "square"
+    },
+    "style": "rounded shadowed lime and indigo",
+    "industries": [
+      "real estate",
+      "realty",
+      "realtor",
+      "property",
+      "luxury",
+      "home staging",
+      "interior design",
+      "concierge",
+      "rental",
+      "cottage",
+      "resort",
+      "hotel"
+    ],
+    "sheet": "lime-15"
+  },
+  "azure-16": {
+    "label": "Azure 16 — rounded airy azure with lime accent, for clinics & medical",
+    "colors": {
+      "primary": {
+        "50": "#f0f1fa",
+        "100": "#d9dcf2",
+        "200": "#bac1e8",
+        "300": "#8c97d9",
+        "400": "#6674cc",
+        "500": "#4052bf",
+        "600": "#3645a1",
+        "700": "#2b3882",
+        "800": "#212b63",
+        "900": "#141a3d"
+      },
+      "accent": {
+        "50": "#f3fbef",
+        "100": "#e2f5d6",
+        "200": "#cbedb6",
+        "300": "#a9e085",
+        "400": "#8cd65c",
+        "500": "#6fcc33",
+        "600": "#5dab2b"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Space Grotesk\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"IBM Plex Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "header": [
+        "pill-floating"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 22,
+      "density": 1.2,
+      "shadowStrength": 0.18,
+      "buttonShape": "rounded"
+    },
+    "style": "rounded shadowed azure and lime",
+    "industries": [
+      "clinic",
+      "dental",
+      "pharmacy",
+      "optometry",
+      "chiropractic",
+      "physio",
+      "lab",
+      "nursing",
+      "pediatric",
+      "walk-in",
+      "health",
+      "veterinary"
+    ],
+    "sheet": "azure-16"
+  },
+  "crimson-17": {
+    "label": "Crimson 17 — angular compact crimson with violet accent, for clinics & medical",
+    "colors": {
+      "primary": {
+        "50": "#f9f2f1",
+        "100": "#f0dedb",
+        "200": "#e4c4be",
+        "300": "#d39c92",
+        "400": "#c47b6e",
+        "500": "#b55a4a",
+        "600": "#984c3e",
+        "700": "#7b3d32",
+        "800": "#5e2f26",
+        "900": "#3a1d18"
+      },
+      "accent": {
+        "50": "#faf0fd",
+        "100": "#f3dbf9",
+        "200": "#e9bef4",
+        "300": "#da92ed",
+        "400": "#cd6ee7",
+        "500": "#c14ae1",
+        "600": "#b123d8"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Playfair Display\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Source Sans 3\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-left"
+      ],
+      "header": [
+        "solid-bar"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 4,
+      "density": 0.85,
+      "shadowStrength": 0.22,
+      "buttonShape": "pill"
+    },
+    "style": "angular shadowed crimson and violet",
+    "industries": [
+      "medical",
+      "dental",
+      "pharmacy",
+      "optometry",
+      "chiropractic",
+      "physio",
+      "lab",
+      "nursing",
+      "pediatric",
+      "walk-in",
+      "health",
+      "veterinary"
+    ],
+    "sheet": "crimson-17"
+  },
+  "fern-18": {
+    "label": "Fern 18 — softly rounded compact fern with fern accent, for clinics & medical",
+    "colors": {
+      "primary": {
+        "50": "#eaf9f1",
+        "100": "#cbf0db",
+        "200": "#a1e4bf",
+        "300": "#63d294",
+        "400": "#36bb71",
+        "500": "#278651",
+        "600": "#217144",
+        "700": "#1b5b37",
+        "800": "#14462a",
+        "900": "#0c2b1a"
+      },
+      "accent": {
+        "50": "#f0faef",
+        "100": "#d9f3d8",
+        "200": "#bbe9b9",
+        "300": "#8eda8b",
+        "400": "#68ce64",
+        "500": "#43c23d",
+        "600": "#38a333"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Bricolage Grotesque\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"Public Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700&family=Public+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-top"
+      ],
+      "header": [
+        "transparent-overlay"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 10,
+      "density": 0.95,
+      "shadowStrength": 0.26,
+      "buttonShape": "square"
+    },
+    "style": "softly rounded shadowed fern and fern",
+    "industries": [
+      "medical",
+      "clinic",
+      "pharmacy",
+      "optometry",
+      "chiropractic",
+      "physio",
+      "lab",
+      "nursing",
+      "pediatric",
+      "walk-in",
+      "health",
+      "veterinary"
+    ],
+    "sheet": "fern-18"
+  },
+  "violet-19": {
+    "label": "Violet 19 — rounded airy violet with magenta accent, for clinics & medical",
+    "colors": {
+      "primary": {
+        "50": "#f8eefc",
+        "100": "#eed4f7",
+        "200": "#e0b2f0",
+        "300": "#cb7ee7",
+        "400": "#b954de",
+        "500": "#a829d6",
+        "600": "#8d22b4",
+        "700": "#721c92",
+        "800": "#57156f",
+        "900": "#360d45"
+      },
+      "accent": {
+        "50": "#fbf0fa",
+        "100": "#f6daf2",
+        "200": "#eebce8",
+        "300": "#e390d8",
+        "400": "#da6bcb",
+        "500": "#d146be",
+        "600": "#bb2fa8"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Libre Baskerville\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Karla\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Karla:wght@400;500;600;700&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-left"
+      ],
+      "header": [
+        "centered-logo"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 16,
+      "density": 1.05,
+      "shadowStrength": 0.06,
+      "buttonShape": "rounded"
+    },
+    "style": "rounded flat violet and magenta",
+    "industries": [
+      "medical",
+      "clinic",
+      "dental",
+      "optometry",
+      "chiropractic",
+      "physio",
+      "lab",
+      "nursing",
+      "pediatric",
+      "walk-in",
+      "health",
+      "veterinary"
+    ],
+    "sheet": "violet-19"
+  },
+  "amber-20": {
+    "label": "Amber 20 — rounded airy amber with fern accent, for clinics & medical",
+    "colors": {
+      "primary": {
+        "50": "#f8f8ea",
+        "100": "#edeecb",
+        "200": "#dee0a1",
+        "300": "#c8cb63",
+        "400": "#acaf3a",
+        "500": "#787b29",
+        "600": "#656722",
+        "700": "#52531c",
+        "800": "#3f4015",
+        "900": "#27270d"
+      },
+      "accent": {
+        "50": "#edfcf2",
+        "100": "#d3f8de",
+        "200": "#b0f2c4",
+        "300": "#7bea9d",
+        "400": "#50e27d",
+        "500": "#24db5c",
+        "600": "#1eb84e"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Outfit\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"Work Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Work+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-top"
+      ],
+      "header": [
+        "pill-floating"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 22,
+      "density": 1.2,
+      "shadowStrength": 0.1,
+      "buttonShape": "pill"
+    },
+    "style": "rounded flat amber and fern",
+    "industries": [
+      "medical",
+      "clinic",
+      "dental",
+      "pharmacy",
+      "chiropractic",
+      "physio",
+      "lab",
+      "nursing",
+      "pediatric",
+      "walk-in",
+      "health",
+      "veterinary"
+    ],
+    "sheet": "amber-20"
+  },
+  "teal-21": {
+    "label": "Teal 21 — angular compact teal with magenta accent, for wellness & care",
+    "colors": {
+      "primary": {
+        "50": "#eef5f8",
+        "100": "#d5e6ee",
+        "200": "#b4d2e0",
+        "300": "#82b5cc",
+        "400": "#599cbb",
+        "500": "#3f7e9a",
+        "600": "#356982",
+        "700": "#2b5569",
+        "800": "#214150",
+        "900": "#142831"
+      },
+      "accent": {
+        "50": "#fbf2f6",
+        "100": "#f4dee9",
+        "200": "#ecc3d8",
+        "300": "#df9bbe",
+        "400": "#d579a8",
+        "500": "#ca5893",
+        "600": "#b93a7c"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Lora\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Nunito Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Nunito+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "header": [
+        "solid-bar"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 4,
+      "density": 0.85,
+      "shadowStrength": 0.14,
+      "buttonShape": "square"
+    },
+    "style": "angular shadowed teal and magenta",
+    "industries": [
+      "therapy",
+      "counseling",
+      "mental health",
+      "massage",
+      "yoga",
+      "naturopath",
+      "herbal",
+      "senior care",
+      "home care",
+      "childcare",
+      "doula",
+      "natural"
+    ],
+    "sheet": "teal-21"
+  },
+  "rose-22": {
+    "label": "Rose 22 — softly rounded compact rose with jade accent, for wellness & care",
+    "colors": {
+      "primary": {
+        "50": "#faeff4",
+        "100": "#f4d7e2",
+        "200": "#eab8cc",
+        "300": "#dd88a9",
+        "400": "#d1618d",
+        "500": "#c63970",
+        "600": "#a6305e",
+        "700": "#86274c",
+        "800": "#671e3a",
+        "900": "#3f1224"
+      },
+      "accent": {
+        "50": "#effbf7",
+        "100": "#d6f5ea",
+        "200": "#b6edda",
+        "300": "#85e0c1",
+        "400": "#5cd6ac",
+        "500": "#33cc98",
+        "600": "#2bab7f"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Fraunces\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Inter\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-top"
+      ],
+      "header": [
+        "solid-bar"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 10,
+      "density": 0.95,
+      "shadowStrength": 0.18,
+      "buttonShape": "rounded"
+    },
+    "style": "softly rounded shadowed rose and jade",
+    "industries": [
+      "wellness",
+      "counseling",
+      "mental health",
+      "massage",
+      "yoga",
+      "naturopath",
+      "herbal",
+      "senior care",
+      "home care",
+      "childcare",
+      "doula",
+      "natural"
+    ],
+    "sheet": "rose-22"
+  },
+  "fern-23": {
+    "label": "Fern 23 — rounded airy fern with crimson accent, for wellness & care",
+    "colors": {
+      "primary": {
+        "50": "#eafbe8",
+        "100": "#c9f4c5",
+        "200": "#9eeb96",
+        "300": "#5ede50",
+        "400": "#35c325",
+        "500": "#25881a",
+        "600": "#1f7316",
+        "700": "#195d12",
+        "800": "#13470e",
+        "900": "#0c2c08"
+      },
+      "accent": {
+        "50": "#fdf0f2",
+        "100": "#f9dbe0",
+        "200": "#f4bdc6",
+        "300": "#ed92a1",
+        "400": "#e76d81",
+        "500": "#e14962",
+        "600": "#d72341"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Space Grotesk\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"IBM Plex Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "header": [
+        "centered-logo"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 16,
+      "density": 1.05,
+      "shadowStrength": 0.22,
+      "buttonShape": "pill"
+    },
+    "style": "rounded shadowed fern and crimson",
+    "industries": [
+      "wellness",
+      "therapy",
+      "mental health",
+      "massage",
+      "yoga",
+      "naturopath",
+      "herbal",
+      "senior care",
+      "home care",
+      "childcare",
+      "doula",
+      "natural"
+    ],
+    "sheet": "fern-23"
+  },
+  "indigo-24": {
+    "label": "Indigo 24 — rounded airy indigo with teal accent, for wellness & care",
+    "colors": {
+      "primary": {
+        "50": "#f2f0fa",
+        "100": "#ded9f2",
+        "200": "#c3bae8",
+        "300": "#9b8cd9",
+        "400": "#7a66cc",
+        "500": "#5840bf",
+        "600": "#4a36a1",
+        "700": "#3c2b82",
+        "800": "#2e2163",
+        "900": "#1c143d"
+      },
+      "accent": {
+        "50": "#effafa",
+        "100": "#d8f3f3",
+        "200": "#b9e9e9",
+        "300": "#8bdada",
+        "400": "#64cdce",
+        "500": "#3dc1c2",
+        "600": "#33a2a3"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Playfair Display\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Source Sans 3\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-left"
+      ],
+      "header": [
+        "pill-floating"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 22,
+      "density": 1.2,
+      "shadowStrength": 0.26,
+      "buttonShape": "square"
+    },
+    "style": "rounded shadowed indigo and teal",
+    "industries": [
+      "wellness",
+      "therapy",
+      "counseling",
+      "massage",
+      "yoga",
+      "naturopath",
+      "herbal",
+      "senior care",
+      "home care",
+      "childcare",
+      "doula",
+      "natural"
+    ],
+    "sheet": "indigo-24"
+  },
+  "ember-25": {
+    "label": "Ember 25 — angular compact ember with crimson accent, for wellness & care",
+    "colors": {
+      "primary": {
+        "50": "#f8f3ef",
+        "100": "#eee2d6",
+        "200": "#e1cab5",
+        "300": "#cda783",
+        "400": "#bc895a",
+        "500": "#9c6c40",
+        "600": "#835b36",
+        "700": "#6a4a2b",
+        "800": "#513821",
+        "900": "#322314"
+      },
+      "accent": {
+        "50": "#fbf2f0",
+        "100": "#f6dfd9",
+        "200": "#eec5bb",
+        "300": "#e39e8e",
+        "400": "#d97d68",
+        "500": "#d05d43",
+        "600": "#b8472e"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Bricolage Grotesque\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"Public Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700&family=Public+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "header": [
+        "solid-bar"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 4,
+      "density": 0.85,
+      "shadowStrength": 0.06,
+      "buttonShape": "rounded"
+    },
+    "style": "angular flat ember and crimson",
+    "industries": [
+      "wellness",
+      "therapy",
+      "counseling",
+      "mental health",
+      "yoga",
+      "naturopath",
+      "herbal",
+      "senior care",
+      "home care",
+      "childcare",
+      "doula",
+      "natural"
+    ],
+    "sheet": "ember-25"
+  },
+  "jade-26": {
+    "label": "Jade 26 — softly rounded compact jade with teal accent, for beauty & grooming",
+    "colors": {
+      "primary": {
+        "50": "#eaf9f6",
+        "100": "#caf0e7",
+        "200": "#a0e4d4",
+        "300": "#61d1b8",
+        "400": "#36b99c",
+        "500": "#26846f",
+        "600": "#206f5e",
+        "700": "#1a5a4c",
+        "800": "#14453a",
+        "900": "#0c2a24"
+      },
+      "accent": {
+        "50": "#edf7fc",
+        "100": "#d3ebf8",
+        "200": "#b0daf2",
+        "300": "#7bc2ea",
+        "400": "#50aee2",
+        "500": "#249adb",
+        "600": "#1e81b8"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Libre Baskerville\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Karla\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Karla:wght@400;500;600;700&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-left"
+      ],
+      "header": [
+        "centered-logo"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 10,
+      "density": 0.95,
+      "shadowStrength": 0.1,
+      "buttonShape": "pill"
+    },
+    "style": "softly rounded flat jade and teal",
+    "industries": [
+      "spa",
+      "beauty",
+      "barber",
+      "nail",
+      "lashes",
+      "makeup",
+      "cosmetic",
+      "skincare",
+      "tattoo",
+      "fashion",
+      "boutique",
+      "menswear"
+    ],
+    "sheet": "jade-26"
+  },
+  "magenta-27": {
+    "label": "Magenta 27 — rounded airy magenta with ember accent, for beauty & grooming",
+    "colors": {
+      "primary": {
+        "50": "#fcedfb",
+        "100": "#f7d2f4",
+        "200": "#f0afeb",
+        "300": "#e679de",
+        "400": "#dd4dd3",
+        "500": "#cd27c2",
+        "600": "#ad21a3",
+        "700": "#8c1b84",
+        "800": "#6b1465",
+        "900": "#420d3e"
+      },
+      "accent": {
+        "50": "#faf5ef",
+        "100": "#f3e6d8",
+        "200": "#e9d3b9",
+        "300": "#dab58b",
+        "400": "#ce9d64",
+        "500": "#c2843d",
+        "600": "#a36f33"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Outfit\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"Work Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Work+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-top"
+      ],
+      "header": [
+        "centered-logo"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 16,
+      "density": 1.05,
+      "shadowStrength": 0.14,
+      "buttonShape": "square"
+    },
+    "style": "rounded shadowed magenta and ember",
+    "industries": [
+      "salon",
+      "beauty",
+      "barber",
+      "nail",
+      "lashes",
+      "makeup",
+      "cosmetic",
+      "skincare",
+      "tattoo",
+      "fashion",
+      "boutique",
+      "menswear"
+    ],
+    "sheet": "magenta-27"
+  },
+  "lime-28": {
+    "label": "Lime 28 — rounded airy lime with azure accent, for beauty & grooming",
+    "colors": {
+      "primary": {
+        "50": "#f3f8eb",
+        "100": "#e2eecc",
+        "200": "#cbe1a4",
+        "300": "#a8cc67",
+        "400": "#88b33c",
+        "500": "#62802b",
+        "600": "#526c24",
+        "700": "#43571d",
+        "800": "#334316",
+        "900": "#1f290e"
+      },
+      "accent": {
+        "50": "#f2f5fc",
+        "100": "#dee5f7",
+        "200": "#c3d0f0",
+        "300": "#9bb1e6",
+        "400": "#7a97de",
+        "500": "#597dd6",
+        "600": "#335fcb"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Lora\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Nunito Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Nunito+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-left"
+      ],
+      "header": [
+        "pill-floating"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 22,
+      "density": 1.2,
+      "shadowStrength": 0.18,
+      "buttonShape": "rounded"
+    },
+    "style": "rounded shadowed lime and azure",
+    "industries": [
+      "salon",
+      "spa",
+      "barber",
+      "nail",
+      "lashes",
+      "makeup",
+      "cosmetic",
+      "skincare",
+      "tattoo",
+      "fashion",
+      "boutique",
+      "menswear"
+    ],
+    "sheet": "lime-28"
+  },
+  "azure-29": {
+    "label": "Azure 29 — angular compact azure with amber accent, for beauty & grooming",
+    "colors": {
+      "primary": {
+        "50": "#f1f4f9",
+        "100": "#dbe2f0",
+        "200": "#becbe4",
+        "300": "#92a9d3",
+        "400": "#6e8cc4",
+        "500": "#4a6fb5",
+        "600": "#3e5e98",
+        "700": "#324c7b",
+        "800": "#263a5e",
+        "900": "#18243a"
+      },
+      "accent": {
+        "50": "#fcfaed",
+        "100": "#f8f4d3",
+        "200": "#f2eab0",
+        "300": "#eadd7b",
+        "400": "#e2d150",
+        "500": "#dbc624",
+        "600": "#b8a61e"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Fraunces\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Inter\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-top"
+      ],
+      "header": [
+        "solid-bar"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 4,
+      "density": 0.85,
+      "shadowStrength": 0.22,
+      "buttonShape": "pill"
+    },
+    "style": "angular shadowed azure and amber",
+    "industries": [
+      "salon",
+      "spa",
+      "beauty",
+      "nail",
+      "lashes",
+      "makeup",
+      "cosmetic",
+      "skincare",
+      "tattoo",
+      "fashion",
+      "boutique",
+      "menswear"
+    ],
+    "sheet": "azure-29"
+  },
+  "crimson-30": {
+    "label": "Crimson 30 — softly rounded compact crimson with indigo accent, for beauty & grooming",
+    "colors": {
+      "primary": {
+        "50": "#faeff0",
+        "100": "#f4d7d9",
+        "200": "#eab8bb",
+        "300": "#dd888d",
+        "400": "#d16167",
+        "500": "#c63942",
+        "600": "#a63037",
+        "700": "#86272d",
+        "800": "#671e22",
+        "900": "#3f1215"
+      },
+      "accent": {
+        "50": "#f4f4fc",
+        "100": "#e5e3f6",
+        "200": "#cfcdef",
+        "300": "#b0ace5",
+        "400": "#9591dc",
+        "500": "#7b75d3",
+        "600": "#544dc7"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Space Grotesk\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"IBM Plex Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "header": [
+        "pill-floating"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 10,
+      "density": 0.95,
+      "shadowStrength": 0.26,
+      "buttonShape": "square"
+    },
+    "style": "softly rounded shadowed crimson and indigo",
+    "industries": [
+      "salon",
+      "spa",
+      "beauty",
+      "barber",
+      "lashes",
+      "makeup",
+      "cosmetic",
+      "skincare",
+      "tattoo",
+      "fashion",
+      "boutique",
+      "menswear"
+    ],
+    "sheet": "crimson-30"
+  },
+  "fern-31": {
+    "label": "Fern 31 — rounded airy fern with lime accent, for restaurants & drink",
+    "colors": {
+      "primary": {
+        "50": "#e8fbec",
+        "100": "#c5f4d0",
+        "200": "#96ebaa",
+        "300": "#50de71",
+        "400": "#25c34a",
+        "500": "#1a8834",
+        "600": "#16732b",
+        "700": "#125d23",
+        "800": "#0e471b",
+        "900": "#082c11"
+      },
+      "accent": {
+        "50": "#f8fbef",
+        "100": "#eef5d6",
+        "200": "#e0edb6",
+        "300": "#cbe085",
+        "400": "#bad65c",
+        "500": "#a8cc33",
+        "600": "#8dab2b"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Playfair Display\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Source Sans 3\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-top"
+      ],
+      "header": [
+        "centered-logo"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 16,
+      "density": 1.05,
+      "shadowStrength": 0.06,
+      "buttonShape": "rounded"
+    },
+    "style": "rounded flat fern and lime",
+    "industries": [
+      "food",
+      "bistro",
+      "fine dining",
+      "pizza",
+      "mexican",
+      "mediterranean",
+      "catering",
+      "brewery",
+      "whisky",
+      "wine",
+      "winery",
+      "market",
+      "smokehouse"
+    ],
+    "sheet": "fern-31"
+  },
+  "violet-32": {
+    "label": "Violet 32 — rounded airy violet with indigo accent, for restaurants & drink",
+    "colors": {
+      "primary": {
+        "50": "#f5f0fa",
+        "100": "#e6d9f2",
+        "200": "#d2bae8",
+        "300": "#b48cd9",
+        "400": "#9c66cc",
+        "500": "#8340bf",
+        "600": "#6e36a1",
+        "700": "#592b82",
+        "800": "#442163",
+        "900": "#2a143d"
+      },
+      "accent": {
+        "50": "#f7f3fd",
+        "100": "#ebe0fa",
+        "200": "#dac7f6",
+        "300": "#c2a2f0",
+        "400": "#ae83eb",
+        "500": "#9965e6",
+        "600": "#7b37de"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Bricolage Grotesque\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"Public Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700&family=Public+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "header": [
+        "pill-floating"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 22,
+      "density": 1.2,
+      "shadowStrength": 0.1,
+      "buttonShape": "pill"
+    },
+    "style": "rounded flat violet and indigo",
+    "industries": [
+      "restaurant",
+      "bistro",
+      "fine dining",
+      "pizza",
+      "mexican",
+      "mediterranean",
+      "catering",
+      "brewery",
+      "whisky",
+      "wine",
+      "winery",
+      "market",
+      "smokehouse"
+    ],
+    "sheet": "violet-32"
+  },
+  "amber-33": {
+    "label": "Amber 33 — angular compact amber with lime accent, for restaurants & drink",
+    "colors": {
+      "primary": {
+        "50": "#f8f6ed",
+        "100": "#ece7d1",
+        "200": "#ddd4ac",
+        "300": "#c7b875",
+        "400": "#b39f49",
+        "500": "#857636",
+        "600": "#70642e",
+        "700": "#5a5125",
+        "800": "#453e1c",
+        "900": "#2b2611"
+      },
+      "accent": {
+        "50": "#f4faef",
+        "100": "#e3f3d8",
+        "200": "#cde9b9",
+        "300": "#acda8b",
+        "400": "#90ce64",
+        "500": "#74c23d",
+        "600": "#62a333"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Libre Baskerville\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Karla\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Karla:wght@400;500;600;700&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-left"
+      ],
+      "header": [
+        "solid-bar"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 4,
+      "density": 0.85,
+      "shadowStrength": 0.14,
+      "buttonShape": "square"
+    },
+    "style": "angular shadowed amber and lime",
+    "industries": [
+      "restaurant",
+      "food",
+      "fine dining",
+      "pizza",
+      "mexican",
+      "mediterranean",
+      "catering",
+      "brewery",
+      "whisky",
+      "wine",
+      "winery",
+      "market",
+      "smokehouse"
+    ],
+    "sheet": "amber-33"
+  },
+  "teal-34": {
+    "label": "Teal 34 — softly rounded compact teal with violet accent, for restaurants & drink",
+    "colors": {
+      "primary": {
+        "50": "#ebf8f9",
+        "100": "#ccecf0",
+        "200": "#a3dde4",
+        "300": "#66c7d3",
+        "400": "#38b1bf",
+        "500": "#29828c",
+        "600": "#226d76",
+        "700": "#1c5860",
+        "800": "#154349",
+        "900": "#0d2a2d"
+      },
+      "accent": {
+        "50": "#f9f2fc",
+        "100": "#f1ddf7",
+        "200": "#e5c2f0",
+        "300": "#d49ae6",
+        "400": "#c579dd",
+        "500": "#b757d5",
+        "600": "#a532ca"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Outfit\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"Work Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Work+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "header": [
+        "solid-bar"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 10,
+      "density": 0.95,
+      "shadowStrength": 0.18,
+      "buttonShape": "rounded"
+    },
+    "style": "softly rounded shadowed teal and violet",
+    "industries": [
+      "restaurant",
+      "food",
+      "bistro",
+      "pizza",
+      "mexican",
+      "mediterranean",
+      "catering",
+      "brewery",
+      "whisky",
+      "wine",
+      "winery",
+      "market",
+      "smokehouse"
+    ],
+    "sheet": "teal-34"
+  },
+  "magenta-35": {
+    "label": "Magenta 35 — rounded airy magenta with fern accent, for restaurants & drink",
+    "colors": {
+      "primary": {
+        "50": "#fceef6",
+        "100": "#f7d4e9",
+        "200": "#f0b2d7",
+        "300": "#e77ebd",
+        "400": "#de54a7",
+        "500": "#d62991",
+        "600": "#b4227a",
+        "700": "#921c62",
+        "800": "#6f154b",
+        "900": "#450d2e"
+      },
+      "accent": {
+        "50": "#eefced",
+        "100": "#d6f8d3",
+        "200": "#b4f2b0",
+        "300": "#83ea7b",
+        "400": "#59e250",
+        "500": "#30db24",
+        "600": "#28b81e"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Lora\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Nunito Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Nunito+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-left"
+      ],
+      "header": [
+        "centered-logo"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 16,
+      "density": 1.05,
+      "shadowStrength": 0.22,
+      "buttonShape": "pill"
+    },
+    "style": "rounded shadowed magenta and fern",
+    "industries": [
+      "restaurant",
+      "food",
+      "bistro",
+      "fine dining",
+      "mexican",
+      "mediterranean",
+      "catering",
+      "brewery",
+      "whisky",
+      "wine",
+      "winery",
+      "market",
+      "smokehouse"
+    ],
+    "sheet": "magenta-35"
+  },
+  "fern-36": {
+    "label": "Fern 36 — rounded airy fern with magenta accent, for bakery & artisan makers",
+    "colors": {
+      "primary": {
+        "50": "#eff8eb",
+        "100": "#d7eecd",
+        "200": "#b8e1a5",
+        "300": "#88cd69",
+        "400": "#62b73d",
+        "500": "#47852c",
+        "600": "#3c6f25",
+        "700": "#315a1e",
+        "800": "#254517",
+        "900": "#172a0e"
+      },
+      "accent": {
+        "50": "#fbf1fa",
+        "100": "#f4dcf1",
+        "200": "#ebc0e7",
+        "300": "#de96d6",
+        "400": "#d373c9",
+        "500": "#c851bb",
+        "600": "#b339a6"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Fraunces\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Inter\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-top"
+      ],
+      "header": [
+        "pill-floating"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 22,
+      "density": 1.2,
+      "shadowStrength": 0.26,
+      "buttonShape": "square"
+    },
+    "style": "rounded shadowed fern and magenta",
+    "industries": [
+      "cafe",
+      "coffee",
+      "cake",
+      "tea",
+      "roaster",
+      "butcher",
+      "craft",
+      "pottery",
+      "ceramics",
+      "woodwork",
+      "forge",
+      "leather"
+    ],
+    "sheet": "fern-36"
+  },
+  "azure-37": {
+    "label": "Azure 37 — angular compact azure with fern accent, for bakery & artisan makers",
+    "colors": {
+      "primary": {
+        "50": "#f1f1f9",
+        "100": "#dbdbf0",
+        "200": "#bebee4",
+        "300": "#9293d3",
+        "400": "#6e70c4",
+        "500": "#4a4cb5",
+        "600": "#3e4098",
+        "700": "#32337b",
+        "800": "#26275e",
+        "900": "#18183a"
+      },
+      "accent": {
+        "50": "#effbf2",
+        "100": "#d6f5df",
+        "200": "#b6edc5",
+        "300": "#85e09f",
+        "400": "#5cd67e",
+        "500": "#33cc5e",
+        "600": "#2bab4f"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Space Grotesk\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"IBM Plex Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-left"
+      ],
+      "header": [
+        "solid-bar"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 4,
+      "density": 0.85,
+      "shadowStrength": 0.06,
+      "buttonShape": "rounded"
+    },
+    "style": "angular flat azure and fern",
+    "industries": [
+      "bakery",
+      "coffee",
+      "cake",
+      "tea",
+      "roaster",
+      "butcher",
+      "craft",
+      "pottery",
+      "ceramics",
+      "woodwork",
+      "forge",
+      "leather"
+    ],
+    "sheet": "azure-37"
+  },
+  "ember-38": {
+    "label": "Ember 38 — softly rounded compact ember with magenta accent, for bakery & artisan makers",
+    "colors": {
+      "primary": {
+        "50": "#faf2ee",
+        "100": "#f3ded5",
+        "200": "#e9c3b4",
+        "300": "#db9b82",
+        "400": "#cf7959",
+        "500": "#bb5b36",
+        "600": "#9d4c2e",
+        "700": "#7f3e25",
+        "800": "#612f1c",
+        "900": "#3c1d11"
+      },
+      "accent": {
+        "50": "#fdf0f7",
+        "100": "#f9d9ea",
+        "200": "#f4bad9",
+        "300": "#ec8cc0",
+        "400": "#e666ab",
+        "500": "#e04096",
+        "600": "#d02280"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Playfair Display\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Source Sans 3\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-top"
+      ],
+      "header": [
+        "centered-logo"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 10,
+      "density": 0.95,
+      "shadowStrength": 0.1,
+      "buttonShape": "pill"
+    },
+    "style": "softly rounded flat ember and magenta",
+    "industries": [
+      "bakery",
+      "cafe",
+      "cake",
+      "tea",
+      "roaster",
+      "butcher",
+      "craft",
+      "pottery",
+      "ceramics",
+      "woodwork",
+      "forge",
+      "leather"
+    ],
+    "sheet": "ember-38"
+  },
+  "jade-39": {
+    "label": "Jade 39 — rounded airy jade with jade accent, for bakery & artisan makers",
+    "colors": {
+      "primary": {
+        "50": "#e8fbf2",
+        "100": "#c4f4df",
+        "200": "#96ebc6",
+        "300": "#4fdea0",
+        "400": "#25c27e",
+        "500": "#1a8758",
+        "600": "#16724a",
+        "700": "#125c3c",
+        "800": "#0d462e",
+        "900": "#082b1c"
+      },
+      "accent": {
+        "50": "#effaf6",
+        "100": "#d8f3e9",
+        "200": "#b9e9d7",
+        "300": "#8bdabd",
+        "400": "#64cea7",
+        "500": "#3dc291",
+        "600": "#33a37a"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Bricolage Grotesque\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"Public Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700&family=Public+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "header": [
+        "centered-logo"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 16,
+      "density": 1.05,
+      "shadowStrength": 0.14,
+      "buttonShape": "square"
+    },
+    "style": "rounded shadowed jade and jade",
+    "industries": [
+      "bakery",
+      "cafe",
+      "coffee",
+      "tea",
+      "roaster",
+      "butcher",
+      "craft",
+      "pottery",
+      "ceramics",
+      "woodwork",
+      "forge",
+      "leather"
+    ],
+    "sheet": "jade-39"
+  },
+  "violet-40": {
+    "label": "Violet 40 — rounded airy violet with crimson accent, for bakery & artisan makers",
+    "colors": {
+      "primary": {
+        "50": "#f8f0fa",
+        "100": "#efd9f2",
+        "200": "#e2bae8",
+        "300": "#ce8cd9",
+        "400": "#be66cc",
+        "500": "#ad40bf",
+        "600": "#9136a1",
+        "700": "#762b82",
+        "800": "#5a2163",
+        "900": "#37143d"
+      },
+      "accent": {
+        "50": "#fcf1f3",
+        "100": "#f7dde2",
+        "200": "#f0c2cb",
+        "300": "#e699a8",
+        "400": "#dd778b",
+        "500": "#d5556d",
+        "600": "#c8324f"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Libre Baskerville\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Karla\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Karla:wght@400;500;600;700&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-top"
+      ],
+      "header": [
+        "pill-floating"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 22,
+      "density": 1.2,
+      "shadowStrength": 0.18,
+      "buttonShape": "rounded"
+    },
+    "style": "rounded shadowed violet and crimson",
+    "industries": [
+      "bakery",
+      "cafe",
+      "coffee",
+      "cake",
+      "roaster",
+      "butcher",
+      "craft",
+      "pottery",
+      "ceramics",
+      "woodwork",
+      "forge",
+      "leather"
+    ],
+    "sheet": "violet-40"
+  },
+  "amber-41": {
+    "label": "Amber 41 — angular compact amber with jade accent, for fitness & water sports",
+    "colors": {
+      "primary": {
+        "50": "#f6f7ec",
+        "100": "#e7eccf",
+        "200": "#d4dca9",
+        "300": "#b8c570",
+        "400": "#9dac46",
+        "500": "#717c33",
+        "600": "#5f692b",
+        "700": "#4d5523",
+        "800": "#3b411a",
+        "900": "#242810"
+      },
+      "accent": {
+        "50": "#edfcfc",
+        "100": "#d3f8f7",
+        "200": "#b0f2f1",
+        "300": "#7beae8",
+        "400": "#50e2e0",
+        "500": "#24dbd8",
+        "600": "#1eb8b6"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Outfit\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"Work Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Work+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "header": [
+        "solid-bar"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 4,
+      "density": 0.85,
+      "shadowStrength": 0.22,
+      "buttonShape": "pill"
+    },
+    "style": "angular shadowed amber and jade",
+    "industries": [
+      "gym",
+      "sports",
+      "boxing",
+      "martial arts",
+      "dance",
+      "skate",
+      "surf",
+      "diving",
+      "fishing",
+      "boat",
+      "marine",
+      "yacht"
+    ],
+    "sheet": "amber-41"
+  },
+  "teal-42": {
+    "label": "Teal 42 — softly rounded compact teal with crimson accent, for fitness & water sports",
+    "colors": {
+      "primary": {
+        "50": "#eef5fa",
+        "100": "#d4e5f2",
+        "200": "#b1d0e8",
+        "300": "#7eb1d9",
+        "400": "#5397cd",
+        "500": "#347bb4",
+        "600": "#2c6897",
+        "700": "#24547a",
+        "800": "#1b405e",
+        "900": "#11283a"
+      },
+      "accent": {
+        "50": "#fbf2f1",
+        "100": "#f4e0dc",
+        "200": "#ebc7c0",
+        "300": "#dea196",
+        "400": "#d38273",
+        "500": "#c8634f",
+        "600": "#b24c38"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Lora\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Nunito Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Nunito+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-left"
+      ],
+      "header": [
+        "pill-floating"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 10,
+      "density": 0.95,
+      "shadowStrength": 0.26,
+      "buttonShape": "square"
+    },
+    "style": "softly rounded shadowed teal and crimson",
+    "industries": [
+      "fitness",
+      "sports",
+      "boxing",
+      "martial arts",
+      "dance",
+      "skate",
+      "surf",
+      "diving",
+      "fishing",
+      "boat",
+      "marine",
+      "yacht"
+    ],
+    "sheet": "teal-42"
+  },
+  "rose-43": {
+    "label": "Rose 43 — rounded airy rose with teal accent, for fitness & water sports",
+    "colors": {
+      "primary": {
+        "50": "#fceef2",
+        "100": "#f7d4dd",
+        "200": "#f0b2c3",
+        "300": "#e77e9a",
+        "400": "#de5479",
+        "500": "#d62957",
+        "600": "#b42249",
+        "700": "#921c3b",
+        "800": "#6f152d",
+        "900": "#450d1c"
+      },
+      "accent": {
+        "50": "#eff7fb",
+        "100": "#d6ebf5",
+        "200": "#b6daed",
+        "300": "#85c2e0",
+        "400": "#5cadd6",
+        "500": "#3399cc",
+        "600": "#2b81ab"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Fraunces\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Inter\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "header": [
+        "centered-logo"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 16,
+      "density": 1.05,
+      "shadowStrength": 0.06,
+      "buttonShape": "rounded"
+    },
+    "style": "rounded flat rose and teal",
+    "industries": [
+      "fitness",
+      "gym",
+      "boxing",
+      "martial arts",
+      "dance",
+      "skate",
+      "surf",
+      "diving",
+      "fishing",
+      "boat",
+      "marine",
+      "yacht"
+    ],
+    "sheet": "rose-43"
+  },
+  "fern-44": {
+    "label": "Fern 44 — rounded airy fern with ember accent, for fitness & water sports",
+    "colors": {
+      "primary": {
+        "50": "#ebf8ec",
+        "100": "#ceefce",
+        "200": "#a6e1a8",
+        "300": "#6bce6d",
+        "400": "#3eb941",
+        "500": "#2d872f",
+        "600": "#267228",
+        "700": "#1f5c20",
+        "800": "#174619",
+        "900": "#0e2b0f"
+      },
+      "accent": {
+        "50": "#fcf5ed",
+        "100": "#f8e6d3",
+        "200": "#f2d2b0",
+        "300": "#eab37b",
+        "400": "#e29a50",
+        "500": "#db8124",
+        "600": "#b86c1e"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Space Grotesk\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"IBM Plex Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-left"
+      ],
+      "header": [
+        "pill-floating"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 22,
+      "density": 1.2,
+      "shadowStrength": 0.1,
+      "buttonShape": "pill"
+    },
+    "style": "rounded flat fern and ember",
+    "industries": [
+      "fitness",
+      "gym",
+      "sports",
+      "martial arts",
+      "dance",
+      "skate",
+      "surf",
+      "diving",
+      "fishing",
+      "boat",
+      "marine",
+      "yacht"
+    ],
+    "sheet": "fern-44"
+  },
+  "indigo-45": {
+    "label": "Indigo 45 — angular compact indigo with azure accent, for fitness & water sports",
+    "colors": {
+      "primary": {
+        "50": "#f3f1f9",
+        "100": "#e2dbf0",
+        "200": "#cabee4",
+        "300": "#a792d3",
+        "400": "#896ec4",
+        "500": "#6c4ab5",
+        "600": "#5b3e98",
+        "700": "#49327b",
+        "800": "#38265e",
+        "900": "#23183a"
+      },
+      "accent": {
+        "50": "#f2f5fb",
+        "100": "#dee5f5",
+        "200": "#c4d1ec",
+        "300": "#9db2e0",
+        "400": "#7c98d6",
+        "500": "#5b7fcb",
+        "600": "#3b64bc"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Playfair Display\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Source Sans 3\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-top"
+      ],
+      "header": [
+        "solid-bar"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 4,
+      "density": 0.85,
+      "shadowStrength": 0.14,
+      "buttonShape": "square"
+    },
+    "style": "angular shadowed indigo and azure",
+    "industries": [
+      "fitness",
+      "gym",
+      "sports",
+      "boxing",
+      "dance",
+      "skate",
+      "surf",
+      "diving",
+      "fishing",
+      "boat",
+      "marine",
+      "yacht"
+    ],
+    "sheet": "indigo-45"
+  },
+  "ember-46": {
+    "label": "Ember 46 — softly rounded compact ember with amber accent, for home trades & building",
+    "colors": {
+      "primary": {
+        "50": "#f9f4ec",
+        "100": "#f1e4cf",
+        "200": "#e6cea8",
+        "300": "#d5ad6e",
+        "400": "#c7913e",
+        "500": "#996f2d",
+        "600": "#815d25",
+        "700": "#684b1e",
+        "800": "#503a17",
+        "900": "#31230e"
+      },
+      "accent": {
+        "50": "#fbf9ef",
+        "100": "#f5f0d6",
+        "200": "#ede5b6",
+        "300": "#e0d385",
+        "400": "#d6c55c",
+        "500": "#ccb633",
+        "600": "#ab992b"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Bricolage Grotesque\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"Public Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700&family=Public+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-left"
+      ],
+      "header": [
+        "transparent-overlay"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 10,
+      "density": 0.95,
+      "shadowStrength": 0.18,
+      "buttonShape": "rounded"
+    },
+    "style": "softly rounded shadowed ember and amber",
+    "industries": [
+      "contractor",
+      "roofing",
+      "plumbing",
+      "hvac",
+      "electrical",
+      "renovation",
+      "handyman",
+      "painting",
+      "tile",
+      "concrete",
+      "scaffolding",
+      "excavation",
+      "cleaning"
+    ],
+    "sheet": "ember-46"
+  },
+  "jade-47": {
+    "label": "Jade 47 — rounded airy jade with indigo accent, for home trades & building",
+    "colors": {
+      "primary": {
+        "50": "#e7faf9",
+        "100": "#c4f4ef",
+        "200": "#94ebe2",
+        "300": "#4dddcf",
+        "400": "#25c0b0",
+        "500": "#19847a",
+        "600": "#156f66",
+        "700": "#115a53",
+        "800": "#0d453f",
+        "900": "#082a27"
+      },
+      "accent": {
+        "50": "#f4f4fd",
+        "100": "#e3e3fa",
+        "200": "#cdccf7",
+        "300": "#acaaf1",
+        "400": "#918eed",
+        "500": "#7572e8",
+        "600": "#4742e0"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Libre Baskerville\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Karla\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Karla:wght@400;500;600;700&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-top"
+      ],
+      "header": [
+        "centered-logo"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 16,
+      "density": 1.05,
+      "shadowStrength": 0.22,
+      "buttonShape": "pill"
+    },
+    "style": "rounded shadowed jade and indigo",
+    "industries": [
+      "construction",
+      "roofing",
+      "plumbing",
+      "hvac",
+      "electrical",
+      "renovation",
+      "handyman",
+      "painting",
+      "tile",
+      "concrete",
+      "scaffolding",
+      "excavation",
+      "cleaning"
+    ],
+    "sheet": "jade-47"
+  },
+  "magenta-48": {
+    "label": "Magenta 48 — rounded airy magenta with lime accent, for home trades & building",
+    "colors": {
+      "primary": {
+        "50": "#faf0f8",
+        "100": "#f2d9ed",
+        "200": "#e8badf",
+        "300": "#d98cca",
+        "400": "#cc66b8",
+        "500": "#bf40a7",
+        "600": "#a1368c",
+        "700": "#822b71",
+        "800": "#632157",
+        "900": "#3d1435"
+      },
+      "accent": {
+        "50": "#f8faef",
+        "100": "#edf3d8",
+        "200": "#dfe9b9",
+        "300": "#cada8b",
+        "400": "#b8ce64",
+        "500": "#a6c23d",
+        "600": "#8ca333"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Outfit\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"Work Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Work+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "header": [
+        "pill-floating"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 22,
+      "density": 1.2,
+      "shadowStrength": 0.26,
+      "buttonShape": "square"
+    },
+    "style": "rounded shadowed magenta and lime",
+    "industries": [
+      "construction",
+      "contractor",
+      "plumbing",
+      "hvac",
+      "electrical",
+      "renovation",
+      "handyman",
+      "painting",
+      "tile",
+      "concrete",
+      "scaffolding",
+      "excavation",
+      "cleaning"
+    ],
+    "sheet": "magenta-48"
+  },
+  "lime-49": {
+    "label": "Lime 49 — angular compact lime with indigo accent, for home trades & building",
+    "colors": {
+      "primary": {
+        "50": "#f2f7ec",
+        "100": "#dfecd0",
+        "200": "#c5ddab",
+        "300": "#9ec673",
+        "400": "#7eb048",
+        "500": "#5c8135",
+        "600": "#4e6d2c",
+        "700": "#3f5824",
+        "800": "#30431c",
+        "900": "#1e2911"
+      },
+      "accent": {
+        "50": "#f6f3fc",
+        "100": "#eae1f8",
+        "200": "#d9c9f2",
+        "300": "#bfa5e9",
+        "400": "#aa87e1",
+        "500": "#946ada",
+        "600": "#7740cf"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Lora\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Nunito Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Nunito+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-top"
+      ],
+      "header": [
+        "solid-bar"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 4,
+      "density": 0.85,
+      "shadowStrength": 0.06,
+      "buttonShape": "rounded"
+    },
+    "style": "angular flat lime and indigo",
+    "industries": [
+      "construction",
+      "contractor",
+      "roofing",
+      "hvac",
+      "electrical",
+      "renovation",
+      "handyman",
+      "painting",
+      "tile",
+      "concrete",
+      "scaffolding",
+      "excavation",
+      "cleaning"
+    ],
+    "sheet": "lime-49"
+  },
+  "azure-50": {
+    "label": "Azure 50 — softly rounded compact azure with lime accent, for home trades & building",
+    "colors": {
+      "primary": {
+        "50": "#eff2fa",
+        "100": "#d7def4",
+        "200": "#b8c3ea",
+        "300": "#889bdd",
+        "400": "#617ad1",
+        "500": "#3959c6",
+        "600": "#304ba6",
+        "700": "#273c86",
+        "800": "#1e2e67",
+        "900": "#121c3f"
+      },
+      "accent": {
+        "50": "#f4fced",
+        "100": "#e3f8d3",
+        "200": "#cdf2b0",
+        "300": "#acea7b",
+        "400": "#90e250",
+        "500": "#75db24",
+        "600": "#62b81e"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Fraunces\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Inter\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "header": [
+        "centered-logo"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 10,
+      "density": 0.95,
+      "shadowStrength": 0.1,
+      "buttonShape": "pill"
+    },
+    "style": "softly rounded flat azure and lime",
+    "industries": [
+      "construction",
+      "contractor",
+      "roofing",
+      "plumbing",
+      "electrical",
+      "renovation",
+      "handyman",
+      "painting",
+      "tile",
+      "concrete",
+      "scaffolding",
+      "excavation",
+      "cleaning"
+    ],
+    "sheet": "azure-50"
+  },
+  "crimson-51": {
+    "label": "Crimson 51 — rounded airy crimson with violet accent, for landscaping & green",
+    "colors": {
+      "primary": {
+        "50": "#fcefee",
+        "100": "#f7d6d4",
+        "200": "#f0b6b2",
+        "300": "#e7857e",
+        "400": "#de5d54",
+        "500": "#d63429",
+        "600": "#b42c22",
+        "700": "#92241c",
+        "800": "#6f1b15",
+        "900": "#45110d"
+      },
+      "accent": {
+        "50": "#f9f2fb",
+        "100": "#efdff5",
+        "200": "#e2c5ed",
+        "300": "#cf9fe1",
+        "400": "#bf7fd6",
+        "500": "#af5fcc",
+        "600": "#9c3cbf"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Space Grotesk\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"IBM Plex Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-left"
+      ],
+      "header": [
+        "centered-logo"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 16,
+      "density": 1.05,
+      "shadowStrength": 0.14,
+      "buttonShape": "square"
+    },
+    "style": "rounded shadowed crimson and violet",
+    "industries": [
+      "garden",
+      "tree",
+      "farm",
+      "agriculture",
+      "organic",
+      "eco",
+      "environment",
+      "sustainable",
+      "solar",
+      "hemp",
+      "cannabis",
+      "pest"
+    ],
+    "sheet": "crimson-51"
+  },
+  "fern-52": {
+    "label": "Fern 52 — rounded airy fern with fern accent, for landscaping & green",
+    "colors": {
+      "primary": {
+        "50": "#ebf8f0",
+        "100": "#cdeed9",
+        "200": "#a6e1bb",
+        "300": "#6acd8e",
+        "400": "#3db869",
+        "500": "#2d864d",
+        "600": "#267141",
+        "700": "#1e5b34",
+        "800": "#174628",
+        "900": "#0e2b19"
+      },
+      "accent": {
+        "50": "#f0fbef",
+        "100": "#d9f5d6",
+        "200": "#bbedb6",
+        "300": "#8de085",
+        "400": "#67d65c",
+        "500": "#41cc33",
+        "600": "#37ab2b"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Playfair Display\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Source Sans 3\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "header": [
+        "pill-floating"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 22,
+      "density": 1.2,
+      "shadowStrength": 0.18,
+      "buttonShape": "rounded"
+    },
+    "style": "rounded shadowed fern and fern",
+    "industries": [
+      "landscaping",
+      "tree",
+      "farm",
+      "agriculture",
+      "organic",
+      "eco",
+      "environment",
+      "sustainable",
+      "solar",
+      "hemp",
+      "cannabis",
+      "pest"
+    ],
+    "sheet": "fern-52"
+  },
+  "violet-53": {
+    "label": "Violet 53 — angular compact violet with magenta accent, for landscaping & green",
+    "colors": {
+      "primary": {
+        "50": "#f6f1f9",
+        "100": "#e9dbf0",
+        "200": "#d7bee4",
+        "300": "#bc92d3",
+        "400": "#a66ec4",
+        "500": "#904ab5",
+        "600": "#793e98",
+        "700": "#62327b",
+        "800": "#4b265e",
+        "900": "#2e183a"
+      },
+      "accent": {
+        "50": "#fceefb",
+        "100": "#f8d5f5",
+        "200": "#f3b3ed",
+        "300": "#ea81e2",
+        "400": "#e457d8",
+        "500": "#dd2dce",
+        "600": "#c01fb2"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Bricolage Grotesque\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"Public Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700&family=Public+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-left"
+      ],
+      "header": [
+        "solid-bar"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 4,
+      "density": 0.85,
+      "shadowStrength": 0.22,
+      "buttonShape": "pill"
+    },
+    "style": "angular shadowed violet and magenta",
+    "industries": [
+      "landscaping",
+      "garden",
+      "farm",
+      "agriculture",
+      "organic",
+      "eco",
+      "environment",
+      "sustainable",
+      "solar",
+      "hemp",
+      "cannabis",
+      "pest"
+    ],
+    "sheet": "violet-53"
+  },
+  "amber-54": {
+    "label": "Amber 54 — softly rounded compact amber with fern accent, for landscaping & green",
+    "colors": {
+      "primary": {
+        "50": "#f9f8ea",
+        "100": "#efedc9",
+        "200": "#e3df9e",
+        "300": "#d0ca5e",
+        "400": "#b4ad34",
+        "500": "#7f7925",
+        "600": "#6a661f",
+        "700": "#565319",
+        "800": "#423f13",
+        "900": "#29270c"
+      },
+      "accent": {
+        "50": "#effaf2",
+        "100": "#d8f3df",
+        "200": "#b9e9c6",
+        "300": "#8bda9f",
+        "400": "#64ce7f",
+        "500": "#3dc25f",
+        "600": "#33a350"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Libre Baskerville\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Karla\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Karla:wght@400;500;600;700&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-top"
+      ],
+      "header": [
+        "pill-floating"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 10,
+      "density": 0.95,
+      "shadowStrength": 0.26,
+      "buttonShape": "square"
+    },
+    "style": "softly rounded shadowed amber and fern",
+    "industries": [
+      "landscaping",
+      "garden",
+      "tree",
+      "agriculture",
+      "organic",
+      "eco",
+      "environment",
+      "sustainable",
+      "solar",
+      "hemp",
+      "cannabis",
+      "pest"
+    ],
+    "sheet": "amber-54"
+  },
+  "teal-55": {
+    "label": "Teal 55 — rounded airy teal with magenta accent, for landscaping & green",
+    "colors": {
+      "primary": {
+        "50": "#e9f7fb",
+        "100": "#c9ebf5",
+        "200": "#9edaec",
+        "300": "#5dc2e0",
+        "400": "#28acd4",
+        "500": "#1e809e",
+        "600": "#196c85",
+        "700": "#15576c",
+        "800": "#104352",
+        "900": "#0a2933"
+      },
+      "accent": {
+        "50": "#fbf1f7",
+        "100": "#f6dceb",
+        "200": "#efbfda",
+        "300": "#e595c2",
+        "400": "#dc72ae",
+        "500": "#d34f9a",
+        "600": "#c23183"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Outfit\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"Work Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Work+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-left"
+      ],
+      "header": [
+        "centered-logo"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 16,
+      "density": 1.05,
+      "shadowStrength": 0.06,
+      "buttonShape": "rounded"
+    },
+    "style": "rounded flat teal and magenta",
+    "industries": [
+      "landscaping",
+      "garden",
+      "tree",
+      "farm",
+      "organic",
+      "eco",
+      "environment",
+      "sustainable",
+      "solar",
+      "hemp",
+      "cannabis",
+      "pest"
+    ],
+    "sheet": "teal-55"
+  },
+  "rose-56": {
+    "label": "Rose 56 — rounded airy rose with jade accent, for auto & transport",
+    "colors": {
+      "primary": {
+        "50": "#faf0f5",
+        "100": "#f2d9e5",
+        "200": "#e8bad0",
+        "300": "#d98cb1",
+        "400": "#cc6696",
+        "500": "#bf407c",
+        "600": "#a13668",
+        "700": "#822b55",
+        "800": "#632141",
+        "900": "#3d1428"
+      },
+      "accent": {
+        "50": "#edfcf6",
+        "100": "#d3f8e9",
+        "200": "#b0f2d8",
+        "300": "#7beabe",
+        "400": "#50e2a9",
+        "500": "#24db93",
+        "600": "#1eb87c"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Lora\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Nunito Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Nunito+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-top"
+      ],
+      "header": [
+        "pill-floating"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 22,
+      "density": 1.2,
+      "shadowStrength": 0.1,
+      "buttonShape": "pill"
+    },
+    "style": "rounded flat rose and jade",
+    "industries": [
+      "mechanic",
+      "detailing",
+      "tire",
+      "towing",
+      "moving",
+      "junk removal",
+      "storage",
+      "trucking",
+      "freight",
+      "courier",
+      "logistics",
+      "warehouse"
+    ],
+    "sheet": "rose-56"
+  },
+  "fern-57": {
+    "label": "Fern 57 — angular compact fern with crimson accent, for auto & transport",
+    "colors": {
+      "primary": {
+        "50": "#eff8ed",
+        "100": "#d6ecd1",
+        "200": "#b6ddad",
+        "300": "#85c776",
+        "400": "#5db349",
+        "500": "#458537",
+        "600": "#3a702e",
+        "700": "#2f5b25",
+        "800": "#24451c",
+        "900": "#162b11"
+      },
+      "accent": {
+        "50": "#fbf2f4",
+        "100": "#f5dee3",
+        "200": "#ecc4cd",
+        "300": "#e09dac",
+        "400": "#d67d90",
+        "500": "#cc5c74",
+        "600": "#bd3c58"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Fraunces\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Inter\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "header": [
+        "solid-bar"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 4,
+      "density": 0.85,
+      "shadowStrength": 0.14,
+      "buttonShape": "square"
+    },
+    "style": "angular shadowed fern and crimson",
+    "industries": [
+      "auto",
+      "detailing",
+      "tire",
+      "towing",
+      "moving",
+      "junk removal",
+      "storage",
+      "trucking",
+      "freight",
+      "courier",
+      "logistics",
+      "warehouse"
+    ],
+    "sheet": "fern-57"
+  },
+  "indigo-58": {
+    "label": "Indigo 58 — softly rounded compact indigo with jade accent, for auto & transport",
+    "colors": {
+      "primary": {
+        "50": "#f0effa",
+        "100": "#dbd7f4",
+        "200": "#bdb8ea",
+        "300": "#9288dd",
+        "400": "#6d61d1",
+        "500": "#4939c6",
+        "600": "#3d30a6",
+        "700": "#312786",
+        "800": "#261e67",
+        "900": "#17123f"
+      },
+      "accent": {
+        "50": "#effbfa",
+        "100": "#d6f5f4",
+        "200": "#b6edea",
+        "300": "#85e0dd",
+        "400": "#5cd6d1",
+        "500": "#33ccc6",
+        "600": "#2baba6"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Space Grotesk\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"IBM Plex Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-top"
+      ],
+      "header": [
+        "transparent-overlay"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 10,
+      "density": 0.95,
+      "shadowStrength": 0.18,
+      "buttonShape": "rounded"
+    },
+    "style": "softly rounded shadowed indigo and jade",
+    "industries": [
+      "auto",
+      "mechanic",
+      "tire",
+      "towing",
+      "moving",
+      "junk removal",
+      "storage",
+      "trucking",
+      "freight",
+      "courier",
+      "logistics",
+      "warehouse"
+    ],
+    "sheet": "indigo-58"
+  },
+  "ember-59": {
+    "label": "Ember 59 — rounded airy ember with crimson accent, for auto & transport",
+    "colors": {
+      "primary": {
+        "50": "#fbf2eb",
+        "100": "#f6dece",
+        "200": "#eec3a7",
+        "300": "#e39c6c",
+        "400": "#da7b3b",
+        "500": "#b85e23",
+        "600": "#9a4f1d",
+        "700": "#7d4018",
+        "800": "#603112",
+        "900": "#3b1e0b"
+      },
+      "accent": {
+        "50": "#fcf1ef",
+        "100": "#f9dcd7",
+        "200": "#f3c0b8",
+        "300": "#ec9688",
+        "400": "#e57361",
+        "500": "#df5039",
+        "600": "#ca3821"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Playfair Display\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Source Sans 3\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "header": [
+        "centered-logo"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 16,
+      "density": 1.05,
+      "shadowStrength": 0.22,
+      "buttonShape": "pill"
+    },
+    "style": "rounded shadowed ember and crimson",
+    "industries": [
+      "auto",
+      "mechanic",
+      "detailing",
+      "towing",
+      "moving",
+      "junk removal",
+      "storage",
+      "trucking",
+      "freight",
+      "courier",
+      "logistics",
+      "warehouse"
+    ],
+    "sheet": "ember-59"
+  },
+  "jade-60": {
+    "label": "Jade 60 — rounded airy jade with teal accent, for auto & transport",
+    "colors": {
+      "primary": {
+        "50": "#ebf8f4",
+        "100": "#cdeee4",
+        "200": "#a5e1cf",
+        "300": "#69cdae",
+        "400": "#3db791",
+        "500": "#2c8569",
+        "600": "#257059",
+        "700": "#1e5a48",
+        "800": "#174537",
+        "900": "#0e2a22"
+      },
+      "accent": {
+        "50": "#eff7fa",
+        "100": "#d8ebf3",
+        "200": "#b9dae9",
+        "300": "#8bc2da",
+        "400": "#64adce",
+        "500": "#3d99c2",
+        "600": "#3380a3"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Bricolage Grotesque\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"Public Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700&family=Public+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-left"
+      ],
+      "header": [
+        "pill-floating"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 22,
+      "density": 1.2,
+      "shadowStrength": 0.26,
+      "buttonShape": "square"
+    },
+    "style": "rounded shadowed jade and teal",
+    "industries": [
+      "auto",
+      "mechanic",
+      "detailing",
+      "tire",
+      "moving",
+      "junk removal",
+      "storage",
+      "trucking",
+      "freight",
+      "courier",
+      "logistics",
+      "warehouse"
+    ],
+    "sheet": "jade-60"
+  },
+  "violet-61": {
+    "label": "Violet 61 — angular compact violet with ember accent, for industrial & safety",
+    "colors": {
+      "primary": {
+        "50": "#f9f1f9",
+        "100": "#f0dbf0",
+        "200": "#e4bee4",
+        "300": "#d292d3",
+        "400": "#c26ec4",
+        "500": "#b34ab5",
+        "600": "#973e98",
+        "700": "#7a327b",
+        "800": "#5d265e",
+        "900": "#39183a"
+      },
+      "accent": {
+        "50": "#fbf5ef",
+        "100": "#f5e5d6",
+        "200": "#edd0b6",
+        "300": "#e0b185",
+        "400": "#d6975c",
+        "500": "#cc7d33",
+        "600": "#ab692b"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Libre Baskerville\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Karla\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Karla:wght@400;500;600;700&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "header": [
+        "solid-bar"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 4,
+      "density": 0.85,
+      "shadowStrength": 0.06,
+      "buttonShape": "rounded"
+    },
+    "style": "angular flat violet and ember",
+    "industries": [
+      "manufacturing",
+      "machining",
+      "welding",
+      "fabrication",
+      "equipment",
+      "security",
+      "alarm",
+      "protection",
+      "fire",
+      "emergency",
+      "printing",
+      "signage"
+    ],
+    "sheet": "violet-61"
+  },
+  "lime-62": {
+    "label": "Lime 62 — softly rounded compact lime with azure accent, for industrial & safety",
+    "colors": {
+      "primary": {
+        "50": "#f5f9ea",
+        "100": "#e5efc9",
+        "200": "#d0e39f",
+        "300": "#b1d05e",
+        "400": "#92b535",
+        "500": "#677f25",
+        "600": "#566b1f",
+        "700": "#465719",
+        "800": "#354213",
+        "900": "#21290c"
+      },
+      "accent": {
+        "50": "#f0f5fd",
+        "100": "#dbe5f9",
+        "200": "#bed0f4",
+        "300": "#92b1ed",
+        "400": "#6e97e7",
+        "500": "#4a7ee1",
+        "600": "#2361d8"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Outfit\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"Work Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Work+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-left"
+      ],
+      "header": [
+        "transparent-overlay"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 10,
+      "density": 0.95,
+      "shadowStrength": 0.1,
+      "buttonShape": "pill"
+    },
+    "style": "softly rounded flat lime and azure",
+    "industries": [
+      "industrial",
+      "machining",
+      "welding",
+      "fabrication",
+      "equipment",
+      "security",
+      "alarm",
+      "protection",
+      "fire",
+      "emergency",
+      "printing",
+      "signage"
+    ],
+    "sheet": "lime-62"
+  },
+  "azure-63": {
+    "label": "Azure 63 — rounded airy azure with amber accent, for industrial & safety",
+    "colors": {
+      "primary": {
+        "50": "#eef4fc",
+        "100": "#d4e3f7",
+        "200": "#b2cdf0",
+        "300": "#7eace7",
+        "400": "#5490de",
+        "500": "#2974d6",
+        "600": "#2261b4",
+        "700": "#1c4f92",
+        "800": "#153c6f",
+        "900": "#0d2545"
+      },
+      "accent": {
+        "50": "#faf8ef",
+        "100": "#f3eed8",
+        "200": "#e9e1b9",
+        "300": "#dacd8b",
+        "400": "#cebc64",
+        "500": "#c2ac3d",
+        "600": "#a39033"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Lora\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Nunito Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Nunito+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-top"
+      ],
+      "header": [
+        "centered-logo"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 16,
+      "density": 1.05,
+      "shadowStrength": 0.14,
+      "buttonShape": "square"
+    },
+    "style": "rounded shadowed azure and amber",
+    "industries": [
+      "industrial",
+      "manufacturing",
+      "welding",
+      "fabrication",
+      "equipment",
+      "security",
+      "alarm",
+      "protection",
+      "fire",
+      "emergency",
+      "printing",
+      "signage"
+    ],
+    "sheet": "azure-63"
+  },
+  "crimson-64": {
+    "label": "Crimson 64 — rounded airy crimson with indigo accent, for industrial & safety",
+    "colors": {
+      "primary": {
+        "50": "#faf0f1",
+        "100": "#f2d9dc",
+        "200": "#e8bac1",
+        "300": "#d98c97",
+        "400": "#cc6674",
+        "500": "#bf4052",
+        "600": "#a13645",
+        "700": "#822b38",
+        "800": "#63212b",
+        "900": "#3d141a"
+      },
+      "accent": {
+        "50": "#f4f4fc",
+        "100": "#e3e3f8",
+        "200": "#cdcdf3",
+        "300": "#acacea",
+        "400": "#9190e3",
+        "500": "#7575dc",
+        "600": "#4b49d2"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Fraunces\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Inter\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-left"
+      ],
+      "header": [
+        "pill-floating"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 22,
+      "density": 1.2,
+      "shadowStrength": 0.18,
+      "buttonShape": "rounded"
+    },
+    "style": "rounded shadowed crimson and indigo",
+    "industries": [
+      "industrial",
+      "manufacturing",
+      "machining",
+      "fabrication",
+      "equipment",
+      "security",
+      "alarm",
+      "protection",
+      "fire",
+      "emergency",
+      "printing",
+      "signage"
+    ],
+    "sheet": "crimson-64"
+  },
+  "fern-65": {
+    "label": "Fern 65 — angular compact fern with lime accent, for industrial & safety",
+    "colors": {
+      "primary": {
+        "50": "#edf8ee",
+        "100": "#d1ecd6",
+        "200": "#addeb4",
+        "300": "#76c783",
+        "400": "#4ab45a",
+        "500": "#378643",
+        "600": "#2e7138",
+        "700": "#255b2d",
+        "800": "#1d4623",
+        "900": "#122b15"
+      },
+      "accent": {
+        "50": "#f9fced",
+        "100": "#f1f8d3",
+        "200": "#e6f2b0",
+        "300": "#d5ea7b",
+        "400": "#c8e250",
+        "500": "#badb24",
+        "600": "#9cb81e"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Space Grotesk\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"IBM Plex Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-top"
+      ],
+      "header": [
+        "solid-bar"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 4,
+      "density": 0.85,
+      "shadowStrength": 0.22,
+      "buttonShape": "pill"
+    },
+    "style": "angular shadowed fern and lime",
+    "industries": [
+      "industrial",
+      "manufacturing",
+      "machining",
+      "welding",
+      "equipment",
+      "security",
+      "alarm",
+      "protection",
+      "fire",
+      "emergency",
+      "printing",
+      "signage"
+    ],
+    "sheet": "fern-65"
+  },
+  "indigo-66": {
+    "label": "Indigo 66 — softly rounded compact indigo with indigo accent, for tech & media",
+    "colors": {
+      "primary": {
+        "50": "#f4effa",
+        "100": "#e4d7f4",
+        "200": "#ceb8ea",
+        "300": "#ae88dd",
+        "400": "#9261d1",
+        "500": "#7739c6",
+        "600": "#6430a6",
+        "700": "#512786",
+        "800": "#3e1e67",
+        "900": "#26123f"
+      },
+      "accent": {
+        "50": "#f6f3fb",
+        "100": "#e9e2f6",
+        "200": "#d7cbee",
+        "300": "#bda8e3",
+        "400": "#a78bda",
+        "500": "#916ed1",
+        "600": "#7447c5"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Playfair Display\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Source Sans 3\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "header": [
+        "transparent-overlay"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 10,
+      "density": 0.95,
+      "shadowStrength": 0.26,
+      "buttonShape": "square"
+    },
+    "style": "softly rounded shadowed indigo and indigo",
+    "industries": [
+      "software",
+      "it",
+      "cyber",
+      "gaming",
+      "media",
+      "video",
+      "film",
+      "music",
+      "marketing",
+      "social",
+      "agency",
+      "creative",
+      "design"
+    ],
+    "sheet": "indigo-66"
+  },
+  "ember-67": {
+    "label": "Ember 67 — rounded airy ember with lime accent, for tech & media",
+    "colors": {
+      "primary": {
+        "50": "#fbf6e8",
+        "100": "#f4e8c7",
+        "200": "#ecd699",
+        "300": "#dfba56",
+        "400": "#ca9f27",
+        "500": "#92721c",
+        "600": "#7b6017",
+        "700": "#634e13",
+        "800": "#4c3c0e",
+        "900": "#2f2509"
+      },
+      "accent": {
+        "50": "#f4fbef",
+        "100": "#e4f5d6",
+        "200": "#cfedb6",
+        "300": "#afe085",
+        "400": "#95d65c",
+        "500": "#7acc33",
+        "600": "#67ab2b"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Bricolage Grotesque\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"Public Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700&family=Public+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-top"
+      ],
+      "header": [
+        "centered-logo"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 16,
+      "density": 1.05,
+      "shadowStrength": 0.06,
+      "buttonShape": "rounded"
+    },
+    "style": "rounded flat ember and lime",
+    "industries": [
+      "tech",
+      "it",
+      "cyber",
+      "gaming",
+      "media",
+      "video",
+      "film",
+      "music",
+      "marketing",
+      "social",
+      "agency",
+      "creative",
+      "design"
+    ],
+    "sheet": "ember-67"
+  },
+  "teal-68": {
+    "label": "Teal 68 — rounded airy teal with violet accent, for tech & media",
+    "colors": {
+      "primary": {
+        "50": "#ebf8f8",
+        "100": "#cdeeee",
+        "200": "#a5e0e1",
+        "300": "#69cbcd",
+        "400": "#3db4b7",
+        "500": "#2c8285",
+        "600": "#256e6f",
+        "700": "#1e595a",
+        "800": "#174445",
+        "900": "#0e2a2a"
+      },
+      "accent": {
+        "50": "#f9f1fd",
+        "100": "#f1dcf9",
+        "200": "#e6c1f5",
+        "300": "#d597ee",
+        "400": "#c774e8",
+        "500": "#b852e3",
+        "600": "#a727dc"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Libre Baskerville\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Karla\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Karla:wght@400;500;600;700&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "header": [
+        "pill-floating"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 22,
+      "density": 1.2,
+      "shadowStrength": 0.1,
+      "buttonShape": "pill"
+    },
+    "style": "rounded flat teal and violet",
+    "industries": [
+      "tech",
+      "software",
+      "cyber",
+      "gaming",
+      "media",
+      "video",
+      "film",
+      "music",
+      "marketing",
+      "social",
+      "agency",
+      "creative",
+      "design"
+    ],
+    "sheet": "teal-68"
+  },
+  "magenta-69": {
+    "label": "Magenta 69 — angular compact magenta with fern accent, for tech & media",
+    "colors": {
+      "primary": {
+        "50": "#f9f1f6",
+        "100": "#f0dbe9",
+        "200": "#e4bed8",
+        "300": "#d392be",
+        "400": "#c46ea9",
+        "500": "#b54a93",
+        "600": "#983e7c",
+        "700": "#7b3264",
+        "800": "#5e264d",
+        "900": "#3a182f"
+      },
+      "accent": {
+        "50": "#f1faef",
+        "100": "#dbf3d8",
+        "200": "#bfe9b9",
+        "300": "#94da8b",
+        "400": "#70ce64",
+        "500": "#4dc23d",
+        "600": "#40a333"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Outfit\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"Work Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Work+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-left"
+      ],
+      "header": [
+        "solid-bar"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 4,
+      "density": 0.85,
+      "shadowStrength": 0.14,
+      "buttonShape": "square"
+    },
+    "style": "angular shadowed magenta and fern",
+    "industries": [
+      "tech",
+      "software",
+      "it",
+      "gaming",
+      "media",
+      "video",
+      "film",
+      "music",
+      "marketing",
+      "social",
+      "agency",
+      "creative",
+      "design"
+    ],
+    "sheet": "magenta-69"
+  },
+  "lime-70": {
+    "label": "Lime 70 — softly rounded compact lime with magenta accent, for tech & media",
+    "colors": {
+      "primary": {
+        "50": "#f0f9ea",
+        "100": "#d9f0ca",
+        "200": "#bbe4a0",
+        "300": "#8dd161",
+        "400": "#69b936",
+        "500": "#4b8426",
+        "600": "#3f6f20",
+        "700": "#335a1a",
+        "800": "#274514",
+        "900": "#182a0c"
+      },
+      "accent": {
+        "50": "#fbf0fb",
+        "100": "#f6daf4",
+        "200": "#eebceb",
+        "300": "#e38fde",
+        "400": "#da69d3",
+        "500": "#d044c8",
+        "600": "#b92eb1"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Lora\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Nunito Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Nunito+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "header": [
+        "transparent-overlay"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 10,
+      "density": 0.95,
+      "shadowStrength": 0.18,
+      "buttonShape": "rounded"
+    },
+    "style": "softly rounded shadowed lime and magenta",
+    "industries": [
+      "tech",
+      "software",
+      "it",
+      "cyber",
+      "media",
+      "video",
+      "film",
+      "music",
+      "marketing",
+      "social",
+      "agency",
+      "creative",
+      "design"
+    ],
+    "sheet": "lime-70"
+  },
+  "azure-71": {
+    "label": "Azure 71 — rounded airy azure with fern accent, for events & photography",
+    "colors": {
+      "primary": {
+        "50": "#eeeffc",
+        "100": "#d4d8f7",
+        "200": "#b2b8f0",
+        "300": "#7e89e7",
+        "400": "#5462de",
+        "500": "#293ad6",
+        "600": "#2231b4",
+        "700": "#1c2892",
+        "800": "#151e6f",
+        "900": "#0d1345"
+      },
+      "accent": {
+        "50": "#edfcf1",
+        "100": "#d3f8dc",
+        "200": "#b0f2bf",
+        "300": "#7bea95",
+        "400": "#50e272",
+        "500": "#24db4f",
+        "600": "#1eb842"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Fraunces\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Inter\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-left"
+      ],
+      "header": [
+        "centered-logo"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 16,
+      "density": 1.05,
+      "shadowStrength": 0.22,
+      "buttonShape": "pill"
+    },
+    "style": "rounded shadowed azure and fern",
+    "industries": [
+      "wedding",
+      "party",
+      "photography",
+      "entertainment",
+      "nightlife",
+      "florist",
+      "floral",
+      "planner",
+      "gallery",
+      "art",
+      "studio",
+      "branding"
+    ],
+    "sheet": "azure-71"
+  },
+  "crimson-72": {
+    "label": "Crimson 72 — rounded airy crimson with magenta accent, for events & photography",
+    "colors": {
+      "primary": {
+        "50": "#faf2f0",
+        "100": "#f2ded9",
+        "200": "#e8c3ba",
+        "300": "#d99b8c",
+        "400": "#cc7965",
+        "500": "#be583f",
+        "600": "#a04a35",
+        "700": "#823c2b",
+        "800": "#632e21",
+        "900": "#3d1c14"
+      },
+      "accent": {
+        "50": "#fbf2f7",
+        "100": "#f4ddeb",
+        "200": "#ecc2db",
+        "300": "#df9ac3",
+        "400": "#d478af",
+        "500": "#ca579b",
+        "600": "#b83a85"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Space Grotesk\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"IBM Plex Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-top"
+      ],
+      "header": [
+        "pill-floating"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 22,
+      "density": 1.2,
+      "shadowStrength": 0.26,
+      "buttonShape": "square"
+    },
+    "style": "rounded shadowed crimson and magenta",
+    "industries": [
+      "event",
+      "party",
+      "photography",
+      "entertainment",
+      "nightlife",
+      "florist",
+      "floral",
+      "planner",
+      "gallery",
+      "art",
+      "studio",
+      "branding"
+    ],
+    "sheet": "crimson-72"
+  },
+  "fern-73": {
+    "label": "Fern 73 — angular compact fern with jade accent, for events & photography",
+    "colors": {
+      "primary": {
+        "50": "#edf8f2",
+        "100": "#d1ecde",
+        "200": "#adddc4",
+        "300": "#76c79d",
+        "400": "#49b37c",
+        "500": "#36855c",
+        "600": "#2e704e",
+        "700": "#255b3f",
+        "800": "#1c4530",
+        "900": "#112b1e"
+      },
+      "accent": {
+        "50": "#effbf6",
+        "100": "#d6f5e8",
+        "200": "#b6edd6",
+        "300": "#85e0ba",
+        "400": "#5cd6a3",
+        "500": "#33cc8c",
+        "600": "#2bab76"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Playfair Display\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Source Sans 3\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-left"
+      ],
+      "header": [
+        "solid-bar"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 4,
+      "density": 0.85,
+      "shadowStrength": 0.06,
+      "buttonShape": "rounded"
+    },
+    "style": "angular flat fern and jade",
+    "industries": [
+      "event",
+      "wedding",
+      "photography",
+      "entertainment",
+      "nightlife",
+      "florist",
+      "floral",
+      "planner",
+      "gallery",
+      "art",
+      "studio",
+      "branding"
+    ],
+    "sheet": "fern-73"
+  },
+  "violet-74": {
+    "label": "Violet 74 — softly rounded compact violet with crimson accent, for events & photography",
+    "colors": {
+      "primary": {
+        "50": "#f8effa",
+        "100": "#edd7f4",
+        "200": "#dfb8ea",
+        "300": "#ca88dd",
+        "400": "#b861d1",
+        "500": "#a639c6",
+        "600": "#8b30a6",
+        "700": "#712786",
+        "800": "#561e67",
+        "900": "#35123f"
+      },
+      "accent": {
+        "50": "#fdf0f3",
+        "100": "#f9dae2",
+        "200": "#f4bdca",
+        "300": "#ed91a7",
+        "400": "#e76c8a",
+        "500": "#e1486d",
+        "600": "#d6234e"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Bricolage Grotesque\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"Public Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700&family=Public+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-top"
+      ],
+      "header": [
+        "transparent-overlay"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 10,
+      "density": 0.95,
+      "shadowStrength": 0.1,
+      "buttonShape": "pill"
+    },
+    "style": "softly rounded flat violet and crimson",
+    "industries": [
+      "event",
+      "wedding",
+      "party",
+      "entertainment",
+      "nightlife",
+      "florist",
+      "floral",
+      "planner",
+      "gallery",
+      "art",
+      "studio",
+      "branding"
+    ],
+    "sheet": "violet-74"
+  },
+  "amber-75": {
+    "label": "Amber 75 — rounded airy amber with jade accent, for events & photography",
+    "colors": {
+      "primary": {
+        "50": "#f9fae7",
+        "100": "#f0f3c2",
+        "200": "#e4ea92",
+        "300": "#d2dc49",
+        "400": "#afb923",
+        "500": "#767c18",
+        "600": "#636914",
+        "700": "#505510",
+        "800": "#3d410c",
+        "900": "#262808"
+      },
+      "accent": {
+        "50": "#effaf9",
+        "100": "#d8f3f1",
+        "200": "#b9e9e6",
+        "300": "#8bdad5",
+        "400": "#64cec7",
+        "500": "#3dc2b9",
+        "600": "#33a39b"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Libre Baskerville\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Karla\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Karla:wght@400;500;600;700&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "header": [
+        "centered-logo"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 16,
+      "density": 1.05,
+      "shadowStrength": 0.14,
+      "buttonShape": "square"
+    },
+    "style": "rounded shadowed amber and jade",
+    "industries": [
+      "event",
+      "wedding",
+      "party",
+      "photography",
+      "nightlife",
+      "florist",
+      "floral",
+      "planner",
+      "gallery",
+      "art",
+      "studio",
+      "branding"
+    ],
+    "sheet": "amber-75"
+  },
+  "teal-76": {
+    "label": "Teal 76 — rounded airy teal with crimson accent, for retail & lifestyle",
+    "colors": {
+      "primary": {
+        "50": "#eef5f9",
+        "100": "#d3e6f0",
+        "200": "#b1d2e5",
+        "300": "#7cb4d3",
+        "400": "#519bc5",
+        "500": "#377da5",
+        "600": "#2e698b",
+        "700": "#255570",
+        "800": "#1d4156",
+        "900": "#122835"
+      },
+      "accent": {
+        "50": "#fbf2f1",
+        "100": "#f6dedb",
+        "200": "#efc4bf",
+        "300": "#e49c94",
+        "400": "#db7b70",
+        "500": "#d25b4c",
+        "600": "#c04030"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Outfit\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"Work Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Work+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-top"
+      ],
+      "header": [
+        "pill-floating"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 22,
+      "density": 1.2,
+      "shadowStrength": 0.18,
+      "buttonShape": "rounded"
+    },
+    "style": "rounded shadowed teal and crimson",
+    "industries": [
+      "watch",
+      "furniture",
+      "antique",
+      "vintage",
+      "tailor",
+      "travel",
+      "tour",
+      "pool",
+      "portfolio",
+      "architect",
+      "architecture",
+      "engineering"
+    ],
+    "sheet": "teal-76"
+  },
+  "rose-77": {
+    "label": "Rose 77 — angular compact rose with teal accent, for retail & lifestyle",
+    "colors": {
+      "primary": {
+        "50": "#f9f1f4",
+        "100": "#f0dbe2",
+        "200": "#e4becb",
+        "300": "#d392a9",
+        "400": "#c46e8c",
+        "500": "#b54a6f",
+        "600": "#983e5e",
+        "700": "#7b324c",
+        "800": "#5e263a",
+        "900": "#3a1824"
+      },
+      "accent": {
+        "50": "#edf8fc",
+        "100": "#d3edf8",
+        "200": "#b0dff2",
+        "300": "#7bcaea",
+        "400": "#50b9e2",
+        "500": "#24a7db",
+        "600": "#1e8db8"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Lora\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Nunito Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Nunito+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "header": [
+        "solid-bar"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 4,
+      "density": 0.85,
+      "shadowStrength": 0.22,
+      "buttonShape": "pill"
+    },
+    "style": "angular shadowed rose and teal",
+    "industries": [
+      "jewelry",
+      "furniture",
+      "antique",
+      "vintage",
+      "tailor",
+      "travel",
+      "tour",
+      "pool",
+      "portfolio",
+      "architect",
+      "architecture",
+      "engineering"
+    ],
+    "sheet": "rose-77"
+  },
+  "fern-78": {
+    "label": "Fern 78 — softly rounded compact fern with ember accent, for retail & lifestyle",
+    "colors": {
+      "primary": {
+        "50": "#ebf9ea",
+        "100": "#cdf0cb",
+        "200": "#a6e4a2",
+        "300": "#6ad264",
+        "400": "#3ebc37",
+        "500": "#2d8828",
+        "600": "#267321",
+        "700": "#1f5d1b",
+        "800": "#184715",
+        "900": "#0e2c0d"
+      },
+      "accent": {
+        "50": "#faf4ef",
+        "100": "#f3e4d8",
+        "200": "#e9cfb9",
+        "300": "#daaf8b",
+        "400": "#ce9564",
+        "500": "#c27a3d",
+        "600": "#a36633"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Fraunces\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Inter\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-left"
+      ],
+      "header": [
+        "transparent-overlay"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 10,
+      "density": 0.95,
+      "shadowStrength": 0.26,
+      "buttonShape": "square"
+    },
+    "style": "softly rounded shadowed fern and ember",
+    "industries": [
+      "jewelry",
+      "watch",
+      "antique",
+      "vintage",
+      "tailor",
+      "travel",
+      "tour",
+      "pool",
+      "portfolio",
+      "architect",
+      "architecture",
+      "engineering"
+    ],
+    "sheet": "fern-78"
+  },
+  "indigo-79": {
+    "label": "Indigo 79 — rounded airy indigo with azure accent, for retail & lifestyle",
+    "colors": {
+      "primary": {
+        "50": "#f1eefc",
+        "100": "#dcd4f7",
+        "200": "#c0b2f0",
+        "300": "#977ee7",
+        "400": "#7454de",
+        "500": "#5129d6",
+        "600": "#4422b4",
+        "700": "#371c92",
+        "800": "#2a156f",
+        "900": "#1a0d45"
+      },
+      "accent": {
+        "50": "#f1f5fb",
+        "100": "#dce6f6",
+        "200": "#c0d1ef",
+        "300": "#95b3e5",
+        "400": "#7299dc",
+        "500": "#4f80d3",
+        "600": "#3166c3"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Space Grotesk\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"IBM Plex Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "header": [
+        "centered-logo"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 16,
+      "density": 1.05,
+      "shadowStrength": 0.06,
+      "buttonShape": "rounded"
+    },
+    "style": "rounded flat indigo and azure",
+    "industries": [
+      "jewelry",
+      "watch",
+      "furniture",
+      "vintage",
+      "tailor",
+      "travel",
+      "tour",
+      "pool",
+      "portfolio",
+      "architect",
+      "architecture",
+      "engineering"
+    ],
+    "sheet": "indigo-79"
+  },
+  "ember-80": {
+    "label": "Ember 80 — rounded airy ember with amber accent, for retail & lifestyle",
+    "colors": {
+      "primary": {
+        "50": "#f9f3ed",
+        "100": "#f0e2d2",
+        "200": "#e4cbae",
+        "300": "#d2a879",
+        "400": "#c38b4c",
+        "500": "#9e6c35",
+        "600": "#855b2c",
+        "700": "#6c4a24",
+        "800": "#52381b",
+        "900": "#332311"
+      },
+      "accent": {
+        "50": "#fcf9ed",
+        "100": "#f8f1d3",
+        "200": "#f2e5b0",
+        "300": "#ead47b",
+        "400": "#e2c650",
+        "500": "#dbb824",
+        "600": "#b89b1e"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Playfair Display\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Source Sans 3\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media-left"
+      ],
+      "header": [
+        "pill-floating"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 22,
+      "density": 1.2,
+      "shadowStrength": 0.1,
+      "buttonShape": "pill"
+    },
+    "style": "rounded flat ember and amber",
+    "industries": [
+      "jewelry",
+      "watch",
+      "furniture",
+      "antique",
+      "tailor",
+      "travel",
+      "tour",
+      "pool",
+      "portfolio",
+      "architect",
+      "architecture",
+      "engineering"
+    ],
+    "sheet": "ember-80"
+  }
+}

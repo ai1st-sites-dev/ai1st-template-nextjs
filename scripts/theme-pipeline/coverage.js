@@ -23,8 +23,14 @@ const path = require('path');
 
 const themesMod = require(path.join(__dirname, '..', 'themes.js'));
 
-/** 一次覆盖度普查 → 逐词读数 + 两份分布。`themes` 可换成人造池子（AC4 的富池子那一格）。 */
-function surveyCoverage(themes = themesMod.themes, opts = {}) {
+/**
+ * 一次覆盖度普查 → 逐词读数 + 两份分布。`themes` 可换成人造池子（AC4 的富池子那一格）。
+ *
+ * 🔴 #1016 —— 默认量的是 `poolThemes`（**挑得到**的那一池），不是 `themes`（它是「新池 + 冻结退役的
+ *    旧 30 套」的并集，为的是按 id 查得到已经上线的站）。量并集会把退役那 30 套的 industries 一起算进
+ *    「真命中」，而新建的网站一套都抽不到它们 —— 那样这张表报的健康度属于一个不存在的池子。
+ */
+function surveyCoverage(themes = themesMod.poolThemes, opts = {}) {
   const ids = Object.keys(themes);
   const keywords = [...new Set(ids.flatMap((id) => themes[id].industries || []))];
   // 候选池那一半要用注册表**自己**那条实现（同一个匹配口径、同一份兜底名单），不另写一份。
@@ -34,7 +40,7 @@ function surveyCoverage(themes = themesMod.themes, opts = {}) {
   //    QA1 r1 量到的形状：8 套的人造富池子不传 candidatesFor ⟹ 命中 8 / 薄池 27，而那个 27 是
   //    真注册表的读数。当场拒跑，不给默认值 —— 也不在这里照着 `themes` 重写一份匹配逻辑，那样
   //    就有了第二份实现，而它跟注册表分叉时没有任何东西会说话。
-  if (themes !== themesMod.themes && !opts.candidatesFor) {
+  if (themes !== themesMod.poolThemes && !opts.candidatesFor) {
     throw new Error('surveyCoverage: 换了 themes 就必须一起传 opts.candidatesFor —— '
       + 'candidateThemesForIndustry() 读的是注册表自己的池子，不读你传进来的这份，'
       + '于是两份分布会来自两个不同的池子。');

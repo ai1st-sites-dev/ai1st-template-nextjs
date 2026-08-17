@@ -29,6 +29,14 @@ node scripts/theme-pipeline/ink-contrast.js --verbose /tmp/cands/gen-07-5.css   
 
 # 配方本身的三条承重性质（跟着 `node scripts/run-script-tests.js` 一起跑）
 node scripts/theme-pipeline/sheet-recipes.test.js
+
+# 过完闸的候选 → 池成员（#1016）。这一步把候选的 `layout`（一个值）翻成 `supports`（一个清单），
+# 补上 industries / label / style / sheet，并把每份表拷进 public/themes/
+node scripts/theme-pipeline/promote.js --candidates /tmp/cands --out scripts/theme-pool.json
+node scripts/theme-pipeline/promote.js --verify          # 只查，不写
+
+# 池子自己的承重性质（覆盖度 · 词表不缩 · 旧池退役 · supports 翻译 · 表在不在）
+node scripts/theme-pipeline/pool.test.js
 ```
 
 ## 一套候选的 CSS 是怎么出来的（#1051）
@@ -56,6 +64,13 @@ node scripts/theme-pipeline/sheet-recipes.test.js
    另外 8 个钩子上，只是那些块不是 essential，**闸看不见，客人一样读不出来**。
    现在字色由 `surfaceFor()` 按这套候选真实的调色板挑（见 `sheet-recipes.js` 的 §INK_FLOOR），
    判据是 `ink-contrast.js`——它只读产物 + 这套候选的 tokens，不 import 生成器的取色逻辑。
+4. **挑出来的档位要在【站主换掉调色板之后】仍然成立**（#1016 r4）。表里存的是 token 名，而站主可以
+   点一个配色预设（`theme-presets.js` 的 6 组把整组 `--color-*` 换掉）再拖色相滑块（`tweaks.js` 的
+   `shiftHue`，±15°）—— 两件事都不改名字，于是「这个名字在这套调色板下够黑」这句保证被静默作废。
+   实测只按自己的调色板挑时 `theme-presets.test.js` 报 **242 行破线**，其中 52 行就在色相 0°
+   （只点一下配色、滑块都不用拖）。现在 `pickInk` 与「药丸自带底 + 底上的字」那一对**都**要过
+   6 组预设 × 31 档色相。🔴 那两处是**两条独立的产生路径**：只扩 `pickInk` 时还剩 128 行破线，
+   全部是 `.services-nav__link`（它走的是药丸那条路）。判据是 `theme-presets.test.js`。
 
 🔴 **`sheet-recipes.js` 的 `sheetFor(i, seed)` 要跟 `generate.js` 用同一个 seed** —— 从 r4 起表里的
 字色是按 `paletteFor(i, seed)` 挑的。seed 对不上 = 表按 A 的颜色挑、站里装的是 B 的颜色，那条对比度
@@ -68,6 +83,7 @@ node scripts/theme-pipeline/sheet-recipes.test.js
 | ① 静态 | tokens 对 schema（#1003）· 受限 CSS 的选择器 / 属性 / 不许字面色值（`theme-css-lint.js`） | `gates.js` |
 | ② 动态 | 样例站真构建 + 无头浏览器读五条不变量；**外加**「页面上的钩子在【这套主题自己那份】CSS 里有规则」 | `gates.js` |
 | ③ 相似度 | 跟池里已有的比，**两条判据任一成立就打回**：① 颜色与字体逐字相同；② 可复算的距离 ≥0.9。详见下面《第③道闸怎么判》 | `gates.js` |
+| | 🔴 **跟谁比**（#1016）：默认是今天的注册表；`run.js --pool new` 改成「跟这一轮自己长出来的新池比」——D3 说旧 30 套冻结退役，一套候选要不像的是**它将要加入的那个池**。第 1 套跟空池比（照 `gates.js` 的口径 = 通过），第 k 套跟前面已收下的 k-1 套比 | `run.js` |
 | ④ 人审 | Chris 翻**这一轮候选自己的**对照页。**不自动化，也不假装自动化** —— 这一道返回 `pass: null`，报告里是 ⏸ 不是 ✅ | `gates.js` + `gallery.js` |
 
 🔴 **第四道闸的图为什么不是跑 `scripts/theme-gallery/gallery.mjs`**：那一份出的是**注册表里那 30 套**的
@@ -137,13 +153,37 @@ Chris 2026-08-14 在 #1004 拍的板：「两套主题，颜色逐字相同、�
 真命中       有几套主题的 industries 里写了这个词 —— 没有兜底,分布从 1 起步
 ```
 
-只报前者的话，今天 175 个薄格子会全部显示成健康的「3 套」。今天的读数：
+只报前者的话，薄格子会全部显示成健康的「3 套」。**#1016 跑完这条流水线之后**（`coverage.js` 量的是
+`poolThemes`，也就是新建网站挑得到的那一池）：
+
+```
+80 套 · 212 个去重关键词（含重复 980）
+候选池 {4:73, 5:123, 8:3, 9:11, 10:2}
+真命中 {4:73, 5:123, 8:3, 9:11, 10:2}      ← 兜底一次都没开火，两份分布因此逐字相同
+```
+
+📌 **#1016 之前**（手写的那 30 套，现在冻结退役在 `scripts/themes-retired.js`）是这样，留着当对照：
 
 ```
 30 套 · 212 个去重关键词（含重复 389）
 候选池 {3:175, 4:18, 5:9, 6:9, 7:1}
 真命中 {1:113, 2:35, 3:27, 4:18, 5:9, 6:9, 7:1}
 ```
+
+`--max-thin-pools 0 --max-thin-hits 0` 是 #1016 AC2 的判据：两个薄格子都要为 0 才 rc=0。
+
+## 池子长什么样（#1016）
+
+| 文件 | 是什么 |
+|---|---|
+| `scripts/theme-pool.json` | 新建网站**挑得到**的那一池，80 套。`promote.js` 写出来的 |
+| `scripts/themes-retired.js` | #924~#961 手写的 30 套，spec D3 冻结退役：新站抽不到，但一个字都不许删（线上每个站的 `theme.json` 写的都是这 30 个里的某个 id） |
+| `scripts/theme-pipeline/industry-sectors.js` | 16 个行业组 × 5 个位子 = 80 个池位子。哪一套皮为哪些生意做的，在这里定 |
+| `public/themes/<id>.css` | 每套自己那份表。阶段 2 之后 34 个块的外观都住在这儿 |
+
+🔴 `themes.js` 导出的 `themes` 是**两者的并集** —— 「按 id 查得到」（sync-config 的 applied 分支、
+`themeStyle` / `layoutFor` / `settingsFor`、换主题对话框）必须包含退役那 30 套，否则穿着它们的站
+建不出来。而**挑**那条路（`candidateThemesForIndustry`）只走 `poolThemes`。两件事，别合并。
 
 ## 生成器是确定性的，不是 AI
 

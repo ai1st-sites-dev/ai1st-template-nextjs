@@ -171,29 +171,59 @@ function gateInvariants(candidate, { outDir, baseUrl }) {
   // ②b 🔴 本票自己那条：页面上出现的钩子，必须在【这套主题自己那份 CSS】里有规则。
   // 判据是「读 theme 那一份表」，不是「读产物里所有 CSS」—— 后者会被 base.css / 站自己的
   // Tailwind 产物顶过去，于是「主题整块没写」也全绿（AC2 驱动的就是这个形状）。
-  const html = fs.existsSync(path.join(outDir, 'index.html'))
-    ? fs.readFileSync(path.join(outDir, 'index.html'), 'utf-8') : '';
-  const onPage = HOOK_CLASSES.filter((c) => new RegExp(`class="[^"]*\\b${c}\\b`).test(html));
-  if (!onPage.length) {
-    problems.push('theme coverage: 产物里一个契约钩子都没有 —— 这道闸没东西可看，不算通过');
-  } else {
-    const sheetText = fs.existsSync(candidate.sheetPath) ? fs.readFileSync(candidate.sheetPath, 'utf-8') : '';
-    let declared;
-    try {
-      declared = hooksDeclaredIn(sheetText);
-    } catch (e) {
-      // 解析不了就没量成 —— 空清单会把 213 个钩子全报一遍，那是噪音不是读数。
-      // （这条路在流水线里到不了：①静态先跑 `theme-css-lint.js`，它也用 postcss。）
-      return bad('② 动态', [...problems, `theme coverage: ${path.basename(candidate.sheetPath || '')}`
-        + ` 解析不了（${String(e.message).split('\n')[0]}）—— 这一格没量成，不算通过`]);
+  //
+  // 🔴 这一段是两张票的合并结果，两个性质都要在（#1016 r4 变基时合的）：
+  //    · **判据**用解析后的规则（#1058 `f1a74506`）：`hooksDeclaredIn` 走 postcss 读选择器，
+  //      而不是对整份表文本 `matchAll(/\.([A-Za-z_][\w-]*)/g)` —— 后者把注释里、URL 里、
+  //      甚至一条空规则块里的名字都算成「这套表写了它」。
+  //    · **口径**是这个站的**每一页**（#1016 AC1），不是首页那一页。
+  //    合起来才对：换回旧判据 = #1058 被撤回；换回旧口径 = 只出现在非首页的块永远没被看过。
+  const sheetText = fs.existsSync(candidate.sheetPath) ? fs.readFileSync(candidate.sheetPath, 'utf-8') : '';
+  let declared;
+  try {
+    declared = hooksDeclaredIn(sheetText);
+  } catch (e) {
+    // 解析不了就没量成 —— 空清单会把 213 个钩子全报一遍，那是噪音不是读数。
+    // （这条路在流水线里到不了：①静态先跑 `theme-css-lint.js`，它也用 postcss。）
+    return bad('② 动态', [...problems, `theme coverage: ${path.basename(candidate.sheetPath || '')}`
+      + ` 解析不了（${String(e.message).split('\n')[0]}）—— 这一格没量成，不算通过`]);
+  }
+  // 🔴 #1016 AC1 —— 问的是**这个站的每一页**，不是首页那一页。
+  //    原来这里只读 `outDir/index.html`，而 #1023 已经把 CI 那道同名检查（`theme-css-invariants.mjs`
+  //    的 ⑤b）扩到了 sitemap 里的全部页面。两个口径不一样时，只出现在非首页的块（各页的
+  //    `page-header`、服务子页的 `service-related-pages`……）漏了规则，这道闸照样绿。
+  //    实测差距（本票，同一套候选、同一份产物、18 个页面）：首页 23 个钩子 / 全站 209 个 ——
+  //    也就是说 186 个钩子从来没被这道闸看过。
+  //    页面清单从**产物目录**取（`outDir` 底下所有 .html），不去解析 sitemap：这一层拿到的是
+  //    静态导出的整棵目录树，而它就是 sitemap 的来源（`src/app/sitemap.ts` 与页面同源）。
+  const pages = [];
+  const walk = (dir) => {
+    for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, ent.name);
+      if (ent.isDirectory()) walk(full);
+      else if (ent.name.endsWith('.html')) pages.push(full);
     }
-    for (const c of onPage.filter((c2) => !declared.has(c2))) {
-      problems.push(`theme coverage: 页面上有 ".${c}"，而这套主题自己的表里没有它的规则`
-        + '（别的表兜底不算 —— 那样每套主题的这一块都长一个样）');
+  };
+  if (fs.existsSync(outDir)) walk(outDir);
+  const seen = new Map();          // 钩子 → 第一次见到它的那一页（报问题时点名，别让人自己找）
+  for (const file of pages) {
+    const html = fs.readFileSync(file, 'utf-8');
+    for (const c of HOOK_CLASSES) {
+      if (seen.has(c)) continue;
+      if (new RegExp(`class="[^"]*\\b${c}\\b`).test(html)) seen.set(c, path.relative(outDir, file));
     }
   }
+  const onPage = [...seen.keys()];
+  const missing = onPage.filter((c) => !declared.has(c));
+  if (!onPage.length) {
+    problems.push('theme coverage: 产物里一个契约钩子都没有 —— 这道闸没东西可看，不算通过');
+  }
+  for (const c of missing) {
+    problems.push(`theme coverage: ${seen.get(c)} 上有 ".${c}"，而这套主题自己的表里没有它的规则`
+      + '（别的表兜底不算 —— 那样每套主题的这一块都长一个样）');
+  }
   return problems.length ? bad('② 动态', problems)
-    : ok('② 动态', `钩子 ${onPage.length} 个,全部在这套主题自己的表里有规则`);
+    : ok('② 动态', `钩子 ${onPage.length} 个（${pages.length} 个页面）,全部在这套主题自己的表里有规则`);
 }
 
 // ── ③ 相似度：跟池里已有的比 ─────────────────────────────────────────────────────────────────────

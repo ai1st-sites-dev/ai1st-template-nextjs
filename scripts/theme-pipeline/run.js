@@ -198,32 +198,39 @@ async function main() {
     if (why) { console.error(`🔴 ${why}`); process.exit(2); }
   }
 
+  // 🔴 读候选这件事只有一份实现，在 `promote.js` 的 `readCandidates` —— 这里原来有第二份，
+  //    而两份**已经分叉过**：这里按 `readdirSync` 的顺序（字母序：1 · 10 · 11 · … · 2 · 20 …），
+  //    promote 按编号排序。后果不是排版问题：`--pool new` 那条路上池成员的 id 是按
+  //    「第几个候选」× `poolSlots()` 现起的，两种顺序起出**两套不同的 id**，于是第③道闸报告里
+  //    写的「最像的是 fern-02」指的根本不是最终池子里那套 fern-02。#1016 实测到这个形状。
+  //    （版式从 `<id>.layout.json` 读回来这件事也在那份实现里：写死成 `{}` 会让第③道闸的版式那项
+  //    在这条路上永远「没得比」——当时算成 0 分 ⟹ 上限 0.8 < 阈值 0.9，整道闸不可能开火，
+  //    QA2 在 #1004 r2 端到端量过。）
+  const { readCandidates, toPoolEntry } = require('./promote.js');
   const candidates = arg('--candidates', '')
-    ? fs.readdirSync(arg('--candidates', '')).filter((f) => f.endsWith('.css')).map((f) => {
-      const id = path.basename(f, '.css');
-      const dir = arg('--candidates', '');
-      // 🔴 版式从 `<id>.layout.json` 读回来（生成器写的），不再写死成 `{}`：写死那一版让第三道闸的
-      //    版式那一项在这条路上永远「没得比」，而它当时算成 0 分 = 完全不像 ⟹ 上限 0.8 < 阈值 0.9，
-      //    整道闸不可能开火（QA2 在 #1004 r2 端到端量的）。手工放进来的候选没有这个文件，那就是
-      //    真的没有版式可比 —— gates.js 的 `similarity` 现在会把这一项从分母里去掉，不当成 0。
-      const layoutFile = path.join(dir, `${id}.layout.json`);
-      return {
-        id,
-        sheetPath: path.join(dir, f),
-        tokens: JSON.parse(fs.readFileSync(path.join(dir, `${id}.tokens.json`), 'utf-8')),
-        layout: fs.existsSync(layoutFile) ? JSON.parse(fs.readFileSync(layoutFile, 'utf-8')) : {},
-      };
-    })
+    ? readCandidates(arg('--candidates', ''))
     : generateCandidates(count, { seed, outDir: workDir });
 
+  // 第③道跟**谁**比（#1016）。
+  //
+  // 🔴 `--pool new` 是跑正式池那一次要用的：D3 说旧 30 套冻结退役，新池是重来的一池 —— 一套候选
+  //    要不像的是**它将要加入的那个池**，而不是一个没有任何新站抽得到的旧池。默认仍是注册表，
+  //    因为平时跑一两套试流水线时，问「跟今天在用的比像不像」才是那个场景要的答案。
+  //    新池那条路上，池子随着这一轮**逐套长出来**：第 1 套跟空池比（照 gates.js 的口径 = 通过），
+  //    第 k 套跟前面已经收下的 k-1 套比。收下的定义是「前三道全过」。
+  const poolMode = arg('--pool', 'registry');
   const { themes } = require(path.join(NEXT, 'scripts', 'themes.js'));
+  const { poolSlots } = require('./industry-sectors.js');
+  const slots = poolSlots();
+  const growing = {};
+  const poolFor = () => (poolMode === 'new' ? growing : themes);
   const report = [];
 
   // #1015：跑之前先存一份，finally 里放回去（理由写在 snapshotSite 头上）。
   const t1015Snap = snapshotSite(siteDir);
   let t1015Restore = null;
   try {
-  for (const c of candidates) {
+  for (const [ci, c] of candidates.entries()) {
     // 🔴 #1061 r2 —— 这一轮对这套 id 的起点：先清掉它上一轮留在 shots/ 里的图和读数。
     //    必须在这里、在第一道闸之前 —— 下面任何一个分支都可能让这一轮**一张图都不拍**（静态闸没过、
     //    样例站建不出来、建出来的不是这一份），而对照页问的是盘上有没有图。不清就是把上一轮的图和
@@ -267,12 +274,20 @@ async function main() {
         }
       }
     }
-    if (gates.every((g) => g.pass)) gates.push(gateSimilarity(c, themes));
+    if (gates.every((g) => g.pass)) gates.push(gateSimilarity(c, poolFor()));
     if (gates.every((g) => g.pass)) {
       gates.push(gateHumanReview(c, { galleryDir, shot }));
     }
+    // 前三道全过 ⟹ 收下，它成为后面那些候选要比对的池子的一员（只在 --pool new 那条路上）。
+    let poolId = null;
+    if (poolMode === 'new' && gates.every((g) => g.pass !== false) && slots[ci]) {
+      const promoted = toPoolEntry(c, slots[ci]);
+      growing[promoted.id] = promoted.entry;
+      poolId = promoted.id;
+    }
     report.push({
       id: c.id,
+      poolId,
       gates,
       facts: shot && shot.facts,
       // `shot` = shoot.mjs 退的是不是 0；`shots` = 盘上真有哪几张图。#1061 起这两个不许互相代替

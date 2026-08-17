@@ -141,7 +141,27 @@ const facts = await page.evaluate(() => {
     accent500: cs.getPropertyValue('--color-accent-500').trim(),
     fontSans: cs.getPropertyValue('--font-sans').trim(),
     bodyFontFamily: body.fontFamily,
-    googleFontsHref: [...document.querySelectorAll('link[rel=stylesheet]')].map(l => l.href).filter(h => h.includes('fonts.googleapis.com'))[0] || '',
+    // 🔴 #1016 — 字体的入口有两个，只认 `<link>` 的那一版今天对**每一个**站都是假红。
+    //    #1002 把主题整份装进了 `/theme.css`，字体因此变成那份表头上的一条
+    //    `@import url("https://fonts.googleapis.com/…")`（`sync-config.js` 的 buildThemeCss），
+    //    页面上再没有指向 fonts.googleapis.com 的 `<link>`。实测（#1016，一套候选装进样例站建出来的
+    //    产物）：`<link rel=stylesheet>` 四条，全是 `/_next/…`、`/base.css`、`/theme.css`、`/custom.css`
+    //    ⟹ 这里恒为空 ⟹ 下面那条自查把**每一张**图判成「不算数」，而图其实是好的。
+    //    要守的性质没变（表没加载 ⟹ 这张图不算数），所以问的地方改成「已加载的样式表里有没有它」：
+    //    同源的表（base.css / theme.css）读得到 cssRules，跨域的读不到就跳过。
+    googleFontsHref: (() => {
+      const fromLink = [...document.querySelectorAll('link[rel=stylesheet]')]
+        .map(l => l.href).filter(h => h.includes('fonts.googleapis.com'))[0];
+      if (fromLink) return fromLink;
+      for (const sheet of [...document.styleSheets]) {
+        let rules;
+        try { rules = sheet.cssRules; } catch { continue; }   // 跨域的表读不到，不是"没有"
+        for (const rule of [...(rules || [])]) {
+          if (rule.href && String(rule.href).includes('fonts.googleapis.com')) return rule.href;
+        }
+      }
+      return '';
+    })(),
   };
 });
 // A page whose stylesheet never loaded still screenshots into a normal-looking PNG full of

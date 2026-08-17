@@ -148,6 +148,37 @@ const pathOf = (u) => {
 const MIN_CONTRAST = 4.5;
 const MIN_BODY_PX = 14;
 
+// 🔴 #1016 r5 — "MEASURE IT, PRINT IT, DO NOT JUDGE IT", FOR THE ONE READING WHOSE ANSWER IS ABOUT A
+// PAIRING THAT DOES NOT EXIST.
+//
+// A contrast ratio is a statement about a sheet AND a palette together. `theme-css-invariants-all-
+// sheets.sh` measures every sheet in `public/themes/`, and three of them — the hand-written
+// `hero-media-left / right / top` — have no theme named after them, so there is no palette that is
+// theirs (pairing is by name: `create-site.js:907` → `theme-sheet.js:41`). They get dressed by whatever
+// the sample site is wearing, and the ratio that comes out is real arithmetic about a combination no
+// customer's site can be built with. Measured: `hero-media-top` reads 4.00:1 / 3.96:1 under `jade-60`
+// and passes under `charcoal-lime`, and which of the two the sample site wears is decided by the
+// rotation index — so the red moves whenever the pool changes.
+//
+// 🔴 WHY THE SWITCH LIVES HERE AND NOT IN THE CALLER. The caller can only see an exit code and a list
+// of sentences; picking one kind of finding out of that list means matching the wording of :439, which
+// has been reworded twice in this ticket alone, and a match that stops matching SWALLOWS A REAL RED.
+// The classification belongs where the finding is made. Same shape, same reason, as
+// THEME_CSS_SAMPLE_WIDENED below (:2183): a fact only that script knows, exported rather than guessed,
+// deciding whether a reading is a verdict or a note.
+//
+// 🔴 AND IT IS EXACTLY ONE READING WIDE. Only "this ratio is below 4.5:1" stops being a verdict.
+// "cannot read its computed colour", "has no measurable box", "is not painted at all", "paints nothing
+// that can be told apart from what is behind it", the hook coverage checks, essential content, the
+// first screen, touch targets, sideways scroll, type size and paint order all go on being judged for
+// these sheets — a hand-written sheet forgetting a hook's rule is the whole reason this job runs, and
+// that question has no palette in it. The boundary is printed in the report rather than left for
+// someone to work out from the code.
+const PALETTE_IS_NOT_THE_SHEETS_OWN = process.env.THEME_CSS_PALETTE_NOT_THE_SHEETS_OWN === '1';
+// Contrast findings that were measured under a palette that is not the sheet's own. Printed in full,
+// never counted towards the exit code.
+const unjudgedContrast = [];
+
 function srgbToLinear(c) {
   const s = c / 255;
   return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
@@ -333,6 +364,30 @@ async function withoutWords(el, shoot) {
   }
 }
 
+// The line boxes of the text an element shows, in coordinates local to that element's own box — the
+// same unit ②d/②e use (`Range.getClientRects()`, one rect per line box), and for the same reason
+// #1049 wrote down there: "the unit is a run of text, not an element's box". Element-local rather than
+// document coordinates because these are compared against a screenshot OF THIS ELEMENT, and taking a
+// screenshot scrolls the page.
+const LINE_RECTS = (n) => {
+  const base = n.getBoundingClientRect();
+  const out = [];
+  const walk = (node) => {
+    for (const child of node.childNodes) {
+      if (child.nodeType === 3) {
+        if (!child.textContent.trim()) continue;
+        const range = document.createRange();
+        range.selectNodeContents(child);
+        for (const r of range.getClientRects()) {
+          out.push({ x: r.left - base.left, y: r.top - base.top, w: r.width, h: r.height });
+        }
+      } else if (child.nodeType === 1) walk(child);
+    }
+  };
+  walk(n);
+  return out;
+};
+
 // ── ① the words are on the screen, and readable where they are ─────────────────────────────────
 const movedTextMeasured = new Map();   // selector → [where …]
 // One target on the page the browser is looking at now. `required` decides what "it is not here"
@@ -408,7 +463,11 @@ const measureText = async (sel, where, required) => {
   // background. The old version took them from the picture with the text in it and dropped any
   // candidate within 1.5:1 of the text to compensate — a guess that failed both ways: an
   // antialiasing group of the text itself sat just outside 1.5:1 and became the "background".
-  const backgrounds = coloursOf(bare, null).filter((c, i) => i === 0 || c.n / total >= 0.05);
+  //
+  // Whole-box colours. Only used for the `words.n === 0` message below — there are no words there, so
+  // "what is behind the words" has no answer and the box's own commonest colour is the useful thing to
+  // print.
+  const boxColours = coloursOf(bare, null).filter((c, i) => i === 0 || c.n / total >= 0.05);
   if (words.n === 0) {
     // 🔴 THIS IS THE #966 SHAPE. Taking the words away changed nothing, so there were no words on
     // the screen: white on white, `filter: opacity(0)`, text pushed out of its own box. Said as the
@@ -416,9 +475,92 @@ const measureText = async (sel, where, required) => {
     // for a bug in the checker instead of at the page.
     problems.push(`visibility: "${sel}" on ${where} paints nothing that can be told apart from what is behind `
       + `it — taking its words away changes 0 of ${total} pixels in its box `
-      + `(declared colour ${colorRaw}, background rgb(${backgrounds[0].rgb}))`);
+      + `(declared colour ${colorRaw}, background rgb(${boxColours[0].rgb}))`);
     return false;
   }
+  // 🔴 #1016 r5 — THE GROUND IS READ UNDER THE WORDS, LINE BY LINE.
+  //
+  // TWO CHANGES, MEASURED SEPARATELY, AND THE SECOND IS WHY THE UNIT IS A LINE RATHER THAN AN ELEMENT.
+  // All three readings below are on the same build of this repo's sample site, one sheet each, taken
+  // with the three implementations side by side (#1016 r5's control arms):
+  //
+  //   · **The ground has to be read UNDER THE WORDS, not over the whole box.** A rounded button on a
+  //     dark first screen: the four corners outside the border-radius are the page showing through,
+  //     they are one colour, and they clear the 5% bar. Measured with `fern-02` (a
+  //     `transparent-overlay` header over a dark hero, pill `--radius-button`): the header's
+  //     `.btn-accent` — magenta rgb(228,91,206) filling 90.7% of the box, `gray-900` letters on it,
+  //     plainly legible in the screenshot — came out **1.03:1** against rgb(11,26,7), the dark green
+  //     hero at the corners (6.7% of the box, 0% of the words). Reading the ground under the words puts
+  //     the same button at **5.58:1** against the magenta its letters actually sit on. That false red is
+  //     what made this change necessary: with every sheet now dressed in its own palette, this run could
+  //     not go green while a correct button read 1.03:1.
+  //     (`.btn-secondary` was dropped from this check for a cousin of this reason — the contract's §4
+  //     Contrast row. This asks the right question instead of dropping another hook.)
+  //   · **And the unit has to be a LINE, because one unreadable line among several is averaged away.**
+  //     `azure-50`'s `.hero__title` is two lines; the first sits on the header scrim and the second on
+  //     the light hero below it. With the words as the basis but the WHOLE ELEMENT as the unit, the dark
+  //     ground carries 6% of the element's words and the reading comes out **5.96:1 — green**, about a
+  //     heading whose first line a person cannot read. Per line it is **4.19:1** on line 1 of 2, and the
+  //     finding says which line. (Measured by forcing the fallback path below on that same build.)
+  //     🔴 So the fallback IS this blindness, which is why it is only reached when the line boxes cannot
+  //     be read at all, and why it says so in the reading.
+  //
+  // 🔴 WHAT THIS CHANGE IS **NOT**: it is not what makes that scrim defect visible. The whole-box
+  // implementation read the same page at **3.89:1** and went red too — it happened to pick the scrim
+  // ground as its worst candidate. What made the defect visible is dressing each sheet in its OWN
+  // palette (the top of this file); the 8 pool sheets it caught are fixed at the generator
+  // (`region-layout.js`'s `heroTitleSurvivesHeaderScrim`), not here. Stated because the first draft of
+  // this comment claimed the credit for per-line measurement, and the control arm refuted it.
+  //
+  // So: the unit is a LINE, which is the unit ②d/②e in this same file already use (#1049 — "the unit is
+  // a run of text, not an element's box"). For each line box the element lays its text out in, the word
+  // pixels inside it are grouped by the colour of `bare` beneath them — and `bare` is this box with the
+  // letters removed, so at a word pixel it IS what is behind that letter. Nothing to tune: no
+  // neighbourhood, no radius. The element's reading is its worst line, and the finding names it.
+  //
+  // 🔴 THE GRADIENT CASE — the reason "worst of the dominant colours" exists at all — SURVIVES, which
+  // is what makes this safe to narrow: a gradient behind a heading runs across its lines, so within a
+  // line its ends each carry a share of that line's words, both are candidates, and the worst still
+  // wins. A gradient running down the lines is now judged per line, which is stricter, not looser.
+  //
+  // 🔴 IF THE LINE BOXES CANNOT BE READ, THIS FALLS BACK TO THE WHOLE ELEMENT AND SAYS SO. "I could not
+  // find the lines" must not turn into a pass — the fallback is the same measurement over all of the
+  // element's word pixels at once, and the reading line prints `lines: 1 (whole element)`.
+  const GROUND_MIN_SHARE = 0.05;
+  const lineRects = await el.evaluate(LINE_RECTS).catch(() => []);
+  const groundsIn = (rect) => {
+    const groups = new Map();
+    let n = 0;
+    for (let y = 0; y < img.bitmap.height; y += 1) {
+      if (rect && (y < rect.y - 1 || y > rect.y + rect.h + 1)) continue;
+      for (let x = 0; x < img.bitmap.width; x += 1) {
+        if (rect && (x < rect.x - 1 || x > rect.x + rect.w + 1)) continue;
+        const i = y * img.bitmap.width + x;
+        if (!words.mask[i]) continue;
+        const p = i * 4;
+        const [r, g, bl] = [bare.bitmap.data[p], bare.bitmap.data[p + 1], bare.bitmap.data[p + 2]];
+        const key = `${r >> 5},${g >> 5},${bl >> 5}`;
+        const e = groups.get(key);
+        if (e) { e.n += 1; e.sum[0] += r; e.sum[1] += g; e.sum[2] += bl; } else {
+          groups.set(key, { n: 1, sum: [r, g, bl] });
+        }
+        n += 1;
+      }
+    }
+    return {
+      n,
+      colours: [...groups.values()]
+        .map((e) => ({ n: e.n, rgb: e.sum.map((v) => Math.round(v / e.n)) }))
+        .sort((x, y) => y.n - x.n)
+        .filter((c, i) => i === 0 || c.n / n >= GROUND_MIN_SHARE),
+    };
+  };
+  // Lines with no word pixels in them are skipped: nothing was painted there, and "nothing painted at
+  // all" is already the `words.n === 0` finding above.
+  const measuredLines = lineRects.map(groundsIn).filter((l) => l.n > 0);
+  const usingLines = measuredLines.length > 0;
+  const perLine = usingLines ? measuredLines : [groundsIn(null)];
+  const backgrounds = groundsIn(null).colours;
   // The colour the words came out. Among the groups of changed pixels, the one furthest from the
   // background is the middle of the strokes; the rest are antialiased edges on their way to the
   // background, and judging by them would fail a page that reads perfectly. Groups under 2% of the
@@ -429,15 +571,29 @@ const measureText = async (sel, where, required) => {
     .rgb;
   let worst = Infinity;
   let worstRgb = backgrounds[0].rgb;
-  for (const cand of backgrounds) {
-    const ratio = contrast(textRgb, cand.rgb);
-    if (ratio < worst) { worst = ratio; worstRgb = cand.rgb; }
-  }
+  let worstLine = 0;
+  perLine.forEach((line, li) => {
+    for (const cand of line.colours) {
+      const ratio = contrast(textRgb, cand.rgb);
+      if (ratio < worst) { worst = ratio; worstRgb = cand.rgb; worstLine = li; }
+    }
+  });
   readings.push(`  ${sel} on ${where}: text painted rgb(${textRgb}) (declared ${colorRaw}) on rgb(${worstRgb}) `
-    + `= ${worst.toFixed(2)}:1 · text pixels ${words.n}/${total}`);
+    + `= ${worst.toFixed(2)}:1 · text pixels ${words.n}/${total}`
+    + ` · lines: ${usingLines ? perLine.length : '1 (whole element — its line boxes could not be read)'}`
+    + `${perLine.length > 1 ? `, worst is line ${worstLine + 1}` : ''}`
+    + ` · ground under that line's words: ${perLine[worstLine].colours.length} colour(s) carrying `
+    + `${perLine[worstLine].colours.map((c) => `${Math.round((100 * c.n) / perLine[worstLine].n)}%`).join('/')}`
+    + ` of them (a colour under fewer than ${Math.round(GROUND_MIN_SHARE * 100)}% of a line's words is not judged)`);
   if (worst < MIN_CONTRAST) {
-    problems.push(`contrast: "${sel}" on ${where} is ${worst.toFixed(2)}:1 against rgb(${worstRgb}) — below ${MIN_CONTRAST}:1`
-      + ` (measured on the colour it came out, rgb(${textRgb}); declared ${colorRaw})`);
+    // 🔴 The one reading that stops being a verdict when the palette is not this sheet's own (see
+    // PALETTE_IS_NOT_THE_SHEETS_OWN). It is still measured, it is still in `readings` above, and it is
+    // printed again in full at the end — what changes is only whether it decides the exit code.
+    (PALETTE_IS_NOT_THE_SHEETS_OWN ? unjudgedContrast : problems)
+      .push(`contrast: "${sel}" on ${where} is ${worst.toFixed(2)}:1 against rgb(${worstRgb}) — below ${MIN_CONTRAST}:1`
+        + ` (measured on the colour it came out, rgb(${textRgb}); declared ${colorRaw}`
+        + `${perLine.length > 1 ? `; on line ${worstLine + 1} of ${perLine.length} — the other lines are on a`
+          + ' different ground and read better, which is why this is measured per line' : ''})`);
   }
   // 🔴 量成了才回 true。上面每一条早退都回 false —— CONTROL_TARGETS 那段靠这个数「量到了几个」，
   //    而「一个都没量到」是 finding。漏掉这一行的话它恒回 undefined ⟹ 那段每次都报「一个都没量到」。
@@ -2202,12 +2358,43 @@ for (const [hook, { pages, sheets }] of missingByHook) {
     + 'or the site\'s own CSS, which is the same block on every theme');
 }
 
+// 🔴 #1016 r5 — SAY THE BLINDNESS AT THE READING, EVERY RUN, WHETHER OR NOT ANYTHING CAME OF IT.
+// This line is pushed even when `unjudgedContrast` is empty: "no contrast finding" and "contrast
+// findings were not being judged" have to be distinguishable, and the only place that can be said is
+// the report. It also states the reach in both directions — which one reading is a note, and that
+// every other check on this sheet is still a verdict — so the sentence stands on its own without the
+// reader going to the code for the boundary.
+if (PALETTE_IS_NOT_THE_SHEETS_OWN) {
+  readings.push('  🔴 the palette on this page is NOT this sheet\'s own — the caller says no theme in the '
+    + 'registry is named after it, so nothing pairs the two and this combination is one no site can be '
+    + `built with (pairing is by name: create-site.js → theme-sheet.js). Therefore the "below `
+    + `${MIN_CONTRAST}:1" verdict is REPORTED AND NOT JUDGED here: ${unjudgedContrast.length} ratio(s) `
+    + `came out below it${unjudgedContrast.length ? ' and are listed under the violations below' : ''}, `
+    + 'and none of them affects the exit code. 🔴 Nothing else is relaxed: whether the words are painted '
+    + 'at all, whether their colour and box can be read, hook coverage, essential content, the first '
+    + 'screen, touch targets, sideways scroll, type size and paint order are all judged for this sheet '
+    + 'exactly as for any other');
+}
+
 await browser.close();
 
 console.log(`readings for ${baseUrl}:`);
 for (const r of readings) console.log(r);
+// Printed before the verdict, and in full: a reading that is not judged still has to be READABLE, or
+// "not judged" turns into "not measured" the first time someone goes looking for the number.
+if (unjudgedContrast.length) {
+  console.log(`ℹ️ ${unjudgedContrast.length} contrast reading(s) below ${MIN_CONTRAST}:1, measured under a `
+    + 'palette that is not this sheet\'s own — printed, not judged (see the 🔴 line above):');
+  for (const p of unjudgedContrast) console.log(`   ${p}`);
+}
 if (problems.length === 0) {
-  console.log('✅ every invariant holds');
+  // 🔴 The boundary goes on the CONCLUSION line, not only in the readings above it. A run that ends
+  // `✅ every invariant holds` while `${MIN_CONTRAST}:1` went unjudged is a green whose reach the reader
+  // cannot see from the last thing printed — and the last thing printed is what gets quoted.
+  console.log(unjudgedContrast.length
+    ? `✅ every invariant holds — except that ${unjudgedContrast.length} contrast reading(s) above were `
+      + 'not judged, because the palette on this page is not this sheet\'s own'
+    : '✅ every invariant holds');
   process.exit(0);
 }
 console.log(`🔴 ${problems.length} invariant violation(s)`);

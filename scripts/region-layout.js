@@ -113,6 +113,95 @@ function resolveRegionLayout(layout) {
   return { header, footer, topbar, headerScrim, notes };
 }
 
+// ── #1016 —— 透明浮层要求首屏是深的，而这一问只有【生成池子的时候】答得出来 ────────────────────
+//
+// 上面 ② 说的是一半：构建期证明不了首屏是深的,所以浮层一律配遮罩。那层遮罩是页面最上面 160px
+// 的一条黑色渐变(`src/components/Header.tsx` 的 `from-black/75 via-black/55 to-transparent`),
+// 浓度按「首屏是纯白」这个最坏情况定的 —— 浮层的字是白的,不这么浓就读不出来。
+//
+// 🔴 另一半此前没人管:同一层遮罩压在【浅底 + 深字】的 hero 上,把标题最上面那一截压到 rgb(110)
+//    左右,而标题的字本来就是深的。实测(#1016 r5,真机、脚本自己造的样例站、80 份表全量跑):
+//      azure-50    `.hero__title`  3.89:1   底 rgb(110,112,115) · 字 rgb(9,13,30)
+//      crimson-30  `.hero__title`  3.81:1   底 rgb(115,110,111) · 字 rgb(30,9,10)
+//    照片在 #1016 的交接留言里:第一行字压在深灰上,人真的读不出来。
+//
+// 🔴 这不是挑颜色的事,所以修法不是换一档字色:遮罩那一段里要浅字,遮罩外的浅底上要深字,
+//    没有哪一种字色能同时活过两段。⟹ 只能【不产生这个搭配】—— 一套主题的表把首屏画成浅底时,
+//    它不许声明 `transparent-overlay`。这就是下面这两个函数,`promote.js` 定 `supports.header`
+//    时用它们。
+//
+// 🔴 判据落在【表自己的字节 + 这套主题自己的调色板】上,不是版式的名字 —— 上面 ② 已经写明
+//    「从 variant 的名字推底色这条路本身不成立」。生成器手里同时有这两样东西,所以它答得出来;
+//    `resolveRegionLayout` 手里没有,所以它一个字节都没改,现有的站和退役那 30 套的行为完全不变。
+//
+// 🔴 证明不了「深」就当它不是深的。两个方向的错法仍然不对称:少一套浮层最多是少一点花样,
+//    多一套是老板首屏上的标题读不出来。
+//
+// 🔴 `via-black/55` 这个数在两处出现(那个组件里的 class 串 + 这里),而两处必然分叉。
+//    `theme-pipeline/pool.test.js` 有一格读 `Header.tsx` 的原文盯它,改了那个 class 会红。
+const HEADER_SCRIM_MID_ALPHA = 0.55;
+// 标题要读得出来的门槛。跟 `sheet-recipes.js` 的 `INK_FLOOR` 同一个数(WCAG 正文 4.5:1),
+// 但故意不 require 它:那份文件是生成表用的配方,而这条规则管的是顶栏,两者没有依赖关系。
+const HEADER_SCRIM_INK_FLOOR = 4.5;
+
+/**
+ * 这份表的 hero 标题,压在遮罩底下还读得出来吗?
+ *
+ * @param {string} sheetCss  这套主题自己那份 `public/themes/<id>.css` 的原文
+ * @param {object} colors    这套主题的调色板(`{ primary: {50..900}, accent: {50..600} }`)
+ * @returns {{ok: boolean, why: string, ratio: number|null}}
+ *          `ok` 为真 = 可以给它透明浮层。**答不出来一律回 false**(见上面那条 fail-safe)。
+ */
+function heroTitleSurvivesHeaderScrim(sheetCss, colors) {
+  // 用 `theme-contrast.js` 那套解析和算术,不在这里再写一份:两处各算一遍同一件事就会分叉。
+  const contrastLib = require('./theme-contrast.js');
+  const vars = {};
+  for (const [ramp, shades] of Object.entries(colors || {})) {
+    for (const [shade, hex] of Object.entries(shades || {})) vars[`--color-${ramp}-${shade}`] = hex;
+  }
+  const { colourOf, bgOf } = contrastLib.indexSheet(contrastLib.parseSheet(String(sheetCss || '')));
+  const bgExpr = (bgOf.get('.hero') || {}).color;
+  const fgExpr = colourOf.get('.hero__title');
+  if (!bgExpr || !fgExpr) {
+    return { ok: false, ratio: null, why: `表里读不到 ${bgExpr ? '.hero__title 的 color' : '.hero 的背景色'}` };
+  }
+  const bg = contrastLib.resolveColour(bgExpr, vars);
+  const fg = contrastLib.resolveColour(fgExpr, vars);
+  if (!bg || !fg || bg.alpha !== 1) {
+    return { ok: false, ratio: null, why: `解不出颜色(底 ${bgExpr} · 字 ${fgExpr})` };
+  }
+  // 遮罩是黑色的半透明层压在首屏上,所以底色变成「底色跟黑色按遮罩浓度混一下」。
+  const under = contrastLib.mixBytes(bg.rgb, [0, 0, 0], HEADER_SCRIM_MID_ALPHA);
+  const ratio = contrastLib.contrast(fg.rgb, under);
+  return {
+    ok: ratio >= HEADER_SCRIM_INK_FLOOR,
+    ratio,
+    why: `.hero__title ${fgExpr} 压在「${bgExpr} 混 ${Math.round(HEADER_SCRIM_MID_ALPHA * 100)}% 黑」`
+      + `= rgb(${under}) 上是 ${ratio.toFixed(2)}:1（门槛 ${HEADER_SCRIM_INK_FLOOR}）`,
+  };
+}
+
+/**
+ * 生成池成员时,这套主题的顶栏用哪种结构。
+ *
+ * 想要的那一种由 `index` 轮换决定(跟改这条规则之前一样);唯一的约束是上面那条 —— 浅底首屏
+ * 不许配透明浮层,撞上就顺着清单往后取第一个不是浮层的。
+ *
+ * @returns {{variant: string, wanted: string, why: string|null}} `why` 非空 = 让开了,原因在里面
+ */
+function headerVariantForPool(index, sheetCss, colors) {
+  const wanted = HEADER_VARIANTS[index % HEADER_VARIANTS.length];
+  if (wanted !== 'transparent-overlay') return { variant: wanted, wanted, why: null };
+  const verdict = heroTitleSurvivesHeaderScrim(sheetCss, colors);
+  if (verdict.ok) return { variant: wanted, wanted, why: null };
+  const next = HEADER_VARIANTS.filter((v) => v !== 'transparent-overlay');
+  return {
+    variant: next[index % next.length],
+    wanted,
+    why: `透明浮层要求首屏是深的 —— ${verdict.why}`,
+  };
+}
+
 module.exports = {
   HEADER_VARIANTS,
   FOOTER_VARIANTS,
@@ -120,5 +209,9 @@ module.exports = {
   DEFAULT_HEADER,
   DEFAULT_FOOTER,
   DEFAULT_TOPBAR,
+  HEADER_SCRIM_MID_ALPHA,
+  HEADER_SCRIM_INK_FLOOR,
   resolveRegionLayout,
+  heroTitleSurvivesHeaderScrim,
+  headerVariantForPool,
 };

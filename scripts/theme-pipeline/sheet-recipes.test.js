@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * sheet-recipes.test.js — 候选主题表的三条承重性质（#1051 r2 立了前两条，r4 加了第三条）。
+ * sheet-recipes.test.js — 候选主题表的四条承重性质（#1051 r2 立了前两条，r4 加了第三条，#1016 r3 加了第四条）。
  *
  * 跑法:  node scripts/theme-pipeline/sheet-recipes.test.js
  * 退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
@@ -27,6 +27,14 @@
  *      其中 3 套）。同一个毛病还落在另外 8 个钩子上，只是那些块不是 essential，闸看不见。
  *      🔴 覆盖率那把尺看不见这件事：钩子有规则就算数，规则画的是什么颜色它不问。
  *
+ *   ④ 表说了居中，产物就要真的居中（#1016 r3 加的）。
+ *      Chris 翻 80 张图时看出来的：hero 的标题居中、按钮却贴左（`gen-07-14` 上先看出来，
+ *      `gen-07-31` / `gen-07-32` 上确认）。真因是 `text-align: center` 按 CSS 规范只管行内内容 ——
+ *      `.hero__cta` 是 flex 容器（位置由 `justify-content` 定）、`.hero__sub` 是带 `max-width`
+ *      的块级元素（位置由外边距定），两样都不受它管。于是表自己声明了居中，画出来是左。
+ *      🔴 四道准入闸没有一道在问「这些东西对齐了吗」：①静态看 schema 与契约 · ②看钩子有没有规则 ·
+ *         ③看两套像不像 · ④是人翻图 —— 抓到它的是第四道，也就是说机器这边一格都没有。这一格就是
+ *         补上的那一格。
  * ══ ① 那一格的夹具是怎么把变量隔离出来的 ══════════════════════════════════════════════════════
  * 版式是序号的函数，没法「同一套候选换个版式」。但各档的周期是 lcm(4,3,5) = 60，而版式的周期是 9，
  * 所以 **i、i+60、i+120 三套的 voice 除了 `hero` 那一项逐项相同，且三者的版式恰好是三个不同的值**
@@ -199,6 +207,77 @@ console.log('③ 表自己画的字，压在它自己画的底上读不读得出
       + ' —— 它不是恒绿');
   } else {
     bad('反向对照失败：字色改回写死的 accent-500 之后这把尺一套都没点名 —— 它量不出好坏');
+  }
+}
+
+console.log('④ 表说了居中，产物里那几样东西真的居中吗');
+{
+  const N = 80;                                 // 跟③同一批，#1016 的池子就是 80 套
+
+  // 判据写成**跟块无关**的形状：哪个容器声明了居中，就看它同一个块里那些不受 `text-align` 管的
+  // 东西有没有被摆正。写死成「查 .hero__cta」就只守得住今天这一个块，而 sheet-recipes 里
+  // 34 个块共用同一批角色，下一个给某个块加 `text-align: center` 的人会重犯同一件事。
+  const offendersOf = (css) => {
+    const root = postcss.parse(css);
+    const centred = new Set();
+    const rules = [];
+    root.walkRules((rule) => {
+      const decls = {};
+      rule.walkDecls((d) => { decls[d.prop] = d.value.trim(); });
+      for (const one of rule.selector.split(',')) {
+        const sel = one.trim();
+        const m = sel.match(/^\.([A-Za-z_][\w-]*)/);
+        if (!m) continue;
+        rules.push({ sel, cls: m[1], decls });
+        if (decls['text-align'] === 'center') centred.add(m[1].split('__')[0]);
+      }
+    });
+    const out = [];
+    for (const r of rules) {
+      if (!centred.has(r.cls.split('__')[0])) continue;
+      if (r.decls.display === 'flex' && !r.decls['justify-content']) {
+        out.push(`${r.sel}（display:flex 没有 justify-content）`);
+      }
+      if (r.decls['max-width']
+        && !(r.decls['margin-left'] === 'auto' && r.decls['margin-right'] === 'auto')
+        && !/\bauto\b/.test(r.decls.margin || '')) {
+        out.push(`${r.sel}（max-width 没有 auto 外边距）`);
+      }
+    }
+    return out;
+  };
+
+  const sheets = [];
+  for (let i = 0; i < N; i += 1) sheets.push({ i, css: sheetFor(i) });
+  const centredSheets = sheets.filter((x) => /text-align:\s*center/.test(x.css));
+  const badSheets = sheets.map((x) => ({ ...x, bad: offendersOf(x.css) })).filter((x) => x.bad.length);
+  if (badSheets.length) {
+    bad(`${N} 套里 ${badSheets.length} 套「说的居中、画的是左」 —— 例：第 ${badSheets[0].i} 套的 `
+      + `${badSheets[0].bad.join(' · ')}`);
+  } else {
+    ok(`${N} 套里没有一处「某个容器说了居中，它下面却有东西不受 text-align 管而没被摆正」`
+      + `（其中 ${centredSheets.length} 套的确声明了居中，剩下的本来就左对齐）`);
+  }
+
+  // 🔴 反向对照 —— 把修好的那两处从**真产物**上外科式地拿掉，这把尺必须当场点名。
+  //    少了它，上面那一格在「今天一套都没声明居中」时也会绿。
+  const undoFix = (css) => {
+    const root = postcss.parse(css);
+    root.walkRules((rule) => {
+      const sel = rule.selector.trim();
+      if (sel === '.hero__cta') rule.walkDecls('justify-content', (d) => d.remove());
+      if (sel === '.hero__sub') rule.walkDecls(/^margin-(left|right)$/, (d) => d.remove());
+    });
+    return root.toString();
+  };
+  const caught = sheets.filter((x) => offendersOf(undoFix(x.css)).length);
+  if (caught.length === centredSheets.length && caught.length > 0) {
+    ok(`反向对照：把 .hero__cta 的 justify-content 与 .hero__sub 的 auto 外边距拿掉，`
+      + `${N} 套里 ${caught.length} 套当场被点名 —— 正是声明了居中的那 ${centredSheets.length} 套，一套不多一套不少`);
+  } else if (caught.length) {
+    bad(`反向对照对不上：拿掉修法后被点名 ${caught.length} 套，而声明居中的是 ${centredSheets.length} 套`);
+  } else {
+    bad('反向对照失败：拿掉修法之后这把尺一套都没点名 —— 它量不出好坏');
   }
 }
 
