@@ -106,6 +106,29 @@ const patched = [];
   rows[0].them = false;
   patched.push('feature-comparison row 1 has them:false → .feature-comparison__mark--no');
 }
+{
+  // #1060 —— 第 1 条问答建出来就是打开的。
+  //
+  // 🔴 为什么非补这一处不可：#1056 之后，关着的 `<details>` 里的字不再当成客人读得到的正文，而
+  //    `FaqAccordionSection.tsx` 渲染出的每一条**都是**关着的 ⟹ 一套主题表写
+  //    `.faq-accordion__answer { max-height: 3px; overflow: hidden }` 时四道闸没有一道看得见
+  //    （改这一行之前在这个站上端到端量过：`theme-pipeline/run.js` rc=0，报告里 `faq-accordion`
+  //    一次都没出现）。而真人点开 FAQ 看到的是一条 3px 的缝。
+  //
+  // 🔴 只开**一条**，不是全开：其余两条仍然关着，于是同一页同时回答两个问题 —— 打开的那条的答案
+  //    重新被量（本票要的视力），关着的那两条照旧被豁免（#1056 的结论，不许回退）。全开会把后半句
+  //    从这个站上抹掉，那时「豁免坏了」跟「一切正常」在读数上长得一模一样。
+  //
+  // 🔴 这个字段只写在这里。`blocks/faq-accordion.json` 故意没有这个槽，所以 AI 建的真实站一条都
+  //    不会带上它 —— 客人的 FAQ 照旧默认全部关着（#1060 正文里那条硬边界）。
+  const s = sectionOf('faq-accordion');
+  const items = s && s.data && s.data.items;
+  if (!Array.isArray(items) || items.length < 2) {
+    die('the generated faq-accordion block has fewer than 2 items — one open and one closed are both needed');
+  }
+  items[0].defaultOpen = true;
+  patched.push('faq-accordion item 1 is open → .faq-accordion__answer is measured again (#1060)');
+}
 const SERVICE_SLUG = 'services';
 {
   const s = sectionOf('service-related-pages');
@@ -165,6 +188,13 @@ writeJson(allblocks, page);
   if (find('gallery').data.items[2].imageUrl !== undefined) bad.push('gallery item 3 still has imageUrl');
   if (find('feature-comparison').data.comparisons[0].them !== false) bad.push('feature-comparison row 1 them is not false');
   if (find('service-related-pages').data.serviceSlug !== SERVICE_SLUG) bad.push('serviceSlug did not stick');
+  // #1060 —— 两个方向都读回来：第 1 条真的开着，而第 2 条真的还关着。只问前半句的话，
+  // 「全部开着」跟「只开了第一条」在这里长得一样，而那两种情况对 #1056 那条豁免的意思相反。
+  {
+    const faq = find('faq-accordion').data.items;
+    if (faq[0].defaultOpen !== true) bad.push('faq-accordion item 1 is not open');
+    if (faq[1].defaultOpen !== undefined) bad.push('faq-accordion item 2 was left open too — the closed arm is gone');
+  }
   const svc = readJson(path.join(contentDir, 'services.json'));
   if (!Array.isArray(svc[0].products) || !svc[0].products.length) bad.push('services.json products is still empty');
   const childPath = path.join(pagesDir, `${SERVICE_SLUG}-oil-change.json`);

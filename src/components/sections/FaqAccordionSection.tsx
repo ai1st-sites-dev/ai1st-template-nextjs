@@ -4,6 +4,12 @@ import type { BlockConfig } from '@/lib/types/config';
 interface FaqItem {
   question: string;
   answer: string;
+  /**
+   * #1060 — 这一条问答建出来就是打开的。**只有量主题的那个样例站会写它**，客人拿到的站一条都不写，
+   * 所以真实站的 FAQ 照旧全部关着（那是本票边界里点名不许动的产品行为）。
+   * 完整理由见下面文件头 §#1060。
+   */
+  defaultOpen?: boolean;
 }
 
 interface FaqAccordionSectionProps {
@@ -52,6 +58,32 @@ interface FaqAccordionSectionProps {
 //
 // 🔴 第三个钩子不是可选的 —— `blockAttrs('faq-accordion', block)`，不许写成
 // `blockAttrs('faq-accordion')`（#998 的 `data-block-layout`；`tsc` 看不见它，#1008 r1 因此被打回）。
+//
+// ══ #1060：`defaultOpen` 存在是为了让检查看得见被藏起来的答案 ═══════════════════════════════════
+// 上面那条「答案始终在 DOM 里」是 #1036 的话，而 #1056 之后它对**检查**不再成立：关着的 `<details>`
+// 里的字被判成客人读不到的正文（`theme-css-invariants.mjs:538-541` 那一步往上走问 `open`），于是
+// 一套主题表写 `.faq-accordion__answer { max-height: 3px; overflow: hidden }` 时，四道闸没有一道
+// 看得见它 —— 而真人点开 FAQ 看到的是一条 3px 的缝。#1056 那条豁免本身是对的（收起来的面板不该被
+// 报），缺的是**样例页上有没有一条是打开的**。
+//
+// 🔴 豁免的对象是「关着的 `<details>`」，不是这个块 —— 所以只要有一条带上 `open`，那一条的答案就
+//    重新是正文，主题再藏它就会被点名。**一条就够**：同一页上其余几条仍然关着，仍然被豁免，
+//    #1056 的结论一个字没退。
+//
+// 🔴 **只有量主题的那个样例站写这个字段**（`scripts/theme-css-invariants-sample-pages.js`），
+//    客人拿到的站一条都不写：
+//    · `blocks/faq-accordion.json` 里**故意不声明这个槽** —— 槽是 AI 建站提示词的来源
+//      （`scripts/lib/block-manifest.js:137` 把 slots 编成提示词里那行 `data: {…}`），声明了 AI 就会
+//      开始往真实站里写它，那正是本票边界写死不许发生的事。少一个槽不会让任何检查变松：
+//      `validateSite` 只查必填槽、role、block_layout 三样，从不拒绝多出来的键。
+//    · 没写这个字段时产出的页面与改动之前**逐字节相同**。判据是 AC5 的两次构建产物比对。
+//
+// 🔴 属性是**条件展开**进去的（`{...(item.defaultOpen ? { open: true } : {})}`），不是
+//    `open={item.defaultOpen ? true : undefined}` —— 后者写起来更顺眼，而它让 AC5 红了：`<details>`
+//    标签本身两边确实一模一样（React 对 `undefined` 的布尔属性一个字符都不写），但页面里那份
+//    RSC 负载会多带一个键，实测 `"className":"faq-accordion__item","open":"$undefined"`，
+//    allblocks.html 因此长了 72 字节。`undefined` 是**一个值**，不是「没有这个 prop」。
+//    条件展开时那个键根本不存在 ⟹ 18 个 HTML 文件逐字节相同。
 export default function FaqAccordionSection({ data, block }: FaqAccordionSectionProps) {
   return (
     <section {...blockAttrs('faq-accordion', block)} className="faq-accordion" aria-labelledby="faq-heading">
@@ -62,7 +94,7 @@ export default function FaqAccordionSection({ data, block }: FaqAccordionSection
         <p className="faq-accordion__sub">{data.subheadline}</p>
       )}
       {data.items?.map((item, index) => (
-        <details key={index} className="faq-accordion__item">
+        <details key={index} className="faq-accordion__item" {...(item.defaultOpen ? { open: true } : {})}>
           <summary className="faq-accordion__question">{item.question}</summary>
           <p className="faq-accordion__answer">{item.answer}</p>
         </details>
