@@ -22,9 +22,7 @@ const cp = require('child_process');
 const NEXT = path.resolve(__dirname, '..', '..');
 const { generateCandidates } = require('./generate');
 const { gateStatic, gateInvariants, gateSimilarity, gateHumanReview } = require('./gates');
-const {
-  shootCandidate, writeComparisonPage, whyNoAllBlocksPage, clearCandidateShots,
-} = require('./gallery');
+const { shootCandidate, writeComparisonPage } = require('./gallery');
 
 function arg(name, dflt) {
   const i = process.argv.indexOf(name);
@@ -191,13 +189,6 @@ async function main() {
   const port = Number(arg('--port', 18450));
   const galleryDir = arg('--gallery', '');
 
-  // #1061 —— 要出图就先确认样例站摆得出全部块，否则这一轮的图对大多数块是瞎的。问在建站之前：
-  // 一套候选要建站 + 起服务 + 截图几十秒，80 套就是一小时，而答案在第一秒就知道了。
-  if (galleryDir) {
-    const why = whyNoAllBlocksPage(siteDir);
-    if (why) { console.error(`🔴 ${why}`); process.exit(2); }
-  }
-
   const candidates = arg('--candidates', '')
     ? fs.readdirSync(arg('--candidates', '')).filter((f) => f.endsWith('.css')).map((f) => {
       const id = path.basename(f, '.css');
@@ -224,14 +215,6 @@ async function main() {
   let t1015Restore = null;
   try {
   for (const c of candidates) {
-    // 🔴 #1061 r2 —— 这一轮对这套 id 的起点：先清掉它上一轮留在 shots/ 里的图和读数。
-    //    必须在这里、在第一道闸之前 —— 下面任何一个分支都可能让这一轮**一张图都不拍**（静态闸没过、
-    //    样例站建不出来、建出来的不是这一份），而对照页问的是盘上有没有图。不清就是把上一轮的图和
-    //    上一轮那套表的色号摆给人审看，人审看不出来。理由整段在 `gallery.js` 的 clearCandidateShots。
-    if (galleryDir) {
-      const gone = clearCandidateShots(galleryDir, c.id);
-      if (gone.length) console.log(`🧹 ${c.id}：清掉上一轮留下的 ${gone.length} 个产物`);
-    }
     const gates = [];
     let shot = null;
     gates.push(gateStatic(c));
@@ -272,14 +255,7 @@ async function main() {
       gates.push(gateHumanReview(c, { galleryDir, shot }));
     }
     report.push({
-      id: c.id,
-      gates,
-      facts: shot && shot.facts,
-      // `shot` = shoot.mjs 退的是不是 0；`shots` = 盘上真有哪几张图。#1061 起这两个不许互相代替
-      //（理由在 gallery.js 的 card() 头上）—— 下面那句「N/M 套有图」问的是后者。
-      shot: !!(shot && shot.ok),
-      shots: (shot && shot.shots) || [],
-      shotLog: shot && shot.log,
+      id: c.id, gates, facts: shot && shot.facts, shot: !!(shot && shot.ok), shotLog: shot && shot.log,
     });
   }
   } finally {
@@ -288,8 +264,14 @@ async function main() {
 
   console.log('\n════ 流水线报告 ════');
   for (const r of report) {
+    // 🔴 「没量成」跟「停在这一道」要用不同的话说（#1062）。前者是关于这台机器的，后者是关于这套
+    //    主题的，而它们此前在这一行上逐字相同 —— 缺浏览器时 60-80 套会整批打成「停在②动态」，
+    //    人的第一反应是去查主题。判它的不是这里的措辞，是闸自己挂的那面 `instrument` 旗子。
+    const jammed = r.gates.find((g) => g.instrument);
     const stopped = r.gates.find((g) => g.pass === false);
-    console.log(`\n${r.id}: ${stopped ? `🔴 停在【${stopped.gate}】` : '✅ 前三道全过,等人审'}`);
+    console.log(`\n${r.id}: ${jammed
+      ? `🔴 没量成【${jammed.gate}】—— 这台机器缺东西，不是这套主题的问题`
+      : stopped ? `🔴 停在【${stopped.gate}】` : '✅ 前三道全过,等人审'}`);
     for (const g of r.gates) {
       const mark = g.pass === true ? '✅' : g.pass === false ? '🔴' : '⏸';
       console.log(`  ${mark} ${g.gate}${g.note ? ` —— ${g.note}` : ''}`);
@@ -297,7 +279,12 @@ async function main() {
     }
   }
   const passed = report.filter((r) => r.gates.every((g) => g.pass !== false)).length;
+  const jammed = report.filter((r) => r.gates.some((g) => g.instrument));
   console.log(`\n${passed}/${report.length} 套过了前三道闸。第四道是人。`);
+  if (jammed.length) {
+    console.log(`  🔴 其中 ${jammed.length} 套【没量成】—— 这台机器缺东西（每套下面写着缺什么）。`
+      + '这不是「这几套主题不合格」：把机器补上再跑一次，读数才存在。');
+  }
   // #1015：收工这一步要说出来 —— 沉默的清理和"根本没清理"在屏幕上长得一样。
   if (t1015Restore && t1015Restore.done.length) {
     console.log(`  样例站已收工：${t1015Restore.done.join('、')}`);
@@ -312,7 +299,7 @@ async function main() {
   }
   if (galleryDir) {
     const page = writeComparisonPage(galleryDir, report);
-    const shots = report.filter((r) => r.shots.length).length;
+    const shots = report.filter((r) => r.shot).length;
     console.log(`  对照图：${page}（${shots}/${report.length} 套有图）`);
     console.log('  请 Chris 翻这一页 —— 第四道闸没有机器能给的答案。');
   } else {
@@ -321,6 +308,14 @@ async function main() {
     //    照着跑真的会出一本图册，里面一张候选都没有，而翻图的人看不出来（QA1 r1 抓到的就是这个）。
     console.log('  没有传 --gallery ⟹ 这一轮没出图。要出图：--gallery <目录>，然后打开 <目录>/public/index.html');
   }
+  // 🔴 退出码要把「没量成」和「主题不合格」分开（#1062 AC2）：0 = 全过 · 1 = 至少一套真的不合格 ·
+  //    2 = 至少一套没量成。选 2 是因为这个仓库里 2 到处都是「读不到」：`theme-css-invariants.mjs`
+  //    自己（:60 / :176 / 加载仪器那一段）、`theme-css-invariants-all-sheets.sh`（#1009 立的）。
+  //    📌 说在明处：**这个文件里 2 现在有三个占用方** —— 这里、`:293` 样例站没能放回去、`:303`
+  //    未捕获异常。三个都是「这台机器上出了事，这一轮没有主题的裁定」，读的人不会被误导成
+  //    「主题不合格」；但拿 2 去反推是哪一种是不行的，要看上面打的那几行。
+  //    先判「没量成」再判「不合格」：一套都没量成时 `passed` 恒小于总数，那个 1 会盖掉真因。
+  if (jammed.length) process.exit(2);
   process.exit(passed === report.length ? 0 : 1);
 }
 

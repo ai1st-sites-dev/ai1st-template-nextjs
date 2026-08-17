@@ -69,6 +69,10 @@ function hooksDeclaredIn(sheetText) {
 
 const ok = (name, note) => ({ gate: name, pass: true, problems: [], note: note || '' });
 const bad = (name, problems) => ({ gate: name, pass: false, problems });
+// 🔴 这道闸**没量成** —— 跟「这套主题不合格」是两件事（#1062）。
+//    `pass` 仍然是 false：没取到读数不是通过，而 `pass: null`（④ 人审用的那个）会被 run.js 的
+//    `g.pass !== false` 算进「过了」。另挂一面 `instrument` 旗子，报告和退出码据它说真因。
+const jammed = (name, problems) => ({ gate: name, pass: false, instrument: true, problems });
 
 // 这棵树里的 theme-css-lint 会不会拒掉字面色值 —— 拿一个探针问一次，别问「文件在不在」。
 //
@@ -129,6 +133,23 @@ function gateInvariants(candidate, { outDir, baseUrl }) {
 
   // ②a 五条不变量 —— 真浏览器读渲染后的页面
   const r = cp.spawnSync(process.execPath, [INVARIANTS, baseUrl], { encoding: 'utf8' });
+  // 🔴 退出码 2 = 那个检查器说它没量成（#1062 让「这台机器没有浏览器」也落到这里，以前它是 1）。
+  //    当场返回，不往下走 ②b：②b 读的是文件、没有浏览器也答得出，但「②b 一格」不是②。
+  //    把没量成的那一格和量出来的那一格并进同一条 🔴，读的人分不出该去修机器还是修主题。
+  if (r.status === 2) {
+    // 那个检查器自己写的那几行照原样带出来（它说得出缺的是什么、去哪儿装），一行一条：
+    // 60-80 套一起跑时，把四句话挤成一行会让每一套都变成一堵墙。
+    //
+    // 🔴 r2 —— 取的是【头两行 + 末两行】，不是 `slice(-4)`。原来那个写法成立的前提是「那个检查器
+    //    永远只打四行」，而 #1062 r2 让它把仪器自己的报错原文一起带出来了（浏览器没下载时
+    //    playwright 印的是七行一个框）⟹ 末四行正好把**第一行**挤掉，而第一行才是
+    //    「🔴 cannot take the reading: …」这句身份声明。取两端的写法对行数不敏感。
+    const all = String(r.stderr || r.stdout || '').trim().split('\n')
+      .map((l) => l.trim()).filter(Boolean);
+    const said = all.length <= 5 ? all
+      : [...all.slice(0, 2), '…（完整的几行在那个检查器自己的输出里）', ...all.slice(-2)];
+    return jammed('② 动态', ['invariants: 读不到（退出码 2，仪器问题不是主题问题）', ...said]);
+  }
   if (r.status !== 0) {
     // 🔴 明细行的真实长相是【三个空格 + 一句话】（`theme-css-invariants.mjs:425` 打的是 `   ${p}`），
     //    既没有 `·` 也没有 🔴。第一版按「行首是 · 或含 🔴」过滤 ⟹ 一条明细都匹配不上，报告里只剩
@@ -140,16 +161,11 @@ function gateInvariants(candidate, { outDir, baseUrl }) {
     const lines = head >= 0
       ? [out[head], ...out.slice(head + 1)].map((l) => l.trim()).filter(Boolean)
       : [];
-    // 🔴 退出码 2 是「读不到」，不是「不合格」——把它跟 1 分开报，并且把 stderr 带上：
-    //    第一版只报「退出码 2」，而那正是仪器自己坏了的那一格（本票实测踩过：报告里三套全是
-    //    「退出码 2」，人看不出是主题的问题还是探针的问题）。
-    if (r.status === 2) {
-      problems.push('invariants: 读不到（退出码 2，仪器问题不是主题问题）—— '
-        + String(r.stderr || r.stdout || '').trim().split('\n').slice(-3).join(' / '));
-    } else {
-      problems.push(...(lines.length ? lines.map((l) => `invariants: ${l.trim()}`)
-        : [`invariants: 退出码 ${r.status}`]));
-    }
+    // 🔴 兜底这一句留着，不许换成「一定是仪器坏了」：它管的是**我们没预料到的**失败方式，
+    //    而现在能说出真因的那两支（退出码 2 在上面、明细行在这里）都不吃它。删了它，下一种未知
+    //    失败就变成静默。这一支仍然算「这套主题没过②」—— 不知道是什么就不该替它认领一个身份。
+    problems.push(...(lines.length ? lines.map((l) => `invariants: ${l.trim()}`)
+      : [`invariants: 退出码 ${r.status}`]));
   }
 
   // ②b 🔴 本票自己那条：页面上出现的钩子，必须在【这套主题自己那份 CSS】里有规则。

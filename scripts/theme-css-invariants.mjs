@@ -43,20 +43,94 @@
 import { createRequire } from 'node:module';
 import { PLAYWRIGHT_MODULE } from './theme-gallery/paths.mjs';
 
+// 🔴 LOADING THE INSTRUMENT IS ITS OWN STEP, AND IT ANSWERS 2 (#1062).
+// Left to Node, a module that will not load throws before a line of this file runs, and Node's own
+// exit code for that is 1 — the same 1 that :2035 uses for "a theme breaks an invariant". The
+// automatic caller `theme-pipeline/gates.js` reads that 1 and prints the candidate as having stopped
+// at gate ②, which is word for word what a failing theme looks like; `theme-css-invariants-all-
+// sheets.sh:293-297` reads it as `fail=1`, "an invariant does not hold". Neither is a statement this
+// file is entitled to make when it never opened a browser. And a control experiment cannot separate
+// them either: with no playwright, the arm with a broken sheet and the arm without read the same.
+// The sibling shell caller has had the guard since #1009 (`:52-59`, existence-checked before it
+// starts); this is that guard living where every caller gets it, and asked of the load itself rather
+// than of a path — a module that exists and still will not load is the same "no reading" to a caller.
+//
+// 🔴 r2 —— "NO BROWSER HERE" HAS MORE THAN ONE SHAPE, AND ONLY ONE OF THEM IS AN IMPORT (#1062 QA3).
+// The first version guarded the `import` and stopped there. Two other shapes reach the same machine
+// and were still exiting 1, i.e. still being printed as "this theme stopped at gate ②":
+//   · the package is installed and the BROWSER ITSELF is not — playwright pins its browsers by
+//     version under ~/.cache/ms-playwright, so every machine that upgraded the package without
+//     re-running `npx playwright install` is in this state. It is the common one, not a corner case,
+//     and it fails at `chromium.launch()`, outside the import.
+//   · PLAYWRIGHT_MODULE points at a file that exists and is not playwright: the import succeeds and
+//     `chromium` is undefined, so the TypeError also lands after the guarded step.
+// ⟹ the guarded step is "get a browser and a page open", not "get the module in". Everything from
+//    here to the first reading goes through `load`.
+const noReading = (what, detail, hint) => {
+  console.error(`🔴 cannot take the reading: ${what}`);
+  // Every line of the original message, not just the first: playwright's own answer to "the browser
+  // is not downloaded" is a seven-line box whose useful sentence (`npx playwright install`) is in the
+  // middle of it. Printing `.split('\n')[0]` threw away the one line the reader needed.
+  // The box drawing goes: it is the same sentences with a frame around them, and the frame survives
+  // being re-indented here about as well as any ASCII art quoted inside other output.
+  const lines = String(detail).split('\n')
+    .map((l) => l.replace(/^\s*[║╔╚╠]\s?/, '').replace(/\s?[║╗╝╣]\s*$/, '').trim())
+    .filter((l) => l && !/^[═╔╚╗╝║╠╣─│┌┐└┘\s]+$/.test(l));
+  for (const line of lines.slice(0, 12)) console.error(`   ${line}`);
+  console.error(`   ${hint}`);
+  console.error('   Nothing was judged. This says something about this machine, not about any theme.');
+  process.exit(2);
+};
+
+const load = async (what, how, hint) => {
+  try {
+    return await how();
+  } catch (e) {
+    return noReading(what, (e && e.message) || e, hint);
+  }
+};
+
 // theme-css-lint.js is CommonJS. `createRequire` rather than a named import from it: named imports
 // out of CJS work only when Node's lexer can see the shape of `module.exports`, and that is a
 // property of how that file happens to be written today, not something this file should depend on.
-const { HOOK_CLASSES } = createRequire(import.meta.url)('./theme-css-lint.js');
+const { HOOK_CLASSES } = await load(
+  'scripts/theme-css-lint.js would not load (it brings postcss in with it)',
+  () => createRequire(import.meta.url)('./theme-css-lint.js'),
+  'run `npm ci` in templates/nextjs.',
+);
 // 🔴 #1038 r3 — 被量的选择器搬去 `scripts/theme-text-targets.js`，因为现在有第二个消费者：
 // `scripts/theme-presets.test.js` 在纯值层上判「一组配色要对哪些字负责」。两边各留一份的失败方向
 // 是变绿（少量几个选择器，报告照样 ✅），所以这张表只留一处定义。三张单子各自的理由跟着搬过去了。
-const { TEXT_TARGETS, MOVED_TEXT_TARGETS, CONTROL_TARGETS } =
-  createRequire(import.meta.url)('./theme-text-targets.js');
+// 🔴 #1062 —— 它也走 `load`：这一份加载不起来，这个文件同样一个读数都取不到，那是机器的事不是主题的事。
+const { TEXT_TARGETS, MOVED_TEXT_TARGETS, CONTROL_TARGETS } = await load(
+  'scripts/theme-text-targets.js would not load',
+  () => createRequire(import.meta.url)('./theme-text-targets.js'),
+  'run `npm ci` in templates/nextjs.',
+);
 
-const { chromium } = await import(PLAYWRIGHT_MODULE);
+const { chromium } = await load(
+  `there is no browser here — playwright would not load from ${PLAYWRIGHT_MODULE}`,
+  () => import(PLAYWRIGHT_MODULE),
+  'install it where the e2e suite keeps it (cd tests/e2e && npm ci && npx playwright install chromium),'
+  + ' or point PLAYWRIGHT_MODULE at one.',
+);
+// It imported. That is not the same as it being playwright: point PLAYWRIGHT_MODULE at any other
+// module and this is undefined, and the failure surfaces two hundred lines down as a TypeError with
+// Node's exit code 1 — a number this file reserves for "a theme breaks an invariant".
+if (!chromium || typeof chromium.launch !== 'function') {
+  noReading(
+    `${PLAYWRIGHT_MODULE} loaded, but it is not playwright — it exports no chromium.launch()`,
+    `typeof chromium = ${typeof chromium}`,
+    'point PLAYWRIGHT_MODULE at a playwright build, or unset it to use the one the e2e suite keeps.',
+  );
+}
 // jimp 0.22 is CommonJS with a default export (`Jimp.read`). Named-importing `{ Jimp }` gets
 // undefined here and the failure surfaces a hundred lines later as "cannot read read of undefined".
-const Jimp = (await import('jimp')).default;
+const Jimp = (await load(
+  'jimp would not load',
+  () => import('jimp'),
+  'run `npm ci` in templates/nextjs.',
+)).default;
 
 const baseUrl = process.argv[2];
 if (!baseUrl) {
@@ -164,9 +238,21 @@ function parseRgb(str) {
 const problems = [];
 const readings = [];
 
-const browser = await chromium.launch();
-const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
-const page = await ctx.newPage();
+// 🔴 #1062 r2 —— opening the browser is part of loading the instrument, so it answers 2 like the rest.
+// This is where "the package is here, the browser is not" lands (see the note on `noReading`), and
+// left alone it is Node's 1 — indistinguishable from a theme that breaks an invariant. The context
+// and the page are inside the same step on purpose: from a caller's point of view all three are one
+// question, "is there a browser on this machine", and any of them failing means the same nothing.
+const { browser, page } = await load(
+  'the browser will not start — playwright is installed here, its browser is not',
+  async () => {
+    const b = await chromium.launch();
+    const c = await b.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
+    return { browser: b, page: await c.newPage() };
+  },
+  'download it: cd tests/e2e && npx playwright install chromium'
+  + ' (playwright pins its browsers per version, so an upgrade needs this run again).',
+);
 const res = await page.goto(baseUrl, { waitUntil: 'networkidle', timeout: 30_000 }).catch((e) => {
   console.error(`🔴 could not load ${baseUrl}: ${e.message}`);
   return null;
