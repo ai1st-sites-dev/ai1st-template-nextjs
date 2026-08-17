@@ -18,6 +18,8 @@ const { parseRefSections, parseRefNavLinks } = require('./ref-section-mapping');
 // lives in scripts/themes.js and is the single source of truth. sync-config.js reads the
 // same file at build time.
 const { themes, themeStyle, pickThemeForIndustry, rotationIndexFromSiteId } = require('./themes');
+// #1064: 主题的形态样式表叫什么 —— 判据只在那个文件里，见它开头那段注释。
+const { sheetNameForTheme } = require('./theme-sheet');
 // #999 — 块清单（槽 / 形态 / 外观词 / 角色兜底 / 哪些行业需要它）住在 blocks/*.json，34 份。
 // 下面提示词里那两段块清单**从它们生成**，AI 吐回来之后的校验读的也是同一份 —— 在这之前，
 // 「hero 有哪些槽」只存在于这个文件的散文里，填错没人管。
@@ -887,9 +889,21 @@ async function main() {
   // changed themes, so the registry's layout preferences stay out of the build and the page
   // JSON's own variants keep deciding — same output as before this file knew about themes.
   // The Edit page's "change theme" flow (#925) rewrites this file with applied: true.
+  //
+  // 🔴 #1064: 顺带记下**这套主题自己那张形态样式表**（`public/themes/<themeId>.css`）。在这之前
+  // 没有任何代码往 `css` 写值，所以每个站建出来都没有形态规则 —— 池子里的皮到不了任何一个站。
+  // 配对靠同名，判据在 `scripts/theme-sheet.js`（它也解释了为什么这一问不能在这里就地写成一行）。
+  // 🔴 没有同名表的主题**整个字段不写**，产出的 theme.json 与这张票之前逐字节相同 —— 今天注册表
+  // 那 30 套一套都没有自己的表，所以本行今天不改变任何一个站；#1016 把 80 套（表与 id 同名）放进
+  // 注册表那一刻它才开始有值。
+  const themeSheet = sheetNameForTheme(themeName, rootDir);
   fs.writeFileSync(
     path.join(siteDir, 'theme.json'),
-    JSON.stringify({ themeId: themeName, applied: false }, null, 2) + '\n'
+    JSON.stringify(
+      themeSheet
+        ? { themeId: themeName, applied: false, css: themeSheet }
+        : { themeId: themeName, applied: false },
+      null, 2) + '\n'
   );
 
   // ── Skip AI mode: use demo config ──
