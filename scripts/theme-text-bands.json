@@ -1,0 +1,175 @@
+{
+  "sheets": {
+    "hero-media-left": {
+      "md5": "fdf91102c5f1bfa0dfe4d9d340336734",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "measuredOn": "http://127.0.0.1:8730",
+      "targets": {
+        ".hero__title": {
+          "tmin": 0.4399,
+          "tmax": 0.7156,
+          "angle": 140,
+          "gradientBox": [
+            1440,
+            904
+          ],
+          "textBox": [
+            544,
+            126
+          ],
+          "paintedBy": "hero",
+          "pages": [
+            "/"
+          ]
+        },
+        ".hero__sub": {
+          "tmin": 0.5109,
+          "tmax": 0.7414,
+          "angle": 140,
+          "gradientBox": [
+            1440,
+            904
+          ],
+          "textBox": [
+            544,
+            31
+          ],
+          "paintedBy": "hero",
+          "pages": [
+            "/"
+          ]
+        },
+        ".cta-banner__headline": {
+          "tmin": 0.0661,
+          "tmax": 0.5594,
+          "angle": 120,
+          "gradientBox": [
+            1440,
+            271
+          ],
+          "textBox": [
+            758,
+            51
+          ],
+          "paintedBy": "cta-banner",
+          "pages": [
+            "/"
+          ]
+        },
+        ".cta-banner__desc": {
+          "tmin": 0.1018,
+          "tmax": 0.5331,
+          "angle": 120,
+          "gradientBox": [
+            1440,
+            271
+          ],
+          "textBox": [
+            672,
+            29
+          ],
+          "paintedBy": "cta-banner",
+          "pages": [
+            "/"
+          ]
+        },
+        ".page-header__title": {
+          "tmin": 0.091,
+          "tmax": 0.8758,
+          "angle": 140,
+          "gradientBox": [
+            1440,
+            262
+          ],
+          "textBox": [
+            1312,
+            53
+          ],
+          "paintedBy": "page-header",
+          "pages": [
+            "/about.html",
+            "/services.html",
+            "/quote.html",
+            "/contact.html"
+          ]
+        },
+        ".page-header__sub": {
+          "tmin": 0.1405,
+          "tmax": 0.4707,
+          "angle": 140,
+          "gradientBox": [
+            1440,
+            262
+          ],
+          "textBox": [
+            544,
+            29
+          ],
+          "paintedBy": "page-header",
+          "pages": [
+            "/about.html",
+            "/services.html",
+            "/quote.html",
+            "/contact.html"
+          ]
+        }
+      }
+    },
+    "hero-media-right": {
+      "md5": "167ca6626a69d4ddf70bd58b152afbce",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "measuredOn": "http://127.0.0.1:8730",
+      "targets": {}
+    },
+    "hero-media-top": {
+      "md5": "3033bf6e432a5ffa821936d1d3d66cbe",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "measuredOn": "http://127.0.0.1:8730",
+      "targets": {
+        ".cta-banner__headline": {
+          "tmin": 0.2691,
+          "tmax": 0.6614,
+          "angle": 135,
+          "gradientBox": [
+            1440,
+            314
+          ],
+          "textBox": [
+            640,
+            48
+          ],
+          "paintedBy": "cta-banner",
+          "pages": [
+            "/"
+          ]
+        },
+        ".cta-banner__desc": {
+          "tmin": 0.3262,
+          "tmax": 0.6716,
+          "angle": 135,
+          "gradientBox": [
+            1440,
+            314
+          ],
+          "textBox": [
+            576,
+            30
+          ],
+          "paintedBy": "cta-banner",
+          "pages": [
+            "/"
+          ]
+        }
+      }
+    }
+  }
+}

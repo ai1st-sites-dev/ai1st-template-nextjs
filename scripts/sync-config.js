@@ -17,6 +17,8 @@ const {
   readSiteBlocks, normalizeLocalePages, loadBlockManifests, validateBlockLayouts, MANIFEST_DIR,
 } = require('./blocks');
 const tweakLib = require('./tweaks');
+// #1038 —— 站主挑的绝对值（一组配色 / 一档圆角 / 一对字体）。跟 tweaks 分两个文件的理由写在那边的文件头。
+const presetLib = require('./theme-presets');
 const { buildThemeCss } = require('./theme-css');
 // #1026 — sitemap 的 <lastmod> 要写「这一页上次什么时候变的」，不是构建时刻。取值规则整段写在那个文件头上。
 const { createLastModifiedResolver } = require('./lib/page-lastmod');
@@ -854,12 +856,12 @@ const configDataPath = path.join(rootDir, 'src', 'lib', 'config-data.ts');
 // `:root` 默认值上。**两者不是同一组数**：30 套主题里只有 3 套的设定恰好等于默认值，
 // 其余 27 套不是（实测：`round/airy/pill` 5 套、`sharp/compact/square` 5 套…）。只读 globals.css
 // 的话，一个 `radius: 'round'`（0.5rem）的站会被按 0.25rem 去乘 —— 圆角不是变大，是**变小一半**。
-/** 再读一次 theme.json，只为拿 `tweaks`（上面那两个读它的函数各自只取自己那一个键）。 */
-function readTweaks() {
+/** 再读一次 theme.json，只取一个键（上面那两个读它的函数各自也只取自己那一个）。 */
+function readThemeKey(key) {
   const themePath = path.join(siteDir, 'theme.json');
   if (!fs.existsSync(themePath)) return undefined;
   try {
-    return JSON.parse(fs.readFileSync(themePath, 'utf-8')).tweaks;
+    return JSON.parse(fs.readFileSync(themePath, 'utf-8'))[key];
   } catch {
     return undefined;   // 不是合法 JSON 的情况上面 readAppliedThemeId 已经报过并退出了
   }
@@ -922,7 +924,7 @@ function baseVarsForTweaks() {
 }
 
 {
-  const tweaks = readTweaks();
+  const tweaks = readThemeKey('tweaks');
   const problems = tweakLib.validateTweaks(tweaks);
   if (problems.length) {
     console.error(`site/theme.json 的 tweaks 不合法（${problems.length} 条）：`);
@@ -931,9 +933,23 @@ function baseVarsForTweaks() {
       + Object.entries(tweakLib.TWEAK_BOUNDS).map(([k, b]) => `${k} ∈ [${b.min}, ${b.max}]`).join(' · '));
     process.exit(1);
   }
+  // ── #1038 站主挑的绝对值 ────────────────────────────────────────────────────────────────────
+  // 跟上面那三个偏移写进同一份 custom.css，叠的次序是「先换基准、再施加偏移」（见
+  // tweaks.js §buildCustomCss）。认不出的名字在这里就退出 1，理由跟 tweaks 一样：这一层的
+  // 失败形态是「设了但页面没变」，静默忽略等于把它做成常态。
+  const presets = readThemeKey('presets');
+  const presetProblems = presetLib.validatePresets(presets);
+  if (presetProblems.length) {
+    console.error(`site/theme.json 的 presets 不合法（${presetProblems.length} 条）：`);
+    for (const p of presetProblems) console.error(`  · ${p}`);
+    console.error('  · 可选的：'
+      + Object.entries(presetLib.presetOptions()).map(([k, v]) => `${k} ∈ {${v.join(', ')}}`).join(' · '));
+    process.exit(1);
+  }
+  const absolute = presetLib.presetVars(presets);
   const customCssPath = path.join(siteDir, 'custom.css');
   const base = baseVarsForTweaks();
-  const css = tweakLib.buildCustomCss(base.vars, tweaks);
+  const css = tweakLib.buildCustomCss(base.vars, tweaks, absolute);
   // 🔴 空的时候【删掉文件】，不是写一份 0 字节的进去：AC1 要求「tweaks 全为 0 的站与不带 tweaks 的
   // 站产物逐字节相同」，而这两条路只有在「都没有这个文件」时才真的收敛 —— 一个从没有过 tweaks 的站
   // 根本没有 site/custom.css，#1002 于是给它写那份占位注释；留一个 0 字节文件会走到另一支。
@@ -942,11 +958,12 @@ function baseVarsForTweaks() {
   } else if (css !== (fs.existsSync(customCssPath) ? fs.readFileSync(customCssPath, 'utf-8') : '')) {
     fs.writeFileSync(customCssPath, css);
   }
+  const chose = Object.entries(absolute.chose).map(([k, v]) => `${k}=${v}`).join(' · ');
   console.log(css
     ? `  Tweaks: ${Object.entries(tweakLib.withDefaults(tweaks))
-      .map(([k, v]) => `${k}=${v}`).join(' · ')} → site/custom.css (${css.length} bytes)`
-      + `; 圆角/留白的基准取自 ${base.source}`
-    : '  Tweaks: none — 不产出 site/custom.css（这个站与本票之前逐字节相同）');
+      .map(([k, v]) => `${k}=${v}`).join(' · ')} · Presets: ${chose || 'none'}`
+      + ` → site/custom.css (${css.length} bytes); 圆角/留白的基准取自 ${base.source}`
+    : '  Tweaks: none · Presets: none — 不产出 site/custom.css（这个站与 #1006 之前逐字节相同）');
 }
 
 // custom.css —— 这个站自己的微调，送进页面的那一份。**永远写出来一份**：页面无条件引它，缺文件

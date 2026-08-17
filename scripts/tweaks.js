@@ -4,8 +4,14 @@
 // 让它们看起来不重样，而偏移**只碰 CSS 变量、不碰布局**（布局一动就要重跑五条不变量，
 // 而 tweaks 是每站一次、全程无人审）。
 //
-// 🔴 一律是相对偏移，不许绝对值。理由是换主题那条流程：整份换掉 theme.css 之后，同样的偏移
-// 套到新皮上仍然有意义；绝对值会把新主题的配色覆盖掉 = 等于没换。
+// 🔴 这三个旋钮一律是相对偏移，不许绝对值。理由是换主题那条流程：整份换掉 theme.css 之后，同样的
+// 偏移套到新皮上仍然有意义；绝对值会把新主题的配色覆盖掉 = 等于没换。
+//
+// 📌 #1038 起 custom.css 里**也可以有绝对值**（站主选的一组配色 / 一档圆角 / 一对字体），但那一层
+// 住在 `scripts/theme-presets.js`，**不在本文件的 `TWEAK_BOUNDS` 里** —— 那张表的每一项是数值
+// 区间，装不下一个名字。本文件对它的全部认识只有 `buildCustomCss` 的第三个参数：一组「先把基准
+// 换成这个值」的覆盖，加一条要写在第一行的字体表地址。理由（含把名字塞进 TWEAK_BOUNDS 会同时
+// 发生的五件事）写在 theme-presets.js 的文件头。
 //
 // 🔴 走的是【G】：生成时把偏移算成具体值写进 custom.css，换主题时拿新基准重算一遍
 // （作者 2026-08-14 定）。曾经想让 CSS 自己算（`hsl(from var(--x) calc(h - 8) s l)` 写回
@@ -26,10 +32,13 @@
  *
  * 📌 AC4 那一格（拿实证那几套主题在每个 tweak 的两端各建一次样例站、跑一遍不变量检查）仍然要跑，
  * 但它证明的是「这几套皮在两端没坏」，**不是**「整个区间都安全」—— 后者靠的是上面那条性质。
- * 🔴 也要知道那份检查量的是什么：`theme-css-invariants.mjs` 量的是 `TEXT_TARGETS`
- * （`.hero__title` / `.hero__sub`，首页必须有）加上 #1046 条 9 补的 `MOVED_TEXT_TARGETS`
- * （cta-banner 和 page-header 的标题/副标题，在哪一页出现就在那一页量）。**按钮上的字仍然不在里面**
- * —— 按钮只被量了触摸目标够不够大（`.hero__cta`），没被量对比度。QA1 抓到的正是这个盲区。
+ * 🔴 也要知道那份检查今天量的是什么：`theme-css-invariants.mjs` 量三张单子 —— `TEXT_TARGETS`
+ * （`.hero__title` / `.hero__sub`，首页必须有）、#1046 条 9 补的 `MOVED_TEXT_TARGETS`（cta-banner 和
+ * page-header 的标题/副标题，在哪一页出现就在那一页量）、以及 **#1038 补的 `CONTROL_TARGETS`**
+ * （`.btn-primary` / `.btn-accent` / `.announcement-bar__link` / `.services-nav__link`，同样是在哪出现
+ * 就在哪量，一个都没量到算 finding）。
+ * 📌 这里原来写着「按钮上的字不在里面」—— **那句话在 #1038 之前是对的**，QA1 在 #1006 抓到的就是它。
+ * 留着这段是因为它解释了上面那段为什么要费劲把亮度拉回去：当时那个盲区是真的。
  *
  * 📌 `fontScale` 不在这里：全仓没有任何字号变量可以缩放（字号今天走 Tailwind 的 text-* 工具类），
  * 所以它阻塞在「没有字号 token」上，等排版 token 立项时另开票补（作者 2026-08-14 定，走 B）。
@@ -145,9 +154,10 @@ function isNeutral(tweaks) {
 //     hueShift  -8 → #257deb          4.03:1   ❌   ← 这还是本票正文自己举的例子
 //   royal-purple #9333ea 5.38:1  →  hueShift +15 → #c133ea  4.26:1  ❌
 //
-// 后果落在**按钮**上（`.btn-primary` 是白字压 `--color-primary-500`），而进池那道检查只量
+// 后果落在**按钮**上（`.btn-primary` 是白字压 `--color-primary-500`），而当时进池那道检查只量
 // `.hero__title` / `.hero__sub` 两个选择器 ⟹ 27 个边界读数全绿，却证明不了「在允许的整个区间内
-// 这套皮都安全」。
+// 这套皮都安全」。（那个盲区 #1038 补上了 —— 但下面这条「把亮度拉回去」的做法照旧承重：
+// 它让性质在**构造上**成立，而检查只在被跑到的那些页面上成立。）
 //
 // 所以改成：转完色相之后，二分 HSL 的 L，把 WCAG 相对亮度拉回原来那个值。为什么这条路比「把区间
 // 收窄」好 —— **它把那个性质变成结构上成立的，而不是在几套主题的两个端点上量出来的**：
@@ -298,31 +308,64 @@ function tweakFor(name) {
 }
 
 /**
- * 基准变量 + tweaks → custom.css 的字节。
+ * 基准变量 + tweaks（+ #1038 的绝对项）→ custom.css 的字节。
+ *
+ * 两层怎么叠：**先把基准换成绝对值，再在它上面施加偏移**。选了一组配色又拖了色相滑块，得到的是
+ * 「这组配色转了 N 度」—— 反过来（先偏移再覆盖）会让滑块变成空操作，那是老板拖了没反应。
+ *
+ * 🔴 写出来的判据是「跟 theme.css 说的不一样」，不是「跟基准不一样」：custom.css 的全部作用就是
+ * 覆盖 theme.css，跟它一字不差的一行写进去只是噪音。所以下面比的是 `next !== value`，其中
+ * `value` 恒是**主题给的那个值**，而 `from` 才是算的时候用的起点。
  *
  * @param {Array<[string,string]>} baseVars 基准值，形如 [['--color-primary-500', '#2563eb'], …]
  *        —— 它就是「当前这套皮算出来的那一组」，换主题时拿新的一组再调一次本函数（走 G）。
  * @param {object|null|undefined} tweaks
- * @returns {string} custom.css 的完整内容；中性 tweaks 返回空串（AC1 那格要求「全为 0 时与不带
- *        tweaks 的产物逐字节相同」，空串是唯一能保证这一点的产出）。
+ * @param {{vars?: Array<[string,string]>, fontImport?: string|null}} [absolute]
+ *        #1038 的绝对项，由 `scripts/theme-presets.js` 的 `presetVars()` 算出来。
+ *        · `vars` —— 直接写死的值（配色 / 圆角 / 字体族）。名字不在 `baseVars` 里的照样写出去
+ *          （比如没写风格设定的站没有 `--radius-button` 这个基准，而圆角档要给它一个值）。
+ *        · `fontImport` —— 字体表地址。🔴 它必须是文件的**第一行**：CSS 规定 `@import` 只能出现
+ *          在样式表最前面，排到 `:root {` 后面浏览器整条丢掉，症状是「字体没换」而不是报错。
+ * @returns {string} custom.css 的完整内容；中性 tweaks 且没有绝对项时返回空串（AC1 那格要求
+ *        「全为 0 时与不带 tweaks 的产物逐字节相同」，空串是唯一能保证这一点的产出）。
  */
-function buildCustomCss(baseVars, tweaks) {
-  if (isNeutral(tweaks)) return '';
+function buildCustomCss(baseVars, tweaks, absolute) {
+  const overrides = new Map((absolute && absolute.vars) || []);
+  const fontImport = (absolute && absolute.fontImport) || null;
+  if (isNeutral(tweaks) && !overrides.size && !fontImport) return '';
   const t = withDefaults(tweaks);
   const out = [];
-  for (const [name, value] of baseVars) {
+  const written = new Set();
+  const emit = (name, from, themeValue) => {
     const which = tweakFor(name);
-    if (!which) continue;
-    let next = value;
-    if (which === 'hueShift') next = shiftHue(value, t.hueShift);
-    else if (which === 'radiusScale') next = scaleLength(value, t.radiusScale);
-    else if (which === 'densityScale') next = scaleLength(value, t.densityScale);
-    if (next !== value) out.push(`  ${name}: ${next};`);
+    let next = from;
+    if (which === 'hueShift') next = shiftHue(from, t.hueShift);
+    else if (which === 'radiusScale') next = scaleLength(from, t.radiusScale);
+    else if (which === 'densityScale') next = scaleLength(from, t.densityScale);
+    if (next !== themeValue) { out.push(`  ${name}: ${next};`); written.add(name); }
+  };
+  for (const [name, value] of baseVars) {
+    if (!tweakFor(name) && !overrides.has(name)) continue;
+    emit(name, overrides.has(name) ? overrides.get(name) : value, value);
   }
-  if (!out.length) return '';
+  // 绝对项里那些【基准里根本没有】的变量。`--radius-button` 是常客：没写风格设定的站，
+  // globals.css 的 `:root` 里没有它，而圆角档必须给它一个值，否则「胶囊按钮」这一档表达不出来。
+  for (const [name, value] of overrides) {
+    if (written.has(name)) continue;
+    if (baseVars.some(([n]) => n === name)) continue;   // 上面那轮见过、只是算出来跟主题一样
+    emit(name, value, null);
+  }
+  if (!out.length && !fontImport) return '';
   const said = TWEAK_KEYS.filter((k) => t[k] !== NEUTRAL[k]).map((k) => `${k}=${t[k]}`).join(' · ');
-  return `/* site-tweaks: v1 — ${said} (#1006). 生成物：改 site/theme.json 的 tweaks 再重新生成，`
-    + `别手改这个文件。 */\n:root {\n${out.join('\n')}\n}\n`;
+  const chose = (absolute && absolute.chose) || {};
+  const chosen = Object.keys(chose).map((k) => `${k}=${chose[k]}`).join(' · ');
+  const head = [chosen && `${chosen} (#1038)`, said && `${said} (#1006)`].filter(Boolean).join(' · ');
+  const lines = [];
+  if (fontImport) lines.push(`@import url("${fontImport}");`);
+  lines.push(`/* site-tweaks: v1 — ${head}. 生成物：改 site/theme.json 的 tweaks / presets `
+    + '再重新生成，别手改这个文件。 */');
+  if (out.length) lines.push(`:root {\n${out.join('\n')}\n}`);
+  return `${lines.join('\n')}\n`;
 }
 
 module.exports = {

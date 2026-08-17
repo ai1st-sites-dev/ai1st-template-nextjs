@@ -47,6 +47,11 @@ import { PLAYWRIGHT_MODULE } from './theme-gallery/paths.mjs';
 // out of CJS work only when Node's lexer can see the shape of `module.exports`, and that is a
 // property of how that file happens to be written today, not something this file should depend on.
 const { HOOK_CLASSES } = createRequire(import.meta.url)('./theme-css-lint.js');
+// 🔴 #1038 r3 — 被量的选择器搬去 `scripts/theme-text-targets.js`，因为现在有第二个消费者：
+// `scripts/theme-presets.test.js` 在纯值层上判「一组配色要对哪些字负责」。两边各留一份的失败方向
+// 是变绿（少量几个选择器，报告照样 ✅），所以这张表只留一处定义。三张单子各自的理由跟着搬过去了。
+const { TEXT_TARGETS, MOVED_TEXT_TARGETS, CONTROL_TARGETS } =
+  createRequire(import.meta.url)('./theme-text-targets.js');
 
 const { chromium } = await import(PLAYWRIGHT_MODULE);
 // jimp 0.22 is CommonJS with a default export (`Jimp.read`). Named-importing `{ Jimp }` gets
@@ -68,10 +73,6 @@ const pathOf = (u) => {
 
 const MIN_CONTRAST = 4.5;
 const MIN_BODY_PX = 14;
-// The text elements this checks, and why these: the headline and the sub are the hero's own words,
-// and `body` is the page's baseline — a sheet is allowed to touch all three (`.hero__title`,
-// `.hero__sub`, `body` are contract hooks), so all three can be broken by one.
-const TEXT_TARGETS = ['.hero__title', '.hero__sub'];
 
 function srgbToLinear(c) {
   const s = c / 255;
@@ -247,33 +248,21 @@ async function withoutWords(el, shoot) {
 }
 
 // ── ① the words are on the screen, and readable where they are ─────────────────────────────────
-// 🔴 #1046 条 9 — IT IS NOT ONLY THE HERO ANY MORE. `TEXT_TARGETS` above is the pair that must be on
-// the page every other first-page check is taken on, and it stayed hero-only while phase 2 moved
-// block after block into the theme's hands. cta-banner (#1018) and page-header (#1019) carry a
-// headline and a subtitle each, a sheet may colour all four, and #966 — the failure this check
-// exists for — was white text on a white background. Nothing was looking at them.
-//
-// Two lists rather than one, because the two questions are different:
-//   · TEXT_TARGETS — must be here. Missing is a finding (see the comment in `measureText`).
-//   · MOVED_TEXT_TARGETS — measured wherever they turn up. `.page-header__title` is on no home page
-//     by construction (it is the sub-pages' heading), so requiring it on the first page would be a
-//     permanent red about the sample site rather than about any sheet. They are measured on the
-//     other pages too, in the ⑤b loop below, and what was never found anywhere is PRINTED — an
-//     unmeasured hook that says nothing is how this check would grow a hole again.
-const MOVED_TEXT_TARGETS = [
-  '.cta-banner__headline', '.cta-banner__desc',
-  '.page-header__title', '.page-header__sub',
-];
 const movedTextMeasured = new Map();   // selector → [where …]
 // One target on the page the browser is looking at now. `required` decides what "it is not here"
 // means; everything after that is the same measurement either way.
+// 🔴 #1038 把第三张单子接进来：CONTROL_TARGETS（按钮和链接）。它跟 MOVED_TEXT_TARGETS 一样是
+//    「在哪出现就在哪量」，所以走的是同一个 `required = false`；不同的是**它自己那条兜底**（见下面
+//    ① 末尾那一段）：一个都没量到是 finding，不是通过。为此这个函数返回布尔 —— 量成了 true，
+//    早退的每一条 false。#1046 与 #1038 各自把这个循环抽成过函数（`measureText` / `measureContrast`），
+//    合并时留 main 已经上线的这一份，本票那份只贡献返回值和第三张单子。
 const measureText = async (sel, where, required) => {
   const el = page.locator(sel).first();
   if ((await el.count()) === 0) {
     // 🔴 A missing target is NOT a pass. This checker's whole job is to fail loudly, and "the
     // element I was going to measure is not there" is the shape a vacuous green takes.
     if (required) problems.push(`contrast: "${sel}" is not on ${where} — nothing was measured for it`);
-    return;
+    return false;
   }
   if (!required) {
     if (!movedTextMeasured.has(sel)) movedTextMeasured.set(sel, []);
@@ -290,13 +279,13 @@ const measureText = async (sel, where, required) => {
     problems.push(`contrast: "${sel}" on ${where} — this checker cannot read its computed colour, so no ratio was `
       + `measured (the value is ${colorRaw}). Its box is fine`
       + `${box ? ` (${Math.round(box.width)}×${Math.round(box.height)}px)` : ''}.`);
-    return;
+    return false;
   }
   if (!box || box.width < 2 || box.height < 2) {
     problems.push(`contrast: "${sel}" on ${where} has no measurable box`
       + `${box ? ` — it is ${Math.round(box.width)}×${Math.round(box.height)}px, under 2px on a side`
         : ' — the element has no layout box at all'}`);
-    return;
+    return false;
   }
   // How much of that colour actually reaches the screen: the ancestor chain's opacities multiplied
   // together, times the alpha in the text's own `color`. Both are ways to write "this text is not
@@ -315,7 +304,7 @@ const measureText = async (sel, where, required) => {
     // elements up. `eff.zeroedBy` is that element, spelled the way the sheet spells it.
     problems.push(`visibility: "${sel}" on ${where} is not painted at all — ${eff.zeroedBy || `effective opacity ${painted}`}`
       + ` (text pixels ${declaredPx}/${total}, cumulative opacity ${eff.opacity}, colour ${colorRaw})`);
-    return;
+    return false;
   }
   // The same box again with only this element's words made transparent. `-webkit-text-fill-color`
   // is set alongside `color` because it wins over `color` where both apply, and the descendant
@@ -326,7 +315,7 @@ const measureText = async (sel, where, required) => {
     // and "I could not compare them" is not a pass.
     problems.push(`visibility: "${sel}" on ${where} changed size between the two pictures `
       + `(${img.bitmap.width}x${img.bitmap.height} vs ${bare.bitmap.width}x${bare.bitmap.height}) — not measured`);
-    return;
+    return false;
   }
   const words = wordPixels(img, bare);
   // Backgrounds come from the picture WITHOUT the words, so the text cannot be mistaken for its own
@@ -342,7 +331,7 @@ const measureText = async (sel, where, required) => {
     problems.push(`visibility: "${sel}" on ${where} paints nothing that can be told apart from what is behind `
       + `it — taking its words away changes 0 of ${total} pixels in its box `
       + `(declared colour ${colorRaw}, background rgb(${backgrounds[0].rgb}))`);
-    return;
+    return false;
   }
   // The colour the words came out. Among the groups of changed pixels, the one furthest from the
   // background is the middle of the strokes; the rest are antialiased edges on their way to the
@@ -364,12 +353,35 @@ const measureText = async (sel, where, required) => {
     problems.push(`contrast: "${sel}" on ${where} is ${worst.toFixed(2)}:1 against rgb(${worstRgb}) — below ${MIN_CONTRAST}:1`
       + ` (measured on the colour it came out, rgb(${textRgb}); declared ${colorRaw})`);
   }
+  // 🔴 量成了才回 true。上面每一条早退都回 false —— CONTROL_TARGETS 那段靠这个数「量到了几个」，
+  //    而「一个都没量到」是 finding。漏掉这一行的话它恒回 undefined ⟹ 那段每次都报「一个都没量到」。
+  return true;
 };
 
 // The pair that must be here, on the page every first-page check is taken on.
 for (const sel of TEXT_TARGETS) await measureText(sel, pathOf(baseUrl), true);
 // And the moved blocks that happen to be on this page as well (cta-banner usually is; page-header is not).
 for (const sel of MOVED_TEXT_TARGETS) await measureText(sel, pathOf(baseUrl), false);
+
+// #1038 — the buttons and the links, on whichever of them this page actually renders.
+//
+// 🔴 AND A FLOOR UNDER THE LENIENCY. Measuring "whichever are present" is how a check quietly stops
+// checking: a rename of `.btn-accent` in globals.css would leave every one of these absent and this
+// section would print nothing and pass. So the number measured is REPORTED (a reader can see it went
+// from two to zero) and zero is a finding.
+{
+  const measured = [];
+  for (const sel of CONTROL_TARGETS) {
+    if (await measureText(sel, pathOf(baseUrl), false)) measured.push(sel);
+  }
+  if (measured.length === 0) {
+    problems.push('contrast: none of the buttons or links this checks is on the page '
+      + `(looked for ${CONTROL_TARGETS.join(', ')}) — so nothing was measured about what a visitor `
+      + 'clicks. A home page with a hero and no `.btn-accent` is the first thing to look at.');
+  } else {
+    readings.push(`  buttons/links measured: ${measured.length}/${CONTROL_TARGETS.length} — ${measured.join(', ')}`);
+  }
+}
 
 // ── ② essential content is not hidden ───────────────────────────────────────────────────────────
 // 🔴 READ OFF THE CHAIN, NOT OFF THE ELEMENT. The old version asked each essential element for its
