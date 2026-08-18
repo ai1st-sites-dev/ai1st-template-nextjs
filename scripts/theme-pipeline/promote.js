@@ -27,7 +27,7 @@ const path = require('path');
 
 const NEXT = path.resolve(__dirname, '..', '..');
 const { poolSlots } = require('./industry-sectors.js');
-const { HEADER_VARIANTS, FOOTER_VARIANTS, headerVariantForPool } = require('../region-layout.js');
+const { regionsForPool } = require('../region-layout.js');
 
 const POOL_PATH = path.join(NEXT, 'scripts', 'theme-pool.json');
 const SHEETS_DIR = path.join(NEXT, 'public', 'themes');
@@ -101,18 +101,21 @@ function toPoolEntry(candidate, slot) {
   //    没有哪一种字色能同时活过遮罩里和遮罩外两段,所以修法是不产生这个搭配。
   // 🔴 读的是候选【自己那份表的字节】+ 它自己的调色板,不是版式的名字(那条路 `region-layout.js`
   //    文件头 ② 已经写明不成立)。表读不到就当它不是深底 ⟹ 不给浮层,失败方向朝安全那边。
+  // 🔴 #1079 —— 这两行的算术搬进 `region-layout.js` 的 `regionsForPool` 了,因为图册那条路
+  //    (`run.js` 装候选的时候)要提前拿到**同一个**答案:人审读的标注就是"这套上线后的顶栏"。
+  //    两处各算一遍就会漂,而漂出来的差正好是本票要治的那个毛病。
   const sheetCss = candidate.sheetPath && fs.existsSync(candidate.sheetPath)
     ? fs.readFileSync(candidate.sheetPath, 'utf-8') : '';
-  const headerPick = headerVariantForPool(slot.index, sheetCss, tokens.colors);
-  supports.header = [headerPick.variant];
-  supports.footer = [FOOTER_VARIANTS[slot.index % FOOTER_VARIANTS.length]];
+  const regions = regionsForPool(slot.index, sheetCss, tokens.colors);
+  supports.header = [regions.header];
+  supports.footer = [regions.footer];
 
   return {
     id,
     // 🔴 #1016 r5 —— 顶栏那一维被规则挪走时，把原因带出来给调用方打印。它不是池成员的一部分
     //    （不写进 `entry`），只是这一次翻译的一句说明；不带出来的话，「本来该轮到浮层、这套没拿到」
     //    的唯一痕迹就是 supports.header 里的一个字符串，没人看得出它是规则挪的还是轮换本来如此。
-    headerMovedBy: headerPick.why,
+    headerMovedBy: regions.headerMovedBy,
     entry: {
       label: `${word[0].toUpperCase()}${word.slice(1)} ${nn} — ${feel.shape} ${feel.air} ${word}`
         + ` with ${accentWord} accent, for ${sector}`,

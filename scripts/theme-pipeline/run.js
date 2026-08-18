@@ -25,6 +25,9 @@ const { gateStatic, gateInvariants, gateSimilarity, gateHumanReview } = require(
 const {
   shootCandidate, writeComparisonPage, whyNoAllBlocksPage, clearCandidateShots,
 } = require('./gallery');
+// #1079 —— 候选装进样例站时提前算出它上线后的顶栏 / 页脚。跟 `promote.js` 定 supports 用的是同一个
+// 函数，理由（两处各算一遍就会漂，而漂出来的差正好是人审读到的那个假标注）写在那个函数上面。
+const { regionsForPool } = require('../region-layout.js');
 
 function arg(name, dflt) {
   const i = process.argv.indexOf(name);
@@ -103,8 +106,42 @@ function whyNotThisBuild(outRoot, outDir, candidate) {
   return '';
 }
 
-/** 把一套候选装进样例站：tokens 进 brand.json、表进 public/themes/、theme.json 指向它。 */
-function installCandidate(candidate, siteDir) {
+/**
+ * 这一次构建**真的**按「这套主题上线后」的顶栏 / 页脚建的吗?(#1079)
+ *
+ * 🔴 为什么要有这一格,而不是"算出来了写进 theme.json 就完事":那条链有三段(`installCandidate` 写键
+ *    → `sync-config` 的 `readPreviewRegionLayout` 读它 → `resolveRegionLayout` 认它),而**断在任何
+ *    一段的表现都是静默的** —— 产物落回默认 solid-bar,图照样拍出来、卡片上照样印一个看起来很正常的
+ *    结构名,而人审签的字是「我看过这套上线后的样子」。本票要治的就是这个形状,所以不能靠它自己不复发:
+ *    量出来的那个值跟算出来的不一样,这一轮当场判②不过,不许拿去拍图。
+ *
+ * 🔴 判据是构建自己打的那行 `Regions:`(`sync-config.js` 打的),不是再读一遍 theme.json ——
+ *    读回自己刚写的那个文件只证明"我写下了",证明不了"构建按它建"。
+ *
+ * @returns 空串 = 接上了;非空 = 一句人话,进②那道闸的 problems
+ */
+function whyRegionsNotWired(buildStdout, regions) {
+  if (!regions) return ''; // 没给位子(不走池那条路)⟹ 本来就是默认,没有要对的东西
+  const m = /^\s*Regions: header=(\S+) footer=(\S+)/m.exec(String(buildStdout || ''));
+  if (!m) {
+    return '构建日志里没有 `Regions: header=… footer=…` 那一行 —— 那是 sync-config 唯一说出'
+      + '「这次按哪个顶栏建的」的地方,读不到就等于这一维没量到。这不是通过。';
+  }
+  if (m[1] === regions.header && m[2] === regions.footer) return '';
+  return `顶栏/页脚没接上：这套候选上线后是 ${regions.header} / ${regions.footer}，`
+    + `而这次构建按 ${m[1]} / ${m[2]} 建的 —— 图册会把后者摆给人审看。`
+    + '（链子三段：run.js 写 theme.json 的 regionLayout → sync-config 的 readPreviewRegionLayout'
+    + ' → region-layout.js 的 resolveRegionLayout，断哪段都是这个症状。）';
+}
+
+/**
+ * 把一套候选装进样例站：tokens 进 brand.json、表进 public/themes/、theme.json 指向它。
+ *
+ * 🔴 #1079 —— `slot` 是这套候选**将要占的那个池位子**（`poolSlots()[ci]`）。给它是为了让这一轮
+ *    建出来的产物带上这套主题**上线后**的顶栏 / 页脚，因为人审翻的那本图册就是从这份产物拍的。
+ *    不给（`--pool` 那条路以外的调用、或候选比位子还多时）就退回默认，跟本票之前一样。
+ */
+function installCandidate(candidate, siteDir, slot) {
   const brandPath = path.join(siteDir, 'brand.json');
   const brand = JSON.parse(fs.readFileSync(brandPath, 'utf-8'));
   brand.colors = candidate.tokens.colors;
@@ -115,9 +152,27 @@ function installCandidate(candidate, siteDir) {
   fs.copyFileSync(candidate.sheetPath, dest);
   // 🔴 `applied` 必须是 false：为真时 sync-config 会用**注册表**里那套覆盖 brand 的颜色/字体/settings
   //    （sync-config.js:167），而候选还不在注册表里 —— 那样量到的是别人的 tokens。
+  //
+  // 🔴 #1079 —— 而 `applied:false` 顺带把**顶栏和页脚**也按在了默认上（`sync-config.js` 的
+  //    `readAppliedThemeId` 对非 true 回 null ⟹ `resolveRegionLayout({})` ⟹ solid-bar +
+  //    multi-column）。上线池子 80 套里 solid-bar 只有 22 套、multi-column 只有 27 套，所以人审那本
+  //    图册对这一维是按构造瞎的：80 张卡全印 `solid-bar`，而 58 套上线后不是它。
+  //    `regionLayout` 这个键就是补这一维 —— 值由 `regionsForPool` 算，跟 `promote.js` 定
+  //    `supports.header/footer` 用的是**同一个函数**（那是它搬进 region-layout.js 的理由）。
+  //    📌 只在 `applied !== true` 那条路上被读（sync-config 的 `readPreviewRegionLayout`）；
+  //       真站换了装就是注册表说了算，这个键碰不到它。
+  const regions = slot
+    ? regionsForPool(slot.index, fs.readFileSync(candidate.sheetPath, 'utf-8'),
+      candidate.tokens.colors)
+    : null;
   fs.writeFileSync(path.join(siteDir, 'theme.json'),
-    `${JSON.stringify({ themeId: candidate.id, applied: false, css: candidate.id }, null, 2)}\n`);
-  return dest;
+    `${JSON.stringify({
+      themeId: candidate.id,
+      applied: false,
+      css: candidate.id,
+      ...(regions ? { regionLayout: { header: regions.header, footer: regions.footer } } : {}),
+    }, null, 2)}\n`);
+  return { dest, regions };
 }
 
 // ══════════════════════════════════════════════════════════════════════════════════════════════════
@@ -243,7 +298,14 @@ async function main() {
     let shot = null;
     gates.push(gateStatic(c));
     if (gates[0].pass) {
-      installCandidate(c, siteDir);
+      // 🔴 #1079 —— `slots[ci]` 是这套候选**全收时**会占的位子，顶栏/页脚按它算（理由整段写在
+      //    installCandidate 上面）。人审拒掉几套就会让后面每一套的位子往前挪，那时图上这一维
+      //    仍然是「全收假设下的样子」—— 这条边界写进交接与 AC5，不在这里悄悄兜。
+      const installed = installCandidate(c, siteDir, slots[ci]);
+      if (installed.regions) {
+        console.log(`  ${c.id}：顶栏 ${installed.regions.header} · 页脚 ${installed.regions.footer}`
+          + `（位子 ${ci}${installed.regions.headerMovedBy ? `，顶栏让开了：${installed.regions.headerMovedBy}` : ''}）`);
+      }
       const build = cp.spawnSync('npm', ['run', 'build'], { cwd: NEXT, encoding: 'utf8' });
       if (build.status !== 0) {
         gates.push({ gate: '② 动态', pass: false, problems: [`样例站建不出来：${String(build.stdout || '').split('\n').slice(-6).join(' ')}`] });
@@ -258,7 +320,10 @@ async function main() {
         // 抄第二份；派生不出来就当场停，「我不知道该量哪个」永远不是通过。
         const outRoot = path.join(NEXT, 'out');
         const outDir = path.join(outRoot, builtSiteName());
-        const notThisBuild = whyNotThisBuild(outRoot, outDir, c);
+        // 两问并在一条 `||` 上，因为它们是同一件事的两半：这份产物是不是**我以为的那份**。
+        // 前者问「是不是这套候选的字节」，后者（#1079）问「顶栏/页脚是不是这套候选上线后的那个」。
+        const notThisBuild = whyNotThisBuild(outRoot, outDir, c)
+          || whyRegionsNotWired(build.stdout, installed.regions);
         if (notThisBuild) {
           gates.push({ gate: '② 动态', pass: false, problems: [notThisBuild] });
         } else {

@@ -202,6 +202,38 @@ function headerVariantForPool(index, sheetCss, colors) {
   };
 }
 
+/**
+ * 一个池位子上的那两个 Region 长什么样 —— 顶栏走上面那条让开规则,页脚是纯轮换。
+ *
+ * 🔴 #1079 —— 这个函数存在的理由是**两个调用方要拿到同一个答案**,而它们相隔一整道人审:
+ *   · `promote.js` 定池成员的 `supports.header/footer`(人审**之后**);
+ *   · `theme-pipeline/run.js` 把候选装进样例站时提前算同一个值,好让人审那本图册拍到的顶栏
+ *     就是这套主题上线后的顶栏(在它之前,候选那条路 `applied:false` ⟹ 恒是默认 `solid-bar`,
+ *     而上线池子里 80 套只有 22 套是它 —— 人审读到的标注与成品不符,#1079 就是这件事)。
+ *
+ * 🔴 页脚那行轮换算术此前是 `promote.js` 里的一句 inline。两处各写一遍就会漂成两个答案,
+ *    而漂的后果正是本票要治的那个毛病(图上那个 ≠ 上线后那个),所以它搬进来跟顶栏并排。
+ *
+ * 🔴 这个答案只在【人审全收】时等于上线后的那个值:`promote.js` 的 `buildPool` 按**过滤之后的
+ *    位置**发位子(`take.forEach((c, i) => … slots[i])`),所以人审拒掉一套,它后面每一套的
+ *    `index` 都往前挪一格,顶栏(`index % 4`)跟着变。判据在调用方,不在这里 —— 这个函数只回答
+ *    "第 index 个位子上是什么"。
+ *
+ * @param index    池位子的序号(`poolSlots()[k].index`)
+ * @param sheetCss 这套候选自己那份表的原文(顶栏那条让开规则要读它)
+ * @param colors   这套候选的调色板
+ * @returns {{header: string, footer: string, headerMovedBy: string|null}}
+ *          `headerMovedBy` 非空 = 顶栏被那条规则挪走了,原因在里面
+ */
+function regionsForPool(index, sheetCss, colors) {
+  const headerPick = headerVariantForPool(index, sheetCss, colors);
+  return {
+    header: headerPick.variant,
+    footer: FOOTER_VARIANTS[index % FOOTER_VARIANTS.length],
+    headerMovedBy: headerPick.why,
+  };
+}
+
 module.exports = {
   HEADER_VARIANTS,
   FOOTER_VARIANTS,
@@ -214,4 +246,5 @@ module.exports = {
   resolveRegionLayout,
   heroTitleSurvivesHeaderScrim,
   headerVariantForPool,
+  regionsForPool,
 };

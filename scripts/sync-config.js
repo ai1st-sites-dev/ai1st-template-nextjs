@@ -151,6 +151,44 @@ function readAppliedThemeId() {
 }
 const appliedThemeId = readAppliedThemeId();
 
+// #1079 — THE HEADER/FOOTER STRUCTURE FOR A THEME THAT IS **NOT** IN THE REGISTRY YET.
+//
+//     { "themeId": "gen-07-60", "applied": false, "css": "gen-07-60",
+//       "regionLayout": { "header": "pill-floating", "footer": "cta-band" } }
+//
+// 🔴 Why this key has to exist at all. The candidate pipeline installs a candidate with
+// `applied: false` on purpose (`theme-pipeline/run.js` installCandidate — `true` would make the
+// REGISTRY override brand.json's colours, and a candidate is not in the registry). But `applied:
+// false` also pins the two Regions to their defaults, because `readAppliedThemeId` above returns
+// null and `resolveRegionLayout({})` answers solid-bar + multi-column. So the gallery a human signs
+// off on (`theme-pipeline/gallery.js`, gate ④) printed `solid-bar` on all 80 cards while only 22 of
+// the 80 pool members are actually solid-bar — the one dimension a human cannot check against
+// anything else was, by construction, always wrong. Measured: #1079's repro, and the 80 shot
+// readbacks of #1016's r4c gallery.
+//
+// 🔴 Reading it is confined to the `applied !== true` path (see the call site below). A site whose
+// owner changed themes gets its Regions from the registry, full stop — this key cannot reach it.
+// Every site that exists today has no such key ⟹ `{}` ⟹ byte-identical build output.
+//
+// 🔴 No new validation here on purpose: `resolveRegionLayout` already refuses a value that is not in
+// its list, falls back to the default and says so in `notes` (which this file prints). A second
+// check here would be a second list to forget — the same reason #991's `css` check reads the
+// filesystem instead of keeping a list.
+function readPreviewRegionLayout() {
+  if (appliedThemeId) return {};
+  const themePath = path.join(siteDir, 'theme.json');
+  if (!fs.existsSync(themePath)) return {};
+  let meta;
+  try {
+    meta = JSON.parse(fs.readFileSync(themePath, 'utf-8'));
+  } catch {
+    return {}; // readAppliedThemeId above already reported the parse error and exited.
+  }
+  const wanted = meta && meta.regionLayout;
+  if (!wanted || typeof wanted !== 'object') return {};
+  return wanted;
+}
+
 // #991 — THE THEME **CSS** SHEET, WHICH IS A DIFFERENT SWITCH FROM `applied` ABOVE.
 //
 //     { "themeId": "ocean-blue", "applied": true, "css": "hero-media-left" }
@@ -668,7 +706,12 @@ if (withRhythm.length) {
 // 📌 #1024:以前还往这里传「全部 locale 的全部页面」和这个站的调色板,用来判首屏是不是深底。
 // 那条判断已经没有依据了(hero 的底色住在主题样式表里,不在 variant 的名字里),现在透明浮层
 // 一律配遮罩,所以这个函数只要 theme 的那份结论。
-const regionLayout = resolveRegionLayout(appliedThemeId ? layoutFor(appliedThemeId) : {});
+// 📌 #1079:没换装那条路上再问一句 theme.json 自己写了没有(`readPreviewRegionLayout`,理由整段在
+// 它上面)。今天所有站在那个位置都是空的 ⟹ 仍然是 {},上面那句"回到现状"逐字仍然成立;写了的只有
+// 候选流水线装候选那一次,而它要的正是"这套主题上线后的顶栏"。
+const regionLayout = resolveRegionLayout(appliedThemeId
+  ? layoutFor(appliedThemeId)
+  : readPreviewRegionLayout());
 console.log(`  Regions: header=${regionLayout.header} footer=${regionLayout.footer}` +
   (regionLayout.headerScrim ? ' (+scrim)' : ''));
 

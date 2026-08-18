@@ -94,6 +94,43 @@ node scripts/theme-pipeline/pool.test.js
 每套候选三张图：首页 / 内页 / **全部块**（#1061 加的第三张 —— 前两页加起来只摆得出一小部分块，
 不在那两页上的块，人翻多少套都看不见）。
 
+🔴 **图上的顶栏 / 页脚就是这套主题上线后的那个（#1079）。** 在它之前不是：`installCandidate` 按
+`applied:false` 装候选（那是对的，`true` 会让注册表盖掉候选的 tokens），而 `applied` 不为 true 时
+`sync-config` 把两个 Region 按在默认上 ⟹ 80 张卡全印 `solid-bar` + `multi-column`，而上线池子里
+solid-bar 只有 22 套、multi-column 只有 27 套。**人审读到的那一维与成品不符，而它是静默的**：图拍出来了、
+标注也印了一个看起来正常的结构名。现在 `run.js` 装候选时用 `regionsForPool`（`region-layout.js`，
+`promote.js` 定 `supports.header/footer` 用的是同一个函数）算出这套候选**将要占的那个池位子**上的
+结构，写进 `theme.json` 的 `regionLayout`，`sync-config` 在 `applied!==true` 那条路上读它。
+② 那道闸顺手核一遍「构建自己打的 `Regions:` 那一行 == 算出来的那个值」，断链当场判不过 —— 不许拿一份
+落回默认的产物去拍图。
+
+🔴 **它只在【人审全收】时等于上线后的那个值。** `promote.js` 的 `buildPool` 按**过滤之后的位置**发位子
+（`take.forEach((c, i) => … slots[i])`），所以人审拒掉一套，它后面每一套的位子都往前挪一格，顶栏
+（`index % 4`）和池子 id（`slot.index + 1`）跟着变。#1016 r4c 正好是全收（80 进 80 出、同号 1:1）。
+要让它无条件成立，得把位子与接受顺序解耦（比如按候选 id 定位子）—— 那是另一张票的取舍。
+
+📌 **这本图册仍然看不见的维度**（#1079 AC5，别以为补完顶栏这一维就全见了）：
+① **移动端** —— `shoot.mjs` 只有 1440×900 一个视口。四种顶栏在窄屏下都换一副样子（`Header.tsx`：
+   汉堡按钮是 `md:hidden`，抽屉那一层也是），而**抽屉还得点一下才出来**（`mobileMenuOpen`），
+   所以那几个形态一张图都没有，加一个窄视口也拍不到抽屉；
+② **语言切换** —— 样例站只有一个 locale（`site_meta.json` 的 `locales: ["en"]`），所以每份读数里
+   `langSwitchers` 恒为 0，深色顶栏上那个切换器（`LanguageSwitcher` 的 `data-region-ondark`）没被拍到；
+③ **topbar 那一区** —— 池成员不发 `supports.topbar`，样例站也用 `standard` 布局（没有 topbar 区），
+   所以 `TOPBAR_VARIANTS` 那四种在图册里一张都没有。
+   🔴 **而「浮层 + topbar」那条拒绝（#1000 r2）从此够得着了**：`transparent-overlay` 以前在候选这条路上
+   根本不会出现，现在 80 套里有 12 套是它 —— 所以样例站要是挑了 `with-topbar`，那 12 套会在②那道闸
+   红掉，报的是 `sync-config` 那句「浮层会把 topbar 那 44px 整条压在底下」。**那不是这几套主题坏了，是
+   这个组合本来就不成立**（那条拒绝是有意的）。要跑图册就别给样例站挑带 topbar 的布局。
+   实测（今天这个样例站 + `page-layout.json: {"layoutId":"with-topbar"}`，只跑 `sync-config.js`）：
+   浮层候选 rc=1、报的就是那句话；换成非浮层候选**照样 rc=1**，但报的是另一句
+   （「有 topbar 区，但这些语言的 navigation.json 里没有 topbar 内容：en」）—— 也就是说这个样例站
+   今天连 `with-topbar` 都摆不出来，上面那条拒绝在它身上还隔着第二道门；`standard` 布局下浮层候选 rc=0；
+④ **注册表接管那条机制本身** —— 候选的颜色/字体/settings 是 `installCandidate` 写进 `brand.json` 的，
+   不是走 `applied:true` 那条注册表覆盖（`sync-config.js` 的 `if (appliedThemeId)` 两处）。值一样，
+   门不一样：只出在那条路上的毛病，这本图册看不见；
+⑤ **交互态与空数据的站** —— 整页静态截图，没有 hover / 展开的菜单；样例站是被撑满的那一份，
+   没有博客为空、服务只有一条之类的形状。
+
 ## 第③道闸怎么判
 
 **两条判据，任一成立就打回。**
