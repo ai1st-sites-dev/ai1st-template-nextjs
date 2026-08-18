@@ -89,26 +89,32 @@
      sheet is worn with WHATEVER palette the site has — it is one of the three palette-agnostic
      hand-written sheets, so it cannot pick its ink per palette the way a generated pool sheet does
      (`theme-pipeline/sheet-recipes.js` §pickInk runs once per palette, at generation time).
-     Measured over the 30 palettes in scripts/themes.js, banded to the strip the words actually cover
-     (scripts/theme-text-bands.json, the same reading theme-presets.test.js judges on). 🔴 EVERY
-     NUMBER BELOW SAYS WHICH OF THE TWO READINGS IT IS, because they differ and quoting one without
-     saying which is how the wrong figure got in here in the first place: `hue 0` is the hue slider
-     left alone, `31 hues` is the whole slider range, which is what the CI check sweeps.
-         backdrop (60 = 30 palettes × 2 selectors)   hue 0            31 hues
-         primary-600 → accent-500 (the old one)      2.46:1 · 52/60   2.39:1 · 55/60
-         primary-800 → primary-900 (this)            6.44:1 ·  0/60   6.39:1 ·  0/60
+     🔴 EVERY NUMBER BELOW SAYS **WHEN AND OVER HOW MANY PALETTES** IT WAS TAKEN (#1083 条 ④). The
+     first cut of this table was measured over "the 30 palettes in scripts/themes.js" — true the day
+     it was written, and false the moment #1016 took the registry to 110: the same reading's
+     denominator is 220, not 60, and the old pair's worst is a whole point lower than the figure that
+     sat here. Re-counted 2026-08-18 over **every palette in scripts/themes.js that has a primary and
+     an accent ramp — 110 of them**, banded to the strip the words actually cover
+     (scripts/theme-text-bands.json, the same reading theme-presets.test.js §⑩ judges on).
+     🔴 AND WHICH OF THE TWO SWEEPS IT IS, because they differ and quoting one without saying which is
+     how the wrong figure got in here in the first place: `hue 0` is the hue slider left alone,
+     `31 hues` is the whole slider range, which is what the CI check sweeps.
+         backdrop (220 = 110 palettes × 2 selectors)  hue 0             31 hues
+         primary-600 → accent-500 (the old one)       2.05:1 · 208/220  2.03:1 · 215/220
+         primary-800 → primary-900 (this)             6.44:1 ·   0/220  6.39:1 ·   0/220
      📌 Every figure here is the BANDED one. judgeSheet narrows to the band only when the whole
      gradient fails, so a sheet that passes is reported by its whole-gradient worst instead, which is
      lower — 6.09:1 at hue 0 and 6.02:1 over 31 hues for the row above. Same sheet, different question.
-     🔴 AND NO INK COULD HAVE SAVED THE OLD PAIR: 19 candidate inks were measured against it — every
-     shade of both ramps that exists, plus #ffffff and #000000 — and the best of them (#ffffff) still
-     came out 2.56:1 with 47 of 60 below the floor at hue 0, and 2.50:1 with 51 of 60 over 31 hues.
-     Not one of the 19 cleared the floor everywhere. (accent has no 700/800/900, so three of the 22
-     tokens tried resolved to nothing and measured 0 of 60 — printed rather than counted as clean.)
+     🔴 AND NO INK COULD HAVE SAVED THE OLD PAIR: 22 candidate inks were tried against it — every
+     shade of both ramps that exists, plus #ffffff and #000000 — 19 of them resolve to a colour, and
+     the best of those (#ffffff) still came out 2.23:1 with 172 of 220 below the floor at hue 0, and
+     2.21:1 with 190 of 220 over 31 hues. Not one of the 19 cleared the floor everywhere. (accent has
+     no 700/800/900, so three of the 22 resolved to nothing — printed rather than counted as clean.)
      A mid-tone backdrop has no readable ink, which is why the fix is the backdrop and not the
      colour of the words. The other two sheets already use the two archetypes that do work — light ink
-     on a dark ground (hero-media-left) and dark ink on a light ground (hero-media-right) — and both
-     measure 0 below the floor over the same 30 palettes, which is why #1072 left them alone. */
+     on a dark ground (hero-media-left, worst 5.82:1) and dark ink on a light ground
+     (hero-media-right, worst 5.74:1) — and both measure 0 of 220 below the floor over those same 110
+     palettes, which is why #1072 left them alone. */
   background-image: linear-gradient(135deg, var(--color-primary-800), var(--color-primary-900));
   color: var(--color-primary-50);
   text-align: center;

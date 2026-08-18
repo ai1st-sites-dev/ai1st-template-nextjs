@@ -2197,20 +2197,57 @@ for (const p of otherPaths.slice(0, OTHER_PAGE_CAP)) {
   // only on the first page would have been measuring it never. Costs two screenshots per hook that
   // is actually present; a page with none of them costs four `count()` calls.
   for (const sel of MOVED_TEXT_TARGETS) await measureText(sel, opened.at, false);
-  // 🔴 #1055 打磨批次 #16 条 10 — AND NOT, YET, THE BUTTONS AND LINKS. Adding
-  // `for (const sel of CONTROL_TARGETS) await measureText(sel, opened.at, false)` here is one line,
-  // it works, and it was measured on this sample site before being taken back out. What it found is
-  // why it is not here:
+  // 🔴 AND NOT, YET, THE BUTTONS AND LINKS — and the reason below is measured 2026-08-18 (#1083 条 ③),
+  // not inherited. Adding
+  // `for (const sel of CONTROL_TARGETS) await measureText(sel, opened.at, false)` here is one line and
+  // it works; what it finds is why it is not here.
   //
-  //   .announcement-bar__link on /allblocks.html: 3.46:1 against rgb(237,237,237)  → exit 1
+  // 🔴 THE REASON THAT USED TO BE WRITTEN HERE IS SPENT, and leaving it would have sent the next
+  // reader to Chris for a decision he has already made. It said the blocker was
+  // `.announcement-bar__link` (3.46:1 on /allblocks.html), that the three hand-written sheets all
+  // paint it `accent-600` on a `primary-100` strip, and that the fix was a colour decision #1055 条 14
+  // fenced off as his. He ruled on 2026-08-17 (#1072, third round: fix it in the sheets), and it is
+  // landed — `0f37d4b2`. What the sheets paint that hook now, read off them today (#1083 r2 — the
+  // earlier wording here said "primary-800" flat, which is only two of the three):
+  //   hero-media-right / -top : `color: primary-800`, on the strip's own `primary-50` / `primary-100`
+  //   hero-media-left         : `color: primary-50` on the link's own `background-color: primary-900`
+  // Either way the old blocker is gone: with this line opened that hook reads 4.68:1 on ember-38 and
+  // is not among the violations any sheet in the pool reports.
   //
-  // That is not a regression this batch introduced and not a defect of one demo theme. The three
-  // sheets all paint this hook `color: var(--color-accent-600)` on an `--color-primary-100` strip,
-  // and across the 30 themes in scripts/themes.js that pair reads below 4.5:1 on **25 of them**
-  // (arithmetic, no browser needed: scripts/theme-contrast.js on accent.600 vs primary.100).
-  // Turning the reading on therefore turns `theme-css` red on main, and the fix is a colour decision
-  // — which layer owns it, the sheets, base.css or the registry palettes — which is word for word the
-  // question #1055 条 14 fenced off as Chris's to make, not a polish batch's.
+  // 🔴 WHAT BLOCKS IT TODAY IS A DIFFERENT PAIR: `.btn-primary`, white on `--color-primary-500`, and
+  // the colour is `globals.css`'s (`@layer components`), not any sheet's. Measured by opening this
+  // exact line and running the CI job over the set CI actually runs —
+  // `bash scripts/theme-css-invariants-all-sheets.sh --make-sample-site` over all 83 sheets, each
+  // paired with the theme named after it (#1016 r5) — 2026-08-18:
+  //
+  //   52 of the 80 pool sheets go red — 104 violations, i.e. exactly 2 per red sheet
+  //   every one of the 104 is `.btn-primary`, 4.30–4.48:1, on /services.html and /allblocks.html
+  //   not one is `.announcement-bar__link` or `.services-nav__link`
+  //   the 3 hand-written hero-media-* sheets still pass: their `.btn-primary` reads below the floor
+  //     too, but their contrast is printed-and-not-judged (no theme is named after them, §PALETTE)
+  //
+  // Those two pages are exactly why check ① on the FIRST page never saw it: a home page carries
+  // `.btn-primary` only through a `services-list` or `pricing-table` block, and this sample site's
+  // does not — so the hook prints `🔴 on no page measured` while being unreadable on two other pages.
+  //
+  // 🔴 DO NOT ARGUE THIS CLEAN WITH ARITHMETIC — the numbers disagree, and they disagree in both
+  // directions, so neither layer is a proxy for the other (all four readings on ember-38, 2026-08-18):
+  //
+  //   .btn-primary  white on primary-500 #bb5b36   raw 4.504  ·  blended 4.173  ·  BROWSER 4.299
+  //   .announcement-bar__link  accent-300 on 800   raw 4.700  ·  blended 4.340  ·  BROWSER 4.68
+  //
+  // `raw` is what `theme-presets.test.js` §① judges (plain token-vs-token), `blended` is what its §⑨
+  // judges (`theme-contrast.js` mixes 6% of the ground into the ink to stand in for antialiasing), and
+  // `BROWSER` is what this file judges: the colour the text ACTUALLY came out as, per line of text —
+  // rgb(248,250,250) for that white, not #ffffff. Over the 80 pool themes the raw judge finds **0**
+  // white-on-primary-500 failures and the blended one finds **56**; this browser reading is the third
+  // answer again. So "the arithmetic in the value layer is green" says nothing about whether opening
+  // this line is safe, and vice versa.
+  //
+  // 🔴 So this is still a colour decision, but NOT the one #1072 settled: it is `globals.css`'s white
+  // ink (or its `bg-primary-500`) against the pool palettes' `primary-500`, over most of the pool.
+  // Whoever opens this line has to move that colour in the same change, or the job goes red on main
+  // the day it lands. That belongs in its own ticket, with the count above as its scope.
   //
   // 🔴 So the blindness is made LOUD instead of quietly widened: `.btn-primary`,
   // `.announcement-bar__link` and `.services-nav__link` now print `🔴 on no page measured` in the

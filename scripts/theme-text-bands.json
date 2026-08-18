@@ -136,12 +136,12 @@
       "targets": {}
     },
     "hero-media-top": {
-      "md5": "2051883947143d73dd26cb7bd20c0eaa",
+      "md5": "b35f491916c903c7a8aa1095c079af91",
       "viewport": {
         "width": 1440,
         "height": 900
       },
-      "measuredOn": "http://127.0.0.1:51353",
+      "measuredOn": "http://127.0.0.1:51537",
       "targets": {
         ".cta-banner__headline": {
           "tmin": 0.2691,

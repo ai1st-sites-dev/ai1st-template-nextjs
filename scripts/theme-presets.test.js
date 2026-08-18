@@ -17,8 +17,9 @@
  *
  * 🔴 为什么策展判据要写成测试而不是写成注释：下一个人加一组配色时，「白字压 primary-500 要够黑」
  *    这件事没有任何东西会提醒他。注册表里过不了这一关的**不是少数**，所以「随手抄一套好看的」是
- *    最自然的做法，也是会出事的那个做法。**真数读那一格自己印的那句**（第 ⑨ 节的反向对照那一行，
- *    它就地算）——这里原来写着「30 套里有 9 套」，2026-08-18 实测是 11 套，写死的数会过期（#1072）。
+ *    最自然的做法，也是会出事的那个做法。**真数读那一格自己印的那句**（第 ① 节末尾那个反向对照
+ *    印的「注册表 N 套里报红 M 套」，分子分母都就地算）——这里原来写着「30 套里有 9 套」，
+ *    2026-08-18 实测是 110 套里 11 套，写死的数会过期（#1072 / #1083 条 ④）。
  */
 
 'use strict';
@@ -179,12 +180,17 @@ for (const [name, p] of Object.entries(presets.PALETTES)) {
   if (!registry) {
     bad('读不到 themes.js —— 上面那圈绿没有反向对照兜着（这不是通过）');
   } else {
-    const failing = Object.entries(registry)
+    const entries = Object.entries(registry);
+    const failing = entries
       .filter(([, t]) => buttonRatios(t.colors).some(([, r]) => r < MIN))
       .map(([id]) => id);
     if (failing.length) {
-      ok(`同一个判据打在注册表 30 套主题上，报红 ${failing.length} 套（${failing.slice(0, 3).join(', ')}…）`
-        + ' —— 它确实分得开好坏，不是恒绿');
+      // 🔴 #1083 条 ④ —— 「注册表 30 套」原来写死在这一行，而这个 filter 遍历的是整个
+      //    `Object.keys(registry)`：#1016 之后是 110 套。报红那几套今天恰好全在退役的 30 套里，
+      //    所以那句话碰巧还是真的 —— 池子里哪天红一套，它当天就开始说假话。分子早就是现算的，
+      //    分母也改成现算，两个数从此对得上。
+      ok(`同一个判据打在注册表 ${entries.length} 套主题上，报红 ${failing.length} 套`
+        + `（${failing.slice(0, 3).join(', ')}${failing.length > 3 ? '…' : ''}）—— 它确实分得开好坏，不是恒绿`);
     } else {
       bad('同一个判据打在注册表全部主题上一个都不报红 —— 那它判不出东西，上面那圈绿是空的');
     }
@@ -380,6 +386,62 @@ const BASE = [
  */
 const HUE_ONLY_BREACH_PRIMARY_500 = '#9640ef';
 
+// ── ⑨a 那份被量的单子本身：改窄它、写错它，都必须报错（#1083 条 ① / 条 ②）────────────────────
+//
+// 编号是 ⑨a 而不是往后接一个新数字：下面 ⑨ / ⑩ 消费这一节钉住的两个常量，而「第 ⑨ 节」「第 ⑩ 节」
+// 这两个说法被别的文件引用着（`theme-text-targets.js` · `hero-media-*.css` · #1072 的交接），改号会
+// 让那些引用指向别处。
+//
+// 🔴 为什么要有这一节 —— 两个读数，都是在隔离树上真跑出来的（#1083）：
+//     把 `scripts/theme-text-targets.js` 里 `.cta-banner__headline` / `.cta-banner__desc` 两行删掉
+//       ⟹ **39 过 / 0 失败、rc=0**，而第 ⑩ 节报告里「共 2640 对」静默印成「共 1980 对」
+//     把一个选择器名写错成 `.announcement-bar__linkTYPO`
+//       ⟹ 同样全过，每张表从 8 对掉到 7 对
+// 原因只有一个：那两节的「该量到多少对」和「实际量到多少对」**都是从同一份单子、同一个 `textPairs`
+// 算出来的**，单子一缩两边一起缩，差值恒为 0。分母自检要能自检，它的期望值就不能来自被它检查的那
+// 份数据。
+//
+// 所以「该量到多少」在这里**写死**：
+//   · `PINNED_MEASURED_TARGETS` —— 单子的内容逐个钉住。钉全部 10 个而不是只钉个数：改名和写错名
+//     **不改个数**，而「个数一样、内容不一样」正是上面第二个读数。改单子就必须同时改这里，改不动
+//     就是报红 —— 这一条治的是「悄悄少量几个选择器」。
+//   · `PINNED_RESOLVED_PER_SHEET` —— 一张主题表该解出几个被量的选择器。今天 `public/themes` 下
+//     83 张表**每张都是 8**（2026-08-18 实测）；另外两个是 `.btn-primary` / `.btn-accent`，颜色住在
+//     `globals.css`，表里一条都没写，第 ⑨ 节按钮那一段判它们。
+//
+// 🔴 **条 ② 也是这一条治的**（本票正文点明「①那个写死的数同时就治了这一条」）：让判三张表那条路
+// 解不出任何配对时，第 ⑩ 节的 `judged` 变 0，而它的分母从今以后是写死的数 ⟹ `0 < 8 × 3 × 110`
+// 报红。在此之前分母跟着一起变 0，`0 < 0` 为假，那一节报绿。下面第 ⑩ 节末尾另有一个**喂坏配色**的
+// 反向对照，管的是另一半：路能解出配对，但判据判不出红。
+const PINNED_MEASURED_TARGETS = [
+  '.hero__title', '.hero__sub',
+  '.cta-banner__headline', '.cta-banner__desc',
+  '.page-header__title', '.page-header__sub',
+  '.btn-primary', '.btn-accent',
+  '.announcement-bar__link', '.services-nav__link',
+];
+const PINNED_RESOLVED_PER_SHEET = 8;
+{
+  const { MEASURED_TARGETS } = require('./theme-text-targets.js');
+  const extra = MEASURED_TARGETS.filter((t) => !PINNED_MEASURED_TARGETS.includes(t));
+  const gone = PINNED_MEASURED_TARGETS.filter((t) => !MEASURED_TARGETS.includes(t));
+  if (!extra.length && !gone.length && MEASURED_TARGETS.length === PINNED_MEASURED_TARGETS.length) {
+    ok(`被量的那份单子跟这里钉住的 ${PINNED_MEASURED_TARGETS.length} 个逐个对得上`
+      + '（单子在 scripts/theme-text-targets.js，钉子在本节）');
+  } else {
+    bad(`被量的那份单子跟这里钉住的对不上：单子 ${MEASURED_TARGETS.length} 个 / 钉住 `
+      + `${PINNED_MEASURED_TARGETS.length} 个 · 单子里多出来 ${extra.length} 个`
+      + `（${extra.join(' · ') || '无'}）· 单子里少掉 ${gone.length} 个（${gone.join(' · ') || '无'}）`
+      + ' —— 要改单子就连本节的 PINNED_MEASURED_TARGETS 一起改。「该量到多少」不许从单子自己算出来。'
+      + '#1083 条 ① 在隔离树上真跑过两种改法，**它们的症状不一样**（下面这两句说的都是'
+      + '**装上本节这个钉子之前**的样子 —— 你现在看到的这条红就是它装上之后的样子）：删掉三张表'
+      + '都写了的两个（.cta-banner__headline / .cta-banner__desc），第 ⑩ 节会少量 660 对、分母从'
+      + ' 2640 静默变成 1980，而那时整套照样报全过；删掉三张表一条都没写的那两个'
+      + '（.btn-primary / .btn-accent），连对数都不动（还是 2640）—— 后一种连第 ⑩ 节都看不见，'
+      + '只有本节这个「钉内容」的钉子抓得住，钉个数的版本对它全绿');
+  }
+}
+
 // ── ⑨ 配色 × 主题表 × 色相滑块的每一个取值（#1038 r3） ──────────────────────────────────────────
 //
 // 🔴 上面第 ① 节判的是**按钮**（那两处颜色住在 globals.css）。而页面上还有一大批字的颜色是**主题表
@@ -394,8 +456,9 @@ const HUE_ONLY_BREACH_PRIMARY_500 = '#9640ef';
 // 🔴 判的不是「把声明出来的 token 两两配对」：破线那一对根本不是两个 token —— `.cta-banner` 的底是
 // 一条渐变，字压着的是渐变上一个混色。
 //
-// 🔴 #1072 —— 下面这两个绑定把第 ⑨ 节的**同一个判据**借给第 ⑩ 节（那一节枚举的是注册表那 30 套
-// 配色）。借的是函数本身而不是抄一份：两份实现必然分叉，而分叉在这里是静默的（一节绿、一节红，
+// 🔴 #1072 —— 下面这两个绑定把第 ⑨ 节的**同一个判据**借给第 ⑩ 节（那一节枚举的是注册表里的
+// **每一套**配色，2026-08-18 是 110 套 —— 原来这里写着「那 30 套」，而 #1016 之后它早就不是 30 了，
+// #1083 条 ④ 顺手改；那一节报告里的数是现算的）。借的是函数本身而不是抄一份：两份实现必然分叉，而分叉在这里是静默的（一节绿、一节红，
 // 读的人分不出是配色群不同还是判据不同）。
 let sheetsForRegistrySweep = [];
 let judgeSheetForRegistrySweep = null;
@@ -493,17 +556,27 @@ let judgeSheetForRegistrySweep = null;
     return { problems, hits, worst, pairs: pairs.length, judged };
   };
 
-  // 分母自检：解出来的配对不能是 0，否则下面每一格都空过。
+  // 分母自检：每张表解出来的配对数必须**等于** ⑨a 钉住的那个数。
+  //
+  // 🔴 这里原来的判据是「每张表 ≥ 4 对」，而单子上有 10 个选择器、每张表解得出 8 个 —— 也就是说
+  // 那条判据容得下「单子被砍掉一半」。#1083 条 ① 在隔离树上真跑过：删掉两个选择器，这一格照样绿。
+  // 「至少几对」这种下界判据在这里没有意义：该有几对是**知道的**，就按知道的判。
   {
-    const counts = sheets.map((f) => {
-      const n = contrast.textPairs(fs.readFileSync(path.join(themeDir, f), 'utf8'), MEASURED_TARGETS).length;
-      return `${f.replace(/\.css$/, '')}=${n}`;
-    });
-    if (counts.every((c) => Number(c.split('=')[1]) >= 4)) {
-      ok(`从 ${sheets.length} 张主题表里解出被量的配对：${counts.join(' · ')}（被量的选择器共 `
-        + `${MEASURED_TARGETS.length} 个，单子在 scripts/theme-text-targets.js）`);
+    const rows = sheets.map((f) => ({
+      name: f.replace(/\.css$/, ''),
+      n: contrast.textPairs(fs.readFileSync(path.join(themeDir, f), 'utf8'), MEASURED_TARGETS).length,
+    }));
+    const off = rows.filter((r) => r.n !== PINNED_RESOLVED_PER_SHEET);
+    const shown = rows.map((r) => `${r.name}=${r.n}`).join(' · ');
+    if (!off.length) {
+      ok(`从 ${sheets.length} 张主题表里解出被量的配对，每张都是钉住的 ${PINNED_RESOLVED_PER_SHEET} 对：`
+        + `${shown}（被量的选择器共 ${MEASURED_TARGETS.length} 个，单子在 scripts/theme-text-targets.js，`
+        + '这两个数由 ⑨a 钉住）');
     } else {
-      bad(`有主题表解出的配对太少（${counts.join(' · ')}）—— 这一节会空过`);
+      bad(`${rows.length} 张主题表里有 ${off.length} 张解出的配对数不是钉住的 `
+        + `${PINNED_RESOLVED_PER_SHEET} 对：${off.slice(0, 6).map((r) => `${r.name}=${r.n}`).join(' · ')}`
+        + `${off.length > 6 ? ` …共 ${off.length} 张` : ''} —— 要么单子被改了（连 ⑨a 的`
+        + ' PINNED_RESOLVED_PER_SHEET 一起改），要么某个选择器名写错了、或某张表真的少写了一条规则');
     }
   }
 
@@ -673,7 +746,28 @@ let judgeSheetForRegistrySweep = null;
 //       最差 1.26、`.divider__label`、图标、星级），而 4.5:1 是**文字**那条尺。它是读数，不是判据。
 //     · **真机在判的那一集** = `block-roles.json` 里 role=essential 的 7 个块里的每一段字
 //       （`theme-css-invariants.mjs` §② 量的就是它们）：86 个元素 × 110 套 = 9460 对 ⟹
-//       改前 976 处（36 条声明），改后 **613 处（7 条）**。剩下的 7 条全部是同两种形状，
+//       改前 976 处（36 条声明），改后 **613 处（7 条）**。
+//       🔴 #1083 条 ④ —— **613 这个数是按 4.5:1 数的，而 §② 判的门槛是 2.5:1**
+//       （`theme-css-invariants.mjs` 的 `MIN_ESSENTIAL_INK_CONTRAST`）。所以它读不成
+//       「真机会在这一集上报 613 处红」。同一集、同一天（2026-08-18）、改成 §② 那把尺再数一遍：
+//       **209 处低于 2.5:1**（最差 1.21:1）。两个数都复算过：按 4.5 数得到 613，逐字对上 #1072 r3
+//       写下的那个数 —— 元素集的枚举法一样：三张手写表里凡是给 `block-roles.json` 中 role=essential
+//       那 7 个块写了 `color:` 的选择器，**31 · 30 · 25 = 86 条，全部解得出底色（解不出的 0 条），
+//       86 × 110 套 = 9460 对**，也就是 #1072 r3 写的那两个数本来就是对的。
+//       🔴 #1083 r2 —— 上一版在这里另写了一组分母（8470 对），并且说 #1072 的 9460 把「解不出来的」
+//       算进了分母：**都不成立**，而且它跟本段上面那句「86 个元素 × 110 套 = 9460 对」自相矛盾 ——
+//       正是这张票要治的那个病，被 QA1 抓住。别再从这一段里读第二个分母；枚举当场可复算：
+//         node -e "const r=require('../src/lib/sections/block-roles.json'),c=require('./theme-contrast.js'),fs=require('fs');
+//                  const e=Object.keys(r).filter(k=>r[k]==='essential');
+//                  for(const n of ['hero-media-left','hero-media-right','hero-media-top']){
+//                    const css=fs.readFileSync('../public/themes/'+n+'.css','utf8'),d=new Set();
+//                    for(const{sel,decls}of c.parseSheet(css)) if(decls.color&&e.some(b=>sel.includes('.'+b))) d.add(sel);
+//                    console.log(n, [...d].length, c.textPairs(css,[...d]).length); }"
+//         → hero-media-left 31 31 · hero-media-right 30 30 · hero-media-top 25 25   （2026-08-18）
+//       🔴 而 §② 问的本来就不是同一个问题：它量的是**画出来的字离它背后多远**（照两张图，一张带
+//       自己的字、一张不带），不是「声明出来的两个 token 之间的比值」。上面这两个数是本层算术在
+//       两把尺上的读数，不是对 §② 判决的预测。
+//       剩下的 7 条全部是同两种形状，
 //       而它们**是产品判断、不是打磨**，已在交接留言里摆给 PM：
 //         ① `.contact-form__error` / `.quote-form__error`（5 条）—— 要它 110 套全绿，全绿候选只有
 //            `primary-800` / `primary-900` / `#000000`（左表那条只有 `#ffffff`）⟹ **错误提示不再是红的**。
@@ -741,11 +835,18 @@ let judgeSheetForRegistrySweep = null;
       }
     }
     /**
-     * 🔴 分母自检 —— 这一节该量到几对，是**从表里现解出来的**，不是写死的数。
+     * 🔴 分母自检 —— 这一节该量到几对，是 ⑨a **写死**的那个数乘出来的，不是从表里现解出来的。
      *
      * 收窄选择器最容易出的错是选择器名写错：一对都没量到，而这一节照样报绿，跟「每一对都达标」
-     * 长得一模一样。所以分母按「这张表真的写了哪几个被量的选择器」算（`textPairs` 是判据自己用的
-     * 那个原语），少一对就报红。
+     * 长得一模一样。
+     *
+     * 🔴 #1083 条 ① —— 这里原来把分母也交给 `textPairs` 现解，于是「该量到多少」和「实际量到多少」
+     * 同源：删两个选择器两边一起缩，差值恒为 0，实测 **39 过 / 0 失败 rc=0**，只有报告里那句
+     * 「共 2640 对」静默变成「共 1980 对」。期望值必须来自被检查的数据之外，所以它现在是
+     * `PINNED_RESOLVED_PER_SHEET × 表数 × 配色套数`。
+     *
+     * 🔴 条 ② 也靠这一条：判三张表那条路解不出任何配对时 `judged` 是 0，写死的分母让 `0 < 2640`
+     * 报红；同源的分母那时是 `0 < 0`，为假，报绿。
      *
      * 🔴 并且把**没有任何一张表写的**那几个选择器印出来。今天是 `.btn-primary` / `.btn-accent`：
      * 这三张手写表一条都没碰过它们（`grep -c '\.btn-primary\|\.btn-accent'` = 0），按钮的脸是
@@ -758,7 +859,7 @@ let judgeSheetForRegistrySweep = null;
         .textPairs(fsHere.readFileSync(pathHere.join(themeDirHere, f), 'utf8'), JUDGED_TARGETS)
         .map((p) => p.selector),
     }));
-    const expected = resolvedPerSheet.reduce((n, s) => n + s.selectors.length, 0) * names.length;
+    const expected = sheetsHere.length * PINNED_RESOLVED_PER_SHEET * names.length;
     const writtenByNone = JUDGED_TARGETS.filter(
       (t) => !resolvedPerSheet.some((s) => s.selectors.includes(t)),
     );
@@ -767,16 +868,76 @@ let judgeSheetForRegistrySweep = null;
         + `（${writtenByNone.join(' · ')}）—— 那是 globals.css 画的脸，第 ⑨ 节判它们`
       : '';
 
-    if (judged < expected) {
-      bad(`这一节只量到 ${judged} 对（${names.length} 套配色 × 从表里现解出来的 `
-        + `${resolvedPerSheet.map((s) => `${s.sheet}=${s.selectors.length}`).join(' · ')} = 该有 ${expected} 对）`
-        + ' —— 选择器或表名大概写错了，报绿也是空的');
+    if (judged !== expected) {
+      bad(`这一节量到 ${judged} 对，而该有 ${expected} 对（${names.length} 套配色 × ${sheetsHere.length} 张表`
+        + ` × ⑨a 钉住的 ${PINNED_RESOLVED_PER_SHEET} 对/张）—— 表里现解出来的是 `
+        + `${resolvedPerSheet.map((s) => `${s.sheet}=${s.selectors.length}`).join(' · ')}。`
+        + '选择器名或表名大概写错了，也可能单子被改窄了（那就连 ⑨a 的钉子一起改），报绿也是空的');
     } else if (rows.length) {
       bad(`${names.length} 套配色里，三张手写表有 ${rows.length} 处低于 ${MIN}:1 或读不出来：\n     `
         + rows.slice(0, 8).join('\n     ') + (rows.length > 8 ? `\n     …共 ${rows.length} 处` : ''));
     } else {
       ok(`${sheetsHere.length} 张手写表 × ${names.length} 套配色 × 被量的每一个选择器`
         + `（滑块归零那一档，共 ${judged} 对）：每一处都 ≥ ${MIN}:1${noneLine}`);
+    }
+
+    // 🔴 反向对照：判三张表那条路必须真的会报红（#1083 条 ②）─────────────────────────────────
+    //
+    // 为什么这一节需要自己的一个。第 ⑨ 节末尾那个阳性对照是**量过**的：它引起的 7 处破线
+    // **全部**落在 `globals.css` 的按钮上，三张表那一层是 **0 处**（`sheetHits=0 btnHits=7`）——
+    // 所以判三张表的那条路即使整个失效，那一格照样绿。改之前（`ce77e88b`）那条断言只数三张表，
+    // 是有牙齿的；把射程扩到「表 + 按钮」修好了另一个洞，同时把这一个打开了。
+    //
+    // 🔴 不是「重挑一组配色」——那条路在这一层做不到（本票正文条 ②：最紧的那一对
+    // `accent-600` 压 `primary-50` 在整个色相区间只摆动 0.026，比颜色的整数粒度还窄，算术不出来）。
+    // 换的是做法：拿**上面刚刚逐套判过全绿的那一群里的一套**，只动一个 token，动到一个必然读不出来
+    // 的值，再喂**同一个** `judgeSheetForRegistrySweep`。上面那一圈（`rows.length === 0`）就是这个
+    // 对照的空白组 —— 原配色在这三张表上是干净的，所以报出来的红只能是这一个 token 引起的。
+    //
+    // 🔴 为什么动 `primary-800`：它在三张表里都承重，而且两个方向都占着（2026-08-18 实测）——
+    //   hero-media-left  它是渐变的浅端（`.hero__title` / `.page-header__title` 压在上面），
+    //                    又是 `.services-nav__link` 的**底**
+    //   hero-media-right 它是 `.hero__sub` / `.cta-banner__desc` / `.page-header__sub` /
+    //                    `.announcement-bar__link` / `.services-nav__link` 的**字**，底是 primary-50
+    //   hero-media-top   同上，底是 primary-100；又是 CTA 渐变的浅端
+    // 把它改成近白 ⟹ 三张表各自都有配对读不出来，所以这个对照对**每一张表**都说话，不是只对一张。
+    //
+    // 🔴 并且断言报出来的红**落在三张表上**，不是落在别处。这正是它要防的那个形状：第 ⑨ 节那个
+    // 对照之所以对这一层失明，就是因为它的命中全跑到 globals.css 去了，而断言只问「有没有红」。
+    {
+      const DONOR = 'ocean-blue';
+      const MUTATED_INK = '#fdfdfd';
+      if (!themes[DONOR] || !themes[DONOR].colors || !themes[DONOR].colors.primary) {
+        bad(`反向对照拿不到配色 ${DONOR}（themes.js 里没有它，或它没有 colors）—— 上面那圈绿没有对照兜着，`
+          + '这不是通过。换一套上面判过的配色，改 DONOR');
+      } else {
+        const fixture = JSON.parse(JSON.stringify(themes[DONOR].colors));
+        fixture.primary['800'] = MUTATED_INK;
+        const hits = [];
+        for (const f of sheetsHere) {
+          hits.push(...judgeSheetForRegistrySweep(f, fixture, [0], JUDGED_TARGETS).problems);
+        }
+        const sheetNames = sheetsHere.map((f) => f.replace(/\.css$/, ''));
+        const silent = sheetNames.filter((n) => !hits.some((h) => h.startsWith(`${n} `)));
+        const elsewhere = hits.filter((h) => !sheetNames.some((n) => h.startsWith(`${n} `)));
+        if (!hits.length) {
+          bad(`反向对照：把 ${DONOR} 的 primary-800 改成 ${MUTATED_INK}（近白，压在它自己的浅底上）`
+            + '，判三张手写表那条路**一处都没报红** —— 那么上面那一圈绿是空的，它证明不了这条路在判事');
+        } else if (elsewhere.length) {
+          bad(`反向对照报出来的 ${hits.length} 处里有 ${elsewhere.length} 处不属于这三张手写表`
+            + `（${elsewhere.slice(0, 3).join(' / ')}）—— 这一节该量的就是表那一层，命中跑到别处去`
+            + '就说明它量的不是这条路（第 ⑨ 节那个对照正是这么对本层失明的）');
+        } else if (silent.length) {
+          bad(`反向对照报了 ${hits.length} 处，但有 ${silent.length} 张表一处都没报`
+            + `（${silent.join(' · ')}）—— 对照只对一部分表说话，剩下那些的判决路照样可能是死的。`
+            + '换一个三张表都承重的 token');
+        } else {
+          ok(`反向对照：${DONOR} 的 primary-800 改成 ${MUTATED_INK} ⟹ 同一个 judgeSheet 在 `
+            + `${sheetsHere.length} 张手写表上共报 ${hits.length} 处（每张表都有），而它没改过的那一版`
+            + `就在上面那 ${judged} 对里判过全绿 —— 这一格证明的是「判三张表那条路真的会报红」，`
+            + '不是「上面那圈绿是空的」');
+        }
+      }
     }
   }
 }
