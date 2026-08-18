@@ -188,7 +188,7 @@
   max-width: 32rem;
   font-size: 1rem;
   line-height: 1.7;
-  color: var(--color-primary-700);
+  color: var(--color-primary-800);
 }
 
 /* The trail takes the whole first row; the heading and the description share the second one. This
@@ -254,7 +254,7 @@
   max-width: 28rem;
   font-size: 1rem;
   line-height: 1.65;
-  color: var(--color-primary-700);
+  color: var(--color-primary-800);
 }
 
 @media (min-width: 1024px) {
@@ -284,7 +284,7 @@
 
 .contact-form__note {
   font-size: 0.875rem;
-  color: var(--color-primary-600);
+  color: var(--color-primary-800);
 }
 
 .contact-form__success {
@@ -330,7 +330,7 @@
   max-width: 30rem;
   font-size: 1.0625rem;
   line-height: 1.65;
-  color: var(--color-primary-700);
+  color: var(--color-primary-800);
 }
 
 .quote-form__main {
@@ -419,7 +419,7 @@
   max-width: 32rem;
   font-size: 1rem;
   line-height: 1.65;
-  color: var(--color-primary-700);
+  color: var(--color-primary-800);
 }
 
 .services-list__actions {
@@ -527,7 +527,7 @@
   border: 1px solid var(--color-primary-200);
   font-size: 0.8125rem;
   font-weight: 500;
-  color: var(--color-primary-700);
+  color: var(--color-primary-800);
 }
 
 .service-related-pages {
@@ -613,19 +613,19 @@
 .contact-info__address {
   font-size: 0.9375rem;
   line-height: 1.7;
-  color: var(--color-primary-700);
+  color: var(--color-primary-800);
 }
 
 .contact-info__phone {
   font-size: 1rem;
   font-weight: 600;
-  color: var(--color-primary-600);
+  color: var(--color-primary-800);
 }
 
 .contact-info__email {
   font-size: 0.9375rem;
   font-weight: 600;
-  color: var(--color-primary-600);
+  color: var(--color-primary-800);
 }
 
 .stats-counter {
@@ -1548,7 +1548,7 @@
   max-width: 34rem;
   font-size: 1rem;
   line-height: 1.65;
-  color: var(--color-primary-700);
+  color: var(--color-primary-800);
 }
 
 /* A rule, not a card — that is the difference this sheet draws against hero-media-left.css. */
@@ -1568,7 +1568,7 @@
 .faq-accordion__answer {
   font-size: 0.9375rem;
   line-height: 1.65;
-  color: var(--color-primary-700);
+  color: var(--color-primary-800);
 }
 
 .testimonials {
@@ -1670,7 +1670,10 @@
 .announcement-bar__link {
   font-size: 0.875rem;
   font-weight: 700;
-  color: var(--color-accent-600);
+  border-width: 0 0 1px;
+  border-style: solid;
+  border-color: var(--color-primary-800);
+  color: var(--color-primary-800);
 }
 
 .service-highlights {
@@ -2039,7 +2042,7 @@
   padding-bottom: 1.5rem;
   font-size: 1rem;
   line-height: 1.7;
-  color: var(--color-primary-700);
+  color: var(--color-primary-800);
 }
 
 .map-area__area {
@@ -2059,7 +2062,7 @@
 .map-area__desc {
   font-size: 0.9375rem;
   line-height: 1.7;
-  color: var(--color-primary-700);
+  color: var(--color-primary-800);
 }
 
 .trusted-brands {

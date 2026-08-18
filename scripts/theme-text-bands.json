@@ -1,12 +1,12 @@
 {
   "sheets": {
     "hero-media-left": {
-      "md5": "fdf91102c5f1bfa0dfe4d9d340336734",
+      "md5": "83b9bd9b201713bd23865048e7d3de7d",
       "viewport": {
         "width": 1440,
         "height": 900
       },
-      "measuredOn": "http://127.0.0.1:8730",
+      "measuredOn": "http://127.0.0.1:33571",
       "targets": {
         ".hero__title": {
           "tmin": 0.4399,
@@ -18,15 +18,16 @@
           ],
           "textBox": [
             544,
-            126
+            63
           ],
           "paintedBy": "hero",
           "pages": [
-            "/"
+            "/",
+            "/allblocks.html"
           ]
         },
         ".hero__sub": {
-          "tmin": 0.5109,
+          "tmin": 0.496,
           "tmax": 0.7414,
           "angle": 140,
           "gradientBox": [
@@ -39,7 +40,8 @@
           ],
           "paintedBy": "hero",
           "pages": [
-            "/"
+            "/",
+            "/allblocks.html"
           ]
         },
         ".cta-banner__headline": {
@@ -56,7 +58,8 @@
           ],
           "paintedBy": "cta-banner",
           "pages": [
-            "/"
+            "/",
+            "/allblocks.html"
           ]
         },
         ".cta-banner__desc": {
@@ -73,12 +76,13 @@
           ],
           "paintedBy": "cta-banner",
           "pages": [
-            "/"
+            "/",
+            "/allblocks.html"
           ]
         },
         ".page-header__title": {
           "tmin": 0.091,
-          "tmax": 0.8758,
+          "tmax": 0.879,
           "angle": 140,
           "gradientBox": [
             1440,
@@ -93,12 +97,14 @@
             "/about.html",
             "/services.html",
             "/quote.html",
-            "/contact.html"
+            "/contact.html",
+            "/allblocks.html",
+            "/services/oil-change.html"
           ]
         },
         ".page-header__sub": {
           "tmin": 0.1405,
-          "tmax": 0.4707,
+          "tmax": 0.4845,
           "angle": 140,
           "gradientBox": [
             1440,
@@ -113,27 +119,29 @@
             "/about.html",
             "/services.html",
             "/quote.html",
-            "/contact.html"
+            "/contact.html",
+            "/allblocks.html",
+            "/services/oil-change.html"
           ]
         }
       }
     },
     "hero-media-right": {
-      "md5": "167ca6626a69d4ddf70bd58b152afbce",
+      "md5": "7f6ae9bd645569939668bede140cd09c",
       "viewport": {
         "width": 1440,
         "height": 900
       },
-      "measuredOn": "http://127.0.0.1:8730",
+      "measuredOn": "http://127.0.0.1:35365",
       "targets": {}
     },
     "hero-media-top": {
-      "md5": "3033bf6e432a5ffa821936d1d3d66cbe",
+      "md5": "2051883947143d73dd26cb7bd20c0eaa",
       "viewport": {
         "width": 1440,
         "height": 900
       },
-      "measuredOn": "http://127.0.0.1:8730",
+      "measuredOn": "http://127.0.0.1:51353",
       "targets": {
         ".cta-banner__headline": {
           "tmin": 0.2691,
@@ -149,7 +157,8 @@
           ],
           "paintedBy": "cta-banner",
           "pages": [
-            "/"
+            "/",
+            "/allblocks.html"
           ]
         },
         ".cta-banner__desc": {
@@ -166,7 +175,8 @@
           ],
           "paintedBy": "cta-banner",
           "pages": [
-            "/"
+            "/",
+            "/allblocks.html"
           ]
         }
       }

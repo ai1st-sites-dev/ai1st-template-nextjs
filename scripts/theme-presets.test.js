@@ -16,8 +16,9 @@
  * 颜色」，只有后者跑得慢。
  *
  * 🔴 为什么策展判据要写成测试而不是写成注释：下一个人加一组配色时，「白字压 primary-500 要够黑」
- *    这件事没有任何东西会提醒他。注册表里 30 套主题有 9 套过不了这一关（本文件最后一格把这个数
- *    也量出来当分母），所以「随手抄一套好看的」是最自然的做法，也是会出事的那个做法。
+ *    这件事没有任何东西会提醒他。注册表里过不了这一关的**不是少数**，所以「随手抄一套好看的」是
+ *    最自然的做法，也是会出事的那个做法。**真数读那一格自己印的那句**（第 ⑨ 节的反向对照那一行，
+ *    它就地算）——这里原来写着「30 套里有 9 套」，2026-08-18 实测是 11 套，写死的数会过期（#1072）。
  */
 
 'use strict';
@@ -330,8 +331,41 @@ const BASE = [
 /**
  * 🔴 第 ⑨ 节那个阳性对照要用的一组配色：**滑块归零时它是达标的，拖到某个角度才破线。**
  *
- * 它是 violet 只把 `primary-600` 往亮里挪三档（`#7620c2 → #7923c5`）。`primary-600` 是
- * `.cta-banner` 那条渐变的近端，挪亮一点整条渐变就亮一点，压在上面的浅色字就更难读。
+ * 它是 violet 只把 `primary-500` 挪到下面这个值。`primary-500` 是 `globals.css` 里
+ * `.btn-primary` 的底色（白字压在它上面）—— 在**色相这一维上摆幅最大**的一对，所以它是唯一
+ * 还能被色相推过线、而两边又都留得住余量的地方。
+ *
+ * ── 🔴 为什么驱动的 token 换过两次，别再换回去 ──────────────────────────────────────────────
+ * ① 最早挪的是 `primary-600`（`.cta-banner` 那条渐变的近端）。#1072 把那条渐变从中间调的
+ *    `primary-600 → accent-500` 换成深的 `primary-800 → primary-900`，`primary-600` 从此不在任何
+ *    一条被判的渐变里 ⟹ 对照退化成恒绿。
+ * ② 接着挪的是 `accent-600`（`hero-media-top` 那张表 `.announcement-bar__link` 的字色）。#1072
+ *    第三轮把那三张手写表里写死的 `accent-600` 换掉了（它压在 `primary-50` / `primary-100` 的浅底
+ *    上，110 套配色里 90–102 套低于门槛）⟹ 这个对照又退化成恒绿。
+ * 两次都**不是我发现的**，是下面第 ② 条断言当场报出来的。这正是那两条断言存在的理由。
+ *
+ * ── 🔴 为什么 `accent-600` 这条路是走死的，不是没挑好（2026-08-18 量的）────────────────────────
+ * 换掉之后，`accent-600 on primary-50` 仍是**表这一层**最紧的一对（violet：归零 5.009、整个色相
+ * 区间最低 4.983）—— 但那是 **0.026 的摆幅**：两端都跟着色相转，转过去几乎抵消。把它逐档扫过一遍，
+ * 归零合格且余量 < 0.25 的候选有 13 个，**没有一个**能在区间里掉到 4.5 以下（最接近的 `#17766e`：
+ * 归零 4.520、区间最低 4.502）。⟹ 那个窗口只有 0.02 宽，比颜色的整数粒度还窄。
+ *
+ * ── 🔴 摆幅决定了余量的上限，这是这组值只能这么紧的原因 ────────────────────────────────────────
+ * `shiftHue` 基本保亮度，所以色相这一维对对比度的影响本来就小。四条按钮实测的摆幅：
+ *     `.btn-primary` white/primary-500        **0.076**  ← 最大，选它
+ *     `.btn-accent` gray-900/accent-400         0.074
+ *     `.btn-primary:hover` white/primary-600    0.049
+ *     `.btn-accent:hover` gray-900/accent-500   0.041
+ * 一个「归零绿、某档红」的夹具必须把归零那一档塞进门槛上方**不到一个摆幅**的地方 ⟹ 两边余量的
+ * 较小者最多只能是摆幅的一半（0.038）。在 `#993feb` 邻域 ±5 做三通道细搜（1331 个候选、263 个
+ * 在按钮层合格）取两边余量较小者最大的那个，就是下面这个值：
+ *     归零那一档最紧 **4.5362**（+0.036）· 拖到 14° 时 `.btn-primary` 掉到 **4.4619**（−0.038）
+ * ⟹ **已经贴着理论上限**，不存在「再挑松一点的」。判据的常数或 globals.css 的按钮一动，这一档
+ * 大概率滑出去，而下面两条断言会当场说清滑向了哪一边。**滑出去的处置是重挑，不是把断言放宽。**
+ *
+ * 📌 这一组在 **83 张表那一层一处都不破**（归零 0 处、非 0 档 0 处，实测）—— 破线只落在
+ *    `globals.css` 的按钮上。所以下面第 ② 条断言数的是**表 + 按钮**，不能只数表；`judgeButtons`
+ *    为此回了 `hits`，理由写在它上面。
  *
  * ── 🔴 为什么不是随便挑一组坏配色（QA1 在 r3 上把这件事驱动出来了）──────────────────────────────
  * 上一版这里冻的是 r2 那组 violet accent（QA3 在真浏览器上量到 −15° 掉到 4.45 的那组）。
@@ -342,10 +376,9 @@ const BASE = [
  *
  * ⟹ 合格的对照必须**两半都成立**，下面那一格因此写了两条断言：归零那一档全绿、整个区间里有一格
  * 破线且**破线的那一档不是 0°**。这两条也是这组值的维护说明：判据的常数一动，它可能滑向任何一边，
- * 而两条断言会当场说清楚滑向了哪一边、该重挑。挑的时候只动 `primary-600`，`+1…+4` 四档都合格
- * （实测：+3 归零 4.541 / 全区间最差 4.459@−13°，两边余量都是 0.04 上下）。
+ * 而两条断言会当场说清楚滑向了哪一边、该重挑。
  */
-const HUE_ONLY_BREACH_PRIMARY_600 = '#7923c5';
+const HUE_ONLY_BREACH_PRIMARY_500 = '#9640ef';
 
 // ── ⑨ 配色 × 主题表 × 色相滑块的每一个取值（#1038 r3） ──────────────────────────────────────────
 //
@@ -359,7 +392,13 @@ const HUE_ONLY_BREACH_PRIMARY_600 = '#7923c5';
 // `scripts/theme-contrast.js` 的文件头。
 //
 // 🔴 判的不是「把声明出来的 token 两两配对」：破线那一对根本不是两个 token —— `.cta-banner` 的底是
-// `linear-gradient(135deg, primary-600, accent-500)`，字压着的是渐变上一个混色。
+// 一条渐变，字压着的是渐变上一个混色。
+//
+// 🔴 #1072 —— 下面这两个绑定把第 ⑨ 节的**同一个判据**借给第 ⑩ 节（那一节枚举的是注册表那 30 套
+// 配色）。借的是函数本身而不是抄一份：两份实现必然分叉，而分叉在这里是静默的（一节绿、一节红，
+// 读的人分不出是配色群不同还是判据不同）。
+let sheetsForRegistrySweep = [];
+let judgeSheetForRegistrySweep = null;
 {
   const fs = require('fs');
   const path = require('path');
@@ -396,13 +435,16 @@ const HUE_ONLY_BREACH_PRIMARY_600 = '#7923c5';
    *
    * @returns {{problems: string[], worst: object|null}}
    */
-  const judgeSheet = (sheetFile, colors, hues) => {
+  // 🔴 #1072 加了第四个参数 `targets`：第 ⑩ 节要用**同一个判据**只判 CTA 那两行（理由写在那一节）。
+  //    默认仍是 MEASURED_TARGETS，所以第 ⑨ 节一个字节都没变。
+  const judgeSheet = (sheetFile, colors, hues, targets = MEASURED_TARGETS) => {
     const name = sheetFile.replace(/\.css$/, '');
     const css = fs.readFileSync(path.join(themeDir, sheetFile), 'utf8');
-    const pairs = contrast.textPairs(css, MEASURED_TARGETS);
+    const pairs = contrast.textPairs(css, targets);
     const varsAt = varsFor(colors);
     const problems = [];
     let worst = null;
+    let judged = 0;
     const hits = [];
     const note = (r, selector) => { if (r && (!worst || r.ratio < worst.ratio)) worst = { ...r, selector, sheet: name }; };
     const hit = (r, selector) => hits.push({ ...r, selector, sheet: name });
@@ -410,6 +452,7 @@ const HUE_ONLY_BREACH_PRIMARY_600 = '#7923c5';
     for (const pair of pairs) {
       // 整条渐变（或纯色）上最差的那个点。过了就不需要几何 —— 见 theme-contrast.js 文件头 ②。
       const wide = contrast.worstOverHue(pair, varsAt, undefined, hues);
+      if (wide) judged += 1;
       if (!wide) {
         problems.push(`${name} ${pair.selector}：颜色解不出来（${pair.fg} on ${pair.bg.image || pair.bg.color}）`
           + ' —— 这一格什么都没判到，不许当成过');
@@ -445,7 +488,9 @@ const HUE_ONLY_BREACH_PRIMARY_600 = '#7923c5';
           + `（渐变上 t=${narrow.t.toFixed(3)}，底色 rgb(${narrow.bgRgb})）`);
       }
     }
-    return { problems, hits, worst, pairs: pairs.length };
+    // `judged` = 真的取到读数的对数（不是解出来的对数）。第 ⑩ 节拿它当分母自检：
+    // 选择器写错时 pairs 会是 0，而「一对都没量到」和「每一对都达标」在报告上长得一样。
+    return { problems, hits, worst, pairs: pairs.length, judged };
   };
 
   // 分母自检：解出来的配对不能是 0，否则下面每一格都空过。
@@ -501,8 +546,13 @@ const HUE_ONLY_BREACH_PRIMARY_600 = '#7923c5';
    * 「会让 main 变红的东西」按本票正文第 3 条本来就不许进这一批。所以这里**明确地**只判有 token
    * 底色的那几条，并且下面把判了几条、留了哪条打印出来 —— 少判一条不许是静默的。
    */
+  // 🔴 #1072 r3 加了 `hits`：跟 `judgeSheet` 对齐，回**每一处**破线（带它是在哪一档色相上破的），
+  //    不只回人话。下面那个阳性对照的「非 0 档破线」那一半要数它 —— 在此之前那一半只数表里的命中，
+  //    而「归零那一档全绿」那一半是表 + 按钮一起数的。**同一个对照，两半的射程不一样**，于是
+  //    「破线只落在按钮上」的夹具会被判成「整个区间都没破线」。今天选中的那一组正是这种。
   const judgeButtons = (colors, hues = contrast.hueSteps()) => {
     const problems = [];
+    const hits = [];
     let worst = null;
     for (const hue of hues) {
       const shift = (hex) => tweaks.shiftHue(hex, hue);
@@ -511,10 +561,13 @@ const HUE_ONLY_BREACH_PRIMARY_600 = '#7923c5';
         const bgRgb = contrast.hexToRgb(bg);
         const r = contrast.contrast(contrast.mixBytes(contrast.hexToRgb(fg), bgRgb, contrast.PAINT_BLEND), bgRgb);
         if (!worst || r < worst.ratio) worst = { ratio: r, hue, what };
-        if (r < contrast.MIN_CONTRAST) problems.push(`globals.css 「${what}」：${r.toFixed(2)}:1 @色相 ${hue}°`);
+        if (r < contrast.MIN_CONTRAST) {
+          hits.push({ ratio: r, hue, sheet: 'globals.css', selector: what });
+          problems.push(`globals.css 「${what}」：${r.toFixed(2)}:1 @色相 ${hue}°`);
+        }
       }
     }
-    return { problems, worst };
+    return { problems, worst, hits };
   };
 
   const hues = contrast.hueSteps();
@@ -539,13 +592,17 @@ const HUE_ONLY_BREACH_PRIMARY_600 = '#7923c5';
     }
   }
 
+  // #1072：把这一节的判据与表清单借给第 ⑩ 节（见文件里那两个 let 的注释）。
+  sheetsForRegistrySweep = sheets;
+  judgeSheetForRegistrySweep = judgeSheet;
+
   // 🔴 阳性对照：一组「归零达标、某个色相取值才破线」的配色，跑**同一个** judgeSheet。
   //
   // 两条断言缺一不可，理由写在上面那个夹具的注释里：只断言「会报红」的对照，把色相那一维整个删掉
   // 之后照样是绿的 —— 那它就没在证明这一节存在的那件事。
   {
     const fixture = JSON.parse(JSON.stringify(presets.PALETTES.violet.colors));
-    fixture.primary['600'] = HUE_ONLY_BREACH_PRIMARY_600;
+    fixture.primary['500'] = HUE_ONLY_BREACH_PRIMARY_500;
 
     // ① 滑块归零那一档：这组配色是达标的（否则它只是一组坏配色，跟色相无关）
     const atZero = [
@@ -553,20 +610,173 @@ const HUE_ONLY_BREACH_PRIMARY_600 = '#7923c5';
       ...judgeButtons(fixture, [0]).problems,
     ];
     // ② 整个区间：有一格破线，而且破线的那一档不是 0°
-    const full = sheets.flatMap((f) => judgeSheet(f, fixture).hits);
+    // 🔴 表 **和** 按钮一起数 —— 跟 ① 同一个射程。只数表的话，破线落在 globals.css 按钮上的夹具
+    //    （今天选中的这一组就是）会被判成「整个区间都没破线」，而那句话是假的。
+    const full = [
+      ...sheets.flatMap((f) => judgeSheet(f, fixture).hits),
+      ...judgeButtons(fixture).hits,
+    ];
     const offZero = full.filter((h) => h.hue !== 0);
 
     if (atZero.length) {
       bad('阳性对照的夹具退化了：它在**滑块归零**那一档就已经破线，所以它证明不了色相那一维'
-        + `有用（把 hueSteps() 改成只回 [0]，它照样报红）—— 重挑一组，只动 primary-600，见夹具注释。\n     ${atZero.join('\n     ')}`);
+        + `有用（把 hueSteps() 改成只回 [0]，它照样报红）—— 重挑一组，挪 primary-500，见夹具注释。\n     ${atZero.join('\n     ')}`);
     } else if (!offZero.length) {
       bad('阳性对照的夹具退化了：整个色相区间里一格都没破线 —— 判据对它是恒绿的，'
-        + `重挑一组，只动 primary-600，见夹具注释。（归零那一档：全绿，共 ${full.length} 条命中）`);
+        + `重挑一组，挪 primary-500，见夹具注释。（归零那一档：全绿，共 ${full.length} 条命中）`);
     } else {
       const shown = offZero.reduce((a, b) => (b.ratio < a.ratio ? b : a));
-      ok(`阳性对照：violet 把 primary-600 挪到 ${HUE_ONLY_BREACH_PRIMARY_600} ⟹ **滑块归零那一档全绿**，`
+      ok(`阳性对照：violet 把 primary-500 挪到 ${HUE_ONLY_BREACH_PRIMARY_500} ⟹ **滑块归零那一档全绿**，`
         + `而拖到 ${shown.hue}° 时 ${shown.sheet} 的「${shown.selector}」掉到 ${shown.ratio.toFixed(2)}:1 —— `
         + '这一格证明的是色相那一维真的在判事，不只是「坏配色会被判红」');
+    }
+  }
+}
+
+// ── ⑩ 三张手写表 × **`themes.js` 里的每一套配色**（#1072）───────────────────────────────────────
+//
+// 🔴 枚举的是 `Object.keys(themes)` —— 今天是 110 套（#1016 落地后：80 套池 + 30 套冻结退役的）。
+// 报告里那个数是现算的；这段注释里写「110」的地方都注明了是 2026-08-18 量的，别当常数用。
+//
+// 🔴 为什么这一节是新的：上面第 ⑨ 节枚举的是**6 组预设配色**（站主在 Customize 里能挑的那六个），
+// 而这三张手写表在校准时穿的是**样例站自己那套主题的配色** —— 也就是 `scripts/themes.js` 里的一套，
+// 由轮换序号决定是哪一套（`theme-css-invariants-all-sheets.sh` 把站的 themeId 交给构建）。
+// **那一群从来没有任何东西枚举过**，而 #1072 要治的两条读数正好都在那一群里：
+//     midnight → `.cta-banner__headline` 3.21:1 / `.cta-banner__desc` 3.08:1   （#1046 的 QA2）
+//     jade-60  → 4.00:1 / 3.96:1                                              （#1016 r4 的 QA2）
+// 第 ⑨ 节当时是绿的（预设那一群最差 4.56），所以「测试全绿」跟「这三张表没问题」是两件事 ——
+// 这张票在两个打磨批次里各漂过一次，靠的就是没人枚举这一群。
+//
+// 🔴 这一群是「校准语料」的射程，不是客户的射程，两句话都要说准：注册表里没有任何一套主题叫
+// `hero-media-*`，而一个站穿哪张表由它自己的主题名决定（`create-site.js:907` → `theme-sheet.js:41`），
+// 所以**没有客户的站会穿上这三张表**。它们的读数之所以承重，是因为 #1011 AC3、CI 那道运行时检查、
+// 以及别的票拿它们校准量法 —— 一份自己都不合格的语料，拿它校准出来的读数没法当依据。
+//
+// 判据跟第 ⑨ 节同一个函数（`judgeSheet`），只换枚举的配色群，所以两节不会分叉。色相那一维这里
+// **只取归零那一档**：滑块是站主对**自己的站**做的事，而这三张表没有站，取全区间只会把这一节
+// 变成第 ⑨ 节的重复。
+//
+// 🔴🔴 这一节判**被量的每一个选择器**，不是只判 CTA 横幅那两行（#1072 第三轮改的，Chris 把 #1068
+// 条 7 并进本票时点的就是这件事）。前两轮它只判 CTA，理由是「别的选择器那批破线不属于本票，一起判会
+// 让 main 变红」—— 那个理由在第三轮不成立了，因为第三轮把那批破线**治掉了**：
+//
+//     改前（110 套配色 × 3 张表 × 8 个解得出来的选择器 = 2640 对）：194 处低于 4.5:1
+//        `.announcement-bar__link` 192 处（hero-media-top 102 · hero-media-right 90，最差 1.69:1 magenta-14）
+//        `.page-header__sub` 1 处 · `.services-nav__link` 1 处（都是 golden-yellow/hero-media-right 4.27:1）
+//     改后：**0 处**
+//
+// 🔴🔴 **这一节判的是 `MEASURED_TARGETS` 那 10 个，而三张表一共给 441 个元素写了 `color:`。**
+// 「一处不漏」不能按这一节的射程算，所以 #1072 r3 另外量了两圈（读数是 2026-08-18 的，命令写在
+// 本票的交接留言里，两圈都是「从表里现解出选择器」，不喂任何单子）：
+//     · **超集** 441 个元素 × 110 套 = 48510 对 ⟹ 改前 5827 处破线（187 条声明），改后 5450 处（151 条）。
+//       这一圈**今天没有任何东西在判**：里面大量是刻意压低的装饰件（`.feature-comparison__mark--no`
+//       最差 1.26、`.divider__label`、图标、星级），而 4.5:1 是**文字**那条尺。它是读数，不是判据。
+//     · **真机在判的那一集** = `block-roles.json` 里 role=essential 的 7 个块里的每一段字
+//       （`theme-css-invariants.mjs` §② 量的就是它们）：86 个元素 × 110 套 = 9460 对 ⟹
+//       改前 976 处（36 条声明），改后 **613 处（7 条）**。剩下的 7 条全部是同两种形状，
+//       而它们**是产品判断、不是打磨**，已在交接留言里摆给 PM：
+//         ① `.contact-form__error` / `.quote-form__error`（5 条）—— 要它 110 套全绿，全绿候选只有
+//            `primary-800` / `primary-900` / `#000000`（左表那条只有 `#ffffff`）⟹ **错误提示不再是红的**。
+//         ② `.services-list__icon`（2 条）—— 同上，而且它是**图标不是文字**，非文字那条尺是 3:1。
+//       📌 `#ffffff` / `#000000` 这条路本身也被 §4（#1003「受限 CSS 不许字面色值」）挡着：实测写进
+//          左表 4 处 ⟹ `CSS contract violations (4)`、构建被拒。所以「换个字面色」不是一个可选项。
+//
+// 那 194 处压在**四条声明**上（hero-media-right 三条 · hero-media-top 一条），全部是「随手挑一对颜色
+// 而不量」：`.announcement-bar__link` 写 `color: var(--color-accent-600)` 压在 `primary-50` / `primary-100`
+// 的浅底上，而 accent-600 落在那两个浅底上时 110 套配色里 90–102 套低于门槛 —— 等于在配色上赌，而它
+// 八成会输。改成 `primary-800` 之后 110 套里 0 套破线（最差 5.60:1）。逐档量过的候选：
+//
+//     底 primary-50    primary-600 破线 6/110 · primary-700 破线 1/110 · primary-800 破线 0（最差 5.76）
+//     底 primary-100   primary-600 破线 67/110 · primary-700 破线 1/110 · primary-800 破线 0（最差 5.60）
+//
+// 🔴 **收窄到 CTA 那半没有了，所以那句「本节不判什么」也没有了。** 判据变宽之后，报告里的分母跟着
+// 从 660 对变成 2640 对 —— 分母印在结论同一句话里，理由不变：一对都没量到时「0 处破线」跟「都达标」
+// 长得一模一样。
+//
+// 🔴 会过期的数一律就地算，不写成常数（#1072 r2 立的规矩）：第一版把「52 处」写死在报告里，#1016 把
+// 配色从 30 套扩到 110 套之后真数是 194，那句话当天就成了假的。上面注释里那几个数写清了是在多少套
+// 配色上量的，报告里的是当天现算的。
+{
+  const { themes } = require('./themes.js');
+  // 判被量的每一个选择器。单子只有 `theme-text-targets.js` 一处定义，真浏览器那侧读的是同一份 ——
+  // 这里再抄一份就会出现「扩了一边、另一边悄悄还是老的」，而失败方向是变绿（#1038 r3 的理由）。
+  const { MEASURED_TARGETS: JUDGED_TARGETS } = require('./theme-text-targets.js');
+  const contrastHere = require('./theme-contrast.js');
+  const fsHere = require('fs');
+  const pathHere = require('path');
+  const themeDirHere = pathHere.join(__dirname, '..', 'public', 'themes');
+  // 🔴🔴 只有这三张**手写**表进这一节，而且是按名字点的，不是「public/themes 下所有表」。
+  // 理由是 #1016 的裁定：那张票把池子扩到 80 套**生成**表，而每一份生成表是**为它自己那一套配色
+  // 生成的**（`theme-pipeline/sheet-recipes.js` §pickInk 按那套配色挑字色），一个站穿哪张表也由它
+  // 自己的主题名决定（`create-site.js:907` → `theme-sheet.js:41`）。所以「80 份表 × 110 套配色」
+  // 这个笛卡尔积里绝大多数格子是**任何客户的站都做不出来的配对**，判它们等于拿真算术去量不存在的
+  // 组合 —— #1016 r4 就是这么红的，PM 的处置是「改检查，不改主题表」。
+  // 这三张手写表不一样：它们**没有**自己的配色（注册表里没有任何一套主题叫 hero-media-*），校准时
+  // 穿的是样例站那套，所以「它们 × 每一套配色」才是真问题。
+  // 📌 我是在一棵把本票与 review/1016 合起来的树上量到这件事的：那棵树里注册表 110 套 / 表 83 份，
+  //    照「目录下所有表」写会一次判 18260 对。
+  const HANDWRITTEN = ['hero-media-left.css', 'hero-media-right.css', 'hero-media-top.css'];
+  const sheetsHere = sheetsForRegistrySweep.filter((f) => HANDWRITTEN.includes(f));
+  const missing = HANDWRITTEN.filter((f) => !sheetsForRegistrySweep.includes(f));
+  if (missing.length) {
+    bad(`这一节点名的手写表有 ${missing.length} 张不在 public/themes 下（${missing.join(' · ')}）`
+      + ' —— 少一张就等于那张没人判，不许当成过');
+  }
+  const names = Object.keys(themes);
+  if (names.length < 10) {
+    bad(`themes.js 只读到 ${names.length} 套主题 —— 这一节的分母塌了，不许当成过`);
+  } else {
+    const rows = [];
+    let judged = 0;
+    for (const name of names) {
+      const colors = themes[name].colors;
+      if (!colors || !colors.primary || !colors.accent) {
+        bad(`主题 ${name} 没有可用的 colors —— 这一格什么都没判到`);
+        continue;
+      }
+      for (const f of sheetsHere) {
+        const r = judgeSheetForRegistrySweep(f, colors, [0], JUDGED_TARGETS);
+        judged += r.judged;
+        for (const p of r.problems) rows.push(`${name}: ${p}`);
+      }
+    }
+    /**
+     * 🔴 分母自检 —— 这一节该量到几对，是**从表里现解出来的**，不是写死的数。
+     *
+     * 收窄选择器最容易出的错是选择器名写错：一对都没量到，而这一节照样报绿，跟「每一对都达标」
+     * 长得一模一样。所以分母按「这张表真的写了哪几个被量的选择器」算（`textPairs` 是判据自己用的
+     * 那个原语），少一对就报红。
+     *
+     * 🔴 并且把**没有任何一张表写的**那几个选择器印出来。今天是 `.btn-primary` / `.btn-accent`：
+     * 这三张手写表一条都没碰过它们（`grep -c '\.btn-primary\|\.btn-accent'` = 0），按钮的脸是
+     * `globals.css` 画的、由配色决定，第 ⑨ 节判的就是那一层。不印的话，「10 个选择器只量到 8 个」
+     * 会被读成覆盖面缩了。
+     */
+    const resolvedPerSheet = sheetsHere.map((f) => ({
+      sheet: f.replace(/\.css$/, ''),
+      selectors: contrastHere
+        .textPairs(fsHere.readFileSync(pathHere.join(themeDirHere, f), 'utf8'), JUDGED_TARGETS)
+        .map((p) => p.selector),
+    }));
+    const expected = resolvedPerSheet.reduce((n, s) => n + s.selectors.length, 0) * names.length;
+    const writtenByNone = JUDGED_TARGETS.filter(
+      (t) => !resolvedPerSheet.some((s) => s.selectors.includes(t)),
+    );
+    const noneLine = writtenByNone.length
+      ? `；被量的 ${JUDGED_TARGETS.length} 个选择器里有 ${writtenByNone.length} 个这三张表一条都没写`
+        + `（${writtenByNone.join(' · ')}）—— 那是 globals.css 画的脸，第 ⑨ 节判它们`
+      : '';
+
+    if (judged < expected) {
+      bad(`这一节只量到 ${judged} 对（${names.length} 套配色 × 从表里现解出来的 `
+        + `${resolvedPerSheet.map((s) => `${s.sheet}=${s.selectors.length}`).join(' · ')} = 该有 ${expected} 对）`
+        + ' —— 选择器或表名大概写错了，报绿也是空的');
+    } else if (rows.length) {
+      bad(`${names.length} 套配色里，三张手写表有 ${rows.length} 处低于 ${MIN}:1 或读不出来：\n     `
+        + rows.slice(0, 8).join('\n     ') + (rows.length > 8 ? `\n     …共 ${rows.length} 处` : ''));
+    } else {
+      ok(`${sheetsHere.length} 张手写表 × ${names.length} 套配色 × 被量的每一个选择器`
+        + `（滑块归零那一档，共 ${judged} 对）：每一处都 ≥ ${MIN}:1${noneLine}`);
     }
   }
 }

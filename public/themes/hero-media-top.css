@@ -83,7 +83,33 @@
   justify-items: center;
   gap: 1rem;
   padding: 3.5rem 1.5rem;
-  background-image: linear-gradient(135deg, var(--color-primary-600), var(--color-accent-500));
+  /* 🔴 #1072 — THE GRADIENT IS DARK ON PURPOSE, AND THIS IS THE WHOLE FIX.
+     It used to be `primary-600 → accent-500`, a MID-TONE pair, under the near-white ink below. That
+     pairing clears 4.5:1 only when this theme's 600 and accent-500 happen to be dark enough, and this
+     sheet is worn with WHATEVER palette the site has — it is one of the three palette-agnostic
+     hand-written sheets, so it cannot pick its ink per palette the way a generated pool sheet does
+     (`theme-pipeline/sheet-recipes.js` §pickInk runs once per palette, at generation time).
+     Measured over the 30 palettes in scripts/themes.js, banded to the strip the words actually cover
+     (scripts/theme-text-bands.json, the same reading theme-presets.test.js judges on). 🔴 EVERY
+     NUMBER BELOW SAYS WHICH OF THE TWO READINGS IT IS, because they differ and quoting one without
+     saying which is how the wrong figure got in here in the first place: `hue 0` is the hue slider
+     left alone, `31 hues` is the whole slider range, which is what the CI check sweeps.
+         backdrop (60 = 30 palettes × 2 selectors)   hue 0            31 hues
+         primary-600 → accent-500 (the old one)      2.46:1 · 52/60   2.39:1 · 55/60
+         primary-800 → primary-900 (this)            6.44:1 ·  0/60   6.39:1 ·  0/60
+     📌 Every figure here is the BANDED one. judgeSheet narrows to the band only when the whole
+     gradient fails, so a sheet that passes is reported by its whole-gradient worst instead, which is
+     lower — 6.09:1 at hue 0 and 6.02:1 over 31 hues for the row above. Same sheet, different question.
+     🔴 AND NO INK COULD HAVE SAVED THE OLD PAIR: 19 candidate inks were measured against it — every
+     shade of both ramps that exists, plus #ffffff and #000000 — and the best of them (#ffffff) still
+     came out 2.56:1 with 47 of 60 below the floor at hue 0, and 2.50:1 with 51 of 60 over 31 hues.
+     Not one of the 19 cleared the floor everywhere. (accent has no 700/800/900, so three of the 22
+     tokens tried resolved to nothing and measured 0 of 60 — printed rather than counted as clean.)
+     A mid-tone backdrop has no readable ink, which is why the fix is the backdrop and not the
+     colour of the words. The other two sheets already use the two archetypes that do work — light ink
+     on a dark ground (hero-media-left) and dark ink on a light ground (hero-media-right) — and both
+     measure 0 below the floor over the same 30 palettes, which is why #1072 left them alone. */
+  background-image: linear-gradient(135deg, var(--color-primary-800), var(--color-primary-900));
   color: var(--color-primary-50);
   text-align: center;
 }
@@ -202,7 +228,7 @@
   max-width: 30rem;
   font-size: 1rem;
   line-height: 1.7;
-  color: var(--color-primary-700);
+  color: var(--color-primary-800);
 }
 
 .contact-form__form {
@@ -221,7 +247,7 @@
 
 .contact-form__note {
   font-size: 0.8125rem;
-  color: var(--color-primary-600);
+  color: var(--color-primary-800);
 }
 
 .contact-form__success {
@@ -258,7 +284,7 @@
   font-size: 1rem;
   line-height: 1.7;
   text-align: center;
-  color: var(--color-primary-700);
+  color: var(--color-primary-800);
 }
 
 .quote-form__main {
@@ -345,7 +371,7 @@
   max-width: 34rem;
   font-size: 1rem;
   line-height: 1.7;
-  color: var(--color-primary-700);
+  color: var(--color-primary-800);
 }
 
 .services-list__actions {
@@ -502,20 +528,20 @@
 .contact-info__address {
   font-size: 0.875rem;
   line-height: 1.6;
-  color: var(--color-primary-700);
+  color: var(--color-primary-800);
 }
 
 .contact-info__phone {
   font-size: 0.9375rem;
   font-weight: 700;
-  color: var(--color-primary-600);
+  color: var(--color-primary-800);
 }
 
 .contact-info__email {
   flex-basis: 100%;
   font-size: 0.875rem;
   font-weight: 600;
-  color: var(--color-primary-600);
+  color: var(--color-primary-800);
 }
 
 .stats-counter {
@@ -1347,7 +1373,7 @@
   max-width: 34rem;
   font-size: 1rem;
   line-height: 1.6;
-  color: var(--color-primary-700);
+  color: var(--color-primary-800);
 }
 
 .faq-accordion__item {
@@ -1367,7 +1393,7 @@
 .faq-accordion__answer {
   font-size: 0.9375rem;
   line-height: 1.6;
-  color: var(--color-primary-700);
+  color: var(--color-primary-800);
 }
 
 .testimonials {
@@ -1460,7 +1486,10 @@
 .announcement-bar__link {
   font-size: 0.8125rem;
   font-weight: 700;
-  color: var(--color-accent-600);
+  border-width: 0 0 1px;
+  border-style: solid;
+  border-color: var(--color-primary-800);
+  color: var(--color-primary-800);
 }
 
 .service-highlights {
@@ -1817,7 +1846,7 @@
   margin-right: auto;
   font-size: 0.9375rem;
   line-height: 1.6;
-  color: var(--color-primary-700);
+  color: var(--color-primary-800);
 }
 
 /* Each area is only as wide as its own words — the old `badge` look, minus the markup that used to
@@ -1842,7 +1871,7 @@
 .map-area__desc {
   font-size: 0.8125rem;
   line-height: 1.5;
-  color: var(--color-primary-600);
+  color: var(--color-primary-800);
 }
 
 .trusted-brands {
