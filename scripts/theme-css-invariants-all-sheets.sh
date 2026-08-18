@@ -2,13 +2,14 @@
 # theme-css-invariants-all-sheets.sh — build a sample site once per theme sheet and take the
 # runtime reading on each (#1009). This is the automatic caller for scripts/theme-css-invariants.mjs.
 #
-#   bash scripts/theme-css-invariants-all-sheets.sh [--make-sample-site] [sheet-name …]
+#   bash scripts/theme-css-invariants-all-sheets.sh [--make-sample-site] [--shard i/N] [sheet-name …]
 #
 #   --make-sample-site   create a demo site in templates/nextjs/site first, but ONLY if there is none.
 #                        It never replaces a site you put there yourself (same rule as
 #                        scripts/theme-gallery/shoot-themes.sh: a tool that silently swaps out the
 #                        sample you pointed it at is a tool you cannot use twice). No AI, no cost:
 #                        create-site.js's skipAI path returns before the ANTHROPIC_API_KEY check.
+#   --shard i/N          take only the i-th of N slices of the sheet list (1-based). See §SHARDING.
 #   sheet-name …         which sheets in public/themes/ to check; default is all of them.
 #
 # Exit 0 = every sheet's page holds every invariant.
@@ -45,14 +46,76 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NEXT="$(cd "$HERE/.." && pwd)"            # templates/nextjs
 THEMES_DIR="$NEXT/public/themes"
 
+# ══ SHARDING (#1073) ═════════════════════════════════════════════════════════════════════════════
+# One sheet costs a full `next build` plus a browser reading — ~28 s measured. At 3 sheets that was a
+# 108 s job; #1016 takes the pool to 83 and the same job becomes ~40 minutes, with `sync-template`
+# waiting behind it (ci-cd.yml §sync-template `needs`). This splits the SHEET LIST across N CI
+# runners: wall clock ÷ N, and not one sheet is dropped.
+#
+# 🔴 WHY THE BUILD CANNOT JUST BE HOISTED OUT OF THE LOOP, which is the obvious cheaper fix and is
+# WRONG — measured, because I built it first and then measured it:
+#
+#   same themeId, two different sheets   → the two `out/` trees differ in ONE file: theme.css
+#   different themeId (what #1016 does)  → the HTML differs too: data-region-layout="pill-floating"
+#                                          vs "solid-bar" on <header>, "slim-row" vs "cta-band" on
+#                                          <footer> (different markup, not just a class), and the
+#                                          favicon's colour
+#   (both readings normalised for Next's random buildId, which otherwise makes ALL pages differ and
+#    hides the real answer — raw diff said 142 files on the first pair, of which only theme.css was real)
+#
+# #1016 pairs every sheet with THE THEME NAMED AFTER IT (its own §palette line says so), so on that
+# tree each sheet's page is genuinely a different page. Reusing one build there would measure 82 of the
+# 83 sheets against another theme's markup and report ✅ — a false green, which is the one outcome this
+# check exists to prevent. The sheet alone never changes the HTML; the THEME does.
+#
+# ⟹ Sharding, which is correct whatever the pairing is. The partition is a stride (i, i+N, i+2N …) over
+#   the SAME list the unsharded run enumerates, so the union over i=1..N is that list by construction —
+#   there is no arithmetic in which a sheet can fall between two shards.
+#
+# 🔴 N IS NOT WRITTEN DOWN TWICE. On CI it comes from `strategy.job-total`, i.e. the length of the
+# matrix itself (ci-cd.yml §theme-css), because the first cut of this hardcoded `/8` next to a
+# `matrix: [1..8]` and one of the two ways they can disagree is SILENT: fewer matrix entries than N
+# means every shard passes while nobody measures the tail (measured on #1073 r1 — matrix [1..4] with
+# `/8` covered 43 of 83 sheets, all four shards green). The other way round is loud (`--shard 5/4` is
+# exit 2 below), which is what made the one-way hole easy to miss.
+#
+# 🔴 LOCALLY, RUN THE SHARDS ONE AFTER ANOTHER, NOT SIDE BY SIDE. Each CI shard is its own runner, but
+# in one worktree the shards share `site/`, `out/` and `public/theme.css` — all fixed paths — so
+# `--shard 1/8 & --shard 2/8 &` in the same checkout has them overwriting each other's build and the
+# readings are junk. Two shards in two separate worktrees is fine (the HTTP port is asked of the
+# kernel, see free_port).
 MAKE_SITE=0
+SHARD_I=0
+SHARD_N=0
 SHEETS=()
-for a in "$@"; do
-  case "$a" in
+while [ $# -gt 0 ]; do
+  case "$1" in
     --make-sample-site) MAKE_SITE=1 ;;
-    -*) echo "🔴 unknown option: $a" >&2; exit 2 ;;
-    *) SHEETS+=("$a") ;;
+    --shard)
+      shift
+      # 🔴 A REGEX, NOT A GLOB (#1073 r1, QA1). The first cut matched `[1-9]*/[1-9]*`, and a shell glob's
+      # `*` is "any characters" — so `--shard 1a/8b` MATCHED. r1's two numeric comparisons then each
+      # printed `[: 1a: integer expression expected` and were treated as false, rc never changed, and the
+      # run went on with sharding silently switched off: all 83 sheets, ~40 minutes, exit 0. The coverage
+      # direction is safe (it over-runs, it does not skip sheets), which is precisely why nothing would
+      # ever notice — the job stays green and the 40 minutes this ticket exists to remove come back.
+      if ! [[ "${1:-}" =~ ^[0-9]+/[0-9]+$ ]]; then
+        echo "🔴 --shard wants i/N, digits only (got '${1:-}')" >&2; exit 2
+      fi
+      # 10# so a zero-padded `08` is decimal 8 and not an octal parse error.
+      SHARD_I=$(( 10#${1%%/*} ))
+      SHARD_N=$(( 10#${1##*/} ))
+      if [ "$SHARD_I" -lt 1 ] || [ "$SHARD_N" -lt 1 ]; then
+        echo "🔴 --shard wants i/N with both ≥1 (got '$1')" >&2; exit 2
+      fi
+      if [ "$SHARD_I" -gt "$SHARD_N" ]; then
+        echo "🔴 --shard $SHARD_I/$SHARD_N: there is no ${SHARD_I}th slice of $SHARD_N" >&2; exit 2
+      fi
+      ;;
+    -*) echo "🔴 unknown option: $1" >&2; exit 2 ;;
+    *) SHEETS+=("$1") ;;
   esac
+  shift
 done
 
 # ── the instrument, before anything else ────────────────────────────────────────────────────────
@@ -80,6 +143,29 @@ if [ ${#SHEETS[@]} -eq 0 ]; then
   # Nothing to look at is not a pass.
   echo "🔴 cannot take the reading: no .css in $THEMES_DIR" >&2
   exit 2
+fi
+
+# The stride slice, taken AFTER the full list exists so every shard partitions the same population.
+if [ "$SHARD_N" -gt 0 ]; then
+  ALL_COUNT=${#SHEETS[@]}
+  SLICE=()
+  i=0
+  for s in "${SHEETS[@]}"; do
+    if [ $(( i % SHARD_N )) -eq $(( SHARD_I - 1 )) ]; then SLICE+=("$s"); fi
+    i=$(( i + 1 ))
+  done
+  # 🔴 An empty slice is exit 2, not a pass. With N > the number of sheets the tail shards get nothing,
+  # and "I measured none of them" must never be the same answer as "they all held" — the whole family's
+  # rule (#679 ②). It is also the reading that tells whoever set N that they set it too high.
+  if [ ${#SLICE[@]} -eq 0 ]; then
+    echo "🔴 --shard $SHARD_I/$SHARD_N selected 0 of $ALL_COUNT sheet(s) — nothing would be judged." >&2
+    echo "   N is larger than the number of sheets; lower it so every shard has work." >&2
+    exit 2
+  fi
+  SHEETS=("${SLICE[@]}")
+  # Names, not just a count: each shard's log has to say which sheets it took, or "all 83 were covered"
+  # is only checkable by re-deriving the partition instead of by reading the runs that happened.
+  echo "── shard $SHARD_I/$SHARD_N: ${#SHEETS[@]} of $ALL_COUNT sheet(s): ${SHEETS[*]}"
 fi
 
 # ── the sample site ─────────────────────────────────────────────────────────────────────────────
