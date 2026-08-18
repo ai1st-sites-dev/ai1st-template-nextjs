@@ -77,6 +77,13 @@ const MIN_ROTATION_POOL = 3;
 //     console.log(Object.entries(p).map(([id,t])=>[id,+s(t).toFixed(3)]).sort((a,b)=>a[1]-b[1]).slice(0,8))"
 // 📌 新池里每个行业词都有 ≥4 套真命中（#1016 AC2），所以这条兜底今天只在「行业文字一个词都没匹配上」
 //    时才开火 —— 它不再是 175 个行业的日常路径了。
+// 🔴 #1077 —— 这四个 id 是【承重】的：下面 candidateThemesForIndustry 把它们无条件 push 进池子，
+// **从不核它们在不在注册表里**。所以某个 id 一旦不再是真主题（改名、下线、或者注册表被套了一层外壳），
+// 池子里就会出现指向空气的 id，而池子的**长度**照样 ≥ MIN_ROTATION_POOL —— 长度那条判据在这里是同义
+// 反复（实测：1 套真主题 + 1 个假 id 的注册表，某个行业词的池仍然是 3 长）。能说话的是「池里有没有指向
+// 不存在主题的 id」。两道检查分工：`theme-pipeline/pool.test.js` 问「它们在不在【挑得到的那一池】」（更严，
+// 它是这个问题的权威）；`manager/ticket1077_test.go` 问「`const themes` 的键是不是真主题」——后者才看得见
+// 外壳那种改法，因为 pool.test.js 直接读 poolThemes，外壳动的是 `const themes`。
 const NEUTRAL_TOPUP = ['fern-02', 'jade-26', 'azure-50', 'violet-74'];
 
 function themeStyle(themeId) {
