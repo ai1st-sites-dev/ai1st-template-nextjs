@@ -97,6 +97,29 @@ function buttonPairsFromGlobals() {
     if (shade) return { group: name, shade, label: key };
     return null;
   };
+  // 🔴 #1068 条 4 —— 认出一个 token 组之后还要问一句「那个组真的在调色板里吗」。
+  //
+  // `specOf` 只看**拼法**：`bg-slate-50` 与 `bg-primary-500` 在它眼里长得一样，都回 {group, shade}。
+  // 而 `pairColours` 下一步做的是 `colors[s.group][s.shade]`，组不存在时那是 `undefined[shade]`
+  // ⟹ TypeError ⟹ node 退 **1**。而 1 在这个脚本的契约上的意思是「某组配色不合格」（`bad()` 那条链），
+  // 「跑不起来」保留给 **2**（`die`，见文件上面那个定义）。所以把 `text-gray-900` 手滑写成
+  // `text-slate-50` 这种事，会被读成「库里有一组配色过不了 4.5:1」——仪器坏了和库不合格逐字相同。
+  // 实测（#1055 QA1）：改前 rc=1，没有任何一句说是拼法的问题。
+  //
+  // 🔴 判据是「**每一组**调色板都有这个 group/shade」，不是「至少一组有」：下面那一圈对
+  // `presets.PALETTES` 的每一组各算一次，缺一组就在那一组上炸。反向对照喂的注册表主题走的是
+  // `pairColours` 里那道同族的判断（同一条理由，见那里）。
+  const paletteSets = Object.entries(presets.PALETTES);
+  const whoLacks = (spec) => {
+    if (spec.hex !== undefined) return '';          // 字面色，不查调色板
+    const missing = paletteSets
+      .filter(([, pal]) => !pal.colors[spec.group] || pal.colors[spec.group][spec.shade] === undefined)
+      .map(([name]) => name);
+    if (!missing.length) return '';
+    return `指的是调色板里没有的 ${spec.label}（这些组没有它：${missing.slice(0, 3).join(' · ')}`
+      + `${missing.length > 3 ? ` 等 ${missing.length} 组` : ''}）`;
+  };
+
   // 🔴 `text-` 在 Tailwind 里管三件事：字号、对齐、颜色。`.btn-primary` 那一行同时写着 `text-base`
   //    和 `text-white`，取第一个命中的会取到字号 —— 第一版就是这么写的，三个按钮全部报「字色认不
   //    出来」。所以先把不是颜色的那些排掉，剩下的 `text-*` 必须是颜色（认不出来就拒测，不是跳过）。
@@ -110,6 +133,8 @@ function buttonPairsFromGlobals() {
     if (!textWord) continue;                       // 没写字色的不判（今天没有这种）
     const fg = specOf(textWord);
     if (!fg) { unknown.push(`.${cls} 的字色 ${textWord} 认不出来`); continue; }
+    const fgMissing = whoLacks(fg);
+    if (fgMissing) { unknown.push(`.${cls} 的字色 ${textWord} ${fgMissing}`); continue; }
     const bgWord = words.find((w) => /^bg-[a-z]+-\d{2,3}$/.test(w));
     const hoverWord = words.find((w) => /^hover:bg-[a-z]+-\d{2,3}$/.test(w));
     if (!bgWord) {
@@ -123,6 +148,8 @@ function buttonPairsFromGlobals() {
       if (!word) continue;
       const bg = specOf(word);
       if (!bg) { unknown.push(`.${cls}${suffix} 的底色 ${word} 认不出来`); continue; }
+      const bgMissing = whoLacks(bg);
+      if (bgMissing) { unknown.push(`.${cls}${suffix} 的底色 ${word} ${bgMissing}`); continue; }
       pairs.push({ what: `.${cls}${suffix} ${fg.label} 的字压 ${bg.label}`, fg, bg });
     }
   }
@@ -143,6 +170,13 @@ function buttonPairsFromGlobals() {
 const BUTTON_PAIRS = buttonPairsFromGlobals();
 /** 一条配对在某组配色（可选再偏 `hue` 度）下的两个具体颜色。 */
 const pairColours = (p, colors, shift) => [p.fg, p.bg].map((s) => {
+  // 🔴 #1068 条 4 的同族一半 —— 上面 `whoLacks` 查的是 `presets.PALETTES`，而这个函数还被反向对照
+  // 拿**注册表主题**的 colors 喂过。那一侧缺一个组同样会走成 `undefined[shade]` ⟹ TypeError ⟹ 退 1
+  // ⟹ 读成「某套主题的按钮对比度不合格」。这里也答 2：拿不到颜色不是一个关于对比度的读数。
+  if (s.hex === undefined && (!colors[s.group] || colors[s.group][s.shade] === undefined)) {
+    die(`配对「${p.what}」要的 ${s.label} 不在这组 colors 里（有的组是：`
+      + `${Object.keys(colors).join(' · ') || '一个都没有'}）—— 拿不到颜色不是「对比度不合格」`);
+  }
   const hex = s.hex !== undefined ? s.hex : colors[s.group][s.shade];
   return shift ? shift(hex) : hex;
 });

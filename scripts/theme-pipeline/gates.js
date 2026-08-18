@@ -151,11 +151,15 @@ function gateInvariants(candidate, { outDir, baseUrl }) {
     return jammed('② 动态', ['invariants: 读不到（退出码 2，仪器问题不是主题问题）', ...said]);
   }
   if (r.status !== 0) {
-    // 🔴 明细行的真实长相是【三个空格 + 一句话】（`theme-css-invariants.mjs:425` 打的是 `   ${p}`），
+    // 🔴 明细行的真实长相是【三个空格 + 一句话】（`theme-css-invariants.mjs` 打的是 `   ${p}`），
     //    既没有 `·` 也没有 🔴。第一版按「行首是 · 或含 🔴」过滤 ⟹ 一条明细都匹配不上，报告里只剩
     //    汇总那一行「🔴 2 invariant violation(s)」，读的人不知道是哪条不变量、哪个元素 —— QA1 r1
     //    量到的就是这个。判据现在按那个检查器**自己的结构**取：汇总打在
-    //    `🔴 N invariant violation(s)` 那一行，明细全在它【之后】直到结束（同文件 :424-426）。
+    //    `🔴 N invariant violation(s)` 那一行，明细全在它【之后】直到结束。
+    //    🔴 #1068 条 1 —— 这一段原来写着 `:425` 和「同文件 :424-426」，两个行号都已经指到别的内容
+    //    上去了（`:425` 今天是一句讲 contrast 盒子的注释）。跨文件引用一律用**锚点**：
+    //        `grep -n 'invariant violation' scripts/theme-css-invariants.mjs`   ← 汇总那一行
+    //        它的下一行就是 `for (const p of problems) console.log(\`   ${p}\`)`  ← 明细
     const out = String(r.stdout || '').split('\n');
     const head = out.findIndex((l) => /🔴\s*\d+\s*invariant violation/.test(l));
     const lines = head >= 0

@@ -1,4 +1,16 @@
 {
+  // 🔴 #1068 条 2 —— 这道 lint 挡得住的东西比「有 lint」听起来的小。两个量过的读数，写在这里是因为
+  // 上一批（#1055 条 2）把一个文件收进 `lint:scripts` 的清单，理由写成了「lint 现在覆盖到它了」：
+  //
+  //   ① 规则只有下面那一条。`npx eslint --print-config scripts/region-layout.js` 读出来的 `rules`
+  //      逐字就是 `{"no-undef": ["error"]}` —— 没有 unused-vars、没有 no-shadow、没有风格类的任何一条。
+  //      所以「进了这份清单」= **只多了一道「名字存在吗」的检查**，不是「被 lint 审过了」。
+  //   ② 没有任何自动化在跑它。`grep -rn 'lint:scripts' --include=*.yml --include=*.sh` 全仓唯一命中是
+  //      `.github/workflows/ci-cd.yml` 里的一句注释，不是调用；CI 跑的是 `npm run test:scripts`。
+  //      ⟹ 把一个文件加进清单的收益，只到「手工跑 `npm run lint:scripts` 的人现在覆盖到它了」。
+  //
+  // 要不要开更多规则、要不要把它接进 CI，是两件**各自要判**的事（前者会让一批既有脚本当场变红，
+  // 后者会改「main 什么时候变红」的条件）—— 本条不做那两件，只把上面这两个读数放在会被读到的地方。
   "env": {
     "node": true,
     "es2022": true

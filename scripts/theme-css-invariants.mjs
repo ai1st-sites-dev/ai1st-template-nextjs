@@ -41,7 +41,6 @@
 // readable". Taking only the modal colour would pass a gradient that runs into the text colour at
 // one end — which is #966's failure with an extra step.
 import { createRequire } from 'node:module';
-import { PLAYWRIGHT_MODULE } from './theme-gallery/paths.mjs';
 
 // 🔴 LOADING THE INSTRUMENT IS ITS OWN STEP, AND IT ANSWERS 2 (#1062).
 // Left to Node, a module that will not load throws before a line of this file runs, and Node's own
@@ -90,6 +89,24 @@ const load = async (what, how, hint) => {
   }
 };
 
+// 🔴 #1068 条 3 — AND A NET UNDER EVERYTHING THE TWO STEPS ABOVE DID NOT NAME.
+// `load` covers the failures this file predicted. Anything else that throws — a rename in a sibling,
+// a browser that dies mid-run, a `require` of a file that is not there — still reaches Node's default
+// handler, whose exit code is 1, i.e. "a theme breaks an invariant". Nothing was judged in that case
+// either, so the answer is 2. It prints through `noReading` so the caller gets the same shape it gets
+// from every other no-reading, and `gates.js` already buckets 2 as "仪器问题不是主题问题".
+// 🔴 It cannot be the only guard: a handler registered here runs only if this file starts running,
+// which is exactly why the static import above had to move.
+for (const [event, what] of [
+  ['uncaughtException', 'something threw that this script did not predict'],
+  ['unhandledRejection', 'a promise rejected and nobody was listening'],
+]) {
+  process.on(event, (e) => {
+    noReading(`${what} (${event})`, (e && e.stack) || (e && e.message) || e,
+      'this is a bug in the instrument or in this machine, not a verdict about any theme.');
+  });
+}
+
 // theme-css-lint.js is CommonJS. `createRequire` rather than a named import from it: named imports
 // out of CJS work only when Node's lexer can see the shape of `module.exports`, and that is a
 // property of how that file happens to be written today, not something this file should depend on.
@@ -106,6 +123,22 @@ const { TEXT_TARGETS, MOVED_TEXT_TARGETS, CONTROL_TARGETS } = await load(
   'scripts/theme-text-targets.js would not load',
   () => createRequire(import.meta.url)('./theme-text-targets.js'),
   'run `npm ci` in templates/nextjs.',
+);
+
+// 🔴 #1068 条 3 — THIS SIBLING IS LOADED THROUGH `load` TOO, AND THAT IS WHY IT IS DOWN HERE.
+// It used to be a static `import … from './theme-gallery/paths.mjs'` at the top. A static import is
+// resolved BEFORE the first line of this file runs, so when it cannot be resolved Node exits 1 with
+// `ERR_MODULE_NOT_FOUND` — and 1 on this script's contract means "a theme breaks an invariant". That
+// is not a hypothetical: #1055 measured it twice, both times while someone was building a control
+// group by copying this script somewhere else (`ERR_MODULE_NOT_FOUND` for this file, and the same 1
+// for `./palette.js` in the sibling). The instrument being absent and a sheet being bad read exactly
+// alike, which is the failure this whole "loading is its own step" section exists to prevent.
+// Node builtins (`node:module` above) cannot fail to resolve, so with this one moved there is no
+// static import left that can answer 1.
+const { PLAYWRIGHT_MODULE } = await load(
+  'scripts/theme-gallery/paths.mjs would not load — this script cannot even name a browser to try',
+  () => import('./theme-gallery/paths.mjs'),
+  'run this from templates/nextjs, or copy scripts/theme-gallery/paths.mjs next to it.',
 );
 
 const { chromium } = await load(

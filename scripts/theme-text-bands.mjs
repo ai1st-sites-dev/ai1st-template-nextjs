@@ -56,7 +56,9 @@ if (!fs.existsSync(sheetFile)) {
 const sheetMd5 = crypto.createHash('md5').update(fs.readFileSync(sheetFile)).digest('hex');
 
 const { chromium } = await import(PLAYWRIGHT_MODULE);
-// 🔴 跟 `theme-css-invariants.mjs:168` 同一个视口。几何读数换个视口就是另一个数，两边必须一致。
+// 🔴 跟 `theme-css-invariants.mjs` 同一个视口。几何读数换个视口就是另一个数，两边必须一致。
+// 🔴 #1068 条 1 —— 这一行原来写的是 `:168`，而那个行号早就指到别的内容上去了。跨文件引用一律用
+//    **锚点**，不用行号：`grep -n 'newContext({ viewport' scripts/theme-css-invariants.mjs`
 const VIEWPORT = { width: 1440, height: 900 };
 
 const browser = await chromium.launch();
@@ -79,8 +81,9 @@ async function pagesOf() {
 
 /* global document, getComputedStyle */
 // 🔴 下面这个函数是交给 `page.evaluate` 的，**函数体跑在浏览器里，不在 node 里**。
-// `theme-css-invariants.mjs:159` 为同一个理由带着同一句声明：少了它，eslint 的 no-undef 会把
-// `document` / `getComputedStyle` 当成拼错的名字。
+// `theme-css-invariants.mjs` 为同一个理由带着同一句声明：少了它，eslint 的 no-undef 会把
+// `document` / `getComputedStyle` 当成拼错的名字。锚点（#1068 条 1，别写行号）：
+//    `grep -n 'global document' scripts/theme-css-invariants.mjs`
 const IN_PAGE = (targets) => {
   const res = [];
   for (const sel of targets) {
@@ -134,7 +137,8 @@ const IN_PAGE = (targets) => {
  *
  * 🔴 `output: 'export'` 写出来的是 `out/about.html`，**同时**还写一个 `out/about/` 目录装 RSC
  * 载荷 —— 直接开 `/about` 在静态服务器上拿到的不是那张页面。所以先试 `<路径>.html`，再试干净路径
- * （真正的线上 host 没有 `.html` 可给）。这条规矩跟 `theme-css-invariants.mjs:1853` 是同一条；
+ * （真正的线上 host 没有 `.html` 可给）。这条规矩跟 `theme-css-invariants.mjs` 里的 `openPage()`
+ * 是同一条（锚点，别写行号 —— #1068 条 1：`grep -n 'const openPage' scripts/theme-css-invariants.mjs`）；
  * 第一版没有它，结果 `.page-header__*` 在**每一张表上都没被量到**，而脚本一声不吭地走完了。
  */
 async function open(p) {
