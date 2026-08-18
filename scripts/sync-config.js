@@ -961,7 +961,13 @@ function baseVarsForTweaks() {
     return { vars: fromSettings.vars, source: 'theme settings' };
   }
   const { vars } = tweakLib.baseVarsFrom(brand.colors, []);
-  vars.push(...globalsRootDefaults());
+  // 🔴 #1078 —— 按名字去重，globals.css 里已经有的不再追加一遍。
+  // `baseVarsFrom()` 现在自带 `--radius-block` / `--section-block-pad` / `--section-block-gap`
+  // 三个常量（浏览器里的 Customize 预览读不到 globals.css，只能从那边拿），而
+  // `globalsRootDefaults()` 是按 `--radius-*` / `--section-*` 前缀扫 `:root` 的，
+  // 正好也扫到这三行 ⟹ 不去重的话 custom.css 里每个都写两遍（值一样，纯噪音）。
+  const have = new Set(vars.map(([n]) => n));
+  vars.push(...globalsRootDefaults().filter(([n]) => !have.has(n)));
   const source = table ? 'globals.css :root' : 'globals.css :root（#1002 的 scripts/theme-settings.js 还没落地）';
   return { vars, source };
 }

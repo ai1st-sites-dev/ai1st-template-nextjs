@@ -43,6 +43,20 @@
   --section-xSm: 1.5rem;
   --section-yMd: 6rem;
   --section-xLg: 2rem;
+
+  /* #1078 —— 主题表（`public/themes/<id>.css`）里块的圆角与留白的**基准**。
+     三个值分别是 `sheet-recipes.js` 那三档阶梯的最大公约数，规则里写整数倍
+     （`calc(var(--radius-block) * 3)`），所以没有 custom.css 时算出来的长度与
+     改造前那批字面值逐字相同 —— 本票 AC3 就是量这一条。
+
+     🔴 名字前缀是承重的，不是命名风格：`tweaks.js` 的 `tweakFor()` 按
+     `^--radius-` / `^--section-` 把变量归给 `radiusScale` / `densityScale`，
+     换个前缀这三个就再也不被微调引擎缩放，本票等于白做。
+     🔴 这三行与 `sheet-recipes.js` 的 `RADIUS_STEPS` / `PAD_STEPS` / `GAP_STEPS`
+     是一对：改这里的基准值 = 改全部 80 套表算出来的几何，不是「调个默认值」。 */
+  --radius-block: 0.25rem;
+  --section-block-pad: 0.5rem;
+  --section-block-gap: 0.25rem;
 }
 
 @layer components {

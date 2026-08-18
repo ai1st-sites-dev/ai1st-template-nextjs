@@ -88,11 +88,53 @@ const RHYTHMS = [
 //    都有 2-4 个双胞胎（`sheetFor(0) === sheetFor(36)` 逐字节相同）。
 //    「60-80 套在 33 个块上长得一模一样」正是本票立票时要治的那件事，只是它换了个地方复发。
 //    相似度那道闸看不见这件事：它只读 tokens 和 layout，**一个字节的 CSS 都不读**。
+//
+// ══ #1078 —— 圆角与留白改成【对 token 的引用】，不再是字面值 ═══════════════════════════════════
+//
+// 为什么：微调引擎（#1006）缩放的是 `--radius-*` / `--section-*` 这两组变量，而阶段 2 把 34 个块的
+// 外观搬进这些表时用的是字面值 ⟹ 那两个滑块拖了页面几乎不动（Chris 2026-08-17 在 appdev 上看出来的：
+// `Corner roundness` 全程只有 6.4px ↔ 10px，`Spacing` 只有 Footer 会动，因为它是唯一还吃
+// `.section-padding` 的部件）。名字里带 `--radius-` / `--section-` 前缀的变量会被 `tweaks.js` 的
+// `tweakFor()` 自动归队，所以只要规则改成引用它们，滑块就真的能动整张表。
+//
+// 🔴 为什么是「一个基准 token × 一个整数倍」，不是「四个 token 名」，也不是「所有表都写同一个 token」：
+//
+//   · **四档必须留住**。四档今天是主题之间彼此不同的一维（`i % 4`）。如果所有表都写
+//     `var(--radius-md)`，80 套的圆角就全一样了 —— 那正是 #1016 花力气挣来的东西被 token 化吃掉
+//     （本票 AC2 守的就是这一格）。倍数写在规则里，四档就还是四种不同的写法。
+//   · **默认外观必须一个像素都不变**（AC3）。倍数是照今天那四个字面值反解出来的整数：
+//       0.25/0.75/1.25/1.75rem = 0.25rem × {1,3,5,7}
+//       2.5/3/3.5/4rem         = 0.5rem  × {5,6,7,8}
+//       1/1.25/1.5/2rem        = 0.25rem × {4,5,6,8}
+//     基准值写在 `globals.css` 的 `:root`（与这三行逐字对应），所以没有 custom.css 时算出来的
+//     长度与改造前逐字相同。
+//   · **不碰 `margin`**。`theme-css-lint.js` 的 `negativeMarginRisksIn` 明写「读不出来的
+//     （一个 `var()`、一个函数）是**拒绝**，不当成非负」—— 往 margin 里放 token 会当场把闸弄红，
+//     而那道闸拦的是真风险（负 margin 把块拖出视口）。margin 保持字面值。
+const RADIUS_STEPS = [1, 3, 5, 7];
+const PAD_STEPS = [5, 6, 7, 8];
+const GAP_STEPS = [4, 5, 6, 8];
+
+/** `var(--x)` 或 `calc(var(--x) * k)` —— k=1 时不写 calc（一个乘 1 的 calc 只是噪音）。 */
+function tokenLen(name, k) {
+  const n = Number(k.toFixed(6));           // 5 × 1.4 在二进制里是 7.000000000000001
+  return n === 1 ? `var(${name})` : `calc(var(${name}) * ${n})`;
+}
+
 function voiceFor(i) {
-  const radius = ['0.25rem', '0.75rem', '1.25rem', '1.75rem'][i % 4];
-  const pad = ['2.5rem', '3rem', '3.5rem', '4rem'][i % 4];
+  const radiusStep = RADIUS_STEPS[i % 4];
+  const padStep = PAD_STEPS[i % 4];
+  const gapStep = GAP_STEPS[i % 4];
+  const radius = tokenLen('--radius-block', radiusStep);
+  const pad = tokenLen('--section-block-pad', padStep);
   const rhythm = RHYTHMS[i % RHYTHMS.length];
   return {
+    // 宽屏那条规则要在同一个基准上放大（见 `wideRule`），所以倍数本身也要带下去 ——
+    // 拿 `calc(calc(…) * 1.4)` 去套一层是合法 CSS，但读的人要算两层，而且 lint 的算术检查
+    // 每多一层就多一次「读不出来」的机会。
+    radiusStep,
+    padStep,
+    gapStep,
     hero: heroLayoutFor(i),
     card: CARD_STYLES[(i + 1) % CARD_STYLES.length],
     // 表面明暗的轮换相位：块按页面顺序深/浅交替，相位一换，整站的节奏就不一样了。
@@ -100,9 +142,11 @@ function voiceFor(i) {
     phase: i % 3,
     rhythm,
     radius,
+    // 🔴 药丸不是一个尺寸，是一个形状 —— 它不跟着 `radiusScale` 走，也不需要：9999px 乘任何系数
+    //    还是药丸。保持字面值。
     pillRadius: '9999px',
     pad,
-    gap: ['1rem', '1.25rem', '1.5rem', '2rem'][i % 4],
+    gap: tokenLen('--section-block-gap', gapStep),
     headingWeight: [600, 700, 800][i % 3],
     headingSize: ['1.75rem', '2rem', '2.25rem'][i % 3],
     tracking: ['0', '-0.01em', '-0.02em'][i % 3],
@@ -812,8 +856,10 @@ function wideRule(block, v, cols) {
   return `@media (min-width: 1024px) {\n  ${
     declBlock(`.${block}`, {
       'grid-template-columns': cols,
-      gap: `calc(${v.gap} * 1.5)`,
-      padding: `calc(${v.pad} * 1.4) 3rem`,
+      // #1078 —— 放大的倍数乘进 token 的系数里，而不是再套一层 calc。算出来的长度与改造前
+      // 逐字相同：`calc(1.25rem * 1.5)` = 1.875rem = `calc(var(--section-block-gap) * 7.5)`。
+      gap: tokenLen('--section-block-gap', v.gapStep * 1.5),
+      padding: `${tokenLen('--section-block-pad', v.padStep * 1.4)} 3rem`,
     }).trim().split('\n').join('\n  ')}\n}\n`;
 }
 

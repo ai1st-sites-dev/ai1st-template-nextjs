@@ -1240,9 +1240,20 @@ function walkArithmetic(node, report) {
 // the block above — but "constant" is not "positive", and a theme's own tokens cannot be lengths at
 // all (`schemas/theme-tokens.schema.json`), so a `var()` in a margin can only be reaching for an
 // APP-side custom property. Its sign would then be asserted by a sheet that does not own the value
-// and is not rechecked when the app changes it. Measured cost, again zero: `grep 'var('` over the
-// three shipped sheets is 19 hits, every one of them a colour or a gradient, none in a margin. A
-// sheet that wants the app's spacing writes the length.
+// and is not rechecked when the app changes it. Cost, measured on all 83 sheets AFTER #1078 turned
+// the pool's corners and spacing into token references: `grep 'var('` is 701 hits over the three
+// shipped sheets (colours, borders and gradients) and 35_888 over the 80 pool sheets (`color`,
+// `background-color`, `padding`, `gap`, `font-family`, `border-radius`, `border-color`) — and
+// `margin` carries a `var()` in NONE of the 83. So the rule still costs nothing, and what it costs
+// nothing FOR has changed: a `padding` that wants the app's spacing now writes
+// `calc(var(--section-block-pad) * 8)`, which is exactly what makes the Spacing slider move that
+// block. A MARGIN still writes the length.
+// 🔴 THE READING THIS PARAGRAPH USED TO CARRY ("19 hits, every one of them a colour or a gradient")
+// WAS ALREADY STALE BEFORE #1078, and #1078 did not touch the three shipped sheets: on `origin/main`
+// at 2d2207d3 they are 244 / 244 / 213 = 701. Why it is restated as a count per sheet family: "every
+// var() in this repo is a colour" is the half a reader would otherwise carry away, and after #1078
+// it is no longer true of the 80 pool sheets. What the RULE rests on is the last clause — no margin
+// anywhere carries one — and that is measured above, on all 83.
 // 🔴 AND THE HALF OF THE SAME CEILING THAT LIVES ON `overflow`, WHICH I FOUND BY MEASURING AC10
 // RATHER THAN BY READING IT. Banning negative margins on the hooks is not on its own enough to make
 // "a block never sits over its neighbour" true, because a margin does not have to be written ON the

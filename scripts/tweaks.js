@@ -4,25 +4,39 @@
 // 让它们看起来不重样，而偏移**只碰 CSS 变量、不碰布局**（布局一动就要重跑五条不变量，
 // 而 tweaks 是每站一次、全程无人审）。
 //
-// 🔴🔴 这三个偏移**今天只有一个真的在起作用**，别把这一层当成「每站三维微扰」（#1066 r2，2026-08-17）。
-// 三个偏移都照常算、照常写进 custom.css，但站主眼里的效果差着两个数量级：
+// 🔴🔴 这三个偏移**三维都在起作用了**（#1078，2026-08-18；上一版这里写的是「只有一个真的在起
+// 作用」，那句话在 #1078 落地那一刻起就不成立了）。下面每个数都是在本票的交付上量的：
 //
 //   hueShift       **活的**。83 套主题表全部用 `var(--color-primary-*)` 取颜色（83/83，本次实测），
 //                  所以偏移改了颜色变量，整个站跟着变。
-//   radiusScale    **今天几乎等于零**。主题表把圆角写成字面值：用 `var(--radius-*)` 的主题表 0/83。
-//                  剩下的消费方只有 `src/app/globals.css` 的三个按钮类（`--radius-button`，3 处）
-//                  和 `tailwind.config.ts` 映射出来的 `rounded-md/lg/xl/2xl`（`src/` 下 10 处，分布在
-//                  Footer 5 · Header 4 · BlogIndexPage 1；`globals.css` 里另有 1 处）。
-//                  区间 0.8–1.25 乘在 0.5rem 上 = 6.4px ↔ 10px，整个区间最大差 3.6px。
-//   densityScale   **今天几乎等于零**，同一个原因：用 `var(--section-*)` 的主题表 0/83，消费方只剩
-//                  `globals.css` 的 `.section-padding`（7 处），也就是主题表还没接管的那几块。
+//   radiusScale    **活的**（#1078 之前几乎等于零）。80/83 套主题表现在把块的圆角写成
+//                  `calc(var(--radius-block) * N)`，N 取自 `sheet-recipes.js:114` 的
+//                  `RADIUS_STEPS = [1, 3, 5, 7]` ⟹ 基准 0.25rem 上是 4 / 12 / 20 / 28px 四族、各 20 套
+//                  （实测各 20：N=1 那族写的是不带 calc 的 `var(--radius-block)`）。
+//                  不用它的 3 套是 `hero-media-*` 那三份手写实证表（0/3，本次 grep）。
+//                  🔴 幅度是**乘法**，所以它与这套主题自己的圆角成正比：0.8–1.25 的全程 = 0.45 ×
+//                  该主题的圆角 = **1.8 / 5.4 / 9.0 / 12.6px**（真浏览器实测，#1078 AC1）。
+//                  **最小那一族（4px，20 套）全程只有 1.8px，比改造前按钮那 3.6px 还小** —— 要让它
+//                  也肉眼可辨得动 `TWEAK_BOUNDS`，而 #1078 正文写明不许碰它，所以那一格留给 PM 裁。
+//                  `--radius-button`（`globals.css` 三个按钮类）和 `tailwind.config.ts` 映射出来的
+//                  `rounded-md/lg/xl/2xl`（`src/` 下共 11 处，本次实测：Footer 5 · Header 4 ·
+//                  BlogIndexPage 1 · `globals.css` 1）照旧。
+//   densityScale   **活的**（同上）。同样 80/83 套用 `var(--section-block-pad)` / `var(--section-block-gap)`。
+//                  真浏览器实测（amber-20，0.9↔1.15）：**11 个不同块**的 padding 拉开 16.0–22.4px、
+//                  gap 拉开 8.0–12.0px（#1078 AC1，QA2 独立复现）。`.section-padding` 照旧 —— 它管的是
+//                  主题表没接管的那几块（本次实测 `src/` 下 7 处：`globals.css` 里 4 行 = 定义 1 +
+//                  @media 3，另有 Footer / BlogIndexPage / BlogPostPage 各用它一次）。
 //
-// 后果是 Chris 2026-08-17 在 appdev 上直接看到的：拖 `Corner roundness` 看不出变化（旁边那组
-// `Corner style` 预设是方角 ↔ 药丸，差两个数量级）、拖 `Spacing` 只有 Footer 动。他的裁定是
-// **三个偏移全部回到「系统自动、不暴露」**，Customize 面板里的三个滑块和 Shuffle 按钮已经撤掉
-// （#1066 r2 只撤界面，本文件的键、`TWEAK_BOUNDS`、校验、生成路径一行没动）。
-// 🔴 **后两个要等 #1078 才活** —— 那张票让主题表通过 token 表达圆角和间距；在那之前，谁要给这两维
-// 加控件、加档位、加测试，先回来读这一段。
+// 三个基准变量（`--radius-block` / `--section-block-pad` / `--section-block-gap`）的默认值住在
+// `src/app/globals.css` 的 `:root`，本文件的 `BLOCK_SHAPE_BASE` 与它逐字相同 —— 名字不在那份基准里
+// 的变量 `buildCustomCss` 一个字都不会写，滑块也就动不了它。改一处要同时改另一处。
+//
+// 历史（别删，它解释了为什么会有 #1078）：Chris 2026-08-17 在 appdev 上直接看到拖 `Corner roundness`
+// 看不出变化（旁边那组 `Corner style` 预设是方角 ↔ 药丸，差两个数量级）、拖 `Spacing` 只有 Footer 动。
+// 他的裁定是**三个偏移全部回到「系统自动、不暴露」**，Customize 面板里的三个滑块和 Shuffle 按钮
+// 已经撤掉（#1066 r2 只撤界面，本文件的键、`TWEAK_BOUNDS`、校验、生成路径一行没动）。
+// 🔴 **后两维现在有效了，但用户面上仍然没有滑块** —— 撤掉它们的是 #1066 那次裁定，而「把滑块摆回
+// 用户面」是**另一张票**（本票落地时还没有这张票）。谁要给这两维加控件、加档位、加测试，先回来读这一段。
 //
 // 🔴 这三个旋钮一律是相对偏移，不许绝对值。理由是换主题那条流程：整份换掉 theme.css 之后，同样的
 // 偏移套到新皮上仍然有意义；绝对值会把新主题的配色覆盖掉 = 等于没换。
@@ -128,6 +142,13 @@ function validateTweaks(tweaks) {
  * @param colors      `{ primary: {50:…,…}, accent: {…} }` —— 页面上真正生效的那套调色板
  * @param settingsDecls `settingsToCssVars()` 吐出来的整条声明（`--radius-lg: 0.5rem;`），或 []
  */
+/** #1078 —— 主题表里块的圆角与留白的基准。与 `src/app/globals.css` 的 `:root` 逐字相同。 */
+const BLOCK_SHAPE_BASE = [
+  ['--radius-block', '0.25rem'],
+  ['--section-block-pad', '0.5rem'],
+  ['--section-block-gap', '0.25rem'],
+];
+
 function baseVarsFrom(colors, settingsDecls = []) {
   const out = [];
   for (const [shade, value] of Object.entries((colors && colors.primary) || {})) {
@@ -142,6 +163,17 @@ function baseVarsFrom(colors, settingsDecls = []) {
     .filter((m) => /^--(radius|section)-/.test(m[1]))
     .map((m) => [m[1], m[2].trim()]);
   out.push(...shapes);
+  // #1078 —— 主题表里块的圆角与留白的基准，见 `globals.css` 的同名三行（值逐字相同）。
+  //
+  // 🔴 它们**必须在这份基准里**，否则滑块动不了它们：`buildCustomCss` 只为它认识基准的那些变量
+  // 写覆盖行，名字不在这里的变量 custom.css 一个字都不会写 —— 表里的 `var(--radius-block)` 就
+  // 永远读到 globals.css 的默认值，拖到头也纹丝不动。这正是本票要治的那个病的形状。
+  //
+  // 🔴 它们是**常量**，不来自这套主题的风格设定，所以**不计进 `shapeCount`**。那个数回答的是
+  // 另一个问题 ——「这套主题自己说了圆角/留白吗」—— 有两处按它分支（`sync-config.js` 的风格设定
+  // 那段、`CustomizeModal` 用它判能不能实时预览）。把常量算进去会让「没写风格设定的主题」看起来
+  // 像写了，那两处会一起改判。
+  out.push(...BLOCK_SHAPE_BASE);
   return { vars: out, shapeCount: shapes.length };
 }
 
