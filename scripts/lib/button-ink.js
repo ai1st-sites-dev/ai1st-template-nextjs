@@ -119,6 +119,19 @@ const {
 
 const WHITE = '#ffffff';
 const BLACK = '#000000';
+/**
+ * 一个值能不能拿去算 —— **只认 `#rgb` 和 `#rrggbb`**（与 `theme-contrast.js` 的 `resolveColour`
+ * 同一条判据）。
+ *
+ * 🔴 带 alpha 的两种形状**故意不认**，它们各有各的错法（#1105，两种都实测过）：
+ *   · `#rgba`（4 位）    —— `hexToRgb` 的第三段切出空串 ⟹ `parseInt('',16)` = `NaN`，
+ *                            而 `NaN < 4.5` 恒为假 ⟹ 那一格会静默混过「仍然读不出来」那份清单。
+ *   · `#rrggbbaa`（8 位）—— `hexToRgb` 取前 6 位、**静默丢掉 alpha** ⟹ 报出来的是「完全不透明」
+ *                            那块底上的数，而真正画出来的是它跟背后那块混色之后的样子。
+ * 两种都属于「算不出来」而不是「算出来了」：半透明底下面是什么，这里没有那份信息。
+ */
+const HEX_LITERAL = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+const isColourLiteral = (v) => typeof v === 'string' && HEX_LITERAL.test(v);
 /** 本票之前那三处写死的字面行为 —— 「保持今天的」指的就是这三个值。 */
 const TODAY = { ink: WHITE, base: '500', hover: '600', outline: '500' };
 /**
@@ -263,8 +276,19 @@ function outlineShadeFor(palette, ground = WHITE) {
  * 🔴 两个都没写底色 ⟹ 白底，而这是一个**读数不是兜底**：`globals.css` 的 services-list 骨架里
  * `background` 零命中 ⟹ 未套主题的站那一处真的就是页面白。
  *
- * 🔴 解不出来的形状（渐变、`color-mix()`、别的变量套变量）**不猜**：回 `null`，由调用方决定怎么办。
- * 猜一个会静默产出一个关于另一块底的档位，而那正是本轮被退回的那种错。
+ * 🔴 解不出来的形状（渐变、`color-mix()`、别的变量套变量、`background` 简写、带 alpha 的 hex）
+ * **不猜**：回 `null`，由调用方决定怎么办。猜一个会静默产出一个关于另一块底的档位，而那正是
+ * #1084 被退回的那种错。
+ *
+ * 🔴 **「读不出来」和「这里真的没画底」必须分开（#1105）：** 只要那个块里有一条画底的声明，
+ * 读不出来就回 `null`；**绝不许**掉到最后那句 `{ hex: WHITE, from: '没有任何一条画底…' }` ——
+ * 那句是一个**关于这个站的断言**（"它是未套主题的站"），而不是"我不知道"。#1105 之前
+ * `background:` 简写走的正是这条路：把一个深底主题报成页面白，档位按白底挑（`magenta-01`
+ * 实测 6.268 → 1.719，比不改还差），而构建**一行警告都不打**。
+ *
+ * 🔴 `background` 简写**认得出、但不解析**：它一条里可以装图片、渐变、多层背景，解析一半等于猜。
+ * 所以有它 ⟹ `null` + 调用方报警。我们自己的生成器写的一律是 `background-color`
+ * （2026-08-19 实测：83 张表那两处选择器共 110 条声明，简写 0 条）。
  *
  * @param {string} cssText 主题表（或 theme.css + custom.css 的层叠）的原文
  * @param {object} palette `{primary:{50..900}, accent:{…}}` 或扁平的 `{50..900}`——用来把
@@ -281,19 +305,25 @@ function outlineGroundFromCss(cssText, palette) {
     // 选择器必须**独占一条规则的开头**，同 `theme-presets.test.js` 里那把索引的理由：
     // 松了会把 `.foo .services-list { … }` 这种后代选择器也算进来。
     const re = new RegExp('(?:^|\\n)[ \\t]*\\' + sel + '[ \\t]*\\{([^}]*)\\}', 'g');
-    let value = null;
+    let decl = null;
     let m;
     while ((m = re.exec(css)) !== null) {
-      const d = m[1].match(/(?:^|[;{\s])background-color\s*:\s*([^;]+)\s*;/);
-      if (d) value = d[1].trim();                  // 同选择器多条时取最后一条 = 层叠赢的那条
+      // 🔴 `[^;}]+` 而不是 `[^;]+`：块里最后一条声明可以不带分号，`[^;]+` 会一路吃到**下一条规则**
+      //    里的那个分号（`;` 之前的 `}` 挡不住它）。同选择器多次、同块里多条时都取**最后**一条
+      //    = 层叠赢的那条。`background` 与 `background-color` 一起数，因为后写的那条才是赢家。
+      for (const d of m[1].matchAll(/(?:^|[;{\s])(background(?:-color)?)\s*:\s*([^;}]+)/g)) {
+        decl = { prop: d[1], value: d[2].trim() };
+      }
     }
-    if (!value) continue;
+    if (!decl) continue;
+    if (decl.prop !== 'background-color') return null;   // 简写：认得出，不解析（见上面那条 🔴）
+    const { value } = decl;
     const tok = value.match(/^var\(\s*--color-([a-z]+)-(\d{2,3})/);
     if (tok) {
       const hex = shadeOf(tok[1], tok[2]);
-      return hex ? { hex, from: sel + ' → ' + tok[1] + '-' + tok[2] } : null;
+      return isColourLiteral(hex) ? { hex, from: sel + ' → ' + tok[1] + '-' + tok[2] } : null;
     }
-    if (/^#[0-9a-fA-F]{3,8}$/.test(value)) return { hex: value, from: sel + ' → ' + value };
+    if (isColourLiteral(value)) return { hex: value, from: sel + ' → ' + value };
     return null;                                   // 认得出选择器、解不出颜色 ⟹ 不猜
   }
   return { hex: WHITE, from: '没有任何一条画底 ⟹ 页面白（未套主题的站）' };
@@ -307,27 +337,70 @@ function outlineGroundFromCss(cssText, palette) {
  */
 function buttonInkReport(palette, outlineGround = WHITE) {
   const p500 = palette && palette['500'];
-  if (typeof p500 !== 'string') return null;
+  // 🔴 `typeof === 'string'` 不够（#1105）：`#abcd` / `#5e264380` 都是字符串，而 `hexToRgb` 对它们
+  // 一个解出 `NaN`、一个静默丢掉 alpha ⟹ 后面每一格都是关于另一个颜色的数。这里回 `null` =
+  // 「这份配色算不出来」，调用方那条路会把它说出来。
+  if (!isColourLiteral(p500)) return null;
   // 🔴 #1091 —— 顺序是承重的：**先选底，再按那块底选字**。反过来（先按 500 选字、再挪底）算出来的
   // 字色是关于另一块底的答案，而画面上字压的是新底。
   const base = baseShadeFor(palette);
   const d = inkDecision(palette[base]);
   const hover = hoverShadeFor(palette, d.ink, base);
   // 🔴 `.btn-secondary:hover` 的底**仍然是 `primary-500`**（`globals.css` 那条规则本票不动），所以它的
-  // 字色要按 500 算，不能跟着主按钮挪。#1084 之前两者同底、共用一个变量；底一挪它们就是两个问题了。
-  // 不分开的话，本票会静默改掉一个不属于它的按钮 —— 那一格归 #1100。
+  // 字色要按 500 算，不能跟着主按钮走；#1084 之前两者同底、共用一个变量，底一挪它们就是两个问题了。
   const outlineHoverInk = inkDecision(p500).ink;
   // 🔴 静止态的轮廓按钮是**唯一**一格的底不是 `primary-*` 而是它坐着的那块（③a）。所以它两次都要
   // 用 `outlineGround`：一次选档、一次量读数。只在其中一处用，选出来的档与报出来的数就是两块不同
   // 的底上的答案 —— 而且报的那个会是绿的（白底上 500 档往往过线），正好把这条盖住。
-  const outline = outlineShadeFor(palette, outlineGround);
-  const cells = {
-    'btn-primary 静止': ratio(d.ink, palette[base]),
-    'btn-primary hover': ratio(d.ink, palette[hover]),
-    'btn-secondary 静止': ratio(palette[outline], outlineGround),
-    // 底是 primary-500、字是按 500 算出来的那个 —— 与本票改动前逐字相同。
-    'btn-secondary hover': ratio(outlineHoverInk, p500),
+  //
+  // 🔴 `outlineGround` 传 `null` = **「那块底解不出来」**（`outlineGroundFromCss` 回了 null），
+  // 跟「那块底是白的」是两个读数（#1105）。选档仍然按白底走 —— 那是今天的行为，改它不在本票射程 ——
+  // 但这一格的**读数不许假装知道**：底不知道，压在它上面的对比度就没有答案，于是它落进
+  // `unresolved` 而不是落进「合格」那一侧。#1105 之前它按白底算出 5.683 并显示成合格。
+  const groundKnown = isColourLiteral(outlineGround);
+  const outline = outlineShadeFor(palette, groundKnown ? outlineGround : WHITE);
+  /**
+   * 四格各自的（字，底）—— 先摆出来，再逐格判「这两个值算得出来吗」。
+   * 🔴 前两格的底是 **`palette[base]` / `palette[hover]`**，不是 `p500`：#1091 之后主按钮的底会挪档，
+   * 写死 500 的话报的就是另一块底上的数（本票要治的正是这种「关于另一块底的读数」）。
+   */
+  const pairs = {
+    'btn-primary 静止': { ink: d.ink, ground: palette[base], groundWhat: `primary-${base}` },
+    'btn-primary hover': { ink: d.ink, ground: palette[hover], groundWhat: `primary-${hover}` },
+    'btn-secondary 静止': {
+      ink: palette[outline], inkWhat: `primary-${outline}`,
+      ground: groundKnown ? outlineGround : undefined, groundWhat: '它坐着的那块底',
+    },
+    // 底是 primary-500、字是按 500 算出来的那个 —— 与 #1084 改动前逐字相同。
+    'btn-secondary hover': {
+      ink: outlineHoverInk, inkWhat: '按 primary-500 算出来的字色',
+      ground: p500, groundWhat: 'primary-500',
+    },
   };
+  const cells = {};
+  /**
+   * 算不出来的那几格 + 为什么。**它跟 `under` 是两份清单，不许合并**（#1105）：`under` 说的是
+   * 「量出来了、低于 4.5」，这份说的是「没有量出来」。合并的话调用方那句解释（"这套配色换字色
+   * 救不回来"）会被贴到一个根本没量出数的格子上 —— 又是一句关于页面的假话。
+   */
+  const unresolved = [];
+  for (const [name, q] of Object.entries(pairs)) {
+    const inkBad = !isColourLiteral(q.ink);
+    const groundBad = !isColourLiteral(q.ground);
+    if (inkBad || groundBad) {
+      const which = inkBad ? '字色' : '底色';
+      const what = inkBad ? (q.inkWhat || '') : (q.groundWhat || '');
+      const val = inkBad ? q.ink : q.ground;
+      unresolved.push(`${name}：${which} ${what} = ${JSON.stringify(val)}`
+        + ' 算不出来（认的是 #rgb / #rrggbb）');
+      cells[name] = NaN;
+      continue;
+    }
+    const v = ratio(q.ink, q.ground);
+    cells[name] = v;
+    // 兜底：两个输入都是合法字面值却算出个非数，那是这把尺自己坏了 —— 同样要说出来，不能沉默。
+    if (!Number.isFinite(v)) unresolved.push(`${name}：两个颜色都合法，可是算出来不是一个数`);
+  }
   return {
     ink: d.ink,
     baseShade: base,
@@ -339,12 +412,20 @@ function buttonInkReport(palette, outlineGround = WHITE) {
     baseMoved: base !== TODAY.base,
     hoverMoved: hover !== TODAY.hover,
     outlineMoved: outline !== TODAY.outline,
-    outlineGround,
+    /** 解不出来时是 `null`（不是白）—— 「不知道」和「是白的」不许长成同一个值。 */
+    outlineGround: groundKnown ? outlineGround : null,
     whiteRatio: d.white,
     blackRatio: d.black,
     cells,
-    /** 仍然读不出来的那几格（换不过去的那些）—— AC4 要求逐套列出来的就是这个。 */
-    under: Object.entries(cells).filter(([, v]) => v < MIN_CONTRAST).map(([k, v]) => `${k}=${showRatio(v)}`),
+    /**
+     * 仍然读不出来的那几格（换不过去的那些）—— AC4 要求逐套列出来的就是这个。
+     * 🔴 `Number.isFinite` 那一半是 #1105 补的：原来写的是 `v < MIN_CONTRAST`，而 `NaN < 4.5`
+     * **恒为假** ⟹ 算不出来的格子会静默混到「合格」那一侧。算不出来的现在走 `unresolved`。
+     */
+    under: Object.entries(cells)
+      .filter(([, v]) => Number.isFinite(v) && v < MIN_CONTRAST)
+      .map(([k, v]) => `${k}=${showRatio(v)}`),
+    unresolved,
   };
 }
 
@@ -414,6 +495,6 @@ function buttonInkVars(palette, outlineGround = WHITE) {
 
 module.exports = {
   WHITE, BLACK, TODAY, OUTLINE_LADDER, BASE_LADDER,
-  ratio, rawRatio, inkDecision, inkFor, baseShadeFor, hoverShadeFor, outlineShadeFor,
+  ratio, rawRatio, isColourLiteral, inkDecision, inkFor, baseShadeFor, hoverShadeFor, outlineShadeFor,
   outlineGroundFromCss, buttonInkReport, buttonInkVars, underNote,
 };

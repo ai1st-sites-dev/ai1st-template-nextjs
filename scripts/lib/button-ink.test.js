@@ -547,13 +547,141 @@ console.log('⑥ 「换过去过线才换」这条约束本身：两种字色都
   } else ok(`反向对照 ${RESCUABLE}（黑${d2.black.toFixed(3)} 过线）⟹ 真的换过去了，不是「一律不换」`);
 }
 
-// 🔴 为什么这一格是 ⑧ 而不是 ⑦，而 ⑦ 现在是个空号：**⑦ 归在飞的 #1105**（它也改这个文件，base 也是
-// `origin/main 3a09d8c2`，它的交付 blob `6f4c53f4` 第 463 行就是
-// `console.log('⑦ 算不出来的输入必须【说出来】…（#1105）')` —— 我 `git cat-file -p` 读的，不是听说的）。
-// 两票都往这个文件末尾插一段，git 冲突无论怎么编号都会有；编号错开的意思是**冲突解成「两段都留」时结果
-// 就是对的**，不需要谁再改一次号。哪张先 ship 都行：#1105 先 ship ⟹ ⑦ 由它填上、序号连续；本票先 ship
-// ⟹ ⑦ 暂时空着，由这段注释解释。（QA1 2026-08-19 在本票上报了这个跨票冲突，她量的是 r2；r3 又多碰了
-// `module.exports` 和 `sync-config.js` 那同一段，所以冲突面比她那次更宽 —— 交接留言里写了 ship 配方。）
+console.log('⑦ 算不出来的输入必须【说出来】，不许混到「合格」那一侧（#1105）');
+{
+  // 🔴 夹具是**真表外科改一处**，不是手写的合成 CSS：`magenta-01.css` 那一句
+  // `background-color: var(--color-primary-800);` 在整份表里出现 15 次，只有 `.services-list {…}`
+  // 那个块里的那一条是被判的对象。（第一版探针拿 `String.replace` 换"第一处"，换到的是别的块，
+  // 于是给出"改了也没变"的假读数 —— 所以下面每一次变异都先断言它真的改到了。）
+  const SHEET = path.join(__dirname, '..', '..', 'public', 'themes', 'magenta-01.css');
+  const raw = fs.readFileSync(SHEET, 'utf8');
+  const PRIM = poolThemes['magenta-01'].colors.primary;
+  const PAL = poolThemes['magenta-01'].colors;
+  const BLOCK = /(\n\.services-list \{)([^}]*)(\})/;
+  const DECL = / *background-color: var\(--color-primary-800\);\n/;
+  const mutate = (decl) => raw.replace(BLOCK, (_, a, body, c) => a + body.replace(DECL, decl) + c);
+  const CELL = 'btn-secondary 静止';
+
+  // 阳性对照：没动过的真表必须解得出来、四格全部有数。没有这一格，下面的"全部 null"说明不了任何事。
+  {
+    const g = ink.outlineGroundFromCss(raw, PAL);
+    const r = g && ink.buttonInkReport(PRIM, g.hex);
+    if (!g) bad('阳性对照：没动过的 magenta-01.css 都解不出那块底 —— 这一整格的夹具是坏的');
+    else if (!r) bad('阳性对照：magenta-01 的调色板算不出报告');
+    else if (r.unresolved.length) bad(`阳性对照：没动过的真表上却有 ${r.unresolved.length} 格算不出来：${r.unresolved.join(' · ')}`);
+    else ok(`阳性对照：没动过的真表 ⟹ 底 = ${g.hex}（${g.from}）· 四格全部有数 · 算不出来的 0 格`);
+  }
+
+  // 四种「读不出来」的输入。前两种是本票点名的（QA2 ① / QA3 1），后两种是同一个形状的另两半。
+  const SHAPES = [
+    ['background 简写', '  background: var(--color-primary-800);\n'],
+    ['4 位带 alpha 的 hex', '  background-color: #abcd;\n'],
+    ['8 位带 alpha 的 hex', '  background-color: #5e264380;\n'],
+    ['渐变（本票之前就会 null 的那条，作对照）', '  background-color: linear-gradient(#000,#fff);\n'],
+  ];
+  const wrong = [];
+  for (const [what, decl] of SHAPES) {
+    const css = mutate(decl);
+    if (css === raw) { wrong.push(`${what}：变异没改到那个块 —— 这一条在空过`); continue; }
+    const g = ink.outlineGroundFromCss(css, PAL);
+    if (g) { wrong.push(`${what}：解出了 ${JSON.stringify(g)}，应当是 null（读不出来就别猜）`); continue; }
+    // 调用方（`sync-config.js`）此时传的是 `null`，不是白 —— 「不知道」和「是白的」是两个读数。
+    const r = ink.buttonInkReport(PRIM, null);
+    if (!r) { wrong.push(`${what}：报告整份是 null，而只有那一格该算不出来`); continue; }
+    if (Number.isFinite(r.cells[CELL])) wrong.push(`${what}：底不知道，${CELL} 却报出了 ${r.cells[CELL]}`);
+    if (!r.unresolved.some((u) => u.startsWith(CELL))) wrong.push(`${what}：${CELL} 没进 unresolved —— 报不出来就等于没这一条`);
+    if (r.under.some((u) => u.startsWith(CELL))) wrong.push(`${what}：${CELL} 进了 under —— 那是"量出来低于线"，不是"算不出来"`);
+    if (r.outlineGround !== null) wrong.push(`${what}：report.outlineGround = ${JSON.stringify(r.outlineGround)}，应当是 null`);
+  }
+  if (wrong.length) bad(`${wrong.length} 处：${wrong.join(' · ')}`);
+  else ok(`4 种读不出来的底（简写 / 4 位 hex / 8 位 hex / 渐变）⟹ 全部 null，且 ${CELL} 落进 unresolved、没落进 under`);
+
+  // 🔴 反向对照 A：这一格必须分得出「本票之前那版」。之前调用方把解不出来的底换成白 ——
+  //    那一格于是报出一个**过线的**数（白底上 500 档往往合格），正好把这条盖住。
+  {
+    const r = ink.buttonInkReport(PRIM, ink.WHITE);
+    if (!Number.isFinite(r.cells[CELL]) || r.cells[CELL] < MIN) {
+      bad(`反向对照 A：拿白底替它答时 ${CELL} 并没有报成合格（${r.cells[CELL]}）—— 这一格分不出改前改后`);
+    } else if (r.unresolved.length) {
+      bad('反向对照 A：白底是一个能算的颜色，不该有算不出来的格子');
+    } else {
+      // 🔴 两个数必须是**同一档**在两块底上的读数，否则比的是两件事。
+      const shade = ink.outlineShadeFor(PRIM, ink.WHITE);
+      ok(`反向对照 A：拿白底替它答 ⟹ 选到 primary-${shade}、${CELL} = ${r.cells[CELL].toFixed(3)} ≥ ${MIN}`
+        + `（合格）；同一档压它真正坐的那块底 #5e2643 是 ${ink.ratio(PRIM[shade], '#5e2643').toFixed(3)}`
+        + ' ⟹ 改前那版确实会把它报成过线');
+    }
+  }
+
+  // 🔴 反向对照 B：`under` 那条判据本身。旧的写法是 `v < MIN`，而 `NaN < 4.5` 恒为假 ⟹ 算不出来的
+  //    格子会静默落到"合格"那一侧。这里造出一个**底色算不出来的 hover 格**，再拿旧谓词跑一遍，
+  //    必须出现分歧。
+  //
+  // 🔴 夹具换过一次，原因写在这里（#1105 r2 → r3 rebase 到 #1091 之后）：原来用的是**缺 600 档**的
+  //    调色板（QA3 在 #1084 实测的第二处：hover 落回不存在的 600）。#1091 重写了 `hoverShadeFor` ——
+  //    候选档现在是从 `palette` 自己现算的，兜底是「那个方向上离 base 最近的那一档」`beyond[0]` /
+  //    `other[0] || base`，**返回的档必然在这份调色板里**。所以「缺档 ⟹ hover 底是 undefined」这条路
+  //    被 #1091 关掉了（实测：`{50,500}` 那份夹具现在 hoverShade = 50，不再是 600）。
+  //    另一条路没关：**档在、但它的值不是能算的颜色**（本票 ② 那一类，`#abcd`）。`hoverShadeFor` 只
+  //    要求 `typeof === 'string'`，`#abcd` 通过；`passes()` 对它是假 ⟹ 落到 `beyond[0]` 就是它自己。
+  {
+    const gap = { 50: '#ffffff', 500: '#8a2b5e', 600: '#abcd' };
+    const r = ink.buttonInkReport(gap, ink.WHITE);
+    const HOVER = 'btn-primary hover';
+    const oldPredicate = Object.entries(r.cells).filter(([, v]) => v < MIN).map(([k]) => k);
+    if (r.hoverShade !== '600') {
+      bad(`反向对照 B：夹具没造出那个形状 —— hoverShade = ${r.hoverShade}，要的是落到值算不出来的 600`);
+    } else if (Number.isFinite(r.cells[HOVER])) {
+      bad(`反向对照 B：${HOVER} 的底（primary-600 = "#abcd"）算不出来，却报出了 ${r.cells[HOVER]}`);
+    } else if (!r.unresolved.some((u) => u.startsWith(HOVER))) {
+      bad(`反向对照 B：${HOVER} 算不出来却没进 unresolved`);
+    } else if (oldPredicate.includes(HOVER)) {
+      bad(`反向对照 B：旧谓词 \`v < ${MIN}\` 竟然抓到了 ${HOVER} —— 那这一格证不出它是个洞`);
+    } else {
+      ok(`反向对照 B：600 档的值是 "#abcd" ⟹ ${HOVER} 算不出来、进了 unresolved；而旧谓词 \`v < ${MIN}\``
+        + ` 抓到的是 ${JSON.stringify(oldPredicate)}（不含它）⟹ 那个洞是真的`);
+    }
+  }
+
+  // 🔴 顺带把上面那句「#1091 关掉了缺档那条路」也钉住 —— 它是一条关于**别人代码**的断言，写在注释里
+  //    就会过期。缺档的调色板现在必须落到一个**存在的**档上。
+  {
+    const missing = { 50: '#ffffff', 500: '#8a2b5e' };
+    const r = ink.buttonInkReport(missing, ink.WHITE);
+    if (typeof missing[r.hoverShade] !== 'string') {
+      bad(`hoverShadeFor 选了一个这份调色板里没有的档 primary-${r.hoverShade} —— 上面那条注释说的`
+        + '「#1091 之后返回的档必然存在」已经不成立了，反向对照 B 的夹具理由要重写');
+    } else {
+      ok(`缺档的调色板（只有 50 / 500）⟹ hover 落到存在的 primary-${r.hoverShade}`
+        + '（#1091 关掉了「缺档 ⟹ 底是 undefined」那条路，所以反向对照 B 走的是「值算不出来」那条）');
+    }
+  }
+
+  // 一份配色本身算不出来时，整份报告是 null（调用方那条路会印"跳过"），不是四格 NaN。
+  {
+    const bogus = Object.assign({}, PRIM, { 500: '#abcd' });
+    if (ink.buttonInkReport(bogus, ink.WHITE) !== null) bad('primary-500 = #abcd（4 位带 alpha）时报告不是 null');
+    else if (ink.buttonInkReport(Object.assign({}, PRIM, { 500: '#5e264380' }), ink.WHITE) !== null) bad('primary-500 = 8 位带 alpha 时报告不是 null');
+    else if (ink.buttonInkReport(PRIM, ink.WHITE) === null) bad('反向对照：正常的 6 位 primary-500 也被判成算不出来');
+    else ok('primary-500 带 alpha（4 位 / 8 位）⟹ 整份报告 null（调用方印"跳过"）；正常 6 位不受影响');
+  }
+
+  // `isColourLiteral` 的真值表 —— 这条判据是上面每一格的地基，单独钉一次。
+  {
+    const yes = ['#fff', '#FFF', '#5e2643', '#5E2643'];
+    const no = ['#abcd', '#5e264380', '#ab', '#abcde', 'red', 'var(--color-primary-800)', '', undefined, null, 123];
+    const badYes = yes.filter((v) => !ink.isColourLiteral(v));
+    const badNo = no.filter((v) => ink.isColourLiteral(v));
+    if (badYes.length || badNo.length) bad(`isColourLiteral 判错：该认的没认 ${JSON.stringify(badYes)} · 不该认的认了 ${JSON.stringify(badNo)}`);
+    else ok(`isColourLiteral：${yes.length} 个该认的全认、${no.length} 个不该认的全拒（4 位/8 位带 alpha 在拒的那边）`);
+  }
+}
+
+// 📌 ⑦ 与 ⑧ 是两张票各自往这个文件末尾插的一段：⑦ 是 #1105（算不出来的输入要说出来），⑧ 是 #1091
+// （`underNote()` 印的数不许否掉它自己）。#1091 先 ship，当时 ⑦ 还空着，那段注释解释了为什么空号；
+// #1105 rebase 到 #1091 之上时把 ⑦ 填了回来，冲突就是照它说的「两段都留」解的，序号现在是连的。
+// 🔴 rebase 那次还改了 ⑦ 的反向对照 B：它原来的夹具（缺 600 档）被 #1091 重写的 `hoverShadeFor`
+// 关掉了，换成了「档在、值算不出来」那条路，理由与实测写在那一格自己的注释里。
 console.log('⑧ `underNote()` 印出来的那句话本身：它印的每个数都必须支持它自己的断言（#1091 r3，QA2 r2 的发现）');
 {
   /**
