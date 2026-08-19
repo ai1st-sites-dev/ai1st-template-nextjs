@@ -8,6 +8,9 @@ const path = require('path');
 const blockManifest = require('./lib/block-manifest');
 const { themes, layoutFor, themesWithRhythm } = require('./themes');
 const pageLayoutLib = require('./lib/page-layout');
+// #1108 —— 报错里「那你去做 X」那几句话由代码算出来（判据是白名单自己），不写死。
+// 理由整段写在那个文件头上:这些话会被 edit-site.js 原文推进老板的聊天窗口。
+const remediation = require('./lib/remediation.js');
 const themeTokens = require('./lib/theme-tokens');
 const { resolveRegionLayout } = require('./region-layout');
 const { checkCssContracts } = require('./css-contract-check');
@@ -84,8 +87,13 @@ if (cssContracts.problems.length > 0) {
   console.error(`🔴 CSS contract violations (${cssContracts.problems.length}) in `
     + `${cssContracts.checked.join(', ')} — this build is refused:`);
   for (const p of cssContracts.problems) console.error(`   ${p}`);
-  console.error('  · docs/reference/theme-css-contract.md says what is allowed; each line above says '
-    + 'which file and which line broke it.');
+  // 🔴 #1108（AC3 那次扫查抓到的第三处）—— 这里以前写的是裸的 `docs/reference/theme-css-contract.md`,
+  //    而它从**读者所在的地方一个都解析不开**:这个脚本的 cwd 是 `templates/nextjs`(平台仓)或
+  //    `/app/repo`(站容器,`worker/entrypoint.sh:69`),两处底下都没有 `docs/`。那份文档只存在于
+  //    平台仓的仓根。⟹ 跟本票要治的病同一族:指了一条路,而那条路走不通。
+  console.error('  · the ai1st platform repo has docs/reference/theme-css-contract.md at its root '
+    + '(not under templates/nextjs, and not in a site repo) — it says what is allowed; '
+    + 'each line above says which file and which line broke it.');
   process.exit(1);
 }
 // 🔴 AN UNPARSEABLE SHEET REFUSES THE BUILD TOO (#1009 r1, QA3 measured the way past this gate).
@@ -800,6 +808,8 @@ layoutProblems.push(...picked.problems);
 if (layoutProblems.length) {
   console.error('page layout 库不合法（page-layouts/ 与 site/page-layout.json）：');
   for (const problem of [...new Set(layoutProblems)]) console.error(`  · ${problem}`);
+  // #1108 —— 上面那些 problem 点名了 site/page-layout.json,但没说「那我怎么改它」。
+  console.error(`  · ${remediation.howToChangePageLayout({ rootDir }).sentence}`);
   process.exit(1);
 }
 const pageLayout = { id: picked.layout.id, regions: picked.layout.regions,
@@ -826,8 +836,15 @@ if (pageLayoutLib.needsTopbar(picked.layout) && regionLayout.header === 'transpa
   console.error(`page layout "${pageLayout.id}" 有 topbar 区，而这个站的顶栏解析成 `
     + '"transparent-overlay"（透明浮层）—— 浮层是 absolute top-0、高 92px、z-index 50，会把 '
     + 'topbar 那 44px 整条压在底下：横条会渲染出来，但用户一个像素都看不见。');
-  console.error('  · 换一个不带 topbar 区的 page layout，或者换一套顶栏不是透明浮层的主题'
-    + '（themes.js 里 supports.header 不是 transparent-overlay 的那些）');
+  // 🔴 #1108 —— 这条以前给的两条路里,「换一个不带 topbar 区的 page layout」**走不通**
+  //    (产品里 0 个写入者)。本票点名的是下面那条 topbar 缺内容的报错,而这一条是同一个病的
+  //    另一格 —— 扫查时抓到的。换主题那一半是真的(dashboard 里有换装弹窗)。
+  console.error(`  · ${remediation.howToChangePageLayout({ rootDir }).sentence}`);
+  // 🔴 #1108 —— 这一句以前把判据写成 `themes.js 的 supports.header !== 'transparent-overlay'`。
+  //    `supports` 装的是**清单**（数组），拿它 `!==` 一个字符串恒为真 ⟹ 那个判据一个主题都排除不掉：
+  //    照它挑出 110 个候选，其中 20 个解析出来仍然是透明浮层。现在这份名单**算出来** ——
+  //    问的是构建自己用的 `layoutFor` + `resolveRegionLayout`（也就是上面那个 if 的判据本身）。
+  console.error(`  · 或者${remediation.themesWithoutOverlayHeader().sentence}`);
   process.exit(1);
 }
 
@@ -841,8 +858,17 @@ if (pageLayoutLib.needsTopbar(picked.layout)) {
   if (missing.length) {
     console.error(`page layout "${pageLayout.id}" 有 topbar 区，但这些语言的 navigation.json 里没有 `
       + `topbar 内容：${missing.join(', ')}`);
-    console.error('  · 在 navigation.json 里加 { "topbar": { "message": "…", "link": { "label": "…", "href": "…" } } }，'
-      + '或者换一个不带 topbar 区的 page layout');
+    // 🔴 #1108 —— 以前这两句给的路一条都走不通:`navigation.json` 被 #1087 的白名单整份拒掉,
+    //    `site/page-layout.json` 产品里 0 个写入者。现在两句都**算出来**(见 lib/remediation.js):
+    //    第一句问白名单「这个站的 topbar 写得进去吗」,所以 #1104 一落地它自己就从「还加不了」
+    //    变成「让 AI 编辑器加」,不需要谁回来改这行字。
+    // 🔴 `flat` 必须传：扁平站的 locales 也是 ['en']，但文件在 site/navigation.json ——
+    //    不传就会指着一个不存在的 site/en/navigation.json（见 remediation.js 里 navRelPath 那段）。
+    // 🔴 条数有上限：这段 stderr 会被 edit-site.js 截到 2000 字符再给老板看（理由整段在那个函数上）。
+    for (const line of remediation.topbarBullets({ siteDir, locales: missing, flat: isLegacySchema })) {
+      console.error(`  · ${line}`);
+    }
+    console.error(`  · 或者不要 topbar —— ${remediation.howToChangePageLayout({ rootDir }).sentence}`);
     process.exit(1);
   }
 }
