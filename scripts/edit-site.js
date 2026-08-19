@@ -13,7 +13,9 @@
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
-const { execSync } = require('child_process');
+// #1102 —— `execFileSync` 是给回滚那段用的：它把参数直接交给 git，不经过 shell。文件路径来自模型
+// （`write_file` 的 `path`），而 `validatePath` 只拦 `..` 和绝对路径 —— 空格和 shell 元字符它是放过的。
+const { execSync, execFileSync } = require('child_process');
 const Anthropic = require('@anthropic-ai/sdk');
 // #1013 洞 4 —— 块校验（#999）此前在这条路上一条都不跑：write_file 只看「是合法 JSON」就落盘。
 // 跑的是**同一个函数**，不是第二份实现（#999 定的规矩，本票 AC6）。
@@ -84,6 +86,69 @@ function classifyVisionError(err, images) {
     return `The AI vision model can't read one of your uploaded image formats (${suspectFiles.join(', ')}). Please convert to PNG, JPG, or WEBP and try again. The original file is still saved in your library and can be referenced in your site.`;
   }
   return `The AI vision model couldn't process one of the uploaded images. Please try a different format (PNG, JPG, or WEBP). Original error: ${err?.message || 'unknown'}`;
+}
+
+// ─── #1102：说了「没有保存」就真的没保存 ──────────────────────────────────────────────────────
+//
+// #1087 让「同步失败」不再保存，但**写出去的文件留在工作树上**。而保存那一步是 `git add -A`
+// （下面 auto-save 那段）⟹ 下一次成功的编辑会把它一起提交、一起推。QA2 在真容器上量到的顺序：
+// 主题是坏的 → 老板改 About 页 → 收到 "This change was not saved" → 主题被修好 → 老板改的是
+// **另一个文件**（seo.json）→ 那次成功的 commit 里 `site/en/pages/about.json | 2 +-` 也进去了。
+// ⟹ 跟老板说过的那句话事后变成了假的，而没有人被告知。
+//
+// 🔴 为什么不走「保存时只提交本次真正改的文件」（票正文给的另一个方向）：`sync-config.js` 每跑一次
+// 都会重写 `site/<locale>/navigation.json`（从页面 metadata 重新生成 header/footer）——那个文件住在
+// **站仓里**，也就是一次成功的编辑真正该提交的文件**多于** `write_file` 写过的那几个。把 `git add -A`
+// 收窄成这几个路径，站仓里的导航就会跟它自己的页面长期不一致。所以 `git add -A` 一个字不动。
+//
+// 🔴 为什么不是 `git checkout -- .` 那种整树回滚：同一棵树上还有别人未提交的改动 —— QA2 那条时间线
+// 里「主人把主题修好」就发生在这里。整树回滚会连带把它抹掉。所以只退**这次 write_file 真正写过的
+// 那几个路径**，一个不多。
+/**
+ * 把这次编辑写出去的那几个文件退回上一次提交的样子。
+ *
+ * @param {string} rootDir  仓根（`git` 在这里跑）
+ * @param {string} siteDir  `<rootDir>/site`，`relPaths` 相对于它
+ * @param {string[]} relPaths  这次 `write_file` 真正写成功的路径
+ * @returns {{restored:string[], removed:string[], failed:string[]}}
+ */
+function rollbackWrittenFiles(rootDir, siteDir, relPaths) {
+  const out = { restored: [], removed: [], failed: [] };
+  if (!relPaths.length) return out;
+  // 🔴 先问一次「这棵树上 git 好用吗」，这一步是承重的：下面拿「HEAD 里查不到这个路径」当
+  // 「这个文件是本次新建的 ⟹ 删掉它」的判据，而 git 本身坏掉时那个查询**同样**查不到 ⟹ 会把
+  // 老板原来就有的文件删掉。两种情况的错法方向相反，必须分开问。
+  try {
+    execFileSync('git', ['rev-parse', '--verify', 'HEAD'], { cwd: rootDir, stdio: ['pipe', 'pipe', 'pipe'] });
+  } catch (e) {
+    out.failed.push(`git is unusable in this tree (${String(e.message).slice(0, 120)}) — nothing was rolled back`);
+    return out;
+  }
+  for (const rel of relPaths) {
+    const repoPath = 'site/' + rel.split(path.sep).join('/');
+    const full = path.join(siteDir, rel);
+    // 🔴 不动索引：拿 `git show` 读出 HEAD 那份字节、用 fs 写回去。`git checkout HEAD -- <path>`
+    // 会把还原**一起写进索引**，而紧接着的下一次成功编辑读的就是索引（`git add -A` + commit）。
+    let inHead = true;
+    try {
+      execFileSync('git', ['cat-file', '-e', `HEAD:${repoPath}`], { cwd: rootDir, stdio: ['pipe', 'pipe', 'pipe'] });
+    } catch {
+      inHead = false;   // HEAD 可读（上面验过），所以这里只剩一种解释：这个路径本次才出现
+    }
+    try {
+      if (inHead) {
+        const bytes = execFileSync('git', ['show', `HEAD:${repoPath}`], { cwd: rootDir, maxBuffer: 64 * 1024 * 1024 });
+        fs.writeFileSync(full, bytes);
+        out.restored.push(repoPath);
+      } else {
+        fs.unlinkSync(full);
+        out.removed.push(repoPath);
+      }
+    } catch (e) {
+      out.failed.push(`${repoPath}: ${String(e.message).slice(0, 120)}`);
+    }
+  }
+  return out;
 }
 
 // ─── Dev server health check ─────────────────────────────────────────────────
@@ -321,7 +386,10 @@ function executeTool(toolName, toolInput, siteDir) {
       const fullPath = path.join(siteDir, relPath);
       fs.mkdirSync(path.dirname(fullPath), { recursive: true });
       fs.writeFileSync(fullPath, toolInput.content);
-      return { success: true, message: `Written ${relPath}` };
+      // #1102 —— `path` 回给调用方，让它记下「这次真正写出去的是哪几个」（同步失败时按这份名单回滚）。
+      // 🔴 用这里这个 `relPath`、不是调用方手里的 `block.input.path`：只有走到这一行的才真的落了盘
+      // （上面每一条 return 都是拒绝），而回滚名单里多一个没写过的路径 = 拿 HEAD 覆盖一个不该动的文件。
+      return { success: true, path: relPath, message: `Written ${relPath}` };
     }
     case 'list_files': {
       const relDir = toolInput.directory || '';
@@ -463,6 +531,9 @@ async function main() {
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
   let filesModified = false;
+  // #1102 —— 这次编辑真正写出去的那几个路径（相对 `siteDir`）。同步失败时按这份名单回滚，
+  // 好让「This change was not saved」这句话在磁盘上也成立。Set：同一个文件被改两次只算一个。
+  const writtenPaths = new Set();
   let commitHash = '';
 
   const model = configModel;
@@ -553,6 +624,7 @@ async function main() {
 
         if (block.name === 'write_file' && result.success) {
           filesModified = true;
+          if (result.path) writtenPaths.add(result.path);
         }
 
         // Truncate large file contents in tool results for debug
@@ -673,9 +745,24 @@ async function main() {
       // 让这条带原因的事件留在 `last-event` 里。
       // （行号有意不写：这两处在别的仓/别的文件里，会漂；上面那几个字符串是当场 grep 得到的锚点。）
       if (syncError) {
+        // #1102 —— 先把这次写出去的文件退回上一次提交的样子，**再**说那句话。顺序是承重的：
+        // 「没有保存」这句话的真假取决于磁盘上还剩什么（下一次成功编辑的 `git add -A` 读的是磁盘），
+        // 所以要么先让它成立、要么就别那么说。理由整段在 rollbackWrittenFiles 上面。
+        const rb = rollbackWrittenFiles(rootDir, siteDir, [...writtenPaths]);
+        debug(`#1102 rollback: restored ${rb.restored.length} · removed ${rb.removed.length}`
+          + ` · failed ${rb.failed.length}${rb.failed.length ? ' — ' + rb.failed.join(' | ') : ''}`);
+        // 🔴 退不掉的时候**改口**，不硬说那句话（这是本票要治的那个毛病本身：跟老板说的话后来变成
+        // 假的而没人被告知）。退不掉 = 那几个文件还带着这次的改动躺在工作树上，下一次成功的编辑
+        // 会把它们一起提交。
         emit('error', {
-          message: 'This change was not saved. Rebuilding the site\'s configuration failed, so nothing '
-            + 'was committed and the site still shows the previous version:\n\n' + syncError,
+          message: rb.failed.length
+            ? 'Rebuilding the site\'s configuration failed, so nothing was committed and the site still '
+              + 'shows the previous version. ⚠️ This change could not be undone on disk either '
+              + `(${rb.failed.join('; ')}), so it may be included the next time an edit is saved:\n\n`
+              + syncError
+            : 'This change was not saved. Rebuilding the site\'s configuration failed, so nothing '
+              + 'was committed, the change was rolled back and the site still shows the previous '
+              + 'version:\n\n' + syncError,
         });
         debug(`Edit aborted (sync failed): ${totalInputTokens} in / ${totalOutputTokens} out, cost $${cost.toFixed(4)}`);
         return;
