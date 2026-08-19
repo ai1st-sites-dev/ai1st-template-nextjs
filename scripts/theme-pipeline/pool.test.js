@@ -361,6 +361,12 @@ console.log('\n── ⑩ 挑主题按词边界匹配：短声明词不再靠子
     ['retirement', 'tire', ['rose-56', 'fern-57', 'indigo-58', 'jade-60']],
     ['martial arts', 'art', ['azure-71', 'crimson-72', 'fern-73', 'violet-74', 'amber-75']],
     ['marketing', 'market', ['fern-31', 'violet-32', 'amber-33', 'teal-34', 'magenta-35']],
+    // 🔴 #1115 r2（QA1 在 r1 上提的那条不阻断，我决定加）—— `party` 是这 14 个词里**唯一只掉 1 套**的
+    //    那个（其余是 4-5 套）。加它不是为了多一个同族样本（`martial arts` 已经代表 `art` 这个成因），
+    //    是为了钉住**最小的那个差值**：一次只对付「掉一大片」的半修，在别的 case 上照样会红，而在这里
+    //    不会 —— 差值 1 是这条不变量最容易被静默留下的形状。实测这一格：改前 5 套、改后 4 套，
+    //    挤进来的是 `fern-73`（它声明的是 "art"）。
+    ['party', 'art', ['fern-73']],
   ];
   for (const [word, culprit, offenders] of CASES) {
     // 阳性对照：这几套真的声明了那个短词吗？（直接读池子，不经过匹配函数）
