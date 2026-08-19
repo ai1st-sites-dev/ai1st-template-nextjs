@@ -55,19 +55,11 @@ function hooksByBlock() {
 // 四道闸能被同一个输入反复驱动的前提）。取不同的模数是有意的：三项都用 `% 3` 的话，第 4 套会跟第 1 套
 // 在**每一项**上都相同，而错开之后要走到第 12 套才第一次整组重复。
 const CARD_STYLES = ['filled', 'outlined', 'underlined'];
-const HERO_LAYOUTS = ['with-media-left', 'with-media-top', 'text-only'];
 
-// 🔴 hero 版式**不是** `i % 3`，而是周期 9 的那个式子 —— 相似度闸把版式当一整项（0.2 的权重），
-// 周期 3 时第 i 套与第 i+3 套在这一项上永远满分。字体那一档是 5，所以 3 与 5 的公倍数 15 处
-// 「字体 + 版式」同时撞回来（实测：24 套里 gen-07-9 与 gen-07-24 拿到 0.901，刚过 0.9 那条线）。
-// 换成周期 9 之后要走到 lcm(5, 9) = 45 才第一次同时撞。
-//
-// 🔴 这个函数是**唯一**说得出「第 i 套的 hero 是什么版式」的地方：`generate.js` 写进 `layout.json`
-// 的那个名字和这份表里 hero 那一块的画法都从它取。分成两处算过一次就会分叉，而分叉的样子是
-// 「`layout.json` 说 text-only、CSS 画的却是两栏」—— 没有任何东西会为此报错。
-// 📌 式子写成 `(i + floor(i/L)) % L`，周期是 L²（L=3 时 9）。改 HERO_LAYOUTS 的长度不用改这一行。
-const heroLayoutFor = (i) => HERO_LAYOUTS[
-  (i + Math.floor(i / HERO_LAYOUTS.length)) % HERO_LAYOUTS.length];
+// 🔴 hero 的两张表和它们的挑法（`HERO_LOOKS` / `heroLookFor` / `heroLayoutFor`）住在下面
+//    《hero 那一块》那一节，不在这里 —— 一个名字要说的两件事在那里被拆开了（#1065）。
+//    #1065 之前这一行是 `const HERO_LAYOUTS = ['with-media-left', 'with-media-top', 'text-only']`，
+//    三个名字每个都同时说了「内容结构」和「外观」两件事，于是外观能有几种被内容结构卡死在 3 种。
 
 // 三个块一组的深浅节奏，而不是简单的隔一个换一个 —— 后者让每套候选的节奏都一样。
 // 🔴 有 5 组而不是 3 组，是为了让**表本身**的周期够长，理由在 voiceFor 上面那段。
@@ -135,6 +127,12 @@ function voiceFor(i) {
     radiusStep,
     padStep,
     gapStep,
+    // 🔴 两个键，两条轴，别合并（#1065）：
+    //   `heroLook` = 这套主题把 hero 画成什么样（图在左/右/上/下、全屏底图叠字、纯文字居中/靠左、
+    //                带表单）。**只有这个文件读它**，它不进 `layout.json`、不进 `supports`。
+    //   `hero`     = 这块 hero 装的是什么内容（`with-media` / `text-only` / `with-form`）。
+    //                它是写进 `layout.json` 的那个值，也就是 `supports.hero` 里的那个字符串。
+    heroLook: heroLookFor(i),
     hero: heroLayoutFor(i),
     card: CARD_STYLES[(i + 1) % CARD_STYLES.length],
     // 表面明暗的轮换相位：块按页面顺序深/浅交替，相位一换，整站的节奏就不一样了。
@@ -418,20 +416,115 @@ const CENTERED_INLINE_PARTS = {
   sub: () => ({ 'margin-left': 'auto', 'margin-right': 'auto' }),
 };
 
-const HERO_SHAPES = {
-  'with-media-left': {
+// ══ 两张表，两条轴（#1065）══════════════════════════════════════════════════════════════════════
+//
+// 08-12 spec 的 D5（`docs/superpowers/specs/2026-08-12-theme-css-architecture-design.md:79`）：
+// **`block_layout` 是内容结构，不是外观**，值表不许出现 `centered` / `split` 这类外观词；它第 208 行
+// 的 hero 值表逐字是 `"hero": ["with-media", "text-only", "with-form"]`。
+//
+// 所以 hero 这一块有两条轴：
+//   轴一 **内容结构**（这块 hero 装什么）—— 站说了算，写进页面 JSON 的 `block_layout`；主题这边是
+//        `supports.hero`（我为哪些内容形态写了造型）。取值只有那三个，清单的权威是
+//        `blocks/hero.json` 的 `block_layout`（#999 的 manifest，与 spec 第 208 行同源）。
+//   轴二 **外观**（画成什么样）—— 主题自己的事，只活在这个文件和它生成的那份 CSS 里，
+//        **不进 `layout.json`、不进 `supports`、不进任何值表**。
+//
+// 🔴 #1065 之前这两条轴是黏在一起的：`HERO_LAYOUTS = ['with-media-left', 'with-media-top',
+//    'text-only']`，一个名字同时说了两件事。后果不是命名不好看，是**外观能有几种被内容结构的档数
+//    卡死**：内容结构只有 3 种，于是画法也只能有 3 种。Chris 2026-08-18 点名要八项（图在左/右/上/下 ·
+//    全屏底图叠字 · 纯文字居中/靠左 · 带表单），前七项全是轴二，第八项是轴一。
+//
+// 🔴 一套候选的外观**只有这一张表说了算**，内容结构由这张表里的 `content` 派生 —— 两处各写一份必然
+//    分叉，而分叉的样子是「`layout.json` 说 text-only、CSS 画的却是两栏」，没有任何东西会为此报错
+//    （这句话是 #1051 写在 `heroLayoutFor` 上面的，本次改造把它保住了：`heroLayoutFor` 现在读的就是
+//    `heroLookFor` 挑中的那一项的 `content`）。
+//
+// ── 分左右/上下靠什么 ────────────────────────────────────────────────────────────────────────────
+// `.hero` 的直接子元素只有 `__deco` / `__media` / `__body`（`src/components/sections/HeroSection.tsx:61-67`；
+// 带表单时多一个 `__form`），三套实证表就是拿 `order` 排它们的：`hero-media-left.css` 是 media 2 /
+// body 3，`hero-media-right.css:27` 反过来（`order: 3`），`hero-media-top.css` 是 media 1 满宽。
+// 「图在右」这件事引擎本来就画得出来，#1065 之前只是生成器没往外吐。
+//
+// 🔴 全屏底图叠字用的是**同一格网格**，不是 `position` —— 契约 §2 的属性白名单里没有 `position`
+//    （`theme-css-lint.js` 的 `PROP_EXACT`），而两个网格项显式落在同一个 `grid-row` / `grid-column`
+//    上就会重叠，谁压在上面由**文档顺序**决定（`__body` 在 `__media` 后面 ⟹ 字压在图上）。
+// 🔴 图不给到全强度（`opacity` 压到 0.35）：字的对比度是按**这个块自己的底色**量的
+//    （`ink-contrast.js` + 运行时那道检查），而表不可能知道站主放的是哪张图。压暗之后图是底纹、
+//    字仍然压在这套候选自己的底色上，那条保证才还成立。
+//
+// ── 每一种画法都要给 `.hero__form` 排一个位置（#1065 r2）────────────────────────────────────────
+//
+// 🔴 这条是 r1 交付的真缺陷，CI 在 main 上当场红了三格（`violet-74` / `fern-10` / `ember-46`，
+//    run 32201593486 的 theme-css 分片 3/4/7），PM 撤回了那次 ship。
+//
+// 病在哪：`form-side` 之外的七种画法都没给 `form` 这个部件写 `order`，而 CSS 的默认值是 **0**，
+// hero 里其余部件的 order 是 1 起步 ⟹ 「没排位置」不是「排在末尾」，是**排在最前面**，也就是这块
+// hero 的最上沿。三套红的候选都是 `media-top`，而 `media-top` 的块根写的是 `padding: 0 0 …`
+// （上内边距为 0）⟹ 表单从 y=0 开始。
+//
+// 为什么最上沿会红：`transparent-overlay` 那种页眉（`supports.header`，12 套候选有它）在页面最上面
+// 铺一层 160px 高的黑色渐变遮罩（`linear-gradient(rgba(0,0,0,.75), rgba(0,0,0,.55), transparent)`，
+// 见 `src/components/Header.tsx:136` 那个 `data-region="header-scrim"` 的 div），把压在它下面的东西
+// 冲淡。violet-74 两臂真机实测（1440×900，hero 带真图，两臂都先证过「服出来的 theme.css
+// 含这一版表的全部字节」）：
+//
+//                     .hero__form 的 computed order   form.top   四个 label 的 y      带内(y<160)
+//   r1（有缺陷）       0（正文是 3）                   0          28 · 110 · 192 · 28   3 个
+//   r2（本次修法）     4（正文是 3）                   536        564 · 646 · 728 · 564 0 个
+//
+//   而 label 的**声明值**两臂完全相同：`color: rgb(248,239,250)`（`.hero` 的 `--color-primary-50`）
+//   压 `background: rgb(53,18,63)`（`.hero__form` 的 `--color-primary-900`），从这套候选的调色板算
+//   出来 = **14.29:1**。运行时那道检查在 r1 上点名最上面那个 "Name"：画出来是 rgb(81,80,82) 压
+//   rgb(18,6,22) = **2.46:1**，低于它的下限 2.5。
+//   ⟹ 红的不是配色，是位置：同一对颜色，换个 y 就是另一个读数。
+//
+// 🔴 所以修法是给它排位置，不是给它配色。`ROLES.panel` 给 `.hero__form` 的底色是这个表面自己的
+//    `card` 档，而 `SURFACES` 里 `card` 和 `bg`/`fg` 永远同一族（pale 是 50/100、deep 是 900/800、
+//    mid 是 800/900）⟹「深底 + 继承来的深墨」按构造出不来。这不是推的：池里 80 份表逐份取
+//    `.hero` 的 `color` 与 `.hero__form` 的 `background-color`，按各自调色板算出来是
+//    **9.79:1（ember-46）到 15.43:1（indigo-58）**，低于 4.5 的 0 份、低于 2.5 的 0 份。
+//
+// 排在正文后面，是因为这七种画法的主角都不是表单（表单是 `form-side` 那一种的主角）。`grid-column:
+// 1 / -1` 是给两栏的那几种写的：不写的话它会掉进第二栏，宽度由那一栏说了算。
+const heroFormAfterBody = (centred) => () => ({
+  order: 4,
+  'grid-column': '1 / -1',
+  'max-width': '32rem',
+  ...(centred ? { 'margin-left': 'auto', 'margin-right': 'auto' } : {}),
+});
+
+const HERO_LOOKS = {
+  // ① 图在左
+  'media-left': {
+    content: 'with-media',
     cols: '5fr 6fr',
     rootExtra: () => ({ 'align-items': 'center', 'min-height': '34rem' }),
     partExtra: {
       deco: () => ({ order: 1 }),
       media: (v) => ({ order: 2, 'aspect-ratio': '4 / 5', 'max-width': '34rem', 'border-radius': v.radius }),
       body: () => ({ order: 3, 'max-width': '34rem' }),
+      form: heroFormAfterBody(false),
       title: () => ({ 'font-size': '3.25rem', 'line-height': '1.04' }),
     },
   },
-  'with-media-top': {
-    // 🔴 宽屏也是**单栏** —— 这一条就是「媒体位在上」跟「媒体位在左」的分界。上一版这里跟 left
-    //    拿到同一个 `5fr 6fr`，也就是名字说在上、画出来在左边。
+  // ② 图在右 —— 跟①同一副骨架，只有 order 反过来 + 两栏的宽度比反过来。
+  'media-right': {
+    content: 'with-media',
+    cols: '6fr 5fr',
+    rootExtra: () => ({ 'align-items': 'center', 'min-height': '32rem' }),
+    partExtra: {
+      deco: () => ({ order: 1 }),
+      body: () => ({ order: 2, 'max-width': '33rem' }),
+      media: (v) => ({ order: 3, 'aspect-ratio': '5 / 4', 'max-width': '36rem', 'border-radius': v.radius }),
+      form: heroFormAfterBody(false),
+      title: () => ({ 'font-size': '3rem', 'line-height': '1.06' }),
+    },
+  },
+  // ③ 图在上
+  // 🔴 宽屏也是**单栏** —— 这一条就是「媒体位在上」跟「媒体位在左」的分界。#1051 r1 那一版这里跟
+  //    left 拿到同一个 `5fr 6fr`，也就是名字说在上、画出来在左边。
+  'media-top': {
+    content: 'with-media',
     cols: '1fr',
     rootExtra: (v) => ({
       'align-items': 'start', 'text-align': 'center', 'min-height': '0', padding: `0 0 ${v.pad}`,
@@ -441,10 +534,63 @@ const HERO_SHAPES = {
       media: () => ({ order: 1, width: '100%', height: '16rem', 'aspect-ratio': 'auto', 'border-radius': '0' }),
       deco: () => ({ order: 2, 'max-width': '4rem', 'margin-left': 'auto', 'margin-right': 'auto' }),
       body: () => ({ order: 3, 'max-width': '46rem', 'margin-left': 'auto', 'margin-right': 'auto', 'padding-top': '1.5rem' }),
+      form: heroFormAfterBody(true),
       title: () => ({ 'font-size': '2.25rem', 'line-height': '1.2', 'text-transform': 'uppercase', 'letter-spacing': '0.02em' }),
     },
   },
-  'text-only': {
+  // ④ 图在下 —— 字先落地，图作为一条宽横幅收在正文下面。
+  'media-bottom': {
+    content: 'with-media',
+    cols: '1fr',
+    rootExtra: (v) => ({ 'align-items': 'start', 'min-height': '30rem', padding: `${v.pad} 1.5rem 0` }),
+    partExtra: {
+      deco: () => ({ order: 1, 'max-width': '6rem' }),
+      body: () => ({ order: 2, 'max-width': '42rem' }),
+      media: () => ({ order: 3, width: '100%', height: '18rem', 'aspect-ratio': 'auto', 'border-radius': '0' }),
+      form: heroFormAfterBody(false),
+      title: () => ({ 'font-size': '3rem', 'line-height': '1.08' }),
+    },
+  },
+  // ⑤ 全屏底图叠字 —— 图铺满整个 hero，正文压在它上面（同一格网格，理由见这一节开头那条 🔴）。
+  //
+  // 🔴 字**落在正文块自己那块底色上**，不是直接压在图上。两条都是实测逼出来的：
+  //   · 图不许半透明。第一版给 `.hero__media` 写了 `opacity: 0.35`（想让图当底纹），而 `opacity < 1`
+  //     会给它开一个**层叠上下文** ⟹ 按 CSS 的绘制顺序它跑到了普通流内容**上面**，也就是图盖住了字。
+  //     实测（jade-05，真机）：`.hero__sub` 声明的是 rgb(28,69,55)，量到的是 rgb(92,127,116)，
+  //     压在 rgb(227,243,238) 上只有 3.86:1 —— 运行时那道检查当场判红。DOM 顺序（body 在 media
+  //     后面）在这种情况下**不作数**。
+  //   · 字压在照片上没法给保证。对比度是按这个块自己的底色量的（`ink-contrast.js` + 运行时那道
+  //     检查），而表不可能知道站主放的是哪张图。给正文块一块不透明的底色之后，那对颜色跟别的画法
+  //     是同一对，保证照旧成立；图从那块底的四周露出来，整屏仍然是它。
+  'media-cover': {
+    content: 'with-media',
+    cols: '1fr',
+    rootExtra: () => ({ 'align-items': 'center', 'text-align': 'center', 'min-height': '36rem' }),
+    partExtra: {
+      ...CENTERED_INLINE_PARTS,
+      media: () => ({
+        'grid-row': '1', 'grid-column': '1 / -1', 'align-self': 'stretch',
+        width: '100%', 'min-height': '30rem', 'aspect-ratio': 'auto',
+        'border-radius': '0', overflow: 'hidden',
+      }),
+      body: (v, s) => ({
+        'grid-row': '1', 'grid-column': '1 / -1', 'align-self': 'center',
+        'max-width': '44rem', 'margin-left': 'auto', 'margin-right': 'auto',
+        padding: '2.5rem', 'border-radius': v.radius, 'background-color': primary(s.bg),
+      }),
+      deco: () => ({ 'grid-row': '2', 'max-width': '7rem', 'margin-left': 'auto', 'margin-right': 'auto' }),
+      // 🔴 这一种的位置由 `grid-row` 说了算，不是 `order` —— 图和正文都显式落在第 1 行上
+      //    （那正是「叠字」这件事本身），`order` 只在自动排位时说话。
+      form: () => ({
+        'grid-row': '3', 'grid-column': '1 / -1',
+        'max-width': '32rem', 'margin-left': 'auto', 'margin-right': 'auto',
+      }),
+      title: () => ({ 'font-size': '3.5rem', 'line-height': '1.05' }),
+    },
+  },
+  // ⑥ 纯文字居中
+  'text-center': {
+    content: 'text-only',
     cols: '1fr',
     rootExtra: () => ({
       'align-items': 'center', 'justify-items': 'center', 'text-align': 'center', 'min-height': '26rem',
@@ -454,19 +600,67 @@ const HERO_SHAPES = {
       deco: () => ({ order: 1, 'max-width': '5rem', 'margin-left': 'auto', 'margin-right': 'auto' }),
       body: () => ({ order: 2, 'max-width': '48rem', 'margin-left': 'auto', 'margin-right': 'auto' }),
       media: (v) => ({ order: 3, 'aspect-ratio': '21 / 9', width: '100%', 'margin-top': '2rem', 'border-radius': v.radius }),
+      form: heroFormAfterBody(true),
       title: () => ({ 'font-size': '3.75rem', 'line-height': '1.02' }),
+    },
+  },
+  // ⑦ 纯文字靠左 —— 跟⑥的区别在产物上是可量的：正文块不给 auto 外边距，所以它贴着左边界。
+  // 🔴 这里一个 `text-align: center` 都没有 ⟹ 也就不欠 `CENTERED_INLINE_PARTS` 那两条
+  //    （`sheet-recipes.test.js` 第④格问的就是「声明了居中的块，有没有把不受 text-align 管的
+  //    东西一起摆正」；没声明居中的块不在它射程里）。
+  'text-left': {
+    content: 'text-only',
+    cols: '1fr',
+    rootExtra: () => ({ 'align-items': 'start', 'justify-items': 'start', 'min-height': '24rem' }),
+    partExtra: {
+      deco: () => ({ order: 1, 'max-width': '5rem' }),
+      body: () => ({ order: 2, 'max-width': '44rem' }),
+      media: (v) => ({ order: 3, 'aspect-ratio': '24 / 7', width: '100%', 'margin-top': '2.5rem', 'border-radius': v.radius }),
+      form: heroFormAfterBody(false),
+      title: () => ({ 'font-size': '3.25rem', 'line-height': '1.06', 'letter-spacing': '-0.02em' }),
+    },
+  },
+  // ⑧ 带表单 —— 这一项是**轴一**：它要的是 hero 里真有一个表单部件（`.hero__form`，
+  //    `HeroSection.tsx` 在页面 JSON 写了 `block_layout: "with-form"` 时渲染它）。这张表这里负责的
+  //    是它的画法：正文在左、表单在右，图收成一条压在两栏下面的窄横幅。
+  'form-side': {
+    content: 'with-form',
+    cols: '6fr 5fr',
+    rootExtra: () => ({ 'align-items': 'center', 'min-height': '32rem' }),
+    partExtra: {
+      deco: () => ({ order: 1 }),
+      body: () => ({ order: 2, 'max-width': '32rem' }),
+      form: (v) => ({ order: 3, 'max-width': '30rem', 'border-radius': v.radius, padding: '2rem' }),
+      media: () => ({ order: 4, 'grid-column': '1 / -1', width: '100%', 'aspect-ratio': '24 / 5', 'border-radius': '0' }),
+      title: () => ({ 'font-size': '2.75rem', 'line-height': '1.1' }),
     },
   },
 };
 
-// hero 的骨架要按这一套候选的版式取；别的块直接用 SHAPES 里那条。
-// 🔴 三个名字必须在 HERO_SHAPES 里都有 —— 落回默认等于又一次「名字说一套、画的是另一套」，
-//    所以这里宁可当场炸，也不悄悄拿 with-media-left 顶上。
+const HERO_LOOK_NAMES = Object.keys(HERO_LOOKS);
+
+// 🔴 挑外观**不是** `i % 8`：相似度那道闸把版式当一整项（0.2 的权重），周期等于档数时第 i 套与第
+// i+8 套在这一项上永远满分。式子 `(i + floor(i/L)) % L` 的周期是 L²（L=8 时 64），而字体那一档是 7
+// （`generate.js` 的 FONT_PAIRS）⟹ 「字体 + 外观」要走到 lcm(7, 64) = 448 套才第一次同时撞回来。
+// 📌 改 HERO_LOOKS 的项数不用改这一行。
+const heroLookFor = (i) => HERO_LOOK_NAMES[
+  (i + Math.floor(i / HERO_LOOK_NAMES.length)) % HERO_LOOK_NAMES.length];
+
+// 第 i 套候选的**内容结构** —— `generate.js` 写进 `layout.json` 的就是它，`promote.js` 再把它翻成
+// `supports.hero`。它是上面那张表的派生值，不是第二份清单。
+const heroLayoutFor = (i) => HERO_LOOKS[heroLookFor(i)].content;
+
+/** 轴一的取值表（去重、按外观表的出场顺序）。判据是 `blocks/hero.json` 的 `block_layout`。 */
+const HERO_LAYOUTS = [...new Set(HERO_LOOK_NAMES.map((n) => HERO_LOOKS[n].content))];
+
+// hero 的骨架要按这一套候选的**外观**取；别的块直接用 SHAPES 里那条。
+// 🔴 挑出来的名字必须在 HERO_LOOKS 里 —— 落回默认等于又一次「名字说一套、画的是另一套」，
+//    所以这里宁可当场炸，也不悄悄拿第一种顶上。
 function shapeFor(block, v) {
   const base = SHAPES[block] || {};
   if (block !== 'hero') return base;
-  const hero = HERO_SHAPES[v.hero];
-  if (!hero) throw new Error(`hero 版式 ${v.hero} 在 HERO_SHAPES 里没有画法 —— 加版式时两张表要一起加`);
+  const hero = HERO_LOOKS[v.heroLook];
+  if (!hero) throw new Error(`hero 画法 ${v.heroLook} 在 HERO_LOOKS 里没有 —— 加画法就在那张表里加，一处`);
   return {
     ...base,
     cols: hero.cols,
@@ -903,5 +1097,7 @@ function sheetFor(i, seed = 7) {
 }
 
 module.exports = {
-  sheetFor, voiceFor, hooksByBlock, heroLayoutFor, HERO_LAYOUTS, surfaceFor, SURFACES, INK_FLOOR,
+  sheetFor, voiceFor, hooksByBlock, heroLayoutFor, HERO_LAYOUTS,
+  heroLookFor, HERO_LOOKS, HERO_LOOK_NAMES,
+  surfaceFor, SURFACES, INK_FLOOR,
 };

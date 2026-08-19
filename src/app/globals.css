@@ -316,10 +316,16 @@
    scrolls the page, and nothing in the static checks would say so — the runtime invariants check
    (`scripts/theme-css-invariants.mjs`) is what looks at that. */
 
-/* ── the two forms: controls a sheet cannot select ─────────────────────────────────────────────── */
+/* ── the forms: controls a sheet cannot select ─────────────────────────────────────────────────── */
+/* #1065 added `.hero__form` to this list, not to a sheet: contract §1 refuses tag selectors, so the
+   hero form's `label` and `input` are unreachable from a theme by construction — exactly like the
+   two forms already here. What a sheet owns on the hero form is the part itself (`.hero__form`):
+   where it sits in the block, its ground, its padding, its corner radius. */
 .contact-form__form label,
 .contact-form__form input,
 .contact-form__form textarea,
+.hero__form label,
+.hero__form input,
 .quote-form__step input,
 .quote-form__step textarea {
   display: block;
@@ -328,6 +334,7 @@
 
 .contact-form__form input,
 .contact-form__form textarea,
+.hero__form input,
 .quote-form__step input,
 .quote-form__step textarea {
   border-width: 1px;
