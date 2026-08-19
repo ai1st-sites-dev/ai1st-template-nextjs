@@ -134,9 +134,11 @@ function normalizeLocalePages(pages, siteBlocks, locale, report) {
   const usedSiteBlockIds = new Set();
   // 🔴 构建期的两种待遇（PM 在 #998 r4 定的，理由与 #999 已上线那条同源，整段写在
   // `sync-config.js` 的 validateSite 那一节）：**构建期没有救，只有毁**。这里 exit 1 的唯一后果是
-  // 这个站从此重建不出来、预览也开不出来（`worker/entrypoint.sh` 的 preview 分支带 `set -e`），
-  // 而写入侧今天会把 sync-config 的失败吞掉再照样 commit+push（`edit-site.js` 那个 catch）
-  // ⟹ 一次 AI 编辑就能让一个在跑的站再也打不开，产品里没有一条路救得回来（编辑和回滚都要求容器在跑）。
+  // 这个站从此重建不出来、预览也开不出来（`worker/entrypoint.sh` 的 preview 分支带 `set -e`）。
+  // 📌 #1087 之前这里还有一句「而写入侧会把 sync-config 的失败吞掉再照样 commit+push」——
+  // 那个洞已经堵上了：`edit-site.js` 现在同步失败就发一条 error 事件给老板，并且**不再往下走**
+  // 那段 `git add -A && commit && push`。所以「一次 AI 编辑就能让一个在跑的站再也打不开」这条路
+  // 不通了；这里 exit 1 的代价仍然是真的（这个站要人去修那份文件），只是它到不了站仓。
   //
   //   · **能安全兜底的 → 打印点名 + 继续**：一个字段的值不合法，但「不要这个字段」有明确、无歧义的
   //     默认行为（role 落回类型默认表、weight 落回按位置、block_layout 不落这个属性、

@@ -21,6 +21,9 @@ const { validateSite: validateBlocks } = require('./lib/block-manifest');
 // 页面的**形状**（哪个数组、每一格是什么）由 #998 那个模块说了算 —— 这里不写第二份，见
 // pageJsonBlockError 上面那段。
 const { readPageBlocks, normalizeLocalePages } = require('./blocks');
+// #1087 —— site/ 底下哪些文件由这条路改。谓词、逐条理由、以及为什么是白名单而不是黑名单，
+// 整段写在那个文件里。
+const { writeRejection } = require('./lib/editable-files');
 
 // ─── Emit structured events to stdout ─────────────────────────────────────────
 
@@ -300,6 +303,12 @@ function executeTool(toolName, toolInput, siteDir) {
     case 'write_file': {
       const relPath = toolInput.path;
       if (!validatePath(relPath)) return { error: 'Invalid path: must be relative, no ".."' };
+      // #1087 —— 这条路只写【站的内容】。别的通道拥有的开关（theme.json 归换装弹窗）和构建自己
+      // 生成的产物（navigation.json / custom.css）一律拒，判据与理由整段写在 lib/editable-files.js。
+      // 🔴 排在 JSON.parse 【前面】：拒绝的理由要说的是「这个文件不由这条路改」，不是「你的 JSON 写错了」
+      // —— `theme.css` / `custom.css` 根本不是 JSON，先解析的话它们拿到的是一句指错方向的错误。
+      const notWritable = writeRejection(relPath);
+      if (notWritable) return { error: notWritable };
       // Validate JSON
       let parsed;
       try {
@@ -351,7 +360,21 @@ The site is defined by JSON configuration files:
 - **services.json** — Array of services with id, name, shortDescription, fullDescription, icon, features, products
 - **pages/home.json** — Homepage sections
 - **pages/{slug}.json** — Other pages (about, services, quote, menu, gallery, faq, etc.)
-- **navigation.json** — **DO NOT edit directly.** It is auto-regenerated from page metadata.
+- **navigation.json** — **DO NOT edit directly.** Two parts of it are rebuilt from page metadata on
+  every build and anything written to them is lost: the header menu links and the first footer column's
+  links, both from each page's navLabel / navOrder. The rest is NOT — and in particular the header
+  button (header.cta) is not: page metadata cannot change it, and nothing else in the product can change
+  it either. If the owner asks to change that button, say it cannot be changed yet; do not point them at
+  a settings screen, there is none.
+
+You can also write **blog/{slug}.json** (articles) and **blocks/site-blocks.json** (content blocks reused
+across pages). In a multi-language site every file above except brand.json lives under **{locale}/**.
+
+Everything else you may see under the site directory is owned elsewhere and **write_file will refuse it**:
+theme.json and theme.css (the theme picker in the dashboard), custom.css (generated from theme.json),
+site_meta.json (the site's id and languages, fixed when the site was created), page-layout.json (which page
+layout the site uses — nothing in the product changes it today). Do not try to change the site's look by
+writing those — change colors and fonts in brand.json.
 
 ## Color Palette
 
@@ -551,6 +574,12 @@ async function main() {
       const finalMessage = textBlock?.text || 'Changes applied.';
 
       // Sync changes if any files were modified
+      // #1087 —— `syncError` 非空 = 这次编辑写出来的东西构建不出来。以前这里只有一行 debug（进容器
+      // stderr，谁都看不到），而下面那段 git add -A && commit && push 在**另一个 try 里、无条件地**跑
+      // ⟹ 「同步失败」与「保存成功」可以同时成立，坏值进了站仓，界面上显示的是 Changes applied.
+      // 站仓就是这个站的真相来源，一旦坏值落进去，它以后的每一次构建都是死的。
+      // 所以这个变量把两件事串起来：① 失败要说出来（下面变成一条 error 事件）② 失败就不许再保存。
+      let syncError = null;
       if (filesModified) {
         emit('progress', { message: 'Syncing changes to preview...' });
         try {
@@ -560,10 +589,16 @@ async function main() {
           });
           debug('sync-config.js sync complete');
         } catch (e) {
+          // sync-config 把「哪里不对」写在 stderr（`console.error` + `process.exit(1)`），而 e.message
+          // 只有一句 "Command failed"。老板要看的是前者，所以优先取它。
+          syncError = String((e.stderr && e.stderr.toString().trim()) || e.message || '').slice(0, 2000);
           debug(`sync-config.js sync error: ${e.message}`);
         }
+      }
 
-        // Health check: poll dev server until ready (replaces fixed 3s wait)
+      // 🔴 下面这一整段（预览健康检查 + 自动保存）只在同步成功时跑。同步失败时 `out/` 没被重建、
+      // 预览还是上一版，没有什么要等它热更新的；而**保存必须跳过**——那是本票要治的那一半。
+      if (filesModified && !syncError) {
         const port = process.env.PREVIEW_PORT || '4000';
         debug('Polling dev server up to 5s for hot reload...');
         const startWait = Date.now();
@@ -625,6 +660,26 @@ async function main() {
         detail: `Edit (${totalInputTokens} in / ${totalOutputTokens} out)`,
         duration,
       });
+
+      // #1087 —— 同步失败 ⟹ 这次编辑的终态是失败，不是 `edit-complete`。`error` 在 manager 那边是
+      // 终态事件（`manager/edit.go` 里 `if eventType == "error"` 那一支），它会被推到老板的聊天窗口。
+      //
+      // 🔴 这里【不】走 `fatal()`（那个 helper 会 `process.exit(1)`）。理由是量出来的：worker 在
+      // `cmd.Wait()` 报错时会再发一条自己的 error 并**覆盖** `last-event:<editID>`
+      // （`worker/main.go` 里 `errMsg = fmt.Sprintf("Edit failed: %v", err)` 那三行），内容是一句
+      // 没有信息的 "Edit failed: exit status 1"。实时那条 SSE 连接读到的是下面这条没错，但浏览器
+      // 断线重连走的是 catch-up 那条路（manager 那边 `rdb.Get(ctx, "last-event:"+editID)`）——
+      // 于是「哪里不对」在重连之后就没了。本票要治的正是「失败说不清楚」，所以这里正常返回，
+      // 让这条带原因的事件留在 `last-event` 里。
+      // （行号有意不写：这两处在别的仓/别的文件里，会漂；上面那几个字符串是当场 grep 得到的锚点。）
+      if (syncError) {
+        emit('error', {
+          message: 'This change was not saved. Rebuilding the site\'s configuration failed, so nothing '
+            + 'was committed and the site still shows the previous version:\n\n' + syncError,
+        });
+        debug(`Edit aborted (sync failed): ${totalInputTokens} in / ${totalOutputTokens} out, cost $${cost.toFixed(4)}`);
+        return;
+      }
 
       emit('edit-complete', {
         message: finalMessage,
