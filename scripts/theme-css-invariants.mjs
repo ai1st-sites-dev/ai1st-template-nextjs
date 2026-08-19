@@ -2247,8 +2247,23 @@ for (const p of otherPaths.slice(0, OTHER_PAGE_CAP)) {
   // Either way the old blocker is gone: with this line opened that hook reads 4.68:1 on ember-38 and
   // is not among the violations any sheet in the pool reports.
   //
-  // 🔴 WHAT BLOCKS IT TODAY IS A DIFFERENT PAIR: `.btn-primary`, white on `--color-primary-500`, and
-  // the colour is `globals.css`'s (`@layer components`), not any sheet's. Measured by opening this
+  // 🔴 WHAT BLOCKS IT TODAY IS A DIFFERENT PAIR: `.btn-primary`, white on `--color-primary-500`.
+  //
+  // 🔴 #1084 (2026-08-19) CHANGED THAT INK AND DID NOT UNBLOCK THIS — say so here, because the
+  // sentence that used to stand here ("the colour is `globals.css`'s, not any sheet's") now reads
+  // like a fix nobody has done. The ink is no longer a literal `text-white`: it is computed per site
+  // from the palette that actually wins the cascade (`scripts/lib/button-ink.js`, written into
+  // `public/theme.css` by sync-config). For these sheets it still comes out WHITE, and that is a
+  // RESULT, not an omission — their `primary-500` is a mid-tone where NEITHER white NOR pure black
+  // clears 4.5 blended (55 of the 80; the whole unreachable band is 6 grey levels wide, gray=114…119,
+  // arithmetic in button-ink.js ①a). So the blocker moved from "the ink is hardcoded" to "no ink can
+  // fix these grounds"; what has to move is the palettes, and that is #1091 (`need-user-help`).
+  // Re-measured 2026-08-19 by opening this exact line on both trees, `--make-sample-site ember-46`:
+  // 2 violations before, the SAME 2 after — `.btn-primary` 4.42:1 on /services.html and
+  // /allblocks.html, painted rgb(250,254,252) on rgb(153,111,45), byte-identical lines.
+  // 📌 `.btn-secondary` is not in `CONTROL_TARGETS` at all, so nothing here says anything about it.
+  //
+  // The 2026-08-18 sweep that produced the numbers below (before #1084) was measured by opening this
   // exact line and running the CI job over the set CI actually runs —
   // `bash scripts/theme-css-invariants-all-sheets.sh --make-sample-site` over all 83 sheets, each
   // paired with the theme named after it (#1016 r5) — 2026-08-18:

@@ -47,12 +47,18 @@ if (presets.PRESET_KEYS.length === 3 && Object.values(presets.presetOptions()).e
   bad(`预设组为空或少了一组（${counts}）—— 下面每一格都会空过`);
 }
 
-// ── ① 策展判据：每一组配色，三处白字/黑字都要 ≥ 4.5:1 ──────────────────────────────────────────
+// ── ① 策展判据：每一组配色，三个按钮的字压底色都要 ≥ 4.5:1 ────────────────────────────────────
 //
 // 三处是从 globals.css 的 `@layer components` 里**现解出来的**：
-//   `.btn-primary`   白字压 `--color-primary-500`（hover 走 `-600`，一起判）
-//   `.btn-secondary` `--color-primary-500` 的字压白底
+//   `.btn-primary`   **算出来的字色**压 `--color-primary-500`（hover 走**算出来的那一档**，一起判）
+//   `.btn-secondary` **算出来的那一档**的字压白底（hover 是算出来的字色压 `--color-primary-500`）
 //   `.btn-accent`    `gray-900`(#111827) 的字压 `--color-accent-400`（hover 走 `-500`，一起判）
+//
+// 🔴 #1084 —— 前两行此前写的是「白字压 primary-500」/「primary-500 的字压白底」。那张票把这两个按钮
+//    的字色改成**跟着底色算**（白字不够时换纯黑；轮廓按钮沿调色板下挪一档），正本在
+//    `scripts/lib/button-ink.js`。所以那两行现在描述的是一个页面上不存在的配对，两个方向都会错：
+//    配色正确的站被判红、配色错误的站被判绿。解析器认 `var(--btn-*)` 这三个变量并在**当前这组配色上**
+//    现算（见 `buttonPairsFromGlobals` 里 `COMPUTED_VARS` 那段），用的是生产同一个模块 —— 一把尺。
 //
 // 🔴 #1055 打磨批次 #16 条 9（来源 #1038 QA3）——「现解」这三个字是本批改出来的，此前那三行是
 //    **抄在这个文件里的常量**，而 globals.css 那一头没有任何东西钉住它。QA3 在一次性树里把
@@ -109,14 +115,24 @@ function buttonPairsFromGlobals() {
   // 🔴 判据是「**每一组**调色板都有这个 group/shade」，不是「至少一组有」：下面那一圈对
   // `presets.PALETTES` 的每一组各算一次，缺一组就在那一组上炸。反向对照喂的注册表主题走的是
   // `pairColours` 里那道同族的判断（同一条理由，见那里）。
+  //
+  // 🔴 #1084 —— 本票加了第三种 spec（`{computed}`：字色/档位是**算出来的**），而这个函数原来只认
+  // 「字面色」和「{group, shade}」两种。不给它一条路的话，`spec.group` 是 `undefined` ⟹
+  // `pal.colors[undefined]` 恒为假 ⟹ **每一组都被报成缺** ⟹ 三个算出来的 spec 全进 `unknown` ⟹ die。
+  // 也就是漏掉这一支的失败方向是 rc=2 恒红，不是静默 —— 但它红在「调色板里没有」这句假话上。
+  // 算出来的那三档共同的输入只有一个：`primary-500`（`inkFor` 从它起算，两把梯子也都在 primary 上走），
+  // 所以这里查的就是它。梯子上其余档位的缺席由 `hoverShadeFor` / `outlineShadeFor` 自己用
+  // `typeof … === 'string'` 滤掉，取不到值的那一次由 `needShade` 答 2。
   const paletteSets = Object.entries(presets.PALETTES);
   const whoLacks = (spec) => {
     if (spec.hex !== undefined) return '';          // 字面色，不查调色板
+    const [group, shade] = spec.computed !== undefined ? ['primary', '500'] : [spec.group, spec.shade];
     const missing = paletteSets
-      .filter(([, pal]) => !pal.colors[spec.group] || pal.colors[spec.group][spec.shade] === undefined)
+      .filter(([, pal]) => !pal.colors[group] || pal.colors[group][shade] === undefined)
       .map(([name]) => name);
     if (!missing.length) return '';
-    return `指的是调色板里没有的 ${spec.label}（这些组没有它：${missing.slice(0, 3).join(' · ')}`
+    const what = spec.computed !== undefined ? `${spec.label} 要的 primary-500` : spec.label;
+    return `指的是调色板里没有的 ${what}（这些组没有它：${missing.slice(0, 3).join(' · ')}`
       + `${missing.length > 3 ? ` 等 ${missing.length} 组` : ''}）`;
   };
 
@@ -124,19 +140,92 @@ function buttonPairsFromGlobals() {
   //    和 `text-white`，取第一个命中的会取到字号 —— 第一版就是这么写的，三个按钮全部报「字色认不
   //    出来」。所以先把不是颜色的那些排掉，剩下的 `text-*` 必须是颜色（认不出来就拒测，不是跳过）。
   const NOT_A_COLOUR = /^text-(xs|sm|base|lg|\d?xl|left|center|right|justify|start|end|wrap|nowrap|balance|pretty|ellipsis|clip)$/;
+  // 🔴 #1084 —— 按钮的字色不再是 `@apply` 里一个字面的 `text-white` 了：它是**算出来的**，从三个
+  //    CSS 变量进来（`scripts/lib/button-ink.js` 是那段算术的正本，`sync-config.js` 按每个站最终生效
+  //    的配色把值写进 `public/theme.css`）。所以这里多认一种 spec：`{computed}`，由 `pairColours`
+  //    在**当前这组配色上**现算 —— 这一节因此量的是「这个按钮真的会用的那个字色」，而不是一个被
+  //    冻在测试里的配对。
+  //    📌 只改这份解析器就够，没动这一节任何一条判据：下面 `buttonRatios` / `judgeButtons` 拿到的
+  //    仍是 `{what, fg, bg}`，只是 fg/bg 可以是「算出来的那一档」。
+  //    🔴 认不出的变量名一律进 `unknown` ⟹ die，跟这个函数原来对认不出的 `text-*` 的处置同一条：
+  //    「解不出来不是『没有配对要判』」。按钮上加第四个变量而忘了这里，会是一次大声失败。
+  const COMPUTED_VARS = {
+    '--btn-primary-ink': { computed: 'ink', label: '算出来的字色' },
+    '--btn-primary-hover': { computed: 'hoverShade', label: '算出来的 hover 底色' },
+    '--btn-outline-ink': { computed: 'outlineShade', label: '算出来的轮廓色' },
+  };
+  /** `color: var(--btn-primary-ink, #fff)` → 那条 spec；`var(--color-primary-500)` → {group,shade}。 */
+  const specOfDecl = (value) => {
+    const v = String(value).trim();
+    const varName = (v.match(/^var\(\s*(--[a-z0-9-]+)/) || [])[1];
+    if (!varName) return null;
+    if (COMPUTED_VARS[varName]) return COMPUTED_VARS[varName];
+    const tok = varName.match(/^--color-([a-z]+)-(\d{2,3})$/);
+    if (tok) return { group: tok[1], shade: tok[2], label: `${tok[1]}-${tok[2]}` };
+    return null;
+  };
+  const declOf = (body, prop) => {
+    const re = new RegExp(`(?:^|[;{\\s])${prop}\\s*:\\s*([^;]+);`);
+    const m = body.match(re);
+    return m ? m[1] : null;
+  };
   const pairs = [];
   const unknown = [];
-  for (const m of css.matchAll(/\.(btn-[a-z]+)\s*\{([^}]*)\}/g)) {
-    const [, cls, body] = m;
+  // `.btn-x { … }` 和 `.btn-x:hover { … }` 都要收 —— #1084 起 hover 的底色/字色写在自己那条规则里。
+  //
+  // 🔴 选择器必须**独占一行的开头**。写成 `/\.(btn-[a-z]+)(:hover)?\s*\{/` 会把
+  // `.hero__cta .btn-secondary { color: currentColor }` 也算成 `.btn-secondary` 的规则，而这里按类名
+  // 建索引 ⟹ 后出现的那条**覆盖**掉真正那条，于是 `.btn-secondary` 整个消失（实测：分母自检当场
+  // die 在「解不到 .btn-secondary」上）。原来那版逐个 match 遍历、每个 match 各自 push，所以没有这
+  // 个形状；改成按类名索引之后它就出现了 —— 索引的键必须能唯一指向一条规则。
+  const blocks = new Map();
+  for (const m of css.matchAll(/(?:^|\n)[ \t]*(\.btn-[a-z]+(?::hover)?)[ \t]*\{([^}]*)\}/g)) {
+    blocks.set(m[1].slice(1), m[2]);
+  }
+  for (const [key, body] of blocks) {
+    if (key.endsWith(':hover')) continue;          // hover 在它对应的静止态那一轮里一起处理
+    const cls = key;
+    const hoverBody = blocks.get(`${cls}:hover`) || '';
     const words = ((body.match(/@apply([^;]*);/) || [, ''])[1]).split(/\s+/).filter(Boolean);
     const textWord = words.find((w) => /^text-[a-z]+(-\d{2,3})?$/.test(w) && !NOT_A_COLOUR.test(w));
-    if (!textWord) continue;                       // 没写字色的不判（今天没有这种）
-    const fg = specOf(textWord);
-    if (!fg) { unknown.push(`.${cls} 的字色 ${textWord} 认不出来`); continue; }
+    const colourDecl = declOf(body, 'color');
+    let fg = null;
+    let fgSrc = '';
+    if (textWord) {
+      fg = specOf(textWord);
+      fgSrc = `字色 ${textWord}`;
+      if (!fg) { unknown.push(`.${cls} 的字色 ${textWord} 认不出来`); continue; }
+    } else if (colourDecl) {
+      fg = specOfDecl(colourDecl);
+      fgSrc = `color: ${colourDecl.trim()}`;
+      if (!fg) { unknown.push(`.${cls} 的 color: ${colourDecl.trim()} 认不出来`); continue; }
+    } else {
+      continue;                                    // 真的没写字色的不判
+    }
+    // 🔴 #1068 条 4 的守卫，织进本票的新形状（原来它只贴在 `specOf` 那一条路后面）：字色现在有
+    // **两条**来路（`@apply` 的 `text-*` 与 `color:` 里的 `var()`），两条都要过这一问。少贴一条 =
+    // 那条路上的「调色板里没有这个 token」重新读成 rc=1（某组配色不合格），而它是仪器坏了 rc=2。
     const fgMissing = whoLacks(fg);
-    if (fgMissing) { unknown.push(`.${cls} 的字色 ${textWord} ${fgMissing}`); continue; }
+    if (fgMissing) { unknown.push(`.${cls} 的${fgSrc} ${fgMissing}`); continue; }
     const bgWord = words.find((w) => /^bg-[a-z]+-\d{2,3}$/.test(w));
     const hoverWord = words.find((w) => /^hover:bg-[a-z]+-\d{2,3}$/.test(w));
+    // #1084 —— hover 的底色/字色现在可能写在 `.btn-x:hover` 那条规则里。
+    const hoverBgDecl = declOf(hoverBody, 'background-color');
+    const hoverFgDecl = declOf(hoverBody, 'color');
+    if (hoverBgDecl) {
+      const hbg = specOfDecl(hoverBgDecl);
+      if (!hbg) unknown.push(`.${cls}:hover 的 background-color: ${hoverBgDecl.trim()} 认不出来`);
+      else {
+        const hfg = hoverFgDecl ? specOfDecl(hoverFgDecl) : fg;
+        if (hoverFgDecl && !hfg) unknown.push(`.${cls}:hover 的 color: ${hoverFgDecl.trim()} 认不出来`);
+        // 🔴 #1068 条 4 的守卫也要贴在这条**本票新开的**路上（hover 的字/底写在 `.btn-x:hover`
+        // 自己那条规则里）。这一支绕过上面那两处 `whoLacks` ⟹ 不贴的话，hover 那一行把
+        // `var(--color-primary-500)` 写成 `var(--color-slate-500)` 会重新走成 rc=1。
+        else if (whoLacks(hbg)) unknown.push(`.${cls}:hover 的 background-color: ${hoverBgDecl.trim()} ${whoLacks(hbg)}`);
+        else if (whoLacks(hfg)) unknown.push(`.${cls}:hover 的 color: ${String(hoverFgDecl || '').trim() || '（沿用静止态）'} ${whoLacks(hfg)}`);
+        else pairs.push({ what: `.${cls}:hover ${hfg.label} 的字压 ${hbg.label}`, fg: hfg, bg: hbg });
+      }
+    }
     if (!bgWord) {
       // 没写底色 = 压着页面本身的白底。不是猜的：globals.css 在 `.hero__cta .btn-secondary` 那段
       // 注释里写着它 "written for a white page"，深色底上由 `currentColor` 接管，而 currentColor
@@ -169,17 +258,71 @@ function buttonPairsFromGlobals() {
 }
 const BUTTON_PAIRS = buttonPairsFromGlobals();
 /** 一条配对在某组配色（可选再偏 `hue` 度）下的两个具体颜色。 */
-const pairColours = (p, colors, shift) => [p.fg, p.bg].map((s) => {
-  // 🔴 #1068 条 4 的同族一半 —— 上面 `whoLacks` 查的是 `presets.PALETTES`，而这个函数还被反向对照
-  // 拿**注册表主题**的 colors 喂过。那一侧缺一个组同样会走成 `undefined[shade]` ⟹ TypeError ⟹ 退 1
-  // ⟹ 读成「某套主题的按钮对比度不合格」。这里也答 2：拿不到颜色不是一个关于对比度的读数。
-  if (s.hex === undefined && (!colors[s.group] || colors[s.group][s.shade] === undefined)) {
-    die(`配对「${p.what}」要的 ${s.label} 不在这组 colors 里（有的组是：`
+// #1084 —— `{computed}` 的那三种在**这一组配色上**现算，用的是生产同一个模块（一把尺）。
+const buttonInk = require('./lib/button-ink.js');
+
+// 🔴 #1068 条 4 的同族一半，织进本票的新形状。**它答的是 2，不是 1** —— 上面 `whoLacks` 查的是
+// `presets.PALETTES`，而这条路还被反向对照拿**注册表主题**的 colors 喂过；那一侧缺一个组会走成
+// `undefined[shade]` ⟹ TypeError ⟹ node 退 1，而 1 在这个脚本的契约上的意思是「某组配色不合格」。
+// 拿不到颜色不是一个关于对比度的读数。
+//
+// 🔴 本票把它从「一个 if」改成「一个取值函数」，因为**要查的档位现在是算出来的**：`hoverShade` /
+// `outlineShade` 落在哪一档取决于这组配色本身，写不成一条静态的 {group, shade}。所以每一次真正
+// 去调色板取色都经过这里，包括算出来的那两档 —— 否则新形状上那两条路又变成裸的 `colors[g][sh]`。
+const needShade = (p, colors, group, shade) => {
+  if (!colors[group] || typeof colors[group][shade] !== 'string') {
+    die(`配对「${p.what}」要的 ${group}-${shade} 不在这组 colors 里（有的组是：`
       + `${Object.keys(colors).join(' · ') || '一个都没有'}）—— 拿不到颜色不是「对比度不合格」`);
   }
-  const hex = s.hex !== undefined ? s.hex : colors[s.group][s.shade];
-  return shift ? shift(hex) : hex;
-});
+  return colors[group][shade];
+};
+
+// 🔴 轮廓按钮的字色档位，按**它真正被画在上面的那块底**选（2026-08-19 票正文第三次改的口径）。
+// 在这个文件里那块底就是这条配对自己的 `bg`：`globals.css` 单独看时 `.btn-secondary` 没写 `bg-*`
+// ⟹ 上面那条 `if (!bgWord)` 把它定成字面白（= 未套主题的站）。套了主题的站那块底来自主题表自己的
+// `.services-list` / `.services-list__item`，那一群由 `scripts/lib/button-ink.test.js` §⑤ 逐套判 ——
+// **这里不能拿白底去替它们答**，所以这个函数只回答「这条配对写着的那块底」。
+const outlineGroundOf = (p) => (p.bg && p.bg.hex !== undefined ? p.bg.hex : buttonInk.WHITE);
+
+const resolveSpec = (s, colors, p) => {
+  if (s.hex !== undefined) return s.hex;
+  if (s.computed !== undefined) {
+    const inkHex = buttonInk.inkFor(needShade(p, colors, 'primary', '500'));
+    if (s.computed === 'ink') return inkHex;
+    if (s.computed === 'hoverShade') {
+      return needShade(p, colors, 'primary', buttonInk.hoverShadeFor(colors.primary, inkHex));
+    }
+    if (s.computed === 'outlineShade') {
+      return needShade(p, colors, 'primary', buttonInk.outlineShadeFor(colors.primary, outlineGroundOf(p)));
+    }
+    // 同族第三条：认得出变量名、却没有对应的算法 ⟹ 也是仪器坏了，不是配色不合格。
+    die(`配对「${p.what}」要的算法 ${s.computed} 这里没有实现 —— 拿不到颜色不是「对比度不合格」`);
+  }
+  return needShade(p, colors, s.group, s.shade);
+};
+// 🔴 #1084 —— 色相偏移必须**在算字色之前**施加到调色板上，不是之后施加到算出来的那个颜色上。
+// 站上的次序是：`buildCustomCss` 把偏移写进 `custom.css` 的 `--color-*`，而 `sync-config.js` 算这三个
+// 变量时读的是 `theme.css + custom.css` 层叠**之后**的值 ⟹ 决定字色的那个底色**已经转过色相了**。
+// 反过来写（先按未偏移的底色定字色、再去转底色）量的是一个站上不存在的配对：实测这组阳性对照在 14°
+// 上正是这么给出 4.46 的 —— 未偏移时白字够，偏移后白字不够，而生产会在那一档换成深字。
+// 📌 字面色（`text-white` / `text-gray-900`）仍照旧施加 `shift`：那是本票之前的行为，一个读数都不动。
+//    （站上 hueShift 只重写 `--color-*`、碰不到 Tailwind 的字面字色 ⟹ 那一处偏严，是既有口径，不在本票圈内。）
+const shiftPalette = (colors, shift) => {
+  const out = {};
+  for (const [group, shades] of Object.entries(colors)) {
+    out[group] = {};
+    for (const [shade, hex] of Object.entries(shades)) {
+      out[group][shade] = typeof hex === 'string' ? shift(hex) : hex;
+    }
+  }
+  return out;
+};
+const pairColours = (p, colors, shift) => {
+  const shifted = shift ? shiftPalette(colors, shift) : colors;
+  return [p.fg, p.bg].map((s) => (s.hex !== undefined
+    ? (shift ? shift(s.hex) : s.hex)
+    : resolveSpec(s, shifted, p)));
+};
 function lin(c) { const s = c / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; }
 function lum(hex) {
   const h = hex.replace('#', '');
@@ -372,8 +515,20 @@ const BASE = [
  * 🔴 第 ⑨ 节那个阳性对照要用的一组配色：**滑块归零时它是达标的，拖到某个角度才破线。**
  *
  * 它是 violet 只把 `primary-500` 挪到下面这个值。`primary-500` 是 `globals.css` 里
- * `.btn-primary` 的底色（白字压在它上面）—— 在**色相这一维上摆幅最大**的一对，所以它是唯一
- * 还能被色相推过线、而两边又都留得住余量的地方。
+ * `.btn-primary` 的底色 —— 在**色相这一维上摆幅最大**的一对，所以它是唯一还能被色相推过线、
+ * 而两边又都留得住余量的地方。
+ *
+ * ── 🔴 #1084 之后这一对为什么还能被推过线（不推自明，我量过才敢留）────────────────────────────
+ * 那张票把 `.btn-primary` 的字色改成算出来的：白字够就白字，不够就换纯黑，**两种都不够时保持白字**。
+ * 所以这个对照会不会退化，取决于色相拖到 14° 时那两种字色各是多少。量出来（这一节与生产用的是
+ * **同一把尺** —— `theme-contrast.js` 的 `PAINT_BLEND`＝0.06，先把字色朝底色掺一点再算，模拟抗锯齿）：
+ *     色相 0°  底 #9640ef   白字 **4.5362** ✅ ⟹ 选白字（够，不换）
+ *     色相 14° 底 #b31aec   白字 **4.4619** ❌ · 纯黑 **4.1542** ❌ ⟹ 两种都不够 ⟹ **保持白字**
+ * ⟹ 破线那一档之所以还破得了，是因为**纯黑在那里更差**（4.15 < 4.46），规则不会换过去。
+ * 🔴 这句话是承重的：如果哪天这一对被挪到一个「纯黑能救」的位置，生产会换成纯黑、读数直接跳到 4 以上，
+ *    这个对照当场变成恒绿。换驱动 token 之前先把两种字色都算一遍。
+ * 📌 对照的数（4.5362 / 4.4619）在 #1084 前后**逐字相同**，但来路变了：从前它是「白字」这个字面常量，
+ *    现在它是「算出来的字色恰好也是白」—— 后者是量出来的，前者是写死的。
  *
  * ── 🔴 为什么驱动的 token 换过两次，别再换回去 ──────────────────────────────────────────────
  * ① 最早挪的是 `primary-600`（`.cta-banner` 那条渐变的近端）。#1072 把那条渐变从中间调的
@@ -392,7 +547,7 @@ const BASE = [
  *
  * ── 🔴 摆幅决定了余量的上限，这是这组值只能这么紧的原因 ────────────────────────────────────────
  * `shiftHue` 基本保亮度，所以色相这一维对对比度的影响本来就小。四条按钮实测的摆幅：
- *     `.btn-primary` white/primary-500        **0.076**  ← 最大，选它
+ *     `.btn-primary` 算出来的字色/primary-500  **0.076**  ← 最大，选它（这一组里它算出来是白）
  *     `.btn-accent` gray-900/accent-400         0.074
  *     `.btn-primary:hover` white/primary-600    0.049
  *     `.btn-accent:hover` gray-900/accent-500   0.041
@@ -615,8 +770,16 @@ let judgeSheetForRegistrySweep = null;
   }
 
   // 判哪几条:见下面 judgeButtons 上方那段注释（#1055 条 9）。
-  const JUDGED_BUTTON_PAIRS = BUTTON_PAIRS.filter((p) => p.bg.group !== undefined);
-  const SKIPPED_BUTTON_PAIRS = BUTTON_PAIRS.filter((p) => p.bg.group === undefined);
+  //
+  // 🔴 #1084 —— 谓词从 `p.bg.group !== undefined` 改成「底色不是字面色」。它们在本票之前是同一件事，
+  // 之后不是：`.btn-primary:hover` 的底色现在是 `{computed:'hoverShade'}`（算出来的那一档），它**没有**
+  // `group` 字段，于是旧谓词把它划进「留在外面」，而下面那行会把它的理由印成「底是固定白、动的是字」
+  // —— 对它是假的。后果不是印错一句话：它在本票之前是被这一节判着的那 4 条之一，改完就静默掉出去了，
+  // 而条数仍然是 4（`.btn-secondary:hover` 补了进来）⟹ 分母自检也看不出来。
+  // 真正区分这两类的是「底色跟不跟着配色走」，字面白那条才是不跟的。
+  const isLiteral = (spec) => spec.hex !== undefined;
+  const JUDGED_BUTTON_PAIRS = BUTTON_PAIRS.filter((p) => !isLiteral(p.bg));
+  const SKIPPED_BUTTON_PAIRS = BUTTON_PAIRS.filter((p) => isLiteral(p.bg));
 
   // #1055 条 9 —— 按钮那一段自己的分母，连同它**没判**的那条一起说出来。
   // 「这一节判了几条」和「哪条被留在外面、为什么」是两个读数，而只打前一个的话，

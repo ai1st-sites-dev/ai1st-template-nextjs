@@ -36,11 +36,23 @@ const WHITE = '#ffffff';
 const GRAY900 = '#111827';
 const FLOOR = 4.5;
 
-/** 产品拿这套调色板画按钮时，最差的那一处是多少 —— 连是哪一处一起返回。 */
+/**
+ * 产品拿这套调色板画按钮时，最差的那一处是多少 —— 连是哪一处一起返回。
+ *
+ * 🔴 #1084 起前两条**不再是「按钮实际渲染的那个配对」**：`.btn-primary` 的字色从那张票起是算出来的
+ * （白字不够时换纯黑，`scripts/lib/button-ink.js`），所以「白字压 primary-500」在页面上可能根本不成立。
+ * 这两条**有意留着**，含义换成**对新生成的主题多加一层保守**：候选调色板必须连「白字」这个老写法都
+ * 读得出来 ⟹ 新站落在「一个值都不用改」的那条路上，看起来与本票之前逐字相同。
+ * 📌 换成算出来的字色，这两条会**几乎恒真**：白字不够时换纯黑，而裸对比度下「白字不够 ⟹ 纯黑一定够」
+ * 是算得出来的（button-ink.js ①）。剩下那点不恒真来自 blended 那把尺 —— 灰阶上只有 gray=114…119 这
+ * **6 个色阶**两种字色都不够（button-ink.js ①a）。一道 6/256 的窗口挡不住什么，所以换过去等于这道闸对
+ * 主按钮不再说话，而且生成器会开始放行浅色调色板 —— 那是对主题池的产品改动，不在 #1084 的圈里。
+ * `.btn-accent` 那两条不受影响：那个按钮的字色仍然是写死的 `gray-900`。
+ */
 function worstButton(colors) {
   const cases = [
-    ['.btn-primary 白字压 primary-500', WHITE, colors.primary['500']],
-    ['.btn-primary:hover 白字压 primary-600', WHITE, colors.primary['600']],
+    ['.btn-primary 白字压 primary-500（#1084 起是给新主题加的保守层，不是渲染实况）', WHITE, colors.primary['500']],
+    ['.btn-primary:hover 白字压 primary-600（同上）', WHITE, colors.primary['600']],
     ['.btn-accent gray-900 压 accent-400', GRAY900, colors.accent['400']],
     ['.btn-accent:hover gray-900 压 accent-500', GRAY900, colors.accent['500']],
   ];

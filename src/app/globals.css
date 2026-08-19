@@ -62,14 +62,44 @@
 @layer components {
   /* #961 — 按钮的圆角走自己的变量，不跟全局圆角共用一个。
      🔴 必须独立：`buttonShape` 的「胶囊」档如果借用全局圆角，每一张卡片也会变成胶囊。 */
+  /* #1084 — 按钮上的字色跟着底色走。三个变量算在 `scripts/lib/button-ink.js`（那里写着每一个判断的
+     读数：为什么深字是纯黑、为什么 hover 的底色反向走、为什么轮廓按钮是沿调色板下挪一档），由
+     `scripts/sync-config.js` 从【最终生效】的那份配色里算出来写进 `public/theme.css`。
+     🔴 每个 `var()` 都带兜底值，而兜底值 = 本票之前的字面行为 ⟹ 拿不到这些变量的页面（例如预览
+     还没重画的那一刻）与改动前逐字相同，不会掉色。 */
   .btn-primary {
-    @apply inline-flex items-center justify-center bg-primary-500 px-6 py-3 text-base font-semibold text-white transition-all hover:bg-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+    @apply inline-flex items-center justify-center bg-primary-500 px-6 py-3 text-base font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
     border-radius: var(--radius-button);
+    color: var(--btn-primary-ink, #fff);
   }
 
+  .btn-primary:hover {
+    background-color: var(--btn-primary-hover, var(--color-primary-600));
+  }
+
+  /* 🔴 轮廓按钮的字**不是**压在 `primary-500` 上，它就是 `primary-500` 压在页面上 —— 所以换字色修不
+     了它，这里换的是它自己那一档（见 button-ink.js ③）。
+
+     hero 里的那一个不走这条，而**判据在静止态和 hover 态上不是同一条**（这一段是承重的，别照第一眼改）：
+       · 静止态：下面 `.hero__cta .btn-secondary` 的 `currentColor` 是 (0,2,0)，压过这里的 (0,1,0) —— 它赢。
+       · hover 态：`.btn-secondary:hover` 也是 (0,2,0)（一个类 + 一个伪类），跟它**打平** ⟹ 决胜的是
+         源码顺序，而 hover 这条在本文件里排在前面 ⟹ 仍然是 hero 那条赢。
+         📌 判据别写行号（会漂）。当场量：
+            `grep -n '^  \.btn-secondary:hover\|^\.hero__cta \.btn-secondary {' src/app/globals.css`
+            —— 前者的行号必须小于后者。
+     🔴 所以谁把 `.btn-secondary:hover` 挪到 `.hero__cta .btn-secondary` **后面**，就会静默改掉 hero 按钮
+     hover 时的字色。实测（fern-02 的 demo 站，真浏览器）：index.html 上 `.btn-secondary` 的 computed
+     color 静止/hover 都是 rgb(31,41,55)，改动前后逐字相同。 */
   .btn-secondary {
-    @apply inline-flex items-center justify-center border-2 border-primary-500 px-6 py-3 text-base font-semibold text-primary-500 transition-all hover:bg-primary-500 hover:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+    @apply inline-flex items-center justify-center border-2 px-6 py-3 text-base font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
     border-radius: var(--radius-button);
+    color: var(--btn-outline-ink, var(--color-primary-500));
+    border-color: var(--btn-outline-ink, var(--color-primary-500));
+  }
+
+  .btn-secondary:hover {
+    background-color: var(--color-primary-500);
+    color: var(--btn-primary-ink, #fff);
   }
 
   .btn-accent {

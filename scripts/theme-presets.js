@@ -28,6 +28,9 @@ const { RADIUS, BUTTON_SHAPE } = require('./theme-settings');
  * 所以它写进 custom.css 就是整套盖过去。
  *
  * 🔴 策展的判据是**可读性**，不是好看：白字压 `--color-primary-500`（`.btn-primary`）、白字压
+ *    （📌 #1084 起 `.btn-primary` 的字色是**算出来的**，白字不够时换纯黑 —— 见
+ *    `scripts/lib/button-ink.js`。所以这条判据现在是**对策展多加一层保守**：这几组连老写法的
+ *    白字都读得出来 ⟹ 选它们的站落在「一个值都不用改」那条路上。它不再是「按钮渲染的那个配对」。）
  * `-600`（它的 hover）、`gray-900` 压 `--color-accent-400`（`.btn-accent`）三处都要 ≥ 4.5:1。
  * 注册表里 30 套主题有 9 套过不了这一关（实测最低的 `golden-yellow` 是 1.92:1），所以这不是
  * 「抄哪套都行」—— 下面这六组是量过之后挑出来的，判据在 `scripts/theme-presets.test.js` 的第 ① 节

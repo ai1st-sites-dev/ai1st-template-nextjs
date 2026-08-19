@@ -110,6 +110,33 @@ const previewTrustedOrigin = (() => {
 // 硬的，「只生效一半」比「没生效」更难解释。
 // 📌 脚本里一条注释都不留：它是内联进**每一个站的每一页**的字节。#925 那一半也是这个规矩。
 //
+// 🔴 #1084 —— 那段算字色的算术在这里【复制】了一份，而正本是 `scripts/lib/button-ink.js`。
+// 为什么必须复制：这段脚本是内联进站产物里在**浏览器**跑的字节，它 require 不到任何东西；而 dashboard
+// 与 templates/nextjs 是两个包，也没法共享一个模块。
+// 为什么必须有这一份（不是「顺手也加上」）：不加，换装弹窗预览里的按钮仍是兜底的白字，而 Apply
+// 之后站上是算出来的深字 —— 预览与构建就不是同一件事了。守着这条一致性的是
+// `tests/e2e/specs/925-theme-preview-postmessage-contract.spec.ts`（它在真浏览器里对真 `next build`
+// 的产物量 `--color-primary-*`：预览消息一到就换色、Cancel 原样还回去）。
+// 📌 那份 spec 今天**量不到这三个变量**（它读的是 `--color-primary-500/700` / `--color-accent-500` /
+//    `--font-sans` 四个）⟹ 它不会因为少了这一份而变红。所以这一份的理由不是「让那格绿」，是那格
+//    描述的那件事本身；而钉住两份算术不分叉的是 `scripts/lib/button-ink.test.js` 第 ④ 格。
+// 🔴 两份不许分叉，而管这件事的**不是**这条注释：`scripts/lib/button-ink.test.js` 把这段脚本从本文件
+// 的源码里抠出来在 node 里跑，拿 110 套注册表配色逐套跟正本对答案。
+// 🔴 #1084 r3 —— 轮廓按钮那一档要按**它真正被画在上面的那块底**选（正本 `button-ink.js` ③a/③b）。
+// 构建时那一侧从主题表的字节里解；这里没有那份字节（预览换的是 `--color-*`，表还是页面上原来那张），
+// 所以改成**从真 DOM 量**：`.services-list__item` 优先、其次 `.services-list`，取第一个真的画了底的
+// （computed 是 `rgba(...,0)` 的不算 —— QA2 在真机上量到 `__item` 常常是透明的，拿透明去算出来的是
+// 页面上不存在的配对）。页面上没有 services-list 时落回白底，而那时这个变量在这一页上不画任何东西。
+// 🔴 量之前必须先把颜色那一半写进覆盖元素（见 `paint` 里那次中途 `s.textContent=`）：那块底本身就是
+// `var(--color-primary-N)`，不先生效就会拿**上一套**配色的颜色去定这一套的档位。
+// 📌 只认 6 位十六进制：上面那个颜色循环接受 3~8 位，而这段算术假定 6 位。认不出的形状**不产出**这三个
+// 变量，于是页面落回 globals.css 里的兜底值 = 本票之前的行为，而不是产出一个错的字色。
+// 🔴 这里的 `CR()` 判的是 **blended**：先把字色朝底色掺 0.06（= `theme-contrast.js` 的 `PAINT_BLEND`，
+//    模拟抗锯齿），再算对比度。**不是**裸对比度 —— 两者在这批配色上差 0.2–0.33，够把一整格从合格翻成
+//    不合格。那个 0.06 在这里是**抄来的字面值**（浏览器里 require 不到那个模块），钉住它不漂的同样是
+//    `scripts/lib/button-ink.test.js` 第 ④ 格：它拿 110 套配色逐套跟正本对答案，正本改了尺而这里没改
+//    的话，那一格当场红。
+//
 // 🔴 Why an override <style> element and not writing on document.documentElement.style: Cancel has
 // to restore EXACTLY what the site had, and what it had is not always the registry's palette — an
 // AI edit can change brand.json's colours. Emptying an override element restores the original
@@ -138,6 +165,34 @@ function paint(t){
         out.push('--color-'+g[i]+'-'+k+':'+sh[k]+';');
       }
     }
+  }
+  // #1084 r3 —— 先把颜色那一半贴上去再往下走。下面算轮廓按钮那一档要**从真 DOM 量它坐着的那块底**，
+  // 而那块底自己就是 var(--color-primary-N)：不先让被预览的这套配色生效，量到的是上一套的颜色。
+  s.textContent=out.length?(':root{'+out.join('')+'}'):'';
+  var pk=(t&&t.colors&&t.colors.primary)||{},p5=pk['500'];
+  if(typeof p5==='string'&&/^#[0-9a-fA-F]{6}$/.test(p5)){
+    var BY=function(h){return [1,3,5].map(function(j){return parseInt(h.substr(j,2),16);});};
+    var LU=function(r){var v=r.map(function(b){var c=b/255;return c<=0.03928?c/12.92:Math.pow((c+0.055)/1.055,2.4);});return 0.2126*v[0]+0.7152*v[1]+0.0722*v[2];};
+    var CR=function(ih,gh){var i=BY(ih),g=BY(gh),p=i.map(function(v,k){return Math.round(v+(g[k]-v)*0.06);}),x=LU(p),y=LU(g);return (Math.max(x,y)+0.05)/(Math.min(x,y)+0.05);};
+    var ok=function(h){return typeof h==='string'&&/^#[0-9a-fA-F]{6}$/.test(h);};
+    var ink=CR('#ffffff',p5)>=4.5?'#ffffff':(CR('#000000',p5)>=4.5?'#000000':'#ffffff');
+    var lad=ink==='#000000'?['400','300','200','100','50']:['600','700','800','900'],hv='',ol='',q;
+    if(ok(pk['600'])&&CR(ink,pk['600'])>=4.5){hv='600';}
+    for(q=0;!hv&&q<lad.length;q++){if(ok(pk[lad[q]])&&CR(ink,pk[lad[q]])>=4.5){hv=lad[q];break;}}
+    if(!hv){hv='600';}
+    var gnd='#ffffff',sel=['.services-list__item','.services-list'],el,mm;
+    for(q=0;q<sel.length;q++){
+      try{el=document.querySelector(sel[q]);}catch(e){el=null;}
+      if(!el){continue;}
+      mm=String((getComputedStyle(el)||{}).backgroundColor||'').match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([0-9.]+))?\)/);
+      if(mm&&(mm[4]===undefined||parseFloat(mm[4])>0)){gnd='#'+[1,2,3].map(function(z){return ('0'+Number(mm[z]).toString(16)).slice(-2);}).join('');break;}
+    }
+    var OL=['500','600','400','700','300','800','200','900','100','50'];
+    for(q=0;q<OL.length;q++){if(ok(pk[OL[q]])&&CR(pk[OL[q]],gnd)>=4.5){ol=OL[q];break;}}
+    if(!ol){ol='500';}
+    out.push('--btn-primary-ink:'+ink+';');
+    if(hv){out.push('--btn-primary-hover:var(--color-primary-'+hv+');');}
+    if(ol){out.push('--btn-outline-ink:var(--color-primary-'+ol+');');}
   }
   if(t&&typeof t.fontSans==='string'&&!/[;{}<>]/.test(t.fontSans)){out.push('--font-sans:'+t.fontSans+';');}
   if(t&&typeof t.fontHeading==='string'&&!/[;{}<>]/.test(t.fontHeading)){out.push('--font-heading:'+t.fontHeading+';');}

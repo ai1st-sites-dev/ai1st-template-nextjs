@@ -45,7 +45,14 @@ const MOVED_TEXT_TARGETS = [
 //
 // The selectors are read off `globals.css`'s `@layer components`, and they are the ones whose OWN
 // face a palette paints:
-//   `.btn-primary`   white text on `--color-primary-500`   (`.services-list`, `.pricing-table`)
+//   `.btn-primary`   its COMPUTED ink on `--color-primary-500`   (`.services-list`, `.pricing-table`)
+//                    🔴 #1084 — no longer `white text`. The ink is white when white clears 4.5:1 on that
+//                    background and pure black when it does not (`scripts/lib/button-ink.js`), so a check
+//                    that assumed white would measure a pairing the page does not render — wrong in both
+//                    directions (a correct site read as unreadable, and the reverse). What reads this list
+//                    is a BROWSER (`scripts/theme-text-bands.mjs`), so it takes whatever the button renders;
+//                    the arithmetic side that used to assume white is `scripts/theme-presets.test.js`, and
+//                    #1084 changed it to resolve the ink from the palette under test.
 //   `.btn-accent`    `gray-900` text on `--color-accent-400` (`.hero__cta`, `.cta-banner__action`)
 // plus the two link hooks, which is where a palette's colour lands on a text link.
 //
