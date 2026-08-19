@@ -13,9 +13,7 @@
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
-// #1102 —— `execFileSync` 是给回滚那段用的：它把参数直接交给 git，不经过 shell。文件路径来自模型
-// （`write_file` 的 `path`），而 `validatePath` 只拦 `..` 和绝对路径 —— 空格和 shell 元字符它是放过的。
-const { execSync, execFileSync } = require('child_process');
+const { execSync } = require('child_process');
 const Anthropic = require('@anthropic-ai/sdk');
 // #1013 洞 4 —— 块校验（#999）此前在这条路上一条都不跑：write_file 只看「是合法 JSON」就落盘。
 // 跑的是**同一个函数**，不是第二份实现（#999 定的规矩，本票 AC6）。
@@ -104,48 +102,49 @@ function classifyVisionError(err, images) {
 // 🔴 为什么不是 `git checkout -- .` 那种整树回滚：同一棵树上还有别人未提交的改动 —— QA2 那条时间线
 // 里「主人把主题修好」就发生在这里。整树回滚会连带把它抹掉。所以只退**这次 write_file 真正写过的
 // 那几个路径**，一个不多。
+//
+// 🔴🔴 为什么退回的目标是「写之前磁盘上的样子」，而**不是** HEAD 里那一份（r1 是那么写的，QA1 打回）：
+// 「HEAD 里查不到这个路径」不只有一种解释。r1 的注释说它有两种（本次新建 / git 坏了）并给第二种加了
+// 一道 `git rev-parse --verify HEAD`，但还有第三种 —— **文件在磁盘上、却从来没进过 HEAD**。它是可达的：
+// 这个脚本里 `git add -A && git commit` 失败时只有一行 `debug()`，老板照样收到 `edit-complete`，
+// 于是「上一次编辑新建的页面」就停在磁盘上、不在 HEAD 里。下一次编辑再动同一个文件而同步失败时，
+// 按 HEAD 推断会把它判成「本次新建」⟹ **把老板上一次那一整页删掉，而且没有任何人被告知**
+// （QA1 在 #1102 r1 用真 git 仓复现过；`site/` 被 .gitignore 忽略的仓形态里每一个回滚都会这样）。
+//
+// ⟹ 判据换成**事实**：`write_file` 在落盘**之前**就知道这个文件本来在不在、本来是什么字节，
+// 把那份字节记下来。回滚时按记下来的那份写回（本来没有就删掉），一次 git 都不用问 ——
+// 三种解释里那两种会删错文件的，从此不在这条路上。r1 那道 `rev-parse --verify HEAD` 也跟着撤掉了：
+// 它存在的唯一理由就是给「拿 HEAD 推断」兜底，而现在没有推断了。
+/** 32 MB。站的内容文件是 JSON，仓里最大的那类（博客文章）只有几十 KB；这个上限只是不让一个异常大的
+ *  文件把编辑进程的内存吃掉。超过它就**诚实地说退不掉**（下面 failed 那一支），而不是猜。 */
+const SNAPSHOT_MAX_BYTES = 32 * 1024 * 1024;
+
 /**
- * 把这次编辑写出去的那几个文件退回上一次提交的样子。
+ * 把这次编辑写出去的那几个文件，退回**这次编辑开始之前磁盘上的样子**。
  *
- * @param {string} rootDir  仓根（`git` 在这里跑）
- * @param {string} siteDir  `<rootDir>/site`，`relPaths` 相对于它
- * @param {string[]} relPaths  这次 `write_file` 真正写成功的路径
+ * @param {string} siteDir  `<rootDir>/site`，`snapshots` 的键相对于它
+ * @param {Map<string, Buffer|null|{why:string}>} snapshots
+ *        键 = 这次 `write_file` 真正写成功的路径；值 = **写之前**那个文件的字节；
+ *        `null` = 写之前它不存在（本次新建）；`{why}` = 原样没存下来，why 是原因。
  * @returns {{restored:string[], removed:string[], failed:string[]}}
  */
-function rollbackWrittenFiles(rootDir, siteDir, relPaths) {
+function rollbackWrittenFiles(siteDir, snapshots) {
   const out = { restored: [], removed: [], failed: [] };
-  if (!relPaths.length) return out;
-  // 🔴 先问一次「这棵树上 git 好用吗」，这一步是承重的：下面拿「HEAD 里查不到这个路径」当
-  // 「这个文件是本次新建的 ⟹ 删掉它」的判据，而 git 本身坏掉时那个查询**同样**查不到 ⟹ 会把
-  // 老板原来就有的文件删掉。两种情况的错法方向相反，必须分开问。
-  try {
-    execFileSync('git', ['rev-parse', '--verify', 'HEAD'], { cwd: rootDir, stdio: ['pipe', 'pipe', 'pipe'] });
-  } catch (e) {
-    out.failed.push(`git is unusable in this tree (${String(e.message).slice(0, 120)}) — nothing was rolled back`);
-    return out;
-  }
-  for (const rel of relPaths) {
-    const repoPath = 'site/' + rel.split(path.sep).join('/');
+  for (const [rel, before] of snapshots) {
     const full = path.join(siteDir, rel);
-    // 🔴 不动索引：拿 `git show` 读出 HEAD 那份字节、用 fs 写回去。`git checkout HEAD -- <path>`
-    // 会把还原**一起写进索引**，而紧接着的下一次成功编辑读的就是索引（`git add -A` + commit）。
-    let inHead = true;
     try {
-      execFileSync('git', ['cat-file', '-e', `HEAD:${repoPath}`], { cwd: rootDir, stdio: ['pipe', 'pipe', 'pipe'] });
-    } catch {
-      inHead = false;   // HEAD 可读（上面验过），所以这里只剩一种解释：这个路径本次才出现
-    }
-    try {
-      if (inHead) {
-        const bytes = execFileSync('git', ['show', `HEAD:${repoPath}`], { cwd: rootDir, maxBuffer: 64 * 1024 * 1024 });
-        fs.writeFileSync(full, bytes);
-        out.restored.push(repoPath);
+      if (before && !Buffer.isBuffer(before)) {
+        out.failed.push(`${rel}: ${before.why}`);
+      } else if (before === null) {
+        // 写之前它不存在 ⟹ 删掉就精确地回到了写之前的样子。
+        if (fs.existsSync(full)) fs.unlinkSync(full);
+        out.removed.push(rel);
       } else {
-        fs.unlinkSync(full);
-        out.removed.push(repoPath);
+        fs.writeFileSync(full, before);
+        out.restored.push(rel);
       }
     } catch (e) {
-      out.failed.push(`${repoPath}: ${String(e.message).slice(0, 120)}`);
+      out.failed.push(`${rel}: ${String(e.message).slice(0, 120)}`);
     }
   }
   return out;
@@ -356,7 +355,11 @@ function pageJsonBlockError(relPath, parsed) {
     + '\n\nNothing was written. Read the block\'s manifest if you need the exact slot names.';
 }
 
-function executeTool(toolName, toolInput, siteDir) {
+/**
+ * @param {Map<string, Buffer|null|{why:string}>} [snapshots]
+ *   #1102 —— `write_file` 往这里记「这个文件在被写之前是什么样」。同步失败时按它回滚。
+ */
+function executeTool(toolName, toolInput, siteDir, snapshots) {
   switch (toolName) {
     case 'read_file': {
       const relPath = toolInput.path;
@@ -384,11 +387,28 @@ function executeTool(toolName, toolInput, siteDir) {
       const blockError = pageJsonBlockError(relPath, parsed);
       if (blockError) return { error: blockError };
       const fullPath = path.join(siteDir, relPath);
+      // #1102 —— 落盘**之前**把这个文件本来的样子记下来（同步失败时按它回滚）。
+      // 🔴 只在第一次写它的时候记：同一次编辑里模型可能把同一个文件写两遍，而"这次编辑之前"
+      //    是它第一次被写之前那一刻，不是第二次。
+      // 🔴 记在这里、不是事后去问 HEAD：理由整段在 rollbackWrittenFiles 上面（QA1 在 r1 打回的那条）。
+      // 🔴 用这里这个 `relPath`、不是调用方手里的 `block.input.path`：只有走到这一行的才真的落了盘
+      //    （上面每一条 return 都是拒绝），而回滚名单里多一个没写过的路径 = 拿旧字节盖一个不该动的文件。
+      if (snapshots && !snapshots.has(relPath)) {
+        let before = null;
+        try {
+          const st = fs.statSync(fullPath);
+          before = st.size > SNAPSHOT_MAX_BYTES
+            ? { why: `it was ${st.size} bytes before this edit — too large to hold in memory for an undo` }
+            : fs.readFileSync(fullPath);
+        } catch (e) {
+          // ENOENT = 它本来就不存在（本次新建）。别的错（读不动、是个目录、权限）**不能**当成
+          // "本次新建"，否则回滚会把一个本来就在的文件删掉 —— 这正是 r1 被打回的那个错法。
+          if (e.code !== 'ENOENT') before = { why: `could not be read before this edit (${e.code})` };
+        }
+        snapshots.set(relPath, before);
+      }
       fs.mkdirSync(path.dirname(fullPath), { recursive: true });
       fs.writeFileSync(fullPath, toolInput.content);
-      // #1102 —— `path` 回给调用方，让它记下「这次真正写出去的是哪几个」（同步失败时按这份名单回滚）。
-      // 🔴 用这里这个 `relPath`、不是调用方手里的 `block.input.path`：只有走到这一行的才真的落了盘
-      // （上面每一条 return 都是拒绝），而回滚名单里多一个没写过的路径 = 拿 HEAD 覆盖一个不该动的文件。
       return { success: true, path: relPath, message: `Written ${relPath}` };
     }
     case 'list_files': {
@@ -533,7 +553,9 @@ async function main() {
   let filesModified = false;
   // #1102 —— 这次编辑真正写出去的那几个路径（相对 `siteDir`）。同步失败时按这份名单回滚，
   // 好让「This change was not saved」这句话在磁盘上也成立。Set：同一个文件被改两次只算一个。
-  const writtenPaths = new Set();
+  // #1102 —— 键 = 这次 write_file 真正写出去的路径，值 = 它**被写之前**的字节
+  // （`null` = 本次新建）。同步失败时按它回滚，见 rollbackWrittenFiles。
+  const writeSnapshots = new Map();
   let commitHash = '';
 
   const model = configModel;
@@ -620,11 +642,10 @@ async function main() {
 
         emit('tool_use', { tool: block.name, ...(block.input.path ? { path: block.input.path } : {}) });
 
-        const result = executeTool(block.name, block.input, siteDir);
+        const result = executeTool(block.name, block.input, siteDir, writeSnapshots);
 
         if (block.name === 'write_file' && result.success) {
           filesModified = true;
-          if (result.path) writtenPaths.add(result.path);
         }
 
         // Truncate large file contents in tool results for debug
@@ -748,7 +769,7 @@ async function main() {
         // #1102 —— 先把这次写出去的文件退回上一次提交的样子，**再**说那句话。顺序是承重的：
         // 「没有保存」这句话的真假取决于磁盘上还剩什么（下一次成功编辑的 `git add -A` 读的是磁盘），
         // 所以要么先让它成立、要么就别那么说。理由整段在 rollbackWrittenFiles 上面。
-        const rb = rollbackWrittenFiles(rootDir, siteDir, [...writtenPaths]);
+        const rb = rollbackWrittenFiles(siteDir, writeSnapshots);
         debug(`#1102 rollback: restored ${rb.restored.length} · removed ${rb.removed.length}`
           + ` · failed ${rb.failed.length}${rb.failed.length ? ' — ' + rb.failed.join(' | ') : ''}`);
         // 🔴 退不掉的时候**改口**，不硬说那句话（这是本票要治的那个毛病本身：跟老板说的话后来变成
