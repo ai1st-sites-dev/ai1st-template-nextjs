@@ -92,6 +92,7 @@ const SECTORS = [
   },
   {
     key: 'home-trades',
+    onSite: true,
     label: '家装与施工',
     en: 'home trades & building',
     words: ['construction', 'contractor', 'roofing', 'plumbing', 'hvac', 'electrical', 'renovation',
@@ -99,6 +100,7 @@ const SECTORS = [
   },
   {
     key: 'green-outdoor',
+    onSite: true,
     label: '园艺与绿色',
     en: 'landscaping & green',
     words: ['landscaping', 'garden', 'tree', 'farm', 'agriculture', 'organic', 'eco', 'environment',
@@ -106,6 +108,7 @@ const SECTORS = [
   },
   {
     key: 'auto-transport',
+    onSite: true,
     label: '汽车与运输',
     en: 'auto & transport',
     words: ['auto', 'mechanic', 'detailing', 'tire', 'towing', 'moving', 'junk removal', 'storage',
@@ -113,6 +116,7 @@ const SECTORS = [
   },
   {
     key: 'industrial-safety',
+    onSite: true,
     label: '工业与安防',
     en: 'industrial & safety',
     words: ['industrial', 'manufacturing', 'machining', 'welding', 'fabrication', 'equipment',
@@ -140,6 +144,67 @@ const SECTORS = [
       'pool', 'portfolio', 'architect', 'architecture', 'engineering'],
   },
 ];
+
+// ── 上门服务 vs 展示类（#1097）────────────────────────────────────────────────────────────────────
+//
+// Chris 2026-08-19 拍板：**跟着行业走** —— 上门服务类（水电 / 保洁 / 搬家 / 维修这一类）的站，第一屏
+// 就要能留电话；展示类（餐厅 / 画廊 / 诊所介绍这一类）第一屏要照片，不给。判据用**上面这 16 组**，
+// 不新造第二份行业词表 —— 所以这里只给 4 组加一个布尔标记，词表内容一个字都没动。
+//
+// 哪四组、凭什么（对照上面各组的 `words`，这里不重复抄词）：
+//   home-trades       家装与施工 —— Chris 点名的水电 / 保洁 / 维修三个词都在这一组的词表里
+//   auto-transport    汽车与运输 —— Chris 点名的搬家在这一组
+//   green-outdoor     园艺与绿色 —— 同族上门活（庭院 / 树木）
+//   industrial-safety 工业与安防 —— 同族上门活（安防安装 / 焊接 / 设备）
+// 其余 12 组一律不给。律所 / 金融 / 房产这类「不上门但也靠联系成交」的**保守归进不给桶** ——
+// Chris 原话只点了上门服务类，扩张要他另拍。
+//
+// 🔴 匹配按**词边界**，不许裸 `includes`。理由是量出来的，不是审美：拿两个桶的 212 个词跑两向，
+//    裸 `includes` 会把不给桶的 `retirement`（金融与保险）判成「给」—— 它里面含着上门桶的 `tire`
+//    （汽车与运输）。整份词表里这样的磁铁**有且只有这一个**，也就是说它的失败方向是「几乎全对，
+//    偶尔把一个退休理财的站建成上门服务的样子」，靠抽查是抓不住的。换成按词边界之后：53 个上门词
+//    全判「给」、159 个不给词零误判，两向例外清单都是空的（`scripts/lib/hero-lead-form.test.js` ①，
+//    那一格还拿裸 includes 跑同一份夹具做尺子校准 —— 空的例外清单跟「夹具没有区分力」长得一样）。
+//
+// 📌 同族的裸 `includes` 今天还在 `themes.js` 的 `candidateThemesForIndustry()` 里生效（挑哪套主题
+//    那条路），PM 2026-08-19 裁定那是另一件事、不在 #1097 射程内。别顺手改它。
+
+/** 行业文字 → 小写 token 序列。切法是「非字母数字都当分隔符」，所以 `walk-in` 和 `walk in` 同形。 */
+function industryTokens(text) {
+  return String(text || '').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+}
+
+/** `tokens` 里有没有出现 `phrase` 这一串**连续** token（词表里有 `credit union` 这种双词条目）。 */
+function hasPhrase(tokens, phrase) {
+  const want = industryTokens(phrase);
+  if (!want.length) return false;
+  for (let i = 0; i + want.length <= tokens.length; i += 1) {
+    let all = true;
+    for (let j = 0; j < want.length; j += 1) {
+      if (tokens[i + j] !== want[j]) { all = false; break; }
+    }
+    if (all) return true;
+  }
+  return false;
+}
+
+/** 打了 `onSite` 标记的那几组的词，摊平成一张表。 */
+function onSiteWords() {
+  return SECTORS.filter((s) => s.onSite).flatMap((s) => s.words);
+}
+
+/**
+ * 这门生意算不算上门服务？
+ *
+ * 命中上面四组词表里**任何一个词**就算，不做多组仲裁（一段行业文字可能同时含着两组的词，而
+ * 「更像哪一组」不是这里判得了的事；本函数只答一个是非题，多判一次的代价是首屏多个表单，
+ * 少判一次的代价是上门生意收不到联系方式 —— 方向上宁可命中）。一组都没命中 ⟹ false。
+ */
+function isOnSiteIndustry(industry) {
+  const tokens = industryTokens(industry);
+  if (!tokens.length) return false;
+  return onSiteWords().some((w) => hasPhrase(tokens, w));
+}
 
 // 一组配几套主题。16 组 × 5 = 80 套。
 const THEMES_PER_SECTOR = 5;
@@ -178,4 +243,7 @@ function poolSlots() {
   return out;
 }
 
-module.exports = { SECTORS, THEMES_PER_SECTOR, wordsForSlot, poolSlots };
+// 🔴 只导出 `isOnSiteIndustry` 这一个新口子。切词和摊平那两个函数留在文件内：测试要的两个桶
+// 直接从 `SECTORS` 按 `onSite` 标记自己摊（那是**独立的一条推导**），共用实现里那个 helper 反而
+// 会让「实现和测试用同一把尺子」这件事多一处。
+module.exports = { SECTORS, THEMES_PER_SECTOR, wordsForSlot, poolSlots, isOnSiteIndustry };

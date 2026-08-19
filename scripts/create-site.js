@@ -51,6 +51,9 @@ const {
 // #998 — 写页面 JSON 时把 AI 产出的 `sections` 转成 `blocks`（补 id / role / region / weight）。
 // 归一化和角色兜底表跟 sync-config.js 用的是同一份实现，两处各写一遍必然分叉。
 const { pageWithBlocks } = require('./blocks');
+// #1097 — 上门服务类的站，首屏带一个能留联系方式的表单。三道判断（行业 / 主题声明 / 这一页有没有
+// hero）都住在那个文件里，这里只在写盘前叫它一次。
+const { applyHeroLeadForm } = require('./lib/hero-lead-form');
 
 // ─── AI Model Config ─────────────────────────────────────────────────────────
 
@@ -1124,6 +1127,18 @@ async function main() {
   }
 
   progress('Writing configuration files...', 70);
+
+  // #1097 — 首屏要不要带一个能留联系方式的表单（Chris 2026-08-19「跟着行业走」）。
+  //
+  // 落在写盘之前、`content` 还在内存里的这一刻，是因为这三样东西正好都在这个作用域里：`industry`
+  // （:754 已经 fatal 挡过空值）· `theme`（:838，兜底要读的 `supports.hero` 挂在它上面）· `content.pages`。
+  // 写在 `sections[]` 那个条目上就够了 —— `pageWithBlocks` 在写盘那一刻把它搬进 `blocks[]`
+  // （`blocks.js` 里那行 `if (typeof s.block_layout === 'string') b.block_layout = s.block_layout;`）。
+  //
+  // 🔴 `reason` 必须打出来：不给表单有四个完全不同的答案，而它们在产物里长得一模一样。
+  const heroForm = applyHeroLeadForm({ content, industry, theme });
+  debug(`[hero lead form] ${heroForm.applied ? '写了' : '没写'} block_layout="with-form" — ${heroForm.reason}`);
+
   writeSiteConfig(siteDir, content, defaultLocale);
 
   // ─── TICKET-122b: Secondary locale generation ────────────────────────────────
