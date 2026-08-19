@@ -69,6 +69,54 @@ function die(msg) {
   process.exit(2);
 }
 
+// ── #1095：postcss 从哪儿借 ────────────────────────────────────────────────────────────────────────
+//
+// `theme-css-lint.js` 顶上 `require('postcss')` / `require('postcss-value-parser')`，而 `node_modules`
+// 不在任何一棵树里（.gitignore）—— 所以下面 exportSources() 只能从某个装过依赖的目录借一份进去。
+//
+// 🔴 以前那一行写死了 `<REPO>/templates/nextjs/node_modules`，而 `REPO` 是从**这个脚本自己的位置**
+//    算出来的。于是在一棵刚 `git worktree add` 出来、没跑过 `npm ci` 的树里，那个 symlink 指向一个
+//    不存在的目录，`require` 当场 `Cannot find module 'postcss'`，脚本退 2，叫它的守卫
+//    （`ai-team/dispatcher/ship-check-testmap-fresh.sh`）把 80 份表全部记成「什么都没验成」也退 2。
+//    而 PM ship 的标准形态**就是**那种树 ⟹ 这一格在最该起作用的地方恒红，且 rc=2 按规矩不许 --ack
+//    （`ai-team/SHIPPING.md`）。#1082 那次是 PM 手工 symlink 才把这一格弄成真的审过了。
+//
+// 修法是让它自己去找：本树没有就去**主工作树**找。链接 worktree 的 `--git-common-dir` 指的是主仓的
+// `.git`，它的上一级就是主工作树的根。找不到就 die(2) 并给一条能跑通的命令 —— 不许降成 1、也不许
+// 静默跳过（那两种都会把「没查」读成「查过且干净」）。
+//
+// 📌 借来的依赖**不会改变判决**，这一点是可核的：`sheet-recipes.js` 从 `theme-css-lint.js` 只取
+//    `HOOK_CLASSES`，而那个值是对同文件里一个字面量 `HOOKS` 集合做 filter/map 得来的，postcss 只在
+//    模块加载时被 require、不参与算它。所以借的确实只是「让那个模块加载得起来」。
+// 📌 判据只看 `postcss` 在不在：它是本票要治的那条报错点名的模块。以后哪份源多 require 一个别的模块
+//    而借来的目录里没有，走的是文件末尾那个崩溃处理 —— 退 2 并把模块名原样打出来。响亮，不静默。
+function resolveNodeModules() {
+  const tried = [];
+  const consider = (dir) => {
+    if (!dir || tried.includes(dir)) return null;
+    tried.push(dir);
+    return fs.existsSync(path.join(dir, 'postcss')) ? dir : null;
+  };
+  let found = consider(path.join(REPO, 'templates', 'nextjs', 'node_modules'));
+  if (!found) {
+    let mainRoot = null;
+    try {
+      // 普通 clone 里这条返回相对路径 `.git` ⟹ 算回来就是 REPO 自己，被上面的去重挡掉。
+      mainRoot = path.dirname(path.resolve(REPO, git(['rev-parse', '--git-common-dir']).trim()));
+    } catch (e) {
+      mainRoot = null;
+    }
+    if (mainRoot) found = consider(path.join(mainRoot, 'templates', 'nextjs', 'node_modules'));
+  }
+  if (found) return found;
+  die('找不到能借的 node_modules —— 一份表的配方要 require(\'postcss\')，而 node_modules 不在任何一棵树里。\n'
+    + `   找过这些地方：\n${tried.map((d) => `     ${d}`).join('\n')}\n`
+    + '   ⟹ 什么都没验成（不是「过期了」）。在这棵树里把依赖备齐再跑，二选一：\n'
+    + `     ln -s <装过依赖的仓>/templates/nextjs/node_modules ${path.join(REPO, 'templates/nextjs/node_modules')}\n`
+    + `     (cd ${path.join(REPO, 'templates/nextjs')} && npm ci)`);
+  return null;   // die() 不返回；写在这里只为让读的人看得出这个函数的出口有两个
+}
+
 /** `index` 跟 gen-test-map.py 同义：`git write-tree` —— 它不动工作树、不移动任何 ref。 */
 function resolveTree(ref) {
   try {
@@ -87,11 +135,19 @@ function resolveTree(ref) {
  *    目录名只带树的 sha，而目录**内容**还取决于 SOURCES 这张清单 —— 于是往清单里加一份源
  *    不会让任何已经存在的缓存目录失效。#1016 r4 实测：同一棵树在改清单**之前**被提过一次，
  *    改完之后那 80 份表全部报 `Cannot find module '../theme-presets.js'`，清单加了等于没加。
+ * 🔴 #1095 —— **那个 symlink 通不通也算进「提好了」**。以前 `complete()` 只看源在不在，而失败那一次
+ *    留下的目录里源是齐的（symlink 指向不存在的目录也创建得成功，是个断链），于是下一次调用直接跳过
+ *    整个准备段、继续用那条断链，**改对了也还是红**。判据用 `fs.existsSync`（它跟着 symlink 走），
+ *    所以断链和目录被删掉两种情况都会重新提一次。
  */
 function exportSources(tree) {
   const dir = path.join(os.tmpdir(), `theme-sheet-fresh-${tree}`);
-  const complete = () => SOURCES.every((rel) => fs.existsSync(path.join(dir, rel)));
+  const complete = () => SOURCES.every((rel) => fs.existsSync(path.join(dir, rel)))
+    && fs.existsSync(path.join(dir, 'templates', 'nextjs', 'node_modules', 'postcss'));
   if (!complete()) {
+    // 🔴 先把 node_modules 找到再动手提源：找不到是 die(2)，而那时若已经建了 stage 目录就会留一份垃圾在
+    //    /tmp 里（而且它源是齐的，正好是上面那条 #1095 注释说的那种会被误当缓存的形状）。
+    const nodeModules = resolveNodeModules();
     const stage = `${dir}.tmp.${process.pid}`;
     fs.rmSync(stage, { recursive: true, force: true });
     for (const rel of SOURCES) {
@@ -106,9 +162,9 @@ function exportSources(tree) {
       fs.writeFileSync(path.join(stage, rel), blob);
     }
     // `theme-css-lint.js` 顶上 require('postcss')。node_modules 不在任何一棵树里（.gitignore），
-    // 所以它只能从仓库里借 —— 借的是解释器的依赖，不是被判对象的源。
-    fs.symlinkSync(path.join(REPO, 'templates', 'nextjs', 'node_modules'),
-      path.join(stage, 'templates', 'nextjs', 'node_modules'));
+    // 所以它只能从别处借 —— 借的是解释器的依赖，不是被判对象的源。从哪儿借、以及找不到时怎么办，
+    // 整段写在上面的 resolveNodeModules()（#1095）。
+    fs.symlinkSync(nodeModules, path.join(stage, 'templates', 'nextjs', 'node_modules'));
     // 提齐了才去动那个不完整的旧目录 —— 删和 rename 挨着做，窗口尽量小。
     fs.rmSync(dir, { recursive: true, force: true });
     try {
