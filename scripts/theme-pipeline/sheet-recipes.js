@@ -61,6 +61,46 @@ const CARD_STYLES = ['filled', 'outlined', 'underlined'];
 //    #1065 之前这一行是 `const HERO_LAYOUTS = ['with-media-left', 'with-media-top', 'text-only']`，
 //    三个名字每个都同时说了「内容结构」和「外观」两件事，于是外观能有几种被内容结构卡死在 3 种。
 
+// ── #1090 hero 之外的画法候选 ───────────────────────────────────────────────────────────────────
+//
+// 今天（#1090 之前）hero 之外的 33 个块在 `SHAPES` 里**每块只有一条画法**，几何全出自同一个
+// `voiceFor` 模数表 ⟹ 翻图册时任意两套主题的同一页，除了颜色/字体/圆角，版面几乎一样。本票给两族
+// 建候选表，照 hero 那一族的先例：一张名字表（分布）+ 一张画法表（那个名字画成什么样）。
+//
+// 🔴 分布式子与 hero 的 `heroLookFor`（下面《hero 那一块》那一节）同形（`(i + floor(i/L)) % L`，
+//    周期 L²），理由逐字相同：`% L` 会让第 i 套与第 i+L 套在相似度闸的 `layout` 那一项上永远同值，
+//    而那一项占 0.2 的权重。
+const SPLIT_LAYOUTS = ['media-left', 'media-right', 'media-top', 'narrow-stack'];
+const splitLayoutFor = (i) => SPLIT_LAYOUTS[
+  (i + Math.floor(i / SPLIT_LAYOUTS.length)) % SPLIT_LAYOUTS.length];
+
+// 同页节奏（spec 2026-08-18 的 D5：交替**规则**写在 Theme 里，block 数据不记左右）。
+//
+// 🔴 为什么是兄弟组合子链，不是 `:nth-of-type` —— 这不是口味，是契约：
+//    `docs/reference/theme-css-contract.md` §1 的 **Refused** 一行逐字写着「`nth-child` and
+//    friends」，而 `theme-css-lint.js` 真的会拒（实测：`[data-block="content-split"]:nth-of-type(even)`
+//    与 `section[data-block=…]` 两条各命中一次；同一把尺对下面这种链式兄弟选择器回 0 条）。
+//    lint 把复杂选择器按组合子 `[\s>+~]` 切开再逐段查白名单，所以 `.content-split + .content-split`
+//    两段都在名单上 ⟹ 收。
+//
+// 🔴 代价说在明处：`+` 要求两个图文段是**相邻兄弟**。中间隔了别的块，链就断了，后面那个按第一个画。
+//    这正是「连排的图文段交替」这句话本来的意思（Chris 举的 ahaspeed 首页就是连排的一串），而
+//    `:nth-of-type` 那种写法数的是**页面上所有块**的序号，两个图文段中间隔一个块就会同奇偶 ⟹
+//    它算出来的"交替"反而是错的。两种写法里能用的那种，恰好也是语义对的那种。
+const SPLIT_RHYTHMS = ['alternate', 'uniform'];
+// 与版式**错开**分布：版式周期 16、节奏取 `floor(i/4) % 2`，所以「同一种版式 × 两种节奏」都出得来
+// （`sheet-recipes.test.js` 那格数的就是这个覆盖）。
+const splitRhythmFor = (i) => SPLIT_RHYTHMS[
+  Math.floor(i / SPLIT_LAYOUTS.length) % SPLIT_RHYTHMS.length];
+
+// 卡片组（features-grid / values-grid / service-highlights 三个块共用一套候选 —— 它们的部件角色
+// 逐字相同（`item`/`title`/`desc`），画法不同才是这一族存在的理由）。
+const CARD_GRIDS = ['three-up', 'two-up', 'four-up-tight', 'wide-rows'];
+const cardGridFor = (i) => CARD_GRIDS[
+  (i + Math.floor(i / CARD_GRIDS.length)) % CARD_GRIDS.length];
+/** 卡片组这一族是哪几个块 —— 一处定义，`shapeFor` 和覆盖率那格都读它。 */
+const CARD_BLOCKS = ['features-grid', 'values-grid', 'service-highlights'];
+
 // 三个块一组的深浅节奏，而不是简单的隔一个换一个 —— 后者让每套候选的节奏都一样。
 // 🔴 有 5 组而不是 3 组，是为了让**表本身**的周期够长，理由在 voiceFor 上面那段。
 const RHYTHMS = [
@@ -134,6 +174,11 @@ function voiceFor(i) {
     //                它是写进 `layout.json` 的那个值，也就是 `supports.hero` 里的那个字符串。
     heroLook: heroLookFor(i),
     hero: heroLayoutFor(i),
+    // #1090 —— hero 之外两族的画法档。与上面 hero 那两行同一条纪律：**这里是唯一说得出「第 i 套是
+    // 哪一种」的地方**，`generate.js` 写进 layout 的名字和下面表里的画法都从它取，分两处算会分叉。
+    split: splitLayoutFor(i),
+    splitRhythm: splitRhythmFor(i),
+    cards: cardGridFor(i),
     card: CARD_STYLES[(i + 1) % CARD_STYLES.length],
     // 表面明暗的轮换相位：块按页面顺序深/浅交替，相位一换，整站的节奏就不一样了。
     // 🔴 取 `% 3` 而不是 `% 2`：相位是拿去转 rhythm 那三格的，`% 2` 永远转不到第三格。
@@ -416,6 +461,104 @@ const CENTERED_INLINE_PARTS = {
   sub: () => ({ 'margin-left': 'auto', 'margin-right': 'auto' }),
 };
 
+// ── #1090 图文段的四种画法 ─────────────────────────────────────────────────────────────────────
+//
+// 🔴 每一种都要**在产物上真的不同**，不是换个名字（承 #1051 r1「名字不同产物相同」那次）。四种各自
+//    动的是不同的维度：栏数（2 栏 / 1 栏）、媒体位（order）、正文宽度、以及宽屏那条规则要不要出现。
+/**
+ * #1090 交替节奏发出来的那几条规则。
+ *
+ * 链式兄弟选择器：第 2 个图文段（`A + A`）翻，第 3 个（`A + A + A`）翻回来，如此往下。**靠特异度
+ * 决胜，不靠源码顺序** —— 每多一节 `+ .content-split` 就多一个类，`A+A+A`（4 个类）压过 `A+A`
+ * （3 个类），所以第 3 个不会被第 2 个那条顺带改掉。写到第 6 个为止：再往下一页里连排六个图文段
+ * 已经不是这套表该操心的事，而每一节都要多发两条规则。
+ *
+ * 🔴 `uniform` 回空数组，不是回一条「都一样」的规则 —— 发一条恒等规则会让「这套主题不交替」和
+ *    「这套主题交替但翻成了原样」在产物上长得一模一样，AC2 的 md5 对照就分不开这两件事。
+ */
+function splitAlternation(v, mediaOrder, bodyOrder) {
+  if (v.splitRhythm !== 'alternate') return [];
+  const rules = [];
+  let sel = '.content-split';
+  for (let nth = 2; nth <= 6; nth += 1) {
+    sel += ' + .content-split';
+    const flipped = nth % 2 === 0;
+    const m = flipped ? bodyOrder : mediaOrder;
+    const b = flipped ? mediaOrder : bodyOrder;
+    rules.push([`${sel} .content-split__media`, { order: m }]);
+    rules.push([`${sel} .content-split__body`, { order: b }]);
+  }
+  return rules;
+}
+
+const SPLIT_SHAPES = {
+  'media-left': {
+    cols: '1fr 1fr',
+    rootExtra: () => ({ 'align-items': 'center' }),
+    partExtra: {
+      media: (v) => ({ order: 1, 'aspect-ratio': '4 / 3', 'border-radius': v.radius }),
+      body: () => ({ order: 2 }),
+    },
+    siblingRules: (v) => splitAlternation(v, 1, 2),
+  },
+  'media-right': {
+    cols: '1fr 1fr',
+    rootExtra: () => ({ 'align-items': 'center' }),
+    partExtra: {
+      media: (v) => ({ order: 2, 'aspect-ratio': '4 / 3', 'border-radius': v.radius }),
+      body: () => ({ order: 1 }),
+    },
+    siblingRules: (v) => splitAlternation(v, 2, 1),
+  },
+  'media-top': {
+    // 🔴 单栏 —— 这一条就是「图在上」跟「图在左」的分界。写成 `1fr 1fr` 等于名字说在上、画出来在左边
+    //    （HERO_LOOKS 的 `media-top` 上面记着这个坑，同一个）。
+    cols: '1fr',
+    // 🔴 #1090 r2 去掉了这里原来那条 `padding: `${v.pad} 1.5rem``。它**今天是逐字重复根规则的值**
+    //    （`rootRule` 已经写 `padding: ${v.pad} 1.5rem`，spread 覆盖成同一个值、键的位置也不动
+    //    ⟹ 产物逐字节相同，这一点单独量过）；而在下面那条新判据下它会变成「把手机的边距钉在桌面上」，
+    //    也就是 QA2 报的那个退步本身。
+    rootExtra: () => ({ 'align-items': 'start' }),
+    partExtra: {
+      media: () => ({ order: 1, width: '100%', height: '18rem', 'aspect-ratio': 'auto', 'border-radius': '0' }),
+      body: () => ({ order: 2, 'max-width': '46rem' }),
+    },
+    // 单栏时「翻」= 图跑到文字下面，同样是看得见的交替。
+    siblingRules: (v) => splitAlternation(v, 1, 2),
+  },
+  'narrow-stack': {
+    cols: '1fr',
+    rootExtra: () => ({ 'align-items': 'start', 'justify-items': 'center' }),
+    partExtra: {
+      media: (v) => ({ order: 1, width: '100%', 'max-width': '30rem', 'aspect-ratio': '3 / 2', 'border-radius': v.radius }),
+      body: () => ({ order: 2, 'max-width': '34rem' }),
+    },
+    siblingRules: (v) => splitAlternation(v, 1, 2),
+  },
+};
+
+// ── #1090 卡片组的四种画法 ─────────────────────────────────────────────────────────────────────
+//
+// 🔴 动的是**列数**和**卡片形态**，两维一起动 —— 只动列数的话，`wide` 那一维本来就在 voiceFor 里
+//    按 `i % 2` 转（`1fr 1fr 1fr` / `1fr 1fr`），加一张只换列数的表等于把已有的那一维改个名字。
+const CARD_SHAPES = {
+  'three-up': { cols: '1fr 1fr 1fr', rootExtra: () => ({}), partExtra: {} },
+  'two-up': { cols: '1fr 1fr', rootExtra: () => ({}), partExtra: {} },
+  'four-up-tight': {
+    cols: '1fr 1fr 1fr 1fr',
+    rootExtra: (v) => ({ gap: tokenLen('--section-block-gap', Math.max(1, v.gapStep - 2)) }),
+    partExtra: { item: (v) => ({ padding: tokenLen('--section-block-pad', Math.max(1, v.padStep - 3)) }) },
+  },
+  'wide-rows': {
+    // 一行一张、卡片横过来：标题和描述并排，而不是堆叠。
+    cols: '1fr',
+    rootExtra: () => ({ 'justify-items': 'stretch' }),
+    partExtra: {
+      item: () => ({ display: 'grid', 'grid-template-columns': '1fr 2fr', 'align-items': 'start', gap: '1.5rem' }),
+    },
+  },
+};
+
 // ══ 两张表，两条轴（#1065）══════════════════════════════════════════════════════════════════════
 //
 // 08-12 spec 的 D5（`docs/superpowers/specs/2026-08-12-theme-css-architecture-design.md:79`）：
@@ -653,20 +796,33 @@ const heroLayoutFor = (i) => HERO_LOOKS[heroLookFor(i)].content;
 /** 轴一的取值表（去重、按外观表的出场顺序）。判据是 `blocks/hero.json` 的 `block_layout`。 */
 const HERO_LAYOUTS = [...new Set(HERO_LOOK_NAMES.map((n) => HERO_LOOKS[n].content))];
 
-// hero 的骨架要按这一套候选的**外观**取；别的块直接用 SHAPES 里那条。
-// 🔴 挑出来的名字必须在 HERO_LOOKS 里 —— 落回默认等于又一次「名字说一套、画的是另一套」，
+// 三族各有候选表（hero 归 #1065 · content-split 与卡片组归 #1090）；其余 30 个块仍然直接用
+// SHAPES 里那条。
+// 🔴 挑出来的名字必须在对应那张候选表里 —— 落回默认等于又一次「名字说一套、画的是另一样」，
 //    所以这里宁可当场炸，也不悄悄拿第一种顶上。
 function shapeFor(block, v) {
   const base = SHAPES[block] || {};
-  if (block !== 'hero') return base;
-  const hero = HERO_LOOKS[v.heroLook];
-  if (!hero) throw new Error(`hero 画法 ${v.heroLook} 在 HERO_LOOKS 里没有 —— 加画法就在那张表里加，一处`);
-  return {
-    ...base,
-    cols: hero.cols,
-    rootExtra: { ...(base.rootExtra || {}), ...hero.rootExtra(v) },
-    partExtra: hero.partExtra,
+  // `keepsWideBreakpoint` = 这个块族**换画法**时不许把宽屏那一段丢掉（#1090 r2，理由在 sheetFor
+  // 那个调用点上）。传参而不是给每个画法条目贴 flag：加画法的人不需要记得任何事。
+  const pick = (table, name, what, keepsWideBreakpoint = false) => {
+    const shape = table[name];
+    if (!shape) throw new Error(`${what} 画法 ${name} 在候选表里没有 —— 加画法就在那张表里加，一处`);
+    return {
+      ...base,
+      cols: shape.cols,
+      rootExtra: { ...(base.rootExtra || {}), ...shape.rootExtra(v) },
+      partExtra: { ...(base.partExtra || {}), ...(shape.partExtra || {}) },
+      siblingRules: shape.siblingRules,
+      keepsWideBreakpoint,
+    };
   };
+  // 🔴 hero 不传 true：它归 #1065，它那些纯文字画法今天本来就没有宽屏那一段，本票不改它的产物。
+  //    `SHAPES.hero` 没有 `partExtra`（实测），所以上面那行 spread 对 hero 等价于 #1065 那版的
+  //    `partExtra: hero.partExtra` —— 这一条单独量过，见交接留言。
+  if (block === 'hero') return pick(HERO_LOOKS, v.heroLook, 'hero');
+  if (block === 'content-split') return pick(SPLIT_SHAPES, v.split, 'content-split', true);
+  if (CARD_BLOCKS.includes(block)) return pick(CARD_SHAPES, v.cards, block, true);
+  return base;
 }
 
 // 后缀 → 默认角色。块可以在 SHAPES 里改写个别部件；改写只是为了说清那个部件真正是什么
@@ -1045,16 +1201,24 @@ function rootRule(block, v, s, extra) {
   });
 }
 
-/** 宽屏那条 —— 列数来自这个块自己的骨架，留白同时放大。 */
-function wideRule(block, v, cols) {
+/**
+ * 宽屏那条 —— 列数来自这个块自己的骨架，留白同时放大。
+ *
+ * 🔴 `stated` 是这个画法在 `rootExtra` 里**自己表过态**的那些声明（#1090 r2）。这条规则排在根规则
+ *    之后、同特异度 ⟹ 不把它们排除掉就会当场盖掉画法的设计意图。实测的样子：`four-up-tight` 的
+ *    根规则把 gap 收到 `calc(var(--section-block-gap) * 4)`（`gapStep - 2`），而这里发的是 `* 9`
+ *    （`gapStep * 1.5`）⟹ 那个画法在 1024px 以下是紧的、在桌面上一点都不紧，而它的名字和它自己
+ *    那条注释都说它紧。（卡片内边距那一半没被盖掉，因为它走的是 `partExtra`，不是这条规则。）
+ *    hero 不受这一条影响：`HERO_LOOKS` 的 rootExtra 一条都没写过 gap / padding（本轮重量过）。
+ */
+function wideRule(block, v, cols, stated = {}) {
+  const decls = { 'grid-template-columns': cols };
+  // #1078 —— 放大的倍数乘进 token 的系数里，而不是再套一层 calc。算出来的长度与改造前
+  // 逐字相同：`calc(1.25rem * 1.5)` = 1.875rem = `calc(var(--section-block-gap) * 7.5)`。
+  if (!('gap' in stated)) decls.gap = tokenLen('--section-block-gap', v.gapStep * 1.5);
+  if (!('padding' in stated)) decls.padding = `${tokenLen('--section-block-pad', v.padStep * 1.4)} 3rem`;
   return `@media (min-width: 1024px) {\n  ${
-    declBlock(`.${block}`, {
-      'grid-template-columns': cols,
-      // #1078 —— 放大的倍数乘进 token 的系数里，而不是再套一层 calc。算出来的长度与改造前
-      // 逐字相同：`calc(1.25rem * 1.5)` = 1.875rem = `calc(var(--section-block-gap) * 7.5)`。
-      gap: tokenLen('--section-block-gap', v.gapStep * 1.5),
-      padding: `${tokenLen('--section-block-pad', v.padStep * 1.4)} 3rem`,
-    }).trim().split('\n').join('\n  ')}\n}\n`;
+    declBlock(`.${block}`, decls).trim().split('\n').join('\n  ')}\n}\n`;
 }
 
 /**
@@ -1080,7 +1244,17 @@ function sheetFor(i, seed = 7) {
     n += 1;
     out.push(rootRule(block, v, s, shape.rootExtra));
     const cols = shape.cols || v.wide;
-    if (cols !== '1fr') out.push(wideRule(block, v, cols));
+    // 🔴 #1090 r2 —— 这个判据以前只问「列数变不变」，而 `wideRule` 里同时装着**列数**和**桌面留白**
+    //    （#1078 把留白折进来的那一次）。于是一个选了单栏的画法把它所在块族的桌面留白一起弄丢了：
+    //    QA2 逐份表数出来 content-split 40 套 / features-grid·values-grid·service-highlights 各 20 套
+    //    在交付里没有了 `@media (min-width: 1024px)` 那一段，桌面上用回手机的 gap 与 padding
+    //    （1440px 实测 gap 24→16、padding 56/48→40/24）。**列数是这个画法的选择，留白是这个断点的
+    //    性质** —— 两件事不该由同一个判据决定。
+    // 🔴 判据用的是「这个块族有候选表」这个结构事实（`shapeFor` 里一处设定），不是给三个条目各贴
+    //    一个 flag：贴 flag 的话下一个加单栏画法的人漏掉它就又丢一次，而漏掉不会有任何一格报错。
+    // 📌 只覆盖本票拥有的两族。hero 也走同一个 `pick()`，但它归 #1065 —— 它那些纯文字画法今天就
+    //    没有宽屏那一段，本票不给它加（那会改掉另一张票的产物）。
+    if (cols !== '1fr' || shape.keepsWideBreakpoint) out.push(wideRule(block, v, cols, shape.rootExtra));
     for (const hook of hooks) {
       const part = partOf(hook);
       if (!part) continue;
@@ -1092,12 +1266,34 @@ function sheetFor(i, seed = 7) {
       const extra = (shape.partExtra || {})[part];
       out.push(declBlock(`.${hook}`, { ...make(v, s), ...(extra ? extra(v, s) : {}) }));
     }
+    // #1090 —— 同页节奏那几条（今天只有 content-split 的 `alternate` 会产出）。发在这个块所有部件
+    // 规则**之后**，因为它改的就是上面刚写下的 `order`。
+    for (const [sel, decls] of (shape.siblingRules ? shape.siblingRules(v, s) : [])) {
+      out.push(declBlock(sel, decls));
+    }
   }
   return out.join('\n');
+}
+
+/**
+ * #1090 —— 第 i 套候选的**全部**版式名，一次给全。
+ *
+ * 🔴 为什么是一个函数回四个键，而不是让 `generate.js` 分别调四个 `*For(i)`：`heroLookFor` 上面写着
+ * 「两处各算一遍同一件事就会分叉」，而分叉的样子是「`layout.json` 说 text-only、CSS 画的却是两栏」，
+ * 没有任何东西会为此报错。四个键分四次取，就有四次漏掉一个的机会 —— 漏掉的那个不会报错，它会静默
+ * 地让相似度闸对那一族失明（`gates.js` 只比两边都有的键）。所以出口只留一个。
+ *
+ * 📌 `hero` 这个键给的仍然是**内容结构**（`heroLayoutFor` 的值，也就是 `supports.hero` 里那个
+ * 字符串），不是 #1065 的外观名 `heroLook` —— 外观不进 `layout.json`，那是 #1065 立的边界。
+ */
+function layoutNamesFor(i) {
+  const v = voiceFor(i);
+  return { hero: v.hero, split: v.split, splitRhythm: v.splitRhythm, cards: v.cards };
 }
 
 module.exports = {
   sheetFor, voiceFor, hooksByBlock, heroLayoutFor, HERO_LAYOUTS,
   heroLookFor, HERO_LOOKS, HERO_LOOK_NAMES,
+  layoutNamesFor, SPLIT_LAYOUTS, SPLIT_RHYTHMS, CARD_GRIDS, CARD_BLOCKS,
   surfaceFor, SURFACES, INK_FLOOR,
 };

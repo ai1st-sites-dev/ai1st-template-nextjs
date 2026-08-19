@@ -53,6 +53,7 @@ const crypto = require('crypto');
 
 const DIR = __dirname;
 let sheetFor; let voiceFor; let heroLayoutFor; let HERO_LAYOUTS; let postcss; let paletteFor;
+let CARD_BLOCKS; let layoutNamesFor;
 let heroLookFor; let HERO_LOOK_NAMES; let HERO_LOOKS;
 
 let pass = 0; let fail = 0;
@@ -62,7 +63,7 @@ const die = (m) => { console.error(`🔴 跑不起来: ${m}`); process.exit(2); 
 
 try {
   ({
-    sheetFor, voiceFor, heroLayoutFor, HERO_LAYOUTS,
+    sheetFor, voiceFor, heroLayoutFor, HERO_LAYOUTS, CARD_BLOCKS, layoutNamesFor,
     heroLookFor, HERO_LOOK_NAMES, HERO_LOOKS,
   } = require(path.join(DIR, 'sheet-recipes.js')));
   ({ paletteFor } = require(path.join(DIR, 'palette.js')));
@@ -93,6 +94,7 @@ function heroRulesOf(css) {
 // 画法会轮过去。测试自己先验这两条，不合就 exit 2 —— 夹具不成立时不许给读数。
 const BASE = 0;
 const VOICE_PERIOD = 60;
+let FIXTURE_LICENCE;   // #1090 —— 放宽夹具的那个对照用的一对序号，下面 ① 那一格拿它出读数
 const TRIO = [];                                   // 每种画法一个序号，voice 除 hero 两项外全同
 {
   const byLook = new Map();
@@ -109,10 +111,41 @@ const TRIO = [];                                   // 每种画法一个序号�
   const vs = TRIO.map((i) => voiceFor(i));
   const keys = Object.keys(vs[0]);
   const differing = keys.filter((k) => new Set(vs.map((v) => JSON.stringify(v[k]))).size > 1);
-  if (differing.sort().join(',') !== 'hero,heroLook') {
-    die(`夹具不成立：这一列的 voice 差在 [${differing.join(', ')}]，应当只差 hero / heroLook。`
+  // 🔴 #1090 起这一列上还会多差三个键（`split` / `splitRhythm` / `cards`）—— 那三族的档期是 16/8/16，
+  //    与 voice 原来那 60 合起来的周期是 240，而 **240 是 8 的倍数** ⟹ 沿 240 走，画法只轮得到 8 种
+  //    里的 4 种（实测：走 200 步覆盖 4/8）。也就是说「让这一列连那三个键都相同」在今天的表上
+  //    **造不出来**，不是没想到。
+  // 🔴 放宽是有代价的，代价必须当场付：下面那格证明那三个键**够不着 hero 规则**。证不出来就 exit 2 —— 
+  //    没有那个证明，上面 28 对的「不同」就可能是 split/cards 造出来的，而不是画法。
+  const ALLOWED = ['cards', 'hero', 'heroLook', 'split', 'splitRhythm'];
+  if (differing.sort().join(',') !== ALLOWED.join(',')) {
+    die(`夹具不成立：这一列的 voice 差在 [${differing.join(', ')}]，应当只差 [${ALLOWED.join(', ')}]。`
       + `各档的模数改过之后，这里的 ${VOICE_PERIOD} 要跟着重算（周期 = lcm(各档模数)）。`);
   }
+}
+
+// 🔴 上面那道放宽的**执照**（#1090）：`split` / `splitRhythm` / `cards` 变了，hero 规则不许跟着变。
+//    找一对「除了这三个键之外**全同**（含 heroLook）」的序号，两边的 hero 规则必须逐字节相同。
+//    找不到这样的一对 ⟹ exit 2：没有对照就没有执照，上面那 28 对的读数不作数。
+const SPLIT_KEYS = ['split', 'splitRhythm', 'cards'];
+{
+  const J = JSON.stringify;
+  const keys = Object.keys(voiceFor(0));
+  const others = keys.filter((k) => !SPLIT_KEYS.includes(k));
+  let pair = null;
+  outer:
+  for (let i = 0; i < 400 && !pair; i += 1) {
+    for (let j = i + 1; j < 800; j += 1) {
+      if (!others.every((k) => J(voiceFor(i)[k]) === J(voiceFor(j)[k]))) continue;
+      if (SPLIT_KEYS.every((k) => J(voiceFor(i)[k]) === J(voiceFor(j)[k]))) continue;
+      pair = [i, j]; break outer;
+    }
+  }
+  if (!pair) {
+    die('夹具不成立：找不到「只差 split/splitRhythm/cards」的一对序号 —— 上面那道放宽没有执照，'
+      + '这一整节的读数不作数。');
+  }
+  FIXTURE_LICENCE = pair;
 }
 
 console.log('① 主题挑的那个画法，产物里看得出来吗');
@@ -156,6 +189,24 @@ const heroLook = new Map(TRIO.map((i) => [heroLookFor(i), dropColours(heroRulesO
       + ' —— 名字不一样、画出来一样，正是 #1051 r1 那个形状');
   } else {
     ok(`${names.length} 种画法两两不同（${pairs} 对，去掉颜色之后仍然全部不同）`);
+  }
+}
+
+// 执照（#1090）：只差 split/splitRhythm/cards 的两套，hero 规则逐字节相同。
+// 这一格是上面那 28 对能不能算数的前提 —— 它红了，说明本票那三族的档漏进了 hero，28 对的「不同」
+// 里就掺了别的东西。
+{
+  const [i, j] = FIXTURE_LICENCE;
+  const a = heroRulesOf(sheetFor(i));
+  const b = heroRulesOf(sheetFor(j));
+  const vi = voiceFor(i); const vj = voiceFor(j);
+  const shown = SPLIT_KEYS.map((k) => `${k} ${vi[k]}→${vj[k]}`).filter((_, n) => vi[SPLIT_KEYS[n]] !== vj[SPLIT_KEYS[n]]);
+  if (md5(a) === md5(b)) {
+    ok(`执照：i=${i} 与 i=${j} 只差 [${shown.join(' · ')}]（画法同为 ${heroLookFor(i)}），`
+      + 'hero 规则逐字节相同 —— 本票那三族够不着 hero，上面那 28 对的「不同」是画法造成的');
+  } else {
+    bad(`执照失败：只差 [${shown.join(' · ')}] 的两套，hero 规则却不同 —— `
+      + '本票那三族漏进了 hero，上面 28 对的读数不作数');
   }
 }
 
@@ -511,6 +562,151 @@ const formPlacementProblems = (rules) => {
   } else {
     bad('反向对照 b 失败：把一种画法的表单排到正文之前，这把尺一句话都没说 ⟹ 这一维是装饰');
   }
+}
+
+
+// ══ ⑦ 换画法不许把桌面那一段丢掉（#1090 r2 —— QA2 在真机上抓到的那个退步）══════════════════════
+//
+// 形态：`wideRule` 里同时装着**列数**和**桌面留白**（#1078 把留白折进来那一次），而发不发它的判据
+// 只问列数（`cols !== '1fr'`）。于是 `media-top` / `narrow-stack` / `wide-rows` 这三个选了单栏的画法
+// 把它们所在块族的 `@media (min-width: 1024px)` 整段弄丢了 —— 列数变成 1 是本意，`gap` 和 `padding`
+// 跟着没了不是。QA2 逐份表数出来：content-split 80→40 套、另外三个卡片块各 80→60 套；真机 1440px 上
+// gap 24→16、padding 56/48→40/24，也就是桌面用回了手机的留白。
+//
+// 🔴 这一格问的是**产物**，不是那张表：判据放在「每一份表里这个块有没有那一段」上，所以无论以后
+//    谁加画法、加在哪张表里，漏掉桌面那一段都会当场红。
+// 🔴 hero **不在**这一格的分母里，而且这是有意的：它归 #1065，它那 53 套纯文字画法今天本来就没有
+//    桌面那一段（27/80 有）。把它算进来等于要求本票去改另一张票的产物。
+const WIDE_AT = /min-width:\s*1024px/;
+const hasWideRule = (css, block) => {
+  let found = false;
+  postcss.parse(css).walkAtRules('media', (at) => {
+    if (!WIDE_AT.test(at.params)) return;
+    at.walkRules((r) => { if (r.selector.trim() === `.${block}`) found = true; });
+  });
+  return found;
+};
+console.log('\n⑦ 换画法之后，桌面那一段还在吗（#1090 r2）');
+{
+  const N = 80;
+  const FAMILIES = ['content-split', ...CARD_BLOCKS];
+  const sheets = [];
+  for (let i = 0; i < N; i += 1) sheets.push({ i, css: sheetFor(i), looks: layoutNamesFor(i) });
+  const missing = [];
+  for (const fam of FAMILIES) {
+    const bad2 = sheets.filter((x) => !hasWideRule(x.css, fam));
+    if (bad2.length) {
+      missing.push(`${fam}: ${bad2.length}/${N} 套没有 @media(min-width:1024px) 那一段`
+        + `（例 i=${bad2[0].i}，画法 split=${bad2[0].looks.split} cards=${bad2[0].looks.cards}）`);
+    }
+  }
+  if (missing.length) missing.forEach((m) => bad(m));
+  else {
+    // 顺带把每种画法都点名，免得「全过」是因为某种画法一套都没摊到
+    const byLook = {};
+    for (const x of sheets) {
+      byLook[x.looks.split] = (byLook[x.looks.split] || 0) + 1;
+      byLook[x.looks.cards] = (byLook[x.looks.cards] || 0) + 1;
+    }
+    ok(`${FAMILIES.length} 个块族 × ${N} 套：每一份表里桌面那一段都在（画法分布 `
+      + `${Object.entries(byLook).map(([k, n]) => `${k} ${n}`).join(' · ')}）`);
+  }
+
+  // 阳性对照：把判据退回「只问列数」那一版，这把尺必须当场红，而且红的正是那三个单栏画法所在的族。
+  // 做法是直接改**产物**：把单栏画法那几套表里那一段删掉 —— 不为了测试在生产代码里留一条只有测试
+  // 会走的路（这个文件自己的纪律）。
+  const stripWide = (css, block) => {
+    const root = postcss.parse(css);
+    root.walkAtRules('media', (at) => {
+      if (!WIDE_AT.test(at.params)) return;
+      at.walkRules((r) => { if (r.selector.trim() === `.${block}`) r.remove(); });
+      if (at.nodes.length === 0) at.remove();
+    });
+    return root.toString();
+  };
+  const SINGLE_COL = new Set(['media-top', 'narrow-stack', 'wide-rows']);
+  let caught = 0;
+  let shouldCatch = 0;
+  for (const x of sheets) {
+    const singles = FAMILIES.filter((fam) => (fam === 'content-split'
+      ? SINGLE_COL.has(x.looks.split) : SINGLE_COL.has(x.looks.cards)));
+    if (singles.length === 0) continue;
+    shouldCatch += 1;
+    let rigged = x.css;
+    for (const fam of singles) rigged = stripWide(rigged, fam);
+    if (singles.some((fam) => !hasWideRule(rigged, fam))) caught += 1;
+  }
+  if (shouldCatch === 0) bad('反向对照不成立：池里一套单栏画法都没摊到 —— 这一格按构造是空绿');
+  else if (caught === shouldCatch) {
+    ok(`反向对照：把那 ${shouldCatch} 套单栏画法的表里桌面那一段删掉，这把尺 ${caught} 套全部点名 —— 它不是恒绿`);
+  } else {
+    bad(`反向对照对不上：该点名 ${shouldCatch} 套，实际只点名 ${caught} 套`);
+  }
+}
+
+// ══ ⑧ 画法自己表过态的留白，桌面那一段不许盖掉（#1090 r2）══════════════════════════════════════
+//
+// `wideRule` 排在根规则之后、同特异度，所以它发的每一条都会盖掉根规则里同名那条。`four-up-tight`
+// 的整个意思就是「更紧」：它在 rootExtra 里把 gap 收到 `gapStep - 2`，而桌面那一段发的是
+// `gapStep * 1.5` ⟹ 改之前那个画法在 1024px 以下是紧的、在桌面上比标准还宽，而它的名字说它紧。
+// （卡片内边距那一半没被盖掉，因为它走 `partExtra`，不是这条规则 —— 也就是同一个画法只塌了一半，
+//   而「一半对」在图册上比「全错」更难看出来。）
+console.log('\n⑧ 画法自己声明的留白，桌面上还作数吗（#1090 r2）');
+{
+  const N = 80;
+  const declOf = (css, block, prop, where) => {
+    let v = null;
+    const root = postcss.parse(css);
+    if (where === 'root') {
+      // 🔴 只走顶层：postcss 的 walkRules 会下钻进 at-rule，不加这个判断读到的是媒体查询里那条
+      root.walkRules((r) => {
+        if (r.parent.type === 'root' && r.selector.trim() === `.${block}`) r.walkDecls(prop, (d) => { v = d.value; });
+      });
+    } else {
+      root.walkAtRules('media', (at) => {
+        if (!WIDE_AT.test(at.params)) return;
+        at.walkRules((r) => { if (r.selector.trim() === `.${block}`) r.walkDecls(prop, (d) => { v = d.value; }); });
+      });
+    }
+    return v;
+  };
+  const tight = [];
+  for (let i = 0; i < N; i += 1) if (layoutNamesFor(i).cards === 'four-up-tight') tight.push(i);
+  if (tight.length === 0) die('夹具不成立：80 套里没有一套用 four-up-tight —— 这一格无处可量');
+  const clobbered = [];
+  for (const i of tight) {
+    const css = sheetFor(i);
+    for (const fam of CARD_BLOCKS) {
+      const root = declOf(css, fam, 'gap', 'root');
+      const wide = declOf(css, fam, 'gap', 'wide');
+      // 桌面上真正生效的 = 媒体查询里那条（有的话），否则根规则那条
+      if ((wide || root) !== root) clobbered.push(`i=${i} ${fam}: 根 ${root} 被桌面那条 ${wide} 盖掉`);
+      // 而没表过态的那一项照旧放大 —— 少了这半句，「都不发」也能让上一半绿
+      const padWide = declOf(css, fam, 'padding', 'wide');
+      if (!padWide || !/ 3rem$/.test(padWide)) clobbered.push(`i=${i} ${fam}: 桌面 padding 没拿到 3rem 那一档（${padWide}）`);
+    }
+  }
+  if (clobbered.length) clobbered.slice(0, 6).forEach((m) => bad(m));
+  else {
+    ok(`four-up-tight ${tight.length} 套 × ${CARD_BLOCKS.length} 个块：它自己声明的紧 gap 在桌面上仍然生效，`
+      + '而它没表态的 padding 照旧放大到桌面那一档');
+  }
+
+  // 阳性对照：在产物上把桌面那条 gap 补回去（= 改之前那一版的行为），这把尺必须当场红。
+  const putBackWideGap = (css, block, value) => {
+    const root = postcss.parse(css);
+    root.walkAtRules('media', (at) => {
+      if (!WIDE_AT.test(at.params)) return;
+      at.walkRules((r) => { if (r.selector.trim() === `.${block}`) r.append({ prop: 'gap', value }); });
+    });
+    return root.toString();
+  };
+  const i0 = tight[0];
+  const rigged = putBackWideGap(sheetFor(i0), CARD_BLOCKS[0], 'calc(var(--section-block-gap) * 9)');
+  const r2 = declOf(rigged, CARD_BLOCKS[0], 'gap', 'root');
+  const w2 = declOf(rigged, CARD_BLOCKS[0], 'gap', 'wide');
+  if ((w2 || r2) !== r2) ok(`反向对照：把桌面那条 gap 补回 ${w2}（改之前的行为），这把尺当场点名（根 ${r2}）`);
+  else bad('反向对照失败：补回桌面那条 gap 之后这把尺没说话 —— 它量不出盖没盖掉');
 }
 
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);

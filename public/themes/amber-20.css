@@ -413,11 +413,12 @@
   padding: calc(var(--section-block-pad) * 8) 1.5rem;
   background-color: var(--color-primary-50);
   color: var(--color-primary-900);
+  justify-items: stretch;
 }
 
 @media (min-width: 1024px) {
   .values-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: calc(var(--section-block-gap) * 12);
     padding: calc(var(--section-block-pad) * 11.2) 3rem;
   }
@@ -436,12 +437,14 @@
 .values-grid__item {
   display: grid;
   align-content: start;
-  gap: 0.75rem;
+  gap: 1.5rem;
   padding: 0 0 1.5rem;
   border-radius: 0;
   border-width: 0 0 2px;
   border-style: solid;
   border-color: var(--color-primary-200);
+  grid-template-columns: 1fr 2fr;
+  align-items: start;
 }
 
 .values-grid__title {
@@ -1053,12 +1056,13 @@
   padding: calc(var(--section-block-pad) * 8) 1.5rem;
   background-color: var(--color-primary-900);
   color: var(--color-primary-50);
-  align-items: center;
+  align-items: start;
+  justify-items: center;
 }
 
 @media (min-width: 1024px) {
   .content-split {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: calc(var(--section-block-gap) * 12);
     padding: calc(var(--section-block-pad) * 11.2) 3rem;
   }
@@ -1066,11 +1070,13 @@
 
 .content-split__media {
   width: 100%;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 3 / 2;
   border-radius: calc(var(--radius-block) * 7);
   object-fit: cover;
   object-position: center;
   background-color: var(--color-primary-800);
+  order: 1;
+  max-width: 30rem;
 }
 
 .content-split__headline {
@@ -1087,7 +1093,8 @@
   display: grid;
   align-content: start;
   gap: 1rem;
-  max-width: 38rem;
+  max-width: 34rem;
+  order: 2;
 }
 
 .content-split__bullets {
@@ -1131,6 +1138,46 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--color-primary-100);
+}
+
+.content-split + .content-split .content-split__media {
+  order: 2;
+}
+
+.content-split + .content-split .content-split__body {
+  order: 1;
+}
+
+.content-split + .content-split + .content-split .content-split__media {
+  order: 1;
+}
+
+.content-split + .content-split + .content-split .content-split__body {
+  order: 2;
+}
+
+.content-split + .content-split + .content-split + .content-split .content-split__media {
+  order: 2;
+}
+
+.content-split + .content-split + .content-split + .content-split .content-split__body {
+  order: 1;
+}
+
+.content-split + .content-split + .content-split + .content-split + .content-split .content-split__media {
+  order: 1;
+}
+
+.content-split + .content-split + .content-split + .content-split + .content-split .content-split__body {
+  order: 2;
+}
+
+.content-split + .content-split + .content-split + .content-split + .content-split + .content-split .content-split__media {
+  order: 2;
+}
+
+.content-split + .content-split + .content-split + .content-split + .content-split + .content-split .content-split__body {
+  order: 1;
 }
 
 .text-block {
@@ -1284,11 +1331,12 @@
   padding: calc(var(--section-block-pad) * 8) 1.5rem;
   background-color: var(--color-primary-50);
   color: var(--color-primary-900);
+  justify-items: stretch;
 }
 
 @media (min-width: 1024px) {
   .features-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: calc(var(--section-block-gap) * 12);
     padding: calc(var(--section-block-pad) * 11.2) 3rem;
   }
@@ -1316,12 +1364,14 @@
 .features-grid__item {
   display: grid;
   align-content: start;
-  gap: 0.75rem;
+  gap: 1.5rem;
   padding: 0 0 1.5rem;
   border-radius: 0;
   border-width: 0 0 2px;
   border-style: solid;
   border-color: var(--color-primary-200);
+  grid-template-columns: 1fr 2fr;
+  align-items: start;
 }
 
 .features-grid__icon {
@@ -1640,11 +1690,12 @@
   padding: calc(var(--section-block-pad) * 8) 1.5rem;
   background-color: var(--color-primary-50);
   color: var(--color-primary-900);
+  justify-items: stretch;
 }
 
 @media (min-width: 1024px) {
   .service-highlights {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: calc(var(--section-block-gap) * 12);
     padding: calc(var(--section-block-pad) * 11.2) 3rem;
   }
@@ -1672,12 +1723,14 @@
 .service-highlights__item {
   display: grid;
   align-content: start;
-  gap: 0.75rem;
+  gap: 1.5rem;
   padding: 0 0 1.5rem;
   border-radius: 0;
   border-width: 0 0 2px;
   border-style: solid;
   border-color: var(--color-primary-200);
+  grid-template-columns: 1fr 2fr;
+  align-items: start;
 }
 
 .service-highlights__title {

@@ -41,6 +41,15 @@
       "hero": [
         "with-media"
       ],
+      "split": [
+        "media-left"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "three-up"
+      ],
       "header": [
         "solid-bar"
       ],
@@ -112,6 +121,15 @@
     "supports": {
       "hero": [
         "with-media"
+      ],
+      "split": [
+        "media-right"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "two-up"
       ],
       "header": [
         "transparent-overlay"
@@ -185,6 +203,15 @@
       "hero": [
         "with-media"
       ],
+      "split": [
+        "media-top"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "four-up-tight"
+      ],
       "header": [
         "centered-logo"
       ],
@@ -256,6 +283,15 @@
     "supports": {
       "hero": [
         "with-media"
+      ],
+      "split": [
+        "narrow-stack"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "wide-rows"
       ],
       "header": [
         "pill-floating"
@@ -329,6 +365,15 @@
       "hero": [
         "with-media"
       ],
+      "split": [
+        "media-right"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "two-up"
+      ],
       "header": [
         "solid-bar"
       ],
@@ -400,6 +445,15 @@
     "supports": {
       "hero": [
         "text-only"
+      ],
+      "split": [
+        "media-top"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "four-up-tight"
       ],
       "header": [
         "transparent-overlay"
@@ -474,6 +528,15 @@
       "hero": [
         "text-only"
       ],
+      "split": [
+        "narrow-stack"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "wide-rows"
+      ],
       "header": [
         "centered-logo"
       ],
@@ -546,6 +609,15 @@
     "supports": {
       "hero": [
         "with-form"
+      ],
+      "split": [
+        "media-left"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "three-up"
       ],
       "header": [
         "pill-floating"
@@ -620,6 +692,15 @@
       "hero": [
         "with-media"
       ],
+      "split": [
+        "media-top"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "four-up-tight"
+      ],
       "header": [
         "solid-bar"
       ],
@@ -692,6 +773,15 @@
     "supports": {
       "hero": [
         "with-media"
+      ],
+      "split": [
+        "narrow-stack"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "wide-rows"
       ],
       "header": [
         "transparent-overlay"
@@ -766,6 +856,15 @@
       "hero": [
         "with-media"
       ],
+      "split": [
+        "media-left"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "three-up"
+      ],
       "header": [
         "centered-logo"
       ],
@@ -837,6 +936,15 @@
     "supports": {
       "hero": [
         "with-media"
+      ],
+      "split": [
+        "media-right"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "two-up"
       ],
       "header": [
         "pill-floating"
@@ -910,6 +1018,15 @@
       "hero": [
         "text-only"
       ],
+      "split": [
+        "narrow-stack"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "wide-rows"
+      ],
       "header": [
         "solid-bar"
       ],
@@ -981,6 +1098,15 @@
     "supports": {
       "hero": [
         "text-only"
+      ],
+      "split": [
+        "media-left"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "three-up"
       ],
       "header": [
         "transparent-overlay"
@@ -1054,6 +1180,15 @@
       "hero": [
         "with-form"
       ],
+      "split": [
+        "media-right"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "two-up"
+      ],
       "header": [
         "centered-logo"
       ],
@@ -1125,6 +1260,15 @@
     "supports": {
       "hero": [
         "with-media"
+      ],
+      "split": [
+        "media-top"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "four-up-tight"
       ],
       "header": [
         "pill-floating"
@@ -1198,6 +1342,15 @@
       "hero": [
         "with-media"
       ],
+      "split": [
+        "media-left"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "three-up"
+      ],
       "header": [
         "solid-bar"
       ],
@@ -1269,6 +1422,15 @@
     "supports": {
       "hero": [
         "with-media"
+      ],
+      "split": [
+        "media-right"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "two-up"
       ],
       "header": [
         "transparent-overlay"
@@ -1342,6 +1504,15 @@
       "hero": [
         "with-media"
       ],
+      "split": [
+        "media-top"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "four-up-tight"
+      ],
       "header": [
         "centered-logo"
       ],
@@ -1413,6 +1584,15 @@
     "supports": {
       "hero": [
         "text-only"
+      ],
+      "split": [
+        "narrow-stack"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "wide-rows"
       ],
       "header": [
         "pill-floating"
@@ -1486,6 +1666,15 @@
       "hero": [
         "text-only"
       ],
+      "split": [
+        "media-right"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "two-up"
+      ],
       "header": [
         "solid-bar"
       ],
@@ -1557,6 +1746,15 @@
     "supports": {
       "hero": [
         "with-form"
+      ],
+      "split": [
+        "media-top"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "four-up-tight"
       ],
       "header": [
         "solid-bar"
@@ -1630,6 +1828,15 @@
       "hero": [
         "with-media"
       ],
+      "split": [
+        "narrow-stack"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "wide-rows"
+      ],
       "header": [
         "centered-logo"
       ],
@@ -1701,6 +1908,15 @@
     "supports": {
       "hero": [
         "with-media"
+      ],
+      "split": [
+        "media-left"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "three-up"
       ],
       "header": [
         "pill-floating"
@@ -1774,6 +1990,15 @@
       "hero": [
         "with-media"
       ],
+      "split": [
+        "media-top"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "four-up-tight"
+      ],
       "header": [
         "solid-bar"
       ],
@@ -1845,6 +2070,15 @@
     "supports": {
       "hero": [
         "with-media"
+      ],
+      "split": [
+        "narrow-stack"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "wide-rows"
       ],
       "header": [
         "centered-logo"
@@ -1918,6 +2152,15 @@
       "hero": [
         "text-only"
       ],
+      "split": [
+        "media-left"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "three-up"
+      ],
       "header": [
         "centered-logo"
       ],
@@ -1989,6 +2232,15 @@
     "supports": {
       "hero": [
         "text-only"
+      ],
+      "split": [
+        "media-right"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "two-up"
       ],
       "header": [
         "pill-floating"
@@ -2062,6 +2314,15 @@
       "hero": [
         "with-form"
       ],
+      "split": [
+        "narrow-stack"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "wide-rows"
+      ],
       "header": [
         "solid-bar"
       ],
@@ -2134,6 +2395,15 @@
       "hero": [
         "with-media"
       ],
+      "split": [
+        "media-left"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "three-up"
+      ],
       "header": [
         "pill-floating"
       ],
@@ -2205,6 +2475,15 @@
     "supports": {
       "hero": [
         "with-media"
+      ],
+      "split": [
+        "media-right"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "two-up"
       ],
       "header": [
         "centered-logo"
@@ -2279,6 +2558,15 @@
       "hero": [
         "with-media"
       ],
+      "split": [
+        "media-top"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "four-up-tight"
+      ],
       "header": [
         "pill-floating"
       ],
@@ -2351,6 +2639,15 @@
     "supports": {
       "hero": [
         "with-media"
+      ],
+      "split": [
+        "media-left"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "three-up"
       ],
       "header": [
         "solid-bar"
@@ -2425,6 +2722,15 @@
       "hero": [
         "text-only"
       ],
+      "split": [
+        "media-right"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "two-up"
+      ],
       "header": [
         "solid-bar"
       ],
@@ -2497,6 +2803,15 @@
     "supports": {
       "hero": [
         "text-only"
+      ],
+      "split": [
+        "media-top"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "four-up-tight"
       ],
       "header": [
         "centered-logo"
@@ -2571,6 +2886,15 @@
       "hero": [
         "with-form"
       ],
+      "split": [
+        "narrow-stack"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "wide-rows"
+      ],
       "header": [
         "pill-floating"
       ],
@@ -2642,6 +2966,15 @@
     "supports": {
       "hero": [
         "with-media"
+      ],
+      "split": [
+        "media-right"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "two-up"
       ],
       "header": [
         "solid-bar"
@@ -2715,6 +3048,15 @@
       "hero": [
         "with-media"
       ],
+      "split": [
+        "media-top"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "four-up-tight"
+      ],
       "header": [
         "centered-logo"
       ],
@@ -2786,6 +3128,15 @@
     "supports": {
       "hero": [
         "with-media"
+      ],
+      "split": [
+        "narrow-stack"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "wide-rows"
       ],
       "header": [
         "centered-logo"
@@ -2859,6 +3210,15 @@
       "hero": [
         "with-media"
       ],
+      "split": [
+        "media-left"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "three-up"
+      ],
       "header": [
         "pill-floating"
       ],
@@ -2930,6 +3290,15 @@
     "supports": {
       "hero": [
         "text-only"
+      ],
+      "split": [
+        "media-top"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "four-up-tight"
       ],
       "header": [
         "solid-bar"
@@ -3003,6 +3372,15 @@
       "hero": [
         "text-only"
       ],
+      "split": [
+        "narrow-stack"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "wide-rows"
+      ],
       "header": [
         "pill-floating"
       ],
@@ -3074,6 +3452,15 @@
     "supports": {
       "hero": [
         "with-form"
+      ],
+      "split": [
+        "media-left"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "three-up"
       ],
       "header": [
         "centered-logo"
@@ -3147,6 +3534,15 @@
       "hero": [
         "with-media"
       ],
+      "split": [
+        "media-right"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "two-up"
+      ],
       "header": [
         "pill-floating"
       ],
@@ -3219,6 +3615,15 @@
       "hero": [
         "with-media"
       ],
+      "split": [
+        "narrow-stack"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "wide-rows"
+      ],
       "header": [
         "solid-bar"
       ],
@@ -3290,6 +3695,15 @@
     "supports": {
       "hero": [
         "with-media"
+      ],
+      "split": [
+        "media-left"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "three-up"
       ],
       "header": [
         "transparent-overlay"
@@ -3364,6 +3778,15 @@
       "hero": [
         "with-media"
       ],
+      "split": [
+        "media-right"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "two-up"
+      ],
       "header": [
         "centered-logo"
       ],
@@ -3436,6 +3859,15 @@
     "supports": {
       "hero": [
         "with-media"
+      ],
+      "split": [
+        "media-top"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "four-up-tight"
       ],
       "header": [
         "pill-floating"
@@ -3510,6 +3942,15 @@
       "hero": [
         "text-only"
       ],
+      "split": [
+        "media-left"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "three-up"
+      ],
       "header": [
         "solid-bar"
       ],
@@ -3582,6 +4023,15 @@
     "supports": {
       "hero": [
         "with-form"
+      ],
+      "split": [
+        "media-right"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "two-up"
       ],
       "header": [
         "centered-logo"
@@ -3656,6 +4106,15 @@
       "hero": [
         "with-media"
       ],
+      "split": [
+        "media-top"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "four-up-tight"
+      ],
       "header": [
         "centered-logo"
       ],
@@ -3727,6 +4186,15 @@
     "supports": {
       "hero": [
         "with-media"
+      ],
+      "split": [
+        "narrow-stack"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "wide-rows"
       ],
       "header": [
         "pill-floating"
@@ -3800,6 +4268,15 @@
       "hero": [
         "with-media"
       ],
+      "split": [
+        "media-right"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "two-up"
+      ],
       "header": [
         "solid-bar"
       ],
@@ -3871,6 +4348,15 @@
     "supports": {
       "hero": [
         "with-media"
+      ],
+      "split": [
+        "media-top"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "four-up-tight"
       ],
       "header": [
         "pill-floating"
@@ -3944,6 +4430,15 @@
       "hero": [
         "with-media"
       ],
+      "split": [
+        "narrow-stack"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "wide-rows"
+      ],
       "header": [
         "centered-logo"
       ],
@@ -4015,6 +4510,15 @@
     "supports": {
       "hero": [
         "text-only"
+      ],
+      "split": [
+        "media-left"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "three-up"
       ],
       "header": [
         "pill-floating"
@@ -4088,6 +4592,15 @@
       "hero": [
         "with-form"
       ],
+      "split": [
+        "media-top"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "four-up-tight"
+      ],
       "header": [
         "solid-bar"
       ],
@@ -4159,6 +4672,15 @@
     "supports": {
       "hero": [
         "with-media"
+      ],
+      "split": [
+        "narrow-stack"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "wide-rows"
       ],
       "header": [
         "transparent-overlay"
@@ -4232,6 +4754,15 @@
       "hero": [
         "with-media"
       ],
+      "split": [
+        "media-left"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "three-up"
+      ],
       "header": [
         "centered-logo"
       ],
@@ -4303,6 +4834,15 @@
     "supports": {
       "hero": [
         "with-media"
+      ],
+      "split": [
+        "media-right"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "two-up"
       ],
       "header": [
         "pill-floating"
@@ -4376,6 +4916,15 @@
       "hero": [
         "with-media"
       ],
+      "split": [
+        "narrow-stack"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "wide-rows"
+      ],
       "header": [
         "solid-bar"
       ],
@@ -4447,6 +4996,15 @@
     "supports": {
       "hero": [
         "with-media"
+      ],
+      "split": [
+        "media-left"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "three-up"
       ],
       "header": [
         "transparent-overlay"
@@ -4520,6 +5078,15 @@
       "hero": [
         "text-only"
       ],
+      "split": [
+        "media-right"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "two-up"
+      ],
       "header": [
         "centered-logo"
       ],
@@ -4591,6 +5158,15 @@
     "supports": {
       "hero": [
         "text-only"
+      ],
+      "split": [
+        "media-top"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "four-up-tight"
       ],
       "header": [
         "pill-floating"
@@ -4664,6 +5240,15 @@
       "hero": [
         "with-media"
       ],
+      "split": [
+        "media-left"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "three-up"
+      ],
       "header": [
         "solid-bar"
       ],
@@ -4735,6 +5320,15 @@
     "supports": {
       "hero": [
         "with-media"
+      ],
+      "split": [
+        "media-right"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "two-up"
       ],
       "header": [
         "transparent-overlay"
@@ -4809,6 +5403,15 @@
       "hero": [
         "with-media"
       ],
+      "split": [
+        "media-top"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "four-up-tight"
+      ],
       "header": [
         "centered-logo"
       ],
@@ -4881,6 +5484,15 @@
     "supports": {
       "hero": [
         "with-media"
+      ],
+      "split": [
+        "narrow-stack"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "wide-rows"
       ],
       "header": [
         "pill-floating"
@@ -4955,6 +5567,15 @@
       "hero": [
         "with-media"
       ],
+      "split": [
+        "media-right"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "two-up"
+      ],
       "header": [
         "solid-bar"
       ],
@@ -5027,6 +5648,15 @@
     "supports": {
       "hero": [
         "text-only"
+      ],
+      "split": [
+        "media-top"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "four-up-tight"
       ],
       "header": [
         "transparent-overlay"
@@ -5101,6 +5731,15 @@
       "hero": [
         "text-only"
       ],
+      "split": [
+        "narrow-stack"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "wide-rows"
+      ],
       "header": [
         "centered-logo"
       ],
@@ -5172,6 +5811,15 @@
     "supports": {
       "hero": [
         "with-form"
+      ],
+      "split": [
+        "media-left"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "three-up"
       ],
       "header": [
         "pill-floating"
@@ -5245,6 +5893,15 @@
       "hero": [
         "with-media"
       ],
+      "split": [
+        "media-top"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "four-up-tight"
+      ],
       "header": [
         "solid-bar"
       ],
@@ -5316,6 +5973,15 @@
     "supports": {
       "hero": [
         "with-media"
+      ],
+      "split": [
+        "narrow-stack"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "wide-rows"
       ],
       "header": [
         "transparent-overlay"
@@ -5389,6 +6055,15 @@
       "hero": [
         "with-media"
       ],
+      "split": [
+        "media-left"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "three-up"
+      ],
       "header": [
         "centered-logo"
       ],
@@ -5460,6 +6135,15 @@
     "supports": {
       "hero": [
         "with-media"
+      ],
+      "split": [
+        "media-right"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "two-up"
       ],
       "header": [
         "pill-floating"
@@ -5533,6 +6217,15 @@
       "hero": [
         "text-only"
       ],
+      "split": [
+        "narrow-stack"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "wide-rows"
+      ],
       "header": [
         "solid-bar"
       ],
@@ -5604,6 +6297,15 @@
     "supports": {
       "hero": [
         "text-only"
+      ],
+      "split": [
+        "media-left"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "three-up"
       ],
       "header": [
         "transparent-overlay"
@@ -5677,6 +6379,15 @@
       "hero": [
         "with-form"
       ],
+      "split": [
+        "media-right"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "two-up"
+      ],
       "header": [
         "centered-logo"
       ],
@@ -5748,6 +6459,15 @@
     "supports": {
       "hero": [
         "with-media"
+      ],
+      "split": [
+        "media-top"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "four-up-tight"
       ],
       "header": [
         "pill-floating"
