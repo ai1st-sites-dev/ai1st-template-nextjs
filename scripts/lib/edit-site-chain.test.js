@@ -447,5 +447,112 @@ console.log('\n④ 反向对照：白名单收的文件，同一条路真的写�
   }
 }
 
+// ══ ⑤ 同一个文件用两种路径写法写两遍 ⟹ 回滚仍然回到「这次编辑之前」════════════════════════════
+//
+// 🔴 这一格是 QA3 在 #1102 r2 上打回的那条阻断的钉子。它的成因不在回滚那三支里，而在**快照的键**：
+// r2 用模型给的原始字符串当键，而同一个物理文件有多种写法（`en/pages/about.json` /
+// `./en/pages/about.json` / `en//pages/about.json` / `en/./pages/about.json` —— `validatePath` 只拦
+// `..` 与绝对路径，`writeRejection` 自己归一化所以四种一视同仁地放行）。于是「同一个文件只记第一次」
+// 那条纪律被写法拆成两条快照，第二条记下的「写之前」是**第一笔写完之后**的样子；回滚按插入序两条都
+// 写回、后写的盖住先写的 ⟹ 磁盘上留下第一笔的改动，而回滚自报 `restored 2 · failed 0`，
+// 下一次成功的编辑把它带进 commit（本票正文判据 1 的字面违反）。
+//
+// 判据两半，缺一不可：
+//   ① 回滚之后那个文件与「这次编辑之前」**逐字节相同**，工作树里它不脏 ← 真正要保的性质
+//   ② `restored` 的**计数**：别名收成一条快照 ⟹ 两个文件被写、`restored 2`。修法没生效时是 3。
+//      光有①不够 —— ① 在「回滚碰巧顺序反过来」的世界里也可能绿；计数直接量的是「算成几个文件」。
+console.log('\n⑤ 同一个文件两种写法写两遍：回滚回到编辑之前，而且只算一个文件');
+{
+  const ctx = makeRoot('alias');
+  const site = writeSite(ctx.work);
+  assertSyncsClean(ctx.work, '⑤');
+  ctx.git('git add -A && git commit -q -m base && git push -q origin main');
+
+  const about = path.join(site, 'en', 'pages', 'about.json');
+  const beforeBytes = fs.readFileSync(about);
+  const page = JSON.parse(beforeBytes.toString('utf8'));
+  const one = JSON.stringify({ ...page, title: 'EDIT ONE' }, null, 2);
+  const two = JSON.stringify({ ...page, title: 'EDIT TWO' }, null, 2);
+
+  // 三次写：about.json 两种写法各一次（同一个物理文件）+ services.json 写成对象让 sync 当场失败
+  // （与①同一个触发器 —— 真的写坏一个文件，不是预先把站弄坏）。
+  const res = runEdit(ctx, [
+    reply([
+      textBlock('Editing the about page twice, then services.'),
+      writeCall('t1', 'en/pages/about.json', one),
+      writeCall('t2', './en/pages/about.json', two),
+      writeCall('t3', 'en/services.json', JSON.stringify({ oops: 'an object, not an array' })),
+    ], 'tool_use'),
+    reply([textBlock('Changes applied.')], 'end_turn'),
+  ]);
+
+  // 前提：这一跑真的走到了「同步失败 ⟹ 回滚」那条路。不成立的话下面两条断言什么都没测。
+  const errs = ev(res, 'error');
+  if (errs.length !== 1 || ev(res, 'edit-complete').length) {
+    bad(`⑤ 前提不成立：没走到「同步失败」那条路（事件：${res.events.map((e) => e.event).join(' ')}）`
+      + ' ⟹ 下面两条断言不算数');
+  } else {
+    const afterBytes = fs.readFileSync(about);
+    if (afterBytes.equals(beforeBytes)) {
+      ok('about.json 回到了这次编辑之前，逐字节相同（两种写法各写了一次）');
+    } else {
+      const t = (() => { try { return JSON.parse(afterBytes.toString('utf8')).title; } catch (e) { return '(读不出 title)'; } })();
+      bad(`🔴 about.json 没回到编辑之前 —— 磁盘上现在是 title=${JSON.stringify(t)}`
+        + '，而老板刚被告知「the change was rolled back」');
+    }
+    const dirty = ctx.git('git status --porcelain -- site/en/pages/about.json').toString().trim();
+    if (!dirty) ok('工作树里 about.json 不脏 ⟹ 下一次成功的编辑不会把它带进 commit');
+    else bad(`🔴 工作树里 about.json 还带着这次的改动：${dirty}`);
+
+    // 计数那一半。`debug()` 无条件写 stderr（`edit-site.js:49`），所以这行一定在。
+    const m = res.stderr.match(/#1102 rollback: restored (\d+) · removed (\d+) · failed (\d+)/);
+    if (!m) {
+      bad(`⑤ stderr 里找不到那行回滚读数 ⟹ 计数这一半没测到（stderr 尾：${res.stderr.slice(-200)}）`);
+    } else if (m[1] === '2' && m[3] === '0') {
+      ok(`回滚把别名收成了一个文件：restored 2（about.json + services.json）· failed 0`);
+    } else {
+      bad(`🔴 回滚算成了 restored ${m[1]} · removed ${m[2]} · failed ${m[3]} —— `
+        + '别名被当成了两个不同的文件（同一个物理文件记了两条快照）');
+    }
+  }
+}
+
+// ══ ⑥ 反向对照：两笔【同一种写法】—— 上面那一格不是在测「写两遍就一定坏」═══════════════════════
+//
+// 少了这一格，⑤ 的绿分不开两件事：「别名被收住了」和「写两遍这条路本来就没问题」。QA3 的对照臂就是
+// 这一支（他量到 `restored 1`，回滚后逐字节相同），这里把它钉进仓里。
+console.log('\n⑥ 反向对照：两笔同一种写法 —— ⑤ 那一格不是在测「写两遍就一定坏」');
+{
+  const ctx = makeRoot('alias-control');
+  const site = writeSite(ctx.work);
+  assertSyncsClean(ctx.work, '⑥');
+  ctx.git('git add -A && git commit -q -m base && git push -q origin main');
+
+  const about = path.join(site, 'en', 'pages', 'about.json');
+  const beforeBytes = fs.readFileSync(about);
+  const page = JSON.parse(beforeBytes.toString('utf8'));
+
+  const res = runEdit(ctx, [
+    reply([
+      textBlock('Editing the about page twice, same spelling.'),
+      writeCall('t1', 'en/pages/about.json', JSON.stringify({ ...page, title: 'EDIT ONE' }, null, 2)),
+      writeCall('t2', 'en/pages/about.json', JSON.stringify({ ...page, title: 'EDIT TWO' }, null, 2)),
+      writeCall('t3', 'en/services.json', JSON.stringify({ oops: 'an object, not an array' })),
+    ], 'tool_use'),
+    reply([textBlock('Changes applied.')], 'end_turn'),
+  ]);
+
+  const errs = ev(res, 'error');
+  if (errs.length !== 1 || ev(res, 'edit-complete').length) {
+    bad(`⑥ 前提不成立：没走到「同步失败」那条路（事件：${res.events.map((e) => e.event).join(' ')}）`);
+  } else if (fs.readFileSync(about).equals(beforeBytes)) {
+    const m = res.stderr.match(/#1102 rollback: restored (\d+) ·/);
+    ok(`同写法两笔也回到了编辑之前，逐字节相同（restored ${m ? m[1] : '?'}）`
+      + ' ⟹ ⑤ 量的是写法那一维，不是「写两遍」本身');
+  } else {
+    bad('🔴 连同一种写法写两遍都回不去 —— ⑤ 那一格的读数不能归给「路径写法」这一维');
+  }
+}
+
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);

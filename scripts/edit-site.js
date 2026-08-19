@@ -122,16 +122,40 @@ const SNAPSHOT_MAX_BYTES = 32 * 1024 * 1024;
 /**
  * 把这次编辑写出去的那几个文件，退回**这次编辑开始之前磁盘上的样子**。
  *
- * @param {string} siteDir  `<rootDir>/site`，`snapshots` 的键相对于它
+ * 🔴🔴 键是「`writeFileSync` 真正写到的那个绝对路径」，**不是模型给的那个字符串**（QA3 在 r2 打回的
+ * 那条阻断）。同一个物理文件有无穷多种写法 —— `en/pages/about.json` · `./en/pages/about.json` ·
+ * `en//pages/about.json` · `en/./pages/about.json`，四种我都实测过能走到落盘那一行（`validatePath`
+ * 只拦 `..` 与绝对路径，`writeRejection` 自己会归一化所以它四种都判成同一个文件、一视同仁地放行）。
+ * 按原始字符串当键，「同一次编辑里同一个文件只记第一次」那条纪律就被写法拆开了：第二条快照记下的
+ * 「写之前」是**第一笔写完之后**的样子，回滚按插入序两条都写回、后写的盖住先写的 ⟹ 磁盘上留下的是
+ * 第一笔的改动，而它自报 `restored 2 · failed 0`。QA3 真跑 `edit-site.js` 本体量到的读数：
+ *   两种写法各写一次 ⟹ `restored 2`，回滚后 md5 ≠ 写之前、`git status` 仍有 ` M …/about.json`，
+ *                      下一次成功的编辑把它带进 commit（**正文判据 1 的字面违反**）
+ *   对照：两笔同写法 ⟹ `restored 1`，回滚后与写之前逐字节相同、工作树干净
+ *
+ * 🔴 为什么键取 `path.join(siteDir, relPath)` 的结果、而不是另写一道 `path.posix.normalize`：
+ * `path.join` **就是决定这几个字节落到哪里的那个函数**。拿它的输出当身份，「同一个键 ⟺ 同一个被写的
+ * 文件」是按构造成立的，不需要维护第二个归一化实现去跟它保持一致（`lib/editable-files.js:135` 有它
+ * 自己那份 `path.posix.normalize`，那是给「这个文件归谁管」用的，两处判的不是同一个问题）。
+ * 📌 **射程边界，说在明处**：这样收得住的是「同一个路径的不同写法」。收不住的是**目录软链**和
+ * 大小写不敏感的文件系统 —— 那两种下同一个文件仍可能有两个不同的绝对路径，于是回到上面那个失败形状。
+ * 站容器是 Linux + ext4（大小写敏感），而 `site/` 底下由 `create-site.js` / 这条路自己生成、没有任何
+ * 地方造软链，所以今天到不了；真要收它得 `realpath` 每一层父目录（新建文件那一支的父目录此刻还不
+ * 存在，`mkdirSync` 在后面），代价与风险都比它治的东西大。
+ *
+ * @param {string} siteDir  `<rootDir>/site` —— **只用来把键换成给人看的相对路径**（回滚本身用键那个
+ *        绝对路径，不再拼接；`failed` 里那几句会被原样推进老板的聊天窗口）。
  * @param {Map<string, Buffer|null|{why:string}>} snapshots
- *        键 = 这次 `write_file` 真正写成功的路径；值 = **写之前**那个文件的字节；
+ *        键 = 这次 `write_file` 真正写到的**绝对**路径；值 = **写之前**那个文件的字节；
  *        `null` = 写之前它不存在（本次新建）；`{why}` = 原样没存下来，why 是原因。
  * @returns {{restored:string[], removed:string[], failed:string[]}}
  */
 function rollbackWrittenFiles(siteDir, snapshots) {
   const out = { restored: [], removed: [], failed: [] };
-  for (const [rel, before] of snapshots) {
-    const full = path.join(siteDir, rel);
+  for (const [full, before] of snapshots) {
+    // 给人看的那个名字用归一化之后的相对路径 —— 老板看到的是「哪个文件」，不该是模型手滑打出来的
+    // `./en/pages/about.json` 那种写法。
+    const rel = path.relative(siteDir, full) || full;
     try {
       if (before && !Buffer.isBuffer(before)) {
         out.failed.push(`${rel}: ${before.why}`);
@@ -390,10 +414,16 @@ function executeTool(toolName, toolInput, siteDir, snapshots) {
       // #1102 —— 落盘**之前**把这个文件本来的样子记下来（同步失败时按它回滚）。
       // 🔴 只在第一次写它的时候记：同一次编辑里模型可能把同一个文件写两遍，而"这次编辑之前"
       //    是它第一次被写之前那一刻，不是第二次。
+      // 🔴🔴 键用 `fullPath`、**不是** `relPath`（QA3 在 r2 打回的那条阻断）：`relPath` 是模型给的
+      //    字符串，同一个物理文件有多种写法（`./en/…` / `en//…` / `en/./…` 都能走到这一行），
+      //    按字符串当键上面那条「只记第一次」就被写法拆成两条快照，而第二条记的「写之前」是第一笔
+      //    写完之后的样子。整段理由与两侧读数在 rollbackWrittenFiles 上面。
+      //    📌 `fullPath` 正是下面 `writeFileSync` 的第一个参数 ⟹ 「同一个键 ⟺ 同一个被写的文件」
+      //    按构造成立，不需要第二个归一化实现。
       // 🔴 记在这里、不是事后去问 HEAD：理由整段在 rollbackWrittenFiles 上面（QA1 在 r1 打回的那条）。
-      // 🔴 用这里这个 `relPath`、不是调用方手里的 `block.input.path`：只有走到这一行的才真的落了盘
-      //    （上面每一条 return 都是拒绝），而回滚名单里多一个没写过的路径 = 拿旧字节盖一个不该动的文件。
-      if (snapshots && !snapshots.has(relPath)) {
+      // 🔴 走到这一行的才记：上面每一条 return 都是拒绝，而回滚名单里多一个没写过的路径 = 拿旧字节
+      //    盖一个不该动的文件。
+      if (snapshots && !snapshots.has(fullPath)) {
         let before = null;
         try {
           const st = fs.statSync(fullPath);
@@ -405,7 +435,7 @@ function executeTool(toolName, toolInput, siteDir, snapshots) {
           // "本次新建"，否则回滚会把一个本来就在的文件删掉 —— 这正是 r1 被打回的那个错法。
           if (e.code !== 'ENOENT') before = { why: `could not be read before this edit (${e.code})` };
         }
-        snapshots.set(relPath, before);
+        snapshots.set(fullPath, before);
       }
       fs.mkdirSync(path.dirname(fullPath), { recursive: true });
       fs.writeFileSync(fullPath, toolInput.content);
