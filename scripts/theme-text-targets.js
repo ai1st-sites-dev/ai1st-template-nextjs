@@ -45,7 +45,7 @@ const MOVED_TEXT_TARGETS = [
 //
 // The selectors are read off `globals.css`'s `@layer components`, and they are the ones whose OWN
 // face a palette paints:
-//   `.btn-primary`   its COMPUTED ink on `--color-primary-500`   (`.services-list`, `.pricing-table`)
+//   `.btn-primary`   its COMPUTED ink on its COMPUTED ground   (`.services-list`, `.pricing-table`)
 //                    🔴 #1084 — no longer `white text`. The ink is white when white clears 4.5:1 on that
 //                    background and pure black when it does not (`scripts/lib/button-ink.js`), so a check
 //                    that assumed white would measure a pairing the page does not render — wrong in both
@@ -53,6 +53,13 @@ const MOVED_TEXT_TARGETS = [
 //                    is a BROWSER (`scripts/theme-text-bands.mjs`), so it takes whatever the button renders;
 //                    the arithmetic side that used to assume white is `scripts/theme-presets.test.js`, and
 //                    #1084 changed it to resolve the ink from the palette under test.
+//                    🔴 #1091 — AND NO LONGER `--color-primary-500` EITHER. Chris's option D moved the
+//                    BUTTON rather than the palette: the ground is `--btn-primary-bg`, the lightest step
+//                    from 500 downwards whose chosen ink clears the floor (`button-ink.js` §baseShadeFor,
+//                    written into `public/theme.css` by sync-config, read by `globals.css`). Which step a
+//                    sheet lands on is that sheet's own answer — most of the pool moves, some stay — so
+//                    naming a step HERE is the same mistake #1084 fixed one field over: both ends are
+//                    computed per palette now, and a reader who wants the split has to run for it.
 //   `.btn-accent`    `gray-900` text on `--color-accent-400` (`.hero__cta`, `.cta-banner__action`)
 // plus the two link hooks, which is where a palette's colour lands on a text link.
 //
@@ -76,12 +83,18 @@ const MOVED_TEXT_TARGETS = [
 // 🔴 THESE ARE MEASURED IF PRESENT, WHICH IS NOT THE SAME LICENCE THE LIST ABOVE HAS — a hero is on
 // every page this runs against, a `services-nav` is not. The vacuous-green that leniency invites is
 // closed by the rule under it: if NONE of them is on the page, that is a finding, not a pass.
-// 📌 Coverage is reported, because it is not full: it is measured on the HOME page (that is what
-// check ① runs against), and which of these a home page renders is the site's own business —
-// `.btn-primary` lands there only through a `services-list` or `pricing-table` block. What no
-// browser reading covers is covered arithmetically instead: `scripts/theme-presets.test.js` checks
-// white-on-primary-500/600 and gray-900-on-accent-400/500 for every curated palette, and proves that
-// judge discriminates by running it over the 30-theme registry (11 of them fail it).
+// 📌 Coverage is reported, because it is not full — and 🔴 **#1091 changed WHAT it is not full of.**
+// Until then these four were measured on the HOME page alone, and the note here said so; the reason
+// was that `.btn-primary` lands on a home page only through a `services-list` or `pricing-table`
+// block, which this sample site's home page has none of, so the run printed `🔴 on no page measured`
+// for it every time. #1091 opened the ⑤b loop's line, so they are now measured on EVERY page that
+// loop opens (`theme-css-invariants.mjs`, the `for (const sel of CONTROL_TARGETS)` call inside it) —
+// what is still not full is the page cap and the hooks this sample site puts on no page at all, and
+// the run counts both onto its own "pages measured for check ①" line rather than asserting them here.
+// What no browser reading covers is covered arithmetically instead: `scripts/theme-presets.test.js`
+// resolves each button's pair out of `globals.css` for the palette under test — since #1084 the ink,
+// since #1091 the primary button's ground as well — and proves that judge discriminates by running it
+// over the 30-theme registry (11 of them fail it).
 // 📌 #1038 r3 起那侧还多做一件事：把**主题表自己声明的**配对（含渐变混出来的颜色）跟色相滑块的
 //    31 个取值叠起来一起判 —— 那一节量得到的正是这张单子上的选择器，所以两层量的是同一批字。
 const CONTROL_TARGETS = [

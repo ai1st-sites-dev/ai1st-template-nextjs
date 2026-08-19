@@ -50,9 +50,13 @@ if (presets.PRESET_KEYS.length === 3 && Object.values(presets.presetOptions()).e
 // ── ① 策展判据：每一组配色，三个按钮的字压底色都要 ≥ 4.5:1 ────────────────────────────────────
 //
 // 三处是从 globals.css 的 `@layer components` 里**现解出来的**：
-//   `.btn-primary`   **算出来的字色**压 `--color-primary-500`（hover 走**算出来的那一档**，一起判）
+//   `.btn-primary`   **算出来的字色**压**算出来的那一档底色**（hover 走**算出来的那一档**，一起判）
 //   `.btn-secondary` **算出来的那一档**的字压白底（hover 是算出来的字色压 `--color-primary-500`）
 //   `.btn-accent`    `gray-900`(#111827) 的字压 `--color-accent-400`（hover 走 `-500`，一起判）
+//
+// 🔴 #1091 —— 第一行的**底**此前写的是 `--color-primary-500`。做法 D 之后主按钮的底也是算出来的
+//    （`--btn-primary-bg`，见下面 `COMPUTED_VARS` 与 `background-color:` 那一支），所以那半句和 #1084
+//    改掉的字色那半句是同一个病：抄一个写死的档号，就会去判一个页面上不存在的配对。
 //
 // 🔴 #1084 —— 前两行此前写的是「白字压 primary-500」/「primary-500 的字压白底」。那张票把这两个按钮
 //    的字色改成**跟着底色算**（白字不够时换纯黑；轮廓按钮沿调色板下挪一档），正本在
@@ -149,10 +153,18 @@ function buttonPairsFromGlobals() {
   //    仍是 `{what, fg, bg}`，只是 fg/bg 可以是「算出来的那一档」。
   //    🔴 认不出的变量名一律进 `unknown` ⟹ die，跟这个函数原来对认不出的 `text-*` 的处置同一条：
   //    「解不出来不是『没有配对要判』」。按钮上加第四个变量而忘了这里，会是一次大声失败。
+  //    🔴 #1091 加了两个（`--btn-primary-bg` / `--btn-outline-hover-ink`），而上面那句「忘了这里会是
+  //    一次大声失败」当场兑现了：只改 `globals.css` 不改这里，这个文件 rc=2 报
+  //    「`.btn-secondary:hover` 的 color: var(--btn-outline-hover-ink, #fff) 认不出来」。
   const COMPUTED_VARS = {
+    // #1091 —— 主按钮静止态的底，算出来的那一档（`button-ink.js` §baseShadeFor）。
+    '--btn-primary-bg': { computed: 'baseShade', label: '算出来的主按钮底色' },
     '--btn-primary-ink': { computed: 'ink', label: '算出来的字色' },
     '--btn-primary-hover': { computed: 'hoverShade', label: '算出来的 hover 底色' },
     '--btn-outline-ink': { computed: 'outlineShade', label: '算出来的轮廓色' },
+    // #1091 —— `.btn-secondary:hover` 的字。它的底仍是 `primary-500`，所以它按 500 算，
+    // **不跟着主按钮挪** —— 与 `--btn-primary-ink` 是两个数（主按钮挪档之后两者可以不同）。
+    '--btn-outline-hover-ink': { computed: 'outlineHoverInk', label: '算出来的轮廓 hover 字色' },
   };
   /** `color: var(--btn-primary-ink, #fff)` → 那条 spec；`var(--color-primary-500)` → {group,shade}。 */
   const specOfDecl = (value) => {
@@ -226,6 +238,20 @@ function buttonPairsFromGlobals() {
         else pairs.push({ what: `.${cls}:hover ${hfg.label} 的字压 ${hbg.label}`, fg: hfg, bg: hbg });
       }
     }
+    // 🔴 #1091 —— 静止态的底也可能写在 `background-color:` 声明里，不在 `@apply` 的词里。
+    // `.btn-primary` 从 `bg-primary-500` 换成了 `background-color: var(--btn-primary-bg, …)`
+    // （底色现在是**算出来的那一档**），而这个解析器原来只看 `@apply` ⟹ 它会判成「没写底色 = 压白底」，
+    // 于是「白字压白底 = 1.00:1」被报成**六组配色不合格**。仪器把自己的盲区报成了库的问题 ——
+    // 这正是这个文件自己在别处写的那条：解不出来不是「没有配对要判」。
+    const bgDecl = declOf(body, 'background-color');
+    if (!bgWord && bgDecl) {
+      const dbg = specOfDecl(bgDecl);
+      if (!dbg) { unknown.push(`.${cls} 的 background-color: ${bgDecl.trim()} 认不出来`); continue; }
+      const dbgMissing = whoLacks(dbg);
+      if (dbgMissing) { unknown.push(`.${cls} 的 background-color: ${bgDecl.trim()} ${dbgMissing}`); continue; }
+      pairs.push({ what: `.${cls} ${fg.label} 的字压 ${dbg.label}`, fg, bg: dbg });
+      continue;
+    }
     if (!bgWord) {
       // 没写底色 = 压着页面本身的白底。不是猜的：globals.css 在 `.hero__cta .btn-secondary` 那段
       // 注释里写着它 "written for a white page"，深色底上由 `currentColor` 接管，而 currentColor
@@ -287,10 +313,16 @@ const outlineGroundOf = (p) => (p.bg && p.bg.hex !== undefined ? p.bg.hex : butt
 const resolveSpec = (s, colors, p) => {
   if (s.hex !== undefined) return s.hex;
   if (s.computed !== undefined) {
-    const inkHex = buttonInk.inkFor(needShade(p, colors, 'primary', '500'));
+    // 🔴 #1091 —— 顺序跟生产那一份逐句同源：**先选底，再按那块底选字**。上一版从 `primary-500` 起算
+    // 字色，那在底会挪之后就是关于另一块底的答案（`button-ink.js` §buttonInkReport 那段注释同理由）。
+    const baseShade = buttonInk.baseShadeFor(colors.primary);
+    const inkHex = buttonInk.inkFor(needShade(p, colors, 'primary', baseShade));
+    if (s.computed === 'baseShade') return needShade(p, colors, 'primary', baseShade);
     if (s.computed === 'ink') return inkHex;
+    // `.btn-secondary:hover` 的字：底是 `primary-500`，所以按 500 算 —— 与上面那个 ink 是两个数。
+    if (s.computed === 'outlineHoverInk') return buttonInk.inkFor(needShade(p, colors, 'primary', '500'));
     if (s.computed === 'hoverShade') {
-      return needShade(p, colors, 'primary', buttonInk.hoverShadeFor(colors.primary, inkHex));
+      return needShade(p, colors, 'primary', buttonInk.hoverShadeFor(colors.primary, inkHex, baseShade));
     }
     if (s.computed === 'outlineShade') {
       return needShade(p, colors, 'primary', buttonInk.outlineShadeFor(colors.primary, outlineGroundOf(p)));

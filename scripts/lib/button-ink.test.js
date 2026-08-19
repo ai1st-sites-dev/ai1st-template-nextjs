@@ -65,7 +65,8 @@ const PROD = {
  */
 function before(p, ground = ink.WHITE) {
   return {
-    ink: ink.WHITE, hoverShade: ink.TODAY.hover, outlineShade: ink.TODAY.outline, ground,
+    ink: ink.WHITE, baseShade: ink.TODAY.base, hoverShade: ink.TODAY.hover,
+    outlineShade: ink.TODAY.outline, ground,
     cells: {
       'btn-primary 静止': ink.ratio(ink.WHITE, p['500']),
       'btn-primary hover': ink.ratio(ink.WHITE, p[ink.TODAY.hover]),
@@ -117,9 +118,20 @@ console.log('② 注册表 110 套：凡是【换得过去】的都过线；换�
       if (r.ink !== ink.BLACK) wrong.push(`${id} 白${w.toFixed(3)} 不够、黑${b.toFixed(3)} 够，却没换过去`);
       else if (r.cells['btn-primary 静止'] < MIN) wrong.push(`${id} 换过去了但仍不过线`);
     } else {
+      // 🔴 #1091 —— 这一支的谓词整个换了主体，而不是被放宽。上一版问的是「压 `primary-500` 两种字色
+      // 都不够时，保持白字并被标成 unreachable」；#1091 之后**底本身会挪**，所以这一批的正确行为不再是
+      // 「保持白字并报出来」，而是**被那次挪档救回来**。断言因此从「有没有报出来」换成「救回来没有」——
+      // 后者严格更强：它要的是这一格真的过线，而不只是失败被记了一笔。
       hopeless.push(id);
-      if (r.ink !== ink.WHITE) wrong.push(`${id} 两种字色都不够(白${w.toFixed(3)}/黑${b.toFixed(3)})却换了 —— 换过去不解决问题`);
-      if (!r.inkUnreachable) wrong.push(`${id} 两种字色都不够却没被标成 unreachable —— 报不出来就等于没这一条`);
+      if (r.cells['btn-primary 静止'] < MIN) {
+        wrong.push(`${id} 压 500 两种字色都不够(白${w.toFixed(3)}/黑${b.toFixed(3)})，挪档之后仍然不过线`
+          + `（挪到了 primary-${r.baseShade}，读数 ${r.cells['btn-primary 静止'].toFixed(3)}）`);
+      }
+      // 一档都救不回来时才该保持白字并报出来 —— 那一支今天在注册表上是空的，空过要说出来（下面那两个
+      // 「夹具是空的」同族）。
+      if (!r.baseMoved && !r.inkUnreachable) {
+        wrong.push(`${id} 压 500 两种字色都不够、底也没挪，却没被标成 unreachable —— 报不出来就等于没这一条`);
+      }
     }
   }
   if (!rescuable.length) {
@@ -129,7 +141,9 @@ console.log('② 注册表 110 套：凡是【换得过去】的都过线；换�
   } else if (wrong.length) {
     bad(`${wrong.length} 处判错：${wrong.slice(0, 6).join(' · ')}`);
   } else {
-    ok(`110 套里 ${rescuable.length} 套换得过去（全部换了且过线）· ${hopeless.length} 套换不过去（全部保持白字且被标出来）`);
+    const moved = hopeless.filter((id) => ink.buttonInkReport(themes[id].colors.primary).baseMoved).length;
+    ok(`110 套里 ${rescuable.length} 套换字色就够（全部换了且过线）· ${hopeless.length} 套换字色救不了`
+      + `（其中 ${moved} 套靠 #1091 挪底救回来了，全部 ≥ ${MIN}）`);
   }
 
   // 区分力：改前那份（写死白字）在退役 30 套上判错的，模块必须判对。
@@ -325,10 +339,14 @@ console.log('④ 两份算术不许分叉：把 layout.tsx 里内联进产物的
 
     // 反向对照 B：抠出来的确实是活代码，不是一段永远不产出的死码。
     const probe = run({ colors: { primary: { 500: '#ffffff', 400: '#ffffff', 600: '#000000' } } });
-    if (!probe.some((d) => d.includes('--btn-primary-ink'))) {
+    // 🔴 #1091 —— 按**名字**取，不按索引。上一版写的是 `probe[0]`，而那时 `--btn-primary-ink` 恰好排
+    // 第一；#1091 在它前面插了 `--btn-primary-bg` ⟹ 同一句断言开始读另一个变量，报的话也跟着变成假的
+    // （「给出的字色是 --btn-primary-bg:…」）。位置不是身份。
+    const inkDecl = probe.find((d) => d.includes('--btn-primary-ink'));
+    if (!inkDecl) {
       bad('浏览器侧那段对一个纯白 primary-500 什么都没产出 —— 抠出来的可能不是那段算术');
-    } else if (!probe[0].includes('#000000')) {
-      bad(`浏览器侧对纯白底给出的字色是 ${probe[0]}，应当是纯黑`);
+    } else if (!inkDecl.includes('#000000')) {
+      bad(`浏览器侧对纯白底给出的字色是 ${inkDecl}，应当是纯黑`);
     } else ok('抠出来的那段确实在算（纯白底 ⟹ 深字），不是一段永远不产出的死码');
   }
 }
@@ -350,7 +368,8 @@ console.log('⑤ Chris 策展的那 80 套池主题：改动面 = 恰好那些�
   // 逐套解出来是 primary-50 27 套 · primary-100 16 套 · primary-800 16 套 · primary-900 21 套，**白底 0 套**。
   const ids = Object.keys(poolThemes);
   const unjustified = [];
-  const inkFlips = []; const hoverMoves = []; const outlineMoves = []; const kept = [];
+  const inkFlips = []; const baseMoves = []; const hoverMoves = []; const outlineMoves = []; const kept = [];
+  const baseUnder = [];
   const grounds = {};
   let outlineUnder = [];
   for (const id of ids) {
@@ -374,14 +393,75 @@ console.log('⑤ Chris 策展的那 80 套池主题：改动面 = 恰好那些�
       inkFlips.push(`${id} ${b4.cells['btn-primary 静止'].toFixed(3)}→${r.cells['btn-primary 静止'].toFixed(3)}`);
       if (r.cells['btn-primary 静止'] < MIN) unjustified.push(`${id} 字色换了却仍不过线 ${r.cells['btn-primary 静止'].toFixed(3)}`);
     }
+    // 🔴 #1091 —— **本票改的那一维在这一节里原来没有判决分支**（QA1 r2 点出来的）。⑤ 的自述是
+    // 「改动面 = 恰好那些换过去真能过线的」，而它当时只对字色 / hover / 轮廓三维发言；主按钮的**底**
+    // 挪了 55 套，一条断言都没有，连 `ok()` 那行报的改动面都不含它 ⟹ 这一节对本票的主交付静默。
+    // 两个方向各一条，跟轮廓那一支同构：
+    if (r.baseShade !== b4.baseShade) {
+      baseMoves.push(`${id} ${b4.baseShade}→${r.baseShade}`);
+      // 该不该动，问的是**每一个被跳过的档**，不只是今天那一档：从 500 到选中的那一档之间，凡是
+      // 存在的档都必须是「两种字色都过不去」才轮得到再往深走。只问 500 的话，「500 不行所以跳到 800」
+      // 这种跳过 600/700 的挪法照样全绿 —— 而 D 拍的是**挪一档**，不是挪到够黑为止。
+      // 🔴 候选是从 `p` 自己的键上按数字算的，**没有 require `BASE_LADDER`** —— 拿实现自己那把梯子
+      //    来问「梯子对不对」是同义反复。这里只用 `inkDecision`（它自己那一格在 ②，有独立夹具）。
+      // 📌 射程：这一支只判「选得对不对」。梯子只朝深走这件事由下面那条 `n(r.baseShade) < 500` 判。
+      const skipped = Object.keys(p)
+        .filter((sh) => /^\d{2,3}$/.test(sh) && typeof p[sh] === 'string')
+        .filter((sh) => Number(sh) >= Number(ink.TODAY.base) && Number(sh) < Number(r.baseShade))
+        .filter((sh) => !ink.inkDecision(p[sh]).unreachable);
+      if (skipped.length) {
+        unjustified.push(`${id} 跳过了本来就够的档 ${skipped.map((sh) => `${sh}(${ink.inkDecision(p[sh]).ink} `
+          + `${ink.ratio(ink.inkDecision(p[sh]).ink, p[sh]).toFixed(3)})`).join(' ')} 却挪到了 ${r.baseShade}`);
+      }
+      // 方向：D 的原话是「挪深一档」。朝浅走会把字底拉近，是另一回事，不许静默发生。
+      if (Number(r.baseShade) < Number(ink.TODAY.base)) {
+        unjustified.push(`${id} base 朝【浅】走了 ${b4.baseShade}→${r.baseShade} —— 做法 D 只朝深`);
+      }
+      // 动完对不对：挪过去仍不过线就是白挪（把 Chris 策展的按钮弄深了还没修好任何人）。
+      if (r.cells['btn-primary 静止'] < MIN) {
+        unjustified.push(`${id} base 挪到 primary-${r.baseShade} 之后仍不过线 ${r.cells['btn-primary 静止'].toFixed(3)}`);
+      }
+    }
+    // 🔴 AC3 的正面性质单独收一条，**不挂在「挪过档」那个分支下面** —— 挂上去就只覆盖挪过的那些，
+    // 而「该挪没挪」恰好落在没挪的那一边（`baseShadeFor` 整个不挪 = 55 套停在 500 读不出来）。
+    //
+    // 🔴 而「读不出来」不许一律记进 AC4 的免死名单：`inkUnreachable` 只说**选中那一档**两种字色都不行，
+    // 它对「更深的档本来能救」是沉默的。不挪档这个坏法正好落在这个沉默里 —— 55 套会全部 unreachable、
+    // 全部进 `kept`、一条红都没有。所以先问一句「更深处还有没有救」，有就是 finding，没有才是免死。
+    if (r.cells['btn-primary 静止'] < MIN) {
+      const deeperRescue = Object.keys(p)
+        .filter((sh) => /^\d{2,3}$/.test(sh) && typeof p[sh] === 'string')
+        .filter((sh) => Number(sh) > Number(r.baseShade))
+        .filter((sh) => !ink.inkDecision(p[sh]).unreachable);
+      if (deeperRescue.length) {
+        unjustified.push(`${id} base 停在 ${r.baseShade} 仍不过线 ${r.cells['btn-primary 静止'].toFixed(3)}，`
+          + `而更深的 ${deeperRescue.join('/')} 本来救得回来`);
+      } else {
+        baseUnder.push(`${id} ${r.cells['btn-primary 静止'].toFixed(3)}（选了 ${r.baseShade} 档、字 ${r.ink}`
+          + '，500…900 一档都救不回来）');
+      }
+    }
     if (r.hoverShade !== b4.hoverShade) {
       hoverMoves.push(`${id} ${b4.hoverShade}→${r.hoverShade}`);
       // 🔴 「本来够不够」要拿**选出来的那个字色**去问今天那一档，不是拿改动前的白字去问。
       // 字色一翻，600 那一档的读数就换了主体：magenta-27 白字压 600 是 5.43（够），可它的字色换成了
       // 纯黑，而纯黑压 600 不够 —— 拿 5.43 当理由会把一次正当的挪档判成违规（第一版就是这么红的）。
+      //
+      // 🔴 #1091 —— 还有**第二个**正当理由，而漏了它这一格会把 55 套正确的挪档全判成违规（实测）：
+      // **base 挪走了**。做法 D 之后 hover 必须跟着走，否则两态同色、鼠标移上去什么都不发生
+      // （AC3 的后半句）。所以「没有读数支持」只剩一种情况：base 没动、而今天那一档拿选出来的字色量
+      // 也够 —— 那时候挪它才是无理由的。
       const todayWithChosenInk = ink.ratio(r.ink, p[ink.TODAY.hover]);
-      if (todayWithChosenInk >= MIN) unjustified.push(`${id} hover 本来就够(${todayWithChosenInk.toFixed(3)})却被挪了档`);
-      else if (r.cells['btn-primary hover'] < MIN) unjustified.push(`${id} hover 挪了档却仍不过线 ${r.cells['btn-primary hover'].toFixed(3)}`);
+      if (!r.baseMoved && todayWithChosenInk >= MIN) {
+        unjustified.push(`${id} base 没动、hover 本来也够(${todayWithChosenInk.toFixed(3)})却被挪了档`);
+      }
+      // 🔴 两态同色是 AC3 明写的红线，单独判一次：上面那条只问「该不该动」，这条问「动完对不对」。
+      if (r.hoverShade === r.baseShade) {
+        unjustified.push(`${id} hover 与 base 同为 primary-${r.baseShade} —— 鼠标移上去什么都不会发生`);
+      }
+      if (r.cells['btn-primary hover'] < MIN) {
+        unjustified.push(`${id} hover 挪到 primary-${r.hoverShade} 之后仍不过线 ${r.cells['btn-primary hover'].toFixed(3)}`);
+      }
     }
     if (r.outlineShade !== b4.outlineShade) {
       outlineMoves.push(`${id} ${b4.outlineShade}→${r.outlineShade}`);
@@ -393,11 +473,18 @@ console.log('⑤ Chris 策展的那 80 套池主题：改动面 = 恰好那些�
   if (ids.length !== 80) bad(`池子是 ${ids.length} 套，不是 80 —— 夹具变了（#1016 的池子动过？）先看那边`);
   else if (unjustified.length) bad(`${unjustified.length} 处改动没有读数支持：${unjustified.slice(0, 8).join(' · ')}`);
   else {
-    ok(`80 套：字色变 ${inkFlips.length}（${inkFlips.join(' ') || '无'}）· hover 变 ${hoverMoves.length}`
+    ok(`80 套：字色变 ${inkFlips.length}（${inkFlips.join(' ') || '无'}）· 主按钮底变 ${baseMoves.length}`
+      + ` · hover 变 ${hoverMoves.length}`
       + ` · 轮廓变 ${outlineMoves.length} —— 每一处都是「改动前不过线、换过去过线」，且没有一格比改动前更差`);
     ok(`两种字色都换不过去、按 AC4 保持今天白字的：${kept.length} 套（名单见 --list）`);
   }
   // 🔴 轮廓那一格单独一条断言 —— 它是本轮被退回的那一格，判据是 AC4 的字面：换得过去的都要过线。
+  // 🔴 #1091 —— 主按钮静止态自己一条，判据是 AC3 的字面：**每一套**都要 ≥ 4.5，一套都不许例外。
+  if (baseUnder.length) {
+    bad(`主按钮静止态（算出来的字压算出来的那一档底），${baseUnder.length} 套不过线：${baseUnder.slice(0, 6).join(' · ')}`);
+  } else {
+    ok(`主按钮静止态：80 套【算出来的字色压算出来的那一档底】全部 ≥ ${MIN}（挪过档的 ${baseMoves.length} 套）`);
+  }
   const groundLine = Object.entries(grounds).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n} 套`).join(' · ');
   if (Object.keys(grounds).some((k) => /白/.test(k))) {
     bad(`有主题被解成白底（${groundLine}）—— 池里 0 套是白底，解出白底说明解析器没认出那条规则`);
@@ -458,6 +545,140 @@ console.log('⑥ 「换过去过线才换」这条约束本身：两种字色都
   if (d2.ink !== ink.BLACK || !d2.switched || d2.unreachable) {
     bad(`反向对照 ${RESCUABLE}（白${d2.white.toFixed(3)} / 黑${d2.black.toFixed(3)}）应当换成纯黑，实际是 ${d2.ink}`);
   } else ok(`反向对照 ${RESCUABLE}（黑${d2.black.toFixed(3)} 过线）⟹ 真的换过去了，不是「一律不换」`);
+}
+
+// 🔴 为什么这一格是 ⑧ 而不是 ⑦，而 ⑦ 现在是个空号：**⑦ 归在飞的 #1105**（它也改这个文件，base 也是
+// `origin/main 3a09d8c2`，它的交付 blob `6f4c53f4` 第 463 行就是
+// `console.log('⑦ 算不出来的输入必须【说出来】…（#1105）')` —— 我 `git cat-file -p` 读的，不是听说的）。
+// 两票都往这个文件末尾插一段，git 冲突无论怎么编号都会有；编号错开的意思是**冲突解成「两段都留」时结果
+// 就是对的**，不需要谁再改一次号。哪张先 ship 都行：#1105 先 ship ⟹ ⑦ 由它填上、序号连续；本票先 ship
+// ⟹ ⑦ 暂时空着，由这段注释解释。（QA1 2026-08-19 在本票上报了这个跨票冲突，她量的是 r2；r3 又多碰了
+// `module.exports` 和 `sync-config.js` 那同一段，所以冲突面比她那次更宽 —— 交接留言里写了 ship 配方。）
+console.log('⑧ `underNote()` 印出来的那句话本身：它印的每个数都必须支持它自己的断言（#1091 r3，QA2 r2 的发现）');
+{
+  /**
+   * 判一句 note 是不是在说假话。**只用这句话自己印出来的东西 + 它命名的那个主体**去判 ——
+   * 这正是上一版漏掉的那一层：那句话把「白字 X / 纯黑 Y」跟「两个都低于 4.5」写在同一行，X 是 5.47。
+   *
+   * @returns {string[]} 每一条都是「这句话的哪个字被它自己的哪个数否掉了」
+   */
+  function liesIn(note, report, palette) {
+    const lies = [];
+    if (note === null) return lies;
+    const num = (re) => { const m = note.match(re); return m ? Number(m[1]) : null; };
+    const white = num(/白字 (\d+\.\d+)/);
+    const black = num(/纯黑 (\d+\.\d+)/);
+    const floor = num(/下限 (\d+\.\d+)/);
+    const shade = (note.match(/primary-(\d{2,3}) 上白字/) || [])[1];
+    if (floor !== MIN) lies.push(`它自己印的下限是 ${floor}，不是 ${MIN}`);
+    // ① 「两个都低于 4.5」——这半句只能在两个数真的都低于时说。r2 那句话死在这一条上。
+    if (/两个都低于/.test(note) && !(white < MIN && black < MIN)) {
+      lies.push(`说「两个都低于 ${MIN}」，而它同一行印的是白字 ${white} / 纯黑 ${black}`);
+    }
+    // ② 「换字色救不回来」这个结论 ⟺ `inkUnreachable`（两向都判，不然「一律不说」也能过）。
+    if (/换字色救不回来/.test(note) !== !!report.inkUnreachable) {
+      lies.push(report.inkUnreachable
+        ? '两种字色在选中那一档都不过线，却没说「换字色救不回来」'
+        : `说了「换字色救不回来」，而 inkUnreachable=false（选中的${report.ink === ink.BLACK ? '深字' : '白字'}在 primary-${report.baseShade} 上是 ${report.cells['btn-primary 静止'].toFixed(3)}）`);
+    }
+    // ③ 它印的那两个数必须真的是**它点名那一档**上的读数 —— 主体漂走正是 r2 那次的成因。
+    if (!shade) lies.push('两个读数没点名是压在哪一档上量的');
+    else if (typeof palette[shade] !== 'string') lies.push(`它点名的 primary-${shade} 在这套配色里不存在`);
+    else {
+      // 🔴 **不重算一遍那个印数函数**（两份实现必然分叉，本仓为这件事付过账）：这里判的是两条性质 ——
+      // ⓐ 印出来的数与那一档上真的量出来的差不超过一个显示单位（= 主体没漂）；
+      // ⓑ 印出来的数**不大于**真值（`showRatio` 朝下取的那条性质）。有了 ⓑ，判据 ① 的「低于门槛」
+      //    才不会被显示位数四舍五入到门槛上（`gray-119` 就是这么被抓住的）。
+      const w = ink.ratio(ink.WHITE, palette[shade]);
+      const b = ink.ratio(ink.BLACK, palette[shade]);
+      for (const [label, printed, real] of [['白字', white, w], ['纯黑', black, b]]) {
+        if (Math.abs(printed - real) > 0.001) {
+          lies.push(`它说 primary-${shade} 上${label} ${printed}，那一档真的量出来是 ${real.toFixed(4)}`);
+        } else if (printed > real + 1e-9) {
+          lies.push(`${label} 印成 ${printed} 比真值 ${real.toFixed(4)} 大 —— 印数是往上取的，会把「低于门槛」印成门槛`);
+        }
+      }
+    }
+    // ④ 列进「仍然读不出来的」那几格，每一格印的数都得真的低于下限。
+    for (const cell of (note.match(/[^：· ]+=\d+\.\d+/g) || [])) {
+      const v = Number(cell.split('=')[1]);
+      if (!(v < MIN)) lies.push(`把 ${cell} 列成读不出来，可它 ≥ ${MIN}`);
+    }
+    // ⑤ 「主按钮自己那两格都过线了」只能在两格真的都过线时说。
+    if (/主按钮自己那两格都过线/.test(note)) {
+      for (const k of ['btn-primary 静止', 'btn-primary hover']) {
+        if (report.cells[k] < MIN) lies.push(`说主按钮两格都过线，而 ${k}=${report.cells[k].toFixed(3)}`);
+      }
+    }
+    return lies;
+  }
+
+  // ── 夹具：注册表 110 套（池主题用它自己那张表解出来的真底）+ 生产 6 套 + 两套人造的
+  const fixtures = [];
+  for (const [id, t] of Object.entries(themes)) {
+    const p = t.colors && t.colors.primary; if (!p) continue;
+    const g = (id in poolThemes) ? groundOfTheme(id) : null;
+    if (g && g.err) { bad(`§⑧ 夹具立不起来：${g.err}`); continue; }
+    fixtures.push({ id, palette: p, ground: g ? g.hex : ink.WHITE });
+  }
+  for (const [id, p] of Object.entries(PROD)) fixtures.push({ id: `prod/${id}`, palette: p, ground: ink.WHITE });
+  // 灰阶 114…119 = ①a 那 6 个色阶宽的段，`inkUnreachable` 那一支唯一能到达的形状（注册表上 0 套）。
+  for (let g = 114; g <= 119; g += 1) {
+    const hex = `#${[g, g, g].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+    fixtures.push({ id: `gray-${g}`, palette: { 50: '#ffffff', 400: hex, 500: hex, 600: hex, 700: hex }, ground: ink.WHITE });
+  }
+  // 非单调调色板：base 那一档过线、而 hover 那个方向上一档都不过线 —— 第三支（`primaryUnder`）的夹具。
+  // 客人的 brand.json 不保证单调，所以这一支不是死码。
+  const NONMONO = { 50: '#ffffff', 400: '#cccccc', 500: '#333333', 600: '#cccccc', 700: '#cccccc', 800: '#cccccc', 900: '#cccccc' };
+  fixtures.push({ id: 'non-monotonic', palette: NONMONO, ground: ink.WHITE });
+
+  const notes = fixtures.map((f) => {
+    const r = ink.buttonInkReport(f.palette, f.ground);
+    return { ...f, report: r, note: r ? ink.underNote(r) : null };
+  });
+  const spoke = notes.filter((n) => n.note !== null);
+  const lying = notes.flatMap((n) => liesIn(n.note, n.report, n.palette).map((l) => `${n.id}: ${l}`));
+
+  // 三支各自都得有夹具走到 —— 空过的支等于没这一条。
+  const armUnreachable = spoke.filter((n) => /换字色救不回来/.test(n.note));
+  const armPrimaryUnder = spoke.filter((n) => /主按钮自己还有/.test(n.note));
+  const armOthersOnly = spoke.filter((n) => /主按钮自己那两格都过线/.test(n.note));
+  if (!spoke.length) bad(`§⑧ ${fixtures.length} 套夹具里没有一套打这一行 —— 这一格在空过`);
+  else if (!armUnreachable.length) bad('§⑧「换字色救不回来」那一支没有夹具走到 —— 那半句话没被判过');
+  else if (!armPrimaryUnder.length) bad('§⑧「主按钮自己还有…没过线」那一支没有夹具走到');
+  else if (!armOthersOnly.length) bad('§⑧「上面这些不在主按钮上」那一支没有夹具走到');
+  else if (lying.length) bad(`§⑧ ${lying.length} 句话被自己的数否掉：${lying.slice(0, 4).join(' · ')}`);
+  else {
+    ok(`${fixtures.length} 套夹具 · ${spoke.length} 套打了这一行（三支各 ${armUnreachable.length} / `
+      + `${armPrimaryUnder.length} / ${armOthersOnly.length}）· 没有一句被自己印的数否掉`);
+  }
+  // 没有一格不过线时**不许**打这一行（另一半，否则「见谁都打」也能过上面那一格）。
+  const silentButUnder = notes.filter((n) => n.note === null && n.report && n.report.under.length);
+  const spokeButClean = spoke.filter((n) => !n.report.under.length);
+  if (silentButUnder.length || spokeButClean.length) {
+    bad(`§⑧ 触发条件与 under 不同步：该打没打 ${silentButUnder.length} 套 · 不该打却打了 ${spokeButClean.length} 套`);
+  } else ok(`触发条件 ⟺ under 非空（${notes.length - spoke.length} 套四格全过线的，一句都没打）`);
+
+  // 🔴 阳性对照：把 **r2 那句话**原样喂进同一个判据 —— 它必须被抓住，否则上面那些绿是空的。
+  // 出处 `git show a7265c17:templates/nextjs/scripts/sync-config.js` 那三行模板字符串，夹具是 ember-04。
+  const r2sample = notes.find((n) => n.id === 'ember-04');
+  if (!r2sample || !r2sample.report) bad('§⑧ 阳性对照的夹具 ember-04 不在注册表里了 —— 这个对照已经立不起来');
+  else {
+    const r = r2sample.report;
+    const r2note = `这套配色换字色救不回来 —— 白字 ${r.whiteRatio.toFixed(2)} / 纯黑 ${r.blackRatio.toFixed(2)}，`
+      + `两个都低于 4.5（blended）⟹ 保持今天的白字。 仍然读不出来的：${r.under.join(' · ')}（下限 ${MIN}，blended）`;
+    const caught = liesIn(r2note, r, r2sample.palette);
+    if (caught.length < 2) {
+      bad(`§⑧ 阳性对照没被抓住（只抓到 ${caught.length} 条）—— 这个判据咬不住 r2 那句话，上面的绿不算：${r2note}`);
+    } else ok(`阳性对照（r2 那句话，ember-04）被抓住 ${caught.length} 条：${caught.join(' · ')}`);
+    // 第二个阳性对照：只把「它点名的那一档」改错一档 —— 判据 ③ 必须单独咬得住主体漂移。
+    const drifted = ink.underNote(r).replace(`primary-${r.baseShade} 上白字`, 'primary-500 上白字');
+    if (drifted === ink.underNote(r)) {
+      bad('§⑧ 主体漂移那个对照没造出来（这句话里找不到 `primary-<档> 上白字`）—— 判据 ③ 没被验过');
+    } else if (!liesIn(drifted, r, r2sample.palette).some((l) => /真的量出来是/.test(l))) {
+      bad('§⑧ 把它点名的那一档改错一档，判据 ③ 没红 —— 主体漂移这一层是空的');
+    } else ok('阳性对照 2：把它点名的那一档改成 primary-500，判据 ③ 当场红（主体漂移咬得住）');
+  }
 }
 
 console.log(failed ? `\n🔴 ${failed} 格失败` : '\n✅ 全过');

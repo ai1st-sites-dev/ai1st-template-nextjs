@@ -175,11 +175,25 @@ function paint(t){
     var LU=function(r){var v=r.map(function(b){var c=b/255;return c<=0.03928?c/12.92:Math.pow((c+0.055)/1.055,2.4);});return 0.2126*v[0]+0.7152*v[1]+0.0722*v[2];};
     var CR=function(ih,gh){var i=BY(ih),g=BY(gh),p=i.map(function(v,k){return Math.round(v+(g[k]-v)*0.06);}),x=LU(p),y=LU(g);return (Math.max(x,y)+0.05)/(Math.min(x,y)+0.05);};
     var ok=function(h){return typeof h==='string'&&/^#[0-9a-fA-F]{6}$/.test(h);};
-    var ink=CR('#ffffff',p5)>=4.5?'#ffffff':(CR('#000000',p5)>=4.5?'#000000':'#ffffff');
-    var lad=ink==='#000000'?['400','300','200','100','50']:['600','700','800','900'],hv='',ol='',q;
-    if(ok(pk['600'])&&CR(ink,pk['600'])>=4.5){hv='600';}
-    for(q=0;!hv&&q<lad.length;q++){if(ok(pk[lad[q]])&&CR(ink,pk[lad[q]])>=4.5){hv=lad[q];break;}}
-    if(!hv){hv='600';}
+    var inkOn=function(h){return CR('#ffffff',h)>=4.5?'#ffffff':(CR('#000000',h)>=4.5?'#000000':'');};
+    // #1091 —— 先选底（500 起朝深，取第一个「压在它上面的那个字色」过线的档），再按那块底选字。
+    var BL=['500','600','700','800','900'],bs='',q;
+    for(q=0;q<BL.length;q++){if(ok(pk[BL[q]])&&inkOn(pk[BL[q]])){bs=BL[q];break;}}
+    if(!bs){bs='500';}
+    var ink=inkOn(pk[bs])||'#ffffff';
+    // #1091 —— hover 从 base 的下一档起朝远离字色的方向走；base 自己永远不在候选里（AC3：两者不同色）。
+    var nums=Object.keys(pk).filter(function(k){return /^[0-9]{2,3}$/.test(k)&&ok(pk[k]);}),
+        dk=ink==='#000000',bn=Number(bs),
+        bey=nums.filter(function(k){return dk?Number(k)<bn:Number(k)>bn;})
+                .sort(function(a,b){return dk?Number(b)-Number(a):Number(a)-Number(b);}),
+        oth=nums.filter(function(k){return dk?Number(k)>bn:Number(k)<bn;})
+                .sort(function(a,b){return dk?Number(a)-Number(b):Number(b)-Number(a);}),
+        hv='',ol='';
+    for(q=0;q<bey.length;q++){if(CR(ink,pk[bey[q]])>=4.5){hv=bey[q];break;}}
+    if(!hv){hv=bey.length?bey[0]:(oth.length?oth[0]:bs);}
+    // #1091 —— .btn-secondary:hover 的底仍然是 primary-500，所以它的字按 500 算，不跟着主按钮挪。
+    //           （这段活在模板字符串里，所以注释里一个反引号都不能有。）
+    var oink=inkOn(p5)||'#ffffff';
     var gnd='#ffffff',sel=['.services-list__item','.services-list'],el,mm;
     for(q=0;q<sel.length;q++){
       try{el=document.querySelector(sel[q]);}catch(e){el=null;}
@@ -190,9 +204,11 @@ function paint(t){
     var OL=['500','600','400','700','300','800','200','900','100','50'];
     for(q=0;q<OL.length;q++){if(ok(pk[OL[q]])&&CR(pk[OL[q]],gnd)>=4.5){ol=OL[q];break;}}
     if(!ol){ol='500';}
+    out.push('--btn-primary-bg:var(--color-primary-'+bs+');');
     out.push('--btn-primary-ink:'+ink+';');
     if(hv){out.push('--btn-primary-hover:var(--color-primary-'+hv+');');}
     if(ol){out.push('--btn-outline-ink:var(--color-primary-'+ol+');');}
+    out.push('--btn-outline-hover-ink:'+oink+';');
   }
   if(t&&typeof t.fontSans==='string'&&!/[;{}<>]/.test(t.fontSans)){out.push('--font-sans:'+t.fontSans+';');}
   if(t&&typeof t.fontHeading==='string'&&!/[;{}<>]/.test(t.fontHeading)){out.push('--font-heading:'+t.fontHeading+';');}

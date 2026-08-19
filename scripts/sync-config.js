@@ -1142,19 +1142,26 @@ console.log(`  Generated public/custom.css — ${customCssOrigin} (${customCssBy
   if (inkVars.length) {
     fs.appendFileSync(themeCssOut, `:root { ${inkVars.join(' ')} }\n`);
     const ink = report.ink === inkLib.BLACK ? '深字' : '白字';
-    console.log(`  Button ink: primary-500=${finalPrimary['500']} ⟹ ${ink}`
+    console.log(`  Button ink: primary-500=${finalPrimary['500']}`
+      // #1091 —— 主按钮的底走哪一档也要打出来：它是本票唯一会改变画面的那个决定，而
+      // 「挪了没有」在日志里看不见的话，一个站是「本来就够」还是「挪过来才够」就分不出。
+      // 🔴 r3 —— 那个 `⟹ ${ink}` 原来紧跟在 `primary-500=…` 后面，读起来是「字色是按 500 那一档定的」，
+      // 而 #1091 之后字色是按**挪过之后那一档**（`baseShade`）定的（`buttonInkReport` 里先选底再选字，
+      // 那一段注释写着这个顺序是承重的）。所以箭头挪到底色后面，主体才是它真正的那一档。
+      + ` · 主按钮底色走 primary-${report.baseShade}${report.baseMoved ? '（挪过档）' : '（没动）'}`
+      + ` ⟹ 压在那一档上的字用${ink}`
       + ` · hover 底色走 primary-${report.hoverShade} · 轮廓按钮的字走 primary-${report.outlineShade}`
       + ` (${Object.keys(finalPrimary).length} 档配色从 theme.css + custom.css 解析出来)`);
     console.log(`  Button ink: 轮廓按钮坐的那块底 = ${outlineGround} —— `
       + (ground ? ground.from : '🔴 解不出来（不是白底，是没认出那个形状）⟹ 按白底选档，这一档可能是错的'));
-    // 🔴 「换不过去」要说出来，不能静默。票正文 AC4：两种字色都过不去的那些，保持它今天的字色
-    // **并逐套列出来**。这条路上的站不是修好了 —— 它的 primary-500 落在那 6 个色阶宽的段里
-    // （白也不行、黑也不行），要动的是底色本身。不打这一行，这种站与修好了的站在日志上一模一样。
-    if (report.under.length) {
-      console.log(`  🔴 Button ink: 这套配色换字色救不回来 —— 白字 ${report.whiteRatio.toFixed(2)}`
-        + ` / 纯黑 ${report.blackRatio.toFixed(2)}，两个都低于 4.5（blended）⟹ 保持今天的白字。`
-        + ` 仍然读不出来的：${report.under.join(' · ')}`);
-    }
+    // 🔴 「还有按钮读不出来」要说出来，不能静默（#1084 立的理由：不打这一行，这种站与修好了的站在
+    // 日志上一模一样）。**这句话怎么说在 `button-ink.js` 的 `underNote()` 里，不在这里拼** ——
+    // #1091 r3：上一版在这里写死「换字色救不回来 …… 两个都低于 4.5」，而 #1091 把它引用的两个数换成了
+    // 【挪过档之后那一档】上的读数，于是 58/83 张表上它印出来的第一个数就否掉了自己那半句。搬进
+    // `underNote()` 之后它是 `report` 的纯函数，`button-ink.test.js §⑧` 逐套问「印的数否掉自己了吗」。
+    // 触发条件（`under` 非空）也在那个函数里：它返回 `null` 就是「不该打这一行」。
+    const note = inkLib.underNote(report);
+    if (note) console.log(`  🔴 Button ink: ${note}`);
   } else {
     // 🔴 报出来，不静默：这条路意味着两份 CSS 里一个十六进制的 primary-500 都没解析到，而
     // `tailwind.config.ts` 没给颜色写兜底值 ⟹ 这样的站是整站掉色，不是「按钮回落白字」。

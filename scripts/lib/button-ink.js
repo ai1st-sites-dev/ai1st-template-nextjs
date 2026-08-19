@@ -1,8 +1,12 @@
 // button-ink.js — 按钮上的字该是什么颜色，以及 hover 时底色该往哪边走。（#1084）
 //
-// 生产上 6 个站有 5 个的主按钮字读不出来（最差 2.55:1），因为 `globals.css` 把 `.btn-primary` 写死成
-// 白字压 `bg-primary-500`，而 `--color-primary-500` 是每个站自己 `site/brand.json` 里的值。修在按钮
-// 那一层，一次治掉所有存量站 —— 来源堵不完：客人的品牌色**就是**那个粉的时候我们没法拒绝他。
+// 生产上 6 个站有 5 个的主按钮字读不出来（最差 2.55:1），因为 `globals.css` 当时把 `.btn-primary`
+// 写死成白字压 `bg-primary-500`，而 `--color-primary-500` 是每个站自己 `site/brand.json` 里的值。修在
+// 按钮那一层，一次治掉所有存量站 —— 来源堵不完：客人的品牌色**就是**那个粉的时候我们没法拒绝他。
+//
+// 🔴 那句「写死成」是**改动前**的样子，两半都已经不成立了：字色 #1084 起是算出来的，**底色 #1091 起
+// 也是算出来的**（Chris 的做法 D，见下面 `BASE_LADDER` / `baseShadeFor`）。`globals.css` 今天写的是
+// `background-color: var(--btn-primary-bg, var(--color-primary-500))` —— 兜底值才是那个老字面值。
 //
 // ══ 用哪把尺量（2026-08-19 票正文改过一次，这一段是那次的落地）═══════════════════════════════════
 //
@@ -29,7 +33,8 @@
 // 🔴 ①a **换成 blended 之后那个保证没了，而且这一点是承重的。** 同样的交叉点在 blended 尺下只到
 // **4.3629**（全灰阶扫描 0…255 取的：gray=116 那一点白 4.363 / 黑 4.310，两个都低于 4.5）。也就是说
 // **存在一段底色，白也不行、黑也不行** —— 灰阶上是 `gray=114…119`，**6 个色阶宽**。落在这一段里的
-// 配色，换字色救不回来，要动的是底色本身（那部分不归本票，读数已搬到 #1091）。
+// 配色，换字色救不回来，要动的是底色本身 —— #1084 时那部分不归它，**#1091 做了**（`BASE_LADDER` /
+// `baseShadeFor` 就是那次的落地；所以今天落进这一段的配色是被挪档救回来的，不再只是「被报出来」）。
 //
 // 🔴 ①b 所以规则是**「白字够就保持白字；不够时换纯黑，但只有纯黑真的够才换；两种都不够就保持白字」**。
 // 三件事各有各的读数：
@@ -45,16 +50,30 @@
 //     ⟹ `L > 0.1833 > 0.1791`），落进那一段的配色其裸白字读数全部在 **4.49–4.87** 之间（实测 110 套
 //     注册表 + 6 个真站里落在段内的 59 个）。段外的那些（生产上那 5 个站全在段外）照常换成纯黑。
 //
-// 🔴 ② hover 的底色**先按今天的 `primary-600`**，只有当已选字色在那一档不合格时才朝【远离字色】的
-// 方向走，而字色**不跟着翻**。同样是最小改动：blended 尺下 80 套池主题的 hover 一档都不用动。
-// 需要动的是换了深字的那些生产站：深字压 600 实测（blended）4.44 / 3.60 / 3.35，全不合格；
-// 反向走一档到 400 就都过了。
+// 🔴 ② hover 的底色从**静止态那一档（`base`）的下一档**起，朝【远离字色】的方向走，取第一个让已选
+// 字色仍然过线的；字色**不跟着翻**。
+//
+// 🔴 起点是 `base` 的下一档，**不是「今天的 600」** —— #1091 把 `base` 挪深之后，按「先问 600 行不行」
+// 会在那 55 套上答出 600 = base，两态同色、鼠标移上去什么都不会发生。`base` 自己永远不在候选里
+// （`hoverShadeFor` 的 `beyond` 是严格超过 base 的那些档），这是 AC3「base 与 hover 不是同一个色值」
+// 在代码里的写法。
+//
+// 📌 所以「hover 一档都不用动」这句话（#1084 时对 80 套池主题成立）**在 #1091 之后不成立了**，
+// 而它不成立是因为 base 动了、不是因为 hover 的判据松了：80 套里 **56 套的 hover 离开了 600**
+// （55 套 `600→700` 跟着 base 从 500 挪到 600；`magenta-27` 一套走深字 ⟹ hover 朝浅走到 400）·
+// 24 套仍然停在 `500/600`（本次实测，`buttonInkReport` 逐套跑出来的 `base/hover` 分布）。
+// 生产那 6 个站的 base 一套都没挪（500 档上选中的字色就过线），所以那边仍然是「换了深字的那些要动
+// hover」：深字压 600 实测（blended）**4.193**（`site-bbf7a3d6`）· **4.440**（`#ec4899` 那三个站）·
+// **3.926**（`site-943130a2`），全不合格；反向走一档到 400 就都过了（8.703 / 7.512 / 7.807）。
+// 🔴 那三个数本来写的是 `4.44 / 3.60 / 3.35`，**后两个在 `origin/main` 上就已经对不上今天的代码**
+// （#1091 一个字都没改这条路径上的算术，本次逐套重量得到上面那三个）—— 顺手更正，不是本票造成的。
 //
 // 为什么不「每态各自选字色」：那会让鼠标一放上去字就变色。两态各自过线是硬要求，字色翻不翻是可选的，
 // 所以选不翻的那个做法。
 //
-// 📌 走一档之后仍不合格时**继续朝同方向走**（400→300→200… / 600→700→800…）；一档都不合格时**保持
-// 今天的 600**（同 ①b 的「换过去真的够才换」）。
+// 📌 走一档之后仍不合格时**继续朝同方向走**（400→300→200… / 600→700→800…）；那个方向上一档都不合格
+// 时取**离 base 最近的那一档**（不是「保持今天的 600」—— 600 可能就是 base 本身）。那一档不合格
+// 这件事由 `buttonInkReport` 的 `under` 报出来，并由 `underNote()` 印成人话。
 //
 // 🔴 ③ 轮廓按钮（`.btn-secondary`）的静止态**换字色是修不了的** —— 它的字就是品牌色本身，底是它
 // 坐着的那块。对比度是对称的，所以它的数与「白字压 primary-500」同源。所以这里做的是**沿调色板换
@@ -101,15 +120,23 @@ const {
 const WHITE = '#ffffff';
 const BLACK = '#000000';
 /** 本票之前那三处写死的字面行为 —— 「保持今天的」指的就是这三个值。 */
-const TODAY = { ink: WHITE, hover: '600', outline: '500' };
+const TODAY = { ink: WHITE, base: '500', hover: '600', outline: '500' };
 /**
  * 轮廓按钮换档时走的那把梯子：**就近优先，两个方向都可以挑**（见 ③b / ③c）。
  * 🔴 `500` 必须是第一个 —— 「今天这一档就够用就一个字都不改」跟 ①b / ② 是同一条纪律。
  */
 const OUTLINE_LADDER = ['500', '600', '400', '700', '300', '800', '200', '900', '100', '50'];
-/** hover 朝两个方向各自的梯子（`[0]` 是第一档；500 不在里面 —— hover 要跟静止态看得出区别）。 */
-const HOVER_LIGHTER = ['400', '300', '200', '100', '50'];
-const HOVER_DARKER = ['600', '700', '800', '900'];
+/**
+ * 🔴 #1091 —— 主按钮**底色**的梯子：从今天那一档起，**只朝深的一头走**（Chris 2026-08-19 拍的做法 D）。
+ *
+ * 为什么只朝一个方向，而轮廓按钮那把（`OUTLINE_LADDER`）是两个方向都走：两者要治的病不一样。
+ * 轮廓按钮的字**就是**品牌色，它坐在主题自己画的那块底上，而那块底 80 套里 37 套是深的 ⟹ 只朝深走
+ * 会把它推向底色、越走越糟（③b 那张表）。主按钮的底是**它自己**，字压在上面；朝深走等于把字底拉开，
+ * 方向单调。Chris 那一拍的原话就是「挪深一档」。
+ *
+ * 🔴 `500` 必须是第一个：跟 ①b / ② / ③c 同一条纪律 —— 今天这一档就够用，就一个字都不改。
+ */
+const BASE_LADDER = ['500', '600', '700', '800', '900'];
 
 /**
  * 一对（字，底）的读数。**这是本模块唯一的判据**，blended 那把（见文件头「用哪把尺量」）。
@@ -122,6 +149,17 @@ const ratio = (ink, ground) => contrast(
 
 /** 裸对比度（token 对 token）。只用来解释/对照，**不做任何判断**。 */
 const rawRatio = (a, b) => contrast(hexToRgb(a), hexToRgb(b));
+
+/**
+ * 把一个读数印成字：三位小数，**朝下取整**。
+ *
+ * 🔴 不能用 `toFixed` —— 它会把 `4.4996` 印成 `4.500`，也就是**门槛本身**，而印出它的那句话正说着
+ * 「这个数低于 4.5」。#1091 r3 的 `button-ink.test.js §⑧` 在 `gray-119`（纯黑真值 4.4980）上当场抓到
+ * 这一条；同族的一次是 `ember-38`（纯黑 4.495204 被印成 `4.50`，QA2 在 `origin/main` 的日志里看到的
+ * 那张「唯一的例外」其实只是显示位数）。朝下取之后印出来的数**永远不大于真值** ⟹ 「低于门槛」这类
+ * 断言不会被自己印的数否掉。
+ */
+const showRatio = (v) => (Math.floor(v * 1000) / 1000).toFixed(3);
 
 const passes = (ink, ground) => ratio(ink, ground) >= MIN_CONTRAST;
 
@@ -147,17 +185,57 @@ function inkFor(bg) {
 }
 
 /**
- * hover 的底色该取哪一档：朝远离 `ink` 的方向走，取第一个让 `ink` 仍然过线的。见 ②。
- * 一档都不过线时**保持今天的 600** —— 同 ①b 的「换过去真的够才换」：换一个同样读不出来的档位，
- * 只是把改动面铺大，救不了任何人。这种情况由 `buttonInkReport` 报出来。
+ * 主按钮**静止态**的底色该取哪一档：沿 `BASE_LADDER` 取**第一个（也就是最浅的）**让「压在它上面的
+ * 那个字色」过线的档。见 BASE_LADDER 那段。（#1091 / Chris 的做法 D）
+ *
+ * 🔴 判据是「**那一档上算出来的**字色过线」，不是「白字过线」。票正文写的是白字，而 #1084 之后字色
+ * 是 `inkDecision()` 按底色选的（白或纯黑）—— 两者对 80 套池主题只差一套（`magenta-27`：500 档白字
+ * 不过、纯黑过 ⟹ 按白字问要挪到 600，按真字色问它一步都不用挪）。**画面上生效的是后者**，所以判据
+ * 用后者。这不是放宽：`inkDecision` 只在「换过去真的够」时才换字色（①b）。
+ *
+ * 🔴 一档都不过线时**保持今天的 500**（同 ①b 的「换过去真的够才换」）：把底推到 900 而字仍然读不出来，
+ * 只是把 Chris 策展的按钮弄黑了还没修好任何人。这种情况由 `buttonInkReport` 的 `under` 报出来。
  */
-function hoverShadeFor(palette, ink) {
-  // 今天的那一档优先：它合格就一个字都不改。
-  if (typeof palette[TODAY.hover] === 'string' && passes(ink, palette[TODAY.hover])) return TODAY.hover;
-  const ladder = ink === BLACK ? HOVER_LIGHTER : HOVER_DARKER;
-  const found = ladder.filter((sh) => typeof palette[sh] === 'string')
-    .find((sh) => passes(ink, palette[sh]));
-  return found || TODAY.hover;
+function baseShadeFor(palette) {
+  const found = BASE_LADDER.filter((sh) => typeof palette[sh] === 'string')
+    .find((sh) => !inkDecision(palette[sh]).unreachable);
+  return found || TODAY.base;
+}
+
+/**
+ * hover 的底色该取哪一档：**从 `base` 往远离 `ink` 的方向走**，取第一个让 `ink` 仍然过线的。见 ②。
+ *
+ * 🔴 #1091 —— 起点从「今天的 600」改成「base 的下一档」，而这一条是承重的：做法 D 把 base 挪到 600
+ * 之后，旧写法会先问 600 合不合格、合格就返回 600 ⟹ **base 和 hover 变成同一个颜色，鼠标移上去什么
+ * 都不会发生**（role-user 在 #1091 上算出来的那个洞）。所以这里问的不再是「今天那一档行不行」，
+ * 而是「离 base 最近、且仍然过线的下一档是哪一个」。
+ *
+ * 🔴 `base` 自己**永远不在候选里**：`beyond` 是严格大于/小于 base 的那些档。这是 AC3「base 与 hover
+ * 不是同一个色值」在代码里的写法，而不是靠调用方记得去比。
+ *
+ * 🔴 **候选档是从 `palette` 自己现算的，没有写死的梯子 —— 别再加一把。** #1091 之前这里走两个写死的
+ * 数组（`HOVER_LIGHTER` / `HOVER_DARKER`），改成「离 base 最近」之后它们一个消费者都没有了，却还挂在
+ * `module.exports` 上 ⟹ 下一个人可以 import 它当「hover 的梯子」，改它一个字都不会有效果（QA1 在
+ * #1091 r2 点出来的）。已删。要限制候选就改这个函数里 `beyond` 的过滤条件，那是唯一开火的地方。
+ *
+ * 一档都不过线时取那个方向上**离 base 最近的那一档**（而不是保持今天的 600 —— 那可能就是 base 本身）。
+ * 那一档不合格这件事由 `buttonInkReport` 的 `under` 报出来。
+ */
+function hoverShadeFor(palette, ink, base = TODAY.base) {
+  const n = (sh) => Number(sh);
+  const darker = ink === BLACK;
+  const all = Object.keys(palette).filter((sh) => typeof palette[sh] === 'string' && /^\d{2,3}$/.test(sh));
+  const beyond = all
+    .filter((sh) => (darker ? n(sh) < n(base) : n(sh) > n(base)))
+    .sort((a, b) => (darker ? n(b) - n(a) : n(a) - n(b)));
+  const found = beyond.find((sh) => passes(ink, palette[sh]));
+  if (found) return found;
+  if (beyond.length) return beyond[0];
+  // 那个方向上一档都没有（base 已经在梯子的尽头）⟹ 退到另一个方向最近的一档，仍然保证 ≠ base。
+  const other = all
+    .filter((sh) => (darker ? n(sh) > n(base) : n(sh) < n(base)))
+    .sort((a, b) => (darker ? n(a) - n(b) : n(b) - n(a)));
+  return other[0] || base;
 }
 
 /**
@@ -230,24 +308,35 @@ function outlineGroundFromCss(cssText, palette) {
 function buttonInkReport(palette, outlineGround = WHITE) {
   const p500 = palette && palette['500'];
   if (typeof p500 !== 'string') return null;
-  const d = inkDecision(p500);
-  const hover = hoverShadeFor(palette, d.ink);
+  // 🔴 #1091 —— 顺序是承重的：**先选底，再按那块底选字**。反过来（先按 500 选字、再挪底）算出来的
+  // 字色是关于另一块底的答案，而画面上字压的是新底。
+  const base = baseShadeFor(palette);
+  const d = inkDecision(palette[base]);
+  const hover = hoverShadeFor(palette, d.ink, base);
+  // 🔴 `.btn-secondary:hover` 的底**仍然是 `primary-500`**（`globals.css` 那条规则本票不动），所以它的
+  // 字色要按 500 算，不能跟着主按钮挪。#1084 之前两者同底、共用一个变量；底一挪它们就是两个问题了。
+  // 不分开的话，本票会静默改掉一个不属于它的按钮 —— 那一格归 #1100。
+  const outlineHoverInk = inkDecision(p500).ink;
   // 🔴 静止态的轮廓按钮是**唯一**一格的底不是 `primary-*` 而是它坐着的那块（③a）。所以它两次都要
   // 用 `outlineGround`：一次选档、一次量读数。只在其中一处用，选出来的档与报出来的数就是两块不同
   // 的底上的答案 —— 而且报的那个会是绿的（白底上 500 档往往过线），正好把这条盖住。
   const outline = outlineShadeFor(palette, outlineGround);
   const cells = {
-    'btn-primary 静止': ratio(d.ink, p500),
+    'btn-primary 静止': ratio(d.ink, palette[base]),
     'btn-primary hover': ratio(d.ink, palette[hover]),
     'btn-secondary 静止': ratio(palette[outline], outlineGround),
-    'btn-secondary hover': ratio(d.ink, p500),
+    // 底是 primary-500、字是按 500 算出来的那个 —— 与本票改动前逐字相同。
+    'btn-secondary hover': ratio(outlineHoverInk, p500),
   };
   return {
     ink: d.ink,
+    baseShade: base,
+    outlineHoverInk,
     hoverShade: hover,
     outlineShade: outline,
     inkSwitched: d.switched,
     inkUnreachable: d.unreachable,
+    baseMoved: base !== TODAY.base,
     hoverMoved: hover !== TODAY.hover,
     outlineMoved: outline !== TODAY.outline,
     outlineGround,
@@ -255,8 +344,48 @@ function buttonInkReport(palette, outlineGround = WHITE) {
     blackRatio: d.black,
     cells,
     /** 仍然读不出来的那几格（换不过去的那些）—— AC4 要求逐套列出来的就是这个。 */
-    under: Object.entries(cells).filter(([, v]) => v < MIN_CONTRAST).map(([k, v]) => `${k}=${v.toFixed(3)}`),
+    under: Object.entries(cells).filter(([, v]) => v < MIN_CONTRAST).map(([k, v]) => `${k}=${showRatio(v)}`),
   };
+}
+
+/**
+ * 那道「这个站还有按钮读不出来」的诊断印出来的话。#1084 立的（当时住在 `sync-config.js` 里，是三行
+ * 拼起来的模板字符串），#1091 r3 重写并搬到这里。
+ *
+ * 🔴 **为什么搬进来**：那句话是一条**关于读数的断言**，而 #1091 把它引用的每个数换了主体 —— 上一版写死
+ * 「白字 {whiteRatio} / 纯黑 {blackRatio}，两个都低于 4.5 ⟹ 换字色救不回来」，而 #1091 之后这两个数是
+ * **挪过档之后那一档**上的读数，那一档上白字按构造过线（`baseShadeFor` 选的就是过线的那一档）。于是
+ * 58/83 张表上它印出来的第一个数就否掉了它自己那半句（QA2 在 #1091 r2 上量的）。搬进来 = 让它成为
+ * `report` 的纯函数，`button-ink.test.js §⑧` 才能对每一套夹具问「它印的数否掉它自己的断言了吗」；
+ * 留在 `console.log` 里没有任何测试能咬住它（那次全仓 `grep` 到 0 个断言）。
+ *
+ * 🔴 **不是让它闭嘴**：`under` 非空就照旧开火 —— #1084 那行注释的理由今天仍然成立（不打这一行，
+ * 「还有按钮读不出来」的站与修好了的站在日志上一模一样）。变的只是**它说什么**：每个数都带上它是
+ * 压在哪一档上量的，而「换字色救不回来」这个结论只在 `inkUnreachable` 那一支说。
+ *
+ * @param {ReturnType<typeof buttonInkReport>} report
+ * @returns {string|null} 没有一格不过线时 `null` = **不该打这一行**（触发条件也在这里，只此一处）
+ */
+function underNote(report) {
+  if (!report || !report.under || !report.under.length) return null;
+  const inkLabel = report.ink === BLACK ? '深字' : '白字';
+  // 每个数都点名它的主体：这两个读数是压在 **`primary-${baseShade}`** 上量的，不是压在 500 上。
+  const reading = `primary-${report.baseShade} 上白字 ${showRatio(report.whiteRatio)}`
+    + ` / 纯黑 ${showRatio(report.blackRatio)}`;
+  const head = `仍然读不出来的：${report.under.join(' · ')}（下限 ${MIN_CONTRAST}，blended）`;
+  if (report.inkUnreachable) {
+    // 这一支 ⟺ `btn-primary 静止` 在 under 里：`baseShadeFor` 在梯子上一档都找不到时才落回 500，
+    // 而那时 `inkDecision(palette['500']).unreachable` 为真 ⟹ 选中字色压 500 必然低于 4.5。
+    return `${head} —— 换字色救不回来：${reading}，两个都低于 ${MIN_CONTRAST}，`
+      + `而 BASE_LADDER 上一档都不过线 ⟹ 保持今天的${inkLabel}，要动的是配色本身。`;
+  }
+  const primaryUnder = report.under.filter((u) => u.startsWith('btn-primary'));
+  return `${head} —— 主按钮的底走 primary-${report.baseShade}（${reading} ⟹ 选${inkLabel}），`
+    + (primaryUnder.length
+      // 调色板不单调时到得了：`base` 那一档过线，而 hover 那个方向上一档都不过线（`hoverShadeFor`
+      // 这时返回离 base 最近的那一档，它自己不合格）。夹具在 §⑧ 里。
+      ? `而主按钮自己还有 ${primaryUnder.join(' · ')} 没过线 —— hover 那个方向上一档都没救回来。`
+      : '主按钮自己那两格都过线了 ⟹ 上面这些不在主按钮上。');
 }
 
 /**
@@ -271,14 +400,20 @@ function buttonInkVars(palette, outlineGround = WHITE) {
   const r = buttonInkReport(palette, outlineGround);
   if (!r) return [];
   return [
+    // #1091 —— 主按钮静止态的底。兜底值 = 本票之前的字面行为（`bg-primary-500`）⟹ 拿不到这个变量的
+    // 页面与改动前逐字相同。
+    `--btn-primary-bg: var(--color-primary-${r.baseShade});`,
     `--btn-primary-ink: ${r.ink};`,
     `--btn-primary-hover: var(--color-primary-${r.hoverShade});`,
     `--btn-outline-ink: var(--color-primary-${r.outlineShade});`,
+    // #1091 —— `.btn-secondary:hover` 的字。它的底没动（仍是 primary-500），所以它的字也不许跟着
+    // 主按钮走；这个值 = 本票之前 `--btn-primary-ink` 的值。
+    `--btn-outline-hover-ink: ${r.outlineHoverInk};`,
   ];
 }
 
 module.exports = {
-  WHITE, BLACK, TODAY, OUTLINE_LADDER, HOVER_LIGHTER, HOVER_DARKER,
-  ratio, rawRatio, inkDecision, inkFor, hoverShadeFor, outlineShadeFor,
-  outlineGroundFromCss, buttonInkReport, buttonInkVars,
+  WHITE, BLACK, TODAY, OUTLINE_LADDER, BASE_LADDER,
+  ratio, rawRatio, inkDecision, inkFor, baseShadeFor, hoverShadeFor, outlineShadeFor,
+  outlineGroundFromCss, buttonInkReport, buttonInkVars, underNote,
 };

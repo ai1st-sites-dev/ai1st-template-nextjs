@@ -67,9 +67,16 @@
      `scripts/sync-config.js` 从【最终生效】的那份配色里算出来写进 `public/theme.css`。
      🔴 每个 `var()` 都带兜底值，而兜底值 = 本票之前的字面行为 ⟹ 拿不到这些变量的页面（例如预览
      还没重画的那一刻）与改动前逐字相同，不会掉色。 */
+  /* #1091 — 主按钮的底色也走变量了（Chris 2026-08-19 拍的做法 D：不动任何配色 token，只让按钮去取
+     更深的那一档）。哪一档由 `scripts/lib/button-ink.js` §baseShadeFor 按【这套配色自己】算：从 500
+     起朝深走，取第一个「压在它上面的那个字色」过线的档。
+     🔴 兜底值 `var(--color-primary-500)` = 本票之前的字面行为（`bg-primary-500`）⟹ 拿不到这个变量的
+     页面与改动前逐字相同。
+     🔴 `focus:ring-primary-500` 没跟着动：它是焦点环，不是字压的那块底，不在本票射程里。 */
   .btn-primary {
-    @apply inline-flex items-center justify-center bg-primary-500 px-6 py-3 text-base font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+    @apply inline-flex items-center justify-center px-6 py-3 text-base font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
     border-radius: var(--radius-button);
+    background-color: var(--btn-primary-bg, var(--color-primary-500));
     color: var(--btn-primary-ink, #fff);
   }
 
@@ -97,9 +104,14 @@
     border-color: var(--btn-outline-ink, var(--color-primary-500));
   }
 
+  /* 🔴 #1091 — 这里的字**不再**跟 `.btn-primary` 共用一个变量。理由是底不一样了：主按钮的底挪深了，
+     而这条 hover 的底仍然是 `primary-500`（本票不动它）。共用一个变量的话，本票会顺带改掉这个按钮的
+     字色 —— 而它是 #1100 的第一件，不是本票的。`--btn-outline-hover-ink` 的值 = 本票之前
+     `--btn-primary-ink` 的值（压 `primary-500` 算出来的那个），所以这条规则画出来的东西一个字节都没动。
+     🔴 兜底值仍是 `#fff` = 本票之前的字面行为。 */
   .btn-secondary:hover {
     background-color: var(--color-primary-500);
-    color: var(--btn-primary-ink, #fff);
+    color: var(--btn-outline-hover-ink, #fff);
   }
 
   .btn-accent {

@@ -5,9 +5,14 @@
 //   node scripts/theme-css-invariants.mjs http://127.0.0.1:8991 [page …]
 //
 // The first argument is the site's home page: every check below is measured on it. The rest are the
-// site's OTHER pages, and check ⑤ — does the theme's own sheet have a rule for each hook in the markup —
-// is measured on those too (#1023). With none given they are read off the site's own /sitemap.xml, so
-// the ordinary call stays a one-argument one.
+// site's OTHER pages, and four checks are measured on those too: ⑤ — does the theme's own sheet have a
+// rule for each hook in the markup (#1023, the reason that loop exists) — ② (#1043), and the two parts
+// of ① that live off the home page: the moved blocks' words (#1046 条 9) and the buttons and links
+// (#1091). 🔴 This sentence named ⑤ ALONE until #1091 — #1043 and #1046 条 9 had already made it
+// incomplete before this ticket added the third widening, and nobody reading it would have known.
+// The loop's own head comment says why that keeps happening and what the run prints instead.
+// With none given they are read off the site's own /sitemap.xml, so the ordinary call stays a
+// one-argument one.
 //
 // Exit 0 = they all hold. Exit 1 = at least one does not. Exit 2 = could not take the reading.
 //
@@ -656,12 +661,19 @@ for (const sel of MOVED_TEXT_TARGETS) await measureText(sel, pathOf(baseUrl), fa
   } else {
     // 🔴 #1055 条 10 — this number is about the FIRST PAGE only, and it now says so. Left
     // unqualified, `1/4` read as "this check looked at one of the four", when the truth was "one of
-    // the four is on the home page" — the other three are on /allblocks.html, which this run opens
-    // for checks ⑤ / ② / ① and does NOT measure these on (see the ⑤b loop for why, and for the
-    // reading that says what enabling it would cost).
+    // the four is on the home page".
+    // 🔴 #1091 — AND IT NO LONGER SAYS ANYTHING ABOUT THE OTHER PAGES. It used to say they are NOT
+    // measured for these. That was true while the ⑤b loop's `CONTROL_TARGETS` line was held closed,
+    // and it became false the moment #1091 opened it — while still printing 83 times per CI run,
+    // with the run's own per-hook page list two screens below contradicting it. Worse, it read the
+    // same in both worlds: a sentence asserting the other pages' coverage from HERE cannot tell
+    // "closed" from "open", because this section runs BEFORE that loop. So it asserts nothing about
+    // them; coverage is left to the "pages measured for check ①" line, which is COUNTED from the run
+    // (`movedTextMeasured`, filled as each page is actually measured) rather than written down.
     readings.push(`  buttons/links on ${pathOf(baseUrl)}: ${measured.length}/${CONTROL_TARGETS.length}`
-      + ` — ${measured.join(', ')} · the site's other pages are NOT measured for these; which hook`
-      + ' was reached where is in the "pages measured for check ①" line at the end');
+      + ` — ${measured.join(', ')} · this fraction is THIS page only and is NOT the coverage figure:`
+      + ' which hook was reached on which page is counted from the run itself, in the'
+      + ' "pages measured for check ①" line at the end');
   }
 }
 
@@ -2104,10 +2116,13 @@ if (orderViewport) await page.setViewportSize({ width: orderViewport.width, heig
 // to move (#1007) and a home page is not where most of them live.
 //
 // 🔴 WHICH CHECKS ARE MEASURED HERE IS DELIBERATE, AND IT IS PRINTED BELOW rather than left for a
-// reader to work out. Three are: ⑤ (this loop's reason for existing), ② (#1043 — `contact-info` is a
-// contact-page block, so first-page-only meant never) and, since #1046 条 9, the part of ① that is
-// about the blocks phase 2 has moved: `.page-header__title` is a sub-page heading and is on no home
-// page at all. The rest stay first-page-only — they are about the hero (its contrast pair, the lead
+// reader to work out. Four are: ⑤ (this loop's reason for existing), ② (#1043 — `contact-info` is a
+// contact-page block, so first-page-only meant never) and TWO halves of ①: since #1046 条 9 the
+// blocks phase 2 has moved (`.page-header__title` is a sub-page heading and is on no home page at
+// all), and since #1091 the buttons and links (`CONTROL_TARGETS` — this sample site's home page
+// carries `.btn-primary` on no block it renders, so first-page-only meant never for that one too;
+// the reading that says so is quoted at the loop's own `CONTROL_TARGETS` line below).
+// The rest stay first-page-only — they are about the hero (its OWN contrast pair, the lead
 // block on the first screen, its touch targets) or they repeat per page at a cost the readings above
 // show is the expensive part: the grown-window stage alone takes a dozen relayouts. #1023's own words
 // are "别让它变慢到没人跑". Widening those is a separate decision with its own price tag.
@@ -2138,8 +2153,9 @@ if (explicitPages.length > 0) {
     // 🔴 Not being able to read the page list is not a pass: it puts the check straight back to
     // home-page-only, which is the state #1023 exists to leave, and it does it silently.
     problems.push(`other pages: this site's page list could not be read — ${why} — so only `
-      + `${pathOf(baseUrl)} was measured for check ⑤, and every block that is not on it went unlooked `
-      + 'at. That is the hole #1023 closed, not a pass');
+      + `${pathOf(baseUrl)} was measured for checks ⑤, ② and the parts of ① measured there `
+      + `(${[...MOVED_TEXT_TARGETS, ...CONTROL_TARGETS].join(', ')}), and every block that is not on it `
+      + 'went unlooked at. That is the hole #1023 closed, not a pass');
     discovery = 'nothing — the sitemap could not be read';
   } else {
     const locs = [...xml.matchAll(/<loc>\s*([^<]+?)\s*<\/loc>/g)]
@@ -2195,9 +2211,17 @@ for (const p of otherPaths.slice(0, OTHER_PAGE_CAP)) {
     // while the sentence named two. The rule this keeps failing is the one it states about itself: a
     // check widened into this loop has to be added to this list in the same edit, because nothing red
     // ever appears when it is not.
+    // 🔴 #1091 — IT FAILED THAT RULE A THIRD TIME. #1091 put `CONTROL_TARGETS` (the buttons and
+    // links) in this loop and left this sentence naming the old selector list; QA1 caught the same
+    // omission in three other places the same round. So the SELECTORS are no longer hand-written
+    // here: they are spread from the same two arrays the loop iterates, and widening either array
+    // carries into this message with no edit.
+    // 🔴 What is still hand-written is the CHECK NAMES (⑤, ②, ①). A fifth check joining this loop
+    // still has to be added to this sentence by hand — the rule above is not retired, only narrowed.
     problems.push(`other pages: "${p}" is in this site's page list but could not be opened, so `
       + `none of check ⑤ (every hook has a rule), check ② (essential content is not hidden) and the `
-      + `part of check ① measured here (the contrast of ${MOVED_TEXT_TARGETS.join(', ')}) was `
+      + `parts of check ① measured here (the contrast of `
+      + `${[...MOVED_TEXT_TARGETS, ...CONTROL_TARGETS].join(', ')}) was `
       + `measured on it — tried ${opened.error}`);
     continue;
   }
@@ -2230,79 +2254,53 @@ for (const p of otherPaths.slice(0, OTHER_PAGE_CAP)) {
   // only on the first page would have been measuring it never. Costs two screenshots per hook that
   // is actually present; a page with none of them costs four `count()` calls.
   for (const sel of MOVED_TEXT_TARGETS) await measureText(sel, opened.at, false);
-  // 🔴 AND NOT, YET, THE BUTTONS AND LINKS — and the reason below is measured 2026-08-18 (#1083 条 ③),
-  // not inherited. Adding
-  // `for (const sel of CONTROL_TARGETS) await measureText(sel, opened.at, false)` here is one line and
-  // it works; what it finds is why it is not here.
+  // 🔴 #1091 — AND THE BUTTONS AND LINKS, HERE, on every page this loop opens. This line was held
+  // closed from #1055 to #1091 and the reason is spent: what blocked it was `.btn-primary`, white on
+  // `--color-primary-500`, unreadable on 52 of the 80 pool sheets (104 violations, 2 per red sheet,
+  // 4.30–4.48:1, all of them on /services.html and /allblocks.html). Chris ruled on 2026-08-19 (#1091,
+  // option D): move the BUTTON to a deeper step of its own palette, change no colour token. That is
+  // landed — `scripts/lib/button-ink.js` §baseShadeFor picks the lightest step from 500 downwards
+  // whose chosen ink clears the floor, sync-config writes `--btn-primary-bg` into public/theme.css,
+  // and `globals.css` reads it. So the four hooks are measured here now, every run, forever.
   //
-  // 🔴 THE REASON THAT USED TO BE WRITTEN HERE IS SPENT, and leaving it would have sent the next
-  // reader to Chris for a decision he has already made. It said the blocker was
-  // `.announcement-bar__link` (3.46:1 on /allblocks.html), that the three hand-written sheets all
-  // paint it `accent-600` on a `primary-100` strip, and that the fix was a colour decision #1055 条 14
-  // fenced off as his. He ruled on 2026-08-17 (#1072, third round: fix it in the sheets), and it is
-  // landed — `0f37d4b2`. What the sheets paint that hook now, read off them today (#1083 r2 — the
-  // earlier wording here said "primary-800" flat, which is only two of the three):
-  //   hero-media-right / -top : `color: primary-800`, on the strip's own `primary-50` / `primary-100`
-  //   hero-media-left         : `color: primary-50` on the link's own `background-color: primary-900`
-  // Either way the old blocker is gone: with this line opened that hook reads 4.68:1 on ember-38 and
-  // is not among the violations any sheet in the pool reports.
+  // 🔴 WHY THIS LOOP AND NOT THE FIRST PAGE ALONE, said as a reading rather than a rule: a home page
+  // carries `.btn-primary` only through a `services-list` or `pricing-table` block, and this sample
+  // site's does not. Measured on the closed version, the check ① line printed
+  // `.btn-primary → 🔴 on no page measured` while the same run's ②e line read
+  // `lowest "btn-primary" in "services-list" 4.42:1` on two OTHER pages. The hook was unreadable on
+  // two pages and unmeasured on all of them, and both sentences were true at once.
   //
-  // 🔴 WHAT BLOCKS IT TODAY IS A DIFFERENT PAIR: `.btn-primary`, white on `--color-primary-500`.
+  // 🔴 THE THREE HAND-WRITTEN `hero-media-*` SHEETS ARE STILL PRINTED-AND-NOT-JUDGED here (§PALETTE):
+  // no theme is named after them, so no palette is theirs, and a pairing no site can be built with is
+  // not a fact about any theme. 🔴 The not-judged status is about the PAIRING, not the numbers:
+  // measured 2026-08-19 on all three, `.btn-primary` comes out 5.88:1 and its hover 7.98:1 -- ABOVE
+  // the floor, and the run says so itself ("0 ratio(s) came out below it"). An earlier draft of this
+  // comment said they read BELOW the floor; that was true before #1091 (they take the shared default
+  // palette, whose `primary-500` was the ground) and stopped being true when the button moved to a
+  // deeper step. Do not restore that sentence from memory -- re-measure it; it is a reading, not a rule.
   //
-  // 🔴 #1084 (2026-08-19) CHANGED THAT INK AND DID NOT UNBLOCK THIS — say so here, because the
-  // sentence that used to stand here ("the colour is `globals.css`'s, not any sheet's") now reads
-  // like a fix nobody has done. The ink is no longer a literal `text-white`: it is computed per site
-  // from the palette that actually wins the cascade (`scripts/lib/button-ink.js`, written into
-  // `public/theme.css` by sync-config). For these sheets it still comes out WHITE, and that is a
-  // RESULT, not an omission — their `primary-500` is a mid-tone where NEITHER white NOR pure black
-  // clears 4.5 blended (55 of the 80; the whole unreachable band is 6 grey levels wide, gray=114…119,
-  // arithmetic in button-ink.js ①a). So the blocker moved from "the ink is hardcoded" to "no ink can
-  // fix these grounds"; what has to move is the palettes, and that is #1091 (`need-user-help`).
-  // Re-measured 2026-08-19 by opening this exact line on both trees, `--make-sample-site ember-46`:
-  // 2 violations before, the SAME 2 after — `.btn-primary` 4.42:1 on /services.html and
-  // /allblocks.html, painted rgb(250,254,252) on rgb(153,111,45), byte-identical lines.
-  // 📌 `.btn-secondary` is not in `CONTROL_TARGETS` at all, so nothing here says anything about it.
-  //
-  // The 2026-08-18 sweep that produced the numbers below (before #1084) was measured by opening this
-  // exact line and running the CI job over the set CI actually runs —
-  // `bash scripts/theme-css-invariants-all-sheets.sh --make-sample-site` over all 83 sheets, each
-  // paired with the theme named after it (#1016 r5) — 2026-08-18:
-  //
-  //   52 of the 80 pool sheets go red — 104 violations, i.e. exactly 2 per red sheet
-  //   every one of the 104 is `.btn-primary`, 4.30–4.48:1, on /services.html and /allblocks.html
-  //   not one is `.announcement-bar__link` or `.services-nav__link`
-  //   the 3 hand-written hero-media-* sheets still pass: their `.btn-primary` reads below the floor
-  //     too, but their contrast is printed-and-not-judged (no theme is named after them, §PALETTE)
-  //
-  // Those two pages are exactly why check ① on the FIRST page never saw it: a home page carries
-  // `.btn-primary` only through a `services-list` or `pricing-table` block, and this sample site's
-  // does not — so the hook prints `🔴 on no page measured` while being unreadable on two other pages.
-  //
-  // 🔴 DO NOT ARGUE THIS CLEAN WITH ARITHMETIC — the numbers disagree, and they disagree in both
-  // directions, so neither layer is a proxy for the other (all four readings on ember-38, 2026-08-18):
+  // 🔴 DO NOT ARGUE THIS LAYER CLEAN WITH ARITHMETIC — the three rulers disagree, in both directions,
+  // so neither is a proxy for the other (all readings on ember-38, 2026-08-18):
   //
   //   .btn-primary  white on primary-500 #bb5b36   raw 4.504  ·  blended 4.173  ·  BROWSER 4.299
   //   .announcement-bar__link  accent-300 on 800   raw 4.700  ·  blended 4.340  ·  BROWSER 4.68
   //
-  // `raw` is what `theme-presets.test.js` §① judges (plain token-vs-token), `blended` is what its §⑨
-  // judges (`theme-contrast.js` mixes 6% of the ground into the ink to stand in for antialiasing), and
-  // `BROWSER` is what this file judges: the colour the text ACTUALLY came out as, per line of text —
-  // rgb(248,250,250) for that white, not #ffffff. Over the 80 pool themes the raw judge finds **0**
-  // white-on-primary-500 failures and the blended one finds **56**; this browser reading is the third
-  // answer again. So "the arithmetic in the value layer is green" says nothing about whether opening
-  // this line is safe, and vice versa.
+  // 🔴 THE FIRST ROW IS THE PAIRING THIS SHEET HAD **BEFORE** #1091, kept because it is the reading
+  // that makes the point (three rulers, three answers, and the two that disagree with the browser
+  // disagree in opposite directions). `.btn-primary` is no longer white on primary-500 anywhere:
+  // since #1091 its ground is `--btn-primary-bg`, the step `button-ink.js` chose for this palette
+  // (ember-38 moved to 600, and the browser reads 5.80:1 there). Do not read this row as what the
+  // button is today — re-measure before quoting it.
   //
-  // 🔴 So this is still a colour decision, but NOT the one #1072 settled: it is `globals.css`'s white
-  // ink (or its `bg-primary-500`) against the pool palettes' `primary-500`, over most of the pool.
-  // Whoever opens this line has to move that colour in the same change, or the job goes red on main
-  // the day it lands. That belongs in its own ticket, with the count above as its scope.
+  // `raw` is what `theme-presets.test.js` §① judges, `blended` is what its §⑨ judges
+  // (`theme-contrast.js` mixes 6% of the ground into the ink to stand in for antialiasing), and
+  // `BROWSER` is what this file judges: the colour the text ACTUALLY came out as, per line of text.
+  // `button-ink.js` chooses on `blended`; THIS is what says whether the choice was enough.
   //
-  // 🔴 So the blindness is made LOUD instead of quietly widened: `.btn-primary`,
-  // `.announcement-bar__link` and `.services-nav__link` now print `🔴 on no page measured` in the
-  // check ① line below, every run, instead of being absent from it. Widening the measurement and
-  // deciding the colour layer have to ship together to be correct, so they belong in one ticket.
-  // Say what this page actually offered up. "Measured on 4 pages" with no counts cannot tell
-  // "checked and clean" from "there was nothing on any of them to check".
+  // 📌 `.btn-primary:hover` is NOT in `CONTROL_TARGETS` and is therefore NOT measured here — a hover
+  // state has to be driven before it can be photographed. Whether it should join this list is #1100.
+  // #1091 measured it with a one-off probe instead and reported the readings on the ticket.
+  for (const sel of CONTROL_TARGETS) await measureText(sel, opened.at, false);
   readings.push(`  ${opened.at} — essential elements: ${otherReading.roots.length}`
     + ` · parts with content inside them: ${otherReading.parts.length}`);
   essentialPagesMeasured.push(opened.at);
@@ -2315,8 +2313,9 @@ readings.push(`  pages measured for check ⑤: ${audits.map((a) => a.where).join
     + `were NOT measured: ${droppedPages.join(', ')}` : ''}`
   + '. On the pages after the first, check ⑤ is measured (which classes have a rule anywhere, and '
   + 'whether the theme\'s own sheet dresses each hook in the markup), check ② (essential content is '
-  + 'not hidden, roots and the parts inside them) AND the moved-block half of check ① (the contrast of '
-  + `${MOVED_TEXT_TARGETS.join(', ')}, wherever they are present). The hero's own contrast pair, the `
+  + 'not hidden, roots and the parts inside them) AND the two parts of check ① measured here (the '
+  + `contrast of ${[...MOVED_TEXT_TARGETS, ...CONTROL_TARGETS].join(', ')}, wherever they are `
+  + `present — the buttons and links joined this loop in #1091). The hero's own contrast pair, the `
   + 'first screen, touch targets, sideways scroll, type size and paint order are measured on the first '
   + 'page alone');
 // 🔴 #1043 — check ② states its own reach. It used to be first-page-only and say nothing about that,
@@ -2325,10 +2324,12 @@ readings.push(`  pages measured for check ⑤: ${audits.map((a) => a.where).join
 // their readings are printed above; these four are measured wherever they turn up, and a hook that
 // turned up nowhere has to SAY so — otherwise "no finding for `.page-header__title`" reads like a
 // pass on a hook nothing looked at, which is the hole this item was opened for.
-// 🔴 #1055 条 10 — the buttons and links are in this line now, and for most of them the answer is
-// `🔴 on no page measured`. That is the point: they are measured on the first page only, and three of
-// the four are not on it, so before this line said so the fact lived nowhere. What it would cost to
-// widen it — and why that is not this batch's call — is in the ⑤b loop above.
+// 🔴 #1055 条 10 / #1091 — the buttons and links are in this line, and since #1091 they are measured
+// on EVERY page this run opens, not the first one alone (the ⑤b loop above). Before that widening
+// three of the four printed `🔴 on no page measured` on every run, while one of them was unreadable
+// on two pages nothing looked at. The `🔴 on no page measured` wording stays because it is still the
+// honest answer for a hook this site puts on no page at all — and that is a finding about coverage,
+// not a pass.
 // 🔴 #1055 条 7 — AND IT STATES THE CAP, which checks ⑤ and ② have said since #1046 条 16 and this
 // line did not. Check ① is measured in the same loop, so the pages past the cap are missing from it
 // too; a reading that lists four pages while four more went unlooked-at reads as complete coverage.
