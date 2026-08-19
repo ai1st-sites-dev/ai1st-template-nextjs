@@ -76,6 +76,14 @@
   margin-right: auto;
 }
 
+.hero__form {
+  display: grid;
+  gap: 1rem;
+  padding: 1.75rem;
+  border-radius: var(--radius-block);
+  background-color: var(--color-primary-100);
+}
+
 .cta-banner {
   display: grid;
   grid-template-columns: 1fr;

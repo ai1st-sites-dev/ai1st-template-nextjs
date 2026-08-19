@@ -110,6 +110,12 @@ const CONTRACT_VERSION = 'v1';
 // Exact strings. A prefix rule (`starts with .hero__`) would admit the next typo as a new part.
 const HOOKS = new Set([
   '.hero', '.hero__media', '.hero__body', '.hero__title', '.hero__sub', '.hero__cta', '.hero__deco',
+  // #1065 — the eighth part. `with-form` has been in hero's `block_layout` value table since the
+  // 2026-08-12 spec (§208) while nothing rendered it; HeroSection now renders `.hero__form` when the
+  // page JSON asks for that content shape, so a sheet must be able to name it. A part that exists in
+  // the markup but not on this list is the silent half: sheets cannot dress it and gate ② calls the
+  // whole candidate out for a hook it has no rule for.
+  '.hero__form',
   '[data-block="hero"]',
   // #1018 — cta-banner, phase 2's first paid-in-full move. One class per part, no part for the
   // button itself: the box around it is a theme's business, the button's own look is the brand's.

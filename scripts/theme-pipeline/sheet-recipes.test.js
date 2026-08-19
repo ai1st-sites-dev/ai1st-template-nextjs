@@ -53,6 +53,7 @@ const crypto = require('crypto');
 
 const DIR = __dirname;
 let sheetFor; let voiceFor; let heroLayoutFor; let HERO_LAYOUTS; let postcss; let paletteFor;
+let heroLookFor; let HERO_LOOK_NAMES; let HERO_LOOKS;
 
 let pass = 0; let fail = 0;
 const ok = (m) => { pass += 1; console.log(`  ✅ ${m}`); };
@@ -62,6 +63,7 @@ const die = (m) => { console.error(`🔴 跑不起来: ${m}`); process.exit(2); 
 try {
   ({
     sheetFor, voiceFor, heroLayoutFor, HERO_LAYOUTS,
+    heroLookFor, HERO_LOOK_NAMES, HERO_LOOKS,
   } = require(path.join(DIR, 'sheet-recipes.js')));
   ({ paletteFor } = require(path.join(DIR, 'palette.js')));
   postcss = require('postcss');
@@ -84,67 +86,116 @@ function heroRulesOf(css) {
   return out.sort().join('\n');
 }
 
-// ── 夹具自检：三个序号的 voice 必须只差 `hero`，且三者版式互不相同 ────────────────────────────
+// ── 夹具自检：一组序号的 voice 只差 hero 那两个键，且它们覆盖了全部画法 ──────────────────────────
+//
+// 画法是序号的函数，没法「同一套候选换个画法」。但 voice 各档的周期是 lcm(4,3,5) = 60，所以
+// **i、i+60、i+120 … 这一列的 voice 除了 `hero` / `heroLook` 两项逐项相同**；沿着这一列往下走，
+// 画法会轮过去。测试自己先验这两条，不合就 exit 2 —— 夹具不成立时不许给读数。
 const BASE = 0;
-const TRIO = [BASE, BASE + 60, BASE + 120];
+const VOICE_PERIOD = 60;
+const TRIO = [];                                   // 每种画法一个序号，voice 除 hero 两项外全同
 {
+  const byLook = new Map();
+  for (let k = 0; k < 64 && byLook.size < HERO_LOOK_NAMES.length; k += 1) {
+    const i = BASE + k * VOICE_PERIOD;
+    const look = heroLookFor(i);
+    if (!byLook.has(look)) byLook.set(look, i);
+  }
+  if (byLook.size !== HERO_LOOK_NAMES.length) {
+    die(`夹具不成立：沿 i+${VOICE_PERIOD} 走 64 步只覆盖了 ${byLook.size} 种画法，`
+      + `HERO_LOOKS 有 ${HERO_LOOK_NAMES.length} 种。`);
+  }
+  TRIO.push(...HERO_LOOK_NAMES.map((n) => byLook.get(n)));
   const vs = TRIO.map((i) => voiceFor(i));
   const keys = Object.keys(vs[0]);
   const differing = keys.filter((k) => new Set(vs.map((v) => JSON.stringify(v[k]))).size > 1);
-  if (differing.join(',') !== 'hero') {
-    die(`夹具不成立：i / i+60 / i+120 的 voice 差在 [${differing.join(', ')}]，应当只差 hero。`
-      + '各档的模数改过之后，这里的 60 / 120 要跟着重算（周期 = lcm(各档模数)）。');
-  }
-  const layouts = TRIO.map((i) => heroLayoutFor(i));
-  if (new Set(layouts).size !== HERO_LAYOUTS.length) {
-    die(`夹具不成立：三个序号只覆盖了 ${new Set(layouts).size} 种版式（${layouts.join(' / ')}），`
-      + `HERO_LAYOUTS 有 ${HERO_LAYOUTS.length} 种。`);
+  if (differing.sort().join(',') !== 'hero,heroLook') {
+    die(`夹具不成立：这一列的 voice 差在 [${differing.join(', ')}]，应当只差 hero / heroLook。`
+      + `各档的模数改过之后，这里的 ${VOICE_PERIOD} 要跟着重算（周期 = lcm(各档模数)）。`);
   }
 }
 
-console.log('① layout.json 说的版式，产物里看得出来吗');
+console.log('① 主题挑的那个画法，产物里看得出来吗');
 
-// 每一种版式都画得出来（HERO_SHAPES 缺一个名字时 sheetFor 会当场抛）
+// 每一种画法都画得出来（HERO_LOOKS 缺一个名字时 sheetFor 会当场抛）
 for (const i of TRIO) {
-  const name = heroLayoutFor(i);
+  const name = heroLookFor(i);
   try {
     sheetFor(i);
-    ok(`版式 ${name} 画得出来`);
+    ok(`画法 ${name} 画得出来`);
   } catch (e) {
-    bad(`版式 ${name} 画不出来：${e.message}`);
+    bad(`画法 ${name} 画不出来：${e.message}`);
   }
 }
 
-// 正向：版式不同 ⟹ hero 那几条不一样
-const heroCss = new Map(TRIO.map((i) => [heroLayoutFor(i), heroRulesOf(sheetFor(i))]));
-for (const [a, b] of [['with-media-left', 'with-media-top'], ['with-media-left', 'text-only'],
-  ['with-media-top', 'text-only']]) {
-  if (!heroCss.has(a) || !heroCss.has(b)) { bad(`没取到 ${a} / ${b} 的读数`); continue; }
-  if (md5(heroCss.get(a)) === md5(heroCss.get(b))) {
-    bad(`${a} 与 ${b} 的 hero 规则逐字节相同（md5 ${md5(heroCss.get(a)).slice(0, 8)}）`
-      + ' —— 名字不一样、画出来一样，正是 r1 那个形状');
-  } else {
-    ok(`${a} ≠ ${b}（hero 规则不同）`);
-  }
-}
+// 🔴 比的是**去掉颜色之后**的 hero 规则（#1065）。理由：这一列上的调色板并不相同（调色板的周期是
+//    720，voice 是 60），所以整段 hero 规则的 md5 不同**证不了**差别来自画法 —— 那正是 #1051 r1
+//    栽的那种「差别活在别处」。画法能决定的是位置、列数、尺寸、对齐；颜色不归它。
+//    反向对照就在下面：同一个画法、不同调色板的两套，这个投影必须逐字节相同。
+const dropColours = (rules) => rules.split('\n').map((line) => {
+  const m = /^(.*\{ )(.*)( \})$/.exec(line);
+  if (!m) return line;
+  const decls = m[2].split('; ').filter((d) => d && !/var\(--color-/.test(d));
+  return `${m[1]}${decls.join('; ')}${m[3]}`;
+}).join('\n');
 
-// 反向：同一个版式、同一套 voice、同一副调色板 ⟹ 必须一样。少了这一格，上面三格可能只是「恒判不同」。
-// 🔴 这个周期是 **720**，不是 voice 那个 180 —— r4 起字色是按这套候选的调色板挑的（见
-//    `surfaceFor`），所以整份表的周期是 lcm(voice 180, 调色板 720) = 720。夹具自己验这一条：
-//    voice 相同 + 调色板逐字相同，两条都不成立就 exit 2，不给读数。
+const heroLook = new Map(TRIO.map((i) => [heroLookFor(i), dropColours(heroRulesOf(sheetFor(i)))]));
+
+// 正向：两两之间必须不同 —— 八种画法，28 对，一对都不许相同
 {
-  const PERIOD = 720;
+  const names = [...heroLook.keys()];
+  const same = [];
+  for (let a = 0; a < names.length; a += 1) {
+    for (let b = a + 1; b < names.length; b += 1) {
+      if (md5(heroLook.get(names[a])) === md5(heroLook.get(names[b]))) same.push(`${names[a]}=${names[b]}`);
+    }
+  }
+  const pairs = (names.length * (names.length - 1)) / 2;
+  if (same.length) {
+    bad(`${pairs} 对画法里有 ${same.length} 对的 hero 规则逐字节相同（${same.join(', ')}）`
+      + ' —— 名字不一样、画出来一样，正是 #1051 r1 那个形状');
+  } else {
+    ok(`${names.length} 种画法两两不同（${pairs} 对，去掉颜色之后仍然全部不同）`);
+  }
+}
+
+// 反向 ①：同一个画法、同一套 voice、**不同**调色板 ⟹ 去掉颜色之后必须逐字节相同。
+// 少了这一格，上面那 28 对的「不同」可能全是调色板造出来的。
+// 🔴 960 = lcm(voice 60, 画法 64)：voice 相同 + 画法相同，而 960 不是调色板周期 720 的倍数 ⟹ 颜色不同。
+{
+  const PERIOD = 960;
+  const a = BASE;
+  const b = BASE + PERIOD;
+  if (heroLookFor(a) !== heroLookFor(b)) die(`夹具不成立：i 与 i+${PERIOD} 的画法不同`);
+  if (JSON.stringify(voiceFor(a)) !== JSON.stringify(voiceFor(b))) die(`夹具不成立：i 与 i+${PERIOD} 的 voice 不同`);
+  if (JSON.stringify(paletteFor(a)) === JSON.stringify(paletteFor(b))) {
+    die(`夹具不成立：i 与 i+${PERIOD} 的调色板相同 —— 这一格要的正是「颜色不同」`);
+  }
+  const pa = dropColours(heroRulesOf(sheetFor(a)));
+  const pb = dropColours(heroRulesOf(sheetFor(b)));
+  if (md5(pa) === md5(pb)) {
+    ok(`反向对照：同画法同 voice、调色板不同的两套（i 与 i+${PERIOD}），去掉颜色之后 hero 规则相同`
+      + ' —— 上面那些「不同」不是颜色造出来的');
+  } else {
+    bad('反向对照失败：同一个画法的两套，去掉颜色之后 hero 规则却不同 —— 这把尺读到的差别不全是画法的');
+  }
+}
+
+// 反向 ②：连颜色一起相同的两套（voice、画法、调色板三样都相同）⟹ 整段 hero 规则逐字节相同。
+// 🔴 这个周期是 **2880** = lcm(voice 60, 画法 64, 调色板 720)。#1065 之前是 720（那时画法周期是 9）。
+{
+  const PERIOD = 2880;
   if (JSON.stringify(voiceFor(BASE)) !== JSON.stringify(voiceFor(BASE + PERIOD))) {
     die(`夹具不成立：i 与 i+${PERIOD} 的 voice 不同 —— ${PERIOD} 不再是 voice 的周期整数倍`);
   }
   if (JSON.stringify(paletteFor(BASE)) !== JSON.stringify(paletteFor(BASE + PERIOD))) {
     die(`夹具不成立：i 与 i+${PERIOD} 的调色板不同 —— 色相/饱和度那几档改过之后，`
-      + '这个周期要跟着重算（= lcm(色相周期, 各饱和度档数)）');
+      + '这个周期要跟着重算（= lcm(voice, 画法, 调色板)）');
   }
   const sameA = heroRulesOf(sheetFor(BASE));
   const sameB = heroRulesOf(sheetFor(BASE + PERIOD));
-  if (md5(sameA) === md5(sameB)) ok(`反向对照：同版式同 voice 同调色板的两套（i 与 i+${PERIOD}），hero 规则相同 —— 这把尺不是恒判不同`);
-  else bad('反向对照失败：同版式同 voice 同调色板的两套 hero 规则却不同，说明这把尺在乱判');
+  if (md5(sameA) === md5(sameB)) ok(`反向对照：三样都相同的两套（i 与 i+${PERIOD}），hero 规则逐字节相同 —— 这把尺不是恒判不同`);
+  else bad('反向对照失败：同画法同 voice 同调色板的两套 hero 规则却不同，说明这把尺在乱判');
 }
 
 console.log('② 表本身有没有双胞胎');
@@ -278,6 +329,89 @@ console.log('④ 表说了居中，产物里那几样东西真的居中吗');
     bad(`反向对照对不上：拿掉修法后被点名 ${caught.length} 套，而声明居中的是 ${centredSheets.length} 套`);
   } else {
     bad('反向对照失败：拿掉修法之后这把尺一套都没点名 —— 它量不出好坏');
+  }
+}
+
+console.log('⑤ 两条轴有没有串（#1065）');
+{
+  // 轴一（内容结构）的取值表**权威在 `blocks/hero.json`** —— 那份 manifest 是 #999 的交付物，
+  // 也是 2026-08-12 spec 第 208 行那张值表在磁盘上的样子。这里不另抄一份清单：抄了就会分叉，
+  // 而分叉的方向正是这一格要拦的（生成器往 `supports.hero` 里吐一个 manifest 不认的值）。
+  const manifest = JSON.parse(
+    require('fs').readFileSync(path.join(DIR, '..', '..', 'blocks', 'hero.json'), 'utf-8'),
+  );
+  const allowed = manifest.block_layout;
+
+  // 判据写成一个函数，因为下面的反向对照要拿一张**动过手脚**的表再问一次同样的话。
+  const axisProblems = (looks) => {
+    const out = [];
+    for (const [name, look] of Object.entries(looks)) {
+      if (!allowed.includes(look.content)) {
+        out.push(`画法 ${name} 的 content 是 ${JSON.stringify(look.content)}，`
+          + `不在 blocks/hero.json 的 block_layout 里（${allowed.join(' / ')}）`);
+      }
+      // 外观词长什么样，判据不是「我认识这个词」，而是「它是不是这张表自己的画法名」——
+      // 画法名进了轴一，就是两条轴又黏回去了。
+      if (Object.keys(looks).includes(look.content)) {
+        out.push(`画法 ${name} 的 content 就是一个画法名（${look.content}）—— 两条轴黏在一起了`);
+      }
+    }
+    return out;
+  };
+
+  const problems = axisProblems(HERO_LOOKS);
+  if (problems.length) {
+    bad(`轴串了：${problems.join(' · ')}`);
+  } else {
+    ok(`${Object.keys(HERO_LOOKS).length} 种画法的 content 全部落在 blocks/hero.json 声明的 `
+      + `${allowed.length} 个内容结构里（${allowed.join(' / ')}），没有一个外观词`);
+  }
+
+  // 派生出来的轴一取值表必须**逐字等于** manifest 那三个（顺序不算）—— 少一个也是问题：
+  // `with-form` 掉出去就意味着池里没有一套主题声明支持带表单的 hero。
+  const derived = [...HERO_LAYOUTS].sort();
+  if (JSON.stringify(derived) === JSON.stringify([...allowed].sort())) {
+    ok(`轴一的取值集合逐字等于 manifest：${derived.join(' / ')}`);
+  } else {
+    bad(`轴一的取值集合是 ${derived.join(' / ')}，manifest 是 ${[...allowed].sort().join(' / ')}`);
+  }
+
+  // 🔴 反向对照 —— 往内容结构那一栏塞一个外观词，这把尺必须当场点名它（AC-A 点名要的那一格）。
+  const rigged = {
+    ...HERO_LOOKS,
+    'media-left': { ...HERO_LOOKS['media-left'], content: 'with-media-left' },
+  };
+  const caught = axisProblems(rigged);
+  if (caught.length === 1 && /with-media-left/.test(caught[0])) {
+    ok(`反向对照：把 media-left 的 content 改成外观词 with-media-left，这把尺当场点名（${caught[0]}）`);
+  } else if (caught.length) {
+    bad(`反向对照对不上：点名了 ${caught.length} 条，应当只有那一条 —— ${caught.join(' · ')}`);
+  } else {
+    bad('反向对照失败：把外观词塞进内容结构表之后，这把尺一句话都没说');
+  }
+
+  // 每一种内容结构都要有人画 —— 「值表里有 with-form」和「有画法产得出 with-form」是两件事，
+  // 而 #1065 立票时坏的正是后者（值表里写着，池里 0 套）。
+  const byContent = new Map();
+  for (const [name, look] of Object.entries(HERO_LOOKS)) {
+    if (!byContent.has(look.content)) byContent.set(look.content, []);
+    byContent.get(look.content).push(name);
+  }
+  const empty = allowed.filter((c) => !byContent.has(c));
+  if (empty.length) bad(`${empty.join(' / ')} 没有任何画法产得出来 —— 声明支持一个渲染不出来的形态`);
+  else {
+    ok(`每种内容结构都有画法：${[...byContent].map(([c, ns]) => `${c} ${ns.length} 种`).join(' · ')}`);
+  }
+
+  // 80 套池子里每种画法各有几套（AC-C 的下限是每种 ≥ 8）。挑法是序号的函数，所以这个数不用建站就问得出来。
+  {
+    const N = 80;
+    const counts = new Map(HERO_LOOK_NAMES.map((n) => [n, 0]));
+    for (let i = 0; i < N; i += 1) counts.set(heroLookFor(i), counts.get(heroLookFor(i)) + 1);
+    const thin = [...counts].filter(([, n]) => n < 8);
+    const line = [...counts].map(([n, c]) => `${n} ${c}`).join(' · ');
+    if (thin.length) bad(`${N} 套里有画法不到 8 套：${thin.map(([n, c]) => `${n} ${c}`).join(', ')}（全表：${line}）`);
+    else ok(`${N} 套逐套归类，每种画法都 ≥ 8 套：${line}`);
   }
 }
 

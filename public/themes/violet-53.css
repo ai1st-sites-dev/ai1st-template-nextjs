@@ -5,48 +5,45 @@
   display: grid;
   grid-template-columns: 1fr;
   gap: calc(var(--section-block-gap) * 4);
-  padding: calc(var(--section-block-pad) * 5) 1.5rem;
+  padding: 0 0 calc(var(--section-block-pad) * 5);
   background-color: var(--color-primary-50);
   color: var(--color-primary-900);
-  align-items: center;
-  min-height: 34rem;
-}
-
-@media (min-width: 1024px) {
-  .hero {
-    grid-template-columns: 5fr 6fr;
-    gap: calc(var(--section-block-gap) * 6);
-    padding: calc(var(--section-block-pad) * 7) 3rem;
-  }
+  align-items: start;
+  text-align: center;
+  min-height: 0;
 }
 
 .hero__media {
   width: 100%;
-  aspect-ratio: 4 / 5;
-  border-radius: var(--radius-block);
+  aspect-ratio: auto;
+  border-radius: 0;
   object-fit: cover;
   object-position: center;
   background-color: var(--color-primary-100);
-  order: 2;
-  max-width: 34rem;
+  order: 1;
+  height: 16rem;
 }
 
 .hero__body {
   display: grid;
   align-content: start;
   gap: 1rem;
-  max-width: 34rem;
+  max-width: 46rem;
   order: 3;
+  margin-left: auto;
+  margin-right: auto;
+  padding-top: 1.5rem;
 }
 
 .hero__title {
   grid-column: 1 / -1;
   font-family: var(--font-heading);
-  font-size: 3.25rem;
-  line-height: 1.04;
+  font-size: 2.25rem;
+  line-height: 1.2;
   font-weight: 800;
-  letter-spacing: -0.01em;
+  letter-spacing: 0.02em;
   color: var(--color-primary-900);
+  text-transform: uppercase;
 }
 
 .hero__sub {
@@ -56,6 +53,8 @@
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-800);
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .hero__cta {
@@ -64,6 +63,7 @@
   align-items: center;
   gap: 0.75rem;
   margin-top: 1.25rem;
+  justify-content: center;
 }
 
 .hero__deco {
@@ -71,7 +71,18 @@
   height: 0.25rem;
   border-radius: 9999px;
   background-color: var(--color-accent-400);
-  order: 1;
+  order: 2;
+  max-width: 4rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.hero__form {
+  display: grid;
+  gap: 1rem;
+  padding: 1.75rem;
+  border-radius: var(--radius-block);
+  background-color: var(--color-primary-100);
 }
 
 .cta-banner {

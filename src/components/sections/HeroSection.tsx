@@ -1,7 +1,11 @@
 import Link from 'next/link';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import HeroLeadForm from './HeroLeadForm';
 import type { BlockConfig } from '@/lib/types/config';
 
+// 🔴 `data.form` 只有 `block_layout: "with-form"` 那条路读它（表单的按钮文案 / 成功提示，#1065）。
+// 说明写在 interface **外面**是有意的：`scripts/block-migration/gen-allblocks.js` 按文本切这份字段表
+// （`fields()`），一条写在里面的注释会被它当成又一个字段名，写进演示站的夹具数据里 —— 实测过一次。
 interface HeroSectionProps {
   data: {
     headline: string;
@@ -9,6 +13,7 @@ interface HeroSectionProps {
     ctaPrimary: { label: string; href: string };
     ctaSecondary: { label: string; href: string };
     imageUrl?: string;
+    form?: { buttonText?: string; successMessage?: string };
   };
   /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
   block?: BlockConfig;
@@ -81,6 +86,14 @@ export default function HeroSection({ data, block }: HeroSectionProps) {
           </Link>
         </div>
       </div>
+      {/* 🔴 #1065 — 第八个部件，只有站自己在页面 JSON 里说「这块 hero 是带表单的那种」才出现。
+          判据是 `block_layout`（轴一，内容结构，归站）——**不是**主题的 `supports.hero`（那是主题在
+          声明「我给这种形态写了造型」，spec D4 的方向）。两者搞反的后果是主题替站决定了这个站的
+          首屏收不收客人的联系方式，而那是内容结构，不是外观（08-12 spec D5 / 08-18 spec D3）。
+
+          🔴 它是 `.hero` 的**直接子元素**，跟 media / body 平级。这跟本文件上面那条「media 和 body
+          为什么不套一层」是同一件事：网格只摆得动直接子元素，套一层这个表单就再也换不到别的位置。 */}
+      {block?.block_layout === 'with-form' ? <HeroLeadForm data={data.form} /> : null}
     </section>
   );
 }
