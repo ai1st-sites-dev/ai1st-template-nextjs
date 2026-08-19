@@ -1167,6 +1167,14 @@ console.log(`  Generated public/custom.css — ${customCssOrigin} (${customCssBy
   for (const m of cascade.matchAll(/--color-primary-(\d{2,3})\s*:\s*(#[0-9a-fA-F]{3,8})\s*(?:;|})/g)) {
     finalPrimary[m[1]] = m[2];
   }
+  // 🔴 #1100 —— accent 那一组也要解，理由与上面 ①② 逐字同源（`.btn-accent` 的 hover 底色现在也是
+  // 算出来的那一档）。**同一条 `cascade`、同一条判据**：浏览器最后会用哪个值 = 这两份字节里最后
+  // 一条声明。解不出来时 `buttonInkVars` 不产出那个变量，页面落回兜底的 `accent-500`（= 本票之前的
+  // 字面行为），而不是产出一个错的档。
+  const finalAccent = {};
+  for (const m of cascade.matchAll(/--color-accent-(\d{2,3})\s*:\s*(#[0-9a-fA-F]{3,8})\s*(?:;|})/g)) {
+    finalAccent[m[1]] = m[2];
+  }
   // 🔴 #1084 r3 —— 轮廓按钮的档位要按**它真正被画在上面的那块底**选，而那块底不是页面的白
   // （票正文 2026-08-19 第三次改的口径；上一版按白底挑，在 37 套深底主题上比不改还差）。
   // 那块底就在同一份字节里：主题表的内容是**粘进 `public/theme.css`** 的（见上面 §theme.css 那段
@@ -1179,9 +1187,11 @@ console.log(`  Generated public/custom.css — ${customCssOrigin} (${customCssBy
   // 传白进去的后果实测过：`magenta-01` 的 `background:` 简写让轮廓那格报 5.683（合格），
   // 而它真正坐的那块底上是 6.268 —— 报的是另一块底上的数。
   const ground = inkLib.outlineGroundFromCss(cascade, finalPrimary);
+  // 🔴 r2 —— `null`（不是 `inkLib.WHITE`）是 #1105 的修法，本票**不许**把它改回去：解不出轮廓按钮
+  // 坐的那块底时传白，等于拿一块想象出来的底去算并把结果当合格报出来。本票的 diff 只是路过这一行。
   const outlineGround = ground ? ground.hex : null;
-  const inkVars = inkLib.buttonInkVars(finalPrimary, outlineGround);
-  const report = inkLib.buttonInkReport(finalPrimary, outlineGround);
+  const inkVars = inkLib.buttonInkVars(finalPrimary, outlineGround, finalAccent);
+  const report = inkLib.buttonInkReport(finalPrimary, outlineGround, finalAccent);
   if (inkVars.length) {
     fs.appendFileSync(themeCssOut, `:root { ${inkVars.join(' ')} }\n`);
     const ink = report.ink === inkLib.BLACK ? '深字' : '白字';
@@ -1194,7 +1204,13 @@ console.log(`  Generated public/custom.css — ${customCssOrigin} (${customCssBy
       + ` · 主按钮底色走 primary-${report.baseShade}${report.baseMoved ? '（挪过档）' : '（没动）'}`
       + ` ⟹ 压在那一档上的字用${ink}`
       + ` · hover 底色走 primary-${report.hoverShade} · 轮廓按钮的字走 primary-${report.outlineShade}`
-      + ` (${Object.keys(finalPrimary).length} 档配色从 theme.css + custom.css 解析出来)`);
+      // #1100 —— accent 按钮 hover 那一档也要打出来，理由跟上面那条一样：它是本票唯一会改变画面的
+      // 那个决定，不打的话「挪了没有」在日志里看不见。解不出 accent 时明说是解不出来，不是「没挪」。
+      + ` · accent 按钮 hover 底色走 ${report.accentHoverShade
+        ? `accent-${report.accentHoverShade}${report.accentHoverMoved ? '（挪过档）' : '（没动）'}`
+        : '🔴 解不出 accent 那一组 ⟹ 不产出这个变量，页面落回兜底的 accent-500'}`
+      + ` (primary ${Object.keys(finalPrimary).length} 档 / accent ${Object.keys(finalAccent).length} 档`
+      + ' 从 theme.css + custom.css 解析出来)');
     // 🔴 这一行不能用 `outlineGround` 拼：#1105 起解不出来时它是 `null`，印出来就是「那块底 = null」。
     console.log(`  Button ink: 轮廓按钮坐的那块底 = ${ground ? ground.hex : '解不出来'} —— `
       + (ground ? ground.from

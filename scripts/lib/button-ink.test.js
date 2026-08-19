@@ -252,18 +252,24 @@ console.log('④ 两份算术不许分叉：把 layout.tsx 里内联进产物的
     const NO_LIST = { document: { querySelector: () => null }, getComputedStyle: () => ({ backgroundColor: '' }) };
     const run = runWith(NO_LIST);
     const mismatch = [];
-    const rows = [...Object.entries(themes).map(([id, t]) => [id, t.colors && t.colors.primary]),
-      ...Object.entries(PROD)];
-    for (const [id, p] of rows) {
+    // 🔴 #1100 —— accent 那一组也要喂进去。喂之前这一格对 accent 那半**按构造是盲的**：两边都拿不到
+    // accent ⟹ 两边都不产出 `--btn-accent-hover` ⟹ 逐字相同，而那是一次空绿（反向对照 D 在下面）。
+    const rows = [...Object.entries(themes).map(([id, t]) => [id, t.colors && t.colors.primary, t.colors && t.colors.accent]),
+      ...Object.entries(PROD).map(([id, p]) => [id, p, null])];
+    let withAccent = 0;
+    for (const [id, p, a] of rows) {
       if (!p) continue;
-      const mine = ink.buttonInkVars(p).map((d) => d.replace(/\s+/g, ''));
-      const theirs = run({ colors: { primary: p } }).map((d) => d.replace(/\s+/g, ''));
+      if (a) withAccent += 1;
+      const mine = ink.buttonInkVars(p, ink.WHITE, a).map((d) => d.replace(/\s+/g, ''));
+      const theirs = run({ colors: { primary: p, accent: a || undefined } }).map((d) => d.replace(/\s+/g, ''));
       if (JSON.stringify(mine) !== JSON.stringify(theirs)) {
         mismatch.push(`${id}: 正本 ${JSON.stringify(mine)} vs 浏览器侧 ${JSON.stringify(theirs)}`);
       }
     }
     if (mismatch.length) bad(`${mismatch.length} 套对不上（白底那一档）：${mismatch.slice(0, 3).join(' | ')}`);
-    else ok(`${rows.length} 套配色两份实现产出的三个变量逐字相同（页面上没有 services-list ⟹ 白底）`);
+    else if (!withAccent) bad('没有一套夹具带 accent ⟹ 这一格对 `--btn-accent-hover` 那半是空绿');
+    else ok(`${rows.length} 套配色两份实现产出的变量逐字相同（页面上没有 services-list ⟹ 白底）`
+      + ` · 其中 ${withAccent} 套带 accent，所以 --btn-accent-hover 那一条也在这一格里`);
 
     // 🔴 #1084 r3 —— 第二个维度：**页面上真的有一块深底时两份还对不对得上**。上一版两份都写死白底，
     // 所以「白底那一档全绿」对本轮改的这件事按构造是盲的。逐套拿这套主题自己那张表解出来的底喂两边。
@@ -279,8 +285,9 @@ console.log('④ 两份算术不许分叉：把 layout.tsx 里内联进产物的
           document: { querySelector: (sel) => (sel === '.services-list__item' ? null : {}) },
           getComputedStyle: () => ({ backgroundColor: `rgb(${[1, 3, 5].map((k) => parseInt(g.hex.substr(k, 2), 16)).join(', ')})` }),
         };
-        const mine = ink.buttonInkVars(p, g.hex).map((d) => d.replace(/\s+/g, ''));
-        const theirs = runWith(dom)({ colors: { primary: p } }).map((d) => d.replace(/\s+/g, ''));
+        const mine = ink.buttonInkVars(p, g.hex, poolThemes[id].colors.accent).map((d) => d.replace(/\s+/g, ''));
+        const theirs = runWith(dom)({ colors: { primary: p, accent: poolThemes[id].colors.accent } })
+          .map((d) => d.replace(/\s+/g, ''));
         if (JSON.stringify(mine) !== JSON.stringify(theirs)) {
           off.push(`${id}: 正本 ${JSON.stringify(mine)} vs 浏览器侧 ${JSON.stringify(theirs)}`);
         }
@@ -318,6 +325,33 @@ console.log('④ 两份算术不许分叉：把 layout.tsx 里内联进产物的
       }
     }
 
+    // 🔴 反向对照 D（#1100）：这一格必须能看出「浏览器侧的方向判据还是老的 `ink === '#000000'`」。
+    // 把抠出来那段里的亮度判据钉回字面相等，与正本按亮度算的答案必须出现分歧 —— 否则上面那两格对
+    // 本票改的这件事是空过的。**这是本票唯一改了行为的那个谓词**，所以它必须有自己的反向对照。
+    {
+      const pinnedEq = snippet.replace('return LU(BY(h))<Math.sqrt(0.05*1.05)-0.05;', "return h==='#000000';");
+      if (pinnedEq === snippet) {
+        bad('在抠出来的那段里找不到那条亮度判据 —— 浏览器侧可能已经不是按亮度判 hover 方向了');
+      } else {
+        // eslint-disable-next-line no-new-func
+        const runEq = new Function('t', 'document', 'getComputedStyle', `var out=[];${pinnedEq}return out;`);
+        let diff = 0;
+        let sawAccentVar = 0;
+        for (const id of Object.keys(poolThemes)) {
+          const t = { colors: { primary: poolThemes[id].colors.primary, accent: poolThemes[id].colors.accent } };
+          const norm = (a) => JSON.stringify(a.map((d) => d.replace(/\s+/g, '')));
+          const theirs = runEq(t, NO_LIST.document, NO_LIST.getComputedStyle);
+          if (theirs.some((d) => d.includes('--btn-accent-hover'))) sawAccentVar += 1;
+          if (norm(ink.buttonInkVars(t.colors.primary, ink.WHITE, t.colors.accent)) !== norm(theirs)) diff += 1;
+        }
+        if (!sawAccentVar) bad('反向对照 D 里浏览器侧一套都没产出 --btn-accent-hover —— 这个对照立不起来');
+        else if (!diff) bad('把浏览器侧的方向判据钉回 `=== "#000000"` 之后两份仍然逐套相同 —— 上面那两格'
+          + '分不出「按亮度判方向」和「按跟纯黑相等判方向」，本票改的那个谓词没有被判过');
+        else ok(`把浏览器侧的方向判据钉回 \`=== '#000000'\` ⟹ ${diff} 套当场分歧`
+          + '（accent 的字是 gray-900，老判据把它判成浅字 ⟹ hover 朝深走）');
+      }
+    }
+
     // 🔴 反向对照 A：这一格必须能看出「尺换了而那边没跟」。喂一个**只有 blended 与 raw 会给出不同
     //    答案**的底色 —— `#bb5b36`（ember-38）裸 4.504 合格、blended 4.173 不合格。浏览器那份若还在
     //    用裸对比度，它会判白字，而正本判「两种都不够 ⟹ 保持白字」…… 两者字色相同、但 hover 档不同
@@ -329,9 +363,10 @@ console.log('④ 两份算术不许分叉：把 layout.tsx 里内联进产物的
     } else {
       // eslint-disable-next-line no-new-func
       const runRaw = new Function('t', `var out=[];${rawVersion}return out;`);
-      for (const [, p] of rows) {
+      for (const [, p, a] of rows) {
         if (!p) continue;
-        if (JSON.stringify(runRaw({ colors: { primary: p } })) !== JSON.stringify(run({ colors: { primary: p } }))) { diverged = true; break; }
+        const t = { colors: { primary: p, accent: a || undefined } };
+        if (JSON.stringify(runRaw(t)) !== JSON.stringify(run(t))) { diverged = true; break; }
       }
       if (!diverged) bad('把掺色系数改成 0 之后，两份产出在所有夹具上逐字相同 —— 这一格分不出裸尺和 blended');
       else ok('把掺色系数改成 0 会当场产生分歧 ⟹ 抠出来的那段确实在用 blended 那把尺');
@@ -666,6 +701,54 @@ console.log('⑦ 算不出来的输入必须【说出来】，不许混到「合
     else ok('primary-500 带 alpha（4 位 / 8 位）⟹ 整份报告 null（调用方印"跳过"）；正常 6 位不受影响');
   }
 
+  // 🔴 #1100 r2 —— accent 那两格也必须走这条纪律，而**只有这一格在判它**。上面每一格喂的都是纯
+  //    primary 的调色板（不带 accent）⟹ `accentPresent` 为假 ⟹ accent 那两格根本不存在，所以
+  //    ⑦ 的其余部分对它们按构造是盲的。r1 那一版的门是 `typeof accent['400'] === 'string'`，
+  //    而带 alpha 的 `#rrggbbaa` 是字符串 —— 它会算出「完全不透明那块底上的数」并当合格报出去。
+  {
+    const cellsOf = (accent) => ink.buttonInkReport(PRIM, ink.WHITE, accent);
+    // ① 根本没有 accent 这一组 ⟹ 那两格不存在（今天绝大多数站的形状），也不该出现在 unresolved 里
+    const none = cellsOf(null);
+    const noneNames = Object.keys(none.cells).filter((n) => n.startsWith('btn-accent'));
+    // ② 有这一档、值正常 ⟹ 两格都有数
+    const good = cellsOf({ 300: '#fcd34d', 400: '#fbbf24', 500: '#f59e0b' });
+    const goodNames = Object.keys(good.cells).filter((n) => n.startsWith('btn-accent'));
+    const goodFinite = goodNames.filter((n) => Number.isFinite(good.cells[n]));
+    // ③ 有这一档、但**读不出来**（8 位带 alpha）⟹ 两格都进 unresolved，不许静默、不许当合格
+    const alpha = cellsOf({ 300: '#fcd34d', 400: '#fbbf2480', 500: '#f59e0b' });
+    const alphaUnres = alpha.unresolved.filter((u) => u.startsWith('btn-accent'));
+    const alphaUnder = (alpha.under || []).filter((u) => String(u).startsWith('btn-accent'));
+    // 🔴 反向对照要**跑出那个假数**，不能只问「r1 那道门会不会放行」：`typeof '…' === 'string'`
+    //    是个恒真式，它对本模块的两种实现给出同一个答案 ⟹ 按构造分不出对错。所以这里照 r1 那道门
+    //    的语义自己算一遍：门放行 ⟹ 那一格会拿 `#fbbf2480` 去 `ratio()`，而 `hexToRgb` 只取前 6 位
+    //    ⟹ 算出来的是「完全不透明那块底」上的数，并且它**过线**，于是当合格报出去。
+    const OLD_GATE_VALUE = '#fbbf2480';
+    const oldGateLetsThrough = typeof OLD_GATE_VALUE === 'string' && !ink.isColourLiteral(OLD_GATE_VALUE);
+    const oldGateLaunderedRatio = ink.ratio(ink.ACCENT_INK, OLD_GATE_VALUE);
+    const oldGateWouldPass = Number.isFinite(oldGateLaunderedRatio) && oldGateLaunderedRatio >= MIN;
+    if (noneNames.length) {
+      bad(`没有 accent 那一组时却产出了 ${noneNames.join(' / ')} —— 这是给一个不存在的按钮报读数`);
+    } else if (goodNames.length !== 2 || goodFinite.length !== 2) {
+      bad(`accent 正常时那两格没有都拿到数：${JSON.stringify(good.cells)}`);
+    } else if (alphaUnres.length !== 2) {
+      bad(`accent-400 = "#fbbf2480"（8 位带 alpha）时，accent 那两格进 unresolved 的只有 `
+        + `${alphaUnres.length} 个（期望 2）：${JSON.stringify(alpha.unresolved)}`);
+    } else if (alphaUnder.length) {
+      bad(`算不出来的 accent 格子混进了 under：${JSON.stringify(alphaUnder)}`);
+    } else if (!oldGateLetsThrough) {
+      bad(`反向对照写坏了：${OLD_GATE_VALUE} 没有落在「r1 那道门放行、本票这道门拦住」那一段`
+        + ' —— 这一格分不出两种实现');
+    } else if (!oldGateWouldPass) {
+      bad(`反向对照写坏了：r1 那道门放行之后算出来的是 ${oldGateLaunderedRatio}，它并没有过线`
+        + ' ⟹ 这一格证不出「假数会当合格报出去」，得换一个会过线的夹具值');
+    } else {
+      ok('accent 两格走的是 pairs 那条纪律：没有 accent ⟹ 0 格（不给不存在的按钮报数）· 值正常 ⟹ 2 格都有数'
+        + ` · 8 位带 alpha ⟹ 2 格都进 unresolved 且没混进 under。反向对照（真跑出那个假数）：r1 那道门`
+        + ` 放行 ${OLD_GATE_VALUE} ⟹ 拿它算出 ${oldGateLaunderedRatio.toFixed(3)} ≥ ${MIN}`
+        + '（那是「完全不透明那块底」上的数）⟹ 会当合格报出去');
+    }
+  }
+
   // `isColourLiteral` 的真值表 —— 这条判据是上面每一格的地基，单独钉一次。
   {
     const yes = ['#fff', '#FFF', '#5e2643', '#5E2643'];
@@ -747,7 +830,9 @@ console.log('⑧ `underNote()` 印出来的那句话本身：它印的每个数�
     const p = t.colors && t.colors.primary; if (!p) continue;
     const g = (id in poolThemes) ? groundOfTheme(id) : null;
     if (g && g.err) { bad(`§⑧ 夹具立不起来：${g.err}`); continue; }
-    fixtures.push({ id, palette: p, ground: g ? g.hex : ink.WHITE });
+    // #1100 —— accent 也喂进去：`under` 现在可以含 accent 那两格，而这一节判的是「这句话印的数支持
+    // 它自己的断言吗」⟹ 不喂的话它对新加的那两格按构造是盲的。
+    fixtures.push({ id, palette: p, ground: g ? g.hex : ink.WHITE, accent: t.colors && t.colors.accent });
   }
   for (const [id, p] of Object.entries(PROD)) fixtures.push({ id: `prod/${id}`, palette: p, ground: ink.WHITE });
   // 灰阶 114…119 = ①a 那 6 个色阶宽的段，`inkUnreachable` 那一支唯一能到达的形状（注册表上 0 套）。
@@ -759,9 +844,21 @@ console.log('⑧ `underNote()` 印出来的那句话本身：它印的每个数�
   // 客人的 brand.json 不保证单调，所以这一支不是死码。
   const NONMONO = { 50: '#ffffff', 400: '#cccccc', 500: '#333333', 600: '#cccccc', 700: '#cccccc', 800: '#cccccc', 900: '#cccccc' };
   fixtures.push({ id: 'non-monotonic', palette: NONMONO, ground: ink.WHITE });
+  // 🔴 #1100 —— 第三支（「上面这些不在主按钮上」）的夹具。
+  //
+  // **它必须是人造的，而这件事本身是本票的一个读数**：改动前那一支是被 `btn-secondary hover` 走到的
+  // （59 套注册表配色），而本票把那一格变成了「与 `btn-primary 静止` 按构造同值」⟹ 它再也不能单独
+  // 不过线，那一支当场变成死码（实测：本票只改完 button-ink.js 时这一格就报「没有夹具走到」）。
+  // 今天能走到它的只有 accent 那两格：primary 健康、而 accent 色阶上 `gray-900` 一档都救不回来。
+  // 客人的 brand.json 不保证 accent 是亮色阶，所以这一支也不是死码。
+  const DARK_ACCENT = { 300: '#222222', 400: '#1a1a1a', 500: '#111111' };
+  fixtures.push({
+    id: 'dark-accent', palette: poolThemes[Object.keys(poolThemes)[0]].colors.primary,
+    ground: ink.WHITE, accent: DARK_ACCENT,
+  });
 
   const notes = fixtures.map((f) => {
-    const r = ink.buttonInkReport(f.palette, f.ground);
+    const r = ink.buttonInkReport(f.palette, f.ground, f.accent || null);
     return { ...f, report: r, note: r ? ink.underNote(r) : null };
   });
   const spoke = notes.filter((n) => n.note !== null);
@@ -799,13 +896,38 @@ console.log('⑧ `underNote()` 印出来的那句话本身：它印的每个数�
     if (caught.length < 2) {
       bad(`§⑧ 阳性对照没被抓住（只抓到 ${caught.length} 条）—— 这个判据咬不住 r2 那句话，上面的绿不算：${r2note}`);
     } else ok(`阳性对照（r2 那句话，ember-04）被抓住 ${caught.length} 条：${caught.join(' · ')}`);
-    // 第二个阳性对照：只把「它点名的那一档」改错一档 —— 判据 ③ 必须单独咬得住主体漂移。
-    const drifted = ink.underNote(r).replace(`primary-${r.baseShade} 上白字`, 'primary-500 上白字');
-    if (drifted === ink.underNote(r)) {
-      bad('§⑧ 主体漂移那个对照没造出来（这句话里找不到 `primary-<档> 上白字`）—— 判据 ③ 没被验过');
-    } else if (!liesIn(drifted, r, r2sample.palette).some((l) => /真的量出来是/.test(l))) {
-      bad('§⑧ 把它点名的那一档改错一档，判据 ③ 没红 —— 主体漂移这一层是空的');
-    } else ok('阳性对照 2：把它点名的那一档改成 primary-500，判据 ③ 当场红（主体漂移咬得住）');
+  }
+  // 第二个阳性对照：只把「它点名的那一档」改错一档 —— 判据 ③ 必须单独咬得住主体漂移。
+  //
+  // 🔴 #1100 —— 这个对照**换了夹具，而换掉它的理由本身是本票的一个读数**：它原来跟上面那个共用
+  // `ember-04`，而 `ember-04` 今天已经**不打这一行了**（`underNote` 回 `null` ⟹ 上一版在这里
+  // `.replace` 一个 null 当场抛 TypeError）。为什么不打了：改动前它的 `under` 里只有
+  // `btn-secondary hover`（字按 500 算、底是 500），而本票把那一格换成了主按钮静止态那一对，它过线
+  // ⟹ 四格全过 ⟹ 不该打这一行，也真的没打。所以这里改成「拿任意一个**真的打了**这一行的夹具」，
+  // 并把它的名字打出来 —— 钉死一个具体 id 就是把「今天谁不过线」写进测试，那个集合会随配色变。
+  // 🔴 漂到哪一档也不许写死：`primary-500` 恰好是许多夹具**自己**那一档（`baseShadeFor` 一档都不过线时
+  // 落回 500），那时这个 `.replace` 是空操作、对照静默立不起来（实测：第一版取 `spoke[0]` = `gray-114`，
+  // 它的 base 就是 500 ⟹ 当场报「找不到 primary-<档> 上白字」）。所以要现找一档：**同一套配色里读数
+  // 真的不同的**那一档 —— 那才是「主体漂了」。
+  const driftPair = spoke.map((n) => {
+    const base = n.report.baseShade;
+    const alt = Object.keys(n.palette).find((sh) => sh !== base
+      && typeof n.palette[sh] === 'string'
+      && Math.abs(ink.ratio(ink.WHITE, n.palette[sh]) - ink.ratio(ink.WHITE, n.palette[base])) > 0.001);
+    return alt ? { n, alt } : null;
+  }).find(Boolean);
+  if (!driftPair) {
+    bad('§⑧ 找不到「打了这一行、且同一套配色里另有一档读数不同」的夹具 ⟹ 主体漂移那个对照立不起来');
+  } else {
+    const { n: drifter, alt } = driftPair;
+    const dr = drifter.report;
+    const drifted = drifter.note.replace(`primary-${dr.baseShade} 上白字`, `primary-${alt} 上白字`);
+    if (drifted === drifter.note) {
+      bad(`§⑧ 主体漂移那个对照没造出来（${drifter.id} 这句话里找不到 \`primary-${dr.baseShade} 上白字\`）—— 判据 ③ 没被验过`);
+    } else if (!liesIn(drifted, dr, drifter.palette).some((l) => /真的量出来是/.test(l))) {
+      bad(`§⑧ 把它点名的那一档从 ${dr.baseShade} 改成 ${alt}（${drifter.id}），判据 ③ 没红 —— 主体漂移这一层是空的`);
+    } else ok(`阳性对照 2（夹具 ${drifter.id}）：把它点名的 primary-${dr.baseShade} 改成 primary-${alt}，`
+      + '判据 ③ 当场红（主体漂移咬得住）');
   }
 }
 

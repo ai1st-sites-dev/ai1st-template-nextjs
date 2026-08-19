@@ -114,7 +114,7 @@
 'use strict';
 
 const {
-  contrast, hexToRgb, mixBytes, PAINT_BLEND, MIN_CONTRAST,
+  contrast, hexToRgb, mixBytes, luminance, PAINT_BLEND, MIN_CONTRAST,
 } = require('../theme-contrast.js');
 
 const WHITE = '#ffffff';
@@ -132,8 +132,18 @@ const BLACK = '#000000';
  */
 const HEX_LITERAL = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 const isColourLiteral = (v) => typeof v === 'string' && HEX_LITERAL.test(v);
-/** 本票之前那三处写死的字面行为 —— 「保持今天的」指的就是这三个值。 */
-const TODAY = { ink: WHITE, base: '500', hover: '600', outline: '500' };
+/** 本票之前那几处写死的字面行为 —— 「保持今天的」指的就是这几个值。 */
+const TODAY = { ink: WHITE, base: '500', hover: '600', outline: '500', accentHover: '500' };
+/**
+ * 🔴 #1100 —— `.btn-accent` 的字色：`globals.css` 那一行写死的 `text-gray-900`（Tailwind 的 gray-900）。
+ *
+ * **本票不改它**（手法同 #1091：只挪档位、不改字色），所以它在这里是一个**输入**，不是一个决定。
+ * 它写在这里而不是由调用方传进来，理由跟 `TODAY` 那一行同源：这是「今天页面上那个字面值」，
+ * 而判据必须能从这个模块自己算出来 —— 让调用方传，两个调用方（sync-config / layout.tsx）就有两处可以漂。
+ */
+const ACCENT_INK = '#111827';
+/** `.btn-accent` **静止态**的那一档（`@apply … bg-accent-400`）。hover 从它的下一档起算。 */
+const ACCENT_BASE = '400';
 /**
  * 轮廓按钮换档时走的那把梯子：**就近优先，两个方向都可以挑**（见 ③b / ③c）。
  * 🔴 `500` 必须是第一个 —— 「今天这一档就够用就一个字都不改」跟 ①b / ② 是同一条纪律。
@@ -175,6 +185,25 @@ const rawRatio = (a, b) => contrast(hexToRgb(a), hexToRgb(b));
 const showRatio = (v) => (Math.floor(v * 1000) / 1000).toFixed(3);
 
 const passes = (ink, ground) => ratio(ink, ground) >= MIN_CONTRAST;
+
+/**
+ * 🔴 #1100 —— 「这个字色是深的吗」。hover 的底色要朝**远离字色**的方向走（②），方向就靠这一问。
+ *
+ * **判据是亮度，不是「跟纯黑相等」。** 上一版写的是 `ink === BLACK`，而那个形状只对本模块自己产出的
+ * 两个字色（白 / 纯黑）成立。#1100 要拿同一个函数给 `.btn-accent` 定 hover 档，它的字是
+ * `gray-900` = `#111827` —— 深字，但**不等于** `#000000` ⟹ 被判成浅字 ⟹ 底朝深走 ⟹ 逐套复现今天
+ * 那批读不出来的格子。两边都实测过（80 套池主题，blended）：
+ *
+ *     hoverShadeFor(accent, '#111827', '400')  上一版判据  落档 {"500":80}  坏 37/80  最差 4.206 crimson-64
+ *     同上，本判据                                         落档 {"300":80}  坏  0/80  最差 6.789 violet-53
+ *
+ * 门限取 ① 那个交叉点 `√(0.05×1.05) − 0.05`（白与纯黑给出**相同**对比度的那个亮度）：它是「白字更
+ * 合适还是深字更合适」的分界，也就是「这个字色站在哪一半」。纯黑（亮度 0）与纯白（亮度 1）的答案
+ * 与上一版**逐字相同** ⟹ 这不是改行为，是把同一个意思写成对任意字色都成立的形式。
+ * （反向对照在 `button-ink.test.js` §⑨：把它改回 `ink === BLACK`，accent 那一格当场红。）
+ */
+const INK_DARK_BELOW = Math.sqrt(0.05 * 1.05) - 0.05;
+const inkIsDark = (ink) => luminance(hexToRgb(ink)) < INK_DARK_BELOW;
 
 /**
  * 压在 `bg` 上的字该是什么色，以及**为什么** —— 见 ① / ①a / ①b。
@@ -236,7 +265,8 @@ function baseShadeFor(palette) {
  */
 function hoverShadeFor(palette, ink, base = TODAY.base) {
   const n = (sh) => Number(sh);
-  const darker = ink === BLACK;
+  // #1100 —— 按亮度判，不按「跟纯黑相等」判（理由与读数在 `inkIsDark` 上面）。
+  const darker = inkIsDark(ink);
   const all = Object.keys(palette).filter((sh) => typeof palette[sh] === 'string' && /^\d{2,3}$/.test(sh));
   const beyond = all
     .filter((sh) => (darker ? n(sh) < n(base) : n(sh) > n(base)))
@@ -249,6 +279,26 @@ function hoverShadeFor(palette, ink, base = TODAY.base) {
     .filter((sh) => (darker ? n(sh) > n(base) : n(sh) < n(base)))
     .sort((a, b) => (darker ? n(a) - n(b) : n(b) - n(a)));
   return other[0] || base;
+}
+
+/**
+ * 🔴 #1100 —— `.btn-accent` 的 hover 底色该取哪一档。
+ *
+ * 它就是 `hoverShadeFor` 本身，只是换一组调色板、换一个字色、换一个起点档 —— **故意不写第二个算法**：
+ * 两处各算一遍是这个仓一路在堵的形状（role-user 在本票留言里点名过同一件事）。所以本票在
+ * `hoverShadeFor` 里修的那个方向判据（`inkIsDark`）同时也是这一处的判据。
+ *
+ * 方向是**朝浅**（accent 的字是深的），而这不是一个偏好，是 accent 色阶的性质：它只到 600，而
+ * 朝深走一档（600）在 80 套池主题上比不改还差 —— 实测坏 47/80、最差 2.534（`jade-47`），今天
+ * （500）是坏 37/80、最差 4.206（`crimson-64`），朝浅一档（300）是坏 0/80、最差 6.789（`violet-53`）。
+ * Chris 2026-08-19 把这一格委托给 role-user 拍，它选了朝浅（票正文「做法 a」）。
+ *
+ * 📌 **档位不写死成 `300`**：那是「今天这 80 套的答案」，不是判据。判据是「从 400 起朝远离字色的
+ * 方向，第一个让 `gray-900` 仍然过线的档」——`accent` 色阶不同的站自己算自己的（同 #1091 实施要点
+ * 「判据写集合、别把档位数字写进 AC」）。
+ */
+function accentHoverShadeFor(accent) {
+  return hoverShadeFor(accent, ACCENT_INK, ACCENT_BASE);
 }
 
 /**
@@ -335,7 +385,7 @@ function outlineGroundFromCss(cssText, palette) {
  * 四格 = `.btn-primary` 静止 / `.btn-primary` hover / `.btn-secondary` 静止 / `.btn-secondary` hover
  * （最后一格与第一格同值：hover 时轮廓按钮的底就是 `primary-500`、字就是算出来的那个字色）。
  */
-function buttonInkReport(palette, outlineGround = WHITE) {
+function buttonInkReport(palette, outlineGround = WHITE, accent = null) {
   const p500 = palette && palette['500'];
   // 🔴 `typeof === 'string'` 不够（#1105）：`#abcd` / `#5e264380` 都是字符串，而 `hexToRgb` 对它们
   // 一个解出 `NaN`、一个静默丢掉 alpha ⟹ 后面每一格都是关于另一个颜色的数。这里回 `null` =
@@ -348,7 +398,10 @@ function buttonInkReport(palette, outlineGround = WHITE) {
   const hover = hoverShadeFor(palette, d.ink, base);
   // 🔴 `.btn-secondary:hover` 的底**仍然是 `primary-500`**（`globals.css` 那条规则本票不动），所以它的
   // 字色要按 500 算，不能跟着主按钮走；#1084 之前两者同底、共用一个变量，底一挪它们就是两个问题了。
-  const outlineHoverInk = inkDecision(p500).ink;
+  // 🔴 #1100 —— `outlineHoverInk` 在这里【删掉了】，不是漏了。#1091 留下它是因为那时
+  // `.btn-secondary:hover` 的底仍是 `primary-500`（它注释里写着「那一格归 #1100」）；本票把那条规则
+  // 的底接到了主按钮静止态那一档，于是这一格的字与底跟第一格逐字相同，再按 500 算一遍字色就是一个
+  // 页面上不存在的配对。`--btn-outline-hover-ink` 随之退役（活代码里消费者 0）。
   // 🔴 静止态的轮廓按钮是**唯一**一格的底不是 `primary-*` 而是它坐着的那块（③a）。所以它两次都要
   // 用 `outlineGround`：一次选档、一次量读数。只在其中一处用，选出来的档与报出来的数就是两块不同
   // 的底上的答案 —— 而且报的那个会是绿的（白底上 500 档往往过线），正好把这条盖住。
@@ -364,6 +417,10 @@ function buttonInkReport(palette, outlineGround = WHITE) {
    * 🔴 前两格的底是 **`palette[base]` / `palette[hover]`**，不是 `p500`：#1091 之后主按钮的底会挪档，
    * 写死 500 的话报的就是另一块底上的数（本票要治的正是这种「关于另一块底的读数」）。
    */
+  // #1100 —— accent 那一组是可选入参：老一点的调用方、以及解析不出 accent 的站根本不传。
+  const accentBaseRaw = accent ? accent[ACCENT_BASE] : undefined;
+  const accentPresent = accentBaseRaw !== undefined;
+  const accentHover = accentPresent && isColourLiteral(accentBaseRaw) ? accentHoverShadeFor(accent) : null;
   const pairs = {
     'btn-primary 静止': { ink: d.ink, ground: palette[base], groundWhat: `primary-${base}` },
     'btn-primary hover': { ink: d.ink, ground: palette[hover], groundWhat: `primary-${hover}` },
@@ -371,11 +428,28 @@ function buttonInkReport(palette, outlineGround = WHITE) {
       ink: palette[outline], inkWhat: `primary-${outline}`,
       ground: groundKnown ? outlineGround : undefined, groundWhat: '它坐着的那块底',
     },
-    // 底是 primary-500、字是按 500 算出来的那个 —— 与 #1084 改动前逐字相同。
+    // 🔴 #1100 —— 与第一格【同一对】：底走 `palette[base]`、字走那一档上算出来的 `d.ink`。
+    // `globals.css` 那条 hover 规则本票改成了 `var(--btn-primary-bg)` / `var(--btn-primary-ink)`，
+    // 所以这里再写 500 就是报一个页面上不存在的配对 —— #1105 要治的正是这种读数。
     'btn-secondary hover': {
-      ink: outlineHoverInk, inkWhat: '按 primary-500 算出来的字色',
-      ground: p500, groundWhat: 'primary-500',
+      ink: d.ink, inkWhat: `按 primary-${base} 算出来的字色`,
+      ground: palette[base], groundWhat: `primary-${base}`,
     },
+    // 🔴 #1100 r2 —— accent 那两格也走 `pairs`，**不是**在外面先 `ratio()` 算好。这是 #1105 立的纪律：
+    // 「算不出来」是第三种结果，必须自己一条，不许混进合格、也不许静默。r1 那一版的门是
+    // `typeof accent[ACCENT_BASE] === 'string'` —— 而带 alpha 的 `#rrggbbaa` 是字符串，它会算出
+    // 「完全不透明那块底上的数」并当合格报出去，正是 #1105 要治的那件事。
+    // 📌 两种「没有」要分开：这套配色**根本没有** accent 这一档（今天常见，也是本票不产出
+    // `--btn-accent-hover`、页面落回兜底 accent-500 的那条路）⟹ 这两格不存在，不进任何清单；
+    // 有这一档但**读不出来** ⟹ 两格都落进 `unresolved`，由下面那个循环说出是哪个值算不出来。
+    ...(accentPresent ? {
+      'btn-accent 静止': { ink: ACCENT_INK, ground: accentBaseRaw, groundWhat: `accent-${ACCENT_BASE}` },
+      'btn-accent hover': {
+        ink: ACCENT_INK,
+        ground: accentHover ? accent[accentHover] : undefined,
+        groundWhat: accentHover ? `accent-${accentHover}` : `accent-${ACCENT_BASE} 之后那一档（选不出来）`,
+      },
+    } : {}),
   };
   const cells = {};
   /**
@@ -404,7 +478,9 @@ function buttonInkReport(palette, outlineGround = WHITE) {
   return {
     ink: d.ink,
     baseShade: base,
-    outlineHoverInk,
+    accentInk: accentHover ? ACCENT_INK : null,
+    accentHoverShade: accentHover,
+    accentHoverMoved: accentHover ? accentHover !== TODAY.accentHover : false,
     hoverShade: hover,
     outlineShade: outline,
     inkSwitched: d.switched,
@@ -477,8 +553,8 @@ function underNote(report) {
  * 拿盖之前的值算，产出的字色就是关于另一套配色的答案。调用方（`sync-config.js`）为此从两份**已经写出
  * 去的字节**里解析最终值，而不是用内存里的 `brand.colors`。
  */
-function buttonInkVars(palette, outlineGround = WHITE) {
-  const r = buttonInkReport(palette, outlineGround);
+function buttonInkVars(palette, outlineGround = WHITE, accent = null) {
+  const r = buttonInkReport(palette, outlineGround, accent);
   if (!r) return [];
   return [
     // #1091 —— 主按钮静止态的底。兜底值 = 本票之前的字面行为（`bg-primary-500`）⟹ 拿不到这个变量的
@@ -487,14 +563,15 @@ function buttonInkVars(palette, outlineGround = WHITE) {
     `--btn-primary-ink: ${r.ink};`,
     `--btn-primary-hover: var(--color-primary-${r.hoverShade});`,
     `--btn-outline-ink: var(--color-primary-${r.outlineShade});`,
-    // #1091 —— `.btn-secondary:hover` 的字。它的底没动（仍是 primary-500），所以它的字也不许跟着
-    // 主按钮走；这个值 = 本票之前 `--btn-primary-ink` 的值。
-    `--btn-outline-hover-ink: ${r.outlineHoverInk};`,
+    // #1100 —— `.btn-accent` 的 hover 底色。兜底值 `var(--color-accent-500)` = 本票之前的字面行为
+    // （`@apply … hover:bg-accent-500`）⟹ 拿不到这个变量的页面与改动前逐字相同。
+    // 🔴 accent 那一组解不出来时**这一条根本不产出**（不是产出一个错的档）—— 页面落回兜底值。
+    ...(r.accentHoverShade ? [`--btn-accent-hover: var(--color-accent-${r.accentHoverShade});`] : []),
   ];
 }
 
 module.exports = {
-  WHITE, BLACK, TODAY, OUTLINE_LADDER, BASE_LADDER,
-  ratio, rawRatio, isColourLiteral, inkDecision, inkFor, baseShadeFor, hoverShadeFor, outlineShadeFor,
-  outlineGroundFromCss, buttonInkReport, buttonInkVars, underNote,
+  WHITE, BLACK, TODAY, OUTLINE_LADDER, BASE_LADDER, ACCENT_INK, ACCENT_BASE, INK_DARK_BELOW,
+  ratio, rawRatio, isColourLiteral, inkDecision, inkFor, inkIsDark, baseShadeFor, hoverShadeFor,
+  accentHoverShadeFor, outlineShadeFor, outlineGroundFromCss, buttonInkReport, buttonInkVars, underNote,
 };

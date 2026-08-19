@@ -124,7 +124,7 @@ const { HOOK_CLASSES } = await load(
 // `scripts/theme-presets.test.js` 在纯值层上判「一组配色要对哪些字负责」。两边各留一份的失败方向
 // 是变绿（少量几个选择器，报告照样 ✅），所以这张表只留一处定义。三张单子各自的理由跟着搬过去了。
 // 🔴 #1062 —— 它也走 `load`：这一份加载不起来，这个文件同样一个读数都取不到，那是机器的事不是主题的事。
-const { TEXT_TARGETS, MOVED_TEXT_TARGETS, CONTROL_TARGETS } = await load(
+const { TEXT_TARGETS, MOVED_TEXT_TARGETS, CONTROL_TARGETS, HOVER_TARGETS } = await load(
   'scripts/theme-text-targets.js would not load',
   () => createRequire(import.meta.url)('./theme-text-targets.js'),
   'run `npm ci` in templates/nextjs.',
@@ -435,17 +435,73 @@ const movedTextMeasured = new Map();   // selector → [where …]
 //    ① 末尾那一段）：一个都没量到是 finding，不是通过。为此这个函数返回布尔 —— 量成了 true，
 //    早退的每一条 false。#1046 与 #1038 各自把这个循环抽成过函数（`measureText` / `measureContrast`），
 //    合并时留 main 已经上线的这一份，本票那份只贡献返回值和第三张单子。
-const measureText = async (sel, where, required) => {
+// 🔴 #1100 —— 「把指针放上去之后它长什么样」。这一段是承重的，三个理由每一条都是量出来的：
+//
+//   ① **`:hover` 不能塞进选择器里量。** 没人 hover 时 `locator('.btn:hover').count()` 是 **0**，而
+//      `CONTROL_TARGETS` 那圈走的是 `required = false` ⟹ 早退、不进 `problems`、报告一个字不变。
+//      实测（本票之前，真产物）：无指针 count=0 / 真 `.hover()` 之后 count=1。
+//   ② **hover 之后不能立刻拍照。** 按钮带 `transition-all 0.15s`，所以 hover 那一瞬间 computed 值
+//      还是**静止态**的。实测（fern-02，`.btn-accent`）：静止 `rgb(228,91,206)` → hover 立刻读到的
+//      仍是 `rgb(228,91,206)` → 500ms 后 `rgb(222,50,194)`。**不等收敛就量，量到的是静止态那一对，
+//      而它是个合法的颜色** ⟹ 一个看不出问题的假读数。所以这里轮询到「连续两帧不变」才拍。
+//   ③ **拍完要再问一次它还在 hover 上。** `el.screenshot()` 会把元素滚进视口，而滚动可能把它从指针
+//      底下挪走 ⟹ 照片是静止态的。所以拍照前后各取一次 computed，两次都必须 ≠ 静止态那个值。
+//      「量不到」在这里回 false 并报 instrument 那一类的话，不是报一条对比度不合格。
+//
+// @returns {{ok:boolean, why?:string}} —— hover 真的生效并稳定下来了吗
+const hoverAndSettle = async (el) => {
+  const read = () => el.evaluate((n) => {
+    const cs = getComputedStyle(n);
+    return `${cs.backgroundColor}|${cs.color}`;
+  });
+  // 🔴 拍照后那次复核**只看 background-color**：`withoutWords()` 会临时把这个元素的 `color` 改成透明，
+  //    所以把 color 一起比会在「仪器自己动过它」的地方给出假红。
+  const bgOnly = () => el.evaluate((n) => getComputedStyle(n).backgroundColor);
+  const restBg = await bgOnly();
+  const rest = await read();
+  await el.hover();
+  // 轮询到「连续两帧一样」为止。上限是 40 帧（transition 是 150ms ≈ 9 帧 @60Hz，留 4 倍余量）——
+  // 一个永远不收敛的 transition（无限动画）必须是「量不到」，不能是「等到 CI 超时」。
+  let prev = null;
+  let now = rest;
+  for (let i = 0; i < 40; i += 1) {
+    prev = now;
+    await el.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    now = await read();
+    if (now === prev && now !== rest) {
+      return { ok: true, rest, hovered: now, restBg, hoveredBg: await bgOnly(), bgOnly };
+    }
+  }
+  if (now === rest) {
+    return { ok: false, why: `hover 之后它的 background-color/color 一个字节都没变（仍是 ${rest}）——`
+      + ' 要么这个元素没有 hover 规则、要么指针没落在它上面。这不是一条对比度读数' };
+  }
+  return { ok: false, why: `hover 之后 40 帧还没稳定下来（最后两次 ${prev} → ${now}）——`
+    + ' 这个 transition 收敛不了，拍下来的照片是过渡中间的混色，不是任何一个态' };
+};
+
+const measureText = async (sel, where, required, opts = {}) => {
   const el = page.locator(sel).first();
+  // hover 那一路：报告里、`problems` 里、覆盖面统计里都用 `<sel>:hover` 当身份 —— 同一个元素的两个
+  // 态是两条读数，共用一个名字的话「哪一条红了」在报告上分不出来。
+  const label = opts.hover ? `${sel}:hover` : sel;
   if ((await el.count()) === 0) {
     // 🔴 A missing target is NOT a pass. This checker's whole job is to fail loudly, and "the
     // element I was going to measure is not there" is the shape a vacuous green takes.
-    if (required) problems.push(`contrast: "${sel}" is not on ${where} — nothing was measured for it`);
+    if (required) problems.push(`contrast: "${label}" is not on ${where} — nothing was measured for it`);
     return false;
   }
+  let hoverState = null;
+  if (opts.hover) {
+    hoverState = await hoverAndSettle(el);
+    if (!hoverState.ok) {
+      problems.push(`contrast: "${label}" on ${where} — ${hoverState.why}`);
+      return false;
+    }
+  }
   if (!required) {
-    if (!movedTextMeasured.has(sel)) movedTextMeasured.set(sel, []);
-    movedTextMeasured.get(sel).push(where);
+    if (!movedTextMeasured.has(label)) movedTextMeasured.set(label, []);
+    movedTextMeasured.get(label).push(where);
   }
   const colorRaw = await el.evaluate((n) => getComputedStyle(n).color);
   const color = parseRgb(colorRaw);
@@ -455,13 +511,13 @@ const measureText = async (sel, where, required) => {
   // parser cannot read while the box is perfectly fine, and the message sent people looking at layout.
   // Refusing to measure is still the right direction in both cases — it is the wording that was wrong.
   if (!color) {
-    problems.push(`contrast: "${sel}" on ${where} — this checker cannot read its computed colour, so no ratio was `
+    problems.push(`contrast: "${label}" on ${where} — this checker cannot read its computed colour, so no ratio was `
       + `measured (the value is ${colorRaw}). Its box is fine`
       + `${box ? ` (${Math.round(box.width)}×${Math.round(box.height)}px)` : ''}.`);
     return false;
   }
   if (!box || box.width < 2 || box.height < 2) {
-    problems.push(`contrast: "${sel}" on ${where} has no measurable box`
+    problems.push(`contrast: "${label}" on ${where} has no measurable box`
       + `${box ? ` — it is ${Math.round(box.width)}×${Math.round(box.height)}px, under 2px on a side`
         : ' — the element has no layout box at all'}`);
     return false;
@@ -481,7 +537,7 @@ const measureText = async (sel, where, required) => {
     // Nothing of this text reaches the screen. Named as the declaration that did it, because
     // "contrast is 1:1" sends the reader looking at colours when the cause is an opacity three
     // elements up. `eff.zeroedBy` is that element, spelled the way the sheet spells it.
-    problems.push(`visibility: "${sel}" on ${where} is not painted at all — ${eff.zeroedBy || `effective opacity ${painted}`}`
+    problems.push(`visibility: "${label}" on ${where} is not painted at all — ${eff.zeroedBy || `effective opacity ${painted}`}`
       + ` (text pixels ${declaredPx}/${total}, cumulative opacity ${eff.opacity}, colour ${colorRaw})`);
     return false;
   }
@@ -492,9 +548,22 @@ const measureText = async (sel, where, required) => {
   if (bare.bitmap.width !== img.bitmap.width || bare.bitmap.height !== img.bitmap.height) {
     // Fail loud: the two pictures have to be of the same box or the comparison below is nonsense,
     // and "I could not compare them" is not a pass.
-    problems.push(`visibility: "${sel}" on ${where} changed size between the two pictures `
+    problems.push(`visibility: "${label}" on ${where} changed size between the two pictures `
       + `(${img.bitmap.width}x${img.bitmap.height} vs ${bare.bitmap.width}x${bare.bitmap.height}) — not measured`);
     return false;
+  }
+  // 🔴 #1100 ③ —— 照片拍完了，它当时还在指针底下吗。`el.screenshot()` 会把元素滚进视口，而滚动可以
+  //    把它从指针底下挪走 ⟹ 两张照片是**静止态**的，而上面那次收敛读数是 hover 态的：报告会把静止态
+  //    那一对说成 hover 的读数。这一格是「仪器没量到」，所以走 `problems` 但措辞是仪器那一类，
+  //    并且 return false（不产出任何对比度结论）。
+  if (hoverState) {
+    const nowBg = await hoverState.bgOnly();
+    if (nowBg !== hoverState.hoveredBg) {
+      problems.push(`contrast: "${label}" on ${where} — 拍照期间它离开了 hover 态`
+        + `（拍照前 ${hoverState.hoveredBg}，拍完 ${nowBg}，静止态是 ${hoverState.restBg}）——`
+        + ' 照片不是 hover 那一态的，这一格什么都没量到');
+      return false;
+    }
   }
   const words = wordPixels(img, bare);
   // Backgrounds come from the picture WITHOUT the words, so the text cannot be mistaken for its own
@@ -511,7 +580,7 @@ const measureText = async (sel, where, required) => {
     // the screen: white on white, `filter: opacity(0)`, text pushed out of its own box. Said as the
     // finding rather than as an apology — a reader who thinks the instrument gave up goes looking
     // for a bug in the checker instead of at the page.
-    problems.push(`visibility: "${sel}" on ${where} paints nothing that can be told apart from what is behind `
+    problems.push(`visibility: "${label}" on ${where} paints nothing that can be told apart from what is behind `
       + `it — taking its words away changes 0 of ${total} pixels in its box `
       + `(declared colour ${colorRaw}, background rgb(${boxColours[0].rgb}))`);
     return false;
@@ -616,7 +685,7 @@ const measureText = async (sel, where, required) => {
       if (ratio < worst) { worst = ratio; worstRgb = cand.rgb; worstLine = li; }
     }
   });
-  readings.push(`  ${sel} on ${where}: text painted rgb(${textRgb}) (declared ${colorRaw}) on rgb(${worstRgb}) `
+  readings.push(`  ${label} on ${where}: text painted rgb(${textRgb}) (declared ${colorRaw}) on rgb(${worstRgb}) `
     + `= ${worst.toFixed(2)}:1 · text pixels ${words.n}/${total}`
     + ` · lines: ${usingLines ? perLine.length : '1 (whole element — its line boxes could not be read)'}`
     + `${perLine.length > 1 ? `, worst is line ${worstLine + 1}` : ''}`
@@ -628,7 +697,7 @@ const measureText = async (sel, where, required) => {
     // PALETTE_IS_NOT_THE_SHEETS_OWN). It is still measured, it is still in `readings` above, and it is
     // printed again in full at the end — what changes is only whether it decides the exit code.
     (PALETTE_IS_NOT_THE_SHEETS_OWN ? unjudgedContrast : problems)
-      .push(`contrast: "${sel}" on ${where} is ${worst.toFixed(2)}:1 against rgb(${worstRgb}) — below ${MIN_CONTRAST}:1`
+      .push(`contrast: "${label}" on ${where} is ${worst.toFixed(2)}:1 against rgb(${worstRgb}) — below ${MIN_CONTRAST}:1`
         + ` (measured on the colour it came out, rgb(${textRgb}); declared ${colorRaw}`
         + `${perLine.length > 1 ? `; on line ${worstLine + 1} of ${perLine.length} — the other lines are on a`
           + ' different ground and read better, which is why this is measured per line' : ''})`);
@@ -674,6 +743,34 @@ for (const sel of MOVED_TEXT_TARGETS) await measureText(sel, pathOf(baseUrl), fa
       + ` — ${measured.join(', ')} · this fraction is THIS page only and is NOT the coverage figure:`
       + ' which hook was reached on which page is counted from the run itself, in the'
       + ' "pages measured for check ①" line at the end');
+  }
+}
+
+// ── #1100 the same buttons WITH THE POINTER ON THEM ─────────────────────────────────────────────
+//
+// 🔴 AFTER the resting loop above, never before: hovering leaves the pointer sitting on a button, and
+// a resting reading taken with the pointer still there is a reading about the hover state wearing the
+// resting state's name. The pointer is parked off-page again at the end of this block for the same
+// reason (everything after it — ②, ⑤, the ⑤b loop's own resting readings — is measured with no hover).
+//
+// 🔴 Zero measured is a finding here too, and the floor is not the same sentence as the one above:
+// `.btn-secondary` is in this list and not in that one, so "none of them is here" can be true of one
+// list and false of the other on the same page.
+{
+  const measured = [];
+  for (const sel of HOVER_TARGETS) {
+    if (await measureText(sel, pathOf(baseUrl), false, { hover: true })) measured.push(`${sel}:hover`);
+  }
+  await page.mouse.move(0, 0);
+  if (measured.length === 0) {
+    problems.push('contrast: none of the buttons this checks the HOVER state of is on the page '
+      + `(looked for ${HOVER_TARGETS.join(', ')}) — so nothing was measured about what a visitor sees `
+      + 'with the pointer on a button, which is the whole of #1100. A home page with a hero and no '
+      + '`.btn-accent` / `.btn-secondary` is the first thing to look at.');
+  } else {
+    readings.push(`  buttons hovered on ${pathOf(baseUrl)}: ${measured.length}/${HOVER_TARGETS.length}`
+      + ` — ${measured.join(', ')} · same caveat as the line above: THIS page only, coverage is counted`
+      + ' in the "pages measured for check ①" line at the end');
   }
 }
 
@@ -2301,6 +2398,12 @@ for (const p of otherPaths.slice(0, OTHER_PAGE_CAP)) {
   // state has to be driven before it can be photographed. Whether it should join this list is #1100.
   // #1091 measured it with a one-off probe instead and reported the readings on the ticket.
   for (const sel of CONTROL_TARGETS) await measureText(sel, opened.at, false);
+  // 🔴 #1100 —— hover 那三个也在这一圈里，理由跟上面 `CONTROL_TARGETS` 进这一圈的理由逐字同源：
+  // 这个样例站的首页上 `.btn-primary` 一个都没有（它只从 `services-list` / `pricing-table` 进来），
+  // 只在首页量 = 那个钩子的 hover 永远不被量。**顺序同样是承重的**：先量静止态，再 hover，最后把
+  // 指针停回页外 —— 这一圈后面还有别的检查，它们都假定没有 hover。
+  for (const sel of HOVER_TARGETS) await measureText(sel, opened.at, false, { hover: true });
+  await page.mouse.move(0, 0);
   readings.push(`  ${opened.at} — essential elements: ${otherReading.roots.length}`
     + ` · parts with content inside them: ${otherReading.parts.length}`);
   essentialPagesMeasured.push(opened.at);
@@ -2315,7 +2418,9 @@ readings.push(`  pages measured for check ⑤: ${audits.map((a) => a.where).join
   + 'whether the theme\'s own sheet dresses each hook in the markup), check ② (essential content is '
   + 'not hidden, roots and the parts inside them) AND the two parts of check ① measured here (the '
   + `contrast of ${[...MOVED_TEXT_TARGETS, ...CONTROL_TARGETS].join(', ')}, wherever they are `
-  + `present — the buttons and links joined this loop in #1091). The hero's own contrast pair, the `
+  + `present — the buttons and links joined this loop in #1091 — AND the hover state of `
+  + `${HOVER_TARGETS.map((t) => `${t}:hover`).join(', ')}, driven with a real pointer and photographed `
+  + `only after the transition settles (#1100)). The hero's own contrast pair, the `
   + 'first screen, touch targets, sideways scroll, type size and paint order are measured on the first '
   + 'page alone');
 // 🔴 #1043 — check ② states its own reach. It used to be first-page-only and say nothing about that,
