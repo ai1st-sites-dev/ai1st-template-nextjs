@@ -19,9 +19,15 @@
 //                             feeds `style` to the logo prompt, records the id in site/theme.json
 //   scripts/sync-config.js  — at every build, when site/theme.json says the user applied a theme
 //
-// 🔴 The supports table is only consulted for sites the user actively dressed
-// (site/theme.json `"applied": true`). For every other site — new sites included — the page
-// JSON's own variant still decides, exactly as before. See sync-config.js §theme.
+// 🔴 The supports table is read on TWO different conditions, and they are not the same one
+// (#1086, 2026-08-18):
+//   · `header` / `footer` — the two Regions — are read for EVERY site, on `themeId` alone.
+//     `applied` does not enter into it. A newly created site (`applied: false`) gets the
+//     header and footer its theme declares, same as one whose owner changed themes.
+//   · every OTHER key — the per-section variants — is still read only for sites the user
+//     actively dressed (`"applied": true`); for the rest the page JSON's own variant decides,
+//     exactly as before.
+// See sync-config.js §theme (`readAppliedThemeId` vs `readStructureThemeId`).
 //
 // #956 — **退役的那 30 套**里，每套的 supports 表覆盖 28 种 block：registry.ts 的 34 种类型减掉 6 个
 // 一个 variant 都没有的（contact-form · quote-form · services-list · services-nav · values-grid ·

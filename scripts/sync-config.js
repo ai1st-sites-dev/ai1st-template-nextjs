@@ -124,11 +124,17 @@ if (cssContracts.unavailable) {
 //     { "themeId": "ocean-blue", "applied": true }
 //
 //   applied !== true, or no file at all (every site that existed before #924, and every
-//     newly created site) → nothing below touches the build. brand.json's own colors and the
-//     page JSON's own variants decide, exactly as they did before this file knew about themes.
-//   applied === true → the registry takes over the look: colors, fonts, and every section
-//     variant the theme states a preference for. Page JSON on disk is never rewritten — the
-//     override lives only in the generated config-data.ts.
+//     newly created site) → nothing BELOW THIS FUNCTION touches the build. brand.json's own
+//     colors and the page JSON's own variants decide, exactly as they did before this file
+//     knew about themes.
+//   applied === true → the registry takes over the look: colors, fonts, settings, and every
+//     section variant the theme states a preference for. Page JSON on disk is never rewritten
+//     — the override lives only in the generated config-data.ts.
+//
+// 🔴 #1086 —— 从 2026-08-18 起 `applied` 【不再】决定顶栏 / 页脚这两个 Region 的结构。那两个
+// 跟着 `themeId` 走(见下面 `readStructureThemeId`),所以上面那句"applied !== true ⟹ 什么都不动"
+// 只对**这个函数下游的东西**成立(颜色 / 字体 / settings / section variant),不对整个构建成立。
+// 这份注释以前写的是后者,而 #1086 治的正是那个形态:新建的站拿到主题的皮、拿不到它的骨。
 //
 // 🔴 Deliberately its own file. Whether site_meta.json exists is the legacy single-locale
 // switch (line ~34 below), so putting this in there would make an old flat site fail to build.
@@ -166,16 +172,21 @@ const appliedThemeId = readAppliedThemeId();
 // anything else was, by construction, always wrong. Measured: #1079's repro, and the 80 shot
 // readbacks of #1016's r4c gallery.
 //
-// 🔴 Reading it is confined to the `applied !== true` path (see the call site below). A site whose
-// owner changed themes gets its Regions from the registry, full stop — this key cannot reach it.
-// Every site that exists today has no such key ⟹ `{}` ⟹ byte-identical build output.
+// 🔴 #1086 摘掉了「只在 `applied !== true` 那条路上读」这条限制,连同下面那句 `if (appliedThemeId)
+// return {}`。为什么摘:那条限制的理由是「换过装的站,结构归注册表,这个键到不了它」——而本票把
+// 「结构」和 `applied` 解耦之后,那个理由不成立了。现在的规则一句话:**结构来自 themeId 那套主题,
+// 谁在 theme.json 里显式写了哪个键,那个键就归他**,`applied` 不参与。
+// 📌 摘它今天不改变任何一个站,这是量过的、不是推的:写这个键的**只有**候选流水线
+// (`theme-pipeline/run.js` installCandidate),而它恒写 `applied: false`(它自己那条 🔴 注释里
+// 写着为什么必须是 false);换装那一下(`worker/main.go` processThemeTask)写的是
+// `{ themeId, applied: true }`,连前一份的 regionLayout 都不带过去。⟹ `applied:true` + 这个键
+// 这个组合没有任何代码路径能造出来。
 //
 // 🔴 No new validation here on purpose: `resolveRegionLayout` already refuses a value that is not in
 // its list, falls back to the default and says so in `notes` (which this file prints). A second
 // check here would be a second list to forget — the same reason #991's `css` check reads the
 // filesystem instead of keeping a list.
 function readPreviewRegionLayout() {
-  if (appliedThemeId) return {};
   const themePath = path.join(siteDir, 'theme.json');
   if (!fs.existsSync(themePath)) return {};
   let meta;
@@ -188,6 +199,45 @@ function readPreviewRegionLayout() {
   if (!wanted || typeof wanted !== 'object') return {};
   return wanted;
 }
+
+// #1086 — 顶栏 / 页脚的结构跟着 `themeId` 走,不再跟着 `applied` 走。
+//
+// 这张票要治的形状,用最短的话说:**同一套主题有两种长相 —— 老板在后台换过一次装之前和之后不一样。**
+//   新建的站    create-site.js 写 { themeId, applied:false, css:<表名> }  → 拿到皮,拿不到骨:
+//               `readAppliedThemeId()` 对 applied!==true 返回 null,于是两个 Region 落回默认
+//               (solid-bar + multi-column)。
+//   换过一次装  worker/main.go processThemeTask 写 { themeId, applied:true } → 结构突然出现。
+// 后果是签字的那张图不是客人会拿到的那个站:注册表图册按 applied:true 渲染,ember-38 印的是
+// centered-logo,而真站是 solid-bar。Chris 2026-08-18 拍板:结构一律跟着 themeId 走,`applied`
+// 从此只管「老板有没有主动换过装」,不再管结构。
+//
+// 🔴 这个函数【故意】跟 `readAppliedThemeId()` 分开,而不是把那个函数的 applied 判断删掉:
+// `applied` 仍然决定**颜色和字体**(#924 的语义,本票没有动它 —— 注册表接管调色板这件事仍然只在
+// 老板主动换过装之后发生)。两个问题从此有两个读数,不共用一个。
+//
+// 🔴 查不到的 id 在这里【返回 null,不打死构建】,与 `readAppliedThemeId()` 相反,而这个不对称是
+// 承重的,不是漏写:
+//   · 候选流水线装候选时写的正是 { themeId:<还没进注册表的 id>, applied:false, regionLayout:{…} }
+//     (`theme-pipeline/run.js` installCandidate)。在这里退出会把候选图册整条路打死。
+//   · applied:true 那条路上「查不到的 id 该怎么办」是 **#1087** 在问的问题(生产站 site-194f1f41
+//     的 theme.json 写着一个从来不存在的 `luxury-dark`),它要 Chris 拍。本票不预判它,所以
+//     `readAppliedThemeId()` 的那个 `process.exit(1)` 一个字都没动。
+function readStructureThemeId() {
+  const themePath = path.join(siteDir, 'theme.json');
+  if (!fs.existsSync(themePath)) return null;
+  let meta;
+  try {
+    meta = JSON.parse(fs.readFileSync(themePath, 'utf-8'));
+  } catch {
+    return null; // readAppliedThemeId above already reported the parse error and exited.
+  }
+  if (!meta || typeof meta.themeId !== 'string' || !meta.themeId) return null;
+  // 注册表里没有 ⟹ 不是「取默认」也不是「报错」,而是「这套主题的结构不在这里」:让下面的
+  // regionLayout(候选那条路)或默认值接手。理由见上面第三段。
+  if (!themes[meta.themeId]) return null;
+  return meta.themeId;
+}
+const structureThemeId = readStructureThemeId();
 
 // #991 — THE THEME **CSS** SHEET, WHICH IS A DIFFERENT SWITCH FROM `applied` ABOVE.
 //
@@ -702,18 +752,38 @@ if (withRhythm.length) {
 // #960 — Header 和 Footer 是两个 Region,不是 section,所以它们【走不了】上面那个循环:那个循环按
 // `layout[section.type]` 取,而没有任何 section 的 type 是 header/footer ⟹ 往偏好表里加这两个键会被
 // `if (!preferred) continue` 静默跳过。这里是它们自己的写出口,理由与那条对比度规则写在 region-layout.js。
-// 📌 没换装的站(appliedThemeId 为空)传的是 {} ⟹ 两个 Region 都回到现状,「换装才接管」的语义不变。
 // 📌 #1024:以前还往这里传「全部 locale 的全部页面」和这个站的调色板,用来判首屏是不是深底。
 // 那条判断已经没有依据了(hero 的底色住在主题样式表里,不在 variant 的名字里),现在透明浮层
 // 一律配遮罩,所以这个函数只要 theme 的那份结论。
-// 📌 #1079:没换装那条路上再问一句 theme.json 自己写了没有(`readPreviewRegionLayout`,理由整段在
-// 它上面)。今天所有站在那个位置都是空的 ⟹ 仍然是 {},上面那句"回到现状"逐字仍然成立;写了的只有
-// 候选流水线装候选那一次,而它要的正是"这套主题上线后的顶栏"。
-const regionLayout = resolveRegionLayout(appliedThemeId
-  ? layoutFor(appliedThemeId)
-  : readPreviewRegionLayout());
+//
+// 🔴 #1086 —— 这一行以前问的是「这个站换过装了吗」(`appliedThemeId ? layoutFor(…) : readPreview…()`),
+// 现在问的是「这个站穿的是哪套主题」。`applied` 在结构这条路上一处都不再出现,而它以前在这里出现两次
+// (这个三元表达式,以及 `readPreviewRegionLayout` 开头那句 `if (appliedThemeId) return {}`)。
+// 优先级从低到高:
+//   ① 注册表里那套主题声明的 `supports.header` / `supports.footer` —— `structureThemeId`,不看 applied。
+//      这是本票的交付:新建的站(`applied:false`)从此拿到它那套主题的骨,不再落回 solid-bar + multi-column。
+//   ② theme.json 自己写的 `regionLayout`,**逐键**压过 ①。写了 header 就用它写的 header,没写 footer
+//      就还是注册表那套的 footer(#1079 候选图册那条路要的正是这个:候选的 id 还不在注册表里,① 是空的)。
+// 📌 `applied: true` 的站产物不变,理由不是"我没动那条路",是这两条各自的取值:① 它的 themeId 必然在
+//    注册表里(否则 `readAppliedThemeId` 已经 exit 1 了)⟹ 与以前的 `layoutFor(appliedThemeId)` 逐字
+//    相同;② `applied:true` + `regionLayout` 这个组合没有任何代码路径造得出来(理由在
+//    `readPreviewRegionLayout` 上面那段)⟹ 空的。
+const explicitRegionLayout = readPreviewRegionLayout();
+const regionLayout = resolveRegionLayout({
+  ...(structureThemeId ? layoutFor(structureThemeId) : {}),
+  ...explicitRegionLayout,
+});
+// 🔴 #1086 —— 日志里要说得出**结构是从哪来的**,不只说结果是什么。以前这一行只有结果,而
+// 「顶栏为什么是 solid-bar」有三个完全不同的答案(注册表就这么声明的 · theme.json 显式写的 ·
+// 谁都没说话所以是默认值),它们在日志里长得一模一样 —— 这张票要治的那个 bug 当初就是这么藏了
+// 一个多月的:图册印 centered-logo、真站是 solid-bar,而两边的构建日志都只写 `header=solid-bar`。
+const regionSource = [
+  structureThemeId ? `registry theme "${structureThemeId}"` : null,
+  Object.keys(explicitRegionLayout).length
+    ? `theme.json regionLayout (${Object.keys(explicitRegionLayout).join(', ')} — wins per key)` : null,
+].filter(Boolean).join(' + ') || 'defaults (no theme.json, or its themeId is not in the registry)';
 console.log(`  Regions: header=${regionLayout.header} footer=${regionLayout.footer}` +
-  (regionLayout.headerScrim ? ' (+scrim)' : ''));
+  (regionLayout.headerScrim ? ' (+scrim)' : '') + ` — from ${regionSource}`);
 
 // #1000 —— 这个站的页面由哪些区组成。库在 page-layouts/，站在 site/page-layout.json 里挑一个
 // （缺文件 ⟹ standard，也就是今天所有站的那一条路）。

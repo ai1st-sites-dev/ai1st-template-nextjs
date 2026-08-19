@@ -153,14 +153,22 @@ function installCandidate(candidate, siteDir, slot) {
   // 🔴 `applied` 必须是 false：为真时 sync-config 会用**注册表**里那套覆盖 brand 的颜色/字体/settings
   //    （sync-config.js:167），而候选还不在注册表里 —— 那样量到的是别人的 tokens。
   //
-  // 🔴 #1079 —— 而 `applied:false` 顺带把**顶栏和页脚**也按在了默认上（`sync-config.js` 的
-  //    `readAppliedThemeId` 对非 true 回 null ⟹ `resolveRegionLayout({})` ⟹ solid-bar +
-  //    multi-column）。上线池子 80 套里 solid-bar 只有 22 套、multi-column 只有 27 套，所以人审那本
-  //    图册对这一维是按构造瞎的：80 张卡全印 `solid-bar`，而 58 套上线后不是它。
-  //    `regionLayout` 这个键就是补这一维 —— 值由 `regionsForPool` 算，跟 `promote.js` 定
-  //    `supports.header/footer` 用的是**同一个函数**（那是它搬进 region-layout.js 的理由）。
-  //    📌 只在 `applied !== true` 那条路上被读（sync-config 的 `readPreviewRegionLayout`）；
-  //       真站换了装就是注册表说了算，这个键碰不到它。
+  // 🔴 #1079 —— 顶栏和页脚也曾被按在默认上（当时的因果是 `applied:false` ⟹ `readAppliedThemeId`
+  //    回 null ⟹ `resolveRegionLayout({})` ⟹ solid-bar + multi-column）。上线池子 80 套里 solid-bar
+  //    只有 22 套、multi-column 只有 27 套，所以人审那本图册对这一维是按构造瞎的：80 张卡全印
+  //    `solid-bar`，而 58 套上线后不是它。`regionLayout` 这个键就是补这一维 —— 值由 `regionsForPool`
+  //    算，跟 `promote.js` 定 `supports.header/footer` 用的是**同一个函数**（那是它搬进
+  //    region-layout.js 的理由）。
+  //
+  //    🔴 #1086（2026-08-18）换掉了上面那半句因果，这个键**照样需要**，但理由不同了：结构现在
+  //    跟着 `themeId` 走、不看 `applied`，而候选的 id **还不在注册表里** ⟹ `readStructureThemeId`
+  //    对它返回 null ⟹ 仍然是 solid-bar + multi-column。所以断的那一维没变，断点从「applied 是
+  //    false」挪到了「查不到这个 id」。
+  //    📌 它不再限定在 `applied !== true` 那条路上（#1086 摘掉了 `readPreviewRegionLayout` 开头
+  //       那句 `if (appliedThemeId) return {}`）。现在的规则是**逐键显式赢**：theme.json 里写了
+  //       哪个键，那个键就压过注册表。而 `applied:true` + 这个键这个组合没有任何代码路径造得出来
+  //       —— 写它的只有这里（恒 `applied:false`），换装那一下（`worker/main.go` processThemeTask）
+  //       写的是 `{themeId, applied:true}`，连前一份的 regionLayout 都不带过去。
   const regions = slot
     ? regionsForPool(slot.index, fs.readFileSync(candidate.sheetPath, 'utf-8'),
       candidate.tokens.colors)
