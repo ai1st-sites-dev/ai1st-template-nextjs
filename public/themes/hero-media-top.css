@@ -72,26 +72,6 @@
   justify-content: center;
 }
 
-/* ── #1065 the eighth part: `.hero__form` ────────────────────────────────────────────────────────
-   One centred column, like everything else on this sheet: the form is centred under the words with a
-   measure on it, so it reads as part of the same stack rather than a panel beside it. It only enters
-   the DOM when the page JSON asks for `block_layout: "with-form"` (HeroSection.tsx). */
-.hero__form {
-  order: 4;
-  display: grid;
-  gap: 0.75rem;
-  width: 100%;
-  max-width: 28rem;
-  margin-left: auto;
-  margin-right: auto;
-  padding: 1.5rem;
-  border-radius: 0.5rem;
-  background-color: var(--color-primary-100);
-  /* Same rule as hero-media-left's panel: the ground and the ink are set together, because
-     globals.css draws the labels and the field borders in `currentColor`. */
-  color: var(--color-primary-900);
-}
-
 /* ── #1018 cta-banner — one centred column, nothing beside anything ──────────────────────────────
    The sheet that makes the point hardest keeps making it: at no width does this block have columns.
    The three parts stack, centred, with a measure on the words — which is the old `solid` look, and

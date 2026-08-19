@@ -89,29 +89,6 @@
   }
 }
 
-/* ── #1065 the eighth part: `.hero__form` ────────────────────────────────────────────────────────
-   A hero whose page JSON says `block_layout: "with-form"` renders a short lead form as a THIRD
-   sibling of the picture and the words (HeroSection.tsx). This sheet keeps its two-column shape and
-   drops the form under the words, boxed, so the picture on the left is untouched. Sites that do not
-   ask for that content shape never render the part and this rule reaches nothing. */
-.hero__form {
-  order: 4;
-  display: grid;
-  gap: 0.75rem;
-  max-width: 32rem;
-  padding: 1.5rem;
-  border-radius: 0.75rem;
-  border: 1px solid var(--color-primary-200);
-  background-color: var(--color-primary-50);
-  /* 🔴 THE COLOUR IS NOT DECORATION HERE. This sheet paints the hero dark and sets `.hero` to a light
-     `color`, and globals.css deliberately draws the form's labels and field borders in `currentColor`
-     so they follow whatever ground the sheet chose. A light panel therefore inherits light-on-light:
-     measured before this line — the three labels were laid out, 800px² each, and NOT ONE PIXEL of
-     them was painted (theme-css-invariants.mjs check ②e). A panel that sets its own ground has to set
-     its own ink in the same rule. */
-  color: var(--color-primary-900);
-}
-
 /* ── #1018 cta-banner — the words on the left, the button in a column of its own on the right ─────
    This is the theme that shows a block layout can be a COLUMN SPLIT with no extra markup: the three
    parts are siblings, so `grid-template-columns` + `grid-row` put the button beside the text instead

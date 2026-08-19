@@ -140,20 +140,6 @@ const patched = [];
   items[0].defaultOpen = true;
   patched.push('faq-accordion item 1 is open → .faq-accordion__answer is measured again (#1060)');
 }
-{
-  // #1065 —— hero 的第八个部件 `.hero__form` 只在这块 hero 自己说「我是带表单的那种」时才进 DOM
-  //（`HeroSection.tsx` 读的是页面 JSON 的 `block_layout`，不是主题的 `supports.hero` —— 内容结构
-  //  归站，08-12 spec D5 / 08-18 spec D3）。`gen-allblocks.js` 从组件的 props 类型推数据，推不出
-  //  这个字段，所以它归这里补。
-  //
-  // 🔴 不补的后果不是「少量了一个钩子」：`theme-css-invariants.mjs` 在 THEME_CSS_SAMPLE_WIDENED=1
-  //    下把「契约里有、这个站的页面上没有」当成 finding（rc≠0），豁免的只有 `__error` / `__success`
-  //    那一族（提交之后才进 DOM 的状态）。也就是说往契约里加一个钩子而不喂它数据 = CI 当场红。
-  const s = sectionOf('hero');
-  if (!s) die('the generated page has no hero block');
-  s.block_layout = 'with-form';
-  patched.push('hero block_layout=with-form → .hero__form（#1065）');
-}
 const SERVICE_SLUG = 'services';
 {
   const s = sectionOf('service-related-pages');
@@ -215,7 +201,6 @@ writeJson(allblocks, page);
   if (find('gallery').data.items[2].imageUrl !== undefined) bad.push('gallery item 3 still has imageUrl');
   if (find('feature-comparison').data.comparisons[0].them !== false) bad.push('feature-comparison row 1 them is not false');
   if (find('service-related-pages').data.serviceSlug !== SERVICE_SLUG) bad.push('serviceSlug did not stick');
-  if (find('hero').block_layout !== 'with-form') bad.push('hero block_layout is not with-form — .hero__form would be on no page');
   // #1060 —— 两个方向都读回来：第 1 条真的开着，而第 2 条真的还关着。只问前半句的话，
   // 「全部开着」跟「只开了第一条」在这里长得一样，而那两种情况对 #1056 那条豁免的意思相反。
   {

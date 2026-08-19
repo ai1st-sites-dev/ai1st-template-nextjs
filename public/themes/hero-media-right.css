@@ -77,21 +77,6 @@
   }
 }
 
-/* ── #1065 the eighth part: `.hero__form` ────────────────────────────────────────────────────────
-   Same part, this sheet's own answer: the words keep the left column and the form sits directly
-   under them, unboxed apart from a rule above it — the airy look this sheet is for. It only enters
-   the DOM when the page JSON asks for `block_layout: "with-form"` (HeroSection.tsx). */
-.hero__form {
-  order: 3;
-  display: grid;
-  gap: 0.875rem;
-  max-width: 30rem;
-  padding: 1.25rem 0 0;
-  border-width: 1px 0 0;
-  border-style: solid;
-  border-color: var(--color-primary-200);
-}
-
 /* ── #1018 cta-banner — the mirror of hero-media-left: the button's column comes FIRST ───────────
    Same three siblings, same sheet-only decision, opposite side. `order` is what puts the button on
    the left without the markup knowing anything about it — the identical mechanism this sheet already

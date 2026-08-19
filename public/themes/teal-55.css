@@ -9,44 +9,41 @@
   background-color: var(--color-primary-900);
   color: var(--color-primary-50);
   align-items: center;
-  text-align: center;
-  min-height: 36rem;
+  min-height: 34rem;
+}
+
+@media (min-width: 1024px) {
+  .hero {
+    grid-template-columns: 5fr 6fr;
+    gap: calc(var(--section-block-gap) * 9);
+    padding: calc(var(--section-block-pad) * 9.8) 3rem;
+  }
 }
 
 .hero__media {
   width: 100%;
-  aspect-ratio: auto;
-  border-radius: 0;
+  aspect-ratio: 4 / 5;
+  border-radius: calc(var(--radius-block) * 5);
   object-fit: cover;
   object-position: center;
   background-color: var(--color-primary-800);
-  grid-row: 1;
-  grid-column: 1 / -1;
-  align-self: stretch;
-  min-height: 30rem;
-  overflow: hidden;
+  order: 2;
+  max-width: 34rem;
 }
 
 .hero__body {
   display: grid;
   align-content: start;
   gap: 1rem;
-  max-width: 44rem;
-  grid-row: 1;
-  grid-column: 1 / -1;
-  align-self: center;
-  margin-left: auto;
-  margin-right: auto;
-  padding: 2.5rem;
-  border-radius: calc(var(--radius-block) * 5);
-  background-color: var(--color-primary-900);
+  max-width: 34rem;
+  order: 3;
 }
 
 .hero__title {
   grid-column: 1 / -1;
   font-family: var(--font-heading);
-  font-size: 3.5rem;
-  line-height: 1.05;
+  font-size: 3.25rem;
+  line-height: 1.04;
   font-weight: 700;
   letter-spacing: 0;
   color: var(--color-primary-50);
@@ -59,8 +56,6 @@
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-100);
-  margin-left: auto;
-  margin-right: auto;
 }
 
 .hero__cta {
@@ -69,7 +64,6 @@
   align-items: center;
   gap: 0.75rem;
   margin-top: 1.25rem;
-  justify-content: center;
 }
 
 .hero__deco {
@@ -77,18 +71,7 @@
   height: 0.25rem;
   border-radius: 9999px;
   background-color: var(--color-accent-400);
-  grid-row: 2;
-  max-width: 7rem;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.hero__form {
-  display: grid;
-  gap: 1rem;
-  padding: 1.75rem;
-  border-radius: calc(var(--radius-block) * 5);
-  background-color: var(--color-primary-800);
+  order: 1;
 }
 
 .cta-banner {
