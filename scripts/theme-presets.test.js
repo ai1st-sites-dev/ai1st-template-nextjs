@@ -31,6 +31,9 @@ const { RADIUS, BUTTON_SHAPE } = require('./theme-settings.js');
 let pass = 0; let fail = 0;
 const ok = (m) => { pass++; console.log(`  ✅ ${m}`); };
 const bad = (m) => { fail++; console.log(`  ❌ ${m}`); };
+// ⚠️ = 看得见但不拦。只给【已经成真、而治它要真浏览器重取一份数据】那一类用（#1096 B8）—— 它不计进 pass/fail，
+// 所以不许拿它当“软红”去包底任何判据；这一句的存在本身就是一个该被清掉的债。
+const warn = (m) => { console.log(`  ⚠️  ${m}`); };
 const die = (m) => { console.error(`🔴 跑不起来: ${m}`); process.exit(2); };
 
 for (const name of ['PRESET_GROUPS', 'PRESET_KEYS', 'presetOptions', 'validatePresets', 'presetVars', 'normalisePresets']) {
@@ -880,6 +883,50 @@ let judgeSheetForRegistrySweep = null;
     // 选择器写错时 pairs 会是 0，而「一对都没量到」和「每一对都达标」在报告上长得一样。
     return { problems, hits, worst, pairs: pairs.length, judged };
   };
+
+  // ── 存着的那段几何读数会不会已经过期(#1096 B8)─────────────────────────────────────────────
+  //
+  // 🔴 原来的 md5 核对住在 `judgeSheet` 的**渐变那一支**里,而那一支只在「整条渐变已经破线」时才
+  // 到得了(前面 `wide.ratio >= contrast.MIN_CONTRAST` 就 `continue` 了)⟹ 给一张**通过的**表改
+  // 内容而不更新 `theme-text-bands.json`,整套仍然 rc=0,存着的几何静默过期直到这张表哪天破线。
+  // PM 在 #1083 上实测过这个形状(给 hero-media-top.css 追加一行注释,md5 变了,`node
+  // scripts/theme-presets.test.js` 仍然 41 过 / 0 失败 · rc=0)。
+  //
+  // 🔴 台账那条说这个修法的代价是「每张表每次都读一遍文件」——**那笔代价不存在**:`judgeSheet` 本来
+  // 就要 `readFileSync` 这张表,而这里每张表只算一次 md5(不是每套配色一次)。实测 `Buffer.from(css,
+  // 'utf8')` 与直接读文件的 digest 逐字相同,所以从哪一串字节算都一样。
+  //
+  // 🔴 为什么这里是 ⚠️ 而不是 ❌:2026-08-19 量到**三张表存着的 md5 全部
+  // 已经对不上**了(f110380e 与 a382db2b 两次读数相同)—— 存 83b9bd9b / 7f6ae9bd / b35f4919,
+  // 实际 b0e49963 / 1a34e960 / c41b73ff。直接
+  // 升红等于让 main 当场变红,而重取那份几何要真浏览器跑 `theme-text-bands.mjs <baseUrl> <name>
+  // --write`,那不是打磨批次能捎带的活。**同一天量过它今天影响不到任何判决**:第 ⑩ 节 2640 对
+  // 每一处都 ≥ 4.5:1 ⟹ 一对都没走进渐变那一支 ⟹ 存着的几何一次都没被读。已在 #1096 的留言里
+  // 摆给作者定夺「重取 + 升成 ❌」。
+  {
+    const stale = [];
+    let checked = 0;
+    for (const f of sheets) {
+      const name = f.replace(/\.css$/, '');
+      const entry = bands.sheets[name];
+      if (!entry || !entry.md5) continue;
+      checked += 1;
+      const actual = md5(path.join(themeDir, f));
+      if (entry.md5 !== actual) {
+        stale.push(`${name}(存 ${String(entry.md5).slice(0, 8)} · 实际 ${actual.slice(0, 8)})`);
+      }
+    }
+    if (checked === 0) {
+      warn('theme-text-bands.json 里一张表都没有存几何读数 —— 这一格什么都没核对,不是「都新鲜」');
+    } else if (stale.length === 0) {
+      ok(`theme-text-bands.json 里 ${checked} 份几何读数的 md5 都还对得上它们那张表`);
+    } else {
+      warn(`theme-text-bands.json 里 ${stale.length}/${checked} 份几何读数**已经过期**:${stale.join(' · ')}`
+        + ' —— 那张表改过了,存着的那段几何是关于旧字节的。哪天这张表破线,判它的就是一份过期几何。'
+        + ' 重取:`node scripts/theme-text-bands.mjs <baseUrl> <name> --write`(要真浏览器)。'
+        + ' 🔴 这一句只出声、不计进失败数,理由写在它上面那段注释里 —— 不许当成「核对过了」。');
+    }
+  }
 
   // 分母自检：每张表解出来的配对数必须**等于** ⑨a 钉住的那个数。
   //

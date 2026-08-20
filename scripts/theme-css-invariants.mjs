@@ -2565,6 +2565,40 @@ if (PALETTE_IS_NOT_THE_SHEETS_OWN) {
     + 'at all, whether their colour and box can be read, hook coverage, essential content, the first '
     + 'screen, touch targets, sideways scroll, type size and paint order are all judged for this sheet '
     + 'exactly as for any other');
+} else {
+  // 🔴 #1096 A3 — THE OTHER HALF OF THAT SENTENCE HAS TO BE SAID TOO, and until now only the switched-ON
+  // half was. The switch is set by the CALLER (`theme-css-invariants-all-sheets.sh:378/383`, which knows
+  // whether a theme is named after the sheet), so the same bytes run under `node
+  // scripts/theme-css-invariants.mjs <url>` by hand take the OTHER side — contrast becomes a verdict —
+  // and the report said nothing about what that verdict assumes.
+  //
+  // The cost is measured, not hypothetical (#1090): an engineer ran it by hand on a page dressed in a
+  // blue palette while serving the `jade-60` sheet, read `.announcement-bar__link = 4.32:1`, and reported
+  // "main has a red" at a PM's decision point. The PAIRED combination (the palette of the theme the sheet
+  // is named after) measures 5.41:1, the worst of all 80 sheets in the pool is 4.68, and CI was 8/8 green
+  // across two runs. The reading was real arithmetic about a pairing no site can be built with.
+  //
+  // 📌 Direction ① from the ledger (let this script work out the pairing itself) is deliberately NOT taken:
+  // it is handed a URL, and "which sheet is this page wearing, and is the palette that sheet's own" is a
+  // fact about how the caller dressed the page. Saying the premise out loud is the half this script can be
+  // right about on its own — the same reasoning as the 🔴 at :201 for why the switch lives here.
+  //
+  // 🔴 "NOT SET TO 1", NOT "UNSET" — and the difference is the majority path, not a corner. The switch is
+  // read at :215 as `=== '1'`, so this branch covers three different runs: the variable unset (a hand run),
+  // and the variable exported as `0`, which is exactly what `theme-css-invariants-all-sheets.sh:378` does
+  // for every PAIRED sheet — that is 80 of the 83 readings the regular job takes. An earlier draft of the
+  // sentence below said "it is unset on this run"; on the job's own main path that was simply false, which
+  // would have made a sentence added to state a premise accurately misstate how the premise was signalled.
+  readings.push(`  ℹ️  contrast IS being judged here (below ${MIN_CONTRAST}:1 counts towards the exit code), `
+    + 'and that verdict assumes THE PALETTE ON THIS PAGE IS THIS SHEET\'S OWN — i.e. the page is dressed in '
+    + 'the palette of the theme the sheet is named after. Nothing here checks that; the caller says otherwise '
+    + 'by exporting THEME_CSS_PALETTE_NOT_THE_SHEETS_OWN=1, and on this run it is not 1 — either unset (a '
+    + 'hand run) or exported as 0 by the caller, which is what the regular job does for a paired sheet. '
+    + '🔴 If you dressed the '
+    + 'page yourself (a hand run against whatever preview was up), a ratio below the line may be about a '
+    + 'combination no site can be built with — pairing is by name (create-site.js → theme-sheet.js), and '
+    + 'the three hand-written hero-media-* sheets have no theme named after them at all. Re-run with '
+    + 'THEME_CSS_PALETTE_NOT_THE_SHEETS_OWN=1 to have those ratios reported and not judged');
 }
 
 await browser.close();

@@ -151,9 +151,50 @@ const canWrite = (p) => writeRejection(p) === null;
 //    `navigation.json is not edited here` 命中 0），然后把一句假话 commit + push 给了老板。
 //
 // 🔴 每一条都是「必须出现的真话」+「必须消失的假话」配对着钉。只钉消失的那半，把整段删光也能绿。
+//
+// 🔴 量的对象是**送进模型的那段话**，不是整个源文件（#1096 B1）。这一格原来 `readFileSync` 之后对
+//    整个 `edit-site.js` 做 `includes`，而它的报错文案说的是「SYSTEM_PROMPT 没点名 header.cta」——
+//    PM 在隔离副本上把这道判断构造成了假绿：把 prompt 里 navigation.json 那 6 行真话**搬进文件头
+//    注释**、prompt 里换成 `Change it in Dashboard → Navigation settings.`（QA2 上一轮在真容器里量到
+//    真模型说出来的正是这句假话）⟹ 8 格全绿 rc=0。一句话说：文件里有这串 ≠ 模型看到这串。
 {
   const fs = require('fs');
-  const prompt = fs.readFileSync(path.join(__dirname, '..', 'edit-site.js'), 'utf-8');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'edit-site.js'), 'utf-8');
+
+  // 取那段模板字面量。开头锚在声明上，结尾找第一个**没被转义的**反引号 —— 这段话里的 `blocks` 之类
+  // 是写成 \` 的，直接找第一个反引号会把话切断（切断的方向是假绿：needle 找不到才报红，而 mustNot
+  // 那半会因为文本变短而"通过"）。
+  const OPEN = 'const SYSTEM_PROMPT = `';
+  const at = src.indexOf(OPEN);
+  if (at < 0) die('edit-site.js 里找不到 `const SYSTEM_PROMPT = ` —— 这一格量不到那段话，而这不是通过');
+  let end = at + OPEN.length;
+  for (;;) {
+    const k = src.indexOf('`', end);
+    if (k < 0) die('SYSTEM_PROMPT 那段模板字面量没有结尾反引号 —— 读到的不是一段完整的话');
+    if (src[k - 1] === '\\') { end = k + 1; continue; } // 转义的反引号，是话的一部分
+    end = k;
+    break;
+  }
+  const prompt = src.slice(at + OPEN.length, end);
+
+  // 🔴 分母自检，三条，缺一条这一格就在量别的东西：
+  //    ① 取到的是**字面量里面**，不是整个文件（文件里才有 `const SYSTEM_PROMPT`）
+  //    ② 它真的被送进模型（接线在同一个文件里，`system: SYSTEM_PROMPT`）—— 不然量的是一段死文本
+  //    ③ 长度不是退化值（切断/取空时 must 那几条会红、mustNot 那几条会"通过"，方向是假绿）
+  if (prompt.includes('const SYSTEM_PROMPT')) die('取出来的文本里还有声明本身 —— 切片没切在字面量里面');
+  if (!/\bsystem:\s*SYSTEM_PROMPT\b/.test(src)) {
+    bad('⑥ edit-site.js 没有把 SYSTEM_PROMPT 当 system 送进模型 —— 这一格量的话没人读，接线先修');
+  } else if (prompt.length < 1000) {
+    bad(`⑥ 取到的 SYSTEM_PROMPT 只有 ${prompt.length} 字 —— 这不像一段完整的话，先修这把尺`);
+  } else {
+    ok(`⑥ 量的是送进模型的那段 SYSTEM_PROMPT 本身（${prompt.length} 字，且 edit-site.js 真把它当 system 送出去）`);
+  }
+
+  // 换行不算差别：这段话是按 110 列手工折行的，`do not point them at\n  a settings screen` 在源文件里
+  // 跨两行，而模型读到的是同一句。两侧都压成单空格再比。
+  const flat = (x) => x.replace(/\s+/g, ' ').trim();
+  const inPrompt = (needle) => flat(prompt).includes(flat(needle));
+
   const CLAIMS = [
     // navigation.json —— 真话：会被重建的只有那两处，而顶部那个按钮不是，且今天没别的地方能改
     { must: 'header.cta', why: 'SYSTEM_PROMPT 没点名 header.cta —— 模型会以为改页面元数据能动顶部那个按钮' },
@@ -165,19 +206,30 @@ const canWrite = (p) => writeRejection(p) === null;
       why: 'SYSTEM_PROMPT 没说清 page-layout.json 今天没人改得了' },
     { mustNot: 'page-layout.json (the layout picker)',
       why: 'SYSTEM_PROMPT 又把 page-layout.json 说成归一个不存在的 layout picker 管' },
+
+    // 🔴 #1096 B2 —— 两处「别指地方」的**祈使句**，各自单独钉住。
+    //    上面那几条钉的是**事实**那半（"那个按钮改不了"），而 QA2 的活体数据说明**祈使**那半才是行为
+    //    差异的来源：带祈使 4/4 不指假地方，只陈述 2–3/4 指了。QA3 变异实测把它们各自删掉，8 格全绿。
+    //    📌 台账那条把它们写成 `do not point them at a picker, there is none.` 与
+    //    `do not point them at a settings screen, there is none.` 两句 —— 我逐字 grep 过 origin/main
+    //    (2026-08-19 重取，a382db2b)：`picker` 那句出现 0 次，只有后者存在（`:367-368`，跨两行）；
+    //    page-layout 那半的祈使句实际是 `Do not try to change the site's look by writing those`
+    //    （`:376-377`，也跨两行）。钉的是仓里真有的这两句。
+    { must: 'do not point them at a settings screen, there is none.',
+      why: 'header.cta 那半只剩陈述句了 —— 少了这句祈使，模型会一边说"改不了"一边把老板指去一个不存在的设置页' },
+    { must: "Do not try to change the site's look by writing those",
+      why: 'theme.json / page-layout.json 那半只剩陈述句了 —— 少了这句祈使，模型会去写那几个它写不进的文件' },
   ];
   const bads = [];
   for (const c of CLAIMS) {
-    if (c.must && !prompt.includes(c.must)) bads.push(`${c.why}（找不到 "${c.must}"）`);
-    if (c.mustNot && prompt.includes(c.mustNot)) bads.push(`${c.why}（还留着 "${c.mustNot}"）`);
+    if (c.must && !inPrompt(c.must)) bads.push(`${c.why}（找不到 "${c.must}"）`);
+    if (c.mustNot && inPrompt(c.mustNot)) bads.push(`${c.why}（还留着 "${c.mustNot}"）`);
   }
-  if (bads.length === 0) ok(`SYSTEM_PROMPT 的 ${CLAIMS.length} 条断言全部成立（两句真话在、两句假话不在）`);
-  else bads.forEach(bad);
-
-  // 🔴 分母自检：上面那一格如果因为读错文件（读到空串）而"全绿"，`must` 那三条会红；
-  //    反过来读到一个恒含全部字符串的东西，`mustNot` 那两条会红。这里再钉一次「读的是那个文件」。
-  if (!/const SYSTEM_PROMPT/.test(prompt)) bad('⑥ 读到的 edit-site.js 里没有 SYSTEM_PROMPT —— 这一格量的不是那段话');
-  else ok('⑥ 读的确实是 edit-site.js 里那段 SYSTEM_PROMPT 所在的文件');
+  if (bads.length === 0) {
+    const mustN = CLAIMS.filter((c) => c.must).length;
+    const notN = CLAIMS.filter((c) => c.mustNot).length;
+    ok(`SYSTEM_PROMPT 的 ${CLAIMS.length} 条断言全部成立（${mustN} 句真话在、${notN} 句假话不在）`);
+  } else bads.forEach(bad);
 }
 
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
