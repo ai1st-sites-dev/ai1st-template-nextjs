@@ -128,14 +128,21 @@ function buttonPairsFromGlobals() {
   // 所以这里查的就是它。梯子上其余档位的缺席由 `hoverShadeFor` / `outlineShadeFor` 自己用
   // `typeof … === 'string'` 滤掉，取不到值的那一次由 `needShade` 答 2。
   const paletteSets = Object.entries(presets.PALETTES);
+  // 🔴 #1100 —— 「算出来的」那几档不再**一律**以 `primary-500` 为输入：`.btn-accent` 的 hover 档是从
+  // **accent** 那一组的 400 起算的（`button-ink.js` §accentHoverShadeFor）。写死成 primary-500 的话，
+  // 一组只有 primary 没有 accent 的配色会走成 `undefined[shade]` ⟹ TypeError ⟹ node 退 1，而 1 在这个
+  // 脚本的契约上的意思是「某组配色不合格」—— 仪器坏了会被读成库不合格（本文件自己在 #1055 上记过这条）。
+  const INPUT_OF = { accentHoverShade: ['accent', '400'] };
   const whoLacks = (spec) => {
     if (spec.hex !== undefined) return '';          // 字面色，不查调色板
-    const [group, shade] = spec.computed !== undefined ? ['primary', '500'] : [spec.group, spec.shade];
+    const [group, shade] = spec.computed !== undefined
+      ? (INPUT_OF[spec.computed] || ['primary', '500'])
+      : [spec.group, spec.shade];
     const missing = paletteSets
       .filter(([, pal]) => !pal.colors[group] || pal.colors[group][shade] === undefined)
       .map(([name]) => name);
     if (!missing.length) return '';
-    const what = spec.computed !== undefined ? `${spec.label} 要的 primary-500` : spec.label;
+    const what = spec.computed !== undefined ? `${spec.label} 要的 ${group}-${shade}` : spec.label;
     return `指的是调色板里没有的 ${what}（这些组没有它：${missing.slice(0, 3).join(' · ')}`
       + `${missing.length > 3 ? ` 等 ${missing.length} 组` : ''}）`;
   };
@@ -162,9 +169,11 @@ function buttonPairsFromGlobals() {
     '--btn-primary-ink': { computed: 'ink', label: '算出来的字色' },
     '--btn-primary-hover': { computed: 'hoverShade', label: '算出来的 hover 底色' },
     '--btn-outline-ink': { computed: 'outlineShade', label: '算出来的轮廓色' },
-    // #1091 —— `.btn-secondary:hover` 的字。它的底仍是 `primary-500`，所以它按 500 算，
-    // **不跟着主按钮挪** —— 与 `--btn-primary-ink` 是两个数（主按钮挪档之后两者可以不同）。
-    '--btn-outline-hover-ink': { computed: 'outlineHoverInk', label: '算出来的轮廓 hover 字色' },
+    // 🔴 #1100 —— `--btn-outline-hover-ink` **删了**：`.btn-secondary:hover` 现在直接用
+    // `--btn-primary-bg` / `--btn-primary-ink` 那一对（底和字一起），所以上面那两条就是它的 spec，
+    // 这里不再需要第三个。
+    // #1100 —— `.btn-accent` 的 hover 底色：accent 那一组上算出来的那一档。
+    '--btn-accent-hover': { computed: 'accentHoverShade', label: '算出来的 accent hover 底色' },
   };
   /** `color: var(--btn-primary-ink, #fff)` → 那条 spec；`var(--color-primary-500)` → {group,shade}。 */
   const specOfDecl = (value) => {
@@ -319,8 +328,12 @@ const resolveSpec = (s, colors, p) => {
     const inkHex = buttonInk.inkFor(needShade(p, colors, 'primary', baseShade));
     if (s.computed === 'baseShade') return needShade(p, colors, 'primary', baseShade);
     if (s.computed === 'ink') return inkHex;
-    // `.btn-secondary:hover` 的字：底是 `primary-500`，所以按 500 算 —— 与上面那个 ink 是两个数。
-    if (s.computed === 'outlineHoverInk') return buttonInk.inkFor(needShade(p, colors, 'primary', '500'));
+    // #1100 —— `.btn-accent` 的 hover 底：走 accent 那一组，与 primary 那把梯子同一个函数
+    // （`hoverShadeFor`，方向按亮度判）。字色是 `text-gray-900`，由上面 `specOf` 那条字面色的路给出，
+    // 所以这里只答底。
+    if (s.computed === 'accentHoverShade') {
+      return needShade(p, colors, 'accent', buttonInk.accentHoverShadeFor(colors.accent));
+    }
     if (s.computed === 'hoverShade') {
       return needShade(p, colors, 'primary', buttonInk.hoverShadeFor(colors.primary, inkHex, baseShade));
     }
@@ -381,27 +394,71 @@ for (const [name, p] of Object.entries(presets.PALETTES)) {
   }
 }
 
-// 🔴 反向对照：判据必须真的能判红。拿注册表里已知过不了这一关的那一套（`golden-yellow` 的
-// primary-500 是 1.92:1）喂同一个函数 —— 它不报红，说明上面那一圈绿是空的。
+// 🔴 反向对照：判据必须真的能判红。
+//
+// 🔴 #1100 —— **这个对照原来靠「注册表里有坏主题」，而本票把最后那批坏的修好了 ⟹ 它退化成了恒绿。**
+// 上一版的话是「拿注册表里已知过不了这一关的那一套（`golden-yellow` 的 primary-500 是 1.92:1）喂同一个
+// 函数」，而报红的那些走的都是 `.btn-secondary:hover`（字按 `primary-500` 算、底就是 `primary-500`，两头
+// 都不自愈）。本票把那一格换成主按钮静止态那一对之后，**注册表 110 套一套都不红了**（实测：最接近破线的
+// 是 `rose-56` 的 `.btn-secondary` 静止 4.506、`lavender-calm` 的 `.btn-primary` 4.523）。
+//
+// ⟹ 对照改成**人造夹具**，而这不只是「换个夹具」：靠库里恰好有坏数据的对照，会在库被修好的那一天静默
+// 变空 —— 而「库被修好」正是这些票要干的事。人造夹具不会因为产品变好而失效。
+// 📌 注册表那一圈**留着，但降级成读数**：0 套报红是本票的结果，值得印出来，而它不再承担「判据分得开
+//    好坏」这件事（那件事由下面两个人造夹具承担，且**两条路各一个** —— 本票给按钮层加了 accent 那条路）。
 {
   let registry = null;
   try { ({ themes: registry } = require('./themes.js')); } catch { /* 没有注册表就跳过这一格 */ }
   if (!registry) {
-    bad('读不到 themes.js —— 上面那圈绿没有反向对照兜着（这不是通过）');
+    bad('读不到 themes.js —— 注册表那个读数取不到（这不是通过）');
   } else {
     const entries = Object.entries(registry);
     const failing = entries
       .filter(([, t]) => buttonRatios(t.colors).some(([, r]) => r < MIN))
       .map(([id]) => id);
-    if (failing.length) {
-      // 🔴 #1083 条 ④ —— 「注册表 30 套」原来写死在这一行，而这个 filter 遍历的是整个
-      //    `Object.keys(registry)`：#1016 之后是 110 套。报红那几套今天恰好全在退役的 30 套里，
-      //    所以那句话碰巧还是真的 —— 池子里哪天红一套，它当天就开始说假话。分子早就是现算的，
-      //    分母也改成现算，两个数从此对得上。
-      ok(`同一个判据打在注册表 ${entries.length} 套主题上，报红 ${failing.length} 套`
-        + `（${failing.slice(0, 3).join(', ')}${failing.length > 3 ? '…' : ''}）—— 它确实分得开好坏，不是恒绿`);
+    // 🔴 #1083 条 ④ —— 分子分母都现算（「注册表 30 套」曾写死在这里，#1016 之后是 110 套）。
+    ok(`读数：同一个判据打在注册表 ${entries.length} 套主题上，报红 ${failing.length} 套`
+      + `${failing.length ? `（${failing.slice(0, 3).join(', ')}${failing.length > 3 ? '…' : ''}）` : ''}`
+      + ' —— 这是一个读数，不是这一节的反向对照（对照在下面两个人造夹具上）');
+  }
+
+  // 🔴 两个人造夹具，一条路一个。缺哪一个，那条路上「判据分不分得开」就没被验过。
+  const LADDER = ['50', '100', '200', '300', '400', '500', '600', '700', '800', '900'];
+  const violetC = presets.PALETTES.violet.colors;
+  // ① primary 那条路：整条梯子都是 `#777777`。
+  //
+  // 🔴 **这一档是算出来的，不是随手挑的深灰**，而算它的时候撞上了一件必须写下来的事：**这一节判的是
+  // 【裸】对比度**（本文件自己那个 `ratio()`，不掺色），而 `baseShadeFor` / `inkDecision` 判的是
+  // **blended**。裸 ≥ blended，所以只要 `baseShadeFor` 挑得出一档，那一格在这一节里**按构造必然过线**
+  // —— 也就是说 #1091 之后 `.btn-primary` 在这一节里是**判不红的**，除非整条梯子在 blended 下全废
+  // （落回 500）**并且**那一档上白字连裸尺也过不了。
+  // 第一版我喂的是 `#747474`（`button-ink.js` ①a 那段 `gray 114…119` 里的一档）：blended 下确实全废，
+  // 但裸尺是 **4.583** ⟹ 这一节照样绿，对照当场报了「一条都没报红」。
+  // 逐灰阶扫 100…140 找「裸尺也不合格」的那些，**只有一档**：`gray-119` = `#777777`
+  // （base 落回 500 · 字仍是白 · 裸 **4.4781** · blended 4.1800）。所以这个值是那次扫描的唯一解。
+  const GREY119 = '#777777';
+  const hopelessPrimary = {};
+  for (const sh of LADDER) hopelessPrimary[sh] = GREY119;
+  // ② accent 那条路（本票新开的）：accent 色阶全是深色 ⟹ `gray-900` 的字压 `accent-400` 过不了线，
+  //    而 `accentHoverShadeFor` 朝浅走也一档都救不回来。primary 用健康的那套，所以红只会落在 accent 上。
+  const darkAccent = {};
+  for (const sh of LADDER) darkAccent[sh] = '#1a1a1a';
+  for (const [name, colors, expect] of [
+    ['primary 整条梯子都救不回来（gray-119，裸尺也不合格的唯一那一档）',
+      { primary: hopelessPrimary, accent: violetC.accent }, '.btn-primary'],
+    ['accent 整条色阶都是深色', { primary: violetC.primary, accent: darkAccent }, '.btn-accent'],
+  ]) {
+    const red = buttonRatios(colors).filter(([, r]) => r < MIN);
+    const hit = red.filter(([what]) => what.startsWith(expect));
+    if (!red.length) {
+      bad(`反向对照「${name}」一条都没报红 —— 这条路上的判据判不出东西，上面那圈绿是空的`);
+    } else if (!hit.length) {
+      // 🔴 红在别处不算：这个夹具是为了验**那一条路**，红在另一条上说明它验的不是它自己声称的那件事。
+      bad(`反向对照「${name}」报红了，但没有一条是 ${expect} 的：`
+        + red.map(([w, r]) => `${w}=${r.toFixed(2)}`).join(' · '));
     } else {
-      bad('同一个判据打在注册表全部主题上一个都不报红 —— 那它判不出东西，上面那圈绿是空的');
+      ok(`反向对照「${name}」⟹ 报红 ${red.length} 条，其中 ${expect} 的 ${hit.length} 条`
+        + `（最差 ${Math.min(...hit.map(([, r]) => r)).toFixed(2)}:1）—— 这条路上的判据红得起来`);
     }
   }
 }
@@ -546,8 +603,15 @@ const BASE = [
 /**
  * 🔴 第 ⑨ 节那个阳性对照要用的一组配色：**滑块归零时它是达标的，拖到某个角度才破线。**
  *
- * 它是 violet 只把 `primary-500` 挪到下面这个值。`primary-500` 是 `globals.css` 里
- * `.btn-primary` 的底色 —— 在**色相这一维上摆幅最大**的一对，所以它是唯一还能被色相推过线、
+ * 📌 **这一整段是【历史】，不再描述今天在用的那个值** —— 它讲的是「驱动的 token 换过两次、每次为什么
+ * 退化」，而 #1100 换了第三次（今天在用的是下面那个 `HUE_ONLY_BREACH_ACCENT_600`，它自己那段注释里带
+ * 着余量上限的算法）。这一段留着是因为**两次退化的机制仍然会再发生一次**：一个靠「某个 token 恰好把
+ * 某一对推到门槛上」的夹具，会在那一对被改掉/被自愈的那天静默变绿。
+ * 🔴 曾经的那个值 `#9640ef` 已经**没有消费者了，删了** —— 留一个不开火的常量在这里，下一个人会以为
+ * 它还是驱动那个夹具的值（同族纪律：#1091 r2 QA1 对 `HOVER_LIGHTER`/`HOVER_DARKER` 点过同一件事）。
+ *
+ * 它曾经是 violet 只把 `primary-500` 挪到一个搜出来的值。`primary-500` 当时是 `globals.css` 里
+ * `.btn-primary` 的底色 —— 在**色相这一维上摆幅最大**的一对，所以它是当时唯一还能被色相推过线、
  * 而两边又都留得住余量的地方。
  *
  * ── 🔴 #1084 之后这一对为什么还能被推过线（不推自明，我量过才敢留）────────────────────────────
@@ -605,7 +669,47 @@ const BASE = [
  * 破线且**破线的那一档不是 0°**。这两条也是这组值的维护说明：判据的常数一动，它可能滑向任何一边，
  * 而两条断言会当场说清楚滑向了哪一边、该重挑。
  */
-const HUE_ONLY_BREACH_PRIMARY_500 = '#9640ef';
+/**
+ * 🔴 ③（#1100）驱动的 token **第三次换了，这次换成 `accent-600`**，而换掉它的理由、以及这一版余量为什么
+ * 只有上一版的三分之一，都是这张票量出来的结果。
+ *
+ * ── 上一版为什么退化 ────────────────────────────────────────────────────────────────────────────
+ * 它靠 `primary-500` 驱动，而它在 14° 上真正破的那一格是 **`.btn-secondary:hover`**（字按 `primary-500`
+ * 算、底就是 `primary-500`，两头都不自愈）—— 本票把那一格换成了主按钮静止态那一对 ⟹ 它跟着
+ * `baseShadeFor` 自愈，破不了了。实测（本票改完之后，上一版夹具 `#9640ef`）：归零那一档 4.5362 ✅，
+ * 而**整个 −15…15° 区间一格都不破** ⟹ 对照恒绿，而那一格当场报了出来（它就是为这件事写的）。
+ *
+ * ── 🔴 余量的上限是【算出来的】，不是「我挑不到更好的」（本票四次搜索的结论）──────────────────────
+ * 一个「归零绿、某档红」的夹具，归零那一档必须落在门槛上方**不到一个摆幅**的地方 ⟹ 两边余量的较小者
+ * ≤ 摆幅 / 2。所以能拿到多大余量，只取决于**在门槛处 binding 的那一对摆幅多大**。而摆幅最大的那些对
+ * （`.services-nav__link` 0.146 · `.page-header__sub` / `.hero__sub` / `.cta-banner__desc` 0.079 ·
+ * `.announcement-bar__link` 0.065）**没有一个能被推到门槛**：往那个方向压任何一个 token，总有一对
+ * 摆幅只有 0.024 的跨组配对（`accent-600` 压 `primary-50` / `accent-400` 压 `primary-800` 那一族）
+ * 先到门槛、抢走 binding 的位置。四条搜索路线各自撞在同一堵墙上：
+ *     驱动 `accent-400`（全色立方粗筛 2073 候选）  归零就破 —— 它同时是好几张表的底
+ *     驱动 `accent-400` + `primary-800`（两 token） 朝黑 1 个候选 score 0.0030 · 朝白 0 个
+ *     驱动 `accent-300`（一维 71 档）               0 个
+ *     驱动 `primary-900`（一维 91 档）              1 个 score 0.0112
+ *     驱动 `accent-600`（一维 + ±4 三通道细搜）     27 个，最好 **score 0.0115** ← 选它
+ * ⟹ **±0.011 就是今天的天花板**（≈ 0.024 / 2）。上一版能有 ±0.037 是因为当时还存在
+ * `.btn-secondary:hover` 这种「白字压一个 token」的高摆幅、又无自愈的对；本票把它治好了，代价就是
+ * 这个夹具从此只能这么紧。**这不是没挑好，是墙。**
+ *
+ * ── 选中的值 ────────────────────────────────────────────────────────────────────────────────────
+ *     `#157672`   归零那一档最紧 **4.5125**（+0.0125，binding：`crimson-30` 的 `.announcement-bar__link`）
+ *                 拖到 **−12°** 时同一格掉到 **4.4885**（−0.0115）
+ *
+ * 🔴 **为什么 primary 这一侧此后【结构上】驱动不了这个对照了**：#1091 之后 `.btn-primary` 静止/hover
+ * 与（本票之后）`.btn-secondary:hover` 三条都走 `baseShadeFor` —— 它按构造挑「第一个压得住的档」，
+ * 所以除非 500…900 整条梯子在那一档上都救不回来，这三条就不会破线。而 `.btn-accent` 的 hover 本票也
+ * 改成算出来的了 ⟹ 按钮层今天**只剩 `.btn-accent` 静止态一对不自愈**，而它的驱动 token（`accent-400`）
+ * 同时是多张表的底色，压暗它归零那一档当场就破（上表第一行）。
+ *
+ * 🔴 维护说明**变严了**：滑出去的处置仍然是重挑（不是放宽断言），但重挑之前先照上面那条算一遍
+ * 「今天 binding 的那一对摆幅多大」—— 如果它 < 0.02，那不是挑不到，是这个形状的对照到期了，该换的是
+ * 判据的形状（例如改成「同一夹具在非 0 档的最差读数必须显著低于归零那一档」），而那是一次立票的活。
+ */
+const HUE_ONLY_BREACH_ACCENT_600 = '#157672';
 
 // ── ⑨a 那份被量的单子本身：改窄它、写错它，都必须报错（#1083 条 ① / 条 ②）────────────────────
 //
@@ -904,7 +1008,8 @@ let judgeSheetForRegistrySweep = null;
   // 之后照样是绿的 —— 那它就没在证明这一节存在的那件事。
   {
     const fixture = JSON.parse(JSON.stringify(presets.PALETTES.violet.colors));
-    fixture.primary['500'] = HUE_ONLY_BREACH_PRIMARY_500;
+    // #1100 —— 驱动的 token 从 `primary-500` 换成 `accent-400`，理由与读数在那两个常量上面。
+    fixture.accent['600'] = HUE_ONLY_BREACH_ACCENT_600;
 
     // ① 滑块归零那一档：这组配色是达标的（否则它只是一组坏配色，跟色相无关）
     const atZero = [
@@ -928,7 +1033,7 @@ let judgeSheetForRegistrySweep = null;
         + `重挑一组，挪 primary-500，见夹具注释。（归零那一档：全绿，共 ${full.length} 条命中）`);
     } else {
       const shown = offZero.reduce((a, b) => (b.ratio < a.ratio ? b : a));
-      ok(`阳性对照：violet 把 primary-500 挪到 ${HUE_ONLY_BREACH_PRIMARY_500} ⟹ **滑块归零那一档全绿**，`
+      ok(`阳性对照：violet 把 accent-600 挪到 ${HUE_ONLY_BREACH_ACCENT_600} ⟹ **滑块归零那一档全绿**，`
         + `而拖到 ${shown.hue}° 时 ${shown.sheet} 的「${shown.selector}」掉到 ${shown.ratio.toFixed(2)}:1 —— `
         + '这一格证明的是色相那一维真的在判事，不只是「坏配色会被判红」');
     }

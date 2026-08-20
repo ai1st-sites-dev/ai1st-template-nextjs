@@ -88,15 +88,23 @@
      了它，这里换的是它自己那一档（见 button-ink.js ③）。
 
      hero 里的那一个不走这条，而**判据在静止态和 hover 态上不是同一条**（这一段是承重的，别照第一眼改）：
-       · 静止态：下面 `.hero__cta .btn-secondary` 的 `currentColor` 是 (0,2,0)，压过这里的 (0,1,0) —— 它赢。
-       · hover 态：`.btn-secondary:hover` 也是 (0,2,0)（一个类 + 一个伪类），跟它**打平** ⟹ 决胜的是
-         源码顺序，而 hover 这条在本文件里排在前面 ⟹ 仍然是 hero 那条赢。
-         📌 判据别写行号（会漂）。当场量：
-            `grep -n '^  \.btn-secondary:hover\|^\.hero__cta \.btn-secondary {' src/app/globals.css`
-            —— 前者的行号必须小于后者。
-     🔴 所以谁把 `.btn-secondary:hover` 挪到 `.hero__cta .btn-secondary` **后面**，就会静默改掉 hero 按钮
-     hover 时的字色。实测（fern-02 的 demo 站，真浏览器）：index.html 上 `.btn-secondary` 的 computed
-     color 静止/hover 都是 rgb(31,41,55)，改动前后逐字相同。 */
+       · 静止态：下面 `.hero__cta .btn-secondary` 的 `currentColor` 是 (0,2,0)，压过这里的 (0,1,0) —— 它赢，
+         而这是**对的**：静止态这个按钮是透明的，字压的是主题表画的那块 hero 底，`currentColor` 正是
+         「跟着 hero 自己的字色」的意思（下面 §THE OUTLINE BUTTON 那段写了它的读数）。
+       · 🔴 hover 态：#1100 起**由下面那条 `.hero__cta .btn-secondary:hover`（0,3,0）说了算**，它把字色
+         交还给 `--btn-primary-ink`。原来这里是一次 (0,2,0) 打平、靠源码顺序让 hero 赢 —— 而那正是本票
+         要治的病：hover 时底变成实心的深色，字却仍跟着 hero 走，两者没有关系。实测（80 套池主题，
+         blended，字 = 各表 `.hero` 自己声明的那一档、底 = hover 那一档）：
+             改动前（字 hero currentColor 压 primary-500）      坏 75/80  最差 2.144（indigo-79）
+             只改底、字仍归 hero（也就是不加那条 0,3,0 的规则）  坏 47/80  最差 2.144（indigo-79）
+             本票（字底一起交给主按钮那一对）                    坏  0/80  最差 4.531（magenta-27）
+         `.hero` 的字色 80 套里 42 套是 `primary-900`（深）、38 套是 `primary-50` —— 深的那批就是上面那
+         75 套里最狠的部分。🔴 量它的时候别用 `grep -oE 'color: *[^;]+'`：`background-color:` 里含子串
+         `color:`，那样取到的是**底色**那一档（第一版这么错过，`fern-02` 被读成 900，而真浏览器量出来是 50）。
+       📌 判据别写行号（会漂）。当场量哪条规则在后面：
+          `grep -n '^  \.btn-secondary:hover\|^\.hero__cta \.btn-secondary' src/app/globals.css`
+     🔴 `border-color` 本票**不动**：hover 时它仍是 hero 的 `currentColor`。边框不是字，4.5:1 那条契约
+     不管它；深底上深边框只是看不见边框，不是读不出字。 */
   .btn-secondary {
     @apply inline-flex items-center justify-center border-2 px-6 py-3 text-base font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
     border-radius: var(--radius-button);
@@ -104,19 +112,40 @@
     border-color: var(--btn-outline-ink, var(--color-primary-500));
   }
 
-  /* 🔴 #1091 — 这里的字**不再**跟 `.btn-primary` 共用一个变量。理由是底不一样了：主按钮的底挪深了，
-     而这条 hover 的底仍然是 `primary-500`（本票不动它）。共用一个变量的话，本票会顺带改掉这个按钮的
-     字色 —— 而它是 #1100 的第一件，不是本票的。`--btn-outline-hover-ink` 的值 = 本票之前
-     `--btn-primary-ink` 的值（压 `primary-500` 算出来的那个），所以这条规则画出来的东西一个字节都没动。
-     🔴 兜底值仍是 `#fff` = 本票之前的字面行为。 */
+  /* 🔴 #1100 — 这个按钮 hover 时**就是主按钮的静止态**：同一档底、同一个字色，两个变量都直接用
+     `.btn-primary` 那两个（#1091 为它留的 `--btn-outline-hover-ink` 因此没有消费者了，已删）。
+     为什么能共用而不是各算一遍：两处坏掉的是**同一批** —— 都是「白字压 `primary-500`」，一个字不差
+     （role-user 核过：本票坏的 56 套 == #1091 里 base 落 600 的 56 套）。
+     🔴 改前那个数有**两个口径，差一套**，本轮两个都量了：按今天真正写进 `--btn-outline-hover-ink` 的
+     那个字色（= `inkFor(primary-500)`，#1084 起可能是纯黑）算是 **55/80，最差 4.170（`ember-59`）**；
+     按正文与 role-user 说的「白字」算是 **56/80，最差 4.123（`magenta-27`）** —— 差的那一套正是
+     `magenta-27`（500 档上白字不过、纯黑过）。页面上生效的是前者。改后：**0/80，最差 4.531
+     （`magenta-27`）**。
+     🔴 兜底值 = 本票之前的字面行为（底 `primary-500` / 字 `#fff`）⟹ 拿不到这两个变量的页面与改动前
+     逐字相同。 */
   .btn-secondary:hover {
-    background-color: var(--color-primary-500);
-    color: var(--btn-outline-hover-ink, #fff);
+    background-color: var(--btn-primary-bg, var(--color-primary-500));
+    color: var(--btn-primary-ink, #fff);
   }
 
   .btn-accent {
-    @apply inline-flex items-center justify-center bg-accent-400 px-6 py-3 text-base font-semibold text-gray-900 transition-all hover:bg-accent-500 focus:outline-none focus:ring-2 focus:ring-accent-400 focus:ring-offset-2;
+    @apply inline-flex items-center justify-center bg-accent-400 px-6 py-3 text-base font-semibold text-gray-900 transition-all focus:outline-none focus:ring-2 focus:ring-accent-400 focus:ring-offset-2;
     border-radius: var(--radius-button);
+  }
+
+  /* 🔴 #1100 — hover 的底色从写死的 `hover:bg-accent-500` 换成算出来的那一档
+     （`scripts/lib/button-ink.js` §accentHoverShadeFor）。**字色不动**（仍是 `text-gray-900`），手法同
+     #1091：只挪档位。
+     方向是**朝浅**，而那是 accent 色阶的性质不是偏好 —— 它只到 600，朝深走一档在 80 套池主题上比不改
+     还差。三档实测（blended，`gray-900` 的字）：
+         accent-500（今天）  坏 37/80  最差 4.206（crimson-64）
+         accent-600（朝深）  坏 47/80  最差 2.534（jade-47）
+         accent-300（本票）  坏  0/80  最差 6.789（violet-53）
+     Chris 2026-08-19 把这一格委托 role-user 拍，它选了朝浅（票正文「做法 a」）。
+     🔴 兜底值 `var(--color-accent-500)` = 本票之前的字面行为 ⟹ 拿不到这个变量的页面（accent 那一组
+     解析不出来、或换装预览还没重画的那一刻）与改动前逐字相同。 */
+  .btn-accent:hover {
+    background-color: var(--btn-accent-hover, var(--color-accent-500));
   }
 
   /* #961 — 区块留白是 density 这一维【唯一】的落点（正文写死的收窄口径：不动 tailwind 全局
@@ -205,6 +234,26 @@
 .hero__cta .btn-secondary {
   color: currentColor;
   border-color: currentColor;
+}
+
+/* 🔴 #1100 — 但**只在静止态**跟着 hero 的字色走。
+   上面那条规则的理由（见它自己那段注释）整条都是关于静止态的：那时按钮是**透明**的，字压的是主题表
+   画的那块 hero 底，所以字必须跟着 hero。hover 时底变成实心的 `--btn-primary-bg`，那块底跟 hero 的
+   字色没有任何关系 —— 继续跟着它走，就是本票标题里那句「鼠标移上去之后按钮的字读不出来」。
+   （同一条逻辑 `scripts/theme-text-targets.js` 已经写过一次：把 `.btn-secondary` 的**静止态**排除在
+   真机量程外的理由「它是透明的」，同样只管静止态。）
+
+   实测（80 套池主题，blended；字 = 每张表 `.hero` 自己声明的那一档，底 = 那一套 hover 的那一档）：
+       改动前（字 hero currentColor 压 primary-500）        坏 75/80  最差 2.144（indigo-79）
+       只改底、字仍归 hero（= 不加这条规则）                坏 47/80  最差 2.144（indigo-79）
+       加上这条（字底一起交给主按钮静止态那一对）            坏  0/80  最差 4.531（magenta-27）
+   —— 中间那一行是这条规则**存在的理由**：光改底会把一半的格子改得更糟。
+
+   🔴 (0,3,0) 而不是「把上面那条 `.btn-secondary:hover` 挪到后面」：挪顺序也能赢那次 (0,2,0) 的打平，
+   但它把「谁赢」藏进了行的先后 —— 上面那段注释正是为此写的警告。显式一条规则，顺序改了也不会翻。
+   🔴 `border-color` 不在这里：hover 时边框仍跟着 hero。边框不是字，4.5:1 那条契约不管它。 */
+.hero__cta .btn-secondary:hover {
+  color: var(--btn-primary-ink, #fff);
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════

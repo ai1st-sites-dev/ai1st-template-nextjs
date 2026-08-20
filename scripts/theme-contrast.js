@@ -362,6 +362,10 @@ module.exports = {
   contrast,
   mixBytes,
   hexToRgb,
+  // #1100 —— `button-ink.js` 要问「这个字色是深的还是浅的」（hover 的底往哪个方向走），而
+  // 「跟 `#000000` 相等」答不了这一问（`gray-900` 是 #111827）。亮度在这里已经算过一遍，
+  // 第二份实现只会跟这份分叉。
+  luminance,
   worstAt,
   worstOverHue,
 };

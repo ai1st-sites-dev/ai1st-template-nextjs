@@ -104,6 +104,37 @@ const CONTROL_TARGETS = [
   '.services-nav__link',
 ];
 
+// ── #1100 — AND WHAT THEY LOOK LIKE WITH THE POINTER ON THEM ─────────────────────────────────────
+//
+// 🔴 WHY A SEPARATE LIST AND NOT FOUR MORE STRINGS IN THE ONE ABOVE. A `:hover` selector cannot be
+// measured the way the list above is measured: `locator('.btn-primary:hover')` matches **nothing**
+// while nobody is hovering (count = 0), and the loop that consumes `CONTROL_TARGETS` passes
+// `required = false` ⟹ it would return early, add no problem, and the run would print the same
+// coverage line as before. Measured, before this ticket, on a built page: `.btn:hover` count = 0
+// with no pointer, count = 1 after a real `.hover()`. **Four extra strings would have been a green
+// that measures nothing** — so the hover state is driven, then photographed, and this list is the
+// input to that (different) loop. The selectors here are the RESTING ones; the consumer hovers them
+// and labels the reading `<sel>:hover`.
+//
+// 🔴 WHY `.btn-secondary` IS HERE WHILE IT IS DELIBERATELY ABSENT FROM `CONTROL_TARGETS`. The reason
+// it is excluded above is a reading about its RESTING state and only about that: it is transparent,
+// so "the colour behind its words" is the hero's own background and three runs of the same bytes gave
+// 9.68 / 2.47 / 4.39. On hover its background is a solid `--btn-primary-bg` — one colour, stable,
+// and owned by the palette. The exclusion's own justification therefore does not reach this state.
+// (The same split appears one file over: `globals.css`'s `.hero__cta .btn-secondary { color:
+// currentColor }` is right for the resting state and wrong for hover, which is why #1100 added a
+// `:hover` rule beside it.)
+//
+// 🔴 The two link hooks are NOT here: `globals.css` gives neither `.announcement-bar__link` nor
+// `.services-nav__link` a `:hover` rule (grep: zero), and a theme sheet may not write one (§2 of the
+// CSS contract). Hovering them would photograph the resting colours a second time and report it as a
+// hover reading — a pairing no visitor ever sees, dressed up as one they do.
+const HOVER_TARGETS = [
+  '.btn-primary',
+  '.btn-secondary',
+  '.btn-accent',
+];
+
 /**
  * 三张单子合起来 = 「一组配色要对哪些字负责」。
  *
@@ -113,4 +144,13 @@ const CONTROL_TARGETS = [
  */
 const MEASURED_TARGETS = [...TEXT_TARGETS, ...MOVED_TEXT_TARGETS, ...CONTROL_TARGETS];
 
-module.exports = { TEXT_TARGETS, MOVED_TEXT_TARGETS, CONTROL_TARGETS, MEASURED_TARGETS };
+// 🔴 #1100 —— `HOVER_TARGETS` **故意不进 `MEASURED_TARGETS`**，而这是一条关于另一个消费者的判据：
+// 那个数组是给**纯值层**（`theme-presets.test.js` 第 ⑨/⑩ 节 + `theme-contrast.js` 的 `textPairs`）用的
+// ——「一张主题表给这些选择器写了什么颜色」。而 hover 的颜色**不在主题表里**，它在 `globals.css`
+// （契约 §2 也不许主题表写 `:hover`）⟹ 把它塞进这张单子，`textPairs` 会对每张表多问一个它按构造
+// 解不出来的选择器，而那一节的分母自检（`PINNED_RESOLVED_PER_SHEET` = 每张表 8 对）会当场红在
+// 一件跟主题表无关的事上。hover 那三对的算术侧判在 `theme-presets.test.js` 的 `judgeButtons`
+// （它从 `globals.css` 现解按钮配对，`.btn-x:hover` 那条规则就在那里被读到）。
+module.exports = {
+  TEXT_TARGETS, MOVED_TEXT_TARGETS, CONTROL_TARGETS, HOVER_TARGETS, MEASURED_TARGETS,
+};

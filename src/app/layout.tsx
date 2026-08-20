@@ -182,18 +182,25 @@ function paint(t){
     if(!bs){bs='500';}
     var ink=inkOn(pk[bs])||'#ffffff';
     // #1091 —— hover 从 base 的下一档起朝远离字色的方向走；base 自己永远不在候选里（AC3：两者不同色）。
-    var nums=Object.keys(pk).filter(function(k){return /^[0-9]{2,3}$/.test(k)&&ok(pk[k]);}),
-        dk=ink==='#000000',bn=Number(bs),
-        bey=nums.filter(function(k){return dk?Number(k)<bn:Number(k)>bn;})
-                .sort(function(a,b){return dk?Number(b)-Number(a):Number(a)-Number(b);}),
-        oth=nums.filter(function(k){return dk?Number(k)>bn:Number(k)<bn;})
-                .sort(function(a,b){return dk?Number(a)-Number(b):Number(b)-Number(a);}),
-        hv='',ol='';
-    for(q=0;q<bey.length;q++){if(CR(ink,pk[bey[q]])>=4.5){hv=bey[q];break;}}
-    if(!hv){hv=bey.length?bey[0]:(oth.length?oth[0]:bs);}
-    // #1091 —— .btn-secondary:hover 的底仍然是 primary-500，所以它的字按 500 算，不跟着主按钮挪。
-    //           （这段活在模板字符串里，所以注释里一个反引号都不能有。）
-    var oink=inkOn(p5)||'#ffffff';
+    // #1100 —— 方向按【亮度】判，不按「跟纯黑相等」判：门限是白与纯黑给出相同对比度的那个亮度
+    //          （正本 button-ink.js 的 INK_DARK_BELOW）。纯黑/纯白的答案与上一版逐字相同，而
+    //          gray-900(#111827) 这种深字上一版会判反 —— accent 按钮的字就是它。
+    // #1100 —— 而这一段现在是个函数：primary 和 accent 两个按钮走同一把梯子，写两遍必然分叉。
+    var DK=function(h){return LU(BY(h))<Math.sqrt(0.05*1.05)-0.05;};
+    var HOV=function(pp,ik,bb){
+      var ns=Object.keys(pp).filter(function(k){return /^[0-9]{2,3}$/.test(k)&&ok(pp[k]);}),
+          d=DK(ik),bn2=Number(bb),z,
+          by=ns.filter(function(k){return d?Number(k)<bn2:Number(k)>bn2;})
+               .sort(function(a,b){return d?Number(b)-Number(a):Number(a)-Number(b);}),
+          ot=ns.filter(function(k){return d?Number(k)>bn2:Number(k)<bn2;})
+               .sort(function(a,b){return d?Number(a)-Number(b):Number(b)-Number(a);});
+      for(z=0;z<by.length;z++){if(CR(ik,pp[by[z]])>=4.5){return by[z];}}
+      return by.length?by[0]:(ot.length?ot[0]:bb);
+    };
+    var hv=HOV(pk,ink,bs),ol='';
+    // #1100 —— accent 按钮 hover 那一档：同一把梯子，字是 globals.css 写死的 text-gray-900，
+    //          起点是它的静止态 bg-accent-400。accent 那一组解不出来时不产出这个变量（页面落回兜底）。
+    var ak=(t&&t.colors&&t.colors.accent)||{},ah=ok(ak['400'])?HOV(ak,'#111827','400'):'';
     var gnd='#ffffff',sel=['.services-list__item','.services-list'],el,mm;
     for(q=0;q<sel.length;q++){
       try{el=document.querySelector(sel[q]);}catch(e){el=null;}
@@ -208,7 +215,7 @@ function paint(t){
     out.push('--btn-primary-ink:'+ink+';');
     if(hv){out.push('--btn-primary-hover:var(--color-primary-'+hv+');');}
     if(ol){out.push('--btn-outline-ink:var(--color-primary-'+ol+');');}
-    out.push('--btn-outline-hover-ink:'+oink+';');
+    if(ah){out.push('--btn-accent-hover:var(--color-accent-'+ah+');');}
   }
   if(t&&typeof t.fontSans==='string'&&!/[;{}<>]/.test(t.fontSans)){out.push('--font-sans:'+t.fontSans+';');}
   if(t&&typeof t.fontHeading==='string'&&!/[;{}<>]/.test(t.fontHeading)){out.push('--font-heading:'+t.fontHeading+';');}
