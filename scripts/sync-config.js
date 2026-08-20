@@ -158,7 +158,12 @@ function readAppliedThemeId() {
   }
   if (!meta || meta.applied !== true) return null;
   if (!themes[meta.themeId]) {
-    console.error(`theme.json names theme "${meta.themeId}", which is not in the registry (${Object.keys(themes).join(', ')})`);
+    // 🔴 #1102 —— **不把注册表整个列出来。** 这句话不是只进 CI 日志：`edit-site.js` 把
+    // sync-config 的 stderr 原文推进老板的聊天窗口（那边 `syncError` 那一支），而列全表就是
+    // 110 个 id / 1269 个字符 / 按 80 列算 16 行 —— 占满整个聊天面板，而对老板毫无意义。
+    // 要那份名单的人（我们）本来就有更好的入口：`node -e "console.log(Object.keys(require('./scripts/themes.js').themes).join('\n'))"`。
+    console.error(`theme.json names theme "${meta.themeId}", which is not in the registry`
+      + ` — scripts/themes.js has ${Object.keys(themes).length} themes and "${meta.themeId}" is not one of them`);
     process.exit(1);
   }
   return meta.themeId;
@@ -296,10 +301,17 @@ function readThemeSheet() {
   }
   const sheet = path.join(rootDir, 'public', 'themes', `${name}.css`);
   if (!fs.existsSync(sheet)) {
-    const available = fs.existsSync(path.join(rootDir, 'public', 'themes'))
-      ? fs.readdirSync(path.join(rootDir, 'public', 'themes')).filter(f => f.endsWith('.css')).join(', ')
-      : '(public/themes does not exist)';
-    console.error(`theme.json css "${name}" names public/themes/${name}.css, which is not there. Available: ${available}`);
+    // 🔴 #1102 —— 同一族的第二处（票正文只点了上面那一处，这里是同一个形状：83 个表名 / 936 个
+    // 字符，也会被原样推进聊天窗口）。数量 + 目录名代替全表；「目录根本不存在」是另一个读数，
+    // 不是空名单，所以那一支保持原样说出来。
+    const themesDir = path.join(rootDir, 'public', 'themes');
+    const sheetCount = fs.existsSync(themesDir)
+      ? fs.readdirSync(themesDir).filter(f => f.endsWith('.css')).length
+      : null;
+    console.error(`theme.json css "${name}" names public/themes/${name}.css, which is not there`
+      + (sheetCount === null
+        ? ' — and public/themes does not exist at all'
+        : ` — public/themes has ${sheetCount} sheet(s) and "${name}" is not one of them`));
     process.exit(1);
   }
   return name;
