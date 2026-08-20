@@ -339,58 +339,194 @@ console.log('\n── ⑨ hero：supports 里只有内容结构，画法在表�
   else ok(`每种画法都 ≥ 8 套：${line}`);
 }
 
-// ── ⑩ 挑主题按【词边界】匹配，不是子串（#1115）─────────────────────────────────────────────────
+// ── ⑩ 挑主题按【词边界】匹配，不是子串（#1115，#1119 换了量的对象）───────────────────────────
 //
 // 要守的事实：`fitness` / `furniture` / `architect` 里都含着 `it`，而 `it` 是科技那四套主题声明的
 // 关键词。裸 `includes` 会把健身房 / 家具店 / 建筑事务所拉进**科技主题**的候选池，而抽到哪一套
 // 按 siteId 均匀分 ⟹ 有一部分真客人的站长着不属于它那行的脸。#1115 量到的是 14 个词 / 55 处。
 //
 // 🔴 这一格**不拿 `hasPhrase` 去核 `hasPhrase`**（那是同义反复，只能证明实现调了那个函数，
-//    对函数自己的 bug 完全失明）。判据是**字面值**：四个惹事的声明词、各自那几套主题的 id，
-//    都是 2026-08-19 在 `origin/main@454fea9f` 上一个个量出来写死在这里的。
+//    对函数自己的 bug 完全失明）。判据是**字面值**：四个惹事的声明词、各自那几套主题的 id、
+//    每个词归哪一组、每个词的真命中数，都是一个个量出来写死在这里的。
 // 🔴 每一条都配**阳性对照**：先证那几套主题的 `industries` 里**真的**写着那个短词（读的是池子
 //    这份数据，不经过任何匹配函数）。少了它，「那几套不在候选池里」跟「那几套根本不存在 / id 打错了」
 //    长得一模一样 —— 而 id 打错的那种恒绿。
-console.log('\n── ⑩ 挑主题按词边界匹配：短声明词不再靠子串把整组主题拉进来（#1115）');
+//
+// ═══ 🔴 #1119：这一格原来的形态【在组邻接之后三条都失明了】，所以整格重锚 ═══════════════════
+//
+// 原形态是「拿词表里的词跑 `candidateThemesForIndustry`，声明短词的那几套不许在池子里」。
+// #1119 把候选池换成【组成员】取（本组 5 套 + 伙伴组 5 套，不看 `industries`）之后：
+//
+//   · 那 7 个 case 的词**全都在词表里** ⟹ 它们一个都不再走 `industries` 匹配那条路。
+//     实测（把落回路那行退回裸 `includes`，只变这一个变量）：整份输出**逐字不变**
+//     ⟹ 6 个 ✅ 是**恒真**的，剩下 1 个（`party`）是**假红**：`fern-73` 进 `party` 的池子
+//     是因为它就是 `events` 组的成员（`party` 也归 `events`），跟它声明过 `art` 无关。
+//   · 「真命中 ≤ 候选池」那条也失明了：候选池下限从 4-10 抬成**恒 10**，而裸 `includes` 下
+//     真命中的**最大值恰好也是 10**（`interior design` / `marketing`）⟹ `hits > pool`
+//     按构造不可达，余量 0。实测把 `coverage.js` 那行退回裸 `includes`：输出同样逐字不变。
+//
+// ⟹ 重锚到匹配器**今天真正还在决定的那两处后果**上，四个惹事的声明词一个不少（覆盖面没缩）：
+//
+//   ⑩a **归组**（`sectorIndexForIndustry`）—— 词表的词现在靠它决定看哪两组的皮。裸 `includes`
+//        会让 3 个词归错组：`furniture` / `architect` → `tech-media`（正是 #1115 那句「家具店 /
+//        建筑事务所被拉进科技主题」，只是今天这条路是归组、不是词匹配）· `marketing` → `dining`。
+//   ⑩b **落回路**（`candidateThemesForIndustry` 的 ② 分支）—— 老板自己填的自由文本。这是
+//        `industries` 匹配今天唯一还在挑主题的地方，四个短词在这里全都还咬得住。
+//   ⑩c **覆盖度同源**（`coverage.js` 的「真命中」）—— 钉 #1115 那 14 个词的字面命中数。
+//        它是把两个文件的判据别在一起的那根钉子（原来那根靠 `hits > pool`，已经不可达）。
+console.log('\n── ⑩ 挑主题按词边界匹配：短声明词不再靠子串把整组主题拉进来（#1115 · #1119 重锚）');
 {
-  // 词 → [那个惹事的短声明词, 裸 includes 时会被它拉进来的那几套]
-  const CASES = [
-    ['fitness', 'it', ['indigo-66', 'ember-67', 'magenta-69', 'lime-70']],
-    ['furniture', 'it', ['indigo-66', 'ember-67', 'magenta-69', 'lime-70']],
-    ['architect', 'it', ['indigo-66', 'ember-67', 'magenta-69', 'lime-70']],
-    ['retirement', 'tire', ['rose-56', 'fern-57', 'indigo-58', 'jade-60']],
-    ['martial arts', 'art', ['azure-71', 'crimson-72', 'fern-73', 'violet-74', 'amber-75']],
-    ['marketing', 'market', ['fern-31', 'violet-32', 'amber-33', 'teal-34', 'magenta-35']],
-    // 🔴 #1115 r2（QA1 在 r1 上提的那条不阻断，我决定加）—— `party` 是这 14 个词里**唯一只掉 1 套**的
-    //    那个（其余是 4-5 套）。加它不是为了多一个同族样本（`martial arts` 已经代表 `art` 这个成因），
-    //    是为了钉住**最小的那个差值**：一次只对付「掉一大片」的半修，在别的 case 上照样会红，而在这里
-    //    不会 —— 差值 1 是这条不变量最容易被静默留下的形状。实测这一格：改前 5 套、改后 4 套，
-    //    挤进来的是 `fern-73`（它声明的是 "art"）。
-    ['party', 'art', ['fern-73']],
-  ];
-  for (const [word, culprit, offenders] of CASES) {
-    // 阳性对照：这几套真的声明了那个短词吗？（直接读池子，不经过匹配函数）
-    const notDeclaring = offenders.filter((id) => !(poolThemes[id]
-      && (poolThemes[id].industries || []).includes(culprit)));
+  // 🔴 每一条 case 都要先过两道**只读原始数据、不碰任何匹配函数**的阳性对照，否则下面的断言
+  //    跟「id 打错了」/「这个词其实不含那个短词」长得一样 —— 而那两种都是恒绿。
+  //    ① `offenders` 的 `industries` 里真的写着那个短词吗（读 `theme-pool.json`）
+  //    ② 那个短词真的是「是子串、不是词」吗（纯字符串算术：`indexOf` 命中而 token 清单里没有）
+  const declares = (id, kw) => !!(poolThemes[id] && (poolThemes[id].industries || []).includes(kw));
+  const substringTrap = (word, culprit) => String(word).toLowerCase().includes(culprit)
+    && !industryTokens(word).includes(culprit);
+  function controlsHold(label, word, culprit, offenders) {
+    const notDeclaring = offenders.filter((id) => !declares(id, culprit));
     if (notDeclaring.length) {
-      bad(`阳性对照没过：${notDeclaring.join(' · ')} 的 industries 里没有 "${culprit}"`
+      bad(`${label} 阳性对照①没过：${notDeclaring.join(' · ')} 的 industries 里没有 "${culprit}"`
         + '（id 写错了 / 池子改过了 ⟹ 下面那条断言恒绿，什么都没守）');
-      continue;
+      return false;
     }
-    // 🔴 先证兜底没开火，那条断言才是无条件的：`NEUTRAL_TOPUP` 里有 violet-74，池子不足
-    //    MIN_ROTATION_POOL 时它会被顶回来 —— 那时「violet-74 不在池里」会因为**别的原因**变红。
+    if (!substringTrap(word, culprit)) {
+      bad(`${label} 阳性对照②没过："${culprit}" 在 "${word}" 里不是「是子串但不是词」的形状`
+        + '（这条 case 已经分不出裸 includes 和词边界 ⟹ 它恒绿）');
+      return false;
+    }
+    return true;
+  }
+
+  // ── ⑩a 归组：词表里的词靠 `sectorIndexForIndustry` 决定看哪两组的皮 ──────────────────────
+  //
+  // 字面值是量出来的：第 4 列是**今天**那个词归的组（词边界），第 5 列是把那一处退回裸 `includes`
+  // 时它会归到的组 —— 只有 3 个词会变，而那 3 个正是 #1115 那句话里的家具店 / 建筑事务所 / 营销。
+  // 归错组 = 整池 10 套全换成另一行的皮，比 #1115 原来那条（挤进来 4-5 套）更重。
+  //
+  // 词 → [惹事的短声明词, 裸 includes 会被它拉进来的那几套, 今天归的组, 裸 includes 会归到的组]
+  const CASES = [
+    ['fitness', 'it', ['indigo-66', 'ember-67', 'magenta-69', 'lime-70'], 'fitness-water', 'fitness-water'],
+    ['furniture', 'it', ['indigo-66', 'ember-67', 'magenta-69', 'lime-70'], 'retail-lifestyle', 'tech-media'],
+    ['architect', 'it', ['indigo-66', 'ember-67', 'magenta-69', 'lime-70'], 'retail-lifestyle', 'tech-media'],
+    ['retirement', 'tire', ['rose-56', 'fern-57', 'indigo-58', 'jade-60'], 'finance-insurance', 'finance-insurance'],
+    ['martial arts', 'art', ['azure-71', 'crimson-72', 'fern-73', 'violet-74', 'amber-75'], 'fitness-water', 'fitness-water'],
+    ['marketing', 'market', ['fern-31', 'violet-32', 'amber-33', 'teal-34', 'magenta-35'], 'tech-media', 'dining'],
+    // 🔴 #1115 r2 加它是为了钉住**最小的那个差值**（其余 13 个词掉 4-5 套，它只掉 1 套）。
+    //    #1119 之后它的角色变了：`fern-73` 就是 `events` 组的成员，而 `party` 也归 `events`
+    //    ⟹ 它**合法地**在池子里。所以下面 offenders 那条断言对 `party` 不成立，也不该成立 ——
+    //    它现在只参加归组那条断言（`events`，两种匹配器下都一样），并在 ⑩b 里由自由文本探针
+    //    `quartz countertops`（同一个短词 `art`）接手「不许靠子串挤进来」那一半。
+    ['party', 'art', ['fern-73'], 'events', 'events'],
+  ];
+  const sectorKeyOf = (i) => (i >= 0 && sectors.SECTORS[i] ? sectors.SECTORS[i].key : '(认不出组)');
+  for (const [word, culprit, offenders, wantSector, naiveSector] of CASES) {
+    if (!controlsHold(`"${word}"`, word, culprit, offenders)) continue;
+    const gotSector = sectorKeyOf(sectors.sectorIndexForIndustry(word));
+    if (gotSector !== wantSector) {
+      bad(`"${word}" 归到了 ${gotSector}，字面值是 ${wantSector}`
+        + `（裸 includes 会把它归到 ${naiveSector}；归错组 = 整池 10 套换成另一行的皮）`);
+    } else {
+      ok(`"${word}" 归 ${wantSector}`
+        + (naiveSector === wantSector ? '' : `（裸 includes 会归到 ${naiveSector} ⟹ 这条 case 咬得住）`));
+    }
+    // 🔴 走组邻接的词，池子已经不看 `industries` ⟹ 「offenders 不在池里」对它们**恒真**，
+    //    单独当一格报会是零信息读数。只在 offenders 里**没有一个**是这个词那两组的成员时才有话可说
+    //    —— 那时它仍然是一条真断言（谁都不该从别的组挤进来）；否则明说这一条今天不适用。
+    // 🔴 这个「是本组/伙伴组成员就放过」的口子是**故意留的**，它的边界量过：把 `retail-lifestyle`
+    //    的 partner 改成 `tech-media`，`furniture` 的池子里就真的有那 4 套科技皮，而这里会打
+    //    「是伙伴组成员」的绿。那不是本格失明 —— 伙伴表本身由别处守：同一个变异下
+    //    `industry-sectors.test.js` 一次红三格（一对一 `tech-media×2` · 那条判据没牙 ·
+    //    AC4 五套进了 3 个组）。**别指望这一格能替你审伙伴表。**
     const pool = themesMod.candidateThemesForIndustry(word);
-    if (pool.length <= themesMod.MIN_ROTATION_POOL) {
-      bad(`"${word}" 的候选池只有 ${pool.length} 套 == 兜底下限 ${themesMod.MIN_ROTATION_POOL}`
-        + ' ⟹ NEUTRAL_TOPUP 开火了，下面那条断言会因为别的原因说话。先看覆盖度那一格。');
+    const leaked = offenders.filter((id) => pool.includes(id));
+    const legit = leaked.filter((id) => {
+      const g = sectors.sectorIndexOfTheme(poolThemes[id]);
+      const sec = sectors.sectorIndexForIndustry(word);
+      return g === sec || g === sectors.partnerIndexOf(sec);
+    });
+    if (leaked.length && legit.length === leaked.length) {
+      ok(`  └ "${word}" 池里那 ${leaked.length} 套（${leaked.join(' · ')}）是本组/伙伴组成员，`
+        + `不是靠 "${culprit}" 挤进来的 —— 这一半由 ⑩b 的自由文本探针接手`);
+    } else if (leaked.length) {
+      bad(`  └ "${word}" 的候选池里有 ${leaked.filter((id) => !legit.includes(id)).join(' · ')}，`
+        + `它们既不是本组也不是伙伴组的成员，只声明了 "${culprit}"`);
+    } else {
+      ok(`  └ "${word}" 的候选池 ${pool.length} 套，不含声明 "${culprit}" 的那 ${offenders.length} 套`);
+    }
+  }
+
+  // ── ⑩b 落回路：老板自己填的自由文本（`industries` 匹配今天唯一还在挑主题的地方）──────────
+  //
+  // 🔴 每个探针都必须**认不出行业组**（`sectorIndexForIndustry < 0`），否则它走的是 ⑩a 那条路、
+  //    这一格恒绿。这一条是机器判的，不是我在注释里保证的。
+  // 探针都是真实形状的行业文字，不是造出来的乱码：一个超市、一家做礼服的、一个石英台面商、
+  // 一家审计事务所 —— 四个短词（market / tire / art / it）各一个。
+  // 第 3 列的字面值 = 把落回路那行退回裸 `includes` 时会被拉进池子的那几套（一个个量出来的）。
+  const FREE_TEXT = [
+    ['supermarket delivery', 'market', ['fern-31', 'violet-32', 'amber-33', 'teal-34', 'magenta-35']],
+    ['custom attire', 'tire', ['rose-56', 'fern-57', 'indigo-58', 'jade-60']],
+    ['quartz countertops', 'art', ['azure-71', 'crimson-72', 'fern-73', 'amber-75']],
+    ['audit services', 'it', ['indigo-66', 'ember-67', 'magenta-69', 'lime-70']],
+  ];
+  for (const [probe, culprit, offenders] of FREE_TEXT) {
+    if (!controlsHold(`落回路 "${probe}"`, probe, culprit, offenders)) continue;
+    // 阳性对照③：它真的走落回路吗
+    const sec = sectors.sectorIndexForIndustry(probe);
+    if (sec >= 0) {
+      bad(`落回路 "${probe}" 阳性对照③没过：它归到了 ${sectorKeyOf(sec)}`
+        + '（那就走组邻接、不走 industries 匹配 ⟹ 这一格恒绿，换一个认不出组的探针）');
       continue;
     }
+    // 🔴 兜底会开火（自由文本匹配不到东西，池子被 NEUTRAL_TOPUP 填到下限），所以不能像 ⑩a
+    //    那样拿池长当前提。改成先证 offenders 与兜底那几套**无交集** —— 那时下面这条断言
+    //    与兜底开不开火无关。
+    const fromTopup = offenders.filter((id) => themesMod.NEUTRAL_TOPUP.includes(id));
+    if (fromTopup.length) {
+      bad(`落回路 "${probe}" 阳性对照④没过：${fromTopup.join(' · ')} 也在 NEUTRAL_TOPUP 里`
+        + '（那它进池子可能是兜底推的，这条断言会因为别的原因说话）');
+      continue;
+    }
+    const pool = themesMod.candidateThemesForIndustry(probe);
     const leaked = offenders.filter((id) => pool.includes(id));
     if (leaked.length) {
-      bad(`"${word}" 仍然靠子串把 ${leaked.join(' · ')} 拉进了候选池`
-        + `（它们声明的是 "${culprit}"，而 "${word}" 只是【含】这几个字母，不是【有这个词】）`);
+      bad(`落回路 "${probe}" 仍然靠子串把 ${leaked.join(' · ')} 拉进了候选池`
+        + `（它们声明的是 "${culprit}"，而 "${probe}" 只是【含】这几个字母，不是【有这个词】）`);
     } else {
-      ok(`"${word}" 的候选池 ${pool.length} 套，不含声明 "${culprit}" 的那 ${offenders.length} 套`);
+      ok(`落回路 "${probe}"（认不出组）的候选池 ${pool.length} 套，`
+        + `不含声明 "${culprit}" 的那 ${offenders.length} 套`);
+    }
+  }
+
+  // ── ⑩c 覆盖度同源：`coverage.js` 的「真命中」必须与挑主题那条路同一份判据 ────────────────
+  //
+  // 🔴 原来这根钉子是「真命中 ≤ 候选池」（下面还留着，但见那里的余量说明）。#1119 把候选池抬成
+  //    恒 10，而裸 includes 下真命中的最大值恰好也是 10 ⟹ 那条不可达了。这里换成钉**字面命中数**：
+  //    #1115 那 14 个词，每个词今天的真命中数写死在下面。把 coverage.js 那行退回裸 `includes`，
+  //    每一个都会变大（括号里就是那时的值，取自 #1115 的实测表）⟹ 这一格会一次红 14 行。
+  const HITS = [
+    ['title', 5, 9], ['credit union', 4, 8], ['retirement', 5, 9], ['underwriting', 5, 9],
+    ['benefits', 5, 9], ['mediterranean', 5, 9], ['fitness', 4, 8], ['martial arts', 4, 9],
+    ['security', 5, 9], ['marketing', 5, 10], ['party', 4, 5], ['furniture', 4, 8],
+    ['architect', 5, 9], ['architecture', 5, 9],
+  ];
+  {
+    const rows = new Map(surveyCoverage().rows.map((r) => [r.word, r]));
+    const wrong = [];
+    const missing = [];
+    for (const [word, want, naive] of HITS) {
+      const r = rows.get(word);
+      if (!r) { missing.push(word); continue; }
+      if (r.hits !== want) wrong.push(`${word} ${r.hits}（字面值 ${want}，裸 includes 是 ${naive}）`);
+    }
+    if (missing.length) {
+      bad(`⑩c 阳性对照没过：${missing.join(' · ')} 不在覆盖度普查的行里`
+        + '（词表改过了 / 拼写变了 ⟹ 下面那条断言少守几个词，而少守是静默的）');
+    } else if (wrong.length) {
+      bad(`${wrong.length} 个词的真命中数与字面值不符 —— coverage.js 与挑主题那条路的判据分叉了：`
+        + wrong.join(' · '));
+    } else {
+      ok(`#1115 那 14 个词的真命中数逐个等于字面值（4-5 套；裸 includes 是 8-10 ⟹ 这一格咬得住）`);
     }
   }
 
@@ -398,15 +534,24 @@ console.log('\n── ⑩ 挑主题按词边界匹配：短声明词不再靠子
   //    一套真声明了这个词的主题**必然**在它的候选池里 ⟹ hits > pool 是逻辑上不可能的。
   //    这一格守的是「只改了一处、另一处还是裸 includes」那种半修 —— #1115 量过，那时这里会有 14 个。
   //    它不假设哪一处是对的，所以两处任何一处漂了都说话。
+  //
+  // 🔴 #1119 起这一条的**余量是 0，别把它的绿当成一个读数**：组邻接把候选池抬成恒 10，而裸
+  //    `includes` 下真命中的最大值**恰好也是 10**（`interior design` / `marketing` 各 10）
+  //    ⟹ `hits > pool` 已经不可达。实测：把 coverage.js 那行退回裸 `includes`，这一格照绿。
+  //    留着它是因为它表达的那句话仍然是真的，而且**池子一旦缩回去它就重新咬得住**（伙伴组那半
+  //    被撤掉 ⟹ 池长回到 4-6，那时它会立刻红）。今天真正把两个文件别在一起的钉子是上面 ⑩c。
   {
     const s10 = surveyCoverage();
     const impossible = s10.rows.filter((r) => r.hits > r.pool);
+    const margin = Math.min(...s10.rows.map((r) => r.pool)) - Math.max(...s10.rows.map((r) => r.hits));
     if (impossible.length) {
       bad(`${impossible.length} 个词的「真命中」大于「候选池」——两处判据分叉了`
         + `（真命中在 coverage.js，候选池在 themes.js）：`
         + impossible.slice(0, 5).map((r) => `${r.word} ${r.hits}/${r.pool}`).join(' · '));
     } else {
-      ok(`${s10.rows.length} 个词逐个:真命中 ≤ 候选池（两处判据同源;半修会让这一格出现 14 个）`);
+      ok(`${s10.rows.length} 个词逐个:真命中 ≤ 候选池（池长下限 `
+        + `${Math.min(...s10.rows.map((r) => r.pool))} − 命中上限 ${Math.max(...s10.rows.map((r) => r.hits))}`
+        + ` = 余量 ${margin}；#1119 后这条靠 ⑩c 顶，见上面注释）`);
     }
   }
 }

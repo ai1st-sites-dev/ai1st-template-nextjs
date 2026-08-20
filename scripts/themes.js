@@ -73,7 +73,13 @@ const { themeSupportsHeroForm } = require('./lib/hero-lead-form.js');
 //    别在这里照着重写一份切词（本仓为「同一个判据两份实现」付过多次账）。
 //    方向安全:`industry-sectors.js` 是零依赖叶子（一个 require 都没有）⟹ 不成环；
 //    同向先例是 `scripts/lib/hero-lead-form.js` 已经在 require 它。
-const { isOnSiteIndustry, industryTokens, hasPhrase } = require('./theme-pipeline/industry-sectors.js');
+// 🔴 #1119 —— 后三个是组邻接那条路要的：一个行业词该看哪些组的主题。判归属、判伙伴、判词属于哪组，
+//    三件事的权威都在那个文件里 —— 它是那 16 组和 partner 表的家，在这里重写一份就是让同一个判断
+//    有两份实现。#1115 那两个仍然要（落回路照用它们，见下面 candidateThemesForIndustry 的 ②）。
+const {
+  isOnSiteIndustry, industryTokens, hasPhrase,
+  sectorIndexForIndustry, partnerIndexOf, sectorThemeIds,
+} = require('./theme-pipeline/industry-sectors.js');
 
 const themes = { ...poolThemes, ...retiredThemes };
 
@@ -102,6 +108,20 @@ const MIN_ROTATION_POOL = 3;
 // 它是这个问题的权威）；`manager/ticket1077_test.go` 问「`const themes` 的键是不是真主题」——后者才看得见
 // 外壳那种改法，因为 pool.test.js 直接读 poolThemes，外壳动的是 `const themes`。
 const NEUTRAL_TOPUP = ['fern-02', 'jade-26', 'azure-50', 'violet-74'];
+
+// #1119 —— id → 它属于哪个行业组（`industries` 落在哪一组的词表里）。算一次就够：`poolThemes` 是一份
+// require 进来的 JSON，进程活着期间不会变。
+// 📌 归不进任何一组的 id **挑不到**（下面按组成员取，它们不在任何一组里），而这件事是静默的 ——
+//    盯它的是 `theme-pipeline/industry-sectors.test.js` 第 ① 格（要求「组外」那份清单是空的）。
+let sectorOfThemeMemo = null;
+function sectorOfTheme() {
+  if (!sectorOfThemeMemo) {
+    sectorOfThemeMemo = new Map();
+    sectorThemeIds(poolThemes).byIndex
+      .forEach((ids, i) => ids.forEach((id) => sectorOfThemeMemo.set(id, i)));
+  }
+  return sectorOfThemeMemo;
+}
 
 function themeStyle(themeId) {
   const t = themes[themeId];
@@ -176,20 +196,48 @@ function themesWithRhythm() {
 // 🔴 #1016 —— 挑的范围是 `poolThemes`，**不是** `themes`。两者差 30 套：那 30 套是 spec D3 冻结退役的
 // 旧池，它们留在 `themes` 里只为了「按 id 查得到」（已经穿着它们的站要建得出来），新站不许再抽到。
 // 判据在 AC4：拿全部行业词逐个跑这个函数，旧 30 个 id 一个都不该出现。
-// 🔴 #1115 —— 匹配按**词边界**，不许裸 `includes`。理由是量出来的：拿 212 个行业词逐个跑，裸
-//    `includes` 有 **14 个词 / 55 处**主题是靠「子串碰巧命中」进候选池的，成因集中在四个很短的
-//    声明词 —— `it`（科技那四套）· `tire`（汽修那四套）· `art`（艺术那五套）· `market`（市集那五套）。
-//    后果是真实的:一个健身房（`fitness` 含 `it`）、一个家具店（`furniture`）、一个建筑事务所
-//    （`architect`）今天会被拉进**科技主题**的候选池，而抽到哪一套按 siteId 均匀分
-//    ⟹ 有一部分真客人的站长着不属于它那行的脸。
-//    改完不会把池子饿死:212 个词里最小的候选池是 **4**，而 `MIN_ROTATION_POOL` 是 **3**
-//    ⟹ 下面那条 `NEUTRAL_TOPUP` 兜底一次都进不去（判据是 3 < 4，不是"我看着没触发"）。
-//    钉住它的是 `theme-pipeline/pool.test.js ⑩`（含四个声明词的字面对照 + 阳性对照）。
+//
+// 🔴 #1119 —— 池子怎么取，分两条路，而**大多数生意走第一条**：
+//
+//   ① 这段行业文字认得出行业组（`sectorIndexForIndustry`，按词边界匹配那 16 组的词表）⟹ 候选 =
+//      **本组那 5 套 + 它 `partner` 那组的 5 套**，按【组成员】取，**不看这几套主题自己声明了哪些词**。
+//      为什么不看：16 组 × 5 套的结构让词级匹配恒只给 4-6 套，而 epic #1007 要 ≥10；靠往每套的
+//      `industries` 里塞词去补，在 80 套的池子上算术无解（要 212×10=2120 个命中对，而
+//      `pool.test.js` 第 ③ 格允许的上限是 80×14.73=1179）。Chris 2026-08-19 拍的是「标签接宽」，
+//      落地形态是组与组之间的一句相容声明 —— 理由和四条约束写在 `industry-sectors.js` 的组表上方。
+//   ② 认不出组（老板自己填的自由文本，如 `汽车维修` / `quantum widgets` / 空串）⟹ 落回下面那行的
+//      `industries` 匹配，再照走 `NEUTRAL_TOPUP` 兜底。**这是今天兜底唯一真开火的地方**：走 ① 的
+//      池子恒 10 套，进不了 `MIN_ROTATION_POOL` 那个分支。
+//
+// 🔴 #1115 —— ② 那条路上的匹配按**词边界**，不许裸 `includes`（`hasPhrase`，与 `isOnSiteIndustry`
+//    和 `coverage.js` 的「真命中」同一份判据）。理由是量出来的：拿 212 个行业词逐个跑，裸 `includes`
+//    有 **14 个词 / 55 处**主题是靠「子串碰巧命中」进候选池的，成因集中在四个很短的声明词 ——
+//    `it`（科技那四套）· `tire`（汽修那四套）· `art`（艺术那五套）· `market`（市集那五套）。
+//    📌 #1119 之后这 14 个词**都走 ① 了**（它们全在那 212 个词表里），所以裸 `includes` 与
+//    `hasPhrase` 在**词表的词上**已经分不出高下 —— 这一族误命中现在只可能从 ② 那条路进来
+//    （老板填的自由文本，如 `smart home automation` 含着 `art`）。因此 `pool.test.js ⑩` 在 #1119
+//    里跟着换了量的对象：它现在两臂都问 —— **一臂问匹配器本身**（`industries` 匹配到哪几套，
+//    ① 与 ② 共用的那份判据，14 个词一个不少地照旧钉着），**一臂问 ② 那条路的真后果**
+//    （自由文本进去，声明短词的那几套不许被拉出来）。改那道守卫前先读它自己那段注释。
+//
+// 📌 走 ① 时那 10 套里有 5 套并没有为这个行业「做过皮」，它们是被**提供**的、不是被**声明**的。
+//    这是 Chris 拍板时答过的那个产品判断（一句「气质相容」就够格被端上桌），不是这里偷来的绿：
+//    `industries` 一个字都没动，所以第 ③ 格那两行读数按构造不变。
 function candidateThemesForIndustry(industry) {
   const tokens = industryTokens(industry);
-  const pool = Object.keys(poolThemes).filter(id =>
-    poolThemes[id].industries.some(kw => hasPhrase(tokens, kw))
-  );
+  const sector = sectorIndexForIndustry(industry);
+  const partner = sector >= 0 ? partnerIndexOf(sector) : -1;
+  const groupOf = sectorOfTheme();
+  // 两条路都按 `poolThemes` 自己的键顺序产出（上面那句「in registry order」说的就是它）——
+  // 组邻接这条也走一次 filter，而不是把两组的清单接起来，就是为了让顺序仍然只有这一个来源。
+  const pool = sector >= 0
+    ? Object.keys(poolThemes).filter((id) => {
+      const g = groupOf.get(id);
+      return g === sector || (partner >= 0 && g === partner);
+    })
+    : Object.keys(poolThemes).filter(id =>
+      poolThemes[id].industries.some(kw => hasPhrase(tokens, kw))
+    );
   for (const id of NEUTRAL_TOPUP) {
     if (pool.length >= MIN_ROTATION_POOL) break;
     if (!pool.includes(id)) pool.push(id);
