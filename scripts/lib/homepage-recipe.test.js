@@ -118,7 +118,7 @@ const basePayload = (over = {}) => ({
 
 // ── 被测模块 ────────────────────────────────────────────────────────────────────────────────────
 const { homepageRecipe, tryHomepageRecipe, recipeProblems, recipePromptLines, fingerprintEnabled,
-  afterRetry, poolFor, rotate, NOT_IN_POOL, BAR_EVERY } = require('./homepage-recipe');
+  afterRetry, poolFor, industryRank, rotate, NOT_IN_POOL, BAR_EVERY } = require('./homepage-recipe');
 const { rotationIndexFromSiteId } = require('../themes');
 const { loadManifests, promptSection } = require('./block-manifest');
 const manifests = loadManifests();
@@ -438,6 +438,98 @@ console.log('── ⑫ 块被改名:tryHomepageRecipe 交回 error，create-sit
     .test(src.replace('const recipeIndex = rotationIndexFromSiteId(siteId);', 'const recipeIndex = 0;'))
     ? bad('这把尺子恒真 —— 源码被改回去它也读不出来')
     : ok('尺子有判别力:把那行换成写死的 0，上面那条当场读不到');
+}
+
+// ── ⑬ 行业【真的】参与首页结构（#1124）────────────────────────────────────────────────────────────
+//
+// 本票之前 `industry` 这个入参是空转的：`poolFor` 只装一个 `discouraged` 谓词，而 34 份 manifest 里
+// `discouraged` 是 0/34 ⟹ 面包店和律所拿到逐字相同的开场。这一节钉三件事，每件都带自己的反向对照。
+console.log('── ⑬ #1124 行业参与结构:两两不同 · 认不出来的回到今天 · 撞车率不退步');
+{
+  const { industryMatches, recogniseIndustry, INDUSTRY_VOCABULARY } = require('./block-manifest');
+  const NAMED = ['plumbing', 'bakery', 'law firm', 'gallery'];
+  const AT = 7;   // 同一个序号上比，AC1 要的就是这个口径
+
+  // (a) 点名的四个行业，在同一个序号上两两都不相同
+  const openerOf = (ind) => tryHomepageRecipe(AT, manifests, ind).recipe.opener.join('>');
+  const collisions = [];
+  for (let a = 0; a < NAMED.length; a++) {
+    for (let b = a + 1; b < NAMED.length; b++) {
+      if (openerOf(NAMED[a]) === openerOf(NAMED[b])) collisions.push(`${NAMED[a]} == ${NAMED[b]}`);
+    }
+  }
+  collisions.length
+    ? bad(`点名的行业里有 ${collisions.length} 对拿到相同开场:${collisions.join(' · ')}`)
+    : ok(`${NAMED.join(' / ')} 在 index=${AT} 上两两都不相同`);
+
+  // (b) 🔴 认不出来的行业**逐字**回到今天的行为，而且不报错。`gallery` 是块名不是行业词，
+  //     `zzz-unknown` 是正文 AC2 点名的那个 —— 两个都必须走这一支。
+  const bare = poolFor(manifests).join('>');
+  const unknowns = ['zzz-unknown', 'gallery', 'no-such-trade'];
+  const moved = unknowns.filter((u) => poolFor(manifests, u).join('>') !== bare);
+  moved.length
+    ? bad(`认不出来的行业把池子的顺序改了:${moved.join(' · ')} —— AC2 的反向对照要求它退回今天的行为`)
+    : ok(`认不出来的行业(${unknowns.join(' / ')})池子顺序逐字不动 = 改动之前的行为，且不抛`);
+  // 判别力:这把尺必须**认得出**顺序真的变了 —— 不然上面那个绿可能是「poolFor 恒返回同一个东西」
+  poolFor(manifests, 'plumbing').join('>') === bare
+    ? bad('这把尺恒真:连 plumbing 都没改动顺序 ⟹ 上面那条读不出任何东西')
+    : ok('尺子有判别力:plumbing 确实改了池子顺序，所以上面那条「不动」是真读数');
+
+  // (c) 🔴 AC3 每个行业内的撞车率不许退步。判据用**整数种数**比，不用四舍五入的百分数
+  //     (基线 100/33 = 3.0303…%，拿 3.03 去比会让基线自己都判红 —— 我第一版就是这么错的)。
+  const distinct = (ind) => {
+    const s = new Set();
+    for (let i = 0; i < 500; i++) s.add(tryHomepageRecipe(i, manifests, ind).recipe.opener.join('>'));
+    return s.size;
+  };
+  const base = distinct('');
+  const worse = [...Object.keys(INDUSTRY_VOCABULARY), ...NAMED, 'zzz-unknown']
+    .map((ind) => [ind, distinct(ind)]).filter(([, n]) => n < base);
+  worse.length
+    ? bad(`有 ${worse.length} 个行业的开场种数比基线 ${base} 少:${worse.map(([i, n]) => `${i}=${n}`).join(' · ')}`)
+    : ok(`基线 ${base} 种;词表 ${Object.keys(INDUSTRY_VOCABULARY).length} 个行业 + 点名的 ${NAMED.length} 个 + 反向对照，没有一个少于基线`);
+  // 为什么它按构造不会退步:池子大小一个都不变（重排不是过滤）
+  const sizes = new Set([...Object.keys(INDUSTRY_VOCABULARY), '', 'zzz-unknown']
+    .map((ind) => poolFor(manifests, ind).length));
+  sizes.size === 1
+    ? ok(`每个行业的池子都是 ${[...sizes][0]} 块 —— 重排没有筛掉任何块，这是上面那条的构造性理由`)
+    : bad(`池子大小不一致:${[...sizes].join(' / ')} ⟹ 有行业被筛窄了，AC3 迟早退步`);
+
+  // (d) `required: ["*"]` 不许参与排序 —— 它对「这个行业 vs 别的行业」一个字都没说
+  const starOnly = [...manifests.values()].filter((m) => {
+    const i = m.industries || {};
+    return (i.required || []).includes('*') && !(i.required || []).some((w) => w !== '*')
+      && !(i.recommended || []).length;
+  });
+  starOnly.length === 0
+    ? ok('今天没有「只写 * 且没有别的正向词」的块 —— 这一格暂时问不出问题(夹具下面自造)')
+    : (starOnly.every((m) => industryRank(m, 'plumbing') === 2)
+      ? ok(`只写 * 的块(${starOnly.map((m) => m.type).join(' · ')})排名是 2 = 不参与行业排序`)
+      : bad(`只写 * 的块参与了行业排序 —— contact-info 会对每个行业都跳到队首`));
+  // 自造夹具:一个只写 `*` 的块，rank 必须是 2；一个写具体词的，必须是 0
+  industryRank({ industries: { required: ['*'], recommended: [], discouraged: [] } }, 'plumbing') === 2
+    ? ok('夹具:required=["*"] ⟹ rank 2(不参与)')
+    : bad('夹具:required=["*"] 参与了排序');
+  industryRank({ industries: { required: ['plumbing'], recommended: [], discouraged: [] } }, 'plumbing') === 0
+    ? ok('夹具:required=["plumbing"] ⟹ rank 0(队首)')
+    : bad('夹具:具体的 required 词没有把块提到队首');
+  industryRank({ industries: { required: [], recommended: ['plumbing'], discouraged: [] } }, 'plumbing') === 1
+    ? ok('夹具:recommended=["plumbing"] ⟹ rank 1(次席)')
+    : bad('夹具:recommended 没有被读进排序');
+
+  // (e) 差异说得出理由:每个点名行业被提到队首的块，都要能报出是哪个词命中的
+  for (const ind of NAMED) {
+    const front = poolFor(manifests, ind).filter((t) => industryRank(manifests.get(t), ind) < 2);
+    const why = front.map((t) => {
+      const i = manifests.get(t).industries || {};
+      const w = [...(i.required || []).filter((x) => x !== '*'), ...(i.recommended || [])]
+        .filter((x) => industryMatches(ind, x));
+      return `${t}(${w.join(',')})`;
+    });
+    const keys = recogniseIndustry(ind);
+    if (!keys.length && front.length) bad(`${ind} 认不出来却有块被提前 —— 那就不是"说得出理由"`);
+    else ok(`${ind} → 词表认成 [${keys.join(',')}] · 提前的块:${why.join(' · ') || '（无，顺序不动）'}`);
+  }
 }
 
 console.log(`\n逐条断言:PASS ${pass} · FAIL ${fail}`);

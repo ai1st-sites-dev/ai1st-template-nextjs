@@ -70,12 +70,52 @@ const OFFSETS = [0, 3, 7, 12, 18];
 const BAR_EVERY = 4;
 
 /**
+ * 一个块跟这个行业的相关度 —— 数越小越靠前。#1124。
+ *
+ * 🔴 只认 manifest 里那两个**正向**字段，判命中一律走 `industryMatches`（词表住在 block-manifest.js，
+ *    本文件不另造第三份 —— #1124 正文点名的那条纪律）。
+ *
+ *   0  `industries.required` 里有一个**具体**行业词命中  →「这个行业的站必须有它」
+ *   1  `industries.recommended` 里有一个命中             →「很适合这个行业」
+ *   2  两个都没命中                                     → 原位
+ *
+ * 🔴 `required: ["*"]` **不参与**，这一条是承重的：`*` 的意思是「每个站都要有它」，它对
+ *    「这个行业 vs 别的行业」**一个字都没说**。把它当加权会让 `contact-info`（今天唯一写 `*` 的
+ *    池内块）对**每一个**行业都跳到队首 —— 于是所有行业在第一格上又变得一样，正是本票要治的病。
+ */
+function industryRank(m, industry) {
+  const { industryMatches } = require('./block-manifest');
+  const ind = m.industries || {};
+  const specificRequired = (ind.required || []).filter((w) => w !== '*');
+  if (specificRequired.some((w) => industryMatches(industry, w))) return 0;
+  if ((ind.recommended || []).some((w) => industryMatches(industry, w))) return 1;
+  return 2;
+}
+
+/**
  * homepage 候选里可以进配方的那些，按 prompt.order 排（稳定的顺序 = 可复算的配方）。
  *
  * `industry` 给了就再滤掉 `blocks/<type>.json` 里把这个行业标成 `discouraged` 的块 ——
  * 那张表（#999）是选块的既有输入，本票的配方跟它**协作**，不覆盖它。
  * 📌 今天 28 个 homepage 候选里**一个 `discouraged` 都没有**（2026-08-15 实测），所以这一层今天
  *    一个块都滤不掉；写在这里是为了别人往 `blocks/` 里加 `discouraged` 的那天它自动生效。
+ *
+ * ── 🔴 #1124：行业**真的**参与了，做法是【重排】而不是【过滤】────────────────────────────────────
+ *
+ * 在这之前 `industry` 这个入参是**空转**的：它只装了上面那个 `discouraged` 谓词，而
+ * `discouraged` 在 34 份 manifest 里是 **0/34**（本票实测，正文那条重现命令）⟹ 面包店和律所拿到
+ * 逐字相同的开场。而正向的两个字段（`required` 2/34 · `recommended` 9/34）**里已经有语料**，只是
+ * 没有任何东西拿它们排过序 —— 它们今天只被印进提示词、`required` 另外驱动 `validateSite` 的事后
+ * 检查，两条都不进「配方」这条硬约束。
+ *
+ * 🔴 **为什么是重排、不是按行业筛掉不相关的块** —— 这是本票 AC3 的整个要点：`drawDistinct` 按
+ *    **位置**索引池子，所以重排会换掉抽中的块，而**池子大小一个都不变** ⟹ 每个行业内可选的开场
+ *    种数不变（实测：改前后每个行业都是 33 种，撞车率恒 1/33 = 3.03%）。改成筛除就会让每个行业的
+ *    池子变小、组合变少 —— 那正是正文说的「本票最容易造成的退步」。
+ *
+ * 🔴 **认不出来的行业按构造回到今天的行为**：`industryRank` 全部返回 2 ⟹ 稳定排序不动任何一格
+ *    ⟹ 逐字节等于改动之前。`"zzz-unknown"`（正文 AC2 的反向对照）和 `"gallery"`（它是**块名**，
+ *    不是词表里的行业）走的都是这一支，而且**不报错**。
  */
 function poolFor(manifests, industry = '') {
   const homepage = [...manifests.values()]
@@ -95,7 +135,12 @@ function poolFor(manifests, industry = '') {
     discouraged = (m) => ((m.industries && m.industries.discouraged) || [])
       .some((w) => industryMatches(industry, w));
   }
-  return homepage.filter((m) => !(m.type in NOT_IN_POOL) && !discouraged(m)).map((m) => m.type);
+  const kept = homepage.filter((m) => !(m.type in NOT_IN_POOL) && !discouraged(m));
+  if (!industry) return kept.map((m) => m.type);
+  // 🔴 `sort` 在 V8 里是**稳定**的，这一点是承重的：同一档里的块保持 prompt.order ⟹ 配方仍然
+  //    可复算（同一个 index + 同一个行业永远给同一份）。不稳定的排序会让配方随实现细节漂。
+  return [...kept].sort((a, b) => industryRank(a, industry) - industryRank(b, industry))
+    .map((m) => m.type);
 }
 
 /** 从池子里按种子抽 k 个**互不相同**的块。撞了就往后挪一格（池子够大，挪不出界）。 */
@@ -251,6 +296,7 @@ module.exports = {
   fingerprintEnabled,
   afterRetry,
   poolFor,
+  industryRank,
   rotate,
   NOT_IN_POOL,
   BAR_EVERY,
