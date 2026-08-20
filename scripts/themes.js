@@ -69,7 +69,11 @@ const { retiredThemes } = require('./themes-retired.js');
 // 判过没有环：`lib/hero-lead-form.js` 只 require `theme-pipeline/industry-sectors`（无 require）与
 // `blocks.js`（只 require 一个 JSON），两条都不回头 require 本文件。
 const { themeSupportsHeroForm } = require('./lib/hero-lead-form.js');
-const { isOnSiteIndustry } = require('./theme-pipeline/industry-sectors.js');
+// 🔴 #1115 —— 挑主题的匹配口径跟「这门生意算不算上门」是**同一份判据**，共用 #1097 那两个函数。
+//    别在这里照着重写一份切词（本仓为「同一个判据两份实现」付过多次账）。
+//    方向安全:`industry-sectors.js` 是零依赖叶子（一个 require 都没有）⟹ 不成环；
+//    同向先例是 `scripts/lib/hero-lead-form.js` 已经在 require 它。
+const { isOnSiteIndustry, industryTokens, hasPhrase } = require('./theme-pipeline/industry-sectors.js');
 
 const themes = { ...poolThemes, ...retiredThemes };
 
@@ -172,10 +176,19 @@ function themesWithRhythm() {
 // 🔴 #1016 —— 挑的范围是 `poolThemes`，**不是** `themes`。两者差 30 套：那 30 套是 spec D3 冻结退役的
 // 旧池，它们留在 `themes` 里只为了「按 id 查得到」（已经穿着它们的站要建得出来），新站不许再抽到。
 // 判据在 AC4：拿全部行业词逐个跑这个函数，旧 30 个 id 一个都不该出现。
+// 🔴 #1115 —— 匹配按**词边界**，不许裸 `includes`。理由是量出来的：拿 212 个行业词逐个跑，裸
+//    `includes` 有 **14 个词 / 55 处**主题是靠「子串碰巧命中」进候选池的，成因集中在四个很短的
+//    声明词 —— `it`（科技那四套）· `tire`（汽修那四套）· `art`（艺术那五套）· `market`（市集那五套）。
+//    后果是真实的:一个健身房（`fitness` 含 `it`）、一个家具店（`furniture`）、一个建筑事务所
+//    （`architect`）今天会被拉进**科技主题**的候选池，而抽到哪一套按 siteId 均匀分
+//    ⟹ 有一部分真客人的站长着不属于它那行的脸。
+//    改完不会把池子饿死:212 个词里最小的候选池是 **4**，而 `MIN_ROTATION_POOL` 是 **3**
+//    ⟹ 下面那条 `NEUTRAL_TOPUP` 兜底一次都进不去（判据是 3 < 4，不是"我看着没触发"）。
+//    钉住它的是 `theme-pipeline/pool.test.js ⑩`（含四个声明词的字面对照 + 阳性对照）。
 function candidateThemesForIndustry(industry) {
-  const lower = String(industry || '').toLowerCase();
+  const tokens = industryTokens(industry);
   const pool = Object.keys(poolThemes).filter(id =>
-    poolThemes[id].industries.some(kw => lower.includes(kw))
+    poolThemes[id].industries.some(kw => hasPhrase(tokens, kw))
   );
   for (const id of NEUTRAL_TOPUP) {
     if (pool.length >= MIN_ROTATION_POOL) break;

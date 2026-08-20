@@ -14,7 +14,13 @@
 //   ② 真命中 = 有几套主题的 `industries` 数组里写了这个词。**没有兜底。**
 //
 //   只报 ① 的话，175 个薄格子会全部显示成健康的「3 套」；而 ② 才说得出「这个行业几乎没有为它
-//   做的皮」。今天的读数：池分布 {3:175, 4:18, 5:9, 6:9, 7:1} · 真命中分布 {1:113, 2:35, 3:27, …}。
+//   做的皮」。
+//   📌 上面那句「今天的读数：池分布 {3:175, …} · 真命中分布 {1:113, …}」是 **#1004 那一版注册表**的
+//      读数（30 套的旧池），已经过期 —— #1016 换池之后是 80 套，#1115 换词边界之后两份分布**相同**：
+//      `{4:78, 5:131, 9:2, 10:1}`（薄池 0 · 真命中==1 的 0）。两份相同不是巧合也不是塌掉：
+//      这 212 个词里没有一个的候选池会掉到 `MIN_ROTATION_POOL`（3）以下 ⟹ 兜底一次都不开火，
+//      而兜底正是两列**唯一**的差别。要它们再次分开，去看 `""` 这种退化输入（真命中 0 / 候选池 3）。
+//      **别把这几个数抄进别处** —— 自己跑一次 `node scripts/theme-pipeline/coverage.js`。
 //
 // 🔴 真命中不可能是 0：关键词就是从各主题自己的 `industries` 数组里抽出来的，写了这个词的那套
 //    主题必然命中它 ⟹ 分布从 1 起步。任何「有 0 这一格」的读数都是探针自己造出来的
@@ -22,6 +28,11 @@
 const path = require('path');
 
 const themesMod = require(path.join(__dirname, '..', 'themes.js'));
+// 🔴 #1115 —— 「真命中」那一列必须跟候选池那一列用**同一份判据**，所以也走 #1097 那两个函数。
+//    留着裸 `includes` 的后果是量过的：212 个词里会出现 **14 个「真命中 > 候选池」** ——
+//    而一套真声明了这个词的主题必然在它的候选池里，那是逻辑上不可能的读数，而这张表正是
+//    「这个行业有没有为它做的皮」的唯一仪表。两列的差别应该**只**是兜底（① 带 ② 不带），不是匹配口径。
+const { industryTokens, hasPhrase } = require('./industry-sectors.js');
 
 /**
  * 一次覆盖度普查 → 逐词读数 + 两份分布。`themes` 可换成人造池子（AC4 的富池子那一格）。
@@ -49,8 +60,8 @@ function surveyCoverage(themes = themesMod.poolThemes, opts = {}) {
     || ((word) => themesMod.candidateThemesForIndustry(word));
 
   const rows = keywords.map((word) => {
-    const lower = String(word).toLowerCase();
-    const hits = ids.filter((id) => (themes[id].industries || []).some((kw) => lower.includes(kw)));
+    const tokens = industryTokens(word);
+    const hits = ids.filter((id) => (themes[id].industries || []).some((kw) => hasPhrase(tokens, kw)));
     return { word, hits: hits.length, pool: candidatesFor(word).length };
   }).sort((a, b) => a.pool - b.pool || a.hits - b.hits || a.word.localeCompare(b.word));
 

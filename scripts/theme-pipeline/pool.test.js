@@ -41,6 +41,7 @@ try {
 }
 
 const { poolThemes, retiredThemes, themes } = themesMod;
+const { industryTokens, hasPhrase } = sectors;   // #1115 —— 判据只有一份，见 industry-sectors.js
 const poolIds = Object.keys(poolThemes);
 const retiredIds = Object.keys(retiredThemes);
 
@@ -81,9 +82,13 @@ console.log('\n── ③ 每套声明的行业数 / 每套的真命中对数，
   };
   const declOld = stat(retiredIds.map((id) => (retiredThemes[id].industries || []).length));
   const declNew = stat(poolIds.map((id) => (poolThemes[id].industries || []).length));
-  // 真命中对数 = 这套主题能命中几个行业词（含「声明词是查询词的子串」那部分）。
+  // 真命中对数 = 这套主题能命中几个行业词。
+  // 🔴 #1115 —— 判据换成生产那一份（`hasPhrase`，词边界），不再是裸 `includes`。这一格守的是
+  //    「别靠每套多塞几个短词把覆盖度撑出来」，而**撑得出来靠的就是生产那条匹配** ⟹ 拿一条生产
+  //    已经不用的口径来守它，守的是一个不存在的通道。两种口径我都量过，这一格都绿
+  //    （裸: 旧池平均 14.73 / 新池 13.13；词边界: 旧池 13.30 / 新池 12.44），所以换过来是安全的。
   const hitsOf = (pool, ids, vocab) => ids.map((id) => vocab
-    .filter((w) => (pool[id].industries || []).some((kw) => w.toLowerCase().includes(kw))).length);
+    .filter((w) => (pool[id].industries || []).some((kw) => hasPhrase(industryTokens(w), kw))).length);
   const oldVocab = [...new Set(retiredIds.flatMap((id) => retiredThemes[id].industries || []))];
   const newVocab = [...new Set(poolIds.flatMap((id) => poolThemes[id].industries || []))];
   const hitOld = stat(hitsOf(retiredThemes, retiredIds, oldVocab));
@@ -332,6 +337,78 @@ console.log('\n── ⑨ hero：supports 里只有内容结构，画法在表�
   const line = [...counts].map(([n, ids]) => `${n} ${ids.length}`).join(' · ');
   if (thin.length) bad(`有画法不到 8 套：${thin.map(([n, ids]) => `${n} ${ids.length}`).join(', ')}（全表：${line}）`);
   else ok(`每种画法都 ≥ 8 套：${line}`);
+}
+
+// ── ⑩ 挑主题按【词边界】匹配，不是子串（#1115）─────────────────────────────────────────────────
+//
+// 要守的事实：`fitness` / `furniture` / `architect` 里都含着 `it`，而 `it` 是科技那四套主题声明的
+// 关键词。裸 `includes` 会把健身房 / 家具店 / 建筑事务所拉进**科技主题**的候选池，而抽到哪一套
+// 按 siteId 均匀分 ⟹ 有一部分真客人的站长着不属于它那行的脸。#1115 量到的是 14 个词 / 55 处。
+//
+// 🔴 这一格**不拿 `hasPhrase` 去核 `hasPhrase`**（那是同义反复，只能证明实现调了那个函数，
+//    对函数自己的 bug 完全失明）。判据是**字面值**：四个惹事的声明词、各自那几套主题的 id，
+//    都是 2026-08-19 在 `origin/main@454fea9f` 上一个个量出来写死在这里的。
+// 🔴 每一条都配**阳性对照**：先证那几套主题的 `industries` 里**真的**写着那个短词（读的是池子
+//    这份数据，不经过任何匹配函数）。少了它，「那几套不在候选池里」跟「那几套根本不存在 / id 打错了」
+//    长得一模一样 —— 而 id 打错的那种恒绿。
+console.log('\n── ⑩ 挑主题按词边界匹配：短声明词不再靠子串把整组主题拉进来（#1115）');
+{
+  // 词 → [那个惹事的短声明词, 裸 includes 时会被它拉进来的那几套]
+  const CASES = [
+    ['fitness', 'it', ['indigo-66', 'ember-67', 'magenta-69', 'lime-70']],
+    ['furniture', 'it', ['indigo-66', 'ember-67', 'magenta-69', 'lime-70']],
+    ['architect', 'it', ['indigo-66', 'ember-67', 'magenta-69', 'lime-70']],
+    ['retirement', 'tire', ['rose-56', 'fern-57', 'indigo-58', 'jade-60']],
+    ['martial arts', 'art', ['azure-71', 'crimson-72', 'fern-73', 'violet-74', 'amber-75']],
+    ['marketing', 'market', ['fern-31', 'violet-32', 'amber-33', 'teal-34', 'magenta-35']],
+    // 🔴 #1115 r2（QA1 在 r1 上提的那条不阻断，我决定加）—— `party` 是这 14 个词里**唯一只掉 1 套**的
+    //    那个（其余是 4-5 套）。加它不是为了多一个同族样本（`martial arts` 已经代表 `art` 这个成因），
+    //    是为了钉住**最小的那个差值**：一次只对付「掉一大片」的半修，在别的 case 上照样会红，而在这里
+    //    不会 —— 差值 1 是这条不变量最容易被静默留下的形状。实测这一格：改前 5 套、改后 4 套，
+    //    挤进来的是 `fern-73`（它声明的是 "art"）。
+    ['party', 'art', ['fern-73']],
+  ];
+  for (const [word, culprit, offenders] of CASES) {
+    // 阳性对照：这几套真的声明了那个短词吗？（直接读池子，不经过匹配函数）
+    const notDeclaring = offenders.filter((id) => !(poolThemes[id]
+      && (poolThemes[id].industries || []).includes(culprit)));
+    if (notDeclaring.length) {
+      bad(`阳性对照没过：${notDeclaring.join(' · ')} 的 industries 里没有 "${culprit}"`
+        + '（id 写错了 / 池子改过了 ⟹ 下面那条断言恒绿，什么都没守）');
+      continue;
+    }
+    // 🔴 先证兜底没开火，那条断言才是无条件的：`NEUTRAL_TOPUP` 里有 violet-74，池子不足
+    //    MIN_ROTATION_POOL 时它会被顶回来 —— 那时「violet-74 不在池里」会因为**别的原因**变红。
+    const pool = themesMod.candidateThemesForIndustry(word);
+    if (pool.length <= themesMod.MIN_ROTATION_POOL) {
+      bad(`"${word}" 的候选池只有 ${pool.length} 套 == 兜底下限 ${themesMod.MIN_ROTATION_POOL}`
+        + ' ⟹ NEUTRAL_TOPUP 开火了，下面那条断言会因为别的原因说话。先看覆盖度那一格。');
+      continue;
+    }
+    const leaked = offenders.filter((id) => pool.includes(id));
+    if (leaked.length) {
+      bad(`"${word}" 仍然靠子串把 ${leaked.join(' · ')} 拉进了候选池`
+        + `（它们声明的是 "${culprit}"，而 "${word}" 只是【含】这几个字母，不是【有这个词】）`);
+    } else {
+      ok(`"${word}" 的候选池 ${pool.length} 套，不含声明 "${culprit}" 的那 ${offenders.length} 套`);
+    }
+  }
+
+  // 🔴 跨文件的一条不变量:「真命中」和「候选池」必须用**同一份判据**。
+  //    一套真声明了这个词的主题**必然**在它的候选池里 ⟹ hits > pool 是逻辑上不可能的。
+  //    这一格守的是「只改了一处、另一处还是裸 includes」那种半修 —— #1115 量过，那时这里会有 14 个。
+  //    它不假设哪一处是对的，所以两处任何一处漂了都说话。
+  {
+    const s10 = surveyCoverage();
+    const impossible = s10.rows.filter((r) => r.hits > r.pool);
+    if (impossible.length) {
+      bad(`${impossible.length} 个词的「真命中」大于「候选池」——两处判据分叉了`
+        + `（真命中在 coverage.js，候选池在 themes.js）：`
+        + impossible.slice(0, 5).map((r) => `${r.word} ${r.hits}/${r.pool}`).join(' · '));
+    } else {
+      ok(`${s10.rows.length} 个词逐个:真命中 ≤ 候选池（两处判据同源;半修会让这一格出现 14 个）`);
+    }
+  }
 }
 
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);

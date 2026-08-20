@@ -166,8 +166,16 @@ const SECTORS = [
 //    全判「给」、159 个不给词零误判，两向例外清单都是空的（`scripts/lib/hero-lead-form.test.js` ①，
 //    那一格还拿裸 includes 跑同一份夹具做尺子校准 —— 空的例外清单跟「夹具没有区分力」长得一样）。
 //
-// 📌 同族的裸 `includes` 今天还在 `themes.js` 的 `candidateThemesForIndustry()` 里生效（挑哪套主题
-//    那条路），PM 2026-08-19 裁定那是另一件事、不在 #1097 射程内。别顺手改它。
+// 🔴 #1115（2026-08-19）—— 挑哪套主题那条路**也换成词边界了**，用的就是下面这两个函数。
+//    这段注释在 #1097 时写的是「那是另一件事，别顺手改它」，那句话现在是**假的**；它长在这两个
+//    函数正上方，也就是下一个人最可能把它当成现状的位置，所以跟着改。
+//    今天用这两个函数的一共三处，判据只有这一份：
+//      · `isOnSiteIndustry()`（本文件，下面）              —— 这门生意算不算上门
+//      · `themes.js` 的 `candidateThemesForIndustry()`     —— 挑哪套主题（#1115）
+//      · `theme-pipeline/coverage.js` 的「真命中」那一列   —— 覆盖度普查（#1115）
+//    #1115 量到的：只改前两处、把 coverage 那一处留着裸 `includes`，会让同一张表出现 14 个
+//    「真命中 > 候选池」的词 —— 而一套真声明了这个词的主题必然在它的候选池里，那是逻辑上不可能的读数。
+//    `pool.test.js ⑩` 现在把这条不变量钉住了。
 
 /** 行业文字 → 小写 token 序列。切法是「非字母数字都当分隔符」，所以 `walk-in` 和 `walk in` 同形。 */
 function industryTokens(text) {
@@ -246,4 +254,9 @@ function poolSlots() {
 // 🔴 只导出 `isOnSiteIndustry` 这一个新口子。切词和摊平那两个函数留在文件内：测试要的两个桶
 // 直接从 `SECTORS` 按 `onSite` 标记自己摊（那是**独立的一条推导**），共用实现里那个 helper 反而
 // 会让「实现和测试用同一把尺子」这件事多一处。
-module.exports = { SECTORS, THEMES_PER_SECTOR, wordsForSlot, poolSlots, isOnSiteIndustry };
+// 🔴 #1115 —— `industryTokens` / `hasPhrase` 导出来，是为了让上面那三处**共用同一份判据**。
+//    别在调用方那边照着重写一份切词：本仓为「同一个判据两份实现」付过多次账，而这一族的失败方向
+//    是静默的（两份实现分叉时，两个读数各自都像是对的）。
+module.exports = {
+  SECTORS, THEMES_PER_SECTOR, wordsForSlot, poolSlots, isOnSiteIndustry, industryTokens, hasPhrase,
+};
