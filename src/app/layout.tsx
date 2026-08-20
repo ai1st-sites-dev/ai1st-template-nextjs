@@ -74,6 +74,13 @@ const previewTrustedOrigin = (() => {
 //   out ai1st:theme-preview-css-ack  → { blocks:[{type,role}…], ignored:[type…], refused:bool }
 //   （清掉走的还是 `ai1st:theme-preview-reset` —— 一个 Cancel 收两条通道，不再多一个名字。）
 //
+// #1123 —— 试穿要连**画法**一起换，所以 `ai1st:theme-preview` 多认一个字段，并多一条出站消息：
+//   in  ai1st:theme-preview          → 多一个 { sheet: "<主题 id>" }（可选）。有它就去取那套主题
+//                                      自己的画法表，取到了就**顶掉** /theme.css；没有这个字段
+//                                      （老 dashboard）行为逐字不变。
+//   out ai1st:theme-preview-sheet    → { sheet, ok, reason } —— 取表这件事是异步的，答不进上面那个
+//                                      同步的 ack 里，所以单独一条。它也是这条链唯一可等的信号。
+//
 // 🔴 为什么必须是【新名字】而不是给 `ai1st:theme-preview` 加字段（PM 在 #978 r1 量的）：下面那个
 // 监听器只对**不认识的类型**才不回话。沿用旧名字的话，老构建照样回 ack、弹窗以为版式预览成功了，
 // 而屏幕上只有颜色变了 —— UI 在说假话。新名字让老构建自然不认识 ⟹ 弹窗等不到回话，诚实地说
@@ -146,7 +153,11 @@ function buildThemePreviewScript(trustedOrigin: string): string {
   return `(function(){
 if(window.parent===window)return;
 var T=${JSON.stringify(trustedOrigin)};
-var s=null,f=null,c=null;
+var s=null,f=null,c=null,h=null,hSeq=0;
+// #1123 r2 —— 上一次 paint() 有没有把【风格设定那 15 个变量】全都补齐。paintSheet 停用
+// /theme.css 的前置条件就是它（理由写在 sheetEl 上面那段和 paint 里）。默认 false：
+// 没 paint 过就来一条只带 sheet 的消息时，失败方向是「画法不换」，不是「页面掉一半变量」。
+var setFull=false;
 function els(){
   if(!s){s=document.createElement('style');s.id='ai1st-theme-preview';document.head.appendChild(s);}
   if(!f){f=document.createElement('link');f.id='ai1st-theme-preview-font';f.rel='stylesheet';document.head.appendChild(f);}
@@ -154,6 +165,81 @@ function els(){
 function cssEl(){
   if(!c){c=document.createElement('style');c.id='ai1st-theme-preview-css';document.head.appendChild(c);}
   return c;
+}
+// ── #1123 —— 试穿那套主题【自己的画法表】，而且是【顶掉】不是【叠加】 ─────────────────────────
+//
+// 🔴 为什么不能沿用上面那个 cssEl()：它是 appendChild，也就是**叠加**。后来的样式表只压得过它自己
+// 声明了的属性，A 表声明了而 B 表没声明的原样留在页面上。PM 在 #1123 上量过 83 份表：每份 996–1308
+// 条声明，并集 1835、交集 693，**83/83 份都小于并集** ⟹ 把 B 叠在 A 上得到的是 A ∪ B，那个东西
+// 不属于任何一套主题。而本票的 AC2 要的正是「试穿所见 = Apply 所得」。
+//
+// 🔴 所以 /theme.css 那条 <link> 在试穿期间被 disabled，画法由这一份顶上。而停用它是有代价的：
+// theme.css 的 「:root」 里除了配色和两个字体变量，还有**风格设定那 15 个**（--radius-* 5 个 ·
+// --shadow-* 4 个 · --section-* 5 个 · --radius-button）。停掉之后这些得有人补，否则它们落回
+// globals.css 的平台默认值 —— 那是一个**不属于任何一套主题**的样子。
+//
+// 🔴 r1 这里写的是「paint() 产出的是完整的一组…所以停掉也没事」。**那句话是假的，QA1 量出来了**：
+// paint() 的档位分支只认字符串档位名，而池里 80 套主题的 settings 是数值 ⟹ 15 个里只出得来
+// --radius-button 一个，页头 logo 的圆角因此变成 globals.css 的 8px（试穿那套是 44px、站自己那套
+// 是 20px）。r2 的修法有两半：① paint() 改成吃平台用 settingsToCssVars 算好的那份（见那边）；
+// ② **这里不再靠一句注释，而是靠一个前置条件**：paint() 把「15 个补齐了吗」记在 setFull 上，
+// 下面 paintSheet 只有在它为 true 时才 disabled /theme.css。
+//
+// ⟹ 两条失败路径都指向同一个方向：**取不到表**或**补不齐那 15 个变量**，都不停用 /theme.css，
+// 结果是「画法没换」，不是「页面掉一半变量」。字体表由那个 <link id=ai1st-theme-preview-font> 顶上。
+//
+// 🔴 插在 /custom.css 【之前】，不是 head 末尾：Apply 之后真实的层序是
+// base.css → theme.css → custom.css，微调排最后所以它赢。插在末尾的话画法表会反过来压掉微调 ——
+// 那就又不等于 Apply 了。📌 说在明处：「:root」 那一半（上面那个 s）**仍然**在 custom.css 之后，
+// 那是 #1067 就有的既有代价（标 Current 的卡因此干脆不发消息），本票不动它。
+function sheetEl(){
+  if(!h){
+    h=document.createElement('style');h.id='ai1st-theme-preview-sheet';
+    var cu=document.querySelector('link[rel="stylesheet"][href="/custom.css"]');
+    if(cu&&cu.parentNode){cu.parentNode.insertBefore(h,cu);}else{document.head.appendChild(h);}
+  }
+  return h;
+}
+function siteSheetLink(){return document.querySelector('link[rel="stylesheet"][href="/theme.css"]');}
+function dropSheet(){
+  if(h){h.textContent='';}
+  var l=siteSheetLink();if(l){l.disabled=false;}
+}
+// id 只认 slug —— 它会被拼进一个路径。判据与 scripts/theme-sheet.js 的 SHEET_NAME_OK 同形。
+var SHEET_ID_OK=/^[a-z0-9][a-z0-9-]*$/;
+// 🔴 **每一条结局都要么换掉表、要么把表撤干净** —— 这是「有表的 A → 没表的退役 R」那条路唯一的
+// 保险。少了撤的那一支，页面会停在 A 的画法 + R 的颜色上：一个不属于任何一套主题的组合，比不改还错。
+// 📌 撤这件事放在**结局**里，不放在开头：放开头的话每次成功切换都会有一段「没有画法表」的白板期
+//    （先撤、再等 fetch、再贴）。放结局 ⟹ 只有取不到表的那次会短暂留着上一套的画法，而它随即被撤掉。
+function paintSheet(id){
+  var seq=++hSeq;
+  var name=typeof id==='string'?id:'';
+  if(!name||!SHEET_ID_OK.test(name)){dropSheet();tell(seq,name,false,'not an id');return;}
+  if(typeof fetch!=='function'){dropSheet();tell(seq,name,false,'no fetch');return;}
+  fetch('/themes/'+name+'.css',{cache:'force-cache'}).then(function(r){
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    return r.text();
+  }).then(function(text){
+    // 🔴 回来晚的那一份丢掉，而且【什么都不做】。连点两张卡时两次 fetch 可以乱序返回，而页面最终
+    // 该是后点那张 —— 先到先贴的话最终样子由网络快慢决定，那正是这种缺陷最难复现的形态。
+    if(seq!==hSeq)return;
+    if(!text){dropSheet();tell(seq,name,false,'empty');return;}
+    // 🔴 #1123 r2 —— 停用 /theme.css 的前置条件：paint() 这一轮把风格设定那 15 个变量补齐了。
+    // 补不齐就【不停用】，也不贴表 —— 贴了表而不停用 /theme.css 会得到 A ∪ B（sheetEl 上面那段
+    // 量过 83 份表：并集 1835、83/83 份都小于它），那个东西不属于任何一套主题，比不换更错。
+    if(!setFull){dropSheet();tell(seq,name,false,'settings incomplete');return;}
+    sheetEl().textContent=text;
+    var l=siteSheetLink();if(l){l.disabled=true;}
+    tell(seq,name,true,'');
+  })['catch'](function(err){
+    if(seq!==hSeq)return;
+    dropSheet();
+    tell(seq,name,false,String((err&&err.message)||err));
+  });
+}
+function tell(seq,name,ok,reason){
+  if(seq!==hSeq)return;
+  try{window.parent.postMessage({type:'ai1st:theme-preview-sheet',sheet:name,ok:ok,reason:reason},T);}catch(err){}
 }
 function paint(t){
   els();
@@ -220,25 +306,75 @@ function paint(t){
   if(t&&typeof t.fontSans==='string'&&!/[;{}<>]/.test(t.fontSans)){out.push('--font-sans:'+t.fontSans+';');}
   if(t&&typeof t.fontHeading==='string'&&!/[;{}<>]/.test(t.fontHeading)){out.push('--font-heading:'+t.fontHeading+';');}
   // #961 — 风格设定的四组。校验方式比颜色和字体那几条更严：这里【不接受任意字符串】，
-  // 只认 S 这张表里的档位名，值也全部来自表本身 ⟹ 拼进 <style> 的字符永远是我们自己写的。
+  // 只认 S 这张表里的档位名 / 只认 S 派生出来的变量名，值要么来自表本身、要么过一道字符白名单
+  // ⟹ 拼进 <style> 的字符永远在我们自己的字符集里。
   // S 是构建时从 src/lib/themeSettings.ts 原样塞进来的同一张表，所以预览和构建不会对不上。
   var S=${JSON.stringify({ radius: RADIUS, shadow: SHADOW, density: DENSITY, buttonShape: BUTTON_SHAPE })};
   var grp=[['radius','--radius-'],['shadow','--shadow-'],['density','--section-']];
+  // ── #1123 r2 —— 这 15 个变量名是【派生】出来的，不是手打的清单 ────────────────────────────
+  // 数值形状与档位形状产出的变量名逐个相同（scripts/theme-settings.js 的头注写着这条契约，
+  // 实测 110 套主题产出的 15 个名字与这里派生出来的集合完全一致）。派生 ⟹ 表里加一档时这里跟着走。
+  var SETN={},t0,vs0;
   for(i=0;i<grp.length;i++){
-    var tok=t&&t[grp[i][0]],tbl=S[grp[i][0]];
-    if(typeof tok==='string'&&Object.prototype.hasOwnProperty.call(tbl,tok)){
-      var vs=tbl[tok];
-      for(k in vs){if(Object.prototype.hasOwnProperty.call(vs,k)){out.push(grp[i][1]+k+':'+vs[k]+';');}}
+    var tb0=S[grp[i][0]];
+    for(t0 in tb0){
+      if(!Object.prototype.hasOwnProperty.call(tb0,t0)){continue;}
+      vs0=tb0[t0];
+      for(k in vs0){if(Object.prototype.hasOwnProperty.call(vs0,k)){SETN[grp[i][1]+k]=1;}}
     }
   }
-  if(t&&typeof t.buttonShape==='string'&&Object.prototype.hasOwnProperty.call(S.buttonShape,t.buttonShape)){
-    out.push('--radius-button:'+S.buttonShape[t.buttonShape]+';');
+  SETN['--radius-button']=1;
+  var SETN_N=0;for(k in SETN){if(Object.prototype.hasOwnProperty.call(SETN,k)){SETN_N++;}}
+  // 值的字符白名单。数值形状产出的最复杂的一条是
+  //   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.14), 0 4px 6px -4px rgb(0 0 0 / 0.14);
+  // 这个集合放得下它，也放得下档位表里的 rem/px/9999px；分号、花括号、尖括号、引号、反斜杠一个都不收。
+  var SETV=/^[a-zA-Z0-9 .,%#()\/-]+$/;
+  // ── #1123 r2 —— 风格设定由【平台算好发过来】，站这边只校验、不重算 ──────────────────────────
+  //
+  // 🔴 为什么改成这样（QA1 在 #1123 第 1 轮量出来的）：下面那个 grp 循环只认**档位名字符串**
+  // （'subtle'/'sharp'/'round' 这种），而池里 80 套主题的 settings 是**数值**
+  // （{radius:22, density:1.2, shadowStrength:0.1, buttonShape:'pill'}）⟹ 三个分支一个都不进，
+  // 15 个变量里只出得来 --radius-button 那一个。而 paintSheet 会把 /theme.css 停掉，
+  // 于是另外 14 个落回 globals.css 的平台默认值 —— 实测页头 logo 的圆角变成 8px，
+  // 既不是试穿那套的 44px、也不是这个站自己那套的 20px，**不属于任何一套主题**。
+  //
+  // 🔴 翻译器只有一份：scripts/theme-settings.js 的 settingsToCssVars（两种形状都吃，判据是
+  // radius 是不是数字）。dashboard 已经把**那一份**送进浏览器了（vite 的 ai1st-tweaks-engine 垫片，
+  // CustomizeModal 用的就是它）⟹ 这里不重写一遍公式：重写一遍就是第二份真相，而它分叉时两边都不会红。
+  // 站这边做的是**校验**：名字必须在上面派生出来的集合里，值必须过字符白名单。
+  var sc=t&&t.settingsCss,scN=0;
+  if(Object.prototype.toString.call(sc)==='[object Array]'){
+    for(i=0;i<sc.length;i++){
+      var dec=typeof sc[i]==='string'?sc[i]:'',ci=dec.indexOf(':');
+      if(ci<1){continue;}
+      var nm=dec.slice(0,ci).replace(/^\s+|\s+$/g,''),vl=dec.slice(ci+1).replace(/;\s*$/,'').replace(/^\s+|\s+$/g,'');
+      if(!Object.prototype.hasOwnProperty.call(SETN,nm)){continue;}
+      if(!vl||!SETV.test(vl)){continue;}
+      out.push(nm+':'+vl+';');
+      scN++;
+    }
   }
+  // 老 dashboard（不发 settingsCss）落回档位名那条路 —— 那 30 套退役主题走的就是它，
+  // 而它们本来也没有画法表 ⟹ /theme.css 不会被停用，这条路的读数与本票之前逐字相同。
+  if(!scN){
+    for(i=0;i<grp.length;i++){
+      var tok=t&&t[grp[i][0]],tbl=S[grp[i][0]];
+      if(typeof tok==='string'&&Object.prototype.hasOwnProperty.call(tbl,tok)){
+        var vs=tbl[tok];
+        for(k in vs){if(Object.prototype.hasOwnProperty.call(vs,k)){out.push(grp[i][1]+k+':'+vs[k]+';');scN++;}}
+      }
+    }
+    if(t&&typeof t.buttonShape==='string'&&Object.prototype.hasOwnProperty.call(S.buttonShape,t.buttonShape)){
+      out.push('--radius-button:'+S.buttonShape[t.buttonShape]+';');scN++;
+    }
+  }
+  // 🔴 这个数是 paintSheet 停不停用 /theme.css 的**前置条件**，见那边那段。
+  setFull=(scN>=SETN_N);
   s.textContent=out.length?(':root{'+out.join('')+'}'):'';
   if(t&&typeof t.googleFontsUrl==='string'&&/^https:\\/\\/fonts\\.googleapis\\.com\\//.test(t.googleFontsUrl)){f.href=t.googleFontsUrl;}
   else{f.removeAttribute('href');}
 }
-function clear(){if(s){s.textContent='';}if(f){f.removeAttribute('href');}if(c){c.textContent='';}st={ignored:[],refused:false};}
+function clear(){if(s){s.textContent='';}if(f){f.removeAttribute('href');}if(c){c.textContent='';}hSeq++;dropSheet();st={ignored:[],refused:false};}
 var MAIN_FLEX='main{display:flex;flex-direction:column}';
 var st={ignored:[],refused:false};
 function blockList(){
@@ -309,7 +445,11 @@ window.addEventListener('message',function(e){
       ignored:st.ignored,refused:st.refused,applied:!!(c&&c.textContent)},T);}catch(err){}
     return;
   }
-  if(d.type==='ai1st:theme-preview'){paint(d.theme);}
+  if(d.type==='ai1st:theme-preview'){
+    paint(d.theme);
+    // #1123 —— 没有 sheet 字段（老 dashboard）就整个不碰画法，行为逐字回到本票之前。
+    if(Object.prototype.hasOwnProperty.call(d,'sheet')){paintSheet(d.sheet);}
+  }
   else if(d.type==='ai1st:theme-preview-reset'){clear();}
   else if(d.type!=='ai1st:theme-preview-ping'){return;}
   try{window.parent.postMessage({type:'ai1st:theme-preview-ack'},T);}catch(err){}
