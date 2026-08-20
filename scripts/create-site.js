@@ -28,6 +28,8 @@ const { parseRefSections, parseRefNavLinks } = require('./ref-section-mapping');
 const { themes, themeStyle, pickThemeForIndustry, rotationIndexFromSiteId } = require('./themes');
 // #1064: 主题的形态样式表叫什么 —— 判据只在那个文件里，见它开头那段注释。
 const { sheetNameForTheme } = require('./theme-sheet');
+// #1120: 每站微扰派哪三个数 —— 表和判据都在那个文件里（含为什么它不能塞进 scripts/tweaks.js）。
+const { tweaksForSite } = require('./lib/site-tweaks');
 // #999 — 块清单（槽 / 形态 / 外观词 / 角色兜底 / 哪些行业需要它）住在 blocks/*.json，34 份。
 // 下面提示词里那两段块清单**从它们生成**，AI 吐回来之后的校验读的也是同一份 —— 在这之前，
 // 「hero 有哪些槽」只存在于这个文件的散文里，填错没人管。
@@ -896,6 +898,49 @@ async function main() {
       : input.skipAI ? 'skipAI(首页是写死的四块)' : '用户点名照抄参照站布局'}`);
   }
 
+  // ── §每站微扰（#1120）────────────────────────────────────────────────────────────────────────
+  //
+  // #1006 把机制做完了（相对偏移 → `custom.css`），但**没有人在建站时用它** —— 判据是
+  // `git grep -c tweaks origin/main -- templates/nextjs/scripts/create-site.js` 零命中（本票立项时
+  // 实测）。于是同行业撞到同一套主题的两个站，皮逐字节相同。这一段给每个新站派一组偏移。
+  //
+  // 🔴 它落在**这里**，不落在 `sync-config.js`，而这不是风格问题：本文件一个站只跑一次，
+  //    `sync-config.js` **每次构建都跑**。放进后者，AC3 那两句会同时破 —— 从没有微扰的老站会在
+  //    下一次重建时被塞进来，而站主在 Customize 里手调过的值会被自动值每次盖掉。
+  //
+  // 🔴 派生用的哈希**加了盐**，不是裸的 `rotationIndexFromSiteId(siteId)`。理由是上面 §骨 那段
+  //    自己写下的纪律「皮和骨不能共用同一个索引」—— 微扰是第三个「看起来一样」的维度，共用就是把
+  //    第三种相同也绑到前两种上。而 `h(s) = h*31 + charCode` 对**定长**输入是仿射的 ⟹ 加盐只是把
+  //    哈希整体平移一个常数（实测差值只有 1 种），既不多造也不消掉碰撞，买到的只有「与
+  //    `recipeIndex % 308` 不是同一个切片」这一条。
+  //
+  // 🔴 **别从上面那条推出「siteId 不同 ⟹ 派出来的三个数一定不同」** —— 这一行此前就是这么许诺的，
+  //    而它是假的：双射过不了 `% 10 / % 9 / % 5`，三张表一共只有 450 种组合，反例
+  //    `site-0000004a` 与 `site-000000a4` 拿到的是同一组数。它的前提也错 —— 生产的 siteId 是
+  //    `site-` + 8 位 hex = 13 个字符（`manager/db.go:1550`，#711 起冻结），不是 8 个 hex。
+  //    这一段要的性质是**确定性**，不是唯一性；判据、读数和那个 ≈ 1/444 的因子都在
+  //    `lib/site-tweaks.js` 的 `tweaksForSite` 头上（#1120 QA1 P2 / QA3 / PM 各自量过）。
+  //
+  // 🔴 每一轴的取值表都**挖掉了中性点**，不是「至少一轴非中性」那种弱保证。为什么必须挖：
+  //    `{hueShift:0, radiusScale:1, densityScale:1}` 时 `buildCustomCss` 返回空串，
+  //    `sync-config.js` 会**删掉** `site/custom.css`，产物与「从来没有过 tweaks 的站」逐字节相同
+  //    —— 那个站是真的一点微扰都没有，而且没有任何东西会报错（PM 在本票裁定里量过这一格）。
+  //
+  // 🔴 三张档位表 + 派生本身住在 `scripts/lib/site-tweaks.js`，**不在本文件里**：那三张表要被
+  //    `site-tweaks.test.js` 逐档钉住（「每一档都落在 `TWEAK_BOUNDS` 里」＋「一档都不是中性」），
+  //    而一个函数作用域里的表测试够不到 —— 钉不住的表等于没钉。那个文件头也写着为什么它不能反过来
+  //    塞进 `scripts/tweaks.js`（那份是要送进浏览器的，多一个 require 就让 dashboard 构建报错）。
+  const tweakPick = tweaksForSite(siteId);
+  const siteTweaks = tweakPick.tweaks;
+  if (siteTweaks) {
+    debug(`[tweaks] 这个站的微扰（siteId ${siteId} 算出来的，重建不变）：`
+      + Object.entries(siteTweaks).map(([k, v]) => `${k}=${v}`).join(' · '));
+  } else {
+    // 今天到不了（表都在边界内、都挖了中性点）。真到了就点名，而不是静默少一个键。
+    debug(`[tweaks] 🔴 派生出来的微扰不能用，这个站不带 tweaks（= #1006 之前的行为）：`
+      + `${JSON.stringify(tweakPick.derived)} · ${tweakPick.why}`);
+  }
+
   // #924: record which theme this site got. `applied: false` = the owner never actively
   // changed themes, so the registry's layout preferences stay out of the build and the page
   // JSON's own variants keep deciding — same output as before this file knew about themes.
@@ -907,13 +952,23 @@ async function main() {
   // 🔴 没有同名表的主题**整个字段不写**，产出的 theme.json 与这张票之前逐字节相同 —— 今天注册表
   // 那 30 套一套都没有自己的表，所以本行今天不改变任何一个站；#1016 把 80 套（表与 id 同名）放进
   // 注册表那一刻它才开始有值。
+  // 🔴 #1120: `tweaks` 就写在这里 —— 全文件**只此一处**写 `theme.json`（两个分支只差 `css`），
+  // 所以「一站一次」这件事是由落点保证的，不是由纪律保证的。派生不出来（`tweaksForSite` 回 null）
+  // 时**整个键不写**，产出的 theme.json 与本票之前逐字节相同。
+  // 📌 `applied` 保持 `false`，本票一个字都不动它：微扰**不经过**那个开关 —— `sync-config.js` 读
+  // tweaks 的那段是个裸块（不在任何 `if (appliedThemeId)` 里），实测 `applied:false` 的站照样产出
+  // `custom.css`（PM 在本票裁定里量的，我自己也复量了，读数在交接留言）。翻它会让注册表接管调色板，
+  // 那是 #1121 在管的另一件事。
   const themeSheet = sheetNameForTheme(themeName, rootDir);
   fs.writeFileSync(
     path.join(siteDir, 'theme.json'),
     JSON.stringify(
-      themeSheet
-        ? { themeId: themeName, applied: false, css: themeSheet }
-        : { themeId: themeName, applied: false },
+      {
+        themeId: themeName,
+        applied: false,
+        ...(themeSheet ? { css: themeSheet } : {}),
+        ...(siteTweaks ? { tweaks: siteTweaks } : {}),
+      },
       null, 2) + '\n'
   );
 
