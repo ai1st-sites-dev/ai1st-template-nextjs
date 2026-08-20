@@ -1038,17 +1038,18 @@ function settingsTable() {
   }
 }
 
-/** `globals.css` 的 `:root` 默认值 → [[名, 值], …]。没写风格设定的站，页面上生效的就是这一组。 */
+/**
+ * `globals.css` 的 `:root` 默认值 → [[名, 值], …]。没写风格设定的站，页面上生效的就是这一组。
+ *
+ * 🔴 #1118 —— 解析搬到了 `tweaks.js` 的 `rootShapeDefaults()`，这里只剩「读哪个文件」。
+ * 搬的理由：dashboard 的 Customize 预览要拿到同一组默认值（没换过装的站，它现在也要现算基准），
+ * 而浏览器里没有磁盘 —— vite 插件在 Node 里读同一个文件、调同一个函数。同一段正则写两遍，
+ * 第一次分叉的时候预览就跟构建对不上。
+ */
 function globalsRootDefaults() {
-  const out = [];
-  const src = fs.readFileSync(path.join(rootDir, 'src', 'app', 'globals.css'), 'utf-8');
-  const at = src.indexOf(':root {');
-  if (at < 0) return out;
-  const block = src.slice(at, src.indexOf('}', at));
-  for (const m of block.matchAll(/(--(?:radius|section)-[A-Za-z0-9-]+)\s*:\s*([^;]+);/g)) {
-    out.push([m[1], m[2].trim()]);
-  }
-  return out;
+  return tweakLib.rootShapeDefaults(
+    fs.readFileSync(path.join(rootDir, 'src', 'app', 'globals.css'), 'utf-8'),
+  );
 }
 
 /**
@@ -1059,25 +1060,25 @@ function globalsRootDefaults() {
  */
 function baseVarsForTweaks() {
   const table = settingsTable();
-  // 🔴 #1037 —— 颜色的枚举 + 形状那两族的筛选搬进了 `tweaks.js` 的 `baseVarsFrom()`，因为
-  // dashboard 的 Customize 弹窗要在浏览器里算同一件事（预览跟构建必须算得一模一样）。
-  // **算法一行没改**：同样的入参进去，同样的 [[名, 值], …] 出来。
-  // 留在这里的是这份文件独有的那一半 —— 没写风格设定的站落回 globals.css 的默认值，
-  // 那需要读磁盘上的 globals.css，浏览器里没有。
-  const fromSettings = table ? tweakLib.baseVarsFrom(brand.colors, table.settingsToCssVars(brand.settings)) : null;
-  if (fromSettings && fromSettings.shapeCount) {
-    return { vars: fromSettings.vars, source: 'theme settings' };
-  }
-  const { vars } = tweakLib.baseVarsFrom(brand.colors, []);
-  // 🔴 #1078 —— 按名字去重，globals.css 里已经有的不再追加一遍。
-  // `baseVarsFrom()` 现在自带 `--radius-block` / `--section-block-pad` / `--section-block-gap`
-  // 三个常量（浏览器里的 Customize 预览读不到 globals.css，只能从那边拿），而
-  // `globalsRootDefaults()` 是按 `--radius-*` / `--section-*` 前缀扫 `:root` 的，
-  // 正好也扫到这三行 ⟹ 不去重的话 custom.css 里每个都写两遍（值一样，纯噪音）。
-  const have = new Set(vars.map(([n]) => n));
-  vars.push(...globalsRootDefaults().filter(([n]) => !have.has(n)));
+  // 🔴 算这一组的代码不住在这里，住在 `tweaks.js`，因为 dashboard 的 Customize 弹窗要在浏览器里
+  // 算同一件事 —— 预览跟构建必须算得一模一样。分两次搬的：
+  //   #1037  颜色的枚举 + 形状那两族的筛选  →  `baseVarsFrom()`
+  //   #1118  「有风格设定就用它、没有就落回 globals.css 的默认值并按名字去重」这个二选一
+  //          →  `baseVarsForSite()`（那一票让**没换过装的站**也要现算基准，而那些站走的正是
+  //          落回那一支）
+  // 两次都是**算法一行没改**：同样的入参进去，同样的 [[名, 值], …] 出来（#1118 的判据是三个真站
+  // 夹具的 `custom.css` / `theme.css` 逐字节相同）。
+  //
+  // 🔴 留在这里的只剩两件这份文件独有的事：**读磁盘上的 globals.css**（浏览器里没有磁盘，那边由
+  // vite 插件在 Node 里读同一个文件、调同一个解析器），以及**给日志算那句「基准取自哪儿」**。
+  const base = tweakLib.baseVarsForSite(
+    brand.colors,
+    table ? table.settingsToCssVars(brand.settings) : [],
+    globalsRootDefaults(),
+  );
+  if (base.fromSettings) return { vars: base.vars, source: 'theme settings' };
   const source = table ? 'globals.css :root' : 'globals.css :root（#1002 的 scripts/theme-settings.js 还没落地）';
-  return { vars, source };
+  return { vars: base.vars, source };
 }
 
 {

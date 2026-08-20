@@ -177,6 +177,57 @@ function baseVarsFrom(colors, settingsDecls = []) {
   return { vars: out, shapeCount: shapes.length };
 }
 
+/**
+ * `globals.css` 的 `:root` 里那些圆角/留白的默认值 → [[名, 值], …]。
+ *
+ * #1118 从 `sync-config.js` 的 `globalsRootDefaults()` 搬过来的，**逐行同样的解析**，只是现在
+ * 有两个调用方：构建那一侧读磁盘上的文件，dashboard 的 Customize 预览由 vite 插件在 Node 里
+ * 读同一个文件（浏览器里没有磁盘）。两边解析出来的必须是同一组名字和同一组值，所以解析这件事
+ * 只留一份 —— 传进来的是文件内容，读文件由各自的调用方负责。
+ *
+ * @param cssText `src/app/globals.css` 的内容
+ */
+function rootShapeDefaults(cssText) {
+  const out = [];
+  const src = typeof cssText === 'string' ? cssText : '';
+  const at = src.indexOf(':root {');
+  if (at < 0) return out;
+  const block = src.slice(at, src.indexOf('}', at));
+  for (const m of block.matchAll(/(--(?:radius|section)-[A-Za-z0-9-]+)\s*:\s*([^;]+);/g)) {
+    out.push([m[1], m[2].trim()]);
+  }
+  return out;
+}
+
+/**
+ * 这个站的微扰要乘的那一组基准值 —— 「有风格设定就用它、没有就落回 `globals.css` 的默认值」
+ * 这个二选一。
+ *
+ * #1118 从 `sync-config.js` 的 `baseVarsForTweaks()` 搬过来的，**算法一行没改**。为什么要搬：
+ * Customize 面板现在也要为**没换过装的站**（`theme.json` 的 `applied` 为 false）现算这组基准，
+ * 而那些站的颜色和风格设定住在它自己的 `brand.json` 里。同一个二选一写两遍，第一次分叉的时候
+ * 预览就开始对老板说假话 —— 而那正是 #1037 当初宁可不预览也要避免的那件事。
+ *
+ * @param colors        这个站页面上真正生效的那套调色板（`brand.colors`，换过装的站是注册表那套）
+ * @param settingsDecls `settingsToCssVars()` 吐出来的整条声明，或 []
+ * @param rootDefaults  `rootShapeDefaults()` 的产出 —— 没有风格设定时落回的那一组
+ * @returns `{ vars, shapeCount, fromSettings }`；`fromSettings` = 形状那两族是不是这套风格设定给的
+ */
+function baseVarsForSite(colors, settingsDecls, rootDefaults = []) {
+  const withSettings = baseVarsFrom(colors, settingsDecls);
+  if (withSettings.shapeCount) {
+    return { vars: withSettings.vars, shapeCount: withSettings.shapeCount, fromSettings: true };
+  }
+  const { vars } = baseVarsFrom(colors, []);
+  // 🔴 #1078 —— 按名字去重，`globals.css` 里已经有的不再追加一遍。`baseVarsFrom()` 自带
+  // `--radius-block` / `--section-block-pad` / `--section-block-gap` 三个常量，而
+  // `rootShapeDefaults()` 是按 `--radius-*` / `--section-*` 前缀扫 `:root` 的，正好也扫到那三行
+  // ⟹ 不去重的话 custom.css 里每个都写两遍（值一样，纯噪音）。
+  const have = new Set(vars.map(([n]) => n));
+  vars.push(...(rootDefaults || []).filter(([n]) => !have.has(n)));
+  return { vars, shapeCount: 0, fromSettings: false };
+}
+
 /** 把一组 tweaks 补齐成完整的一组（缺的取中性值）。 */
 function withDefaults(tweaks) {
   const out = { ...NEUTRAL };
@@ -425,6 +476,8 @@ module.exports = {
   TWEAK_KEYS,
   NEUTRAL,
   baseVarsFrom,
+  rootShapeDefaults,
+  baseVarsForSite,
   validateTweaks,
   withDefaults,
   isNeutral,
