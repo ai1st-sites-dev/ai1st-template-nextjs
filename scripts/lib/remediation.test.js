@@ -329,13 +329,34 @@ function siteWithNav(dir, locale) {
   const { topbarBullets, BULLET_CAP } = mod;
   if (typeof topbarBullets !== 'function') die('remediation.js 没导出 topbarBullets');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'remediation-cap-'));
-  const many = ['en', 'zh', 'fr', 'es', 'de', 'it', 'pt', 'ja', 'ko', 'ru', 'ar', 'hi'];
+  // 🔴 #1127 —— 语言数从 12 提到 22，这是**夹具的标定**，不是行为改动。
+  //    为什么必须提：下面那条反向对照要求「上限拿掉之后同一夹具 > 2000 字符」，而每条 bullet 的长度
+  //    取决于 `howToAddTopbar()` 走哪一支 —— 白名单说 AI 编辑器**写不进** navigation.json 时是长句
+  //    （170 字符），说**写得进**时是短句（77 字符）。#1104 把 navigation.json 变成写得进的 ⟹ 同一个
+  //    12 语言夹具从 2461 掉到 **1345**，反向对照失去量程、这一格红（而 CI 的 template-scripts 跑
+  //    `npm run test:scripts`，所以那会让 main 红）。
+  //
+  //    ⟹ 夹具要在**两支上都有量程**，这样两张票的 ship 顺序无所谓。两支各自的实测（同一个
+  //    `siteWithNav` 夹具，只改语言数）：
+  //
+  //      语言数   长句支(170)         短句支(77)
+  //        12     2461 ✅             1345 ✗   ← 本票之前
+  //        19     3749 ✅             1982 ✗   （差 18 个字符）
+  //        20     3933 ✅             2073 ✅  ← 两支都成立的最小值
+  //        22     4301 ✅             2255 ✅  ← 取它，留 255 字符余量
+  //
+  //    取 22 而不是 20：那句话再变短一点（例如 rel 路径缩短）就又会失去量程，而失去量程的样子是
+  //    **这一格红**，不是「悄悄变弱」—— 留余量比等它红一次便宜。
+  //    📌 带上限那一半在每一格都 ≤ 2000（短句支 717–798 · 长句支 1089–1170），所以加语言不会把
+  //       「老板看得到最后那条补救办法」那一格弄红。
+  const many = ['en', 'zh', 'fr', 'es', 'de', 'it', 'pt', 'ja', 'ko', 'ru', 'ar', 'hi',
+    'nl', 'pl', 'tr', 'sv', 'da', 'fi', 'cs', 'el', 'he', 'th'];
   for (const loc of many) siteWithNav(dir, loc);
   const siteDir = path.join(dir, 'site');
 
   const lines = topbarBullets({ siteDir, locales: many });
-  if (lines.length <= BULLET_CAP + 1) ok(`⑧ 12 个语言只打 ${lines.length} 行（上限 ${BULLET_CAP} + 1 行合并）`);
-  else bad(`⑧ 12 个语言打了 ${lines.length} 行 —— 没有上限`);
+  if (lines.length <= BULLET_CAP + 1) ok(`⑧ ${many.length} 个语言只打 ${lines.length} 行（上限 ${BULLET_CAP} + 1 行合并）`);
+  else bad(`⑧ ${many.length} 个语言打了 ${lines.length} 行 —— 没有上限`);
   // 🔴 行为断言：topbarBullets 打出来的那句，必须就是 howToAddTopbar 对同一个语言的结论 ——
   //    这把「接线经过它」钉成行为，而不是靠 grep 一个函数名。
   {
@@ -344,8 +365,12 @@ function siteWithNav(dir, locale) {
     else bad(`⑧ 第一行跟 howToAddTopbar 的结论不一样：\n    行=${lines[0]}\n    直调=${direct}`);
   }
   const tail = lines[lines.length - 1];
-  if (/其余 8 个语言/.test(tail)) ok('⑧ 最后一行说清了其余 8 个语言同理');
-  else bad(`⑧ 合并那行不对：${tail}`);
+  // 🔴 #1127 —— 这个数**现算**，不写死。它原来写的是 `其余 8 个语言`，而 8 = 12 − BULLET_CAP(4)
+  //    是从当时的语言数算出来的 ⟹ 改语言数（本票就在改）或改 BULLET_CAP，它就是一格假红：
+  //    红的原因跟被测行为毫无关系。
+  const restCount = many.length - BULLET_CAP;
+  if (tail.includes(`其余 ${restCount} 个语言`)) ok(`⑧ 最后一行说清了其余 ${restCount} 个语言同理（${many.length} − 上限 ${BULLET_CAP} 现算，不写死）`);
+  else bad(`⑧ 合并那行不对：期望提到「其余 ${restCount} 个语言」，实际是：${tail}`);
 
   // edit-site.js 真正的那把尺：整段 stderr 截 2000
   const SLICE = 2000;
@@ -354,7 +379,7 @@ function siteWithNav(dir, locale) {
     + ls.map((l) => `  · ${l}`).join('\n') + `\n  · 或者不要 topbar —— ${layoutSentence}`;
   const withCap = assemble(lines);
   if (withCap.length <= SLICE) {
-    ok(`⑧ 12 个语言时整段 ${withCap.length} 字符 ≤ ${SLICE} ⟹ 老板看得到最后那条补救办法`);
+    ok(`⑧ ${many.length} 个语言时整段 ${withCap.length} 字符 ≤ ${SLICE} ⟹ 老板看得到最后那条补救办法`);
   } else {
     bad(`⑧ 整段 ${withCap.length} 字符 > ${SLICE} ⟹ 最后那条补救办法会被 edit-site.js 切掉`);
   }
