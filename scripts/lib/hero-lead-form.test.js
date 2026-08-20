@@ -213,5 +213,74 @@ console.log('\n── ⑤ 落不了地的三种形状');
   }
 }
 
+// ── ⑥ 每个上门行业词的候选池里都要有一套带表单的主题（#1114 AC4）─────────────────────────────────
+//
+// 🔴 这一格治的是「整组永远碰不上」。Chris 2026-08-19 拍的是**不保证**（「有需要就有，碰上就有，
+// 不是一定要有的」），加一条「但没有一组可以是永远碰不上」。所以判据**不是命中率**，是一个集合：
+// 每个 `isOnSiteIndustry()` 为真的行业词，它的候选池里至少有一套 `themeSupportsHeroForm()` 为真。
+// 命中率会随池子重生成漂（今天 10%-33%），集合不会 —— 承 `CLAUDE.md`「AC 不许拿命中数当判据」。
+//
+// 🔴 为什么这件事会重演、所以必须留成一格测试（票正文 AC4）：0% 那 28 个词不是哪张表写漏了，是两个
+// 小机制干涉出来的 —— 池子按 16 组 × 5 套排，而带表单的 hero 外观每 7 个位子才出现一次（8 档里 1 档），
+// **7 与 5 错开 ⟹ 必然有整组被跳过**。池子只要重生成一次，被跳过的就换成另外几组。
+console.log('\n── ⑥ 每个上门行业词的候选池里都有带表单的主题（#1114）');
+{
+  const { candidateThemesForIndustry, NEUTRAL_TOPUP } = themesMod;
+  const formsIn = (p) => p.filter((id) => themeSupportsHeroForm(poolThemes[id]));
+
+  // 🔴 先问兜底源本身 —— 缺了它，下面那条会红在「28 个词」上，而真因是「兜底源里没有带表单的那一套」。
+  //    两个读数分开报，红的那一行才说得出真因（同族纪律：仪器坏了 ≠ 被测的东西坏了）。
+  const topupWithForm = NEUTRAL_TOPUP.filter((id) => poolThemes[id] && themeSupportsHeroForm(poolThemes[id]));
+  if (topupWithForm.length) {
+    ok(`兜底源 NEUTRAL_TOPUP 里有 ${topupWithForm.length} 套带表单的：${topupWithForm.join(', ')}`);
+  } else {
+    bad(`🔴 兜底源 NEUTRAL_TOPUP（${NEUTRAL_TOPUP.join(', ')}）里一套带表单的都没有 —— `
+      + '`candidateThemesForIndustry` 那道 #1114 兜底因此哑掉，下面那条会红在词上而真因在这里');
+  }
+
+  const missing = onWords.filter((w) => !formsIn(candidateThemesForIndustry(w) || []).length);
+  if (!missing.length) {
+    // 报的是「哪几套」，不是一个百分比 —— AC1 要的就是这份名单。
+    const hit = new Map();
+    for (const w of onWords) for (const id of formsIn(candidateThemesForIndustry(w))) hit.set(id, (hit.get(id) || 0) + 1);
+    const shown = [...hit].sort((a, b) => b[1] - a[1]).map(([id, n]) => `${id}×${n}`).join(' · ');
+    ok(`${onWords.length} 个上门行业词逐个：候选池里都有带表单的主题（谁被命中：${shown}）`);
+  } else {
+    bad(`🔴 ${missing.length} 个上门行业词的候选池里一套带表单的都没有 ⟹ 这些生意的站**按构造**`
+      + `拿不到第一屏那个表单，跟运气无关：${missing.join(' ')}`);
+  }
+
+  // 🔴 「不保证」那一半也要守住，否则上面那条绿可以用「见谁都给」换来 —— 而 Chris 拍的正是不保证。
+  //    判据写成「既不是 0 也不是全部」，不写具体数字（同上：数字会漂）。
+  const probe = 'landscaping';
+  const p = candidateThemesForIndustry(probe);
+  const f = formsIn(p).length;
+  if (f > 0 && f < p.length) {
+    ok(`「不保证」也成立：${probe} 的池子 ${p.length} 套里带表单的 ${f} 套 ⟹ 命中率既不是 0% 也不是 100%`);
+  } else {
+    bad(`${probe} 的池子 ${p.length} 套里带表单的 ${f} 套 —— ${f === 0 ? '一档机会都没有' : '变成了「每站必有」，那不是 Chris 拍的那一条'}`);
+  }
+
+  // 🔴 反向对照：非上门行业**不该**因为这道兜底被改动。它不是保险 —— 那些站的表单一个都不会多
+  //    （表单要「上门行业 且 主题带表单」两个条件），多出来的只有被改掉的主题轮换。
+  //    判据：把兜底那一套加进去之后，非上门词的池子里【不该】出现它，除非它本来就在。
+  const topup = topupWithForm[0];
+  const leaked = topup ? offWords.filter((w) => {
+    const pool = candidateThemesForIndustry(w) || [];
+    if (!pool.includes(topup)) return false;
+    // 本来就声明了这个行业、或者被 MIN_ROTATION_POOL 那道旧兜底带进来的，都不算泄漏
+    const declared = poolThemes[topup].industries.some((kw) => String(w).toLowerCase().includes(kw));
+    return !declared && pool.length > themesMod.MIN_ROTATION_POOL;
+  }) : [];
+  if (!topup) {
+    bad('反向对照立不起来：兜底源里没有带表单的那一套（上面已经报过）');
+  } else if (!leaked.length) {
+    ok(`反向对照：${offWords.length} 个非上门词里，没有一个是因为这道兜底才多出 ${topup} 的`);
+  } else {
+    bad(`🔴 ${leaked.length} 个非上门词的池子里多出了 ${topup}，而它们拿不到表单 ⟹ 纯副作用：`
+      + leaked.slice(0, 8).join(' '));
+  }
+}
+
 console.log(`\n══ ${pass} 过 · ${fail} 失败 ══`);
 process.exit(fail ? 1 : 0);
