@@ -755,7 +755,11 @@ function navWritesInSyncConfig(file) {
 // 判据两向都钉：陌生键在 ⟹ 恰好多出那一句且点名每一个键；正当编辑 ⟹ **一句都不许多**
 // （多说一句就是新的假话，同 ⑬ 的 AC3）。
 {
-  const NEEDLE = 'not part of navigation.json';
+  // 🔴 认这一句用的串必须**单复数都命中**：那句话一个键时是 "It is not a field of navigation.json"、
+  //    多个键时是 "They are not fields of navigation.json"（#1136 改的措辞）。只挑单数那一种，
+  //    多键那几格会读到 0 句 —— 而 0 句在下面 AC3 那一半正好是"通过"的样子，也就是这把尺子会
+  //    在自己失明的时候打绿灯。取两边共有的那一段。
+  const NEEDLE = 'navigation.json, so nothing reads';
   // 这个站：多栏页脚 + 常规顶栏 + 没有 topbar 区 —— 挑它是为了让 ⑬ 那一路（「你这个站看不到」）
   // 对下面每一格都**不**开口，于是这一格数出来的句子只可能是本票加的那一句。
   const SITE = { header: ['solid-bar'], footer: ['multi-column'], topbar: [] };
@@ -799,7 +803,19 @@ function navWritesInSyncConfig(file) {
     // 🔴 needle 挑的是**两种数都命中**的那一段：一个键时那句话是 "it changes nothing on the site"、
     //    多个键时是 "they change nothing on the site" —— 只写单数那一种，多键那一格会因为**措辞**红，
     //    而它量的其实是「有没有说后果」。
-    for (const needle of [' nothing on the site:', 'Write the file again without', 'header.cta']) {
+    // #1136 —— 这四段是那句话的承重部分，少一段就是本票要治的那个假话换个样子：
+    //   ① 后果写成「页面不会变」            ' nothing on the site:'
+    //   ② 事实钉死「键还在刚存下的那份里」    'on disk right now'
+    //   ③ 四种说法明文禁掉：前三种是 4 次真 LLM 里实际出现过的那三句假话；第四种
+    //      （'do not say the build does not read'）是第一版措辞跑完 5 次之后加的 —— 那 5 次
+    //      假话 0 次，但 4 次把「谁都不读它」压成了「构建不读它」，而那句话是假的（#1128 在
+    //      真站上量过：那个键进了产物、连访客浏览器都收到了，没有的是页面去看它）
+    //   ④ 还是要给一条照做有用的路          'header.cta'（来自 NAVIGATION_EDITABLE_SUMMARY）
+    // 🔴 ③ 那三条挑的都是**单复数同形**的片段（`removed it` / `removed them` 的公共前缀等），
+    //    理由跟上面 NEEDLE 那条一样。
+    for (const needle of [' nothing on the site:', 'on disk right now', 'do not tell the owner that you removed',
+      'only the recognised fields were saved', 'that you will clean', 'do not say the build does not read',
+      'header.cta']) {
       if (!said[0].includes(needle)) problems.push(`${name} → 那句话里没有 "${needle}"`);
     }
     // 报出来的键数 == 真的陌生键数（多报一个就是对一个真生效的字段说假话）
