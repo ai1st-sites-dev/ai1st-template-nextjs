@@ -93,13 +93,17 @@ const SPLIT_RHYTHMS = ['alternate', 'uniform'];
 const splitRhythmFor = (i) => SPLIT_RHYTHMS[
   Math.floor(i / SPLIT_LAYOUTS.length) % SPLIT_RHYTHMS.length];
 
-// 卡片组（features-grid / values-grid / service-highlights 三个块共用一套候选 —— 它们的部件角色
-// 逐字相同（`item`/`title`/`desc`），画法不同才是这一族存在的理由）。
+// 卡片组（features-grid / values-grid / service-highlights / card-group 共用一套候选 —— 它们的部件
+// 角色逐字相同（`item`/`title`/`desc`），画法不同才是这一族存在的理由）。
 const CARD_GRIDS = ['three-up', 'two-up', 'four-up-tight', 'wide-rows'];
 const cardGridFor = (i) => CARD_GRIDS[
   (i + Math.floor(i / CARD_GRIDS.length)) % CARD_GRIDS.length];
 /** 卡片组这一族是哪几个块 —— 一处定义，`shapeFor` 和覆盖率那格都读它。 */
-const CARD_BLOCKS = ['features-grid', 'values-grid', 'service-highlights'];
+// 🔴 #1132 —— `card-group` 是通用块（`values-grid` + `benefits-list` 并成的那个），它当然属于这一族。
+//    `values-grid` 留在名单里是因为**老站还在吐老类名**，那 83 张表得一直匹配得上它；
+//    `benefits-list` 今天不在这份名单里（它从来就不在），本票不动这件事 —— 加进去会改掉
+//    它在 83 张表里那几条规则，而那不是本票的圈。
+const CARD_BLOCKS = ['features-grid', 'values-grid', 'service-highlights', 'card-group'];
 
 // 三个块一组的深浅节奏，而不是简单的隔一个换一个 —— 后者让每套候选的节奏都一样。
 // 🔴 有 5 组而不是 3 组，是为了让**表本身**的周期够长，理由在 voiceFor 上面那段。
@@ -386,6 +390,8 @@ const SHAPES = {
   'quote-form': { cols: '3fr 2fr', role: { form: 'panel', intro: 'lede', main: 'column', aside: 'panel', error: 'error', success: 'success', action: 'actions' } },
   'services-list': { cols: '1fr 1fr', role: { item: 'card', icon: 'icon', title: 'title', desc: 'desc', actions: 'actions', features: 'list', products: 'list' } },
   'values-grid': { role: { item: 'card', title: 'title', desc: 'desc' } },
+  // #1132 —— 通用块「卡片组」。跟上面那一行逐字相同，因为它就是那两个块并起来的那个。
+  'card-group': { role: { item: 'card', title: 'title', desc: 'desc' } },
   'services-nav': { cols: '1fr', role: { link: 'chip' } },
   'service-related-pages': { role: { card: 'card' } },
   'contact-info': { cols: '1fr 1fr', role: { location: 'card', label: 'eyebrow', address: 'desc', phone: 'contact', email: 'contact' } },

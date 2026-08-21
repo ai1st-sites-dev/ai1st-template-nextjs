@@ -1,0 +1,32 @@
+{
+  "type": "card-group",
+  "category": "feature",
+  "roleDefault": "optional",
+  "block_layout": [
+    "default"
+  ],
+  "slots": {
+    "headline": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false
+    },
+    "subheadline": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true
+    },
+    "items": {
+      "kind": "list",
+      "required": true,
+      "promptOptional": false,
+      "shape": "[{title, description}]"
+    }
+  },
+  "variants": {},
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  }
+}

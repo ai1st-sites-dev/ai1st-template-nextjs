@@ -18,6 +18,7 @@ const { checkCssContracts } = require('./css-contract-check');
 // `create-site.js` 写盘时读的是同一份实现。
 const {
   readSiteBlocks, normalizeLocalePages, loadBlockManifests, validateBlockLayouts, MANIFEST_DIR,
+  BLOCK_ROLES,
 } = require('./blocks');
 const tweakLib = require('./tweaks');
 // #1038 —— 站主挑的绝对值（一组配色 / 一档圆角 / 一对字体）。跟 tweaks 分两个文件的理由写在那边的文件头。
@@ -771,7 +772,11 @@ if (structureThemeId) {
   for (const locale of locales) {
     for (const page of pagesByLocale[locale]) {
       for (const block of page.blocks) {
-        const preferred = layout[block.type];
+        // #1132 —— 这张偏好表的键是**老** type 名（主题注册表按老名字写的）。别名把 `block.type`
+        // 换成通用块的名字之后，按它取恒是 undefined ⟹ 走 `continue`，静默地什么都不覆盖。
+        // 读 `__legacyType` 是把老站这条路上的行为原样保住（新站那条路上主题今天还没有卡片组的偏好，
+        // 那是主题注册表的事，不在本票范围）。
+        const preferred = layout[block.__legacyType || block.type];
         if (!preferred) continue;
         block.data = { ...(block.data || {}), variant: preferred };
         overridden++;
@@ -973,12 +978,20 @@ const MOVED_BLOCKS = ['hero', 'cta-banner', 'page-header',
   // per cell, and that is not a contradiction: those two characters say WHAT the site claims about
   // itself and a competitor, not what the block looks like — how they LOOK (colour, size, whether
   // there is a shape behind them) is the sheet's, through `.feature-comparison__mark--yes` / `--no`.
-  'feature-comparison', 'logo-carousel', 'map-area', 'trusted-brands'];
+  'feature-comparison', 'logo-carousel', 'map-area', 'trusted-brands',
+  // #1132 —— 通用块「卡片组」。老名字 `values-grid` / `benefits-list` 一个都没删（老站还在吐
+  // 老类名，见 blocks.js 的 applyAlias），通用块另外加自己的名字。这张名单的含义没变：
+  // 「这个块的 markup 不再决定它长什么样」。
+  'card-group'];
+// 🔴 #1132 —— 分母是**算出来的**，不是写死的 34。写死的那个数在 #1132 当天就成了假话：卡片组进了
+// MOVED_BLOCKS（35 项），`34 - 35` 会印出 `-1`。名单的权威是角色表 —— 它的键集合按
+// `tests/e2e/specs/978-theme-preview-layout.spec.ts` 恒等于注册表的键集合，也就是「一共有几种块」。
+const ALL_BLOCK_TYPES = Object.keys(BLOCK_ROLES);
 const movedList = MOVED_BLOCKS.join(' + ');
 console.log(themeSheet
   ? `  Theme CSS: public/themes/${themeSheet}.css — pasted into theme.css, ${movedList} styled by those rules (base.css underneath)`
   : `  Theme CSS: none — ${movedList} fall back to base.css alone; `
-    + `the ${34 - MOVED_BLOCKS.length} unmoved blocks keep their variants`);
+    + `the ${ALL_BLOCK_TYPES.length - MOVED_BLOCKS.length} unmoved blocks keep their variants`);
 
 // ─── #1002 §theme.css —— 皮和微调，两个固定路径 ───────────────────────────────────────────────
 //

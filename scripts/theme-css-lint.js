@@ -282,6 +282,22 @@ const HOOKS = new Set([
   '[data-block="map-area"]',
   '.trusted-brands', '.trusted-brands__headline', '.trusted-brands__brand',
   '[data-block="trusted-brands"]',
+  // #1132 — the first GENERIC block: `values-grid` and `benefits-list` merged into one type
+  // (`card-group`). Two things about this entry are worth writing down.
+  //
+  // 🔴 IT IS APPENDED AT THE END, AND THAT IS LOAD-BEARING. `sheet-recipes.js`'s `sheetFor` walks the
+  // blocks in HOOK_CLASSES order and picks each one's surface from `v.rhythm[(n + v.phase) % 3]`,
+  // where `n` is the block's position in that walk. Insert a block anywhere but the end and every
+  // block after it changes surface in all 83 generated sheets — a diff that looks like a rewrite and
+  // has nothing to do with this merge.
+  //
+  // 🔴 THE OLD NAMES STAY, ALL 11 OF THEM. Old sites keep emitting the old class names (the reasoning
+  // is in `src/components/sections/CardGroupSection.tsx`), and all 83 sheets select
+  // `.values-grid__title` / `.benefits-list__title` today. Retiring the old vocabulary means
+  // rewriting those sites' page JSON, which is a different ticket (mapping doc §3④).
+  '.card-group', '.card-group__headline', '.card-group__sub', '.card-group__item',
+  '.card-group__title', '.card-group__desc',
+  '[data-block="card-group"]',
   '[data-role="essential"]', '[data-role="lead"]', '[data-role="optional"]',
   'body', '[data-region-layout]',
 ]);
@@ -308,6 +324,9 @@ const HOOKS = new Set([
 //   #1030 feature-comparison / logo-carousel / map-area / trusted-brands parts + their four
 //         [data-block="…"]  (batch E; `__mark--yes` / `--no` is the second pair of modifier
 //         hooks, after batch G's `.pricing-table__item--featured` — that batch left no line here)
+//   #1132 card-group parts + [data-block="card-group"]  (the first GENERIC block: values-grid and
+//         benefits-list are one type now; their 11 old hooks stay, because old sites keep emitting
+//         the old class names)
 //
 // A BREAKING change (renaming a hook, removing one, changing what one means) still MUST bump: that
 // is the case where an old sheet keeps loading and quietly points at nothing, which is the reason

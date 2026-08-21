@@ -163,6 +163,11 @@ export interface BlockConfig {
   /** 站内唯一的名字。跨页复用的块靠它被 `{ "ref": "<id>" }` 引用。老站归一化出来的块没有 id。 */
   id?: string;
   type: string;
+  /** #1132 — 这个块在页面 JSON 里写的**原来那个** type 名，只有走过别名的块才有
+   *  （`scripts/blocks.js` 的 applyAlias；表在 `sections/block-aliases.json`）。老站重建出来要
+   *  逐字节不变，而 `type` 会变成 `data-block`、类名前缀和 React 的 key ⟹ 那三样一律读这个字段。
+   *  没走别名的块没有它，读的人一律写 `block.__legacyType || block.type`。 */
+  __legacyType?: string;
   /** 内容结构（`with-media` / `text-only` …），**不是外观**（spec D5）。外观今天仍由
    *  `data.variant` 决定（`HeroSection.tsx:21`），两个字段并存、各管各的，不做换算。
    *  写了才会变成 DOM 上的 `data-block-layout`；没写就一个属性都不多。 */

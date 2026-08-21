@@ -1,0 +1,35 @@
+{
+  "card-group": {
+    "type": "card-group",
+    "role": "optional",
+    "block_layout": null,
+    "data": {},
+    "headingId": "card-group-heading",
+    "parts": ["headline", "sub", "item", "title", "desc"]
+  },
+  "values-grid": {
+    "type": "card-group",
+    "role": "optional",
+    "block_layout": null,
+    "data": {
+      "headline": "headline",
+      "items": "items",
+      "style": null
+    },
+    "headingId": "values-heading",
+    "parts": ["headline", "item", "title", "desc"]
+  },
+  "benefits-list": {
+    "type": "card-group",
+    "role": "optional",
+    "block_layout": null,
+    "data": {
+      "headline": "headline",
+      "subheadline": "subheadline",
+      "items": "items",
+      "variant": null
+    },
+    "headingId": "benefits-heading",
+    "parts": ["headline", "sub", "item", "title", "desc"]
+  }
+}

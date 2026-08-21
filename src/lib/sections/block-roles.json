@@ -10,6 +10,7 @@
   "trusted-brands": "optional",
   "features-grid": "optional",
   "values-grid": "optional",
+  "card-group": "optional",
   "testimonials": "optional",
   "cta-banner": "optional",
   "text-block": "optional",

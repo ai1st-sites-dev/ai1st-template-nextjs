@@ -25,6 +25,7 @@ const fs = require('fs');
 const path = require('path');
 
 const BLOCK_ROLES = require('../src/lib/sections/block-roles.json');
+const BLOCK_ALIASES = require('../src/lib/sections/block-aliases.json');
 const ROLE_NAMES = ['essential', 'lead', 'optional'];
 
 // 一个块没写 `role` 时的兜底。**表只有一份**（`src/lib/sections/block-roles.json`），运行时那一侧是
@@ -32,6 +33,46 @@ const ROLE_NAMES = ['essential', 'lead', 'optional'];
 // 不对称，理由写在 blockAttrs.ts 上面那段注释里。
 function roleFor(type) {
   return BLOCK_ROLES[type] || 'essential';
+}
+
+// ── 老块名 → 通用块的别名（#1132）───────────────────────────────────────────────────────────────
+//
+// 表在 `../src/lib/sections/block-aliases.json`，**只有一份**（运行时那一侧是
+// `src/lib/sections/blockAliases.ts` 读同一个文件；两边各抄一份的后果见 blockAttrs.ts 上那段）。
+// 每一行写齐映射文档（`docs/superpowers/specs/2026-08-18-block-merge-mapping.md`）§2.1 那四件事。
+//
+// 🔴 键 == 它自己的 `type` 的那一行不是别名，是通用块自己的词汇 —— 下面第一个判据跳过它。
+//
+// 🔴 老站的**磁盘一个字节都不改**：换名字这件事只发生在这里，也就是 #998 那条 1:1 映射上。
+//    换完之后老词汇住在 `__legacyType` 里，产物上那五样（`data-block` / `data-role` / 类名 /
+//    React 的 key / 不许凭空多出 `data-block-layout`）全部从它来 —— 逐样的出处写在
+//    `src/components/sections/CardGroupSection.tsx` 头上。
+//
+// 🔴 `role` 只在这个块**自己没写**的时候补。老形状（`sections`）从来不带 `role`，所以补的就是老类型
+//    在 `block-roles.json` 里那个角色（不补的话 `blockAttrs` 按新 type 名查表、查不到、落到兜底的
+//    `essential` —— 映射文档 §2.5 坑一实测过）。新形状（`blocks`）自己带 `role`，显式的赢。
+//
+// 🔴 `data` 里那些映射到 `null` 的字段（`style` / `variant`）是「继续忽略」，**不是删掉**：没人读
+//    它们，而删了会让 `scripts/theme-gallery/verify-applied.mjs` 那格对不上账（它拿磁盘上的
+//    `data.variant` 跟产物里的比）。本批两个来源块的字段名跟通用块逐字相同 ⟹ 改名一处都不发生，
+//    `data` 连对象都不换。
+function applyAlias(block) {
+  const row = BLOCK_ALIASES[block.type];
+  if (!row || row.type === block.type) return block;
+  const out = { ...block, type: row.type, __legacyType: block.type };
+  if (out.role === undefined) out.role = row.role;
+  const data = { ...(block.data || {}) };
+  let renamed = 0;
+  for (const [from, to] of Object.entries(row.data || {})) {
+    if (to === null || to === from) continue;
+    if (Object.prototype.hasOwnProperty.call(data, from)) {
+      data[to] = data[from];
+      delete data[from];
+      renamed += 1;
+    }
+  }
+  if (renamed) out.data = data;
+  return out;
 }
 
 // 页面清单里那些块**排布**的顺序：写了 `weight` 就按它，没写就按它在数组里的位置。
@@ -278,6 +319,11 @@ function normalizeLocalePages(pages, siteBlocks, locale, report) {
     // 摘掉 id 之后那个块照样渲染，只是 React 的 key 落回 `type+位置` 那条兜底 —— 有明确、无歧义的
     // 默认行为 ⟹ 属于「能安全兜底」那一栏。留着才是真丢东西：React 把两个块当成同一个，页面上
     // 少一块而构建是绿的）。PM 的表里没有这一行，是我按同一条原则判的。
+    // #1132 —— 别名在这里生效，一处。三个来路（页面块 / `ref` 解出来的站级块 / `visibility` 命中
+    // 追加的站级块）都汇到了 `resolved`，所以放在这里就是三条路一起管；分别在三个 push 那里做的话，
+    // 下一批合并漏掉一条不会有任何东西报错。
+    for (let k = 0; k < resolved.length; k += 1) resolved[k] = applyAlias(resolved[k]);
+
     const seenIds = new Map();
     resolved.forEach((b, i) => {
       if (typeof b.id !== 'string' || !b.id) return;
@@ -404,8 +450,10 @@ function pageWithBlocks(page) {
 
 module.exports = {
   BLOCK_ROLES,
+  BLOCK_ALIASES,
   ROLE_NAMES,
   roleFor,
+  applyAlias,
   effectiveWeight,
   byWeightThenOrder,
   readPageBlocks,
