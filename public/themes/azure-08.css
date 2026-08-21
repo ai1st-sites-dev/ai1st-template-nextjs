@@ -138,16 +138,26 @@
   padding: calc(var(--section-block-pad) * 8) 1.5rem;
   background-color: var(--color-primary-800);
   color: var(--color-primary-50);
+  align-items: end;
+}
+
+@media (min-width: 1024px) {
+  .page-header {
+    grid-template-columns: 2fr 1fr;
+    gap: calc(var(--section-block-gap) * 12);
+    padding: calc(var(--section-block-pad) * 11.2) 3rem;
+  }
 }
 
 .page-header__crumbs {
   font-size: 0.8125rem;
   letter-spacing: 0.02em;
   color: var(--color-primary-100);
+  grid-column: 1 / -1;
 }
 
 .page-header__title {
-  grid-column: 1 / -1;
+  grid-column: auto;
   font-family: var(--font-heading);
   font-size: 2.5rem;
   line-height: 1.08;
@@ -157,9 +167,9 @@
 }
 
 .page-header__sub {
-  grid-column: 1 / -1;
-  max-width: 36rem;
-  margin-top: 0.75rem;
+  grid-column: auto;
+  max-width: 26rem;
+  margin-top: 0;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-100);
@@ -566,6 +576,7 @@
   border-width: 0 0 2px;
   border-style: solid;
   border-color: var(--color-primary-200);
+  order: 2;
 }
 
 .contact-info__label {
@@ -574,12 +585,14 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--color-primary-800);
+  order: 2;
 }
 
 .contact-info__address {
   font-size: 0.9375rem;
   line-height: 1.65;
   color: var(--color-primary-800);
+  order: 3;
 }
 
 .contact-info__phone {
@@ -591,6 +604,7 @@
   border-style: solid;
   border-color: var(--color-primary-600);
   color: var(--color-primary-600);
+  order: 1;
 }
 
 .contact-info__email {
@@ -602,6 +616,7 @@
   border-style: solid;
   border-color: var(--color-primary-600);
   color: var(--color-primary-600);
+  order: 1;
 }
 
 .stats-counter {
@@ -666,30 +681,32 @@
   padding: calc(var(--section-block-pad) * 8) 1.5rem;
   background-color: var(--color-primary-800);
   color: var(--color-primary-50);
+  align-items: start;
 }
 
 @media (min-width: 1024px) {
   .process-steps {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 2fr;
     gap: calc(var(--section-block-gap) * 12);
     padding: calc(var(--section-block-pad) * 11.2) 3rem;
   }
 }
 
 .process-steps__headline {
-  grid-column: 1 / -1;
+  grid-column: auto;
   font-family: var(--font-heading);
   font-size: 2rem;
   line-height: 1.15;
   font-weight: 700;
   letter-spacing: -0.01em;
   color: var(--color-primary-50);
+  align-self: start;
 }
 
 .process-steps__sub {
-  grid-column: 1 / -1;
+  grid-column: auto;
   max-width: 36rem;
-  margin-top: 0.75rem;
+  margin-top: 0;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-100);
@@ -704,6 +721,7 @@
   border-width: 0 0 2px;
   border-style: solid;
   border-color: var(--color-primary-700);
+  grid-column: 1 / -1;
 }
 
 .process-steps__num {
@@ -1474,6 +1492,8 @@
   padding: calc(var(--section-block-pad) * 8) 1.5rem;
   background-color: var(--color-primary-50);
   color: var(--color-primary-900);
+  justify-items: center;
+  text-align: center;
 }
 
 .faq-accordion__headline {
@@ -1484,15 +1504,20 @@
   font-weight: 700;
   letter-spacing: -0.01em;
   color: var(--color-primary-900);
+  max-width: 44rem;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .faq-accordion__sub {
   grid-column: 1 / -1;
-  max-width: 36rem;
+  max-width: 34rem;
   margin-top: 0.75rem;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-800);
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .faq-accordion__item {
@@ -1502,6 +1527,11 @@
   border-width: 0 0 1px;
   border-style: solid;
   border-color: var(--color-primary-200);
+  width: 100%;
+  max-width: 48rem;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: left;
 }
 
 .faq-accordion__question {
@@ -1569,6 +1599,7 @@
   display: flex;
   align-items: center;
   gap: 0.25rem;
+  order: 3;
 }
 
 .testimonials__star {
@@ -1582,6 +1613,7 @@
   line-height: 1.7;
   font-style: italic;
   color: var(--color-primary-50);
+  order: 4;
 }
 
 .testimonials__name {
@@ -1590,12 +1622,14 @@
   line-height: 1.3;
   font-weight: 700;
   color: var(--color-primary-50);
+  order: 1;
 }
 
 .testimonials__meta {
   font-size: 0.8125rem;
   line-height: 1.5;
   color: var(--color-primary-100);
+  order: 2;
 }
 
 .testimonials__service {
@@ -1608,6 +1642,7 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--color-primary-900);
+  order: 5;
 }
 
 .announcement-bar {

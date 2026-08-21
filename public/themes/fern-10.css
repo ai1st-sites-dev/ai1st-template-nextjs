@@ -142,6 +142,8 @@
   padding: calc(var(--section-block-pad) * 6) 1.5rem;
   background-color: var(--color-primary-50);
   color: var(--color-primary-900);
+  justify-items: center;
+  text-align: center;
 }
 
 .page-header__crumbs {
@@ -158,15 +160,20 @@
   font-weight: 700;
   letter-spacing: 0;
   color: var(--color-primary-900);
+  max-width: 48rem;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .page-header__sub {
   grid-column: 1 / -1;
-  max-width: 36rem;
+  max-width: 34rem;
   margin-top: 0.75rem;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-800);
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .contact-form {
@@ -571,6 +578,7 @@
   border-width: 1px;
   border-style: solid;
   border-color: var(--color-primary-700);
+  order: 2;
 }
 
 .contact-info__label {
@@ -579,12 +587,14 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--color-primary-100);
+  order: 2;
 }
 
 .contact-info__address {
   font-size: 0.9375rem;
   line-height: 1.65;
   color: var(--color-primary-100);
+  order: 3;
 }
 
 .contact-info__phone {
@@ -596,6 +606,7 @@
   border-style: solid;
   border-color: var(--color-accent-400);
   color: var(--color-accent-400);
+  order: 1;
 }
 
 .contact-info__email {
@@ -607,6 +618,7 @@
   border-style: solid;
   border-color: var(--color-accent-400);
   color: var(--color-accent-400);
+  order: 1;
 }
 
 .stats-counter {
@@ -1524,6 +1536,15 @@
   padding: calc(var(--section-block-pad) * 6) 1.5rem;
   background-color: var(--color-primary-900);
   color: var(--color-primary-50);
+  align-items: start;
+}
+
+@media (min-width: 1024px) {
+  .faq-accordion {
+    grid-template-columns: 1fr 1fr;
+    gap: calc(var(--section-block-gap) * 7.5);
+    padding: calc(var(--section-block-pad) * 8.4) 3rem;
+  }
 }
 
 .faq-accordion__headline {

@@ -131,12 +131,14 @@
   padding: calc(var(--section-block-pad) * 7) 1.5rem;
   background-color: var(--color-primary-900);
   color: var(--color-primary-50);
+  align-items: start;
 }
 
 .page-header__crumbs {
   font-size: 0.8125rem;
   letter-spacing: 0.02em;
   color: var(--color-primary-100);
+  order: 1;
 }
 
 .page-header__title {
@@ -147,15 +149,17 @@
   font-weight: 800;
   letter-spacing: -0.01em;
   color: var(--color-primary-50);
+  order: 3;
 }
 
 .page-header__sub {
   grid-column: 1 / -1;
   max-width: 36rem;
-  margin-top: 0.75rem;
+  margin-top: 0;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-100);
+  order: 2;
 }
 
 .contact-form {
@@ -807,7 +811,7 @@
 
 @media (min-width: 1024px) {
   .benefits-list {
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr;
     gap: calc(var(--section-block-gap) * 9);
     padding: calc(var(--section-block-pad) * 9.8) 3rem;
   }
@@ -1517,6 +1521,15 @@
   padding: calc(var(--section-block-pad) * 7) 1.5rem;
   background-color: var(--color-primary-50);
   color: var(--color-primary-900);
+  align-items: start;
+}
+
+@media (min-width: 1024px) {
+  .faq-accordion {
+    grid-template-columns: 1fr 1fr;
+    gap: calc(var(--section-block-gap) * 9);
+    padding: calc(var(--section-block-pad) * 9.8) 3rem;
+  }
 }
 
 .faq-accordion__headline {

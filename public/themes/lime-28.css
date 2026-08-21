@@ -1507,6 +1507,15 @@
   padding: calc(var(--section-block-pad) * 8) 1.5rem;
   background-color: var(--color-primary-800);
   color: var(--color-primary-50);
+  align-items: start;
+}
+
+@media (min-width: 1024px) {
+  .faq-accordion {
+    grid-template-columns: 1fr 1fr;
+    gap: calc(var(--section-block-gap) * 12);
+    padding: calc(var(--section-block-pad) * 11.2) 3rem;
+  }
 }
 
 .faq-accordion__headline {
@@ -1562,7 +1571,7 @@
 
 @media (min-width: 1024px) {
   .testimonials {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
     gap: calc(var(--section-block-gap) * 12);
     padding: calc(var(--section-block-pad) * 11.2) 3rem;
   }
