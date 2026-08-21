@@ -2147,7 +2147,7 @@ AVAILABLE SECTION TYPES AND THEIR VARIANTS:
 You are a layout designer. For each page, you choose WHICH sections to include, in WHAT order, and with WHICH variant. Not every page needs every section. Mix it up based on what makes sense for this industry.
 
 HOMEPAGE SECTIONS (pick 7-10 from these, in any order):
-${blockPromptSection('homepage', undefined, homeRecipe ? { order: homeRecipe.promptOrder } : undefined)}
+${blockPromptSection('homepage', undefined, { ...(homeRecipe ? { order: homeRecipe.promptOrder } : {}), ...(hasKeywordPages ? {} : { omit: ['service-related-pages'] }) })}
 
 PAGE-SPECIFIC SECTION RULES:
 ${blockPromptSection('page-specific')}

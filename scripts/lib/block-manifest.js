@@ -201,10 +201,21 @@ function promptEntryLegacyOnly(m) {
  * 为什么要能换：实测被 AI 选中的那批几乎就是清单靠前的那批，清单顺序本身在参与选择
  * （6 个真实站 100% 以 `announcement-bar → hero` 开场）。判据是「印出来的块集合逐个不变」，
  * 见 `scripts/lib/homepage-recipe.test.js`。
+ *
+ * `omit`（#1134 r2）：给一份 type 名单，这一组里的这些块**整条不印**。
+ * 🔴 它跟 `order` 是刻意分开的两件事：`reorderByNames` 上面那句「永远不会掉块」是它的承重性质，
+ *    把「拿掉」塞进那条路会把它废掉。所以拿掉是**另一个参数**，缺省 `null` ⟹ 一块不少，
+ *    输出与改这一版之前逐字节相同。
+ * 🔴 为什么需要它（QA2 在 #1134 r1 的真机读数）：`service-related-pages` 的三句散文指令被改成
+ *    「只在会有子页的站上发」之后，**站建出来一点没变**（3 个互异 siteId × 6 个服务详情页 = 18/18
+ *    照旧带那个块）。真因是这里：manifest 那一条自己就写着
+ *    `Use ONLY on service detail pages` 和 `safe to include on all service detail pages`
+ *    —— 在模型眼里就是「加它」。⟹ 光把散文改成有条件的不够，清单这一条也要跟着让开。
  */
-function promptSection(group, dir, { legacyOnly = false, order = null } = {}) {
+function promptSection(group, dir, { legacyOnly = false, order = null, omit = null } = {}) {
+  const skip = new Set(omit || []);
   const all = [...loadManifests(dir).values()]
-    .filter((m) => m.prompt && m.prompt.group === group)
+    .filter((m) => m.prompt && m.prompt.group === group && !skip.has(m.type))
     .sort((a, b) => a.prompt.order - b.prompt.order);
   const ordered = order ? reorderByNames(all, order) : all;
   return ordered.map(legacyOnly ? promptEntryLegacyOnly : promptEntry).join('\n');

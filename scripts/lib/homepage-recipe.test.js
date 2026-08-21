@@ -313,7 +313,7 @@ try {
     ? ok('refPrefs 里有 layout ⟹ 提示词里没有配方那条硬要求（用户点名的那个赢）')
     : bad('照抄参照站布局时配方还在，两条硬要求会打架');
 
-  // ── ⑧b #1134（来源 #1139）—— `service-related-pages` 那两句只在会有子页的站上发 ─────────────
+  // ── ⑧b #1134（来源 #1139；r2 按 QA2 的真机读数扩了射程）—— `service-related-pages` 只在会有子页的站上发 ──
   //
   // 那个块是候选块里唯一有 `return null` 的（`ServiceRelatedPagesSection.tsx`）：它只在那个服务
   // 底下**真有子页**时才渲染，而子页只由关键词矩阵产生（`nestedSlug = <服务>/<关键词>`）。
@@ -321,27 +321,52 @@ try {
   // 生产库那个唯一的第三方客户站 6 个实例全空。用户看不见（渲染成 null，页面不留空框），所以这是
   // 提示词的准确性问题，不是缺陷 —— 但让 AI 去加一个注定为空的块，本身也在挤掉真正该在那里的块。
   // 🔴 两向都判。只判「没关键词时不发」的话，一个把那两句**整个删掉**的改动也会绿。
-  console.log('── ⑧b service-related-pages 那两句：有关键词页才发，没有就不发');
+  //
+  // 🔴 r2 扩的那一半（QA2 在 r1 上量到的）：只把那三句散文改成有条件的**不够** —— 交付版提示词
+  //    确实少了那三句（−237 字节），而**站建出来一点没变**：3 个互异 siteId × 6 个服务详情页
+  //    = 18/18 照旧带那个块，与基线那次 6/6 逐个相同。真因是**清单**那一条自己就在说「加它」：
+  //    `blocks/service-related-pages.json` 的 `headExtra` 是 `Use ONLY on service detail pages`，
+  //    它的 `lines` 里还有 `safe to include on all service detail pages` ⟹ 模型照做。
+  //    所以 r2 让清单那一条也让开（`promptSection` 的 `omit`），本格的针也跟着从「两句散文」
+  //    扩到「清单那一条的每一行」。
+  // 🔴 针**不写死**：清单那几行从 manifest 现算（开着的那份 minus 关掉的那份），否则这里就是
+  //    manifest 的第二份抄本，而两份抄本必然分叉 —— 分叉的方向是这一格静默地不再判清单那一条。
+  // 📌 这一格的边界写在这里，别把它读成更强的东西：它量的是**提示词字节**。「模型收到这份提示词
+  //    之后到底加不加」只有真 AI build 量得到（QA2 那四跑），本格对那一维按构造是盲的。
+  console.log('── ⑧b service-related-pages：有关键词页才发，没有就不发（散文三句 + 清单那一条）');
   {
-    const NEEDLES = [
+    const bm = require('./block-manifest');
+    const listOn = bm.promptSection('homepage').split('\n');
+    const listOff = bm.promptSection('homepage', undefined, { omit: ['service-related-pages'] }).split('\n');
+    const LIST_LINES = listOn.filter((l) => !listOff.includes(l));
+    const PROSE = [
       'service-related-pages data: { serviceSlug:',
       'Include a "service-related-pages" section on each service detail page',
     ];
+    // 分母自检：清单那一条现算不出来（改名/搬家/omit 坏了）时，下面的针会变空 ⟹ 空绿。
+    LIST_LINES.length > 0 && LIST_LINES.some((l) => /^- "service-related-pages"/.test(l))
+      ? ok(`清单那一条现算出 ${LIST_LINES.length} 行（omit 拿掉的正好是它自己那几行）`)
+      : bad('从 manifest 现算不出 service-related-pages 那一条 —— 下面的针会是空的，这一格不许当成过');
+    const NEEDLES = [...PROSE, ...LIST_LINES];
     const withKw = promptFrom(workRoot, basePayload());                       // 夹具自带关键词
     const noKw = promptFrom(workRoot, basePayload({ keywords: {} }));
     const inWith = NEEDLES.filter((n) => withKw.includes(n));
     const inNo = NEEDLES.filter((n) => noKw.includes(n));
     inWith.length === NEEDLES.length
-      ? ok(`有关键词页的站：那 ${NEEDLES.length} 句都在（这一半是阳性对照 —— 少了它「不发」那格就成了空绿）`)
-      : bad(`有关键词页的站却少了这几句：${NEEDLES.filter((n) => !withKw.includes(n)).join(' | ')}`);
+      ? ok(`有关键词页的站：那 ${NEEDLES.length} 处都在（散文 ${PROSE.length} + 清单 ${LIST_LINES.length}；`
+        + '这一半是阳性对照 —— 少了它「不发」那格就成了空绿）')
+      : bad(`有关键词页的站却少了这几处：${NEEDLES.filter((n) => !withKw.includes(n)).join(' | ')}`);
     inNo.length === 0
-      ? ok('没有关键词页的站：那两句一句都不发 ⟹ AI 不会被要求加一个注定 return null 的块')
+      ? ok('没有关键词页的站：散文和清单里一处都不发 ⟹ AI 不会从任何一头被要求加那个注定 return null 的块')
       : bad(`没有关键词页的站仍然被要求加那个块：${inNo.join(' | ')}`);
-    // 第三条：除了这两句，两份提示词不该有别的差别（否则这一格量到的是别的东西）
+    // 第三条：除了那个块自己的行，两份提示词不该有别的差别（否则这一格量到的是别的东西）
     const diffLines = withKw.split('\n').filter((l) => !noKw.split('\n').includes(l));
-    diffLines.every((l) => /service-related-pages/.test(l))
-      ? ok(`两份提示词的差别只在 service-related-pages 那几行（${diffLines.length} 行）`)
-      : bad(`两份提示词还有别的差别，这一格量的不只是那个块：${diffLines.filter((l) => !/service-related-pages/.test(l)).slice(0, 3).join(' ⏎ ')}`);
+    const foreign = diffLines.filter((l) => !/service-related-pages/.test(l) && !LIST_LINES.includes(l));
+    foreign.length === 0
+      ? ok(`两份提示词的差别只在那个块自己的行（${diffLines.length} 行：点名它的 `
+        + `${diffLines.filter((l) => /service-related-pages/.test(l)).length} 行 + 清单续行 `
+        + `${diffLines.filter((l) => !/service-related-pages/.test(l)).length} 行）`)
+      : bad(`两份提示词还有别的差别，这一格量的不只是那个块：${foreign.slice(0, 3).join(' ⏎ ')}`);
   }
 } finally {
   try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {}
