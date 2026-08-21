@@ -445,6 +445,32 @@ console.log('\n④ 反向对照：白名单收的文件，同一条路真的写�
   } else {
     bad(`白名单收的文件也没写进去，③那一格因此什么都没证明（事件：${res.events.map((e) => e.event).join(' ')}）`);
   }
+
+  // 🔴 #1104 r5 —— 写成功的那份回执里必须带 `path`。
+  //
+  // 为什么值一格：`path` 是 #1102（`5ccfb541`）加在 `write_file` 那条 return 上的，而**本票也在同一行上
+  // 加东西**（放行后要把后果说给老板听）。两张票冲突在同一行，rebase 时「取一侧」就是静默删掉另一张票的
+  // 交付 —— 而我实测过它有多静默：把 `path` 那一行删掉，`edit-site-chain` / `editable-files` /
+  // `navigation-owned` 三套测试**全绿**（16/0 · 8/0 · 21/0），全仓没有一处会说话。反过来删掉本票那一侧
+  // 立刻红（navigation-owned 20/1）—— 两侧不对称，这一格补的就是没人守的那一侧。
+  //
+  // 📌 它断言的是「回执里有这个字段」，不是它的用途：`result.path` 在 edit-site.js 里没有消费者，整个
+  //    返回值被 JSON.stringify 塞进发回模型的 tool_result，所以这就是它唯一能被观测到的地方。
+  {
+    const receipt = toolResultContent(res, 1, 't1');
+    if (receipt === null) {
+      bad('④b 前提不成立：第二轮请求里找不到 t1 那条 tool_result —— 回执里有没有 path 问不出来');
+    } else {
+      let parsed = null;
+      try { parsed = JSON.parse(receipt); } catch { /* 下面按 null 报 */ }
+      if (parsed && parsed.path === 'en/pages/home.json') {
+        ok('④b 写成功的回执里带着 path（#1102 的字段，本票在同一行上改过东西，别把它挤掉）');
+      } else {
+        bad('④b 回执里没有 #1102 那个 path 字段（或值不对）'
+          + ` —— 读到的是 ${receipt.slice(0, 160)}`);
+      }
+    }
+  }
 }
 
 // ══ ⑤ 同一个文件用两种路径写法写两遍 ⟹ 回滚仍然回到「这次编辑之前」════════════════════════════
@@ -551,6 +577,114 @@ console.log('\n⑥ 反向对照：两笔同一种写法 —— ⑤ 那一格不�
       + ' ⟹ ⑤ 量的是写法那一维，不是「写两遍」本身');
   } else {
     bad('🔴 连同一种写法写两遍都回不去 —— ⑤ 那一格的读数不能归给「路径写法」这一维');
+  }
+}
+
+
+// ══ ⑦ 页脚栏目标题：门放行，而**这个站的页脚版式不画它** ⟹ 回执里必须说出来 ═══════════════════
+//
+// #1104 r6（QA2 r5 那条中等）。这一格是本轮唯一一条端到端的：**真进程 + 真站 + 真的那道门**，
+// 问的是「那句实话有没有到模型手里」。
+//
+// 🔴 为什么必须在这里而不是只在 navigation-owned.test.js 里：这一轮新加的读数是
+//    `readRenderedRegions` —— 它住在 `edit-site.js` 的 `writeCtx` 上（**接线**），而纯函数那边的
+//    测试是自己把 `rendered` 递进去的（**代理**）。接线漏了的话，纯函数那边照样全绿，而老板一句话
+//    都听不到。QA1 r5 数过：本仓此前没有任何一格驱动这条接线。
+//
+// 两臂只差一个变量 —— **同一个站、同一次编辑，只换页脚版式**：
+//    ⑦  页脚是 `slim-row`（不画栏目标题）⟹ 回执里必须有那句实话
+//    ⑦b 页脚是 `multi-column`（真的画它）⟹ 回执里**一句都不许有**（多说就是新的假话）
+console.log('\n⑦ 页脚版式不画栏目标题时，回执里带着那句实话（真进程 + 真站）');
+{
+  /**
+   * 跑一次「把页脚第一栏的标题改掉」，返回那次 write_file 的回执。
+   * @param {string} footerVariant 这个站的页脚版式（写进 site/theme.json 的 regionLayout）
+   */
+  const runTitleEdit = (label, footerVariant) => {
+    const ctx = makeRoot(label);
+    const site = writeSite(ctx.work);
+
+    // 🔴 页脚版式走 theme.json 的 `regionLayout`（#1079 那条路，构建自己也读它）——
+    //    **不是**手改组件、也不是给测试开后门。原来那份 theme.json 的别的键一个都不动。
+    const themePath = path.join(site, 'theme.json');
+    const theme = fs.existsSync(themePath) ? JSON.parse(fs.readFileSync(themePath, 'utf8')) : {};
+    theme.regionLayout = { ...(theme.regionLayout || {}), footer: footerVariant };
+    fs.writeFileSync(themePath, JSON.stringify(theme, null, 2));
+    assertSyncsClean(ctx.work, `⑦(${footerVariant})`);
+
+    // 夹具自检：这个站真的解析成那个版式了吗？（拿构建和门共用的那份实现问，不是相信我刚写进去的键）
+    const regions = cp.spawnSync(process.execPath, ['-e',
+      'const r = require(process.argv[1]).resolveSiteRegions(process.argv[2]);'
+      + 'process.stdout.write(JSON.stringify(r.footerVariants));',
+      path.join(ctx.work, 'scripts', 'lib', 'site-regions.js'), site,
+    ], { cwd: ctx.work, encoding: 'utf8' });
+    const got = (regions.stdout || '').trim();
+    if (got !== JSON.stringify([footerVariant])) {
+      die(`⑦ 夹具立不起来：想让这个站的页脚是 ${footerVariant}，而 site-regions 说它是 ${got || regions.stderr}`
+        + ' ⟹ 这一格量的不是我以为的那个状态');
+    }
+
+    const navPath = path.join(site, 'en', 'navigation.json');
+    const nav = JSON.parse(fs.readFileSync(navPath, 'utf8'));
+    if (!Array.isArray(nav.footer.columns) || !nav.footer.columns[0]
+        || typeof nav.footer.columns[0].title !== 'string') {
+      die('⑦ 夹具立不起来：这个站的 navigation.json 里没有 footer.columns[0].title');
+    }
+    const titleBefore = nav.footer.columns[0].title;
+    nav.footer.columns[0].title = 'What We Do';
+
+    ctx.git('git add -A && git commit -q -m base && git push -q origin main');
+    const res = runEdit(ctx, [
+      reply([textBlock('Renaming that footer column.'),
+        writeCall('t1', 'en/navigation.json', JSON.stringify(nav, null, 2))], 'tool_use'),
+      reply([textBlock('Done.')], 'end_turn'),
+    ]);
+    const onDisk = JSON.parse(fs.readFileSync(navPath, 'utf8')).footer.columns[0].title;
+    return { res, receipt: toolResultContent(res, 1, 't1'), titleBefore, onDisk };
+  };
+
+  const SENTENCE = 'was saved, but nothing on the';
+
+  // ── ⑦ 不画它的那一支：放行 + 说实话 ──────────────────────────────────────────────────────────
+  {
+    const { receipt, titleBefore, onDisk } = runTitleEdit('nav-title-invisible', 'slim-row');
+    if (receipt === null) {
+      bad('⑦ 第二轮请求里找不到 t1 那条 tool_result —— 模型收到了什么问不出来');
+    } else {
+      let parsed = null;
+      try { parsed = JSON.parse(receipt); } catch { /* 下面按 null 报 */ }
+      const msg = parsed && typeof parsed.message === 'string' ? parsed.message : '';
+      const allowed = !!(parsed && parsed.success === true);
+      if (!allowed) {
+        bad(`⑦ 门把这次编辑拒了 —— 本票要它写得进去：${receipt.slice(0, 200)}`);
+      } else if (onDisk !== 'What We Do' || titleBefore === 'What We Do') {
+        bad(`⑦ 值没有真的落盘（改前 "${titleBefore}" → 磁盘上 "${onDisk}"）`);
+      } else if (!msg.includes(SENTENCE)) {
+        bad(`⑦ 放行了、值也写进去了，而回执里【没有】那句实话 —— 老板会拿到「已完成」而页面不变。`
+          + `回执：${receipt.slice(0, 260)}`);
+      } else if (!msg.includes('footer.columns[].title') || !msg.includes('slim-row')) {
+        bad(`⑦ 那句话在，但没点名是哪个字段 / 这个站是什么版式：${msg.slice(0, 260)}`);
+      } else {
+        ok('⑦ 页脚是 slim-row 的真站上改栏目标题：门放行、值真的落盘，而回执里带着'
+          + '「写进去了，但你这个站的页脚不显示它」并点名了字段和版式 —— 接线是通的');
+      }
+    }
+  }
+
+  // ── ⑦b 反向对照：真的画它的那一支，一句都不许多 ─────────────────────────────────────────────
+  {
+    const { receipt, onDisk } = runTitleEdit('nav-title-visible', 'multi-column');
+    if (receipt === null) {
+      bad('⑦b 第二轮请求里找不到 t1 那条 tool_result');
+    } else if (onDisk !== 'What We Do') {
+      bad(`⑦b 值没有落盘（磁盘上是 "${onDisk}"）—— 这一臂什么都没证明`);
+    } else if (receipt.includes(SENTENCE)) {
+      bad('⑦b 页脚是 multi-column（它真的画栏目标题），回执里却说「你这个站不显示它」'
+        + ` —— 这是新造的一句假话：${receipt.slice(0, 260)}`);
+    } else {
+      ok('⑦b 反向对照：同一个站、同一次编辑，只把页脚换成真的画它的 multi-column，那句话当场消失'
+        + ' ⟹ ⑦ 那句绿是版式那一维给的，不是「凡是改 navigation.json 就多一句」');
+    }
   }
 }
 

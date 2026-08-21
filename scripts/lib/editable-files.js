@@ -5,6 +5,7 @@
  *
  *   const { writeRejection } = require('./lib/editable-files.js');
  *   const why = writeRejection('theme.json');   // null = 可以写；字符串 = 拒，这句话直接回给模型
+ *   const why = writeRejection('navigation.json', { content, readCurrent });   // 见下面「窄口子」
  *
  * ── 为什么要有它（#1087）────────────────────────────────────────────────────────────────────────
  * 一个真客户站（`site-194f1f41`）的 `site/theme.json` 里躺着 `{"themeId":"luxury-dark","applied":true}`。
@@ -28,9 +29,20 @@
  *
  * 🔴 拒的时候必须说清「这个文件不由这条路改」，不能只回一句 Invalid path：模型看到「路径不合法」
  *    会去试别的写法（`./theme.json`、`../site/theme.json`…），看到「它由换装弹窗管」才会停手。
+ *
+ * ── 一道窄口子：navigation.json（#1104）────────────────────────────────────────────────────────
+ * 上面那条谓词对 `navigation.json` 的答案不是一个字 —— 这**一个文件**里两种东西都有：
+ *   · 菜单链接 / 第一栏页脚链接 —— 构建每次重写，写它就是静默失败（#1087 关掉这条路的真因）
+ *   · 顶部那个按钮（`header.cta`）、页脚版权、页脚栏标题、topbar —— 构建一个字都不碰
+ * 所以它既不能整份放行，也不该整份拒。判据落在**内容**上：这次写入改的是哪几处？
+ * 判断整段住在 `lib/navigation-owned.js`（那里也写着它为什么不是一张字段名单）。
+ *
+ * 🔴 于是 `writeRejection` 多收一个 `ctx`。**没有 `ctx` 时 navigation.json 一律拒**（fail-closed）：
+ *    调用方拿不出这次要写的内容和磁盘上那份，就没法判"改的是哪几处"，而放行的方向正是本票的反面。
  */
 
 const path = require('path');
+const { navigationEditRejection, navigationEditSideEffects, NAVIGATION_EDITABLE_SUMMARY } = require('./navigation-owned.js');
 
 /**
  * `site/` 底下的子目录名。多语言站的第一段是 locale（`zh` / `zh_CN` / `zh-TW` 都出现过，所以这里
@@ -96,53 +108,126 @@ const REJECT_REASON = {
     + 'But nothing writes it today: no screen or tool in the product creates or changes it. If the '
     + 'owner asks to change the page layout, the honest answer is that it cannot be changed yet — '
     + 'do not point them at a picker, there is none.',
-  // 🔴 #1087 r2 —— 这句话上一版对**链接**是真的、对这个文件里最要紧的那部分是**反的**，而模型读了它
-  // 之后会替老板编一个不存在的后台页面（QA2 在真容器上量到：「Go to your Dashboard → Navigation
-  // settings」，那个东西不存在）。构建重建导航时只赋值两处 —— `header.links`（`sync-config.js:611`）
-  // 和 `footer.columns[0].links`（`:613`）；`header.cta` 全文件只在 `:596` 被**读**一次，从头到尾没被
-  // 赋值过，而它就是每一页顶部和手机菜单里那个按钮（`Header.tsx:84` / `:113`）。
-  // 📌 页脚 `columns[≥1]`（关键词分组）是**追加一次**（`:622-635`，已经有了就不再动），也不是覆盖。
-  // 🔴 第三句「今天没有别的地方能改」必须直说，别只说「这里改不了」：`grep -rn navigation.json
-  // manager/*.go` = 0，dashboard 里也没有导航/CTA 设置页 ⟹ 模型一旦以为存在，就会指一个假地方。
-  // 老板问到这件事时的正确回答是「现在还改不了」。
-  'navigation.json':
-    'navigation.json is not edited here. Two parts of it are rebuilt on every build and anything '
-    + 'written to them is overwritten: the header menu links and the first footer column\'s links. '
-    + 'They come from each page\'s own navLabel / navOrder, so to change a menu entry, change that '
-    + 'page\'s navLabel or navOrder.\n'
-    + 'The rest of this file is NOT overwritten by the build — the header button (header.cta), the '
-    + 'footer copyright, and the footer column titles are left exactly as they are.\n'
-    + 'But there is no way to change those yet: no other screen or tool in the product edits them '
-    + 'today. If the owner asks to change the header button, the honest answer is that it cannot be '
-    + 'changed yet — do not point them at a settings page, there is none.',
+  // 📌 `navigation.json` **不在这张表里** —— #1104 起它是有条件可写的（改构建不碰的那几处放行，
+  // 改构建重写的那几处拒），判断在 `lib/navigation-owned.js`，理由回给模型的也是那边那句。
+  // 这里若再留一条，它会在 `writeRejection` 走到这张表之前就永远命中不到，是死代码。
 };
 
 const EDITABLE_SUMMARY =
   'Files that can be written here: brand.json, seo.json, services.json, pages/**.json, '
-  + 'blog/*.json, blocks/site-blocks.json (in a multi-language site the last five live under <locale>/).';
+  + 'blog/*.json, blocks/site-blocks.json (in a multi-language site the last five live under <locale>/), '
+  + 'and navigation.json for the parts of it the build does not rebuild (see the message it gives you).';
+
+/**
+ * navigation.json 这一格。这里只负责**把材料备齐**（这次的内容 + 磁盘上那份），放不放行由
+ * `navigation-owned.js` 判 —— 那个判断跟 `sync-config.js` 真正重写的位置绑在一起。
+ *
+ * 🔴 `ctx` 缺任何一半都拒：判"改的是哪几处"需要两份内容，缺了就只能猜，而猜错的方向是放行
+ *    一次会被覆盖的写入（#1087 要治的静默失败）。
+ * 📌 这里**不管** JSON 解析不出来那种情况 —— 返回 null 交给 `edit-site.js` 自己那句
+ *    `Invalid JSON: …`，一条错误只留一个出处。
+ */
+function navigationRejection(normalized, ctx) {
+  if (!ctx || typeof ctx.content !== 'string' || typeof ctx.readCurrent !== 'function') {
+    return `${normalized} cannot be checked here right now, so nothing was written. `
+      + `Only the parts of it the build does not rebuild can be changed. ${NAVIGATION_EDITABLE_SUMMARY}`;
+  }
+  let next;
+  try {
+    next = JSON.parse(ctx.content);
+  } catch (e) {
+    return null;
+  }
+  let current = null;
+  try {
+    const raw = ctx.readCurrent(normalized);
+    current = typeof raw === 'string' ? JSON.parse(raw) : null;
+  } catch (e) {
+    current = null;
+  }
+  return navigationEditRejection(next, current);
+}
 
 /**
  * @param {string} relPath 相对 `site/` 的路径（`edit-site.js` 已经用 validatePath 挡掉 `..` 和绝对路径）
+ * @param {{content?: string, readCurrent?: (relPath: string) => (string|null)}} [ctx]
+ *        这次要写的内容 + 一个按路径读磁盘上那份的函数。**只有 navigation.json 用到它**
+ *        （见文件头「一道窄口子」）；没给就等于那个文件一律拒。
  * @returns {string|null} null = 可以写；字符串 = 拒绝的理由，原样回给模型
  */
-function writeRejection(relPath) {
-  if (typeof relPath !== 'string' || relPath === '') return 'Invalid path: empty.';
-  // 🔴 先把路径**算**成它真正指的那个文件，再判它是什么。反面教材是我自己写的第一版：它只按
-  // 分隔符切片，于是 `pages/../theme.json` 被切成 ['pages','..','theme.json'] ⟹ 命中「pages/ 底下
-  // 任何一层的 .json」这条 ⟹ 判成可写，而 `path.join(siteDir, …)` 落盘的位置正是 `site/theme.json`。
-  // `edit-site.js` 的 `validatePath` 今天会先拒掉带 `..` 的路径，所以那条路走不通 —— 但一个
-  // 「这个文件是什么」的判断不该把正确性寄在调用方的另一道检查上。
+/**
+ * 把 `relPath` 算成它真正指的那个文件，并拆出 locale。
+ * 抽出来是因为 `writeRejection` 与 `writeNotes` 必须对「这是哪个文件」得出同一个答案 ——
+ * 两份实现必然分叉，而分叉的方向是「拒的时候按 A 判、说话的时候按 B 判」。
+ * 返回 `{ bad }`（一句话，路径本身就不合法）或 `{ normalized, locale, rest }`。
+ */
+function resolveRel(relPath) {
+  if (typeof relPath !== 'string' || relPath === '') return { bad: 'Invalid path: empty.' };
+  // 🔴 先算再判。反面教材是我自己写的第一版：它只按分隔符切片，于是 `pages/../theme.json` 被切成
+  // ['pages','..','theme.json'] ⟹ 命中「pages/ 底下任何一层的 .json」这条 ⟹ 判成可写，而
+  // `path.join(siteDir, …)` 落盘的位置正是 `site/theme.json`。`edit-site.js` 的 `validatePath`
+  // 今天会先拒掉带 `..` 的路径，所以那条路走不通 —— 但一个「这个文件是什么」的判断不该把正确性
+  // 寄在调用方的另一道检查上。
   const normalized = path.posix.normalize(relPath.replace(/\\/g, '/'));
   if (normalized.startsWith('../') || normalized === '..' || path.posix.isAbsolute(normalized)) {
-    return 'Invalid path: it must stay inside the site directory.';
+    return { bad: 'Invalid path: it must stay inside the site directory.' };
   }
   const parts = normalized.split('/').filter((s) => s !== '' && s !== '.');
-  if (parts.length === 0) return 'Invalid path: empty.';
+  if (parts.length === 0) return { bad: 'Invalid path: empty.' };
   const { locale, rest } = splitLocale(parts);
+  return { normalized, locale, rest };
+}
 
+/** 这个路径指的是 navigation.json 吗（多语言站 `<locale>/navigation.json`、老扁平站根级那份都算）。 */
+const isNavigationJson = (rest) => rest.length === 1 && rest[0] === 'navigation.json';
+
+/**
+ * 这次写入放行之后，有哪些【别的地方】会跟着变。
+ *
+ * #1104 r2（QA1 中等②）：`header.cta.href` 自己不会被构建覆盖，但构建拿它算出 `ctaSlug` 再用它
+ * 把那一页从顶部菜单里过滤掉 —— 也就是「改一个按钮」实际上还改了菜单。放行是对的（那个行为可能
+ * 是模板有意的），但**必须说出来**，否则这条路就成了 #1087 要治的那种静默改动的另一个方向。
+ *
+ * #1104 r6：第二类是「写进去了，但**这个站的页面根本不读它**」—— 页脚栏目标题只有
+ * `multi-column` 那一支页脚画，topbar 只有挑了 `with-topbar` 版式的站才有。同一条通道，
+ * 判断在 `navigation-owned.js` 的 `PAGE_READS`。
+ *
+ * @param {{content?: string, readCurrent?: Function, readRenderedRegions?: () => object|null}} [ctx]
+ * @returns {string[]} 给模型看的那几句话；没有就是空数组。**它不是拒绝**，调用方照常落盘。
+ */
+function writeNotes(relPath, ctx) {
+  const r = resolveRel(relPath);
+  if (r.bad || !isNavigationJson(r.rest)) return [];
+  if (!ctx || typeof ctx.content !== 'string' || typeof ctx.readCurrent !== 'function') return [];
+  let next;
+  try { next = JSON.parse(ctx.content); } catch (e) { return []; }
+  let current = null;
+  try {
+    const raw = ctx.readCurrent(r.normalized);
+    current = typeof raw === 'string' ? JSON.parse(raw) : null;
+  } catch (e) { current = null; }
+  if (current === null) return [];          // 读不到磁盘那份 ⟹ writeRejection 已经拒了，走不到这里
+  // #1104 r6 —— 第二问「这个站的页面读不读它」要知道这个站真的渲染出哪些区。判断在
+  // `lib/site-regions.js`（构建用的是同一份实现），读文件系统的那一步由调用方做：这个模块是
+  // 纯函数（测试直接调它，不该被一个真站目录绑住）。**递不进来 ⟹ 说「我说不准」，不是沉默** ——
+  // 理由写在 `navigation-owned.js` 的 `navigationEditSideEffects` 里。
+  const rendered = (ctx && typeof ctx.readRenderedRegions === 'function') ? ctx.readRenderedRegions() : null;
+  return navigationEditSideEffects(next, current, rendered);
+}
+
+function writeRejection(relPath, ctx) {
+  const r = resolveRel(relPath);
+  if (r.bad) return r.bad;
+  const { normalized, locale, rest } = r;
   for (const rule of WRITABLE) {
     if (locale && !rule.localeScoped) continue;
     if (rule.test(rest)) return null;
+  }
+
+  // navigation.json —— 有条件可写（#1104）。多语言站是 `<locale>/navigation.json`、老扁平站是
+  // 根级那份，`splitLocale` 已经把两种都化成 rest === ['navigation.json']。
+  if (isNavigationJson(rest)) {
+    return navigationRejection(normalized, ctx);
   }
 
   const reason = REJECT_REASON[rest.join('/')];
@@ -151,4 +236,4 @@ function writeRejection(relPath) {
     + `\n\nNothing was written. ${EDITABLE_SUMMARY}`;
 }
 
-module.exports = { writeRejection, EDITABLE_SUMMARY };
+module.exports = { writeRejection, writeNotes, EDITABLE_SUMMARY };

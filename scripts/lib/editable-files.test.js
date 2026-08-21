@@ -60,21 +60,9 @@ const canWrite = (p) => writeRejection(p) === null;
     //    里 grep 命中 0，尺子校准 ThemeModal=3）。钉住它等于把「去某某地方改」这个假象钉在原地 ——
     //    跟 r2 治掉 navigation.json 那个 `regenerates` needle 是同一件事。现在钉承重的那半句。
     ['page-layout.json', 'cannot be changed yet'],
-    // 🔴 #1087 r2 —— 这两格原来钉的是 `regenerates`，也就是**那句半真的话**本身：它只描述了链接那一半，
-    // 而这个文件里最要紧的 `header.cta` 恰恰不被覆盖。钉住它等于把那个假象钉在原地。
-    // 现在钉的是新那句话里**承重的第三句**：「今天没有别的地方能改」。选它不是随手挑一个词 ——
-    // QA2 在真容器上量到的退步是模型替老板编了一个不存在的后台页（"Dashboard → Navigation settings"），
-    // 而挡住那件事的就是这一句。前两句（哪一半会被覆盖）由下面那两格分别钉。
-    ['navigation.json', 'no way to change those yet'],
-    ['zh/navigation.json', 'no way to change those yet'],
-  ];
-  // 🔴 #1087 r2 —— navigation.json 那句话现在有三个承重的半句，上面的清单一项只能钉一个词。
-  // 另外两个在这里各钉一次：说反了任何一句，模型给老板的答复就会是假的（这正是 r1 被退回的那件事）。
-  const NAV_ALSO = [
-    // ① 会被覆盖的到底是哪两处 —— 说成「整份都会被覆盖」就是 r1 那句半真的话
-    'the header menu links and the first footer column',
-    // ② 不会被覆盖的那部分要点名 header.cta —— 它就是每一页顶部那个按钮
-    'header.cta',
+    // 📌 #1104 —— `navigation.json` **搬出这张表了**：它现在是有条件可写的（改顶部那个按钮放行，
+    // 改菜单链接拒），判断和它的全部断言住在 `navigation-owned.test.js`。这里原来有两格钉着
+    // 「no way to change those yet」——那句话本票之后是**假的**，钉着它等于把「老板改不了」钉在原地。
   ];
   // 🔴 #1087 r3 —— page-layout.json 那句话也有两个承重的半句，跟 navigation.json 同构：
   //   ① 它是干什么的（缺文件按 standard 走）② 今天没有任何东西写它 —— 少了 ②，模型又会指一个假地方。
@@ -83,10 +71,6 @@ const canWrite = (p) => writeRejection(p) === null;
     'nothing writes it today',    // ② 承重：产品里没有任何写它的地方
   ];
   const problems = [];
-  for (const needle of NAV_ALSO) {
-    const why = writeRejection('navigation.json') || '';
-    if (!why.includes(needle)) problems.push(`navigation.json 的理由里没有 "${needle}"`);
-  }
   for (const needle of PAGE_LAYOUT_ALSO) {
     const why = writeRejection('page-layout.json') || '';
     if (!why.includes(needle)) problems.push(`page-layout.json 的理由里没有 "${needle}"`);
@@ -138,7 +122,10 @@ const canWrite = (p) => writeRejection(p) === null;
   const fs = require('fs');
   const src = fs.readFileSync(path.join(__dirname, '..', 'edit-site.js'), 'utf-8');
   const required = /require\(['"]\.\/lib\/editable-files['"]\)/.test(src);
-  const called = /writeRejection\(relPath\)/.test(src);
+  // #1104 起这个调用带第二个参数（这次的内容 + 读磁盘那份的函数），所以不能再钉
+  // `writeRejection(relPath)` 那个字面写法 —— 钉着它，本票的接线一接上这一格就假红。
+  // navigation.json 那一格递没递齐由 `navigation-owned.test.js` ⑥ 单独钉。
+  const called = /writeRejection\(\s*relPath\b/.test(src);
   if (required && called) ok('edit-site.js 引了这个模块，并且在 write_file 里拿 relPath 问过它');
   else bad(`edit-site.js 的接线断了（require=${required} · 调用=${called}）—— 这个模块再对也拦不住任何东西`);
 }
@@ -196,9 +183,10 @@ const canWrite = (p) => writeRejection(p) === null;
   const inPrompt = (needle) => flat(prompt).includes(flat(needle));
 
   const CLAIMS = [
-    // navigation.json —— 真话：会被重建的只有那两处，而顶部那个按钮不是，且今天没别的地方能改
+    // navigation.json —— #1104 之后的真话：会被重建的只有那两处，顶部那个按钮不是，而它现在
+    // **就在这条路上改**。这里只留这一格（它跨两票都成立）；本票新增的那几句由
+    // `navigation-owned.test.js` ⑦ 钉。
     { must: 'header.cta', why: 'SYSTEM_PROMPT 没点名 header.cta —— 模型会以为改页面元数据能动顶部那个按钮' },
-    { must: 'cannot be changed yet', why: 'SYSTEM_PROMPT 没说「今天还改不了」—— 模型会替老板编一个不存在的设置页' },
     { mustNot: 'It is auto-regenerated from page metadata.',
       why: 'SYSTEM_PROMPT 里那句「整份由页面元数据自动重建」又回来了 —— header.cta 恰恰不是' },
     // page-layout.json —— 真话：没有 picker
@@ -215,10 +203,40 @@ const canWrite = (p) => writeRejection(p) === null;
     //    (2026-08-19 重取，a382db2b)：`picker` 那句出现 0 次，只有后者存在（`:367-368`，跨两行）；
     //    page-layout 那半的祈使句实际是 `Do not try to change the site's look by writing those`
     //    （`:376-377`，也跨两行）。钉的是仓里真有的这两句。
+    // 🔴 #1104 r6 —— 这一条【留着，需要的字面量一个字没改】，但它守的那一半换了对象，理由要写下来，
+    //    否则下一个人读到会以为 #1096 那条被悄悄放宽了：#1096 立它的时候这句祈使跟在
+    //    「那个按钮改不了」后面，而 #1104 让那个按钮**改得了**了 ⟹ 原来那句陈述今天是假话，随它一起
+    //    走了。仍然存在「模型会指一个不存在的设置页」这个风险的，是**今天还拒**的那三处（菜单链接 /
+    //    第一栏页脚链接 / 页脚栏目数），所以这句祈使被搬到那三处后面。QA2 那组活体数据
+    //    （带祈使 4/4 不指假地方、只陈述 2–3/4 指了）说的是祈使句这个形式，不是它跟着哪个字段，
+    //    所以搬对象不削弱它。
     { must: 'do not point them at a settings screen, there is none.',
-      why: 'header.cta 那半只剩陈述句了 —— 少了这句祈使，模型会一边说"改不了"一边把老板指去一个不存在的设置页' },
+      why: '今天还拒的那三处只剩陈述句了 —— 少了这句祈使，模型会一边说"改不了"一边把老板指去一个不存在的设置页' },
     { must: "Do not try to change the site's look by writing those",
       why: 'theme.json / page-layout.json 那半只剩陈述句了 —— 少了这句祈使，模型会去写那几个它写不进的文件' },
+
+    // ── 下面 8 条是 #1104 r6 从 `navigation-owned.test.js` 的 ⑦ 整格搬过来的 ────────────────────
+    // 搬的理由就是这一格自己上面那段 #1096：那边读的是**整个 edit-site.js 文件**再 includes，而
+    // #1096 已经在同族那一格上把这种读法构造成了假绿。这里的尺子切的是真正送进模型的那段话，
+    // 所以本票新增的两条（最后两条）必须立在这把尺上，而原有的 6 条一起搬，一条不丢。
+    { must: 'navLabel', why: 'SYSTEM_PROMPT 没说菜单链接要去改 navLabel —— 模型只知道被拒，不知道去哪改' },
+    { mustNot: 'say it cannot be changed yet',
+      why: '还留着「就说改不了」那句 —— #1104 之后它是假话，那个按钮现在改得了' },
+    { mustNot: 'DO NOT edit directly',
+      why: '还留着「一律不许改 navigation.json」—— 模型会绕开这条现在真能走的路' },
+    // #1104 r3：门会因为「删了一个字段 / 把文字改成不是文字」而拒。模型只在被拒之后才知道，老板就
+    // 要多等一个来回；而「让版权行消失」真正走得通的办法是写成空串（实测：门放行、npm run build
+    // rc=0、产物里那行字没了）。
+    { must: 'set it to an empty string',
+      why: '没告诉模型「让那行字消失」要写成空串 —— 它会去删字段，然后被拒，老板多等一轮' },
+    { must: 'stops the site from building',
+      why: '没说清删字段的后果是这个站建不出来 —— 模型不知道这条为什么重要' },
+    // #1104 r6（QA1 r5 那条 🟡）：拒绝理由与 SYSTEM_PROMPT 是模型的两条入口，那句假话原来两处都有。
+    // 只修拒绝理由 ⟹ 模型在被拒**之前**读到的仍是「改 navLabel 就能加一个页脚栏目」。
+    { must: 'navLabel / navOrder will not change it',
+      why: '没说清「页脚有几栏」跟 navLabel / navOrder 无关 —— 模型会把那个假补救办法转给老板' },
+    { must: 'one extra column per service that has keyword pages',
+      why: '没说页脚栏目数真正从哪来 —— 只说「不许改」不够，老板会问那怎么改' },
   ];
   const bads = [];
   for (const c of CLAIMS) {

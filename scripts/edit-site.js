@@ -23,7 +23,9 @@ const { validateSite: validateBlocks } = require('./lib/block-manifest');
 const { readPageBlocks, normalizeLocalePages } = require('./blocks');
 // #1087 —— site/ 底下哪些文件由这条路改。谓词、逐条理由、以及为什么是白名单而不是黑名单，
 // 整段写在那个文件里。
-const { writeRejection } = require('./lib/editable-files');
+const { writeRejection, writeNotes } = require('./lib/editable-files');
+// #1104 r6 —— 这个站的页面真的画出哪些区（构建和这条路共用同一份实现，理由在那个文件头上）。
+const siteRegions = require('./lib/site-regions');
 
 // ─── Emit structured events to stdout ─────────────────────────────────────────
 
@@ -396,11 +398,42 @@ function executeTool(toolName, toolInput, siteDir, snapshots) {
       const relPath = toolInput.path;
       if (!validatePath(relPath)) return { error: 'Invalid path: must be relative, no ".."' };
       // #1087 —— 这条路只写【站的内容】。别的通道拥有的开关（theme.json 归换装弹窗）和构建自己
-      // 生成的产物（navigation.json / custom.css）一律拒，判据与理由整段写在 lib/editable-files.js。
+      // 生成的产物（custom.css）一律拒，判据与理由整段写在 lib/editable-files.js。
       // 🔴 排在 JSON.parse 【前面】：拒绝的理由要说的是「这个文件不由这条路改」，不是「你的 JSON 写错了」
       // —— `theme.css` / `custom.css` 根本不是 JSON，先解析的话它们拿到的是一句指错方向的错误。
-      const notWritable = writeRejection(relPath);
+      //
+      // #1104 —— `navigation.json` 是有条件可写的（顶部那个按钮 / 页脚版权 / 页脚栏标题 / topbar 放行，
+      // 菜单链接那一半拒），所以那一格要拿**这次的内容**跟**磁盘上那份**比。两样都从这里递进去：
+      // 这个模块是纯函数，不自己碰文件系统（它也被测试直接调）。
+      const writeCtx = {
+        content: toolInput.content,
+        readCurrent: (p) => {
+          const f = path.join(siteDir, p);
+          return fs.existsSync(f) ? fs.readFileSync(f, 'utf-8') : null;
+        },
+        // #1104 r6 —— 「这个站的页面真的画出哪些区」。第二问（改的这个字段，这个站的页面读不读它）
+        // 要它；判断在 lib/site-regions.js，构建用的是同一份实现。
+        // 🔴 算不出来一律回 null，**不是回一个猜的值**：下游拿到 null 会对老板说「我说不准」，
+        //    而拿到一个猜错的值会说一句确定的假话。两个方向的错法不对称。
+        readRenderedRegions: () => {
+          try {
+            const r = siteRegions.resolveSiteRegions(siteDir);
+            return {
+              header: [r.regionLayout.header],
+              footer: r.footerVariants,
+              topbar: r.hasTopbarRegion ? [r.regionLayout.topbar] : [],
+            };
+          } catch (e) {
+            return null;
+          }
+        },
+      };
+      const notWritable = writeRejection(relPath, writeCtx);
       if (notWritable) return { error: notWritable };
+      // #1104 r2 —— 放行了，但**别处会跟着变**的那些改动要说出来（今天只有 header.cta.href：
+      // 构建拿它算出 ctaSlug，再用它把那一页从顶部菜单里过滤掉）。判据在 lib/navigation-owned.js
+      // 的 SIDE_EFFECTS，理由整段写在那里。它不是拒绝 —— 文件照常落盘，只是回话里带上实话。
+      const sideEffects = writeNotes(relPath, writeCtx);
       // Validate JSON
       let parsed;
       try {
@@ -439,7 +472,21 @@ function executeTool(toolName, toolInput, siteDir, snapshots) {
       }
       fs.mkdirSync(path.dirname(fullPath), { recursive: true });
       fs.writeFileSync(fullPath, toolInput.content);
-      return { success: true, path: relPath, message: `Written ${relPath}` };
+      // 🔴 #1104 r5 —— 这一行上有两张票的交付，两侧都要留。rebase 时它们冲突在同一行上而已，
+      // 取一侧就是静默删掉另一张票的东西。
+      //   · `path`         #1102 加的（`5ccfb541`）。**它在本文件里没有消费者** —— 整个返回值被
+      //                    `JSON.stringify` 塞进发回模型的 `tool_result`，所以它是给模型看的那一份
+      //                    回执里的一个字段。📌 `5ccfb541` 在这一行上的注释说它是「回滚名单」的来源，
+      //                    而回滚名单实际来自上面那个 `snapshots`（键是 `fullPath`）；我 grep 过本文件
+      //                    里 `result.` 的全部消费点，只有 `result.success` 一处。那句注释归 #1102，
+      //                    本票不改它，但别照它推断这一行的用途。
+      //   · `sideEffects`  本票加的：放行之后要把「菜单也会跟着变」这类后果说给老板听。
+      const written = `Written ${relPath}`;
+      return {
+        success: true,
+        path: relPath,
+        message: sideEffects.length ? `${written}\n\n${sideEffects.join('\n\n')}` : written,
+      };
     }
     case 'list_files': {
       const relDir = toolInput.directory || '';
@@ -478,12 +525,24 @@ The site is defined by JSON configuration files:
 - **services.json** — Array of services with id, name, shortDescription, fullDescription, icon, features, products
 - **pages/home.json** — Homepage sections
 - **pages/{slug}.json** — Other pages (about, services, quote, menu, gallery, faq, etc.)
-- **navigation.json** — **DO NOT edit directly.** Two parts of it are rebuilt from page metadata on
-  every build and anything written to them is lost: the header menu links and the first footer column's
-  links, both from each page's navLabel / navOrder. The rest is NOT — and in particular the header
-  button (header.cta) is not: page metadata cannot change it, and nothing else in the product can change
-  it either. If the owner asks to change that button, say it cannot be changed yet; do not point them at
-  a settings screen, there is none.
+- **navigation.json** — **partly yours to edit.** You MAY change the header button (header.cta — its
+  label and href; it is the button at the top of every page and in the mobile menu), the footer
+  copyright, the footer description, the footer column titles, and the topbar. This is the only place in
+  the product where the header button can be changed, so when the owner asks for it, change it here.
+  You MAY NOT change the header menu links or the first footer column's links, and you may not add or
+  remove footer columns: those are rebuilt on every build and anything you write there is overwritten.
+  The menu links and the first footer column's links come from each page's navLabel / navOrder — to
+  change one of those entries, change that page's navLabel; to reorder them, change its navOrder. How
+  many footer columns there are is a different thing and navLabel / navOrder will not change it: the
+  build adds one extra column per service that has keyword pages, so the number of columns cannot be
+  set from here at all. When the owner asks for one of those three, tell them which page (or which
+  keyword pages) to change and change it for them; do not point them at a settings screen, there is
+  none. write_file refuses the whole write if you touch any of them, so write the
+  complete file with those parts exactly as you read them.
+  Keep every field that is already in the file, with the same kind of value. The build reads all of
+  them, so deleting one (or turning a piece of text into something that is not text) stops the site
+  from building at all. When the owner wants the copyright line or the footer blurb to disappear, set
+  it to an empty string "" — do not remove the field.
 
 You can also write **blog/{slug}.json** (articles) and **blocks/site-blocks.json** (content blocks reused
 across pages). In a multi-language site every file above except brand.json lives under **{locale}/**.
