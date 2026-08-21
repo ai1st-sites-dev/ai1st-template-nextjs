@@ -263,6 +263,266 @@ const ctaLookFor = (i) => CTA_LOOK_NAMES[
 const formLookFor = (i) => FORM_LOOK_NAMES[
   (i + Math.floor(i / FORM_LOOK_NAMES.length)) % FORM_LOOK_NAMES.length];
 
+// ── #1139 真站上露面最多的六个块，第三批画法候选 ─────────────────────────────────────────────────
+//
+// #1135 收官时全池 80 套里仍然只有一副骨架的块有 27 个（35 个契约块 − 8 个已有候选表的）。按本机
+// 历次真跑 create-site 留下的站数出来的露面次数（66 个互异站 / 705 页，服务子页要递归读进去），
+// 前八名去掉两个另有判据的（`service-related-pages` 按设计在没有子页时不渲染 · `divider` 的部件
+// 少到分不出骨架），剩下的就是这六个。那个唯一的第三方付费客户站（德馨金融 · 14 页）上前六名同向。
+//
+// 🔴 三条约束是本票立票时量出来的，不是设计口味：
+//   ① **判据是几何观感，不是 CSS 字节。** 承 #1135 —— 只把间距倍数或颜色换一下，字节确实不同而
+//      眼睛看不出来。所以每一副骨架都要在「零件之间的坐标关系」上跟同族的其他副不同（真浏览器里
+//      量，见 `tests/e2e/specs/1139-real-site-block-skeletons.spec.ts`）。
+//   ② **差别要在真站真有的条目数上就看得出来。** 语料里的条目数下限：`process-steps` /
+//      `benefits-list` / `faq-accordion` 最少 3 条、`testimonials` 最少 2 条。所以不许靠「条目多到
+//      第四列才出现」这种方式分骨架 —— 那在真站上永远塌成同一副。
+//   ③ **`contact-info` 不许靠列数分。** 它的卡片来自 `brand.locations`，而本机 75 份互异
+//      `brand.json` 全部只有 1 个地点（75/75）⟹ 真站上它永远只渲染 1 张卡，「1 栏 / 2 栏 / 3 栏」
+//      在每个站上长得一模一样。它的骨架差别在**卡片内部**（`label` / `address` / `phone` 之间的
+//      坐标关系），另外顺带让 `.contact-info__email` 相对那张卡片的位置也不同 —— 它是 `<section>`
+//      的直接子节点、不在卡片里（`ContactInfoSection.tsx:65` vs `:57`），正文 AC1 那句把它算进
+//      卡片里了。
+//
+// 🔴 **档的分布式子跟前两批同形，但【错开的步长不再等于候选数】。** 前两批用的是
+//    `(i + floor(i/L)) % L`；六族里四族的候选数是 4、两族是 3，而 4 已经被 `split` / `cards` 占了、
+//    3 已经被 `CARD_STYLES` 占了 —— 同式同模的两族会**完全互相决定**（`split` 与 `cards` 今天就是
+//    这样，80/80 套一个不差）。把 floor 里的步长单独拿出来当参数就解开了：本批六族取
+//    m = 2 / 10 / 12 / 16 / 3 / 4，是搜出来的一组，判据与逐对读数由 `sheet-recipes.test.js` ⑨ 钉住。
+
+/**
+ * 第 i 套候选在某一族里挑哪一副骨架。
+ *
+ * `m` 是**错开的步长**，跟候选数 `names.length` 无关。为什么需要它：单纯 `i % L` 会让第 i 套与
+ * 第 i+L 套在相似度那道闸的 `layout` 一项上永远同值（那一项占 0.2 的权重，`gates.js` 的
+ * `WEIGHTS`），所以要加一个 floor 项把它顶开；而 floor 里如果照抄 L，两个候选数相同的族就会
+ * **完全互相决定**（每一档下对方只剩一种取值）。取不同的 m 就把它们解开，同时候选数还能自由选。
+ */
+const lookFor = (names, m) => (i) => names[(i + Math.floor(i / m)) % names.length];
+
+// ── page-header（语料里 602 个实例 · 65/66 个站 · 真客户站 13 次 —— 露面最多的块）────────────────
+//
+// 🔴 它**没有条目列表**，所以骨架的差别是「哪几个部件在场、它们怎么摆」：面包屑
+//    （`PageHeaderSection.tsx:63`，条件渲染）· 标题（`:79`，恒有）· 副标题（`:80`，条件渲染）。
+//    602 个实例里 100 个（17%）没有面包屑 ⟹ **不许主要靠面包屑的位置区分**，那样在这 100 页上
+//    四副会塌成同一副。下面四副在「把面包屑去掉」之后仍然两两不同（AC1c，spec 里有一格量它）。
+const HEADER_LOOKS = {
+  // ① 左对齐堆叠 —— 今天全池那一副骨架，留作候选之一（同 `CTA_LOOKS` 的 `band-left`）。
+  //    `rootExtra` 空着是**故意的**：这一副的产物要跟本票之前逐字节相同，反向对照才有一个已知的锚。
+  'stack-left': { cols: '1fr', rootExtra: () => ({}), partExtra: {} },
+  // ② 居中 —— 标题和副标题都收窄居中。
+  centered: {
+    cols: '1fr',
+    rootExtra: () => ({ 'justify-items': 'center', 'text-align': 'center' }),
+    partExtra: {
+      // 🔴 每一处 `max-width` 都要配 auto 外边距 —— `sheet-recipes.test.js` ④ 那道不变量：
+      //    `text-align` 只管行内内容，带 `max-width` 的块级元素的位置由外边距定。
+      title: () => ({ 'max-width': '48rem', 'margin-left': 'auto', 'margin-right': 'auto' }),
+      sub: () => ({ 'max-width': '34rem', 'margin-left': 'auto', 'margin-right': 'auto' }),
+    },
+  },
+  // ③ 标题在侧 —— 标题和副标题在**同一行**分左右，面包屑占满上面一行。
+  //    🔴 面包屑必须显式写 `1 / -1`：`crumbs` 这个角色自己不写 `grid-column`（不像 `display` /
+  //    `lede`），两栏下它会被自动流塞进第一格、把标题挤到第二格去。
+  'title-side': {
+    cols: '2fr 1fr',
+    rootExtra: () => ({ 'align-items': 'end' }),
+    partExtra: {
+      crumbs: () => ({ 'grid-column': '1 / -1' }),
+      title: () => ({ 'grid-column': 'auto' }),
+      sub: () => ({ 'grid-column': 'auto', 'margin-top': '0', 'max-width': '26rem' }),
+    },
+  },
+  // ④ 副标题在上 —— 副标题当眉题排在标题前面。
+  //    🔴 三个部件**都**要写 `order`（同 `FORM_LOOKS` 的 `panel-left` 那条）：`order` 默认 0，
+  //    只给两个写就会让没写的那个跑到最前面。
+  'kicker-above': {
+    cols: '1fr',
+    rootExtra: () => ({ 'align-items': 'start' }),
+    partExtra: {
+      crumbs: () => ({ order: 1 }),
+      sub: () => ({ order: 2, 'margin-top': '0' }),
+      title: () => ({ order: 3 }),
+    },
+  },
+};
+
+// ── faq-accordion（328 个实例 · 58/66 个站 · 真客户站 8 次；essential 块）───────────────────────
+//
+// 🔴 条目是 `<details>`，而答案（`.faq-accordion__answer`）在**收起状态下根本不渲染**
+//    （`FaqAccordionSection.tsx:97-99` —— `<summary>` 之外的子节点由浏览器自己藏起来）。所以这一族
+//    的骨架差别一律落在**块这一层**和条目自己的宽度上，不靠 question / answer 的相对位置 ——
+//    靠它的话，在没有 `defaultOpen` 的页面上四副全塌。
+const FAQ_LOOKS = {
+  // ① 单栏堆叠 —— 今天全池那一副。
+  stack: { cols: '1fr', rootExtra: () => ({}), partExtra: {} },
+  // ② 两栏问答 —— 标题和引言占满，条目两个一行。
+  'two-column': { cols: '1fr 1fr', rootExtra: () => ({ 'align-items': 'start' }), partExtra: {} },
+  // ③ 标题在侧 —— 标题和引言同一行分左右，条目占满下面各行。
+  'heading-side': {
+    cols: '1fr 2fr',
+    rootExtra: () => ({ 'align-items': 'start' }),
+    partExtra: {
+      headline: () => ({ 'grid-column': 'auto', 'align-self': 'start' }),
+      sub: () => ({ 'grid-column': 'auto', 'margin-top': '0' }),
+      item: () => ({ 'grid-column': '1 / -1' }),
+    },
+  },
+  // ④ 居中窄栏 —— 条目本身收窄居中，但条目里的字仍然靠左（一段问答居中读起来很累）。
+  centered: {
+    cols: '1fr',
+    rootExtra: () => ({ 'justify-items': 'center', 'text-align': 'center' }),
+    partExtra: {
+      headline: () => ({ 'max-width': '44rem', 'margin-left': 'auto', 'margin-right': 'auto' }),
+      sub: () => ({ 'max-width': '34rem', 'margin-left': 'auto', 'margin-right': 'auto' }),
+      item: () => ({
+        width: '100%', 'max-width': '48rem', 'margin-left': 'auto', 'margin-right': 'auto', 'text-align': 'left',
+      }),
+    },
+  },
+};
+
+// ── process-steps（166 个实例 · 56/66 个站 · 真客户站 4 次）──────────────────────────────────────
+//
+// 📌 前两副就是今天那两种长相：这个块在 `SHAPES` 里没写 `cols`，桌面列数落到 `voiceFor` 的
+//    `v.wide`（按 `i % 2` 在 3 栏 / 2 栏之间转）。本表把那一维收进自己手里 —— 于是列数由这个块
+//    自己的骨架决定，而不是跟全站别的无候选块一起转。
+const STEPS_LOOKS = {
+  // ① 三个一行（= 今天 `v.wide` 的 `1fr 1fr 1fr` 那一档）
+  'three-up': { cols: '1fr 1fr 1fr', rootExtra: () => ({}), partExtra: {} },
+  // ② 两个一行（= 今天 `v.wide` 的 `1fr 1fr` 那一档）
+  'two-up': { cols: '1fr 1fr', rootExtra: () => ({}), partExtra: {} },
+  // ③ 编号在侧的长条 —— 一行一步；编号占左边一整格，标题和说明在它右边上下排。
+  //    🔴 编号那条 `grid-row` 是**卡片内部**的落位，跟块根那条 🔴（只许 `auto` 或 `1 / -1`）不冲突：
+  //    卡片自己的两栏网格就写在同一条基础规则里（下面 `step` 那行），所以窄屏上它也是两栏，
+  //    不会长出隐式列。
+  'numbered-rail': {
+    cols: '1fr',
+    rootExtra: () => ({ 'align-items': 'start' }),
+    partExtra: {
+      step: () => ({ 'grid-template-columns': 'auto 1fr', 'align-items': 'start', gap: '0.4rem 1.25rem' }),
+      num: () => ({ 'grid-row': '1 / 3' }),
+    },
+  },
+  // ④ 标题在侧 —— 标题和引言同一行分左右，步骤占满下面各行。
+  'heading-side': {
+    cols: '1fr 2fr',
+    rootExtra: () => ({ 'align-items': 'start' }),
+    partExtra: {
+      headline: () => ({ 'grid-column': 'auto', 'align-self': 'start' }),
+      sub: () => ({ 'grid-column': 'auto', 'margin-top': '0' }),
+      step: () => ({ 'grid-column': '1 / -1' }),
+    },
+  },
+};
+
+// ── benefits-list（144 个实例 · 58/66 个站 · 真客户站 3 次）──────────────────────────────────────
+//
+// 🔴 它跟 `card-group` / `values-grid` 共用**同一个组件**（`registry.ts:66` → `CardGroupSection`），
+//    但**不在 `CARD_BLOCKS` 里**（#1132 有意留在外面）。这里也没有把它并进那一族去复用
+//    `CARD_SHAPES`，理由是量出来的：`CARD_SHAPES` 的 `three-up` 与 `four-up-tight` 在**三条**条目上
+//    读出的坐标关系一模一样（三条摆一行 vs 四栏里摆三条，占宽落在同一档），而 `benefits-list` 在
+//    语料里的条目数下限正好是 3 ⟹ 复用它会让 AC1b 当场塌成两副。所以它自己一张表。
+const BENEFITS_LOOKS = {
+  // ① 两个一行（= 今天 `v.wide` 的 `1fr 1fr` 那一档）
+  'two-up': { cols: '1fr 1fr', rootExtra: () => ({}), partExtra: {} },
+  // ② 三个一行（= 今天 `v.wide` 的 `1fr 1fr 1fr` 那一档）
+  'three-up': { cols: '1fr 1fr 1fr', rootExtra: () => ({}), partExtra: {} },
+  // ③ 一行一条、卡片横过来：标题和说明并排（手法抄 `CARD_SHAPES` 的 `wide-rows`）。
+  'wide-rows': {
+    cols: '1fr',
+    rootExtra: () => ({}),
+    partExtra: {
+      item: () => ({ 'grid-template-columns': '1fr 2fr', 'align-items': 'start', gap: '1.5rem' }),
+    },
+  },
+};
+
+// ── contact-info（138 个实例 · 57/66 个站 · 真客户站 1 次；essential 块）─────────────────────────
+//
+// 🔴 见上面那条 ③：真站上永远只有 1 张卡，所以三副骨架在**卡片内部**分。
+//    `.contact-info__email` 是 `<section>` 的直接子节点（`:65`），不在卡片里 —— 顺带让它相对卡片的
+//    位置也跟着变，这样「`label` / `address` / `phone` / `email` 之间的坐标关系」两种读法都不缺。
+// 📌 ① 的 `rootExtra` / `partExtra` 都空着：这一副的产物跟本票之前逐字节相同。
+const INFO_LOOKS = {
+  // ① 卡片在左、邮箱在右 —— 今天全池那一副（两栏，卡片和邮箱同一行）。
+  'card-then-email': { cols: '1fr 1fr', rootExtra: () => ({}), partExtra: {} },
+  // ② 地点名在侧 —— 卡片内部分两栏：地点名占左边一整格，地址和电话在右边上下排；邮箱落到卡片下面。
+  'label-side': {
+    cols: '1fr',
+    rootExtra: () => ({}),
+    partExtra: {
+      location: () => ({ 'grid-template-columns': 'auto 1fr', 'align-items': 'baseline', gap: '0.35rem 1.5rem' }),
+      label: () => ({ 'grid-row': '1 / 3' }),
+    },
+  },
+  // ③ 电话在前 —— 卡片内部把电话排到最上面，邮箱排到卡片上面。
+  //    🔴 卡片里三个部件**都**写 `order`、块里那两个也都写（同 `panel-left` 那条：`order` 默认 0，
+  //    只写一部分会让没写的那个跑到最前面）。
+  'phone-first': {
+    cols: '1fr 1fr',
+    rootExtra: () => ({}),
+    partExtra: {
+      email: () => ({ order: 1 }),
+      location: () => ({ order: 2 }),
+      phone: () => ({ order: 1 }),
+      label: () => ({ order: 2 }),
+      address: () => ({ order: 3 }),
+    },
+  },
+};
+
+// ── testimonials（108 个实例 · 58/66 个站 · 真客户站 2 次）───────────────────────────────────────
+//
+// 📌 前两副同 `process-steps`：今天这个块的桌面列数也来自 `v.wide`。
+const TESTIMONIAL_LOOKS = {
+  // ① 三个一行（= 今天 `v.wide` 的 `1fr 1fr 1fr` 那一档）
+  'three-up': { cols: '1fr 1fr 1fr', rootExtra: () => ({}), partExtra: {} },
+  // ② 两个一行（= 今天 `v.wide` 的 `1fr 1fr` 那一档）
+  'two-up': { cols: '1fr 1fr', rootExtra: () => ({}), partExtra: {} },
+  // ③ 引语在左、评分和署名在右 —— 一行一条，卡片横过来。
+  //    卡片里五个部件（rating / quote / name / meta / service，`TestimonialsSection.tsx:73-85`），
+  //    引语占左栏竖着跨满，其余四个顺着排在右栏 —— 所以 `grid-row` 是 `1 / 5`。
+  'quote-rail': {
+    cols: '1fr',
+    rootExtra: () => ({}),
+    partExtra: {
+      item: () => ({ 'grid-template-columns': '2fr 1fr', 'align-items': 'start', gap: '0.5rem 2rem' }),
+      quote: () => ({ 'grid-column': '1', 'grid-row': '1 / 5' }),
+    },
+  },
+  // ④ 署名在前 —— 卡片内部把名字和身份排到引语上面（五个部件都写 `order`）。
+  'attribution-first': {
+    cols: '1fr 1fr',
+    rootExtra: () => ({}),
+    partExtra: {
+      name: () => ({ order: 1 }),
+      meta: () => ({ order: 2 }),
+      rating: () => ({ order: 3 }),
+      quote: () => ({ order: 4 }),
+      service: () => ({ order: 5 }),
+    },
+  },
+};
+
+// 六族各自的档位。**这里是唯一说得出「第 i 套是哪一副」的地方**（同 hero / split / cards / cta /
+// form 那几行的纪律）：名字表就是那张画法表自己的键，不另抄一份清单。
+// 🔴 m（错开的步长）是搜出来的，不是随手取的 —— 判据是「跟已有的每一族、以及本批彼此，都不互相
+//    决定（每一档下对方至少还有 2 种取值）」，而且每一档的池内占比 ≥15%（AC2）。实测这一组：
+//    候选数 4 的三族分布都是 20/20/20/20（最小档 25.0%），候选数 3 的两族是 27/26/27（32.5%）。
+const HEADER_LOOK_NAMES = Object.keys(HEADER_LOOKS);
+const FAQ_LOOK_NAMES = Object.keys(FAQ_LOOKS);
+const STEPS_LOOK_NAMES = Object.keys(STEPS_LOOKS);
+const BENEFITS_LOOK_NAMES = Object.keys(BENEFITS_LOOKS);
+const INFO_LOOK_NAMES = Object.keys(INFO_LOOKS);
+const TESTIMONIAL_LOOK_NAMES = Object.keys(TESTIMONIAL_LOOKS);
+const headerLookFor = lookFor(HEADER_LOOK_NAMES, 2);
+const faqLookFor = lookFor(FAQ_LOOK_NAMES, 10);
+const stepsLookFor = lookFor(STEPS_LOOK_NAMES, 12);
+const testimonialLookFor = lookFor(TESTIMONIAL_LOOK_NAMES, 16);
+const benefitsLookFor = lookFor(BENEFITS_LOOK_NAMES, 3);
+const infoLookFor = lookFor(INFO_LOOK_NAMES, 4);
+
 // 三个块一组的深浅节奏，而不是简单的隔一个换一个 —— 后者让每套候选的节奏都一样。
 // 🔴 有 5 组而不是 3 组，是为了让**表本身**的周期够长，理由在 voiceFor 上面那段。
 const RHYTHMS = [
@@ -346,6 +606,15 @@ function voiceFor(i) {
     //    模数 5 / 6 是量出来的，不是随手取的（理由整段在 CTA_LOOKS 上面那条 🔴）。
     ctaLook: ctaLookFor(i),
     formLook: formLookFor(i),
+    // #1139 —— 真站上露面最多那六块的画法档。同上一条纪律：这里是唯一的出口。
+    //    这六族的「错开步长」m 各不相同，而且都不等于自己的候选数 —— 理由整段在 HEADER_LOOKS
+    //    上面那条 🔴（同式同模的两族会完全互相决定）。
+    headerLook: headerLookFor(i),
+    faqLook: faqLookFor(i),
+    stepsLook: stepsLookFor(i),
+    benefitsLook: benefitsLookFor(i),
+    infoLook: infoLookFor(i),
+    testimonialLook: testimonialLookFor(i),
     // 表面明暗的轮换相位：块按页面顺序深/浅交替，相位一换，整站的节奏就不一样了。
     // 🔴 取 `% 3` 而不是 `% 2`：相位是拿去转 rhythm 那三格的，`% 2` 永远转不到第三格。
     phase: i % 3,
@@ -992,8 +1261,45 @@ const heroLayoutFor = (i) => HERO_LOOKS[heroLookFor(i)].content;
 /** 轴一的取值表（去重、按外观表的出场顺序）。判据是 `blocks/hero.json` 的 `block_layout`。 */
 const HERO_LAYOUTS = [...new Set(HERO_LOOK_NAMES.map((n) => HERO_LOOKS[n].content))];
 
-// 三族各有候选表（hero 归 #1065 · content-split 与卡片组归 #1090）；其余 30 个块仍然直接用
-// SHAPES 里那条。
+/**
+ * 有画法候选的块族 —— **一处定义**（#1139）。
+ *
+ * 🔴 这张表在的理由：`shapeFor` 的派发、`sheet-recipes.test.js` ⑨ 那格的占比/解耦检查、以及 ⑫ 那格
+ *    「本批六块的骨架种数」都要知道「哪些块有候选表、它的档从哪个 voice 键取」。#1135 之前这份清单
+ *    被抄了两遍（`shapeFor` 里一串 if，加上 ⑨ 那格里手写的 `rows`），而**漏抄一族的样子跟通过一模
+ *    一样**：那一族就不在检查射程内，格子照样绿。同族的账本仓记过一笔（`templates/nextjs/package.json`
+ *    的 `lint:scripts` 也是一张手抄清单，一天内撞车四次：#1096 / #1121 / #1125 / #1126）。
+ *
+ * · `key`        这一族的档存在 `voiceFor` 的哪个键上
+ * · `blocks`     哪几个块用这张表（卡片组那一族是 4 个块共用一张）
+ * · `table`      画法表本身
+ * · `pick`       第 i 套挑哪一副（`voiceFor` 用它，测试用它算分布）
+ * · `keepsWide`  换画法时不许把 `@media (min-width: 1024px)` 那一段丢掉（#1090 r2 的那个退步）。
+ *   🔴 取值不是口味，是量出来的：**这个块在本票之前就有那一段吗**。有（`cols` 不是单栏，或者
+ *   压根没写 `cols` 而落到 `v.wide`）⟹ true，否则单栏画法会把桌面留白一起弄丢。本票之前就
+ *   没有那一段的（`page-header` / `faq-accordion`，`SHAPES` 里 `cols` 就是 `'1fr'`）⟹ false：
+ *   传 true 会给这两个块**凭空加上**一段它今天没有的桌面留白，而那不是本票要做的事。
+ *   hero 是唯一的例外，它归 #1065：它那些纯文字画法今天本来就没有桌面那一段。
+ */
+const LOOK_FAMILIES = [
+  { key: 'heroLook', blocks: ['hero'], table: HERO_LOOKS, pick: heroLookFor, keepsWide: false },
+  { key: 'split', blocks: ['content-split'], table: SPLIT_SHAPES, pick: splitLayoutFor, keepsWide: true },
+  { key: 'cards', blocks: CARD_BLOCKS, table: CARD_SHAPES, pick: cardGridFor, keepsWide: true },
+  { key: 'ctaLook', blocks: ['cta-banner'], table: CTA_LOOKS, pick: ctaLookFor, keepsWide: true },
+  { key: 'formLook', blocks: ['contact-form'], table: FORM_LOOKS, pick: formLookFor, keepsWide: true },
+  // #1139
+  { key: 'headerLook', blocks: ['page-header'], table: HEADER_LOOKS, pick: headerLookFor, keepsWide: false },
+  { key: 'faqLook', blocks: ['faq-accordion'], table: FAQ_LOOKS, pick: faqLookFor, keepsWide: false },
+  { key: 'stepsLook', blocks: ['process-steps'], table: STEPS_LOOKS, pick: stepsLookFor, keepsWide: true },
+  { key: 'benefitsLook', blocks: ['benefits-list'], table: BENEFITS_LOOKS, pick: benefitsLookFor, keepsWide: true },
+  { key: 'infoLook', blocks: ['contact-info'], table: INFO_LOOKS, pick: infoLookFor, keepsWide: true },
+  { key: 'testimonialLook', blocks: ['testimonials'], table: TESTIMONIAL_LOOKS, pick: testimonialLookFor, keepsWide: true },
+];
+
+/** 这个块属于哪一族（没有候选表就是 undefined）。 */
+const familyOf = (block) => LOOK_FAMILIES.find((f) => f.blocks.includes(block));
+
+// 有候选表的族见上面那张 `LOOK_FAMILIES`；其余的块仍然直接用 SHAPES 里那条。
 // 🔴 挑出来的名字必须在对应那张候选表里 —— 落回默认等于又一次「名字说一套、画的是另一样」，
 //    所以这里宁可当场炸，也不悄悄拿第一种顶上。
 function shapeFor(block, v) {
@@ -1012,18 +1318,14 @@ function shapeFor(block, v) {
       keepsWideBreakpoint,
     };
   };
-  // 🔴 hero 不传 true：它归 #1065，它那些纯文字画法今天本来就没有宽屏那一段，本票不改它的产物。
+  // 🔴 每一族传什么 `keepsWide`、为什么，整段写在 `LOOK_FAMILIES` 上面 —— 这里不再是一串 if，
+  //    所以「加了一族却忘了在别处补一行」这个错法写不出来了（#1139）。
+  //    hero 传 false：它归 #1065，它那些纯文字画法今天本来就没有宽屏那一段，本票不改它的产物。
   //    `SHAPES.hero` 没有 `partExtra`（实测），所以上面那行 spread 对 hero 等价于 #1065 那版的
-  //    `partExtra: hero.partExtra` —— 这一条单独量过，见交接留言。
-  if (block === 'hero') return pick(HERO_LOOKS, v.heroLook, 'hero');
-  if (block === 'content-split') return pick(SPLIT_SHAPES, v.split, 'content-split', true);
-  if (CARD_BLOCKS.includes(block)) return pick(CARD_SHAPES, v.cards, block, true);
-  // #1135 —— 两族都传 `true`：它们的候选里有单栏形态（`band-left` / `band-center` / `action-first`
-  //    / `panel-below` / `centered-narrow`），而 `:1257` 那个判据只问列数 ⟹ 不传就把整段桌面留白
-  //    一起丢掉，也就是 #1090 r2 那次回归原样重演。
-  if (block === 'cta-banner') return pick(CTA_LOOKS, v.ctaLook, 'cta-banner', true);
-  if (block === 'contact-form') return pick(FORM_LOOKS, v.formLook, 'contact-form', true);
-  return base;
+  //    `partExtra: hero.partExtra` —— 这一条单独量过，见 #1090 的交接留言。
+  const fam = familyOf(block);
+  if (!fam) return base;
+  return pick(fam.table, v[fam.key], block, fam.keepsWide);
 }
 
 // 后缀 → 默认角色。块可以在 SHAPES 里改写个别部件；改写只是为了说清那个部件真正是什么
@@ -1499,4 +1801,13 @@ module.exports = {
   formLookFor, FORM_LOOKS, FORM_LOOK_NAMES,
   layoutNamesFor, SPLIT_LAYOUTS, SPLIT_RHYTHMS, CARD_GRIDS, CARD_BLOCKS,
   surfaceFor, SURFACES, INK_FLOOR,
+  // #1139 —— 六族的表 / 名字 / 挑法，以及那张「哪些块有候选表」的注册表（测试从它派生族清单，
+  // 不再手抄；理由整段在 LOOK_FAMILIES 上面）。
+  HEADER_LOOKS, HEADER_LOOK_NAMES, headerLookFor,
+  FAQ_LOOKS, FAQ_LOOK_NAMES, faqLookFor,
+  STEPS_LOOKS, STEPS_LOOK_NAMES, stepsLookFor,
+  BENEFITS_LOOKS, BENEFITS_LOOK_NAMES, benefitsLookFor,
+  INFO_LOOKS, INFO_LOOK_NAMES, infoLookFor,
+  TESTIMONIAL_LOOKS, TESTIMONIAL_LOOK_NAMES, testimonialLookFor,
+  LOOK_FAMILIES, familyOf,
 };

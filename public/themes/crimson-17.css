@@ -569,6 +569,7 @@
   border-width: 0 0 2px;
   border-style: solid;
   border-color: var(--color-primary-700);
+  order: 2;
 }
 
 .contact-info__label {
@@ -577,12 +578,14 @@
   text-transform: none;
   letter-spacing: 0;
   color: var(--color-primary-100);
+  order: 2;
 }
 
 .contact-info__address {
   font-size: 0.9375rem;
   line-height: 1.65;
   color: var(--color-primary-100);
+  order: 3;
 }
 
 .contact-info__phone {
@@ -594,6 +597,7 @@
   border-style: solid;
   border-color: var(--color-accent-300);
   color: var(--color-accent-300);
+  order: 1;
 }
 
 .contact-info__email {
@@ -605,6 +609,7 @@
   border-style: solid;
   border-color: var(--color-accent-300);
   color: var(--color-accent-300);
+  order: 1;
 }
 
 .stats-counter {
@@ -673,7 +678,7 @@
 
 @media (min-width: 1024px) {
   .process-steps {
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr;
     gap: calc(var(--section-block-gap) * 6);
     padding: calc(var(--section-block-pad) * 7) 3rem;
   }
@@ -807,7 +812,7 @@
 
 @media (min-width: 1024px) {
   .benefits-list {
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr;
     gap: calc(var(--section-block-gap) * 6);
     padding: calc(var(--section-block-pad) * 7) 3rem;
   }
@@ -1517,6 +1522,15 @@
   padding: calc(var(--section-block-pad) * 5) 1.5rem;
   background-color: var(--color-primary-900);
   color: var(--color-primary-50);
+  align-items: start;
+}
+
+@media (min-width: 1024px) {
+  .faq-accordion {
+    grid-template-columns: 1fr 1fr;
+    gap: calc(var(--section-block-gap) * 6);
+    padding: calc(var(--section-block-pad) * 7) 3rem;
+  }
 }
 
 .faq-accordion__headline {
@@ -1572,7 +1586,7 @@
 
 @media (min-width: 1024px) {
   .testimonials {
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr;
     gap: calc(var(--section-block-gap) * 6);
     padding: calc(var(--section-block-pad) * 7) 3rem;
   }

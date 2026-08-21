@@ -557,6 +557,7 @@
   border-width: 0 0 2px;
   border-style: solid;
   border-color: var(--color-primary-200);
+  order: 2;
 }
 
 .contact-info__label {
@@ -565,12 +566,14 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--color-primary-800);
+  order: 2;
 }
 
 .contact-info__address {
   font-size: 0.9375rem;
   line-height: 1.65;
   color: var(--color-primary-800);
+  order: 3;
 }
 
 .contact-info__phone {
@@ -582,6 +585,7 @@
   border-style: solid;
   border-color: var(--color-primary-600);
   color: var(--color-primary-600);
+  order: 1;
 }
 
 .contact-info__email {
@@ -593,6 +597,7 @@
   border-style: solid;
   border-color: var(--color-primary-600);
   color: var(--color-primary-600);
+  order: 1;
 }
 
 .stats-counter {
@@ -661,7 +666,7 @@
 
 @media (min-width: 1024px) {
   .process-steps {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
     gap: calc(var(--section-block-gap) * 12);
     padding: calc(var(--section-block-pad) * 11.2) 3rem;
   }
@@ -795,7 +800,7 @@
 
 @media (min-width: 1024px) {
   .benefits-list {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: calc(var(--section-block-gap) * 12);
     padding: calc(var(--section-block-pad) * 11.2) 3rem;
   }
@@ -823,12 +828,14 @@
 .benefits-list__item {
   display: grid;
   align-content: start;
-  gap: 0.75rem;
+  gap: 1.5rem;
   padding: 0 0 1.5rem;
   border-radius: 0;
   border-width: 0 0 2px;
   border-style: solid;
   border-color: var(--color-primary-700);
+  grid-template-columns: 1fr 2fr;
+  align-items: start;
 }
 
 .benefits-list__title {
@@ -1510,6 +1517,15 @@
   padding: calc(var(--section-block-pad) * 8) 1.5rem;
   background-color: var(--color-primary-50);
   color: var(--color-primary-900);
+  align-items: start;
+}
+
+@media (min-width: 1024px) {
+  .faq-accordion {
+    grid-template-columns: 1fr 1fr;
+    gap: calc(var(--section-block-gap) * 12);
+    padding: calc(var(--section-block-pad) * 11.2) 3rem;
+  }
 }
 
 .faq-accordion__headline {
@@ -1605,6 +1621,7 @@
   display: flex;
   align-items: center;
   gap: 0.25rem;
+  order: 3;
 }
 
 .testimonials__star {
@@ -1618,6 +1635,7 @@
   line-height: 1.7;
   font-style: italic;
   color: var(--color-primary-50);
+  order: 4;
 }
 
 .testimonials__name {
@@ -1626,12 +1644,14 @@
   line-height: 1.3;
   font-weight: 700;
   color: var(--color-primary-50);
+  order: 1;
 }
 
 .testimonials__meta {
   font-size: 0.8125rem;
   line-height: 1.5;
   color: var(--color-primary-100);
+  order: 2;
 }
 
 .testimonials__service {
@@ -1644,6 +1664,7 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--color-primary-900);
+  order: 5;
 }
 
 .announcement-bar {

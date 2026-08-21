@@ -149,12 +149,14 @@
   padding: calc(var(--section-block-pad) * 6) 1.5rem;
   background-color: var(--color-primary-50);
   color: var(--color-primary-900);
+  align-items: start;
 }
 
 .page-header__crumbs {
   font-size: 0.8125rem;
   letter-spacing: 0.02em;
   color: var(--color-primary-800);
+  order: 1;
 }
 
 .page-header__title {
@@ -165,15 +167,17 @@
   font-weight: 900;
   letter-spacing: -0.02em;
   color: var(--color-primary-900);
+  order: 3;
 }
 
 .page-header__sub {
   grid-column: 1 / -1;
   max-width: 36rem;
-  margin-top: 0.75rem;
+  margin-top: 0;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-800);
+  order: 2;
 }
 
 .contact-form {
@@ -1458,6 +1462,15 @@
   padding: calc(var(--section-block-pad) * 6) 1.5rem;
   background-color: var(--color-primary-800);
   color: var(--color-primary-50);
+  align-items: start;
+}
+
+@media (min-width: 1024px) {
+  .faq-accordion {
+    grid-template-columns: 1fr 1fr;
+    gap: calc(var(--section-block-gap) * 7.5);
+    padding: calc(var(--section-block-pad) * 8.4) 3rem;
+  }
 }
 
 .faq-accordion__headline {

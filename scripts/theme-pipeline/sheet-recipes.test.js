@@ -57,6 +57,7 @@ let sheetFor; let voiceFor; let heroLayoutFor; let HERO_LAYOUTS; let postcss; le
 let CARD_BLOCKS; let layoutNamesFor;
 let heroLookFor; let HERO_LOOK_NAMES; let HERO_LOOKS;
 let ctaLookFor; let CTA_LOOK_NAMES; let formLookFor; let FORM_LOOK_NAMES;   // #1135
+let LOOK_FAMILIES;                                                          // #1139
 
 let pass = 0; let fail = 0;
 const ok = (m) => { pass += 1; console.log(`  ✅ ${m}`); };
@@ -68,6 +69,7 @@ try {
     sheetFor, voiceFor, heroLayoutFor, HERO_LAYOUTS, CARD_BLOCKS, layoutNamesFor,
     heroLookFor, HERO_LOOK_NAMES, HERO_LOOKS,
     ctaLookFor, CTA_LOOK_NAMES, formLookFor, FORM_LOOK_NAMES,
+    LOOK_FAMILIES,
   } = require(path.join(DIR, 'sheet-recipes.js')));
   ({ paletteFor } = require(path.join(DIR, 'palette.js')));
   postcss = require('postcss');
@@ -123,10 +125,20 @@ const TRIO = [];                                   // 每种画法一个序号�
   // 🔴 #1135 起再多两个（`ctaLook` / `formLook`，模数 5 和 6）—— 同上，把它们并进 240 的周期里
   //    要 lcm(60,5,6)=60 …… 而 5 和 6 都整除不了 8，实测沿任何步长都造不出「连这两个键也相同」
   //    且覆盖 8 种画法的一列。放宽同样要付代价：下面那格的执照现在连这两个键一起证。
-  const ALLOWED = ['cards', 'ctaLook', 'formLook', 'hero', 'heroLook', 'split', 'splitRhythm'];
-  if (differing.sort().join(',') !== ALLOWED.join(',')) {
-    die(`夹具不成立：这一列的 voice 差在 [${differing.join(', ')}]，应当只差 [${ALLOWED.join(', ')}]。`
-      + `各档的模数改过之后，这里的 ${VOICE_PERIOD} 要跟着重算（周期 = lcm(各档模数)）。`);
+  // 🔴 #1139 —— 这张名单**从注册表派生**，不再手抄（`LOOK_FAMILIES` 上面那段写了理由）；
+  //    并且判据从「集合恰好相等」改成「差的那些键都在名单里」。为什么要改：
+  //    这一格要拦的是**本该恒定的键动了**（那说明 60 这个周期过期了，读数不作数）。而「恰好相等」
+  //    还额外要求每个画法键都**真的**在这一列上变 —— 那是一条跟本格无关的算术巧合：本批六族的
+  //    错开步长各不相同，`infoLook` 的 `(i + floor(i/4)) % 3` 沿 i+60 走恰好恒为同一档
+  //    （i=0 / 60 / 120 都算出 0）。第一版我按「恰好相等」写，这一格当场退 2，而它抱怨的那件事
+  //    （某个画法键**没**变）对隔离 hero 变量毫无影响 —— 少变一个键只会让这一列更干净。
+  const LOOK_KEYS = LOOK_FAMILIES.map((f) => f.key);
+  const ALLOWED = [...LOOK_KEYS, 'hero', 'splitRhythm'].sort();
+  const strayed = differing.filter((k) => !ALLOWED.includes(k));
+  if (strayed.length) {
+    die(`夹具不成立：这一列的 voice 差在 [${differing.join(', ')}]，其中 [${strayed.join(', ')}] `
+      + `不在允许清单 [${ALLOWED.join(', ')}] 里。各档的模数改过之后，这里的 ${VOICE_PERIOD} `
+      + '要跟着重算（周期 = lcm(各档模数)）。');
   }
 }
 
@@ -136,7 +148,9 @@ const TRIO = [];                                   // 每种画法一个序号�
 // #1135 起这张名单里多了 `ctaLook` / `formLook` —— 执照要证的事一个字没变：**这几个键变了，
 // hero 规则不许跟着变**。它们由 `shapeFor` 按块派发，按构造够不着 hero，而「按构造」这三个字
 // 本身就是要被量的那个东西。
-const SPLIT_KEYS = ['split', 'splitRhythm', 'cards', 'ctaLook', 'formLook'];
+// #1139 —— 同样从注册表派生：hero 之外**每一族**的档，加上同页节奏。手抄的那一版每加一族都要有人
+// 记得回来补一个名字，而漏掉的样子是「执照照样发得出来」（那一族变了却没被证明够不着 hero 规则）。
+const SPLIT_KEYS = [...LOOK_FAMILIES.map((f) => f.key).filter((k) => k !== 'heroLook'), 'splitRhythm'];
 {
   const J = JSON.stringify;
   const keys = Object.keys(voiceFor(0));
@@ -617,6 +631,11 @@ const formPlacementProblems = (rules) => {
 //    谁加画法、加在哪张表里，漏掉桌面那一段都会当场红。
 // 🔴 hero **不在**这一格的分母里，而且这是有意的：它归 #1065，它那 53 套纯文字画法今天本来就没有
 //    桌面那一段（27/80 有）。把它算进来等于要求本票去改另一张票的产物。
+// 🔴 #1139 —— 分母**从注册表派生**：`keepsWide` 为真的每一族。原来这里写死的是
+//    `['content-split', ...CARD_BLOCKS]`，每加一族都得有人记得回来补一个名字，而漏掉那一族的
+//    样子跟通过一模一样。派生之后「加了一族却忘了在别处补一行」这个错法写不出来了。
+//    📌 `keepsWide` 为假的那几族（hero / page-header / faq-accordion）不在这里，理由各自写在
+//    `LOOK_FAMILIES` 上面那段：它们在本票之前就没有桌面那一段，这一格要求的东西对它们不成立。
 const WIDE_AT = /min-width:\s*1024px/;
 const hasWideRule = (css, block) => {
   let found = false;
@@ -629,27 +648,37 @@ const hasWideRule = (css, block) => {
 console.log('\n⑦ 换画法之后，桌面那一段还在吗（#1090 r2）');
 {
   const N = 80;
-  const FAMILIES = ['content-split', ...CARD_BLOCKS];
+  const KEEPERS = LOOK_FAMILIES.filter((f) => f.keepsWide);
+  const FAMILIES = KEEPERS.flatMap((f) => f.blocks);
   const sheets = [];
-  for (let i = 0; i < N; i += 1) sheets.push({ i, css: sheetFor(i), looks: layoutNamesFor(i) });
+  for (let i = 0; i < N; i += 1) sheets.push({ i, css: sheetFor(i), v: voiceFor(i) });
+  /** 第 i 套在这个块所属那一族里挑的那副画法（读注册表，不读写死的 layoutNamesFor 四个键）。 */
+  const lookOn = (x, block) => {
+    const f = LOOK_FAMILIES.find((g) => g.blocks.includes(block));
+    return f ? `${f.key}=${x.v[f.key]}` : '（无候选表）';
+  };
   const missing = [];
   for (const fam of FAMILIES) {
     const bad2 = sheets.filter((x) => !hasWideRule(x.css, fam));
     if (bad2.length) {
       missing.push(`${fam}: ${bad2.length}/${N} 套没有 @media(min-width:1024px) 那一段`
-        + `（例 i=${bad2[0].i}，画法 split=${bad2[0].looks.split} cards=${bad2[0].looks.cards}）`);
+        + `（例 i=${bad2[0].i}，${lookOn(bad2[0], fam)}）`);
     }
   }
   if (missing.length) missing.forEach((m) => bad(m));
   else {
     // 顺带把每种画法都点名，免得「全过」是因为某种画法一套都没摊到
     const byLook = {};
-    for (const x of sheets) {
-      byLook[x.looks.split] = (byLook[x.looks.split] || 0) + 1;
-      byLook[x.looks.cards] = (byLook[x.looks.cards] || 0) + 1;
+    for (const f of KEEPERS) {
+      for (const x of sheets) {
+        const k = `${f.key}:${x.v[f.key]}`;
+        byLook[k] = (byLook[k] || 0) + 1;
+      }
     }
-    ok(`${FAMILIES.length} 个块族 × ${N} 套：每一份表里桌面那一段都在（画法分布 `
-      + `${Object.entries(byLook).map(([k, n]) => `${k} ${n}`).join(' · ')}）`);
+    const thin = Object.entries(byLook).filter(([, n]) => n === 0);
+    if (thin.length) bad(`这些画法一套都没摊到：${thin.map(([k]) => k).join(' ')} —— 「全过」是空绿`);
+    ok(`${FAMILIES.length} 个块族（${KEEPERS.length} 族 · keepsWide 为真的那些）× ${N} 套：`
+      + `每一份表里桌面那一段都在（画法分布 ${Object.entries(byLook).map(([k, n]) => `${k} ${n}`).join(' · ')}）`);
   }
 
   // 阳性对照：把判据退回「只问列数」那一版，这把尺必须当场红，而且红的正是那三个单栏画法所在的族。
@@ -664,12 +693,14 @@ console.log('\n⑦ 换画法之后，桌面那一段还在吗（#1090 r2）');
     });
     return root.toString();
   };
-  const SINGLE_COL = new Set(['media-top', 'narrow-stack', 'wide-rows']);
+  // 🔴 「这一套里哪些块选了单栏画法」也从注册表算，不再手抄画法名（原来是写死的
+  //    `new Set(['media-top','narrow-stack','wide-rows'])`）—— 判据是那副画法自己的 `cols`。
+  const singlesOn = (x) => KEEPERS.flatMap((f) => (
+    f.table[x.v[f.key]].cols === '1fr' ? f.blocks : []));
   let caught = 0;
   let shouldCatch = 0;
   for (const x of sheets) {
-    const singles = FAMILIES.filter((fam) => (fam === 'content-split'
-      ? SINGLE_COL.has(x.looks.split) : SINGLE_COL.has(x.looks.cards)));
+    const singles = singlesOn(x);
     if (singles.length === 0) continue;
     shouldCatch += 1;
     let rigged = x.css;
@@ -772,32 +803,45 @@ console.log('\n⑨ #1135 两族的分布：每档都够多，而且没有哪一�
   }
 
   // ── AC2：每一档的池内占比 ≥15% ───────────────────────────────────────────────────────────────
+  //
+  // 🔴 #1139 —— 族清单**从注册表派生**，不再手写。原来这里是两行写死的 `rows`，每加一族都得有人
+  //    记得回来补一行，而漏掉那一族的样子跟通过一模一样（它就不在射程内，格子照样绿）。同族的账
+  //    本仓记过一笔：`templates/nextjs/package.json` 的 `lint:scripts` 也是一张手抄清单，一天内
+  //    撞车四次（#1096 / #1121 / #1125 / #1126）。
   {
     const FLOOR = 0.15;
-    const rows = [
-      ['cta-banner', ctaLookFor, CTA_LOOK_NAMES.length],
-      ['contact-form', formLookFor, FORM_LOOK_NAMES.length],
-    ];
+    // 🔴 hero 不受这条地板管，而且这个例外要写在明处：它有 8 副画法（#1065 定的，早于这条地板），
+    //    80 / 8 = 10 套 = 12.5%。把它算进来这一格会**恒红**，而它红的不是本票也不是 #1135 要治的
+    //    东西。它的读数照样打出来，只是不判。
+    const FLOOR_EXEMPT = new Map([['heroLook', '#1065 定的 8 副画法早于这条地板']]);
+    const rows = LOOK_FAMILIES.map((f) => ({
+      name: f.blocks.join(' / '), key: f.key, fn: f.pick, L: Object.keys(f.table).length,
+    }));
     const problems = [];
     const said = [];
-    for (const [name, fn, L] of rows) {
-      const d = dist(fn, L);
-      if (d.archs !== L) problems.push(`${name}：${L} 种候选里只轮到 ${d.archs} 种`);
+    const exempt = [];
+    for (const r of rows) {
+      const d = dist(r.fn, r.L);
       const floor = d.counts[0] / POOL;
-      said.push(`${name} ${d.archs} 档 · ${d.counts.join('/')} · 最小档 ${(floor * 100).toFixed(1)}%`);
+      const line = `${r.name} ${d.archs} 档 · ${d.counts.join('/')} · 最小档 ${(floor * 100).toFixed(1)}%`;
+      if (FLOOR_EXEMPT.has(r.key)) { exempt.push(`${line}（不判：${FLOOR_EXEMPT.get(r.key)}）`); continue; }
+      said.push(line);
+      if (d.archs !== r.L) problems.push(`${r.name}：${r.L} 种候选里只轮到 ${d.archs} 种`);
       if (floor < FLOOR) {
-        problems.push(`${name}：最小那一档只占 ${(floor * 100).toFixed(1)}%，低于 ${FLOOR * 100}% `
+        problems.push(`${r.name}：最小那一档只占 ${(floor * 100).toFixed(1)}%，低于 ${FLOOR * 100}% `
           + '（AC2）—— 候选数与池子大小的关系：每档 = 池子/候选数，所以候选数最多 6');
       }
     }
-    if (problems.length === 0) ok(`⑨ AC2：${said.join(' · ')} —— 都 ≥${FLOOR * 100}%`);
-    else problems.forEach(bad);
+    if (problems.length === 0) {
+      ok(`⑨ AC2：${rows.length - exempt.length} 族逐族 —— ${said.join(' · ')} —— 都 ≥${FLOOR * 100}%`);
+      ok(`⑨ AC2 例外（打读数不判）：${exempt.join(' · ')}`);
+    } else problems.forEach(bad);
 
     // 反向对照：把候选数当成 7（超过 6）会破 —— 证明这一格不是恒绿
     const seven = dist((i) => rot(i, 7), 7);
     if (seven.counts[0] / POOL < FLOOR) {
       ok(`⑨ AC2 反向对照：同一条式子取 7 档时最小档 ${(seven.counts[0] / POOL * 100).toFixed(1)}% < 15% `
-        + '⟹ 这一格真的会因为候选太多而红（今天两族取 5 / 6 是量出来的上限内）');
+        + '⟹ 这一格真的会因为候选太多而红（今天各族的候选数都在量出来的上限内）');
     } else {
       bad('⑨ AC2 反向对照失败：7 档也过得了 15% —— 这一格量不出「候选太多」这件事');
     }
@@ -808,6 +852,10 @@ console.log('\n⑨ #1135 两族的分布：每档都够多，而且没有哪一�
   // 🔴 判据是**互不决定**，不是「所有组合都出现」。80 套装不下 hero(8) × form(6) 的 48 种全部组合，
   //    拿「组合齐全」当判据会得出一个做不到的要求。正文说的是「别让『hero 选了 A』连带『cta 必是 B』」
   //    —— 那就是「X 的每一个取值下，Y 至少还有 2 种取值」，两向都要。
+  //
+  // 🔴 #1139 —— 从「只判本票那两族」改成**全部两两都判**，另加一张写在明处的已知例外表。
+  //    原来那版用 `MINE = ['cta','form']` 圈定射程，于是任何**不在** MINE 里的新族都自动免检，
+  //    而免检的样子跟通过一模一样。现在反过来：默认全判，要免检就得在下面这张表里留下名字和理由。
   {
     const notDet = (f, g) => {
       const m = new Map();
@@ -818,38 +866,41 @@ console.log('\n⑨ #1135 两族的分布：每档都够多，而且没有哪一�
       return Math.min(...[...m.values()].map((s) => s.size));
     };
     const mutual = (f, g) => Math.min(notDet(f, g), notDet(g, f));
-    const fams = {
-      cta: ctaLookFor,
-      form: formLookFor,
-      hero: heroLookFor,
-      cards: (i) => voiceFor(i).cards,
-      split: (i) => voiceFor(i).split,
-      cardStyle: (i) => voiceFor(i).card,
-    };
-    const MINE = ['cta', 'form'];
+    const fams = Object.fromEntries(LOOK_FAMILIES.map((f) => [f.key, f.pick]));
+    // `CARD_STYLES` 不是画法族（它是卡片形态那一档），但它同样是一条会跟别族撞模数的轴，所以一起判。
+    fams.cardStyle = (i) => voiceFor(i).card;
+    // 🔴 已知例外，逐条带理由。**本票之前就是这样，不是这里引入的**：`split` 与 `cards` 都用
+    //    `(i + floor(i/4)) % 4`，同式同模 ⟹ 两族的档完全互相决定（实测 80/80 套一个不差）。
+    //    本票不动这一对（那会改掉 content-split 与卡片组的产物，圈外），但把它记在这里 ——
+    //    默认全判之后，不写在这儿它就会让这一格红。
+    const KNOWN = new Map([['cards|split', '#1090 起两族同式同模（都是 4），本票不动它们的产物']]);
+    const keys = Object.keys(fams);
     const problems = [];
     const readings = [];
-    for (const a of MINE) {
-      for (const b of Object.keys(fams)) {
-        if (a === b) continue;
-        if (MINE.includes(b) && b < a) continue;              // 同一对只判一次
-        const min = mutual(fams[a], fams[b]);
-        readings.push(`${a}↔${b} ${min}`);
+    const excused = [];
+    for (let a = 0; a < keys.length; a += 1) {
+      for (let b2 = a + 1; b2 < keys.length; b2 += 1) {
+        const pair = [keys[a], keys[b2]].sort().join('|');
+        const min = mutual(fams[keys[a]], fams[keys[b2]]);
+        if (KNOWN.has(pair)) { excused.push(`${pair} ${min}（${KNOWN.get(pair)}）`); continue; }
+        readings.push(`${keys[a]}↔${keys[b2]} ${min}`);
         if (min < 2) {
-          problems.push(`${a} 与 ${b} 互相决定（某一档下对方只剩 ${min} 种取值）——`
-            + '同式同模的两族会这样，模数必须避开已被占的（今天 split/cards 是 4、cardStyle 是 3）');
+          problems.push(`${keys[a]} 与 ${keys[b2]} 互相决定（某一档下对方只剩 ${min} 种取值）——`
+            + '同式同模的两族会这样，错开的步长必须避开已被占的');
         }
       }
     }
     if (problems.length === 0) {
-      ok(`⑨ 解耦：本票两族跟别的族两两互不决定（每档下对方至少 2 种，读数 ${readings.join(' · ')}）`);
+      ok(`⑨ 解耦：${keys.length} 条轴两两互不决定，共 ${readings.length} 对（每档下对方至少 2 种）`);
+      ok(`⑨ 解耦逐对读数：${readings.join(' · ')}`);
+      ok(`⑨ 解耦已知例外：${excused.join(' · ') || '（没有）'}`);
     } else problems.forEach(bad);
 
     // 反向对照：把 cta 换成跟 cards 同式同模（4），这一格必须红
     const clash = mutual((i) => rot(i, 4), (i) => voiceFor(i).cards);
     if (clash < 2) {
       ok(`⑨ 解耦反向对照：把 cta 换成跟 cards 同式同模（都是 4）⟹ 互相决定度 ${clash} < 2，`
-        + '这一格当场红 —— 所以上面那些 ≥2 是模数选择挣来的，不是恒真');
+        + '这一格当场红 —— 所以上面那些 ≥2 是错开步长挣来的，不是恒真');
     } else {
       bad('⑨ 解耦反向对照失败：同式同模也判成解耦 —— 这个判据量不出耦合');
     }
@@ -1130,6 +1181,311 @@ console.log('\n⑪ #1135 那行细则小字，每一种画法下都排在表单�
             + '去看是画法数变了还是有人给别的画法也写了 order');
         }
       }
+    }
+  }
+}
+
+
+// ══ ⑫ 每个块在全池里有几副骨架（#1139 —— 族清单从 block-roles.json 全量枚举）════════════════════
+//
+// 形态（本票立票时量的）：#1135 收官时 35 个契约块里有 27 个在全池 80 套里**只有一副骨架** ——
+// 换主题时那些段只变颜色和字体。而那件事**没有任何一格在看**：覆盖率那把尺只问「这个钩子有没有
+// 规则」，相似度那道闸只读 tokens 和 layout（一个字节的 CSS 都不读），②那格只问「两份表整体是不是
+// 双胞胎」（一份表里 35 个块只要有一个块不同，它就算不同）。
+//
+// 🔴 **族清单从 `block-roles.json` 全量枚举，不手抄。** ⑨ 那格原来手写了两行 `rows`，每加一族都得
+//    有人记得回来补一行 —— 而漏掉那一族的样子跟通过一模一样（它就不在射程内，格子照样绿）。这一格
+//    改成「先枚举全部 35 个块，再问每个块该有几副」，所以下一个加候选表的人不需要记得任何事。
+//
+// 🔴 判据不是「种数 ≥ 候选数」。那条在别的轴也能把种数顶上去的时候会漏（`content-split` 有 4 副
+//    画法却读到 8 种，因为同页节奏那一维又乘了 2 ⟹ 就算它有两副画法画得一模一样，8 掉到 6 还是
+//    ≥4）。这里问的是那个真正想要的性质：**两副不同的画法，不许画出同一副骨架** ——
+//    按画法把 80 套分组，每组的骨架指纹集合必须两两不相交。
+//
+// 🔴 骨架指纹 = 只留决定几何的声明（display / 列数 / grid-column / grid-row / order / align-* /
+//    justify-* / text-align / 宽高 / auto 外边距），颜色、字体、圆角、间距倍数全丢掉 —— 那正是
+//    #1135 的立论（「字节不同不等于观感不同」）。**含 `@media (min-width: 1024px)` 那一段**，因为
+//    AC1 那把尺是在 1440×900 的浏览器里量的，那时它生效；而列数只写在那一段里（基础规则永远是
+//    `grid-template-columns: 1fr`）。📌 只读基础规则时这把尺对全池读到 27 个块只有一副 —— 与正文
+//    那个 27 逐个对上，也就是说这两把尺是同一把，只差「桌面那一段算不算」。
+const GEOM_PROPS = new Set([
+  'display', 'grid-template-columns', 'grid-template-rows', 'grid-column', 'grid-row', 'grid-auto-flow',
+  'order', 'align-items', 'align-content', 'align-self', 'justify-items', 'justify-content', 'justify-self',
+  'text-align', 'flex-wrap', 'flex-direction', 'place-items',
+  'max-width', 'width', 'height', 'aspect-ratio', 'object-fit', 'margin-left', 'margin-right',
+]);
+/** 一条选择器是不是在说这个块。 */
+const selectorOwnedBy = (sel, block) => sel.split(',').some((one) => {
+  const t = one.trim();
+  return t === `.${block}` || t.startsWith(`.${block}__`) || t.startsWith(`.${block} `) || t.startsWith(`.${block}.`);
+});
+/**
+ * 一份表里**每个块**的骨架指纹，一次解析算完。
+ *
+ * 🔴 一块一次地 `postcss.parse` 是 35 × 80 次解析，实测跑不完（这一格第一版就是那样，跑过 2 分钟
+ *    还没出读数）。这里一份表只解析一次，把每条规则归到它那个块名下。
+ * 返回 `{ desktop: Map<block, 指纹>, base: Map<block, 指纹> }` —— `base` 只含非 @media 的规则，
+ * 它是正文那个「27 个块只有一副」的口径。
+ */
+function skeletonsOf(css, blocks) {
+  const desk = new Map(blocks.map((b) => [b, []]));
+  const base = new Map(blocks.map((b) => [b, []]));
+  postcss.parse(css).walkRules((rule) => {
+    const decls = rule.nodes.filter((n) => n.type === 'decl' && GEOM_PROPS.has(n.prop))
+      .map((d) => `${d.prop}:${d.value.trim()}`).sort();
+    if (!decls.length) return;
+    const inMedia = rule.parent && rule.parent.type === 'atrule';
+    const at = inMedia ? `@${rule.parent.name} ${rule.parent.params} ` : '';
+    const line = `${at}${rule.selector.trim()}{${decls.join(';')}}`;
+    for (const b of blocks) {
+      if (!selectorOwnedBy(rule.selector, b)) continue;
+      desk.get(b).push(line);
+      if (!inMedia) base.get(b).push(line);
+      break;
+    }
+  });
+  const fold = (m) => new Map([...m].map(([b, xs]) => [b, xs.sort().join('\n')]));
+  return { desktop: fold(desk), base: fold(base) };
+}
+
+console.log('\n⑫ #1139 每个块在全池 80 套里有几副骨架（族清单从 block-roles.json 全量枚举）');
+{
+  const N = 80;
+  const ROLES_PATH = path.join(DIR, '..', '..', 'src', 'lib', 'sections', 'block-roles.json');
+  let BLOCKS;
+  try {
+    BLOCKS = Object.keys(JSON.parse(fs.readFileSync(ROLES_PATH, 'utf8')));
+  } catch (e) {
+    die(`⑫ 读不到 ${ROLES_PATH}：${e.message} —— 族清单的权威就是它，读不到就什么都没量成`);
+  }
+  const sheets = [];
+  for (let i = 0; i < N; i += 1) {
+    const css = sheetFor(i);
+    sheets.push({ i, css, v: voiceFor(i), fp: skeletonsOf(css, BLOCKS) });
+  }
+
+  // ── 分母自检 1：block-roles.json 的块 == SHAPES 认识的块 == 钩子清单里的块 ──────────────────
+  //    少一个块这一格就对它按构造失明，而失明的样子是「全过」。
+  {
+    const hooked = new Set([...require(path.join(DIR, 'sheet-recipes.js')).hooksByBlock().keys()]);
+    const onlyRoles = BLOCKS.filter((b) => !hooked.has(b));
+    const onlyHooks = [...hooked].filter((b) => !BLOCKS.includes(b));
+    if (onlyRoles.length || onlyHooks.length) {
+      die(`⑫ 分母自检不成立：block-roles.json 有 ${BLOCKS.length} 个块、钩子清单有 ${hooked.size} 个，`
+        + `只在前者 [${onlyRoles.join(' ')}]，只在后者 [${onlyHooks.join(' ')}]`);
+    }
+    ok(`⑫ 分母自检：block-roles.json 与钩子清单同为 ${BLOCKS.length} 个块，双向差集都空`);
+  }
+
+  // ── 分母自检 2：这把尺子把每一条规则都归给了某个块 ─────────────────────────────────────────
+  //    归不掉的规则 = 这把尺读不到的地方，而它同样表现成「全过」。
+  {
+    const css = sheets[0].css;
+    let total = 0;
+    postcss.parse(css).walkRules(() => { total += 1; });
+    let attributed = 0;
+    postcss.parse(css).walkRules((rule) => {
+      if (BLOCKS.some((b) => selectorOwnedBy(rule.selector, b))) attributed += 1;
+    });
+    if (attributed !== total) {
+      die(`⑫ 分母自检不成立：第 0 套表里 ${total} 条规则，这把尺只认领了 ${attributed} 条 —— `
+        + '剩下的那些它读不到');
+    }
+    ok(`⑫ 分母自检：第 0 套表 ${total} 条规则全部归到了某个块名下（没有读不到的规则）`);
+  }
+
+  // 🔴 比「候选数」更高的那几个下限，逐个带理由（AC3 的「不许倒退」靠它兜住多条轴的情形）。
+  //    `content-split` 的 8 = 4 副画法 × 同页节奏那条轴的 2 档（`splitRhythm`，#1090）。
+  //    往这张表里加条目的时机：某个块的骨架又多了一条决定它的轴。
+  const EXTRA_FLOOR = new Map([['content-split', 8]]);
+
+  // ── 每个块该有几副：有候选表的 == 那张表的候选数；没有的 == cols 写死就 1 副、落到 v.wide 就 2 副
+  const varietyOf = (b, opts = {}) => new Set(sheets.map((x) => (opts.baseOnly ? x.fp.base : x.fp.desktop).get(b))).size;
+  const BATCH = ['page-header', 'faq-accordion', 'process-steps', 'benefits-list', 'contact-info', 'testimonials'];
+  {
+    const problems = [];
+    const said = [];
+    for (const b of BLOCKS) {
+      const fam = LOOK_FAMILIES.find((f) => f.blocks.includes(b));
+      const got = varietyOf(b);
+      if (!fam) continue;                     // 没有候选表的块在下面那一格单独判
+      const L = Object.keys(fam.table).length;
+      // 按画法分组，每组的指纹集合
+      const byLook = new Map();
+      for (const x of sheets) {
+        const look = x.v[fam.key];
+        if (!byLook.has(look)) byLook.set(look, new Set());
+        byLook.get(look).add(x.fp.desktop.get(b));
+      }
+      if (byLook.size !== L) {
+        problems.push(`${b}：${L} 副画法里只有 ${byLook.size} 副在 80 套里真的轮到过`);
+      }
+      const looks = [...byLook.keys()];
+      for (let a = 0; a < looks.length; a += 1) {
+        for (let c = a + 1; c < looks.length; c += 1) {
+          const shared = [...byLook.get(looks[a])].filter((s) => byLook.get(looks[c]).has(s));
+          if (shared.length) {
+            problems.push(`${b}：画法 ${looks[a]} 与 ${looks[c]} 画出了同一副骨架 —— `
+              + '「字节不同」不等于「观感不同」，本票（承 #1135）要治的正是这个');
+          }
+        }
+      }
+      // ── AC3「已有块的种数不许倒退」──────────────────────────────────────────────────────────
+      // 🔴 上面那条「两副画法不许画出同一副骨架」**不足以**代替这一条，这是我自己找出来的洞：
+      //    一个块的骨架可以由**不止一条轴**决定 —— `content-split` 有 4 副画法却读到 8 种，因为
+      //    同页节奏（`splitRhythm`）又乘了 2。假如哪天那条轴塌成一个值，种数 8 → 4，而四副画法
+      //    仍然两两不同 ⟹ 上面那格照样绿。所以这里再钉一个**下限**。
+      //    下限默认就是这一族的候选数（今天除 content-split 外每族都恰好等于它）；比候选数更高的
+      //    那几个逐个写在下面这张表里，连理由一起。
+      const floor = Math.max(L, EXTRA_FLOOR.get(b) || 0);
+      if (got < floor) {
+        problems.push(`${b}：只读到 ${got} 种骨架，下限是 ${floor}`
+          + (EXTRA_FLOOR.has(b) ? `（${EXTRA_FLOOR.get(b)} 那个数的出处见 EXTRA_FLOOR 那张表）` : '（= 它的候选数）'));
+      }
+      said.push(`${b} ${L} 副画法 → ${got} 种骨架（下限 ${floor}）`);
+    }
+    if (problems.length) problems.forEach(bad);
+    else ok(`⑫ ${LOOK_FAMILIES.length} 族逐族：两副不同的画法从不画出同一副骨架，且种数都在下限之上（${said.join(' · ')}）`);
+  }
+
+  // ── 没有候选表的块：种数由 `SHAPES` 里有没有写 `cols` 决定（写死 ⟹ 1 副；没写 ⟹ 落到 v.wide 的 2 副）
+  //    这一条把「27 个块只有一副骨架」那个基线钉成机器读数，而不是一句散文。
+  {
+    const problems = [];
+    let one = 0; let two = 0;
+    for (const b of BLOCKS) {
+      if (LOOK_FAMILIES.some((f) => f.blocks.includes(b))) continue;
+      const got = varietyOf(b);
+      if (got === 1) one += 1;
+      else if (got === 2) two += 1;
+      else problems.push(`${b}：没有候选表却读到 ${got} 种骨架 —— 那它的骨架是从哪儿来的？`);
+    }
+    if (problems.length) problems.forEach(bad);
+    else {
+      ok(`⑫ 没有候选表的 ${one + two} 个块：${one} 个恒 1 副（SHAPES 里写死了 cols）、`
+        + `${two} 个 2 副（列数落到 voiceFor 的 v.wide，按 i % 2 转 3 栏/2 栏）`);
+    }
+  }
+
+  // ── AC1 / AC3：本批六块各 ≥3 副 ────────────────────────────────────────────────────────────
+  {
+    const MIN = 3;
+    const readings = BATCH.map((b) => `${b} ${varietyOf(b)}`);
+    const short = BATCH.filter((b) => varietyOf(b) < MIN);
+    if (short.length) short.forEach((b) => bad(`⑫ AC1/AC3：${b} 只有 ${varietyOf(b)} 副骨架，要求 ≥${MIN}`));
+    else ok(`⑫ AC1/AC3：本批六块各 ≥${MIN} 副骨架（${readings.join(' · ')}）`);
+    // 顺带把「只读基础规则」那把尺的读数也打出来 —— 它是正文那个 27 的口径
+    const baseOnes = BLOCKS.filter((b) => varietyOf(b, { baseOnly: true }) === 1);
+    ok(`⑫ 换成「只读基础规则」那把尺：全池只有一副骨架的块从立票时的 27 个降到 ${baseOnes.length} 个`
+      + `（本批六块的基础规则种数 ${BATCH.map((b) => `${b} ${varietyOf(b, { baseOnly: true })}`).join(' · ')}）`);
+  }
+
+  // ── 阳性对照 A：同一副画法的那些套之间，指纹必须一致 —— 否则这把尺在读噪音 ────────────────────
+  {
+    const noisy = [];
+    for (const fam of LOOK_FAMILIES) {
+      for (const b of fam.blocks) {
+        const byLook = new Map();
+        for (const x of sheets) {
+          const look = x.v[fam.key];
+          if (!byLook.has(look)) byLook.set(look, new Set());
+          byLook.get(look).add(x.fp.desktop.get(b));
+        }
+        for (const [look, set] of byLook) {
+          // content-split 例外：同页节奏（alternate / uniform）是**另一条轴**，它真的改几何
+          if (set.size > 1 && b !== 'content-split') noisy.push(`${b}/${look} 读到 ${set.size} 种`);
+        }
+      }
+    }
+    if (noisy.length) noisy.slice(0, 6).forEach((m) => bad(`⑫ 阳性对照 A 失败：${m} —— 同一副画法内部指纹不该变，这把尺在读噪音`));
+    else ok('⑫ 阳性对照 A：同一副画法的那些套之间指纹逐字相同（content-split 除外，它另有同页节奏那条轴）—— 这把尺读的不是间距/颜色的噪音');
+  }
+
+  // ── 阳性对照 B：把某个块的候选砍回 1 种（在**产物**上做，不在生产代码里留测试专用的路），必须红
+  //    做法：把每一套表里那个块的规则，换成「第一副画法」那套表里同一个块的规则。
+  {
+    const target = 'page-header';
+    const fam = LOOK_FAMILIES.find((f) => f.blocks.includes(target));
+    const firstLook = Object.keys(fam.table)[0];
+    const donor = sheets.find((x) => x.v[fam.key] === firstLook);
+    if (!donor) die(`⑫ 阳性对照 B 立不起来：80 套里没有一套用 ${target} 的 ${firstLook}`);
+    const donorRules = [];
+    postcss.parse(donor.css).walkRules((rule) => {
+      if (selectorOwnedBy(rule.selector, target) && !(rule.parent && rule.parent.type === 'atrule')) {
+        donorRules.push(rule.toString());
+      }
+    });
+    if (!donorRules.length) die(`⑫ 阳性对照 B 立不起来：抠不出 ${target} 的规则`);
+    const collapse = (css) => {
+      const root = postcss.parse(css);
+      root.walkRules((rule) => { if (selectorOwnedBy(rule.selector, target)) rule.remove(); });
+      root.walkAtRules('media', (at) => { if (at.nodes.length === 0) at.remove(); });
+      return `${root.toString()}\n${donorRules.join('\n')}\n`;
+    };
+    const rigged = sheets.map((x) => collapse(x.css));
+    const riggedVariety = new Set(rigged.map((c) => skeletonsOf(c, BLOCKS).desktop.get(target))).size;
+    if (riggedVariety === 1) {
+      ok(`⑫ 阳性对照 B：把 ${target} 在 80 份产物里的规则统一换成「${firstLook}」那一副，`
+        + `这把尺当场读到 1 种骨架（真产物上是 ${varietyOf(target)} 种）—— 它不是恒 ≥3`);
+    } else {
+      bad(`⑫ 阳性对照 B 失败：统一成一副之后还读到 ${riggedVariety} 种 —— 这把尺量的不是骨架`);
+    }
+  }
+
+  // ── 阳性对照 C：那条【下限】自己有没有牙 ──────────────────────────────────────────────────────
+  //
+  // 🔴 B 那一格把一个块塌成一副，两条判据（画法两两不同 / 种数在下限之上）会**同时**开火，所以它
+  //    证不了下限那一条单独也管事。C 专证它：`content-split` 的 8 种来自「4 副画法 × 同页节奏 2 档」
+  //    —— 把**节奏那条轴**塌掉（每套的规则换成同画法组里第一套的），四副画法仍然两两不同，
+  //    只有种数从 8 掉到 4。那时上面那条 disjoint 判据照样绿，而下限必须红。
+  {
+    const target = 'content-split';
+    const fam = LOOK_FAMILIES.find((f) => f.blocks.includes(target));
+    const grab = (css) => {
+      const keep = [];
+      postcss.parse(css).walkRules((rule) => {
+        if (!selectorOwnedBy(rule.selector, target)) return;
+        const inMedia = rule.parent && rule.parent.type === 'atrule';
+        keep.push(inMedia
+          ? `@${rule.parent.name} ${rule.parent.params} { ${rule.toString()} }`
+          : rule.toString());
+      });
+      return keep;
+    };
+    const donorByLook = new Map();
+    for (const x of sheets) if (!donorByLook.has(x.v[fam.key])) donorByLook.set(x.v[fam.key], grab(x.css));
+    const flattenRhythm = (x) => {
+      const root = postcss.parse(x.css);
+      root.walkRules((rule) => { if (selectorOwnedBy(rule.selector, target)) rule.remove(); });
+      root.walkAtRules('media', (at) => { if (at.nodes.length === 0) at.remove(); });
+      return `${root.toString()}\n${donorByLook.get(x.v[fam.key]).join('\n')}\n`;
+    };
+    const riggedFps = sheets.map((x) => skeletonsOf(flattenRhythm(x), BLOCKS).desktop.get(target));
+    const riggedVariety = new Set(riggedFps).size;
+    // 那条 disjoint 判据在这份被改过的产物上还绿吗（它必须绿，否则 C 证的不是下限）
+    const byLook = new Map();
+    sheets.forEach((x, k) => {
+      const look = x.v[fam.key];
+      if (!byLook.has(look)) byLook.set(look, new Set());
+      byLook.get(look).add(riggedFps[k]);
+    });
+    const looks = [...byLook.keys()];
+    let stillDisjoint = true;
+    for (let a = 0; a < looks.length; a += 1) {
+      for (let c = a + 1; c < looks.length; c += 1) {
+        if ([...byLook.get(looks[a])].some((f) => byLook.get(looks[c]).has(f))) stillDisjoint = false;
+      }
+    }
+    const L = Object.keys(fam.table).length;
+    const floor = Math.max(L, EXTRA_FLOOR.get(target) || 0);
+    if (riggedVariety < floor && stillDisjoint) {
+      ok(`⑫ 阳性对照 C：把 ${target} 的同页节奏那条轴塌掉 ⟹ 种数 ${varietyOf(target)} → ${riggedVariety}`
+        + `，低于下限 ${floor} 会被点名，而「${L} 副画法两两不同」那一条**照样绿** —— 所以下限那一条`
+        + '不是多余的，它管的是另一种倒退');
+    } else if (!stillDisjoint) {
+      bad(`⑫ 阳性对照 C 立不起来：塌掉节奏之后 ${target} 的画法之间也撞了 —— 这一格分不出是哪条判据在说话`);
+    } else {
+      bad(`⑫ 阳性对照 C 失败：塌掉节奏之后还读到 ${riggedVariety} 种（下限 ${floor}）—— 下限那一条量不出这种倒退`);
     }
   }
 }

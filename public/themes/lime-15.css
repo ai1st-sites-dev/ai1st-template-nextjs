@@ -144,6 +144,8 @@
   padding: calc(var(--section-block-pad) * 7) 1.5rem;
   background-color: var(--color-primary-50);
   color: var(--color-primary-900);
+  justify-items: center;
+  text-align: center;
 }
 
 .page-header__crumbs {
@@ -160,15 +162,20 @@
   font-weight: 900;
   letter-spacing: -0.02em;
   color: var(--color-primary-900);
+  max-width: 48rem;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .page-header__sub {
   grid-column: 1 / -1;
-  max-width: 36rem;
+  max-width: 34rem;
   margin-top: 0.75rem;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-800);
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .contact-form {
@@ -560,6 +567,7 @@
   padding: 1.75rem;
   border-radius: calc(var(--radius-block) * 5);
   background-color: var(--color-primary-100);
+  order: 2;
 }
 
 .contact-info__label {
@@ -568,12 +576,14 @@
   text-transform: none;
   letter-spacing: 0;
   color: var(--color-primary-800);
+  order: 2;
 }
 
 .contact-info__address {
   font-size: 0.9375rem;
   line-height: 1.65;
   color: var(--color-primary-800);
+  order: 3;
 }
 
 .contact-info__phone {
@@ -585,6 +595,7 @@
   border-style: solid;
   border-color: var(--color-accent-600);
   color: var(--color-accent-600);
+  order: 1;
 }
 
 .contact-info__email {
@@ -596,6 +607,7 @@
   border-style: solid;
   border-color: var(--color-accent-600);
   color: var(--color-accent-600);
+  order: 1;
 }
 
 .stats-counter {
@@ -658,30 +670,32 @@
   padding: calc(var(--section-block-pad) * 7) 1.5rem;
   background-color: var(--color-primary-50);
   color: var(--color-primary-900);
+  align-items: start;
 }
 
 @media (min-width: 1024px) {
   .process-steps {
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: 1fr 2fr;
     gap: calc(var(--section-block-gap) * 9);
     padding: calc(var(--section-block-pad) * 9.8) 3rem;
   }
 }
 
 .process-steps__headline {
-  grid-column: 1 / -1;
+  grid-column: auto;
   font-family: var(--font-heading);
   font-size: 2.25rem;
   line-height: 1.15;
   font-weight: 800;
   letter-spacing: -0.02em;
   color: var(--color-primary-900);
+  align-self: start;
 }
 
 .process-steps__sub {
-  grid-column: 1 / -1;
+  grid-column: auto;
   max-width: 36rem;
-  margin-top: 0.75rem;
+  margin-top: 0;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-800);
@@ -694,6 +708,7 @@
   padding: 1.75rem;
   border-radius: calc(var(--radius-block) * 5);
   background-color: var(--color-primary-100);
+  grid-column: 1 / -1;
 }
 
 .process-steps__num {
@@ -794,7 +809,7 @@
 
 @media (min-width: 1024px) {
   .benefits-list {
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr;
     gap: calc(var(--section-block-gap) * 9);
     padding: calc(var(--section-block-pad) * 9.8) 3rem;
   }
@@ -1452,6 +1467,8 @@
   padding: calc(var(--section-block-pad) * 7) 1.5rem;
   background-color: var(--color-primary-50);
   color: var(--color-primary-900);
+  justify-items: center;
+  text-align: center;
 }
 
 .faq-accordion__headline {
@@ -1462,15 +1479,20 @@
   font-weight: 800;
   letter-spacing: -0.02em;
   color: var(--color-primary-900);
+  max-width: 44rem;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .faq-accordion__sub {
   grid-column: 1 / -1;
-  max-width: 36rem;
+  max-width: 34rem;
   margin-top: 0.75rem;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-800);
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .faq-accordion__item {
@@ -1480,6 +1502,11 @@
   border-width: 0 0 1px;
   border-style: solid;
   border-color: var(--color-primary-200);
+  width: 100%;
+  max-width: 48rem;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: left;
 }
 
 .faq-accordion__question {
@@ -1507,7 +1534,7 @@
 
 @media (min-width: 1024px) {
   .testimonials {
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: calc(var(--section-block-gap) * 9);
     padding: calc(var(--section-block-pad) * 9.8) 3rem;
   }
@@ -1535,10 +1562,12 @@
 .testimonials__item {
   display: grid;
   align-content: start;
-  gap: 0.75rem;
+  gap: 0.5rem 2rem;
   padding: 1.75rem;
   border-radius: calc(var(--radius-block) * 5);
   background-color: var(--color-primary-800);
+  grid-template-columns: 2fr 1fr;
+  align-items: start;
 }
 
 .testimonials__rating {
@@ -1558,6 +1587,8 @@
   line-height: 1.7;
   font-style: italic;
   color: var(--color-primary-50);
+  grid-column: 1;
+  grid-row: 1 / 5;
 }
 
 .testimonials__name {

@@ -573,6 +573,7 @@
   border-width: 0 0 2px;
   border-style: solid;
   border-color: var(--color-primary-200);
+  order: 2;
 }
 
 .contact-info__label {
@@ -581,12 +582,14 @@
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--color-primary-800);
+  order: 2;
 }
 
 .contact-info__address {
   font-size: 0.9375rem;
   line-height: 1.65;
   color: var(--color-primary-800);
+  order: 3;
 }
 
 .contact-info__phone {
@@ -598,6 +601,7 @@
   border-style: solid;
   border-color: var(--color-primary-600);
   color: var(--color-primary-600);
+  order: 1;
 }
 
 .contact-info__email {
@@ -609,6 +613,7 @@
   border-style: solid;
   border-color: var(--color-primary-600);
   color: var(--color-primary-600);
+  order: 1;
 }
 
 .stats-counter {
@@ -677,7 +682,7 @@
 
 @media (min-width: 1024px) {
   .process-steps {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
     gap: calc(var(--section-block-gap) * 12);
     padding: calc(var(--section-block-pad) * 11.2) 3rem;
   }
@@ -811,7 +816,7 @@
 
 @media (min-width: 1024px) {
   .benefits-list {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
     gap: calc(var(--section-block-gap) * 12);
     padding: calc(var(--section-block-pad) * 11.2) 3rem;
   }
@@ -1581,7 +1586,7 @@
 
 @media (min-width: 1024px) {
   .testimonials {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
     gap: calc(var(--section-block-gap) * 12);
     padding: calc(var(--section-block-pad) * 11.2) 3rem;
   }
