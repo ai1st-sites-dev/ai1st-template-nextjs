@@ -40,18 +40,43 @@ function treeWith(editableFilesSrc) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'remediation-'));
   fs.mkdirSync(path.join(dir, 'lib'));
   fs.copyFileSync(path.join(__dirname, 'remediation.js'), path.join(dir, 'lib', 'remediation.js'));
+  // 🔴 #1138 —— `remediation.js` 现在顶层 require 了 `./site-shape.js`（它要拿这个站的形状去问
+  //    白名单）。这棵树少了它，被测的那份副本**加载不起来**，②③ 会当场死掉 —— 那是响的失败，
+  //    比"少了一维静默不判"好，所以那个 require 有意不是 try/catch 的。这里把它一起拷过来。
+  fs.copyFileSync(path.join(__dirname, 'site-shape.js'), path.join(dir, 'lib', 'site-shape.js'));
   fs.writeFileSync(path.join(dir, 'lib', 'editable-files.js'), editableFilesSrc);
   return dir;
 }
-/** 一个带 navigation.json 的假站。 */
+/**
+ * 一个带 navigation.json 的假站。
+ *
+ * 🔴 #1138 —— 给了 `locale` 就**必须**同时写 `site_meta.json`，否则这个夹具自相矛盾：`site/en/`
+ *    躺在那儿，而「多语言还是扁平」的唯一判据是 `site_meta.json` 在不在（`lib/site-shape.js`
+ *    文件头），所以 `readSiteShape` 会把它读成**扁平站**。改之前这不要紧（`remediation.js` 问白名单
+ *    时不带形状），#1138 把形状递进去之后就要紧了：`en/navigation.json` 在一个"扁平站"上会被
+ *    #1109 那个分支拒掉 ⟹ ① 与 ⑧ 从「AI 编辑器写得进」那一支翻到「写不进」那一支。
+ *    🔴 而**两格都仍然是绿的**（① 只断言 `viaProduct` 是 true/false 之一；⑧ 长句支 1089–1170
+ *    字符照旧 ≤2000）—— 也就是说这个夹具会静默把两个读数换成另一道题的答案。
+ *    多语言站在真世界里永远有 `site_meta.json`（`create-site.js` 的每一条路都写它），夹具跟上。
+ * 📌 同一棵树可以调多次（⑧ 就造 22 个语言），所以这里是**累加**进 locales，不是覆盖。
+ */
 function siteWithNav(dir, locale) {
-  const d = locale ? path.join(dir, 'site', locale) : path.join(dir, 'site');   // locale=null ⟹ 扁平站
+  const site = path.join(dir, 'site');
+  const d = locale ? path.join(site, locale) : site;   // locale=null ⟹ 扁平站（不写 site_meta.json）
   fs.mkdirSync(d, { recursive: true });
   fs.writeFileSync(path.join(d, 'navigation.json'), JSON.stringify({
     header: { links: [{ label: 'Home', href: '/' }], cta: { label: 'Book', href: '/contact' } },
     footer: { description: 'd', columns: [{ title: 'Q', links: [] }], copyright: 'c' },
   }, null, 2));
-  return path.join(dir, 'site');
+  if (locale) {
+    const metaPath = path.join(site, 'site_meta.json');
+    let meta = { siteId: 'remediationtest', defaultLocale: locale, locales: [] };
+    try { meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8')); } catch (e) { /* 第一次，用上面那份 */ }
+    if (!Array.isArray(meta.locales)) meta.locales = [];
+    if (!meta.locales.includes(locale)) meta.locales.push(locale);
+    fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2));
+  }
+  return site;
 }
 
 // ── ① 交付这一版的真读数:这个仓今天的白名单说什么,那句话就说什么 ──────────────────────────────
@@ -411,6 +436,19 @@ function siteWithNav(dir, locale) {
     bads.push('补救行又变回裸的逐语言循环了 —— 那条路没有上限，10 个语言起被 edit-site 截断');
   }
   if (!/howToChangePageLayout\(/.test(src)) bads.push('没调 howToChangePageLayout');
+  // 🔴 #1138 —— 每一处 howToChangePageLayout 都要把 siteDir 传进去。
+  //    说在明处：**今天这个参数不改变任何答案** —— `page-layout.json` 不是按语言存的文件，形状那一维
+  //    对它不说话（⑨ 那格量的就是它：两种问法同一个答案）。所以这一格钉的不是一个后果，是一条**纪律**：
+  //    「问白名单时不带这个站的形状」正是 #1138 正文 N2 描述的那个形状 —— 拿到的不是错误，是另一道题的
+  //    答案，而两个答案碰巧相同的那一天没有任何东西会说话。#1138 给白名单加了一问之后，
+  //    `howToAddTopbar` 那条路当场就分歧了（⑨ 的阳性对照是它的读数）。这一条挡的是下一个 REJECT_REASON
+  //    落在按语言存的文件上时，这条路静默说出一句真编辑器会拒的建议。
+  {
+    const calls = src.match(/howToChangePageLayout\(\{[^}]*\}\)/g) || [];
+    const noSite = calls.filter((c) => !/siteDir/.test(c));
+    if (!calls.length) bads.push('数不出 howToChangePageLayout 的调用点 —— 这条读数不作数（改了写法就来改这条正则）');
+    else if (noSite.length) bads.push(`${noSite.length}/${calls.length} 处 howToChangePageLayout 调用没传 siteDir：${noSite.join(' · ')}`);
+  }
   // 🔴 扁平站那一维必须真的被传进去，否则老站上那句话指着一个不存在的文件（④b 就是它的读数）
   if (!/flat:\s*isLegacySchema/.test(src)) bads.push('调 howToAddTopbar 时没把 flat: isLegacySchema 传进去');
   // 🔴 旧那两句假话必须消失。只钉「新话在」的话，把旧话留在旁边也照样绿。
@@ -434,6 +472,102 @@ function siteWithNav(dir, locale) {
   }
   if (bads.length === 0) ok('⑦ sync-config.js 接上了这几句话，旧那两句假话也不在了');
   else bads.forEach((b) => bad(`⑦ ${b}`));
+}
+
+// ── ⑨ 这里问出来的答案，必须跟【真编辑器】对同一条路径的答案相同（#1138）────────────────────────
+//
+// 🔴 为什么要有这一格。`editorCanWrite` 问的是白名单，而白名单的第二问是「这个文件在**这个站**上
+//    有人读吗」—— 它要这个站的形状。形状问不到时那一维**不判**，也就是说：一个调用点忘了递形状，
+//    它拿到的不是错误，是**另一道题的答案**。#1138 之前这条路碰巧不产生假建议（#1138 正文 N2 量过：
+//    `howToAddTopbar` 问的路径形状本来就对、`howToChangePageLayout` 问的那个文件两种问法都拒）。
+//    #1138 给白名单加了「这个语言这个站有没有」这一问之后就开始分歧了：站里只有 `en` 而这里问
+//    `fr/navigation.json`，不递形状 ⟹ 这里说「在聊天里让 AI 编辑器加」，而真编辑器当场拒 ——
+//    那句话就是 #1108 立这个模块要治的那个病（产品的报错在建议一个产品自己禁止的动作）。
+//
+// 🔴 判据是**行为**，不是「源码里有没有 readSiteShape 这个词」：下面拿真编辑器那套 ctx
+//    （`edit-site.js:425-440` 递的那几个键）独立算一遍，两个答案必须逐条相同。
+{
+  const { writeRejection } = require('./editable-files.js');
+  const { readSiteShape } = require('./site-shape.js');
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'remediation-locale-'));
+  const siteDir = siteWithNav(dir, 'en');            // site_meta.json 只列 en
+  // 一个**站里没有**的语言目录：升级/误写留下的残留。site_meta.json 不动 ⟹ 这个站仍然只有 en。
+  fs.mkdirSync(path.join(siteDir, 'fr'), { recursive: true });
+  fs.copyFileSync(path.join(siteDir, 'en', 'navigation.json'), path.join(siteDir, 'fr', 'navigation.json'));
+  const shape = readSiteShape(siteDir);
+  if (!shape || shape.flat !== false || shape.locales.join(',') !== 'en') {
+    die(`⑨ 夹具不对：readSiteShape 读到 ${JSON.stringify(shape)}，要的是 {flat:false, locales:['en']}`);
+  }
+
+  /**
+   * 真编辑器会怎么答同一条路径 —— ctx 按 `edit-site.js` 的 write_file 原样搭。
+   * 🔴 送进去的内容必须跟 `howToAddTopbar` 送的那份**一样**（#1104 之后白名单判的是「这次写入改了
+   *    哪几处」）：喂一份别的内容问出来的是另一道题的答案。所以这里照它的做法现搭一份。
+   */
+  const askRealEditor = (rel) => {
+    const full = path.join(siteDir, rel);
+    let current = null;
+    try { current = JSON.parse(fs.readFileSync(full, 'utf-8')); } catch (e) { current = null; }
+    const ctx = { readSiteShape: () => readSiteShape(siteDir) };
+    if (current !== null) {
+      ctx.content = JSON.stringify({ ...current, topbar: { message: '示例文案', link: { label: '示例', href: '/contact' } } });
+      ctx.readCurrent = (p) => { try { return fs.readFileSync(path.join(siteDir, p), 'utf-8'); } catch (e) { return null; } };
+    }
+    return writeRejection(rel, ctx) === null;
+  };
+
+  /** 一组要对账的问题：这里怎么答（viaProduct） vs 真编辑器怎么答。 */
+  const askHere = (mod2) => [
+    ['en/navigation.json', mod2.howToAddTopbar({ siteDir, locale: 'en' }).viaProduct],
+    ['fr/navigation.json', mod2.howToAddTopbar({ siteDir, locale: 'fr' }).viaProduct],
+    ['page-layout.json', mod2.howToChangePageLayout({ rootDir: NEXTJS, siteDir }).viaProduct],
+  ];
+
+  const rows = askHere(mod).map(([rel, here]) => ({ rel, here, real: askRealEditor(rel) }));
+  const mismatch = rows.filter((r) => r.here !== r.real);
+  if (mismatch.length === 0) {
+    ok(`⑨ ${rows.length} 条路径逐条对账，这里的答案与真编辑器相同（`
+      + `${rows.map((r) => `${r.rel}=${r.here}`).join(' · ')}）`);
+  } else {
+    mismatch.forEach((r) => bad(`⑨ ${r.rel}：这里说 ${r.here}，真编辑器说 ${r.real}`
+      + ' —— 那句话在建议一个真编辑器会拒的动作（#1108 要治的那个病）'));
+  }
+
+  // 🔴 这一格必须有量程：`fr` 那条得**真的**是真编辑器拒的（否则三条全 true，这一格就是空转的
+  //    恒等式，把形状那一维整个拿掉也照样绿）。
+  const frReal = rows.find((r) => r.rel === 'fr/navigation.json');
+  const enReal = rows.find((r) => r.rel === 'en/navigation.json');
+  if (frReal && enReal && frReal.real === false && enReal.real === true) {
+    ok('⑨ 这组问题有区分力：同一个站上 en/navigation.json 真编辑器放行、fr/navigation.json 真编辑器拒');
+  } else {
+    bad(`⑨ 这组问题没有区分力（en=${enReal && enReal.real} · fr=${frReal && frReal.real}）`
+      + ' ⟹ 上面那条对账是恒等式，换个夹具让两个答案分开');
+  }
+
+  // 🔴 阳性对照：把 `editorCanWrite` 里递形状那一步撤掉（改之前那个样子），上面那条对账必须**红**，
+  //    而且红在 `fr/navigation.json` 上。少了这一格，对账那条绿也可能来自「这三条本来就一致」。
+  {
+    const t = fs.mkdtempSync(path.join(os.tmpdir(), 'remediation-noshape-'));
+    require('child_process').execSync(`cp -a "${path.join(NEXTJS, 'scripts')}" "${path.join(t, 'scripts')}"`, { stdio: 'pipe' });
+    const copyPath = path.join(t, 'scripts', 'lib', 'remediation.js');
+    const src = fs.readFileSync(copyPath, 'utf-8');
+    const ANCHOR = '  const ctx = { ...(extraCtx || {}), readSiteShape: () => readSiteShape(siteDir) };\n';
+    const n = src.split(ANCHOR).length - 1;
+    if (n !== 1) die(`⑨ 阳性对照的锚点在 remediation.js 里出现 ${n} 次（要求正好 1 次）`);
+    fs.writeFileSync(copyPath, src.replace(ANCHOR, '  const ctx = { ...(extraCtx || {}) };\n'));
+    // eslint-disable-next-line global-require
+    const noShape = require(copyPath);
+    const bad2 = askHere(noShape).filter(([rel, here]) => here !== askRealEditor(rel)).map(([rel]) => rel);
+    fs.rmSync(t, { recursive: true, force: true });
+    if (bad2.join(',') === 'fr/navigation.json') {
+      ok('⑨ 阳性对照：撤掉递形状那一步，对账在 fr/navigation.json 上分歧 ⟹ 撑住上面那格的就是这一步');
+    } else {
+      bad(`⑨ 阳性对照失败：撤掉递形状那一步之后分歧的是 [${bad2.join(' · ')}]，期望正好是 fr/navigation.json`
+        + ' —— 那上面那条对账证明不了「形状真的被递进去了」');
+    }
+  }
+  fs.rmSync(dir, { recursive: true, force: true });
 }
 
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);

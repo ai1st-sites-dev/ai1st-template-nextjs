@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * site-shape.test.js — #1109：AI 编辑器往「这个站的构建根本不读」的位置写内容，必须被拒。
+ * site-shape.test.js — #1109 · #1138：AI 编辑器往「这个站的构建根本不读」的位置写内容，必须被拒。
  *
  *   node scripts/lib/site-shape.test.js     （由 `npm run test:scripts` 自动发现）
  *   退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
@@ -10,6 +10,13 @@
  * 的内容在 `site/<语言>/`，老的单语言扁平站直接在 `site/`。位置写错时这条路**不报错也不生效**：
  * 落盘 → `sync-config` rc=0 → commit + push → 老板收到「Done」→ 站上一个像素都没变。没有任何一层
  * 会红，所以只能靠一道常设的判断。
+ *
+ * ══ 三道入口，②③ 是 #1109 的，⑤ 是 #1138 的 ═══════════════════════════════════════════════════
+ * 「位置不对」有三种，实测的后果逐字相同（写得进、同步过、老板收到「Done」、站上没变）：
+ *   ② 多语言站 + 路径没带语言段（内容写到了根目录）        —— #1109
+ *   ③ 扁平站   + 路径带了语言段                            —— #1109
+ *   ⑤ 多语言站 + 那个语言段**这个站没有**（站里只有 en，模型写 `fr/seo.json`）—— #1138
+ * ⑤ 那道入口连着盖住三种不像语言的拼法（tab / 换行 / `C:`），判据只有一条：这个站有没有这个语言。
  *
  * ══ 这份测试跟 `editable-files.test.js` ⑦ 的分工（两个读数，缺一个都不够）═══════════════════════
  * · ⑦ 那边的形状是**造出来的**两个字面量 ⟹ 它证的是「拿到形状之后判得对」。
@@ -310,11 +317,169 @@ console.log('④ 阳性对照（撤掉形状判断）');
   }
 }
 
-// ══ ⑤ 「问不到形状」不许被当成任何一个答案 ══════════════════════════════════════════════════════
+// ══ ⑤ 这个站没有的语言（#1138）—— 真夹具上取读数 ═════════════════════════════════════════════
+//
+// 这个夹具的 `site_meta.json` 只列 `en`。往 `site/fr/` 底下写内容，改之前是**放行**的：文件真的
+// 落盘、`sync-config` rc=0、commit + push、老板收到「Done」，而产物里探针 0 命中 —— 构建只读
+// `site_meta.json` 列着的那几个语言。逐字是 ②那个洞的第三道入口。
+//
+// 🔴 判据是「这个站有没有这个语言」，不是「这是不是一个合法的语言代码」：所以 `\t` / `\n` / `C:`
+//    这些根本不像语言的段不需要单独枚举，同一条判断就收了它们（AC3）。
+console.log('⑤ 这个站没有的语言（#1138）');
+
+// 站里没有的语言（AC1）+ 三种不像语言的拼法（AC3）。后三条里那个 `C:/seo.json` 是 #1109 那道拼写门
+// 对 `C:\seo.json` 给出的建议 —— 照它写回来，改之前会落进 `site/C:/`。
+const UNKNOWN_LOCALE_PATHS = ['fr/seo.json', 'zh/pages/home.json', 'xx/seo.json'];
+const ODD_LOCALE_PATHS = ['\t/seo.json', '\n/seo.json', 'C:/seo.json'];
+const NEW_BRANCH_PATHS = [...UNKNOWN_LOCALE_PATHS, ...ODD_LOCALE_PATHS];
+/** 拒绝的话里那句最要紧的（用来印读数）—— 控制字符会把「第一行」切断，所以按字符数截。 */
+const head = (s) => String(s).replace(/\n/g, '⏎').slice(0, 110);
+
+{
+  const shape = readSiteShape(localeSite);
+  if (!shape || shape.flat !== false || shape.locales.join(',') !== 'en') {
+    die(`⑤ 夹具的语言清单不是 ['en']（读到 ${JSON.stringify(shape)}）—— 下面那几格量的不是本票要治的东西`);
+  }
+  const problems = [];
+  for (const p of NEW_BRANCH_PATHS) {
+    const why = askOn(localeSite, p);
+    if (why === null) {
+      problems.push(`${JSON.stringify(p)} 竟然可写 —— 落盘、同步过、老板收到 Done，而站上什么都没变`);
+      continue;
+    }
+    // 拒的理由要把三件事说出来：这个站是多语言的 · 这个站有哪几个语言 · 这次该写哪个路径
+    if (!/multi-language site/.test(why)) problems.push(`${JSON.stringify(p)} 的理由没说这个站是多语言的：${head(why)}`);
+    if (!/is not one of the languages it has \(it has: en\)/.test(why)) {
+      problems.push(`${JSON.stringify(p)} 的理由没点名这个站有哪几个语言：${head(why)}`);
+    }
+    const bare = p.split('/').slice(1).join('/');
+    if (!why.includes(`en/${bare}`)) problems.push(`${JSON.stringify(p)} 的理由没告诉模型该写哪个路径（应含 en/${bare}）：${head(why)}`);
+    // 🔴 不许是兜底那句「不是这个站的内容文件」—— 那会让模型以为这个文件不能改，而它能改，只是语言不对
+    if (/is not one of this site's content files/.test(why)) {
+      problems.push(`${JSON.stringify(p)} 拿到的是兜底那句「不是这个站的内容文件」：${head(why)}`);
+    }
+    // 🔴 别把话说死（#1138 N3）：今天没有加语言的路，但将来有了这道门要跟着放行 ——
+    //    所以理由里不许出现「永远不会有」这种断言。
+    if (/never|permanently|will not have/i.test(why)) {
+      problems.push(`${JSON.stringify(p)} 的理由把话说死了（出现 never / permanently）：${head(why)}`);
+    }
+  }
+  if (problems.length === 0) {
+    ok(`站里没有的语言那 ${UNKNOWN_LOCALE_PATHS.length} 条 + 不像语言的 ${ODD_LOCALE_PATHS.length} 种拼法全部被拒，`
+      + '理由点名了这个站有哪几个语言和该写的路径，而且没把话说死');
+  } else problems.forEach(bad);
+
+  // 🔴 正向那一半：这个站**真有**的语言照旧放行（AC2）。少了这一格，把第三个分支写成「带语言段就拒」
+  //    也能让上面全绿 —— 而那会把多语言站的编辑整条治死。
+  const killed = LOCALE_PATHS.filter((p) => askOn(localeSite, p) !== null);
+  if (killed.length === 0) ok(`这个站真有的那个语言（en/…）${LOCALE_PATHS.length} 条照旧放行`);
+  else bad(`这些【应该】可写却被拒了：${killed.map((p) => `${p} → ${head(askOn(localeSite, p))}`).join(' ｜ ')}`);
+
+  // 🔴 语言清单问不出来时这一问不判：`site_meta.json` 在、但读不出来 ⟹ 形状仍是多语言，而「这个站
+  //    有哪几个语言」没有答案。那时开火 = 在一个真多语言站上拒掉它唯一正确的路径，理由还是一句假话。
+  const blindCtx = { readSiteShape: () => ({ flat: false, locales: [] }) };
+  const overreach = ['en/seo.json', 'fr/seo.json', 'en/pages/home.json']
+    .filter((p) => writeRejection(p, blindCtx) !== null);
+  if (overreach.length === 0) ok('语言清单问不出来（site_meta.json 读不出来）时这一问不判 —— 不会拿一句猜的话拒掉正确路径');
+  else bad(`语言清单为空时把这些拒了：${overreach.join(' · ')} —— 那是在一个真多语言站上说「这个站没有 en」`);
+}
+
+// ══ ⑤c 那句拒绝里「加语言这件事」说的是实话吗（#1138，活体跑逼出来的）═════════════════════════
+//
+// 🔴 这一格不是防御性废话，是一次真模型跑的读数逼出来的。第一版那句话只写到「这条聊天改不了
+//    site_meta.json」。活体跑（真 key、真 `edit-site.js`、站里只有 en、让它写 `fr/seo.json`）里，
+//    模型拿到那句拒绝之后**自己补出了下一句**给老板：「去 dashboard 的设置里先把法语加上，
+//    然后我再来填 fr/ 那些文件」——而那个界面**不存在**。「这条路改不了」会被读成「所以别的路
+//    改得了」，于是拒绝话本身变成了 #1087 要治的那个病（把老板指到一个不存在的后台去）。
+//    ⟹ 那句话必须把「今天谁都加不了」也说出来，而这一格钉住它。
+// 🔴 两半都钉：① 那句话自己的措辞 ② 它声称的那个**关于仓库的事实**（没有任何东西会写
+//    `site_meta.json`）。只钉 ① 的话，有人真做出那个界面时那句话会静默变成假话。
+console.log('⑤c 「加语言」那句话说的是实话吗（#1138）');
+{
+  const why = String(askOn(localeSite, 'fr/seo.json') || '');
+  const problems = [];
+  // ① 措辞：不许把老板/模型指到某个界面去加语言
+  if (!/cannot be done yet/i.test(why)) problems.push('那句话没说清「今天做不到」');
+  if (!/no screen or setting/i.test(why)) problems.push('那句话没把「没有那个界面」说出来 —— 模型会自己补一个（活体跑真发生过）');
+  if (/dashboard|settings page|site settings/i.test(why)) {
+    problems.push(`那句话把人指到了一个后台界面：${head(why)}`);
+  }
+  if (problems.length === 0) ok('拒绝话里「加语言」那半句：说了今天做不到、说了没有那个界面、没把人指到后台去');
+  else problems.forEach(bad);
+}
+{
+  // ② 那个事实本身，在仓库上量。REPO = 平台仓根（templates/nextjs 的上两级）。
+  const REPO = path.join(NEXT, '..', '..');
+  const dirs = ['dashboard/src', 'manager', 'worker'].map((d) => path.join(REPO, d));
+  const missing = dirs.filter((d) => !fs.existsSync(d));
+  if (missing.length) {
+    console.log(`  ⚠️  ⑤c 第二半跳过：找不到 ${missing.join(' / ')} —— 这**不是**通过，只是这次没在仓里跑`);
+  } else {
+    const countFiles = (pattern) => {
+      try {
+        return cp.execFileSync('grep', ['-rIlE', pattern, ...dirs], { encoding: 'utf-8' })
+          .split('\n').filter(Boolean).length;
+      } catch (e) { return 0; }        // grep 没命中时退出码 1
+    };
+    // 🔴 先校准尺子：拿同一把尺量一个**真存在**的东西。少了这一步，一个坏掉的 grep 会打出 0，
+    //    而那个 0 长得跟「真的没有」一模一样。
+    const calib = countFiles('themeId');
+    const writers = countFiles('site_meta|siteMeta');
+    if (calib === 0) {
+      bad('⑤c 尺子校准失败：连 themeId 都数到 0 —— 这两个 grep 的读数一个都不能信');
+    } else if (writers === 0) {
+      ok(`⑤c dashboard/src · manager · worker 里 site_meta|siteMeta 命中 0 个文件`
+        + `（同一把尺量 themeId = ${calib} 个文件 ⟹ 这个 0 是真的）⟹ 那句「没有那个界面」是实话`);
+    } else {
+      bad(`⑤c 有 ${writers} 个文件提到 site_meta / siteMeta 了 —— 如果产品真做出了给存量站加语言的路，`
+        + 'editable-files.js 里那句「nothing in the product today adds one」就成了假话，回去改措辞');
+    }
+  }
+}
+
+// ══ ⑤b 阳性对照：只撤掉 #1138 新加的那一处判断，⑤ 点名的那几个路径必须回到放行 ══════════════════
+//
+// 🔴 跟 ④ 分开一格是有意的：④ 撤的是**整个**形状那一问（那两行），撤了它 ⑤ 自然也回到放行 ——
+//    所以 ④ 不能证明「⑤ 的绿是新那个分支给的」。这一格只把新那个分支的判断条件掐成 `false`，
+//    别的一个字节都不动，于是 ②③（#1109 立的两向）必须**照旧是拒**，只有 ⑤ 那几条翻面。
+//    两边都要断言：只断言「⑤ 翻面」的话，一个把整个函数掐掉的变异也能让这一格绿。
+console.log('⑤b 阳性对照（只撤 #1138 那一处判断）');
+{
+  const REAL = path.join(__dirname, 'editable-files.js');
+  const src = fs.readFileSync(REAL, 'utf-8');
+  const ANCHOR = '  if (!shape.flat && locale && shape.locales.length && !shape.locales.includes(locale)) {\n';
+  const n = src.split(ANCHOR).length - 1;
+  if (n !== 1) die(`⑤b 阳性对照的锚点在 editable-files.js 里出现 ${n} 次（要求正好 1 次）：${ANCHOR.trim()}`);
+  const mutated = src.replace(ANCHOR, '  if (false) {\n');
+
+  const dir = temp('site-shape-control-1138-');
+  cp.execSync(`cp -a "${path.join(NEXT, 'scripts')}" "${path.join(dir, 'scripts')}"`, { stdio: 'pipe' });
+  const copy = path.join(dir, 'scripts', 'lib', 'editable-files.js');
+  fs.writeFileSync(copy, mutated);
+  const controlWrite = require(copy).writeRejection;
+  const askControl = (site, relPath) => controlWrite(relPath, ctxFor(site, relPath));
+
+  const stillRejected = NEW_BRANCH_PATHS.filter((p) => askControl(localeSite, p) !== null);
+  if (stillRejected.length === 0) {
+    ok(`掐掉那一处之后，⑤ 点名的 ${NEW_BRANCH_PATHS.length} 个路径全部回到放行 —— ⑤ 量的是这个分支，不是夹具`);
+  } else {
+    bad(`掐掉 #1138 那一处之后这些仍被拒：${stillRejected.map((p) => JSON.stringify(p)).join(' · ')}`
+      + ' —— 说明 ⑤ 的绿有一部分不是这个分支给的');
+  }
+  // 反过来那一半：#1109 立的两向不许跟着塌（证明这次撤的只是新那一处）
+  const leaked = withStaleNav(localeSite, 'navigation.json', () => withStaleNav(flatSite, 'en/navigation.json', () => [
+    ...ROOT_PATHS.filter((p) => askControl(localeSite, p) === null).map((p) => `多语言站根级 ${p}`),
+    ...LOCALE_PATHS.filter((p) => askControl(flatSite, p) === null).map((p) => `扁平站 ${p}`),
+  ]));
+  if (leaked.length === 0) ok('同一个变异下 #1109 立的两向仍然全拒 ⟹ 这次撤掉的确实只是新加的那一处');
+  else bad(`这个变异把 #1109 那两向也撤掉了（${leaked.join(' · ')}）⟹ 上面那格证明不了「只撤了新那一处」`);
+}
+
+// ══ ⑥ 「问不到形状」不许被当成任何一个答案 ══════════════════════════════════════════════════════
 //
 // 最容易犯的错是把「读不到」判成「扁平」：`fs.existsSync` 对一个不存在的目录里的文件也返回 false。
 // 那会在一个真多语言站上把 `en/seo.json` 拒掉，理由还是一句「这个站是扁平的」假话。
-console.log('⑤ 问不到形状时');
+console.log('⑥ 问不到形状时');
 {
   const problems = [];
   const missing = readSiteShape(path.join(localeSite, 'no-such-dir'));

@@ -458,5 +458,116 @@ console.log('⑧ 判的对象 == 落盘的对象（#1109 r2）');
   else bad('⑧f writeRejection 不是纯的：同一份语料连问两次判决不同');
 }
 
+// ── ⑨ 这个语言，这个站有吗（#1138）───────────────────────────────────────────────────────────────
+//
+// ⑦ 关的是「有没有带语言段」这一维。带了语言段、而那个语言**这个站没有**是同一个洞的第三道入口：
+// 站里只有 `en`，模型写 `fr/seo.json` ⟹ 落盘 → `sync-config` rc=0 → commit + push → 老板收到
+// 「Done」→ 产物里 0 命中。构建只读 `site_meta.json` 列着的那几个语言。
+//
+// 🔴 这里的形状照旧是**造出来的**两个字面量 ⟹ 这一格证的是「拿到语言清单之后判得对」。
+//    「真站上那份清单读得对不对」是另一个读数，`site-shape.test.js` ⑤ 在真夹具上取。
+// 🔴 判据是「这个站有没有这个语言」，不是「这是不是一个合法语言代码」——所以下面 ODD 那三种
+//    根本不像语言的段不需要单独一条规则，同一条判断就收了。照症状枚举会在下一种拼法出现时漏
+//    （#1109 r2 的账：实测的差集有两族，照字符写漏掉第二族）。
+console.log('⑨ 这个语言这个站有吗（#1138）');
+{
+  const SITE = { flat: false, locales: ['en', 'zh'] };          // 这个站有 en 和 zh
+  const shaped = (shape) => ({ readSiteShape: () => shape });
+  const head = (s) => String(s).replace(/\n/g, '⏎').slice(0, 110);
+
+  // 站里没有的语言 × 每一类按语言存的内容文件
+  const UNKNOWN = ['fr/seo.json', 'fr/services.json', 'de/pages/home.json', 'pt/pages/services/a.json',
+    'ja/blog/first.json', 'ko/blocks/site-blocks.json', 'xx/seo.json', 'EN/seo.json'];
+  // 不像语言的三种拼法（AC3）。`C:/seo.json` 是 #1109 那道拼写门对 `C:\seo.json` 给出的建议 ——
+  // 照它写回来，改之前会落进 `site/C:/`。
+  const ODD = ['\t/seo.json', '\n/seo.json', 'C:/seo.json'];
+
+  const problems = [];
+  for (const p of UNKNOWN.concat(ODD)) {
+    const why = writeRejection(p, shaped(SITE));
+    if (why === null) { problems.push(`${JSON.stringify(p)} 竟然可写（写进去没人读，站不会变）`); continue; }
+    if (!/multi-language site/.test(why)) problems.push(`${JSON.stringify(p)} 的理由没说这个站是多语言的：${head(why)}`);
+    if (!/is not one of the languages it has \(it has: en, zh\)/.test(why)) {
+      problems.push(`${JSON.stringify(p)} 的理由没点名这个站有哪几个语言：${head(why)}`);
+    }
+    const bare = p.split('/').slice(1).join('/');
+    if (!why.includes(`en/${bare}`)) problems.push(`${JSON.stringify(p)} 没告诉模型该写哪个路径（应含 en/${bare}）：${head(why)}`);
+    // 🔴 不许拿到兜底那句「不是这个站的内容文件」—— 两句话的区别就是模型会不会去改对地方
+    if (/is not one of this site's content files/.test(why)) {
+      problems.push(`${JSON.stringify(p)} 拿到的是兜底那句「不是这个站的内容文件」：${head(why)}`);
+    }
+    // 🔴 别把话说死（#1138 N3）：将来有了加语言的路，这道门要跟着放行 ——
+    //    所以不许出现 never / permanently 这种断言。
+    if (/never|permanently|will not have/i.test(why)) {
+      problems.push(`${JSON.stringify(p)} 把话说死了（出现 never / permanently）：${head(why)}`);
+    }
+    // 🔴 也不许把老板指到某个界面去加语言 —— 那个界面不存在（语言只在建站向导里选）。
+    //    这一条是活体跑逼出来的：只说「这条聊天改不了」时，真模型自己补出了「去 dashboard 设置里加」。
+    //    整段理由 + 那个事实的仓库读数在 `site-shape.test.js` ⑤c（这里是那一格的快版，不用建夹具）。
+    if (!/cannot be done yet/i.test(why) || !/no screen or setting/i.test(why) || /dashboard/i.test(why)) {
+      problems.push(`${JSON.stringify(p)} 里「加语言」那半句不对（要说清今天做不到 + 没有那个界面，且不许提 dashboard）：${head(why)}`);
+    }
+  }
+  if (problems.length === 0) {
+    ok(`站里没有的语言 ${UNKNOWN.length} 条 + 不像语言的 ${ODD.length} 种拼法全部被拒，`
+      + '理由点名了这个站有哪几个语言、该写的路径，而且没把话说死');
+  } else problems.forEach(bad);
+
+  // 🔴 正向：这个站**真有**的语言照旧放行（AC2）。少了这一格，把这个分支写成「带语言段就拒」
+  //    也能让上面全绿 —— 而那会把多语言站的编辑整条治死。
+  const killed = [];
+  for (const p of ['en/seo.json', 'zh/seo.json', 'en/services.json', 'zh/pages/home.json',
+    'en/pages/services/a.json', 'zh/blog/first.json', 'en/blocks/site-blocks.json', 'brand.json']) {
+    const why = writeRejection(p, shaped(SITE));
+    if (why !== null) killed.push(`${p} → ${head(why)}`);
+  }
+  if (killed.length === 0) ok('这个站真有的那两个语言（en / zh）下 7 条内容文件 + 根级 brand.json 照旧放行');
+  else killed.forEach((k) => bad(`【应该】可写却被拒了：${k}`));
+
+  // 🔴 语言清单问不出来时这一问不判：`site_meta.json` 在、但读不出来 ⟹ 形状确定是多语言，而
+  //    「这个站有哪几个语言」没有答案（`lib/site-shape.js` 文件头第三条）。那时开火 = 在一个真
+  //    多语言站上拒掉它唯一正确的路径，理由还是一句「这个站没有 en」的假话。
+  const BLIND = { flat: false, locales: [] };
+  const overreach = ['en/seo.json', 'fr/seo.json', 'en/pages/home.json', '\t/seo.json']
+    .filter((p) => writeRejection(p, shaped(BLIND)) !== null);
+  if (overreach.length === 0) {
+    ok('语言清单为空（site_meta.json 读不出来）时这一问不判 —— 不拿一句猜的话拒掉正确路径');
+  } else bad(`语言清单为空时把这些拒了：${overreach.map((p) => JSON.stringify(p)).join(' · ')}`);
+
+  // 🔴 扁平站那一维不许被这个分支碰：扁平站上带语言段的路径拿到的必须还是 ⑦ 那句「这个站是扁平的」，
+  //    不是「这个站没有 fr」——后者对一个扁平站是假话（它一个语言目录都不该有）。
+  const flatWhy = writeRejection('fr/seo.json', shaped({ flat: true, locales: [] })) || '';
+  if (/flat layout/.test(flatWhy) && !/is not one of the languages/.test(flatWhy)) {
+    ok('扁平站上 fr/seo.json 拿到的仍是「这个站是扁平的」那句，不是「这个站没有 fr」');
+  } else bad(`扁平站上 fr/seo.json 的理由串了：${head(flatWhy)}`);
+
+  // 🔴 阳性对照：只把这个分支的判断条件掐成 false（在内存里编译，不往交付树放探针），
+  //    上面 UNKNOWN + ODD 必须全部回到放行，而 ⑦ 立的两向必须照旧全拒 —— 两边都断言，
+  //    只断言前一半的话，一个把整个 wrongPlaceForShape 掐掉的变异也能让这一格绿。
+  {
+    const REAL = path.join(__dirname, 'editable-files.js');
+    const srcReal = require('fs').readFileSync(REAL, 'utf-8');
+    const ANCHOR = '  if (!shape.flat && locale && shape.locales.length && !shape.locales.includes(locale)) {\n';
+    const n = srcReal.split(ANCHOR).length - 1;
+    if (n !== 1) die(`⑨ 阳性对照的锚点在 editable-files.js 里出现 ${n} 次（要求正好 1 次）`);
+    const Module = require('module');
+    const m = new Module(REAL, module);
+    m.filename = REAL;
+    m.paths = Module._nodeModulePaths(path.dirname(REAL));
+    m._compile(srcReal.replace(ANCHOR, '  if (false) {\n'), REAL);
+    const ungated = m.exports.writeRejection;
+
+    const stillRejected = UNKNOWN.concat(ODD).filter((p) => ungated(p, shaped(SITE)) !== null);
+    if (stillRejected.length === 0) {
+      ok(`⑨ 阳性对照：掐掉那一处之后，这 ${UNKNOWN.length + ODD.length} 条全部回到放行 —— 上面量的是这个分支`);
+    } else bad(`⑨ 掐掉之后这些仍被拒：${stillRejected.map((p) => JSON.stringify(p)).join(' · ')}`);
+
+    const leaked = ['seo.json', 'pages/home.json', 'blog/first.json'].filter((p) => ungated(p, shaped(SITE)) === null)
+      .concat(['en/seo.json', 'zh/pages/home.json'].filter((p) => ungated(p, shaped({ flat: true, locales: [] })) === null));
+    if (leaked.length === 0) ok('⑨ 同一个变异下 #1109 立的两向仍然全拒 ⟹ 这次掐掉的确实只是新加的那一处');
+    else bad(`⑨ 这个变异把 #1109 那两向也撤掉了（${leaked.join(' · ')}）⟹ 上面那格证明不了「只撤了新那一处」`);
+  }
+}
+
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);

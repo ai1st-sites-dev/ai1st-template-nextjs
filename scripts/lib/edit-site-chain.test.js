@@ -748,5 +748,77 @@ console.log('\n⑧ en\\seo.json：字节没落到根目录，且回执让模型�
   else bad(`commit 数不对：${res.commitsBefore} → ${res.commitsAfter}`);
 }
 
+// ══ ⑨ 这个站没有的语言：`site/fr/` 没被造出来，且回执让模型改一次就成（#1138）════════════════════
+//
+// 这个夹具的 `site_meta.json` 只列 `en`。改之前 `fr/seo.json` 是**放行**的：`path.join` 把 `site/fr/`
+// 造出来、字节落进去、`sync-config` rc=0（它只读 `site_meta.json` 列着的语言）⟹ 编辑走到底、
+// commit + push、老板收到「Done」，而产物里探针 0 命中。逐字是 #1109 那句病的第三道入口。
+// 🔴 纯函数那一层由 `editable-files.test.js` ⑨ 与 `site-shape.test.js` ⑤ 钉，**这一格钉的是真进程**：
+//    真的 create-site 夹具、真的 `edit-site.js`、真的 sync-config、真的 git、真的落盘。
+// 🔴 两半都要（AC5）：① `site/fr/` 不许被创建，而且产物里不许有探针 ② 回执里那句话要能让模型自己
+//    改对 —— 所以第二轮就按它点名的路径再写一次，必须真的保存、而且**值真的进产物**。
+//    少了 ② 这一格就退化成「拒了就算赢」，而「拒得住但改不回来」跟静默写错一样坏。
+console.log('\n⑨ fr/seo.json（这个站没有的语言）：site/fr/ 没被造出来，回执让模型改一次就成（#1138）');
+{
+  const ctx = makeRoot('unknown-locale');
+  const site = writeSite(ctx.work);
+  assertSyncsClean(ctx.work, '⑨');
+  ctx.git('git add -A && git commit -q -m base && git push -q origin main');
+
+  // 前提先自证：这个站真的只有 en（不然下面量的不是本票要治的东西）
+  const meta = JSON.parse(fs.readFileSync(path.join(site, 'site_meta.json'), 'utf8'));
+  if (!Array.isArray(meta.locales) || meta.locales.join(',') !== 'en') {
+    die(`⑨ 夹具的语言清单不是 ['en']（是 ${JSON.stringify(meta.locales)}）—— 换个夹具再取读数`);
+  }
+
+  const PROBE = 'DEV1138 unknown-locale probe title';
+  const seo = JSON.parse(fs.readFileSync(path.join(site, 'en', 'seo.json'), 'utf8'));
+  const body = JSON.stringify({ ...seo, metaTitle: PROBE }, null, 2);
+
+  const res = runEdit(ctx, [
+    // 第 1 轮：模型自己编了一个这个站没有的语言
+    reply([textBlock('Adding the French SEO copy.'), writeCall('t1', 'fr/seo.json', body)], 'tool_use'),
+    // 第 2 轮：照回执里点名的路径重写一次（真模型拿到那句话就该这么做）
+    reply([textBlock('Writing the English file instead.'), writeCall('t2', 'en/seo.json', body)], 'tool_use'),
+    reply([textBlock('Changes applied.')], 'end_turn'),
+  ]);
+
+  // ① `site/fr/` 不许被造出来（`path.join` 会连目录一起建，所以它在就是字节落过去了）
+  const entries = fs.readdirSync(site).sort();
+  if (!entries.includes('fr')) ok(`site/ 底下没有 fr 目录（现在是：${entries.join(' ')}）`);
+  else bad(`🔴 site/fr/ 被造出来了，里面是 ${fs.readdirSync(path.join(site, 'fr')).join(' ')} —— 字节落到了构建不读的地方`);
+
+  // ② 第 1 轮的回执必须是拒绝，而且点名这个站有哪几个语言 + 该写哪个路径
+  const r1 = toolResultContent(res, 2, 't1');
+  if (r1 === null) {
+    bad('⑨ 取不到第 1 轮那次 write_file 的回执 —— 这一格的读数不作数');
+  } else if (/is not one of the languages it has \(it has: en\)/.test(r1)
+             && /en\/seo\.json/.test(r1) && !/"success":true/.test(r1)) {
+    ok('第 1 轮被拒，回执点名了这个站只有 en、以及该写 en/seo.json');
+  } else {
+    bad(`第 1 轮的回执不是「拒 + 点名语言和路径」：${r1.slice(0, 240)}`);
+  }
+
+  // ③ 第 2 轮（照回执改）必须真的落盘 —— 拒得住还要修得回来
+  const onDisk = JSON.parse(fs.readFileSync(path.join(site, 'en', 'seo.json'), 'utf8'));
+  if (onDisk.metaTitle === PROBE) ok('第 2 轮照回执改的那次真的落到了 site/en/seo.json');
+  else bad(`第 2 轮没落盘：metaTitle 现在是 ${JSON.stringify(onDisk.metaTitle)}`);
+
+  // ④ 🔴 **值真的进产物** —— 这是本票要治的那句病的唯一直接读数：「落盘 + rc=0」两个都成立时，
+  //    改之前产物里是 0 命中。所以这里量的不是落盘，是构建到底读到了没有。
+  const generated = path.join(ctx.work, 'src', 'lib', 'config-data.ts');
+  const hits = (() => {
+    try { return (fs.readFileSync(generated, 'utf8').match(new RegExp(PROBE, 'g')) || []).length; }
+    catch (e) { return -1; }
+  })();
+  if (hits >= 1) ok(`探针进了产物 src/lib/config-data.ts（${hits} 处命中）⟹ 站真的变了，不是「写进去没人读」`);
+  else bad(`产物里探针 ${hits === -1 ? '读不到那个文件' : `${hits} 处命中`} —— 这次编辑落盘了但站没变，正是本票要治的那句病`);
+
+  if (ev(res, 'edit-complete').length === 1 && !ev(res, 'error').length) ok('整次编辑走到底：一条 edit-complete、零 error');
+  else bad(`事件不对：edit-complete ${ev(res, 'edit-complete').length} · error ${ev(res, 'error').length}（${res.events.map((e) => e.event).join(' ')}）`);
+  if (res.commitsAfter === res.commitsBefore + 1) ok(`commit 了一个（${res.commitsBefore} → ${res.commitsAfter}）`);
+  else bad(`commit 数不对：${res.commitsBefore} → ${res.commitsAfter}`);
+}
+
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);

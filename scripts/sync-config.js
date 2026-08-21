@@ -783,7 +783,7 @@ if (layoutProblems.length) {
   console.error('page layout 库不合法（page-layouts/ 与 site/page-layout.json）：');
   for (const problem of [...new Set(layoutProblems)]) console.error(`  · ${problem}`);
   // #1108 —— 上面那些 problem 点名了 site/page-layout.json,但没说「那我怎么改它」。
-  console.error(`  · ${remediation.howToChangePageLayout({ rootDir }).sentence}`);
+  console.error(`  · ${remediation.howToChangePageLayout({ rootDir, siteDir }).sentence}`);
   process.exit(1);
 }
 const pageLayout = { id: picked.layout.id, regions: picked.layout.regions,
@@ -813,7 +813,7 @@ if (pageLayoutLib.needsTopbar(picked.layout) && regionLayout.header === 'transpa
   // 🔴 #1108 —— 这条以前给的两条路里,「换一个不带 topbar 区的 page layout」**走不通**
   //    (产品里 0 个写入者)。本票点名的是下面那条 topbar 缺内容的报错,而这一条是同一个病的
   //    另一格 —— 扫查时抓到的。换主题那一半是真的(dashboard 里有换装弹窗)。
-  console.error(`  · ${remediation.howToChangePageLayout({ rootDir }).sentence}`);
+  console.error(`  · ${remediation.howToChangePageLayout({ rootDir, siteDir }).sentence}`);
   // 🔴 #1108 —— 这一句以前把判据写成 `themes.js 的 supports.header !== 'transparent-overlay'`。
   //    `supports` 装的是**清单**（数组），拿它 `!==` 一个字符串恒为真 ⟹ 那个判据一个主题都排除不掉：
   //    照它挑出 110 个候选，其中 20 个解析出来仍然是透明浮层。现在这份名单**算出来** ——
@@ -842,7 +842,7 @@ if (pageLayoutLib.needsTopbar(picked.layout)) {
     for (const line of remediation.topbarBullets({ siteDir, locales: missing, flat: isLegacySchema })) {
       console.error(`  · ${line}`);
     }
-    console.error(`  · 或者不要 topbar —— ${remediation.howToChangePageLayout({ rootDir }).sentence}`);
+    console.error(`  · 或者不要 topbar —— ${remediation.howToChangePageLayout({ rootDir, siteDir }).sentence}`);
     process.exit(1);
   }
 }

@@ -30,15 +30,30 @@
 
 const fs = require('fs');
 const path = require('path');
+const { readSiteShape } = require('./site-shape.js');
 
-/** 白名单说这条路径写得进去吗？拿不到那个模块时返回 null（= 问不到，不许当成任何一个答案）。 */
-function editorCanWrite(relPath, ctx) {
+/**
+ * 白名单说这条路径写得进去吗？拿不到那个模块时返回 null（= 问不到，不许当成任何一个答案）。
+ *
+ * 🔴 `siteDir` 是**必填位置参数**，不是 ctx 里一个可选的键（#1138）。理由是具体的：白名单判的第二问
+ *    是「这个文件在**这个站**上有人读吗」，它要的是这个站的形状（`lib/editable-files.js` 的「第二问」
+ *    那一段），而形状问不到时那一维**不判** —— 也就是说，一个调用点忘了递形状，它拿到的不是错误，
+ *    是**另一道题的答案**，而两个答案今天碰巧相同（#1138 正文的 N2 量过：`:97` 问的路径形状本来就对、
+ *    `:145` 那个文件两种问法都拒）。#1138 给白名单加了「这个语言这个站有没有」这一问之后，这条路
+ *    就会开始分歧：remediation 会说「这个在聊天里改得了」，而真编辑器会拒。
+ *    ⟹ 把 siteDir 摆成位置参数，让「忘了递形状」这件事**写不出来**：没有站目录就得显式传 `''`
+ *    （那时 `readSiteShape('')` 返回 null，跟今天一样不判这一维，而且这个选择在代码上看得见）。
+ *    这一条由 `remediation.test.js` ⑨ 钉着 —— 判据是行为：同一条路径，这里的答案必须与真编辑器
+ *    （`edit-site.js` 那套 ctx）的答案相同。
+ */
+function editorCanWrite(relPath, siteDir, extraCtx) {
   let writeRejection;
   try {
     ({ writeRejection } = require('./editable-files.js'));
   } catch (e) {
     return null;
   }
+  const ctx = { ...(extraCtx || {}), readSiteShape: () => readSiteShape(siteDir) };
   try {
     return writeRejection(relPath, ctx) === null;
   } catch (e) {
@@ -94,7 +109,7 @@ function howToAddTopbar(opts) {
     ...current,
     topbar: { message: '示例文案', link: { label: '示例', href: '/contact' } },
   });
-  const can = editorCanWrite(rel, {
+  const can = editorCanWrite(rel, siteDir, {
     content: candidate,
     readCurrent: () => { try { return fs.readFileSync(full, 'utf-8'); } catch (e) { return null; } },
   });
@@ -126,11 +141,16 @@ function howToAddTopbar(opts) {
 /**
  * 「换一个 page layout 今天怎么换」。
  *
- * @param {{rootDir?: string}} [opts] rootDir = templates/nextjs（用来列出库里有哪些布局）
+ * @param {{rootDir?: string, siteDir?: string}} [opts]
+ *        rootDir = templates/nextjs（用来列出库里有哪些布局）
+ *        siteDir = 这个站的 `site/`（问白名单时要它，见 `editorCanWrite` 上面那段）。
+ *          🔴 不传时这一维不判 —— 今天的答案不变（`page-layout.json` 不是按语言存的文件，形状
+ *             对它不说话），但**别把「今天不说话」写成「不用传」**：那正是 #1138 要治的那条路。
  * @returns {{viaProduct: boolean|null, sentence: string}}
  */
 function howToChangePageLayout(opts) {
   const rootDir = (opts && opts.rootDir) || path.join(__dirname, '..', '..');
+  const siteDir = (opts && opts.siteDir) || '';
   // 库里有哪些 —— 读目录，不抄名单（加一个新布局时这句话自己跟上）
   let available = [];
   try {
@@ -142,7 +162,7 @@ function howToChangePageLayout(opts) {
     available = [];
   }
   const list = available.length ? available.join(' / ') : '（读不出 page-layouts/ 目录）';
-  const can = editorCanWrite('page-layout.json');
+  const can = editorCanWrite('page-layout.json', siteDir);
   if (can === true) {
     return {
       viaProduct: true,

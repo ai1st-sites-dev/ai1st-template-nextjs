@@ -53,6 +53,12 @@
  * 🔴 修法不是补一张路径清单（清单会在下一个文件类型出现时漏），是让这道门知道**这个站是什么形状**：
  *    形状从 `ctx.readSiteShape()` 来，判据与构建同一条（`lib/site-shape.js` 里写着为什么只看
  *    `site_meta.json` 在不在）。
+ *
+ * 🔴 **形状有两维，第二维是「哪几个语言」（#1138）。** 上面那段只关了「有没有带语言段」这一维；
+ *    带了语言段、而那个语言**这个站没有**（站里只有 `en`，模型写 `fr/seo.json`）是同一个洞的第三道
+ *    入口，实测的后果逐字相同：落盘 → `sync-config` rc=0 → commit + push → 老板收到「Done」→
+ *    产物里 0 命中。构建只读 `site_meta.json` 列着的那几个语言。判断在 `wrongPlaceForShape`
+ *    第三个分支，那里也写着为什么「语言清单问不出来时不判」。
  * 🔴 **形状问不到时这一维不判**（保留白名单原来的答案），方向跟 navigation.json 那道窄口子相反，
  *    理由是具体的：
  *      · 这里被判的是**站的内容文件**（本来就该写得进去），拿不到形状就拒 = 一份站目录读不出来
@@ -272,16 +278,56 @@ function siteShapeOf(ctx) {
 }
 
 /**
- * 这次写入落在「这个站的构建根本不读」的那个位置吗（#1109）。返回拒绝的理由，或者 null（位置对）。
+ * 这次写入落在「这个站的构建根本不读」的那个位置吗（#1109 · #1138）。返回拒绝的理由，或者 null（位置对）。
  *
  * 🔴 拒的理由要把三件事都说出来 —— 这个站是什么形状 · 内容真正住在哪 · **这次该写哪个路径**。
  *    只说 invalid 的后果 #1087 记着：模型会去试别的写法。而这里还多一层 —— 位置写错时这条路
  *    **不报错也不生效**，所以理由里必须写明「写在这里没人读，站不会变」，否则模型（和老板）无从
  *    分辨「我改了」和「我改了但白改」。
+ *
+ * ── 三个分支，三个不同的问题（#1138 补的是第三个）──────────────────────────────────────────────
+ *   1. 多语言站 + 路径**没带**语言段        → 拒（#1109）
+ *   2. 扁平站   + 路径**带了**语言段        → 拒（#1109）
+ *   3. 多语言站 + 那个语言段**这个站没有**  → 拒（#1138）
+ * 第 3 个以前落到末尾那句 `return null` ⟹ 放行。实测的后果与前两个逐字相同：站里只有 `en` 而模型
+ * 写 `fr/seo.json`，文件真的落盘、`sync-config` rc=0、commit + push、老板收到「Done」，而产物里
+ * 探针 0 命中 —— 构建只读 `site_meta.json` 列着的那几个语言。同一个洞的三种入口都在这里关。
+ *
+ * 🔴 第 3 个问的是「**这个站有没有这个语言**」，不是「这是不是一个合法的语言代码」（#1138 正文
+ *    点名）。后者会把「站里真有 `fr`、模型也写 `fr`」判进来 —— 那是**对的**路径。也正因为判据是
+ *    「这个站有没有」，`\t` / `\n` / `C:` 这些根本不像语言的段不需要单独枚举：它们同样不在这个站的
+ *    语言清单里，同一条判断就把它们收了（照症状枚举会在下一种拼法出现时漏，#1109 r2 的账）。
  */
 function wrongPlaceForShape(normalized, locale, rest, shape) {
   if (!shape || !isLocaleScopedFile(rest)) return null;
   const bare = rest.join('/');
+
+  // #1138 —— 多语言站，而这个语言段不是这个站的语言之一。
+  // 🔴 `shape.locales.length` 这个前提是承重的，不是防御性代码：`site_meta.json` 在、但读不出来
+  //    （不是合法 JSON / 没有 locales 数组）时 `readSiteShape` 返回 `{flat:false, locales:[]}`
+  //    —— 形状是确定的（多语言），但「这个站有哪几个语言」**没有答案**（理由整段在
+  //    `lib/site-shape.js` 文件头第三条）。那时开火 = 在一个真多语言站上把它唯一正确的路径拒掉，
+  //    而理由还是一句「这个站没有 en」的假话。语言清单问不出来 ⟹ 这一问不判，落回下面的白名单。
+  if (!shape.flat && locale && shape.locales.length && !shape.locales.includes(locale)) {
+    // 🔴 语言名用 JSON.stringify 印：这一格真会收到 `\t` / `\n` 当语言段（#1138 AC3），
+    //    直接插进句子里会把那个字符原样打进老板/模型看到的文本，读起来像句子断了。
+    // 🔴 最后那句「不许把老板指到某个地方去加语言」是**实测逼出来的**，不是防御性废话。第一版
+    //    只写到「这条聊天改不了 site_meta.json」，真模型（活体跑，读数在 #1138 交接留言里）当场
+    //    自己补出了下一句：「去 dashboard 的设置里先加法语」——而那个界面**不存在**（语言只在建站
+    //    向导里选，`dashboard/src/pages/sites/create/lead/LeadFormStep.tsx`；建完之后全仓 0 个
+    //    site_meta.json 的写入者）。「这条路改不了」会被读成「所以别的路改得了」⟹ 必须把那半句
+    //    也说出来。同族先例是上面 `page-layout.json` 那条（#1087 r3），措辞是有意抄它的。
+    return `${normalized} is not where this site keeps its content. This site is a multi-language site, `
+      + `and ${JSON.stringify(locale)} is not one of the languages it has (it has: ${shape.locales.join(', ')}). `
+      + `The build only reads the languages the site is set up with, so a file under site/${locale}/ is read `
+      + `by nothing — it would be saved and the site would not change. To change this content, write `
+      + `${shape.locales[0]}/${bare} instead (or the same file under one of the other languages above).\n`
+      + `If the owner wanted a new language rather than a change to an existing one: a site's languages are `
+      + `chosen when the site is created, and nothing in the product today adds one to a site that already `
+      + `exists. So the honest answer is that it cannot be done yet — do not tell the owner to go and add `
+      + `the language somewhere, there is no screen or setting for it.`
+      + `\n\nNothing was written. ${EDITABLE_SUMMARY}`;
+  }
 
   if (!shape.flat && !locale) {
     const has = shape.locales.length ? ` (this site has: ${shape.locales.join(', ')})` : '';
