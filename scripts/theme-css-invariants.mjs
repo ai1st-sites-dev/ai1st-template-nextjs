@@ -49,10 +49,16 @@ import { createRequire } from 'node:module';
 
 // 🔴 LOADING THE INSTRUMENT IS ITS OWN STEP, AND IT ANSWERS 2 (#1062).
 // Left to Node, a module that will not load throws before a line of this file runs, and Node's own
-// exit code for that is 1 — the same 1 that :2035 uses for "a theme breaks an invariant". The
-// automatic caller `theme-pipeline/gates.js` reads that 1 and prints the candidate as having stopped
-// at gate ②, which is word for word what a failing theme looks like; `theme-css-invariants-all-
-// sheets.sh:293-297` reads it as `fail=1`, "an invariant does not hold". Neither is a statement this
+// exit code for that is 1 — the same 1 this file's own final `process.exit(1)` uses for "a theme breaks
+// an invariant" (`grep -n '^process.exit(1)' scripts/theme-css-invariants.mjs`). The automatic caller
+// `theme-pipeline/gates.js` reads that 1 and prints the candidate as having stopped at gate ②, which is
+// word for word what a failing theme looks like; the sibling shell runner reads it as `fail=1`,
+// "an invariant does not hold" (`grep -n 'an invariant does not hold' theme-css-invariants-all-sheets.sh`).
+// 🔴 #1134 — those two references used to be LINE NUMBERS (`:2035` and `all-sheets.sh:293-297`), and both
+// had already drifted twice: the exit is at :2627 today (the #1068 ledger recorded :2435, so it moved
+// again between that reading and this one) and the `fail=1` is at :550 (recorded as :516). Cross-file
+// line numbers in this repo go stale faster than anyone re-reads them — anchor on text that has to keep
+// existing for the sentence to be true, not on a position. Neither is a statement this
 // file is entitled to make when it never opened a browser. And a control experiment cannot separate
 // them either: with no playwright, the arm with a broken sheet and the arm without read the same.
 // The sibling shell caller has had the guard since #1009 (`:52-59`, existence-checked before it
@@ -301,8 +307,13 @@ function parseRgb(str) {
 
 /* global document, getComputedStyle, window, requestAnimationFrame */
 // 🔴 The four blocks below hand functions to `page.evaluate`, so their bodies run in the BROWSER,
-// not in node. Same declaration `scripts/theme-gallery/shoot.mjs:41` carries, for the same reason:
-// without it eslint's no-undef reports `document` and `getComputedStyle` as typos.
+// not in node. `scripts/theme-gallery/shoot.mjs` carries the same declaration for the same reason, in
+// TWO places — once as `/* global document */` and once as `/* global document, getComputedStyle */`
+// (`grep -n '/\* global' scripts/theme-gallery/shoot.mjs`) — because its browser-side blocks need
+// different names. Without it eslint's no-undef reports `document` and `getComputedStyle` as typos.
+// 🔴 #1134 — that reference used to read `shoot.mjs:41`, and `:41` is `const WIDEN = 'cd templates/nextjs
+// && …'`; the real declarations are at :85 and :134. Same lesson as the two references above: anchor on
+// the text, and say WHICH occurrence when there is more than one.
 
 const problems = [];
 const readings = [];
@@ -782,7 +793,18 @@ for (const sel of MOVED_TEXT_TARGETS) await measureText(sel, pathOf(baseUrl), fa
 // never lays the subtree out).
 //
 // 🔴 #1043 — AND IT LOOKS INSIDE THE BLOCK, NOT ONLY AT ITS ROOT. `$$eval('[data-role="essential"]')`
-// returns the block's own element; `data-role` is written once, by `blockAttrs`, onto that element.
+// returns the elements that carry the attribute.
+// 🔴 #1134 — the sentence here used to read «`data-role` is written once, by `blockAttrs`, onto that
+// element», stated as an invariant. IT IS NOT ONE: `src/components/sections/HeroLeadForm.tsx` writes it
+// by hand on two elements that are NOT a block root — the `<form>` and the success-state `<p>`
+// (`grep -n data-role src/components/sections/HeroLeadForm.tsx`), neither of which goes through
+// `blockAttrs`. So a selector on `[data-role="essential"]` can return an element with NO `data-block`.
+// 📌 Nothing here breaks and no finding is faked, which is why this is wording and not a defect: every
+// consumer of the name falls back — measured, all of them:
+//     `block.getAttribute('data-block') || block.className || 'essential block'`
+//     `block.getAttribute('data-block') || (getAttribute('class') || tagName).trim().split(/\s+/)[0]`
+//     `collectOrder`'s label(): data-block → data-region-layout → `<tag>`
+// What was wrong was only the claim that the attribute has exactly one writer.
 // So a sheet that leaves the root alone and hides a PART of it was invisible to this check. QA3
 // measured it on #1028: two lines in a sheet —
 //     .contact-info__phone { display: none }

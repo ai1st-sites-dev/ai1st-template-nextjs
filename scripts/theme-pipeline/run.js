@@ -312,6 +312,14 @@ async function main() {
       // 🔴 #1079 —— `slots[ci]` 是这套候选**全收时**会占的位子，顶栏/页脚按它算（理由整段写在
       //    installCandidate 上面）。人审拒掉几套就会让后面每一套的位子往前挪，那时图上这一维
       //    仍然是「全收假设下的样子」—— 这条边界写进交接与 AC5，不在这里悄悄兜。
+      // 🔴 #1134 —— 上面那句只说了「拒掉几套」这一种,还有**第二种**:`ci` 超过位子数时 `slots[ci]`
+      //    是 `undefined`(`poolSlots()` 今天 80 个位子),`installCandidate` 退回默认顶栏/页脚。
+      //    而**拍图那步没有对应的守卫**:下面 `shootCandidate` 照拍、三道闸照过、图册里有图,只是
+      //    那行「顶栏 X · 页脚 Y」不打(它挂在 `installed.regions` 上)⟹ 第 81 套起,图上顶栏那一维
+      //    静默回到修复前的样子(QA3 实测:与修复前的 `gen-07-2` 图逐字节相同,md5 3291e63d)。
+      //    `--count` 没有 ≤80 的闸(`Number(arg('--count', 3))`),所以这是「拒几套之后补池」时真会
+      //    走到的一条路。⟹ 这里**仍然不悄悄兜**(兜了就是把一个人审要知道的边界藏起来),
+      //    边界写在 `theme-pipeline/README.md` §这本图册仍然看不见的维度 ⑥。
       const installed = installCandidate(c, siteDir, slots[ci]);
       if (installed.regions) {
         console.log(`  ${c.id}：顶栏 ${installed.regions.header} · 页脚 ${installed.regions.footer}`

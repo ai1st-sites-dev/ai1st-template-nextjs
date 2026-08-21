@@ -317,11 +317,18 @@ function wrongPlaceForShape(normalized, locale, rest, shape) {
     //    向导里选，`dashboard/src/pages/sites/create/lead/LeadFormStep.tsx`；建完之后全仓 0 个
     //    site_meta.json 的写入者）。「这条路改不了」会被读成「所以别的路改得了」⟹ 必须把那半句
     //    也说出来。同族先例是上面 `page-layout.json` 那条（#1087 r3），措辞是有意抄它的。
-    return `${normalized} is not where this site keeps its content. This site is a multi-language site, `
-      + `and ${JSON.stringify(locale)} is not one of the languages it has (it has: ${shape.locales.join(', ')}). `
-      + `The build only reads the languages the site is set up with, so a file under site/${locale}/ is read `
+    // 🔴 #1134 —— 同一句里的三处插值要用**同一种**印法。这里原来只有语言名走 `JSON.stringify`
+    //    (上面那条注释解释了为什么:这一格真会收到 `\t` / `\n` 当语言段),而句首的 `${normalized}`
+    //    和句中的 `site/${locale}/` 是**裸插值** ⟹ 路径里带换行时回执真的断行。
+    //    实测判据:`PM_PATHS='["\n/seo.json"]'` 直调 `writeRejection`,回执**第一行是空行**。
+    //    拒绝与建议路径都不受影响(值一样),只是读起来像句子断了 —— 所以是措辞,不是缺陷。
+    return `${JSON.stringify(normalized)} is not where this site keeps its content. This site is a `
+      + `multi-language site, and ${JSON.stringify(locale)} is not one of the languages it has `
+      + `(it has: ${shape.locales.join(', ')}). `
+      + `The build only reads the languages the site is set up with, so a file under `
+      + `${JSON.stringify(`site/${locale}/`)} is read `
       + `by nothing — it would be saved and the site would not change. To change this content, write `
-      + `${shape.locales[0]}/${bare} instead (or the same file under one of the other languages above).\n`
+      + `${shape.locales[0]}/${bare} instead${shape.locales.length > 1 ? ' (or the same file under one of the other languages above)' : ''}.\n`
       + `If the owner wanted a new language rather than a change to an existing one: a site's languages are `
       + `chosen when the site is created, and nothing in the product today adds one to a site that already `
       + `exists. So the honest answer is that it cannot be done yet — do not tell the owner to go and add `

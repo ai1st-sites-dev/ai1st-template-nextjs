@@ -129,7 +129,17 @@ solid-bar 只有 22 套、multi-column 只有 27 套。**人审读到的那一�
    不是走 `applied:true` 那条注册表覆盖（`sync-config.js` 的 `if (appliedThemeId)` 两处）。值一样，
    门不一样：只出在那条路上的毛病，这本图册看不见；
 ⑤ **交互态与空数据的站** —— 整页静态截图，没有 hover / 展开的菜单；样例站是被撑满的那一份，
-   没有博客为空、服务只有一条之类的形状。
+   没有博客为空、服务只有一条之类的形状；
+⑥ 🔴 **第 81 套起，图上顶栏那一维会【静默回到修复前的样子】**（#1079 交付时就在，#1134 写下来）。
+   机理：`run.js` 装候选那步写的是 `installCandidate(c, siteDir, slots[ci])`，而 `poolSlots()` 今天
+   **恰好 80 个位子**（自己数：`node -e "console.log(require('./scripts/theme-pipeline/industry-sectors.js').poolSlots().length)"`）
+   ⟹ `ci >= 80` 时 `slots[ci]` 是 `undefined`，`installCandidate` 按它自己的注释退回默认顶栏/页脚。
+   **拍图那步没有同一道守卫** —— `shootCandidate` 照拍，三道闸照过，图册里有图，而那个「顶栏 X · 页脚 Y」
+   的人话也不打（它挂在 `installed.regions` 上）。QA3 实测过：第 81 套那张图与修复前的 `gen-07-2`
+   **逐字节相同**（md5 `3291e63d`）。
+   今天碰不到，只因为真实轮次恰好是 80 套；而 **`--count` 没有 ≤80 的闸**（`run.js` 里就是
+   `Number(arg('--count', 3))`），人审拒掉几套之后想补池，一跑就过界。⟹ 要跑超过位子数的轮次时，
+   顶栏那一维的图**不作数**，别拿它签字。
 
 ## 第③道闸怎么判
 

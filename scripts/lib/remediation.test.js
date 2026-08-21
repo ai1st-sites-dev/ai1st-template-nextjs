@@ -474,6 +474,88 @@ function siteWithNav(dir, locale) {
   else bads.forEach((b) => bad(`⑦ ${b}`));
 }
 
+// ── ⑦b 真跑一次 sync-config，读它自己吐出来的那两行（#1134，来源 #1108）──────────────────────────
+//
+// 🔴 上面 ⑦ 是**在源码上 grep**，它按构造对一种失效瞎：**字符串还在、那条调用变成不可达**
+//    （分支条件改了 / 那段被移到一个走不到的地方 / 报错在它之前就 return 了）。那时 ⑦ 全绿，而
+//    老板一句补救办法都拿不到。
+// 🔴 #1108 的 QA2 量过升级成真跑的代价并判它值：造一个最小站 + 一次 `sync-config` ——
+//    不用 LLM、不用构建。#1134 实测这一格总共 **~0.1 秒**（比 QA2 估的 4 秒还便宜；那 4 秒里
+//    大概含了 npm 那一段）。
+// 🔴 隔离：一切都在 `mkdtemp` 出来的一次性目录里。绝不在真树上跑 —— `sync-config.js` 读的是
+//    `path.resolve(__dirname, '..') + '/site'`，在真树上跑会拿真站的 `site/` 说话，还会重写
+//    `src/lib/config-data.ts`（那是共享树上别人正在用的字节）。
+// 🔴 **`scripts/` 必须真拷，不许 symlink** —— 这是 #1134 立这一格时踩到的仪器坑，写在明处：
+//    `__dirname` 会**穿过 symlink 解到真路径**，于是 `rootDir` 算出来是真树，这一格就跑去读真树的
+//    `site/` 了（第一版的读数逐字是 `Site config not found: <真树>/templates/nextjs/site/brand.json`
+//    —— 这棵树恰好没有 `site/` 才没造成后果，那是运气，不是判据）。`page-layouts` / `schemas` /
+//    `blocks` 是相对 `rootDir` 读的，symlink 对它们是安全的。
+console.log('── ⑦b 真跑一次 sync-config：带 topbar 区却没有 topbar 内容 ⟹ rc=1 且两条补救办法都在 stderr 上');
+{
+  const t = fs.mkdtempSync(path.join(os.tmpdir(), 'remediation-live-sync-'));
+  try {
+    // scripts 真拷（理由见上面那条 🔴：symlink 会让 __dirname 解到真树）
+    require('child_process').execSync(`cp -a "${path.join(NEXTJS, 'scripts')}" "${path.join(t, 'scripts')}"`, { stdio: 'pipe' });
+    // 这三块相对 rootDir 读，symlink 安全，也省掉整份拷贝
+    for (const d of ['page-layouts', 'schemas', 'blocks']) {
+      fs.symlinkSync(path.join(NEXTJS, d), path.join(t, d));
+    }
+    // 会被写的那两块：真目录（`src/lib/config-data.ts` 与 `public/theme.css` 落在这里）
+    fs.mkdirSync(path.join(t, 'src', 'lib'), { recursive: true });
+    fs.mkdirSync(path.join(t, 'public'), { recursive: true });
+    // 🔴 `scripts/blocks.js` 会 `require('../src/lib/sections/block-roles.json')` —— require 闭包
+    //    离开了 scripts/，所以这一块也得在。只拷它，不拷整个 src/（`src/` 里那份 config-data.ts
+    //    是**产物**，拷进来只会让这一格读到别人上一次同步的字节）。
+    require('child_process').execSync(
+      `mkdir -p "${path.join(t, 'src', 'lib', 'sections')}" && `
+      + `cp -a "${path.join(NEXTJS, 'src', 'lib', 'sections')}/." "${path.join(t, 'src', 'lib', 'sections')}/"`,
+      { stdio: 'pipe' });
+    const site = path.join(t, 'site');
+    fs.mkdirSync(path.join(site, 'pages'), { recursive: true });
+    const shade = (ks, v) => Object.fromEntries(ks.map((k) => [String(k), v]));
+    const w = (rel, obj) => fs.writeFileSync(path.join(site, rel), JSON.stringify(obj, null, 2));
+    w('page-layout.json', { layoutId: 'with-topbar' });     // ← 这个站要 topbar 区
+    w('brand.json', {
+      name: 'T', tagline: 't', logoIcon: 'shield-check',
+      colors: { primary: shade([50, 100, 200, 300, 400, 500, 600, 700, 800, 900], '#0ea5e9'),
+        accent: shade([50, 100, 200, 300, 400, 500, 600], '#f97316') },
+      fonts: { heading: ['"Inter"', 'sans-serif'], body: ['"Inter"', 'sans-serif'], googleFontsUrl: '' },
+      email: 'a@b.c', locations: [],
+    });
+    w('seo.json', { domain: 't.example', locale: 'en', metaTitle: 'T', metaDescription: 't', keywords: [] });
+    fs.writeFileSync(path.join(site, 'services.json'), '[]');
+    // 🔴 navigation.json 里**没有** topbar —— 这一格量的就是这个缺口
+    w('navigation.json', { header: { links: [], cta: { label: 'Go', href: '/contact' } },
+      footer: { columns: [], copyright: 'c' } });
+    w('pages/home.json', { slug: 'home', title: 'Home', description: 'd', navLabel: 'Home', navOrder: 1,
+      changeFrequency: 'weekly', priority: 1, blocks: [] });
+
+    const r = require('child_process').spawnSync(process.execPath, [path.join(t, 'scripts', 'sync-config.js')],
+      { cwd: t, encoding: 'utf-8', timeout: 120000 });
+    const all = `${r.stdout || ''}\n${r.stderr || ''}`;
+    r.status === 1
+      ? ok(`⑦b 真跑：rc=1（带 topbar 区却没内容 ⟹ 拒绝，不是静默通过）`)
+      : bad(`⑦b 真跑：rc=${r.status}，期望 1 —— 这个缺口没被拦住，或者夹具立不起来。输出末尾：`
+        + `${all.trim().split('\n').slice(-3).join(' ⏎ ')}`);
+    // 那句诊断
+    /有 topbar 区，但这些语言的 navigation\.json 里没有 topbar 内容/.test(all)
+      ? ok('⑦b 真跑：那句诊断在（点名是哪个缺口）')
+      : bad('⑦b 真跑：那句诊断不在 —— 拒的可能是别的原因，这一格量的不是这条路');
+    // 🔴 两条补救办法都要真的印出来。这才是 ⑦ 那种静态 grep 证不了的那一半。
+    for (const [what, re] of [
+      ['topbar 那条', /手改这个站仓里的 site\/navigation\.json/],
+      ['换布局那条', /手改这个站仓里的 site\/page-layout\.json/],
+    ]) {
+      re.test(all)
+        ? ok(`⑦b 真跑：${what}补救办法印出来了，而且路径是**从站仓根看**的（带 site/，#1134 item 34）`)
+        : bad(`⑦b 真跑：${what}补救办法没印出来（或者路径少了 site/ 那一层）—— `
+          + `字符串在源码里而这条调用走不到，正是 ⑦ 看不见的那种失效`);
+    }
+  } finally {
+    try { fs.rmSync(t, { recursive: true, force: true }); } catch { /* 清不掉不该让这一格红 */ }
+  }
+}
+
 // ── ⑨ 这里问出来的答案，必须跟【真编辑器】对同一条路径的答案相同（#1138）────────────────────────
 //
 // 🔴 为什么要有这一格。`editorCanWrite` 问的是白名单，而白名单的第二问是「这个文件在**这个站**上

@@ -841,6 +841,15 @@ function navWritesInSyncConfig(file) {
     ['加 topbar（message + link）', (n) => { n.topbar = { message: '24/7', link: { label: 'Call', href: '/contact' } }; }],
     ['只换键序', (n) => { const f = n.footer; n.footer = { copyright: f.copyright, columns: f.columns, description: f.description }; }],
     ['什么都没改', () => {}],
+    // 🔴 #1134（来源 #1128，QA1 替它跑过这 6 项）—— 上面那 15 条**全是「改哪个键」**，没有一条是
+    //    「只改值、不改键」。判据哪天改成跟**值**有关（比如「太长的介绍要提醒一句」「带换行的版权
+    //    要说明」），⑯ 会绿着放过去 —— 它今天全部的区分力都来自键这一维。这 6 条把值那一维也钉上：
+    ['删掉 topbar 键', (n) => { n.topbar = { message: 'x' }; delete n.topbar; }],
+    ['版权带 emoji 和换行', (n) => { n.footer.copyright = '© 2026 Northside 🏠\nAll rights reserved.'; }],
+    ['介绍 3000 字', (n) => { n.footer.description = 'Roofing. '.repeat(375); }],
+    ['按钮文字带前后空格', (n) => { n.header.cta.label = '  Book Now  '; }],
+    ['按钮链接换成外链', (n) => { n.header.cta.href = 'https://example.com/book'; }],
+    ['按钮链接换成锚点', (n) => { n.header.cta.href = '#contact'; }],
   ];
   let clean = 0;
   for (const [name, mutate] of LEGIT) {
@@ -854,6 +863,82 @@ function navWritesInSyncConfig(file) {
   }
   if (problems.length === 0) ok(`⑯ 形状外的键：${CASES.length} 种 × ${SHAPES.length} 种路径形状全部放行且点名（含 AC1/AC2 两臂）· ${clean}/${LEGIT.length} 种正当编辑零多话`);
   else problems.forEach(bad);
+}
+
+// ══ ⑰ 原型链上的名字也要算陌生键（#1134，来源 #1128）════════════════════════════════════════════
+//
+// `undeclaredKeys` 用的是 `Object.prototype.hasOwnProperty.call(shape.fields, key)`。交付的字节对
+// `footer.constructor` / `toString` / `hasOwnProperty` / `valueOf` 这类**原型上就有的名字**照报 ——
+// 但把它换成看起来等价的 `key in shape.fields`，那四个键会**全部变成静默**，而整份电池仍然 rc=0
+// 通过 29（#1128 量过）。也就是说这一维今天红不起来：那一行怎么写都过。
+// 🔴 可达性接近零（模型写不出这种键名），所以它是**只缺一格守卫**，不是缺陷。这一格就是那一格。
+// 🔴 两向都判，而且**把两种写法都在这里跑一遍**：只断言「交付字节报了这四个键」的话，读的人分不出
+//    「这一格有判别力」和「随便怎么写都报」。下面第二半用同一份 shape 现场跑 `in` 那种写法，
+//    它必须**读到 0** —— 那才证明这一格量的就是 `hasOwnProperty` 这个选择。
+console.log('\n⑰ 原型链上的名字（constructor / toString / …）也算陌生键');
+{
+  const PROTO_KEYS = ['constructor', 'toString', 'hasOwnProperty', 'valueOf'];
+  const next = clone(BASE);
+  for (const k of PROTO_KEYS) next.footer[k] = 'x';
+  const got = mod.undeclaredKeyPaths(next);
+  const missing = PROTO_KEYS.filter((k) => !got.includes(`footer.${k}`));
+  if (missing.length === 0) {
+    ok(`⑰ 交付字节：${PROTO_KEYS.length} 个原型名逐个被当成陌生键报出来（${got.filter((p) => p.startsWith('footer.')).join(' / ')}）`);
+  } else {
+    bad(`⑰ 这些原型名没被报出来：${missing.join(' / ')} —— 那 shape 之外的键这一维对它们失明`);
+  }
+  // 反向对照：同一份 shape、把判据换成 `key in shape.fields` ⟹ 必须读到 0，证明上面那些绿是
+  // `hasOwnProperty` 挣来的，不是随便写都行。
+  {
+    const shape = NAV_SHAPE || null;
+    const fields = shape && shape.kind === 'object' ? shape.fields : null;
+    const sub = fields && fields.footer && fields.footer.kind === 'object' ? fields.footer.fields : null;
+    if (!sub) {
+      bad('⑰ 反向对照立不起来：拿不到 NAV_SHAPE.footer 的 fields —— 那上面那格绿不作数');
+    } else {
+      const withIn = PROTO_KEYS.filter((k) => !(k in sub));
+      const withOwn = PROTO_KEYS.filter((k) => !Object.prototype.hasOwnProperty.call(sub, k));
+      if (withIn.length === 0 && withOwn.length === PROTO_KEYS.length) {
+        ok('⑰ 反向对照：同一份 shape 上 `key in fields` 对这 4 个名字全部读到「已声明」（⟹ 会静默），'
+          + '`hasOwnProperty` 全部读到「没声明」—— 这一格量的就是这个选择');
+      } else {
+        bad(`⑰ 反向对照失败：in 读到 ${withIn.length} 个未声明、own 读到 ${withOwn.length} 个（预期 0 / ${PROTO_KEYS.length}）`
+          + ' —— 两种写法今天不可区分，那这一格证不了任何事');
+      }
+    }
+  }
+}
+
+// ══ ⑱ #1128 那句话必须排在最前面（#1134，来源 #1128）══════════════════════════════════════════
+//
+// `navigationEditSideEffects` 里那条注释写着「🔴 排在最前面：这一条说的是『你写进去的那部分根本没
+// 生效』，下面几条说的是『生效了』。先说没生效的那半，模型才可能在同一轮里把名字改对」——
+// 那是一条**承重**的顺序，理由写在源码里。而**今天没有守卫钉这个位置**：把那一段挪到 `SIDE_EFFECTS`
+// 循环之后，整份电池照样全绿（#1128 量过）。这一格就是那道钉。
+console.log('\n⑱ 陌生键那句话排在 side-effect 那几句的最前面');
+{
+  const next = clone(BASE);
+  next.footer.extra = 'x';                       // 制造一个陌生键 ⟹ 那句话必须出现
+  // 🔴 第二类的话必须真的被触发。`SIDE_EFFECTS` 今天只有一条,它读的是 `header.cta.href`
+  //    (自己核:`node -e "console.log(require('./navigation-owned.js').SIDE_EFFECTS.length)"`)——
+  //    所以这里改的是它,不是版权。我第一版改版权,这一格当场打「只有那一句」并红:夹具立不起来
+  //    跟顺序反了长得不一样,这一格分得开,而那正是它该有的样子。
+  next.header.cta.href = '/quote';               // 触发那一条 side effect ⟹ 第二类的话也必须出现
+  const said = mod.navigationEditSideEffects(next, clone(BASE), true);
+  const isUndeclared = (l) => l.includes('still in the copy that was just written');
+  const iUnd = said.findIndex(isUndeclared);
+  const iOther = said.findIndex((l) => !isUndeclared(l));
+  if (iUnd < 0) {
+    bad('⑱ 立不起来：造了陌生键却没有那句话 —— 这一格量不到顺序');
+  } else if (iOther < 0) {
+    bad('⑱ 立不起来：只有那一句，没有第二类的话 —— 顺序无从判（去看 SIDE_EFFECTS 还认不认改版权这件事）');
+  } else if (iUnd < iOther) {
+    ok(`⑱ 陌生键那句排在第 ${iUnd + 1} 句，第一条 side-effect 排在第 ${iOther + 1} 句 ⟹ 顺序对`
+      + `（共 ${said.length} 句）`);
+  } else {
+    bad(`⑱ 顺序反了：陌生键那句在第 ${iUnd + 1} 句，而 side-effect 已经在第 ${iOther + 1} 句 —— `
+      + '先说「生效了」再说「那部分根本没生效」，模型就没机会在同一轮里把名字改对（理由在源码里）');
+  }
 }
 
 

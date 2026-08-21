@@ -709,9 +709,15 @@
 
    ① 一条 CSS 规则分不出这个站原来用的是哪一支变体。#1028 的推理是「icon-strip 原来不渲染
       step.description，搬成中性 markup 后取超集，所以用表把多出来的那段藏掉」——但那条规则是
-      无条件的，它对穿这套表的**所有**站生效。30 套主题点名 process-steps 的变体分布是
+      无条件的，它对穿这套表的**所有**站生效。变体分布（2026-08-21（origin/main 7be6d585） 现算）：**点名 process-steps 变体的
+      恰好是退役那 30 套**——在池的 80 套一套都不点名，所以分母是 30 而注册表是 110 套；
       horizontal 8 · vertical 7 · zigzag 5 · cards 5 · icon-strip 5 ⟹ 藏它等于让 **25 套**主题
-      少掉本该显示的描述，换来 5 套不多出一段。而且搬完之后「icon-strip 的站」这个概念已经不存在了：
+      少掉本该显示的描述，换来 5 套不多出一段。
+      🔴 #1134 —— 上面这句原来写「30 套主题点名 …」，读起来像「注册表一共 30 套」。数（8·7·5·5·5
+      与 25 : 5）逐个复算都对，错的是分母的说法。自己现算：
+        node -e "const t=require('../../scripts/themes.js').themes,p=require('../../scripts/theme-pool.json');
+                 const n=Object.keys(t).filter(i=>/\"process-steps\":\[/.test(JSON.stringify(t[i])));
+                 console.log(Object.keys(t).length,'套注册表 ·',n.length,'套点名 · 全在退役批',n.every(i=>!p[i]))"而且搬完之后「icon-strip 的站」这个概念已经不存在了：
       长相由表决定，不由变体决定。
 
    ② 「process-steps 是 optional 所以合法」也不成立。页面 JSON 把某个 process-steps 块的 `role`

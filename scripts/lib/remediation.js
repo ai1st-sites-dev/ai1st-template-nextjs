@@ -76,6 +76,21 @@ function navRelPath(locale, flat) {
 }
 
 /**
+ * 同一个文件，**从站仓根看**的路径。
+ *
+ * 🔴 #1134 —— 一句话里说的是哪一个坐标系，要跟这句话让人做的动作对上：
+ *    · 「AI 编辑器写得进 X」   → X 用 `navRelPath` 那种**相对 `site/`** 的写法，因为白名单
+ *      (`editorCanWrite`) 收的就是这种（`en/navigation.json`）。
+ *    · 「手改这个站仓里的 X」  → X 必须带 `site/`，因为人是在**站仓根**上找这个文件的。
+ *    原来两句都用了前者 ⟹ 照字面去找会扑空一次（#1134 走那条路时实测过：在 `site/en/navigation.json`
+ *    上加 topbar，`sync-config` 就 rc=0 了 —— 路本身是通的，只是那句话少了一层目录）。
+ *    同一段里换布局那句一直写的是带 `site/` 的全路径（`site/page-layout.json`），两句原来不一致。
+ */
+function navRepoPath(locale, flat) {
+  return `site/${navRelPath(locale, flat)}`;
+}
+
+/**
  * 「顶栏那段文案今天怎么加」。
  *
  * @param {{siteDir: string, locale?: string, flat?: boolean}} opts
@@ -88,6 +103,7 @@ function howToAddTopbar(opts) {
   const locale = (opts && opts.locale) || '';
   const flat = !!(opts && opts.flat);
   const rel = navRelPath(locale, flat);
+  const repoRel = navRepoPath(locale, flat);   // 人在站仓根上找它时的路径（#1134）
   const full = path.join(siteDir, rel);
 
   // 🔴 拿这个站**真实的**那份去问，不是拿一个想象的最小 JSON:白名单（#1104 之后）判的是
@@ -125,14 +141,14 @@ function howToAddTopbar(opts) {
     return {
       viaProduct: false,
       sentence: `现在还加不了：AI 编辑器写不进 ${rel}，dashboard 里也没有改顶栏文案的界面。`
-        + `今天唯一的办法是手改这个站仓里的 ${rel}，加上 `
+        + `今天唯一的办法是手改这个站仓里的 ${repoRel}，加上 `
         + `{ "topbar": { "message": "…", "link": { "label": "…", "href": "…" } } }。`,
     };
   }
   // can === null:问不到。**不许替它选一个答案** —— 两个方向都会变成一句没人查过的话。
   return {
     viaProduct: null,
-    sentence: `手改这个站仓里的 ${rel}，加上 `
+    sentence: `手改这个站仓里的 ${repoRel}，加上 `
       + `{ "topbar": { "message": "…", "link": { "label": "…", "href": "…" } } }。`
       + `（这次没问出来 AI 编辑器能不能写它 —— 读不到那个判断模块。）`,
   };

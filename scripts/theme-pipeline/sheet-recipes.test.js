@@ -889,6 +889,10 @@ console.log('\n⑩ #1135 成功那条状态消息，每一种画法下都跨满�
   //    所以这一格改成钉**那个前提**：error 住在 form 里面、form 是单栏。哪天有人把它挪出去、
   //    或者给 form 分栏，下面 B1/B2 会红 —— 那时那条规则开始真的作数，得有人重新量一次几何，
   //    而不是继承这句话。谓词必须等于实测过的性质，这是本票自己的账。
+  //    🔴 #1134 —— 「给 form 分栏 ⟹ B2 会红」这半句在 #1135 交付时**只对 grid 分栏成立**，flex 横排
+  //       整套单测全绿地穿过去（QA3 真驱动过）。B2 的扫描面已经扩到两种写法，理由与标定写在它自己
+  //       那一段上面。这句话现在是真的了 —— 但它当初不是，所以别把这种「哪天…会红」的话当读数：
+  //       它是一个断言，要有一格量它。
   const spans = (css, part) => {
     const m = css.match(new RegExp(`\\.contact-form__${part} \\{[^}]*\\}`));
     return !!m && /grid-column:\s*1 \/ -1/.test(m[0]);
@@ -954,21 +958,61 @@ console.log('\n⑩ #1135 成功那条状态消息，每一种画法下都跨满�
     }
   }
   // B2（前提·产物）那个 form 是单栏 —— 单栏网格里 `1 / -1` 与 `auto` 等价。
+  //
+  // 🔴 #1134（来源 #1135，QA3 在一次性副本里真驱动过）—— **「分栏」不只有 grid 一种写法，而这一格
+  //    原来只认 grid。** 上面那段头注写着「哪天有人…给 form 分栏，下面 B1/B2 会红」,那句话**只对
+  //    grid 分栏成立**：用 `display: flex`（`flex-direction` 缺省就是 `row`）分栏时，
+  //    ① 受限 CSS 检查放行 —— `theme-css-lint.js` 的 `PROP_EXACT` 收 `display`、值白名单收 `flex`、
+  //       前缀白名单收 `flex-`；
+  //    ② 这一格的正则只找 `grid-template-columns` ⟹ 读到 0，判「单栏」；
+  //    ③ 整套单测仍然全绿（QA3 注入 flex 分栏后：42 过 0 失败）。
+  //    也就是说前提被推翻了而没有任何读数变化 —— 而这一格存在的全部理由就是守那个前提。
+  //    ⟹ 判据改成「这个 form 是不是一个**横向排布**的容器」，两种写法一起认。
   {
     const multi = [];
+    const why = {};
     for (const [look, i] of FORM_LOOK_SAMPLE) {
       const m = sheetFor(i).match(/\.contact-form__form \{[^}]*\}/);
-      if (m && /grid-template-columns/.test(m[0])) multi.push(look);
+      if (!m) continue;
+      const decl = m[0];
+      const reasons = [];
+      if (/grid-template-columns/.test(decl)) reasons.push('grid-template-columns');
+      // flex 那一支:`display: flex | inline-flex` 且没有把方向掰成 column。
+      // `flex-flow` 也要认 —— 它是 `flex-direction` + `flex-wrap` 的简写。
+      if (/(?:^|[;{]\s*)display:\s*(?:inline-)?flex\b/.test(decl)) {
+        const col = /(?:^|[;{]\s*)flex-direction:\s*column/.test(decl)
+          || /(?:^|[;{]\s*)flex-flow:[^;]*\bcolumn\b/.test(decl);
+        if (!col) reasons.push('display:flex 且方向不是 column');
+      }
+      if (reasons.length) { multi.push(look); why[look] = reasons.join(' + '); }
     }
     // 分母自检：这把尺子读得到 grid-template-columns 吗（块根那条一定有）
     const rootHas = /\.contact-form \{[^}]*grid-template-columns/.test(sheetFor([...FORM_LOOK_SAMPLE.values()][0]));
+    // 🔴 flex 那一半也要有自己的分母自检 —— 否则「flex 读到 0」可能是正则瞎了，而不是真没有。
+    //    拿一条合成声明校准：它必须被判成横排，且掰成 column 之后必须不被判。
+    const probe = (d) => {
+      const decl = `.contact-form__form { ${d} }`;
+      if (/(?:^|[;{]\s*)display:\s*(?:inline-)?flex\b/.test(decl)) {
+        return !(/(?:^|[;{]\s*)flex-direction:\s*column/.test(decl)
+          || /(?:^|[;{]\s*)flex-flow:[^;]*\bcolumn\b/.test(decl));
+      }
+      return false;
+    };
+    const flexRulerOk = probe('display: flex; gap: 1rem;')
+      && !probe('display: flex; flex-direction: column;')
+      && !probe('display: flex; flex-flow: column wrap;')
+      && !probe('display: grid;');
     if (!rootHas) {
       die('⑩ B2 的尺子坏了：连块根那条 grid-template-columns 都读不到 —— 那「form 里没有」这个 0 不作数');
+    } else if (!flexRulerOk) {
+      die('⑩ B2 的尺子坏了：flex 那一半在合成声明上标定不出来（横排的没认出来，或者 column 的被误判）'
+        + ' —— 那「flex 读到 0」这个读数不作数');
     } else if (multi.length === 0) {
-      ok(`⑩ B2 ${FORM_LOOK_SAMPLE.size} 种画法里 .contact-form__form 都没有 grid-template-columns（单栏）`
-        + '，块根那条读得到 ⟹ 上面那个「0」是真读数');
+      ok(`⑩ B2 ${FORM_LOOK_SAMPLE.size} 种画法里 .contact-form__form 既没有 grid-template-columns、`
+        + '也不是横排 flex（单栏）；两把尺各自标定过 ⟹ 上面那个「0」是真读数');
     } else {
-      bad(`⑩ B2 这些画法把表单本身分栏了：${multi.join(' · ')} —— 报错那条的 1/-1 从此作数，重新量它的几何`);
+      bad(`⑩ B2 这些画法把表单本身分栏了：${multi.map((l) => `${l}（${why[l]}）`).join(' · ')}`
+        + ' —— 报错那条的 1/-1 从此作数，重新量它的几何');
     }
   }
 }
@@ -1070,11 +1114,20 @@ console.log('\n⑪ #1135 那行细则小字，每一种画法下都排在表单�
         bad('⑪ 阳性对照 B 立不起来：搬完之后四个部件读不齐');
       } else {
         const named = offenders((i) => sheetFor(i), at2);
-        if (named.length >= 4) {
-          ok(`⑪ 阳性对照 B：把 note 在源码里搬到最前面，这一格点名 ${named.length} 种画法 —— `
-            + '「源序现读」这一半也是活的（写死 note 在最后的话，这里读到 0 条）');
+        // 🔴 #1134 —— 这里原来写 `>= 4`，而真值是 **5**（#1134 实测：`⑪ 阳性对照 B … 点名 5 种画法`）。
+        //    松一格的代价不是抽象的：真值从 5 掉到 4 意味着**少了一种画法被点名**，也就是这把尺对那
+        //    一种失明了 —— 而 `>=4` 会替它绿。改成等值判，并把「为什么是 5」写在旁边：
+        //    6 种 form 画法里，`panel-left` 自己写了 order 3（所以搬源序也压不倒它），其余 5 种
+        //    note 的 order 都是缺省 0 ⟹ 把 note 搬到源码最前面之后，那 5 种的二元组 (0, 最小源序)
+        //    就比 form / intro 小，逐个被点名。
+        const EXPECT_B = FORM_LOOK_SAMPLE.size - 1;      // 6 − 1（panel-left 自己写了 order）
+        if (named.length === EXPECT_B) {
+          ok(`⑪ 阳性对照 B：把 note 在源码里搬到最前面，这一格点名 ${named.length} 种画法（= ${EXPECT_B}，`
+            + '除 panel-left 之外全部）—— 「源序现读」这一半也是活的（写死 note 在最后的话，这里读到 0 条）');
         } else {
-          bad(`⑪ 阳性对照 B 失败：搬上去只点名 ${named.length} 种（预期 ≥4，那四个没写 order 的候选全该红）`);
+          bad(`⑪ 阳性对照 B 失败：搬上去点名 ${named.length} 种，预期正好 ${EXPECT_B} 种`
+            + '（只有 panel-left 自己写了 order，其余全该红）—— 多了或少了都说明这把尺的射程变了，'
+            + '去看是画法数变了还是有人给别的画法也写了 order');
         }
       }
     }

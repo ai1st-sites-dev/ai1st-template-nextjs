@@ -1070,6 +1070,9 @@ async function main() {
     services, usp, targetCustomers, brandDescription,
     theme, languageName, refSite, refPrefs, refAnalysis,
     reviews, onlinePresence, hours, priceRange, uploadedImages, logoUrl,
+    // #1134（来源 #1139）—— 这个站会不会有服务子页。判据跟 Call 2 真去生成那些页时用的是
+    // 同一个函数,不是第二份实现。
+    hasKeywordPages: keywordPagesFrom(keywords).keywordPagesList.length > 0,
     // TICKET-140: pass per-locale brand-name inputs through so generateContent
     // can assemble brand.name as a Record<locale, string> (136 regression fix).
     defaultLocale, brandNameByLocale,
@@ -1121,29 +1124,7 @@ async function main() {
   progress('Writing base configuration files...', 50);
 
   // ── Call 2: Generate keyword pages (if any keywords selected) ──
-  // Build keywordPages list from input
-  const servicesWithKeywords = [];
-  for (const [serviceName, kwList] of Object.entries(keywords)) {
-    const selected = Array.isArray(kwList) ? kwList.filter(k => k.selected && !k.isPrimary) : [];
-    if (selected.length > 0) {
-      servicesWithKeywords.push({ service: serviceName, keywords: selected });
-    }
-  }
-  const keywordPagesList = [];
-  for (const s of servicesWithKeywords) {
-    const serviceSlug = s.service.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    for (const kw of s.keywords) {
-      const keywordSlug = kw.keyword.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-      keywordPagesList.push({
-        service: s.service,
-        serviceSlug,
-        keyword: kw.keyword,
-        keywordSlug,
-        nestedSlug: `${serviceSlug}/${keywordSlug}`,
-        volume: kw.volume,
-      });
-    }
-  }
+  const { servicesWithKeywords, keywordPagesList } = keywordPagesFrom(keywords);
 
   if (keywordPagesList.length > 0) {
     progress('AI is writing keyword pages...', 55);
@@ -1813,6 +1794,39 @@ async function fetchRefSite(url) {
 
 // ─── AI Content Generation ───────────────────────────────────────────────────
 
+// ── #1139 / #1134 —— 「这个站会不会有服务子页」只有一个算法 ──────────────────────────────────────
+//
+// 子页面**只**由关键词矩阵产生(`nestedSlug = <服务>/<关键词>`),所以「有没有子页」== 「选中的
+// 非主关键词有没有」。两个地方要问这件事:① Call 2 真去生成那些页;② Call 1 的提示词要不要让 AI 给
+// 服务详情页加 `service-related-pages` 块(#1139:那个块只在真有子页时才渲染,否则 `return null`)。
+// 🔴 **抽成一个函数是承重的,不是整理**:两份实现必然漂,而漂的方向是「提示词说这个站有子页、
+//    生成那边说没有」——那正是 #1139 量到的形状(66 个互异站里 221 个实例只有 14 个渲染出卡片)。
+function keywordPagesFrom(keywords) {
+  const servicesWithKeywords = [];
+  for (const [serviceName, kwList] of Object.entries(keywords || {})) {
+    const selected = Array.isArray(kwList) ? kwList.filter(k => k.selected && !k.isPrimary) : [];
+    if (selected.length > 0) {
+      servicesWithKeywords.push({ service: serviceName, keywords: selected });
+    }
+  }
+  const keywordPagesList = [];
+  for (const s of servicesWithKeywords) {
+    const serviceSlug = s.service.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    for (const kw of s.keywords) {
+      const keywordSlug = kw.keyword.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      keywordPagesList.push({
+        service: s.service,
+        serviceSlug,
+        keyword: kw.keyword,
+        keywordSlug,
+        nestedSlug: `${serviceSlug}/${keywordSlug}`,
+        volume: kw.volume,
+      });
+    }
+  }
+  return { servicesWithKeywords, keywordPagesList };
+}
+
 async function generateContent(opts) {
   const {
     companyName, industry, location, address, phone, email,
@@ -1833,6 +1847,11 @@ async function generateContent(opts) {
     // 那时下面每一处都逐字回到改动之前 —— 判据是 `homepage-recipe.test.js` 那一格拿
     // `git show origin/main:` 的提示词跟 recipe=null 的提示词逐字节比。
     homeRecipe = null,
+    // #1134（来源 #1139）—— 这个站会不会有服务子页(关键词矩阵)。
+    // 🔴 缺省 **true** 是刻意的:不传这个字段的调用方拿到的提示词跟改动之前**逐字节相同**
+    //    (`homepage-recipe.test.js` ⑥ 那格比的就是这个)。只有明确说「这个站没有关键词页」时
+    //    才把那两句拿掉。
+    hasKeywordPages = true,
   } = opts;
 
   // TICKET-164: v2 replaces 161 v1's pre-Claude photo gen with a 2-pass
@@ -2057,9 +2076,9 @@ ${servicesList.length >= 3 ? `Generate an individual service detail page for EAC
 - Slug format: "services/{service-id}" — use the EXACT service id from the services array
 - Set serviceDetailPage: true and parentService: "{service-id}" on each
 - navOrder: 10-19, priority: 0.8, changeFrequency: "monthly"
-- Each page needs 5-7 sections: page-header, content-split, process-steps OR benefits-list, faq-accordion, service-related-pages, cta-banner
-- page-header breadcrumbs: [{label:"Home",href:"/"},{label:"Services",href:"/services"},{label:"{Service Name}"}]
-- service-related-pages data: { serviceSlug: "{service-id}", headline: "Related {Service} Topics" }
+- Each page needs 5-7 sections: page-header, content-split, process-steps OR benefits-list, faq-accordion,${hasKeywordPages ? ' service-related-pages,' : ''} cta-banner
+- page-header breadcrumbs: [{label:"Home",href:"/"},{label:"Services",href:"/services"},{label:"{Service Name}"}]${hasKeywordPages ? `
+- service-related-pages data: { serviceSlug: "{service-id}", headline: "Related {Service} Topics" }` : ''}
 - Vary layouts and section variants across service detail pages — don't repeat the same structure
 - Write unique, detailed SEO content for each service` : `Skip service detail pages — only ${servicesList.length} service(s), not enough to warrant individual pages.`}`;
 
@@ -2235,8 +2254,8 @@ ${homeRecipe ? recipePromptLines(homeRecipe)
 - Include location names naturally in content.
 - CTA hrefs in hero sections and cta-banners should point to "/<ctaPage slug>".
 - Service detail pages (slug "services/{id}") must set serviceDetailPage: true and parentService: "{service-id}".
-- Service detail pages should NOT appear in the header nav — they go in the footer only.
-- Include a "service-related-pages" section on each service detail page with serviceSlug matching the service id.`;
+- Service detail pages should NOT appear in the header nav — they go in the footer only.${hasKeywordPages ? `
+- Include a "service-related-pages" section on each service detail page with serviceSlug matching the service id.` : ''}`;
 
   emit('prompt', { name: 'Base Site', content: prompt });
   progress('AI is generating content and layout...', 25);

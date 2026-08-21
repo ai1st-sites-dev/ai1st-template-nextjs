@@ -94,7 +94,11 @@ const MOVED_TEXT_TARGETS = [
 // What no browser reading covers is covered arithmetically instead: `scripts/theme-presets.test.js`
 // resolves each button's pair out of `globals.css` for the palette under test — since #1084 the ink,
 // since #1091 the primary button's ground as well — and proves that judge discriminates by running it
-// over the 30-theme registry (11 of them fail it).
+// over the WHOLE registry — 110 themes as of 2026-08-21（origin/main 7be6d585）, of which 11 fail it. (#1134: this read
+// "the 30-theme registry"; 30 has been the size of the RETIRED batch alone since #1016 added the
+// 80-theme pool. The 11 is for the four button pairs including `.btn-accent:hover` = gray-900 on
+// accent-500 — naming the pairs matters: swap that one for white-on-accent-500 and the same ruler
+// over the same registry reads 109. Re-measure rather than quoting this number.)
 // 📌 #1038 r3 起那侧还多做一件事：把**主题表自己声明的**配对（含渐变混出来的颜色）跟色相滑块的
 //    31 个取值叠起来一起判 —— 那一节量得到的正是这张单子上的选择器，所以两层量的是同一批字。
 const CONTROL_TARGETS = [

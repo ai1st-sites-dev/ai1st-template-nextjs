@@ -351,7 +351,20 @@ function outlineGroundFromCss(cssText, palette) {
   // 被当成"一条画底的都没有" ⟹ 掉到函数最后那句关于这个站的断言。QA1 在 #1126 r1 实测过这个洞:
   // 往真表 `.services-list` 里只加一行注释(分号一个没动),真管道 `rc=0` 构建成功、印出那句假话,
   // 档位从 `primary-200`(真底上 6.679)掉到 `primary-600`(真底上 1.779,线是 4.5)——**比不改还差**,
-  // 而且 0 条警告。本票要治的缺分号形状反而被上游 CSS 闸 `rc=1` 拒掉、够不到这个函数。
+  // 而且 0 条警告。
+  // 🔴 #1134 更正（#1126 QA3 终审证明的）—— 这里原来接着一句「本票要治的缺分号形状反而被上游
+  //    CSS 闸 `rc=1` 拒掉、**够不到这个函数**」。**够得到。** 那道闸只扫 `public/base.css` +
+  //    `public/themes/*.css`（`css-contract-check.js` 自己的头注就这么写），而 `sync-config.js`
+  //    对站仓里**冻结的 `site/theme.css` 是逐字节拷贝、不重新生成也不经任何检查**就进 cascade
+  //    （那段注释在 sync-config.js §theme.css，`themeCssOrigin = 'site/theme.css (committed by a
+  //    theme change)'` 那一支）⟹ **那条来源没有闸**。QA3 把缺分号夹具放进冻结文件走真管道：
+  //    改前 `rc=0` + 印出假话「底 = #5e2643」+ 零警告，交付则回 null + 🔴 端到端上屏。
+  //    可复算的判据是把两处并排读：
+  //      grep -n "public/themes" scripts/css-contract-check.js        ← 闸的扫描集
+  //      sed -n '920,950p' scripts/sync-config.js                     ← 第 ① 种 cascade 来源
+  //    ⟹ 今天的到达向量只剩**手改站仓**（`theme.css` 不在聊天编辑器白名单 —— 实测
+  //      `writeRejection('theme.css', …)` 直接拒；机器写入恒合法），所以风险低；
+  //      但**低不是因为闸挡住了它** —— 闸不是这条 cascade 的守卫，别把它当保险。
   // 剥法与 `theme-contrast.js:90` 的 `parseSheet` 同一条,不另造一把。
   const css = String(cssText || '').replace(/\/\*[\s\S]*?\*\//g, '');
   const shadeOf = (group, shade) => {

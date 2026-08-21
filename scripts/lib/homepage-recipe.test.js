@@ -113,6 +113,12 @@ const basePayload = (over = {}) => ({
   services: ['Teeth Cleaning', 'Whitening', 'Invisalign', 'Implants', 'Root Canal', 'Emergency Dental'],
   language: 'en',
   themeRotationIndex: 0,
+  // 🔴 #1134（来源 #1139）—— 这份夹具是**一个有关键词页的站**。它是承重的:#1134 让提示词里
+  //    `service-related-pages` 那两句只在有子页的站上发(那个块在没有子页的站上恒 `return null`),
+  //    所以「有没有关键词」现在会改变提示词的字节。⑥ 那格比的是「关掉配方 ⟹ 跟基线那棵树逐字节
+  //    相同」,基线那棵树不认 `hasKeywordPages` ⟹ 两臂必须落在**同一个**关键词状态上,否则那一格
+  //    会因为一件跟配方无关的事而红。另一半状态由 ⑧ 单独钉(见下面)。
+  keywords: { 'Teeth Cleaning': [{ keyword: 'teeth cleaning toronto', selected: true, volume: 320 }] },
   ...over,
 });
 
@@ -306,6 +312,37 @@ try {
   !withRef.includes('MUST OPEN WITH EXACTLY THESE SECTIONS')
     ? ok('refPrefs 里有 layout ⟹ 提示词里没有配方那条硬要求（用户点名的那个赢）')
     : bad('照抄参照站布局时配方还在，两条硬要求会打架');
+
+  // ── ⑧b #1134（来源 #1139）—— `service-related-pages` 那两句只在会有子页的站上发 ─────────────
+  //
+  // 那个块是候选块里唯一有 `return null` 的（`ServiceRelatedPagesSection.tsx`）：它只在那个服务
+  // 底下**真有子页**时才渲染，而子页只由关键词矩阵产生（`nestedSlug = <服务>/<关键词>`）。
+  // #1139 实测 66 个互异站：221 个实例只有 14 个渲染出卡片，56 个带它的站里 48 个一张卡都没有；
+  // 生产库那个唯一的第三方客户站 6 个实例全空。用户看不见（渲染成 null，页面不留空框），所以这是
+  // 提示词的准确性问题，不是缺陷 —— 但让 AI 去加一个注定为空的块，本身也在挤掉真正该在那里的块。
+  // 🔴 两向都判。只判「没关键词时不发」的话，一个把那两句**整个删掉**的改动也会绿。
+  console.log('── ⑧b service-related-pages 那两句：有关键词页才发，没有就不发');
+  {
+    const NEEDLES = [
+      'service-related-pages data: { serviceSlug:',
+      'Include a "service-related-pages" section on each service detail page',
+    ];
+    const withKw = promptFrom(workRoot, basePayload());                       // 夹具自带关键词
+    const noKw = promptFrom(workRoot, basePayload({ keywords: {} }));
+    const inWith = NEEDLES.filter((n) => withKw.includes(n));
+    const inNo = NEEDLES.filter((n) => noKw.includes(n));
+    inWith.length === NEEDLES.length
+      ? ok(`有关键词页的站：那 ${NEEDLES.length} 句都在（这一半是阳性对照 —— 少了它「不发」那格就成了空绿）`)
+      : bad(`有关键词页的站却少了这几句：${NEEDLES.filter((n) => !withKw.includes(n)).join(' | ')}`);
+    inNo.length === 0
+      ? ok('没有关键词页的站：那两句一句都不发 ⟹ AI 不会被要求加一个注定 return null 的块')
+      : bad(`没有关键词页的站仍然被要求加那个块：${inNo.join(' | ')}`);
+    // 第三条：除了这两句，两份提示词不该有别的差别（否则这一格量到的是别的东西）
+    const diffLines = withKw.split('\n').filter((l) => !noKw.split('\n').includes(l));
+    diffLines.every((l) => /service-related-pages/.test(l))
+      ? ok(`两份提示词的差别只在 service-related-pages 那几行（${diffLines.length} 行）`)
+      : bad(`两份提示词还有别的差别，这一格量的不只是那个块：${diffLines.filter((l) => !/service-related-pages/.test(l)).slice(0, 3).join(' ⏎ ')}`);
+  }
 } finally {
   try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {}
 }

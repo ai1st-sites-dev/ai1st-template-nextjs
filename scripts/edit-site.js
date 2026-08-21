@@ -787,8 +787,15 @@ async function main() {
           });
           debug('sync-config.js sync complete');
         } catch (e) {
-          // sync-config 把「哪里不对」写在 stderr（`console.error` + `process.exit(1)`），而 e.message
-          // 只有一句 "Command failed"。老板要看的是前者，所以优先取它。
+          // sync-config 把「哪里不对」写在 stderr（`console.error` + `process.exit(1)`），优先取 stderr。
+          // 🔴 #1134 —— 这里原来给的理由是「而 `e.message` **只有一句 "Command failed"**」，
+          //    **那是假的**。`execSync` 抛的 `e.message` 逐字是
+          //        Command failed: <整条命令>\n\n<stderr 原文>
+          //    stderr 就在里面（实测：拿一个只往 stderr 写字再 exit(1) 的子进程量，
+          //    `String(e.message).includes(<那句话>)` === true）。
+          //    代码本身没问题（优先取 stderr 更干净：没有那行命令回显、没有 node 自己的栈），
+          //    错的只是给它的那个理由 —— 而这句理由恰好是 #1103 新增那一格判据的来源，
+          //    所以它值得被更正，不然下一个人会据「message 里没有」去推别的结论。
           syncError = String((e.stderr && e.stderr.toString().trim()) || e.message || '').slice(0, 2000);
           debug(`sync-config.js sync error: ${e.message}`);
         }
