@@ -131,18 +131,31 @@ if (cssContracts.unavailable) {
 //
 //     { "themeId": "ocean-blue", "applied": true }
 //
-//   applied !== true, or no file at all (every site that existed before #924, and every
-//     newly created site) → nothing BELOW THIS FUNCTION touches the build. brand.json's own
-//     colors and the page JSON's own variants decide, exactly as they did before this file
-//     knew about themes.
-//   applied === true → the registry takes over the look: colors, fonts, settings, and every
-//     section variant the theme states a preference for. Page JSON on disk is never rewritten
-//     — the override lives only in the generated config-data.ts.
+// 🔴 #1121（2026-08-20）—— `applied` 不再决定这个站长什么样，一维都不决定。它从此只是记账：
+// 「老板有没有主动换过装」。两件事各自有了固定答案，都不问它：
 //
-// 🔴 #1086 —— 从 2026-08-18 起 `applied` 【不再】决定顶栏 / 页脚这两个 Region 的结构。那两个
-// 跟着 `themeId` 走(见下面 `readStructureThemeId`),所以上面那句"applied !== true ⟹ 什么都不动"
-// 只对**这个函数下游的东西**成立(颜色 / 字体 / settings / section variant),不对整个构建成立。
-// 这份注释以前写的是后者,而 #1086 治的正是那个形态:新建的站拿到主题的皮、拿不到它的骨。
+//   颜色 / 字体 / 风格设定   永远来自这个站自己的 brand.json，构建期一个覆盖都没有。换主题仍然
+//                            改颜色 —— 写入时机挪到了老板按下 Apply 那一刻：worker 的
+//                            processThemeTask 把新主题那套写进 site/brand.json 并提交它。
+//   每个 block 的 variant    永远来自 themeId 那套主题（下面 structureThemeId 那个循环），跟
+//                            #1086 对顶栏 / 页脚的做法同一个理由：同一套主题不该有两种长相。
+//
+// 在这之前，applied:false（新建的站）拿站自己的颜色 + 页面自己的 variant，applied:true（换过装
+// 的站）拿注册表的颜色 + 注册表的 variant —— 一个布尔捆着两件想要相反默认值的事，所以它怎么
+// 设都有一半是错的。#1064 摘走样式表、#1086 摘走顶栏页脚、#1118 摘走预览，本票收尾。
+//
+// 🔴 那么下面这个函数还剩什么用 —— 它的返回值【没有任何消费者】，调用它是为了它里面那道检查：
+// 「applied:true 的站，它写的那套主题必须是这份构建认识的」，查不到就 exit 1。那个行为一个字都
+// 没改，不是本票的交付面；那条路今天真实存在（prod 的 site-194f1f41 写着注册表里没有的
+// luxury-dark —— #1087 在问该怎么办，#1092 把它翻成 applied:false 绕开了）。
+// ⇒ applied 不再影响**长相**，但它仍然决定**这道检查开不开火**。别把这里读成「摘干净了」。
+//
+// 🔴 也不许把下面那句 `applied !== true` 单独删掉。它排在注册表存在性那个 process.exit(1)
+// 前面，而候选流水线恒写 { themeId: "gen-07-xx", applied: false } 且那个 id 还不在注册表里
+// （theme-pipeline/run.js 的 installCandidate）—— 删了它，每个候选站构建当场 exit 1。
+//
+// 📌 顺序上，顶栏 / 页脚的结构是 2026-08-18（#1086）先离开这个布尔的，本票把剩下那两维
+// 一起带走。那一维的取法在下面 `readStructureThemeId`，本票的 variant 也改成问同一个读数。
 //
 // 🔴 Deliberately its own file. Whether site_meta.json exists is the legacy single-locale
 // switch (line ~34 below), so putting this in there would make an old flat site fail to build.
@@ -168,7 +181,9 @@ function readAppliedThemeId() {
   }
   return meta.themeId;
 }
-const appliedThemeId = readAppliedThemeId();
+// 🔴 #1121 —— 只调用，不取值。它的返回值今天没有任何消费者（理由整段在上面）：跑它是为了它
+// 里面那道「applied:true 的站，它说的主题必须认识」的检查。
+readAppliedThemeId();
 
 // #1079 — THE HEADER/FOOTER STRUCTURE FOR A THEME THAT IS **NOT** IN THE REGISTRY YET.
 //
@@ -176,10 +191,14 @@ const appliedThemeId = readAppliedThemeId();
 //       "regionLayout": { "header": "pill-floating", "footer": "cta-band" } }
 //
 // 🔴 Why this key has to exist at all. The candidate pipeline installs a candidate with
-// `applied: false` on purpose (`theme-pipeline/run.js` installCandidate — `true` would make the
-// REGISTRY override brand.json's colours, and a candidate is not in the registry). But `applied:
-// false` also pins the two Regions to their defaults, because `readAppliedThemeId` above returns
-// null and `resolveRegionLayout({})` answers solid-bar + multi-column. So the gallery a human signs
+// `applied: false` on purpose (`theme-pipeline/run.js` installCandidate). 🔴 #1121 CHANGED THE
+// REASON WITHOUT CHANGING THE CONCLUSION: it used to be "`true` would make the REGISTRY override
+// brand.json's colours", and the registry does not override colours any more — but `readAppliedThemeId`
+// above still `process.exit(1)`s on an id that is not in the registry, and a candidate's id never is,
+// so `applied: true` on a candidate would kill its build outright. Still false, still on purpose.
+// Back when this key was added, `applied: false` also pinned the two Regions to their defaults,
+// because `readAppliedThemeId` returned null and `resolveRegionLayout({})` answers solid-bar +
+// multi-column. So the gallery a human signs
 // off on (`theme-pipeline/gallery.js`, gate ④) printed `solid-bar` on all 80 cards while only 22 of
 // the 80 pool members are actually solid-bar — the one dimension a human cannot check against
 // anything else was, by construction, always wrong. Measured: #1079's repro, and the 80 shot
@@ -224,9 +243,11 @@ function readPreviewRegionLayout() {
 // centered-logo,而真站是 solid-bar。Chris 2026-08-18 拍板:结构一律跟着 themeId 走,`applied`
 // 从此只管「老板有没有主动换过装」,不再管结构。
 //
-// 🔴 这个函数【故意】跟 `readAppliedThemeId()` 分开,而不是把那个函数的 applied 判断删掉:
-// `applied` 仍然决定**颜色和字体**(#924 的语义,本票没有动它 —— 注册表接管调色板这件事仍然只在
-// 老板主动换过装之后发生)。两个问题从此有两个读数,不共用一个。
+// 🔴 这个函数【故意】跟 `readAppliedThemeId()` 分开,而不是把那个函数的 applied 判断删掉。
+// 🔴 #1121 更新了这里的理由 —— 立这个函数时（#1086）的理由是「applied 仍然决定颜色和字体」，
+// 那句话今天不成立了：颜色和字体永远来自 brand.json，applied 一维长相都不决定。留着两个函数的
+// 理由换成了下面那一条，而它本来就是承重的那一条：**两个函数对「注册表里查不到这个 id」的答法
+// 相反** —— 这个返回 null 让构建继续，那个 exit 1。合并就必然要二选一，而两条路都需要。
 //
 // 🔴 查不到的 id 在这里【返回 null,不打死构建】,与 `readAppliedThemeId()` 相反,而这个不对称是
 // 承重的,不是漏写:
@@ -377,9 +398,21 @@ if (typeof brand.name === 'string') {
   brand.name = { [defaultLocale]: '' };
 }
 
-// #924: an applied theme owns the palette and the typefaces. brand.json keeps whatever it
-// had (name, logo, locations, form ids) — only these two fields are taken over, and only in
-// memory, so switching theme id is the whole of "change theme".
+// 🔴 #1121 —— 颜色 / 字体 / 风格设定【永远】来自这个站自己的 brand.json，构建期一个覆盖都没有。
+//
+// 这里原来有一段（#924 的）：applied:true 时把注册表那套 colors / fonts / settings 无条件赋给内存
+// 里的 brand。撤掉它有两个各自成立的理由：
+//   · 它会抹掉老板自己选的颜色。建站时勾了「照抄参照站配色」的站（create-site.js 里 refPrefs 含
+//     colors-fonts 那一支，是活控件），brand.json 里躺的是从参照站扒来的颜色 —— 而那三行是无条件
+//     赋值，所以他只要换一次装，自己选的配色就没了，而且没有任何地方会报出来。
+//   · 同一套主题因此有两种长相（换过装之前 / 之后），也就是本票要根除的那件事。
+//
+// 换主题仍然改颜色，只是写入时机不同了：worker 的 processThemeTask 在写 site/theme.json 的同时把
+// 新主题那套 colors / fonts / settings 写进 site/brand.json 并提交 —— 所以 brand.json 从此是唯一
+// 真相，构建期不再有任何一处现盖。存量 applied:true 的站由 scripts/backfill-brand-from-theme.py
+// 一次性回填（它们的 brand.json 躺的是建站那天那套，不回填就是一次静默回退）。
+//
+// 📌 下面那段注册表 schema 校验【留着】，它跟 applied 无关：校验的是整张注册表，本来就无条件跑。
 // #1003 —— 主题的颜色 / 字体 / settings 是 tokens，按 schema 校验（schemas/theme-tokens.schema.json）。
 // 🔴 校验的是**整张注册表**，不是只校验这个站用的那一套：一套写坏的主题躺在池子里，等下一个站
 // 换到它才炸，而那时没人记得是谁改的。30 套跑一遍是毫秒级的事。
@@ -394,15 +427,6 @@ if (typeof brand.name === 'string') {
     process.exit(1);
   }
   console.log(`  Theme tokens: ${Object.keys(themes).length} 套全部通过 schema`);
-}
-
-if (appliedThemeId) {
-  brand.colors = themes[appliedThemeId].colors;
-  brand.fonts = themes[appliedThemeId].fonts;
-  // #961: 风格设定跟配色、字体走同一条路 —— 记进 brand，layout.tsx 翻成 CSS 变量。
-  // 没应用 theme 的站这里什么都不写 ⟹ 页面上一个覆盖都没有 ⟹ 落回 globals.css 的默认值，
-  // 也就是这张票改动之前的样子。
-  brand.settings = themes[appliedThemeId].settings;
 }
 
 const seoByLocale = {};
@@ -728,12 +752,21 @@ try {
   process.exit(1);
 }
 
-// #924: an applied theme also owns the layout. For every section type the theme has an
-// opinion about, its variant wins over the one the page JSON carries; section types it says
-// nothing about are left alone. Runs after the locale loop on purpose — navigation.json is
-// the one file written back to disk up there, and it must not pick any of this up.
-if (appliedThemeId) {
-  const layout = layoutFor(appliedThemeId);
+// #924 / 🔴 #1121: 主题声明的 variant【永远】说了算，不看 `applied` —— 跟 #1086 对顶栏 / 页脚
+// 那一维的做法同一个理由：同一套主题不该有两种长相（新建的站拿页面自己的 variant、换过装的站拿
+// 主题的，一个布尔分出两种画法，而签字的图册只画了其中一种）。
+//
+// 🔴 问的是 `structureThemeId`（「这个站穿的是哪套主题」），不是 `appliedThemeId`（「老板换过装
+// 吗」）。用它而不是自己再读一次 theme.json，是因为它对**注册表里查不到的 id 返回 null 而不打死
+// 构建** —— 候选流水线装候选时写的正是一个还没进注册表的 id（theme-pipeline/run.js 的
+// installCandidate），那条路必须活着。这个不对称是承重的，理由整段在 `readStructureThemeId` 上面。
+//
+// For every section type the theme has an opinion about, its variant wins over the one the page
+// JSON carries; section types it says nothing about are left alone. Runs after the locale loop on
+// purpose — navigation.json is the one file written back to disk up there, and it must not pick any
+// of this up.
+if (structureThemeId) {
+  const layout = layoutFor(structureThemeId);
   let overridden = 0;
   for (const locale of locales) {
     for (const page of pagesByLocale[locale]) {
@@ -745,7 +778,10 @@ if (appliedThemeId) {
       }
     }
   }
-  console.log(`  Theme "${appliedThemeId}" applied: colors + fonts + ${overridden} section variant(s)`);
+  // 🔴 #1121 —— 这行以前写的是「colors + fonts + N section variant(s)」，而颜色和字体已经不
+  // 从这里来了。日志说的话必须跟代码做的事一样，否则下一个读构建日志的人会以为覆盖还在。
+  console.log(`  Theme "${structureThemeId}": ${overridden} section variant(s)`
+    + ' —— 颜色 / 字体 / 风格设定来自这个站自己的 brand.json，不从注册表来');
 }
 
 // 🔴 #993 — A THEME MAY NOT DECIDE BLOCK PLACEMENT, and this is where that is enforced.
@@ -757,7 +793,8 @@ if (appliedThemeId) {
 // theme changes colors, fonts, block variants and Region structure, nothing else.
 //
 // The check below runs on the WHOLE registry on every build (this file is predev/prebuild) and is
-// deliberately NOT conditional on `appliedThemeId`, exactly as the #983 check it replaces was: a
+// deliberately NOT conditional on which theme this site wears, exactly as the #983 check it
+// replaces was (it read `appliedThemeId`, a variable #1121 retired): a
 // `rhythm` left on any one of the 30 themes is a rule that came back, and which site happens to be
 // building has nothing to do with it. It is also why the 30 keys were deleted rather than left in
 // place unread — an unread field is how this returns.
@@ -949,7 +986,7 @@ console.log(themeSheet
 // 所以产物 HTML 一个字节都不用重写，也就不用重建。custom.css 换主题时不动，「换了主题微调还在」
 // 因此是结构上自动成立的，不需要任何「把微调套回去」的逻辑。
 //
-// 🔴 三种来源，缺一种就有一批站掉色：
+// 🔴 两种来源，缺一种就有一批站掉色（#1121 之前是三种，第 ② 种随注册表覆盖一起撤掉了）：
 //
 //   ① repo 里有 site/theme.css   →  逐字节拷过去，不重新生成也不覆盖
 //      这是换主题那一刻烤进 repo 的字节（worker 的 processThemeTask）。为什么存字节而不是只记
@@ -957,11 +994,10 @@ console.log(themeSheet
 //      prod/test 的 local.templatePath 是空串，重建不拉新模板），而老板 Apply 时看到的是平台侧
 //      当前的主题池。只记 themeId 的话，这两份字节可以不一样，而且没有任何人会发现。
 //
-//   ② 没有 site/theme.css，theme.json 是 applied:true  →  按注册表生成
-//      （上面 §theme 已经把注册表的 colors/fonts/settings 写进了内存里的 brand，所以这里跟 ③
-//      走同一段代码。）
-//
-//   ③ 两者都没有（#1002 落地那天 100% 的站）  →  从 brand.json 生成
+//   ② 没有 site/theme.css  →  从 brand.json 生成
+//      🔴 #1121：这里原来分两支 —— applied:true 的站「按注册表生成」、其余「从 brand.json 生成」。
+//      而那两支本来就走同一段代码（上面 §theme 先把注册表那套写进了内存里的 brand），撤掉那处
+//      覆盖之后，brand.json 就是唯一的来源，两支说的是同一件事。
 //      内容逐字就是这张票之前 layout.tsx 里那段 inline <style>（`buildCssVariables()`）的产出，
 //      所以搬家不改变任何一个 computed style。🔴 这一支不能省：tailwind.config.ts 把
 //      primary-50…900 映射成 var(--color-primary-*) 且**没写兜底值**，globals.css 的 :root 里
@@ -982,9 +1018,9 @@ if (fs.existsSync(siteThemeCssPath)) {
       ? fs.readFileSync(path.join(publicDir, 'themes', `${themeSheet}.css`), 'utf-8')
       : '',
   }), 'utf-8');
-  themeCssOrigin = appliedThemeId
-    ? `generated from the registry theme "${appliedThemeId}"`
-    : 'generated from brand.json';
+  // 🔴 #1121 —— 只剩一种说法。以前这里按 applied 分两支印不同的话，而两支生成的字节来自同
+  // 一段代码；撤掉注册表覆盖之后，「从注册表生成」这句话在任何一个站上都不再是真的。
+  themeCssOrigin = 'generated from brand.json';
 }
 fs.writeFileSync(path.join(publicDir, 'theme.css'), themeCssBytes);
 console.log(`  Generated public/theme.css — ${themeCssOrigin} (${themeCssBytes.length} bytes)`);
@@ -1002,7 +1038,8 @@ const configDataPath = path.join(rootDir, 'src', 'lib', 'config-data.ts');
 // 否则拷走的是上一次的字节。
 //
 // 🔴 基准值从哪来 —— 必须跟【页面上真正生效的那一组】同源，否则微扰是相对一个不存在的基准算的。
-// 颜色：`brand.colors`（换过装的站，上面第 161 行已经把它换成了那套主题的调色板）。
+// 颜色：`brand.colors` —— 🔴 #1121 之后它就是页面上生效的那一组，构建期不再有任何覆盖
+// （这句以前写的是「换过装的站，上面某一行已经把它换成了那套主题的调色板」）。
 // 圆角 / 留白 / 按钮形状：写了风格设定的站由那张档位表说了算，没写的站落在 `globals.css` 的
 // `:root` 默认值上。**两者不是同一组数**：30 套主题里只有 3 套的设定恰好等于默认值，
 // 其余 27 套不是（实测：`round/airy/pill` 5 套、`sharp/compact/square` 5 套…）。只读 globals.css

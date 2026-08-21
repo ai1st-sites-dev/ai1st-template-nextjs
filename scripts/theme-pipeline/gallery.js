@@ -27,18 +27,25 @@
 //    给了两个形状让我选（A：把它的主题来源做成参数；B：给它一份 themes.js 形状的适配层），两个
 //    我都试过，两个都不成立，理由是量出来的、不是推的：
 //
-//    · B 不成立的地方在**装表那一步**，不在图册那一步：`shoot-themes.sh` 装主题的写法是
-//      `theme.json {"applied": true}`，而 `sync-config.js:44` 对 `applied: true` 会去注册表里找那个
-//      id，找不到就报错退出。候选按 D3「新池重来」根本不进那张旧注册表 ⟹ 无论适配层长什么样，
+//    · B 不成立的地方在**装表那一步**，不在图册那一步：`shoot-themes.sh` 装主题走
+//      `scripts/lib/dress-site-in-theme.js`（写 `theme.json {"applied": true}` + 把那套主题的
+//      colors/fonts/settings 写进 brand.json），而这两步都要求**注册表里有这个 id**：共用件查不到
+//      就直接报错不写，`sync-config.js` 的 `readAppliedThemeId()` 对 `applied: true` 也会去注册表里
+//      找它、找不到就 exit 1。候选按 D3「新池重来」根本不进那张旧注册表 ⟹ 无论适配层长什么样，
 //      那条路都走不通。候选进站走的是另一条：`{"applied": false, "css": "<id>"}`（#991 的开关，
-//      跟 `applied` 是两码事），日志里的凭据也因此不同 —— 不是 `Theme "<id>" applied` 而是
-//      `Theme CSS: public/themes/<id>.css`。
+//      跟 `applied` 是两码事）。
+//      🔴 #1121 更新了这一条的**理由**，结论没变：以前这里的理由是「`applied: true` 会让注册表盖掉
+//      brand.json 的颜色，而候选不在注册表里」；构建期那处覆盖已经撤掉了，今天挡住这条路的是上面
+//      那两道「id 必须在注册表里」。（同款注释也在 `run.js` 的 installCandidate 上。）
 //    · A 走到一半也断：`gallery.mjs:19` **必须**读到 `layout-readback.json`，而产出它的
 //      `layout-readback.py` 是把 N 套按「页面上真渲染出来的骨架」分一次组、再按「注册表里声明的
-//      variant」分一次组，两次分组完全相同才写文件。候选用的是 `applied: false` ⟹ sync-config
-//      一条版式覆盖都不写 ⟹ 几套候选的骨架完全一样，分不出组，它按构造走到
+//      variant」分一次组，两次分组完全相同才写文件。候选的 id **不在注册表里** ⟹ sync-config 的
+//      `readStructureThemeId()` 返回 null ⟹ 一条版式覆盖都不写 ⟹ 几套候选的骨架完全一样，分不出组，
+//      它按构造走到
 //      `🔴 首页上没能认出 hero —— 图旁那条最要紧的标注没有依据,不写文件` 就退出（实测在交接里）。
 //      要让那条路通，得先给候选编一份"声明的 variant"—— 那正是 #963 立那道读回检查要拦的事。
+//      🔴 #1121 同样只换了理由：以前是「候选用的是 `applied: false` ⟹ 一条覆盖都不写」，而 variant
+//      从本票起不看 `applied` 了 —— 不写覆盖的真正原因是那个 id 查不到，跟布尔无关。
 //
 //    ⟹ 所以候选的对照页在这里自己出，并且**在页面上写明它没有那条版式标注、以及为什么**。
 //      #963 的教训是「图旁的标注不能是抄注册表抄出来的」；这里的做法是同一条规矩的另一半：
@@ -246,8 +253,8 @@ function writeComparisonPage(galleryDir, entries) {
   判法：几套候选报的错一字不差 ⟹ 那是样例站的。<br>
   <b>这一页没有 #963 那本图册里的「版式读回」标注</b>，原因写在
   <code>scripts/theme-pipeline/gallery.js</code> 的文件头：那条标注要把 N 套按渲染骨架和按声明
-  variant 各分一次组、两次相同才敢写，而候选是 <code>applied:false</code> 进站的、一条版式覆盖都
-  没有，几套的骨架完全一样 ⟹ 分不出组。拿不到的读数就说拿不到，不摆一个看起来像读数的东西。
+  variant 各分一次组、两次相同才敢写，而候选的 id 还不在主题注册表里、一条版式覆盖都没有，
+  几套的骨架完全一样 ⟹ 分不出组。拿不到的读数就说拿不到，不摆一个看起来像读数的东西。
 </div>
 ${entries.map((e) => card(e, shotsPath)).join('\n')}
 `;

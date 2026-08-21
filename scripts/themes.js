@@ -1,7 +1,8 @@
 // #924 — Theme registry. THE single source of truth for what a theme is.
 //
 // A theme has four parts:
-//   colors      配色 — primary 50-900 + accent 50-600, copied into brand.json at creation
+//   colors      配色 — primary 50-900 + accent 50-600, copied into brand.json at creation, and
+//               again whenever the owner changes theme (#1121: brand.json 是颜色的唯一出处)
 //   fonts       字体 — heading/body families + the Google Fonts URL
 //   supports    我为哪些形态写了样式 — block 类型 → 形态清单。`{}` means "no preference".
 //               🔴 #1010 起这个键叫 supports,以前叫 layout(spec §4.5)。改名连着换了方向:
@@ -17,17 +18,23 @@
 // Who reads this file:
 //   scripts/create-site.js  — picks a theme at creation, writes colors/fonts into brand.json,
 //                             feeds `style` to the logo prompt, records the id in site/theme.json
-//   scripts/sync-config.js  — at every build, when site/theme.json says the user applied a theme
+//   worker/main.go           — 老板按下 Apply 换主题的那一刻，把这套主题的 colors / fonts /
+//                             settings 写进 site/brand.json（#1121 起，见下面那条）
+//   scripts/sync-config.js  — at every build: which variant each block gets, and the two Regions
+//   scripts/lib/dress-site-in-theme.js — 各种工具「给样例站上色」时扮演 worker 那一步（图册、
+//                             theme-css 那批检查都走它）
 //
-// 🔴 The supports table is read on TWO different conditions, and they are not the same one
-// (#1086, 2026-08-18):
-//   · `header` / `footer` — the two Regions — are read for EVERY site, on `themeId` alone.
-//     `applied` does not enter into it. A newly created site (`applied: false`) gets the
-//     header and footer its theme declares, same as one whose owner changed themes.
-//   · every OTHER key — the per-section variants — is still read only for sites the user
-//     actively dressed (`"applied": true`); for the rest the page JSON's own variant decides,
-//     exactly as before.
-// See sync-config.js §theme (`readAppliedThemeId` vs `readStructureThemeId`).
+// 🔴 #1121（2026-08-20）—— **`applied` 不再决定这个站长什么样，一维都不决定。** 这张表的每一个键
+// 都只看 `themeId`：
+//   · `header` / `footer` —— 两个 Region 的结构。#1086（2026-08-18）先离开那个布尔的。
+//   · 其余每一个键 —— 每个 block 的 variant。#1121 跟着离开，理由同一条：同一套主题不该有两种长相。
+//   · `colors` / `fonts` / `settings` —— 🔴 **构建期不再读它们**。页面上的颜色 / 字体 / 风格设定
+//     永远来自这个站自己的 brand.json；这三个键进 brand.json 的时机是**建站那一刻**
+//     （create-site.js）和**老板换主题那一刻**（worker 的 processThemeTask）。
+// 这一段以前写的是「per-section variants 只对 applied:true 的站读」和「sync-config 在
+// applied:true 时拿注册表盖 brand.json」—— 两句在 #1121 之后都是假话。
+// See sync-config.js §theme (`readAppliedThemeId` vs `readStructureThemeId`)：那两个函数今天分开
+// 的理由是它们对「注册表里查不到这个 id」的答法相反，不再是「一个管颜色一个管结构」。
 //
 // #956 — **退役的那 30 套**里，每套的 supports 表覆盖 28 种 block：registry.ts 的 34 种类型减掉 6 个
 // 一个 variant 都没有的（contact-form · quote-form · services-list · services-nav · values-grid ·

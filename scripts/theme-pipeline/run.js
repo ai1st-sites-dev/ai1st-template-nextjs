@@ -150,7 +150,10 @@ function installCandidate(candidate, siteDir, slot) {
   fs.writeFileSync(brandPath, `${JSON.stringify(brand, null, 2)}\n`);
   const dest = path.join(NEXT, 'public', 'themes', `${candidate.id}.css`);
   fs.copyFileSync(candidate.sheetPath, dest);
-  // 🔴 `applied` 必须是 false：为真时 sync-config 会用**注册表**里那套覆盖 brand 的颜色/字体/settings
+  // 🔴 `applied` 必须是 false。#1121 换了理由、没换结论：以前是「为真时 sync-config 会用**注册表**
+  // 里那套覆盖 brand 的颜色/字体/settings」，而构建期那处覆盖已经撤掉了。今天的理由是
+  // `readAppliedThemeId()` 对**注册表里没有的 id** 直接 `process.exit(1)`，而候选的 id 按定义还不在
+  // 注册表里 ⟹ 写 true 会让每个候选站构建当场失败。原来那句话保留在下面，它记的是当时的因果
   //    （sync-config.js:167），而候选还不在注册表里 —— 那样量到的是别人的 tokens。
   //
   // 🔴 #1079 —— 顶栏和页脚也曾被按在默认上（当时的因果是 `applied:false` ⟹ `readAppliedThemeId`

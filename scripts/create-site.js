@@ -2382,9 +2382,14 @@ ${homeRecipe ? recipePromptLines(homeRecipe)
     colors: theme.colors,
     fonts: theme.fonts,
     // #986: 风格设定（圆角/留白/阴影/按钮形状）跟配色、字体一起烤进 brand.json，新站第一次构建就带着它。
-    // 不加这行的话它们只在老板去后台换过一次装（theme.json 的 applied 翻成 true，sync-config.js:120
-    // 从注册表覆盖）之后才出现 —— 同一套 theme，「刚建好的站」和「换过装的站」长得不一样。
-    // 换装那条路不受影响：applied 为真时 sync-config 照旧用注册表覆盖内存里这份。
+    // 不加这行的话它们只在老板去后台换过一次装之后才出现 —— 同一套 theme，「刚建好的站」和「换过装
+    // 的站」长得不一样。
+    // 🔴 #1121 改了下半句：那句「换装那条路不受影响：applied 为真时 sync-config 照旧用注册表覆盖
+    // 内存里这份」今天是假的。构建期已经没有任何覆盖了（sync-config.js §theme），brand.json 是唯一
+    // 真相；换主题时由 worker 把新主题那套**写进这个文件**（worker/main.go 的 processThemeTask）。
+    // 所以这三行（colors / fonts / settings）在建站那天写什么，就一直是这个站的样子，直到老板自己
+    // 换主题 —— 包括他勾了「照抄参照站配色」拿到的那套（见下面 refPrefs 那一段），以前它会在他第一次
+    // 换装时被静默盖掉。
     settings: theme.settings,
     email: ai.brand.email || email || 'info@example.com',
     locations: ai.brand.locations,

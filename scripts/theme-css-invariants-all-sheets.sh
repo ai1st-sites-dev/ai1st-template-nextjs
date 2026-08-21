@@ -230,6 +230,24 @@ if [ -f "$THEME_JSON" ]; then
   cp "$THEME_JSON" "$ORIGINAL_THEME_JSON"
   HAD_THEME_JSON=1
 fi
+# 🔴 #1121 —— site/brand.json 也要存一份，因为从这张票起【它才是颜色的出处】。
+# 详细理由在下面那段「给这个站上色」里。这个文件不是可选的（sync-config 没有它直接退出），
+# 所以不需要 theme.json 那种「本来没有」的分支 —— 但**正因为它不是可选的，存不下来就必须停手**：
+#
+# 🔴 这个脚本是 `set -uo pipefail`，**没有 -e**。所以 `cp` 失败不会中止它，而下面 cleanup 里那句
+#    `cp "$ORIGINAL_BRAND_JSON" "$BRAND_JSON"` 会把一个**空的 mktemp 文件**盖到样例站上 ⟹ 站的
+#    brand.json 被清空，而 sync-config 没有它直接退出。也就是说这一条不加，失败方向是「把样例站
+#    弄坏」，而不是「这一轮没量到」。（#1121 r1 漏了它，QA1 抓的。）
+# 📌 「brand.json 在不在」这里【不再问一遍】：上面 §the sample site 那道 `[ ! -f "$NEXT/site/brand.json" ]`
+#    （本文件 :172）已经拦过，而且带 --make-sample-site 时它会把站建出来 —— 所以走到这一行时它按构造
+#    存在。再写一道一模一样的判断，是一道永远不开火的守卫。
+BRAND_JSON="$NEXT/site/brand.json"
+ORIGINAL_BRAND_JSON="$(mktemp)"
+if ! cp "$BRAND_JSON" "$ORIGINAL_BRAND_JSON"; then
+  echo "🔴 存不下 $BRAND_JSON 的原件 —— 不敢往下走：这一轮会改它，而收工时没有东西可以还原。" >&2
+  rm -f "$ORIGINAL_BRAND_JSON" "$ORIGINAL_THEME_JSON"
+  exit 2
+fi
 # The sample site is left exactly as it was found, whichever way this script ends: it is the input to
 # the next run, and a run that quietly rewrites its own input cannot be repeated.
 cleanup() {
@@ -238,7 +256,8 @@ cleanup() {
   else
     rm -f "$THEME_JSON"
   fi
-  rm -f "$ORIGINAL_THEME_JSON"
+  cp "$ORIGINAL_BRAND_JSON" "$BRAND_JSON"
+  rm -f "$ORIGINAL_THEME_JSON" "$ORIGINAL_BRAND_JSON"
   [ -n "${SRV_PID:-}" ] && kill "$SRV_PID" 2>/dev/null
   return 0
 }
@@ -399,10 +418,25 @@ for sheet in "${SHEETS[@]}"; do
     continue
     ;;
   esac
-  node -e "
-    require('fs').writeFileSync('$THEME_JSON',
-      JSON.stringify({ themeId: '$theme_id', applied: true, css: '$sheet' }, null, 2) + '\n');
-  "
+  # 🔴 #1121 —— 给这个站上色的动作现在有两半，缺后一半这整套读数就没有意义了。
+  #
+  # 在这张票之前，写 `{ themeId, applied: true }` 就够了：构建期 sync-config 会拿注册表那套颜色 /
+  # 字体 / 风格设定盖掉 brand.json。那一段撤掉了（本票的交付），brand.json 从此是颜色的唯一出处，
+  # 而换主题时把新颜色写进它的是 worker（`processThemeTask`）—— 这里就是在扮演 worker 那一步。
+  #
+  # 🔴 少了这一半的后果，是这个脚本自己上面那段「一张表一套调色板，而且是它自己那套」（#1016 r5）
+  # 当场失效：83 张表会全部拿【这个样例站建站那天】那一套颜色去量，也就是「一组对照全部读到同一个
+  # 值」。实测过：本票刚改完、还没修这里的时候，83 张里跑到第 49 张时有 5 张报了对比度不合格
+  # （amber-54 的 `.announcement-bar__link` 4.32:1），而同样那几张在干净 origin/main 上是绿的 ——
+  # 它们量的是「这张表的规则 + 别的站的调色板」，一个真站不可能是这个组合。#1016 r5 那段注释里
+  # 写的正是同一个错法，只是当时的成因是「决定得太早」，这次的成因是「颜色的出处换了」。
+  #
+  # 🔴 两半都由 `scripts/lib/dress-site-in-theme.js` 做，这里【不许】自己再写一遍（#1121 r2）：
+  # 本票交付当天，全仓有三个工具在自己动手给样例站上色，三个都只做了前一半 —— 这一个（交付时
+  # 发现）和 `theme-gallery/` 里那两个（QA1 找到）。三处共用一个名字有名的动作，下一个这样的
+  # 地方才看得见自己漏了什么。三个键跟 worker 的 §write 逐个对应（colors / fonts / settings）。
+  node "$NEXT/scripts/lib/dress-site-in-theme.js" "$NEXT/site" "$theme_id" "$sheet" \
+    || { echo "🔴 $sheet: could not dress the sample site in $theme_id — nothing was measured."; unmeasured=1; continue; }
   log="$(mktemp)"
   if ! ( cd "$NEXT" && env -u ANTHROPIC_API_KEY npm run build ) > "$log" 2>&1; then
     echo "🔴 $sheet: the build failed — the invariants were never measured. Last lines:"
