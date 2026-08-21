@@ -346,7 +346,14 @@ function outlineShadeFor(palette, ground = WHITE) {
  * @returns {{hex:string, from:string}|null}
  */
 function outlineGroundFromCss(cssText, palette) {
-  const css = String(cssText || '');
+  // 🔴 **先剥掉 `/* … */`,再谈"哪一条声明"** —— 注释按 CSS 语义不在记号流里,而下面按 `;` 切段、
+  // 按段首认属性名的做法**看不见**"声明前面有一行注释"这种合法写法:那条声明整段不匹配 ⟹ 这个块
+  // 被当成"一条画底的都没有" ⟹ 掉到函数最后那句关于这个站的断言。QA1 在 #1126 r1 实测过这个洞:
+  // 往真表 `.services-list` 里只加一行注释(分号一个没动),真管道 `rc=0` 构建成功、印出那句假话,
+  // 档位从 `primary-200`(真底上 6.679)掉到 `primary-600`(真底上 1.779,线是 4.5)——**比不改还差**,
+  // 而且 0 条警告。本票要治的缺分号形状反而被上游 CSS 闸 `rc=1` 拒掉、够不到这个函数。
+  // 剥法与 `theme-contrast.js:90` 的 `parseSheet` 同一条,不另造一把。
+  const css = String(cssText || '').replace(/\/\*[\s\S]*?\*\//g, '');
   const shadeOf = (group, shade) => {
     const g = palette && (palette[group] || (group === 'primary' ? palette : null));
     return g && typeof g[shade] === 'string' ? g[shade] : null;
@@ -356,16 +363,63 @@ function outlineGroundFromCss(cssText, palette) {
     // 松了会把 `.foo .services-list { … }` 这种后代选择器也算进来。
     const re = new RegExp('(?:^|\\n)[ \\t]*\\' + sel + '[ \\t]*\\{([^}]*)\\}', 'g');
     let decl = null;
+    let sawPaint = false;   // 这个块里**试图**画底的声明有没有出现过(合不合法都算)——见下面那条 🔴
     let m;
     while ((m = re.exec(css)) !== null) {
-      // 🔴 `[^;}]+` 而不是 `[^;]+`：块里最后一条声明可以不带分号，`[^;]+` 会一路吃到**下一条规则**
-      //    里的那个分号（`;` 之前的 `}` 挡不住它）。同选择器多次、同块里多条时都取**最后**一条
-      //    = 层叠赢的那条。`background` 与 `background-color` 一起数，因为后写的那条才是赢家。
-      for (const d of m[1].matchAll(/(?:^|[;{\s])(background(?:-color)?)\s*:\s*([^;}]+)/g)) {
-        decl = { prop: d[1], value: d[2].trim() };
+      // 一条声明的边界是分号。块里**最后**一条可以不带分号,所以按 `;` 切完之后最后那一段也算一条。
+      // 同选择器出现多次、同块里写了多条时,取**最后一条读得出来的**;`background` 与
+      // `background-color` 一起数,因为后写的那条才是赢家。
+      //
+      // 🔴 **「读得出来」是什么意思,以及它凭什么等于「层叠赢的那条」——两句都写下来,因为原来那句
+      //    (「取最后一条合法的 = 层叠赢的那条」)是**假**的,QA1 在 #1126 r1 用一行注释就证伪了它。**
+      //    注释已经在函数开头剥掉了,所以"读得出来"= 它顶在 `;` 段的开头,也就是前面没粘着一条
+      //    **没终止**的声明(粘住的那种走下面那条 `continue` ⟹ 整个块回 `null`)。
+      //    而"最后一条 = 赢的那条"只在**没有 `!important`** 时成立,本文件不认它:
+      //    2026-08-20 实测 83 张表这两个选择器共 **249 个块 / 110 条画底声明,带 `!important` 的 0 条**,
+      //    所以今天这个等号成立。哪天有人写了 `!important`,这句话就要跟着改。
+      //
+      // 🔴 #1126 —— 前一条**忘写分号**时,不许把它当成「赢的那条」报出去。原来这里是一条
+      // `matchAll(/…:\s*([^;}]+)/g)`:值那一段贪到下一个 `;` 为止,于是
+      //     background-color: var(--color-primary-800)      ← 缺分号
+      //     background-color: #ffffff;
+      // 会被读成**一条**声明,值是 `var(--color-primary-800)\n  background-color: #ffffff`,
+      // 而开头那个 `var()` 匹配上了 ⟹ 报出 primary-800,**一条警告都不打**。
+      //
+      // 🔴 那种形状下正确答案**不是**「后面那条赢」——两条一起废。实测(chromium,一次只差一个分号):
+      //     缺分号 + 后面还有一条   ⟹ computed background-color = rgba(0, 0, 0, 0)
+      //     同样两条、分号补齐      ⟹ rgb(255, 255, 255)
+      //     哪一条在前面都一样(把 `#ffffff` 放前面缺分号,仍然是 rgba(0,0,0,0))
+      //   CSSOM 里那条规则只剩**一条**声明,值是那一整串没断开的文本,它在计算值那一步整条作废;
+      //   `postcss` 更直接:`CssSyntaxError: Missed semicolon`,根本不解析。
+      // ⟹ 我们没有一个真话可以报 ⟹ 走 `null`(下面 `sawPaint` 那一支),让调用方打那条 🔴。
+      //
+      // 判据:合法的一条 `background-color` 声明,值里**不会再出现 `某某:`**。
+      // (`background` 简写的值里可以有 `url(http://…)`,但简写本来就走 `null`,所以这里先认属性名。)
+      for (const seg of m[1].split(';')) {
+        // 🔴 **两个问题,两把判据,因为答错的方向不同。**
+        //   「这个块**试过**画底吗」(`sawPaint`)——答错会掉到最后那句关于这个站的断言,所以用**宽**的:
+        //      声明在段里哪个位置都算。前一条没终止时,后面那条就**不在**段首。
+        //   「哪一条**赢**」(`decl`)——答错会报出一块别的底,所以用**严**的:必须顶在段首,
+        //      否则说明它前面还粘着一条没终止的声明,那种形状下没有真话可报(见下面那段 🔴)。
+        if (/(?:^|[\s;{])background(?:-color)?\s*:/.test(seg)) sawPaint = true;
+        const d = seg.match(/^\s*(background(?:-color)?)\s*:\s*([\s\S]*)$/);
+        if (!d) continue;
+        const value = d[2].trim();
+        if (d[1] === 'background-color' && /[-a-zA-Z]+\s*:/.test(value)) continue;  // 前一条没终止 ⟹ 整条作废
+        decl = { prop: d[1], value };
       }
     }
-    if (!decl) continue;
+    // 🔴 #1105 立的那条规矩在这里也管用:块里**有**画底的声明、只是解不出来 ⟹ 回 `null`,
+    // 绝不许掉到函数最后那句「没有任何一条画底 ⟹ 页面白(未套主题的站)」——那是一句关于这个站的断言。
+    if (!decl) {
+      // 这个选择器**试过**画底、只是没有一条读得出来 ⟹ 不猜,也不去问下一个选择器:
+      // 说在明处的代价 —— 浏览器在这种形状下确实会让父元素那块底透出来,所以"往下问 .services-list"
+      // 有时会更准。这里选保守的一边,理由是 #1105 那条规矩(有画底的声明就不许给出关于底的断言)
+      // 加上失败方向:回 `null` 的后果是一条 🔴 + 那一格没有读数,人看得见;猜错的后果是一个
+      // 关于另一块底的档位,没人看得见。
+      if (sawPaint) return null;
+      continue;   // 这个选择器**真的**没画底 ⟹ 问下一个
+    }
     if (decl.prop !== 'background-color') return null;   // 简写：认得出，不解析（见上面那条 🔴）
     const { value } = decl;
     const tok = value.match(/^var\(\s*--color-([a-z]+)-(\d{2,3})/);

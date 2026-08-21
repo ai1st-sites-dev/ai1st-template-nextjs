@@ -1252,7 +1252,12 @@ console.log(`  Generated public/custom.css — ${customCssOrigin} (${customCssBy
     // 🔴 这一行不能用 `outlineGround` 拼：#1105 起解不出来时它是 `null`，印出来就是「那块底 = null」。
     console.log(`  Button ink: 轮廓按钮坐的那块底 = ${ground ? ground.hex : '解不出来'} —— `
       + (ground ? ground.from
-        : '🔴 没认出那个形状（`background` 简写 / 渐变 / color-mix() / 变量套变量 / 带 alpha 的 hex）'
+        // #1126 —— 清单里补上「前一条声明没写分号」那个形状。不补的话人读到的是一句**不含真因**的
+        // 警告：那个形状下浏览器把粘在一起的两条一起判废（实测 chromium computed = rgba(0,0,0,0)），
+        // 而它不在上面任何一类里。r2 起这一类不只是 `background-color` 前面那条 —— 任何属性没终止都
+        // 会把后面那条粘进去，判据是「画底那条声明没顶在 `;` 段开头」（见 button-ink.js 的宽/严两把判据）。
+        : '🔴 没认出那个形状（`background` 简写 / 渐变 / color-mix() / 变量套变量 / 带 alpha 的 hex'
+          + ' / 前一条声明忘写分号 ⟹ 它和粘在后面那条一起作废）'
           + ' —— 这【不是】"底是白的"⟹ 按白底选档，这一档可能是错的，而轮廓那一格没有读数'));
     // 🔴 #1105 —— 「算不出来的格子」是**第三种**结果，跟「合格」「不合格」并列，所以它自己一条话。
     // 它既不能混进 `under`（那是「量出来了、低于线」），也不能不说 —— 不说的话，一个没有读数的格子

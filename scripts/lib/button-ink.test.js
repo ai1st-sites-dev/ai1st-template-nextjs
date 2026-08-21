@@ -607,12 +607,21 @@ console.log('⑦ 算不出来的输入必须【说出来】，不许混到「合
     else ok(`阳性对照：没动过的真表 ⟹ 底 = ${g.hex}（${g.from}）· 四格全部有数 · 算不出来的 0 格`);
   }
 
-  // 四种「读不出来」的输入。前两种是本票点名的（QA2 ① / QA3 1），后两种是同一个形状的另两半。
+  // 六种「读不出来」的输入。前两种是 #1105 点名的（QA2 ① / QA3 1），第三、四种是同一个形状的另两半，
+  // 最后两种是 #1126：**前一条忘写分号**。
+  //
+  // 🔴 #1126 那两条为什么也该是 `null`，而不是「后面那条赢」：真浏览器里两条**一起作废**。
+  //    实测（chromium，一次只差一个分号）：缺分号 ⟹ computed background-color = `rgba(0, 0, 0, 0)`；
+  //    分号补齐 ⟹ `rgb(255, 255, 255)`；哪一条写在前面都一样。`postcss` 直接 `Missed semicolon` 拒绝解析。
+  //    ⟹ 没有一个真话可以报，所以走 `null` + 调用方那条 🔴。改之前它报的是**前面**那条（primary-800），
+  //    也就是一句关于另一块底的假话，而且一条警告都不打。
   const SHAPES = [
     ['background 简写', '  background: var(--color-primary-800);\n'],
     ['4 位带 alpha 的 hex', '  background-color: #abcd;\n'],
     ['8 位带 alpha 的 hex', '  background-color: #5e264380;\n'],
     ['渐变（本票之前就会 null 的那条，作对照）', '  background-color: linear-gradient(#000,#fff);\n'],
+    ['#1126 前一条缺分号（var 在前）', '  background-color: var(--color-primary-800)\n  background-color: #ffffff;\n'],
+    ['#1126 前一条缺分号（字面量在前）', '  background-color: #ffffff\n  background-color: var(--color-primary-800);\n'],
   ];
   const wrong = [];
   for (const [what, decl] of SHAPES) {
@@ -629,7 +638,141 @@ console.log('⑦ 算不出来的输入必须【说出来】，不许混到「合
     if (r.outlineGround !== null) wrong.push(`${what}：report.outlineGround = ${JSON.stringify(r.outlineGround)}，应当是 null`);
   }
   if (wrong.length) bad(`${wrong.length} 处：${wrong.join(' · ')}`);
-  else ok(`4 种读不出来的底（简写 / 4 位 hex / 8 位 hex / 渐变）⟹ 全部 null，且 ${CELL} 落进 unresolved、没落进 under`);
+  else ok(`${SHAPES.length} 种读不出来的底（简写 / 4 位 hex / 8 位 hex / 渐变 / 缺分号 ×2）⟹ 全部 null，`
+    + `且 ${CELL} 落进 unresolved、没落进 under`);
+
+  // ── #1126 —— 缺分号那一条的三个配套读数 ────────────────────────────────────────────────────
+  //
+  // 上面那张表只问「是不是 null」。这里问另外三件，少了任何一件那一格都能靠「一律返回 null」蒙过去：
+  //   (a) 阳性对照：改坏修法那一行 ⟹ 它当场回到报**输的那条**（primary-800），也就是本票要治的那句假话
+  //   (b) 合法的「块里最后一条不带分号」**仍然解得出来** —— 修法不许把这种正常写法也判成读不出来
+  //   (c) 一条好的在前、一条坏的在后 ⟹ 取好的那条（浏览器就是这么算的：坏的那条被丢掉）
+  // 变异体加载器 —— 两格共用（#1126 缺分号那格 + r2 块内注释那格）。
+  // 🔴 读的是**真源码**再删掉被测那一行，不是照抄一份重新实现（QA1 #1126 r1 非阻断 1）。
+  const Module = require('module');
+  const SRC = path.join(__dirname, 'button-ink.js');
+  const srcText = fs.readFileSync(SRC, 'utf8');
+  const loadMutant = (find, replacement, label) => {
+    const hits = srcText.split(find).length - 1;
+    if (hits !== 1) return { err: `变异目标在源码里出现 ${hits} 次（要 1 次）：${label}` };
+    const mod = new Module(SRC, module);
+    mod.filename = SRC;
+    mod.paths = Module._nodeModulePaths(path.dirname(SRC));
+    try { mod._compile(srcText.replace(find, replacement), SRC); } catch (e) {
+      return { err: `变异体编译不过：${label} —— ${e.message}` };
+    }
+    return { mod: mod.exports };
+  };
+
+  {
+    const problems = [];
+
+    // (a) 阳性对照 —— **改真源码那一行,不是照抄一份再实现**（QA1 在 #1126 r1 点的：手抄那份
+    //     不会跟着真谓词漂移，真那一行以后被重写它照样绿 ⟹ 那一格就不再控任何东西）。
+    //     做法：把 `button-ink.js` 的源码读进来、删掉被测的那一行、用**它自己的文件名**编译一份
+    //     （文件名对了，里面 `require('../theme-contrast.js')` 才解析得到），然后问这份变异体。
+    //     每一次变异都先断言"真的改到了"，否则这一格是空的。
+
+    // M1：删掉「前一条没终止 ⟹ 整条作废」那一句 continue ⟹ 必须回到报**输的那条**（本票要治的假话）
+    const FIX_LINE = "        if (d[1] === 'background-color' && /[-a-zA-Z]+\\s*:/.test(value)) continue;  // 前一条没终止 ⟹ 整条作废\n";
+    const m1 = loadMutant(FIX_LINE, '', 'M1 缺分号那句 continue');
+    const fixtureA = mutate('  background-color: var(--color-primary-800)\n  background-color: #ffffff;\n');
+    const realSaid = ink.outlineGroundFromCss(fixtureA, PAL);
+    if (m1.err) problems.push(m1.err);
+    else {
+      const said = m1.mod.outlineGroundFromCss(fixtureA, PAL);
+      if (!said || said.from !== '.services-list → primary-800') {
+        problems.push(`M1 阳性对照立不起来：删掉那一句 continue 之后应当报「.services-list → primary-800」，`
+          + `实际是 ${JSON.stringify(said)} —— 这一格分不出改前改后，上面的绿不算`);
+      } else if (realSaid !== null) {
+        problems.push(`修法那一版没有回 null，而是 ${JSON.stringify(realSaid)}`);
+      }
+    }
+
+
+    // (b) 合法的「最后一条不带分号」不许被误伤。用合成块，因为真表那一条后面还有 `color:`。
+    const LEGAL = '\n.services-list {\n  display: grid;\n  background-color: #ffffff\n}\n';
+    const legal = ink.outlineGroundFromCss(LEGAL, PAL);
+    if (!legal || legal.hex !== '#ffffff') {
+      problems.push(`合法的「块里最后一条不带分号」被判成读不出来了：${JSON.stringify(legal)}`
+        + ' —— 那是正常 CSS，修法不许误伤它');
+    }
+
+    // (c) 好的在前、坏的在后 ⟹ 取好的那条（浏览器丢掉坏的那条，前面那条照样生效）。
+    const MIXED = '\n.services-list {\n  background-color: #ffffff;\n  background-color: var(--color-primary-800)\n  color: red;\n}\n';
+    const mixed = ink.outlineGroundFromCss(MIXED, PAL);
+    if (!mixed || mixed.hex !== '#ffffff') {
+      problems.push(`「好的在前、坏的在后」应当取前面那条 #ffffff，实际是 ${JSON.stringify(mixed)}`);
+    }
+
+    if (problems.length) bad(`#1126 缺分号：${problems.length} 处 —— ${problems.join(' · ')}`);
+    else {
+      ok('#1126 缺分号：M1 阳性对照改真源码（删掉那句 continue ⟹ 报 .services-list → primary-800）· 修法回 null'
+        + ' · 合法的「最后一条不带分号」仍解得出 #ffffff · 「好的在前坏的在后」取前面那条'
+        + ' · 详见下一格 #1126 r2');
+    }
+  }
+
+  // ── #1126 r2 —— 声明前面有一行注释（合法 CSS）不许被当成「一条画底的都没有」 ─────────────────
+  // 自己一格，因为它钉的是**另一个**失败形态：r1 的修法在这个输入上不是「读不出来」，而是印出一句
+  // **关于这个站的正面断言**（「没有任何一条画底 ⟹ 页面白」），0 条警告，而档位比不改还差。
+  {
+    const p2 = [];
+    // ── #1126 r2 —— 声明**前面有一行注释**（合法 CSS）不许被当成「一条画底的都没有」 ────────────
+    //   这是 r1 的修法开的口子，QA1 实测过：真表只加一行注释，真管道 rc=0、印出「页面白」那句假话，
+    //   档位从 primary-200（真底上 6.679）掉到 primary-600（真底上 1.779，线 4.5）——**比不改还差**，
+    //   而且 0 条警告。失败方向是那句**关于这个站的正面断言**，正是 #1105 与本票存在的理由。
+    const fixtureC = mutate('  /* #1072 那种块内注释——合法 CSS */\n  background-color: var(--color-primary-800);\n');
+    const withComment = ink.outlineGroundFromCss(fixtureC, PAL);
+    if (!withComment || withComment.from !== '.services-list → primary-800') {
+      p2.push(`声明前面一行注释（合法 CSS）⟹ 应当照样报「.services-list → primary-800」，`
+        + `实际是 ${JSON.stringify(withComment)}`);
+    }
+    // 这一格由**两道**互相独立的防线守着，所以要两个阳性对照，各钉一条真源码行：
+    //   剥注释那一句 → 决定「能不能读出【真】的那块底」
+    //   宽判据那一句 → 决定「读不出来时会不会掉到那句关于这个站的假话」
+    // 只删前者仍然是 null（诚实的读不出来 + 一条 🔴）；两条都删才回到 r1 那个 0 警告的假话。
+    const STRIP = ".replace(/\\/\\*[\\s\\S]*?\\*\\//g, '')";
+    const LOOSE = "        if (/(?:^|[\\s;{])background(?:-color)?\\s*:/.test(seg)) sawPaint = true;\n";
+
+    const m2 = loadMutant(STRIP, '', 'M2 函数开头那句剥注释');
+    if (m2.err) p2.push(m2.err);
+    else {
+      const said = m2.mod.outlineGroundFromCss(fixtureC, PAL);
+      if (said !== null) {
+        p2.push(`M2 阳性对照立不起来：只删掉剥注释那一句时应当是 null（读不出来，由调用方打 🔴），`
+          + `实际是 ${JSON.stringify(said)} —— 那说明真读数不是剥注释挣来的`);
+      }
+    }
+
+    // M4：两条都删 = r1 那一版 ⟹ 必须回到「没有任何一条画底」那句 0 警告的假话
+    const m4 = (() => {
+      const hitsA = srcText.split(STRIP).length - 1;
+      const hitsB = srcText.split(LOOSE).length - 1;
+      if (hitsA !== 1 || hitsB !== 1) return { err: `M4 变异目标不唯一（剥注释 ${hitsA} 次 · 宽判据 ${hitsB} 次）` };
+      const mod = new Module(SRC, module);
+      mod.filename = SRC;
+      mod.paths = Module._nodeModulePaths(path.dirname(SRC));
+      try { mod._compile(srcText.replace(STRIP, '').replace(LOOSE, ''), SRC); } catch (e) {
+        return { err: `M4 变异体编译不过：${e.message}` };
+      }
+      return { mod: mod.exports };
+    })();
+    if (m4.err) p2.push(m4.err);
+    else {
+      const said = m4.mod.outlineGroundFromCss(fixtureC, PAL);
+      if (!said || !/没有任何一条画底/.test(said.from || '')) {
+        p2.push(`M4 阳性对照立不起来：两条都删（= r1 那一版）时应当掉回「没有任何一条画底」那句假话，`
+          + `实际是 ${JSON.stringify(said)} —— 这一格分不出 r1 与 r2`);
+      }
+    }
+    if (p2.length) bad(`#1126 r2 块内注释：${p2.length} 处 —— ${p2.join(' · ')}`);
+    else {
+      ok('#1126 r2：声明前一行注释（合法 CSS）照样解得出 .services-list → primary-800'
+        + ' · 两道防线各一个阳性对照，都改真源码 —— 只删剥注释 ⟹ null（诚实的读不出来）；'
+        + '剥注释与宽判据两条都删（= r1 那一版）⟹ 掉回「没有任何一条画底」那句假话');
+    }
+  }
 
   // 🔴 反向对照 A：这一格必须分得出「本票之前那版」。之前调用方把解不出来的底换成白 ——
   //    那一格于是报出一个**过线的**数（白底上 500 档往往合格），正好把这条盖住。
