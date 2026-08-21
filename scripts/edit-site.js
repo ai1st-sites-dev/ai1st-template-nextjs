@@ -26,6 +26,9 @@ const { readPageBlocks, normalizeLocalePages } = require('./blocks');
 const { writeRejection, writeNotes } = require('./lib/editable-files');
 // #1104 r6 —— 这个站的页面真的画出哪些区（构建和这条路共用同一份实现，理由在那个文件头上）。
 const siteRegions = require('./lib/site-regions');
+// #1109 —— 这个站的内容住在 `site/<语言>/` 还是直接在 `site/`。白名单拿它判「这条路径在这个站上
+// 有没有人读」；判据跟构建同一条（只看 site_meta.json 在不在），理由在那个文件头上。
+const siteShape = require('./lib/site-shape');
 
 // ─── Emit structured events to stdout ─────────────────────────────────────────
 
@@ -128,6 +131,13 @@ const SNAPSHOT_MAX_BYTES = 32 * 1024 * 1024;
  * 那条阻断）。同一个物理文件有无穷多种写法 —— `en/pages/about.json` · `./en/pages/about.json` ·
  * `en//pages/about.json` · `en/./pages/about.json`，四种我都实测过能走到落盘那一行（`validatePath`
  * 只拦 `..` 与绝对路径，`writeRejection` 自己会归一化所以它四种都判成同一个文件、一视同仁地放行）。
+ * 🔴 **上面那句括号里的话有个射程边界，#1109 r2 补在这里** —— 它对**这四种**是真的，而这四种的共同点
+ * 是 `path.join` 自己就会把它们收敛到同一个文件。收不敛的写法（`en\pages\about.json` 那族、结尾带
+ * 分隔符那族）曾经也走到落盘那一行，而落点跟 `writeRejection` 判的**不是同一个文件** —— 那是 QA3
+ * 在 #1109 r1 终审打回的那条阻断。现在 `writeRejection` 放行之前会多问一句「我判的这个文件就是
+ * `path.join` 会写的那个吗」（`lib/editable-files.js` 的 `spellingMismatch`），不同就大声拒。
+ * ⟹ 走到下面这一行的每个字符串，都已经被证明「判的对象 == 落盘的对象」。别照这句括号里的话推断
+ *    「任何写法都会被归一化成同一个文件」：不是归一化，是不收敛的那些**进不来**。
  * 按原始字符串当键，「同一次编辑里同一个文件只记第一次」那条纪律就被写法拆开了：第二条快照记下的
  * 「写之前」是**第一笔写完之后**的样子，回滚按插入序两条都写回、后写的盖住先写的 ⟹ 磁盘上留下的是
  * 第一笔的改动，而它自报 `restored 2 · failed 0`。QA3 真跑 `edit-site.js` 本体量到的读数：
@@ -415,6 +425,12 @@ function executeTool(toolName, toolInput, siteDir, snapshots) {
         // 要它；判断在 lib/site-regions.js，构建用的是同一份实现。
         // 🔴 算不出来一律回 null，**不是回一个猜的值**：下游拿到 null 会对老板说「我说不准」，
         //    而拿到一个猜错的值会说一句确定的假话。两个方向的错法不对称。
+        // #1109 —— 这个站是什么形状（多语言站内容在 `site/<语言>/`、老扁平站直接在 `site/`）。
+        // 白名单用它拒掉「写得进去、但这个站的构建根本不读」的那些位置 —— 那种写入会落盘、
+        // 同步通过、commit + push、老板收到「Done」，而站上一个像素都没变。
+        // 🔴 判据只看 `site_meta.json` 在不在，跟 `sync-config.js` 分多语言/扁平用的是同一条
+        //    （整段理由在 lib/site-shape.js 的文件头）。问不出来时它返回 null，白名单那一维就不判。
+        readSiteShape: () => siteShape.readSiteShape(siteDir),
         readRenderedRegions: () => {
           try {
             const r = siteRegions.resolveSiteRegions(siteDir);

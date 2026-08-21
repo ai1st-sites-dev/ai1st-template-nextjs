@@ -6,6 +6,7 @@
  *   const { writeRejection } = require('./lib/editable-files.js');
  *   const why = writeRejection('theme.json');   // null = 可以写；字符串 = 拒，这句话直接回给模型
  *   const why = writeRejection('navigation.json', { content, readCurrent });   // 见下面「窄口子」
+ *   const why = writeRejection('seo.json', { readSiteShape });                // 见下面「第二问」
  *
  * ── 为什么要有它（#1087）────────────────────────────────────────────────────────────────────────
  * 一个真客户站（`site-194f1f41`）的 `site/theme.json` 里躺着 `{"themeId":"luxury-dark","applied":true}`。
@@ -39,6 +40,26 @@
  *
  * 🔴 于是 `writeRejection` 多收一个 `ctx`。**没有 `ctx` 时 navigation.json 一律拒**（fail-closed）：
  *    调用方拿不出这次要写的内容和磁盘上那份，就没法判"改的是哪几处"，而放行的方向正是本票的反面。
+ *
+ * ── 第二问：这个文件在【这个站】上有人读吗（#1109）──────────────────────────────────────────────
+ * 上面那张白名单只看**文件名**。而同一个文件名在两种站上住在不同的地方：
+ *   · 多语言站（有 `site_meta.json`）—— 内容在 `site/<语言>/`，构建只读那一份
+ *   · 老的单语言扁平站（没有 `site_meta.json`）—— 内容直接在 `site/`
+ * 所以在多语言站上往**根目录**写 `seo.json` 会被这张表放行，然后：落盘 → `sync-config` rc=0 →
+ * commit + push → 老板收到「Done」→ **站上一个像素都没变**（构建根本不读那份）。反方向一样：
+ * 扁平站上写 `<语言>/seo.json` 也没人读。这是 #1087 治过的病的另一个形状 —— 那边是「说了一句
+ * 指向不存在地方的话」，这里是「做了一件看起来成功、其实没有效果的事」，而且没有任何一层会红。
+ *
+ * 🔴 修法不是补一张路径清单（清单会在下一个文件类型出现时漏），是让这道门知道**这个站是什么形状**：
+ *    形状从 `ctx.readSiteShape()` 来，判据与构建同一条（`lib/site-shape.js` 里写着为什么只看
+ *    `site_meta.json` 在不在）。
+ * 🔴 **形状问不到时这一维不判**（保留白名单原来的答案），方向跟 navigation.json 那道窄口子相反，
+ *    理由是具体的：
+ *      · 这里被判的是**站的内容文件**（本来就该写得进去），拿不到形状就拒 = 一份站目录读不出来
+ *        的时候整个编辑器变砖，而 `lib/remediation.js` 会据此对老板说一句「这个改不了」的假话。
+ *      · navigation.json 那边拿不到内容就拒，是因为放行的后果是**写进一个会被覆盖的字段**。
+ *    ⟹ 两处的默认值都是「后果轻的那一边」，不是同一个方向。
+ *    真路径（`edit-site.js` 的 `write_file`）永远递得进形状，那条接线由 `editable-files.test.js` 钉着。
  */
 
 const path = require('path');
@@ -150,16 +171,20 @@ function navigationRejection(normalized, ctx) {
 
 /**
  * @param {string} relPath 相对 `site/` 的路径（`edit-site.js` 已经用 validatePath 挡掉 `..` 和绝对路径）
- * @param {{content?: string, readCurrent?: (relPath: string) => (string|null)}} [ctx]
- *        这次要写的内容 + 一个按路径读磁盘上那份的函数。**只有 navigation.json 用到它**
- *        （见文件头「一道窄口子」）；没给就等于那个文件一律拒。
+ * @param {{content?: string, readCurrent?: (relPath: string) => (string|null),
+ *          readSiteShape?: () => ({flat: boolean, locales?: string[]}|null)}} [ctx]
+ *        · `content` + `readCurrent` —— 这次要写的内容 + 一个按路径读磁盘上那份的函数。
+ *          **只有 navigation.json 用到它们**（见文件头「一道窄口子」）；没给就等于那个文件一律拒。
+ *        · `readSiteShape` —— 这个站的内容住在 `<语言>/` 底下还是直接在 `site/`（#1109）。
+ *          没给就等于不判这一维（见文件头「第二问」）。
  * @returns {string|null} null = 可以写；字符串 = 拒绝的理由，原样回给模型
  */
 /**
  * 把 `relPath` 算成它真正指的那个文件，并拆出 locale。
  * 抽出来是因为 `writeRejection` 与 `writeNotes` 必须对「这是哪个文件」得出同一个答案 ——
  * 两份实现必然分叉，而分叉的方向是「拒的时候按 A 判、说话的时候按 B 判」。
- * 返回 `{ bad }`（一句话，路径本身就不合法）或 `{ normalized, locale, rest }`。
+ * 返回 `{ bad }`（一句话，路径本身就不合法）或 `{ normalized, canonical, locale, rest }`。
+ * `canonical` = 这个判断认定它指的那个文件，写成 `path.join` 也认的形状（见下面 `spellingMismatch`）。
  */
 function resolveRel(relPath) {
   if (typeof relPath !== 'string' || relPath === '') return { bad: 'Invalid path: empty.' };
@@ -175,11 +200,109 @@ function resolveRel(relPath) {
   const parts = normalized.split('/').filter((s) => s !== '' && s !== '.');
   if (parts.length === 0) return { bad: 'Invalid path: empty.' };
   const { locale, rest } = splitLocale(parts);
-  return { normalized, locale, rest };
+  return { normalized, canonical: parts.join('/'), locale, rest };
+}
+
+/**
+ * 放行之前最后一问：**我判的那个文件，就是落盘那一行会写的那个文件吗？**（#1109 r2）
+ *
+ * 🔴 这不是多一道保险，是本票那条阻断的根因。上面那段归一化（`\` 换成 `/`、丢掉空段和 `.`）说的是
+ *    「这个字符串指哪个文件」，而真正决定字节落在哪的是 `edit-site.js` 的
+ *    `path.join(siteDir, relPath)` —— 它拿的是**模型给的原始字符串**。两套归一化对同一个字符串给出
+ *    不同的文件时，白名单按 A 放行、字节按 B 落地：QA3 在 r1 终审真驱动出来的就是这个，
+ *    `en\seo.json` 被判成 `en/seo.json`（正确位置 ⟹ 放行），而 Linux 上 `\` 只是文件名里的一个字符，
+ *    于是字节落在 `site/` **根目录**、文件名字面是 `en\seo.json` ⟹ `sync-config` 读不到它、
+ *    构建绿、模型收到 `success:true`、老板收到「Done」、站上一个像素没变 —— 逐字是本票要治的那句病。
+ *
+ * 🔴 **判据是那个差本身，不是它的某一种拼法。** 我没有去拒「含 `\` 的路径」：那是对症状的枚举，
+ *    而实测的差集有**两族**（`\` 8 种 · 结尾带分隔符 4 种，读数在交接留言里），照症状写就会漏第二族。
+ *    这里问的就是那条不变式 —— 拿**决定落点的那个 `path.join`** 去问「你认不认我算出来的这个文件」。
+ *    于是 `path.join` 自己就会收敛的写法（`en//seo.json` · `en/./seo.json` · `./en/seo.json`）照旧
+ *    放行（它们落的就是同一个文件），只有它**不**收敛的那些被拒 ⟹ QA1/QA2 量过的读数一个都不变。
+ *
+ * 🔴 用一个哨兵根比较，而不是真的 `siteDir`：这个性质与前缀无关 —— 上面刚把 `..` 和绝对路径拒掉了，
+ *    不存在往上逃的分量，所以换任何一个绝对根，两侧同增同减、判决不变（`editable-files.test.js` ⑧
+ *    拿三个不同的根跑同一份语料，判决集合必须逐个相同 —— 那一格就是这句话的读数）。
+ *    两侧都用 `path.join`（**不是** `path.posix.join`）：它就是落盘用的那一个，问的是「这台机器上
+ *    这个字符串指什么」。
+ *
+ * 📌 话里不许说 `canonical` 那个路径**可以写** —— 它可能自己也是错位置的（多语言站上 `.\seo.json`
+ *    的 canonical 是根级 `seo.json`）。所以这一格排在白名单/形状裁决**之后**：那边先拒掉的，返回
+ *    它们那句更具体的话；只有裁决是「放行」时才走到这里。措辞只说「你这样拼指的不是那个文件，
+ *    要那个文件就照这样拼」，不承诺结果 —— 同族纪律见 #1087（说一句指向不存在地方的话）。
+ */
+const SPELLING_SENTINEL = '/__site__';
+function spellingMismatch(relPath, canonical) {
+  if (path.join(SPELLING_SENTINEL, relPath) === path.join(SPELLING_SENTINEL, canonical)) return null;
+  return `Invalid path: "${relPath}" does not name the file it looks like. Written literally, those bytes`
+    + ` land at a different place than "${canonical}" — on this system the only path separator is "/", and`
+    + ` a trailing separator names a directory, not a file. If you meant "${canonical}", send the path`
+    + ` spelled exactly that way (that spelling is then checked like any other).`
+    + `\n\nNothing was written. ${EDITABLE_SUMMARY}`;
 }
 
 /** 这个路径指的是 navigation.json 吗（多语言站 `<locale>/navigation.json`、老扁平站根级那份都算）。 */
 const isNavigationJson = (rest) => rest.length === 1 && rest[0] === 'navigation.json';
+
+/**
+ * 这个文件是「住在 `<语言>/` 底下」的那一类吗（#1109）。
+ *
+ * 判据不是我另写一张清单，是**上面那张白名单自己**的 `localeScoped` 那一列 + navigation.json 那道
+ * 窄口子 —— 也就是说，加一类新的内容文件时只要在 `WRITABLE` 里标对 `localeScoped`，形状这一维
+ * 自动跟着走，不需要在这里再加一行（本票要治的病就是清单式修法的漏项）。
+ * 🔴 `brand.json` 不在这一类里：多语言站上它**也**住在 `site/brand.json`（`sync-config.js` 无条件读
+ *    `path.join(siteDir, 'brand.json')`），所以它两种形状下都在根目录，形状这一维对它不说话。
+ */
+function isLocaleScopedFile(rest) {
+  if (isNavigationJson(rest)) return true;
+  return WRITABLE.some((rule) => rule.localeScoped && rule.test(rest));
+}
+
+/** `ctx.readSiteShape()` 的读数，形状不对/抛异常一律当「问不到」（返回 null，这一维不判）。 */
+function siteShapeOf(ctx) {
+  if (!ctx || typeof ctx.readSiteShape !== 'function') return null;
+  let shape;
+  try {
+    shape = ctx.readSiteShape();
+  } catch (e) {
+    return null;
+  }
+  if (!shape || typeof shape.flat !== 'boolean') return null;
+  return { flat: shape.flat, locales: Array.isArray(shape.locales) ? shape.locales.filter((l) => typeof l === 'string' && l !== '') : [] };
+}
+
+/**
+ * 这次写入落在「这个站的构建根本不读」的那个位置吗（#1109）。返回拒绝的理由，或者 null（位置对）。
+ *
+ * 🔴 拒的理由要把三件事都说出来 —— 这个站是什么形状 · 内容真正住在哪 · **这次该写哪个路径**。
+ *    只说 invalid 的后果 #1087 记着：模型会去试别的写法。而这里还多一层 —— 位置写错时这条路
+ *    **不报错也不生效**，所以理由里必须写明「写在这里没人读，站不会变」，否则模型（和老板）无从
+ *    分辨「我改了」和「我改了但白改」。
+ */
+function wrongPlaceForShape(normalized, locale, rest, shape) {
+  if (!shape || !isLocaleScopedFile(rest)) return null;
+  const bare = rest.join('/');
+
+  if (!shape.flat && !locale) {
+    const has = shape.locales.length ? ` (this site has: ${shape.locales.join(', ')})` : '';
+    const suggest = shape.locales.length ? ` Write ${shape.locales[0]}/${bare} instead — one file per language.` : '';
+    return `${normalized} is not where this site keeps its content. This site is a multi-language site: `
+      + `its content files live under site/<language>/${has}, and the build only reads those. A file `
+      + `written at the top of site/ is read by nothing, so it would be saved and the site would not `
+      + `change.${suggest}`
+      + `\n\nNothing was written. ${EDITABLE_SUMMARY}`;
+  }
+
+  if (shape.flat && locale) {
+    return `${normalized} is not where this site keeps its content. This site is a single-language site `
+      + `with a flat layout: its content files live directly under site/ (there is no site/${locale}/), `
+      + `and the build only reads those. A file written under site/${locale}/ is read by nothing, so it `
+      + `would be saved and the site would not change. Write ${bare} instead.`
+      + `\n\nNothing was written. ${EDITABLE_SUMMARY}`;
+  }
+
+  return null;
+}
 
 /**
  * 这次写入放行之后，有哪些【别的地方】会跟着变。
@@ -218,7 +341,26 @@ function writeNotes(relPath, ctx) {
 function writeRejection(relPath, ctx) {
   const r = resolveRel(relPath);
   if (r.bad) return r.bad;
+  const verdict = contentVerdict(r, ctx);
+  // 拒的时候原样返回它 —— 形状 / 白名单 / navigation 那几句话都比拼写提示具体（理由见
+  // `spellingMismatch` 末段的 📌）。只有裁决是「放行」时才问最后那一问。
+  if (verdict !== null) return verdict;
+  return spellingMismatch(relPath, r.canonical);
+}
+
+/** 原来 `writeRejection` 的整个函数体（#1109 r2 只是把它抽出来，一行没改）。 */
+function contentVerdict(r, ctx) {
   const { normalized, locale, rest } = r;
+
+  // #1109 —— 先问「这个文件在这个站上有人读吗」。排在白名单**前面**是有意的：白名单的答案是
+  // 「这个文件名是站的内容」，而这里问的是「这一份内容住的地方对不对」，位置不对时那张表给出的
+  // 放行正是本票要治的静默失败。形状问不到（老调用方、单测直接调）时这里恒返回 null ⟹ 白名单
+  // 原来的答案不变，理由写在文件头「第二问」那一段。
+  // 🔴 AC5 撤的就是这一处：把下面那两行（算读数 + 那句 return）去掉，本票钉的那几个路径会回到放行；
+  //    `site-shape.test.js` ④ 就是这么做的，它还断言那两行各只出现一次。
+  const wrongPlace = wrongPlaceForShape(normalized, locale, rest, siteShapeOf(ctx));
+  if (wrongPlace) return wrongPlace;
+
   for (const rule of WRITABLE) {
     if (locale && !rule.localeScoped) continue;
     if (rule.test(rest)) return null;

@@ -688,5 +688,65 @@ console.log('\n⑦ 页脚版式不画栏目标题时，回执里带着那句实�
   }
 }
 
+// ══ ⑧ 反斜杠那种拼法：拒得住，而且模型照回执改一次就成（#1109 r2）══════════════════════════════
+//
+// 🔴 这一格是 QA3 在 #1109 r1 终审打回那条阻断的真路径读数。上一版：`en\seo.json` 被
+//    `writeRejection` 判成 `en/seo.json`（正确位置 ⟹ 放行），而 Linux 上 `\` 只是文件名里的一个字符，
+//    于是 `path.join(siteDir, 原始字符串)` 把字节写到 `site/` **根目录**、文件名字面是 `en\seo.json`。
+//    后果：`sync-config` rc=0（它读的是 `site/en/seo.json`）⟹ 编辑走到底、commit + push、
+//    老板收到「Done」，而站上一个像素没变。**纯函数那一层由 `editable-files.test.js` ⑧ 钉，
+//    这一格钉的是真进程**：真的 create-site 夹具、真的 sync-config、真的 git、真的落盘。
+// 🔴 两半都要：① 那个文件名不许出现在 `site/` 根目录（也就是「字节没落到判决之外的地方」）
+//    ② 回执里那句话要能让模型自己改对 —— 所以第二轮就按回执里点名的拼法再写一次，必须成功保存。
+//    少了 ② 这一格就退化成「拒了就算赢」，而这条链上「拒得住但修不回来」跟静默写错一样是坏的
+//    （`block-manifest.js` 的 `scope: 'edit'` 那段写着同一条理由）。
+console.log('\n⑧ en\\seo.json：字节没落到根目录，且回执让模型改一次就成（#1109 r2）');
+{
+  const ctx = makeRoot('backslash');
+  const site = writeSite(ctx.work);
+  assertSyncsClean(ctx.work, '⑧');
+  ctx.git('git add -A && git commit -q -m base && git push -q origin main');
+
+  const seo = JSON.parse(fs.readFileSync(path.join(site, 'en', 'seo.json'), 'utf8'));
+  const edited = { ...seo, metaTitle: 'QA3 backslash probe title' };
+  const body = JSON.stringify(edited, null, 2);
+
+  const res = runEdit(ctx, [
+    // 第 1 轮：模型用 Windows 习惯的反斜杠
+    reply([textBlock('Updating SEO.'), writeCall('t1', 'en\\seo.json', body)], 'tool_use'),
+    // 第 2 轮：照回执里点名的拼法重写一次（真模型拿到那句话就该这么做）
+    reply([textBlock('Retrying with forward slashes.'), writeCall('t2', 'en/seo.json', body)], 'tool_use'),
+    reply([textBlock('Changes applied.')], 'end_turn'),
+  ]);
+
+  // ① 根目录里不许出现那个字面文件名
+  const rootEntries = fs.readdirSync(site);
+  const littered = rootEntries.filter((n) => n.includes('\\'));
+  if (littered.length === 0) {
+    ok(`site/ 根目录里没有带反斜杠的文件（现在是：${rootEntries.join(' ')}）`);
+  } else {
+    bad(`🔴 字节落到了判决之外的地方：site/ 根目录出现 ${littered.map((n) => JSON.stringify(n)).join(' · ')}`);
+  }
+
+  // ② 第 1 轮的回执必须是拒绝，而且点名该用的拼法
+  const r1 = toolResultContent(res, 2, 't1');
+  if (r1 === null) {
+    bad('⑧ 取不到第 1 轮那次 write_file 的回执 —— 这一格的读数不作数');
+  } else if (/Invalid path/.test(r1) && /en\/seo\.json/.test(r1) && !/"success":true/.test(r1)) {
+    ok('第 1 轮被拒，回执里点名了该用的拼法 en/seo.json');
+  } else {
+    bad(`第 1 轮的回执不是「拒 + 点名拼法」：${r1.slice(0, 200)}`);
+  }
+
+  // ③ 第 2 轮（照回执改）必须真的落盘 + 保存 —— 拒得住还要修得回来
+  const onDisk = JSON.parse(fs.readFileSync(path.join(site, 'en', 'seo.json'), 'utf8'));
+  if (onDisk.metaTitle === 'QA3 backslash probe title') ok('第 2 轮照回执改的那次真的落到了 site/en/seo.json');
+  else bad(`第 2 轮没落盘：metaTitle 现在是 ${JSON.stringify(onDisk.metaTitle)}`);
+  if (ev(res, 'edit-complete').length === 1 && !ev(res, 'error').length) ok('整次编辑走到底：一条 edit-complete、零 error');
+  else bad(`事件不对：edit-complete ${ev(res, 'edit-complete').length} · error ${ev(res, 'error').length}（${res.events.map((e) => e.event).join(' ')}）`);
+  if (res.commitsAfter === res.commitsBefore + 1) ok(`commit 了一个（${res.commitsBefore} → ${res.commitsAfter}）`);
+  else bad(`commit 数不对：${res.commitsBefore} → ${res.commitsAfter}`);
+}
+
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);

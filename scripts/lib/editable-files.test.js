@@ -128,6 +128,16 @@ const canWrite = (p) => writeRejection(p) === null;
   const called = /writeRejection\(\s*relPath\b/.test(src);
   if (required && called) ok('edit-site.js 引了这个模块，并且在 write_file 里拿 relPath 问过它');
   else bad(`edit-site.js 的接线断了（require=${required} · 调用=${called}）—— 这个模块再对也拦不住任何东西`);
+
+  // #1109 —— 形状那一维是**在 ctx 上递进来**的，所以「这个模块判得对」跟「真路径上判得着」是两个
+  // 读数。递漏了的失败方向是静默的：下面 ⑦ 全绿（它自己造形状），而真的 write_file 回到放行。
+  // 🔴 两条都要：递了这个键 ⟹ 白名单看得见形状；它问的是 lib/site-shape ⟹ 答的是这个站的真形状，
+  //    不是一个就地写死的猜测（判据跟构建同一条这件事，整段理由在 lib/site-shape.js 的文件头）。
+  const wiredShape = /readSiteShape:/.test(src);
+  const asksLib = /readSiteShape:[\s\S]{0,200}?readSiteShape\(\s*siteDir\s*\)/.test(src)
+    && /require\(['"]\.\/lib\/site-shape['"]\)/.test(src);
+  if (wiredShape && asksLib) ok('edit-site.js 把这个站的形状（readSiteShape）递进了 write_file 的判断，而且是去问 lib/site-shape 的');
+  else bad(`形状那一维的接线断了（递了 readSiteShape=${wiredShape} · 问的是 lib/site-shape=${asksLib}）—— ⑦ 会全绿，而真的 write_file 照旧放行写到没人读的地方`);
 }
 
 // ── ⑥ SYSTEM_PROMPT 里说的那两处也必须是真话（#1087 r3）───────────────────────────────────────
@@ -248,6 +258,204 @@ const canWrite = (p) => writeRejection(p) === null;
     const notN = CLAIMS.filter((c) => c.mustNot).length;
     ok(`SYSTEM_PROMPT 的 ${CLAIMS.length} 条断言全部成立（${mustN} 句真话在、${notN} 句假话不在）`);
   } else bads.forEach(bad);
+}
+
+// ── ⑦ 这个文件在【这个站】上有人读吗（#1109）───────────────────────────────────────────────────
+//
+// 白名单只看文件名，而同一个文件名在两种站上住在不同地方（多语言站 `site/<语言>/`、老扁平站
+// `site/`）。位置写错时这条路**不报错也不生效**：落盘 → sync-config rc=0 → commit + push →
+// 老板收到「Done」→ 站上一个像素没变。所以这一格钉的是「位置不对就拒，而且说清该写哪里」。
+//
+// 🔴 这里的形状是**造出来的**（`{flat, locales}` 两个字面量），所以这一格证的是「拿到形状之后
+//    判得对」。「真站上读出来的形状对不对」是另一个读数，由 `site-shape.test.js` 在**真夹具**
+//    （create-site.js 造的多语言站 + 由它转出来的扁平站）上取 —— 两个读数缺哪个都不够。
+{
+  const LOCALE = { flat: false, locales: ['en', 'zh'] };
+  const FLAT = { flat: true, locales: [] };
+  const shaped = (shape) => ({ readSiteShape: () => shape });
+  // navigation.json 走的是 #1104 那道窄口子，光有形状还不够（缺内容一律拒），所以正向那一格要把
+  // 材料备齐 —— 用一份长得像真站的 navigation.json，改的是构建不碰的 topbar。
+  const NAV = {
+    header: { links: [{ label: 'Home', href: '/' }], cta: { label: 'Book', href: '/contact' } },
+    footer: { description: 'Serving the GTA.', columns: [{ title: 'Quick Links', links: [{ label: 'Home', href: '/' }] }], copyright: 'Northside Inc.' },
+  };
+  const navCtx = (shape) => ({
+    readSiteShape: () => shape,
+    content: JSON.stringify({ ...NAV, topbar: { message: '24h emergency', link: { label: 'Call', href: '/contact' } } }),
+    readCurrent: () => JSON.stringify(NAV),
+  });
+
+  // 多语言站：根目录那几份没人读 ⟹ 拒，而且理由要点明这个站是多语言、内容在 site/<语言>/ 下面
+  const problems = [];
+  for (const p of ['seo.json', 'services.json', 'pages/home.json', 'pages/services/a.json', 'blog/first.json', 'blocks/site-blocks.json']) {
+    const why = writeRejection(p, shaped(LOCALE));
+    if (why === null) problems.push(`多语言站上根级 ${p} 竟然可写（写进去没人读，站不会变）`);
+    else if (!/multi-language site/.test(why) || !/site\/<language>\//.test(why)) {
+      problems.push(`${p} 被拒了，但理由没点明「这个站是多语言结构、内容在 site/<语言>/ 下面」：${why.split('\n')[0]}`);
+    } else if (!why.includes(`en/${p}`)) {
+      problems.push(`${p} 的理由没告诉模型该写哪个路径（应含 en/${p}）：${why.split('\n')[0]}`);
+    }
+  }
+  // AC4：navigation.json 那道窄口子同样按形状判（它不在 WRITABLE 里，走的是另一条分支）
+  {
+    const why = writeRejection('navigation.json', navCtx(LOCALE));
+    if (why === null) problems.push('多语言站上根级 navigation.json 竟然可写');
+    else if (!/multi-language site/.test(why)) problems.push(`根级 navigation.json 被拒了，但不是按形状拒的：${why.split('\n')[0]}`);
+  }
+  if (problems.length === 0) ok('多语言站：根目录那 6 类内容文件 + navigation.json 全部被拒，理由点名了形状与该写的路径');
+  else problems.forEach(bad);
+
+  // 扁平站：反方向。`<语言>/` 底下那几份没人读 ⟹ 拒，理由点明这个站是扁平的、内容直接在 site/ 下
+  const rev = [];
+  for (const p of ['en/seo.json', 'zh/services.json', 'en/pages/home.json', 'en/blog/first.json', 'en/blocks/site-blocks.json']) {
+    const why = writeRejection(p, shaped(FLAT));
+    if (why === null) rev.push(`扁平站上 ${p} 竟然可写（写进去没人读，站不会变）`);
+    else if (!/flat layout/.test(why) || !/directly under site\//.test(why)) {
+      rev.push(`${p} 被拒了，但理由没点明「这个站是扁平结构、内容直接在 site/ 下面」：${why.split('\n')[0]}`);
+    }
+  }
+  {
+    const why = writeRejection('en/navigation.json', navCtx(FLAT));
+    if (why === null) rev.push('扁平站上 en/navigation.json 竟然可写');
+    else if (!/flat layout/.test(why)) rev.push(`en/navigation.json 被拒了，但不是按形状拒的：${why.split('\n')[0]}`);
+  }
+  if (rev.length === 0) ok('扁平站：<语言>/ 底下那 5 类内容文件 + navigation.json 全部被拒，理由点名了形状');
+  else rev.forEach(bad);
+
+  // 🔴 正向：别把功能治死（AC2）。位置**对**的那几条必须照旧放行 —— 少了这一格，把这道判断写成
+  //    「一律拒」也能让上面两格全绿。
+  const killed = [];
+  for (const [p, shape] of [
+    ['en/seo.json', LOCALE], ['zh/services.json', LOCALE], ['en/pages/home.json', LOCALE],
+    ['en/blog/first.json', LOCALE], ['zh/blocks/site-blocks.json', LOCALE],
+    ['seo.json', FLAT], ['services.json', FLAT], ['pages/home.json', FLAT],
+    ['blog/first.json', FLAT], ['blocks/site-blocks.json', FLAT],
+    // brand.json 两种形状下都住在 site/ 根 —— 形状这一维对它不许说话
+    ['brand.json', LOCALE], ['brand.json', FLAT],
+  ]) {
+    const why = writeRejection(p, shaped(shape));
+    if (why !== null) killed.push(`${p}（${shape.flat ? '扁平' : '多语言'}站）本来该放行，却被拒了：${why.split('\n')[0]}`);
+  }
+  for (const [p, shape] of [['en/navigation.json', LOCALE], ['navigation.json', FLAT]]) {
+    const why = writeRejection(p, navCtx(shape));
+    if (why !== null) killed.push(`${p}（${shape.flat ? '扁平' : '多语言'}站）改 topbar 本来该放行，却被拒了：${why.split('\n')[0]}`);
+  }
+  if (killed.length === 0) ok('位置对的 14 条照旧放行（形状判断没把功能治死）');
+  else killed.forEach(bad);
+
+  // 🔴 形状问不到时这一维不判：老调用方（不递 readSiteShape）与 `lib/remediation.js` 都走这条路，
+  //    在这里拒 = 一份读不出来的站目录让整个编辑器变砖，而 remediation 会据此对老板说「改不了」。
+  //    方向与 navigation.json 那道窄口子相反，理由写在 editable-files.js 的文件头。
+  const unknown = ['seo.json', 'en/seo.json', 'pages/home.json', 'en/pages/home.json'];
+  const wrongWhenUnknown = unknown.filter((p) => writeRejection(p) !== null)
+    .concat(unknown.filter((p) => writeRejection(p, { readSiteShape: () => null }) !== null))
+    .concat(unknown.filter((p) => writeRejection(p, { readSiteShape: () => { throw new Error('读不到'); } }) !== null));
+  if (wrongWhenUnknown.length === 0) ok('形状问不到（没递 / 返回 null / 抛异常）时这一维不判，白名单原来的答案不变');
+  else bad(`形状问不到时把这些拒了：${wrongWhenUnknown.join(' · ')} —— 那会让读不出形状的站彻底编辑不了`);
+
+  // 🔴 形状不对的路径拿到的必须是**形状那句话**，不是兜底那句「不是这个站的内容文件」——
+  //    两句话的区别就是模型会不会去改对地方（#1087 立的那条：只说无效，模型去试别的写法）。
+  const generic = writeRejection('seo.json', shaped(LOCALE)) || '';
+  if (/is not one of this site's content files/.test(generic)) {
+    bad('多语言站上根级 seo.json 拿到的是兜底那句「不是这个站的内容文件」—— 模型会以为这个文件不能改，而它能改，只是位置不对');
+  } else ok('拒的是「位置不对」这件事，不是兜底那句「不是这个站的内容文件」');
+}
+
+
+// ── ⑧ 我判的那个文件，就是落盘会写的那个文件吗（#1109 r2 —— QA3 在 r1 终审打回的那条阻断）────────
+//
+// 🔴 这一格钉的是一条**不变式**，不是某几种拼法：`writeRejection` 按归一化后的身份放行，而
+//    `edit-site.js` 用 `path.join(siteDir, 原始字符串)` 落盘。两者对同一个字符串给出不同的文件时，
+//    白名单按 A 放行、字节按 B 落地 —— `en\seo.json` 被判成 `en/seo.json`（正确位置 ⟹ 放行），
+//    而 Linux 上 `\` 只是文件名里的一个字符 ⟹ 字节落在 `site/` 根目录，构建读不到，老板收到「Done」。
+// 🔴 实测的差集有**两族**（反斜杠 · 结尾带分隔符），所以下面按「`path.join` 收不收敛」分组，
+//    **不**按字符分组：照字符写就会漏掉第二族，而漏掉的样子跟修好了一模一样。
+console.log('⑧ 判的对象 == 落盘的对象（#1109 r2）');
+{
+  const SITE = '/S/site';
+  const ctx = { readSiteShape: () => ({ flat: false, locales: ['en'] }) };
+  // `path.join` 自己就会收敛的写法 —— 判决必须一个字都不变（QA1/QA2 在 r1 量过的就是这些）
+  const CONVERGENT = ['en/seo.json', 'en//seo.json', 'en/./seo.json', './en/seo.json',
+    'en/pages/home.json', 'en/pages//home.json', 'en/pages/./home.json', 'en/services.json',
+    'brand.json', 'seo.json', './seo.json', 'theme.json'];
+  // 它**不**收敛的写法 —— 必须拒，而且拒的那句话要把该怎么拼说出来
+  const DIVERGENT = ['en\\seo.json', 'en\\pages\\home.json', 'en\\services.json',
+    'en\\pages/home.json', 'en/pages\\home.json', 'en/\\seo.json',
+    'en/seo.json/', 'en/seo.json//', 'en/./seo.json/'];
+
+  // 变异版：把那道门从**真源码**里摘掉（在内存里编译，不往交付树放探针）
+  const REAL = path.join(__dirname, 'editable-files.js');
+  const srcReal = require('fs').readFileSync(REAL, 'utf-8');
+  const ANCHOR = '  return spellingMismatch(relPath, r.canonical);\n';
+  const nAnchor = srcReal.split(ANCHOR).length - 1;
+  if (nAnchor !== 1) die(`⑧ 阳性对照的锚点在 editable-files.js 里出现 ${nAnchor} 次（要求正好 1 次）`);
+  const Module = require('module');
+  const m = new Module(REAL, module);
+  m.filename = REAL;
+  m.paths = Module._nodeModulePaths(path.dirname(REAL));
+  m._compile(srcReal.replace(ANCHOR, '  return null;\n'), REAL);
+  const ungated = m.exports.writeRejection;
+
+  // ── a) 收敛的那些：这道门一个判决都没改
+  const changed = CONVERGENT.filter((p) => writeRejection(p, ctx) !== ungated(p, ctx));
+  if (changed.length === 0) {
+    ok(`⑧a ${CONVERGENT.length} 个「path.join 自己会收敛」的写法：判决与没有这道门时逐字相同`);
+  } else bad(`⑧a 这道门改了这些写法的判决：${changed.join(' · ')} —— 它收得太宽了`);
+
+  // ── b) 不收敛的那些：全部被拒
+  const allowed = DIVERGENT.filter((p) => writeRejection(p, ctx) === null);
+  if (allowed.length === 0) ok(`⑧b ${DIVERGENT.length} 个「path.join 不收敛」的写法全部被拒`);
+  else bad(`⑧b 这些写法仍被放行，字节会落到判决之外的地方：${allowed.join(' · ')}`);
+
+  // ── c) 判据就是那条不变式本身：从它自己那句话里抠出它让模型改用的拼法，
+  //       再拿**落盘用的那个 `path.join`** 问一次「这两种拼法指的是同一个文件吗」——必须不是。
+  const notReallyDivergent = [];
+  for (const p of DIVERGENT) {
+    const why = writeRejection(p, ctx) || '';
+    const mm = why.match(/If you meant "([^"]+)"/);
+    if (!mm) { notReallyDivergent.push(`${p}（拒的话里没给出该用的拼法）`); continue; }
+    if (path.join(SITE, p) === path.join(SITE, mm[1])) {
+      notReallyDivergent.push(`${p}（它跟 ${mm[1]} 落到同一个文件，本来就不该进这一组）`);
+    }
+  }
+  if (notReallyDivergent.length === 0) {
+    ok('⑧c 这 9 个写法逐个：拒的话里点名了该用的拼法，而 path.join 对两种拼法给出的确实是不同的文件');
+  } else notReallyDivergent.forEach(bad);
+
+  // ── d) 阳性对照：摘掉那道门，b) 里那些必须回到放行（否则 b) 的绿是别处挣来的）
+  const stillRejected = DIVERGENT.filter((p) => ungated(p, ctx) !== null);
+  if (stillRejected.length === 0) {
+    ok(`⑧d 阳性对照：摘掉那一行，这 ${DIVERGENT.length} 个写法全部回到放行 —— b) 量的是这道门`);
+  } else bad(`⑧d 摘掉之后这些仍被拒：${stillRejected.join(' · ')} —— b) 的绿有一部分不是这道门给的`);
+
+  // ── e) 那个哨兵根不承重：换三个绝对根复算，每一条的答案都必须一样
+  //       （这道门拿哨兵根而不是真 `siteDir` 去比，理由写在 `spellingMismatch` 的第三个 🔴：
+  //       `..` 已经被拒掉 ⟹ 没有往上逃的分量 ⟹ 判决与前缀无关。这一格就是那句话的读数。
+  //       🔴 两种拼法都从**它自己那句话**里取，不在这里重写一份归一化 —— 重写一份就等于
+  //       拿我的实现去核我的实现。）
+  {
+    const pairs = [];
+    for (const p2 of DIVERGENT) {
+      const mm = (writeRejection(p2, ctx) || '').match(/If you meant "([^"]+)"/);
+      if (mm) pairs.push([p2, mm[1]]);
+    }
+    if (pairs.length !== DIVERGENT.length) {
+      bad(`⑧e 立不起来：${DIVERGENT.length} 条里只有 ${pairs.length} 条能从拒绝话里取到该用的拼法`);
+    } else {
+      const perRoot = ['/', '/a', '/a/b/c/d'].map((root) => pairs
+        .map(([raw, canon]) => (path.join(root, raw) === path.join(root, canon) ? '同' : '异')).join(''));
+      if (new Set(perRoot).size === 1 && !perRoot[0].includes('同')) {
+        ok(`⑧e 哨兵根不承重：三个不同的绝对根下，这 ${pairs.length} 条的答案逐条相同（都是「两种拼法不同文件」）`);
+      } else {
+        bad(`⑧e 换根之后读数变了：${perRoot.join(' | ')} —— 那「判决与前缀无关」这句话要重新论证`);
+      }
+    }
+  }
+  // ── f) 这道门是纯的：同一份语料连问两次，判决集合必须相同
+  const verdicts = () => CONVERGENT.concat(DIVERGENT)
+    .map((p2) => (writeRejection(p2, ctx) === null ? '放' : '拒')).join('');
+  if (verdicts() === verdicts()) ok('⑧f 同一份语料连问两次，判决集合相同（这道门没有藏状态）');
+  else bad('⑧f writeRejection 不是纯的：同一份语料连问两次判决不同');
 }
 
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
