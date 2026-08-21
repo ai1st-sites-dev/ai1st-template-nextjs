@@ -85,12 +85,12 @@
   padding: calc(var(--section-block-pad) * 8) 1.5rem;
   background-color: var(--color-primary-900);
   color: var(--color-primary-50);
-  align-items: center;
+  align-items: start;
 }
 
 @media (min-width: 1024px) {
   .cta-banner {
-    grid-template-columns: 2fr 1fr;
+    grid-template-columns: 1fr;
     gap: calc(var(--section-block-gap) * 12);
     padding: calc(var(--section-block-pad) * 11.2) 3rem;
   }
@@ -164,11 +164,12 @@
   padding: calc(var(--section-block-pad) * 8) 1.5rem;
   background-color: var(--color-primary-50);
   color: var(--color-primary-900);
+  align-items: start;
 }
 
 @media (min-width: 1024px) {
   .contact-form {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: calc(var(--section-block-gap) * 12);
     padding: calc(var(--section-block-pad) * 11.2) 3rem;
   }
@@ -210,6 +211,7 @@
   font-size: 0.875rem;
   line-height: 1.5;
   color: var(--color-primary-900);
+  grid-column: 1 / -1;
 }
 
 .contact-form__note {
@@ -226,6 +228,7 @@
   font-weight: 600;
   line-height: 1.5;
   color: var(--color-primary-900);
+  grid-column: 1 / -1;
 }
 
 .quote-form {

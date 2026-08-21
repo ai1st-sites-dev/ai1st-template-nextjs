@@ -105,6 +105,157 @@ const cardGridFor = (i) => CARD_GRIDS[
 //    它在 83 张表里那几条规则，而那不是本票的圈。
 const CARD_BLOCKS = ['features-grid', 'values-grid', 'service-highlights', 'card-group'];
 
+// ── #1135 高曝光块的画法候选（第二批）─────────────────────────────────────────────────────────────
+//
+// Chris 2026-08-20 终审对比页上点名：hero 五副骨架、卡片组五种，而 **Ready to get started
+// （cta-banner）和 Contact us（contact-form）五套长得基本一样**，只差底色和按钮。#1090 的验收口径是
+// 「同一块的 CSS 规则逐字不同」，而这两块的字节差全在数值上 ⟹ 字节不同、观感相同。
+//
+// 🔴 **光给候选写 `cols` 改不动任何东西**（#1135 立票时 PM 量的）：`grid-column: 1 / -1` 来自 role 层
+//    （`ROLES.headline` / `display` / `lede` 三个都写它），不是块自己的条目。所以今天这两块声明了两栏
+//    而零件全跨满，第二栏**永远空着** —— 声明的列数一栏都没用上。要真的分栏，候选必须在 `partExtra`
+//    里把那个 `grid-column` 覆写掉。
+//
+// 🔴 **覆写只许写 `auto` 或 `1 / -1`，不许写 `2 / 3` 这种显式落位。** 部件规则是**基础规则**，不在
+//    `@media (min-width: 1024px)` 里（那个媒体查询只由 `wideRule` 产出，它只发块根那一条）；而基础
+//    规则里的网格是 `grid-template-columns: 1fr` 单栏（`rootRule`）。往单栏网格里写 `grid-column: 2 / 3`
+//    会**长出一条隐式列**，手机上那个零件被甩到右边去 —— 而桌面上看着是对的，所以这种错在图册上
+//    看不见。`auto` 让零件按流排布（桌面两栏时自然落到第二栏），`1 / -1` 是跨满，两个在单栏下都无害。
+//    hero 那一族绕开了这件事：它只用 `order`，从不动 `grid-column`。
+//
+// 🔴 分布式子与 hero / content-split / 卡片组同形（`(i + floor(i/L)) % L`），**但模数必须避开已被占的**：
+//    今天 `SPLIT_LAYOUTS` 和 `CARD_GRIDS` 都是 4、`CARD_STYLES` 是 3，而同式同模 ⟹ 两族的档**完全
+//    互相决定**（实测：split 档 == cards 档，80/80 套一个不差 —— 这是本票之前就有的，不是这里引入的）。
+//    所以这两族取 5 和 6：那是 3..6 里唯一一对既不撞已占模数、彼此也不互相决定的。判据不是「所有组合
+//    都出现」（80 套装不下 hero8 × form6 的 48 种全部组合），而是**没有哪一族决定另一族** ——
+//    每一档下对方至少还有 2 种取值。七对逐对量过（`sheet-recipes.test.js` ⑨ 钉住它）。
+const CTA_LOOKS = {
+  // ① 左对齐横带 —— 今天全池那一副骨架，留作候选之一。
+  'band-left': {
+    cols: '1fr',
+    rootExtra: () => ({ 'align-items': 'start' }),
+    partExtra: {},
+  },
+  // ② 居中横带
+  'band-center': {
+    cols: '1fr',
+    rootExtra: () => ({ 'align-items': 'center', 'justify-items': 'center', 'text-align': 'center' }),
+    partExtra: {
+      // 🔴 带 `max-width` 的每一处都要配 auto 外边距 —— `sheet-recipes.test.js` ④ 那道不变量：
+      //    「哪个容器声明了居中，它同一个块里那些不受 text-align 管的东西就得被摆正」。
+      //    我第一版只给 desc 配了，headline 漏了，那一格当场点名（80 套里 27 套）。
+      headline: () => ({ 'max-width': '44rem', 'margin-left': 'auto', 'margin-right': 'auto' }),
+      desc: () => ({ 'max-width': '38rem', 'margin-left': 'auto', 'margin-right': 'auto' }),
+      action: () => ({ 'justify-content': 'center' }),
+    },
+  },
+  // ③ 文左钮右 —— 标题占满上面一行，说明和按钮在**同一行**分左右。
+  //    `desc` / `action` 都改成 `auto`：桌面两栏时它们各落一栏，手机上仍然是上下两块。
+  'text-left-action-right': {
+    cols: '2fr 1fr',
+    rootExtra: () => ({ 'align-items': 'center' }),
+    partExtra: {
+      desc: () => ({ 'grid-column': 'auto', 'max-width': '40rem', 'margin-top': '0' }),
+      action: () => ({ 'grid-column': 'auto', 'justify-content': 'flex-end', 'align-self': 'center' }),
+    },
+  },
+  // ④ 标题在侧 —— 标题和说明在同一行分左右，按钮自己占满下面一行。
+  'title-side': {
+    cols: '1fr 2fr',
+    rootExtra: () => ({ 'align-items': 'start' }),
+    partExtra: {
+      headline: () => ({ 'grid-column': 'auto', 'align-self': 'start' }),
+      desc: () => ({ 'grid-column': 'auto', 'margin-top': '0', 'max-width': '44rem' }),
+      action: () => ({ 'grid-column': '1 / -1' }),
+    },
+  },
+  // ⑤ 按钮在前 —— 按钮排在文字**上面**（`order`，跟 hero 那一族同一个手法）。
+  'action-first': {
+    cols: '1fr',
+    rootExtra: () => ({ 'align-items': 'start' }),
+    partExtra: {
+      action: () => ({ order: 1 }),
+      headline: () => ({ order: 2 }),
+      desc: () => ({ order: 3, 'margin-top': '0.5rem' }),
+    },
+  },
+};
+
+const FORM_LOOKS = {
+  // ① 表单在下 —— 今天全池那一副骨架。
+  'panel-below': {
+    cols: '1fr',
+    rootExtra: () => ({ 'align-items': 'start' }),
+    partExtra: {},
+  },
+  // ② 表单在右 —— 说明和表单同一行分左右。
+  'panel-right': {
+    cols: '1fr 1fr',
+    rootExtra: () => ({ 'align-items': 'start' }),
+    partExtra: {
+      intro: () => ({ 'grid-column': 'auto', 'max-width': '32rem' }),
+      form: () => ({ 'grid-column': 'auto' }),
+    },
+  },
+  // ③ 表单在左 —— 同 ② 但左右调过来（`order`，不是显式落位）。
+  //
+  // 🔴 `note` 这一行是**承重的**，别当成多余（#1135 r2 —— QA1/QA2/QA3 三个人抓到、PM 判成本票圈内）：
+  //    `order` 的默认值是 0，而这里只给 form(1) / intro(2) 写了 order ⟹ 那行细则小字（order 0）
+  //    排在**它们两个前面**，于是左栏第一格是小字、表单被挤到右栏、lede 掉到第三行，左边空一大块。
+  //    后果两条：① 桌面上主读跟 `panel-right` 一样（表单都在右边）—— 而这张票的立票原话正是
+  //    「为什么这几块长得很一样」；② 手机上顺序变成 heading → note → form → intro。
+  //    命中 14/80 套。给它一个比那两个都大的 order，这一支才真的是 `panel-right` 的镜像。
+  //    这条性质对**每一种** form 画法都要成立，`sheet-recipes.test.js` ⑪ 把它钉成了守卫 ——
+  //    加第 7 个候选的人不需要记得这件事（同 `keepsWideBreakpoint` 那条的理由）。
+  'panel-left': {
+    cols: '1fr 1fr',
+    rootExtra: () => ({ 'align-items': 'start' }),
+    partExtra: {
+      form: () => ({ 'grid-column': 'auto', order: 1 }),
+      intro: () => ({ 'grid-column': 'auto', order: 2, 'max-width': '32rem' }),
+      note: () => ({ order: 3 }),
+    },
+  },
+  // ④ 居中窄栏
+  'centered-narrow': {
+    cols: '1fr',
+    rootExtra: () => ({ 'align-items': 'center', 'justify-items': 'center', 'text-align': 'center' }),
+    partExtra: {
+      // 同 `band-center`：每一处 `max-width` 都配 auto 外边距（④ 那道不变量）。
+      heading: () => ({ 'max-width': '40rem', 'margin-left': 'auto', 'margin-right': 'auto' }),
+      intro: () => ({ 'max-width': '34rem', 'margin-left': 'auto', 'margin-right': 'auto' }),
+      form: () => ({ 'max-width': '34rem', width: '100%', 'text-align': 'left', 'margin-left': 'auto', 'margin-right': 'auto' }),
+      note: () => ({ 'max-width': '34rem', 'margin-left': 'auto', 'margin-right': 'auto' }),
+    },
+  },
+  // ⑤ 标题在侧 —— 标题和说明分左右，表单占满下面一行。
+  'heading-side': {
+    cols: '1fr 2fr',
+    rootExtra: () => ({ 'align-items': 'start' }),
+    partExtra: {
+      heading: () => ({ 'grid-column': 'auto', 'align-self': 'start' }),
+      intro: () => ({ 'grid-column': 'auto', 'margin-top': '0' }),
+      form: () => ({ 'grid-column': '1 / -1' }),
+    },
+  },
+  // ⑥ 表单占大半、附注在侧 —— 表单和那行小字同一行分左右。
+  'note-beside': {
+    cols: '2fr 1fr',
+    rootExtra: () => ({ 'align-items': 'start' }),
+    partExtra: {
+      form: () => ({ 'grid-column': 'auto' }),
+      note: () => ({ 'grid-column': 'auto', 'align-self': 'start', 'max-width': '22rem' }),
+    },
+  },
+};
+
+const CTA_LOOK_NAMES = Object.keys(CTA_LOOKS);
+const FORM_LOOK_NAMES = Object.keys(FORM_LOOKS);
+const ctaLookFor = (i) => CTA_LOOK_NAMES[
+  (i + Math.floor(i / CTA_LOOK_NAMES.length)) % CTA_LOOK_NAMES.length];
+const formLookFor = (i) => FORM_LOOK_NAMES[
+  (i + Math.floor(i / FORM_LOOK_NAMES.length)) % FORM_LOOK_NAMES.length];
+
 // 三个块一组的深浅节奏，而不是简单的隔一个换一个 —— 后者让每套候选的节奏都一样。
 // 🔴 有 5 组而不是 3 组，是为了让**表本身**的周期够长，理由在 voiceFor 上面那段。
 const RHYTHMS = [
@@ -184,6 +335,10 @@ function voiceFor(i) {
     splitRhythm: splitRhythmFor(i),
     cards: cardGridFor(i),
     card: CARD_STYLES[(i + 1) % CARD_STYLES.length],
+    // #1135 —— 高曝光那两块的画法档。同上：**这里是唯一说得出「第 i 套是哪一种」的地方**。
+    //    模数 5 / 6 是量出来的，不是随手取的（理由整段在 CTA_LOOKS 上面那条 🔴）。
+    ctaLook: ctaLookFor(i),
+    formLook: formLookFor(i),
     // 表面明暗的轮换相位：块按页面顺序深/浅交替，相位一换，整站的节奏就不一样了。
     // 🔴 取 `% 3` 而不是 `% 2`：相位是拿去转 rhythm 那三格的，`% 2` 永远转不到第三格。
     phase: i % 3,
@@ -385,7 +540,32 @@ const SHAPES = {
   hero: { cols: '5fr 6fr', rootExtra: { 'align-items': 'center' }, role: { media: 'media', body: 'column', title: 'display', sub: 'lede', cta: 'actions', deco: 'deco' } },
   'cta-banner': { cols: '2fr 1fr', rootExtra: { 'align-items': 'center' }, role: { headline: 'display', desc: 'lede', action: 'actions' } },
   'page-header': { cols: '1fr', role: { crumbs: 'crumbs', title: 'display', sub: 'lede' } },
-  'contact-form': { cols: '1fr 1fr', role: { heading: 'headline', intro: 'lede', form: 'panel', error: 'error', success: 'success', note: 'fineprint' } },
+  'contact-form': {
+    cols: '1fr 1fr',
+    role: { heading: 'headline', intro: 'lede', form: 'panel', error: 'error', success: 'success', note: 'fineprint' },
+    // 🔴 #1135 —— **成功那条**状态消息一律跨满整宽，写在**块这一层**而不是每个候选里。
+    //    `pick()` 先摊 `base.partExtra`、再摊候选自己的，所以候选想覆写还是覆写得了，而**不写就
+    //    自动有** —— 加第 7 个候选的人不需要记得任何事（同 `keepsWideBreakpoint` 那条的理由）。
+    //    为什么必须有：它是**条件渲染**的（`ContactFormSection.tsx` 的成功分支），静态产物里没有
+    //    它 ⟹ 本票那几个多栏候选按构造从来没在它在场时被量过。真量了一次（hydration 之后插进
+    //    DOM 再读几何）：`panel-right` 那一支上它只占 45% 宽，被自动流塞进了侧栏 —— 一条
+    //    「已经收到了」的话不该长成侧边栏。修完 93%（QA2 在真机上复量的读数）。
+    //
+    // 🔴 **`error` 那一条今天是恒等式，留着是保险，不许把它当成一个已经守住的几何性质**
+    //    （#1135 r2 —— QA2 发现、QA3 从源码裁定、PM 独立坐实）：`contact-form__error` 是
+    //    `<form className="contact-form__form">` 的**子节点**，而那个 form 自己是**单栏** grid
+    //    （`ROLES.panel` 只写 `display: grid`，池里 80 份表 `.contact-form__form` 里出现
+    //    `grid-template-columns` 的是 **0** 份）⟹ 给它写 `grid-column: 1 / -1` 跟不写一样，
+    //    它本来就是表单那么宽。我上一轮那句「报错消息 30/46/30% → 93%」是**仪器造出来的**：
+    //    往 DOM 里插了一个 React 不会产出的节点（直接挂在块下面），量到的是那个假节点。
+    //    这一行**不删**：哪天有人把它挪出 form（或者给 form 分栏），这条规则就开始真的作数。
+    //    而「今天它是恒等式」这个前提由 `sheet-recipes.test.js` ⑩ 钉着 —— 挪出去那一格会红，
+    //    逼那个人回来重新量一次，而不是继承一句没人验过的话。
+    partExtra: {
+      error: () => ({ 'grid-column': '1 / -1' }),
+      success: () => ({ 'grid-column': '1 / -1' }),
+    },
+  },
   // `step` 不写在这里 —— 它走 ROLE_BY_PART 的默认值 `card`。它是容器（见上面那段 🔴）。
   'quote-form': { cols: '3fr 2fr', role: { form: 'panel', intro: 'lede', main: 'column', aside: 'panel', error: 'error', success: 'success', action: 'actions' } },
   'services-list': { cols: '1fr 1fr', role: { item: 'card', icon: 'icon', title: 'title', desc: 'desc', actions: 'actions', features: 'list', products: 'list' } },
@@ -828,6 +1008,11 @@ function shapeFor(block, v) {
   if (block === 'hero') return pick(HERO_LOOKS, v.heroLook, 'hero');
   if (block === 'content-split') return pick(SPLIT_SHAPES, v.split, 'content-split', true);
   if (CARD_BLOCKS.includes(block)) return pick(CARD_SHAPES, v.cards, block, true);
+  // #1135 —— 两族都传 `true`：它们的候选里有单栏形态（`band-left` / `band-center` / `action-first`
+  //    / `panel-below` / `centered-narrow`），而 `:1257` 那个判据只问列数 ⟹ 不传就把整段桌面留白
+  //    一起丢掉，也就是 #1090 r2 那次回归原样重演。
+  if (block === 'cta-banner') return pick(CTA_LOOKS, v.ctaLook, 'cta-banner', true);
+  if (block === 'contact-form') return pick(FORM_LOOKS, v.formLook, 'contact-form', true);
   return base;
 }
 
@@ -1300,6 +1485,8 @@ function layoutNamesFor(i) {
 module.exports = {
   sheetFor, voiceFor, hooksByBlock, heroLayoutFor, HERO_LAYOUTS,
   heroLookFor, HERO_LOOKS, HERO_LOOK_NAMES,
+  ctaLookFor, CTA_LOOKS, CTA_LOOK_NAMES,
+  formLookFor, FORM_LOOKS, FORM_LOOK_NAMES,
   layoutNamesFor, SPLIT_LAYOUTS, SPLIT_RHYTHMS, CARD_GRIDS, CARD_BLOCKS,
   surfaceFor, SURFACES, INK_FLOOR,
 };

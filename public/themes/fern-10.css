@@ -97,12 +97,12 @@
   padding: calc(var(--section-block-pad) * 6) 1.5rem;
   background-color: var(--color-primary-50);
   color: var(--color-primary-900);
-  align-items: center;
+  align-items: start;
 }
 
 @media (min-width: 1024px) {
   .cta-banner {
-    grid-template-columns: 2fr 1fr;
+    grid-template-columns: 1fr;
     gap: calc(var(--section-block-gap) * 7.5);
     padding: calc(var(--section-block-pad) * 8.4) 3rem;
   }
@@ -176,30 +176,32 @@
   padding: calc(var(--section-block-pad) * 6) 1.5rem;
   background-color: var(--color-primary-900);
   color: var(--color-primary-50);
+  align-items: start;
 }
 
 @media (min-width: 1024px) {
   .contact-form {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 2fr;
     gap: calc(var(--section-block-gap) * 7.5);
     padding: calc(var(--section-block-pad) * 8.4) 3rem;
   }
 }
 
 .contact-form__heading {
-  grid-column: 1 / -1;
+  grid-column: auto;
   font-family: var(--font-heading);
   font-size: 1.75rem;
   line-height: 1.15;
   font-weight: 600;
   letter-spacing: 0;
   color: var(--color-primary-50);
+  align-self: start;
 }
 
 .contact-form__intro {
-  grid-column: 1 / -1;
+  grid-column: auto;
   max-width: 36rem;
-  margin-top: 0.75rem;
+  margin-top: 0;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-100);
@@ -211,6 +213,7 @@
   padding: 1.75rem;
   border-radius: calc(var(--radius-block) * 3);
   background-color: var(--color-primary-800);
+  grid-column: 1 / -1;
 }
 
 .contact-form__error {
@@ -222,6 +225,7 @@
   font-size: 0.875rem;
   line-height: 1.5;
   color: var(--color-primary-50);
+  grid-column: 1 / -1;
 }
 
 .contact-form__note {
@@ -238,6 +242,7 @@
   font-weight: 600;
   line-height: 1.5;
   color: var(--color-primary-50);
+  grid-column: 1 / -1;
 }
 
 .quote-form {

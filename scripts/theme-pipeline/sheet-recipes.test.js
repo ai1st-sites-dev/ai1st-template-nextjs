@@ -49,12 +49,14 @@
 'use strict';
 
 const path = require('path');
+const fs = require('fs');            // #1135 ⑨ 的分母自检要数池子里有几份表
 const crypto = require('crypto');
 
 const DIR = __dirname;
 let sheetFor; let voiceFor; let heroLayoutFor; let HERO_LAYOUTS; let postcss; let paletteFor;
 let CARD_BLOCKS; let layoutNamesFor;
 let heroLookFor; let HERO_LOOK_NAMES; let HERO_LOOKS;
+let ctaLookFor; let CTA_LOOK_NAMES; let formLookFor; let FORM_LOOK_NAMES;   // #1135
 
 let pass = 0; let fail = 0;
 const ok = (m) => { pass += 1; console.log(`  ✅ ${m}`); };
@@ -65,6 +67,7 @@ try {
   ({
     sheetFor, voiceFor, heroLayoutFor, HERO_LAYOUTS, CARD_BLOCKS, layoutNamesFor,
     heroLookFor, HERO_LOOK_NAMES, HERO_LOOKS,
+    ctaLookFor, CTA_LOOK_NAMES, formLookFor, FORM_LOOK_NAMES,
   } = require(path.join(DIR, 'sheet-recipes.js')));
   ({ paletteFor } = require(path.join(DIR, 'palette.js')));
   postcss = require('postcss');
@@ -117,7 +120,10 @@ const TRIO = [];                                   // 每种画法一个序号�
   //    **造不出来**，不是没想到。
   // 🔴 放宽是有代价的，代价必须当场付：下面那格证明那三个键**够不着 hero 规则**。证不出来就 exit 2 —— 
   //    没有那个证明，上面 28 对的「不同」就可能是 split/cards 造出来的，而不是画法。
-  const ALLOWED = ['cards', 'hero', 'heroLook', 'split', 'splitRhythm'];
+  // 🔴 #1135 起再多两个（`ctaLook` / `formLook`，模数 5 和 6）—— 同上，把它们并进 240 的周期里
+  //    要 lcm(60,5,6)=60 …… 而 5 和 6 都整除不了 8，实测沿任何步长都造不出「连这两个键也相同」
+  //    且覆盖 8 种画法的一列。放宽同样要付代价：下面那格的执照现在连这两个键一起证。
+  const ALLOWED = ['cards', 'ctaLook', 'formLook', 'hero', 'heroLook', 'split', 'splitRhythm'];
   if (differing.sort().join(',') !== ALLOWED.join(',')) {
     die(`夹具不成立：这一列的 voice 差在 [${differing.join(', ')}]，应当只差 [${ALLOWED.join(', ')}]。`
       + `各档的模数改过之后，这里的 ${VOICE_PERIOD} 要跟着重算（周期 = lcm(各档模数)）。`);
@@ -127,7 +133,10 @@ const TRIO = [];                                   // 每种画法一个序号�
 // 🔴 上面那道放宽的**执照**（#1090）：`split` / `splitRhythm` / `cards` 变了，hero 规则不许跟着变。
 //    找一对「除了这三个键之外**全同**（含 heroLook）」的序号，两边的 hero 规则必须逐字节相同。
 //    找不到这样的一对 ⟹ exit 2：没有对照就没有执照，上面那 28 对的读数不作数。
-const SPLIT_KEYS = ['split', 'splitRhythm', 'cards'];
+// #1135 起这张名单里多了 `ctaLook` / `formLook` —— 执照要证的事一个字没变：**这几个键变了，
+// hero 规则不许跟着变**。它们由 `shapeFor` 按块派发，按构造够不着 hero，而「按构造」这三个字
+// 本身就是要被量的那个东西。
+const SPLIT_KEYS = ['split', 'splitRhythm', 'cards', 'ctaLook', 'formLook'];
 {
   const J = JSON.stringify;
   const keys = Object.keys(voiceFor(0));
@@ -213,12 +222,22 @@ const heroLook = new Map(TRIO.map((i) => [heroLookFor(i), dropColours(heroRulesO
 // 反向 ①：同一个画法、同一套 voice、**不同**调色板 ⟹ 去掉颜色之后必须逐字节相同。
 // 少了这一格，上面那 28 对的「不同」可能全是调色板造出来的。
 // 🔴 960 = lcm(voice 60, 画法 64)：voice 相同 + 画法相同，而 960 不是调色板周期 720 的倍数 ⟹ 颜色不同。
+//
+// 🔴 #1135 —— 这里比的是 **voice 去掉 `SPLIT_KEYS` 那几个键之后**相同，不再是整个 voice 相同。
+//    为什么必须放宽：加了 `ctaLook`(模数 5，周期 25) 和 `formLook`(模数 6，周期 36) 之后，整个 voice
+//    的周期变成 lcm(60,64,16,8,25,36) = **14400 = 2⁶·3²·5²**，而调色板周期 720 = 2⁴·3²·5 **整除它**
+//    ⟹ 「voice 全同而颜色不同」这件事按构造不存在了（0..20000 里穷举过：voice 全同的 5600 组，
+//    没有一组的调色板不同）。#1135 之前 960 = 2⁶·3·5 不含 3²，所以那时存在。
+//    🔴 凭什么可以放宽：上面那道**执照**刚刚量过 —— 这几个键变了，hero 规则逐字节不变。放宽掉的
+//    正好是它证过够不着 hero 的那几个键，一个不多。没有那道执照，这里就不许放宽。
 {
   const PERIOD = 960;
   const a = BASE;
   const b = BASE + PERIOD;
+  const heroVoiceKeys = Object.keys(voiceFor(a)).filter((k) => !SPLIT_KEYS.includes(k));
+  const sameHeroVoice = heroVoiceKeys.every((k) => JSON.stringify(voiceFor(a)[k]) === JSON.stringify(voiceFor(b)[k]));
   if (heroLookFor(a) !== heroLookFor(b)) die(`夹具不成立：i 与 i+${PERIOD} 的画法不同`);
-  if (JSON.stringify(voiceFor(a)) !== JSON.stringify(voiceFor(b))) die(`夹具不成立：i 与 i+${PERIOD} 的 voice 不同`);
+  if (!sameHeroVoice) die(`夹具不成立：i 与 i+${PERIOD} 去掉 [${SPLIT_KEYS.join(', ')}] 之后 voice 仍不同`);
   if (JSON.stringify(paletteFor(a)) === JSON.stringify(paletteFor(b))) {
     die(`夹具不成立：i 与 i+${PERIOD} 的调色板相同 —— 这一格要的正是「颜色不同」`);
   }
@@ -233,9 +252,12 @@ const heroLook = new Map(TRIO.map((i) => [heroLookFor(i), dropColours(heroRulesO
 }
 
 // 反向 ②：连颜色一起相同的两套（voice、画法、调色板三样都相同）⟹ 整段 hero 规则逐字节相同。
-// 🔴 这个周期是 **2880** = lcm(voice 60, 画法 64, 调色板 720)。#1065 之前是 720（那时画法周期是 9）。
+// 🔴 这个周期是 **14400** = lcm(voice 60, 画法 64, split/cards 16, splitRhythm 8, ctaLook 25,
+//    formLook 36, 调色板 720)。#1065 之前是 720（那时画法周期是 9）、#1090 之后 2880，
+//    #1135 加的两族把 3² 和 5² 带进来 ⟹ 2⁶·3²·5² = 14400（调色板那 720 正好整除它，所以这一格
+//    要的「颜色也相同」自动成立）。
 {
-  const PERIOD = 2880;
+  const PERIOD = 14400;
   if (JSON.stringify(voiceFor(BASE)) !== JSON.stringify(voiceFor(BASE + PERIOD))) {
     die(`夹具不成立：i 与 i+${PERIOD} 的 voice 不同 —— ${PERIOD} 不再是 voice 的周期整数倍`);
   }
@@ -351,7 +373,25 @@ console.log('④ 表说了居中，产物里那几样东西真的居中吗');
 
   const sheets = [];
   for (let i = 0; i < N; i += 1) sheets.push({ i, css: sheetFor(i) });
-  const centredSheets = sheets.filter((x) => /text-align:\s*center/.test(x.css));
+  // 🔴 #1135 —— 分母是「**hero 这个块**声明了居中」的套数，不是「整份表里出现过 text-align:center」。
+  //    下面那个反向对照拿掉的是 `.hero__cta` / `.hero__sub` 两处**hero 的**修法，所以它只可能点名
+  //    hero 居中的那些套。#1135 给 cta-banner / contact-form 各加了一个居中候选之后，整份表里
+  //    「出现过居中」的套数从 30 涨到 48，而被点名的仍是 30 —— 于是那句 `caught === centredSheets`
+  //    的等式当场破。破的是分母，不是修法：口径必须跟它扰动的那一层对齐。
+  const heroCentred = (css) => {
+    const root = postcss.parse(css);
+    let yes = false;
+    root.walkRules((rule) => {
+      if (yes) return;
+      for (const one of rule.selector.split(',')) {
+        const m = one.trim().match(/^\.([A-Za-z_][\w-]*)/);
+        if (!m || m[1].split('__')[0] !== 'hero') continue;
+        rule.walkDecls('text-align', (d) => { if (d.value.trim() === 'center') yes = true; });
+      }
+    });
+    return yes;
+  };
+  const centredSheets = sheets.filter((x) => heroCentred(x.css));
   const badSheets = sheets.map((x) => ({ ...x, bad: offendersOf(x.css) })).filter((x) => x.bad.length);
   if (badSheets.length) {
     bad(`${N} 套里 ${badSheets.length} 套「说的居中、画的是左」 —— 例：第 ${badSheets[0].i} 套的 `
@@ -707,6 +747,338 @@ console.log('\n⑧ 画法自己声明的留白，桌面上还作数吗（#1090 r
   const w2 = declOf(rigged, CARD_BLOCKS[0], 'gap', 'wide');
   if ((w2 || r2) !== r2) ok(`反向对照：把桌面那条 gap 补回 ${w2}（改之前的行为），这把尺当场点名（根 ${r2}）`);
   else bad('反向对照失败：补回桌面那条 gap 之后这把尺没说话 —— 它量不出盖没盖掉');
+}
+
+
+console.log('\n⑨ #1135 两族的分布：每档都够多，而且没有哪一族决定另一族');
+{
+  const POOL = 80;                       // #1016 的池子；下面第一格自己核它
+  const rot = (i, L) => (i + Math.floor(i / L)) % L;
+  const dist = (f, L) => {
+    const c = new Map();
+    for (let i = 0; i < POOL; i += 1) c.set(f(i), (c.get(f(i)) || 0) + 1);
+    return { archs: c.size, counts: [...c.values()].sort((a, b) => a - b), L };
+  };
+
+  // ── 分母自检：池子真的是 80 套吗（AC2 的百分比全靠它）────────────────────────────────────────
+  {
+    const dir = path.join(__dirname, '..', '..', 'public', 'themes');
+    const n = fs.readdirSync(dir).filter((f) => /^[a-z]+-\d{2}\.css$/.test(f)).length;
+    if (n !== POOL) {
+      die(`夹具不成立：public/themes 里有 ${n} 份池子表，而这一格按 ${POOL} 算百分比。`
+        + '池子大小变了 ⟹ AC2 那条 15% 的地板要重算（每档 = 池子/候选数）。');
+    }
+    ok(`⑨ 分母自检：池子就是 ${POOL} 份表（百分比按它算）`);
+  }
+
+  // ── AC2：每一档的池内占比 ≥15% ───────────────────────────────────────────────────────────────
+  {
+    const FLOOR = 0.15;
+    const rows = [
+      ['cta-banner', ctaLookFor, CTA_LOOK_NAMES.length],
+      ['contact-form', formLookFor, FORM_LOOK_NAMES.length],
+    ];
+    const problems = [];
+    const said = [];
+    for (const [name, fn, L] of rows) {
+      const d = dist(fn, L);
+      if (d.archs !== L) problems.push(`${name}：${L} 种候选里只轮到 ${d.archs} 种`);
+      const floor = d.counts[0] / POOL;
+      said.push(`${name} ${d.archs} 档 · ${d.counts.join('/')} · 最小档 ${(floor * 100).toFixed(1)}%`);
+      if (floor < FLOOR) {
+        problems.push(`${name}：最小那一档只占 ${(floor * 100).toFixed(1)}%，低于 ${FLOOR * 100}% `
+          + '（AC2）—— 候选数与池子大小的关系：每档 = 池子/候选数，所以候选数最多 6');
+      }
+    }
+    if (problems.length === 0) ok(`⑨ AC2：${said.join(' · ')} —— 都 ≥${FLOOR * 100}%`);
+    else problems.forEach(bad);
+
+    // 反向对照：把候选数当成 7（超过 6）会破 —— 证明这一格不是恒绿
+    const seven = dist((i) => rot(i, 7), 7);
+    if (seven.counts[0] / POOL < FLOOR) {
+      ok(`⑨ AC2 反向对照：同一条式子取 7 档时最小档 ${(seven.counts[0] / POOL * 100).toFixed(1)}% < 15% `
+        + '⟹ 这一格真的会因为候选太多而红（今天两族取 5 / 6 是量出来的上限内）');
+    } else {
+      bad('⑨ AC2 反向对照失败：7 档也过得了 15% —— 这一格量不出「候选太多」这件事');
+    }
+  }
+
+  // ── 「与别的族解耦」：没有哪一族决定另一族 ────────────────────────────────────────────────────
+  //
+  // 🔴 判据是**互不决定**，不是「所有组合都出现」。80 套装不下 hero(8) × form(6) 的 48 种全部组合，
+  //    拿「组合齐全」当判据会得出一个做不到的要求。正文说的是「别让『hero 选了 A』连带『cta 必是 B』」
+  //    —— 那就是「X 的每一个取值下，Y 至少还有 2 种取值」，两向都要。
+  {
+    const notDet = (f, g) => {
+      const m = new Map();
+      for (let i = 0; i < POOL; i += 1) {
+        if (!m.has(f(i))) m.set(f(i), new Set());
+        m.get(f(i)).add(g(i));
+      }
+      return Math.min(...[...m.values()].map((s) => s.size));
+    };
+    const mutual = (f, g) => Math.min(notDet(f, g), notDet(g, f));
+    const fams = {
+      cta: ctaLookFor,
+      form: formLookFor,
+      hero: heroLookFor,
+      cards: (i) => voiceFor(i).cards,
+      split: (i) => voiceFor(i).split,
+      cardStyle: (i) => voiceFor(i).card,
+    };
+    const MINE = ['cta', 'form'];
+    const problems = [];
+    const readings = [];
+    for (const a of MINE) {
+      for (const b of Object.keys(fams)) {
+        if (a === b) continue;
+        if (MINE.includes(b) && b < a) continue;              // 同一对只判一次
+        const min = mutual(fams[a], fams[b]);
+        readings.push(`${a}↔${b} ${min}`);
+        if (min < 2) {
+          problems.push(`${a} 与 ${b} 互相决定（某一档下对方只剩 ${min} 种取值）——`
+            + '同式同模的两族会这样，模数必须避开已被占的（今天 split/cards 是 4、cardStyle 是 3）');
+        }
+      }
+    }
+    if (problems.length === 0) {
+      ok(`⑨ 解耦：本票两族跟别的族两两互不决定（每档下对方至少 2 种，读数 ${readings.join(' · ')}）`);
+    } else problems.forEach(bad);
+
+    // 反向对照：把 cta 换成跟 cards 同式同模（4），这一格必须红
+    const clash = mutual((i) => rot(i, 4), (i) => voiceFor(i).cards);
+    if (clash < 2) {
+      ok(`⑨ 解耦反向对照：把 cta 换成跟 cards 同式同模（都是 4）⟹ 互相决定度 ${clash} < 2，`
+        + '这一格当场红 —— 所以上面那些 ≥2 是模数选择挣来的，不是恒真');
+    } else {
+      bad('⑨ 解耦反向对照失败：同式同模也判成解耦 —— 这个判据量不出耦合');
+    }
+  }
+}
+
+
+// ══ 每一种 form 画法都能取到一套编号（⑩ ⑪ 共用的夹具）════════════════════════════════════════
+const FORM_LOOK_SAMPLE = (() => {
+  const seen = new Map();
+  for (let i = 0; i < 400 && seen.size < FORM_LOOK_NAMES.length; i += 1) {
+    const look = voiceFor(i).formLook;
+    if (!seen.has(look)) seen.set(look, i);
+  }
+  if (seen.size !== FORM_LOOK_NAMES.length) {
+    die(`夹具不成立：走 400 步只覆盖了 ${seen.size} 种 form 画法，一共 ${FORM_LOOK_NAMES.length} 种`);
+  }
+  return seen;
+})();
+
+/** 那个块的源码 —— ⑩ ⑪ 两格都要问「这个部件在 DOM 里排第几 / 在谁里面」。 */
+const CONTACT_TSX = path.resolve(DIR, '..', '..', 'src', 'components', 'sections', 'ContactFormSection.tsx');
+
+console.log('\n⑩ #1135 成功那条状态消息，每一种画法下都跨满整宽（报错那条为什么不在这里，见下）');
+{
+  // 🔴 为什么单开一格：`contact-form__success` 是**条件渲染**的（`ContactFormSection.tsx` 的成功
+  //    分支），所以静态产物里没有它 —— 本票那几个多栏候选按构造从来不会在「它在场」的状态下被
+  //    任何 e2e 量到。真去量了一次（hydration 之后插进 DOM 再读几何）：`panel-right` 那一支上它
+  //    只占 45% 宽，被自动流塞进了侧栏。修法写在块那一层（`SHAPES['contact-form'].partExtra`），
+  //    这一格钉的就是它。
+  //
+  // 🔴 **`error` 那一半从这一格里拿掉了（#1135 r2）。** 上一版这里写的是「报错与成功那两条消息都
+  //    写着 grid-column: 1 / -1」—— 关于 CSS 字面那句话是真的，但它让人以为报错那条的**几何**
+  //    也被守住了，而其实没有：`contact-form__error` 是 `<form class="contact-form__form">` 的
+  //    子节点，那个 form 自己是单栏 grid ⟹ 那条规则是恒等式，它本来就是表单那么宽。
+  //    （我上一轮量到的「30/46/30% → 93%」是仪器造的：往 DOM 里插了一个 React 不会产出的节点。）
+  //    所以这一格改成钉**那个前提**：error 住在 form 里面、form 是单栏。哪天有人把它挪出去、
+  //    或者给 form 分栏，下面 B1/B2 会红 —— 那时那条规则开始真的作数，得有人重新量一次几何，
+  //    而不是继承这句话。谓词必须等于实测过的性质，这是本票自己的账。
+  const spans = (css, part) => {
+    const m = css.match(new RegExp(`\\.contact-form__${part} \\{[^}]*\\}`));
+    return !!m && /grid-column:\s*1 \/ -1/.test(m[0]);
+  };
+  const problems = [];
+  for (const [look, i] of FORM_LOOK_SAMPLE) {
+    if (!spans(sheetFor(i), 'success')) {
+      problems.push(`画法 ${look}（第 ${i} 套）的 .contact-form__success 没有跨满整宽`);
+    }
+  }
+  if (problems.length === 0) {
+    ok(`⑩ ${FORM_LOOK_SAMPLE.size} 种 form 画法逐种：成功那条消息写着 grid-column: 1 / -1`);
+  } else problems.forEach(bad);
+
+  // 反向对照：把块那一层的修法摘掉，这一格必须当场红（否则它只是在读别处写的东西）
+  {
+    const Module = require('module');
+    const target = path.join(DIR, 'sheet-recipes.js');
+    const src = fs.readFileSync(target, 'utf-8');
+    const line = "      success: () => ({ 'grid-column': '1 / -1' }),";
+    if (!src.includes(line)) {
+      bad('⑩ 反向对照立不起来：sheet-recipes.js 里找不到块那一层给 success 写的那行');
+    } else {
+      const m = new Module(target, module);
+      m.filename = target;
+      m.paths = Module._nodeModulePaths(path.dirname(target));
+      m._compile(src.split(line).join('      // qa removed'), target);
+      const css = m.exports.sheetFor([...FORM_LOOK_SAMPLE.values()][0]);
+      const still = /\.contact-form__success \{[^}]*grid-column:\s*1 \/ -1/.test(css);
+      if (!still) ok('⑩ 反向对照：把块那一层那行摘掉，成功那条消息立刻不再跨满 —— 这一格量的就是它');
+      else bad('⑩ 反向对照失败：摘掉之后它照样跨满 —— 那这一格钉的不是这处修法');
+    }
+  }
+
+  // B1（前提·源码）报错那条住在表单里面 —— 它跟成功那条不是同一层。
+  const tsx = fs.readFileSync(CONTACT_TSX, 'utf-8');
+  const insideForm = (src) => {
+    const open = src.indexOf('className="contact-form__form"');
+    const close = src.indexOf('</form>', open < 0 ? 0 : open);
+    const err = src.indexOf('className="contact-form__error"');
+    if (open < 0 || close < 0 || err < 0) return null;          // 读不到 ≠ 判它不在里面
+    return err > open && err < close;
+  };
+  const nowInside = insideForm(tsx);
+  if (nowInside === null) {
+    die('⑩ B1 立不起来：ContactFormSection.tsx 里找不到 contact-form__form / </form> / contact-form__error 三个锚点');
+  } else if (nowInside) {
+    ok('⑩ B1 报错那条消息住在 <form class="contact-form__form"> 里面 —— 块那一层给它写的 1/-1 是恒等式（留着当保险）');
+  } else {
+    bad('⑩ B1 报错那条消息已经不在表单里面了 —— 块那一层那条 1/-1 从此真的作数，'
+      + '请重新量一次它的几何（上一轮那个 30/46/30%→93% 的读数是仪器造的，不能拿来用）');
+  }
+  // B1 的阳性对照：把那一行挪到 </form> 之后（只在内存里改字符串），这把尺必须读出 false
+  {
+    const errLine = tsx.split('\n').find((l) => l.includes('className="contact-form__error"'));
+    if (!errLine) {
+      bad('⑩ B1 阳性对照立不起来：抠不出报错那一行');
+    } else {
+      const moved = tsx.replace(`${errLine}\n`, '').replace('</form>', `</form>\n${errLine}`);
+      const after = insideForm(moved);
+      if (after === false) ok('⑩ B1 阳性对照：把那一行挪到 </form> 之后，这把尺当场读出「不在里面」—— 它不是恒真');
+      else bad(`⑩ B1 阳性对照失败：挪出去之后它还说在里面（读数 ${after}）—— 这把尺分不出层级`);
+    }
+  }
+  // B2（前提·产物）那个 form 是单栏 —— 单栏网格里 `1 / -1` 与 `auto` 等价。
+  {
+    const multi = [];
+    for (const [look, i] of FORM_LOOK_SAMPLE) {
+      const m = sheetFor(i).match(/\.contact-form__form \{[^}]*\}/);
+      if (m && /grid-template-columns/.test(m[0])) multi.push(look);
+    }
+    // 分母自检：这把尺子读得到 grid-template-columns 吗（块根那条一定有）
+    const rootHas = /\.contact-form \{[^}]*grid-template-columns/.test(sheetFor([...FORM_LOOK_SAMPLE.values()][0]));
+    if (!rootHas) {
+      die('⑩ B2 的尺子坏了：连块根那条 grid-template-columns 都读不到 —— 那「form 里没有」这个 0 不作数');
+    } else if (multi.length === 0) {
+      ok(`⑩ B2 ${FORM_LOOK_SAMPLE.size} 种画法里 .contact-form__form 都没有 grid-template-columns（单栏）`
+        + '，块根那条读得到 ⟹ 上面那个「0」是真读数');
+    } else {
+      bad(`⑩ B2 这些画法把表单本身分栏了：${multi.join(' · ')} —— 报错那条的 1/-1 从此作数，重新量它的几何`);
+    }
+  }
+}
+
+// ══ ⑪ 那行细则小字不许排在表单和说明前面（#1135 r2）══════════════════════════════════════════════
+//
+// `panel-left` 上一版只给 form(1) / intro(2) 写了 `order`，而 `order` 缺省是 0 ⟹ 细则小字排在它们
+// **前面**：左栏第一格是小字、表单被挤到右栏、lede 掉到第三行。命中 14/80 套。后果是主读跟
+// `panel-right` 一样（表单都在右边），而这张票的立票原话正是「为什么这几块长得很一样」；手机上顺序
+// 也变成 heading → note → form → intro。
+//
+// 🔴 判据不是 PM 留言里那句字面的「note 的 order 必须**大于** form 与 intro」—— 那条谓词会把
+//    四个「谁都没写 order」的候选（三个 0）判红，而它们是对的：CSS 排布看的是 **(order, 源码里第几个)**
+//    这个二元组，而 note 在 `ContactFormSection.tsx` 里本来就排在最后。所以这里判的是二元组：
+//    note 的 (order, 源序) 必须比 form 和 intro 的都大。性质是 PM 定的那一条（小字不许排在前面），
+//    这是能表达它的那个谓词。
+// 🔴 源序**从那个组件的源码里现读**，不写死：写死等于把「note 在最后」这个前提藏进这份测试里，
+//    而哪天有人在 TSX 里把 note 往上搬，`>=` 这一半就不再够 —— 现读之后那一格会自己红（下面
+//    第二个阳性对照就是把它搬上去，四个全零候选当场被点名）。
+console.log('\n⑪ #1135 那行细则小字，每一种画法下都排在表单和说明之后');
+{
+  const PARTS = ['heading', 'intro', 'form', 'note'];
+  /** 每个部件在那个组件源码里排第几（`className="contact-form__X"` 出现的位置）。 */
+  const sourceOrderOf = (src) => {
+    const at = {};
+    for (const p of PARTS) {
+      const i = src.indexOf(`className="contact-form__${p}"`);
+      if (i < 0) return null;
+      at[p] = i;
+    }
+    return at;
+  };
+  /** 产物里那个部件写的 `order`（没写 = 0，跟浏览器的缺省一致）。 */
+  const orderOf = (css, part) => {
+    const m = css.match(new RegExp(`\\.contact-form__${part} \\{[^}]*\\}`));
+    if (!m) return 0;
+    const o = m[0].match(/(?:^|[;{]\s*)order:\s*(-?\d+)/);
+    return o ? Number(o[1]) : 0;
+  };
+  /** 一次判决：返回被点名的画法清单。`css(i)` 与源序都从外面递进来，好让两个阳性对照换掉其中一个。 */
+  const offenders = (cssOf, at) => {
+    const out = [];
+    for (const [look, i] of FORM_LOOK_SAMPLE) {
+      const css = cssOf(i);
+      const key = (p) => [orderOf(css, p), at[p]];
+      const later = (a, b) => (a[0] !== b[0] ? a[0] > b[0] : a[1] > b[1]);
+      const note = key('note');
+      const bads = ['form', 'intro'].filter((p) => !later(note, key(p)));
+      if (bads.length) {
+        out.push(`${look}（第 ${i} 套）：note 的 (order,源序)=(${note.join(',')}) 没有排在 `
+          + bads.map((p) => `${p} 的 (${key(p).join(',')})`).join(' 与 ') + ' 之后');
+      }
+    }
+    return out;
+  };
+
+  const tsx = fs.readFileSync(CONTACT_TSX, 'utf-8');
+  const at = sourceOrderOf(tsx);
+  if (!at) die(`⑪ 立不起来：${CONTACT_TSX} 里找不到 ${PARTS.length} 个部件的 className`);
+
+  const problems = offenders((i) => sheetFor(i), at);
+  if (problems.length === 0) {
+    ok(`⑪ ${FORM_LOOK_SAMPLE.size} 种 form 画法逐种：细则小字排在表单和说明之后`
+      + `（源序读自组件本身：${PARTS.map((p) => p).join(' < ')}）`);
+  } else problems.forEach(bad);
+
+  // 阳性对照 A：把 `panel-left` 那行 note 的 order 摘掉（本轮修的就是它）⟹ 必须点名 panel-left
+  {
+    const Module = require('module');
+    const target = path.join(DIR, 'sheet-recipes.js');
+    const src = fs.readFileSync(target, 'utf-8');
+    const line = "      note: () => ({ order: 3 }),";
+    const hits = src.split(line).length - 1;
+    if (hits !== 1) {
+      bad(`⑪ 阳性对照 A 立不起来：sheet-recipes.js 里 \`${line.trim()}\` 出现 ${hits} 次（要求正好 1 次）`);
+    } else {
+      const m = new Module(target, module);
+      m.filename = target;
+      m.paths = Module._nodeModulePaths(path.dirname(target));
+      m._compile(src.split(line).join('      // r2 control: order removed'), target);
+      const named = offenders((i) => m.exports.sheetFor(i), at);
+      if (named.some((s) => s.startsWith('panel-left'))) {
+        ok(`⑪ 阳性对照 A：摘掉 panel-left 那行 order，这一格当场点名它（${named.length} 条）—— 上面那些绿是这行挣来的`);
+      } else {
+        bad(`⑪ 阳性对照 A 失败：摘掉之后没人被点名（${named.length} 条）—— 那这一格钉的不是这处修法`);
+      }
+    }
+  }
+
+  // 阳性对照 B：把 note 在**源码**里搬到 form 前面 ⟹ 那四个「谁都没写 order」的候选必须被点名
+  {
+    const noteLine = tsx.split('\n').find((l) => l.includes('className="contact-form__note"'));
+    if (!noteLine) {
+      bad('⑪ 阳性对照 B 立不起来：抠不出 note 那一行');
+    } else {
+      const moved = tsx.replace(`${noteLine}\n`, '').replace('      <h2 className="contact-form__heading"', `${noteLine}\n      <h2 className="contact-form__heading"`);
+      const at2 = sourceOrderOf(moved);
+      if (!at2) {
+        bad('⑪ 阳性对照 B 立不起来：搬完之后四个部件读不齐');
+      } else {
+        const named = offenders((i) => sheetFor(i), at2);
+        if (named.length >= 4) {
+          ok(`⑪ 阳性对照 B：把 note 在源码里搬到最前面，这一格点名 ${named.length} 种画法 —— `
+            + '「源序现读」这一半也是活的（写死 note 在最后的话，这里读到 0 条）');
+        } else {
+          bad(`⑪ 阳性对照 B 失败：搬上去只点名 ${named.length} 种（预期 ≥4，那四个没写 order 的候选全该红）`);
+        }
+      }
+    }
+  }
 }
 
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);

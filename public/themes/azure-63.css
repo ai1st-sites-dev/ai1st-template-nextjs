@@ -96,12 +96,12 @@
   padding: calc(var(--section-block-pad) * 7) 1.5rem;
   background-color: var(--color-primary-800);
   color: var(--color-primary-50);
-  align-items: center;
+  align-items: start;
 }
 
 @media (min-width: 1024px) {
   .cta-banner {
-    grid-template-columns: 2fr 1fr;
+    grid-template-columns: 1fr;
     gap: calc(var(--section-block-gap) * 9);
     padding: calc(var(--section-block-pad) * 9.8) 3rem;
   }
@@ -115,15 +115,17 @@
   font-weight: 900;
   letter-spacing: -0.02em;
   color: var(--color-primary-50);
+  order: 2;
 }
 
 .cta-banner__desc {
   grid-column: 1 / -1;
   max-width: 36rem;
-  margin-top: 0.75rem;
+  margin-top: 0.5rem;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-100);
+  order: 3;
 }
 
 .cta-banner__action {
@@ -132,6 +134,7 @@
   align-items: center;
   gap: 0.75rem;
   margin-top: 1.25rem;
+  order: 1;
 }
 
 .page-header {
@@ -175,11 +178,12 @@
   padding: calc(var(--section-block-pad) * 7) 1.5rem;
   background-color: var(--color-primary-900);
   color: var(--color-primary-50);
+  align-items: start;
 }
 
 @media (min-width: 1024px) {
   .contact-form {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: calc(var(--section-block-gap) * 9);
     padding: calc(var(--section-block-pad) * 9.8) 3rem;
   }
@@ -221,6 +225,7 @@
   font-size: 0.875rem;
   line-height: 1.5;
   color: var(--color-primary-50);
+  grid-column: 1 / -1;
 }
 
 .contact-form__note {
@@ -237,6 +242,7 @@
   font-weight: 600;
   line-height: 1.5;
   color: var(--color-primary-50);
+  grid-column: 1 / -1;
 }
 
 .quote-form {

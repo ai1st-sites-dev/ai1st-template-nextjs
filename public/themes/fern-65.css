@@ -93,11 +93,13 @@
   background-color: var(--color-primary-50);
   color: var(--color-primary-900);
   align-items: center;
+  justify-items: center;
+  text-align: center;
 }
 
 @media (min-width: 1024px) {
   .cta-banner {
-    grid-template-columns: 2fr 1fr;
+    grid-template-columns: 1fr;
     gap: calc(var(--section-block-gap) * 6);
     padding: calc(var(--section-block-pad) * 7) 3rem;
   }
@@ -111,15 +113,20 @@
   font-weight: 800;
   letter-spacing: -0.01em;
   color: var(--color-primary-900);
+  max-width: 44rem;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .cta-banner__desc {
   grid-column: 1 / -1;
-  max-width: 36rem;
+  max-width: 38rem;
   margin-top: 0.75rem;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-800);
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .cta-banner__action {
@@ -128,6 +135,7 @@
   align-items: center;
   gap: 0.75rem;
   margin-top: 1.25rem;
+  justify-content: center;
 }
 
 .page-header {
@@ -171,6 +179,7 @@
   padding: calc(var(--section-block-pad) * 5) 1.5rem;
   background-color: var(--color-primary-50);
   color: var(--color-primary-900);
+  align-items: start;
 }
 
 @media (min-width: 1024px) {
@@ -192,12 +201,13 @@
 }
 
 .contact-form__intro {
-  grid-column: 1 / -1;
-  max-width: 36rem;
+  grid-column: auto;
+  max-width: 32rem;
   margin-top: 0.75rem;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-800);
+  order: 2;
 }
 
 .contact-form__form {
@@ -206,6 +216,8 @@
   padding: 1.75rem;
   border-radius: var(--radius-block);
   background-color: var(--color-primary-100);
+  grid-column: auto;
+  order: 1;
 }
 
 .contact-form__error {
@@ -217,12 +229,14 @@
   font-size: 0.875rem;
   line-height: 1.5;
   color: var(--color-primary-900);
+  grid-column: 1 / -1;
 }
 
 .contact-form__note {
   font-size: 0.75rem;
   line-height: 1.6;
   color: var(--color-primary-800);
+  order: 3;
 }
 
 .contact-form__success {
@@ -233,6 +247,7 @@
   font-weight: 600;
   line-height: 1.5;
   color: var(--color-primary-900);
+  grid-column: 1 / -1;
 }
 
 .quote-form {
