@@ -717,7 +717,8 @@
       与 25 : 5）逐个复算都对，错的是分母的说法。自己现算：
         node -e "const t=require('../../scripts/themes.js').themes,p=require('../../scripts/theme-pool.json');
                  const n=Object.keys(t).filter(i=>/\"process-steps\":\[/.test(JSON.stringify(t[i])));
-                 console.log(Object.keys(t).length,'套注册表 ·',n.length,'套点名 · 全在退役批',n.every(i=>!p[i]))"而且搬完之后「icon-strip 的站」这个概念已经不存在了：
+                 console.log(Object.keys(t).length,'套注册表 ·',n.length,'套点名 · 全在退役批',n.every(i=>!p[i]))"
+      而且搬完之后「icon-strip 的站」这个概念已经不存在了：
       长相由表决定，不由变体决定。
 
    ② 「process-steps 是 optional 所以合法」也不成立。页面 JSON 把某个 process-steps 块的 `role`
