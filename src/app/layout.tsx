@@ -149,11 +149,55 @@ const previewTrustedOrigin = (() => {
 // AI edit can change brand.json's colours. Emptying an override element restores the original
 // `:root` block byte for byte, with no snapshot to get wrong. Same rule for the font: a second
 // <link> that we add and remove, never the site's own one.
+// 🔴 #1129 —— 这条通道送来的那段 CSS 是【换掉】这个站自己的 `/custom.css`，不是叠在它上面。
+//
+// Customize 面板发的就是 `scripts/tweaks.js` 的 `buildCustomCss()` 产物 —— 也就是 Apply 之后
+// 会被写进 `site/custom.css` 并 `cp` 成 `out/custom.css` 的同一份字节（`worker/main.go` §processThemeTask
+// 的 swap：Apply 不重建，就是换这一个文件）。所以要让「预览看到的 == Apply 之后页面上的」，
+// 预览必须把页面上现有的那份 `/custom.css` 先【停掉】。
+//
+// 🔴 不停它的后果（#1129 重现步骤，两种站各实测过一次）：`buildCustomCss` 只为「算出来跟
+// 主题不一样」的变量写行，把一组选择清回 Theme default 之后它返回空串 ⟹ 注入的 `<style>`
+// 一行也不声明 ⟹ 压在下面的、上一次 Apply 烤出来的 `custom.css` 透上来 ⟹ 预览停在上一次
+// 那个颜色，而 Apply 之后页面变成这个站自己的底色。
+//
+// 🔴 为什么是【停掉那张表】而不是【把基准值一起塞进来】（#1129 正文点名的那个「明显的修法」）：
+// dashboard 手里是【今天】的注册表，而换过装的站页面上那组颜色来自它 repo 里【换主题那一天】
+// 冻进去的 `site/theme.css`（`sync-config.js` §theme.css 来源 ①，逐字节拷，不重新生成）。两份实测
+// 就是不一样的，所以塞今天的基准会在那批站上造出反方向的假话。停表不需要知道基准是什么：
+// 页面自己的 `/theme.css` 就是那个基准，把压在它上面的那层拿走它自然透出来。
+// 附带好处：字体那一组的 `@import`、以及将来 custom.css 里多出来的任何东西，都不用在这里枚举一遍。
+//
+// 🔴 失败方向：找不到那条 `<link>` 就什么都不停（= 本票之前的行为），不是「拿不准就把页面
+// 扔到没样式」。而 #1002 之前建的站根本没有这条 link，也就没有那一层陈字节可透 ⟹ 它们本来就没病。
+//
+// 🔴 `refused` 那一支要把它【开回来】：那一支的意思是「你那段 CSS 我整份不要」，而整份不要就包括
+// 不拿走这个站自己的微调。Cancel（`ai1st:theme-preview-reset`）同理。
+//
+// 🔴 #1129 —— 停掉那张表之后，注入的这一段必须自己带上字体表的 `@import`，而 CSS 规定 `@import`
+// 只能出现在样式表**最前面** —— 排在 `main{…}` 后面浏览器整条丢掉。所以 `MAIN_FLEX` 不再无条件拼在
+// 最前，改成拼在开头那几行 `@import`（和空行）之后。
+//
+// 🔴 这不是顺手加的一条：**不加它，本票的修法会在另一维上造出同一个病。** 实测（探针在真产物上量，
+// 站 b 的 landed = palette+corners+fonts 三组都选着）：注入的那张表里 `CSSImportRule` **0 条**，
+// 两条规则都是 `CSSStyleRule`。改动之前这不显形，因为页面自己那份 `custom.css` 里有同一条 `@import`、
+// 而它是好的；停掉那张表之后那条也没了 ⟹ 只改配色（字体那一组原样留着）时，预览会退回兜底字体，
+// 而 Apply 之后站上是那对字体。判据用「这一页声明了哪些 @import 地址」，preview 与 Apply 两侧取一次比。
+// 📌 边界：只搬**开头连续那几行**。`buildCustomCss` 产出的 `@import` 恒在第一行（那个函数的注释里
+// 写着它必须在最前），所以这条对我们自己的产物是完全的；夹在中间的 `@import` 照旧被丢掉 —— 那是
+// CSS 自己的规则，不是这里该纠正的事。
+//
+// 📌 射程说在明处：Apply 与换主题都【不重建】（#1002），所以已经存在的站，页面里内联的还是旧脚本
+// —— 它们要到下一次**真构建**（内容编辑 / 部署）才拿到这一份。这与 #978 / #1002 / #1084 每一次
+// 改这段脚本时一样。判据（拿一个站的产物问一句，回 1 就是新的）：
+//   curl -s <站的预览地址>/ | grep -c "u.pathname==='/custom.css'"
+// 面板要不要在「这个站还是旧脚本」时改口说一句，是**用户可见文案**、且要给 ack 加一个能力位 ——
+// 那是本票 scope 之外的一件事，留在票上交作者定夺（#1129 交接留言里那条）。
 function buildThemePreviewScript(trustedOrigin: string): string {
   return `(function(){
 if(window.parent===window)return;
 var T=${JSON.stringify(trustedOrigin)};
-var s=null,f=null,c=null,h=null,hSeq=0;
+var s=null,f=null,c=null,ow=null,owq=false,h=null,hSeq=0;
 // #1123 r2 —— 上一次 paint() 有没有把【风格设定那 15 个变量】全都补齐。paintSheet 停用
 // /theme.css 的前置条件就是它（理由写在 sheetEl 上面那段和 paint 里）。默认 false：
 // 没 paint 过就来一条只带 sheet 的消息时，失败方向是「画法不换」，不是「页面掉一半变量」。
@@ -166,6 +210,17 @@ function cssEl(){
   if(!c){c=document.createElement('style');c.id='ai1st-theme-preview-css';document.head.appendChild(c);}
   return c;
 }
+function ownCss(){
+  if(owq){return ow;}
+  owq=true;
+  var ls=document.querySelectorAll('link[rel="stylesheet"]'),i,u;
+  for(i=0;i<ls.length;i++){
+    try{u=new URL(ls[i].href,document.baseURI);}catch(e){continue;}
+    if(u.pathname==='/custom.css'){ow=ls[i];break;}
+  }
+  return ow;
+}
+function ownCssOff(off){var l=ownCss();if(l){l.disabled=!!off;}}
 // ── #1123 —— 试穿那套主题【自己的画法表】，而且是【顶掉】不是【叠加】 ─────────────────────────
 //
 // 🔴 为什么不能沿用上面那个 cssEl()：它是 appendChild，也就是**叠加**。后来的样式表只压得过它自己
@@ -374,7 +429,15 @@ function paint(t){
   if(t&&typeof t.googleFontsUrl==='string'&&/^https:\\/\\/fonts\\.googleapis\\.com\\//.test(t.googleFontsUrl)){f.href=t.googleFontsUrl;}
   else{f.removeAttribute('href');}
 }
-function clear(){if(s){s.textContent='';}if(f){f.removeAttribute('href');}if(c){c.textContent='';}hSeq++;dropSheet();st={ignored:[],refused:false};}
+// 🔴 #1129 + #1123 合并形态：这一行上【两张票各自的撤回动作都要在】。Cancel 是两条预览通道
+// 共用的一个名字（ai1st:theme-preview-reset），而两张票各自停用了页面上的一张表 ——
+// #1123 停 /theme.css（画法），#1129 停 /custom.css（微调）。少了任一个 ownCssOff/dropSheet，
+// Cancel 之后页面就停在「少一层样式」的状态上，而那两个元素互不相干（两次 disabled=false 各管一个），
+// 所以这里的先后无所谓。没被用过的那条通道上它是 no-op（h 为 null / 那张表本来就没被停）。
+// 🔴 这段注释里不许出现反引号：它住在 buildThemePreviewScript 那个**模板字符串**里面，一个反引号
+// 就把模板提前收尾 ⟹ 整个文件语法错、next build 当场死。我第一版就是这么红的（同族坑见上面 #1129
+// 那段里 hoistImports 的 split 那一处）。
+function clear(){if(s){s.textContent='';}if(f){f.removeAttribute('href');}if(c){c.textContent='';}hSeq++;dropSheet();ownCssOff(false);st={ignored:[],refused:false};}
 var MAIN_FLEX='main{display:flex;flex-direction:column}';
 var st={ignored:[],refused:false};
 function blockList(){
@@ -418,9 +481,17 @@ function unhide(els){
   scan(sheet.cssRules);
   return names;
 }
+function hoistImports(text){
+  var ls=String(text).split('\\n'),n=0;
+  while(n<ls.length&&/^\\s*(@import\\b|$)/.test(ls[n])){n++;}
+  var head=ls.slice(0,n).join('\\n');
+  return (head?head+'\\n':'')+MAIN_FLEX+'\\n'+ls.slice(n).join('\\n');
+}
 function paintCss(text){
-  var el=cssEl(),i,k,before=unseen(),newly=[],now,still=[];
-  el.textContent=MAIN_FLEX+text;
+  var el=cssEl(),i,k,newly=[],now,still=[],before;
+  ownCssOff(true);
+  before=unseen();
+  el.textContent=hoistImports(text);
   now=unseen();
   for(i=0;i<now.length;i++){if(before.indexOf(now[i])<0){newly.push(now[i]);}}
   if(newly.length===0){st={ignored:[],refused:false};return;}
@@ -429,6 +500,7 @@ function paintCss(text){
   for(i=0;i<now.length;i++){if(before.indexOf(now[i])<0){still.push(nameOf(now[i]));}}
   if(still.length){
     el.textContent='';
+    ownCssOff(false);
     for(k=0;k<still.length;k++){if(ignored.indexOf(still[k])<0)ignored.push(still[k]);}
     st={ignored:ignored,refused:true};
     return;
