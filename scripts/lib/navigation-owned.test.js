@@ -723,10 +723,12 @@ function navWritesInSyncConfig(file) {
   else problems.forEach(bad);
 }
 
-// ── ⑪ 反向：tsc 不管的东西这道门也不许管（多拒 = 这个站改不动，#1013 r2 那道门的坑）──────────
+// ── ⑪ 反向：tsc 不管的东西这道门也不许**拒**（多拒 = 这个站改不动，#1013 r2 那道门的坑）────────
 //
 // `as` 那种 cast 只查「两个类型有没有足够重叠」，多出来的键 tsc 一个字都不说。实测过（#1104 r3，
 // skipAI 真站 + 真 tsc）：顶层加陌生键 / footer 里加陌生键 / cta 里加陌生键，三种都 rc=0。
+// 🔴 这一格钉的只是「不拒」。**「不拒」不等于「不说」** —— 那几个键谁都不读，不说出来就是 #1128 要治
+//    的那个静默失败，而这一格的绿正好是它的样子。管「必须说」的那一半在 ⑯，两格缺一不可。
 {
   const CASES = [
     ['顶层多一个没人认识的键', (n) => { n.somethingNew = { a: 1 }; }],
@@ -743,6 +745,98 @@ function navWritesInSyncConfig(file) {
     if (why !== null) problems.push(`${name} → 被拒了，而 tsc 不管这个：${String(why).split('\n')[1] || String(why).split('\n')[0]}`);
   }
   if (problems.length === 0) ok(`⑪ 反向：${CASES.length} 种 tsc 不管的写法这道门也放行（多拒的方向是「这个站改不动」）`);
+  else problems.forEach(bad);
+}
+
+// ── ⑯ 放行了，可那几个键**谁都不读** —— 必须点名（#1128）────────────────────────────────────────
+//
+// 🔴 这一格是 ⑪ 反向那一格的另一半，两格缺一不可：⑪ 反向钉的是「不许拒」（多拒 = 这个站改不动），
+//    ⑯ 钉的是「不许不说」。少了 ⑯，⑪ 反向的绿正好就是本票要治的那个静默失败。
+// 判据两向都钉：陌生键在 ⟹ 恰好多出那一句且点名每一个键；正当编辑 ⟹ **一句都不许多**
+// （多说一句就是新的假话，同 ⑬ 的 AC3）。
+{
+  const NEEDLE = 'not part of navigation.json';
+  // 这个站：多栏页脚 + 常规顶栏 + 没有 topbar 区 —— 挑它是为了让 ⑬ 那一路（「你这个站看不到」）
+  // 对下面每一格都**不**开口，于是这一格数出来的句子只可能是本票加的那一句。
+  const SITE = { header: ['solid-bar'], footer: ['multi-column'], topbar: [] };
+  const notesFor = (next, rel = 'en/navigation.json') => writeNotes(rel, {
+    content: JSON.stringify(next),
+    readCurrent: () => JSON.stringify(BASE),
+    readRenderedRegions: () => SITE,
+  });
+  const mine = (next, rel) => notesFor(next, rel).filter((n) => n.includes(NEEDLE));
+  // 🔴 三种路径形状都要走一遍：`resolveRel` / `splitLocale` 判「这是哪个文件」的那条分支按形状不同
+  //    （老扁平站根级那份没有 locale 段），而放不放行和说不说话都挂在它后面。① 已经在**放行**那一半
+  //    上钉了这三种，这里钉的是**说话**那一半。
+  const SHAPES = ['navigation.json', 'en/navigation.json', 'zh_CN/navigation.json'];
+
+  // 第一二格就是本票 AC1 / AC2 的两臂（QA2 在 #1104 r4 真机上量的那两个）。
+  const CASES = [
+    ['B 臂：footer 多一个 copyRight（原 copyright 仍在）', (n) => { n.footer.copyRight = 'X Ltd.'; }, ['footer.copyRight']],
+    ['C 臂：header.cta 多一个 text（label 没动）', (n) => { n.header.cta.text = 'Book Now'; }, ['header.cta.text']],
+    ['顶层多一个没人认识的键', (n) => { n.somethingNew = { a: 1 }; }, ['somethingNew']],
+    ['一次多两个键', (n) => { n.footer.copyRight = 'X'; n.header.cta.text = 'Y'; }, ['footer.copyRight', 'header.cta.text']],
+    // 陌生子树只报最外面那一层 —— 里面每一层同样没人读，逐层报是把同一件事说成好几件。
+    ['陌生键底下还套着东西', (n) => { n.footer.extra = { a: { b: 1 } }; }, ['footer.extra']],
+    ['第二栏那个对象上多一个键（构建不重写它 ⟹ 走得到这一步）', (n) => { n.footer.columns[1].note = 'x'; }, ['footer.columns[1].note']],
+    ['topbar 里多一个键', (n) => { n.topbar = { message: '24/7', urgent: true }; }, ['topbar.urgent']],
+  ];
+  const problems = [];
+  for (const [name, mutate, expect] of CASES) {
+    const next = clone(BASE);
+    mutate(next);
+    // 先确认它**没被拒** —— 本票选的是「放行 + 说出来」，拒了的话下面数句子是数不到的。
+    const why = tryWrite('en/navigation.json', next);
+    if (why !== null) { problems.push(`${name} → 被拒了（本票选的是放行+说实话）：${String(why).split('\n')[0]}`); continue; }
+    // 三种路径形状读数必须一致 —— 有一种不说话，就是「这个站的形状决定老板听不听得到实话」
+    const byShape = SHAPES.map((rel) => [rel, mine(next, rel).length]);
+    const off = byShape.filter(([, n]) => n !== 1);
+    if (off.length) { problems.push(`${name} → 那句话在 ${off.map(([r, n]) => `${r}:${n} 次`).join(' · ')}（每种路径形状都要恰好 1 次）`); continue; }
+    const said = mine(next);
+    const missing = expect.filter((k) => !said[0].includes(k));
+    if (missing.length) problems.push(`${name} → 说了，但没点名 ${missing.join(' / ')}：${said[0].split('\n')[1] || ''}`);
+    // 后果必须写成「页面不会变」，不是「可能不生效」；而且要给一条照做有用的路。
+    // 🔴 needle 挑的是**两种数都命中**的那一段：一个键时那句话是 "it changes nothing on the site"、
+    //    多个键时是 "they change nothing on the site" —— 只写单数那一种，多键那一格会因为**措辞**红，
+    //    而它量的其实是「有没有说后果」。
+    for (const needle of [' nothing on the site:', 'Write the file again without', 'header.cta']) {
+      if (!said[0].includes(needle)) problems.push(`${name} → 那句话里没有 "${needle}"`);
+    }
+    // 报出来的键数 == 真的陌生键数（多报一个就是对一个真生效的字段说假话）
+    const listed = said[0].split('\n').filter((l) => l.startsWith('  - ')).map((l) => l.slice(4));
+    if (listed.length !== expect.length) problems.push(`${name} → 列了 ${listed.length} 个键，该是 ${expect.length} 个：${listed.join(' / ')}`);
+  }
+
+  // 🔴 反向（AC3）：#1104 那些**正当**编辑一句都不许多。这一半不是可选的 —— 没有它，把判据写成
+  //    「恒定说一句」也能让上面全绿，而那句话对每一次正常编辑都是假话。
+  const LEGIT = [
+    ['改按钮文字', (n) => { n.header.cta.label = 'Book Now'; }],
+    ['改按钮链接', (n) => { n.header.cta.href = '/quote'; }],
+    ['文字和链接一起改', (n) => { n.header.cta = { label: 'Get a Quote', href: '/quote' }; }],
+    ['改页脚版权', (n) => { n.footer.copyright = 'Northside Roofing Ltd.'; }],
+    ['版权设成空串', (n) => { n.footer.copyright = ''; }],
+    ['页脚介绍', (n) => { n.footer.description = 'Roofing across the GTA since 2014.'; }],
+    ['介绍设成空串', (n) => { n.footer.description = ''; }],
+    ['两处一起清空', (n) => { n.footer.copyright = ''; n.footer.description = ''; }],
+    ['第一栏标题', (n) => { n.footer.columns[0].title = 'What We Do'; }],
+    ['第二栏标题', (n) => { n.footer.columns[1].title = 'Roof Repair & Replacement'; }],
+    ['第二栏链接', (n) => { n.footer.columns[1].links[0].label = 'Emergency callout'; }],
+    ['加 topbar（只 message）', (n) => { n.topbar = { message: '24/7 emergency service' }; }],
+    ['加 topbar（message + link）', (n) => { n.topbar = { message: '24/7', link: { label: 'Call', href: '/contact' } }; }],
+    ['只换键序', (n) => { const f = n.footer; n.footer = { copyright: f.copyright, columns: f.columns, description: f.description }; }],
+    ['什么都没改', () => {}],
+  ];
+  let clean = 0;
+  for (const [name, mutate] of LEGIT) {
+    const next = clone(BASE);
+    mutate(next);
+    const why = tryWrite('en/navigation.json', next);
+    if (why !== null) { problems.push(`正当编辑「${name}」被拒了：${String(why).split('\n')[0]}`); continue; }
+    const said = mine(next);
+    if (said.length !== 0) problems.push(`正当编辑「${name}」被多说了一句：${said[0].split('\n')[0]}`);
+    else clean++;
+  }
+  if (problems.length === 0) ok(`⑯ 形状外的键：${CASES.length} 种 × ${SHAPES.length} 种路径形状全部放行且点名（含 AC1/AC2 两臂）· ${clean}/${LEGIT.length} 种正当编辑零多话`);
   else problems.forEach(bad);
 }
 

@@ -305,9 +305,98 @@ function invisibleNote(entry, rendered) {
     + 'Say this out loud instead of only reporting that it was updated.';
 }
 
+/**
+ * 这次要写的那份里，`NAV_SHAPE` **没有声明**的键有哪些（#1128）。
+ *
+ * ── 为什么这一格存在 ────────────────────────────────────────────────────────────────────────────
+ * 老板说一句「把页脚版权改成 X」，模型把它写进 `footer.copyRight`（大写的 R）—— 原来那个
+ * `copyright` 一个字没动。这道门放行（下面那条 🔴 说的就是它，方向仍然是对的）、构建 rc=0、
+ * 聊天说「改好了」，而页面上一个字都没变。QA2 在 #1104 r4 的真站上量到的两臂：
+ *
+ *     footer 多一个 copyRight（原 copyright 仍在）   门 ✅ 放行 · 构建 rc=0 · 页面命中 0 / 18 个 HTML
+ *     header.cta 多一个 text（label 没动）           门 ✅ 放行 · 构建 rc=0 · 页面命中 0 / 18
+ *     而真的 copyright 与 label 照常显示                                        各 9 / 18
+ *
+ * 系统这时候**知道**答案（那个键不在它声明的形状里），只是没说 —— 这跟 #1087 → #1104 一路在治的
+ * 是同一件事（把静默失败说成实话）。
+ *
+ * ── 为什么是「照写 + 说实话」而不是「拒」 ────────────────────────────────────────────────────────
+ * 跟 `PAGE_READS` 那一路同一个理由（#1104 r6 写在它上面那段），再加一条本票自己的读数：
+ * 「拒」会翻掉 #1104 里 QA1 那 15 种**正当编辑**中的 3 种（顶层 / footer / cta 各加一个陌生键），
+ * 而那 15 种是本票 AC3 明文要求「一个都不许被拦住」的 —— 两条 AC 就同时不可满足了。
+ * 本票正文给了这条岔路：「如果 DEV 量出『拒』会挡住某种正当写法，选 2 也满足本票」。
+ * 于是这里走「写进去 + 在回给老板的话里点名」，而下面那条 🔴「不认识的键一律放过」原样成立。
+ *
+ * ── 判据不是一张键名清单 ────────────────────────────────────────────────────────────────────────
+ * 问的是「这个键在不在 `NAV_SHAPE` 里」，而 `NAV_SHAPE` 由 `navigation-owned.test.js` 的 ⑩ 用
+ * TypeScript 自己的解析器跟 `NavigationConfig` 两向钉住 ⟹ 哪天那个 interface 加一个字段，这里
+ * 自动就不再把它当陌生键。没有第二份名单会漂。
+ *
+ * 🔴 陌生子树只报最外面那一层（`footer.extra` 而不是 `footer.extra.a.b`）：里面每一层都同样没人读，
+ *    逐层报出来只是把同一件事说成好几件，而这句话是原文交到老板手里的。
+ */
+function undeclaredKeys(value, shape, at, out) {
+  if (value === undefined || value === null) return out;
+  if (shape.kind === 'array') {
+    if (Array.isArray(value)) value.forEach((item, i) => undeclaredKeys(item, shape.of, `${at}[${i}]`, out));
+    return out;
+  }
+  if (shape.kind !== 'object' || !isObj(value)) return out;
+  for (const key of Object.keys(value)) {
+    if (!Object.prototype.hasOwnProperty.call(shape.fields, key)) out.push(at ? `${at}.${key}` : key);
+  }
+  for (const [key, sub] of Object.entries(shape.fields)) {
+    undeclaredKeys(value[key], sub, at ? `${at}.${key}` : key, out);
+  }
+  return out;
+}
+
+/** 这次要写的那份里，声明的形状之外多出来的那些键（顶层路径）。 */
+function undeclaredKeyPaths(nav) {
+  return undeclaredKeys(nav, NAV_SHAPE, '', []);
+}
+
+/**
+ * 一格「这几个键谁都不读」的话。
+ *
+ * 🔴 措辞按真机读数校过，不许写成「构建不读它」那种笼统说法：真站 `site-e4da0161`（多栏页脚）
+ *    上把 `footer.copyRight` 落盘再真构建，那个键**确实一路走到了产物里** ——
+ *    `src/lib/config-data.ts` 1 处、`_next/static/chunks/248-*.js` 1 处（连值一起，也就是它还发给了
+ *    每一个访客的浏览器）；而 20 个 HTML 里那个值命中 **0**，同一把 grep 量真的 `footer.copyright`
+ *    命中 **10**（尺子有牙）。⟹ 真话是「谁都不读它」，不是「构建不碰它」。
+ * 🔴 三件事都要说，少一件就还是那个静默失败换个样子：① 点名是**哪几个键**（不说一句笼统的
+ *    「有些键不对」—— 老板要的就是那个键名）② 说清后果是**页面不会变**（不是「可能不生效」）
+ *    ③ 给一条照做有用的路：这里能改的字段就那几个，用对名字再写一遍。
+ * 🔴 最后那句「把它们去掉」不是洁癖：写进去而谁都不读的字节会留在站仓里误导下一个读它的人
+ *    （本票正文点名的那条代价）。
+ */
+function undeclaredKeysNote(paths) {
+  const one = paths.length === 1;
+  return 'One more thing to tell the owner: the file was saved, but '
+    + `${one ? 'this key in it is' : 'these keys in it are'} not part of navigation.json — nothing reads `
+    + `${one ? 'it' : 'them'}. The build copies the file through as it is, and then no page ever looks at `
+    + `${one ? 'that key' : 'those keys'}, so ${one ? 'it changes' : 'they change'} nothing on the site:\n`
+    + paths.map((k) => `  - ${k}`).join('\n')
+    + `\nWrite the file again without ${one ? 'that key' : 'those keys'} — and if one of the fields that `
+    + 'can be changed here is what the owner asked for, use that name instead. '
+    + `${NAVIGATION_EDITABLE_SUMMARY} Tell the owner the page will not change because of `
+    + `${one ? 'that key' : 'those keys'}. Say this out loud instead of only reporting that the file was `
+    + 'updated.';
+}
+
 /** 这次放行的改动会引起哪些「别处也跟着变」。返回给模型看的那几句话（没有就是空数组）。 */
 function navigationEditSideEffects(next, current, rendered) {
   const out = [];
+
+  // #1128 —— 声明的形状之外多出来的键。放行是对的（`as` 那种 cast 不管它们，拒的方向是「这个站
+  // 改不动」），但它们谁都不读 ⟹ 不说就是本票要治的那个静默失败。整段理由在 `undeclaredKeys` 上面。
+  // 🔴 排在最前面：这一条说的是「你写进去的那部分根本没生效」，下面几条说的是「生效了，而且别处
+  //    也跟着变 / 你这个站看不到」。先说没生效的那半，模型才可能在同一轮里把名字改对。
+  // 🔴 按 `next` 里现有的全部陌生键报，不是只报「这一次新加的」：磁盘上那份原来就带一个陌生键时，
+  //    「这次没动它」跟「它有人读」是两件事，而后者永远是假的。实测这台机器上 367 份真
+  //    navigation.json，带形状外键的 0 份 ⟹ 今天这条路只会被模型自己新写进去的键点亮。
+  const undeclared = undeclaredKeyPaths(next);
+  if (undeclared.length > 0) out.push(undeclaredKeysNote(undeclared));
   for (const e of SIDE_EFFECTS) {
     const from = e.read(current);
     const to = e.read(next);
@@ -373,9 +462,13 @@ function buildOwnedChanges(next, current) {
  * 它自带阳性对照（改那个 .ts 文件的副本，这把尺子每一种改法都必须有反应），少了对照，「对得上」
  * 也可能只是因为解析器一个字段都没读到。
  *
- * 🔴 **不认识的键一律放过**：`as` 那种 cast 只查「两个类型有没有足够重叠」，多出来的键 tsc 不管。
- *    实测：顶层加陌生键 / footer 里加陌生键 / cta 里加陌生键，三种 tsc 都 rc=0。查它们的方向是
- *    「正当的编辑被拒 ⟹ 这个站改不动」，也就是 #1013 r2 那道门踩过的坑。
+ * 🔴 **不认识的键一律放过**（这里说的是**拒不拒**，仍然成立）：`as` 那种 cast 只查「两个类型有没有
+ *    足够重叠」，多出来的键 tsc 不管。实测：顶层加陌生键 / footer 里加陌生键 / cta 里加陌生键，
+ *    三种 tsc 都 rc=0。查它们的方向是「正当的编辑被拒 ⟹ 这个站改不动」，也就是 #1013 r2 那道门
+ *    踩过的坑。
+ *    📌 **但「放过」不等于「不说」（#1128）**：那几个键谁都不读，写进去页面一个字不变，而聊天会说
+ *    「改好了」。所以放行的同时由 `undeclaredKeys` 点名它们，走的是 `PAGE_READS` 那条「照写 +
+ *    说实话」的通道。别把这一段读成「多出来的键这个模块一个字都不说」—— 那是 #1128 之前的样子。
  */
 const NAV_LINK = { kind: 'object', fields: { label: { kind: 'string' }, href: { kind: 'string' } } };
 const FOOTER_COLUMN = {
@@ -535,6 +628,7 @@ module.exports = {
   navigationEditRejection,
   navigationEditSideEffects,
   shapeProblems,
+  undeclaredKeyPaths,
   sameValue,
   NAVIGATION_EDITABLE_SUMMARY,
 };
