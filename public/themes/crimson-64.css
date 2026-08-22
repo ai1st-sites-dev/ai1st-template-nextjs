@@ -2181,3 +2181,12 @@
   line-height: 1.65;
   color: var(--color-primary-100);
 }
+
+.card-group__features {
+  display: grid;
+  gap: 0.5rem;
+  padding-left: 1.1rem;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--color-primary-100);
+}
