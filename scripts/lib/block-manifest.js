@@ -211,6 +211,10 @@ function promptEntryLegacyOnly(m) {
  *    照旧带那个块）。真因是这里：manifest 那一条自己就写着
  *    `Use ONLY on service detail pages` 和 `safe to include on all service detail pages`
  *    —— 在模型眼里就是「加它」。⟹ 光把散文改成有条件的不够，清单这一条也要跟着让开。
+ * 📌 #1140 已经把 `lines` 里那半句 `safe to include on all service detail pages` 删掉了
+ *    （`blocks/service-related-pages.json` 现在那一行讲的是「没有关键词页时它整块不渲染，
+ *    但仍占掉页面的一个位置」）；`headExtra` 那句 `Use ONLY on service detail pages` 原样还在。
+ *    上面这段是 #1134 r1 当时的读数，照原样留着 —— 它是 `omit` 这个参数存在的理由。
  */
 function promptSection(group, dir, { legacyOnly = false, order = null, omit = null } = {}) {
   const skip = new Set(omit || []);

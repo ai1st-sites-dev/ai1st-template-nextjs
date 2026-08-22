@@ -40,7 +40,7 @@
     "headExtra": "auto-discovers keyword pages under the given service slug. Use ONLY on service detail pages.",
     "lines": [
       "@data",
-      "NOTE: Returns null if no keyword pages exist — safe to include on all service detail pages."
+      "NOTE: This block renders nothing at all when the service it points at has no keyword pages under it. An empty one is invisible to visitors, but it still uses one of the page's section slots, so it is not free."
     ]
   }
 }

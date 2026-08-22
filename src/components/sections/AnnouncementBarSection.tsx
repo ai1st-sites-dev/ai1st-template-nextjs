@@ -27,8 +27,12 @@ interface AnnouncementBarSectionProps {
 //
 // 🔴 `dismissible` 那个关闭按钮删掉了，而它是本批唯一一支【带行为】被整支删掉的。判据不是「JS-free
 // 做不出来」（checkbox + label 做得出来），是**没有活的用户**：线上 6 个站 9 个实例全是 `solid` / `floating`，
-// dismissible 0 个；而它的第二身份（顶栏那条带）同样是死的 —— 30 套主题里 `topbar` 出现 0 次
-// （`grep -c topbar scripts/themes.js`），`resolveRegionLayout` 今天恒退回 `solid`。JS-free 复刻要往
+// dismissible 0 个；而它的第二身份（顶栏那条带）同样是死的 —— 注册表里 `topbar` 出现 0 次。
+// 🔴 分母写在这里（#1140，来源 #1083）：这句话原来写「30 套主题里」，那是**当时**注册表的全部；
+//    今天注册表是 **110 套**（退役 30 + 池子 80），本轮在这 110 套上重取，结论没变 —— 仍是 0 次。
+//    判据：`node -e "const t=require('./scripts/themes.js');
+//    console.log(Object.values(t.themes).filter(x=>JSON.stringify(x).includes('topbar')).length)"` → 0。
+//    `resolveRegionLayout` 今天恒退回 `solid`。JS-free 复刻要往
 // **每个站**的 markup 里塞一个 checkbox + 一个 label，而且跟今天的 `useState` 一样关不过刷新。
 // 为一个没人用的按钮给所有站加两个元素，正好是阶段 2 要拆掉的那种 markup。
 //

@@ -1294,10 +1294,39 @@ console.log('\n⑫ #1139 每个块在全池 80 套里有几副骨架（族清单
     ok(`⑫ 分母自检：第 0 套表 ${total} 条规则全部归到了某个块名下（没有读不到的规则）`);
   }
 
-  // 🔴 比「候选数」更高的那几个下限，逐个带理由（AC3 的「不许倒退」靠它兜住多条轴的情形）。
-  //    `content-split` 的 8 = 4 副画法 × 同页节奏那条轴的 2 档（`splitRhythm`，#1090）。
-  //    往这张表里加条目的时机：某个块的骨架又多了一条决定它的轴。
-  const EXTRA_FLOOR = new Map([['content-split', 8]]);
+  // ── 每个块的骨架种数下限，写成常量（#1140，来源 #1139）─────────────────────────────────────────
+  //
+  // 🔴 这张表原来只有一条（`content-split: 8`），其余每个块的下限是**现算的** —— `Math.max(L, …)`
+  //    里的 `L` 就是这一族候选表的条目数。那样写的话，**从候选表里删掉一副画法时 `L` 跟着掉、下限
+  //    也跟着掉**：种数 4 → 3 是绿的。QA3 真改坏跑过：`faq-accordion` 删掉 `centered` ⟹ 54 过 0 失败
+  //    全绿，那一格自己打的读数变成「3 副画法 → 3 种骨架（下限 3）」。一个「不许倒退」的下限如果由
+  //    当前输入现算，它测的是自洽，不是回归。
+  //
+  // 🔴 所以下限改成**常量**：下面每个数都是 2026-08-22 在真产物上量到的今天的种数（那一轮 ⑫ 的读数
+  //    逐字抄在这里）。真加了一副画法 ⟹ `L` 会超过它，`Math.max` 让下限跟着涨，不用改这张表；
+  //    真删了一副 ⟹ 下限不动，这一格当场红。**只有蓄意降低多样性时才需要改这里的数,改的时候写下理由。**
+  //
+  //    `content-split` 的 8 = 4 副画法 × 同页节奏那条轴的 2 档（`splitRhythm`，#1090）—— 它是唯一一个
+  //    今天就高于自己候选数的块，其余每个都恰好等于候选数。
+  const SHAPE_FLOOR = new Map([
+    ['hero', 8], ['contact-info', 3], ['contact-form', 6], ['faq-accordion', 4],
+    ['features-grid', 4], ['values-grid', 4], ['card-group', 4], ['testimonials', 4],
+    ['cta-banner', 5], ['page-header', 4], ['process-steps', 4], ['content-split', 8],
+    ['benefits-list', 3], ['service-highlights', 4],
+  ]);
+  // 🔴 分母自检：有候选表的块必须每个都在上面那张表里。漏一个，它的下限就悄悄退回「现算」，
+  //    也就是本条要治的那个洞 —— 而漏掉的样子跟没漏一模一样。
+  {
+    const famBlocks = [...new Set(LOOK_FAMILIES.flatMap((f) => f.blocks))].sort();
+    const missing = famBlocks.filter((b) => !SHAPE_FLOOR.has(b));
+    const extra = [...SHAPE_FLOOR.keys()].filter((b) => !famBlocks.includes(b));
+    if (missing.length || extra.length) {
+      die(`⑫ SHAPE_FLOOR 跟候选表族对不上：表里缺 [${missing}] · 表里多出 [${extra}] —— `
+        + '缺的那些下限会退回「按当前候选数现算」，那正是 #1139 要治的洞；'
+        + '新加一族候选表时，把它今天在真产物上的种数写进 SHAPE_FLOOR。');
+    }
+    ok(`⑫ 分母自检：${famBlocks.length} 个有候选表的块每个都在 SHAPE_FLOOR 里（下限是常量，不随候选数缩水）`);
+  }
 
   // ── 每个块该有几副：有候选表的 == 那张表的候选数；没有的 == cols 写死就 1 副、落到 v.wide 就 2 副
   const varietyOf = (b, opts = {}) => new Set(sheets.map((x) => (opts.baseOnly ? x.fp.base : x.fp.desktop).get(b))).size;
@@ -1335,12 +1364,13 @@ console.log('\n⑫ #1139 每个块在全池 80 套里有几副骨架（族清单
       //    一个块的骨架可以由**不止一条轴**决定 —— `content-split` 有 4 副画法却读到 8 种，因为
       //    同页节奏（`splitRhythm`）又乘了 2。假如哪天那条轴塌成一个值，种数 8 → 4，而四副画法
       //    仍然两两不同 ⟹ 上面那格照样绿。所以这里再钉一个**下限**。
-      //    下限默认就是这一族的候选数（今天除 content-split 外每族都恰好等于它）；比候选数更高的
-      //    那几个逐个写在下面这张表里，连理由一起。
-      const floor = Math.max(L, EXTRA_FLOOR.get(b) || 0);
+      //    下限是 `SHAPE_FLOOR` 里那个**常量**（#1140 改的就是这里：原来是 `Math.max(L, extra)`，
+      //    删掉一副画法时 `L` 一起掉、下限也跟着掉 ⟹ 倒退是绿的）。`Math.max` 留着，是为了让
+      //    「真加了一副画法」自动把下限顶上去，不用回来改表。
+      const floor = Math.max(L, SHAPE_FLOOR.get(b) || 0);
       if (got < floor) {
         problems.push(`${b}：只读到 ${got} 种骨架，下限是 ${floor}`
-          + (EXTRA_FLOOR.has(b) ? `（${EXTRA_FLOOR.get(b)} 那个数的出处见 EXTRA_FLOOR 那张表）` : '（= 它的候选数）'));
+          + `（SHAPE_FLOOR 记的是 ${SHAPE_FLOOR.get(b)}，这一族今天有 ${L} 副画法）`);
       }
       said.push(`${b} ${L} 副画法 → ${got} 种骨架（下限 ${floor}）`);
     }
@@ -1477,7 +1507,7 @@ console.log('\n⑫ #1139 每个块在全池 80 套里有几副骨架（族清单
       }
     }
     const L = Object.keys(fam.table).length;
-    const floor = Math.max(L, EXTRA_FLOOR.get(target) || 0);
+    const floor = Math.max(L, SHAPE_FLOOR.get(target) || 0);
     if (riggedVariety < floor && stillDisjoint) {
       ok(`⑫ 阳性对照 C：把 ${target} 的同页节奏那条轴塌掉 ⟹ 种数 ${varietyOf(target)} → ${riggedVariety}`
         + `，低于下限 ${floor} 会被点名，而「${L} 副画法两两不同」那一条**照样绿** —— 所以下限那一条`

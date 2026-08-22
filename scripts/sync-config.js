@@ -974,8 +974,11 @@ const configDataPath = path.join(rootDir, 'src', 'lib', 'config-data.ts');
 // 颜色：`brand.colors` —— 🔴 #1121 之后它就是页面上生效的那一组，构建期不再有任何覆盖
 // （这句以前写的是「换过装的站，上面某一行已经把它换成了那套主题的调色板」）。
 // 圆角 / 留白 / 按钮形状：写了风格设定的站由那张档位表说了算，没写的站落在 `globals.css` 的
-// `:root` 默认值上。**两者不是同一组数**：30 套主题里只有 3 套的设定恰好等于默认值，
-// 其余 27 套不是（实测：`round/airy/pill` 5 套、`sharp/compact/square` 5 套…）。只读 globals.css
+// `:root` 默认值上。**两者不是同一组数**：**退役的那 30 套**里只有 3 套的设定恰好等于默认值，
+// 其余 27 套不是（本轮现读：`sharp/standard/square` 3 套、`round/airy/pill` 5 套、
+// `sharp/compact/square` 5 套…）。🔴 语料写在这里（#1140，来源 #1083）：那 30 套 == 今天 `themes.js`
+// 的 `retiredThemes`，而今天注册表是 **110 套**（退役 30 + 池子 80）。上面那几个数**只对那 30 套成立**
+// —— 池子那 80 套的 settings 是**数值形状**（`radius: 16`），根本不走档位表。只读 globals.css
 // 的话，一个 `radius: 'round'`（0.5rem）的站会被按 0.25rem 去乘 —— 圆角不是变大，是**变小一半**。
 /** 再读一次 theme.json，只取一个键（上面那两个读它的函数各自也只取自己那一个）。 */
 function readThemeKey(key) {

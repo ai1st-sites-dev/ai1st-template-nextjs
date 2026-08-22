@@ -41,6 +41,15 @@ interface TextBlockSectionProps {
 // #1018 booked for cta-banner and #1027 for values-grid's numerals — the frozen 30-theme pool is
 // being retired and phase 3 generates the real one against the final contract. If two columns turn
 // out to matter, the fix is one line in contract §2, not a branch back in here.
+// 🔴 THAT SENTENCE IS IN THE PAST TENSE NOW (#1140, from #1083). Both halves of it have happened:
+//    read freshly on 2026-08-22 — `themes.js` exports 110 themes, 30 of which are `retiredThemes`
+//    (that is the frozen pool this paragraph means) and 80 are the generated `poolThemes` phase 3
+//    produced. So "30" here is NOT a claim about how many themes the registry has; it names the
+//    retired set. Re-take it with
+//      node -e "const t=require('./scripts/themes.js');
+//               console.log(Object.keys(t.themes).length, Object.keys(t.retiredThemes).length)"
+//    The measured cost above (4 of the 22 text-blocks on the six live sites) is still the cost of
+//    this batch's change and is unaffected by the pool growing — it counts SITES, not themes.
 //
 // 🔴 THE EM DASH BEFORE THE ATTRIBUTION IS GONE, for a reason worth writing down once for the whole
 // batch: contract §2 allows `content` only as the EMPTY string, so punctuation a sheet would want to

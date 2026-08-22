@@ -156,7 +156,7 @@ const EDITABLE_SUMMARY =
  */
 function navigationRejection(normalized, ctx) {
   if (!ctx || typeof ctx.content !== 'string' || typeof ctx.readCurrent !== 'function') {
-    return `${normalized} cannot be checked here right now, so nothing was written. `
+    return `${JSON.stringify(normalized)} cannot be checked here right now, so nothing was written. `
       + `Only the parts of it the build does not rebuild can be changed. ${NAVIGATION_EDITABLE_SUMMARY}`;
   }
   let next;
@@ -206,7 +206,9 @@ function resolveRel(relPath) {
   const parts = normalized.split('/').filter((s) => s !== '' && s !== '.');
   if (parts.length === 0) return { bad: 'Invalid path: empty.' };
   const { locale, rest } = splitLocale(parts);
-  return { normalized, canonical: parts.join('/'), locale, rest };
+  // 🔴 #1140 —— `relPath` 原样带出来:拼写那一问(`spellingMismatch`)问的是「模型给的这串字节」,
+  //    归一化之后的 `normalized` 已经把差抹掉了,拿它去问必然恒等。
+  return { relPath, normalized, canonical: parts.join('/'), locale, rest };
 }
 
 /**
@@ -339,7 +341,7 @@ function wrongPlaceForShape(normalized, locale, rest, shape) {
   if (!shape.flat && !locale) {
     const has = shape.locales.length ? ` (this site has: ${shape.locales.join(', ')})` : '';
     const suggest = shape.locales.length ? ` Write ${shape.locales[0]}/${bare} instead — one file per language.` : '';
-    return `${normalized} is not where this site keeps its content. This site is a multi-language site: `
+    return `${JSON.stringify(normalized)} is not where this site keeps its content. This site is a multi-language site: `
       + `its content files live under site/<language>/${has}, and the build only reads those. A file `
       + `written at the top of site/ is read by nothing, so it would be saved and the site would not `
       + `change.${suggest}`
@@ -347,7 +349,7 @@ function wrongPlaceForShape(normalized, locale, rest, shape) {
   }
 
   if (shape.flat && locale) {
-    return `${normalized} is not where this site keeps its content. This site is a single-language site `
+    return `${JSON.stringify(normalized)} is not where this site keeps its content. This site is a single-language site `
       + `with a flat layout: its content files live directly under site/ (there is no site/${locale}/), `
       + `and the build only reads those. A file written under site/${locale}/ is read by nothing, so it `
       + `would be saved and the site would not change. Write ${bare} instead.`
@@ -374,6 +376,13 @@ function wrongPlaceForShape(normalized, locale, rest, shape) {
 function writeNotes(relPath, ctx) {
   const r = resolveRel(relPath);
   if (r.bad || !isNavigationJson(r.rest)) return [];
+  // 🔴 #1140 —— 「我判的那个文件,就是落盘那一行会写的那个吗」这道门原来只装在 `writeRejection` 上。
+  //    今天这条路没被绕过,靠的是 `edit-site.js:447` 那个 `if (notWritable) return` 的**调用顺序**
+  //    (先问拒绝、拒了就不往下走),不是按构造 —— 将来有第二个调用方只调 `writeNotes` 时,这一维对他
+  //    一个字都不说,而它说出来的每一句都是关于**另一个文件**的(下面整段都建立在 `readCurrent(normalized)`
+  //    读到的那份上)。这里的正确方向是闭嘴而不是拒:`writeNotes` 的产出是提示,拒绝始终是
+  //    `writeRejection` 的职责,两个函数各说各的话会让调用方拿到互相矛盾的两句。
+  if (spellingMismatch(r.relPath, r.canonical)) return [];
   if (!ctx || typeof ctx.content !== 'string' || typeof ctx.readCurrent !== 'function') return [];
   let next;
   try { next = JSON.parse(ctx.content); } catch (e) { return []; }
@@ -422,12 +431,21 @@ function contentVerdict(r, ctx) {
   // navigation.json —— 有条件可写（#1104）。多语言站是 `<locale>/navigation.json`、老扁平站是
   // 根级那份，`splitLocale` 已经把两种都化成 rest === ['navigation.json']。
   if (isNavigationJson(rest)) {
+    // 🔴 #1140 —— 这一支【必须】先问拼写,而下面那几支不用。差别不是偏好,是这句话说得出口的前提:
+    //    navigation 的裁决是**读了磁盘上那份、比出改了哪几处**之后才有的,而拼写不对时读的就是别的
+    //    文件 ⟹ `readCurrent` 读不到 ⟹ 它回「没法跟磁盘那份比对,先 read_file 一次」。那句话方向指错
+    //    (真正的毛病是路径拼法),而且它建议的动作**做不成** —— 对同一个带尾斜杠的路径 read_file 一样读不到。
+    //    实测三种拼法同样:`en/navigation.json/` · `en/navigation.json//` · `en/./navigation.json/`(#1109 r2 报的)。
+    //    其余几支(形状 / REJECT_REASON / 白名单落空)的理由都不依赖读磁盘,拼写对不对它们照样成立,
+    //    而且它们更具体 ⟹ 保持原来的次序(理由在 `spellingMismatch` 末段那个 📌)。
+    const spelling = spellingMismatch(r.relPath, r.canonical);
+    if (spelling) return spelling;
     return navigationRejection(normalized, ctx);
   }
 
   const reason = REJECT_REASON[rest.join('/')];
   if (reason) return `${reason}\n\nNothing was written. ${EDITABLE_SUMMARY}`;
-  return `${normalized} is not one of this site's content files, so it cannot be written from here.`
+  return `${JSON.stringify(normalized)} is not one of this site's content files, so it cannot be written from here.`
     + `\n\nNothing was written. ${EDITABLE_SUMMARY}`;
 }
 

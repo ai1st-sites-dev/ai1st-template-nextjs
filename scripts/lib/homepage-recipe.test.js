@@ -327,6 +327,9 @@ try {
   //    = 18/18 照旧带那个块，与基线那次 6/6 逐个相同。真因是**清单**那一条自己就在说「加它」：
   //    `blocks/service-related-pages.json` 的 `headExtra` 是 `Use ONLY on service detail pages`，
   //    它的 `lines` 里还有 `safe to include on all service detail pages` ⟹ 模型照做。
+  //    📌 #1140 已经把 `lines` 里那半句删掉了（现在那一行讲的是「没有关键词页时它整块不渲染，
+  //    但仍占掉页面的一个位置」）；`headExtra` 那句原样还在。上面记的是 #1134 r1 当时的读数，
+  //    照原样留着。这一格的针是从 manifest 现算的，所以那次改动不用动这里的代码。
   //    所以 r2 让清单那一条也让开（`promptSection` 的 `omit`），本格的针也跟着从「两句散文」
   //    扩到「清单那一条的每一行」。
   // 🔴 针**不写死**：清单那几行从 manifest 现算（开着的那份 minus 关掉的那份），否则这里就是

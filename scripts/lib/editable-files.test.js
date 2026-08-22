@@ -569,5 +569,96 @@ console.log('⑨ 这个语言这个站有吗（#1138）');
   }
 }
 
+// ── ⑩ #1140（来源 #1109 r2 的两条轻微项）：navigation.json 那条路上「拼写」要排在「读磁盘」前面 ──
+//
+// 🔴 ⑧ 那一组量的是 `seo.json` —— 它走的是**兜底**那条分支，`spellingMismatch` 在函数末尾就能接住。
+//    `navigation.json` 不一样：它在 `contentVerdict` 里有自己的分支（#1104 那道窄口子），而那句裁决是
+//    **读了磁盘上那份、比出改了哪几处**之后才有的 ⟹ 拼写不对时读的就是别的文件，于是它回
+//    「没法跟磁盘那份比对，先 read_file 一次」。那句话方向指错（真毛病是路径拼法），而且它建议的
+//    动作**做不成** —— 对同一个带尾斜杠的路径 read_file 一样读不到。
+// 🔴 夹具的承重件是 `readCurrent` 必须**按路径**答话（真的那个是 `edit-site.js:420-423`：
+//    `fs.existsSync(path.join(siteDir, p)) ? read : null`）。第一版我写成「不看参数、一律回内容」，
+//    于是拼错的路径也「比对成功」⟹ 走到末尾那一问、拿到拼写提示，**两臂都绿、这一格什么都没测**。
+const NAV10 = {
+  header: { links: [{ label: 'Home', href: '/' }], cta: { label: 'Book', href: '/contact' } },
+  footer: { description: 'Serving the GTA.', columns: [], copyright: 'Northside Inc.' },
+};
+const MISSPELLED = ['en/navigation.json/', 'en/navigation.json//', 'en/./navigation.json/'];
+{
+  const fs10 = require('fs');
+  const Module10 = require('module');
+  const REAL10 = path.join(__dirname, 'editable-files.js');
+  const src10 = fs10.readFileSync(REAL10, 'utf-8');
+  const compile = (src) => {
+    const m = new Module10(REAL10, module);
+    m.filename = REAL10; m.paths = Module10._nodeModulePaths(path.dirname(REAL10));
+    m._compile(src, REAL10); return m.exports;
+  };
+  // 只有正确拼法在"盘"上；拼错的读不到 —— 跟真 readCurrent 一样
+  const disk = { 'en/navigation.json': JSON.stringify(NAV10) };
+  const ctx10 = {
+    readSiteShape: () => ({ flat: false, locales: ['en'] }),
+    content: JSON.stringify({ ...NAV10, topbar: { message: '24h emergency', link: { label: 'Call', href: '/contact' } } }),
+    readCurrent: (p) => (Object.prototype.hasOwnProperty.call(disk, p) ? disk[p] : null),
+  };
+
+  // ⑩a 三种拼错的写法都要拿到**拼写**那句，而不是「读不到磁盘那份」那句
+  {
+    const wrong = MISSPELLED.filter((p) => {
+      const why = String(writeRejection(p, ctx10) || '');
+      return !/does not name the file it looks like/.test(why);
+    });
+    if (wrong.length === 0) {
+      ok(`⑩a navigation.json 的 ${MISSPELLED.length} 种拼错写法都拿到「这串字节指的不是那个文件」，不是「先 read_file」`);
+    } else bad(`⑩a 这些拿到的还是别的理由：${wrong.map((p) => JSON.stringify(p)).join(' · ')}`);
+  }
+
+  // ⑩b 阳性对照：把本票加的那两行从**真源码**里摘掉（在内存里编译，不往交付树放探针），
+  //     ⑩a 必须回到「读不到磁盘那份」—— 否则 ⑩a 的绿不是这两行挣来的。
+  {
+    const A1 = "    const spelling = spellingMismatch(r.relPath, r.canonical);\n";
+    const A2 = "    if (spelling) return spelling;\n";
+    const n1 = src10.split(A1).length - 1, n2 = src10.split(A2).length - 1;
+    if (n1 !== 1 || n2 !== 1) {
+      bad(`⑩b 阳性对照立不起来：那两行在 editable-files.js 里各出现 ${n1} / ${n2} 次（要求各 1 次）—— 写法改了就来更新这一格`);
+    } else {
+      const ungated10 = compile(src10.replace(A1, '').replace(A2, '')).writeRejection;
+      const back = MISSPELLED.filter((p) => /could not be compared with the copy on disk/.test(String(ungated10(p, ctx10) || '')));
+      if (back.length === MISSPELLED.length) {
+        ok(`⑩b 阳性对照：摘掉那两行，${MISSPELLED.length} 种拼错写法全部回到「没法跟磁盘那份比对」 —— ⑩a 量的就是这两行`);
+      } else bad(`⑩b 摘掉之后只有 ${back.length}/${MISSPELLED.length} 回到旧理由 —— ⑩a 的绿有一部分不是这两行给的`);
+      // 不许连正确拼法一起掐掉
+      if (ungated10('en/navigation.json', ctx10) === null) {
+        ok('⑩b 同一个变异下正确拼法仍然放行 ⟹ 这次摘掉的确实只是拼写那一问');
+      } else bad('⑩b 那个变异把正确拼法也拒了 ⟹ 上面那格证明不了「只摘了拼写那一问」');
+    }
+  }
+
+  // ⑩c writeNotes 也要自己问一次拼写（#1109 r2 的第二条）。
+  //     🔴 今天它**碰巧**是 []（`JSON.parse(null)` 抛，被 catch 吞掉），所以这一格必须在
+  //     「拼错的路径也解析得出内容」的场景里量 —— 那正是那条轻微项说的「将来的第二个调用方」。
+  {
+    const disk2 = { 'en/navigation.json': JSON.stringify(NAV10), 'en/navigation.json/': JSON.stringify(NAV10) };
+    const ctx2 = { ...ctx10, readCurrent: (p) => (Object.prototype.hasOwnProperty.call(disk2, p) ? disk2[p] : null) };
+    const spoke = mod.writeNotes('en/navigation.json/', ctx2);
+    const proper = mod.writeNotes('en/navigation.json', ctx2);
+    if (spoke.length === 0 && proper.length > 0) {
+      ok('⑩c 拼错的路径即使解析得出内容，writeNotes 也闭嘴；而正确拼法照常说话（不是把它一起掐掉）');
+    } else {
+      bad(`⑩c writeNotes 对拼错的路径说了 ${spoke.length} 条话（应为 0）、对正确拼法说了 ${proper.length} 条（应 >0）`);
+    }
+    const GATE = "  if (spellingMismatch(r.relPath, r.canonical)) return [];\n";
+    const nG = src10.split(GATE).length - 1;
+    if (nG !== 1) {
+      bad(`⑩c 阳性对照立不起来：那道门在 editable-files.js 里出现 ${nG} 次（要求 1 次）`);
+    } else {
+      const un = compile(src10.replace(GATE, '')).writeNotes;
+      if (un('en/navigation.json/', ctx2).length > 0) {
+        ok('⑩c 阳性对照：摘掉那道门，writeNotes 又开始对**另一个文件**说话 —— 上面那格量的就是它');
+      } else bad('⑩c 摘掉那道门之后 writeNotes 照样闭嘴 ⟹ 上面那格什么都没证');
+    }
+  }
+}
+
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);
