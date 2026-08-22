@@ -41,7 +41,12 @@ const { RADIUS, BUTTON_SHAPE } = require('./theme-settings');
  * 🔴 #1134 —— 这两句原来写的是「注册表里 **30** 套主题有 **9** 套过不了 … 报红 **11** 套」。分母早就
  * 不是 30（#1016 起是 80 池 + 30 退役 = 110），而分子也不对。**这个数必须现算**，别抄这里：
  *
- *     node -e "const t=require('./scripts/themes.js').themes; …"   ← 判据是三对/四对配色 × 4.5:1
+ *     node -e "const t=module.require('./scripts/themes.js').themes; …"  ← 判据是三对/四对配色 × 4.5:1
+ *   🔴 上面写成 `module.require` 不是笔误。`dashboard/vite.config.ts` 的 ai1st-tweaks-engine 把
+ *      **本文件的整份文本（注释也算）**拿正则扫「require 后面跟一对括号」：括号里是字面量的，
+ *      那个模块名必须在它的 require map 里；括号里不是字面量的，两个计数对不上——两种都当场让
+ *      dashboard 构建失败。#1134 ship 之后 CI 的 release 那格就是这么红的（当时这一行是裸写法）。
+ *      前面加个 `module.` 那个点让它两条正则都不命中，而 `node -e` 里 `module.require` 真能跑。
  *
  * 🔴 而且「报红 N 套」这句话**必须点名是哪几对配色**，否则它不可复算：2026-08-21（origin/main 7be6d585） 实测，
  *    hover 那一对取 `gray-900 / accent-500`（`.btn-accent:hover` 真正的那一对，见 globals.css
