@@ -2164,15 +2164,3 @@
   line-height: 1.7;
   color: var(--color-primary-700);
 }
-
-/* #1143 — the generic card group's item-level feature list, batch 2's one new hook.
-   Geometry is what this sheet already says about `.service-highlights__features` (the block
-   that brought the list in); the ink is `.card-group__desc`'s, because the list sits on the
-   card group's ground, not on service-highlights'. Both old prefixes stay exactly as they are. */
-.card-group__features {
-  display: grid;
-  gap: 0.375rem;
-  font-size: 0.875rem;
-  line-height: 1.6;
-  color: var(--color-primary-700);
-}

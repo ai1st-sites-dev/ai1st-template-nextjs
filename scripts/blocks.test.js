@@ -12,9 +12,6 @@
  *   · 忘了显式写 `role`      → `blockAttrs` 按新 type 名查表、查不到、落到兜底的 `essential`
  *   · 别名凭空造 `block_layout` → 产物上多一个属性
  *   · `values-grid` 那条路画出副标题 → 页面上凭空多一行（它的 manifest 从来没有这个槽位）
- *   · #1143：`checklist` 的 `[string]` 没升成 `[{title}]` → 组件读 `item.title` 读到 undefined，
- *     产物里每个条目变成一行空字；`service-highlights` 的 `highlights` 没映到 `items` → 整块的条目
- *     一个都不画。两种都不会让构建变红
  * 真正的读数是「重建前后逐字节相同」那套（映射文档 §2.6，交接留言里贴了四格）。这里守的是它下面
  * 那几条**性质** —— 那套要跑两次完整构建，不可能每次改动都跑。
  */
@@ -49,20 +46,13 @@ if (generic.length === 0) die('别名表里没有「键 == 它自己的 type」�
 console.log(`══ 别名表: ${legacy.length} 条老名字（${legacy.join(' ')}）· `
   + `${generic.length} 个通用块（${generic.join(' ')}）══`);
 
-// `CardGroupSection` 里条目那三支各自的标签 —— 表里写别的值就没有对应的分支（#1143）。
-const ITEM_TAGS = ['div', 'p', 'article'];
-
 // ── ① 每一行写齐 §2.1 那四件事 ──────────────────────────────────────────────────────────────────
 for (const name of Object.keys(BLOCK_ALIASES)) {
   const row = BLOCK_ALIASES[name];
-  const missing = ['type', 'role', 'block_layout', 'data', 'itemTag', 'headingId', 'parts']
+  const missing = ['type', 'role', 'block_layout', 'data', 'headingId', 'parts']
     .filter((k) => !Object.prototype.hasOwnProperty.call(row, k));
   if (missing.length) bad(`${name}: 别名表这一行缺 ${missing.join(' / ')}`);
-  else if (!ITEM_TAGS.includes(row.itemTag)) {
-    // #1143 —— `itemTag` 是产物 DOM 上看得见的字节（`<p>` / `<article>` / `<div>`）。写了个
-    // `CardGroupSection` 没有分支的值，那一支会画成一个未知标签而构建照样是绿的。
-    bad(`${name}: itemTag 写着 ${JSON.stringify(row.itemTag)}，而组件只有 ${ITEM_TAGS.join(' / ')} 三支`);
-  } else if (row.block_layout !== null) {
+  else if (row.block_layout !== null) {
     bad(`${name}: block_layout 写着 ${JSON.stringify(row.block_layout)} —— 别名不许造一个`
       + '（老站那条路上没有它，造了产物就多一个 data-block-layout 属性）');
   } else if (row.role !== roles[name]) {
@@ -132,67 +122,6 @@ for (const [shapeName, page] of [
   if (b.type !== 'card-group' || !b.__legacyType) {
     bad(`${shapeName}: 归一化之后没走别名（type=${b.type} __legacyType=${b.__legacyType}）`);
   } else ok(`${shapeName}: 归一化之后 type=${b.type} · __legacyType=${b.__legacyType} · role=${b.role}`);
-}
-
-// ── ⑥ #1143：`[string]` 升成 `[{title}]`，两条路各问一次 ────────────────────────────────────
-// 🔴 两条路是**不同的**代码分支：`checklist` 走别名的改名分支；直接写通用块名字的那条在
-//    applyAlias 里提前返回（「键 == 它自己的 type」），归一化必须在它之后也发生。
-//    AC3 的反向那一半就是第二条：喂裸字符串数组给新 type 名，读数要么被拒、要么被规范化。
-{
-  const viaAlias = applyAlias({ type: 'checklist', data: { headline: 'H', items: ['甲', '乙'], variant: 'cards' } });
-  const want = JSON.stringify([{ title: '甲' }, { title: '乙' }]);
-  if (JSON.stringify(viaAlias.data.items) !== want) {
-    bad(`checklist 的 [string] 没升成 [{title}]: ${JSON.stringify(viaAlias.data.items)}`);
-  } else if (viaAlias.data.variant !== 'cards') {
-    bad('「继续忽略」的 variant 在归一化时被删掉了');
-  } else ok(`checklist: items 升成 ${want} · variant 原样留着`);
-
-  const direct = applyAlias({ type: 'card-group', data: { items: ['裸串'] } });
-  if (JSON.stringify(direct.data.items) !== JSON.stringify([{ title: '裸串' }])) {
-    bad(`直接写通用块名字时裸字符串没被规范化: ${JSON.stringify(direct.data.items)}`);
-  } else ok('通用块自己那条路上，裸字符串数组也被规范化成 [{title}]（AC3 反向那一半）');
-
-  // 反向对照：本来就是对象的，一个字节都不动（同一个数组引用）—— 批 1 那两条路要靠这一条
-  const objs = [{ title: 'a', description: 'b' }];
-  const untouched = applyAlias({ type: 'values-grid', data: { items: objs } });
-  if (untouched.data.items !== objs) {
-    bad('items 本来就是对象时归一化仍然换掉了那个数组 —— 批 1 的「逐字节不变」会被这一步弄假');
-  } else ok('反向对照: items 本来就是对象时，归一化是恒等的（同一个数组引用）');
-}
-
-// ── ⑦ #1143：`highlights` 这个槽位名映到 `items`，而且通用块上没有它 ──────────────────────────
-{
-  const out = applyAlias({ type: 'service-highlights', data: { headline: 'H', highlights: [{ title: 't', description: 'd', features: ['f'] }] } });
-  if (Object.prototype.hasOwnProperty.call(out.data, 'highlights')) {
-    bad('service-highlights 的 highlights 槽位没被改名 —— 通用块读 data.items，条目一个都画不出来');
-  } else if (!Array.isArray(out.data.items) || out.data.items[0].title !== 't') {
-    bad(`highlights → items 改名之后内容不对: ${JSON.stringify(out.data)}`);
-  } else if (out.data.items[0].features[0] !== 'f') {
-    bad('子项的 features 字段在改名时丢了');
-  } else ok('service-highlights: highlights → items（子项的 features 原样跟过来）');
-
-  // 🔴 §2.5 坑三那一族：磁盘上写着改名的**目标**名字、而**源**名字没有。那个键老组件从来没读过
-  //    （本票删掉的 `ServiceHighlightsSection` 读 `data.highlights`），所以那一块今天在页面上是空的；
-  //    别名把 `items` 变成通用块真会读的槽位之后，不删它 = 线上凭空长出内容，而没人决定过。
-  const misKeyed = applyAlias({ type: 'service-highlights', data: { headline: 'H', items: [{ title: '老组件从没读过的内容' }], variant: 'tabs' } });
-  if (Object.prototype.hasOwnProperty.call(misKeyed.data, 'items')) {
-    bad(`磁盘写成 items(而没有 highlights)时，那个键被接上了: ${JSON.stringify(misKeyed.data.items)} —— 线上会凭空多出内容`);
-  } else if (misKeyed.data.variant !== 'tabs' || misKeyed.data.headline !== 'H') {
-    bad(`删 items 时把别的字段也带走了: ${JSON.stringify(misKeyed.data)}`);
-  } else ok('磁盘写成 items 而没有 highlights ⟹ 那个键被丢掉，这一块仍然是空的（§2.5 坑三）');
-
-  // 反向对照：两个都写了，`highlights` 赢 —— 老组件读的就是它
-  const both = applyAlias({ type: 'service-highlights', data: { highlights: [{ title: '真内容' }], items: [{ title: '看不见的' }] } });
-  if (both.data.items[0].title !== '真内容') {
-    bad(`两个键都在时赢的不是 highlights: ${JSON.stringify(both.data.items)}`);
-  } else ok('反向对照: 两个键都写了时 highlights 赢（老组件读的就是它）');
-
-  const manifest = require(path.join(NEXT, 'blocks', 'card-group.json'));
-  const slots = Object.keys(manifest.slots || {});
-  const lists = slots.filter((k) => manifest.slots[k].kind === 'list');
-  if (slots.includes('highlights')) bad('通用块的 manifest 上还有 highlights 这个槽位（AC4）');
-  else if (lists.length !== 1) bad(`通用块的 manifest 上有 ${lists.length} 个列表槽位（${lists.join(' ')}）—— 只能有一种`);
-  else ok(`通用块 manifest 的槽位是 {${slots.join(' ')}}，列表槽位只有 ${lists[0]}（AC3/AC4）`);
 }
 
 // ── ⑤ 反向对照：把别名的「带老词汇」那一半拿掉，上面第 ③ 格必须红 ──────────────────────────

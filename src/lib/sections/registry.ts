@@ -25,8 +25,10 @@ import SocialProofSection from '@/components/sections/SocialProofSection';
 import DividerSection from '@/components/sections/DividerSection';
 import AnnouncementBarSection from '@/components/sections/AnnouncementBarSection';
 import TimelineSection from '@/components/sections/TimelineSection';
+import ServiceHighlightsSection from '@/components/sections/ServiceHighlightsSection';
 import NewsletterSignupSection from '@/components/sections/NewsletterSignupSection';
 import MapAreaSection from '@/components/sections/MapAreaSection';
+import ChecklistSection from '@/components/sections/ChecklistSection';
 import AwardsCertificationsSection from '@/components/sections/AwardsCertificationsSection';
 import BlogPreviewSection from '@/components/sections/BlogPreviewSection';
 import ServiceRelatedPagesSection from '@/components/sections/ServiceRelatedPagesSection';
@@ -36,13 +38,11 @@ export const sectionRegistry: Record<string, ComponentType<any>> = {
   'hero': HeroSection,
   'trusted-brands': TrustedBrandsSection,
   'features-grid': FeaturesGridSection,
-  // #1132 / #1143 —— 五个键一个组件：`card-group` 是通用块自己的名字，四个老名字是它的别名
-  // （批 1 `values-grid` + `benefits-list`，批 2 `checklist` + `service-highlights`）。
+  // #1132 —— 三个键一个组件：`card-group` 是通用块自己的名字，两个老名字是它的别名。
   // 别名在构建期就把 `type` 换成了 `card-group`（`scripts/blocks.js` 的 applyAlias），所以走到
-  // 这里的恒是那个键；老名字这几条留着是**射程**：`scripts/block-migration/gen-allblocks.js`
+  // 这里的恒是那个键；老名字这两条留着是**射程**：`scripts/block-migration/gen-allblocks.js`
   // 和 `tests/e2e/fixtures/978-arms.mjs` 都从这张表派生「每种块各一次」那一页，少了它们，
-  // `.values-grid__*` / `.benefits-list__*` / `.checklist__*` / `.service-highlights__*`
-  // 这 22 个钩子就从被量的页面上消失了。
+  // `.values-grid__*` / `.benefits-list__*` 这 11 个钩子就从被量的页面上消失了。
   'card-group': CardGroupSection,
   'values-grid': CardGroupSection,
   'testimonials': TestimonialsSection,
@@ -68,10 +68,10 @@ export const sectionRegistry: Record<string, ComponentType<any>> = {
   'divider': DividerSection,
   'announcement-bar': AnnouncementBarSection,
   'timeline': TimelineSection,
-  'service-highlights': CardGroupSection,
+  'service-highlights': ServiceHighlightsSection,
   'newsletter-signup': NewsletterSignupSection,
   'map-area': MapAreaSection,
-  'checklist': CardGroupSection,
+  'checklist': ChecklistSection,
   'awards-certifications': AwardsCertificationsSection,
   'blog-preview': BlogPreviewSection,
   'service-related-pages': ServiceRelatedPagesSection,

@@ -56,11 +56,9 @@ function roleFor(type) {
 //    它们，而删了会让 `scripts/theme-gallery/verify-applied.mjs` 那格对不上账（它拿磁盘上的
 //    `data.variant` 跟产物里的比）。本批两个来源块的字段名跟通用块逐字相同 ⟹ 改名一处都不发生，
 //    `data` 连对象都不换。
-//
-// 🔴 #1143 —— `data` 那条「一个字节都不改」有**一个**例外，写在下面 `normalizeGenericItems` 上。
 function applyAlias(block) {
   const row = BLOCK_ALIASES[block.type];
-  if (!row || row.type === block.type) return normalizeGenericItems(block);
+  if (!row || row.type === block.type) return block;
   const out = { ...block, type: row.type, __legacyType: block.type };
   if (out.role === undefined) out.role = row.role;
   const data = { ...(block.data || {}) };
@@ -71,53 +69,10 @@ function applyAlias(block) {
       data[to] = data[from];
       delete data[from];
       renamed += 1;
-    } else if (Object.prototype.hasOwnProperty.call(data, to)) {
-      // 🔴 #1143 —— 改名的**源没有、而目标名字在磁盘上有**。这是映射文档 §2.5 坑三那一族：
-      //    那个键**老组件从来没读过**（本票删掉的 `ServiceHighlightsSection` 读的是 `data.highlights`，
-      //    磁盘上写成 `items` 的那些块今天在页面上是空的 —— `scripts/lib/block-manifest.js` 顶上
-      //    那段 #999 的实测里点了这种站的名）。别名把 `items` 变成通用块**真会读**的那个槽位之后，
-      //    不删它就等于「顺手接上」：线上一块本来空着的地方**突然长出内容**，而没有人决定过这件事。
-      //    判据写成一句话就是：新组件读 `data[to]`，老组件读 `data[from]` ⟹ 源不在，目标也必须不在。
-      delete data[to];
-      renamed += 1;
     }
   }
   if (renamed) out.data = data;
-  return normalizeGenericItems(out);
-}
-
-// 通用块有几个 —— 从表自己推，不写死名字。「键 == 它自己的 type」那些行就是通用块自己，
-// 而每一条别名的 `type` 也指着它们，所以取全部 `type` 的集合就是「本仓今天有哪些通用块」。
-const GENERIC_TYPES = new Set(Object.values(BLOCK_ALIASES).map((r) => r.type));
-
-// ── 通用块的列表槽位归一：`[string]` 升成 `[{title}]`（#1143）─────────────────────────────────
-//
-// 映射文档 §1.3 那条 🔴 逐字：「升成 `[{title}]`，`description` 缺省。反方向（通用块同时收字符串
-// 和对象）会把『这一项有没有描述』变成两种写法，而建站 AI 是照 manifest 写的 —— 两种写法就是两条
-// 要一直维护下去的路。」本批把 `checklist`（磁盘上是 `items: ["甲","乙"]`）并进卡片组，它是仓里
-// 唯一一个 `[string]` 的列表槽位。
-//
-// 🔴 **归一在这里做、不在组件里做**，理由是它得管**两条**路而不是一条：
-//   ① 老站走别名进来的（`checklist`）；
-//   ② 新站直接写 `type: "card-group"`、而 `items` 里塞了裸字符串的 —— 那条路**不经过**上面
-//      `applyAlias` 的改名分支（「键 == 它自己的 type」那一行提前返回），所以判据是**归一化之后
-//      的 type 落在哪个通用块上**，不是「有没有别名」。这就是 AC3 的反向那一半：喂裸字符串数组
-//      给新 type 名，它被规范化，而不是画出一个空标题。
-//
-// 🔴 **不是数组、或者一个字符串都没有 ⟹ 原对象原样返回**（同一个引用）。别名表里的 `values-grid`
-//    / `benefits-list` / `service-highlights` 三条路上 `items` 装的本来就是对象，这个函数对它们
-//    是**恒等**的 —— 批 1 那句「老站产物逐字节不变」不会因为本批多了一个函数就变假。
-function normalizeGenericItems(block) {
-  if (!GENERIC_TYPES.has(block.type)) return block;
-  const items = block.data && block.data.items;
-  if (!Array.isArray(items) || !items.some((it) => typeof it === 'string')) return block;
-  return {
-    ...block,
-    data: {
-      ...block.data,
-      items: items.map((it) => (typeof it === 'string' ? { title: it } : it)),
-    },
-  };
+  return out;
 }
 
 // 页面清单里那些块**排布**的顺序：写了 `weight` 就按它，没写就按它在数组里的位置。
@@ -496,11 +451,9 @@ function pageWithBlocks(page) {
 module.exports = {
   BLOCK_ROLES,
   BLOCK_ALIASES,
-  GENERIC_TYPES,
   ROLE_NAMES,
   roleFor,
   applyAlias,
-  normalizeGenericItems,
   effectiveWeight,
   byWeightThenOrder,
   readPageBlocks,

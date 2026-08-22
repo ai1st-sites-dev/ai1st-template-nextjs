@@ -4,9 +4,8 @@
     "role": "optional",
     "block_layout": null,
     "data": {},
-    "itemTag": "div",
     "headingId": "card-group-heading",
-    "parts": ["headline", "sub", "item", "title", "desc", "features"]
+    "parts": ["headline", "sub", "item", "title", "desc"]
   },
   "values-grid": {
     "type": "card-group",
@@ -17,7 +16,6 @@
       "items": "items",
       "style": null
     },
-    "itemTag": "div",
     "headingId": "values-heading",
     "parts": ["headline", "item", "title", "desc"]
   },
@@ -31,36 +29,7 @@
       "items": "items",
       "variant": null
     },
-    "itemTag": "div",
     "headingId": "benefits-heading",
     "parts": ["headline", "sub", "item", "title", "desc"]
-  },
-  "checklist": {
-    "type": "card-group",
-    "role": "optional",
-    "block_layout": null,
-    "data": {
-      "headline": "headline",
-      "subheadline": "subheadline",
-      "items": "items",
-      "variant": null
-    },
-    "itemTag": "p",
-    "headingId": "checklist-heading",
-    "parts": ["headline", "sub", "item"]
-  },
-  "service-highlights": {
-    "type": "card-group",
-    "role": "optional",
-    "block_layout": null,
-    "data": {
-      "headline": "headline",
-      "subheadline": "subheadline",
-      "highlights": "items",
-      "variant": null
-    },
-    "itemTag": "article",
-    "headingId": "highlights-heading",
-    "parts": ["headline", "sub", "item", "title", "desc", "features"]
   }
 }

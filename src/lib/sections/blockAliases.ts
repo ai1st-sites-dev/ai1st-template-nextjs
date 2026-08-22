@@ -6,14 +6,7 @@
 //
 // 表的每一行写齐映射文档 §2.1 那四件事 —— ① 新的 `type` 名 · ② `role` · ③ `data` 的逐字段去向
 // （包括「继续忽略」的那些，写成 `null`）· ④ `block_layout` 的处置（`null` = 别名不造一个）——
-// 外加渲染这一侧要的三样：标题元素的 `id`、这个词汇画哪几个部件、以及每个条目外面那个标签名。
-//
-// 🔴 #1143 加的第三样 `itemTag`，理由是量出来的：批 2 并进来的两个块，条目外面那个元素**不是**
-//    `<div>` —— `checklist` 是 `<p>`（一个条目就是一行字，里面没有标题和描述），
-//    `service-highlights` 是 `<article>`。老站重建要逐字节不变（映射文档 §2.2 / §2.6），
-//    而标签名是产物 DOM 上看得见的字节 ⟹ 它必须是表里的一条数据，不能靠组件猜。
-//    **别拿 `parts` 去推它**（「有 features 就画 article」那种）：那是把两件不相干的事绑在一起，
-//    下一批只要出现一个「有 features 的 div」就当场错，而错法是静默的。
+// 外加渲染这一侧要的两样：标题元素的 `id`，和这个词汇画哪几个部件。
 //
 // 🔴 键 == 它自己的 `type` 的那一行**不是别名**，是通用块自己的词汇（`card-group` 那一行）。
 //    构建那一侧靠这个判据跳过它。
@@ -25,19 +18,13 @@ export interface BlockVocabulary {
   name: string;
   headingId: string;
   parts: string[];
-  /** 每个条目外面那个标签（`div` / `p` / `article`）—— 见文件头 #1143 那段。 */
-  itemTag: ItemTag;
 }
-
-/** 条目外面那个标签今天用到的三种。加第四种要同时改 `CardGroupSection` 的分支。 */
-export type ItemTag = 'div' | 'p' | 'article';
 
 interface AliasRow {
   type: string;
   role: string;
   block_layout: string | null;
   data: Record<string, string | null>;
-  itemTag: ItemTag;
   headingId: string;
   parts: string[];
 }
@@ -57,10 +44,5 @@ const CARD_GROUP = 'card-group';
 export function vocabularyFor(block?: BlockConfig): BlockVocabulary {
   const name = (block && (block.__legacyType || block.type)) || CARD_GROUP;
   const row = ROWS[name] || ROWS[CARD_GROUP];
-  return {
-    name: ROWS[name] ? name : CARD_GROUP,
-    headingId: row.headingId,
-    parts: row.parts,
-    itemTag: row.itemTag,
-  };
+  return { name: ROWS[name] ? name : CARD_GROUP, headingId: row.headingId, parts: row.parts };
 }
