@@ -295,8 +295,14 @@ const HOOKS = new Set([
   // is in `src/components/sections/CardGroupSection.tsx`), and all 83 sheets select
   // `.values-grid__title` / `.benefits-list__title` today. Retiring the old vocabulary means
   // rewriting those sites' page JSON, which is a different ticket (mapping doc §3④).
+  //
+  // 🔴 #1143 APPENDED `.card-group__features` TO THE SAME ENTRY, AND THAT IS ALSO DELIBERATE. Batch 2
+  // merges `checklist` and `service-highlights` in, and `service-highlights` items carry a list of
+  // features — a part of the ITEM, not a second list slot (mapping doc §1.3). Adding a PART to a
+  // block that is already last does not move any block in the walk above, so no sheet's surface
+  // rotation changes; it only adds rules. The old names stay, all 22 of them now.
   '.card-group', '.card-group__headline', '.card-group__sub', '.card-group__item',
-  '.card-group__title', '.card-group__desc',
+  '.card-group__title', '.card-group__desc', '.card-group__features',
   '[data-block="card-group"]',
   '[data-role="essential"]', '[data-role="lead"]', '[data-role="optional"]',
   'body', '[data-region-layout]',
@@ -327,6 +333,8 @@ const HOOKS = new Set([
 //   #1132 card-group parts + [data-block="card-group"]  (the first GENERIC block: values-grid and
 //         benefits-list are one type now; their 11 old hooks stay, because old sites keep emitting
 //         the old class names)
+//   #1143 .card-group__features  (batch 2 of the merge: checklist + service-highlights join the
+//         generic card group; their 11 old hooks stay too, same reason)
 //
 // A BREAKING change (renaming a hook, removing one, changing what one means) still MUST bump: that
 // is the case where an old sheet keeps loading and quietly points at nothing, which is the reason

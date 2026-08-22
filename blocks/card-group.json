@@ -20,7 +20,7 @@
       "kind": "list",
       "required": true,
       "promptOptional": false,
-      "shape": "[{title, description}]"
+      "shape": "[{title, description?, features?: [string]}]"
     }
   },
   "variants": {},

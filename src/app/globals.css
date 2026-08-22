@@ -770,13 +770,22 @@
 }
 
 /* ── list internals no sheet can reach ────────────────────────────────────────────────────────── */
+/* 🔴 #1143 added `.card-group__features` to both rules. The generic card group now carries the item
+   level feature list `service-highlights` brought in (mapping doc §1.3: a field of the ITEM, not a
+   second list slot). Old sites keep emitting `.service-highlights__features`, so that selector stays
+   exactly where it is — this is one more selector, not a rename. A `<li>`'s marker and its indent
+   are things no theme sheet can state (contract §1 refuses tag selectors, and `list-style-*` is not
+   on the property list), so they have to be here for the new prefix too, or the generic block's
+   feature lists come out as unindented, markerless lines on every sheet. */
 .service-highlights__features,
+.card-group__features,
 .pricing-table__features {
   list-style: disc;
   padding-left: 1.25rem;
 }
 
 .service-highlights__features li,
+.card-group__features li,
 .pricing-table__features li {
   /* The list is a grid (base.css), so each item is a grid item and needs its own minimum reset for
      the same reason every other part gets one. */

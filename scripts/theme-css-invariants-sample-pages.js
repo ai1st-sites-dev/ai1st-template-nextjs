@@ -20,7 +20,7 @@
 //    `:412` 的 release 不依赖）—— 也就是**模板 repo 会被推出去**，而每个新站都从那份字节建。
 //
 // ══ 光把块放上页面还不够 ═══════════════════════════════════════════════════════════════════════
-// 有四处要连**块的数据、甚至站的形状**一起给，否则那些钩子仍然不进 DOM（逐处在真机上量过）：
+// 有六处要连**块的数据、甚至站的形状**一起给，否则那些钩子仍然不进 DOM（逐处在真机上量过）：
 //
 //   `.gallery__placeholder`      GallerySection.tsx:62-67 —— 有 imageUrl 就画 __image，没有才画它。
 //                                而夹具生成器给每张图都编了一个 URL ⟹ 让第 3 张不带 imageUrl。
@@ -37,6 +37,27 @@
 //                                📌 那个块自己的注释（:20-23）说夹具要**两页**——那句话管的是搬迁那条线
 //                                的改前/改后对照（两边都空就会被读成「没变」）。这里问的是别的问题：
 //                                四个钩子进没进 DOM。一页就够，实测四条全被量到，多一页只是多建一页。
+//   `.service-highlights__item`  #1143 把 `checklist` / `service-highlights` 并进「卡片组」之后，这三个
+//   `__title` `__desc`           type 在 `registry.ts` 里都指向 `CardGroupSection`，而生成器是照**组件的
+//   `__features`                 TS 类型**合成数据的 ⟹ 它给 `service-highlights` 块写的槽位名是 `items`。
+//                                老站那条路上它叫 `highlights`（`src/lib/sections/block-aliases.json`），而
+//                                `scripts/blocks.js` 的 `applyAlias` 有一道守卫：改名的源不在、目标在
+//                                ⟹ 把目标也删掉（映射文档 §2.5 坑三，防的是「线上一块本来空着的地方
+//                                突然长出内容」）⟹ 那一节只剩标题、零条目，四个钩子一页都不出现。
+//                                这里按**老站的形状**写 `highlights`，顺带也就真跑了一次别名映射。
+//   `.card-group__features`      同一批里这个键是**另一个原因**没被生成：`gen-allblocks.js` 的 `fields()`
+//                                按顶层逗号/分号切类型体、**不认注释**，于是 `CardGroupItem` 里 `features?`
+//                                上面那段 doc 注释被吃进了字段名（实测那个块 `items[0]` 的键是
+//                                `["title","description","/** … 老站那条路"]`，没有 `features`）。那是那个
+//                                工具的既有脆弱处、被本票新写的那段注释踩中，按下面那条不在这里修
+//                                ⟹ 在产物上补。
+//                                📌 我把它自己那份 `fields()` 原样抠出来跑了一遍全部已注册组件：真正落在
+//                                `data` 那一层里、名字被注释吃掉的只有三个键 —— 本块的 `features`、
+//                                `FaqAccordionSection` 的 `defaultOpen`、`AnnouncementBarSection` 的
+//                                `variant`（其余命中都是 `block?: BlockConfig` 那条，它是 Props 的字段、
+//                                不在 `data` 里，不影响产物）。`defaultOpen` 上面 faq-accordion 那一段
+//                                已经在补（那是 #1060 为开/关两臂补的，不是为这个洞）；`variant` 本轮
+//                                **不补** —— 给它喂值会让那个块新收到一个它今天收不到的东西，是另一件事。
 //
 // 📌 **到不了 0，下限是 4**，而那四条不是补数据能救的：`.contact-form__error` / `__success` /
 //    `.quote-form__error` / `__success` 只在用户点了提交之后才进 DOM
@@ -154,6 +175,43 @@ const patched = [];
   s.block_layout = 'with-form';
   patched.push('hero block_layout=with-form → .hero__form（#1065）');
 }
+{
+  // #1143 —— 并进「卡片组」的那两个块要连数据一起补，否则五条钩子一页都不进 DOM
+  //（`.service-highlights__item` / `__title` / `__desc` / `__features` / `.card-group__features`；
+  // 那次 CI 的 `theme-css` 八个分片 8/8 红，报的就是这五条）。两处原因不同，一起在这里补：
+  //
+  // 🔴 ① 槽位名。合并之后 `checklist` / `service-highlights` / `card-group` 三个 type 都指向
+  //    `CardGroupSection`，而 `gen-allblocks.js` 是照**组件的 TS 类型**合成数据的（它解析
+  //    `data: { … }` 那一层）⟹ 它给 `service-highlights` 块写的是 `items`。但老站那条路上这个块的
+  //    槽位叫 `highlights`（`src/lib/sections/block-aliases.json`），而 `scripts/blocks.js` 的
+  //    `applyAlias` 有一道守卫：改名的**源不在、目标在** ⟹ 把目标也删掉（映射文档 §2.5 坑三，
+  //    防的是「线上一块本来空着的地方突然长出内容」）。于是那一节只剩标题、零条目。
+  //    ⟹ 这里按**老站的形状**写 `highlights`，顺带也就真跑了一次别名映射。
+  //
+  // 🔴 ② `features` 这个字段。`gen-allblocks.js` 的 `fields()` 按顶层逗号/分号切类型体、**不认注释**，
+  //    于是 `CardGroupItem` 里 `features?` 上面那段 doc 注释被当成了字段名的一部分，真正的
+  //    `features` 键根本没被合成（实测：那个块 `items[0]` 的键是 `["title","description","/** … features"]`）。
+  //    这是那个工具的既有脆弱处，不归这里修（它自己的注释写着别把这道检查的需要塞进它）——
+  //    这里的做法照本文件头上那条：**先请它生成，再在产物上补**。
+  //    📌 这个洞吃掉的键不止一个，清单与处置写在本文件头上那一段（`variant` 本轮不补，理由在那里）。
+  const FEATURED = (n) => ({
+    title: `Title text ${n}`,
+    description: 'Description text',
+    features: ['Feature one', 'Feature two'],
+  });
+  const PLAIN = (n) => ({ title: `Title text ${n}`, description: 'Description text' });
+
+  const sh = sectionOf('service-highlights');
+  if (!sh || !sh.data) die('the generated page has no service-highlights block');
+  sh.data.highlights = [FEATURED(1), FEATURED(2), PLAIN(3)];
+  delete sh.data.items;
+  patched.push('service-highlights items → highlights（老槽位名）+ 前两条带 features → .service-highlights__item/__title/__desc/__features');
+
+  const cg = sectionOf('card-group');
+  if (!cg || !cg.data) die('the generated page has no card-group block');
+  cg.data.items = [FEATURED(1), PLAIN(2), PLAIN(3)];
+  patched.push('card-group item 1 has features → .card-group__features');
+}
 const SERVICE_SLUG = 'services';
 {
   const s = sectionOf('service-related-pages');
@@ -222,6 +280,19 @@ writeJson(allblocks, page);
     const faq = find('faq-accordion').data.items;
     if (faq[0].defaultOpen !== true) bad.push('faq-accordion item 1 is not open');
     if (faq[1].defaultOpen !== undefined) bad.push('faq-accordion item 2 was left open too — the closed arm is gone');
+  }
+  // #1143 —— 两个方向都读回来。只问「highlights 在不在」的话，`items` 还留着时那道 §2.5 坑三守卫
+  // 会把两个槽位一起清掉，而那种情况在这里长得跟补好了一样。
+  {
+    const sh = find('service-highlights');
+    const hl = sh && sh.data && sh.data.highlights;
+    if (!Array.isArray(hl) || hl.length < 2) bad.push('service-highlights has no highlights array');
+    else if (!Array.isArray(hl[0].features) || !hl[0].features.length) bad.push('service-highlights item 1 has no features → .service-highlights__features would be on no page');
+    if (sh && sh.data && sh.data.items !== undefined) bad.push('service-highlights still has items alongside highlights — applyAlias would delete both (§2.5 坑三)');
+    const cg = find('card-group');
+    const it = cg && cg.data && cg.data.items;
+    if (!Array.isArray(it) || !it.length) bad.push('card-group has no items array');
+    else if (!Array.isArray(it[0].features) || !it[0].features.length) bad.push('card-group item 1 has no features → .card-group__features would be on no page');
   }
   const svc = readJson(path.join(contentDir, 'services.json'));
   if (!Array.isArray(svc[0].products) || !svc[0].products.length) bad.push('services.json products is still empty');
