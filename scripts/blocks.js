@@ -110,12 +110,25 @@ const GENERIC_TYPES = new Set(Object.values(BLOCK_ALIASES).map((r) => r.type));
 function normalizeGenericItems(block) {
   if (!GENERIC_TYPES.has(block.type)) return block;
   const items = block.data && block.data.items;
-  if (!Array.isArray(items) || !items.some((it) => typeof it === 'string')) return block;
+  if (!Array.isArray(items)) return block;
+  // 一个条目能不能画出来:裸字符串(升成 `{title}`)、或者一个普通对象。别的一律丢掉。
+  //
+  // 🔴 #1152 —— 为什么要丢:`CardGroupSection` 三支(`:90` / `:96` / `:110`)全都直接读 `item.title`,
+  //    没有一处可选链。一个 `null` 穿过这里,预渲染那一页就当场炸
+  //    `Cannot read properties of null (reading 'title')`,**整个站建不出来**(五个 type 逐个实测,
+  //    改之前 rc=1)。建站期那道校验也拦不住它(`block-manifest.js` 的 validateSite 第 ⑤ 条是本票补的),
+  //    所以这里是兜底:有人手改 `site/**/pages/*.json`、或者旧站带着脏数据重建,都只经过这一层。
+  const usable = (it) => typeof it === 'string'
+    || (it !== null && typeof it === 'object' && !Array.isArray(it));
+  // 🔴 没有东西要动就返回**同一个 block**,不重建对象。#1143 的「老站重建逐字节不变」建立在这上面
+  //    —— `blocks.test.js` 第 ⑥ 格那条反向对照判的是**同一个数组引用**(`untouched.data.items !== objs`
+  //    就报红)。加过滤时最容易弄丢的就是它:无条件 `filter().map()` 每次都造新数组,那一格当场红。
+  if (!items.some((it) => typeof it === 'string' || !usable(it))) return block;
   return {
     ...block,
     data: {
       ...block.data,
-      items: items.map((it) => (typeof it === 'string' ? { title: it } : it)),
+      items: items.filter(usable).map((it) => (typeof it === 'string' ? { title: it } : it)),
     },
   };
 }

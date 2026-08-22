@@ -205,5 +205,53 @@ for (const [shapeName, page] of [
   else ok(`反向对照: 拿掉 __legacyType 之后词汇变成 "${vocab}" ⟹ 老站会吐新类名 ⟹ 那一半是承重的`);
 }
 
+// ── ⑧ #1152：条目列表里混进 `null`（或别的画不出来的元素）⟹ 归一化把它滤掉 ────────────────────
+// 🔴 为什么这一格非有不可：`CardGroupSection` 三支（`:90` / `:96` / `:110`）都直接读 `item.title`，
+//    没有一处可选链。一个 `null` 穿过归一化，`next build` 在预渲染那一页当场炸
+//    `Cannot read properties of null (reading 'title')`，**整个站建不出来** —— 五个归到
+//    `card-group` 的 type 逐个实测过，改之前全是 rc=1。这条不像别名那几条是「静默变样」，
+//    它是硬失败；但**发现它的路只有真跑一次构建**，所以这里把判据钉在归一化的输出上。
+{
+  const kinds = [
+    ['null', null], ['数字', 7], ['布尔', true], ['嵌套数组', ['x']],
+  ];
+  for (const [name, el] of kinds) {
+    const out = applyAlias({ type: 'checklist', data: { headline: 'H', items: ['甲', el, '乙'] } });
+    const got = JSON.stringify(out.data.items);
+    const want = JSON.stringify([{ title: '甲' }, { title: '乙' }]);
+    if (got !== want) bad(`items 里混进 ${name} 之后没被滤掉: ${got}`);
+    else ok(`items 里混进 ${name} ⟹ 滤掉，剩下的照旧升成 ${want}`);
+  }
+
+  // 全是画不出来的元素 ⟹ 空数组。组件画一个空的组，构建不炸（这一支走的是「没有一个字符串」那条
+  // 提前返回的老路径，所以它是**另一条**分支，不许只测上面那一种）。
+  const allBad = applyAlias({ type: 'values-grid', data: { headline: 'H', items: [null, null] } });
+  if (JSON.stringify(allBad.data.items) !== '[]') {
+    bad(`全是 null 时没被滤空: ${JSON.stringify(allBad.data.items)}`);
+  } else ok('items 全是 null ⟹ 变成 []（这一支不经过「有字符串」那个判断，是另一条分支）');
+
+  // 🔴 反向对照之一：良构的纯对象数组仍然是**同一个数组引用**。加过滤最容易弄丢的就是它 ——
+  //    无条件 `filter().map()` 每次都造新数组，#1143 的「老站重建逐字节不变」当场没。
+  const objs = [{ title: 'a', description: 'b' }];
+  const untouched = applyAlias({ type: 'benefits-list', data: { headline: 'H', items: objs } });
+  if (untouched.data.items !== objs) {
+    bad('良构的纯对象数组被过滤那一步换掉了引用 —— #1143 的逐字节不变会被这一步弄假');
+  } else ok('反向对照: 良构的纯对象数组仍是同一个数组引用（过滤没把恒等那条路弄丢）');
+
+  // 🔴 反向对照之二：五个归到 card-group 的 type **逐个**都要被保护，不许抽一个代表。
+  //    判据从别名表现算，不写死名字：明天多一个块，这一格自己跟着变宽。
+  const generics = Object.keys(BLOCK_ALIASES).filter((k) => BLOCK_ALIASES[k].type === 'card-group');
+  if (generics.length < 5) bad(`归到 card-group 的 type 只数出 ${generics.length} 个（${generics.join(' ')}）—— 分母不对，下面那一格说明不了「每个都保护」`);
+  else {
+    const leaked = generics.filter((t) => {
+      const slot = t === 'service-highlights' ? 'highlights' : 'items';
+      const r = applyAlias({ type: t, data: { headline: 'H', [slot]: ['甲', null] } });
+      return (r.data.items || []).some((x) => x === null);
+    });
+    if (leaked.length) bad(`这些 type 上 null 还是穿过去了: ${leaked.join(' ')}`);
+    else ok(`归到 card-group 的 ${generics.length} 个 type（${generics.join(' ')}）逐个喂 null，一个都没漏过`);
+  }
+}
+
 console.log(`\n══ ${pass} 过 / ${fail} 败 ══`);
 process.exit(fail ? 1 : 0);

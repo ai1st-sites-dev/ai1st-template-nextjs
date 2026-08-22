@@ -388,7 +388,8 @@ function validateSite({ pages, industry = '', dir, scope = 'create' } = {}) {
   const problems = [];
   const warnings = [];
   const seenTypes = new Set();
-  // 五条检查全部经这里出口 —— 别在下面直接 push，否则漏掉一条就又出现一个构建期硬闸。
+  // 六条检查全部经这里出口 —— 别在下面直接 push，否则漏掉一条就又出现一个构建期硬闸。
+  //（第 ⑤ 条是 #1152 加的；第 ④ 条在循环**之后**，因为它问的是整个站，不是某一个块。）
   const flag = (msg) => (scope === 'build' ? warnings : problems).push(msg);
 
   for (const page of pages || []) {
@@ -426,6 +427,30 @@ function validateSite({ pages, industry = '', dir, scope = 'create' } = {}) {
       if (sec.block_layout !== undefined && !(m.block_layout || []).includes(sec.block_layout)) {
         flag(`${where}: block_layout "${sec.block_layout}" 不在 blocks/${sec.type}.json 的清单里`
           + `（${(m.block_layout || []).join(' / ')}）`);
+      }
+
+      // ⑤ 列表槽里的条目只能是字符串或对象（#1152）。
+      //
+      // 🔴 为什么这条非有不可：`null` 混进条目列表时，通用块 `CardGroupSection` 三支
+      //    （`:90` / `:96` / `:110`）都直接读 `item.title` ⟹ 预渲染当场炸
+      //    `Cannot read properties of null (reading 'title')`，**整个站建不出来**（五个归到
+      //    `card-group` 的 type 逐个实测，改之前全是 rc=1）。而 ① 那条只问「这个槽是不是空的」，
+      //    `['甲', null, '乙']` 在它眼里是个长度 3 的非空数组 ⟹ 一路放行。
+      // 🔴 为什么放在建站期而不是只靠构建期兜底：这一刻还能重试，构建期只能整个站建不出来
+      //    （跟 create-site.js 调这个函数那段注释同源）。构建期那一层是 `scripts/blocks.js` 的
+      //    `normalizeGenericItems`，它把画不出来的条目滤掉 —— 两层管的是不同的时刻，不是一层的抄本。
+      // 🔴 判据按**槽的 kind**，不按块的名字：今天归到 `card-group` 的是五个 type，明天还会多。
+      //    照名字写死的话，新加的块默认不在保护里，而它长得跟「查过了」一模一样。
+      for (const [slot, spec] of Object.entries(m.slots)) {
+        if (spec.kind !== 'list') continue;
+        const v = data[slot];
+        if (!Array.isArray(v)) continue;
+        v.forEach((el, k) => {
+          if (typeof el === 'string') return;
+          if (el !== null && typeof el === 'object' && !Array.isArray(el)) return;
+          const what = el === null ? 'null' : (Array.isArray(el) ? '一个数组' : `一个 ${typeof el}`);
+          flag(`${where}: 槽 "${slot}" 的第 ${k + 1} 个条目是 ${what} —— 列表里只能是字符串或对象`);
+        });
       }
     }
   }
