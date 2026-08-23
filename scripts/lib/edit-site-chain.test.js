@@ -820,5 +820,238 @@ console.log('\n⑨ fr/seo.json（这个站没有的语言）：site/fr/ 没被�
   else bad(`commit 数不对：${res.commitsBefore} → ${res.commitsAfter}`);
 }
 
+// ══ ⑩ 站级块库:六种枚举出来的畸形形状 + 真模型写出来的那一份,一个都写不进去,报文点名是哪一条(#1160)══
+//
+// 页面块从 #1152/#1154 起在写入这一刻就被拦;站级块走**同一条** `write_file`,而那道闸的正则钉在
+// `pages/**.json` 上 ⟹ 同一份畸形内容放在这个文件里以前一条都不报。后两种(E/F)更重:它们让
+// `sync-config.js` exit 1,那个站从此重建不出来、预览也开不出来。
+//
+// 🔴 每一格库里放**两个** id,只有一个是坏的:AC2 问的是「模型知不知道该改哪一条」,而
+//    「报文里出现了坏的那个」和「报文里没出现好的那个」是两个读数,少一个都答不了这件事。
+// 🔴 六格共用一棵树:每一格都该是「被拒 + 一个字节没落盘」,所以树在格与格之间不变。
+//    那也正好让「文件没被造出来」这一半在每一格都能重新问一次 —— 哪一格漏了,下一格的前提就当场崩。
+console.log('\n⑩ 站级块库:六种枚举出来的畸形形状 + 真模型写出来的那一份,全部被拒且报文点名是哪个 id');
+{
+  const ctx = makeRoot('siteblocks-reject');
+  const site = writeSite(ctx.work);
+  assertSyncsClean(ctx.work, '⑩');
+  ctx.git('git add -A && git commit -q -m base && git push -q origin main');
+
+  const target = path.join(site, 'en', 'blocks', 'site-blocks.json');
+  if (fs.existsSync(target)) {
+    die('⑩ 前提不成立:建出来的站已经带着 site-blocks.json ⟹ 「这次写入没落盘」这一半问不出来');
+  }
+  // 好的那一条。它的 id 是 `keepme`,坏的那条是 `busted` —— 两个词在被测代码的静态文案里都不出现
+  // (报文是拿它们拼出来的),所以「出现/不出现」这两个断言都有判别力。
+  const keepme = { type: 'checklist', data: { headline: 'Why us', items: ['Licensed', 'Insured'] } };
+  const SHAPES = [
+    ['A items 里有 null', { type: 'checklist', data: { headline: 'K', items: ['a', null] } }],
+    ['B items 整个不是数组', { type: 'checklist', data: { headline: 'K', items: 'a、b' } }],
+    ['C type 是不存在的块名', { type: 'no-such-block', data: { headline: 'K' } }],
+    ['D 缺必填槽', { type: 'checklist', data: {} }],
+    ['E 值本身写成 ref(没自己的 type)', { ref: 'keepme', visibility: ['*'] }],
+    ['F 值整格是 null', null],
+  ];
+
+  for (const [label, busted] of SHAPES) {
+    const body = JSON.stringify({ keepme, busted }, null, 2);
+    const res = runEdit(ctx, [
+      reply([textBlock('Adding a shared block.'), writeCall('t1', 'en/blocks/site-blocks.json', body)], 'tool_use'),
+      reply([textBlock('Done.')], 'end_turn'),
+    ]);
+    // 🔴 回执是 `JSON.stringify(result)`,所以报文里的 `"` 在这个字符串里是 `\"` —— 直接在它上面
+    //    grep `站级块 "busted"` 恒不命中。判据要取**解开之后**那句话(`result.error`),
+    //    这一步本身也是「模型收到的是不是一条 error」的读数。
+    const raw = toolResultContent(res, 1, 't1');
+    if (raw === null) {
+      bad(`⑩ ${label}:取不到那次 write_file 的回执 —— 这一格的读数不作数`);
+      continue;
+    }
+    let r = '';
+    try { r = String((JSON.parse(raw) || {}).error || ''); } catch (e) { r = ''; }
+    const refused = !/"success"\s*:\s*true/.test(raw) && /Nothing was written/.test(r);
+    const namesBusted = /站级块 "busted"/.test(r);
+    const namesKeeper = /keepme/.test(r);
+    const landed = fs.existsSync(target);
+    if (refused && namesBusted && !namesKeeper && !landed) {
+      ok(`⑩ ${label}:被拒 · 报文点名 "busted" 且不提 keepme · 文件没被造出来`);
+    } else {
+      bad(`⑩ ${label}:被拒=${refused} · 点名坏的=${namesBusted} · 误提好的=${namesKeeper}`
+        + ` · 落盘了=${landed}\n      回执:${r.slice(0, 260)}`);
+    }
+  }
+
+  // 🔴 E 那一格单独再问一句:它是**唯一**逃过 `validateSite` 的形状(`isRefEntry` 见
+  //    `lib/block-manifest.js` 的注释),所以拦住它的必须是第一关(构建期那个函数),而它的报文
+  //    还得把模型指向对的地方 —— 不能像页面块那条现成的报文那样说「`{ "ref": … }` 也行」。
+  {
+    const res = runEdit(ctx, [
+      reply([textBlock('Adding a shared block.'), writeCall('t1', 'en/blocks/site-blocks.json',
+        JSON.stringify({ keepme, busted: { ref: 'keepme' } }, null, 2))], 'tool_use'),
+      reply([textBlock('Done.')], 'end_turn'),
+    ]);
+    const raw = toolResultContent(res, 1, 't1') || '';
+    let r = '';
+    try { r = String((JSON.parse(raw) || {}).error || ''); } catch (e) { r = ''; }
+    const saysNeedsOwnType = /must be a block that carries its own "type"/.test(r);
+    const saysRefOnlyInPages = /only allowed inside a page's blocks array/.test(r);
+    if (saysNeedsOwnType && saysRefOnlyInPages) {
+      ok('⑩ E 的报文告诉模型:值必须自带 type、ref 只能写在页面的 blocks 数组里');
+    } else {
+      bad(`⑩ E 的报文没把模型指对(自带 type=${saysNeedsOwnType} · ref 只在页面里=${saysRefOnlyInPages})`
+        + `:${r.slice(0, 260)}`);
+    }
+  }
+
+  // 🔴 上面那六格是**枚举出来的**形状。这一格不是:它是**真模型在今天的 origin/main 上真的写出来的**
+  //    那一份 —— 我拿同一句话("每页都加一个 CTA,放进跨页复用的库里")在两条臂上各跑一次活体,
+  //    origin/main 那一臂的模型把整个文件包成了 `{"blocks": [ {...} ]}`(它没见过这个文件的样子,
+  //    只好照页面块的形状猜),写入被放行(回执 `"success":true`)、`sync-config` 随后 exit 1、
+  //    整次编辑回滚 —— 老板收到的是「This change was not saved」。
+  //    合成夹具全绿不等于这道闸对真实输入有用,所以把那份真形状钉成一格。
+  {
+    const realModelShape = {
+      blocks: [{
+        id: 'shared-cta-banner', type: 'cta-banner', role: 'optional', region: 'content', weight: 90,
+        data: { headline: 'Ready to book?', description: 'Call us today.', button: { label: 'Quote', href: '/quote' } },
+      }],
+    };
+    const res = runEdit(ctx, [
+      reply([textBlock('Adding a shared block.'), writeCall('t1', 'en/blocks/site-blocks.json',
+        JSON.stringify(realModelShape, null, 2))], 'tool_use'),
+      reply([textBlock('Done.')], 'end_turn'),
+    ]);
+    const raw = toolResultContent(res, 1, 't1') || '';
+    let r = '';
+    try { r = String((JSON.parse(raw) || {}).error || ''); } catch (e) { r = ''; }
+    const refused = !/"success"\s*:\s*true/.test(raw) && /Nothing was written/.test(r);
+    const namesIt = /站级块 "blocks"/.test(r);
+    if (refused && namesIt && !fs.existsSync(target)) {
+      ok('⑩ G 真模型在 origin/main 上写出来的那份形状(整个文件包在一个 blocks 数组里):被拒、点名、没落盘');
+    } else {
+      bad(`⑩ G 真模型那份形状没被拦住(被拒=${refused} · 点名=${namesIt} · 落盘=${fs.existsSync(target)})`
+        + `:${r.slice(0, 260)}`);
+    }
+  }
+}
+
+// ══ ⑪ 反向对照:合法的站级块 + 页面里的 ref 条目,两种都放行并且真的进产物(#1160 AC3)══════════
+//
+// 少了这一格,⑩ 的六个「被拒」可能只是「这条路把这个文件一律拒了」—— 那样交付的是一道把
+// `blocks/site-blocks.json` 变成只读的闸,而不是一道内容检查。
+console.log('\n⑪ 反向对照:合法站级块 + 页面里的 ref 条目 ⟹ 放行、落盘、进产物');
+{
+  const PROBE = 'DEV1160 shared block probe headline';
+  const ctx = makeRoot('siteblocks-ok');
+  const site = writeSite(ctx.work);
+  assertSyncsClean(ctx.work, '⑪');
+  ctx.git('git add -A && git commit -q -m base && git push -q origin main');
+
+  const target = path.join(site, 'en', 'blocks', 'site-blocks.json');
+  const homePath = path.join(site, 'en', 'pages', 'home.json');
+  const home = JSON.parse(fs.readFileSync(homePath, 'utf8'));
+  // 这个站的首页是 `blocks` 还是 `sections` 由建站脚本决定,不由我假设 —— 猜错的话下面那个 push
+  // 会往 undefined 上打,而那种红看起来像被测代码的毛病。
+  const arrayKey = Array.isArray(home.blocks) ? 'blocks' : (Array.isArray(home.sections) ? 'sections' : null);
+  if (!arrayKey) die(`⑪ 前提不成立:建出来的首页既没有 blocks 也没有 sections(键:${Object.keys(home).join(' ')})`);
+
+  // AC3② 站级块的值:带 visibility(含 "*")、自己的 weight / role / block_layout
+  const lib = {
+    'shared-cta': {
+      type: 'cta-banner',
+      visibility: ['*'],
+      weight: 90,
+      role: 'optional',
+      block_layout: 'default',
+      data: {
+        headline: PROBE,
+        description: 'Tell us what you need and we will get back to you the same day.',
+        button: { label: 'Get a quote', href: '/quote' },
+      },
+    },
+  };
+  // AC3① 页面里指向站级块的 ref 条目
+  home[arrayKey] = home[arrayKey].concat([{ ref: 'shared-cta', weight: 95 }]);
+
+  const res = runEdit(ctx, [
+    reply([textBlock('Adding the shared banner.'), writeCall('t1', 'en/blocks/site-blocks.json', JSON.stringify(lib, null, 2))], 'tool_use'),
+    reply([textBlock('Pointing the homepage at it.'), writeCall('t2', `en/pages/${path.basename(homePath)}`, JSON.stringify(home, null, 2))], 'tool_use'),
+    reply([textBlock('Changes applied.')], 'end_turn'),
+  ]);
+
+  const r1 = toolResultContent(res, 1, 't1');
+  if (r1 && /"success"\s*:\s*true/.test(r1)) ok('⑪ 合法站级块放行了(回执 success:true)');
+  else bad(`⑪ 合法站级块被拒了 —— ⑩ 那六个「被拒」因此什么都没证明:${String(r1).slice(0, 260)}`);
+
+  const r2 = toolResultContent(res, 2, 't2');
+  if (r2 && /"success"\s*:\s*true/.test(r2)) ok('⑪ 页面里的 `{ "ref": … }` 条目放行了(回执 success:true)');
+  else bad(`⑪ 页面里的 ref 条目被拒了:${String(r2).slice(0, 260)}`);
+
+  if (fs.existsSync(target) && JSON.parse(fs.readFileSync(target, 'utf8'))['shared-cta'].data.headline === PROBE) {
+    ok('⑪ 站级块库真的落盘了');
+  } else {
+    bad(`⑪ 没落盘:${fs.existsSync(target) ? fs.readFileSync(target, 'utf8').slice(0, 120) : '(文件不存在)'}`);
+  }
+
+  // 🔴 落盘 + rc=0 都成立时,「站到底变了没有」仍然是另一个读数(同⑨那一格的理由)。
+  const generated = path.join(ctx.work, 'src', 'lib', 'config-data.ts');
+  const hits = (() => {
+    try { return (fs.readFileSync(generated, 'utf8').match(new RegExp(PROBE, 'g')) || []).length; }
+    catch (e) { return -1; }
+  })();
+  if (hits >= 1) ok(`⑪ 探针进了产物 src/lib/config-data.ts(${hits} 处命中)⟹ 站真的变了`);
+  else bad(`⑪ 产物里探针 ${hits === -1 ? '读不到那个文件' : `${hits} 处命中`} —— 写进去了但构建没读到`);
+
+  if (ev(res, 'edit-complete').length === 1 && !ev(res, 'error').length) ok('⑪ 整次编辑走到底:一条 edit-complete、零 error');
+  else bad(`⑪ 事件不对:edit-complete ${ev(res, 'edit-complete').length} · error ${ev(res, 'error').length}（${res.events.map((e) => e.event).join(' ')}）`);
+}
+
+// ══ ⑫ 提示词里那个站级块的例子,必须真的过得了构建期和这道新闸(#1160 AC5)════════════════════════
+//
+// 🔴 为什么值一格:E/F 那两种最坏形状的成因就是模型没见过这个文件长什么样。而**一个过不了自己那道闸
+//    的例子比没有例子更坏** —— 模型照抄一遍就被拒,而它手上唯一的样子就是那个例子 ⟹ 这个文件从此
+//    写不进去。判据是把例子从**源码里原样抠出来**真跑,不是我读一遍觉得它对。
+console.log('\n⑫ 提示词里那个站级块的例子:构建期 rc=0,新那道闸 0 条问题');
+{
+  const src = fs.readFileSync(EDIT_SITE, 'utf8');
+  // 提示词住在模板字符串里,所以围栏在源码里是 `\`\`\`json`(反引号被转义过)。
+  const m = src.match(/## Site-Wide Blocks[\s\S]*?\\`\\`\\`json\n([\s\S]*?)\n\\`\\`\\`/);
+  if (!m) {
+    bad('⑫ 提示词里找不到 ## Site-Wide Blocks 那一节的 json 例子 —— AC5 没有对象可验');
+  } else {
+    let example = null;
+    try { example = JSON.parse(m[1]); } catch (e) { bad(`⑫ 那个例子不是合法 JSON:${e.message}`); }
+    if (example) {
+      const { normalizeLocalePages } = require(path.join(NEXT, 'scripts', 'blocks.js'));
+      const { validateSite } = require(path.join(NEXT, 'scripts', 'lib', 'block-manifest.js'));
+      const page = { slug: 'home', blocks: [{ type: 'text-block', data: { body: 'x' } }] };
+      let buildErr = null;
+      try { normalizeLocalePages([page], JSON.parse(JSON.stringify(example)), 'en', {}); }
+      catch (e) { buildErr = e.message; }
+      if (!buildErr) ok('⑫ 例子过构建期(normalizeLocalePages 没抛)');
+      else bad(`⑫ 例子构建不出来:${buildErr}`);
+
+      // 同一份例子过一遍新闸自己那一关(一个 id 一「页」,跟 edit-site.js 里那次调用同一个口径)
+      const { problems } = validateSite({
+        pages: Object.entries(example).map(([id, b]) => ({ slug: `站级块 "${id}"`, blocks: [b] })),
+        scope: 'edit',
+      });
+      if (problems.length === 0) ok('⑫ 例子过新那道闸(0 条问题)');
+      else bad(`⑫ 例子被自己那道闸拒了 —— 模型照抄就写不进去:${problems.join(' | ')}`);
+
+      // 🔴 阳性对照:这把尺子有牙吗。把例子里的必填槽挖掉一个,同一句判断必须报出来。
+      const mutated = JSON.parse(JSON.stringify(example));
+      const firstId = Object.keys(mutated)[0];
+      if (mutated[firstId] && mutated[firstId].data) delete mutated[firstId].data.headline;
+      const { problems: mutProblems } = validateSite({
+        pages: Object.entries(mutated).map(([id, b]) => ({ slug: `站级块 "${id}"`, blocks: [b] })),
+        scope: 'edit',
+      });
+      if (mutProblems.length >= 1) ok(`⑫ 阳性对照:挖掉一个必填槽,同一句判断报 ${mutProblems.length} 条 ⟹ 尺子有牙`);
+      else bad('⑫ 阳性对照失败:挖掉必填槽之后它仍然 0 条 —— 上面那个「0 条问题」什么都没证明');
+    }
+  }
+}
+
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);

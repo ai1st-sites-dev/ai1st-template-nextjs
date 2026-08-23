@@ -391,6 +391,107 @@ function pageJsonBlockError(relPath, parsed) {
     + '\n\nNothing was written. Read the block\'s manifest if you need the exact slot names.';
 }
 
+// 站级块库(`blocks/site-blocks.json`,多语言站是 `<locale>/blocks/site-blocks.json`)。
+//
+// 🔴 路径这一段不写死 locale 长什么样,理由跟上面 PAGE_JSON 那段逐字同源(locale 目录名来自
+// site_meta.json,`zh_CN` / `zh-TW` 都出现过,而认不出路径的后果是**这次写入不被校验**)。
+// 权威的那份判断在白名单里(`lib/editable-files.js` 的 WRITABLE 最后一条:路径正好两段、
+// 第一段是 `blocks`、文件名是 `site-blocks.json`),而 `writeRejection` 跑在这之前 ——
+// 走到这一行的路径已经过了白名单,所以这条正则只负责认出「是它」。
+const SITE_BLOCKS_JSON = /(?:^|\/)blocks\/site-blocks\.json$/i;
+
+/**
+ * 站级块库的内容闸(#1160)。
+ *
+ * 页面块从 #1152/#1154 起在**写入这一刻**就被拦(见上面 pageJsonBlockError);站级块走的是同一条
+ * `write_file`,却一条内容检查都没有 —— 同一份畸形内容放在页面里报 1~2 条问题,放在这个文件里报 0 条。
+ * 后果分两档:
+ *   · 段落消失 / 空列表(items 里有 null、items 不是数组、type 不存在、缺必填槽)—— 拖到构建期才显形,
+ *     而那时没人要求模型重写,老板已经收到 Done。
+ *   · **站从此建不出来**(值缺 `type`、值整格是 null)—— `blocks.js` 那两句 throw 让 sync-config
+ *     exit 1,预览也开不出来(`worker/entrypoint.sh` 的 preview 分支带 `set -e`)。
+ * 而这两种最坏的形状恰恰是模型最可能写出来的:提示词里这个文件原来只有一句话带过,从来没说过它长什么样。
+ *
+ * 两关,顺序是承重的:
+ */
+function siteBlocksJsonError(relPath, parsed) {
+  if (!SITE_BLOCKS_JSON.test(relPath)) return null;
+
+  const locale = relPath.includes('/blocks/') ? relPath.split('/blocks/')[0] : '(site)';
+  const shapeHelp = '\nblocks/site-blocks.json is an object that maps an id to one block: '
+    + '{"<id>": {"type": "checklist", "data": {…}}, …}. Every value must be a block that carries its '
+    + 'own "type" — a {"ref": "<id>"} entry is only allowed inside a page\'s blocks array, never as a '
+    + 'value in this file.';
+
+  // ── 第 0 关:这个文件本身的形状 ────────────────────────────────────────────────────────────
+  // `Object.entries` 对一个字符串会按字符拆开、对一个数字给空数组 —— 下面两关都会因此读到一份
+  // 假的库。数组这一格也在这里拦:它建得出来(id 变成 "0" / "1"),但没有一个页面 ref 得到它,
+  // 也就是「写进去了、站上什么都没变」那一族。
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    const what = parsed === null ? 'null' : (Array.isArray(parsed) ? 'an array' : `a ${typeof parsed}`);
+    return `This file must be a JSON object, but it is ${what}. Nothing was written.\n${shapeHelp}`;
+  }
+
+  // ── 第一关:形状(每个值是不是一个带自己 `type` 的块)────────────────────────────────────────
+  //
+  // 🔴 判据不是我以为的形状,是「构建期收不收」—— 所以这里调构建期自己那个函数
+  // (`blocks.js` 的 `normalizeLocalePages`),不写第二份规则。它的报文自己就点名是哪个 id
+  // (`Locale "en" 站级块 "shared" 缺 "type"`),AC2 要的那件事由它免费给到。
+  //
+  // 🔴 `pages` 传空数组:这一关只问**这个文件**自己的形状。真去读磁盘上那些页面的话,页面里的毛病
+  //    会让这次写入被拒,而模型在这一轮里改不动它们 —— 那个站从此编辑不了。这跟上面
+  //    pageJsonBlockError 第一关把站级块库传成空的是同一个理由,只是方向相反。
+  //    📌 代价说在明处:`visibility` 里那些 slug 因此比不到真页面。而那一维在构建期只是
+  //    「点名 + 忽略这一条」(note,不抛),所以空 pages 不会造出误报 —— 它只是不查那一维。
+  //
+  // 🔴 传的是深拷贝:这个函数会 `delete b.role` / 改写 `b.visibility`,而 `parsed` 下面还要落盘。
+  try {
+    normalizeLocalePages([], JSON.parse(JSON.stringify(parsed)), locale, {});
+  } catch (e) {
+    debug(`[site-blocks] 这份站级块库构建不出来，写入被拒：${e.message}`);
+    return 'This file cannot be built. Fix it and write the file again:\n'
+      + `  - ${e.message}\n`
+      + `\nNothing was written.${shapeHelp}`;
+  }
+
+  // ── 第二关:内容(每个块的槽填对了没有)────────────────────────────────────────────────────
+  //
+  // 🔴 一个 id 一「页」:`validateSite` 的报文前缀是 `page.slug`,所以把 id 放进 slug 就是让
+  //    报文点名是哪一条(AC2)。库里两个 id 只有一个畸形时,另一个的 id 不会出现在报文里。
+  // 🔴 用 scope 'edit':跟页面块那条路同一档 —— 逐块的毛病算 problem(拒这次写入、模型重写),
+  //    而「整个站里没有某个块」那条不查(手上只有这个文件,答不了整站的问题)。
+  // 🔴 `isRefEntry` 那个洞(#1155 为**页面里**的 ref 条目加的跳过)在这一关是反的:站级块的值
+  //    写成 `{ "ref": … }` 时它会整格跳过、报 0 条。走不到这里 —— 第一关的 `缺 "type"` 已经拦了,
+  //    这正是两关顺序承重的地方。
+  let problems;
+  try {
+    ({ problems } = validateBlocks({
+      pages: Object.entries(parsed).map(([id, b]) => ({ slug: `站级块 "${id}"`, blocks: [b] })),
+      scope: 'edit',
+    }));
+  } catch (e) {
+    // 跟 pageJsonBlockError 同一套分辨法:问一个与这份内容无关的合规样例。样例也跑不起来 ⟹
+    // 工具坏了(模型修不了,照原样放行);样例跑得起来 ⟹ 是这份内容(退回去重写)。
+    let toolIsBroken = false;
+    try {
+      validateBlocks({ pages: [{ slug: '(probe)', blocks: [] }], scope: 'edit' });
+    } catch (probeErr) {
+      toolIsBroken = true;
+      debug(`[site-blocks] 校验器自己跑不起来（合规样例同样报错：${probeErr.message}），这次写入照原样放行`);
+    }
+    if (toolIsBroken) return null;
+    debug(`[site-blocks] 这份内容让校验器报错，写入被拒：${e.message}`);
+    return 'This file broke the block checker, so it cannot be checked or built:\n'
+      + `  - ${e.message}\n`
+      + `\nNothing was written.${shapeHelp}`;
+  }
+  if (problems.length === 0) return null;
+  return 'These site-wide blocks break the block library (blocks/*.json). Fix these and write the '
+    + 'file again:\n'
+    + problems.map((p) => `  - ${p}`).join('\n')
+    + '\n\nNothing was written. Read the block\'s manifest if you need the exact slot names.';
+}
+
 /**
  * @param {Map<string, Buffer|null|{why:string}>} [snapshots]
  *   #1102 —— `write_file` 往这里记「这个文件在被写之前是什么样」。同步失败时按它回滚。
@@ -459,6 +560,11 @@ function executeTool(toolName, toolInput, siteDir, snapshots) {
       }
       const blockError = pageJsonBlockError(relPath, parsed);
       if (blockError) return { error: blockError };
+      // #1160 —— 站级块库走的是同一条 write_file,而上面那道闸的正则钉在 `pages/**.json` 上,
+      // 所以它在这里补一道。位置跟上面那条一样在 `JSON.parse` 之后、落盘之前:这两关问的都是
+      // 「这份内容建得出来吗」,而拒绝时磁盘一个字节没动、模型拿着原因在同一轮里重写。
+      const siteBlocksErr = siteBlocksJsonError(relPath, parsed);
+      if (siteBlocksErr) return { error: siteBlocksErr };
       const fullPath = path.join(siteDir, relPath);
       // #1102 —— 落盘**之前**把这个文件本来的样子记下来（同步失败时按它回滚）。
       // 🔴 只在第一次写它的时候记：同一次编辑里模型可能把同一个文件写两遍，而"这次编辑之前"
@@ -561,7 +667,8 @@ The site is defined by JSON configuration files:
   it to an empty string "" — do not remove the field.
 
 You can also write **blog/{slug}.json** (articles) and **blocks/site-blocks.json** (content blocks reused
-across pages). In a multi-language site every file above except brand.json lives under **{locale}/**.
+across pages — its shape is described under "Site-Wide Blocks" below). In a multi-language site every file
+above except brand.json lives under **{locale}/**.
 
 Everything else you may see under the site directory is owned elsewhere and **write_file will refuse it**:
 theme.json and theme.css (the theme picker in the dashboard), custom.css (generated from theme.json),
@@ -593,6 +700,41 @@ Available section types: hero, trusted-brands, features-grid, values-grid, testi
 
 Hero variants: left, centered, split, minimal, video-style, gradient-overlay, light-split, light-editorial, light-showcase
 (dark full-bleed: left, centered, split, video-style, gradient-overlay · light background: minimal, light-split, light-editorial, light-showcase)
+
+## Site-Wide Blocks (blocks/site-blocks.json)
+
+A block that appears on more than one page lives in **blocks/site-blocks.json** instead of being copied into
+each page. The file is a JSON **object** that maps an id to one block — not an array:
+
+\`\`\`json
+{
+  "shared-cta": {
+    "type": "cta-banner",
+    "visibility": ["*"],
+    "weight": 90,
+    "data": {
+      "headline": "Ready to get started?",
+      "description": "Tell us what you need and we will get back to you the same day.",
+      "button": { "label": "Get a quote", "href": "/quote" }
+    }
+  }
+}
+\`\`\`
+
+Each value is a block with the same fields as a page block, plus \`visibility\`:
+
+- \`type\` — **required, and every value must carry its own.** A \`{ "ref": "<id>" }\` entry belongs in a
+  page's \`blocks\` array, never as a value in this file: a value without a \`type\` stops the site from
+  building at all.
+- \`visibility\` — array of page slugs the block appears on; \`["*"]\` means every page. Leave it out and the
+  block only shows on pages that point at it with \`{ "ref": "<id>" }\`.
+- \`weight\` — where it sits on the page (smaller first). A page that puts \`{ "ref": "<id>" }\` at a specific
+  spot in its own \`blocks\` array wins over this.
+- \`role\`, \`block_layout\`, \`data\` — same meaning as in a page block.
+
+To put a site-wide block at an exact position on one page, add \`{ "ref": "<id>" }\` to that page's \`blocks\`
+array. \`data\` is checked against the block's manifest exactly as it is inside a page, so a missing required
+slot or a list slot that is not a list is refused here too.
 
 ## Rules
 
