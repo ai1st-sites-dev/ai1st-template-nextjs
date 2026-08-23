@@ -850,11 +850,28 @@ for (const sel of MOVED_TEXT_TARGETS) await measureText(sel, pathOf(baseUrl), fa
 // effect. Keep all five: none of them subsumes another.
 //
 // 🔴 ONLY PARTS THAT HAVE SOMETHING IN THEM ARE JUDGED, and that is not leniency — it is the
-// difference between "the theme hid it" and "the app rendered it empty". `.contact-form__error` and
-// `.contact-form__success` are in the markup on every page and carry no text until a form is
-// submitted; a check that failed on a zero-height empty div would go red on a correct site, and a
-// check that goes red on correct sites gets switched off. So: text content, or an <img>, or a link
-// with an href — something a customer could have read or clicked.
+// difference between "the theme hid it" and "the app rendered it empty". So: text content, or an
+// <img>, or a link with an href — something a customer could have read or clicked.
+//
+// 🔴 #1158 — THE EXAMPLE THAT USED TO STAND HERE WAS WRONG, AND SO WAS THE SAME SENTENCE IN
+// docs/reference/theme-css-contract.md (they were one claim in two places). It said
+// `.contact-form__error` and `.contact-form__success` "are in the markup on every page and carry no
+// text until a form is submitted". Both are **conditionally rendered** — ContactFormSection.tsx:142
+// is `{error && <p className="contact-form__error">}` and :109-113 returns the success `<p>` INSTEAD
+// of the form — so neither is on any page until a submit happens, and when it is there it carries
+// text. Measured on a real build of the widened sample site: `.contact-form__error` on **0 of 18
+// pages**, its unconditional sibling `.contact-form__note` on 3. This file's own conclusion line has
+// been saying so all along — those four (six, with hero's pair) are the hooks "not on any page
+// measured", exempted by `reachableOnSubmitOnly` below.
+//
+// The parts that really are empty are the ones MEANT to be, and they are what this filter is for.
+// Same build, every occurrence empty by this very predicate: `.divider__rule` 1/1 · `.hero__deco`
+// 2/2 · `.gallery__placeholder` 1/1 · `.testimonials__star` 9/9 · `.features-grid__icon` 2/2 ·
+// `.services-list__icon` 2/2 · `.testimonials__rating` 3/3 (the icons hold an inline <svg>, which is
+// not an <img> and so does not count as media here — deliberately: an inline <svg> is drawn by the
+// component, not fetched, and a theme cannot empty it). A rule that a decorative <div> must contain
+// something a customer can read would be red on every correct site, and a check that goes red on
+// correct sites gets switched off.
 const ESSENTIAL_PARTS_PROBE = () => [...document.querySelectorAll('[data-role="essential"]')]
   .flatMap((block) => {
     const blockName = block.getAttribute('data-block') || block.className || 'essential block';

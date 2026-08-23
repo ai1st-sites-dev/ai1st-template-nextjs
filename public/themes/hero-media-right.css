@@ -114,6 +114,22 @@
   font-size: 0.875rem;
 }
 
+/* ── #1158 the tenth part: `.hero__form-success` ─────────────────────────────────────────────────
+   Same slot and same rule shape as `.hero__form` in this sheet: a hairline above it, no ground of
+   its own. 🔴 And therefore NO ink of its own either — it inherits `.hero`'s light ink on this
+   sheet's dark hero, which is the pairing the hero's own words are measured on. Setting a ground
+   here without an ink is the mistake `.hero__form` in hero-media-left documents; setting neither
+   avoids it. */
+.hero__form-success {
+  order: 3;
+  max-width: 30rem;
+  padding: 1.25rem 0 0;
+  border-width: 1px 0 0;
+  border-style: solid;
+  border-color: var(--color-primary-200);
+  font-weight: 600;
+}
+
 /* ── #1018 cta-banner — the mirror of hero-media-left: the button's column comes FIRST ───────────
    Same three siblings, same sheet-only decision, opposite side. `order` is what puts the button on
    the left without the markup knowing anything about it — the identical mechanism this sheet already

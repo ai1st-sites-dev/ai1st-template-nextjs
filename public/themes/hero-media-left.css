@@ -134,6 +134,26 @@
   font-size: 0.9375rem;
 }
 
+/* ── #1158 the tenth part: `.hero__form-success` ─────────────────────────────────────────────────
+   The receipt: the line the hero form prints once a submit went through. It REPLACES the form
+   (HeroLeadForm.tsx returns this `<p>` instead of the `<form>`), so it stands in the panel's slot
+   and takes the panel's shape — same `order`, same width, same ground, and 🔴 **its own ink in the
+   same rule**, for the reason spelled out on `.hero__form` above: this sheet's hero is dark and
+   `.hero` sets a light `color`, so a light ground without its own ink is light-on-light.
+   Before #1158 this line carried `.hero__form` itself and got all of that for free; now that it has
+   its own hook, the rule has to say it. Not as tall as the form — there is one line of words in it,
+   not four fields. */
+.hero__form-success {
+  order: 4;
+  max-width: 32rem;
+  padding: 1rem 1.5rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--color-primary-200);
+  background-color: var(--color-primary-50);
+  color: var(--color-primary-900);
+  font-weight: 600;
+}
+
 /* ── #1018 cta-banner — the words on the left, the button in a column of its own on the right ─────
    This is the theme that shows a block layout can be a COLUMN SPLIT with no extra markup: the three
    parts are siblings, so `grid-template-columns` + `grid-row` put the button beside the text instead

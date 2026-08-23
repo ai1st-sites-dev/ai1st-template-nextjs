@@ -70,9 +70,13 @@
 //
 // 📌 **到不了 0，下限是那几个「提交之后才有」的表单状态**，它们不是补数据能救的：`.contact-form__error`
 //    / `__success`、`.quote-form__error` / `__success`（`ContactFormSection.tsx:109/112/142`、
-//    `QuoteFormSection.tsx:118/121/188`），加上 #1150 的 `.hero__form-error`
-//    （`HeroLeadForm.tsx` 只在提交失败时渲染那个 `<p>`）。`__success` 还要 `POST /api/leads` 返回 ok，
-//    而演示站是静态导出、没有那个接口。
+//    `QuoteFormSection.tsx:118/121/188`），加上 hero 那一对：#1150 的 `.hero__form-error` 与
+//    #1158 的 `.hero__form-success`（`HeroLeadForm.tsx` 那两个 `<p>` 一个只在提交失败时渲染、一个
+//    只在提交成功时渲染）。`__success` 还要 `POST /api/leads` 返回 ok，而演示站是静态导出、没有那个接口。
+//    🔴 #1158 顺带证一件事：这一族的判据是 `theme-css-invariants.mjs` 的 `reachableOnSubmitOnly`
+//    （`/(?:__|-)(?:error|success)$/`，一处定义），**新加的钩子只要按这个命名就自动在豁免里**——
+//    `.hero__form-success` 一个字节都没改那条正则就被收进去了。所以上面这段散文是【出处】，不是判据；
+//    判据永远是下面那条自己算一次的命令。
 //    🔴 **这里不写「一共几条」**：那个数每加一个表单部件就变，而写死它的样子跟没过期一模一样
 //    （#1150 之前这里写的是「一共就这四条，其余 209 条」，两个数当天都已经旧了）。自己算一次 ——
 //    豁免的那一族由 `theme-css-invariants.mjs` 的 `reachableOnSubmitOnly` 一处定义：

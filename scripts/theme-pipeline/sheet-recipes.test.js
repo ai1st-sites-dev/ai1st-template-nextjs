@@ -1613,5 +1613,90 @@ console.log('\n⑬ #1150 首屏表单那行报错，跟联系/报价那两行拿
   }
 }
 
+// ══ ⑭ #1158 首屏那句「已收到」站在表单原来那个格子里 ═══════════════════════════════════════════
+//
+// 🔴 为什么这一格必须存在：`.hero__form-success` 是 `.hero` 这个 grid 的**直接子节点**（`HeroLeadForm`
+//    成功那一支返回的 `<p>` 替掉了 `<form>`），而「那个格子在哪」是**每种 hero 画法各自决定**的 ——
+//    `heroFormAfterBody` 给 order 4 并跨满，`form-side` 给 order 3、不跨满。#1158 第一版在块这一层
+//    写死了 `order: 4`，实测 `.hero__form` 的 order 分布是 **4→62 · 3→11 · 没写→10**，即不等于 4 的
+//    共 **21 张 / 83**（只看生成的那 80 张是 20/80；#1158 r1 这里写的「83 张里 20 张」是拿 80 的分子
+//    配了 83 的分母，QA1 r1 的 N3 点的就是这处）⟹ 那 21 张上
+//    「已收到」会跳到跟表单不同的位置（比如掉到 CTA 底下）。现在它由 `heroSuccessFrom` 从同一种画法
+//    自己那份 `form` 派生 —— 这一格盯的就是那条派生没断。
+// 🔴 这不是「盒子长得像不像」（⑬ 在管那个），是**位置**里的这几维：order / grid-column / 宽度 / 居中
+//    （🔴 不含 grid-row，理由紧跟在下面 PLACE 那里）。#1135 在
+//    `contact-form` 上量过这一维的代价：一条「已经收到了」的话被自动流塞进侧栏，只占 45% 宽。
+{
+  // 🔴 这把尺比的是**下面这 6 个键**，`grid-row` **不在里面** —— 所以这一格说的「相同」是
+  //    「这 6 个键相同」，不是「位置的每一维都相同」（#1158 r3，QA2 抓的）。把 `grid-row` 算进去
+  //    是 **73 相同 / 10 不同**，那 10 张全是 `media-cover` 画法（表单 `grid-row: 3`、「已收到」没有），
+  //    而 `sheet-recipes.js` 里那种画法自己的注释逐字写着「这一种的位置由 `grid-row` 说了算，不是 `order`」。
+  //    真机后果小（有装饰件时两者都落第 3 行、top 一样；去掉装饰件差 15px，QA2 在 amber-33 上量的），
+  //    所以**这一轮不把它加进来** —— 加它要动 `HERO_SUCCESS_PLACEMENT` 并重生 83 张表，那是行为改动，
+  //    已按 AC3 登进第 24 批台账。这里只把话说准，不让这一格宣称它没量过的东西。
+  const PLACE = ['order', 'grid-column', 'max-width', 'width', 'margin-left', 'margin-right'];
+  const placeOf = (css, sel) => {
+    let hit = null;
+    postcss.parse(css).walkRules((rule) => {
+      if (rule.selector !== sel) return;
+      if (rule.parent && rule.parent.type === 'atrule') return;   // @media 里那份是另一档
+      hit = rule;
+    });
+    if (!hit) return null;
+    return hit.nodes.filter((n) => n.type === 'decl' && PLACE.includes(n.prop))
+      .map((d) => `${d.prop}: ${d.value}`).sort().join('; ');
+  };
+  console.log('\n⑭ #1158 首屏那句「已收到」跟表单同一个格子');
+  const looks = new Map();
+  for (let i = 0; i < 80; i += 1) {
+    const look = heroLookFor(i);
+    if (!looks.has(look)) looks.set(look, { i, css: sheetFor(i) });
+  }
+  const wrong = [];
+  for (const [look, { i, css }] of looks) {
+    const f = placeOf(css, '.hero__form');
+    const s = placeOf(css, '.hero__form-success');
+    if (s === null) { wrong.push(`画法 ${look}（i=${i}）：产物里没有 .hero__form-success 这条规则`); continue; }
+    if (f !== s) wrong.push(`画法 ${look}（i=${i}）：表单在「${f}」而「已收到」在「${s}」`);
+  }
+  if (!wrong.length) {
+    ok(`${looks.size} 种画法逐种：「已收到」与表单的这 ${PLACE.length} 个放置键逐字相同`
+      + `（不含 grid-row —— 见上面那段注释与第 24 批台账）（media-left 那一份是 ${
+      placeOf(looks.get('media-left').css, '.hero__form-success')}）`);
+  } else {
+    wrong.forEach((w) => bad(`⑭ ${w}`));
+  }
+  // 🔴 阳性对照：把派生那一步换成 #1158 第一版那个写死的 `order: 4`，这把尺必须当场点名那些 order≠4 的画法。
+  //    没有它，一个「两边都读不出位置」的实现也能让上面那格绿。
+  const rigLook = [...looks.keys()].find((k) => {
+    const p = placeOf(looks.get(k).css, '.hero__form');
+    return p !== null && !p.includes('order: 4');
+  });
+  if (!rigLook) {
+    bad('⑭ 阳性对照立不起来：83 张里找不到一种 .hero__form 的 order 不是 4 的画法 —— 那这一格证明不了派生在干活');
+  } else {
+    const { css } = looks.get(rigLook);
+    // 🔴 两种形态都要能改：那条规则里**有** order（替掉它）和**没有** order（插一条）。
+    //    第一版只写了替换，而挑出来的 media-cover 的 `.hero__form` 根本没写 order ⟹ 它的
+    //    `.hero__form-success` 也没有 ⟹ 替换找不到目标、什么都没改，这一步当场说自己立不起来。
+    //    这正是它该做的事（没改动就不许当成"改了也没变"），修的是这一步本身。
+    const rigged = /\.hero__form-success \{[^}]*?\border:\s*[^;]+;/.test(css)
+      ? css.replace(/(\.hero__form-success \{[^}]*?)\border:\s*[^;]+;/, '$1order: 4;')
+      : css.replace(/(\.hero__form-success \{\n)/, '$1  order: 4;\n');
+    if (rigged === css) {
+      bad(`⑭ 阳性对照立不起来：没能在 ${rigLook} 的产物里把 .hero__form-success 的 order 改掉`);
+    } else {
+      const f = placeOf(rigged, '.hero__form');
+      const s = placeOf(rigged, '.hero__form-success');
+      if (f !== s) {
+        ok(`⑭ 阳性对照：把 ${rigLook} 的「已收到」写死成 order: 4（#1158 第一版就是这样）⟹ 这把尺当场读出`
+          + `两边不同（表单「${f}」vs「已收到」「${s}」）`);
+      } else {
+        bad(`⑭ 阳性对照失败：${rigLook} 的 order 被改成 4 之后这把尺还说两边一样 ⟹ 它没在读 order`);
+      }
+    }
+  }
+}
+
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);

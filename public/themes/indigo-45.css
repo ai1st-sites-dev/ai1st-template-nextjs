@@ -96,6 +96,19 @@
   color: var(--color-primary-900);
 }
 
+.hero__form-success {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-block);
+  background-color: var(--color-primary-100);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--color-primary-900);
+  order: 4;
+  grid-column: 1 / -1;
+  max-width: 32rem;
+}
+
 .cta-banner {
   display: grid;
   grid-template-columns: 1fr;

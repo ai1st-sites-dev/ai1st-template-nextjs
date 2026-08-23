@@ -115,6 +115,22 @@
   font-size: 0.875rem;
 }
 
+/* ── #1158 the tenth part: `.hero__form-success` ─────────────────────────────────────────────────
+   Centred like the panel it replaces, and — same as that panel — the ground and the ink are set
+   together, because this sheet's hero is dark and `.hero` sets a light `color`. */
+.hero__form-success {
+  order: 4;
+  width: 100%;
+  max-width: 28rem;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 1rem 1.5rem;
+  border-radius: 0.5rem;
+  background-color: var(--color-primary-100);
+  color: var(--color-primary-900);
+  font-weight: 600;
+}
+
 /* ── #1018 cta-banner — one centred column, nothing beside anything ──────────────────────────────
    The sheet that makes the point hardest keeps making it: at no width does this block have columns.
    The three parts stack, centred, with a measure on the words — which is the old `solid` look, and

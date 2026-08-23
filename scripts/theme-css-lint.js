@@ -122,6 +122,13 @@ const HOOKS = new Set([
   // as a bordered box, so until this hook existed the same failure looked like a framed message on
   // the contact and quote pages and like bare text on the first screen — 83 sheets out of 83.
   '.hero__form-error',
+  // #1158 — the tenth part, and the one every customer who fills the form in DOES see: the line the
+  // hero form prints after a successful submit. Until this hook existed that line borrowed
+  // `.hero__form` (the panel), so it came out looking like an empty form frame, and a sheet had no
+  // way to draw it as what it is — the receipt. Its two sisters `.contact-form__success` and
+  // `.quote-form__success` have had their own hook since #1027; `hero__form-success` read 0/83 in
+  // the pool before this ticket.
+  '.hero__form-success',
   '[data-block="hero"]',
   // #1018 — cta-banner, phase 2's first paid-in-full move. One class per part, no part for the
   // button itself: the box around it is a theme's business, the button's own look is the brand's.

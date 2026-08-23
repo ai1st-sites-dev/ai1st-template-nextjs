@@ -9,6 +9,16 @@ out/
 # 不忽略的后果不是"多个目录"：它长得跟「有人漏 stage 了一个交付物」一模一样，而 ship 前的
 # stage-completeness / stale-index 那一族正要人逐条判那个（`ai-team/SHIPPING.md` 的规定动作）。
 .out-backup/
+# #1158（来源 #1157）—— 同一个脚本的**同一族**残留，同一行下面那一行造它（`:10`）。#1157 只按
+# 字面修法加了上面那个。它比 `.out-backup/` 弱一点：happy path 里它被 rename 成 `out/<site>/`，
+# 只有 `restore` 中途死掉才留在盘上 —— 但"弱一点"不是不会发生，而漏在盘上的后果跟上面那条逐字相同。
+#
+# 🔴 **复算这两条要带尾斜杠，或者先把目录建出来**（#1158 r2，QA1 抓的）：这两行是 `名字/` 形态，
+#    只匹配**目录**；而 `git check-ignore <路径>` 在那个路径不存在时按**非目录**判 ⟹ 不带斜杠时
+#    改前改后**都是 rc=1**，照抄会读成"这条修法没生效"。两种写法都对：
+#      git check-ignore -v templates/nextjs/.out-temp/          # rc=0
+#      mkdir -p templates/nextjs/.out-temp && git check-ignore -v templates/nextjs/.out-temp
+.out-temp/
 
 # generated at runtime
 config/

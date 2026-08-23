@@ -816,7 +816,14 @@ const SHAPES = {
   // #1150 —— `form-error` 走 `error`，跟 `contact-form` / `quote-form` 那两条同一个角色：三处的
   // 错误框因此是**同一段代码**画出来的（`ROLES.error`），不是照抄三遍。`form` 本身不写在这里，
   // 它走 `ROLE_BY_PART` 的 `panel`（#1065 立的）。
-  hero: { cols: '5fr 6fr', rootExtra: { 'align-items': 'center' }, role: { media: 'media', body: 'column', title: 'display', sub: 'lede', cta: 'actions', deco: 'deco', 'form-error': 'error' } },
+  // 🔴 #1158 —— `form-success` 同理走 `success`（跟 `contact-form` / `quote-form` 的 `success` 一条）。
+  //    **必须显式写在这里**：`ROLE_BY_PART` 里有 `success` 这个键，但没有 `form-success` 这个键，
+  //    落回去拿到的是保底的 `desc` —— 那是一段普通段落，没有底色也没有内距，而这一句是回执。
+  //    （同一个坑 `form-error` 已经踩过一次：那一条也是显式写的，理由逐字相同。）
+  hero: {
+    cols: '5fr 6fr', rootExtra: { 'align-items': 'center' },
+    role: { media: 'media', body: 'column', title: 'display', sub: 'lede', cta: 'actions', deco: 'deco', 'form-error': 'error', 'form-success': 'success' },
+  },
   'cta-banner': { cols: '2fr 1fr', rootExtra: { 'align-items': 'center' }, role: { headline: 'display', desc: 'lede', action: 'actions' } },
   'page-header': { cols: '1fr', role: { crumbs: 'crumbs', title: 'display', sub: 'lede' } },
   'contact-form': {
@@ -1247,6 +1254,36 @@ const HERO_LOOKS = {
     },
   },
 };
+// ── #1158 —— 每一种 hero 画法的 `form-success` 从它【自己那一份 form】派生 ─────────────────────────
+//
+// 🔴 为什么必须派生、不能写死:成功那句话**站在表单原来那个格子里**(`HeroLeadForm` 成功那一支返回的
+//    `<p>` 是 `.hero` 这个 grid 的直接子节点,替掉了 `<form>`),而「那个格子在哪」是**每种画法各自决定**
+//    的 —— `heroFormAfterBody` 给 order 4 并跨满,而 `form-side` 给 order 3、不跨满(表单在侧栏才是它的
+//    主意)。我第一版在块这一层写死了 `order: 4`,实测 `.hero__form` 的 order 分布是
+//    **4 → 62 张 · 3 → 11 张 · 没写 → 10 张**,也就是**不等于 4 的共 21 张 / 83**(只看生成的那 80 张
+//    是 20/80 —— 两个数都真,别混:分子要配分母。#1158 r1 把它写成「83 张里 20 张」,是拿 80 的分子
+//    配了 83 的分母,QA1 r1 的 N3 点的就是这处)。那 21 张上「已收到」会跳到跟表单不同的位置去
+//    (比如掉到 CTA 底下)。
+// 🔴 只抄**放置类**的键,不抄「它是一张表单」那几个(`display` / `gap` / `padding` / `border-*`):
+//    那些由 `ROLES.success` 给,一行字不该拿到 `form-side` 的 `padding: 2rem`。
+// 🔴 一处定义、自动覆盖:加第九种画法的人**不需要记得**写它(同 `contact-form` 那条 `success` 选块层
+//    的理由 —— 见 SHAPES['contact-form'] 上面 #1135 那段)。而「有没有漏」由 sheet-recipes.test.js
+//    的那一格盯着:每种声明了 form 的画法都必须派生出 form-success。
+const HERO_SUCCESS_PLACEMENT = [
+  'order', 'grid-column', 'max-width', 'width', 'margin-left', 'margin-right', 'justify-self', 'align-self',
+];
+const heroSuccessFrom = (formExtra) => (v, s) => {
+  const f = formExtra(v, s) || {};
+  const out = {};
+  for (const key of HERO_SUCCESS_PLACEMENT) if (key in f) out[key] = f[key];
+  return out;
+};
+for (const look of Object.values(HERO_LOOKS)) {
+  if (look.partExtra && typeof look.partExtra.form === 'function') {
+    look.partExtra['form-success'] = heroSuccessFrom(look.partExtra.form);
+  }
+}
+
 
 const HERO_LOOK_NAMES = Object.keys(HERO_LOOKS);
 
@@ -1326,6 +1363,13 @@ function shapeFor(block, v) {
   //    hero 传 false：它归 #1065，它那些纯文字画法今天本来就没有宽屏那一段，本票不改它的产物。
   //    `SHAPES.hero` 没有 `partExtra`（实测），所以上面那行 spread 对 hero 等价于 #1065 那版的
   //    `partExtra: hero.partExtra` —— 这一条单独量过，见 #1090 的交接留言。
+  //    🔴 **#1158 这句话仍然成立，别照 #1158 r1 那条注释去改它**（QA1 r1 的 F2 抓的就是那条）：
+  //    本票给 hero 加的是 `SHAPES.hero.role` 里那条 `'form-success': 'success'`，**不是** `partExtra`；
+  //    `form-success` 的位置挂在**每种画法自己**那份 `partExtra` 上（见上面 `HERO_LOOKS` 之后那个
+  //    `for (const look of ...)` 循环）。所以要找它，去 `HERO_LOOKS`，不是这里。
+  //    r1 那条注释三句话全错，实测：`SHAPES.hero` 的键只有 `cols` / `rootExtra` / `role` 三个 ·
+  //    83 张表里有 **13 张**的 `.hero__form-success` 根本没有 `grid-column`（11 张 order:3 + 2 张
+  //    order:4）⟹「块这一层给它跨满」不成立 · `HERO_LOOKS` 是 **8** 种不是 7 种。
   const fam = familyOf(block);
   if (!fam) return base;
   return pick(fam.table, v[fam.key], block, fam.keepsWide);

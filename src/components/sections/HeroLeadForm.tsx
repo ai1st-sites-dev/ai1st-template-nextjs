@@ -69,11 +69,20 @@ export default function HeroLeadForm({ data }: HeroLeadFormProps) {
     }
   };
 
-  // 🔴 成功之后那句话**照样带这个钩子和这个角色**：它是同一个部件的另一个运行时状态，不是另一个
-  // 部件。只给表单那一支带钩子的话，一份只给表单写了造型的表会让「已收到」那句话裸奔（这是
-  // `ContactFormSection` 两个根元素那条注释的同一个理由）。
+  // #1158（来源 #1150）—— 成功之后那句话拿**自己的**钩子 `.hero__form-success`，跟两个姊妹部件
+  // （`.contact-form__success` / `.quote-form__success`）同构，角色也同一个 `success`。
+  //
+  // 🔴 上一版这里写的是 `className="hero__form"`（借表单那块面板的造型），当时的理由是「只给表单那
+  // 一支带钩子的话，一份只给表单写了造型的表会让『已收到』那句话裸奔」。那个理由**在没有专属钩子
+  // 的前提下是对的**，而本次把前提改掉了：`.hero__form-success` 进了 §1 的钩子名单、进了
+  // `sheet-recipes.js` 的 `SHAPES.hero.role`，池里每一张表都为它写了规则（`hero__form-success`
+  // 从 0/83 变成 83/83）。所以现在它有自己的造型，不再需要借。
+  // 🔴 为什么不两个钩子都带：面板那条规则画的是**一张表单**（`display: grid` + 边框 + 内距），
+  // 而这里只有一句话。姊妹块的做法就是不带 —— `ContactFormSection.tsx:112` 的成功那一支是
+  // `<p className="contact-form__success">`，`contact-form__form` 那个面板钩子不在上面。
+  // 角色仍是 `essential`：它是客人「我留下联系方式了吗」的唯一回执，藏掉它跟藏掉表单一样严重。
   if (state === 'success') {
-    return <p className="hero__form" data-role="essential">{successMessage}</p>;
+    return <p className="hero__form-success" data-role="essential">{successMessage}</p>;
   }
 
   return (
