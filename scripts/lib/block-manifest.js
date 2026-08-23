@@ -410,9 +410,29 @@ function validateSite({ pages, industry = '', dir, scope = 'create' } = {}) {
         continue;
       }
       const where = `${page.slug || '(no slug)'} 第 ${i + 1} 个块 ("${sec.type}")`;
+      // 🔴 #1155 —— `{ "ref": "<站级块的 id>" }` 是 CLAUDE.md §Dynamic Pages 冻结的合法形状，它
+      //    **没有 `type` 字段**，所以下面那句 `manifests.get(sec.type)` 必然拿到 undefined，
+      //    于是「没有这种块」那一支会对一个完全正确的条目开火，还把 `undefined` 当成块名打进报文。
+      //    伤害不止「日志里多一行」：`create-site.js:2331` 拿 `problems.length` 决定要不要让模型
+      //    重写一遍 ⟹ 一条不存在的问题烧掉一次真的 API 调用，而重写之后它**还在**（它跟模型写得
+      //    对不对无关），`:2357` 的 `afterRetry` 于是读到「重试也没修好」。而 #1154 印进提示词的
+      //    那句话（本文件 `:409`）正在逐字告诉模型 ref 是合法格子。
+      //
+      // 🔴 这里**只压掉这一条报文**，没有新加「见到 ref 就整格 continue」那种口子：`continue` 是
+      //    这一支本来就有的（没有 manifest 就没有 `m.slots` / `m.roleDefault` / `m.block_layout`，
+      //    下面第 ①②③⑤ 条逐条都要读 `m`，物理上跑不了）。上面 #1154 那道「这一格是不是块」的检查
+      //    仍然照跑 —— ref 条目是对象，它本来就从那里正常通过。
+      //
+      // 🔴 谓词比 `edit-site.js:314` 的 `ownBlocksOf` 严一格，多一个「而且没写 type」：
+      //    `blocks.js:387-389` 写着**同时**写了 `ref` 和 `type` 的块在构建期直接 throw
+      //    （「ref 是引用站级块库，不带自己的内容」）⟹ 那不是一个合法的 ref 条目，把它的报文也
+      //    一起压掉等于建站期放行、构建期才炸。`{ "ref": 7 }`（ref 不是字符串）同理照旧报。
+      const isRefEntry = typeof sec.ref === 'string' && sec.type === undefined;
       const m = manifests.get(sec.type);
       if (!m) {
-        flag(`${where}: 没有这种块 —— blocks/ 里没有 ${sec.type}.json，registry 也不会认它`);
+        if (!isRefEntry) {
+          flag(`${where}: 没有这种块 —— blocks/ 里没有 ${sec.type}.json，registry 也不会认它`);
+        }
         continue;
       }
       seenTypes.add(sec.type);

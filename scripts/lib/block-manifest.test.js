@@ -202,5 +202,45 @@ for (const [what, entry] of [['null', null], ['一个字符串', 'x'], ['一个�
   else bad(`良构也被报了: ${JSON.stringify(mine)}`);
 }
 
+// ── ⑨ #1155：合法的 `{ "ref": … }` 条目不许被报成「没有这种块」──────────────────────────────────
+//
+// 🔴 为什么这条要有测试而不只是一次读数：假问题的代价不是「日志里多一行」。
+//    `create-site.js:2331` 拿 `problems.length` 决定要不要让模型重写一遍，而重写之后这条问题
+//    **还在**（它跟模型写得对不对无关）⟹ `:2357` 的 `afterRetry` 读到「第一次 1 条、重试后还是
+//    1 条」判成 `fatal`：一个合法的 ref 条目让整次建站死掉。取这份读数时两臂实测过
+//    （改之前 problems=1 / 模型调用 1 次 / 然后 fatal，改之后 problems=0 / 模型调用 0 次）。
+//
+// 🔴 三格反向对照缺一不可 —— 它们各自守着一个「顺手写宽了」的方向：
+//    `{ ref: 7 }` 守「ref 必须是字符串」· `{ ref, type }` 守「构建期 blocks.js:387-389 会 throw
+//    的那个自相矛盾形状不许在建站期被放行」· `{ type: 没有的块名 }` 守这条检查本身还活着。
+console.log('── ⑨ 合法的 ref 条目不许被误报（#1155）');
+{
+  const GOOD = { id: 'c', type: 'contact-info', region: 'content', weight: 20, data: { headline: 'Contact' } };
+  const noSuch = (r) => r.problems.filter((p) => p.includes('没有这种块'));
+  const probe = (entry) => validateSite({
+    pages: [{ slug: 'probe', blocks: [entry, GOOD] }],
+    industry: 'auto repair',
+  });
+
+  for (const [what, entry] of [
+    ['{ ref: "our-team" }', { ref: 'our-team' }],
+    ['ref 条目上还写了 data / weight / role', { ref: 'our-team', data: { headline: 'z' }, weight: 5, role: 'optional' }],
+  ]) {
+    const r = probe(entry);
+    if (r.problems.length === 0) ok(`${what} ⟹ 0 条 problem`);
+    else bad(`${what} 被误报了: ${JSON.stringify(r.problems)}`);
+  }
+
+  for (const [what, entry] of [
+    ['{ ref: 7 }（ref 不是字符串）', { ref: 7 }],
+    ['{ ref: "x", type: "不存在的块名" }（构建期 blocks.js 会 throw 的形状）', { ref: 'x', type: '不存在的块名' }],
+    ['{ type: "不存在的块名" }（这条检查本身还活着）', { type: '不存在的块名' }],
+  ]) {
+    const hit = noSuch(probe(entry));
+    if (hit.length === 1) ok(`反向对照 ${what} ⟹ ${hit[0]}`);
+    else bad(`反向对照 ${what} 没照旧报: ${JSON.stringify(hit)}`);
+  }
+}
+
 console.log(`\n══ ${pass} 过 / ${fail} 败 ══`);
 process.exit(fail ? 1 : 0);
