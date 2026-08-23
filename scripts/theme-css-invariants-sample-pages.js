@@ -51,6 +51,15 @@
 //                                `["title","description","/** … 老站那条路"]`，没有 `features`）。那是那个
 //                                工具的既有脆弱处、被本票新写的那段注释踩中，按下面那条不在这里修
 //                                ⟹ 在产物上补。
+//                                📌 #1149 item 25 —— 这个洞落在**三个块**上,不是一个:`checklist` /
+//                                `service-highlights` / `card-group` 三个 type 在 registry.ts 里都指向
+//                                `CardGroupSection`,所以生成器给它们合成的 `items[0]` 键**逐字相同**
+//                                (实测三个都是 `["title","description","/** #1143 …"]`)。而下面第 ②
+//                                段只替换了后两个的整条数组 ——**`checklist` 那块原样留着那个垃圾键**。
+//                                今天无害,理由是契约里 `checklist` 一族根本没有 `__features` 这个钩子:
+//                                  grep -ohE '\.checklist__[a-z-]+' docs/reference/theme-css-contract.md | sort -u
+//                                ⟹ 只有 `__headline` / `__item` / `__sub` 三条。哪天有人给契约加一条
+//                                `.checklist__features`,同一个形态会再红一次,那时把 `checklist` 一起补上。
 //                                📌 我把它自己那份 `fields()` 原样抠出来跑了一遍全部已注册组件：真正落在
 //                                `data` 那一层里、名字被注释吃掉的只有三个键 —— 本块的 `features`、
 //                                `FaqAccordionSection` 的 `defaultOpen`、`AnnouncementBarSection` 的
@@ -289,14 +298,22 @@ writeJson(allblocks, page);
     if (faq[0].defaultOpen !== true) bad.push('faq-accordion item 1 is not open');
     if (faq[1].defaultOpen !== undefined) bad.push('faq-accordion item 2 was left open too — the closed arm is gone');
   }
-  // #1143 —— 两个方向都读回来。只问「highlights 在不在」的话，`items` 还留着时那道 §2.5 坑三守卫
-  // 会把两个槽位一起清掉，而那种情况在这里长得跟补好了一样。
+  // #1143 —— 两个方向都读回来:`highlights` 补上了,而且 `items` 真的没留下。
+  // 🔴 #1149 item 26 更正:上一版这里(以及下面那条报文)给的理由是「只问 `highlights` 在不在的话,
+  //    `items` 还留着时那道 §2.5 坑三守卫会把两个槽位一起清掉」——**那是假的**。`blocks.js` 的
+  //    `applyAlias` 里两个键都在时走的是**前一支**(`blocks.js:70`:`if (源在) { data[to]=data[from];
+  //    delete data[from] }`),也就是 `highlights` 赢、`items` 被换成它的内容、**照样渲染**;
+  //    `:74` 那个 `else if`(源不在、目标在)按构造进不去。三份独立读数结果相同。
+  // ⟹ 断言留着,但它守的**不是**「不这么写就会被清空」。它守的是:这个夹具要长得**跟真实老站一样**
+  //    —— 老站磁盘上只有 `highlights` 这一个槽位(它就是 `block-aliases.json` 里那条改名的源)。
+  //    两个键都写会造出一个真实站点里不存在的形状,那样它顺带跑过的那次别名映射就不是老站走的那条。
+  //    开火方向是保守的(多一个键就报),留着不亏。
   {
     const sh = find('service-highlights');
     const hl = sh && sh.data && sh.data.highlights;
     if (!Array.isArray(hl) || hl.length < 2) bad.push('service-highlights has no highlights array');
     else if (!Array.isArray(hl[0].features) || !hl[0].features.length) bad.push('service-highlights item 1 has no features → .service-highlights__features would be on no page');
-    if (sh && sh.data && sh.data.items !== undefined) bad.push('service-highlights still has items alongside highlights — applyAlias would delete both (§2.5 坑三)');
+    if (sh && sh.data && sh.data.items !== undefined) bad.push('service-highlights still has items alongside highlights — a real legacy site only has highlights, so this fixture would exercise the wrong alias branch (highlights wins and items is overwritten — blocks.js:70; it is NOT the §2.5 坑三 both-deleted branch)');
     const cg = find('card-group');
     const it = cg && cg.data && cg.data.items;
     if (!Array.isArray(it) || !it.length) bad.push('card-group has no items array');
