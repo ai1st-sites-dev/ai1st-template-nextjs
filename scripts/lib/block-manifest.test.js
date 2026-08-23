@@ -167,7 +167,10 @@ for (const [type, slot] of [['timeline', 'events'], ['service-highlights', 'high
 // ── ⑧ #1154：`blocks` 数组里那一格根本不是块 ⟹ 报 problem，不许抛异常 ─────────────────────────
 //
 // 🔴 判据是**不抛**，不只是「有 problem」。抛出去的话它冒到 `create-site.js:2729` 的
-//    `main().catch(err => fatal(err.stack))` —— 建站直接死，连 `:2333` 那一次重试都走不到。
+//    `main().catch(err => fatal(err.stack))` —— 建站直接死，连重试都走不到。
+//    📌 #1157（来源 #1154）更正：这里原写「连 `:2333` 那一次重试」—— `:2333` 是那句 `debug(…)`，
+//    开出重试的是 `:2331` 那个 `if`（真正发调用的是 `:2335`）。本文件下面第 ⑨ / ⑩ 节各写了一次
+//    `:2331`，三句原来对不上。🔴 这里按**节号**指、不按行号指：改这段注释本身就会把行号挤走。
 console.log('── ⑧ blocks 数组里混进不是块的东西（#1154）');
 for (const [what, entry] of [['null', null], ['一个字符串', 'x'], ['一个数组', [1]], ['一个数字', 7]]) {
   let r = null; let threw = null;

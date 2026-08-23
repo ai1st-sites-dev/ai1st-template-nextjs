@@ -4,6 +4,11 @@ node_modules/
 # next.js
 .next/
 out/
+# #1157（来源 #1152）—— `scripts/move-build-output.js:9` 每次构建都可能留下它：`backup` 那一支把
+# 现有的 out/ 整个 rename 成 .out-backup/，只有 `restore` 跑完才搬回去 ⟹ 构建中途失败就留在盘上。
+# 不忽略的后果不是"多个目录"：它长得跟「有人漏 stage 了一个交付物」一模一样，而 ship 前的
+# stage-completeness / stale-index 那一族正要人逐条判那个（`ai-team/SHIPPING.md` 的规定动作）。
+.out-backup/
 
 # generated at runtime
 config/

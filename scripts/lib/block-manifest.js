@@ -398,7 +398,13 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
       // 🔴 #1154 —— `blocks` 数组里那一格根本不是块（`null` / 一个字符串 / 一个数组）。
       //    在这条守卫之前，下面那句 `sec.type` 直接抛 `TypeError: Cannot read properties of
       //    null (reading 'type')`，而这个函数的调用方是按「返回 problems」写的：
-      //    `create-site.js:2317/2353` 拿 problems 决定要不要**重试一次**（`:2353` 那一支），
+      //    `create-site.js:2331` 那个 `if` 拿 problems 决定要不要**重试一次**（问题由 `:2317`
+      //    这次调用产出；重试之后 `:2353` 重取一遍，`:2357` 的 `afterRetry` 下判决）。
+      //    📌 #1157（来源 #1154）更正：这里原写「`:2317/2353` 拿 problems 决定」—— 那两行是
+      //    **调用点**，不是决定点；做决定的 `if` 在 `:2331`。本文件下面 #1155 那段注释
+      //    （「伤害不止「日志里多一行」」那句）写的就是 `:2331` —— 两句原来是打架的。
+      //    🔴 这里不写「往下 N 行 / 本文件 :NNN」：改这段注释本身就会把那个数挤走
+      //    （我第一版写了 `:417`，加完这四行它就变成 `:421` 了）。按内容指，别按行号指。
       //    抛异常则一路冒到顶层的 `main().catch(err => fatal(err.stack))` ⟹ 建站直接死，
       //    连那一次重试都没有。所以这里的处置是「点名 + 跳过这一格」，不是让它炸。
       if (sec === null || typeof sec !== 'object' || Array.isArray(sec)) {
