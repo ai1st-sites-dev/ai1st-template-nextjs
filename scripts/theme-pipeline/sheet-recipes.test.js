@@ -1520,5 +1520,98 @@ console.log('\n⑫ #1139 每个块在全池 80 套里有几副骨架（族清单
   }
 }
 
+
+// ══ ⑬ 首屏表单那行报错，拿到的是跟它两个姊妹同一个盒子（#1150）════════════════════════════════
+//
+// 🔴 为什么这一格必须存在：`.hero__form-error` 拿到边框，靠的是 `SHAPES.hero.role` 里的一个字符串
+//    （`'form-error': 'error'`）。**把那一行删掉不会让任何东西红** —— `sheetFor` 对认不出角色的
+//    部件走 `ROLES.desc` 保底（sheet-recipes.js 里那句「不是跳过，是拿一份保底样式」），于是表里
+//    照样有 `.hero__form-error` 这条规则，只是它变成一段普通段落、没有框。而本票要治的病正是
+//    「提交失败时联系表单和报价表单弹一个框、首屏这里是裸文字」⟹ 静态那三道闸
+//    （`css-contract-check.js` / `theme-pipeline/hook-coverage.js` / `theme-css-lint.js`）问的都是
+//    「这个钩子有没有规则」，对这种退步按构造是绿的。下面的阳性对照就是拿真的 `desc` 规则喂进去。
+//
+// 判据是**盒子**逐项相同，不是整条规则相同，两个不比的项各有理由：
+//   · `color` —— 它跟着每个块自己的表面走。实测 80 套池成员：`.hero__form-error` 与
+//     `.contact-form__error` 同色 80/80，与 `.quote-form__error` 只有 27/80（quote-form 那个块
+//     坐在另一个表面上）。要求同色等于要求两个块共用一个表面，那是另一件事。
+//   · `grid-column` —— 那是 `contact-form` 块自己的 `partExtra`（理由写在 ⑩ 上面那段）。
+console.log('\n⑬ #1150 首屏表单那行报错，跟联系/报价那两行拿到同一个盒子');
+{
+  const BOX = ['padding', 'border-radius', 'border-width', 'border-style', 'border-color', 'font-size', 'line-height'];
+  /** 一份表里那条顶层规则的**盒子**（只取 BOX 里那几项，排序后拼成一行）。 */
+  const boxOf = (css, sel) => {
+    let hit = null;
+    postcss.parse(css).walkRules((rule) => {
+      if (rule.selector !== sel) return;
+      if (rule.parent && rule.parent.type === 'atrule') return;   // @media 里那份是另一档
+      hit = rule;
+    });
+    if (!hit) return null;
+    return hit.nodes.filter((n) => n.type === 'decl' && BOX.includes(n.prop))
+      .map((d) => `${d.prop}: ${d.value}`).sort().join('; ');
+  };
+  const PARTS = ['.hero__form-error', '.contact-form__error', '.quote-form__error'];
+  const sheets = new Map(TRIO.map((i) => [heroLookFor(i), sheetFor(i)]));
+
+  const problemsIn = (css, look) => {
+    const out = [];
+    const boxes = PARTS.map((p) => [p, boxOf(css, p)]);
+    const missing = boxes.filter(([, b]) => b === null).map(([p]) => p);
+    if (missing.length) { out.push(`画法 ${look}：表里没有 ${missing.join(' / ')} 这条顶层规则`); return out; }
+    if (boxes[0][1] === '') {
+      out.push(`画法 ${look}：.hero__form-error 一条盒子属性都没写 —— 那就是 ROLES.desc 保底的样子，`
+        + '首屏那行报错会是裸文字（本票要治的就是它）');
+      return out;
+    }
+    for (const [p, b] of boxes.slice(1)) {
+      if (b !== boxes[0][1]) {
+        out.push(`画法 ${look}：.hero__form-error 的盒子跟 ${p} 不一样\n`
+          + `      hero: ${boxes[0][1]}\n      ${p.padEnd(4)}: ${b}`);
+      }
+    }
+    return out;
+  };
+
+  const problems = [...sheets].flatMap(([look, css]) => problemsIn(css, look));
+  if (problems.length) problems.forEach(bad);
+  else {
+    const one = boxOf(sheets.get(HERO_LOOK_NAMES[0]), '.hero__form-error');
+    ok(`${sheets.size} 种画法逐种：三行报错的盒子逐项相同（${HERO_LOOK_NAMES[0]} 那一份是 ${one}）`);
+  }
+
+  // 🔴 阳性对照：把 `.hero__form-error` 的声明换成**同一份表里真的那条 `desc` 规则**
+  //    （`.values-grid__desc` 走的就是 `ROLES.desc`）—— 这正是删掉 `SHAPES.hero.role` 那一行之后
+  //    生成器会写出来的东西。这把尺必须只点名被动过的那一种画法。
+  {
+    const target = HERO_LOOK_NAMES[0];
+    const css = sheets.get(target);
+    const descBody = (() => {
+      let hit = null;
+      postcss.parse(css).walkRules((r) => { if (r.selector === '.values-grid__desc' && !(r.parent && r.parent.type === 'atrule')) hit = r; });
+      return hit ? hit.nodes.filter((n) => n.type === 'decl').map((d) => `  ${d.prop}: ${d.value};`).join('\n') : null;
+    })();
+    if (!descBody) {
+      bad('⑬ 阳性对照立不起来：这份表里没有 .values-grid__desc（拿不到真的 ROLES.desc 长什么样）');
+    } else {
+      const rigged = css.replace(/^\.hero__form-error \{[^}]*\}/m, `.hero__form-error {\n${descBody}\n}`);
+      if (rigged === css) {
+        bad('⑬ 阳性对照立不起来：没能在产物里替换掉 .hero__form-error 那条规则');
+      } else {
+        const caught = problemsIn(rigged, target);
+        if (caught.length && caught.every((m) => m.includes(`画法 ${target}`))) {
+          ok(`⑬ 阳性对照：把 ${target} 的 .hero__form-error 换成同一份表里真的那条 ROLES.desc 规则`
+            + `（删掉 SHAPES.hero.role 那一行之后生成器写出来的就是它）⟹ 这把尺当场点名它`
+            + `（${caught[0].split('\n')[0].slice(0, 70)}…）`);
+        } else if (caught.length) {
+          bad(`⑬ 阳性对照对不上：点名的不止 ${target} —— ${caught.join(' | ')}`);
+        } else {
+          bad('⑬ 阳性对照失败：把首屏那行报错换成一段普通段落之后，这把尺一句话都没说 ⟹ 它是装饰');
+        }
+      }
+    }
+  }
+}
+
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);

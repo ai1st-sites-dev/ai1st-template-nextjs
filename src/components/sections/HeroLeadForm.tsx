@@ -95,22 +95,17 @@ export default function HeroLeadForm({ data }: HeroLeadFormProps) {
         <input id="hero-hp" type="text" tabIndex={-1} autoComplete="off" value={hp} onChange={(e) => setHp(e.target.value)} />
       </div>
 
-      {/* 🔴 这个 `<p>` 没有钩子,而两个姊妹组件都有 —— 这是一条**真的、用户看得见的**不一致,
-          写在这里是为了它不再被当成"打磨"顺手带过(#1140,来源 #1065;那一条原话是"契约没要求它,
-          所以不违约,属一致性缺口")。
-          现读的三个数(2026-08-22,`templates/nextjs/`):
-            · `ContactFormSection.tsx:142` 是 `.contact-form__error`,`QuoteFormSection` 那份是
-              `.quote-form__error`,两个名字都在契约 §1 的部件清单里,也都在 `theme-css-lint.js`
-              的 `HOOKS` 里;hero 这一族**没有**对应的那一个。
-            · 而表**真的在给它们排版**:`grep -c` 全部 83 张表,`.contact-form__error` 与
-              `.quote-form__error` 各 83/83 命中,规则是 `padding` + `border-*` + `border-radius`
-              那一套错误框。⟹ 提交失败时,联系表单和报价表单弹出一个框,而 hero 这里是**裸文字**。
-          🔴 所以这不是"加了等于没加"。要拿到那个效果得动四处:这一行的 class + 契约 §1 + `HOOKS`
-          + `sheet-recipes.js` 里那条规则,最后**重新生成 83 张表**。而重生成 83 张表要过表那一族
-          全部守卫(含 `theme-text-bands.json` 里存着的几何 md5)。
-          ⟹ 处置:**本批不做** —— 按本票正文「用户可见的缺陷…照旧各自开票」,它该是一张自己的票,
-          不是打磨批次能捎带的活。这段注释是给那张票的现场。 */}
-      {error && <p>{error}</p>}
+      {/* #1150 — 这个 `<p>` 的钩子是 `.hero__form-error`,跟两个姊妹部件
+          (`.contact-form__error` / `.quote-form__error`)拿的是同一个角色 `error`,所以三处的
+          错误框是同一段代码画出来的,不是照抄三遍。
+          🔴 加 class 这一行**单独放出去等于没改**:表里没有对应规则时,页面上仍然是裸文字。
+          它是四处一起的一次改动 —— 这一行 · 契约 §1 的 Hero parts · `theme-css-lint.js` 的
+          `HOOKS` · `sheet-recipes.js` 的 `SHAPES.hero.role`,最后重新生成那 83 张表。
+          📌 不给它写 `partExtra`:它是 `<form class="hero__form">` 的子节点,而 `.hero__form` 走
+          `ROLES.panel`,那个角色写的是 `display: grid` 而**不写 `grid-template-columns`** ⟹ 单栏,
+          子节点本来就占满整行,`grid-column: 1 / -1` 在这里是恒等式。跟 `sheet-recipes.js` 里
+          `contact-form` 那条同名 `partExtra` 是同一个形状 —— 那里已经写明它今天也是恒等式,留着是保险。 */}
+      {error && <p className="hero__form-error">{error}</p>}
 
       <button type="submit" disabled={state === 'submitting'} className="btn-accent">
         {state === 'submitting' ? 'Sending…' : buttonText}

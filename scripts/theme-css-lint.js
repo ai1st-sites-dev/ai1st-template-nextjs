@@ -116,6 +116,12 @@ const HOOKS = new Set([
   // the markup but not on this list is the silent half: sheets cannot dress it and gate ② calls the
   // whole candidate out for a hook it has no rule for.
   '.hero__form',
+  // #1150 — the ninth part, and the one a customer only ever sees when something went wrong: the
+  // line the hero form prints when a submit fails. Its two sisters (`.contact-form__error`,
+  // `.quote-form__error`) have been on this list since #1027 and every sheet in the pool draws them
+  // as a bordered box, so until this hook existed the same failure looked like a framed message on
+  // the contact and quote pages and like bare text on the first screen — 83 sheets out of 83.
+  '.hero__form-error',
   '[data-block="hero"]',
   // #1018 — cta-banner, phase 2's first paid-in-full move. One class per part, no part for the
   // button itself: the box around it is a theme's business, the button's own look is the brand's.

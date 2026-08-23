@@ -92,6 +92,28 @@
   border-color: var(--color-primary-200);
 }
 
+/* ── #1150 the ninth part: `.hero__form-error` ───────────────────────────────────────────────────
+   The line the hero form prints when a submit fails. Its two sisters in this sheet
+   (`.contact-form__error` / `.quote-form__error`) take the same font size AND an accent ink; this
+   one takes the font size and NO ink, so it inherits the ink of the box it sits in. That is a
+   measured decision rather than an omission — copying the sisters' colour here is unreadable:
+
+     the sisters' ink, on the ground THIS line sits on   var(--color-accent-600) on var(--color-primary-50)   worst 2.06:1
+     the ink it inherits instead                         var(--color-primary-900) on var(--color-primary-50)   worst 8.37:1
+
+   🔴 Recompute those two rather than trusting them — they are a reading over the registry
+   (110 palettes x 31 hue steps today), and the registry grows. From templates/nextjs:
+     node -e "const c=require('./scripts/theme-contrast.js'),t=require('./scripts/tweaks.js'),{themes}=require('./scripts/themes.js');const w=(a,b)=>Math.min(...Object.values(themes).flatMap(m=>c.hueSteps().map(h=>c.contrast(c.hexToRgb(t.shiftHue(m.colors[a[0]][a[1]],h)),c.hexToRgb(t.shiftHue(m.colors[b[0]][b[1]],h))))));console.log(w(['accent','600'],['primary','50']).toFixed(2),w(['primary','900'],['primary','50']).toFixed(2))"
+   `.hero__form` above writes no ground here — it is a hairline-topped strip, not a panel — so the
+   ground under this line is `.hero`'s own (`--color-primary-50`), and the ink it inherits is
+   `.hero`'s (`--color-primary-900`).
+   🔴 Not a bordered box here, on purpose: neither sister is one in this sheet either. The pool's
+   GENERATED sheets do draw all three as a box — that is one rule, `ROLES.error` in
+   scripts/theme-pipeline/sheet-recipes.js, shared by all three parts. */
+.hero__form-error {
+  font-size: 0.875rem;
+}
+
 /* ── #1018 cta-banner — the mirror of hero-media-left: the button's column comes FIRST ───────────
    Same three siblings, same sheet-only decision, opposite side. `order` is what puts the button on
    the left without the markup knowing anything about it — the identical mechanism this sheet already

@@ -59,11 +59,17 @@
 //                                已经在补（那是 #1060 为开/关两臂补的，不是为这个洞）；`variant` 本轮
 //                                **不补** —— 给它喂值会让那个块新收到一个它今天收不到的东西，是另一件事。
 //
-// 📌 **到不了 0，下限是 4**，而那四条不是补数据能救的：`.contact-form__error` / `__success` /
-//    `.quote-form__error` / `__success` 只在用户点了提交之后才进 DOM
-//    （`ContactFormSection.tsx:109/112/142`、`QuoteFormSection.tsx:118/121/188`；`__success` 还要
-//    `POST /api/leads` 返回 ok，而演示站是静态导出、没有那个接口）。契约里以 `__error`/`__success`
-//    结尾的钩子一共就这四条，其余 209 条都是块渲染出来就在。
+// 📌 **到不了 0，下限是那几个「提交之后才有」的表单状态**，它们不是补数据能救的：`.contact-form__error`
+//    / `__success`、`.quote-form__error` / `__success`（`ContactFormSection.tsx:109/112/142`、
+//    `QuoteFormSection.tsx:118/121/188`），加上 #1150 的 `.hero__form-error`
+//    （`HeroLeadForm.tsx` 只在提交失败时渲染那个 `<p>`）。`__success` 还要 `POST /api/leads` 返回 ok，
+//    而演示站是静态导出、没有那个接口。
+//    🔴 **这里不写「一共几条」**：那个数每加一个表单部件就变，而写死它的样子跟没过期一模一样
+//    （#1150 之前这里写的是「一共就这四条，其余 209 条」，两个数当天都已经旧了）。自己算一次 ——
+//    豁免的那一族由 `theme-css-invariants.mjs` 的 `reachableOnSubmitOnly` 一处定义：
+//      node -e "const {HOOK_CLASSES}=require('./scripts/theme-css-lint.js');
+//               const f=(h)=>/(?:__|-)(?:error|success)$/.test(h);
+//               console.log(HOOK_CLASSES.filter(f).length, '/', HOOK_CLASSES.length)"
 //
 // 🔴 **不改 `gen-allblocks.js` 本身**：那是 block-migration 那条线的手工工具（它自己的 README 里
 //    有用法），本票要的这几处数据是**这道检查专用**的。改它等于把本票的需要塞进别人的工具里。
@@ -168,8 +174,10 @@ const patched = [];
   //  这个字段，所以它归这里补。
   //
   // 🔴 不补的后果不是「少量了一个钩子」：`theme-css-invariants.mjs` 在 THEME_CSS_SAMPLE_WIDENED=1
-  //    下把「契约里有、这个站的页面上没有」当成 finding（rc≠0），豁免的只有 `__error` / `__success`
-  //    那一族（提交之后才进 DOM 的状态）。也就是说往契约里加一个钩子而不喂它数据 = CI 当场红。
+  //    下把「契约里有、这个站的页面上没有」当成 finding（rc≠0），豁免的只有「提交之后才进 DOM 的
+  //    表单状态」那一族（判据是那个文件里的 `reachableOnSubmitOnly` 一处，#1150 起它认两种拼法：
+  //    块自己就是表单时写 `__error`，表单是块的一个部件时写 `-error`）。也就是说往契约里加一个
+  //    钩子而不喂它数据 = CI 当场红。
   const s = sectionOf('hero');
   if (!s) die('the generated page has no hero block');
   s.block_layout = 'with-form';

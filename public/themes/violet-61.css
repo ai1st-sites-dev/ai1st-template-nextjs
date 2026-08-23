@@ -78,6 +78,17 @@
   max-width: 32rem;
 }
 
+.hero__form-error {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-block);
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--color-accent-400);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-primary-50);
+}
+
 .cta-banner {
   display: grid;
   grid-template-columns: 1fr;

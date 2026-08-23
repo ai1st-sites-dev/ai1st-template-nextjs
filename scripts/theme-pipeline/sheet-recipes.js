@@ -813,7 +813,10 @@ function surfaceFor(kind, palette) {
 //    判据不是"看着像"：`role` 里写的每个改写，去 `src/components/sections/<块>.tsx` 里数一眼那个
 //    部件有没有元素子节点。有 ⟹ 只能给容器类角色（`card` / `row-card` / `panel` / `column`）。
 const SHAPES = {
-  hero: { cols: '5fr 6fr', rootExtra: { 'align-items': 'center' }, role: { media: 'media', body: 'column', title: 'display', sub: 'lede', cta: 'actions', deco: 'deco' } },
+  // #1150 —— `form-error` 走 `error`，跟 `contact-form` / `quote-form` 那两条同一个角色：三处的
+  // 错误框因此是**同一段代码**画出来的（`ROLES.error`），不是照抄三遍。`form` 本身不写在这里，
+  // 它走 `ROLE_BY_PART` 的 `panel`（#1065 立的）。
+  hero: { cols: '5fr 6fr', rootExtra: { 'align-items': 'center' }, role: { media: 'media', body: 'column', title: 'display', sub: 'lede', cta: 'actions', deco: 'deco', 'form-error': 'error' } },
   'cta-banner': { cols: '2fr 1fr', rootExtra: { 'align-items': 'center' }, role: { headline: 'display', desc: 'lede', action: 'actions' } },
   'page-header': { cols: '1fr', role: { crumbs: 'crumbs', title: 'display', sub: 'lede' } },
   'contact-form': {

@@ -2544,7 +2544,19 @@ const unusedHooks = HOOK_CLASSES.filter((h) => !seenHooks.has(h));
 //     Pointed at somebody's own 5-page `site/`, this stays the note it has always been — otherwise the
 //     fix would turn every local reproduction run red, which is the opposite of the point (#1055 条 12
 //     is the other half of that seam: that script now says out loud which of the two you are getting).
-const reachableOnSubmitOnly = (h) => h.endsWith('__error') || h.endsWith('__success');
+// 🔴 #1150 — THE SPELLING WIDENED, THE PROPERTY DID NOT. This used to be `endsWith('__error') ||
+// endsWith('__success')`, and that spelling assumed the form IS the block, which is true for
+// contact-form and quote-form and false for the hero: the hero's form is a PART of the block
+// (`.hero__form`), so its own error line cannot be a third `__` level and is written `-error`
+// (the same way `.content-split__stat-value` spells a two-word part). The property being exempted
+// is unchanged — a form state the visitor only reaches by submitting, and this sample site is a
+// static export with no /api/leads behind it, so no amount of feeding data reaches it
+// (`HeroLeadForm.tsx` renders that `<p>` only when a submit set an error).
+// 🔴 The safety this predicate had is unchanged too, and it is not the narrowness of the pattern:
+// it is that every hook it exempts is PRINTED in the reading below, so a widening of the exemption
+// cannot happen quietly. Deliberately widened on 2026-08-22; a hook whose part's last word is
+// `error`/`success` but that a page CAN reach would now be exempted silently, which is the cost.
+const reachableOnSubmitOnly = (h) => /(?:__|-)(?:error|success)$/.test(h);
 const unusedExempt = unusedHooks.filter(reachableOnSubmitOnly);
 const unusedUnexpected = unusedHooks.filter((h) => !reachableOnSubmitOnly(h));
 const widened = process.env.THEME_CSS_SAMPLE_WIDENED === '1';

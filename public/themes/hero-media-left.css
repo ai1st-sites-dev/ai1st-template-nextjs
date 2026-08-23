@@ -112,6 +112,28 @@
   color: var(--color-primary-900);
 }
 
+/* ── #1150 the ninth part: `.hero__form-error` ───────────────────────────────────────────────────
+   The line the hero form prints when a submit fails. Its two sisters in this sheet
+   (`.contact-form__error` / `.quote-form__error`) take the same font size AND an accent ink; this
+   one takes the font size and NO ink, so it inherits the ink of the box it sits in. That is a
+   measured decision rather than an omission — copying the sisters' colour here is unreadable:
+
+     the sisters' ink, on the ground THIS line sits on   var(--color-accent-300) on var(--color-primary-50)   worst 1.20:1
+     the ink it inherits instead                         var(--color-primary-900) on var(--color-primary-50)   worst 8.37:1
+
+   🔴 Recompute those two rather than trusting them — they are a reading over the registry
+   (110 palettes x 31 hue steps today), and the registry grows. From templates/nextjs:
+     node -e "const c=require('./scripts/theme-contrast.js'),t=require('./scripts/tweaks.js'),{themes}=require('./scripts/themes.js');const w=(a,b)=>Math.min(...Object.values(themes).flatMap(m=>c.hueSteps().map(h=>c.contrast(c.hexToRgb(t.shiftHue(m.colors[a[0]][a[1]],h)),c.hexToRgb(t.shiftHue(m.colors[b[0]][b[1]],h))))));console.log(w(['accent','300'],['primary','50']).toFixed(2),w(['primary','900'],['primary','50']).toFixed(2))"
+   `.hero__form` above is a LIGHT panel sitting on this sheet's dark hero gradient, and it sets
+   its own ground (`--color-primary-50`) and its own ink (`--color-primary-900`) in the same rule —
+   so the ground under this line is the panel's, not the one the sisters sit on.
+   🔴 Not a bordered box here, on purpose: neither sister is one in this sheet either. The pool's
+   GENERATED sheets do draw all three as a box — that is one rule, `ROLES.error` in
+   scripts/theme-pipeline/sheet-recipes.js, shared by all three parts. */
+.hero__form-error {
+  font-size: 0.9375rem;
+}
+
 /* ── #1018 cta-banner — the words on the left, the button in a column of its own on the right ─────
    This is the theme that shows a block layout can be a COLUMN SPLIT with no extra markup: the three
    parts are siblings, so `grid-template-columns` + `grid-row` put the button beside the text instead
