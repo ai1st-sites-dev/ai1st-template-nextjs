@@ -253,5 +253,79 @@ for (const [shapeName, page] of [
   }
 }
 
+// ── ⑨ #1154：所有块的列表槽兜底（不只是卡片组，也不只是叫 items 的槽）────────────────────────
+//
+// 🔴 上面第 ⑧ 格守的是 `normalizeGenericItems`，它头一行就是 `GENERIC_TYPES.has(block.type)`
+//    ⟹ 按构造只管 `card-group` 一家、只看 `items` 一个槽。同一个坏数据换个块照样让构建当场死。
+//    这一格守的是 `normalizeListSlots`：判据按 manifest 的 `kind: "list"`。
+console.log('── ⑨ #1154 所有块的列表槽兜底');
+{
+  const { normalizeListSlots } = blocks;
+  if (typeof normalizeListSlots !== 'function') die('blocks.js 没导出 normalizeListSlots');
+
+  // 分母先说出来：本仓今天有多少个块带列表槽、其中多少个**不是**通用块。
+  // 后者是 0 的话下面每一格都是「全过」，而那什么都没查。
+  const manifests = blocks.loadBlockManifests(NEXT);
+  const listSlots = Object.entries(manifests)
+    .map(([t, m]) => [t, Object.entries((m && m.slots) || {}).filter(([, sp]) => sp && sp.kind === 'list').map(([k]) => k)])
+    .filter(([, slots]) => slots.length);
+  const nonGeneric = listSlots.filter(([t]) => !blocks.GENERIC_TYPES.has(t) && !BLOCK_ALIASES[t]);
+  console.log(`     带列表槽的块 ${listSlots.length} 个，其中不归通用块管的 ${nonGeneric.length} 个`);
+  if (nonGeneric.length < 3) {
+    bad(`不归通用块管、又带列表槽的块只数出 ${nonGeneric.length} 个 —— 分母不对，下面的读数不作数`);
+  }
+
+  // 逐个喂一个 null，一个都不许漏过去（不抽代表）
+  const leaked = [];
+  for (const [t, slots] of nonGeneric) {
+    for (const slot of slots) {
+      const out = normalizeListSlots({ type: t, data: { [slot]: [{ title: 'a' }, null] } });
+      if ((out.data[slot] || []).some((x) => x === null)) leaked.push(`${t}.${slot}`);
+    }
+  }
+  if (leaked.length) bad(`这些槽上 null 还是穿过去了: ${leaked.join(' ')}`);
+  else ok(`不归通用块管的 ${nonGeneric.length} 个块、逐个槽喂 null，一个都没漏过`);
+
+  // 票里点名的那五个，逐个把报错那句对上（`npm run build` 那一张表在票上，这里守的是同一条性质）
+  for (const [t, slot] of [['timeline', 'events'], ['testimonials', 'items'], ['process-steps', 'steps'], ['team-grid', 'members'], ['faq-accordion', 'items']]) {
+    const out = normalizeListSlots({ type: t, data: { [slot]: [{ x: 1 }, null] } });
+    if (JSON.stringify(out.data[slot]) === '[{"x":1}]') ok(`${t}.${slot}: null 被滤掉`);
+    else bad(`${t}.${slot}: ${JSON.stringify(out.data[slot])}`);
+  }
+
+  // 槽的值整个不是数组 ⟹ 换成空数组（组件 map 出零个条目，不炸）
+  for (const [t, slot, v] of [['timeline', 'events', 'abc'], ['card-group', 'items', 'abc'], ['team-grid', 'members', {}]]) {
+    const out = normalizeListSlots({ type: t, data: { [slot]: v } });
+    if (JSON.stringify(out.data[slot]) === '[]') ok(`${t}.${slot} = ${JSON.stringify(v)} ⟹ []`);
+    else bad(`${t}.${slot} 没被换成 []: ${JSON.stringify(out.data[slot])}`);
+  }
+
+  // 🔴 反向对照一：良构 ⟹ **同一个 block、同一个数组**。AC4 的「逐字节不变」立足在这上面；
+  //    无条件 `filter()` 每次都造新数组，这一格当场红。
+  const objs = [{ year: '2020', title: 't' }];
+  const good = { type: 'timeline', data: { headline: 'H', events: objs } };
+  const same = normalizeListSlots(good);
+  if (same === good && same.data.events === objs) ok('反向对照: 良构时返回同一个 block、同一个数组（没有重建对象）');
+  else bad(`良构时对象被换掉了: same===good ${same === good} · 数组同一个 ${same.data.events === objs}`);
+
+  // 🔴 反向对照二：没写的选填列表槽不许被无中生有塞一个 []（那会给每个块的 data 多出一堆键）
+  const bare = { type: 'timeline', data: { headline: 'H' } };
+  const afterBare = normalizeListSlots(bare);
+  if (afterBare === bare && !Object.prototype.hasOwnProperty.call(afterBare.data, 'events')) {
+    ok('反向对照: 没写的列表槽不会被塞一个空数组');
+  } else bad(`没写的槽被动过了: ${JSON.stringify(afterBare.data)}`);
+
+  // 🔴 反向对照三：跟 validateSite 第 ⑤ 条同一条判据 —— 字符串和普通对象都留着（AC5 的 "" 和 {}）
+  const keep = normalizeListSlots({ type: 'timeline', data: { events: ['', {}, { year: 'y' }] } });
+  if (JSON.stringify(keep.data.events) === '["",{},{"year":"y"}]') ok('反向对照: "" 和 {} 是合法条目，一个都没被误杀');
+  else bad(`"" / {} 被误杀了: ${JSON.stringify(keep.data.events)}`);
+
+  // 🔴 顺序是承重的：service-highlights 先被别名改成 card-group + items，再按新 type 查列表槽
+  const sh = normalizeListSlots(applyAlias({ type: 'service-highlights', data: { headline: 'H', highlights: [{ title: 't' }, null] } }));
+  if (sh.type === 'card-group' && JSON.stringify(sh.data.items) === '[{"title":"t"}]') {
+    ok('别名改名之后再兜底: service-highlights.highlights → card-group.items，null 被滤掉');
+  } else bad(`别名 + 兜底的顺序不对: ${JSON.stringify(sh)}`);
+}
+
 console.log(`\n══ ${pass} 过 / ${fail} 败 ══`);
 process.exit(fail ? 1 : 0);

@@ -394,6 +394,21 @@ function validateSite({ pages, industry = '', dir, scope = 'create' } = {}) {
 
   for (const page of pages || []) {
     for (const [i, sec] of blocksOf(page).entries()) {
+      // 🔴 #1154 —— `blocks` 数组里那一格根本不是块（`null` / 一个字符串 / 一个数组）。
+      //    在这条守卫之前，下面那句 `sec.type` 直接抛 `TypeError: Cannot read properties of
+      //    null (reading 'type')`，而这个函数的调用方是按「返回 problems」写的：
+      //    `create-site.js:2317/2353` 拿 problems 决定要不要**重试一次**（`:2353` 那一支），
+      //    抛异常则一路冒到顶层的 `main().catch(err => fatal(err.stack))` ⟹ 建站直接死，
+      //    连那一次重试都没有。所以这里的处置是「点名 + 跳过这一格」，不是让它炸。
+      if (sec === null || typeof sec !== 'object' || Array.isArray(sec)) {
+        // 前导空格是有意的：`是 null` / `是一个 string` 两种都读得通（#1152 那条报文同一套写法）
+        const what = sec === null ? ' null'
+          : Array.isArray(sec) ? '一个数组'
+            : sec === undefined ? ' undefined' : `一个 ${typeof sec}`;
+        flag(`${page.slug || '(no slug)'} 第 ${i + 1} 格不是一个块 —— 是${what}。`
+          + 'blocks 数组里只能放块对象（`{ "type": … }` 或 `{ "ref": … }`）');
+        continue;
+      }
       const where = `${page.slug || '(no slug)'} 第 ${i + 1} 个块 ("${sec.type}")`;
       const m = manifests.get(sec.type);
       if (!m) {
@@ -441,10 +456,21 @@ function validateSite({ pages, industry = '', dir, scope = 'create' } = {}) {
       //    `normalizeGenericItems`，它把画不出来的条目滤掉 —— 两层管的是不同的时刻，不是一层的抄本。
       // 🔴 判据按**槽的 kind**，不按块的名字：今天归到 `card-group` 的是五个 type，明天还会多。
       //    照名字写死的话，新加的块默认不在保护里，而它长得跟「查过了」一模一样。
+      // 🔴 #1154 —— 上一版这里是 `if (!Array.isArray(v)) continue`，也就是**槽的值整个不是数组**
+      //    时一句话都不说。而 ① 那条只问「这个槽是不是空的」，`items: "甲、乙"` 在它眼里是有值的
+      //    ⟹ 两条都放行，构建期当场炸 `a.items?.map is not a function`（`?.` 只挡 null/undefined，
+      //    挡不住一个字符串）。这条路 AI 走得到：提示词让它填这个槽，它填了个字符串。
+      //    `undefined` / `null` 仍然跳过 —— 那是「没填」，归 ① 管（必填才报，选填就是没有）。
       for (const [slot, spec] of Object.entries(m.slots)) {
         if (spec.kind !== 'list') continue;
         const v = data[slot];
-        if (!Array.isArray(v)) continue;
+        if (v === undefined || v === null) continue;
+        if (!Array.isArray(v)) {
+          const what = typeof v === 'object' ? '一个对象' : `一个 ${typeof v}`;
+          flag(`${where}: 槽 "${slot}" 不是列表 —— 是${what}（${JSON.stringify(v).slice(0, 40)}）。`
+            + `blocks/${sec.type}.json 里它写着 kind: "list"，只能放数组`);
+          continue;
+        }
         v.forEach((el, k) => {
           if (typeof el === 'string') return;
           if (el !== null && typeof el === 'object' && !Array.isArray(el)) return;

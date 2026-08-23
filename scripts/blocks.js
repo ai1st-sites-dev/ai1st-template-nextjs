@@ -133,6 +133,82 @@ function normalizeGenericItems(block) {
   };
 }
 
+// ── 所有块的列表槽位兜底：画不出来的条目滤掉、整个不是数组的换成空数组（#1154）──────────────
+//
+// 🔴 为什么上面那个 `normalizeGenericItems` 不够：它头一行就是 `GENERIC_TYPES.has(block.type)`，
+//    而 `GENERIC_TYPES` 今天只有 `card-group` 一个值，并且只看 `items` 一个槽。也就是说 #1152 买到的
+//    那道兜底**按构造只管卡片组那一家**。同一个坏数据换个块就照样让构建当场死：
+//      timeline 的 events 混一个 null   → Cannot read properties of null (reading 'year')
+//      testimonials / process-steps / team-grid / faq-accordion 各有各的那一句（逐个实测过）
+//    而 `checklist.items` 写成一个字符串 → `a.items?.map is not a function`（`?.` 只挡 null/undefined）。
+//
+// 🔴 判据按 **manifest 里的 `kind: "list"`**，不按块的名字，也不按槽叫不叫 `items`：
+//    `timeline` 的列表槽是 `events`、`process-steps` 是 `steps`、`team-grid` 是 `members`、
+//    `service-highlights` 是 `highlights`。照名字写死的话，新加的块默认不在保护里，
+//    而它长得跟「查过了」一模一样（跟 block-manifest.js 第 ⑤ 条同一条理由）。
+//
+// 🔴 **没有东西要动就返回同一个 block、同一个数组**（下面那两处提前 return）。#1143/#1152 的
+//    「老站重建逐字节不变」建立在这上面 —— `blocks.test.js` 判的是**同一个数组引用**。
+//    无条件 `filter()` 每次都造新数组，那一格当场红。
+//
+// 📌 这一层是**兜底**，不是校验：建站/编辑那一刻由 `block-manifest.js` 的 `validateSite` 报出来并
+//    还能重试一次；走到这里已经是构建期，只有「滤掉」和「整个站建不出来」两条路可选。
+const LIST_SLOT_CACHE = new Map();
+
+function listSlotsFor(type) {
+  if (LIST_SLOT_CACHE.has(type)) return LIST_SLOT_CACHE.get(type);
+  if (!LIST_SLOT_CACHE.size) {
+    // 一次性把整份 manifest 读进来。读不到（比如别人把 blocks.js 单独 require 走）就退化成
+    // 「一个列表槽都不知道」——那时本函数是恒等的，跟改这一条之前的行为一样，不会把谁弄坏。
+    let manifests = {};
+    try {
+      manifests = loadBlockManifests(path.join(__dirname, '..'));
+    } catch (e) {
+      manifests = {};
+    }
+    for (const [t, m] of Object.entries(manifests)) {
+      LIST_SLOT_CACHE.set(t, Object.entries((m && m.slots) || {})
+        .filter(([, spec]) => spec && spec.kind === 'list')
+        .map(([slot]) => slot));
+    }
+    LIST_SLOT_CACHE.set('\u0000loaded', []);
+  }
+  return LIST_SLOT_CACHE.get(type) || [];
+}
+
+// 一个条目画不画得出来：裸字符串、或者一个普通对象。跟 validateSite 第 ⑤ 条和
+// normalizeGenericItems 里那个 `usable` 是同一条判据 —— 三处分叉的话，建站期报的和构建期滤的
+// 就不是同一批东西。
+function drawableItem(it) {
+  return typeof it === 'string' || (it !== null && typeof it === 'object' && !Array.isArray(it));
+}
+
+function normalizeListSlots(block) {
+  if (!block || typeof block !== 'object') return block;
+  const slots = listSlotsFor(block.type);
+  if (!slots.length) return block;
+  const data = block.data;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return block;
+  let out = null;
+  for (const slot of slots) {
+    const v = data[slot];
+    // 没填 = 没这回事，归 validateSite 的第 ① 条管（必填才报）。这里不许无中生有塞一个空数组，
+    // 那会给每个块的 data 多出一堆键，「逐字节不变」当场作废。
+    if (v === undefined || v === null) continue;
+    let next;
+    if (!Array.isArray(v)) {
+      next = [];               // 整个不是数组：换成空数组，组件 map 出零个条目，不炸
+    } else if (v.every(drawableItem)) {
+      continue;                // 一个都不用动
+    } else {
+      next = v.filter(drawableItem);
+    }
+    if (!out) out = { ...block, data: { ...data } };
+    out.data[slot] = next;
+  }
+  return out || block;
+}
+
 // 页面清单里那些块**排布**的顺序：写了 `weight` 就按它，没写就按它在数组里的位置。
 //
 // 🔴 没写时用 `位置 × 10` 而不是 `位置`：站级块库里的块带着自己的 `weight`（spec §4.6 的例子是 30），
@@ -380,7 +456,12 @@ function normalizeLocalePages(pages, siteBlocks, locale, report) {
     // #1132 —— 别名在这里生效，一处。三个来路（页面块 / `ref` 解出来的站级块 / `visibility` 命中
     // 追加的站级块）都汇到了 `resolved`，所以放在这里就是三条路一起管；分别在三个 push 那里做的话，
     // 下一批合并漏掉一条不会有任何东西报错。
-    for (let k = 0; k < resolved.length; k += 1) resolved[k] = applyAlias(resolved[k]);
+    // #1154 —— 列表槽位的兜底跟别名走同一个漏斗（三条来路都汇到 resolved）。顺序是承重的：
+    // 先 applyAlias（`service-highlights` 的 `highlights` 在那里被改名成 `items`、type 变成
+    // `card-group`），再按**改完之后**那个 type 的 manifest 查它有哪些列表槽。
+    for (let k = 0; k < resolved.length; k += 1) {
+      resolved[k] = normalizeListSlots(applyAlias(resolved[k]));
+    }
 
     const seenIds = new Map();
     resolved.forEach((b, i) => {
@@ -514,6 +595,7 @@ module.exports = {
   roleFor,
   applyAlias,
   normalizeGenericItems,
+  normalizeListSlots,
   effectiveWeight,
   byWeightThenOrder,
   readPageBlocks,

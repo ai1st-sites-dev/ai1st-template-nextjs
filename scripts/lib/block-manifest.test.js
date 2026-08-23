@@ -114,13 +114,92 @@ console.log('── ⑤ 射程按 kind:list，不按块名');
   else bad(`faq-accordion 的 list 槽没被查 —— 这条检查被写成按块名了。实际: ${JSON.stringify(other.problems)}`);
 }
 
-// ── ⑥ 不是数组的槽不许被这条检查碰（它有自己的检查，别抢） ────────────────────────────────────
-console.log('── ⑥ 槽里不是数组时，这条检查什么都不说');
+// ── ⑥ 槽的值整个不是数组 —— #1154 改了这一格的答案 ────────────────────────────────────────────
+//
+// 🔴 这一格 #1152 写的是「第 ⑤ 条一声不出，它交给别的检查」。而 #1154 量到的是：**没有别的检查**。
+//    ① 那条只问「这个槽是不是空的」，`items: "甲、乙"` 在它眼里是有值的 ⟹ 两条都放行，
+//    构建期当场炸 `a.items?.map is not a function`。所以现在由这同一条检查自己报，
+//    报的是**槽级**的那句（"不是列表"），条目级那句（"条目是…"）仍然不许出现 —— 没有条目可数。
+console.log('── ⑥ 槽的值整个不是数组 ⟹ 报槽级那一句，不报条目级那一句（#1154）');
 {
   const r = run('card-group', 'items', 'not-an-array');
-  const mine = r.problems.filter((p) => p.includes('条目是'));
-  if (mine.length === 0) ok(`items 是个字符串时，第 ⑤ 条一声不出（它交给别的检查；本条产出 ${r.problems.length} 条别的 problem）`);
-  else bad(`items 不是数组时第 ⑤ 条也开火了: ${JSON.stringify(mine)}`);
+  const slotLevel = r.problems.filter((p) => p.includes('不是列表'));
+  const itemLevel = r.problems.filter((p) => p.includes('条目是'));
+  if (slotLevel.length === 1) ok(`items 是个字符串 ⟹ ${slotLevel[0]}`);
+  else bad(`槽级那一句没出现（或出现多次）: ${JSON.stringify(r.problems)}`);
+  if (itemLevel.length === 0) ok('条目级那一句没出现（一个条目都没有，数它是无中生有）');
+  else bad(`条目级那一句也开火了: ${JSON.stringify(itemLevel)}`);
+}
+
+// ── ⑦ #1154：槽级那条也按 kind:list 走，槽名不叫 items 的一样管 ───────────────────────────────
+// 🔴 PM 在 #1154 立票留言里记过一次作废的读数：他拿 `timeline` 配了槽名 `items`，而它的列表槽叫
+//    `events` ⟹ 报的是「缺必填槽 events」，看起来像「这个块没问题」。槽名要从 manifest 取。
+console.log('── ⑦ 槽名不叫 items 的块，槽级那条一样开火（#1154）');
+for (const [type, slot] of [['timeline', 'events'], ['service-highlights', 'highlights'], ['process-steps', 'steps'], ['team-grid', 'members']]) {
+  const r = run(type, slot, 'not-an-array');
+  const hit = r.problems.filter((p) => p.includes(`槽 "${slot}" 不是列表`));
+  if (hit.length === 1) ok(`${type}(${slot}): ${hit[0]}`);
+  else bad(`${type}(${slot}) 没报槽级那一句: ${JSON.stringify(r.problems)}`);
+}
+// 反向对照：同一个槽换成正常数组，一条 problem 都不该有
+for (const [type, slot] of [['timeline', 'events'], ['service-highlights', 'highlights']]) {
+  const r = run(type, slot, [{ title: 'a' }]);
+  if (r.problems.length === 0) ok(`反向对照 ${type}(${slot}): 正常数组放行（0 条 problem）`);
+  else bad(`反向对照 ${type}(${slot}) 被误伤: ${JSON.stringify(r.problems)}`);
+}
+// `undefined` / `null` 仍然归 ① 管 —— 槽级这条不许抢它的活（选填槽没填不是错）
+{
+  const r = validateSite({
+    pages: [{
+      slug: 'probe',
+      blocks: [
+        { id: 't', type: 'timeline', region: 'content', weight: 10, data: { headline: 'H', events: [{ year: 'y' }], subheadline: 'S' } },
+        { id: 'c', type: 'contact-info', region: 'content', weight: 20, data: { headline: 'Contact' } },
+      ],
+    }],
+    industry: 'auto repair',
+  });
+  const mine = r.problems.filter((p) => p.includes('不是列表'));
+  if (mine.length === 0) ok('没写的选填列表槽不会被槽级那条碰（它归第 ① 条管）');
+  else bad(`没写的槽也被报了: ${JSON.stringify(mine)}`);
+}
+
+// ── ⑧ #1154：`blocks` 数组里那一格根本不是块 ⟹ 报 problem，不许抛异常 ─────────────────────────
+//
+// 🔴 判据是**不抛**，不只是「有 problem」。抛出去的话它冒到 `create-site.js:2729` 的
+//    `main().catch(err => fatal(err.stack))` —— 建站直接死，连 `:2333` 那一次重试都走不到。
+console.log('── ⑧ blocks 数组里混进不是块的东西（#1154）');
+for (const [what, entry] of [['null', null], ['一个字符串', 'x'], ['一个数组', [1]], ['一个数字', 7]]) {
+  let r = null; let threw = null;
+  try {
+    r = validateSite({
+      pages: [{
+        slug: 'probe',
+        blocks: [entry, { id: 'c', type: 'contact-info', region: 'content', weight: 20, data: { headline: 'Contact' } }],
+      }],
+      industry: 'auto repair',
+    });
+  } catch (e) { threw = e; }
+  if (threw) { bad(`${what}: 抛了 ${threw.constructor.name}: ${threw.message} —— 建站会死在顶层 catch`); continue; }
+  const hit = r.problems.filter((p) => p.includes('不是一个块'));
+  if (hit.length === 1) ok(`${what} ⟹ ${hit[0]}`);
+  else bad(`${what}: 没报「不是一个块」: ${JSON.stringify(r.problems)}`);
+}
+// 反向对照：两格都是正经块 ⟹ 这条一声不出
+{
+  const r = validateSite({
+    pages: [{
+      slug: 'probe',
+      blocks: [
+        { id: 't', type: 'text-block', region: 'content', weight: 10, data: { headline: 'H', body: 'B' } },
+        { id: 'c', type: 'contact-info', region: 'content', weight: 20, data: { headline: 'Contact' } },
+      ],
+    }],
+    industry: 'auto repair',
+  });
+  const mine = r.problems.filter((p) => p.includes('不是一个块'));
+  if (mine.length === 0) ok('反向对照: 两格都是正经块时，第 ⑧ 条一声不出');
+  else bad(`良构也被报了: ${JSON.stringify(mine)}`);
 }
 
 console.log(`\n══ ${pass} 过 / ${fail} 败 ══`);
