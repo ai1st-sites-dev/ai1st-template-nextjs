@@ -1,20 +1,20 @@
 {
   "sheets": {
     "hero-media-left": {
-      "md5": "83b9bd9b201713bd23865048e7d3de7d",
+      "md5": "01c8d568decfee5a1c87a6bb9344e9cc",
       "viewport": {
         "width": 1440,
         "height": 900
       },
-      "measuredOn": "http://127.0.0.1:33571",
+      "measuredOn": "http://127.0.0.1:59373",
       "targets": {
         ".hero__title": {
-          "tmin": 0.4399,
+          "tmin": 0.3848,
           "tmax": 0.7156,
           "angle": 140,
           "gradientBox": [
             1440,
-            904
+            1288
           ],
           "textBox": [
             544,
@@ -27,12 +27,12 @@
           ]
         },
         ".hero__sub": {
-          "tmin": 0.496,
+          "tmin": 0.4197,
           "tmax": 0.7414,
           "angle": 140,
           "gradientBox": [
             1440,
-            904
+            1288
           ],
           "textBox": [
             544,
@@ -127,21 +127,21 @@
       }
     },
     "hero-media-right": {
-      "md5": "7f6ae9bd645569939668bede140cd09c",
+      "md5": "f2265847e9603039ebe8cf9df6844326",
       "viewport": {
         "width": 1440,
         "height": 900
       },
-      "measuredOn": "http://127.0.0.1:35365",
+      "measuredOn": "http://127.0.0.1:38071",
       "targets": {}
     },
     "hero-media-top": {
-      "md5": "b35f491916c903c7a8aa1095c079af91",
+      "md5": "49760fdcc9abd8b5b555347b4f99d825",
       "viewport": {
         "width": 1440,
         "height": 900
       },
-      "measuredOn": "http://127.0.0.1:51537",
+      "measuredOn": "http://127.0.0.1:56495",
       "targets": {
         ".cta-banner__headline": {
           "tmin": 0.2691,
