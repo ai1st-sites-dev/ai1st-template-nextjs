@@ -510,10 +510,19 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
   //    走了），于是一个 `contact-info` 只由站级块提供的站会被报「整个站里没有 contact-info」——
   //    而那个块在产物里是有的。伤害不是日志多一行：`create-site.js:2331` 拿 problems 决定要不要让
   //    模型重写一遍，而这条问题跟模型写得对不对无关、重写之后还在 ⟹ `afterRetry` 判 `fatal`，
-  //    整次建站死（#1155 QA1 的圈外发现 ①，交付之后实测仍复现）。
+  //    整次建站死（#1155 QA1 的圈外发现 ①）。
+  //    🔴 #1149 item 31 —— 上面那句「整次建站死」**今天走不到**，读的时候别当成正在发生的事:
+  //    要有「只由站级块提供的块」，站级块库就得非空，而建站脚本手上那份按构造是空的 ——
+  //    `create-site.js:2317` / `:2353` 调 `validateBlocks({ pages, industry })` **不传** `siteBlocks`
+  //    （本文件 `:387` 的默认值就是 `{}`），而且 `create-site.js:807-810` 开工先删整个 `site/`，
+  //    全仓唯一产出 `blocks/site-blocks.json` 的 `edit-site.js` 发生在建站之后。
+  //    ⟹ 准确说法：**若站级块库非空**，那条链才成立;今天这一半尚未可达。这一条改动本身照旧成立
+  //    （它让第 ④ 条问的是「解析完之后这个站有哪些块」，而不是「页面文件里写了哪些」）。
   //    解析规矩不在这里写第二份 —— 用 `blocks.js` 的 `resolveBlockTypesForCheck`，它跟构建期的
-  //    `normalizeLocalePages` 是同一套（ref 指得到就换成目标的 type、指不到就丢掉、visibility 命中
-  //    的追加）。逐块那几条检查（①②③⑤）**一个字都没动**：它们问的是「这一格自己填对了没有」，
+  //    `normalizeLocalePages` 共用**同一套「哪些块出现在这一页」**的规矩（ref 指得到就换成目标的
+  //    type、指不到就丢掉、visibility 命中的追加）。⚠️ 但**顺序那一维两者不同**（#1149 item 32:
+  //    `normalizeLocalePages` 追加完还按 weight 排一次，那个函数不排）—— 第 ④ 条问的是**集合**，
+  //    不问顺序，所以这里不受影响;理由整段写在那个函数的头注上。逐块那几条检查（①②③⑤）**一个字都没动**：它们问的是「这一格自己填对了没有」，
   //    而站级块的那一格内容不在这个页面文件里。
   const industryKeys = recogniseIndustry(industry);
   if (scope !== 'edit') {
