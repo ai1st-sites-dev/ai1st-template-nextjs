@@ -250,11 +250,22 @@ function recipePromptLines(recipe) {
  *
  * 🔴 只看首页（#1034 AC6 的射程）—— 这句话同时印在返回的每条 problem 里，
  *    免得下一个人拿它的读数去回答别的问题。
+ *
+ * 🔴 #1156 —— 第三个入参是站级块库（`<locale>/blocks/site-blocks.json` 的内容，没有就不传）。
+ *    不给它的话这个函数问的是「磁盘上那个数组长什么样」，而配方要问的是「建出来的首页长什么样」，
+ *    两者在有 `{ "ref": … }` 时不是一回事：ref 条目没有 `type`，于是
+ *      · ref 落在开场那几格 ⟹ 开场序列里多一个 `undefined`，报一条假的「开头必须逐个是 …」；
+ *      · 必须出现的块由站级块提供 ⟹ 报一条假的「首页里必须有 X，实际没有」。
+ *    两条都会让 `create-site.js:2331` 白烧一次真模型调用（重写也修不掉，它跟模型写得对不对无关）。
+ *    解析规矩用 `blocks.js` 的 `resolveBlockTypesForCheck`，跟构建期 `normalizeLocalePages` 同一套
+ *    —— 指得到就换成目标的 type、指不到就丢掉（构建期也是丢掉）、visibility 命中的追加在末尾。
  */
-function recipeProblems(pages, recipe) {
+function recipeProblems(pages, recipe, siteBlocks = {}) {
+  const { resolveBlockTypesForCheck } = require('../blocks');
   const home = (pages || []).find((p) => p && p.slug === 'home');
   if (!home) return ['首页(slug "home")不在 pages 里 —— 没法核首页骨架配方'];
-  const seq = (Array.isArray(home.blocks) ? home.blocks : home.sections || []).map((b) => b && b.type);
+  const entries = Array.isArray(home.blocks) ? home.blocks : home.sections || [];
+  const seq = resolveBlockTypesForCheck(entries, siteBlocks, home.slug);
   const problems = [];
   const got = seq.slice(0, recipe.opener.length);
   if (got.join('|') !== recipe.opener.join('|')) {

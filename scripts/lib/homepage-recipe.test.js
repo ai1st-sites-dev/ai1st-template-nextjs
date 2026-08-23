@@ -247,6 +247,77 @@ console.log('── ④ recipeProblems:只看首页（AC6 射程），该红的�
     : bad('blocks 形状没被认出来');
 }
 
+// ── ④b recipeProblems 按站级块库解析之后再判（#1156）───────────────────────────────────────────
+//
+// 🔴 为什么这条要有测试：这个函数问的是「建出来的首页长什么样」，而它此前读的是「磁盘上那个数组
+//    长什么样」。有 `{ "ref": … }` 时两者不是一回事 —— ref 条目没有 `type`，于是
+//      · ref 落在开场那几格 ⟹ 开场序列里多一个 undefined，报一条假的「开头必须逐个是 …」
+//      · 必须出现的块由站级块提供 ⟹ 报一条假的「首页里必须有 X，实际没有」
+//    两条都让 `create-site.js:2331` 白烧一次真模型调用（重写也修不掉，跟模型写得对不对无关）。
+//    这两格是 #1155 QA3 反向角度 ① 的 H1a / H1c，本票交付前两臂真跑过 create-site.js 复现。
+//
+// 🔴 反向对照守两个方向：H1b（ref 追加在末尾，本来就静默，别让它开始报）+ 真的骨架撞车（照旧报）。
+console.log('── ④b recipeProblems:站级块提供的块也要算进首页骨架（#1156）');
+{
+  const r = homepageRecipe(1, manifests, 'dental clinic');
+  const T = (t) => ({ type: t });
+  const base = [...r.opener, ...r.mustInclude, 'cta-banner'];
+  const LIB = { 'our-team': { type: r.opener[1], data: {} },
+    'shared-must': { type: r.mustInclude[0], data: {} } };
+  const home = (blocks) => [{ slug: 'home', blocks }];
+
+  // 真阳 H1a —— ref 正落在 opener 第 2 格那个块的位置上
+  const h1a = home([T(r.opener[0]), { ref: 'our-team' }, ...r.opener.slice(2).map(T),
+    ...r.mustInclude.map(T), T('cta-banner')]);
+  recipeProblems(h1a, r, LIB).length === 0
+    ? ok('H1a: 开场里那一格由站级 ref 提供 ⟹ 0 个问题')
+    : bad(`H1a 仍被误报: ${recipeProblems(h1a, r, LIB).join(' / ')}`);
+
+  // 真阳 H1a' —— ref 指不到 id（建站那一刻站级块库还是空的，这是今天唯一到得了的形状）
+  const dangling = home([{ ref: 'our-team' }, ...base.map(T)]);
+  recipeProblems(dangling, r, {}).length === 0
+    ? ok('H1a\': ref 指不到 id ⟹ 跟构建期一样丢掉这一格，0 个问题')
+    : bad(`H1a' 仍被误报: ${recipeProblems(dangling, r, {}).join(' / ')}`);
+
+  // 真阳 H1c —— 必须出现的块只由站级 ref 提供
+  const h1c = home([...r.opener.map(T), { ref: 'shared-must' },
+    ...r.mustInclude.slice(1).map(T), T('cta-banner')]);
+  recipeProblems(h1c, r, LIB).length === 0
+    ? ok(`H1c: 必须出现的 "${r.mustInclude[0]}" 由站级 ref 提供 ⟹ 0 个问题`)
+    : bad(`H1c 仍被误报: ${recipeProblems(h1c, r, LIB).join(' / ')}`);
+
+  // 真阳 —— 必须出现的块由站级块的 visibility 提供
+  const viaVis = home([...r.opener.map(T), ...r.mustInclude.slice(1).map(T), T('cta-banner')]);
+  const VIS = { 'shared-must': { type: r.mustInclude[0], visibility: ['home'], data: {} } };
+  recipeProblems(viaVis, r, VIS).length === 0
+    ? ok('visibility 命中首页的站级块也算「首页里有」')
+    : bad(`visibility 那条没算进来: ${recipeProblems(viaVis, r, VIS).join(' / ')}`);
+
+  // 反向对照 H1b —— ref 追加在末尾，本来就静默，改完还要静默
+  recipeProblems(home([...base.map(T), { ref: 'our-team' }]), r, LIB).length === 0
+    ? ok('反向对照 H1b: ref 追加在首页末尾 ⟹ 照旧静默')
+    : bad('H1b 开始报了');
+
+  // 反向对照 —— 真的骨架撞车照旧报
+  const swapped = home([r.opener[1], r.opener[0], ...r.opener.slice(2), ...r.mustInclude,
+    'cta-banner'].map(T));
+  recipeProblems(swapped, r, LIB).some((p) => p.includes('开头'))
+    ? ok('反向对照: 开场前两块调个个儿 ⟹ 照旧报「开头必须逐个是…」')
+    : bad('真的骨架撞车不报了 —— 这条检查被写瞎了');
+
+  // 反向对照 —— ref 真的把别的块塞进了开场，那是真撞车，必须报
+  const wrongSlot = home([{ ref: 'our-team' }, ...base.map(T)]);
+  recipeProblems(wrongSlot, r, LIB).some((p) => p.includes('开头'))
+    ? ok(`反向对照: ref 把 "${r.opener[1]}" 塞到第 1 格 ⟹ 那是真撞车，照旧报`)
+    : bad('ref 造成的真撞车被一起压掉了 —— 压过头了');
+
+  // 反向对照 —— 少了必须出现的块，照旧逐个报
+  recipeProblems(home(r.opener.map(T)), r, LIB).filter((p) => p.includes('必须有')).length
+    === r.mustInclude.length
+    ? ok(`反向对照: 少了 ${r.mustInclude.length} 个必须出现的块 ⟹ 照旧逐个报`)
+    : bad('必须出现的块少了却没逐个报');
+}
+
 // ── ⑤ 开关 ─────────────────────────────────────────────────────────────────────────────────────
 console.log('── ⑤ payload 开关');
 {

@@ -15,6 +15,7 @@
 // 建站 AI 就不再吐 variant，全站 hero 退回 `left`，而构建照样绿。
 const fs = require('fs');
 const path = require('path');
+const { resolveBlockTypesForCheck } = require('../blocks');
 
 const BLOCKS_DIR = path.join(__dirname, '..', '..', 'blocks');
 
@@ -344,7 +345,7 @@ function industryMatches(industry, word) {
 }
 
 /**
- * validateSite({ pages, industry, dir, scope }) → { problems, warnings }
+ * validateSite({ pages, industry, dir, scope, siteBlocks }) → { problems, warnings }
  * pages: [{ slug, blocks: [{ type, data, role? }] }]（老形状的 `sections` 同样认，见 blocksOf）
  *
  * 两处跑的是同一个函数、同一套五条检查；`scope` 只决定**发现之后怎么办**：
@@ -383,7 +384,7 @@ function industryMatches(industry, word) {
  *        contact-info」被拒，而那件事既不是这次编辑造成的，模型也没法在 about.json 里修好它
  *        ⟹ 那个站从此改不动了。整站那条检查的家在建站那一刻和构建期，不在这里。
  */
-function validateSite({ pages, industry = '', dir, scope = 'create' } = {}) {
+function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks = {} } = {}) {
   const manifests = loadManifests(dir);
   const problems = [];
   const warnings = [];
@@ -503,8 +504,25 @@ function validateSite({ pages, industry = '', dir, scope = 'create' } = {}) {
 
   // ④ 行业必需的块，整个站里一个都没有。
   //    'edit' 不查这一条 —— 手上只有一个页面，答不了整站的问题（理由整段写在函数头上）。
+  //
+  // 🔴 #1156 —— 这一条问的是**整个站**，所以它必须按站级块库解析完再问。上面那个逐块循环只会把
+  //    **页面自己写下的**块记进 `seenTypes`（`{ "ref": … }` 没有 `type`，在 `!m` 那一支就 continue
+  //    走了），于是一个 `contact-info` 只由站级块提供的站会被报「整个站里没有 contact-info」——
+  //    而那个块在产物里是有的。伤害不是日志多一行：`create-site.js:2331` 拿 problems 决定要不要让
+  //    模型重写一遍，而这条问题跟模型写得对不对无关、重写之后还在 ⟹ `afterRetry` 判 `fatal`，
+  //    整次建站死（#1155 QA1 的圈外发现 ①，交付之后实测仍复现）。
+  //    解析规矩不在这里写第二份 —— 用 `blocks.js` 的 `resolveBlockTypesForCheck`，它跟构建期的
+  //    `normalizeLocalePages` 是同一套（ref 指得到就换成目标的 type、指不到就丢掉、visibility 命中
+  //    的追加）。逐块那几条检查（①②③⑤）**一个字都没动**：它们问的是「这一格自己填对了没有」，
+  //    而站级块的那一格内容不在这个页面文件里。
   const industryKeys = recogniseIndustry(industry);
   if (scope !== 'edit') {
+    for (const page of pages || []) {
+      const slug = page && page.slug;
+      for (const t of resolveBlockTypesForCheck(blocksOf(page), siteBlocks, slug)) {
+        if (typeof t === 'string' && t) seenTypes.add(t);
+      }
+    }
     for (const m of manifests.values()) {
       const req = (m.industries && m.industries.required) || [];
       if (!req.some((w) => industryMatches(industry, w))) continue;

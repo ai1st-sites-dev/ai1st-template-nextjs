@@ -294,6 +294,53 @@ function visibilityMatches(siteBlock, slug) {
   return vis.includes('*') || vis.includes(slug);
 }
 
+// #1156 —— 「这一页解析完站级块库之后，上面会有哪些块」，只回答类型、只给检查用。
+//
+// 为什么要有它：建站那一刻有两道检查是**按整页/整站**问问题的 —— `block-manifest.js` 的第 ④ 条
+// （「行业必需的块，整个站里一个都没有」）和 `homepage-recipe.js` 的 `recipeProblems`（首页开场
+// 骨架）。两处都直接读条目的 `type`，而 `{ "ref": "<id>" }` 没有 `type` ⟹ 由站级块提供的块在它们
+// 眼里不存在，一个完全合法的 ref 反而变成一条问题（`create-site.js:2331` 拿它决定要不要让模型
+// 重写一遍：第 ④ 条那条修不掉 ⟹ `afterRetry` 判 fatal，整次建站死）。
+//
+// 🔴 它跟 `normalizeLocalePages` 是**同一套解析规矩**，只是不落盘、不报错、不改任何东西：
+//   · `{ ref }` 指得到 → 换成那个站级块的 type，位置就是这条 ref 的位置
+//   · `{ ref }` 指不到 → **丢掉这一格**（构建期就是 note 一句然后跳过，页面上不会有这一块。
+//     不在这里新报一条问题 —— 「ref 指不到 id 怎么办」是 #1156 明写划在射程外的事）
+//   · 同时写了 `ref` 和 `type` → 按普通块算（跟 `validateSite` 的 `isRefEntry` 逐字同一个谓词；
+//     那种形状构建期直接 throw，不是一个合法的 ref 条目）
+//   · `visibility` 命中而这一页没有 ref 它的 → 追加在末尾（`normalizeLocalePages` 也是追加在末尾）
+//
+// 入参 entries 是这一页**磁盘上那个数组**（`blocks` 或老形状的 `sections`，由调用方自己挑，
+// 因为两个调用方对「读哪个数组」各有自己的兜底）。出参是一串 type，可能含 undefined
+// （条目本来就没有 type —— 那是别的检查的事，这里原样留着，别替它做主）。
+function resolveBlockTypesForCheck(entries, siteBlocks, slug) {
+  const lib = siteBlocks && typeof siteBlocks === 'object' && !Array.isArray(siteBlocks)
+    ? siteBlocks : {};
+  const types = [];
+  const seenRefs = new Set();
+  for (const entry of Array.isArray(entries) ? entries : []) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      types.push(undefined);
+      continue;
+    }
+    if (typeof entry.ref === 'string' && entry.type === undefined) {
+      const target = lib[entry.ref];
+      seenRefs.add(entry.ref);
+      if (target && typeof target === 'object' && !Array.isArray(target)) types.push(target.type);
+      continue; // 指不到 ⟹ 这一格在构建产物里不存在，检查也不该看见它
+    }
+    types.push(entry.type);
+  }
+  for (const id of Object.keys(lib)) {
+    if (seenRefs.has(id)) continue;
+    const b = lib[id];
+    if (!b || typeof b !== 'object' || Array.isArray(b)) continue;
+    if (!visibilityMatches(b, slug)) continue;
+    types.push(b.type);
+  }
+  return types;
+}
+
 // ── 归一化一整个 locale ─────────────────────────────────────────────────────────────────────────
 //
 // 入参 pages 是磁盘上读进来的页面对象数组（新老形状混着也行），siteBlocks 是站级块库。
@@ -600,6 +647,8 @@ module.exports = {
   byWeightThenOrder,
   readPageBlocks,
   readSiteBlocks,
+  visibilityMatches,
+  resolveBlockTypesForCheck,
   normalizeLocalePages,
   loadBlockManifests,
   validateBlockLayouts,

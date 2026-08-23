@@ -242,5 +242,50 @@ console.log('── ⑨ 合法的 ref 条目不许被误报（#1155）');
   }
 }
 
+// ── ⑩ 第 ④ 条：站级块提供的块也算「整个站里有」（#1156）────────────────────────────────────────
+//
+// 🔴 为什么这条要有测试：第 ④ 条问的是**整个站**，而它此前只数页面自己写下的块。
+//    `{ "ref": "<id>" }` 没有 `type`，在 `!m` 那一支就 continue 走了 ⟹ 一个 `contact-info` 只由
+//    站级块提供的站会被报「整个站里没有 contact-info」，而那个块在产物里是有的。代价跟 ⑨ 同一族：
+//    `create-site.js:2331` 拿 problems 决定要不要让模型重写，而这条修不掉 ⟹ `afterRetry` 判
+//    `fatal`，整次建站死（#1155 QA1 圈外发现 ①，#1155 交付之后实测仍复现）。
+//
+// 🔴 三格反向对照缺一不可，各守一个「顺手写宽了」的方向：
+//    「站里真的没有」守这条检查还活着 ·「ref 指不到 id」守别把指不到的 ref 也算成有
+//    （构建期是 note 一句 + 跳过，页面上不会有这一块）·`{ ref: 7 }` 守「ref 必须是字符串」。
+console.log('── ⑩ 站级块提供的块，第 ④ 条也要看得见（#1156）');
+{
+  const HERO = { type: 'hero', data: {
+    headline: 'h', subheadline: 's',
+    ctaPrimary: { label: 'a', href: '/a' }, ctaSecondary: { label: 'b', href: '/b' } } };
+  const LIB = { 'shared-contact': { type: 'contact-info', data: { headline: 'Contact' } } };
+  const VIS = { 'shared-contact': { type: 'contact-info', visibility: ['*'], data: { headline: 'Contact' } } };
+  const missing = (entry, siteBlocks) => validateSite({
+    pages: [{ slug: 'home', blocks: entry ? [entry, HERO] : [HERO] }],
+    industry: 'auto repair',
+    siteBlocks,
+  }).problems.filter((p) => p.includes('整个站里没有 "contact-info"'));
+
+  for (const [what, entry, lib] of [
+    ['contact-info 只由站级 ref 提供', { ref: 'shared-contact' }, LIB],
+    ['contact-info 只由站级块的 visibility:["*"] 提供', null, VIS],
+  ]) {
+    const hit = missing(entry, lib);
+    if (hit.length === 0) ok(`${what} ⟹ 不再报「整个站里没有 contact-info」`);
+    else bad(`${what} 仍被误报: ${JSON.stringify(hit)}`);
+  }
+
+  for (const [what, entry, lib] of [
+    ['站里真的没有 contact-info（这条检查本身还活着）', null, {}],
+    ['ref 指向的 id 在块库里不存在', { ref: 'no-such-id' }, LIB],
+    ['{ ref: 7 }（ref 不是字符串）', { ref: 7 }, LIB],
+    ['站级块的 visibility 不命中这一页', null, { x: { type: 'contact-info', visibility: ['about'] } }],
+  ]) {
+    const hit = missing(entry, lib);
+    if (hit.length === 1) ok(`反向对照 ${what} ⟹ 照旧报`);
+    else bad(`反向对照 ${what} 没照旧报: ${JSON.stringify(hit)}`);
+  }
+}
+
 console.log(`\n══ ${pass} 过 / ${fail} 败 ══`);
 process.exit(fail ? 1 : 0);
