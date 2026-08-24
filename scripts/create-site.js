@@ -56,6 +56,8 @@ const { pageWithBlocks } = require('./blocks');
 // #1097 — 上门服务类的站，首屏带一个能留联系方式的表单。三道判断（行业 / 主题声明 / 这一页有没有
 // hero）都住在那个文件里，这里只在写盘前叫它一次。
 const { applyHeroLeadForm } = require('./lib/hero-lead-form');
+// #1176 —— 关键词页面包屑那个中间级的死链修法（提示词 + 生成后核对两侧，理由整段在那个文件头上）。
+const { pruneDeadBreadcrumbHrefs } = require('./lib/breadcrumb-links');
 
 // ─── AI Model Config ─────────────────────────────────────────────────────────
 
@@ -1145,6 +1147,19 @@ async function main() {
       languageName,
       serviceDetailMap,
     });
+
+    // #1176 —— 面包屑里的 href 只许指向真的会被生成出来的页面。判据和整段理由（含「为什么提示词
+    // 那一侧不够」）住在 scripts/lib/breadcrumb-links.js —— 那里也是它的体检所在。
+    // 提示词那一侧也改了（空 map 时不再给它一个假的 `/<service-slug>` 例子去照抄），见下面
+    // generateKeywordPages 的提示词。这里是生成之后的那道核对。
+    const knownSlugs = new Set([
+      ...content.pages.map(p => p.slug),
+      ...kwPages.map(p => p.slug),
+    ].filter(Boolean));
+    const droppedCrumbs = pruneDeadBreadcrumbHrefs(kwPages, knownSlugs);
+    if (droppedCrumbs.length > 0) {
+      debug(`#1176: dropped ${droppedCrumbs.length} breadcrumb href(s) pointing at pages that will not exist: ${droppedCrumbs.join(', ')}`);
+    }
 
     // Add keyword pages to content.pages
     content.pages.push(...kwPages);
@@ -2634,7 +2649,9 @@ ${keywordPages.map((kp, i) => `${i + 1}. slug: "${kp.nestedSlug}" — keyword: "
 
 EACH PAGE MUST have 4-6 sections from these options:
 1. "page-header" (REQUIRED first) — variants: "default", "minimal", "centered", "with-description"
-   data: { title, subtitle?, breadcrumbs: [{label:"Home", href:"/"}, {label:"<Service>", href:"/${Object.values(serviceDetailMap)[0] || '<service-slug>'}"}, {label:"<Page Title>"}], variant }
+   data: { title, subtitle?, breadcrumbs: ${Object.keys(serviceDetailMap).length > 0
+     ? `[{label:"Home", href:"/"}, {label:"<Service>", href:"/${Object.values(serviceDetailMap)[0]}"}, {label:"<Page Title>"}]`
+     : `[{label:"Home", href:"/"}, {label:"<Page Title>"}]  ← EXACTLY TWO LEVELS. This site has no service detail pages, so there is no middle level to link to. Do NOT invent one.`}, variant }
 2. "text-block" (REQUIRED, 2-3 paragraphs of unique SEO content) — variants: "default", "two-column", "highlight-box", "with-list", "quote"
    data: { headline?, content (2-3 paragraphs), variant, items?: [string] }
 3. "card-group" OR "process-steps" (pick one per page, alternate between pages)
@@ -2671,7 +2688,9 @@ CRITICAL RULES:
 - Make each page unique — don't use the same template/variant for every page.
 - Vary section types and variants across pages. Alternate between card-group and process-steps.
 - CTA href should point to "/quote" or the appropriate contact page, or alternate with a service detail page link (e.g. "/services/{slug}") when available.
-- Breadcrumb middle level: use the service detail page URL (e.g. "/services/{service-id}") when one exists for that service.
+- Breadcrumb middle level: ${Object.keys(serviceDetailMap).length > 0
+  ? 'use one of the SERVICE DETAIL PAGES listed above, verbatim. Do not write a path that is not on that list.'
+  : 'omit it — this site has NO service detail pages. Breadcrumbs are exactly [Home, <Page Title>]. A made-up middle link is a 404 (#1176).'}
 - Include ${location || 'the local area'} naturally in content for local SEO.
 - navOrder should be 50+ (keyword pages sort after regular pages).`;
 

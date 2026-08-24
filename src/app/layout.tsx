@@ -601,10 +601,15 @@ export default function RootLayout({
         {brand.logoUrl ? (
           <link rel="icon" href={brand.logoUrl} />
         ) : (
-          <>
-            <link rel="icon" type="image/svg+xml" href={buildFaviconSvg()} />
-            <link rel="icon" href="/favicon.ico" sizes="any" />
-          </>
+          /* #1176 — 这里曾经在 SVG 图标旁边多写一行 `<link rel="icon" sizes="any">`，指着 /favicon.ico，
+             而模板里从来没有那个文件（`find templates/nextjs -iname 'favicon*'` = 0）。所以它只在
+             「一个 logo 都没拿到」时输出，而它输出的时候必然是 404 —— 每页一条。实测（`brand.logoUrl`
+             为空的 dexin.ca 站配置，32 页）：删之前 31 页各带一条 404，删之后 0 条，而同一分支里这个
+             SVG 图标仍然在那 31 页上。删掉它对任何一维都不是回退：现代浏览器读的就是这个 SVG，只认
+             .ico 的老浏览器今天拿到的也是「没有图标」。要给老浏览器补一个真的 .ico 是新功能，不是修
+             死链，另开票。（少的那 1 页是 `blog/_.html` —— 空博客的 `__next_error__` 占位页，它整页
+             一个 `rel="icon"` 都没有。） */
+          <link rel="icon" type="image/svg+xml" href={buildFaviconSvg()} />
         )}
       </head>
       <body className="flex min-h-screen flex-col font-sans">
