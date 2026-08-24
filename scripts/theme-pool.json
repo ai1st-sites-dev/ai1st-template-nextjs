@@ -6498,5 +6498,1388 @@
       "engineering"
     ],
     "sheet": "ember-80"
+  },
+  "jade-81": {
+    "label": "Jade 81 — angular compact jade with azure accent, for finance & insurance",
+    "colors": {
+      "primary": {
+        "50": "#edf7f5",
+        "100": "#d1ece7",
+        "200": "#acddd4",
+        "300": "#75c6b7",
+        "400": "#49b29e",
+        "500": "#368375",
+        "600": "#2d6e62",
+        "700": "#255950",
+        "800": "#1c443d",
+        "900": "#112a26"
+      },
+      "accent": {
+        "50": "#f4f4fc",
+        "100": "#e3e4f6",
+        "200": "#cdceef",
+        "300": "#acade5",
+        "400": "#9192dc",
+        "500": "#7577d3",
+        "600": "#4d4fc7"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Bricolage Grotesque\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"Public Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700&family=Public+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media"
+      ],
+      "split": [
+        "media-left"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "three-up"
+      ],
+      "header": [
+        "solid-bar"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 4,
+      "density": 0.85,
+      "shadowStrength": 0.14,
+      "buttonShape": "square"
+    },
+    "style": "angular shadowed jade and azure",
+    "industries": [
+      "finance",
+      "financial",
+      "bank",
+      "credit union",
+      "mortgage",
+      "brokerage",
+      "advisor",
+      "retirement",
+      "insurance",
+      "life insurance",
+      "underwriting",
+      "claims",
+      "benefits"
+    ],
+    "sheet": "jade-81"
+  },
+  "magenta-82": {
+    "label": "Magenta 82 — softly rounded compact magenta with amber accent, for finance & insurance",
+    "colors": {
+      "primary": {
+        "50": "#faeff9",
+        "100": "#f4d7f0",
+        "200": "#eab8e5",
+        "300": "#dd88d3",
+        "400": "#d161c5",
+        "500": "#c639b6",
+        "600": "#a63099",
+        "700": "#86277c",
+        "800": "#671e5f",
+        "900": "#3f123a"
+      },
+      "accent": {
+        "50": "#f9fbef",
+        "100": "#f0f5d6",
+        "200": "#e4edb6",
+        "300": "#d2e085",
+        "400": "#c3d65c",
+        "500": "#b4cc33",
+        "600": "#97ab2b"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Libre Baskerville\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Karla\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Karla:wght@400;500;600;700&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media"
+      ],
+      "split": [
+        "media-right"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "two-up"
+      ],
+      "header": [
+        "solid-bar"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 10,
+      "density": 0.95,
+      "shadowStrength": 0.18,
+      "buttonShape": "rounded"
+    },
+    "style": "softly rounded shadowed magenta and amber",
+    "industries": [
+      "finance",
+      "financial",
+      "bank",
+      "credit union",
+      "mortgage",
+      "broker",
+      "advisor",
+      "retirement",
+      "insurance",
+      "life insurance",
+      "underwriting",
+      "claims",
+      "benefits"
+    ],
+    "sheet": "magenta-82"
+  },
+  "lime-83": {
+    "label": "Lime 83 — rounded airy lime with indigo accent, for finance & insurance",
+    "colors": {
+      "primary": {
+        "50": "#f3fae7",
+        "100": "#e0f4c3",
+        "200": "#c8eb94",
+        "300": "#a3dd4c",
+        "400": "#81be24",
+        "500": "#588219",
+        "600": "#4a6e15",
+        "700": "#3c5911",
+        "800": "#2e440d",
+        "900": "#1c2a08"
+      },
+      "accent": {
+        "50": "#f6f3fd",
+        "100": "#e9e1fa",
+        "200": "#d8c8f6",
+        "300": "#bda4f0",
+        "400": "#a886eb",
+        "500": "#9268e6",
+        "600": "#713adf"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Outfit\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"Work Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Work+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media"
+      ],
+      "split": [
+        "media-top"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "four-up-tight"
+      ],
+      "header": [
+        "centered-logo"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 16,
+      "density": 1.05,
+      "shadowStrength": 0.22,
+      "buttonShape": "pill"
+    },
+    "style": "rounded shadowed lime and indigo",
+    "industries": [
+      "finance",
+      "financial",
+      "bank",
+      "credit union",
+      "mortgage",
+      "broker",
+      "brokerage",
+      "retirement",
+      "insurance",
+      "life insurance",
+      "underwriting",
+      "claims",
+      "benefits"
+    ],
+    "sheet": "lime-83"
+  },
+  "azure-84": {
+    "label": "Azure 84 — rounded airy azure with lime accent, for finance & insurance",
+    "colors": {
+      "primary": {
+        "50": "#f0f3fa",
+        "100": "#d9e1f2",
+        "200": "#bac8e8",
+        "300": "#8ca4d9",
+        "400": "#6685cc",
+        "500": "#4067bf",
+        "600": "#3657a1",
+        "700": "#2b4682",
+        "800": "#213663",
+        "900": "#14213d"
+      },
+      "accent": {
+        "50": "#f5faef",
+        "100": "#e5f3d8",
+        "200": "#d1e9b9",
+        "300": "#b2da8b",
+        "400": "#98ce64",
+        "500": "#7ec23d",
+        "600": "#6aa333"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Lora\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Nunito Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Nunito+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "split": [
+        "narrow-stack"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "wide-rows"
+      ],
+      "header": [
+        "pill-floating"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 22,
+      "density": 1.2,
+      "shadowStrength": 0.26,
+      "buttonShape": "square"
+    },
+    "style": "rounded shadowed azure and lime",
+    "industries": [
+      "finance",
+      "financial",
+      "bank",
+      "credit union",
+      "mortgage",
+      "broker",
+      "brokerage",
+      "advisor",
+      "insurance",
+      "life insurance",
+      "underwriting",
+      "claims",
+      "benefits"
+    ],
+    "sheet": "azure-84"
+  },
+  "crimson-85": {
+    "label": "Crimson 85 — angular compact crimson with violet accent, for finance & insurance",
+    "colors": {
+      "primary": {
+        "50": "#f9f1f1",
+        "100": "#f0dbdb",
+        "200": "#e4bebe",
+        "300": "#d39293",
+        "400": "#c46e70",
+        "500": "#b54a4c",
+        "600": "#983e40",
+        "700": "#7b3233",
+        "800": "#5e2627",
+        "900": "#3a1818"
+      },
+      "accent": {
+        "50": "#f9f2fc",
+        "100": "#efdef7",
+        "200": "#e2c4f0",
+        "300": "#cf9de7",
+        "400": "#bf7dde",
+        "500": "#b05cd6",
+        "600": "#9c35cc"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Fraunces\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Inter\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "split": [
+        "media-right"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "two-up"
+      ],
+      "header": [
+        "solid-bar"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 4,
+      "density": 0.85,
+      "shadowStrength": 0.06,
+      "buttonShape": "rounded"
+    },
+    "style": "angular flat crimson and violet",
+    "industries": [
+      "finance",
+      "financial",
+      "bank",
+      "credit union",
+      "mortgage",
+      "broker",
+      "brokerage",
+      "advisor",
+      "retirement",
+      "life insurance",
+      "underwriting",
+      "claims",
+      "benefits"
+    ],
+    "sheet": "crimson-85"
+  },
+  "fern-86": {
+    "label": "Fern 86 — softly rounded compact fern with fern accent, for finance & insurance",
+    "colors": {
+      "primary": {
+        "50": "#eaf9ee",
+        "100": "#cbf0d5",
+        "200": "#a1e4b4",
+        "300": "#63d282",
+        "400": "#36bb5b",
+        "500": "#278742",
+        "600": "#217237",
+        "700": "#1b5c2d",
+        "800": "#144622",
+        "900": "#0d2b15"
+      },
+      "accent": {
+        "50": "#f0fced",
+        "100": "#d8f8d3",
+        "200": "#b9f2b0",
+        "300": "#8bea7b",
+        "400": "#64e250",
+        "500": "#3edb24",
+        "600": "#34b81e"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Space Grotesk\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"IBM Plex Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-form"
+      ],
+      "split": [
+        "media-top"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "four-up-tight"
+      ],
+      "header": [
+        "centered-logo"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 10,
+      "density": 0.95,
+      "shadowStrength": 0.1,
+      "buttonShape": "pill"
+    },
+    "style": "softly rounded flat fern and fern",
+    "industries": [
+      "finance",
+      "financial",
+      "bank",
+      "credit union",
+      "mortgage",
+      "broker",
+      "brokerage",
+      "advisor",
+      "retirement",
+      "insurance",
+      "underwriting",
+      "claims",
+      "benefits"
+    ],
+    "sheet": "fern-86"
+  },
+  "violet-87": {
+    "label": "Violet 87 — rounded airy violet with magenta accent, for real estate & property",
+    "colors": {
+      "primary": {
+        "50": "#f6eefc",
+        "100": "#e8d4f7",
+        "200": "#d5b2f0",
+        "300": "#b97ee7",
+        "400": "#a254de",
+        "500": "#8b29d6",
+        "600": "#7522b4",
+        "700": "#5f1c92",
+        "800": "#48156f",
+        "900": "#2c0d45"
+      },
+      "accent": {
+        "50": "#fbf1fa",
+        "100": "#f4dcf3",
+        "200": "#ebbfe9",
+        "300": "#de95db",
+        "400": "#d272cf",
+        "500": "#c74fc3",
+        "600": "#b138ad"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Playfair Display\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Source Sans 3\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media"
+      ],
+      "split": [
+        "narrow-stack"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "wide-rows"
+      ],
+      "header": [
+        "centered-logo"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 16,
+      "density": 1.05,
+      "shadowStrength": 0.14,
+      "buttonShape": "square"
+    },
+    "style": "rounded shadowed violet and magenta",
+    "industries": [
+      "real estate",
+      "realty",
+      "realtor",
+      "property",
+      "penthouse",
+      "home staging",
+      "interior design",
+      "concierge",
+      "rental",
+      "cottage",
+      "resort",
+      "hotel"
+    ],
+    "sheet": "violet-87"
+  },
+  "amber-88": {
+    "label": "Amber 88 — rounded airy amber with fern accent, for real estate & property",
+    "colors": {
+      "primary": {
+        "50": "#f8f6eb",
+        "100": "#eeeacd",
+        "200": "#e1d8a5",
+        "300": "#cdbf69",
+        "400": "#b6a53d",
+        "500": "#84772c",
+        "600": "#6f6425",
+        "700": "#5a511e",
+        "800": "#453e17",
+        "900": "#2a260e"
+      },
+      "accent": {
+        "50": "#effbf1",
+        "100": "#d6f5dd",
+        "200": "#b6edc1",
+        "300": "#85e098",
+        "400": "#5cd675",
+        "500": "#33cc53",
+        "600": "#2bab46"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Bricolage Grotesque\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"Public Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700&family=Public+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media"
+      ],
+      "split": [
+        "media-left"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "three-up"
+      ],
+      "header": [
+        "pill-floating"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 22,
+      "density": 1.2,
+      "shadowStrength": 0.18,
+      "buttonShape": "rounded"
+    },
+    "style": "rounded shadowed amber and fern",
+    "industries": [
+      "real estate",
+      "realty",
+      "realtor",
+      "property",
+      "penthouse",
+      "luxury",
+      "interior design",
+      "concierge",
+      "rental",
+      "cottage",
+      "resort",
+      "hotel"
+    ],
+    "sheet": "amber-88"
+  },
+  "teal-89": {
+    "label": "Teal 89 — angular compact teal with magenta accent, for real estate & property",
+    "colors": {
+      "primary": {
+        "50": "#edf6f8",
+        "100": "#d3e9ed",
+        "200": "#afd7de",
+        "300": "#7abdc9",
+        "400": "#4ea7b7",
+        "500": "#3a808d",
+        "600": "#306c76",
+        "700": "#275760",
+        "800": "#1e4349",
+        "900": "#12292d"
+      },
+      "accent": {
+        "50": "#fcf0f8",
+        "100": "#f9d8ec",
+        "200": "#f4b9dd",
+        "300": "#ec8bc7",
+        "400": "#e664b4",
+        "500": "#e03ea1",
+        "600": "#ce228c"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Libre Baskerville\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Karla\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Karla:wght@400;500;600;700&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media"
+      ],
+      "split": [
+        "media-top"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "four-up-tight"
+      ],
+      "header": [
+        "solid-bar"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 4,
+      "density": 0.85,
+      "shadowStrength": 0.22,
+      "buttonShape": "pill"
+    },
+    "style": "angular shadowed teal and magenta",
+    "industries": [
+      "real estate",
+      "realty",
+      "realtor",
+      "property",
+      "penthouse",
+      "luxury",
+      "home staging",
+      "concierge",
+      "rental",
+      "cottage",
+      "resort",
+      "hotel"
+    ],
+    "sheet": "teal-89"
+  },
+  "magenta-90": {
+    "label": "Magenta 90 — softly rounded compact magenta with jade accent, for real estate & property",
+    "colors": {
+      "primary": {
+        "50": "#faeff5",
+        "100": "#f4d7e7",
+        "200": "#eab8d4",
+        "300": "#dd88b7",
+        "400": "#d161a0",
+        "500": "#c63988",
+        "600": "#a63072",
+        "700": "#86275c",
+        "800": "#671e47",
+        "900": "#3f122b"
+      },
+      "accent": {
+        "50": "#effaf5",
+        "100": "#d8f3e7",
+        "200": "#b9e9d4",
+        "300": "#8bdab7",
+        "400": "#64ce9f",
+        "500": "#3dc287",
+        "600": "#33a372"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Outfit\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"Work Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Work+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media"
+      ],
+      "split": [
+        "narrow-stack"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "wide-rows"
+      ],
+      "header": [
+        "pill-floating"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 10,
+      "density": 0.95,
+      "shadowStrength": 0.26,
+      "buttonShape": "square"
+    },
+    "style": "softly rounded shadowed magenta and jade",
+    "industries": [
+      "real estate",
+      "realty",
+      "realtor",
+      "property",
+      "penthouse",
+      "luxury",
+      "home staging",
+      "interior design",
+      "rental",
+      "cottage",
+      "resort",
+      "hotel"
+    ],
+    "sheet": "magenta-90"
+  },
+  "fern-91": {
+    "label": "Fern 91 — rounded airy fern with rose accent, for real estate & property",
+    "colors": {
+      "primary": {
+        "50": "#edfbe8",
+        "100": "#d1f4c4",
+        "200": "#aceb96",
+        "300": "#75de4f",
+        "400": "#4fc225",
+        "500": "#37871a",
+        "600": "#2e7216",
+        "700": "#255c12",
+        "800": "#1d460d",
+        "900": "#122b08"
+      },
+      "accent": {
+        "50": "#fcf1f4",
+        "100": "#f6dde4",
+        "200": "#f0c1ce",
+        "300": "#e598ad",
+        "400": "#dd7691",
+        "500": "#d45476",
+        "600": "#c73259"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Lora\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Nunito Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Nunito+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "split": [
+        "media-left"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "three-up"
+      ],
+      "header": [
+        "centered-logo"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 16,
+      "density": 1.05,
+      "shadowStrength": 0.06,
+      "buttonShape": "rounded"
+    },
+    "style": "rounded flat fern and rose",
+    "industries": [
+      "real estate",
+      "realty",
+      "realtor",
+      "property",
+      "penthouse",
+      "luxury",
+      "home staging",
+      "interior design",
+      "concierge",
+      "cottage",
+      "resort",
+      "hotel"
+    ],
+    "sheet": "fern-91"
+  },
+  "indigo-92": {
+    "label": "Indigo 92 — rounded airy indigo with jade accent, for real estate & property",
+    "colors": {
+      "primary": {
+        "50": "#f0f0fa",
+        "100": "#d9d9f2",
+        "200": "#bbbae8",
+        "300": "#8e8cd9",
+        "400": "#6966cc",
+        "500": "#4340bf",
+        "600": "#3836a1",
+        "700": "#2e2b82",
+        "800": "#232163",
+        "900": "#15143d"
+      },
+      "accent": {
+        "50": "#edfcfb",
+        "100": "#d3f8f4",
+        "200": "#b0f2ec",
+        "300": "#7beadf",
+        "400": "#50e2d5",
+        "500": "#24dbca",
+        "600": "#1eb8aa"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Fraunces\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Inter\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Fraunces:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "text-only"
+      ],
+      "split": [
+        "media-right"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "two-up"
+      ],
+      "header": [
+        "pill-floating"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 22,
+      "density": 1.2,
+      "shadowStrength": 0.1,
+      "buttonShape": "pill"
+    },
+    "style": "rounded flat indigo and jade",
+    "industries": [
+      "real estate",
+      "realty",
+      "realtor",
+      "property",
+      "penthouse",
+      "luxury",
+      "home staging",
+      "interior design",
+      "concierge",
+      "rental",
+      "resort",
+      "hotel"
+    ],
+    "sheet": "indigo-92"
+  },
+  "ember-93": {
+    "label": "Ember 93 — angular compact ember with crimson accent, for real estate & property",
+    "colors": {
+      "primary": {
+        "50": "#f9f3f0",
+        "100": "#efe0d9",
+        "200": "#e3c7ba",
+        "300": "#d0a28c",
+        "400": "#c08266",
+        "500": "#aa6546",
+        "600": "#8f553a",
+        "700": "#74452f",
+        "800": "#593524",
+        "900": "#372016"
+      },
+      "accent": {
+        "50": "#fbf2f2",
+        "100": "#f4dfdd",
+        "200": "#ecc6c2",
+        "300": "#dfa09a",
+        "400": "#d58079",
+        "500": "#ca6157",
+        "600": "#b8453a"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Space Grotesk\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"IBM Plex Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-form"
+      ],
+      "split": [
+        "narrow-stack"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "wide-rows"
+      ],
+      "header": [
+        "solid-bar"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 4,
+      "density": 0.85,
+      "shadowStrength": 0.14,
+      "buttonShape": "square"
+    },
+    "style": "angular shadowed ember and crimson",
+    "industries": [
+      "real estate",
+      "realty",
+      "realtor",
+      "property",
+      "penthouse",
+      "luxury",
+      "home staging",
+      "interior design",
+      "concierge",
+      "rental",
+      "cottage",
+      "hotel"
+    ],
+    "sheet": "ember-93"
+  },
+  "jade-94": {
+    "label": "Jade 94 — softly rounded compact jade with teal accent, for real estate & property",
+    "colors": {
+      "primary": {
+        "50": "#eaf9f3",
+        "100": "#cbf0e1",
+        "200": "#a1e4c9",
+        "300": "#62d1a6",
+        "400": "#36ba86",
+        "500": "#278660",
+        "600": "#217051",
+        "700": "#1a5b42",
+        "800": "#144532",
+        "900": "#0c2b1f"
+      },
+      "accent": {
+        "50": "#eff8fb",
+        "100": "#d6edf5",
+        "200": "#b6deed",
+        "300": "#85c9e0",
+        "400": "#5cb7d6",
+        "500": "#33a4cc",
+        "600": "#2b8aab"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Playfair Display\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Source Sans 3\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Source+Sans+3:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media"
+      ],
+      "split": [
+        "media-left"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "three-up"
+      ],
+      "header": [
+        "solid-bar"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 10,
+      "density": 0.95,
+      "shadowStrength": 0.18,
+      "buttonShape": "rounded"
+    },
+    "style": "softly rounded shadowed jade and teal",
+    "industries": [
+      "real estate",
+      "realty",
+      "realtor",
+      "property",
+      "penthouse",
+      "luxury",
+      "home staging",
+      "interior design",
+      "concierge",
+      "rental",
+      "cottage",
+      "resort"
+    ],
+    "sheet": "jade-94"
+  },
+  "violet-95": {
+    "label": "Violet 95 — rounded airy violet with ember accent, for real estate & property",
+    "colors": {
+      "primary": {
+        "50": "#faeefc",
+        "100": "#f3d4f7",
+        "200": "#eab2f0",
+        "300": "#dc7ee7",
+        "400": "#d054de",
+        "500": "#c529d6",
+        "600": "#a522b4",
+        "700": "#861c92",
+        "800": "#66156f",
+        "900": "#3f0d45"
+      },
+      "accent": {
+        "50": "#fcf4ed",
+        "100": "#f8e3d3",
+        "200": "#f2cdb0",
+        "300": "#eaab7b",
+        "400": "#e28f50",
+        "500": "#db7324",
+        "600": "#b8611e"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Bricolage Grotesque\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"Public Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700&family=Public+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media"
+      ],
+      "split": [
+        "media-right"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "two-up"
+      ],
+      "header": [
+        "centered-logo"
+      ],
+      "footer": [
+        "slim-row"
+      ]
+    },
+    "settings": {
+      "radius": 16,
+      "density": 1.05,
+      "shadowStrength": 0.22,
+      "buttonShape": "pill"
+    },
+    "style": "rounded shadowed violet and ember",
+    "industries": [
+      "realty",
+      "realtor",
+      "property",
+      "penthouse",
+      "luxury",
+      "home staging",
+      "interior design",
+      "concierge",
+      "rental",
+      "cottage",
+      "resort",
+      "hotel"
+    ],
+    "sheet": "violet-95"
+  },
+  "lime-96": {
+    "label": "Lime 96 — rounded airy lime with azure accent, for real estate & property",
+    "colors": {
+      "primary": {
+        "50": "#f6f8ea",
+        "100": "#e7eecc",
+        "200": "#d4e0a2",
+        "300": "#b8cc65",
+        "400": "#9ab13b",
+        "500": "#6d7d2a",
+        "600": "#5c6923",
+        "700": "#4a551c",
+        "800": "#394116",
+        "900": "#23280d"
+      },
+      "accent": {
+        "50": "#f1f5fb",
+        "100": "#dce6f4",
+        "200": "#c1d1eb",
+        "300": "#97b3de",
+        "400": "#759ad3",
+        "500": "#5281c8",
+        "600": "#3969b4"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Libre Baskerville\"",
+        "\"Georgia\"",
+        "serif"
+      ],
+      "body": [
+        "\"Karla\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Karla:wght@400;500;600;700&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media"
+      ],
+      "split": [
+        "media-top"
+      ],
+      "splitRhythm": [
+        "uniform"
+      ],
+      "cards": [
+        "four-up-tight"
+      ],
+      "header": [
+        "pill-floating"
+      ],
+      "footer": [
+        "cta-band"
+      ]
+    },
+    "settings": {
+      "radius": 22,
+      "density": 1.2,
+      "shadowStrength": 0.26,
+      "buttonShape": "square"
+    },
+    "style": "rounded shadowed lime and azure",
+    "industries": [
+      "real estate",
+      "realtor",
+      "property",
+      "penthouse",
+      "luxury",
+      "home staging",
+      "interior design",
+      "concierge",
+      "rental",
+      "cottage",
+      "resort",
+      "hotel"
+    ],
+    "sheet": "lime-96"
+  },
+  "teal-97": {
+    "label": "Teal 97 — angular compact teal with amber accent, for real estate & property",
+    "colors": {
+      "primary": {
+        "50": "#f0f4f9",
+        "100": "#d9e5ef",
+        "200": "#bacfe3",
+        "300": "#8db0d0",
+        "400": "#6795c1",
+        "500": "#467aac",
+        "600": "#3b6790",
+        "700": "#305375",
+        "800": "#244059",
+        "900": "#162737"
+      },
+      "accent": {
+        "50": "#fbf8ef",
+        "100": "#f5eed6",
+        "200": "#ede1b6",
+        "300": "#e0cd85",
+        "400": "#d6bc5c",
+        "500": "#ccab33",
+        "600": "#ab902b"
+      }
+    },
+    "fonts": {
+      "heading": [
+        "\"Outfit\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "body": [
+        "\"Work Sans\"",
+        "system-ui",
+        "sans-serif"
+      ],
+      "googleFontsUrl": "https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Work+Sans:wght@400;500;600&display=swap"
+    },
+    "supports": {
+      "hero": [
+        "with-media"
+      ],
+      "split": [
+        "media-left"
+      ],
+      "splitRhythm": [
+        "alternate"
+      ],
+      "cards": [
+        "three-up"
+      ],
+      "header": [
+        "solid-bar"
+      ],
+      "footer": [
+        "multi-column"
+      ]
+    },
+    "settings": {
+      "radius": 4,
+      "density": 0.85,
+      "shadowStrength": 0.06,
+      "buttonShape": "rounded"
+    },
+    "style": "angular flat teal and amber",
+    "industries": [
+      "real estate",
+      "realty",
+      "property",
+      "penthouse",
+      "luxury",
+      "home staging",
+      "interior design",
+      "concierge",
+      "rental",
+      "cottage",
+      "resort",
+      "hotel"
+    ],
+    "sheet": "teal-97"
   }
 }

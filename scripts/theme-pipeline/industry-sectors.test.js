@@ -45,7 +45,8 @@ try {
 }
 
 const {
-  SECTORS, THEMES_PER_SECTOR, sectorIndexForIndustry, sectorIndexOfTheme, sectorThemeIds,
+  SECTORS, THEMES_PER_SECTOR, themesForSector, sectorIndexForIndustry, sectorIndexOfTheme,
+  sectorThemeIds,
 } = sectorsMod;
 const { poolThemes, candidateThemesForIndustry } = themesMod;
 const { themeSupportsHeroForm } = heroForm;
@@ -107,15 +108,19 @@ function onSiteWithoutForm(sectors, pool) {
 // ── ① 每套主题归得进恰好一个行业组 ────────────────────────────────────────────────────────────────
 // 归不进的那些**挑不到**：组邻接这条路只按组成员取，它们不在任何一组里 ⟹ 从此没有任何行业词能抽到
 // 它。而池子的分布、覆盖度那张表都看不见这件事（它们统计的是词，不是归属）。
-console.log('\n── ① 80 套主题各归一组：16 组 × 5 套，没有一套落在组外');
+console.log('\n── ① 每套主题各归一组：每组的套数等于它自己声明的那个数，没有一套落在组外');
 {
   const { byIndex, orphans } = sectorThemeIds(poolThemes);
   const sizes = byIndex.map((ids) => ids.length);
-  const wrong = sizes.filter((n) => n !== THEMES_PER_SECTOR).length;
+  // 🔴 #1174 —— 判据从「都等于 THEMES_PER_SECTOR」换成「逐组等于它自己那个数」。
+  //    换掉的理由：地产、保险自有套数是 16，其余 14 组仍是 5；拿一个常数去比，那两组当场红两格，
+  //    而它们是本票要的形状。判据的来源仍然只有一处（`themesForSector`），没有在这里抄第二份。
+  const want = SECTORS.map((sec) => themesForSector(sec.key));
+  const wrong = sizes.filter((n, i) => n !== want[i]).length;
   if (!orphans.length && !wrong) {
-    ok(`${Object.keys(poolThemes).length} 套逐套归队：${SECTORS.length} 组每组 ${THEMES_PER_SECTOR} 套，组外 0 套`);
+    ok(`${Object.keys(poolThemes).length} 套逐套归队：${SECTORS.length} 组各自 ${want.join(',')} 套，组外 0 套`);
   } else {
-    bad(`组外 ${orphans.length} 套（${orphans.slice(0, 8).join(' ')}）· 套数不是 ${THEMES_PER_SECTOR} 的组 ${wrong} 个：${sizes.join(',')}`);
+    bad(`组外 ${orphans.length} 套（${orphans.slice(0, 8).join(' ')}）· 套数对不上的组 ${wrong} 个：量到 ${sizes.join(',')} / 该是 ${want.join(',')}`);
   }
 
   // 反向对照：一套主题的 `industries` 跨两组 ⟹ 归属不唯一，必须判 -1（而不是随手挑一个）。
@@ -127,11 +132,15 @@ console.log('\n── ① 80 套主题各归一组：16 组 × 5 套，没有一
     bad(`反向对照失效：跨组假主题判成 ${sectorIndexOfTheme(crossed)}、空声明判成 ${sectorIndexOfTheme(empty)}`);
   }
 
-  // 反向对照：把一套主题从组表里摘掉（造一张少一组的表）⟹ 它那 5 套当场变成组外的。
-  const short = SECTORS.filter((s) => s.key !== 'tech-media');
+  // 反向对照：把一组从组表里摘掉（造一张少一组的表）⟹ 那一组的主题当场变成组外的。
+  // 🔴 #1174 —— 期望值从常数换成【被摘掉那一组自己的套数】。摘的仍然是 `tech-media`（5 套），
+  //    所以这一格的读数与改之前逐字相同；换成按组取，是为了摘掉一个 16 套的组时它也答得对。
+  const DROPPED = 'tech-media';
+  const short = SECTORS.filter((s) => s.key !== DROPPED);
   const strayed = sectorThemeIds(poolThemes, short).orphans.length;
-  if (strayed === THEMES_PER_SECTOR) ok(`反向对照：组表少一组 ⟹ 当场数出 ${strayed} 套落在组外`);
-  else bad(`反向对照失效：组表少一组时组外只数出 ${strayed} 套，本该是 ${THEMES_PER_SECTOR}`);
+  const wantStrayed = themesForSector(DROPPED);
+  if (strayed === wantStrayed) ok(`反向对照：组表少一组（${DROPPED}）⟹ 当场数出 ${strayed} 套落在组外`);
+  else bad(`反向对照失效：组表少一组时组外只数出 ${strayed} 套，本该是 ${wantStrayed}`);
 }
 
 // ── ② partner 表是 16 组的一个置换（一对一 · 不指自己 · 不对借）─────────────────────────────────
@@ -272,15 +281,26 @@ console.log('\n── ⑥ AC1 / AC4 / AC5：拿产品自己那个挑选函数跑
   if (!same.length) ok('AC5：16 组两两比过，候选集合相等的组对 0 对');
   else bad(`AC5：这几对组的候选集合完全相同 ⟹ 行业匹配对它们等于取消了：${same.join(' ')}`);
 
-  // 反向对照：拿掉邻接（只给本组 5 套）喂**同样这三把尺** ⟹ AC1 必须当场全红。尺子读不出不同的时候，
-  // 上面三行绿说明不了任何事。
+  // 反向对照：拿掉邻接（只给本组自有那几套）喂**同样这三把尺** ⟹ AC1 必须当场红。尺子读不出不同的
+  // 时候，上面三行绿说明不了任何事。
+  //
+  // 🔴 #1174 —— 期望值从 `ALL_WORDS.length` 换成【自有套数不到 10 的那些组的词数】，而且是从
+  //    `themesForSector` 现算的、不写死。理由：地产、保险自有 16 套，拿掉邻接它们仍然 ≥10 ⟹ 那
+  //    27 个词不再算不到 10。写死 185 也能绿，但下一次改套数它又是假的，而失败方向是**绿**
+  //    （期望值和实测值一起漂，这一格就再也读不出差别了）。
   const { byIndex } = sectorThemeIds(poolThemes);
   const ownOnly = (w) => { const i = sectorIndexForIndustry(w); return i < 0 ? [] : byIndex[i]; };
   const thinNoAdj = thin(ownOnly).length;
-  if (thinNoAdj === ALL_WORDS.length) {
-    ok(`反向对照：把邻接拿掉（只给本组 ${THEMES_PER_SECTOR} 套）⟹ 同一把尺当场数出 ${thinNoAdj} 个词不到 10`);
+  const wantThin = SECTORS
+    .filter((sec) => themesForSector(sec.key) < 10)
+    .reduce((n, sec) => n + sec.words.length, 0);
+  if (thinNoAdj === wantThin && wantThin > 0) {
+    ok(`反向对照：把邻接拿掉（只给本组自有那几套）⟹ 同一把尺当场数出 ${thinNoAdj} 个词不到 10`
+      + `（自有 ≥10 的组共 ${ALL_WORDS.length - wantThin} 个词本来就够，不算在内）`);
+  } else if (wantThin === 0) {
+    bad('反向对照失效：每一组自有都 ≥10 套了 ⟹ 拿掉邻接也没有词会红，这一格从此读不出差别');
   } else {
-    bad(`反向对照失效：拿掉邻接之后只数出 ${thinNoAdj} 个词不到 10，本该是 ${ALL_WORDS.length} —— 这把尺读不出差别`);
+    bad(`反向对照失效：拿掉邻接之后只数出 ${thinNoAdj} 个词不到 10，本该是 ${wantThin} —— 这把尺读不出差别`);
   }
 }
 

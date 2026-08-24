@@ -516,9 +516,31 @@ console.log('\n── ⑩ 挑主题按词边界匹配：短声明词不再靠子
   //    恒 10，而裸 includes 下真命中的最大值恰好也是 10 ⟹ 那条不可达了。这里换成钉**字面命中数**：
   //    #1115 那 14 个词，每个词今天的真命中数写死在下面。把 coverage.js 那行退回裸 `includes`，
   //    每一个都会变大（括号里就是那时的值，取自 #1115 的实测表）⟹ 这一格会一次红 14 行。
+  //
+  // 🔴 **这张表随池子大小走 —— 改套数的人必须回来重量它**（#1174 踩到的第四处，正文和 PM 的裁定
+  //    都只点了三处）。它数的是「几套主题声明了这个词」，而一组的套数就是那个数的上界：
+  //    保险组从 5 套长到 11 套之后，它那四个词（credit union / retirement / underwriting /
+  //    benefits）从 4-5 变成 10-11，这一格当场红四行。重量的命令写在下面。
+  //    📌 这四个数是在【池子 97 套】上量的（保险 +6、地产 +11）。上一版按池子 102（两组各 +11）
+  //    写的是 15/19，套数一改它就不是这个数了 —— 这正是本条要提醒的那件事，它自己也被这条绊过。
+  //    🔴 两列都要重量，不能只改第一列：这一格的判别力来自**两列不相等**（词边界 vs 裸 includes）。
+  //    只改第一列而第二列留着旧值，看起来还是有差，但那个差是拿旧读数凑出来的。
+  //
+  //    ```bash
+  //    node -e '
+  //      const pool=require("./scripts/theme-pool.json");
+  //      const {industryTokens,hasPhrase}=require("./scripts/theme-pipeline/industry-sectors.js");
+  //      const ids=Object.keys(pool);
+  //      for (const w of ["title","credit union", …]) {
+  //        const t=industryTokens(w);
+  //        console.log(w,
+  //          ids.filter(id=>(pool[id].industries||[]).some(k=>hasPhrase(t,k))).length,   // 第一列
+  //          ids.filter(id=>(pool[id].industries||[]).some(k=>w.includes(k))).length);   // 第二列
+  //      }'
+  //    ```
   const HITS = [
-    ['title', 5, 9], ['credit union', 4, 8], ['retirement', 5, 9], ['underwriting', 5, 9],
-    ['benefits', 5, 9], ['mediterranean', 5, 9], ['fitness', 4, 8], ['martial arts', 4, 9],
+    ['title', 5, 9], ['credit union', 10, 14], ['retirement', 10, 14], ['underwriting', 11, 15],
+    ['benefits', 11, 15], ['mediterranean', 5, 9], ['fitness', 4, 8], ['martial arts', 4, 9],
     ['security', 5, 9], ['marketing', 5, 10], ['party', 4, 5], ['furniture', 4, 8],
     ['architect', 5, 9], ['architecture', 5, 9],
   ];
@@ -538,7 +560,12 @@ console.log('\n── ⑩ 挑主题按词边界匹配：短声明词不再靠子
       bad(`${wrong.length} 个词的真命中数与字面值不符 —— coverage.js 与挑主题那条路的判据分叉了：`
         + wrong.join(' · '));
     } else {
-      ok(`#1115 那 14 个词的真命中数逐个等于字面值（4-5 套；裸 includes 是 8-10 ⟹ 这一格咬得住）`);
+      const lo = Math.min(...HITS.map((h) => h[1])); const hi = Math.max(...HITS.map((h) => h[1]));
+      const nlo = Math.min(...HITS.map((h) => h[2])); const nhi = Math.max(...HITS.map((h) => h[2]));
+      // 🔴 区间从表自己算,别写死:#1174 把保险那四个词从 4-5 顶到 15,而上一版这句话里
+      //    「4-5 套」原地留着、当场变成假话(表改了、旁边解释它的那句没改)。
+      ok(`#1115 那 14 个词的真命中数逐个等于字面值（${lo}-${hi} 套；裸 includes 是 ${nlo}-${nhi}`
+        + ' ⟹ 这一格咬得住）');
     }
   }
 

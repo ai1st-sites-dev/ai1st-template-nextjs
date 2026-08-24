@@ -159,7 +159,8 @@ function buildPool(candidates, { accepted, slotOf } = {}) {
   const take = accepted ? candidates.filter((c) => accepted.includes(c.id)) : candidates;
   if (take.length > slots.length) {
     throw new Error(`池位子只有 ${slots.length} 个，收到 ${take.length} 套候选 —— `
-      + '位子表在 industry-sectors.js（16 组 × 5），要放更多套先改那张表，别在这里截断。');
+      + '位子表在 industry-sectors.js（16 组各 THEMES_PER_SECTOR 套，再加 EXTRA_THEMES 里那几组的增量），'
+      + '要放更多套先改那张表，别在这里截断。');
   }
   const pool = {};
   const map = [];

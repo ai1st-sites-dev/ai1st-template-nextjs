@@ -783,7 +783,10 @@ console.log('\n⑧ 画法自己声明的留白，桌面上还作数吗（#1090 r
 
 console.log('\n⑨ #1135 两族的分布：每档都够多，而且没有哪一族决定另一族');
 {
-  const POOL = 80;                       // #1016 的池子；下面第一格自己核它
+  // 🔴 #1174 —— 池子从 80 涨到 97（保险 +6、地产 +11）。这个数不许瞎写：下面第一格拿
+  //    `public/themes` 里的份数自己核它，对不上就 die（不是 bad —— 分母错了，下面每一条
+  //    百分比都是假的）。
+  const POOL = 97;                       // #1016 的池子 + #1174 的扩容；下面第一格自己核它
   const rot = (i, L) => (i + Math.floor(i / L)) % L;
   const dist = (f, L) => {
     const c = new Map();
@@ -794,6 +797,11 @@ console.log('\n⑨ #1135 两族的分布：每档都够多，而且没有哪一�
   // ── 分母自检：池子真的是 80 套吗（AC2 的百分比全靠它）────────────────────────────────────────
   {
     const dir = path.join(__dirname, '..', '..', 'public', 'themes');
+    // 📌 #1174 —— 这条正则**不用改**，池子 97 套时最大的 id 是 `word-97`，仍是两位数
+    //    （`promote.js:86` 的 `String(slot.index + 1).padStart(2,'0')`）。三位数只在池子 ≥100
+    //    时才出现。上一版这里按池子 102 改成了 `\d{2,3}`，本票的 97 用不上 —— 而放宽它是有代价的：
+    //    真到 100 套那天，`\d{2,3}` 会让分母自检**默默接受**三位数的新表，而这一格存在的理由
+    //    正是「分母错了下面每条百分比都是假的」要当场 die。
     const n = fs.readdirSync(dir).filter((f) => /^[a-z]+-\d{2}\.css$/.test(f)).length;
     if (n !== POOL) {
       die(`夹具不成立：public/themes 里有 ${n} 份池子表，而这一格按 ${POOL} 算百分比。`
@@ -1208,49 +1216,24 @@ console.log('\n⑪ #1135 那行细则小字，每一种画法下都排在表单�
 //    AC1 那把尺是在 1440×900 的浏览器里量的，那时它生效；而列数只写在那一段里（基础规则永远是
 //    `grid-template-columns: 1fr`）。📌 只读基础规则时这把尺对全池读到 27 个块只有一副 —— 与正文
 //    那个 27 逐个对上，也就是说这两把尺是同一把，只差「桌面那一段算不算」。
-const GEOM_PROPS = new Set([
-  'display', 'grid-template-columns', 'grid-template-rows', 'grid-column', 'grid-row', 'grid-auto-flow',
-  'order', 'align-items', 'align-content', 'align-self', 'justify-items', 'justify-content', 'justify-self',
-  'text-align', 'flex-wrap', 'flex-direction', 'place-items',
-  'max-width', 'width', 'height', 'aspect-ratio', 'object-fit', 'margin-left', 'margin-right',
-]);
-/** 一条选择器是不是在说这个块。 */
-const selectorOwnedBy = (sel, block) => sel.split(',').some((one) => {
-  const t = one.trim();
-  return t === `.${block}` || t.startsWith(`.${block}__`) || t.startsWith(`.${block} `) || t.startsWith(`.${block}.`);
-});
-/**
- * 一份表里**每个块**的骨架指纹，一次解析算完。
- *
- * 🔴 一块一次地 `postcss.parse` 是 35 × 80 次解析，实测跑不完（这一格第一版就是那样，跑过 2 分钟
- *    还没出读数）。这里一份表只解析一次，把每条规则归到它那个块名下。
- * 返回 `{ desktop: Map<block, 指纹>, base: Map<block, 指纹> }` —— `base` 只含非 @media 的规则，
- * 它是正文那个「27 个块只有一副」的口径。
- */
-function skeletonsOf(css, blocks) {
-  const desk = new Map(blocks.map((b) => [b, []]));
-  const base = new Map(blocks.map((b) => [b, []]));
-  postcss.parse(css).walkRules((rule) => {
-    const decls = rule.nodes.filter((n) => n.type === 'decl' && GEOM_PROPS.has(n.prop))
-      .map((d) => `${d.prop}:${d.value.trim()}`).sort();
-    if (!decls.length) return;
-    const inMedia = rule.parent && rule.parent.type === 'atrule';
-    const at = inMedia ? `@${rule.parent.name} ${rule.parent.params} ` : '';
-    const line = `${at}${rule.selector.trim()}{${decls.join(';')}}`;
-    for (const b of blocks) {
-      if (!selectorOwnedBy(rule.selector, b)) continue;
-      desk.get(b).push(line);
-      if (!inMedia) base.get(b).push(line);
-      break;
-    }
-  });
-  const fold = (m) => new Map([...m].map(([b, xs]) => [b, xs.sort().join('\n')]));
-  return { desktop: fold(desk), base: fold(base) };
-}
+// 🔴 #1174 —— 这三样（GEOM_PROPS / selectorOwnedBy / skeletonsOf）搬进了
+//    `scripts/theme-pipeline/skeleton.js`，原样一个字没改。搬的理由写在那个文件头：#1174 要在
+//    扩池之后问「有没有新增 hero 双胞胎」，那跟这一格问的是同一件事、必须用同一把尺。
+//    判据是产物同一性：搬完这份测试仍然 59 过 0 失败，⑫ 那几行读数逐字不变。
+const { selectorOwnedBy, skeletonsOf } = require('./skeleton.js');
 
-console.log('\n⑫ #1139 每个块在全池 80 套里有几副骨架（族清单从 block-roles.json 全量枚举）');
+console.log('\n⑫ #1139 每个块在全池 97 套里有几副骨架（族清单从 block-roles.json 全量枚举）');
 {
-  const N = 80;
+  // #1174 —— 80 → 97，理由只有一条：这一格的标题写着「全池」，而全池今天是 97 套。
+  //
+  // 🔴 **别把这个数当成一道判据 —— 我实测过它今天没有判别力。** 把它退回 80 之后：这份测试
+  //    仍然 59 过 0 失败，连它自己打的那句读数都一字不变（N=80 与 N=97 都是「31 个块里 20 个
+  //    只有一副骨架」）。原因是下面那张下限表问的是「种数 ≥ 常量」，而样本变多只会让种数持平
+  //    或变大 ⟹ 缩小样本按构造红不了。
+  //    ⟹ 这一处**不是** AC5 说的「改过判据的地方」，它是样本量（同 `generate.test.js:68` 那个 `N`，
+  //    PM 判过不用改的那个）。上一版这里写的是「不改的话新增那 17 套的骨架按构造看不见，而看不见
+  //    的样子是全过」—— 那句话把一处零判别力的改动说成了在堵一个洞，量出来是假的，所以删掉。
+  const N = 97;
   const ROLES_PATH = path.join(DIR, '..', '..', 'src', 'lib', 'sections', 'block-roles.json');
   let BLOCKS;
   try {

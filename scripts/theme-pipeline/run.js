@@ -311,7 +311,25 @@ async function main() {
   const poolMode = arg('--pool', 'registry');
   const { themes } = require(path.join(NEXT, 'scripts', 'themes.js'));
   const { poolSlots } = require('./industry-sectors.js');
+  // 🔴 #1174 —— `--slot-offset N`：这一批候选要占的是位子 N 起那一段，不是 0 起。
+  //    为什么需要它：位子表的下标里那个 `ci` 是候选在**这一批**里的序号。往末尾补池（本票是位子
+  //    80-96 那 17 套）时只喂这 17 套，它们会按位子 0-16 装 —— 顶栏/页脚按错位子算、图册上标的
+  //    也是那个、第③道闸报告里的 id 也是那批。喂满整池 97 套能绕开，代价是 97 次真构建。
+  //    偏移量还顺手把 README §这本图册仍然看不见的维度 ⑥ 那颗地雷在这条路上关掉：`ci + offset`
+  //    落在位子表里，`slots[...]` 就不是 `undefined`。
+  //    🔴 越界仍然**不悄悄兜**：偏移量把这一批推出位子表时当场退出，不留一个「图拍了、顶栏那行
+  //    没打」的半哑状态（那正是 ⑥ 记的那个形状）。
+  const slotOffset = Number(arg('--slot-offset', 0));
   const slots = poolSlots();
+  if (!Number.isInteger(slotOffset) || slotOffset < 0) {
+    console.error(`🔴 --slot-offset 要是个 ≥0 的整数，收到 ${arg('--slot-offset', 0)}`);
+    process.exit(2);
+  }
+  if (slotOffset + candidates.length > slots.length) {
+    console.error(`🔴 --slot-offset ${slotOffset} + ${candidates.length} 套候选 = ${slotOffset + candidates.length}，`
+      + `超出位子表的 ${slots.length} 个 —— 位子表在 industry-sectors.js，要放更多套先改那张表。`);
+    process.exit(2);
+  }
   const growing = {};
   const poolFor = () => (poolMode === 'new' ? growing : themes);
   const report = [];
@@ -329,14 +347,21 @@ async function main() {
       const gone = clearCandidateShots(galleryDir, c.id);
       if (gone.length) console.log(`🧹 ${c.id}：清掉上一轮留下的 ${gone.length} 个产物`);
     }
+    // 🔴 #1174 + #1182 —— 这一批的第 ci 套候选要占的**那一个位子对象**，整个循环体只算这一次，
+    //    下面四处全部读它：装样例站（顶栏/页脚按位子算）· 收进 growing 池 · 写裁定里那个 `slot`。
+    //    位子只许有一个来源。#1182 落地后合本票时这里真出过一次事故（QA2 在合并形态上驱动出来的）：
+    //    裁定那一处留着**裸 `ci` 那个下标**、没跟上偏移量，于是闸把候选量在位子 80/81、裁定却写 0/1，
+    //    `promote.js` 照裁定发位子 ⟹ 写出 `magenta-01`/`fern-02`（**存量成员的 id**，会覆盖它们的
+    //    条目和表），而 merge rc=0、`npm run test:scripts` 全绿、一处红都没有。
+    const slot = slots[ci + slotOffset];
     const gates = [];
     let shot = null;
     gates.push(gateStatic(c));
     if (gates[0].pass) {
-      // 🔴 #1079 —— `slots[ci]` 是这套候选**全收时**会占的位子，顶栏/页脚按它算（理由整段写在
+      // 🔴 #1079 —— 上面那个 `slot` 是这套候选**全收时**会占的位子，顶栏/页脚按它算（理由整段写在
       //    installCandidate 上面）。人审拒掉几套就会让后面每一套的位子往前挪，那时图上这一维
       //    仍然是「全收假设下的样子」—— 这条边界写进交接与 AC5，不在这里悄悄兜。
-      // 🔴 #1134 —— 上面那句只说了「拒掉几套」这一种,还有**第二种**:`ci` 超过位子数时 `slots[ci]`
+      // 🔴 #1134 —— 上面那句只说了「拒掉几套」这一种,还有**第二种**:`ci + slotOffset` 超过位子数时 `slot`
       //    是 `undefined`(`poolSlots()` 今天 80 个位子),`installCandidate` 退回默认顶栏/页脚。
       //    而**拍图那步没有对应的守卫**:下面 `shootCandidate` 照拍、三道闸照过、图册里有图,只是
       //    那行「顶栏 X · 页脚 Y」不打(它挂在 `installed.regions` 上)⟹ 第 81 套起,图上顶栏那一维
@@ -344,10 +369,10 @@ async function main() {
       //    `--count` 没有 ≤80 的闸(`Number(arg('--count', 3))`),所以这是「拒几套之后补池」时真会
       //    走到的一条路。⟹ 这里**仍然不悄悄兜**(兜了就是把一个人审要知道的边界藏起来),
       //    边界写在 `theme-pipeline/README.md` §这本图册仍然看不见的维度 ⑥。
-      const installed = installCandidate(c, siteDir, slots[ci]);
+      const installed = installCandidate(c, siteDir, slot);
       if (installed.regions) {
         console.log(`  ${c.id}：顶栏 ${installed.regions.header} · 页脚 ${installed.regions.footer}`
-          + `（位子 ${ci}${installed.regions.headerMovedBy ? `，顶栏让开了：${installed.regions.headerMovedBy}` : ''}）`);
+          + `（位子 ${slot.index}${installed.regions.headerMovedBy ? `，顶栏让开了：${installed.regions.headerMovedBy}` : ''}）`);
       }
       const build = cp.spawnSync('npm', ['run', 'build'], { cwd: NEXT, encoding: 'utf8' });
       if (build.status !== 0) {
@@ -391,12 +416,17 @@ async function main() {
     }
     // 前三道全过 ⟹ 收下，它成为后面那些候选要比对的池子的一员（只在 --pool new 那条路上）。
     let poolId = null;
-    if (poolMode === 'new' && gates.every((g) => g.pass !== false) && slots[ci]) {
-      const promoted = toPoolEntry(c, slots[ci]);
+    if (poolMode === 'new' && gates.every((g) => g.pass !== false) && slot) {
+      const promoted = toPoolEntry(c, slot);
+      // 🔴 这三行是 #1173 与 #1174 撞在一起的地方，而**两边都要**（合并时解掉任一边都会静默坏掉一条路）：
+      //    · 位子取上面那个 `slot`（= `slots[ci + slotOffset]`，#1174）—— 往末尾补池时这一批的位子
+      //      不是从 0 起的，按**裸 `ci`** 取会让这些套按位子 0-16 装：顶栏/页脚按错位子算、图册上
+      //      标错、报告里的 id 也是错的那一批。
+      //    · `growing` 的成员带上 `sheetPath`（#1173）—— 见下面那两段。
       // 🔴 #1173 —— `growing` 的成员要带着**自己那份表在哪**。`toPoolEntry` 写的 `entry.sheet` 是
       //    新起的 pool id，而那份表此刻还在候选的工作目录里：拷进 `public/themes/` 是 `promote.js`
       //    写池那一步，发生在整轮跑完之后。不带着走的话，⑤ 在「同一批候选互比」这条路上每次都读不到
-      //    表 ⟹ 整轮报「量不到」拒跑，而那条路恰恰是本票最要防的（一批里的双胞胎会一起进池）。
+      //    表 ⟹ 整轮报「量不到」拒跑，而那条路恰恰是 #1173 最要防的（一批里的双胞胎会一起进池）。
       // 🔴 挂在这里而不是挂进 `toPoolEntry` 的返回值：`growing` **只用于比较、从不落盘**（写池是
       //    `promote.js` 自己读候选目录那条路），所以多这一个键不会漏进 `theme-pool.json`。
       growing[promoted.id] = { ...promoted.entry, sheetPath: c.sheetPath };
@@ -405,11 +435,12 @@ async function main() {
     report.push({
       id: c.id,
       poolId,
-      // #1182 —— 这套候选是被量在哪个位子上的。`slots[ci]` 就是 installCandidate 与
-      // toPoolEntry 上面那两处用的同一个位子（`ci` = 在全部候选里的下标）。写池那一步照它发位子，
-      // 所以闸量过的那一套和写进池的那一套是同一套。`ci` 超出位子表时是 undefined（README §那本
-      // 图册仍然看不见的维度 ⑥ 记着这条路），这里如实记成 null，不兜。
-      slot: slots[ci] ? slots[ci].index : null,
+      // #1182 —— 这套候选是被量在哪个位子上的。读的就是循环体开头那个 `slot`，也就是
+      // installCandidate 与 toPoolEntry 上面那两处用的**同一个对象**（#1174 之后位子是
+      // `ci + slotOffset`，不是 `ci`；这里别重算，理由写在那个 const 上面）。写池那一步照它发位子，
+      // 所以闸量过的那一套和写进池的那一套是同一套。位子表装不下这一批时它是 undefined
+      //（README §那本图册仍然看不见的维度 ⑥ 记着这条路），这里如实记成 null，不兜。
+      slot: slot ? slot.index : null,
       gates,
       facts: shot && shot.facts,
       // `shot` = shoot.mjs 退的是不是 0；`shots` = 盘上真有哪几张图。#1061 起这两个不许互相代替

@@ -9,7 +9,24 @@ const { themes, layoutFor } = await import(`${NEXT_DIR}/scripts/themes.js`);
 const GAL = galleryDir();
 // 🔴 #932 r2 —— 页面和图都写进 public/，那一层才是 caddy 对外开的 root（见 shoot-themes.sh 的注释）。
 const PUB = `${GAL}/public`;
-const ids = Object.keys(themes);
+// 🔴 #1174 —— **可以只出一部分**：位置参数给几个 theme id，就只渲染那几套（跟 `shoot-themes.sh` 的
+// 接口一样，不给就是全部）。为什么要有这个开关：往末尾补池那种票（本票 80 → 97）只拍新增那几套，
+// 而这里原来无条件取整张注册表 ⟹ 页面会摆出 97 个格子、其中 80 个的图根本不存在，**而翻图的人
+// 看不出这是「没拍」还是「拍坏了」**。同族的坑 #1004 记过一次（照着现成命令跑会真的出一本图册，
+// 里面一张候选都没有）—— 那次的教训就是「先查这条管线的 id 是从哪儿来的」。
+// 🔴 给了不在注册表里的 id 就当场退出，不静默忽略：静默忽略会让「我明明传了它」和「它没被渲染」
+//    同时成立，而页面上看不出来。
+const SELECT = process.argv.slice(2);
+const unknown = SELECT.filter((id) => !themes[id]);
+if (unknown.length) {
+  console.error(`🔴 这些 id 不在注册表里，不渲染：${unknown.join(' ')}`);
+  console.error(`   注册表现在有 ${Object.keys(themes).length} 套。用法: node gallery.mjs [theme-id ...]`);
+  process.exit(2);
+}
+// 保持注册表的顺序（页面按位子顺序读起来才对得上），只是筛掉没选的。
+const ids = SELECT.length ? Object.keys(themes).filter((id) => SELECT.includes(id)) : Object.keys(themes);
+const POOL_TOTAL = Object.keys(themes).length;
+const IS_SUBSET = ids.length !== POOL_TOTAL;
 // 🔴 #1161 —— 这里原来是一个写死的 11 个 id 的数组（#932 那一轮之前就存在的那批），图册用它把每套
 // 标成「本次新增」或「原有」。那 11 个**今天一个都不在注册表里了**（它们全在已下架那 30 套里），
 // 所以那个判断已经恒为「本次新增」—— 一个恒真的标注不是标注，它比没有更坏，因为它看起来还在说话。
@@ -19,7 +36,22 @@ const ids = Object.keys(themes);
 // 🔴 #932 r4 —— 图旁的版式读数。它【不是】把注册表抄一遍：layout-readback.py 分别算了
 //   「页面按渲染骨架分组」和「注册表按声明 variant 分组」，两个分组完全相同才认。
 //   读的是 sites/<id>/ 里那份被拍的产物本身。对不上它就报错不写文件，所以这里读不到就该停。
-const RB = JSON.parse(fs.readFileSync(`${GAL}/layout-readback.json`, 'utf-8'));
+// 🔴 #1174 —— 这里原来是无条件 readFileSync，读不到就整份脚本抛在第一屏，**图册一张也出不来**。
+// 今天 `layout-readback.py` 在**任何**套数上都写不出这份文件，而原因是结构性的、不是本票造的：
+// 它的判据是「把这些套按页面上真渲染出来的骨架分组」，而今天产物里那一段是
+// `<section data-block="hero" class="hero">` —— **一个固定的语义类名，长相全靠主题那张表**。
+// 于是每个位置的分组恒为「1 组、全部成员都在里面」，它按自己的纪律拒绝写文件（那条纪律是对的）。
+// 实测：本轮 17 套，首页 4 段 + 内页 2 段，六个位置全部读到 `1 组 [17]`。
+// 对照 `/root/theme-gallery/963/sites`（那一轮它成功过，14 个类型都认出来了）：同一位置的 class 是
+// `bg-white` / `border-b bg-gray-50 py-10` / `section-padding` —— 那时候写法差异确实落在 class 上。
+// ⟹ 是模板从「每种写法一套 Tailwind 类」换成「语义类名 + 主题表」之后，这把尺失明了。**圈外，另开票。**
+//
+// 🔴 处置是「读不到就说读不到」，不是造一个看起来像读数的东西（#1004 的教训，dev 记忆里记着：
+//    自己出一份图册时，把拿不到的那条标注**和为什么拿不到**写在页面上）。所以这里跟下面 review.json
+//    同款：缺了就渲染，页面上用红字讲清缺的是哪一维、为什么缺、这一页因此**不能**用来核对
+//    「这套主题有没有按它声明的写法渲染」。
+const rbPath = `${GAL}/layout-readback.json`;
+const RB = fs.existsSync(rbPath) ? JSON.parse(fs.readFileSync(rbPath, 'utf-8')) : null;
 
 // #963 —— AI 评审的结果。没有就不渲染那一节（并在页面上说清楚没跑，而不是装作没发现）。
 const reviewPath = `${GAL}/review.json`;
@@ -65,7 +97,7 @@ const blockTypesOnAllBlocks = (() => {
   } catch { return 0; }
 })();
 
-const seenTypes = (page) => RB.matched.filter(m => m.page === page).map(m => m.type);
+const seenTypes = (page) => (RB ? RB.matched.filter(m => m.page === page).map(m => m.type) : []);
 const readback = (id, page) => seenTypes(page)
   .map(t => `${t} = <b>${RB.themes[id][t].variant}</b>`).join(' · ');
 
@@ -175,7 +207,7 @@ const card = (id) => {
 
 const html = `<!doctype html>
 <html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Theme 库存 ${ids.length} 套 — 人审</title>
+<title>${IS_SUBSET ? `Theme ${ids.length} 套（池子 ${POOL_TOTAL} 套里的一部分）` : `Theme 库存 ${ids.length} 套`} — 人审</title>
 <style>
  body{font:15px/1.6 system-ui,sans-serif;margin:0;background:#f6f7f9;color:#111}
  .top{padding:24px 32px;background:#fff;border-bottom:1px solid #e3e6ea;position:sticky;top:0;z-index:2}
@@ -226,16 +258,28 @@ const html = `<!doctype html>
  @media (max-width:700px){ .shots{grid-template-columns:1fr;padding:12px} .card{margin:16px 8px} .top,nav{padding-left:16px;padding-right:16px} }
 </style></head><body>
 <div class="top">
-  <h1>Theme 库存 ${ids.length} 套 — 请挑掉不好看的</h1>
+  <h1>${IS_SUBSET
+    ? `Theme ${ids.length} 套 — 请挑掉不好看的`
+    : `Theme 库存 ${ids.length} 套 — 请挑掉不好看的`}</h1>
+  ${IS_SUBSET ? `<p>🔴 <b>这一页只有 ${ids.length} 套，不是全池。</b>池子现在共 ${POOL_TOTAL} 套；
+    这一页是被点名的那 ${ids.length} 套（${ids.join(' ')}）。没在这一页上的不代表没问题，只代表这一轮没拍它。</p>` : ''}
   <p>同一个样例站（内容一个字没改）换了 ${ids.length} 次装，每套真构建一次后整页截图。</p>
   <p>怎么看：每套三张图 —— 首页 + 内页 + <b>全部块</b>（#1061 加的第三张：样例站里那一页把
     ${blockTypesOnAllBlocks || '全部'} 种块各摆一次，首页和关于页上没有的块只有在它上面看得见）。
     点图开原图。看着不行的，把它的名字（如 <code>plum-modern</code>）告诉我们就行。</p>
   <details class="ceiling"><summary>每张图下面那行「版式」是什么 / 这一页看不出什么（点开）</summary>
-    <p><b>图下面那行版式是从这张图那份产物里读回来的</b>，不是把注册表抄一遍：把 30 套按「页面上真渲染出来的结构」分一次组，再按「注册表里声明的写法」分一次组，两次分组完全一样才敢写上去。所以你可以拿它当核对用——比如 hero 写着 <code>split</code> 的那 ${RB.facts.hero_distribution.split ?? 0} 套，图上就该是左文右图。</p>
+    ${RB
+      ? `<p><b>图下面那行版式是从这张图那份产物里读回来的</b>，不是把注册表抄一遍：把这些套按「页面上真渲染出来的结构」分一次组，再按「注册表里声明的写法」分一次组，两次分组完全一样才敢写上去。所以你可以拿它当核对用——比如 hero 写着 <code>split</code> 的那 ${RB.facts.hero_distribution.split ?? 0} 套，图上就该是左文右图。</p>`
+      : `<p style="color:#b00"><b>🔴 这一轮没有「版式读回」那条标注，图下面那一行是空的。</b>
+         产出它的 <code>layout-readback.py</code> 按自己的纪律拒绝写文件，而那条纪律是对的：它的判据是
+         「把这些套按页面上真渲染出来的骨架分组」，而今天产物里那一段是
+         <code>&lt;section data-block="hero" class="hero"&gt;</code> —— 一个固定的语义类名，长相全靠主题那张表。
+         于是每个位置都只有一组（本轮实测：首页 4 段 + 内页 2 段，六个位置全部是「1 组、17 套都在里面」）。
+         <b>后果说在明处：这一页可以用来看「好不好看」，但【不能】用来核对「这套主题有没有按它声明的写法渲染」</b>
+         —— 那一维这一轮没有读数。</p>`}
     <p><b>这一页看不出差别的三样（也是量出来的）：</b></p>
     <ul>
-      <li>每套的<b>页面组成完全相同</b> —— 首页都是 ${RB.facts.sections_home} 段、内页都是 ${RB.facts.sections_about} 段，顺序也一样。今天的换装只能给每一段挑一种写法，改不了「这页上有哪些段、按什么顺序排」。</li>
+      ${RB ? `<li>每套的<b>页面组成完全相同</b> —— 首页都是 ${RB.facts.sections_home} 段、内页都是 ${RB.facts.sections_about} 段，顺序也一样。今天的换装只能给每一段挑一种写法，改不了「这页上有哪些段、按什么顺序排」。</li>` : ''}
       <!-- #981 条6/条7 —— 这一条原来是一句写死的话，说这两个 Region 各只有一种结构、身上没有换装这回事。
            #960 给了顶栏 4 种、页脚 3 种，那句话从那天起就是假的，而写死的话不会因为代码变了自己更新。
            换成从每张图那份产物读回来的两个分布（读法见 shoot.mjs 的 readRegions）。 -->
@@ -243,7 +287,7 @@ const html = `<!doctype html>
         每张图下面第二行写着这一套是哪一种；跟注册表声明不一致的那几套，那行末尾会挂一个 ⚠️。</li>
       <!-- #963 —— 这句原来写死了「浅底的只有 minimal 那几套」。#959 之后浅底有四种写法，
            那个括号就成了页面上一句假话。改成只报从图上读回来的两个数。 -->
-      <li>hero 一共 ${Object.keys(RB.facts.hero_distribution).length} 种写法：<b>${RB.facts.dark_hero} 套第一屏是深色满幅大标题</b>，${RB.facts.light_hero} 套是浅底。这两个数是从每张图那份产物的第一屏底色读回来的，不是按注册表数的。</li>
+      ${RB ? `<li>hero 一共 ${Object.keys(RB.facts.hero_distribution).length} 种写法：<b>${RB.facts.dark_hero} 套第一屏是深色满幅大标题</b>，${RB.facts.light_hero} 套是浅底。这两个数是从每张图那份产物的第一屏底色读回来的，不是按注册表数的。</li>` : ''}
     </ul>
   </details>
 </div>

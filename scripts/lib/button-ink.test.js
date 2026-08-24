@@ -300,7 +300,7 @@ console.log('④ 两份算术不许分叉：把 layout.tsx 里内联进产物的
         }
       }
       if (off.length) bad(`底不是白的时候 ${off.length} 套对不上：${off.slice(0, 3).join(' | ')}`);
-      else ok(`80 套池主题各自那块真底（其中 ${dark} 套不是白的）两份实现逐字相同`);
+      else ok(`${Object.keys(poolThemes).length} 套池主题各自那块真底（其中 ${dark} 套不是白的）两份实现逐字相同`);
     }
 
     // 🔴 反向对照 C：这一格必须能看出「浏览器侧还在按白底挑档」。把那段里的 `gnd` 钉死成白，
@@ -393,7 +393,7 @@ console.log('④ 两份算术不许分叉：把 layout.tsx 里内联进产物的
   }
 }
 
-console.log('⑤ Chris 策展的那 80 套池主题：改动面 = 恰好那些【换过去真能过线】的（票正文 AC4/AC5）');
+console.log(`⑤ Chris 策展的那 ${Object.keys(poolThemes).length} 套池主题：改动面 = 恰好那些【换过去真能过线】的（票正文 AC4/AC5）`);
 {
   // 🔴 这一格与第②格不是同一件事：②问的是「该换的换了、不该换的没换」，只管字色。这一格问的是
   // **那 80 套的改动面有多大**，包括 hover 走哪一档、轮廓按钮的字走哪一档 —— 本票之前它们分别是
@@ -512,10 +512,24 @@ console.log('⑤ Chris 策展的那 80 套池主题：改动面 = 恰好那些�
     }
     if (r.inkUnreachable) kept.push(id);
   }
-  if (ids.length !== 80) bad(`池子是 ${ids.length} 套，不是 80 —— 夹具变了（#1016 的池子动过？）先看那边`);
+  // 🔴 #1174 —— 这条原来写死 `!== 80`，而 #1174 把池子扩到 97 之后它当场红，报的是
+  //    「夹具变了（#1016 的池子动过？）先看那边」。那句话在当时是对的（池子确实动过、确实该来看），
+  //    但**一个写死的数不能长期当这道绊线** —— 它每次合法扩池都要红一次，而红的理由跟真正的
+  //    夹具损坏（池子被截断 / 读成空）长得一模一样。
+  //    换成跟位子表对账：位子表（`industry-sectors.js` 的 `poolSlots()`）是池子大小的**权威定义**，
+  //    `promote.js` 就是按它发位子的。两边对不上才是真的夹具坏了（池子被截断、或者有人改了套数表
+  //    却没重建池子），而合法扩池会让两个数一起动 ⟹ 不再假红。
+  //    📌 顺带堵住写死那版看不见的一种坏法：池子**是空的**时候 `ids.length !== 80` 会红，但如果
+  //    有人把写死的数一起改成 0，这一格就静默地什么都没量。所以下面还问一句「至少得有东西」。
+  const wantPool = require('../theme-pipeline/industry-sectors.js').poolSlots().length;
+  if (!ids.length) bad('池子是空的 —— 这一格什么都没量到，不是通过');
+  else if (ids.length !== wantPool) {
+    bad(`池子 ${ids.length} 套，而位子表声明 ${wantPool} 个位子 —— 两边对不上，先看是谁没跟上`
+      + '（改了 industry-sectors.js 的套数表就要重跑 promote.js 重建池子）');
+  }
   else if (unjustified.length) bad(`${unjustified.length} 处改动没有读数支持：${unjustified.slice(0, 8).join(' · ')}`);
   else {
-    ok(`80 套：字色变 ${inkFlips.length}（${inkFlips.join(' ') || '无'}）· 主按钮底变 ${baseMoves.length}`
+    ok(`${ids.length} 套：字色变 ${inkFlips.length}（${inkFlips.join(' ') || '无'}）· 主按钮底变 ${baseMoves.length}`
       + ` · hover 变 ${hoverMoves.length}`
       + ` · 轮廓变 ${outlineMoves.length} —— 每一处都是「改动前不过线、换过去过线」，且没有一格比改动前更差`);
     ok(`两种字色都换不过去、按 AC4 保持今天白字的：${kept.length} 套（名单见 --list）`);
@@ -525,7 +539,7 @@ console.log('⑤ Chris 策展的那 80 套池主题：改动面 = 恰好那些�
   if (baseUnder.length) {
     bad(`主按钮静止态（算出来的字压算出来的那一档底），${baseUnder.length} 套不过线：${baseUnder.slice(0, 6).join(' · ')}`);
   } else {
-    ok(`主按钮静止态：80 套【算出来的字色压算出来的那一档底】全部 ≥ ${MIN}（挪过档的 ${baseMoves.length} 套）`);
+    ok(`主按钮静止态：${ids.length} 套【算出来的字色压算出来的那一档底】全部 ≥ ${MIN}（挪过档的 ${baseMoves.length} 套）`);
   }
   const groundLine = Object.entries(grounds).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n} 套`).join(' · ');
   if (Object.keys(grounds).some((k) => /白/.test(k))) {
@@ -533,7 +547,7 @@ console.log('⑤ Chris 策展的那 80 套池主题：改动面 = 恰好那些�
   } else if (outlineUnder.length) {
     bad(`轮廓按钮静止态压它真正坐着的那块底，${outlineUnder.length} 套不过线：${outlineUnder.slice(0, 6).join(' · ')}`);
   } else {
-    ok(`轮廓按钮静止态：80 套压【它真正坐着的那块底】全部 ≥ ${MIN}（底的分布：${groundLine}）`);
+    ok(`轮廓按钮静止态：${ids.length} 套压【它真正坐着的那块底】全部 ≥ ${MIN}（底的分布：${groundLine}）`);
   }
   if (process.argv.includes('--list')) {
     console.log(`     保持白字的 ${kept.length} 套：${kept.join(' ')}`);

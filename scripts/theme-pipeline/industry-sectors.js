@@ -368,15 +368,47 @@ function sectorThemeIds(pool, sectors = SECTORS) {
   return { byIndex, orphans };
 }
 
-// 一组配几套主题。16 组 × 5 = 80 套。
+// 一组配几套主题。基准 16 组 × 5 = 位子 0-79。
 const THEMES_PER_SECTOR = 5;
 
+// #1174 —— 在基准之上再给某几组加几套。**保险加 6（自有 5 → 11）· 地产加 11（自有 5 → 16）**，
+// 共新增 17 套，池子 80 → 97。
+//
+// 为什么是「加在基准之上」而不是「每组各写一个数」：位子序号是主题 id 的一部分
+// （`promote.js:86-87` 的 `slot.index + 1`），也是 hero 画法的输入（`sheet-recipes.js` 那条按位子
+// 序号轮转的周期）。要是把 `THEMES_PER_SECTOR` 直接换成每组一个数、循环照旧，多出来的位子就从
+// **中间**插进去，后面 13 组的 id 和长相全变 —— 已建站下次 rebuild 第一屏就换样（`themes.js:269`
+// 记着这笔账）。所以 `poolSlots()` 分两趟：先按基准排出 0-79（一个字节不动），再把增量追加到末尾。
+//
+// 为什么自有取 16 不取 15：候选 = 本组自有 + 伙伴组自有，15 会让地产正好压线 20，退役一套就掉到 19。
+// 伙伴关系是单向链、法律借的是保险 ⟹ 这次实际动的是三个垂直（地产 21 · 保险 27 · 法律 16）。
+//
+// 🔴 两组【不许】加一样多，这组数也不是挑好看的。AC1（两组候选 ≥20）与 AC4（不新增 hero 双胞胎）
+// 在多数分配下互斥：两组各加 e 套时，e≤9 地产不到 20、e≥10 保险开始撞车 —— **没有一个 e 让两条
+// 同时成立**（a=b 的可行解 0 组）。扫 a,b ∈ 0..24 共 36 组可行，新增最多的一档是 17（8 组），
+// 本票取 a=6 · b=11，是那一档里两组余量最平衡的一个。上一版这里写的是两组各 11，实测保险会多出
+// 3 对 hero 双胞胎（`violet-06/crimson-98` · `lime-07/fern-99` · `azure-08/indigo-100`）。
+//
+// 🔴 追加顺序也是承重的：`poolSlots()` 第二趟按注册顺序走，而保险(1) 在地产(2) 之前 ⟹ 保险拿
+// 位子 80-85、地产拿 86-96。**反过来放，法律组会多出一对**（`jade-05` 跟位子 96 那套）。
+const EXTRA_THEMES = { 'finance-insurance': 6, 'real-estate': 11 };
+
+/** 这一组一共几套（基准 + 增量）。判据两侧共用它，别在调用方那边再加一遍。 */
+function themesForSector(key) {
+  return THEMES_PER_SECTOR + (EXTRA_THEMES[key] || 0);
+}
+
 /**
- * 第 slot 套（0..4）在这一组里声明哪些词。
+ * 第 slot 套在这一组里声明哪些词。
  *
  * 每套让出 `drop` 个词（按 slot 轮转，位置各不相同）—— 让出的目的只有一个：把「每套声明几个行业」的
- * 平均压到今天 30 套之下（12.97）。让位是轮转的，所以一个词最多被一套让掉 ⟹ 真命中恒 ≥ 4。
- * 组里有 14 个词时让 1 个、13 个词时也让 1 个 ⟹ 每套声明 12-13 个。
+ * 平均压到今天 30 套之下（12.97）。组里有 14 个词时让 1 个、13 个词时也让 1 个 ⟹ 每套声明 12-13 个。
+ *
+ * 🔴 #1174 改了这里的一个前提，注释跟着改：上一版写的是「让位是轮转的，所以一个词最多被一套让掉
+ *    ⟹ 真命中恒 ≥ 4」—— 那句话只在**套数 ≤ 词数**时成立。地产 16 套 / 13 个词、保险 16 套 / 14 个词
+ *    之后，`slot % k` 会绕回来，头几个词被让掉**两次**。真命中因此是「套数 − 被让次数」：
+ *    地产每个词 ≥ 16 − 2 = 14，保险 ≥ 16 − 2 = 14，其余 14 组仍是 5 − 1 = 4。下限还是 ≥ 4，
+ *    但**理由换了**，别再照上一版那句去推。
  */
 function wordsForSlot(sector, slot) {
   const k = sector.words.length;
@@ -386,21 +418,34 @@ function wordsForSlot(sector, slot) {
   return sector.words.filter((_, i) => !dropped.has(i));
 }
 
-/** 80 个位子，按注册顺序：组 0 的 5 套、组 1 的 5 套…… 每个位子知道自己是哪一组、声明哪些词。 */
+/**
+ * 池位子表。**两趟**，顺序是承重的（#1174）：
+ *   第一趟  按注册顺序排基准：组 0 的 5 套、组 1 的 5 套…… ⟹ 位子 0-79，与 #1174 之前逐字节相同
+ *   第二趟  再按注册顺序把 `EXTRA_THEMES` 的增量追加到末尾 ⟹ 位子 80 起
+ *
+ * 🔴 别把两趟合成一趟（`for slot < themesForSector(key)`）。合成一趟读起来更顺，但增量会从中间插
+ *    进去，后面每一组的位子序号全体后移 —— 而位子序号是主题 id（`promote.js:86-87`）和 hero 画法
+ *    的输入。已经在用后面那些 id 的站，下次 rebuild 第一屏就换样。
+ *
+ * 每个位子知道自己是哪一组、声明哪些词。
+ */
 function poolSlots() {
   const out = [];
+  const push = (sector, si, slot) => out.push({
+    index: out.length,
+    sectorIndex: si,
+    sectorKey: sector.key,
+    sectorLabel: sector.label,
+    sectorEn: sector.en,
+    slot,
+    industries: wordsForSlot(sector, slot),
+  });
   SECTORS.forEach((sector, si) => {
-    for (let slot = 0; slot < THEMES_PER_SECTOR; slot += 1) {
-      out.push({
-        index: out.length,
-        sectorIndex: si,
-        sectorKey: sector.key,
-        sectorLabel: sector.label,
-        sectorEn: sector.en,
-        slot,
-        industries: wordsForSlot(sector, slot),
-      });
-    }
+    for (let slot = 0; slot < THEMES_PER_SECTOR; slot += 1) push(sector, si, slot);
+  });
+  SECTORS.forEach((sector, si) => {
+    const total = themesForSector(sector.key);
+    for (let slot = THEMES_PER_SECTOR; slot < total; slot += 1) push(sector, si, slot);
   });
   return out;
 }
@@ -414,7 +459,8 @@ function poolSlots() {
 // 🔴 #1119 —— 这两个的消费者**不许再减**：`pool.test.js ⑩` 的第一臂就是拿它们直接量匹配器的
 //    （组邻接把候选池与 `industries` 脱钩之后，那一臂是那 14 个词唯一还能被钉住的地方）。
 module.exports = {
-  SECTORS, THEMES_PER_SECTOR, wordsForSlot, poolSlots, isOnSiteIndustry, industryTokens, hasPhrase,
+  SECTORS, THEMES_PER_SECTOR, EXTRA_THEMES, themesForSector,
+  wordsForSlot, poolSlots, isOnSiteIndustry, industryTokens, hasPhrase,
   // #1119 组邻接那条路要的四个（`themes.js` 的 candidateThemesForIndustry 是唯一调用方）
   sectorIndexForIndustry, partnerIndexOf, sectorIndexOfTheme, sectorThemeIds,
 };
