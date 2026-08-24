@@ -1228,3 +1228,116 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
+
+/* ── #1175 card-group: the one block in the registry that had no floor at all ───────────────────
+   `card-group` is the generic block #1132 / #1143 merged `values-grid` · `benefits-list` ·
+   `checklist` · `service-highlights` into. The merge gave it a registry entry, a manifest, a
+   vocabulary and 83 theme sheets — and nothing in this file. Measured on `b2579444`: of the 35
+   registry types, it was the only one with zero rules here, so on a page with NO theme sheet its
+   cards had no spacing, no columns and no type scale while every other block had all three.
+
+   🔴 WHICH OF THE FOUR THIS COPIES, AND WHY IT IS ONE RATHER THAN A BLEND: `service-highlights`.
+   Two reasons that can be checked rather than argued:
+     · it is the only one of the four whose part list is the same as `card-group`'s — six parts
+       including `__features` (`src/lib/sections/block-aliases.json`: headline · sub · item · title ·
+       desc · features). The other three have no `__features` at all.
+     · globals.css already pairs them: #1143 wrote `.card-group__features` beside
+       `.service-highlights__features` in the two list rules there, i.e. that block was already
+       treated as this one's ancestor for the slot the merge carried over.
+   🔴 The choice matters nearly everywhere, which is the third reason not to blend. Measured part by
+   part on `b2579444` (declarations compared as sets, `@media` blocks included):
+     · the BLOCK rule is the only thing all four agree on — `display: grid; gap: 1.5rem;
+       padding: 3rem 1.5rem` plus the desktop `padding: 4rem 2rem`, byte for byte in all four.
+     · every PART disagrees. `values-grid` has no `__sub` and no `__features`; `checklist` has no
+       `__title`, no `__desc` and no `__features`; `benefits-list` has no `__features`. Of the ones
+       that do exist: `__headline` carries `font-weight: 700` in values-grid and service-highlights
+       but not in the other two, which instead add a desktop `font-size: 2.25rem`; `__sub` is
+       `1.0625rem/1.7` in service-highlights and `line-height: 1.6` with no size in the other two;
+       `__desc` is three different rules across the three that have one.
+   So there is no "the four agree, just pick any" — a blend would be picking a winner per property
+   with nothing to appeal to. One reference, named above, with a reason that can be re-measured.
+
+   🔴 WHAT IS DELIBERATELY LEFT OUT, AND IT IS NOT TASTE — it is this file's own test at the top
+   ("would every sheet want to state this itself?"), run against all 83 sheets:
+     · `border-width` / `border-style` / `border-color` on `__item` — `service-highlights` has them
+       (`currentColor`), but only **54 of 83** sheets state a border on `.card-group__item`. Putting
+       them here would draw a border on the other 29 THEMED pages, which is base deciding a themed
+       page's look — the thing the header forbids. The ticket says the same thing from the other
+       side: colour belongs to the sheet.
+     · `border-radius` — **81 of 83** state it, and radius is a theme setting (`--radius-block`),
+       not a floor.
+   Everything below is either stated by all 83 (so base leaks nothing onto a themed page) or is one
+   of the two deliberate leftovers the header names (`min-width: 0`, `overflow-wrap`) plus the
+   `max-width: 100%` batch G added with them (#1036).
+   📌 One exception worth writing down rather than hiding: `max-width` on `__sub` is stated by all
+   80 GENERATED sheets but not by the hand-written `hero-media-top.css`. On that one specimen this
+   line is the floor rather than a no-op. Kept, because the 70-character measure is what every other
+   block's subtitle gets in this file. */
+.card-group {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .card-group {
+    padding: 4rem 2rem;
+  }
+}
+
+/* min-width / max-width / overflow-wrap on every part — the same set batch G worked out (#1036):
+   a grid item's automatic minimum is its CONTENT's size, so without `min-width: 0` one long word
+   pushes the track wider than the screen.
+   🔴 The sentence batch G writes next does NOT carry over, and copying it verbatim would have been
+   a lie: there it says the block's `overflow: hidden` (globals.css) then CLIPS that overflow while
+   the page-level "no horizontal scroll" reading still says everything is fine. `card-group` has no
+   such rule in globals.css — measured on `b2579444`, it and `services-list` are the only two of the
+   35 registry types with no block-level rule there. So on this block the overflow is not clipped,
+   it is simply never created, and these three declarations are the whole protection rather than
+   half of it. That globals.css hole has a different shape (two blocks, not one) and #1175 does not
+   touch it — the reading and the reason are in the handoff. */
+.card-group__headline,
+.card-group__sub,
+.card-group__item,
+.card-group__title,
+.card-group__desc,
+.card-group__features {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+.card-group__headline {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.card-group__sub {
+  /* Roughly 70 characters — the same reading measure every other block's subtitle gets. */
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+}
+
+.card-group__title {
+  font-size: 1.125rem;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.card-group__desc {
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.card-group__item {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.5rem;
+}
+
+.card-group__features {
+  display: grid;
+  gap: 0.5rem;
+}
