@@ -11,6 +11,7 @@
 //   ② 动态：把 tokens 写进样例站的 brand.json、把表放进 public/themes/、`npm run build`、
 //      起一个静态服务器、跑 `theme-css-invariants.mjs`，外加「钩子在这套主题自己的表里有规则」
 //   ③ 相似度：跟注册表里的 30 套比
+//   ⑤ 骨架距离：跟池里每一套算 9 块骨架距离，≤2 的打回（#1173）—— 跑在④之前
 //   ④ 人审：不自动化 —— 打印图册怎么出，然后停在这里
 //
 // 🔴 ①没过就不进②：建一次站 + 起浏览器要几十秒，而静态那道能拦的东西不值这个钱。
@@ -21,7 +22,9 @@ const cp = require('child_process');
 
 const NEXT = path.resolve(__dirname, '..', '..');
 const { generateCandidates } = require('./generate');
-const { gateStatic, gateInvariants, gateSimilarity, gateHumanReview } = require('./gates');
+const {
+  gateStatic, gateInvariants, gateSimilarity, gateSkeleton, gateHumanReview,
+} = require('./gates');
 const {
   shootCandidate, writeComparisonPage, whyNoAllBlocksPage, clearCandidateShots,
 } = require('./gallery');
@@ -359,6 +362,9 @@ async function main() {
       }
     }
     if (gates.every((g) => g.pass)) gates.push(gateSimilarity(c, poolFor()));
+    // 🔴 #1173 —— ⑤ 骨架距离排在③之后、④人审之前：骨架双胞胎不该浪费人审。它跟③互补不替代
+    //    （③读 tokens/layout 管气质相近，⑤读表里的规则管骨架双胞胎），理由整段在 gates.js 那一节头上。
+    if (gates.every((g) => g.pass)) gates.push(gateSkeleton(c, poolFor()));
     if (gates.every((g) => g.pass)) {
       gates.push(gateHumanReview(c, { galleryDir, shot }));
     }
@@ -366,7 +372,13 @@ async function main() {
     let poolId = null;
     if (poolMode === 'new' && gates.every((g) => g.pass !== false) && slots[ci]) {
       const promoted = toPoolEntry(c, slots[ci]);
-      growing[promoted.id] = promoted.entry;
+      // 🔴 #1173 —— `growing` 的成员要带着**自己那份表在哪**。`toPoolEntry` 写的 `entry.sheet` 是
+      //    新起的 pool id，而那份表此刻还在候选的工作目录里：拷进 `public/themes/` 是 `promote.js`
+      //    写池那一步，发生在整轮跑完之后。不带着走的话，⑤ 在「同一批候选互比」这条路上每次都读不到
+      //    表 ⟹ 整轮报「量不到」拒跑，而那条路恰恰是本票最要防的（一批里的双胞胎会一起进池）。
+      // 🔴 挂在这里而不是挂进 `toPoolEntry` 的返回值：`growing` **只用于比较、从不落盘**（写池是
+      //    `promote.js` 自己读候选目录那条路），所以多这一个键不会漏进 `theme-pool.json`。
+      growing[promoted.id] = { ...promoted.entry, sheetPath: c.sheetPath };
       poolId = promoted.id;
     }
     report.push({

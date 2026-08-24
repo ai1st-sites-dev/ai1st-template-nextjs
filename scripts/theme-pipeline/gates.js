@@ -1,11 +1,16 @@
 // ══════════════════════════════════════════════════════════════════════════════════════════════════
-// gates.js — 一套候选主题进池前要过的四道闸（#1004，spec §4.9③ / §7.1）
+// gates.js — 一套候选主题进池前要过的**五**道闸（#1004 四道 + #1173 第五道）
 // ══════════════════════════════════════════════════════════════════════════════════════════════════
 //
 //   ① 静态     tokens 对 schema · 受限 CSS 的选择器/属性/字面色值对契约
 //   ② 动态     样例站真构建 + 无头浏览器读五条不变量，外加「钩子在【theme 那一份】CSS 里有规则」
 //   ③ 相似度   跟池里已有的比，太像的打回
+//   ⑤ 骨架距离 跟池里每一套算 9 块骨架距离，≤2 的打回（#1173）—— 排在④之前，见那一段的头
 //   ④ 人审     Chris 翻图 —— 这一道不自动化，流水线只负责把图册摆好并停在这里
+//
+// 🔴 上面的编号是**这几道闸各自的名字**（报告里逐字打的就是它们），不是执行顺序 —— ⑤ 比 ④ 先跑。
+//    ①②③④ 是 #1004 定的，⑤ 是 #1173 后加的，而给它 ⑤ 而不是插成新的 ④ 是有意的：票、报告、
+//    memory 里已经有几十处按「④ 人审」引用那一道，重编号会让那些引用全部指错。
 //
 // 🔴 ②里那条「在 theme 那一份 CSS 里有规则」是本票**自己**实现的，不等 #996。
 //    理由（本票 AC2 就是它的证人）：产物里的 CSS 不止一份 —— base.css（#1001）也会给同一批钩子
@@ -518,6 +523,133 @@ function gateSimilarity(candidate, pool, { max = 0.9 } = {}) {
     `最像的是 ${worst.id}（${worst.score.toFixed(3)} < ${max}；${partsText(worst.parts)}）${tail}`);
 }
 
+// ── ⑤ 骨架距离 ───────────────────────────────────────────────────────────────────────────────────
+//
+// 进池的每一套，跟池里每一套的**骨架**距离都要 ≥3（#1173，spec 附四 / 规则 2）。尺子和它的口径在
+// `skeleton-distance.js`，那个文件头写着为什么每一条归一化是那样定的。
+//
+// 🔴 为什么位置在③之后、④之前：骨架双胞胎不该浪费人审。而③读的是 tokens 和 layout（气质相近）、
+//    这一道读的是表里的规则（骨架双胞胎）—— 互补，不替代。实证：#1174 那 4 对「只差颜色」的 hero
+//    双胞胎，在这把 9 块尺下距离是 4~5，离 ≤2 很远（#1173 正文证据⑥，我复算过）。
+//
+// 🔴 失败方向照 §jammed：任一方的表读不到、或 9 块自检不过 ⟹ 报「量不到」拒跑，**不许当成
+//    「距离很大」放行**。理由是这道闸唯一能出的错就是那个方向：一维死了（例如清单里某个块名被退役）
+//    之后，距离会整体压低而每个读数看起来都很正常 —— #1173 立票时正文里那把尺就是这么错的
+//    （`benefits-list` 已经 0/83，那一维 80 套同一个指纹，13 对 ≤3 变成 28 对）。
+//
+// 🔴 每次跑都把 9 块的自检读数打出来，不只在出问题时打。这就是抓住上面那件事的那个动作：下次再退役
+//    块名时它当场红，而不是静默抹平一维。
+const SHEETS_DIR = path.join(NEXT, 'public', 'themes');
+
+// 池成员那份表在哪。
+// 🔴 **两条路，顺序是承重的。** `--pool new` 那条路上池子逐套长出来（`run.js` 的 `growing`），而
+//    `toPoolEntry` 给成员写的 `sheet` 是**新起的 pool id**（`promote.js:132`）——那份表此刻还在候选的
+//    工作目录里，拷进 `public/themes/` 是 `promote.js` 写池那一步，发生在整轮 `run.js` 之后。所以按
+//    `public/themes/<sheet>.css` 找，会在**同一批候选互比**那条路上每次都读不到 ⟹ 整轮拒跑，而那条
+//    路恰恰是本票最要防的（一批里的双胞胎会一起进池）。`run.js` 因此把候选自己那份 `sheetPath` 挂在
+//    `growing` 的成员上（`growing` 只用于比较、从不落盘），这里先用它。
+// 🔴 而**不许靠 id 猜文件名**：注册表那条路上 `sheet` 今天恰好等于 id（80/80），拿键名去拼今天也能
+//    跑通 —— 那正是它危险的地方。`toPoolEntry` 会另起 pool id，猜名的那天读不到表，而失败是静默的。
+function poolSheetPath(id, entry) {
+  if (entry && entry.sheetPath) return entry.sheetPath;
+  if (entry && entry.sheet) return path.join(SHEETS_DIR, `${entry.sheet}.css`);
+  return '';
+}
+
+function gateSkeleton(candidate, pool, opts = {}) {
+  // eslint-disable-next-line global-require
+  const skel = require(path.join(__dirname, 'skeleton-distance.js'));
+  const blocks = opts.blocks || skel.SKELETON_BLOCKS;
+  const min = opts.min === undefined ? skel.MIN_DISTANCE : opts.min;
+  const NAME = '⑤ 骨架距离';
+
+  const read = (p) => {
+    try { return fs.readFileSync(p, 'utf-8'); } catch (e) { return null; }
+  };
+  const candCss = candidate.sheetPath ? read(candidate.sheetPath) : null;
+  if (candCss === null) {
+    return jammed(NAME, [`读不到候选自己那份表（${candidate.sheetPath || '没给 sheetPath'}）`
+      + ' —— 没有表就没有骨架可比，而「读不到」不是「距离很大」']);
+  }
+  const fps = {};
+  const missing = [];
+  for (const [id, entry] of Object.entries(pool || {})) {
+    const p = poolSheetPath(id, entry);
+    const css = p ? read(p) : null;
+    if (css === null) { missing.push(`${id}（${p || '这个池成员既没有 sheetPath 也没有 sheet 键'}）`); continue; }
+    fps[id] = skel.fingerprintSheet(css, blocks);
+  }
+  if (missing.length) {
+    return jammed(NAME, [`读不到这 ${missing.length} 个池成员的表：${missing.join(' · ')}`
+      + ' —— 少一套就少一次比较，而少掉的那套可能正是双胞胎']);
+  }
+  let candFp;
+  try { candFp = skel.fingerprintSheet(candCss, blocks); } catch (e) {
+    return jammed(NAME, [`候选那份表解析不了：${e.message}`]);
+  }
+
+  // 🔴 ① 块名今天还活着吗 —— **判据是契约，不是语料**（#1173 AC3）。
+  //
+  //    这一条是这道闸自己的体检，而它治的病有真实前科：#1162（`9b789650`）把 `benefits-list` /
+  //    `values-grid` / `checklist` / `service-highlights` 整层退役，而立本票时那份 9 块清单里还留着
+  //    `benefits-list`。后果不是「少量一块」：那一维 80 套读到同一个指纹（空集的哈希），距离被整体
+  //    压低 1，13 对 ≤3 变成 28 对、还冒出 2 对 ≤2 —— 而每个读数看起来都很正常。
+  //
+  //    🔴 判据选 `HOOK_CLASSES`（`theme-css-lint.js` 自己导出的契约钩子清单）而不是「在语料里数数
+  //    看这一块有没有规则」，是因为语料那条路有两个洞，两个我都真机撞过：
+  //      · 语料是「候选 + 池子」时，`--pool new` 一批可能只有两套候选，而它们正是一对骨架双胞胎
+  //        ⟹ 9 块全部 distinct=1，闸把**发现本身**报成「尺子坏了」。
+  //      · 语料是「盘上所有主题表」时，②动态 会把候选的表**临时拷进** `public/themes/`（跑完才收
+  //        工），于是上一套候选的表在这一轮里成了下一套候选体检的语料 —— 一套有洞的候选会让别的
+  //        候选莫名其妙地「量不到」。
+  //    契约那条路没有语料、没有时序，而它回答的正是那个问题。
+  //    📌 `HOOK_CLASSES` 读不到时是空清单（本文件第 33 行有意如此），那时下面这一条会点名全部 9 块
+  //       并拒跑 —— 「读不到契约」当然不是「可以放行」，方向跟本文件其余部分一致。
+  const notHooks = blocks.filter((b) => !HOOK_CLASSES.includes(b));
+  if (notHooks.length) {
+    return jammed(NAME, [`这 ${notHooks.length} 个块名今天不是契约钩子：${notHooks.join(' / ')}`
+      + `（契约钩子共 ${HOOK_CLASSES.length} 个，问的是 theme-css-lint.js 的 HOOK_CLASSES）`
+      + ' —— 退役掉的块名留在清单里，那一维会读到「全组同一个指纹」而把所有距离整体压低，'
+      + '每个读数却都很正常。拒跑，不放行。']);
+  }
+
+  // 🔴 ② 逐块的读数，每次跑都打（不只在出问题时打）。语料 = 这一轮真正在比距离的那些表
+  //    （候选 + 池成员），因为它要回答的是「这一轮的距离是在几份表上算出来的」。
+  const check = skel.selfCheck({ ...fps, __candidate: candFp }, blocks);
+  const reading = `9 块自检（语料 ${check.corpus} 份表）：${skel.selfCheckText(check)}`
+    + (check.uniformBlocks.length
+      ? `\n     📌 这 ${check.uniformBlocks.length} 块全组同一个指纹：${check.uniformBlocks.join(' / ')}`
+        + `（语料只有 ${check.corpus} 份表时这是算术，不是「这一维死了」—— 块名那一维由上面那条查）`
+      : '');
+
+  // 🔴 ③ 而**空白**是可以拒的：某份表在这 9 块里留了空，那一块的指纹就是「空集」，跟每个有规则的
+  //    池成员都不同 ⟹ **距离白涨**。一个按判据优化的生成器最省事的做法正是「少画一个块」。
+  if (check.emptyBlocks.length) {
+    const who = (b) => Object.entries({ ...fps, [candidate.id || '候选']: candFp })
+      .filter(([, f]) => (f.__empty || []).includes(b)).map(([id]) => id);
+    return jammed(NAME, [`这几块有表一条规则都没画：`
+      + check.emptyBlocks.map((b) => `${b}（${who(b).join(' ')}）`).join(' · ')
+      + ' —— 空集的指纹跟每个有规则的成员都不同，距离会白涨；这不是「离得远」，是没量到'
+      + `\n     ${reading}`]);
+  }
+
+  if (!Object.keys(fps).length) return ok(NAME, `池子是空的 · ${reading}`);
+
+  const scored = Object.keys(fps)
+    .map((id) => ({ id, d: skel.distance(candFp, fps[id], blocks) }))
+    .sort((a, b) => a.d - b.d || a.id.localeCompare(b.id));
+  const tooClose = scored.filter((x) => x.d < min);
+  if (tooClose.length) {
+    const same = (id) => blocks.filter((b) => candFp[b] === fps[id][b]);
+    return bad(NAME, [`跟池里这 ${tooClose.length} 套骨架太像（距离 < ${min}）：`
+      + tooClose.map((x) => `"${x.id}" 距离 ${x.d}，相同的 ${same(x.id).length} 块是 ${same(x.id).join(' / ')}`).join('；')
+      + ` —— 只差颜色字体的双胞胎，同一个行业的两个站抽到这两套，客人看不出区别\n     ${reading}`]);
+  }
+  const nearest = scored[0];
+  return ok(NAME, `最近的是 ${nearest.id}（距离 ${nearest.d} ≥ ${min}；`
+    + `不同的块：${skel.differingBlocks(candFp, fps[nearest.id], blocks).join(' / ')}）· ${reading}`);
+}
+
 // ── ④ 人审 ───────────────────────────────────────────────────────────────────────────────────────
 // 不自动化，也不假装自动化：流水线把图册摆好、把前三道的读数写在旁边，然后停在这里。
 function gateHumanReview(candidate, { galleryDir, shot } = {}) {
@@ -551,6 +683,7 @@ module.exports = {
   gateStatic,
   gateInvariants,
   gateSimilarity,
+  gateSkeleton,
   gateHumanReview,
   similarity,
   layoutVocabOf,
