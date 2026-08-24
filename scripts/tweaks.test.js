@@ -48,8 +48,9 @@ const COLORS = {
   accent: { 50: '#fff6ed', 100: '#ffe9d5', 200: '#fed0aa', 300: '#fdb174', 400: '#fb8a3c', 500: '#f26a0f', 600: '#cc520a' },
 };
 // 同一个站的风格设定 —— #1003 的**数值**形状。AI 建的站写的是这一种，**手写的那 30 套**主题写的是
-// 档位词。🔴 语料（#1140，来源 #1083）：那 30 套 == `themes.js` 的 `retiredThemes`；今天注册表 110 套，
-// 其中 30 枚举 / 80 数值（本轮按 `typeof settings.radius` 现数）。这一行不是在说注册表只有 30 套。
+// 档位词。🔴 语料（#1140，来源 #1083）：那 30 套 == `themes.js` 的 `retiredThemes`。🔴 #1161
+// （2026-08-23）之后 `themes` 只剩池子那 80 套（全是数值形状），那 30 套枚举形状的在并列的
+// `retiredThemes` 导出里 —— 这一句以前写的「今天注册表 110 套，其中 30 枚举 / 80 数值」已经不成立。
 const NUMERIC_SETTINGS = { radius: 16, density: 1.05, shadowStrength: 0.22, buttonShape: 'pill' };
 
 const names = (base) => base.vars.map(([n]) => n);

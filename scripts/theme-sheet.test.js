@@ -43,7 +43,8 @@ console.log('\n── 有表 / 没表 ──');
 {
   const got = sheetNameForTheme('ocean-blue', root);
   got === ''
-    ? ok('没有同名的表 ⟹ 空串（今天注册表那 30 套走的就是这一支，theme.json 一个字节都不变）')
+    ? ok('没有同名的表 ⟹ 空串（#1161 之前注册表那 30 套走的就是这一支；今天它们已下架，'
+      + '`ocean-blue` 在这里只是「一个没有同名表的名字」—— 这一格量的性质没变）')
     : bad(`没有同名的表，却返回了 ${JSON.stringify(got)}`);
 }
 

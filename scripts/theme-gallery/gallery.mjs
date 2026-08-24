@@ -10,8 +10,11 @@ const GAL = galleryDir();
 // 🔴 #932 r2 —— 页面和图都写进 public/，那一层才是 caddy 对外开的 root（见 shoot-themes.sh 的注释）。
 const PUB = `${GAL}/public`;
 const ids = Object.keys(themes);
-// #932 那一轮之前就存在的 11 套 —— 图册用它区分「本次新增」和「原有」，纯标注。
-const OLD = ['bold-red','ocean-blue','forest-green','royal-purple','slate-pro','sunset-orange','rose-gold','midnight','earth-tone','electric','golden-yellow'];
+// 🔴 #1161 —— 这里原来是一个写死的 11 个 id 的数组（#932 那一轮之前就存在的那批），图册用它把每套
+// 标成「本次新增」或「原有」。那 11 个**今天一个都不在注册表里了**（它们全在已下架那 30 套里），
+// 所以那个判断已经恒为「本次新增」—— 一个恒真的标注不是标注，它比没有更坏，因为它看起来还在说话。
+// ⟹ 整个「新增 / 原有」这一维去掉。要区分代次的话，判据该是主题自己的出身（`theme-pool.json` 里
+// 那份 provenance），不是一份手抄的 id 名单 —— 那正是这一行为什么会悄悄失效。
 
 // 🔴 #932 r4 —— 图旁的版式读数。它【不是】把注册表抄一遍：layout-readback.py 分别算了
 //   「页面按渲染骨架分组」和「注册表按声明 variant 分组」，两个分组完全相同才认。
@@ -124,12 +127,11 @@ const figImg = (id, suffix, alt) => (fs.existsSync(`${PUB}/shots/${id}${suffix}.
 
 const card = (id) => {
   const t = themes[id];
-  const isNew = !OLD.includes(id);
   const facts = readFacts(id);
   return `
   <section class="card" id="${id}">
     <header>
-      <h2>${id} ${isNew ? '<span class="new">本次新增</span>' : '<span class="old">原有</span>'}
+      <h2>${id}
         ${tag(id).map(x => `<span class="trade">${x}</span>`).join('')}</h2>
       <p class="label">${t.label}</p>
       <p class="meta">
@@ -181,15 +183,12 @@ const html = `<!doctype html>
  .top p{margin:2px 0;color:#555;font-size:14px}
  nav{padding:12px 32px;background:#fff;border-bottom:1px solid #e3e6ea;line-height:2.2}
  nav a{display:inline-block;margin-right:10px;padding:2px 8px;border:1px solid #d6dae0;border-radius:4px;text-decoration:none;color:#222;font-size:13px}
- nav a.new{border-color:#1d6fb8;color:#1d6fb8}
  .card{background:#fff;margin:20px 32px;border:1px solid #e3e6ea;border-radius:8px;overflow:hidden}
  .card header{padding:16px 20px;border-bottom:1px solid #eef0f3}
  .card h2{margin:0;font-size:17px}
- /* 🔴 #932 r3 —— 这三条只管标题里的徽章 <span>。之前写成 .new{...} 时，nav 里的
-    <a class="new"> 也被涂成蓝底，而 nav a.new 又把文字设成同一个蓝 ⟹ 19 个新 theme 的
-    名字在导航条上是蓝底蓝字（对比度 1.00:1）。灰/绿两条的底色也调深了，白字都够看。 */
- h2 span.new{background:#1d6fb8;color:#fff;font-size:11px;padding:2px 6px;border-radius:3px;vertical-align:2px}
- h2 span.old{background:#6f767e;color:#fff;font-size:11px;padding:2px 6px;border-radius:3px;vertical-align:2px}
+ /* 🔴 #932 r3 —— 这一条只管标题里的徽章 <span>；写成 .trade{...} 会连 nav 里的 <a> 一起涂。
+    （#1161 拿掉了「本次新增 / 原有」那两个徽章和 nav 的 .new，因为那个判断已经恒真 —— 理由在
+    文件顶部 OLD 那段。） */
  h2 span.trade{background:#0d817c;color:#fff;font-size:11px;padding:2px 6px;border-radius:3px;vertical-align:2px;margin-left:4px}
  .label{margin:6px 0 2px;color:#333}
  .meta{margin:2px 0;color:#666;font-size:13px}
@@ -228,7 +227,7 @@ const html = `<!doctype html>
 </style></head><body>
 <div class="top">
   <h1>Theme 库存 ${ids.length} 套 — 请挑掉不好看的</h1>
-  <p>同一个样例站（内容一个字没改）换了 ${ids.length} 次装，每套真构建一次后整页截图。${ids.filter(i => !OLD.includes(i)).length ? `<b>其中 ${ids.filter(i => !OLD.includes(i)).length} 套是 #932 之后新增的</b>，原有 ${ids.filter(i => OLD.includes(i)).length} 套一并放进来当参照。` : ''}</p>
+  <p>同一个样例站（内容一个字没改）换了 ${ids.length} 次装，每套真构建一次后整页截图。</p>
   <p>怎么看：每套三张图 —— 首页 + 内页 + <b>全部块</b>（#1061 加的第三张：样例站里那一页把
     ${blockTypesOnAllBlocks || '全部'} 种块各摆一次，首页和关于页上没有的块只有在它上面看得见）。
     点图开原图。看着不行的，把它的名字（如 <code>plum-modern</code>）告诉我们就行。</p>
@@ -248,7 +247,7 @@ const html = `<!doctype html>
     </ul>
   </details>
 </div>
-<nav>${ids.map(id => `<a class="${OLD.includes(id) ? '' : 'new'}" href="#${id}">${id}</a>`).join('')}</nav>
+<nav>${ids.map(id => `<a href="#${id}">${id}</a>`).join('')}</nav>
 ${reviewSection()}
 ${ids.map(card).join('\n')}
 </body></html>`;

@@ -147,15 +147,18 @@ if (cssContracts.unavailable) {
 // 的站）拿注册表的颜色 + 注册表的 variant —— 一个布尔捆着两件想要相反默认值的事，所以它怎么
 // 设都有一半是错的。#1064 摘走样式表、#1086 摘走顶栏页脚、#1118 摘走预览，本票收尾。
 //
-// 🔴 那么下面这个函数还剩什么用 —— 它的返回值【没有任何消费者】，调用它是为了它里面那道检查：
-// 「applied:true 的站，它写的那套主题必须是这份构建认识的」，查不到就 exit 1。那个行为一个字都
-// 没改，不是本票的交付面；那条路今天真实存在（prod 的 site-194f1f41 写着注册表里没有的
-// luxury-dark —— #1087 在问该怎么办，#1092 把它翻成 applied:false 绕开了）。
-// ⇒ applied 不再影响**长相**，但它仍然决定**这道检查开不开火**。别把这里读成「摘干净了」。
+// 🔴 那么下面这个函数还剩什么用 —— 它的返回值【没有任何消费者】，调用它是为了它里面那两道检查。
+// 两道的严重程度**不一样**，别当成一道：
+//   · theme.json 不是合法 JSON  ⟹ 仍然 `process.exit(1)`。站自己的文件坏了，构建不该往下猜。
+//   · 那套主题这份构建不认识    ⟹ #1161 起只打一行日志，构建接着走（改之前是 exit 1）。
+//     理由和为什么安全，写在下面那一支里。这条路今天真实存在：prod 的 site-194f1f41 写着
+//     `luxury-dark`（#1087 问过该怎么办，#1092 把它翻成 applied:false 绕开了），以及 dev 上
+//     10 个穿着已下架主题的站。
 //
-// 🔴 也不许把下面那句 `applied !== true` 单独删掉。它排在注册表存在性那个 process.exit(1)
-// 前面，而候选流水线恒写 { themeId: "gen-07-xx", applied: false } 且那个 id 还不在注册表里
-// （theme-pipeline/run.js 的 installCandidate）—— 删了它，每个候选站构建当场 exit 1。
+// 🔴 也不许把下面那句 `applied !== true` 单独删掉 —— 虽然 #1161 之后「查不到」不再打死构建，
+// 它仍然承重：候选流水线恒写 { themeId: "gen-07-xx", applied: false } 且那个 id 不在注册表里
+// （theme-pipeline/run.js 的 installCandidate），删了它每个候选站每次构建都白打一行日志说
+// 「这套主题我不认识」—— 而那是候选那条路的正常状态，不是毛病。
 //
 // 📌 顺序上，顶栏 / 页脚的结构是 2026-08-18（#1086）先离开这个布尔的，本票把剩下那两维
 // 一起带走。那一维的取法在下面 `readStructureThemeId`，本票的 variant 也改成问同一个读数。
@@ -174,13 +177,32 @@ function readAppliedThemeId() {
   }
   if (!meta || meta.applied !== true) return null;
   if (!themes[meta.themeId]) {
-    // 🔴 #1102 —— **不把注册表整个列出来。** 这句话不是只进 CI 日志：`edit-site.js` 把
-    // sync-config 的 stderr 原文推进老板的聊天窗口（那边 `syncError` 那一支），而列全表就是
-    // 110 个 id / 1269 个字符 / 按 80 列算 16 行 —— 占满整个聊天面板，而对老板毫无意义。
+    // 🔴 #1161 —— 这里【曾经是 process.exit(1)】，也就是「这个站从此建不出来」。改成一行日志。
+    //
+    // 为什么必须改：#1161 把已下架那 30 套从注册表里拿掉了，而 dev 上有 10 个站的 theme.json
+    // 写着 `applied: true` + 那 30 个 id 之一。留着 exit 1 的话，下架这个动作本身就把它们砖掉 ——
+    // 而 spec 附四规则 1（Chris 2026-08-23 冻结）说的正相反：**不换主题的站永远不受影响**。
+    //
+    // 🔴 降级是安全的，因为这个返回值【没有任何消费者】（理由整段在上面）。查不到 id 时构建
+    // 接着走，站长什么样由这两处决定，跟这里无关：颜色 / 字体 / 风格设定来自站自己的 brand.json
+    // （#1121），顶栏 / 页脚和各 block 的 variant 来自 `readStructureThemeId` —— 而它对查不到的 id
+    // 本来就是「返回 null，让默认值接手」（`lib/site-regions.js`，那条不对称是承重的、有注释）。
+    // ⟹ 两个函数今天对「查不到」的答法**终于一致**了，而这一致是本票带来的。
+    //
+    // 📌 那么这行日志还剩什么用：它是唯一说得出「这个站穿的主题平台已经不认识了」的地方。
+    // 手写错 id、以及穿着已下架主题的老站，都在这里现形 —— 只是不再打死构建。
+    // 🔴 #1102 —— **不把注册表整个列出来。** 理由是「这句话给人看」，而列全表就是 80 个 id 起跳
+    // —— 占满整个面板，对老板毫无意义。📌 #1161 更正了这条理由指的那条路：#1102 当时写的是
+    // 「`edit-site.js` 把 sync-config 的 **stderr** 原文推进老板的聊天窗口（那边 `syncError`
+    // 那一支）」，而**这一行现在走的是 `console.log`（stdout）**，到不了那一支。那条路仍然存在、
+    // 仍然是 stderr 那些话不许列全表的理由；只是它不再是**这一行**要短的理由。这一行要短的理由
+    // 是构建日志本身有人读。
     // 要那份名单的人（我们）本来就有更好的入口：`node -e "console.log(Object.keys(require('./scripts/themes.js').themes).join('\n'))"`。
-    console.error(`theme.json names theme "${meta.themeId}", which is not in the registry`
-      + ` — scripts/themes.js has ${Object.keys(themes).length} themes and "${meta.themeId}" is not one of them`);
-    process.exit(1);
+    console.log(`  ℹ️  theme.json names theme "${meta.themeId}", which this template no longer has`
+      + ` — scripts/themes.js has ${Object.keys(themes).length} themes. The website keeps the look it`
+      + ` already has (colours and fonts come from brand.json); only the theme's own layout preferences`
+      + ` fall back to the defaults.`);
+    return null;
   }
   return meta.themeId;
 }
@@ -752,9 +774,16 @@ if (withRhythm.length) {
 //      这是本票的交付:新建的站(`applied:false`)从此拿到它那套主题的骨,不再落回 solid-bar + multi-column。
 //   ② theme.json 自己写的 `regionLayout`,**逐键**压过 ①。写了 header 就用它写的 header,没写 footer
 //      就还是注册表那套的 footer(#1079 候选图册那条路要的正是这个:候选的 id 还不在注册表里,① 是空的)。
-// 📌 `applied: true` 的站产物不变,理由不是"我没动那条路",是这两条各自的取值:① 它的 themeId 必然在
-//    注册表里(否则 `readAppliedThemeId` 已经 exit 1 了)⟹ 与以前的 `layoutFor(appliedThemeId)` 逐字
-//    相同;② `applied:true` + `regionLayout` 这个组合没有任何代码路径造得出来(理由在
+// 📌 #1086 当时写的是「`applied: true` 的站产物不变」,理由之一是「它的 themeId 必然在注册表里,
+//    否则 `readAppliedThemeId` 已经 exit 1 了」。🔴 **#1161 之后那半句不成立了** —— 查不到的 id
+//    现在只打一行日志、构建接着走,所以 `applied:true` 而主题已下架的站会走到 ① 的 null 分支,
+//    顶栏/页脚落回默认值。这是下架那 30 套的**已知代价**。
+// 🔴 读数在这里,不要往别处指(#1161 r2 改的就是这句 —— 它以前写的是「量过:见 #1161 的交接留言」,
+//    而那条留言里**没有**这个读数)。QA2 2026-08-23 在 AC3 那十个站里抽两个真量的:
+//      site-033349da  顶栏 transparent-overlay → solid-bar   页脚 slim-row → multi-column
+//      site-e1d24562  顶栏 pill-floating       → solid-bar
+//    prod 够不到(AC4 那三条 + prod 五个站的 theme.json 全是 `applied:false`)。
+//    ② 那一半不变:`applied:true` + `regionLayout` 这个组合没有任何代码路径造得出来(理由在
 //    `readPreviewRegionLayout` 上面那段)⟹ 空的。
 // 🔴 #1086 —— 日志里要说得出**结构是从哪来的**,不只说结果是什么。以前这一行只有结果,而
 // 「顶栏为什么是 solid-bar」有三个完全不同的答案(注册表就这么声明的 · theme.json 显式写的 ·
@@ -980,7 +1009,8 @@ const configDataPath = path.join(rootDir, 'src', 'lib', 'config-data.ts');
 // `:root` 默认值上。**两者不是同一组数**：**退役的那 30 套**里只有 3 套的设定恰好等于默认值，
 // 其余 27 套不是（本轮现读：`sharp/standard/square` 3 套、`round/airy/pill` 5 套、
 // `sharp/compact/square` 5 套…）。🔴 语料写在这里（#1140，来源 #1083）：那 30 套 == 今天 `themes.js`
-// 的 `retiredThemes`，而今天注册表是 **110 套**（退役 30 + 池子 80）。上面那几个数**只对那 30 套成立**
+// 的 `retiredThemes`。🔴 #1161（2026-08-23）之后 `themes` 就是池子那 80 套，那 30 套在并列的
+// `retiredThemes` 导出里、不在 `themes` 中（这一句以前写的是「今天注册表是 110 套」）。上面那几个数**只对那 30 套成立**
 // —— 池子那 80 套的 settings 是**数值形状**（`radius: 16`），根本不走档位表。只读 globals.css
 // 的话，一个 `radius: 'round'`（0.5rem）的站会被按 0.25rem 去乘 —— 圆角不是变大，是**变小一半**。
 /** 再读一次 theme.json，只取一个键（上面那两个读它的函数各自也只取自己那一个）。 */

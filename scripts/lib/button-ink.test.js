@@ -10,8 +10,12 @@
  *
  * 🔴 为什么第 ② 格（区分力）必须在：本票的 AC 里有一道「80 套主题池逐套过一遍」，而**那道尺子对
  *    改前改后给出相同的绿** —— 裸尺下白字压 primary-500 在 80 套池上今天就是 0 套不合格。一道两种
- *    实现都全绿的检查证不出「修好了」。能区分的夹具是**冻结退役的那 30 套**（`themes` 110 −
- *    `poolThemes` 80）和生产上那 6 份 brand.json。
+ *    实现都全绿的检查证不出「修好了」。能区分的夹具是**已下架的那 30 套**和生产上那 6 份 brand.json。
+ *    🔴 #1161 —— 那 30 套已经不在 `themes` 里了（下架），所以这里改成直接读 `retiredThemes`。
+ *    它今天只剩 id / 名字 / 配色，而这一格要的正好就是**配色** —— 判据一维没变，只是取处换了。
+ *    改之前这里写的是 `Object.keys(themes).filter((id) => !(id in poolThemes))`，#1161 之后那个
+ *    差集恒空 ⟹ 夹具静默变成 0 套，而它自己那两条「夹具是空的」检查会当场报出来（实测过，就是
+ *    本次改这个文件的起因）。
  *
  * 🔴 为什么第 ③ 格（上限）必须在：深字取纯黑不是审美选择。而且换成 blended 之后**那个构造性保证没了**
  *    —— 存在一段底色两种字色都过不了线（灰阶 114…119）。这一格把那一段的宽度和代价钉成读数，
@@ -27,7 +31,7 @@
 const fs = require('fs');
 const path = require('path');
 const ink = require('./button-ink.js');
-const { themes, poolThemes } = require('../themes.js');
+const { themes, poolThemes, retiredThemes } = require('../themes.js');
 
 let failed = 0;
 const ok = (m) => console.log(`  ✅ ${m}`);
@@ -101,7 +105,7 @@ console.log('① 生产那 6 个站的真 brand.json：两个按钮 × 两种态
   else ok(`6 个生产站 × 4 格，全部 ≥ ${MIN}（blended）`);
 }
 
-console.log('② 注册表 110 套：凡是【换得过去】的都过线；换不过去的保持今天的字色（票正文 AC4 的谓词）');
+console.log(`② 注册表 ${Object.keys(themes).length} 套 + 已下架 ${Object.keys(retiredThemes).length} 套：凡是【换得过去】的都过线；换不过去的保持今天的字色（票正文 AC4 的谓词）`);
 {
   const rescuable = [];   // 白字不合格、而纯黑合格 —— 必须换过去
   const hopeless = [];    // 两种字色都不合格 —— 必须保持白字
@@ -142,23 +146,26 @@ console.log('② 注册表 110 套：凡是【换得过去】的都过线；换�
     bad(`${wrong.length} 处判错：${wrong.slice(0, 6).join(' · ')}`);
   } else {
     const moved = hopeless.filter((id) => ink.buttonInkReport(themes[id].colors.primary).baseMoved).length;
-    ok(`110 套里 ${rescuable.length} 套换字色就够（全部换了且过线）· ${hopeless.length} 套换字色救不了`
-      + `（其中 ${moved} 套靠 #1091 挪底救回来了，全部 ≥ ${MIN}）`);
+    ok(`${Object.keys(themes).length} 套里 ${rescuable.length} 套换字色就够（全部换了且过线）`
+      + `· ${hopeless.length} 套换字色救不了（其中 ${moved} 套靠 #1091 挪底救回来了，全部 ≥ ${MIN}）`);
   }
 
-  // 区分力：改前那份（写死白字）在退役 30 套上判错的，模块必须判对。
-  const retired = Object.keys(themes).filter((id) => !(id in poolThemes));
+  // 区分力：改前那份（写死白字）在已下架那 30 套上判错的，模块必须判对。
+  // 🔴 #1161 起它们不在 `themes` 里，配色改从 `retiredThemes` 取（那个文件只剩 id/名字/配色，
+  // 而这一格要的就是配色）。这些站今天还在线上穿着这些颜色 —— 夹具没有变旧。
+  const retired = Object.keys(retiredThemes);
+  const primaryOf = (id) => retiredThemes[id].colors && retiredThemes[id].colors.primary;
   const fixable = retired.filter((id) => {
-    const p = themes[id].colors && themes[id].colors.primary; if (!p) return false;
+    const p = primaryOf(id); if (!p) return false;
     return ink.ratio(ink.WHITE, p['500']) < MIN && ink.ratio(ink.BLACK, p['500']) >= MIN;
   });
-  if (retired.length !== 30) bad(`退役池是 ${retired.length} 套，不是 30 —— 夹具变了，先看是不是 #1016 的池子动了`);
+  if (retired.length !== 30) bad(`已下架名单是 ${retired.length} 套，不是 30 —— 夹具变了，先看是不是 themes-retired.js 动了`);
   if (fixable.length < 5) {
-    bad(`退役池里「白字不合格而纯黑能救」只剩 ${fixable.length} 套 —— 这个夹具已经不能区分对错了，别拿它当绿`);
+    bad(`已下架那批里「白字不合格而纯黑能救」只剩 ${fixable.length} 套 —— 这个夹具已经不能区分对错了，别拿它当绿`);
   } else {
-    const stillBad = fixable.filter((id) => ink.buttonInkReport(themes[id].colors.primary).cells['btn-primary 静止'] < MIN);
+    const stillBad = fixable.filter((id) => ink.buttonInkReport(primaryOf(id)).cells['btn-primary 静止'] < MIN);
     if (stillBad.length) bad(`模块没修好其中 ${stillBad.length} 套：${stillBad.join(' ')}`);
-    else ok(`退役池里 ${fixable.length} 套「白字不合格而能救」的，模块全部判到 ≥ ${MIN}`);
+    else ok(`已下架那批里 ${fixable.length} 套「白字不合格而能救」的，模块全部判到 ≥ ${MIN}`);
   }
 
   // 反方向：底色够暗时不许改成深字（否则「一律深字」也能过第①格）

@@ -25,10 +25,26 @@ NEXT="$(cd "$HERE/../.." && pwd)"
 GAL="${THEME_GALLERY_DIR:?Set THEME_GALLERY_DIR}"
 : "${ANTHROPIC_API_KEY:?Set ANTHROPIC_API_KEY}"
 
-BASE_THEME="${CONTROL_BASE_THEME:-slate-pro}"        # the theme that gets recoloured
-DONOR_THEME="${CONTROL_DONOR_THEME:-wine-burgundy}"  # whose colours it borrows
-NEG_A="${CONTROL_NEG_A:-electric}"                   # gradient-overlay hero, dark full-bleed
-NEG_B="${CONTROL_NEG_B:-sage-minimal}"               # minimal hero, light
+# 🔴 #1161 —— 这四个默认值原来是 slate-pro / wine-burgundy / electric / sage-minimal，四个**全部**
+# 在已下架那 30 套里。本票把那 30 套从注册表拿掉了，所以四个名字全指向空气。换成池子里的，挑法是
+# 可复算的、不是看着顺眼（每套的 hero 底色写在它自己那份表的 `.hero { background-color }` 里）：
+#
+#   node -e "const fs=require('fs'),p=require('./scripts/theme-pool.json');
+#     for(const [id,t] of Object.entries(p)){const c=fs.readFileSync('public/themes/'+t.sheet+'.css','utf-8');
+#       const m=c.match(/^\.hero \{[\s\S]*?\}/m); const bg=(m[0].match(/background-color:\s*([^;]+);/)||[])[1];
+#       console.log(id,(t.supports.hero||[])[0],bg);}"
+#   本轮读数：80 套里 23 套 primary-900 · 15 套 primary-800 · 42 套 primary-50。
+#
+# 🔴 **换完这四个名字，这个脚本仍然跑不起来 —— 那是另一个毛病，不是本票造成的。** 下面那段
+# `node -e` 在 `scripts/themes.js` 里找 `  '<id>': {` 当锚点，而 #1016 之后主题的定义**根本不在
+# 那个文件里**（池子在 theme-pool.json，退役的在 themes-retired.js）⟹ 锚点恒找不到、脚本恒
+# `exit 2`。改前的读数也一样：`git show c8d5dcd7:templates/nextjs/scripts/themes.js | grep -c "^  'slate-pro': {"`
+# = 0。修它要改的是这个补丁怎么打（对 theme-pool.json 打），跟下架 30 套是两件各自 ship 各自对的
+# 事 —— 按拆票判据该走新票。这里只把四个名字修成真的存在的，并把上面这条读数留在原地。
+BASE_THEME="${CONTROL_BASE_THEME:-indigo-03}"        # the theme that gets recoloured
+DONOR_THEME="${CONTROL_DONOR_THEME:-crimson-09}"     # whose colours it borrows (a clearly different hue)
+NEG_A="${CONTROL_NEG_A:-magenta-01}"                 # with-media hero on primary-900 — dark full-bleed
+NEG_B="${CONTROL_NEG_B:-lime-07}"                    # text-only hero on primary-50 — light and minimal
 CTRL_ID="${BASE_THEME}-recoloured"
 
 CTRL="$GAL/controls"

@@ -30,22 +30,27 @@ const ok = (m) => { pass += 1; console.log(`  ✅ ${m}`); };
 const bad = (m) => { fail += 1; console.log(`  ❌ ${m}`); };
 const die = (m) => { console.error(`🔴 跑不起来: ${m}`); process.exit(2); };
 
-let themesMod; let surveyCoverage; let verifyPool; let sectors;
+let themesMod; let surveyCoverage; let verifyPool; let sectors; let baseline;
 try {
   themesMod = require(path.join(NEXT, 'scripts', 'themes.js'));
   ({ surveyCoverage } = require(path.join(DIR, 'coverage.js')));
   ({ verifyPool } = require(path.join(DIR, 'promote.js')));
   sectors = require(path.join(DIR, 'industry-sectors.js'));
+  baseline = require(path.join(DIR, 'retired-baseline.js'));
 } catch (e) {
   die(`require 失败: ${e.message}`);
 }
 
 const { poolThemes, retiredThemes, themes } = themesMod;
 const { industryTokens, hasPhrase } = sectors;   // #1115 —— 判据只有一份，见 industry-sectors.js
+// #1161 —— 已下架那 30 套只剩 id / 名字 / 配色（见 themes-retired.js 的文件头），它们的行业词
+// 和分布已经删了。② ③ ④ 三格要的那个「旧池基线」冻在 retired-baseline.js 里，理由写在那个文件头上。
+const { RETIRED_INDUSTRY_WORDS, RETIRED_DECL_STAT, RETIRED_HIT_STAT } = baseline;
 const poolIds = Object.keys(poolThemes);
 const retiredIds = Object.keys(retiredThemes);
 
-if (!poolIds.length || !retiredIds.length) die('池子或退役表是空的 —— 没东西可查，这不是通过');
+if (!poolIds.length || !retiredIds.length) die('池子或已下架名单是空的 —— 没东西可查，这不是通过');
+if (!RETIRED_INDUSTRY_WORDS.length) die('冻结基线里一个行业词都没有 —— 下面 ② ③ ④ 会变成空对空的假绿');
 
 // ── ① 行业覆盖度（AC2）──────────────────────────────────────────────────────────────────────────
 // 判据与 `coverage.js --max-thin-pools 0 --max-thin-hits 0` 逐字同源：调的就是它那个函数。
@@ -63,7 +68,7 @@ console.log('\n── ① 行业覆盖度：每个行业词至少 4 套真命中
 //    那个词就从分母里消失，分布只会更好看。而线上的后果是「今天匹配得上的生意明天落进兜底」。
 console.log('\n── ② 词表是退役那 30 套的超集，一个词都没少');
 {
-  const oldWords = [...new Set(retiredIds.flatMap((id) => retiredThemes[id].industries || []))];
+  const oldWords = RETIRED_INDUSTRY_WORDS;
   const newWords = new Set(poolIds.flatMap((id) => poolThemes[id].industries || []));
   const missing = oldWords.filter((w) => !newWords.has(w));
   if (!missing.length) ok(`旧词 ${oldWords.length} 个，新池全都有（新池 ${newWords.size} 个）`);
@@ -80,7 +85,7 @@ console.log('\n── ③ 每套声明的行业数 / 每套的真命中对数，
       avg: s.reduce((a, b) => a + b, 0) / s.length,
     };
   };
-  const declOld = stat(retiredIds.map((id) => (retiredThemes[id].industries || []).length));
+  const declOld = RETIRED_DECL_STAT;      // 冻结基线，见 retired-baseline.js
   const declNew = stat(poolIds.map((id) => (poolThemes[id].industries || []).length));
   // 真命中对数 = 这套主题能命中几个行业词。
   // 🔴 #1115 —— 判据换成生产那一份（`hasPhrase`，词边界），不再是裸 `includes`。这一格守的是
@@ -89,9 +94,8 @@ console.log('\n── ③ 每套声明的行业数 / 每套的真命中对数，
   //    （裸: 旧池平均 14.73 / 新池 13.13；词边界: 旧池 13.30 / 新池 12.44），所以换过来是安全的。
   const hitsOf = (pool, ids, vocab) => ids.map((id) => vocab
     .filter((w) => (pool[id].industries || []).some((kw) => hasPhrase(industryTokens(w), kw))).length);
-  const oldVocab = [...new Set(retiredIds.flatMap((id) => retiredThemes[id].industries || []))];
   const newVocab = [...new Set(poolIds.flatMap((id) => poolThemes[id].industries || []))];
-  const hitOld = stat(hitsOf(retiredThemes, retiredIds, oldVocab));
+  const hitOld = RETIRED_HIT_STAT;       // 冻结基线，同一条 hasPhrase 口径量的
   const hitNew = stat(hitsOf(poolThemes, poolIds, newVocab));
   const fmt = (s) => `min ${s.min} / 中位 ${s.med} / max ${s.max} / 平均 ${s.avg.toFixed(2)}`;
   if (declNew.avg <= declOld.avg && declNew.max <= declOld.max) {
@@ -104,10 +108,10 @@ console.log('\n── ③ 每套声明的行业数 / 每套的真命中对数，
 }
 
 // ── ④ 旧 30 套退役（AC4）────────────────────────────────────────────────────────────────────────
-console.log('\n── ④ 退役的 30 套：新建网站一套都抽不到，而定义一个字都没删');
+console.log('\n── ④ 已下架那 30 套：新建网站一套都抽不到，而且按 id 也查不到了（#1161）');
 {
   const vocab = [...new Set(poolIds.flatMap((id) => poolThemes[id].industries || [])
-    .concat(retiredIds.flatMap((id) => retiredThemes[id].industries || [])))];
+    .concat(RETIRED_INDUSTRY_WORDS))];
   // 探的是**两边词表的并集**：只探新池自己的词，就问不到「旧池的某个词今天会兜出什么」。
   const leaked = new Set();
   for (const w of vocab.concat(['', 'quantum widgets', '汽车维修'])) {
@@ -116,12 +120,20 @@ console.log('\n── ④ 退役的 30 套：新建网站一套都抽不到，�
   if (!leaked.size) ok(`${vocab.length} 个行业词逐个跑 candidateThemesForIndustry()，退役 id 出现 0 次`);
   else bad(`退役的 id 仍然会被新站抽到：${[...leaked].join(' · ')}`);
 
-  if (retiredIds.length === 30) ok('退役表仍是 30 套（文件在 scripts/themes-retired.js，没删）');
-  else bad(`退役表现在是 ${retiredIds.length} 套，不是 30 —— 有人删了已经上线的站在穿的皮`);
+  if (retiredIds.length === 30) ok('已下架名单仍是 30 条（scripts/themes-retired.js）');
+  else bad(`已下架名单现在是 ${retiredIds.length} 条，不是 30 —— 这是一份冻结的历史名单，不该增删`);
 
-  const notLookupable = retiredIds.filter((id) => !themes[id]);
-  if (!notLookupable.length) ok('30 套仍然按 id 查得到（sync-config 的 applied 分支要用）');
-  else bad(`这几套按 id 查不到了，穿着它们的站会建不出来：${notLookupable.join(' · ')}`);
+  // 🔴 #1161 把这一格【反过来了】。改之前它问的是「30 套仍然按 id 查得到吗」（spec D3 冻结退役，
+  // 查不到就把老站砖掉）；Chris 2026-08-23 换代那条规矩之后，判据是相反的：一个都不许还查得到。
+  // 查得到就意味着它还能被穿上，而那正是下架要消掉的东西。
+  const stillLookupable = retiredIds.filter((id) => themes[id]);
+  if (!stillLookupable.length) ok('30 条按 id 一个都查不到（`themes` 不再并入 retiredThemes）');
+  else bad(`这几套还在注册表里，等于没下架：${stillLookupable.join(' · ')}`);
+
+  // 名字和配色必须留着 —— 弹窗那张「当前卡」全靠它（spec 附四规则 1）。
+  const nameless = retiredIds.filter((id) => !retiredThemes[id].label || !retiredThemes[id].colors);
+  if (!nameless.length) ok('30 条各自有 label + colors（弹窗那张当前卡要用）');
+  else bad(`这几条缺名字或配色，弹窗上会只剩一个裸 id：${nameless.join(' · ')}`);
 
   const topupOutside = themesMod.NEUTRAL_TOPUP
     ? themesMod.NEUTRAL_TOPUP.filter((id) => !poolThemes[id]) : ['(没导出 NEUTRAL_TOPUP)'];

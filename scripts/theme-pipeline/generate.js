@@ -24,9 +24,11 @@ const { paletteFor } = require('./palette.js');
 // `Source Sans 3` 里那个 `3` 让**整条 `font-family` 声明非法，浏览器把它整个丢掉**。实测（QA1 在
 // #1004 r1 抓的，QA2 在一次全新的跑里独立重现）：第三套的正文渲染成 `Times New Roman` —— 不是这套
 // 主题的字体，也不是浏览器的锅，是这个拼法。加引号后计算值就是声明的那串。
-// 📌 注册表里 `earth-tone` / `golden-yellow` 两套有同样的写法（`themes.js:243` / `:293`，也就是今天
-// 真站的正文字体就是 Times New Roman）。那是本票范围之外的存量数据，交作者定夺（QA1 也这么判的），
-// 这里只保证**生成器自己**产不出这个形状。
+// 📌 手写那批里 `earth-tone` / `golden-yellow` 两套有同样的写法（当年在 `themes.js` 里，#1016 之后
+// 搬进 `themes-retired.js`），也就是穿着它们的真站正文字体就是 Times New Roman。#1161 把那 30 套
+// 下架、连字体一起删了，所以今天**注册表里没有这个形状的量点**；穿着它们的站不受影响（容器里是站
+// 自己那份模板快照）。要看原样：`git show c8d5dcd7:templates/nextjs/scripts/themes-retired.js`。
+// 这里从来只保证**生成器自己**产不出这个形状，那一条一个字没变。
 const GENERIC_FAMILIES = new Set(['serif', 'sans-serif', 'monospace', 'cursive', 'fantasy',
   'system-ui', 'ui-serif', 'ui-sans-serif', 'ui-monospace', 'ui-rounded', 'math', 'emoji']);
 const quoted = (names) => names.map((n) => (GENERIC_FAMILIES.has(n) ? n : `"${n}"`));

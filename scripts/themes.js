@@ -36,12 +36,14 @@
 // See sync-config.js §theme (`readAppliedThemeId` vs `readStructureThemeId`)：那两个函数今天分开
 // 的理由是它们对「注册表里查不到这个 id」的答法相反，不再是「一个管颜色一个管结构」。
 //
-// #956 — **退役的那 30 套**里，每套的 supports 表覆盖 28 种 block：registry.ts 当时的 34 种类型减掉
-// 6 个一个 variant 都没有的（contact-form · quote-form · services-list · services-nav · values-grid ·
-// service-related-pages），外加 header / footer 两个 Region 键。
-// 📌 #1162：这段是 #956 当天的读数，**不是今天的**（注册表已经是 31 种 —— `values-grid` 随别名层
-//    2026-08-23 退役并入 `card-group`）。它说的是那 30 套退役主题当年的形状，所以按原样留着。#956 当时立的两条性质（每套的键集合
+// 📌 #956 —— 手写那 30 套里每套的 supports 表覆盖 28 种 block（当时 registry.ts 的 34 种类型减掉 6 个
+// 一个 variant 都没有的：contact-form · quote-form · services-list · services-nav · values-grid ·
+// service-related-pages），外加 header / footer 两个 Region 键。#956 当时立的两条性质（每套的键集合
 // 相同 · 每种 variant 至少有一套用到）说的就是那 30 套。
+// 🔴 这一段今天只是**出处**，两个原因各自成立：**#1161 把那 30 套的 supports 表整个删了**（它们已下架，
+//    见下面 retiredThemes 那段）⟹ 这份注册表里没有量点了；而且 **#1162 之后注册表是 31 种类型**
+//    （`values-grid` 随别名兼容层 2026-08-23 退役并入 `card-group`）⟹ 上面那个 34 也是当年的数。
+//    要读当年的形状：`git show c8d5dcd7:templates/nextjs/scripts/themes-retired.js`。
 //
 // 🔴 #1016 —— **新池那 80 套不是这个形状，而且不该是。** 阶段 2（#1030 收尾）把 34 个块的外观全部搬
 // 进了主题自己那份 CSS，组件里再没有一处按 variant 分支（`grep -c 'variant === ' src/components/
@@ -56,20 +58,20 @@
 // file for the check and the three reasons. Which blocks a page shows, and in what order, comes only
 // from the site's own page JSON: the order of the `sections` array, and each section's `hidden`.
 
-// ── 新池（#1016，spec §8 阶段 3）与冻结退役的旧 30 套 ─────────────────────────────────────────────
+// ── 注册表 = 池子，就这一份（#1161，2026-08-23 Chris 拍板整体下架）─────────────────────────────
 //
-// 🔴 **「查得到」和「挑得到」是两件事，这里把它们分开。**
+//   poolThemes    `scripts/theme-pool.json` —— 平台今天提供的全部主题（#1016 跑 #1004 那条流水线
+//                 生成、过完四道闸的那批）。每一套的样子主要在它自己那份表里
+//                 （`public/themes/<sheet>.css`，阶段 2 之后 34 个块的外观都住在那儿）。
+//   retiredThemes `scripts/themes-retired.js` —— 已下架那 30 套【只剩名字和配色】，而且
+//                 **不并进 `themes`**。它唯一的消费者是换主题弹窗的那张「当前卡」：一个站正穿着
+//                 已下架的主题时，卡上要写得出它的名字并照实说一句「已下架，继续用没任何影响」
+//                 （spec 附四规则 1，Chris 2026-08-23 冻结）。理由整段在那个文件头上。
 //
-//   poolThemes   `scripts/theme-pool.json` —— 新建网站**挑得到**的那一池（#1016 跑 #1004 那条流水线
-//                生成、过完四道闸的那批）。每一套的样子主要在它自己那份表里
-//                （`public/themes/<sheet>.css`，阶段 2 之后 34 个块的外观都住在那儿）。
-//   retiredThemes `scripts/themes-retired.js` —— #924~#961 手写的那 30 套。spec D3「冻结退役」：
-//                新站不再抽到它们，但**一个字都不许删** —— 今天线上每个站的 theme.json 写的都是
-//                这 30 个里的某个 id，删掉就是让那些站建不出来（理由写在那个文件头上）。
-//
-// `themes` 是两者的并集，因为**按 id 查**的那几条路（sync-config 的 applied 分支、themeStyle、
-// layoutFor、settingsFor、换主题对话框）必须查得到已经上线的那 30 套。而**挑**那条路
-// （candidateThemesForIndustry，本文件底部）只走 `poolThemes`。
+// 🔴 #1161 之前这里是 `{ ...poolThemes, ...retiredThemes }` = 110 套，理由是 spec D3「冻结退役、
+//    一个字都不许删」。那条被 Chris 2026-08-23 换代（他的原话：「那些我觉得可以 cleanup」「老的
+//    网站不用考虑」）。**换代不会打断已经上线的站**，因为每个站的容器克隆的是站自己那个 repo，
+//    里面带着建站那天的模板快照 —— 平台永不推送进存量站（#1088 / spec 附四规则 1 的物理保证）。
 const poolThemes = require('./theme-pool.json');
 const { retiredThemes } = require('./themes-retired.js');
 // 🔴 #1114 —— 判「这套主题给带表单的 hero 写过造型吗」只有一个权威（它读 `supports.hero`，而
@@ -90,7 +92,11 @@ const {
   sectorIndexForIndustry, partnerIndexOf, sectorThemeIds,
 } = require('./theme-pipeline/industry-sectors.js');
 
-const themes = { ...poolThemes, ...retiredThemes };
+// 🔴 大括号不是多余的。`manager/theme.go` 的 `themeIDsFromRegistry` 不跑这个文件（它读的是
+// 【客户 repo 里】的字节，跑它等于远程执行代码），而是扫 `const themes = {` 这个形状并跟着
+// `...spread` 进兄弟文件。写成 `const themes = poolThemes;` 它当场认不出来 —— 表现是弹窗把
+// 每一张卡都灰掉。`ticket1063_test.go` 有一格拿真文件对账这件事。
+const themes = { ...poolThemes };
 
 // Used when a theme id isn't in the registry (a site created before that theme was retired,
 // or a hand-edited theme.json). Same string the old THEME_STYLE_MAP fell back to.
@@ -202,9 +208,10 @@ function themesWithRhythm() {
 // Every theme that suits this industry, in registry order (so rotation is predictable).
 // Never shorter than MIN_ROTATION_POOL; never empty.
 //
-// 🔴 #1016 —— 挑的范围是 `poolThemes`，**不是** `themes`。两者差 30 套：那 30 套是 spec D3 冻结退役的
-// 旧池，它们留在 `themes` 里只为了「按 id 查得到」（已经穿着它们的站要建得出来），新站不许再抽到。
-// 判据在 AC4：拿全部行业词逐个跑这个函数，旧 30 个 id 一个都不该出现。
+// 🔴 #1016 挑的范围是 `poolThemes`，**不是** `themes`。#1161 之后这两个是同一批 80 套（退役那 30 套
+// 已经从 `themes` 里拿掉了），所以这里写哪一个今天都一样 —— 仍然写 `poolThemes`，因为它回答的正是
+// 「新站挑得到吗」这个问题。判据没变：拿全部行业词逐个跑这个函数，退役那 30 个 id 一个都不该出现
+// （`theme-pipeline/pool.test.js` 的 ④）。
 //
 // 🔴 #1119 —— 池子怎么取，分两条路，而**大多数生意走第一条**：
 //
@@ -327,8 +334,11 @@ function pickThemeForIndustry(industry, rotationIndex) {
 
 module.exports = {
   themes,
-  // #1016 —— 挑得到的那一池（新池）。`themes` 是它加上冻结退役的旧 30 套的并集，见文件上方那段。
+  // #1161 —— `themes` 今天就是 `poolThemes`，两个名字留着是因为两边的问题不同：`themes` 回答
+  // 「按 id 查得到吗」，`poolThemes` 回答「新站挑得到吗」。历史上它们不相等（#1016~#1161 之间
+  // `themes` 多出退役那 30 套），把其中一个删掉会让那段历史里写的每一处引用悄悄改变意思。
   poolThemes,
+  // #1161 —— 已下架那 30 套只剩 id / 名字 / 配色，**不在 `themes` 里**。给弹窗那张当前卡用。
   retiredThemes,
   DEFAULT_LOGO_STYLE,
   MIN_ROTATION_POOL,

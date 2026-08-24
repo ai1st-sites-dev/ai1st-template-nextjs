@@ -1312,7 +1312,11 @@ let judgeSheetForRegistrySweep = null;
     // 🔴 并且断言报出来的红**落在三张表上**，不是落在别处。这正是它要防的那个形状：第 ⑨ 节那个
     // 对照之所以对这一层失明，就是因为它的命中全跑到 globals.css 去了，而断言只问「有没有红」。
     {
-      const DONOR = 'ocean-blue';
+      // 🔴 #1161 —— 原来是 `ocean-blue`，它在被下架的那 30 套里 ⟹ `themes['ocean-blue']` 现在是
+      // undefined，下面那句自保当场报红（实测过，就是本次改这一行的起因 —— 自保是有牙的）。
+      // 换成池里一套。这一格对 DONOR 的唯一要求写在上面：**它必须是刚刚逐套判过全绿的那一群里的**
+      // （空白组 = 原配色在三张表上干净），而那一群就是 `themes` 的全部。
+      const DONOR = 'magenta-01';
       const MUTATED_INK = '#fdfdfd';
       if (!themes[DONOR] || !themes[DONOR].colors || !themes[DONOR].colors.primary) {
         bad(`反向对照拿不到配色 ${DONOR}（themes.js 里没有它，或它没有 colors）—— 上面那圈绿没有对照兜着，`

@@ -42,9 +42,11 @@ interface TextBlockSectionProps {
 // being retired and phase 3 generates the real one against the final contract. If two columns turn
 // out to matter, the fix is one line in contract §2, not a branch back in here.
 // 🔴 THAT SENTENCE IS IN THE PAST TENSE NOW (#1140, from #1083). Both halves of it have happened:
-//    read freshly on 2026-08-22 — `themes.js` exports 110 themes, 30 of which are `retiredThemes`
-//    (that is the frozen pool this paragraph means) and 80 are the generated `poolThemes` phase 3
-//    produced. So "30" here is NOT a claim about how many themes the registry has; it names the
+//    🔴 re-taken on 2026-08-23 (#1161): `themes.js` no longer exports one merged table. `themes` is
+//    the 80 generated `poolThemes` phase 3 produced; the 30 hand-written ones this paragraph means
+//    are the separate `retiredThemes` export and are NOT in `themes`. (The previous version of this
+//    note said "exports 110 themes, 30 of which are retiredThemes" — that spread is gone.)
+//    So "30" here is NOT a claim about how many themes the registry has; it names the
 //    retired set. Re-take it with
 //      node -e "const t=require('./scripts/themes.js');
 //               console.log(Object.keys(t.themes).length, Object.keys(t.retiredThemes).length)"
