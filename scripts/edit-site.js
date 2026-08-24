@@ -819,6 +819,10 @@ async function main() {
   // （`null` = 本次新建）。同步失败时按它回滚，见 rollbackWrittenFiles。
   const writeSnapshots = new Map();
   let commitHash = '';
+  // #1164 —— 归档推送（`git push`）失败时那句话。它跟 commitHash 是两个独立的事实：改动已经在容器里
+  // commit 了（预览照常），但没进 GitHub。以前这两件事都被下面那个 catch 咽掉，`edit-complete` 照样
+  // 带着 commitHash 发出去，任务侧和用户侧都看起来成功 —— 2026-08-23 四次编辑就是这样丢掉的。
+  let archiveError = '';
 
   const model = configModel;
 
@@ -1004,8 +1008,17 @@ async function main() {
             stdio: ['pipe', 'pipe', 'pipe'],
           });
           commitHash = execSync('git rev-parse --short HEAD', { cwd: rootDir }).toString().trim();
-          execSync('git push origin main', { cwd: rootDir, stdio: ['pipe', 'pipe', 'pipe'] });
-          debug(`git commit + push complete (${commitHash})`);
+          // #1164 —— 推送自己一个 try。它失败的意思是「本地存下了、GitHub 上没有」，跟 commit 失败
+          // （什么都没存下）是两回事，处置也不同：这里不回滚、不报错误，只把这句话带到用户面前。
+          // 令牌会出现在 git 的报错里（remote URL 就带着它），所以打印前先抹掉。
+          try {
+            execSync('git push origin main', { cwd: rootDir, stdio: ['pipe', 'pipe', 'pipe'] });
+            debug(`git commit + push complete (${commitHash})`);
+          } catch (pushErr) {
+            const raw = (pushErr.stderr ? pushErr.stderr.toString() : '') || pushErr.message || 'unknown error';
+            archiveError = raw.replace(/x-access-token:[^@]*@/g, 'x-access-token:***@').trim().slice(0, 500);
+            debug(`git push FAILED — saved locally as ${commitHash} but NOT archived to GitHub: ${archiveError}`);
+          }
         } catch (e) {
           debug(`git auto-save error: ${e.message}`);
         }
@@ -1058,9 +1071,17 @@ async function main() {
         return;
       }
 
+      // #1164 —— 归档失败要让站主看见。`message` 是 manager 存成聊天里那条 assistant 回复的字段
+      // （manager/main.go dispatch 那段 `evt["message"]`），所以把这句话接在它后面，用户在聊天里
+      // 就读得到；`archiveFailed` / `archiveError` 给机器读。预览行为不变：改动已经在本地存下了。
+      const archiveNotice = archiveError
+        ? '\n\nNote: this change is saved in your preview but could NOT be archived to GitHub yet, '
+          + 'so it is not backed up. Your next successful save will push it along with this one.'
+        : '';
       emit('edit-complete', {
-        message: finalMessage,
+        message: finalMessage + archiveNotice,
         ...(commitHash ? { commitHash } : {}),
+        ...(archiveError ? { archiveFailed: true, archiveError } : {}),
         inputTokens: totalInputTokens,
         outputTokens: totalOutputTokens,
         cost,
