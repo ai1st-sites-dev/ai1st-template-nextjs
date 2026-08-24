@@ -39,74 +39,59 @@ function roleFor(type) {
 //
 // 表在 `../src/lib/sections/block-aliases.json`，**只有一份**（运行时那一侧是
 // `src/lib/sections/blockAliases.ts` 读同一个文件；两边各抄一份的后果见 blockAttrs.ts 上那段）。
-// 每一行写齐映射文档（`docs/superpowers/specs/2026-08-18-block-merge-mapping.md`）§2.1 那四件事。
 //
-// 🔴 键 == 它自己的 `type` 的那一行不是别名，是通用块自己的词汇 —— 下面第一个判据跳过它。
+// ── 2026-08-23 #1162：这张表【不再有别名】，这个函数也不再改名字 ──────────────────────────────────
+// #1132 / #1143 建的那层老块名兼容（`values-grid` / `benefits-list` / `checklist` /
+// `service-highlights` 四行、`role` 补齐、`data` 逐字段改名、以及把老 type 名记进另一个字段）**整层
+// 退役了** —— Chris 2026-08-23 裁定：合并从此是干净改名，后面的合并批不再建兼容。
 //
-// 🔴 老站的**磁盘一个字节都不改**：换名字这件事只发生在这里，也就是 #998 那条 1:1 映射上。
-//    换完之后老词汇住在 `__legacyType` 里，产物上那五样（`data-block` / `data-role` / 类名 /
-//    React 的 key / 不许凭空多出 `data-block-layout`）全部从它来 —— 逐样的出处写在
-//    `src/components/sections/CardGroupSection.tsx` 头上。
+// 🔴 表里只剩「键 == 它自己的 `type`」那一行（`card-group`），它从来就不是别名，是通用块自己的词汇。
+//    所以下面第一个判据（`!row || row.type === block.type`）今天对**任何**输入都成立 ⟹ 这个函数
+//    现在只剩归一化那一步。**名字仍叫 `applyAlias` 是有意保守**：AC4 点名要改的是「老名字分支」，
+//    改这个导出名是作者/PM 的判断，不是做工的人顺手定的（已按 AC3 记进第 24 批台账）。
 //
-// 🔴 `role` 只在这个块**自己没写**的时候补。老形状（`sections`）从来不带 `role`，所以补的就是老类型
-//    在 `block-roles.json` 里那个角色（不补的话 `blockAttrs` 按新 type 名查表、查不到、落到兜底的
-//    `essential` —— 映射文档 §2.5 坑一实测过）。新形状（`blocks`）自己带 `role`，显式的赢。
+// 🔴 让退役这件事今天安全的**不是「反正都是测试站」**（prod 5 个站里 2 个属于外部人、1 个是真付费
+//    客户，磁盘上写着老 type 名的块共 43 个），而是**平台模板到不了任何已存在的站**：`isLocal()` 在
+//    prod 恒 false ⟹ 模板注入的两个点（`manager/sites.go:462` 建站 · `manager/edit.go:93` 打开
+//    编辑器/重建存量站）都不成立；模板进站仓只有建站那一刻的 GitHub `/generate` 一条路；而且那 5 个
+//    站的仓里一份 `block-aliases.json` 都没有。守这条性质的是
+//    `ai-team/dispatcher/ship-check-template-reachability.sh`（#1162），破了它会红。
 //
-// 🔴 `data` 里那些映射到 `null` 的字段（`style` / `variant`）是「继续忽略」，**不是删掉**：没人读
-//    它们，而删了会让 `scripts/theme-gallery/verify-applied.mjs` 那格对不上账（它拿磁盘上的
-//    `data.variant` 跟产物里的比）。本批两个来源块的字段名跟通用块逐字相同 ⟹ 改名一处都不发生，
-//    `data` 连对象都不换。
-//
-// 🔴 #1143 —— `data` 那条「一个字节都不改」有**一个**例外，写在下面 `normalizeGenericItems` 上。
+// 🔴 **`normalizeGenericItems` 留着，它不是兼容层。** 票正文 item 1 把「`[string]` 升格」跟老数据
+//    映射列在一起，而同一条 item 的 🔴 又写着「为畸形输入做的防御性归一化（#1152 / #1154）不在此列」。
+//    两句在这个函数上打架，所以按**它实际服务的路**判：那个升格管**两条**路，其中一条不是老数据 ——
+//    新站直接写 `type: "card-group"` 而 `items` 里塞了裸字符串（建站期那道校验 ⑤ 只拦 `null` 和
+//    数组，**放行字符串**，实测过）。删掉它那条路会画出空标题：
+//      只跑 normalizeListSlots  → items 仍是 ["甲","乙"] → 组件读 item.title = undefined → <h3></h3>
+//      跑 normalizeGenericItems → items 变成 [{title:"甲"},{title:"乙"}]
+//    ⟹ 保守方向是留（这是**留一道保险**，不是加功能）。已在交接留言里点名请 PM 确认。
 function applyAlias(block) {
-  const row = BLOCK_ALIASES[block.type];
-  if (!row || row.type === block.type) return normalizeGenericItems(block);
-  const out = { ...block, type: row.type, __legacyType: block.type };
-  if (out.role === undefined) out.role = row.role;
-  const data = { ...(block.data || {}) };
-  let renamed = 0;
-  for (const [from, to] of Object.entries(row.data || {})) {
-    if (to === null || to === from) continue;
-    if (Object.prototype.hasOwnProperty.call(data, from)) {
-      data[to] = data[from];
-      delete data[from];
-      renamed += 1;
-    } else if (Object.prototype.hasOwnProperty.call(data, to)) {
-      // 🔴 #1143 —— 改名的**源没有、而目标名字在磁盘上有**。这是映射文档 §2.5 坑三那一族：
-      //    那个键**老组件从来没读过**（本票删掉的 `ServiceHighlightsSection` 读的是 `data.highlights`，
-      //    磁盘上写成 `items` 的那些块今天在页面上是空的 —— `scripts/lib/block-manifest.js` 顶上
-      //    那段 #999 的实测里点了这种站的名）。别名把 `items` 变成通用块**真会读**的那个槽位之后，
-      //    不删它就等于「顺手接上」：线上一块本来空着的地方**突然长出内容**，而没有人决定过这件事。
-      //    判据写成一句话就是：新组件读 `data[to]`，老组件读 `data[from]` ⟹ 源不在，目标也必须不在。
-      delete data[to];
-      renamed += 1;
-    }
-  }
-  if (renamed) out.data = data;
-  return normalizeGenericItems(out);
+  return normalizeGenericItems(block);
 }
 
 // 通用块有几个 —— 从表自己推，不写死名字。「键 == 它自己的 type」那些行就是通用块自己，
 // 而每一条别名的 `type` 也指着它们，所以取全部 `type` 的集合就是「本仓今天有哪些通用块」。
 const GENERIC_TYPES = new Set(Object.values(BLOCK_ALIASES).map((r) => r.type));
 
-// ── 通用块的列表槽位归一：`[string]` 升成 `[{title}]`（#1143）─────────────────────────────────
+// ── 通用块的列表槽位归一：`[string]` 升成 `[{title}]`（#1143，#1162 之后只剩一条路）───────────────
 //
 // 映射文档 §1.3 那条 🔴 逐字：「升成 `[{title}]`，`description` 缺省。反方向（通用块同时收字符串
 // 和对象）会把『这一项有没有描述』变成两种写法，而建站 AI 是照 manifest 写的 —— 两种写法就是两条
-// 要一直维护下去的路。」本批把 `checklist`（磁盘上是 `items: ["甲","乙"]`）并进卡片组，它是仓里
-// 唯一一个 `[string]` 的列表槽位。
+// 要一直维护下去的路。」
 //
-// 🔴 **归一在这里做、不在组件里做**，理由是它得管**两条**路而不是一条：
-//   ① 老站走别名进来的（`checklist`）；
-//   ② 新站直接写 `type: "card-group"`、而 `items` 里塞了裸字符串的 —— 那条路**不经过**上面
-//      `applyAlias` 的改名分支（「键 == 它自己的 type」那一行提前返回），所以判据是**归一化之后
-//      的 type 落在哪个通用块上**，不是「有没有别名」。这就是 AC3 的反向那一半：喂裸字符串数组
-//      给新 type 名，它被规范化，而不是画出一个空标题。
+// 🔴 **#1162：它服务的两条路里，老站那一条没了，新站那一条还在** —— 所以这个函数留着。
+//   ① ~~老站写 `type: "checklist"`、`items` 是 `["甲","乙"]`，走别名进来~~ ← 别名层 2026-08-23 退役
+//   ② **新站直接写 `type: "card-group"`、而 `items` 里塞了裸字符串** ← 这条路还在，而且**没有别的
+//      东西挡它**：建站期 `block-manifest.js` 的校验 ⑤ 只拦 `null` 和数组，**放行字符串**；
+//      `normalizeListSlots` 的 `drawableItem` 也把字符串算作可画。少了这一步，组件读
+//      `item.title` 得到 `undefined`，画出来是 `<h3 class="card-group__title"></h3>` —— 空标题，
+//      不炸、也没人会红。实测两臂：
+//        只跑 normalizeListSlots  → items 仍是 ["甲","乙"]
+//        跑本函数                 → items 变成 [{title:"甲"},{title:"乙"}]
 //
-// 🔴 **不是数组、或者一个字符串都没有 ⟹ 原对象原样返回**（同一个引用）。别名表里的 `values-grid`
-//    / `benefits-list` / `service-highlights` 三条路上 `items` 装的本来就是对象，这个函数对它们
-//    是**恒等**的 —— 批 1 那句「老站产物逐字节不变」不会因为本批多了一个函数就变假。
+// 🔴 **不是数组、或者一个字符串都没有 ⟹ 原对象原样返回**（同一个引用）。今天表里只有 `card-group`
+//    一行，而它磁盘上的 `items` 装的本来就是对象 ⟹ 正常的站走到这里是**恒等**的，
+//    `blocks.test.js` 那条反向对照判的就是「同一个数组引用」。加过滤时最容易弄丢的就是它。
 function normalizeGenericItems(block) {
   if (!GENERIC_TYPES.has(block.type)) return block;
   const items = block.data && block.data.items;
@@ -140,11 +125,11 @@ function normalizeGenericItems(block) {
 //    那道兜底**按构造只管卡片组那一家**。同一个坏数据换个块就照样让构建当场死：
 //      timeline 的 events 混一个 null   → Cannot read properties of null (reading 'year')
 //      testimonials / process-steps / team-grid / faq-accordion 各有各的那一句（逐个实测过）
-//    而 `checklist.items` 写成一个字符串 → `a.items?.map is not a function`（`?.` 只挡 null/undefined）。
+//    而 `card-group.items` 写成一个字符串 → `a.items?.map is not a function`（`?.` 只挡 null/undefined）。
 //
 // 🔴 判据按 **manifest 里的 `kind: "list"`**，不按块的名字，也不按槽叫不叫 `items`：
-//    `timeline` 的列表槽是 `events`、`process-steps` 是 `steps`、`team-grid` 是 `members`、
-//    `service-highlights` 是 `highlights`。照名字写死的话，新加的块默认不在保护里，
+//    `timeline` 的列表槽是 `events`、`process-steps` 是 `steps`、`team-grid` 是 `members`。
+//    照名字写死的话，新加的块默认不在保护里，
 //    而它长得跟「查过了」一模一样（跟 block-manifest.js 第 ⑤ 条同一条理由）。
 //
 // 🔴 **没有东西要动就返回同一个 block、同一个数组**（下面那两处提前 return）。#1143/#1152 的
@@ -520,12 +505,16 @@ function normalizeLocalePages(pages, siteBlocks, locale, report) {
     // 摘掉 id 之后那个块照样渲染，只是 React 的 key 落回 `type+位置` 那条兜底 —— 有明确、无歧义的
     // 默认行为 ⟹ 属于「能安全兜底」那一栏。留着才是真丢东西：React 把两个块当成同一个，页面上
     // 少一块而构建是绿的）。PM 的表里没有这一行，是我按同一条原则判的。
-    // #1132 —— 别名在这里生效，一处。三个来路（页面块 / `ref` 解出来的站级块 / `visibility` 命中
+    // #1132 —— 归一在这里生效，一处。三个来路（页面块 / `ref` 解出来的站级块 / `visibility` 命中
     // 追加的站级块）都汇到了 `resolved`，所以放在这里就是三条路一起管；分别在三个 push 那里做的话，
     // 下一批合并漏掉一条不会有任何东西报错。
-    // #1154 —— 列表槽位的兜底跟别名走同一个漏斗（三条来路都汇到 resolved）。顺序是承重的：
-    // 先 applyAlias（`service-highlights` 的 `highlights` 在那里被改名成 `items`、type 变成
-    // `card-group`），再按**改完之后**那个 type 的 manifest 查它有哪些列表槽。
+    // #1154 —— 列表槽位的兜底走同一个漏斗（三条来路都汇到 resolved）。
+    // 📌 #1162：这里原来写着「顺序是承重的：先 applyAlias 把 `service-highlights` 的 `highlights`
+    //    改名成 `items`、type 变成 `card-group`，再按改完之后那个 type 的 manifest 查列表槽」——
+    //    别名层退役之后 `applyAlias` 不再改 `type` 也不再改字段名，那条理由**没了**。顺序留着，
+    //    因为 `applyAlias` 仍会把裸字符串升成对象，而后一步按 `drawableItem` 过滤 —— 反过来跑的话
+    //    过滤先看到字符串（它也算可画），结果一样；也就是说今天两种顺序等价，写成这一种是为了
+    //    「先规范内容、再兜底形状」读起来顺。别把「等价」读成「随便」：下一批再并块时先回来重判。
     for (let k = 0; k < resolved.length; k += 1) {
       resolved[k] = normalizeListSlots(applyAlias(resolved[k]));
     }

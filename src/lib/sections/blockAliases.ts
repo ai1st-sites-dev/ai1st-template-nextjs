@@ -1,38 +1,45 @@
-// #1132 — 老块名 → 通用块的别名表，运行时那一侧。
+// #1162 — 通用块「卡片组」的词汇表，运行时那一侧。
 //
 // 表本身是 `block-aliases.json`，**只有一份**：构建那一侧是 `scripts/blocks.js`（CommonJS 的 node
 // 脚本，读不了 .ts），运行时这一侧是本文件。两边各抄一份的后果，`blockAttrs.ts` 上面那段注释已经
 // 写过一次了（#998 把角色表搬进 JSON 就是为这个）。
 //
-// 表的每一行写齐映射文档 §2.1 那四件事 —— ① 新的 `type` 名 · ② `role` · ③ `data` 的逐字段去向
-// （包括「继续忽略」的那些，写成 `null`）· ④ `block_layout` 的处置（`null` = 别名不造一个）——
-// 外加渲染这一侧要的三样：标题元素的 `id`、这个词汇画哪几个部件、以及每个条目外面那个标签名。
+// 🔴 **2026-08-23 #1162：这里【不再】有别名。** #1132 / #1143 建的那层老块名兼容
+//    （`values-grid` / `benefits-list` / `checklist` / `service-highlights` 四行 + `__legacyType`）
+//    整层退役了，合并从此是干净改名 —— Chris 2026-08-23 裁定。**让这件事今天安全的不是「都是测试站」**
+//    （prod 5 个站里 2 个属于外部人、1 个是真付费客户，磁盘上写着老 type 名的块有 43 个），
+//    而是**平台模板到不了任何已存在的站**：`isLocal()` 在 prod 恒 false，模板注入的两个点
+//    （`manager/sites.go:462` 建站 · `manager/edit.go:93` 打开编辑器）同受那道闸；而且那 5 个站的仓里
+//    一份 `block-aliases.json` 都没有（快照比兼容层还早）。守这条性质的是 #1162 的
+//    `ai-team/dispatcher/ship-check-template-reachability.sh`，破了它会红。
 //
-// 🔴 #1143 加的第三样 `itemTag`，理由是量出来的：批 2 并进来的两个块，条目外面那个元素**不是**
-//    `<div>` —— `checklist` 是 `<p>`（一个条目就是一行字，里面没有标题和描述），
-//    `service-highlights` 是 `<article>`。老站重建要逐字节不变（映射文档 §2.2 / §2.6），
-//    而标签名是产物 DOM 上看得见的字节 ⟹ 它必须是表里的一条数据，不能靠组件猜。
-//    **别拿 `parts` 去推它**（「有 features 就画 article」那种）：那是把两件不相干的事绑在一起，
-//    下一批只要出现一个「有 features 的 div」就当场错，而错法是静默的。
-//
-// 🔴 键 == 它自己的 `type` 的那一行**不是别名**，是通用块自己的词汇（`card-group` 那一行）。
-//    构建那一侧靠这个判据跳过它。
+// 🔴 所以这张表今天**只剩一行**，键 == 它自己的 `type`（`card-group`）。它不是别名，是通用块自己的
+//    词汇：标题元素的 `id`、这个词汇画哪几个部件、以及每个条目外面那个标签名。
+//    `CardGroupSection` 的每一个类名都从这里取（`name` 是类名前缀和 `data-block` 的取值），
+//    所以**这一行的三个值是产物 DOM 上看得见的字节** —— 改它等于改所有站的 HTML。
 import aliases from './block-aliases.json';
 import type { BlockConfig } from '@/lib/types/config';
 
 export interface BlockVocabulary {
-  /** 类名前缀 + `data-block` 的取值。老站是老名字，新站是通用块的名字。 */
+  /** 类名前缀 + `data-block` 的取值。 */
   name: string;
   headingId: string;
   parts: string[];
-  /** 每个条目外面那个标签（`div` / `p` / `article`）—— 见文件头 #1143 那段。 */
+  /** 每个条目外面那个标签。今天只有 `div`（`card-group` 那一行）。 */
   itemTag: ItemTag;
 }
 
-/** 条目外面那个标签今天用到的三种。加第四种要同时改 `CardGroupSection` 的分支。 */
+/**
+ * 条目外面那个标签。
+ *
+ * 📌 `p` / `article` 是 #1143 为 `checklist` / `service-highlights` 两个老名字加的，那层兼容
+ * 2026-08-23（#1162）退役之后**今天没有任何一行用它们** —— 留着是因为它是这个字段的值域声明，
+ * 下一个合并批要是并进一个条目不是 `div` 的块，写进表里就能用。加第四种要同时看
+ * `CardGroupSection` 画条目那一段。
+ */
 export type ItemTag = 'div' | 'p' | 'article';
 
-interface AliasRow {
+interface VocabularyRow {
   type: string;
   role: string;
   block_layout: string | null;
@@ -42,20 +49,20 @@ interface AliasRow {
   parts: string[];
 }
 
-const ROWS = aliases as unknown as Record<string, AliasRow>;
+const ROWS = aliases as unknown as Record<string, VocabularyRow>;
 
-/** 通用块自己那一行 —— 表里认不出来的块落回它（新站直接写 `type: "card-group"` 走的就是这一支）。 */
+/** 通用块自己那一行 —— 表里认不出来的块落回它。 */
 const CARD_GROUP = 'card-group';
 
 /**
  * 这个块实例该用哪套词汇。
  *
- * 🔴 判据是 `__legacyType ?? type`，两个都要读。别名走完之后 `type` 恒为通用块的名字，老名字只在
- *    `__legacyType` 里；而万一有一条路没过别名（注册表里老名字仍然指着这个组件），`type` 就是老
- *    名字本身 —— 那时也该拿老词汇渲染。少读一个，那条路会静默吐出新词汇，而那是像素级的回归。
+ * 🔴 表里只剩通用块自己那一行 ⟹ 今天这个函数对任何输入都返回它。**留着这个函数而不是把三个值
+ *    写死进组件**，是因为它们仍然只该有一处定义：构建那一侧（`scripts/blocks.js`）读的是同一份
+ *    JSON，而「两边各抄一份」正是 #1132 建这张表时要避的那件事。
  */
 export function vocabularyFor(block?: BlockConfig): BlockVocabulary {
-  const name = (block && (block.__legacyType || block.type)) || CARD_GROUP;
+  const name = (block && block.type) || CARD_GROUP;
   const row = ROWS[name] || ROWS[CARD_GROUP];
   return {
     name: ROWS[name] ? name : CARD_GROUP,

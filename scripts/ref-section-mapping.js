@@ -1,10 +1,18 @@
 /**
  * ref-section-mapping.js — TICKET-119
  *
- * Maps Gemini-extracted reference site section names to our 32 registered
+ * Maps Gemini-extracted reference site section names to our registered
  * section types (see src/lib/sections/registry.ts). Used by create-site.js
  * when refPrefs.includes('layout') to hard-copy the reference site's
  * homepage section structure.
+ *
+ * 🔴 每个值必须是**注册表里真有的键** —— 值指向一个不在注册表里的名字时，
+ *    `SectionRenderer` 走未知类型那一支（`console.warn` + `return null`），那一节在页面上直接
+ *    不出现，而构建是绿的。#1162 就撞到过这一族：`values-grid` / `benefits-list` / `checklist` /
+ *    `service-highlights` 四个老 type 名随别名层退役被删出注册表，而这张表里五个条目还指着它们；
+ *    现在它们一律指 `card-group`（那四个块合并后的通用块）。
+ *    📌 头一行原来写「our 32 registered section types」—— 数字会过期（今天注册表 31 个键），
+ *    所以不再写数。
  */
 
 const REF_SECTION_MAPPING = {
@@ -34,23 +42,23 @@ const REF_SECTION_MAPPING = {
   'logo-carousel': 'logo-carousel',
   'features': 'features-grid',
   'features-grid': 'features-grid',
-  'benefits': 'benefits-list',
-  'benefits-list': 'benefits-list',
+  'benefits': 'card-group',
+  'benefits-list': 'card-group',
   'contact': 'contact-info',
   'contact-info': 'contact-info',
   'social-proof': 'social-proof',
   'timeline': 'timeline',
-  'service-highlights': 'service-highlights',
+  'service-highlights': 'card-group',
   'pricing-table': 'pricing-table',
   'feature-comparison': 'feature-comparison',
-  'checklist': 'checklist',
+  'checklist': 'card-group',
   'blog-preview': 'blog-preview',
   'announcement-bar': 'announcement-bar',
   'divider': 'divider',
   'content-split': 'content-split',
   'text-block': 'text-block',
   'map-area': 'map-area',
-  'values-grid': 'values-grid',
+  'values-grid': 'card-group',
   'trusted-brands': 'trusted-brands',
 
   // Industry-specific names that map to generic types

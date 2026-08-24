@@ -31,9 +31,9 @@ const ok = (m) => { pass += 1; console.log(`  ✅ ${m}`); };
 const bad = (m) => { fail += 1; console.log(`  ❌ ${m}`); };
 const die = (m) => { console.error(`🔴 跑不起来: ${m}`); process.exit(2); };
 
-let validateSite; let aliases;
+let validateSite; let loadManifests; let aliases;
 try {
-  ({ validateSite } = require(path.join(NEXT, 'scripts', 'lib', 'block-manifest.js')));
+  ({ validateSite, loadManifests } = require(path.join(NEXT, 'scripts', 'lib', 'block-manifest.js')));
   aliases = require(path.join(NEXT, 'src', 'lib', 'sections', 'block-aliases.json'));
 } catch (e) {
   die(`require 失败: ${e.message}`);
@@ -51,16 +51,37 @@ function pageWith(type, slot, items) {
   };
 }
 const run = (type, slot, items) => validateSite({ pages: [pageWith(type, slot, items)], industry: 'auto repair' });
-const slotOf = (t) => (t === 'service-highlights' ? 'highlights' : 'items');
+// 槽名从 manifest 取，不写死映射 —— #1162 把 `service-highlights` 删了（它的槽叫 highlights），
+// 而这里原来是一张写死的两分支表。今天仍有 timeline(events) / process-steps(steps) /
+// team-grid(members) 这些槽名不叫 items 的块，所以判据换成「问 manifest」，加块也不用回来改这行。
+const slotOf = (t) => {
+  const m = loadManifests().get(t);
+  const lists = Object.keys((m && m.slots) || {}).filter((k) => m.slots[k].kind === 'list');
+  return lists[0] || 'items';
+};
 
-// ── ① 分母先说出来：归到 card-group 的有几个 type ────────────────────────────────────────────────
-// 表空了 / 只剩一个的话，下面每一格都会「全过」，而那是什么都没查。
-const generics = Object.keys(aliases).filter((k) => aliases[k].type === 'card-group');
-if (generics.length < 5) {
-  bad(`归到 card-group 的 type 只数出 ${generics.length} 个（${generics.join(' ')}）—— 分母不对，下面的读数不作数`);
+// ── ① 分母先说出来 ────────────────────────────────────────────────────────────────────────────
+// 🔴 #1162 换了这一格的分母。原来数的是「归到 card-group 的 type 有几个」并要求 ≥5（那 5 个是
+//    通用块自己 + 四个老名字别名）。别名层退役之后那个数按构造是 1，据它判红只会天天红一次。
+//    真正该防的还是同一件事 —— **下面那些格子有没有东西可查** —— 而今天的分母是「有列表槽的块有几种」
+//    （⑦ 那几格逐种问它们的槽级检查会不会开火）。它今天远大于 1，而且加块会自己长。
+const listyBlocks = [...loadManifests().entries()]
+  .filter(([, m]) => Object.values(m.slots || {}).some((sl) => sl.kind === 'list'))
+  .map(([t]) => t);
+if (listyBlocks.length < 5) {
+  bad(`带列表槽的块只数出 ${listyBlocks.length} 种（${listyBlocks.join(' ')}）—— 分母不对，下面的读数不作数`);
 } else {
-  ok(`归到 card-group 的 type 有 ${generics.length} 个：${generics.join(' ')}`);
+  ok(`带列表槽的块有 ${listyBlocks.length} 种（⑦ 那几格的分母）· 归到 card-group 的词汇 ${Object.keys(aliases).length} 行`);
 }
+
+// ②④ 那两格的射程：归到通用块 card-group 的 type。
+// 🔴 **这个数 #1162 从 5 掉到 1，而那是本票有意的收窄，写在这里而不是让它静默发生**：
+//    别名层退役之前它是「通用块自己 + `values-grid` / `benefits-list` / `checklist` /
+//    `service-highlights` 四个别名」= 5 个；四个老 type 名删掉之后只剩通用块自己。
+//    ⟹ ②④ 现在各测 1 个 type（原来 5 个）。**槽名不叫 items 的那一维没有跟着变窄** ——
+//    它在 ⑦，射程是 timeline(events) / process-steps(steps) / team-grid(members) / card-group(items)。
+const generics = Object.keys(aliases).filter((k) => aliases[k].type === 'card-group');
+if (generics.length === 0) bad('归到 card-group 的 type 是 0 个 —— ②④ 什么都没查');
 
 // ── ② 带 null 的那一臂：逐个 type 都要被拒，而且报文要指名槽位和第几个 ────────────────────────
 console.log('── ② 条目里混进 null ⟹ 拒，报文指名槽位 + 第几个（#1152 AC1）');
@@ -135,14 +156,14 @@ console.log('── ⑥ 槽的值整个不是数组 ⟹ 报槽级那一句，不
 // 🔴 PM 在 #1154 立票留言里记过一次作废的读数：他拿 `timeline` 配了槽名 `items`，而它的列表槽叫
 //    `events` ⟹ 报的是「缺必填槽 events」，看起来像「这个块没问题」。槽名要从 manifest 取。
 console.log('── ⑦ 槽名不叫 items 的块，槽级那条一样开火（#1154）');
-for (const [type, slot] of [['timeline', 'events'], ['service-highlights', 'highlights'], ['process-steps', 'steps'], ['team-grid', 'members']]) {
+for (const [type, slot] of [['timeline', 'events'], ['process-steps', 'steps'], ['team-grid', 'members'], ['card-group', 'items']]) {
   const r = run(type, slot, 'not-an-array');
   const hit = r.problems.filter((p) => p.includes(`槽 "${slot}" 不是列表`));
   if (hit.length === 1) ok(`${type}(${slot}): ${hit[0]}`);
   else bad(`${type}(${slot}) 没报槽级那一句: ${JSON.stringify(r.problems)}`);
 }
 // 反向对照：同一个槽换成正常数组，一条 problem 都不该有
-for (const [type, slot] of [['timeline', 'events'], ['service-highlights', 'highlights']]) {
+for (const [type, slot] of [['timeline', 'events'], ['card-group', 'items']]) {
   const r = run(type, slot, [{ title: 'a' }]);
   if (r.problems.length === 0) ok(`反向对照 ${type}(${slot}): 正常数组放行（0 条 problem）`);
   else bad(`反向对照 ${type}(${slot}) 被误伤: ${JSON.stringify(r.problems)}`);

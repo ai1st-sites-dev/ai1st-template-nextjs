@@ -36,15 +36,18 @@ export const sectionRegistry: Record<string, ComponentType<any>> = {
   'hero': HeroSection,
   'trusted-brands': TrustedBrandsSection,
   'features-grid': FeaturesGridSection,
-  // #1132 / #1143 —— 五个键一个组件：`card-group` 是通用块自己的名字，四个老名字是它的别名
-  // （批 1 `values-grid` + `benefits-list`，批 2 `checklist` + `service-highlights`）。
-  // 别名在构建期就把 `type` 换成了 `card-group`（`scripts/blocks.js` 的 applyAlias），所以走到
-  // 这里的恒是那个键；老名字这几条留着是**射程**：`scripts/block-migration/gen-allblocks.js`
-  // 和 `tests/e2e/fixtures/978-arms.mjs` 都从这张表派生「每种块各一次」那一页，少了它们，
-  // `.values-grid__*` / `.benefits-list__*` / `.checklist__*` / `.service-highlights__*`
-  // 这 22 个钩子就从被量的页面上消失了。
+  // 通用块「卡片组」。#1132 / #1143 把 `values-grid` + `benefits-list` + `checklist` +
+  // `service-highlights` 并进它，当时**四个老名字各留一条指着同一个组件**，为的是老站重建时
+  // 字节不变。🔴 那四条 2026-08-23（#1162）删了 —— 合并从此是干净改名，Chris 裁定。
+  // 后果写在明处：磁盘上还写着老 type 名的页面，走 `SectionRenderer` 既有的未知类型那一支
+  // （`console.warn` + `return null`），那个块在页面上不出现。让这件事安全的是**平台模板到不了
+  // 任何已存在的站**（判据在 `ai-team/dispatcher/ship-check-template-reachability.sh`），
+  // 不是「反正都是测试站」。
+  // 🔴 连带的一处失明，改这张表的人必须知道：`tests/e2e/fixtures/978-arms.mjs` 与
+  // `scripts/block-migration/gen-allblocks.js` 都**从这张表派生**「每种块各一次」那一页，而
+  // `978-theme-preview-layout.spec.ts:333` 的期望值也现读这张表 ⟹ 删一个键，被量的页面和期望
+  // 值一起减一，那一格**恒绿而射程变小**。删键时要把前后两个读数写下来，别只报「绿」。
   'card-group': CardGroupSection,
-  'values-grid': CardGroupSection,
   'testimonials': TestimonialsSection,
   'cta-banner': CtaBannerSection,
   'contact-info': ContactInfoSection,
@@ -63,15 +66,12 @@ export const sectionRegistry: Record<string, ComponentType<any>> = {
   'logo-carousel': LogoCarouselSection,
   'content-split': ContentSplitSection,
   'feature-comparison': FeatureComparisonSection,
-  'benefits-list': CardGroupSection,
   'social-proof': SocialProofSection,
   'divider': DividerSection,
   'announcement-bar': AnnouncementBarSection,
   'timeline': TimelineSection,
-  'service-highlights': CardGroupSection,
   'newsletter-signup': NewsletterSignupSection,
   'map-area': MapAreaSection,
-  'checklist': CardGroupSection,
   'awards-certifications': AwardsCertificationsSection,
   'blog-preview': BlogPreviewSection,
   'service-related-pages': ServiceRelatedPagesSection,

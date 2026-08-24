@@ -248,6 +248,10 @@
 
 /* ── #1027 batch B: contact-form · quote-form · services-list · values-grid · services-nav ·
       service-related-pages ─────────────────────────────────────────────────────────────────────
+   🔴 #1162 (2026-08-23): `values-grid` is gone as a block type — the compat layer that kept the old
+   names alive retired, so nothing emits `.values-grid*` any more and its rules were deleted from the
+   lists below. The name stays in this header because it says which blocks batch B was measured on;
+   the readings underneath were taken with it in. Six block hooks then, five now.
    Same test as the three blocks above — "would every sheet want to state this itself?" — checked
    against all three phase-1 sheets after their batch-B rules were written:
 
@@ -271,7 +275,6 @@
 
 .contact-form,
 .quote-form,
-.values-grid,
 .services-list,
 .services-nav,
 .service-related-pages {
@@ -283,7 +286,6 @@
 @media (min-width: 1024px) {
   .contact-form,
   .quote-form,
-  .values-grid,
   .services-list,
   .service-related-pages {
     padding: 4rem 2rem;
@@ -311,10 +313,6 @@
 .services-list__actions,
 .services-list__features,
 .services-list__products,
-.values-grid__headline,
-.values-grid__item,
-.values-grid__title,
-.values-grid__desc,
 .services-nav__link,
 .service-related-pages__headline,
 .service-related-pages__sub,
@@ -325,7 +323,6 @@
 
 /* ── headings and body copy: the readable floor ────────────────────────────────────────────────── */
 .contact-form__heading,
-.values-grid__headline,
 .service-related-pages__headline {
   font-size: 1.75rem;
   line-height: 1.2;
@@ -338,16 +335,9 @@
   font-weight: 700;
 }
 
-.values-grid__title {
-  font-size: 1.125rem;
-  line-height: 1.3;
-  font-weight: 600;
-}
-
 .contact-form__intro,
 .quote-form__intro,
 .services-list__desc,
-.values-grid__desc,
 .service-related-pages__sub {
   /* Roughly 70 characters — the same reading measure the hero body, the cta-banner description and
      the page-header subtitle get. */
@@ -375,8 +365,7 @@
 .quote-form__form,
 .quote-form__main,
 .quote-form__step,
-.services-list__item,
-.values-grid__item {
+.services-list__item {
   display: grid;
   gap: 1rem;
 }
@@ -554,6 +543,10 @@
 }
 
 /* ── #1029 batch D: benefits-list · team-grid · checklist · blog-preview ────────────────────────
+   🔴 #1162 (2026-08-23): `benefits-list` and `checklist` are gone as block types — the compat layer
+   that kept the old names alive retired, so nothing emits `.benefits-list*` / `.checklist*` any more
+   and their rules were deleted from the lists below. Both names stay in this header because it says
+   which blocks batch D was measured on. Four block hooks then, two now.
    Same test as every batch before it — "would every sheet want to state this itself?" — checked
    against all three phase-1 sheets after their batch-D rules were written:
 
@@ -571,12 +564,10 @@
    i.e. at least its min-content width, and `overflow-wrap: break-word` does not shrink min-content.
    Measured per block, both on a 375px viewport and on the three-across sheet at 1280.
 
-   🔴 NO `list-style` / `<li>` RULES HERE, because none of these four renders a list element — the
+   🔴 NO `list-style` / `<li>` RULES HERE, because none of the batch renders a list element — the
    check marks that used to make `checklist` look like a list were `<svg>`s, and they are gone
    (#1029: the contract admits only `content: ""`, so a sheet draws a shape back, not that glyph). */
-.benefits-list,
 .team-grid,
-.checklist,
 .blog-preview {
   display: grid;
   gap: 1.5rem;
@@ -584,28 +575,18 @@
 }
 
 @media (min-width: 1024px) {
-  .benefits-list,
   .team-grid,
-  .checklist,
   .blog-preview {
     padding: 4rem 2rem;
   }
 }
 
-.benefits-list__headline,
-.benefits-list__sub,
-.benefits-list__item,
-.benefits-list__title,
-.benefits-list__desc,
 .team-grid__headline,
 .team-grid__sub,
 .team-grid__member,
 .team-grid__name,
 .team-grid__role,
 .team-grid__bio,
-.checklist__headline,
-.checklist__sub,
-.checklist__item,
 .blog-preview__headline,
 .blog-preview__sub,
 .blog-preview__post,
@@ -619,42 +600,33 @@
 }
 
 /* ── headings and body copy: the readable floor ────────────────────────────────────────────────── */
-.benefits-list__headline,
 .team-grid__headline,
-.checklist__headline,
 .blog-preview__headline {
   font-size: 1.75rem;
   line-height: 1.2;
 }
 
 @media (min-width: 1024px) {
-  .benefits-list__headline,
   .team-grid__headline,
-  .checklist__headline,
   .blog-preview__headline {
     font-size: 2.25rem;
   }
 }
 
-.benefits-list__sub,
 .team-grid__sub,
-.checklist__sub,
 .blog-preview__sub {
   /* Roughly 70 characters — the same reading measure every other block's sub gets. */
   max-width: 34rem;
   line-height: 1.6;
 }
 
-.benefits-list__title,
 .team-grid__name,
 .blog-preview__title {
   font-size: 1.125rem;
   line-height: 1.3;
 }
 
-.benefits-list__desc,
 .team-grid__bio,
-.checklist__item,
 .blog-preview__excerpt {
   line-height: 1.6;
 }
@@ -672,7 +644,6 @@
    run into the next post's. `display: grid` (not the structure layer's `display: block`) puts the
    space between them in ONE place. All three sheets set both properties themselves. */
 .blog-preview__post,
-.benefits-list__item,
 .team-grid__member {
   display: grid;
   gap: 0.375rem;
@@ -888,6 +859,10 @@
 
 /* ── #1036 batch G: faq-accordion · testimonials · announcement-bar · service-highlights ·
       pricing-table · gallery ───────────────────────────────────────────────────────────────────
+   🔴 #1162 (2026-08-23): `service-highlights` is gone as a block type — the compat layer that kept
+   the old names alive retired, so nothing emits `.service-highlights*` any more and its rules were
+   deleted from the lists below. The name stays in this header because it says which blocks batch G
+   was measured on. Six block hooks then, five now.
    Same test as every batch before it — "would every sheet want to state this itself?" — checked
    against all three phase-1 sheets after their batch-G rules were written:
 
@@ -921,7 +896,6 @@
 .faq-accordion,
 .testimonials,
 .announcement-bar,
-.service-highlights,
 .pricing-table,
 .gallery {
   display: grid;
@@ -938,7 +912,6 @@
 @media (min-width: 1024px) {
   .faq-accordion,
   .testimonials,
-  .service-highlights,
   .pricing-table,
   .gallery {
     padding: 4rem 2rem;
@@ -960,12 +933,6 @@
 .testimonials__service,
 .announcement-bar__message,
 .announcement-bar__link,
-.service-highlights__headline,
-.service-highlights__sub,
-.service-highlights__item,
-.service-highlights__title,
-.service-highlights__desc,
-.service-highlights__features,
 .pricing-table__headline,
 .pricing-table__sub,
 .pricing-table__item,
@@ -990,7 +957,6 @@
 /* ── headings and body copy: the readable floor ────────────────────────────────────────────────── */
 .faq-accordion__headline,
 .testimonials__headline,
-.service-highlights__headline,
 .pricing-table__headline,
 .gallery__headline {
   font-size: 1.75rem;
@@ -1000,7 +966,6 @@
 
 .faq-accordion__sub,
 .testimonials__sub,
-.service-highlights__sub,
 .pricing-table__sub,
 .gallery__sub {
   /* Roughly 70 characters — the same reading measure every other block's subtitle gets. */
@@ -1010,7 +975,6 @@
 }
 
 .faq-accordion__question,
-.service-highlights__title,
 .pricing-table__name,
 .gallery__title {
   font-size: 1.125rem;
@@ -1025,7 +989,6 @@
 }
 
 .faq-accordion__answer,
-.service-highlights__desc,
 .pricing-table__desc,
 .testimonials__quote,
 .gallery__desc {
@@ -1044,7 +1007,6 @@
 /* ── the repeated units: a question, a testimonial, a highlight, a tier, a picture ─────────────── */
 .faq-accordion__item,
 .testimonials__item,
-.service-highlights__item,
 .pricing-table__item {
   display: grid;
   gap: 0.75rem;
@@ -1065,7 +1027,6 @@
   gap: 0.25rem;
 }
 
-.service-highlights__features,
 .pricing-table__features {
   display: grid;
   gap: 0.5rem;

@@ -843,12 +843,12 @@ console.log('\n⑩ 站级块库:六种枚举出来的畸形形状 + 真模型写
   }
   // 好的那一条。它的 id 是 `keepme`,坏的那条是 `busted` —— 两个词在被测代码的静态文案里都不出现
   // (报文是拿它们拼出来的),所以「出现/不出现」这两个断言都有判别力。
-  const keepme = { type: 'checklist', data: { headline: 'Why us', items: ['Licensed', 'Insured'] } };
+  const keepme = { type: 'card-group', data: { headline: 'Why us', items: ['Licensed', 'Insured'] } };
   const SHAPES = [
-    ['A items 里有 null', { type: 'checklist', data: { headline: 'K', items: ['a', null] } }],
-    ['B items 整个不是数组', { type: 'checklist', data: { headline: 'K', items: 'a、b' } }],
+    ['A items 里有 null', { type: 'card-group', data: { headline: 'K', items: ['a', null] } }],
+    ['B items 整个不是数组', { type: 'card-group', data: { headline: 'K', items: 'a、b' } }],
     ['C type 是不存在的块名', { type: 'no-such-block', data: { headline: 'K' } }],
-    ['D 缺必填槽', { type: 'checklist', data: {} }],
+    ['D 缺必填槽', { type: 'card-group', data: {} }],
     ['E 值本身写成 ref(没自己的 type)', { ref: 'keepme', visibility: ['*'] }],
     ['F 值整格是 null', null],
   ];

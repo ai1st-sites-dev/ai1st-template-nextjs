@@ -1308,11 +1308,15 @@ console.log('\n⑫ #1139 每个块在全池 80 套里有几副骨架（族清单
   //
   //    `content-split` 的 8 = 4 副画法 × 同页节奏那条轴的 2 档（`splitRhythm`，#1090）—— 它是唯一一个
   //    今天就高于自己候选数的块，其余每个都恰好等于候选数。
+  //
+  // 🔴 #1162 删掉了三行（`values-grid` 4 · `benefits-list` 3 · `service-highlights` 4）。**这不是降低
+  //    多样性**，是那三个 type 名整个退役了（并入 `card-group`，别名兼容层 2026-08-23 撤掉）：它们
+  //    不在注册表、不在 `HOOKS`、也不在任何候选表族里了 ⟹ 留着这三行会让下面那道分母自检报「表里
+  //    多出」并 exit 2。留下的每个块的下限**一个都没动**，`card-group` 仍然是 4。
   const SHAPE_FLOOR = new Map([
     ['hero', 8], ['contact-info', 3], ['contact-form', 6], ['faq-accordion', 4],
-    ['features-grid', 4], ['values-grid', 4], ['card-group', 4], ['testimonials', 4],
+    ['features-grid', 4], ['card-group', 4], ['testimonials', 4],
     ['cta-banner', 5], ['page-header', 4], ['process-steps', 4], ['content-split', 8],
-    ['benefits-list', 3], ['service-highlights', 4],
   ]);
   // 🔴 分母自检：有候选表的块必须每个都在上面那张表里。漏一个，它的下限就悄悄退回「现算」，
   //    也就是本条要治的那个洞 —— 而漏掉的样子跟没漏一模一样。
@@ -1330,7 +1334,9 @@ console.log('\n⑫ #1139 每个块在全池 80 套里有几副骨架（族清单
 
   // ── 每个块该有几副：有候选表的 == 那张表的候选数；没有的 == cols 写死就 1 副、落到 v.wide 就 2 副
   const varietyOf = (b, opts = {}) => new Set(sheets.map((x) => (opts.baseOnly ? x.fp.base : x.fp.desktop).get(b))).size;
-  const BATCH = ['page-header', 'faq-accordion', 'process-steps', 'benefits-list', 'contact-info', 'testimonials'];
+  // #1139 那批六个块。🔴 #1162：`benefits-list` 退役并入 `card-group`，所以这里换成后者 ——
+  //    它今天在 `CARD_BLOCKS` 里、用 `CARD_SHAPES` 的四副，`SHAPE_FLOOR` 记的也是 4。
+  const BATCH = ['page-header', 'faq-accordion', 'process-steps', 'card-group', 'contact-info', 'testimonials'];
   {
     const problems = [];
     const said = [];
@@ -1581,18 +1587,21 @@ console.log('\n⑬ #1150 首屏表单那行报错，跟联系/报价那两行拿
   }
 
   // 🔴 阳性对照：把 `.hero__form-error` 的声明换成**同一份表里真的那条 `desc` 规则**
-  //    （`.values-grid__desc` 走的就是 `ROLES.desc`）—— 这正是删掉 `SHAPES.hero.role` 那一行之后
-  //    生成器会写出来的东西。这把尺必须只点名被动过的那一种画法。
+  //    （`.card-group__desc` 走的就是 `ROLES.desc`：`SHAPES['card-group'].role.desc === 'desc'`）——
+  //    这正是删掉 `SHAPES.hero.role` 那一行之后生成器会写出来的东西。这把尺必须只点名被动过的那一种画法。
+  //    📌 #1162：这里原来取 `.values-grid__desc`。那个 type 名随别名兼容层退役、不再被生成，
+  //    于是这一格的阳性对照拿不到样本、自己报「立不起来」（它这句自保是对的：读数不作数，不是绿）。
+  //    换成 `.card-group__desc` —— 同一个角色（`ROLES.desc`），而且是现役块。
   {
     const target = HERO_LOOK_NAMES[0];
     const css = sheets.get(target);
     const descBody = (() => {
       let hit = null;
-      postcss.parse(css).walkRules((r) => { if (r.selector === '.values-grid__desc' && !(r.parent && r.parent.type === 'atrule')) hit = r; });
+      postcss.parse(css).walkRules((r) => { if (r.selector === '.card-group__desc' && !(r.parent && r.parent.type === 'atrule')) hit = r; });
       return hit ? hit.nodes.filter((n) => n.type === 'decl').map((d) => `  ${d.prop}: ${d.value};`).join('\n') : null;
     })();
     if (!descBody) {
-      bad('⑬ 阳性对照立不起来：这份表里没有 .values-grid__desc（拿不到真的 ROLES.desc 长什么样）');
+      bad('⑬ 阳性对照立不起来：这份表里没有 .card-group__desc（拿不到真的 ROLES.desc 长什么样）');
     } else {
       const rigged = css.replace(/^\.hero__form-error \{[^}]*\}/m, `.hero__form-error {\n${descBody}\n}`);
       if (rigged === css) {

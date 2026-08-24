@@ -104,7 +104,7 @@ const postcss = require('postcss');
 // in one declaration.
 const valueParser = require('postcss-value-parser');
 
-const CONTRACT_VERSION = 'v1';
+const CONTRACT_VERSION = 'v2';
 
 // ── §1 hooks ────────────────────────────────────────────────────────────────────────────────────
 // Exact strings. A prefix rule (`starts with .hero__`) would admit the next typo as a new part.
@@ -154,9 +154,6 @@ const HOOKS = new Set([
   '.services-list__desc', '.services-list__actions', '.services-list__features',
   '.services-list__products',
   '[data-block="services-list"]',
-  '.values-grid', '.values-grid__headline', '.values-grid__item', '.values-grid__title',
-  '.values-grid__desc',
-  '[data-block="values-grid"]',
   '.services-nav', '.services-nav__link',
   '[data-block="services-nav"]',
   '.service-related-pages', '.service-related-pages__headline', '.service-related-pages__sub',
@@ -187,14 +184,9 @@ const HOOKS = new Set([
   //   · no per-post colour on `.blog-preview__post`. The old cards rotated four gradients by index;
   //     `::before` cannot select "the third one" (§1 refuses `nth-child`), so the rotation is gone
   //     and one colour for all of them is what a sheet can say.
-  '.benefits-list', '.benefits-list__headline', '.benefits-list__sub', '.benefits-list__item',
-  '.benefits-list__title', '.benefits-list__desc',
-  '[data-block="benefits-list"]',
   '.team-grid', '.team-grid__headline', '.team-grid__sub', '.team-grid__member', '.team-grid__name',
   '.team-grid__role', '.team-grid__bio',
   '[data-block="team-grid"]',
-  '.checklist', '.checklist__headline', '.checklist__sub', '.checklist__item',
-  '[data-block="checklist"]',
   '.blog-preview', '.blog-preview__headline', '.blog-preview__sub', '.blog-preview__post',
   '.blog-preview__category', '.blog-preview__date', '.blog-preview__title', '.blog-preview__excerpt',
   '[data-block="blog-preview"]',
@@ -250,10 +242,6 @@ const HOOKS = new Set([
   '[data-block="testimonials"]',
   '.announcement-bar', '.announcement-bar__message', '.announcement-bar__link',
   '[data-block="announcement-bar"]',
-  '.service-highlights', '.service-highlights__headline', '.service-highlights__sub',
-  '.service-highlights__item', '.service-highlights__title', '.service-highlights__desc',
-  '.service-highlights__features',
-  '[data-block="service-highlights"]',
   '.pricing-table', '.pricing-table__headline', '.pricing-table__sub', '.pricing-table__item',
   '.pricing-table__item--featured', '.pricing-table__badge', '.pricing-table__name',
   '.pricing-table__price', '.pricing-table__desc', '.pricing-table__features',
@@ -304,10 +292,15 @@ const HOOKS = new Set([
   // block after it changes surface in all 83 generated sheets — a diff that looks like a rewrite and
   // has nothing to do with this merge.
   //
-  // 🔴 THE OLD NAMES STAY, ALL 11 OF THEM. Old sites keep emitting the old class names (the reasoning
-  // is in `src/components/sections/CardGroupSection.tsx`), and all 83 sheets select
-  // `.values-grid__title` / `.benefits-list__title` today. Retiring the old vocabulary means
-  // rewriting those sites' page JSON, which is a different ticket (mapping doc §3④).
+  // 🔴 THE OLD NAMES ARE GONE (#1162, 2026-08-23). The two paragraphs above said "the old names stay,
+  // all 11 / all 22 of them", because old sites keep emitting the old class names. That ticket is the
+  // one that retired the whole compatibility layer: those four type names (`values-grid` /
+  // `benefits-list` / `checklist` / `service-highlights`) are no longer in the registry, so nothing
+  // this template renders can emit those classes, and the 22 hooks were removed from this set. The
+  // 83 sheets were regenerated in the same delivery — that is what CONTRACT_VERSION v2 marks.
+  // A site that still has those type names in its page JSON is NOT served by this template's sheets
+  // (its repo carries its own copy, taken at create time); see the ticket's AC6 for the reachability
+  // readings that make this safe.
   //
   // 🔴 #1143 APPENDED `.card-group__features` TO THE SAME ENTRY, AND THAT IS ALSO DELIBERATE. Batch 2
   // merges `checklist` and `service-highlights` in, and `service-highlights` items carry a list of
@@ -352,6 +345,19 @@ const HOOKS = new Set([
 // A BREAKING change (renaming a hook, removing one, changing what one means) still MUST bump: that
 // is the case where an old sheet keeps loading and quietly points at nothing, which is the reason
 // the version line exists at all.
+//
+// 🔴 v1 → v2 (#1162, 2026-08-23) — THE FIRST BUMP, and it is a removal, i.e. exactly the case the
+// paragraph above reserves the bump for. 22 hooks went away with the alias layer:
+//   .values-grid + 4 parts · .benefits-list + 5 parts · .checklist + 3 parts ·
+//   .service-highlights + 6 parts · and their four `[data-block="…"]` forms.
+// Everything that writes or reads the version line moves together, or the first newly generated
+// sheet is refused by this checker:
+//   scripts/theme-pipeline/generate.js  (writes the banner)
+//   scripts/theme-pipeline/sheet-fresh.js  (parses the banner AND re-renders it)
+//   scripts/theme-pipeline/gates.js  (the probe sheet it writes)
+//   docs/reference/theme-css-contract.md  (§1's table is compared against HOOKS by
+//     scripts/css-contract-check.js, so the doc is part of the same edit)
+//   public/themes/*.css  (all 83 headers — regenerated, not hand-edited)
 // `[data-region-layout="pill-floating"]` and friends: the attribute is on the list, its values are
 // the region names #960 already ships, so a value-qualified form is legal.
 //

@@ -86,7 +86,12 @@ function lintCanSeeLiteralColours() {
   if (lintRejectsLiteral !== null) return lintRejectsLiteral;
   if (!fs.existsSync(LINT)) { lintRejectsLiteral = false; return lintRejectsLiteral; }
   const probe = path.join(fs.mkdtempSync('/tmp/theme-lint-probe-'), 'probe.css');
-  fs.writeFileSync(probe, '/* theme-css-contract: v1 */\n.hero { background-color: #ff0000 }\n');
+  // 🔴 版本号从 lint 自己那里取，不再手抄（#1162 把它从 v1 升到 v2）。抄一份的后果是探针在**版本行**
+  //    上就被拒掉 ⟹ rc≠0，这个函数读成「它拦得住字面色值」—— 一个方向反了的假通过：真正在问的那件
+  //    事（字面色值拦不拦）根本没被验到。取不到就退回 'v1'，那时 rc≠0 的真因写在报错里、看得见。
+  let version = 'v1';
+  try { version = require(LINT).CONTRACT_VERSION || version; } catch (e) { /* 报错留给下面那次 spawn */ }
+  fs.writeFileSync(probe, `/* theme-css-contract: ${version} */\n.hero { background-color: #ff0000 }\n`);
   const r = cp.spawnSync(process.execPath, [LINT, probe], { encoding: 'utf8' });
   fs.rmSync(path.dirname(probe), { recursive: true, force: true });
   lintRejectsLiteral = r.status !== 0;

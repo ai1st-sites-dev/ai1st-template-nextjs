@@ -283,8 +283,9 @@ function validatePath(relPath) {
 
 // ─── #1013 洞 4：页面 JSON 落盘之前过一遍块校验 ────────────────────────────────────────────────
 //
-// 之前这条路只校验「是合法 JSON」，于是模型可以把 `items` 写成 `plans`、把 `benefits-list` 的
+// 之前这条路只校验「是合法 JSON」，于是模型可以把 `items` 写成 `plans`、把当年 `benefits-list` 的
 // `items` 写成 `benefits`，页面上那一块就此空着 —— 而聊天窗口说「改好了」、构建也是绿的。
+// （那个块名 2026-08-23 #1162 起并进了 `card-group`；这里留着是因为它是 #1012 那两个 prod 站的出处。）
 // #1012 是它的实物：两个 prod 站上 4 块空白，其中一个站是 2026-08-07 建的。
 //
 // 🔴 返回 `{error}` 而不是退出。它成为一条 tool_result 回到模型手里，模型在同一轮对话里重写一遍
@@ -419,7 +420,7 @@ function siteBlocksJsonError(relPath, parsed) {
 
   const locale = relPath.includes('/blocks/') ? relPath.split('/blocks/')[0] : '(site)';
   const shapeHelp = '\nblocks/site-blocks.json is an object that maps an id to one block: '
-    + '{"<id>": {"type": "checklist", "data": {…}}, …}. Every value must be a block that carries its '
+    + '{"<id>": {"type": "card-group", "data": {…}}, …}. Every value must be a block that carries its '
     + 'own "type" — a {"ref": "<id>"} entry is only allowed inside a page\'s blocks array, never as a '
     + 'value in this file.';
 
@@ -636,6 +637,20 @@ function executeTool(toolName, toolInput, siteDir, snapshots) {
 
 // ─── System prompt ────────────────────────────────────────────────────────────
 
+// 🔴 下面那份提示词里的 `Available section types:` 一行，必须逐项等于
+//    `src/lib/sections/registry.ts` 的键集合。行里出现注册表没有的名字时，模型照着写出来的块会走
+//    `SectionRenderer.tsx:19-21` 的未知类型那一支（`console.warn` + `return null`）——
+//    **那一块在页面上直接不出现，而构建是绿的**。
+//    #1162 现取时它漂了两个方向：清单里有 `values-grid` / `benefits-list` / `checklist` /
+//    `service-highlights` 四个已并入 `card-group` 的老名字，而注册表里的 `card-group` /
+//    `contact-form` / `service-related-pages` 三个**从来没进过这份清单**（也就是说在此之前模型
+//    从没被告知通用块存在）。两个方向都在本票里改齐了。改注册表的人要回来改这一行。
+//    📌 「把它改成从注册表派生」已按 AC3 记进第 24 批台账 —— 那是换机制，不在本票射程里。
+//    🔴 这段话曾经被写在**提示词里面**（本票上一轮）。两个后果，第二个是硬的：
+//       ① 它是给人看的开发注释，写在那里就等于发给模型；
+//       ② 它带反引号，而提示词是一个模板字符串 ⟹ `edit-site.js` 整个文件**语法错误**，
+//          `node --check` 当场红，而症状是 `edit-site-chain.test.js` 那 36 格全部读到「事件是空的」。
+//       所以：给提示词写说明，注释放在模板字符串外面。
 const SYSTEM_PROMPT = `You are an AI website editor. You modify static website configuration files to fulfill user requests.
 
 ## Site Structure
@@ -696,7 +711,7 @@ array the file already has** — never convert one into the other, and never dro
 fails the build. When you add a block to a \`blocks\` page, give it an \`id\` unique within that page and a
 \`weight\` that puts it where you want it (blocks are ordered by \`weight\`, smaller first).
 
-Available section types: hero, trusted-brands, features-grid, values-grid, testimonials, cta-banner, contact-info, text-block, page-header, services-nav, services-list, quote-form, stats-counter, faq-accordion, process-steps, team-grid, pricing-table, gallery, logo-carousel, content-split, feature-comparison, benefits-list, social-proof, divider, announcement-bar, timeline, service-highlights, newsletter-signup, map-area, checklist, awards-certifications, blog-preview
+Available section types: hero, trusted-brands, features-grid, card-group, testimonials, cta-banner, contact-info, text-block, page-header, services-nav, services-list, quote-form, contact-form, stats-counter, faq-accordion, process-steps, team-grid, pricing-table, gallery, logo-carousel, content-split, feature-comparison, social-proof, divider, announcement-bar, timeline, newsletter-signup, map-area, awards-certifications, blog-preview, service-related-pages
 
 Hero variants: left, centered, split, minimal, video-style, gradient-overlay, light-split, light-editorial, light-showcase
 (dark full-bleed: left, centered, split, video-style, gradient-overlay · light background: minimal, light-split, light-editorial, light-showcase)

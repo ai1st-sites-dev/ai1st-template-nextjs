@@ -36,9 +36,11 @@
 // See sync-config.js §theme (`readAppliedThemeId` vs `readStructureThemeId`)：那两个函数今天分开
 // 的理由是它们对「注册表里查不到这个 id」的答法相反，不再是「一个管颜色一个管结构」。
 //
-// #956 — **退役的那 30 套**里，每套的 supports 表覆盖 28 种 block：registry.ts 的 34 种类型减掉 6 个
-// 一个 variant 都没有的（contact-form · quote-form · services-list · services-nav · values-grid ·
-// service-related-pages），外加 header / footer 两个 Region 键。#956 当时立的两条性质（每套的键集合
+// #956 — **退役的那 30 套**里，每套的 supports 表覆盖 28 种 block：registry.ts 当时的 34 种类型减掉
+// 6 个一个 variant 都没有的（contact-form · quote-form · services-list · services-nav · values-grid ·
+// service-related-pages），外加 header / footer 两个 Region 键。
+// 📌 #1162：这段是 #956 当天的读数，**不是今天的**（注册表已经是 31 种 —— `values-grid` 随别名层
+//    2026-08-23 退役并入 `card-group`）。它说的是那 30 套退役主题当年的形状，所以按原样留着。#956 当时立的两条性质（每套的键集合
 // 相同 · 每种 variant 至少有一套用到）说的就是那 30 套。
 //
 // 🔴 #1016 —— **新池那 80 套不是这个形状，而且不该是。** 阶段 2（#1030 收尾）把 34 个块的外观全部搬

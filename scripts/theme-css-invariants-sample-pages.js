@@ -37,14 +37,14 @@
 //                                📌 那个块自己的注释（:20-23）说夹具要**两页**——那句话管的是搬迁那条线
 //                                的改前/改后对照（两边都空就会被读成「没变」）。这里问的是别的问题：
 //                                四个钩子进没进 DOM。一页就够，实测四条全被量到，多一页只是多建一页。
-//   `.service-highlights__item`  #1143 把 `checklist` / `service-highlights` 并进「卡片组」之后，这三个
-//   `__title` `__desc`           type 在 `registry.ts` 里都指向 `CardGroupSection`，而生成器是照**组件的
-//   `__features`                 TS 类型**合成数据的 ⟹ 它给 `service-highlights` 块写的槽位名是 `items`。
-//                                老站那条路上它叫 `highlights`（`src/lib/sections/block-aliases.json`），而
-//                                `scripts/blocks.js` 的 `applyAlias` 有一道守卫：改名的源不在、目标在
-//                                ⟹ 把目标也删掉（映射文档 §2.5 坑三，防的是「线上一块本来空着的地方
-//                                突然长出内容」）⟹ 那一节只剩标题、零条目，四个钩子一页都不出现。
-//                                这里按**老站的形状**写 `highlights`，顺带也就真跑了一次别名映射。
+//   ~~`.service-highlights__item`~~ #1162 划掉：那四个老 type 名（`values-grid` / `benefits-list` /
+//   ~~`__title` `__desc` `__features`~~  `checklist` / `service-highlights`）随别名兼容层
+//                                2026-08-23 整层退役 —— 它们不在注册表、它们的钩子也不在契约里，
+//                                所以这一页不再有那个块，也没有那族钩子要撑。#1143 当天那段理由
+//                                （槽位名 `items` vs 老站的 `highlights`、`blocks.js` 的
+//                                `applyAlias` §2.5 坑三守卫）搬到了下面 propping 那一段的 📌 里，
+//                                作出处留着。今天代替它的是一格**反向的分母自检**：这一页上再出现
+//                                这四个 type 名之一就报（在下面 read-back 那段）。
 //   `.card-group__features`      同一批里这个键是**另一个原因**没被生成：`gen-allblocks.js` 的 `fields()`
 //                                按顶层逗号/分号切类型体、**不认注释**，于是 `CardGroupItem` 里 `features?`
 //                                上面那段 doc 注释被吃进了字段名（实测那个块 `items[0]` 的键是
@@ -60,6 +60,10 @@
 //                                  grep -ohE '\.checklist__[a-z-]+' docs/reference/theme-css-contract.md | sort -u
 //                                ⟹ 只有 `__headline` / `__item` / `__sub` 三条。哪天有人给契约加一条
 //                                `.checklist__features`,同一个形态会再红一次,那时把 `checklist` 一起补上。
+//                                🔴 #1162:上面这一段整体是**出处**了 —— `checklist` 与 `service-highlights`
+//                                这两个 type 名已随别名兼容层退役,这一页上一个都没有(反向自检见
+//                                read-back 那段)。今天走 `CardGroupSection` 的只剩 `card-group` 一个 type,
+//                                所以「三个 type 键逐字相同」那句话今天量不出来了。机理没变。
 //                                📌 我把它自己那份 `fields()` 原样抠出来跑了一遍全部已注册组件：真正落在
 //                                `data` 那一层里、名字被注释吃掉的只有三个键 —— 本块的 `features`、
 //                                `FaqAccordionSection` 的 `defaultOpen`、`AnnouncementBarSection` 的
@@ -197,17 +201,21 @@ const patched = [];
   patched.push('hero block_layout=with-form → .hero__form（#1065）');
 }
 {
-  // #1143 —— 并进「卡片组」的那两个块要连数据一起补，否则五条钩子一页都不进 DOM
-  //（`.service-highlights__item` / `__title` / `__desc` / `__features` / `.card-group__features`；
-  // 那次 CI 的 `theme-css` 八个分片 8/8 红，报的就是这五条）。两处原因不同，一起在这里补：
+  // #1143 —— 并进「卡片组」的块要连数据一起补，否则钩子一页都不进 DOM。
   //
-  // 🔴 ① 槽位名。合并之后 `checklist` / `service-highlights` / `card-group` 三个 type 都指向
-  //    `CardGroupSection`，而 `gen-allblocks.js` 是照**组件的 TS 类型**合成数据的（它解析
-  //    `data: { … }` 那一层）⟹ 它给 `service-highlights` 块写的是 `items`。但老站那条路上这个块的
-  //    槽位叫 `highlights`（`src/lib/sections/block-aliases.json`），而 `scripts/blocks.js` 的
-  //    `applyAlias` 有一道守卫：改名的**源不在、目标在** ⟹ 把目标也删掉（映射文档 §2.5 坑三，
-  //    防的是「线上一块本来空着的地方突然长出内容」）。于是那一节只剩标题、零条目。
-  //    ⟹ 这里按**老站的形状**写 `highlights`，顺带也就真跑了一次别名映射。
+  // 🔴 **#1162 拿掉了这里的第 ① 段（`service-highlights` 那半）。** 原文留在下面 📌 里作出处。
+  //    理由：那半段补的是**老站那条路**（把 `items` 改名回老槽位 `highlights`，顺带真跑一次别名映射），
+  //    而别名兼容层 2026-08-23 整层退役 —— `service-highlights` 这个 type 名不在注册表里、
+  //    `.service-highlights__*` 五条钩子也不在契约里了 ⟹ 这一页不再有那个块，`sectionOf` 会返回
+  //    undefined 并 `die`。留着它等于让这份夹具去撑一族**已经不存在**的钩子。
+  //    今天要撑的只剩 `.card-group__features` 一条（下面 ② 那个原因），它照旧补。
+  //
+  //    📌 出处（#1143 当天那段，读的时候记住它说的是别名层还在的时候）：合并之后 `checklist` /
+  //    `service-highlights` / `card-group` 三个 type 都指向 `CardGroupSection`，而 `gen-allblocks.js`
+  //    是照**组件的 TS 类型**合成数据的 ⟹ 它给 `service-highlights` 块写的是 `items`；老站那条路上
+  //    那个槽位叫 `highlights`（`src/lib/sections/block-aliases.json`），而 `scripts/blocks.js` 的
+  //    `applyAlias` 有一道守卫：改名的**源不在、目标在** ⟹ 把目标也删掉（映射文档 §2.5 坑三），
+  //    于是那一节只剩标题、零条目。
   //
   // 🔴 ② `features` 这个字段。`gen-allblocks.js` 的 `fields()` 按顶层逗号/分号切类型体、**不认注释**，
   //    于是 `CardGroupItem` 里 `features?` 上面那段 doc 注释被当成了字段名的一部分，真正的
@@ -221,12 +229,6 @@ const patched = [];
     features: ['Feature one', 'Feature two'],
   });
   const PLAIN = (n) => ({ title: `Title text ${n}`, description: 'Description text' });
-
-  const sh = sectionOf('service-highlights');
-  if (!sh || !sh.data) die('the generated page has no service-highlights block');
-  sh.data.highlights = [FEATURED(1), FEATURED(2), PLAIN(3)];
-  delete sh.data.items;
-  patched.push('service-highlights items → highlights（老槽位名）+ 前两条带 features → .service-highlights__item/__title/__desc/__features');
 
   const cg = sectionOf('card-group');
   if (!cg || !cg.data) die('the generated page has no card-group block');
@@ -302,7 +304,12 @@ writeJson(allblocks, page);
     if (faq[0].defaultOpen !== true) bad.push('faq-accordion item 1 is not open');
     if (faq[1].defaultOpen !== undefined) bad.push('faq-accordion item 2 was left open too — the closed arm is gone');
   }
-  // #1143 —— 两个方向都读回来:`highlights` 补上了,而且 `items` 真的没留下。
+  // #1143 —— 读回来:`card-group` 的 `items` 在,而且第一条真的带 `features`。
+  // 🔴 #1162:这里原来还读 `service-highlights` 的 `highlights` 两个方向(补上了 / `items` 没留下)。
+  //    那个 type 名随别名兼容层退役,这一页不再有那个块 ⟹ 那两条断言会读到 undefined 并报假红。
+  //    下面那段 #1149 item 26 的更正说的是**那半段**,留作出处 —— `blocks.js:70/74` 那两支的机理没变,
+  //    只是今天没有块走它们了。
+  //
   // 🔴 #1149 item 26 更正:上一版这里(以及下面那条报文)给的理由是「只问 `highlights` 在不在的话,
   //    `items` 还留着时那道 §2.5 坑三守卫会把两个槽位一起清掉」——**那是假的**。`blocks.js` 的
   //    `applyAlias` 里两个键都在时走的是**前一支**(`blocks.js:70`:`if (源在) { data[to]=data[from];
@@ -313,11 +320,11 @@ writeJson(allblocks, page);
   //    两个键都写会造出一个真实站点里不存在的形状,那样它顺带跑过的那次别名映射就不是老站走的那条。
   //    开火方向是保守的(多一个键就报),留着不亏。
   {
-    const sh = find('service-highlights');
-    const hl = sh && sh.data && sh.data.highlights;
-    if (!Array.isArray(hl) || hl.length < 2) bad.push('service-highlights has no highlights array');
-    else if (!Array.isArray(hl[0].features) || !hl[0].features.length) bad.push('service-highlights item 1 has no features → .service-highlights__features would be on no page');
-    if (sh && sh.data && sh.data.items !== undefined) bad.push('service-highlights still has items alongside highlights — a real legacy site only has highlights, so this fixture would exercise the wrong alias branch (highlights wins and items is overwritten — blocks.js:70; it is NOT the §2.5 坑三 both-deleted branch)');
+    // 🔴 反向的分母自检(#1162):这一页上**不许**再有那四个已退役的 type 名。少了这一格，
+    //    「那族钩子不用撑了」这个前提就没人验 —— 而它一旦回来，上面那段被删掉的补法也得回来。
+    for (const t of ['values-grid', 'benefits-list', 'checklist', 'service-highlights']) {
+      if (find(t)) bad.push(`the generated page still has a "${t}" block — that type name retired with the alias layer (#1162); either the generator came back or the registry did`);
+    }
     const cg = find('card-group');
     const it = cg && cg.data && cg.data.items;
     if (!Array.isArray(it) || !it.length) bad.push('card-group has no items array');

@@ -52,11 +52,10 @@ for (const [, list] of Object.entries(pages)) {
     // config-data.ts 里是归一化之后的形状（#998 起恒为 blocks）
     (page.blocks || []).forEach((s, i) => {
       const key = `${page.slug}#${i}`;
-      // #1132 —— 跟 sync-config.js 那一处同一个形状、同一个理由：这张表的键是**老** type 名，而
-      // 别名把 `s.type` 换成了通用块的名字。少读 `__legacyType` 的话，被合并那些块会从「主题覆盖了
-      // 它」那一栏掉到「主题没管过它」那一栏，然后拿它跟磁盘对账 —— 而磁盘上那个值正是主题写的，
-      // 于是这一格红在一件没发生的事上。失败方向是静默的（它只是把块记进另一栏）。
-      const want = variants[s.__legacyType || s.type];
+      // #1162 —— 跟 sync-config.js 那一处同一个形状、同一个理由，两处必须一起改：这里以前也先读
+      // 别名层写上去的那个隐藏字段。别名层 2026-08-23 退役之后没有任何地方再写它，两边都收成
+      // `s.type` 一句。**两处要读同一个键**，否则这份对账会拿另一套口径去核 sync-config 的产物。
+      const want = variants[s.type];
       const got = s.data && s.data.variant;
       if (want) {
         overridden++;

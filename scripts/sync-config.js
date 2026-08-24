@@ -697,11 +697,12 @@ if (structureThemeId) {
   for (const locale of locales) {
     for (const page of pagesByLocale[locale]) {
       for (const block of page.blocks) {
-        // #1132 —— 这张偏好表的键是**老** type 名（主题注册表按老名字写的）。别名把 `block.type`
-        // 换成通用块的名字之后，按它取恒是 undefined ⟹ 走 `continue`，静默地什么都不覆盖。
-        // 读 `__legacyType` 是把老站这条路上的行为原样保住（新站那条路上主题今天还没有卡片组的偏好，
-        // 那是主题注册表的事，不在本票范围）。
-        const preferred = layout[block.__legacyType || block.type];
+        // #1162 —— 这里以前先读一个由别名层写上去的隐藏字段、读不到才落回 `block.type`，为的是让
+        // 主题注册表里按老 type 名写的偏好还能对上老站。别名层 2026-08-23 整层退役之后**没有任何地方
+        // 再写那个字段** ⟹ 那半边表达式恒 undefined，留着只会让读代码的人以为老站这条路还在。
+        // 🔴 退役的后果照实说：注册表里仍按老名字写的那些偏好，从此谁都对不上（30 套退役主题的
+        // `supports` 归 #1161）。失败方向是**静默不覆盖**，不是报错。
+        const preferred = layout[block.type];
         if (!preferred) continue;
         block.data = { ...(block.data || {}), variant: preferred };
         overridden++;
@@ -874,7 +875,7 @@ const MOVED_BLOCKS = ['hero', 'cta-banner', 'page-header',
   // #1027 batch B — six at once. `values-grid` belongs on this list even though its five looks were
   // keyed off `data.style` rather than `data.variant`: what this list means is "this block's markup
   // no longer decides how it looks", and that is now true of all six.
-  'contact-form', 'quote-form', 'services-list', 'values-grid', 'services-nav',
+  'contact-form', 'quote-form', 'services-list', 'services-nav',
   'service-related-pages',
   // #1028 batch C — four more. Same meaning as above: these blocks' markup no longer decides how
   // they look.
@@ -882,7 +883,7 @@ const MOVED_BLOCKS = ['hero', 'cta-banner', 'page-header',
   // #1029 batch D — four more. Same meaning as above: these blocks' markup no longer decides how
   // they look. `blog-preview` keeps reading `data.fromBlog` / `data.maxPosts`, and that is not a
   // contradiction: those two say WHICH articles the block draws, not what it looks like.
-  'benefits-list', 'team-grid', 'checklist', 'blog-preview',
+  'team-grid', 'blog-preview',
   // #1031 batch F — seven at once. All seven had a `data.variant` branch and nothing else: none of
   // them is a `'use client'` component, so there was no behaviour to keep on the way out.
   'content-split', 'text-block', 'divider', 'social-proof', 'features-grid',
@@ -892,16 +893,18 @@ const MOVED_BLOCKS = ['hero', 'cta-banner', 'page-header',
   // (`TopbarRegion.tsx` passes `regionLayout.topbar` through the same prop and it lands on
   // `data-region-layout`), and regions are `scripts/region-layout.js`'s business, not phase 2's.
   // As a BLOCK its markup no longer decides how it looks, which is what this list means.
-  'faq-accordion', 'testimonials', 'announcement-bar', 'service-highlights', 'pricing-table',
+  'faq-accordion', 'testimonials', 'announcement-bar', 'pricing-table',
   'gallery',
   // #1030 batch E — four more. Same meaning as above. `feature-comparison` still renders a ✓ or a ✗
   // per cell, and that is not a contradiction: those two characters say WHAT the site claims about
   // itself and a competitor, not what the block looks like — how they LOOK (colour, size, whether
   // there is a shape behind them) is the sheet's, through `.feature-comparison__mark--yes` / `--no`.
   'feature-comparison', 'logo-carousel', 'map-area', 'trusted-brands',
-  // #1132 —— 通用块「卡片组」。老名字 `values-grid` / `benefits-list` 一个都没删（老站还在吐
-  // 老类名，见 blocks.js 的 applyAlias），通用块另外加自己的名字。这张名单的含义没变：
-  // 「这个块的 markup 不再决定它长什么样」。
+  // #1132 —— 通用块「卡片组」。这张名单的含义没变：「这个块的 markup 不再决定它长什么样」。
+  // 📌 #1162：这里原来写着「老名字 `values-grid` / `benefits-list` 一个都没删（老站还在吐老类名，
+  //    见 blocks.js 的 applyAlias），通用块另外加自己的名字」—— 那层兼容 2026-08-23 整层退役了，
+  //    四个老名字（批 1 的 `values-grid` / `benefits-list`、批 2 的 `checklist` /
+  //    `service-highlights`）已从这张名单和注册表里一起删掉，名单从 35 项变成 31 项。
   'card-group'];
 // 🔴 #1132 —— 分母是**算出来的**，不是写死的 34。写死的那个数在 #1132 当天就成了假话：卡片组进了
 // MOVED_BLOCKS（35 项），`34 - 35` 会印出 `-1`。名单的权威是角色表 —— 它的键集合按

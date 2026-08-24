@@ -1,4 +1,4 @@
-/* theme-css-contract: v1
+/* theme-css-contract: v2
    hero-media-left — picture on the left, words on the right, tall and dark.
 
    #991 phase 1. Layout lives here, not in the markup: the same HTML that produces this produces
@@ -476,52 +476,8 @@
   background-color: var(--color-primary-800);
 }
 
-.values-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1.5rem;
-  padding: 3rem 1.5rem;
-  background-color: var(--color-primary-900);
-  color: var(--color-primary-50);
-}
-
 /* Three across on a wide screen, with the headline spanning the row above them. The other two sheets
    choose two and one; the markup is a flat list of items either way. */
-@media (min-width: 1024px) {
-  .values-grid {
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 2rem;
-    padding: 5rem 4rem;
-  }
-}
-
-.values-grid__headline {
-  grid-column: 1 / -1;
-  font-size: 2rem;
-  line-height: 1.1;
-  font-weight: 800;
-  color: var(--color-primary-50);
-}
-
-.values-grid__item {
-  display: grid;
-  gap: 0.75rem;
-  padding: 2rem;
-  border-radius: 1rem;
-  background-color: var(--color-primary-800);
-}
-
-.values-grid__title {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--color-primary-50);
-}
-
-.values-grid__desc {
-  font-size: 1rem;
-  line-height: 1.7;
-  color: var(--color-primary-100);
-}
 
 .services-nav {
   display: flex;
@@ -845,61 +801,7 @@
    padding, and columns where there is a list. The other two sheets draw the same HTML as one narrow
    column and as centred wrapping rows — that is the whole claim phase 2 makes about these four. */
 
-.benefits-list {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1.5rem;
-  padding: 3rem 1.5rem;
-  background-color: var(--color-primary-900);
-  color: var(--color-primary-50);
-}
-
 /* Two across on a wide screen — the old `cards-horizontal` band without the horizontal scroll. */
-@media (min-width: 1024px) {
-  .benefits-list {
-    grid-template-columns: 1fr 1fr;
-    gap: 2rem 3rem;
-    padding: 5rem 4rem;
-  }
-}
-
-.benefits-list__headline {
-  grid-column: 1 / -1;
-  font-size: 2rem;
-  line-height: 1.1;
-  font-weight: 800;
-  color: var(--color-primary-50);
-}
-
-.benefits-list__sub {
-  grid-column: 1 / -1;
-  max-width: 34rem;
-  font-size: 1.0625rem;
-  line-height: 1.7;
-  color: var(--color-primary-100);
-}
-
-.benefits-list__item {
-  display: grid;
-  align-content: start;
-  gap: 0.75rem;
-  padding: 2rem;
-  border-radius: 1rem;
-  background-color: var(--color-primary-800);
-}
-
-.benefits-list__title {
-  font-size: 1.375rem;
-  line-height: 1.2;
-  font-weight: 700;
-  color: var(--color-primary-50);
-}
-
-.benefits-list__desc {
-  font-size: 1rem;
-  line-height: 1.7;
-  color: var(--color-primary-100);
-}
 
 .team-grid {
   display: grid;
@@ -975,57 +877,9 @@
   color: var(--color-primary-100);
 }
 
-.checklist {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1rem;
-  padding: 3rem 1.5rem;
-  background-color: var(--color-primary-900);
-  color: var(--color-primary-50);
-}
-
 /* Three across — the old `icon-grid` without the icons. */
-@media (min-width: 1024px) {
-  .checklist {
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 1rem 2rem;
-    padding: 5rem 4rem;
-  }
-}
-
-.checklist__headline {
-  grid-column: 1 / -1;
-  font-size: 2rem;
-  line-height: 1.1;
-  font-weight: 800;
-}
-
-.checklist__sub {
-  grid-column: 1 / -1;
-  max-width: 34rem;
-  font-size: 1.0625rem;
-  line-height: 1.7;
-  color: var(--color-primary-100);
-}
-
-.checklist__item {
-  padding: 1rem 1.25rem;
-  border-radius: 0.75rem;
-  background-color: var(--color-primary-800);
-  font-size: 1rem;
-  line-height: 1.5;
-}
 
 /* Where the check mark used to be. Same story as the avatar above: a shape is what a sheet can say. */
-.checklist__item::before {
-  content: "";
-  display: inline-block;
-  width: 0.5rem;
-  height: 0.5rem;
-  margin-right: 0.625rem;
-  border-radius: 9999px;
-  background-color: var(--color-accent-400);
-}
 
 .blog-preview {
   display: grid;
@@ -1693,75 +1547,8 @@
   color: var(--color-primary-50);
 }
 
-.service-highlights {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1.5rem;
-  padding: 3rem 1.5rem;
-  background-color: var(--color-primary-900);
-  color: var(--color-primary-50);
-}
-
-@media (min-width: 1024px) {
-  .service-highlights {
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 2rem;
-    padding: 5rem 4rem;
-  }
-}
-
-.service-highlights__headline {
-  grid-column: 1 / -1;
-  font-size: 2rem;
-  line-height: 1.1;
-  font-weight: 800;
-}
-
-.service-highlights__sub {
-  grid-column: 1 / -1;
-  max-width: 34rem;
-  font-size: 1.0625rem;
-  line-height: 1.7;
-  color: var(--color-primary-100);
-}
-
-.service-highlights__item {
-  display: grid;
-  align-content: start;
-  gap: 0.75rem;
-  padding: 2rem;
-  border-radius: 1rem;
-  background-color: var(--color-primary-800);
-}
-
 /* The gradient strip the old `cards-large` markup carried as an empty div — one property on the
    element that is already there (#1018's reasoning for cta-banner's overlay). */
-.service-highlights__item::before {
-  content: "";
-  display: block;
-  height: 0.25rem;
-  border-radius: 9999px;
-  background: linear-gradient(90deg, var(--color-primary-400), var(--color-accent-500));
-}
-
-.service-highlights__title {
-  font-size: 1.25rem;
-  font-weight: 700;
-}
-
-.service-highlights__desc {
-  font-size: 1rem;
-  line-height: 1.7;
-  color: var(--color-primary-100);
-}
-
-.service-highlights__features {
-  display: grid;
-  gap: 0.5rem;
-  font-size: 0.9375rem;
-  line-height: 1.6;
-  color: var(--color-primary-100);
-}
 
 .pricing-table {
   display: grid;
@@ -2204,9 +1991,13 @@
 }
 
 /* #1143 — the generic card group's item-level feature list, batch 2's one new hook.
-   Geometry is what this sheet already says about `.service-highlights__features` (the block
-   that brought the list in); the ink is `.card-group__desc`'s, because the list sits on the
-   card group's ground, not on service-highlights'. Both old prefixes stay exactly as they are. */
+   Geometry was copied from what this sheet used to say about `.service-highlights__features`
+   (the block that brought the list in); the ink is `.card-group__desc`'s, because the list sits
+   on the card group's ground.
+   #1162 — those old prefixes are GONE from this sheet: `service-highlights` (with `values-grid`,
+   `benefits-list`, `checklist`) left the registry when the alias layer retired, so the rules that
+   selected them were removed and the contract went to v2. This paragraph names them only as the
+   origin of the numbers below. */
 .card-group__features {
   display: grid;
   gap: 0.5rem;

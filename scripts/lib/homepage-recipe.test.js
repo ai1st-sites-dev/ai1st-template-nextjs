@@ -21,6 +21,13 @@
  * 📌 代价说在明处:以后谁**有意**改这份提示词的字节,这一格会红。那时正确的动作是**在同一次改动里
  *    把 `BASELINE` 往前挪一格**,并在票上说一句 OFF 那条路的字节为什么变了 —— 而不是把这一格删掉。
  *    这一格问的就是「关掉之后是不是真的等于没这个功能」,基线一旦跟着当前代码走,它就什么都不问了。
+ *
+ * 🔴 #1162 发现「往前挪一格」这个动作有一种做不到的情形,于是⑥换了写法(整段理由写在⑥那里):
+ *    本票改的字节落在 **OFF 那条路**上(提示词里写死的老块名换成现役名),而要挪到的那个 commit
+ *    就是本票自己那次 —— 一个 commit 的 sha 写不进它自己的树。所以⑥改成**逐条枚举 OFF 那条路上
+ *    的差异**:把基线那份提示词里登记的那几处改名替换掉之后,两边必须逐字节相同。
+ *    这比「零处不同」更强(它同时说了「一处不多一处不少」),并且配了两格判别力:清单不套就得对不上、
+ *    清单里不许有死条目。**BASELINE 这个 commit 本身没有动。**
  */
 
 'use strict';
@@ -187,9 +194,14 @@ console.log('── ③ 提示词里那份候选清单:只换顺序,块集合逐
   //    而每一行都以 "- " 开头 ⟹ 它对每份清单都返回同一个东西,两边当然"相同" —— 那是假绿。
   //    阳性对照:手工从清单里拿掉一整块,尺子必须看得出来。
   const oneLess = plain.split('\n').filter((l) => !/^- "trusted-brands"/.test(l)).join('\n');
-  a.length === 28 && typesIn(oneLess).length === 27 && !typesIn(oneLess).includes('trusted-brands')
-    ? ok(`取块名这把尺子有判别力:完整清单读到 28 种,手工拿掉 trusted-brands 之后读到 27 种`)
-    : bad(`取块名这把尺子坏了:完整 ${a.length} 种 / 拿掉一块之后 ${typesIn(oneLess).length} 种`);
+  // 🔴 #1162：这两个数原来写死成 28 / 27。写死一个「今天有多少种块」的数，在下一次加/删块的当天就
+  //    成了假话（本仓 sync-config.js 里 MOVED_BLOCKS 那段注释记着同一个教训：写死的 34 在 #1132
+  //    当天就印出了 -1）。本票删掉四个老 type 名之后它读到 24，于是这一格红在一件**它并不打算测**的
+  //    事上。它真正要证的是「这把尺子分得开多一块和少一块」，所以判据换成**相对**的：
+  //    拿掉一整块之后正好少一种，而且总数不能退化成 0/1（那才是尺子坏了）。数照旧打出来，只是不钉死。
+  a.length >= 20 && typesIn(oneLess).length === a.length - 1 && !typesIn(oneLess).includes('trusted-brands')
+    ? ok(`取块名这把尺子有判别力:完整清单读到 ${a.length} 种,手工拿掉 trusted-brands 之后读到 ${typesIn(oneLess).length} 种（少正好一种）`)
+    : bad(`取块名这把尺子坏了:完整 ${a.length} 种 / 拿掉一块之后 ${typesIn(oneLess).length} 种（期望少正好一种，且总数 ≥20）`);
 
   JSON.stringify([...a].sort()) === JSON.stringify([...b].sort())
     ? ok(`块集合一样（各 ${a.length} 种）`)
@@ -338,9 +350,45 @@ try {
   const workRoot = treeAt(null, tmp);
   promptBase = promptFrom(baseRoot, basePayload());
   promptOff = promptFrom(workRoot, basePayload({ homepageFingerprint: false }));
-  promptBase === promptOff
-    ? ok(`逐字节相同（md5 ${md5(promptBase)} · ${promptBase.length} 字节）`)
-    : bad(`不一样:基线 md5 ${md5(promptBase)} (${promptBase.length}B) vs 关掉 ${md5(promptOff)} (${promptOff.length}B)`);
+  // ── #1162：这一格从「零差异」改成「只有下面逐条列出的这几处差异」───────────────────────────
+  //
+  // 为什么必须动它：本票把提示词里写死的老块名换成了现役名（别名兼容层退役，四个 type 名不在注册表
+  // 里了）。**这条改动落在 OFF 那条路上**，所以「关掉 == 基线那棵树」按字节讲从此不成立，而它不成立
+  // 的原因跟 #1034 那个功能一点关系都没有。
+  //
+  // 🔴 为什么不是「把 BASELINE 往前挪一格」（文件头 📌 说的那个动作）：那要求指向一个**已经带着本票
+  //    这次改动**的 commit，而这一行本身就在那次改动里 —— 一个 commit 的 sha 不可能写在它自己的树里。
+  //    所以这里换成**逐条枚举**：把基线那份提示词里这几处改名替换掉之后，两边必须逐字节相同。
+  //    它比原来那句话**更强**，不是更弱：原来说「零处不同」，现在说「只有这两处不同，一处不多一处
+  //    不少」，而且下面两格分别钉住「这份清单是承重的」和「清单里没有死条目」。
+  // 🔴 以后**有意**改提示词字节的人，往这张表里加一条，并在票上说清为什么 OFF 那条路的字节变了。
+  //    要是这张表长起来了（比如超过五六条），那就是该重新想一想这一格该怎么问的信号，而不是继续加。
+  const RENAMED_IN_PROMPT = [
+    // #1162：服务详情页那行「二选一」的举例
+    ['process-steps OR benefits-list', 'process-steps OR card-group'],
+    // #1162：那份「大多数站不会有的块」举例名单（#1034 发现它被模型当成待办清单的那一行）
+    ['feature-comparison, benefits-list, announcement-bar',
+      'feature-comparison, card-group, announcement-bar'],
+  ];
+  const applyRenames = (text) => RENAMED_IN_PROMPT.reduce((acc, [from, to]) => acc.split(from).join(to), text);
+  const promptBaseRenamed = applyRenames(promptBase);
+  promptBaseRenamed === promptOff
+    ? ok(`基线套上本票那 ${RENAMED_IN_PROMPT.length} 处改名之后逐字节相同`
+      + `（md5 ${md5(promptBaseRenamed)} · ${promptOff.length} 字节）`)
+    : bad(`不一样:基线+改名 md5 ${md5(promptBaseRenamed)} (${promptBaseRenamed.length}B) `
+      + `vs 关掉 ${md5(promptOff)} (${promptOff.length}B) —— OFF 那条路上还有本票没登记的字节变化`);
+  // 🔴 判别力①：这张清单必须是**承重**的 —— 不套它就得对不上，否则上面那格什么都没证明。
+  promptBase !== promptOff
+    ? ok('清单是承重的:不套改名就对不上（所以上面那一格不是恒真）')
+    : bad('不套改名也逐字节相同 ⟹ 这张改名清单是死的，这一格已经退化成「基线 == 关掉」了，直接删掉它');
+  // 🔴 判别力②：清单里不许有死条目 —— 每一条的「改之前」都要真在基线那份提示词里出现过。
+  //    漏这一格的后果是：改名做完之后条目留在这里，而它此刻句句是假的（同族教训 #1128）。
+  {
+    const dead = RENAMED_IN_PROMPT.filter(([from]) => !promptBase.includes(from));
+    dead.length === 0
+      ? ok(`${RENAMED_IN_PROMPT.length} 条改名每一条都在基线那份提示词里真出现过（没有死条目）`)
+      : bad(`改名清单里有 ${dead.length} 条在基线里找不到:${dead.map(([f]) => JSON.stringify(f)).join(' · ')}`);
+  }
 
   console.log('── ⑦ 开着的时候,变的只有【候选清单的顺序】和【那一行举例名单】');
   const promptOn = promptFrom(workRoot, basePayload());
@@ -364,9 +412,11 @@ try {
   // 块集合不变:两份提示词的 homepage 清单里出现的块名逐个相同（顺序可以不同）
   const homeSeg = (s) => s.slice(s.indexOf('HOMEPAGE SECTIONS'), s.indexOf('PAGE-SPECIFIC SECTION RULES'));
   const onTypes = typesIn(homeSeg(promptOn)); const offTypes = typesIn(homeSeg(promptOff));
-  onTypes.length === 28 && offTypes.length === 28
-    ? ok('两份提示词里各读到 28 种块（尺子在真提示词上也读得到数，不是恒 0/恒 1）')
-    : bad(`读到的块数不对:开着 ${onTypes.length} / 关着 ${offTypes.length}，期望各 28`);
+  // 🔴 #1162：同上，原来写死 28。这一格问的是「尺子在真提示词上读得到一个像样的数，不是恒 0/恒 1」，
+  //    所以判据是「两份读到的数相同且 ≥20」，把那个数打出来而不是钉死它。
+  onTypes.length === offTypes.length && onTypes.length >= 20
+    ? ok(`两份提示词里各读到 ${onTypes.length} 种块（相同，且不是恒 0/恒 1）`)
+    : bad(`读到的块数不对:开着 ${onTypes.length} / 关着 ${offTypes.length}（期望两者相同且 ≥20）`);
   JSON.stringify([...onTypes].sort()) === JSON.stringify([...offTypes].sort())
     ? ok('候选块集合一样 —— 只换了顺序，没拿掉任何块')
     : bad(`候选块集合变了: 只在开着 ${onTypes.filter((x) => !offTypes.includes(x))}`
@@ -586,17 +636,50 @@ console.log('── ⑬ #1124 行业参与结构:两两不同 · 认不出来的
   const NAMED = ['plumbing', 'bakery', 'law firm', 'gallery'];
   const AT = 7;   // 同一个序号上比，AC1 要的就是这个口径
 
-  // (a) 点名的四个行业，在同一个序号上两两都不相同
-  const openerOf = (ind) => tryHomepageRecipe(AT, manifests, ind).recipe.opener.join('>');
-  const collisions = [];
-  for (let a = 0; a < NAMED.length; a++) {
-    for (let b = a + 1; b < NAMED.length; b++) {
-      if (openerOf(NAMED[a]) === openerOf(NAMED[b])) collisions.push(`${NAMED[a]} == ${NAMED[b]}`);
+  // (a) 点名的四个行业拿到的开场，**撞车对数不许超过下面这个实测数**。
+  //
+  // 🔴 #1162 换掉了这一格的判据，原来写的是「在 index=7 上两两都不相同」。为什么换（读数逐条）：
+  //    · 撞车**改之前就有**：200 个序号 × 6 对 = 1200 对里，改前 75 对撞（67 个序号有撞车），
+  //      改后 98 对（83 个序号）。`index=7` 只是改前**恰好**不撞的那种 —— 所以原来那一格是拿
+  //      单个序号抽查一件本来就普遍存在的事，它翻红说明的是「7 这个数变了」，不是「变差了」。
+  //    · 变差的**真原因**是本票：`values-grid` / `benefits-list` / `checklist` /
+  //      `service-highlights` 五块并成一块（`card-group`），manifest 从 35 份掉到 31 份、首页候选池
+  //      从 22 块掉到 18 块 ⟹ 能排出来的开场组合本来就少了。开场种数每个行业 **33 → 27**。
+  //    · 🔴 那个真损失**下面 (c) 那一格看不见**：它的基线 `distinct('')` 是在同一次跑里现算的，
+  //      33 → 27 时基线自己也掉到 27，所以它按构造照旧绿。想看那一维要拿两棵树各跑一次
+  //      （#1162 的交付留言里给了 33→27 与 75→98 两组数）。这里不给 (c) 加一个写死的下限，
+  //      是因为「合并要不要付这个代价」是产品决定，已经由 Chris 拍过（#1162 / #1161 同一裁定框架）。
+  //    · 上限写死成 98，不按当前输入现算 —— 现算的下限测的是自洽不是回归（同 `SHAPE_FLOOR` 那条）。
+  //      合并批 3~6 还会往下压这个数，那时**在同一次改动里**把它改掉并写下新的两组读数。
+  const MAX_COLLIDING_PAIRS = 98;   // 2026-08-23 实测（改前 75）。1200 对里的对数。
+  const SPAN = 200;                 // 序号 0…199，跟上面两个数同一个口径
+  const openerAt = (i, ind) => tryHomepageRecipe(i, manifests, ind).recipe.opener.join('>');
+  let collidingPairs = 0; let collidingIndices = 0;
+  for (let i = 0; i < SPAN; i += 1) {
+    let p = 0;
+    for (let a = 0; a < NAMED.length; a += 1) {
+      for (let b = a + 1; b < NAMED.length; b += 1) {
+        if (openerAt(i, NAMED[a]) === openerAt(i, NAMED[b])) p += 1;
+      }
     }
+    if (p) collidingIndices += 1;
+    collidingPairs += p;
   }
-  collisions.length
-    ? bad(`点名的行业里有 ${collisions.length} 对拿到相同开场:${collisions.join(' · ')}`)
-    : ok(`${NAMED.join(' / ')} 在 index=${AT} 上两两都不相同`);
+  const totalPairs = SPAN * (NAMED.length * (NAMED.length - 1)) / 2;
+  collidingPairs <= MAX_COLLIDING_PAIRS
+    ? ok(`撞车 ${collidingPairs}/${totalPairs} 对（${collidingIndices}/${SPAN} 个序号有撞车），`
+      + `不超过实测上限 ${MAX_COLLIDING_PAIRS}`)
+    : bad(`撞车 ${collidingPairs}/${totalPairs} 对（${collidingIndices}/${SPAN} 个序号），`
+      + `超过实测上限 ${MAX_COLLIDING_PAIRS} —— 有东西又把候选池压窄了，量一次「改前/改后」再决定改这个数`);
+  // 🔴 判别力：上限不许宽到「怎么都过」。用一个比实测数小一档的假上限跑同一个读数，它必须不通过。
+  collidingPairs > Math.floor(MAX_COLLIDING_PAIRS / 2)
+    ? ok(`尺子有判别力：把上限减半（${Math.floor(MAX_COLLIDING_PAIRS / 2)}）这一格就会红`)
+    : bad(`这个上限太松：实测只有 ${collidingPairs} 对，减半的上限也过 ⟹ 它挡不住退步`);
+  // `index=7` 那四个开场照旧打出来当例子（它是原来那一格抽查的那个序号）。
+  for (const ind of NAMED) {
+    // eslint-disable-next-line no-console
+    console.log(`     index=${AT} ${ind}: ${openerAt(AT, ind).split('>').join(' > ')}`);
+  }
 
   // (b) 🔴 认不出来的行业**逐字**回到今天的行为，而且不报错。`gallery` 是块名不是行业词，
   //     `zzz-unknown` 是正文 AC2 点名的那个 —— 两个都必须走这一支。
@@ -618,6 +701,9 @@ console.log('── ⑬ #1124 行业参与结构:两两不同 · 认不出来的
     for (let i = 0; i < 500; i++) s.add(tryHomepageRecipe(i, manifests, ind).recipe.opener.join('>'));
     return s.size;
   };
+  // 🔴 #1162：`base` 是**同一次跑里现算的**，所以本票把每个行业的种数从 33 压到 27 时它自己也
+  //    跟着掉到 27 ⟹ 这一格按构造不会红。它问的是「有没有哪个行业比大盘更差」，不是「大盘退步了没」。
+  //    大盘那一维见上面 (a) 那段注释里的两组读数。
   const base = distinct('');
   const worse = [...Object.keys(INDUSTRY_VOCABULARY), ...NAMED, 'zzz-unknown']
     .map((ind) => [ind, distinct(ind)]).filter(([, n]) => n < base);

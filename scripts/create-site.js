@@ -2076,7 +2076,7 @@ ${servicesList.length >= 3 ? `Generate an individual service detail page for EAC
 - Slug format: "services/{service-id}" — use the EXACT service id from the services array
 - Set serviceDetailPage: true and parentService: "{service-id}" on each
 - navOrder: 10-19, priority: 0.8, changeFrequency: "monthly"
-- Each page needs 5-7 sections: page-header, content-split, process-steps OR benefits-list, faq-accordion,${hasKeywordPages ? ' service-related-pages,' : ''} cta-banner
+- Each page needs 5-7 sections: page-header, content-split, process-steps OR card-group, faq-accordion,${hasKeywordPages ? ' service-related-pages,' : ''} cta-banner
 - page-header breadcrumbs: [{label:"Home",href:"/"},{label:"Services",href:"/services"},{label:"{Service Name}"}]${hasKeywordPages ? `
 - service-related-pages data: { serviceSlug: "{service-id}", headline: "Related {Service} Topics" }` : ''}
 - Vary layouts and section variants across service detail pages — don't repeat the same structure
@@ -2238,10 +2238,10 @@ CRITICAL RULES:
 - Choose DIFFERENT variants for each section — don't use all "grid" or all "cards". Mix "minimal", "split", "gradient", "dark" etc.
 ${homeRecipe ? recipePromptLines(homeRecipe)
   // #1034 — 关着的时候这一行逐字回到改动之前。它原来那份举例名单
-  // (content-split / social-proof / feature-comparison / benefits-list / announcement-bar / divider)
+  // (content-split / social-proof / feature-comparison / card-group / announcement-bar / divider)
   // 正好就是 6 个真实站实际选中的那批 —— 举例清单被当成了待办清单。开着的时候由上面那份
   // 每站不同的硬要求取代它。
-  : '- Include at least TWO sections that most sites wouldn\'t have (e.g., content-split, social-proof, feature-comparison, benefits-list, announcement-bar, divider).'}
+  : '- Include at least TWO sections that most sites wouldn\'t have (e.g., content-split, social-proof, feature-comparison, card-group, announcement-bar, divider).'}
 - Use "divider" between sections occasionally (1-2 times per homepage) to break up the page visually.
 - Non-home pages should use 3-8 sections. Always start with "page-header". End with "cta-banner" when appropriate.
 - Use different page-header and text-block variants across pages — don't reuse the same variant on every page.
@@ -2637,9 +2637,9 @@ EACH PAGE MUST have 4-6 sections from these options:
    data: { title, subtitle?, breadcrumbs: [{label:"Home", href:"/"}, {label:"<Service>", href:"/${Object.values(serviceDetailMap)[0] || '<service-slug>'}"}, {label:"<Page Title>"}], variant }
 2. "text-block" (REQUIRED, 2-3 paragraphs of unique SEO content) — variants: "default", "two-column", "highlight-box", "with-list", "quote"
    data: { headline?, content (2-3 paragraphs), variant, items?: [string] }
-3. "benefits-list" OR "process-steps" (pick one per page, alternate between pages)
-   benefits-list variants: "alternating", "icon-large", "numbered-large", "cards-horizontal"
-   data: { headline, items: [{title, description}], variant }
+3. "card-group" OR "process-steps" (pick one per page, alternate between pages)
+   card-group has NO variants — do not write one (its manifest declares "variants": {})
+   data: { headline, subheadline?, items: [{title, description?, features?: [string]}] }
    process-steps variants: "horizontal", "vertical", "cards", "zigzag"
    data: { headline, steps: [{title, description}], variant }
 4. "faq-accordion" (REQUIRED, 3-4 questions) — variants: "centered", "two-column", "cards", "numbered"
@@ -2669,7 +2669,7 @@ CRITICAL RULES:
 - text-block content should be 2-3 substantial paragraphs (400-600 words) of unique SEO copy, not just 1-2 sentences.
 - FAQ answers should be 2-3 sentences each, naturally incorporating the keyword and location.
 - Make each page unique — don't use the same template/variant for every page.
-- Vary section types and variants across pages. Alternate between benefits-list and process-steps.
+- Vary section types and variants across pages. Alternate between card-group and process-steps.
 - CTA href should point to "/quote" or the appropriate contact page, or alternate with a service detail page link (e.g. "/services/{slug}") when available.
 - Breadcrumb middle level: use the service detail page URL (e.g. "/services/{service-id}") when one exists for that service.
 - Include ${location || 'the local area'} naturally in content for local SEO.

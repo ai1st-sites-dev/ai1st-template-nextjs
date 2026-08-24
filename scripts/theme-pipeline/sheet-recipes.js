@@ -93,17 +93,30 @@ const SPLIT_RHYTHMS = ['alternate', 'uniform'];
 const splitRhythmFor = (i) => SPLIT_RHYTHMS[
   Math.floor(i / SPLIT_LAYOUTS.length) % SPLIT_RHYTHMS.length];
 
-// 卡片组（features-grid / values-grid / service-highlights / card-group 共用一套候选 —— 它们的部件
-// 角色逐字相同（`item`/`title`/`desc`），画法不同才是这一族存在的理由）。
+// 卡片组（features-grid / card-group 共用一套候选 —— 它们的部件角色逐字相同
+// （`item`/`title`/`desc`），画法不同才是这一族存在的理由）。
 const CARD_GRIDS = ['three-up', 'two-up', 'four-up-tight', 'wide-rows'];
 const cardGridFor = (i) => CARD_GRIDS[
   (i + Math.floor(i / CARD_GRIDS.length)) % CARD_GRIDS.length];
 /** 卡片组这一族是哪几个块 —— 一处定义，`shapeFor` 和覆盖率那格都读它。 */
 // 🔴 #1132 —— `card-group` 是通用块（`values-grid` + `benefits-list` 并成的那个），它当然属于这一族。
-//    `values-grid` 留在名单里是因为**老站还在吐老类名**，那 83 张表得一直匹配得上它；
-//    `benefits-list` 今天不在这份名单里（它从来就不在），本票不动这件事 —— 加进去会改掉
-//    它在 83 张表里那几条规则，而那不是本票的圈。
-const CARD_BLOCKS = ['features-grid', 'values-grid', 'service-highlights', 'card-group'];
+// 🔴 #1162 —— 名单里原来还有 `values-grid` 和 `service-highlights`，理由是「老站还在吐老类名，
+//    那 83 张表得一直匹配得上它」。别名兼容层 2026-08-23 退役之后那个理由没有了：这两个 type 名
+//    已经不在注册表里，`theme-css-lint.js` 的 `HOOKS` 也不再认它们的类名 ⟹ 留着它们只会让
+//    `shapeFor` 为一族**不会再被生成**的钩子算画法。四个老名字（另两个是 `benefits-list` /
+//    `checklist`）在本文件里的条目一律删。
+//
+// 🔴 `CARD_SHAPES` 的两副在**三条**条目上读出的坐标关系是一样的 —— 这是已经量到的边界，不是猜：
+//    `three-up`（三条摆一行）与 `four-up-tight`（四栏里摆三条）占宽落在同一档。#1139 立票时是靠
+//    「`benefits-list` 语料下限正好三条」发现的，当时的处置是给它单开一张 `BENEFITS_LOOKS`；
+//    本票把那个块退役之后那张表没有成员了（裁定见 #1162），所以 `card-group` 就用这四副。
+//    ⟹ 谁要拿真浏览器量「同一族两副画法读出的关系不同」，夹具的条目数必须 **≥4**；三条那一档
+//    这两副按构造同形（`tests/e2e/specs/1139-real-site-block-skeletons.spec.ts` 的 `MIN_ITEMS`
+//    里 `card-group` 写的是 4，旁边注着这条）。
+//    📌 `four-up-tight` 与 `three-up` 的差别**不只是列数**：它还改 `gap`（`--section-block-gap`
+//    × (gapStep−2)）和条目的 `padding`（`--section-block-pad` × (padStep−3)），而 `three-up`
+//    两个 extra 都是空的 —— 所以在四条条目上它们不是同一副。
+const CARD_BLOCKS = ['features-grid', 'card-group'];
 
 // ── #1135 高曝光块的画法候选（第二批）─────────────────────────────────────────────────────────────
 //
@@ -277,6 +290,11 @@ const formLookFor = (i) => FORM_LOOK_NAMES[
 //   ② **差别要在真站真有的条目数上就看得出来。** 语料里的条目数下限：`process-steps` /
 //      `benefits-list` / `faq-accordion` 最少 3 条、`testimonials` 最少 2 条。所以不许靠「条目多到
 //      第四列才出现」这种方式分骨架 —— 那在真站上永远塌成同一副。
+//      🔴 #1162 例外一处，而且是**明写的**：`benefits-list` 退役并入 `card-group` 之后，那把尺量的
+//         是 `card-group`，而它用 `CARD_SHAPES` 的四副 —— `three-up` 与 `four-up-tight` 在**三条**
+//         条目上按构造同形（边界写在 `CARD_BLOCKS` 定义旁边）。所以那一格的夹具给 4 条，比语料下限
+//         多一条。这是**这一族的已知边界**，不是把 ② 放宽：其余五族仍然压在下限上，而 `card-group`
+//         那一格照旧要求「画法不同 ⟹ 坐标关系不同 + 画法相同 ⟹ 坐标关系相同」两向都成立。
 //   ③ **`contact-info` 不许靠列数分。** 它的卡片来自 `brand.locations`，而本机 75 份互异
 //      `brand.json` 全部只有 1 个地点（75/75）⟹ 真站上它永远只渲染 1 张卡，「1 栏 / 2 栏 / 3 栏」
 //      在每个站上长得一模一样。它的骨架差别在**卡片内部**（`label` / `address` / `phone` 之间的
@@ -416,27 +434,19 @@ const STEPS_LOOKS = {
   },
 };
 
-// ── benefits-list（144 个实例 · 58/66 个站 · 真客户站 3 次）──────────────────────────────────────
+// ── benefits-list 那张 `BENEFITS_LOOKS` 已退役（#1162，2026-08-23）─────────────────────────────
 //
-// 🔴 它跟 `card-group` / `values-grid` 共用**同一个组件**（`registry.ts:66` → `CardGroupSection`），
-//    但**不在 `CARD_BLOCKS` 里**（#1132 有意留在外面）。这里也没有把它并进那一族去复用
-//    `CARD_SHAPES`，理由是量出来的：`CARD_SHAPES` 的 `three-up` 与 `four-up-tight` 在**三条**条目上
-//    读出的坐标关系一模一样（三条摆一行 vs 四栏里摆三条，占宽落在同一档），而 `benefits-list` 在
-//    语料里的条目数下限正好是 3 ⟹ 复用它会让 AC1b 当场塌成两副。所以它自己一张表。
-const BENEFITS_LOOKS = {
-  // ① 两个一行（= 今天 `v.wide` 的 `1fr 1fr` 那一档）
-  'two-up': { cols: '1fr 1fr', rootExtra: () => ({}), partExtra: {} },
-  // ② 三个一行（= 今天 `v.wide` 的 `1fr 1fr 1fr` 那一档）
-  'three-up': { cols: '1fr 1fr 1fr', rootExtra: () => ({}), partExtra: {} },
-  // ③ 一行一条、卡片横过来：标题和说明并排（手法抄 `CARD_SHAPES` 的 `wide-rows`）。
-  'wide-rows': {
-    cols: '1fr',
-    rootExtra: () => ({}),
-    partExtra: {
-      item: () => ({ 'grid-template-columns': '1fr 2fr', 'align-items': 'start', gap: '1.5rem' }),
-    },
-  },
-};
+// #1139 给它单开一张三副的表，理由是量出来的：`CARD_SHAPES` 的 `three-up` 与 `four-up-tight` 在
+// **三条**条目上读出的坐标关系一模一样（三条摆一行 vs 四栏里摆三条，占宽落在同一档），而
+// `benefits-list` 在语料里的条目数下限正好是 3 ⟹ 复用 `CARD_SHAPES` 会让那一格塌成两副。
+//
+// 🔴 本票把 `benefits-list` 这个 type 名整个退役（并入 `card-group`），所以这一族**没有成员了**。
+//    `benefitsLook` 名下只有它一个块（原 `LOOK_FAMILIES` 那一行），块没了整族就是空的。
+//    两条修法里选的是「退役这张表」而不是「把 `card-group` 挪过来继承它」：后者会把候选从四副减到
+//    三副，并且改掉 `card-group` 在 83 套主题里的长相 —— 而 `card-group` 的长相不是本票要动的东西。
+//    上面那条量到的边界（三条时两副同形）搬到了 `CARD_BLOCKS` 的定义旁边，`card-group` 今天用的
+//    就是那四副。
+//
 
 // ── contact-info（138 个实例 · 57/66 个站 · 真客户站 1 次；essential 块）─────────────────────────
 //
@@ -505,22 +515,24 @@ const TESTIMONIAL_LOOKS = {
   },
 };
 
-// 六族各自的档位。**这里是唯一说得出「第 i 套是哪一副」的地方**（同 hero / split / cards / cta /
-// form 那几行的纪律）：名字表就是那张画法表自己的键，不另抄一份清单。
+// #1139 那批各自的档位。**这里是唯一说得出「第 i 套是哪一副」的地方**（同 hero / split / cards /
+// cta / form 那几行的纪律）：名字表就是那张画法表自己的键，不另抄一份清单。
 // 🔴 m（错开的步长）是搜出来的，不是随手取的 —— 判据是「跟已有的每一族、以及本批彼此，都不互相
-//    决定（每一档下对方至少还有 2 种取值）」，而且每一档的池内占比 ≥15%（AC2）。实测这一组：
+//    决定（每一档下对方至少还有 2 种取值）」，而且每一档的池内占比 ≥15%（AC2）。实测那一组：
 //    候选数 4 的三族分布都是 20/20/20/20（最小档 25.0%），候选数 3 的两族是 27/26/27（32.5%）。
+// 📌 #1139 当时是**六族**；`benefitsLook` 随 `benefits-list` 这个 type 名一起退役（#1162），
+//    所以现在是五族。上面那句「候选数 3 的两族」说的是 #1139 当天的读数，留作出处 ——
+//    候选数 3 的族今天只剩 `infoLook` 一个（另一个就是退役掉的 `benefitsLook`）—— 现读：
+//    `node -e "require('./scripts/theme-pipeline/sheet-recipes.js').LOOK_FAMILIES.forEach(f=>console.log(f.key,Object.keys(f.table).length))"`
 const HEADER_LOOK_NAMES = Object.keys(HEADER_LOOKS);
 const FAQ_LOOK_NAMES = Object.keys(FAQ_LOOKS);
 const STEPS_LOOK_NAMES = Object.keys(STEPS_LOOKS);
-const BENEFITS_LOOK_NAMES = Object.keys(BENEFITS_LOOKS);
 const INFO_LOOK_NAMES = Object.keys(INFO_LOOKS);
 const TESTIMONIAL_LOOK_NAMES = Object.keys(TESTIMONIAL_LOOKS);
 const headerLookFor = lookFor(HEADER_LOOK_NAMES, 2);
 const faqLookFor = lookFor(FAQ_LOOK_NAMES, 10);
 const stepsLookFor = lookFor(STEPS_LOOK_NAMES, 12);
 const testimonialLookFor = lookFor(TESTIMONIAL_LOOK_NAMES, 16);
-const benefitsLookFor = lookFor(BENEFITS_LOOK_NAMES, 3);
 const infoLookFor = lookFor(INFO_LOOK_NAMES, 4);
 
 // 三个块一组的深浅节奏，而不是简单的隔一个换一个 —— 后者让每套候选的节奏都一样。
@@ -612,7 +624,6 @@ function voiceFor(i) {
     headerLook: headerLookFor(i),
     faqLook: faqLookFor(i),
     stepsLook: stepsLookFor(i),
-    benefitsLook: benefitsLookFor(i),
     infoLook: infoLookFor(i),
     testimonialLook: testimonialLookFor(i),
     // 表面明暗的轮换相位：块按页面顺序深/浅交替，相位一换，整站的节奏就不一样了。
@@ -855,8 +866,10 @@ const SHAPES = {
   // `step` 不写在这里 —— 它走 ROLE_BY_PART 的默认值 `card`。它是容器（见上面那段 🔴）。
   'quote-form': { cols: '3fr 2fr', role: { form: 'panel', intro: 'lede', main: 'column', aside: 'panel', error: 'error', success: 'success', action: 'actions' } },
   'services-list': { cols: '1fr 1fr', role: { item: 'card', icon: 'icon', title: 'title', desc: 'desc', actions: 'actions', features: 'list', products: 'list' } },
-  'values-grid': { role: { item: 'card', title: 'title', desc: 'desc' } },
-  // #1132 —— 通用块「卡片组」。跟上面那一行逐字相同，因为它就是那两个块并起来的那个。
+  // #1132 —— 通用块「卡片组」。
+  // 📌 #1162：这一行上面原来还有一行 `values-grid`，跟它逐字相同（它就是那两个块并起来的那个）。
+  //    别名兼容层退役之后 `values-grid` 不在注册表也不在 `HOOKS` 里了 ⟹ 那一行是死的，删掉。
+  //    同一批删掉的还有 `benefits-list` / `checklist` / `service-highlights` 三行。
   'card-group': { role: { item: 'card', title: 'title', desc: 'desc' } },
   'services-nav': { cols: '1fr', role: { link: 'chip' } },
   'service-related-pages': { role: { card: 'card' } },
@@ -864,9 +877,7 @@ const SHAPES = {
   'stats-counter': { role: { stat: 'card', value: 'figure', label: 'eyebrow' } },
   'process-steps': { role: { step: 'card', num: 'numeral', title: 'title', desc: 'desc' } },
   timeline: { cols: '1fr', role: { event: 'row-card', year: 'figure', title: 'title', desc: 'desc' } },
-  'benefits-list': { role: { item: 'card', title: 'title', desc: 'desc' } },
   'team-grid': { role: { member: 'card', name: 'title', role: 'eyebrow', bio: 'desc' } },
-  checklist: { cols: '1fr 1fr', role: { item: 'ticked' } },
   'blog-preview': { role: { post: 'card', category: 'chip', date: 'meta', title: 'title', excerpt: 'desc' } },
   'content-split': { cols: '1fr 1fr', rootExtra: { 'align-items': 'center' }, role: { media: 'media', body: 'column', bullets: 'list', stats: 'inline-grid-3', stat: 'card', 'stat-value': 'figure', 'stat-label': 'eyebrow' } },
   'text-block': { cols: '1fr', role: { body: 'prose', attribution: 'meta', list: 'list' } },
@@ -878,7 +889,6 @@ const SHAPES = {
   'faq-accordion': { cols: '1fr', role: { item: 'row-card', question: 'title', answer: 'desc' } },
   testimonials: { role: { item: 'card', rating: 'inline-row', star: 'star', quote: 'quote', name: 'title', meta: 'meta', service: 'chip' } },
   'announcement-bar': { cols: '1fr', role: { message: 'lede', link: 'contact' } },
-  'service-highlights': { role: { item: 'card', title: 'title', desc: 'desc', features: 'list' } },
   'pricing-table': { role: { item: 'card', 'item--featured': 'featured', badge: 'chip', name: 'title', price: 'figure', desc: 'desc', features: 'list', action: 'actions' } },
   gallery: { role: { item: 'card', image: 'media', placeholder: 'media', caption: 'meta', category: 'chip', title: 'title', desc: 'desc' } },
   'feature-comparison': { cols: '1fr', role: { head: 'row-head', label: 'eyebrow', row: 'row-card', feature: 'title', mark: 'mark', 'mark--yes': 'yes', 'mark--no': 'no' } },
@@ -1331,7 +1341,6 @@ const LOOK_FAMILIES = [
   { key: 'headerLook', blocks: ['page-header'], table: HEADER_LOOKS, pick: headerLookFor, keepsWide: false },
   { key: 'faqLook', blocks: ['faq-accordion'], table: FAQ_LOOKS, pick: faqLookFor, keepsWide: false },
   { key: 'stepsLook', blocks: ['process-steps'], table: STEPS_LOOKS, pick: stepsLookFor, keepsWide: true },
-  { key: 'benefitsLook', blocks: ['benefits-list'], table: BENEFITS_LOOKS, pick: benefitsLookFor, keepsWide: true },
   { key: 'infoLook', blocks: ['contact-info'], table: INFO_LOOKS, pick: infoLookFor, keepsWide: true },
   { key: 'testimonialLook', blocks: ['testimonials'], table: TESTIMONIAL_LOOKS, pick: testimonialLookFor, keepsWide: true },
 ];
@@ -1635,17 +1644,10 @@ const ROLES = {
     'line-height': '1.6',
     color: primary(s.soft),
   }),
-  ticked: (v, s) => ({
-    display: 'grid',
-    gap: '0.5rem',
-    padding: '0.75rem 0 0.75rem 1.75rem',
-    'border-width': '0 0 1px',
-    'border-style': 'solid',
-    'border-color': primary(s.line),
-    'font-size': '0.9375rem',
-    'line-height': '1.6',
-    color: primary(s.fg),
-  }),
+  // 📌 #1162：这里原来还有一个 `ticked` 角色（打勾的清单条目：左内边距 + 底边细线）。
+  //    它的唯一入口是 `SHAPES.checklist.role.item`，而 `checklist` 这个 type 名随别名兼容层
+  //    2026-08-23 退役 ⟹ 全仓零引用（`grep -rn ticked scripts/ src/ tests/` 只剩这条注释），
+  //    所以删掉。`ROLE_BY_PART` 里也没有任何部件名映到它（默认是 `card`/`list`）。
   actions: () => ({
     display: 'flex',
     'flex-wrap': 'wrap',
@@ -1797,6 +1799,8 @@ function sheetFor(i, seed = 7) {
     // 🔴 #1090 r2 —— 这个判据以前只问「列数变不变」，而 `wideRule` 里同时装着**列数**和**桌面留白**
     //    （#1078 把留白折进来的那一次）。于是一个选了单栏的画法把它所在块族的桌面留白一起弄丢了：
     //    QA2 逐份表数出来 content-split 40 套 / features-grid·values-grid·service-highlights 各 20 套
+    //    （#1162 注：`values-grid` / `service-highlights` 这两个 type 名今天已经退役，这句是 #1090 r2
+    //    当天的读数、留作出处；同一族今天的成员见 `CARD_BLOCKS`）
     //    在交付里没有了 `@media (min-width: 1024px)` 那一段，桌面上用回手机的 gap 与 padding
     //    （1440px 实测 gap 24→16、padding 56/48→40/24）。**列数是这个画法的选择，留白是这个断点的
     //    性质** —— 两件事不该由同一个判据决定。
@@ -1853,7 +1857,6 @@ module.exports = {
   HEADER_LOOKS, HEADER_LOOK_NAMES, headerLookFor,
   FAQ_LOOKS, FAQ_LOOK_NAMES, faqLookFor,
   STEPS_LOOKS, STEPS_LOOK_NAMES, stepsLookFor,
-  BENEFITS_LOOKS, BENEFITS_LOOK_NAMES, benefitsLookFor,
   INFO_LOOKS, INFO_LOOK_NAMES, infoLookFor,
   TESTIMONIAL_LOOKS, TESTIMONIAL_LOOK_NAMES, testimonialLookFor,
   LOOK_FAMILIES, familyOf,
