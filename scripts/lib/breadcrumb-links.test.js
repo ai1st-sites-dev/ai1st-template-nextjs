@@ -19,10 +19,14 @@
 'use strict';
 
 const assert = require('assert');
-const { pruneDeadBreadcrumbHrefs, slugFromHref } = require('./breadcrumb-links');
+const {
+  pruneDeadBreadcrumbHrefs, slugFromHref, alignBreadcrumbsToOwnService, serviceDetailIndex,
+} = require('./breadcrumb-links');
 
 let failed = 0;
+let ran = 0;
 function test(name, fn) {
+  ran += 1;
   try {
     fn();
     console.log(`  ✅ ${name}`);
@@ -173,8 +177,201 @@ test('⑨ slugFromHref: 站内的给出可比的 slug，站外的给 null', () =
   assert.strictEqual(slugFromHref(undefined), null);
 });
 
+// ══ #1184 —— 「活着但指错服务」那一半 ═══════════════════════════════════════════════════════════
+//
+// 夹具是 2026-08-24 从 #1176 交付形态的真机产物里**原样抄下来**的（容器 `qa2a-1176-after`，
+// 2 个服务 Drain Cleaning / Water Heater Repair，关键词挂在第三个服务 Sump Pump Installation 上）：
+//   sump-pump-installation/backup-sump-pump-battery-victoria.json
+//     [{"label":"Home","href":"/"},{"label":"Sump Pump Installation","href":"/services/water-heater-repair"},…]
+//   sump-pump-installation/basement-flood-prevention-victoria.json
+//     [{"label":"Home","href":"/"},{"label":"Sump Pump Installation","href":"/services/drain-cleaning"},…]
+// 那两个目标页真的存在（`ls site/en/pages/services` → 两份），所以 #1176 那道读到 0 条死链。
+//
+// 🔴 **每一格都配了能把它弄红的那一臂。** 特别是⑫：那一页自己的详情页是 water-heater-repair，而清单里
+//    第一个是 drain-cleaning ⟹ 一个「挑清单里第一个」的坏修法在⑫和⑩上当场红（本票 AC4 就是驱动这件事）。
+
+console.log('\n══ #1184 面包屑指对没有 体检 ══');
+
+/** Call 1 出的页面清单（真机形态：`parentService` 是 slug 形态，两个服务各一页详情页）。 */
+const sitePages2 = [
+  { slug: 'home' }, { slug: 'about' }, { slug: 'services' }, { slug: 'quote' },
+  { slug: 'services/drain-cleaning', serviceDetailPage: true, parentService: 'drain-cleaning' },
+  { slug: 'services/water-heater-repair', serviceDetailPage: true, parentService: 'water-heater-repair' },
+];
+/** `keywordPagesFrom()` 的产物形态。 */
+const kwList = (service, serviceSlug, keywordSlugs) => keywordSlugs.map((k) => ({
+  service, serviceSlug, keyword: k, keywordSlug: k, nestedSlug: `${serviceSlug}/${k}`,
+}));
+
+test('⑩ 真机那两页：服务没有自己的详情页 ⟹ 去掉 href、文字留着（本票的病）', () => {
+  const pages = [
+    kwPage('sump-pump-installation/backup-sump-pump-battery-victoria', [
+      { label: 'Home', href: '/' },
+      { label: 'Sump Pump Installation', href: '/services/water-heater-repair' },
+      { label: 'Backup Sump Pump Battery Victoria' },
+    ]),
+    kwPage('sump-pump-installation/basement-flood-prevention-victoria', [
+      { label: 'Home', href: '/' },
+      { label: 'Sump Pump Installation', href: '/services/drain-cleaning' },
+      { label: 'Basement Flood Prevention Victoria' },
+    ]),
+  ];
+  const changes = alignBreadcrumbsToOwnService(pages, sitePages2, kwList(
+    'Sump Pump Installation', 'sump-pump-installation',
+    ['backup-sump-pump-battery-victoria', 'basement-flood-prevention-victoria'],
+  ));
+  assert.strictEqual(changes.length, 2, `该改两处,实际 ${JSON.stringify(changes)}`);
+  for (const p of pages) {
+    const crumbs = p.sections[0].data.breadcrumbs;
+    assert.strictEqual(crumbs[0].href, '/', 'Home 那一级不许被动');
+    assert.ok(!('href' in crumbs[1]), '指错的那一级的 href 该没了');
+    assert.strictEqual(crumbs[1].label, 'Sump Pump Installation', '文字必须原样留着');
+    assert.strictEqual(crumbs.length, 3, '不许整级删掉');
+  }
+});
+
+test('⑪ 反向臂（AC2）：服务有自己的详情页、模型指的就是它 ⟹ 一处不改', () => {
+  const pages = [kwPage('drain-cleaning/hydro-jetting-victoria-bc', [
+    { label: 'Home', href: '/' },
+    { label: 'Drain Cleaning', href: '/services/drain-cleaning' },
+    { label: 'Hydro Jetting Victoria BC' },
+  ])];
+  const changes = alignBreadcrumbsToOwnService(pages, sitePages2,
+    kwList('Drain Cleaning', 'drain-cleaning', ['hydro-jetting-victoria-bc']));
+  assert.deepStrictEqual(changes, [], `不该改任何东西,实际 ${JSON.stringify(changes)}`);
+  assert.strictEqual(pages[0].sections[0].data.breadcrumbs[1].href, '/services/drain-cleaning');
+});
+
+test('⑫ 有自己的详情页、却指了别人家 ⟹ 改成【自己那个】,不是清单里第一个', () => {
+  const pages = [kwPage('water-heater-repair/tankless-install-victoria', [
+    { label: 'Home', href: '/' },
+    { label: 'Water Heater Repair', href: '/services/drain-cleaning' },   // ← 清单里第一个
+    { label: 'Tankless Install Victoria' },
+  ])];
+  const changes = alignBreadcrumbsToOwnService(pages, sitePages2,
+    kwList('Water Heater Repair', 'water-heater-repair', ['tankless-install-victoria']));
+  assert.strictEqual(pages[0].sections[0].data.breadcrumbs[1].href, '/services/water-heater-repair');
+  assert.strictEqual(changes.length, 1, `该改一处,实际 ${JSON.stringify(changes)}`);
+});
+
+test('⑬ 有自己的详情页、而那一级没有 href（模型漏了,或被 #1176 那道剥掉了）⟹ 按文字补上', () => {
+  const pages = [kwPage('drain-cleaning/emergency-unclogging-victoria', [
+    { label: 'Home', href: '/' },
+    { label: 'Drain Cleaning' },
+    { label: 'Emergency Unclogging Victoria' },
+  ])];
+  const changes = alignBreadcrumbsToOwnService(pages, sitePages2,
+    kwList('Drain Cleaning', 'drain-cleaning', ['emergency-unclogging-victoria']));
+  assert.strictEqual(pages[0].sections[0].data.breadcrumbs[1].href, '/services/drain-cleaning');
+  assert.strictEqual(changes.length, 1, `该补一处,实际 ${JSON.stringify(changes)}`);
+});
+
+test('⑭ 不是服务详情页的 href 一个都不碰（`/services` 索引页 · `/quote` · 外链）', () => {
+  const crumbs = [
+    { label: 'Home', href: '/' },
+    { label: 'Services', href: '/services' },
+    { label: 'Ask', href: '/quote' },
+    { label: 'X', href: 'https://example.com/services/drain-cleaning' },
+    { label: 'Basement Flood Prevention Victoria' },
+  ];
+  const pages = [kwPage('sump-pump-installation/basement-flood-prevention-victoria', crumbs)];
+  const changes = alignBreadcrumbsToOwnService(pages, sitePages2, kwList(
+    'Sump Pump Installation', 'sump-pump-installation', ['basement-flood-prevention-victoria'],
+  ));
+  assert.deepStrictEqual(changes, [], `不该改任何东西,实际 ${JSON.stringify(changes)}`);
+  assert.strictEqual(crumbs.filter((c) => 'href' in c).length, 4, '四条 href 都该还在');
+});
+
+test('⑮ `parentService` 被 AI 写成显示名时也对得上（末段那一半键）', () => {
+  const sitePagesDisplayName = [
+    { slug: 'services/drain-cleaning', serviceDetailPage: true, parentService: 'Drain Cleaning' },
+    { slug: 'services/water-heater-repair', serviceDetailPage: true, parentService: 'Water Heater Repair' },
+  ];
+  const idx = serviceDetailIndex(sitePagesDisplayName);
+  assert.strictEqual(idx.byServiceKey.get('drain-cleaning'), 'services/drain-cleaning');
+  assert.strictEqual(idx.detailSlugs.size, 2);
+  const pages = [kwPage('drain-cleaning/kw', [
+    { label: 'Home', href: '/' },
+    { label: 'Drain Cleaning', href: '/services/water-heater-repair' },
+    { label: 'Kw' },
+  ])];
+  alignBreadcrumbsToOwnService(pages, sitePagesDisplayName, kwList('Drain Cleaning', 'drain-cleaning', ['kw']));
+  assert.strictEqual(pages[0].sections[0].data.breadcrumbs[1].href, '/services/drain-cleaning');
+});
+
+test('⑯ 不在关键词页清单里的那一页：不知道它属于哪个服务 ⟹ 一个字节都不动', () => {
+  const pages = [kwPage('services/drain-cleaning', [
+    { label: 'Home', href: '/' },
+    { label: 'Services', href: '/services' },
+    { label: 'Drain Cleaning' },
+  ])];
+  const changes = alignBreadcrumbsToOwnService(pages, sitePages2, kwList('Drain Cleaning', 'drain-cleaning', ['kw']));
+  assert.deepStrictEqual(changes, []);
+});
+
+test('⑰ 缺 sections / 缺 breadcrumbs / crumb 是 null / 清单是空的 都不抛', () => {
+  assert.deepStrictEqual(alignBreadcrumbsToOwnService(undefined, undefined, undefined), []);
+  assert.deepStrictEqual(alignBreadcrumbsToOwnService([{ slug: 'a/b' }], sitePages2, kwList('A', 'a', ['b'])), []);
+  assert.deepStrictEqual(
+    alignBreadcrumbsToOwnService(
+      [{ slug: 'a/b', sections: [{ type: 'page-header', data: { breadcrumbs: [null, {}, { href: 5 }] } }] }],
+      sitePages2, kwList('A', 'a', ['b']),
+    ),
+    [],
+  );
+  assert.deepStrictEqual(serviceDetailIndex(undefined).detailSlugs.size, 0);
+});
+
+test('⑱ 两道串起来（真跑里的顺序：先剥死链、再对齐）：死的中间级被剥掉之后,对的那条被补回来', () => {
+  const pages = [kwPage('drain-cleaning/kw', [
+    { label: 'Home', href: '/' },
+    { label: 'Drain Cleaning', href: '/services/sump-pump-installation' },   // 这一页不存在
+    { label: 'Kw' },
+  ])];
+  const known = new Set([
+    'home', 'about', 'services', 'quote',
+    'services/drain-cleaning', 'services/water-heater-repair', 'drain-cleaning/kw',
+  ]);
+  const dropped = pruneDeadBreadcrumbHrefs(pages, known);
+  assert.deepStrictEqual(dropped, ['drain-cleaning/kw: /services/sump-pump-installation']);
+  const changes = alignBreadcrumbsToOwnService(pages, sitePages2, kwList('Drain Cleaning', 'drain-cleaning', ['kw']));
+  assert.strictEqual(changes.length, 1);
+  assert.strictEqual(pages[0].sections[0].data.breadcrumbs[1].href, '/services/drain-cleaning');
+});
+
+test('⑲ 盘上那份产物用的是 `blocks`（#998 写盘时转的）—— 那个形状也要认，否则拿真产物跑是空操作', () => {
+  // 夹具逐字来自 `dev2-1184-offsvc3-before` 的盘上产物（3 服务都出了详情页，关键词挂在第四个服务上）：
+  //   site/en/pages/sump-pump-installation/backup-sump-pump-battery-victoria.json
+  const page = {
+    slug: 'sump-pump-installation/backup-sump-pump-battery-victoria',
+    blocks: [{
+      id: 'kw-page-header', type: 'page-header', role: 'essential', region: 'content', weight: 0,
+      data: {
+        title: 'Backup Sump Pump Battery Victoria',
+        breadcrumbs: [
+          { label: 'Home', href: '/' },
+          { label: 'Sump Pump Installation', href: '/services/drain-cleaning' },
+          { label: 'Backup Sump Pump Battery Victoria' },
+        ],
+      },
+    }],
+  };
+  const sitePages = [
+    { slug: 'services/drain-cleaning', serviceDetailPage: true, parentService: 'drain-cleaning' },
+    { slug: 'services/water-heater-repair', serviceDetailPage: true, parentService: 'water-heater-repair' },
+    { slug: 'services/faucet-repair', serviceDetailPage: true, parentService: 'faucet-repair' },
+  ];
+  const changes = alignBreadcrumbsToOwnService([page], sitePages, kwList(
+    'Sump Pump Installation', 'sump-pump-installation', ['backup-sump-pump-battery-victoria'],
+  ));
+  assert.strictEqual(changes.length, 1, `该改一处,实际 ${JSON.stringify(changes)}`);
+  const crumbs = page.blocks[0].data.breadcrumbs;
+  assert.ok(!('href' in crumbs[1]), 'href 该没了');
+  assert.strictEqual(crumbs[1].label, 'Sump Pump Installation');
+});
+
 if (failed > 0) {
-  console.error(`\n🔴 #1176 breadcrumb-links 体检: ${failed} 格失败`);
+  console.error(`\n🔴 breadcrumb-links 体检（#1176 + #1184）: ${failed}/${ran} 格失败`);
   process.exit(1);
 }
-console.log('\n✅ #1176 breadcrumb-links 体检: 9/9 通过');
+console.log(`\n✅ breadcrumb-links 体检（#1176 + #1184）: ${ran}/${ran} 通过`);

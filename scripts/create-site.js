@@ -57,7 +57,7 @@ const { pageWithBlocks } = require('./blocks');
 // hero）都住在那个文件里，这里只在写盘前叫它一次。
 const { applyHeroLeadForm } = require('./lib/hero-lead-form');
 // #1176 —— 关键词页面包屑那个中间级的死链修法（提示词 + 生成后核对两侧，理由整段在那个文件头上）。
-const { pruneDeadBreadcrumbHrefs } = require('./lib/breadcrumb-links');
+const { pruneDeadBreadcrumbHrefs, alignBreadcrumbsToOwnService, serviceKey } = require('./lib/breadcrumb-links');
 
 // ─── AI Model Config ─────────────────────────────────────────────────────────
 
@@ -1159,6 +1159,14 @@ async function main() {
     const droppedCrumbs = pruneDeadBreadcrumbHrefs(kwPages, knownSlugs);
     if (droppedCrumbs.length > 0) {
       debug(`#1176: dropped ${droppedCrumbs.length} breadcrumb href(s) pointing at pages that will not exist: ${droppedCrumbs.join(', ')}`);
+    }
+
+    // #1184 —— 上面那道只问「那一页存不存在」，所以它对**活着但指错服务**失明（文字写着 A、点进去是 B）。
+    // 这一道按「指对没有」再核一次。放在剥死链【之后】是有意的：剥掉一个死的中间级之后，如果这个
+    // 服务其实有自己的详情页，下面那一步会把对的那条补回去。判据与理由住在 lib 那个文件的文件头。
+    const alignedCrumbs = alignBreadcrumbsToOwnService(kwPages, content.pages, keywordPagesList);
+    if (alignedCrumbs.length > 0) {
+      debug(`#1184: re-pointed ${alignedCrumbs.length} breadcrumb service level(s) at their own service: ${alignedCrumbs.join(', ')}`);
     }
 
     // Add keyword pages to content.pages
@@ -2619,6 +2627,21 @@ async function generateKeywordPages(opts) {
 
   const client = new Anthropic();
 
+  // #1184 —— 提示词以前只给一张【全站】服务详情页清单 + 一句「从清单里逐字挑一个」，而这个关键词页
+  // 所属的服务可能不在清单上（服务详情页只覆盖 payload 的 services，关键词可以挂在别的服务上）。
+  // 模型于是挑了别人的：真机产物上 `{label:"Sump Pump Installation", href:"/services/water-heater-repair"}`
+  // —— 文字写着 A、点进去是 B，而那一页真的存在，所以死链那道检查读到 0。这里改成【逐页】告诉它
+  // 允许的那一个值，没有就明说 NO LINK。生成之后还有 `alignBreadcrumbsToOwnService()` 兜底。
+  const ownDetailSlugFor = (kp) => {
+    const key = serviceKey(kp.serviceSlug) || serviceKey(kp.service);
+    if (!key) return null;
+    for (const [svcId, slug] of Object.entries(serviceDetailMap)) {
+      const last = serviceKey(String(slug).split('/').pop());
+      if (serviceKey(svcId) === key || last === key) return slug;
+    }
+    return null;
+  };
+
   const languageInstruction = languageName !== 'English'
     ? `\nLANGUAGE: Write ALL content in ${languageName}.${chineseVariantHint(languageName)} Only JSON keys and technical values (slugs, hrefs, icon names, variant names, section type names) should remain in English.\n`
     : '';
@@ -2645,12 +2668,19 @@ ${Object.keys(serviceDetailMap).length > 0 ? `SERVICE DETAIL PAGES (link breadcr
 ${Object.entries(serviceDetailMap).map(([svcId, slug]) => `- ${svcId}: /${slug}`).join('\n')}
 ` : ''}
 KEYWORD PAGES TO CREATE (one page per keyword):
-${keywordPages.map((kp, i) => `${i + 1}. slug: "${kp.nestedSlug}" — keyword: "${kp.keyword}" (${kp.volume || '?'} searches/mo) — service: ${kp.service}`).join('\n')}
+${keywordPages.map((kp, i) => {
+  const base = `${i + 1}. slug: "${kp.nestedSlug}" — keyword: "${kp.keyword}" (${kp.volume || '?'} searches/mo) — service: ${kp.service}`;
+  if (Object.keys(serviceDetailMap).length === 0) return base;
+  const own = ownDetailSlugFor(kp);
+  return `${base}\n   breadcrumb middle level for THIS page: ${own
+    ? `/${own}`
+    : `NO LINK — "${kp.service}" has no service detail page. Write {label:"${kp.service}"} with NO href field.`}`;
+}).join('\n')}
 
 EACH PAGE MUST have 4-6 sections from these options:
 1. "page-header" (REQUIRED first) — variants: "default", "minimal", "centered", "with-description"
    data: { title, subtitle?, breadcrumbs: ${Object.keys(serviceDetailMap).length > 0
-     ? `[{label:"Home", href:"/"}, {label:"<Service>", href:"/${Object.values(serviceDetailMap)[0]}"}, {label:"<Page Title>"}]`
+     ? '[{label:"Home", href:"/"}, {label:"<Service>", href:"<the breadcrumb middle level given for THIS page above — omit the href field entirely when it says NO LINK>"}, {label:"<Page Title>"}]'
      : `[{label:"Home", href:"/"}, {label:"<Page Title>"}]  ← EXACTLY TWO LEVELS. This site has no service detail pages, so there is no middle level to link to. Do NOT invent one.`}, variant }
 2. "text-block" (REQUIRED, 2-3 paragraphs of unique SEO content) — variants: "default", "two-column", "highlight-box", "with-list", "quote"
    data: { headline?, content (2-3 paragraphs), variant, items?: [string] }
@@ -2689,7 +2719,7 @@ CRITICAL RULES:
 - Vary section types and variants across pages. Alternate between card-group and process-steps.
 - CTA href should point to "/quote" or the appropriate contact page, or alternate with a service detail page link (e.g. "/services/{slug}") when available.
 - Breadcrumb middle level: ${Object.keys(serviceDetailMap).length > 0
-  ? 'use one of the SERVICE DETAIL PAGES listed above, verbatim. Do not write a path that is not on that list.'
+  ? 'use EXACTLY the "breadcrumb middle level for THIS page" value given with that page above. If it says NO LINK, write the label with NO href field at all. NEVER point it at another service\'s detail page — the label says one service and the link would go to a different one (#1184).'
   : 'omit it — this site has NO service detail pages. Breadcrumbs are exactly [Home, <Page Title>]. A made-up middle link is a 404 (#1176).'}
 - Include ${location || 'the local area'} naturally in content for local SEO.
 - navOrder should be 50+ (keyword pages sort after regular pages).`;
