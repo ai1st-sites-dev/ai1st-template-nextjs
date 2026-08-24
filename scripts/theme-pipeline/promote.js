@@ -150,8 +150,11 @@ function readCandidates(dir) {
     });
 }
 
-/** 一批候选 → 整个池（对象，键是新 id）。`accepted` 是候选 id 的白名单，不传就全收。 */
-function buildPool(candidates, { accepted } = {}) {
+/**
+ * 一批候选 → 整个池（对象，键是新 id）。`accepted` 是候选 id 的白名单，不传就全收。
+ * `slotOf`（#1182）是「候选 id → 它该占的位子下标」；不传就退回「按过滤之后的位置发位子」。
+ */
+function buildPool(candidates, { accepted, slotOf } = {}) {
   const slots = poolSlots();
   const take = accepted ? candidates.filter((c) => accepted.includes(c.id)) : candidates;
   if (take.length > slots.length) {
@@ -161,12 +164,80 @@ function buildPool(candidates, { accepted } = {}) {
   const pool = {};
   const map = [];
   take.forEach((c, i) => {
-    const { id, entry, headerMovedBy } = toPoolEntry(c, slots[i]);
+    // 🔴 #1182 —— 位子先用「闸量这套候选时用的那一个」。为什么这一维承重，整段写在下面
+    //    §闸的裁定怎么交到写池这一步 的第二条 🔴 上。`slotOf` 不给时退回 `i`，那是 #1182 之前
+    //    唯一的行为，手工跑 promote.js 挑候选那条路仍然走它。
+    const si = slotOf && slotOf[c.id] !== undefined ? slotOf[c.id] : i;
+    const slot = slots[si];
+    if (!slot) {
+      throw new Error(`候选 ${c.id} 要的位子下标是 ${si}，而位子表只有 ${slots.length} 个 —— `
+        + '位子表在 industry-sectors.js，别在这里兜。');
+    }
+    const { id, entry, headerMovedBy } = toPoolEntry(c, slot);
     if (pool[id]) throw new Error(`两套候选算出同一个 id：${id}（${c.id}）`);
     pool[id] = entry;
-    map.push({ candidate: c.id, id, sector: slots[i].sectorKey, headerMovedBy });
+    map.push({ candidate: c.id, id, sector: slot.sectorKey, headerMovedBy });
   });
   return { pool, map };
+}
+
+// ── 闸的裁定怎么交到写池这一步（#1182）─────────────────────────────────────────────────────────────
+//
+// 🔴 为什么要有这份文件，而不是让跑的人手工传 `--accepted`。五道闸算出「哪些候选过了」之后，这份
+//    信息此前就留在 run.js 的进程里没了 —— 而下面 `main` 里写池那一步不给 `--accepted` 就把候选
+//    目录里的**全部**收进池。漏传一次，五道闸对写池这一步全部不承重，而**报告里照样写着某一套被
+//    拒了**。#1173 AC6 那次「被拒的没进池」是成立的，靠的是跑的人手工挑出 id 写进一个文件。
+//
+// 🔴 名单里为什么带着位子，不只是候选 id。一套主题的 pool id 和它落在哪个行业组，都由位子下标决定
+//    （`toPoolEntry` 里的 `slot.index + 1` 和 `slot.sectorKey`），而两边的下标口径本来就不同：
+//    run.js 按「在全部候选里的下标」发位子（`slots[ci]`），`buildPool` 按「在过滤之后的子集里的
+//    下标」发。只要有一套被拒，两边就起出两套不同的 id —— README §图上的顶栏/页脚 那一节早就写下
+//    了这件事，并把「把位子与接受顺序解耦」记成另一张票的取舍。#1182 就是那张票：在它之前池子是
+//    全收的、位子永远不挪，所以这件事碰不到；从它开始，被拒几套直接决定后面每一套的位子。带着位子
+//    走 = 闸量过的那一套和写进池的那一套是同一套。
+//
+// 🔴 失败方向：名单落不了地就不写池，不是退回全收。run.js 开跑前先落一份 `complete:false` 的哨兵，
+//    整轮跑完才翻成 `true`。所以盘上这两种情况分得开，而这一点是承重的：
+//      · **没有这份文件** = 没跑过流水线（手工挑候选那条路）⟹ 照旧全收
+//      · **文件在、但没 complete** = 流水线跑过而名单没落地 ⟹ 拒绝写池
+//    要是拿「文件不在」当失败信号，它跟手工那条路在盘上长得一模一样，于是「不写池」这条纪律会把
+//    手工那条路一起掐死（AC4 要留的正是它）。
+const VERDICT_FILE = 'pipeline-verdict.json';
+
+const verdictPath = (dir) => path.join(dir, VERDICT_FILE);
+
+/** 写裁定。`complete:false` 的那一份是哨兵，run.js 开跑前落。 */
+function writeVerdict(dir, verdict) {
+  fs.writeFileSync(verdictPath(dir), `${JSON.stringify(verdict, null, 2)}\n`);
+}
+
+/**
+ * 读裁定。三种返回，调用方必须分开处置：
+ *   `null`              这个目录没跑过流水线
+ *   `{ broken: '…' }`   跑过，但名单不可用（这一种不许当成「没跑过」）
+ *   `{ accepted: [...] }` 可用
+ */
+function readVerdict(dir) {
+  const p = verdictPath(dir);
+  if (!fs.existsSync(p)) return null;
+  let v;
+  try {
+    v = JSON.parse(fs.readFileSync(p, 'utf-8'));
+  } catch (e) {
+    return { broken: `${VERDICT_FILE} 解析不了：${e.message}` };
+  }
+  if (!v || v.complete !== true) {
+    return { broken: `${VERDICT_FILE} 里 complete 不是 true —— 流水线跑过，但它的名单没落地` };
+  }
+  if (!Array.isArray(v.accepted)) {
+    return { broken: `${VERDICT_FILE} 里没有 accepted 这个数组` };
+  }
+  for (const a of v.accepted) {
+    if (!a || typeof a.candidate !== 'string' || !Number.isInteger(a.slot)) {
+      return { broken: `${VERDICT_FILE} 的 accepted 里有一条不是 {candidate, slot}：${JSON.stringify(a)}` };
+    }
+  }
+  return v;
 }
 
 // ── AC6 的检查：池里每一套都翻过了吗 ───────────────────────────────────────────────────────────────
@@ -223,9 +294,32 @@ function main(argv) {
   const dir = arg('--candidates', '');
   if (!dir) { console.error('要 --candidates <目录>'); process.exit(2); }
   const acceptedArg = arg('--accepted', '');
-  const accepted = acceptedArg ? fs.readFileSync(acceptedArg, 'utf-8').split('\n').map((s) => s.trim()).filter(Boolean) : null;
+  let accepted = acceptedArg ? fs.readFileSync(acceptedArg, 'utf-8').split('\n').map((s) => s.trim()).filter(Boolean) : null;
+  // #1182 —— 没手工给名单时，先问流水线自己留下的裁定。三种情况分开处置，理由整段写在
+  // §闸的裁定怎么交到写池这一步 上面（尤其第三条 🔴：为什么「文件不在」不能当失败信号）。
+  let slotOf = null;
+  if (!acceptedArg) {
+    const verdict = readVerdict(dir);
+    if (verdict && verdict.broken) {
+      console.error(`🔴 不写池：${verdict.broken}`);
+      console.error('   这份名单就是五道闸的裁定。没有它只能全收，而全收等于那五道闸对写池这一步'
+        + '一点都不承重 —— 报告里写着被拒的那一套照样进池。');
+      console.error(`   ⟹ 要么重跑 run.js --candidates ${dir}，要么手工挑：--accepted <文件>。`);
+      process.exit(2);
+    }
+    if (verdict) {
+      accepted = verdict.accepted.map((a) => a.candidate);
+      slotOf = {};
+      for (const a of verdict.accepted) slotOf[a.candidate] = a.slot;
+      console.log(`按流水线的裁定收 ${accepted.length} 套（${VERDICT_FILE}，`
+        + `${verdict.total === undefined ? '?' : verdict.total} 套候选跑过闸）`);
+    } else {
+      console.log(`没有 ${VERDICT_FILE} —— 这是手工挑候选那条路，全收。`
+        + '（流水线跑过的候选目录里会有这份文件，那时按它的裁定收。）');
+    }
+  }
   const candidates = readCandidates(dir);
-  const { pool, map } = buildPool(candidates, { accepted });
+  const { pool, map } = buildPool(candidates, { accepted, slotOf });
 
   const outPath = arg('--out', POOL_PATH);
   fs.writeFileSync(outPath, `${JSON.stringify(pool, null, 2)}\n`);
@@ -269,4 +363,6 @@ if (require.main === module) main(process.argv.slice(2));
 
 module.exports = {
   toPoolEntry, buildPool, readCandidates, verifyPool, colourWord, hueOf, feelOf, POOL_PATH,
+  // #1182 —— run.js 落裁定、写池那一步读裁定，两边用的是这三个，别各写一份。
+  VERDICT_FILE, verdictPath, writeVerdict, readVerdict,
 };

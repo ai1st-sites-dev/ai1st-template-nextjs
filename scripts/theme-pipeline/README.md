@@ -32,8 +32,16 @@ node scripts/theme-pipeline/sheet-recipes.test.js
 
 # 过完闸的候选 → 池成员（#1016）。这一步把候选的 `layout`（一个值）翻成 `supports`（一个清单），
 # 补上 industries / label / style / sheet，并把每份表拷进 public/themes/
+# 🔴 #1182 —— **不用再手工挑名单了**：上面那次 run.js 把「哪些候选过了闸、各占哪个位子」写进了
+#    候选目录里的 `pipeline-verdict.json`，这一步不给 `--accepted` 时就按它收。在这之前不给
+#    `--accepted` 是把候选目录里的**全部**收进池 —— 漏传一次，五道闸对写池这一步全部不承重，
+#    而报告里照样写着某一套被拒了。
+# 🔴 那份裁定落不了地时这一步会**拒绝写池**（不是退回全收）。理由和三种盘上状态怎么分，写在
+#    `promote.js` 的 §闸的裁定怎么交到写池这一步。
 node scripts/theme-pipeline/promote.js --candidates /tmp/cands --out scripts/theme-pool.json
 node scripts/theme-pipeline/promote.js --verify          # 只查，不写
+# 手工挑候选那条路照旧（候选目录里没有 `pipeline-verdict.json` 时就是这条路，全收）：
+node scripts/theme-pipeline/promote.js --candidates /tmp/cands --accepted /tmp/挑好的.txt
 
 # 池子自己的承重性质（覆盖度 · 词表不缩 · 旧池退役 · supports 翻译 · 表在不在）
 node scripts/theme-pipeline/pool.test.js
@@ -128,10 +136,16 @@ solid-bar 只有 22 套、multi-column 只有 27 套。**人审读到的那一�
 ② 那道闸顺手核一遍「构建自己打的 `Regions:` 那一行 == 算出来的那个值」，断链当场判不过 —— 不许拿一份
 落回默认的产物去拍图。
 
-🔴 **它只在【人审全收】时等于上线后的那个值。** `promote.js` 的 `buildPool` 按**过滤之后的位置**发位子
-（`take.forEach((c, i) => … slots[i])`），所以人审拒掉一套，它后面每一套的位子都往前挪一格，顶栏
-（`index % 4`）和池子 id（`slot.index + 1`）跟着变。#1016 r4c 正好是全收（80 进 80 出、同号 1:1）。
-要让它无条件成立，得把位子与接受顺序解耦（比如按候选 id 定位子）—— 那是另一张票的取舍。
+🔴 **它只在【人审全收】时等于上线后的那个值 —— 而流水线这条路 #1182 起已经不靠全收了。**
+`promote.js` 的 `buildPool` 在不给位子时按**过滤之后的位置**发位子（`take.forEach((c, i) => … slots[i])`），
+所以拒掉一套就让它后面每一套的位子往前挪一格，顶栏（`index % 4`）和池子 id（`slot.index + 1`）跟着变。
+#1016 r4c 正好是全收（80 进 80 出、同号 1:1），所以那次碰不到这件事。
+
+**#1182 把位子与接受顺序解耦了**（就是这一段原来记成「另一张票的取舍」的那件事）：`run.js` 把每套
+候选**被闸量在哪个位子**一起写进 `pipeline-verdict.json`，写池那一步照它发位子。实测读数（被拒的
+那一套排在中间时）：带位子 `jade-01 violet-03`，只给 id 名单 `jade-01 violet-02` —— 后者写进池的
+那一套跟闸量过的那一套不是同一套。**这只覆盖流水线这条路**；手工跑 `promote.js --accepted <文件>`
+仍然按过滤后的位置发位子，那条路上这一段的原话照旧成立。
 
 📌 **这本图册仍然看不见的维度**（#1079 AC5，别以为补完顶栏这一维就全见了）：
 ① **移动端** —— `shoot.mjs` 只有 1440×900 一个视口。四种顶栏在窄屏下都换一副样子（`Header.tsx`：

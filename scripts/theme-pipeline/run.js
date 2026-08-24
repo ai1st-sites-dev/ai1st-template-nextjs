@@ -275,10 +275,31 @@ async function main() {
   //    （版式从 `<id>.layout.json` 读回来这件事也在那份实现里：写死成 `{}` 会让第③道闸的版式那项
   //    在这条路上永远「没得比」——当时算成 0 分 ⟹ 上限 0.8 < 阈值 0.9，整道闸不可能开火，
   //    QA2 在 #1004 r2 端到端量过。）
-  const { readCandidates, toPoolEntry } = require('./promote.js');
+  const { readCandidates, toPoolEntry, writeVerdict, VERDICT_FILE } = require('./promote.js');
   const candidates = arg('--candidates', '')
     ? readCandidates(arg('--candidates', ''))
     : generateCandidates(count, { seed, outDir: workDir });
+
+  // 🔴 #1182 —— 这一轮的裁定要落到盘上，因为写池那一步是另一个进程。整段理由（含「为什么名单里
+  //    带着位子」和「为什么开跑前先落哨兵」）写在 `promote.js` 的 §闸的裁定怎么交到写池这一步。
+  //    一句话版：在这之前，「哪些候选过了闸」算完就留在这个进程里没了，而 `promote.js` 不给
+  //    `--accepted` 就把候选目录里的全部收进池 —— 漏传一次，五道闸对写池那一步全部不承重。
+  // 🔴 哨兵先落、且**落不下去就当场停**：这一步失败时唯一安全的下一步是「不写池」，而写池那一步
+  //    只能靠这份文件的状态判断。哨兵没落成就往下跑，盘上就会是「没有这份文件」= 手工那条路的样子。
+  const candidatesDir = arg('--candidates', '') || workDir;
+  try {
+    writeVerdict(candidatesDir, {
+      complete: false,
+      why: '流水线开跑了,还没跑完 —— 写池那一步看到这个状态必须拒绝写池,不许退回全收',
+      candidatesDir,
+      total: candidates.length,
+    });
+  } catch (e) {
+    console.error(`🔴 落不下裁定哨兵（${path.join(candidatesDir, VERDICT_FILE)}）：${e.message}`);
+    console.error('   不往下跑：这一轮的裁定没法交给写池那一步，而盘上「没有这份文件」跟'
+      + '「手工挑候选」长得一模一样 —— 那时写池会全收，五道闸白跑。');
+    process.exit(2);
+  }
 
   // 第③道跟**谁**比（#1016）。
   //
@@ -384,6 +405,11 @@ async function main() {
     report.push({
       id: c.id,
       poolId,
+      // #1182 —— 这套候选是被量在哪个位子上的。`slots[ci]` 就是 installCandidate 与
+      // toPoolEntry 上面那两处用的同一个位子（`ci` = 在全部候选里的下标）。写池那一步照它发位子，
+      // 所以闸量过的那一套和写进池的那一套是同一套。`ci` 超出位子表时是 undefined（README §那本
+      // 图册仍然看不见的维度 ⑥ 记着这条路），这里如实记成 null，不兜。
+      slot: slots[ci] ? slots[ci].index : null,
       gates,
       facts: shot && shot.facts,
       // `shot` = shoot.mjs 退的是不是 0；`shots` = 盘上真有哪几张图。#1061 起这两个不许互相代替
@@ -416,6 +442,43 @@ async function main() {
   const passed = report.filter((r) => r.gates.every((g) => g.pass !== false)).length;
   const jammed = report.filter((r) => r.gates.some((g) => g.instrument));
   console.log(`\n${passed}/${report.length} 套过了前三道闸。第四道是人。`);
+
+  // 🔴 #1182 —— 把这一轮的裁定翻成 complete，写池那一步才认它。入池判据跟上面 `passed` 那一行
+  //    **同一个表达式**（`gates.every((g) => g.pass !== false)`），不在这里写第二份。
+  // 🔴 落不下去就当场停（exit 2）：那时盘上留着的是开跑前那份 `complete:false` 哨兵，写池那一步
+  //    读到它会拒绝写池 —— 这正是本票要的失败方向。
+  const acceptedRows = report
+    .filter((r) => r.gates.every((g) => g.pass !== false) && r.slot !== null)
+    .map((r) => ({ candidate: r.id, slot: r.slot }));
+  // 🔴 「过了闸但没位子」要说出来，不许静默少一套：`ci` 超出位子表时上面那个 `slot` 是 null，
+  //    而那种候选没法算 pool id（`toPoolEntry` 要一个位子）。静默丢掉它跟「它被闸拒了」在池子里
+  //    长得一模一样。
+  const noSlot = report.filter((r) => r.gates.every((g) => g.pass !== false) && r.slot === null);
+  try {
+    writeVerdict(candidatesDir, {
+      complete: true,
+      candidatesDir,
+      total: report.length,
+      accepted: acceptedRows,
+      rejected: report.filter((r) => r.gates.some((g) => g.pass === false)).map((r) => r.id),
+      jammed: jammed.map((r) => r.id),
+      noSlot: noSlot.map((r) => r.id),
+    });
+    console.log(`  裁定已落盘：${path.join(candidatesDir, VERDICT_FILE)}`
+      + `（收 ${acceptedRows.length} 套 · 写池那一步不必再手工传名单）`);
+  } catch (e) {
+    console.error(`🔴 裁定写不进去（${path.join(candidatesDir, VERDICT_FILE)}）：${e.message}`);
+    // 🔴 这句话对**两种**盘上状态都要成立，所以不许写成「留着的是那份哨兵」：写不进去的原因可能
+    //    正是那个路径被别的东西占了（实测过 EISDIR，那时哨兵已经不在了）。写池那一步两种都不认，
+    //    这才是能说的那一句。
+    console.error('   写池那一步会拒绝写池：盘上要么是开跑前那份 complete:false 的哨兵，要么是这次'
+      + '写不进去的那个东西 —— 它两种都不认。这是有意的：没有名单时唯一安全的动作是不写，不是全收。');
+    process.exit(2);
+  }
+  if (noSlot.length) {
+    console.log(`  🔴 这 ${noSlot.length} 套过了闸却没有位子（候选比位子表还多）：`
+      + `${noSlot.map((r) => r.id).join(' ')} —— 它们不在名单里，理由见 README §那本图册仍然看不见的维度 ⑥。`);
+  }
   if (jammed.length) {
     console.log(`  🔴 其中 ${jammed.length} 套【没量成】—— 这台机器缺东西（每套下面写着缺什么）。`
       + '这不是「这几套主题不合格」：把机器补上再跑一次，读数才存在。');
