@@ -31,7 +31,10 @@ const path = require('path');
 // `shoot.mjs` 一轮里可能写下的全部图（后缀）。`''` 是首页，`-header` 只有 `--header-closeup` 才写。
 // 🔴 这张表跟 `shoot.mjs` 的 `PAGES` 必须一起动：漏一个后缀，那一张就会跨轮活下来，而失败方向是
 //    静默的。`shoot.mjs` 里有一句自查，漏改时当场退 2。
-const SHOT_SUFFIXES = ['', '-about', '-allblocks', '-header'];
+// 🔴 `-slid` (#1190) 不在 `shoot.mjs` 的 `PAGES` 里（它是同一页的第二次拍摄，推到底之后），
+//    所以那边那句自查（PAGES ⊆ 这张表）碰不到它 —— 漏在这里的话它会跨轮活下来，而那正好是最坏的
+//    方向：上一轮那套主题的横条图挂在这一轮这套主题的卡片上。
+const SHOT_SUFFIXES = ['', '-about', '-allblocks', '-header', '-slid'];
 
 /** 一套 id 在 shots/ 里的全部产物文件名（图 + 那份读数）。 */
 function shotFiles(id) {

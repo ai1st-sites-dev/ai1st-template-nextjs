@@ -1540,6 +1540,412 @@ if (widest > scroll.viewport) {
     + `documentElement.scrollWidth ${scroll.docScroll} is ${widest} > viewport ${scroll.viewport}`);
 }
 
+// Every `(min-width: …)` threshold THIS PAGE'S OWN STYLESHEETS declare, resolved to pixels by the
+// browser. Two stages read it: check ⑦'s narrow ladder (just below) and the paint-order stage.
+// It returns every threshold it could resolve; each caller decides which of them are its business.
+const BREAKPOINT_PROBE = () => {
+  const conds = new Set();
+  let unreadable = 0;
+  const walk = (rules) => {
+    for (const r of rules) {
+      const cond = r.conditionText ?? (r.media && r.media.mediaText);
+      if (typeof cond === 'string' && cond) conds.add(cond);
+      if (r.cssRules) walk(r.cssRules);
+    }
+  };
+  for (const sheet of document.styleSheets) {
+    let rules;
+    try { rules = sheet.cssRules; } catch { unreadable += 1; continue; } // cross-origin (fonts)
+    walk(rules);
+  }
+  // The length is resolved by the browser, not by a unit table in this file: a probe element given the
+  // same length as its `width` answers in pixels, so `em` / `rem` / `calc(40em + 10px)` — all legal in
+  // a single `(min-width: …)` condition, and the static checker passes them — come out right.
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:absolute;visibility:hidden;height:0;font-size:16px';
+  document.body.appendChild(probe);
+  const all = [];
+  const unresolved = [];
+  const notAWidth = [];
+  for (const cond of conds) {
+    const m = /^\s*\(\s*min-width\s*:\s*(.+?)\s*\)\s*$/i.exec(cond);
+    if (!m) { notAWidth.push(cond); continue; }
+    probe.style.width = '';
+    probe.style.width = m[1];
+    const px = probe.style.width ? probe.getBoundingClientRect().width : NaN;
+    if (!Number.isFinite(px)) { unresolved.push(cond); continue; }
+    all.push({ cond, w: Math.ceil(px) });
+  }
+  probe.remove();
+  return { all, unresolved, notAWidth, unreadable };
+};
+
+// ── ⑦ a strip that slides does not slide the words away with it (#1190) ─────────────────────────
+//
+// #1190 admitted `overflow-x` and the `scroll-snap-*` family to §2 so a sheet can draw a block's items
+// as a strip the visitor pushes sideways. Two things then become possible that no rule above looks
+// for, and BOTH were measured on the flat markup this ticket replaced, not imagined:
+//
+//   · **the words ride along.** With the headline and the sub inside the scrolling element, sliding to
+//     the last item put the headline's left edge at **-429px** against the container's — off the
+//     screen, with no way back except sliding back. Nothing else here notices: check ③ asks whether
+//     the PAGE scrolls sideways (it does not — the strip contains it), ② asks whether essential
+//     content is HIDDEN (it is not — it is painted, just somewhere else), and ①'s contrast reading is
+//     taken wherever the element happens to be.
+//   · **the strip starts part-way in.** A first item wider than the box it sits in, or pushed by a
+//     `padding-left` bigger than the space left, opens the page with the first testimonial already
+//     cut in half — and everything above still reads ✅, because a clipped element still has ink, a
+//     box and a contrast ratio.
+//
+// 🔴 THE TRIGGER IS THE PAGE'S OWN GEOMETRY, NOT A NAME. It asks every element "do you scroll
+// sideways" (`overflow-x` is `auto`/`scroll` AND `scrollWidth > clientWidth`), so a sheet that opens
+// a scroll axis on a block this ticket never thought about is judged the same way. That also means
+// the check is VACUOUS on a page with no strip — 96 of the 97 pool sheets today — so it says so at
+// the reading rather than printing nothing and being mistaken for a pass.
+//
+// 🔴 WHAT COUNTS AS "THE WORDS" IS DERIVED FROM THE CONTRACT, NOT LISTED HERE. Every `__headline`,
+// `__sub`, `__heading` and `__intro` hook in `HOOK_CLASSES` — a block's heading and its lede — so the
+// day phase 2 adds a block, its two are covered without anybody remembering this file.
+// 🔴 Four suffixes rather than two, because the contract spells the same pair two ways and the second
+// spelling was going unwatched. Measured on `HOOK_CLASSES` (31 blocks carry hooks): `__headline`/`__sub`
+// alone reach 25 of them, and two of the six left out — `contact-form__heading` + `contact-form__intro`
+// (an `<h2>` and a `<p>`) and `quote-form__intro` — are that same heading-and-lede pair under other
+// names. The other four are left out on purpose and stay left out: `services-list__title` and
+// `services-list__desc` sit INSIDE each item, so a strip is supposed to carry them sideways; naming
+// them here would turn the rule against the layout it exists to protect. `announcement-bar__message`,
+// `divider__label` and `services-nav__link` are not a block's own heading either. `__heading`/`__intro`
+// resolve to exactly those three hooks today — enumerated, not assumed.
+//
+// 🔴 IT RUNS ON EVERY PAGE THIS SCRIPT OPENS, NOT ON THE HOME PAGE ALONE, and that is not a nicety:
+// `testimonials` — the block #1190 gave the layer to — is on NO home page in this repo. Measured on
+// the sample site the CI job builds: the only page carrying it is /allblocks.html. A home-page-only
+// version of this check would have printed "none on this page" for every sheet in the pool, forever,
+// which is the shape #1043 and #1046 条 9 each paid for once already one loop down.
+const HEADING_SUFFIXES = ['__headline', '__sub', '__heading', '__intro'];
+const HEADING_HOOKS = HOOK_CLASSES.filter((h) => HEADING_SUFFIXES.some((s) => h.endsWith(s)));
+const STRIP_PROBE = (headingHooks) => {
+  const nameOf = (el) => {
+    const part = el.getAttribute('data-block-part');
+    return el.tagName.toLowerCase()
+      + (el.classList.length ? `.${[...el.classList].join('.')}` : '')
+      + (part ? `[data-block-part="${part}"]` : '');
+  };
+  const out = [];
+  for (const el of document.querySelectorAll('body *')) {
+    const cs = getComputedStyle(el);
+    if (cs.overflowX !== 'auto' && cs.overflowX !== 'scroll') continue;
+    if (el.scrollWidth <= el.clientWidth + 1) continue;
+    // At rest means at rest: whatever the page did on the way here, the reading below is the one a
+    // visitor gets when it opens.
+    el.scrollLeft = 0;
+    const box = el.getBoundingClientRect();
+    const left = box.left + el.clientLeft;
+    const first = el.firstElementChild;
+    const fb = first && first.getBoundingClientRect();
+    out.push({
+      name: nameOf(el),
+      scrollWidth: el.scrollWidth,
+      clientWidth: el.clientWidth,
+      snap: cs.scrollSnapType,
+      left,
+      right: left + el.clientWidth,
+      first: first ? { name: nameOf(first), left: fb.left, right: fb.right } : null,
+      swept: headingHooks.filter((h) => el.querySelector(`.${h}`)),
+    });
+  }
+  return out;
+};
+
+// ── ⑦'s WIDTH LADDER — ONE VIEWPORT IS NOT A READING ABOUT THIS RULE (#1190 r2, QA2) ────────────
+//
+// r1 measured ⑦ at the one width the run was already at (1440) and shipped a strip that opens with
+// its first card CUT on every phone 360px and under. Measured on the r1 bytes, real build, real
+// chrome, `.testimonials__item { min-width: 20rem }`:
+//
+//     viewport 320 → visible box 272 wide → first item 24..344 vs box 24..296   🔴 cut 48px
+//     viewport 344 → 296                  → 24..344 vs 24..320                  🔴 cut 24px
+//     viewport 360 → 312                  → 24..344 vs 24..336                  🔴 cut  8px
+//     viewport 375 → 327                  → 24..344 vs 24..351                  ✅ whole (7px spare)
+//     viewport 1440 (the only one r1 took) → item is `min-width: 42%` of 1344   ✅ whole
+//
+// So the rule's own sentence ("a visitor's first sight of the block is a cut-off item") was true of
+// the shipped sheet while this check read ✅ — it was standing at the one width where the shape
+// cannot appear. 🔴 And a FIXED wider list does not close it: this file already argues that one
+// screen down for the paint-order stage ("1921 evades a list ending at 1920"), and here the same
+// hole is one number wide — the base ladder those checks use is [1440, 768, 375] and **375 does not
+// see 360**.
+//
+// WHICH WIDTHS — AND WHY "EVERY BAND FLOOR" IS NOT ENOUGH (#1190 r4, QA3).
+// r2 measured band floors only, on this argument: inside one media band the sheet's rules are
+// constant, the visible box grows with the viewport, and an item's width is either a fixed length
+// (constant ⟹ tightest at the band's narrowest width) or a share of the box (ratio constant ⟹ width
+// does not matter) — so the FLOOR is the worst case.
+// 🔴 THAT ARGUMENT'S "either…or" IS FALSE, AND NOTHING WAS PINNING IT. §2 admits `calc()` with `vw`
+// on a part, so a card width can be a THIRD thing: a viewport-relative length that grows FASTER than
+// the box. Measured on this repo, real chrome, a contract-legal sheet (`theme-css-lint.js` real rc=0)
+// whose only change from the shipped one is the card width:
+//
+//     .testimonials__item { min-width: calc(150vw - 300px) }   @media (min-width: 640px) { … 42% }
+//       320px  first item 24..221 vs box 24..296   ✅ whole      ← band floor
+//       520px  24..504         vs 24..496          🔴 cut  8px
+//       600px  24..624         vs 24..576          🔴 cut 48px
+//       639px  24..683         vs 24..615          🔴 cut 68px   ← band ceiling
+//       640px  24..273         vs 24..616          ✅ whole      ← next band floor
+//
+// Both ENDS of the band are clean and the whole cut lives between them, so a floors-only ladder read
+// ✅ at all seven rungs and printed a reading line claiming it had judged the rule — while a visitor
+// on any phone held sideways opened the block on a sliced card. That is the shape r1 was bounced for.
+//
+// 🔴 SO THE PREMISE IS NO LONGER ASSUMED — THE BAND IS SWEPT. Two passes, both derived, neither
+// resting on what shape the card width has:
+//   · COARSE — every band floor the page's own sheets DECLARE (`BREAKPOINT_PROBE`, the same reader the
+//     paint-order stage uses), plus `STRIP_FLOOR_W` for the bottom band, PLUS each band's CEILING
+//     (one px under the next floor, `STRIP_CEIL_W` for the top band). Floors alone see a card that is
+//     tightest when narrow; ceilings alone see one that grows faster than its box; a value that is
+//     affine in the viewport within its band cannot dodge both.
+//   · DENSE — and affine is itself an assumption, so when the coarse pass actually FINDS a strip on
+//     this page, the whole `STRIP_FLOOR_W`…`STRIP_CEIL_W` range is walked in `STRIP_STEP_W` steps.
+//     `min()` / `clamp()` / `abs()` on `vw` are legal in §2 too, and they put the peak INSIDE the band
+//     where both ends are clean — QA3's words when this was bounced: "only adding the band top stops
+//     values that change linearly with width, not abs()/clamp() whose peak is mid-band".
+//     🔴 The residual is stated at the reading line rather than argued away: a cut whose entire width
+//     range is narrower than `STRIP_STEP_W` can still fall between two rungs. It is a bounded, named
+//     blindness — which is the thing the floors-only argument was not.
+//   🔴 Gated on a strip being found, because that is what makes it affordable: 96 of the 97 pool
+//     sheets draw no strip at all, so they pay nothing. Measured on the one that does: 77 rungs, 3.0s.
+// 🔴 EVERY declared floor, not just the ones below the width the run is at. This argument covers the
+// widths inside a band that gets opened; a band that never gets opened is not covered by anything.
+// `stripLadder` carries the reading that cost — a rule scoped to a band above the run's own width
+// went unreported while this check's reading line claimed it had measured every declared floor.
+// 🔴 That last one is an announced constant, not a derived one: no stylesheet declares "the narrowest
+// phone". 320 CSS px is what an iPhone SE and a Galaxy S9+ report (Playwright's own device list), and
+// the reading below prints the ladder every run so a floor that stops matching the world is visible
+// rather than assumed.
+const STRIP_FLOOR_W = 320;
+// 🔴 The top band's ceiling, announced for the same reason `STRIP_FLOOR_W` is: no stylesheet declares
+// "the widest screen". Above it nothing is measured, and the reading line says so — the paint-order
+// stage one screen up makes the same point in its own words ("1921 evades a list ending at 1920").
+// 1920 is the widest viewport in Playwright's own desktop device list; a card width that only cuts
+// past it is not covered by this check and must not read as if it were.
+const STRIP_CEIL_W = 1920;
+// 🔴 The step of the dense sweep, and therefore the exact size of what this check still cannot see:
+// a cut whose whole width range is narrower than this can fall between two rungs. 16 CSS px is one
+// rung per ~1% of the range; it was chosen against its own cost, measured on the one pool sheet that
+// draws a strip — 77 rungs, 3.0s — not picked for roundness.
+const STRIP_STEP_W = 16;
+// 🔴 Announced rather than applied quietly, same rule as the paint-order viewport cap: a page that
+// declares fifty breakpoints must not silently lose the ones past the cap, because a dropped width
+// reads exactly like a covered one. Narrowest-first, because narrow is where the shape lives.
+// 🔴 The cap counts COARSE rungs, and a band contributes two of them now (floor and ceiling), so the
+// number was raised with the change that doubled what it counts — leaving it at 8 would have started
+// dropping bands on a page that declares five breakpoints, silently turning a widened ladder into a
+// narrower one.
+const STRIP_WIDTH_CAP = 16;
+const stripWidthsNote = [];
+
+/**
+ * The COARSE rungs: every band the page declares, taken at BOTH ends — its floor and its ceiling
+ * (one px under the next floor; `STRIP_CEIL_W` for the top band) — plus `STRIP_FLOOR_W`, minus the
+ * width the caller has already measured. Narrowest first.
+ *
+ * 🔴 BOTH ENDS, not the floor alone (#1190 r4). The floor is the worst case only for a card width
+ * that is constant or a share of its box; a `calc()` with `vw` in it grows faster than the box, so
+ * ITS worst case is the ceiling. The block comment above carries the measurement that cost — a
+ * contract-legal sheet whose cut lived entirely between two floors, read ✅ at all seven rungs.
+ * Ceilings do not close the general case either (a peak can sit inside the band); that is what
+ * `denseStripLadder` is for, and what the reading line names as the part still not covered.
+ *
+ * 🔴 EVERY floor, including the ones ABOVE the width the run happens to sit at. The derivation above
+ * says a band's floor is its worst case — that covers the widths INSIDE a band the run visits, and
+ * says nothing at all about a band it never visits. r2 of this ticket filtered the ladder down to
+ * `w < currentW`, and QA1 measured what that cost: this repo's own sample page declares
+ * 640 · 768 · 1024 · 1280 · 1536, the run sits at 1440, so 1536 was never opened. Same rule, same
+ * page, same server, only the wrapper differing:
+ *
+ *   `.testimonials__item:first-child { min-width: 200% }`                      → real rc=1, six bands each report it
+ *   the same rule inside `@media (min-width: 1536px)`                          → real rc=0, nothing reported
+ *
+ * — while this check's own reading line said it had measured "every band floor this page's own
+ * sheets declare". The paint-order stage next door DID open 1536 in the same run and printed it, so
+ * one file held both readings and only one of them was true.
+ */
+async function stripLadder(currentW) {
+  const bp = await page.evaluate(BREAKPOINT_PROBE);
+  const declared = [...new Set(bp.all.map((b) => b.w))].sort((a, b) => a - b);
+  // 🔴 The coarse rungs come from `(min-width: …)` conditions ONLY — the same reader, and therefore
+  // the same blind spot, the paint-order stage names one screen down. A strip that exists ONLY inside
+  // a band this reader cannot see (`(min-width: 600px) and (max-width: 700px)`, a `max-width`-only
+  // query above the floor) is not just unmeasured: the coarse pass would not FIND it, and the dense
+  // sweep is gated on having found one, so ⑦ would say nothing about that sheet at all. Said out loud
+  // rather than reasoned away — the whole point of this round is that an unpinned premise reads
+  // exactly like a measured one.
+  // 🔴 MEASURED, not reasoned: a band WIDE enough to contain a rung is still caught — a strip inside
+  // `(min-width: 600px) and (max-width: 700px)` was reported (7 rungs, 608..688px, real rc=1).
+  // 🔴 That reading does NOT pin the ceiling: the rungs inside that band are the 639px ceiling AND
+  // the 640px floor, and a strip declared at `min-width: 300%` is cut at every width in its band, so
+  // a floors-only ladder finds the same one at 640. What the ceiling buys is a band whose only rung
+  // is the ceiling — this example is not that band, and naming it here read like it was.
+  // It takes a band containing NO rung to slip through: the same strip inside
+  // `(min-width: 801px) and (max-width: 806px)` cuts the first item by 1510px at 803px in real chrome,
+  // and ⑦ came back real rc=0 — printing its "NONE … not measured, which is not the same as passing"
+  // branch AND this note, which is the pair that has to be true for the reading to be honest.
+  if (bp.notAWidth.length > 0 || bp.unresolved.length > 0 || bp.unreadable > 0) {
+    stripWidthsNote.push(`🔴 ⑦'s rungs come from (min-width: …) conditions only — `
+      + `${bp.notAWidth.length} other media condition(s), ${bp.unresolved.length} (min-width: …) the `
+      + `browser would not resolve, and ${bp.unreadable} unreadable stylesheet(s) contributed no rung. `
+      + 'A strip that exists ONLY inside such a band would not be found, and the dense sweep only runs '
+      + 'where one was found');
+  }
+  // 🔴 Announced, not dropped quietly — the same rule the width cap below follows. A threshold under
+  // the floor names a band no device this check claims to cover sits in, so not measuring it is a
+  // choice; leaving it unsaid would make that choice read exactly like a width that came out clean.
+  const belowFloor = declared.filter((w) => w < STRIP_FLOOR_W);
+  if (belowFloor.length > 0) {
+    stripWidthsNote.push(`🔴 ${belowFloor.length} declared band floor(s) below the `
+      + `${STRIP_FLOOR_W}px floor were NOT measured for ⑦: ${belowFloor.join(', ')}`);
+  }
+  const floors = [STRIP_FLOOR_W, ...declared.filter((w) => w > STRIP_FLOOR_W)]
+    .sort((a, b) => a - b);
+  // Each band ends one px under the next band's floor; the last one ends at the announced ceiling.
+  // 🔴 A band one px tall (two floors next to each other) would put its ceiling under its own floor —
+  // dropped rather than measured backwards, and the dedupe below keeps the floor itself.
+  const ceilings = floors
+    .map((w, i) => (i + 1 < floors.length ? floors[i + 1] - 1 : STRIP_CEIL_W))
+    .filter((w, i) => w >= floors[i]);
+  const wanted = [...new Set([...floors, ...ceilings])]
+    // The caller measures `currentW` itself before walking the ladder; measuring it twice would
+    // print the same reading twice and spend a resize on it.
+    .filter((w) => w !== currentW)
+    .sort((a, b) => a - b);
+  if (wanted.length > STRIP_WIDTH_CAP) {
+    stripWidthsNote.push(`🔴 ${wanted.length - STRIP_WIDTH_CAP} coarse rung(s) past the `
+      + `${STRIP_WIDTH_CAP}-width cap were NOT measured for ⑦: `
+      + `${wanted.slice(STRIP_WIDTH_CAP).join(', ')}`);
+  }
+  return wanted.slice(0, STRIP_WIDTH_CAP);
+}
+
+/**
+ * The DENSE rungs: `STRIP_FLOOR_W`…`STRIP_CEIL_W` every `STRIP_STEP_W` px, minus whatever the coarse
+ * pass already took. Narrowest first.
+ *
+ * 🔴 Why a sweep and not a third clever rung: `min()`, `clamp()` and `abs()` over `vw` are §2-legal
+ * and put the peak INSIDE a band, both of whose ends are clean — so no fixed set of rungs derived
+ * from the breakpoints can be argued complete. A sweep cannot be argued complete either; the
+ * difference is that its blindness has a SIZE (`STRIP_STEP_W`) and that size is printed every run.
+ * 🔴 It runs only where the coarse pass found a strip. That is not an optimisation detail: it is why
+ * the cost is affordable to state as a rule at all — 96 of the 97 pool sheets draw no strip, and a
+ * check that becomes 3s slower for every sheet in the pool would be traded away the first time
+ * somebody times the job.
+ */
+function denseStripLadder(alreadyMeasured) {
+  const out = [];
+  for (let w = STRIP_FLOOR_W; w <= STRIP_CEIL_W; w += STRIP_STEP_W) {
+    if (!alreadyMeasured.has(w)) out.push(w);
+  }
+  return out;
+}
+
+/** Measures ⑦ on whatever page is currently open, at every band floor plus the width it is at. */
+const stripsSeen = [];
+const stripSweepNote = [];
+const stripsUnswept = [];
+const stripWidthsMeasured = new Set();
+async function judgeStripsAt(where, at) {
+  stripWidthsMeasured.add(at);
+  const strips = await page.evaluate(STRIP_PROBE, HEADING_HOOKS);
+  for (const strip of strips) {
+    // 🔴 One entry per STRIP, not per rung. The dense sweep takes ~100 rungs on a page that has one,
+    // and a reading line carrying 100 near-identical clauses is a reading nobody finishes — the same
+    // failure as printing nothing, arrived at from the other side. The widths themselves are not
+    // lost: the count and the range are here, and every rung still prints its own reading above.
+    const seen = stripsSeen.find((x) => x.name === strip.name && x.where === where);
+    if (seen) { seen.n += 1; seen.lo = Math.min(seen.lo, at); seen.hi = Math.max(seen.hi, at); }
+    else stripsSeen.push({ name: strip.name, where, n: 1, lo: at, hi: at });
+    readings.push(`  sideways strip (check ⑦) on ${where} at ${at}px — ${strip.name}: scrollWidth `
+      + `${strip.scrollWidth} vs clientWidth ${strip.clientWidth}, scroll-snap-type "${strip.snap}", `
+      + `first child ${strip.first ? `${strip.first.name} at ${Math.round(strip.first.left)}..${Math.round(strip.first.right)}` : '(none)'} `
+      + `against a visible box of ${Math.round(strip.left)}..${Math.round(strip.right)}, `
+      + `headline/sub hooks inside it: ${strip.swept.length ? strip.swept.map((h) => `.${h}`).join(' · ') : 'none'}`);
+    if (!strip.first) {
+      problems.push(`sideways strip on ${where} at ${at}px wide: "${strip.name}" scrolls sideways `
+        + `(${strip.scrollWidth} > ${strip.clientWidth}) but has no element child, so what is `
+        + 'overflowing cannot be pointed at');
+      continue;
+    }
+    // 1px, because a box laid out at a fraction of a pixel is not a clipped item.
+    if (strip.first.right > strip.right + 1 || strip.first.left < strip.left - 1) {
+      problems.push(`sideways strip on ${where}, viewport ${at}px wide: the first item of `
+        + `"${strip.name}" `
+        + `(${strip.first.name}) is not whole when the page opens — it runs `
+        + `${Math.round(strip.first.left)}..${Math.round(strip.first.right)} against a visible box of `
+        + `${Math.round(strip.left)}..${Math.round(strip.right)}. A visitor's first sight of the block `
+        + 'is a cut-off item, and every other check here still passes: a clipped element has ink, a '
+        + 'box and a contrast ratio');
+    }
+    if (strip.swept.length > 0) {
+      problems.push(`sideways strip on ${where} at ${at}px wide: "${strip.name}" scrolls sideways and `
+        + `${strip.swept.length} heading hook(s) are INSIDE it — `
+        + `${strip.swept.map((h) => `.${h}`).join(' · ')}. Sliding to the end takes the block's own `
+        + 'heading off the screen with the items (measured on this repo\'s flat testimonials markup: '
+        + 'the headline\'s left edge ends up at -429px against the container\'s). The heading and the '
+        + 'lede belong OUTSIDE the scrolling element — that is what '
+        + '`[data-block-part="testimonials-list"]` is for');
+    }
+  }
+  return strips.length;
+}
+
+/**
+ * ⑦ across the whole ladder, then hands the page back at the width it was found at — same reason
+ * the paint-order stage remembers `orderViewport`: whatever runs after this must not silently
+ * inherit a 320px-wide page.
+ */
+async function judgeStrips(where) {
+  const before = page.viewportSize();
+  // Two frames: one for the resize to reflow, one to be sure layout has settled — the same wait
+  // `orderReading` takes for the same reason.
+  const settle = () => page.evaluate(() => new Promise((done) => {
+    requestAnimationFrame(() => requestAnimationFrame(done));
+  }));
+  const takeRung = async (w) => {
+    await page.setViewportSize({ width: w, height: before.height });
+    await settle();
+    return judgeStripsAt(where, w);
+  };
+  let found = await judgeStripsAt(where, before.width);
+  const coarse = await stripLadder(before.width);
+  for (const w of coarse) found += await takeRung(w);
+  // 🔴 The dense sweep is gated on a strip HAVING BEEN FOUND, and `found` is the right gate rather
+  // than "this sheet draws one": ⑦ is vacuous on a page with no strip, so sweeping it would spend
+  // 3s to re-measure nothing 96 times out of 97.
+  // 🔴 What this gate costs, said out loud rather than argued away: the coarse pass measures AT its
+  // rungs, so opening both ends of a band does NOT see a strip whose cut window lies strictly
+  // BETWEEN two rungs. `found` is then 0, no dense sweep runs, and this sheet lands in the
+  // `stripsUnswept` count below — which is why that count is printed and not dropped. "Visited the
+  // band" is not "saw the strip", and this comment used to say it was.
+  const dense = found > 0
+    ? denseStripLadder(new Set([before.width, ...coarse]))
+    : [];
+  for (const w of dense) found += await takeRung(w);
+  if (dense.length > 0) {
+    stripSweepNote.push(`swept ${STRIP_FLOOR_W}–${STRIP_CEIL_W}px in ${STRIP_STEP_W}px steps on `
+      + `${where} (${dense.length} rungs on top of the coarse ${coarse.length + 1})`);
+  } else {
+    // 🔴 Counted, not listed. On a sheet with no strip anywhere that is EVERY page, and one clause
+    // per page would bury the sentence that matters. The count still says it out loud, because
+    // "⑦ walked nothing here" must never read the same as "⑦ walked it and it was fine".
+    stripsUnswept.push(where);
+  }
+  await page.setViewportSize(before);
+  await page.evaluate(() => new Promise((done) => {
+    requestAnimationFrame(() => requestAnimationFrame(done));
+  }));
+  return found;
+}
+
+await judgeStrips(pathOf(baseUrl));
+
 // ── ④ body text is big enough ───────────────────────────────────────────────────────────────────
 for (const sel of ['body', '.hero__sub']) {
   const el = page.locator(sel).first();
@@ -1775,44 +2181,14 @@ const orderViewport = await page.viewportSize();
 // A wider fixed list cannot fix that: 1921 evades a list ending at 1920. What closes it is that the
 // sheet has to DECLARE the threshold to use it, so the thresholds are readable, and each one that sits
 // above the base widths gets its own measurement.
-const breakpoints = await page.evaluate((maxBase) => {
-  const conds = new Set();
-  let unreadable = 0;
-  const walk = (rules) => {
-    for (const r of rules) {
-      const cond = r.conditionText ?? (r.media && r.media.mediaText);
-      if (typeof cond === 'string' && cond) conds.add(cond);
-      if (r.cssRules) walk(r.cssRules);
-    }
-  };
-  for (const sheet of document.styleSheets) {
-    let rules;
-    try { rules = sheet.cssRules; } catch { unreadable += 1; continue; } // cross-origin (fonts)
-    walk(rules);
-  }
-  // The length is resolved by the browser, not by a unit table in this file: a probe element given the
-  // same length as its `width` answers in pixels, so `em` / `rem` / `calc(40em + 10px)` — all legal in
-  // a single `(min-width: …)` condition, and the static checker passes them — come out right.
-  const probe = document.createElement('div');
-  probe.style.cssText = 'position:absolute;visibility:hidden;height:0;font-size:16px';
-  document.body.appendChild(probe);
-  const above = [];
-  const unresolved = [];
-  const notAWidth = [];
-  for (const cond of conds) {
-    const m = /^\s*\(\s*min-width\s*:\s*(.+?)\s*\)\s*$/i.exec(cond);
-    if (!m) { notAWidth.push(cond); continue; }
-    probe.style.width = '';
-    probe.style.width = m[1];
-    const px = probe.style.width ? probe.getBoundingClientRect().width : NaN;
-    if (!Number.isFinite(px)) { unresolved.push(cond); continue; }
-    // At or below the widest base width it is already exercised there; only the ones above need a
-    // viewport of their own.
-    if (Math.ceil(px) > maxBase) above.push({ cond, w: Math.ceil(px) });
-  }
-  probe.remove();
-  return { above, unresolved, notAWidth, unreadable };
-}, Math.max(...ORDER_VIEWPORTS.map((v) => v.w)));
+// 🔴 ONE definition of "what widths does this page declare", shared with check ⑦'s ladder above.
+// Two copies of a threshold reader would be two answers to the same question, and the second copy is
+// where the drift starts (the same rule `orderReading` states for its own single reading).
+const breakpointsRaw = await page.evaluate(BREAKPOINT_PROBE);
+const orderMaxBase = Math.max(...ORDER_VIEWPORTS.map((v) => v.w));
+// At or below the widest base width it is already exercised there; only the ones above need a
+// viewport of their own.
+const breakpoints = { ...breakpointsRaw, above: breakpointsRaw.all.filter((b) => b.w > orderMaxBase) };
 // ── #1046 条 18 — IS THERE ANYTHING ON THIS PAGE THAT COULD TIE A DISTANCE TO THE WINDOW? ────────
 //
 // The grown-window stage below reports "the gap between A and B closes as the window widens" as a
@@ -2355,7 +2731,8 @@ for (const p of otherPaths.slice(0, OTHER_PAGE_CAP)) {
     // 🔴 What is still hand-written is the CHECK NAMES (⑤, ②, ①). A fifth check joining this loop
     // still has to be added to this sentence by hand — the rule above is not retired, only narrowed.
     problems.push(`other pages: "${p}" is in this site's page list but could not be opened, so `
-      + `none of check ⑤ (every hook has a rule), check ② (essential content is not hidden) and the `
+      + `none of check ⑤ (every hook has a rule), check ② (essential content is not hidden), check ⑦ `
+      + `(a strip that slides does not slide the words away) and the `
       + `parts of check ① measured here (the contrast of `
       + `${[...MOVED_TEXT_TARGETS, ...CONTROL_TARGETS].join(', ')}) was `
       + `measured on it — tried ${opened.error}`);
@@ -2390,6 +2767,10 @@ for (const p of otherPaths.slice(0, OTHER_PAGE_CAP)) {
   // only on the first page would have been measuring it never. Costs two screenshots per hook that
   // is actually present; a page with none of them costs four `count()` calls.
   for (const sel of MOVED_TEXT_TARGETS) await measureText(sel, opened.at, false);
+  // 🔴 #1190 ⑦ — AND THE SLIDE-ABLE STRIPS, HERE, because here is where they are: `testimonials` is on
+  // no home page in this repo (the sample site puts it on /allblocks.html alone), so measuring ⑦ only
+  // on the first page would have been measuring it never.
+  await judgeStrips(opened.at);
   // 🔴 #1091 — AND THE BUTTONS AND LINKS, HERE, on every page this loop opens. This line was held
   // closed from #1055 to #1091 and the reason is spent: what blocked it was `.btn-primary`, white on
   // `--color-primary-500`, unreadable on 52 of the 80 pool sheets (104 violations, 2 per red sheet,
@@ -2492,6 +2873,32 @@ readings.push('  pages measured for check ① on the blocks phase 2 has moved, a
 // "on each of them" lands next to the pages that were NOT measured, which reads as the opposite of what
 // it says — this one line now has to carry two different reaches (#1046 条 16 and #1049's ②d/②e), and
 // the order is the only thing keeping them apart.
+// 🔴 #1016 r5's rule again — say the blindness at the reading, every run. A page with no strip on it
+// is the ordinary case (96 of the 97 pool sheets draw none), and printing nothing there would leave
+// "⑦ found nothing to judge" looking exactly like "⑦ judged it and it was fine".
+readings.push(`  sideways strips (check ⑦), measured on ${[pathOf(baseUrl), ...audits.slice(1).map((a) => a.where)].join(', ')} `
+  + `at ${stripWidthsMeasured.size} width(s) from `
+  + `${Math.min(...stripWidthsMeasured)} to ${Math.max(...stripWidthsMeasured)}px `
+  + '(COARSE: both ends of every band this page\'s own sheets declare — the ones above the width the '
+  + `run itself sits at included — plus the ${STRIP_FLOOR_W}px floor, the ${STRIP_CEIL_W}px ceiling and `
+  + `that width itself. DENSE, where a strip was found: every ${STRIP_STEP_W}px across that range. `
+  + '🔴 A band FLOOR is the worst case only for a card width that is constant or a share of its box — '
+  + '§2 also admits `calc()`/`min()`/`clamp()` over `vw`, whose worst case is the ceiling or a width '
+  + `inside the band, so neither end is enough on its own. 🔴 STILL NOT COVERED: a cut narrower than `
+  + `${STRIP_STEP_W}px of viewport can fall between two dense rungs, and nothing above ${STRIP_CEIL_W}px `
+  + `or below ${STRIP_FLOOR_W}px is measured at all`
+  + `${stripSweepNote.length ? ` · ${[...new Set(stripSweepNote)].join(' · ')}` : ''}`
+  + `${stripsUnswept.length ? ` · ${stripsUnswept.length} page(s) got no dense sweep — the coarse `
+    + `rungs found no strip on them, so ⑦ had nothing to walk there: ${stripsUnswept.join(', ')}` : ''}): `
+  + (stripsSeen.length
+    ? `${stripsSeen.length} found — `
+      + `${stripsSeen.map((x) => `${x.name} on ${x.where} (${x.n} rung(s), ${x.lo}..${x.hi}px)`).join(' · ')}`
+      + '; each judged at every one of those rungs on both rules (the first item is '
+      + 'whole when the page opens, and no block\'s headline or sub is inside the scroll axis)'
+    : '🔴 NONE — no element on any page measured, at any of those widths, both declares '
+      + '`overflow-x: auto`/`scroll` and has more content than fits. So ⑦\'s two rules SAID NOTHING '
+      + 'about this sheet: they were not measured, which is not the same as passing')
+  + (stripWidthsNote.length ? ` · ${[...new Set(stripWidthsNote)].join(' · ')}` : ''));
 readings.push(`  pages measured for check ② (essential content not hidden): `
   + `${essentialPagesMeasured.join(', ')} — roots AND the parts with content inside them, and on each of `
   + 'them ②d (where every run of text ended up, and what survives the clipping ancestors and the edge of '

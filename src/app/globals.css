@@ -804,6 +804,32 @@
   margin: 0;
 }
 
+/* ── testimonials: the layer a sheet can turn into a slide-able strip (#1190) ──────────────────── */
+/* 🔴 `display: contents` IS THE WHOLE POINT OF THIS RULE, and it is a default rather than a look.
+   `TestimonialsSection.tsx` wraps the items in `<div data-block-part="testimonials-list">` so that a
+   sheet has somewhere to open a horizontal scroll axis WITHOUT the headline and the sub being
+   carried along — they are this element's siblings, not its children. Measured on the flat markup
+   this replaces: slide to the end and the headline's left edge is at -429px against the container's,
+   i.e. off the screen, and no whitelisted property can hold it (`position` / `left` are both refused).
+   (That -429 is this repo's sample site at 1440px with 3 testimonials, re-measured for #1190's
+   delivery; the ticket text records -728px from its own 5-item probe — same failure, other fixture.)
+
+   🔴 EVERY SHEET IN THE POOL MAKES `.testimonials` A GRID OR A FLEX CONTAINER (100/100 measured), so
+   the items are its grid children today. A wrapper with a box of its own would collapse those N
+   children into ONE and every sheet's `gap` would stop falling between the items — 97 sheets changed
+   at a stroke. `display: contents` takes the box away again: measured element by element, flat vs
+   wrapped, the headline, the sub and every item land on identical coordinates.
+
+   🔴 SO A SHEET THAT WANTS THE STRIP MUST SET `display` HERE ITSELF. `overflow-x: auto` on a
+   `display: contents` element does nothing at all — there is no box to scroll. `lime-28` is the one
+   sheet in the pool that does it today (`theme-pipeline/sheet-recipes.js`, the experiment pin).
+
+   🔴 NOTHING ELSE HERE. Any padding / background / gap default would be a fourth theme all 97 sheets
+   would have to override, which is the rule the batch headers above already state. */
+[data-block-part="testimonials-list"] {
+  display: contents;
+}
+
 /* ── gallery: <figure> and <figcaption> carry UA margins for the same reason ───────────────────── */
 .gallery__item {
   margin: 0;

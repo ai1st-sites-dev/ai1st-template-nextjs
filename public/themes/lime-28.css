@@ -1515,6 +1515,28 @@
   color: var(--color-primary-900);
 }
 
+/* #1190 experiment pin — the one sheet in the pool that draws testimonials as a slide-able strip */
+
+[data-block-part="testimonials-list"] {
+  display: flex;
+  grid-column: 1 / -1;
+  gap: calc(var(--section-block-gap) * 8);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+}
+
+.testimonials__item {
+  flex-shrink: 0;
+  min-width: 80%;
+  scroll-snap-align: start;
+}
+
+@media (min-width: 1024px) {
+  .testimonials__item {
+    min-width: 42%;
+  }
+}
+
 .announcement-bar {
   display: grid;
   grid-template-columns: 1fr;

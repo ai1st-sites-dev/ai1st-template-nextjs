@@ -240,6 +240,35 @@ const HOOKS = new Set([
   '.testimonials__rating', '.testimonials__star', '.testimonials__quote', '.testimonials__name',
   '.testimonials__meta', '.testimonials__service',
   '[data-block="testimonials"]',
+  // #1190 — the layer that WRAPS the items, and the first hook in this file that is an attribute
+  // rather than a class. It exists so a sheet can make the items a strip the visitor slides
+  // sideways WITHOUT the headline and the sub coming along: they are siblings of this element, not
+  // children of it, so a scroll axis opened here does not carry them. Measured before it existed,
+  // on the flat markup, with only whitelisted properties: slide to the end and the headline's left
+  // edge sits at **-429px** against the container's — off the screen. (#1190's ticket text records
+  // -728px; that is the same failure on a different fixture — its 5-item standalone probe rather than
+  // this repo's sample site at 1440px with 3. Both are real; this file quotes the one taken here.)
+  //
+  // 🔴 IT IS AN ATTRIBUTE ON PURPOSE, AND THE REASON IS A MEASUREMENT, NOT A TASTE. Written as a
+  // class (`.testimonials__list`) it joins `HOOK_CLASSES` — and `HOOK_CLASSES` is what the pool's
+  // sheet recipe writes a rule for and what gate ② (`theme-pipeline/hook-coverage.js`) demands a
+  // rule for. Measured on this tree: adding the class form makes gate ② call out 100/100 sheets
+  // ("hooks 201/202 — not dressed: testimonials__list", rc=1), and regenerating to satisfy it
+  // rewrites all 97 pool sheets, because the recipe's fallback for a part whose role it cannot name
+  // is a real rule (`display: grid; gap; padding-left; …`), not a skip. The attribute form is
+  // dropped from `HOOK_CLASSES` by the filter below — deliberately, and that drop is itself guarded
+  // — so `isHook` accepts it while no sheet is required to dress it and none of the 97 moves.
+  // 🔴 THE COST OF THAT, WRITTEN DOWN: gate ② will never ask whether ANY sheet dresses this layer.
+  // That is right for a layer whose default is `display: contents` (an optional look, not a part
+  // every theme owes the page a rule for) — but it means "no sheet uses it" and "every sheet uses
+  // it" look identical to the pool's admission gate. §1 of the contract doc says this out loud.
+  //
+  // 🔴 The DEFAULT is `display: contents` and it lives in `globals.css`, not here and not in a
+  // sheet: a wrapper with a box of its own would change all 97 sheets' layout (every one of them
+  // makes `.testimonials` a grid or flex container, so the items are its grid children today and an
+  // opaque wrapper would collapse them into one child). Measured element by element, flat vs
+  // wrapped-in-`display:contents`: identical geometry for the headline, the sub and every item.
+  '[data-block-part="testimonials-list"]',
   '.announcement-bar', '.announcement-bar__message', '.announcement-bar__link',
   '[data-block="announcement-bar"]',
   '.pricing-table', '.pricing-table__headline', '.pricing-table__sub', '.pricing-table__item',
@@ -418,12 +447,28 @@ const PROP_EXACT = new Set([
   'line-height', 'letter-spacing', 'text-align', 'text-transform',
   'object-fit', 'object-position',
   'content', 'overflow',
+  // #1190 — CONTROLLED SCROLLING. `display` · `overflow` · `gap` · `flex-shrink` · `min-width` were
+  // already enough to make a strip that slides (measured in a real browser: scrollWidth 1664 vs
+  // clientWidth 600, first item fully visible, slides to the last). What they could not do is make
+  // it STOP on an item — `scrollLeft = 100` on a 336px step stays at 100 — and could not open one
+  // axis without the other. These four are what buys those two things. The set is ENUMERATED, not a
+  // `scroll-*` prefix: `scroll-behavior` (which decides whether a jump animates, a preference the
+  // visitor's OS already states) and `overflow-y` (a vertical scroll axis inside a block, which is
+  // how content gets hidden from a reader without `display: none`) are deliberately NOT here, and a
+  // prefix rule would have admitted both plus whatever CSS adds next.
+  'overflow-x', 'scroll-snap-type', 'scroll-snap-align', 'scroll-snap-stop',
 ]);
 const PROP_PREFIXES = [
   'grid-', 'flex-', 'place-', 'align-', 'justify-',
   'padding', 'margin',
   'background', 'border',
   'font-',
+  // #1190 — where a snap lands, on the container (`scroll-padding*`) and on the item
+  // (`scroll-margin*`). Prefixes for the same reason `padding` and `margin` are: each is a shorthand
+  // plus four sides plus two logical pairs, and listing fourteen names is a list to keep in step.
+  // 🔴 These do NOT admit `scroll-behavior` or `scroll-snap-*`: `scroll-` on its own is not a prefix
+  // here, and adding one would be the wildcard this ticket refused to write.
+  'scroll-padding', 'scroll-margin',
 ];
 
 const isHook = (s) => HOOKS.has(s) || HOOK_PATTERNS.some((re) => re.test(s));
@@ -1331,13 +1376,23 @@ function walkArithmetic(node, report) {
 // widths — the margin then hangs the decoration outside the hero's box and leaves the box where it
 // was (measured: `.hero` stays at y=76 at 1900 while `.hero__deco` goes to −1124). So a hook may only
 // carry a value of `overflow` that keeps the block a formatting context: that is what keeps its top
-// where the flow put it, and it is the cheapest thing to hold on to — no shipped sheet writes
-// `overflow` at all (`grep -c overflow public/themes/*.css` → 0, 0, 0).
+// where the flow put it, and it is the cheapest thing to hold on to.
+// 🔴 #1190 — THE COST LINE THAT USED TO BE HERE SAID NO SHIPPED SHEET WRITES `overflow` AT ALL, AND
+// BACKED IT WITH A COUNT OF THREE ZEROES. It was written when the pool held 3 sheets and has been
+// false since. Read off this tree by walking the PARSED sheets rather than grepping — a grep counts
+// the word inside comments too, which is part of how the old line survived: **13** of the 97 pool
+// sheets carry exactly one `overflow` declaration each, all of them `.hero__media { overflow:
+// hidden }`, and exactly **one** (`lime-28`, the #1190 experiment pin) writes `overflow-x: auto`, on
+// `[data-block-part="testimonials-list"]`. No sheet writes `overflow-y` — it is not on §2's list.
+// 🔴 Do not copy 13 or 1 out of here: both move whenever the pool is regenerated, and the second one
+// was 0 for the first half of this very ticket. Take them again, by walking the parsed sheets.
 // 🔴 THIS RULE IS PROPPED UP BY AN APP-SIDE DECLARATION, AND IF THAT GOES SO DOES THE RULE:
 // `globals.css`'s `.hero, .hero__media { overflow: hidden }`. Take it away and a block is a plain
 // block box again, and then `display: block` + `padding: 0` on the hook is enough on its own.
-// 📌 Only the shorthand needs saying, because `overflow-x` / `overflow-y` are not on §2's list at all
-// (they are neither in `PROP_EXACT` nor under a prefix).
+// 📌 #1190 — `overflow-x` NOW NEEDS THE SAME RULE, because §2 admits it (the strip a sheet can make
+// of `[data-block-part="testimonials-list"]` wants one axis, not both). It is judged by the same
+// allowed set at the call site. `overflow-y` is still not on §2's list at all — neither in
+// `PROP_EXACT` nor under a prefix — so it still needs no rule here.
 // 🔴 r9 SAID HERE THAT `visible` IS "THE ONLY VALUE OF IT THAT IS NOT A FORMATTING CONTEXT". THAT
 // SENTENCE WAS FALSE, and the rule written from it leaked: QA2 measured `clip` (on both axes) not
 // being one either, and `initial` / `unset` / `revert` / `revert-layer` computing to `visible`. Six
@@ -1363,17 +1418,22 @@ const MARGIN_PROP = (prop) => prop === 'margin' || prop.startsWith('margin-');
 // 📌 `clip` is refused although `overflow: clip hidden` really would be a formatting context: one
 // axis of `clip` next to one that is not IS one, and two axes of `clip` are not (QA2 measured both).
 // Keeping the rule at "is every word in the allowed set" rather than "which combination is safe"
-// costs nothing — `grep -c overflow public/themes/*.css` is 0, 0, 0 — and a rule about spelling
-// combinations is the shape that just leaked.
+// costs nothing — the 13 `overflow` declarations in the pool today are all `hidden` (the reading and
+// how to take it are at the head of the section above; the "0, 0, 0" that used to stand here was a
+// 3-sheet-era number, #1190) — and a rule about spelling combinations is the shape that just leaked.
 //
-// 📌 Only the shorthand needs a rule: `overflow-x` / `overflow-y` are not on §2's property list at
-// all, so a sheet cannot write them (they hit the whitelist refusal at the bottom of checkDecl).
+// 📌 #1190 — `overflow-x` is judged by this same set (§2 admits it now, for a strip that opens one
+// axis). `overflow-y` still is not on §2's property list at all, so a sheet cannot write it — it
+// hits the whitelist refusal at the bottom of checkDecl.
 const CONTAINING_OVERFLOW = new Set(['hidden', 'auto', 'scroll']);
-function isContainingOverflow(value) {
+// #1190 — `maxWords` is 2 for the shorthand (a value per axis) and 1 for `overflow-x`, which takes
+// one. It is not cosmetic: without it `overflow-x: auto scroll` — not a value CSS has — would be
+// read as a legal pair and pass.
+function isContainingOverflow(value, maxWords = 2) {
   const words = valueParser(value).nodes
     .filter((n) => n.type !== 'space' && n.type !== 'div')
     .map((n) => (n.type === 'word' ? n.value.toLowerCase() : `<${n.type}>`));
-  if (words.length === 0 || words.length > 2) return false;
+  if (words.length === 0 || words.length > maxWords) return false;
   return words.every((w) => CONTAINING_OVERFLOW.has(w));
 }
 
@@ -1643,8 +1703,18 @@ function checkDecl(decl, report, stylesOrder, onABlock) {
     }
     // …as long as the block stays a formatting context, which is the only thing keeping a part's
     // negative margin from collapsing into it and becoming the block's own.
-    if (prop === 'overflow' && !isContainingOverflow(value)) {
-      report(`"overflow: ${value}" on a block or a region does not keep it a formatting context `
+    // 🔴 #1190 — `overflow-x` IS JUDGED HERE TOO, AND IT HAD TO BE ADDED IN THE SAME BREATH AS THE
+    // WHITELIST ENTRY ABOVE. This test was written as `prop === 'overflow'` when `overflow-x` was
+    // not on §2's property list at all, so the whitelist refusal at the bottom of this function was
+    // the only thing standing in front of it. Measured on this tree with `overflow-x` added to
+    // `PROP_EXACT` and this line left alone: `[data-block="hero"] { overflow-x: visible }` exits
+    // **0** while `overflow: visible` still exits 1 — the same hole this guard exists to close,
+    // reopened by one word in a list 200 lines away. `overflow-x: visible` is not a formatting
+    // context, and `overflow-x: hidden` / `auto` / `scroll` each are (the other axis computes to
+    // `auto` when one of them is not `visible`), so the allowed set is the same one.
+    if ((prop === 'overflow' || prop === 'overflow-x')
+      && !isContainingOverflow(value, prop === 'overflow' ? 2 : 1)) {
+      report(`"${prop}: ${value}" on a block or a region does not keep it a formatting context `
         + '(contract §2). A first child\'s top margin then COLLAPSES INTO IT — the block\'s own box '
         + 'moves, not the child\'s — and the parts inside a block are the one place §2 still allows a '
         + 'negative margin and a value that turns round. Measured on this build: with '
@@ -1652,8 +1722,9 @@ function checkDecl(decl, report, stylesOrder, onABlock) {
         + '`.hero__deco { margin-top: calc(-1200px + 8 * abs(100vw - 1900px)) }`, this one line is the '
         + 'difference between the hero being painted above the page header from about 1750px to '
         + '2050px of window and the page being in its DOM order at every width. What passes here is '
-        + `${[...CONTAINING_OVERFLOW].map((w) => `\`${w}\``).join(' / ')}, one value for both axes or `
-        + 'one per axis; everything else is refused, including `visible`, the CSS-wide keywords that '
+        + `${[...CONTAINING_OVERFLOW].map((w) => `\`${w}\``).join(' / ')}`
+        + (prop === 'overflow' ? ', one value for both axes or one per axis' : ', one value')
+        + '; everything else is refused, including `visible`, the CSS-wide keywords that '
         + 'resolve to it (`initial` / `unset` / `revert` / `revert-layer`) and `clip`, which is not a '
         + 'formatting context when it is on both axes');
     }
@@ -1861,4 +1932,8 @@ if (require.main === module) main();
 // #1018 — `HOOKS` / `isHook` are exported so the docs↔code check in css-contract-check.js can read
 // the list instead of keeping a second hand-written copy of it. The contract table in
 // docs/reference/theme-css-contract.md is written for people; THIS is what a sheet is judged by.
-module.exports = { lint, CONTRACT_VERSION, HOOKS, HOOK_CLASSES, isHook };
+// #1190 — `PROP_EXACT` / `PROP_PREFIXES` are exported for the same reason `HOOKS` is: §2 of the
+// contract doc is a second hand-written copy of them, and `css-contract-check.js` refuses when the
+// two disagree. Before this ticket only §1's hook table was reconciled, and §2 had already drifted
+// in the direction that matters — it claimed `overflow` was off the list while 13 sheets wrote it.
+module.exports = { lint, CONTRACT_VERSION, HOOKS, HOOK_CLASSES, isHook, PROP_EXACT, PROP_PREFIXES };

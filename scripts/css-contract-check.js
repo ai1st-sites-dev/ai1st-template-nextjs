@@ -49,6 +49,8 @@ function loadLinters() {
       baseLint: require('./base-css-lint.js').lint,
       hooks: require('./theme-css-lint.js').HOOKS,
       isHook: require('./theme-css-lint.js').isHook,
+      propExact: require('./theme-css-lint.js').PROP_EXACT,
+      propPrefixes: require('./theme-css-lint.js').PROP_PREFIXES,
       unavailable: null,
     };
   } catch (e) {
@@ -149,6 +151,104 @@ function checkHookTable(rootDir, hooks, isHook) {
   return { problems, skipped: null };
 }
 
+// ══ THE PROPERTY TABLE IN THE DOC vs THE TWO SETS IN THE LINTER (#1190) ══════════════════════════
+// The same pair, the same drift, one section further down: §2's first table and `PROP_EXACT` /
+// `PROP_PREFIXES` are two hand-written copies of one list, and until this ticket nothing compared
+// them. §1 got its check in #1018 because that was the first ticket that had to edit both copies;
+// #1190 is that ticket for §2 — it adds six properties — and the drift was already there to find:
+// §2's prose said `overflow` was not on the list while `PROP_EXACT` had carried it since #1011 and 13
+// pool sheets were writing it.
+//
+// 🔴 ONLY THE FIRST TABLE IN §2. That section carries several — the refusals, the block-display
+// keywords, the worked examples — and every one of them is full of backticked property names that
+// are being REFUSED. Reading the whole section would compare the allowed list against a list that is
+// mostly the opposite of it. So: rows are taken from where the first `|` line starts until the first
+// line that is not one.
+//
+// 🔴 The two spellings the table uses are the two shapes the linter has. `grid-*` / `padding*` is a
+// PREFIX (the `-` belongs to the prefix when the table writes one: `grid-*` → `grid-`, `padding*` →
+// `padding`, which is exactly how `PROP_PREFIXES` spells them), anything else is EXACT. A token with
+// a `*` anywhere else, or a table cell with no backticks in it, is not something this pair has agreed
+// on and is reported rather than guessed at.
+function propertiesInDocTable(md) {
+  const section = md.split(/^## /m).find((s) => s.startsWith('2. What a sheet may set'));
+  if (!section) return null;
+  const tokens = [];
+  let started = false;
+  for (const line of section.split('\n')) {
+    if (!line.startsWith('|')) { if (started) break; continue; }
+    started = true;
+    if (/^\|\s*-+/.test(line)) continue;
+    if (/^\|\s*Group\s*\|/.test(line)) continue;
+    for (const m of line.matchAll(/`([^`]+)`/g)) tokens.push(m[1]);
+  }
+  return started ? tokens : null;
+}
+
+/**
+ * @returns {{problems: string[], skipped: string|null}}
+ */
+function checkPropertyTable(rootDir, propExact, propPrefixes) {
+  const docPath = findContractDoc(rootDir);
+  if (!docPath) return { problems: [], skipped: `${DOC_RELATIVE} §2 (not in this tree)` };
+  if (!propExact || !propPrefixes) {
+    return { problems: [], skipped: `${DOC_RELATIVE} §2 (theme-css-lint.js does not export its `
+      + 'property sets — this check needs both halves and had only one)' };
+  }
+
+  let md;
+  try {
+    md = fs.readFileSync(docPath, 'utf8');
+  } catch (e) {
+    return { problems: [], skipped: `${DOC_RELATIVE} §2 (${e.message})` };
+  }
+
+  const tokens = propertiesInDocTable(md);
+  if (tokens === null) {
+    return { problems: [`${DOC_RELATIVE} — no "## 2. What a sheet may set" section with a table in `
+      + 'it, so the property list could not be read. The check is looking for that heading followed '
+      + 'by a table.'], skipped: null };
+  }
+
+  const problems = [];
+  const docExact = new Set();
+  const docPrefixes = new Set();
+  for (const t of tokens) {
+    if (t.endsWith('*')) {
+      docPrefixes.add(t.slice(0, -1));
+    } else if (t.includes('*')) {
+      problems.push(`${DOC_RELATIVE} §2 — the table offers \`${t}\`, and this check only understands `
+        + 'a plain property name or one ending in `*`. Write it one of those two ways, or widen this '
+        + 'check on purpose.');
+    } else {
+      docExact.add(t);
+    }
+  }
+
+  const diff = (a, b) => [...a].filter((x) => !b.has(x)).sort();
+  const lintExact = new Set(propExact);
+  const lintPrefixes = new Set(propPrefixes);
+  const pairs = [
+    ['exact property', diff(docExact, lintExact), diff(lintExact, docExact)],
+    ['property prefix', diff(docPrefixes, lintPrefixes), diff(lintPrefixes, docPrefixes)],
+  ];
+  for (const [what, docOnly, codeOnly] of pairs) {
+    if (docOnly.length > 0) {
+      problems.push(`${DOC_RELATIVE} §2 — ${docOnly.length} ${what}(s) in the table that `
+        + `theme-css-lint.js does not allow: ${docOnly.join(' · ')}. A sheet that used them would be `
+        + 'refused, having been written from the documentation.');
+    }
+    if (codeOnly.length > 0) {
+      problems.push(`${DOC_RELATIVE} §2 — ${codeOnly.length} ${what}(s) theme-css-lint.js allows that `
+        + `the table does not list: ${codeOnly.join(' · ')}. Themes are generated from the `
+        + 'documentation, so a property only the checker knows about is one nobody will use — and a '
+        + 'doc that under-states what passes is how §2 came to claim `overflow` was refused while 13 '
+        + 'sheets wrote it.');
+    }
+  }
+  return { problems, skipped: null };
+}
+
 /**
  * Check a template tree's CSS against both contracts.
  *
@@ -169,7 +269,7 @@ function checkHookTable(rootDir, hooks, isHook) {
  *            unavailable: string|null}}
  */
 function checkCssContracts(rootDir) {
-  const { themeLint, baseLint, hooks, isHook, unavailable } = loadLinters();
+  const { themeLint, baseLint, hooks, isHook, propExact, propPrefixes, unavailable } = loadLinters();
   if (unavailable) return { problems: [], checked: [], skipped: [], unreadable: [], unavailable };
 
   const problems = [];
@@ -183,6 +283,11 @@ function checkCssContracts(rootDir) {
   const table = checkHookTable(rootDir, hooks, isHook);
   if (table.skipped) skipped.push(table.skipped);
   else { checked.push(DOC_RELATIVE + ' §1 (hooks vs theme-css-lint.js)'); problems.push(...table.problems); }
+
+  // #1190 — and §2 against the linter's two property sets, for the reason written above that function.
+  const props = checkPropertyTable(rootDir, propExact, propPrefixes);
+  if (props.skipped) skipped.push(props.skipped);
+  else { checked.push(DOC_RELATIVE + ' §2 (properties vs theme-css-lint.js)'); problems.push(...props.problems); }
 
   const base = path.join(rootDir, 'public', 'base.css');
   if (fs.existsSync(base)) {

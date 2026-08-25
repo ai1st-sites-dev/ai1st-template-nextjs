@@ -119,6 +119,54 @@ for (const [slug, suffix, hint] of PAGES) {
   }
 }
 
+// ── #1190 —— 「滑到底」那一张 ────────────────────────────────────────────────────────────────────
+//
+// 🔴 一条能横滑的横条，在一张静态截图上跟一排卡片长得**一模一样**。第四道闸是人翻图册，而那个人
+//    看不出「这一排还能往右推」，更看不出推到底之后标题跟没跟着走 —— 而「标题被卷走」正是 #1190
+//    立票时量到的那个缺陷（本票的实测：扁平 markup 上滑到底，标题左沿相对容器 -429px）。
+//    所以这一张拍的是**推到底之后**的样子，跟上面那张 allblocks 是一对。
+//
+// 🔴 没有横条就【不写这张图】，并且在 stderr 上说一句。写一张「没滑动的横条」的图会让翻图的人
+//    以为这套主题有横条而它没有；而盘上有没有这张图，正是 `gallery.mjs` 那一格的判据
+//    （`shot-files.js` 头上那段：清掉之后「盘上有这张图」才等于「这一轮拍到了它」）。
+/* global window */
+{
+  const resp = await page.goto(`${baseUrl}/allblocks.html`, { waitUntil: 'networkidle', timeout: 60000 });
+  if (!resp || resp.status() !== 200) {
+    console.error(`🔴 ${id}-slid: allblocks.html HTTP ${resp && resp.status()} —— 这一张没拍`);
+    rc = 1;
+  } else {
+    await page.evaluate(() => document.fonts.ready);
+    const box = await page.evaluate(async () => {
+      let strip = null;
+      for (const el of document.querySelectorAll('body *')) {
+        const cs = getComputedStyle(el);
+        if (cs.overflowX !== 'auto' && cs.overflowX !== 'scroll') continue;
+        if (el.scrollWidth <= el.clientWidth + 1) continue;
+        strip = el; break;
+      }
+      if (!strip) return null;
+      strip.scrollLeft = strip.scrollWidth;               // 推到底
+      await new Promise((r) => setTimeout(r, 600));       // 等 scroll-snap 停下来
+      // 拍这个横条所在的**块**，不是横条自己 —— 要看的正是「标题还在不在」。
+      const block = strip.closest('[data-block]') || strip;
+      const b = block.getBoundingClientRect();
+      return { x: Math.max(0, Math.floor(b.left + window.scrollX)), y: Math.max(0, Math.floor(b.top + window.scrollY)),
+        width: Math.ceil(b.width), height: Math.ceil(b.height), at: strip.scrollLeft };
+    });
+    if (!box) {
+      console.error(`ℹ️  ${id}-slid: 这一页上没有能横滑的东西（overflow-x 是 auto/scroll 且内容比框宽）—— 这一张不写`);
+    } else {
+      // 🔴 `clip` 的坐标系跟着 `fullPage` 走：不带 `fullPage` 时它是**视口**坐标，而上面那个盒子
+      //    是**页面**坐标（加了 window.scrollY）—— 第一版就是这么写的，playwright 当场报
+      //    「Clipped area is either empty or outside the resulting image」。带上 fullPage 之后两边对齐。
+      await page.screenshot({ path: `${outDir}/${id}-slid.png`, fullPage: true,
+        clip: { x: box.x, y: box.y, width: box.width, height: box.height } });
+      console.error(`📸 ${id}-slid: 推到底 scrollLeft=${box.at}，拍的是那个块 ${box.width}×${box.height}`);
+    }
+  }
+}
+
 // Read back what this theme actually put on the page, so the gallery has a checkable reading
 // next to each picture rather than only the picture.
 //

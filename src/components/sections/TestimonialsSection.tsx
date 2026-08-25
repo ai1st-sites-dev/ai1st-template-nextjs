@@ -45,9 +45,28 @@ interface TestimonialsSectionProps {
 // 🔴 `carousel` 那一支为什么不留成一个开关：主题自己画得出来。实测契约放行 `display:flex` ·
 // `overflow:auto` · `gap` · `flex-shrink` · `min-width`，真浏览器里这五个属性就是一条能横滑的条，
 // 而**四条内容全在 DOM 里**。所以「轮播」搬完之后是主题的一种长相，不是站要选的形态。
-// 📌 不加 `scroll-snap-*`（契约本来就拒它，而且 PM 2026-08-16 裁定不在结构层无条件加）：线上横向
-//    滚动的实例今天是 0 个，没人在滑，现在往 `globals.css` 里加一条谁都盖不掉的规则是给不存在的用户
-//    建设施。哪套主题真做出一条能滑的横条、真觉得停位难看，那时带真读数开票。
+//
+// 🔴 #1190 —— 上面那条「哪套主题真做出一条能滑的横条、真觉得停位难看，那时带真读数开票」的触发
+//    条款**已经兑现了**，所以下面这一层 `<div data-block-part="testimonials-list">` 是它的产物：
+//   · 停位那件事今天做得到了 —— 契约 §2 收了 `scroll-snap-type` / `scroll-snap-align` /
+//     `scroll-snap-stop` / `overflow-x` 以及 `scroll-padding*` / `scroll-margin*`（枚举，不是
+//     `scroll-*` 通配；`scroll-behavior` 与 `overflow-y` 明确不收）。两臂读数（本仓样例站真建真跑，
+//     `lime-28`，六档视口 320/360/375/768/1024/1440）：`scrollLeft` 设成 100，加了 `scroll-snap-type`
+//     **六档全部静止在条目边界上**（1440 上条目吸附位 0·596·1193）、按选择器精确删掉那一条则
+//     **六档全部停在 100**。📌 票正文记的「条目步长 336」是它自己那个 5 条的独立探针，不是这里的数。
+//   · 📌 2026-08-16 那条裁定**没有被推翻**：它说的是别往 `globals.css` 加一条谁都盖不掉的死规则。
+//     这里加的仍然不是那种东西 —— `globals.css` 里只有 `display: contents`（对布局透明，实测扁平
+//     与包一层的逐元素几何逐项相同），会不会滑由**主题表**自己决定，而且今天池里 97 套只有一套
+//     （`lime-28`）真画了它。
+//   · 为什么必须有这一层、而不是让 `.testimonials` 自己当滑动容器：标题和副题就在 `.testimonials`
+//     里。实测（把这个组件改回扁平 markup、把滑条规则指到 `.testimonials` 自己身上，真建真跑）：
+//     滑到底时标题左沿相对容器左沿 **-429px**，已经不在视口内了 —— 而 `position` / `left` 都被
+//     契约拒。包一层之后标题和副题是这一层的**兄弟**，滑动轴开在这一层上就带不走它们。
+//     📌 票正文记的是 -728px，那是它自己那个 5 条的独立探针；这里这个 -429 是交付时在本仓样例站
+//     （1440px、3 条）上重量的。同一个毛病、两个夹具，别把两个数混着引。
+//   · 为什么是**属性**钩子而不是 class：class 会进 `HOOK_CLASSES`，那是池子配方逐个写规则、准入
+//     闸②逐个要规则的那份名单 —— 实测加 class 形态会让闸②点名 100/100 张表，重生成则 97 张全变。
+//     代价写在契约 §1：闸②因此**永远不会问**「有没有哪套表画了这一层」。
 //
 // 🔴 头像那个圆圈里的首字母（`name.charAt(0)`）没了。它不是数据，是 markup 现算出来的一个装饰，
 // 而名字就在它旁边。跟 #1027 values-grid 的序号是同一笔账：markup 里算出来的东西，主题表补不回来。
@@ -68,23 +87,25 @@ export default function TestimonialsSection({ data, block }: TestimonialsSection
         {data.headline}
       </h2>
       <p className="testimonials__sub">{data.subheadline}</p>
-      {data.items?.map((testimonial) => (
-        <article key={testimonial.id} className="testimonials__item">
-          <p className="testimonials__rating" aria-label={`Rated ${testimonial.rating} out of 5`}>
-            {Array.from({ length: testimonial.rating }).map((_, i) => (
-              <svg key={i} className="testimonials__star" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-              </svg>
-            ))}
-          </p>
-          <blockquote className="testimonials__quote">{testimonial.quote}</blockquote>
-          <p className="testimonials__name">{testimonial.name}</p>
-          <p className="testimonials__meta">
-            {testimonial.role} &middot; {testimonial.location}
-          </p>
-          <p className="testimonials__service">{testimonial.service}</p>
-        </article>
-      ))}
+      <div data-block-part="testimonials-list">
+        {data.items?.map((testimonial) => (
+          <article key={testimonial.id} className="testimonials__item">
+            <p className="testimonials__rating" aria-label={`Rated ${testimonial.rating} out of 5`}>
+              {Array.from({ length: testimonial.rating }).map((_, i) => (
+                <svg key={i} className="testimonials__star" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
+              ))}
+            </p>
+            <blockquote className="testimonials__quote">{testimonial.quote}</blockquote>
+            <p className="testimonials__name">{testimonial.name}</p>
+            <p className="testimonials__meta">
+              {testimonial.role} &middot; {testimonial.location}
+            </p>
+            <p className="testimonials__service">{testimonial.service}</p>
+          </article>
+        ))}
+      </div>
     </section>
   );
 }

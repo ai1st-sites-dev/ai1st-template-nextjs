@@ -717,10 +717,19 @@
 }
 
 /* The events run across instead of down — the third geometry again (left: one wide column, right:
-   two columns). 🔴 `overflow-x: auto` is NOT here and cannot be: `overflow` is off the contract's
-   property whitelist (§2), and the block's own `overflow: hidden` in globals.css is what keeps a row
-   too wide for a phone from scrolling the whole page. So the row has to fit — `flex-basis` plus
-   `flex-grow` lets each event shrink to the track it gets instead of demanding 11rem. */
+   two columns). 🔴 The row has to FIT: `flex-basis` plus `flex-grow` lets each event shrink to the
+   track it gets instead of demanding 11rem, and the block's own `overflow: hidden` in globals.css is
+   what keeps a row too wide for a phone from scrolling the whole page.
+   🔴 #1190 — THE SENTENCE THAT USED TO STAND HERE SAID `overflow-x: auto` COULD NOT BE WRITTEN
+   BECAUSE §2 DID NOT LIST `overflow`. That was already false about the shorthand when it was written
+   — the contract has listed it since #1011 (`docs/reference/theme-css-contract.md`
+   §2, `theme-css-lint.js`'s `PROP_EXACT`), and 13 pool sheets write it. `overflow-x` joined §2 in
+   #1190. So a sheet CAN open a scroll axis now; this block still does not, because a strip that
+   slides needs somewhere to put the scroll axis that is not the block itself (the headline and the
+   sub live in the block — measured on flat markup, sliding to the end puts the headline's left edge
+   at -429px, off the screen). `testimonials` got that layer in #1190
+   (`[data-block-part="testimonials-list"]`); `timeline` has none, so fitting is still the answer
+   here. */
 .timeline__event {
   display: grid;
   gap: 0.25rem;

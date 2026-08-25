@@ -177,11 +177,22 @@ function card(entry, shotsPath) {
     return `<figure class="${cls}"><figcaption>${esc(cap)}</figcaption>
          ${cls === 'wide' ? `<div class="scroller">${img}</div>` : img}</figure>`;
   }).join('\n');
+  // #1190 —— 「滑到底」那一张，**可选**，不进下面那个 missing 计数。
+  // 🔴 为什么不放进 `FIGURES`：97 套里今天只有 1 套画了能横滑的横条，把它当成必拍的一张会让另外
+  //    96 套每套多出一行「🔴 这一张没拍到」，而那句话在这里是假的 —— 那 96 套本来就没有横条可拍。
+  //    「没有这张图」在这一格的意思是「这套主题没画横条」，说清楚，不当成失败。
+  const slid = has('-slid')
+    ? `<figure class="wide"><figcaption>滑到底（#1190）—— 这套主题把某个块画成了一条能横滑的横条，
+         这张图是把它<b>推到底之后</b>的样子。要看的是：条目滑走了，而这个块自己的标题和副题
+         <b>还在原地</b>（它们不在滑动轴上）。静态图上一条能滑的横条跟一排卡片长得一样，所以单独拍这一张。</figcaption>
+         <div class="scroller"><a href="shots/${esc(entry.id)}-slid.png" target="_blank">
+           <img loading="lazy" src="shots/${esc(entry.id)}-slid.png" alt="${esc(entry.id)} 滑到底"></a></div></figure>`
+    : '';
   const missing = FIGURES.filter(([s]) => !has(s)).length;
   const shots = missing === FIGURES.length
     ? `<p class="nofig">🔴 这一套一张图都没有。<b>这不等于「它长得不好看」</b>，只等于这一轮没拍成：<br>
          <code>${esc(entry.shotLog || '（没有日志）')}</code></p>`
-    : figures + (missing || !entry.shot
+    : figures + slid + (missing || !entry.shot
       ? `<p class="nofig">📌 ${missing ? `上面 ${missing} 张没拍到；` : ''}shoot.mjs 这一轮退的不是 0，它说：<br>
            <code>${esc(entry.shotLog || '（没有日志）')}</code></p>`
       : '');

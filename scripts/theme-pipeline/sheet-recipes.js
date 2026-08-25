@@ -515,6 +515,69 @@ const TESTIMONIAL_LOOKS = {
   },
 };
 
+// ── #1190 —— 实验钉：一套候选，把 testimonials 画成一条能滑而且停得住的横条 ─────────────────────
+//
+// 🔴 **它住在 `TESTIMONIAL_LOOKS` 外面，这是 PM 2026-08-25 的裁定，理由是量出来的**：
+//   · 往那张表里加第 5 副画法 ⟹ 97 套里画法档变掉 **75** 套（分布 20/19/20/19/19，最小档 19.6%，
+//     所以拦住它的**不是**那条 15% 地板）。那 97 张是**在售**的表，客户站重建就跟着变 —— 75 个站的
+//     客户评价段换个排法，是产品决定，不该当成一张实证票的副作用。
+//   · 而且 `sheet-recipes.test.js` 第 ⑨ 格会当场红：它的判据是 `d.archs !== r.L`（`L` =
+//     `Object.keys(f.table).length`），加了第 5 个键而挑法仍走 4 个名字 ⟹ 报「5 种候选里只轮到 4 种」。
+//
+// 🔴 **这跟本流水线「用分布不用 flag」那条纪律不冲突，因为它们回答的不是同一个问题**：分布回答
+//    「97 套怎么各不相同」，而这张票问的是「拿一套试穿」。一个实验要的就是**一个**受试者，而分布这种
+//    机制按构造说不出「恰好一个」。所以照实写成一条**明写的实验钉**：一个候选号、一句 CSS 注释，
+//    外加 `sheet-recipes.test.js` 一格断言「命中的候选恰好 1 个」。
+//    📌 将来它要转正成一副真画法，是另一张票的事 —— 那时才付「重新分布 75 套」那笔账。
+//
+// 🔴 **候选号是 27（`gen-07-28` = `lime-28`），挑它的判据写在这里，别随手换**：① 它的
+//    `testimonialLook` 是 `three-up`（最朴素那一副，覆盖起来最干净）；② 全仓 grep 它 **0 命中**
+//    —— `tests/e2e/specs/1139-real-site-block-skeletons.spec.ts` 把 i=0…4 那五套的骨架逐块钉死了，
+//    钉在它们身上会把那一格弄红，而 `lime-28` 不在任何一格的射程里。
+//
+// 🔴 **`overflow-x` 而不是 `overflow`**：只开横轴。竖轴留给块自己（`globals.css` 的
+//    `.testimonials { overflow: hidden }`）。
+// 🔴 **`display: flex` 这一行不是可选的**：这一层的默认是 `globals.css` 里的 `display: contents`，
+//    而 `overflow-x` 写在一个没有盒子的元素上什么都不会发生。改 `display` 的活只能由表来做。
+const SCROLL_STRIP_EXPERIMENT = {
+  candidate: 27,
+  block: 'testimonials',
+  note: '#1190 experiment pin — the one sheet in the pool that draws testimonials as a slide-able strip',
+  // `v` 是这套候选的 voice：gap 跟着这套主题自己的节奏走，不另起一个数。
+  rules: (v) => [
+    ['[data-block-part="testimonials-list"]', {
+      display: 'flex',
+      // 桌面上块根是多栏网格（`wideRule`），不跨满的话这一层只占第一栏。
+      'grid-column': '1 / -1',
+      gap: v.gap,
+      'overflow-x': 'auto',
+      'scroll-snap-type': 'x mandatory',
+    }],
+    ['.testimonials__item', {
+      'flex-shrink': 0,
+      // 窄屏：一张卡占满一屏还露出下一张的一角。
+      // 🔴 这里是**百分比**而不是 `20rem`，而这一条是被 QA2 在真机上逼出来的（#1190 r2）：定长卡
+      //    的宽度不跟着容器走，于是屏一窄它就比容器还宽 —— r1 交付的 `min-width: 20rem` 在 320 /
+      //    344 / 360px 三档手机上**开页时第一张卡就是被裁的**（实测各裁 48 / 24 / 8px；375 才刚好
+      //    完整，只剩 7px 余量）。r1 那句注释「手机上块的内容宽 ≈ 327px 实测」量的是 375 那一档，
+      //    而它下面还有三档。写成 `%` 之后卡宽是容器可视宽的一个真分数 ⟹ **任何宽度**上首项都完整，
+      //    这是按构造成立的，不是在几个抽样宽度上碰巧成立。
+      'min-width': '80%',
+      'scroll-snap-align': 'start',
+    }],
+  ],
+  // 🔴 桌面那一段不是装饰，它是「这条横条在任何屏上都真的是一条横条」的那一半，而且这一条是被
+  //    读数逼出来的：只写 `min-width: 20rem` 时，1440px 上块的内容宽是 1344，三张 320 的卡加两个
+  //    间隙才 1024 ⟹ `scrollWidth === clientWidth`，**根本没得滑**，而「设成 100 静止后读到 0」在
+  //    那种页面上是恒真的 —— 一个读起来像交付了的假绿。
+  // 📌 用**百分比**而不是又一个 rem：卡宽跟着容器走，于是 3 张卡按构造就是 126%+，在 1440、1920、
+  //    任何桌面宽度上都溢出。部件不受 §2 那条「块上的长度只许一个方向」管（那条只管块和区域的钩
+  //    子），所以这里写 `%` 是合法的 —— 交付时逐条 lint 过。
+  wide: () => [
+    ['.testimonials__item', { 'min-width': '42%' }],
+  ],
+};
+
 // #1139 那批各自的档位。**这里是唯一说得出「第 i 套是哪一副」的地方**（同 hero / split / cards /
 // cta / form 那几行的纪律）：名字表就是那张画法表自己的键，不另抄一份清单。
 // 🔴 m（错开的步长）是搜出来的，不是随手取的 —— 判据是「跟已有的每一族、以及本批彼此，都不互相
@@ -1825,6 +1888,15 @@ function sheetFor(i, seed = 7) {
     for (const [sel, decls] of (shape.siblingRules ? shape.siblingRules(v, s) : [])) {
       out.push(declBlock(sel, decls));
     }
+    // #1190 —— 实验钉（整段理由在 `SCROLL_STRIP_EXPERIMENT` 上面）。发在这个块所有规则**之后**，
+    // 因为它要盖掉刚写下的 `.testimonials__item`；`i` 不对就一行都不发 ⟹ 其余 96 张逐字节不变。
+    if (i === SCROLL_STRIP_EXPERIMENT.candidate && block === SCROLL_STRIP_EXPERIMENT.block) {
+      out.push(`/* ${SCROLL_STRIP_EXPERIMENT.note} */\n`);
+      for (const [sel, decls] of SCROLL_STRIP_EXPERIMENT.rules(v, s)) out.push(declBlock(sel, decls));
+      out.push(`@media (min-width: 1024px) {\n  ${SCROLL_STRIP_EXPERIMENT.wide(v, s)
+        .map(([sel, decls]) => declBlock(sel, decls).trim().split('\n').join('\n  '))
+        .join('\n  ')}\n}\n`);
+    }
   }
   return out.join('\n');
 }
@@ -1860,4 +1932,6 @@ module.exports = {
   INFO_LOOKS, INFO_LOOK_NAMES, infoLookFor,
   TESTIMONIAL_LOOKS, TESTIMONIAL_LOOK_NAMES, testimonialLookFor,
   LOOK_FAMILIES, familyOf,
+  // #1190 —— 实验钉。导出是为了让 `sheet-recipes.test.js` 那一格从它派生候选号，而不是手抄一个 27。
+  SCROLL_STRIP_EXPERIMENT,
 };

@@ -58,6 +58,7 @@ let CARD_BLOCKS; let layoutNamesFor;
 let heroLookFor; let HERO_LOOK_NAMES; let HERO_LOOKS;
 let ctaLookFor; let CTA_LOOK_NAMES; let formLookFor; let FORM_LOOK_NAMES;   // #1135
 let LOOK_FAMILIES;                                                          // #1139
+let SCROLL_STRIP_EXPERIMENT;                                                // #1190
 
 let pass = 0; let fail = 0;
 const ok = (m) => { pass += 1; console.log(`  ✅ ${m}`); };
@@ -69,7 +70,7 @@ try {
     sheetFor, voiceFor, heroLayoutFor, HERO_LAYOUTS, CARD_BLOCKS, layoutNamesFor,
     heroLookFor, HERO_LOOK_NAMES, HERO_LOOKS,
     ctaLookFor, CTA_LOOK_NAMES, formLookFor, FORM_LOOK_NAMES,
-    LOOK_FAMILIES,
+    LOOK_FAMILIES, SCROLL_STRIP_EXPERIMENT,
   } = require(path.join(DIR, 'sheet-recipes.js')));
   ({ paletteFor } = require(path.join(DIR, 'palette.js')));
   postcss = require('postcss');
@@ -1687,6 +1688,126 @@ console.log('\n⑬ #1150 首屏表单那行报错，跟联系/报价那两行拿
         bad(`⑭ 阳性对照失败：${rigLook} 的 order 被改成 4 之后这把尺还说两边一样 ⟹ 它没在读 order`);
       }
     }
+  }
+}
+
+console.log('\n⑮ #1190 实验钉：恰好一套候选画出滑条，其余逐字节不动');
+{
+  // ══ 这一格为什么存在 ═══════════════════════════════════════════════════════════════════════════
+  // #1190 要「拿一套主题试穿一条能滑的横条」。这条流水线平时用**分布**说话（第 i 套是哪一副画法由
+  // 一个式子决定），而分布按构造说不出「恰好一个」—— 往 `TESTIMONIAL_LOOKS` 里加第 5 副画法，实测
+  // 97 套里有 75 套的画法档会跟着变，而那 97 张是**在售**的表，客户站重建就跟着变。所以钉子住在那张
+  // 表外面，而**「它只碰了一套」这件事必须有一格量它**：漏了的样子跟通过一模一样（表照样生成、
+  // 契约 lint 照样 rc=0、准入闸②照样过），只有逐字节比才看得见。
+  //
+  // 🔴 两臂比的是**同一个函数在两种配置下的产物**，不是拿盘上的文件比：盘上那份 `lime-28.css` 已经
+  //    是钉过之后的字节，拿它当「不动」的基线等于用结论证结论。关掉钉子的做法是把候选号临时设成一个
+  //    池子里不存在的值（钉子在 `sheetFor` 里是按值现读的），跑完复位，并且**验证复位真的成功** ——
+  //    一个只留在这次进程里的副作用会让同一进程后面的格子读到别的东西。
+  //
+  // 📌 代价说在明处：全池渲染一遍约 26 秒（本轮实测），所以这一格跑**两**遍全池、其余几格只渲染
+  //    要用到的那两套。「其余 96 张的**文件**没变」那一半由交付时的 `git diff public/themes/`
+  //    与逐份 `sheet-fresh --check` 全量证（真产物，不抽样）；这一格证的是**生成器**那一半。
+  const PIN = SCROLL_STRIP_EXPERIMENT;
+  const POOL = 97;                       // 同 ⑨ 那一格；下面用盘上的份数自核
+  const SEL = '[data-block-part="testimonials-list"]';
+  const SNAP = 'scroll-snap-type: x mandatory';
+  const THEMES = path.join(DIR, '..', '..', 'public', 'themes');
+
+  const generated = fs.readdirSync(THEMES).filter((f) => f.endsWith('.css')).filter((f) => /^\/\* theme-css-contract: v\d+\n {3}gen-\d+-\d+ /
+    .test(fs.readFileSync(path.join(THEMES, f), 'utf8').slice(0, 200)));
+  if (generated.length !== POOL) {
+    die(`⑮ 分母对不上：public/themes 里带 gen- 横幅的表有 ${generated.length} 份，这一格按 ${POOL} 算 —— `
+      + '两个数不一样时下面每一条都是假的');
+  }
+  ok(`⑮ 分母自检：池子就是 ${POOL} 份生成表`);
+
+  const saved = PIN.candidate;
+  const renderAll = () => [...Array(POOL).keys()].map((i) => sheetFor(i));
+  const withPin = renderAll();
+  PIN.candidate = -1;                    // 池子里没有这个候选号 ⟹ 钉子一行都不发
+  const withoutPin = renderAll();
+  PIN.candidate = saved;
+
+  // ① 复位真的复位了 —— 先验这一条，不然下面每一条「不同」都可能是这个副作用造的
+  if (sheetFor(saved) !== withPin[saved] || sheetFor((saved + 1) % POOL) !== withPin[(saved + 1) % POOL]) {
+    die('⑮ 关掉钉子那一臂留下了副作用：复位之后重新渲染跟第一次不一样 —— 夹具不成立，不给读数');
+  }
+  ok('⑮ 两臂夹具自检：把候选号改掉再改回来，重新渲染逐字节回到原样');
+
+  // ② 钉子碰过的候选，恰好是它自己点名的那一个（全池逐套逐字节）
+  const touched = withPin.map((css, i) => (css === withoutPin[i] ? null : i)).filter((i) => i !== null);
+  if (touched.length === 1 && touched[0] === PIN.candidate) {
+    ok(`⑮ 全池逐字节两臂比：钉子只碰了 1 套候选，就是它点名的那个（i=${PIN.candidate}，`
+      + `gen-07-${PIN.candidate + 1}）—— 其余 ${POOL - 1} 套两臂逐字节相同`);
+  } else {
+    bad(`⑮ 钉子碰了 ${touched.length} 套候选（${touched.join(', ')}），而它点名的是 ${PIN.candidate} —— `
+      + '这不是「拿一套试穿」，是改了在售的表');
+  }
+
+  // ③ 它碰出来的东西真的是那条滑条（不是「变了一点什么」）
+  const pinned = withPin[PIN.candidate];
+  const bare = withoutPin[PIN.candidate];
+  const has = (css) => css.includes(SEL) && css.includes(SNAP);
+  if (has(pinned) && !bare.includes(SEL) && !bare.includes(SNAP)) {
+    ok(`⑮ 那一套的两臂：钉上有 \`${SEL}\` + \`${SNAP}\`，钉掉两样都没有`);
+  } else {
+    bad(`⑮ 那一套的两臂读不出滑条：钉上 has=${has(pinned)} · 钉掉出现 SEL=${bare.includes(SEL)} `
+      + `SNAP=${bare.includes(SNAP)}`);
+  }
+
+  // ④ 全池数选择器 —— 跟 ② 是两种数法（②数「两臂有差」，④数「有这个选择器」），
+  //    一起过才排掉「差在别处、而滑条其实每张都有」这种读法
+  const drawn = withPin.filter((css) => css.includes(SEL)).length;
+  const drawnBare = withoutPin.filter((css) => css.includes(SEL)).length;
+  if (drawn === 1 && drawnBare === 0) {
+    ok(`⑮ 全池数选择器：钉上 ${drawn} 份表画了这一层、钉掉 ${drawnBare} 份 —— 这把尺读的是钉子本身`);
+  } else {
+    bad(`⑮ 全池数选择器读到 钉上 ${drawn} / 钉掉 ${drawnBare}，期望 1 / 0`);
+  }
+
+  // ⑤ 阳性对照：把候选号挪到另一套，滑条必须跟着挪 —— 没有它，一个「永远只给 27 号发」的写死实现
+  //    也能让上面每一格全绿。只渲染这两套（全池再跑一遍要 26 秒，而这条性质只落在这两套上）。
+  const other = (saved + 7) % POOL;
+  PIN.candidate = other;
+  const movedOther = sheetFor(other);
+  const movedSaved = sheetFor(saved);
+  PIN.candidate = saved;
+  if (movedOther.includes(SEL) && !movedSaved.includes(SEL)) {
+    ok(`⑮ 阳性对照：候选号挪到 ${other} ⟹ 第 ${other} 套长出滑条、第 ${saved} 套没有了（读的是这个钉子）`);
+  } else {
+    bad(`⑮ 阳性对照失败：候选号挪到 ${other} 之后，第 ${other} 套 has=${movedOther.includes(SEL)} · `
+      + `第 ${saved} 套 has=${movedSaved.includes(SEL)} —— 上面几格读的不是这个钉子`);
+  }
+  if (sheetFor(saved) !== withPin[saved] || sheetFor(other) !== withPin[other]) {
+    die('⑮ 阳性对照之后没复位干净 —— 这个进程后面的读数都不可信');
+  }
+
+  // ⑥ 窄屏那张卡的宽度必须是**容器的一个真分数**，不是定长（#1190 r2，QA2 在真机上抓到的那条）
+  //
+  // 量过的性质：卡宽 = 容器可视宽 × f（0 < f < 1）⟹ **任何**视口上开页时第一张卡都完整。定长做不到
+  // 这一条 —— r1 写的 `min-width: 20rem` 在 320 / 344 / 360px 三档手机上各裁掉 48 / 24 / 8px，而
+  // 375px 上刚好完整（只剩 7px 余量），所以「在几个宽度上试过都对」不等于这条性质成立。
+  // 🔴 这一格是**便宜的那张网**：真网是 `theme-css-invariants.mjs` 的检查 ⑦（真浏览器、逐档宽度量
+  //    首项完不完整）。这里只读配方的字面值，抓的是「有人把它改回定长」——那种改动在没有浏览器的
+  //    环境里也该当场红。
+  const share = (v) => /^\s*(\d+(?:\.\d+)?)%\s*$/.test(String(v)) && parseFloat(v) < 100;
+  // 尺子自检：先证这把尺读得出两种错法，否则下面那条恒真
+  if (share('20rem') || share('100%') || share('320px') || !share('80%')) {
+    die('⑮ 那把「是不是真分数」的尺自检没过 —— 它对 20rem / 100% / 320px 说不，对 80% 说是');
+  }
+  const narrowItem = PIN.rules(voiceFor(PIN.candidate))
+    .find(([sel]) => sel === '.testimonials__item');
+  const wideItem = PIN.wide(voiceFor(PIN.candidate))
+    .find(([sel]) => sel === '.testimonials__item');
+  if (narrowItem && share(narrowItem[1]['min-width'])
+      && wideItem && share(wideItem[1]['min-width'])) {
+    ok(`⑮ 卡宽是容器的真分数：窄屏 ${narrowItem[1]['min-width']} · 桌面 ${wideItem[1]['min-width']} `
+      + '⟹ 开页时首项在任何视口宽度上都完整（定长做不到这一条）');
+  } else {
+    bad(`⑮ 卡宽不是真分数：窄屏 min-width=${narrowItem && narrowItem[1]['min-width']} · `
+      + `桌面 min-width=${wideItem && wideItem[1]['min-width']} —— 定长的卡在窄屏上比容器还宽，`
+      + '开页时第一张就是被裁的（#1190 r1 实测 320px 裁 48px）');
   }
 }
 

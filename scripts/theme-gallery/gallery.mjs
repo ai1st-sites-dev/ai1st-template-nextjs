@@ -201,6 +201,14 @@ const card = (id) => {
     // 一张 404 的图在页面上是一个小破图标，看起来像"这套没什么可看的"。说出来。
     : '<p class="meta">🔴 <b>这一轮没拍到这一页</b>（这不是关于这套皮的读数）—— 样例站可能没撑开，重跑 shoot-themes.sh，它会先告诉你怎么撑。</p>'}
       </figure>
+      ${fs.existsSync(`${PUB}/shots/${id}-slid.png`) ? `<figure class="wide">
+        <figcaption>滑到底（#1190）—— 这套主题把某个块画成了一条能横滑的横条，这张图是把它
+          <b>推到底之后</b>的样子。要看的是：条目滑走了，而这个块自己的标题和副题<b>还在原地</b>
+          （它们不在滑动轴上）。静态图上一条能滑的横条跟一排卡片长得一模一样，所以单独拍这一张。<br>
+          🔴 <b>没有这一格 ≠ 这一轮没拍成</b>：97 套里今天只有一套画了横条，其余的这一格本来就不存在。</figcaption>
+        <div class="scroller"><a href="shots/${id}-slid.png" target="_blank">
+          <img loading="lazy" src="shots/${id}-slid.png" alt="${id} 滑到底"></a></div>
+      </figure>` : ''}
     </div>
   </section>`;
 };
