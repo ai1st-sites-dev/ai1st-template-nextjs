@@ -29,6 +29,9 @@ const siteRegions = require('./lib/site-regions');
 // #1109 —— 这个站的内容住在 `site/<语言>/` 还是直接在 `site/`。白名单拿它判「这条路径在这个站上
 // 有没有人读」；判据跟构建同一条（只看 site_meta.json 在不在），理由在那个文件头上。
 const siteShape = require('./lib/site-shape');
+// #1195 —— 写进图片字段的那个地址，是不是有人真的给过它。为什么必须是「谁给的」而不是「取不取得到」，
+// 以及那张 IMAGE_FIELDS 清单为什么不是手抄的，整段写在那个文件头上。
+const imageUrls = require('./lib/image-urls');
 
 // ─── Emit structured events to stdout ─────────────────────────────────────────
 
@@ -497,7 +500,7 @@ function siteBlocksJsonError(relPath, parsed) {
  * @param {Map<string, Buffer|null|{why:string}>} [snapshots]
  *   #1102 —— `write_file` 往这里记「这个文件在被写之前是什么样」。同步失败时按它回滚。
  */
-function executeTool(toolName, toolInput, siteDir, snapshots) {
+function executeTool(toolName, toolInput, siteDir, snapshots, allowedImageUrls) {
   switch (toolName) {
     case 'read_file': {
       const relPath = toolInput.path;
@@ -566,6 +569,12 @@ function executeTool(toolName, toolInput, siteDir, snapshots) {
       // 「这份内容建得出来吗」,而拒绝时磁盘一个字节没动、模型拿着原因在同一轮里重写。
       const siteBlocksErr = siteBlocksJsonError(relPath, parsed);
       if (siteBlocksErr) return { error: siteBlocksErr };
+      // #1195 —— 图片字段上写着的 http(s) 地址必须是**有人给过**的（附件 / 老板打的字 / 站里已有的）。
+      // 位置跟上面两关同一个道理：拒的时候磁盘一个字节没动，模型拿着原因在同一轮里改口。
+      // 🔴 排在这里而不是更早：前两关问的是「这份内容建得出来吗」，这一关问的是「这个地址存在吗」——
+      //    一份 JSON 写错了的内容不该先收到一句关于图片的错误。
+      const badImageUrl = imageUrls.imageUrlRejection(parsed, allowedImageUrls);
+      if (badImageUrl) return { error: badImageUrl };
       const fullPath = path.join(siteDir, relPath);
       // #1102 —— 落盘**之前**把这个文件本来的样子记下来（同步失败时按它回滚）。
       // 🔴 只在第一次写它的时候记：同一次编辑里模型可能把同一个文件写两遍，而"这次编辑之前"
@@ -657,7 +666,7 @@ const SYSTEM_PROMPT = `You are an AI website editor. You modify static website c
 
 The site is defined by JSON configuration files:
 
-- **brand.json** — Company name, tagline, logoIcon, color palette (primary 50-900 shades, accent 50-600 shades), fonts (googleFontsUrl, families), email, phone, locations, socialLinks
+- **brand.json** — Company name, tagline, logoIcon, logoUrl (the logo image — see "Images" below), color palette (primary 50-900 shades, accent 50-600 shades), fonts (googleFontsUrl, families), email, phone, locations, socialLinks
 - **seo.json** — Domain, locale, meta title/description, keywords, Schema.org config
 - **services.json** — Array of services with id, name, shortDescription, fullDescription, icon, features, products
 - **pages/home.json** — Homepage sections
@@ -716,6 +725,45 @@ Available section types: hero, trusted-brands, features-grid, card-group, testim
 Hero variants: left, centered, split, minimal, video-style, gradient-overlay, light-split, light-editorial, light-showcase
 (dark full-bleed: left, centered, split, video-style, gradient-overlay · light background: minimal, light-split, light-editorial, light-showcase)
 
+## Images
+
+Every picture on the site is a URL sitting in one of these fields. There are no others — a block of any
+other type does not show a picture, and putting an image field on one has no effect:
+
+- **brand.json** → \`logoUrl\` — the logo in the header and the footer. Also set \`logoHasWordmark\`: true
+  when the image already contains the company name (the name is then not drawn as text next to it), false when
+  it is an icon only.
+- a **hero** block → \`data.imageUrl\`
+- a **content-split** block → \`data.imageUrl\`
+- a **gallery** block → \`data.items[].imageUrl\` (one per item)
+
+🔴 **Only ever write an image URL that was given to you** — one listed under "Attached images" at the end of
+the owner's message, one the owner typed out, or one already in this site's files. **Never invent, guess,
+complete or reconstruct an image address, and never link to a stock-photo site or any other outside source.**
+An address nobody gave you does not exist: it renders as a broken image on the owner's live site, and
+write_file refuses the whole write when it sees one.
+
+When the owner attaches photos you are shown the pictures **and**, at the end of their message under "Attached
+images", the URL of each one as text, in the same order. Those URLs are public and do not expire. Copy the one
+they mean, verbatim, into the field above that matches what they asked for — that is all "use this photo"
+takes. Never tell the owner to upload the picture again or to send you a link: they already did, the link is
+in front of you, and asking again is asking them to redo work they have already finished.
+
+Which one, when several are attached: they are listed in the order they were sent. If the request is about one
+spot, use the one that best matches what they asked for, and **always name the file you used in your reply** so
+the owner can correct you in one line. If the request is about several spots (a gallery, "add these photos"),
+use them all in the order listed.
+
+If the owner asks you to change a picture and there is no attachment and no URL in the files, say so plainly
+and ask them to attach the photo to their next message. Do not put any other address in the field.
+
+Example — swapping the picture of a content-split block in pages/about.json:
+\`\`\`json
+{ "id": "about-advisor", "type": "content-split", "role": "optional", "region": "content", "weight": 20,
+  "data": { "headline": "Your private wealth advisor",
+            "imageUrl": "https://uploads.example.com/8f3c1d2ab_advisor-photo.jpg" } }
+\`\`\`
+
 ## Site-Wide Blocks (blocks/site-blocks.json)
 
 A block that appears on more than one page lives in **blocks/site-blocks.json** instead of being copied into
@@ -760,7 +808,8 @@ slot or a list slot that is not a list is refused here too.
 5. Keep content SEO-friendly and professional
 6. When adding sections, follow existing data patterns from the file
 7. Preserve all existing fields you don't need to change
-8. Chinese language sites: Check the site's locale field in seo.json. Locale matching is case-insensitive. If locale matches Simplified ("zh", "zh_CN", "zh-CN") → use ONLY Simplified Chinese characters (mainland China convention, 简体) in all content. If locale matches Traditional ("zh-TW", "zh-tw", "zh_TW", "zh_tw", "zh-HK", "zh-hk", "zh_HK", "zh_hk") → use ONLY Traditional Chinese characters (Taiwan / Hong Kong convention, 繁體). Never mix Simplified and Traditional characters.`;
+8. Images: only ever write an image URL that was attached to this message, typed by the owner, or already in the site's files — never invent one and never use a stock-photo site. The complete list of fields that show a picture is under "Images" above
+9. Chinese language sites: Check the site's locale field in seo.json. Locale matching is case-insensitive. If locale matches Simplified ("zh", "zh_CN", "zh-CN") → use ONLY Simplified Chinese characters (mainland China convention, 简体) in all content. If locale matches Traditional ("zh-TW", "zh-tw", "zh_TW", "zh_tw", "zh-HK", "zh-hk", "zh_HK", "zh_hk") → use ONLY Traditional Chinese characters (Taiwan / Hong Kong convention, 繁體). Never mix Simplified and Traditional characters.`;
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
@@ -799,12 +848,22 @@ async function main() {
   // the provider can't handle a format we'll catch the error around the API
   // call and surface a friendly message. Provider-agnostic — when we swap AI
   // providers, this code Just Works without listing which formats they accept.
+  // #1195 —— 附件的**地址**要当文本一起发。管道早就把图片送到模型眼前了（TICKET-093），
+  // 但那是 `{ type:'image', source:{ type:'url', url } }` —— 模型看得见画面，**看不见那个 url
+  // 字符串**：实测同一个模型（claude-sonnet-4-6）只发图片块再问「你刚收到的图片地址是什么」，
+  // 答的是 `NO_URL_AVAILABLE`。所以「你可以把附件的 URL 写进配置」这句话在提示词里写多少遍都没用，
+  // 那个 URL 从来没到过它手里 —— 这是本票那个症状（看得见却用不上）真正缺的那一半。
+  // 🔴 没有附件时这一支一个字节都不变（`attachedImagesNote([])` 返回空串，这里连碰都不碰它）。
   const userContent = images.length > 0
     ? [
-        { type: 'text', text: message },
+        { type: 'text', text: message + imageUrls.attachedImagesNote(images) },
         ...images.map(img => ({ type: 'image', source: { type: 'url', url: img.url } })),
       ]
     : message;
+  // #1195 —— 这次写入放行哪些图片地址。四类来源见 lib/image-urls.js 的文件头；整轮算一次。
+  const allowedImageUrls = imageUrls.collectAllowedImageUrls({
+    siteDir, images, message, conversationHistory,
+  });
   const messages = [
     ...conversationHistory,
     { role: 'user', content: userContent },
@@ -908,7 +967,7 @@ async function main() {
 
         emit('tool_use', { tool: block.name, ...(block.input.path ? { path: block.input.path } : {}) });
 
-        const result = executeTool(block.name, block.input, siteDir, writeSnapshots);
+        const result = executeTool(block.name, block.input, siteDir, writeSnapshots, allowedImageUrls);
 
         if (block.name === 'write_file' && result.success) {
           filesModified = true;
