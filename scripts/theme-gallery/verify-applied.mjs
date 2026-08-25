@@ -10,11 +10,12 @@
 //              type the table has an opinion about → must equal that opinion
 //              type it says nothing about          → must equal the sample page JSON's own value
 //                                                    (proving nothing else moved)
-//            plus one real-browser reading: the hero element carries that variant's own class
+//
+// 📌 #1171 — there used to be a fourth thing, one real-browser reading of the hero's markup. It is
+//    retired, with the three readings that killed it written where it stood (§browser: RETIRED).
+//    Nothing here opens a browser any more.
 import fs from 'fs';
-import { NEXT_DIR, PLAYWRIGHT_MODULE } from './paths.mjs';
-
-const { chromium } = await import(PLAYWRIGHT_MODULE);
+import { NEXT_DIR } from './paths.mjs';
 const { themes, layoutFor } = await import(`${NEXT_DIR}/scripts/themes.js`);
 
 const id = process.argv[2];
@@ -26,6 +27,8 @@ const variants = layoutFor(id);
 
 const fail = [];
 const ok = [];
+// #1171 —— 「这一维今天量不到」既不是通过也不是失败，所以它有自己的一栏（缺席型结论要写在结论行上）。
+const info = [];
 
 // ── layout: config-data.ts vs registry vs the sample site's own page JSON ────────────────────
 const cd = fs.readFileSync(`${NEXT_DIR}/src/lib/config-data.ts`, 'utf-8');
@@ -98,84 +101,36 @@ if (!html.includes(`--font-sans: ${t.fonts.body.join(', ')};`)) { fail.push(`fon
 if (!unescaped.includes(t.fonts.googleFontsUrl)) { fail.push(`the page's Google Fonts link is not the registry's`); fontOk = false; }
 if (fontOk) ok.push('fonts: --font-sans and the Google Fonts link both match the registry');
 
-// ── browser: does the hero element carry the markup only that variant produces? ──────────────
-// Each entry is what must be in the hero's HTML, and what must not. `not` is only needed where a
-// variant has no markup of its own at all: `centered` and `split` render the identical <section>,
-// and they differ only in what is inside it.
+// ── browser: RETIRED (#1171，来源 #1162) ─────────────────────────────────────────────────────
 //
-// 🔴 This table is checked against HeroSection.tsx before it is used (see below). Twice already it
-//    silently rotted: #959 added three variants nobody added here (10 of 30 themes then reported
-//    "this check did not run"), and three of the entries that were here named markup the component
-//    does not produce at all — `aspect-video` appears zero times in it, so every `video-style`
-//    theme failed a check about a class that never existed, while `py-28` and
-//    `from-primary-900 via-primary-800` each match four and three variants, passing themes that
-//    render something else entirely. A marker table nobody re-derives is a yardstick nobody reads.
-const HERO_MARK = {
-  'split': { must: ['lg:grid-cols-2'] },
-  'minimal': { must: ['border-b-4 border-accent-500'] },
-  'gradient-overlay': { must: ['from-primary-600 to-accent-600'] },
-  'centered': { must: ['bg-gradient-to-b from-primary-900'], not: ['lg:grid-cols-2'] },
-  'left': { must: ['bg-gradient-to-br from-primary-900'] },
-  'video-style': { must: ['hover:scale-110'] },
-  'light-split': { must: ['lg:grid-cols-12'] },
-  'light-editorial': { must: ['lg:py-32'] },
-  'light-showcase': { must: ['lg:pt-24'] },
-};
-
-// Cut HeroSection.tsx into one piece per variant so each marker can be re-derived rather than
-// trusted. The variants are `if (variant === 'x') { … }` blocks; the last `return (` at two-space
-// indent is the fallback branch, which is the `left` variant.
-const DEFAULT_VARIANT = 'left';
-function heroBlocks() {
-  const src = fs.readFileSync(`${NEXT_DIR}/src/components/sections/HeroSection.tsx`, 'utf-8');
-  const at = [...src.matchAll(/if \(variant === '([a-z-]+)'\) \{/g)].map(m => ({ v: m[1], i: m.index }));
-  const defaultAt = src.lastIndexOf('\n  return (');
-  if (!at.length || defaultAt < 0) return null;
-  const blocks = { [DEFAULT_VARIANT]: src.slice(defaultAt) };
-  at.forEach((m, k) => {
-    blocks[m.v] = src.slice(m.i, k + 1 < at.length ? at[k + 1].i : defaultAt);
-  });
-  return blocks;
-}
-const blocks = heroBlocks();
-const matches = (variant, block) =>
-  HERO_MARK[variant].must.every(s => block.includes(s)) &&
-  (HERO_MARK[variant].not || []).every(s => !block.includes(s));
-if (!blocks) {
-  fail.push('cannot read the hero variants out of HeroSection.tsx — the marker table is unverified');
-} else {
-  const missing = Object.keys(blocks).filter(v => !HERO_MARK[v]);
-  if (missing.length) fail.push(`HeroSection.tsx has variant(s) the marker table never heard of: ${missing.join(', ')}`);
-  for (const v of Object.keys(HERO_MARK)) {
-    const hit = Object.keys(blocks).filter(b => matches(v, blocks[b]));
-    if (hit.length !== 1 || hit[0] !== v) {
-      fail.push(`marker for hero "${v}" is stale: in HeroSection.tsx it matches ${hit.length ? hit.join(' + ') : 'nothing'}`);
-    }
-  }
-  if (!fail.some(f => f.startsWith('marker') || f.startsWith('HeroSection'))) {
-    ok.push(`hero markers: all ${Object.keys(HERO_MARK).length} still match exactly their own variant in HeroSection.tsx`);
-  }
-}
-
-const want = variants['hero'];
-const mark = HERO_MARK[want];
-const browser = await chromium.launch();
-const page = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
-await page.goto(`file://${NEXT_DIR}/out/security-vendor/index.html`, { waitUntil: 'domcontentloaded' });
-// The callback runs INSIDE the browser — `document` there is the page's, not Node's.
-/* global document */
-const heroHtml = await page.evaluate(() => document.querySelector('main section')?.outerHTML || '');
-await browser.close();
-if (!mark) fail.push(`no marker written for hero variant "${want}" — this check did not run`);
-else if (!matches(want, heroHtml)) {
-  const missed = mark.must.filter(s => !heroHtml.includes(s));
-  const strayed = (mark.not || []).filter(s => heroHtml.includes(s));
-  fail.push(`in the browser the hero is not "${want}"` +
-    (missed.length ? `: no ${missed.map(s => `"${s}"`).join(' / ')}` : '') +
-    (strayed.length ? `: it carries ${strayed.map(s => `"${s}"`).join(' / ')}, which "${want}" never renders` : ''));
-} else ok.push(`browser: hero is "${want}" (${mark.must.map(s => `"${s}"`).join(' + ')} in the DOM${mark.not ? `, and no ${mark.not.map(s => `"${s}"`).join(' / ')}` : ''})`);
+// 这里曾经有一格真浏览器读数：打开产物首页，看 hero 那个 <section> 上有没有「只有这个 variant 才
+// 产出的 markup」，对照一张手写的标记表 `HERO_MARK`。**#1008 之后那一格按构造量不到东西了**，而它
+// 报出来的样子不是「跳过」，是两条 🔴 —— 而那两条红说的都是它自己瞎了。这种红最贵：照字面读会去
+// 修被测对象，而该修的是尺子。
+//
+// 🔴 为什么不是「重新派生一张表」，是退役 —— 三个读数（2026-08-24 在 origin/main 上现取）：
+//   ① `HeroSection.tsx` 里 `if (variant === '…') {` 命中 **0 处**。#1008 把九棵 variant 树删成
+//      一棵中性 markup（那个文件头上写着 "ONE MARKUP, AND NOTHING ELSE"）⟹ `heroBlocks()` 的
+//      `at.length` 为 0 ⟹ 它返回 null ⟹ 第一条红「cannot read the hero variants …」**无条件**开火。
+//   ② 注册表里 80 套主题，`layoutFor(id).hero` 的取值集合是 `with-media / text-only / with-form`
+//      （内容结构，#998 的 block_layout 词汇），而 `HERO_MARK` 的 9 个键是那批**已下架**的版式名
+//      （split / minimal / gradient-overlay / centered / left / video-style / light-*）。
+//      两个集合**交集为空** ⟹ `HERO_MARK[want]` 恒 undefined ⟹ 第二条红「no marker written for
+//      hero variant "…" — this check did not run」对 **80/80** 套主题都开火。
+//   ③ 而且今天没有别的 DOM 属性可以改指过去：主题对 hero 的意见经 `sync-config.js` 落在
+//      `data.variant` 上，而 `HeroSection` **不再读它**（那个文件头逐字：`variant` IS STILL WRITTEN
+//      AND NO LONGER READ）；`data-block-layout` 来自页面 JSON 的 `block_layout`，不是主题写的。
+//      ⟹ 「这个站现在穿的是哪套 hero 版式」这件事**在产物 DOM 上没有痕迹**，不是尺子没找对。
+//
+// 🔴 覆盖边界写在这里，也印在下面的输出里：hero 那一维仍然被查，但只在**配置层** —— 上面
+//    §layout 那一段拿 `layoutFor(id)` 跟 `config-data.ts` 逐块对账，hero 就是其中一块。少掉的是
+//    「浏览器里那一格」。别把这次退役读成「hero 没人管了」，也别读成「浏览器里验过了」。
+//    主题真正长什么样今天由样式表决定，而颜色/字体那两段读的就是产物里那份 `out/…/theme.css`。
+info.push('browser: hero 的版式在产物 DOM 上今天没有痕迹（#1008 把九棵 variant 树收成一棵中性 markup，'
+  + '而 variant 只写不读）⟹ 那格真浏览器读数已退役（#1171）；hero 仍在上面的 layout 段按配置对账');
 
 console.log(`\n=== ${id} ===`);
 ok.forEach(l => console.log('  ✅ ' + l));
+info.forEach(l => console.log('  ℹ️  ' + l));
 fail.forEach(l => console.log('  🔴 ' + l));
 process.exit(fail.length ? 1 : 0);

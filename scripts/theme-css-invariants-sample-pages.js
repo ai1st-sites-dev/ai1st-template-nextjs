@@ -41,8 +41,8 @@
 //   ~~`__title` `__desc` `__features`~~  `checklist` / `service-highlights`）随别名兼容层
 //                                2026-08-23 整层退役 —— 它们不在注册表、它们的钩子也不在契约里，
 //                                所以这一页不再有那个块，也没有那族钩子要撑。#1143 当天那段理由
-//                                （槽位名 `items` vs 老站的 `highlights`、`blocks.js` 的
-//                                `applyAlias` §2.5 坑三守卫）搬到了下面 propping 那一段的 📌 里，
+//                                （槽位名 `items` vs 老站的 `highlights`、`blocks.js` 里
+//                                那层已退役的别名映射的 §2.5 坑三守卫）搬到了下面 propping 那一段的 📌 里，
 //                                作出处留着。今天代替它的是一格**反向的分母自检**：这一页上再出现
 //                                这四个 type 名之一就报（在下面 read-back 那段）。
 //   `.card-group__features`      同一批里这个键是**另一个原因**没被生成：`gen-allblocks.js` 的 `fields()`
@@ -214,7 +214,7 @@ const patched = [];
   //    `service-highlights` / `card-group` 三个 type 都指向 `CardGroupSection`，而 `gen-allblocks.js`
   //    是照**组件的 TS 类型**合成数据的 ⟹ 它给 `service-highlights` 块写的是 `items`；老站那条路上
   //    那个槽位叫 `highlights`（`src/lib/sections/block-aliases.json`），而 `scripts/blocks.js` 的
-  //    `applyAlias` 有一道守卫：改名的**源不在、目标在** ⟹ 把目标也删掉（映射文档 §2.5 坑三），
+  //    那层已退役的别名映射有一道守卫：改名的**源不在、目标在** ⟹ 把目标也删掉（映射文档 §2.5 坑三），
   //    于是那一节只剩标题、零条目。
   //
   // 🔴 ② `features` 这个字段。`gen-allblocks.js` 的 `fields()` 按顶层逗号/分号切类型体、**不认注释**，
@@ -307,14 +307,16 @@ writeJson(allblocks, page);
   // #1143 —— 读回来:`card-group` 的 `items` 在,而且第一条真的带 `features`。
   // 🔴 #1162:这里原来还读 `service-highlights` 的 `highlights` 两个方向(补上了 / `items` 没留下)。
   //    那个 type 名随别名兼容层退役,这一页不再有那个块 ⟹ 那两条断言会读到 undefined 并报假红。
-  //    下面那段 #1149 item 26 的更正说的是**那半段**,留作出处 —— `blocks.js:70/74` 那两支的机理没变,
-  //    只是今天没有块走它们了。
+  //    下面那段 #1149 item 26 的更正说的是**那半段**,留作出处 —— 当年那层别名映射两支(源在 / 源不在
+  //    而目标在)的机理没变,只是今天没有块走它们了。
   //
   // 🔴 #1149 item 26 更正:上一版这里(以及下面那条报文)给的理由是「只问 `highlights` 在不在的话,
   //    `items` 还留着时那道 §2.5 坑三守卫会把两个槽位一起清掉」——**那是假的**。`blocks.js` 的
-  //    `applyAlias` 里两个键都在时走的是**前一支**(`blocks.js:70`:`if (源在) { data[to]=data[from];
-  //    delete data[from] }`),也就是 `highlights` 赢、`items` 被换成它的内容、**照样渲染**;
-  //    `:74` 那个 `else if`(源不在、目标在)按构造进不去。三份独立读数结果相同。
+  //    那层已退役的别名映射里两个键都在时走的是**源在**那一支(当年 `blocks.js`:`if (源在) {
+  //    data[to]=data[from]; delete data[from] }`),也就是 `highlights` 赢、`items` 被换成它的内容、
+  //    **照样渲染**;另一支(源不在、目标在)那个 `else if` 按构造进不去。三份独立读数结果相同。
+  //    🔴 #1171:这一段原来写着 `blocks.js:70` / `:74` 两个行号 —— 今天整个 `applyAlias` 连同那两支
+  //    已经不在文件里了(#1162 退役别名层,#1171 删掉那个纯转发包装),所以改成按机制说。
   // ⟹ 断言留着,但它守的**不是**「不这么写就会被清空」。它守的是:这个夹具要长得**跟真实老站一样**
   //    —— 老站磁盘上只有 `highlights` 这一个槽位(它就是 `block-aliases.json` 里那条改名的源)。
   //    两个键都写会造出一个真实站点里不存在的形状,那样它顺带跑过的那次别名映射就不是老站走的那条。

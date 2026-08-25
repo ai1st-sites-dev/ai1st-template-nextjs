@@ -146,7 +146,7 @@ function migrateBlock(block, row, roleWanted) {
       if (Object.prototype.hasOwnProperty.call(data, from)) {
         // 🔴 目标名字已经在磁盘上时，源覆盖它 —— 而这一支今天到不了：`service-highlights` 的老
         //    组件读的是 `data.highlights`，两个键同时在的块，`items` 那个从来没被读过。同族的判据
-        //    写在 `scripts/blocks.js` §applyAlias 的 #1143 那段注释里。
+        //    写在 `scripts/blocks.js` §normalizeGenericItems 的 #1143 那段注释里。
         data[to] = data[from];
         delete data[from];
       }

@@ -931,7 +931,7 @@ const MOVED_BLOCKS = ['hero', 'cta-banner', 'page-header',
   'feature-comparison', 'logo-carousel', 'map-area', 'trusted-brands',
   // #1132 —— 通用块「卡片组」。这张名单的含义没变：「这个块的 markup 不再决定它长什么样」。
   // 📌 #1162：这里原来写着「老名字 `values-grid` / `benefits-list` 一个都没删（老站还在吐老类名，
-  //    见 blocks.js 的 applyAlias），通用块另外加自己的名字」—— 那层兼容 2026-08-23 整层退役了，
+  //    见 blocks.js 那层别名映射），通用块另外加自己的名字」—— 那层兼容 2026-08-23 整层退役了，
   //    四个老名字（批 1 的 `values-grid` / `benefits-list`、批 2 的 `checklist` /
   //    `service-highlights`）已从这张名单和注册表里一起删掉，名单从 35 项变成 31 项。
   'card-group'];

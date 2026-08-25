@@ -40,7 +40,7 @@ try {
   die(`require 失败: ${e.message}`);
 }
 
-const { BLOCK_ALIASES, applyAlias, normalizeLocalePages } = blocks;
+const { BLOCK_ALIASES, normalizeGenericItems, normalizeLocalePages } = blocks;
 
 // 🔴 分母先说出来。这一格 #1162 **反过来了**：原来是「表里一条真别名都没有 ⟹ die，没东西可查」，
 //    而别名层 2026-08-23 整层退役之后，**零条真别名正是要钉的性质**。所以判据换成两条：
@@ -95,22 +95,22 @@ for (const name of Object.keys(BLOCK_ALIASES)) {
   else ok(`${name}: ${want.size} 个钩子与契约逐个对上（两向）`);
 }
 
-// ── ③ #1162：applyAlias 【不再改任何东西的名字】 ──────────────────────────────────────────────
+// ── ③ #1162：normalizeGenericItems 【不再改任何东西的名字】 ──────────────────────────────────────────────
 // 🔴 这一格是从「换名字、留老名字、补 role、不动 data」改过来的。别名层 2026-08-23 整层退役
 //    （Chris 裁定：合并从此是干净改名），所以要钉的性质**反过来**了：它不许再动 type、不许再往块上
 //    挂任何记老名字的字段。留着这一格而不是删掉，是因为「不再发生」跟「从来没发生过」需要同一道闸 ——
 //    哪天有人把别名加回来，这里会红。
 {
-  const own = applyAlias({ type: 'card-group', data: { headline: 'H', items: [{ title: 'a', description: 'b' }], style: 'icon' } });
-  if (own.type !== 'card-group') bad(`applyAlias 动了通用块的 type（变成 ${own.type}）`);
+  const own = normalizeGenericItems({ type: 'card-group', data: { headline: 'H', items: [{ title: 'a', description: 'b' }], style: 'icon' } });
+  if (own.type !== 'card-group') bad(`normalizeGenericItems 动了通用块的 type（变成 ${own.type}）`);
   else if (Object.keys(own).some((k) => k.startsWith('__'))) {
-    bad(`applyAlias 往块上挂了一个内部字段: ${Object.keys(own).filter((k) => k.startsWith('__')).join(' ')} —— 别名层已经退役，不该再有这种字段`);
+    bad(`normalizeGenericItems 往块上挂了一个内部字段: ${Object.keys(own).filter((k) => k.startsWith('__')).join(' ')} —— 别名层已经退役，不该再有这种字段`);
   } else if (own.data.style !== 'icon') bad('「继续忽略」的字段被删掉了 —— verify-applied 会对不上账');
-  else ok('applyAlias: 通用块的 type 没动 · 没挂任何 __ 字段 · data 一个字节没动');
+  else ok('normalizeGenericItems: 通用块的 type 没动 · 没挂任何 __ 字段 · data 一个字节没动');
 
   // 表里没有的块一个字节都不动（同一个对象引用）—— 这一条从别名时代原样保留
   const other = { type: 'hero', data: {} };
-  if (applyAlias(other) !== other) bad('词汇表里没有的块被换掉了对象');
+  if (normalizeGenericItems(other) !== other) bad('词汇表里没有的块被换掉了对象');
   else ok('词汇表里没有的块原样返回（同一个对象引用）');
 
   // 🔴 四个老 type 名**不许**再被任何一处认出来。逐处枚举，不抽样。
@@ -125,11 +125,11 @@ for (const name of Object.keys(BLOCK_ALIASES)) {
     if (roleKeys.has(n)) where.push(`block-roles.json:${n}`);
     if (fs.existsSync(path.join(NEXT, 'blocks', `${n}.json`))) where.push(`blocks/${n}.json`);
     // 还认得它 = 别名层没真的退役
-    const round = applyAlias({ type: n, data: { headline: 'H' } });
-    if (round.type !== n) where.push(`applyAlias 仍然把 ${n} 换成了 ${round.type}`);
+    const round = normalizeGenericItems({ type: n, data: { headline: 'H' } });
+    if (round.type !== n) where.push(`normalizeGenericItems 仍然把 ${n} 换成了 ${round.type}`);
   }
   if (where.length) bad(`这四个老 type 名还被认出来: ${where.join(' · ')}`);
-  else ok(`四个老 type 名在四处（词汇表 / registry / block-roles / blocks manifest）都不在，applyAlias 也不再认它们`);
+  else ok(`四个老 type 名在四处（词汇表 / registry / block-roles / blocks manifest）都不在，normalizeGenericItems 也不再认它们`);
 }
 
 // ── ④ 真的接上了：走一遍 normalizeLocalePages（两种形状各一次）─────────────────────────────
@@ -162,7 +162,7 @@ for (const [shapeName, page] of [
 //    这里钉住「构建那一侧不许悄悄替它做点什么」：type 原样、`highlights` 这种老槽位名不许被改成
 //    `items`（改了就等于把一块本来空着的地方接上内容，而没有人决定过这件事 —— 老 §2.5 坑三那一族）。
 {
-  const legacy = applyAlias({ type: 'service-highlights', data: { headline: 'H', highlights: [{ title: 't' }] } });
+  const legacy = normalizeGenericItems({ type: 'service-highlights', data: { headline: 'H', highlights: [{ title: 't' }] } });
   if (legacy.type !== 'service-highlights') bad(`老 type 名被改名了（变成 ${legacy.type}）—— 别名层应该已经退役`);
   else if (Object.prototype.hasOwnProperty.call(legacy.data, 'items')) {
     bad('老槽位名 highlights 被改成了 items —— 那会让一块本来空着的地方凭空长出内容');
@@ -183,7 +183,7 @@ for (const [shapeName, page] of [
 //    `drawableItem` 也把字符串算作可画 ⟹ 少了这一步，组件读 `item.title` 得到 undefined，
 //    画出来是一个空标题。所以这一格留着。
 {
-  const direct = applyAlias({ type: 'card-group', data: { items: ['裸串'], variant: 'cards' } });
+  const direct = normalizeGenericItems({ type: 'card-group', data: { items: ['裸串'], variant: 'cards' } });
   if (JSON.stringify(direct.data.items) !== JSON.stringify([{ title: '裸串' }])) {
     bad(`通用块那条路上裸字符串没被规范化: ${JSON.stringify(direct.data.items)}`);
   } else if (direct.data.variant !== 'cards') {
@@ -192,7 +192,7 @@ for (const [shapeName, page] of [
 
   // 反向对照：本来就是对象的，一个字节都不动（同一个数组引用）
   const objs = [{ title: 'a', description: 'b' }];
-  const untouched = applyAlias({ type: 'card-group', data: { items: objs } });
+  const untouched = normalizeGenericItems({ type: 'card-group', data: { items: objs } });
   if (untouched.data.items !== objs) {
     bad('items 本来就是对象时归一化仍然换掉了那个数组 —— 「正常的站走到这里是恒等的」会被这一步弄假');
   } else ok('反向对照: items 本来就是对象时，归一化是恒等的（同一个数组引用）');
@@ -204,7 +204,7 @@ for (const [shapeName, page] of [
 //    它是这个函数今天唯一还会动东西的地方。
 {
   const raw = { type: 'card-group', data: { items: ['裸串'] } };
-  // 不经过 applyAlias 的那一臂：组件会读 item.title，而它是 undefined
+  // 不经过 normalizeGenericItems 的那一臂：组件会读 item.title，而它是 undefined
   const skipped = raw.data.items;
   if (typeof skipped[0] !== 'string') bad('反向对照的输入本身就不是裸字符串 —— 这一格测不到东西');
   else if (skipped[0].title !== undefined) bad('反向对照没生效');
@@ -223,7 +223,7 @@ for (const [shapeName, page] of [
     ['null', null], ['数字', 7], ['布尔', true], ['嵌套数组', ['x']],
   ];
   for (const [name, el] of kinds) {
-    const out = applyAlias({ type: 'card-group', data: { headline: 'H', items: ['甲', el, '乙'] } });
+    const out = normalizeGenericItems({ type: 'card-group', data: { headline: 'H', items: ['甲', el, '乙'] } });
     const got = JSON.stringify(out.data.items);
     const want = JSON.stringify([{ title: '甲' }, { title: '乙' }]);
     if (got !== want) bad(`items 里混进 ${name} 之后没被滤掉: ${got}`);
@@ -232,7 +232,7 @@ for (const [shapeName, page] of [
 
   // 全是画不出来的元素 ⟹ 空数组。组件画一个空的组，构建不炸（这一支走的是「没有一个字符串」那条
   // 提前返回的老路径，所以它是**另一条**分支，不许只测上面那一种）。
-  const allBad = applyAlias({ type: 'card-group', data: { headline: 'H', items: [null, null] } });
+  const allBad = normalizeGenericItems({ type: 'card-group', data: { headline: 'H', items: [null, null] } });
   if (JSON.stringify(allBad.data.items) !== '[]') {
     bad(`全是 null 时没被滤空: ${JSON.stringify(allBad.data.items)}`);
   } else ok('items 全是 null ⟹ 变成 []（这一支不经过「有字符串」那个判断，是另一条分支）');
@@ -240,7 +240,7 @@ for (const [shapeName, page] of [
   // 🔴 反向对照之一：良构的纯对象数组仍然是**同一个数组引用**。加过滤最容易弄丢的就是它 ——
   //    无条件 `filter().map()` 每次都造新数组，#1143 的「老站重建逐字节不变」当场没。
   const objs = [{ title: 'a', description: 'b' }];
-  const untouched = applyAlias({ type: 'card-group', data: { headline: 'H', items: objs } });
+  const untouched = normalizeGenericItems({ type: 'card-group', data: { headline: 'H', items: objs } });
   if (untouched.data.items !== objs) {
     bad('良构的纯对象数组被过滤那一步换掉了引用 —— #1143 的逐字节不变会被这一步弄假');
   } else ok('反向对照: 良构的纯对象数组仍是同一个数组引用（过滤没把恒等那条路弄丢）');
@@ -256,7 +256,7 @@ for (const [shapeName, page] of [
   if (generics.length === 0) bad('GENERIC_TYPES 是空的 —— 这一格什么都没查');
   else {
     const leaked = generics.filter((t) => {
-      const r = applyAlias({ type: t, data: { headline: 'H', items: ['甲', null] } });
+      const r = normalizeGenericItems({ type: t, data: { headline: 'H', items: ['甲', null] } });
       return (r.data.items || []).some((x) => x === null);
     });
     if (leaked.length) bad(`这些 type 上 null 还是穿过去了: ${leaked.join(' ')}`);
@@ -331,13 +331,13 @@ console.log('── ⑨ #1154 所有块的列表槽兜底');
   if (JSON.stringify(keep.data.events) === '["",{},{"year":"y"}]') ok('反向对照: "" 和 {} 是合法条目，一个都没被误杀');
   else bad(`"" / {} 被误杀了: ${JSON.stringify(keep.data.events)}`);
 
-  // 🔴 两步串起来还对吗（`blocks.js` 那个循环写的就是 `normalizeListSlots(applyAlias(x))`）。
+  // 🔴 两步串起来还对吗（`blocks.js` 那个循环写的就是 `normalizeListSlots(normalizeGenericItems(x))`）。
   //    #1162：这一格原来测的是「`service-highlights` 先被别名改成 `card-group` + `items`，再按新
   //    type 查列表槽」—— 改名那一步随别名层退役，所以顺序的**理由**变了（不再是「后一步要等新 type
   //    才查得到槽」）。今天两步各自还在做事，串起来的性质是：**裸字符串被升成对象，而画不出来的
   //    条目被滤掉，两件事都发生**。这一格问的就是这个，不是问顺序谁先谁后（实测两种顺序等价 ——
   //    `drawableItem` 把字符串也算可画，理由写在 `blocks.js` 那个循环上面）。
-  const chained = normalizeListSlots(applyAlias({ type: 'card-group', data: { headline: 'H', items: ['甲', null, { title: 't' }] } }));
+  const chained = normalizeListSlots(normalizeGenericItems({ type: 'card-group', data: { headline: 'H', items: ['甲', null, { title: 't' }] } }));
   if (chained.type === 'card-group' && JSON.stringify(chained.data.items) === '[{"title":"甲"},{"title":"t"}]') {
     ok('两步串起来: 裸字符串升成 {title} · null 被滤掉 · type 没被动过');
   } else bad(`两步串起来的结果不对: ${JSON.stringify(chained)}`);

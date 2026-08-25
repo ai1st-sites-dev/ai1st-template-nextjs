@@ -62,8 +62,16 @@ emit({
 if (plan.blockers.length) {
   // 🔴 在动任何文件之前中止。宁可升不了，也不许静默删掉客人的内容 —— 未知类型在新模板上走的是
   //    `SectionRenderer` 那条 console.warn + return null，块会从页面上消失而构建照样 exit 0。
+  // 🔴 #1171（来源 #1166）—— 给老板看的那句话里，路径是**相对站自己的数据目录**算的，不是相对
+  //    `rootDir`。两次调用的 `--root` 不是同一个目录：dry-run 那次 worker 传的是**模板**目录
+  //    （`worker/main.go` §dryRunDataMigration：`--root <模板> --site /app/repo/site`），于是
+  //    `path.relative` 把路径算成 `../repo/site/zh/pages/about.json` —— 老板看到的是我们容器里的
+  //    相对位置，而它对他不说任何事（QA2 在 #1166 r5/r6 真机上读到的就是这个）。真改那次
+  //    （`--root /app/repo`）算出来又是另一种写法 ⟹ 同一份数据在两条路上给出两种说法。
+  //    相对 `siteDir` 算出来是 `zh/pages/about.json`，两条路一致，也正好是他在编辑器里看到的位置。
+  //    📌 上面那两个 JSON 事件里的 `file` **故意没动**：那是给日志/对账用的机器字段。
   const where = plan.blockers
-    .map((b) => `${path.relative(rootDir, b.file)}${b.index >= 0 ? `[${b.index}]` : ''}`
+    .map((b) => `${path.relative(siteDir, b.file)}${b.index >= 0 ? `[${b.index}]` : ''}`
       + `${b.type ? ` (${b.type})` : ''}`)
     .join(', ');
   emit({

@@ -36,9 +36,24 @@ interface CardGroupSectionProps {
 //    都不成立；模板进站仓只有建站那一刻的 GitHub `/generate` 一条路；而且那 5 个站的仓里一份
 //    `block-aliases.json` 都没有 —— 它们的快照比兼容层还早，那 43 个块今天就是各站自己那份合并前的
 //    组件在渲染。守这条性质的是 `ai-team/dispatcher/ship-check-template-reachability.sh`（#1162）。
-//    ⟹ 谁哪天把 prod 的 `templatePath` 填上、或者加一条「按当前模板重建这个站」的路
-//    （`dashboard/src/components/ThemeModal.tsx:724` 今天**只有那句话、没有对应动作**），
-//    那道守卫会红 —— 那时这一段就要回来重判。
+//    ⟹ 谁哪天把 prod 的 `templatePath` 填上、或者加一条「按当前模板重建这个站」的路，那道守卫会红
+//    —— 那时这一段就要回来重判。
+//
+// 🔴 **2026-08-24（#1171，来源 #1165）：上面那句里原来带着一处坐标，两半都已经不成立了，所以两半
+//    都改了。** 原文写的是「`ThemeModal.tsx:724` 今天**只有那句话、没有对应动作**」：
+//      · **行号那半**：`:724` 今天是另一句注释（讲 `noThemeAvailable` 的）。这类引用改成名字形态 ——
+//        它指的是 `dashboard/src/components/ThemeModal.tsx` 里 **`noThemeAvailable` 那一支**的 Alert
+//        （#1063 立、#1165 改过措辞的「这个网站要先更新才能换主题」）。🔴 别只写它的
+//        `data-testid="theme-unavailable-note"`：那个 testid 在该文件里有 **2 处**（另一处是
+//        `upgradeCount > 0 || dimmedCount > 0` 那一支），单靠它指不到唯一一处；分支名才唯一。
+//      · **「没有对应动作」那半**：#1166 给它加上了动作 —— 同一条 Alert 现在挂着
+//        `data-testid="theme-upgrade-start-note"` 那个 `Update website` 按钮，点它走 `askToUpgrade('')`。
+//    ⟹ **那个「哪天」已经到了，而且守卫真的红了**：`ship-check-template-reachability.sh` 在
+//    2026-08-24 的 `origin/main` 上裸跑 rc=1，⑦b 逐条点名 `manager/upgrade.go` 读模板仓名字而它不在
+//    `createGitHubRepo` 里（报文自己写着「#1166 要做的正是这件事」）。
+//    🔴 **本票（打磨批次 #24）只改这两处引用，【没有】做那个重判** —— 「模板到不了任何已存在的站」
+//    这条前提在升级路落地之后还成立吗，是圈外的判断，要单独一张票。读到这里的人别按这一段的旧结论
+//    往下推：**先跑一次那道守卫，读它自己现在的输出**。
 //
 // ⟹ 所以今天这里**只有一套词汇**（`block-aliases.json` 只剩 `card-group` 那一行），三个分支塌成
 //    一支、两个 return 塌成一个。塌的时候逐格核过：`card-group` 的 `parts` 是

@@ -46,9 +46,15 @@ function roleFor(type) {
 // 退役了** —— Chris 2026-08-23 裁定：合并从此是干净改名，后面的合并批不再建兼容。
 //
 // 🔴 表里只剩「键 == 它自己的 `type`」那一行（`card-group`），它从来就不是别名，是通用块自己的词汇。
-//    所以下面第一个判据（`!row || row.type === block.type`）今天对**任何**输入都成立 ⟹ 这个函数
-//    现在只剩归一化那一步。**名字仍叫 `applyAlias` 是有意保守**：AC4 点名要改的是「老名字分支」，
-//    改这个导出名是作者/PM 的判断，不是做工的人顺手定的（已按 AC3 记进第 24 批台账）。
+//    所以那一层的第一个判据（`!row || row.type === block.type`）今天对**任何**输入都成立 ⟹ 只剩
+//    归一化那一步。
+//
+// 🔴 **2026-08-24 #1171（来源 #1162）：那个叫 `applyAlias` 的导出没了 —— 不是改了个名字，是【删掉
+//    了一个纯转发的包装】。** #1162 之后它的函数体逐字就是 `return normalizeGenericItems(block);`，
+//    而 `normalizeGenericItems` 本来就**同时**在 `module.exports` 里 ⟹ 同一个行为挂着两个导出名，
+//    其中一个的名字还在说「套别名」。调用方与测试现在直接叫 `normalizeGenericItems`。
+//    📌 判据不是「读起来干净」：行为要逐字节不变，验法是 `blocks.test.js` 全绿 + 同一份含
+//    `card-group` 的站 `sync-config.js` 产物 md5 相同（两个读数都在 #1171 的交接留言里）。
 //
 // 🔴 让退役这件事今天安全的**不是「反正都是测试站」**（prod 5 个站里 2 个属于外部人、1 个是真付费
 //    客户，磁盘上写着老 type 名的块共 43 个），而是**平台模板到不了任何已存在的站**：`isLocal()` 在
@@ -65,10 +71,6 @@ function roleFor(type) {
 //      只跑 normalizeListSlots  → items 仍是 ["甲","乙"] → 组件读 item.title = undefined → <h3></h3>
 //      跑 normalizeGenericItems → items 变成 [{title:"甲"},{title:"乙"}]
 //    ⟹ 保守方向是留（这是**留一道保险**，不是加功能）。已在交接留言里点名请 PM 确认。
-function applyAlias(block) {
-  return normalizeGenericItems(block);
-}
-
 // 通用块有几个 —— 从表自己推，不写死名字。「键 == 它自己的 type」那些行就是通用块自己，
 // 而每一条别名的 `type` 也指着它们，所以取全部 `type` 的集合就是「本仓今天有哪些通用块」。
 const GENERIC_TYPES = new Set(Object.values(BLOCK_ALIASES).map((r) => r.type));
@@ -509,14 +511,14 @@ function normalizeLocalePages(pages, siteBlocks, locale, report) {
     // 追加的站级块）都汇到了 `resolved`，所以放在这里就是三条路一起管；分别在三个 push 那里做的话，
     // 下一批合并漏掉一条不会有任何东西报错。
     // #1154 —— 列表槽位的兜底走同一个漏斗（三条来路都汇到 resolved）。
-    // 📌 #1162：这里原来写着「顺序是承重的：先 applyAlias 把 `service-highlights` 的 `highlights`
+    // 📌 #1162：这里原来写着「顺序是承重的：先归一化把 `service-highlights` 的 `highlights`
     //    改名成 `items`、type 变成 `card-group`，再按改完之后那个 type 的 manifest 查列表槽」——
-    //    别名层退役之后 `applyAlias` 不再改 `type` 也不再改字段名，那条理由**没了**。顺序留着，
-    //    因为 `applyAlias` 仍会把裸字符串升成对象，而后一步按 `drawableItem` 过滤 —— 反过来跑的话
+    //    别名层退役之后 `normalizeGenericItems` 不再改 `type` 也不再改字段名，那条理由**没了**。顺序留着，
+    //    因为 `normalizeGenericItems` 仍会把裸字符串升成对象，而后一步按 `drawableItem` 过滤 —— 反过来跑的话
     //    过滤先看到字符串（它也算可画），结果一样；也就是说今天两种顺序等价，写成这一种是为了
     //    「先规范内容、再兜底形状」读起来顺。别把「等价」读成「随便」：下一批再并块时先回来重判。
     for (let k = 0; k < resolved.length; k += 1) {
-      resolved[k] = normalizeListSlots(applyAlias(resolved[k]));
+      resolved[k] = normalizeListSlots(normalizeGenericItems(resolved[k]));
     }
 
     const seenIds = new Map();
@@ -649,7 +651,6 @@ module.exports = {
   GENERIC_TYPES,
   ROLE_NAMES,
   roleFor,
-  applyAlias,
   normalizeGenericItems,
   normalizeListSlots,
   effectiveWeight,
