@@ -1,5 +1,12 @@
 // #924 — Theme registry. THE single source of truth for what a theme is.
 //
+// 🔴 #1189 —— 这个文件在 `.github/workflows/ci-cd.yml` 的 `dashboard:` 过滤器里（它被
+//    `dashboard/vite.config.ts` 在**构建期** require 进产物，变成换装弹窗里那张主题卡片清单）。
+//    ⟹ 只改这个文件的 push 也会打 release。别把它从那份清单里拿掉 ——
+//    2026-08-24 它不在的时候，#1174 把主题池 80 → 97 推上 main 之后 release 整个 skipped，
+//    之后 promote 的是更旧的那份 dashboard：全绿、公网 200，而弹窗里仍然是 80 套。
+//    这份清单不用手记：`bash ai-team/dispatcher/check-dashboard-template-deps.sh` 现算并核对。
+//
 // A theme has four parts:
 //   colors      配色 — primary 50-900 + accent 50-600, copied into brand.json at creation, and
 //               again whenever the owner changes theme (#1121: brand.json 是颜色的唯一出处)
