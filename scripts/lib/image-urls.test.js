@@ -207,6 +207,274 @@ grid('老板打带句号的中文句子 → 模型照抄干净地址写入',
      { blocks: [{ data: { imageUrl: CLEAN } }] },
      collectAllowedImageUrls({ images: [], message: `你用这张 ${CLEAN}。`, conversationHistory: [] }), '放行');
 
+// ══ 一之三、#1204：HTML 里另外那八种「能画出一张图」的写法 ════════════════════════════════════
+// 🔴 每一行的**射程判据**不是规范怎么写的，而是真浏览器去不去取那张图 —— #1204 在 chromium 上
+//    逐格量过（自己起一台 HTTP 服务器，看它收没收到那条请求）。读数贴在 #1204 的交接留言里。
+// 🔴 两向都测。只测「编造的被拒」的话，一个把整段 HTML 无脑拒掉的实现也全绿 —— 而那正是误拒：
+//    老板自己给过的那张图放在同一种写法里，必须照样放行。
+console.log('\n── 一之三、#1204 的八种写法（每种两向）──────────────────────────');
+
+const HTML_FORMS = [
+  ['<img srcset>（没有 src）',   (u) => `<img srcset="${u} 1x">`],
+  ['<picture><source srcset>',   (u) => `<picture><source srcset="${u}"><img alt="x"></picture>`],
+  ['<video poster>',             (u) => `<video poster="${u}"></video>`],
+  ['<svg><image href>',          (u) => `<svg><image href="${u}"/></svg>`],
+  ['<svg><image xlink:href>',    (u) => `<svg><image xlink:href="${u}"/></svg>`],
+  ['<input type=image src>',     (u) => `<input type="image" src="${u}">`],
+  ['<object data>',              (u) => `<object data="${u}"></object>`],
+  ['<embed src>',                (u) => `<embed src="${u}">`],
+  ['裸 <image src>（解析器当 <img>）', (u) => `<image src="${u}">`],
+  ['<style> 元素里的 url()',     (u) => `<style>.z{background-image:url('${u}')}</style><div class="z"></div>`],
+];
+for (const [name, mk] of HTML_FORMS) {
+  grid(`${name} 里放编造地址`, { slug: 'p', content: mk(INVENTED) }, allowed, '拒');
+  grid(`${name} 里放【老板给过】的那张`, { slug: 'p', content: mk(ATTACHED) }, allowed, '放行');
+}
+
+// 🔴 不收的那两格也要钉住 —— 它们是**有意**不收的，而「不收」和「漏了」在只打 ✅ 的实现里长得一样。
+//    `<iframe>` 装的是一份文档不是一张图，博客正文里嵌 YouTube / 地图是常事 ⟹ 收它会把老板
+//    没打过字的正常嵌入整份拒掉。`<a href>` 实测浏览器压根不取。
+grid('<iframe src>（装的是文档，不是图 —— 有意不收）',
+     { slug: 'p', content: `<iframe src="${INVENTED}"></iframe>` }, allowed, '放行');
+grid('<video><source src>（那是视频，不是图 —— 有意不收）',
+     { slug: 'p', content: `<video><source src="${INVENTED}"></video>` }, allowed, '放行');
+
+// ── 真实博客里 HTML 长得千奇百怪：属性不带引号、标签大写、属性跨行、值里带 > ──────────────────
+// 🔴 #1204 把两条写死的正则换成了一个标签扫描器 ⟹ 这几种形状是它新引入的失败面，而坏起来是静默的
+//    （抠不出来 = 那张图没人问 = 放行）。每一格都写明期望，不是只打读数。
+for (const [name, html, expect] of [
+  ['属性不带引号 <img src=a.jpg>',        `<img src=${INVENTED}>`,                        [INVENTED]],
+  ['单引号',                              `<img src='${INVENTED}'>`,                      [INVENTED]],
+  ['标签和属性名大写 <IMG SRCSET=…>',      `<IMG SRCSET="${INVENTED} 1x">`,                [INVENTED]],
+  ['属性跨行',                            `<img\n  src="${INVENTED}"\n  alt="x">`,        [INVENTED]],
+  ['属性值里带 >（<img src=… alt="a>b">）', `<img src="${INVENTED}" alt="a>b">`,            [INVENTED]],
+  ['普通外链 <a href> 不是图',             `<a href="${INVENTED}">看这里</a>`,             []],
+  ['一段没有图的正文',                    '<p>hello <strong>world</strong></p>',          []],
+]) {
+  const got = lib.extractHtmlImageUrls(html);
+  JSON.stringify(got) === JSON.stringify(expect)
+    ? ok(`抠 HTML 里的图 · ${name} → ${JSON.stringify(expect)}`)
+    : bad(`抠 HTML 里的图 · ${name} → 期望 ${JSON.stringify(expect)}，实测 ${JSON.stringify(got)}`);
+}
+
+// ── AC2：srcset 是**一串**候选，每一个都要进判定 ──────────────────────────────────────────────
+console.log('\n── 一之四、#1204 AC2：srcset 的多候选串 ─────────────────────────');
+
+grid('srcset 两个候选，只有【第二个】是编造的（只判第一个就漏）',
+     { slug: 'p', content: `<img srcset="${ATTACHED} 1x, ${INVENTED} 2x">` }, allowed, '拒');
+grid('srcset 两个候选，只有【第一个】是编造的',
+     { slug: 'p', content: `<img srcset="${INVENTED} 1x, ${ATTACHED} 2x">` }, allowed, '拒');
+grid('srcset 两个候选都是老板给过的 → 放行',
+     { slug: 'p', content: `<img srcset="${ATTACHED} 1x, ${ONDISK} 2x">` }, allowed, '放行');
+grid('srcset 里第【三】个候选是编造的（w 描述符 + 无空格逗号）',
+     { slug: 'p', content: `<img srcset="${ATTACHED} 400w,${ONDISK} 800w,${INVENTED} 1200w">` }, allowed, '拒');
+grid('srcset 里候选**没有**描述符（逗号直接贴着地址）',
+     { slug: 'p', content: `<img srcset="${ATTACHED},${INVENTED}">` }, allowed, '拒');
+// 🔴 data: URI 自己就带逗号 ⟹ 无脑 split(',') 会把它拆碎，那张【老板给过的】图从此认不出来。
+const givenData = collectAllowedImageUrls({ images: [], message: `用这个 ${DATA_GIVEN} 谢谢`, conversationHistory: [] });
+grid('老板给过的 data: URI 放进 srcset（它自己带逗号，拆碎就误拒）',
+     { slug: 'p', content: `<img srcset="${DATA_GIVEN} 1x">` }, givenData, '放行');
+grid('srcset 里编造的 data: URI',
+     { slug: 'p', content: `<img srcset="data:image/svg+xml;base64,PHN2Zz48L3N2Zz4= 1x">` }, givenData, '拒');
+
+// 拆分器本身（判定之外单独钉一格：报数与构造对得上）
+{
+  const got = lib.splitSrcset(`${ATTACHED} 1x, ${INVENTED} 2x`);
+  (got.length === 2 && got[0] === ATTACHED && got[1] === INVENTED)
+    ? ok('splitSrcset 把两个候选都拆出来了（描述符已削掉）')
+    : bad(`splitSrcset 期望 [${ATTACHED}, ${INVENTED}]，实测 ${JSON.stringify(got)}`);
+  const gotData = lib.splitSrcset(`${DATA_GIVEN} 1x, ${ATTACHED} 2x`);
+  (gotData.length === 2 && gotData[0] === DATA_GIVEN)
+    ? ok('splitSrcset 没把 data: URI 自带的逗号当成候选分隔符')
+    : bad(`splitSrcset 把 data: URI 拆碎了: ${JSON.stringify(gotData)}`);
+}
+
+// ── 顺带钉住 #1199 那两条边界在新实现下没退化 ────────────────────────────────────────────────
+grid('属性值里带 > 的标签（<img src="…" alt="a>b">）',
+     { slug: 'p', content: `<img src="${INVENTED}" alt="a>b">` }, allowed, '拒');
+
+// ══ 一之五、#1204 r2：残缺的 HTML（QA1 在 r1 抓的覆盖面回退）════════════════════════════════════
+// 🔴 r1 把两条写死的正则换成一个要求「标签必须闭合、引号必须成对」的扫描器，于是三种残缺形状从
+//    `origin/main` 的「拒」翻成了「放行」——**方向是误放**，而它们在浏览器上真的会把那张图取回来。
+// 🔴 为什么这些形状可达：闸看到的是 `blog/*.json` 的 `content` **一个字段**
+//    （`collectImagePositions` 的 `typeof node === 'string'` 分支）⟹ **字段尾就是字符串尾**，
+//    正文最后一个标签少一个 `>` 就正好是下面 A / C 的形状。
+console.log('\n── 一之五、#1204 r2：残缺的 HTML ───────────────────────────────');
+
+const MANGLED = `${ATTACHED}> <span class=`;   // 引号没闭合时浏览器真去取的那个地址（老板给过的被粘脏了）
+
+grid('A 标签少了收尾的 >（正文末尾）',
+     { slug: 'p', content: `<p>hi</p><img src="${INVENTED}"` }, allowed, '拒');
+grid('A 两向：同一形状放【老板给过】的那张',
+     { slug: 'p', content: `<p>hi</p><img src="${ATTACHED}"` }, allowed, '放行');
+grid('B 属性引号没闭合，后面还有一个引号',
+     { slug: 'p', content: `<img src="${INVENTED}> <span class="x">y</span>` }, allowed, '拒');
+grid('C style= 所在的标签少了收尾的 >',
+     { slug: 'p', content: `<p>hi</p><div style="background-image:url('${INVENTED}')"` }, allowed, '拒');
+grid('C 两向：同一形状放【老板给过】的那张',
+     { slug: 'p', content: `<p>hi</p><div style="background-image:url('${ATTACHED}')"` }, allowed, '放行');
+grid('D 引号一次都没闭合（字符串在属性值中间结束）',
+     { slug: 'p', content: `<p>hi</p><img src="${INVENTED}` }, allowed, '拒');
+// 🔴 这一格钉的是**误放方向的另一半**：老板给过的地址被没闭合的引号粘上后面那一截之后，
+//    浏览器去取的是**粘脏的那个地址**（`…photo.jpg> <span class=`），那不是他给的那张 ⟹ 产物上
+//    仍然是一张裂图，所以必须拒。抠出来的值要跟浏览器真去取的那个对得上，不是把尾巴截掉。
+grid('E 老板给过的地址被没闭合的引号粘脏 → 仍要拒（浏览器取的是粘脏那个）',
+     { slug: 'p', content: `<img src="${ATTACHED}> <span class="y">z</span>` }, allowed, '拒');
+{
+  const got = lib.extractHtmlImageUrls(`<img src="${ATTACHED}> <span class="y">z</span>`);
+  got[0] === MANGLED ? ok('抠出来的就是浏览器真去取的那个粘脏地址（尾巴没被截掉）')
+                     : bad(`期望抠到 ${JSON.stringify(MANGLED)}，实测 ${JSON.stringify(got)}`);
+}
+
+// 🔴 D 的**残留边界**，钉住它别让下一个人当漏洞改掉（理由整段在 image-urls.js 那个 🔴 块里）：
+//    同一形状放【老板给过】的那张 → **放行**。浏览器那边取到的是被模板尾巴粘脏的另一个地址
+//    （实测 `…/a.png%3C/article%3E%3Cfooter%3E%3Cdiv%20class=`），所以产物上仍是一张裂图 ——
+//    但粘上去的是什么由模板决定，这个函数看不到；而那属于「模型吐了残缺 HTML」，不是这道检查
+//    要治的「这个地址有人给过吗」。`origin/main` 在这一格行为相同。
+grid('D 残留边界：同一形状放【老板给过】的那张 → 放行（理由见注释，不是漏洞）',
+     { slug: 'p', content: `<p>hi</p><img src="${ATTACHED}` }, allowed, '放行');
+
+// ── `<style>` 元素这一面的两条边界（都是 #1204 自己引入的面，`origin/main` 看不到 `<style>` 元素）──
+grid('F <style> 缺收尾的 </style>（浏览器在字符串尾自己闭合）',
+     { slug: 'p', content: `<style>.z{background-image:url("${INVENTED}")}` }, allowed, '拒');
+grid('G @font-face 里的 url() 是【字体】不是图 → 放行（r1 把它整份拒了）',
+     { slug: 'p', content: '<style>@font-face{font-family:X;src:url(https://fonts.gstatic.com/s/a/v1/b.woff2) format("woff2")}</style>' },
+     allowed, '放行');
+grid('G 反向：同一个 <style> 里 @font-face 之外的 url() 照样拒',
+     { slug: 'p', content: `<style>@font-face{src:url(https://fonts.gstatic.com/s/a/v1/b.woff2)}.z{background-image:url("${INVENTED}")}</style>` },
+     allowed, '拒');
+
+// ── 有意收下的那两格「非图片」：钉住它，别让下一个人当 bug 改掉 ──────────────────────────────
+// 🔴 判据从来不是「它是不是一张图」，是「这个地址有人给过吗」——没人给过的地址不存在，挂上去就是
+//    一块坏掉的嵌入。代价写在明处：老板没打过字的第三方 PDF 会被整份拒掉（两位 QA 都记了，都判非阻断）。
+grid('H <object data> 挂一份没人给过的 PDF → 拒（有意的取舍）',
+     { slug: 'p', content: '<object data="https://cdn.example.com/paper.pdf" type="application/pdf"></object>' },
+     allowed, '拒');
+grid('H <embed src> 挂一份没人给过的 PDF → 拒（同上）',
+     { slug: 'p', content: '<embed src="https://cdn.example.com/paper.pdf" type="application/pdf">' },
+     allowed, '拒');
+
+// ── 扫描器直读一格：报数与构造对得上 ──────────────────────────────────────────────────────────
+{
+  const tags = lib.scanTags(`<p class="a">x</p><img src="${ATTACHED}" alt="a>b"><br/>`);
+  const names = tags.map((t) => t.tag).join(',');
+  names === 'p,img,br' ? ok(`scanTags 扫出 ${tags.length} 个标签，名字依次是 ${names}（属性值里那个 > 没把 img 截断）`)
+                       : bad(`scanTags 期望 p,img,br，实测 ${names}`);
+  const unclosed = lib.scanTags('<img src="a.jpg');
+  (unclosed.length === 1 && unclosed[0].tag === 'img' && unclosed[0].body === ' src="a.jpg')
+    ? ok('scanTags 对没闭合的标签：标签体吃到字符串尾')
+    : bad(`scanTags 对没闭合的标签读数不对: ${JSON.stringify(unclosed)}`);
+}
+
+// ══ 一之六、#1204 r3：标签里的引号数是【奇数】（QA1 在 r2 抓的覆盖面回退）══════════════════════
+// 🔴 r2 对**任何**引号都跳到配对的那个引号。一个标签里只要有奇数个引号 —— 一个普通的英文所有格
+//    撇号就够了（`<a title='Joe's Bakery'>`）—— 它就会一路跳到后面某个图片属性的开引号上，把
+//    **整份正文剩下的部分**吞成一个标签体 ⟹ 后面每一个画图的属性都抠不出来。五种形状两位 QA 都
+//    在真 chromium 上量到浏览器**照取不误**。
+// 🔴 这个洞打**两个方向**，两位 QA 各量到一半，下面各自钉一格：
+//    · 误放 —— 这次写入里那个编造地址没被拦（QA1 r2 阻断，5 格）
+//    · 误拒 —— `collectImagePositions` 同时在算**放行名单**，正文被吞掉之后名单也丢掉后面那些图，
+//      于是老板说「把关于页那张照片也放到首页」时，模型照抄他自己站上的地址反而被拒（QA2a r2 ①）
+// 🔴 分界线是**引号落在哪**，不是「main 拒而这里放行就算漏」：引号落在**值**位置时浏览器自己也把
+//    后面吞掉、那条请求根本不发 ⟹ 下面「对照①」那一格放行是把 `origin/main` 的误报修掉了，别改回去。
+console.log('\n── 一之六、#1204 r3：标签里的引号数是奇数 ──────────────────────');
+
+// 每一格都是「畸形标签在前、画图的标签在后」—— 吞掉的那一段要跨过标签边界才有害。
+// （QA2a 复盘自己 r2 那张表的盲区正是这个：他把畸形引号和图片属性放在了**同一个**标签上，
+//   那时吞掉的部分仍属于 `<img>` 自己的标签体，属性正则照样找得到。）
+const ODD_QUOTE_FORMS = [
+  ['A 撇号在单引号属性值里 <a title=\'Joe\'s Bakery\'>',
+   (u) => `<p><a href="/x" title='Joe's Bakery'>L</a></p><img src="${u}">`],
+  ['B 属性值里未转义的双引号 <a title="a"b">',
+   (u) => `<p><a href="/x" title="a"b">L</a></p><img src="${u}">`],
+  ['C 落单的引号在属性名位置 <b">',
+   (u) => `<p>a <b">text</b></p><img src="${u}">`],
+  ['D 同上，中间隔 5 段正文',
+   (u) => `<p><b">x</b></p>${'<p>filler</p>'.repeat(5)}<img src="${u}">`],
+  ['E 单引号版 <b\'>',
+   (u) => `<p><b'>x</b></p><img src="${u}">`],
+];
+for (const [name, mk] of ODD_QUOTE_FORMS) {
+  grid(`${name} → 后面那张编造的图要拒`, { slug: 'p', content: mk(INVENTED) }, allowed, '拒');
+  grid(`${name} 两向：后面那张是【老板给过】的 → 放行`, { slug: 'p', content: mk(ATTACHED) }, allowed, '放行');
+}
+
+// 反向臂 ①：引号落在【值】位置 —— 浏览器自己也吞掉后面、不发那条请求 ⟹ 这里放行是对的。
+grid('对照① 引号在【值】位置 <div class="card>（浏览器不取）→ 放行，不许被一起「修」掉',
+     { slug: 'p', content: `<div class="card><p>x</p></div><img src="${INVENTED}">` }, allowed, '放行');
+// 反向臂 ②：同一段正文完全良构时必须照旧拒 —— 证明上面那些格子不是靠「什么都拒」蒙对的。
+grid('对照② 完全良构 → 拒',
+     { slug: 'p', content: `<p>a <b>text</b></p><img src="${INVENTED}">` }, allowed, '拒');
+// 撇号跟图片属性在【同一个】标签上时 r2 本来就是对的，钉住它别退化。
+grid('对照③ 撇号在 <img> 自己的 alt 上（r2 本来就对）→ 拒',
+     { slug: 'p', content: `<p><img src="${ATTACHED}" alt='the baker's hands'></p><img src="${INVENTED}">` },
+     allowed, '拒');
+
+// ── 误拒那一半：放行名单不许被吞掉（QA2a r2 ①）────────────────────────────────────────────────
+// 🔴 `collectImagePositions` 被问两次，第二次是「这个站上已经有哪些图」。它跟上面那些格子共用
+//    同一处修法，但要**各自**钉一格：只修判定那一侧、名单这侧照旧空的话，上面全绿而这里红。
+{
+  const withApostrophe = `<h2>Our story</h2><p><a title='Joe's Bakery'>Joe</a> started in 2019.</p>`
+    + `<img src="${ATTACHED}" alt="shop"><p>more</p><img src="${ONDISK}" alt="team">`;
+  const seen = lib.collectImagePositions({ slug: 'about', content: withApostrophe });
+  (seen.includes(ATTACHED) && seen.includes(ONDISK))
+    ? ok(`撇号后面那两张【老板给过】的图仍在放行名单里（抠到 ${seen.length} 个图片位置）`)
+    : bad(`撇号把放行名单吞掉了 —— 期望抠到 ${ATTACHED} 与 ${ONDISK}，实测 ${JSON.stringify(seen)}`);
+  // 单变量对照：唯一的变量就是那个撇号，去掉它读数必须一样。
+  const cleanHtml = withApostrophe.replace("title='Joe's Bakery'", 'title="Joe Bakery"');
+  const seenClean = lib.collectImagePositions({ slug: 'about', content: cleanHtml });
+  seenClean.length === seen.length
+    ? ok(`单变量对照：去掉那个撇号，名单读数不变（两边都是 ${seen.length} 个图片位置）`)
+    : bad(`去掉撇号后名单从 ${seen.length} 变成 ${seenClean.length} —— 那个撇号仍然在改变读数`);
+}
+
+// ── 不带引号的属性值：边界只有空白和 >（#1204 r3，我自己拿真 chromium 当判据扫出来的）──────────
+// 🔴 这一格**不是**本轮的回退：`origin/main` / r1 / r2 在它上面一样瞎（四臂逐个量过，全是「放行」）。
+//    它是本票主题（「还有哪种画法闸看不见」）里剩下的一格 —— 属性正则原来排掉了不带引号的值里的
+//    引号，于是 `<div style=background-image:url('…')>` 只抠到 `background-image:url(`，那张图整个
+//    看不见。**真 chromium 上 DPR=1 和 2 都真发了那条请求。**
+grid('不带引号的 style=（值里有引号）→ 拒',
+     { slug: 'p', content: `<div style=background-image:url('${INVENTED}')>x</div>` }, allowed, '拒');
+grid('两向：同一形状放【老板给过】的那张 → 放行',
+     { slug: 'p', content: `<div style=background-image:url('${ATTACHED}')>x</div>` }, allowed, '放行');
+grid('不带引号的 src=（值里有等号，浏览器读到 > 才停）→ 拒',
+     { slug: 'p', content: `<img src=${INVENTED}?w=800&h=600>` }, allowed, '拒');
+// 🔴 **这一改的反向承重面**（QA2a r3 提的，我自己在 chromium 上复量过）：不带引号的值后面
+//    **没有空白**、紧跟着一个带引号的图片属性时，整段被 HTML 解析器读成**一个**属性 ——
+//    那里根本不存在 `src` / `srcset` / `style` 这个属性 ⟹ 浏览器不可能去取 ⟹ **必须放行**。
+//    `origin/main` 和 r2 在这四格是**拒**，那是误报，本轮顺带修掉了。
+//    读数是浏览器自己吐的属性表，不是「取没取」：
+//      `<img alt=a"src="…">` → `[alt="a\"src=\"…\""]`（一个属性）· 对照 `<img alt=hello src="…">`
+//      → `[alt="hello", src="…"]`（两个属性，真去取了）
+//    🔴 钉住它：哪天有人觉得「引号不该进不带引号的值」把字符类改回去，这四格会变回拒（误报回来），
+//       而上面那些「必须拒」的格子一个都不会红 —— 只有这一格看得见。
+for (const [name, html] of [
+  ['A <img alt=a"src="…">', `<img alt=a"src="${INVENTED}">`],
+  ['B 单引号版', `<img alt=a'src='${INVENTED}'>`],
+  ['C <img data-x=1"srcset="… 1x">', `<img data-x=1"srcset="${INVENTED} 1x">`],
+  ['D <div data-x=a"style="…url()">', `<div data-x=a"style="background:url(${INVENTED})">x</div>`],
+]) {
+  grid(`${name} 整段被读成一个属性，那里没有图片属性 → 放行（浏览器也不取）`,
+       { slug: 'p', content: html }, allowed, '放行');
+}
+
+// 反向：空白仍然是边界 —— 值不许吃掉后面那个属性（吃掉了就会把 alt 的内容当成地址的一部分）。
+{
+  const got = lib.extractHtmlImageUrls(`<img src=${ATTACHED} alt=hello>`);
+  (got.length === 1 && got[0] === ATTACHED)
+    ? ok('不带引号的值遇到空白就停（后面那个 alt 没被吃进地址里）')
+    : bad(`不带引号的值吃过了空白: ${JSON.stringify(got)}`);
+}
+
+// ── 扫描器直读一格：奇数个引号时标签体不许跨过自己的 > ────────────────────────────────────────
+{
+  const tags = lib.scanTags(`<p><a title='Joe's Bakery'>x</a></p><img src="${ATTACHED}">`);
+  const names = tags.map((t) => t.tag).join(',');
+  names === 'p,a,img'
+    ? ok(`scanTags 扫出 ${tags.length} 个标签，名字依次是 ${names}（<a> 的标签体没吞掉后面的 <img>）`)
+    : bad(`scanTags 期望 p,a,img，实测 ${names} —— <a> 的标签体吞过了自己的 >`);
+}
+
 // ══ 二、提示词那份清单 vs 模板真的画出来的 ════════════════════════════════════════════════════
 console.log('\n── 二、提示词的 ## Images 段 vs 模板真的画出来的 ────────────────');
 
@@ -373,8 +641,10 @@ arm('博客正文那一面（collectImagePositions 的字符串分支）',
   (m) => rej(m, { slug: 'p', content: `<p><img src="${INVENTED}"></p>` }, allowedIn(m)), '放行');
 
 // ① 同一面的 style url()
+// 🔴 needle 随 #1204 换了：`style=` 不再是一条独立正则，它是标签扫描里的一个分支。
 arm('博客正文里的 style="…url(…)"',
-  '\\bstyle\\s*=', '\\bstyleNEVER\\s*=',
+  "if (name === 'style') { pushCss(value); continue; }",
+  "if (name === 'styleNEVER') { pushCss(value); continue; }",
   (m) => rej(m, { slug: 'p', content: `<div style="background-image:url('${INVENTED}')">x</div>` }, allowedIn(m)), '放行');
 
 // ② 第 ④ 类来源改回扫原文
@@ -408,6 +678,91 @@ arm('抠地址时排除全角标点（改回 ASCII-only）',
 arm('削掉英文句尾的标点',
   '/[.,;:!?]+$/', '/(?!)/',
   (m) => (m.extractUrls(`use ${CLEAN}.`)[0] === CLEAN ? '干净' : '脏'), '脏');
+
+// ── #1204：每条新覆盖面一刀。把它在 IMAGE_ATTRS 里那一行（**只有那一行**）拿掉，对应格子必须翻面。
+// 🔴 这一族刀切的是「表里有没有这一行」，不是「代码跑不跑得动」—— 少了它整个实现照样绿，
+//    而那正是 #1199 的形态：两条写死的正则，别的写法在它眼皮底下静默放行。
+for (const [label, needle, replacement, content] of [
+  ['<img srcset>',            "img: ['src', 'srcset'],",              "img: ['src'],",
+   `<img srcset="${INVENTED} 1x">`],
+  ['<picture><source srcset>', "source: ['srcset'],",                 'source: [],',
+   `<picture><source srcset="${INVENTED}"><img alt="x"></picture>`],
+  ['<video poster>',          "video: ['poster'],",                   'video: [],',
+   `<video poster="${INVENTED}"></video>`],
+  ['<svg><image href>',       "image: ['href', 'xlink:href', 'src'],", 'image: [],',
+   `<svg><image href="${INVENTED}"/></svg>`],
+  ['<input src>',             "input: ['src'],",                      'input: [],',
+   `<input type="image" src="${INVENTED}">`],
+  ['<object data>',           "object: ['data'],",                    'object: [],',
+   `<object data="${INVENTED}"></object>`],
+  ['<embed src>',             "embed: ['src'],",                      'embed: [],',
+   `<embed src="${INVENTED}">`],
+  ['<style> 元素里的 url()',  'for (const sm of text.matchAll(HTML_STYLE_EL_RE)) pushCss(sm[1] || \'\');', '',
+   `<style>.z{background-image:url('${INVENTED}')}</style>`],
+]) {
+  arm(label, needle, replacement,
+    (m) => rej(m, { slug: 'p', content }, allowedIn(m)), '放行');
+}
+
+// AC2 那条机制单独一刀：拆候选串改回「整串只判第一个」。
+arm('srcset 拆成每一个候选（改回只判第一个就漏掉后面的）',
+  'if (SRCSET_ATTRS.has(name)) for (const u of splitSrcset(value)) push(u);',
+  "if (SRCSET_ATTRS.has(name)) push(String(value).split(' ')[0]);",
+  (m) => rej(m, { slug: 'p', content: `<img srcset="${ATTACHED} 1x, ${INVENTED} 2x">` }, allowedIn(m)), '放行');
+
+// 同一条机制的**反方向**一刀：无脑 split(',') 会把 data: URI 拆碎 ⟹ 老板给过的那张被误拒。
+arm('splitSrcset 不拿逗号当唯一分隔符（改回 split(\',\') 就误拒 data: URI）',
+  'function splitSrcset(value) {',
+  "function splitSrcset(value) { return String(value).split(',').map((c) => c.trim().split(/\\s+/)[0]).filter(Boolean); } function splitSrcsetUnused(value) {",
+  (m) => rej(m, { slug: 'p', content: `<img srcset="${DATA_GIVEN} 1x">` },
+    m.collectAllowedImageUrls({ images: [], message: `用这个 ${DATA_GIVEN} 谢谢`, conversationHistory: [] })), '拒');
+
+// ── #1204 r2 的七刀。🔴 每一刀的靶子是**实验量出来的**，不是我按直觉挑的：先把候选那几行逐个切一遍、
+//    看哪一格翻面，再把靶子写进来。两刀因此换过靶子 —— 「引号跳到配对那个引号」和「属性正则里未闭合
+//    引号那两支」在 A/B/C 三格上**一格都不翻**（标签闭合那一行把它们盖住了），它们各自真正承重的是
+//    E 和 D 两格。照直觉写就会得到两把恒绿的尺。
+arm('标签没有收尾的 > 时照样收它（改回 r1 要求闭合，就是 QA1 抓的那个回退）',
+  'out.push({ tag: m[1].toLowerCase(), body: text.slice(start, j) });',
+  "if (text[j] === '>') out.push({ tag: m[1].toLowerCase(), body: text.slice(start, j) });",
+  (m) => rej(m, { slug: 'p', content: `<p>hi</p><img src="${INVENTED}"` }, allowedIn(m)), '放行');
+arm('值位置的引号跳到配对的那个引号（拆掉它，粘脏的地址会被截回老板给过的那个 ⟹ 误放）',
+  "if ((c === '\"' || c === \"'\") && quoteOpensValue(text, j)) {", 'if (false) {',
+  (m) => rej(m, { slug: 'p', content: `<img src="${ATTACHED}> <span class="y">z</span>` }, allowedIn(m)), '放行');
+arm('属性正则里「引号一次都没闭合」那两支',
+  '|"([^"]*)$|\'([^\']*)$', '',
+  (m) => rej(m, { slug: 'p', content: `<p>hi</p><img src="${INVENTED}` }, allowedIn(m)), '放行');
+arm('@font-face 整块剔掉（不剔就把字体当成图，一篇用了 webfont 的博客被整份拒）',
+  ".replace(CSS_FONT_FACE_RE, '')", '',
+  (m) => rej(m, { slug: 'p', content: '<style>@font-face{src:url(https://fonts.gstatic.com/s/a/v1/b.woff2)}</style>' }, allowedIn(m)), '拒');
+arm('收尾的 </style> 是可选的',
+  '(?:<\\/style>|$)', '<\\/style>',
+  (m) => rej(m, { slug: 'p', content: `<style>.z{background-image:url("${INVENTED}")}` }, allowedIn(m)), '放行');
+arm('image 上的 xlink:href（单独一刀 —— QA1 非阻断②：原来三个属性一根针）',
+  "image: ['href', 'xlink:href', 'src'],", "image: ['href', 'src'],",
+  (m) => rej(m, { slug: 'p', content: `<svg><image xlink:href="${INVENTED}"/></svg>` }, allowedIn(m)), '放行');
+arm('image 上的裸 src（同上，单独一刀）',
+  "image: ['href', 'xlink:href', 'src'],", "image: ['href', 'xlink:href'],",
+  (m) => rej(m, { slug: 'p', content: `<image src="${INVENTED}">` }, allowedIn(m)), '放行');
+
+// ── #1204 r3 的两刀：同一处修法，两个方向各一刀（QA1 量的是误放，QA2a 量的是误拒）。
+//    拆掉「只有值位置的引号才开属性值」这一条 = 回到 r2，两个方向必须同时翻面。
+arm('引号只在【值】位置才开属性值 · 误放方向（拿掉它，一个英文撇号就让后面整份正文对闸不可见）',
+  ' && quoteOpensValue(text, j)', '',
+  (m) => rej(m, { slug: 'p', content: `<p><a href="/x" title='Joe's Bakery'>L</a></p><img src="${INVENTED}">` },
+    allowedIn(m)), '放行');
+arm('同一处 · 误拒方向（放行名单也被吞掉 ⟹ 老板自己站上的图被判成「没人给过你」）',
+  ' && quoteOpensValue(text, j)', '',
+  (m) => (m.collectImagePositions({ slug: 'p', content: `<p><a title='Joe's Bakery'>x</a></p><img src="${ATTACHED}">` }).length
+    ? '名单里有' : '名单空了'), '名单空了');
+
+// 不带引号的属性值那一刀：把字符类改回 main/r1/r2 那个（排掉引号），不带引号的 style= 当场翻回放行。
+arm('不带引号的属性值边界只有空白和 >（改回排掉引号，url() 就被截断成看不见）',
+  '|([^\\s>]+))/g;', "|([^\\s\"'`=<>]+))/g;",
+  (m) => rej(m, { slug: 'p', content: `<div style=background-image:url('${INVENTED}')>x</div>` }, allowedIn(m)), '放行');
+// 同一处的**反方向**一刀：改回旧字符类，A 那格就从「放行」翻成「拒」—— 误报回来了。
+arm('同一处 · 误报方向（改回旧字符类，浏览器根本不去取的那一格会被拒）',
+  '|([^\\s>]+))/g;', "|([^\\s\"'`=<>]+))/g;",
+  (m) => rej(m, { slug: 'p', content: `<img alt=a"src="${INVENTED}">` }, allowedIn(m)), '拒');
 
 console.log(`   📌 一共切了 ${mutN} 刀，每刀只改一处，改的都是 image-urls.js（工作区那份，md5 `
   + `${require('crypto').createHash('md5').update(LIB_SRC).digest('hex').slice(0, 12)}）`);
