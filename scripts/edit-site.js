@@ -56,10 +56,6 @@ console.log = () => {};
 console.warn = () => {};
 const debug = (...args) => process.stderr.write(args.join(' ') + '\n');
 
-// TICKET-105 v2: provider-agnostic image-error classifier.
-// Returns a user-friendly string when the error looks like the AI provider
-// rejected an image format, or null when it's some other error (network,
-// auth, etc.) that should fall through to the existing error handler.
 // TICKET-148: independent copy from create-site.js (PM § decision E — no shared
 // module across scripts). Classify Anthropic SDK error as retryable.
 function isRetryableApiError(err) {
@@ -70,28 +66,143 @@ function isRetryableApiError(err) {
   return false;
 }
 
-function classifyVisionError(err, images) {
-  if (!images || images.length === 0) return null;
+// ─── #1200：图片取不到时，老板拿到的是一句人话，不是一段 JavaScript 栈 ────────────────────────
+//
+// 📌 这块以前叫 `classifyVisionError`（TICKET-105 v2），判据是**在 provider 的错误文本里找关键词**：
+// 要求错误串同时含 `image` 和 (`format`|`unsupported`|`invalid`)。它有两个入口漏在外面，两个都让
+// 原始异常一路 throw 到 `main().catch` → `fatal(err.stack)` ⟹ **整段栈进聊天窗**：
+//
+//   ① 附件取不到 —— 那条 400 的原话是 `Unable to download the file. Please verify the URL and try
+//      again.`，**全串里没有 `image` 一词**（`invalid` 那一半有，来自 `invalid_request_error`）。
+//   ② 当轮没附件、历史里有一张取不到的图 —— 第一行 `if (!images || images.length === 0) return null`
+//      直接返回；`images` 是**当轮**的附件，纯文字追问时它是空的。#1194 把聊天历史接进来之后，
+//      「历史里带着 url-source 图片、这一轮只打字」是真实流量的一部分。
+//
+// 🔴 修法**不是**再往关键词表里加一条 `|| errMsg.includes('download')` —— 那是同一个形状的第三次：
+// 判据挂在 provider 的措辞上，措辞一改就又漏。判据换成**实验**：
+//
+//   1. `err.status === 400` —— provider 拒收了这次请求（429/500/503 不是"你的图坏了"，不归这里管）。
+//   2. 这次请求**真的带过图片吗** —— 读的是**我们自己拼出去的那份请求**（当轮 `images` ∪ 历史里的
+//      url-source 块），不是错误文本。这一步就把入口②接进来了。
+//   3. **就是那些图片的锅吗** —— 把那些图片单独再问一次 provider（见 probeImagesAccepted）。
+//      也 400 ⟹ 是。过了 ⟹ 不是，原样 rethrow（AC3：工具参数错那类 400 不被吞掉）。
+//      炸成别的（429/500/网络）⟹ **判不出来**，同样 rethrow —— fail-safe 方向是不动，不是编一句话。
+//   4. **对照臂：一张图都不带，再问一次（r3，QA3 终审打回 r2）** —— 上面第 3 步那次 400 有两个成因，
+//      而它们分不开：① 就是这些图片的锅（本票要治的那个）② 这次 400 跟请求内容**无关**。
+//      ②不是假想：Anthropic 的 credit 烧光就是一个真实的 HTTP 400 `invalid_request_error`
+//      （原文 `Your credit balance is too low to access the Anthropic API.`），那种状态下**任何**
+//      请求都 400，探针当然也 400。没有这一臂，②会被写成「你的图坏了」—— 老板一遍遍重传图片，
+//      而账号烧光这件事以**成功事件**的形状被盖掉。QA3 两臂实测：改前老板拿到的是带 `credit balance
+//      is too low` 原话的栈（丑，但原话在），r2 那份字节的产物里**一个 `credit` 字都不剩**。
+//      ⟹ 空探针过了才算数；空探针也被拒、或判不出来 ⟹ 锅不在图片上，rethrow。
+//      代价：真是图片的锅时多一次 `max_tokens: 1` 的纯文字请求（只在这条已经失败的路上发生）。
+//
+// 🔴 探针**不带 tools、不带 system、不带历史**：带了的话，工具 schema 坏掉那种 400 会让探针也 400，
+//    于是我就去赖图片 —— 那正是 AC3 要挡的事。探针里唯一的变量就是图片本身。
+// 📌 它**不区分**「取不到」和「格式不支持」：两者都只有 provider 的措辞能分，而那正是本票要甩掉的
+//    东西。给老板的那句话把两种可能都说了，而两种的动作是同一个（重新附一张 PNG/JPG/WEBP）。
+//    （自己去 HTTP 拉一次那个 URL 也不行：那量的是**容器**够不够得着，会去取的是 provider 那台。）
+//
+// 🔴 **这个函数只负责「图片那半句」，不负责「磁盘那半句」（r2，QA2 打回 r1）** —— 因为 400 可以发生
+//    在第 N 轮，前面几轮模型已经成功 write_file 了，而这里看不见磁盘。「Nothing on your site was
+//    changed.」由调用点在 `rollbackWrittenFiles` **真的做完之后**接上去，退不掉就改口。整段理由和
+//    QA2 量到的那条时间线写在调用点上（搜 `#1200 r2`）。
 
-  const errMsg = (err?.message || (err && err.toString && err.toString()) || '').toLowerCase();
-  const looksLikeImageError =
-    errMsg.includes('image') &&
-    (errMsg.includes('format') || errMsg.includes('unsupported') || errMsg.includes('invalid'));
-  if (!looksLikeImageError) return null;
-
-  // Heuristic list of formats commonly NOT supported by AI vision providers.
-  // Used only to give the user a helpful "which file?" hint — we do not
-  // hardcode this list as a filter, so a provider that adds support later
-  // automatically benefits with zero code change.
-  const suspectExts = /\.(svg|heic|avif|tiff?|raw|psd)$/i;
-  const suspectFiles = images
-    .filter(img => suspectExts.test(img.url || ''))
-    .map(img => img.originalFilename || (img.url || '').split('/').pop());
-
-  if (suspectFiles.length > 0) {
-    return `The AI vision model can't read one of your uploaded image formats (${suspectFiles.join(', ')}). Please convert to PNG, JPG, or WEBP and try again. The original file is still saved in your library and can be referenced in your site.`;
+/** 这次请求真的带出去的图片。当轮附件 + 历史里的 url-source 块，按 url 去重，记住它是哪一头来的。 */
+function sentImageRefs(images, conversationHistory) {
+  const out = [];
+  const push = (url, filename, from) => {
+    if (typeof url !== 'string' || !url) return;
+    if (out.some(i => i.url === url)) return;
+    out.push({ url, filename: filename || url.split('/').pop() || url, from });
+  };
+  for (const img of images || []) {
+    if (img) push(img.url, img.originalFilename, 'current');
   }
-  return `The AI vision model couldn't process one of the uploaded images. Please try a different format (PNG, JPG, or WEBP). Original error: ${err?.message || 'unknown'}`;
+  // 历史的形状由 manager/edit_history.go 生成（#1194），这里按那份形状读，不手搓第二种。
+  for (const msg of conversationHistory || []) {
+    if (!msg || !Array.isArray(msg.content)) continue;
+    for (const blk of msg.content) {
+      if (blk && blk.type === 'image' && blk.source && blk.source.type === 'url') {
+        push(blk.source.url, null, 'history');
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * 只拿这些图片问一次 provider。
+ * 返回 true = 收下了 · false = 用 400 拒了 · null = 判不出来（429/500/网络/没有 status）。
+ * 🔴 `refs` 传空数组是**对照臂**（r3）：那时发出去的是一条不带任何图片的纯文字请求，问的是
+ *    「这个账号现在还能不能发请求」。理由在文件头第 4 条。
+ */
+async function probeImagesAccepted(client, model, refs) {
+  try {
+    await client.messages.create({
+      model,
+      max_tokens: 1,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'text', text: '.' },
+          ...refs.map(r => ({ type: 'image', source: { type: 'url', url: r.url } })),
+        ],
+      }],
+    });
+    return true;
+  } catch (e) {
+    if (e && e.status === 400) return false;
+    return null;
+  }
+}
+
+/**
+ * 判这次 400 是不是图片的锅；是就返回给老板看的那句话，不是（或判不出来）返回 null。
+ * `probe(refs)` 由调用方注入，语义同 probeImagesAccepted —— 包括 `probe([])` 那条对照臂。
+ */
+async function classifyImageFailure(err, sent, probe) {
+  if (!err || err.status !== 400) return null;
+  if (!sent.length) return null;
+
+  if (await probe(sent) !== false) return null;   // 收下了、或判不出来 ⟹ 不归这里管
+  // r3 对照臂（整段理由在文件头第 4 条）：同一个 client、同一个账号，**一张图都不带**再问一次。
+  // 它过了 ⟹ 账号是好的 ⟹ 上面那次 400 真是图片的锅。它也被拒、或判不出来 ⟹ 那次 400 跟请求内容
+  // 无关（credit 烧光是真实存在的一种 400），赖到图片头上就是在替一次事故编一句话。
+  if (await probe([]) !== true) return null;
+
+  // 到这里已经知道"是图片的锅"了。多于一张时再逐张问一次，好点得出名字；
+  // 逐张都过（合起来才炸，比如总张数/总大小）⟹ 名字点不出来，就把这次带的都说出来。
+  let bad = sent;
+  if (sent.length > 1) {
+    const named = [];
+    for (const ref of sent) {
+      if (await probe([ref]) === false) named.push(ref);
+    }
+    if (named.length) bad = named;
+  }
+
+  // 常见的、AI 视觉模型读不了的格式。只用来**多给一句提示**，不当过滤器 —— provider 以后支持了，
+  // 这里零改动自动受益（TICKET-105 v2 立的这条规矩本票照旧；变的是它从"另起一句话"降成"多一句提示"，
+  // 因为现在开不开火已经由上面那次实验决定，不再由这张表决定）。
+  const suspectExts = /\.(svg|heic|avif|tiff?|raw|psd)$/i;
+  const hint = bad.some(r => suspectExts.test(r.url))
+    ? ' That file type is often not supported by AI vision models.'
+    : '';
+  const names = list => list.map(r => r.filename).join(', ');
+
+  // 🔴 这两句都**到「怎么办」为止**，不带关于磁盘的那半句（r1 带着，QA2 打回）：磁盘上现在还剩
+  // 什么，这个函数看不见 —— 400 可以发生在第 N 轮，前面几轮模型已经成功 write_file 过。那半句由
+  // 调用方在**回滚真的做完之后**接上去，理由整段在调用点（搜 `#1200 r2`）。
+  const current = bad.filter(r => r.from === 'current');
+  if (current.length > 0) {
+    return `The AI couldn't read the image you attached (${names(current)}). It may have been removed, `
+      + `its link may have expired, or the file type may not be supported.${hint} `
+      + `Please attach it again as PNG, JPG, or WEBP.`;
+  }
+  return `An image from earlier in this chat (${names(bad)}) can't be loaded any more, so this request `
+    + `couldn't be sent to the AI.${hint} It may have been deleted. Please attach the image again if you `
+    + `still need it.`;
 }
 
 // ─── #1102：说了「没有保存」就真的没保存 ──────────────────────────────────────────────────────
@@ -869,6 +980,9 @@ async function main() {
   const allowedImageUrls = imageUrls.collectAllowedImageUrls({
     siteDir, images, message, conversationHistory,
   });
+  // #1200 —— 这次请求真的带出去的图片（当轮附件 ∪ 历史里的 url-source 块）。整轮算一次；
+  // provider 拿 400 拒收时靠它判「是不是图片的锅」，见 classifyImageFailure。
+  const sentImages = sentImageRefs(images, conversationHistory);
   const messages = [
     ...conversationHistory,
     { role: 'user', content: userContent },
@@ -920,7 +1034,7 @@ async function main() {
     let response;
     // TICKET-148: API-error retry inside this iteration. Per-iteration retry budget
     // (3 attempts with 5s/10s/20s backoff). On retryable error → wait + retry.
-    // Image errors (classifyVisionError matches) and other terminal errors fall
+    // Image errors (classifyImageFailure matches) and other terminal errors fall
     // through to existing handler. iteration state (totalInputTokens, currentMessages)
     // is untouched on retry → success continues this iteration normally.
     {
@@ -945,13 +1059,35 @@ async function main() {
             continue;
           }
           // Not retryable, or budget exhausted — fall through to friendly/throw path.
-          // TICKET-105 v2: catch image-format errors and surface a friendly message
-          // instead of leaking the raw provider stack trace. Provider-agnostic —
-          // we match on standard error vocabulary, not on hardcoded format names.
-          const friendly = classifyVisionError(err, images);
+          // #1200: catch image failures and surface a friendly message instead of leaking the raw
+          // provider stack trace. The judgement is an EXPERIMENT (ask the provider about just those
+          // images), not a keyword match on its wording — see classifyImageFailure's header.
+          const friendly = await classifyImageFailure(err, sentImages,
+            refs => probeImagesAccepted(client, model, refs));
           if (friendly) {
+            // #1200 r3（QA3 终审）—— 被吞掉的那条 400 必须留痕。走到这里说明我们**确定**是图片的锅，
+            // 但老板看到的那句人话里没有 provider 的原话、也没有 request_id，而 stderr 是唯一还能
+            // 回答"当时 provider 到底说了什么"的地方。少了这一行，事后没有任何办法复核这次分类。
+            debug(`#1200 swallowed provider 400 → friendly message.`
+              + ` status=${err.status} request_id=${err.requestID || 'n/a'}`
+              + ` provider said: ${String(err.message || '').substring(0, 500)}`);
+            // #1200 r2 —— 「Nothing on your site was changed.」这句话的真假取决于**磁盘上还剩什么**，
+            // 而这条路上磁盘可能已经被写过了：provider 的 400 可以发生在第 N 轮，前面几轮模型已经
+            // 成功 `write_file`。那时 r1 直接 emit 就把 #1102 那条时间线原样重演了一遍 —— 写出去的
+            // 文件留在工作树上，下一次成功编辑的 `git add -A` 把它一起提交，于是跟老板说过的那句话
+            // 事后变成假的而没有人被告知（QA2 在真 `edit-site.js` 进程 + 真 git 仓上量到：第 1 轮
+            // 收到「什么都没改」而 `site/en/pages/about.json` 还带着改动，第 2 轮那次成功编辑的
+            // commit 里它进了 HEAD）。
+            // ⟹ 顺序跟 #1102 那一支一样是承重的：**先退回去，再说那句话**；退不掉就改口，不硬说。
+            const rb = rollbackWrittenFiles(siteDir, writeSnapshots);
+            debug(`#1200 rollback: restored ${rb.restored.length} · removed ${rb.removed.length}`
+              + ` · failed ${rb.failed.length}${rb.failed.length ? ' — ' + rb.failed.join(' | ') : ''}`);
+            const diskNote = rb.failed.length
+              ? ' ⚠️ Part of this request had already been written to your site and could not be undone '
+                + `(${rb.failed.join('; ')}), so it may be included the next time an edit is saved.`
+              : ' Nothing on your site was changed.';
             emit('edit-complete', {
-              message: friendly,
+              message: friendly + diskNote,
               inputTokens: totalInputTokens,
               outputTokens: totalOutputTokens,
               cost: 0,

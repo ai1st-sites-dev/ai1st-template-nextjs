@@ -134,10 +134,20 @@ class FakeAnthropic {
     this.messages = {
       create: async (req) => {
         fs.appendFileSync(process.env.EDIT_STUB_CALLS,
-          JSON.stringify({ turn, messages: req.messages }) + '\\n');
+          JSON.stringify({ turn, messages: req.messages,
+            hasTools: Array.isArray(req.tools), hasSystem: req.system !== undefined,
+            maxTokens: req.max_tokens }) + '\\n');
         const r = script[turn];
         turn += 1;
         if (!r) throw new Error('回放脚本用完了，但被测代码又要了一轮 —— 脚本写少了');
+        // #1200：一轮也可以是"provider 拒收"。形状照真 SDK 的 APIError 写：status 是判据，
+        // message 里是 provider 的原话（本票的判据**不读**它，正因如此它才必须在这里出现）。
+        if (r.__throw) {
+          const e = new Error(r.__throw.message);
+          e.status = r.__throw.status;
+          e.error = r.__throw.error;
+          throw e;
+        }
         return r;
       },
     };
@@ -231,7 +241,7 @@ function assertSyncsClean(work, where) {
 /**
  * 跑一次真的编辑。返回这一跑留下的全部痕迹 —— 事件、退出码、仓里多了几个 commit、bare 上有没有。
  */
-function runEdit(ctx, script) {
+function runEdit(ctx, script, stdinExtra = {}) {
   const dir = temp('edit-stub-');
   const stubPath = path.join(dir, 'stub.js');
   const scriptPath = path.join(dir, 'script.json');
@@ -242,7 +252,7 @@ function runEdit(ctx, script) {
 
   const before = ctx.git('git rev-list --count HEAD').toString().trim();
   const r = cp.spawnSync(process.execPath, ['--require', stubPath, path.join(ctx.work, 'scripts', 'edit-site.js')], {
-    input: JSON.stringify({ siteId: 'test1234', message: 'change something' }),
+    input: JSON.stringify({ siteId: 'test1234', message: 'change something', ...stdinExtra }),
     cwd: ctx.work,
     encoding: 'utf8',
     env: {
@@ -1050,6 +1060,448 @@ console.log('\n⑫ 提示词里那个站级块的例子:构建期 rc=0,新那道
       if (mutProblems.length >= 1) ok(`⑫ 阳性对照:挖掉一个必填槽,同一句判断报 ${mutProblems.length} 条 ⟹ 尺子有牙`);
       else bad('⑫ 阳性对照失败:挖掉必填槽之后它仍然 0 条 —— 上面那个「0 条问题」什么都没证明');
     }
+  }
+}
+
+// ══ ⑬ 图片取不到时老板拿到的是一句人话，不是一段 JavaScript 栈（#1200）═══════════════════════════
+//
+// 改之前这两个入口都一路 throw 到 `main().catch` → `fatal(err.stack)` → `emit('error', …)`，
+// **整段栈进聊天窗**。判据现在是**实验**不是措辞：所以下面每一格喂给假 provider 的那条 400，
+// 原话都是票正文里那条真读数（`Unable to download the file.` —— 全串里没有 `image` 一词），
+// 老判据在它上面是**不开火**的。
+//
+// 🔴 五臂共用一棵树：这五格全部在**第一次 API 调用**就结束，一个文件都碰不到（AC4 就是这句话的
+//    另一面）。每臂各拷一棵 11 MB 的树只会让这份文件更慢，证不出多一分东西。
+const T1200_DOWNLOAD_400 = {
+  __throw: {
+    status: 400,
+    message: '400 {"type":"error","error":{"type":"invalid_request_error","message":"Unable to download the file. Please verify the URL and try again."},"request_id":"req_stub"}',
+    error: { type: 'error', error: { type: 'invalid_request_error', message: 'Unable to download the file. Please verify the URL and try again.' } },
+  },
+};
+// r3（QA3 终审）：**跟请求内容无关**的 400。原话取自公开抓包（continuedev/continue#5499）——
+// 账号 credit 烧光时 Anthropic 回的就是一个 HTTP 400 `invalid_request_error`，那种状态下任何请求
+// 都 400，探针也 400。判据只读 status，所以这里承重的是那个 400，不是这串字。
+const T1200_CREDIT_400 = {
+  __throw: {
+    status: 400,
+    message: '400 {"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits."},"request_id":"req_stub_credit"}',
+    error: { type: 'error', error: { type: 'invalid_request_error', message: 'Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.' } },
+  },
+};
+// r3：对照臂自己炸成别的（判不出来）。429 走 probeImagesAccepted 的 `return null` 那一支。
+const T1200_RATE_429 = {
+  __throw: {
+    status: 429,
+    message: '429 {"type":"error","error":{"type":"rate_limit_error","message":"Number of requests has exceeded your rate limit."},"request_id":"req_stub_429"}',
+    error: { type: 'error', error: { type: 'rate_limit_error', message: 'Number of requests has exceeded your rate limit.' } },
+  },
+};
+const T1200_TOOL_400 = {
+  __throw: {
+    status: 400,
+    message: '400 {"type":"error","error":{"type":"invalid_request_error","message":"tools.0.custom.input_schema: JSON schema is invalid."},"request_id":"req_stub"}',
+    error: { type: 'error', error: { type: 'invalid_request_error', message: 'tools.0.custom.input_schema: JSON schema is invalid.' } },
+  },
+};
+/** stdout 里有没有 JS 栈行。判据是**产物本身**（老板看到的那串字），不是我复述它。 */
+const stackLines = (res) => JSON.stringify(res.events).match(/\\n\s+at /g) || [];
+
+console.log('\n⑬ 图片取不到 ⟹ 一句人话，不是一段 JS 栈（#1200）');
+{
+  const ctx = makeRoot('img-error');
+  writeSite(ctx.work);
+  assertSyncsClean(ctx.work, '⑬ 夹具');
+  ctx.git('git add -A && git commit -q -m base && git push -q origin main');
+
+  const fingerprint = () => cp.execSync(
+    `find site -type f | sort | xargs md5sum | md5sum`, { cwd: ctx.work, encoding: 'utf8' }).trim();
+  const beforeAll = fingerprint();
+
+  // 用 #1194 自己的 helper 播出来的那段历史（manager/ticket1200_test.go 盯着它不过期）。
+  const HISTORY = JSON.parse(fs.readFileSync(
+    path.join(NEXT, 'scripts', 'lib', 'testdata', '1200-history-with-image.json'), 'utf8'));
+
+  // ── A（AC1，入口①）：当轮附件取不到 ──────────────────────────────────────────────────────────
+  {
+    // 三条：① 主请求 400 ② 图片探针 400 ③ **对照臂**（一张图都不带）被收下 ⟹ 账号是好的（r3）
+    const res = runEdit(ctx, [T1200_DOWNLOAD_400, T1200_DOWNLOAD_400, reply([textBlock('.')])], {
+      message: 'Put this photo on the home page',
+      images: [{ url: 'https://uploads.ai1st.site/gone.png', originalFilename: 'gone.png' }],
+    });
+    const done = ev(res, 'edit-complete');
+    const msg = done.length ? String(done[0].message) : '';
+    if (done.length === 1 && !ev(res, 'error').length) ok('⑬A 一条 edit-complete、零 error');
+    else bad(`⑬A 事件不对：${res.events.map(e => e.event).join(' ')}｜stderr 尾：${res.stderr.slice(-300)}`);
+    if (stackLines(res).length === 0) ok('⑬A 事件里一行 `at ` 栈都没有');
+    else bad(`⑬A 栈漏进事件里了（${stackLines(res).length} 行）：${JSON.stringify(res.events).slice(0, 400)}`);
+    if (/gone\.png/.test(msg) && /attached/i.test(msg)) ok(`⑬A 人话点名了那张图：「${msg}」`);
+    else bad(`⑬A 那句话不对：「${msg}」`);
+  }
+
+  // ── B（AC2，入口②）：当轮纯文字，历史里那张图取不到 ────────────────────────────────────────
+  {
+    const res = runEdit(ctx, [T1200_DOWNLOAD_400, T1200_DOWNLOAD_400, reply([textBlock('.')])], {
+      message: 'Actually make the headline shorter',
+      conversationHistory: HISTORY,
+    });
+    const done = ev(res, 'edit-complete');
+    const msg = done.length ? String(done[0].message) : '';
+    if (done.length === 1 && !ev(res, 'error').length) ok('⑬B 一条 edit-complete、零 error');
+    else bad(`⑬B 事件不对：${res.events.map(e => e.event).join(' ')}｜stderr 尾：${res.stderr.slice(-300)}`);
+    if (stackLines(res).length === 0) ok('⑬B 事件里一行 `at ` 栈都没有');
+    else bad(`⑬B 栈漏进事件里了（${stackLines(res).length} 行）：${JSON.stringify(res.events).slice(0, 400)}`);
+    if (/earlier in this chat/i.test(msg) && /deleted-by-owner\.png/.test(msg)) ok(`⑬B 说的是**历史里那张**，不是"你刚附的"：「${msg}」`);
+    else bad(`⑬B 那句话不对（入口②要跟入口①说不同的话）：「${msg}」`);
+    // 探针必须是"只问图片"：带上 tools 的话，工具 schema 坏掉那种 400 会让它也 400 ⟹ 赖到图片头上。
+    const probe = res.requests[1];
+    if (probe && probe.hasTools === false && probe.hasSystem === false && probe.maxTokens === 1) {
+      ok('⑬B 探针只问图片：无 tools、无 system、max_tokens=1');
+    } else {
+      bad(`⑬B 探针形状不对：${JSON.stringify(probe && { hasTools: probe.hasTools, hasSystem: probe.hasSystem, maxTokens: probe.maxTokens })}`);
+    }
+  }
+
+  // ── C（AC3）：跟图片无关的 400 不被吞掉 ──────────────────────────────────────────────────────
+  //     喂的是工具参数错。带着图片进来（这才是能骗到人的那一格）—— 探针**过**，于是原样 rethrow。
+  {
+    const res = runEdit(ctx, [T1200_TOOL_400, reply([textBlock('ok')])], {
+      message: 'Put this photo on the home page',
+      images: [{ url: 'https://uploads.ai1st.site/fine.png', originalFilename: 'fine.png' }],
+    });
+    const errs = ev(res, 'error');
+    if (errs.length === 1 && !ev(res, 'edit-complete').length) ok('⑬C 走原来的路：一条 error、零 edit-complete');
+    else bad(`⑬C 被分类器吞掉了：${res.events.map(e => e.event).join(' ')}`);
+    const m = errs.length ? String(errs[0].message) : '';
+    if (/input_schema/.test(m) && !/attach/i.test(m)) ok('⑬C 报的还是工具参数那条错，没被改写成"你的图坏了"');
+    else bad(`⑬C 报文被改写了：「${m.slice(0, 300)}」`);
+  }
+
+  // ── G（AC3，r3；QA3 终审打回 r2）：跟请求内容【无关】的 400 也不许被吞掉 ─────────────────────
+  //
+  // 🔴 这一格跟 C 不是同一件事，而 r2 只有 C。C 喂的是工具参数错 ⟹ 探针**过**，所以那条实验自己
+  //    就答对了。这里喂的是**账号级** 400（credit 烧光是真实存在的一种）：主请求 400、图片探针也
+  //    400、任何请求都 400 —— r2 那份字节据此判成"你的图坏了"，于是 manager 的 key 一烧光，老板
+  //    每次带图编辑都被要求重传图片，而事故本身以**成功事件**的形状被盖掉。
+  //    判据不是措辞（`credit` 这个词一改就漏），是**对照臂**：一张图都不带也被拒 ⟹ 锅不在图片上。
+  {
+    const res = runEdit(ctx, [T1200_CREDIT_400, T1200_CREDIT_400, T1200_CREDIT_400], {
+      message: 'Put this photo on the home page',
+      images: [{ url: 'https://uploads.ai1st.site/photo.png', originalFilename: 'photo.png' }],
+    });
+    const errs = ev(res, 'error');
+    if (errs.length === 1 && !ev(res, 'edit-complete').length) ok('⑬G1 账号级 400 走原来的路：一条 error、零 edit-complete');
+    else bad(`🔴 ⑬G1 账号级 400 被写成了"你的图坏了"：${res.events.map(e => e.event).join(' ')}`);
+    // 终点是**产物里还有没有原话** —— 那才是事后有人能查出真因的唯一依据（QA3 两臂量的就是这个）。
+    const all = JSON.stringify(res.events) + res.stderr;
+    if (/credit balance is too low/.test(all)) ok('⑬G1 provider 的原话还在产物里 ⟹ 事故查得出真因');
+    else bad('🔴 ⑬G1 产物里一个 `credit balance` 都不剩 —— 事故被盖成了图片问题');
+    const m = errs.length ? String(errs[0].message) : '';
+    if (!/attach/i.test(m)) ok('⑬G1 报文没被改写成"重新附一张图"');
+    else bad(`🔴 ⑬G1 报文被改写了：「${m.slice(0, 300)}」`);
+    // 对照臂真的是"一张图都不带"吗 —— 不然这一格只是碰巧红了。
+    const ctrl = res.requests[2];
+    const ctrlImgs = ctrl ? JSON.stringify(ctrl.messages).match(/"type":"image"/g) || [] : null;
+    if (ctrl && ctrlImgs.length === 0 && ctrl.hasTools === false && ctrl.maxTokens === 1) {
+      ok('⑬G1 第 3 次请求真的是对照臂：零个 image 块、无 tools、max_tokens=1');
+    } else {
+      bad(`⑬G1 第 3 次请求不是对照臂的形状：${JSON.stringify(ctrl && { imgs: ctrlImgs.length, hasTools: ctrl.hasTools, maxTokens: ctrl.maxTokens })}`);
+    }
+  }
+
+  // ── G2（r3）：对照臂自己判不出来（429）⟹ fail-safe 方向是不动，不是编一句话 ─────────────────
+  {
+    const res = runEdit(ctx, [T1200_DOWNLOAD_400, T1200_DOWNLOAD_400, T1200_RATE_429], {
+      message: 'Put this photo on the home page',
+      images: [{ url: 'https://uploads.ai1st.site/gone.png', originalFilename: 'gone.png' }],
+    });
+    if (ev(res, 'error').length === 1 && !ev(res, 'edit-complete').length) {
+      ok('⑬G2 对照臂炸成 429（判不出来）⟹ 原样 rethrow，跟文件头第 3 条同一条规矩');
+    } else {
+      bad(`🔴 ⑬G2 判不出来却编了一句话：${res.events.map(e => e.event).join(' ')}`);
+    }
+  }
+
+  // ── G3（r3）：真吞掉的时候，被吞的那条 400 必须在 stderr 上留痕 ──────────────────────────────
+  //     ⑬A 那一格里老板拿到的是人话，而 provider 的原话就此消失 —— 没有这一行，事后没人能复核
+  //     那次分类对不对。
+  {
+    const res = runEdit(ctx, [T1200_DOWNLOAD_400, T1200_DOWNLOAD_400, reply([textBlock('.')])], {
+      message: 'Put this photo on the home page',
+      images: [{ url: 'https://uploads.ai1st.site/gone.png', originalFilename: 'gone.png' }],
+    });
+    const swallowed = /#1200 swallowed provider 400/.test(res.stderr);
+    const keptOriginal = /Unable to download the file/.test(res.stderr);
+    const notInEvents = !/Unable to download the file/.test(JSON.stringify(res.events));
+    if (ev(res, 'edit-complete').length === 1 && swallowed && keptOriginal && notInEvents) {
+      ok('⑬G3 吞掉那次 400 时 stderr 上留了痕（含 provider 原话），而老板那边仍然只有人话');
+    } else {
+      bad(`⑬G3 留痕不对：edit-complete=${ev(res, 'edit-complete').length} 留痕=${swallowed} 有原话=${keptOriginal} 没漏进事件=${notInEvents}｜stderr 尾：${res.stderr.slice(-400)}`);
+    }
+  }
+
+  // ── H（r3）：多张图时那条【逐张再问一次】的循环 ──────────────────────────────────────────────
+  //
+  // 🔴 补的是我自己在 r1/r2 写下的那条盲区（「多张图……合成不出夹具，没实测」）—— QA3 终审用替身
+  //    把它合成出来了，所以那句话现在不成立了。而 r3 在这条循环**前面**插了一次对照臂请求，
+  //    请求序号整个往后挪一格 ⟹ 这条路必须有自己的回归格，不能靠"读代码觉得没影响"。
+  {
+    // 主 400 → 图片探针 400 → 对照臂过 → 逐张：good 过、bad 400 ⟹ 只点名 bad。
+    const res = runEdit(ctx, [
+      T1200_DOWNLOAD_400, T1200_DOWNLOAD_400, reply([textBlock('.')]),
+      reply([textBlock('.')]), T1200_DOWNLOAD_400,
+    ], {
+      message: 'Put these two photos on the home page',
+      images: [
+        { url: 'https://uploads.ai1st.site/good.png', originalFilename: 'good.png' },
+        { url: 'https://uploads.ai1st.site/bad.png', originalFilename: 'bad.png' },
+      ],
+    });
+    const done = ev(res, 'edit-complete');
+    const msg = done.length ? String(done[0].message) : '';
+    if (done.length === 1 && /bad\.png/.test(msg) && !/good\.png/.test(msg)) {
+      ok(`⑬H1 两张图一好一坏 ⟹ 只点名坏的那张：「${msg.slice(0, 110)}…」`);
+    } else {
+      bad(`⑬H1 点名不对（该只有 bad.png）：${res.events.map(e => e.event).join(' ')}｜「${msg}」`);
+    }
+    // 🔴 前提自检：逐张那两次请求真的各带一张 —— 不然"只点名 bad"可能是别的原因凑出来的。
+    const imgsOf = r => (JSON.stringify(r.messages).match(/"type":"image"/g) || []).length;
+    const shape = res.requests.map(imgsOf).join(',');
+    if (shape === '2,2,0,1,1') ok(`⑬H1 前提成立：请求带图数逐条 ${shape}（主 2 · 探针 2 · 对照臂 0 · 逐张 1,1）`);
+    else bad(`⑬H1 前提不成立：请求带图数逐条 ${shape} ⟹ 上面那条什么都没证明`);
+  }
+  {
+    // 逐张都过、合起来才 400（总张数/总大小那种）⟹ 名字点不出来，把这次带的都说出来。
+    const res = runEdit(ctx, [
+      T1200_DOWNLOAD_400, T1200_DOWNLOAD_400, reply([textBlock('.')]),
+      reply([textBlock('.')]), reply([textBlock('.')]),
+    ], {
+      message: 'Put these two photos on the home page',
+      images: [
+        { url: 'https://uploads.ai1st.site/a.png', originalFilename: 'a.png' },
+        { url: 'https://uploads.ai1st.site/b.png', originalFilename: 'b.png' },
+      ],
+    });
+    const done = ev(res, 'edit-complete');
+    const msg = done.length ? String(done[0].message) : '';
+    if (done.length === 1 && /a\.png/.test(msg) && /b\.png/.test(msg)) {
+      ok(`⑬H2 逐张都过、合起来才 400 ⟹ 两张都说出来，不瞎点名：「${msg.slice(0, 110)}…」`);
+    } else {
+      bad(`⑬H2 该两张都点名：${res.events.map(e => e.event).join(' ')}｜「${msg}」`);
+    }
+  }
+
+  // ── D（AC4）：两个入口下磁盘零改动 ───────────────────────────────────────────────────────────
+  if (fingerprint() === beforeAll) ok('⑬D 八格跑完，site/ 指纹跟开跑前逐字节相同');
+  else bad('⑬D 磁盘被动过了 —— 这一半以前是对的，别改坏');
+
+  // ── E（AC5）：两向守卫 —— 故意把新判据改坏，上面那些必须红 ────────────────────────────────
+  //
+  // 🔴 变异做在**这棵树自己那份** edit-site.js 上（它是拷贝，不是仓里那份），跑完写回去。
+  //    两处变异各对应新判据的一半，各自单独跑，报数要跟构造对得上。
+  {
+    const target = path.join(ctx.work, 'scripts', 'edit-site.js');
+    const pristine = fs.readFileSync(target, 'utf8');
+    const arms = [
+      {
+        why: 'E1 只看当轮附件（= 改之前那条 `images.length === 0` 早退）⟹ 入口②必须回到栈',
+        from: '  const sentImages = sentImageRefs(images, conversationHistory);',
+        to:   '  const sentImages = sentImageRefs(images, []);',
+        run:  () => runEdit(ctx, [T1200_DOWNLOAD_400, T1200_DOWNLOAD_400], {
+                message: 'Actually make the headline shorter', conversationHistory: HISTORY }),
+        want: 'error',
+        // 🔴 这一臂要证的不是"事件变了"，是**那个 bug 原样回来了**：老板收到的是一段 JS 栈。
+        alsoWantStack: true,
+      },
+      {
+        why: 'E2 拿掉那次实验（带图片的 400 一律算图片的锅）⟹ AC3 那条工具参数错必须被错吞掉',
+        from: '  if (await probe(sent) !== false) return null;',
+        to:   '  if (false) return null;',
+        run:  () => runEdit(ctx, [T1200_TOOL_400, reply([textBlock('ok')])], {
+                message: 'Put this photo on the home page',
+                images: [{ url: 'https://uploads.ai1st.site/fine.png', originalFilename: 'fine.png' }] }),
+        want: 'edit-complete',
+      },
+      {
+        // r3：⑬G1 那一格红不红，全靠这一行。拿掉它 ⟹ 账号级 400 又被写成"你的图坏了"。
+        why: 'E3 拿掉那条对照臂（r3）⟹ ⑬G1 那条账号级 400 必须重新被错吞成 edit-complete',
+        from: '  if (await probe([]) !== true) return null;',
+        to:   '  if (false) return null;',
+        run:  () => runEdit(ctx, [T1200_CREDIT_400, T1200_CREDIT_400, T1200_CREDIT_400], {
+                message: 'Put this photo on the home page',
+                images: [{ url: 'https://uploads.ai1st.site/photo.png', originalFilename: 'photo.png' }] }),
+        want: 'edit-complete',
+      },
+    ];
+    for (const arm of arms) {
+      if (!pristine.includes(arm.from)) { bad(`⑬${arm.why.slice(0, 2)} 变异锚点找不到 —— 这一臂什么都没证明`); continue; }
+      fs.writeFileSync(target, pristine.replace(arm.from, arm.to));
+      const res = arm.run();
+      fs.writeFileSync(target, pristine);
+      const got = res.events.map(e => e.event).join(' ');
+      const stacks = stackLines(res).length;
+      const wantOk = ev(res, arm.want).length === 1 && (!arm.alsoWantStack || stacks > 0);
+      if (wantOk) ok(`⑬${arm.why} —— 实测事件序列 ${got}${arm.alsoWantStack ? `、栈行 ${stacks} 行` : ''}`);
+      else bad(`⑬${arm.why}，但它没红：事件 ${got}、栈行 ${stacks}`);
+    }
+    if (fs.readFileSync(target, 'utf8') === pristine) ok('⑬E 变异已还原（这棵树上那份 edit-site.js 跟变异前逐字节相同）');
+    else bad('⑬E 变异没还原干净 —— 后面任何一格的读数都不许用');
+  }
+}
+
+// ══ ⑬F 说了「Nothing on your site was changed.」就真的没改（#1200 r2，QA2 打回 r1）═════════════
+//
+// 🔴 A~E 五格**全部在第一次 API 调用就结束** ⟹ 磁盘从来没被写过，那句「Nothing on your site was
+//    changed.」在它们身上是**恒真**的 —— 它们对这条性质一个字都没说。能分辨的只有这个形状：
+//    **第 1 轮模型成功 write_file 落盘 → 第 2 轮 provider 才 400**。QA2 在真 `edit-site.js` 进程 +
+//    真 git 仓上量到 r1 在这里说了假话：老板收到「什么都没改」，而 `site/en/pages/about.json` 还
+//    带着这次的改动躺在工作树上；接着一次**改别的文件**的成功编辑，它的 `git add -A` 把它一起提交
+//    进了 HEAD。跟 #1102 头注里那条时间线逐字同形。
+//
+// 🔴 所以这一格的终点不是「事件里那句话」，是**下一次成功编辑之后 HEAD 里有没有这次的字节** ——
+//    那才是老板真正受的伤（他被告知没改，而它进了他的站）。
+{
+  const MARK = 'MARK-1200F-DO-NOT-SHIP';
+
+  /**
+   * 跑完整条时间线，返回它留下的**事实**。`mutate` 非 null 时先在这棵树自己那份 edit-site.js 上
+   * 做一处单变量变异（⑬F3 的反向对照用）。
+   */
+  function timeline(label, mutate) {
+    const c = makeRoot(`img-error-after-write-${label}`);
+    const site = writeSite(c.work);
+    assertSyncsClean(c.work, `⑬F(${label}) 夹具`);
+    c.git('git add -A && git commit -q -m base && git push -q origin main');
+
+    const target = path.join(c.work, 'scripts', 'edit-site.js');
+    if (mutate) {
+      const src = fs.readFileSync(target, 'utf8');
+      if (!src.includes(mutate.from)) return { anchorMissing: true };
+      fs.writeFileSync(target, src.replace(mutate.from, mutate.to));
+    }
+
+    const about = path.join(site, 'en', 'pages', 'about.json');
+    const beforeBytes = fs.readFileSync(about);
+    const page = JSON.parse(beforeBytes.toString('utf8'));
+
+    // 第 1 轮：模型先成功写 about.json，下一轮 provider 拿 400 拒收
+    //（第 3 条是图片探针，第 4 条是 r3 那条对照臂 —— 一张图都不带，被收下 ⟹ 账号是好的）。
+    const res1 = runEdit(c, [
+      reply([textBlock('Updating the about page first.'),
+        writeCall('t1', 'en/pages/about.json', JSON.stringify({ ...page, title: MARK }, null, 2))], 'tool_use'),
+      T1200_DOWNLOAD_400,
+      T1200_DOWNLOAD_400,
+      reply([textBlock('.')]),
+    ], {
+      message: 'Now put this photo on the home page',
+      images: [{ url: 'https://uploads.ai1st.site/gone.png', originalFilename: 'gone.png' }],
+    });
+
+    const done = ev(res1, 'edit-complete');
+    const msg = done.length ? String(done[0].message) : '';
+    const restored = /#1200 rollback: restored (\d+)/.exec(res1.stderr);
+    const wroteThisRun = /"tool":"write_file"/.test(JSON.stringify(res1.events));
+    const aboutIsBack = fs.readFileSync(about).equals(beforeBytes);
+    const dirty = cp.execSync('git status --porcelain', { cwd: c.work, encoding: 'utf8' }).trim();
+
+    // 第 2 轮：一次**改别的文件**的成功编辑 —— 它的 `git add -A` 会把工作树上剩下的东西一起提交。
+    const good = [{ id: 's1', name: 'Renamed', shortDescription: 'a', fullDescription: 'b', icon: 'leaf', features: [], products: [] }];
+    const res2 = runEdit(c, [
+      reply([textBlock('Renaming the service.'), writeCall('t1', 'en/services.json', JSON.stringify(good, null, 2))], 'tool_use'),
+      reply([textBlock('Changes applied.')], 'end_turn'),
+    ]);
+    let inHead = '';
+    try { inHead = cp.execSync('git show HEAD:site/en/pages/about.json', { cwd: c.work, encoding: 'utf8' }); }
+    catch (e) { inHead = ''; }
+
+    return {
+      events1: res1.events.map(e => e.event).join(' '), msg, restored: restored ? Number(restored[1]) : null,
+      wroteThisRun, aboutIsBack, dirty, stderrTail: res1.stderr.slice(-400),
+      secondEditCommitted: res2.commitsAfter === res2.commitsBefore + 1,
+      markInHead: inHead.includes(MARK),
+    };
+  }
+
+  console.log('\n⑬F 先写了盘、下一轮才 400 ⟹ 那句「什么都没改」必须是真的（#1200 r2）');
+  const t = timeline('real', null);
+
+  // 🔴 前提自检先跑：这一跑要是根本没写过盘，下面每一条断言都是恒绿的（跟 A~E 同盲）。
+  if (t.wroteThisRun && t.restored >= 1) ok(`⑬F0 前提成立：这一跑真的写过盘（tool_use write_file 发出去了、回滚 restored ${t.restored}）`);
+  else bad(`⑬F0 前提不成立：wroteThisRun=${t.wroteThisRun} restored=${t.restored} ⟹ 下面的读数什么都没证明。stderr 尾：${t.stderrTail}`);
+
+  if (/Nothing on your site was changed\./.test(t.msg) && /gone\.png/.test(t.msg)) ok('⑬F1 老板收到的还是那句人话 + 「Nothing on your site was changed.」');
+  else bad(`⑬F1 事件/措辞不对：${t.events1}｜「${t.msg}」`);
+
+  if (t.aboutIsBack) ok('⑬F2 磁盘上 about.json 逐字节回到编辑之前 ⟹ 那句话在磁盘上也成立');
+  else bad('🔴 ⑬F2 那句话是假的：about.json 还带着这次写进去的改动');
+
+  if (!t.dirty) ok('⑬F3 工作树干净 ⟹ 下一次成功编辑的 `git add -A` 扫不到这次的东西');
+  else bad(`🔴 ⑬F3 工作树还脏着：${t.dirty.replace(/\n/g, ' | ')}`);
+
+  if (t.secondEditCommitted && !t.markInHead) ok('⑬F4 下一次成功编辑之后，HEAD 里的 about.json 不带这次的字节 ⟹ 老板的站上真的没有它');
+  else bad(`🔴 ⑬F4 它进 HEAD 了（第二次编辑 commit=${t.secondEditCommitted}、HEAD 里有标记=${t.markInHead}）—— 这正是 QA2 量到的那条时间线`);
+
+  // ── 反向对照（AC5 那一维）：把新加的那次回滚拿掉，上面四条必须红，而且红在**它该红的那一格** ──
+  {
+    const m = timeline('nofix', {
+      from: '            const rb = rollbackWrittenFiles(siteDir, writeSnapshots);',
+      to:   '            const rb = { restored: [], removed: [], failed: [] };',
+    });
+    if (m.anchorMissing) {
+      bad('⑬F5 变异锚点找不到 —— 这一臂什么都没证明');
+    } else if (!m.aboutIsBack && m.markInHead && /Nothing on your site was changed\./.test(m.msg)) {
+      ok(`⑬F5 反向对照：拿掉那次回滚 ⟹ 老板照样收到「什么都没改」，而 about.json 留在盘上（工作树 ${m.dirty.replace(/\n/g, ' | ')}）并进了 HEAD ⟹ ⑬F2/F4 量的就是这次修法`);
+    } else {
+      bad(`⑬F5 反向对照没红成它该红的样子：aboutIsBack=${m.aboutIsBack} markInHead=${m.markInHead} 措辞=「${m.msg.slice(0, 120)}」`);
+    }
+  }
+
+  // ── F6：退不掉的时候**改口**，不硬说那句话 ────────────────────────────────────────────────
+  //
+  // 新那段有两条出路（跟 #1102 / #1192 两处同一套）：退干净 ⟹ 说「Nothing on your site was
+  // changed.」；退不掉 ⟹ 改口。上面 F1~F5 全部走的是前一条 —— 后一条要是从来没被跑过，
+  // 「它会改口」就只是我写在注释里的一句话。
+  //
+  // 🔴 触发用的是**真机制**，不是变异：`write_file` 在落盘之前给这个文件拍快照，而
+  //    `st.size > SNAPSHOT_MAX_BYTES`（32 MB）时它记的是一句「太大，存不下」而不是字节
+  //    （`edit-site.js` 搜 `SNAPSHOT_MAX_BYTES`）。所以先把 `en/seo.json` 撑过 32 MB。
+  {
+    const c = makeRoot('img-error-undo-failed');
+    const site = writeSite(c.work);
+    assertSyncsClean(c.work, '⑬F6 夹具');
+    c.git('git add -A && git commit -q -m base && git push -q origin main');
+
+    const seoPath = path.join(site, 'en', 'seo.json');
+    const seo = JSON.parse(fs.readFileSync(seoPath, 'utf8'));
+    fs.writeFileSync(seoPath, JSON.stringify({ ...seo, __pad: 'x'.repeat(33 * 1024 * 1024) }));
+    const padded = fs.statSync(seoPath).size;
+
+    const res = runEdit(c, [
+      reply([textBlock('Updating SEO first.'),
+        writeCall('t1', 'en/seo.json', JSON.stringify({ ...seo, metaTitle: MARK }, null, 2))], 'tool_use'),
+      T1200_DOWNLOAD_400,
+      T1200_DOWNLOAD_400,
+      reply([textBlock('.')]),
+    ], {
+      message: 'Now put this photo on the home page',
+      images: [{ url: 'https://uploads.ai1st.site/gone.png', originalFilename: 'gone.png' }],
+    });
+    const done = ev(res, 'edit-complete');
+    const msg = done.length ? String(done[0].message) : '';
+    const failedN = /#1200 rollback: .* failed (\d+)/.exec(res.stderr);
+
+    if (padded > 32 * 1024 * 1024 && failedN && Number(failedN[1]) === 1) {
+      ok(`⑬F6 前提成立：撑到 ${padded} 字节 ⟹ 快照记的是「太大」，这一跑回滚 failed=1`);
+    } else {
+      bad(`⑬F6 前提不成立：padded=${padded} failed=${failedN && failedN[1]} ⟹ 下面那条断言什么都没证明。stderr 尾：${res.stderr.slice(-400)}`);
+    }
+    const changedTack = !/Nothing on your site was changed\./.test(msg)
+      && /could not be undone/.test(msg) && /seo\.json/.test(msg);
+    if (done.length === 1 && changedTack) ok(`⑬F6 它改口了，没硬说那句话：「${msg}」`);
+    else bad(`🔴 ⑬F6 退不掉却还在说「什么都没改」：${res.events.map(e => e.event).join(' ')}｜「${msg}」`);
+    // 诚实性自检：改口的前提是那份改动**真的**还在盘上 —— 不然改口本身才是那句假话。
+    if (fs.readFileSync(seoPath, 'utf8').includes(MARK)) ok('⑬F6 那份改动确实还在盘上 ⟹ 改口说的是实话');
+    else bad('🔴 ⑬F6 改了口，但盘上其实已经退干净了 —— 这次是反过来吓唬老板');
   }
 }
 
