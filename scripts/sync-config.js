@@ -198,10 +198,18 @@ function readAppliedThemeId() {
     // 仍然是 stderr 那些话不许列全表的理由；只是它不再是**这一行**要短的理由。这一行要短的理由
     // 是构建日志本身有人读。
     // 要那份名单的人（我们）本来就有更好的入口：`node -e "console.log(Object.keys(require('./scripts/themes.js').themes).join('\n'))"`。
+    // 🔴 #1198 —— 这句话的后半截【曾经是】「The website keeps the look it already has …; only the
+    // theme's own layout preferences fall back to the defaults.」，而 2026-08-25 在生产上量到它是
+    // 假的：`site-194f1f41`（真付费客户）的构建日志逐字打着这一行，同一次构建里 theme.css 出来
+    // 是 982 字节的纯 token，31 种块**全部**没有画法。「keeps the look it already has」正是它当时
+    // 最不该说的那句话 —— 而它是这条链上唯一开口说话的地方，于是那次降级从头到尾是绿的。
+    // 保留这一行的诊断价值（「这个站穿的主题平台已经不认识了」只有这里说得出），但把它的射程
+    // 收回到它真管得着的那两维，并把「长什么样」这一问指到下面那道守卫去。
     console.log(`  ℹ️  theme.json names theme "${meta.themeId}", which this template no longer has`
-      + ` — scripts/themes.js has ${Object.keys(themes).length} themes. The website keeps the look it`
-      + ` already has (colours and fonts come from brand.json); only the theme's own layout preferences`
-      + ` fall back to the defaults.`);
+      + ` — scripts/themes.js has ${Object.keys(themes).length} themes. Colours and fonts come from`
+      + ` brand.json and are unchanged; the theme's own layout preferences fall back to the defaults.`
+      + ` 🔴 That is NOT the same as "the look is unchanged" — what lays this site's blocks out is`
+      + ` decided by the "Theme CSS:" line below.`);
     return null;
   }
   return meta.themeId;
@@ -974,6 +982,17 @@ let themeCssOrigin;
 if (fs.existsSync(siteThemeCssPath)) {
   themeCssBytes = fs.readFileSync(siteThemeCssPath); // Buffer —— 逐字节，不经过任何字符串处理
   themeCssOrigin = 'site/theme.css (committed by a theme change)';
+  // 🔴 #1198 —— 上面那行 `Theme CSS: public/themes/<sheet>.css … styled by those rules` 是在知道这件
+  // 事**之前**打的，所以走到这一支时它已经说错了：那张表一个字节都没进产物，这个站穿的是冻在 repo
+  // 里的旧字节。#1198 的守卫是靠量产物抓到这一格的（对照臂：`theme.json.css` 指着一张完整的表、而
+  // `site/theme.css` 是只有 token 的旧字节 ⟹ 上面那行报「31 个块 styled by those rules」，产物里
+  // 一条画法都没有）。不动上面那行的位置和前缀（`theme-css-invariants-all-sheets.sh:193` 按前缀
+  // grep 它），在这里补一句把它更正过来。
+  if (themeSheet) {
+    console.log(`  ↑ correction: public/themes/${themeSheet}.css was NOT used — site/theme.css is`
+      + ` present, and rule ① takes it byte for byte. What the pages get is whatever those frozen`
+      + ` bytes say, which may be older than the theme theme.json names.`);
+  }
 } else {
   themeCssBytes = Buffer.from(buildThemeCss({
     colors: brand.colors,
@@ -989,6 +1008,65 @@ if (fs.existsSync(siteThemeCssPath)) {
 }
 fs.writeFileSync(path.join(publicDir, 'theme.css'), themeCssBytes);
 console.log(`  Generated public/theme.css — ${themeCssOrigin} (${themeCssBytes.length} bytes)`);
+
+// ─── #1198 §「这个站会长成地板样」守卫 ────────────────────────────────────────────────────────
+//
+// 2026-08-25，生产上唯一那个真付费客户的站（`site-194f1f41` / dexin.ca）掉进了这个形状：新模板 +
+// 一张只有 token 没有画法的 theme.css ⟹ 31 种块全部只剩 base.css 的地板样（桌面下四个数字柱纵排
+// 左对齐）。**整条链是绿的** —— 构建没报错，两行日志都在，而两行都在安抚人：
+//
+//     ℹ️  theme.json names theme "luxury-dark", which this template no longer has …
+//         The website keeps the look it already has …                ← 假的（上面那处已改）
+//     Theme CSS: none — hero + … + card-group fall back to base.css alone;
+//         the 0 unmoved blocks keep their variants                   ← 真的，但读起来像脚注
+//
+// 🔴 第二行才是本票要治的那件事，而它**一直是对的、只是没跟着重新标定**：#1018 写它的那天 34 种
+//    块里只搬走了 3 种，所以「fall back to base.css alone」说的是一小撮块；今天 `MOVED_BLOCKS` 是
+//    31、`BLOCK_ROLES` 的键也是 31 ⟹ 分子等于分母，同一句话今天的含义是「**这个站每一种块都没有
+//    版式**」，而句尾那个 `the 0 unmoved blocks` 反而把它读成了一条边角注。
+//    ⟹ 守卫要加的不是一个新读数，是**把这个读数的后果用人话说出来**。
+//
+// 🔴 量的是【产物】，不是 `themeSheet` 那个代理。两条来源都可能给出没有画法的 theme.css：
+//    ② 没有 sheet 时从 brand.json 生成（本站走的这条），以及 ① repo 里那份 `site/theme.css` 若是
+//    在没有 sheet 的年代冻下来的。问 `themeSheet` 只看得见第二条。
+//
+// 🔴 **报，不拒**（AC3 写的是「必须红或显式警告」，两者都算）。拒的代价量过：今天生产上处在这个
+//    形状的站正好是那一个，而它正是需要能重建才能被救的那一个 —— exit 1 会让老板连编辑都做不了，
+//    比地板样更坏。所以这里只负责把话说清楚，并留一个机器读得到的标记（`worker` 的升级那一跳读它）。
+const { assessFloorLook, FLOOR_LOOK_MARKER } = require('./lib/floor-look.js');
+{
+  // 这个站真的摆了哪些「版式归主题表管」的块。空站（一个 moved 块都没有）不该报 —— 那种站看不出
+  // 差别，报了就是恒响。
+  const movedOnSite = new Set();
+  for (const locale of locales) {
+    for (const page of pagesByLocale[locale]) {
+      for (const block of page.blocks) {
+        if (MOVED_BLOCKS.includes(block.type)) movedOnSite.add(block.type);
+      }
+    }
+  }
+  const themesDir = path.join(publicDir, 'themes');
+  const verdict = assessFloorLook({
+    themeCss: themeCssBytes.toString('utf-8'),
+    blockTypesOnSite: [...movedOnSite],
+    allBlockTypes: ALL_BLOCK_TYPES,
+    hasFloor: fs.existsSync(path.join(publicDir, 'base.css')),
+  });
+  if (verdict.floor) {
+    const sheetCount = fs.existsSync(themesDir)
+      ? fs.readdirSync(themesDir).filter((f) => f.endsWith('.css')).length
+      : 0;
+    console.log(`  🔴 ${FLOOR_LOOK_MARKER} —— THIS SITE WILL RENDER AS THE base.css FLOOR.`);
+    console.log(`     public/theme.css (${themeCssBytes.length} bytes, ${themeCssOrigin}) carries`
+      + ` block-layout rules for 0 of the ${movedOnSite.size} block type(s) this site uses`
+      + ` — every one of them falls back to base.css alone, so its pages stack in one column,`
+      + ` left-aligned, at every viewport width.`);
+    console.log(`     Unstyled on this site: ${verdict.unstyled.join(' + ')}`);
+    console.log(`     Fix: give the site a theme that ships its own stylesheet — site/theme.json`
+      + ` needs a "css" key naming a file in public/themes/ (public/themes has ${sheetCount}`
+      + ` sheet(s)). Applying a theme through the product writes that key for you.`);
+  }
+}
 
 const configDataPath = path.join(rootDir, 'src', 'lib', 'config-data.ts');
 // ── #1006 每站微扰（tweaks）──────────────────────────────────────────────────────────────────────
