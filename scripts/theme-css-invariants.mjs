@@ -1961,9 +1961,9 @@ async function judgeStrips(where) {
   // real one. Read back rather than assumed — a page shorter than where it was cannot go back there,
   // and silently landing somewhere else is precisely the bug this restore exists to stop.
   //
-  // 🔴 `behavior: 'instant'` IS LOAD-BEARING, for the reason `orderReading` states at :2301:
+  // 🔴 `behavior: 'instant'` IS LOAD-BEARING, for the reason `orderReading` states at :2318:
   // globals.css:7 sets `scroll-behavior: smooth`, so the plain `window.scrollTo(x, y)` ANIMATES and
-  // the read-back two frames later is taken mid-flight. Measured with the plain form over 38 sheets:
+  // the read-back two frames later is taken mid-flight. Measured with the plain form over 20 sheets:
   // the read-back missed 9 times and MISSED IN BOTH DIRECTIONS — `(0,4405 → 0,4890)` overshooting the
   // target and `(0,103 → 0,98)` undershooting it. Both directions is the tell: a height clamp can
   // only pull the offset DOWN, so "still in transit" is the only thing that explains an overshoot.
@@ -1978,8 +1978,25 @@ async function judgeStrips(where) {
   // it fire while the scroll was still animated were 485px at the widest and 5px at the narrowest,
   // both of which trip a +/-1 gate — not sub-pixel rounding, which would be noise in every run and
   // would teach a reader to ignore the line.
+  //
+  // 🔴 JUDGED, NOT JUST READ (#1202). #1190 left this line in `readings`, where it does not touch the
+  // exit code — and that is exactly how the day it was written went: the plain-`scrollTo` version fired
+  // 9 times across 20 sheets and the run still ended rc=0, so it read as "fixed". What it costs to get
+  // this wrong is not hypothetical either: the page parked somewhere else put a button under the sticky
+  // header, `theme-css` reported it as "this theme paints the button blind", and `main` was red for a
+  // day with `sync-template` skipped behind it — the template reaching neither test nor prod. This
+  // failure is SILENT by construction: a page left at the wrong offset does not announce itself, it
+  // comes back wearing some other check's clothes.
+  //
+  // 🔴 What the promotion costs was measured before it was made, not argued: on the delivered bytes the
+  // whole pool (100 sheets × 7 pages) fires this 0 times, so today's false-red cost is 0; and it still
+  // has teeth — delete the restore above and it fires once each on `jade-05` and `magenta-69`, two
+  // real, unmodified sheets.
+  //
+  // 📌 No leading spaces here, unlike the `readings` strings above: `problems` are indented by the
+  // loop that prints them (search `invariant violation(s)`). The sentence itself is unchanged.
   if (Math.abs(afterScroll.y - beforeScroll.y) > 1 || Math.abs(afterScroll.x - beforeScroll.x) > 1) {
-    readings.push(`  ⑦ on ${where}: the page could not be put back where it was `
+    problems.push(`⑦ on ${where}: the page could not be put back where it was `
       + `(${beforeScroll.x},${beforeScroll.y} → ${afterScroll.x},${afterScroll.y}) — whatever is `
       + 'measured next sees a different part of the page than it would have');
   }
