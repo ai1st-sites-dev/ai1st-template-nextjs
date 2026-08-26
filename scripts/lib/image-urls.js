@@ -48,7 +48,8 @@
  * 🔴 **不用「这个 URL 取得到吗」当判据。** 那要发网络请求：慢、会因为一次抖动把好地址判死，
  *    而且它对「取得到、但根本不是老板给的那张」完全无话可说 —— 而那正是 Unsplash 那一支的形状。
  * 🔴 相对路径（`/photos/hero.jpg`）不在射程内：它们由 `create-site.js` 生成、跟着站一起构建，
- *    不是外链，编不出祸来。判的是 `http(s)://` · 协议相对 `//host/…` · `data:` 三种（#1199 ③：
+ *    不是外链，编不出祸来。判的是 `http(s):`（**斜杠数不限**，#1207：`http:/h/x` 浏览器照样取）·
+ *    协议相对 `//host/…` · `data:` 三种（#1199 ③：
  *    后两种此前连问都没被问到，而 `//images.unsplash.com/…` 浏览器按 https 取得回来，
  *    产物上就是一张真的、没人给过的图）。
  *
@@ -69,7 +70,18 @@ const IMAGE_FIELDS = ['imageUrl', 'logoUrl'];
 //   · `ADDR_HEAD_RE` 问**一个值**「它是不是一个要被追责的图片地址」→ 锚在开头
 // 🔴 单斜杠的站内相对路径（`/photos/hero.jpg`）**不在**这三种里：它由 create-site 生成、跟着站
 //    一起构建，编不出祸来。`//` 那一支的先行断言（后面必须跟 `域名.`）就是用来把它挡在外面的。
-const ADDR_HEAD = '(?:https?:\\/\\/|\\/\\/(?=[\\w-]+\\.)|data:[\\w.+-]+\\/[\\w.+-]+[;,])';
+//
+// 🔴 **`http(s):` 后面的斜杠数不限（`\/*`，#1207）。** 原来写死两个斜杠，于是 `http:/host/x.jpg`
+//    地址**抠出来了却不进入判定** —— 不是"判成放行"，是连问都不问，正是 `imageUrlRejection` 里
+//    那段注释自己写着的失败形状。一个字符的差别就让 #1204 新收的六种写法全部失效。
+//    判据是真 chromium 去不去取（#1207 自己起一台 HTTP 服务器看它收没收到那条请求，一维一格单量），
+//    四种斜杠数 × 两条通道（`<img src>` / CSS `url()`）**八格全部真发了请求**：
+//      `http://h/x` ✅ · `http:/h/x` ✅ · `http:h/x` ✅ · `http:///h/x` ✅
+//    WHATWG 把它们全部归一化成 `http://h/x`（`new URL('http:/h/x').href` 可复算）。
+// 🔴 **放宽斜杠数【没有】把站内相对路径吃进来**，分界线是**有没有 scheme**：`/photos/hero.jpg` 与
+//    `//photos/hero.jpg` 都没有 scheme ⟹ 第一支匹配不上；第二支那个「后面必须跟 `域名.`」的先行
+//    断言把它挡住（`photos` 后面是 `/` 不是 `.`）。两向都有格子钉着（#1207 AC2）。
+const ADDR_HEAD = '(?:https?:\\/*|\\/\\/(?=[\\w-]+\\.)|data:[\\w.+-]+\\/[\\w.+-]+[;,])';
 // 🔴 排除类里那三段 Unicode 是承重的（#1199 ④）：中文句子**没有空格**，标点是唯一的边界。
 //    只排 ASCII 标点的话，「你用这张 https://example.com/a.jpg，谢谢」会被抠成
 //    `https://example.com/a.jpg，谢谢` —— 于是老板给过的那个地址从来没真正进过放行名单，
@@ -106,9 +118,9 @@ const TRAILING_PUNCT_RE = /[.,;:!?]+$/;
 //      那句话是错的，QA1 复算时点出来了）：`<object data>` 与 `<embed src>` 装的也可能是一份 PDF
 //      而不是图，实测这两种挂 PDF 时 `origin/main` 放行、这份字节拒。**仍然收**，理由是这道检查的
 //      判据从来不是「它是不是一张图」而是「这个地址有人给过吗」：没人给过的地址不存在，挂上去就是
-//      一块坏掉的嵌入，跟一张裂图是同一个后果。代价写在明处：老板没打过字的第三方 PDF 会被整份拒掉，
-//      而模型收到的那句话仍写着「is an image URL」——**那句措辞归作者定**（两位 QA 都记了这一条，
-//      都判非阻断；改它要动 #1195/#1199 调过的那段产品文案，不是本票的范围）。
+//      一块坏掉的嵌入，跟一张裂图是同一个后果。代价写在明处：老板没打过字的第三方 PDF 会被整份拒掉。
+//      📌 那句回执原来写着「is an image URL」（也就是拒一份 PDF 时说的是假话）—— **#1207 改掉了它**，
+//      现在说的是「这个**地址**没人给过你」。措辞与它的读者是谁，写在 `imageUrlRejection` 上面。
 const IMAGE_ATTRS = {
   img: ['src', 'srcset'],
   // `<picture><source srcset>`。**只收 `srcset`**：`<video><source src>` 装的是视频，不是图。
@@ -120,6 +132,21 @@ const IMAGE_ATTRS = {
   input: ['src'],
   object: ['data'],
   embed: ['src'],
+  // ── `background` 属性（#1207）───────────────────────────────────────────────────────────────
+  // 🔴 它是**被废弃**的 HTML，但浏览器照样画 —— 而这一族**不需要模型犯错**，只要它写一张老式表格。
+  //    QA1 在 #1204 r3 用真 chromium 扫 500 格随机语料，48 格是这一族。
+  // 🔴 成员是**量出来的**，不是按规范抄的（#1207 自己起一台 HTTP 服务器，一个标签一页单量，
+  //    看它收没收到那条请求）：下面这八个全部 ✅ 真去取了，而 `<div background>` ❌ 不取
+  //    ⟹ **不收 `div`**。那个 ❌ 同时是这台探针的反向对照：它证明这把尺分得开取与不取，
+  //    不是"什么都说取"。想再加一个标签，先照这条路量一次，别照规范加。
+  body: ['background'],
+  table: ['background'],
+  thead: ['background'],
+  tbody: ['background'],
+  tfoot: ['background'],
+  tr: ['background'],
+  td: ['background'],
+  th: ['background'],
 };
 // 🔴 这些属性装的是**一串**候选（`a.jpg 1x, b.jpg 2x`），不是一个地址。整串当一个地址判 = 只判了
 //    第一个，把编造地址挪到第二个候选就溜过去了（#1204 AC2）。
@@ -213,7 +240,8 @@ const CSS_URL_RE = /\burl\(\s*(?:"([^"]*)"|'([^']*)'|([^)\s]*))\s*\)/gi;
 // 🔴 `@font-face` 里的 `url()` 装的是**字体**，不是图 —— 整块先剔掉再找地址。
 //    这是 #1204 r1 造出来的一个误拒：`origin/main` 只看 `style=` 属性、看不到 `<style>` 元素，
 //    所以一篇用了 webfont 的博客在 main 上放行、在 r1 上被**整份**拒掉，而模型收到的原话还说
-//    那个 `.woff2` 「is an image URL」。两位 QA 都报了这一条（QA1 非阻断① / QA2 还剩什么①）。
+//    那个 `.woff2` 「is an image URL」（那句措辞 #1207 改掉了；这一格的修法是剔掉整块，跟措辞无关）。
+//    两位 QA 都报了这一条（QA1 非阻断① / QA2 还剩什么①）。
 //    📌 它不是绕过通道：`@font-face` 注册的是字体，浏览器不会把它画成一张图。
 const CSS_FONT_FACE_RE = /@font-face\s*\{[^}]*\}/gi;
 
@@ -327,13 +355,24 @@ function collectImagePositions(node, out) {
 /**
  * 同一个地址的几种写法。协议相对 `//h/p` 跟 `https://h/p` 指的是同一张图，
  * 而老板打字/附件给的必然是带协议那一种 ⟹ 不认这层等价的话，模型把它写成 `//h/p` 会被误拒。
+ *
+ * 🔴 **斜杠数也是同一张图（#1207）**：`http:/h/p` · `http:h/p` · `http:///h/p` 浏览器取的都是
+ *    `http://h/p`（真 chromium 上四种斜杠数 × 两条通道八格全部发了请求，读数在 `ADDR_HEAD` 上面）。
+ *    所以老板给过 `http://h/p`、模型少打一个斜杠时**不该**被判成「没人给过你」—— 那是误拒。
+ * 🔴 **它不跨 scheme**：归一化只动斜杠数，`https://h/p` 与 `http://h/p` 仍然是两个地址
+ *    （今天也是这样：只有老板给的是协议相对 `//h/p` 时两种协议才都放行）。
+ *    这一层等价只在「老板真给过那个地址」时起作用，编造的地址归一化之后照样谁都不是。
  */
 function addressForms(u) {
   const forms = [u];
   if (u.startsWith('//')) forms.push('https:' + u, 'http:' + u);
   else {
-    const m = u.match(/^https?:(\/\/.*)$/i);
-    if (m) forms.push(m[1]);
+    const m = u.match(/^(https?):\/*(.*)$/i);
+    if (m) {
+      const canon = `${m[1].toLowerCase()}://${m[2]}`;
+      if (canon !== u) forms.push(canon);
+      forms.push('//' + m[2]);
+    }
   }
   return forms;
 }
@@ -395,6 +434,18 @@ function collectAllowedImageUrls(o) {
 /**
  * 这次写入里有没有「谁都没给过」的图片地址？
  *
+ * 🔴 **这句话是给【模型】看的回执，老板看不到它（#1207 AC7，整条链现读过一遍）**：
+ *    `edit-site.js:688` 拿它当 `{ error }` 返回 → `executeTool` 的返回值 → `JSON.stringify`
+ *    → `:1129` 那条 `tool_result` 发回模型。磁盘一个字节没动，模型在同一轮里改口重写。
+ *    老板看到的是模型最后那段文字（那一路是 `Changes applied.`），不是这句。
+ *    ⟹ 改这句话的读者只有模型；老板可见的那份文案在 `edit-site.js` 的 SYSTEM_PROMPT `## Images` 段里，
+ *    不在这里，本票一个字没碰它。
+ *
+ * 🔴 **措辞不许预设「它是一张图」（#1207 AC7）**：这道检查的判据从来是「这个地址有人给过吗」，
+ *    而表里 `<object data>` / `<embed src>` 装的可能是一份 PDF。原来那句写着 `is an image URL`，
+ *    于是模型挂一份第三方 PDF 被拒时收到的理由是一句**假话**（#1195 起四轮里四位 QA 都记过这一条）。
+ *    现在说的是「这个**地址**没人给过你」+「你挂在它上面的东西会是坏的」，两种情形都说得通。
+ *
  * @param {*} parsed        已经 JSON.parse 过的这次内容
  * @param {Set<string>} allowed
  * @returns {string|null}   null = 放行；字符串 = 拒绝的理由，原样回给模型
@@ -409,10 +460,11 @@ function imageUrlRejection(parsed, allowed) {
   if (unknown.length === 0) return null;
   return 'Refusing this write: '
     + unknown.map((u) => `"${u}"`).join(', ')
-    + (unknown.length === 1 ? ' is an image URL' : ' are image URLs')
-    + ' that nobody gave you — it is not one of the images attached to this message, it is not in the'
-    + " owner's message, and it is not already in this site's files. An address that was not given to you"
-    + " does not exist: it renders as a broken image on the owner's live site. Write only a URL you were"
+    + (unknown.length === 1 ? ' is an address' : ' are addresses')
+    + ' nobody gave you — not attached to this message, not typed in the'
+    + " owner's message, and not already in this site's files. An address that was not given to you"
+    + ' does not exist: whatever you hang on it — a picture, a PDF, an embed — comes out broken on the'
+    + " owner's live site. Write only an address you were"
     + ' given verbatim (see "Images" in your instructions). If the owner asked for a picture and attached'
     + ' none, do not put any URL there — leave the field as you found it and ask them to attach the photo.';
 }

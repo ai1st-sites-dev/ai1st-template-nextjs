@@ -475,6 +475,135 @@ for (const [name, html] of [
     : bad(`scanTags 期望 p,a,img，实测 ${names} —— <a> 的标签体吞过了自己的 >`);
 }
 
+// ══ 一之七、#1207：`background` 属性这一族 ═════════════════════════════════════════════════════
+// 🔴 射程判据是**真 chromium 去不去取**（#1207 自己起一台 HTTP 服务器、一个标签一页单量，看它收没
+//    收到那条请求）。八个标签全部 ✅ 真去取了，`<div background>` ❌ 不取 —— 那个 ❌ 是探针的反向
+//    对照，也在下面钉了一格：它证明这不是「什么都收」。
+// 🔴 这一族**不需要模型犯错**，只要它写一张老式表格。`background` 是被废弃的 HTML，浏览器照样画。
+console.log('\n── 一之七、#1207：background 属性这一族 ─────────────────────────');
+
+const BG_FORMS = [
+  ['<td background>',    (u) => `<table><tr><td background="${u}">c</td></tr></table>`],
+  ['<th background>',    (u) => `<table><tr><th background="${u}">h</th></tr></table>`],
+  ['<tr background>',    (u) => `<table><tr background="${u}"><td>c</td></tr></table>`],
+  ['<tbody background>', (u) => `<table><tbody background="${u}"><tr><td>c</td></tr></tbody></table>`],
+  ['<thead background>', (u) => `<table><thead background="${u}"><tr><td>c</td></tr></thead></table>`],
+  ['<tfoot background>', (u) => `<table><tfoot background="${u}"><tr><td>c</td></tr></tfoot></table>`],
+  ['<table background>', (u) => `<table background="${u}"><tr><td>c</td></tr></table>`],
+  ['<body background>',  (u) => `<body background="${u}">`],
+];
+for (const [name, mk] of BG_FORMS) {
+  grid(`${name} 里放编造地址`, { slug: 'p', content: mk(INVENTED) }, allowed, '拒');
+  grid(`${name} 里放【老板给过】的那张`, { slug: 'p', content: mk(ATTACHED) }, allowed, '放行');
+}
+// 🔴 反向对照：`<div background>` 浏览器**不取**（实测），所以它有意不收。这一格钉的是「不收」——
+//    「有意不收」和「漏了」在一个只打 ✅ 的实现里长得一模一样。
+grid('对照 <div background>（真 chromium 上不取 —— 有意不收）',
+     { slug: 'p', content: `<div background="${INVENTED}">x</div>` }, allowed, '放行');
+
+// ══ 一之八、#1207：`http(s):` 后面的斜杠数不限 ═════════════════════════════════════════════════
+// 🔴 原来写死两个斜杠 ⟹ `http:/h/x` 地址抠出来了却**不进入判定**（连问都不问），一个字符就让 #1204
+//    新收的六种写法全部失效。四种斜杠数 × 两条通道，真 chromium 上**八格全部真发了请求**。
+// 🔴 两向都测：编造的要拒；而老板给过的那张写成任意斜杠数指的是**同一张图**（WHATWG 归一化成两个
+//    斜杠，浏览器取的是同一个地址）⟹ 不许误拒。
+console.log('\n── 一之八、#1207：斜杠数不限 ───────────────────────────────────');
+
+const HOST_PATH = 'uploads.ai1stsite.app/u1/profile-photo.jpg';        // INVENTED 去掉 scheme 的那一段
+const GIVEN_HOSTPATH = 'uploads.ai1stsite.app/u1/8f3c1d2ab_photo.jpg'; // ATTACHED 的那一段
+const SLASHES = [['两斜杠(对照)', '//'], ['一斜杠', '/'], ['零斜杠', ''], ['三斜杠', '///']];
+const CHANNELS = [
+  ['<img src>',    (u) => `<img src="${u}">`],
+  ['style url()',  (u) => `<div style="background-image:url(${u})">x</div>`],
+];
+for (const [sname, sl] of SLASHES) {
+  for (const [cname, mk] of CHANNELS) {
+    grid(`${cname} http:${sl}编造 · ${sname}`,
+         { slug: 'p', content: mk(`http:${sl}${HOST_PATH}`) }, allowed, '拒');
+  }
+}
+// 两向：老板给过的是 `https://…`（附件那一种），模型少打/多打斜杠 → 同一张图，放行。
+for (const [sname, sl] of SLASHES) {
+  grid(`老板给过的那张写成 https:${sl}… · ${sname}（浏览器取的是同一个地址）`,
+       { blocks: [{ data: { imageUrl: `https:${sl}${GIVEN_HOSTPATH}` } }] }, allowed, '放行');
+}
+// 另一半读法：老板**自己在消息里**就打了个少斜杠的地址 —— 抠地址与判定共用同一个源串 ⟹ 也要放行。
+{
+  const typedOdd = collectAllowedImageUrls({
+    images: [], message: `用这张 http:/${GIVEN_HOSTPATH} 谢谢`, conversationHistory: [],
+  });
+  typedOdd.has(`http:/${GIVEN_HOSTPATH}`)
+    ? ok('老板自己打的单斜杠地址进了放行名单（抠地址那把尺也认它）')
+    : bad(`老板打的单斜杠地址【没】进放行名单: ${JSON.stringify([...typedOdd])}`);
+  grid('老板打单斜杠、模型照抄单斜杠',
+       { blocks: [{ data: { imageUrl: `http:/${GIVEN_HOSTPATH}` } }] }, typedOdd, '放行');
+  grid('老板打单斜杠、模型换成另一个域名（仍要拒）',
+       { blocks: [{ data: { imageUrl: `http:/${HOST_PATH}` } }] }, typedOdd, '拒');
+}
+// scheme 的大小写：URL 的 scheme 不区分大小写，浏览器归一化 ⟹ 不许因为大写而误拒。
+grid('老板给过的那张写成大写 scheme（HTTPS:/…）',
+     { blocks: [{ data: { imageUrl: `HTTPS:/${GIVEN_HOSTPATH}` } }] }, allowed, '放行');
+// 🔴 不跨 scheme：老板给的是 https，模型写成 http 仍要拒（今天也是这样，钉住别被上面那层等价带宽）。
+grid('老板给的是 https，模型写成 http://（斜杠等价不跨 scheme）',
+     { blocks: [{ data: { imageUrl: `http://${GIVEN_HOSTPATH}` } }] }, allowed, '拒');
+
+// ── AC2：放宽斜杠数**没有**把站内相对路径吃进来（改前改后都放行）────────────────────────────────
+// 🔴 分界线是**有没有 scheme**。这两格改前就是「放行」，钉在这里防的是「放宽时顺手把它们吃进来」。
+grid('AC2 站内相对路径 <img src="/photos/hero.jpg">',
+     { slug: 'p', content: '<img src="/photos/hero.jpg">' }, allowed, '放行');
+grid('AC2 站内相对路径 style="url(/photos/hero.jpg)"',
+     { slug: 'p', content: '<div style="background:url(/photos/hero.jpg)">x</div>' }, allowed, '放行');
+grid('AC2 双斜杠开头但不是域名的站内路径 //photos/hero.jpg',
+     { blocks: [{ data: { imageUrl: '//photos/hero.jpg' } }] }, allowed, '放行');
+
+// ── 一整篇「什么都没做错」的博客正文：合起来必须放行 ───────────────────────────────────────────
+// 🔴 上面那些格子都是一格一维。**误拒是靠合起来才看得见的**：这一篇把本票新收的两条覆盖面
+//    （老式表格的 `background` · 少斜杠的地址）跟前几轮那些边界（webfont · 讲 CSS 的代码示例 ·
+//    嵌 YouTube · 站内相对路径 · 英文撇号）放在同一篇里，地址全是老板给过的或站内相对路径
+//    ⟹ 一处都不许拒。一格一格测全绿、合起来被整份拒掉，是这道闸最贵的坏法（#1204 r1 真的发生过）。
+grid('一整篇合法博客正文（老式表格 + webfont + 代码示例 + YouTube + 相对路径 + 撇号）',
+     { slug: 'p',
+       content: `<style>@font-face{font-family:X;src:url(https://fonts.gstatic.com/s/a/v1/b.woff2)}</style>`
+         + `<h2>Joe's Bakery</h2><p><a title='Joe's place'>about</a></p>`
+         + `<table background="${ATTACHED}"><tr><td background="${ONDISK}">c</td></tr></table>`
+         + `<img src="/photos/hero.jpg"><img src="https:/${'uploads.ai1stsite.app/u1/8f3c1d2ab_photo.jpg'}">`
+         + `<div style="background:url(/photos/bg.jpg)">x</div>`
+         + `<pre><code>background-image: url(https://example.com/only-a-code-sample.png);</code></pre>`
+         + `<iframe src="https://www.youtube.com/embed/abc"></iframe>` },
+     allowed, '放行');
+
+// ══ 一之九、#1207 AC7：那句回执不许预设「它是一张图」════════════════════════════════════════════
+// 🔴 这句话的读者是**模型**，不是老板（整条链：`edit-site.js:688` 的 `{ error }` → `executeTool`
+//    返回值 → `JSON.stringify` → `:1129` 的 `tool_result`）。老板看到的是模型最后那段文字。
+// 🔴 为什么钉它：表里 `<object data>` / `<embed src>` 装的可能是一份 PDF，而原来那句写着
+//    `is an image URL` —— 拒一份 PDF 时给模型的理由是一句假话。
+console.log('\n── 一之九、#1207 AC7：回执的措辞 ───────────────────────────────');
+{
+  const pdf = 'https://cdn.example.com/paper.pdf';
+  const whyPdf = imageUrlRejection({ slug: 'p', content: `<object data="${pdf}" type="application/pdf"></object>` }, allowed);
+  if (!whyPdf) die('挂 PDF 的 <object> 没被拒 —— 这一格的前提没了（射程变了？），不是通过');
+  /\bis an image URL\b/.test(whyPdf)
+    ? bad(`拒一份 PDF 时那句话仍写着 "is an image URL"（假话）: ${whyPdf.slice(0, 120)}`)
+    : ok('拒一份 PDF 时那句话不再说「它是一张图」');
+  whyPdf.includes(pdf) ? ok('回执里点了那个地址的名') : bad('回执没点名那个地址');
+  /\bis an address nobody gave you\b/.test(whyPdf)
+    ? ok('单数措辞是「is an address nobody gave you」')
+    : bad(`单数措辞不对: ${whyPdf.slice(0, 120)}`);
+  // 复数那一支单独一格（两支是两段字符串，只测一支就有一半没测）。
+  const whyTwo = imageUrlRejection(
+    { slug: 'p', content: `<img src="${INVENTED}"><embed src="${pdf}">` }, allowed);
+  /\bare addresses nobody gave you\b/.test(whyTwo)
+    ? ok('复数措辞是「are addresses nobody gave you」')
+    : bad(`复数措辞不对: ${whyTwo && whyTwo.slice(0, 140)}`);
+  /\brenders as a broken image\b/.test(whyTwo)
+    ? bad('后果那半句仍写死「渲染成一张裂图」—— 挂 PDF 时同样是假话')
+    : ok('后果那半句改成了不预设是图的说法（a picture, a PDF, an embed）');
+  // 🔴 一张真的图被拒时那句话仍要说得通 —— 别为了 PDF 把图那一支说没了。
+  const whyImg = imageUrlRejection({ blocks: [{ data: { imageUrl: INVENTED } }] }, allowed);
+  (whyImg && whyImg.includes('a picture') && whyImg.includes('Images'))
+    ? ok('拒一张图时那句话照样说得通（后果里有 a picture，且仍指向提示词的 Images 段）')
+    : bad(`拒一张图时那句话不完整: ${whyImg && whyImg.slice(0, 140)}`);
+}
+
 // ══ 二、提示词那份清单 vs 模板真的画出来的 ════════════════════════════════════════════════════
 console.log('\n── 二、提示词的 ## Images 段 vs 模板真的画出来的 ────────────────');
 
@@ -763,6 +892,43 @@ arm('不带引号的属性值边界只有空白和 >（改回排掉引号，url(
 arm('同一处 · 误报方向（改回旧字符类，浏览器根本不去取的那一格会被拒）',
   '|([^\\s>]+))/g;', "|([^\\s\"'`=<>]+))/g;",
   (m) => rej(m, { slug: 'p', content: `<img alt=a"src="${INVENTED}">` }, allowedIn(m)), '拒');
+
+// ── #1207：`background` 那一族**一个标签一刀**（不是一族一刀）────────────────────────────────────
+// 🔴 一族一根针的话，八个标签里少写一个是静默的 —— 那正是 #1204 QA1 非阻断② 点过的形状
+//    （`image` 上三个属性共用一根针）。所以逐个切：把那一行（**只有那一行**）拿掉，
+//    对应那一格必须从「拒」翻成「放行」。
+for (const [tag, content] of [
+  ['td',    `<table><tr><td background="${INVENTED}">c</td></tr></table>`],
+  ['th',    `<table><tr><th background="${INVENTED}">h</th></tr></table>`],
+  ['tr',    `<table><tr background="${INVENTED}"><td>c</td></tr></table>`],
+  ['tbody', `<table><tbody background="${INVENTED}"><tr><td>c</td></tr></tbody></table>`],
+  ['thead', `<table><thead background="${INVENTED}"><tr><td>c</td></tr></thead></table>`],
+  ['tfoot', `<table><tfoot background="${INVENTED}"><tr><td>c</td></tr></tfoot></table>`],
+  ['table', `<table background="${INVENTED}"><tr><td>c</td></tr></table>`],
+  ['body',  `<body background="${INVENTED}">`],
+]) {
+  arm(`<${tag} background>（表里拿掉它那一行）`,
+    `  ${tag}: ['background'],\n`, '',
+    (m) => rej(m, { slug: 'p', content }, allowedIn(m)), '放行');
+}
+
+// ── #1207：斜杠数不限那一刀。改回写死两个斜杠 = 回到 `origin/main`，两条通道各一格必须翻面。
+//    🔴 这一处是**共用源串**（`URL_RE` 抠地址 / `ADDR_HEAD_RE` 判定），所以一刀切下去两侧同时变 ——
+//       那正是 #1199 ③ 立这个源串的理由。两条通道各钉一格：只钉 <img src> 的话，CSS 那条路没人量。
+arm('`http(s):` 后面斜杠数不限 · <img src>（改回写死两个斜杠，单斜杠就连问都不问）',
+  "'(?:https?:\\\\/*|", "'(?:https?:\\\\/\\\\/|",
+  (m) => rej(m, { slug: 'p', content: `<img src="http:/${HOST_PATH}">` }, allowedIn(m)), '放行');
+arm('同上 · CSS url() 那条通道',
+  "'(?:https?:\\\\/*|", "'(?:https?:\\\\/\\\\/|",
+  (m) => rej(m, { slug: 'p', content: `<div style="background-image:url(http:/${HOST_PATH})">x</div>` },
+    allowedIn(m)), '放行');
+// 同一处的**反方向**一刀：斜杠数的等价关系（`addressForms`）拆掉之后，老板给过的那张写成单斜杠
+// 会被判成「没人给过你」—— 误拒方向。
+// 🔴 单变量：只把斜杠的**宽度**改回去，捕获组结构不动（换成 `(\/\/.*)` 会连组的含义一起改，
+//    那把刀就有两个变量了）。
+arm('斜杠数等价（拆掉它，老板给过的那张少一个斜杠就被误拒）',
+  '/^(https?):\\/*(.*)$/i', '/^(https?):\\/\\/(.*)$/i',
+  (m) => rej(m, { blocks: [{ data: { imageUrl: `https:/${GIVEN_HOSTPATH}` } }] }, allowedIn(m)), '拒');
 
 console.log(`   📌 一共切了 ${mutN} 刀，每刀只改一处，改的都是 image-urls.js（工作区那份，md5 `
   + `${require('crypto').createHash('md5').update(LIB_SRC).digest('hex').slice(0, 12)}）`);
