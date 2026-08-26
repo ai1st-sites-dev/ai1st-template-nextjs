@@ -114,8 +114,9 @@ function classifyVisionError(err, images) {
 // 🔴🔴 为什么退回的目标是「写之前磁盘上的样子」，而**不是** HEAD 里那一份（r1 是那么写的，QA1 打回）：
 // 「HEAD 里查不到这个路径」不只有一种解释。r1 的注释说它有两种（本次新建 / git 坏了）并给第二种加了
 // 一道 `git rev-parse --verify HEAD`，但还有第三种 —— **文件在磁盘上、却从来没进过 HEAD**。它是可达的：
-// 这个脚本里 `git add -A && git commit` 失败时只有一行 `debug()`，老板照样收到 `edit-complete`，
-// 于是「上一次编辑新建的页面」就停在磁盘上、不在 HEAD 里。下一次编辑再动同一个文件而同步失败时，
+// 这个脚本里 `git add -A && git commit` 失败时**曾经**只有一行 `debug()`，老板照样收到 `edit-complete`
+// （#1192 已经把它改成异常那条路：回滚 + 一条 `error`，不再报成功），而在那之前，「上一次编辑新建的
+// 页面」就会停在磁盘上、不在 HEAD 里。下一次编辑再动同一个文件而同步失败时，
 // 按 HEAD 推断会把它判成「本次新建」⟹ **把老板上一次那一整页删掉，而且没有任何人被告知**
 // （QA1 在 #1102 r1 用真 git 仓复现过；`site/` 被 .gitignore 忽略的仓形态里每一个回滚都会这样）。
 //
@@ -878,6 +879,13 @@ async function main() {
   // （`null` = 本次新建）。同步失败时按它回滚，见 rollbackWrittenFiles。
   const writeSnapshots = new Map();
   let commitHash = '';
+  // #1192 —— 提交（`git add -A && git commit`）失败时那句话。它跟 archiveError 是两件不同的事：
+  // 推送失败 = 本地存下了、GitHub 上没有（改动仍然生效）；**提交失败 = 什么都没存下**，而这一次编辑
+  // 就不该被报成成功。Chris 2026-08-25 的原话：这类是异常，要做异常处理，告诉用户「现在有异常，
+  // 请联系管理员」。以前它只有一行 `debug()`（本文件开头那段注释点名的就是它），老板照样收到
+  // `edit-complete`，于是改动停在磁盘上、不在历史里、撤不回来，而下一次编辑的 `git add -A` 会把它
+  // 一起提交。
+  let commitError = '';
   // #1164 —— 归档推送（`git push`）失败时那句话。它跟 commitHash 是两个独立的事实：改动已经在容器里
   // commit 了（预览照常），但没进 GitHub。以前这两件事都被下面那个 catch 咽掉，`edit-complete` 照样
   // 带着 commitHash 发出去，任务侧和用户侧都看起来成功 —— 2026-08-23 四次编辑就是这样丢掉的。
@@ -1079,7 +1087,12 @@ async function main() {
             debug(`git push FAILED — saved locally as ${commitHash} but NOT archived to GitHub: ${archiveError}`);
           }
         } catch (e) {
-          debug(`git auto-save error: ${e.message}`);
+          // #1192 —— 提交失败：记下来，下面走异常那条路。`stderr` 优先（execSync 的 `e.message` 只
+          // 有命令行本身），令牌照 #1164 那条一样先抹掉 —— remote URL 里带着它，而 git 的报错会把
+          // 整条 URL 打出来。
+          const raw = (e.stderr ? e.stderr.toString() : '') || e.message || 'unknown error';
+          commitError = raw.replace(/x-access-token:[^@]*@/g, 'x-access-token:***@').trim().slice(0, 500);
+          debug(`🔴 git commit FAILED — nothing was saved to this website's history: ${commitError}`);
         }
       }
 
@@ -1127,6 +1140,39 @@ async function main() {
               + 'version:\n\n' + syncError,
         });
         debug(`Edit aborted (sync failed): ${totalInputTokens} in / ${totalOutputTokens} out, cost $${cost.toFixed(4)}`);
+        return;
+      }
+
+      // #1192 —— 提交失败 ⟹ 这次编辑的终态是**异常**，不是 `edit-complete`。
+      //
+      // 🔴 顺序：放在 syncError 那一支后面。同步失败发生得更早（那时还没走到提交），两者不会同时为真；
+      // 写在后面是为了让「更早的那个原因」永远先说话。
+      //
+      // 🔴 为什么这里也回滚这次写过的文件（跟 #1102 同一套，不新造）：什么都没提交，而文件还在磁盘上。
+      // 不退的话下一次成功编辑的 `git add -A` 会把它们一起提交 —— 老板被告知「失败了」，改动却在几分钟
+      // 后自己生效了。本文件开头那段注释描述的第三种解释（在磁盘上、从来没进过 HEAD）正是这么来的。
+      //
+      // 🔴 不走 `fatal()`：理由跟上面 syncError 那一支逐字相同（worker 的 `cmd.Wait()` 会用一句没有
+      // 信息的 "Edit failed: exit status 1" 覆盖掉 `last-event`）。
+      //
+      // 🔴 这条路**不重建**，而这不需要任何代码去保证：#1192 起重建是 commit 的后置条件，没有 commit
+      // 就没有重建（worker §settleCommittedWork 读的是容器仓的 HEAD）。老板看到的页面因此跟这句话一致。
+      if (commitError) {
+        const rb = rollbackWrittenFiles(siteDir, writeSnapshots);
+        debug(`#1192 rollback after a failed commit: restored ${rb.restored.length} · removed ${rb.removed.length}`
+          + ` · failed ${rb.failed.length}${rb.failed.length ? ' — ' + rb.failed.join(' | ') : ''}`);
+        emit('error', {
+          message: rb.failed.length
+            ? 'Something went wrong saving this change, so it was NOT saved and your website has not '
+              + `changed. ⚠️ It could not be undone on disk either (${rb.failed.join('; ')}), so it may be `
+              + 'included the next time an edit is saved. Please contact your administrator — the server '
+              + `log has the details:\n\n${commitError}`
+            : 'Something went wrong saving this change, so it was NOT saved, the change was rolled back '
+              + 'and your website still shows the previous version. Please contact your administrator — '
+              + `the server log has the details:\n\n${commitError}`,
+          commitFailed: true,
+        });
+        debug(`Edit aborted (commit failed): ${totalInputTokens} in / ${totalOutputTokens} out, cost $${cost.toFixed(4)}`);
         return;
       }
 
