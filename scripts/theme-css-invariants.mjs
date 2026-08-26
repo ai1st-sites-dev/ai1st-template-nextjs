@@ -1897,12 +1897,30 @@ async function judgeStripsAt(where, at) {
 }
 
 /**
- * ⑦ across the whole ladder, then hands the page back at the width it was found at — same reason
- * the paint-order stage remembers `orderViewport`: whatever runs after this must not silently
- * inherit a 320px-wide page.
+ * ⑦ across the whole ladder, then hands the page back the way it was found — BOTH the width it was
+ * found at and the scroll offset it was found at. Same reason the paint-order stage remembers
+ * `orderViewport`: whatever runs after this must not silently inherit a 320px-wide page. The scroll
+ * half was missing until the regression that followed #1190's ship, where its absence read as a
+ * theme defect rather than as a moved page — see the comment on `beforeScroll` below.
  */
 async function judgeStrips(where) {
   const before = page.viewportSize();
+  // 🔴 #1190 ship 后回归 —— THE SCROLL POSITION IS PART OF "AS I FOUND IT", AND LEAVING IT OUT MADE
+  // THIS FUNCTION HAND THE NEXT CHECK A PAGE PARKED SOMEWHERE ELSE.
+  //
+  // The ladder resizes the viewport, and every resize reflows a page whose height changes with its
+  // width; the browser keeps a scroll offset that no longer points at the same content. Restoring
+  // only the SIZE therefore restores half of the state. Measured on jade-05 / `/allblocks.html`:
+  // scrollY 4104 going in, 4939 coming out — and at 4939 the next element measured (`.btn-primary`)
+  // sits at viewport y=6, i.e. UNDER THE STICKY HEADER. `el.screenshot()` then photographed the
+  // header, ②e read "taking its words away changes 0 of 12887 pixels" and CI went red on a button
+  // that is 5.84:1 and perfectly visible. Same shape on magenta-69 (14014 px).
+  //
+  // 🔴 This is NOT a timing fix and must not be replaced with one: with no restore at all, PM drove
+  // `settlePage()` after the ladder and then a further 1500ms on top of it, and both stayed red.
+  // Nothing was still settling — the page was simply parked somewhere else, and waiting longer at the
+  // wrong offset is still the wrong offset.
+  const beforeScroll = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }));
   // Two frames: one for the resize to reflow, one to be sure layout has settled — the same wait
   // `orderReading` takes for the same reason.
   const settle = () => page.evaluate(() => new Promise((done) => {
@@ -1938,9 +1956,33 @@ async function judgeStrips(where) {
     stripsUnswept.push(where);
   }
   await page.setViewportSize(before);
+  // 🔴 Size first, then scroll: scrolling at the wrong width lands on a document of the wrong height,
+  // and the browser clamps the offset to THAT height. Restored after the resize, the clamp is the
+  // real one. Read back rather than assumed — a page shorter than where it was cannot go back there,
+  // and silently landing somewhere else is precisely the bug this restore exists to stop.
+  //
+  // 🔴 `behavior: 'instant'` IS LOAD-BEARING, for the reason `orderReading` states at :2301:
+  // globals.css:7 sets `scroll-behavior: smooth`, so the plain `window.scrollTo(x, y)` ANIMATES and
+  // the read-back two frames later is taken mid-flight. Measured with the plain form over 38 sheets:
+  // the read-back missed 9 times and MISSED IN BOTH DIRECTIONS — `(0,4405 → 0,4890)` overshooting the
+  // target and `(0,103 → 0,98)` undershooting it. Both directions is the tell: a height clamp can
+  // only pull the offset DOWN, so "still in transit" is the only thing that explains an overshoot.
+  await page.evaluate(({ x, y }) => window.scrollTo({ left: x, top: y, behavior: 'instant' }),
+    beforeScroll);
   await page.evaluate(() => new Promise((done) => {
     requestAnimationFrame(() => requestAnimationFrame(done));
   }));
+  const afterScroll = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }));
+  // ±1 rather than an exact compare: the offset is a float and a fractional device pixel ratio can
+  // land it a hair off. What this line is for is a page parked SOMEWHERE ELSE — the misses that made
+  // it fire while the scroll was still animated were 485px at the widest and 5px at the narrowest,
+  // both of which trip a +/-1 gate — not sub-pixel rounding, which would be noise in every run and
+  // would teach a reader to ignore the line.
+  if (Math.abs(afterScroll.y - beforeScroll.y) > 1 || Math.abs(afterScroll.x - beforeScroll.x) > 1) {
+    readings.push(`  ⑦ on ${where}: the page could not be put back where it was `
+      + `(${beforeScroll.x},${beforeScroll.y} → ${afterScroll.x},${afterScroll.y}) — whatever is `
+      + 'measured next sees a different part of the page than it would have');
+  }
   return found;
 }
 
