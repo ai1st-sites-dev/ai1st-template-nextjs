@@ -728,7 +728,7 @@ Hero variants: left, centered, split, minimal, video-style, gradient-overlay, li
 
 ## Images
 
-Every picture on the site is a URL sitting in one of these fields. There are no others — a block of any
+Every picture on the site is a URL sitting in one of these places. There are no others — a block of any
 other type does not show a picture, and putting an image field on one has no effect:
 
 - **brand.json** → \`logoUrl\` — the logo in the header and the footer. Also set \`logoHasWordmark\`: true
@@ -737,6 +737,10 @@ other type does not show a picture, and putting an image field on one has no eff
 - a **hero** block → \`data.imageUrl\`
 - a **content-split** block → \`data.imageUrl\`
 - a **gallery** block → \`data.items[].imageUrl\` (one per item)
+- **a blog post** (\`blog/<slug>.json\`) → an \`<img src="...">\` inside its \`content\`, which is rendered as
+  HTML. This is the one place a picture is not a field of its own: to change the picture in an article, edit
+  the \`src\` of that \`<img>\` tag in the article's \`content\`. Everything below about which URLs you may
+  write applies here exactly the same — write_file reads the \`<img>\` tags in \`content\` too.
 
 🔴 **Only ever write an image URL that was given to you** — one listed under "Attached images" at the end of
 the owner's message, one the owner typed out, or one already in this site's files. **Never invent, guess,

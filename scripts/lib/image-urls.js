@@ -32,12 +32,25 @@
  *      🔴 只收 `role === 'user'` 那些条目。整份 stringify 会把**模型自己上一轮提议的**地址也收进来
  *      （"我可以用 Unsplash 这张 …"），下一轮它就成了"有人给过的" —— 一条把编造洗白成合法的通道，
  *      而且方向恰好是本票要治的那一支。判据始终是「**有人**给过」，模型自己不是那个人。
- *   ④ 这个站自己的文件里已经有的（`site/**.json`）—— 这一类让「把首页那张图挪到关于页」照常能做
+ *   ④ 这个站自己的文件里**已经是一张图**的（`site/**.json` 里的图片位置）—— 这一类让
+ *      「把首页那张图挪到关于页」照常能做
+ *      🔴 判的是**图片位置**，不是文件原文（#1199 ②改的就是这里）。扫原文的话，模型上一轮写在
+ *      任何文本字段里的任何一个地址，这一轮都成了「有人给过的」—— 跟 ③ 那条洗白通道同一个形状，
+ *      只是绕道磁盘走了一圈。站里的 .json 大半是模型自己写的，所以这一类的口径必须是
+ *      「它**已经是这个站上的一张图**」，而不是「这个字符串在这个站的某个文件里出现过」。
+ *
+ * ── 「一张图」有哪些位置（#1199 ①）───────────────────────────────────────────────────────────
+ * 两类，判定和放行名单**共用同一个函数**（`collectImagePositions`）：
+ *   · 图片字段：`IMAGE_FIELDS` 上的值 —— 模板按 `<img src={…}>` 画
+ *   · HTML 字符串里的图：博客正文按 HTML 渲染（`BlogPostPage.tsx:56`），`blog/*.json` 又是可写的
+ *     ⟹ 同一个编造地址换到这一面照样画成一张裂图，而它此前完全不在射程内
  *
  * 🔴 **不用「这个 URL 取得到吗」当判据。** 那要发网络请求：慢、会因为一次抖动把好地址判死，
  *    而且它对「取得到、但根本不是老板给的那张」完全无话可说 —— 而那正是 Unsplash 那一支的形状。
  * 🔴 相对路径（`/photos/hero.jpg`）不在射程内：它们由 `create-site.js` 生成、跟着站一起构建，
- *    不是外链，编不出祸来。只判 `http://` / `https://`。
+ *    不是外链，编不出祸来。判的是 `http(s)://` · 协议相对 `//host/…` · `data:` 三种（#1199 ③：
+ *    后两种此前连问都没被问到，而 `//images.unsplash.com/…` 浏览器按 https 取得回来，
+ *    产物上就是一张真的、没人给过的图）。
  *
  * ── 拒绝的方向是有意的 ────────────────────────────────────────────────────────────────────────
  *   · 误拒（老板给过、这里没认出来）⟹ 模型当场拿到一句点名的错误，同一轮里改口去问老板。吵，但安全。
@@ -48,28 +61,113 @@
 // 两向守卫：它从 `src/components/**` 现读一遍，多一个少一个都当场红。
 const IMAGE_FIELDS = ['imageUrl', 'logoUrl'];
 
-const URL_RE = /https?:\/\/[^\s"'`<>)\]]+/gi;
+// ── 一个「图片地址」长什么样 ──────────────────────────────────────────────────────────────────
+// 🔴 三种形态**共用一个源串**，因为它要在两处被问到，而两份实现必然分叉（#1199 ③ 就是这么来的：
+//    抠地址的那把尺子认 `http(s)://`，判定的那把也认 `http(s)://`，于是 `//host/…` 与 `data:…`
+//    在两边同时消失 —— 前者浏览器按 https 取，产物上是一张真的、没人给过的图）。
+//   · `URL_RE`      在**自由文本**里找（老板打的字、之前的对话）→ 全局
+//   · `ADDR_HEAD_RE` 问**一个值**「它是不是一个要被追责的图片地址」→ 锚在开头
+// 🔴 单斜杠的站内相对路径（`/photos/hero.jpg`）**不在**这三种里：它由 create-site 生成、跟着站
+//    一起构建，编不出祸来。`//` 那一支的先行断言（后面必须跟 `域名.`）就是用来把它挡在外面的。
+const ADDR_HEAD = '(?:https?:\\/\\/|\\/\\/(?=[\\w-]+\\.)|data:[\\w.+-]+\\/[\\w.+-]+[;,])';
+// 🔴 排除类里那三段 Unicode 是承重的（#1199 ④）：中文句子**没有空格**，标点是唯一的边界。
+//    只排 ASCII 标点的话，「你用这张 https://example.com/a.jpg，谢谢」会被抠成
+//    `https://example.com/a.jpg，谢谢` —— 于是老板给过的那个地址从来没真正进过放行名单，
+//    模型照抄**干净**地址写入反而被拒，还被告知「这个地址没人给过你」。而中文句尾必有标点
+//    ⟹ 对中文老板是**系统性**的误拒，而中文正是 #1195 那位老板的语言。
+//      　-〿  CJK 标点（。、，；：！？「」『』〈〉《》【】…）
+//      ＀-￯  全角形（），！？；：等）—— 全角汉字不在这段里，IDN 域名不受影响
+//      ‘-‟  弯引号  ·  … 省略号
+const ADDR_TAIL = '[^\\s"\'`<>)\\]\\u3000-\\u303f\\uff00-\\uffef\\u2018-\\u201f\\u2026]+';
+const URL_RE = new RegExp(ADDR_HEAD + ADDR_TAIL, 'gi');
+const ADDR_HEAD_RE = new RegExp('^' + ADDR_HEAD, 'i');
+// 英文句子里标点跟在地址后面同样会被粘上（`…a.jpg.` / `…a.jpg,`），而英文有空格所以只脏在**末尾**
+// —— 上面那个排除类治不了它（`.` 和 `,` 在 URL 里是合法字符，不能整类排掉）。这里只削尾巴。
+const TRAILING_PUNCT_RE = /[.,;:!?]+$/;
 
-/** 任意文本里出现过的 http(s) 地址。 */
+// HTML 字符串里画出来的图（#1199 ①）。博客正文是**唯一**一个把配置里的字符串当 HTML 渲染的面
+// （`src/components/pages/BlogPostPage.tsx:56` 的 `dangerouslySetInnerHTML`；全仓 9 处
+// `dangerouslySetInnerHTML` 里另外 8 处画的是 JSON-LD 和内联脚本，不吃配置字符串）。
+// 而 `blog/*.json` 是可写的（`editable-files.js:99`）⟹ 同一个编造地址换到这一面就画成一张裂图。
+// 两种机制都收：`<img src>` 和 `style="…url(…)"`。
+// 🔴 `url()` 只在 `style=` 属性**里面**认。整段文本里认的话，一篇讲 CSS 的博客里一行
+//    `background-image: url(https://example.com/a.png)` 的代码示例会被当成一张图而整份拒收。
+const HTML_IMG_SRC_RE = /<img\b[^>]*?\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/gi;
+const HTML_STYLE_ATTR_RE = /\bstyle\s*=\s*(?:"([^"]*)"|'([^']*)')/gi;
+const CSS_URL_RE = /\burl\(\s*(?:"([^"]*)"|'([^']*)'|([^)\s]*))\s*\)/gi;
+
+const firstGroup = (m) => {
+  for (let i = 1; i < m.length; i += 1) if (m[i] !== undefined) return m[i];
+  return '';
+};
+
+/** 任意文本里出现过的图片地址（http(s):// · 协议相对 //host/… · data:）。 */
 function extractUrls(text) {
   if (typeof text !== 'string' || !text) return [];
-  return text.match(URL_RE) || [];
+  return (text.match(URL_RE) || [])
+    .map((u) => u.replace(TRAILING_PUNCT_RE, ''))
+    .filter(Boolean);
 }
 
-/** 这份 JSON 里，图片字段上写着的值（不管深浅，数组/对象都走一遍）。 */
-function collectImageFieldValues(node, out) {
+/** 一段 HTML 里真的会被画成图片的那些地址：`<img src>` + `style="…url(…)"`。 */
+function extractHtmlImageUrls(text) {
+  if (typeof text !== 'string' || !text) return [];
+  const out = [];
+  for (const m of text.matchAll(HTML_IMG_SRC_RE)) {
+    const v = firstGroup(m).trim();
+    if (v) out.push(v);
+  }
+  for (const sm of text.matchAll(HTML_STYLE_ATTR_RE)) {
+    const style = firstGroup(sm);
+    for (const um of String(style).matchAll(CSS_URL_RE)) {
+      const v = firstGroup(um).trim();
+      if (v) out.push(v);
+    }
+  }
+  return out;
+}
+
+/**
+ * 这份 JSON 里每一个**图片位置**上的地址。两类位置，缺一不可：
+ *   ① 图片字段（`IMAGE_FIELDS`）的值 —— 模板按 `<img src={…}>` 画出来的
+ *   ② 任意字符串值里的 HTML 图片 —— 博客正文按 HTML 渲染（见 HTML_IMG_SRC_RE 上面那段）
+ *
+ * 🔴 这一个函数被问两次，而且**必须是同一个答案**：
+ *   · 「这次写入里有没有没人给过的图？」（`imageUrlRejection`）
+ *   · 「这个站上已经有哪些图？」（`collectAllowedImageUrls` 的第 ④ 类来源）
+ * 两边同一份口径，「站上已经有的图可以挪到别处」才不会顺手变成「模型上一轮写下的任何东西都算数」。
+ */
+function collectImagePositions(node, out) {
   const acc = out || [];
+  if (typeof node === 'string') {
+    for (const u of extractHtmlImageUrls(node)) acc.push(u);
+    return acc;
+  }
   if (Array.isArray(node)) {
-    for (const v of node) collectImageFieldValues(v, acc);
+    for (const v of node) collectImagePositions(v, acc);
     return acc;
   }
   if (node && typeof node === 'object') {
     for (const [k, v] of Object.entries(node)) {
       if (IMAGE_FIELDS.includes(k) && typeof v === 'string') acc.push(v.trim());
-      else collectImageFieldValues(v, acc);
+      else collectImagePositions(v, acc);
     }
   }
   return acc;
+}
+
+/**
+ * 同一个地址的几种写法。协议相对 `//h/p` 跟 `https://h/p` 指的是同一张图，
+ * 而老板打字/附件给的必然是带协议那一种 ⟹ 不认这层等价的话，模型把它写成 `//h/p` 会被误拒。
+ */
+function addressForms(u) {
+  const forms = [u];
+  if (u.startsWith('//')) forms.push('https:' + u, 'http:' + u);
+  else {
+    const m = u.match(/^https?:(\/\/.*)$/i);
+    if (m) forms.push(m[1]);
+  }
+  return forms;
 }
 
 /**
@@ -110,8 +208,14 @@ function collectAllowedImageUrls(o) {
         const full = pathmod.join(dir, e.name);
         if (e.isDirectory()) walk(full, depth + 1);
         else if (e.isFile() && e.name.endsWith('.json')) {
-          try { for (const u of extractUrls(fsmod.readFileSync(full, 'utf-8'))) add(u); }
-          catch (err) { /* 读不到就少一类来源 */ }
+          // 🔴 **parse 之后只取图片位置上的值** —— 不是扫原文抠 URL（#1199 ②）。
+          //    扫原文的话，模型上一轮写在**任何文本字段**里的任何一个 http(s) 地址，这一轮都成了
+          //    「有人给过的」：它在正文里提一句 Unsplash，下一轮就能把同一个地址写进 imageUrl。
+          //    那是一条把编造洗白成合法来源的通道，方向恰好是这道闸要治的那一支 —— 而文件头 ③
+          //    为聊天历史立的判据正好否掉它：「判据始终是**有人**给过，模型自己不是那个人」。
+          //    站里的 .json 大半是模型自己写的，所以这一类必须收窄到「它已经**是这个站上的一张图**」。
+          try { for (const u of collectImagePositions(JSON.parse(fsmod.readFileSync(full, 'utf-8')))) add(u); }
+          catch (err) { /* 读不到 / 不是合法 JSON 就少一类来源，不改变「拒」的安全方向 */ }
         }
       }
     };
@@ -129,9 +233,11 @@ function collectAllowedImageUrls(o) {
  */
 function imageUrlRejection(parsed, allowed) {
   const known = allowed || new Set();
-  const used = collectImageFieldValues(parsed)
-    .filter((v) => /^https?:\/\//i.test(v));
-  const unknown = [...new Set(used)].filter((u) => !known.has(u));
+  // 🔴 过滤用的是 `ADDR_HEAD_RE`，跟抠地址那把尺子同一个源串。写死 `/^https?:\/\//` 的话
+  //    `//host/…` 与 `data:…` **根本不进入判定** —— 不是"判成放行"，是连问都不问（#1199 ③）。
+  const used = collectImagePositions(parsed).filter((v) => ADDR_HEAD_RE.test(v));
+  const unknown = [...new Set(used)]
+    .filter((u) => !addressForms(u).some((f) => known.has(f)));
   if (unknown.length === 0) return null;
   return 'Refusing this write: '
     + unknown.map((u) => `"${u}"`).join(', ')
@@ -167,7 +273,8 @@ function attachedImagesNote(images) {
 module.exports = {
   IMAGE_FIELDS,
   extractUrls,
-  collectImageFieldValues,
+  extractHtmlImageUrls,
+  collectImagePositions,
   collectAllowedImageUrls,
   imageUrlRejection,
   attachedImagesNote,

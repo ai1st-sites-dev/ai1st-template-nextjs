@@ -40,7 +40,7 @@ const die = (m) => { console.error(`🔴 跑不起来: ${m}`); process.exit(2); 
 
 let lib;
 try { lib = require('./image-urls.js'); } catch (e) { die(`require ./image-urls.js 失败: ${e.message}`); }
-const { collectAllowedImageUrls, imageUrlRejection, attachedImagesNote, IMAGE_FIELDS } = lib;
+const { collectAllowedImageUrls, imageUrlRejection, attachedImagesNote, IMAGE_FIELDS, extractUrls } = lib;
 
 // ══ 一、判据本身 ══════════════════════════════════════════════════════════════════════════════
 console.log('\n── 一、「这个地址是谁给的」 ──────────────────────────────────────');
@@ -128,6 +128,84 @@ const note = attachedImagesNote([{ url: ATTACHED, originalFilename: 'photo.jpg' 
   : bad('附件清单没把地址原样按顺序写出来');
 attachedImagesNote([]) === '' ? ok('没有附件时那段文本是空串（不附图的那条路一个字节不变）')
                               : bad('没有附件时也吐了东西 —— 会改变不附图的行为');
+
+// ══ 一之二、#1199 收拢的四条覆盖边界 ══════════════════════════════════════════════════════════
+// 🔴 每一格都写明**期望**。只打读数不打期望的话，「站内相对路径 → 放行」和「//unsplash → 放行」
+//    在屏幕上长得一模一样，而一个是对的、一个正是要治的病。
+console.log('\n── 一之二、#1199 的四条边界 ────────────────────────────────────');
+
+const verdict = (parsed, known) => (imageUrlRejection(parsed, known) ? '拒' : '放行');
+const grid = (label, parsed, known, expect) => (verdict(parsed, known) === expect
+  ? ok(`${label} → ${expect}`)
+  : bad(`${label} → 期望 ${expect}，实测 ${verdict(parsed, known)}`));
+
+// ── ① 博客正文那个面（BlogPostPage.tsx:56 把 content 当 HTML 画；blog/*.json 可写）──────────────
+grid('博客 content 的 <img src> 里放编造地址',
+     { slug: 'p', content: `<h2>x</h2><p><img src="${INVENTED}" alt=""></p>` }, allowed, '拒');
+grid('博客 content 里放【老板给过】的那张',
+     { slug: 'p', content: `<p><img src="${ATTACHED}"></p>` }, allowed, '放行');
+grid('同一面的另一个机制 style="…url(编造)"',
+     { slug: 'p', content: `<div style="background-image:url('${INVENTED}')">x</div>` }, allowed, '拒');
+// 🔴 边界：`url(…)` 只在 style 属性里认。整段文本都认的话，一篇讲 CSS 的博客里那行代码示例
+//    会被当成一张图而整份拒收 —— 误拒方向虽安全，但这一格是可以做对的，所以钉住它。
+grid('讲 CSS 的博客里那行代码示例（纯文本 url(…)）',
+     { slug: 'p', content: `<pre><code>background-image: url(${INVENTED});</code></pre>` }, allowed, '放行');
+grid('博客正文里的普通外链 <a href>（不是图）',
+     { slug: 'p', content: `<p><a href="${INVENTED}">看这里</a></p>` }, allowed, '放行');
+
+// ── ② 第 ④ 类来源不再把模型自己写下的洗白 ────────────────────────────────────────────────────
+const siteDir2 = fs.mkdtempSync(path.join(os.tmpdir(), 'imgurl-launder-'));
+process.on('exit', () => { try { fs.rmSync(siteDir2, { recursive: true, force: true }); } catch (e) { /* 打扫不改结论 */ } });
+fs.mkdirSync(path.join(siteDir2, 'pages'));
+fs.mkdirSync(path.join(siteDir2, 'blog'));
+// 模型上一轮把编造地址写进了一个**纯文本**字段（不是图片位置）
+fs.writeFileSync(path.join(siteDir2, 'pages', 'home.json'),
+  JSON.stringify({ blocks: [{ type: 'text-block', data: { headline: `见 ${INVENTED} 这张` } }] }));
+// 老板给过的那张，在站上真的是一张图（图片字段 / 博客正文各一处）
+fs.writeFileSync(path.join(siteDir2, 'brand.json'), JSON.stringify({ logoUrl: ONDISK }));
+fs.writeFileSync(path.join(siteDir2, 'blog', 'a.json'),
+  JSON.stringify({ slug: 'a', content: `<p><img src="${ATTACHED}"></p>` }));
+const fromSite = collectAllowedImageUrls({ siteDir: siteDir2, images: [], message: '换个图', conversationHistory: [] });
+grid('模型上一轮写在【文本字段】里的地址 → 这一轮写进 imageUrl',
+     { blocks: [{ data: { imageUrl: INVENTED } }] }, fromSite, '拒');
+// 🔴 反向：④ 存在的理由（「把首页那张挪到关于页」）不能被治没 —— 两种图片位置各一格。
+grid('站的【图片字段】上已有的那张仍要能挪',
+     { blocks: [{ data: { imageUrl: ONDISK } }] }, fromSite, '放行');
+grid('站的【博客正文】里已有的那张也要能挪到首页',
+     { blocks: [{ data: { imageUrl: ATTACHED } }] }, fromSite, '放行');
+
+// ── ③ `//` 与 data: 得先【进入判定】才谈得上判成什么 ──────────────────────────────────────────
+const STOCK_REL = '//images.unsplash.com/photo-1573496359142-b8d87734a5a2';
+grid('scheme-relative //images.unsplash.com/…（编造）',
+     { blocks: [{ data: { imageUrl: STOCK_REL } }] }, allowed, '拒');
+grid('data:image/svg+xml;base64,…（编造）',
+     { blocks: [{ data: { imageUrl: 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=' } }] }, allowed, '拒');
+// 两向：老板给过的那张写成 `//` 形式指的是同一张图，不许误拒
+grid('老板给过的那张写成 // 形式',
+     { blocks: [{ data: { imageUrl: ATTACHED.replace(/^https:/, '') } }] }, allowed, '放行');
+const DATA_GIVEN = 'data:image/png;base64,iVBORw0KGgo=';
+grid('老板自己在消息里贴的 data: URI',
+     { blocks: [{ data: { imageUrl: DATA_GIVEN } }] },
+     collectAllowedImageUrls({ images: [], message: `用这个 ${DATA_GIVEN} 谢谢`, conversationHistory: [] }), '放行');
+
+// ── ④ 手打地址被句尾标点粘脏（中文句子没有空格 ⟹ 标点是唯一边界）────────────────────────────
+const CLEAN = 'https://example.com/a.jpg';
+for (const [name, text] of [
+  ['中文句号', `你用这张 ${CLEAN}。`],
+  ['中文逗号', `你用这张 ${CLEAN}，谢谢`],
+  ['中文顿号', `两张 ${CLEAN}、https://example.com/b.jpg`],
+  ['全角括号', `（图在这 ${CLEAN}）`],
+  ['全角引号', `“${CLEAN}”`],
+  ['英文句号', `use ${CLEAN}.`],
+  ['英文对照（本来就干净，读数不许变）', `use ${CLEAN} please`],
+]) {
+  const got = extractUrls(text);
+  got[0] === CLEAN ? ok(`抠地址 · ${name} → ${CLEAN}`)
+                   : bad(`抠地址 · ${name} → 期望 ${CLEAN}，实测 ${JSON.stringify(got)}`);
+}
+grid('老板打带句号的中文句子 → 模型照抄干净地址写入',
+     { blocks: [{ data: { imageUrl: CLEAN } }] },
+     collectAllowedImageUrls({ images: [], message: `你用这张 ${CLEAN}。`, conversationHistory: [] }), '放行');
 
 // ══ 二、提示词那份清单 vs 模板真的画出来的 ════════════════════════════════════════════════════
 console.log('\n── 二、提示词的 ## Images 段 vs 模板真的画出来的 ────────────────');
@@ -218,11 +296,121 @@ onlyPromptF.length ? bad(`提示词点名了模板不读的字段: ${onlyPromptF
 onlyTplF.length ? bad(`模板读、提示词没写的字段: ${onlyTplF.join(' · ')}`)
                 : ok('模板读的字段，提示词都点到了');
 
+// ── ① 的另一半：博客正文这一面，提示词那份位置清单里有没有它（#1199）──────────────────────────
+// 🔴 判据不是「我记得该写一句」，而是从**两侧现读**推出来的：
+//    ① 模板真的把博客正文当 HTML 画吗（BlogPostPage 的 dangerouslySetInnerHTML + post.content）
+//    ② 那个文件真的可写吗（editable-files.js 的白名单里有 blog/*.json）
+//    两个都成立 ⟹ 它就是一个「能放图的位置」，提示词漏了它，老板就永远换不掉文章里那张图
+//    （方向跟 §二 那条「模板画了、清单没写」完全同形，只是这一面 §二 的尺子按构造量不到 ——
+//     它抠的是 JSX 的 `<img src={…}>`，HTML 字符串里的图不在它射程内）。
+const blogPagePath = path.join(SRC, 'components', 'pages', 'BlogPostPage.tsx');
+let blogPage;
+try { blogPage = fs.readFileSync(blogPagePath, 'utf-8'); } catch (e) { die(`读不到 ${blogPagePath}: ${e.message}`); }
+const blogRendersHtml = /dangerouslySetInnerHTML=\{\{\s*__html:\s*post\.content\s*\}\}/.test(blogPage);
+const editablePath = path.join(NEXT, 'scripts', 'lib', 'editable-files.js');
+let editable;
+try { editable = fs.readFileSync(editablePath, 'utf-8'); } catch (e) { die(`读不到 ${editablePath}: ${e.message}`); }
+const blogIsWritable = /r\[0\] === 'blog'/.test(editable);
+// 🔴 分母自检：两侧任一读不出来 ⟹ 这一格的前提没了，不是「通过」。
+if (!blogRendersHtml || !blogIsWritable) {
+  die(`博客那一面的前提读不出来（正文当 HTML 画=${blogRendersHtml} · blog/*.json 可写=${blogIsWritable}）`
+      + ' —— 要么这一面真的没了（那就把这一格和闸里的 HTML 分支一起删），要么尺子指错地方了');
+}
+const blogNamedInPrompt = (sect) => /blog\//.test(sect) && /<img/.test(sect);
+blogNamedInPrompt(imagesSection)
+  ? ok('提示词的 ## Images 段点到了博客正文这一面（模板真的把它当 HTML 画，且那个文件可写）')
+  : bad('模板把博客正文当 HTML 画、blog/*.json 又可写，而 ## Images 段里没有它 —— 老板永远换不掉文章里那张图');
+// 反向臂：把那几行从提示词里拿掉，这一格必须当场红。
+blogNamedInPrompt(imagesSection.replace(/^- \*\*a blog post\*\*[\s\S]*?(?=\n\n|\n- |$)/m, ''))
+  ? bad('把提示词里博客那几行删掉之后这一格【没】红 —— 它判的不是那几行')
+  : ok('故意写坏「提示词里博客那一条」→ 那一格当场红');
+
 // ── 顺带：写入闸认的字段集必须覆盖模板读的全部字段 ────────────────────────────────────────────
 const uncovered = [...leafFields].filter((f) => !IMAGE_FIELDS.includes(f));
 uncovered.length
   ? bad(`lib/image-urls.js 的 IMAGE_FIELDS 漏了模板真的画的字段: ${uncovered.join(' · ')} —— 那道写入闸对它按构造失明`)
   : ok(`写入闸的 IMAGE_FIELDS（${IMAGE_FIELDS.join(' · ')}）覆盖了模板读的全部字段`);
+
+// ══ 三、故意写坏（每条新覆盖面一格单变量反向臂）════════════════════════════════════════════════
+// 🔴 上面那些格子只证明「现在的实现在这几个输入上答对了」。它**不**证明那几行代码是承重的 ——
+//    一个把「什么都放行」写死的实现在阳性格上也全绿。所以每条新覆盖面配一格：把它那一处
+//    （**只有那一处**）改回 #1195 的写法，对应的格子必须当场翻面。
+// 🔴 而且要先证明**这一刀真的切下去了** —— needle 找不到就是 die，不是"跳过"。
+//    「什么都没改到」和「改了但行为不变」在一个只看结果的实现里长得一模一样。
+console.log('\n── 三、故意写坏：每条覆盖面一格单变量反向臂 ─────────────────────');
+
+const LIB_SRC = fs.readFileSync(path.join(__dirname, 'image-urls.js'), 'utf-8');
+const mutDir = fs.mkdtempSync(path.join(os.tmpdir(), 'imgurl-mut-'));
+process.on('exit', () => { try { fs.rmSync(mutDir, { recursive: true, force: true }); } catch (e) { /* 打扫不改结论 */ } });
+
+let mutN = 0;
+/** 只改一处，返回改坏之后的那个模块。needle 必须命中且**只命中一次**。 */
+function mutate(needle, replacement) {
+  const hits = LIB_SRC.split(needle).length - 1;
+  if (hits !== 1) die(`反向臂的 needle 在 image-urls.js 里命中 ${hits} 次（要 1 次）: ${needle.slice(0, 60)}…`);
+  mutN += 1;
+  const f = path.join(mutDir, `m${mutN}.js`);
+  fs.writeFileSync(f, LIB_SRC.split(needle).join(replacement));
+  return require(f);
+}
+/** 改坏之后那一格必须变成 `broken`；没变 = 那几行不承重，或者刀没切在承重处。 */
+function arm(label, needle, replacement, probe, broken) {
+  const m = mutate(needle, replacement);
+  const got = probe(m);
+  got === broken ? ok(`故意写坏「${label}」→ 那一格翻成 ${broken}（改前就是这个读数）`)
+                 : bad(`故意写坏「${label}」→ 期望翻成 ${broken}，实测 ${got} —— 这条覆盖面不是那几行撑的`);
+}
+
+const rej = (m, parsed, known) => (m.imageUrlRejection(parsed, known) ? '拒' : '放行');
+const allowedIn = (m) => m.collectAllowedImageUrls({
+  siteDir, images: [{ url: ATTACHED, originalFilename: 'photo.jpg' }],
+  message: '把关于我们页那张顾问照片换成这张', conversationHistory: [],
+});
+
+// ① 博客正文的 <img src>
+arm('博客正文那一面（collectImagePositions 的字符串分支）',
+  'for (const u of extractHtmlImageUrls(node)) acc.push(u);', '',
+  (m) => rej(m, { slug: 'p', content: `<p><img src="${INVENTED}"></p>` }, allowedIn(m)), '放行');
+
+// ① 同一面的 style url()
+arm('博客正文里的 style="…url(…)"',
+  '\\bstyle\\s*=', '\\bstyleNEVER\\s*=',
+  (m) => rej(m, { slug: 'p', content: `<div style="background-image:url('${INVENTED}')">x</div>` }, allowedIn(m)), '放行');
+
+// ② 第 ④ 类来源改回扫原文
+arm('第 ④ 类来源只取图片位置（改回扫原文就洗白）',
+  "collectImagePositions(JSON.parse(fsmod.readFileSync(full, 'utf-8')))",
+  "extractUrls(fsmod.readFileSync(full, 'utf-8'))",
+  (m) => {
+    const known = m.collectAllowedImageUrls({ siteDir: siteDir2, images: [], message: '换个图', conversationHistory: [] });
+    return rej(m, { blocks: [{ data: { imageUrl: INVENTED } }] }, known);
+  }, '放行');
+
+// ③ 判定的过滤改回只认 http(s)
+arm('判定认 // 与 data:（改回只认 http(s) 就整条溜过去）',
+  "new RegExp('^' + ADDR_HEAD, 'i')", "new RegExp('^https?://', 'i')",
+  (m) => rej(m, { blocks: [{ data: { imageUrl: STOCK_REL } }] }, allowedIn(m)), '放行');
+arm('同上，data: 那一维',
+  "new RegExp('^' + ADDR_HEAD, 'i')", "new RegExp('^https?://', 'i')",
+  (m) => rej(m, { blocks: [{ data: { imageUrl: 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=' } }] }, allowedIn(m)), '放行');
+
+// ③ // 与 https 的等价写法（这一刀的方向相反：拆掉它是【误拒】）
+arm('`//h/p` 与 `https://h/p` 是同一张图（拆掉就误拒老板给过的那张）',
+  '!addressForms(u).some((f) => known.has(f))', '!known.has(u)',
+  (m) => rej(m, { blocks: [{ data: { imageUrl: ATTACHED.replace(/^https:/, '') } }] }, allowedIn(m)), '拒');
+
+// ④ 全角标点
+arm('抠地址时排除全角标点（改回 ASCII-only）',
+  String.raw`\\u3000-\\u303f\\uff00-\\uffef\\u2018-\\u201f\\u2026`, '',
+  (m) => (m.extractUrls(`你用这张 ${CLEAN}。`)[0] === CLEAN ? '干净' : '脏'), '脏');
+
+// ④ 英文句尾那半（中文有边界靠排除类，英文靠削尾巴 —— 两个机制，各一刀）
+arm('削掉英文句尾的标点',
+  '/[.,;:!?]+$/', '/(?!)/',
+  (m) => (m.extractUrls(`use ${CLEAN}.`)[0] === CLEAN ? '干净' : '脏'), '脏');
+
+console.log(`   📌 一共切了 ${mutN} 刀，每刀只改一处，改的都是 image-urls.js（工作区那份，md5 `
+  + `${require('crypto').createHash('md5').update(LIB_SRC).digest('hex').slice(0, 12)}）`);
 
 console.log(`\n${fail === 0 ? '✅' : '❌'} ${pass} 过 · ${fail} 败`);
 process.exit(fail === 0 ? 0 : 1);
