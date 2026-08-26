@@ -49,7 +49,8 @@
  *    而且它对「取得到、但根本不是老板给的那张」完全无话可说 —— 而那正是 Unsplash 那一支的形状。
  * 🔴 相对路径（`/photos/hero.jpg`）不在射程内：它们由 `create-site.js` 生成、跟着站一起构建，
  *    不是外链，编不出祸来。判的是 `http(s):`（**斜杠数不限**，#1207：`http:/h/x` 浏览器照样取）·
- *    协议相对 `//host/…` · `data:` 三种（#1199 ③：
+ *    协议相对 `//host/…`（#1209 起**前导那段 `/` `\` 有两个以上就算**：`///h` · `/\h` · `\\h` 归一化
+ *    之后都是它，逐种真 chromium 量过）· `data:` 三种（#1199 ③：
  *    后两种此前连问都没被问到，而 `//images.unsplash.com/…` 浏览器按 https 取得回来，
  *    产物上就是一张真的、没人给过的图）。
  *
@@ -78,9 +79,14 @@ const IMAGE_FIELDS = ['imageUrl', 'logoUrl'];
 //    四种斜杠数 × 两条通道（`<img src>` / CSS `url()`）**八格全部真发了请求**：
 //      `http://h/x` ✅ · `http:/h/x` ✅ · `http:h/x` ✅ · `http:///h/x` ✅
 //    WHATWG 把它们全部归一化成 `http://h/x`（`new URL('http:/h/x').href` 可复算）。
-// 🔴 **放宽斜杠数【没有】把站内相对路径吃进来**，分界线是**有没有 scheme**：`/photos/hero.jpg` 与
-//    `//photos/hero.jpg` 都没有 scheme ⟹ 第一支匹配不上；第二支那个「后面必须跟 `域名.`」的先行
-//    断言把它挡住（`photos` 后面是 `/` 不是 `.`）。两向都有格子钉着（#1207 AC2）。
+// 🔴 **放宽斜杠数【没有】把站内相对路径吃进来。**
+//    📌 #1207 这里原来写着「分界线是**有没有 scheme**」—— **#1209 起那句话是假的**：`///host.com/x`
+//    一个 scheme 都没有，却是个真的跨主机地址（真 chromium 上 `<img src>` / `<td background>` /
+//    CSS `url()` 三条路都发了请求）。今天的分界线是**两条合起来**：前导那段 `/` `\` 有几个（一个 =
+//    本站路径，两个以上 = 跨主机），外加「后面跟不跟 `域名.`」。所以 `/photos/hero.jpg` 靠前一条留在
+//    射程外，`//photos/hero.jpg` 与 `/\photos/hero.jpg` 靠后一条（`photos` 后面是 `/` 不是 `.`，
+//    单标签主机按 #1199 的设计不进射程）。归一化那一层写在 `canonicalAddress` 上面，两向都有格子
+//    钉着（#1207 AC2 · #1209 AC4）。
 const ADDR_HEAD = '(?:https?:\\/*|\\/\\/(?=[\\w-]+\\.)|data:[\\w.+-]+\\/[\\w.+-]+[;,])';
 // 🔴 排除类里那三段 Unicode 是承重的（#1199 ④）：中文句子**没有空格**，标点是唯一的边界。
 //    只排 ASCII 标点的话，「你用这张 https://example.com/a.jpg，谢谢」会被抠成
@@ -96,6 +102,54 @@ const ADDR_HEAD_RE = new RegExp('^' + ADDR_HEAD, 'i');
 // 英文句子里标点跟在地址后面同样会被粘上（`…a.jpg.` / `…a.jpg,`），而英文有空格所以只脏在**末尾**
 // —— 上面那个排除类治不了它（`.` 和 `,` 在 URL 里是合法字符，不能整类排掉）。这里只削尾巴。
 const TRAILING_PUNCT_RE = /[.,;:!?]+$/;
+
+// ── 一个【值】在被问「它是不是个图片地址」之前，浏览器会先把它变成什么（#1209）─────────────────
+// 🔴 上面那把尺子问的是「它长什么样」。而浏览器**在解析之前**先动了两下手，两下都能让一个
+//    真的跨主机地址从这把尺子底下走过去（三种都在 origin/main 上放行过，不是回退）：
+//
+//   ① **TAB / LF / CR 整个删掉**（WHATWG「基本 URL 解析器」的第一步，不限于 scheme 里）。
+//      ⟹ `ht<LF>tp://evil/x.png` 这把尺子看不出是个地址，浏览器取的是 `http://evil/x.png`。
+//      实测三种（LF / TAB / CR）在 `<img src>` 与 `<td background>` 上都真发了请求。
+//      🔴 **空格不在其中**：`ht tp://…` 浏览器不当地址（探针里那格阴性对照就是它）。所以这里
+//         只剔这三个字符，不敢写 `\s` —— 写宽一格就会把「插空格」那种误拒进来。
+//
+//   ② **前导那一段 `/` `\` 是不是「跨主机」，看的是【几个】而不是【哪一种】**：两个以上（`///`
+//      `////` `/\` `\\` `\/` …）→ 归一化成 `//host`，是个跨主机地址；**正好一个**（`/x` 或 `\x`）
+//      → 本站相对路径。原来 `//` 那一支的先行断言要求紧跟「域名.」，于是第三个字符是 `/` 时
+//      整支落空 —— 连问都不问。
+//      🔴 **单个反斜杠不是洞**：`\evil.example.com/x.png` 真 chromium 取的是**本站**
+//         `https://<本站>/evil.example.com/x.png`，`new URL` 两把尺（chromium / node）读数一致。
+//         所以判据是「前导斜杠段 ≥ 2」，**不是**「有没有反斜杠」—— 按后者写会把它误拒。
+//      🔴 站内相对路径靠**同一条**分界线留在射程外，不是靠另加一条例外：`/photos/hero.jpg` 只有
+//         一个斜杠；`//photos/hero.jpg` 与 `/\photos/hero.jpg` 归一化后都是 `//photos/…`，而
+//         `photos` 后面是 `/` 不是 `.` ⟹ 先行断言把它挡住（单标签主机按 #1199 的设计不进射程）。
+//
+//   ③ scheme 后面那一段也认反斜杠：`http:\\h/x` 浏览器取 `http://h/x`。这一格**今天就在射程内**
+//      （`https?:\/*` 零斜杠就匹配），归一化在这里的作用是让「老板给过的那张写成这样」不被误拒。
+//      🔴 **这里只把反斜杠换成正斜杠，不动斜杠的【个数】** —— 个数那一维归 `ADDR_HEAD` 的
+//         `https?:\/*` 和 `addressForms` 自己那条正则管（#1207）。在这里顺手收成两个斜杠是**冗余**，
+//         而冗余的代价不是多写几行：#1207 那三把反向刀（切 `\/*` / 切 `addressForms` 的正则）会
+//         **全部恒绿** —— 本票初版就是这么写的，一跑三格全不翻面，那三条覆盖面从此没人在守。
+//
+// 🔴 **这一层【只】作用在「一个值」上，没有加到 URL_RE（在老板打的字里找地址）那一侧。**
+//    那两处共用 `ADDR_HEAD` 一个源串的纪律没破：这不是第二把「地址长什么样」的尺子，是把值先
+//    还原成浏览器真去取的那个地址。自由文本那侧不能这么做 —— 把一段话里的换行整个剔掉会把两行
+//    粘成一个假地址，而 `\\` 在散文里是常见字符（Windows 路径），收进放行名单是**误放**方向。
+//    代价写在明处：老板**自己打字**打出 `///host/x.png` 时它不进放行名单，模型照抄会被拒。
+//    那是误拒方向（吵但安全），而老板手打的地址现实里是 `https://` 那一种。
+const URL_STRIP_RE = /[\t\n\r]/g;
+const LEADING_SLASHES_RE = /^[/\\]+/;
+function canonicalAddress(v) {
+  const s = String(v).replace(URL_STRIP_RE, '').trim();
+  const scheme = s.match(/^(https?):([/\\]*)/i);
+  if (scheme) {
+    if (!scheme[2].includes('\\')) return s;   // 没有反斜杠 ⟹ 这一维不归我管，原样交回去（见上 ③）
+    return `${scheme[1]}:${'/'.repeat(scheme[2].length)}${s.slice(scheme[0].length)}`;
+  }
+  const run = s.match(LEADING_SLASHES_RE);
+  if (run && run[0].length >= 2) return `//${s.slice(run[0].length)}`;
+  return s;
+}
 
 // HTML 字符串里画出来的图（#1199 ① 起，#1204 扩到下面这张表）。博客正文是**唯一**一个把配置里的
 // 字符串当 HTML 渲染的面（`src/components/pages/BlogPostPage.tsx:56` 的 `dangerouslySetInnerHTML`；
@@ -147,6 +201,12 @@ const IMAGE_ATTRS = {
   tr: ['background'],
   td: ['background'],
   th: ['background'],
+  // 🔴 这两个是 #1209 补的，同一族、同一条量法（页面 https + sink 明文 http，一个标签一页单量）：
+  //    `<col background>` ✅ · `<colgroup background>` ✅ 真去取了。#1207 那轮把这一族表外 19 个
+  //    标签逐个量过就漏了这两个 —— 老式表格里 `<colgroup>` 本来就会出现。反向对照仍是上面那个
+  //    `<div background>` ❌：它证明这把尺分得开取与不取。
+  col: ['background'],
+  colgroup: ['background'],
 };
 // 🔴 这些属性装的是**一串**候选（`a.jpg 1x, b.jpg 2x`），不是一个地址。整串当一个地址判 = 只判了
 //    第一个，把编造地址挪到第二个候选就溜过去了（#1204 AC2）。
@@ -364,17 +424,20 @@ function collectImagePositions(node, out) {
  *    这一层等价只在「老板真给过那个地址」时起作用，编造的地址归一化之后照样谁都不是。
  */
 function addressForms(u) {
-  const forms = [u];
-  if (u.startsWith('//')) forms.push('https:' + u, 'http:' + u);
-  else {
-    const m = u.match(/^(https?):\/*(.*)$/i);
-    if (m) {
-      const canon = `${m[1].toLowerCase()}://${m[2]}`;
-      if (canon !== u) forms.push(canon);
-      forms.push('//' + m[2]);
+  const forms = new Set([u]);
+  // 🔴 归一化那一份（#1209）也算同一张图：`///h/p` · `\\h/p` · `ht<LF>tp://h/p` 浏览器取的都是
+  //    老板给过的那个地址 ⟹ 不认这层等价就是误拒。**两份都跑一遍**，所以这个集合是改前那份的
+  //    严格超集 —— 放行名单只会变宽，不会有新的误拒，也不会有新的误放（加进来的每一种，浏览器
+  //    解析出来都是同一个地址）。
+  for (const v of new Set([u, canonicalAddress(u)])) {
+    forms.add(v);
+    if (v.startsWith('//')) { forms.add('https:' + v); forms.add('http:' + v); }
+    else {
+      const m = v.match(/^(https?):\/*(.*)$/i);
+      if (m) { forms.add(`${m[1].toLowerCase()}://${m[2]}`); forms.add('//' + m[2]); }
     }
   }
-  return forms;
+  return [...forms];
 }
 
 /**
@@ -438,8 +501,14 @@ function collectAllowedImageUrls(o) {
  *    `edit-site.js:688` 拿它当 `{ error }` 返回 → `executeTool` 的返回值 → `JSON.stringify`
  *    → `:1129` 那条 `tool_result` 发回模型。磁盘一个字节没动，模型在同一轮里改口重写。
  *    老板看到的是模型最后那段文字（那一路是 `Changes applied.`），不是这句。
- *    ⟹ 改这句话的读者只有模型；老板可见的那份文案在 `edit-site.js` 的 SYSTEM_PROMPT `## Images` 段里，
- *    不在这里，本票一个字没碰它。
+ *    ⟹ 改这句话的读者只有模型。
+ *    🔴 **老板看得见的图片文案【不存在】（#1209 更正）。** 这里原来写着「老板可见的那份文案在
+ *    `edit-site.js` 的 SYSTEM_PROMPT `## Images` 段里」—— 那句是假的：`## Images`（`edit-site.js:840`）
+ *    住在 `SYSTEM_PROMPT` 里，而 `SYSTEM_PROMPT` 唯一的去处是 `:1048` 那个 `system:` 字段，
+ *    也就是**发给模型**的，老板一个字看不到。照那句话去改「给老板看的文案」会改错文件。
+ *    2026-08-26 逐处找过一遍：dashboard 里跟图片有关的老板可见字符串只有一个
+ *    `aria-label="Remove image"`（`ChatPanel.tsx:1155`，删附件那个按钮），没有任何一段讲
+ *    「该怎么给图」的说明。⟹ 要给老板写这种文案的话，今天得**新造**一处，本文件里没有它的指路牌。
  *
  * 🔴 **措辞不许预设「它是一张图」（#1207 AC7）**：这道检查的判据从来是「这个地址有人给过吗」，
  *    而表里 `<object data>` / `<embed src>` 装的可能是一份 PDF。原来那句写着 `is an image URL`，
@@ -454,7 +523,11 @@ function imageUrlRejection(parsed, allowed) {
   const known = allowed || new Set();
   // 🔴 过滤用的是 `ADDR_HEAD_RE`，跟抠地址那把尺子同一个源串。写死 `/^https?:\/\//` 的话
   //    `//host/…` 与 `data:…` **根本不进入判定** —— 不是"判成放行"，是连问都不问（#1199 ③）。
-  const used = collectImagePositions(parsed).filter((v) => ADDR_HEAD_RE.test(v));
+  // 🔴 `canonicalAddress` 在前（#1209）：这把尺子问的是「它长什么样」，而浏览器**在解析之前**
+  //    先剔掉 TAB/LF/CR、把前导那段 `/` `\` 归一化 —— 不先做这一下，`///h/x` 与 `ht<LF>tp://h/x`
+  //    是"连问都不问"（不是"判成放行"），跟 #1199 ③ / #1207 那两次同一个失败形状。
+  const used = collectImagePositions(parsed)
+    .filter((v) => ADDR_HEAD_RE.test(canonicalAddress(v)));
   const unknown = [...new Set(used)]
     .filter((u) => !addressForms(u).some((f) => known.has(f)));
   if (unknown.length === 0) return null;
@@ -493,6 +566,7 @@ function attachedImagesNote(images) {
 module.exports = {
   IMAGE_FIELDS,
   extractUrls,
+  canonicalAddress,
   splitSrcset,
   scanTags,
   extractHtmlImageUrls,

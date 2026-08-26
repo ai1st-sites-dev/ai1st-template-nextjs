@@ -555,6 +555,165 @@ grid('AC2 站内相对路径 style="url(/photos/hero.jpg)"',
 grid('AC2 双斜杠开头但不是域名的站内路径 //photos/hero.jpg',
      { blocks: [{ data: { imageUrl: '//photos/hero.jpg' } }] }, allowed, '放行');
 
+// ══ 二之一、#1209 AC1：没有 scheme 的多斜杠 / 反斜杠 ═══════════════════════════════════════════
+// 🔴 这一族**不需要模型犯错** —— 多打一个斜杠就中。归一化之后是一个真的跨主机地址。
+// 🔴 真 chromium 上逐格量过（页面 https 自签 + sink 走 https，因为没有 scheme 的值继承页面的
+//    scheme；每组一个阳性对照 `//host` + 一个阴性对照 `/host`，判据是我那台服务器收没收到请求）：
+//      `<img src>` 与 `<td background>` 两条路上 `///` `////` `/\` `\\` `\/` **五种全部真发了请求**。
+//      CSS `url()` 那条路上只有 `///` `////` 真发了请求 —— 反斜杠那三种被 **CSS 自己的转义**吃掉了
+//      （`\1` 起一段十六进制转义，`\127` 变成 `ħ`），请求打回本站。
+//    ⟹ 下面 CSS 那几格里反斜杠那三种是**多收**，不是补洞。明写在这里，别当成"量出来的洞"。
+//    判的是**值**不是通道（这个函数看不到自己在哪条通道上），所以三条路一律拒；多收的方向是误拒，
+//    而这一族的地址除了跨主机没有别的用途。
+// 🔴 反斜杠**一定要用 fromCharCode 造**，不许在字面量里数斜杠：本票的探针第一版就是在这里错的
+//    （用例名被剃成同一个 id、四格读到同一张页面，而它给出的假读数恰好是"反斜杠都不取"）。
+console.log('\n── 二之一、#1209 AC1：没有 scheme 的多斜杠 / 反斜杠 ─────────────');
+
+const BS = String.fromCharCode(92);
+const NOSCHEME = [
+  ['三斜杠 ///',  '///'],
+  ['四斜杠 ////', '////'],
+  [`正反 /${BS}`, '/' + BS],
+  [`双反 ${BS}${BS}`, BS + BS],
+  [`反正 ${BS}/`, BS + '/'],
+];
+const CH3 = [
+  ['<img src>',       (u) => `<img src="${u}">`],
+  ['<td background>', (u) => `<table><tr><td background="${u}">c</td></tr></table>`],
+  ['CSS url()',       (u) => `<div style="background-image:url(${u})">x</div>`],
+];
+for (const [sname, pre] of NOSCHEME) {
+  for (const [cname, mk] of CH3) {
+    grid(`${cname} ${sname} + 编造的域名`, { slug: 'p', content: mk(pre + HOST_PATH) }, allowed, '拒');
+    // 两向：同一种写法，地址换成老板给过的那个 → 归一化后是同一张图 ⟹ 不许误拒。
+    grid(`${cname} ${sname} + 【老板给过】的那张`,
+         { slug: 'p', content: mk(pre + GIVEN_HOSTPATH) }, allowed, '放行');
+  }
+}
+// 图片字段那一面同样走这条路（不只是博客正文里的 HTML）。
+grid('imageUrl 字段里写 ///编造域名', { blocks: [{ data: { imageUrl: '///' + HOST_PATH } }] }, allowed, '拒');
+grid('imageUrl 字段里写 ///老板给过的', { blocks: [{ data: { imageUrl: '///' + GIVEN_HOSTPATH } }] }, allowed, '放行');
+
+// ══ 二之二、#1209 AC2：`<col background>` 与 `<colgroup background>` ═══════════════════════════
+// 🔴 跟 #1207 收的那八个是同一族，老式表格里 `<colgroup>` 本来就会出现。真 chromium 上两个都
+//    ✅ 真去取了（阳性对照 `<td background>` 先命中，阴性对照 `<div background>` 不取）。
+console.log('\n── 二之二、#1209 AC2：col / colgroup 的 background ──────────────');
+
+const COL_FORMS = [
+  ['<col background>',
+   (u) => `<table><colgroup><col background="${u}"></colgroup><tr><td>c</td></tr></table>`],
+  ['<colgroup background>',
+   (u) => `<table><colgroup background="${u}"><col></colgroup><tr><td>c</td></tr></table>`],
+];
+for (const [name, mk] of COL_FORMS) {
+  grid(`${name} 里放编造地址`, { slug: 'p', content: mk(INVENTED) }, allowed, '拒');
+  grid(`${name} 里放【老板给过】的那张`, { slug: 'p', content: mk(ATTACHED) }, allowed, '放行');
+}
+
+// ══ 二之三、#1209 AC3：scheme 里插了换行 / TAB ════════════════════════════════════════════════
+// 🔴 WHATWG 基本 URL 解析器的**第一步**就是把 TAB / LF / CR 从输入里整个删掉（不限于 scheme 里）
+//    ⟹ `ht<LF>tp://h/x` 浏览器取的是 `http://h/x`。真 chromium 上三种（LF / TAB / CR）在
+//    `<img src>` 与 `<td background>` 上都真发了请求；不带引号的 CSS `url()` 里三种都不取
+//    （换行让整条声明作废）—— 那几格同样是**多收**。
+// 🔴 **空格不在其中**：`ht tp://…` 浏览器不当它是地址（探针里那格阴性对照），所以只剔这三个字符。
+//    下面「阴性对照」那一格钉的就是它 —— 写宽成 `\s` 会把它误拒。
+console.log('\n── 二之三、#1209 AC3：scheme 里插换行 / TAB ─────────────────────');
+
+// 🔴 CSS 那条通道按**引号**分成两种，真 chromium 上读数不一样（一个良构 `http://` 对照先命中）：
+//    · `url('…')` / `<style>` 里 `url("…")`：**TAB → 真去取了**（CSS 字符串允许 TAB，URL 解析器再把
+//      它剔掉）⟹ 这是一个真洞。LF / CR 不取（CSS 字符串里裸换行是解析错误）。
+//    · 不带引号的 `url(…)`：三种空白**都不取**（空白结束那个 url token）—— 而这道闸也抠不出来，
+//      两边一致 ⟹ **不是洞**。下面拿它当阴性对照钉住，别把"抠不出来"当漏抓去修。
+//    📌 `style="…url(\"…\")…"` 那种写法量不出东西：内层双引号把 HTML 属性提前关掉了，
+//       良构对照那一格自己就不取 —— 所以 `style=` 属性这条路用单引号。
+const IN_SCHEME = [['LF', '\n'], ['TAB', '\t'], ['CR', '\r']];
+const CH3Q = [
+  ['<img src>',        (u) => `<img src="${u}">`],
+  ['<td background>',  (u) => `<table><tr><td background="${u}">c</td></tr></table>`],
+  ["CSS url('…')",     (u) => `<div style="background-image:url('${u}')">x</div>`],
+];
+for (const [wname, ws] of IN_SCHEME) {
+  const mangle = (hp, scheme) => `ht${ws}${scheme.slice(2)}://${hp}`;   // ht<ws>tp:// · ht<ws>tps://
+  for (const [cname, mk] of CH3Q) {
+    grid(`${cname} scheme 插${wname} + 编造的域名`,
+         { slug: 'p', content: mk(mangle(HOST_PATH, 'http')) }, allowed, '拒');
+    grid(`${cname} scheme 插${wname} + 【老板给过】的那张`,
+         { slug: 'p', content: mk(mangle(GIVEN_HOSTPATH, 'https')) }, allowed, '放行');
+  }
+  // 阴性对照：**不带引号**的 CSS url() —— 浏览器不取，这道闸也抠不出来，两边一致。
+  grid(`阴性对照 不带引号的 url(…) 插${wname}（浏览器也不取 ⟹ 不是洞）`,
+       { slug: 'p', content: `<div style="background-image:url(${mangle(HOST_PATH, 'http')})">x</div>` },
+       allowed, '放行');
+}
+// 阴性对照：插的是**空格** —— 浏览器不当地址，这里也不许当（否则就是凭空造出的误拒）。
+grid('阴性对照 scheme 插空格（浏览器不取 ⟹ 不进射程）',
+     { slug: 'p', content: `<img src="ht tp://${HOST_PATH}">` }, allowed, '放行');
+grid("阴性对照 scheme 插空格 · CSS url('…') 那条路",
+     { slug: 'p', content: `<div style="background-image:url('ht tp://${HOST_PATH}')">x</div>` }, allowed, '放行');
+
+// ══ 二之四、#1209 AC4：站内相对路径 —— 改前改后都放行 ═════════════════════════════════════════
+// 🔴 这一节挡的是「放宽斜杠数时把相对路径一起吃进来」。分界线是**前导斜杠段有几个**外加
+//    「后面跟不跟【域名.】」，不是「有没有反斜杠」。
+console.log('\n── 二之四、#1209 AC4：站内相对路径的反向对照 ────────────────────');
+
+for (const [name, parsed] of [
+  ['/photos/hero.jpg（图片字段）',      { blocks: [{ data: { imageUrl: '/photos/hero.jpg' } }] }],
+  ['<img src="/photos/hero.jpg">',      { slug: 'p', content: '<img src="/photos/hero.jpg">' }],
+  ['url(/photos/hero.jpg)',             { slug: 'p', content: '<div style="background:url(/photos/hero.jpg)">x</div>' }],
+  ['//photos/hero.jpg（单标签主机）',   { blocks: [{ data: { imageUrl: '//photos/hero.jpg' } }] }],
+  ['photos/hero.jpg（不带斜杠）',       { blocks: [{ data: { imageUrl: 'photos/hero.jpg' } }] }],
+  [`/${BS}photos/hero.jpg（归一化后仍是单标签主机）`,
+                                        { blocks: [{ data: { imageUrl: '/' + BS + 'photos/hero.jpg' } }] }],
+  [`${BS}${BS}photos/hero.jpg（同上）`, { blocks: [{ data: { imageUrl: BS + BS + 'photos/hero.jpg' } }] }],
+]) {
+  grid(`AC4 ${name}`, parsed, allowed, '放行');
+}
+// 🔴 **单个反斜杠不是洞** —— 它跟单个正斜杠一样是本站路径：真 chromium 取的是
+//    `https://<本站>/evil.example.com/x.png`，`new URL` 两把尺（chromium / node）读数一致。
+//    这一格钉的是「不收」：把判据写成「有没有反斜杠」就会在这里造一个误拒。
+grid(`AC4 单个反斜杠 ${BS}编造域名（浏览器取的是本站路径 ⟹ 有意不收）`,
+     { blocks: [{ data: { imageUrl: BS + HOST_PATH } }] }, allowed, '放行');
+grid(`AC4 单个正斜杠 /编造域名（同上，本站路径）`,
+     { blocks: [{ data: { imageUrl: '/' + HOST_PATH } }] }, allowed, '放行');
+
+// ── 归一化那一层直读一格：报数与构造对得上 ──────────────────────────────────────────────────────
+{
+  const cases = [
+    ['///' + HOST_PATH,        '//' + HOST_PATH],
+    ['////' + HOST_PATH,       '//' + HOST_PATH],
+    ['/' + BS + HOST_PATH,     '//' + HOST_PATH],
+    [BS + BS + HOST_PATH,      '//' + HOST_PATH],
+    [BS + '/' + HOST_PATH,     '//' + HOST_PATH],
+    [BS + HOST_PATH,           BS + HOST_PATH],          // 单个反斜杠：原样（本站路径）
+    ['/photos/hero.jpg',       '/photos/hero.jpg'],
+    ['ht\ntp://' + HOST_PATH,  'http://' + HOST_PATH],
+    ['ht tp://' + HOST_PATH,   'ht tp://' + HOST_PATH],   // 空格不剔
+    ['http:/' + HOST_PATH,     'http:/' + HOST_PATH],     // 正斜杠个数不归这一层管（#1207 那两处管）
+    ['http:' + BS + BS + HOST_PATH, 'http://' + HOST_PATH],
+  ];
+  const wrong = cases.filter(([inp, want]) => lib.canonicalAddress(inp) !== want);
+  wrong.length === 0
+    ? ok(`canonicalAddress 直读 ${cases.length} 格全部对得上（含「单个反斜杠原样」「空格不剔」「正斜杠个数不管」三格阴性）`)
+    : bad(`canonicalAddress ${wrong.length}/${cases.length} 格不对: `
+        + wrong.map(([i, w]) => `${JSON.stringify(i)} 期望 ${JSON.stringify(w)} 实测 ${JSON.stringify(lib.canonicalAddress(i))}`).join(' · '));
+}
+// 回执报数：一次写入里三种新写法各一个 → 必须点名三个地址，不多不少。
+{
+  const three = { slug: 'p',
+    content: `<img src="///${HOST_PATH}">`
+      + `<table><colgroup><col background="${INVENTED.replace('profile-photo', 'a')}"></colgroup></table>`
+      + `<img src="ht\ntp://${HOST_PATH.replace('profile-photo', 'b')}">` };
+  const why = imageUrlRejection(three, allowed);
+  if (!why) die('三种新写法一起写进去竟然放行了 —— 这一格的前提没了');
+  // 🔴 只在**列地址那一段**里数。整句上跑 `/"[^"]+"/g` 会把尾巴上那句
+  //    `(see "Images" in your instructions)` 也数成一个地址 —— 本票初版就这么读出了 4 个。
+  const head = why.slice(0, Math.max(why.indexOf(' is an address'), why.indexOf(' are addresses')));
+  if (!head) die('回执里找不到「is an address / are addresses」那一段 —— 报数这把尺子指错地方了');
+  const named = [...new Set((head.match(/"[^"]+"/g) || []))].length;
+  named === 3 ? ok('回执点名了 3 个地址（三种新写法各一个，报数与构造对得上）')
+              : bad(`回执点名了 ${named} 个地址，构造的是 3 个: ${why.slice(0, 200)}`);
+}
+
 // ── 一整篇「什么都没做错」的博客正文：合起来必须放行 ───────────────────────────────────────────
 // 🔴 上面那些格子都是一格一维。**误拒是靠合起来才看得见的**：这一篇把本票新收的两条覆盖面
 //    （老式表格的 `background` · 少斜杠的地址）跟前几轮那些边界（webfont · 讲 CSS 的代码示例 ·
@@ -929,6 +1088,44 @@ arm('同上 · CSS url() 那条通道',
 arm('斜杠数等价（拆掉它，老板给过的那张少一个斜杠就被误拒）',
   '/^(https?):\\/*(.*)$/i', '/^(https?):\\/\\/(.*)$/i',
   (m) => rej(m, { blocks: [{ data: { imageUrl: `https:/${GIVEN_HOSTPATH}` } }] }, allowedIn(m)), '拒');
+
+// ── #1209 AC5：本票三条新覆盖面，每条一刀；另外三刀切**反方向**（放宽过头就是误拒）──────────────
+// 🔴 前两刀跟 #1207 那一族同一个形状：一个标签一刀，一族一根针的话少写一个是静默的。
+for (const [tag, content] of [
+  ['col',      `<table><colgroup><col background="${INVENTED}"></colgroup><tr><td>c</td></tr></table>`],
+  ['colgroup', `<table><colgroup background="${INVENTED}"><col></colgroup><tr><td>c</td></tr></table>`],
+]) {
+  arm(`<${tag} background>（表里拿掉它那一行）`,
+    `  ${tag}: ['background'],\n`, '',
+    (m) => rej(m, { slug: 'p', content }, allowedIn(m)), '放行');
+}
+// 第 1 条（前导斜杠段归一化）：拿掉那一支 ⟹ `///编造域名` 连问都不问。
+arm('前导斜杠段归一化（拿掉它，`///域名` 回到「连问都不问」）',
+  'if (run && run[0].length >= 2) return `//${s.slice(run[0].length)}`;', '',
+  (m) => rej(m, { slug: 'p', content: `<img src="///${HOST_PATH}">` }, allowedIn(m)), '放行');
+// 第 3 条（剔掉 TAB/LF/CR）：改成什么都不匹配 ⟹ `ht<LF>tp://` 回到「连问都不问」。
+arm('剔掉 TAB/LF/CR（改成什么都不剔，畸形 scheme 回到「连问都不问」）',
+  '/[\\t\\n\\r]/g', '/(?!)/g',
+  (m) => rej(m, { slug: 'p', content: `<img src="ht\ntp://${HOST_PATH}">` }, allowedIn(m)), '放行');
+// 🔴 上面两刀切的是**那一层自己**。这一刀切的是**接线** —— 判定那一侧忘了调它。
+//    「函数写对了」和「函数被接上了」在一个只看函数的实现里长得一模一样。
+arm('判定那一侧真的调了归一化（拆掉接线，那一层写得再对也没人用）',
+  'ADDR_HEAD_RE.test(canonicalAddress(v))', 'ADDR_HEAD_RE.test(v)',
+  (m) => rej(m, { slug: 'p', content: `<img src="///${HOST_PATH}">` }, allowedIn(m)), '放行');
+// 🔴 另一侧的接线，方向相反：`addressForms` 不认这层等价 ⟹ 老板给过的那张写成 `///` 被误拒。
+arm('放行名单那一侧也认这层等价（拆掉就误拒老板给过的那张）',
+  'new Set([u, canonicalAddress(u)])', 'new Set([u])',
+  (m) => rej(m, { blocks: [{ data: { imageUrl: '///' + GIVEN_HOSTPATH } }] }, allowedIn(m)), '拒');
+// ── 两刀切**放宽过头**：这两处各自都有一个"顺手写宽一格"的写法，后果是误拒。────────────────────
+// 🔴 `>= 2` 改成 `>= 1`：单个正斜杠也被当跨主机 ⟹ 站内相对路径里凡第一段带点的（`/a.b/c.jpg`）
+//    全被拒。真 chromium 取的是本站地址。
+arm('前导斜杠段的分界线是 ≥2（改成 ≥1 就把站内相对路径吃进来 —— 误拒）',
+  'run[0].length >= 2', 'run[0].length >= 1',
+  (m) => rej(m, { blocks: [{ data: { imageUrl: '/' + HOST_PATH } }] }, allowedIn(m)), '拒');
+// 🔴 只剔那三个字符（改成 `\s` 就把空格也剔了）：`ht tp://…` 浏览器不当地址，这里当了就是误拒。
+arm('只剔 TAB/LF/CR（改成 \\s 连空格一起剔 —— 浏览器不取的那种被误拒）',
+  '/[\\t\\n\\r]/g', '/\\s/g',
+  (m) => rej(m, { slug: 'p', content: `<img src="ht tp://${HOST_PATH}">` }, allowedIn(m)), '拒');
 
 console.log(`   📌 一共切了 ${mutN} 刀，每刀只改一处，改的都是 image-urls.js（工作区那份，md5 `
   + `${require('crypto').createHash('md5').update(LIB_SRC).digest('hex').slice(0, 12)}）`);
