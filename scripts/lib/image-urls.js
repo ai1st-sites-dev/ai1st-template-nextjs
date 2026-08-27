@@ -70,7 +70,9 @@ const IMAGE_FIELDS = ['imageUrl', 'logoUrl'];
 //   · `URL_RE`      在**自由文本**里找（老板打的字、之前的对话）→ 全局
 //   · `ADDR_HEAD_RE` 问**一个值**「它是不是一个要被追责的图片地址」→ 锚在开头
 // 🔴 单斜杠的站内相对路径（`/photos/hero.jpg`）**不在**这三种里：它由 create-site 生成、跟着站
-//    一起构建，编不出祸来。`//` 那一支的先行断言（后面必须跟 `域名.`）就是用来把它挡在外面的。
+//    一起构建，编不出祸来。挡住它的是**斜杠个数**那一维（`//` 这一支要求两个，`/photos/…` 只有一个）；
+//    而 `//photos/hero.jpg` 这种单标签主机由 `isImageAddress` 的「主机含不含点」挡住（#1210 起，
+//    此前是这条正则里一个只认 ASCII 的字面先行断言）。
 //
 // 🔴 **`http(s):` 后面的斜杠数不限（`\/*`，#1207）。** 原来写死两个斜杠，于是 `http:/host/x.jpg`
 //    地址**抠出来了却不进入判定** —— 不是"判成放行"，是连问都不问，正是 `imageUrlRejection` 里
@@ -87,7 +89,20 @@ const IMAGE_FIELDS = ['imageUrl', 'logoUrl'];
 //    射程外，`//photos/hero.jpg` 与 `/\photos/hero.jpg` 靠后一条（`photos` 后面是 `/` 不是 `.`，
 //    单标签主机按 #1199 的设计不进射程）。归一化那一层写在 `canonicalAddress` 上面，两向都有格子
 //    钉着（#1207 AC2 · #1209 AC4）。
-const ADDR_HEAD = '(?:https?:\\/*|\\/\\/(?=[\\w-]+\\.)|data:[\\w.+-]+\\/[\\w.+-]+[;,])';
+//
+// 🔴 **「后面跟不跟【域名.】」这半条 #1210 起【不在这条正则里】了。** 它原来写的是
+//    `(?=[\w-]+\.)` —— 一个**字面**先行断言，只认 ASCII 字母加 ASCII 点，而浏览器认的是
+//    WHATWG 归一化之后的主机。两把尺在五种主机写法上给出相反答案，五种在 `origin/main` 上全部
+//    放行而真 chromium 全部跨主机取了图（`//evil%2Eexample.com` · `//evil。example.com`(U+3002) ·
+//    `//evil．example.com`(U+FF0E) · `//münchen.example`(原生 IDN) · `//.evil.example.com`(前导点)）。
+//    今天这半条搬到了 `isImageAddress`，判据是 `new URL('https:' + 归一化值).host` **含不含点** ——
+//    上面五种归一化后分别是 `evil.example.com` ×3 · `xn--mnchen-3ya.example` · `.evil.example.com`，
+//    全部含点；而 #1199 划的那条线（单标签主机放行）恰好就是「不含点」：`//photos/hero.jpg` → `photos`、
+//    `///localhost:8080/x.png` → `localhost:8080`，两个都不含点。**一条判据同时管住两向**，不是两条。
+// 🔴 **这里留下的 `(?![/\\])` 不是那半条的残余，它管的是【斜杠个数】那一维。** 少了它，
+//    `///编造域名` 不经 `canonicalAddress` 也能直接命中 `//` 这一支 ⟹ #1209 那一层归一化当场变成
+//    冗余、它那两把反向刀恒绿（同一个陷阱写在 `canonicalAddress` 上面的 ③ 里）。判据是那两刀还翻不翻面。
+const ADDR_HEAD = '(?:https?:\\/*|\\/\\/(?![/\\\\])|data:[\\w.+-]+\\/[\\w.+-]+[;,])';
 // 🔴 排除类里那三段 Unicode 是承重的（#1199 ④）：中文句子**没有空格**，标点是唯一的边界。
 //    只排 ASCII 标点的话，「你用这张 https://example.com/a.jpg，谢谢」会被抠成
 //    `https://example.com/a.jpg，谢谢` —— 于是老板给过的那个地址从来没真正进过放行名单，
@@ -107,7 +122,17 @@ const TRAILING_PUNCT_RE = /[.,;:!?]+$/;
 // 🔴 上面那把尺子问的是「它长什么样」。而浏览器**在解析之前**先动了两下手，两下都能让一个
 //    真的跨主机地址从这把尺子底下走过去（三种都在 origin/main 上放行过，不是回退）：
 //
-//   ① **TAB / LF / CR 整个删掉**（WHATWG「基本 URL 解析器」的第一步，不限于 scheme 里）。
+//   ⓪ **首尾的 C0 控制字符与空格整个剥掉**（这才是 WHATWG「基本 URL 解析器」的**第一步**，#1210）。
+//      ⟹ `\x01http://evil/x.png` · `\x01///evil/x.png` 浏览器取的是剥掉之后那个地址，而这里原来
+//      用的是 JS 的 `.trim()` —— 它剥空白，**不剥** `\x01`–`\x08` / `\x0e`–`\x1f`。三种都在
+//      `origin/main` 上放行过。
+//      🔴 **只剥【首尾】，不剥中间**：`//evil\x01.example.com/x.png` 浏览器根本不去取（C0 在主机里
+//         是解析错误），收它就是凭空造的误拒 —— 下面那格阴性对照钉的就是它。
+//      🔴 剥的这一类**比 `.trim()` 窄**：`﻿` / ` ` 这些 `.trim()` 会剥、这里不剥，因为
+//         WHATWG 也不剥（`﻿http://…` 浏览器不当地址）。窄的那一侧才是对的。
+//   ① **TAB / LF / CR 整个删掉**（WHATWG「基本 URL 解析器」的**第二步**，不限于 scheme 里；
+//      📌 #1209 这句原来写的是「第一步」——那是 ⓪ 那一步，写错会让下一个人以为 C0 已经在射程里，
+//      而 #1210 之前它确实不在）。
 //      ⟹ `ht<LF>tp://evil/x.png` 这把尺子看不出是个地址，浏览器取的是 `http://evil/x.png`。
 //      实测三种（LF / TAB / CR）在 `<img src>` 与 `<td background>` 上都真发了请求。
 //      🔴 **空格不在其中**：`ht tp://…` 浏览器不当地址（探针里那格阴性对照就是它）。所以这里
@@ -138,9 +163,61 @@ const TRAILING_PUNCT_RE = /[.,;:!?]+$/;
 //    代价写在明处：老板**自己打字**打出 `///host/x.png` 时它不进放行名单，模型照抄会被拒。
 //    那是误拒方向（吵但安全），而老板手打的地址现实里是 `https://` 那一种。
 const URL_STRIP_RE = /[\t\n\r]/g;
+// 步骤 ⓪：首尾的 C0 与空格。🔴 **不是 `.trim()`** —— 它剥不掉 `\x01`；也**不是 `\s`** —— 那会把
+// ` ` / `﻿` 也剥掉，而浏览器不剥（写宽一格就是凭空造误拒，跟 URL_STRIP_RE 那条同一个形状）。
+//
+// 🔴🔴 而它**不能用正则**,这一行是 r1 被退回的那一处(QA3 反向终审)。r1 写的是
+// `/^[\x00-\x20]+|[\x00-\x20]+$/g`,而**任何 `$` 锚定的尾部剥法在「值中间有一长串空白」上都是
+// 平方级**:引擎从那段空白的每一个起点贪婪吃到底、发现后面不是结尾、再回溯。同一道闸
+// (`imageUrlRejection`,一个 `imageUrl` 字段),输入 `"https://…/a" + N 个空格 + "b.jpg"`,
+// 我自己重量的读数(与 QA3 同一形状;绝对值因机器负载不同,阶数相同):
+//
+//	N        main 的 .trim()   r1 那把 /^…|…$/g   拆成两个 replace(`/^…/`+`/…$/`)   下面这个扫描
+//	10000    0.025 ms          118.8 ms           116.9 ms                          0.120 ms
+//	50000    0.033 ms          2956.6 ms          3105.7 ms                         0.010 ms
+//	100000   0.062 ms          11832.9 ms         11769.7 ms                        0.018 ms
+//
+// ⟹ **「拆成两个 replace」不是修法**(第三列与第二列同阶)—— 慢的是尾部那个 `$`,不是那个 `|`。
+// 触发面是真的:这道闸跑在 edit-site 服务端,一个页面/博客 JSON 的 `imageUrl` / `logoUrl`、或一个
+// `<img src>` 属性值里塞一段空白就够,整个值原样流到这里,Node 进程卡住几十秒。
+//
+// 所以两端都用**不回溯**的扫描。它与上面那两种正则写法在边界值上逐个相同(空串 / 全空白 / 全 C0 /
+// 首尾 C0 / `\x7f` 前缀 / 中间空白 / 只有一端 / `\x21` 与 NBSP 不该剥 —— 14 格逐个比过字符串)。
+// 📌 上界是 `0x20` **含**,与 `[\x00-\x20]` 逐字相同;`\x7f`(DEL)不在内,浏览器也不剥它。
+function stripUrlEdges(v) {
+  const s = String(v);
+  let i = 0;
+  let j = s.length;
+  while (i < j && s.charCodeAt(i) <= 0x20) i += 1;
+  while (j > i && s.charCodeAt(j - 1) <= 0x20) j -= 1;
+  return i === 0 && j === s.length ? s : s.slice(i, j);
+}
 const LEADING_SLASHES_RE = /^[/\\]+/;
-function canonicalAddress(v) {
-  const s = String(v).replace(URL_STRIP_RE, '').trim();
+// 主机那一维（#1210）。`m[1]` = scheme + 前导斜杠段（原样留着，**斜杠个数不归这一层管**，见上 ③），
+// `m[2]` = 主机那一段（到第一个 `/` `\` `?` `#` 为止），后面的路径/查询/片段原样接回去。
+const HOST_HEAD_RE = /^(https?:[/\\]*|\/\/)([^/\\?#]*)/i;
+/** 浏览器真正会去连的那个主机（含端口）。取不到 ⟹ null —— 那种值浏览器也去不了。 */
+function hostOf(s) {
+  const t = String(s);
+  // 用它**自己的** scheme 去解析：`http://h:80/x` 与 `//h:443/x` 各自的默认端口才会被正确吃掉。
+  const abs = /^https?:/i.test(t) ? t : (t.startsWith('//') ? `https:${t}` : null);
+  if (abs === null) return null;
+  try { return new URL(abs).host || null; } catch (e) { return null; }
+}
+/**
+ * 把值里那一段主机换成浏览器归一化之后的样子（#1210）。IDN → punycode、`%2E` / U+3002 / U+FF0E → `.`、
+ * 大小写收平、userinfo 丢掉（`//给过的域名@evil.example.com/x` 真正连的是 `evil.example.com`）。
+ * 🔴 **只动主机那一段**：斜杠个数、路径、查询一律原样 —— 在这里顺手归一化斜杠数是冗余，
+ *    而冗余会让 #1207 那三把反向刀恒绿（同一个陷阱写在上面 ③ 里）。
+ */
+function canonicalHost(s) {
+  const m = String(s).match(HOST_HEAD_RE);
+  if (!m || !m[2]) return s;
+  const h = hostOf(s);
+  return h ? m[1] + h + String(s).slice(m[0].length) : s;
+}
+/** 前导斜杠段与 scheme 后那段反斜杠（#1207 / #1209 那一层，主机不归它管）。 */
+function canonicalSlashes(s) {
   const scheme = s.match(/^(https?):([/\\]*)/i);
   if (scheme) {
     if (!scheme[2].includes('\\')) return s;   // 没有反斜杠 ⟹ 这一维不归我管，原样交回去（见上 ③）
@@ -149,6 +226,27 @@ function canonicalAddress(v) {
   const run = s.match(LEADING_SLASHES_RE);
   if (run && run[0].length >= 2) return `//${s.slice(run[0].length)}`;
   return s;
+}
+function canonicalAddress(v) {
+  return canonicalHost(canonicalSlashes(stripUrlEdges(v).replace(URL_STRIP_RE, '')));
+}
+
+/**
+ * 这个值，是一个**这道闸要追责的图片地址**吗？（#1210 把 `//` 那一支的主机判据从字面先行断言
+ * 换成了 WHATWG 的 `.host`，见 `ADDR_HEAD` 上面那两段。）
+ *
+ * 三支：`http(s):`（斜杠数不限）· `data:` —— 这两支不看主机；`//host/…` —— **看主机含不含点**。
+ * 🔴 含不含点这条线就是 #1199 划的「单标签主机不进射程」：`//photos/hero.jpg` → `photos`、
+ *    `///localhost:8080/x.png` → `localhost:8080`，两个都不含点 ⟹ 放行，不是漏掉的洞。
+ * 🔴 主机解析不出来（`//evil^example.com/x`）⟹ **false**。方向是有意的：浏览器对这种值同样
+ *    不发请求，判成"要追责"就是凭空造的误拒。
+ */
+function isImageAddress(v) {
+  const s = canonicalAddress(v);
+  if (!ADDR_HEAD_RE.test(s)) return false;
+  if (!s.startsWith('//')) return true;       // http(s): 与 data: 两支：主机不是它们的判据
+  const h = hostOf(s);
+  return h !== null && h.includes('.');
 }
 
 // HTML 字符串里画出来的图（#1199 ① 起，#1204 扩到下面这张表）。博客正文是**唯一**一个把配置里的
@@ -478,6 +576,55 @@ function stripFontFaces(css) {
   return cut === 0 ? css : out + css.slice(cut);
 }
 
+// ── HTML 实体（#1210）───────────────────────────────────────────────────────────────────────────
+// 🔴 **只在这一侧解一次，判定那一侧不解。** 博客正文是按 HTML 渲染的（`BlogPostPage.tsx:56`），
+//    HTML 解析器**在把属性值交给 URL 解析器之前**先解实体 ⟹ `&#x2F;&#x2F;&#x2F;evil…` ·
+//    `&sol;&sol;evil…` · `http&#58;//…` · `&#104;ttp://…` 四种在 `origin/main` 上全部放行，而浏览器
+//    真去取了。判定那一侧（`imageUrl` 这类 JSON 字段，模板按 `<img src={…}>` 用 JS 赋属性）**不解**
+//    实体 —— 在那边解就是凭空造出来的误拒，下面那格阴性对照钉的就是它。
+//
+// 🔴 **这条修法是【两向】的，而反向那一半今天就在误拒。** 合法 HTML 里 `&` 本来就该写成 `&amp;`：
+//    老板给 `https://uploads.ai1stsite.app/a.jpg?x=1&y=2`，模型按规范写成 `…?x=1&amp;y=2`，
+//    `origin/main` 上**拒**（实测）。解一次实体顺手把它修好。
+//
+// 🔴 **`<style>` 元素里【不】解** —— 它是 raw text 元素，HTML 解析器不在里面解实体。只有属性值解
+//    （`style="…"` 也是属性值 ⟹ 它那条 CSS 走解完之后的串）。所以解实体这一下挂在属性值上，
+//    不挂在 `pushCss` 上。
+//
+// 🔴 **具名实体必须带分号，数字实体分号可选。** 浏览器对具名实体在属性值里本来就有「后面跟着
+//    `=` 或字母数字就不当引用」这条特例；这里直接要求分号，是为了别把 `?a=1&amp=2` 这种**合法**
+//    查询串解坏 —— 那是误拒方向。数字实体（`&#47` / `&#x2F`）浏览器照解，这里跟着解。
+// 🔴 表里只收**映到 ASCII 单字符**的那些：URL 里能起作用的就这些，多抄一个整表既不承重也会漂。
+const NAMED_ENTITIES = {
+  Tab: '\t', NewLine: '\n',
+  excl: '!', quot: '"', QUOT: '"', num: '#', dollar: '$', percnt: '%', amp: '&', AMP: '&',
+  apos: "'", lpar: '(', rpar: ')', ast: '*', midast: '*', plus: '+', comma: ',', period: '.',
+  sol: '/', colon: ':', semi: ';', lt: '<', LT: '<', equals: '=', gt: '>', GT: '>', quest: '?',
+  commat: '@', lsqb: '[', lbrack: '[', bsol: '\\', rsqb: ']', rbrack: ']', Hat: '^',
+  lowbar: '_', UnderBar: '_', grave: '`', DiacriticalGrave: '`', lcub: '{', lbrace: '{',
+  verbar: '|', vert: '|', VerticalLine: '|', rcub: '}', rbrace: '}',
+};
+// 🔴 **`&nbsp;` / `&NonBreakingSpace;` 有意不在表里** —— 它们映到 U+00A0，不是 ASCII，正好踩了上面那条口径。
+// 收了它反而造出一格误拒：解成 U+00A0 之后上游那两次 JS `.trim()` 会把它剥掉（JS 的 trim 认 U+00A0），
+// 于是 `&nbsp;http://…` 进了判定 —— 而 WHATWG 只剥 C0 与空格、**不剥** U+00A0，浏览器压根不把它当地址。
+// 🔴 `&Tab;` / `&NewLine;` 留着，因为它们相反：解出来是 TAB / LF，而那两个正是 `URL_STRIP_RE` 要整个删掉的
+// （WHATWG 第二步）—— 浏览器对 `ht&Tab;tp://…` 真的会去取。
+const ENTITY_RE = /&(?:#([0-9]+);?|#[xX]([0-9a-fA-F]+);?|([a-zA-Z][a-zA-Z0-9]*);)/g;
+/**
+ * HTML 属性值里的实体解一次（**只一次** —— `&amp;#x2F;` 浏览器也只解成 `&#x2F;`，不再解第二遍）。
+ * 认不出来的原样留着：解不动的东西照原样交给下游，方向上既不多拒也不多放。
+ */
+function decodeEntities(v) {
+  return String(v).replace(ENTITY_RE, (whole, dec, hex, name) => {
+    if (dec !== undefined || hex !== undefined) {
+      const cp = parseInt(dec !== undefined ? dec : hex, dec !== undefined ? 10 : 16);
+      if (!Number.isFinite(cp) || cp < 1 || cp > 0x10ffff) return whole;
+      try { return String.fromCodePoint(cp); } catch (e) { return whole; }
+    }
+    return Object.prototype.hasOwnProperty.call(NAMED_ENTITIES, name) ? NAMED_ENTITIES[name] : whole;
+  });
+}
+
 /** 一条匹配里第一个真的捕到东西的组（从 `from` 开始数）。`''` 也算捕到，只有 undefined 不算。 */
 const firstGroup = (m, from) => {
   for (let i = from || 1; i < m.length; i += 1) if (m[i] !== undefined) return m[i];
@@ -489,7 +636,10 @@ function extractUrls(text) {
   if (typeof text !== 'string' || !text) return [];
   return (text.match(URL_RE) || [])
     .map((u) => u.replace(TRAILING_PUNCT_RE, ''))
-    .filter(Boolean);
+    // 🔴 `//` 那一支的主机判据现在是 `isImageAddress`（#1210），不再是正则里的字面先行断言 ——
+    //    所以抠出来之后还得再问一次，否则老板打的字里一个 `//然后` 也会进放行名单（误放方向）。
+    //    两侧问的是**同一个**函数，共用源串那条纪律没破。
+    .filter((u) => u && isImageAddress(u));
 }
 
 /**
@@ -543,7 +693,8 @@ function extractHtmlImageUrls(text) {
     const wanted = IMAGE_ATTRS[tag] || null;
     for (const am of body.matchAll(HTML_ATTR_RE)) {
       const name = am[1].toLowerCase();
-      const value = firstGroup(am, 2);
+      // 🔴 实体只在这里解一次（属性值这一层），见 `decodeEntities` 上面那几段。
+      const value = decodeEntities(firstGroup(am, 2));
       // `style=` 在任何标签上都认（表里那几个标签之外的 <div style> 照样画得出图）。
       if (name === 'style') { pushCss(value); continue; }
       if (!wanted || !wanted.includes(name)) continue;
@@ -693,13 +844,14 @@ function collectAllowedImageUrls(o) {
  */
 function imageUrlRejection(parsed, allowed) {
   const known = allowed || new Set();
-  // 🔴 过滤用的是 `ADDR_HEAD_RE`，跟抠地址那把尺子同一个源串。写死 `/^https?:\/\//` 的话
-  //    `//host/…` 与 `data:…` **根本不进入判定** —— 不是"判成放行"，是连问都不问（#1199 ③）。
-  // 🔴 `canonicalAddress` 在前（#1209）：这把尺子问的是「它长什么样」，而浏览器**在解析之前**
-  //    先剔掉 TAB/LF/CR、把前导那段 `/` `\` 归一化 —— 不先做这一下，`///h/x` 与 `ht<LF>tp://h/x`
-  //    是"连问都不问"（不是"判成放行"），跟 #1199 ③ / #1207 那两次同一个失败形状。
-  const used = collectImagePositions(parsed)
-    .filter((v) => ADDR_HEAD_RE.test(canonicalAddress(v)));
+  // 🔴 过滤用的是 `isImageAddress`，它里面还是那个 `ADDR_HEAD_RE`、跟抠地址那把尺子同一个源串。
+  //    写死 `/^https?:\/\//` 的话 `//host/…` 与 `data:…` **根本不进入判定** —— 不是"判成放行"，
+  //    是连问都不问（#1199 ③）。
+  // 🔴 `canonicalAddress` 在它里面、在前（#1209 / #1210）：这把尺子问的是「它长什么样」，而浏览器
+  //    **在解析之前**先剥首尾 C0、剔掉 TAB/LF/CR、把前导那段 `/` `\` 与**主机**都归一化 —— 不先做
+  //    这几下，`///h/x` · `ht<LF>tp://h/x` · `\x01http://h/x` · `//evil。example.com/x` 都是
+  //    "连问都不问"（不是"判成放行"），跟 #1199 ③ / #1207 那两次同一个失败形状。
+  const used = collectImagePositions(parsed).filter((v) => isImageAddress(v));
   const unknown = [...new Set(used)]
     .filter((u) => !addressForms(u).some((f) => known.has(f)));
   if (unknown.length === 0) return null;
@@ -742,6 +894,8 @@ module.exports = {
   stripFontFaces,
   extractUrls,
   canonicalAddress,
+  isImageAddress,
+  decodeEntities,
   splitSrcset,
   scanTags,
   extractHtmlImageUrls,

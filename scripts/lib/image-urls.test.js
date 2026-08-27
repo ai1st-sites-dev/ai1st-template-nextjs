@@ -661,6 +661,12 @@ for (const [name, parsed] of [
   ['<img src="/photos/hero.jpg">',      { slug: 'p', content: '<img src="/photos/hero.jpg">' }],
   ['url(/photos/hero.jpg)',             { slug: 'p', content: '<div style="background:url(/photos/hero.jpg)">x</div>' }],
   ['//photos/hero.jpg（单标签主机）',   { blocks: [{ data: { imageUrl: '//photos/hero.jpg' } }] }],
+  // 🔴 #1210 补：带端口的单标签主机。`new URL('https://localhost:8080/x.png').host` = `localhost:8080`
+  //    —— **不含点**，跟 `//photos` 落在同一侧。端口里那个冒号不是点，别把判据写成「含不含标点」。
+  ['///localhost:8080/x.png（带端口的单标签主机）',
+                                        { blocks: [{ data: { imageUrl: '///localhost:8080/x.png' } }] }],
+  ['<img src="///localhost:8080/x.png">',
+                                        { slug: 'p', content: '<img src="///localhost:8080/x.png">' }],
   ['photos/hero.jpg（不带斜杠）',       { blocks: [{ data: { imageUrl: 'photos/hero.jpg' } }] }],
   [`/${BS}photos/hero.jpg（归一化后仍是单标签主机）`,
                                         { blocks: [{ data: { imageUrl: '/' + BS + 'photos/hero.jpg' } }] }],
@@ -887,6 +893,179 @@ uncovered.length
   ? bad(`lib/image-urls.js 的 IMAGE_FIELDS 漏了模板真的画的字段: ${uncovered.join(' · ')} —— 那道写入闸对它按构造失明`)
   : ok(`写入闸的 IMAGE_FIELDS（${IMAGE_FIELDS.join(' · ')}）覆盖了模板读的全部字段`);
 
+// ══ 二之五、#1210 AC1：主机那一维 ══════════════════════════════════════════════════════════════
+// 🔴 `//` 那一支原来用一个**字面**先行断言 `(?=[\w-]+\.)` 判「后面是不是域名」，只认 ASCII 字母加
+//    ASCII 点；浏览器认的是 WHATWG 归一化之后的主机。下面五种写法在 `origin/main` 上**全部放行**，
+//    而真 chromium 全部跨主机取了图。今天的判据是 `new URL('https:' + 归一化值).host` 含不含点。
+// 🔴 **每一种都配两向**：同一种写法、路径换成老板给过的那个 → 必须放行。少了这一半，一个
+//    「什么都拒」的实现在上面那半边也全绿。
+console.log('\n── 二之五、#1210 AC1：主机那一维（Unicode 点 / IDN / %2E / 前导点）──');
+
+const U3002 = '。';        // U+3002 IDEOGRAPHIC FULL STOP —— 中文输入法里最常见的替身
+const UFF0E = '．';        // U+FF0E FULLWIDTH FULL STOP
+const GIVEN_TAIL = '/u1/8f3c1d2ab_photo.jpg';        // ATTACHED 的路径
+const BAD_TAIL   = '/u1/profile-photo.jpg';          // INVENTED 的路径（#1195 生产站上那个真 404）
+// 只放一条附件进名单 ⟹ 名单里就一个地址，两向的唯一变量是**路径**。
+const attOnly = (u) => collectAllowedImageUrls({ images: [{ url: u }], message: '', conversationHistory: [] });
+
+// 第三列 `self` = 这种写法自己那份名单（前导点与 IDN 归一化出来的是**另一个主机**，
+// 拿老板那个 ASCII 域名的名单去比，拒才是对的 ⟹ 两向对照必须把同一种写法喂进名单）。
+const F1_HOSTS = [
+  ['%2E 百分号点',    'uploads%2Eai1stsite.app',           'clean'],
+  ['U+3002 中文句号', `uploads${U3002}ai1stsite.app`,      'clean'],
+  ['U+FF0E 全角点',   `uploads${UFF0E}ai1stsite.app`,      'clean'],
+  ['前导点',          '.uploads.ai1stsite.app',            'self'],
+  ['原生 IDN',        'münchen.example',                   'self'],
+];
+const F1_CHANNELS = [
+  ['<img src>',        (u) => ({ slug: 'p', content: `<img src="${u}">` })],
+  ['<td background>',  (u) => ({ slug: 'p', content: `<table><tr><td background="${u}">c</td></tr></table>` })],
+  ["CSS url('…')",     (u) => ({ slug: 'p', content: `<div style="background-image:url('${u}')">x</div>` })],
+  ['imageUrl 字段',    (u) => ({ blocks: [{ data: { imageUrl: u } }] })],
+];
+for (const [hname, host, mode] of F1_HOSTS) {
+  const good = `//${host}${GIVEN_TAIL}`;
+  const bad = `//${host}${BAD_TAIL}`;
+  const known = mode === 'clean' ? attOnly(ATTACHED) : attOnly(good);
+  for (const [cname, mk] of F1_CHANNELS) {
+    grid(`AC1 ${hname} · ${cname} · 编造的路径`, mk(bad), known, '拒');
+    grid(`AC1 ${hname} · ${cname} · 【老板给过】的那条路径（两向对照）`, mk(good), known, '放行');
+  }
+}
+// 🔴 分母自检：这五种归一化出来的主机必须**真的含点**，否则上面那半边的「拒」是别的原因给的。
+{
+  const want = [
+    [`//uploads%2Eai1stsite.app${BAD_TAIL}`,            'uploads.ai1stsite.app'],
+    [`//uploads${U3002}ai1stsite.app${BAD_TAIL}`,       'uploads.ai1stsite.app'],
+    [`//uploads${UFF0E}ai1stsite.app${BAD_TAIL}`,       'uploads.ai1stsite.app'],
+    [`//.uploads.ai1stsite.app${BAD_TAIL}`,             '.uploads.ai1stsite.app'],
+    ['//münchen.example/x.png',                         'xn--mnchen-3ya.example'],
+  ];
+  const wrong = want.filter(([u, h]) => lib.canonicalAddress(u) !== `//${h}${u.slice(u.indexOf('/', 2))}`);
+  wrong.length === 0
+    ? ok(`AC1 归一化直读 ${want.length} 格全部对得上（%2E / U+3002 / U+FF0E → 同一个主机；IDN → punycode；前导点保留）`)
+    : bad(`AC1 归一化 ${wrong.length}/${want.length} 格不对: `
+        + wrong.map(([u]) => `${JSON.stringify(u)} → ${JSON.stringify(lib.canonicalAddress(u))}`).join(' · '));
+}
+
+// ══ 二之六、#1210 AC2：首部 C0 控制字符 ═════════════════════════════════════════════════════════
+// 🔴 WHATWG 基本 URL 解析器的**第一步**是剥掉首尾的 C0 与空格（`\x00`–`\x20`）。这里原来用的是
+//    JS 的 `.trim()`，它剥空白但**不剥** `\x01`–`\x08` / `\x0e`–`\x1f` ⟹ 三种在 main 上放行。
+// 🔴 阴性对照钉的是「只剥首尾、不剥中间」：C0 落在主机里浏览器根本不去取，收它就是凭空造的误拒。
+console.log('\n── 二之六、#1210 AC2：首部 C0 控制字符 ─────────────────────────');
+
+const C0_PREFIXES = [['\\x01', String.fromCharCode(1)], ['\\x1f', String.fromCharCode(31)],
+                     ['\\x08', String.fromCharCode(8)]];
+const C0_BODIES = [['///域名', (hp) => `///${hp}`], ['http://域名', (hp) => `http://${hp}`]];
+const C0_CHANNELS = [
+  ['<img src>',     (u) => ({ slug: 'p', content: `<img src="${u}">` })],
+  ['imageUrl 字段', (u) => ({ blocks: [{ data: { imageUrl: u } }] })],
+];
+for (const [pname, p] of C0_PREFIXES) {
+  for (const [bname, mkAddr] of C0_BODIES) {
+    for (const [cname, mk] of C0_CHANNELS) {
+      grid(`AC2 ${pname} + ${bname} · ${cname}`, mk(p + mkAddr(HOST_PATH)), allowed, '拒');
+      // 两向：同一种写法、地址换成老板给过的那个。`http://` 那一支要换成 https（归一化不跨 scheme，
+      // 这是 #1207 立的线，不是本票的洞）。
+      const giv = bname === 'http://域名' ? `https://${GIVEN_HOSTPATH}` : `///${GIVEN_HOSTPATH}`;
+      grid(`AC2 ${pname} + ${bname} · ${cname} · 【老板给过】的那张（两向对照）`,
+           mk(p + giv), allowed, '放行');
+    }
+  }
+}
+// 阴性对照：C0 落在**主机中间** —— 浏览器不去取（C0 在主机里是解析错误），改前改后都必须放行。
+for (const [pname, p] of C0_PREFIXES) {
+  grid(`AC2 阴性对照 C0(${pname}) 插在主机中间（浏览器不取 ⟹ 收它就是误拒）`,
+       { slug: 'p', content: `<img src="//uploads${p}.ai1stsite.app${BAD_TAIL}">` }, allowed, '放行');
+}
+// 阴性对照：`.trim()` 会剥、WHATWG 不剥的那两个（BOM / NBSP）—— 剥的这一类**比 trim 窄**才是对的。
+// 🔴 它们在**到这里之前**已经被 `:365` / `:408` 那两次 `.trim()` 剥掉了（JS 的 trim 认 BOM 与 NBSP），
+//    所以这一格量的是「窄了没把老板给过的那张弄丢」，不是「BOM 前缀会被拒」。
+grid('AC2 阴性对照 BOM + 老板给过的那张（上游 trim 已剥，仍要放行）',
+     { blocks: [{ data: { imageUrl: `﻿${ATTACHED}` } }] }, allowed, '放行');
+
+// ══ 二之七、#1210 AC3：HTML 实体 ═══════════════════════════════════════════════════════════════
+// 🔴 博客正文按 HTML 渲染，HTML 解析器**在把属性值交给 URL 解析器之前**先解实体 ⟹ 四种写法在
+//    main 上全部放行，而浏览器真去取了。解实体只在 `extractHtmlImageUrls` 那一侧做一次。
+// 🔴 阴性对照钉的是「判定那一侧不解」：`imageUrl` 是模板用 JS 赋属性画的，那条路**不解实体**，
+//    在那边解就是凭空造的误拒。
+console.log('\n── 二之七、#1210 AC3：HTML 实体 ────────────────────────────────');
+
+const ENT_FORMS = [
+  ['&#x2F; ×3（数字实体的斜杠）', (hp) => `&#x2F;&#x2F;&#x2F;${hp}`],
+  ['&sol;&sol;（具名实体的斜杠）', (hp) => `&sol;&sol;${hp}`],
+  ['scheme 里的 &#58;',            (hp) => `https&#58;//${hp}`],
+  ['scheme 首字母 &#104;',         (hp) => `&#104;ttps://${hp}`],
+];
+for (const [ename, mkAddr] of ENT_FORMS) {
+  for (const [cname, mk] of [
+    ['<img src>',       (u) => ({ slug: 'p', content: `<img src="${u}">` })],
+    ['<td background>', (u) => ({ slug: 'p', content: `<table><tr><td background="${u}">c</td></tr></table>` })],
+  ]) {
+    grid(`AC3 ${ename} · ${cname}`, mk(mkAddr(HOST_PATH)), allowed, '拒');
+    grid(`AC3 ${ename} · ${cname} · 【老板给过】的那张（两向对照）`,
+         mk(mkAddr(GIVEN_HOSTPATH)), allowed, '放行');
+  }
+  // 阴性对照：同一个实体串写进 `imageUrl` 字段（模板用 JS 赋属性画，不解实体）⟹ 改前改后都放行。
+  grid(`AC3 阴性对照 ${ename} 写进 imageUrl 字段（JS 赋属性不解实体 ⟹ 不许收）`,
+       { blocks: [{ data: { imageUrl: mkAddr(HOST_PATH) } }] }, allowed, '放行');
+}
+// 票正文点名的那两种 http 写法单独各一格（上面两向那半边用的是 https，这里补 http 那一支）。
+grid('AC3 http&#58;// + 编造的域名', { slug: 'p', content: `<img src="http&#58;//${HOST_PATH}">` }, allowed, '拒');
+grid('AC3 &#104;ttp:// + 编造的域名', { slug: 'p', content: `<img src="&#104;ttp://${HOST_PATH}">` }, allowed, '拒');
+// 🔴 `&Tab;` / `&NewLine;`：解出来正是 `URL_STRIP_RE` 要删掉的那两个字符（WHATWG 第二步）
+//    ⟹ `ht&Tab;tp://编造域名` 浏览器真去取，这里必须拒；换成老板给过的那张必须放行。
+grid('AC3 ht&Tab;tp:// + 编造的域名', { slug: 'p', content: `<img src="ht&Tab;tps://${HOST_PATH}">` }, allowed, '拒');
+grid('AC3 ht&Tab;tp:// + 【老板给过】的那张（两向对照）',
+     { slug: 'p', content: `<img src="ht&Tab;tps://${GIVEN_HOSTPATH}">` }, allowed, '放行');
+// 🔴 阴性对照 `&nbsp;`：它映到 U+00A0，**不在**具名实体表里（表只收映到 ASCII 的）。WHATWG 只剥
+//    C0 与空格、不剥 U+00A0 ⟹ 浏览器不把它当地址；收了它就是凭空造的误拒。改前改后都放行。
+grid('AC3 阴性对照 &nbsp;http://…（U+00A0 不在表里 ⟹ 不许收）',
+     { slug: 'p', content: `<img src="&nbsp;http://${HOST_PATH}">` }, allowed, '放行');
+// 🔴 `<style>` 元素是 raw text，HTML 解析器**不**在里面解实体 ⟹ 这一格改前改后都放行，别去"修"它。
+grid('AC3 阴性对照 <style> 元素里的实体（raw text，浏览器不解 ⟹ 不许收）',
+     { slug: 'p', content: `<style>.z{background-image:url('&#x2F;&#x2F;${HOST_PATH}')}</style>` },
+     allowed, '放行');
+
+// ══ 二之八、#1210 AC5：`&amp;` 那个误拒 ════════════════════════════════════════════════════════
+// 🔴 合法 HTML 里 `&` 本来就该写成 `&amp;`。老板给一个带查询串的地址、模型按规范写，`origin/main`
+//    上**拒** —— 一个今天就在发生的误拒，解一次实体顺手修好。裸 `&` 两侧都必须放行。
+console.log('\n── 二之八、#1210 AC5：`&amp;` 那个误拒 ─────────────────────────');
+{
+  const AMP_URL = 'https://uploads.ai1stsite.app/a.jpg?x=1&y=2';
+  const ampKnown = collectAllowedImageUrls({ images: [], message: `用这张 ${AMP_URL} 谢谢`, conversationHistory: [] });
+  ampKnown.has(AMP_URL) ? ok('AC5 前提：老板打的那条带 `&` 的地址真的进了放行名单')
+                        : die(`AC5 的前提没了：放行名单里没有 ${AMP_URL}（现读 ${[...ampKnown].join(' · ')}）`);
+  grid('AC5 `&amp;` 写法（合规 HTML）—— 改前拒、改后必须放行',
+       { slug: 'p', content: '<img src="https://uploads.ai1stsite.app/a.jpg?x=1&amp;y=2">' }, ampKnown, '放行');
+  grid('AC5 裸 `&` 写法 —— 两侧都放行',
+       { slug: 'p', content: '<img src="https://uploads.ai1stsite.app/a.jpg?x=1&y=2">' }, ampKnown, '放行');
+  // 🔴 解实体不许把**没给过**的地址也放过去：同一个查询串换个主机仍要拒。
+  grid('AC5 `&amp;` 写法 + 编造的主机（解实体不是放行通道）',
+       { slug: 'p', content: '<img src="https://evil.example.com/a.jpg?x=1&amp;y=2">' }, ampKnown, '拒');
+  // 🔴 不带分号的具名实体**不解** —— `?a=1&amp=2` 是合法查询串，解了就是凭空造的误拒。
+  const AMPQ = 'https://uploads.ai1stsite.app/b.jpg?a=1&amp=2';
+  const ampqKnown = collectAllowedImageUrls({ images: [{ url: AMPQ }], message: '', conversationHistory: [] });
+  grid('AC5 阴性对照 `&amp=2`（没有分号 ⟹ 不是实体，不许解）',
+       { slug: 'p', content: `<img src="${AMPQ}">` }, ampqKnown, '放行');
+}
+
+// ── 回执报数：本票三族各一个写进同一份内容 → 必须点名三个地址，不多不少 ────────────────────────
+{
+  const three = { slug: 'p',
+    content: `<img src="//uploads${U3002}ai1stsite.app/u1/a.jpg">`
+      + `<img src="${String.fromCharCode(1)}///uploads.ai1stsite.app/u1/b.jpg">`
+      + `<img src="&#x2F;&#x2F;&#x2F;uploads.ai1stsite.app/u1/c.jpg">` };
+  const why = imageUrlRejection(three, allowed);
+  if (!why) die('#1210 三族一起写进去竟然放行了 —— 这一格的前提没了');
+  // 🔴 只在**列地址那一段**里数：整句上跑 `/"[^"]+"/g` 会把尾巴那句 `(see "Images" …)` 也数进来。
+  const head = why.slice(0, Math.max(why.indexOf(' is an address'), why.indexOf(' are addresses')));
+  if (!head) die('回执里找不到「is an address / are addresses」那一段 —— 报数这把尺子指错地方了');
+  const named = [...new Set((head.match(/"[^"]+"/g) || []))].length;
+  named === 3 ? ok('#1210 回执点名了 3 个地址（三族各一个，报数与构造对得上）')
+              : bad(`#1210 回执点名了 ${named} 个地址，构造的是 3 个: ${why.slice(0, 240)}`);
+}
+
 // ══ 三、故意写坏（每条新覆盖面一格单变量反向臂）════════════════════════════════════════════════
 // 🔴 上面那些格子只证明「现在的实现在这几个输入上答对了」。它**不**证明那几行代码是承重的 ——
 //    一个把「什么都放行」写死的实现在阳性格上也全绿。所以每条新覆盖面配一格：把它那一处
@@ -1111,8 +1290,11 @@ arm('剔掉 TAB/LF/CR（改成什么都不剔，畸形 scheme 回到「连问都
   (m) => rej(m, { slug: 'p', content: `<img src="ht\ntp://${HOST_PATH}">` }, allowedIn(m)), '放行');
 // 🔴 上面两刀切的是**那一层自己**。这一刀切的是**接线** —— 判定那一侧忘了调它。
 //    「函数写对了」和「函数被接上了」在一个只看函数的实现里长得一模一样。
+// 🔴 needle 随 #1210 换了位置：这一句从 `imageUrlRejection` 的 filter 搬进了 `isImageAddress`
+//    （`//` 那一支的主机判据改成 WHATWG 的 `.host` 之后，判定不再是一条正则）。**刀切的还是同一处
+//    接线** —— 把归一化摘掉、直接拿原值去问那把尺子，`///编造域名` 必须回到「连问都不问」。
 arm('判定那一侧真的调了归一化（拆掉接线，那一层写得再对也没人用）',
-  'ADDR_HEAD_RE.test(canonicalAddress(v))', 'ADDR_HEAD_RE.test(v)',
+  'const s = canonicalAddress(v);', 'const s = String(v);',
   (m) => rej(m, { slug: 'p', content: `<img src="///${HOST_PATH}">` }, allowedIn(m)), '放行');
 // 🔴 另一侧的接线，方向相反：`addressForms` 不认这层等价 ⟹ 老板给过的那张写成 `///` 被误拒。
 arm('放行名单那一侧也认这层等价（拆掉就误拒老板给过的那张）',
@@ -1430,6 +1612,79 @@ for (const [name, gen] of [
   else if (span < SPAN_CUT) ok(`${name} N→4N 涨 ${span.toFixed(1)} 倍（${detail}）`);
   else bad(`${name} N→4N 涨 ${span.toFixed(1)} 倍 ≥ ${SPAN_CUT} —— 它还是二次的（${detail}）`);
 }
+// ── #1210：三族各一刀，另加三刀切**反方向**（放宽过头就是误拒）────────────────────────────────
+// 🔴 每一族都切**两处**：那一层自己，以及**接线**。「函数写对了」和「函数被接上了」在一个只看
+//    结果的实现里长得一模一样（#1209 那一刀立的规矩，本票照办）。
+
+// 🔴 第 1 族有**两个**机制，各自承重的方向不同，一刀只能切到一个 —— 这是实测出来的，不是我按
+//    直觉分的：第一版只切了 `canonicalHost`，那一格**不翻面**，因为判定那一侧直接调 `hostOf`、
+//    不经 `canonicalHost`。⟹ 判定这一侧的承重件是 `hostOf` 里那次 `new URL`，而 `canonicalHost`
+//    承的是**放行名单**那一侧（老板给过的那张写成这种写法不许被误拒）。两刀分开切。
+//
+// 第 1 族 · 判定这一侧：主机那一段不过 WHATWG 归一化，改成拿原样那一段。
+arm('主机那一段真的过了 WHATWG 归一化（改成拿原样那一段，U+3002 那种回到「连问都不问」）',
+  'return new URL(abs).host || null;',
+  "return abs.replace(/^https?:/i, '').replace(/^[/\\\\]*/, '').split(/[/\\\\?#]/)[0] || null;",
+  // 🔴 探针主机里**不许再有 ASCII 点**：`uploads。ai1stsite.app` 的 `.app` 会让切坏的那把尺照样
+  //    读到点、那一格不翻面（第一版就是这么读出「这条覆盖面不是那几行撑的」的假结论）。
+  (m) => rej(m, { slug: 'p', content: `<img src="//evil${U3002}example/x.png">` },
+    allowedIn(m)), '放行');
+// 第 1 族 · 放行名单这一侧（方向相反）：`canonicalHost` 拆掉，老板给过的那张写成 `%2E` 就被误拒。
+arm('放行名单那一侧也认主机这层等价（拆掉 canonicalHost，`%2E` 写法的那张被误拒）',
+  '  const h = hostOf(s);\n  return h ? m[1] + h + String(s).slice(m[0].length) : s;',
+  '  return s;',
+  (m) => rej(m, { blocks: [{ data: { imageUrl: `//uploads%2Eai1stsite.app${GIVEN_TAIL}` } }] },
+    allowedIn(m)), '拒');
+// 第 1 族 · 接线：判定那一侧不问主机 ⟹ 单标签主机那条线没了，两个方向各翻一格。
+arm('`//` 那一支真的问了主机含不含点 · 误放方向（改成恒真，判据就退回"只要两个斜杠"）',
+  "  if (!s.startsWith('//')) return true;       // http(s): 与 data: 两支：主机不是它们的判据\n"
+  + '  const h = hostOf(s);\n  return h !== null && h.includes(\'.\');',
+  '  return true;',
+  (m) => rej(m, { blocks: [{ data: { imageUrl: '//photos/hero.jpg' } }] }, allowedIn(m)), '拒');
+// 🔴 同一处的**另一个**写坏法：把「含点」换成「非空」—— 它在编造域名那格照样绿，只有单标签
+//    主机那格露馅。两刀切的是同一行，方向相反，缺一格就有一半没人守。
+arm('同一处 · 判据是【含点】不是【非空】（换成非空，`//photos/hero.jpg` 被误拒）',
+  "h !== null && h.includes('.')", "h !== null && h.length > 0",
+  (m) => rej(m, { blocks: [{ data: { imageUrl: '//photos/hero.jpg' } }] }, allowedIn(m)), '拒');
+
+// 第 2 族 · 那一层自己：不剥首尾 C0 ⟹ `\x01http://…` 回到「连问都不问」。
+arm('剥首尾的 C0 与空格（改成什么都不剥，`\\x01http://…` 回到「连问都不问」）',
+  'stripUrlEdges(v).replace(URL_STRIP_RE', 'String(v).replace(URL_STRIP_RE',
+  (m) => rej(m, { slug: 'p', content: `<img src="${String.fromCharCode(1)}http://${HOST_PATH}">` },
+    allowedIn(m)), '放行');
+// 第 2 族 · **反方向**：只剥首尾，不剥中间。改成"哪儿都剥"，主机里插 C0 那格就被误拒。
+// 🔴 needle 随 r2 换了:那两端现在是 §stripUrlEdges 的两个 charCodeAt 扫描,不是正则(r1 那把 `$`
+//    锚定的尾部剥法在中间一长串空白上是平方级 —— QA3 退回的就是它)。这一刀把「只剥两端」换成
+//    「哪儿都剥」,方向不变。
+arm('只剥【首尾】的 C0（改成哪儿都剥，主机里插 C0 那格被误拒）',
+  'return i === 0 && j === s.length ? s : s.slice(i, j);',
+  "return s.replace(/[\\x00-\\x20]+/g, '');",
+  (m) => rej(m, { slug: 'p', content: `<img src="//uploads${String.fromCharCode(1)}.ai1stsite.app${BAD_TAIL}">` },
+    allowedIn(m)), '拒');
+
+// 第 3 族 · 那一层自己：属性值不解实体 ⟹ 四种写法回到「连问都不问」。
+arm('属性值解一次 HTML 实体（拿掉它，`&#x2F;&#x2F;&#x2F;域名` 回到「连问都不问」）',
+  'decodeEntities(firstGroup(am, 2))', 'firstGroup(am, 2)',
+  (m) => rej(m, { slug: 'p', content: `<img src="&#x2F;&#x2F;&#x2F;${HOST_PATH}">` }, allowedIn(m)), '放行');
+// 第 3 族 · **反方向**（AC5）：同一刀切下去，今天那个 `&amp;` 误拒就回来了。
+arm('同一处 · 误拒方向（拿掉解实体，合规写法 `&amp;` 又被判成「没人给过你」）',
+  'decodeEntities(firstGroup(am, 2))', 'firstGroup(am, 2)',
+  (m) => rej(m, { slug: 'p', content: '<img src="https://uploads.ai1stsite.app/a.jpg?x=1&amp;y=2">' },
+    m.collectAllowedImageUrls({ images: [], message: '用这张 https://uploads.ai1stsite.app/a.jpg?x=1&y=2 谢谢',
+      conversationHistory: [] })), '拒');
+// 第 3 族 · **具名实体那半张表**单独一刀（数字实体那一支盖得住它 ⟹ 一根针会让它静默失守，
+// 跟 #1204 那个「三个属性一根针」同一个形状）。
+arm('具名实体表里的 `&sol;`（拿掉它那一项，`&sol;&sol;域名` 回到「连问都不问」）',
+  "sol: '/',", '', (m) => rej(m, { slug: 'p', content: `<img src="&sol;&sol;${HOST_PATH}">` },
+    allowedIn(m)), '放行');
+// 第 3 族 · **具名实体必须带分号**那条：拿掉分号要求，`?a=1&amp=2` 这种合法查询串被解坏 ⟹ 误拒。
+arm('具名实体必须带分号（改成分号可选，合法查询串 `&amp=2` 被解坏 —— 误拒）',
+  '|([a-zA-Z][a-zA-Z0-9]*);)', '|([a-zA-Z][a-zA-Z0-9]*);?)',
+  (m) => {
+    const u = 'https://uploads.ai1stsite.app/b.jpg?a=1&amp=2';
+    return rej(m, { slug: 'p', content: `<img src="${u}">` },
+      m.collectAllowedImageUrls({ images: [{ url: u }], message: '', conversationHistory: [] }));
+  }, '拒');
 
 console.log(`   📌 一共切了 ${mutN} 刀，每刀只改一处，改的都是 image-urls.js（工作区那份，md5 `
   + `${require('crypto').createHash('md5').update(LIB_SRC).digest('hex').slice(0, 12)}）`);
