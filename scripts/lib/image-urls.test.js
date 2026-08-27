@@ -1088,11 +1088,33 @@ function mutate(needle, replacement) {
   fs.writeFileSync(f, LIB_SRC.split(needle).join(replacement));
   return require(f);
 }
-/** 改坏之后那一格必须变成 `broken`；没变 = 那几行不承重，或者刀没切在承重处。 */
-function arm(label, needle, replacement, probe, broken) {
+/**
+ * 改坏之后那一格必须变成 `broken`；没变 = 那几行不承重，或者刀没切在承重处。
+ *
+ * 🔴 `baseline`（第 6 个参数，可选）= **改坏之前**那一格该读到什么。给了就先量一次没改坏的，
+ *    读数不是 `baseline` 就当场红。#1218 加的，起因是它抓到的一把**空刀**：
+ *    那把刀（`WS_SET` 拿掉 NBSP → `url(<NBSP>"编造.png")` 期望翻成「放行」）在 #1218 把
+ *    `url()` 那趟换成 CSS 的 5 个空白之后，**没改坏的时候读数本来就已经是「放行」** ——
+ *    两边同值，于是它照样打 ✅。**「翻面了」和「本来就是这个值」在只看结果的实现里长得一模一样。**
+ *    ⚠️ 只有新加的几把刀传了这个参数；另外那 61 把没传（那是 #1218 圈外，见票上留言）。
+ */
+function arm(label, needle, replacement, probe, broken, baseline) {
+  if (baseline !== undefined) {
+    const got0 = probe(lib);
+    if (got0 === broken) {
+      bad(`「${label}」这把刀是空的：没改坏时读数就已经是 ${broken}（= 期望的改坏读数）—— 它不可能红`);
+      return;
+    }
+    if (got0 !== baseline) {
+      bad(`「${label}」改坏之前那一格读到 ${got0}，期望 ${baseline} —— 这把刀的前提不成立，先弄清楚再判`);
+      return;
+    }
+  }
   const m = mutate(needle, replacement);
   const got = probe(m);
-  got === broken ? ok(`故意写坏「${label}」→ 那一格翻成 ${broken}（改前就是这个读数）`)
+  // 🔴 传了 `baseline` 的,把**两边**的读数都打出来 —— 只打一个数看不出它翻没翻面（#1218）。
+  const shown = baseline === undefined ? `（改前就是这个读数）` : `（没改坏时是 ${baseline} ⟹ 真翻面了）`;
+  got === broken ? ok(`故意写坏「${label}」→ 那一格翻成 ${broken}${shown}`)
                  : bad(`故意写坏「${label}」→ 期望翻成 ${broken}，实测 ${got} —— 这条覆盖面不是那几行撑的`);
 }
 
@@ -1478,7 +1500,12 @@ arm('styleElementBodies 的 \\b（拿掉它，`<styles>` 会被当成 <style> �
   'if (text[i] !== undefined && WORD_CHAR_RE.test(text[i])) continue;', '',
   (m) => (m.styleElementBodies('<styles>x</styles>').length ? '当成了 style' : '没当成'), '当成了 style');
 
-// ── 空白集合与「小写不许改长度」这两维（#1208 r3 补的；r2 那道电池对它们**失明**）─────────────
+// ── 空白集合（两个）与「小写不许改长度」这几维（#1208 r3 补的；#1218 加了窄那个集合）─────────
+// 🔴 #1218 起空白有**两个**集合，因为两趟问的不是同一个问题（理由与三个引擎的读数在
+//    `image-urls.js` 的 `WS_CHARS` / `CSS_WS_CHARS` 上面那两段）：
+//      · 宽（25 个，逐字符等于 `\s`）→ `stripFontFaces`  —— 下面 ① 钉它
+//      · 窄（5 个，CSS 规范的空白）  → `cssUrlValues`     —— 下面 ①b 钉它
+//    ⟹ **两个集合各有一格全码位守卫**，别只钉一个：把哪一个「统一」成另一个都会造出误拒。
 // 🔴 为什么补这两格：r2 交付时 `isCssWs` 只认 6 个 ASCII 空白，而它替的那些老正则用的是 `\s`
 //    （BMP 里 25 个）⟹ 差集那 19 个字符上两臂判决相反；同时 `low = text.toLowerCase()` 被当成
 //    `text` 的**索引尺**，而 `U+0130`(İ) 小写成两个码位 ⟹ 从它往后每个下标错一格。
@@ -1512,6 +1539,32 @@ const IDOT = CP(0x130);          // İ —— BMP 里唯一小写会变长的字
   }
 }
 
+// ①b `url()` 那趟的空白集合逐字符等于 **CSS 那 5 个**：同样是 **BMP 全集 65536 个码位**。
+//    判据走真函数 `cssUrlValues`：`url(<C>"<地址>")` 抠得到那个地址 ⟺ C 算空白。
+//    🔴 这把探针**一个盲点都没有**（不像 ① 要排掉 `{`）—— 65536 个码位差集为空，
+//       所以这里不排任何码位；哪天要排，得先证明它是探针的盲点、不是集合的。
+//    🔴 期望值 5 是**量出来的**（#1218 AC1：三个引擎 × 两条写法 × `\s` 全部 25 个字符，
+//       判据是真的有没有发出请求），不是抄 CSS 规范抄来的。表在 `CSS_WS_CHARS` 上面那段。
+{
+  const isCssWsByBehavior = (c) => lib.cssUrlValues(`.a{background-image:url(${c}"${INVENTED}")}`).includes(INVENTED);
+  const CSS5 = new Set(' \t\n\r\f');
+  const wrong = [];
+  for (let cp = 0; cp <= 0xffff; cp += 1) {
+    const c = CP(cp);
+    if (isCssWsByBehavior(c) !== CSS5.has(c)) wrong.push(`U+${cp.toString(16).toUpperCase().padStart(4, '0')}`);
+  }
+  // 分母自检：这把探针在那 5 个上必须全部抠得到（否则差集为空可能是「它对谁都抠不到」）
+  const positives = [...CSS5].filter((c) => isCssWsByBehavior(c)).length;
+  if (wrong.length === 0 && positives === 5) {
+    ok('`url()` 那趟的空白集合逐字符等于 CSS 那 5 个 —— BMP 全 65536 个码位扫过，差集为空'
+      + '（阳性那 5 个逐个抠得到；#1218 三个引擎实测：另外 20 个 `\\s` 字符浏览器一条请求都不发）');
+  } else {
+    bad(`\`url()\` 那趟的空白集合跟 CSS 那 5 个不一致：${wrong.length} 个码位对不上`
+      + `（${wrong.slice(0, 12).join(' ')}${wrong.length > 12 ? ' …' : ''}）`
+      + `；阳性自检 ${positives} / 5`);
+  }
+}
+
 // ② 那把索引尺不许改长度：**自己枚举** BMP 里所有「小写会变长」的字符，逐个要求闸仍然看得见地址。
 //    🔴 不写死 `İ`：写死的话，将来 Node 换一版 Unicode 表新增一个这样的字符时这一格是瞎的。
 {
@@ -1529,13 +1582,31 @@ const IDOT = CP(0x130);          // İ —— BMP 里唯一小写会变长的字
   }
 }
 
-// ③ 三把刀：两维各自的承重行，一维两个方向
+// ③ 刀：每个承重行一把，一维两个方向
+// 🔴 从这里开始的几把都传了第 6 个参数（改坏之前该读到什么）—— 见 `arm()` 的注释：
+//    #1218 换掉的那把刀在改完之后**两边同值**、照样打 ✅，那个参数就是为它加的。
 arm('WS_CHARS 少一个字符（拿掉 NBSP）→ @font-face 那块不再被剔掉 ⟹ 拒掉老板整份编辑（误拒）',
   "const WS_CHARS = ' \\t\\n\\r\\f\\v\\u00a0", "const WS_CHARS = ' \\t\\n\\r\\f\\v",
-  (m) => rej(m, { slug: 'p', content: `<style>@font-face${NBSP}{font-family:F;src:url(https://fonts.gstatic.com/s/x/v1/f.woff2)}</style>` }, allowedIn(m)), '拒');
-arm('WS_CHARS 少一个字符（拿掉 NBSP）→ url( 后那个编造地址抠不到（误放）',
-  "const WS_SET = new Set(WS_CHARS);", "const WS_SET = new Set(WS_CHARS.replace('\\u00a0', ''));",
-  (m) => rej(m, { slug: 'p', content: `<style>.z{background-image:url(${NBSP}"${INVENTED}")}</style>` }, allowedIn(m)), '放行');
+  (m) => rej(m, { slug: 'p', content: `<style>@font-face${NBSP}{font-family:F;src:url(https://fonts.gstatic.com/s/x/v1/f.woff2)}</style>` }, allowedIn(m)), '拒', '放行');
+
+// 🔴 下面这把替掉了 #1208 的一把刀。原来那把是「`WS_SET` 拿掉 NBSP → `url(<NBSP>"编造.png")`
+//    期望翻成放行」，而 #1218 把 `url()` 那趟换成 CSS 的 5 个之后，**没改坏时那一格本来就是放行**
+//    ⟹ 它变成一把空刀（实测：换完集合、守卫一个字没动，304 格全绿）。承重的行换了，刀也要跟着换。
+arm('CSS_WS_CHARS 多一个字符（把 NBSP 加回去）→ url( 后那个编造地址又被抠出来 ⟹ 拒掉老板整份编辑（误拒，= 本票治的那个病）',
+  "const CSS_WS_CHARS = ' \\t\\n\\r\\f';", "const CSS_WS_CHARS = ' \\t\\n\\r\\f\\u00a0';",
+  (m) => rej(m, { slug: 'p', content: `<style>.z{background-image:url(${NBSP}"${INVENTED}")}</style>` }, allowedIn(m)), '拒', '放行');
+arm('CSS_WS_CHARS 少一个字符（拿掉 \\f）→ url( 后那个编造地址抠不到（误放）',
+  "const CSS_WS_CHARS = ' \\t\\n\\r\\f';", "const CSS_WS_CHARS = ' \\t\\n\\r';",
+  (m) => rej(m, { slug: 'p', content: `<style>.z{background-image:url(\f"${INVENTED}")}</style>` }, allowedIn(m)), '放行', '拒');
+arm('skipWs 换回宽集合（isCssWs → isWs）→ url(<NBSP>"编造.png") 又被抠出来（误拒）',
+  'while (k < n && isCssWs(css[k])) k += 1;', 'while (k < n && isWs(css[k])) k += 1;',
+  (m) => rej(m, { slug: 'p', content: `<style>.z{background-image:url(${NBSP}"${INVENTED}")}</style>` }, allowedIn(m)), '拒', '放行');
+// 🔴 这一把钉的是「两处必须同一个集合」：`firstWs` 那条正则宽而 `skipWs` 窄时，`e` 会停在 NBSP 上、
+//    而 `skipWs` 不肯消费它 ⟹ `css[k]` 不是 `)`，整个 `url(…)` 一个地址都抠不到（误放方向）。
+//    这正是 #1208 第一版那个洞的形状，只是两把尺的宽窄反了过来。
+arm('firstWs 那条正则换回 /\\s/（宽），skipWs 还是窄 ⟹ 两把尺不一致，不带引号那条地址整个抠不到（误放）',
+  "const wsRe = new RegExp(`[${CSS_WS_CHARS}]`, 'g');", 'const wsRe = /\\s/g;',
+  (m) => rej(m, { slug: 'p', content: `<style>.z{background-image:url(${INVENTED}${NBSP})}</style>` }, allowedIn(m)), '放行', '拒');
 arm('asciiLower 换回 toLowerCase（索引尺变长）→ İ 后面那条 background-image 整个看不见（误放）',
   'const asciiLower = (s) => (NON_ASCII_RE.test(s) ? s.replace(/[A-Z]+/g, (m) => m.toLowerCase()) : s.toLowerCase());',
   'const asciiLower = (s) => s.toLowerCase();',
