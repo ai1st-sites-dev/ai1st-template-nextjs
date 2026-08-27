@@ -295,15 +295,188 @@ function scanTags(text) {
 //    一张图而整份拒收 —— 那一格有守卫钉着。`<style>` 元素实测真的会去取那张图。
 // 🔴 收尾的 `</style>` 是**可选**的：少了它浏览器照样在字符串尾自己闭合、照样去取那张图
 //    —— 跟上面边界 ②③ 同一个形状（#1204 r2 一起收的）。
-const HTML_STYLE_EL_RE = /<style\b[^>]*>([\s\S]*?)(?:<\/style>|$)/gi;
-const CSS_URL_RE = /\burl\(\s*(?:"([^"]*)"|'([^']*)'|([^)\s]*))\s*\)/gi;
+//
+// 🔴🔴 **下面这三趟是手写扫描，不是正则（#1208 换掉的就是这个）。** 原来那三条
+//    `/<style\b[^>]*>([\s\S]*?)(?:<\/style>|$)/` · `/\burl\(\s*(?:"…"|'…'|[^)\s]*)\s*\)/` ·
+//    `/@font-face\s*\{[^}]*\}/` 在**病态输入**上都是二次的，而这道闸**同步**跑在 `edit-site.js:688`
+//    落盘之前 ⟹ 真触发一次，老板那次「让 AI 改一下」就多等几秒、且没有任何反馈。
+//    `blog/*.json` 的正文是模型写的、长度**没有上界**，所以这条路今天的上界靠「模型一般不会那么写」
+//    兜着，不是靠代码兜着。实测（`origin/main` 那份字节 `4956fe75289a`，N 翻倍时间 ×4 ⟹ 二次）：
+//      <style> 无闭合 + N 个 `url(`       N=10000 → 1048 ms    N=20000 → 3708 ms
+//      N 个 `@font-face{` 无闭合           N=10000 → 1338 ms    N=20000 → 5940 ms
+//      N 个 `url("`（引号一个都没闭合）      N=10000 → 1371 ms
+//      N 个 `<style`（连 `>` 都没有）        N=10000 →  733 ms   ← 这一格是 `[^>]*` 的回溯，不在票正文那张表上
+//    📌 同一条 `pushCss` 也被 `style=` **属性**喂 ⟹ 不经 `<style>` 元素也到得了（实测同样 ×4）。
+//
+// 🔴 病根是**回溯**，不是「认 `<style>` 这件事」：三条正则里的字符类各自都装不下它后面要找的那个
+//    字符（`[^>]*` 装不下 `>`、`[^)\s]*` 装不下 `)`、`[^}]*` 装不下 `}`）⟹ 它们只可能停在**第一个**
+//    那个字符上，「一格一格退回来重试」在这里**永远配不上**。那 N×N 次尝试全是白做的，
+//    所以换成扫描是**恒等变换**，不是取舍。
+// 🔴 **不是**「给输入长度设个上限」：那把「病态输入慢」换成「长正文里的图整段不看」，方向是**误放**（静默）。
+// 🔴 改这三个函数前先读它们各自 🔴 那一句「为什么这一行不能删」——三趟扫描的线性都不是免费的：
+//    要么靠**单调游标**（只往前走 ⟹ 每个字符最多被看常数次），要么靠**配不上就收工**（后面没有配对
+//    字符了，任何起点都配不成 ⟹ 停下是恒等变换）。哪一趟靠哪一条，写在那一趟上面。
+// 🔴🔴 **这个集合必须逐字符等于 `\s`，不是「CSS 的空白」** —— 它替的就是老正则里那些 `\s*`。
+//    #1208 第一版把它写成了 6 个 ASCII 的，而 `\s` 在 BMP 里认 **25** 个 ⟹ 同一个函数里两把尺
+//    (`firstWs` 用下面那个 `wsRe` 的 25 个算出 `e`，隔几行 `skipWs` 用这 6 个去消费它),
+//    差集那 19 个字符上两臂判决相反（QA1 与 QA2 各自实测):
+//      · `@font-face<NBSP>{src:url(a.woff2)}` 不再被当成 font-face 块 ⟹ 那个 `.woff2` 进闸
+//        ⟹ **拒掉老板整份编辑**，而这正是 stripFontFaces 上面注释写着 #1204 r2 收掉的那个误拒。
+//      · `url(<NBSP>"编造.png")` 从「拒」变「放行」。
+//    📌 QA2 拿真 chromium 逐格量过（带四格阳性对照):那 19 个字符里被试的八个，浏览器
+//       `url(C"…")` 一条请求都不发、`@font-face C{}` 也不认 ⟹ **收窄本身是对的方向**。
+//       但那是一次**行为改动**，要回作者拍，不能当性能修法的副产物落地；而本票的合同是
+//       AC2「覆盖面不许缩」+ 实施要点那条「误放/误拒不许」⟹ 这里**恢复恒等变换**,
+//       「闸该不该比浏览器松」那个问题单开票（scope 冻结圈）。
+//    🔴 有一格守卫在 **BMP 全集 65536 个码位**上钉着这个等式（image-urls.test.js §四那一节「空白集合与「小写不许改长度」这两维」),
+//       改这一行（哪怕只是少一个字符）那一格当场红。
+const WS_CHARS = ' \t\n\r\f\v\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff';
+const WS_SET = new Set(WS_CHARS);
+const isWs = (c) => WS_SET.has(c);
+const WORD_CHAR_RE = /\w/;
+
+// 🔴🔴 **小写只能小写 ASCII** —— 下面三趟都拿 `low` 当 `text`/`css` 的**索引尺**
+//    (`low.indexOf(…)` 的下标去 `slice(text)`），所以那把尺**不许改变长度**。
+//    `String.prototype.toLowerCase` 会:`U+0130`(İ，土耳其语大写点 I）小写成**两个**码位
+//    ⟹ 从它往后每个下标错一格。BMP 里这样的字符只有它一个，但它就是一个，而且不是病态输入:
+//    一条浏览器一定会去取的 `background-image` 声明，只要同一个 `<style>` 里前面出现过一个 `İ`,
+//    闸就完全看不见它（QA1 实测；`create-site` 有 `--language`，土耳其语正文里 `İ` 是常用字）。
+//    🔴 只小写 A-Z 同时也是**跟老正则那个 `i` 标记等价**的做法:非 unicode 模式的正则做
+//       大小写归一时，码位 ≥128 而大写形式 <128 的字符**不归一**(所以 `K` U+212A 不匹配 `k`）
+//       ⟹ 老正则也只在 ASCII 上不分大小写。有一格守卫钉着「长度不变」。
+//    🔴 **两条分支，都逐字等价于「只小写 A-Z」，分开只为省时间：**
+//      · 整串都是 ASCII（没有码位 ≥ 0x80）⟹ `toLowerCase()` 就**是**「只小写 A-Z」：
+//        ASCII 里只有 A-Z 有小写映射，一个字符换一个字符，长度不可能变。
+//      · 只要有一个非 ASCII 字符 ⟹ 走 `replace`，它按构造只动 A-Z。
+//    📌 为什么值得多这一条分支（墙钟，9 个真 prod 站仓的 408 份真站 JSON 全跑一遍，5 遍取最小）：
+//        改前 origin/main（裸 toLowerCase）            43.9 ms
+//        只用 replace（本票第一版）                     59.9 ms   ← 比改前**慢** 16 ms
+//        本版（ASCII 走 toLowerCase，其余走 replace）    36.5 ms   ← 比改前**快** 7 ms
+//      非 ASCII 那一支反而更快，是因为 `toLowerCase()` 对非 ASCII 串要进 ICU，而 `replace`
+//      在一串「本来就没有大写字母」的正文上几乎不做事。⟹ 这条分支不是为了好看，是它把
+//      本票在**真实路径**上的代价从「慢 16 ms」变成「快 7 ms」。
+const NON_ASCII_RE = /[^\x00-\x7f]/;
+const asciiLower = (s) => (NON_ASCII_RE.test(s) ? s.replace(/[A-Z]+/g, (m) => m.toLowerCase()) : s.toLowerCase());
+
+/**
+ * `<style …>` 的元素体，一段一个。收尾的 `</style>` 可选（少了就到字符串尾）。
+ * 老正则：`/<style\b[^>]*>([\s\S]*?)(?:<\/style>|$)/gi`。
+ *
+ * 🔴 **`if (gt === -1) break;` 那一行是承重的**（它就是这一趟的线性）：没有它，`<style` 重复 N 遍
+ *    而整串一个 `>` 都没有时，每个起点都要重新扫一遍剩下的串 ⟹ 又是二次。停下是恒等变换：
+ *    `i` 之后没有 `>`，那 `i` 之后的每个起点也都配不上（它要的 `>` 只会更靠后）。
+ */
+function styleElementBodies(text) {
+  const low = asciiLower(text);
+  const n = text.length;
+  const out = [];
+  let i = 0;
+  while (i < n) {
+    const at = low.indexOf('<style', i);
+    if (at === -1) break;
+    i = at + 6;
+    // `\b` —— 后面紧跟单词字符就不是这个标签（`<styles>`）；到字符串尾也算边界。
+    if (text[i] !== undefined && WORD_CHAR_RE.test(text[i])) continue;
+    const gt = text.indexOf('>', i);
+    if (gt === -1) break;
+    const close = low.indexOf('</style>', gt + 1);
+    out.push(text.slice(gt + 1, close === -1 ? n : close));
+    if (close === -1) break;
+    i = close + 8;
+  }
+  return out;
+}
+
+/**
+ * 一段 CSS 里 `url(…)` 的值，一个一个。
+ * 老正则：`/\burl\(\s*(?:"([^"]*)"|'([^']*)'|([^)\s]*))\s*\)/gi`（三条分支的先后顺序在这里照搬）。
+ *
+ * 🔴 **三个游标 `nextClose` / `nextWs` / `wsEndAt` 是承重的**（它们就是这一趟的线性）：它们只往前走，
+ *    落到当前位置后面时才重新找一次 ⟹ 整趟的 `indexOf` / 空白扫描加起来是 O(串长)，不是每个起点一次。
+ *    🔴 特别是 `wsEndAt` 那一格缓存：`e` 是单调的，而**同一段空白会被连续多个起点问到**
+ *    （`url(` 重复 N 遍、后面跟一长段空白再跟一个非 `)`）—— 不缓存就是 N × 那段空白 = 二次。
+ */
+function cssUrlValues(css) {
+  const n = css.length;
+  const low = asciiLower(css);
+  const out = [];
+  // 🔴 这一个和上面那个 `WS_SET` 必须是**同一个集合** —— 下面 `firstWs` 用它算出 `e`,
+  //    而 `skipWs` 用 `WS_SET` 去消费同一个 `e`。两把尺不一致就是 #1208 第一版那个洞
+  //    (见 `WS_SET` 上面那段）。守卫钉的是「`WS_SET` 逐字符等于 `\s`」，也就同时钉住了这里。
+  const wsRe = /\s/g;
+  let nextClose = css.indexOf(')');
+  if (nextClose === -1) nextClose = n;
+  let nextWs = -1;
+  let wsEndAt = -1;
+  let wsEndVal = -1;
+  const firstClose = (from) => {
+    if (nextClose < from) { const j = css.indexOf(')', from); nextClose = j === -1 ? n : j; }
+    return nextClose;
+  };
+  const firstWs = (from) => {
+    if (nextWs < from) { wsRe.lastIndex = from; const m = wsRe.exec(css); nextWs = m ? m.index : n; }
+    return nextWs;
+  };
+  const skipWs = (from) => { let k = from; while (k < n && isWs(css[k])) k += 1; return k; };
+  // 只给单调的 `e` 用（见上面 🔴）。别把另外两处也接到它上面：那两处的实参不单调，缓存会来回颠。
+  const skipWsAtE = (e) => { if (wsEndAt !== e) { wsEndAt = e; wsEndVal = skipWs(e); } return wsEndVal; };
+  let i = 0;
+  while (i < n) {
+    const at = low.indexOf('url(', i);
+    if (at === -1) break;
+    i = at + 4;
+    if (at > 0 && WORD_CHAR_RE.test(css[at - 1])) continue;      // `\b`
+    const p = skipWs(i);                                          // 老正则里 `url(` 之后那个 `\s*`
+    const q = css[p];
+    if (q === '"' || q === "'") {
+      const c = css.indexOf(q, p + 1);
+      if (c !== -1) {
+        const k = skipWs(c + 1);
+        if (css[k] === ')') { out.push(css.slice(p + 1, c)); i = k + 1; continue; }
+      }
+      // 引号那一支配不上 ⟹ 落回「不带引号」那一支（老正则的 alternation 就是这个顺序）。
+    }
+    // 不带引号：`[^)\s]*` 只可能停在第一个 `)` 或空白上，退回来重试永远配不上。
+    const e = Math.min(firstClose(p), firstWs(p));
+    const k = skipWsAtE(e);
+    if (css[k] === ')') { out.push(css.slice(p, e)); i = k + 1; }
+  }
+  return out;
+}
+
 // 🔴 `@font-face` 里的 `url()` 装的是**字体**，不是图 —— 整块先剔掉再找地址。
 //    这是 #1204 r1 造出来的一个误拒：`origin/main` 只看 `style=` 属性、看不到 `<style>` 元素，
 //    所以一篇用了 webfont 的博客在 main 上放行、在 r1 上被**整份**拒掉，而模型收到的原话还说
 //    那个 `.woff2` 「is an image URL」（那句措辞 #1207 改掉了；这一格的修法是剔掉整块，跟措辞无关）。
 //    两位 QA 都报了这一条（QA1 非阻断① / QA2 还剩什么①）。
 //    📌 它不是绕过通道：`@font-face` 注册的是字体，浏览器不会把它画成一张图。
-const CSS_FONT_FACE_RE = /@font-face\s*\{[^}]*\}/gi;
+/**
+ * 老正则：`/@font-face\s*\{[^}]*\}/gi`，`.replace(…, '')`。
+ * 🔴 **`if (end === -1) break;` 那一行是承重的**（它就是这一趟的线性；这里没有 `}` 的游标）：
+ *    没有它，`@font-face{` 重复 N 遍而整串一个 `}` 都没有时，每个起点都要重新扫一遍剩下的串。
+ *    停下是恒等变换：`p` 之后没有 `}`，那后面每个起点也都配不上。
+ */
+function stripFontFaces(css) {
+  const n = css.length;
+  const low = asciiLower(css);
+  let out = '';
+  let cut = 0;
+  let i = 0;
+  while (i < n) {
+    const at = low.indexOf('@font-face', i);
+    if (at === -1) break;
+    i = at + 10;
+    let p = i;
+    while (p < n && isWs(css[p])) p += 1;      // 老正则里的 `\s*`
+    if (css[p] !== '{') continue;
+    const end = css.indexOf('}', p + 1);
+    if (end === -1) break;
+    out += css.slice(cut, at);
+    cut = end + 1;
+    i = end + 1;
+  }
+  return cut === 0 ? css : out + css.slice(cut);
+}
 
 /** 一条匹配里第一个真的捕到东西的组（从 `from` 开始数）。`''` 也算捕到，只有 undefined 不算。 */
 const firstGroup = (m, from) => {
@@ -364,8 +537,7 @@ function extractHtmlImageUrls(text) {
   const out = [];
   const push = (v) => { const t = String(v).trim(); if (t) out.push(t); };
   const pushCss = (css) => {
-    const noFonts = String(css).replace(CSS_FONT_FACE_RE, '');
-    for (const um of noFonts.matchAll(CSS_URL_RE)) push(firstGroup(um));
+    for (const u of cssUrlValues(stripFontFaces(String(css)))) push(u);
   };
   for (const { tag, body } of scanTags(text)) {
     const wanted = IMAGE_ATTRS[tag] || null;
@@ -379,7 +551,7 @@ function extractHtmlImageUrls(text) {
       else push(value);
     }
   }
-  for (const sm of text.matchAll(HTML_STYLE_EL_RE)) pushCss(sm[1] || '');
+  for (const body of styleElementBodies(text)) pushCss(body);
   return out;
 }
 
@@ -565,6 +737,9 @@ function attachedImagesNote(images) {
 
 module.exports = {
   IMAGE_FIELDS,
+  styleElementBodies,
+  cssUrlValues,
+  stripFontFaces,
   extractUrls,
   canonicalAddress,
   splitSrcset,

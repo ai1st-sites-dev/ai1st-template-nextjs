@@ -985,7 +985,8 @@ for (const [label, needle, replacement, content] of [
    `<object data="${INVENTED}"></object>`],
   ['<embed src>',             "embed: ['src'],",                      'embed: [],',
    `<embed src="${INVENTED}">`],
-  ['<style> 元素里的 url()',  'for (const sm of text.matchAll(HTML_STYLE_EL_RE)) pushCss(sm[1] || \'\');', '',
+  // 🔴 needle 随 #1208 换了：`<style>` 不再是一条正则，是 styleElementBodies 那一趟扫描。
+  ['<style> 元素里的 url()',  'for (const body of styleElementBodies(text)) pushCss(body);', '',
    `<style>.z{background-image:url('${INVENTED}')}</style>`],
 ]) {
   arm(label, needle, replacement,
@@ -1020,10 +1021,11 @@ arm('属性正则里「引号一次都没闭合」那两支',
   '|"([^"]*)$|\'([^\']*)$', '',
   (m) => rej(m, { slug: 'p', content: `<p>hi</p><img src="${INVENTED}` }, allowedIn(m)), '放行');
 arm('@font-face 整块剔掉（不剔就把字体当成图，一篇用了 webfont 的博客被整份拒）',
-  ".replace(CSS_FONT_FACE_RE, '')", '',
+  'stripFontFaces(String(css))', 'String(css)',
   (m) => rej(m, { slug: 'p', content: '<style>@font-face{src:url(https://fonts.gstatic.com/s/a/v1/b.woff2)}</style>' }, allowedIn(m)), '拒');
 arm('收尾的 </style> 是可选的',
-  '(?:<\\/style>|$)', '<\\/style>',
+  'out.push(text.slice(gt + 1, close === -1 ? n : close));',
+  'if (close !== -1) out.push(text.slice(gt + 1, close));',
   (m) => rej(m, { slug: 'p', content: `<style>.z{background-image:url("${INVENTED}")}` }, allowedIn(m)), '放行');
 arm('image 上的 xlink:href（单独一刀 —— QA1 非阻断②：原来三个属性一根针）',
   "image: ['href', 'xlink:href', 'src'],", "image: ['href', 'src'],",
@@ -1126,6 +1128,308 @@ arm('前导斜杠段的分界线是 ≥2（改成 ≥1 就把站内相对路径�
 arm('只剔 TAB/LF/CR（改成 \\s 连空格一起剔 —— 浏览器不取的那种被误拒）',
   '/[\\t\\n\\r]/g', '/\\s/g',
   (m) => rej(m, { slug: 'p', content: `<img src="ht tp://${HOST_PATH}">` }, allowedIn(m)), '拒');
+
+// ══ 四、#1208：那三趟扫描 ══════════════════════════════════════════════════════════════════════
+// 🔴 这一节的刀分**两种**，因为 #1208 的改动也分两种：
+//   · **覆盖面**的刀（跟上面同款）：把某一支拿掉 → 对应格子当场翻面。
+//   · **线性**的刀：把某一处「只往前走的游标」或「配不上就收工」改回去 → **行为一模一样**，只有
+//     时间翻。这类刀只能拿时间当判据 —— 而这正是本票要治的那个性质，没有别的尺子量得到它。
+//     🔴 判据是**每一臂自己的翻倍比**（N 翻倍时间涨几倍：二次 ≈ 4.0，线性 ≈ 2.0），不是绝对毫秒、
+//     也不是「改坏比改好慢几倍」。后两个都随 N 和机器漂；翻倍比问的是那个性质本身。
+//     「慢几倍」照旧打印（`末档差距`，实测 13×~900×），只是不当判据。
+console.log('\n── 四、#1208：三趟扫描（覆盖面的刀 + 线性的刀）─────────────────');
+
+const cpuMs = () => { const u = process.cpuUsage(); return (u.user + u.system) / 1000; };
+const timeOf = (f) => { const a = cpuMs(); f(); return cpuMs() - a; };
+
+// 🔴🔴 上面那行「取时间」的办法是 #1208 第二轮换掉的 —— QA2 打回的就是它。上一版是
+//    「**墙钟** · 同一份输入背靠背量三遍取最快」，而它在这台八个窗格共用的机器上会**假红**：
+//    实测整套 `npm run test:scripts` rc=1，红的不是被测代码，是这套取数的办法自己。
+//    两个方向都真的出现过：
+//      · 改好那一臂最后一档被别人抢一次 → 翻倍比读成 3.6 → 判「它自己就是二次的」
+//      · 改坏那一臂第一档被抢一次       → 翻倍比读成 2.98 → 判「这一行不承重」
+//
+// 换了三件事，各治一件。三件都有读数，别只留一件：
+//
+// ① 🔴 **用 CPU 时间（`process.cpuUsage`），不用墙钟** —— 这是最要紧的那一条。别人抢走 CPU 时
+//    我们是被**调度出去**的，那段时间根本不是我们在跑，而墙钟把它整个算在被测代码头上。
+//    实测（load 22 / 12 核，10 个形状 × 15 次试验，只看改好那一臂的翻倍比）：
+//        墙钟 采 3 遍 → 假红 34/150  ｜  墙钟 采 16 遍 → 7/150  ｜  CPU 时间 采 3 遍 → **0/150**
+//    也就是墙钟采 16 遍都追不上 CPU 时间采 3 遍。分辨率不成问题：`process.cpuUsage()` 实测约 1 微秒。
+//    🔴 **代价要说在明处：这一节往下所有毫秒都是 CPU 毫秒，不是老板真的要等的那个秒数。**
+//       「真触发一次要等几秒」那种数必须另外用墙钟量，两者不可混着引。
+//
+// ② **批次自动放大**（`perCall`）：一次采样把被测调用连跑到批次 ≥ `TARGET_MS`，回报「每次多少毫秒」。
+//    上一版直接量单次调用，而这里有的读数只有 0.2~1 ms —— 一次 2 ms 的干扰就是几倍误差。
+//
+// ③ **多遍交错取最小**（`curve`）：干扰只会**加**时间，所以每档取最小是单向正确的估计（二次的代码
+//    不可能被采出线性的读数）。交错（每遍把三档各采一次）是为了让一次突发不可能落在同一档的
+//    所有采样上 —— 上一版那三遍是背靠背的，一次 100 ms 的突发就把一整档吃掉。
+//
+// ④ 还有一件跟机器忙不忙无关、单独就能造一格假红的（第二轮实测抓到的）：**改坏那一臂是当场
+//    `require` 进来的新模块**，里面那个函数一次都没被调用过；而改好那一臂（`lib`）是整份测试
+//    从头用到尾的那个，早就热了。V8 把一个函数调到稳定态要几次调用，在那之前同一份字节的吞吐量
+//    能差 **18 倍** —— 于是「第一档还没热、后两档热了」读出 `27 → 8.76 → 20 ms`、翻倍比 2.3，
+//    判成「这一行不承重」。🔴 注意 `8.76 < 27`：**第二档比第一档快，那是物理上不可能的读数**
+//    （输入更大不可能更快），也就是那条曲线整个不成立。而 `perCall` 对慢档只跑一次
+//    （27 ms 已经满 `TARGET_MS`），所以它自己永远走不出这个状态。
+//    修法：先拿**同一形状的小输入**把这一臂调到稳定态，再量真输入。小输入便宜到可以忽略
+//    （二次的那一臂上，N/16 的输入是 1/256 的代价），而 JIT 的状态**跟函数走、不跟输入长度走**
+//    —— 实测：用小输入热过之后，真输入的**第一次**调用就已经是稳定值。
+const WARM_CALLS = 24;    // 用小输入把这一臂调到稳定态要调几次
+const TARGET_MS = 5;      // 一次采样至少跑这么久（CPU 毫秒）
+const REPS = 4;           // 每档最多采几遍，取最小
+const REPS_MIN = 2;       // 贵的曲线至少采几遍
+const CURVE_BUDGET_MS = 1500;   // 一条曲线的墙钟预算：只用来【减遍数】，不参与判读数
+const wallMs = () => Number(process.hrtime.bigint()) / 1e6;
+/**
+ * 一次采样：把 f 连跑到批次 ≥ TARGET_MS，回报**每次调用**多少 CPU 毫秒。
+ * 🔴 `iters` 每步最多放大 8 倍。上一版写的是 `ceil(iters * TARGET_MS / max(t, 0.01))`，
+ *    一步能放大 500 倍 —— 那一批要跑多久，全看一个刚读到的、可能异常的 t。实测这台机器上
+ *    `process.cpuUsage()` 的差值 576 万次采样里一次都没读到 0（最小 1 微秒），所以我**没有**
+ *    证明那条路真的被走过；封住它是因为它的代价上界不可控，而封住不花钱。
+ */
+function perCall(f) {
+  let iters = 1;
+  for (;;) {
+    const t = timeOf(() => { for (let i = 0; i < iters; i++) f(); });
+    if (t >= TARGET_MS || iters >= 8192) return t / iters;
+    const want = t > 0 ? Math.ceil(iters * TARGET_MS / t) : iters * 8;
+    iters = Math.min(Math.max(iters + 1, Math.min(want, iters * 8)), 8192);
+  }
+}
+/**
+ * 一条曲线：同一形状在 N / 2N / 4N 上每次调用多少 CPU 毫秒 + 两个相邻倍数 + 跨跨度的倍数。
+ * 🔴 也回报**这条曲线自己花了多少墙钟秒**（`wall`），并且打印出来 —— 理由是实测踩过：
+ *    2026-08-27 有一次整份跑卡了 5 分钟（99.7% CPU 在转，不是被别人挤掉），停在第二把线性刀上，
+ *    而当时**屏幕上没有任何东西说得出它慢在哪一格**。根因我没有定住（复现率约 1/30），所以这一轮
+ *    做的是两件不靠猜的事：① 每条曲线的耗时打出来，下次卡住时它自己会指出是哪一格；
+ *    ② 给它一个构造上的上界 —— 采到 `REPS_MIN` 遍之后，墙钟一过 `CURVE_BUDGET_MS` 就停。
+ * 🔴 减遍数只能往「少采」的方向走，而少采让读数**偏大**（取最小值的估计，采得越少越偏高）——
+ *    也就是它只可能让判据更严，不可能把该红的读成绿的。
+ */
+function curve(mod, gen, N) {
+  const inps = [N, 2 * N, 4 * N].map(gen);
+  const warm = gen(Math.max(64, Math.round(N / 16)));        // 同一形状的小输入
+  for (let k = 0; k < WARM_CALLS; k++) mod.extractHtmlImageUrls(warm);
+  inps.forEach((s) => mod.extractHtmlImageUrls(s));          // 再各跑一次真输入，都不计时
+  const ms = [Infinity, Infinity, Infinity];
+  const t0 = wallMs();
+  let reps = 0;
+  while (reps < REPS) {
+    inps.forEach((s, i) => { const v = perCall(() => mod.extractHtmlImageUrls(s)); if (v < ms[i]) ms[i] = v; });
+    reps += 1;
+    if (reps >= REPS_MIN && wallMs() - t0 > CURVE_BUDGET_MS) break;
+  }
+  const ratios = ms.slice(1).map((v, i) => v / ms[i]);
+  return { ms, ratios, reps, wall: (wallMs() - t0) / 1000, span: ms[2] / ms[0], least: Math.min(...ratios) };
+}
+// 🔴 判据的统计量是**跨整个跨度**的倍数（N 涨到 4N，时间涨几倍：线性 ≈ 4，二次 ≈ 16），
+//    不是逐档翻倍比里最大的那个。第二轮换的 —— 两把尺都量过，这把分得开得多：
+//      逐档最大：线性 2.00~2.25 · 二次 3.36~4.24 → 门槛 3.0 两边余量 1.33× / 1.12×
+//      跨跨度  ：线性 4.05~4.10 · 二次 10.6~16.2 → 门槛 8   两边余量 1.58× / 1.33×
+//    （二次那一侧有两个稳定的档位：同一份字节在 V8 里有快慢两种状态，差 18 倍，各自内部很稳
+//      —— 快的那个跨跨度读 10.6，慢的读 16.2。上面那个 1.33× 说的是快的那个。）
+const SPAN_CUT = 8;
+/**
+ * 「这条曲线读得到吗」——任一档的每次调用低于这个数就判读不到（不是只看第一档）。
+ * 🔴 **这道闸【不是】上面那些假红的修法**，写清楚免得下一个人以为它是：干扰是把读数**变大**，
+ *    而这道闸只抓**太小**的读数。它防的是另一件事 —— 有人后来把 N 调到「这个形状还没进入
+ *    渐近区」的量级，那时翻倍比读出什么都不说明问题。（上一版这道闸只看第一档；三档的耗时
+ *    是单调的，所以对「太小」来说看第一档和看三档等价 —— 改成看三档是为了让它对**任何**
+ *    档位的异常都开口，包括将来有人把 gen 改成非单调的形状。）
+ */
+const FLOOR_MS = 0.05;
+const tooSmall = (ms) => ms.findIndex((v) => v < FLOOR_MS);
+/**
+ * 线性的刀。判据是**N 涨到 4N 时间涨几倍**，不是绝对毫秒也不是「改坏比改好慢几倍」：
+ *   · 改坏那一臂 ≥ 8  ⟹ 它是二次的（二次 ≈ 16）
+ *   · 改好那一臂 < 8  ⟹ 现在这份字节在同一形状上不是二次的（线性 ≈ 4）
+ *   （两个数都是 CPU 毫秒算出来的比值，见上面那段 🔴 ①；门槛怎么标出来的见 `SPAN_CUT` 那几行）
+ * 🔴 为什么不用「慢 N 倍」当判据：那个数随 N 和机器漂 —— 同一把刀在 N=5000 上只慢 3.8 倍
+ *    （看着像「这一行不承重」），在 N=40000 上慢 2620 倍。**翻倍比**问的是那个性质本身，不随 N 漂。
+ *    这五把刀的 N 是**实验挑出来的**（先跑几档看两臂的曲线分不分得开），不是按直觉写的 ——
+ *    #1204 r2 在这上面付过一轮账。慢几倍那个数照旧**打印出来**（下面 `差距`），只是不当判据。
+ * 🔴 同时要求**行为一模一样**：这类刀改的是「快不快」，一旦输出也变了，说明靶子挑错了（那是覆盖面的刀）。
+ * 🔴 判据的门槛跟取时间那套办法是**一对**，动一个就要把另一个重标一遍：`SPAN_CUT` 上面那些
+ *    读数是**CPU 时间 + 批次放大 + 4 遍交错 + 小输入预热**这一套量出来的，换回墙钟就不成立了。
+ */
+function armQuadratic(label, needle, replacement, gen, N) {
+  const m = mutate(needle, replacement);
+  const probe = gen(N);
+  const okOut = lib.extractHtmlImageUrls(probe);
+  const badOut = m.extractHtmlImageUrls(probe);
+  if (!(okOut.length === badOut.length && okOut.every((v, i) => v === badOut[i]))) {
+    bad(`线性刀「${label}」改坏之后**行为也变了**（${okOut.length} vs ${badOut.length}）—— 靶子挑错了，这是覆盖面的刀`);
+    return;
+  }
+  const g = curve(lib, gen, N);
+  const b = curve(m, gen, N);
+  const f = (v) => (v < 10 ? v.toFixed(2) : v.toFixed(0));
+  const arm2 = (c) => `${c.ms.map(f).join(' → ')}（N→4N 涨 ${c.span.toFixed(1)} 倍，逐档 ${c.ratios.map((v) => v.toFixed(1)).join('/')}，采 ${c.reps} 遍用 ${c.wall.toFixed(1)}s）`;
+  const say = `改坏 ${arm2(b)} · 改好 ${arm2(g)} CPU 毫秒/次 · 末档差距 ${(b.ms[2] / g.ms[2]).toFixed(0)}×`;
+  const small = Math.max(tooSmall(g.ms), tooSmall(b.ms));
+  const sick = Math.min(g.least, b.least);
+  if (small !== -1) bad(`线性刀「${label}」→ 第 ${small + 1} 档读不到（低于 ${FLOOR_MS} ms/次）——`
+    + ` 这个 N 上的倍数不说明问题，把 N 提上去再判。${say}`);
+  // 🔴 更大的输入读到更快 = 那条曲线物理上不成立（某一档还没进稳定态）。这一句存在的意义是
+  //    **把仪器故障说成仪器故障**，而不是让它冒充「这一行不承重」那个结论 —— 第二轮之前就是
+  //    后者：同一次测量读出 27 → 8.76 ms，报出来的话却是「这一行不承重」。
+  else if (sick < 1.2) bad(`线性刀「${label}」→ 这条曲线不成立：有一档比它前一档【快】`
+    + `（相邻倍数最小 ${sick.toFixed(2)}，输入更大不可能更快）—— 是没热到稳定态，不是这一行不承重。${say}`);
+  else if (b.span >= SPAN_CUT && g.span < SPAN_CUT) ok(`线性刀「${label}」→ ${say}`);
+  else if (b.span < SPAN_CUT) bad(`线性刀「${label}」→ 改坏之后**也不是二次的**（N→4N 只涨 ${b.span.toFixed(1)} 倍 < ${SPAN_CUT}）—— 这一行不承重，或者这个 N/形状分不开两种实现。${say}`);
+  else bad(`线性刀「${label}」→ 改好那一臂**自己就是二次的**（N→4N 涨 ${g.span.toFixed(1)} 倍 ≥ ${SPAN_CUT}）。${say}`);
+}
+
+// ── 覆盖面的刀（4 把）───────────────────────────────────────────────────────────────────────────
+arm('cssUrlValues 的「不带引号」那一支（url(地址) 不带引号也要收）',
+  "if (css[k] === ')') { out.push(css.slice(p, e)); i = k + 1; }", '',
+  (m) => rej(m, { slug: 'p', content: `<style>.z{background-image:url(${INVENTED})}</style>` }, allowedIn(m)), '放行');
+arm('cssUrlValues 的「带引号」那一支',
+  "{ out.push(css.slice(p + 1, c)); i = k + 1; continue; }", '{ i = k + 1; continue; }',
+  (m) => rej(m, { slug: 'p', content: `<style>.z{background-image:url("${INVENTED}")}</style>` }, allowedIn(m)), '放行');
+arm('stripFontFaces 里 `@font-face` 与 `{` 之间那个 \\s*（拿掉就漏剔 ⟹ 把字体当成图，误拒）',
+  "while (p < n && isWs(css[p])) p += 1;      // 老正则里的 `\\s*`", '',
+  (m) => rej(m, { slug: 'p', content: '<style>@font-face {src:url(https://fonts.gstatic.com/s/a/v1/b.woff2)}</style>' }, allowedIn(m)), '拒');
+arm('styleElementBodies 的 \\b（拿掉它，`<styles>` 会被当成 <style> 元素）',
+  'if (text[i] !== undefined && WORD_CHAR_RE.test(text[i])) continue;', '',
+  (m) => (m.styleElementBodies('<styles>x</styles>').length ? '当成了 style' : '没当成'), '当成了 style');
+
+// ── 空白集合与「小写不许改长度」这两维（#1208 r3 补的；r2 那道电池对它们**失明**）─────────────
+// 🔴 为什么补这两格：r2 交付时 `isCssWs` 只认 6 个 ASCII 空白，而它替的那些老正则用的是 `\s`
+//    （BMP 里 25 个）⟹ 差集那 19 个字符上两臂判决相反；同时 `low = text.toLowerCase()` 被当成
+//    `text` 的**索引尺**，而 `U+0130`(İ) 小写成两个码位 ⟹ 从它往后每个下标错一格。
+//    QA1 实测：把这两处各修回去（= 改变行为），**38 把刀一把都没红**。这一节就是那两维的牙。
+//    🔴 两维**各两个方向**都钉：空白集合缩了会误拒（@font-face 那块不再被剔掉 ⟹ 拒掉老板整份编辑）
+//       也会误放（url( 后那个地址抠不到）—— 一个方向一把刀。
+const CP = (h) => String.fromCharCode(h);
+const NBSP = CP(0xa0);
+const IDOT = CP(0x130);          // İ —— BMP 里唯一小写会变长的字符（下面那格自己枚举证明）
+
+// ① 空白集合逐字符等于 `\s`：**BMP 全集 65536 个码位**，不是抽几个代表。
+//    判据走真函数 `stripFontFaces`（不为测试导出内部件）：`@font-face<C>{a}` 被整块剔掉 ⟺ C 算空白。
+//    🔴 `{` 要排掉：C 就是 `{` 时 `skipWs` 一格没走就落在 `{` 上、照样剔掉 —— 那不是「它算空白」，
+//       是这把探针在这一个码位上问不出问题（唯一一个，下面顺带证了它确实只有一个）。
+{
+  const isWsByBehavior = (c) => lib.stripFontFaces(`@font-face${c}{a}`) === '';
+  const wrong = [];
+  let brace = 0;
+  for (let cp = 0; cp <= 0xffff; cp += 1) {
+    const c = CP(cp);
+    if (cp === 0x7b) { brace = isWsByBehavior(c) ? 1 : 0; continue; }
+    if (isWsByBehavior(c) !== /\s/.test(c)) wrong.push(`U+${cp.toString(16).toUpperCase().padStart(4, '0')}`);
+  }
+  const n = [...Array(0x10000).keys()].filter((cp) => /\s/.test(CP(cp))).length;
+  if (wrong.length === 0 && n === 25 && brace === 1) {
+    ok(`空白集合逐字符等于 \\s —— BMP 全 65536 个码位扫过，差集为空（\\s 在 BMP 里 ${n} 个；`
+      + `唯一排掉的 U+007B 单独核过，它是探针的盲点不是集合的）`);
+  } else {
+    bad(`空白集合跟 \\s 不一致：${wrong.length} 个码位对不上（${wrong.slice(0, 12).join(' ')}${wrong.length > 12 ? ' …' : ''}）`
+      + `；\\s 在 BMP 里数到 ${n} 个（期望 25）；U+007B 探针自检 ${brace}（期望 1）`);
+  }
+}
+
+// ② 那把索引尺不许改长度：**自己枚举** BMP 里所有「小写会变长」的字符，逐个要求闸仍然看得见地址。
+//    🔴 不写死 `İ`：写死的话，将来 Node 换一版 Unicode 表新增一个这样的字符时这一格是瞎的。
+{
+  const growers = [];
+  for (let cp = 0; cp <= 0xffff; cp += 1) { const c = CP(cp); if (c.toLowerCase().length !== 1) growers.push(c); }
+  const blind = growers.filter((c) => !lib.extractHtmlImageUrls(
+    `<style>.a{content:"${c}"}.b{background-image:url("${INVENTED}")}</style>`).includes(INVENTED));
+  if (blind.length === 0) {
+    ok(`小写那把索引尺不改长度 —— BMP 里「小写会变长」的字符共 ${growers.length} 个`
+      + `（${growers.map((c) => `U+${c.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')}`).join(' ')}），`
+      + `每个后面那条 background-image 闸都仍然看得见`);
+  } else {
+    bad(`小写那把索引尺改了长度：${blind.length} / ${growers.length} 个字符后面的地址闸看不见了`
+      + `（${blind.map((c) => `U+${c.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')}`).join(' ')}）`);
+  }
+}
+
+// ③ 三把刀：两维各自的承重行，一维两个方向
+arm('WS_CHARS 少一个字符（拿掉 NBSP）→ @font-face 那块不再被剔掉 ⟹ 拒掉老板整份编辑（误拒）',
+  "const WS_CHARS = ' \\t\\n\\r\\f\\v\\u00a0", "const WS_CHARS = ' \\t\\n\\r\\f\\v",
+  (m) => rej(m, { slug: 'p', content: `<style>@font-face${NBSP}{font-family:F;src:url(https://fonts.gstatic.com/s/x/v1/f.woff2)}</style>` }, allowedIn(m)), '拒');
+arm('WS_CHARS 少一个字符（拿掉 NBSP）→ url( 后那个编造地址抠不到（误放）',
+  "const WS_SET = new Set(WS_CHARS);", "const WS_SET = new Set(WS_CHARS.replace('\\u00a0', ''));",
+  (m) => rej(m, { slug: 'p', content: `<style>.z{background-image:url(${NBSP}"${INVENTED}")}</style>` }, allowedIn(m)), '放行');
+arm('asciiLower 换回 toLowerCase（索引尺变长）→ İ 后面那条 background-image 整个看不见（误放）',
+  'const asciiLower = (s) => (NON_ASCII_RE.test(s) ? s.replace(/[A-Z]+/g, (m) => m.toLowerCase()) : s.toLowerCase());',
+  'const asciiLower = (s) => s.toLowerCase();',
+  (m) => rej(m, { slug: 'p', content: `<style>.a{font-family:"${IDOT}stanbul"}.b{background-image:url("${INVENTED}")}</style>` }, allowedIn(m)), '放行');
+
+arm('asciiLower 那条 ASCII 快路的判据取反（让非 ASCII 串也走 toLowerCase）→ İ 那一格翻面',
+  'const NON_ASCII_RE = /[^\\x00-\\x7f]/;', 'const NON_ASCII_RE = /(?!)/;',
+  (m) => rej(m, { slug: 'p', content: `<style>.a{font-family:"${IDOT}stanbul"}.b{background-image:url("${INVENTED}")}</style>` }, allowedIn(m)), '放行');
+
+// ── 线性的刀（5 把）—— 这五处就是「不再是二次的」那个性质的全部承重件 ─────────────────────────
+// 🔴 needle 带上下一行：那句话在它上面那段 🔴 注释里也逐字出现过一次，只写单行会命中 2 次（mutate 会 die）。
+//
+// 🔴🔴 **每把刀的 N 由它自己的余量定，不是抄一个统一的数** —— 这是 #1208 r3 补的，QA1 打回的就是它：
+//    r2 交的那份里 `styleElementBodies` 在 N=5000 上改坏臂只读到 **10.8**（门槛 8，余量 1.35×），
+//    而 QA2 实测「三格各红过一次」正好命中这类贴线的刀。
+//    余量往哪个方向要：**改坏臂要读得【高】**（≥ 8），而让它读低的原因是「这个 N 还没进渐近区」，
+//    不是机器忙 —— 干扰只会把时间**加**上去（而且 `curve` 取多遍最小值）。所以余量不足就**提 N**。
+//    **改坏臂余量的下限定在 1.5×（也就是 span ≥ 12）**，逐把量出来的读数（同一台共享 dev 机，
+//    每把跑三遍取中间那次；括号里是这一臂采样花的墙钟）：
+//        刀                        N        改坏 span     余量     改好 span   代价
+//        styleElementBodies      20000      13.8         1.73×      3.9       1.1s   ← r3 从 5000 提上来
+//        stripFontFaces          20000      15.4         1.93×      4.1       2.0s
+//        cssUrlValues nextClose  20000      12.4         1.55×      3.9       1.2s
+//        cssUrlValues nextWs      2500      15.6         1.95×      4.0       1.0s
+//        cssUrlValues wsEndAt     2500      16.0         2.00×      4.0       4.2s
+//    📌 二次的理论上限就是 16（N→4N ⟹ 时间 ×16），所以 `nextWs` / `wsEndAt` 那两把在 N=2500 上
+//       已经贴着上限，**它们的 N 小不等于余量小** —— 判据是余量那一列，不是 N 那一列。
+//    📌 `styleElementBodies` 那把逐档量过：N=5000 → 10.8 · 10000 → 12.3 · 20000 → 13.8 · 40000 更高但
+//       改坏臂一次采样就要 2.7s 且遍数被预算砍到 2 ⟹ 20000 是余量够用里最便宜的那一档。
+//    📌 `nextClose` 那把在 N=40000 上读 19.0（余量 2.4×）但采样 2.7s、遍数掉到 2 ⟹ 留在 20000。
+armQuadratic('styleElementBodies 的「连 > 都没有就收工」',
+  "if (gt === -1) break;\n    const close = low.indexOf('</style>', gt + 1);",
+  "if (gt === -1) continue;\n    const close = low.indexOf('</style>', gt + 1);",
+  (N) => '<style'.repeat(N), 20000);
+armQuadratic('stripFontFaces 的「没有 } 就收工」',
+  'if (end === -1) break;\n    out += css.slice(cut, at);',
+  'if (end === -1) continue;\n    out += css.slice(cut, at);',
+  (N) => '<style>' + '@font-face{'.repeat(N), 20000);
+armQuadratic('cssUrlValues 的 nextClose 游标（改回每个起点都重新找一次 `)`）',
+  "if (nextClose < from) { const j = css.indexOf(')', from); nextClose = j === -1 ? n : j; }",
+  "{ const j = css.indexOf(')', from); nextClose = j === -1 ? n : j; }",
+  (N) => '<style>' + 'url(x '.repeat(N) + ')', 20000);
+armQuadratic('cssUrlValues 的 nextWs 游标（改回每个起点都重新找一次空白）',
+  'if (nextWs < from) { wsRe.lastIndex = from; const m = wsRe.exec(css); nextWs = m ? m.index : n; }',
+  '{ wsRe.lastIndex = from; const m = wsRe.exec(css); nextWs = m ? m.index : n; }',
+  (N) => '<style>' + 'url('.repeat(N) + ' x)', 2500);
+armQuadratic('cssUrlValues 的 wsEndAt 缓存（同一段空白被连续多个起点问到）',
+  'const skipWsAtE = (e) => { if (wsEndAt !== e) { wsEndAt = e; wsEndVal = skipWs(e); } return wsEndVal; };',
+  'const skipWsAtE = (e) => skipWs(e);',
+  (N) => '<style>' + 'url('.repeat(N) + ' '.repeat(N) + 'x)', 2500);
+
+// ── 现在这份字节自己在那五个病态形状上是【线性】的：N 涨到 4N，时间不许涨 16 倍 ─────────────
+// 🔴 判据跟上面那五把线性刀同一把尺（N→4N 涨几倍：线性 ≈ 4，二次 ≈ 16，门槛 8），不是绝对毫秒
+//    —— 绝对值在这台共享机上漂。
+console.log(`   ── 病态形状：N 涨到 4N 时间涨几倍（线性 ≈ 4，二次 ≈ 16，每一格都要 < ${SPAN_CUT}）──`);
+for (const [name, gen] of [
+  ['<style> 无闭合 + N×url(',        (N) => '<style>' + 'url('.repeat(N)],
+  ['N×@font-face{ 无闭合',           (N) => '<style>' + '@font-face{'.repeat(N)],
+  ['N×url("（引号都没闭合）',          (N) => '<style>' + 'url("'.repeat(N)],
+  ['N×<style（连 > 都没有）',          (N) => '<style'.repeat(N)],
+  ['style= 属性 + N×url(',           (N) => `<div style="${'url('.repeat(N)}">x</div>`],
+]) {
+  // 🔴 N 从 40000 起，而这个数是**标定出来的**：先按 5000 跑，`@font-face` 那格读出
+  //    0.2 → 0.4 → 1.1 ms、翻倍比 3.0 判红；按 20000 跑读出 1.1 → 4.2 → 7.3、翻倍比 3.6 仍判红
+  //    —— 两次都不是它二次（那一趟是两遍 indexOf，按构造线性），是**尺子在这个量级上读不到**：
+  //    几毫秒的读数里 GC 与缓存台阶就有 3 倍。到 40000 五个形状全部稳定在 ~2.0，重跑两遍一致。
+  //    📌 那次标定用的是**上一版**取时间的办法（背靠背三遍）。#1208 第二轮换成上面那套（批次放大 +
+  //    多遍交错取最小）之后，「读不到」这件事已经由 `perCall` 治掉了，40000 保留是因为它便宜
+  //    （每档只跑一两次就满 5 ms）而且离渐近区更远的量级没必要再试。
+  const { ms, span, ratios, reps, wall } = curve(lib, gen, 40000);
+  const detail = `${ms.map((v) => v.toFixed(1)).join(' → ')} CPU 毫秒/次，N=40000/80000/160000，逐档 ${ratios.map((v) => v.toFixed(1)).join('/')}，采 ${reps} 遍用 ${wall.toFixed(1)}s`;
+  const small = tooSmall(ms);
+  if (small !== -1) bad(`${name} 第 ${small + 1} 档读不到（低于 ${FLOOR_MS} ms/次）—— 这个 N 上的倍数不说明问题，把 N 提上去再判`);
+  else if (span < SPAN_CUT) ok(`${name} N→4N 涨 ${span.toFixed(1)} 倍（${detail}）`);
+  else bad(`${name} N→4N 涨 ${span.toFixed(1)} 倍 ≥ ${SPAN_CUT} —— 它还是二次的（${detail}）`);
+}
 
 console.log(`   📌 一共切了 ${mutN} 刀，每刀只改一处，改的都是 image-urls.js（工作区那份，md5 `
   + `${require('crypto').createHash('md5').update(LIB_SRC).digest('hex').slice(0, 12)}）`);
