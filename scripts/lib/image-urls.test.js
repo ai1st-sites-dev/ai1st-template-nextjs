@@ -29,6 +29,122 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { spawnSync } = require('child_process');
+
+// ── #1219 监工：给每一次尝试一个硬死线，到点就杀、换一个新进程重来 ─────────────────────────────
+//
+// 治的是什么：这份文件偶尔要跑 **510 秒**而不是 15 秒，而且跑完仍然全绿。CI 的 `template-scripts`
+// 那个 job 超时 900 秒、今天最长的一次成功跑 440 秒（现取方法写在 ci-cd.yml 那个 job 自己的注释里）
+// ⟹ 余量 460 秒 < 510 秒。也就是它只要在 CI 上发生一次，那个 job 就超时变红，而读起来像「有测试
+// 挂了」，其实什么都没挂（那一跑自己报的是全过）。🔴 这里**不写**格子数：它随每一张往这份文件加刀
+// 的票一起涨，r1 写 421、合并到今天的 main（#1223 又加了刀）之后跑出来是 468。要这个数就自己跑一次
+// 看它最后那行。
+//
+// 🔴 量到哪一步（#1219）：
+//   · 慢的是**某几条曲线的采样**，同一跑里其余部分照常。三档一起慢 **317 倍**（8.3s / 32s / 124s，
+//     正常 26ms / 100ms / 420ms），而三档之间的**倍数没变**（3.87 / 3.89，正常 3.85 / 4.2）——
+//     不是活变多了，是同样的活每字节变慢了。
+//   · **不是 V8 的哪个原语变慢了。** 在每次采样旁边放两个旁路探针，在那个 124 秒的采样【进行当中】
+//     读到：880KB 串 `toLowerCase` = 0.66 毫秒 · 880KB 串单字符 `indexOf`（找不到，整串扫一遍）
+//     = 0.045 毫秒 · **跟被测同一种形状**的 880KB 串同样的 `indexOf` = 0.094 毫秒 —— 三个都正常。
+//     #1208 留的那个「SlicedString / ConsString 表示差异」的猜测被第三个探针否掉了：同形状、同长度、
+//     同一个进程、同一时刻，它快得很。
+//   · 也不是被别人抢 CPU（99.6% 在转）· 不是内存压力 · 不是透明大页的直接规整（AnonHugePages = 0，
+//     慢窗口 20 秒里全机 compact_stall 增量 0）。
+//   · **根因没有定住。** 掉进去的进程一直待在里面，而同一时刻它的兄弟进程、以及之后新起的进程多半
+//     是正常的。顺序跑也会中（15 跑里 2 跑）—— #1208 记的「顺序 10 跑没中过」今天不成立了。
+//
+// 🔴 **为什么护栏只能在【外面】。** 我先做过一版「在进程里量：一次采样超 3 秒 / 整份超 60 秒就换
+//    进程」，它把最慢一次从 510 秒压到了 39 秒。但那一版要在 `curve()` 与 `perCall()` 里插计时 ——
+//    而那两个函数正是这份文件用来读速度的地方。实测代价：合并形态 169 跑里出了 3 次
+//    `这条曲线不成立`（某一档比前一档还快 = 没热到稳定态）的自检报错，干净 origin/main 同样条件
+//    103 跑 0 次。数字不足以定论，但**方向是错的**：一道护栏不该去动它所保护的那个读数。
+//    所以改成只在外面拿表 —— 被测的那份代码一个字节都不动。
+// 🔴 顺带，这也是唯一能打断**一次**慢调用的办法：单独一次 `extractHtmlImageUrls` 在降速态下实测
+//    128.9 秒，任何「两次调用之间」的检查都压不到这个数以下。
+//
+// 🔴 死线 40 秒的出处：这份文件正常整跑 **CI 上 14.8 秒**（2026-08-27 从 run 33094935163 的 job
+//    日志逐行时间戳算的：`── lib/image-urls.test.js` 那一行到下一个测试文件那一行）、这台机器
+//    12~24 秒（4 并发下 143 跑的最慢一次 24.0）。40 秒是最慢那个合法读数的 1.7 倍。
+//    **这个数会随着往这份文件里加刀而变紧，改它之前自己重量一次，别抄。**
+// 🔴 最后一次**不设死线**：一台真的比这里慢好几倍的机器，前几次会被杀光，而那时正确答案是
+//    「让它跑完」，不是报一个假的失败。代价说在明处：那一次回到无上界（最坏 ~510 秒），而屏幕上
+//    有监工的话说清楚了发生过什么。
+// 🔴 两个环境变量的**性质不一样**，别当成一对旋钮（r2 改的就是这句话 —— 上一版写的是「两个都
+//    只能调紧、不能放松」，两个方向我都试过，那句话是假的）：
+//    · `IMGURL_ATTEMPT_DEADLINE_MS` —— 死线。**只收正整数毫秒，而且只能调得更短**（`Math.min`）；
+//      负数 / 0 / 小数 / 非数字 / 无穷 一律落回默认。🔴 这不是防呆，是防**本票要消掉的那种假红**：
+//      `spawnSync` 的 `timeout` 只接受非负整数，`-1` 和 `1.5` 都抛未捕获的 `ERR_OUT_OF_RANGE`
+//      ⟹ rc=1 ⟹ `npm run test:scripts` 的 runner 把它读成「❌ 有测试挂了」，而这份文件一格都没挂。
+//      两个值都是实测的（`-1` 是 PM 在 r1 验收里量到的，`1.5` 是 r2 逐值试出来的第二个）。
+//    · `IMGURL_TEST_SUPERVISED_1219` —— **不是旋钮**，是监工告诉子进程「你就是被监工的那个」的暗号。
+//      从外面设上它 = **整个关掉这道护栏**，回到没有监工的样子。它留着是因为反向对照要用它
+//      （把护栏关掉、造出超标条件的那一格）。所以：它**能**放松，而那正是它的用途。
+//
+// 🔴 监工被**裸 kill** 时会留下孤儿 —— 边界写在这里，本轮**没有改这个行为**（QA3 #2）：
+//    `kill <监工 pid>` 只打监工一个进程，干活那个子进程会被重新挂到 init 上继续跑（r2 复现：
+//    子进程 `ppid→1`、96.2% CPU、一直跑到自己结束；监工自己 rc=143）。而 `timeout`、Ctrl-C、
+//    CI 取消 job 走的都是**整个进程组**，所以那三条路都不中招（QA3 逐条驱动过）。
+//    三条「显然的修法」我都量过或推过，**都更坏**：
+//      ① 在监工里 `process.on('SIGTERM')` —— `spawnSync` 把事件循环整个堵死。r2 实测：发了信号之后
+//         监工**既不死也不执行回调**，spawnSync 照样跑满 5.05 秒才返回，进程最后 rc=0 ——
+//         也就是「裸 kill」从「留个孤儿」变成「按下去完全没反应」。
+//      ② `detached: true` 把子进程放进**新的**进程组 —— 那会把上面那三条今天好用的路一起打断。
+//      ③ 让子进程自己盯 `ppid` —— 那个定时器住在**被测的那个进程**里，而这道护栏的整个设计前提
+//         就是不进那个进程（见上面那段）；何况慢档里那一次调用是同步的，定时器在窗口内根本不会跑。
+const SUPERVISOR_ENV = 'IMGURL_TEST_SUPERVISED_1219';
+const ATTEMPT_DEADLINE_DEFAULT_MS = 40000;
+// 只收正整数毫秒、且只能调得更短；别的一律落回默认（理由见上面那条 🔴）。
+// `Number.isSafeInteger` 这一关把非数字 / 空串 / 无穷 / **小数** / 超出安全范围的整数一起挡掉；
+// `> 0` 挡掉负数与 0。
+// 🔴 这里**不许**先 `Math.floor` 再判（r2 自己踩过，PM 退回的正是同一族毛病）：floor 之后 `1.5`
+//    变成 `1`，于是文件头那句「小数落回默认」成了假话，而实际行为是死线被设成 1 毫秒 —— 每次都
+//    到点、连杀两次、第三次不设死线跑完。屏幕上很吵，而设它的人以为自己被无视了。
+const attemptDeadlineWanted = Number(process.env.IMGURL_ATTEMPT_DEADLINE_MS);
+const ATTEMPT_DEADLINE_MS =
+  Number.isSafeInteger(attemptDeadlineWanted) && attemptDeadlineWanted > 0
+    ? Math.min(ATTEMPT_DEADLINE_DEFAULT_MS, attemptDeadlineWanted)
+    : ATTEMPT_DEADLINE_DEFAULT_MS;
+const SUPERVISOR_MAX_KILLS = 2;
+
+if (!process.env[SUPERVISOR_ENV]) {
+  for (let attempt = 0; ; attempt++) {
+    const last = attempt >= SUPERVISOR_MAX_KILLS;
+    const startedAt = Date.now();
+    // 🔴 `process.execArgv` 必须原样传下去（r2 加的）：真正跑测试的是子进程，node 的命令行参数
+    //    不透传的话，`--cpu-prof` / `--inspect` / `--trace-*` 量到的是一个**闲着的监工** ——
+    //    PM 在 r1 验收里实测：交付那份 profile 里 `extractHtmlImageUrls` 出现 **0** 次
+    //    （干净 main 是 49 次），而两臂 rc 都是 0。**它不报错，只是给出一份空答案，而空答案跟
+    //    「量过了、没发现」长得一模一样** —— 本票留下的下一步正是「下一个人来追根因」。
+    const r = spawnSync(process.execPath, [...process.execArgv, __filename], {
+      stdio: 'inherit',
+      env: { ...process.env, [SUPERVISOR_ENV]: '1' },
+      ...(last ? {} : { timeout: ATTEMPT_DEADLINE_MS, killSignal: 'SIGKILL' }),
+    });
+    const elapsedMs = Date.now() - startedAt;
+    if (r.status !== null) process.exit(r.status);       // 正常给出了结论（0 / 1 / 2），照搬
+    // 到这里 = 这一次是被**信号**打死的。是谁打的有两种，而它们要说不同的话（QA3 #3）：
+    // 死线到了是我自己打的（那才是「慢档」）；没到死线就被打死的是**外面**打的（OOM killer、
+    // 有人 kill 整个进程组、CI 取消 job）。r1 那一版两种都印同一句「跑到 40 秒死线」，
+    // 而读 CI 日志的人正是拿那句话判「这一跑是不是慢档」。
+    const byMyDeadline = !last && elapsedMs >= ATTEMPT_DEADLINE_MS;
+    const took = `跑了 ${(elapsedMs / 1000).toFixed(1)} 秒`;
+    if (last) {                                          // 按构造到不了：最后一次没有死线
+      console.log(`\n🔴 #1219 监工：最后一次（没有死线的那次）被 ${r.signal} 打死了（${took}）`
+        + ` —— 那不是我打的，按跑不起来处置，不是通过。\n`);
+      process.exit(2);
+    }
+    if (byMyDeadline) {
+      console.log(`\n⚠️  #1219 监工：第 ${attempt + 1} 次跑到 ${(ATTEMPT_DEADLINE_MS / 1000).toFixed(0)} 秒`
+        + `死线还没跑完（${took}），杀掉换一个新进程重来（最多杀 ${SUPERVISOR_MAX_KILLS} 次，之后那次不设死线）。`);
+    } else {
+      console.log(`\n⚠️  #1219 监工：第 ${attempt + 1} 次被 ${r.signal} 打死了，而${took}、**没到**`
+        + ` ${(ATTEMPT_DEADLINE_MS / 1000).toFixed(0)} 秒死线 —— 打它的不是我（OOM killer / 有人 kill 了整个`
+        + `进程组 / CI 取消了 job 都长这样）。这一跑不能当成「慢档」的证据。照样换一个新进程重来。`);
+    }
+    console.log('   这一行之上那一段输出是被杀掉那次的，不算数。\n');
+  }
+}
 
 const NEXT = path.resolve(__dirname, '..', '..');
 const SRC = path.join(NEXT, 'src');
