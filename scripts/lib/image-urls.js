@@ -238,13 +238,37 @@ function canonicalAddress(v) {
  * 三支：`http(s):`（斜杠数不限）· `data:` —— 这两支不看主机；`//host/…` —— **看主机含不含点**。
  * 🔴 含不含点这条线就是 #1199 划的「单标签主机不进射程」：`//photos/hero.jpg` → `photos`、
  *    `///localhost:8080/x.png` → `localhost:8080`，两个都不含点 ⟹ 放行，不是漏掉的洞。
- * 🔴 主机解析不出来（`//evil^example.com/x`）⟹ **false**。方向是有意的：浏览器对这种值同样
- *    不发请求，判成"要追责"就是凭空造的误拒。
+ *
+ * 🔴 **`[` 开头的主机先于「含不含点」被追责（#1223）。** IPv6 字面量 `//[2001:db8::1]/x.png` 的
+ *    `.host` 是 `[2001:db8::1]` —— 一个点都没有，所以「含不含点」把它跟 `//photos/hero.jpg` 归成
+ *    一类放行了，而 chromium 真的跨主机去取它（#1223 探针实测）。同一件事的 IPv4 写法
+ *    `//192.0.2.1/x.png` 因为带点而被拒 ⟹ 同一件事两个答案。
+ *
+ * 🔴 **下面这两条规则并存，都不是漏改 —— 分野是「合法的老板内容会不会长成这样」，不是
+ *    「主机解析得出来吗」：**
+ *
+ *      ① `[` 开头 ⟹ **true**（追责），解析得出来与否都一样。`//[fe80::1%25eth0]/x.png` 这种带
+ *         zone id 的写法 chromium 一个请求都不发（#1223 探针在四种写法上量过），照旧收它 ——
+ *         因为主机以 `[` 开头**没有第二种合法读法**，老板的正文里按构造不会出现，所以收它误拒
+ *         老板真内容的代价是 0。
+ *      ② 主机解析不出来且不以 `[` 开头（`//evil^example.com/x`）⟹ **false**（放行）。这是 #1210
+ *         有意留的方向，#1223 **不动它**：`^` 可能是老板打错的站内相对路径，收它才是真误拒。
+ *
+ *    ⟹ 两条不是同一条规则的两半，是同一个判据（「老板真会不会写出这个形状」）在两种形状上的
+ *    两个答案。读到这里想把 ② 也改成追责的人，要先答的是「老板的正文里会不会出现 `evil^…`」。
+ *
+ * 📌 **本票没有对齐的那一格，写在明处**：`//evil^example.com/x.png` 判放行而
+ *    `https://evil^example.com/x.png` 判追责 —— 两支对这个值仍然给相反答案（#1223 正文点名不改）。
+ *    `[` 开头那两种形状本票对齐了。
  */
 function isImageAddress(v) {
   const s = canonicalAddress(v);
   if (!ADDR_HEAD_RE.test(s)) return false;
   if (!s.startsWith('//')) return true;       // http(s): 与 data: 两支：主机不是它们的判据
+  // 🔴 读的是**源串里那一段主机**，不是 `hostOf` 的结果 —— 带 zone id 的那种 `new URL` 直接抛，
+  //    `hostOf` 返回 null，问它就永远问不出「它是不是 IPv6 字面量」。见上面 ①。
+  const head = s.match(HOST_HEAD_RE);
+  if (head && head[2].startsWith('[')) return true;
   const h = hostOf(s);
   return h !== null && h.includes('.');
 }
@@ -886,7 +910,32 @@ function collectAllowedImageUrls(o) {
  * @returns {string|null}   null = 放行；字符串 = 拒绝的理由，原样回给模型
  */
 function imageUrlRejection(parsed, allowed) {
-  const known = allowed || new Set();
+  // 🔴 **名单这一侧也要过同一台归一化器（#1223）。** 改之前归一化只做在**被测那一侧**
+  //    （`addressForms(u)` 里那个 `canonicalAddress`），名单里放的是老板给的**原样字符串**。
+  //    于是同一个地址的两种写法只有一个方向对得上：老板给的那份**已经是**归一化形状时放行，
+  //    老板给的是另一种写法时被拒 —— 而被拒的是老板自己给过的地址，模型只是把它写成了浏览器
+  //    眼里同一个东西。五族逐族两向量过（#1223 AC2，`canonicalHost` 收平的全集：IDN ↔ punycode ·
+  //    `a%2Eb.png` ↔ `a.b.png` · 大小写 · U+3002 `。` · U+FF0E `．`），改之前 10 格里 5 格是拒，
+  //    **5 格全部是「老板给的那份不是归一化形状」那一向**，方向完全一致。
+  //
+  // 🔴 **它只会让名单变宽，不会造出新的误放** —— 理由与 `addressForms` 上面那段是同一条：
+  //    加进来的每一种写法，浏览器解析出来都是**同一个地址**，而那个地址是老板真给过的。
+  //    编造的地址不在名单里，展开多少种写法也还是谁都不是。
+  //
+  // 📌 展开放在这里而不是 `collectAllowedImageUrls` 里，是因为**判定的对称性不该取决于名单
+  //    是怎么攒出来的**：这个函数也被直接喂过手搭的 Set（测试、以及将来别的调用方），把归一化
+  //    放进攒名单那一步的话，那些调用方拿到的仍是旧的不对称行为。
+  //
+  // 🔴 **这里放的是【归一化】，不是 `addressForms` 那种【等价展开】—— 两者差得很远，我先写错过
+  //    一版。** `addressForms` 除了归一化还会往外加 `//h/p` 这种协议相对写法，把它用在名单这一侧
+  //    的话，老板给的 `https://h/p` 会展开出 `//h/p`，而模型写的 `http://h/p` 也展开出 `//h/p`
+  //    ⟹ 两边在那一项上撞上，**跨 scheme 的那道线当场没了**（`addressForms` 上面写着它有意不跨
+  //    scheme）。实测：那一版让「老板给 https、模型写 http」从拒变成放行，同时让 `addressForms`
+  //    自己那把反向刀恒绿 —— 因为等价性被名单这一侧顶替了，拆掉被测那一侧也没人红。
+  //    ⟹ 名单这一侧只过 `canonicalAddress`：它问的是「浏览器眼里这个字符串长什么样」，
+  //    一个字符串进去、一个字符串出来，不产生新的地址。
+  const known = new Set();
+  for (const a of allowed || []) { known.add(a); known.add(canonicalAddress(a)); }
   // 🔴 过滤用的是 `isImageAddress`，它里面还是那个 `ADDR_HEAD_RE`、跟抠地址那把尺子同一个源串。
   //    写死 `/^https?:\/\//` 的话 `//host/…` 与 `data:…` **根本不进入判定** —— 不是"判成放行"，
   //    是连问都不问（#1199 ③）。
