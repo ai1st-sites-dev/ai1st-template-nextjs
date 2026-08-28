@@ -29,6 +29,11 @@ src/lib/config-data.ts
 public/theme.css
 public/custom.css
 
+# #1215（来源 #1182 条 20）—— `scripts/theme-pipeline/run.js` 的收工纸条：开跑前落下、收工时撕掉，
+# 下一轮拿它把上一轮没走完留下的脏样例站放回去。它必须活过重启，所以不能落 /tmp（这台机器开机清空
+# 它），于是落在这里 —— 同 `.out-backup/` 的理由：不忽略就长得像「有人漏 stage 了一个交付物」。
+.theme-pipeline-restore.json
+
 # misc
 .DS_Store
 *.tsbuildinfo

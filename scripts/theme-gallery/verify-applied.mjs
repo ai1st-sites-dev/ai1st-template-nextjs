@@ -112,11 +112,15 @@ if (fontOk) ok.push('fonts: --font-sans and the Google Fonts link both match the
 //   ① `HeroSection.tsx` 里 `if (variant === '…') {` 命中 **0 处**。#1008 把九棵 variant 树删成
 //      一棵中性 markup（那个文件头上写着 "ONE MARKUP, AND NOTHING ELSE"）⟹ `heroBlocks()` 的
 //      `at.length` 为 0 ⟹ 它返回 null ⟹ 第一条红「cannot read the hero variants …」**无条件**开火。
-//   ② 注册表里 80 套主题，`layoutFor(id).hero` 的取值集合是 `with-media / text-only / with-form`
-//      （内容结构，#998 的 block_layout 词汇），而 `HERO_MARK` 的 9 个键是那批**已下架**的版式名
+//   ② `layoutFor(id).hero` 的取值集合是 `with-media / text-only / with-form`（内容结构，#998 的
+//      block_layout 词汇），而 `HERO_MARK` 的 9 个键是那批**已下架**的版式名
 //      （split / minimal / gradient-overlay / centered / left / video-style / light-*）。
 //      两个集合**交集为空** ⟹ `HERO_MARK[want]` 恒 undefined ⟹ 第二条红「no marker written for
-//      hero variant "…" — this check did not run」对 **80/80** 套主题都开火。
+//      hero variant "…" — this check did not run」对注册表里**每一套**主题都开火。
+//      🔴 这一行原来写着「注册表里 80 套」和「对 **80/80** 套都开火」（#1215 打磨批次 #25 条 9）。
+//      80 是 2026-08-24 那天的数，2026-08-28 现取已经是 **97** —— 而这条结论**跟那个数无关**：
+//      交集为空是关于两个集合的，N 是多少都一样。所以这里不再钉任何一个数；真要取，自己跑
+//      `node -e 'console.log(Object.keys(require("../themes.js").themes).length)'`。
 //   ③ 而且今天没有别的 DOM 属性可以改指过去：主题对 hero 的意见经 `sync-config.js` 落在
 //      `data.variant` 上，而 `HeroSection` **不再读它**（那个文件头逐字：`variant` IS STILL WRITTEN
 //      AND NO LONGER READ）；`data-block-layout` 来自页面 JSON 的 `block_layout`，不是主题写的。

@@ -205,18 +205,100 @@ function installCandidate(candidate, siteDir, slot) {
 //    已经真实发生过的后果只有一个，而它跟构建无关：role-user 撞到三份已上线的表全部测不了
 //    （`theme-css-invariants-all-sheets.sh` → rc=2）—— 那才是这段收工代码存在的理由。
 // 🔴 EXIT=0 的那条路也一样会留 —— "跑成功了"和"跑失败了"留下同样的污染，所以这不是错误处理，是收工。
-// 放在 finally 里：中途抛异常、闸红、Ctrl-C 之后的那次 catch，都要走这一步。
+// 放在 finally 里：中途抛异常、闸红，都要走这一步。
+//
+// 🔴 **Ctrl-C 不在这一列，而它原来跟前两个并排写在这里（#1215 打磨批次 #25 条 20，实测）。**
+//    node 对 SIGINT 的默认处置是直接终止进程，`finally` 一行都不跑。两臂读数（同一个夹具、同一
+//    个样例站，`kill -INT` 发给**进程组**——真 Ctrl-C 就是这么发的）：改前 SIGINT ⟹ 退出码 130、
+//    `brand.json` / `theme.json` 都停在候选那一版、`public/themes/` 多出一张表。
+//    后果不在这一轮，在**下一轮**：`snapshotSite` 把这份残留当成「原样」记下来，于是它变成新基线，
+//    再也没有人会把它放回去。已经真实发生过的那一次就是这个形状（三份已上线的表测不了，见上面）。
+//
+// 🔴 **修法【不是】装一个 SIGINT 处理器 —— 那一版写出来、量过、否掉了。** 装上之后 4 次实测里
+//    处理器**一次都没跑**（日志里 0 行），而它的副作用是把 Ctrl-C 整个吞掉：光是注册一个监听就
+//    让 node 不再默认终止，于是三次实测退出码都是 1、流水线一路跑到底 —— 用户按了 Ctrl-C 而它
+//    不停。原因是这几道闸是 `spawnSync` 那一族，JS 线程整段被阻塞，libuv 的信号回调排不上队。
+//    ⟹ 拿「样例站变脏」换「Ctrl-C 不管用」不是修，是换一个坑。
+//
+// 🔴 **改成收工【不依赖那一轮还活着】：开跑前落一张纸条（§writeRestoreCrumb），收工时撕掉。**
+//    下一轮开跑的第一件事是 §healUnfinishedRun：纸条还在 ⟹ 上一轮没走完 ⟹ 先按纸条放回去、再
+//    拍这一轮的快照。这样 SIGINT / SIGKILL / 断电 / 机器重启全都盖住，而 Ctrl-C 的行为一个字没改。
+//    代价说在明处：**Ctrl-C 到下一次开跑之间，样例站是脏的**（信号那一版本来想治的就是这一段，
+//    而它治不了）。要在那段时间里手工放回去，跑一次 `node scripts/theme-pipeline/run.js --heal`。
+//
+// 🔴 **纸条落在模板目录里，【不许】落 `os.tmpdir()`（#1215 r2，QA1 F2 量出来的）。** 上面那句
+//    「机器重启也盖住」只有在纸条活得比重启久的时候才成立，而这台机器开机清空 /tmp：
+//    `/usr/lib/tmpfiles.d/tmp.conf:11` 是 `D /tmp 1777 root root 30d`（`D` = 开机删内容）、
+//    `systemd-tmpfiles-setup.service` active，实测 `uptime -s` = 2026-08-28 09:12:15 而 `/tmp`
+//    里最老的条目是 09:13:20。落在那里时四种里只盖住 SIGINT / SIGKILL 两种，而漏掉的那两种
+//    （断电 / 重启）落在坏方向：重启后纸条没了 → healUnfinishedRun 返回 false → snapshotSite
+//    把残留当「原样」记成新基线 —— 正是本条要治的那件事。
+//    落在 NEXT 里还顺手去掉了原来那个按 NEXT 路径算的哈希后缀：一份模板目录一张纸条，名字不用编。
+//    它进 `templates/nextjs/.gitignore`（跟 `.out-backup/` 那一族同理由：不忽略就长得像漏 stage 的交付物）。
 const T1015_SHEETS = path.join(NEXT, 'public', 'themes');
+const T1015_CRUMB = path.join(NEXT, '.theme-pipeline-restore.json');
+
+/** 把快照写成一张纸条落在盘上 —— 这一轮死得多难看都不影响下一轮把样例站放回去。 */
+function writeRestoreCrumb(snap) {
+  fs.writeFileSync(T1015_CRUMB, JSON.stringify({
+    siteDir: snap.siteDir,
+    brand: snap.brand === null ? null : snap.brand.toString('base64'),
+    theme: snap.theme === null ? null : snap.theme.toString('base64'),
+    sheets: [...snap.sheets],
+  }));
+}
+
+/** 纸条 → 内存快照（`restoreSite` 要的形状）。读不成回 null，绝不回一个半截的快照。 */
+function readRestoreCrumb() {
+  if (!fs.existsSync(T1015_CRUMB)) return null;
+  try {
+    const j = JSON.parse(fs.readFileSync(T1015_CRUMB, 'utf-8'));
+    if (!j || typeof j.siteDir !== 'string' || !Array.isArray(j.sheets)) return null;
+    return {
+      siteDir: j.siteDir,
+      brand: j.brand === null ? null : Buffer.from(j.brand, 'base64'),
+      theme: j.theme === null ? null : Buffer.from(j.theme, 'base64'),
+      sheets: new Set(j.sheets),
+    };
+  } catch (e) {
+    console.error(`🔴 上一轮的收工纸条读不成（${T1015_CRUMB}）：${e.message}`);
+    console.error('   ⟹ 这一轮不动它，也不敢拿现在的样例站当「原样」。手工核一遍再跑。');
+    process.exit(2);
+  }
+}
+
+/**
+ * 上一轮没走完就把它的收工补上。返回 true = 真的动了东西。
+ *
+ * 🔴 它必须跑在 `snapshotSite` **之前** —— 反过来就是把残留当基线记下来，也就是本票要治的那件事。
+ */
+function healUnfinishedRun() {
+  const snap = readRestoreCrumb();
+  if (!snap) return false;
+  console.log(`  🔴 上一轮没走完（收工纸条还在：${T1015_CRUMB}）—— 先把样例站放回去再开跑。`);
+  const r = restoreSite(snap);
+  console.log(`     ${r.done.length ? r.done.join('、') : '盘上本来就是干净的（纸条是上一轮正常收工前掉的）'}`);
+  if (r.bad.length) {
+    console.error(`  🔴 这几处没能放回去：${r.bad.join('、')}`);
+    console.error('     不往下跑：拿一个放不回去的样例站开跑，这一轮量到的是上一轮的残留。');
+    process.exit(2);
+  }
+  return true;
+}
 
 function snapshotSite(siteDir) {
   const read = (p) => (fs.existsSync(p) ? fs.readFileSync(p) : null);
-  return {
+  const snap = {
     siteDir,
     brand: read(path.join(siteDir, 'brand.json')),
     theme: read(path.join(siteDir, 'theme.json')),
     // 表是**加进来**的，所以记下"跑之前有哪些"，跑完把多出来的删掉 —— 别去猜候选叫什么名字。
     sheets: new Set(fs.existsSync(T1015_SHEETS) ? fs.readdirSync(T1015_SHEETS) : []),
   };
+  // 🔴 纸条要在**弄脏之前**落下（installCandidate 还没跑）。晚一步就有一个窗口：那期间被打断，
+  //    下一轮没有纸条可读，退回旧行为。
+  writeRestoreCrumb(snap);
+  return snap;
 }
 
 /** 把 snapshotSite 记下的那三处放回去，返回一行人话说明动了什么。 */
@@ -249,10 +331,20 @@ function restoreSite(snap) {
   }
   const extra = fs.existsSync(T1015_SHEETS)
     ? fs.readdirSync(T1015_SHEETS).filter((f) => !snap.sheets.has(f)) : [];
-  return { done, bad: still.concat(extra.map((f) => `public/themes/${f}`)) };
+  const bad = still.concat(extra.map((f) => `public/themes/${f}`));
+  // 🔴 只有**真的放回去了**才撕纸条。还剩东西没放回去时留着它，下一轮开跑会再试一次并当场停住 ——
+  //    比悄悄开跑、拿残留当基线好。
+  if (!bad.length && fs.existsSync(T1015_CRUMB)) fs.unlinkSync(T1015_CRUMB);
+  return { done, bad };
 }
 
 async function main() {
+  // 🔴 `--heal` —— 只把上一轮没走完的收工补上，什么都不跑。上面 §T1015_CRUMB 那段写着「Ctrl-C 到
+  //    下一次开跑之间样例站是脏的」，这条命令就是那句话给出的那个出路，所以它必须真的存在。
+  if (process.argv.includes('--heal')) {
+    if (!healUnfinishedRun()) console.log('  没有没走完的那一轮（收工纸条不在盘上）—— 什么都没动。');
+    process.exit(0);
+  }
   const count = Number(arg('--count', 3));
   const seed = Number(arg('--seed', 7));
   const siteDir = arg('--site', path.join(NEXT, 'site'));
@@ -335,6 +427,9 @@ async function main() {
   const report = [];
 
   // #1015：跑之前先存一份，finally 里放回去（理由写在 snapshotSite 头上）。
+  // 🔴 先把上一轮**没走完**留下的脏状态放回去，再给这一轮拍快照（#1215 打磨批次 #25 条 20）。
+  //    次序反了这个修法就是空的：`snapshotSite` 会把上一轮的残留当成「原样」记下来。
+  healUnfinishedRun();
   const t1015Snap = snapshotSite(siteDir);
   let t1015Restore = null;
   try {
