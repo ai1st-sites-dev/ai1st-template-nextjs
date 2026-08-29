@@ -238,33 +238,62 @@ function installCandidate(candidate, siteDir, slot) {
 const T1015_SHEETS = path.join(NEXT, 'public', 'themes');
 const T1015_CRUMB = path.join(NEXT, '.theme-pipeline-restore.json');
 
-/** 把快照写成一张纸条落在盘上 —— 这一轮死得多难看都不影响下一轮把样例站放回去。 */
+/**
+ * 把快照写成一张纸条落在盘上 —— 这一轮死得多难看都不影响下一轮把样例站放回去。
+ *
+ * 🔴 先写临时文件再 rename，不直接写目标路径（#1234 打磨批次 #26 条 13）。理由是**这张纸条正是
+ *    崩溃恢复用的**：直接 `writeFileSync` 时，在写到一半被 kill 就会在盘上留下半截 JSON，而下一轮
+ *    `--heal` 读到它只能 `exit 2` 并要人手工收拾。同一个目录里的 rename 在 POSIX 上是原子的 ⟹
+ *    盘上要么是上一张完整的纸条、要么是这一张完整的，不存在半截那一档。这把 H2 那一种坏路整个关掉。
+ */
 function writeRestoreCrumb(snap) {
-  fs.writeFileSync(T1015_CRUMB, JSON.stringify({
+  const body = JSON.stringify({
     siteDir: snap.siteDir,
     brand: snap.brand === null ? null : snap.brand.toString('base64'),
     theme: snap.theme === null ? null : snap.theme.toString('base64'),
     sheets: [...snap.sheets],
-  }));
+  });
+  // 同一个目录（rename 跨设备会 EXDEV），名字带 pid 免得两个进程互相踩。
+  const tmp = `${T1015_CRUMB}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, body);
+  fs.renameSync(tmp, T1015_CRUMB);
 }
 
-/** 纸条 → 内存快照（`restoreSite` 要的形状）。读不成回 null，绝不回一个半截的快照。 */
+/**
+ * 纸条 → 内存快照（`restoreSite` 要的形状）。
+ *
+ * 🔴 **`null` 只有一个意思：盘上没有纸条。** 读到了但读不成 —— 无论是 JSON 解析失败，还是解析出来
+ *    形状不对 —— 一律 `exit 2`（#1234 打磨批次 #26 条 12，来源 #1215 QA3 H3，真驱动过）。
+ *    上一版形状不对那一支是 `return null`，而**调用方 `healUnfinishedRun` 把 null 读成「上一轮走完了」**：
+ *    `--heal` 会打 rc=0「没有没走完的那一轮」、纸条不撕，下一次正常开跑于是把脏站当基线、并覆盖掉
+ *    那张唯一能还原它的纸条。同一个函数的两条坏路方向相反，那一条落在坏方向。
+ *    「合法 JSON 但形状不对」不是假想：改这张纸条的 schema、或者手编它，都会到这一支。
+ */
 function readRestoreCrumb() {
   if (!fs.existsSync(T1015_CRUMB)) return null;
-  try {
-    const j = JSON.parse(fs.readFileSync(T1015_CRUMB, 'utf-8'));
-    if (!j || typeof j.siteDir !== 'string' || !Array.isArray(j.sheets)) return null;
-    return {
-      siteDir: j.siteDir,
-      brand: j.brand === null ? null : Buffer.from(j.brand, 'base64'),
-      theme: j.theme === null ? null : Buffer.from(j.theme, 'base64'),
-      sheets: new Set(j.sheets),
-    };
-  } catch (e) {
-    console.error(`🔴 上一轮的收工纸条读不成（${T1015_CRUMB}）：${e.message}`);
-    console.error('   ⟹ 这一轮不动它，也不敢拿现在的样例站当「原样」。手工核一遍再跑。');
+  const bail = (why) => {
+    console.error(`🔴 上一轮的收工纸条读不成（${T1015_CRUMB}）：${why}`);
+    console.error('   ⟹ 这一轮不动它，也不敢拿现在的样例站当「原样」。');
+    console.error('   出路：先照纸条里的 siteDir 把样例站手工核一遍，然后');
+    console.error(`     rm ${T1015_CRUMB}`);
+    console.error('   再重新开跑。（撕掉纸条 = 放弃自动还原，所以先核样例站。）');
     process.exit(2);
+  };
+  let j;
+  try {
+    j = JSON.parse(fs.readFileSync(T1015_CRUMB, 'utf-8'));
+  } catch (e) {
+    bail(e.message);
   }
+  if (!j || typeof j.siteDir !== 'string' || !Array.isArray(j.sheets)) {
+    bail('是合法 JSON，但不是这张纸条该有的形状（要有字符串 siteDir 和数组 sheets）');
+  }
+  return {
+    siteDir: j.siteDir,
+    brand: j.brand === null ? null : Buffer.from(j.brand, 'base64'),
+    theme: j.theme === null ? null : Buffer.from(j.theme, 'base64'),
+    sheets: new Set(j.sheets),
+  };
 }
 
 /**
@@ -277,10 +306,18 @@ function healUnfinishedRun() {
   if (!snap) return false;
   console.log(`  🔴 上一轮没走完（收工纸条还在：${T1015_CRUMB}）—— 先把样例站放回去再开跑。`);
   const r = restoreSite(snap);
-  console.log(`     ${r.done.length ? r.done.join('、') : '盘上本来就是干净的（纸条是上一轮正常收工前掉的）'}`);
+  // 🔴 「一件都没做」有两种成因，别用同一句话说（#1234 打磨批次 #26 条 13）：盘上本来就干净，
+  //    和**每一处都试过但都失败了**。后者说成「本来就是干净的」是句假话，而它正好出现在最坏的那一刻。
+  if (r.done.length) console.log(`     ${r.done.join('、')}`);
+  else if (!r.bad.length) console.log('     盘上本来就是干净的（纸条是上一轮正常收工前掉的）');
   if (r.bad.length) {
     console.error(`  🔴 这几处没能放回去：${r.bad.join('、')}`);
     console.error('     不往下跑：拿一个放不回去的样例站开跑，这一轮量到的是上一轮的残留。');
+    // 🔴 报文要说出路（#1234 打磨批次 #26 条 13）。上一版到上面那句就没了，于是再跑一次 `--heal`
+    //    还是撞同一句 —— 而这条路本来就是给「上一轮没走完」准备的唯一出口。
+    console.error('     最常见的两种，各有各的出路：');
+    console.error(`       · 纸条指的那个样例站目录已经不在了 ⟹ mkdir -p ${snap.siteDir}  然后重跑 --heal`);
+    console.error(`       · 那几处怎么都写不回去（权限 / 盘满）⟹ 手工核一遍样例站，然后 rm ${T1015_CRUMB}`);
     process.exit(2);
   }
   return true;
@@ -304,20 +341,38 @@ function snapshotSite(siteDir) {
 /** 把 snapshotSite 记下的那三处放回去，返回一行人话说明动了什么。 */
 function restoreSite(snap) {
   const done = [];
+  // 🔴 每一处写/删都不许把整个 --heal 掀掉（#1234 打磨批次 #26 条 13）。上一版是裸的
+  //    `fs.writeFileSync`：纸条指的样例站目录已经被删掉时（H1），它在这里抛 ENOENT 一路冒到顶，
+  //    屏幕上是一串 node 栈 —— 而**下面那段「这几处没能放回去」连同它的出路根本没机会打出来**。
+  //    失败要变成一条 `bad`（靠后面那次自证读回来算），让调用方按它自己的口径报出来。
+  let failed = 0;
+  const attempt = (fn, label) => {
+    try { fn(); done.push(label); }
+    catch (e) { failed += 1; console.error(`     （${label} 失败：${e.message}）`); }
+  };
   for (const [name, bytes] of [['brand.json', snap.brand], ['theme.json', snap.theme]]) {
     const p = path.join(snap.siteDir, name);
     const now = fs.existsSync(p) ? fs.readFileSync(p) : null;
     if (bytes === null) {
-      if (now !== null) { fs.unlinkSync(p); done.push(`删掉 ${name}（跑之前没有）`); }
+      if (now !== null) attempt(() => fs.unlinkSync(p), `删掉 ${name}（跑之前没有）`);
     } else if (now === null || !now.equals(bytes)) {
-      fs.writeFileSync(p, bytes); done.push(`还原 ${name}`);
+      attempt(() => fs.writeFileSync(p, bytes), `还原 ${name}`);
     }
   }
-  if (fs.existsSync(T1015_SHEETS)) {
+  // 🔴 上面那一半有任何一处没做成，就【不往下删表】（#1234 r2，QA1 F4）。
+  //    不吞异常之前，第一处失败会当场抛出，后面这个删除循环一步都不走；改成逐处试之后，它就在
+  //    「样例站已经处于一个我还原不了的状态」这个前提下继续做**破坏动作**了 —— QA1 用一张
+  //    `siteDir` 指向已删目录、`sheets: []` 的纸条量到过后果：100 份被 git 跟踪的 .css 全被删掉。
+  //    （那张纸条是造出来的，真纸条的 sheets 是开跑那一刻的全集；但失败面确实被放开了一格。）
+  //    不删也不会漏做：这些表还在盘上 ⟹ 下面那次自证会把它们算进 `bad` ⟹ 纸条不撕、rc=2，
+  //    人按提示 mkdir -p 之后重跑 --heal，这一半照样会做完。**先把能还原的还原掉，再谈删。**
+  if (failed) {
+    console.error(`     （上面有 ${failed} 处没还原成 ⟹ 这一轮不删 public/themes/ 下的任何东西）`);
+  } else if (fs.existsSync(T1015_SHEETS)) {
     for (const f of fs.readdirSync(T1015_SHEETS)) {
       if (snap.sheets.has(f)) continue;
-      fs.unlinkSync(path.join(T1015_SHEETS, f));
-      done.push(`删掉 public/themes/${f}（这一轮放进去的）`);
+      attempt(() => fs.unlinkSync(path.join(T1015_SHEETS, f)),
+        `删掉 public/themes/${f}（这一轮放进去的）`);
     }
   }
   // 🔴 自证：放回去之后再读一次真字节去比。没有这一步，"我恢复了"就只是一句声明 ——

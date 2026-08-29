@@ -33,6 +33,10 @@ public/custom.css
 # 下一轮拿它把上一轮没走完留下的脏样例站放回去。它必须活过重启，所以不能落 /tmp（这台机器开机清空
 # 它），于是落在这里 —— 同 `.out-backup/` 的理由：不忽略就长得像「有人漏 stage 了一个交付物」。
 .theme-pipeline-restore.json
+# #1234 打磨批次 #26 条 13 —— 那张纸条现在是「先写 .<pid>.tmp 再原子 rename」写下去的（这样写到一半
+# 被 kill 也不会在目标路径上留下半截 JSON）。代价是崩溃那一次会在盘上留一个 .tmp —— 同一个理由，
+# 不忽略它就长得像漏 stage 的交付物。
+.theme-pipeline-restore.json.*.tmp
 
 # misc
 .DS_Store

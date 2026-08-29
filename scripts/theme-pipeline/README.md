@@ -17,6 +17,14 @@ node scripts/theme-pipeline/generate.js --count 3 --out /tmp/cands
 node scripts/theme-pipeline/run.js --candidates /tmp/cands --port 18450 --gallery /tmp/gal
 open /tmp/gal/public/index.html
 
+# 🔴 上一轮没走完（Ctrl-C / 断电 / 被 kill）之后先跑这个 —— run.js 开跑前会把样例站的 brand.json /
+#    theme.json 和 public/themes/ 的原样记进一张纸条（templates/nextjs/.theme-pipeline-restore.json），
+#    正常收工才撕掉。中途死掉的话，那张纸条还在、而样例站是脏的。**别在这个状态下直接重跑** ——
+#    那样这一轮会把上一轮的残留当成「原样」记成新基线，之后就再也还不回去了。
+node scripts/theme-pipeline/run.js --heal     # 只补上一轮的收工，什么都不跑
+#    读数：rc=0 且说「什么都没动」= 盘上本来就干净 · rc=0 且逐项列出还原了什么 = 补好了，可以重跑
+#    rc=2 = 补不上，它会把出路直接打在报文里（多半是纸条指的目录没了，或纸条本身坏了）
+
 # 行业覆盖度：每个行业关键词能匹配到几套主题
 node scripts/theme-pipeline/coverage.js
 
