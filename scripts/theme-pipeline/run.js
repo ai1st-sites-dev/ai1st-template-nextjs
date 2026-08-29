@@ -285,8 +285,18 @@ function readRestoreCrumb() {
   } catch (e) {
     bail(e.message);
   }
-  if (!j || typeof j.siteDir !== 'string' || !Array.isArray(j.sheets)) {
-    bail('是合法 JSON，但不是这张纸条该有的形状（要有字符串 siteDir 和数组 sheets）');
+  // 🔴 `brand` / `theme` 也要在这里查，不能只查 siteDir + sheets（#1238 打磨批次 #27 条 1，来源 #1234）。
+  //    下面 `return` 里那两个 `Buffer.from(j.<key>, 'base64')` 在 **try 外面** ⟹ 一张「合法 JSON、
+  //    有字符串 siteDir + 数组 sheets、但缺 brand 键」的纸条会走到 `Buffer.from(undefined,'base64')`，
+  //    打一屏裸 node 栈（`main().catch` 兜成 rc=2），而这一支本来的出口是上面 `bail` 那段人话 + 出路。
+  //    形状检查是唯一一处能在 `Buffer.from` 之前拦住它的地方，所以补在这里、不是把 return 包进 try。
+  //    值域按写入侧来（`writeRestoreCrumb`：`snap.brand === null ? null : …toString('base64')`）⟹
+  //    合法的只有「base64 字符串」和「null」两种，`undefined` / 数字 / 对象一律不是这张纸条的形状。
+  const crumbB64 = (v) => v === null || typeof v === 'string';
+  if (!j || typeof j.siteDir !== 'string' || !Array.isArray(j.sheets)
+      || !crumbB64(j.brand) || !crumbB64(j.theme)) {
+    bail('是合法 JSON，但不是这张纸条该有的形状'
+       + '（要有字符串 siteDir、数组 sheets，以及 brand 和 theme 两个键——各自是 base64 字符串或 null）');
   }
   return {
     siteDir: j.siteDir,
