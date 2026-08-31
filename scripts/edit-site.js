@@ -1042,13 +1042,27 @@ async function main() {
       const maxApiAttempts = 3;
       while (true) {
         try {
-          response = await client.messages.create({
+          // #1248 —— 这里必须用 stream，不能用 create。SDK 对【非流式】请求有一道门：
+          // `calculateNonstreamingTimeout`（client.js:429）算 `60min * max_tokens / 128000`，
+          // 超过 10 分钟就直接抛 `Streaming is required for operations that may take longer
+          // than 10 minutes`。解出来的门槛是 **max_tokens > 21333 就抛**，而且它是纯算术：
+          // 抛在发出请求【之前】，一个 token 都没花、重试也救不了。
+          // 后台「AI Model」旁边那个 max tokens 设置（`ai1st.ai.maxTokens`）在 prod 上是 32000，
+          // 远在门槛之上 —— 也就是说这个值一旦真的送到这里，每一次编辑都会当场失败。
+          // 它此前没暴露，是因为这个字段根本没走到容器（worker 的 EditTask 把它丢了，本票另一半），
+          // 于是这里恒用硬编码的 8192，正好在门槛之下。
+          // create-site.js 一直是流式的（`:583` 的 `client.messages.stream` + `finalMessage()`），
+          // 原因就是同一道门 —— 它拿到的 maxTokens 是同一个 32000。这条路只是当年没跟上。
+          // `finalMessage()` 返回的就是原来 `create()` 返回的那个 Message（含 content /
+          // stop_reason / usage），所以下面整段逻辑一个字都不用改。
+          const stream = await client.messages.stream({
             model,
             max_tokens: configMaxTokens,
             system: SYSTEM_PROMPT,
             messages: currentMessages,
             tools,
           });
+          response = await stream.finalMessage();
           break; // success → continue with normal flow below
         } catch (err) {
           apiAttempt++;

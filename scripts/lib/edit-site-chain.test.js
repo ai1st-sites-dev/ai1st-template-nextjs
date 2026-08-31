@@ -131,23 +131,46 @@ const script = JSON.parse(fs.readFileSync(process.env.EDIT_STUB_SCRIPT, 'utf8'))
 let turn = 0;
 class FakeAnthropic {
   constructor() {
+    // #1248：把"这一轮是从哪条路发出去的"也记下来。真 SDK 上流式与非流式是两条路，而只有
+    // 流式那条能带得动 max_tokens > 21333（见 edit-site.js 里 stream 那段的注释）—— 所以
+    // "走的哪条路"本身就是要守住的性质，不记就看不见有人把它改回去。
+    const record = (req, via) => {
+      fs.appendFileSync(process.env.EDIT_STUB_CALLS,
+        JSON.stringify({ turn, via, messages: req.messages,
+          hasTools: Array.isArray(req.tools), hasSystem: req.system !== undefined,
+          maxTokens: req.max_tokens }) + '\\n');
+      const r = script[turn];
+      turn += 1;
+      if (!r) throw new Error('回放脚本用完了，但被测代码又要了一轮 —— 脚本写少了');
+      return r;
+    };
+    // #1200：一轮也可以是"provider 拒收"。形状照真 SDK 的 APIError 写：status 是判据，
+    // message 里是 provider 的原话（本票的判据**不读**它，正因如此它才必须在这里出现）。
+    const raise = (r) => {
+      const e = new Error(r.__throw.message);
+      e.status = r.__throw.status;
+      e.error = r.__throw.error;
+      throw e;
+    };
     this.messages = {
+      // #1248：被测代码走的是【流式】。真 SDK 里 messages.stream() 立刻返回一个
+      // MessageStream，请求的结果（含错误）是在消费它时才浮出来的 —— 所以这里的拒收从
+      // finalMessage() 抛，位置跟真 SDK 一致。edit-site.js 把 stream() 和 finalMessage()
+      // 包在同一个 try 里，两处抛对它等价，但假的东西照真的写才不会把下一个人带偏。
+      stream: (req) => {
+        const r = record(req, 'stream');
+        return { finalMessage: async () => (r.__throw ? raise(r) : r) };
+      },
+      // 非流式这条留着，因为它仍是**真 SDK 上存在的一条路**，而本票的判据之一正是
+      // "被测代码没有再走它"。它照旧正常应答（不抛），走的哪条路由上面 record() 记在
+      // via 这个字段里 —— 下面 ⑭A 断言这一轮的每一次调用 via 都是 'stream'，有一次是
+      // 'create' 就报红。这么写而不是"一被调用就抛"，是因为报红时要能把**实际走了哪几条
+      // 路**整串打出来。
+      // 🔴 这一整个 class 住在一个模板字符串里（STUB），所以这里的注释【不许出现反引号】——
+      //    一个反引号就把 STUB 提前结束掉，文件当场 SyntaxError。我刚踩过一次。
       create: async (req) => {
-        fs.appendFileSync(process.env.EDIT_STUB_CALLS,
-          JSON.stringify({ turn, messages: req.messages,
-            hasTools: Array.isArray(req.tools), hasSystem: req.system !== undefined,
-            maxTokens: req.max_tokens }) + '\\n');
-        const r = script[turn];
-        turn += 1;
-        if (!r) throw new Error('回放脚本用完了，但被测代码又要了一轮 —— 脚本写少了');
-        // #1200：一轮也可以是"provider 拒收"。形状照真 SDK 的 APIError 写：status 是判据，
-        // message 里是 provider 的原话（本票的判据**不读**它，正因如此它才必须在这里出现）。
-        if (r.__throw) {
-          const e = new Error(r.__throw.message);
-          e.status = r.__throw.status;
-          e.error = r.__throw.error;
-          throw e;
-        }
+        const r = record(req, 'create');
+        if (r.__throw) raise(r);
         return r;
       },
     };
@@ -1502,6 +1525,67 @@ console.log('\n⑬ 图片取不到 ⟹ 一句人话，不是一段 JS 栈（#120
     // 诚实性自检：改口的前提是那份改动**真的**还在盘上 —— 不然改口本身才是那句假话。
     if (fs.readFileSync(seoPath, 'utf8').includes(MARK)) ok('⑬F6 那份改动确实还在盘上 ⟹ 改口说的是实话');
     else bad('🔴 ⑬F6 改了口，但盘上其实已经退干净了 —— 这次是反过来吓唬老板');
+  }
+}
+
+// ══ ⑭（#1248）后台那个 max tokens 设置：值要走到 API 调用上，而且必须走【流式】那条路 ═══════════
+//
+// 出处：后台「AI Model」旁边的 max tokens（`ai1st.ai.maxTokens`，prod 上是 32000）由 manager 塞进
+// 编辑任务，worker 此前把它丢了，所以 edit-site.js 每次都落回硬编码的 8192（#1248 正文）。
+//
+// 🔴 这一格【看不见】本票最严重的那半，必须说在明处：真 SDK 对非流式请求有一道门 ——
+//    `calculateNonstreamingTimeout`（@anthropic-ai/sdk 0.74.0，client.js:429）算
+//    `60min * max_tokens / 128000`，超过 10 分钟就抛，解出来是 **max_tokens > 21333 即抛**。
+//    也就是说：把 32000 送到【非流式】的 create 上，每一次编辑都会当场失败。
+//    而这里的 Anthropic 客户端是假的，那道门被替换掉了 ⟹ **本文件永远复现不了那个失败**。
+//    真读数在票上（真 SDK 真跑 + prod 容器镜像里同一函数的四个读数）。这一格守的是它的两个必要
+//    条件：① 值真的走到了调用上 ② 走的是流式那条路（回到 create 就红）。
+//
+// 📌 生产上 worker 现在**不会**送 32000：它把值压到 21333（worker §containerMaxTokens），因为一个
+//    活着的网站仓里那份 edit-site.js 冻在它建站那天，2026-08-31 现取 prod 8 个站 8/8 还是非流式的。
+//    所以下面 ⑭A 的 32000 是**这个脚本自己的契约**（送多少就用多少），⑭D 才是今天真会收到的值。
+//    这两格都要在：压值那一步将来会被拿掉（等 prod 探针读到 0 个非流式站），那时 ⑭A 就是真路径。
+{
+  const ctx = makeRoot('1248-maxtokens');
+  writeSite(ctx.work);
+  ctx.git('git add -A && git commit -q -m base && git push -q origin main');
+
+  // A：stdin 带 maxTokens（manager 送的是**字符串**，因为 getPlatformConfig 返回 string）
+  {
+    const res = runEdit(ctx, [reply([textBlock('done')])], { maxTokens: '32000' });
+    const r0 = res.requests[0];
+    if (r0 && r0.maxTokens === 32000) ok('⑭A stdin 的 maxTokens=\"32000\" 走到了 API 调用上（max_tokens=32000）');
+    else bad(`⑭A max_tokens 不对：${JSON.stringify(r0 && r0.maxTokens)} —— 期望 32000`);
+    if (res.requests.length && res.requests.every((q) => q.via === 'stream')) {
+      ok(`⑭A ${res.requests.length} 次调用全部走流式`);
+    } else {
+      bad(`🔴 ⑭A 有调用走了非流式：${JSON.stringify(res.requests.map((q) => q.via))} —— 32000 在真 SDK 上会当场抛`);
+    }
+  }
+
+  // B：stdin 不带（老 manager / 本票落地前）⟹ 维持今天的 8192，一个字节都不许变
+  {
+    const res = runEdit(ctx, [reply([textBlock('done')])]);
+    const r0 = res.requests[0];
+    if (r0 && r0.maxTokens === 8192) ok('⑭B 不带 maxTokens ⟹ 仍是 8192（今天的行为没被动）');
+    else bad(`⑭B 落回值不对：${JSON.stringify(r0 && r0.maxTokens)} —— 期望 8192`);
+  }
+
+  // C：空串（配置被清掉时 manager 会送空串）⟹ parseInt('') 是 NaN ⟹ 照样落回 8192，不是 0
+  {
+    const res = runEdit(ctx, [reply([textBlock('done')])], { maxTokens: '' });
+    const r0 = res.requests[0];
+    if (r0 && r0.maxTokens === 8192) ok('⑭C maxTokens 是空串 ⟹ 落回 8192（不是 0，不是 NaN）');
+    else bad(`🔴 ⑭C 空串把上限变成了 ${JSON.stringify(r0 && r0.maxTokens)}`);
+  }
+
+  // D：21333 —— 今天 worker 压值之后真正会送过来的那个数（prod 配的是 32000）。它要原样被用上，
+  //    不许被这个脚本再压一次：两处各压一次的结果是谁都说不出最终值是多少。
+  {
+    const res = runEdit(ctx, [reply([textBlock('done')])], { maxTokens: '21333' });
+    const r0 = res.requests[0];
+    if (r0 && r0.maxTokens === 21333) ok('⑭D 21333（worker 压完的值）原样走到调用上，没被再压一次');
+    else bad(`🔴 ⑭D max_tokens 是 ${JSON.stringify(r0 && r0.maxTokens)}，期望 21333`);
   }
 }
 
