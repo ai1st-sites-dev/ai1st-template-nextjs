@@ -60,14 +60,14 @@ const { applyHeroLeadForm } = require('./lib/hero-lead-form');
 const { pruneDeadBreadcrumbHrefs, alignBreadcrumbsToOwnService, serviceKey } = require('./lib/breadcrumb-links');
 
 // ─── AI Model Config ─────────────────────────────────────────────────────────
-
+// 🔴 下面 MODEL_PRICING 不是文档,是【记账输入】:getModelPricing(model) 的结果乘 token 数写进 operation_runs.cost(manager/db.go 的 insertOperationRun),写错一行不报错、只静默虚记。改它之前去 https://platform.claude.com/docs/en/about-claude/pricing 现取一次,别凭记忆 —— #1249 修的两行原来逐字是【已退役】型号的真价钱,不是打错。
 let model = 'claude-sonnet-4-6';
 let maxTokens = 32000;
-
+// 🔴 查表是 startsWith 前缀匹配,两处盲区:① 'claude-opus-4' 同时罩 opus 4/4.1($15/$75,已在一方 API 退役 ⟹ 调不通、不会产生 cost 行)与 4.5~4.8($5/$25),按【可达的那一种】取值;② 不以这三个前缀开头的 id(claude-opus-5 / claude-sonnet-5 / claude-fable-5 …)静默落到下面的 return {input:3,output:15},也就是按 sonnet 4.6 记账 —— 而 sonnet-5 官方 $2/$10 ⟹ 那个方向是【多记 50%】,多扣客人钱。
 const MODEL_PRICING = {
-  'claude-opus-4':   { input: 15, output: 75 },
+  'claude-opus-4':   { input: 5,  output: 25 },   // #1249: 原 {15,75} 是已退役的 Opus 4 / 4.1 的价钱;这个前缀今天够得着的是 4.5~4.8,都是 $5/$25
   'claude-sonnet-4': { input: 3,  output: 15 },
-  'claude-haiku-4':  { input: 0.80, output: 4 },
+  'claude-haiku-4':  { input: 1,    output: 5  },  // #1249: 原 {0.80,4} 是已退役的 Haiku 3.5 的价钱;4.5 是 $1/$5
 };
 
 function getModelPricing(modelId) {
