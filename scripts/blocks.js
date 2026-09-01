@@ -288,12 +288,12 @@ function visibilityMatches(siteBlock, slug) {
 // 骨架）。两处都直接读条目的 `type`，而 `{ "ref": "<id>" }` 没有 `type` ⟹ 由站级块提供的块在它们
 // 眼里不存在，一个完全合法的 ref 反而变成一条问题。
 //
-// 🔴 #1149 item 31 —— 上一版这句话后面接的是「（`create-site.js:2331` 拿它决定要不要让模型重写一遍：
+// 🔴 #1149 item 31 —— 上一版这句话后面接的是「（`create-site.js §generateContent` 拿它决定要不要让模型重写一遍：
 // 第 ④ 条那条修不掉 ⟹ `afterRetry` 判 fatal，整次建站死）」，读起来像**今天正在发生**的事。
 // **那一半今天走不到。** 站级块库要非空才谈得上「由站级块提供的块」，而建站脚本手上那份按构造是空的：
-//   · `create-site.js:2317` / `:2353` 调 `validateBlocks({ pages, industry })` —— 根本**不传** `siteBlocks`
+//   · `create-site.js` §generateContent 调 `validateBlocks({ pages, industry })` —— 根本**不传** `siteBlocks`
 //     （`block-manifest.js:387` 的默认值就是 `{}`）；
-//   · 就算传，也没有东西可传:`create-site.js:807-810` 开工先 `rmSync` 整个 `site/`，而全仓唯一产出
+//   · 就算传，也没有东西可传:`create-site.js §main` 开工先 `rmSync` 整个 `site/`，而全仓唯一产出
 //     `blocks/site-blocks.json` 的是 AI 编辑那条路（`edit-site.js`），发生在建站**之后**。
 // ⟹ 准确的说法是：**若站级块库非空**，那条链才成立；今天建站脚本传的是空库，所以这一半尚未可达。
 // 本函数存在的理由不受影响 —— 它是为那一天准备的，而且 `edit-site.js` 那条路已经在用同一套解析。

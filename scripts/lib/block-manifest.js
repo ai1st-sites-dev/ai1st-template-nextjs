@@ -36,7 +36,7 @@ const BLOCKS_DIR = path.join(__dirname, '..', '..', 'blocks');
 const ROLE_NAMES = ['essential', 'lead', 'optional'];
 // 提示词里的三组。`homepage` / `page-specific` 各由 `promptSection()` 印成一段清单；`page-rule` 的
 // 四个块（quote-form / services-nav / services-list / contact-form）不进清单，它们由 create-site.js
-// 里写死的页面规则点名（`create-site.js:1960-1962`，data 那行仍从 manifest 来）。
+// 里写死的页面规则点名（`create-site.js §generateContent`，data 那行仍从 manifest 来）。
 const PROMPT_GROUPS = ['homepage', 'page-specific', 'page-rule'];
 
 function checkManifestShape(name, m) {
@@ -398,11 +398,12 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
       // 🔴 #1154 —— `blocks` 数组里那一格根本不是块（`null` / 一个字符串 / 一个数组）。
       //    在这条守卫之前，下面那句 `sec.type` 直接抛 `TypeError: Cannot read properties of
       //    null (reading 'type')`，而这个函数的调用方是按「返回 problems」写的：
-      //    `create-site.js:2331` 那个 `if` 拿 problems 决定要不要**重试一次**（问题由 `:2317`
-      //    这次调用产出；重试之后 `:2353` 重取一遍，`:2357` 的 `afterRetry` 下判决）。
-      //    📌 #1157（来源 #1154）更正：这里原写「`:2317/2353` 拿 problems 决定」—— 那两行是
-      //    **调用点**，不是决定点；做决定的 `if` 在 `:2331`。本文件下面 #1155 那段注释
-      //    （「伤害不止「日志里多一行」」那句）写的就是 `:2331` —— 两句原来是打架的。
+      //    `create-site.js §generateContent` 那个 `if` 拿 problems 决定要不要**重试一次**（问题由
+      //    `const first = validateBlocks({ pages: ai.pages, industry })` 产出；重试之后
+      //    `issues = validateBlocks({ … }).problems` 重取一遍，`switch (afterRetry({ … }))` 下判决）。
+      //    📌 #1157（来源 #1154）更正：这里原写成「那两次 `validateBlocks` 调用拿 problems 决定」—— 它们是
+      //    **调用点**，不是决定点；做决定的是 `if (issues.length || skinIssues.length)`。本文件下面
+      //    #1155 那段注释（「伤害不止「日志里多一行」」那句）指的就是同一个 `if` —— 两句原来是打架的。
       //    🔴 这里不写「往下 N 行 / 本文件 :NNN」：改这段注释本身就会把那个数挤走
       //    （我第一版写了 `:417`，加完这四行它就变成 `:421` 了）。按内容指，别按行号指。
       //    抛异常则一路冒到顶层的 `main().catch(err => fatal(err.stack))` ⟹ 建站直接死，
@@ -420,10 +421,11 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
       // 🔴 #1155 —— `{ "ref": "<站级块的 id>" }` 是 CLAUDE.md §Dynamic Pages 冻结的合法形状，它
       //    **没有 `type` 字段**，所以下面那句 `manifests.get(sec.type)` 必然拿到 undefined，
       //    于是「没有这种块」那一支会对一个完全正确的条目开火，还把 `undefined` 当成块名打进报文。
-      //    伤害不止「日志里多一行」：`create-site.js:2331` 拿 `problems.length` 决定要不要让模型
+      //    伤害不止「日志里多一行」：`create-site.js §generateContent` 拿 `problems.length` 决定要不要让模型
       //    重写一遍 ⟹ 一条不存在的问题烧掉一次真的 API 调用，而重写之后它**还在**（它跟模型写得
-      //    对不对无关），`:2357` 的 `afterRetry` 于是读到「重试也没修好」。而 #1154 印进提示词的
-      //    那句话（本文件 `:409`）正在逐字告诉模型 ref 是合法格子。
+      //    对不对无关），`switch (afterRetry({ … }))` 于是读到「重试也没修好」。而 #1154 印进提示词的
+      //    那句话（本文件上面那句 `flag('… blocks 数组里只能放块对象（`{ "type": … }` 或 `{ "ref": … }`）')`）
+      //    正在逐字告诉模型 ref 是合法格子。
       //
       // 🔴 这里**只压掉这一条报文**，没有新加「见到 ref 就整格 continue」那种口子：`continue` 是
       //    这一支本来就有的（没有 manifest 就没有 `m.slots` / `m.roleDefault` / `m.block_layout`，
@@ -514,13 +516,13 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
   // 🔴 #1156 —— 这一条问的是**整个站**，所以它必须按站级块库解析完再问。上面那个逐块循环只会把
   //    **页面自己写下的**块记进 `seenTypes`（`{ "ref": … }` 没有 `type`，在 `!m` 那一支就 continue
   //    走了），于是一个 `contact-info` 只由站级块提供的站会被报「整个站里没有 contact-info」——
-  //    而那个块在产物里是有的。伤害不是日志多一行：`create-site.js:2331` 拿 problems 决定要不要让
+  //    而那个块在产物里是有的。伤害不是日志多一行：`create-site.js §generateContent` 拿 problems 决定要不要让
   //    模型重写一遍，而这条问题跟模型写得对不对无关、重写之后还在 ⟹ `afterRetry` 判 `fatal`，
   //    整次建站死（#1155 QA1 的圈外发现 ①）。
   //    🔴 #1149 item 31 —— 上面那句「整次建站死」**今天走不到**，读的时候别当成正在发生的事:
   //    要有「只由站级块提供的块」，站级块库就得非空，而建站脚本手上那份按构造是空的 ——
-  //    `create-site.js:2317` / `:2353` 调 `validateBlocks({ pages, industry })` **不传** `siteBlocks`
-  //    （本文件 `:387` 的默认值就是 `{}`），而且 `create-site.js:807-810` 开工先删整个 `site/`，
+  //    `create-site.js` §generateContent 调 `validateBlocks({ pages, industry })` **不传** `siteBlocks`
+  //    （本文件 `:387` 的默认值就是 `{}`），而且 `create-site.js §main` 开工先删整个 `site/`，
   //    全仓唯一产出 `blocks/site-blocks.json` 的 `edit-site.js` 发生在建站之后。
   //    ⟹ 准确说法：**若站级块库非空**，那条链才成立;今天这一半尚未可达。这一条改动本身照旧成立
   //    （它让第 ④ 条问的是「解析完之后这个站有哪些块」，而不是「页面文件里写了哪些」）。

@@ -1,5 +1,13 @@
 # dependencies
-node_modules/
+# 🔴 没有尾斜杠是【故意】的（#1239 打磨批次 #28 条 9，来源 #1238）：带尾斜杠的规则只匹配【目录】，
+# 而 git 把**符号链接**当文件 ⟹ `ln -s <共享树>/node_modules node_modules`（`AI_TEAM.md §体检…`
+# 第 4 步教的、以及隔离 worktree 里起 vite 的标准做法）造出来的那一个**不被忽略**，`git add -A`
+# 会把一条指向别人那棵树的符号链接暂存进交付。一次性 clone 里现测：符号链接 `git check-ignore -q`
+# rc=1（没挡住）· 真目录 rc=0（挡住了）。去掉尾斜杠之后两种形态都挡得住，而这条规则唯一变宽的
+# 地方是「一个名叫 node_modules 的普通文件」—— 那正是我们要挡的那一个。
+# 📌 `ship-check-ignore-barrier.sh` 按【规则原文】分类，所以改这一行必须同一次改动里改它那张
+# 非机密清单（`'node_modules'`）—— 那道守卫就是为了逼这件事存在的。
+node_modules
 
 # next.js
 .next/

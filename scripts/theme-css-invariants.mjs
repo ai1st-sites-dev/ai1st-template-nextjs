@@ -198,7 +198,7 @@ const MIN_BODY_PX = 14;
 // A contrast ratio is a statement about a sheet AND a palette together. `theme-css-invariants-all-
 // sheets.sh` measures every sheet in `public/themes/`, and three of them — the hand-written
 // `hero-media-left / right / top` — have no theme named after them, so there is no palette that is
-// theirs (pairing is by name: `create-site.js:907` → `theme-sheet.js:41`). They get dressed by whatever
+// theirs (pairing is by name: `create-site.js §main` → `theme-sheet.js:41`). They get dressed by whatever
 // the sample site is wearing, and the ratio that comes out is real arithmetic about a combination no
 // customer's site can be built with. Measured: `hero-media-top` reads 4.00:1 / 3.96:1 under `jade-60`
 // and passes under `charcoal-lime`, and which of the two the sample site wears is decided by the

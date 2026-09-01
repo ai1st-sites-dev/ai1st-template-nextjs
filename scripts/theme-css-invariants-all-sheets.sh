@@ -267,7 +267,7 @@ trap cleanup EXIT
 # 🔴 #1016 r5 — ONE PALETTE PER SHEET, AND IT IS THE SHEET'S OWN. This used to be decided once, before
 # the loop: whatever theme the sample site happened to be wearing dressed all of them. That is not how
 # a site is put together — which sheet a site wears is decided BY its theme name and by nothing else
-# (`create-site.js:907` calls `sheetNameForTheme()`, and `theme-sheet.js:41` is the whole rule: use
+# (`create-site.js §main` calls `sheetNameForTheme()`, and `theme-sheet.js:41` is the whole rule: use
 # `public/themes/<theme name>.css` if it is there). The pipeline pairs them the same way
 # (`theme-pipeline/run.js:119` writes `{themeId: <candidate id>, applied: false, css: <candidate id>}`).
 #

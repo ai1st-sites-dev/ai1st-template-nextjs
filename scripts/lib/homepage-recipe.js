@@ -256,7 +256,7 @@ function recipePromptLines(recipe) {
  *    两者在有 `{ "ref": … }` 时不是一回事：ref 条目没有 `type`，于是
  *      · ref 落在开场那几格 ⟹ 开场序列里多一个 `undefined`，报一条假的「开头必须逐个是 …」；
  *      · 必须出现的块由站级块提供 ⟹ 报一条假的「首页里必须有 X，实际没有」。
- *    两条都会让 `create-site.js:2331` 白烧一次真模型调用（重写也修不掉，它跟模型写得对不对无关）。
+ *    两条都会让 `create-site.js §generateContent` 白烧一次真模型调用（重写也修不掉，它跟模型写得对不对无关）。
  *    解析规矩用 `blocks.js` 的 `resolveBlockTypesForCheck`，跟构建期 `normalizeLocalePages` 同一套
  *    —— 指得到就换成目标的 type、指不到就丢掉（构建期也是丢掉）、visibility 命中的追加在末尾。
  */

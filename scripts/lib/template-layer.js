@@ -12,8 +12,9 @@
 // 真机读数（#1166 正文，PM 按全量 29 个站仓复核过）：`site-51c2f83b` 的 HEAD 里非 `site/` 的文件
 // 有 91 个，今天的模板（去掉 `site/`）293 个，两者的差集 23 个 —— 其中 **18 张
 // `public/photos/*` + `public/logo.png`**，只有 4 个是真的模板文件（那四个被合并掉的
-// `*Section.tsx`）。照片和 logo 是「Generate site」那一次写进来的（`create-site.js:476` /
-// `:2491`），它们**在 `site/` 之外**，所以「除 site/ 之外」这把尺子会把它们算成删除集。
+// `*Section.tsx`）。照片和 logo 是「Generate site」那一次写进来的（照片在 `create-site.js §generateSlotPhotos`，
+// logo 在 `§generateContent` 里 `fs.writeFileSync(path.join(publicDir, 'logo.png'), …)` 那一句），它们**在
+// `site/` 之外**，所以「除 site/ 之外」这把尺子会把它们算成删除集。
 //
 // ⟹ 基线是【这个站现在身上那份模板的文件清单】：
 //      · 没升级过的站 → 仓库的第一个 commit（`/generate` 出来那个，建站当天的模板快照）。照片和

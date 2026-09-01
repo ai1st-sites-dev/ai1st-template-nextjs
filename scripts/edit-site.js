@@ -416,7 +416,7 @@ function validatePath(relPath) {
 //
 // 🔴 `pages/` 底下**还有几层也算**，判据是构建期自己怎么读的：`sync-config.js:279` 的
 // `readPagesRecursive` 递归读 `pages/`，任何一层的 `.json` 都是一个真页面（子目录名会拼进 slug）。
-// 服务详情页就长这样 —— `create-site.js:2027` 生成的 slug 是 `services/{service-id}`，落盘就是
+// 服务详情页就长这样 —— `create-site.js §generateContent` 生成的 slug 是 `services/{service-id}`，落盘就是
 // `<locale>/pages/services/<id>.json`。r3 那版写的是 `[^/]+\.json`（只认一层），后果被 QA2 在真机上
 // 量出来了：同一个块、同一个键、同一句话，改首页拦得住，改 `pages/services/engagement-sessions.json`
 // 就 `{"success":true}` 落盘，跟着 `sync-config` rc=0、`npm run build` rc=0，产物里那一块标题在、
@@ -442,8 +442,8 @@ function pageJsonBlockError(relPath, parsed) {
   // （`blocks.js` 的 `normalizeLocalePages`，#998 的交付物），不写第二份规则。
   //
   // r2 那版在这里手写了一份 `pageShapeProblems`，里面写死了 `Array.isArray(page.sections)`。
-  // 而 #998 之后 `create-site.js:1416/:1486` 落盘走的是 `pageWithBlocks()`，它自己
-  // `delete out.sections` —— 也就是**新建出来的每一个站，页面在磁盘上都是 `blocks`**。
+  // 而 #998 之后 `create-site.js` 落盘走 `pageWithBlocks()`（它自己 `delete out.sections`）—— 也就是**新建出来的每一个
+  // 站，页面在磁盘上都是 `blocks`**。落盘两处 `pageWithBlocks(page)`：`§writeSecondaryLocaleConfig` / `§writeSiteConfig`。
   // 后果是那道门把这些站的每一次**正当**编辑都拒掉，而且它给模型的指示（改成 sections）跟
   // 提示词自己写的「keep whichever array the file already has」互相矛盾：照做违反提示词，
   // 不照做永远写不进去 —— 这个站从此改不动。（QA2 在 #1013 r2 上量出来的。）
@@ -1051,7 +1051,7 @@ async function main() {
           // 远在门槛之上 —— 也就是说这个值一旦真的送到这里，每一次编辑都会当场失败。
           // 它此前没暴露，是因为这个字段根本没走到容器（worker 的 EditTask 把它丢了，本票另一半），
           // 于是这里恒用硬编码的 8192，正好在门槛之下。
-          // create-site.js 一直是流式的（`:583` 的 `client.messages.stream` + `finalMessage()`），
+          // create-site.js 一直是流式的（`§callAIWithRetry` 的 `client.messages.stream(…)` + `stream.finalMessage()`），
           // 原因就是同一道门 —— 它拿到的 maxTokens 是同一个 32000。这条路只是当年没跟上。
           // `finalMessage()` 返回的就是原来 `create()` 返回的那个 Message（含 content /
           // stop_reason / usage），所以下面整段逻辑一个字都不用改。

@@ -292,11 +292,20 @@ function readRestoreCrumb() {
   //    形状检查是唯一一处能在 `Buffer.from` 之前拦住它的地方，所以补在这里、不是把 return 包进 try。
   //    值域按写入侧来（`writeRestoreCrumb`：`snap.brand === null ? null : …toString('base64')`）⟹
   //    合法的只有「base64 字符串」和「null」两种，`undefined` / 数字 / 对象一律不是这张纸条的形状。
+  //    🔴 `sheets` 还要查【元素类型】，不能只查 `Array.isArray`（#1239 打磨批次 #28 条 12，来源 #1238）。
+  //    它下面变成 `new Set(j.sheets)`，而 `restoreSite` 用 `snap.sheets.has(f)` 判「这个表是不是跑之前
+  //    就有的」——`f` 永远是字符串文件名。一张 `{"sheets":[1,2]}` 的纸条通过形状检查，Set 里装的是数字，
+  //    于是 `has(f)` 对**每一份**都为 false ⟹ `--heal` 把 `templates/nextjs/public/themes/` 下被 git
+  //    跟踪的 .css **全删掉**，而退出码是 rc=0（"删掉 …（这一轮放进去的）"）。它跟 QA1 量过的
+  //    `sheets: []` 是同一个洞的两个入口，差别只是这一个连「数组」这道门都过得去。
+  //    📌 不是本次交付造成的：同一张纸条喂给 `origin/main` 那一版，读数逐字相同（rc=0、100 → 0）。
   const crumbB64 = (v) => v === null || typeof v === 'string';
   if (!j || typeof j.siteDir !== 'string' || !Array.isArray(j.sheets)
+      || !j.sheets.every((x) => typeof x === 'string')
       || !crumbB64(j.brand) || !crumbB64(j.theme)) {
     bail('是合法 JSON，但不是这张纸条该有的形状'
-       + '（要有字符串 siteDir、数组 sheets，以及 brand 和 theme 两个键——各自是 base64 字符串或 null）');
+       + '（要有字符串 siteDir、sheets 是一个【全是字符串】的数组，以及 brand 和 theme 两个键'
+       + '——各自是 base64 字符串或 null）');
   }
   return {
     siteDir: j.siteDir,
