@@ -1105,6 +1105,9 @@ async function main() {
               inputTokens: totalInputTokens,
               outputTokens: totalOutputTokens,
               cost: 0,
+              // #1251 —— cost 是 0 而 token 不是：这一支已经烧过钱了（图片那次请求被拒），只是不收费。
+              // 模型照记，否则「这一行为什么 $0」得靠猜。
+              model,
             });
             return;
           }
@@ -1254,9 +1257,14 @@ async function main() {
       const pricing = getModelPricing(model);
       const cost = ((totalInputTokens * pricing.input) + (totalOutputTokens * pricing.output)) / 1_000_000;
       const duration = Date.now() - startTime;
+      // #1251 —— 这次编辑真正发出去的模型 id。取的是 `model`（就是上面 `getModelPricing(model)` 算价用的
+      // 同一个变量、也是每一轮请求里 `model:` 那个字段），**不是** manager 那边的 `ai1st.ai.model` ——
+      // #1247 量到的正是这两者分岔两个月：配置说 haiku，这里恒落回 `claude-sonnet-4-6`。
+      // manager 那边把它写进 operation_runs.model（失败编辑那条路从这条事件里取）。
       emit('cost', {
         operation: 'edit-site',
         provider: 'Claude',
+        model,
         cost,
         detail: `Edit (${totalInputTokens} in / ${totalOutputTokens} out)`,
         duration,
@@ -1344,6 +1352,7 @@ async function main() {
         inputTokens: totalInputTokens,
         outputTokens: totalOutputTokens,
         cost,
+        model, // #1251 —— 成功那条路的 operation_runs 行是 manager 从【这个】事件建的，不是从上面那条 cost 事件
       });
       debug(`Edit complete: ${totalInputTokens} in / ${totalOutputTokens} out, cost $${cost.toFixed(4)}`);
       return;

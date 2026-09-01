@@ -313,8 +313,11 @@ async function cropAndResizeLogo(logoBuf, targetOccupancyPct = 80) {
 // endpoint. Returns a Buffer (PNG/JPG) on success; throws on failure. Field
 // name is `inlineData` (camelCase) per v1beta generateContent API; SDK aliases
 // fall back to `inline_data` historically.
+// #1251 —— 图片那两条 cost 事件要说出自己用的是哪个模型，而它本来只存在于下面这条 URL 里。
+// 把它单拎出来并用它拼 URL，两边就不会分岔 —— 拄一份“记录用”的副本，下一个升级 URL 的人会把它留在原地。
+const NANO_BANANA_MODEL = 'gemini-2.5-flash-image';
 const NANO_BANANA_ENDPOINT =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent';
+  `https://generativelanguage.googleapis.com/v1beta/models/${NANO_BANANA_MODEL}:generateContent`;
 
 async function callNanoBanana({ prompt, apiKey, timeoutMs = 30_000 }) {
   if (!apiKey) throw new Error('GEMINI_API_KEY missing (no key in stdin payload)');
@@ -480,6 +483,7 @@ async function generateSlotPhotos({ pages, industry, primaryColor, themeName, ap
       if (emitFn) emitFn('cost', {
         operation: 'nano-banana-photo',
         provider: 'Google',
+        model: NANO_BANANA_MODEL, // #1251
         cost: 0.005,
         duration: Date.now() - startMs,
         detail: uniqueKey,
@@ -600,8 +604,12 @@ async function callAIWithRetry({ client, baseOptions, costContext, label, maxAtt
     const usage = response.usage || {};
     const cost = ((usage.input_tokens || 0) * costContext.pricing.input + (usage.output_tokens || 0) * costContext.pricing.output) / 1_000_000;
     const retryTag = attempt > 1 ? ` [retry ${attempt - 1}]` : '';
+    // #1251: 读 `baseOptions.model` 而不是模块那个 `model` 变量 —— 这个对象就是上面交给 SDK 的那一份，
+    // 记下来的和发出去的按构造是同一个字串。（不取 `response.model`：它是服务器把别名解开之后的带日期 id，
+    // 而 manager 那几条路记的是请求里的 id —— 同一列里两种口径会让 `GROUP BY model` 把一个模型数成两个。）
     emit('cost', {
       operation: costContext.operation,
+      model: baseOptions.model,
       cost,
       duration: costContext.durationStart ? (Date.now() - costContext.durationStart) : 0,
       detail: `${costContext.detail}${retryTag} (${usage.input_tokens || 0} in / ${usage.output_tokens || 0} out)`,
@@ -2517,6 +2525,7 @@ ${homeRecipe ? recipePromptLines(homeRecipe)
       emit('cost', {
         operation: 'nano-banana-logo',
         provider: 'Google',
+        model: NANO_BANANA_MODEL, // #1251
         cost: 0.005,
         duration: Date.now() - logoStart,
         detail: `Logo for ${companyName}`,
