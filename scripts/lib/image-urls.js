@@ -889,12 +889,12 @@ function collectAllowedImageUrls(o) {
  *
  * 🔴 **这句话是给【模型】看的回执，老板看不到它（#1207 AC7，整条链现读过一遍）**：
  *    `edit-site.js:688` 拿它当 `{ error }` 返回 → `executeTool` 的返回值 → `JSON.stringify`
- *    → `:1129` 那条 `tool_result` 发回模型。磁盘一个字节没动，模型在同一轮里改口重写。
+ *    → §main 那条 `type: 'tool_result'` 发回模型。磁盘一个字节没动，模型在同一轮里改口重写。
  *    老板看到的是模型最后那段文字（那一路是 `Changes applied.`），不是这句。
  *    ⟹ 改这句话的读者只有模型。
  *    🔴 **老板看得见的图片文案【不存在】（#1209 更正）。** 这里原来写着「老板可见的那份文案在
  *    `edit-site.js` 的 SYSTEM_PROMPT `## Images` 段里」—— 那句是假的：`## Images`（`edit-site.js:840`）
- *    住在 `SYSTEM_PROMPT` 里，而 `SYSTEM_PROMPT` 唯一的去处是 `:1048` 那个 `system:` 字段，
+ *    住在 `SYSTEM_PROMPT` 里，而 `SYSTEM_PROMPT` 唯一的去处是 §main 那个 `system: SYSTEM_PROMPT` 字段，
  *    也就是**发给模型**的，老板一个字看不到。照那句话去改「给老板看的文案」会改错文件。
  *    2026-08-26 逐处找过一遍：dashboard 里跟图片有关的老板可见字符串只有一个
  *    `aria-label="Remove image"`（`ChatPanel.tsx:1155`，删附件那个按钮），没有任何一段讲

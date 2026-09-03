@@ -377,7 +377,7 @@ function writeNotes(relPath, ctx) {
   const r = resolveRel(relPath);
   if (r.bad || !isNavigationJson(r.rest)) return [];
   // 🔴 #1140 —— 「我判的那个文件,就是落盘那一行会写的那个吗」这道门原来只装在 `writeRejection` 上。
-  //    今天这条路没被绕过,靠的是 `edit-site.js:447` 那个 `if (notWritable) return` 的**调用顺序**
+  //    今天这条路没被绕过,靠的是 `edit-site.js §executeTool` 那个 `if (notWritable) return` 的**调用顺序**
   //    (先问拒绝、拒了就不往下走),不是按构造 —— 将来有第二个调用方只调 `writeNotes` 时,这一维对他
   //    一个字都不说,而它说出来的每一句都是关于**另一个文件**的(下面整段都建立在 `readCurrent(normalized)`
   //    读到的那份上)。这里的正确方向是闭嘴而不是拒:`writeNotes` 的产出是提示,拒绝始终是

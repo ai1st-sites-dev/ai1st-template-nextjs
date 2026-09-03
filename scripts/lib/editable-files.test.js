@@ -576,7 +576,7 @@ console.log('⑨ 这个语言这个站有吗（#1138）');
 //    **读了磁盘上那份、比出改了哪几处**之后才有的 ⟹ 拼写不对时读的就是别的文件，于是它回
 //    「没法跟磁盘那份比对，先 read_file 一次」。那句话方向指错（真毛病是路径拼法），而且它建议的
 //    动作**做不成** —— 对同一个带尾斜杠的路径 read_file 一样读不到。
-// 🔴 夹具的承重件是 `readCurrent` 必须**按路径**答话（真的那个是 `edit-site.js:420-423`：
+// 🔴 夹具的承重件是 `readCurrent` 必须**按路径**答话（真的那个是 `edit-site.js §executeTool` 的 `writeCtx.readCurrent`：
 //    `fs.existsSync(path.join(siteDir, p)) ? read : null`）。第一版我写成「不看参数、一律回内容」，
 //    于是拼错的路径也「比对成功」⟹ 走到末尾那一问、拿到拼写提示，**两臂都绿、这一格什么都没测**。
 const NAV10 = {

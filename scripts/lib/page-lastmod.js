@@ -8,7 +8,7 @@
 // 取值有三个来源，按可信度排：
 //
 //   1. **git 提交时间**。每个站本身就是一个 git 仓库 —— 建站时 `git add site/ public/` 提交
-//      （create-site.js），之后每次编辑 `git add -A && git commit`（edit-site.js:598），换主题只提交
+//      （create-site.js），之后每次编辑 `git add -A && git commit`（edit-site.js §main 的 `git add -A && git commit`），换主题只提交
 //      site/ 下那几份皮肤文件（`worker/main.go` 的 `processThemeTask`：`site/theme.json` ·
 //      `site/theme.css` · `site/custom.css` 三条路径逐个 `git add -A --`；同文件的
 //      `applyThemeByRebuilding` 那条老站路径只提交 `site/theme.json`）。
@@ -27,8 +27,8 @@
 //      不说出来就没人会发现。
 //
 //   2. **文件 mtime**。拿不到 git 读数时用：本仓 `templates/nextjs/site` 被 .gitignore 挡着
-//      （ai1st 仓库根的 `.gitignore:47`，那一行写的是 `templates/nextjs/site/`；#1026 这里写的是
-//      `templates/nextjs/.gitignore:10`，而那个文件第 10 行是 `sites/`（复数，另一个目录）——
+//      （挡住它的是**仓根**那份 `.gitignore` 里的 `templates/nextjs/site/`；#1026 这里写的是
+//      `templates/nextjs/.gitignore`，而那份里根本没有 `site/` 这一条，只有 `sites/`（复数，另一个目录）——
 //      判据 `git check-ignore -v templates/nextjs/site` 打的是根那份），所以本地开发恒走这一档；
 //      文件被改过还没提交时也走这一档
 //      （那时 git 的时间是旧的，mtime 才是真的）。

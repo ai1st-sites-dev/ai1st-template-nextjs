@@ -365,7 +365,7 @@ function industryMatches(industry, word) {
  *    service-highlights 写成 `items`）和 `site-77863888`（pricing-table 写成 `plans`、
  *    feature-comparison 写成 `plans`+`categories`）。那几个键名跟组件真读的对不上，
  *    所以这四块**今天在页面上本来就是空的**；本票要是硬拦，它们会从「空一块」变成「打不开」。
- *    其中一个站建于 2026-08-07，不是只有老站才有的形状 —— 而 `edit-site.js:188-196` 只校验
+ *    其中一个站建于 2026-08-07，不是只有老站才有的形状 —— 而 `edit-site.js §executeTool` 的 `JSON.parse` 只校验
  *    「是合法 JSON」就落盘，模型随时能再写出一个错键名。
  *
  *    构建期该做的是**说出来**：warning 照常打印在构建日志里，一条都不少。
@@ -406,7 +406,7 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
       //    #1155 那段注释（「伤害不止「日志里多一行」」那句）指的就是同一个 `if` —— 两句原来是打架的。
       //    🔴 这里不写「往下 N 行 / 本文件 :NNN」：改这段注释本身就会把那个数挤走
       //    （我第一版写了 `:417`，加完这四行它就变成 `:421` 了）。按内容指，别按行号指。
-      //    抛异常则一路冒到顶层的 `main().catch(err => fatal(err.stack))` ⟹ 建站直接死，
+      //    抛异常则一路冒到顶层的 `main().catch(err => {`（`create-site.js` 末尾那三行）⟹ 建站直接死，
       //    连那一次重试都没有。所以这里的处置是「点名 + 跳过这一格」，不是让它炸。
       if (sec === null || typeof sec !== 'object' || Array.isArray(sec)) {
         // 前导空格是有意的：`是 null` / `是一个 string` 两种都读得通（#1152 那条报文同一套写法）
@@ -432,7 +432,7 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
       //    下面第 ①②③⑤ 条逐条都要读 `m`，物理上跑不了）。上面 #1154 那道「这一格是不是块」的检查
       //    仍然照跑 —— ref 条目是对象，它本来就从那里正常通过。
       //
-      // 🔴 谓词比 `edit-site.js:314` 的 `ownBlocksOf` 严一格，多一个「而且没写 type」：
+      // 🔴 谓词比 `edit-site.js §ownBlocksOf` 严一格，多一个「而且没写 type」：
       //    `blocks.js:387-389` 写着**同时**写了 `ref` 和 `type` 的块在构建期直接 throw
       //    （「ref 是引用站级块库，不带自己的内容」）⟹ 那不是一个合法的 ref 条目，把它的报文也
       //    一起压掉等于建站期放行、构建期才炸。`{ "ref": 7 }`（ref 不是字符串）同理照旧报。

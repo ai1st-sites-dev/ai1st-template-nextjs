@@ -563,7 +563,7 @@ console.log('\n⑤ 同一个文件两种写法写两遍：回滚回到编辑之�
     if (!dirty) ok('工作树里 about.json 不脏 ⟹ 下一次成功的编辑不会把它带进 commit');
     else bad(`🔴 工作树里 about.json 还带着这次的改动：${dirty}`);
 
-    // 计数那一半。`debug()` 无条件写 stderr（`edit-site.js:49`），所以这行一定在。
+    // 计数那一半。`debug()` 无条件写 stderr（`edit-site.js` 的 `const debug =`），所以这行一定在。
     const m = res.stderr.match(/#1102 rollback: restored (\d+) · removed (\d+) · failed (\d+)/);
     if (!m) {
       bad(`⑤ stderr 里找不到那行回滚读数 ⟹ 计数这一半没测到（stderr 尾：${res.stderr.slice(-200)}）`);

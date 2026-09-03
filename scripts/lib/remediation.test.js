@@ -348,7 +348,7 @@ function siteWithNav(dir, locale) {
 // ── ⑧ 补救行的条数有上限 —— 因为这段话会被 edit-site.js 截到 2000 字符再给老板看 ─────────────
 //
 // 🔴 这一格治的是我自己引入的一个退步：改之前那版是**一行讲完所有语言**，我改成「一个语言一条」
-//    更精确，但 `edit-site.js:594` 的 `.slice(0, 2000)` 会在 10 个语言起把后面那条「或者不要
+//    更精确，但 `edit-site.js §main` 的 `.slice(0, 2000)` 会在 10 个语言起把后面那条「或者不要
 //    topbar」整条切掉（实测约 2035 字符）。⟹ 更精确的写法在这一维上比原来差。
 {
   const { topbarBullets, BULLET_CAP } = mod;
@@ -567,7 +567,7 @@ console.log('── ⑦b 真跑一次 sync-config：带 topbar 区却没有 topb
 //    那句话就是 #1108 立这个模块要治的那个病（产品的报错在建议一个产品自己禁止的动作）。
 //
 // 🔴 判据是**行为**，不是「源码里有没有 readSiteShape 这个词」：下面拿真编辑器那套 ctx
-//    （`edit-site.js:425-440` 递的那几个键）独立算一遍，两个答案必须逐条相同。
+//    （`edit-site.js §executeTool` 的 `writeCtx` 递的那几个键）独立算一遍，两个答案必须逐条相同。
 {
   const { writeRejection } = require('./editable-files.js');
   const { readSiteShape } = require('./site-shape.js');

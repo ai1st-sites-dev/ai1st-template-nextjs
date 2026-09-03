@@ -188,7 +188,7 @@ for (const [type, slot] of [['timeline', 'events'], ['card-group', 'items']]) {
 // ── ⑧ #1154：`blocks` 数组里那一格根本不是块 ⟹ 报 problem，不许抛异常 ─────────────────────────
 //
 // 🔴 判据是**不抛**，不只是「有 problem」。抛出去的话它冒到 `create-site.js` **顶层**（不在任何函数里）那句
-//    `main().catch(err => fatal(err.stack))` —— 建站直接死，连重试都走不到。
+//    `main().catch(err => {`（`create-site.js` 末尾那三行）—— 建站直接死，连重试都走不到。
 //    📌 #1157（来源 #1154）更正：这里原来的落点是 `§generateContent` 里那句 `debug('[blocks] 第一次输出有 …')`，
 //    而它只是打日志；开出重试的是 `if (issues.length || skinIssues.length)`，真正发调用的是它下面那次
 //    `callAIWithRetry({ … })`。本文件下面第 ⑨ / ⑩ 节指的也是这同一个决定点，三句原来对不上。
