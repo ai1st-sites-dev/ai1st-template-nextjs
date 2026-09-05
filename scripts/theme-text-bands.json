@@ -1,12 +1,12 @@
 {
   "sheets": {
     "hero-media-left": {
-      "md5": "01c8d568decfee5a1c87a6bb9344e9cc",
+      "md5": "952aa6ce4697b4340e61605b5a2bb778",
       "viewport": {
         "width": 1440,
         "height": 900
       },
-      "measuredOn": "http://127.0.0.1:59373",
+      "measuredOn": "http://127.0.0.1:33059",
       "targets": {
         ".hero__title": {
           "tmin": 0.3848,
@@ -127,21 +127,21 @@
       }
     },
     "hero-media-right": {
-      "md5": "f2265847e9603039ebe8cf9df6844326",
+      "md5": "e0ea6cb94e963f52b5e86bcbdc607185",
       "viewport": {
         "width": 1440,
         "height": 900
       },
-      "measuredOn": "http://127.0.0.1:38071",
+      "measuredOn": "http://127.0.0.1:51667",
       "targets": {}
     },
     "hero-media-top": {
-      "md5": "49760fdcc9abd8b5b555347b4f99d825",
+      "md5": "ef057b6e4d9ce67be398720d9820568c",
       "viewport": {
         "width": 1440,
         "height": 900
       },
-      "measuredOn": "http://127.0.0.1:56495",
+      "measuredOn": "http://127.0.0.1:49837",
       "targets": {
         ".cta-banner__headline": {
           "tmin": 0.2691,

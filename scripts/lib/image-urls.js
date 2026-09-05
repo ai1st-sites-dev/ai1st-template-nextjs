@@ -420,7 +420,7 @@ function scanTags(text) {
 //
 // 🔴🔴 **下面这三趟是手写扫描，不是正则（#1208 换掉的就是这个）。** 原来那三条
 //    `/<style\b[^>]*>([\s\S]*?)(?:<\/style>|$)/` · `/\burl\(\s*(?:"…"|'…'|[^)\s]*)\s*\)/` ·
-//    `/@font-face\s*\{[^}]*\}/` 在**病态输入**上都是二次的，而这道闸**同步**跑在 `edit-site.js:688`
+//    `/@font-face\s*\{[^}]*\}/` 在**病态输入**上都是二次的，而这道闸**同步**跑在 `edit-site.js §badImageUrl`
 //    落盘之前 ⟹ 真触发一次，老板那次「让 AI 改一下」就多等几秒、且没有任何反馈。
 //    `blog/*.json` 的正文是模型写的、长度**没有上界**，所以这条路今天的上界靠「模型一般不会那么写」
 //    兜着，不是靠代码兜着。实测（`origin/main` 那份字节 `4956fe75289a`，N 翻倍时间 ×4 ⟹ 二次）：
@@ -888,7 +888,9 @@ function collectAllowedImageUrls(o) {
  * 这次写入里有没有「谁都没给过」的图片地址？
  *
  * 🔴 **这句话是给【模型】看的回执，老板看不到它（#1207 AC7，整条链现读过一遍）**：
- *    `edit-site.js:688` 拿它当 `{ error }` 返回 → `executeTool` 的返回值 → `JSON.stringify`
+ *    `edit-site.js §badImageUrl` 那两行拿它当 `{ error }` 返回 → `executeTool` 的返回值 → `JSON.stringify`
+ *    (🔴 #1277 台账条 19 —— 这条链上三处原来写的是 `edit-site.js:688`，而 `:688` 只是算出 `badImageUrl`
+ *     的那一行，`return { error: … }` 在 `:689`：差一行，今天还指得到，明天不一定。三处一起换成名字。)
  *    → §main 那条 `type: 'tool_result'` 发回模型。磁盘一个字节没动，模型在同一轮里改口重写。
  *    老板看到的是模型最后那段文字（那一路是 `Changes applied.`），不是这句。
  *    ⟹ 改这句话的读者只有模型。
