@@ -6,7 +6,7 @@
         "width": 1440,
         "height": 900
       },
-      "measuredOn": "http://127.0.0.1:33059",
+      "measuredOn": "http://127.0.0.1",
       "targets": {
         ".hero__title": {
           "tmin": 0.3848,
@@ -132,7 +132,7 @@
         "width": 1440,
         "height": 900
       },
-      "measuredOn": "http://127.0.0.1:51667",
+      "measuredOn": "http://127.0.0.1",
       "targets": {}
     },
     "hero-media-top": {
@@ -141,7 +141,7 @@
         "width": 1440,
         "height": 900
       },
-      "measuredOn": "http://127.0.0.1:49837",
+      "measuredOn": "http://127.0.0.1",
       "targets": {
         ".cta-banner__headline": {
           "tmin": 0.2691,

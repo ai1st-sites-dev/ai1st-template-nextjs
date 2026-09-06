@@ -179,7 +179,18 @@ for (const [sel, r] of found) {
     pages: seenOn.get(sel),
   };
 }
-const entry = { md5: sheetMd5, viewport: VIEWPORT, measuredOn: baseUrl, targets };
+// 🔴 measuredOn 存的是**去掉端口**的 origin(#1291 台账条 29,来源 #1277)。
+// 上一版存整个 baseUrl,而量这些表用的是 `python3 -m http.server` 的**临时端口** ——
+// 每重取一次它必变。后果不是难看:审 diff 的人因此分不出「真拿浏览器重取过」和
+// 「只手改了 md5」,两种都只显示 md5 + measuredOn 两行变(#1277 实测:那三张表的
+// diff 里除这两个键外,targets 的几何一位小数都没动)。
+// 去掉端口之后,**几何没变的重取产出零行 diff**,而单独动 md5 会当场露出来。
+// 端口不是出处,是噪声;主机名留着(它分得开 localhost 与 appdev 那种真部署)。
+const measuredOrigin = (() => {
+  try { const u = new URL(baseUrl); return `${u.protocol}//${u.hostname}`; }
+  catch { return baseUrl; }
+})();
+const entry = { md5: sheetMd5, viewport: VIEWPORT, measuredOn: measuredOrigin, targets };
 
 if (!Object.keys(targets).length) {
   console.log(`${sheet}: 没有一段字压在渐变上 —— 这张表不需要几何读数。`);
