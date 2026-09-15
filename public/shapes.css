@@ -19,6 +19,14 @@
    一样（各两个名字）、12 个逐字相同（各一个名字），一共 50 个 (block, shape) 对。要加第 51 个，
    先量出「它跟已有的哪一个真的不同」。
 
+   ── 有一个画法不是从那两套表里剪出来的 ────────────────────────────────────────────────────
+   `row`（横排条）是 #1320 手写的。搬迁前两套表给 services-nav / logo-carousel / trusted-brands
+   写的都是一列的网格，而那正是它要治的缺陷：桌面上六个协会名、八个保险公司名一个一行竖着排，
+   名字还被折成两行。设计文档 D1 只允许这三个块用它（「同级项横排、放不下换行」）。它的几何
+   读数在 `scripts/theme-css-invariants.mjs` 的检查 ⑧ —— D5 那条「没有读数的形态不许进」。
+   🔴 所以 (块, 画法) 对**仍然是 50 个**：这三个块各自把 `stack` 换成了 `row`，不是各多一个名字。
+   留着旧名字就是文件头上面那条自己禁止的「为将来可能有预留名字」。
+
    ── 这一层可以引用什么 ────────────────────────────────────────────────────────────────────────
    刻度变量（`--section-block-gap` / `--radius-block` 这类）可以引；几何常量写死。间距和圆角本身
    仍然是主题的，所以这里不写 `gap` / `padding` / `margin` —— 它们留在主题表里。
@@ -924,21 +932,34 @@
 
 /* ══ logo-carousel ══════════════════════════════════════════════════════════════════════ */
 
-/* logo-carousel · stack  （ember-12 + azure-29 今天选的就是它） */
+/* logo-carousel · row  （ember-12 + azure-29 今天选的就是它；#1320 之前它俩选的是 stack，一列的网格） */
 
-[data-block="logo-carousel"][data-shape="stack"] {
-  display: grid;
-  grid-template-columns: 1fr;
+/* 🔴 `align-items` 是 `flex-start` 而不是 `center`，这一条是 #1320 r2 按读数定的，别顺手改回去。
+   ① 那条几何读数（同级项的 x 至少两个不同值）在 `center` 下**测不出竖排**：竖排时宽度不同的项被
+   居中，每项的 x 本来就互不相同。实测（azure-29，把 `flex-direction` 改成 `column` 的那一刀）：
+   `center` 下三个块只有 logo-carousel 红（它三项等宽），`flex-start` 下三个块全红。
+   而换成 `flex-start` 今天**一个像素都不动**：两套主题各在同一个目录里构建两次、逐项比盒子，
+   1280 与 375 下三个块每一项的 x/y/宽/高逐个相同（两臂唯一的差别就是 `align-items` 这个属性
+   自己的值）—— 因为每个块内部的项等高
+   （主题给 `.logo-carousel__logo` / `.trusted-brands__brand` 写死 `height: 2.5rem`，
+   服务链接是一行的胶囊），而 `align-items` 只在项**不等高**时才有话说。
+   ⟹ 哪天某个块的项真的不等高了，这里要重新判：那时 `center` 好看，但①会再次变瞎，
+   得让①b（项放得下时必须只占一行）继续担着。 */
+
+[data-block="logo-carousel"][data-shape="row"] {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
 }
 
-[data-block="logo-carousel"][data-shape="stack"] .logo-carousel__headline {
-  grid-column: 1 / -1;
+[data-block="logo-carousel"][data-shape="row"] .logo-carousel__headline {
+  flex: 0 0 100%;
 }
 
-[data-block="logo-carousel"][data-shape="stack"] .logo-carousel__logo {
+[data-block="logo-carousel"][data-shape="row"] .logo-carousel__logo {
   display: grid;
   place-items: center;
-  max-width: 9rem;
 }
 
 /* ══ map-area ══════════════════════════════════════════════════════════════════════ */
@@ -1369,15 +1390,13 @@
 
 /* ══ services-nav ══════════════════════════════════════════════════════════════════════ */
 
-/* services-nav · stack  （ember-12 + azure-29 今天选的就是它） */
+/* services-nav · row  （ember-12 + azure-29 今天选的就是它；#1320 之前它俩选的是 stack，一列的网格） */
 
-[data-block="services-nav"][data-shape="stack"] {
-  display: grid;
-  grid-template-columns: 1fr;
-}
-
-[data-block="services-nav"][data-shape="stack"] .services-nav__link {
-  justify-self: start;
+[data-block="services-nav"][data-shape="row"] {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
 }
 
 /* ══ social-proof ══════════════════════════════════════════════════════════════════════ */
@@ -1667,19 +1686,20 @@
 
 /* ══ trusted-brands ══════════════════════════════════════════════════════════════════════ */
 
-/* trusted-brands · stack  （ember-12 + azure-29 今天选的就是它） */
+/* trusted-brands · row  （ember-12 + azure-29 今天选的就是它；#1320 之前它俩选的是 stack，一列的网格） */
 
-[data-block="trusted-brands"][data-shape="stack"] {
-  display: grid;
-  grid-template-columns: 1fr;
+[data-block="trusted-brands"][data-shape="row"] {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
 }
 
-[data-block="trusted-brands"][data-shape="stack"] .trusted-brands__headline {
-  grid-column: 1 / -1;
+[data-block="trusted-brands"][data-shape="row"] .trusted-brands__headline {
+  flex: 0 0 100%;
 }
 
-[data-block="trusted-brands"][data-shape="stack"] .trusted-brands__brand {
+[data-block="trusted-brands"][data-shape="row"] .trusted-brands__brand {
   display: grid;
   place-items: center;
-  max-width: 9rem;
 }

@@ -94,7 +94,7 @@
       "features-grid": "two-up",
       "gallery": "two-up",
       "hero": "media-cover",
-      "logo-carousel": "stack",
+      "logo-carousel": "row",
       "map-area": "two-up",
       "newsletter-signup": "form-side",
       "page-header": "stack-left",
@@ -103,14 +103,14 @@
       "quote-form": "main-aside",
       "service-related-pages": "two-up",
       "services-list": "two-up",
-      "services-nav": "stack",
+      "services-nav": "row",
       "social-proof": "two-up",
       "stats-counter": "two-up",
       "team-grid": "two-up",
       "testimonials": "attribution-first",
       "text-block": "stack",
       "timeline": "stack",
-      "trusted-brands": "stack"
+      "trusted-brands": "row"
     }
   },
   "azure-29": {
@@ -208,7 +208,7 @@
       "features-grid": "wide-rows",
       "gallery": "three-up",
       "hero": "form-side",
-      "logo-carousel": "stack",
+      "logo-carousel": "row",
       "map-area": "three-up",
       "newsletter-signup": "form-side",
       "page-header": "title-side",
@@ -217,14 +217,14 @@
       "quote-form": "main-aside",
       "service-related-pages": "three-up",
       "services-list": "two-up",
-      "services-nav": "stack",
+      "services-nav": "row",
       "social-proof": "three-up",
       "stats-counter": "three-up",
       "team-grid": "three-up",
       "testimonials": "two-up",
       "text-block": "stack",
       "timeline": "stack",
-      "trusted-brands": "stack"
+      "trusted-brands": "row"
     }
   }
 }

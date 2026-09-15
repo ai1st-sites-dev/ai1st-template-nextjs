@@ -353,9 +353,16 @@
    🔴 `overflow: hidden` ON EACH BLOCK is the guard hero, cta-banner and page-header have: it keeps a
    phone from getting a horizontal scrollbar when a sheet paints something wider than the block. No
    sheet sets `overflow`, so nothing here reaches a themed page by accident. `.services-nav` is the
-   exception and takes `overflow-x: auto` instead — its row of service links is MEANT to scroll
-   sideways when a business has eight services, and that is the thing that keeps the page from doing
-   it instead.
+   exception and takes `overflow-x: auto` instead. 🔴 #1320 CHANGED WHAT THAT LINE IS FOR. What stood
+   here — "its row of service links is MEANT to scroll sideways when a business has eight services" —
+   is not true any more: the bar WRAPS now. `public/shapes.css` gives the block the `row` shape, whose
+   items go onto the next line when they do not fit, and design doc D1 allows this block no other
+   shape. What `overflow-x` still does is the one case wrapping cannot help with: a SINGLE service
+   name wider than the whole bar (the links are `white-space: nowrap`, below). Then the overflow is
+   kept inside the bar instead of the page growing a scrollbar — measured at 375px with a
+   66-character service name, the only difference between the two arms being this one declaration:
+   with it the document is 375px wide, without it 507px. So the line stays; only what it guards
+   against has narrowed.
 
    🔴 WHAT THIS BATCH GAVE UP, WRITTEN DOWN RATHER THAN LEFT TO BE FOUND: the quote form's sidebar
    was `position: sticky` and is not any more. A sheet cannot make it sticky (contract §2 admits no
@@ -505,8 +512,11 @@
   overflow-x: auto;
 }
 
-/* The row scrolls sideways instead of breaking a service name in half — that is what makes the
-   `overflow-x` above the right guard rather than a hidden clip. */
+/* One line per link, so a row of service names breaks BETWEEN links and never through one. #1320:
+   this used to read "the row scrolls sideways instead of breaking a service name in half", which
+   stopped being true when the bar started wrapping (`public/shapes.css`, the `row` shape). Wrapping
+   and this line together are what leave `overflow-x` above with a single job — one name wider than
+   the whole bar — rather than being the bar's normal behaviour. */
 .services-nav__link {
   white-space: nowrap;
 }

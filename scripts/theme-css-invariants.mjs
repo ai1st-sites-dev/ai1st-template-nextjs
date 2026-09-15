@@ -219,6 +219,12 @@ const MIN_BODY_PX = 14;
 // that question has no palette in it. The boundary is printed in the report rather than left for
 // someone to work out from the code.
 const PALETTE_IS_NOT_THE_SHEETS_OWN = process.env.THEME_CSS_PALETTE_NOT_THE_SHEETS_OWN === '1';
+// The other seam the paragraph above names, read ONCE here because two readers grew for it: the hook
+// coverage count at the end of this file, and check ⑧ (#1320). Same meaning in both: this run is
+// looking at a sample site `theme-css-invariants-all-sheets.sh` made AND widened itself, so a block
+// that is on no page — or that has too few items to measure — is a finding rather than a note about
+// how small somebody's own `site/` is.
+const SAMPLE_WIDENED = process.env.THEME_CSS_SAMPLE_WIDENED === '1';
 // Contrast findings that were measured under a palette that is not the sheet's own. Printed in full,
 // never counted towards the exit code.
 const unjudgedContrast = [];
@@ -2008,7 +2014,329 @@ async function judgeStrips(where) {
   return found;
 }
 
+// ── ⑧ the row shape lays its items out in a row, and wraps instead of stacking (#1320) ──────────
+//
+// `public/shapes.css` gives `services-nav`, `logo-carousel` and `trusted-brands` one shape, `row`:
+// same-level items side by side, wrapping to the next line when they do not fit, each item on one
+// line of its own. Design doc D1 names the shape and D5 names this reading as the price of a shape
+// entering the library: "没有读数的形态不许进".
+//
+// 🔴 WHY A SHAPE NEEDS ITS OWN READING AT ALL, given everything else in this file. Nothing above
+// looks at where a block's items ARE. #1320's defect — six association names and eight insurer names
+// one per line down a desktop page, and a service name folded in half — broke no invariant here: the
+// words were painted, readable, big enough, in DOM order, and the page did not scroll sideways.
+// It took a person looking at a picture, which is the sentence at the top of this file.
+//
+// 🔴 IT IS KEYED ON `[data-shape="row"]`, NOT ON THE THREE BLOCK NAMES. The shape is the thing being
+// asserted about; a fourth block that takes this shape gets the reading with no edit here, and a block
+// that moves off it stops being asked a question that no longer applies to it. (The block name is
+// still printed in every finding — `data-block` is right there on the element.)
+const ROW_SHAPE = 'row';
+// 🔴 AND THE THREE BLOCKS THAT MAY ONLY WEAR IT, BY NAME — because a check keyed on the shape ALONE
+// cannot answer the question on a tree where the shape is not applied yet, and that is exactly the
+// tree this check has to speak about. Measured on #1320's own baseline: with only the shape selector,
+// a build whose three blocks still wore `stack` (one-column grid, the defect) came back
+// "nothing carries [data-shape=row], so ⑧ said nothing" — a red, but a red about the instrument
+// rather than about the six names stacked down the page. Design doc D1 is what makes the block list
+// legitimate rather than a duplicate of the selection list: "补一个今天不存在的形态「横排条」…
+// services-nav、logo-carousel、trusted-brands 三个块只允许它".
+// ⟹ the population is the UNION: anything wearing the shape (so a fourth block that takes it is
+// measured with no edit here) plus these three whatever they are wearing (so the day one of them
+// stops wearing it, the geometry is still measured AND the mismatch is named).
+const ROW_ONLY_BLOCKS = ['services-nav', 'logo-carousel', 'trusted-brands'];
+// 🔴 Two announced widths, not derived ones, and that is a difference from check ⑦ next door: ⑦ sweeps
+// the band floors the page's own sheets declare, because a strip can be cut at any width. This check
+// asks a question about TWO STATES — "on a desktop they are side by side" and "on a phone they wrap
+// rather than overflow" — and the widths that name those states come from the ticket and from D5's
+// worked example ("横排条在 1280 宽下同级项不共享同一个 x"), not from a media query. 375 is the
+// narrowest phone in Playwright's own device list that this repo's other fixtures use; 1280 is the
+// desktop width the ticket's own repro was taken at.
+// 🔴 What that costs is a real blind spot and it is printed with the reading every run: a width
+// BETWEEN these two is not measured, so a shape that is right at both ends and wrong in the middle
+// reads green here. Naming it is the honest half; closing it would be ⑦'s sweep, at ⑦'s price.
+const ROW_DESKTOP_W = 1280;
+const ROW_PHONE_W = 375;
+// A box laid out at a fraction of a pixel is not an item sticking out of its container — the same 1px
+// this file's strip check uses, for the same reason.
+const ROW_SLACK = 1;
+
+const ROW_PROBE = ([headingHooks, selector]) => {
+  const nameOf = (el) => el.tagName.toLowerCase()
+    + (el.classList.length ? `.${[...el.classList].join('.')}` : '');
+  // 🔴 HOW MANY LINES THE ITEM'S TEXT TOOK, NOT HOW TALL ITS BOX IS. The box is the wrong ruler here
+  // and that was measured, not reasoned: both pool sheets give `.logo-carousel__logo` and
+  // `.trusted-brands__brand` a `height: 2.5rem` (40px against a 24px line-height), and `height` is
+  // NOT in the family #1318 moved to the shape layer (`theme-css-lint.js` §GEOM_EXACT says so in as
+  // many words), so the shape layer cannot change it. A "box ≤ 1.5 lines" rule therefore reads red on
+  // those two blocks whatever the shape does — red before this ticket and red after it, which is a
+  // ruler that cannot see the thing it was pointed at. Counting the line boxes of the item's own text
+  // separates the arms: 2 lines before, 1 after (#1320 DEV, both arms on the same fixture).
+  const lineCount = (el) => {
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    const tops = new Set([...r.getClientRects()]
+      .filter((x) => x.width > 0 && x.height > 0)
+      .map((x) => Math.round(x.top)));
+    return tops.size;
+  };
+  const px = (v) => parseFloat(v) || 0;
+  const out = [];
+  const seen = new Set();
+  for (const el of document.querySelectorAll(selector)) {
+    if (seen.has(el)) continue;
+    seen.add(el);
+    const cs = getComputedStyle(el);
+    const box = el.getBoundingClientRect();
+    // The CONTENT box, not the border box: a block with padding is allowed to have its items stop
+    // short of its own edge, and an item that reaches past the padding is already sticking out.
+    const contentLeft = box.left + px(cs.borderLeftWidth) + px(cs.paddingLeft);
+    const contentRight = box.right - px(cs.borderRightWidth) - px(cs.paddingRight);
+    // `column-gap` computes to `normal`, which is 0 on flex and grid.
+    const gap = cs.columnGap === 'normal' ? 0 : px(cs.columnGap);
+    // The items are the block's own element children minus its heading and lede — the same
+    // enumeration check ⑦ uses for "a block's own heading must not ride inside the scroll axis",
+    // and the same reason: those two are the block speaking, the rest are the row.
+    const items = [...el.children]
+      .filter((c) => !headingHooks.some((h) => c.classList.contains(h)))
+      .map((c) => {
+        const b = c.getBoundingClientRect();
+        return {
+          name: nameOf(c),
+          text: (c.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 32),
+          left: b.left, right: b.right, top: b.top, bottom: b.bottom, width: b.width,
+          lines: lineCount(c),
+          // 🔴 The item's OWN overflow, which is where "one item is wider than the whole bar" shows
+          // up — not in its box. base.css puts `min-width: 0` on these hooks, so the box is squeezed
+          // to the container's width and the text runs out of it. Measured below at ③.
+          selfScrollWidth: c.scrollWidth, selfClientWidth: c.clientWidth,
+        };
+      });
+    out.push({
+      block: el.getAttribute('data-block') || nameOf(el),
+      shape: el.getAttribute('data-shape') || '(none)',
+      name: nameOf(el),
+      display: cs.display,
+      flexWrap: cs.flexWrap,
+      scrollWidth: el.scrollWidth,
+      clientWidth: el.clientWidth,
+      contentLeft,
+      contentRight,
+      gap,
+      items,
+    });
+  }
+  return out;
+};
+
+// 🔴 THE VISUAL LINES, NOT THE DISTINCT `top` VALUES. Two items on one line do not share a `top`
+// the moment they are different heights — `align-items: center` is in this very shape — so counting
+// distinct tops answers "how many different heights are in this row" as readily as "how many lines".
+// Items whose vertical ranges OVERLAP are on the same line; that is what a person sees.
+const rowLines = (items) => {
+  const groups = [];
+  for (const it of [...items].sort((a, b) => a.top - b.top)) {
+    const g = groups[groups.length - 1];
+    if (g && it.top < g.bottom - ROW_SLACK) {
+      g.items.push(it);
+      g.bottom = Math.max(g.bottom, it.bottom);
+    } else {
+      groups.push({ items: [it], bottom: it.bottom });
+    }
+  }
+  return groups;
+};
+
+const ROW_SELECTOR = [`[data-shape="${ROW_SHAPE}"]`,
+  ...ROW_ONLY_BLOCKS.map((b) => `[data-block="${b}"]`)].join(', ');
+
+// What every rung of ⑧ saw, for the report at the end.
+const rowBlocksSeen = new Set();
+// block → the shapes it was found wearing. D1 says the three above may wear only `row`; a block
+// wearing something else is reported by name, and the reading prints what it was wearing instead.
+const rowShapeWorn = new Map();
+const rowPagesMeasured = [];
+const rowTooFewItems = [];
+const rowWrapped = [];     // blocks that really did wrap at ROW_PHONE_W
+const rowNoWrapNeeded = []; // blocks whose items fit on one line there, so ⑤ does not apply
+
+/** ⑧ on whatever page is open, at one width. `phone` picks which half of the assertions apply. */
+async function judgeRowShapesAt(where, at, phone) {
+  const rows = await page.evaluate(ROW_PROBE, [HEADING_HOOKS, ROW_SELECTOR]);
+  for (const r of rows) {
+    const room = r.contentRight - r.contentLeft;
+    const need = r.items.reduce((sum, i) => sum + i.width, 0)
+      + r.gap * Math.max(0, r.items.length - 1);
+    const xs = new Set(r.items.map((i) => Math.round(i.left)));
+    const lines = rowLines(r.items);
+    const outside = r.items.filter((i) => i.right > r.contentRight + ROW_SLACK
+      || i.left < r.contentLeft - ROW_SLACK);
+    const folded = r.items.filter((i) => i.lines > 1);
+    rowBlocksSeen.add(r.block);
+    if (!rowShapeWorn.has(r.block)) rowShapeWorn.set(r.block, new Set());
+    rowShapeWorn.get(r.block).add(r.shape);
+    readings.push(`  row shape (check ⑧) on ${where} at ${at}px — ${r.block} (shape "${r.shape}"): `
+      + `${r.items.length} item(s), `
+      + `${r.display}/${r.flexWrap}, distinct x ${xs.size}, visual lines ${lines.length} `
+      + `(${lines.map((g) => g.items.length).join('+')}), `
+      + `items wider than one line: ${folded.length}, outside the content box: ${outside.length}, `
+      + `scrollWidth ${r.scrollWidth} vs clientWidth ${r.clientWidth}, `
+      + `items+gaps ${Math.round(need)} against ${Math.round(room)} of room`);
+    // 🔴 FEWER THAN TWO ITEMS IS NO READING, NOT A PASS. "The items do not share an x" and "they wrap"
+    // are both statements about a SET; with one item every one of them is vacuously true, and a
+    // vacuous green here looks exactly like a measured one. This is not hypothetical: services-nav's
+    // items are services (`getServices(locale)` → services.json), not slots on the block, and the demo
+    // site `create-site.js` builds has one service — so before #1320 widened the fixture this block
+    // was the one the ticket was about AND the one nothing could be said about.
+    if (r.items.length < 2) {
+      rowTooFewItems.push(`${r.block} on ${where} at ${at}px (${r.items.length} item(s))`);
+      continue;
+    }
+    if (!phone) {
+      // 🔴 ①b THE ONE THAT ACTUALLY SEPARATES A ROW FROM A COLUMN, and it is here because ① alone
+      // does NOT. ① is the ticket's assertion (and D5's: "同级项不共享同一个 x"), and it was measured
+      // failing to catch the very mutation AC2(a) names: with `flex-direction: column` and this
+      // shape's `align-items: center`, items of unequal width are centred, so every one of them
+      // starts at a DIFFERENT x while being stacked one per line. Measured on this fixture —
+      // `services-nav` and `trusted-brands` passed ① under that knife; only `logo-carousel`, whose
+      // three items happen to be identical strings and therefore identical widths, came out red.
+      // ⟹ if the items FIT in the block, a row puts them on ONE line. Both are kept: ① is what the
+      // ticket and D5 name, and it stays honest on a stacked-and-left-aligned block; ①b is what does
+      // not depend on the items having the same width.
+      if (need <= room + ROW_SLACK && lines.length > 1) {
+        problems.push(`row shape on ${where} at ${at}px wide: "${r.block}" has ${r.items.length} `
+          + `items that need ${Math.round(need)}px and ${Math.round(room)}px of room for them, and `
+          + `they are on ${lines.length} separate lines (${lines.map((g) => g.items.length).join('+')}) `
+          + '— they fit side by side and are not side by side. It is wearing shape '
+          + `"${r.shape}" (computed display "${r.display}", flex-wrap "${r.flexWrap}", `
+          + `flex-direction is what decides this)`);
+      }
+      // ① side by side
+      if (xs.size < 2) {
+        problems.push(`row shape on ${where} at ${at}px wide: "${r.block}" has ${r.items.length} `
+          + `items and they all start at the same x (${[...xs][0]}) — a row of same-level items is `
+          + `stacked in one column. It is wearing shape "${r.shape}" (computed display `
+          + `"${r.display}", flex-wrap "${r.flexWrap}"), and the shape these blocks are supposed to `
+          + `wear is "${ROW_SHAPE}", whose whole content is that they sit side by side`);
+      }
+      // ④ no item's own text is folded
+      if (folded.length > 0) {
+        problems.push(`row shape on ${where} at ${at}px wide: ${folded.length} item(s) of `
+          + `"${r.block}" have their text folded onto more than one line — `
+          + `${folded.map((i) => `${i.name} "${i.text}" (${i.lines} lines)`).join(' · ')}. `
+          + 'A row of names breaks between items, not through one');
+      }
+    } else if (need > room + ROW_SLACK) {
+      // ⑤ the items do not fit, so they have to have wrapped
+      if (lines.length < 2) {
+        problems.push(`row shape on ${where} at ${at}px wide: "${r.block}" needs `
+          + `${Math.round(need)}px for its ${r.items.length} items and has ${Math.round(room)}px of `
+          + 'room, and every item is still on the same line — so they are overflowing sideways '
+          + 'instead of wrapping onto the next line');
+      } else {
+        // 🔴 "did not all stay on one line", not "wrapped": at this width a block still wearing the
+        // one-column `stack` satisfies this too (every item on its own line). ⑤ is the weaker half of
+        // ⑧ by construction — ①/①b are what separate a row from a column, and this one only says the
+        // items were not left overflowing sideways. Naming it accurately here matters because this
+        // list is what the coverage rule below counts.
+        rowWrapped.push(`${r.block} on ${where}`);
+      }
+    } else {
+      // 🔴 THE OTHER SIDE OF ⑤ IS RECORDED, NOT ASSUMED. Whether a row has to wrap at 375 is a fact
+      // about how wide this fixture's own items are, not a property of the shape: this repo's
+      // trusted-brands fixture is `Brand0 text` · `Brand1 text` · `Brand2 text`, 252px of items in
+      // 327px of room, and NOT wrapping is the correct behaviour for them. An unconditional "it must
+      // wrap at 375" is red on a correct delivery — measured on this fixture before it was written
+      // that way (#1320 r5).
+      rowNoWrapNeeded.push(`${r.block} on ${where} (${Math.round(need)}px of items in `
+        + `${Math.round(room)}px of room)`);
+    }
+    // ②/⑥ nothing sticks out of the container, at both widths
+    if (outside.length > 0) {
+      problems.push(`row shape on ${where} at ${at}px wide: ${outside.length} item(s) of `
+        + `"${r.block}" reach outside its content box (${Math.round(r.contentLeft)}..`
+        + `${Math.round(r.contentRight)}) — `
+        + `${outside.map((i) => `${i.name} "${i.text}" at ${Math.round(i.left)}..${Math.round(i.right)}`).join(' · ')}`);
+    }
+    // ③/⑦ and the block itself does not scroll sideways, at both widths
+    // 🔴 This is the assertion that fires on the one path this check does NOT own: an item wider than
+    // the whole strip (a single very long service name). `globals.css` keeps `overflow-x: auto` on
+    // `.services-nav` precisely so that such an item scrolls INSIDE the bar instead of growing the
+    // page — deleting it was measured at 507px of document against a 375px window.
+    //
+    // 🔴 HOW TO TELL THAT PATH APART, MEASURED RATHER THAN IMAGINED (#1320 r2, QA2 built the state and
+    // DEV reproduced it: a 65-character service name, ember-12, 375px). The first version of this
+    // message said "one item reaches outside the content box"; the real reading is **zero** items
+    // outside it. base.css puts `min-width: 0` on these hooks, so the long link's BOX is squeezed to
+    // exactly the container's content width (327px) and what overflows is the text inside the box
+    // (that item's own scrollWidth 508 against its clientWidth 327). The block scrolls (532 > 375)
+    // while the page does not (document scrollWidth 375 = innerWidth) — which is the `overflow-x`
+    // doing its job. So the signature is: the BLOCK overflows, no item is outside it, and at least
+    // one item overflows ITSELF. Those items are named below.
+    if (r.scrollWidth > r.clientWidth + ROW_SLACK) {
+      const selfOverflow = r.items.filter((i) => i.selfScrollWidth > i.selfClientWidth + ROW_SLACK);
+      problems.push(`row shape on ${where} at ${at}px wide: "${r.block}" scrolls sideways `
+        + `(scrollWidth ${r.scrollWidth} > clientWidth ${r.clientWidth}) — its items are supposed to `
+        + `wrap onto the next line. ${outside.length} of its ${r.items.length} items reach outside its `
+        + `content box, and ${selfOverflow.length} item(s) are wider than their own box`
+        + `${selfOverflow.length ? `: ${selfOverflow.map((i) => `${i.name} "${i.text}" `
+          + `(${i.selfScrollWidth} vs ${i.selfClientWidth})`).join(' · ')}` : ''}. `
+        + '🔴 If NO item is outside the block and at least one is wider than its own box, this is the '
+        + '"one item is wider than the whole bar" path (#1320), which this shape does not own: wrapping '
+        + 'happens between items, never inside one, and `globals.css` keeps `overflow-x: auto` on the '
+        + 'bar for exactly that case. Post this reading and the page-level one (the document must NOT '
+        + 'scroll) and let PM rule, rather than loosening this assertion');
+    }
+  }
+  return rows.length;
+}
+
+/**
+ * ⑧ on the page that is open, at both widths, handing the page back the way it was found — the
+ * viewport AND the scroll offset, for the reason spelled out on `judgeStrips` above (a page left
+ * parked somewhere else comes back wearing another check's clothes, and it cost a red `main` once).
+ *
+ * 🔴 The probe runs BEFORE any resize, so a page with no row-shaped block on it costs one
+ * `querySelectorAll` and not two relayouts. Nearly every page is that page: the three blocks are on
+ * /allblocks.html and, for a real site, on its services page.
+ */
+async function judgeRowShapes(where) {
+  const any = await page.evaluate((sel) => document.querySelectorAll(sel).length, ROW_SELECTOR);
+  if (!any) return 0;
+  rowPagesMeasured.push(where);
+  const before = page.viewportSize();
+  const beforeScroll = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }));
+  const settle = () => page.evaluate(() => new Promise((done) => {
+    requestAnimationFrame(() => requestAnimationFrame(done));
+  }));
+  let seen = 0;
+  for (const [w, phone] of [[ROW_DESKTOP_W, false], [ROW_PHONE_W, true]]) {
+    await page.setViewportSize({ width: w, height: before.height });
+    await settle();
+    seen = await judgeRowShapesAt(where, w, phone);
+  }
+  await page.setViewportSize(before);
+  await settle();
+  // 🔴 Size first, then scroll, and `behavior: 'instant'` — both halves copied from `judgeStrips`
+  // above rather than reinvented, and the second one is load-bearing: `globals.css:7` sets
+  // `scroll-behavior: smooth`, so a plain `window.scrollTo(x, y)` ANIMATES and the read-back two
+  // frames later is taken mid-flight. Measured here, not assumed: the first version of this function
+  // used the plain form and `azure-29` came back `(0,3505 → 0,3476)` — a red about this check's own
+  // restore, on a sheet whose geometry was fine. The comment on `judgeStrips` records the same
+  // failure in both directions over 20 sheets.
+  await page.evaluate(({ x, y }) => window.scrollTo({ left: x, top: y, behavior: 'instant' }),
+    beforeScroll);
+  await settle();
+  const afterScroll = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }));
+  if (Math.abs(afterScroll.y - beforeScroll.y) > 1 || Math.abs(afterScroll.x - beforeScroll.x) > 1) {
+    problems.push(`⑧ on ${where}: the page could not be put back where it was `
+      + `(${beforeScroll.x},${beforeScroll.y} → ${afterScroll.x},${afterScroll.y}) — whatever is `
+      + 'measured next sees a different part of the page than it would have');
+  }
+  return seen;
+}
+
 await judgeStrips(pathOf(baseUrl));
+await judgeRowShapes(pathOf(baseUrl));
 
 // ── ④ body text is big enough ───────────────────────────────────────────────────────────────────
 for (const sel of ['body', '.hero__sub']) {
@@ -2835,6 +3163,10 @@ for (const p of otherPaths.slice(0, OTHER_PAGE_CAP)) {
   // no home page in this repo (the sample site puts it on /allblocks.html alone), so measuring ⑦ only
   // on the first page would have been measuring it never.
   await judgeStrips(opened.at);
+  // 🔴 #1320 ⑧ — AND THE ROW SHAPES, HERE, for the same reason ⑦ is here: the three blocks that wear
+  // it are on no home page of this sample site (the fixture puts all 31 blocks on /allblocks.html
+  // alone), so measuring ⑧ on the first page only would have been measuring it never.
+  await judgeRowShapes(opened.at);
   // 🔴 #1091 — AND THE BUTTONS AND LINKS, HERE, on every page this loop opens. This line was held
   // closed from #1055 to #1091 and the reason is spent: what blocked it was `.btn-primary`, white on
   // `--color-primary-500`, unreadable on 52 of the 80 pool sheets (104 violations, 2 per red sheet,
@@ -2891,6 +3223,78 @@ for (const p of otherPaths.slice(0, OTHER_PAGE_CAP)) {
   readings.push(`  ${opened.at} — essential elements: ${otherReading.roots.length}`
     + ` · parts with content inside them: ${otherReading.parts.length}`);
   essentialPagesMeasured.push(opened.at);
+}
+
+// ── the report for ⑧, and the two things about it that only the whole run can say (#1320) ──────
+const rowWhere = rowPagesMeasured.length
+  ? rowPagesMeasured.join(', ')
+  : `🔴 no page — nothing on any page measured matches ${ROW_SELECTOR}`;
+// D1's rule, read off the pages: each of the three may wear only `row`.
+const rowWrongShape = [...rowShapeWorn.entries()]
+  .filter(([block, shapes]) => ROW_ONLY_BLOCKS.includes(block) && [...shapes].some((x) => x !== ROW_SHAPE))
+  .map(([block, shapes]) => `${block} wears "${[...shapes].join('", "')}"`);
+const rowMissing = ROW_ONLY_BLOCKS.filter((b) => !rowBlocksSeen.has(b));
+readings.push(`  row shape (check ⑧): measured on ${rowWhere}, at ${ROW_DESKTOP_W}px and `
+  + `${ROW_PHONE_W}px, on ${rowBlocksSeen.size} block(s): ${[...rowBlocksSeen].join(', ') || 'none'}`
+  + `${rowTooFewItems.length ? ` · 🔴 too few items to say anything about (fewer than 2): `
+    + `${[...new Set(rowTooFewItems)].join(' · ')}` : ''}`
+  + `${rowWrapped.length ? ` · did not all stay on one line at ${ROW_PHONE_W}px (their items needed `
+    + `more room than the block had): `
+    + `${[...new Set(rowWrapped)].join(' · ')}` : ''}`
+  + `${rowNoWrapNeeded.length ? ` · fit on one line at ${ROW_PHONE_W}px, so the wrapping half does `
+    + `NOT apply to them: ${[...new Set(rowNoWrapNeeded)].join(' · ')}` : ''}`
+  + `${rowWrongShape.length ? ` · 🔴 D1 gives these blocks only "${ROW_SHAPE}" and `
+    + `${rowWrongShape.join(' · ')}` : ''}`
+  + `${rowMissing.length ? ` · 🔴 on no page measured: ${rowMissing.join(', ')}` : ''}`
+  + `. What it does NOT cover: any width between ${ROW_PHONE_W} and ${ROW_DESKTOP_W} (a shape that is `
+  + 'right at both ends and wrong in the middle reads green here), and how the items are ORDERED. '
+  + 'Two columns — the blind spot D5 names for the x reading, since "the items do not share an x" is '
+  + 'as true of a two-column grid as of a row — is covered here only where the items FIT the block: '
+  + 'that is the case ①b judges, and it asks for one line, not merely for different x. Where they do '
+  + 'not fit, a two-column layout and a wrapped row are the same reading to this check. (#1318 took '
+  + '`grid-template-columns` away from themes, so a two-column version of these three blocks cannot '
+  + 'be generated today either way.)');
+if (SAMPLE_WIDENED) {
+  // 🔴 On a site this run widened itself, "⑧ found nothing" is a finding. The three blocks that wear
+  // this shape are all in the contract and all on the fixture page, so their absence means the shape
+  // stopped reaching the markup — a selection list that lost the name, a build that dropped the
+  // attribute — and every sentence ⑧ prints would still read like a pass.
+  if (rowMissing.length > 0) {
+    problems.push(`row shape: ${rowMissing.join(', ')} ${rowMissing.length === 1 ? 'is' : 'are'} on no `
+      + 'page of a sample site this run widened to cover every block, so check ⑧ said nothing about '
+      + `${rowMissing.length === 1 ? 'it' : 'them'} — and this fixture carries all 31 block types by `
+      + 'construction (scripts/block-migration/gen-allblocks.js derives the page from the registry), '
+      + 'so a block missing from it is a block that stopped rendering, not a small sample');
+  }
+  // 🔴 D1: these three blocks may wear ONLY this shape. Judged here rather than in the static
+  // checkers because the shape a block ends up wearing is decided at build time in three steps
+  // (page JSON → the theme's selection list → the block manifest's default, scripts/sync-config.js
+  // §shapeForBlock) and only the built page knows which one won.
+  if (rowWrongShape.length > 0) {
+    problems.push(`row shape: ${rowWrongShape.join(' · ')}, and design doc D1 gives these blocks only `
+      + `"${ROW_SHAPE}" ("services-nav、logo-carousel、trusted-brands 三个块只允许它"). Whatever that `
+      + 'other shape lays them out as, it is not the one their geometry was measured for — check the '
+      + "theme's selection list (scripts/theme-pool.json §shapes) and public/shapes.css");
+  }
+  if (rowTooFewItems.length > 0) {
+    problems.push(`row shape: ${[...new Set(rowTooFewItems.map((x) => x.split(' at ')[0]))].join(' · ')} `
+      + 'had fewer than 2 same-level items on a sample site this run widened to cover every block, so '
+      + 'every assertion ⑧ makes about it was vacuously true. Feed it more items in '
+      + "scripts/theme-css-invariants-sample-pages.js — that is where this fixture's data is propped "
+      + '(#1052), and where #1320 added the services services-nav counts');
+  }
+  // 🔴 AND THE WRAPPING HALF NEEDS ONE BLOCK THAT ACTUALLY EXERCISED IT. Every block whose items fit
+  // on one line at 375 is skipped by ⑤ — correctly, since not wrapping is right for them — so a
+  // fixture whose rows are all short would leave ⑤ having judged NOTHING while the run says ✅. That
+  // is the same "not measured is not passed" this file states everywhere else, and it is reachable:
+  // it is exactly the state this fixture was in for trusted-brands before #1320 added the services.
+  if (rowBlocksSeen.size > 0 && rowWrapped.length === 0) {
+    problems.push(`row shape: not one block needed more room than it had at ${ROW_PHONE_W}px on a `
+      + 'sample site this run widened to cover every block — every row measured fit on one line, so '
+      + 'the half of ⑧ that asks "do they wrap instead of overflowing" judged nothing this run: '
+      + `${[...new Set(rowNoWrapNeeded)].join(' · ') || '(no readings)'}. Give one of these blocks `
+      + 'items wide enough not to fit (scripts/theme-css-invariants-sample-pages.js)');
+  }
 }
 
 // ── the report for ⑤ and ⑤b together ────────────────────────────────────────────────────────────
@@ -3048,7 +3452,7 @@ const unusedHooks = HOOK_CLASSES.filter((h) => !seenHooks.has(h));
 const reachableOnSubmitOnly = (h) => /(?:__|-)(?:error|success)$/.test(h);
 const unusedExempt = unusedHooks.filter(reachableOnSubmitOnly);
 const unusedUnexpected = unusedHooks.filter((h) => !reachableOnSubmitOnly(h));
-const widened = process.env.THEME_CSS_SAMPLE_WIDENED === '1';
+const widened = SAMPLE_WIDENED;  // read once at the top of this file; see the comment there
 readings.push(`  contract hooks not on any page measured: ${unusedHooks.length}`
   + `${unusedHooks.length ? ` (${unusedHooks.map((h) => `.${h}`).join(', ')}) — no page of this site puts `
     + 'them in its markup, so whether the theme dresses them is not a question these readings answer'

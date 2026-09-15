@@ -248,17 +248,55 @@ const SERVICE_SLUG = 'services';
 patched.push('allblocks navLabel is empty → 它不进任何一页的导航（#1061）');
 writeJson(allblocks, page);
 
-// ── ③ services.json 的 products（块的 data 管不到它）────────────────────────────────────────
+// ── ③ services.json 的 products（块的 data 管不到它）+ 够多的服务（#1320）─────────────────────
+//
+// 🔴 #1320 —— 服务的条数也补在这里，理由跟 products 那半完全一样：`services-nav` 的同级项是
+//    `getServices(locale)` 一条一个链接（`ServicesNavSection.tsx` 第一行），**不是块自己的槽位**
+//    （`gen-allblocks.js` 给这个块写的 `data` 是空对象）。而夹具站走 `create-site.js` 的 skipAI
+//    路径建，那份 demo 配置只有 **1 条**服务（`create-site.js` §DEMO_CONTENT 的 `services:`）⟹
+//    这个块在夹具页上只有一个同级项，而「横排条」那三条几何断言（同级项的 x 至少两个不同值、
+//    375 下换行、每项不越界）**按构造一条都取不到读数**：一个项没有「至少两个不同值」可言。
+//
+// 🔴 补到「375 下一行放不下」为止，不是补到「有两条」为止。⑤ 那条断言的前件就是「项宽合计（含
+//    项间 gap）超过容器 content-box 宽」—— 只补到两条的话前件不成立，那一维仍然一个字都不说，
+//    而它看起来跟量过了一模一样。375 的容器内容宽是 327（375 - 两侧 24 的内边距），补完这三条
+//    之后本机实测 azure-29 上四个链接合计 550 上下，余量足够两套主题的字体差异。
+//
+// 🔴 幂等：按 id 判在不在，不按条数。这个脚本对同一个站可能跑第二次（`--make-sample-site` 只在
+//    站不存在时造站，但站在、脚本再跑一次是允许的），按条数判会一直往上堆。
+const EXTRA_SERVICES = [
+  { id: 'brake-repair', name: 'Brake Repair', shortDescription: 'Pads, rotors and fluid.' },
+  { id: 'transmission-service', name: 'Transmission Service', shortDescription: 'Fluid, filter and pan gasket.' },
+  { id: 'wheel-alignment', name: 'Wheel Alignment & Tire Balancing', shortDescription: 'Four-wheel alignment.' },
+];
 {
   const p = path.join(contentDir, 'services.json');
   if (!fs.existsSync(p)) die(`no ${path.relative(NEXT, p)}`);
   const services = readJson(p);
   if (!Array.isArray(services) || !services.length) die('services.json is not a non-empty array');
+  let touched = false;
   if (!Array.isArray(services[0].products) || services[0].products.length === 0) {
     services[0].products = [{ name: 'Synthetic oil', description: 'Full synthetic, 5W-30.' }];
-    writeJson(p, services);
+    touched = true;
   }
+  // 形状照第一条现造的那一条抄（`create-site.js` 写的那个），只换 id / 名字 / 两句描述：夹具的
+  // 形状要跟真站一样，多一个键少一个键都可能让别的块走到另一支。
+  for (const extra of EXTRA_SERVICES) {
+    if (services.some((s) => s.id === extra.id)) continue;
+    services.push({
+      ...services[0],
+      id: extra.id,
+      name: extra.name,
+      shortDescription: extra.shortDescription,
+      fullDescription: `${extra.name} — demo copy for the theme-css fixture.`,
+      products: [],
+    });
+    touched = true;
+  }
+  if (touched) writeJson(p, services);
   patched.push('services.json service 1 has products → .services-list__products');
+  patched.push(`services.json 共 ${services.length} 条服务（+${EXTRA_SERVICES.length}，#1320）→ `
+    + 'services-nav 有足够多的同级项，375 下一行放不下');
 }
 
 // ── ④ 站的形状：一页挂在 services/ 底下 ───────────────────────────────────────────────────────
@@ -337,6 +375,14 @@ writeJson(allblocks, page);
   }
   const svc = readJson(path.join(contentDir, 'services.json'));
   if (!Array.isArray(svc[0].products) || !svc[0].products.length) bad.push('services.json products is still empty');
+  // #1320 —— 读回「盘上现在真的有那几条服务」。只问「条数 > 1」的话，别的改动把它们换成别的名字
+  // 时这里照样绿，而 services-nav 那三条几何断言的前件是**项有多宽**，跟是哪几条服务直接相关。
+  for (const extra of EXTRA_SERVICES) {
+    if (!svc.some((s) => s.id === extra.id && s.name === extra.name)) {
+      bad.push(`services.json has no service "${extra.id}" (${extra.name}) — services-nav would be too `
+        + 'narrow on the fixture page and the row-shape assertions would have nothing to measure (#1320)');
+    }
+  }
   const childPath = path.join(pagesDir, `${SERVICE_SLUG}-oil-change.json`);
   if (!fs.existsSync(childPath) || readJson(childPath).slug !== `${SERVICE_SLUG}/oil-change`) {
     bad.push('the services/oil-change page is not on disk');
