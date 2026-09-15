@@ -1802,10 +1802,34 @@ console.log('\n⑬ #1150 首屏表单那行报错，跟联系/报价那两行拿
       .map((d) => `${d.prop}: ${d.value}`).sort().join('; ');
   };
   console.log('\n⑭ #1158 首屏那句「已收到」跟表单同一个格子');
+  // #1318 —— 语料换成配方那两半合起来的那份，再加上池子里每一套主题真正拿到的那份（理由整段在
+  // `effectiveSheetFor` 上面）。这一格问的六个放置键里有 `order` / `grid-column` / `max-width`
+  // 三个是**几何**，契约 v3 之后它们不在主题表里了 ⟹ 照旧只读 `sheetFor(i)` 的话，
+  // 「已收到」和表单会**两边都读到空字符串**，`f !== s` 恒假、这一格恒绿。
+  // 🔴 那正是 QA2 在 #1318 r1 上量到的状态（8 种画法里 5 种两边都空、**没有一种还带 order**），
+  //    而这一格自己的阳性对照**照样开火** —— 它证的是「这把尺读得懂 order」，不是「语料里有 order」。
+  //    所以下面多了一道**分母自检**：语料里带 order 的条目为 0 就当场 die，不许再绿一次。
   const looks = new Map();
   for (let i = 0; i < 80; i += 1) {
     const look = heroLookFor(i);
-    if (!looks.has(look)) looks.set(look, { i, css: sheetFor(i) });
+    if (!looks.has(look)) looks.set(look, { i, css: recipeSheetFor(i) });
+  }
+  for (const id of POOL_IDS) {
+    looks.set(`${(POOL[id].shapes || {}).hero} @ 站 ${id}`, { i: `站 ${id}`, css: effectiveSheetFor(id) });
+  }
+  // 分母自检：这一格问的是「两个部件的放置键一不一样」，而语料里一个 `order` 都没有时，
+  // 「逐字相同」说的只是「两边都没有位置」。基线（#1318 之前）这个数是 7/8。
+  {
+    const withOrder = [...looks.values()].filter(({ css }) => {
+      const p = placeOf(css, '.hero__form');
+      return typeof p === 'string' && p.includes('order');
+    }).length;
+    if (withOrder === 0) {
+      die(`⑭ 的语料里 ${looks.size} 条没有一条的 .hero__form 带 order —— 「两边逐字相同」此时说的是`
+        + '「两边都没有位置」，这一格是空绿，不许当成过');
+    }
+    ok(`⑭ 分母自检：${looks.size} 条语料里 ${withOrder} 条的 .hero__form 真的带着 order`
+      + '（读到 0 就是空绿，那时上面这一格会 die 而不是绿）');
   }
   const wrong = [];
   for (const [look, { i, css }] of looks) {

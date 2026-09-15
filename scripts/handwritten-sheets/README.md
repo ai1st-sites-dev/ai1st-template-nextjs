@@ -2,12 +2,24 @@
 
 `hero-media-left.css` / `hero-media-right.css` / `hero-media-top.css`。
 
-## 它们不是主题表，而且从来没有站穿过
+## 它们不是主题表：我查过的 127 套注册表条目里，没有一套叫这三个名字
 
-一个站只在「**文件名 == 主题 id**」时才会把一份表写进 `site/theme.json`
-（`scripts/theme-sheet.js:37-41`，判据是 `create-site.js §main` → 那个函数）。注册表里从来没有任何一套
-主题叫 `hero-media-*`（`themes.js` 在用的 2 套、`themes-retired.js` 退役的 125 套，以这三个名字打头的
-各 **0** 个）⟹ **没有任何站到得了它们**。
+一个站只在「**文件名 == 主题 id**」时才会把一份表写进 `site/theme.json` —— 判据是
+`scripts/theme-sheet.js` 的 `sheetNameForTheme()`：它拿主题 id 去 `public/themes/<id>.css` 找文件，
+找不到就回空串（`create-site.js §main` 调它）。而注册表里这两批条目**实测 0 条**以 `hero-media-`
+打头（2026-09-15 现取）：
+
+```bash
+$ node -e "const t=require('./scripts/themes.js');
+    const f=x=>Object.keys(x).filter(n=>n.startsWith('hero-media-')).length;
+    console.log('在用', Object.keys(t.themes).length, '命中', f(t.themes));
+    console.log('退役', Object.keys(t.retiredThemes).length, '命中', f(t.retiredThemes));"
+在用 2 命中 0
+退役 125 命中 0
+```
+
+⟹ 这 127 套里没有一套穿得到这三份表。🔴 **这个读数会过期**（池子重新生成那天两个数都会变）—— 自己
+重跑上面那条，别引用这里的 2 / 125。
 
 ## 它们今天唯一的用处：对比度语料
 

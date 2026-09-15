@@ -681,20 +681,28 @@ if (!skip('⑩ 词边界匹配（a/b/c 三臂）',
     declared.add(`${m[1]}|${m[2]}`);
   }
   if (!declared.size) die('⑪ public/shapes.css 里一条 [data-block][data-shape] 都解不出来 —— 尺子坏了');
+  // 🔴 判断只写一处，下面两个反向臂喂给它的是**编造的选择单**，不是另写一遍这段表达式。
+  //    QA1 在 #1318 r1 上量过前一版：那时反向对照在旁边把同一个表达式又写了一遍，于是把真正那句
+  //    `noRule = …` 换成 `[]`（= 把「shapes.css 里真有这条规则」这一半整个拿掉）之后，**两行 ✅
+  //    照打**，而通过消息里那半句话已经成了假的。⟹ 反向臂必须驱动被测的那段代码本身。
+  const judge = (label, sel) => {
+    const out = [];
+    const missingKey = allBlocks.filter((b) => typeof sel[b] !== 'string' || !sel[b]);
+    if (missingKey.length) {
+      out.push(`${label} 的选择单缺 ${missingKey.length}/${allBlocks.length} 个块：${missingKey.join(' · ')}`);
+    }
+    const noRule = allBlocks.filter((b) => typeof sel[b] === 'string' && sel[b] && !declared.has(`${b}|${sel[b]}`));
+    if (noRule.length) {
+      out.push(`${label} 选了 ${noRule.length} 个 shapes.css 里查不到的画法名（那些块会静默塌回 base.css）：`
+        + noRule.map((b) => `${b}=${sel[b]}`).join(' · '));
+    }
+    return out;
+  };
   const ids = Object.keys(themesMod.themes).sort();
   const problems = [];
   let judged = 0;
   for (const id of ids) {
-    const sel = themesMod.shapesFor(id);
-    const missingKey = allBlocks.filter((b) => typeof sel[b] !== 'string' || !sel[b]);
-    if (missingKey.length) {
-      problems.push(`${id} 的选择单缺 ${missingKey.length}/${allBlocks.length} 个块：${missingKey.join(' · ')}`);
-    }
-    const noRule = allBlocks.filter((b) => typeof sel[b] === 'string' && sel[b] && !declared.has(`${b}|${sel[b]}`));
-    if (noRule.length) {
-      problems.push(`${id} 选了 ${noRule.length} 个 shapes.css 里查不到的画法名（那些块会静默塌回 base.css）：`
-        + noRule.map((b) => `${b}=${sel[b]}`).join(' · '));
-    }
+    problems.push(...judge(id, themesMod.shapesFor(id)));
     judged += allBlocks.length;
   }
   if (problems.length) problems.forEach(bad);
@@ -702,14 +710,27 @@ if (!skip('⑩ 词边界匹配（a/b/c 三臂）',
     ok(`⑪ ${ids.length} 套主题 × ${allBlocks.length} 个块 = ${judged} 对逐对：选择单有名字，且 `
       + `public/shapes.css 里真有 [data-block][data-shape] 那条规则（形态层现有 ${declared.size} 个 (块, 画法) 对）`);
   }
-  // 🔴 反向对照：编一个 shapes.css 里没有的画法名，这一格必须当场点名 —— 否则它只是在数键。
+  // 🔴 两半各一个反向臂 —— 一个臂只驱动得了它自己那一半，而这一格的两句话是两个独立的保证
+  //    （「键在不在」与「那个名字在形态层里有没有规则」）。少了其中一个，那一半可以被整个拿掉而不红。
+  const B0 = allBlocks[0];
   {
-    const fakeSel = { ...themesMod.shapesFor(ids[0]), [allBlocks[0]]: 'qa-not-a-real-shape' };
-    const caught = allBlocks.filter((b) => typeof fakeSel[b] === 'string' && !declared.has(`${b}|${fakeSel[b]}`));
-    if (caught.length === 1 && caught[0] === allBlocks[0]) {
-      ok(`⑪ 反向对照：把 ${ids[0]} 的 ${allBlocks[0]} 改成一个查不到的画法名，这把尺只点名它`);
+    const sel = { ...themesMod.shapesFor(ids[0]), [B0]: 'qa-not-a-real-shape' };
+    const caught = judge(ids[0], sel);
+    if (caught.length === 1 && caught[0].includes(`${B0}=qa-not-a-real-shape`)) {
+      ok(`⑪ 反向臂 A（「名字查得到吗」那一半）：把 ${ids[0]} 的 ${B0} 改成一个 shapes.css 里没有的`
+        + '画法名，同一段判断当场只点名它');
     } else {
-      bad(`⑪ 反向对照对不上：点名 ${caught.length} 个（${caught.join(' · ')}），应当正好是 ${allBlocks[0]}`);
+      bad(`⑪ 反向臂 A 对不上：点名 ${caught.length} 条（${caught.join(' · ')}）—— 应当正好一条、且点名 ${B0}`);
+    }
+  }
+  {
+    const sel = { ...themesMod.shapesFor(ids[0]) };
+    delete sel[B0];
+    const caught = judge(ids[0], sel);
+    if (caught.length === 1 && caught[0].includes('的选择单缺 1/') && caught[0].includes(B0)) {
+      ok(`⑪ 反向臂 B（「键在不在」那一半）：把 ${ids[0]} 的 ${B0} 整个删掉，同一段判断当场只点名它`);
+    } else {
+      bad(`⑪ 反向臂 B 对不上：点名 ${caught.length} 条（${caught.join(' · ')}）—— 应当正好一条「选择单缺 1/…」`);
     }
   }
 }
