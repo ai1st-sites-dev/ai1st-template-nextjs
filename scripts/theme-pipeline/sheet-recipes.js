@@ -30,7 +30,7 @@
 //   判据不是这段注释：`scripts/theme-css-lint.js` 对每一套生成出来的表跑一遍，rc=0 才算数。
 const path = require('path');
 
-const { HOOK_CLASSES } = require(path.join(__dirname, '..', 'theme-css-lint.js'));
+const { HOOK_CLASSES, isGeometry } = require(path.join(__dirname, '..', 'theme-css-lint.js'));
 const {
   paletteFor, contrast, ACCENT_KEYS, PRIMARY_KEYS,
 } = require(path.join(__dirname, 'palette.js'));
@@ -1802,8 +1802,38 @@ const ROLES = {
 };
 
 // ── 把上面三样拼成 CSS ────────────────────────────────────────────────────────────────────────────
-const declBlock = (selector, decls) => `${selector} {\n${
-  Object.entries(decls).map(([k, val]) => `  ${k}: ${val};`).join('\n')}\n}\n`;
+//
+// 🔴 #1318（契约 v3）—— **几何那一族在这里被滤掉，不在这里被删掉。** 下面那些画法表、角色表、
+//    `rootRule` / `wideRule` 仍然算出 `display` / `grid-template-columns` / `order` / `align-*`：
+//    它们是 `public/shapes.css` 那一层的**出处**（那份表就是照这些值剪出来的），删了就没人说得清
+//    形态层为什么长这样。真正变的是**谁把它写进主题表** —— 一条都不写了。
+//
+// 🔴 为什么是一道集中的滤网，不是把几十处几何行逐处改掉：判据要能被证明是**完备**的。滤网让
+//    「生成器再也写不出几何」成为这个文件的一条构造性质（包括 `SCROLL_STRIP_EXPERIMENT` 那条
+//    今天点不着的实验钉），而逐处删是一张要人记得的清单 —— 漏一处的方向是静默的（表照样生成，
+//    只有 `css-contract-check.js` 在下一次运行时才说话）。
+//    判据不是这段注释：`theme-css-lint.js` 对生成出来的每份表跑一遍，rc=0 才算数。
+//
+// 🔴 `isGeometry` 从 `theme-css-lint.js` 取，**这里不另抄一份**：判「这是不是几何」的那份名单
+//    要跟判「这条声明合不合法」的那份是同一份，否则分叉的方向是「生成器写了、检查器拒了」。
+//
+// 📌 一条规则被滤成空就整条不发（返回空串，`sheetFor` 把空串滤掉）。实测：`ember-12` 有 10 条
+//    `.content-split + .content-split …` 的兄弟规则整条只有 `order`，剥完就该消失；`azure-29` 是 0 条。
+//
+// 🔴 **两个出口，一条配方。** `EMIT` 决定这一趟发哪一半：
+//    · `'skin'` —— 主题表（`public/themes/<id>.css`）。几何被滤掉，这是契约 v3 的交付。
+//    · `'geom'` —— 形态层的**出处**（`public/shapes.css` 就是照它剪出来的），只发几何。
+//    要的是「两半合起来逐字节等于 #1318 之前那份表」这条性质：同一个 `decls` 对象被同一个谓词
+//    分成互补的两份，所以它按构造成立，不靠谁记得同步改两处。
+//    📌 它是模块级变量而不是参数，因为 `declBlock` 有四个调用点（`rootRule` / `wideRule` /
+//    `sheetFor` 主循环 / 实验钉），逐个穿参数会让「漏掉一个调用点」这个错法写得出来，而漏掉的
+//    方向是静默的（那条规则的几何两边都不出现）。切换只发生在 `buildSheet` 里，同步、带 finally。
+let EMIT = 'skin';
+const declBlock = (selector, decls) => {
+  const kept = Object.entries(decls).filter(([k]) => (EMIT === 'geom' ? isGeometry(k) : !isGeometry(k)));
+  if (kept.length === 0) return '';
+  return `${selector} {\n${kept.map(([k, val]) => `  ${k}: ${val};`).join('\n')}\n}\n`;
+};
 
 /** 块根自己那条规则 —— 深浅、留白、窄屏单栏。`extra` 是这个块骨架自己要加的几条。 */
 function rootRule(block, v, s, extra) {
@@ -1834,8 +1864,13 @@ function wideRule(block, v, cols, stated = {}) {
   // 逐字相同：`calc(1.25rem * 1.5)` = 1.875rem = `calc(var(--section-block-gap) * 7.5)`。
   if (!('gap' in stated)) decls.gap = tokenLen('--section-block-gap', v.gapStep * 1.5);
   if (!('padding' in stated)) decls.padding = `${tokenLen('--section-block-pad', v.padStep * 1.4)} 3rem`;
-  return `@media (min-width: 1024px) {\n  ${
-    declBlock(`.${block}`, decls).trim().split('\n').join('\n  ')}\n}\n`;
+  // 🔴 #1318 —— 列数是几何，被 `declBlock` 滤掉；桌面的 gap / padding 不是，留在主题表里。
+  //    **发不发这一段的判据一个字都没动**（调用点那个 `cols !== '1fr' || keepsWideBreakpoint`）：
+  //    它决定的是「桌面要不要另给一套留白」，而那一半仍然是主题的（#1090 r2 把列数和留白分开的
+  //    那次量过：两件事不该由同一个判据决定）。滤完整段空掉时才整段不发。
+  const body = declBlock(`.${block}`, decls);
+  if (!body) return '';
+  return `@media (min-width: 1024px) {\n  ${body.trim().split('\n').join('\n  ')}\n}\n`;
 }
 
 /**
@@ -1848,7 +1883,7 @@ function wideRule(block, v, cols, stated = {}) {
  * 📌 这里**没有**「跳过某个块」的开关。反向对照（本票 AC2）的做法是把已经生成好的那份表里某个块的
  * 规则删掉再量 —— 那样量的是真产物，而且不用为了测试在生产代码里留一条只有测试会走的路。
  */
-function sheetFor(i, seed = 7) {
+function buildSheet(i, seed) {
   const v = voiceFor(i);
   const palette = paletteFor(i, seed);
   const surfaces = new Map(Object.keys(SURFACES).map((k) => [k, surfaceFor(k, palette)]));
@@ -1895,12 +1930,46 @@ function sheetFor(i, seed = 7) {
     if (i === SCROLL_STRIP_EXPERIMENT.candidate && block === SCROLL_STRIP_EXPERIMENT.block) {
       out.push(`/* ${SCROLL_STRIP_EXPERIMENT.note} */\n`);
       for (const [sel, decls] of SCROLL_STRIP_EXPERIMENT.rules(v, s)) out.push(declBlock(sel, decls));
-      out.push(`@media (min-width: 1024px) {\n  ${SCROLL_STRIP_EXPERIMENT.wide(v, s)
-        .map(([sel, decls]) => declBlock(sel, decls).trim().split('\n').join('\n  '))
-        .join('\n  ')}\n}\n`);
+      // 🔴 #1318 —— 内层规则被几何滤网滤空时整段不发（空的 `@media { }` 不是合法交付）。
+      const wideBodies = SCROLL_STRIP_EXPERIMENT.wide(v, s)
+        .map(([sel, decls]) => declBlock(sel, decls))
+        .filter(Boolean)
+        .map((body) => body.trim().split('\n').join('\n  '));
+      if (wideBodies.length) out.push(`@media (min-width: 1024px) {\n  ${wideBodies.join('\n  ')}\n}\n`);
     }
   }
-  return out.join('\n');
+  // 🔴 #1318 —— 被几何滤网滤空的规则回的是空串；滤掉它们，否则 join 会在表里留下空行。
+  return out.filter(Boolean).join('\n');
+}
+
+/**
+ * 一套候选的主题表 —— 皮那一半（契约 v3：几何不在里面）。
+ */
+function sheetFor(i, seed = 7) {
+  const prev = EMIT;
+  EMIT = 'skin';
+  try { return buildSheet(i, seed); } finally { EMIT = prev; }
+}
+
+/**
+ * 同一套候选的**几何**那一半 —— `public/shapes.css` 的出处（#1318）。
+ *
+ * 🔴 它不是「给测试开的门」。#1318 把排版从主题表搬进平台那一份形态层，而**哪个画法画成什么样**
+ * 这件知识仍然只有这里有（`HERO_LOOKS` / `SPLIT_SHAPES` / `CARD_SHAPES` / `ROLES` 那几张表）。
+ * `public/shapes.css` 今天那 50 个 (block, shape) 对就是照这个函数的产出剪的：把选择器从 `.hero`
+ * 换成 `[data-block="hero"][data-shape="<画法名>"]`，声明一个字节不动。池子重新生成那天新画法的
+ * 规则也从这里来。
+ *
+ * 🔴 **它不参与任何一个站的构建**：站装的是 `sheetFor` 的产物 + 平台那份手维护的 `shapes.css`。
+ * 所以这个函数变了不会有站跟着变 —— 要让它变成页面上的东西，得有人把它剪进 `shapes.css`。
+ *
+ * 🔴 `sheetFor(i, seed)` 与 `geometryFor(i, seed)` 是**互补**的两半：同一个声明表、同一个
+ * `isGeometry` 谓词，一个取补集。合起来逐字节等于 #1318 之前 `sheetFor` 那份表。
+ */
+function geometryFor(i, seed = 7) {
+  const prev = EMIT;
+  EMIT = 'geom';
+  try { return buildSheet(i, seed); } finally { EMIT = prev; }
 }
 
 /**
@@ -1920,7 +1989,8 @@ function layoutNamesFor(i) {
 }
 
 module.exports = {
-  sheetFor, voiceFor, hooksByBlock, heroLayoutFor, HERO_LAYOUTS,
+  // #1318 —— 两半：sheetFor = 皮（主题表），geometryFor = 几何（形态层的出处）。
+  sheetFor, geometryFor, voiceFor, hooksByBlock, heroLayoutFor, HERO_LAYOUTS,
   heroLookFor, HERO_LOOKS, HERO_LOOK_NAMES,
   ctaLookFor, CTA_LOOKS, CTA_LOOK_NAMES,
   formLookFor, FORM_LOOKS, FORM_LOOK_NAMES,

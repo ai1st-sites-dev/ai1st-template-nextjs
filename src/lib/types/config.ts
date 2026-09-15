@@ -167,6 +167,11 @@ export interface BlockConfig {
    *  `data.variant` 决定（`HeroSection.tsx:21`），两个字段并存、各管各的，不做换算。
    *  写了才会变成 DOM 上的 `data-block-layout`；没写就一个属性都不多。 */
   block_layout?: string;
+  /** #1318 — 这个块排成什么样，DOM 上的 `data-shape`，`public/shapes.css` 靠它点名。
+   *  取值三级（spec D18，一处实现在 `scripts/sync-config.js` 的 `shapeForBlock`）：这里写的值
+   *  → 主题的选择单（`scripts/theme-pool.json` 的 `shapes`）→ 块 manifest 的 `shapes[0]`。
+   *  🔴 跟 `block_layout` 并存、彼此不换算：那个说内容结构（有没有配图），这个说排版（图在哪侧）。 */
+  shape?: string;
   /** 没写就落回类型级默认表（`sections/block-roles.json`）。 */
   role?: BlockRoleName;
   /** 页面的哪个区。取值清单归 #1000，本票只把它原样带过去。 */

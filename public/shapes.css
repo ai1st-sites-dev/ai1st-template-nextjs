@@ -1,0 +1,1685 @@
+/* ══════════════════════════════════════════════════════════════════════════════════════════════════
+   shapes.css — 形态层（#1318，设计文档 D1 / D2 / D4）
+   ══════════════════════════════════════════════════════════════════════════════════════════════════
+
+   一个块**怎么排**住在这里，一份，平台的。主题表（`public/themes/<id>.css`）只剩皮：颜色、字体、
+   圆角、阴影、内边距、间距刻度。契约 v3（`docs/reference/theme-css-contract.md`）把几何那一族从
+   §2 的主题可写属性表里拿掉了，所以一套主题从此**写不出排版错**。
+
+   ── 怎么被选中 ────────────────────────────────────────────────────────────────────────────────
+   每条规则按 `[data-block="<块类型>"][data-shape="<画法名>"]` 点名。两个属性都由模板写在块的根
+   元素上（`src/lib/sections/blockAttrs.ts`）：`data-block` 是块的类型，`data-shape` 是这个站在这个
+   块上选的画法。取值三级（spec D18，`scripts/sync-config.js`）：
+       页面 JSON 里这个块自己的 `shape`  →  主题的选择单（`scripts/theme-pool.json` 的 `shapes`）
+                                         →  块 manifest 的默认（`blocks/<type>.json` 的 `shapes[0]`）
+
+   ── 一个块有几个画法 ──────────────────────────────────────────────────────────────────────────
+   🔴 **= 今天真的量到几种不同的排版**，不为「将来可能有」预留名字（PM 2026-09-15 裁定 ③）。
+   这份表是从 `ember-12` / `azure-29` 两套表搬迁前那一版里逐条剪出来的：31 个块里 19 个两套画得不
+   一样（各两个名字）、12 个逐字相同（各一个名字），一共 50 个 (block, shape) 对。要加第 51 个，
+   先量出「它跟已有的哪一个真的不同」。
+
+   ── 这一层可以引用什么 ────────────────────────────────────────────────────────────────────────
+   刻度变量（`--section-block-gap` / `--radius-block` 这类）可以引；几何常量写死。间距和圆角本身
+   仍然是主题的，所以这里不写 `gap` / `padding` / `margin` —— 它们留在主题表里。
+
+   ── 交替节奏为什么并进画法名 ──────────────────────────────────────────────────────────────────
+   `content-split` 的名字是 `media-right-alternate` / `narrow-stack-uniform`：节奏不是独立的一维，
+   `order` 的值本来就是按画法算出来的（`sheet-recipes.js:1049/:1058`），所以不加第二个 `data-rhythm`
+   钩子（PM 2026-09-15 裁定 ②）。兄弟链上**两端都带 `[data-shape]`**：这条规则说的是「一个
+   media-right-alternate 的图文段跟在另一个后面时翻面」，今天同一个站里同类型的块共用一个画法，
+   所以与搬迁前逐像素相同。
+
+   🔴 **这份文件不是生成物。** `public/themes/*.css` 由 `scripts/theme-pipeline/` 现算、
+   `sheet-fresh.js` 逐字节复算；这一份是手维护的平台文件，改它就是改全部站的排版。
+   ══════════════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* ══ announcement-bar ══════════════════════════════════════════════════════════════════════ */
+
+/* announcement-bar · stack  （ember-12 + azure-29 今天选的就是它） */
+
+[data-block="announcement-bar"][data-shape="stack"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="announcement-bar"][data-shape="stack"] .announcement-bar__message {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="announcement-bar"][data-shape="stack"] .announcement-bar__link {
+  justify-self: start;
+}
+
+/* ══ awards-certifications ══════════════════════════════════════════════════════════════════════ */
+
+/* awards-certifications · two-up  （ember-12 今天选的就是它） */
+
+[data-block="awards-certifications"][data-shape="two-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="awards-certifications"][data-shape="two-up"] .awards-certifications__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="awards-certifications"][data-shape="two-up"] .awards-certifications__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="awards-certifications"][data-shape="two-up"] .awards-certifications__item {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="awards-certifications"][data-shape="two-up"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* awards-certifications · three-up  （azure-29 今天选的就是它） */
+
+[data-block="awards-certifications"][data-shape="three-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="awards-certifications"][data-shape="three-up"] .awards-certifications__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="awards-certifications"][data-shape="three-up"] .awards-certifications__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="awards-certifications"][data-shape="three-up"] .awards-certifications__item {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="awards-certifications"][data-shape="three-up"] {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+/* ══ blog-preview ══════════════════════════════════════════════════════════════════════ */
+
+/* blog-preview · two-up  （ember-12 今天选的就是它） */
+
+[data-block="blog-preview"][data-shape="two-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="blog-preview"][data-shape="two-up"] .blog-preview__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="blog-preview"][data-shape="two-up"] .blog-preview__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="blog-preview"][data-shape="two-up"] .blog-preview__post {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="blog-preview"][data-shape="two-up"] .blog-preview__category {
+  justify-self: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="blog-preview"][data-shape="two-up"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* blog-preview · three-up  （azure-29 今天选的就是它） */
+
+[data-block="blog-preview"][data-shape="three-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="blog-preview"][data-shape="three-up"] .blog-preview__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="blog-preview"][data-shape="three-up"] .blog-preview__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="blog-preview"][data-shape="three-up"] .blog-preview__post {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="blog-preview"][data-shape="three-up"] .blog-preview__category {
+  justify-self: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="blog-preview"][data-shape="three-up"] {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+/* ══ card-group ══════════════════════════════════════════════════════════════════════ */
+
+/* card-group · two-up  （ember-12 今天选的就是它） */
+
+[data-block="card-group"][data-shape="two-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="card-group"][data-shape="two-up"] .card-group__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="card-group"][data-shape="two-up"] .card-group__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="card-group"][data-shape="two-up"] .card-group__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="card-group"][data-shape="two-up"] .card-group__features {
+  display: grid;
+}
+
+@media (min-width: 1024px) {
+  [data-block="card-group"][data-shape="two-up"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* card-group · wide-rows  （azure-29 今天选的就是它） */
+
+[data-block="card-group"][data-shape="wide-rows"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: stretch;
+}
+
+[data-block="card-group"][data-shape="wide-rows"] .card-group__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="card-group"][data-shape="wide-rows"] .card-group__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="card-group"][data-shape="wide-rows"] .card-group__item {
+  display: grid;
+  align-content: start;
+  grid-template-columns: 1fr 2fr;
+  align-items: start;
+}
+
+[data-block="card-group"][data-shape="wide-rows"] .card-group__features {
+  display: grid;
+}
+
+@media (min-width: 1024px) {
+  [data-block="card-group"][data-shape="wide-rows"] {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ══ contact-form ══════════════════════════════════════════════════════════════════════ */
+
+/* contact-form · panel-below  （ember-12 今天选的就是它） */
+
+[data-block="contact-form"][data-shape="panel-below"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="contact-form"][data-shape="panel-below"] .contact-form__heading {
+  grid-column: 1 / -1;
+}
+
+[data-block="contact-form"][data-shape="panel-below"] .contact-form__intro {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="contact-form"][data-shape="panel-below"] .contact-form__form {
+  display: grid;
+}
+
+[data-block="contact-form"][data-shape="panel-below"] .contact-form__error {
+  grid-column: 1 / -1;
+}
+
+[data-block="contact-form"][data-shape="panel-below"] .contact-form__success {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="contact-form"][data-shape="panel-below"] {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* contact-form · panel-left  （azure-29 今天选的就是它） */
+
+[data-block="contact-form"][data-shape="panel-left"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="contact-form"][data-shape="panel-left"] .contact-form__heading {
+  grid-column: 1 / -1;
+}
+
+[data-block="contact-form"][data-shape="panel-left"] .contact-form__intro {
+  grid-column: auto;
+  max-width: 32rem;
+  order: 2;
+}
+
+[data-block="contact-form"][data-shape="panel-left"] .contact-form__form {
+  display: grid;
+  grid-column: auto;
+  order: 1;
+}
+
+[data-block="contact-form"][data-shape="panel-left"] .contact-form__error {
+  grid-column: 1 / -1;
+}
+
+[data-block="contact-form"][data-shape="panel-left"] .contact-form__note {
+  order: 3;
+}
+
+[data-block="contact-form"][data-shape="panel-left"] .contact-form__success {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="contact-form"][data-shape="panel-left"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ══ contact-info ══════════════════════════════════════════════════════════════════════ */
+
+/* contact-info · label-side  （ember-12 今天选的就是它） */
+
+[data-block="contact-info"][data-shape="label-side"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="contact-info"][data-shape="label-side"] .contact-info__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="contact-info"][data-shape="label-side"] .contact-info__location {
+  display: grid;
+  align-content: start;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+}
+
+[data-block="contact-info"][data-shape="label-side"] .contact-info__label {
+  grid-row: 1 / 3;
+}
+
+[data-block="contact-info"][data-shape="label-side"] .contact-info__phone {
+  justify-self: start;
+}
+
+[data-block="contact-info"][data-shape="label-side"] .contact-info__email {
+  justify-self: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="contact-info"][data-shape="label-side"] {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* contact-info · phone-first  （azure-29 今天选的就是它） */
+
+[data-block="contact-info"][data-shape="phone-first"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="contact-info"][data-shape="phone-first"] .contact-info__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="contact-info"][data-shape="phone-first"] .contact-info__location {
+  display: grid;
+  align-content: start;
+  order: 2;
+}
+
+[data-block="contact-info"][data-shape="phone-first"] .contact-info__label {
+  order: 2;
+}
+
+[data-block="contact-info"][data-shape="phone-first"] .contact-info__address {
+  order: 3;
+}
+
+[data-block="contact-info"][data-shape="phone-first"] .contact-info__phone {
+  justify-self: start;
+  order: 1;
+}
+
+[data-block="contact-info"][data-shape="phone-first"] .contact-info__email {
+  justify-self: start;
+  order: 1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="contact-info"][data-shape="phone-first"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ══ content-split ══════════════════════════════════════════════════════════════════════ */
+
+/* content-split · media-right-alternate  （ember-12 今天选的就是它） */
+
+[data-block="content-split"][data-shape="media-right-alternate"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+}
+
+[data-block="content-split"][data-shape="media-right-alternate"] .content-split__media {
+  aspect-ratio: 4 / 3;
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="media-right-alternate"] .content-split__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="content-split"][data-shape="media-right-alternate"] .content-split__body {
+  display: grid;
+  align-content: start;
+  max-width: 38rem;
+  order: 1;
+}
+
+[data-block="content-split"][data-shape="media-right-alternate"] .content-split__bullets {
+  display: grid;
+}
+
+[data-block="content-split"][data-shape="media-right-alternate"] .content-split__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+[data-block="content-split"][data-shape="media-right-alternate"] .content-split__stat {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] .content-split__media {
+  order: 1;
+}
+
+[data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] .content-split__body {
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] .content-split__media {
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] .content-split__body {
+  order: 1;
+}
+
+[data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] .content-split__media {
+  order: 1;
+}
+
+[data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] .content-split__body {
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] .content-split__media {
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] .content-split__body {
+  order: 1;
+}
+
+[data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] .content-split__media {
+  order: 1;
+}
+
+[data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] + [data-block="content-split"][data-shape="media-right-alternate"] .content-split__body {
+  order: 2;
+}
+
+@media (min-width: 1024px) {
+  [data-block="content-split"][data-shape="media-right-alternate"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* content-split · narrow-stack-uniform  （azure-29 今天选的就是它） */
+
+[data-block="content-split"][data-shape="narrow-stack-uniform"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+  justify-items: center;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-uniform"] .content-split__media {
+  aspect-ratio: 3 / 2;
+  order: 1;
+  max-width: 30rem;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-uniform"] .content-split__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-uniform"] .content-split__body {
+  display: grid;
+  align-content: start;
+  max-width: 34rem;
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-uniform"] .content-split__bullets {
+  display: grid;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-uniform"] .content-split__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-uniform"] .content-split__stat {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="content-split"][data-shape="narrow-stack-uniform"] {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ══ cta-banner ══════════════════════════════════════════════════════════════════════ */
+
+/* cta-banner · title-side  （ember-12 + azure-29 今天选的就是它） */
+
+[data-block="cta-banner"][data-shape="title-side"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="cta-banner"][data-shape="title-side"] .cta-banner__headline {
+  grid-column: auto;
+  align-self: start;
+}
+
+[data-block="cta-banner"][data-shape="title-side"] .cta-banner__desc {
+  grid-column: auto;
+  max-width: 44rem;
+}
+
+[data-block="cta-banner"][data-shape="title-side"] .cta-banner__action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="cta-banner"][data-shape="title-side"] {
+    grid-template-columns: 1fr 2fr;
+  }
+}
+
+/* ══ divider ══════════════════════════════════════════════════════════════════════ */
+
+/* divider · stack  （ember-12 + azure-29 今天选的就是它） */
+
+[data-block="divider"][data-shape="stack"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="divider"][data-shape="stack"] .divider__rule {
+  grid-column: 1 / -1;
+}
+
+/* ══ faq-accordion ══════════════════════════════════════════════════════════════════════ */
+
+/* faq-accordion · stack  （ember-12 今天选的就是它） */
+
+[data-block="faq-accordion"][data-shape="stack"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="faq-accordion"][data-shape="stack"] .faq-accordion__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="faq-accordion"][data-shape="stack"] .faq-accordion__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="faq-accordion"][data-shape="stack"] .faq-accordion__item {
+  display: grid;
+}
+
+/* faq-accordion · heading-side  （azure-29 今天选的就是它） */
+
+[data-block="faq-accordion"][data-shape="heading-side"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="faq-accordion"][data-shape="heading-side"] .faq-accordion__headline {
+  grid-column: auto;
+  align-self: start;
+}
+
+[data-block="faq-accordion"][data-shape="heading-side"] .faq-accordion__sub {
+  grid-column: auto;
+  max-width: 36rem;
+}
+
+[data-block="faq-accordion"][data-shape="heading-side"] .faq-accordion__item {
+  display: grid;
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="faq-accordion"][data-shape="heading-side"] {
+    grid-template-columns: 1fr 2fr;
+  }
+}
+
+/* ══ feature-comparison ══════════════════════════════════════════════════════════════════════ */
+
+/* feature-comparison · stack  （ember-12 + azure-29 今天选的就是它） */
+
+[data-block="feature-comparison"][data-shape="stack"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="feature-comparison"][data-shape="stack"] .feature-comparison__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="feature-comparison"][data-shape="stack"] .feature-comparison__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="feature-comparison"][data-shape="stack"] .feature-comparison__head {
+  display: grid;
+}
+
+[data-block="feature-comparison"][data-shape="stack"] .feature-comparison__row {
+  display: grid;
+}
+
+/* ══ features-grid ══════════════════════════════════════════════════════════════════════ */
+
+/* features-grid · two-up  （ember-12 今天选的就是它） */
+
+[data-block="features-grid"][data-shape="two-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="features-grid"][data-shape="two-up"] .features-grid__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="features-grid"][data-shape="two-up"] .features-grid__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="features-grid"][data-shape="two-up"] .features-grid__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="features-grid"][data-shape="two-up"] .features-grid__icon {
+  display: grid;
+  place-items: center;
+}
+
+@media (min-width: 1024px) {
+  [data-block="features-grid"][data-shape="two-up"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* features-grid · wide-rows  （azure-29 今天选的就是它） */
+
+[data-block="features-grid"][data-shape="wide-rows"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: stretch;
+}
+
+[data-block="features-grid"][data-shape="wide-rows"] .features-grid__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="features-grid"][data-shape="wide-rows"] .features-grid__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="features-grid"][data-shape="wide-rows"] .features-grid__item {
+  display: grid;
+  align-content: start;
+  grid-template-columns: 1fr 2fr;
+  align-items: start;
+}
+
+[data-block="features-grid"][data-shape="wide-rows"] .features-grid__icon {
+  display: grid;
+  place-items: center;
+}
+
+@media (min-width: 1024px) {
+  [data-block="features-grid"][data-shape="wide-rows"] {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ══ gallery ══════════════════════════════════════════════════════════════════════ */
+
+/* gallery · two-up  （ember-12 今天选的就是它） */
+
+[data-block="gallery"][data-shape="two-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="gallery"][data-shape="two-up"] .gallery__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="gallery"][data-shape="two-up"] .gallery__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="gallery"][data-shape="two-up"] .gallery__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="gallery"][data-shape="two-up"] .gallery__image {
+  aspect-ratio: 4 / 3;
+}
+
+[data-block="gallery"][data-shape="two-up"] .gallery__placeholder {
+  aspect-ratio: 4 / 3;
+}
+
+[data-block="gallery"][data-shape="two-up"] .gallery__category {
+  justify-self: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="gallery"][data-shape="two-up"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* gallery · three-up  （azure-29 今天选的就是它） */
+
+[data-block="gallery"][data-shape="three-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="gallery"][data-shape="three-up"] .gallery__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="gallery"][data-shape="three-up"] .gallery__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="gallery"][data-shape="three-up"] .gallery__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="gallery"][data-shape="three-up"] .gallery__image {
+  aspect-ratio: 4 / 3;
+}
+
+[data-block="gallery"][data-shape="three-up"] .gallery__placeholder {
+  aspect-ratio: 4 / 3;
+}
+
+[data-block="gallery"][data-shape="three-up"] .gallery__category {
+  justify-self: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="gallery"][data-shape="three-up"] {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+/* ══ hero ══════════════════════════════════════════════════════════════════════ */
+
+/* hero · media-cover  （ember-12 今天选的就是它） */
+
+[data-block="hero"][data-shape="media-cover"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+  min-height: 36rem;
+}
+
+[data-block="hero"][data-shape="media-cover"] .hero__media {
+  aspect-ratio: auto;
+  grid-row: 1;
+  grid-column: 1 / -1;
+  align-self: stretch;
+  min-height: 30rem;
+}
+
+[data-block="hero"][data-shape="media-cover"] .hero__body {
+  display: grid;
+  align-content: start;
+  max-width: 44rem;
+  grid-row: 1;
+  grid-column: 1 / -1;
+  align-self: center;
+}
+
+[data-block="hero"][data-shape="media-cover"] .hero__title {
+  grid-column: 1 / -1;
+}
+
+[data-block="hero"][data-shape="media-cover"] .hero__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="hero"][data-shape="media-cover"] .hero__cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-block="hero"][data-shape="media-cover"] .hero__deco {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  max-width: 7rem;
+}
+
+[data-block="hero"][data-shape="media-cover"] .hero__form {
+  display: grid;
+  grid-row: 3;
+  grid-column: 1 / -1;
+  max-width: 32rem;
+}
+
+[data-block="hero"][data-shape="media-cover"] .hero__form-success {
+  grid-column: 1 / -1;
+  max-width: 32rem;
+}
+
+/* hero · form-side  （azure-29 今天选的就是它） */
+
+[data-block="hero"][data-shape="form-side"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+  min-height: 32rem;
+}
+
+[data-block="hero"][data-shape="form-side"] .hero__media {
+  aspect-ratio: 24 / 5;
+  order: 4;
+  grid-column: 1 / -1;
+}
+
+[data-block="hero"][data-shape="form-side"] .hero__body {
+  display: grid;
+  align-content: start;
+  max-width: 32rem;
+  order: 2;
+}
+
+[data-block="hero"][data-shape="form-side"] .hero__title {
+  grid-column: 1 / -1;
+}
+
+[data-block="hero"][data-shape="form-side"] .hero__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="hero"][data-shape="form-side"] .hero__cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+[data-block="hero"][data-shape="form-side"] .hero__deco {
+  grid-column: 1 / -1;
+  order: 1;
+}
+
+[data-block="hero"][data-shape="form-side"] .hero__form {
+  display: grid;
+  order: 3;
+  max-width: 30rem;
+}
+
+[data-block="hero"][data-shape="form-side"] .hero__form-success {
+  order: 3;
+  max-width: 30rem;
+}
+
+@media (min-width: 1024px) {
+  [data-block="hero"][data-shape="form-side"] {
+    grid-template-columns: 6fr 5fr;
+  }
+}
+
+/* ══ logo-carousel ══════════════════════════════════════════════════════════════════════ */
+
+/* logo-carousel · stack  （ember-12 + azure-29 今天选的就是它） */
+
+[data-block="logo-carousel"][data-shape="stack"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="logo-carousel"][data-shape="stack"] .logo-carousel__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="logo-carousel"][data-shape="stack"] .logo-carousel__logo {
+  display: grid;
+  place-items: center;
+  max-width: 9rem;
+}
+
+/* ══ map-area ══════════════════════════════════════════════════════════════════════ */
+
+/* map-area · two-up  （ember-12 今天选的就是它） */
+
+[data-block="map-area"][data-shape="two-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="map-area"][data-shape="two-up"] .map-area__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="map-area"][data-shape="two-up"] .map-area__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="map-area"][data-shape="two-up"] .map-area__area {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="map-area"][data-shape="two-up"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* map-area · three-up  （azure-29 今天选的就是它） */
+
+[data-block="map-area"][data-shape="three-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="map-area"][data-shape="three-up"] .map-area__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="map-area"][data-shape="three-up"] .map-area__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="map-area"][data-shape="three-up"] .map-area__area {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="map-area"][data-shape="three-up"] {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+/* ══ newsletter-signup ══════════════════════════════════════════════════════════════════════ */
+
+/* newsletter-signup · form-side  （ember-12 + azure-29 今天选的就是它） */
+
+[data-block="newsletter-signup"][data-shape="form-side"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="newsletter-signup"][data-shape="form-side"] .newsletter-signup__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="newsletter-signup"][data-shape="form-side"] .newsletter-signup__desc {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="newsletter-signup"][data-shape="form-side"] .newsletter-signup__form {
+  display: grid;
+}
+
+@media (min-width: 1024px) {
+  [data-block="newsletter-signup"][data-shape="form-side"] {
+    grid-template-columns: 2fr 1fr;
+  }
+}
+
+/* ══ page-header ══════════════════════════════════════════════════════════════════════ */
+
+/* page-header · stack-left  （ember-12 今天选的就是它） */
+
+[data-block="page-header"][data-shape="stack-left"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="page-header"][data-shape="stack-left"] .page-header__title {
+  grid-column: 1 / -1;
+}
+
+[data-block="page-header"][data-shape="stack-left"] .page-header__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+/* page-header · title-side  （azure-29 今天选的就是它） */
+
+[data-block="page-header"][data-shape="title-side"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: end;
+}
+
+[data-block="page-header"][data-shape="title-side"] .page-header__crumbs {
+  grid-column: 1 / -1;
+}
+
+[data-block="page-header"][data-shape="title-side"] .page-header__title {
+  grid-column: auto;
+}
+
+[data-block="page-header"][data-shape="title-side"] .page-header__sub {
+  grid-column: auto;
+  max-width: 26rem;
+}
+
+@media (min-width: 1024px) {
+  [data-block="page-header"][data-shape="title-side"] {
+    grid-template-columns: 2fr 1fr;
+  }
+}
+
+/* ══ pricing-table ══════════════════════════════════════════════════════════════════════ */
+
+/* pricing-table · two-up  （ember-12 今天选的就是它） */
+
+[data-block="pricing-table"][data-shape="two-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="pricing-table"][data-shape="two-up"] .pricing-table__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="pricing-table"][data-shape="two-up"] .pricing-table__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="pricing-table"][data-shape="two-up"] .pricing-table__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="pricing-table"][data-shape="two-up"] .pricing-table__badge {
+  justify-self: start;
+}
+
+[data-block="pricing-table"][data-shape="two-up"] .pricing-table__features {
+  display: grid;
+}
+
+[data-block="pricing-table"][data-shape="two-up"] .pricing-table__action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+@media (min-width: 1024px) {
+  [data-block="pricing-table"][data-shape="two-up"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* pricing-table · three-up  （azure-29 今天选的就是它） */
+
+[data-block="pricing-table"][data-shape="three-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="pricing-table"][data-shape="three-up"] .pricing-table__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="pricing-table"][data-shape="three-up"] .pricing-table__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="pricing-table"][data-shape="three-up"] .pricing-table__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="pricing-table"][data-shape="three-up"] .pricing-table__badge {
+  justify-self: start;
+}
+
+[data-block="pricing-table"][data-shape="three-up"] .pricing-table__features {
+  display: grid;
+}
+
+[data-block="pricing-table"][data-shape="three-up"] .pricing-table__action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+@media (min-width: 1024px) {
+  [data-block="pricing-table"][data-shape="three-up"] {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+/* ══ process-steps ══════════════════════════════════════════════════════════════════════ */
+
+/* process-steps · heading-side  （ember-12 今天选的就是它） */
+
+[data-block="process-steps"][data-shape="heading-side"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="process-steps"][data-shape="heading-side"] .process-steps__headline {
+  grid-column: auto;
+  align-self: start;
+}
+
+[data-block="process-steps"][data-shape="heading-side"] .process-steps__sub {
+  grid-column: auto;
+  max-width: 36rem;
+}
+
+[data-block="process-steps"][data-shape="heading-side"] .process-steps__step {
+  display: grid;
+  align-content: start;
+  grid-column: 1 / -1;
+}
+
+[data-block="process-steps"][data-shape="heading-side"] .process-steps__num {
+  display: grid;
+  place-items: center;
+}
+
+@media (min-width: 1024px) {
+  [data-block="process-steps"][data-shape="heading-side"] {
+    grid-template-columns: 1fr 2fr;
+  }
+}
+
+/* process-steps · numbered-rail  （azure-29 今天选的就是它） */
+
+[data-block="process-steps"][data-shape="numbered-rail"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="process-steps"][data-shape="numbered-rail"] .process-steps__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="process-steps"][data-shape="numbered-rail"] .process-steps__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="process-steps"][data-shape="numbered-rail"] .process-steps__step {
+  display: grid;
+  align-content: start;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+}
+
+[data-block="process-steps"][data-shape="numbered-rail"] .process-steps__num {
+  display: grid;
+  place-items: center;
+  grid-row: 1 / 3;
+}
+
+@media (min-width: 1024px) {
+  [data-block="process-steps"][data-shape="numbered-rail"] {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ══ quote-form ══════════════════════════════════════════════════════════════════════ */
+
+/* quote-form · main-aside  （ember-12 + azure-29 今天选的就是它） */
+
+[data-block="quote-form"][data-shape="main-aside"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="quote-form"][data-shape="main-aside"] .quote-form__form {
+  display: grid;
+}
+
+[data-block="quote-form"][data-shape="main-aside"] .quote-form__intro {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="quote-form"][data-shape="main-aside"] .quote-form__main {
+  display: grid;
+  align-content: start;
+  max-width: 38rem;
+}
+
+[data-block="quote-form"][data-shape="main-aside"] .quote-form__aside {
+  display: grid;
+}
+
+[data-block="quote-form"][data-shape="main-aside"] .quote-form__step {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="quote-form"][data-shape="main-aside"] .quote-form__action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+@media (min-width: 1024px) {
+  [data-block="quote-form"][data-shape="main-aside"] {
+    grid-template-columns: 3fr 2fr;
+  }
+}
+
+/* ══ service-related-pages ══════════════════════════════════════════════════════════════════════ */
+
+/* service-related-pages · two-up  （ember-12 今天选的就是它） */
+
+[data-block="service-related-pages"][data-shape="two-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="service-related-pages"][data-shape="two-up"] .service-related-pages__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="service-related-pages"][data-shape="two-up"] .service-related-pages__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="service-related-pages"][data-shape="two-up"] .service-related-pages__card {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="service-related-pages"][data-shape="two-up"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* service-related-pages · three-up  （azure-29 今天选的就是它） */
+
+[data-block="service-related-pages"][data-shape="three-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="service-related-pages"][data-shape="three-up"] .service-related-pages__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="service-related-pages"][data-shape="three-up"] .service-related-pages__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="service-related-pages"][data-shape="three-up"] .service-related-pages__card {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="service-related-pages"][data-shape="three-up"] {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+/* ══ services-list ══════════════════════════════════════════════════════════════════════ */
+
+/* services-list · two-up  （ember-12 + azure-29 今天选的就是它） */
+
+[data-block="services-list"][data-shape="two-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="services-list"][data-shape="two-up"] .services-list__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="services-list"][data-shape="two-up"] .services-list__icon {
+  display: grid;
+  place-items: center;
+}
+
+[data-block="services-list"][data-shape="two-up"] .services-list__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+[data-block="services-list"][data-shape="two-up"] .services-list__features {
+  display: grid;
+}
+
+[data-block="services-list"][data-shape="two-up"] .services-list__products {
+  display: grid;
+}
+
+@media (min-width: 1024px) {
+  [data-block="services-list"][data-shape="two-up"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ══ services-nav ══════════════════════════════════════════════════════════════════════ */
+
+/* services-nav · stack  （ember-12 + azure-29 今天选的就是它） */
+
+[data-block="services-nav"][data-shape="stack"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="services-nav"][data-shape="stack"] .services-nav__link {
+  justify-self: start;
+}
+
+/* ══ social-proof ══════════════════════════════════════════════════════════════════════ */
+
+/* social-proof · two-up  （ember-12 今天选的就是它） */
+
+[data-block="social-proof"][data-shape="two-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="social-proof"][data-shape="two-up"] .social-proof__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="social-proof"][data-shape="two-up"] .social-proof__platform {
+  justify-self: start;
+}
+
+[data-block="social-proof"][data-shape="two-up"] .social-proof__badge {
+  justify-self: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="social-proof"][data-shape="two-up"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* social-proof · three-up  （azure-29 今天选的就是它） */
+
+[data-block="social-proof"][data-shape="three-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="social-proof"][data-shape="three-up"] .social-proof__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="social-proof"][data-shape="three-up"] .social-proof__platform {
+  justify-self: start;
+}
+
+[data-block="social-proof"][data-shape="three-up"] .social-proof__badge {
+  justify-self: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="social-proof"][data-shape="three-up"] {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+/* ══ stats-counter ══════════════════════════════════════════════════════════════════════ */
+
+/* stats-counter · two-up  （ember-12 今天选的就是它） */
+
+[data-block="stats-counter"][data-shape="two-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="stats-counter"][data-shape="two-up"] .stats-counter__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="stats-counter"][data-shape="two-up"] .stats-counter__stat {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="stats-counter"][data-shape="two-up"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* stats-counter · three-up  （azure-29 今天选的就是它） */
+
+[data-block="stats-counter"][data-shape="three-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="stats-counter"][data-shape="three-up"] .stats-counter__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="stats-counter"][data-shape="three-up"] .stats-counter__stat {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="stats-counter"][data-shape="three-up"] {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+/* ══ team-grid ══════════════════════════════════════════════════════════════════════ */
+
+/* team-grid · two-up  （ember-12 今天选的就是它） */
+
+[data-block="team-grid"][data-shape="two-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="team-grid"][data-shape="two-up"] .team-grid__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="team-grid"][data-shape="two-up"] .team-grid__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="team-grid"][data-shape="two-up"] .team-grid__member {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="team-grid"][data-shape="two-up"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* team-grid · three-up  （azure-29 今天选的就是它） */
+
+[data-block="team-grid"][data-shape="three-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="team-grid"][data-shape="three-up"] .team-grid__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="team-grid"][data-shape="three-up"] .team-grid__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="team-grid"][data-shape="three-up"] .team-grid__member {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="team-grid"][data-shape="three-up"] {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+/* ══ testimonials ══════════════════════════════════════════════════════════════════════ */
+
+/* testimonials · attribution-first  （ember-12 今天选的就是它） */
+
+[data-block="testimonials"][data-shape="attribution-first"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="testimonials"][data-shape="attribution-first"] .testimonials__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="testimonials"][data-shape="attribution-first"] .testimonials__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="testimonials"][data-shape="attribution-first"] .testimonials__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="testimonials"][data-shape="attribution-first"] .testimonials__rating {
+  display: flex;
+  align-items: center;
+  order: 3;
+}
+
+[data-block="testimonials"][data-shape="attribution-first"] .testimonials__quote {
+  order: 4;
+}
+
+[data-block="testimonials"][data-shape="attribution-first"] .testimonials__name {
+  order: 1;
+}
+
+[data-block="testimonials"][data-shape="attribution-first"] .testimonials__meta {
+  order: 2;
+}
+
+[data-block="testimonials"][data-shape="attribution-first"] .testimonials__service {
+  justify-self: start;
+  order: 5;
+}
+
+@media (min-width: 1024px) {
+  [data-block="testimonials"][data-shape="attribution-first"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* testimonials · two-up  （azure-29 今天选的就是它） */
+
+[data-block="testimonials"][data-shape="two-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="testimonials"][data-shape="two-up"] .testimonials__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="testimonials"][data-shape="two-up"] .testimonials__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="testimonials"][data-shape="two-up"] .testimonials__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="testimonials"][data-shape="two-up"] .testimonials__rating {
+  display: flex;
+  align-items: center;
+}
+
+[data-block="testimonials"][data-shape="two-up"] .testimonials__service {
+  justify-self: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="testimonials"][data-shape="two-up"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ══ text-block ══════════════════════════════════════════════════════════════════════ */
+
+/* text-block · stack  （ember-12 + azure-29 今天选的就是它） */
+
+[data-block="text-block"][data-shape="stack"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="text-block"][data-shape="stack"] .text-block__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="text-block"][data-shape="stack"] .text-block__body {
+  max-width: 38rem;
+}
+
+[data-block="text-block"][data-shape="stack"] .text-block__list {
+  display: grid;
+}
+
+/* ══ timeline ══════════════════════════════════════════════════════════════════════ */
+
+/* timeline · stack  （ember-12 + azure-29 今天选的就是它） */
+
+[data-block="timeline"][data-shape="stack"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="timeline"][data-shape="stack"] .timeline__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="timeline"][data-shape="stack"] .timeline__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="timeline"][data-shape="stack"] .timeline__event {
+  display: grid;
+}
+
+/* ══ trusted-brands ══════════════════════════════════════════════════════════════════════ */
+
+/* trusted-brands · stack  （ember-12 + azure-29 今天选的就是它） */
+
+[data-block="trusted-brands"][data-shape="stack"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="trusted-brands"][data-shape="stack"] .trusted-brands__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="trusted-brands"][data-shape="stack"] .trusted-brands__brand {
+  display: grid;
+  place-items: center;
+  max-width: 9rem;
+}

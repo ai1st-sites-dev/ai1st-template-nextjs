@@ -5,7 +5,7 @@
 // run. It is the gate a GENERATED theme has to pass, which is the whole reason the contract is
 // narrow enough to have one: nobody is going to read three hundred AI-written sheets rule by rule.
 //
-//   node scripts/theme-css-lint.js public/themes/hero-media-left.css
+//   node scripts/theme-css-lint.js public/themes/ember-12.css
 //   node scripts/theme-css-lint.js public/themes/*.css
 //
 // Exit 0 = every sheet is legal. Exit 1 = at least one is not, and every violation is printed with
@@ -104,7 +104,7 @@ const postcss = require('postcss');
 // in one declaration.
 const valueParser = require('postcss-value-parser');
 
-const CONTRACT_VERSION = 'v2';
+const CONTRACT_VERSION = 'v3';
 
 // ── §1 hooks ────────────────────────────────────────────────────────────────────────────────────
 // Exact strings. A prefix rule (`starts with .hero__`) would admit the next typo as a new part.
@@ -441,26 +441,49 @@ const HOOK_CLASSES = [...HOOKS].filter((h) => /^\.[\w-]+$/.test(h)).map((h) => h
 }
 
 // ── §2 properties ───────────────────────────────────────────────────────────────────────────────
+//
+// 🔴 #1318 (contract v3) — THE GEOMETRY FAMILY LEFT THIS LIST. It is now the platform's, in
+// `public/shapes.css`, selected by `[data-block="<type>"][data-shape="<name>"]`. A theme sets the
+// SKIN (colour, typeface, radius, shadow, padding and the spacing scale); how a block is laid out is
+// no longer something a theme can state, so it is no longer something a theme can get wrong.
+//
+// 🔴 The family is DEFINED HERE, in one place, and exported — `scripts/theme-pipeline/sheet-recipes.js`
+// filters its own output through `isGeometry()` so the generator cannot write a property this file
+// would then refuse. Two hand-written copies of one list is the drift `css-contract-check.js` §2
+// exists to catch; a second copy inside the generator would be the same mistake one file over.
+//
+// 🔴 WHAT IS **NOT** IN IT, on purpose: `gap` / `row-gap` / `column-gap`, `padding*`, `margin*`,
+// `width` / `min-width` / `height`. Spacing and size are the theme's dial (spec D2 names the family
+// as `display` · `grid-*` · `grid-area/row/column` · `flex-direction` · `order` · `place-items` ·
+// `align-*` · `justify-*` · `min-height` · `aspect-ratio` · `max-width`, and `--section-block-gap` /
+// `--section-block-pad` are theme tokens the shape layer is allowed to REFERENCE). Two sheets
+// measured on `origin/main f71f8c3e`: 301 (`ember-12`) and 302 (`azure-29`) declarations are in this
+// family and moved out; nothing in the sheets' remaining 967 / 990 did.
+const GEOM_EXACT = new Set([
+  'display', 'order', 'min-height', 'max-height', 'aspect-ratio', 'max-width',
+]);
+const GEOM_PREFIXES = ['grid-', 'flex-', 'place-', 'align-', 'justify-'];
+const isGeometry = (prop) => GEOM_EXACT.has(prop) || GEOM_PREFIXES.some((x) => prop.startsWith(x));
+
 const PROP_EXACT = new Set([
-  'display', 'order', 'gap', 'row-gap', 'column-gap',
-  'width', 'min-width', 'max-width', 'height', 'min-height', 'max-height', 'aspect-ratio',
+  'gap', 'row-gap', 'column-gap',
+  'width', 'min-width', 'height',
   'color', 'border-radius', 'box-shadow', 'opacity', 'filter',
   'line-height', 'letter-spacing', 'text-align', 'text-transform',
   'object-fit', 'object-position',
   'content', 'overflow',
-  // #1190 — CONTROLLED SCROLLING. `display` · `overflow` · `gap` · `flex-shrink` · `min-width` were
-  // already enough to make a strip that slides (measured in a real browser: scrollWidth 1664 vs
-  // clientWidth 600, first item fully visible, slides to the last). What they could not do is make
-  // it STOP on an item — `scrollLeft = 100` on a 336px step stays at 100 — and could not open one
-  // axis without the other. These four are what buys those two things. The set is ENUMERATED, not a
-  // `scroll-*` prefix: `scroll-behavior` (which decides whether a jump animates, a preference the
-  // visitor's OS already states) and `overflow-y` (a vertical scroll axis inside a block, which is
-  // how content gets hidden from a reader without `display: none`) are deliberately NOT here, and a
-  // prefix rule would have admitted both plus whatever CSS adds next.
+  // #1190 — CONTROLLED SCROLLING. The set is ENUMERATED, not a `scroll-*` prefix:
+  // `scroll-behavior` (whether a jump animates, a preference the visitor's OS already states) and
+  // `overflow-y` (a vertical scroll axis inside a block, which is how content gets hidden from a
+  // reader without `display: none`) are deliberately NOT here, and a prefix rule would have admitted
+  // both plus whatever CSS adds next.
+  // 🔴 #1318 — the other half of that ticket's set (`display` · `flex-shrink` · `min-width`, the
+  // three that made a strip SLIDE) is geometry now and lives in `public/shapes.css`. What is left
+  // here is the half that decides where a slide STOPS, which is not a layout the theme picks. The
+  // one sheet in the pool that ever wrote the sliding half (`lime-28`) was retired by #1317.
   'overflow-x', 'scroll-snap-type', 'scroll-snap-align', 'scroll-snap-stop',
 ]);
 const PROP_PREFIXES = [
-  'grid-', 'flex-', 'place-', 'align-', 'justify-',
   'padding', 'margin',
   'background', 'border',
   'font-',
@@ -1938,4 +1961,8 @@ if (require.main === module) main();
 // contract doc is a second hand-written copy of them, and `css-contract-check.js` refuses when the
 // two disagree. Before this ticket only §1's hook table was reconciled, and §2 had already drifted
 // in the direction that matters — it claimed `overflow` was off the list while 13 sheets wrote it.
-module.exports = { lint, CONTRACT_VERSION, HOOKS, HOOK_CLASSES, isHook, PROP_EXACT, PROP_PREFIXES };
+module.exports = {
+  lint, CONTRACT_VERSION, HOOKS, HOOK_CLASSES, isHook, PROP_EXACT, PROP_PREFIXES,
+  // #1318 — the geometry family, so the generator filters by the same definition this file judges by.
+  GEOM_EXACT, GEOM_PREFIXES, isGeometry,
+};

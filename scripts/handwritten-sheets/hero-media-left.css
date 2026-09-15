@@ -1,4 +1,4 @@
-/* theme-css-contract: v2
+/* theme-css-contract: v3
    hero-media-left — picture on the left, words on the right, tall and dark.
 
    #991 phase 1. Layout lives here, not in the markup: the same HTML that produces this produces
@@ -7,10 +7,7 @@
    (docs/reference/theme-css-contract.md). */
 
 .hero {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 2rem;
-  min-height: 34rem;
   padding: 3rem 1.5rem;
   background: linear-gradient(140deg, var(--color-primary-800), var(--color-primary-900));
   color: var(--color-primary-50);
@@ -18,10 +15,7 @@
 
 @media (min-width: 1024px) {
   .hero {
-    grid-template-columns: 5fr 6fr;
-    align-items: center;
     gap: 4rem;
-    min-height: 44rem;
     padding: 5rem 4rem;
   }
 }
@@ -29,18 +23,10 @@
 /* The picture comes FIRST here and second in hero-media-right.css. One property, and that is the
    whole difference — swapping it in markup would have meant a second component. */
 .hero__media {
-  order: 2;
-  aspect-ratio: 4 / 5;
-  max-width: 34rem;
   width: 100%;
   border-radius: 1.5rem;
   box-shadow: 0 30px 60px -20px rgb(0 0 0 / 0.55);
   background-color: var(--color-primary-800);
-}
-
-.hero__body {
-  order: 3;
-  max-width: 34rem;
 }
 
 .hero__title {
@@ -76,8 +62,6 @@
    `content` carries an empty string: a sheet may draw, never write — anything with words in it would
    be on the page but absent from the DOM the structured data and the translations are built from. */
 .hero__deco {
-  order: 1;
-  grid-column: 1 / -1;
   height: 0.5rem;
   margin: -3rem -1.5rem 1rem;
   background: linear-gradient(90deg, var(--color-accent-500), var(--color-primary-400));
@@ -95,10 +79,7 @@
    drops the form under the words, boxed, so the picture on the left is untouched. Sites that do not
    ask for that content shape never render the part and this rule reaches nothing. */
 .hero__form {
-  order: 4;
-  display: grid;
   gap: 0.75rem;
-  max-width: 32rem;
   padding: 1.5rem;
   border-radius: 0.75rem;
   border: 1px solid var(--color-primary-200);
@@ -144,8 +125,6 @@
    its own hook, the rule has to say it. Not as tall as the form — there is one line of words in it,
    not four fields. */
 .hero__form-success {
-  order: 4;
-  max-width: 32rem;
   padding: 1rem 1.5rem;
   border-radius: 0.75rem;
   border: 1px solid var(--color-primary-200);
@@ -161,8 +140,6 @@
    The old `dark` variant's pattern overlay is drawn here as a background layer on the block itself —
    no extra element, and `background` is on the contract's property list where `position` is not. */
 .cta-banner {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.25rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-900);
@@ -177,8 +154,6 @@
 
 @media (min-width: 1024px) {
   .cta-banner {
-    grid-template-columns: 1.5fr 1fr;
-    align-items: center;
     gap: 3rem;
     padding: 4.5rem 4rem;
   }
@@ -206,23 +181,6 @@
 
 /* The button's cell: second column, and spanning both rows so it sits beside the two text parts
    rather than under the headline. `justify-content: end` is the sheet's decision, not the markup's. */
-@media (min-width: 1024px) {
-  .cta-banner__headline {
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-  .cta-banner__desc {
-    grid-column: 1;
-    grid-row: 2;
-  }
-
-  .cta-banner__action {
-    grid-column: 2;
-    grid-row: 1 / span 2;
-    justify-content: flex-end;
-  }
-}
 
 /* ── #1019 page-header — the deep dark band, words hard left ─────────────────────────────────────
    This sheet's page header is the old `default` / `centered` family without the choice: one column,
@@ -232,8 +190,6 @@
    The old `minimal` variant's underlined heading is drawn here as a `border-bottom` on the title;
    `border` is on the contract's property list, an <hr> would have been markup. */
 .page-header {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1rem;
   padding: 3rem 1.5rem;
   background: linear-gradient(140deg, var(--color-primary-800), var(--color-primary-900));
@@ -248,7 +204,6 @@
 }
 
 .page-header__crumbs {
-  order: 1;
   font-size: 0.8125rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -256,7 +211,6 @@
 }
 
 .page-header__title {
-  order: 2;
   font-size: 2rem;
   line-height: 1.1;
   font-weight: 800;
@@ -271,8 +225,6 @@
 }
 
 .page-header__sub {
-  order: 3;
-  max-width: 34rem;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-100);
@@ -285,8 +237,6 @@
    claim phase 2 makes about these six blocks. */
 
 .contact-form {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.5rem;
   padding: 3rem 1.5rem;
   background: linear-gradient(140deg, var(--color-primary-800), var(--color-primary-900));
@@ -314,16 +264,13 @@
 }
 
 .contact-form__intro {
-  max-width: 34rem;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-100);
 }
 
 .contact-form__form {
-  display: grid;
   gap: 1rem;
-  max-width: 40rem;
 }
 
 .contact-form__error {
@@ -348,8 +295,6 @@
 }
 
 .quote-form {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 2rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-900);
@@ -365,25 +310,20 @@
 /* One column at every width — the sidebar sits UNDER the steps here. hero-media-right.css puts it
    beside them; that difference is one property in a sheet, and no markup knows about it. */
 .quote-form__form {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 2.5rem;
 }
 
 .quote-form__intro {
-  max-width: 34rem;
   font-size: 1.125rem;
   line-height: 1.7;
   color: var(--color-primary-100);
 }
 
 .quote-form__main {
-  display: grid;
   gap: 2.5rem;
 }
 
 .quote-form__step {
-  display: grid;
   gap: 1rem;
   padding: 1.5rem;
   border-radius: 1rem;
@@ -417,7 +357,6 @@
 }
 
 .services-list {
-  display: grid;
   gap: 3rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-900);
@@ -431,8 +370,6 @@
 }
 
 .services-list__item {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.25rem;
   padding-bottom: 3rem;
   border-bottom: 1px solid var(--color-primary-700);
@@ -452,7 +389,6 @@
 }
 
 .services-list__desc {
-  max-width: 40rem;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-100);
@@ -480,7 +416,6 @@
    choose two and one; the markup is a flat list of items either way. */
 
 .services-nav {
-  display: flex;
   gap: 0.75rem;
   padding: 0.75rem 1.5rem;
   background-color: var(--color-primary-900);
@@ -497,8 +432,6 @@
 }
 
 .service-related-pages {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.5rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-800);
@@ -507,14 +440,12 @@
 
 @media (min-width: 1024px) {
   .service-related-pages {
-    grid-template-columns: 1fr 1fr 1fr;
     gap: 2rem;
     padding: 5rem 4rem;
   }
 }
 
 .service-related-pages__headline {
-  grid-column: 1 / -1;
   font-size: 2rem;
   line-height: 1.1;
   font-weight: 800;
@@ -522,8 +453,6 @@
 }
 
 .service-related-pages__sub {
-  grid-column: 1 / -1;
-  max-width: 34rem;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-100);
@@ -540,8 +469,6 @@
 /* ── #1028 batch C — dark ground, two columns, everything left ─────────────────────────────────── */
 
 .contact-info {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.5rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-900);
@@ -552,14 +479,12 @@
    one column and hero-media-top lays them out as a centred row. */
 @media (min-width: 1024px) {
   .contact-info {
-    grid-template-columns: 1fr 1fr;
     gap: 2rem 3rem;
     padding: 5rem 4rem;
   }
 }
 
 .contact-info__headline {
-  grid-column: 1 / -1;
   font-size: 2rem;
   line-height: 1.1;
   font-weight: 800;
@@ -567,7 +492,6 @@
 }
 
 .contact-info__location {
-  display: grid;
   gap: 0.5rem;
   padding: 1.75rem;
   border-radius: 1rem;
@@ -593,15 +517,12 @@
 }
 
 .contact-info__email {
-  grid-column: 1 / -1;
   font-size: 1rem;
   font-weight: 600;
   color: var(--color-accent-300);
 }
 
 .stats-counter {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
   gap: 1.5rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-800);
@@ -611,14 +532,12 @@
 /* Four across. hero-media-right keeps two and hero-media-top runs them as one centred row. */
 @media (min-width: 1024px) {
   .stats-counter {
-    grid-template-columns: repeat(4, 1fr);
     gap: 2.5rem;
     padding: 4rem 4rem;
   }
 }
 
 .stats-counter__headline {
-  grid-column: 1 / -1;
   font-size: 0.875rem;
   line-height: 1.4;
   font-weight: 700;
@@ -628,7 +547,6 @@
 }
 
 .stats-counter__stat {
-  display: grid;
   gap: 0.25rem;
 }
 
@@ -646,8 +564,6 @@
 }
 
 .process-steps {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.5rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-900);
@@ -657,14 +573,12 @@
 /* Four steps across, the number above each title. */
 @media (min-width: 1024px) {
   .process-steps {
-    grid-template-columns: repeat(4, 1fr);
     gap: 2.5rem;
     padding: 5rem 4rem;
   }
 }
 
 .process-steps__headline {
-  grid-column: 1 / -1;
   font-size: 2rem;
   line-height: 1.1;
   font-weight: 800;
@@ -672,17 +586,13 @@
 }
 
 .process-steps__sub {
-  grid-column: 1 / -1;
-  max-width: 34rem;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-100);
 }
 
 .process-steps__step {
-  display: grid;
   gap: 0.75rem;
-  align-content: start;
 }
 
 .process-steps__num {
@@ -730,15 +640,12 @@
    排版，不是把它藏回去。三套表各画各的，跟它们对 `.process-steps__sub` / `.timeline__desc`
    的处理保持同一套口吻 —— 这一套是深底、四栏、字大行宽。 */
 .process-steps__desc {
-  max-width: 22rem;
   font-size: 1rem;
   line-height: 1.7;
   color: var(--color-primary-100);
 }
 
 .timeline {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.25rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-800);
@@ -762,14 +669,12 @@
 }
 
 .timeline__sub {
-  max-width: 34rem;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-100);
 }
 
 .timeline__event {
-  display: grid;
   gap: 0.5rem;
   padding: 1.75rem 2rem;
   border-radius: 1rem;
@@ -804,8 +709,6 @@
 /* Two across on a wide screen — the old `cards-horizontal` band without the horizontal scroll. */
 
 .team-grid {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.5rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-900);
@@ -815,30 +718,24 @@
 /* Three across — the same count this sheet gives values-grid and testimonials. */
 @media (min-width: 1024px) {
   .team-grid {
-    grid-template-columns: 1fr 1fr 1fr;
     gap: 2rem;
     padding: 5rem 4rem;
   }
 }
 
 .team-grid__headline {
-  grid-column: 1 / -1;
   font-size: 2rem;
   line-height: 1.1;
   font-weight: 800;
 }
 
 .team-grid__sub {
-  grid-column: 1 / -1;
-  max-width: 34rem;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-100);
 }
 
 .team-grid__member {
-  display: grid;
-  align-content: start;
   gap: 0.5rem;
   padding: 2rem;
   border-radius: 1rem;
@@ -849,7 +746,6 @@
    and nothing else, so this is the whole of what a sheet can put back there (#1029). */
 .team-grid__member::before {
   content: "";
-  display: block;
   width: 3.5rem;
   height: 3.5rem;
   border-radius: 9999px;
@@ -882,8 +778,6 @@
 /* Where the check mark used to be. Same story as the avatar above: a shape is what a sheet can say. */
 
 .blog-preview {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.5rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-900);
@@ -892,30 +786,24 @@
 
 @media (min-width: 1024px) {
   .blog-preview {
-    grid-template-columns: 1fr 1fr 1fr;
     gap: 2rem;
     padding: 5rem 4rem;
   }
 }
 
 .blog-preview__headline {
-  grid-column: 1 / -1;
   font-size: 2rem;
   line-height: 1.1;
   font-weight: 800;
 }
 
 .blog-preview__sub {
-  grid-column: 1 / -1;
-  max-width: 34rem;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-100);
 }
 
 .blog-preview__post {
-  display: grid;
-  align-content: start;
   gap: 0.5rem;
   padding: 1.75rem;
   border-radius: 1rem;
@@ -926,7 +814,6 @@
    rotated four gradients by index, and a sheet cannot name "the third card" (#1029). */
 .blog-preview__post::before {
   content: "";
-  display: block;
   height: 0.375rem;
   border-radius: 9999px;
   background-color: var(--color-accent-500);
@@ -963,8 +850,6 @@
    repeated unit, and the picture on the LEFT — the same choice its hero makes. */
 
 .content-split {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.5rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-900);
@@ -977,27 +862,12 @@
    one — i.e. one row. Five is the number of parts this block can have. */
 @media (min-width: 1024px) {
   .content-split {
-    grid-template-columns: 5fr 6fr;
-    align-items: center;
     gap: 3rem;
     padding: 5rem 4rem;
-  }
-
-  .content-split__media {
-    grid-column: 1;
-    grid-row: 1 / span 5;
-  }
-
-  .content-split__headline,
-  .content-split__body,
-  .content-split__bullets,
-  .content-split__stats {
-    grid-column: 2;
   }
 }
 
 .content-split__media {
-  aspect-ratio: 4 / 5;
   border-radius: 1.5rem;
   background-color: var(--color-primary-800);
   box-shadow: 0 30px 60px -20px rgb(0 0 0 / 0.55);
@@ -1011,21 +881,17 @@
 }
 
 .content-split__body {
-  max-width: 34rem;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-100);
 }
 
 .content-split__bullets {
-  display: grid;
   gap: 0.75rem;
   color: var(--color-primary-100);
 }
 
 .content-split__stats {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
   gap: 1rem;
 }
 
@@ -1049,7 +915,6 @@
 }
 
 .text-block {
-  display: grid;
   gap: 1.25rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-900);
@@ -1074,7 +939,6 @@
 }
 
 .text-block__body {
-  max-width: 38rem;
   font-size: 1.0625rem;
   line-height: 1.75;
   color: var(--color-primary-100);
@@ -1087,20 +951,17 @@
 }
 
 .text-block__list {
-  display: grid;
   gap: 0.75rem;
   color: var(--color-primary-100);
 }
 
 @media (min-width: 1024px) {
   .text-block__list {
-    grid-template-columns: 1fr 1fr;
     gap: 0.75rem 2rem;
   }
 }
 
 .divider {
-  display: grid;
   gap: 0.5rem;
   padding: 2rem 1.5rem;
   background-color: var(--color-primary-900);
@@ -1108,7 +969,6 @@
 
 /* The old `gradient-bar` branch, as a rule instead of markup. */
 .divider__rule {
-  order: 2;
   height: 0.25rem;
   border-radius: 9999px;
   background-image: linear-gradient(90deg, var(--color-primary-500), var(--color-accent-500));
@@ -1116,7 +976,6 @@
 }
 
 .divider__label {
-  order: 1;
   font-size: 0.8125rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1125,8 +984,6 @@
 }
 
 .social-proof {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.25rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-900);
@@ -1135,14 +992,8 @@
 
 @media (min-width: 1024px) {
   .social-proof {
-    grid-template-columns: 1fr 1fr 1fr;
     gap: 1.5rem;
     padding: 5rem 4rem;
-  }
-
-  .social-proof__headline,
-  .social-proof__quote {
-    grid-column: 1 / -1;
   }
 }
 
@@ -1158,7 +1009,6 @@
    legal on purpose (bytes in the sheet, not a request to a third party). */
 .social-proof__rating::before {
   content: "";
-  display: block;
   width: 7.5rem;
   height: 1.25rem;
   background-repeat: repeat-x;
@@ -1179,7 +1029,6 @@
 }
 
 .social-proof__platform {
-  display: grid;
   gap: 0.25rem;
   padding: 1.5rem;
   border-radius: 1rem;
@@ -1198,7 +1047,6 @@
 }
 
 .social-proof__quote {
-  max-width: 44rem;
   padding: 1.5rem 0 0;
   border-top: 1px solid var(--color-primary-700);
   font-size: 1.375rem;
@@ -1214,8 +1062,6 @@
 }
 
 .features-grid {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.5rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-900);
@@ -1226,14 +1072,8 @@
    choose two and one; the markup is a flat list of cards either way. */
 @media (min-width: 1024px) {
   .features-grid {
-    grid-template-columns: 1fr 1fr 1fr;
     gap: 2rem;
     padding: 5rem 4rem;
-  }
-
-  .features-grid__headline,
-  .features-grid__sub {
-    grid-column: 1 / -1;
   }
 }
 
@@ -1245,14 +1085,12 @@
 }
 
 .features-grid__sub {
-  max-width: 34rem;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-100);
 }
 
 .features-grid__item {
-  display: grid;
   gap: 0.75rem;
   padding: 2rem;
   border-radius: 1rem;
@@ -1278,8 +1116,6 @@
 }
 
 .awards-certifications {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.5rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-800);
@@ -1288,14 +1124,8 @@
 
 @media (min-width: 1024px) {
   .awards-certifications {
-    grid-template-columns: 1fr 1fr 1fr;
     gap: 2rem;
     padding: 5rem 4rem;
-  }
-
-  .awards-certifications__headline,
-  .awards-certifications__sub {
-    grid-column: 1 / -1;
   }
 }
 
@@ -1307,14 +1137,12 @@
 }
 
 .awards-certifications__sub {
-  max-width: 34rem;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-100);
 }
 
 .awards-certifications__item {
-  display: grid;
   gap: 0.5rem;
   padding: 1.75rem;
   border-radius: 1rem;
@@ -1324,7 +1152,6 @@
 /* The star each old branch drew as inline SVG, on the same footing as the rating's above. */
 .awards-certifications__item::before {
   content: "";
-  display: block;
   width: 1.75rem;
   height: 1.75rem;
   background-repeat: no-repeat;
@@ -1351,9 +1178,7 @@
 }
 
 .newsletter-signup {
-  display: grid;
   gap: 1rem;
-  max-width: 34rem;
   margin: 0 auto;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-900);
@@ -1375,7 +1200,6 @@
 }
 
 .newsletter-signup__form {
-  display: flex;
   gap: 0.75rem;
   padding: 1.25rem;
   border-radius: 1rem;
@@ -1392,8 +1216,6 @@
    (§1), so how an OPEN answer sits is the browser's plus globals.css. This sheet owns the rest. */
 
 .faq-accordion {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-900);
@@ -1402,14 +1224,12 @@
 
 @media (min-width: 1024px) {
   .faq-accordion {
-    grid-template-columns: 2fr 3fr;
     gap: 1.25rem 4rem;
     padding: 5rem 4rem;
   }
 }
 
 .faq-accordion__headline {
-  grid-column: 1 / -1;
   font-size: 2rem;
   line-height: 1.1;
   font-weight: 800;
@@ -1417,15 +1237,12 @@
 }
 
 .faq-accordion__sub {
-  grid-column: 1 / -1;
-  max-width: 34rem;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-100);
 }
 
 .faq-accordion__item {
-  grid-column: 1 / -1;
   padding: 1.5rem 1.75rem;
   border-radius: 1rem;
   background-color: var(--color-primary-800);
@@ -1444,8 +1261,6 @@
 }
 
 .testimonials {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.5rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-900);
@@ -1455,30 +1270,24 @@
 /* Three across on a wide screen — the same count this sheet gives values-grid. */
 @media (min-width: 1024px) {
   .testimonials {
-    grid-template-columns: 1fr 1fr 1fr;
     gap: 2rem;
     padding: 5rem 4rem;
   }
 }
 
 .testimonials__headline {
-  grid-column: 1 / -1;
   font-size: 2rem;
   line-height: 1.1;
   font-weight: 800;
 }
 
 .testimonials__sub {
-  grid-column: 1 / -1;
-  max-width: 34rem;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-100);
 }
 
 .testimonials__item {
-  display: grid;
-  align-content: start;
   gap: 0.75rem;
   padding: 2rem;
   border-radius: 1rem;
@@ -1486,7 +1295,6 @@
 }
 
 .testimonials__rating {
-  display: flex;
   gap: 0.25rem;
   color: var(--color-accent-400);
 }
@@ -1513,7 +1321,6 @@
 }
 
 .testimonials__service {
-  justify-self: start;
   padding: 0.25rem 0.75rem;
   border-radius: 9999px;
   background-color: var(--color-primary-700);
@@ -1524,9 +1331,6 @@
 }
 
 .announcement-bar {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
   gap: 0.75rem;
   padding: 0.75rem 1.5rem;
   background-color: var(--color-accent-600);
@@ -1551,8 +1355,6 @@
    element that is already there (#1018's reasoning for cta-banner's overlay). */
 
 .pricing-table {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.5rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-900);
@@ -1561,30 +1363,24 @@
 
 @media (min-width: 1024px) {
   .pricing-table {
-    grid-template-columns: 1fr 1fr 1fr;
     gap: 2rem;
     padding: 5rem 4rem;
   }
 }
 
 .pricing-table__headline {
-  grid-column: 1 / -1;
   font-size: 2rem;
   line-height: 1.1;
   font-weight: 800;
 }
 
 .pricing-table__sub {
-  grid-column: 1 / -1;
-  max-width: 34rem;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-100);
 }
 
 .pricing-table__item {
-  display: grid;
-  align-content: start;
   gap: 0.75rem;
   padding: 2rem;
   border-radius: 1rem;
@@ -1600,7 +1396,6 @@
 }
 
 .pricing-table__badge {
-  justify-self: start;
   padding: 0.25rem 0.75rem;
   border-radius: 9999px;
   background-color: var(--color-accent-500);
@@ -1630,7 +1425,6 @@
 }
 
 .pricing-table__features {
-  display: grid;
   gap: 0.5rem;
   font-size: 0.9375rem;
   line-height: 1.6;
@@ -1642,8 +1436,6 @@
 }
 
 .gallery {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.5rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-900);
@@ -1652,37 +1444,30 @@
 
 @media (min-width: 1024px) {
   .gallery {
-    grid-template-columns: 1fr 1fr 1fr;
     gap: 2rem;
     padding: 5rem 4rem;
   }
 }
 
 .gallery__headline {
-  grid-column: 1 / -1;
   font-size: 2rem;
   line-height: 1.1;
   font-weight: 800;
 }
 
 .gallery__sub {
-  grid-column: 1 / -1;
-  max-width: 34rem;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-100);
 }
 
 .gallery__item {
-  display: grid;
-  align-content: start;
   gap: 0.75rem;
 }
 
 .gallery__image,
 .gallery__placeholder {
   width: 100%;
-  aspect-ratio: 3 / 2;
   border-radius: 1rem;
   object-fit: cover;
 }
@@ -1695,7 +1480,6 @@
 }
 
 .gallery__caption {
-  display: grid;
   gap: 0.25rem;
 }
 
@@ -1728,8 +1512,6 @@
    which is why it has a hook at all: a sheet cannot select "the cells that are true". */
 
 .feature-comparison {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 0.75rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-900);
@@ -1751,7 +1533,6 @@
 }
 
 .feature-comparison__sub {
-  max-width: 34rem;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-100);
@@ -1759,10 +1540,7 @@
 
 .feature-comparison__head,
 .feature-comparison__row {
-  display: grid;
-  grid-template-columns: 3fr 1fr 1fr;
   gap: 1rem;
-  align-items: center;
   padding: 0.875rem 1.5rem;
   border-radius: 0.75rem;
 }
@@ -1817,10 +1595,6 @@
 }
 
 .logo-carousel {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
   gap: 1.5rem 3rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-900);
@@ -1828,7 +1602,6 @@
 }
 
 .logo-carousel__headline {
-  flex-basis: 100%;
   font-size: 0.8125rem;
   line-height: 1.4;
   font-weight: 700;
@@ -1846,8 +1619,6 @@
 }
 
 .map-area {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.5rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-900);
@@ -1857,14 +1628,12 @@
 /* Three across — the same count this sheet gives values-grid and team-grid. */
 @media (min-width: 1024px) {
   .map-area {
-    grid-template-columns: 1fr 1fr 1fr;
     gap: 2rem;
     padding: 5rem 4rem;
   }
 }
 
 .map-area__headline {
-  grid-column: 1 / -1;
   font-size: 2rem;
   line-height: 1.1;
   font-weight: 800;
@@ -1872,16 +1641,12 @@
 }
 
 .map-area__sub {
-  grid-column: 1 / -1;
-  max-width: 34rem;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-100);
 }
 
 .map-area__area {
-  display: grid;
-  align-content: start;
   gap: 0.5rem;
   padding: 1.75rem;
   border-radius: 1rem;
@@ -1902,10 +1667,6 @@
 }
 
 .trusted-brands {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
   gap: 1.25rem 3rem;
   padding: 2.5rem 1.5rem;
   background-color: var(--color-primary-900);
@@ -1913,7 +1674,6 @@
 }
 
 .trusted-brands__headline {
-  flex-basis: 100%;
   font-size: 0.8125rem;
   line-height: 1.4;
   font-weight: 700;
@@ -1936,8 +1696,6 @@
    same six parts, same treatment. Generated from those rules by the ticket, prefix swapped. */
 
 .card-group {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.5rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-900);
@@ -1946,14 +1704,12 @@
 
 @media (min-width: 1024px) {
   .card-group {
-    grid-template-columns: 1fr 1fr;
     gap: 2rem 3rem;
     padding: 5rem 4rem;
   }
 }
 
 .card-group__headline {
-  grid-column: 1 / -1;
   font-size: 2rem;
   line-height: 1.1;
   font-weight: 800;
@@ -1961,16 +1717,12 @@
 }
 
 .card-group__sub {
-  grid-column: 1 / -1;
-  max-width: 34rem;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-100);
 }
 
 .card-group__item {
-  display: grid;
-  align-content: start;
   gap: 0.75rem;
   padding: 2rem;
   border-radius: 1rem;
@@ -1999,7 +1751,6 @@
    selected them were removed and the contract went to v2. This paragraph names them only as the
    origin of the numbers below. */
 .card-group__features {
-  display: grid;
   gap: 0.5rem;
   font-size: 0.9375rem;
   line-height: 1.6;

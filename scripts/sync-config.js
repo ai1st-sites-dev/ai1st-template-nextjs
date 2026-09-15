@@ -6,7 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const blockManifest = require('./lib/block-manifest');
-const { themes, layoutFor, themesWithRhythm } = require('./themes');
+const { themes, layoutFor, shapesFor, themesWithRhythm } = require('./themes');
 const pageLayoutLib = require('./lib/page-layout');
 // #1108 —— 报错里「那你去做 X」那几句话由代码算出来（判据是白名单自己），不写死。
 // 理由整段写在那个文件头上:这些话会被 edit-site.js 原文推进老板的聊天窗口。
@@ -721,12 +721,43 @@ try {
 // JSON carries; section types it says nothing about are left alone. Runs after the locale loop on
 // purpose — navigation.json is the one file written back to disk up there, and it must not pick any
 // of this up.
+// #1318 —— `data-shape` 的取值，spec D18 的三级，**一处实现**：
+//
+//     ① 页面 JSON 里这个块自己的 `shape`   —— 站级的选择。本票用不到（建站 AI 还不写它），先接上，
+//                                             免得第三步（站级覆盖那张票）再把这个函数拆一遍。
+//     ② 这套主题的选择单                    —— `theme-pool.json` 的 `shapes`，今天两套各 31 个键。
+//     ③ 块 manifest 的默认                  —— `blocks/<type>.json` 的 `shapes[0]`。今天 31 份里
+//                                             **0 份**有这个键（那是设计文档第一步的活，PM 裁定 ④
+//                                             说本票不加），所以这一级现在恒回 undefined。
+//
+// 🔴 三级都取不到就**不写这个属性**，不造一个兜底值。造一个（比如 "default"）会让
+//    `public/shapes.css` 里 `[data-shape="default"]` 这类选择器选中一批「其实没人选过画法」的块，
+//    而那是静默的：页面照样打开。同一条理由写在 `blockAttrs.ts` 的 `block_layout` 那一段上。
+function shapeForBlock(block, selection, manifests) {
+  if (typeof block.shape === 'string' && block.shape) return block.shape;
+  const chosen = selection[block.type];
+  if (typeof chosen === 'string' && chosen) return chosen;
+  const m = manifests[block.type];
+  const fromManifest = m && Array.isArray(m.shapes) ? m.shapes[0] : undefined;
+  return typeof fromManifest === 'string' && fromManifest ? fromManifest : undefined;
+}
+
 if (structureThemeId) {
   const layout = layoutFor(structureThemeId);
+  // #1318 —— 选择单跟 `layout` 从同一个 `structureThemeId` 取（「这个站穿的是哪套主题」），理由
+  // 与上面那段逐字相同：注册表里查不到的 id 回空表而不是打死构建，候选流水线那条路必须活着。
+  const selection = shapesFor(structureThemeId);
+  const manifestsForShapes = loadBlockManifests(rootDir);
+  let shaped = 0;
   let overridden = 0;
   for (const locale of locales) {
     for (const page of pagesByLocale[locale]) {
       for (const block of page.blocks) {
+        // #1318 —— 先写 `shape`（形态层靠它点名），再走下面那条老的 variant 覆盖。
+        // 🔴 `variant` 那一半**一个字都没动**：它今天「还在写、没人读」是 #1008 AC5 有意留下的，
+        //    四个 section 组件的注释都写着别在那儿"修"它。本票加的是一个并存的新字段，不是替换。
+        const shape = shapeForBlock(block, selection, manifestsForShapes);
+        if (shape) { block.shape = shape; shaped++; }
         // #1162 —— 这里以前先读一个由别名层写上去的隐藏字段、读不到才落回 `block.type`，为的是让
         // 主题注册表里按老 type 名写的偏好还能对上老站。别名层 2026-08-23 整层退役之后**没有任何地方
         // 再写那个字段** ⟹ 那半边表达式恒 undefined，留着只会让读代码的人以为老站这条路还在。
@@ -741,7 +772,7 @@ if (structureThemeId) {
   }
   // 🔴 #1121 —— 这行以前写的是「colors + fonts + N section variant(s)」，而颜色和字体已经不
   // 从这里来了。日志说的话必须跟代码做的事一样，否则下一个读构建日志的人会以为覆盖还在。
-  console.log(`  Theme "${structureThemeId}": ${overridden} section variant(s)`
+  console.log(`  Theme "${structureThemeId}": ${overridden} section variant(s) · ${shaped} block shape(s)`
     + ' —— 颜色 / 字体 / 风格设定来自这个站自己的 brand.json，不从注册表来');
 }
 

@@ -3120,7 +3120,8 @@ if (PALETTE_IS_NOT_THE_SHEETS_OWN) {
     + '🔴 If you dressed the '
     + 'page yourself (a hand run against whatever preview was up), a ratio below the line may be about a '
     + 'combination no site can be built with — pairing is by name (create-site.js → theme-sheet.js), and '
-    + 'the three hand-written hero-media-* sheets have no theme named after them at all. Re-run with '
+    + 'a sheet with no theme named after it has no palette that is its own (#1318 moved the three '
+    + 'hand-written hero-media-* ones out of public/themes/ entirely). Re-run with '
     + 'THEME_CSS_PALETTE_NOT_THE_SHEETS_OWN=1 to have those ratios reported and not judged');
 }
 

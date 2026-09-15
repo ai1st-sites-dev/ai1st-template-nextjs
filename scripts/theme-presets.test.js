@@ -799,10 +799,24 @@ let judgeSheetForRegistrySweep = null;
   const { MEASURED_TARGETS } = require('./theme-text-targets.js');
 
   const themeDir = path.join(__dirname, '..', 'public', 'themes');
+  // #1318 —— 三份手写表 2026-09-15 搬到了 `scripts/handwritten-sheets/`（理由整段在那个目录的
+  // README 上：契约 v3 删掉它们的排版之后，两条规则只剩几何、整条消失，而运行时第 ⑤ 条
+  // 「主题有没有漏画某个钩子」对一张**没有站穿得到**的表问不出意义；#1318 AC1 定的处置是挪走，
+  // 不是给检查器开白名单）。
+  //
+  // 🔴 这一节的表清单因此取**两个目录的并集** —— 搬迁前后它判的是同一份清单，一张不多一张不少。
+  //    这里跟着收窄成只读 `public/themes/` 的话，「一张没有自己配色的表 × 每一套配色」这一节
+  //    （第 ⑨ / ⑩ 两节存在的全部理由）当场变成空集，而空集是**绿的**。
+  const handwrittenDir = path.join(__dirname, 'handwritten-sheets');
   const bandsFile = path.join(__dirname, 'theme-text-bands.json');
   if (!fs.existsSync(themeDir)) die(`找不到 ${themeDir} —— 这一节会整节空过`);
-  const sheets = fs.readdirSync(themeDir).filter((f) => f.endsWith('.css')).sort();
-  if (!sheets.length) die('public/themes 下一张表都没有 —— 这一节会整节空过');
+  const readSheets = (d) => (fs.existsSync(d) ? fs.readdirSync(d).filter((f) => f.endsWith('.css')) : []);
+  const sheetHome = {};
+  for (const d of [themeDir, handwrittenDir]) for (const f of readSheets(d)) sheetHome[f] = d;
+  /** 一张表住在哪个目录 —— 两节共用，别在任何一处重新拼路径。 */
+  const sheetPath = (f) => path.join(sheetHome[f] || themeDir, f);
+  const sheets = Object.keys(sheetHome).sort();
+  if (!sheets.length) die('public/themes 与 scripts/handwritten-sheets 下一张表都没有 —— 这一节会整节空过');
 
   let bands = { sheets: {} };
   try { bands = JSON.parse(fs.readFileSync(bandsFile, 'utf8')); } catch { /* 下面按「没有这一格」处理 */ }
@@ -832,7 +846,7 @@ let judgeSheetForRegistrySweep = null;
   //    默认仍是 MEASURED_TARGETS，所以第 ⑨ 节一个字节都没变。
   const judgeSheet = (sheetFile, colors, hues, targets = MEASURED_TARGETS) => {
     const name = sheetFile.replace(/\.css$/, '');
-    const css = fs.readFileSync(path.join(themeDir, sheetFile), 'utf8');
+    const css = fs.readFileSync(sheetPath(sheetFile), 'utf8');
     const pairs = contrast.textPairs(css, targets);
     const varsAt = varsFor(colors);
     const problems = [];
@@ -869,7 +883,7 @@ let judgeSheetForRegistrySweep = null;
           + `那一段才判得了，而 scripts/theme-text-bands.json 里没有这一格 —— 跑 \`${cmd}\``);
         continue;
       }
-      if (entry.md5 !== md5(path.join(themeDir, sheetFile))) {
+      if (entry.md5 !== md5(sheetPath(sheetFile))) {
         problems.push(`${name} 这张表改过了（md5 对不上），存着的那段几何读数作废 —— 重跑 \`${cmd}\``);
         continue;
       }
@@ -926,7 +940,7 @@ let judgeSheetForRegistrySweep = null;
       const entry = bands.sheets[name];
       if (!entry || !entry.md5) continue;
       checked += 1;
-      const actual = md5(path.join(themeDir, f));
+      const actual = md5(sheetPath(f));
       if (entry.md5 !== actual) {
         stale.push(`${name}(存 ${String(entry.md5).slice(0, 8)} · 实际 ${actual.slice(0, 8)})`);
       }
@@ -971,7 +985,7 @@ let judgeSheetForRegistrySweep = null;
   {
     const rows = sheets.map((f) => ({
       name: f.replace(/\.css$/, ''),
-      n: contrast.textPairs(fs.readFileSync(path.join(themeDir, f), 'utf8'), MEASURED_TARGETS).length,
+      n: contrast.textPairs(fs.readFileSync(sheetPath(f), 'utf8'), MEASURED_TARGETS).length,
     }));
     const off = rows.filter((r) => r.n !== PINNED_RESOLVED_PER_SHEET);
     const shown = rows.map((r) => `${r.name}=${r.n}`).join(' · ');
@@ -1218,7 +1232,10 @@ let judgeSheetForRegistrySweep = null;
   const contrastHere = require('./theme-contrast.js');
   const fsHere = require('fs');
   const pathHere = require('path');
-  const themeDirHere = pathHere.join(__dirname, '..', 'public', 'themes');
+  // #1318 —— 三份手写表住在 `scripts/handwritten-sheets/` 了（理由见那个目录的 README 与上面第 ⑨
+  // 节那段）。这一节点名的就是它们，所以路径按**它们今天住的地方**算；`sheetsForRegistrySweep`
+  // 是第 ⑨ 节借过来的那份**两个目录的并集**，所以下面那条「少一张就 bad()」的自检照旧成立。
+  const themeDirHere = pathHere.join(__dirname, 'handwritten-sheets');
   // 🔴🔴 只有这三张**手写**表进这一节，而且是按名字点的，不是「public/themes 下所有表」。
   // 理由是 #1016 的裁定：那张票把池子扩到 80 套**生成**表，而每一份生成表是**为它自己那一套配色
   // 生成的**（`theme-pipeline/sheet-recipes.js` §pickInk 按那套配色挑字色），一个站穿哪张表也由它
@@ -1233,7 +1250,7 @@ let judgeSheetForRegistrySweep = null;
   const sheetsHere = sheetsForRegistrySweep.filter((f) => HANDWRITTEN.includes(f));
   const missing = HANDWRITTEN.filter((f) => !sheetsForRegistrySweep.includes(f));
   if (missing.length) {
-    bad(`这一节点名的手写表有 ${missing.length} 张不在 public/themes 下（${missing.join(' · ')}）`
+    bad(`这一节点名的手写表有 ${missing.length} 张不在 scripts/handwritten-sheets 下（${missing.join(' · ')}）`
       + ' —— 少一张就等于那张没人判，不许当成过');
   }
   const names = Object.keys(themes);

@@ -199,6 +199,21 @@ const THEME_SETTING_VALUES = {
   buttonShape: ['rounded', 'square', 'pill'],
 };
 
+// #1318 — 这套主题的**选择单**：31 个块类型各选一个画法名（`theme-pool.json` 的 `shapes`）。
+//
+// 🔴 它跟 `layoutFor` 是两件事，别合并：`layoutFor` 读的是 `supports`（这套主题**声明**它在这个
+//    块上有哪些形态，值进 `data.variant`，今天写了没人读），选择单读的是 `shapes`（这个块**排成
+//    什么样**，值进 DOM 的 `data-shape`，`public/shapes.css` 靠它点名）。一个是能力声明、一个是
+//    做出的选择 —— spec §4.5 / §4.6 把这两件事分开了，合并回去就是把那条边界又抹掉一次。
+//
+// 🔴 注册表里查不到这个 id（候选流水线装候选、或者站穿着一套已下架的主题）时回**空对象**，不是
+//    报错：调用方 `sync-config.js` 拿不到选择单就不写 `data-shape`，页面落回 `base.css` 的地板，
+//    跟本票之前那些没有 shape 的产物是同一个样子。失败方向是「这一维没生效」，不是构建打死。
+function shapesFor(themeId) {
+  const t = themes[themeId];
+  return (t && t.shapes) || {};
+}
+
 function settingsFor(themeId) {
   const t = themes[themeId];
   return (t && t.settings) || null;
@@ -367,6 +382,8 @@ module.exports = {
   THEME_SETTING_VALUES,
   themeStyle,
   layoutFor,
+  // #1318 —— 选择单（每个块类型一个画法名），`sync-config.js` 按它写 DOM 上的 `data-shape`。
+  shapesFor,
   settingsFor,
   themesWithRhythm,
   candidateThemesForIndustry,

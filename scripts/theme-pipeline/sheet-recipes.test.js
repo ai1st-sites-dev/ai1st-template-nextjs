@@ -53,7 +53,7 @@ const fs = require('fs');            // #1135 ⑨ 的分母自检要数池子里
 const crypto = require('crypto');
 
 const DIR = __dirname;
-let sheetFor; let voiceFor; let heroLayoutFor; let HERO_LAYOUTS; let postcss; let paletteFor;
+let sheetFor; let geometryFor; let voiceFor; let heroLayoutFor; let HERO_LAYOUTS; let postcss; let paletteFor;
 let CARD_BLOCKS; let layoutNamesFor;
 let heroLookFor; let HERO_LOOK_NAMES; let HERO_LOOKS;
 let ctaLookFor; let CTA_LOOK_NAMES; let formLookFor; let FORM_LOOK_NAMES;   // #1135
@@ -70,7 +70,7 @@ const skip = (what, why) => { if (!skipOnScaffoldingPool(what, why)) return fals
 
 try {
   ({
-    sheetFor, voiceFor, heroLayoutFor, HERO_LAYOUTS, CARD_BLOCKS, layoutNamesFor,
+    sheetFor, geometryFor, voiceFor, heroLayoutFor, HERO_LAYOUTS, CARD_BLOCKS, layoutNamesFor,
     heroLookFor, HERO_LOOK_NAMES, HERO_LOOKS,
     ctaLookFor, CTA_LOOK_NAMES, formLookFor, FORM_LOOK_NAMES,
     LOOK_FAMILIES, SCROLL_STRIP_EXPERIMENT,
@@ -82,6 +82,97 @@ try {
 }
 
 const md5 = (s) => crypto.createHash('md5').update(s).digest('hex');
+
+// ══ #1318 —— 几何搬走之后，「几何」这几格的语料换成【一个站真正拿到的那份 CSS】 ════════════════
+//
+// 契约 v3 起排版不在主题表里了：它住在平台那一份 `public/shapes.css`，按
+// `[data-block="<类型>"][data-shape="<画法名>"]` 点名，而一个站在每个块上戴哪个画法由它穿的那套
+// 主题的**选择单**（`theme-pool.json` 的 `shapes`）决定。
+//
+// 🔴 **所以「第 i 套候选的几何」这个问法没有对象了。** `sheetFor(i)` 里一行几何都没有（这是本票
+//    的交付），而形态层里**只有池子真的用到的那 50 个 (block, shape) 对** —— 不为「将来可能有」
+//    预留（#1318 PM 裁定 ③）。⟹ 下面 ④ / ⑥ / ⑩ 三格的分母从「N 套候选」变成「池子里的每一套主题」。
+//    这不是判据放松，是问题换了对象：**一个站能拿到的排版，今天就是这些**。池子重新生成那天
+//    （#1317 的脚手架期结束），选择单会带来新的画法名，这几格自己就跟着长。
+//
+// 🔴 「选择单里点名的画法在 `shapes.css` 里真的有规则吗」由 `pool.test.js` 那一格守（本票加的）。
+//    少了它，一个站可以戴上一个查不到的画法名 —— 而那是静默的：页面照样打开，只是塌回 base.css。
+const SHAPES_PATH = path.resolve(DIR, '..', '..', 'public', 'shapes.css');
+const THEMES_DIR = path.resolve(DIR, '..', '..', 'public', 'themes');
+const POOL = require(path.join(DIR, '..', 'theme-pool.json'));
+const POOL_IDS = Object.keys(POOL).sort();
+
+/**
+ * 这个站真正拿到的那份 CSS = 形态层里它选中的那些规则（还原成类名形态）+ 它自己那份主题表。
+ * 同一个选择器的两半合并成一条规则 —— 也就是 #1318 之前 `sheetFor(i)` 产出的那个形状，所以下面
+ * 那些尺子一个字都不用改。
+ *
+ * 🔴 `[data-block="X"]` 与 `.X` 是**同一个元素**（`src/lib/sections/blockAttrs.ts` 把两个都写在块
+ *    根上），所以这个还原不是近似。
+ */
+/**
+ * 配方那一侧的**完整**表 = 皮 + 几何，也就是 #1318 之前 `sheetFor(i)` 那份字节。
+ *
+ * 🔴 两个语料回答的是两个问题，下面几格**两个都问**：
+ *    · `recipeSheetFor(i)`     —— 「这张画法表本身画得对吗」。域是全部候选（8 种 hero 画法、
+ *                                 6 种 form 画法、80 套候选），这是 #1065 / #1135 那些红当初的域。
+ *    · `effectiveSheetFor(id)` —— 「一个站今天真的拿到了吗」。域是池子里的每一套主题，语料是
+ *                                 主题表 + 平台那份手维护的 `shapes.css`。
+ *    只问前者：有人把 `shapes.css` 改坏，这几格照样绿（形态层是手维护的，配方管不着它）。
+ *    只问后者：域塌到 2，而 8 种 hero 画法里只有 2 种被判到。
+ */
+/**
+ * 🔴 两半要**合成一条规则**，不是首尾相接。`.hero__form` 在皮那一份和几何那一份里各有一条，拼起来
+ * 就是两条同名规则 —— 而下面那些尺子一律取**第一条**（`lines.find` / 单次 `match`），于是它们会读到
+ * 只有皮的那一条，判成「这个画法没给表单排位置」。这一条是实测过的：第一版就这么拼，8 种画法全红。
+ */
+const recipeSheetFor = (i) => mergeCss([sheetFor(i), geometryFor(i)]);
+
+/**
+ * 把几份 CSS 合成一份：同一个 (at-rule, 选择器) 的声明并进同一条规则，后面那份盖前面那份。
+ * `pick` 可选 —— 回 null 表示这条规则整条不要，回一个字符串表示把选择器换成它。
+ */
+function mergeCss(cssList, pick) {
+  const merged = new Map();   // `${media}\u0000${selector}` → { media, sel, decls: Map }
+  for (const css of cssList) {
+    postcss.parse(css).walkRules((rule) => {
+      const media = rule.parent.type === 'atrule' ? `@${rule.parent.name} ${rule.parent.params}` : '';
+      const sel = pick ? pick(rule.selector) : rule.selector;
+      if (sel === null) return;
+      const key = `${media}\u0000${sel}`;
+      if (!merged.has(key)) merged.set(key, { media, sel, decls: new Map() });
+      rule.walkDecls((d) => merged.get(key).decls.set(d.prop, d.value));
+    });
+  }
+  const byMedia = new Map();
+  for (const r of merged.values()) {
+    if (!byMedia.has(r.media)) byMedia.set(r.media, []);
+    byMedia.get(r.media).push(`${r.sel} {\n${
+      [...r.decls].map(([k, v]) => `  ${k}: ${v};`).join('\n')}\n}\n`);
+  }
+  const out = [];
+  for (const [media, rules] of byMedia) {
+    if (!media) out.push(rules.join('\n'));
+    else out.push(`${media} {\n${rules.join('\n')}\n}\n`);
+  }
+  return out.join('\n');
+}
+
+function effectiveSheetFor(themeId) {
+  const selection = (POOL[themeId] || {}).shapes || {};
+  return mergeCss(
+    [fs.readFileSync(SHAPES_PATH, 'utf-8'), fs.readFileSync(path.join(THEMES_DIR, `${themeId}.css`), 'utf-8')],
+    (selector) => {
+      if (!/\[data-block=/.test(selector)) return selector;
+      const m = /\[data-block="([^"]+)"\]\[data-shape="([^"]+)"\]/.exec(selector);
+      if (!m || selection[m[1]] !== m[2]) return null;        // 这个站没戴这个画法
+      return selector
+        .split(new RegExp(`\\[data-block="${m[1]}"\\]\\[data-shape="${m[2]}"\\]`)).join(`.${m[1]}`)
+        .replace(/\.([a-z0-9-]+) \.\1__/g, '.$1__');            // `.hero .hero__form` → `.hero__form`
+    },
+  );
+}
+
 
 /** 一份表里所有碰到 `.hero` 的规则，连它外面那层 @media 一起 —— 版式的差别就落在这些规则上。 */
 function heroRulesOf(css) {
@@ -389,8 +480,14 @@ console.log('④ 表说了居中，产物里那几样东西真的居中吗');
     return out;
   };
 
+  // #1318 —— 语料换成「池子里每一套主题真正拿到的那份 CSS」（理由整段在 effectiveSheetFor 上面）：
+  // 这一格问的两处修法（`.hero__cta` 的 justify-content、`.hero__sub` 的 auto 外边距）今天一半在
+  // 形态层、一半在主题表里 —— `max-width` 与 `justify-content` 是几何，`margin` 不是。只读其中
+  // 一份的话，两边都会读到「说了居中却没摆正」，而真站上它是摆正的。
   const sheets = [];
-  for (let i = 0; i < N; i += 1) sheets.push({ i, css: sheetFor(i) });
+  for (let i = 0; i < N; i += 1) sheets.push({ i: `候选 ${i}`, css: recipeSheetFor(i) });
+  for (const id of POOL_IDS) sheets.push({ i: `站 ${id}`, css: effectiveSheetFor(id) });
+  if (sheets.length <= N) die('④ 的语料里一套池内主题都没有：theme-pool.json 读到空');
   // 🔴 #1135 —— 分母是「**hero 这个块**声明了居中」的套数，不是「整份表里出现过 text-align:center」。
   //    下面那个反向对照拿掉的是 `.hero__cta` / `.hero__sub` 两处**hero 的**修法，所以它只可能点名
   //    hero 居中的那些套。#1135 给 cta-banner / contact-form 各加了一个居中候选之后，整份表里
@@ -412,10 +509,10 @@ console.log('④ 表说了居中，产物里那几样东西真的居中吗');
   const centredSheets = sheets.filter((x) => heroCentred(x.css));
   const badSheets = sheets.map((x) => ({ ...x, bad: offendersOf(x.css) })).filter((x) => x.bad.length);
   if (badSheets.length) {
-    bad(`${N} 套里 ${badSheets.length} 套「说的居中、画的是左」 —— 例：第 ${badSheets[0].i} 套的 `
+    bad(`${sheets.length} 套里 ${badSheets.length} 套「说的居中、画的是左」 —— 例：${badSheets[0].i} 的 `
       + `${badSheets[0].bad.join(' · ')}`);
   } else {
-    ok(`${N} 套里没有一处「某个容器说了居中，它下面却有东西不受 text-align 管而没被摆正」`
+    ok(`${sheets.length} 套主题（各自的 主题表 + 形态层选中的画法）里没有一处「某个容器说了居中，它下面却有东西不受 text-align 管而没被摆正」`
       + `（其中 ${centredSheets.length} 套的确声明了居中，剩下的本来就左对齐）`);
   }
 
@@ -433,7 +530,7 @@ console.log('④ 表说了居中，产物里那几样东西真的居中吗');
   const caught = sheets.filter((x) => offendersOf(undoFix(x.css)).length);
   if (caught.length === centredSheets.length && caught.length > 0) {
     ok(`反向对照：把 .hero__cta 的 justify-content 与 .hero__sub 的 auto 外边距拿掉，`
-      + `${N} 套里 ${caught.length} 套当场被点名 —— 正是声明了居中的那 ${centredSheets.length} 套，一套不多一套不少`);
+      + `${sheets.length} 套里 ${caught.length} 套当场被点名 —— 正是声明了居中的那 ${centredSheets.length} 套，一套不多一套不少`);
   } else if (caught.length) {
     bad(`反向对照对不上：拿掉修法后被点名 ${caught.length} 套，而声明居中的是 ${centredSheets.length} 套`);
   } else {
@@ -550,49 +647,66 @@ const placementOf = (rule) => {
   return null;
 };
 console.log('\n⑥ 每一种画法都把 .hero__form 排在正文之后吗（#1065 r2 的红）');
+// #1318 —— 分母从 `rules` 这张表自己派生，不再从 `HERO_LOOK_NAMES` × `TRIO` 派生：形态层里只有
+// 池子真的用到的那些 hero 画法（理由整段在 effectiveSheetFor 上面），而按候选清单遍历会把
+// 「这个画法今天没有站戴」报成「这张表漏了 .hero__form」——两件完全不同的事。
+// 🔴 分母为空时上面那个调用点 die 了，所以这里不会退化成「一条都没判 ⟹ 绿」。
 const formPlacementProblems = (rules) => {
   const out = [];
-  for (const [look, i] of HERO_LOOK_NAMES.map((n, k) => [n, TRIO[k]])) {
+  for (const [look, i] of [...rules.keys()].map((n) => [n, n])) {
     const lines = (rules.get(look) || '').split('\n');
     const rule = lines.find((l) => /^\.hero__form \{/.test(l));
     const bodyRule = lines.find((l) => /^\.hero__body \{/.test(l));
-    if (!rule) { out.push(`画法 ${look}（i=${i}）的表里根本没有 .hero__form 这条规则`); continue; }
-    if (!bodyRule) { out.push(`画法 ${look}（i=${i}）的表里没有 .hero__body 这条规则 —— 没有可比的位置`); continue; }
+    if (!rule) { out.push(`画法 ${look}（${i}）的表里根本没有 .hero__form 这条规则`); continue; }
+    if (!bodyRule) { out.push(`画法 ${look}（${i}）的表里没有 .hero__body 这条规则 —— 没有可比的位置`); continue; }
     const form = placementOf(rule);
     const body = placementOf(bodyRule);
     if (!form) {
-      out.push(`画法 ${look}（i=${i}）没给 .hero__form 排位置 —— 默认 order 是 0，它会排到 hero 最上沿：${rule}`);
+      out.push(`画法 ${look}（${i}）没给 .hero__form 排位置 —— 默认 order 是 0，它会排到 hero 最上沿：${rule}`);
       continue;
     }
-    if (!body) { out.push(`画法 ${look}（i=${i}）没给 .hero__body 排位置，没法判表单排在它前面还是后面：${bodyRule}`); continue; }
+    if (!body) { out.push(`画法 ${look}（${i}）没给 .hero__body 排位置，没法判表单排在它前面还是后面：${bodyRule}`); continue; }
     if (form.axis !== body.axis) {
-      out.push(`画法 ${look}（i=${i}）正文用 ${body.axis} 排、表单用 ${form.axis} 排 —— 两根轴比不出先后`);
+      out.push(`画法 ${look}（${i}）正文用 ${body.axis} 排、表单用 ${form.axis} 排 —— 两根轴比不出先后`);
       continue;
     }
     if (!(form.value > body.value)) {
-      out.push(`画法 ${look}（i=${i}）表单没排在正文之后：正文 ${body.axis}=${body.raw} · 表单 ${form.axis}=${form.raw}`
+      out.push(`画法 ${look}（${i}）表单没排在正文之后：正文 ${body.axis}=${body.raw} · 表单 ${form.axis}=${form.raw}`
         + '（≤ 正文 ⟹ 它可能落进页顶那 160px 的遮罩里，就是 CI 红过的那一格）');
     }
   }
   return out;
 };
 {
-  const rules = new Map(TRIO.map((i) => [heroLookFor(i), heroRulesOf(sheetFor(i))]));
+  // #1318 —— 语料换成「池子里每一套主题真正拿到的那份 CSS」，键是它在 hero 上戴的那个画法名
+  // （理由整段在 effectiveSheetFor 上面：`order` 今天住在形态层，`sheetFor(i)` 里一行几何都没有，
+  // 而形态层只有池子真的用到的那些画法）。TRIO 那个夹具留着 —— ⑤ 那一格还在用它问**内容结构**，
+  // 那一维仍然是每个候选都答得出来的。
+  const rules = new Map(TRIO.map((i) => [heroLookFor(i), heroRulesOf(recipeSheetFor(i))]));
+  for (const id of POOL_IDS) {
+    rules.set(`${(POOL[id].shapes || {}).hero} @ 站 ${id}`, heroRulesOf(effectiveSheetFor(id)));
+  }
+  const LOOKS_HERE = [...rules.keys()];
+  if (LOOKS_HERE.length < HERO_LOOK_NAMES.length + POOL_IDS.length) {
+    die(`⑥ 的语料只有 ${LOOKS_HERE.length} 项，而 ${HERO_LOOK_NAMES.length} 种画法 + `
+      + `${POOL_IDS.length} 套池内主题应当是 ${HERO_LOOK_NAMES.length + POOL_IDS.length} 项 —— 有键撞掉了`);
+  }
   const problems = formPlacementProblems(rules);
   if (problems.length) problems.forEach((m) => bad(m));
   else {
-    const shapes = HERO_LOOK_NAMES.map((n, k) => {
+    const shapes = LOOKS_HERE.map((n) => {
       const lines = (rules.get(n) || '').split('\n');
       const f = placementOf(lines.find((l) => /^\.hero__form \{/.test(l)));
       const b = placementOf(lines.find((l) => /^\.hero__body \{/.test(l)));
       return `${n} 正文 ${b.axis}=${b.raw}→表单 ${f.raw}`;
     });
-    ok(`${HERO_LOOK_NAMES.length} 种画法逐种：.hero__form 排在正文之后（${shapes.join(' · ')}）`);
+    ok(`${LOOKS_HERE.length} 项逐项（${HERO_LOOK_NAMES.length} 种画法出自配方 + ${POOL_IDS.length} 套`
+      + `池内主题真正拿到的那份）：.hero__form 排在正文之后（${shapes.join(' · ')}）`);
   }
 
   // 阳性对照：把其中一种画法的 form 那条位置拿掉，这把尺必须当场只点名它。
   // 直接改产物字符串 —— 改 HERO_LOOKS 会连着改掉上面几格共用的那份表。
-  const target = HERO_LOOK_NAMES.find((n) => n !== 'media-cover');
+  const target = LOOKS_HERE[0];
   const rigged = new Map(rules);
   rigged.set(target, (rules.get(target) || '').split('\n').map((l) => (
     /^\.hero__form \{/.test(l) ? l.replace(/(^|; )order: [^;}]+(; )?/, '$1') : l
@@ -966,33 +1080,53 @@ console.log('\n⑩ #1135 成功那条状态消息，每一种画法下都跨满�
     const m = css.match(new RegExp(`\\.contact-form__${part} \\{[^}]*\\}`));
     return !!m && /grid-column:\s*1 \/ -1/.test(m[0]);
   };
+  // #1318 —— 语料换成「池子里每一套主题真正拿到的那份 CSS」：`grid-column` 是几何，今天住在
+  // `public/shapes.css` 里，而形态层只有池子真的用到的那些 form 画法（理由整段在 effectiveSheetFor
+  // 上面）。按 FORM_LOOK_SAMPLE 那 6 个候选遍历的话，会把「这个画法今天没有站戴」报成「它没跨满」。
+  const FORM_HERE = new Map([...FORM_LOOK_SAMPLE].map(([look, i]) => [look, recipeSheetFor(i)]));
+  for (const id of POOL_IDS) {
+    FORM_HERE.set(`${(POOL[id].shapes || {})['contact-form']} @ 站 ${id}`, effectiveSheetFor(id));
+  }
+  if (FORM_HERE.size !== FORM_LOOK_SAMPLE.size + POOL_IDS.length) {
+    die(`⑩ 的语料 ${FORM_HERE.size} 项，应当是 ${FORM_LOOK_SAMPLE.size} + ${POOL_IDS.length} —— 有键撞掉了`);
+  }
   const problems = [];
-  for (const [look, i] of FORM_LOOK_SAMPLE) {
-    if (!spans(sheetFor(i), 'success')) {
-      problems.push(`画法 ${look}（第 ${i} 套）的 .contact-form__success 没有跨满整宽`);
+  for (const [look, css] of FORM_HERE) {
+    if (!spans(css, 'success')) {
+      problems.push(`画法 ${look} 的 .contact-form__success 没有跨满整宽`);
     }
   }
   if (problems.length === 0) {
-    ok(`⑩ ${FORM_LOOK_SAMPLE.size} 种 form 画法逐种：成功那条消息写着 grid-column: 1 / -1`);
+    ok(`⑩ ${FORM_HERE.size} 项逐项（${FORM_LOOK_SAMPLE.size} 种画法出自配方 + ${POOL_IDS.length} 套`
+      + '池内主题真正拿到的那份）：成功那条消息写着 grid-column: 1 / -1');
   } else problems.forEach(bad);
 
-  // 反向对照：把块那一层的修法摘掉，这一格必须当场红（否则它只是在读别处写的东西）
+  // 反向对照：把那处修法从**真语料**上外科式地拿掉，这一格必须当场红（否则它只是在读别处写的东西）。
+  //
+  // 🔴 #1318 —— 靶子换了地方：`grid-column: 1 / -1` 这行今天在 `public/shapes.css` 里，不在
+  //    `sheet-recipes.js` 的块那一层。上一版是把配方源码里那一行剪掉再重新 require —— 那条路今天
+  //    **恒红**（配方照样算出这行，只是被几何滤网滤掉了，所以剪不剪产物里都没有它），也就是说它
+  //    会变成一格「怎么改都通过」的装饰。所以改成直接扰动形态层的字节，一个变量。
   {
-    const Module = require('module');
-    const target = path.join(DIR, 'sheet-recipes.js');
-    const src = fs.readFileSync(target, 'utf-8');
-    const line = "      success: () => ({ 'grid-column': '1 / -1' }),";
-    if (!src.includes(line)) {
-      bad('⑩ 反向对照立不起来：sheet-recipes.js 里找不到块那一层给 success 写的那行');
+    const shapesCss = fs.readFileSync(SHAPES_PATH, 'utf-8');
+    const before = (shapesCss.match(/\.contact-form__success \{[^}]*grid-column:\s*1 \/ -1/g) || []).length;
+    if (before === 0) {
+      bad('⑩ 反向对照立不起来：public/shapes.css 里找不到 .contact-form__success 的 grid-column: 1 / -1');
     } else {
-      const m = new Module(target, module);
-      m.filename = target;
-      m.paths = Module._nodeModulePaths(path.dirname(target));
-      m._compile(src.split(line).join('      // qa removed'), target);
-      const css = m.exports.sheetFor([...FORM_LOOK_SAMPLE.values()][0]);
-      const still = /\.contact-form__success \{[^}]*grid-column:\s*1 \/ -1/.test(css);
-      if (!still) ok('⑩ 反向对照：把块那一层那行摘掉，成功那条消息立刻不再跨满 —— 这一格量的就是它');
-      else bad('⑩ 反向对照失败：摘掉之后它照样跨满 —— 那这一格钉的不是这处修法');
+      const rigged = shapesCss.replace(
+        /(\.contact-form__success \{[^}]*?)grid-column:\s*1 \/ -1;\n/g, '$1',
+      );
+      // 用扰动过的形态层重算语料 —— 只换这一样，主题表那一半一个字节都没动。
+      const spy = fs.readFileSync;
+      fs.readFileSync = (f, ...rest) => (f === SHAPES_PATH ? rigged : spy(f, ...rest));
+      let still;
+      try {
+        still = [...POOL_IDS].some((id) => spans(effectiveSheetFor(id), 'success'));
+      } finally { fs.readFileSync = spy; }
+      if (!still) {
+        ok(`⑩ 反向对照：把形态层里那 ${before} 处 grid-column: 1 / -1 拿掉，成功那条消息立刻不再跨满`
+          + ' —— 这一格量的就是它');
+      } else bad('⑩ 反向对照失败：拿掉之后它照样跨满 —— 那这一格钉的不是这处修法');
     }
   }
 
@@ -1038,10 +1172,11 @@ console.log('\n⑩ #1135 成功那条状态消息，每一种画法下都跨满�
   //    也就是说前提被推翻了而没有任何读数变化 —— 而这一格存在的全部理由就是守那个前提。
   //    ⟹ 判据改成「这个 form 是不是一个**横向排布**的容器」，两种写法一起认。
   {
+    // #1318 —— 语料同上：横排与否是几何，今天住在形态层，而形态层只有池子真的用到的那些画法。
     const multi = [];
     const why = {};
-    for (const [look, i] of FORM_LOOK_SAMPLE) {
-      const m = sheetFor(i).match(/\.contact-form__form \{[^}]*\}/);
+    for (const [look, css] of FORM_HERE) {
+      const m = css.match(/\.contact-form__form \{[^}]*\}/);
       if (!m) continue;
       const decl = m[0];
       const reasons = [];
@@ -1056,7 +1191,7 @@ console.log('\n⑩ #1135 成功那条状态消息，每一种画法下都跨满�
       if (reasons.length) { multi.push(look); why[look] = reasons.join(' + '); }
     }
     // 分母自检：这把尺子读得到 grid-template-columns 吗（块根那条一定有）
-    const rootHas = /\.contact-form \{[^}]*grid-template-columns/.test(sheetFor([...FORM_LOOK_SAMPLE.values()][0]));
+    const rootHas = /\.contact-form \{[^}]*grid-template-columns/.test([...FORM_HERE.values()][0]);
     // 🔴 flex 那一半也要有自己的分母自检 —— 否则「flex 读到 0」可能是正则瞎了，而不是真没有。
     //    拿一条合成声明校准：它必须被判成横排，且掰成 column 之后必须不被判。
     const probe = (d) => {
@@ -1077,7 +1212,7 @@ console.log('\n⑩ #1135 成功那条状态消息，每一种画法下都跨满�
       die('⑩ B2 的尺子坏了：flex 那一半在合成声明上标定不出来（横排的没认出来，或者 column 的被误判）'
         + ' —— 那「flex 读到 0」这个读数不作数');
     } else if (multi.length === 0) {
-      ok(`⑩ B2 ${FORM_LOOK_SAMPLE.size} 种画法里 .contact-form__form 既没有 grid-template-columns、`
+      ok(`⑩ B2 ${FORM_HERE.size} 种画法里 .contact-form__form 既没有 grid-template-columns、`
         + '也不是横排 flex（单栏）；两把尺各自标定过 ⟹ 上面那个「0」是真读数');
     } else {
       bad(`⑩ B2 这些画法把表单本身分栏了：${multi.map((l) => `${l}（${why[l]}）`).join(' · ')}`
@@ -1142,7 +1277,9 @@ console.log('\n⑪ #1135 那行细则小字，每一种画法下都排在表单�
   const at = sourceOrderOf(tsx);
   if (!at) die(`⑪ 立不起来：${CONTACT_TSX} 里找不到 ${PARTS.length} 个部件的 className`);
 
-  const problems = offenders((i) => sheetFor(i), at);
+  // #1318 —— `order` 是几何，今天不在主题表里。语料换成配方那两半合起来的那份（= 搬迁前
+  // `sheetFor(i)` 的字节，标定见 recipeSheetFor 上面）。
+  const problems = offenders((i) => recipeSheetFor(i), at);
   if (problems.length === 0) {
     ok(`⑪ ${FORM_LOOK_SAMPLE.size} 种 form 画法逐种：细则小字排在表单和说明之后`
       + `（源序读自组件本身：${PARTS.map((p) => p).join(' < ')}）`);
@@ -1162,7 +1299,9 @@ console.log('\n⑪ #1135 那行细则小字，每一种画法下都排在表单�
       m.filename = target;
       m.paths = Module._nodeModulePaths(path.dirname(target));
       m._compile(src.split(line).join('      // r2 control: order removed'), target);
-      const named = offenders((i) => m.exports.sheetFor(i), at);
+      // #1318 —— 重新编译出来的那份配方也要取【两半】，否则扰动落在几何那一半上而尺子只读皮，
+      // 这个对照会退化成恒绿（实测：只读皮时它读到 0 条）。
+      const named = offenders((i) => mergeCss([m.exports.sheetFor(i), m.exports.geometryFor(i)]), at);
       if (named.some((s) => s.startsWith('panel-left'))) {
         ok(`⑪ 阳性对照 A：摘掉 panel-left 那行 order，这一格当场点名它（${named.length} 条）—— 上面那些绿是这行挣来的`);
       } else {
@@ -1182,7 +1321,7 @@ console.log('\n⑪ #1135 那行细则小字，每一种画法下都排在表单�
       if (!at2) {
         bad('⑪ 阳性对照 B 立不起来：搬完之后四个部件读不齐');
       } else {
-        const named = offenders((i) => sheetFor(i), at2);
+        const named = offenders((i) => recipeSheetFor(i), at2);
         // 🔴 #1134 —— 这里原来写 `>= 4`，而真值是 **5**（#1134 实测：`⑪ 阳性对照 B … 点名 5 种画法`）。
         //    松一格的代价不是抽象的：真值从 5 掉到 4 意味着**少了一种画法被点名**，也就是这把尺对那
         //    一种失明了 —— 而 `>=4` 会替它绿。改成等值判，并把「为什么是 5」写在旁边：
@@ -1261,9 +1400,13 @@ console.log(`\n⑫ #1139 每个块在 ${SAMPLE_N} 套候选里有几副骨架（
   } catch (e) {
     die(`⑫ 读不到 ${ROLES_PATH}：${e.message} —— 族清单的权威就是它，读不到就什么都没量成`);
   }
+  // #1318 —— 骨架是几何，今天不在主题表里。这一格问的是**配方**（「这几张画法表真的画得不一样吗」），
+  // 所以语料取配方那两半合起来的那份（= 搬迁前 `sheetFor(i)` 的字节，标定见 recipeSheetFor 上面）。
+  // 🔴 别改成读 `public/shapes.css`：那份手维护的形态层里只有池子今天真用到的 50 个 (block, shape)
+  //    对，而这一格的分母是「一族有几副画法」——照它去数，8 副 hero 画法会读成 2 副，下限判据跟着塌。
   const sheets = [];
   for (let i = 0; i < N; i += 1) {
-    const css = sheetFor(i);
+    const css = recipeSheetFor(i);
     sheets.push({ i, css, v: voiceFor(i), fp: skeletonsOf(css, BLOCKS) });
   }
 

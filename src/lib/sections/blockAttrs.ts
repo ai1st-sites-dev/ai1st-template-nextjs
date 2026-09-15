@@ -53,6 +53,8 @@ export interface BlockAttrs {
   'data-block': string;
   'data-role': BlockRole;
   'data-block-layout'?: string;
+  /** #1318 — 这个块排成什么样。`public/shapes.css` 靠 `[data-block][data-shape]` 点名。 */
+  'data-shape'?: string;
 }
 
 // 🔴 表里没有这个类型时给 'essential'，不是 'optional'。两个方向的错法不对称：
@@ -75,6 +77,18 @@ export function blockAttrs(type: string, block?: BlockConfig): BlockAttrs {
   const attrs: BlockAttrs = { 'data-block': type, 'data-role': role };
   if (block && typeof block.block_layout === 'string' && block.block_layout) {
     attrs['data-block-layout'] = block.block_layout;
+  }
+  // #1318 — 第四个钩子，`data-block-layout` 的**并存**项（不是替代：`block_layout` 说的是内容结构
+  // 「这个块有没有配图」，`shape` 说的是排版「配图在哪一侧」，两件事）。
+  //
+  // 🔴 `block.shape` 是 `sync-config.js` 在构建时按 spec D18 的三级算好写进页面 JSON 的，这里
+  // **不再算一遍**：同一个判据两份实现，分叉的方向是静默的（构建按一份选、DOM 上带的是另一份，
+  // 而页面照样打开）。这里只负责让写下的那个值真的到达 DOM —— 跟上面 `role` 那一行同一个分工。
+  //
+  // 🔴 没写就一个字符都不多，跟 `block_layout` 逐字同一个理由（那一段写在上面）：不给它造兜底值，
+  // 否则 `[data-shape="default"]` 会选中一批「其实没人选过画法」的块，而那是静默的。
+  if (block && typeof block.shape === 'string' && block.shape) {
+    attrs['data-shape'] = block.shape;
   }
   return attrs;
 }

@@ -651,6 +651,69 @@ if (!skip('⑩ 词边界匹配（a/b/c 三臂）',
   }
 }
 
+// ══ ⑪ #1318 —— 选择单：每个块类型都有画法名，而且 shapes.css 里真的有那条规则 ════════════════
+//
+// 契约 v3 起排版住在平台那一份 `public/shapes.css`，按 `[data-block="<类型>"][data-shape="<画法名>"]`
+// 点名；一个站在每个块上戴哪个画法，由它穿的那套主题的选择单（`theme-pool.json` 的 `shapes`）决定。
+//
+// 🔴 **两半都要判，只判前一半挡不住这个缺陷：** 选择单里写一个 `shapes.css` 里查不到的名字，
+//    ① 键是齐的 ② 属性照样写进 DOM ③ 页面照样打开 —— 只是那个块**塌回 `base.css` 的地板**，
+//    而没有任何东西会说一句话。这正是 #1318 AC3 里那半条判据的理由，这一格把它变成常设的闸。
+//
+// 🔴 分母从 `blocks/*.json` 现数，不写死 31：加一个块类型时，没跟着补选择单的那套主题当场红。
+//    失败方向因此是「点名」，不是「这一格自己缩小了」。
+{
+  const blocksDir = path.join(NEXT, 'blocks');
+  const shapesPath = path.join(NEXT, 'public', 'shapes.css');
+  let allBlocks; let shapesCss;
+  try {
+    allBlocks = fs.readdirSync(blocksDir).filter((f) => f.endsWith('.json')).map((f) => f.replace(/\.json$/, '')).sort();
+    shapesCss = fs.readFileSync(shapesPath, 'utf-8');
+  } catch (e) {
+    die(`⑪ 读不到 blocks/ 或 public/shapes.css：${e.message} —— 什么都没量成`);
+  }
+  if (!allBlocks.length) die('⑪ blocks/ 下一份 manifest 都没有 —— 分母塌了，不许当成过');
+  const declared = new Set();
+  // 🔴 先把注释剥掉再匹配：`shapes.css` 的文件头里写着 `[data-block="<块类型>"][data-shape="<画法名>"]`
+  //    这个**样例**，不剥的话它会被数成第 51 个 (块, 画法) 对 —— 判据不受影响（它只问某一对在不在），
+  //    但打印出来的那个数会比真数大 1，而那种数正是下一个人会拿去引用的东西。
+  for (const m of shapesCss.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/\[data-block="([^"]+)"\]\[data-shape="([^"]+)"\]/g)) {
+    declared.add(`${m[1]}|${m[2]}`);
+  }
+  if (!declared.size) die('⑪ public/shapes.css 里一条 [data-block][data-shape] 都解不出来 —— 尺子坏了');
+  const ids = Object.keys(themesMod.themes).sort();
+  const problems = [];
+  let judged = 0;
+  for (const id of ids) {
+    const sel = themesMod.shapesFor(id);
+    const missingKey = allBlocks.filter((b) => typeof sel[b] !== 'string' || !sel[b]);
+    if (missingKey.length) {
+      problems.push(`${id} 的选择单缺 ${missingKey.length}/${allBlocks.length} 个块：${missingKey.join(' · ')}`);
+    }
+    const noRule = allBlocks.filter((b) => typeof sel[b] === 'string' && sel[b] && !declared.has(`${b}|${sel[b]}`));
+    if (noRule.length) {
+      problems.push(`${id} 选了 ${noRule.length} 个 shapes.css 里查不到的画法名（那些块会静默塌回 base.css）：`
+        + noRule.map((b) => `${b}=${sel[b]}`).join(' · '));
+    }
+    judged += allBlocks.length;
+  }
+  if (problems.length) problems.forEach(bad);
+  else {
+    ok(`⑪ ${ids.length} 套主题 × ${allBlocks.length} 个块 = ${judged} 对逐对：选择单有名字，且 `
+      + `public/shapes.css 里真有 [data-block][data-shape] 那条规则（形态层现有 ${declared.size} 个 (块, 画法) 对）`);
+  }
+  // 🔴 反向对照：编一个 shapes.css 里没有的画法名，这一格必须当场点名 —— 否则它只是在数键。
+  {
+    const fakeSel = { ...themesMod.shapesFor(ids[0]), [allBlocks[0]]: 'qa-not-a-real-shape' };
+    const caught = allBlocks.filter((b) => typeof fakeSel[b] === 'string' && !declared.has(`${b}|${fakeSel[b]}`));
+    if (caught.length === 1 && caught[0] === allBlocks[0]) {
+      ok(`⑪ 反向对照：把 ${ids[0]} 的 ${allBlocks[0]} 改成一个查不到的画法名，这把尺只点名它`);
+    } else {
+      bad(`⑪ 反向对照对不上：点名 ${caught.length} 个（${caught.join(' · ')}），应当正好是 ${allBlocks[0]}`);
+    }
+  }
+}
+
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail}`
   + (skipped ? ` · 🔴 脚手架池跳过 ${skipped} 格（#1317，不是通过）` : '') + ' ══');
 process.exit(fail ? 1 : 0);

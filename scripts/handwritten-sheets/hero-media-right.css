@@ -1,13 +1,10 @@
-/* theme-css-contract: v2
+/* theme-css-contract: v3
    hero-media-right — words on the left, a wide picture on the right, mid height, light and airy.
 
    #991 phase 1. Same HTML as hero-media-left.css and hero-media-top.css; only this file differs. */
 
 .hero {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 2.5rem;
-  min-height: 26rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-50);
   color: var(--color-primary-900);
@@ -15,26 +12,16 @@
 
 @media (min-width: 1024px) {
   .hero {
-    grid-template-columns: 1fr 1fr;
-    align-items: center;
     gap: 3.5rem;
-    min-height: 32rem;
     padding: 4rem 3rem;
   }
 }
 
 .hero__media {
-  order: 3;
-  aspect-ratio: 16 / 10;
   width: 100%;
   border-radius: 0.75rem;
   border: 1px solid var(--color-primary-100);
   background-color: var(--color-primary-50);
-}
-
-.hero__body {
-  order: 2;
-  max-width: 32rem;
 }
 
 .hero__title {
@@ -64,8 +51,6 @@
 /* Placed last, so the band sits under both columns. See the note in hero-media-left.css for why the
    decoration must be given a cell rather than left to fall where it may. */
 .hero__deco {
-  order: 4;
-  grid-column: 1 / -1;
   height: 0.375rem;
   margin: 1rem -1.5rem -3rem;
   background: linear-gradient(90deg, var(--color-primary-500), var(--color-accent-500));
@@ -82,10 +67,7 @@
    under them, unboxed apart from a rule above it — the airy look this sheet is for. It only enters
    the DOM when the page JSON asks for `block_layout: "with-form"` (HeroSection.tsx). */
 .hero__form {
-  order: 3;
-  display: grid;
   gap: 0.875rem;
-  max-width: 30rem;
   padding: 1.25rem 0 0;
   border-width: 1px 0 0;
   border-style: solid;
@@ -121,8 +103,6 @@
    here without an ink is the mistake `.hero__form` in hero-media-left documents; setting neither
    avoids it. */
 .hero__form-success {
-  order: 3;
-  max-width: 30rem;
   padding: 1.25rem 0 0;
   border-width: 1px 0 0;
   border-style: solid;
@@ -137,8 +117,6 @@
    Light ground here, because this sheet is the light and airy one; the old `outlined` look's card is
    drawn with `border` + `border-radius`, both on the contract's property list. */
 .cta-banner {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.25rem;
   padding: 2.5rem 1.5rem;
   background-color: var(--color-primary-50);
@@ -149,8 +127,6 @@
 
 @media (min-width: 1024px) {
   .cta-banner {
-    grid-template-columns: 1fr 2fr;
-    align-items: center;
     gap: 2.5rem;
     padding: 3rem 3rem;
   }
@@ -177,23 +153,6 @@
 
 /* The two text parts share the second column; the button takes the first and spans both rows.
    Under 1024 the source order applies and the button goes back to the bottom. */
-@media (min-width: 1024px) {
-  .cta-banner__headline {
-    grid-column: 2;
-    grid-row: 1;
-  }
-
-  .cta-banner__desc {
-    grid-column: 2;
-    grid-row: 2;
-  }
-
-  .cta-banner__action {
-    grid-column: 1;
-    grid-row: 1 / span 2;
-    justify-content: flex-start;
-  }
-}
 
 /* ── #1019 page-header — the two-column one: heading left, description beside it ─────────────────
    This is the old `with-description` look, and it is the reason that variant is a SKIN and not a
@@ -201,8 +160,6 @@
    The crumb trail spans the row above both columns. Under 1024 it all stacks in source order.
    Light ground, a rule under the trail instead of a filled band — this sheet is the airy one. */
 .page-header {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1rem;
   padding: 2.5rem 1.5rem;
   background-color: var(--color-primary-50);
@@ -212,8 +169,6 @@
 
 @media (min-width: 1024px) {
   .page-header {
-    grid-template-columns: 1fr 1fr;
-    align-items: end;
     gap: 2rem 3rem;
     padding: 4rem 3rem;
   }
@@ -238,7 +193,6 @@
 }
 
 .page-header__sub {
-  max-width: 32rem;
   font-size: 1rem;
   line-height: 1.7;
   color: var(--color-primary-800);
@@ -246,22 +200,6 @@
 
 /* The trail takes the whole first row; the heading and the description share the second one. This
    is the whole two-column look — three declarations, no markup involved. */
-@media (min-width: 1024px) {
-  .page-header__crumbs {
-    grid-column: 1 / -1;
-    grid-row: 1;
-  }
-
-  .page-header__title {
-    grid-column: 1;
-    grid-row: 2;
-  }
-
-  .page-header__sub {
-    grid-column: 2;
-    grid-row: 2;
-  }
-}
 
 /* ── #1027 batch B — the light, airy, TWO-COLUMN treatment ────────────────────────────────────────
    The same six blocks as hero-media-left.css and hero-media-top.css, and the same HTML. This sheet
@@ -271,8 +209,6 @@
    part — no wrapper, no variant, nothing the markup knows about. Under 1024 it all stacks. */
 
 .contact-form {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.25rem;
   padding: 2.5rem 1.5rem;
   background-color: var(--color-primary-50);
@@ -282,7 +218,6 @@
 
 @media (min-width: 1024px) {
   .contact-form {
-    grid-template-columns: 2fr 3fr;
     gap: 1rem 3rem;
     padding: 4rem 3rem;
   }
@@ -297,37 +232,19 @@
 
 @media (min-width: 1024px) {
   .contact-form__heading {
-    grid-column: 1;
-    grid-row: 1;
     font-size: 2.25rem;
   }
 }
 
 .contact-form__intro {
-  max-width: 28rem;
   font-size: 1rem;
   line-height: 1.65;
   color: var(--color-primary-800);
 }
 
-@media (min-width: 1024px) {
-  .contact-form__intro {
-    grid-column: 1;
-    grid-row: 2;
-  }
-}
-
 /* The fields are the second column, spanning the two text rows. */
 .contact-form__form {
-  display: grid;
   gap: 0.875rem;
-}
-
-@media (min-width: 1024px) {
-  .contact-form__form {
-    grid-column: 2;
-    grid-row: 1 / span 3;
-  }
 }
 
 .contact-form__error {
@@ -351,8 +268,6 @@
 }
 
 .quote-form {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.5rem;
   padding: 2.5rem 1.5rem;
   background-color: var(--color-primary-50);
@@ -366,33 +281,26 @@
 }
 
 .quote-form__form {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 2rem;
 }
 
 @media (min-width: 1024px) {
   .quote-form__form {
-    grid-template-columns: 2fr 1fr;
-    align-items: start;
     gap: 3rem;
   }
 }
 
 .quote-form__intro {
-  max-width: 30rem;
   font-size: 1.0625rem;
   line-height: 1.65;
   color: var(--color-primary-800);
 }
 
 .quote-form__main {
-  display: grid;
   gap: 2rem;
 }
 
 .quote-form__step {
-  display: grid;
   gap: 0.875rem;
   padding-bottom: 1.5rem;
   border-bottom: 1px solid var(--color-primary-200);
@@ -425,7 +333,6 @@
 }
 
 .services-list {
-  display: grid;
   gap: 2.5rem;
   padding: 2.5rem 1.5rem;
   background-color: var(--color-primary-50);
@@ -441,8 +348,6 @@
 /* Each service is two columns here: the words on the left, the feature box and the product box
    stacked on the right. hero-media-left.css runs the same six parts down one column. */
 .services-list__item {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1rem;
   padding-bottom: 2.5rem;
   border-bottom: 1px solid var(--color-primary-200);
@@ -450,7 +355,6 @@
 
 @media (min-width: 1024px) {
   .services-list__item {
-    grid-template-columns: 3fr 2fr;
     gap: 1rem 3rem;
   }
 }
@@ -469,7 +373,6 @@
 }
 
 .services-list__desc {
-  max-width: 32rem;
   font-size: 1rem;
   line-height: 1.65;
   color: var(--color-primary-800);
@@ -477,34 +380,6 @@
 
 .services-list__actions {
   gap: 0.75rem;
-}
-
-@media (min-width: 1024px) {
-  .services-list__icon {
-    grid-column: 1;
-  }
-
-  .services-list__title {
-    grid-column: 1;
-  }
-
-  .services-list__desc {
-    grid-column: 1;
-  }
-
-  .services-list__actions {
-    grid-column: 1;
-  }
-
-  .services-list__features {
-    grid-column: 2;
-    grid-row: 1 / span 3;
-  }
-
-  .services-list__products {
-    grid-column: 2;
-    grid-row: 4 / span 2;
-  }
 }
 
 .services-list__features {
@@ -524,7 +399,6 @@
 /* Two across, not three. */
 
 .services-nav {
-  display: flex;
   gap: 0.5rem;
   padding: 0.5rem 1.5rem;
   background-color: var(--color-primary-50);
@@ -541,8 +415,6 @@
 }
 
 .service-related-pages {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.25rem;
   padding: 2.5rem 1.5rem;
   background-color: var(--color-primary-100);
@@ -551,14 +423,12 @@
 
 @media (min-width: 1024px) {
   .service-related-pages {
-    grid-template-columns: 1fr 1fr;
     gap: 1.75rem 2.5rem;
     padding: 4rem 3rem;
   }
 }
 
 .service-related-pages__headline {
-  grid-column: 1 / -1;
   font-size: 1.625rem;
   line-height: 1.2;
   font-weight: 700;
@@ -566,8 +436,6 @@
 }
 
 .service-related-pages__sub {
-  grid-column: 1 / -1;
-  max-width: 30rem;
   font-size: 1rem;
   line-height: 1.65;
   color: var(--color-primary-700);
@@ -584,8 +452,6 @@
 /* ── #1028 batch C — light ground, one narrow column, rules instead of cards ───────────────────── */
 
 .contact-info {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.25rem;
   padding: 2.5rem 1.5rem;
   background-color: var(--color-primary-50);
@@ -608,7 +474,6 @@
 }
 
 .contact-info__location {
-  display: grid;
   gap: 0.375rem;
   padding: 0 0 1.25rem;
   border-bottom: 1px solid var(--color-primary-200);
@@ -639,8 +504,6 @@
 }
 
 .stats-counter {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1rem;
   padding: 2.5rem 1.5rem;
   background-color: var(--color-primary-50);
@@ -650,14 +513,12 @@
 /* Two across, not four. */
 @media (min-width: 1024px) {
   .stats-counter {
-    grid-template-columns: 1fr 1fr;
     gap: 1.5rem 3rem;
     padding: 4rem 3rem;
   }
 }
 
 .stats-counter__headline {
-  grid-column: 1 / -1;
   font-size: 1.5rem;
   line-height: 1.2;
   font-weight: 700;
@@ -665,7 +526,6 @@
 }
 
 .stats-counter__stat {
-  display: grid;
   gap: 0.25rem;
   padding: 1.25rem 1.5rem;
   border-radius: 0.75rem;
@@ -686,8 +546,6 @@
 }
 
 .process-steps {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.25rem;
   padding: 2.5rem 1.5rem;
   background-color: var(--color-primary-100);
@@ -703,8 +561,6 @@
   }
 
   .process-steps__step {
-    grid-template-columns: auto 1fr;
-    align-items: baseline;
     column-gap: 1.5rem;
   }
 }
@@ -717,14 +573,12 @@
 }
 
 .process-steps__sub {
-  max-width: 40rem;
   font-size: 1rem;
   line-height: 1.7;
   color: var(--color-primary-700);
 }
 
 .process-steps__step {
-  display: grid;
   gap: 0.5rem;
   padding: 0 0 1.25rem;
   border-bottom: 1px solid var(--color-primary-200);
@@ -765,16 +619,7 @@
   color: var(--color-primary-700);
 }
 
-@media (min-width: 1024px) {
-  .process-steps__desc {
-    grid-column: 2;
-    max-width: 34rem;
-  }
-}
-
 .timeline {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1rem;
   padding: 2.5rem 1.5rem;
   background-color: var(--color-primary-50);
@@ -784,14 +629,8 @@
 /* Two columns of events, not one wide column and not a row. */
 @media (min-width: 1024px) {
   .timeline {
-    grid-template-columns: 1fr 1fr;
     gap: 1.5rem 2.5rem;
     padding: 4rem 3rem;
-  }
-
-  .timeline__headline,
-  .timeline__sub {
-    grid-column: 1 / -1;
   }
 }
 
@@ -803,14 +642,12 @@
 }
 
 .timeline__sub {
-  max-width: 40rem;
   font-size: 1rem;
   line-height: 1.7;
   color: var(--color-primary-700);
 }
 
 .timeline__event {
-  display: grid;
   gap: 0.375rem;
   padding: 1.25rem 1.5rem;
   border-radius: 0.75rem;
@@ -842,8 +679,6 @@
    with a rule — the old `centered` / `list` looks, said in CSS. hero-media-top does the third. */
 
 .team-grid {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.25rem;
   padding: 2.5rem 1.5rem;
   background-color: var(--color-primary-50);
@@ -864,7 +699,6 @@
 }
 
 .team-grid__sub {
-  max-width: 32rem;
   font-size: 1rem;
   line-height: 1.7;
   color: var(--color-primary-700);
@@ -872,9 +706,6 @@
 
 /* The person's three lines sit to the RIGHT of the shape, not under it — the old `compact` look. */
 .team-grid__member {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
   gap: 0.125rem 1rem;
   padding: 0 0 1.25rem;
   border-bottom-width: 1px;
@@ -884,8 +715,6 @@
 
 .team-grid__member::before {
   content: "";
-  grid-row: 1 / -1;
-  display: block;
   width: 2.75rem;
   height: 2.75rem;
   border-radius: 9999px;
@@ -897,11 +726,6 @@
    resolves to one row — so rows 2 and 3 have a free first column and auto-placement puts the role
    there, under the shape instead of beside the name. Measured before this line existed: name at
    x=116, role at x=48. */
-.team-grid__name,
-.team-grid__role,
-.team-grid__bio {
-  grid-column: 2;
-}
 
 .team-grid__name {
   font-size: 1.0625rem;
@@ -924,8 +748,6 @@
 /* A square rather than left's dot — the two sheets disagree about the mark, which is the point. */
 
 .blog-preview {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.25rem;
   padding: 2.5rem 1.5rem;
   background-color: var(--color-primary-50);
@@ -946,7 +768,6 @@
 }
 
 .blog-preview__sub {
-  max-width: 32rem;
   font-size: 1rem;
   line-height: 1.7;
   color: var(--color-primary-700);
@@ -954,8 +775,6 @@
 
 /* The thumbnail block sits to the LEFT of the words — the old `list` look. */
 .blog-preview__post {
-  display: grid;
-  grid-template-columns: auto 1fr;
   gap: 0.25rem 1.25rem;
   padding: 0 0 1.25rem;
   border-bottom-width: 1px;
@@ -965,8 +784,6 @@
 
 .blog-preview__post::before {
   content: "";
-  grid-row: 1 / -1;
-  display: block;
   width: 5rem;
   height: 5rem;
   border-radius: 0.5rem;
@@ -974,12 +791,6 @@
 }
 
 /* Same as team-grid above: every line of text goes in the second column, beside the thumbnail. */
-.blog-preview__category,
-.blog-preview__date,
-.blog-preview__title,
-.blog-preview__excerpt {
-  grid-column: 2;
-}
 
 .blog-preview__category {
   font-size: 0.75rem;
@@ -1010,8 +821,6 @@
    below differs from hero-media-left.css and hero-media-top.css; that is what AC4 measures. */
 
 .content-split {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 2rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-50);
@@ -1021,27 +830,12 @@
 /* The mirror of hero-media-left's: the words take the first column, the picture the second. */
 @media (min-width: 1024px) {
   .content-split {
-    grid-template-columns: 6fr 5fr;
-    align-items: center;
     gap: 3.5rem;
     padding: 4rem 3rem;
-  }
-
-  .content-split__media {
-    grid-column: 2;
-    grid-row: 1 / span 5;
-  }
-
-  .content-split__headline,
-  .content-split__body,
-  .content-split__bullets,
-  .content-split__stats {
-    grid-column: 1;
   }
 }
 
 .content-split__media {
-  aspect-ratio: 16 / 10;
   border-radius: 0.75rem;
   background-color: var(--color-primary-100);
   box-shadow: 0 18px 40px -24px rgb(0 0 0 / 0.25);
@@ -1055,21 +849,17 @@
 }
 
 .content-split__body {
-  max-width: 32rem;
   font-size: 1rem;
   line-height: 1.75;
   color: var(--color-primary-700);
 }
 
 .content-split__bullets {
-  display: grid;
   gap: 0.625rem;
   color: var(--color-primary-700);
 }
 
 .content-split__stats {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
   gap: 0.75rem;
 }
 
@@ -1094,7 +884,6 @@
 }
 
 .text-block {
-  display: grid;
   gap: 1rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-50);
@@ -1115,7 +904,6 @@
 }
 
 .text-block__body {
-  max-width: 44rem;
   font-size: 1rem;
   line-height: 1.8;
   color: var(--color-primary-700);
@@ -1130,7 +918,6 @@
 }
 
 .text-block__list {
-  display: grid;
   gap: 0.5rem;
   padding: 1.25rem;
   border-radius: 0.75rem;
@@ -1139,7 +926,6 @@
 }
 
 .divider {
-  display: grid;
   gap: 0.75rem;
   padding: 1.5rem 3rem;
   background-color: var(--color-primary-50);
@@ -1148,22 +934,18 @@
 /* A hairline the width of the block, with the label above it — thinner than hero-media-left's bar
    and wider than hero-media-top's short mark. */
 .divider__rule {
-  order: 2;
   height: 1px;
   background-color: var(--color-primary-200);
   opacity: 1;
 }
 
 .divider__label {
-  order: 1;
   font-size: 0.875rem;
   text-align: left;
   color: var(--color-primary-500);
 }
 
 .social-proof {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-50);
@@ -1172,14 +954,8 @@
 
 @media (min-width: 1024px) {
   .social-proof {
-    grid-template-columns: 1fr 1fr;
     gap: 1.25rem;
     padding: 4rem 3rem;
-  }
-
-  .social-proof__headline,
-  .social-proof__quote {
-    grid-column: 1 / -1;
   }
 }
 
@@ -1192,7 +968,6 @@
 
 .social-proof__rating::before {
   content: "";
-  display: block;
   width: 6rem;
   height: 1rem;
   background-repeat: repeat-x;
@@ -1213,7 +988,6 @@
 }
 
 .social-proof__platform {
-  display: grid;
   gap: 0.125rem;
   padding: 1rem 1.25rem;
   border-radius: 0.75rem;
@@ -1233,7 +1007,6 @@
 }
 
 .social-proof__quote {
-  max-width: 40rem;
   padding: 1.5rem;
   border-radius: 1rem;
   background-color: var(--color-primary-100);
@@ -1250,8 +1023,6 @@
 }
 
 .features-grid {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.25rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-50);
@@ -1260,14 +1031,8 @@
 
 @media (min-width: 1024px) {
   .features-grid {
-    grid-template-columns: 1fr 1fr;
     gap: 1.5rem;
     padding: 4rem 3rem;
-  }
-
-  .features-grid__headline,
-  .features-grid__sub {
-    grid-column: 1 / -1;
   }
 }
 
@@ -1279,7 +1044,6 @@
 }
 
 .features-grid__sub {
-  max-width: 32rem;
   font-size: 1rem;
   line-height: 1.7;
   color: var(--color-primary-600);
@@ -1287,7 +1051,6 @@
 
 /* The old `bordered` look: a rule down the left of each card instead of a box around it. */
 .features-grid__item {
-  display: grid;
   gap: 0.5rem;
   padding: 1.25rem 1.5rem;
   border-left: 4px solid var(--color-primary-500);
@@ -1313,8 +1076,6 @@
 }
 
 .awards-certifications {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.25rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-100);
@@ -1323,14 +1084,8 @@
 
 @media (min-width: 1024px) {
   .awards-certifications {
-    grid-template-columns: 1fr 1fr;
     gap: 1.5rem;
     padding: 4rem 3rem;
-  }
-
-  .awards-certifications__headline,
-  .awards-certifications__sub {
-    grid-column: 1 / -1;
   }
 }
 
@@ -1342,14 +1097,12 @@
 }
 
 .awards-certifications__sub {
-  max-width: 32rem;
   font-size: 1rem;
   line-height: 1.7;
   color: var(--color-primary-600);
 }
 
 .awards-certifications__item {
-  display: grid;
   gap: 0.375rem;
   padding: 1.25rem;
   border-radius: 0.5rem;
@@ -1358,7 +1111,6 @@
 
 .awards-certifications__item::before {
   content: "";
-  display: block;
   width: 1.25rem;
   height: 1.25rem;
   background-repeat: no-repeat;
@@ -1386,8 +1138,6 @@
 
 /* Two columns rather than a narrow centred card: the words on the left, the form on the right. */
 .newsletter-signup {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1rem;
   padding: 3rem 1.5rem;
   background-color: var(--color-primary-100);
@@ -1396,15 +1146,8 @@
 
 @media (min-width: 1024px) {
   .newsletter-signup {
-    grid-template-columns: 1fr 1fr;
-    align-items: center;
     gap: 2.5rem;
     padding: 3.5rem 3rem;
-  }
-
-  .newsletter-signup__form {
-    grid-column: 2;
-    grid-row: 1 / span 2;
   }
 }
 
@@ -1422,7 +1165,6 @@
 }
 
 .newsletter-signup__form {
-  display: flex;
   gap: 0.5rem;
   padding: 0;
   background-color: transparent;
@@ -1433,8 +1175,6 @@
    columns instead of three, and rules instead of cards where a list needs separating. */
 
 .faq-accordion {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 0.75rem;
   padding: 2.5rem 1.5rem;
   background-color: var(--color-primary-50);
@@ -1443,22 +1183,18 @@
 
 @media (min-width: 1024px) {
   .faq-accordion {
-    grid-template-columns: 1fr 1fr;
     gap: 1rem 2.5rem;
     padding: 4rem 3rem;
   }
 }
 
 .faq-accordion__headline {
-  grid-column: 1 / -1;
   font-size: 1.625rem;
   line-height: 1.2;
   font-weight: 700;
 }
 
 .faq-accordion__sub {
-  grid-column: 1 / -1;
-  max-width: 34rem;
   font-size: 1rem;
   line-height: 1.65;
   color: var(--color-primary-800);
@@ -1485,8 +1221,6 @@
 }
 
 .testimonials {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.25rem;
   padding: 2.5rem 1.5rem;
   background-color: var(--color-primary-50);
@@ -1496,30 +1230,24 @@
 /* Two across, not three. */
 @media (min-width: 1024px) {
   .testimonials {
-    grid-template-columns: 1fr 1fr;
     gap: 1.75rem 2.5rem;
     padding: 4rem 3rem;
   }
 }
 
 .testimonials__headline {
-  grid-column: 1 / -1;
   font-size: 1.625rem;
   line-height: 1.2;
   font-weight: 700;
 }
 
 .testimonials__sub {
-  grid-column: 1 / -1;
-  max-width: 34rem;
   font-size: 1rem;
   line-height: 1.65;
   color: var(--color-primary-700);
 }
 
 .testimonials__item {
-  display: grid;
-  align-content: start;
   gap: 0.5rem;
   padding-left: 1.25rem;
   border-left-width: 3px;
@@ -1528,7 +1256,6 @@
 }
 
 .testimonials__rating {
-  display: flex;
   gap: 0.125rem;
   color: var(--color-accent-500);
 }
@@ -1563,9 +1290,6 @@
 }
 
 .announcement-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   gap: 1rem;
   padding: 0.625rem 3rem;
   background-color: var(--color-primary-50);
@@ -1590,8 +1314,6 @@
 }
 
 .pricing-table {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.25rem;
   padding: 2.5rem 1.5rem;
   background-color: var(--color-primary-50);
@@ -1600,30 +1322,24 @@
 
 @media (min-width: 1024px) {
   .pricing-table {
-    grid-template-columns: 1fr 1fr;
     gap: 1.75rem 2.5rem;
     padding: 4rem 3rem;
   }
 }
 
 .pricing-table__headline {
-  grid-column: 1 / -1;
   font-size: 1.625rem;
   line-height: 1.2;
   font-weight: 700;
 }
 
 .pricing-table__sub {
-  grid-column: 1 / -1;
-  max-width: 34rem;
   font-size: 1rem;
   line-height: 1.65;
   color: var(--color-primary-700);
 }
 
 .pricing-table__item {
-  display: grid;
-  align-content: start;
   gap: 0.5rem;
   padding: 1.5rem;
   border-width: 1px;
@@ -1638,7 +1354,6 @@
 }
 
 .pricing-table__badge {
-  justify-self: start;
   font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -1665,7 +1380,6 @@
 }
 
 .pricing-table__features {
-  display: grid;
   gap: 0.375rem;
   font-size: 0.875rem;
   line-height: 1.6;
@@ -1677,8 +1391,6 @@
 }
 
 .gallery {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.25rem;
   padding: 2.5rem 1.5rem;
   background-color: var(--color-primary-50);
@@ -1687,37 +1399,30 @@
 
 @media (min-width: 1024px) {
   .gallery {
-    grid-template-columns: 1fr 1fr;
     gap: 1.75rem 2.5rem;
     padding: 4rem 3rem;
   }
 }
 
 .gallery__headline {
-  grid-column: 1 / -1;
   font-size: 1.625rem;
   line-height: 1.2;
   font-weight: 700;
 }
 
 .gallery__sub {
-  grid-column: 1 / -1;
-  max-width: 34rem;
   font-size: 1rem;
   line-height: 1.65;
   color: var(--color-primary-700);
 }
 
 .gallery__item {
-  display: grid;
-  align-content: start;
   gap: 0.5rem;
 }
 
 .gallery__image,
 .gallery__placeholder {
   width: 100%;
-  aspect-ratio: 16 / 9;
   border-radius: 0.5rem;
   object-fit: cover;
 }
@@ -1728,7 +1433,6 @@
 }
 
 .gallery__caption {
-  display: grid;
   gap: 0.125rem;
 }
 
@@ -1759,8 +1463,6 @@
    accent colour on a pale ground, a cross in a muted grey. */
 
 .feature-comparison {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 0.5rem;
   padding: 2.5rem 1.5rem;
   background-color: var(--color-primary-50);
@@ -1781,7 +1483,6 @@
 }
 
 .feature-comparison__sub {
-  max-width: 32rem;
   font-size: 1rem;
   line-height: 1.7;
   color: var(--color-primary-700);
@@ -1789,10 +1490,7 @@
 
 .feature-comparison__head,
 .feature-comparison__row {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
   gap: 0.75rem;
-  align-items: baseline;
   padding: 0.75rem 0;
   border-bottom: 1px solid var(--color-primary-200);
 }
@@ -1840,8 +1538,6 @@
 }
 
 .logo-carousel {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 0.75rem;
   padding: 2.5rem 1.5rem;
   background-color: var(--color-primary-50);
@@ -1867,8 +1563,6 @@
 }
 
 .map-area {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 0;
   padding: 2.5rem 1.5rem;
   background-color: var(--color-primary-50);
@@ -1890,7 +1584,6 @@
 }
 
 .map-area__sub {
-  max-width: 32rem;
   padding-bottom: 1.5rem;
   font-size: 1rem;
   line-height: 1.7;
@@ -1898,7 +1591,6 @@
 }
 
 .map-area__area {
-  display: grid;
   gap: 0.25rem;
   padding: 1rem 0;
   border-top: 1px solid var(--color-primary-200);
@@ -1918,8 +1610,6 @@
 }
 
 .trusted-brands {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 0.5rem;
   padding: 2rem 1.5rem;
   background-color: var(--color-primary-50);
@@ -1950,8 +1640,6 @@
    same six parts, same treatment. Generated from those rules by the ticket, prefix swapped. */
 
 .card-group {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.25rem;
   padding: 2.5rem 1.5rem;
   background-color: var(--color-primary-50);
@@ -1973,14 +1661,12 @@
 }
 
 .card-group__sub {
-  max-width: 32rem;
   font-size: 1rem;
   line-height: 1.7;
   color: var(--color-primary-700);
 }
 
 .card-group__item {
-  display: grid;
   gap: 0.375rem;
   padding: 0 0 1.25rem;
   border-bottom-width: 1px;
@@ -2010,7 +1696,6 @@
    selected them were removed and the contract went to v2. This paragraph names them only as the
    origin of the numbers below. */
 .card-group__features {
-  display: grid;
   gap: 0.375rem;
   font-size: 0.875rem;
   line-height: 1.6;

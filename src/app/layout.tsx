@@ -81,6 +81,17 @@ const previewTrustedOrigin = (() => {
 //   out ai1st:theme-preview-sheet    → { sheet, ok, reason } —— 取表这件事是异步的，答不进上面那个
 //                                      同步的 ack 里，所以单独一条。它也是这条链唯一可等的信号。
 //
+// #1318 —— 几何搬去 public/shapes.css 之后，sheet 那条路只带得动**皮**了（表里已经没有排版）。
+// 所以 ai1st:theme-preview 再多认一个字段：
+//   in  ai1st:theme-preview          → 多一个 { shapes: { "<块类型>": "<画法名>", … } }（可选）。
+//                                      收到就当场写到每个块根的 data-shape 上，/shapes.css 是无条件
+//                                      加载的平台表，所以排版当场就换、不用重建。
+//   🔴 它的答复走**已有的那条同步 ack**（ai1st:theme-preview-ack），不另开一条：换 data-shape 是
+//      同步的 DOM 写入，没有 sheet 那条路的异步（那条要 fetch 一份表回来才知道成没成）。
+//   🔴 没有这个字段（老 dashboard）就一个属性都不碰，行为逐字回到本票之前。
+//   🔴 Cancel（ai1st:theme-preview-reset）把每个块根还原成它原来那个值 —— 原来没有这个属性的就把
+//      属性摘掉，不是写一个空串：空串会让 [data-shape=""] 这种选择器有机会命中。
+//
 // 🔴 为什么必须是【新名字】而不是给 `ai1st:theme-preview` 加字段（PM 在 #978 r1 量的）：下面那个
 // 监听器只对**不认识的类型**才不回话。沿用旧名字的话，老构建照样回 ack、弹窗以为版式预览成功了，
 // 而屏幕上只有颜色变了 —— UI 在说假话。新名字让老构建自然不认识 ⟹ 弹窗等不到回话，诚实地说
@@ -198,6 +209,8 @@ function buildThemePreviewScript(trustedOrigin: string): string {
 if(window.parent===window)return;
 var T=${JSON.stringify(trustedOrigin)};
 var s=null,f=null,c=null,ow=null,owq=false,h=null,hSeq=0;
+// #1318 —— 试穿期间每个块根原来的 data-shape（没有就记 null），Cancel 按它还原。
+var shapeWas=null;
 // #1123 r2 —— 上一次 paint() 有没有把【风格设定那 15 个变量】全都补齐。paintSheet 停用
 // /theme.css 的前置条件就是它（理由写在 sheetEl 上面那段和 paint 里）。默认 false：
 // 没 paint 过就来一条只带 sheet 的消息时，失败方向是「画法不换」，不是「页面掉一半变量」。
@@ -291,6 +304,50 @@ function paintSheet(id){
     dropSheet();
     tell(seq,name,false,String((err&&err.message)||err));
   });
+}
+// ── #1318 —— 画法：当场改 data-shape ─────────────────────────────────────────────────────────────
+//
+// 🔴 这段注释里不许出现反引号 —— 它住在 buildThemePreviewScript 那个模板字符串里面，一个反引号
+//    就把模板提前收尾，整个文件语法错、next build 当场死（同族坑见下面 #1129 那段）。
+//
+// 🔴 **只写属性，不注 CSS。** /shapes.css 是平台表、无条件加载（layout 里那条 link 上写了理由），
+//    这个站的产物里已经有全部 50 个 (block, shape) 对的规则 ⟹ 换一个属性值就是换一副排版，
+//    不用 fetch、不用重建。这也是它跟 paintSheet（要去取另一套主题的表回来）不同形的原因。
+//
+// 🔴 **第一次试穿时把原值整批记下来，之后每次试穿都从【原值】起算，不从上一次试穿的结果起算。**
+//    从上一次起算的话，连点两张卡之后 Cancel 会还原到中间那一套 —— 而中间那一套不属于任何一次
+//    用户操作。记的是 null（本来就没有这个属性）还是字符串，两种都要能还原。
+//
+// 🔴 值要过一遍形状判据再进 DOM（跟 SHEET_ID_OK 同形，理由也一样：它会被拼进选择器去匹配）。
+//    选择单里没有这个块、或者值不合形状 ⟹ **把属性摘掉**，让这个块落回 base.css 的地板 ——
+//    跟「写一个查不到的画法名」相比，摘掉是能看出来的，而写一个假名字是静默塌陷。
+var SHAPE_OK=/^[a-z0-9][a-z0-9-]*$/;
+function shapeRoots(){return document.querySelectorAll('[data-block]');}
+function rememberShapes(){
+  if(shapeWas)return;
+  shapeWas=[];
+  var ns=shapeRoots(),i;
+  for(i=0;i<ns.length;i++){shapeWas.push([ns[i],ns[i].getAttribute('data-shape')]);}
+}
+function restoreShapes(){
+  if(!shapeWas)return;
+  var i;
+  for(i=0;i<shapeWas.length;i++){
+    if(shapeWas[i][1]===null){shapeWas[i][0].removeAttribute('data-shape');}
+    else{shapeWas[i][0].setAttribute('data-shape',shapeWas[i][1]);}
+  }
+  shapeWas=null;
+}
+function paintShapes(map){
+  if(!map||typeof map!=='object'){restoreShapes();return;}
+  rememberShapes();
+  var ns=shapeRoots(),i,t,v;
+  for(i=0;i<ns.length;i++){
+    t=ns[i].getAttribute('data-block');
+    v=Object.prototype.hasOwnProperty.call(map,t)?map[t]:null;
+    if(typeof v==='string'&&SHAPE_OK.test(v)){ns[i].setAttribute('data-shape',v);}
+    else{ns[i].removeAttribute('data-shape');}
+  }
 }
 function tell(seq,name,ok,reason){
   if(seq!==hSeq)return;
@@ -437,7 +494,7 @@ function paint(t){
 // 🔴 这段注释里不许出现反引号：它住在 buildThemePreviewScript 那个**模板字符串**里面，一个反引号
 // 就把模板提前收尾 ⟹ 整个文件语法错、next build 当场死。我第一版就是这么红的（同族坑见上面 #1129
 // 那段里 hoistImports 的 split 那一处）。
-function clear(){if(s){s.textContent='';}if(f){f.removeAttribute('href');}if(c){c.textContent='';}hSeq++;dropSheet();ownCssOff(false);st={ignored:[],refused:false};}
+function clear(){if(s){s.textContent='';}if(f){f.removeAttribute('href');}if(c){c.textContent='';}hSeq++;dropSheet();restoreShapes();ownCssOff(false);st={ignored:[],refused:false};}
 var MAIN_FLEX='main{display:flex;flex-direction:column}';
 var st={ignored:[],refused:false};
 function blockList(){
@@ -521,6 +578,8 @@ window.addEventListener('message',function(e){
     paint(d.theme);
     // #1123 —— 没有 sheet 字段（老 dashboard）就整个不碰画法，行为逐字回到本票之前。
     if(Object.prototype.hasOwnProperty.call(d,'sheet')){paintSheet(d.sheet);}
+    // #1318 —— 画法跟着换。同上一条：没有这个字段（老 dashboard）就整个不碰 data-shape。
+    if(Object.prototype.hasOwnProperty.call(d,'shapes')){paintShapes(d.shapes);}
   }
   else if(d.type==='ai1st:theme-preview-reset'){clear();}
   else if(d.type!=='ai1st:theme-preview-ping'){return;}
@@ -586,6 +645,17 @@ export default function RootLayout({
             select single classes), so the later one wins — that ordering IS the mechanism by which
             a theme overrides the floor. See public/base.css's header. */}
         <link rel="stylesheet" href="/base.css" />
+        {/* #1318 — 形态层（`public/shapes.css`）。一个块**怎么排**住在这一份平台文件里，按
+            `[data-block="<类型>"][data-shape="<画法>"]` 点名；主题表从此只剩皮（契约 v3 把几何那
+            一族从 §2 拿掉了）。
+            🔴 位置是承重的：在 base.css **之后**（它要盖掉地板的单栏兜底），在 theme.css **之前**
+            （皮排在后面，所以间距 / 圆角 / 颜色仍然由主题说了算）。它的选择器是两个属性 = 特异度
+            0-2-0，比两侧那些单类名规则（0-1-0）都高 —— 所以「几何归形态层」不靠加载次序，靠特异度，
+            主题表就算再写一行几何也压不过它（而契约已经不许它写了）。
+            🔴 无条件加载，理由跟 base.css 那条逐字相同：老站（还没有 data-shape 的产物）上它的选择器
+            一条都选不中，代价是一个请求；而要是按「这个站有没有 shape」去 gate，恰恰在兜底最需要
+            它的那一格把兜底拿掉了。 */}
+        <link rel="stylesheet" href="/shapes.css" />
         {/* #1002 — 皮和微调，两个固定路径，无条件加载。
             · /theme.css   主题的全部：字体表的 @import、配色 / 字体族 / 风格设定的 :root、以及
               这个站的形态样式表（#991 的 public/themes/<name>.css，它的字节被贴进这份文件）。

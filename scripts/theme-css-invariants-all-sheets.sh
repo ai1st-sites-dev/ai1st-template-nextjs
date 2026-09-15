@@ -27,11 +27,13 @@
 # ══ AND EVERY SHEET UNDER ITS OWN PALETTE (#1016 r5) ═════════════════════════════════════════════
 # Which sheet a site wears is decided by its theme's name: `public/themes/<theme name>.css`. So the
 # colours a sheet is judged against are the ones its own theme brings, and this script pairs them that
-# way — one palette per sheet, not one for the whole run. The three hand-written `hero-media-*` sheets
-# have no theme named after them, so there is no palette that is theirs; they keep the sample site's,
-# and their CONTRAST reading is printed without being judged (a pairing no site can be built with is
-# not a fact about any theme). Everything else about them is judged, hook coverage above all — that is
-# what this job exists for and it has nothing to do with colour.
+# way — one palette per sheet, not one for the whole run.
+# 🔴 #1318 (2026-09-15) — THE THREE HAND-WRITTEN `hero-media-*` SHEETS ARE NOT IN THIS DIRECTORY ANY
+# MORE. They moved to `scripts/handwritten-sheets/` (why: that directory's README), so this job no
+# longer sees them at all and the "printed but not judged" contrast exemption below has nobody left to
+# apply to. It is kept because the rule it states is about ANY sheet with no theme named after it, not
+# about those three; the day another one appears it is the right answer again. What still judges those
+# three is `scripts/theme-presets.test.js` §⑨/§⑩, which reads both directories.
 #
 # ══ WHY IT IS NOT PART OF THE SITE BUILD (today) ═════════════════════════════════════════════════
 # It needs a browser. `scripts/theme-css-invariants.mjs` borrows the playwright the e2e suite
