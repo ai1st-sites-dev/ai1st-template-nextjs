@@ -19,12 +19,35 @@
    一样（各两个名字）、12 个逐字相同（各一个名字），一共 50 个 (block, shape) 对。要加第 51 个，
    先量出「它跟已有的哪一个真的不同」。
 
+   ── 第 51 个：`hero · text-center`（#1333）──────────────────────────────────────────────────
+   它是 hero 的新默认排版。为什么非有一个不可：#1333 把 `form-side` 整段搬去了 `hero-with-form`，
+   而 hero 剩下的 `media-cover` 要求有图，当不了默认（`block-manifest.js` 的 `checkManifestShape`：
+   「默认排版的 needs 必须为空」）。
+
+   按上面那条规矩量过了，对照的是 hero 名下另一个 `media-cover`。单变量：**同一个站、同一套主题
+   （ember-12）、同一张图**，只把页面 JSON 里那个块的 `shape` 换掉，各构建一次、各在 1280px 真浏览器里
+   量边界框：
+
+       量的东西            text-center            media-cover
+       图的 y              561–1089（在文之下）    186–1418（跟文叠在同一行）
+       正文的 y            194–494                636–936
+       图与文的关系        不重叠                 完全重叠（两者都 grid-row 1）
+       靠什么排位          order 1/2/3            grid-row 1/1/2（order 全是 0）
+       块自己的 min-height 416px（26rem）         576px（36rem）
+       块量出来的高        1075px                 1444px
+       justify-items       center                 normal
+
+   ⟹ 两者在「图放哪」这根轴上取值相反（below vs cover），不是同一个排版换了个名字。
+   📌 (block, shape) 对因此是 **51** 个，不是 50：hero 名下 `form-side` → `text-center` 是换名不加数，
+   真正新增的是这一个；`hero-with-form/form-side` 是把 hero 名下那个整段改挂，也不加数。
+
    ── 有一个画法不是从那两套表里剪出来的 ────────────────────────────────────────────────────
    `row`（横排条）是 #1320 手写的。搬迁前两套表给 services-nav / logo-carousel / trusted-brands
    写的都是一列的网格，而那正是它要治的缺陷：桌面上六个协会名、八个保险公司名一个一行竖着排，
    名字还被折成两行。设计文档 D1 只允许这三个块用它（「同级项横排、放不下换行」）。它的几何
    读数在 `scripts/theme-css-invariants.mjs` 的检查 ⑧ —— D5 那条「没有读数的形态不许进」。
-   🔴 所以 (块, 画法) 对**仍然是 50 个**：这三个块各自把 `stack` 换成了 `row`，不是各多一个名字。
+   🔴 所以它自己不加数：这三个块各自把 `stack` 换成了 `row`，不是各多一个名字。（今天的总数是 51，
+   多出来的那一个是上面 #1333 那段量过的 `hero/text-center`。）
    留着旧名字就是文件头上面那条自己禁止的「为将来可能有预留名字」。
 
    ── 这一层可以引用什么 ────────────────────────────────────────────────────────────────────────
@@ -859,73 +882,137 @@
   max-width: 7rem;
 }
 
-[data-block="hero"][data-shape="media-cover"] .hero__form {
+/* hero · text-center  （默认排版，ember-12 从 #1333 起穿的就是它）
+
+   为什么 hero 需要这一个：#1333 把 form-side 整段搬去了 hero-with-form，而 hero 剩下的 media-cover
+   要求有图（`blocks/hero.json` 的 `needs: ["imageUrl"]`）。`block-manifest.js` 的 checkManifestShape
+   明文禁止「默认排版要求槽位」—— 别的排版缺槽位落回的就是它，它自己再缺就无处可落。所以 hero 得有
+   一个不要求任何槽位的默认，设计文档 D1 给 hero 列的五种排版里就有「纯文字居中」，几何照生成器里
+   同名那一份（`sheet-recipes.js` 的 `HERO_LOOKS['text-center']`）搬，不新发明。
+
+   🔴 `.hero__media` 的尺寸挂在 `[data-has-imageUrl]` 上，不是无条件给 —— 这一条是承重的。没填图的
+   hero 落回的就是这个排版，而 `HeroSection.tsx` 无图时那个 `<div class="hero__media">` 照样在 DOM 里，
+   主题表还给它画了底色（`.hero__media { background-color: var(--color-primary-100) }`）。无条件给它
+   `aspect-ratio` 就是给每一个没填图的站的首屏加一个空色块 —— 那正是 #1333 里被否掉的那条路
+   （「去掉 media-cover 的『要求有图』」）。`data-has-imageUrl` 是 #1331 立的钩子，这里是第一个用它的。 */
+
+[data-block="hero"][data-shape="text-center"] {
   display: grid;
-  grid-row: 3;
-  grid-column: 1 / -1;
-  max-width: 32rem;
+  grid-template-columns: 1fr;
+  align-items: center;
+  justify-items: center;
+  min-height: 26rem;
 }
 
-[data-block="hero"][data-shape="media-cover"] .hero__form-success {
-  grid-column: 1 / -1;
-  max-width: 32rem;
+[data-block="hero"][data-shape="text-center"] .hero__deco {
+  order: 1;
+  max-width: 5rem;
 }
 
-/* hero · form-side  （azure-29 今天选的就是它） */
+[data-block="hero"][data-shape="text-center"] .hero__body {
+  display: grid;
+  align-content: start;
+  order: 2;
+  max-width: 48rem;
+}
 
-[data-block="hero"][data-shape="form-side"] {
+[data-block="hero"][data-shape="text-center"] .hero__title {
+  grid-column: 1 / -1;
+}
+
+[data-block="hero"][data-shape="text-center"] .hero__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="hero"][data-shape="text-center"] .hero__cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 🔴 位置**无条件**给，尺寸才挂在 `[data-has-imageUrl]` 上 —— 这两行不许合并成一条。
+   合并的话，没填图的 hero 上 `.hero__media` 拿不到 `order`，而 CSS 的默认 order 是 **0**，
+   这个块其余部件从 1 起 ⟹ 那个（高度为 0 的）媒体位会排到**最上沿**，正文前面凭空多一段网格间距，
+   而且 `blocks/hero.json` 那段排版意图写着 `media: "below"`（图在文之下）—— 几何守卫按边界框判，
+   在没图的页面上会当场读到「图在文之上」。实测（无图、1280px 真浏览器）：
+     合并写法   媒体 y 186–186（order 0，在正文 261 之上）· 块高 547
+     现在这样   媒体 y 排在正文之后，意图那一条成立
+   尺寸仍然只在有图时给：无条件给 `aspect-ratio` 就是给每一个没填图的站加一个空色块
+   （主题表给 `.hero__media` 画了底色），那正是 #1333 里被否掉的那条路。 */
+
+[data-block="hero"][data-shape="text-center"] .hero__media {
+  order: 3;
+}
+
+[data-block="hero"][data-shape="text-center"][data-has-imageUrl] .hero__media {
+  width: 100%;
+  aspect-ratio: 21 / 9;
+}
+
+/* ══ hero-with-form ══════════════════════════════════════════════════════════════════════ */
+
+/* hero-with-form · form-side  （这个块今天只有这一种排版；azure-29 与 ember-12 的选择单都指向它）
+
+   🔴 下面这一段是 #1333 从 `hero · form-side` **整段搬过来**的，规则正文一个字没动 —— 变的只有
+   `[data-block="hero"]` 变成 `[data-block="hero-with-form"]`。带表单的首屏从此是自己一个块类型
+   （设计文档 D1 / D14：槽位集合不同或行为不同就是另一个块），所以 (块, 排版) 对没有多出来一个：
+   hero 名下少一个、这里多一个。 */
+
+[data-block="hero-with-form"][data-shape="form-side"] {
   display: grid;
   grid-template-columns: 1fr;
   align-items: center;
   min-height: 32rem;
 }
 
-[data-block="hero"][data-shape="form-side"] .hero__media {
+[data-block="hero-with-form"][data-shape="form-side"] .hero__media {
   aspect-ratio: 24 / 5;
   order: 4;
   grid-column: 1 / -1;
 }
 
-[data-block="hero"][data-shape="form-side"] .hero__body {
+[data-block="hero-with-form"][data-shape="form-side"] .hero__body {
   display: grid;
   align-content: start;
   max-width: 32rem;
   order: 2;
 }
 
-[data-block="hero"][data-shape="form-side"] .hero__title {
+[data-block="hero-with-form"][data-shape="form-side"] .hero__title {
   grid-column: 1 / -1;
 }
 
-[data-block="hero"][data-shape="form-side"] .hero__sub {
+[data-block="hero-with-form"][data-shape="form-side"] .hero__sub {
   grid-column: 1 / -1;
   max-width: 36rem;
 }
 
-[data-block="hero"][data-shape="form-side"] .hero__cta {
+[data-block="hero-with-form"][data-shape="form-side"] .hero__cta {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
 }
 
-[data-block="hero"][data-shape="form-side"] .hero__deco {
+[data-block="hero-with-form"][data-shape="form-side"] .hero__deco {
   grid-column: 1 / -1;
   order: 1;
 }
 
-[data-block="hero"][data-shape="form-side"] .hero__form {
+[data-block="hero-with-form"][data-shape="form-side"] .hero__form {
   display: grid;
   order: 3;
   max-width: 30rem;
 }
 
-[data-block="hero"][data-shape="form-side"] .hero__form-success {
+[data-block="hero-with-form"][data-shape="form-side"] .hero__form-success {
   order: 3;
   max-width: 30rem;
 }
 
 @media (min-width: 1024px) {
-  [data-block="hero"][data-shape="form-side"] {
+  [data-block="hero-with-form"][data-shape="form-side"] {
     grid-template-columns: 6fr 5fr;
   }
 }

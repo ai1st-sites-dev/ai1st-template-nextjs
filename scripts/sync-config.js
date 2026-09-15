@@ -1013,7 +1013,13 @@ const MOVED_BLOCKS = ['hero', 'cta-banner', 'page-header',
   //    见 blocks.js 那层别名映射），通用块另外加自己的名字」—— 那层兼容 2026-08-23 整层退役了，
   //    四个老名字（批 1 的 `values-grid` / `benefits-list`、批 2 的 `checklist` /
   //    `service-highlights`）已从这张名单和注册表里一起删掉，名单从 35 项变成 31 项。
-  'card-group'];
+  'card-group',
+  // #1333 —— 带表单的首屏拆成的那个块。含义跟上面每一行逐字相同：「这个块的 markup 不再决定它
+  // 长什么样」—— 它的排版整段住在 `public/shapes.css` 的
+  // `[data-block="hero-with-form"][data-shape="form-side"]`，皮走 `.hero__*` 那一家。
+  // 🔴 不加它的话下面那行日志会说「还有 1 个块没搬」，而那句话是假的（分母 `ALL_BLOCK_TYPES` 是
+  //    角色表的键集，本票给它加了一行）。
+  'hero-with-form'];
 // 🔴 #1132 —— 分母是**算出来的**，不是写死的 34。写死的那个数在 #1132 当天就成了假话：卡片组进了
 // MOVED_BLOCKS（35 项），`34 - 35` 会印出 `-1`。名单的权威是角色表 —— 它的键集合按
 // `tests/e2e/specs/978-theme-preview-layout.spec.ts` 恒等于注册表的键集合，也就是「一共有几种块」。
@@ -1117,11 +1123,32 @@ const { assessFloorLook, FLOOR_LOOK_MARKER } = require('./lib/floor-look.js');
     }
   }
   const themesDir = path.join(publicDir, 'themes');
+  // #1333 —— 借用别人那套部件类名的块（manifest 的 `hooksFrom`）在样式表里按构造找不到自己的名字，
+  // 照原样问会被记成「没画法」，而画它的就是被借的那个块那批规则。名单从 manifest 现取，不写死。
+  // 🔴 **它在这里买到的是哪一格，说在明处**（#1333 r2 实测；r1 的注释把这句写过头了，说成「每个用了
+  //    它的站都报一次假的『会长成地板样』」—— 那是假的）：`verdict.unstyled` 只在 `if (verdict.floor)`
+  //    里面印，而 `floor` 要求这个站用到的块**一个都没有**画法。拿 plumbing 站那三个块两臂各跑一次：
+  //      真表 ember-12   不传 → floor=false unstyled=["hero-with-form"] ｜ 传 → floor=false unstyled=[]
+  //                      两边 floor 都是 false ⟹ **印出来的字逐字相同**（一个字都不印）
+  //      纯 token 表     不传 → floor=true  三个块全在 unstyled 里     ｜ 传 → 逐字相同
+  //                      （被借的 `hero` 自己也没画法 ⟹ 借不到，两边印同样的字）
+  //    唯一会分叉的是第三种形态 ——「样式表画了被借的那个块、却没画这个站别的块」：
+  //      只有 `.hero__*` 规则的表  不传 → floor=true（**这才是那句假警报**）｜ 传 → floor=false
+  //    而那种表今天的树里造不出来（`public/themes/` 两份要么画全 31 个块，要么是纯 token）。
+  //    ⟹ 在这里传它是**为那一天备下正确读数**，不是今天在修一个正在发生的假警报。今天真买到东西的
+  //    是另外两个消费者：`lib/floor-look.test.js` ⑤（真表下 styledCount 31 → 32，不传当场红）与
+  //    `theme-pipeline/sheet-recipes.test.js` ⑫ 的分母自检 —— 它们直接问 `blockTypesStyledBy`，不经过
+  //    `floor` 那道与门。
+  const stylesFrom = {};
+  for (const [type, m] of blockManifest.loadManifests()) {
+    if (m.hooksFrom) stylesFrom[type] = m.hooksFrom;
+  }
   const verdict = assessFloorLook({
     themeCss: themeCssBytes.toString('utf-8'),
     blockTypesOnSite: [...movedOnSite],
     allBlockTypes: ALL_BLOCK_TYPES,
     hasFloor: fs.existsSync(path.join(publicDir, 'base.css')),
+    stylesFrom,
   });
   if (verdict.floor) {
     const sheetCount = fs.existsSync(themesDir)

@@ -1197,14 +1197,16 @@ async function main() {
 
   // #1097 — 首屏要不要带一个能留联系方式的表单（Chris 2026-08-19「跟着行业走」）。
   //
-  // 落在写盘之前、`content` 还在内存里的这一刻，是因为这三样东西正好都在这个作用域里：`industry`
-  // （:754 已经 fatal 挡过空值）· `theme`（:838，兜底要读的 `supports.hero` 挂在它上面）· `content.pages`。
-  // 写在 `sections[]` 那个条目上就够了 —— `pageWithBlocks` 在写盘那一刻把它搬进 `blocks[]`
-  // （`blocks.js` 里那行 `if (typeof s.block_layout === 'string') b.block_layout = s.block_layout;`）。
+  // 落在写盘之前、`content` 还在内存里的这一刻，是因为要改的东西正好都在这个作用域里：`industry`
+  // （:754 已经 fatal 挡过空值）· `content.pages`。
   //
-  // 🔴 `reason` 必须打出来：不给表单有四个完全不同的答案，而它们在产物里长得一模一样。
-  const heroForm = applyHeroLeadForm({ content, industry, theme });
-  debug(`[hero lead form] ${heroForm.applied ? '写了' : '没写'} block_layout="with-form" — ${heroForm.reason}`);
+  // 🔴 #1333 起它改的是块的 `type`（`hero` → `hero-with-form`），不是给 hero 写一个
+  //    `block_layout: "with-form"` 字段；主题那道判断一起删了（任何主题都画得出带表单的首屏）。
+  //    `theme` 因此不再传进去。
+  //
+  // 🔴 `reason` 必须打出来：不给表单有三个完全不同的答案，而它们在产物里长得一模一样。
+  const heroForm = applyHeroLeadForm({ content, industry });
+  debug(`[hero lead form] ${heroForm.applied ? '换了' : '没换'} 首页第一个 hero → hero-with-form — ${heroForm.reason}`);
 
   writeSiteConfig(siteDir, content, defaultLocale);
 

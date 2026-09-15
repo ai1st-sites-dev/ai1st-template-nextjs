@@ -31,16 +31,35 @@
  * 主题表就是这么写的 —— `public/themes/*.css` 的顶层类根集合逐字等于那 31 个块名（2026-08-25
  * 在 100 份表上现测），base.css 同理，所以这把尺对两边通用。
  *
+ * 🔴 #1333 —— 有的块**渲染的是别的块那套部件类名**（manifest 的 `hooksFrom`：`hero-with-form`
+ * 用的是 `.hero` / `.hero__form` 那一家，理由写在 `HeroWithFormSection.tsx` 上）。这种块在样式表里
+ * 按构造**永远找不到自己的名字**，而它其实是被画了的 —— 照原样问就会把它记成「没画法」。所以借用
+ * 关系要传进来。
+ *
+ * 🔴 **这个参数对 `floor` 那一格买到什么，说在明处**（#1333 r2 实测；r1 这里写的是「于是这道守卫对
+ * 每一个用了它的站报一次假的『会长成地板样』」，那句是假的）：`floor` 要求这个站的块**一个都没有**
+ * 画法，所以今天那两种样式表下传不传它 `floor` 都一样 —— 真表两边都 false、纯 token 表两边都 true
+ * （被借的 `hero` 自己也没画法 ⟹ 借不到）。唯一会分叉的是「样式表画了被借的那个块、却没画这个站
+ * 别的块」那一种，而它今天的树里造不出来。⟹ `sync-config.js` 传它是为那一天备下正确读数。
+ * 今天真买到东西的是直接问 `blockTypesStyledBy` 的两个消费者（`floor-look.test.js` ⑤ 的覆盖断言、
+ * `theme-pipeline/sheet-recipes.test.js` ⑫ 的分母自检）—— 它们不经过 `floor` 那道与门。
+ *
  * @param {string} css            一份样式表的原文（这里给的是最终的 theme.css）
  * @param {string[]} allBlockTypes 注册表里一共有哪些块类型
+ * @param {object} [stylesFrom]   借用关系：{ 借用者块名: 被借用的块名 }。缺省 {} = 没有借用者，
+ *                                行为跟 #1333 之前逐字相同。
  * @returns {Set<string>} 这份表给出了画法的块类型
  */
-function blockTypesStyledBy(css, allBlockTypes) {
+function blockTypesStyledBy(css, allBlockTypes, stylesFrom = {}) {
   const known = new Set(allBlockTypes);
   const styled = new Set();
   for (const sel of String(css).match(/^\.[a-z0-9-]+/gm) || []) {
     const type = sel.slice(1).split('__')[0];
     if (known.has(type)) styled.add(type);
+  }
+  // 借用者跟着它借的那个块走：被借的块有画法 ⟹ 它也有（同一批规则画的就是它）。
+  for (const [borrower, lender] of Object.entries(stylesFrom || {})) {
+    if (known.has(borrower) && styled.has(lender)) styled.add(borrower);
   }
   return styled;
 }
@@ -53,10 +72,13 @@ function blockTypesStyledBy(css, allBlockTypes) {
  * @param {string[]} o.blockTypesOnSite  这个站真的摆了哪些「版式归主题表管」的块（MOVED_BLOCKS 交集）
  * @param {string[]} o.allBlockTypes     注册表里一共有哪些块类型
  * @param {boolean}  o.hasFloor          这个模板有没有 base.css 那层地板
+ * @param {object}   [o.stylesFrom]      借用关系，见 blockTypesStyledBy（#1333）
  * @returns {{ floor: boolean, unstyled: string[], styledCount: number }}
  */
-function assessFloorLook({ themeCss, blockTypesOnSite, allBlockTypes, hasFloor }) {
-  const styled = blockTypesStyledBy(themeCss, allBlockTypes);
+function assessFloorLook({
+  themeCss, blockTypesOnSite, allBlockTypes, hasFloor, stylesFrom = {},
+}) {
+  const styled = blockTypesStyledBy(themeCss, allBlockTypes, stylesFrom);
   const onSite = [...new Set(blockTypesOnSite)];
   const unstyled = onSite.filter((type) => !styled.has(type)).sort();
   return {

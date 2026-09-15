@@ -42,11 +42,10 @@ const die = (m) => { console.error(`🔴 跑不起来: ${m}`); process.exit(2); 
 const { skipOnScaffoldingPool } = require(path.join(NEXT, 'scripts', 'lib', 'scaffolding-pool.js'));
 const skip = (what, why) => { if (!skipOnScaffoldingPool(what, why)) return false; skipped += 1; return true; };
 
-let sectorsMod; let themesMod; let heroForm;
+let sectorsMod; let themesMod;
 try {
   sectorsMod = require(path.join(DIR, 'industry-sectors.js'));
   themesMod = require(path.join(NEXT, 'scripts', 'themes.js'));
-  heroForm = require(path.join(NEXT, 'scripts', 'lib', 'hero-lead-form.js'));
 } catch (e) {
   die(`require 失败: ${e.message}`);
 }
@@ -56,7 +55,6 @@ const {
   sectorThemeIds,
 } = sectorsMod;
 const { poolThemes, candidateThemesForIndustry } = themesMod;
-const { themeSupportsHeroForm } = heroForm;
 const ALL_WORDS = SECTORS.flatMap((s) => s.words);
 
 if (!SECTORS.length || !Object.keys(poolThemes).length) die('组表或池子是空的 —— 没东西可查，这不是通过');
@@ -98,19 +96,6 @@ const missingWhy = (sectors) => sectors
   .filter((s) => !s.partner || !s.partner.key || !String(s.partner.why || '').trim())
   .map((s) => s.key);
 
-/**
- * 上门那几组里，「自己 5 套 + partner 5 套」一套带表单的都没有的（票 §方案 约束②）。
- * 判「带不带表单」调的是 `lib/hero-lead-form.js` 那个权威，不在这里重写一遍。
- */
-function onSiteWithoutForm(sectors, pool) {
-  const { byIndex } = sectorThemeIds(pool, sectors);
-  return sectors.filter((s, i) => {
-    if (!s.onSite) return false;
-    const j = sectors.findIndex((x) => x.key === (s.partner && s.partner.key));
-    const ids = byIndex[i].concat(j >= 0 ? byIndex[j] : []);
-    return !ids.some((id) => pool[id] && themeSupportsHeroForm(pool[id]));
-  }).map((s) => `${s.key}→${s.partner ? s.partner.key : '(没写)'}`);
-}
 
 // ── ① 每套主题归得进恰好一个行业组 ────────────────────────────────────────────────────────────────
 // 归不进的那些**挑不到**：组邻接这条路只按组成员取，它们不在任何一组里 ⟹ 从此没有任何行业词能抽到
@@ -195,30 +180,19 @@ console.log('\n── ② partner 表：一对一、不指自己、不互相对�
   }
 }
 
-// ── ③ 上门那两组必须借到「有带表单主题」的组（#1114 那道兜底的耦合）───────────────────────────────
-// 借不到 ⟹ 兜底补进第 11 套 azure-50，而它是 home-trades 的成员 ⟹ 它进 3 个组的池子，票 AC4 红。
-console.log('\n── ③ 上门的行业组：本组 + partner 里至少有一套带表单的主题');
-// 🔴 两条都要门控，包括它的反向对照：脚手架池唯一带表单的 azure-29 归的是 `beauty` 组，四个上门组
-//    连它们的 partner 加起来一套主题都没有 ⟹ 正向恒红，而「造一张饿死 green-outdoor 的表」也就分不出
-//    真表和坏表（两边都饿死）。#1114 那条保证在脚手架期由 `themes.js` 的第二道兜底接着（那道兜底
-//    不看组，直接从 NEUTRAL_TOPUP 里找带表单的），`lib/hero-lead-form.test.js` ⑥ 逐词盯着它。
-if (!skip('③ 上门组借得到带表单的主题（含它的反向对照）',
-  '脚手架池唯一带表单的 azure-29 归 beauty 组，四个上门组本组+partner 全空 ⟹ 正向恒红、反向对照分不出真表坏表')) {
-  const starved = onSiteWithoutForm(SECTORS, poolThemes);
-  const onSiteKeys = SECTORS.filter((s) => s.onSite).map((s) => s.key);
-  if (!starved.length) ok(`上门 ${onSiteKeys.length} 组（${onSiteKeys.join(' · ')}）逐组：10 套里都有带表单的`);
-  else bad(`这几组借完还是一套带表单的都没有 ⟹ #1114 那道兜底会补进第 11 套：${starved.join(' · ')}`);
-
-  // 反向对照：把 green-outdoor 的 partner 换成一个不带表单的组（tech-media）⟹ 必须点名它。
-  const starve = SECTORS.map((s) => ({ ...s, partner: { ...s.partner } }));
-  starve[10].partner.key = 'tech-media';
-  const caught = onSiteWithoutForm(starve, poolThemes);
-  if (caught.length === 1 && caught[0].startsWith('green-outdoor')) {
-    ok(`反向对照：把 green-outdoor 指向不带表单的 tech-media ⟹ 当场点名（${caught[0]}）`);
-  } else {
-    bad(`反向对照失效：造了一张会饿死 green-outdoor 的表，判据点名的是 ${caught.join(' · ') || '(没人)'}`);
-  }
-}
+// ── ③ 「上门那两组必须借到有带表单主题的组」—— #1333 删了 ──────────────────────────────────────
+//
+// 它问的是：上门的行业组，本组 + partner 的主题里至少有一套 `supports.hero` 含 `with-form`。
+// 存在的理由是 #1114 那道兜底：当时**只有声明过的主题画得出**带表单的首屏，借不到就得补第 11 套进来。
+//
+// #1333 把带表单的首屏拆成了自己一个块类型 `hero-with-form`（排版归 `public/shapes.css` 这一份平台
+// 文件、皮按类名写）⟹ 任何主题都画得出，`supports.hero` 里再也不会有 `with-form` 这个值
+// （`blocks/hero.json` 的 `block_layout` 里没有它了，而 `theme-pipeline/pool.test.js` ⑨ 要求
+// `supports.hero` ⊆ 那份清单）。也就是说这一格的正向判据**恒红**、它的反向对照**分不出真表坏表**
+// —— 两向都不再说话，留着就是一格会在池子重建那天当场红掉的死判据。
+//
+// 它真正想保证的事搬去了 `scripts/lib/hero-lead-form.test.js` ⑥：逐个上门行业词问「建出来的站，
+// 首页第一个块是不是 hero-with-form」。那是这条保证直说的版本，而且跟主题轮换无关。
 
 // ── ④ 每组一条邻接声明 + 气质相容理由（票 AC3）────────────────────────────────────────────────────
 console.log('\n── ④ 16 组逐一：借哪一组 + 为什么这两种气质能穿同一批皮');

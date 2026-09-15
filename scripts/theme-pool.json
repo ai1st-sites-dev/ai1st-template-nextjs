@@ -39,7 +39,7 @@
     },
     "supports": {
       "hero": [
-        "with-media"
+        "text-only"
       ],
       "split": [
         "media-right"
@@ -93,7 +93,8 @@
       "feature-comparison": "stack",
       "features-grid": "two-up",
       "gallery": "two-up",
-      "hero": "media-cover",
+      "hero": "text-center",
+      "hero-with-form": "form-side",
       "logo-carousel": "row",
       "map-area": "two-up",
       "newsletter-signup": "form-side",
@@ -153,7 +154,7 @@
     },
     "supports": {
       "hero": [
-        "with-form"
+        "with-media"
       ],
       "split": [
         "narrow-stack"
@@ -207,7 +208,8 @@
       "feature-comparison": "stack",
       "features-grid": "wide-rows",
       "gallery": "three-up",
-      "hero": "form-side",
+      "hero": "media-cover",
+      "hero-with-form": "form-side",
       "logo-carousel": "row",
       "map-area": "three-up",
       "newsletter-signup": "form-side",

@@ -115,6 +115,12 @@ const HOOKS = new Set([
   // page JSON asks for that content shape, so a sheet must be able to name it. A part that exists in
   // the markup but not on this list is the silent half: sheets cannot dress it and gate ② calls the
   // whole candidate out for a hook it has no rule for.
+  // 🔴 #1333 — WHO RENDERS IT CHANGED; THE HOOK NAME DID NOT. `with-form` is no longer one of hero's
+  // content shapes: the form is its own block type now, `hero-with-form`, and `HeroSection` has no
+  // form branch left. That block deliberately renders hero's part classes (its manifest says
+  // `hooksFrom: "hero"`, the reasoning is in `HeroWithFormSection.tsx`), so these three names stay
+  // exactly as they are and every sheet in the pool keeps dressing them. Renaming them to
+  // `.hero-with-form__*` would make every theme write the same skin twice.
   '.hero__form',
   // #1150 — the ninth part, and the one a customer only ever sees when something went wrong: the
   // line the hero form prints when a submit fails. Its two sisters (`.contact-form__error`,

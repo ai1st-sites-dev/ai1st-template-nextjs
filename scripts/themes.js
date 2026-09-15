@@ -82,12 +82,6 @@
 //    里面带着建站那天的模板快照 —— 平台永不推送进存量站（#1088 / spec 附四规则 1 的物理保证）。
 const poolThemes = require('./theme-pool.json');
 const { retiredThemes } = require('./themes-retired.js');
-// 🔴 #1114 —— 判「这套主题给带表单的 hero 写过造型吗」只有一个权威（它读 `supports.hero`，而
-// `supports` 是派生值、`theme-pipeline/pool.test.js` 在对账它与外观表一致）。在这里**不重写一遍**
-// 那三行：同一个谓词两份实现，分叉的方向是静默的（挑的时候按一份、真正给不给按另一份）。
-// 判过没有环：`lib/hero-lead-form.js` 只 require `theme-pipeline/industry-sectors`（无 require）与
-// `blocks.js`（只 require 一个 JSON），两条都不回头 require 本文件。
-const { themeSupportsHeroForm } = require('./lib/hero-lead-form.js');
 // 🔴 #1115 —— 挑主题的匹配口径跟「这门生意算不算上门」是**同一份判据**，共用 #1097 那两个函数。
 //    别在这里照着重写一份切词（本仓为「同一个判据两份实现」付过多次账）。
 //    方向安全:`industry-sectors.js` 是零依赖叶子（一个 require 都没有）⟹ 不成环；
@@ -133,10 +127,11 @@ const MIN_ROTATION_POOL = 3;
 // 🔴 #1317（2026-09-14）—— 脚手架期这里只剩留在池子里的那两套。原来那四个 id
 // （`fern-02` / `jade-26` / `azure-50` / `violet-74`）跟着 95 套一起下架了，留着就正好是上面
 // #1077 那条说的「指向空气的 id」。
-// **这一换不是收尾动作，它是 #1114 那条保证在脚手架期唯一的载体**：兜底源里必须有一套带表单的
-// hero，否则下面那道「上门行业不许整组永远碰不上第一屏表单」的兜底 `find` 回 undefined、静默什么
-// 都不做（实测：不换时 `lib/hero-lead-form.test.js` 4 条红，53 个上门行业词的站按构造拿不到那个
-// 表单）。`azure-29` 的 `supports.hero` 含 `with-form`，接的就是这一条。
+// 📌 #1317 当时给这一换写的理由是「它是 #1114 那条保证在脚手架期唯一的载体：兜底源里必须有一套
+// `supports.hero` 含 `with-form` 的主题」。**#1333 起那个理由不成立了** —— 带表单的首屏拆成了
+// 自己一个块类型 `hero-with-form`，任何主题都画得出，那道按 `supports.hero` 补人的兜底也跟着删了
+// （见下面 `candidateThemesForIndustry` 里那段）。这两个 id 留在这里的理由回到最原始那一条：
+// 它们是池子里仅有的两套，而这份清单要的是「视觉上通用、什么生意都配得上」。
 // 📌 `MIN_ROTATION_POOL = 3` 在脚手架期**凑不满，这是有意的**：整个池子只有 2 套，两条路去重之后
 //    都是 2。那个常量说的是「至少要几套才不至于同一行的生意长得一样」，而池子重生成之前这句话没有
 //    满足的余地 —— 把它改成 2 会把一条今天仍然正确的下限调低，池子长回去时没人会想起来调回来。
@@ -292,49 +287,23 @@ function candidateThemesForIndustry(industry) {
     if (pool.length >= MIN_ROTATION_POOL) break;
     if (!pool.includes(id)) pool.push(id);
   }
-  // ── 🔴 #1114 第二道兜底：上门行业不许整组【永远碰不上】第一屏那个表单 ──────────────────────────
+  // ── 🔴 #1114 第二道兜底：#1333 删掉了 ────────────────────────────────────────────────────────
   //
-  // Chris 2026-08-19 拍的是「不保证」——「我觉得是有需要就有，碰上就有，不是一定要有的」——**加一条**
-  // 「但没有一组可以是永远碰不上」。今天 53 个上门行业词里 **28 个**的候选池里一套带表单的都没有
-  // （园艺 13 词 + 工业安防 13 词整组，加上 `hvac` 和 `mechanic`），也就是那些生意的站**按构造**
-  // 拿不到那个表单，跟运气无关。
+  // 它原来做的事：上门行业的候选池里一套「声明了 `supports.hero` 含 `with-form`」的主题都没有时，
+  // 从 `NEUTRAL_TOPUP` 里补一套进来。理由是当时**只有声明过的主题画得出**带表单的首屏，所以抽不到
+  // 那种主题的生意按构造拿不到第一屏表单（当天 53 个上门行业词里 28 个是 0）。
   //
-  // 🔴 真因是两个小机制的干涉，不是哪张表写漏了（PM 与 role-user 各量一遍、我自己复算过）：
-  //   ① 池子按「16 组 × 5 套」排（`industry-sectors.js` THEMES_PER_SECTOR），而 hero 外观是 8 档轮转、
-  //      其中只有 `form-side` 一档带表单（`sheet-recipes.js` heroLookFor：落在第 8·15·22·29·36·43·
-  //      50·57·72·79 个位子）⟹ 每 7 个位子出现一次，而一组只占 5 个位子。**7 与 5 错开 ⟹ 必然有整组
-  //      被跳过**：今天被跳过的 6 组里就有园艺（位子 51-55）与工业安防（61-65）。
-  //   ② 每套主题「让出」组里一个词（`wordsForSlot`，让的是第 `slot % k` 个）—— 家装 slot4 = `azure-50`
-  //      带表单，它让掉的正好是 `hvac`；汽车 slot1 = `fern-57` 带表单，让掉的正好是 `mechanic`。
-  //   26 + 2 = 28，账对得上。
+  // #1333 把带表单的首屏拆成了自己一个块类型 `hero-with-form`：排版归 `public/shapes.css` 这一份
+  // 平台文件、皮按类名写（`.hero__form`），两者都跟主题选了哪种画法无关 ⟹ **任何主题都画得出**，
+  // `lib/hero-lead-form.js` 里那道「这个站抽到的主题声明过没有」一起退役了。于是这道兜底问的那句话
+  // 不再问得出东西：没有任何主题能再声明 `with-form`（`blocks/hero.json` 的 `block_layout` 里没有这个
+  // 值了，而 `theme-pipeline/pool.test.js` ⑨ 要求 `supports.hero` ⊆ 那份清单）⟹ 条件恒真、
+  // `find` 恒 undefined、这段代码**恒不开火**，而它不开火的样子跟它开火完全一样：静默。
   //
-  // 🔴 为什么修在这里，而不是动 ① 或 ②（三个杠杆 PM 都量过、明说不是硬约束，这是我的取舍）：
-  //   · 动外观轮转（①）能给那两组一套真正属于它们的带表单主题，但一张 sheet 是位子序号的**纯函数**
-  //     ⟹ 要重生成一批 CSS，而且**已经穿着这些主题的站下次 rebuild 第一屏就会变样**。为「让它有一档
-  //     机会」付这个代价不成比例。而且 `pool.test.js` 还有一条下限「七种画法每种 ≥ 8 套」压着，
-  //     挪档位要连那条一起重算。
-  //   · 改 `wordsForSlot` 的让位（②）只治 `hvac` / `mechanic` 两个词（28 个里的 2 个），而且
-  //     `industries` 是**生成到 `theme-pool.json` 里的**，改它要重生成那份池子 ⟹ 会顺带改掉一大批
-  //     别的词的候选池，波及面比它治的东西大得多。
-  //   · 这里加一道兜底：**只在「这是上门行业」且「池里一套带表单的都没有」时**，把兜底那四套里带表单
-  //     的那一套接上来。不动任何生成产物、不动一行 CSS、已建站的样子一个像素不变，而 28 个词各拿到
-  //     一档机会（命中率 = 1/池长，与别的上门词 20%-33% 同一个量级）。
+  // 它给的那份保证没有丢，只是换了地方量：`lib/hero-lead-form.test.js` ⑥ 现在逐个上门行业词问
+  // 「这个词建出来的站，首页第一个块是不是 `hero-with-form`」—— 那是这条保证真正要说的话。
   //
-  // 🔴 `isOnSiteIndustry` 那一半是承重的，不是保险：表单只在「上门行业 **且** 主题带表单」时才画
-  //   （`lib/hero-lead-form.js` applyHeroLeadForm 的两支）。不加这个条件，非上门行业的候选池也会多
-  //   一套 —— 那些站的表单一个都不会多，只是它们的主题轮换被改了，纯粹的副作用。
-  // 🔴 兜底源用 `NEUTRAL_TOPUP` 而不是「随便找一套带表单的」：这里是在给一个**没有声明过这个行业**的
-  //   主题开后门，而那四套的性质正是「视觉上通用、什么生意都配得上」（见上面它们的挑法）。
-  // 📌 这道兜底自己也可能哑掉：`NEUTRAL_TOPUP` 哪天一套带表单的都没有，`find` 回 undefined、这里什么
-  //   都不做，而失败方向是**静默**回到今天的 28 个 0。盯它的是 `lib/hero-lead-form.test.js` 那一格：
-  //   它既逐词问 AC1，也单独问一句「兜底源里到底有没有带表单的那一套」，好让红的那一行说出真因。
-  // 📌 传的是 `industry` 原文,不是上面那个 `lower`:`isOnSiteIndustry` 自己会 lowercase + 切词
-  //    (`industry-sectors.js` industryTokens),两种传法今天对 224 个输入逐个比过、结果全同。写原文是
-  //    因为 `lower` 是本函数上面那行的局部变量 —— 靠它就等于让这道兜底依赖别人怎么写匹配那一段。
-  if (isOnSiteIndustry(industry) && !pool.some(id => themeSupportsHeroForm(poolThemes[id]))) {
-    const withForm = NEUTRAL_TOPUP.find(id => themeSupportsHeroForm(poolThemes[id]));
-    if (withForm && !pool.includes(withForm)) pool.push(withForm);
-  }
+  // 📌 删它对候选池本身零影响：两臂逐词比过，212 个行业词的候选池逐字相同（#1333 交付留言）。
   return pool;
 }
 

@@ -113,7 +113,9 @@ if (fontOk) ok.push('fonts: --font-sans and the Google Fonts link both match the
 //      一棵中性 markup（那个文件头上写着 "ONE MARKUP, AND NOTHING ELSE"）⟹ `heroBlocks()` 的
 //      `at.length` 为 0 ⟹ 它返回 null ⟹ 第一条红「cannot read the hero variants …」**无条件**开火。
 //   ② `layoutFor(id).hero` 的取值集合是 `with-media / text-only / with-form`（内容结构，#998 的
-//      block_layout 词汇），而 `HERO_MARK` 的 9 个键是那批**已下架**的版式名
+//      block_layout 词汇；📌 #1333 之后 `with-form` 不再是 hero 的取值 —— 带表单的首屏是自己一个块
+//      类型 `hero-with-form` 了，所以那个集合今天是 `with-media / text-only`。这条结论跟集合里有
+//      几个词无关，见下面那段：承重的是「交集为空」），而 `HERO_MARK` 的 9 个键是那批**已下架**的版式名
 //      （split / minimal / gradient-overlay / centered / left / video-style / light-*）。
 //      两个集合**交集为空** ⟹ `HERO_MARK[want]` 恒 undefined ⟹ 第二条红「no marker written for
 //      hero variant "…" — this check did not run」对注册表里**每一套**主题都开火。

@@ -140,7 +140,8 @@ const CARD_BLOCKS = ['features-grid', 'card-group'];
 //    今天 `SPLIT_LAYOUTS` 和 `CARD_GRIDS` 都是 4、`CARD_STYLES` 是 3，而同式同模 ⟹ 两族的档**完全
 //    互相决定**（实测：split 档 == cards 档，80/80 套一个不差 —— 这是本票之前就有的，不是这里引入的）。
 //    所以这两族取 5 和 6：那是 3..6 里唯一一对既不撞已占模数、彼此也不互相决定的。判据不是「所有组合
-//    都出现」（80 套装不下 hero8 × form6 的 48 种全部组合），而是**没有哪一族决定另一族** ——
+//    都出现」（80 套装不下 hero × form 的全部组合：#1333 之前是 8×6=48，之后是 7×6=42），
+//    而是**没有哪一族决定另一族** ——
 //    每一档下对方至少还有 2 种取值。七对逐对量过（`sheet-recipes.test.js` ⑨ 钉住它）。
 const CTA_LOOKS = {
   // ① 左对齐横带 —— 今天全池那一副骨架，留作候选之一。
@@ -667,9 +668,11 @@ function voiceFor(i) {
     padStep,
     gapStep,
     // 🔴 两个键，两条轴，别合并（#1065）：
-    //   `heroLook` = 这套主题把 hero 画成什么样（图在左/右/上/下、全屏底图叠字、纯文字居中/靠左、
-    //                带表单）。**只有这个文件读它**，它不进 `layout.json`、不进 `supports`。
-    //   `hero`     = 这块 hero 装的是什么内容（`with-media` / `text-only` / `with-form`）。
+    //   `heroLook` = 这套主题把 hero 画成什么样（图在左/右/上/下、全屏底图叠字、纯文字居中/靠左；
+    //                📌 第八种「带表单」#1333 搬去了块 `hero-with-form`）。**只有这个文件读它**，
+    //                它不进 `layout.json`、不进 `supports`。
+    //   `hero`     = 这块 hero 装的是什么内容（`with-media` / `text-only`；#1333 之前还有
+    //                `with-form`）。
     //                它是写进 `layout.json` 的那个值，也就是 `supports.hero` 里的那个字符串。
     heroLook: heroLookFor(i),
     hero: heroLayoutFor(i),
@@ -1111,10 +1114,12 @@ const CARD_SHAPES = {
 // 08-12 spec 的 D5（`docs/superpowers/specs/2026-08-12-theme-css-architecture-design.md:79`）：
 // **`block_layout` 是内容结构，不是外观**，值表不许出现 `centered` / `split` 这类外观词；它第 208 行
 // 的 hero 值表逐字是 `"hero": ["with-media", "text-only", "with-form"]`。
+// 📌 #1333 起第三个值不在了：带表单的首屏拆成了自己一个块类型 `hero-with-form`，「有没有表单」由
+//    块类型说，不再是 hero 的一种内容结构。值表的权威仍然是 `blocks/hero.json`，今天是两个值。
 //
 // 所以 hero 这一块有两条轴：
 //   轴一 **内容结构**（这块 hero 装什么）—— 站说了算，写进页面 JSON 的 `block_layout`；主题这边是
-//        `supports.hero`（我为哪些内容形态写了造型）。取值只有那三个，清单的权威是
+//        `supports.hero`（我为哪些内容形态写了造型）。取值就是那张表里那几个（#1333 起是两个），清单的权威是
 //        `blocks/hero.json` 的 `block_layout`（#999 的 manifest，与 spec 第 208 行同源）。
 //   轴二 **外观**（画成什么样）—— 主题自己的事，只活在这个文件和它生成的那份 CSS 里，
 //        **不进 `layout.json`、不进 `supports`、不进任何值表**。
@@ -1123,6 +1128,8 @@ const CARD_SHAPES = {
 //    'text-only']`，一个名字同时说了两件事。后果不是命名不好看，是**外观能有几种被内容结构的档数
 //    卡死**：内容结构只有 3 种，于是画法也只能有 3 种。Chris 2026-08-18 点名要八项（图在左/右/上/下 ·
 //    全屏底图叠字 · 纯文字居中/靠左 · 带表单），前七项全是轴二，第八项是轴一。
+//    📌 #1333 起这张表是**七项**：第八项「带表单」搬去了块 `hero-with-form`（它本来就是轴一，
+//    而轴一从此由块类型说）。Chris 那句话点的八件事一件没少，只是最后一件不在这张表里了。
 //
 // 🔴 一套候选的外观**只有这一张表说了算**，内容结构由这张表里的 `content` 派生 —— 两处各写一份必然
 //    分叉，而分叉的样子是「`layout.json` 说 text-only、CSS 画的却是两栏」，没有任何东西会为此报错
@@ -1313,21 +1320,23 @@ const HERO_LOOKS = {
       title: () => ({ 'font-size': '3.25rem', 'line-height': '1.06', 'letter-spacing': '-0.02em' }),
     },
   },
-  // ⑧ 带表单 —— 这一项是**轴一**：它要的是 hero 里真有一个表单部件（`.hero__form`，
-  //    `HeroSection.tsx` 在页面 JSON 写了 `block_layout: "with-form"` 时渲染它）。这张表这里负责的
-  //    是它的画法：正文在左、表单在右，图收成一条压在两栏下面的窄横幅。
-  'form-side': {
-    content: 'with-form',
-    cols: '6fr 5fr',
-    rootExtra: () => ({ 'align-items': 'center', 'min-height': '32rem' }),
-    partExtra: {
-      deco: () => ({ order: 1 }),
-      body: () => ({ order: 2, 'max-width': '32rem' }),
-      form: (v) => ({ order: 3, 'max-width': '30rem', 'border-radius': v.radius, padding: '2rem' }),
-      media: () => ({ order: 4, 'grid-column': '1 / -1', width: '100%', 'aspect-ratio': '24 / 5', 'border-radius': '0' }),
-      title: () => ({ 'font-size': '2.75rem', 'line-height': '1.1' }),
-    },
-  },
+  // ⑧ 带表单 —— **#1333 搬走了**。
+  //
+  // 它原来是这张表里唯一一项**轴一**（`content: 'with-form'`）：别的七项说「图放哪」，它说「这块
+  // hero 里多一个表单部件」。两条轴黏在一张表里当时就是知情的取舍，而 #1333 把带表单的首屏拆成了
+  // 自己一个块类型 `hero-with-form` —— 「有没有表单」从此由块类型说，不再是 hero 的一种内容结构，
+  // 所以这一项在这张表里没有位置了。它的几何整段搬去了 `public/shapes.css` 的
+  // `[data-block="hero-with-form"][data-shape="form-side"]`（逐条规则一个字没改）。
+  //
+  // 🔴 下面七项的 `form:` 那一行**留着，不许顺手删**：主题表是按**类名**写的（`.hero__form`），
+  //    而新块用的就是 `.hero__form` 这一套类名（理由写在 `HeroWithFormSection.tsx` 上）。删掉它们，
+  //    池里每一张表就都没有表单那一族的皮，而产物照样生成、构建照样绿 —— 只是客人首屏那个表单变成
+  //    裸控件。#1065 r2 已经为「表单那一族没人管」付过一次账（CI 在 main 上红了三格）。
+  //
+  // 📌 少了这一项之后 `HERO_LOOK_NAMES` 是 7 项，而挑法 `(i + floor(i/L)) % L` 的 L 就是项数
+  //    （下面那行从 `HERO_LOOK_NAMES.length` 取，没有写死的 8）。两套脚手架主题因此换了画法：
+  //    ember-12（候选号 12 ⟹ i=11）media-cover → text-center · azure-29（29 ⟹ i=28）form-side →
+  //    media-cover，`theme-pool.json` 两条记录与 `public/themes/*.css` 两份表都按这个重算过。
 };
 // ── #1158 —— 每一种 hero 画法的 `form-success` 从它【自己那一份 form】派生 ─────────────────────────
 //
@@ -1443,7 +1452,8 @@ function shapeFor(block, v) {
   //    `for (const look of ...)` 循环）。所以要找它，去 `HERO_LOOKS`，不是这里。
   //    r1 那条注释三句话全错，实测：`SHAPES.hero` 的键只有 `cols` / `rootExtra` / `role` 三个 ·
   //    83 张表里有 **13 张**的 `.hero__form-success` 根本没有 `grid-column`（11 张 order:3 + 2 张
-  //    order:4）⟹「块这一层给它跨满」不成立 · `HERO_LOOKS` 是 **8** 种不是 7 种。
+  //    order:4）⟹「块这一层给它跨满」不成立 · `HERO_LOOKS` 当时是 **8** 种不是 7 种
+//    （#1333 之后它真的是 7 种了 —— 这一句是 #1158 那一刻的读数，别拿它当今天的数）。
   const fam = familyOf(block);
   if (!fam) return base;
   return pick(fam.table, v[fam.key], block, fam.keepsWide);

@@ -91,13 +91,23 @@ console.log('④ 反向对照（单变量：没有 base.css 那层地板）⟹ �
 
 console.log('⑤ 尺子本身：主题表的顶层类根集合就是块名 —— 逐份现测，不抄任何写死的数');
 {
+  // 🔴 #1333 —— 借用别人那套部件类名的块（manifest 的 `hooksFrom`）在样式表里按构造找不到自己的
+  //    名字。它**不是**漏画的：画它的就是被借的那个块那批规则。名单从 manifest 现取，不写死 ——
+  //    写死一份的话，下一个借用者出现时这一格红在一个其实正确的状态上。
+  const stylesFrom = {};
+  for (const [type, m] of require(path.join(ROOT, 'scripts/lib/block-manifest.js')).loadManifests()) {
+    if (m.hooksFrom) stylesFrom[type] = m.hooksFrom;
+  }
   let full = 0;
   for (const f of sheets) {
-    const styled = blockTypesStyledBy(fs.readFileSync(path.join(ROOT, 'public/themes', f), 'utf-8'), ALL);
+    const styled = blockTypesStyledBy(
+      fs.readFileSync(path.join(ROOT, 'public/themes', f), 'utf-8'), ALL, stylesFrom);
     if (styled.size === ALL.length) full += 1;
   }
   full === sheets.length
-    ? ok(`${sheets.length}/${sheets.length} 份主题表各自覆盖全部 ${ALL.length} 种块`)
+    ? ok(`${sheets.length}/${sheets.length} 份主题表各自覆盖全部 ${ALL.length} 种块`
+      + `（其中 ${Object.keys(stylesFrom).length} 种是借别人的类名：`
+      + `${Object.entries(stylesFrom).map(([a, b]) => `${a}→${b}`).join(' · ') || '（无）'}）`)
     : bad(`只有 ${full}/${sheets.length} 份覆盖全部 ${ALL.length} 种 —— 尺子或主题池有一边变了，先弄清哪边`);
 }
 

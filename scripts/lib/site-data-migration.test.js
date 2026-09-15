@@ -160,6 +160,58 @@ console.log('① 四个老名字各迁一次：type 变、data 只动 highlights
 }
 
 // ══ ② 老形状（sections 数组）和站级块库也要迁 ═══════════════════════════════════════════════════
+// ══ ①e 带条件的规则：hero + block_layout=with-form → hero-with-form（#1333）════════════════════
+//
+// 🔴 这一格两向都问，而「不许碰」那一向是承重的：迁移表按 type 查，而 `hero` 这个 type 今天仍然
+//    是合法的块 —— 判据里少了 `block_layout` 那一半，**每一个 hero 都会被换成带表单的那种**，
+//    而那是给一批从来没要过表单的站的首屏加一个收客人联系方式的框。
+console.log('\n①e hero + block_layout=with-form → hero-with-form（#1333，带条件的规则）');
+{
+  const heroBlock = (extra = {}) => ({
+    id: 'b-hero', type: 'hero', region: 'content', weight: 10,
+    data: { headline: 'H', subheadline: 'S', ctaPrimary: { label: 'a', href: '/' }, ctaSecondary: { label: 'b', href: '/c' } },
+    ...extra,
+  });
+  const { siteDir } = makeSite({
+    'pages/home.json': {
+      slug: 'home',
+      title: 'Home',
+      blocks: [heroBlock({ block_layout: 'with-form' }), heroBlock({ id: 'b-hero-plain' })],
+    },
+  });
+  const beforePlain = JSON.stringify(read(path.join(siteDir, 'pages/home.json')).blocks[1]);
+  const plan = M.planSiteMigration(siteDir, { rootDir: NEXT, knownTypes: KNOWN });
+  check(plan.blockers.length === 0, `没有 blocker（读到 ${plan.blockers.length}）`);
+  M.applyPlan(plan);
+  const after = read(path.join(siteDir, 'pages/home.json')).blocks;
+
+  const problems = [];
+  if (after[0].type !== 'hero-with-form') problems.push(`type=${after[0].type}`);
+  if ('block_layout' in after[0]) problems.push(`block_layout 还在：${after[0].block_layout}`);
+  if (JSON.stringify(after[0].data.form) !== '{}') problems.push(`data.form=${JSON.stringify(after[0].data.form)}（该是空记录）`);
+  // 🔴 除了那三样，块上别的字段一个都不许动 —— 包括 data 里原来那四个槽。
+  const wantData = { ...heroBlock().data, form: {} };
+  if (JSON.stringify(after[0].data) !== JSON.stringify(wantData)) {
+    problems.push(`data=${JSON.stringify(after[0].data)} want=${JSON.stringify(wantData)}`);
+  }
+  if (after[0].id !== 'b-hero' || after[0].region !== 'content' || after[0].weight !== 10) problems.push('块的其它字段被动了');
+  // hero 与 hero-with-form 在 block-roles.json 里同为 lead ⟹ roleToWrite 判「补了没区别」⟹ 不写。
+  if ('role' in after[0]) problems.push(`role 被写进了磁盘：${after[0].role}`);
+  check(problems.length === 0, `带表单那个 hero 迁到 hero-with-form${problems.length ? `：${problems.join(' · ')}` : ''}`);
+
+  check(JSON.stringify(after[1]) === beforePlain,
+    `同一页里不带表单的那个 hero 逐字相同（读到 ${JSON.stringify(after[1]).slice(0, 60)}…）`);
+
+  // 🔴 反向对照：把判据砍成「只看 type」，那个不带表单的 hero 必须当场也被换掉 —— 证明上面那条绿
+  //    是 `block_layout` 那一半挣来的，不是「这份夹具里本来就没有第二个 hero」。
+  const rule = M.LEGACY_BLOCK_SHAPES.find((r) => r.to === 'hero-with-form');
+  const naive = (b) => b.type === 'hero';
+  const hit = [heroBlock({ block_layout: 'with-form' }), heroBlock()].filter(naive).length;
+  const real = [heroBlock({ block_layout: 'with-form' }), heroBlock()].filter((b) => rule.when(b)).length;
+  check(hit === 2 && real === 1,
+    `反向对照：判据砍成「只看 type」⟹ 2 个 hero 全中；真判据 ⟹ 只中 1 个（读到 ${hit} / ${real}）`);
+}
+
 console.log('\n② 三种载体都迁：blocks 数组 · sections 数组（#998 之前的站）· 站级块库');
 {
   const { siteDir } = makeSite({

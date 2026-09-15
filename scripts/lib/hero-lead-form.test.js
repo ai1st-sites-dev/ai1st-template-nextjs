@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * hero-lead-form.test.js — 「首屏给不给表单」那三道判断的承重性质（#1097）。
+ * hero-lead-form.test.js — 「首屏给不给表单」那两道判断的承重性质（#1097，#1333 改了做法）。
  *
  * 跑法:  node scripts/lib/hero-lead-form.test.js   （或 `npm run test:scripts`，它按文件名发现）
  * 退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
@@ -8,9 +8,13 @@
  * ══ 为什么这几条要有一个自动的调用方 ═════════════════════════════════════════════════════════════
  * 这几条的失败方向全部是**静默**的 —— 站照样建得出来，只是建错了：
  *   · 分类器退回裸 `includes`  → 退休理财的站首屏冒出一个「留下您的电话」，212 个词里只有一个会翻车
- *   · 兜底那一支被去掉          → 表单渲染在没给它写过造型的主题上
+ *   · 换出来的块类型拼错        → `SectionRenderer` 走未知类型那一支（`console.warn` + `return null`），
+ *                                 首屏整块**从页面上消失**，而构建 exit 0、UI 报完成
  *   · 不给表单那条路被碰到      → 全站产物字节变了，而没有任何断言在看它
  * 没有一条会让构建变红，也没有一条肉眼看得出来。
+ *
+ * 🔴 #1333 —— 中间那道「这个站抽到的主题给带表单的 hero 写过造型没有」删掉了（任何主题都画得出，
+ * 理由写在 `hero-lead-form.js` 上），所以下面 ③ 换了对象：它现在问的是**换出来的那个块类型真的接线了吗**。
  */
 
 'use strict';
@@ -25,18 +29,21 @@ const ok = (m) => { pass += 1; console.log(`  ✅ ${m}`); };
 const bad = (m) => { fail += 1; console.log(`  ❌ ${m}`); };
 const die = (m) => { console.error(`🔴 跑不起来: ${m}`); process.exit(2); };
 
-let sectors; let heroForm; let themesMod;
+const fs = require('fs');
+
+let sectors; let heroForm; let manifests; let blockRoles; let registrySrc;
 try {
   sectors = require(path.join(NEXT, 'scripts', 'theme-pipeline', 'industry-sectors.js'));
   heroForm = require(path.join(DIR, 'hero-lead-form.js'));
-  themesMod = require(path.join(NEXT, 'scripts', 'themes.js'));
+  manifests = require(path.join(DIR, 'block-manifest.js')).loadManifests();
+  blockRoles = JSON.parse(fs.readFileSync(path.join(NEXT, 'src', 'lib', 'sections', 'block-roles.json'), 'utf-8'));
+  registrySrc = fs.readFileSync(path.join(NEXT, 'src', 'lib', 'sections', 'registry.ts'), 'utf-8');
 } catch (e) {
   die(`require 失败: ${e.message}`);
 }
 
 const { SECTORS, isOnSiteIndustry } = sectors;
-const { applyHeroLeadForm, themeSupportsHeroForm, HERO_FORM_LAYOUT } = heroForm;
-const { poolThemes } = themesMod;
+const { applyHeroLeadForm, HERO_FORM_BLOCK } = heroForm;
 
 const onWords = SECTORS.filter((s) => s.onSite).flatMap((s) => s.words);
 const offWords = SECTORS.filter((s) => !s.onSite).flatMap((s) => s.words);
@@ -91,31 +98,42 @@ console.log('\n── ② 五条真实行业串');
   }
 }
 
-// ── ③ 兜底：主题没声明造型就不给（AC5 的单元那一半）──────────────────────────────────────────────
-// 🔴 用**注册表里真的主题**，不用手搓对象：手搓的 `{supports:{hero:[...]}}` 只能证明这个函数读得懂
-//    自己造的形状，证明不了它读得懂池子里那 80 套的形状。
-console.log('\n── ③ 兜底：theme.supports.hero 含不含 with-form');
+// ── ③ 换出来的那个块类型，三处都接上线了吗（#1333）─────────────────────────────────────────────
+//
+// 🔴 这一格接替的是 #1097 那道「主题声明过造型没有」的位置，治的是**同族但更严重**的失败：
+//    `applyHeroLeadForm` 写下的 type，只要有一处没接线，`SectionRenderer` 就走未知类型那一支
+//    （`console.warn` + `return null`）—— 首屏整块从页面上消失，而构建 exit 0、UI 报完成。
+//    这正是 `site-data-migration.js` 文件头记着的那个形状（prod 上真发生过 43 个块）。
+// 🔴 判据用**产出端那个常量**（`HERO_FORM_BLOCK`），不在这里重写一遍块名：写死一份就等于
+//    「产出者改了名、这一格还在验旧名」，而那是绿着坏。
+console.log('\n── ③ hero-with-form 三处接线：manifest / 角色表 / 注册表');
 {
-  const ids = Object.keys(poolThemes);
-  const declaring = ids.filter((id) => (poolThemes[id].supports.hero || []).includes(HERO_FORM_LAYOUT));
-  const notDeclaring = ids.filter((id) => !(poolThemes[id].supports.hero || []).includes(HERO_FORM_LAYOUT));
-  if (!declaring.length || !notDeclaring.length) {
-    bad(`池子里两边有一边是空的（声明 ${declaring.length} 套 / 没声明 ${notDeclaring.length} 套）`
-      + ' —— 这一格失去区分力，不是通过');
-  } else {
-    const yesWrong = declaring.filter((id) => !themeSupportsHeroForm(poolThemes[id]));
-    const noWrong = notDeclaring.filter((id) => themeSupportsHeroForm(poolThemes[id]));
-    if (!yesWrong.length && !noWrong.length) {
-      ok(`声明的 ${declaring.length} 套全判 true（${declaring.slice(0, 3).join(' · ')} …）`
-        + ` · 其余 ${notDeclaring.length} 套全判 false，两向例外 [] / []`);
-    } else {
-      bad(`声明却判 false: ${JSON.stringify(yesWrong)} · 没声明却判 true: ${JSON.stringify(noWrong)}`);
-    }
-  }
-  const junk = [undefined, null, {}, { supports: {} }, { supports: { hero: 'with-form' } }, { supports: { hero: [] } }];
-  const junkWrong = junk.filter((t) => themeSupportsHeroForm(t));
-  if (!junkWrong.length) ok(`读不到 supports.hero 的六种形状全判 false（fail-safe 方向是不给）`);
-  else bad(`读不到 supports.hero 却判 true: ${JSON.stringify(junkWrong)}`);
+  const m = manifests.get(HERO_FORM_BLOCK);
+  if (!m) bad(`blocks/${HERO_FORM_BLOCK}.json 不在 loadManifests 的结果里 —— 建站期的校验器不认识它`);
+  else ok(`blocks/${HERO_FORM_BLOCK}.json 加载得到（category ${m.category} · roleDefault ${m.roleDefault}）`);
+
+  if (blockRoles[HERO_FORM_BLOCK]) ok(`block-roles.json 里有它：${blockRoles[HERO_FORM_BLOCK]}`);
+  else bad(`block-roles.json 里没有 ${HERO_FORM_BLOCK} —— data-role 会落到兜底的 essential，而它该是 lead`);
+
+  // 注册表是 TypeScript，node require 不动 —— 按文本找那一行（同 `site-data-migration.js` 文件头
+  // 记着的理由：正则抠 TS 是第二份实现，所以这里**只**问「有没有这一行」，权威仍是 block-roles.json）。
+  if (new RegExp(`'${HERO_FORM_BLOCK}':\\s*\\w`).test(registrySrc)) ok(`registry.ts 里有 '${HERO_FORM_BLOCK}' 那一行`);
+  else bad(`registry.ts 里没有 '${HERO_FORM_BLOCK}' ⟹ SectionRenderer 走未知类型那一支，首屏整块消失而构建照样绿`);
+
+  // 表单那组槽位：manifest 说必填，而产出者必须真的填上（不填的话每次构建多一条假警报）。
+  const formSlot = m && m.slots && m.slots.form;
+  if (formSlot && formSlot.required === true) ok('manifest 把 form 槽位标成必填（validateSite 第 ① 条按它查）');
+  else bad(`manifest 的 form 槽位不是必填（读到 ${JSON.stringify(formSlot)}）—— AC 要的是按必填查`);
+
+  // 反向对照：拿一个不存在的块名问同样的三句话，三句都要说「没有」。
+  const ghost = 'hero-with-form-nope';
+  const ghostSeen = [
+    manifests.get(ghost) ? 'manifest' : null,
+    blockRoles[ghost] ? '角色表' : null,
+    new RegExp(`'${ghost}':\\s*\\w`).test(registrySrc) ? '注册表' : null,
+  ].filter(Boolean);
+  if (!ghostSeen.length) ok(`反向对照：不存在的块名 ${ghost} 在三处都查不到 —— 上面三条不是恒真`);
+  else bad(`反向对照失效：${ghost} 居然在 ${ghostSeen.join(' / ')} 里查得到`);
 }
 
 // ── ④ 逻辑层两向：不给表单的站逐字不变（AC6a）───────────────────────────────────────────────────
@@ -158,19 +176,13 @@ function fixture() {
   };
 }
 
-// 承重的那套主题：注册表里真的、真声明了 with-form 的那一套（今天 10 套里的第一套）。
-const formThemeId = Object.keys(poolThemes)
-  .find((id) => (poolThemes[id].supports.hero || []).includes(HERO_FORM_LAYOUT));
-if (!formThemeId) die(`池子里没有任何主题声明 supports.hero 含 "${HERO_FORM_LAYOUT}" —— 这一格没有对象可验`);
-const formTheme = poolThemes[formThemeId];
-
 {
   const before = fixture();
   const after = fixture();
-  const r = applyHeroLeadForm({ content: after, industry: 'cozy restaurant', theme: formTheme });
+  const r = applyHeroLeadForm({ content: after, industry: 'cozy restaurant' });
   const d = diffJson(before, after);
   if (!r.applied && JSON.stringify(before) === JSON.stringify(after)) {
-    ok(`restaurant（主题声明了 with-form，被行业那一道拦下）：JSON.stringify 逐字相同 · reason=${r.reason}`);
+    ok(`restaurant（被行业那一道拦下）：JSON.stringify 逐字相同 · reason=${r.reason}`);
   } else {
     bad(`restaurant 夹具被改动了 —— applied=${r.applied}，差异:\n     ${d.join('\n     ') || '(无，但 applied 是 true)'}`);
   }
@@ -178,31 +190,44 @@ const formTheme = poolThemes[formThemeId];
 {
   const before = fixture();
   const after = fixture();
-  const r = applyHeroLeadForm({ content: after, industry: 'plumbing', theme: formTheme });
+  const r = applyHeroLeadForm({ content: after, industry: 'plumbing' });
   const d = diffJson(before, after);
-  const want = `pages.0.sections.0.block_layout: (缺) → "${HERO_FORM_LAYOUT}"`;
-  if (r.applied && d.length === 1 && d[0] === want) {
-    ok(`plumbing：差异只有 —— ${d[0]}`);
+  // 🔴 逐条对，不是数条数：AC6b 要的是「只动这两处」。`type` 换名 + `data.form` 多出来一个空记录
+  //    （`form` 是新块的必填槽，理由写在 `hero-lead-form.js` 的 `applyHeroLeadForm` 上）。
+  const want = [
+    `pages.0.sections.0.type: "hero" → "${HERO_FORM_BLOCK}"`,
+    'pages.0.sections.0.data.form: (缺) → {}',
+  ];
+  if (r.applied && JSON.stringify(d) === JSON.stringify(want)) {
+    ok(`plumbing：差异恰好两条 —— ${d.join(' · ')}`);
   } else {
-    bad(`plumbing 的差异不是「只多一个键」：applied=${r.applied}\n     ${d.join('\n     ') || '(无差异)'}`);
+    bad(`plumbing 的差异不是那两条：applied=${r.applied}\n     期望 ${JSON.stringify(want)}\n     实际 ${JSON.stringify(d)}`);
   }
+  // 🔴 别的块一个都不许碰：同一页第二个块、以及另一页，逐字节不变。
+  const untouched = diffJson(fixture().pages[0].sections[1], after.pages[0].sections[1])
+    .concat(diffJson(fixture().pages[1], after.pages[1]));
+  if (!untouched.length) ok('同一页的第二个块与另一页：逐字相同（只动首页第一个 hero）');
+  else bad(`动到了不该动的地方：${untouched.join(' · ')}`);
 }
 
-// ── ⑤ 三种「行业算上门但落不了地」的形状，一律不写、也不许抛（AC5 同族）─────────────────────────
-console.log('\n── ⑤ 落不了地的三种形状');
+// ── ⑤ 「行业算上门但落不了地」的几种形状，一律不写、也不许抛（AC5 同族）──────────────────────
+//
+// 🔴 #1333 少了一种（「主题没声明 with-form」跟那道判断一起退役了），多了一种更险的：
+//    `content` 本身形状不对。`applyHeroLeadForm` 抛出去的话，`create-site.js` 那一层没有 catch，
+//    一路冒到 `main().catch` ⟹ 建站直接死，而它做的只是一件锦上添花的事。
+console.log('\n── ⑤ 落不了地的几种形状');
 {
-  const noFormTheme = poolThemes[Object.keys(poolThemes)
-    .find((id) => !(poolThemes[id].supports.hero || []).includes(HERO_FORM_LAYOUT))];
   const cases = [
-    ['主题没声明 with-form', () => fixture(), noFormTheme],
-    ['没有 slug==="home" 的页面', () => ({ pages: [{ slug: 'about', sections: [{ type: 'hero', data: {} }] }] }), formTheme],
-    ['首页里没有 hero 块', () => ({ pages: [{ slug: 'home', sections: [{ type: 'text-block', data: {} }] }] }), formTheme],
+    ['没有 slug==="home" 的页面', () => ({ pages: [{ slug: 'about', sections: [{ type: 'hero', data: {} }] }] })],
+    ['首页里没有 hero 块', () => ({ pages: [{ slug: 'home', sections: [{ type: 'text-block', data: {} }] }] })],
+    ['content 压根没有 pages', () => ({})],
+    ['pages 不是数组', () => ({ pages: null })],
   ];
-  for (const [name, mk, theme] of cases) {
+  for (const [name, mk] of cases) {
     const before = mk(); const after = mk();
     let r;
     try {
-      r = applyHeroLeadForm({ content: after, industry: 'plumbing', theme });
+      r = applyHeroLeadForm({ content: after, industry: 'plumbing' });
     } catch (e) {
       bad(`${name}：抛了 —— ${e.message}`);
       continue;
@@ -213,72 +238,37 @@ console.log('\n── ⑤ 落不了地的三种形状');
   }
 }
 
-// ── ⑥ 每个上门行业词的候选池里都要有一套带表单的主题（#1114 AC4）─────────────────────────────────
+// ── ⑥ 每个上门行业词建出来的站，首页第一个块就是 hero-with-form（#1114 那条保证的新住处）─────────
 //
-// 🔴 这一格治的是「整组永远碰不上」。Chris 2026-08-19 拍的是**不保证**（「有需要就有，碰上就有，
-// 不是一定要有的」），加一条「但没有一组可以是永远碰不上」。所以判据**不是命中率**，是一个集合：
-// 每个 `isOnSiteIndustry()` 为真的行业词，它的候选池里至少有一套 `themeSupportsHeroForm()` 为真。
-// 命中率会随池子重生成漂（今天 10%-33%），集合不会 —— 承 `CLAUDE.md`「AC 不许拿命中数当判据」。
+// 🔴 这一格接替了 #1114 那条「每个上门行业词的候选池里都要有一套带表单的主题」。它当时问的是
+//    **候选池**，因为那时「画得出带表单的首屏」是主题的属性，而池子按 16 组 × 5 套排、带表单的画法
+//    每 7 个位子才出现一次 ⟹ 7 与 5 错开，必然有整组被永远跳过（当天 53 个上门词里 28 个是 0）。
+//    #1333 之后那句话问不出东西了（没有任何主题再声明 `with-form`），而它真正想保证的事没变：
+//    **上门行业的生意，首屏得有一个能留电话的地方**。所以判据换成直接量那件事本身，逐词量。
 //
-// 🔴 为什么这件事会重演、所以必须留成一格测试（票正文 AC4）：0% 那 28 个词不是哪张表写漏了，是两个
-// 小机制干涉出来的 —— 池子按 16 组 × 5 套排，而带表单的 hero 外观每 7 个位子才出现一次（8 档里 1 档），
-// **7 与 5 错开 ⟹ 必然有整组被跳过**。池子只要重生成一次，被跳过的就换成另外几组。
-console.log('\n── ⑥ 每个上门行业词的候选池里都有带表单的主题（#1114）');
+// 🔴 「不保证」那一半（Chris 2026-08-19：「有需要就有，碰上就有，不是一定要有的」）**按 #1333 的决定
+//    退役了** —— 那句话说的是「抽到哪套主题」这份运气，而运气这一维随着主题那道判断一起没了。
+//    今天是：上门行业 ⟹ 一定有。别把这一格改回「既不是 0 也不是全部」，那是在验一个已经被拍板去掉的性质。
+console.log('\n── ⑥ 53 个上门行业词逐词：建出来的首页第一个块是 hero-with-form');
 {
-  const { candidateThemesForIndustry, NEUTRAL_TOPUP } = themesMod;
-  const formsIn = (p) => p.filter((id) => themeSupportsHeroForm(poolThemes[id]));
-
-  // 🔴 先问兜底源本身 —— 缺了它，下面那条会红在「28 个词」上，而真因是「兜底源里没有带表单的那一套」。
-  //    两个读数分开报，红的那一行才说得出真因（同族纪律：仪器坏了 ≠ 被测的东西坏了）。
-  const topupWithForm = NEUTRAL_TOPUP.filter((id) => poolThemes[id] && themeSupportsHeroForm(poolThemes[id]));
-  if (topupWithForm.length) {
-    ok(`兜底源 NEUTRAL_TOPUP 里有 ${topupWithForm.length} 套带表单的：${topupWithForm.join(', ')}`);
-  } else {
-    bad(`🔴 兜底源 NEUTRAL_TOPUP（${NEUTRAL_TOPUP.join(', ')}）里一套带表单的都没有 —— `
-      + '`candidateThemesForIndustry` 那道 #1114 兜底因此哑掉，下面那条会红在词上而真因在这里');
-  }
-
-  const missing = onWords.filter((w) => !formsIn(candidateThemesForIndustry(w) || []).length);
+  const firstHomeType = (industry) => {
+    const content = fixture();
+    applyHeroLeadForm({ content, industry });
+    return content.pages[0].sections[0].type;
+  };
+  const missing = onWords.filter((w) => firstHomeType(w) !== HERO_FORM_BLOCK);
   if (!missing.length) {
-    // 报的是「哪几套」，不是一个百分比 —— AC1 要的就是这份名单。
-    const hit = new Map();
-    for (const w of onWords) for (const id of formsIn(candidateThemesForIndustry(w))) hit.set(id, (hit.get(id) || 0) + 1);
-    const shown = [...hit].sort((a, b) => b[1] - a[1]).map(([id, n]) => `${id}×${n}`).join(' · ');
-    ok(`${onWords.length} 个上门行业词逐个：候选池里都有带表单的主题（谁被命中：${shown}）`);
+    ok(`${onWords.length} 个上门行业词逐个：首页第一个块都是 ${HERO_FORM_BLOCK}`);
   } else {
-    bad(`🔴 ${missing.length} 个上门行业词的候选池里一套带表单的都没有 ⟹ 这些生意的站**按构造**`
-      + `拿不到第一屏那个表单，跟运气无关：${missing.join(' ')}`);
+    bad(`🔴 ${missing.length} 个上门行业词建出来的站首屏没有表单：${missing.join(' ')}`);
   }
 
-  // 🔴 「不保证」那一半也要守住，否则上面那条绿可以用「见谁都给」换来 —— 而 Chris 拍的正是不保证。
-  //    判据写成「既不是 0 也不是全部」，不写具体数字（同上：数字会漂）。
-  const probe = 'landscaping';
-  const p = candidateThemesForIndustry(probe);
-  const f = formsIn(p).length;
-  if (f > 0 && f < p.length) {
-    ok(`「不保证」也成立：${probe} 的池子 ${p.length} 套里带表单的 ${f} 套 ⟹ 命中率既不是 0% 也不是 100%`);
+  // 🔴 反向那一半同样要守：非上门行业一个都不许被换掉，否则上面那条绿可以用「见谁都换」换来。
+  const leaked = offWords.filter((w) => firstHomeType(w) !== 'hero');
+  if (!leaked.length) {
+    ok(`${offWords.length} 个非上门词逐个：首页第一个块仍然是 hero（没有一个被顺手换掉）`);
   } else {
-    bad(`${probe} 的池子 ${p.length} 套里带表单的 ${f} 套 —— ${f === 0 ? '一档机会都没有' : '变成了「每站必有」，那不是 Chris 拍的那一条'}`);
-  }
-
-  // 🔴 反向对照：非上门行业**不该**因为这道兜底被改动。它不是保险 —— 那些站的表单一个都不会多
-  //    （表单要「上门行业 且 主题带表单」两个条件），多出来的只有被改掉的主题轮换。
-  //    判据：把兜底那一套加进去之后，非上门词的池子里【不该】出现它，除非它本来就在。
-  const topup = topupWithForm[0];
-  const leaked = topup ? offWords.filter((w) => {
-    const pool = candidateThemesForIndustry(w) || [];
-    if (!pool.includes(topup)) return false;
-    // 本来就声明了这个行业、或者被 MIN_ROTATION_POOL 那道旧兜底带进来的，都不算泄漏
-    const declared = poolThemes[topup].industries.some((kw) => String(w).toLowerCase().includes(kw));
-    return !declared && pool.length > themesMod.MIN_ROTATION_POOL;
-  }) : [];
-  if (!topup) {
-    bad('反向对照立不起来：兜底源里没有带表单的那一套（上面已经报过）');
-  } else if (!leaked.length) {
-    ok(`反向对照：${offWords.length} 个非上门词里，没有一个是因为这道兜底才多出 ${topup} 的`);
-  } else {
-    bad(`🔴 ${leaked.length} 个非上门词的池子里多出了 ${topup}，而它们拿不到表单 ⟹ 纯副作用：`
-      + leaked.slice(0, 8).join(' '));
+    bad(`🔴 ${leaked.length} 个非上门词的首屏被换成了 ${HERO_FORM_BLOCK}：${leaked.slice(0, 8).join(' ')}`);
   }
 }
 

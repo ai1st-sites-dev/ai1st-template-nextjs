@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react';
 import HeroSection from '@/components/sections/HeroSection';
+import HeroWithFormSection from '@/components/sections/HeroWithFormSection';
 import TrustedBrandsSection from '@/components/sections/TrustedBrandsSection';
 import FeaturesGridSection from '@/components/sections/FeaturesGridSection';
 import CardGroupSection from '@/components/sections/CardGroupSection';
@@ -34,6 +35,10 @@ import ServiceRelatedPagesSection from '@/components/sections/ServiceRelatedPage
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const sectionRegistry: Record<string, ComponentType<any>> = {
   'hero': HeroSection,
+  // #1333 —— 带表单的首屏是自己一个块类型，不是 hero 的一种内容结构（设计文档 D1 / D14）。
+  // 建站的 AI 选不到它：它的 manifest 没有 `prompt` 键，产出者只有 `scripts/lib/hero-lead-form.js`
+  // （建站按行业换块）与 `scripts/lib/site-data-migration.js`（老站升级时改写）两处。
+  'hero-with-form': HeroWithFormSection,
   'trusted-brands': TrustedBrandsSection,
   'features-grid': FeaturesGridSection,
   // 通用块「卡片组」。#1132 / #1143 把 `values-grid` + `benefits-list` + `checklist` +

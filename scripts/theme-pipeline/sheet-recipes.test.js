@@ -114,12 +114,12 @@ const POOL_IDS = Object.keys(POOL).sort();
  * 配方那一侧的**完整**表 = 皮 + 几何，也就是 #1318 之前 `sheetFor(i)` 那份字节。
  *
  * 🔴 两个语料回答的是两个问题，下面几格**两个都问**：
- *    · `recipeSheetFor(i)`     —— 「这张画法表本身画得对吗」。域是全部候选（8 种 hero 画法、
+ *    · `recipeSheetFor(i)`     —— 「这张画法表本身画得对吗」。域是全部候选（7 种 hero 画法、
  *                                 6 种 form 画法、80 套候选），这是 #1065 / #1135 那些红当初的域。
  *    · `effectiveSheetFor(id)` —— 「一个站今天真的拿到了吗」。域是池子里的每一套主题，语料是
  *                                 主题表 + 平台那份手维护的 `shapes.css`。
  *    只问前者：有人把 `shapes.css` 改坏，这几格照样绿（形态层是手维护的，配方管不着它）。
- *    只问后者：域塌到 2，而 8 种 hero 画法里只有 2 种被判到。
+ *    只问后者：域塌到 2，而 7 种 hero 画法里只有 2 种被判到。
  */
 /**
  * 🔴 两半要**合成一条规则**，不是首尾相接。`.hero__form` 在皮那一份和几何那一份里各有一条，拼起来
@@ -158,7 +158,20 @@ function mergeCss(cssList, pick) {
   return out.join('\n');
 }
 
-function effectiveSheetFor(themeId) {
+/**
+ * @param {object} [opts]
+ * @param {string} [opts.only] 只保留这一个块的形态规则（别的块整条丢掉）
+ * @param {string} [opts.as]   把那个块的前缀换成这个类名
+ *
+ * 🔴 #1333 —— 这两个参数是为「借用别人那套部件类名的块」加的（manifest 的 `hooksFrom`）。
+ *    `hero-with-form` 渲染的是 `.hero__*` 那一家，所以形态层里它的规则长这样：
+ *        [data-block="hero-with-form"][data-shape="form-side"] .hero__form { … }
+ *    不带参数地还原，会得到 `.hero-with-form .hero__form` —— 而下面那些尺子找的是行首的
+ *    `.hero__form`，于是它们读不到它，判成「这个站没给表单排位置」（实测：⑥ 两套站都红）。
+ *    直接把 `.hero-with-form` 也换成 `.hero` 又不行：那样 hero 自己那份形态规则会跟它**并进同一条**，
+ *    两个块的几何糊在一起。所以做法是「一次只还原一个块，并说明它借的是谁的类名」。
+ */
+function effectiveSheetFor(themeId, opts = {}) {
   const selection = (POOL[themeId] || {}).shapes || {};
   return mergeCss(
     [fs.readFileSync(SHAPES_PATH, 'utf-8'), fs.readFileSync(path.join(THEMES_DIR, `${themeId}.css`), 'utf-8')],
@@ -166,8 +179,10 @@ function effectiveSheetFor(themeId) {
       if (!/\[data-block=/.test(selector)) return selector;
       const m = /\[data-block="([^"]+)"\]\[data-shape="([^"]+)"\]/.exec(selector);
       if (!m || selection[m[1]] !== m[2]) return null;        // 这个站没戴这个画法
+      if (opts.only && m[1] !== opts.only) return null;       // #1333 —— 只还原点名的那个块
+      const prefix = opts.as || m[1];
       return selector
-        .split(new RegExp(`\\[data-block="${m[1]}"\\]\\[data-shape="${m[2]}"\\]`)).join(`.${m[1]}`)
+        .split(new RegExp(`\\[data-block="${m[1]}"\\]\\[data-shape="${m[2]}"\\]`)).join(`.${prefix}`)
         .replace(/\.([a-z0-9-]+) \.\1__/g, '.$1__');            // `.hero .hero__form` → `.hero__form`
     },
   );
@@ -194,6 +209,14 @@ function heroRulesOf(css) {
 // 画法会轮过去。测试自己先验这两条，不合就 exit 2 —— 夹具不成立时不许给读数。
 const BASE = 0;
 const VOICE_PERIOD = 60;
+// 🔴 #1333 —— 下面两处反向对照的步长**从画法表的项数现算**，不再写死。
+// 画法的周期是 L²（`heroLookFor` 那条式子 `(i + floor(i/L)) % L` 的周期），而 L 就是 `HERO_LOOKS`
+// 的项数：#1333 把 `form-side` 搬去 `hero-with-form` 之后它从 8 变成了 7，于是 64 变成 49，
+// 原来写死的 960 / 14400 两个步长当场都不再是「同一个画法」的步长（实测：不改的话这个文件退 2，
+// 报「夹具不成立：i 与 i+960 的画法不同」）。现算的话下次再加减一项不用有人记得回来改。
+const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+const lcm = (a, b) => (a / gcd(a, b)) * b;
+const LOOK_CYCLE = HERO_LOOK_NAMES.length ** 2;
 let FIXTURE_LICENCE;   // #1090 —— 放宽夹具的那个对照用的一对序号，下面 ① 那一格拿它出读数
 const TRIO = [];                                   // 每种画法一个序号，voice 除 hero 两项外全同
 {
@@ -213,8 +236,12 @@ const TRIO = [];                                   // 每种画法一个序号�
   const differing = keys.filter((k) => new Set(vs.map((v) => JSON.stringify(v[k]))).size > 1);
   // 🔴 #1090 起这一列上还会多差三个键（`split` / `splitRhythm` / `cards`）—— 那三族的档期是 16/8/16，
   //    与 voice 原来那 60 合起来的周期是 240，而 **240 是 8 的倍数** ⟹ 沿 240 走，画法只轮得到 8 种
-  //    里的 4 种（实测：走 200 步覆盖 4/8）。也就是说「让这一列连那三个键都相同」在今天的表上
+  //    里的 4 种（实测：走 200 步覆盖 4/8）。也就是说「让这一列连那三个键都相同」在当时的表上
   //    **造不出来**，不是没想到。
+  //    📌 #1333 之后 L=7，这条算术翻面了：240 不是 7 的倍数 ⟹ 沿 240 走 200 步覆盖 **7/7 种**
+  //    （现测）。也就是说今天**造得出来**那种更干净的一列。这一格仍然按放宽的判据跑（差的键都在
+  //    允许清单里就行），因为收紧它是另一件事、要它自己的两向对照 —— 而放宽从来不会漏报：
+  //    下面那道执照照跑，它证的正是这几个键够不着 hero 规则。
   // 🔴 放宽是有代价的，代价必须当场付：下面那格证明那三个键**够不着 hero 规则**。证不出来就 exit 2 —— 
   //    没有那个证明，上面 28 对的「不同」就可能是 split/cards 造出来的，而不是画法。
   // 🔴 #1135 起再多两个（`ctaLook` / `formLook`，模数 5 和 6）—— 同上，把它们并进 240 的周期里
@@ -292,7 +319,7 @@ const dropColours = (rules) => rules.split('\n').map((line) => {
 
 const heroLook = new Map(TRIO.map((i) => [heroLookFor(i), dropColours(heroRulesOf(sheetFor(i)))]));
 
-// 正向：两两之间必须不同 —— 八种画法，28 对，一对都不许相同
+// 正向：两两之间必须不同 —— 画法两两配对（L=8 时 28 对，#1333 之后 L=7 ⟹ 21 对），一对都不许相同
 {
   const names = [...heroLook.keys()];
   const same = [];
@@ -330,17 +357,20 @@ const heroLook = new Map(TRIO.map((i) => [heroLookFor(i), dropColours(heroRulesO
 
 // 反向 ①：同一个画法、同一套 voice、**不同**调色板 ⟹ 去掉颜色之后必须逐字节相同。
 // 少了这一格，上面那 28 对的「不同」可能全是调色板造出来的。
-// 🔴 960 = lcm(voice 60, 画法 64)：voice 相同 + 画法相同，而 960 不是调色板周期 720 的倍数 ⟹ 颜色不同。
+// 🔴 步长 = lcm(voice 60, 画法周期 L²)：voice 相同 + 画法相同，而它不是调色板周期 720 的倍数
+//    ⟹ 颜色不同。L=8 时是 960，#1333 之后 L=7 ⟹ **2940**（2940 % 720 = 60 ≠ 0，下面那三条 die 现场核）。
 //
 // 🔴 #1135 —— 这里比的是 **voice 去掉 `SPLIT_KEYS` 那几个键之后**相同，不再是整个 voice 相同。
 //    为什么必须放宽：加了 `ctaLook`(模数 5，周期 25) 和 `formLook`(模数 6，周期 36) 之后，整个 voice
 //    的周期变成 lcm(60,64,16,8,25,36) = **14400 = 2⁶·3²·5²**，而调色板周期 720 = 2⁴·3²·5 **整除它**
 //    ⟹ 「voice 全同而颜色不同」这件事按构造不存在了（0..20000 里穷举过：voice 全同的 5600 组，
 //    没有一组的调色板不同）。#1135 之前 960 = 2⁶·3·5 不含 3²，所以那时存在。
+//    📌 #1333 把画法周期从 64 换成 49（L 从 8 变 7），那两个数因此变成 2940 / 176400 —— 结论没变：
+//    720 仍然整除 176400、仍然不整除 2940。上面那两个常量现在**从 L 现算**，不再写死。
 //    🔴 凭什么可以放宽：上面那道**执照**刚刚量过 —— 这几个键变了，hero 规则逐字节不变。放宽掉的
 //    正好是它证过够不着 hero 的那几个键，一个不多。没有那道执照，这里就不许放宽。
 {
-  const PERIOD = 960;
+  const PERIOD = lcm(VOICE_PERIOD, LOOK_CYCLE);   // L=7 ⟹ 2940
   const a = BASE;
   const b = BASE + PERIOD;
   const heroVoiceKeys = Object.keys(voiceFor(a)).filter((k) => !SPLIT_KEYS.includes(k));
@@ -366,6 +396,13 @@ const heroLook = new Map(TRIO.map((i) => [heroLookFor(i), dropColours(heroRulesO
 //    #1135 加的两族把 3² 和 5² 带进来 ⟹ 2⁶·3²·5² = 14400（调色板那 720 正好整除它，所以这一格
 //    要的「颜色也相同」自动成立）。
 {
+  // 🔴 #1333 —— 这个 14400 **重新量过，它仍然成立**，别照上面那格的样子把它也改成现算的。
+  //    上面那格的步长要「画法相同」，所以它跟画法周期 L² 绑着，L 一变它就得跟着变。这一格要的是
+  //    **整个 voice 相同**（`heroLook` 也在 voice 里），而那是一次穷举读数，不是几个模数的 lcm：
+  //    现测 0..400000 里 voice 逐字全同的 P 是 14400 / 28800 / 43200 / 57600，第一个仍然是 14400 ——
+  //    L=7 下 14400 不是 49 的倍数，但 `heroLookFor(14400)` 恰好又回到第 0 项（算式
+  //    `(14400 + 2057) % 7 = 0`）。我先按 lcm(3600, 49) = 176400 改过一版，那一版当场 die
+  //    「176400 不再是 voice 的周期整数倍」—— 所以这里写的是量出来的数，不是推出来的数。
   const PERIOD = 14400;
   if (JSON.stringify(voiceFor(BASE)) !== JSON.stringify(voiceFor(BASE + PERIOD))) {
     die(`夹具不成立：i 与 i+${PERIOD} 的 voice 不同 —— ${PERIOD} 不再是 voice 的周期整数倍`);
@@ -573,8 +610,10 @@ console.log('⑤ 两条轴有没有串（#1065）');
       + `${allowed.length} 个内容结构里（${allowed.join(' / ')}），没有一个外观词`);
   }
 
-  // 派生出来的轴一取值表必须**逐字等于** manifest 那三个（顺序不算）—— 少一个也是问题：
-  // `with-form` 掉出去就意味着池里没有一套主题声明支持带表单的 hero。
+  // 派生出来的轴一取值表必须**逐字等于** manifest 的那几个（顺序不算）—— 多一个少一个都是问题。
+  // 📌 #1065 当时这句话写的是「`with-form` 掉出去就意味着池里没有一套主题声明支持带表单的 hero」。
+  //    #1333 之后那个后果不存在了：带表单的首屏是自己一个块类型，跟主题声明什么无关，而 `with-form`
+  //    本来就该从 hero 的取值表里消失。今天这一格守的是「生成器与 manifest 不许分叉」这件事本身。
   const derived = [...HERO_LAYOUTS].sort();
   if (JSON.stringify(derived) === JSON.stringify([...allowed].sort())) {
     ok(`轴一的取值集合逐字等于 manifest：${derived.join(' / ')}`);
@@ -596,8 +635,9 @@ console.log('⑤ 两条轴有没有串（#1065）');
     bad('反向对照失败：把外观词塞进内容结构表之后，这把尺一句话都没说');
   }
 
-  // 每一种内容结构都要有人画 —— 「值表里有 with-form」和「有画法产得出 with-form」是两件事，
-  // 而 #1065 立票时坏的正是后者（值表里写着，池里 0 套）。
+  // 每一种内容结构都要有人画 —— 「值表里有一个词」和「有画法产得出它」是两件事，而 #1065 立票时
+  // 坏的正是后者（`with-form` 写在值表里，池里 0 套画得出来）。那个词 #1333 已经从 hero 的值表里
+  // 拿掉了（带表单的首屏是自己一个块类型），这一格守的性质没变，只是不再有它那一行。
   const byContent = new Map();
   for (const [name, look] of Object.entries(HERO_LOOKS)) {
     if (!byContent.has(look.content)) byContent.set(look.content, []);
@@ -622,6 +662,12 @@ console.log('⑤ 两条轴有没有串（#1065）');
 }
 
 // ══ ⑥ 每一种画法都要给 `.hero__form` 排一个位置（#1065 r2）══════════════════════════════════════
+//
+// 🔴 #1333 —— 两臂问的块**不是同一个**，这是有意的：
+//   · 配方那一臂仍然逐个 hero 画法问 —— `HERO_LOOKS` 的七项各自有一条 `form:` 的 partExtra，而那正是
+//     #1065 r2 那次 CI 红的域（谁加第八种画法而忘了给表单排位置，这一臂当场红）。
+//   · 站那一臂问的是 `hero-with-form` —— 表单今天是**那个块**的部件。它借用 `.hero__*` 那套类名，
+//     所以尺子一个字都不用改，换的只是「去形态层里取哪个块的规则」。
 //
 // 为什么单独一格：r1 的八种画法里只有 `form-side` 给这个部件写了 `order`，其余七种没写，而 CSS 的
 // 默认 `order` 是 **0** —— hero 其余部件从 1 起 ⟹ 「没写」= 排在这块 hero 的最上沿。带
@@ -683,8 +729,18 @@ const formPlacementProblems = (rules) => {
   // 而形态层只有池子真的用到的那些画法）。TRIO 那个夹具留着 —— ⑤ 那一格还在用它问**内容结构**，
   // 那一维仍然是每个候选都答得出来的。
   const rules = new Map(TRIO.map((i) => [heroLookFor(i), heroRulesOf(recipeSheetFor(i))]));
+  // 🔴 #1333 —— 站那一臂问的块从 `hero` 换成了 `hero-with-form`：表单是**那个块**的部件，hero 自己
+  //    已经没有表单了（`HeroSection.tsx` 里那一支删了）。照旧问 hero 的话，这一格问的是
+  //    「一个不存在的部件排在哪」，而它答得出来的唯一答案是「没排」—— 两套站当场全红，而那两套
+  //    其实都好好地给表单排了位置（实测：改成这样之前 `media-cover @ 站 azure-29` /
+  //    `text-center @ 站 ember-12` 两条红，改回来就是 0）。
+  //    `as: 'hero'` 是因为这个块借用 `.hero__*` 那套类名（manifest 的 `hooksFrom`），理由写在
+  //    `effectiveSheetFor` 上面。
+  const FORM_BLOCK = 'hero-with-form';
   for (const id of POOL_IDS) {
-    rules.set(`${(POOL[id].shapes || {}).hero} @ 站 ${id}`, heroRulesOf(effectiveSheetFor(id)));
+    const shape = (POOL[id].shapes || {})[FORM_BLOCK];
+    if (!shape) die(`⑥ 池里 ${id} 的选择单没有 ${FORM_BLOCK} —— 这一格问不出「它的表单排在哪」`);
+    rules.set(`${shape} @ 站 ${id}`, heroRulesOf(effectiveSheetFor(id, { only: FORM_BLOCK, as: 'hero' })));
   }
   const LOOKS_HERE = [...rules.keys()];
   if (LOOKS_HERE.length < HERO_LOOK_NAMES.length + POOL_IDS.length) {
@@ -1394,9 +1450,15 @@ console.log(`\n⑫ #1139 每个块在 ${SAMPLE_N} 套候选里有几副骨架（
   //    📌 上面那段注释里那句「这个数今天没有判别力」仍然成立（把它退回 80 这份测试逐字不变）。
   const N = SAMPLE_N;
   const ROLES_PATH = path.join(DIR, '..', '..', 'src', 'lib', 'sections', 'block-roles.json');
-  let BLOCKS;
+  let BLOCKS; let BORROWERS;
   try {
-    BLOCKS = Object.keys(JSON.parse(fs.readFileSync(ROLES_PATH, 'utf8')));
+    // #1333 —— 借用别的块那套部件类名的块（manifest 的 `hooksFrom`）**不是自己一族骨架**，
+    // 所以它不进这一格的分母。今天只有 `hero-with-form`（它渲染 `.hero__*` 那一家，理由写在
+    // `HeroWithFormSection.tsx` 上）。🔴 名单从 manifest 现取，不写死：写死一份就等于下一个
+    // 借用者出现时这一格 die 在一个其实正确的状态上，而 die 的样子跟真出问题一模一样。
+    const manifests = require(path.join(DIR, '..', 'lib', 'block-manifest.js')).loadManifests();
+    BORROWERS = [...manifests].filter(([, m]) => m.hooksFrom).map(([t]) => t);
+    BLOCKS = Object.keys(JSON.parse(fs.readFileSync(ROLES_PATH, 'utf8'))).filter((b) => !BORROWERS.includes(b));
   } catch (e) {
     die(`⑫ 读不到 ${ROLES_PATH}：${e.message} —— 族清单的权威就是它，读不到就什么都没量成`);
   }
@@ -1417,10 +1479,13 @@ console.log(`\n⑫ #1139 每个块在 ${SAMPLE_N} 套候选里有几副骨架（
     const onlyRoles = BLOCKS.filter((b) => !hooked.has(b));
     const onlyHooks = [...hooked].filter((b) => !BLOCKS.includes(b));
     if (onlyRoles.length || onlyHooks.length) {
-      die(`⑫ 分母自检不成立：block-roles.json 有 ${BLOCKS.length} 个块、钩子清单有 ${hooked.size} 个，`
-        + `只在前者 [${onlyRoles.join(' ')}]，只在后者 [${onlyHooks.join(' ')}]`);
+      die(`⑫ 分母自检不成立：block-roles.json（去掉借用类名的 ${BORROWERS.length} 个）有 ${BLOCKS.length} 个块、`
+        + `钩子清单有 ${hooked.size} 个，只在前者 [${onlyRoles.join(' ')}]，只在后者 [${onlyHooks.join(' ')}]`
+        + '。🔴 一个块只在前者出现有两种可能：它真的没被钩子清单认领（那是本条要抓的洞），'
+        + '或者它借用别的块那套类名而 manifest 里忘了写 `hooksFrom`（那就去补那个键，别改这道自检）');
     }
-    ok(`⑫ 分母自检：block-roles.json 与钩子清单同为 ${BLOCKS.length} 个块，双向差集都空`);
+    ok(`⑫ 分母自检：block-roles.json 与钩子清单同为 ${BLOCKS.length} 个块，双向差集都空`
+      + (BORROWERS.length ? `（另有 ${BORROWERS.length} 个借用别人类名、不自成一族：${BORROWERS.join(' ')}）` : ''));
   }
 
   // ── 分母自检 2：这把尺子把每一条规则都归给了某个块 ─────────────────────────────────────────
@@ -1459,8 +1524,17 @@ console.log(`\n⑫ #1139 每个块在 ${SAMPLE_N} 套候选里有几副骨架（
   //    多样性**，是那三个 type 名整个退役了（并入 `card-group`，别名兼容层 2026-08-23 撤掉）：它们
   //    不在注册表、不在 `HOOKS`、也不在任何候选表族里了 ⟹ 留着这三行会让下面那道分母自检报「表里
   //    多出」并 exit 2。留下的每个块的下限**一个都没动**，`card-group` 仍然是 4。
+  // 🔴 #1333 —— `hero` 从 8 改成 7，而这**不是**「蓄意降低多样性」那一类，所以按上面那句话写下理由：
+  //    第 8 副骨架（`form-side`）没有消失，它**换了主人**。带表单的首屏拆成了自己一个块类型
+  //    `hero-with-form`，那副几何整段搬进了 `public/shapes.css` 的
+  //    `[data-block="hero-with-form"][data-shape="form-side"]`（规则正文一个字没改）。
+  //    它不在这张表里，是因为这一格的分母只收「自己一族骨架」的块，而 `hero-with-form` 借用
+  //    `.hero__*` 那套类名（manifest 的 `hooksFrom`）⟹ 上面那道分母自检把它排除掉了。
+  //    ⟹ 两个块加起来仍然是 8 副，`hero` 自己名下是 7 副。判据可复算：
+  //      grep -oE '\[data-block="hero(-with-form)?"\]\[data-shape="[a-z-]+"\]' public/shapes.css | sort -u
+  //      → hero/media-cover · hero/text-center · hero-with-form/form-side
   const SHAPE_FLOOR = new Map([
-    ['hero', 8], ['contact-info', 3], ['contact-form', 6], ['faq-accordion', 4],
+    ['hero', 7], ['contact-info', 3], ['contact-form', 6], ['faq-accordion', 4],
     ['features-grid', 4], ['card-group', 4], ['testimonials', 4],
     ['cta-banner', 5], ['page-header', 4], ['process-steps', 4], ['content-split', 8],
   ]);

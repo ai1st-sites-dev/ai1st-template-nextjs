@@ -77,7 +77,13 @@
    A hero whose page JSON says `block_layout: "with-form"` renders a short lead form as a THIRD
    sibling of the picture and the words (HeroSection.tsx). This sheet keeps its two-column shape and
    drops the form under the words, boxed, so the picture on the left is untouched. Sites that do not
-   ask for that content shape never render the part and this rule reaches nothing. */
+   ask for that content shape never render the part and this rule reaches nothing.
+
+   📌 #1333 — WHAT PUTS IT IN THE DOM CHANGED; THIS RULE DID NOT. The form is its own block type now
+   (`hero-with-form`), and `HeroSection` has no `block_layout: "with-form"` branch left. That block
+   renders hero's part classes on purpose (`hooksFrom: "hero"` in its manifest), so `.hero__form`
+   still means the same element and this sheet still dresses it. The sentence above is the record of
+   why the part was added, not a description of today's trigger. */
 .hero__form {
   gap: 0.75rem;
   padding: 1.5rem;

@@ -65,7 +65,13 @@
 /* ── #1065 the eighth part: `.hero__form` ────────────────────────────────────────────────────────
    Same part, this sheet's own answer: the words keep the left column and the form sits directly
    under them, unboxed apart from a rule above it — the airy look this sheet is for. It only enters
-   the DOM when the page JSON asks for `block_layout: "with-form"` (HeroSection.tsx). */
+   the DOM when the page JSON asks for `block_layout: "with-form"` (HeroSection.tsx).
+
+   📌 #1333 — WHAT PUTS IT IN THE DOM CHANGED; THIS RULE DID NOT. The form is its own block type now
+   (`hero-with-form`), and `HeroSection` has no `block_layout: "with-form"` branch left. That block
+   renders hero's part classes on purpose (`hooksFrom: "hero"` in its manifest), so `.hero__form`
+   still means the same element and this sheet still dresses it. The sentence above is the record of
+   why the part was added, not a description of today's trigger. */
 .hero__form {
   gap: 0.875rem;
   padding: 1.25rem 0 0;

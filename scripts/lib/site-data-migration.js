@@ -23,6 +23,16 @@
 //   ③ 块自己没写 `role` 时，补上【老类型】那个角色
 // 其余逐字节不动。
 //
+// 🔴 #1333 加了第四样，**只对它那一条规则生效**：`hero` + `block_layout: "with-form"` 改写成
+//   `hero-with-form` 时，顺手删掉 `block_layout` 并补一个空的 `data.form`。两样都不是可选的：
+//     · 删 `block_layout`：新块的取值表里没有 `with-form` 这个值（`blocks/hero-with-form.json` 的
+//       `block_layout` 是 `["default"]`，照 `card-group` 的先例）。留着它，`blockAttrs` 会把
+//       `data-block-layout="with-form"` 原样送进 DOM —— 一个今天没有任何东西声明过的取值。
+//     · 补 `data.form = {}`：`form` 是新块的**必填**槽位，而 `validateSite` 第 ① 条在构建期按必填查
+//       （scope 'build' ⟹ warning 不拦）。不补的话这个站此后每一次构建都多一行「缺必填槽 form」的
+//       假警报。补的是一个**空**记录：按钮文案和成功提示仍然缺省，由 `HeroLeadForm` 自己那两句顶上
+//       ⟹ 客人看到的字一个都没变。建站那条路（`lib/hero-lead-form.js`）写的是同一个东西。
+//
 // 🔴 `data.variant` / `data.style` 留着，不删。它们今天没人读，而**留在 data 里是有理由的**：
 // `CardGroupSection.tsx` 顶上那段写着 `scripts/theme-gallery/verify-applied.mjs` 拿磁盘上的
 // `data.variant` 跟产物里的对账，删掉它那一格会红在一件没发生的事上。别名表里那些 `null` 的意思
@@ -50,6 +60,29 @@ const path = require('path');
 //
 // 实测（#1166，四个老类型各拿德馨金融真数据跑一次构建）：补与不补，四个块产物里的 `data-role`
 // 都是 `optional`，整块 HTML 逐字节相同（md5 四对四相同）。
+// LEGACY_BLOCK_SHAPES —— 带条件的迁移规则（#1333）。
+//
+// 🔴 为什么不能塞进上面那张 `LEGACY_BLOCK_TYPES`：那张表是**类型对类型**的，键就是老 type 名。
+// 本票要迁的不是「所有 hero」，是「hero 里 `block_layout` 恰好是 `with-form` 的那些」——
+// 不带表单的 hero 一个都不许碰（它们在今天的模板里仍然是合法的 `hero`）。把它写成表的一行，
+// 要么迁多了（全部 hero），要么迁不到（表按 type 查，查不到条件）。
+//
+// 每条规则：
+//   · `when`  这个块符不符合（只读，别改它）
+//   · `to`    换成哪个 type
+//   · `drop`  顺手从块上删掉哪几个键
+//   · `data`  往 `block.data` 上补哪几个键（**只在缺的时候补**，已经有的不覆盖）
+//   · `role`  【老形状】那个角色，走跟上面同一个 `roleToWrite`（补了才有区别时才写）
+const LEGACY_BLOCK_SHAPES = [
+  {
+    when: (b) => b.type === 'hero' && b.block_layout === 'with-form',
+    to: 'hero-with-form',
+    drop: ['block_layout'],
+    data: { form: {} },
+    role: 'lead',
+  },
+];
+
 const LEGACY_BLOCK_TYPES = {
   'values-grid': { to: 'card-group', role: 'optional', rename: {} },
   'benefits-list': { to: 'card-group', role: 'optional', rename: {} },
@@ -155,6 +188,23 @@ function migrateBlock(block, row, roleWanted) {
   return true;
 }
 
+// migrateShapeBlock —— 带条件那种规则的改写（#1333）。跟 `migrateBlock` 分开是因为它们改的东西
+// 不一样：那个换名 + 改数据键名，这个换名 + 删键 + 补一个缺省记录。
+function migrateShapeBlock(block, rule, roleWanted) {
+  block.type = rule.to;
+  for (const key of rule.drop || []) delete block[key];
+  if (rule.data) {
+    // 🔴 只在缺的时候补：磁盘上已经写了文案的站（老板自己改过按钮字）不许被这一步覆盖。
+    const data = (block.data && typeof block.data === 'object' && !Array.isArray(block.data)) ? block.data : {};
+    for (const [k, v] of Object.entries(rule.data)) {
+      if (!Object.prototype.hasOwnProperty.call(data, k)) data[k] = v;
+    }
+    block.data = data;
+  }
+  if (block.role === undefined && roleWanted !== null) block.role = roleWanted;
+  return true;
+}
+
 // planSiteMigration —— 先把整个站算一遍，再决定动不动手。
 //
 // 🔴 两阶段是硬要求，不是洁癖：**迁不了的一律不许升**（#1166 AC10 反向那一半）。数据里出现一个
@@ -188,6 +238,23 @@ function planSiteMigration(siteDir, options = {}) {
       if (!block || typeof block !== 'object') return;
       // `{ "ref": "<id>" }` 那种条目没有自己的 type，它指向站级块库里那一条（#998）。
       if (typeof block.type !== 'string') return;
+      // #1333 —— 带条件的规则先问，它比按 type 查的那张表窄（同一个 type 里只有一部分块符合）。
+      // 🔴 顺序不是随意的：`hero` 不在 `LEGACY_BLOCK_TYPES` 里，所以今天两条路碰不到同一个块；
+      //    写在前面是为了将来某个老 type 同时要走两条路时，窄的那条先说话。
+      const rule = LEGACY_BLOCK_SHAPES.find((r) => r.when(block));
+      if (rule) {
+        const before = block.type;
+        const hadRole = block.role !== undefined;
+        const roleWanted = roleToWrite(rule, roles);
+        const droppedKeys = (rule.drop || []).filter((k) => Object.prototype.hasOwnProperty.call(block, k));
+        migrateShapeBlock(block, rule, roleWanted);
+        changes.push({
+          file, index, id: block.id || null, from: before, to: rule.to,
+          renamed: [], dropped: droppedKeys, roleAdded: hadRole ? null : roleWanted,
+        });
+        changed = true;
+        return;
+      }
       const row = LEGACY_BLOCK_TYPES[block.type];
       if (row) {
         const before = block.type;
@@ -233,6 +300,7 @@ function applyPlan(plan) {
 
 module.exports = {
   LEGACY_BLOCK_TYPES,
+  LEGACY_BLOCK_SHAPES,
   knownBlockTypes,
   blockRoles,
   roleToWrite,

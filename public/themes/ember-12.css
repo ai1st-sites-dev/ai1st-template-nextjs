@@ -11,26 +11,23 @@
 
 .hero__media {
   width: 100%;
-  border-radius: 0;
+  border-radius: calc(var(--radius-block) * 7);
   object-fit: cover;
   object-position: center;
   background-color: var(--color-primary-100);
-  overflow: hidden;
+  margin-top: 2rem;
 }
 
 .hero__body {
   gap: 1rem;
   margin-left: auto;
   margin-right: auto;
-  padding: 2.5rem;
-  border-radius: calc(var(--radius-block) * 7);
-  background-color: var(--color-primary-50);
 }
 
 .hero__title {
   font-family: var(--font-heading);
-  font-size: 3.5rem;
-  line-height: 1.05;
+  font-size: 3.75rem;
+  line-height: 1.02;
   font-weight: 900;
   letter-spacing: -0.02em;
   color: var(--color-primary-900);

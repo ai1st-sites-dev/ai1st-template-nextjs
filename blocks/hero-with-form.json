@@ -1,0 +1,64 @@
+{
+  "type": "hero-with-form",
+  "category": "banner",
+  "roleDefault": "lead",
+  "hooksFrom": "hero",
+  "block_layout": [
+    "default"
+  ],
+  "shapes": [
+    {
+      "name": "form-side",
+      "needs": [],
+      "layout_intent": {
+        "items": "none",
+        "item_wrap": "allow",
+        "headline": "none",
+        "media": "below",
+        "columns": "two"
+      }
+    }
+  ],
+  "slots": {
+    "headline": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false
+    },
+    "subheadline": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false
+    },
+    "ctaPrimary": {
+      "kind": "link",
+      "required": true,
+      "promptOptional": false,
+      "shape": "{label, href}"
+    },
+    "ctaSecondary": {
+      "kind": "link",
+      "required": true,
+      "promptOptional": false,
+      "shape": "{label, href}"
+    },
+    "imageUrl": {
+      "kind": "image",
+      "required": false,
+      "promptOptional": true,
+      "shape": "string"
+    },
+    "form": {
+      "kind": "object",
+      "required": true,
+      "promptOptional": false,
+      "shape": "{buttonText, successMessage}"
+    }
+  },
+  "variants": {},
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  }
+}

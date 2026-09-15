@@ -232,6 +232,20 @@ function checkManifestShape(name, m, cssShapes) {
     bad('variants 必须是对象（外观词 → 一句说明）');
   }
   if (m.variantKey !== undefined && !isStr(m.variantKey)) bad('variantKey 有的话必须是非空字符串');
+  // #1333 —— `hooksFrom` 说的是「这个块的 HTML 用的是**另一个块**那套部件类名」。
+  //
+  // 今天只有一个：`hero-with-form` 渲染的是 `.hero` / `.hero__body` / `.hero__form` 这一家
+  // （`src/components/sections/HeroWithFormSection.tsx` 上写了为什么 —— 皮那一层按类名写，两个块
+  // 本来就是同一副骨架、同一块底，真正的差别是「有没有那个表单」，而那由块类型说，不由类名说）。
+  //
+  // 🔴 它必须被**声明**，不能靠读组件源码猜：`theme-pipeline/sheet-recipes.test.js` ⑫ 的分母自检
+  // 拿「block-roles.json 的块」跟「钩子清单里的块」对差集，而一个借用别人类名的块在后者里按构造
+  // 不存在 ⟹ 那一格会 die 在一个其实正确的状态上。有了这个键，两边就能说清是哪一个块、为什么。
+  // 指向的必须是真块（拼错的话那一格又会把它当成「少了一个块」）—— 这一条在 loadManifests 里核，
+  // 因为这里看不到别的 manifest。
+  if (m.hooksFrom !== undefined && !isStr(m.hooksFrom)) {
+    bad('hooksFrom 有的话必须是非空字符串（另一个块的 type —— 这个块的 HTML 用的是它那套部件类名）');
+  }
 
   const ind = m.industries;
   if (ind === null || typeof ind !== 'object' || Array.isArray(ind)) bad('industries 必须是对象');
@@ -298,6 +312,16 @@ function loadManifests(dir = BLOCKS_DIR) {
     }
     checkManifestShape(name, m, cssShapes);
     byType.set(m.type, m);
+  }
+  // #1333 —— `hooksFrom` 指的必须是这一批里真的有的块。拼错的方向是静默的：借用关系认不出来，
+  // 于是那个块在「钩子清单里有没有它」那道差集里被当成漏了一个块（见 checkManifestShape 里那段）。
+  for (const [type, m] of byType) {
+    if (m.hooksFrom !== undefined && !byType.has(m.hooksFrom)) {
+      throw new Error(`blocks/${type}.json: hooksFrom 指向 "${m.hooksFrom}"，而 blocks/ 里没有这个块`);
+    }
+    if (m.hooksFrom === type) {
+      throw new Error(`blocks/${type}.json: hooksFrom 指向自己 —— 它说的是「借用【别的】块那套部件类名」`);
+    }
   }
   cache = { dir, byType };
   return byType;

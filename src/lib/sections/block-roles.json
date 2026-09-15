@@ -1,5 +1,6 @@
 {
   "hero": "lead",
+  "hero-with-form": "lead",
   "contact-info": "essential",
   "contact-form": "essential",
   "quote-form": "essential",

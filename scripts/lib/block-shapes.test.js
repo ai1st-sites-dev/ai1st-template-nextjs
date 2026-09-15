@@ -14,7 +14,7 @@
  *    🔴 负向臂跑在一个临时目录上，**先拿未改动的副本证明这套夹具本身立得起来**，否则五次「被拒」可能全是
  *    夹具坏了（一组对照全读到同一个值 = 尺子坏了）。
  * ④ 三个谓词（slotFilled / shapeNeedsGap / filledOptionalSlots）的读数表 + AC2 钉的两个事实
- *    （hero 默认 form-side；media-cover 需要 imageUrl）。
+ *    （hero 默认 text-center；media-cover 需要 imageUrl）。
  */
 
 'use strict';
@@ -79,7 +79,9 @@ console.log('── ④ 三个谓词');
   const wrong = table.filter(([v, want]) => slotFilled(v) !== want).map(([v]) => JSON.stringify(v));
   check(wrong.length === 0, `slotFilled 读数表 ${table.length} 格一致${wrong.length ? `（错在 ${wrong.join(' ')}）` : ''}`);
   const hero = manifests.get('hero');
-  check(defaultShapeOf(hero) === 'form-side', `hero 的默认形态是 form-side（AC2 的前提，读到 ${defaultShapeOf(hero)}）`);
+  // #1333 —— hero 的默认从 `form-side` 换成了 `text-center`：带表单的首屏搬去了 `hero-with-form`，
+  // 而剩下的 `media-cover` 要求有图，当不了默认（`checkManifestShape` 那条「默认形态 needs 必须为空」）。
+  check(defaultShapeOf(hero) === 'text-center', `hero 的默认形态是 text-center（AC2 的前提，读到 ${defaultShapeOf(hero)}）`);
   const mc = hero.shapes.find((s) => s.name === 'media-cover');
   check(mc && mc.needs.length === 1 && mc.needs[0] === 'imageUrl', `hero/media-cover needs 恰好 ["imageUrl"]（读到 ${JSON.stringify(mc && mc.needs)}）`);
   check(JSON.stringify(shapeNeedsGap(hero, 'media-cover', {})) === '["imageUrl"]', 'shapeNeedsGap(hero, media-cover, 空) = ["imageUrl"]');
@@ -111,8 +113,8 @@ console.log('── ② validateSite 第 ⑥ 条');
   const sixth = (pages) => validateSite({ pages, scope: 'edit' }).problems.filter((p) => p.includes('shape "'));
   const empty = sixth([heroPage({ imageUrl: '' })]);
   const filled = sixth([heroPage({ imageUrl: '/hero.jpg' })]);
-  check(empty.length === 1 && empty[0].includes('"imageUrl"') && empty[0].includes('form-side'),
-    `imageUrl 为空 ⟹ 恰好一条，点名 imageUrl 与落点 form-side：${empty[0] || '(没有)'}`);
+  check(empty.length === 1 && empty[0].includes('"imageUrl"') && empty[0].includes('text-center'),
+    `imageUrl 为空 ⟹ 恰好一条，点名 imageUrl 与落点 text-center：${empty[0] || '(没有)'}`);
   check(filled.length === 0, `imageUrl 填上 ⟹ 0 条（读到 ${filled.length}）`);
   check(empty.length !== filled.length, '两臂读数不同（尺子没坏）');
   const unknown = sixth([{ slug: 'p', blocks: [{ ...heroPage({}).blocks[0], shape: 'not-a-shape' }] }]);
@@ -145,9 +147,13 @@ console.log('── ③ checkManifestShape 白名单');
     ['没有 shapes', (m) => { delete m.shapes; }, 'shapes 是 undefined'],
     ['needs 指向不存在的槽位', (m) => { m.shapes[1].needs = ['nope']; }, '"nope" 不是这个块的槽位'],
     ['needs 指向必填槽', (m) => { m.shapes[1].needs = ['headline']; }, '"headline" 是必填槽'],
-    ['默认形态带 needs', (m) => { m.shapes[0].needs = ['imageUrl']; }, 'shapes[0] ("form-side") 是默认形态，needs 必须为空'],
+    ['默认形态带 needs', (m) => { m.shapes[0].needs = ['imageUrl']; }, 'shapes[0] ("text-center") 是默认形态，needs 必须为空'],
     ['形态名在 CSS 里没有规则', (m) => { m.shapes[1].name = 'no-such-shape'; }, '[data-block="hero"][data-shape="no-such-shape"]'],
-    ['同一个形态写两次', (m) => { m.shapes.push({ name: 'form-side', needs: [] }); }, '"form-side" 写了两次'],
+    // 🔴 推的那一项要带 `layout_intent`：#1332 起「意图不完整」那条检查排在「写了两次」**前面**，
+    //    不带的话这一格读到的是缺五根轴的报文，而它要验的是重名 —— 尺子会点名另一件事。
+    ['同一个形态写两次',
+      (m) => { m.shapes.push({ name: 'text-center', needs: [], layout_intent: m.shapes[0].layout_intent }); },
+      '"text-center" 写了两次'],
   ];
   for (const [label, mutate, marker] of cases) {
     const msg = withHero(mutate);

@@ -302,26 +302,22 @@ if (MINIMAL) {
   items[0].defaultOpen = true;
   patched.push('faq-accordion item 1 is open → .faq-accordion__answer is measured again (#1060)');
 }
-if (MINIMAL) {
-  // 🔴 最少版**有意**不补它：最少版要问的正是「没图、没表单时形态落不落回默认」（设计文档 D11 ⑥）。
-  //    `.hero__form` 这一族在最少版上没有人量（接受的代价）。
-  skipped.push("hero block_layout=with-form → .hero__form（最少版要问的正是没表单时形态落不落回默认）");
-} else {
-  // #1065 —— hero 的第八个部件 `.hero__form` 只在这块 hero 自己说「我是带表单的那种」时才进 DOM
-  //（`HeroSection.tsx` 读的是页面 JSON 的 `block_layout`，不是主题的 `supports.hero` —— 内容结构
-  //  归站，08-12 spec D5 / 08-18 spec D3）。`gen-allblocks.js` 从组件的 props 类型推数据，推不出
-  //  这个字段，所以它归这里补。
-  //
-  // 🔴 不补的后果不是「少量了一个钩子」：`theme-css-invariants.mjs` 在 THEME_CSS_SAMPLE_WIDENED=1
-  //    下把「契约里有、这个站的页面上没有」当成 finding（rc≠0），豁免的只有「提交之后才进 DOM 的
-  //    表单状态」那一族（判据是那个文件里的 `reachableOnSubmitOnly` 一处，#1150 起它认两种拼法：
-  //    块自己就是表单时写 `__error`，表单是块的一个部件时写 `-error`）。也就是说往契约里加一个
-  //    钩子而不喂它数据 = CI 当场红。
-  const s = sectionOf('hero');
-  if (!s) die('the generated page has no hero block');
-  s.block_layout = 'with-form';
-  patched.push('hero block_layout=with-form → .hero__form（#1065）');
-}
+// #1333 —— `.hero__form` 这一族不再靠往 hero 上补一个字段来进 DOM，所以这里不再补任何东西。
+//
+// 以前这里写的是 `s.block_layout = 'with-form'`：`.hero__form` 只在页面 JSON 说「这块 hero 是带表单
+// 的那种」时才渲染（#1065），而 `gen-allblocks.js` 从组件的 props 类型推数据，推不出那个字段。
+// #1333 把带表单的首屏拆成了自己一个块类型 `hero-with-form`，它**在注册表里** ⟹ `gen-allblocks.js`
+// 按构造就把它连同 `data.form` 一起写进这一页了（组件类型里那个槽是 `{ buttonText?, successMessage? }`，
+// 合成器照着造一个对象）。
+//
+// 🔴 不补的后果那一段照旧成立，只是换了保证人：`theme-css-invariants.mjs` 在
+//    THEME_CSS_SAMPLE_WIDENED=1 下把「契约里有、这个站的页面上没有」当成 finding（rc≠0），豁免的
+//    只有「提交之后才进 DOM 的表单状态」那一族（`reachableOnSubmitOnly`）。`.hero__form` 不在豁免里
+//    ⟹ 它一页都不进 DOM 就是 CI 红。今天保它进 DOM 的是注册表那一行，不是这里的一次 patch，
+//    而「它真的在这一页上」由下面那段读回逐版核。
+// 🔴 最少版也照样有它：`form` 是 `blocks/hero-with-form.json` 的**必填**槽，而最少版削的是
+//    `required: false` 的槽位。#1065 当时接受的那个代价（「`.hero__form` 这一族在最少版上没有人量」）
+//    本票顺带还掉了。
 if (MINIMAL) {
   // 最少版：`items` 是必填列表槽、已被压到一项，而且不替换它的内容 ⟹ `.card-group__features`
   // 在最少版上没有人量（接受的代价）。这一版要问的是「三列卡片组只填一张卡时散不散」。
@@ -460,10 +456,19 @@ const EXTRA_SERVICES = [
   // 🔴 serviceSlug 两版都读回：它是必填槽，最少版照样写，而且**必须**是真 slug —— 合成值
   //    （`'ServiceSlug text'`）筛不到任何页面，组件 `return null`，整块不进 DOM。
   if (find('service-related-pages').data.serviceSlug !== SERVICE_SLUG) bad.push('serviceSlug did not stick');
+  // #1333 —— 两版都读回：`.hero__form` / `.hero__form-error` / `.hero__form-success` 三个契约钩子
+  // 全靠 `hero-with-form` 这个块进 DOM。它不在、或者它的 `form` 被削掉了 ⟹ 那三个钩子一页都没有，
+  // 而那是上面那段说的 CI 红。两版都问，是因为最少版削的是可选槽而 `form` 是必填槽 —— 这句话要有人核。
+  const hwf = find('hero-with-form');
+  if (!hwf) bad.push('hero-with-form is not on the allblocks page — .hero__form* hooks would be on no page');
+  else if (!hwf.data || typeof hwf.data.form !== 'object' || hwf.data.form === null) {
+    bad.push(`hero-with-form has no data.form (${JSON.stringify(hwf.data && hwf.data.form)}) — on the MINIMAL page that would mean a required slot got trimmed`);
+  }
   if (!MINIMAL) {
     if (find('gallery').data.items[2].imageUrl !== undefined) bad.push('gallery item 3 still has imageUrl');
     if (find('feature-comparison').data.comparisons[0].them !== false) bad.push('feature-comparison row 1 them is not false');
-    if (find('hero').block_layout !== 'with-form') bad.push('hero block_layout is not with-form — .hero__form would be on no page');
+    // #1333 —— 换了对象：`.hero__form` 现在由 `hero-with-form` 这个块自己带进来，不再是 hero 上的一个字段。
+    if (find('hero').block_layout !== undefined) bad.push('hero still carries block_layout — #1333 took that branch out of HeroSection');
   } else {
     // 🔴 最少版自己的读回，两个方向都问 —— 「削过了」和「一个字节都没削」在只问前半句时长得一样。
     //    ① 可选槽位真的**不存在**（不是空串）· ② 必填列表槽真的只剩一项 · ③ 那五处 propping 真的没写进去。

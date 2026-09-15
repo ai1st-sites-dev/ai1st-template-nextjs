@@ -5,10 +5,15 @@ import { siteId, leadApi } from '@/lib/config';
 
 // #1065 — hero 的第八个部件：`.hero__form`。
 //
-// 🔴 为什么 hero 需要它：`with-form` 从 2026-08-12 那份 spec 起就写在 hero 的内容形态值表里
+// 🔴 为什么会有它（#1065 的原话）：`with-form` 从 2026-08-12 那份 spec 起就写在 hero 的内容形态值表里
 // （`blocks/hero.json` 的 `block_layout`），而在这个文件之前**没有任何东西渲染它** —— 主题可以声明
 // 「我给带表单的 hero 写了造型」，站也可以在页面 JSON 里写 `block_layout: "with-form"`，产物里
 // 一个表单都不会出现。声明一个渲染不出来的形态，比不声明更糟：它是静默的。
+//
+// 🔴 **今天的宿主不是 hero 了（#1333）。** 带表单的首屏拆成了自己一个块类型 `hero-with-form`
+// （`HeroWithFormSection.tsx`），它**无条件**渲染这个组件；`HeroSection.tsx` 里那个
+// `block_layout === 'with-form'` 的分支删掉了，`with-form` 也不在 hero 的取值表里了。
+// 上面那段留作出处，别照它去找今天的触发条件。这个组件本身一个字没改。
 //
 // 🔴 为什么是**真的**表单，不是一个摆样子的框：这是客人在首屏留下联系方式的那条路，跟
 // `ContactFormSection`（#268b）走的是同一个后端入口 `${leadApi}/api/leads`，同一个蜜罐字段 `hp`，

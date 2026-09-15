@@ -386,12 +386,14 @@ console.log('\n── ⑨ hero：supports 里只有内容结构，画法在表�
   else if (mismatched.length) bad(`${mismatched.length} 套的池子记录跟它自己那份表对不上：${mismatched.slice(0, 3).join(' · ')}`);
   else ok(`${poolIds.length} 套逐套：池里写的内容结构 == 它那份表实际画的那种画法的内容结构`);
 
-  // AC-C 的下限：七种外观每种 ≥ 8 套，带表单那种单独数也要 ≥ 8。
+  // AC-C 的下限：每种外观 ≥ 8 套。🔴 「几种」从 `HERO_LOOK_NAMES` 现取，不写死
+  //（#1333 把 `form-side` 搬去了 `hero-with-form`，这张表从 8 种变 7 种）。
   const thin = [...counts].filter(([, ids]) => ids.length < 8);
   const line = [...counts].map(([n, ids]) => `${n} ${ids.length}`).join(' · ');
   // 🔴 上面那三条（值域 / 反向对照 / 池子跟表对不对得上）跟池子几套无关，照跑；只有这条下限要门控：
-  //    8 种画法 × 每种 ≥8 套 = 至少 64 套，脚手架池 2 套按构造到不了。
-  if (skip('⑨ 每种画法 ≥ 8 套', `脚手架池 2 套分不出 8 种画法的下限（今天的分布：${line}）`)) {
+  //    画法种数 × 每种 ≥8 套（今天 7 × 8 = 56），脚手架池 2 套按构造到不了。
+  if (skip('⑨ 每种画法 ≥ 8 套',
+    `脚手架池 2 套分不出 ${HERO_LOOK_NAMES.length} 种画法的下限（今天的分布：${line}）`)) {
     // ⏭ 已打印
   } else if (thin.length) bad(`有画法不到 8 套：${thin.map(([n, ids]) => `${n} ${ids.length}`).join(', ')}（全表：${line}）`);
   else ok(`每种画法都 ≥ 8 套：${line}`);

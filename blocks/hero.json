@@ -4,19 +4,18 @@
   "roleDefault": "lead",
   "block_layout": [
     "with-media",
-    "text-only",
-    "with-form"
+    "text-only"
   ],
   "shapes": [
     {
-      "name": "form-side",
+      "name": "text-center",
       "needs": [],
       "layout_intent": {
         "items": "none",
         "item_wrap": "allow",
         "headline": "none",
         "media": "below",
-        "columns": "two"
+        "columns": "one"
       }
     },
     {
