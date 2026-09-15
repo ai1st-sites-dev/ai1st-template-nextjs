@@ -10,13 +10,27 @@
   "shapes": [
     {
       "name": "form-side",
-      "needs": []
+      "needs": [],
+      "layout_intent": {
+        "items": "none",
+        "item_wrap": "allow",
+        "headline": "none",
+        "media": "below",
+        "columns": "two"
+      }
     },
     {
       "name": "media-cover",
       "needs": [
         "imageUrl"
-      ]
+      ],
+      "layout_intent": {
+        "items": "none",
+        "item_wrap": "allow",
+        "headline": "none",
+        "media": "cover",
+        "columns": "one"
+      }
     }
   ],
   "slots": {

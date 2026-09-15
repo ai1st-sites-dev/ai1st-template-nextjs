@@ -8,11 +8,25 @@
   "shapes": [
     {
       "name": "heading-side",
-      "needs": []
+      "needs": [],
+      "layout_intent": {
+        "items": "stack",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "none",
+        "columns": "two"
+      }
     },
     {
       "name": "numbered-rail",
-      "needs": []
+      "needs": [],
+      "layout_intent": {
+        "items": "stack",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "none",
+        "columns": "one"
+      }
     }
   ],
   "slots": {

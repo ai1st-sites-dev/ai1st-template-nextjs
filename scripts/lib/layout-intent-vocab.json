@@ -1,0 +1,55 @@
+{
+  "axes": {
+    "items": [
+      "row",
+      "grid",
+      "stack",
+      "none"
+    ],
+    "item_wrap": [
+      "avoid",
+      "allow"
+    ],
+    "headline": [
+      "above",
+      "side",
+      "none"
+    ],
+    "media": [
+      "side",
+      "cover",
+      "above",
+      "below",
+      "none"
+    ],
+    "columns": [
+      "one",
+      "two",
+      "three",
+      "many"
+    ]
+  },
+  "columnCount": {
+    "one": 1,
+    "two": 2,
+    "three": 3
+  },
+  "headingSuffixes": [
+    "__headline",
+    "__heading",
+    "__title"
+  ],
+  "mediaSuffix": "__media",
+  "bodySuffix": "__body",
+  "desktopWidth": 1280,
+  "phoneWidth": 375,
+  "slack": 1,
+  "coverWidthRatio": 0.95,
+  "coverHeightRatio": 0.6,
+  "contentAfterHeading": [
+    "__sub",
+    "__intro",
+    "__desc",
+    "__body"
+  ]
+}

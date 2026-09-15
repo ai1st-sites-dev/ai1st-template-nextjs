@@ -46,6 +46,9 @@
 // readable". Taking only the modal colour would pass a gradient that runs into the text colour at
 // one end — which is #966's failure with an extra step.
 import { createRequire } from 'node:module';
+// #1332 —— 检查 ⑨ 的探针与判据。住在自己的文件里而不是这里，是为了让每一条判据都能在不起浏览器的
+// 情况下喂数跑 —— 起浏览器的那一半只负责取数。
+import { INTENT_PROBE, VOCAB as INTENT_VOCAB, judgeIntent } from './lib/layout-intent.mjs';
 
 // 🔴 LOADING THE INSTRUMENT IS ITS OWN STEP, AND IT ANSWERS 2 (#1062).
 // Left to Node, a module that will not load throws before a line of this file runs, and Node's own
@@ -2358,8 +2361,117 @@ async function judgeRowShapes(where) {
   return seen;
 }
 
+// ── ⑨ every block wears the layout its manifest says it should, in every shape it has (#1332) ────
+//
+// 检查 ⑧ 量的是一种形态（`row`，3 个块 / 3 对）。50 个 (块, 形态) 对里其余 47 对今天一条几何断言
+// 都没有 —— 主题已经写不出几何（契约 v3），所以还会写错几何的只剩形态层，而它没人看。
+//
+// 每份 `blocks/<type>.json` 的每个形态带一段 `layout_intent`：五根轴上的一个有限词表，每个词对应
+// 一条边界框断言（判据全在 `scripts/lib/layout-intent.mjs`，词表在 `layout-intent-vocab.json`，
+// 建站期的校验器 `block-manifest.js` 读同一份）。这里做的是取数那一半：
+//
+//   🔴 **逐个把 `data-shape` 换成 manifest 里的每一种形态**，而不是只量这套主题今天选中的那一种。
+//      形态按定义只是 CSS（设计文档 D14 第 3 条「形态只能是 CSS，一行 JS 都不许带」），所以在 DOM 上
+//      改这个属性再量，量到的就是那个形态真正的排法。只量选中的那一种的话，两套主题 × 每块一种 =
+//      50 对里最多看得到 31 对，而没有任何主题选中的形态永远没人判。
+//   🔴 **量完把属性放回去**，连同视口和滚动位置 —— 后面还有别的检查在同一页上取数（⑧ 的
+//      `judgeRowShapes` 为同一件事付过一次代价，理由写在它上面），而且下面真去核了一遍放回去没有。
+const INTENT_MANIFESTS = (() => {
+  const req = createRequire(import.meta.url);
+  const px = req('node:path');
+  const fsx = req('node:fs');
+  const dir = px.join(req('node:url').fileURLToPath(new URL('.', import.meta.url)), '..', 'blocks');
+  const out = new Map();
+  for (const f of fsx.readdirSync(dir)) {
+    if (!f.endsWith('.json')) continue;
+    const m = JSON.parse(fsx.readFileSync(px.join(dir, f), 'utf-8'));
+    if (m && m.type) out.set(m.type, m);
+  }
+  return out;
+})();
+const INTENT_ARM = SAMPLE_MINIMAL ? '最少版' : '全填版';
+const intentCells = [];
+const intentPairsSeen = new Set();
+const intentBlocksOnPage = new Set();
+const intentNoIntent = [];
+// 块自己横向溢出的格子 —— 报而不判，汇总行给总数（理由在 layout-intent.mjs 里那段实测）。
+const intentSelfOverflow = [];
+/** 合并块级默认与形态自己的覆盖 —— 跟 `block-manifest.js` 的 `layoutIntentFor` 同一条规矩。 */
+function intentFor(m, shapeName) {
+  const sh = (m.shapes || []).find((x) => x && x.name === shapeName);
+  if (!sh) return null;
+  return { ...(m.layout_intent || {}), ...(sh.layout_intent || {}) };
+}
+async function judgeLayoutIntent(where) {
+  const present = await page.evaluate(() => [...new Set([...document.querySelectorAll('[data-block]')]
+    .map((el) => el.getAttribute('data-block')))]);
+  if (present.length === 0) return 0;
+  for (const b of present) intentBlocksOnPage.add(b);
+  const before = page.viewportSize();
+  const beforeScroll = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }));
+  const settle = () => page.evaluate(() => new Promise((done) => {
+    requestAnimationFrame(() => requestAnimationFrame(done));
+  }));
+  const worn = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('[data-block]')]
+    .map((el) => [el.getAttribute('data-block'), el.getAttribute('data-shape')])));
+  let cells = 0;
+  for (const [w, phone] of [[INTENT_VOCAB.desktopWidth, false], [INTENT_VOCAB.phoneWidth, true]]) {
+    await page.setViewportSize({ width: w, height: before.height });
+    await settle();
+    for (const block of present) {
+      const m = INTENT_MANIFESTS.get(block);
+      if (!m || !Array.isArray(m.shapes) || m.shapes.length === 0) {
+        if (!phone) intentNoIntent.push(`${block}（${where}）: blocks/${block}.json 没有 shapes 清单`);
+        continue;
+      }
+      for (const sh of m.shapes) {
+        const intent = intentFor(m, sh.name);
+        if (!intent || Object.keys(intent).length === 0) {
+          if (!phone) intentNoIntent.push(`${block}/${sh.name}: manifest 里没有 layout_intent`);
+          continue;
+        }
+        await page.evaluate(([t, x]) => {
+          const el = document.querySelector(`[data-block="${t}"]`);
+          if (el) el.setAttribute('data-shape', x);
+        }, [block, sh.name]);
+        await settle();
+        const rows = await page.evaluate(INTENT_PROBE, INTENT_VOCAB);
+        const r = rows.find((x) => x.block === block);
+        if (!r) continue;
+        const { checks, problems: probs, notes, selfOverflow } = judgeIntent(r, intent, { phone, where, arm: INTENT_ARM });
+        if (selfOverflow) intentSelfOverflow.push(`${block}/${sh.name} ${w}px ${where} (+${Math.round(r.scrollWidth - r.clientWidth)}px)`);
+        for (const x of probs) problems.push(x);
+        for (const n of notes) readings.push(n);
+        const axes = Object.entries(intent).map(([k, v]) => `${k}:${v}`).join(' ');
+        readings.push(`  ⑨ layout intent — ${block}/${sh.name} · ${INTENT_ARM} · ${w}px · ${where}`
+          + ` · ${axes} · ${checks.length} 条断言(${checks.join(',')}) · ${probs.length ? `🔴 ${probs.length} 条不成立` : '✅'}`);
+        intentCells.push({ block, shape: sh.name, arm: INTENT_ARM, w, where, checks: checks.length, bad: probs.length });
+        intentPairsSeen.add(`${block}/${sh.name}`);
+        cells += 1;
+      }
+      await page.evaluate(([t, x]) => {
+        const el = document.querySelector(`[data-block="${t}"]`);
+        if (!el) return;
+        if (x === null) el.removeAttribute('data-shape'); else el.setAttribute('data-shape', x);
+      }, [block, worn[block] === undefined ? null : worn[block]]);
+    }
+  }
+  await page.setViewportSize(before);
+  await settle();
+  await page.evaluate(({ x, y }) => window.scrollTo({ left: x, top: y, behavior: 'instant' }), beforeScroll);
+  await settle();
+  const restored = await page.evaluate((w) => [...document.querySelectorAll('[data-block]')]
+    .filter((el) => (el.getAttribute('data-shape') || null) !== (w[el.getAttribute('data-block')] ?? null))
+    .map((el) => `${el.getAttribute('data-block')} 现在穿的是 ${el.getAttribute('data-shape')}`), worn);
+  if (restored.length) {
+    problems.push(`⑨ on ${where}: 量完没有把形态放回去（${restored.join(' · ')}）——`
+      + ' 后面每一个在这一页上取数的检查看到的都不是这个站真正穿的那一身');
+  }
+  return cells;
+}
 await judgeStrips(pathOf(baseUrl));
 await judgeRowShapes(pathOf(baseUrl));
+await judgeLayoutIntent(pathOf(baseUrl));
 
 // ── ④ body text is big enough ───────────────────────────────────────────────────────────────────
 for (const sel of ['body', '.hero__sub']) {
@@ -3190,6 +3302,8 @@ for (const p of otherPaths.slice(0, OTHER_PAGE_CAP)) {
   // it are on no home page of this sample site (the fixture puts all 31 blocks on /allblocks.html
   // alone), so measuring ⑧ on the first page only would have been measuring it never.
   await judgeRowShapes(opened.at);
+  // 🔴 #1332 ⑨ —— 同一条理由：31 个块里绝大多数在首页上没有，夹具把它们全放在 /allblocks.html。
+  await judgeLayoutIntent(opened.at);
   // 🔴 #1091 — AND THE BUTTONS AND LINKS, HERE, on every page this loop opens. This line was held
   // closed from #1055 to #1091 and the reason is spent: what blocked it was `.btn-primary`, white on
   // `--color-primary-500`, unreadable on 52 of the 80 pool sheets (104 violations, 2 per red sheet,
@@ -3575,6 +3689,44 @@ if (PALETTE_IS_NOT_THE_SHEETS_OWN) {
     + 'a sheet with no theme named after it has no palette that is its own (#1318 moved the three '
     + 'hand-written hero-media-* ones out of public/themes/ entirely). Re-run with '
     + 'THEME_CSS_PALETTE_NOT_THE_SHEETS_OWN=1 to have those ratios reported and not judged');
+}
+
+// ── ⑨ 的汇总（#1332 AC2：逐格可见 + 逐格断言数的最小值必须 > 0）────────────────────────────────
+{
+  const declared = [];
+  for (const [t, m] of INTENT_MANIFESTS) for (const sh of (m.shapes || [])) declared.push(`${t}/${sh.name}`);
+  const missed = declared.filter((k) => !intentPairsSeen.has(k));
+  const counts = intentCells.map((c) => c.checks);
+  const min = counts.length ? Math.min(...counts) : 0;
+  const total = counts.reduce((a, b) => a + b, 0);
+  readings.push(`  ⑨ layout intent（${INTENT_ARM}）: ${intentCells.length} 格 = `
+    + `${intentPairsSeen.size}/${declared.length} 个 (块,形态) 对 × 2 视口 · 共 ${total} 条断言 · `
+    + `逐格最小 ${min} 条 · 块在这个站上出现 ${intentBlocksOnPage.size}/${INTENT_MANIFESTS.size} 个`);
+  if (intentSelfOverflow.length) {
+    const uniq = [...new Set(intentSelfOverflow.map((x) => x.split(' ')[0]))];
+    readings.push(`  📌 ⑨: ${intentSelfOverflow.length} 格量到块自己横向溢出，涉及 ${uniq.length} 个 (块,形态) 对`
+      + `（${uniq.join(', ')}）—— **报而不判**，因为产生者在形态层之外（同一个块的每一种形态读到同一个数）。`
+      + '⑨ 判的是这段意图点名的零件留没留在块的内容盒里，那一条是判的');
+  }
+  // 🔴 一格执行到 0 条断言 = 「看起来跑了、其实什么都没判」，本票要防的正是这个形状（正文 AC2）。
+  const empty = intentCells.filter((c) => c.checks === 0);
+  if (empty.length) {
+    problems.push(`⑨: ${empty.length} 格一条断言都没执行（${empty.slice(0, 6)
+      .map((c) => `${c.block}/${c.shape} ${c.arm} ${c.w}px`).join(' · ')}${empty.length > 6 ? ' …' : ''}）——`
+      + ' 那是「看起来跑了、其实什么都没判」，跟没跑不是两回事');
+  }
+  if (intentNoIntent.length) {
+    problems.push(`⑨: ${intentNoIntent.length} 个块 / 形态没有 layout_intent（${intentNoIntent.slice(0, 6).join(' · ')}`
+      + `${intentNoIntent.length > 6 ? ' …' : ''}）—— 设计文档 D12 第 3 条：没写排版意图的块不算进库`);
+  }
+  if (SAMPLE_WIDENED && missed.length) {
+    problems.push(`⑨: ${missed.length} 个 (块,形态) 对在这个站的任何一页上都没量到（${missed.join(', ')}）——`
+      + ' 而这个夹具按构造带着全部 31 个块（scripts/block-migration/gen-allblocks.js 从注册表派生页面），'
+      + '所以量不到的块是**停止渲染了**，不是样本小');
+  } else if (missed.length) {
+    readings.push(`  ⑨: ${missed.length} 个 (块,形态) 对没量到 —— 这个站不是本轮加宽出来的，`
+      + `它没有那些块是正常的，这一条报告而不判：${missed.join(', ')}`);
+  }
 }
 
 await browser.close();

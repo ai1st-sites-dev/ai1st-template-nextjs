@@ -8,11 +8,25 @@
   "shapes": [
     {
       "name": "two-up",
-      "needs": []
+      "needs": [],
+      "layout_intent": {
+        "items": "grid",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "none",
+        "columns": "one"
+      }
     },
     {
       "name": "attribution-first",
-      "needs": []
+      "needs": [],
+      "layout_intent": {
+        "items": "grid",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "none",
+        "columns": "one"
+      }
     }
   ],
   "slots": {

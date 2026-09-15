@@ -8,7 +8,14 @@
   "shapes": [
     {
       "name": "main-aside",
-      "needs": []
+      "needs": [],
+      "layout_intent": {
+        "items": "none",
+        "item_wrap": "allow",
+        "headline": "none",
+        "media": "none",
+        "columns": "one"
+      }
     }
   ],
   "slots": {

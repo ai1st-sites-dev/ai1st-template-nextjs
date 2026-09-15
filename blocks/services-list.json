@@ -8,7 +8,14 @@
   "shapes": [
     {
       "name": "two-up",
-      "needs": []
+      "needs": [],
+      "layout_intent": {
+        "items": "grid",
+        "item_wrap": "allow",
+        "headline": "none",
+        "media": "none",
+        "columns": "two"
+      }
     }
   ],
   "slots": {},

@@ -21,6 +21,36 @@ const BLOCKS_DIR = path.join(__dirname, '..', '..', 'blocks');
 // #1331 —— 形态层的另一半。manifest 的 `shapes` 清单跟这份 CSS 里出现的 (块, 形态) 对必须逐块相等
 // （守卫 `block-shapes.test.js` 两向差集为 0；`checkManifestShape` 逐份核 manifest → CSS 这一向）。
 const SHAPES_CSS = path.join(__dirname, '..', '..', 'public', 'shapes.css');
+// #1332 —— 排版意图的词表。🔴 **一份定义，两处读**：这里（建站期的校验器，CommonJS）和
+// `layout-intent.mjs`（几何守卫，ESM）。两边各抄一份词表的失败方向是静默的 —— 校验器放行一个词、
+// 守卫不认识它，于是那一格什么都没判而没有人会红。
+const LAYOUT_INTENT_VOCAB = require('./layout-intent-vocab.json');
+const LAYOUT_INTENT_AXES = Object.keys(LAYOUT_INTENT_VOCAB.axes);
+
+/**
+ * 合并后的排版意图：块级 `layout_intent` 当默认，`shapes[i].layout_intent` 按轴覆盖（#1332）。
+ * 形态不在这个块的清单里 ⟹ 回 null（跟「意图不全」分得开，同 `shapeNeedsGap` 的做法）。
+ * 🔴 守卫与校验器判的都是**合并之后**的东西，而且合并后五根轴必须齐全 —— 那条闸堵的是
+ *    「只声明各形态一致的那几根轴、把分歧最大的那根省掉」这条回避路（#1332 PM 退回第三条）。
+ */
+function layoutIntentFor(m, shapeName) {
+  const sh = (m && Array.isArray(m.shapes) ? m.shapes : []).find((x) => x && x.name === shapeName);
+  if (!sh) return null;
+  return { ...((m && m.layout_intent) || {}), ...(sh.layout_intent || {}) };
+}
+
+/** 合并后的意图缺哪几根轴 / 哪几根写了词表外的值。回 [] 表示齐全且合法。 */
+function layoutIntentProblems(intent) {
+  const out = [];
+  for (const ax of LAYOUT_INTENT_AXES) {
+    const v = intent ? intent[ax] : undefined;
+    if (v === undefined) { out.push(`缺 "${ax}" 这根轴`); continue; }
+    if (!LAYOUT_INTENT_VOCAB.axes[ax].includes(v)) {
+      out.push(`"${ax}" 写的是 ${JSON.stringify(v)} —— 只能是 ${LAYOUT_INTENT_VOCAB.axes[ax].join(' / ')}`);
+    }
+  }
+  return out;
+}
 
 /**
  * `public/shapes.css` 里出现的 (块, 形态) 对 —— Map<块名, Set<形态名>>。
@@ -170,12 +200,34 @@ function checkManifestShape(name, m, cssShapes) {
       bad(`shapes[0] ("${sh.name}") 是默认形态，needs 必须为空 —— 别的形态缺槽位落回的就是它，它自己再缺就无处可落`);
     }
     // `name` 是文件名（带 .json），CSS 里点名用的是块类型 —— 上面 loadManifests 已核过两者对得上。
+    // #1332 —— 每个形态一段排版意图（可以只写跟块级默认不同的轴，但**合并之后**五根轴必须齐全）。
+    if (sh.layout_intent !== undefined
+      && (sh.layout_intent === null || typeof sh.layout_intent !== 'object' || Array.isArray(sh.layout_intent))) {
+      bad(`shapes[${i}] ("${sh.name}").layout_intent 有的话必须是对象（五根轴 → 词表里的一个词）`);
+    }
+    const merged = { ...(m.layout_intent || {}), ...(sh.layout_intent || {}) };
+    for (const k of Object.keys(merged)) {
+      if (!LAYOUT_INTENT_AXES.includes(k)) {
+        bad(`shapes[${i}] ("${sh.name}") 的 layout_intent 里有一根不存在的轴 "${k}" —— 只有 ${LAYOUT_INTENT_AXES.join(' / ')}`
+          + '（拼错的轴名不会有任何断言去读它，而那是静默的：守卫照跑、这一根永远没人判）');
+      }
+    }
+    const gaps = layoutIntentProblems(merged);
+    if (gaps.length) {
+      bad(`shapes[${i}] ("${sh.name}") 的排版意图不完整：${gaps.join('；')}。`
+        + '🔴 五根轴一根都不能省 —— 省掉的那一根恰好是这个块两种形态分歧最大的地方时，守卫会全绿而'
+        + '什么都没看（#1332 PM 退回的第三条）');
+    }
     const inCss = cssShapes instanceof Map ? cssShapes.get(m.type) : undefined;
     if (!inCss || !inCss.has(sh.name)) {
       bad(`shapes 里的 "${sh.name}" 在 public/shapes.css 没有 [data-block="${m.type}"][data-shape="${sh.name}"] 的规则`
         + ' —— 写进 manifest 的形态必须有人排它（要加形态先写 CSS）');
     }
   });
+  if (m.layout_intent !== undefined
+    && (m.layout_intent === null || typeof m.layout_intent !== 'object' || Array.isArray(m.layout_intent))) {
+    bad('layout_intent 有的话必须是对象（块级默认，形态可以按轴覆盖）');
+  }
   if (m.variants === null || typeof m.variants !== 'object' || Array.isArray(m.variants)) {
     bad('variants 必须是对象（外观词 → 一句说明）');
   }
@@ -834,4 +886,9 @@ module.exports = {
   shapeNeedsGap,
   filledOptionalSlots,
   diffShapesAgainstCss,
+  // #1332 —— 排版意图
+  LAYOUT_INTENT_VOCAB,
+  LAYOUT_INTENT_AXES,
+  layoutIntentFor,
+  layoutIntentProblems,
 };

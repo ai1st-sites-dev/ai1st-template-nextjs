@@ -8,11 +8,25 @@
   "shapes": [
     {
       "name": "two-up",
-      "needs": []
+      "needs": [],
+      "layout_intent": {
+        "items": "grid",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "none",
+        "columns": "two"
+      }
     },
     {
       "name": "wide-rows",
-      "needs": []
+      "needs": [],
+      "layout_intent": {
+        "items": "stack",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "none",
+        "columns": "one"
+      }
     }
   ],
   "slots": {

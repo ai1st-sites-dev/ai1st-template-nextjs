@@ -8,7 +8,14 @@
   "shapes": [
     {
       "name": "row",
-      "needs": []
+      "needs": [],
+      "layout_intent": {
+        "items": "row",
+        "item_wrap": "avoid",
+        "headline": "none",
+        "media": "none",
+        "columns": "many"
+      }
     }
   ],
   "slots": {},

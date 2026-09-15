@@ -11,13 +11,27 @@
   "shapes": [
     {
       "name": "narrow-stack-uniform",
-      "needs": []
+      "needs": [],
+      "layout_intent": {
+        "items": "none",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "above",
+        "columns": "one"
+      }
     },
     {
       "name": "media-right-alternate",
       "needs": [
         "imageUrl"
-      ]
+      ],
+      "layout_intent": {
+        "items": "none",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "side",
+        "columns": "two"
+      }
     }
   ],
   "slots": {

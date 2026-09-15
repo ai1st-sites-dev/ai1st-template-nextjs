@@ -10,7 +10,14 @@
   "shapes": [
     {
       "name": "stack",
-      "needs": []
+      "needs": [],
+      "layout_intent": {
+        "items": "none",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "none",
+        "columns": "one"
+      }
     }
   ],
   "slots": {
