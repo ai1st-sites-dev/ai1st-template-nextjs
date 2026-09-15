@@ -23,7 +23,9 @@ const path = require('path');
 const mod = require('./remediation.js');
 const { howToAddTopbar, howToChangePageLayout } = mod;
 
-let pass = 0, fail = 0;
+let pass = 0, fail = 0, skipped = 0;
+// #1317 —— 脚手架期（池子 < 10 套）按构造没有对象可问的那一条，见 scripts/lib/scaffolding-pool.js。
+const { skipOnScaffoldingPool } = require('./scaffolding-pool.js');
 const ok = (m) => { pass++; console.log(`  ✅ ${m}`); };
 const bad = (m) => { fail++; console.log(`  ❌ ${m}`); };
 const die = (m) => { console.error(`🔴 跑不起来: ${m}`); process.exit(2); };
@@ -257,8 +259,16 @@ function siteWithNav(dir, locale) {
   }
 
   // 🔴 判据不许是空转的：透明浮层那一边必须真的非空，否则「排除掉了」这句话什么都没排除
+  // 🔴 #1317 —— 脚手架期池里一套 `transparent-overlay` 都没有（azure-29 是 solid-bar、
+  //    ember-12 是 pill-floating），所以这一条按构造红。它跟 `pool.test.js ⑧` 是同一个缺口、
+  //    同一个门控：判据是池子大小，池子重生成到 ≥10 套那天它自己回来。
+  //    📌 上面那条独立复算**照跑**（它比的是两份实现的读数，跟浮层有没有样本无关），下面那条
+  //    「句子点名的每一套逐个核过」也照跑 —— 只有「排除的那一边非空」这一条没有对象。
   if (indep && indep.overlay.length > 0) {
     ok(`⑤b 判据有区分力：确实有 ${indep.overlay.length} 套被排除掉了（不是空转）`);
+  } else if (skipOnScaffoldingPool('⑤b 透明浮层那一边非空',
+    '脚手架池里一套 transparent-overlay 都没有 ⟹ 这个判据今天没有对象可排除')) {
+    skipped += 1;
   } else {
     bad('⑤b 透明浮层那一边是空的 ⟹ 这个判据没排除任何东西，跟旧那句假话等价');
   }
@@ -652,5 +662,6 @@ console.log('── ⑦b 真跑一次 sync-config：带 topbar 区却没有 topb
   fs.rmSync(dir, { recursive: true, force: true });
 }
 
-console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
+console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail}`
+  + (skipped ? ` · 🔴 脚手架池跳过 ${skipped} 格（#1317，不是通过）` : '') + ' ══');
 process.exit(fail ? 1 : 0);

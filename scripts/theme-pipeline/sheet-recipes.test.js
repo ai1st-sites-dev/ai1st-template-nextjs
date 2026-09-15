@@ -60,10 +60,13 @@ let ctaLookFor; let CTA_LOOK_NAMES; let formLookFor; let FORM_LOOK_NAMES;   // #
 let LOOK_FAMILIES;                                                          // #1139
 let SCROLL_STRIP_EXPERIMENT;                                                // #1190
 
-let pass = 0; let fail = 0;
+let pass = 0; let fail = 0; let skipCount = 0;
 const ok = (m) => { pass += 1; console.log(`  ✅ ${m}`); };
 const bad = (m) => { fail += 1; console.log(`  ❌ ${m}`); };
 const die = (m) => { console.error(`🔴 跑不起来: ${m}`); process.exit(2); };
+// #1317 —— 脚手架期（池子 < 10 套）按构造没有对象可问的那两格，见 scripts/lib/scaffolding-pool.js。
+const { skipOnScaffoldingPool } = require(path.join(__dirname, '..', 'lib', 'scaffolding-pool.js'));
+const skip = (what, why) => { if (!skipOnScaffoldingPool(what, why)) return false; skipCount += 1; return true; };
 
 try {
   ({
@@ -783,10 +786,16 @@ console.log('\n⑧ 画法自己声明的留白，桌面上还作数吗（#1090 r
 
 
 console.log('\n⑨ #1135 两族的分布：每档都够多，而且没有哪一族决定另一族');
-{
+// 🔴 #1317 —— 这一格算的是「每一档画法占池子的百分之几」，而它的分母自检拿 `public/themes` 里的
+//    份数核 `POOL`。脚手架期盘上只剩 2 份池子表（另外 95 份跟着主题一起下架了），那条自检当场
+//    `die` ⟹ **整份文件从这里开始一行都不跑**，后面 ⑩ ⑪ ⑫ ⑬ ⑮ 的读数全都没人看得到。
+//    AC2 那条 15% 的地板在 2 套的池子上本来也没有意义（每一档要么 0% 要么 50%）。
+if (!skip('⑨ 两族分布的 15% 地板', '盘上只剩 2 份池子表，百分比这一族在池子重生成之前没有意义')) {
   // 🔴 #1174 —— 池子从 80 涨到 97（保险 +6、地产 +11）。这个数不许瞎写：下面第一格拿
   //    `public/themes` 里的份数自己核它，对不上就 die（不是 bad —— 分母错了，下面每一条
   //    百分比都是假的）。
+  // 🔴 #1317 —— 这个数描述的是**标定那一次**的池子，不是今天的（今天是 2 套，整格已按池子大小门控）。
+  //    池子重生成那天要连同 AC2 那条 15% 的地板一起重算（每档 = 池子 / 候选数），别只改这个数。
   const POOL = 97;                       // #1016 的池子 + #1174 的扩容；下面第一格自己核它
   const rot = (i, L) => (i + Math.floor(i / L)) % L;
   const dist = (f, L) => {
@@ -1223,7 +1232,11 @@ console.log('\n⑪ #1135 那行细则小字，每一种画法下都排在表单�
 //    判据是产物同一性：搬完这份测试仍然 59 过 0 失败，⑫ 那几行读数逐字不变。
 const { selectorOwnedBy, skeletonsOf } = require('./skeleton.js');
 
-console.log('\n⑫ #1139 每个块在全池 97 套里有几副骨架（族清单从 block-roles.json 全量枚举）');
+// #1317 —— ⑫ 的样本量 = 位子表声明了几个位子（`industry-sectors.js` 的 poolSlots）。它**不是**
+// `theme-pool.json` 今天有几套：这一格渲染的是生成器在每个位子上的产物，不读盘上的表。
+const SAMPLE_N = require('./industry-sectors.js').poolSlots().length;
+
+console.log(`\n⑫ #1139 每个块在 ${SAMPLE_N} 套候选里有几副骨架（族清单从 block-roles.json 全量枚举）`);
 {
   // #1174 —— 80 → 97，理由只有一条：这一格的标题写着「全池」，而全池今天是 97 套。
   //
@@ -1234,7 +1247,13 @@ console.log('\n⑫ #1139 每个块在全池 97 套里有几副骨架（族清单
   //    ⟹ 这一处**不是** AC5 说的「改过判据的地方」，它是样本量（同 `generate.test.js:68` 那个 `N`，
   //    PM 判过不用改的那个）。上一版这里写的是「不改的话新增那 17 套的骨架按构造看不见，而看不见
   //    的样子是全过」—— 那句话把一处零判别力的改动说成了在堵一个洞，量出来是假的，所以删掉。
-  const N = 97;
+  // 🔴 #1317 —— 这里原来写死 97、标题写着「全池」。两样都跟着位子表走，不跟着 theme-pool.json 走：
+  //    这一格**不读盘上的表**，它拿 `sheetFor(i, seed)` 现渲染 N 套候选，也就是问「生成器在 N 个
+  //    位子上产出的骨架有几副」。位子表今天仍然是 97 个位子（#1317 只删了 theme-pool.json 里的
+  //    主题，没动 industry-sectors.js 的位子表 —— 动它会让已建站的 id 和长相全变）。所以正确的数
+  //    是位子数，而「全池」这个词在脚手架期是假的（全池 2 套），改成「候选」。
+  //    📌 上面那段注释里那句「这个数今天没有判别力」仍然成立（把它退回 80 这份测试逐字不变）。
+  const N = SAMPLE_N;
   const ROLES_PATH = path.join(DIR, '..', '..', 'src', 'lib', 'sections', 'block-roles.json');
   let BLOCKS;
   try {
@@ -1692,7 +1711,10 @@ console.log('\n⑬ #1150 首屏表单那行报错，跟联系/报价那两行拿
 }
 
 console.log('\n⑮ #1190 实验钉：恰好一套候选画出滑条，其余逐字节不动');
-{
+// 🔴 #1317 —— 这一格要「全池渲染两遍再逐字节比」，而它的分母自检拿盘上带 `gen-` 横幅的表数核
+//    `POOL`；脚手架期那是 2 份。更要紧的是**被钉的那一套 `lime-28` 已经下架了** ⟹ 「恰好一套画出
+//    滑条」这句话今天的对象是零套，这一格没有东西可量。池子重生成那天要连同这个实验钉一起重新定。
+if (!skip('⑮ #1190 实验钉（恰好一套画出滑条）', '被钉的 lime-28 已下架，而盘上只剩 2 份生成表 —— 这一格没有对象')) {
   // ══ 这一格为什么存在 ═══════════════════════════════════════════════════════════════════════════
   // #1190 要「拿一套主题试穿一条能滑的横条」。这条流水线平时用**分布**说话（第 i 套是哪一副画法由
   // 一个式子决定），而分布按构造说不出「恰好一个」—— 往 `TESTIMONIAL_LOOKS` 里加第 5 副画法，实测
@@ -1709,6 +1731,7 @@ console.log('\n⑮ #1190 实验钉：恰好一套候选画出滑条，其余逐�
   //    要用到的那两套。「其余 96 张的**文件**没变」那一半由交付时的 `git diff public/themes/`
   //    与逐份 `sheet-fresh --check` 全量证（真产物，不抽样）；这一格证的是**生成器**那一半。
   const PIN = SCROLL_STRIP_EXPERIMENT;
+  // 🔴 #1317 —— 同 ⑨：这是标定那一次的池子大小，不是今天的（今天 2 套，整格已门控）。
   const POOL = 97;                       // 同 ⑨ 那一格；下面用盘上的份数自核
   const SEL = '[data-block-part="testimonials-list"]';
   const SNAP = 'scroll-snap-type: x mandatory';
@@ -1811,5 +1834,6 @@ console.log('\n⑮ #1190 实验钉：恰好一套候选画出滑条，其余逐�
   }
 }
 
-console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
+console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail}`
+  + (skipCount ? ` · 🔴 脚手架池跳过 ${skipCount} 格（#1317，不是通过）` : '') + ' ══');
 process.exit(fail ? 1 : 0);

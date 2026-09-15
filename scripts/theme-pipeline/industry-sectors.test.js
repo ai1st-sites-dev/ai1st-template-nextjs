@@ -30,10 +30,17 @@ const path = require('path');
 const DIR = __dirname;
 const NEXT = path.resolve(DIR, '..', '..');
 
-let pass = 0; let fail = 0;
+let pass = 0; let fail = 0; let skipped = 0;
 const ok = (m) => { pass += 1; console.log(`  ✅ ${m}`); };
 const bad = (m) => { fail += 1; console.log(`  ❌ ${m}`); };
 const die = (m) => { console.error(`🔴 跑不起来: ${m}`); process.exit(2); };
+// #1317 —— 脚手架期（池子 < 10 套）按构造没有对象可问的那几格，见 scripts/lib/scaffolding-pool.js。
+// 🔴 这一份里被门控的三格（① 的套数那半 · ③ · ⑥）**全部是「组里有几套主题」这一族**，而那正是
+//    「留 2 套」直接拿掉的东西：16 个组分 2 套主题，任何分法都让这三条按字面做不到。
+//    ② ④ ⑤ 问的是组表自己（partner 是不是置换、每组有没有写理由、212 个词归不归得对），跟池子
+//    几套无关，照跑。
+const { skipOnScaffoldingPool } = require(path.join(NEXT, 'scripts', 'lib', 'scaffolding-pool.js'));
+const skip = (what, why) => { if (!skipOnScaffoldingPool(what, why)) return false; skipped += 1; return true; };
 
 let sectorsMod; let themesMod; let heroForm;
 try {
@@ -109,7 +116,18 @@ function onSiteWithoutForm(sectors, pool) {
 // 归不进的那些**挑不到**：组邻接这条路只按组成员取，它们不在任何一组里 ⟹ 从此没有任何行业词能抽到
 // 它。而池子的分布、覆盖度那张表都看不见这件事（它们统计的是词，不是归属）。
 console.log('\n── ① 每套主题各归一组：每组的套数等于它自己声明的那个数，没有一套落在组外');
-{
+if (skip('① 每组的套数 + 组外 0 套',
+  '16 个组分 2 套主题：14 个组按构造是空的，而「每组等于它自己声明的那个数」要 97 套。'
+  + '注意它的另一半（跨组 / 空声明的假主题判 -1）跟池子无关，下面照跑')) {
+  // 只有跟池子套数有关的那两条被跳过；纯函数那条反向对照照跑。
+  const crossed = { industries: [SECTORS[0].words[0], SECTORS[1].words[0]] };
+  const empty = { industries: [] };
+  if (sectorIndexOfTheme(crossed) === -1 && sectorIndexOfTheme(empty) === -1) {
+    ok('反向对照：industries 跨两组的假主题、和一个词都没声明的假主题，都被判成「归不进」');
+  } else {
+    bad(`反向对照失效：跨组假主题判成 ${sectorIndexOfTheme(crossed)}、空声明判成 ${sectorIndexOfTheme(empty)}`);
+  }
+} else {
   const { byIndex, orphans } = sectorThemeIds(poolThemes);
   const sizes = byIndex.map((ids) => ids.length);
   // 🔴 #1174 —— 判据从「都等于 THEMES_PER_SECTOR」换成「逐组等于它自己那个数」。
@@ -180,7 +198,12 @@ console.log('\n── ② partner 表：一对一、不指自己、不互相对�
 // ── ③ 上门那两组必须借到「有带表单主题」的组（#1114 那道兜底的耦合）───────────────────────────────
 // 借不到 ⟹ 兜底补进第 11 套 azure-50，而它是 home-trades 的成员 ⟹ 它进 3 个组的池子，票 AC4 红。
 console.log('\n── ③ 上门的行业组：本组 + partner 里至少有一套带表单的主题');
-{
+// 🔴 两条都要门控，包括它的反向对照：脚手架池唯一带表单的 azure-29 归的是 `beauty` 组，四个上门组
+//    连它们的 partner 加起来一套主题都没有 ⟹ 正向恒红，而「造一张饿死 green-outdoor 的表」也就分不出
+//    真表和坏表（两边都饿死）。#1114 那条保证在脚手架期由 `themes.js` 的第二道兜底接着（那道兜底
+//    不看组，直接从 NEUTRAL_TOPUP 里找带表单的），`lib/hero-lead-form.test.js` ⑥ 逐词盯着它。
+if (!skip('③ 上门组借得到带表单的主题（含它的反向对照）',
+  '脚手架池唯一带表单的 azure-29 归 beauty 组，四个上门组本组+partner 全空 ⟹ 正向恒红、反向对照分不出真表坏表')) {
   const starved = onSiteWithoutForm(SECTORS, poolThemes);
   const onSiteKeys = SECTORS.filter((s) => s.onSite).map((s) => s.key);
   if (!starved.length) ok(`上门 ${onSiteKeys.length} 组（${onSiteKeys.join(' · ')}）逐组：10 套里都有带表单的`);
@@ -248,7 +271,16 @@ console.log('\n── ⑤ 212 个行业词逐个：sectorIndexForIndustry 认出
 
 // ── ⑥ 票的三条读数：候选池 ≥10（AC1）· 没有主题进 ≥3 个组（AC4）· 任意两组集合不等（AC5）──────────
 console.log('\n── ⑥ AC1 / AC4 / AC5：拿产品自己那个挑选函数跑');
-{
+// 🔴 三条在脚手架池上**按字面做不到**，不是实现坏了（#1317 的 PM 裁定量过）：
+//   · AC1「每个词的候选池 ≥10」—— 池子总共 2 套
+//   · AC4「没有主题进 ≥3 个组」—— 2 套分给 16 个组，任何分法都让每套进 3 个及以上的组
+//   · AC5「任意两组候选集合不等」—— 2 套最多拼出 3 种不同的集合，16 个组必然有重复
+//   反向对照（拿掉邻接）同理：邻接与否候选池都是那 2 套，读不出差别。
+// 🔴 **这正是「每组的位子都指向这两套」自带的知情代价**：脚手架期 16 个行业组的候选集合全部相同，
+//    也就是这段时间行业匹配实际不起作用。它是「留 2 套」买来的，不是缺陷 —— 池子重生成那天这三条
+//    自己回来（门控的判据是池子大小）。
+if (!skip('⑥ AC1 候选池≥10 / AC4 不进≥3 组 / AC5 两组集合不等（含反向对照）',
+  '2 套主题分给 16 个组：三条按字面做不到，而不是实现坏了')) {
   // 三把尺，两条臂共用：真臂 = 产品函数 candidateThemesForIndustry；对照臂 = 只给本组那 5 套。
   const poolsOf = (candidates) => SECTORS.map((s) => new Set(s.words.flatMap((w) => candidates(w))));
   const thin = (candidates) => ALL_WORDS.filter((w) => candidates(w).length < 10);
@@ -304,5 +336,6 @@ console.log('\n── ⑥ AC1 / AC4 / AC5：拿产品自己那个挑选函数跑
   }
 }
 
-console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
+console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail}`
+  + (skipped ? ` · 🔴 脚手架池跳过 ${skipped} 格（#1317，不是通过）` : '') + ' ══');
 process.exit(fail ? 1 : 0);

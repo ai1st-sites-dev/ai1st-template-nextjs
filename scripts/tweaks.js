@@ -284,10 +284,15 @@ function isNeutral(tweaks) {
 //
 // 🔴 它【不是】严格不变，而是差一个 8 位色深的舍入 —— 这个界是穷举量出来的，不是估的。
 // 那 30 套主题 × 每个色阶 × `hueShift` 的每一度（−15…+15，跳过 0）= **15300 个组合**：
-// 🔴 语料写在这里(#1140,来源 #1083):这 30 套是**当时注册表的全部**,也就是今天 `themes.js` 里的
-//    `retiredThemes`。🔴 #1161(2026-08-23)之后 `themes` 就是池子那 **80 套**,退役那 30 套是并列的
-//    `retiredThemes` 导出、**不在 `themes` 里**(这一句以前写的是「今天注册表是 110 套」,已经不成立;
-//    现读:`Object.keys(themes).length` = 80 · `Object.keys(retiredThemes).length` = 30)。
+// 🔴 语料写在这里(#1140,来源 #1083):这 30 套是**当时注册表的全部**,也就是 #1161 下架的那一批。
+//    🔴 #1161(2026-08-23)之后 `themes` 就是池子,退役那批是并列的 `retiredThemes` 导出、
+//    **不在 `themes` 里**。🔴 #1317(2026-09-14)之后**也不能再拿「在 `retiredThemes` 里」指代这 30 套**
+//    —— 那份名单 30 → 125(池子里又下架了 95 套)。这两个数都会变,别从这里抄;现读:数一数
+//    `scripts/theme-pool.json` 和 `scripts/themes-retired.js` 各有几个键。
+// 🔴 **这段注释里不许出现 `require` 跟一对括号连写的形状。** dashboard 那个 `ai1st-tweaks-engine`
+//    插件把本文件的**整份源码**（注释也算）用一条正则扫一遍 require 调用,扫到一个不在它 require 表里
+//    的就 `throw`,整个 dashboard 构建当场失败。#1317 写这段注释时用一条 `node -e` 示例命令踩到过
+//    (报文:「requires './scripts/themes.js', which is not in this plugin's require map」)。
 //    而**这次穷举没有在池子那 80 套上跑过** —— 所以 15300 这个数不是「今天的组合数」,它是那一次实验的
 //    规模。别把它当成现状读数;要今天的数就重跑一次那三层循环。
 //

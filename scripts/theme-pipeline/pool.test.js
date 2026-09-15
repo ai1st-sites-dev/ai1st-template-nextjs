@@ -25,10 +25,14 @@ const path = require('path');
 const DIR = __dirname;
 const NEXT = path.resolve(DIR, '..', '..');
 
-let pass = 0; let fail = 0;
+let pass = 0; let fail = 0; let skipped = 0;
 const ok = (m) => { pass += 1; console.log(`  ✅ ${m}`); };
 const bad = (m) => { fail += 1; console.log(`  ❌ ${m}`); };
 const die = (m) => { console.error(`🔴 跑不起来: ${m}`); process.exit(2); };
+// #1317 —— 脚手架期（池子 < 10 套）按构造没有对象可问的那几格。判据只有一份，见那个文件的头注：
+// 它打印一行再返回 true，**不记 pass**，汇总行单独列跳过数 —— 「不许静默绿」是这一条的全部意义。
+const { skipOnScaffoldingPool } = require(path.join(NEXT, 'scripts', 'lib', 'scaffolding-pool.js'));
+const skip = (what, why) => { if (!skipOnScaffoldingPool(what, why)) return false; skipped += 1; return true; };
 
 let themesMod; let surveyCoverage; let verifyPool; let sectors; let baseline;
 try {
@@ -48,6 +52,20 @@ const { industryTokens, hasPhrase } = sectors;   // #1115 —— 判据只有一
 const { RETIRED_INDUSTRY_WORDS, RETIRED_DECL_STAT, RETIRED_HIT_STAT } = baseline;
 const poolIds = Object.keys(poolThemes);
 const retiredIds = Object.keys(retiredThemes);
+// #1161 下架的那 30 套。写死在这里是故意的：④ 那条「只增不删」要有一个**不随文件变**的参照，
+// 从 `themes-retired.js` 自己现读的话，有人删掉一条它也跟着变小，那条断言就恒真了。
+const ORIGINAL_RETIRED_30 = [
+  'bold-red', 'ocean-blue', 'forest-green',
+  'royal-purple', 'slate-pro', 'sunset-orange',
+  'rose-gold', 'midnight', 'earth-tone',
+  'electric', 'golden-yellow', 'realty-navy',
+  'realty-noir', 'realty-ivory', 'assurance-blue',
+  'assurance-teal', 'assurance-forest', 'wine-burgundy',
+  'arctic-mint', 'charcoal-lime', 'terracotta',
+  'lavender-calm', 'steel-industrial', 'sage-minimal',
+  'mono-noir', 'coastal-teal', 'plum-modern',
+  'copper-dark', 'sky-clinic', 'graphite-amber',
+];
 
 if (!poolIds.length || !retiredIds.length) die('池子或已下架名单是空的 —— 没东西可查，这不是通过');
 if (!RETIRED_INDUSTRY_WORDS.length) die('冻结基线里一个行业词都没有 —— 下面 ② ③ ④ 会变成空对空的假绿');
@@ -55,7 +73,7 @@ if (!RETIRED_INDUSTRY_WORDS.length) die('冻结基线里一个行业词都没有
 // ── ① 行业覆盖度（AC2）──────────────────────────────────────────────────────────────────────────
 // 判据与 `coverage.js --max-thin-pools 0 --max-thin-hits 0` 逐字同源：调的就是它那个函数。
 console.log('\n── ① 行业覆盖度：每个行业词至少 4 套真命中');
-{
+if (!skip('①', '「每个词至少 4 套真命中」在 2 套的池子上算术无解 —— 一个词最多也只有 2 套')) {
   const s = surveyCoverage();
   const line = `${s.themeCount} 套 · ${s.keywordCount} 个词 · 候选池 ${JSON.stringify(s.poolDistribution)}`
     + ` · 真命中 ${JSON.stringify(s.hitDistribution)}`;
@@ -67,7 +85,7 @@ console.log('\n── ① 行业覆盖度：每个行业词至少 4 套真命中
 // 🔴 覆盖度那张表**看不见**这件事：关键词全集是从池子自己的 `industries` 并起来的，删掉一个词，
 //    那个词就从分母里消失，分布只会更好看。而线上的后果是「今天匹配得上的生意明天落进兜底」。
 console.log('\n── ② 词表是退役那 30 套的超集，一个词都没少');
-{
+if (!skip('②', '2 套主题一共只声明得下 24 个词，而旧池的词表有 212 个 —— 缩词表这件坏事与「整池下架重建」这件好事在这一格上长得一样，分不开')) {
   const oldWords = RETIRED_INDUSTRY_WORDS;
   const newWords = new Set(poolIds.flatMap((id) => poolThemes[id].industries || []));
   const missing = oldWords.filter((w) => !newWords.has(w));
@@ -120,24 +138,32 @@ console.log('\n── ④ 已下架那 30 套：新建网站一套都抽不到�
   if (!leaked.size) ok(`${vocab.length} 个行业词逐个跑 candidateThemesForIndustry()，退役 id 出现 0 次`);
   else bad(`退役的 id 仍然会被新站抽到：${[...leaked].join(' · ')}`);
 
-  if (retiredIds.length === 30) ok('已下架名单仍是 30 条（scripts/themes-retired.js）');
-  else bad(`已下架名单现在是 ${retiredIds.length} 条，不是 30 —— 这是一份冻结的历史名单，不该增删`);
+  // 🔴 #1317 改了这一条问的问题。上一版问的是「还是 30 条吗」，前提是那份名单**冻结**；而 #1317
+  //    把池子里 95 套下架、名字和配色搬进同一份名单之后，它 30 → 125，那个前提没了。
+  //    今天的不变量有两条，都比数一个数管用（它们不随池子大小变，所以池子重生成那天不用回来改）：
+  //      · **只增不删** —— #1161 那 30 条一条都不许消失（有站正穿着它们，弹窗要靠它写名字）
+  //      · **与池子不相交** —— 一个 id 同时在两边 = 它既能被穿上又被标成已下架，弹窗会自相矛盾
+  const gone = ORIGINAL_RETIRED_30.filter((id) => !retiredThemes[id]);
+  const both = poolIds.filter((id) => retiredThemes[id]);
+  if (gone.length) bad(`已下架名单里少了 ${gone.length} 条：${gone.slice(0, 6).join(' · ')} —— 这份名单只增不删，有站正穿着它们`);
+  else if (both.length) bad(`这几个 id 同时在池子和已下架名单里：${both.join(' · ')} —— 弹窗会自相矛盾`);
+  else ok(`已下架名单 ${retiredIds.length} 条：#1161 那 30 条一条没少，且与池子 ${poolIds.length} 套不相交`);
 
   // 🔴 #1161 把这一格【反过来了】。改之前它问的是「30 套仍然按 id 查得到吗」（spec D3 冻结退役，
   // 查不到就把老站砖掉）；Chris 2026-08-23 换代那条规矩之后，判据是相反的：一个都不许还查得到。
   // 查得到就意味着它还能被穿上，而那正是下架要消掉的东西。
   const stillLookupable = retiredIds.filter((id) => themes[id]);
-  if (!stillLookupable.length) ok('30 条按 id 一个都查不到（`themes` 不再并入 retiredThemes）');
+  if (!stillLookupable.length) ok(`${retiredIds.length} 条按 id 一个都查不到（\`themes\` 不再并入 retiredThemes）`);
   else bad(`这几套还在注册表里，等于没下架：${stillLookupable.join(' · ')}`);
 
   // 名字和配色必须留着 —— 弹窗那张「当前卡」全靠它（spec 附四规则 1）。
   const nameless = retiredIds.filter((id) => !retiredThemes[id].label || !retiredThemes[id].colors);
-  if (!nameless.length) ok('30 条各自有 label + colors（弹窗那张当前卡要用）');
+  if (!nameless.length) ok(`${retiredIds.length} 条各自有 label + colors（弹窗那张当前卡要用）`);
   else bad(`这几条缺名字或配色，弹窗上会只剩一个裸 id：${nameless.join(' · ')}`);
 
   const topupOutside = themesMod.NEUTRAL_TOPUP
     ? themesMod.NEUTRAL_TOPUP.filter((id) => !poolThemes[id]) : ['(没导出 NEUTRAL_TOPUP)'];
-  if (!topupOutside.length) ok('NEUTRAL_TOPUP 四套都在新池里');
+  if (!topupOutside.length) ok(`NEUTRAL_TOPUP ${(themesMod.NEUTRAL_TOPUP || []).length} 套都在新池里`);
   else bad(`NEUTRAL_TOPUP 指向池外的 id：${topupOutside.join(' · ')}`);
 }
 
@@ -190,9 +216,13 @@ console.log('\n── ⑦ 行业组表：不重不漏，位子数 == 池子大�
   if (!dupes.length) ok(`${sectors.SECTORS.length} 组 · ${words.length} 个词，无重复`);
   else bad(`行业组之间有重复的词：${dupes.join(' · ')}`);
 
-  const slots = sectors.poolSlots();
-  if (slots.length === poolIds.length) ok(`位子 ${slots.length} 个 == 池子 ${poolIds.length} 套`);
-  else bad(`位子 ${slots.length} 个，池子 ${poolIds.length} 套 —— 对不上就有主题拿不到行业词`);
+  // 🔴 「词不重复」那半照跑（它只问组表自己，跟池子几套无关）；只有「位子数 == 池子」这半要门控。
+  if (!skip('⑦ 位子数 == 池子大小',
+    '位子表是 16 组 × 5 + 增量 = 97 个位子，而脚手架池是 2 套 —— 这两个数在池子重生成之前按构造对不上')) {
+    const slots = sectors.poolSlots();
+    if (slots.length === poolIds.length) ok(`位子 ${slots.length} 个 == 池子 ${poolIds.length} 套`);
+    else bad(`位子 ${slots.length} 个，池子 ${poolIds.length} 套 —— 对不上就有主题拿不到行业词`);
+  }
 }
 
 // ── ⑧ 透明浮层只给深底首屏（#1016 r5）────────────────────────────────────────────────────────────
@@ -230,7 +260,17 @@ console.log('\n── ⑧ 透明浮层只给深底首屏；判据里那个遮罩
     }
   }
 
-  const overlay = poolIds.filter((id) => ((poolThemes[id].supports || {}).header || [])[0] === 'transparent-overlay');
+  // 🔴 只有「池里每一套浮层顶栏都配深底首屏」这半要门控 —— 上面那半（遮罩浓度跟组件一致）和下面
+  //    那条反向对照都跟池子几套无关，照跑。
+  // 🔴 **知情的代价写在这里**：脚手架期池里一套 `transparent-overlay` 都没有（azure-29 是
+  //    `solid-bar`、ember-12 是 `pill-floating`），所以「浮层顶栏 + 浅底首屏」这一维整段没有活样本。
+  //    #1317 挑这两套的判据是「三处形态全不同 + 六个 supports 维度全不同」，没管这一维。池子重生成
+  //    那天要把这一维补回来，而门控会在那天自己让开。
+  const overlaySkipped = skip('⑧ 透明浮层只给深底首屏（正向那半）',
+    '脚手架池里一套 transparent-overlay 都没有 ⟹ 正向断言没有对象；反向对照仍然照跑');
+  const overlay = overlaySkipped
+    ? []
+    : poolIds.filter((id) => ((poolThemes[id].supports || {}).header || [])[0] === 'transparent-overlay');
   const breaks = [];
   for (const id of overlay) {
     const sheetPath = path.join(NEXT, 'public', 'themes', `${poolThemes[id].sheet}.css`);
@@ -239,7 +279,9 @@ console.log('\n── ⑧ 透明浮层只给深底首屏；判据里那个遮罩
     const verdict = region.heroTitleSurvivesHeaderScrim(css, poolThemes[id].colors);
     if (!verdict.ok) breaks.push(`${id}（${verdict.why}）`);
   }
-  if (!overlay.length) {
+  if (overlaySkipped) {
+    // 上面那行 ⏭ 已经说过了，这里什么都不打，也不记 pass / fail。
+  } else if (!overlay.length) {
     // 一套都没有不是通过：说明这一维的花样全没了，或者 supports.header 根本没写进去。
     bad('池里一套 transparent-overlay 都没有 —— 这一格就什么都没验，而顶栏那一维也没了花样');
   } else if (!breaks.length) {
@@ -347,7 +389,11 @@ console.log('\n── ⑨ hero：supports 里只有内容结构，画法在表�
   // AC-C 的下限：七种外观每种 ≥ 8 套，带表单那种单独数也要 ≥ 8。
   const thin = [...counts].filter(([, ids]) => ids.length < 8);
   const line = [...counts].map(([n, ids]) => `${n} ${ids.length}`).join(' · ');
-  if (thin.length) bad(`有画法不到 8 套：${thin.map(([n, ids]) => `${n} ${ids.length}`).join(', ')}（全表：${line}）`);
+  // 🔴 上面那三条（值域 / 反向对照 / 池子跟表对不对得上）跟池子几套无关，照跑；只有这条下限要门控：
+  //    8 种画法 × 每种 ≥8 套 = 至少 64 套，脚手架池 2 套按构造到不了。
+  if (skip('⑨ 每种画法 ≥ 8 套', `脚手架池 2 套分不出 8 种画法的下限（今天的分布：${line}）`)) {
+    // ⏭ 已打印
+  } else if (thin.length) bad(`有画法不到 8 套：${thin.map(([n, ids]) => `${n} ${ids.length}`).join(', ')}（全表：${line}）`);
   else ok(`每种画法都 ≥ 8 套：${line}`);
 }
 
@@ -387,7 +433,17 @@ console.log('\n── ⑨ hero：supports 里只有内容结构，画法在表�
 //   ⑩c **覆盖度同源**（`coverage.js` 的「真命中」）—— 钉 #1115 那 14 个词的字面命中数。
 //        它是把两个文件的判据别在一起的那根钉子（原来那根靠 `hits > pool`，已经不可达）。
 console.log('\n── ⑩ 挑主题按词边界匹配：短声明词不再靠子串把整组主题拉进来（#1115 · #1119 重锚）');
-{
+// 🔴 整格门控，三臂一起。理由不是「红了就关掉」，是**这一格的全部字面值都写死着池子里的主题 id**：
+//    ⑩a 的 `CASES` 与 ⑩b 的 `FREE_TEXT` 两张表点名 18 个 id（indigo-66 / ember-67 / … / magenta-35），
+//    脚手架池留下的两套**一个都不在里面**，于是它自己那道阳性对照①（「这几套的 industries 里真的
+//    写着那个短词吗」）逐条开火 —— 它正在正确地说「这张表的对象不在了，下面那条断言恒绿」。
+//    ⑩c 的 `HITS` 同理：14 个词的字面命中数是在 97 套的池子上量的，2 套的池子里那 14 个词一个都不在
+//    覆盖度普查的行里。
+// 🔴 **这一格自己在源码里留了一张给今天的字条**（下面 ⑩c 那段注释）：「这张表随池子大小走 —— 改套数
+//    的人必须回来重量它」。池子重生成那天，两张表的 id 和 `HITS` 的两列都要按那条命令重量，不是把
+//    门控拆掉就完事。
+if (!skip('⑩ 词边界匹配（a/b/c 三臂）',
+  'a/b 两张表把 18 个主题 id 写死在里面、c 那张表把 14 个词的命中数写死在里面，脚手架池里一个都不在')) {
   // 🔴 每一条 case 都要先过两道**只读原始数据、不碰任何匹配函数**的阳性对照，否则下面的断言
   //    跟「id 打错了」/「这个词其实不含那个短词」长得一样 —— 而那两种都是恒绿。
   //    ① `offenders` 的 `industries` 里真的写着那个短词吗（读 `theme-pool.json`）
@@ -595,5 +651,6 @@ console.log('\n── ⑩ 挑主题按词边界匹配：短声明词不再靠子
   }
 }
 
-console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
+console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail}`
+  + (skipped ? ` · 🔴 脚手架池跳过 ${skipped} 格（#1317，不是通过）` : '') + ' ══');
 process.exit(fail ? 1 : 0);

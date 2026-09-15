@@ -24,10 +24,13 @@ const DIR = __dirname;
 const NEXT = path.resolve(DIR, '..', '..');
 const SHEETS = path.join(NEXT, 'public', 'themes');
 
-let pass = 0; let fail = 0;
+let pass = 0; let fail = 0; let skipCount = 0;
 const ok = (m) => { pass += 1; console.log(`  ✅ ${m}`); };
 const bad = (m) => { fail += 1; console.log(`  ❌ ${m}`); };
 const die = (m) => { console.error(`🔴 跑不起来: ${m}`); process.exit(2); };
+// #1317 —— 脚手架期（池子 < 10 套）按构造跑不起来的那一段，见 scripts/lib/scaffolding-pool.js。
+const { skipOnScaffoldingPool } = require(path.join(NEXT, 'scripts', 'lib', 'scaffolding-pool.js'));
+const skip = (what, why) => { if (!skipOnScaffoldingPool(what, why)) return false; skipCount += 1; return true; };
 
 let skel; let gates; let pool;
 try {
@@ -119,7 +122,9 @@ console.log(`\n════ ⑤ 骨架距离（#1173）—— 池 ${IDS.length} 
   else ok('AC1 这道闸没有例外/免死名单这个机制（注释之外零命中）');
 }
 
-// ── AC2 尺子标定：钉在今天这 97 套上的读数 ────────────────────────────────────────────────────────
+// ── AC2 尺子标定：钉在【标定那一次】那 97 套上的读数 ──────────────────────────────────────────────
+// 📌 #1317（2026-09-14）之后池子是 2 套，所以下面那三个 FROZEN_* 不再描述「今天」—— 它们描述的是
+//    2026-08-24 那一次标定。这一格自己会发现并打「AC2 标定跳过」，那正是它设计好的失效形态。
 //
 // 🔴 这一条**会随池子变化而失效，而失效的正确形态是「说出来」而不是「悄悄不比」**。它钉的是
 //    #1173 正文证据③ 那组读数 —— 那组数是票的口径定义（正文给的 Python 参考实现算出来的），
@@ -184,7 +189,9 @@ console.log(`\n════ ⑤ 骨架距离（#1173）—— 池 ${IDS.length} 
   console.log(`  📐 每块 distinct: ${key(distinctNow)}`);
   if (stale) {
     // 不算失败、也不静默：把差在哪打出来，指到该重新标定的地方。
-    console.log(`  ⏭  AC2 标定跳过 —— 池子已经不是标定那 80 套了`
+    // 🔴 #1317 —— 这句话里的套数原来写死成 `80`，而 `FROZEN_POOL` 早在 #1174 就是 97 了 ⟹ 它每次
+    //    开口都在说一个假数。改成读那个常量：说的是「标定那一次是几套」，永远跟标定同源。
+    console.log(`  ⏭  AC2 标定跳过 —— 池子已经不是标定那 ${FROZEN_POOL} 套了`
       + `（现在 ${IDS.length} 套，id 指纹 ${poolId} ≠ ${FROZEN_POOL_ID}）。`);
     console.log('     重新标定：用 #1173 正文证据② 那段参考实现在新池上取一次读数，替掉本文件里的'
       + ' FROZEN_* 三个常量，并在票上写清新旧两组数。**别只改常量**：换池子的那张票要自己解释'
@@ -247,6 +254,23 @@ console.log(`\n════ ⑤ 骨架距离（#1173）—— 池 ${IDS.length} 
   else ok('AC3 反向对照：真的 9 块走同一条路不触发拒跑');
 }
 
+// ══ #1317 —— 下面这一整段（AC4 · 空白块 · 双胞胎 · AC5）在脚手架池上跑不起来 ══════════════════
+//
+// 它们四个都以 `BASE = 'fern-10'` 为夹具，而 `fern-10` 跟另外 94 套一起下架了 ⟹ `pool['fern-10']`
+// 取不到，`sheetPathOf(BASE)` 当场 TypeError，**整份文件从这里开始一行都不跑**（上面 AC1/AC2/AC3
+// 的读数也就没人看得到了）。
+//
+// 🔴 为什么是「换不掉夹具」而不是「换一套就行」：`TRIO` 那三块是 `diff(fern-10, ember-46)` 算出来的
+//    —— 挑它们是为了让「改 3 块之后最近距离**正好是 3**」成为一个算出来的结论，而不是碰上的
+//    （见 AC4 那段注释）。在 2 套的池子上根本没有第二套可以配对，这个构造没有对象。池子重生成那天
+//    要按同一条算术在新池上重挑一对 BASE/伙伴，再把 `TRIO` 重算一遍。
+//
+// 🔴 门控放在这一段之前、不放在文件最前面：AC1（这道闸对存量不误伤）/ AC3（尺子自检 + 两个阳性
+//    对照）在 2 套的池子上照样跑得出真读数，把它们一起关掉是白白少一批覆盖。
+if (skip('AC4 / 空白块 / 双胞胎 / AC5（这四段共用 fern-10 那个夹具）',
+  'fern-10 已下架，而这四段的构造要「池里另有一套跟它差 3 块」的伙伴 —— 2 套的池子里没有对象')) {
+  // 这一段整段跳过。
+} else {
 // ── AC4 阳性对照：改 2 块必拒、改第 3 块放行且最近距离正好 3 ───────────────────────────────────────
 //
 // 🔴 改的那 3 块是 `diff(fern-10, ember-46)`，不是随便挑的：改 k 块（改成池里没有的值）之后，
@@ -368,7 +392,9 @@ console.log(`\n════ ⑤ 骨架距离（#1173）—— 池 ${IDS.length} 
     bad('AC5 反向对照失败：改了一块的几何，距离读数一个都没动 —— 这把尺把两边都抹平了');
   }
 }
+}
 
 fs.rmSync(tmp, { recursive: true, force: true });
-console.log(`\n${fail ? '🔴' : '✅'} ⑤ 骨架距离：${pass} 过 · ${fail} 失败`);
+console.log(`\n${fail ? '🔴' : '✅'} ⑤ 骨架距离：${pass} 过 · ${fail} 失败`
+  + (skipCount ? ` · 🔴 脚手架池跳过 ${skipCount} 段（#1317，不是通过）` : ''));
 process.exit(fail ? 1 : 0);

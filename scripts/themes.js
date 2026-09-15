@@ -70,7 +70,8 @@
 //   poolThemes    `scripts/theme-pool.json` —— 平台今天提供的全部主题（#1016 跑 #1004 那条流水线
 //                 生成、过完四道闸的那批）。每一套的样子主要在它自己那份表里
 //                 （`public/themes/<sheet>.css`，阶段 2 之后 34 个块的外观都住在那儿）。
-//   retiredThemes `scripts/themes-retired.js` —— 已下架那 30 套【只剩名字和配色】，而且
+//   retiredThemes `scripts/themes-retired.js` —— 已下架那批【只剩名字和配色】（#1161 的 30 套 +
+//                 #1317 下架的 95 套 = 125 条；🔴 这个数会涨，别从这里抄），而且
 //                 **不并进 `themes`**。它唯一的消费者是换主题弹窗的那张「当前卡」：一个站正穿着
 //                 已下架的主题时，卡上要写得出它的名字并照实说一句「已下架，继续用没任何影响」
 //                 （spec 附四规则 1，Chris 2026-08-23 冻结）。理由整段在那个文件头上。
@@ -129,7 +130,17 @@ const MIN_ROTATION_POOL = 3;
 // 不存在主题的 id」。两道检查分工：`theme-pipeline/pool.test.js` 问「它们在不在【挑得到的那一池】」（更严，
 // 它是这个问题的权威）；`manager/ticket1077_test.go` 问「`const themes` 的键是不是真主题」——后者才看得见
 // 外壳那种改法，因为 pool.test.js 直接读 poolThemes，外壳动的是 `const themes`。
-const NEUTRAL_TOPUP = ['fern-02', 'jade-26', 'azure-50', 'violet-74'];
+// 🔴 #1317（2026-09-14）—— 脚手架期这里只剩留在池子里的那两套。原来那四个 id
+// （`fern-02` / `jade-26` / `azure-50` / `violet-74`）跟着 95 套一起下架了，留着就正好是上面
+// #1077 那条说的「指向空气的 id」。
+// **这一换不是收尾动作，它是 #1114 那条保证在脚手架期唯一的载体**：兜底源里必须有一套带表单的
+// hero，否则下面那道「上门行业不许整组永远碰不上第一屏表单」的兜底 `find` 回 undefined、静默什么
+// 都不做（实测：不换时 `lib/hero-lead-form.test.js` 4 条红，53 个上门行业词的站按构造拿不到那个
+// 表单）。`azure-29` 的 `supports.hero` 含 `with-form`，接的就是这一条。
+// 📌 `MIN_ROTATION_POOL = 3` 在脚手架期**凑不满，这是有意的**：整个池子只有 2 套，两条路去重之后
+//    都是 2。那个常量说的是「至少要几套才不至于同一行的生意长得一样」，而池子重生成之前这句话没有
+//    满足的余地 —— 把它改成 2 会把一条今天仍然正确的下限调低，池子长回去时没人会想起来调回来。
+const NEUTRAL_TOPUP = ['azure-29', 'ember-12'];
 
 // #1119 —— id → 它属于哪个行业组（`industries` 落在哪一组的词表里）。算一次就够：`poolThemes` 是一份
 // require 进来的 JSON，进程活着期间不会变。
@@ -215,10 +226,11 @@ function themesWithRhythm() {
 // Every theme that suits this industry, in registry order (so rotation is predictable).
 // Never shorter than MIN_ROTATION_POOL; never empty.
 //
-// 🔴 #1016 挑的范围是 `poolThemes`，**不是** `themes`。#1161 之后这两个是同一批 80 套（退役那 30 套
-// 已经从 `themes` 里拿掉了），所以这里写哪一个今天都一样 —— 仍然写 `poolThemes`，因为它回答的正是
-// 「新站挑得到吗」这个问题。判据没变：拿全部行业词逐个跑这个函数，退役那 30 个 id 一个都不该出现
+// 🔴 #1016 挑的范围是 `poolThemes`，**不是** `themes`。#1161 之后这两个恒是同一批（退役的已经从
+// `themes` 里拿掉了），所以这里写哪一个今天都一样 —— 仍然写 `poolThemes`，因为它回答的正是
+// 「新站挑得到吗」这个问题。判据没变：拿全部行业词逐个跑这个函数，退役的 id 一个都不该出现
 // （`theme-pipeline/pool.test.js` 的 ④）。
+// 📌 别在这句话里写套数：#1161 时是 80，#1174 之后 97，#1317（2026-09-14）整池下架重建之后是 2。
 //
 // 🔴 #1119 —— 池子怎么取，分两条路，而**大多数生意走第一条**：
 //

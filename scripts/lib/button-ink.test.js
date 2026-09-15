@@ -32,8 +32,11 @@ const fs = require('fs');
 const path = require('path');
 const ink = require('./button-ink.js');
 const { themes, poolThemes, retiredThemes } = require('../themes.js');
+// #1317 —— 脚手架期（池子 < 10 套）按构造没有对象可问的那几条，见 scripts/lib/scaffolding-pool.js。
+const { skipOnScaffoldingPool } = require('./scaffolding-pool.js');
 
 let failed = 0;
+let skipped = 0;
 const ok = (m) => console.log(`  ✅ ${m}`);
 const bad = (m) => { failed += 1; console.log(`  ❌ ${m}`); };
 
@@ -138,7 +141,11 @@ console.log(`② 注册表 ${Object.keys(themes).length} 套 + 已下架 ${Objec
       }
     }
   }
-  if (!rescuable.length) {
+  if (!rescuable.length && skipOnScaffoldingPool('② 注册表这一侧的正方向夹具',
+    '「白字不够、纯黑够」的主题在脚手架池的 2 套里一套都没有 ⟹ 正方向没有对象；'
+    + '下面「已下架那批 12 套」那条还在跑，同一个谓词在那 125 套上照样有夹具')) {
+    skipped += 1;
+  } else if (!rescuable.length) {
     bad('注册表里没有任何一套「白字不够、纯黑够」—— 这一格的正方向夹具是空的，它在空过');
   } else if (!hopeless.length) {
     bad('注册表里没有任何一套「两种字色都不够」—— 这一格的反方向夹具是空的，它在空过');
@@ -159,7 +166,11 @@ console.log(`② 注册表 ${Object.keys(themes).length} 套 + 已下架 ${Objec
     const p = primaryOf(id); if (!p) return false;
     return ink.ratio(ink.WHITE, p['500']) < MIN && ink.ratio(ink.BLACK, p['500']) >= MIN;
   });
-  if (retired.length !== 30) bad(`已下架名单是 ${retired.length} 套，不是 30 —— 夹具变了，先看是不是 themes-retired.js 动了`);
+  // 🔴 #1317 把这条从「等于 30」改成「不许缩」：那份名单原来是冻结的 30 条，而 #1317 把池子里 95 套
+  //    下架、名字和配色搬了进去 ⟹ 它 30 → 125，「等于 30」的前提没了。会咬人的仍然是**变小**
+  //    （有站正穿着那些主题，少一条弹窗就只写得出一个裸 id）；而真正撑住这一格判别力的是下面
+  //    `fixable.length < 5` 那条，它问的是「这个夹具还分不分得出对错」。
+  if (retired.length < 30) bad(`已下架名单只剩 ${retired.length} 套，比 #1161 那 30 条还少 —— 这份名单只增不删，先看是不是 themes-retired.js 动了`);
   if (fixable.length < 5) {
     bad(`已下架那批里「白字不合格而纯黑能救」只剩 ${fixable.length} 套 —— 这个夹具已经不能区分对错了，别拿它当绿`);
   } else {
@@ -221,7 +232,13 @@ console.log('③ 上限：blended 尺下【存在】两种字色都救不了的�
     const p = t.colors && t.colors.primary; if (!p) return false;
     return ink.ratio(ink.WHITE, p['500']) < MIN && ink.ratio(GRAY900, p['500']) >= MIN;
   }).length;
-  if (rescuedByGray >= rescuedByBlack) {
+  // 🔴 这一条要的是「在今天的注册表上，纯黑比 gray-900 多救几套」。脚手架池 2 套里两种都救 0 套
+  //    （两套的 primary-500 白字本来就够）⟹ 差值恒 0，它分不出「纯黑更好」和「两个一样」。
+  if (rescuedByBlack === 0 && rescuedByGray === 0
+    && skipOnScaffoldingPool('③ 纯黑 vs gray-900 的差值',
+      '脚手架池 2 套里「白字不够」的一套都没有 ⟹ 两种深字都救 0 套，差值恒 0，读不出高下')) {
+    skipped += 1;
+  } else if (rescuedByGray >= rescuedByBlack) {
     bad(`gray-900 当深字能救 ${rescuedByGray} 套、纯黑能救 ${rescuedByBlack} 套 —— 「必须用纯黑」这个理由`
       + '在今天的注册表上已经没有读数了，去重新量一次再决定留不留');
   } else {
@@ -521,9 +538,15 @@ console.log(`⑤ Chris 策展的那 ${Object.keys(poolThemes).length} 套池主�
   //    却没重建池子），而合法扩池会让两个数一起动 ⟹ 不再假红。
   //    📌 顺带堵住写死那版看不见的一种坏法：池子**是空的**时候 `ids.length !== 80` 会红，但如果
   //    有人把写死的数一起改成 0，这一格就静默地什么都没量。所以下面还问一句「至少得有东西」。
+  //    🔴 #1317 —— 脚手架期这条对账按构造对不上：位子表仍然排 97 个位子（改它会让已建站的
+  //    id 和长相全变，见 industry-sectors.js 那段），而池子是 2 套。它跟 `pool.test.js ⑦`
+  //    是同一件事，同一个门控。下面那句「池子是空的」照跑 —— 它防的是另一种坏法（读成空）。
   const wantPool = require('../theme-pipeline/industry-sectors.js').poolSlots().length;
+  const slotsSkipped = ids.length !== wantPool && skipOnScaffoldingPool('⑤ 池子大小 == 位子表',
+    `位子表仍是 ${wantPool} 个位子（改它会让已建站的 id 和长相全变），而脚手架池是 ${ids.length} 套`);
+  if (slotsSkipped) skipped += 1;
   if (!ids.length) bad('池子是空的 —— 这一格什么都没量到，不是通过');
-  else if (ids.length !== wantPool) {
+  else if (!slotsSkipped && ids.length !== wantPool) {
     bad(`池子 ${ids.length} 套，而位子表声明 ${wantPool} 个位子 —— 两边对不上，先看是谁没跟上`
       + '（改了 industry-sectors.js 的套数表就要重跑 promote.js 重建池子）');
   }
@@ -605,16 +628,41 @@ console.log('⑥ 「换过去过线才换」这条约束本身：两种字色都
 
 console.log('⑦ 算不出来的输入必须【说出来】，不许混到「合格」那一侧（#1105）');
 {
-  // 🔴 夹具是**真表外科改一处**，不是手写的合成 CSS：`magenta-01.css` 那一句
-  // `background-color: var(--color-primary-800);` 在整份表里出现 15 次，只有 `.services-list {…}`
-  // 那个块里的那一条是被判的对象。（第一版探针拿 `String.replace` 换"第一处"，换到的是别的块，
+  // 🔴 夹具是**真表外科改一处**，不是手写的合成 CSS：被判的对象是 `.services-list {…}` 那个块里
+  // 那一条 `background-color: var(--color-primary-NNN);`。同一句在整份表里还出现十几次（别的块），
+  // 所以变异先按块收窄再换那一条。（第一版探针拿 `String.replace` 换"第一处"，换到的是别的块，
   // 于是给出"改了也没变"的假读数 —— 所以下面每一次变异都先断言它真的改到了。）
-  const SHEET = path.join(__dirname, '..', '..', 'public', 'themes', 'magenta-01.css');
-  const raw = fs.readFileSync(SHEET, 'utf8');
-  const PRIM = poolThemes['magenta-01'].colors.primary;
-  const PAL = poolThemes['magenta-01'].colors;
+  //
+  // 🔴 #1317 —— 表和色阶都**从今天的池子现挑**，不再写死 `magenta-01` / `primary-800`：那套主题
+  // 跟另外 94 套一起下架了，它那份表已经不在 `public/themes/` 里，写死的那版当场 ENOENT 整份崩掉。
+  // 这一格问的是 `outlineGroundFromCss` 会不会瞎猜，跟具体哪一套主题无关 —— 需要的只是「一份真表，
+  // 它的 .services-list 块里真有一条 var() 底色」。所以判据写成「挑第一套满足这个形状的」，池子换了
+  // 多少次它都还在。
   const BLOCK = /(\n\.services-list \{)([^}]*)(\})/;
-  const DECL = / *background-color: var\(--color-primary-800\);\n/;
+  const DECL_RE = / *background-color: var\(--color-primary-\d+\);\n/;
+  // 🔴 挑法有两条，第二条是承重的：`.services-list` 那个块必须就是 `outlineGroundFromCss` **实际
+  //    解出来的那一条**。这份表里还有 `.services-list__item`，而那个选择器优先级更高 —— 挑到一份
+  //    由 `__item` 定胜负的表（ember-12 就是），下面每一次变异都改不动答案，六条断言会齐红，
+  //    而红的理由跟真正的实现坏掉长得一样。
+  const FIXTURE = Object.keys(poolThemes).map((id) => {
+    const file = path.join(__dirname, '..', '..', 'public', 'themes', `${poolThemes[id].sheet || id}.css`);
+    if (!fs.existsSync(file)) return null;
+    const text = fs.readFileSync(file, 'utf8');
+    const block = BLOCK.exec(text);
+    if (!block || !DECL_RE.test(block[2])) return null;
+    const g = ink.outlineGroundFromCss(text, poolThemes[id].colors);
+    if (!g || !String(g.from).startsWith('.services-list →')) return null;
+    return { id, file, raw: text };
+  }).find(Boolean);
+  if (!FIXTURE) {
+    // 🔴 一套都挑不出来【不是】跳过，是这一整格没有夹具 —— 而它守的是「读不出来就别猜」，
+    //    跟池子大小无关（2 套里两套都有）。所以它是真红。
+    bad('池里没有一套主题是「.services-list 那个块自己定胜负」的形状 —— ⑦ 这一整格没有夹具可用，不是通过');
+  }
+  const raw = FIXTURE ? FIXTURE.raw : '';
+  const PRIM = FIXTURE ? poolThemes[FIXTURE.id].colors.primary : {};
+  const PAL = FIXTURE ? poolThemes[FIXTURE.id].colors : {};
+  const DECL = DECL_RE;
   const mutate = (decl) => raw.replace(BLOCK, (_, a, body, c) => a + body.replace(DECL, decl) + c);
   const CELL = 'btn-secondary 静止';
 
@@ -622,8 +670,9 @@ console.log('⑦ 算不出来的输入必须【说出来】，不许混到「合
   {
     const g = ink.outlineGroundFromCss(raw, PAL);
     const r = g && ink.buttonInkReport(PRIM, g.hex);
-    if (!g) bad('阳性对照：没动过的 magenta-01.css 都解不出那块底 —— 这一整格的夹具是坏的');
-    else if (!r) bad('阳性对照：magenta-01 的调色板算不出报告');
+    if (!FIXTURE) { /* 上面已经报过了 */ }
+    else if (!g) bad(`阳性对照：没动过的 ${FIXTURE.id}.css 都解不出那块底 —— 这一整格的夹具是坏的`);
+    else if (!r) bad(`阳性对照：${FIXTURE.id} 的调色板算不出报告`);
     else if (r.unresolved.length) bad(`阳性对照：没动过的真表上却有 ${r.unresolved.length} 格算不出来：${r.unresolved.join(' · ')}`);
     else ok(`阳性对照：没动过的真表 ⟹ 底 = ${g.hex}（${g.from}）· 四格全部有数 · 算不出来的 0 格`);
   }
@@ -988,7 +1037,9 @@ console.log('⑧ `underNote()` 印出来的那句话本身：它印的每个数�
     return lies;
   }
 
-  // ── 夹具：注册表 110 套（池主题用它自己那张表解出来的真底）+ 生产 6 套 + 两套人造的
+  // ── 夹具：注册表那几套（池主题用它自己那张表解出来的真底）+ 生产 6 套 + 几套人造的
+  //    📌 这里原来写的是「注册表 110 套」，那是 #1161 之前退役 30 套还并在 `themes` 里的数。
+  //       今天注册表就是池子（#1161 拆走退役那批），而池子大小会随重生成而变 —— 所以不写数。
   const fixtures = [];
   for (const [id, t] of Object.entries(themes)) {
     const p = t.colors && t.colors.primary; if (!p) continue;
@@ -1049,9 +1100,27 @@ console.log('⑧ `underNote()` 印出来的那句话本身：它印的每个数�
   } else ok(`触发条件 ⟺ under 非空（${notes.length - spoke.length} 套四格全过线的，一句都没打）`);
 
   // 🔴 阳性对照：把 **r2 那句话**原样喂进同一个判据 —— 它必须被抓住，否则上面那些绿是空的。
-  // 出处 `git show a7265c17:templates/nextjs/scripts/sync-config.js` 那三行模板字符串，夹具是 ember-04。
-  const r2sample = notes.find((n) => n.id === 'ember-04');
-  if (!r2sample || !r2sample.report) bad('§⑧ 阳性对照的夹具 ember-04 不在注册表里了 —— 这个对照已经立不起来');
+  // 出处 `git show a7265c17:templates/nextjs/scripts/sync-config.js` 那三行模板字符串。
+  // 🔴 #1317 —— 夹具从写死的 `ember-04` 换成「**按形状现挑**：第一个走到『换字色救不回来』那一支的」。
+  //    换的理由是那套主题跟另外 94 套一起下架了、注册表里查不到它，而这一格要的从来不是那一套主题，
+  //    是**那个形状**（白字和纯黑都不过线 ⟹ `inkUnreachable`）。上面那批人造的 gray-114…119 就是
+  //    专门为这一支造的，池子怎么变它们都在 ⟹ 这个对照从此不随池子漂。
+  //    🔴 挑法不是「随便一个走到那一支的」，而是**这个对照要驱动的那两条谎话各自要有对象**：
+  //      ⓐ r2 那句话漏了「在 primary-NNN 上」⟹ 判据 ③ 对任何夹具都开火（第 1 条）
+  //      ⓑ r2 那句话说「两个都低于 4.5」，而它**自己印出来的那两个数**并非都低于 ⟹ 判据 ① 开火
+  //         （第 2 条）。要驱动 ⓑ，夹具的白字或纯黑按显示位数必须**不小于** 4.5 —— `ember-04` 当年
+  //         正是这一格，而人造的 `gray-119`（黑 4.498 ⟹ 印成 4.50）同样是。
+  //    挑不到就是这个对照立不起来，如实报红，不当成通过。
+  const printsNotBelow = (n) => {
+    const w = Number(n.report.whiteRatio.toFixed(2));
+    const b = Number(n.report.blackRatio.toFixed(2));
+    return w >= MIN || b >= MIN;
+  };
+  const r2sample = notes.find((n) => n.report && n.report.inkUnreachable && printsNotBelow(n));
+  if (!r2sample || !r2sample.report) {
+    bad('§⑧ 阳性对照挑不到夹具：没有一套「两种字色都救不回来、而印出来的数按显示位数并非都低于 '
+      + `${MIN}」—— r2 那句话的第二条谎话没有对象可驱动，这个对照立不起来`);
+  }
   else {
     const r = r2sample.report;
     const r2note = `这套配色换字色救不回来 —— 白字 ${r.whiteRatio.toFixed(2)} / 纯黑 ${r.blackRatio.toFixed(2)}，`
@@ -1059,7 +1128,7 @@ console.log('⑧ `underNote()` 印出来的那句话本身：它印的每个数�
     const caught = liesIn(r2note, r, r2sample.palette);
     if (caught.length < 2) {
       bad(`§⑧ 阳性对照没被抓住（只抓到 ${caught.length} 条）—— 这个判据咬不住 r2 那句话，上面的绿不算：${r2note}`);
-    } else ok(`阳性对照（r2 那句话，ember-04）被抓住 ${caught.length} 条：${caught.join(' · ')}`);
+    } else ok(`阳性对照（r2 那句话，夹具 ${r2sample.id}）被抓住 ${caught.length} 条：${caught.join(' · ')}`);
   }
   // 第二个阳性对照：只把「它点名的那一档」改错一档 —— 判据 ③ 必须单独咬得住主体漂移。
   //
@@ -1095,5 +1164,6 @@ console.log('⑧ `underNote()` 印出来的那句话本身：它印的每个数�
   }
 }
 
-console.log(failed ? `\n🔴 ${failed} 格失败` : '\n✅ 全过');
+console.log((failed ? `\n🔴 ${failed} 格失败` : '\n✅ 全过')
+  + (skipped ? ` · 🔴 脚手架池跳过 ${skipped} 格（#1317，不是通过）` : ''));
 process.exit(failed ? 1 : 0);

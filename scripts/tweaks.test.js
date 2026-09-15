@@ -48,9 +48,10 @@ const COLORS = {
   accent: { 50: '#fff6ed', 100: '#ffe9d5', 200: '#fed0aa', 300: '#fdb174', 400: '#fb8a3c', 500: '#f26a0f', 600: '#cc520a' },
 };
 // 同一个站的风格设定 —— #1003 的**数值**形状。AI 建的站写的是这一种，**手写的那 30 套**主题写的是
-// 档位词。🔴 语料（#1140，来源 #1083）：那 30 套 == `themes.js` 的 `retiredThemes`。🔴 #1161
-// （2026-08-23）之后 `themes` 只剩池子那 80 套（全是数值形状），那 30 套枚举形状的在并列的
-// `retiredThemes` 导出里 —— 这一句以前写的「今天注册表 110 套，其中 30 枚举 / 80 数值」已经不成立。
+// 档位词。🔴 语料（#1140，来源 #1083）：那 30 套是 #1161 下架的那一批，住在 `themes.js` 的
+// `retiredThemes` 里。🔴 **「那 30 套 == retiredThemes」这句话 #1317 之后不成立了**：那份名单
+// 30 → 125（#1317 又下架了池子里的 95 套），所以枚举形状的仍然只有最早那 30 条，另外 95 条是数值
+// 形状的池主题。要按形状分就读 `settings.radius` 的类型，别按「在哪个导出里」分。
 const NUMERIC_SETTINGS = { radius: 16, density: 1.05, shadowStrength: 0.22, buttonShape: 'pill' };
 
 const names = (base) => base.vars.map(([n]) => n);

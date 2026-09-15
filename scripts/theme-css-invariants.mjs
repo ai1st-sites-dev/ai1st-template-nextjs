@@ -1600,7 +1600,8 @@ const BREAKPOINT_PROBE = () => {
 // 🔴 THE TRIGGER IS THE PAGE'S OWN GEOMETRY, NOT A NAME. It asks every element "do you scroll
 // sideways" (`overflow-x` is `auto`/`scroll` AND `scrollWidth > clientWidth`), so a sheet that opens
 // a scroll axis on a block this ticket never thought about is judged the same way. That also means
-// the check is VACUOUS on a page with no strip — 96 of the 97 pool sheets today — so it says so at
+// the check is VACUOUS on a page with no strip — almost every pool sheet (96 of 97 when the pool held
+// 97; since #1317 shrank it to 2 for the rebuild, ALL of them) — so it says so at
 // the reading rather than printing nothing and being mistaken for a pass.
 //
 // 🔴 WHAT COUNTS AS "THE WORDS" IS DERIVED FROM THE CONTRACT, NOT LISTED HERE. Every `__headline`,
@@ -1711,8 +1712,10 @@ const STRIP_PROBE = (headingHooks) => {
 //     🔴 The residual is stated at the reading line rather than argued away: a cut whose entire width
 //     range is narrower than `STRIP_STEP_W` can still fall between two rungs. It is a bounded, named
 //     blindness — which is the thing the floors-only argument was not.
-//   🔴 Gated on a strip being found, because that is what makes it affordable: 96 of the 97 pool
-//     sheets draw no strip at all, so they pay nothing. Measured on the one that does: 77 rungs, 3.0s.
+//   🔴 Gated on a strip being found, because that is what makes it affordable: nearly every pool
+//     sheet draws no strip at all, so they pay nothing (96 of 97 when the pool held 97; the one that
+//     did was `lime-28`, retired by #1317, so today it is all of them). Measured on the one that
+//     did: 77 rungs, 3.0s.
 // 🔴 EVERY declared floor, not just the ones below the width the run is at. This argument covers the
 // widths inside a band that gets opened; a band that never gets opened is not covered by anything.
 // `stripLadder` carries the reading that cost — a rule scoped to a band above the run's own width
@@ -1834,7 +1837,8 @@ async function stripLadder(currentW) {
  * from the breakpoints can be argued complete. A sweep cannot be argued complete either; the
  * difference is that its blindness has a SIZE (`STRIP_STEP_W`) and that size is printed every run.
  * 🔴 It runs only where the coarse pass found a strip. That is not an optimisation detail: it is why
- * the cost is affordable to state as a rule at all — 96 of the 97 pool sheets draw no strip, and a
+ * the cost is affordable to state as a rule at all — nearly every pool sheet draws no strip (96 of 97
+ * when the pool held 97; since #1317 the only one that did, `lime-28`, is retired), and a
  * check that becomes 3s slower for every sheet in the pool would be traded away the first time
  * somebody times the job.
  */
@@ -1936,7 +1940,8 @@ async function judgeStrips(where) {
   for (const w of coarse) found += await takeRung(w);
   // 🔴 The dense sweep is gated on a strip HAVING BEEN FOUND, and `found` is the right gate rather
   // than "this sheet draws one": ⑦ is vacuous on a page with no strip, so sweeping it would spend
-  // 3s to re-measure nothing 96 times out of 97.
+  // 3s to re-measure nothing on nearly every sheet (96 times out of 97 when the pool held 97; since
+  // #1317 retired `lime-28` there is no sheet left that draws one).
   // 🔴 What this gate costs, said out loud rather than argued away: the coarse pass measures AT its
   // rungs, so opening both ends of a band does NOT see a strip whose cut window lies strictly
   // BETWEEN two rungs. `found` is then 0, no dense sweep runs, and this sheet lands in the
@@ -2933,7 +2938,8 @@ readings.push('  pages measured for check ① on the blocks phase 2 has moved, a
 // it says — this one line now has to carry two different reaches (#1046 条 16 and #1049's ②d/②e), and
 // the order is the only thing keeping them apart.
 // 🔴 #1016 r5's rule again — say the blindness at the reading, every run. A page with no strip on it
-// is the ordinary case (96 of the 97 pool sheets draw none), and printing nothing there would leave
+// is the ordinary case (96 of 97 when the pool held 97; since #1317 retired `lime-28`, all of them),
+// and printing nothing there would leave
 // "⑦ found nothing to judge" looking exactly like "⑦ judged it and it was fine".
 readings.push(`  sideways strips (check ⑦), measured on ${[pathOf(baseUrl), ...audits.slice(1).map((a) => a.where)].join(', ')} `
   + `at ${stripWidthsMeasured.size} width(s) from `

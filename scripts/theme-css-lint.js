@@ -254,17 +254,18 @@ const HOOKS = new Set([
   // sheet recipe writes a rule for and what gate ② (`theme-pipeline/hook-coverage.js`) demands a
   // rule for. Measured on this tree: adding the class form makes gate ② call out 100/100 sheets
   // ("hooks 201/202 — not dressed: testimonials__list", rc=1), and regenerating to satisfy it
-  // rewrites all 97 pool sheets, because the recipe's fallback for a part whose role it cannot name
+  // rewrites every pool sheet (97 of them when that was measured; 2 since #1317 shrank the pool for
+  // the rebuild), because the recipe's fallback for a part whose role it cannot name
   // is a real rule (`display: grid; gap; padding-left; …`), not a skip. The attribute form is
   // dropped from `HOOK_CLASSES` by the filter below — deliberately, and that drop is itself guarded
-  // — so `isHook` accepts it while no sheet is required to dress it and none of the 97 moves.
+  // — so `isHook` accepts it while no sheet is required to dress it and not one sheet moves.
   // 🔴 THE COST OF THAT, WRITTEN DOWN: gate ② will never ask whether ANY sheet dresses this layer.
   // That is right for a layer whose default is `display: contents` (an optional look, not a part
   // every theme owes the page a rule for) — but it means "no sheet uses it" and "every sheet uses
   // it" look identical to the pool's admission gate. §1 of the contract doc says this out loud.
   //
   // 🔴 The DEFAULT is `display: contents` and it lives in `globals.css`, not here and not in a
-  // sheet: a wrapper with a box of its own would change all 97 sheets' layout (every one of them
+  // sheet: a wrapper with a box of its own would change every sheet's layout (every one of them
   // makes `.testimonials` a grid or flex container, so the items are its grid children today and an
   // opaque wrapper would collapse them into one child). Measured element by element, flat vs
   // wrapped-in-`display:contents`: identical geometry for the headline, the sub and every item.
@@ -1380,9 +1381,10 @@ function walkArithmetic(node, report) {
 // 🔴 #1190 — THE COST LINE THAT USED TO BE HERE SAID NO SHIPPED SHEET WRITES `overflow` AT ALL, AND
 // BACKED IT WITH A COUNT OF THREE ZEROES. It was written when the pool held 3 sheets and has been
 // false since. Read off this tree by walking the PARSED sheets rather than grepping — a grep counts
-// the word inside comments too, which is part of how the old line survived: **13** of the 97 pool
-// sheets carry exactly one `overflow` declaration each, all of them `.hero__media { overflow:
-// hidden }`, and exactly **one** (`lime-28`, the #1190 experiment pin) writes `overflow-x: auto`, on
+// the word inside comments too, which is part of how the old line survived. When the pool held 97:
+// **13** of those sheets carried exactly one `overflow` declaration each, all of them
+// `.hero__media { overflow: hidden }`, and exactly **one** (`lime-28`, the #1190 experiment pin)
+// wrote `overflow-x: auto`, on
 // `[data-block-part="testimonials-list"]`. No sheet writes `overflow-y` — it is not on §2's list.
 // 🔴 Do not copy 13 or 1 out of here: both move whenever the pool is regenerated, and the second one
 // was 0 for the first half of this very ticket. Take them again, by walking the parsed sheets.

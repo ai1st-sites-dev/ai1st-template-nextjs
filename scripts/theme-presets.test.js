@@ -28,7 +28,9 @@ const presets = require('./theme-presets.js');
 const tweaks = require('./tweaks.js');
 const { RADIUS, BUTTON_SHAPE } = require('./theme-settings.js');
 
-let pass = 0; let fail = 0;
+let pass = 0; let fail = 0; let skipped = 0;
+// #1317 —— 脚手架期（池子 < 10 套）按构造没有对象可问的那两条，见 scripts/lib/scaffolding-pool.js。
+const { skipOnScaffoldingPool } = require('./lib/scaffolding-pool.js');
 const ok = (m) => { pass++; console.log(`  ✅ ${m}`); };
 const bad = (m) => { fail++; console.log(`  ❌ ${m}`); };
 // ⚠️ = 看得见但不拦。只给【已经成真、而治它要真浏览器重取一份数据】那一类用（#1096 B8）—— 它不计进 pass/fail，
@@ -1108,6 +1110,10 @@ let judgeSheetForRegistrySweep = null;
     if (atZero.length) {
       bad('阳性对照的夹具退化了：它在**滑块归零**那一档就已经破线，所以它证明不了色相那一维'
         + `有用（把 hueSteps() 改成只回 [0]，它照样报红）—— 重挑一组，挪 primary-500，见夹具注释。\n     ${atZero.join('\n     ')}`);
+    } else if (!offZero.length && skipOnScaffoldingPool('阳性对照（色相某一档才破线的那组配色）',
+      `这个夹具是在 100 张表上校准的，而 #1317 删掉 95 份之后只剩 ${sheets.length} 张 —— 破线的那一处不在留下的表里。`
+      + '它不是「判据坏了」，是这个对照今天没有对象；重生成池子那天按夹具注释里那条算术重挑一组')) {
+      skipped += 1;
     } else if (!offZero.length) {
       bad('阳性对照的夹具退化了：整个色相区间里一格都没破线 —— 判据对它是恒绿的，'
         + `重挑一组，挪 primary-500，见夹具注释。（归零那一档：全绿，共 ${full.length} 条命中）`);
@@ -1231,7 +1237,13 @@ let judgeSheetForRegistrySweep = null;
       + ' —— 少一张就等于那张没人判，不许当成过');
   }
   const names = Object.keys(themes);
-  if (names.length < 10) {
+  // 🔴 #1317 —— 「分母塌了」这条守的是「注册表被读成空 / 被截断」，而脚手架期它是**有意**只有 2 套。
+  //    两种情况在这一条上长得一样，所以按池子大小分流：脚手架期跳过并说出来，其余照旧报红。
+  //    📌 这一节问的是「三张手写表 × 每一套配色」，池子长回去它自己就回来。
+  if (names.length < 10 && skipOnScaffoldingPool('⑩ 三张手写表 × 每一套配色',
+    `注册表只有 ${names.length} 套，笛卡尔积的一边塌成了 ${names.length} —— 这一节的分母在池子重生成之前撑不起来`)) {
+    skipped += 1;
+  } else if (names.length < 10) {
     bad(`themes.js 只读到 ${names.length} 套主题 —— 这一节的分母塌了，不许当成过`);
   } else {
     const rows = [];
@@ -1360,5 +1372,6 @@ let judgeSheetForRegistrySweep = null;
   }
 }
 
-console.log(`\n${fail ? '❌' : '✅'} theme-presets.test.js — ${pass} 过 / ${fail} 失败`);
+console.log(`\n${fail ? '❌' : '✅'} theme-presets.test.js — ${pass} 过 / ${fail} 失败`
+  + (skipped ? ` · 🔴 脚手架池跳过 ${skipped} 格（#1317，不是通过）` : ''));
 process.exit(fail ? 1 : 0);
