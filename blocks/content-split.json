@@ -8,6 +8,18 @@
     "with-stats",
     "with-bullets"
   ],
+  "shapes": [
+    {
+      "name": "narrow-stack-uniform",
+      "needs": []
+    },
+    {
+      "name": "media-right-alternate",
+      "needs": [
+        "imageUrl"
+      ]
+    }
+  ],
   "slots": {
     "headline": {
       "kind": "text",

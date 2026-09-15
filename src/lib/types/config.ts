@@ -172,6 +172,10 @@ export interface BlockConfig {
    *  → 主题的选择单（`scripts/theme-pool.json` 的 `shapes`）→ 块 manifest 的 `shapes[0]`。
    *  🔴 跟 `block_layout` 并存、彼此不换算：那个说内容结构（有没有配图），这个说排版（图在哪侧）。 */
   shape?: string;
+  /** #1331 — 这个块 manifest 里 `required: false` 且填了的槽位名（原样，如 `imageUrl`），
+   *  `scripts/sync-config.js` 构建时算好写在这儿，`blockAttrs.ts` 逐个送成 `data-has-<名字>="true"`。
+   *  没有一个填了就没有这个字段，DOM 上一个属性都不多。 */
+  has?: string[];
   /** 没写就落回类型级默认表（`sections/block-roles.json`）。 */
   role?: BlockRoleName;
   /** 页面的哪个区。取值清单归 #1000，本票只把它原样带过去。 */

@@ -5,6 +5,16 @@
   "block_layout": [
     "default"
   ],
+  "shapes": [
+    {
+      "name": "heading-side",
+      "needs": []
+    },
+    {
+      "name": "numbered-rail",
+      "needs": []
+    }
+  ],
   "slots": {
     "headline": {
       "kind": "text",

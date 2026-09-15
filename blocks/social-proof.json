@@ -8,6 +8,16 @@
     "with-badges",
     "with-quote"
   ],
+  "shapes": [
+    {
+      "name": "two-up",
+      "needs": []
+    },
+    {
+      "name": "three-up",
+      "needs": []
+    }
+  ],
   "slots": {
     "headline": {
       "kind": "text",

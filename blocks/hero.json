@@ -7,6 +7,18 @@
     "text-only",
     "with-form"
   ],
+  "shapes": [
+    {
+      "name": "form-side",
+      "needs": []
+    },
+    {
+      "name": "media-cover",
+      "needs": [
+        "imageUrl"
+      ]
+    }
+  ],
   "slots": {
     "variant": {
       "kind": "variant",

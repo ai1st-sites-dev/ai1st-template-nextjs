@@ -5,6 +5,12 @@
   "block_layout": [
     "with-form"
   ],
+  "shapes": [
+    {
+      "name": "main-aside",
+      "needs": []
+    }
+  ],
   "slots": {
     "formIntro": {
       "kind": "text",

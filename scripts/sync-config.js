@@ -733,13 +733,51 @@ try {
 // 🔴 三级都取不到就**不写这个属性**，不造一个兜底值。造一个（比如 "default"）会让
 //    `public/shapes.css` 里 `[data-shape="default"]` 这类选择器选中一批「其实没人选过画法」的块，
 //    而那是静默的：页面照样打开。同一条理由写在 `blockAttrs.ts` 的 `block_layout` 那一段上。
-function shapeForBlock(block, selection, manifests) {
-  if (typeof block.shape === 'string' && block.shape) return block.shape;
-  const chosen = selection[block.type];
-  if (typeof chosen === 'string' && chosen) return chosen;
+//
+// #1331 —— 第 ③ 级填上了（31 份 manifest 都有 `shapes`，第 0 项是默认），而且取到形态之后**多问一句**
+// （设计文档 D11 ⑥）：这个站的这块填了它 `needs` 的槽位没有 —— 没填就落回 manifest 默认，并在构建
+// 日志说一行。判据是 block-manifest.js 的 `shapeNeedsGap`，跟 validateSite 第 ⑥ 条是**同一个函数**
+// （那里说「会落回」，这里真落回；两份实现会静默分叉）。形态不在清单里（主题选择单或页面 JSON 写了
+// 一个 CSS 里没有的名字）也落回默认 —— 写一个没人排它的名字，跟造兜底值是同一种静默失败。
+// 🔴 默认形态自己不再核 needs：checkManifestShape 保证 shapes[0].needs 为空，落回它就是落地。
+function shapeForBlock(block, selection, manifests, log = (line) => console.log(line)) {
   const m = manifests[block.type];
-  const fromManifest = m && Array.isArray(m.shapes) ? m.shapes[0] : undefined;
-  return typeof fromManifest === 'string' && fromManifest ? fromManifest : undefined;
+  const fallback = blockManifest.defaultShapeOf(m);
+  let shape; let from;
+  if (typeof block.shape === 'string' && block.shape) { shape = block.shape; from = '页面 JSON'; }
+  else if (typeof selection[block.type] === 'string' && selection[block.type]) { shape = selection[block.type]; from = '主题选择单'; }
+  else return fallback;
+  if (!m) return shape;
+  const gap = blockManifest.shapeNeedsGap(m, shape, block.data);
+  if (gap === null) {
+    log(`  ⚠️  块 ${block.type} 选了形态 ${shape}（${from}）但 blocks/${block.type}.json 的 shapes 清单里没有它，落回默认 ${fallback}`);
+    return fallback;
+  }
+  if (gap.length > 0) {
+    log(`  ⚠️  块 ${block.type} 选了形态 ${shape} 但缺槽位 ${gap.join('、')}，落回默认 ${fallback}`);
+    return fallback;
+  }
+  return shape;
+}
+
+// #1331 —— `data-has-<槽位>`：块 manifest 里 required:false 且填了的槽位，构建时按 manifest 算好写在
+// 块的 `has` 上，`blockAttrs.ts` 只负责把每个名字送成 `data-has-<名字>="true"`（跟 `shape` / `role`
+// 同一个分工：判据一处实现，DOM 端不再算一遍）。给 shapes.css 和守卫用，替代 `:has()`（设计文档 D4）。
+// 不看主题：它说的是这个站的内容填了什么，跟穿哪套主题无关，所以放在 `if (structureThemeId)` 外面。
+{
+  const manifestsForHas = loadBlockManifests(rootDir);
+  let carried = 0;
+  for (const locale of locales) {
+    for (const page of pagesByLocale[locale]) {
+      for (const block of page.blocks) {
+        const m = manifestsForHas[block.type];
+        if (!m) continue;
+        const has = blockManifest.filledOptionalSlots(m, block.data);
+        if (has.length > 0) { block.has = has; carried++; }
+      }
+    }
+  }
+  console.log(`  data-has-*: ${carried} block(s) carry at least one filled optional slot`);
 }
 
 if (structureThemeId) {
@@ -756,7 +794,9 @@ if (structureThemeId) {
         // #1318 —— 先写 `shape`（形态层靠它点名），再走下面那条老的 variant 覆盖。
         // 🔴 `variant` 那一半**一个字都没动**：它今天「还在写、没人读」是 #1008 AC5 有意留下的，
         //    四个 section 组件的注释都写着别在那儿"修"它。本票加的是一个并存的新字段，不是替换。
-        const shape = shapeForBlock(block, selection, manifestsForShapes);
+        // #1331 —— 落回默认那一行带上页名：同一种块（hero）几页都有，不带页名就说不清是哪一块落回了。
+        const shape = shapeForBlock(block, selection, manifestsForShapes,
+          (line) => console.log(line.replace(/^(\s*⚠️\s*)块 /, `$1页 ${page.slug || locale}: 块 `)));
         if (shape) { block.shape = shape; shaped++; }
         // #1162 —— 这里以前先读一个由别名层写上去的隐藏字段、读不到才落回 `block.type`，为的是让
         // 主题注册表里按老 type 名写的偏好还能对上老站。别名层 2026-08-23 整层退役之后**没有任何地方

@@ -6,6 +6,12 @@
     "with-media",
     "text-only"
   ],
+  "shapes": [
+    {
+      "name": "row",
+      "needs": []
+    }
+  ],
   "slots": {
     "headline": {
       "kind": "text",

@@ -7,6 +7,12 @@
     "quote",
     "with-list"
   ],
+  "shapes": [
+    {
+      "name": "stack",
+      "needs": []
+    }
+  ],
   "slots": {
     "headline": {
       "kind": "text",

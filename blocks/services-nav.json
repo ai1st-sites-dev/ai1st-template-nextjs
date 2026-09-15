@@ -5,6 +5,12 @@
   "block_layout": [
     "default"
   ],
+  "shapes": [
+    {
+      "name": "row",
+      "needs": []
+    }
+  ],
   "slots": {},
   "slotsNote": "Auto-renders the services from services.json — this block takes no data.",
   "variants": {},

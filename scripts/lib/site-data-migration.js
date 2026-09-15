@@ -42,7 +42,7 @@ const path = require('path');
 // `role` 是【老类型】的角色，只在「补了才有区别」时才写进磁盘（见下面 roleToWrite）。
 //
 // 🔴 上一版这里写的理由是「不补会落到兜底的 `essential`」——**那句话今天是假的**（PM 在 #1166
-// 三稿裁定里更正的，我自己重量过）：兜底是 `blockAttrs.ts:74` 的 `BLOCK_ROLES[type] || 'essential'`，
+// 三稿裁定里更正的，我自己重量过）：兜底是 `blockAttrs.ts:78` 的 `BLOCK_ROLES[type] || 'essential'`，
 // 而迁移之后 `type` 就是 `card-group`，`block-roles.json` 里 `card-group` 那一行从 #1132 进表那天
 // 起就在（`git log -S` 查得到），值也是 `optional` —— 查得到就落 `optional`，落不到兜底那一支。
 // 那句话说的是**别名那条路**：那条路 `blockAttrs` 收到的是 `__legacyType`，四个老名字被 #1162 从
@@ -76,7 +76,7 @@ function blockRoles(rootDir) {
 // roleToWrite —— 这个块要不要把老类型那个角色写进磁盘？
 //
 // 🔴 判据是「补了才有区别」，不是「老形状没写就补」。产物里那个 `data-role` 由
-// `blockAttrs.ts:74` 的 `block.role ?? (BLOCK_ROLES[新type] || 'essential')` 决定 —— 所以
+// `blockAttrs.ts:78` 的 `block.role ?? (BLOCK_ROLES[新type] || 'essential')` 决定 —— 所以
 // **新类型在今天那张表里查到的值 == 老类型那个角色** 时，写与不写产物一模一样，而写这个动作
 // 落在的是**付费客户仓库里的数据文件**。本票正文对老板的承诺是「内容一个字不变」，两者相等时
 // 不写更贴合它（AC1 说的是这几样**可以**变，不是必须变）。

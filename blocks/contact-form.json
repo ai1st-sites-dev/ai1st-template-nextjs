@@ -5,6 +5,16 @@
   "block_layout": [
     "with-form"
   ],
+  "shapes": [
+    {
+      "name": "panel-below",
+      "needs": []
+    },
+    {
+      "name": "panel-left",
+      "needs": []
+    }
+  ],
   "slots": {
     "heading": {
       "kind": "text",

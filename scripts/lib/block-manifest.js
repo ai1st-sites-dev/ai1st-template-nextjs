@@ -18,6 +18,86 @@ const path = require('path');
 const { resolveBlockTypesForCheck } = require('../blocks');
 
 const BLOCKS_DIR = path.join(__dirname, '..', '..', 'blocks');
+// #1331 —— 形态层的另一半。manifest 的 `shapes` 清单跟这份 CSS 里出现的 (块, 形态) 对必须逐块相等
+// （守卫 `block-shapes.test.js` 两向差集为 0；`checkManifestShape` 逐份核 manifest → CSS 这一向）。
+const SHAPES_CSS = path.join(__dirname, '..', '..', 'public', 'shapes.css');
+
+/**
+ * `public/shapes.css` 里出现的 (块, 形态) 对 —— Map<块名, Set<形态名>>。
+ * 只认 `[data-block="x"][data-shape="y"]` 这个组合选择器（形态层的全部规则都长这样，spec D4）。
+ * 🔴 文件不在就抛，不回空表：空表会让「manifest 写的形态在 CSS 里没有规则」那条检查对一切沉默。
+ */
+function shapePairsFromCss(cssPath = SHAPES_CSS) {
+  if (!fs.existsSync(cssPath)) {
+    throw new Error(`${cssPath} 不存在 —— 形态清单的 CSS 那一半没了，manifest 的 shapes 没法核`);
+  }
+  const css = fs.readFileSync(cssPath, 'utf-8');
+  const re = /\[data-block="([a-z0-9-]+)"\]\[data-shape="([a-z0-9-]+)"\]/g;
+  const out = new Map();
+  let mm;
+  while ((mm = re.exec(css)) !== null) {
+    if (!out.has(mm[1])) out.set(mm[1], new Set());
+    out.get(mm[1]).add(mm[2]);
+  }
+  return out;
+}
+
+/**
+ * 一个槽位「填了没」。🔴 三处用同一把尺（#1331）：第 ① 条（必填槽）、第 ⑥ 条（形态的 needs）、
+ * 构建时写到块上的 `data-has-*`。分成三份实现的失败方向是静默的：校验放行、构建落回、DOM 又说填了。
+ */
+function slotFilled(v) {
+  return !(v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0));
+}
+
+/** manifest 的默认形态 —— `shapes[0].name`；没有清单就 undefined（别造兜底值，理由在 sync-config §shapeForBlock）。 */
+function defaultShapeOf(m) {
+  return m && Array.isArray(m.shapes) && m.shapes[0] && typeof m.shapes[0].name === 'string'
+    ? m.shapes[0].name : undefined;
+}
+
+/**
+ * 形态 `shapeName` 在这份 `data` 上缺哪些它 `needs` 的槽位（数组，空 = 一个不缺）。
+ * 形态不在这个块的清单里 ⟹ 回 null，让调用方分得开「缺槽位」和「没这个形态」。
+ * validateSite 第 ⑥ 条与 sync-config §shapeForBlock 都调它 —— 同一个判据，两处调（设计文档 D11 ⑥）。
+ */
+function shapeNeedsGap(m, shapeName, data) {
+  const sh = (m && Array.isArray(m.shapes) ? m.shapes : []).find((x) => x && x.name === shapeName);
+  if (!sh) return null;
+  const d = data || {};
+  return (Array.isArray(sh.needs) ? sh.needs : []).filter((slot) => !slotFilled(d[slot]));
+}
+
+/**
+ * manifest 里 `required: false` 且在 `data` 里填了的槽位名 —— `data-has-<槽位>` 的来源（#1331）。
+ * 🔴 名字沿用 manifest 的键原样（`imageUrl` 不改 kebab），shapes.css 和守卫两边才对得上。
+ */
+function filledOptionalSlots(m, data) {
+  const d = data || {};
+  return Object.entries((m && m.slots) || {})
+    .filter(([slot, spec]) => spec && !spec.required && slotFilled(d[slot]))
+    .map(([slot]) => slot);
+}
+
+/**
+ * manifest 清单 vs shapes.css 集合的两向差集（守卫用）。`manifests` 是 Map 或按类型索引的对象。
+ * 回 { onlyInCss: ["block/shape"…], onlyInManifests: ["block/shape"…] }，两个都空才算对齐。
+ */
+function diffShapesAgainstCss(manifests, cssShapes = shapePairsFromCss()) {
+  const entries = manifests instanceof Map ? [...manifests.entries()] : Object.entries(manifests || {});
+  const inManifests = new Set();
+  for (const [type, m] of entries) {
+    for (const sh of (m && Array.isArray(m.shapes) ? m.shapes : [])) {
+      if (sh && typeof sh.name === 'string') inManifests.add(`${type}/${sh.name}`);
+    }
+  }
+  const inCss = new Set();
+  for (const [block, shapes] of cssShapes) for (const sh of shapes) inCss.add(`${block}/${sh}`);
+  return {
+    onlyInCss: [...inCss].filter((x) => !inManifests.has(x)).sort(),
+    onlyInManifests: [...inManifests].filter((x) => !inCss.has(x)).sort(),
+  };
+}
 
 // ── manifest 自己的形状（#1013 洞 2）────────────────────────────────────────────────────────────
 //
@@ -39,7 +119,7 @@ const ROLE_NAMES = ['essential', 'lead', 'optional'];
 // 里写死的页面规则点名（`create-site.js §generateContent`，data 那行仍从 manifest 来）。
 const PROMPT_GROUPS = ['homepage', 'page-specific', 'page-rule'];
 
-function checkManifestShape(name, m) {
+function checkManifestShape(name, m, cssShapes) {
   const bad = (msg) => { throw new Error(`blocks/${name}: ${msg}`); };
   const isStr = (v) => typeof v === 'string' && v.length > 0;
   const strArray = (v) => Array.isArray(v) && v.every(isStr);
@@ -61,6 +141,41 @@ function checkManifestShape(name, m) {
     if (typeof s.promptOptional !== 'boolean') bad(`slots.${slot}.promptOptional 必须是 true/false`);
     if (s.shape !== undefined && !isStr(s.shape)) bad(`slots.${slot}.shape 有的话必须是非空字符串`);
   }
+  // #1331 —— 形态清单。第 0 项是默认；每项 { name, needs }。四条都是白名单式（拼错键要当场红，不许静默）：
+  //   name 在 public/shapes.css 里必须有 [data-block="<块>"][data-shape="<name>"] 的规则；
+  //   needs 里每个名字必须是这个块 slots 的键；默认那项的 needs 必须为空（缺槽位落回的就是它）。
+  if (!Array.isArray(m.shapes) || m.shapes.length === 0) {
+    bad(`shapes 是 ${JSON.stringify(m.shapes)} —— 必须是非空的【数组】，第 0 项是默认形态（每项 { "name", "needs" }）`);
+  }
+  const shapeNames = new Set();
+  m.shapes.forEach((sh, i) => {
+    if (sh === null || typeof sh !== 'object' || Array.isArray(sh)) bad(`shapes[${i}] 必须是对象 { name, needs }`);
+    if (!isStr(sh.name)) bad(`shapes[${i}].name 必须是非空字符串`);
+    if (shapeNames.has(sh.name)) bad(`shapes 里 "${sh.name}" 写了两次`);
+    shapeNames.add(sh.name);
+    if (!strArray(sh.needs)) {
+      bad(`shapes[${i}] ("${sh.name}").needs 是 ${JSON.stringify(sh.needs)} —— 必须是字符串【数组】（不需要槽位就写 []）`);
+    }
+    for (const slot of sh.needs) {
+      if (!Object.prototype.hasOwnProperty.call(m.slots, slot)) {
+        bad(`shapes[${i}] ("${sh.name}").needs 里的 "${slot}" 不是这个块的槽位（slots 的键：${Object.keys(m.slots).join(' / ') || '（空）'}）`);
+      }
+      // needs 只说【可选】槽位：必填槽由第 ① 条保证到位，写在这儿是重复声明，而且会让默认形态
+      // 也「有需要」—— 那样缺槽位就无处可落（下面那条）。
+      if (m.slots[slot].required !== false) {
+        bad(`shapes[${i}] ("${sh.name}").needs 里的 "${slot}" 是必填槽 —— needs 只写 required:false 的槽位（必填的由第 ① 条保证）`);
+      }
+    }
+    if (i === 0 && sh.needs.length > 0) {
+      bad(`shapes[0] ("${sh.name}") 是默认形态，needs 必须为空 —— 别的形态缺槽位落回的就是它，它自己再缺就无处可落`);
+    }
+    // `name` 是文件名（带 .json），CSS 里点名用的是块类型 —— 上面 loadManifests 已核过两者对得上。
+    const inCss = cssShapes instanceof Map ? cssShapes.get(m.type) : undefined;
+    if (!inCss || !inCss.has(sh.name)) {
+      bad(`shapes 里的 "${sh.name}" 在 public/shapes.css 没有 [data-block="${m.type}"][data-shape="${sh.name}"] 的规则`
+        + ' —— 写进 manifest 的形态必须有人排它（要加形态先写 CSS）');
+    }
+  });
   if (m.variants === null || typeof m.variants !== 'object' || Array.isArray(m.variants)) {
     bad('variants 必须是对象（外观词 → 一句说明）');
   }
@@ -105,6 +220,12 @@ let cache = null;
 function loadManifests(dir = BLOCKS_DIR) {
   if (cache && cache.dir === dir) return cache.byType;
   const byType = new Map();
+  // #1331 —— CSS 那一半读一次给每份 manifest 核。路径按 dir 推（`<dir>/../public/shapes.css`），测试用临时
+  // 目录时把 CSS 也摆到同样的相对位置。
+  // 🔴 先 realpath：homepage-recipe.test.js 那类夹具只把 `blocks/` **软链**进临时树、不带 `public/`，按软链
+  //    的位置推会推到一个不存在的 public/ ⟹ 整个 create-site 在提示词那一步就死（第一版就是这么把它打红的）。
+  //    顺着软链到真目录再推，读到的是那份 blocks/ 真正配套的 CSS。
+  const cssShapes = shapePairsFromCss(path.resolve(fs.realpathSync(dir), '..', 'public', 'shapes.css'));
   for (const name of fs.readdirSync(dir).sort()) {
     if (!name.endsWith('.json')) continue;
     const m = JSON.parse(fs.readFileSync(path.join(dir, name), 'utf-8'));
@@ -123,7 +244,7 @@ function loadManifests(dir = BLOCKS_DIR) {
         + '如果这个块真的不需要任何数据，用 slotsNote 说一句为什么（它从哪儿取内容）；'
         + '如果是漏了，把槽补上 —— 空 slots 会让提示词里那行退化成 "data: {  }"，而校验永远不会报。');
     }
-    checkManifestShape(name, m);
+    checkManifestShape(name, m, cssShapes);
     byType.set(m.type, m);
   }
   cache = { dir, byType };
@@ -389,8 +510,8 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
   const problems = [];
   const warnings = [];
   const seenTypes = new Set();
-  // 六条检查全部经这里出口 —— 别在下面直接 push，否则漏掉一条就又出现一个构建期硬闸。
-  //（第 ⑤ 条是 #1152 加的；第 ④ 条在循环**之后**，因为它问的是整个站，不是某一个块。）
+  // 全部检查经这里出口 —— 别在下面直接 push，否则漏掉一条就又出现一个构建期硬闸。
+  //（第 ⑤ 条是 #1152 加的，第 ⑥ 条是 #1331 加的；第 ④ 条在循环**之后**，因为它问的是整个站，不是某一个块。）
   const flag = (msg) => (scope === 'build' ? warnings : problems).push(msg);
 
   for (const page of pages || []) {
@@ -450,10 +571,8 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
       const data = sec.data || {};
       for (const [slot, spec] of Object.entries(m.slots)) {
         if (!spec.required) continue;
-        const v = data[slot];
-        const empty = v === undefined || v === null || v === ''
-          || (Array.isArray(v) && v.length === 0);
-        if (empty) flag(`${where}: 缺必填槽 "${slot}"（blocks/${sec.type}.json 里写着 required）`);
+        // #1331 —— 「空」的判据抽成 slotFilled，跟第 ⑥ 条、data-has-* 同一把尺；语义逐字没变。
+        if (!slotFilled(data[slot])) flag(`${where}: 缺必填槽 "${slot}"（blocks/${sec.type}.json 里写着 required）`);
       }
 
       // ② 角色只能加不能降（spec §4.2 / D4）。没写 role 的按 manifest 的 roleDefault 兜底 —— 兜底在
@@ -471,6 +590,20 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
       if (sec.block_layout !== undefined && !(m.block_layout || []).includes(sec.block_layout)) {
         flag(`${where}: block_layout "${sec.block_layout}" 不在 blocks/${sec.type}.json 的清单里`
           + `（${(m.block_layout || []).join(' / ')}）`);
+      }
+
+      // ⑥ #1331（设计文档 D11 ⑥）—— 页面 JSON 点名的形态，它 needs 的槽位填了没。判据是 shapeNeedsGap，
+      //    跟 sync-config §shapeForBlock 构建时落回默认用的是**同一个函数**：这里说「会落回」，那里真落回。
+      //    形态不在清单里也在这条报（block_layout 那条的同款）。
+      if (sec.shape !== undefined) {
+        const gap = shapeNeedsGap(m, sec.shape, data);
+        const names = (m.shapes || []).map((x) => x.name).join(' / ');
+        if (gap === null) {
+          flag(`${where}: shape "${sec.shape}" 不在 blocks/${sec.type}.json 的 shapes 清单里（${names}）`);
+        } else if (gap.length > 0) {
+          flag(`${where}: shape "${sec.shape}" 需要槽位 ${gap.map((x) => `"${x}"`).join('、')} 而它是空的`
+            + ` —— 构建时会落回默认 "${defaultShapeOf(m)}"（shapes[0]）；要么填上，要么别点名这个形态`);
+        }
       }
 
       // ⑤ 列表槽里的条目只能是字符串或对象（#1152）。
@@ -693,4 +826,12 @@ module.exports = {
   applyRoleDefaults,
   industryMatches,
   recogniseIndustry,
+  // #1331 —— 形态层
+  SHAPES_CSS,
+  shapePairsFromCss,
+  slotFilled,
+  defaultShapeOf,
+  shapeNeedsGap,
+  filledOptionalSlots,
+  diffShapesAgainstCss,
 };

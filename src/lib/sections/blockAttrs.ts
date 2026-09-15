@@ -55,6 +55,8 @@ export interface BlockAttrs {
   'data-block-layout'?: string;
   /** #1318 — 这个块排成什么样。`public/shapes.css` 靠 `[data-block][data-shape]` 点名。 */
   'data-shape'?: string;
+  /** #1331 — 可选槽位填了没：manifest 里 required:false 且填了的每个槽位一个 `data-has-<槽位>="true"`。 */
+  [has: `data-has-${string}`]: 'true' | undefined;
 }
 
 // 🔴 表里没有这个类型时给 'essential'，不是 'optional'。两个方向的错法不对称：
@@ -89,6 +91,14 @@ export function blockAttrs(type: string, block?: BlockConfig): BlockAttrs {
   // 否则 `[data-shape="default"]` 会选中一批「其实没人选过画法」的块，而那是静默的。
   if (block && typeof block.shape === 'string' && block.shape) {
     attrs['data-shape'] = block.shape;
+  }
+  // #1331 — `data-has-<槽位>="true"`，每个填了的可选槽位一个。名单 `block.has` 是 `sync-config.js` 构建时按
+  // manifest（`required: false` + 填了）算好的，这里**不再算**，理由跟上面 `shape` 那段逐字相同。
+  // 槽位名原样（`data-has-imageUrl`，不改 kebab）—— shapes.css 与守卫两边靠同一个名字对上。
+  if (block && Array.isArray(block.has)) {
+    for (const slot of block.has) {
+      if (typeof slot === 'string' && slot) attrs[`data-has-${slot}`] = 'true';
+    }
   }
   return attrs;
 }

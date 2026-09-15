@@ -5,6 +5,16 @@
   "block_layout": [
     "default"
   ],
+  "shapes": [
+    {
+      "name": "two-up",
+      "needs": []
+    },
+    {
+      "name": "attribution-first",
+      "needs": []
+    }
+  ],
   "slots": {
     "headline": {
       "kind": "text",

@@ -5,6 +5,18 @@
   "block_layout": [
     "default"
   ],
+  "shapes": [
+    {
+      "name": "stack-left",
+      "needs": []
+    },
+    {
+      "name": "title-side",
+      "needs": [
+        "subtitle"
+      ]
+    }
+  ],
   "slots": {
     "title": {
       "kind": "text",

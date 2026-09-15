@@ -5,6 +5,16 @@
   "block_layout": [
     "default"
   ],
+  "shapes": [
+    {
+      "name": "label-side",
+      "needs": []
+    },
+    {
+      "name": "phone-first",
+      "needs": []
+    }
+  ],
   "slots": {
     "headline": {
       "kind": "text",

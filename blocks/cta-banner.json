@@ -5,6 +5,12 @@
   "block_layout": [
     "default"
   ],
+  "shapes": [
+    {
+      "name": "title-side",
+      "needs": []
+    }
+  ],
   "slots": {
     "headline": {
       "kind": "text",

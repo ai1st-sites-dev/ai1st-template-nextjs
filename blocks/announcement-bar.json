@@ -5,6 +5,12 @@
   "block_layout": [
     "default"
   ],
+  "shapes": [
+    {
+      "name": "stack",
+      "needs": []
+    }
+  ],
   "slots": {
     "message": {
       "kind": "text",

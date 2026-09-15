@@ -5,6 +5,16 @@
   "block_layout": [
     "default"
   ],
+  "shapes": [
+    {
+      "name": "stack",
+      "needs": []
+    },
+    {
+      "name": "heading-side",
+      "needs": []
+    }
+  ],
   "slots": {
     "headline": {
       "kind": "text",
