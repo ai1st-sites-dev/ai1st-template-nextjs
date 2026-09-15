@@ -23,7 +23,7 @@ const cp = require('child_process');
 const NEXT = path.resolve(__dirname, '..', '..');
 const { generateCandidates } = require('./generate');
 const {
-  gateStatic, gateInvariants, gateSimilarity, gateSkeleton, gateHumanReview,
+  gateStatic, gateShapes, gateInvariants, gateSimilarity, gateSkeleton, gateHumanReview,
 } = require('./gates');
 const {
   shootCandidate, writeComparisonPage, whyNoAllBlocksPage, clearCandidateShots,
@@ -528,7 +528,12 @@ async function main() {
     const gates = [];
     let shot = null;
     gates.push(gateStatic(c));
-    if (gates[0].pass) {
+    // 🔴 #1338 —— ⑥ 排在 ② 之前，而且**在真构建之前**：它读的是这套候选自己的选择单，不需要建站，
+    //    而选择单不齐的候选进了池就是一池坏主题（`pool.test.js` 第 ⑪ 段要等写完池才红）。
+    //    下面那个条件从 `gates[0].pass` 换成「前面的都过了」—— 只有 ① 一道时两者等价，多一道之后
+    //    写死下标那种写法会静默跳过新加的这一道。
+    gates.push(gateShapes(c));
+    if (gates.every((g) => g.pass)) {
       // 🔴 #1079 —— 上面那个 `slot` 是这套候选**全收时**会占的位子，顶栏/页脚按它算（理由整段写在
       //    installCandidate 上面）。人审拒掉几套就会让后面每一套的位子往前挪，那时图上这一维
       //    仍然是「全收假设下的样子」—— 这条边界写进交接与 AC5，不在这里悄悄兜。

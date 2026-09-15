@@ -664,6 +664,19 @@ if (!skip('⑩ 词边界匹配（a/b/c 三臂）',
 //
 // 🔴 分母从 `blocks/*.json` 现数，不写死 31：加一个块类型时，没跟着补选择单的那套主题当场红。
 //    失败方向因此是「点名」，不是「这一格自己缩小了」。
+//
+// 🔴 #1338 —— 这一格的本职，写清楚是给谁看的：**新加一份块 manifest 时，池里每套主题的选择单都要
+//    跟着补一项，不补就在这里红**（`#1333` 的 `hero-with-form` 是第一个走这条路的块）。反过来，
+//    往某个块的 manifest 里**加一种形态**（`#1340` 那 27 种）**不触发**它 —— 选择单一个块只写一个
+//    名字，加形态不改选择单。
+//
+// 🔴 #1338 —— 全绿的时候这一格**仍然不问「这个名字在该块 manifest 的清单里吗」**。它问的是三件事：
+//    ① 每个块有没有名字 ② 那个名字在 `public/shapes.css` 里有没有规则 ③ 选择单里有没有 `blocks/`
+//    之外的键。「名字在该块 manifest 的 shapes 清单里」这一句，是 ② 加上
+//    `scripts/lib/block-shapes.test.js` 第 ① 段（`#1331`：两向证明每份 manifest 的形态清单 ==
+//    `shapes.css` 的集合，两个差集都是 0 —— 那一格自己现数份数，这里不抄那个数）**接起来**
+//    才成立的 —— 两道里任何一道被删掉或者放宽，
+//    「名字在清单里」就没人守了，**而这一格照样全绿**。要动那一段之前先回来读这一句。
 {
   const blocksDir = path.join(NEXT, 'blocks');
   const shapesPath = path.join(NEXT, 'public', 'shapes.css');
@@ -697,6 +710,14 @@ if (!skip('⑩ 词边界匹配（a/b/c 三臂）',
     if (noRule.length) {
       out.push(`${label} 选了 ${noRule.length} 个 shapes.css 里查不到的画法名（那些块会静默塌回 base.css）：`
         + noRule.map((b) => `${b}=${sel[b]}`).join(' · '));
+    }
+    // #1338 —— 第三条：选择单里出现 `blocks/` 之外的键。上面两条都只按 `allBlocks` 逐块问，所以
+    // 多出来的键**不进任何一条判断**：块改名或者删掉之后留在选择单里的老键，会跟着流水线一路复制
+    // 下去而没有任何东西说一句话。失败方向跟上面两条一样是「点名」，不是「这一格自己缩小了」。
+    const extraKey = Object.keys(sel).filter((k) => !allBlocks.includes(k)).sort();
+    if (extraKey.length) {
+      out.push(`${label} 的选择单多 ${extraKey.length} 个 blocks/ 里没有的键（块改名或删掉之后留下的老键）：`
+        + extraKey.join(' · '));
     }
     return out;
   };
@@ -733,6 +754,28 @@ if (!skip('⑩ 词边界匹配（a/b/c 三臂）',
       ok(`⑪ 反向臂 B（「键在不在」那一半）：把 ${ids[0]} 的 ${B0} 整个删掉，同一段判断当场只点名它`);
     } else {
       bad(`⑪ 反向臂 B 对不上：点名 ${caught.length} 条（${caught.join(' · ')}）—— 应当正好一条「选择单缺 1/…」`);
+    }
+  }
+  // 🔴 #1338 —— 第三个臂，驱动的仍然是上面那个 `judge()` 本身（理由跟上面那段逐字同一条：在旁边
+  //    另写一遍表达式的对照，把真判断整个换掉照样打绿）。它比的是**跟不塞那个键时的差**：多出来的
+  //    那一条要同时点名喂进去的那套主题和那个键，其余报文逐字不变。
+  //    臂 A/B 喂的是 `ids[0]`，这个臂有意喂**最后一套**（今天是 ember-12）—— 顺带证明报文里点名的
+  //    是喂进去的那一套，不是写死的。
+  {
+    const LAST = ids[ids.length - 1];
+    const base = judge(LAST, themesMod.shapesFor(LAST));
+    const sel = { ...themesMod.shapesFor(LAST), 'not-a-block': 'whatever' };
+    const caught = judge(LAST, sel);
+    const extra = caught.filter((l) => !base.includes(l));
+    const rest = caught.filter((l) => base.includes(l));
+    if (extra.length === 1 && extra[0].includes(LAST) && extra[0].includes('not-a-block')
+      && rest.length === base.length && rest.every((l, i) => l === base[i])) {
+      ok(`⑪ 反向臂 C（「有没有多出来的键」那一半，#1338）：往 ${LAST} 的选择单塞一个 blocks/ 里没有的`
+        + `键 not-a-block，同一段判断比不塞时正好多一条、且同时点名 ${LAST} 和 not-a-block，`
+        + '其余报文逐字不变');
+    } else {
+      bad(`⑪ 反向臂 C 对不上：多出来 ${extra.length} 条（${extra.join(' · ')}）、其余 ${rest.length}/`
+        + `${base.length} 条逐条相同 —— 应当正好多一条、且同时点名 ${LAST} 和 not-a-block`);
     }
   }
 }

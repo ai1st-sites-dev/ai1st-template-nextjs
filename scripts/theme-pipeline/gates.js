@@ -3,14 +3,16 @@
 // ══════════════════════════════════════════════════════════════════════════════════════════════════
 //
 //   ① 静态     tokens 对 schema · 受限 CSS 的选择器/属性/字面色值对契约
+//   ⑥ 选择单   这套候选给 `blocks/` 里每个块一个画法名，不多不少（#1338）
 //   ② 动态     样例站真构建 + 无头浏览器读五条不变量，外加「钩子在【theme 那一份】CSS 里有规则」
 //   ③ 相似度   跟池里已有的比，太像的打回
 //   ⑤ 骨架距离 跟池里每一套算 9 块骨架距离，≤2 的打回（#1173）—— 排在④之前，见那一段的头
 //   ④ 人审     Chris 翻图 —— 这一道不自动化，流水线只负责把图册摆好并停在这里
 //
-// 🔴 上面的编号是**这几道闸各自的名字**（报告里逐字打的就是它们），不是执行顺序 —— ⑤ 比 ④ 先跑。
-//    ①②③④ 是 #1004 定的，⑤ 是 #1173 后加的，而给它 ⑤ 而不是插成新的 ④ 是有意的：票、报告、
-//    memory 里已经有几十处按「④ 人审」引用那一道，重编号会让那些引用全部指错。
+// 🔴 上面的编号是**这几道闸各自的名字**（报告里逐字打的就是它们），不是执行顺序 —— ⑤ 比 ④ 先跑，
+//    ⑥ 比 ② 先跑。①②③④ 是 #1004 定的，⑤ 是 #1173 后加的，⑥ 是 #1338 后加的；跟 ⑤ 当年一样，
+//    给它一个新号而不是插成新的 ②，是因为票、报告、memory 里已经有几十处按名字引用那几道，
+//    重编号会让那些引用全部指错。
 //
 // 🔴 ②里那条「在 theme 那一份 CSS 里有规则」是本票**自己**实现的，不等 #996。
 //    理由（本票 AC2 就是它的证人）：产物里的 CSS 不止一份 —— base.css（#1001）也会给同一批钩子
@@ -131,6 +133,53 @@ function gateStatic(candidate) {
     }
   }
   return problems.length ? bad('① 静态', problems) : ok('① 静态');
+}
+
+// ── ⑥ 选择单：`blocks/` 里每个块一个画法名，不多不少（#1338）────────────────────────────────────
+//
+// 一个站在每个块上戴哪个画法，由它穿的那套主题的**选择单**（池成员的 `shapes`）决定
+// （`themes.js` 的 `shapesFor`，`sync-config.js` 的 `shapeForBlock` 读它）。选择单不齐的候选今天
+// **直接进池**：`promote.js` 的 `toPoolEntry` 根本不写 `shapes` 这个键，而进池之后才有
+// `pool.test.js` 第 ⑪ 段去数它 —— 也就是要等写完池、下一次跑测试时才红，而那时坏的已经是池子本身。
+// 这道闸把同一句话提前到进池之前说，并且点名缺了谁 / 多了谁。
+//
+// 🔴 **今天的生成器一套选择单都不产** ⟹ 生成出来的候选会在这里被全部拒掉，而这正是要的方向：
+//    「函数在、接线全无」的那种半哑状态（闸量过了、池子里却是一套没有选择单的主题）比当场红贵得多。
+//    要让流水线重新走通，是让候选带上选择单，不是把这道闸放宽。
+//
+// 🔴 **这道闸不问「名字合不合法」**，只问「键对不对得上 `blocks/` 的名单」。名字那一维今天靠
+//    `pool.test.js` 第 ⑪ 段（名字在 `public/shapes.css` 里有规则）加 `scripts/lib/block-shapes.test.js`
+//    第 ① 段（manifest 的形态清单 == `shapes.css` 的集合）接起来，而那两道都跑在**池成员**上、
+//    不跑在候选上 ⟹ 候选阶段名字写错，要等它进了池才有人说话。这条边界如实写在这里，不悄悄兜。
+//
+// 🔴 分母从 `blocks/*.json` 现数，不写死：读不到那个目录、或者一份 manifest 都没有 ⟹ `jammed`
+//    （这道闸**没量成**，不是这套候选不合格），跟这个文件其余部分同一个失败方向。
+const BLOCKS_DIR = path.join(NEXT, 'blocks');
+function gateShapes(candidate, { blocksDir = BLOCKS_DIR } = {}) {
+  let allBlocks;
+  try {
+    allBlocks = fs.readdirSync(blocksDir).filter((f) => f.endsWith('.json'))
+      .map((f) => f.replace(/\.json$/, '')).sort();
+  } catch (e) {
+    return jammed('⑥ 选择单', [`读不到 ${path.relative(NEXT, blocksDir)}（${e.message}）`
+      + ' —— 这道闸的分母塌了，什么都没量成，不是「这套候选合格」']);
+  }
+  if (!allBlocks.length) {
+    return jammed('⑥ 选择单', [`${path.relative(NEXT, blocksDir)} 底下一份块 manifest 都没有`
+      + ' —— 分母塌了，不许当成通过']);
+  }
+  const sel = (candidate && candidate.shapes && typeof candidate.shapes === 'object') ? candidate.shapes : {};
+  const problems = [];
+  const missing = allBlocks.filter((b) => typeof sel[b] !== 'string' || !sel[b]);
+  if (missing.length) {
+    problems.push(`选择单缺 ${missing.length}/${allBlocks.length} 个块：${missing.join(' · ')}`);
+  }
+  const extra = Object.keys(sel).filter((k) => !allBlocks.includes(k)).sort();
+  if (extra.length) {
+    problems.push(`选择单多 ${extra.length} 个 blocks/ 里没有的键：${extra.join(' · ')}`);
+  }
+  return problems.length ? bad('⑥ 选择单', problems)
+    : ok('⑥ 选择单', `${allBlocks.length} 个块逐块有画法名，没有多余的键`);
 }
 
 // ── ② 动态：样例站真构建 + 五条不变量 + 钩子在 theme 那份表里有规则 ──────────────────────────────
@@ -681,6 +730,7 @@ module.exports = {
   // 复核 ②b 的人要能不建站就问「这份表给哪几个钩子写了规则」—— 那正是本票换掉的那个判据（#1058）。
   hooksDeclaredIn,
   gateStatic,
+  gateShapes,
   gateInvariants,
   gateSimilarity,
   gateSkeleton,

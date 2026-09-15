@@ -746,7 +746,17 @@ function shapeForBlock(block, selection, manifests, log = (line) => console.log(
   let shape; let from;
   if (typeof block.shape === 'string' && block.shape) { shape = block.shape; from = '页面 JSON'; }
   else if (typeof selection[block.type] === 'string' && selection[block.type]) { shape = selection[block.type]; from = '主题选择单'; }
-  else return fallback;
+  else {
+    // #1338 —— 这条路以前是**静默**的：页面 JSON 没点名形态、主题选择单里也没有这个块 ⟹ 直接落回
+    // manifest 的默认形态，一行日志都不打。同一个函数里「形态不在这个块的清单里」那条（下面那行
+    // ⚠️）是说话的，而两条的后果一模一样 —— 这个块戴的不是主题想给它的那个形态 —— 所以这条也要
+    // 说一句。格式跟那条逐字同构，只有中间说原因的那半句不同。
+    // 🔴 拿不到这个块的 manifest 时**不说话**：那时 `fallback` 是 undefined，打出来就是「落回默认
+    //    undefined」，一句会把读日志的人带偏的话。「这个块类型没有 manifest」是另一回事，不在这条
+    //    日志的射程里。
+    if (m) log(`  ⚠️  块 ${block.type} 页面 JSON 和主题选择单都没给它形态，落回默认 ${fallback}`);
+    return fallback;
+  }
   if (!m) return shape;
   const gap = blockManifest.shapeNeedsGap(m, shape, block.data);
   if (gap === null) {
