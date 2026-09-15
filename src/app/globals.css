@@ -504,12 +504,52 @@
   margin-top: 1rem;
 }
 
-/* ── services-nav: the two properties no sheet may write ──────────────────────────────────────── */
+/* ── services-nav: the properties no sheet may write ──────────────────────────────────────────── */
+/* 🔴 #1328 — THE BAR MAY TAKE 40% OF THE SCREEN AND NOT A PIXEL MORE (Chris 2026-09-15: 「B，上限
+   40%」). Measured on a real dental site with 8 services, `ember-12`, 375x800: the bar was 576px
+   of an 800px viewport — 72% — leaving 224px for the page it is a navigation FOR. It is not a
+   constant: the height is services x name length x whatever padding/font-size the sheet writes
+   (`theme-css-lint.js` lets a sheet write both on this hook), so 72% is not a ceiling either. Same
+   fixture on `azure-29`: 328px. Same fixture at 1280: 216 / 152px — the desktop cannot reach this
+   cap, which is why there is no breakpoint here (see below).
+
+   🔴 `dvh` IS THE REAL BASE AND `vh` IS ONLY THE FALLBACK LINE. On a phone `100vh` is the viewport
+   with the address bar COLLAPSED, so while the bar is showing, `40vh` takes visibly MORE than 40%
+   of what the visitor can see — which is the exact thing this cap exists to stop. `100dvh` is what
+   is on screen right now. Two declarations, not `@supports`: a browser that does not know `dvh`
+   drops the second and keeps the first, which is the whole mechanism and needs no query.
+   🔴 This one dimension CANNOT be read headless — a headless Chrome has no collapsing toolbar, so
+   `40dvh` and `40vh` both resolve to 320px there (measured). Its reading has to come off a real
+   device; see the ticket's AC5.
+
+   🔴 NO BREAKPOINT, ON PURPOSE. "40% of the screen" is already a statement relative to the viewport
+   and `dvh` carries it; the desktop readings above are far under the cap; and neither this file nor
+   `public/shapes.css` has a single `max-width` query today, so a breakpoint here would be a new edge
+   to maintain for a rule that does not need one.
+
+   🔴 `overflow-y: auto` CHANGES NOTHING — it writes down what was already computed. CSS resolves a
+   `visible` axis to `auto` when the other axis is not `visible`, so `overflow-x: auto` above has
+   been giving this box `overflow-y: auto` all along (measured on this fixture before this ticket:
+   computed `overflow-y` was already `auto`; with `overflow-x: visible` it goes back to `visible`).
+   What IS new is that the y axis now has something to scroll, because before the cap the bar was
+   never taller than its content.
+
+   🔴 AND WHY IT LIVES HERE rather than in a sheet or in `public/shapes.css`: this is a platform
+   guarantee, not a look. `max-height` and `overflow-y` are both outside what a sheet may write
+   (`theme-css-lint.js`: `max-height` is in GEOM_EXACT — the family #1318 moved off the theme layer —
+   and `overflow-y` is in neither list, deliberately, per #1190), so no sheet can lift the cap. The
+   shape layer is the wrong home for the same reason: a rule keyed on `[data-shape="row"]` stops
+   applying the day the block wears another shape, and the visitor's screen is not one of the things
+   a shape is allowed to decide. `position` / `top` / `z-index` / `overflow-x` — this bar's other
+   structural properties — already live here. */
 .services-nav {
   position: sticky;
   top: 73px;
   z-index: 40;
   overflow-x: auto;
+  max-height: 40vh;
+  max-height: 40dvh;
+  overflow-y: auto;
 }
 
 /* One line per link, so a row of service names breaks BETWEEN links and never through one. #1320:
