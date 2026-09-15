@@ -225,6 +225,29 @@ const PALETTE_IS_NOT_THE_SHEETS_OWN = process.env.THEME_CSS_PALETTE_NOT_THE_SHEE
 // that is on no page — or that has too few items to measure — is a finding rather than a note about
 // how small somebody's own `site/` is.
 const SAMPLE_WIDENED = process.env.THEME_CSS_SAMPLE_WIDENED === '1';
+// 🔴 #1321 — THE THIRD SEAM, AND IT IS THE SAME SHAPE AS THE TWO ABOVE: a fact only the caller knows,
+// exported rather than guessed, deciding whether a reading is a VERDICT or a NOTE. This run is looking
+// at the MINIMAL arm of the fixture — every optional slot empty, every list slot down to one item —
+// and two of the readings below are about how much content the fixture has, not about what any theme
+// did with it:
+//
+//   · "a contract hook is on no page"   The minimal arm empties the slots those hooks need before they
+//                                       reach the DOM, so this is red BY CONSTRUCTION here. The
+//                                       dimension belongs to the full arm (#1052 立它是为了问「钩子有
+//                                       没有被主题打扮过」), and pointing a ruler built for A at B gives
+//                                       a red that is not about anything.
+//   · "too few same-level items to say  The minimal arm puts every list slot at one item, which is the
+//     anything about this row"          state ⑧ correctly refuses to judge. Turning that refusal into a
+//                                       red would be a vacuous red, exactly as counting it green would
+//                                       be a vacuous green — ticket #1321 §边界 ⑤ names both.
+//
+// 🔴 AND IT IS EXACTLY TWO READINGS WIDE. Everything else goes on being judged on this arm — the
+// geometry assertions ⑧ makes on rows that DO have two items, "these three blocks may wear only row",
+// "the block is on no page at all", contrast, essential content, type size, paint order. The point of
+// this arm is to ask those questions of a page built from required slots only; downgrading them would
+// leave it asking nothing. Both downgraded readings are PRINTED IN FULL below, names included, so the
+// downgrade cannot happen quietly (the same safety `reachableOnSubmitOnly` has).
+const SAMPLE_MINIMAL = process.env.THEME_CSS_SAMPLE_MINIMAL === '1';
 // Contrast findings that were measured under a palette that is not the sheet's own. Printed in full,
 // never counted towards the exit code.
 const unjudgedContrast = [];
@@ -3277,11 +3300,25 @@ if (SAMPLE_WIDENED) {
       + "theme's selection list (scripts/theme-pool.json §shapes) and public/shapes.css");
   }
   if (rowTooFewItems.length > 0) {
-    problems.push(`row shape: ${[...new Set(rowTooFewItems.map((x) => x.split(' at ')[0]))].join(' · ')} `
-      + 'had fewer than 2 same-level items on a sample site this run widened to cover every block, so '
-      + 'every assertion ⑧ makes about it was vacuously true. Feed it more items in '
-      + "scripts/theme-css-invariants-sample-pages.js — that is where this fixture's data is propped "
-      + '(#1052), and where #1320 added the services services-nav counts');
+    const who = [...new Set(rowTooFewItems.map((x) => x.split(' at ')[0]))].join(' · ');
+    if (SAMPLE_MINIMAL) {
+      // 🔴 #1321 §边界 ⑤ — reported and not judged on the minimal arm, and the names are printed so
+      // that "nothing was said about these" is visible rather than inferred. On this arm a list slot
+      // holding one item is the POINT, not a gap in the fixture: the blocks named here are the ones
+      // whose items come from a list slot the manifest marks required, and ⑧'s per-item assertions
+      // need two. Judging it would be a red about the arm's own definition.
+      readings.push(`  row shape (check ⑧) on the minimal fixture: ${who} had fewer than 2 same-level `
+        + 'items, so every per-item assertion ⑧ makes about them is REPORTED AND NOT JUDGED on this '
+        + 'arm (#1321 §边界 ⑤). The full arm is where that dimension is judged — there the same blocks '
+        + 'carry the item counts scripts/theme-css-invariants-sample-pages.js props them to. '
+        + `Every one of them, at each width: ${[...new Set(rowTooFewItems)].join(' · ')}`);
+    } else {
+      problems.push(`row shape: ${who} `
+        + 'had fewer than 2 same-level items on a sample site this run widened to cover every block, so '
+        + 'every assertion ⑧ makes about it was vacuously true. Feed it more items in '
+        + "scripts/theme-css-invariants-sample-pages.js — that is where this fixture's data is propped "
+        + '(#1052), and where #1320 added the services services-nav counts');
+    }
   }
   // 🔴 AND THE WRAPPING HALF NEEDS ONE BLOCK THAT ACTUALLY EXERCISED IT. Every block whose items fit
   // on one line at 375 is skipped by ⑤ — correctly, since not wrapping is right for them — so a
@@ -3458,10 +3495,21 @@ readings.push(`  contract hooks not on any page measured: ${unusedHooks.length}`
     + 'them in its markup, so whether the theme dresses them is not a question these readings answer'
     : ' — every class hook in the contract was on at least one page'}`
   + ` · this sample site ${widened ? 'WAS' : 'was NOT'} widened to cover every block, so that count `
-  + `${widened ? `is judged: ${unusedExempt.length} of them are the after-submit form states, which `
-    + 'a static export cannot reach, and any other is a finding'
-    : 'is reported and not judged — a hook can be missing here simply because this site is small'}`);
-if (widened && unusedUnexpected.length) {
+  + `${!widened
+    ? 'is reported and not judged — a hook can be missing here simply because this site is small'
+    : SAMPLE_MINIMAL
+      // 🔴 #1321 §边界 ② — the minimal arm empties every optional slot, and a hook that needs data
+      // before it reaches the DOM is therefore absent BY CONSTRUCTION. This dimension is #1052's
+      // ("is this hook dressed by the theme"), it belongs to the full arm, and it is judged there.
+      // Printed in full here, names included, so the downgrade is visible rather than inferred.
+      ? 'is REPORTED AND NOT JUDGED on this run — this is the MINIMAL arm (#1321), where every '
+        + 'optional slot is empty on purpose, so a hook whose block needs data before it renders it is '
+        + `missing by construction. ${unusedExempt.length} of them are the after-submit form states. `
+        + `The other ${unusedUnexpected.length}, none of which is judged here: `
+        + `${unusedUnexpected.map((h) => `.${h}`).join(', ') || '(none)'} — the full arm is what judges them`
+      : `is judged: ${unusedExempt.length} of them are the after-submit form states, which `
+        + 'a static export cannot reach, and any other is a finding'}`);
+if (widened && !SAMPLE_MINIMAL && unusedUnexpected.length) {
   problems.push(`sample coverage: ${unusedUnexpected.length} contract hook(s) are on no page of a `
     + `sample site this run widened to cover every block — ${unusedUnexpected.map((h) => `.${h}`).join(', ')}`
     + ' — so no reading above says anything about whether any theme dresses them. Either the block '

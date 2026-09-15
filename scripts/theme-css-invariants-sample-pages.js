@@ -94,6 +94,31 @@
 // 🔴 **不改 `gen-allblocks.js` 本身**：那是 block-migration 那条线的手工工具（它自己的 README 里
 //    有用法），本票要的这几处数据是**这道检查专用**的。改它等于把本票的需要塞进别人的工具里。
 //    所以这里的做法是「先请它生成，再在产物上补」。
+//    📌 #1321 在那个文件里只**删**了一个字段（`opt` —— 组件 TS 类型里的那个 `?`，全文只被写不被读，
+//    而且对三个没有 `data: {` 的块给不出读数）。这一段说的「别把这道检查的需要塞进去」没有破：
+//    最少版的削减整个做在**这里**，做法照旧是「先请它生成，再在产物上动」。
+//
+// ══ 两版（#1321）═══════════════════════════════════════════════════════════════════════════════
+//   node scripts/theme-css-invariants-sample-pages.js [<站目录>]            全填版（默认，行为一字未改）
+//   node scripts/theme-css-invariants-sample-pages.js [<站目录>] --minimal  最少版
+//
+// 全填版把每个块的槽位**填满**；最少版**只填必填槽**（判据只有一个来源：`blocks/<type>.json` 的
+// `slots.<名>.required`），可选槽位一个字节都不写，列表槽只放一项。
+//
+// 🔴 为什么要有第二版：只量填满那一支，有两类错看不见 —— 「需要图」的形态在**没图**的 hero 上有没有
+//    真落回默认，三列卡片组**只填一张卡**时散不散。真站里可选槽位填不填是随机的（设计文档 D5）。
+//
+// 🔴 最少版**跳过**下面 ② 段里五处 propping，逐条印出来（不许静默少做）。代价写在明处：
+//    `.gallery__placeholder` / `.feature-comparison__mark--no` / FAQ 那对开关对照 /
+//    `.card-group__features` / `.hero__form` 这五族钩子在最少版上**没有人量** —— 这是接受的，不是漏的。
+//    那三处门槛（gallery ≥3 项 · feature-comparison 非空 · faq-accordion ≥2 项）也只对全填版成立：
+//    最少版把列表槽压到一项之后它们按构造撞死，而这个脚本撞死就是 exit 2。
+//
+// 🔴 ③ 段（services.json 的 products + #1320 那几条服务）和 ④ 段（services/oil-change 那一页）
+//    **两版都保留**。前者是因为那三个块（contact-form / services-list / services-nav）的条目数由站的
+//    services.json 决定、不由块的槽位决定 ⟹ 两版相同；后者是因为 `service-related-pages` 的
+//    `serviceSlug` 是必填槽，最少版会写它，而**光写它不够**：组件拿它去筛页面，筛不到就整块不进 DOM。
+//    ② 段里 serviceSlug 那一处同理保留 —— 那两处缺一不可。
 'use strict';
 
 const fs = require('fs');
@@ -110,7 +135,16 @@ process.on('uncaughtException', (e) => die(`unexpected: ${(e && e.message) || e}
 const readJson = (p) => JSON.parse(fs.readFileSync(p, 'utf-8'));
 const writeJson = (p, v) => fs.writeFileSync(p, `${JSON.stringify(v, null, 2)}\n`);
 
-const siteDir = process.argv[2] ? path.resolve(process.argv[2]) : path.join(NEXT, 'site');
+// 🔴 旗标先摘掉再取站目录：只给 `--minimal` 不给站目录时，`argv[2]` 会是那个旗标本身，
+//    而「猜错目录」的后果是「什么都没补上，而读数看起来正常」（同下面那条只认多语言形状的判断）。
+const ARGS = process.argv.slice(2);
+const MINIMAL = ARGS.includes('--minimal');
+const POSITIONAL = ARGS.filter((a) => !a.startsWith('--'));
+for (const a of ARGS) {
+  if (a.startsWith('--') && a !== '--minimal') die(`unknown flag ${a} — the only flag is --minimal`);
+}
+const siteDir = POSITIONAL[0] ? path.resolve(POSITIONAL[0]) : path.join(NEXT, 'site');
+const VERSION = MINIMAL ? '最少版' : '全填版';
 
 // 🔴 这个脚本只认多语言形状（`site/<locale>/`）—— 那是 `create-site.js` 现造的演示站的形状，
 //    也是唯一会走到这里的形状。猜错目录的后果是「什么都没补上，而读数看起来正常」。
@@ -147,8 +181,81 @@ const sections = page.sections || page.blocks || [];
 if (!sections.length) die('the generated allblocks page has no sections');
 const sectionOf = (type) => sections.find((s) => s.type === type);
 const patched = [];
+// 最少版少做的那几件事，逐条记下来印出去 —— 「少做了一件事还绿着」跟「做过了」长得一模一样。
+const skipped = [];
+// 最少版每个块削成什么样。
+const pruned = [];
 
-{
+// ── ①b 最少版：每个块只留必填槽，列表槽只放一项（#1321）──────────────────────────────────────
+//
+// 🔴 判据只有一个来源：`blocks/<type>.json` 的 `slots.<名>.required`。**不读**组件 TS 类型里的那个
+//    `?` —— 那是两套字节，而且对 contact-form / services-list / services-nav 三个块给不出任何读数
+//    （它们的 .tsx 里没有 `data: {` 可解析）。#1321 已经把那个字段从 gen-allblocks.js 里删掉了。
+const BLOCKS_DIR = path.join(NEXT, 'blocks');
+// 🔴 「这个槽是不是一份列表」取**两把尺的并集**，不是任选一把 —— 两把在盘上真的不一致，而分歧那一处
+//    恰好是本票要压的块之一：`logo-carousel.logos` 的 `kind` 写的是 `"image"`、`shape` 写的是
+//    `"[string]"`。只按 `kind` 判会漏掉它（那个块的 logos 不会被压到一项，`trusted-brands` 会 ——
+//    一组对照里两个块走了两条路）。下面还有一道反向自检：产物里是数组、而这条判据说不是列表的，当场报。
+const isListSlot = (spec) => spec.kind === 'list'
+  || (typeof spec.shape === 'string' && spec.shape.trim().startsWith('['));
+if (MINIMAL) {
+  const judgeMissed = [];
+  for (const sec of sections) {
+    const mf = path.join(BLOCKS_DIR, `${sec.type}.json`);
+    if (!fs.existsSync(mf)) {
+      die(`no blocks/${sec.type}.json — 最少版的判据只有 manifest 一个来源，没有它就说不出这个块该削成什么样`);
+    }
+    const slots = readJson(mf).slots || {};
+    const data = sec.data || {};
+    for (const [k, v] of Object.entries(data)) {
+      if (Array.isArray(v) && slots[k] && !isListSlot(slots[k])) judgeMissed.push(`${sec.type}.${k}`);
+    }
+    const kept = {};
+    const missing = [];
+    const dropped = [];
+    const trimmed = [];
+    for (const [name, spec] of Object.entries(slots)) {
+      if (!spec.required) { if (name in data) dropped.push(name); continue; }
+      if (!(name in data)) { missing.push(name); continue; }
+      let v = data[name];
+      if (isListSlot(spec)) {
+        if (!Array.isArray(v)) {
+          die(`${sec.type}: 必填列表槽 "${name}" 生成出来的不是数组（${typeof v}）—— 压不到一项`);
+        }
+        if (v.length > 1) { v = v.slice(0, 1); trimmed.push(`${name}(${data[name].length}→1)`); }
+      }
+      kept[name] = v;
+    }
+    // 🔴 必填槽在产物里找不到 = 最少版会缺一个必填槽，而 `validateSite` 的第 ① 条当场报它
+    //    （AC1 要 0 problem）。这里先说，别让它变成下游一句读不懂的校验失败。
+    if (missing.length) {
+      die(`${sec.type}: manifest 说必填的槽 ${missing.join(' / ')} 在 gen-allblocks.js 生成的数据里没有`);
+    }
+    // manifest 里没有这个槽、而 TS 类型有 —— 也一并去掉（最少版按 manifest 定义，不按 TS 类型定义），
+    // 但要点名，否则「这个键去哪了」没人答得上来。
+    // 🔴 键名里可能带换行：`gen-allblocks.js` 的 `fields()` 按顶层逗号/分号切类型体、**不认注释**，
+    //    于是一段 doc 注释会被吃进字段名（#1143 记的是同一个洞，那次吃掉的是 `card-group` 的
+    //    `features`；现测 `announcement-bar` 的 `variant` 也被吃掉）。这里把空白压成一格再印 ——
+    //    一条跨行的读数会被 grep 切成两半，而这几行名单正是 AC5 要人逐条读的东西。
+    const oneLine = (k) => k.replace(/\s+/g, ' ').trim().slice(0, 48);
+    const notInManifest = Object.keys(data).filter((k) => !(k in slots)).map(oneLine);
+    sec.data = kept;
+    pruned.push(`${sec.type}: 必填槽 ${Object.keys(kept).join(' / ') || '(一个都没有)'}`
+      + `${dropped.length ? ` · 去掉可选槽 ${dropped.join(' / ')}` : ''}`
+      + `${notInManifest.length ? ` · 去掉 manifest 里没有的键 ${notInManifest.join(' / ')}` : ''}`
+      + `${trimmed.length ? ` · 列表槽压到 1 项 ${trimmed.join(' / ')}` : ''}`);
+  }
+  if (judgeMissed.length) {
+    die('最少版「哪个槽是列表」的判据漏了 ' + judgeMissed.join(' / ')
+      + ' —— 它们在产物里是数组，而 manifest 的 kind / shape 两把尺都没说它是列表');
+  }
+}
+
+if (MINIMAL) {
+  // 最少版：`items` 是必填列表槽、已被压到一项 ⟹ 没有第 3 张可以拿掉图，下面那道 ≥3 的门槛也
+  // 只对全填版成立。`.gallery__placeholder` 这一族在最少版上没有人量（接受的代价）。
+  skipped.push('gallery item 3 has no imageUrl → .gallery__placeholder（items 压到 1 项，没有第 3 张）');
+} else {
   const s = sectionOf('gallery');
   const items = s && s.data && s.data.items;
   if (!Array.isArray(items) || items.length < 3) die('the generated gallery block has fewer than 3 items');
@@ -156,7 +263,10 @@ const patched = [];
   delete items[2].imageUrl;
   patched.push('gallery item 3 has no imageUrl → .gallery__placeholder');
 }
-{
+if (MINIMAL) {
+  // 最少版：不改那一行的 boolean ⟹ `.feature-comparison__mark--no` 在最少版上没有人量（接受的代价）。
+  skipped.push('feature-comparison row 1 has them:false → .feature-comparison__mark--no（最少版不动块数据）');
+} else {
   const s = sectionOf('feature-comparison');
   const rows = s && s.data && s.data.comparisons;
   if (!Array.isArray(rows) || !rows.length) die('the generated feature-comparison block has no comparisons');
@@ -164,7 +274,12 @@ const patched = [];
   rows[0].them = false;
   patched.push('feature-comparison row 1 has them:false → .feature-comparison__mark--no');
 }
-{
+if (MINIMAL) {
+  // 最少版：`items` 压到一项 ⟹ #1060 那对「一条开着、一条关着」的对照按构造造不出来，下面那道
+  // ≥2 的门槛也只对全填版成立。那对对照在最少版上没有人量（接受的代价）。
+  skipped.push('faq-accordion item 1 is open → .faq-accordion__answer（#1060 那对开/关对照要 ≥2 项，'
+    + 'items 压到 1 项）');
+} else {
   // #1060 —— 第 1 条问答建出来就是打开的。
   //
   // 🔴 为什么非补这一处不可：#1056 之后，关着的 `<details>` 里的字不再当成客人读得到的正文，而
@@ -187,7 +302,11 @@ const patched = [];
   items[0].defaultOpen = true;
   patched.push('faq-accordion item 1 is open → .faq-accordion__answer is measured again (#1060)');
 }
-{
+if (MINIMAL) {
+  // 🔴 最少版**有意**不补它：最少版要问的正是「没图、没表单时形态落不落回默认」（设计文档 D11 ⑥）。
+  //    `.hero__form` 这一族在最少版上没有人量（接受的代价）。
+  skipped.push("hero block_layout=with-form → .hero__form（最少版要问的正是没表单时形态落不落回默认）");
+} else {
   // #1065 —— hero 的第八个部件 `.hero__form` 只在这块 hero 自己说「我是带表单的那种」时才进 DOM
   //（`HeroSection.tsx` 读的是页面 JSON 的 `block_layout`，不是主题的 `supports.hero` —— 内容结构
   //  归站，08-12 spec D5 / 08-18 spec D3）。`gen-allblocks.js` 从组件的 props 类型推数据，推不出
@@ -203,7 +322,11 @@ const patched = [];
   s.block_layout = 'with-form';
   patched.push('hero block_layout=with-form → .hero__form（#1065）');
 }
-{
+if (MINIMAL) {
+  // 最少版：`items` 是必填列表槽、已被压到一项，而且不替换它的内容 ⟹ `.card-group__features`
+  // 在最少版上没有人量（接受的代价）。这一版要问的是「三列卡片组只填一张卡时散不散」。
+  skipped.push('card-group item 1 has features → .card-group__features（items 压到 1 项，内容不替换）');
+} else {
   // #1143 —— 并进「卡片组」的块要连数据一起补，否则钩子一页都不进 DOM。
   //
   // 🔴 **#1162 拿掉了这里的第 ① 段（`service-highlights` 那半）。** 原文留在下面 📌 里作出处。
@@ -334,13 +457,41 @@ const EXTRA_SERVICES = [
   const find = (t) => bs.find((s) => s.type === t);
   const bad = [];
   if (back.navLabel !== '') bad.push('allblocks navLabel is not empty — every page would grow a nav link to it');
-  if (find('gallery').data.items[2].imageUrl !== undefined) bad.push('gallery item 3 still has imageUrl');
-  if (find('feature-comparison').data.comparisons[0].them !== false) bad.push('feature-comparison row 1 them is not false');
+  // 🔴 serviceSlug 两版都读回：它是必填槽，最少版照样写，而且**必须**是真 slug —— 合成值
+  //    （`'ServiceSlug text'`）筛不到任何页面，组件 `return null`，整块不进 DOM。
   if (find('service-related-pages').data.serviceSlug !== SERVICE_SLUG) bad.push('serviceSlug did not stick');
-  if (find('hero').block_layout !== 'with-form') bad.push('hero block_layout is not with-form — .hero__form would be on no page');
+  if (!MINIMAL) {
+    if (find('gallery').data.items[2].imageUrl !== undefined) bad.push('gallery item 3 still has imageUrl');
+    if (find('feature-comparison').data.comparisons[0].them !== false) bad.push('feature-comparison row 1 them is not false');
+    if (find('hero').block_layout !== 'with-form') bad.push('hero block_layout is not with-form — .hero__form would be on no page');
+  } else {
+    // 🔴 最少版自己的读回，两个方向都问 —— 「削过了」和「一个字节都没削」在只问前半句时长得一样。
+    //    ① 可选槽位真的**不存在**（不是空串）· ② 必填列表槽真的只剩一项 · ③ 那五处 propping 真的没写进去。
+    for (const sec of back.sections || back.blocks || []) {
+      const mf = path.join(BLOCKS_DIR, `${sec.type}.json`);
+      if (!fs.existsSync(mf)) continue;
+      const slots = readJson(mf).slots || {};
+      const d = sec.data || {};
+      for (const [name, spec] of Object.entries(slots)) {
+        if (!spec.required) {
+          if (name in d) bad.push(`${sec.type}: optional slot "${name}" is still on the page (minimal)`);
+          continue;
+        }
+        if (!(name in d)) bad.push(`${sec.type}: required slot "${name}" is missing (minimal)`);
+        else if (isListSlot(spec) && Array.isArray(d[name]) && d[name].length !== 1) {
+          bad.push(`${sec.type}: list slot "${name}" has ${d[name].length} item(s), not 1 (minimal)`);
+        }
+      }
+    }
+    if (find('hero').block_layout !== undefined) bad.push('hero block_layout was set in the minimal version');
+    const cgMin = find('card-group');
+    if (cgMin && cgMin.data && Array.isArray(cgMin.data.items) && cgMin.data.items.some((i) => i && i.features)) {
+      bad.push('card-group items still carry features in the minimal version');
+    }
+  }
   // #1060 —— 两个方向都读回来：第 1 条真的开着，而第 2 条真的还关着。只问前半句的话，
   // 「全部开着」跟「只开了第一条」在这里长得一样，而那两种情况对 #1056 那条豁免的意思相反。
-  {
+  if (!MINIMAL) {
     const faq = find('faq-accordion').data.items;
     if (faq[0].defaultOpen !== true) bad.push('faq-accordion item 1 is not open');
     if (faq[1].defaultOpen !== undefined) bad.push('faq-accordion item 2 was left open too — the closed arm is gone');
@@ -371,7 +522,8 @@ const EXTRA_SERVICES = [
     const cg = find('card-group');
     const it = cg && cg.data && cg.data.items;
     if (!Array.isArray(it) || !it.length) bad.push('card-group has no items array');
-    else if (!Array.isArray(it[0].features) || !it[0].features.length) bad.push('card-group item 1 has no features → .card-group__features would be on no page');
+    // 🔴 `features` 只在全填版问 —— 最少版**有意**不补它（上面 skipped 里逐条点了名）。
+    else if (!MINIMAL && (!Array.isArray(it[0].features) || !it[0].features.length)) bad.push('card-group item 1 has no features → .card-group__features would be on no page');
   }
   const svc = readJson(path.join(contentDir, 'services.json'));
   if (!Array.isArray(svc[0].products) || !svc[0].products.length) bad.push('services.json products is still empty');
@@ -391,3 +543,15 @@ const EXTRA_SERVICES = [
 }
 
 for (const p of patched) console.log(`  sample site: ${p}`);
+// 🔴 最少版少做的每一件事逐条印出来（AC5 的第一份名单）。「这一类 0 条」也要印 —— 印不出来
+//    跟做过了长得一模一样，而这正是本票要治的形状。
+if (MINIMAL) {
+  for (const p of pruned) console.log(`  sample site (最少版): ${p}`);
+  if (skipped.length) {
+    for (const p of skipped) console.log(`  sample site (最少版跳过): ${p}`);
+  } else {
+    console.log('  sample site (最少版跳过): 0 条 —— 上面 ② 段一处 propping 都没有被版本关掉，'
+      + '这跟「这一版忘了做削减」长得一样，去看 ② 段');
+  }
+  console.log(`  sample site (最少版): 跳过 ${skipped.length} 处 propping · 削了 ${pruned.length} 个块`);
+}

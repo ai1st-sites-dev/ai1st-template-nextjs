@@ -20,7 +20,12 @@ function fields(body){
   return out.map(s=>{
     const i=s.indexOf(':'); if(i<0) return null;
     const name=s.slice(0,i).trim().replace(/\?$/,'');
-    return { name, opt:/\?$/.test(s.slice(0,i).trim()), type:s.slice(i+1).trim() };
+    // 🔴 #1321 删掉了这里的 `opt`（那个 `?` 是不是可选）。它来自**组件 TS 类型**，跟 `blocks/*.json`
+    //    的 `slots.<名>.required` 是两套字节，而且对 `contact-form` / `services-list` / `services-nav`
+    //    给不出任何读数（这三个的 .tsx 里没有 `data: {` 可解析，下面那支给它们写 `data: {}`）。
+    //    它全文只被写、不被读 —— 留着只会让下一个人以为「可选与否」这件事这里已经有答案了。
+    //    要判必填看 manifest，判据的唯一出处是 `blocks/<type>.json`。
+    return { name, type:s.slice(i+1).trim() };
   }).filter(Boolean);
 }
 function synth(name, type, depth=0, defs={}){

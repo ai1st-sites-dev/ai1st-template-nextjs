@@ -2,7 +2,8 @@
 # theme-css-invariants-all-sheets.sh — build a sample site once per theme sheet and take the
 # runtime reading on each (#1009). This is the automatic caller for scripts/theme-css-invariants.mjs.
 #
-#   bash scripts/theme-css-invariants-all-sheets.sh [--make-sample-site] [--shard i/N] [sheet-name …]
+#   bash scripts/theme-css-invariants-all-sheets.sh [--make-sample-site] [--shard i/N]
+#                                                    [--no-minimal-arm] [sheet-name …]
 #
 #   --make-sample-site   create a demo site in templates/nextjs/site first, but ONLY if there is none.
 #                        It never replaces a site you put there yourself (same rule as
@@ -10,6 +11,7 @@
 #                        sample you pointed it at is a tool you cannot use twice). No AI, no cost:
 #                        create-site.js's skipAI path returns before the ANTHROPIC_API_KEY check.
 #   --shard i/N          take only the i-th of N slices of the sheet list (1-based). See §SHARDING.
+#   --no-minimal-arm     take the reading on the FULL fixture only. See §TWO ARMS below.
 #   sheet-name …         which sheets in public/themes/ to check; default is all of them.
 #
 # Exit 0 = every sheet's page holds every invariant.
@@ -48,6 +50,34 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NEXT="$(cd "$HERE/.." && pwd)"            # templates/nextjs
 THEMES_DIR="$NEXT/public/themes"
 
+# ══ TWO ARMS (#1321) ═════════════════════════════════════════════════════════════════════════════
+# The fixture site is built twice and every sheet is measured on BOTH:
+#
+#   full arm     every slot of every block filled — what #1052 built, unchanged.
+#   minimal arm  only the slots `blocks/<type>.json` marks `required`; optional slots are not written
+#                at all, and every list slot holds ONE item.
+#
+# 🔴 WHY BOTH. Measuring the filled arm alone cannot see two kinds of error (design doc D5): whether a
+# shape that wants an image really falls back to its default on a hero that HAS no image (D11 ⑥), and
+# whether a three-up card group falls apart when only one card is filled. On a customer's site, whether
+# an optional slot is filled is a coin toss — so the arm that answers those questions is the one where
+# they are empty.
+#
+# 🔴 THE TWO ARMS ARE NOT JUDGED IDENTICALLY, and the difference is exported rather than inferred:
+# `THEME_CSS_SAMPLE_MINIMAL=1` tells the checker that TWO of its readings — "a contract hook is on no
+# page" and "this row has fewer than two items" — are statements about how much content this arm has,
+# not about what a theme did, so on this arm they are printed and not counted. The reasoning is at that
+# constant in scripts/theme-css-invariants.mjs; the names are printed in full either way.
+#
+# 🔴 `--no-minimal-arm` EXISTS TO BE THE NEGATIVE CONTROL. With it, this script's stdout is what it was
+# before #1321, byte for byte — so "the minimal arm really ran" is checkable by running it twice and
+# seeing the sections appear and disappear, rather than by reading this comment.
+#
+# 🔴 THE MINIMAL ARM RUNS ONLY ON A SITE THIS SCRIPT MADE ITSELF. Widening — and now narrowing — is a
+# write to site/, and the rule that a site you put there yourself is never touched is older than this
+# ticket (§the sample site). So with a site of your own, one arm is all you get, and the line below
+# says so rather than leaving you to notice the missing sections.
+#
 # ══ SHARDING (#1073) ═════════════════════════════════════════════════════════════════════════════
 # One sheet costs a full `next build` plus a browser reading — ~28 s measured. At 3 sheets that was a
 # 108 s job; #1016 takes the pool to 83 and the same job becomes ~40 minutes, with `sync-template`
@@ -87,12 +117,14 @@ THEMES_DIR="$NEXT/public/themes"
 # readings are junk. Two shards in two separate worktrees is fine (the HTTP port is asked of the
 # kernel, see free_port).
 MAKE_SITE=0
+MINIMAL_ARM=1
 SHARD_I=0
 SHARD_N=0
 SHEETS=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --make-sample-site) MAKE_SITE=1 ;;
+    --no-minimal-arm) MINIMAL_ARM=0 ;;
     --shard)
       shift
       # 🔴 A REGEX, NOT A GLOB (#1073 r1, QA1). The first cut matched `[1-9]*/[1-9]*`, and a shell glob's
@@ -217,6 +249,22 @@ else
   echo "   pages do not carry goes unmeasured, and this command still exits 0. To get the CI reading,"
   echo "   move $NEXT/site aside and re-run with --make-sample-site."
   export THEME_CSS_SAMPLE_WIDENED=0
+fi
+
+# ── which arms this run takes (#1321) ───────────────────────────────────────────────────────────
+# 🔴 The minimal arm is a WRITE to site/ (it rewrites the allblocks page with only the required slots),
+# so it is only ever taken on a site this script made itself — the same rule the widening step obeys
+# three lines up, for the same reason. With a site of your own you get one arm, and the line below says
+# so out loud rather than leaving a reader to notice two sections missing.
+ARMS=(full)
+if [ "$MINIMAL_ARM" = 1 ]; then
+  if [ "${WIDENED:-0}" = 1 ]; then
+    ARMS=(full minimal)
+  else
+    echo "── only the full arm: the minimal arm (#1321) rewrites site/ to hold required slots only, and"
+    echo "   this is not a site this script made, so it is not touched. Re-run with --make-sample-site"
+    echo "   against an empty site/ to get both arms."
+  fi
 fi
 
 THEME_JSON="$NEXT/site/theme.json"
@@ -383,6 +431,24 @@ unmeasured=0
 NOT_OWN_PALETTE=()
 echo "checking ${#SHEETS[@]} sheet(s) against the runtime invariants: ${SHEETS[*]}"
 
+# 🔴 The body below is NOT re-indented under this loop, on purpose: re-indenting ~150 lines would bury
+# the four lines #1321 actually changed inside a diff that looks like a rewrite, and whoever reviews
+# this has to be able to see which lines are new. The loop is the two arms §TWO ARMS describes.
+for arm in "${ARMS[@]}"; do
+if [ "$arm" = minimal ]; then
+  echo "═════════ fixture arm: minimal — required slots only, one item per list slot (#1321)"
+  # Narrowing the fixture is the same kind of write as widening it, and the same kind of failure:
+  # "the arm could not be built" is never the same answer as "the arm held".
+  if ! ( cd "$NEXT" && node scripts/theme-css-invariants-sample-pages.js "$NEXT/site" --minimal ); then
+    echo "🔴 cannot take the reading: could not narrow the demo site to required slots only" >&2
+    unmeasured=1
+    break
+  fi
+  export THEME_CSS_SAMPLE_MINIMAL=1
+else
+  [ ${#ARMS[@]} -gt 1 ] && echo "═════════ fixture arm: full — every slot filled (#1052)"
+  export THEME_CSS_SAMPLE_MINIMAL=0
+fi
 for sheet in "${SHEETS[@]}"; do
   echo "───────── $sheet"
   if [ ! -f "$THEMES_DIR/$sheet.css" ]; then
@@ -542,7 +608,14 @@ for sheet in "${SHEETS[@]}"; do
   # `✅ jade-60` are not the same statement and the summary at the end cannot tell them apart, so the
   # difference is said on the line that says ✅. The list below is what the closing line then counts.
   if [ "$THEME_CSS_PALETTE_NOT_THE_SHEETS_OWN" = "1" ]; then
-    NOT_OWN_PALETTE+=("$sheet")
+    # 🔴 By sheet, not by reading (#1321): with two arms the same sheet comes past here twice, and the
+    # closing line says "N of ${#SHEETS[@]} sheet(s)" — a plain append would make N up to twice the
+    # denominator. With one arm this loop visits each sheet once, so the guard is a no-op there.
+    seen_not_own=0
+    for s_ in ${NOT_OWN_PALETTE[@]+"${NOT_OWN_PALETTE[@]}"}; do
+      [ "$s_" = "$sheet" ] && seen_not_own=1
+    done
+    [ "$seen_not_own" = 0 ] && NOT_OWN_PALETTE+=("$sheet")
     unjudged_note=" (contrast NOT judged — the palette is not this sheet's own; everything else was)"
   else
     unjudged_note=""
@@ -553,6 +626,21 @@ for sheet in "${SHEETS[@]}"; do
     *) echo "🔴 $sheet — the checker could not take the reading (rc=$rc)"; unmeasured=1 ;;
   esac
 done
+done
+
+# 🔴 Put the fixture back to the arm it is documented to be in. This script's own rule is that a run
+# which quietly rewrites its own input cannot be repeated — and the minimal page left on disk is a trap
+# for the next person who measures this site by hand and reads "31 blocks, every optional slot empty"
+# as the normal fixture. Its own output is not printed (it is the same eleven lines the full arm
+# already printed above); a failure here is loud, because then the site on disk is neither arm.
+if [ ${#ARMS[@]} -gt 1 ]; then
+  if ( cd "$NEXT" && node scripts/theme-css-invariants-sample-pages.js "$NEXT/site" >/dev/null ); then
+    echo "── fixture put back to the full arm on disk (both arms were measured above)"
+  else
+    echo "🔴 could not put the fixture back to the full arm — site/ is left holding the minimal one." >&2
+    unmeasured=1
+  fi
+fi
 
 # 🔴 The closing lines name the sheets whose contrast went unjudged, so the count is visible from the
 # summary alone. It is a number that must not be able to grow quietly: every sheet in it is a sheet
@@ -565,6 +653,11 @@ if [ ${#NOT_OWN_PALETTE[@]} -gt 0 ]; then
   echo "   judged, hook coverage included. To bring their colours back under a verdict, give each one a"
   echo "   theme of the same name in scripts/themes.js — that is the same pairing a real site uses."
 fi
+# 🔴 Empty with one arm, so `--no-minimal-arm` prints exactly what this script printed before #1321.
+# With two, the closing line has to say so: "every sheet holds every invariant (2 sheet(s))" after a
+# run that took four readings is a true sentence that hides half of what was measured.
+ARM_NOTE=""
+[ ${#ARMS[@]} -gt 1 ] && ARM_NOTE=" × ${#ARMS[@]} fixture arms: ${ARMS[*]}"
 if [ "$fail" = "1" ]; then
   echo "🔴 at least one sheet breaks an invariant."
   exit 1
@@ -574,9 +667,9 @@ if [ "$unmeasured" = "1" ]; then
   exit 2
 fi
 if [ ${#NOT_OWN_PALETTE[@]} -gt 0 ]; then
-  echo "✅ every sheet holds every invariant (${#SHEETS[@]} sheet(s)) — with the contrast of"
+  echo "✅ every sheet holds every invariant (${#SHEETS[@]} sheet(s)${ARM_NOTE}) — with the contrast of"
   echo "   ${#NOT_OWN_PALETTE[@]} of them left unjudged, as the line above says."
   exit 0
 fi
-echo "✅ every sheet holds every invariant (${#SHEETS[@]} sheet(s))."
+echo "✅ every sheet holds every invariant (${#SHEETS[@]} sheet(s)${ARM_NOTE})."
 exit 0
