@@ -638,11 +638,22 @@ function bInfo(el){
   // 🔴 **从 DOM 上取，不让面板自己查一张表**：「data-role」 的唯一来源是 「block-roles.json」
   //    （「blockAttrs.ts」 读它），而且页面 JSON 可以逐块覆盖 —— 面板那边再抄一张类型→角色的表，
   //    读到的是**类型的默认值**，不是这一块真正的角色，而两者不一致时是静默的。
+  // #1351 —— 这一页是谁。站级共用块（blocks/site-blocks.json）在好几页上叫同一个 id，
+  // 不带页面的话面板只能让服务器按文件名顺序挑第一个 —— 老板在 A 页点隐藏、改的是 B 页，
+  // 而两页都照样建得出来，没有任何东西会红。
+  // 🔴 读的是 SiteShell 写在 §main 上的那两个属性，不是从 location 反推：把 URL 还原成页面名
+  //    是 src/app/[...slug]/page.tsx §resolveSlug 那一套（语言前缀 / blog / 默认语言的重定向桩），
+  //    在这里再写一遍就是第二份实现，而分叉的样子正是「改了另一页的同名块」——两边都绿。
+  // 🔴 老站（本票之前的字节）没有这两个属性 ⟹ 这里回 null ⟹ 面板不带 page 去问，
+  //    行为跟本票之前逐字一样。不造猜出来的值。
+  var mn=document.querySelector('main[data-page]');
   return {type:'ai1st:block-selected',
     id:el?(el.getAttribute('data-block-id')||null):null,
     block:el?el.getAttribute('data-block'):null,
     shape:el?(el.getAttribute('data-shape')||null):null,
     role:el?(el.getAttribute('data-role')||null):null,
+    page:mn?(mn.getAttribute('data-page')||null):null,
+    locale:mn?(mn.getAttribute('data-locale')||null):null,
     has:has};
 }
 function bSay(el){try{window.parent.postMessage(bInfo(el),T);}catch(err){}}

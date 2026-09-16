@@ -440,6 +440,12 @@ const EDITOR_ATTRS = [
     + ' business selecting it. To style that block on every site, write `[data-block="<type>"]`'
     + ' instead; to style one arrangement of it, that is layout and belongs to the platform'
     + ' (`public/shapes.css`, `[data-shape="…"]`), not to a sheet'],
+  [/^\[data-(page|locale)(="[^"]*")?\]$/,
+    'it is `data-page` / `data-locale` (#1351) — the EDITOR\'s answer to "which page of this site is'
+    + ' the preview showing", written on `<main>` so the inspector knows which page a shared block'
+    + ' should be changed on. Page names are per-site, so a rule naming one selects nothing on any'
+    + ' other site — silently. A sheet that wants to style a page differently has no hook for it by'
+    + ' design: a theme styles blocks (`[data-block="<type>"]`), not pages'],
 ];
 
 // 一个不是钩子的选择器，能不能多说一句为什么。两张表一处汇合 —— 分开两处调用的话，下一张表

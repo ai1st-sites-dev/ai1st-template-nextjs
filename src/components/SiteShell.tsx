@@ -20,7 +20,14 @@ import { pageLayout } from '@/lib/config';
 // 自己那件事值得；在那之前它们无条件渲染（#1000 的 AC7 盯着这一条，带反向对照）。
 //
 // 🔴 `overHero` 仍由**页面**算好传进来，page layout 只决定有哪些区、不接管它（正文第 3 条）。
-export default function SiteShell({ locale, overHero = false, children }: { locale: string; overHero?: boolean; children: React.ReactNode }) {
+// #1351 —— `page` 是**这一页在站自己的 `pages/` 里那个名字**（`home` / `about` / `services/oil-change`）。
+// 它落到 `<main data-page="…">` 上，唯一的读者是检查器：面板点中一个块之后要问「它住在哪一页」，
+// 而站级共用块（`blocks/site-blocks.json`）在**好几页上都叫同一个 id** —— 不说页面的话，服务器只能
+// 按文件名顺序挑第一个，于是老板在 A 页点「隐藏」，改的是 B 页。那种错法是静默的：两页都建得出来。
+// 🔴 不传就不写这个属性（博客那两页没有 pages/ 里的记录），老站也没有它 —— 面板那边退回本票之前的
+//    行为（不带 page 去问），不造一个猜出来的值。
+// 🔴 它跟 `data-block-id` 同类：是编辑器的标识，不是主题表的钩子（`theme-css-lint.js` §EDITOR_ATTRS 拒绝它）。
+export default function SiteShell({ locale, overHero = false, page, children }: { locale: string; overHero?: boolean; page?: string; children: React.ReactNode }) {
   const regions = pageLayout.regions;
   const repeatVariants = pageLayout.repeatVariants || {};
 
@@ -44,7 +51,11 @@ export default function SiteShell({ locale, overHero = false, children }: { loca
           case 'header':
             return <Header key={region} locale={locale} overHero={overHero} />;
           case 'content':
-            return <main key={region} className="flex-1">{children}</main>;
+            // #1351 —— `data-locale` 跟 `data-page` 一起写：多语言站里同一个站级块 id 在每种语言下都存在，
+            //    只说页面仍然分不清是哪一份。值取的是**站自己的语言目录名**（`site/<locale>/`），不是
+            //    `<html lang>` —— 后者是 `seo.locale` 切出来的展示用语言码，两者不保证相等，而不相等时
+            //    的错法是静默的（改到另一种语言的那一份）。
+            return <main key={region} className="flex-1" {...(page ? { 'data-page': page, 'data-locale': locale } : {})}>{children}</main>;
           case 'footer':
             // 🔴 #1014 — footer 是唯一接了 `variant` 线的区。上面 topbar / header 两支不传，所以布局
             // 里写 `repeatVariants` 给它们是不生效的 —— 那件事现在由 schema 直接拒绝
