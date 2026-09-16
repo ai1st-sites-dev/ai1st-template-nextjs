@@ -195,8 +195,12 @@ export default function Footer({ locale, variant: variantOverride }: { locale: s
         </div>
       </div>
 
+      {/* 🔴 那条分隔线画在**里面**这个 `<p>` 上，不在 `.footer__legal` 上（#1353 r3）：改造前它是
+          容器里的一个 `border-t` 的 div，线的宽度 = 容器内容宽（1280 宽下 1216px）。`.footer__legal`
+          今天是整幅宽、左右留白靠自己的 `padding`，线画在它身上就会顶到屏幕两边 —— QA2 在真机上量到
+          的正是这一处（两端各多出 32px）。`<p>` 填满内容盒，线因此回到 1216px。 */}
       <div className="footer__legal" data-role="essential">
-        <p>&copy; {currentYear} {footer.copyright}</p>
+        <p className="footer__copyright">&copy; {currentYear} {footer.copyright}</p>
       </div>
     </footer>
   );

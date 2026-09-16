@@ -1329,7 +1329,7 @@
   top: 0;
   z-index: 50;
   background-color: #fff;
-  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  box-shadow: var(--shadow-sm);
 }
 
 /* 遮罩的**渐变**在这里（单个类），露不露面由 `shapes.css` 说。浓度是按「首屏是纯白」这个最坏情况
@@ -1386,7 +1386,7 @@
   width: 2.5rem;
   align-items: center;
   justify-content: center;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-lg);
   background-color: var(--color-primary-500);
 }
 
@@ -1440,7 +1440,7 @@
   display: none;
   align-items: center;
   justify-content: center;
-  border-radius: 0.375rem;
+  border-radius: var(--radius-md);
   padding: 0.5rem;
   color: var(--color-gray-600, #4b5563);
 }
@@ -1536,7 +1536,7 @@
   align-items: center;
   background-color: #fff;
   padding: 0.375rem;
-  border-radius: 0.375rem;
+  border-radius: var(--radius-md);
 }
 
 .footer__logo-img {
@@ -1552,7 +1552,7 @@
   width: 2rem;
   align-items: center;
   justify-content: center;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-lg);
   background-color: var(--color-primary-500);
 }
 
@@ -1637,11 +1637,17 @@
   margin-inline: auto;
   max-width: 80rem;
   margin-top: 3rem;
-  border-top: 1px solid var(--color-gray-700, #374151);
-  padding: 2rem var(--section-x) var(--section-y);
+  padding: 0 var(--section-x) var(--section-y);
   text-align: center;
   font-size: 0.875rem;
   line-height: 1.25rem;
+}
+
+/* 线和「线到字」那段留白住在这里，不在外面那层 —— 理由写在 `Footer.tsx` 版权那段的注释里。
+   `padding-top` 的三个数（多列 2rem / 细行 1.5rem / 色带 1.5rem）跟着形态走，在 `shapes.css`。 */
+.footer__copyright {
+  border-top: 1px solid var(--color-gray-700, #374151);
+  padding-top: 2rem;
 }
 
 @media (min-width: 640px) {

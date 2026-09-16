@@ -3582,20 +3582,27 @@
   padding: 1rem 1rem 0;
 }
 
+/* 🔴 阴影和那圈描边都**不许写字面值**（#1353 r3 —— QA2 在真机上量到的那处）：
+   改造前这根条是 `shadow-lg ring-1 ring-black/5`，而 `shadow-lg` 经 `tailwind.config.ts` 走的是
+   `var(--shadow-lg)` —— 浓度由站自己的 `brand.settings.shadowStrength` 算出来（`theme-settings.js`
+   §numericSettingsToCssVars）。写死 `rgb(0 0 0 / 0.1)` 等于把**全部站**钉在默认那一档：夹具站
+   `shadowStrength: 0.22` 实测就从 22% 黑变成了 10% 黑。
+   🔴 `ring-1` 画在**外面**（Tailwind 的 ring 是一层 outset 的 box-shadow），`outline-offset: -1px`
+   画在**里面** —— 药丸看得见的上沿因此整体挪了 1px。所以这里照 Tailwind 那串的层序原样复刻：
+   ring-offset（0 spread，画不出东西，留着是为了 computed 值逐字相同）→ ring → shadow。 */
 [data-block="header"][data-shape="pill-floating"] .header__bar {
   border-radius: 9999px;
   background-color: #fff;
   padding: 0.75rem 1.5rem;
-  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-  outline: 1px solid rgb(0 0 0 / 0.05);
-  outline-offset: -1px;
+  box-shadow: 0 0 0 0 #fff, 0 0 0 1px rgb(0 0 0 / 0.05), var(--shadow-lg);
 }
 
+/* 同上：改造前是 `rounded-2xl shadow-lg`，两个都跟着风格设定走（`--radius-2xl` = radius×4）。 */
 [data-block="header"][data-shape="pill-floating"] .header__menu {
   margin-top: 0.5rem;
   border-top: 0;
-  border-radius: 1rem;
-  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-lg);
 }
 
 @media (min-width: 640px) {
@@ -3629,10 +3636,13 @@
    少写这两行，版权行在 375 宽上左右各差 3px（实测 before x=16 w=343 / after x=19 w=337）。 */
 [data-block="footer"][data-shape="slim-row"] .footer__legal {
   margin-top: 1.5rem;
-  padding-top: 1.5rem;
   padding-bottom: 2rem;
   padding-left: 1rem;
   padding-right: 1rem;
+}
+
+[data-block="footer"][data-shape="slim-row"] .footer__copyright {
+  padding-top: 1.5rem;
 }
 
 @media (min-width: 640px) {
@@ -3694,7 +3704,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 0.5rem;
+  border-radius: var(--radius-lg);
   background-color: #fff;
   padding: 0.75rem 1.5rem;
   font-size: 1rem;
@@ -3711,10 +3721,13 @@
 /* 同 slim-row 那条：这一支改造前也是字面的 `px-4`，不是 `--section-x`。 */
 [data-block="footer"][data-shape="cta-band"] .footer__legal {
   margin-top: 2.5rem;
-  padding-top: 1.5rem;
   padding-bottom: 2.5rem;
   padding-left: 1rem;
   padding-right: 1rem;
+}
+
+[data-block="footer"][data-shape="cta-band"] .footer__copyright {
+  padding-top: 1.5rem;
 }
 
 @media (min-width: 640px) {
