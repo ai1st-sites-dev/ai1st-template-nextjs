@@ -204,6 +204,12 @@ const previewTrustedOrigin = (() => {
 //   curl -s <站的预览地址>/ | grep -c "u.pathname==='/custom.css'"
 // 面板要不要在「这个站还是旧脚本」时改口说一句，是**用户可见文案**、且要给 ack 加一个能力位 ——
 // 那是本票 scope 之外的一件事，留在票上交作者定夺（#1129 交接留言里那条）。
+// 🔴 下面这一整段是一个**模板字面量**（一直到 §`})();`;` 那一行）。里面一个反引号都不许出现，
+//    注释里也不许 —— 一个反引号就把这个字符串在那儿截断，之后的文字变成 TypeScript 代码，
+//    `next build` 当场报 `Expected ';', got 'ident'`。引用标识符请用「」。
+//    #1351 r3 在这里踩过一次：注释里写了 `data-role` 这样的反引号，站的构建整个红掉，
+//    而 tsc（只看 dashboard）、npm run test:scripts、以及那份从源文件里抠字节的 Playwright
+//    spec 三样都看不见它 —— 唯一会红的是 `npm run build` 和 CI 的 region-layouts / theme-css。
 function buildThemePreviewScript(trustedOrigin: string): string {
   return `(function(){
 if(window.parent===window)return;
@@ -627,10 +633,10 @@ function bInfo(el){
     for(i=0;i<a.length;i++){if(a[i].name.indexOf('data-has-')===0)has.push(a[i].name.slice(9));}
     has.sort();
   }
-  // #1351 —— 多带一个 role（`data-role`，essential / lead / optional）。面板拿它来决定隐藏
+  // #1351 —— 多带一个 role（「data-role」，essential / lead / optional）。面板拿它来决定隐藏
   // 一个块时要不要多说一句（AC7：essential 的块被藏起来，它承载的正文会从被抓取的页面上消失）。
-  // 🔴 **从 DOM 上取，不让面板自己查一张表**：`data-role` 的唯一来源是 `block-roles.json`
-  //    （`blockAttrs.ts` 读它），而且页面 JSON 可以逐块覆盖 —— 面板那边再抄一张类型→角色的表，
+  // 🔴 **从 DOM 上取，不让面板自己查一张表**：「data-role」 的唯一来源是 「block-roles.json」
+  //    （「blockAttrs.ts」 读它），而且页面 JSON 可以逐块覆盖 —— 面板那边再抄一张类型→角色的表，
   //    读到的是**类型的默认值**，不是这一块真正的角色，而两者不一致时是静默的。
   return {type:'ai1st:block-selected',
     id:el?(el.getAttribute('data-block-id')||null):null,
@@ -667,16 +673,16 @@ function bOver(ev){
 // 走 PATCH → worker 改文件 → commit → 重建（那时 iframe 整个重载，下面这些痕迹随之消失）。
 // 不保存就离开（关编辑模式 / 换选中的块 / 离开页面）⟹ 面板发 ai1st:block-preview-reset，全部还原。
 //
-// 🔴 **隐藏用行内 style + !important，不用 `[hidden]`。** 票正文 v1 那半句（「`[hidden]` 不许主题皮
+// 🔴 **隐藏用行内 style + !important，不用 [hidden] 属性。** 票正文 v1 那半句（「[hidden] 不许主题皮
 //    覆盖，lint 已拒 display」）两半都不成立，PM 2026-09-16 的技术裁定一推翻了它，我自己又量了一遍：
-//    `scripts/theme-css-lint.js` §BLOCK_DISPLAY 的白名单是
-//    `block / flow-root / flex / inline-flex / grid / inline-grid / inline-block / none` 八个值 ——
-//    lint **不拒** display，只收窄它的值。所以主题皮在 `[data-block]` 上写一条 `display:flex` 是
-//    合法的，而它盖过 `[hidden]` 那个来自浏览器自带样式表的 `display:none` ⟹ 老板点了隐藏、块还在。
-//    行内样式的优先级高于任何作者样式表规则，`!important` 再挡住带 !important 的那一条。
+//    「scripts/theme-css-lint.js」 §BLOCK_DISPLAY 的白名单是
+//    「block / flow-root / flex / inline-flex / grid / inline-grid / inline-block / none」 八个值 ——
+//    lint **不拒** display，只收窄它的值。所以主题皮在 「[data-block]」 上写一条 「display:flex」 是
+//    合法的，而它盖过 「[hidden]」 那个来自浏览器自带样式表的 「display:none」 ⟹ 老板点了隐藏、块还在。
+//    行内样式的优先级高于任何作者样式表规则，「!important」 再挡住带 !important 的那一条。
 //
 // 🔴 **还原要记「原来是什么」，不是「设成空」。** 块自己可能本来就带行内 display（主题图册、某些
-//    section 组件会写），直接 `style.display=''` 会把它抹掉 —— 而那是一个**不保存也回不去**的改动。
+//    section 组件会写），直接 「style.display=''」 会把它抹掉 —— 而那是一个**不保存也回不去**的改动。
 //    所以第一次动它的时候把原值（含 priority）抄下来，还原时原样写回去。
 //
 // 🔴 **上移下移换的是 DOM 位置，而且只在同一个父节点里换。** 块可能分在不同 Region（顶栏 / 内容 /
