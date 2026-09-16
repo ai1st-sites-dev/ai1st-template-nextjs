@@ -3314,6 +3314,28 @@
   justify-content: space-between;
 }
 
+/* 🔴🔴 浮起来那一刻，顶栏上**每一个自己带颜色的东西**都要翻成白的 —— 它压的是遮罩，而遮罩是深的。
+   改造前这件事由 `Header.tsx` 的 `onDark` 三行 class 做（`text-white` / `text-white/90` / `text-white`）；
+   搬进形态层时这三行掉了，而 `base.css` 的地板色（primary-900 / gray-600 / gray-600）照常生效
+   ⟹ 深字压深底。#1353 r3 实测（azure-29 钉成 transparent-overlay、首屏是 hero、1280 宽）：
+     品牌名   main `rgb(255,255,255)` → 交付 `rgb(24,36,58)`
+     4 条导航 main `rgba(255,255,255,.9)` → 交付 `rgb(75,85,99)`
+     汉堡     main `rgb(255,255,255)` → 交付 `rgb(75,85,99)`
+   🔴 今天池里 0 套主题穿这一种（#1317 重建期，池子只有 2 套）⟹ 没有一个活站会因此变样，
+      e2e 那几格也因此跳过。**它是搬迁漏的一维，不是今天线上的红** —— 但池子一重建它就活了。
+   🔴 语言开关**不在这里**：它是子组件，靠 `Header.tsx` 的 `onDark={overlaid}` 显式接线
+      （`LanguageSwitcher.tsx` 头注写了为什么不靠继承）—— 那一条改造前后都在，没有丢。
+   🔴 CTA 按钮也不在这里：它改造前就是 `btn-accent`（深字压 accent 底），不跟 onDark 走。 */
+
+[data-block="header"][data-shape="transparent-overlay"][data-over-hero="true"] .header__logo-name,
+[data-block="header"][data-shape="transparent-overlay"][data-over-hero="true"] .header__burger {
+  color: #fff;
+}
+
+[data-block="header"][data-shape="transparent-overlay"][data-over-hero="true"] .header__link {
+  color: rgb(255 255 255 / 0.9);
+}
+
 /* ── header · centered-logo（logo 居中）──────────────────────────────────────────────────────
 
    🔴 **这一种有一处有意的偏差，判块表里单列了一条。** 原来那一支用 JS 把导航链接
