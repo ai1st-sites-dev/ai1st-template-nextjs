@@ -1,4 +1,9 @@
 const fs=require('fs'), path=require('path');
+// #1343 —— 「有哪些块」不在这里算。以前这一行的那个正则同时干两件事：数块 + 认组件文件名，而
+// 数块这件事在本仓有三处各算各的（详见 `scripts/lib/block-catalog.js` 的文件头）。现在块名由那一份
+// 派生函数给（它用 TS 的 AST 读注册表，并且逼着注册表和 blocks/ 逐个对上），下面那个正则只留下它
+// 另一半活：type → 组件名。🔴 注册表里有而正则没配到的块会落进 `skipped` 并印出来 —— 不再静默消失。
+const { blockShapeCatalog } = require('../lib/block-catalog');
 const SEC='src/components/sections';
 const reg=fs.readFileSync('src/lib/sections/registry.ts','utf8');
 // type → 组件文件名
@@ -55,11 +60,12 @@ function synth(name, type, depth=0, defs={}){
   if (defs[t]) { const o={}; for (const f of fields(defs[t])) o[f.name]=synth(f.name,f.type,depth+1,defs); return o; }
   return name+' text';
 }
-const types=Object.keys(map), page={slug:'allblocks',title:'All Blocks',
+const types=blockShapeCatalog().blocks, page={slug:'allblocks',title:'All Blocks',
   description:'Every registered block, once.',navLabel:'All Blocks',navOrder:9,
   changeFrequency:'monthly',priority:0.1,sections:[]};
 const skipped=[];
 for (const t of types){
+  if (!map[t]) { skipped.push(t+' (registry.ts 里这一项的组件名读不出来)'); continue; }
   const rel=(imports[map[t]]||'').replace(/^@\//,'src/');
   const file=rel?rel+'.tsx':path.join(SEC,map[t]+'.tsx');
   if (!fs.existsSync(file)) { skipped.push(t+' (找不到 '+file+')'); continue; }

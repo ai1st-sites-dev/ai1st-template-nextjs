@@ -2376,19 +2376,18 @@ async function judgeRowShapes(where) {
 //      50 对里最多看得到 31 对，而没有任何主题选中的形态永远没人判。
 //   🔴 **量完把属性放回去**，连同视口和滚动位置 —— 后面还有别的检查在同一页上取数（⑧ 的
 //      `judgeRowShapes` 为同一件事付过一次代价，理由写在它上面），而且下面真去核了一遍放回去没有。
-const INTENT_MANIFESTS = (() => {
-  const req = createRequire(import.meta.url);
-  const px = req('node:path');
-  const fsx = req('node:fs');
-  const dir = px.join(req('node:url').fileURLToPath(new URL('.', import.meta.url)), '..', 'blocks');
-  const out = new Map();
-  for (const f of fsx.readdirSync(dir)) {
-    if (!f.endsWith('.json')) continue;
-    const m = JSON.parse(fsx.readFileSync(px.join(dir, f), 'utf-8'));
-    if (m && m.type) out.set(m.type, m);
-  }
-  return out;
-})();
+// 🔴 #1343 —— 这份清单不在这里算了。上一版自己 `readdirSync(blocks/)`，也就是把「有哪些块」这个
+//    问题第三次独立回答了一遍（另两处：`block-manifest.js` 和 `gen-allblocks.js`），而三份答案在
+//    同一天可以不一样：注册表里多一个键而 blocks/ 里没有它的 manifest 时，这里按构造看不见它 ——
+//    那个块从此一条几何断言都没有，而这道检查照样绿。现在三处共用 `blockShapeCatalog()`，它拿
+//    注册表当「有哪些块」的权威、拿 manifest 当「有哪些形态」的权威，两半对不上就抛。
+// 🔴 走 `load`，理由跟上面那两个 CommonJS 兄弟逐字相同：注册表和 blocks/ 对不上时**什么都没判**，
+//    那是 2（读数取不到），不是 1（某套主题破了不变量）。抛出来的那句话跟图册页上看到的是同一句。
+const { manifests: INTENT_MANIFESTS } = await load(
+  'scripts/lib/block-catalog.js would not load, or the registry and blocks/ do not line up',
+  () => createRequire(import.meta.url)('./lib/block-catalog.js').blockShapeCatalog(),
+  'run `npm ci` in templates/nextjs; if the message above names blocks, make registry.ts and blocks/ agree.',
+);
 const INTENT_ARM = SAMPLE_MINIMAL ? '最少版' : '全填版';
 const intentCells = [];
 const intentPairsSeen = new Set();

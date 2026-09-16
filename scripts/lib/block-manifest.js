@@ -889,6 +889,10 @@ module.exports = {
   headLineFor,
   validateSite,
   registryCoverage,
+  // #1343 —— 注册表**自己声明的顺序**（`registryCoverage` 回的那两张单子是排过序的，那是为了做差集）。
+  // 图册按这个顺序排行、`gen-allblocks.js` 按这个顺序写那一页 —— 它们要的是「注册表里写成什么样」，
+  // 不是字典序（改成字典序会把那一页既有的 section 顺序整个换掉）。
+  registryNames,
   applyRoleDefaults,
   industryMatches,
   recogniseIndustry,
