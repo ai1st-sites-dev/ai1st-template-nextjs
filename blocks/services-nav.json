@@ -1,6 +1,6 @@
 {
   "type": "services-nav",
-  "displayName": "Services Menu",
+  "displayName": "Services Navbar",
   "category": "services",
   "roleDefault": "essential",
   "shapes": [

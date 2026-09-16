@@ -1,6 +1,6 @@
 {
   "type": "faq-accordion",
-  "displayName": "Questions & Answers",
+  "displayName": "FAQ",
   "category": "faq",
   "roleDefault": "essential",
   "shapes": [

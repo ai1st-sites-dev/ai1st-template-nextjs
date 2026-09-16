@@ -1,6 +1,6 @@
 {
   "type": "testimonials",
-  "displayName": "Customer Testimonials",
+  "displayName": "Testimonials",
   "category": "testimonial",
   "roleDefault": "optional",
   "shapes": [

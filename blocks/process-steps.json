@@ -1,6 +1,6 @@
 {
   "type": "process-steps",
-  "displayName": "How It Works",
+  "displayName": "Process Steps",
   "category": "process",
   "roleDefault": "optional",
   "shapes": [

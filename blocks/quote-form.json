@@ -1,6 +1,6 @@
 {
   "type": "quote-form",
-  "displayName": "Quote Request Form",
+  "displayName": "Quote Form",
   "category": "contact",
   "roleDefault": "essential",
   "shapes": [

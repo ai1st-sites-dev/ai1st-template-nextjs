@@ -1,6 +1,6 @@
 {
   "type": "gallery",
-  "displayName": "Photo Gallery",
+  "displayName": "Gallery",
   "category": "gallery",
   "roleDefault": "optional",
   "shapes": [

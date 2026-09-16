@@ -1,6 +1,6 @@
 {
   "type": "team-grid",
-  "displayName": "Our Team",
+  "displayName": "Team Section",
   "category": "team",
   "roleDefault": "optional",
   "shapes": [

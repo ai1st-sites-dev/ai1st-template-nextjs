@@ -1,6 +1,6 @@
 {
   "type": "hero",
-  "displayName": "Opening Banner",
+  "displayName": "Hero Section",
   "category": "banner",
   "roleDefault": "lead",
   "shapes": [

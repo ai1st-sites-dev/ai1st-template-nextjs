@@ -1,6 +1,6 @@
 {
   "type": "contact-info",
-  "displayName": "Contact Details",
+  "displayName": "Contact Info",
   "category": "contact",
   "roleDefault": "essential",
   "shapes": [

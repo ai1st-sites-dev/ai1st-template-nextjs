@@ -1,6 +1,6 @@
 {
   "type": "cta-banner",
-  "displayName": "Call To Action",
+  "displayName": "CTA Section",
   "category": "cta",
   "roleDefault": "optional",
   "shapes": [

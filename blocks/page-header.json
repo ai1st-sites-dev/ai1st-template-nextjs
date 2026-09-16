@@ -1,6 +1,6 @@
 {
   "type": "page-header",
-  "displayName": "Page Title",
+  "displayName": "Page Header",
   "category": "banner",
   "roleDefault": "optional",
   "shapes": [
