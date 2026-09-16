@@ -27,7 +27,6 @@ Two of these steps are not pure Node, and neither dependency can be expressed in
 
 | Needed by | What | Install |
 |---|---|---|
-| `layout-readback.py` | `python3` | `apt-get install -y python3` |
 | `review-pairs.mjs` | `python3` **with Pillow** — it resizes each screenshot before sending it, and thumbnail size is the cost lever | `apt-get install -y python3-pil` (or `python3 -m pip install Pillow`) |
 
 `review-pairs.mjs` checks for Pillow before it does anything else, so a missing one is a one-line
@@ -50,7 +49,6 @@ bash scripts/theme-gallery/shoot-themes.sh
 # bash scripts/theme-gallery/shoot-themes.sh --header-closeup
 
 # 3. read the layout back out of the screenshots (this is what the captions are based on)
-python3 scripts/theme-gallery/layout-readback.py
 
 # 4. the AI similarity review  (~$2 for 30 themes, a few minutes)
 ANTHROPIC_API_KEY=... node scripts/theme-gallery/review-pairs.mjs
@@ -71,7 +69,6 @@ R2 key for four hours.
 | `paths.mjs` | Where things are. The template directory comes from this file's own location; the output directory is `THEME_GALLERY_DIR`. |
 | `shoot-themes.sh` | For each theme: write `site/theme.json`, build, serve, screenshot. Refuses a screenshot whose page carries no theme colours or fonts. Refuses to start at all if the sample site has no all-blocks page (#1061). `--header-closeup` adds the header crop. |
 | `shoot.mjs` | The browser half of the above, plus the per-theme `<id>.json` readings — colours, fonts, and (since #981) the header/footer Region read off the home page's DOM. Shoots three pages since #1061: home, about, and the all-blocks page — the first two together hold only a handful of the block types, so without the third a theme that breaks any of the others passes a human review of every picture. |
-| `layout-readback.py` | Works out which section on the page is which block type, by comparing two independent groupings. Writes `layout-readback.json`; the gallery captions read it. Refuses to write if the groupings disagree. |
 | `review-pairs.mjs` | Asks a vision model, for every pair, whether an ordinary visitor would call them the same design recoloured. Writes `review.json`. |
 | `gallery.mjs` | Builds `public/index.html`. |
 | `verify-applied.mjs` | Per-theme check that the page matches the registry (colours, fonts, every section's variant). |

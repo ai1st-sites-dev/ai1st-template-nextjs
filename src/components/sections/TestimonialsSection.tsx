@@ -17,7 +17,8 @@ interface TestimonialsSectionProps {
     subheadline: string;
     items: Testimonial[];
   };
-  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的 `data-role` / `data-shape` / `data-has-*` 从它来。
+   *  （#998 当初加它是为了第三个钩子 `data-block-layout`，#1341 把那个钩子退役了。） */
   block?: BlockConfig;
 }
 
@@ -75,11 +76,17 @@ interface TestimonialsSectionProps {
 // 主题表画不出「N 颗」。这跟 #1027 的 `services-list__icon` 是同一条界线：图形本身给一个钩子，
 // 主题管它多大什么颜色，管不了有几个。
 //
-// 🔴 `variant` 照旧写在页面 JSON 里、照旧被 sync-config.js 从主题的 `supports` 覆盖，只是没人读了
+// 📌 #1341 —— 下面这句话原来的写法是「`variant` 照旧写在页面 JSON 里、照旧被 sync-config.js 从主题的
+//    `supports` 覆盖」。那条覆盖随内容结构那一维一起退役了：构建期不再往任何块写 `data.variant`，
+//    而老站磁盘上残留的这个键在构建读页面时就被丢掉（`scripts/blocks.js` 的 `normalizeListSlots`）
+//    ⟹ 它根本到不了组件。
+// 🔴 `variant` 只剩在老站磁盘上的页面 JSON 里，没人读了
 // —— 同 hero / cta-banner 那个有意的状态（#1008 AC5 / #1018）。`'use client'` 和 `useState` 一起没了。
 //
-// 🔴 第三个钩子不是可选的 —— `blockAttrs('testimonials', block)`（#998 的 `data-block-layout`；
-// `tsc` 看不见它，#1008 r1 因此被打回）。
+// 🔴 那第二个参数不是可选的 —— `blockAttrs('testimonials', block)`，不许写成 `blockAttrs('testimonials')`。
+// #1341 把第三个钩子 `data-block-layout` 退役了，但 `data-role` / `data-shape` /
+// `data-has-*` 仍然全从这个参数来；漏掉它 `tsc` 看不见（`registry.ts` 把组件类型写成
+// `ComponentType<any>`），#1008 r1 因此被打回。
 export default function TestimonialsSection({ data, block }: TestimonialsSectionProps) {
   return (
     <section {...blockAttrs('testimonials', block)} className="testimonials" aria-labelledby="testimonials-heading">

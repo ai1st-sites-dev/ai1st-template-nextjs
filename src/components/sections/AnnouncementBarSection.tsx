@@ -14,7 +14,8 @@ interface AnnouncementBarSectionProps {
   // 为什么外壳那身不带块属性，三个理由写在 `TopbarRegion.tsx` 的头注里（主题的块选择器 / #992 按
   // `[data-role]` 找的那套不变量 / #1002 枚举 `[data-block]` 的那份基线）——都是能查的，不是偏好。
   asRegion?: boolean;
-  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的 `data-role` / `data-shape` / `data-has-*` 从它来。
+   *  （#998 当初加它是为了第三个钩子 `data-block-layout`，#1341 把那个钩子退役了。） */
   block?: BlockConfig;
 }
 
@@ -47,11 +48,16 @@ interface AnnouncementBarSectionProps {
 // 🔴 【区】那条路仍然读 `data.variant`，而且必须读。`asRegion` 时它不是块的变体，是
 // `regionLayout.topbar`（`TopbarRegion.tsx:27` 传进来的），落在 `data-region-layout` 上 —— 区那条路
 // 归 `scripts/region-layout.js` 管，不在阶段 2 的搬迁范围里。删掉它 = 把顶栏的结构选择弄没了。
-// 块那条路不再读它：`variant` 照旧写在页面 JSON 里、照旧被 sync-config.js 从主题的 `supports` 覆盖，
-// 只是没人读 —— 跟 hero / cta-banner 是同一个有意的状态（#1008 AC5 / #1018），别去「修」它。
+// 块那条路不再读它：`variant` 照旧可能写在老站的页面 JSON 里，只是没人读 —— 跟 hero / cta-banner
+// 是同一个有意的状态（#1008 AC5 / #1018），别去「修」它。
+// 📌 #1341 —— 这句话以前还有后半截「照旧被 sync-config.js 从主题的 `supports` 覆盖」。那条覆盖没了
+//    （内容结构那一维整条退役），所以今天没有任何东西再往块的 `data.variant` 里写值。**上面【区】
+//    那条路一个字没动**：它的值由 `TopbarRegion.tsx:27` 现造，从来不经页面 JSON。
 //
-// 🔴 第三个钩子不是可选的 —— `blockAttrs('announcement-bar', block)`，不许写成
-// `blockAttrs('announcement-bar')`（#998 的 `data-block-layout`；`tsc` 看不见它，#1008 r1 因此被打回）。
+// 🔴 那第二个参数不是可选的 —— `blockAttrs('announcement-bar', block)`，不许写成 `blockAttrs('announcement-bar')`。
+// #1341 把第三个钩子 `data-block-layout` 退役了，但 `data-role` / `data-shape` /
+// `data-has-*` 仍然全从这个参数来；漏掉它 `tsc` 看不见（`registry.ts` 把组件类型写成
+// `ComponentType<any>`），#1008 r1 因此被打回。
 export default function AnnouncementBarSection({ data, asRegion = false, block }: AnnouncementBarSectionProps) {
   // 一个块只带一种身份的属性：要么是块，要么是区。
   const idAttrs = asRegion

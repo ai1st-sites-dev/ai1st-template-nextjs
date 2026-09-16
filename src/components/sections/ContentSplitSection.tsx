@@ -9,7 +9,8 @@ interface ContentSplitSectionProps {
     stats?: { value: string; label: string }[];
     imageUrl?: string;
   };
-  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的 `data-role` / `data-shape` / `data-has-*` 从它来。
+   *  （#998 当初加它是为了第三个钩子 `data-block-layout`，#1341 把那个钩子退役了。） */
   block?: BlockConfig;
 }
 
@@ -30,14 +31,16 @@ interface ContentSplitSectionProps {
 // `text-left` and `text-right` are one content shape drawn two ways — the picture moves from one
 // side to the other, which is `order` on a grid child and is the whole point of the architecture
 // (it is literally the difference between the three phase-1 proof sheets). The other three carry
-// DIFFERENT THINGS: a picture, a set of statistics, a list of bullets. That is content structure, so
-// it goes to `block_layout` (spec §5.2). Its manifest already declared `with-media` and `text-only`
-// from #998; this ticket adds `with-stats` and `with-bullets` — the judgement table PM approved on
-// 2026-08-16 named three carriers, and `text-only` is the fourth case (no carrier at all), which was
-// already there. Nothing converts `variant` into `block_layout` and nothing should (`blocks.js:21-22`,
-// spec D5): they are two coexisting fields, and today no live page writes `block_layout` at all.
+// DIFFERENT THINGS: a picture, a set of statistics, a list of bullets. That is content structure, and
+// #1031 put it in `block_layout` (four values: `with-media` / `text-only` / `with-stats` /
+// `with-bullets`).
+// 📌 #1341 retired that field. What names the difference today is which optional slots the page
+//    actually filled — `data-has-imageUrl` / `data-has-stats` / `data-has-bullets` on the root
+//    element (#1331) — asked of the data instead of of a name somebody typed. 🔴 That hook belongs
+//    to the PLATFORM's layout layer (`public/shapes.css`); it is not on the theme contract's §1
+//    list, so a theme sheet cannot select it.
 //
-// 🔴 THE MARKUP RENDERS WHAT THE DATA HAS. `block_layout` is a hook for the sheet; the picture
+// 🔴 THE MARKUP RENDERS WHAT THE DATA HAS. The picture
 // appears when there is an `imageUrl`, the bullets when there are bullets, the statistics when there
 // are statistics. On the live corpus that is 44 of 51 with a picture, 27 with bullets, 11 with
 // statistics — several instances carry more than one, and used to show only the one their variant
@@ -61,7 +64,11 @@ interface ContentSplitSectionProps {
 // contract §2's first line. Exactly hero's split (`.hero__media` always present, `<img>` only when
 // there is one), and for the same reason: the box is the sheet's, the picture is the content's.
 //
-// 🔴 `variant` IS STILL WRITTEN AND NO LONGER READ (#1008 AC5) — see the note in
+// 📌 #1341 — this line used to read "`variant` IS STILL WRITTEN AND NO LONGER READ". It is no
+//    longer written either: sync-config.js's line that overwrote `data.variant` from the theme
+//    went with the rest of that dimension, and a page JSON that still carries the key has it
+//    dropped on read (`scripts/blocks.js` §normalizeListSlots), so it never reaches a component.
+// 🔴 `variant` IS NO LONGER WRITTEN AND NO LONGER READ (#1008 AC5) — see the note in
 // `AwardsCertificationsSection.tsx`. Live values, in case a later ticket needs them:
 // `text-right-list` 13 · `text-left` 12 · `text-left-stats` 11 · `text-right` 9 ·
 // `centered-overlay` 5 · `cards-row` 1.
@@ -74,8 +81,11 @@ interface ContentSplitSectionProps {
 // deliberately absent for the same reason — the structure layer in `globals.css` owns them, one
 // owner per property.
 //
-// 🔴 THE THIRD HOOK IS NOT OPTIONAL — `blockAttrs('content-split', block)` (#998's
-// `data-block-layout`, invisible to `tsc`; #1008 r1's bounce).
+// 🔴 THE SECOND ARGUMENT IS NOT OPTIONAL — `blockAttrs('content-split', block)`, never
+// `blockAttrs('content-split')`. #1341 retired the third hook `data-block-layout`, but `data-role`,
+// `data-shape` and `data-has-*` all still come from that second argument, and dropping it is
+// silent in every instrument we own (`registry.ts` types the components as
+// `ComponentType<any>`, so `tsc` cannot see it). #1008 r1 was bounced for exactly that.
 export default function ContentSplitSection({ data, block }: ContentSplitSectionProps) {
   return (
     <section

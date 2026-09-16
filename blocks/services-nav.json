@@ -2,9 +2,6 @@
   "type": "services-nav",
   "category": "services",
   "roleDefault": "essential",
-  "block_layout": [
-    "default"
-  ],
   "shapes": [
     {
       "name": "row",

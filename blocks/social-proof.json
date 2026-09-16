@@ -2,12 +2,6 @@
   "type": "social-proof",
   "category": "testimonial",
   "roleDefault": "optional",
-  "block_layout": [
-    "default",
-    "with-platforms",
-    "with-badges",
-    "with-quote"
-  ],
   "shapes": [
     {
       "name": "two-up",
@@ -67,11 +61,6 @@
       "required": false,
       "promptOptional": true,
       "shape": "{text, author}"
-    },
-    "variant": {
-      "kind": "variant",
-      "required": false,
-      "promptOptional": false
     }
   },
   "variants": {

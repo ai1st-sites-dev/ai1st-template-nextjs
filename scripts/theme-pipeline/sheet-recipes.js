@@ -56,10 +56,11 @@ function hooksByBlock() {
 // 在**每一项**上都相同，而错开之后要走到第 12 套才第一次整组重复。
 const CARD_STYLES = ['filled', 'outlined', 'underlined'];
 
-// 🔴 hero 的两张表和它们的挑法（`HERO_LOOKS` / `heroLookFor` / `heroLayoutFor`）住在下面
-//    《hero 那一块》那一节，不在这里 —— 一个名字要说的两件事在那里被拆开了（#1065）。
+// 🔴 hero 的画法表和它的挑法（`HERO_LOOKS` / `heroLookFor`）住在下面《hero 那一块》那一节，
+//    不在这里 —— 一个名字要说的两件事在那里被拆开了（#1065）。
 //    #1065 之前这一行是 `const HERO_LAYOUTS = ['with-media-left', 'with-media-top', 'text-only']`，
 //    三个名字每个都同时说了「内容结构」和「外观」两件事，于是外观能有几种被内容结构卡死在 3 种。
+//    📌 #1341 之后只剩外观这一条轴：内容结构那一维整条退役了。
 
 // ── #1090 hero 之外的画法候选 ───────────────────────────────────────────────────────────────────
 //
@@ -667,15 +668,13 @@ function voiceFor(i) {
     radiusStep,
     padStep,
     gapStep,
-    // 🔴 两个键，两条轴，别合并（#1065）：
-    //   `heroLook` = 这套主题把 hero 画成什么样（图在左/右/上/下、全屏底图叠字、纯文字居中/靠左；
-    //                📌 第八种「带表单」#1333 搬去了块 `hero-with-form`）。**只有这个文件读它**，
-    //                它不进 `layout.json`、不进 `supports`。
-    //   `hero`     = 这块 hero 装的是什么内容（`with-media` / `text-only`；#1333 之前还有
-    //                `with-form`）。
-    //                它是写进 `layout.json` 的那个值，也就是 `supports.hero` 里的那个字符串。
+    // `heroLook` = 这套主题把 hero 画成什么样（图在左/右/上/下、全屏底图叠字、纯文字居中/靠左；
+    //              📌 第八种「带表单」#1333 搬去了块 `hero-with-form`）。**只有这个文件读它。**
+    // 📌 #1341 —— 这里原来还有一个 `hero` 键，装的是「这块 hero 装什么内容」（`with-media` /
+    //    `text-only`），它经 `layoutNamesFor` 写进 `<id>.layout.json`、再经 `promote.js` 翻成池里的
+    //    `supports.hero`。内容结构那一整维退役了，所以那个键、算它的 `heroLayoutFor`、
+    //    `HERO_LAYOUTS`、`layoutNamesFor`、以及 `HERO_LOOKS` 每一项的 `content` 一起没了。
     heroLook: heroLookFor(i),
-    hero: heroLayoutFor(i),
     // #1090 —— hero 之外两族的画法档。与上面 hero 那两行同一条纪律：**这里是唯一说得出「第 i 套是
     // 哪一种」的地方**，`generate.js` 写进 layout 的名字和下面表里的画法都从它取，分两处算会分叉。
     split: splitLayoutFor(i),
@@ -969,11 +968,12 @@ const SHAPES = {
 //
 // 🔴 这张表是 #1051 r2 补的，补的是 QA1 在 r1 抓到的一件事：上一版**唯一**读 `v.hero` 的地方只分
 //    「是不是 text-only」，于是 `with-media-left` 与 `with-media-top` 走同一条路、吐**同一份 CSS**
-//    （实测两套的表去掉注释头后 md5 相同）。两个名字的区别只活在 `layout.json` 里 —— 而相似度那道闸
+//    （实测两套的表去掉注释头后 md5 相同）。两个名字的区别只活在 `<id>.layout.json` 里（#1341 之后
+//    那个文件不再产出了）—— 而相似度那道闸
 //    把版式当一整项（0.2 的权重，`gates.js` 的 WEIGHTS）⟹ AC4 那个「80 套 0 套被拦」是靠一个
 //    **产物里不存在的差别**拿到的。按产物的真实表现把这两个名字当成同一个值再跑同一道闸：80 套里
 //    被拦 20 套、最像的一对 0.953。
-//    这正是这个文件自己在 heroLayoutFor 上面写着的那句话（「`layout.json` 说 text-only、CSS 画的
+//    这正是这个文件当时在 `heroLayoutFor` 上面写着的那句话（「`layout.json` 说 text-only、CSS 画的
 //    却是两栏 —— 没有任何东西会为此报错」），三个名字里当时只守住了一个。
 //
 // 🔴 分左右/上下的机制照抄三套实证表：`.hero` 的直接子元素只有 `__deco` / `__media` / `__body`
@@ -1115,14 +1115,17 @@ const CARD_SHAPES = {
 // **`block_layout` 是内容结构，不是外观**，值表不许出现 `centered` / `split` 这类外观词；它第 208 行
 // 的 hero 值表逐字是 `"hero": ["with-media", "text-only", "with-form"]`。
 // 📌 #1333 起第三个值不在了：带表单的首屏拆成了自己一个块类型 `hero-with-form`，「有没有表单」由
-//    块类型说，不再是 hero 的一种内容结构。值表的权威仍然是 `blocks/hero.json`，今天是两个值。
+//    块类型说，不再是 hero 的一种内容结构。
+// 📌 #1341 起**整条轴一都不在了**：`blocks/hero.json` 没有 `block_layout` 这份清单，页面 JSON 里
+//    残留的那个键读的时候丢掉，池里的 `supports` 只剩顶栏 / 页脚。下面那段讲两条轴的话留作出处
+//    —— 它说明了今天这张表为什么只说外观一件事。
 //
-// 所以 hero 这一块有两条轴：
+// 当时 hero 这一块有两条轴：
 //   轴一 **内容结构**（这块 hero 装什么）—— 站说了算，写进页面 JSON 的 `block_layout`；主题这边是
-//        `supports.hero`（我为哪些内容形态写了造型）。取值就是那张表里那几个（#1333 起是两个），清单的权威是
-//        `blocks/hero.json` 的 `block_layout`（#999 的 manifest，与 spec 第 208 行同源）。
-//   轴二 **外观**（画成什么样）—— 主题自己的事，只活在这个文件和它生成的那份 CSS 里，
-//        **不进 `layout.json`、不进 `supports`、不进任何值表**。
+//        `supports.hero`（我为哪些内容形态写了造型）。清单的权威是 `blocks/hero.json` 的
+//        `block_layout`（#999 的 manifest，与 spec 第 208 行同源）。**#1341 整条退役。**
+//   轴二 **外观**（画成什么样）—— 主题自己的事，只活在这个文件和它生成的那份 CSS 里。
+//        **今天这张表只说它。**
 //
 // 🔴 #1065 之前这两条轴是黏在一起的：`HERO_LAYOUTS = ['with-media-left', 'with-media-top',
 //    'text-only']`，一个名字同时说了两件事。后果不是命名不好看，是**外观能有几种被内容结构的档数
@@ -1131,10 +1134,10 @@ const CARD_SHAPES = {
 //    📌 #1333 起这张表是**七项**：第八项「带表单」搬去了块 `hero-with-form`（它本来就是轴一，
 //    而轴一从此由块类型说）。Chris 那句话点的八件事一件没少，只是最后一件不在这张表里了。
 //
-// 🔴 一套候选的外观**只有这一张表说了算**，内容结构由这张表里的 `content` 派生 —— 两处各写一份必然
-//    分叉，而分叉的样子是「`layout.json` 说 text-only、CSS 画的却是两栏」，没有任何东西会为此报错
-//    （这句话是 #1051 写在 `heroLayoutFor` 上面的，本次改造把它保住了：`heroLayoutFor` 现在读的就是
-//    `heroLookFor` 挑中的那一项的 `content`）。
+// 🔴 一套候选的外观**只有这一张表说了算**。#1065～#1341 期间内容结构由这张表里的 `content` 字段
+//    派生（`heroLayoutFor`），为的是不让同一件事在两处各算一遍 —— 分叉的样子是「`layout.json` 说
+//    text-only、CSS 画的却是两栏」，没有任何东西会为此报错。#1341 退役那一维之后 `content` 字段
+//    也一起删了：没有第二处要对齐了。
 //
 // ── 分左右/上下靠什么 ────────────────────────────────────────────────────────────────────────────
 // `.hero` 的直接子元素只有 `__deco` / `__media` / `__body`（`src/components/sections/HeroSection.tsx:61-67`；
@@ -1196,7 +1199,6 @@ const heroFormAfterBody = (centred) => () => ({
 const HERO_LOOKS = {
   // ① 图在左
   'media-left': {
-    content: 'with-media',
     cols: '5fr 6fr',
     rootExtra: () => ({ 'align-items': 'center', 'min-height': '34rem' }),
     partExtra: {
@@ -1209,7 +1211,6 @@ const HERO_LOOKS = {
   },
   // ② 图在右 —— 跟①同一副骨架，只有 order 反过来 + 两栏的宽度比反过来。
   'media-right': {
-    content: 'with-media',
     cols: '6fr 5fr',
     rootExtra: () => ({ 'align-items': 'center', 'min-height': '32rem' }),
     partExtra: {
@@ -1224,7 +1225,6 @@ const HERO_LOOKS = {
   // 🔴 宽屏也是**单栏** —— 这一条就是「媒体位在上」跟「媒体位在左」的分界。#1051 r1 那一版这里跟
   //    left 拿到同一个 `5fr 6fr`，也就是名字说在上、画出来在左边。
   'media-top': {
-    content: 'with-media',
     cols: '1fr',
     rootExtra: (v) => ({
       'align-items': 'start', 'text-align': 'center', 'min-height': '0', padding: `0 0 ${v.pad}`,
@@ -1240,7 +1240,6 @@ const HERO_LOOKS = {
   },
   // ④ 图在下 —— 字先落地，图作为一条宽横幅收在正文下面。
   'media-bottom': {
-    content: 'with-media',
     cols: '1fr',
     rootExtra: (v) => ({ 'align-items': 'start', 'min-height': '30rem', padding: `${v.pad} 1.5rem 0` }),
     partExtra: {
@@ -1263,7 +1262,6 @@ const HERO_LOOKS = {
   //     检查），而表不可能知道站主放的是哪张图。给正文块一块不透明的底色之后，那对颜色跟别的画法
   //     是同一对，保证照旧成立；图从那块底的四周露出来，整屏仍然是它。
   'media-cover': {
-    content: 'with-media',
     cols: '1fr',
     rootExtra: () => ({ 'align-items': 'center', 'text-align': 'center', 'min-height': '36rem' }),
     partExtra: {
@@ -1290,7 +1288,6 @@ const HERO_LOOKS = {
   },
   // ⑥ 纯文字居中
   'text-center': {
-    content: 'text-only',
     cols: '1fr',
     rootExtra: () => ({
       'align-items': 'center', 'justify-items': 'center', 'text-align': 'center', 'min-height': '26rem',
@@ -1309,7 +1306,6 @@ const HERO_LOOKS = {
   //    （`sheet-recipes.test.js` 第④格问的就是「声明了居中的块，有没有把不受 text-align 管的
   //    东西一起摆正」；没声明居中的块不在它射程里）。
   'text-left': {
-    content: 'text-only',
     cols: '1fr',
     rootExtra: () => ({ 'align-items': 'start', 'justify-items': 'start', 'min-height': '24rem' }),
     partExtra: {
@@ -1378,12 +1374,10 @@ const HERO_LOOK_NAMES = Object.keys(HERO_LOOKS);
 const heroLookFor = (i) => HERO_LOOK_NAMES[
   (i + Math.floor(i / HERO_LOOK_NAMES.length)) % HERO_LOOK_NAMES.length];
 
-// 第 i 套候选的**内容结构** —— `generate.js` 写进 `layout.json` 的就是它，`promote.js` 再把它翻成
-// `supports.hero`。它是上面那张表的派生值，不是第二份清单。
-const heroLayoutFor = (i) => HERO_LOOKS[heroLookFor(i)].content;
-
-/** 轴一的取值表（去重、按外观表的出场顺序）。判据是 `blocks/hero.json` 的 `block_layout`。 */
-const HERO_LAYOUTS = [...new Set(HERO_LOOK_NAMES.map((n) => HERO_LOOKS[n].content))];
+// 📌 #1341 —— 这里原来有 `heroLayoutFor(i)`（第 i 套候选的**内容结构**，`generate.js` 写进
+//    `<id>.layout.json` 的就是它）和 `HERO_LAYOUTS`（那一维的取值表，判据是 `blocks/hero.json` 的
+//    `block_layout`）。内容结构那一维整条退役了：manifest 里那份清单没了，`<id>.layout.json`
+//    不再产出，池里的 `supports` 只剩顶栏 / 页脚。这张表今天只说**外观**一件事。
 
 /**
  * 有画法候选的块族 —— **一处定义**（#1139）。
@@ -1982,29 +1976,20 @@ function geometryFor(i, seed = 7) {
   try { return buildSheet(i, seed); } finally { EMIT = prev; }
 }
 
-/**
- * #1090 —— 第 i 套候选的**全部**版式名，一次给全。
- *
- * 🔴 为什么是一个函数回四个键，而不是让 `generate.js` 分别调四个 `*For(i)`：`heroLookFor` 上面写着
- * 「两处各算一遍同一件事就会分叉」，而分叉的样子是「`layout.json` 说 text-only、CSS 画的却是两栏」，
- * 没有任何东西会为此报错。四个键分四次取，就有四次漏掉一个的机会 —— 漏掉的那个不会报错，它会静默
- * 地让相似度闸对那一族失明（`gates.js` 只比两边都有的键）。所以出口只留一个。
- *
- * 📌 `hero` 这个键给的仍然是**内容结构**（`heroLayoutFor` 的值，也就是 `supports.hero` 里那个
- * 字符串），不是 #1065 的外观名 `heroLook` —— 外观不进 `layout.json`，那是 #1065 立的边界。
- */
-function layoutNamesFor(i) {
-  const v = voiceFor(i);
-  return { hero: v.hero, split: v.split, splitRhythm: v.splitRhythm, cards: v.cards };
-}
+// 📌 #1341 —— 这里原来有 `layoutNamesFor(i)`（#1090）：第 i 套候选的四个版式名一次给全
+//    （`hero` / `split` / `splitRhythm` / `cards`），`generate.js` 把它写进 `<id>.layout.json`，
+//    `promote.js` 再把每个键翻成池成员的 `supports`。那一整维退役了，`<id>.layout.json` 不再产出，
+//    池里的 `supports` 只剩顶栏 / 页脚 —— 所以这个函数和它的两个消费者一起没了。
+//    它的另一个调用方是 `sheet-recipes.test.js` ⑧ 那一格，改读 `voiceFor(i).cards`（等价：这个
+//    函数逐字就是 `voiceFor` 的一层壳）。
 
 module.exports = {
   // #1318 —— 两半：sheetFor = 皮（主题表），geometryFor = 几何（形态层的出处）。
-  sheetFor, geometryFor, voiceFor, hooksByBlock, heroLayoutFor, HERO_LAYOUTS,
+  sheetFor, geometryFor, voiceFor, hooksByBlock,
   heroLookFor, HERO_LOOKS, HERO_LOOK_NAMES,
   ctaLookFor, CTA_LOOKS, CTA_LOOK_NAMES,
   formLookFor, FORM_LOOKS, FORM_LOOK_NAMES,
-  layoutNamesFor, SPLIT_LAYOUTS, SPLIT_RHYTHMS, CARD_GRIDS, CARD_BLOCKS,
+  SPLIT_LAYOUTS, SPLIT_RHYTHMS, CARD_GRIDS, CARD_BLOCKS,
   surfaceFor, SURFACES, INK_FLOOR,
   // #1139 —— 六族的表 / 名字 / 挑法，以及那张「哪些块有候选表」的注册表（测试从它派生族清单，
   // 不再手抄；理由整段在 LOOK_FAMILIES 上面）。

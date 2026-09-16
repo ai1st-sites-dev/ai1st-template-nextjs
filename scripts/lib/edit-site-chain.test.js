@@ -988,14 +988,16 @@ console.log('\n⑪ 反向对照:合法站级块 + 页面里的 ref 条目 ⟹ �
   const arrayKey = Array.isArray(home.blocks) ? 'blocks' : (Array.isArray(home.sections) ? 'sections' : null);
   if (!arrayKey) die(`⑪ 前提不成立:建出来的首页既没有 blocks 也没有 sections(键:${Object.keys(home).join(' ')})`);
 
-  // AC3② 站级块的值:带 visibility(含 "*")、自己的 weight / role / block_layout
+  // AC3② 站级块的值:带 visibility(含 "*")、自己的 weight / role
+  // 📌 #1341 —— 这个夹具原来还写一个 `block_layout: 'default'`。那个字段整条退役了（manifest 里没有
+  //    取值表、`blockAttrs` 不落属性、老站残留的键读的时候丢掉），留着就是拿一个不存在的字段在测。
+  //    这一格问的另外几样（visibility / weight / role）一个字没改，读数见下面那几条断言。
   const lib = {
     'shared-cta': {
       type: 'cta-banner',
       visibility: ['*'],
       weight: 90,
       role: 'optional',
-      block_layout: 'default',
       data: {
         headline: PROBE,
         description: 'Tell us what you need and we will get back to you the same day.',

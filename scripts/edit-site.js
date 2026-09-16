@@ -824,11 +824,11 @@ When changing colors, update ALL shades consistently (lighter for low numbers, d
 
 Each page has a \`blocks\` array. Each block:
 \`{ "id": "...", "type": "...", "role": "essential|lead|optional", "region": "content", "weight": 0, "data": { ... } }\`
-A block may also carry \`"block_layout": "..."\` (its content structure) and \`"hidden": true\`.
+A block may also carry \`"hidden": true\`.
 
 🔴 Older sites still use a \`sections\` array of \`{ "type": "...", "data": { ... } }\` instead. **Keep whichever
-array the file already has** — never convert one into the other, and never drop \`id\` / \`role\` / \`weight\` /
-\`block_layout\` from a block you are editing. A page must have exactly one of the two arrays; a file with both
+array the file already has** — never convert one into the other, and never drop \`id\` / \`role\` / \`weight\`
+from a block you are editing. A page must have exactly one of the two arrays; a file with both
 fails the build. When you add a block to a \`blocks\` page, give it an \`id\` unique within that page and a
 \`weight\` that puts it where you want it (blocks are ordered by \`weight\`, smaller first).
 
@@ -911,7 +911,7 @@ Each value is a block with the same fields as a page block, plus \`visibility\`:
   block only shows on pages that point at it with \`{ "ref": "<id>" }\`.
 - \`weight\` — where it sits on the page (smaller first). A page that puts \`{ "ref": "<id>" }\` at a specific
   spot in its own \`blocks\` array wins over this.
-- \`role\`, \`block_layout\`, \`data\` — same meaning as in a page block.
+- \`role\`, \`data\` — same meaning as in a page block.
 
 To put a site-wide block at an exact position on one page, add \`{ "ref": "<id>" }\` to that page's \`blocks\`
 array. \`data\` is checked against the block's manifest exactly as it is inside a page, so a missing required

@@ -12,7 +12,8 @@ interface SocialProofSectionProps {
     featuredQuote?: { text: string; author: string };
   };
   locale: string;
-  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的 `data-role` / `data-shape` / `data-has-*` 从它来。
+   *  （#998 当初加它是为了第三个钩子 `data-block-layout`，#1341 把那个钩子退役了。） */
   block?: BlockConfig;
 }
 
@@ -28,9 +29,13 @@ interface SocialProofSectionProps {
 //     review-platforms    headline · platforms
 //     highlight           headline · overallRating · featuredQuote
 //
-// So `block_layout` grows from one value to four: `default` (the rating on its own), plus
-// `with-platforms`, `with-badges`, `with-quote`. Nothing converts `variant` into `block_layout`
-// (`blocks.js:21-22`, spec D5).
+// #1031 put that difference in `block_layout` (four values: `default` — the rating on its own —
+// plus `with-platforms`, `with-badges`, `with-quote`).
+// 📌 #1341 retired that field. What names the difference today is which optional slots the page
+//    actually filled — `data-has-platforms` / `data-has-badges` / `data-has-featuredQuote` on the
+//    root element (#1331) — asked of the data instead of of a typed name. 🔴 That hook belongs to
+//    the PLATFORM's layout layer (`public/shapes.css`); it is not on the theme contract's §1 list,
+//    so a theme sheet cannot select it.
 //
 // 🔴 BUT THE FOUR FIELD SETS ARE NOT DISJOINT IN REAL DATA, AND THAT CHANGES WHAT THIS BLOCK SHOWS
 // TODAY — the loudest consequence in this batch, so it is written here rather than left to be found.
@@ -66,7 +71,11 @@ interface SocialProofSectionProps {
 // English-first shortcut legal, and it is legal, but the fallback's failure is a Chinese page
 // quietly printing "reviews", which is the defect being removed here.
 //
-// 🔴 `variant` IS STILL WRITTEN AND NO LONGER READ (#1008 AC5) — see `AwardsCertificationsSection.tsx`.
+// 📌 #1341 — this line used to read "`variant` IS STILL WRITTEN AND NO LONGER READ". It is no
+//    longer written either: sync-config.js's line that overwrote `data.variant` from the theme
+//    went with the rest of that dimension, and a page JSON that still carries the key has it
+//    dropped on read (`scripts/blocks.js` §normalizeListSlots), so it never reaches a component.
+// 🔴 `variant` IS NO LONGER WRITTEN AND NO LONGER READ (#1008 AC5) — see `AwardsCertificationsSection.tsx`.
 // Live: `review-platforms` 6 · `highlight` 6.
 //
 // 🔴 THE PARTS ARE FLAT, one level under the block, because CSS grid only places CHILDREN. Each
@@ -75,8 +84,11 @@ interface SocialProofSectionProps {
 // A platform's own three pieces sit inside it and are laid out by the structure layer in
 // `globals.css` (contract §1 refuses tag selectors, so no sheet could reach them anyway).
 //
-// 🔴 THE THIRD HOOK IS NOT OPTIONAL — `blockAttrs('social-proof', block)` (#998's
-// `data-block-layout`, invisible to `tsc`; #1008 r1's bounce).
+// 🔴 THE SECOND ARGUMENT IS NOT OPTIONAL — `blockAttrs('social-proof', block)`, never
+// `blockAttrs('social-proof')`. #1341 retired the third hook `data-block-layout`, but `data-role`,
+// `data-shape` and `data-has-*` all still come from that second argument, and dropping it is
+// silent in every instrument we own (`registry.ts` types the components as
+// `ComponentType<any>`, so `tsc` cannot see it). #1008 r1 was bounced for exactly that.
 export default function SocialProofSection({ data, locale, block }: SocialProofSectionProps) {
   const labels = getLabels(locale);
 

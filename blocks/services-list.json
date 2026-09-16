@@ -2,9 +2,6 @@
   "type": "services-list",
   "category": "services",
   "roleDefault": "essential",
-  "block_layout": [
-    "default"
-  ],
   "shapes": [
     {
       "name": "two-up",

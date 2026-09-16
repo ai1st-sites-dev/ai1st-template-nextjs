@@ -9,10 +9,11 @@
 // 🔴 库定义结构与槽，不定义内容（Chris 2026-08-13 的边界）。manifest 里没有一句文案 —— 文案是
 // 建站时 AI 按这家生意生成、填进槽里的。
 //
-// 🔴 `variants` 是过渡字段（阶段 3 随旧外观退役整字段删除）。它装的是**外观**词，而 `block_layout`
-// 装的是**内容结构**（D5：同一份 markup 能画出图左/图右/图上，#991 已证）。两者并存不是含糊，是因为
-// 组件今天真的靠 variant 选分支（`HeroSection.tsx:21` 的 `data.variant || 'left'`）——把它挤掉，
-// 建站 AI 就不再吐 variant，全站 hero 退回 `left`，而构建照样绿。
+// 🔴 `variants` 是过渡字段（阶段 3 随旧外观退役整字段删除）。它装的是**外观**词，喂的是建站提示词。
+// 📌 #1341 —— 它旁边原来还有一个 `block_layout`（**内容结构**：这个块有没有配图 / 带不带表单），
+//    两者并存。那一维整条退役了：可选槽位填没填由 `data-has-<槽位>` 说（#1331），带表单的首屏是
+//    自己一个块类型 `hero-with-form`（#1333）。manifest 里 `block_layout` 与 `slots.variant`
+//    两个键都没有了，`variants` / `variantKey` 留着（提示词要用）。
 const fs = require('fs');
 const path = require('path');
 const { resolveBlockTypesForCheck } = require('../blocks');
@@ -135,9 +136,10 @@ function diffShapesAgainstCss(manifests, cssShapes = shapePairsFromCss()) {
 // 字就等于把某一条检查静默关掉。实测（#999 ship 时 QA3 量的）：把 `blocks/hero.json` 的
 // `roleDefault` 拼成 `"Essential"`（大写 E），②「角色只能加不能降」那条就再也不会报 ——
 // `ROLE_RANK["Essential"]` 是 `undefined`，`ROLE_RANK[sec.role] < undefined` 恒为假。
-// 三盏灯全绿，而那条检查已经不在了。同族的还有：`block_layout` 写成字符串（`includes` 于是变成
-// 子串匹配，`"with"` 会被当成合法值）、`industries.required` 写成字符串（`.some` 报 TypeError 或
-// 逐字符匹配）。
+// 三盏灯全绿，而那条检查已经不在了。同族的还有 `industries.required` 写成字符串（`.some` 报
+// TypeError 或逐字符匹配）。
+// 📌 #1341 —— 这里原来还列着「`block_layout` 写成字符串」那个例子，连同校验它的那条一起随
+//    内容结构那一维退役了。
 //
 // 今天 34 份全部合法，所以这一条守的是**将来的编辑** —— 而将来的编辑正是它唯一会犯错的时候。
 //
@@ -158,10 +160,6 @@ function checkManifestShape(name, m, cssShapes) {
   if (!ROLE_NAMES.includes(m.roleDefault)) {
     bad(`roleDefault 是 ${JSON.stringify(m.roleDefault)} —— 只能是 ${ROLE_NAMES.join(' / ')}`
       + '（全小写，大小写错会让「角色只能加不能降」那条检查静默失效）');
-  }
-  if (!strArray(m.block_layout) || m.block_layout.length === 0) {
-    bad(`block_layout 是 ${JSON.stringify(m.block_layout)} —— 必须是非空的字符串【数组】`
-      + '（写成字符串的话 includes 会退化成子串匹配，"with" 之类的半个词就成了合法值）');
   }
   if (m.slots === null || typeof m.slots !== 'object' || Array.isArray(m.slots)) bad('slots 必须是对象');
   for (const [slot, s] of Object.entries(m.slots)) {
@@ -355,22 +353,16 @@ function headLineFor(m) {
  * 一个块在提示词里的那几行（头 + 续行，续行里的 `@data` 换成从 slots 生成的 data 行），
  * 再加上 manifest 独有的两行。
  *
- * 🔴 那两行是**新加的**，其余逐字节是今天那段散文（交付时对着 origin/main 比过：把这两行去掉之后
- * 与原文完全相同）。加它们是因为 AC5 要「改 manifest 的 block_layout，提示词跟着变」——
- * 也就是这段文字必须真的把 manifest 里的形态和行业说给 AI 听，而不只是重排原来的散文。
- * 📌 只**告诉**它这个块支持哪些内容结构，没有让它多吐一个字段：今天的 section JSON 形状一个字节
- *    没变。`block_layout` 作为内容层的字段在 #998 那张票接进 schema；在那之前 AI 真吐了也不会坏
- *    （校验只认 manifest 里列着的值，渲染器忽略不认识的字段）。
+ * 🔴 那一行是**新加的**，其余逐字节是今天那段散文（交付时对着 origin/main 比过：把它去掉之后
+ * 与原文完全相同）。加它是因为 AC5 要「改 manifest 里写的东西，提示词跟着变」—— 也就是这段文字
+ * 必须真的把 manifest 里的行业说给 AI 听，而不只是重排原来的散文。
+ * 📌 #1341 —— 原来还有第二行 `content structures: …`（从 manifest 的 `block_layout` 印出来的）。
+ *    内容结构那一维整条退役了，所以那一行和它的来源一起没了。
  */
 function promptEntry(m) {
   const lines = [headLineFor(m)];
   for (const l of (m.prompt && m.prompt.lines) || []) {
     lines.push(`  ${l === '@data' ? dataLineFor(m) : l}`);
-  }
-  const layouts = m.block_layout || [];
-  // 只有一种结构的块不占一行 —— 34 行 "default" 是噪音，而提示词的每一行都在花钱。
-  if (layouts.length > 1 || (layouts.length === 1 && layouts[0] !== 'default')) {
-    lines.push(`  content structures: ${layouts.join(' | ')}`);
   }
   const ind = m.industries || {};
   const bits = [];
@@ -384,7 +376,7 @@ function promptEntry(m) {
   return lines.join('\n');
 }
 
-/** promptEntry 去掉 manifest 独有的那两行 —— 只给「跟今天那段散文逐字节相同」那条判据用。 */
+/** promptEntry 去掉 manifest 独有的那一行（#1341 之前是两行）—— 只给「跟今天那段散文逐字节相同」那条判据用。 */
 function promptEntryLegacyOnly(m) {
   return promptEntry(m).split('\n')
     .filter((l) => !/^ {2}(content structures|industries): /.test(l))
@@ -625,8 +617,8 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
       //    正在逐字告诉模型 ref 是合法格子。
       //
       // 🔴 这里**只压掉这一条报文**，没有新加「见到 ref 就整格 continue」那种口子：`continue` 是
-      //    这一支本来就有的（没有 manifest 就没有 `m.slots` / `m.roleDefault` / `m.block_layout`，
-      //    下面第 ①②③⑤ 条逐条都要读 `m`，物理上跑不了）。上面 #1154 那道「这一格是不是块」的检查
+      //    这一支本来就有的（没有 manifest 就没有 `m.slots` / `m.roleDefault`，下面第 ①②⑤⑥ 条
+      //    逐条都要读 `m`，物理上跑不了）。上面 #1154 那道「这一格是不是块」的检查
       //    仍然照跑 —— ref 条目是对象，它本来就从那里正常通过。
       //
       // 🔴 谓词比 `edit-site.js §ownBlocksOf` 严一格，多一个「而且没写 type」：
@@ -662,15 +654,13 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
         }
       }
 
-      // ③ block_layout 只能取 manifest 列出的值
-      if (sec.block_layout !== undefined && !(m.block_layout || []).includes(sec.block_layout)) {
-        flag(`${where}: block_layout "${sec.block_layout}" 不在 blocks/${sec.type}.json 的清单里`
-          + `（${(m.block_layout || []).join(' / ')}）`);
-      }
+      // 📌 ③ 曾经是「block_layout 只能取 manifest 列出的值」。#1341 把内容结构那一维整条退役了
+      //    （设计文档 D15 ③ 写的就是「随 data-block-layout 退役一起删」），所以这里没有第 ③ 条。
+      //    老站页面 JSON 里残留的那个键由 `scripts/blocks.js` 读的时候丢掉，不报错。
 
       // ⑥ #1331（设计文档 D11 ⑥）—— 页面 JSON 点名的形态，它 needs 的槽位填了没。判据是 shapeNeedsGap，
       //    跟 sync-config §shapeForBlock 构建时落回默认用的是**同一个函数**：这里说「会落回」，那里真落回。
-      //    形态不在清单里也在这条报（block_layout 那条的同款）。
+      //    形态不在清单里也在这条报。
       if (sec.shape !== undefined) {
         const gap = shapeNeedsGap(m, sec.shape, data);
         const names = (m.shapes || []).map((x) => x.name).join(' / ');

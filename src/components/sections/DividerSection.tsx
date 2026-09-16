@@ -5,7 +5,8 @@ interface DividerSectionProps {
   data: {
     label?: string;
   };
-  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的 `data-role` / `data-shape` / `data-has-*` 从它来。
+   *  （#998 当初加它是为了第三个钩子 `data-block-layout`，#1341 把那个钩子退役了。） */
   block?: BlockConfig;
 }
 
@@ -15,7 +16,8 @@ interface DividerSectionProps {
 // by `data.variant`. Measured before deleting them, the way #1018 / #1019 / #1027 measured theirs:
 // every branch reads exactly one field, `data.label`, and three of the four do not even draw it. So
 // the difference between them was never content — it was a rule, a bar or a wave, i.e. a picture.
-// `block_layout` therefore keeps its single value and the picture moves to the sheets.
+// There was nothing left for a content-structure axis to say here, and #1341 retired `block_layout`
+// outright; the picture moves to the sheets.
 //
 // 🔴 WHAT NO SHEET CAN REDRAW, SAID OUT LOUD RATHER THAN LEFT TO BE FOUND — nothing, on this block.
 // The old `wave` branch shipped an inline `<svg>` path, and that is the one case where "a sheet can
@@ -32,8 +34,11 @@ interface DividerSectionProps {
 // divider announced today. `role="separator"` is a structural role and is perfectly legal without a
 // name; when there IS a label the visible text is the name, which is the ordinary way to give one.
 //
-// 🔴 THE THIRD HOOK IS NOT OPTIONAL — `blockAttrs('divider', block)`, never `blockAttrs('divider')`
-// (#998's `data-block-layout`, invisible to `tsc`; #1008 r1's bounce).
+// 🔴 THE SECOND ARGUMENT IS NOT OPTIONAL — `blockAttrs('divider', block)`, never
+// `blockAttrs('divider')`. #1341 retired the third hook `data-block-layout`, but `data-role`,
+// `data-shape` and `data-has-*` all still come from that second argument, and dropping it is
+// silent in every instrument we own (`registry.ts` types the components as
+// `ComponentType<any>`, so `tsc` cannot see it). #1008 r1 was bounced for exactly that.
 export default function DividerSection({ data, block }: DividerSectionProps) {
   return (
     <div {...blockAttrs('divider', block)} className="divider" role="separator">

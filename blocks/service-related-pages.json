@@ -2,9 +2,6 @@
   "type": "service-related-pages",
   "category": "services",
   "roleDefault": "optional",
-  "block_layout": [
-    "default"
-  ],
   "shapes": [
     {
       "name": "two-up",

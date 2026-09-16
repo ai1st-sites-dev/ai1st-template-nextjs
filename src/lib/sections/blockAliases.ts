@@ -42,7 +42,6 @@ export type ItemTag = 'div' | 'p' | 'article';
 interface VocabularyRow {
   type: string;
   role: string;
-  block_layout: string | null;
   data: Record<string, string | null>;
   itemTag: ItemTag;
   headingId: string;

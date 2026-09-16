@@ -18,7 +18,8 @@ interface FaqAccordionSectionProps {
     subheadline?: string;
     items: FaqItem[];
   };
-  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的 `data-role` / `data-shape` / `data-has-*` 从它来。
+   *  （#998 当初加它是为了第三个钩子 `data-block-layout`，#1341 把那个钩子退役了。） */
   block?: BlockConfig;
 }
 
@@ -52,12 +53,18 @@ interface FaqAccordionSectionProps {
 // 🔴 `aria-labelledby` + 标题的 id 逐字保留，含重复 id 那股味道 —— 同 #1018 cta-banner 的处置：
 // 本票的承诺是「长相搬进 CSS」，不是「无障碍也跟着改」。
 //
-// 🔴 `variant` 照旧写在页面 JSON 里、照旧被 sync-config.js 从主题的 `supports` 覆盖，只是没人读了
+// 📌 #1341 —— 下面这句话原来的写法是「`variant` 照旧写在页面 JSON 里、照旧被 sync-config.js 从主题的
+//    `supports` 覆盖」。那条覆盖随内容结构那一维一起退役了：构建期不再往任何块写 `data.variant`，
+//    而老站磁盘上残留的这个键在构建读页面时就被丢掉（`scripts/blocks.js` 的 `normalizeListSlots`）
+//    ⟹ 它根本到不了组件。
+// 🔴 `variant` 只剩在老站磁盘上的页面 JSON 里，没人读了
 // —— 跟 hero / cta-banner 是同一个有意的状态（#1008 AC5 / #1018），别去「修」它。它也从上面的
 // props 类型里去掉了：一个声明了却从不读的字段，是在告诉下一个读代码的人「这个字段有用」。
 //
-// 🔴 第三个钩子不是可选的 —— `blockAttrs('faq-accordion', block)`，不许写成
-// `blockAttrs('faq-accordion')`（#998 的 `data-block-layout`；`tsc` 看不见它，#1008 r1 因此被打回）。
+// 🔴 那第二个参数不是可选的 —— `blockAttrs('faq-accordion', block)`，不许写成 `blockAttrs('faq-accordion')`。
+// #1341 把第三个钩子 `data-block-layout` 退役了，但 `data-role` / `data-shape` /
+// `data-has-*` 仍然全从这个参数来；漏掉它 `tsc` 看不见（`registry.ts` 把组件类型写成
+// `ComponentType<any>`），#1008 r1 因此被打回。
 //
 // ══ #1060：`defaultOpen` 存在是为了让检查看得见被藏起来的答案 ═══════════════════════════════════
 // 上面那条「答案始终在 DOM 里」是 #1036 的话，而 #1056 之后它对**检查**不再成立：关着的 `<details>`
@@ -75,7 +82,7 @@ interface FaqAccordionSectionProps {
 //    · `blocks/faq-accordion.json` 里**故意不声明这个槽** —— 槽是 AI 建站提示词的来源
 //      （`scripts/lib/block-manifest.js:137` 把 slots 编成提示词里那行 `data: {…}`），声明了 AI 就会
 //      开始往真实站里写它，那正是本票边界写死不许发生的事。少一个槽不会让任何检查变松：
-//      `validateSite` 只查必填槽、role、block_layout 三样，从不拒绝多出来的键。
+//      `validateSite` 只查必填槽和 role（#1341 之前还查 block_layout），从不拒绝多出来的键。
 //    · 没写这个字段时产出的页面与改动之前**逐字节相同**。判据是 AC5 的两次构建产物比对。
 //
 // 🔴 属性是**条件展开**进去的（`{...(item.defaultOpen ? { open: true } : {})}`），不是

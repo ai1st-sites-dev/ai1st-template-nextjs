@@ -6,7 +6,9 @@
 const fs = require('fs');
 const path = require('path');
 const blockManifest = require('./lib/block-manifest');
-const { themes, layoutFor, shapesFor, themesWithRhythm } = require('./themes');
+const {
+  themes, layoutFor, shapesFor, themesWithRhythm, themesWithBadSupportsKeys, SUPPORTS_KEYS,
+} = require('./themes');
 const pageLayoutLib = require('./lib/page-layout');
 // #1108 —— 报错里「那你去做 X」那几句话由代码算出来（判据是白名单自己），不写死。
 // 理由整段写在那个文件头上:这些话会被 edit-site.js 原文推进老板的聊天窗口。
@@ -19,7 +21,7 @@ const { checkCssContracts } = require('./css-contract-check');
 // #998 — 页面内容层的形状（sections → blocks）。归一化、站级块库、校验都在那个文件里，
 // `create-site.js` 写盘时读的是同一份实现。
 const {
-  readSiteBlocks, normalizeLocalePages, loadBlockManifests, validateBlockLayouts, MANIFEST_DIR,
+  readSiteBlocks, normalizeLocalePages, loadBlockManifests,
   BLOCK_ROLES,
 } = require('./blocks');
 const tweakLib = require('./tweaks');
@@ -140,8 +142,9 @@ if (cssContracts.unavailable) {
 //   颜色 / 字体 / 风格设定   永远来自这个站自己的 brand.json，构建期一个覆盖都没有。换主题仍然
 //                            改颜色 —— 写入时机挪到了老板按下 Apply 那一刻：worker 的
 //                            processThemeTask 把新主题那套写进 site/brand.json 并提交它。
-//   每个 block 的 variant    永远来自 themeId 那套主题（下面 structureThemeId 那个循环），跟
-//                            #1086 对顶栏 / 页脚的做法同一个理由：同一套主题不该有两种长相。
+//   每个 block 的 variant    #1121 让它永远来自 themeId 那套主题。📌 #1341 把这一维（内容结构）
+//                            整条退役了：构建期不再往任何块写 `data.variant`，老站残留的那个键
+//                            读的时候丢掉（`blocks.js` §normalizeListSlots）。
 //
 // 在这之前，applied:false（新建的站）拿站自己的颜色 + 页面自己的 variant，applied:true（换过装
 // 的站）拿注册表的颜色 + 注册表的 variant —— 一个布尔捆着两件想要相反默认值的事，所以它怎么
@@ -160,8 +163,8 @@ if (cssContracts.unavailable) {
 // （theme-pipeline/run.js 的 installCandidate），删了它每个候选站每次构建都白打一行日志说
 // 「这套主题我不认识」—— 而那是候选那条路的正常状态，不是毛病。
 //
-// 📌 顺序上，顶栏 / 页脚的结构是 2026-08-18（#1086）先离开这个布尔的，本票把剩下那两维
-// 一起带走。那一维的取法在下面 `readStructureThemeId`，本票的 variant 也改成问同一个读数。
+// 📌 顺序上，顶栏 / 页脚的结构是 2026-08-18（#1086）先离开这个布尔的，#1121 把剩下那两维
+// 一起带走。那一维的取法在下面 `readStructureThemeId`。
 //
 // 🔴 Deliberately its own file. Whether site_meta.json exists is the legacy single-locale
 // switch (line ~34 below), so putting this in there would make an old flat site fail to build.
@@ -185,7 +188,7 @@ function readAppliedThemeId() {
     //
     // 🔴 降级是安全的，因为这个返回值【没有任何消费者】（理由整段在上面）。查不到 id 时构建
     // 接着走，站长什么样由这两处决定，跟这里无关：颜色 / 字体 / 风格设定来自站自己的 brand.json
-    // （#1121），顶栏 / 页脚和各 block 的 variant 来自 `readStructureThemeId` —— 而它对查不到的 id
+    // （#1121），顶栏 / 页脚来自 `readStructureThemeId`（各 block 的 variant 那一维 #1341 已退役）—— 而它对查不到的 id
     // 本来就是「返回 null，让默认值接手」（`lib/site-regions.js`，那条不对称是承重的、有注释）。
     // ⟹ 两个函数今天对「查不到」的答法**终于一致**了，而这一致是本票带来的。
     //
@@ -225,8 +228,9 @@ readAppliedThemeId();
 //
 // 🔴 这一行【必须留在这里，不能挪到下面 §Regions 那一段去】。它原来就在这个位置（`const
 //    structureThemeId = readStructureThemeId();`），而 #1121（2026-08-20）给 `structureThemeId`
-//    加了一个**新的消费者**：下面那个「主题声明的 variant 说了算」的循环。`const` 有 TDZ，声明挪到
-//    那个循环之后 ⟹ 每一次构建当场 ReferenceError。合并 #1121 时踩到过这一下。
+//    加了一个**新的消费者**：下面那个按主题写块字段的循环（#1121 那时写的是 `data.variant`，
+//    #1341 退役它之后剩下的是 #1318 的 `shape`）。`const` 有 TDZ，声明挪到那个循环之后 ⟹ 每一次
+//    构建当场 ReferenceError。合并 #1121 时踩到过这一下。
 const { regionLayout, structureThemeId, explicitRegionLayout } = siteRegions.resolveSiteRegionLayout(siteDir);
 
 // #991 — THE THEME **CSS** SHEET, WHICH IS A DIFFERENT SWITCH FROM `applied` ABOVE.
@@ -528,7 +532,7 @@ for (const locale of locales) {
     // —— 那正是本票要治的那一族毛病，所以这里没有「太吵就不打」这一档。
     for (const n of blocksReport.notes || []) console.log(`  ⚠️  ${n}`);
     // 一页都没用上的站级块：不是错误（草稿态合法），但要点名 —— 静默跳过跟「一切正常」在日志里
-    // 长得一模一样。口径同下面 block_layout 那条「跳过要打印」。
+    // 长得一模一样。
     if (blocksReport.unusedSiteBlockIds && blocksReport.unusedSiteBlockIds.length) {
       console.log(`  [${locale}] 站级块没被任何页面用到（没人 ref、visibility 也没命中，构建不报错）：${blocksReport.unusedSiteBlockIds.join(', ')}`);
     }
@@ -600,7 +604,7 @@ for (const locale of locales) {
 
   // #999 —— 块 manifest 校验的构建期兜底。建站脚本拿到 AI 输出时已经跑过同一个函数（那时还能重试），
   // 这一处把**手改**过的 site/pages/*.json 里的毛病说出来：改坏一个必填槽、把 essential 降成
-  // optional、写一个 manifest 里没有的 block_layout，今天没有任何东西会发现，页面就那么少一块地
+  // optional、写一个 manifest 里没有的 shape，今天没有任何东西会发现，页面就那么少一块地
   // 渲染出来。
   //
   // 🔴 构建期只说、不拦（`scope: 'build'` 让 validateSite 一条 problem 都不产出，理由整段写在
@@ -690,37 +694,23 @@ for (const locale of locales) {
   console.log(`  [${locale}] Regenerated navigation.json`);
 }
 
-// #998 — 每个块的 `block_layout` 必须落在它自己 manifest 声明的清单里（manifest 是 #999 的交付物，
-// `blocks/<type>.json`）。还没有 manifest 的块类型**跳过并点名** —— 静默跳过跟「校验通过」在日志里
-// 长得一模一样，而它们是两件完全不同的事。没有任何块写 `block_layout` 时这里一个字都不打印。
-//
-// 🔴 值不在清单里也是**点名 + 摘掉这个属性**，不是 exit 1（PM r4 的口径，同上面那一段）。这个 catch
-// 留着不是装饰：`loadBlockManifests` 读到一份不是合法 JSON 的 manifest 仍然会抛 —— 那是模板自己的
-// 文件坏了，不是某个站的数据写错了。
-try {
-  const { skipped, notes } = validateBlockLayouts(pagesByLocale, loadBlockManifests(rootDir));
-  for (const n of notes) console.log(`  ⚠️  ${n}`);
-  if (skipped.length) {
-    console.log(`  block_layout 校验跳过（${MANIFEST_DIR}/ 里还没有这些块的 manifest）：${skipped.join(', ')}`);
-  }
-} catch (e) {
-  console.error(e.message);
-  process.exit(1);
-}
+// 📌 #1341 —— 这里原来有一段：调 `blocks.js` 的 `validateBlockLayouts()`，逐块检查页面 JSON 写的
+//    `block_layout` 落不落在那个块 manifest 声明的清单里。内容结构那一维整条退役了（设计文档 D15 ③
+//    写的就是「随 data-block-layout 退役一起删」），校验函数和 manifest 里那份清单一起没了；老站残留
+//    的那个键由 `blocks.js` 的 `readPageBlocks` 读的时候丢掉。
 
-// #924 / 🔴 #1121: 主题声明的 variant【永远】说了算，不看 `applied` —— 跟 #1086 对顶栏 / 页脚
-// 那一维的做法同一个理由：同一套主题不该有两种长相（新建的站拿页面自己的 variant、换过装的站拿
-// 主题的，一个布尔分出两种画法，而签字的图册只画了其中一种）。
+// #924 / 🔴 #1121: 主题说了算，不看 `applied` —— 跟 #1086 对顶栏 / 页脚那一维的做法同一个理由：
+// 同一套主题不该有两种长相（一个布尔分出两种画法，而签字的图册只画了其中一种）。
+// 📌 #1341 —— #1121 当初管的是 `data.variant`（内容结构）。那一维整条退役了，这一段今天只写
+//    #1318 的 `shape`；下面那句「问的是哪个 id」对它照样成立。
 //
 // 🔴 问的是 `structureThemeId`（「这个站穿的是哪套主题」），不是 `appliedThemeId`（「老板换过装
 // 吗」）。用它而不是自己再读一次 theme.json，是因为它对**注册表里查不到的 id 返回 null 而不打死
 // 构建** —— 候选流水线装候选时写的正是一个还没进注册表的 id（theme-pipeline/run.js 的
 // installCandidate），那条路必须活着。这个不对称是承重的，理由整段在 `readStructureThemeId` 上面。
 //
-// For every section type the theme has an opinion about, its variant wins over the one the page
-// JSON carries; section types it says nothing about are left alone. Runs after the locale loop on
-// purpose — navigation.json is the one file written back to disk up there, and it must not pick any
-// of this up.
+// Runs after the locale loop on purpose — navigation.json is the one file written back to disk up
+// there, and it must not pick any of this up.
 // #1318 —— `data-shape` 的取值，spec D18 的三级，**一处实现**：
 //
 //     ① 页面 JSON 里这个块自己的 `shape`   —— 站级的选择。本票用不到（建站 AI 还不写它），先接上，
@@ -732,7 +722,8 @@ try {
 //
 // 🔴 三级都取不到就**不写这个属性**，不造一个兜底值。造一个（比如 "default"）会让
 //    `public/shapes.css` 里 `[data-shape="default"]` 这类选择器选中一批「其实没人选过画法」的块，
-//    而那是静默的：页面照样打开。同一条理由写在 `blockAttrs.ts` 的 `block_layout` 那一段上。
+//    而那是静默的：页面照样打开。同一条理由写在 `blockAttrs.ts` 的 `data-shape` 那一段上
+//    （#1341 之前它是写在已退役的 `block_layout` 那一段上的）。
 //
 // #1331 —— 第 ③ 级填上了（31 份 manifest 都有 `shapes`，第 0 项是默认），而且取到形态之后**多问一句**
 // （设计文档 D11 ⑥）：这个站的这块填了它 `needs` 的槽位没有 —— 没填就落回 manifest 默认，并在构建
@@ -791,38 +782,26 @@ function shapeForBlock(block, selection, manifests, log = (line) => console.log(
 }
 
 if (structureThemeId) {
-  const layout = layoutFor(structureThemeId);
-  // #1318 —— 选择单跟 `layout` 从同一个 `structureThemeId` 取（「这个站穿的是哪套主题」），理由
-  // 与上面那段逐字相同：注册表里查不到的 id 回空表而不是打死构建，候选流水线那条路必须活着。
+  // #1318 —— 选择单从 `structureThemeId` 取（「这个站穿的是哪套主题」）：注册表里查不到的 id 回空表
+  // 而不是打死构建，候选流水线那条路必须活着。
   const selection = shapesFor(structureThemeId);
   const manifestsForShapes = loadBlockManifests(rootDir);
   let shaped = 0;
-  let overridden = 0;
   for (const locale of locales) {
     for (const page of pagesByLocale[locale]) {
       for (const block of page.blocks) {
-        // #1318 —— 先写 `shape`（形态层靠它点名），再走下面那条老的 variant 覆盖。
-        // 🔴 `variant` 那一半**一个字都没动**：它今天「还在写、没人读」是 #1008 AC5 有意留下的，
-        //    四个 section 组件的注释都写着别在那儿"修"它。本票加的是一个并存的新字段，不是替换。
         // #1331 —— 落回默认那一行带上页名：同一种块（hero）几页都有，不带页名就说不清是哪一块落回了。
         const shape = shapeForBlock(block, selection, manifestsForShapes,
           (line) => console.log(line.replace(/^(\s*⚠️\s*)块 /, `$1页 ${page.slug || locale}: 块 `)));
         if (shape) { block.shape = shape; shaped++; }
-        // #1162 —— 这里以前先读一个由别名层写上去的隐藏字段、读不到才落回 `block.type`，为的是让
-        // 主题注册表里按老 type 名写的偏好还能对上老站。别名层 2026-08-23 整层退役之后**没有任何地方
-        // 再写那个字段** ⟹ 那半边表达式恒 undefined，留着只会让读代码的人以为老站这条路还在。
-        // 🔴 退役的后果照实说：注册表里仍按老名字写的那些偏好，从此谁都对不上（30 套退役主题的
-        // `supports` 归 #1161）。失败方向是**静默不覆盖**，不是报错。
-        const preferred = layout[block.type];
-        if (!preferred) continue;
-        block.data = { ...(block.data || {}), variant: preferred };
-        overridden++;
       }
     }
   }
   // 🔴 #1121 —— 这行以前写的是「colors + fonts + N section variant(s)」，而颜色和字体已经不
   // 从这里来了。日志说的话必须跟代码做的事一样，否则下一个读构建日志的人会以为覆盖还在。
-  console.log(`  Theme "${structureThemeId}": ${overridden} section variant(s) · ${shaped} block shape(s)`
+  // 📌 #1341 —— 「N section variant(s)」那一半也没了：这里原来还按主题的 `supports` 往每个块写
+  //    `data.variant`（内容结构那一维），整条退役了。今天这段只写 `shape`。
+  console.log(`  Theme "${structureThemeId}": ${shaped} block shape(s)`
     + ' —— 颜色 / 字体 / 风格设定来自这个站自己的 brand.json，不从注册表来');
 }
 
@@ -848,9 +827,22 @@ if (withRhythm.length) {
   process.exit(1);
 }
 
-// #960 — Header 和 Footer 是两个 Region,不是 section,所以它们【走不了】上面那个循环:那个循环按
-// `layout[section.type]` 取,而没有任何 section 的 type 是 header/footer ⟹ 往偏好表里加这两个键会被
-// `if (!preferred) continue` 静默跳过。这里是它们自己的写出口,理由与那条对比度规则写在 region-layout.js。
+// #1341 —— `supports` 里只许有【区】那三个键（`header` / `footer` / `topbar`）。同一个形状、同一个
+// 理由：内容结构那一维退役之后，一个没人读的键就是它回来的路。判据在 themes.js §themesWithBadSupportsKeys，
+// 它报的是整个注册表，不是这个站穿的那一套。
+const badSupports = themesWithBadSupportsKeys();
+if (badSupports.length) {
+  console.error(`🔴 ${badSupports.length} theme(s) 的 \`supports\` 里有不该有的键。`
+    + `一套主题的 \`supports\` 只说【区】的结构（允许的键：${SUPPORTS_KEYS.join(' / ')}）——`
+    + ' 「我为这个块的哪些内容结构写了样式」那一维 #1341 已经退役（今天由 data-has-<槽位> #1331 和'
+    + ' 独立块 hero-with-form #1333 接管）。删掉这些键：\n  '
+    + badSupports.map(([id, keys]) => `${id}: ${keys.join(' / ')}`).join('\n  '));
+  process.exit(1);
+}
+
+// #960 — Header 和 Footer 是两个 Region,不是 section,所以它们【走不了】上面那个按块类型取偏好的
+// 循环(#1341 退役内容结构那一维时那个循环也随之没了,当时它按 `layout[section.type]` 取,而没有任何
+// section 的 type 是 header/footer)。这里是它们自己的写出口,理由与那条对比度规则写在 region-layout.js。
 // 📌 #1024:以前还往这里传「全部 locale 的全部页面」和这个站的调色板,用来判首屏是不是深底。
 // 那条判断已经没有依据了(hero 的底色住在主题样式表里,不在 variant 的名字里),现在透明浮层
 // 一律配遮罩,所以这个函数只要 theme 的那份结论。

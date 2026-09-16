@@ -2,9 +2,6 @@
   "type": "testimonials",
   "category": "testimonial",
   "roleDefault": "optional",
-  "block_layout": [
-    "default"
-  ],
   "shapes": [
     {
       "name": "two-up",
@@ -60,11 +57,6 @@
     "subheadline": {
       "kind": "text",
       "required": true,
-      "promptOptional": false
-    },
-    "variant": {
-      "kind": "variant",
-      "required": false,
       "promptOptional": false
     },
     "items": {

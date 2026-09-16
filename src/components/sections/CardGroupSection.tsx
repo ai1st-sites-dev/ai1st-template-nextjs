@@ -16,7 +16,8 @@ interface CardGroupSectionProps {
     subheadline?: string;
     items: CardGroupItem[];
   };
-  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的 `data-role` / `data-shape` / `data-has-*` 从它来。
+   *  （#998 当初加它是为了第三个钩子 `data-block-layout`，#1341 把那个钩子退役了。） */
   block?: BlockConfig;
 }
 
@@ -72,9 +73,10 @@ interface CardGroupSectionProps {
 //    今天只有 `div` 一种 —— `p` / `article` 是 #1143 给两个老名字用的，随本票一起没了。
 //
 // 🔴 `data` 一个字节都不改。表里那些 `null`（`style` / `variant`）的意思是「继续忽略」——
-//    没人读它们（#1027 / #1029 / #1036 的既定状态），而**留在 data 里**是有理由的：
-//    `scripts/theme-gallery/verify-applied.mjs` 拿磁盘上的 `data.variant` 跟产物里的对账，删掉它
-//    那一格会红在一件没发生的事上。
+//    没人读它们（#1027 / #1029 / #1036 的既定状态）。
+//    📌 #1341 之前这里还写着另一个理由：图册那条路（`theme-gallery/verify-applied.mjs`）拿磁盘上的
+//       `variant` 跟产物里的对账。那段对账随这一维一起退役了，所以今天留着它们的理由只剩上面那条
+//       ——「不改老站的 data」。
 export default function CardGroupSection({ data, block }: CardGroupSectionProps) {
   const v = vocabularyFor(block);
   const attrs = blockAttrs(v.name, block);

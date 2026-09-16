@@ -2,9 +2,6 @@
   "type": "cta-banner",
   "category": "cta",
   "roleDefault": "optional",
-  "block_layout": [
-    "default"
-  ],
   "shapes": [
     {
       "name": "title-side",
@@ -78,11 +75,6 @@
       "required": true,
       "promptOptional": false,
       "shape": "{label, href}"
-    },
-    "variant": {
-      "kind": "variant",
-      "required": false,
-      "promptOptional": false
     }
   },
   "variants": {

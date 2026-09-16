@@ -15,7 +15,8 @@ interface HeroSectionProps {
     ctaSecondary: { label: string; href: string };
     imageUrl?: string;
   };
-  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的 `data-role` / `data-shape` / `data-has-*` 从它来。
+   *  （#998 当初加它是为了第三个钩子 `data-block-layout`，#1341 把那个钩子退役了。） */
   block?: BlockConfig;
 }
 
@@ -33,21 +34,16 @@ interface HeroSectionProps {
 // phase 3 against the final contract. Until then a site's hero is base.css's look (#1001 — plain, but
 // readable) or one of the three proof sheets in public/themes/.
 //
-// 🔴 `variant` IS STILL WRITTEN AND NO LONGER READ — that is deliberate, do not "fix" it here (AC5).
-// Page JSON carries `data.variant`, and sync-config.js still overwrites it from the applied theme's
-// layout table (the line reading `block.data = { ...(block.data || {}), variant: preferred }` — quoted
-// rather than numbered because that file moves under other tickets almost daily; it was :484 when this
-// comment was first written and :485 by the time the ticket was delivered, two commits later).
-// Both stay, because the other 33 blocks have not moved yet and they read it through the
-// same path. For hero specifically the field is inert until phase 3's pool gives it a meaning again.
+// 🔴 `variant` IS NO LONGER READ HERE — that is deliberate, do not "fix" it here (AC5).
+// 📌 #1341 — it is no longer WRITTEN by us either: sync-config.js used to overwrite `data.variant`
+//    from the applied theme's layout table, and that line went with the rest of that dimension. A
+//    page JSON that already carries `data.variant` keeps carrying it and nobody reads it.
 //
-// 🔴 THE THIRD HOOK IS NOT OPTIONAL — `blockAttrs('hero', block)`, never `blockAttrs('hero')`.
-// #998 put the page JSON's `block_layout` and `role` on the root element through that second argument,
-// and hero is the ONE block phase 2 has moved to neutral markup, i.e. exactly the block a theme sheet
-// has to be able to name by content shape. Dropping the argument is silent in every instrument we own:
-// `registry.ts` types the components as `ComponentType<any>`, so `tsc` cannot see it, the build stays
-// green, and the page still opens — only `data-block-layout` is gone from the tree. QA2 caught this in
-// r1 (the r1 bytes were cut from a pre-#998 copy of this file).
+// 🔴 THE SECOND ARGUMENT IS NOT OPTIONAL — `blockAttrs('hero', block)`, never
+// `blockAttrs('hero')`. #1341 retired the third hook `data-block-layout`, but `data-role`,
+// `data-shape` and `data-has-*` all still come from that second argument, and dropping it is
+// silent in every instrument we own (`registry.ts` types the components as
+// `ComponentType<any>`, so `tsc` cannot see it). #1008 r1 was bounced for exactly that.
 //
 // 🔴 WHY media AND body ARE SIBLINGS AND NOT NESTED: CSS grid only places CHILDREN. Wrapping them in
 // the usual `<div class="container">` would let a sheet stack them but never swap their order or give

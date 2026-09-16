@@ -20,8 +20,10 @@ export default function SectionRenderer({ blocks, locale }: SectionRendererProps
           console.warn(`Unknown block type: ${block.type}`);
           return null;
         }
-        // #998 — `block` reaches every component so its root element can carry the third hook
-        // (`data-block-layout`) and the block's own `role`. It is a prop and not a module-level
+        // #998 — `block` reaches every component so its root element can carry the block's own
+        // `role` (and, since #1318 / #1331, `data-shape` and `data-has-*`). #998's third hook
+        // `data-block-layout` was the original reason and #1341 retired it; the rest still need it.
+        // It is a prop and not a module-level
         // "current block" on purpose: React calls a child component AFTER its parent returns, so a
         // variable set while building this list would be read at the wrong time.
         // 🔴 key 里那个类型名会进 RSC 载荷，所以它是**产物 .html 上看得见的字节**（映射文档 §2.5

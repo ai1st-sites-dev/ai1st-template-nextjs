@@ -71,7 +71,12 @@
    (`hero-with-form`), and `HeroSection` has no `block_layout: "with-form"` branch left. That block
    renders hero's part classes on purpose (`hooksFrom: "hero"` in its manifest), so `.hero__form`
    still means the same element and this sheet still dresses it. The sentence above is the record of
-   why the part was added, not a description of today's trigger. */
+   why the part was added, not a description of today's trigger.
+
+   📌 #1341 — `block_layout` does not exist at all any more: the content-structure dimension is
+   retired (nothing emits `data-block-layout`, no manifest carries a value list, and a page JSON that
+   still has the key has it dropped on read). The two sentences above stay as the record; this rule
+   still dresses `.hero__form`, which `hero-with-form` still renders. */
 .hero__form {
   gap: 0.875rem;
   padding: 1.25rem 0 0;

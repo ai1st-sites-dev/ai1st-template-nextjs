@@ -10,7 +10,8 @@ interface FeaturesGridSectionProps {
     subheadline: string;
   };
   locale: string;
-  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的 `data-role` / `data-shape` / `data-has-*` 从它来。
+   *  （#998 当初加它是为了第三个钩子 `data-block-layout`，#1341 把那个钩子退役了。） */
   block?: BlockConfig;
 }
 
@@ -24,7 +25,8 @@ interface FeaturesGridSectionProps {
 // again inline, four times inside the default branch's className strings and once inside a prop.
 // Measured before deleting them: all six read `data.headline` and `data.subheadline` and nothing
 // else from `data` — the items are not in the page JSON at all, they are the site's services
-// (`getServices(locale)`). One field set, six skins. `block_layout` keeps its single value.
+// (`getServices(locale)`). One field set, six skins — nothing left for a content-structure axis to
+// say here, and #1341 retired `block_layout` outright.
 //
 // 🔴 `data.columns` IS GONE TOO, AND IT IS THE ONE NAMED COST OF THIS BLOCK. It was not spelled
 // `variant` — its manifest slot says `kind: "text"` — but 2 / 3 / 4 as a grid column count is a
@@ -33,9 +35,9 @@ interface FeaturesGridSectionProps {
 // exists to remove. Measured on the six live sites: all 9 instances write it — 3 columns ×6,
 // 2 columns ×2, 4 columns ×1 — so this is a real change on every site that has this block, not a
 // dormant field. After this, how many columns a services grid has is the sheet's answer. If a
-// business should get to choose density, that choice belongs in `block_layout` (a value in this
-// block's manifest), not in a number the markup turns into a Tailwind class — but nobody has asked
-// for it, so this ticket does not invent it. `blocks/features-grid.json` keeps the slot untouched,
+// business should get to choose density, that has to become a real content field somewhere — not a
+// number the markup turns into a Tailwind class — but nobody has asked for it, so this ticket does
+// not invent it. (#1031 wrote `block_layout` here as the natural home; #1341 retired that field.) `blocks/features-grid.json` keeps the slot untouched,
 // same as `variant` (#1008 AC5): the site building AI writes against that file.
 //
 // 📌 MEASURED AND OUT OF SCOPE: 2 of the 9 live instances also write `data.items`, which no version
@@ -54,8 +56,11 @@ interface FeaturesGridSectionProps {
 // `h-8 w-8`, so leaving the prop off would leave a Tailwind size in the markup for the sheet to
 // fight. One owner per property.
 //
-// 🔴 THE THIRD HOOK IS NOT OPTIONAL — `blockAttrs('features-grid', block)` (#998's
-// `data-block-layout`, invisible to `tsc`; #1008 r1's bounce).
+// 🔴 THE SECOND ARGUMENT IS NOT OPTIONAL — `blockAttrs('features-grid', block)`, never
+// `blockAttrs('features-grid')`. #1341 retired the third hook `data-block-layout`, but `data-role`,
+// `data-shape` and `data-has-*` all still come from that second argument, and dropping it is
+// silent in every instrument we own (`registry.ts` types the components as
+// `ComponentType<any>`, so `tsc` cannot see it). #1008 r1 was bounced for exactly that.
 export default function FeaturesGridSection({ data, locale, block }: FeaturesGridSectionProps) {
   const services = getServices(locale);
   const allPages = pagesByLocale[locale] ?? [];

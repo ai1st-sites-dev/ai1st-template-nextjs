@@ -10,7 +10,7 @@
  *   · 别名不把老词汇带过去   → 那一节的类名从 `.values-grid__title` 换成新名字，而 83 张主题表
  *                              全部 83 张都在选老名字 ⟹ **像素真的变**，没有任何一格会红
  *   · 忘了显式写 `role`      → `blockAttrs` 按新 type 名查表、查不到、落到兜底的 `essential`
- *   · 别名凭空造 `block_layout` → 产物上多一个属性
+ *   · 别名凭空造一个内容结构字段 → 产物上多一个属性（📌 #1341：那个字段和判它的那半条一起退役了）
  *   · `values-grid` 那条路画出副标题 → 页面上凭空多一行（它的 manifest 从来没有这个槽位）
  *   · #1143：`checklist` 的 `[string]` 没升成 `[{title}]` → 组件读 `item.title` 读到 undefined，
  *     产物里每个条目变成一行空字；`service-highlights` 的 `highlights` 没映到 `items` → 整块的条目
@@ -65,16 +65,14 @@ const ITEM_TAGS = ['div', 'p', 'article'];
 // ── ① 每一行写齐 §2.1 那四件事 ──────────────────────────────────────────────────────────────────
 for (const name of Object.keys(BLOCK_ALIASES)) {
   const row = BLOCK_ALIASES[name];
-  const missing = ['type', 'role', 'block_layout', 'data', 'itemTag', 'headingId', 'parts']
+  // #1341 —— `block_layout` 从这份必填键清单里去掉了：那个字段整条退役，别名表那一行也删了。
+  const missing = ['type', 'role', 'data', 'itemTag', 'headingId', 'parts']
     .filter((k) => !Object.prototype.hasOwnProperty.call(row, k));
   if (missing.length) bad(`${name}: 别名表这一行缺 ${missing.join(' / ')}`);
   else if (!ITEM_TAGS.includes(row.itemTag)) {
     // #1143 —— `itemTag` 是产物 DOM 上看得见的字节（`<p>` / `<article>` / `<div>`）。写了个
     // `CardGroupSection` 没有分支的值，那一支会画成一个未知标签而构建照样是绿的。
     bad(`${name}: itemTag 写着 ${JSON.stringify(row.itemTag)}，而组件只有 ${ITEM_TAGS.join(' / ')} 三支`);
-  } else if (row.block_layout !== null) {
-    bad(`${name}: block_layout 写着 ${JSON.stringify(row.block_layout)} —— 别名不许造一个`
-      + '（老站那条路上没有它，造了产物就多一个 data-block-layout 属性）');
   } else if (row.role !== roles[name]) {
     bad(`${name}: 别名写的 role 是 ${JSON.stringify(row.role)}，而 block-roles.json 里是 `
       + `${JSON.stringify(roles[name])} —— 两个不一样就等于老站的 data-role 变了`);
@@ -187,8 +185,15 @@ for (const [shapeName, page] of [
   if (JSON.stringify(direct.data.items) !== JSON.stringify([{ title: '裸串' }])) {
     bad(`通用块那条路上裸字符串没被规范化: ${JSON.stringify(direct.data.items)}`);
   } else if (direct.data.variant !== 'cards') {
-    bad('「继续忽略」的 variant 在归一化时被删掉了');
-  } else ok('通用块自己那条路上，裸字符串数组被规范化成 [{title}]，variant 原样留着');
+    bad('normalizeGenericItems 动了 variant —— 它这一层只管条目，别的键一个都不碰');
+  } else {
+    // 🔴 #1341 —— 这句话点名的是**哪一层**。`normalizeGenericItems` 自己不碰 `variant`（这一格问的
+    //    就是它），但合成路径上它不是最后一层：`blocks.js` 写的是
+    //    `normalizeListSlots(normalizeGenericItems(x))`，而 `normalizeListSlots` 从 #1341 起会把
+    //    老站残留的 `data.variant` 丢掉。所以「variant 原样留着」只对这一层成立，对整条路不成立
+    //    —— 整条路那一半在下面 ⑨ 那一格（搜 `#1341`）。
+    ok('通用块自己那条路上，裸字符串数组被规范化成 [{title}]；normalizeGenericItems 这一层不碰 variant');
+  }
 
   // 反向对照：本来就是对象的，一个字节都不动（同一个数组引用）
   const objs = [{ title: 'a', description: 'b' }];
@@ -341,6 +346,50 @@ console.log('── ⑨ #1154 所有块的列表槽兜底');
   if (chained.type === 'card-group' && JSON.stringify(chained.data.items) === '[{"title":"甲"},{"title":"t"}]') {
     ok('两步串起来: 裸字符串升成 {title} · null 被滤掉 · type 没被动过');
   } else bad(`两步串起来的结果不对: ${JSON.stringify(chained)}`);
+}
+
+// ── ⑩ #1341 老站残留的那两个键读的时候丢掉 ──────────────────────────────────────────────────────
+//
+// 内容结构那一维退役了，而**磁盘上的老站不会被改**：页面 JSON 里照旧躺着块上的 `block_layout` 和
+// `data.variant`。这一格问的是「读的时候真的丢掉了吗」，而且**两向都问** —— 只问前半句的话，
+// 「丢掉了」跟「这个字段从来就没被读过」长得一样。
+console.log('\n── ⑩ #1341 老站残留的 block_layout / variant 读的时候丢掉');
+{
+  const { readPageBlocks, normalizeListSlots } = blocks;
+
+  // 前半：真的丢了。两种页面形状都问（老站是 `sections`，新站是 `blocks`）。
+  for (const key of ['blocks', 'sections']) {
+    const page = { slug: 'home', [key]: [{ type: 'hero', block_layout: 'with-media', data: { headline: 'H' } }] };
+    const got = readPageBlocks(page, 'page "home"').blocks[0];
+    if ('block_layout' in got) bad(`readPageBlocks 没丢掉 block_layout（${key} 形状）: ${JSON.stringify(got)}`);
+    else if (got.type !== 'hero' || got.data.headline !== 'H') bad(`readPageBlocks 把别的东西也动了（${key} 形状）: ${JSON.stringify(got)}`);
+    else ok(`readPageBlocks 丢掉了块上的 block_layout（${key} 形状），其余一个字节没动`);
+  }
+
+  const withVariant = normalizeListSlots({ type: 'hero', data: { headline: 'H', variant: 'centered' } });
+  if ('variant' in withVariant.data) bad(`normalizeListSlots 没丢掉 data.variant: ${JSON.stringify(withVariant.data)}`);
+  else if (withVariant.data.headline !== 'H') bad(`normalizeListSlots 把别的键也动了: ${JSON.stringify(withVariant.data)}`);
+  else ok('normalizeListSlots 丢掉了 data.variant，同一个 data 里别的键原样留着');
+
+  // 🔴 后半（反向对照）：**没写这两个键时一个字节都不动**。丢弃那两行如果写成无条件重建对象，
+  //    这一格当场红 —— 而「逐字节不变」那条 AC 就立足在这上面。
+  const clean = { slug: 'home', blocks: [{ type: 'hero', data: { headline: 'H' } }] };
+  const sameArr = readPageBlocks(clean, 'page "home"').blocks;
+  if (sameArr === clean.blocks && sameArr[0] === clean.blocks[0]) {
+    ok('反向对照: 没写 block_layout 时 readPageBlocks 返回同一个数组、同一个块对象（没有重建）');
+  } else bad(`没写 block_layout 时对象被换掉了: 数组同一个 ${sameArr === clean.blocks} · 块同一个 ${sameArr[0] === clean.blocks[0]}`);
+
+  const noVariant = { type: 'hero', data: { headline: 'H' } };
+  if (normalizeListSlots(noVariant) === noVariant) ok('反向对照: 没写 variant 时 normalizeListSlots 返回同一个 block（没有重建）');
+  else bad('没写 variant 时 block 被换掉了');
+
+  // 🔴 还要问一句：`normalizeListSlots` 丢 variant 这件事在**没有列表槽的块**上也成立吗。
+  //    它原来头几行就是 `if (!slots.length) return block;` —— 丢弃写在那一行后面的话，hero 这种
+  //    没有列表槽的块就丢不掉，而 hero 恰好是老站里最常带 variant 的那一个。
+  const heroSlots = (blocks.loadBlockManifests(NEXT).hero || {}).slots || {};
+  const heroHasList = Object.values(heroSlots).some((sp) => sp && sp.kind === 'list');
+  if (heroHasList) bad('夹具不成立: hero 现在有列表槽了 —— 换一个没有列表槽的块来问这一格');
+  else ok('夹具成立: hero 没有列表槽，上面那条 variant 读数因此走的是「提前返回」那一支');
 }
 
 console.log(`\n══ ${pass} 过 / ${fail} 败 ══`);

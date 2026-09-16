@@ -187,8 +187,11 @@ console.log('\n── ② partner 表：一对一、不指自己、不互相对�
 //
 // #1333 把带表单的首屏拆成了自己一个块类型 `hero-with-form`（排版归 `public/shapes.css` 这一份平台
 // 文件、皮按类名写）⟹ 任何主题都画得出，`supports.hero` 里再也不会有 `with-form` 这个值
-// （`blocks/hero.json` 的 `block_layout` 里没有它了，而 `theme-pipeline/pool.test.js` ⑨ 要求
-// `supports.hero` ⊆ 那份清单）。也就是说这一格的正向判据**恒红**、它的反向对照**分不出真表坏表**
+// （`blocks/hero.json` 的 `block_layout` 里没有它了）。也就是说这一格的正向判据**恒红**、
+// 它的反向对照**分不出真表坏表**
+// 📌 #1341 更正了这段话里引用的那个判据：原文写「而 `theme-pipeline/pool.test.js` ⑨ 要求
+//    `supports.hero` ⊆ 那份清单」—— ⑨ 那一格随内容结构那一维一起删了，今天的理由更直接：
+//    `supports` 里根本不许再有 `hero` 这个键（`themes.js` 的 `themesWithBadSupportsKeys` 那条白名单）。
 // —— 两向都不再说话，留着就是一格会在池子重建那天当场红掉的死判据。
 //
 // 它真正想保证的事搬去了 `scripts/lib/hero-lead-form.test.js` ⑥：逐个上门行业词问「建出来的站，

@@ -21,8 +21,11 @@ import type { BlockConfig } from '@/lib/types/config';
 // flex only place CHILDREN — with the wrappers there, a sheet could not have laid the links out at
 // all. This is the same reason page-header's three parts are siblings (#1019).
 //
-// 🔴 THE THIRD HOOK IS NOT OPTIONAL — `blockAttrs('services-nav', block)`, never
-// `blockAttrs('services-nav')` (#998's `data-block-layout`, invisible to `tsc`; #1008 r1's bounce).
+// 🔴 THE SECOND ARGUMENT IS NOT OPTIONAL — `blockAttrs('services-nav', block)`, never
+// `blockAttrs('services-nav')`. #1341 retired the third hook `data-block-layout`, but `data-role`,
+// `data-shape` and `data-has-*` all still come from that second argument, and dropping it is
+// silent in every instrument we own (`registry.ts` types the components as
+// `ComponentType<any>`, so `tsc` cannot see it). #1008 r1 was bounced for exactly that.
 export default function ServicesNavSection({ locale, block }: { locale: string; block?: BlockConfig }) {
   const services = getServices(locale);
   return (

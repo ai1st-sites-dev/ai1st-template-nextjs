@@ -18,7 +18,8 @@ interface ContactFormSectionProps {
     buttonText?: string;
     successMessage?: string;
   };
-  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的 `data-role` / `data-shape` / `data-has-*` 从它来。
+   *  （#998 当初加它是为了第三个钩子 `data-block-layout`，#1341 把那个钩子退役了。） */
   block?: BlockConfig;
 }
 
@@ -54,11 +55,11 @@ type SubmitState = 'idle' | 'submitting' | 'success' | 'error';
 // The honeypot keeps its inline off-screen style: it is not a look, it is the thing that makes it
 // invisible to a human and visible to a bot, and a theme must not be able to switch it on.
 //
-// 🔴 THE THIRD HOOK IS NOT OPTIONAL — `blockAttrs('contact-form', block)`, never
-// `blockAttrs('contact-form')`. #998 puts the page JSON's `block_layout` and `role` on the root
-// element through that second argument, and dropping it is silent in every instrument we own
-// (`registry.ts` types the components as `ComponentType<any>`, so `tsc` cannot see it). #1008 r1 was
-// bounced for exactly that.
+// 🔴 THE SECOND ARGUMENT IS NOT OPTIONAL — `blockAttrs('contact-form', block)`, never
+// `blockAttrs('contact-form')`. #1341 retired the third hook `data-block-layout`, but `data-role`,
+// `data-shape` and `data-has-*` all still come from that second argument, and dropping it is
+// silent in every instrument we own (`registry.ts` types the components as
+// `ComponentType<any>`, so `tsc` cannot see it). #1008 r1 was bounced for exactly that.
 export default function ContactFormSection({ data, block }: ContactFormSectionProps) {
   const heading = data?.heading ?? 'Get in touch';
   const intro = data?.intro ?? "Leave your details and we'll get back to you shortly.";

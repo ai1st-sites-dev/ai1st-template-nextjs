@@ -90,10 +90,10 @@ function toPoolEntry(candidate, slot) {
   const feel = feelOf(tokens.settings);
   const sector = slot.sectorEn || slot.sectorKey;
 
+  // 📌 #1341 —— 这里原来先把候选的 `layout`（`generate.js` 产的四个版式名）逐键翻成 `supports`
+  //    清单，再补 header / footer 两个键。内容结构那一维整条退役了，候选不再产 `layout`，所以
+  //    `supports` 里今天只有下面这两个【区】的键。
   const supports = {};
-  for (const [type, value] of Object.entries(candidate.layout || {})) {
-    supports[type] = Array.isArray(value) ? value.slice() : [String(value)];
-  }
   // 顶栏 / 页脚的结构（#960）。它们不是 block，由 `region-layout.js` 单独消费；注册表那 30 套每套
   // 都有这两个键，新池不给就等于**结构上比旧池少一维**（换装换掉的是结构，不只是颜色）。
   // 🔴 #1016 r5 —— 顶栏那一维不是纯轮换了:浅底首屏不许配透明浮层。判据和实测读数写在
@@ -148,17 +148,17 @@ function readCandidates(dir) {
     .sort((a, b) => num(a) - num(b) || a.localeCompare(b))
     .map((f) => {
       const id = path.basename(f, '.css');
-      const layoutFile = path.join(dir, `${id}.layout.json`);
-      // #1342 —— 选择单跟版式走同一条路：生成器落一个文件，这里读回来。文件不在就回 `{}`，跟
-      // `layout` 那一行同一个失败方向 —— 手工摆的候选目录没有这个文件是常态，而「选择单是空的」
-      // 这件事有人说话：候选那一端是第六道闸（`gates.js` 的 `gateShapes`，逐块点名缺了谁），
-      // 池那一端是 `pool.test.js` 第 ⑪ 段。这里不造兜底名字（理由同 sync-config §shapeForBlock）。
+      // 📌 #1341 —— 这里原来还读回 `<id>.layout.json`（候选的四个版式名）。`generate.js` 不再写
+      //    那个文件，内容结构那一维整条退役了。
+      // #1342 —— 选择单走的就是版式当年那条路：生成器落一个文件，这里读回来。文件不在就回 `{}`
+      // —— 手工摆的候选目录没有这个文件是常态，而「选择单是空的」这件事有人说话：候选那一端是
+      // 第六道闸（`gates.js` 的 `gateShapes`，逐块点名缺了谁），池那一端是 `pool.test.js` 第 ⑪ 段。
+      // 这里不造兜底名字（理由同 sync-config §shapeForBlock）。
       const shapesFile = shapeSheetPath(dir, id);
       return {
         id,
         sheetPath: path.join(dir, f),
         tokens: JSON.parse(fs.readFileSync(path.join(dir, `${id}.tokens.json`), 'utf-8')),
-        layout: fs.existsSync(layoutFile) ? JSON.parse(fs.readFileSync(layoutFile, 'utf-8')) : {},
         shapes: fs.existsSync(shapesFile) ? JSON.parse(fs.readFileSync(shapesFile, 'utf-8')) : {},
       };
     });

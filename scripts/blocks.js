@@ -9,8 +9,7 @@
 // ── 两种形状（双 schema，抄 TICKET-127 的先例：sync-config.js:99 / :139 / :203）──────────────
 //
 //   老（今天磁盘上每一个既有站）  { "sections": [ { "type": "hero", "data": {…}, "hidden": false } ] }
-//   新                          { "blocks":   [ { "id": "home-hero", "type": "hero",
-//                                                 "block_layout": "with-media", "role": "lead",
+//   新                          { "blocks":   [ { "id": "home-hero", "type": "hero", "role": "lead",
 //                                                 "region": "content", "weight": 0, "data": {…} },
 //                                               { "ref": "our-team" } ] }
 //
@@ -18,8 +17,12 @@
 // （`role` 不写进去 —— 让它在渲染时落回类型级默认表，表只有一份）。所以既有站重建出来的 HTML
 // 与改动之前逐字节相同，这是本票的 AC2。
 //
-// 🔴 `data.variant` 原样保留，`block_layout` 是**并存**的新字段，两者不做换算（spec D5）：
-// 外观今天仍由组件的 variant 分支画（`HeroSection.tsx:21` 的 `data.variant || 'left'`），而 `block_layout` 装的是内容结构。
+// 🔴 #1341 —— 内容结构那一维（块上的 `block_layout` 键、`data.variant`）整条退役了。老站磁盘上
+// **还留着**这两个键，这个文件读的时候把它们丢掉：`readPageBlocks` 丢块上的 `block_layout`，
+// `normalizeListSlots` 丢 `data.variant`。丢掉 = 不报错、不落成属性、不拿它选任何分支。
+// 📌 谁接管了它：可选槽位填没填由 `data-has-<槽位>` 说（#1331），带表单的首屏是自己一个块类型
+//    `hero-with-form`（#1333）。老站那条 hero 的改写规则在 `scripts/lib/site-data-migration.js`，
+//    它**必须**读 `block_layout`（它就是这个残留键的清理者），本票一个字没动它。
 
 const fs = require('fs');
 const path = require('path');
@@ -172,11 +175,17 @@ function drawableItem(it) {
 
 function normalizeListSlots(block) {
   if (!block || typeof block !== 'object') return block;
-  const slots = listSlotsFor(block.type);
-  if (!slots.length) return block;
   const data = block.data;
   if (!data || typeof data !== 'object' || Array.isArray(data)) return block;
   let out = null;
+  // #1341 —— 老站的 `data.variant` 丢掉。只有「真写了这个键」才造新对象：良构的块必须原样返回
+  //          同一个对象（下面那条 `out || block` 守的就是这件事，AC 的「逐字节不变」立足在上面）。
+  if (Object.prototype.hasOwnProperty.call(data, 'variant')) {
+    out = { ...block, data: { ...data } };
+    delete out.data.variant;
+  }
+  const slots = listSlotsFor(block.type);
+  if (!slots.length) return out || block;
   for (const slot of slots) {
     const v = data[slot];
     // 没填 = 没这回事，归 validateSite 的第 ① 条管（必填才报）。这里不许无中生有塞一个空数组，
@@ -235,7 +244,17 @@ function readPageBlocks(page, where) {
     const t = raw === undefined ? 'undefined' : raw === null ? 'null' : typeof raw;
     throw new Error(`${where} 的 "${hasBlocks ? 'blocks' : 'sections'}" 不是数组（现在是 ${t}）`);
   }
-  return { blocks: raw, schema: hasBlocks ? 'blocks' : 'sections' };
+  // #1341 —— 老站块上残留的 `block_layout` 丢掉：不报错、不落成属性、不拿它选分支。
+  //          只有真写了这个键的那一格才换成副本，其余原样（同一个对象），免得每次读页面都重建一遍。
+  const blocks = raw.some((b) => b && typeof b === 'object' && 'block_layout' in b)
+    ? raw.map((b) => {
+      if (!b || typeof b !== 'object' || !('block_layout' in b)) return b;
+      const copy = { ...b };
+      delete copy.block_layout;
+      return copy;
+    })
+    : raw;
+  return { blocks, schema: hasBlocks ? 'blocks' : 'sections' };
 }
 
 // ── 站级块库（跨页复用的内容块）─────────────────────────────────────────────────────────────────
@@ -370,8 +389,8 @@ function normalizeLocalePages(pages, siteBlocks, locale, report) {
   // 不通了；这里 exit 1 的代价仍然是真的（这个站要人去修那份文件），只是它到不了站仓。
   //
   //   · **能安全兜底的 → 打印点名 + 继续**：一个字段的值不合法，但「不要这个字段」有明确、无歧义的
-  //     默认行为（role 落回类型默认表、weight 落回按位置、block_layout 不落这个属性、
-  //     visibility 里那一条忽略、ref 指不到就跳过那一条）。
+  //     默认行为（role 落回类型默认表、weight 落回按位置、visibility 里那一条忽略、
+  //     ref 指不到就跳过那一条）。
   //   · **没有它就渲染不出来的 → 仍然 exit 1**：形状本身矛盾或缺内容，兜底只能靠猜
   //     （页面既没 blocks 也没 sections / 两个都写了 / 不是数组 / 块不是对象 / 既没 type 也没 ref）。
   //
@@ -399,11 +418,6 @@ function normalizeLocalePages(pages, siteBlocks, locale, report) {
       note(`${where} 的 "role" 是 ${JSON.stringify(b.role)}，只能是 ${ROLE_NAMES.join(' / ')}`
         + ` —— 这个字段被忽略，按类型默认表算（${b.type} → ${roleFor(b.type)}）`);
       delete b.role;
-    }
-    if (b.block_layout !== undefined && typeof b.block_layout !== 'string') {
-      note(`${where} 的 "block_layout" 是 ${JSON.stringify(b.block_layout)}，必须是字符串`
-        + ' —— 不落这个属性');
-      delete b.block_layout;
     }
     if (b.weight !== undefined && !(typeof b.weight === 'number' && Number.isFinite(b.weight))) {
       note(`${where} 的 "weight" 是 ${JSON.stringify(b.weight)}，必须是数字 —— 这个字段被忽略，`
@@ -477,11 +491,6 @@ function normalizeLocalePages(pages, siteBlocks, locale, report) {
           + `${roleFor(block.type)}）`);
         delete block.role;
       }
-      if (block.block_layout !== undefined && typeof block.block_layout !== 'string') {
-        note(`${where} 第 ${i} 个块的 "block_layout" 是 ${JSON.stringify(block.block_layout)}，`
-          + '必须是字符串 —— 不落这个属性');
-        delete block.block_layout;
-      }
       if (block.weight !== undefined && !(typeof block.weight === 'number' && Number.isFinite(block.weight))) {
         note(`${where} 第 ${i} 个块的 "weight" 是 ${JSON.stringify(block.weight)}，必须是数字 —— `
           + `按它在页面里的位置排（${i * 10}）`);
@@ -546,9 +555,9 @@ function normalizeLocalePages(pages, siteBlocks, locale, report) {
   // 一个站级块可以没被任何页面用上：没人 `ref` 它，`visibility` 也没命中任何页面（写成 `[]`、
   // 或者干脆没写）。这**不是错误** —— 先把块写好、过几天再挂到页面上，是正常的草稿态，所以不报错。
   //
-  // 🔴 但要点名。口径跟上面 validateBlockLayouts 那个「跳过要打印」完全一样：静默跳过和「一切正常」
+  // 🔴 但要点名。静默跳过和「一切正常」
   // 在日志里长得一模一样，而作者最想知道的恰恰是「我写的那个块，今天一页都没出现」（正文 AC9②）。
-  // 打印交给调用方（sync-config.js），这里只把名单交出去 —— 跟 validateBlockLayouts 同一个分工。
+  // 打印交给调用方（sync-config.js），这里只把名单交出去。
   if (report && typeof report === 'object') {
     report.unusedSiteBlockIds = siteBlockIds.filter(id => !usedSiteBlockIds.has(id)).sort();
     // #1033 —— 每页各自用上的站级块（见上面 siteBlockIdsByPage 那段）。
@@ -563,8 +572,8 @@ function normalizeLocalePages(pages, siteBlocks, locale, report) {
 
 // ── block manifest（#999 的交付物）───────────────────────────────────────────────────────────────
 //
-// 一个块一份 manifest，`blocks/<type>.json`，里面的 `block_layout` 是这个块**允许的形态清单**。
-// #999 还没落盘时这个目录不存在 —— 那时校验**跳过并点名**（不是静默跳过：静默跳过和「校验通过」
+// 一个块一份 manifest，`blocks/<type>.json`：这个块有哪些槽、默认角色、有哪些形态（`shapes`）。
+// 读不到 manifest 的块类型，读它的那几处**跳过并点名**（不是静默跳过：静默跳过和「校验通过」
 // 在日志里长得一模一样，而它们是两件完全不同的事）。
 const MANIFEST_DIR = 'blocks';
 
@@ -587,40 +596,16 @@ function loadBlockManifests(rootDir) {
   return out;
 }
 
-// 校验每个块的 `block_layout` 落在它自己 manifest 的清单里。
-//
-// 🔴 不在清单里 = **点名 + 把这个属性摘掉**，不是构建失败（PM 在 #998 r4 定的口径，理由见
-// normalizeLocalePages 头上那段）：摘掉之后这个块落回它的默认形态照常渲染，而 exit 1 的后果是
-// 这个站从此重建不出来 —— 而写这个值的那条路（AI 编辑）今天既不校验也拦不住，还会把坏值 commit 进仓。
-//
-// 返回 { skipped, notes }：`skipped` 是没有 manifest 的类型（校验没跑到，也要点名），
-// `notes` 是每一处被摘掉的属性。两样都由调用方打印。
-function validateBlockLayouts(pagesByLocale, manifests) {
-  const skipped = new Set();
-  const notes = [];
-  for (const [locale, pages] of Object.entries(pagesByLocale)) {
-    for (const page of pages) {
-      (page.blocks || []).forEach((b, i) => {
-        if (typeof b.block_layout !== 'string' || !b.block_layout) return;
-        const m = manifests[b.type];
-        if (!m || !Array.isArray(m.block_layout)) { skipped.add(b.type); return; }
-        if (!m.block_layout.includes(b.block_layout)) {
-          notes.push(
-            `Locale "${locale}" page "${page.slug}" 第 ${i} 个块（${b.type}）的 block_layout 是 ` +
-            `${JSON.stringify(b.block_layout)}，不在 ${MANIFEST_DIR}/${b.type}.json 声明的清单里` +
-            `（${m.block_layout.join(', ')}）—— 不落这个属性，这个块按默认形态渲染`
-          );
-          delete b.block_layout;
-        }
-      });
-    }
-  }
-  return { skipped: [...skipped].sort(), notes };
-}
+// 📌 #1341 —— 这里原来还有一个 `validateBlockLayouts()`：它逐块检查页面 JSON 写的 `block_layout`
+//    落不落在那个块 manifest 声明的清单里，不在就点名 + 摘掉这个属性。内容结构那一维整条退役
+//    （设计文档 D15 ③ 写的就是「随 data-block-layout 退役一起删」），所以那个函数、它的调用点
+//    （`sync-config.js`）和 manifest 里那份清单一起没了。老站残留的那个键现在由
+//    `readPageBlocks` 读的时候丢掉。
+
 
 // ── 建站脚本那一侧：AI 产出的 sections → 写进磁盘的 blocks ──────────────────────────────────────
 //
-// 🔴 建站提示词今天仍然让 AI 吐 `sections`（它选形态、填 `block_layout` 是 #999 的 AC5）。这里做的
+// 🔴 建站提示词今天仍然让 AI 吐 `sections`。这里做的
 // 只是**写盘那一刻**的形状转换：给每个块补 `id` / `role` / `region` / `weight`，`data` 原样带过去。
 // 转换放在写盘这一步而不是改提示词，是因为 AI 输出还要过 create-site 自己那一串校验，那些校验读的
 // 是 `sections` —— 一起改会把「形状迁移」和「AI 行为」两件事搅在一次改动里。
@@ -637,7 +622,6 @@ function pageWithBlocks(page) {
       region: s.region || 'content',
       weight: typeof s.weight === 'number' ? s.weight : i * 10,
     };
-    if (typeof s.block_layout === 'string') b.block_layout = s.block_layout;
     if (s.hidden !== undefined) b.hidden = s.hidden;
     b.data = s.data || {};
     return b;
@@ -661,7 +645,6 @@ module.exports = {
   resolveBlockTypesForCheck,
   normalizeLocalePages,
   loadBlockManifests,
-  validateBlockLayouts,
   pageWithBlocks,
   MANIFEST_DIR,
 };

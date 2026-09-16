@@ -48,12 +48,13 @@ for (const [name, v] of Object.entries({
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'verdict-test-'));
 
-// 一套最小的候选：`buildPool` 只读 tokens.colors / tokens.settings / layout。
+// 一套最小的候选：`buildPool` 只读 tokens.colors / tokens.settings。
+// 📌 #1341 —— 这个夹具原来还带一个 `layout: { hero: ['left'] }`。候选不再有那个键（内容结构那一维
+//    退役），带着它就是拿一个生产上不存在的形状在测。
 const cand = (id, primary) => ({
   id,
   sheetPath: '/dev/null',
   tokens: { colors: { primary: { 500: primary }, accent: { 500: '#888888' } }, settings: {} },
-  layout: { hero: ['left'] },
 });
 
 // ── ① 三种返回必须分得开 ──────────────────────────────────────────────────────────────────────

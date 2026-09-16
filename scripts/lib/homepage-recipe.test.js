@@ -91,7 +91,72 @@ function treeAt(ref, tmp) {
       fs.symlinkSync(target, path.join(root, link));
     }
   }
+  if (ref !== null) baselineManifestShim(root, ref);
   return root;
+}
+
+// ── #1341 —— 基线那棵树的 manifest 适配层 ────────────────────────────────────────────────────────
+//
+// 上面那一行把**今天的** `blocks/` 接给了基线那棵树的 `scripts/`。这个配对是这一格的设计
+// （文件头第二条：比的是两棵树的 scripts，数据那一侧两臂共用同一份，否则 manifest 一改这一格就红在
+// 一件跟配方无关的事上）。它成立的前提是：基线那份 manifest 校验器读得懂今天的 manifest。
+//
+// 🔴 #1341 把 manifest 的一个顶层键整个删了（内容结构那一维退役），而基线那份 `checkManifestShape`
+//    要求它必须是非空字符串数组 ⟹ 基线那一臂**在吐出提示词之前就抛**（实测：
+//    `blocks/announcement-bar.json: … 必须是非空的字符串【数组】`）。这不是字节差异，是这一臂
+//    整个没有读数。
+//
+// 处置：**基线那份 manifest 有、而今天这份没有的顶层键，按基线那份的值补回去**，只补给基线那一臂
+// 用的那份拷贝。
+// 🔴 它**不点名任何一个键** —— 键是运行时从基线那些 manifest 现读出来的。这不是为了绕开谁的 grep，
+//    是因为正确的抽象就是这个：这一格要的是「基线的校验器读得懂喂给它的数据」，而不是「把 #1341
+//    删掉的那个键补回来」。下一次 manifest 再删一个键，这段不用改。
+// 🔴 基线那个 commit 上**没有**的块（`card-group` / `hero-with-form` 是后来加的）没处去取值 ⟹
+//    落到 `NEUTRAL_FALLBACK`。那个值不是我挑的：基线那份 `promptEntry` 自己写着「只有一种、而且就是
+//    这个值的，不占提示词的一行」，所以它对提示词的字节是中性的。
+//
+// 🔴 **补回去之后基线那份提示词会多出几行** —— 那正是本票在 scripts 这一侧改掉的东西
+//    （`block-manifest.js` 的 `promptEntry` 不再印那一行）。所以它按规矩登记进下面 ⑥ 的差异清单，
+//    而不是被这个适配层抹掉；清单那两格判别力（不套就得对不上 / 不许有死条目）照跑。
+//
+// 🔴 为什么不是「把 BASELINE 往前挪一格」（文件头写的那个维护动作）：挪到任何**本票之前**的 commit
+//    都一样抛（那个键是本票才删的）；而挪到 #1034 之后的 commit 会让这一格失去意义 —— 基线那棵树
+//    自己就带着配方且默认开着，「关掉 == 没这个功能」当场变成「关掉 == 关掉」（实测：拿
+//    `716e3ac0` 当基线，两份提示词的 homepage 清单顺序不同，因为基线那一臂是开着跑的）。
+const NEUTRAL_FALLBACK = ['default'];
+function baselineManifestShim(root, ref) {
+  const link = path.join(root, 'blocks');
+  const real = path.join(root, 'blocks-shim');
+  fs.mkdirSync(real, { recursive: true });
+  const atRef = (name) => {
+    try {
+      // stdio 第三格吞掉 stderr：基线上没有这个块时 `git show` 会往 stderr 打一行 fatal，
+      // 而那是**预期之内**的一支（下面就落到 NEUTRAL_FALLBACK）—— 让它出现在测试输出里会被读成错误。
+      return JSON.parse(execFileSync('git', ['show', `${ref}:${REL}/blocks/${name}`],
+        { cwd: REPO, stdio: ['ignore', 'pipe', 'ignore'] }).toString());
+    } catch { return null; }
+  };
+  const names = fs.readdirSync(path.join(NEXT, 'blocks')).filter((n) => n.endsWith('.json'));
+  const today = new Map(names.map((n) => [n, JSON.parse(fs.readFileSync(path.join(NEXT, 'blocks', n), 'utf8'))]));
+  const atRefByName = new Map(names.map((n) => [n, atRef(n)]));
+  // 基线那些 manifest 有、而今天同名那份没有的顶层键 —— 键名现读，不写死。
+  const dropped = new Set();
+  for (const [n, old] of atRefByName) {
+    if (!old) continue;
+    for (const k of Object.keys(old)) if (!(k in today.get(n))) dropped.add(k);
+  }
+  for (const [n, m] of today) {
+    const old = atRefByName.get(n);
+    for (const k of dropped) {
+      if (k in m) continue;
+      m[k] = (old && old[k] !== undefined) ? old[k] : NEUTRAL_FALLBACK;
+    }
+    fs.writeFileSync(path.join(real, n), `${JSON.stringify(m, null, 2)}\n`);
+  }
+  // 分母自检：一个键都没补 ⟹ 这个适配层已经是死代码，说出来而不是静默跳过。
+  if (!dropped.size) die(`基线适配层一个键都没补 —— 基线那些 manifest 的顶层键今天一个不少？那这段该删了（${real}）`);
+  fs.rmSync(link, { force: true });
+  fs.symlinkSync(real, link);
 }
 
 /** 在某棵树上跑一次 create-site,拿回它打出来的那份提示词。用无效 key ⟹ 不花钱。 */
@@ -363,31 +428,43 @@ try {
   //    不少」，而且下面两格分别钉住「这份清单是承重的」和「清单里没有死条目」。
   // 🔴 以后**有意**改提示词字节的人，往这张表里加一条，并在票上说清为什么 OFF 那条路的字节变了。
   //    要是这张表长起来了（比如超过五六条），那就是该重新想一想这一格该怎么问的信号，而不是继续加。
-  const RENAMED_IN_PROMPT = [
+  // 🔴 #1341 —— 这张表从「两条字面改名」扩成「若干条差异规则」，因为本票那条差异不是改名而是
+  //    **整行消失**（`promptEntry` 不再印 `content structures:`）。每条都要说清是哪张票、改的是什么；
+  //    下面两格判别力跟着改成「每条都必须真的改变基线那份提示词」（死条目照旧红）。
+  const PROMPT_DELTAS = [
     // #1162：服务详情页那行「二选一」的举例
-    ['process-steps OR benefits-list', 'process-steps OR card-group'],
+    { why: '#1162 服务详情页那行举例的块名', apply: (t) => t.split('process-steps OR benefits-list').join('process-steps OR card-group') },
     // #1162：那份「大多数站不会有的块」举例名单（#1034 发现它被模型当成待办清单的那一行）
-    ['feature-comparison, benefits-list, announcement-bar',
-      'feature-comparison, card-group, announcement-bar'],
+    {
+      why: '#1162 「大多数站不会有的块」那一行的块名',
+      apply: (t) => t.split('feature-comparison, benefits-list, announcement-bar')
+        .join('feature-comparison, card-group, announcement-bar'),
+    },
+    // #1341：内容结构那一维退役 ⟹ manifest 不再有取值表，提示词里那一行整行不再印。
+    // 🔴 基线那一臂之所以还印得出来，是上面那个适配层按基线原样补回了那个字段（理由整段在它上面）。
+    {
+      why: '#1341 内容结构那一维退役，`content structures:` 那些行不再印',
+      apply: (t) => t.split('\n').filter((l) => !/^ {2}content structures: /.test(l)).join('\n'),
+    },
   ];
-  const applyRenames = (text) => RENAMED_IN_PROMPT.reduce((acc, [from, to]) => acc.split(from).join(to), text);
+  const applyRenames = (text) => PROMPT_DELTAS.reduce((acc, d) => d.apply(acc), text);
   const promptBaseRenamed = applyRenames(promptBase);
   promptBaseRenamed === promptOff
-    ? ok(`基线套上本票那 ${RENAMED_IN_PROMPT.length} 处改名之后逐字节相同`
+    ? ok(`基线套上登记的那 ${PROMPT_DELTAS.length} 条差异之后逐字节相同`
       + `（md5 ${md5(promptBaseRenamed)} · ${promptOff.length} 字节）`)
-    : bad(`不一样:基线+改名 md5 ${md5(promptBaseRenamed)} (${promptBaseRenamed.length}B) `
-      + `vs 关掉 ${md5(promptOff)} (${promptOff.length}B) —— OFF 那条路上还有本票没登记的字节变化`);
+    : bad(`不一样:基线+登记的差异 md5 ${md5(promptBaseRenamed)} (${promptBaseRenamed.length}B) `
+      + `vs 关掉 ${md5(promptOff)} (${promptOff.length}B) —— OFF 那条路上还有没登记的字节变化`);
   // 🔴 判别力①：这张清单必须是**承重**的 —— 不套它就得对不上，否则上面那格什么都没证明。
   promptBase !== promptOff
-    ? ok('清单是承重的:不套改名就对不上（所以上面那一格不是恒真）')
-    : bad('不套改名也逐字节相同 ⟹ 这张改名清单是死的，这一格已经退化成「基线 == 关掉」了，直接删掉它');
-  // 🔴 判别力②：清单里不许有死条目 —— 每一条的「改之前」都要真在基线那份提示词里出现过。
+    ? ok('清单是承重的:一条都不套就对不上（所以上面那一格不是恒真）')
+    : bad('一条都不套也逐字节相同 ⟹ 这张差异清单是死的，这一格已经退化成「基线 == 关掉」了，直接删掉它');
+  // 🔴 判别力②：清单里不许有死条目 —— 每一条单独套在基线那份提示词上都必须真的改变它。
   //    漏这一格的后果是：改名做完之后条目留在这里，而它此刻句句是假的（同族教训 #1128）。
   {
-    const dead = RENAMED_IN_PROMPT.filter(([from]) => !promptBase.includes(from));
+    const dead = PROMPT_DELTAS.filter((d) => d.apply(promptBase) === promptBase);
     dead.length === 0
-      ? ok(`${RENAMED_IN_PROMPT.length} 条改名每一条都在基线那份提示词里真出现过（没有死条目）`)
-      : bad(`改名清单里有 ${dead.length} 条在基线里找不到:${dead.map(([f]) => JSON.stringify(f)).join(' · ')}`);
+      ? ok(`${PROMPT_DELTAS.length} 条差异每一条都真的改变了基线那份提示词（没有死条目）`)
+      : bad(`差异清单里有 ${dead.length} 条对基线什么都没做:${dead.map((d) => d.why).join(' · ')}`);
   }
 
   console.log('── ⑦ 开着的时候,变的只有【候选清单的顺序】和【那一行举例名单】');

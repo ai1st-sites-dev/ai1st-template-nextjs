@@ -11,14 +11,12 @@
 //   colors      配色 — primary 50-900 + accent 50-600, copied into brand.json at creation, and
 //               again whenever the owner changes theme (#1121: brand.json 是颜色的唯一出处)
 //   fonts       字体 — heading/body families + the Google Fonts URL
-//   supports    我为哪些形态写了样式 — block 类型 → 形态清单。`{}` means "no preference".
-//               🔴 #1010 起这个键叫 supports,以前叫 layout(spec §4.5)。改名连着换了方向:
-//               `layout` 是主题**替站做选择**(一个值),`supports` 是主题**声明能力**(一个清单),
-//               站自己在页面 JSON 的 `block_layout` 里选。今天清单里恒一项,见下面 layoutFor 那段。
-//               🔴 #960 起它还带两个【不是 block】的键:`header` / `footer`,顶栏和页脚的结构。
-//               它们【走不了】sync-config 里那个按 `supports[block.type]` 取的循环(没有任何 block
-//               的 type 叫 header/footer,加了会被 `if (!preferred) continue` 静默跳过),所以由
-//               `scripts/region-layout.js` + sync-config 的 §Regions 单独消费。清单也在那个文件。
+//   supports    顶栏 / 页脚这两个【区】的结构 — `header` / `footer`(以及还没有人声明的 `topbar`),
+//               每个键一个清单。`{}` means "no preference"。由 `scripts/region-layout.js` +
+//               sync-config 的 §Regions 消费,清单也在那个文件。
+//               🔴 #1341 起这个键**只许**放 `header` / `footer` / `topbar` 三个名字(检查在下面
+//               `themesWithBadSupportsKeys`)。在那之前它还带四个 block 那一维的键(`hero` / `split` /
+//               `splitRhythm` / `cards`),装的是「我为哪些内容结构写了样式」——那一整维退役了。
 //   style       风格形容词 — one phrase, used in the AI logo prompt (was THEME_STYLE_MAP)
 // plus `industries`, the keyword list the creation-time picker matches against.
 //
@@ -159,17 +157,11 @@ function themeStyle(themeId) {
 // 一套主题对每个 block 用哪种写法的结论，或者 {}（主题不认识 / 什么都没声明）。调用方把 {}
 // 当成「页面 JSON 说了算」。
 //
-// 🔴 #1010 —— 注册表那边的键已经从 `layout` 改成 `supports`，值也从「一个写法」变成「一个清单」，
-// 而这个函数**仍然吐一个写法**：`supports` 里每个 block 取清单的第一项。为什么要有这一步转换：
-//
-//   · 声明能力（`supports`，主题）和做选择（`block_layout`，站）是两件事，spec §4.5 / §4.6 把它们
-//     分开了。而**站那边今天还不做这个选择** —— #998 落地的 `block_layout` 与 `data.variant` 是
-//     并存的两个字段、彼此不换算（`scripts/blocks.js:21-22`），建站 AI 也还不供 `block_layout`。
-//   · 所以在站真的开始选之前，得有人替它选，而唯一不改变任何一个站的选法就是「主题声明的第一项」
-//     —— 今天每份清单恒一项，取第一项 == 改名前那个值，逐字节相同（#1010 对 30 套 × 30 个键全量比过）。
-//   · 这个函数因此是**过渡态的适配器**，不是新能力。阶段 2 逐块把外观搬进 CSS 之后，`supports` 的值
-//     会从外观词（`gradient-overlay`）换成结构词（`with-media`），那时消费方改成读清单、这一层就删掉。
-//     🔴 在那之前别给它加第二个用途 —— 它存在的理由只有「让改名这一步产物不变」这一条。
+// 🔴 #1010 —— 注册表那边的值是「一个清单」，而这个函数吐「一个写法」：每个键取清单的第一项。
+// 🔴 #1341 —— 它今天唯一的用途是**区**那条路：`header` / `footer`（以及还没有人声明的 `topbar`）。
+//    在那之前 `supports` 里还有四个 block 那一维的键，这个函数也替站选过它们；那一维整条退役了，
+//    读它的只剩 `lib/site-regions.js` / `lib/remediation.js` / `theme-gallery/gallery.mjs`，
+//    三处读的都是 `.header` / `.footer`。**别给它加第二个用途。**
 function layoutFor(themeId) {
   const t = themes[themeId];
   if (!t || !t.supports) return {};
@@ -196,8 +188,8 @@ const THEME_SETTING_VALUES = {
 
 // #1318 — 这套主题的**选择单**：31 个块类型各选一个画法名（`theme-pool.json` 的 `shapes`）。
 //
-// 🔴 它跟 `layoutFor` 是两件事，别合并：`layoutFor` 读的是 `supports`（这套主题**声明**它在这个
-//    块上有哪些形态，值进 `data.variant`，今天写了没人读），选择单读的是 `shapes`（这个块**排成
+// 🔴 它跟 `layoutFor` 是两件事，别合并：`layoutFor` 读的是 `supports`（#1341 之后那里只剩顶栏 /
+//    页脚两个【区】的结构），选择单读的是 `shapes`（这个块**排成
 //    什么样**，值进 DOM 的 `data-shape`，`public/shapes.css` 靠它点名）。一个是能力声明、一个是
 //    做出的选择 —— spec §4.5 / §4.6 把这两件事分开了，合并回去就是把那条边界又抹掉一次。
 //
@@ -231,6 +223,32 @@ function settingsFor(themeId) {
 // any of the other 29 unmentioned, which is precisely how it would come back.
 function themesWithRhythm() {
   return Object.keys(themes).filter((id) => themes[id].rhythm !== undefined);
+}
+
+// #1341 — `supports` 里只许有【区】那三个键，这是说这句话的地方。照 `themesWithRhythm`（#993）的样子写。
+//
+// 为什么这条规则：`supports` 原来装两样东西 —— 顶栏 / 页脚的结构（`header` / `footer`，#960），
+// 和「我为这个块的哪些内容结构写了样式」（`hero` / `split` / `splitRhythm` / `cards`）。第二样
+// 整条退役了（内容结构这一维今天由 `data-has-<槽位>`(#1331) 和独立块 `hero-with-form`(#1333) 接管），
+// 而**一个没人读的键就是它回来的路**：写回去不会有任何东西报错，`layoutFor()` 照样把它吐出来。
+//
+// 🔴 `topbar` 必须在白名单里，它是活的输入：`lib/site-regions.js` 把 `layoutFor(themeId)` **整份**
+//    摊进 `resolveRegionLayout`，后者读 `wanted.topbar` 并拿 `region-layout.js` 的 `TOPBAR_VARIANTS`
+//    校验。今天 0 套主题声明它 —— 那是这条规则今天不会变红的原因，不是该禁掉它的理由。
+//
+// 🔴 报的是**整个注册表**，不是这个站穿的那一套 —— 理由跟 `themesWithRhythm` 上面那段逐字相同：
+//    只看当前这一套，剩下每一套里留着的那个键就是它回来的路。
+//    返回 `[[id, ['hero', …]], …]`：点名是哪一套的哪几个键，不只说「有问题」。
+const SUPPORTS_KEYS = ['header', 'footer', 'topbar'];
+function themesWithBadSupportsKeys() {
+  const out = [];
+  for (const id of Object.keys(themes)) {
+    const sup = themes[id].supports;
+    if (!sup || typeof sup !== 'object') continue;
+    const bad = Object.keys(sup).filter((k) => !SUPPORTS_KEYS.includes(k));
+    if (bad.length) out.push([id, bad]);
+  }
+  return out;
 }
 
 // Every theme that suits this industry, in registry order (so rotation is predictable).
@@ -296,8 +314,8 @@ function candidateThemesForIndustry(industry) {
   // #1333 把带表单的首屏拆成了自己一个块类型 `hero-with-form`：排版归 `public/shapes.css` 这一份
   // 平台文件、皮按类名写（`.hero__form`），两者都跟主题选了哪种画法无关 ⟹ **任何主题都画得出**，
   // `lib/hero-lead-form.js` 里那道「这个站抽到的主题声明过没有」一起退役了。于是这道兜底问的那句话
-  // 不再问得出东西：没有任何主题能再声明 `with-form`（`blocks/hero.json` 的 `block_layout` 里没有这个
-  // 值了，而 `theme-pipeline/pool.test.js` ⑨ 要求 `supports.hero` ⊆ 那份清单）⟹ 条件恒真、
+  // 不再问得出东西：没有任何主题能再声明 `with-form`（#1341 之后 `supports` 里连 `hero` 这个键
+  // 都不许有了，见 `themesWithBadSupportsKeys`）⟹ 条件恒真、
   // `find` 恒 undefined、这段代码**恒不开火**，而它不开火的样子跟它开火完全一样：静默。
   //
   // 它给的那份保证没有丢，只是换了地方量：`lib/hero-lead-form.test.js` ⑥ 现在逐个上门行业词问
@@ -355,6 +373,8 @@ module.exports = {
   shapesFor,
   settingsFor,
   themesWithRhythm,
+  themesWithBadSupportsKeys,
+  SUPPORTS_KEYS,
   candidateThemesForIndustry,
   rotationIndexFromSiteId,
   pickThemeForIndustry,

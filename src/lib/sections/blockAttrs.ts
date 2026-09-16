@@ -52,7 +52,6 @@ export const BLOCK_ROLES: Record<string, BlockRole> = blockRoles as Record<strin
 export interface BlockAttrs {
   'data-block': string;
   'data-role': BlockRole;
-  'data-block-layout'?: string;
   /** #1318 — 这个块排成什么样。`public/shapes.css` 靠 `[data-block][data-shape]` 点名。 */
   'data-shape'?: string;
   /** #1331 — 可选槽位填了没：manifest 里 required:false 且填了的每个槽位一个 `data-has-<槽位>="true"`。 */
@@ -69,26 +68,27 @@ export interface BlockAttrs {
 //   data-role         页面 JSON 自己写的 `role` 优先，没写才落回上面那张类型级默认表。
 //                     spec §4.6：「兜底默认表定底线，建站 AI 只能加不能降级」——「不能降级」那一半
 //                     的校验在 #999（建站脚本内），这里只负责让写下的那个值真的到达 DOM。
-//   data-block-layout 第三个钩子（前两个是 #978 立的）。**只有页面 JSON 真写了 `block_layout`
-//                     才出现这个属性** —— 没写就一个字符都不多，所以今天所有既有站的产物逐字节不变。
 //
-// 🔴 不给 `block_layout` 造兜底值。造一个（比如 "default"）会让主题 CSS 的
-// `[data-block-layout="default"]` 选中一批「其实没人选过形态」的块，而那是静默的：页面照样打开。
+// 🔴 #1341 —— #998 那第三个钩子（「内容结构」：这个块有没有配图 / 带不带表单）**退役了**，这个函数
+// 不再输出它，页面 JSON 里那个同名的键也不再被读。那件事今天由另外两样接管：可选槽位填没填由
+// `data-has-<槽位>` 说（#1331），带表单的首屏是自己一个块类型 `hero-with-form`（#1333）。老站磁盘上
+// 残留的那个键在 `scripts/blocks.js` 读的时候丢掉 —— 不报错，也不落成属性。
+// 📌 这几行**有意不写出那个属性名和那个字段名**：验收第 1 条要求这个文件对那条 grep 零命中
+//    （「这个文件里一点痕迹都不许剩」是那一条要的读数）。名字本身在 `docs/reference/theme-css-contract.md`
+//    §1 那一段和 `scripts/theme-css-lint.js` 的退役钩子规则里，两处都查得到。
 export function blockAttrs(type: string, block?: BlockConfig): BlockAttrs {
   const role = block && block.role ? block.role : (BLOCK_ROLES[type] || 'essential');
   const attrs: BlockAttrs = { 'data-block': type, 'data-role': role };
-  if (block && typeof block.block_layout === 'string' && block.block_layout) {
-    attrs['data-block-layout'] = block.block_layout;
-  }
-  // #1318 — 第四个钩子，`data-block-layout` 的**并存**项（不是替代：`block_layout` 说的是内容结构
-  // 「这个块有没有配图」，`shape` 说的是排版「配图在哪一侧」，两件事）。
+  // #1318 — `data-shape`，这个块排成什么样。
+  // 📌 #1341 之前它旁边还有 #998 那第三个钩子（内容结构：这个块有没有配图），两个钩子并存、
+  //    各说一件事；那一维退役之后只剩这一个。
   //
   // 🔴 `block.shape` 是 `sync-config.js` 在构建时按 spec D18 的三级算好写进页面 JSON 的，这里
   // **不再算一遍**：同一个判据两份实现，分叉的方向是静默的（构建按一份选、DOM 上带的是另一份，
   // 而页面照样打开）。这里只负责让写下的那个值真的到达 DOM —— 跟上面 `role` 那一行同一个分工。
   //
-  // 🔴 没写就一个字符都不多，跟 `block_layout` 逐字同一个理由（那一段写在上面）：不给它造兜底值，
-  // 否则 `[data-shape="default"]` 会选中一批「其实没人选过画法」的块，而那是静默的。
+  // 🔴 没写就一个字符都不多，而且不给它造兜底值（#1341 之前退役的那一维也是这条规矩）：
+  // 造一个的话 `[data-shape="default"]` 会选中一批「其实没人选过画法」的块，而那是静默的。
   if (block && typeof block.shape === 'string' && block.shape) {
     attrs['data-shape'] = block.shape;
   }

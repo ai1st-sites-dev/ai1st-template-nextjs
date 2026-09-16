@@ -453,7 +453,8 @@ function settingsVarsOf(settings) {
 // 🔴 为什么必须在这里认第二种形状，而不是等它自己冒出来：这段代码**绕过 `layoutFor()` 直接读字段**，
 // 而字段改名对"直接读"的一方是静默的 —— `(t||{}).layout` 对新形状答 `undefined`，于是词表是空的、
 // `comparable` 是空的、`parts.layout` 变成 `null`，被加权平均**从分母里去掉**。这道闸不会报错，
-// 它会少一维继续给分（权重 0.2 的那一维），而输出里那句 `layout 没法比` 是唯一的痕迹。实测：
+// 它会少一维继续给分（权重 0.2 的那一维），而输出里那句 `layout 没法比（不参与评分）` 是唯一的
+// 痕迹。🔴 #1341 之后这不再是假设：内容结构那一维退役、候选不再带 `layout` ⟹ 那一维恒缺席。实测：
 // 用改名后的注册表跑，30 套逐套 `layout 没法比`；接上这个函数之后，30 套的读数与改名前**逐个相同**
 // （改名把每个值转成「恰好含它一项的清单」，所以今天的算术一个数都不动）。
 const layoutSetsOf = (t) => {
@@ -536,8 +537,13 @@ function similarity(candidate, existing, layoutVocab) {
   };
 }
 
+// 🔴 #1341 —— 「没法比」后面那半句是新加的，而且它承重。`similarity()` 把值是 null 的那一维**从加权
+//    平均的分母里去掉**（下面 `if (parts[k] === null) continue`），也就是这道闸照旧出分、只是少了
+//    一维证据。#1341 退役内容结构那一维之后，候选那边不再有 `layout` ⟹ `parts.layout` **恒是 null**，
+//    这一维从此对每一次评分都缺席。缺席这件事必须在读数里说得出来，不能只剩一个「没法比」让人以为
+//    是这一次比不了。
 const partsText = (parts) => Object.entries(parts)
-  .map(([k, v]) => `${k} ${v === null ? '没法比' : v.toFixed(2)}`).join(' · ');
+  .map(([k, v]) => `${k} ${v === null ? '没法比（不参与评分）' : v.toFixed(2)}`).join(' · ');
 
 function gateSimilarity(candidate, pool, { max = 0.9 } = {}) {
   // 🔴 词表按**整个池子**建，不是按正在比的那一套：只跟一套比，分不出「同一套词表里换了个值」

@@ -2,9 +2,6 @@
   "type": "contact-form",
   "category": "contact",
   "roleDefault": "essential",
-  "block_layout": [
-    "with-form"
-  ],
   "shapes": [
     {
       "name": "panel-below",

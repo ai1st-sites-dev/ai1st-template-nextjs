@@ -115,18 +115,21 @@ if (cands.length !== N) {
 }
 
 console.log('② 一批候选里没有「客人看不出区别」的两套（跑闸自己那把尺）');
+// 🔴 #1341 —— 夹具里那个 `layout` 键去掉了：候选不再带它（内容结构那一维退役），带着它就是拿一个
+//    生产上不存在的形状在测。代价要读得出来 —— 下面那格补一条读回：没有 `layout` 的候选照样出得了
+//    分，而且闸的输出会说出这一维缺席（`layout 没法比（不参与评分）`），不是静默少一维。
 {
   const pool = {};
   for (const c of cands) {
     pool[c.id] = {
-      colors: c.tokens.colors, fonts: c.tokens.fonts, settings: c.tokens.settings, layout: c.layout,
+      colors: c.tokens.colors, fonts: c.tokens.fonts, settings: c.tokens.settings,
     };
   }
   let blocked = 0; let worst = 0; let worstLine = '';
   for (const c of cands) {
     const others = { ...pool };
     delete others[c.id];
-    const r = gateSimilarity({ id: c.id, tokens: pool[c.id], layout: c.layout }, others);
+    const r = gateSimilarity({ id: c.id, tokens: pool[c.id] }, others);
     if (!r.pass) blocked += 1;
     const line = [...(r.problems || []), r.note || ''].join(' ');
     const m = /([0-9]\.[0-9]{3})/.exec(line);
@@ -137,6 +140,35 @@ console.log('② 一批候选里没有「客人看不出区别」的两套（跑
   // 🔴 分母自检：闸真的比过东西吗。池子只有一套时它没有对手，上面那个 0 就什么都不证明。
   if (Object.keys(pool).length === N) ok(`分母：池子里 ${N} 套，每一套都跟另外 ${N - 1} 套比过`);
   else bad(`分母不对：池子里只有 ${Object.keys(pool).length} 套`);
+
+  // ── #1341 相似度闸少了一维，而这件事要说得出来 ────────────────────────────────────────────
+  //
+  // 这一维（`layout`，权重 0.2）拿候选的 `layout` 跟池里那套的 `supports` 比。候选那边不再有
+  // `layout` 之后 `comparable` 恒空 ⟹ `parts.layout` 变成 null ⟹ 被加权平均**从分母里去掉**，
+  // 闸照旧出分。本票接受这个结果（这一维本来就没人读了），但**不接受它是静默的**。
+  // 🔴 两臂，因为只跑第一臂的话「这句话一直都在打」跟「它真的在说这一维缺席」分不开。
+  {
+    const one = Object.keys(pool)[0];
+    const noLayout = gateSimilarity({ id: 'probe', tokens: pool[one] }, { [one]: pool[one] });
+    const textOf = (r) => [...(r.problems || []), r.note || ''].join(' ');
+    if (noLayout.score === null && !noLayout.identical) {
+      bad('没有 layout 的候选连分都出不来 —— 那不是「少一维」，那是这道闸整个不说话了');
+    } else if (!/layout 没法比（不参与评分）/.test(textOf(noLayout))) {
+      bad(`闸的输出里找不到「layout 这一维没参与评分」那句话：${textOf(noLayout).slice(0, 160)}`);
+    } else {
+      ok(`没有 layout 的候选照样出得了分，而且输出点名这一维缺席：${textOf(noLayout).slice(0, 120)}`);
+    }
+
+    // 反臂：手工给候选带上一个池里那套真的有的键（`supports` 今天只剩 header / footer），
+    // `parts.layout` 就该是个数，那句话也就不该出现。
+    const poolWithRegion = { [one]: { ...pool[one], supports: { header: ['solid-bar'] } } };
+    const withLayout = gateSimilarity({ id: 'probe', tokens: pool[one], layout: { header: 'solid-bar' } },
+      poolWithRegion);
+    const t2 = textOf(withLayout);
+    if (/layout 没法比/.test(t2)) bad(`反臂失败：带上 layout 之后它仍然说「没法比」：${t2.slice(0, 160)}`);
+    else if (!/layout 1\.00/.test(t2)) bad(`反臂失败：带上 layout 之后 parts.layout 不是个数：${t2.slice(0, 160)}`);
+    else ok(`反臂：手工带上 layout 的候选，parts.layout 是个数、那句话不出现：${t2.slice(0, 120)}`);
+  }
 }
 
 console.log('③ 表跟 tokens 是同一套候选的（换个 seed 也成立）');

@@ -6,10 +6,15 @@
 // Three things are checked:
 //   colours  17 CSS variables (primary 10 steps + accent 7) each equal themes.js
 //   fonts    --font-sans equals fonts.body, and the page's Google Fonts link equals the registry's
-//   layout   every section's variant in the generated config-data.ts:
-//              type the table has an opinion about → must equal that opinion
-//              type it says nothing about          → must equal the sample page JSON's own value
-//                                                    (proving nothing else moved)
+//   layout   the generated config-data.ts's `regionLayout` (the topbar / header / footer shells)
+//            equals what the registry declares for this theme
+//
+// 📌 #1341 — `layout` used to reconcile EVERY block's `data.variant` in config-data.ts against the
+//    registry's per-block opinion. That dimension is retired: the build no longer writes
+//    `data.variant`, no theme declares a per-block `supports` key any more, and `layoutFor()` now
+//    answers only about the regions. Keeping the block loop would have left a check whose subject
+//    stopped existing — it would have found every block "untouched" and said so every time. What is
+//    left is the regions, which is the live half of the same question.
 //
 // 📌 #1171 — there used to be a fourth thing, one real-browser reading of the hero's markup. It is
 //    retired, with the three readings that killed it written where it stood (§browser: RETIRED).
@@ -30,48 +35,32 @@ const ok = [];
 // #1171 —— 「这一维今天量不到」既不是通过也不是失败，所以它有自己的一栏（缺席型结论要写在结论行上）。
 const info = [];
 
-// ── layout: config-data.ts vs registry vs the sample site's own page JSON ────────────────────
+// ── layout: the regions in config-data.ts vs the registry ────────────────────────────────────
+//
+// 🔴 两边取的是同一个函数（`layoutFor`），但**这一份不自己算最终值** —— 站可以在 `site/theme.json`
+//    的 `regionLayout` 里逐键压过注册表（#1079 候选图册那条路要的就是它）。所以注册表没说的那一维
+//    不判「不相等」，只报「注册表没表态」；说了的那一维才逐字比。
 const cd = fs.readFileSync(`${NEXT_DIR}/src/lib/config-data.ts`, 'utf-8');
-const pagesLine = cd.match(/export const pagesByLocale = (.*);\n/);
-if (!pagesLine) { console.log('🔴 cannot read pagesByLocale out of config-data.ts'); process.exit(2); }
-const pages = JSON.parse(pagesLine[1]);
+const regionLine = cd.match(/export const regionLayout = (.*);\n/);
+if (!regionLine) { console.log('🔴 cannot read regionLayout out of config-data.ts'); process.exit(2); }
+const builtRegions = JSON.parse(regionLine[1]);
 
-// what the page JSON on disk says (the build never writes back to it)
-const baseline = {};
-const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).forEach(e => {
-  const p = `${dir}/${e.name}`;
-  if (e.isDirectory()) return walk(p);
-  if (!e.name.endsWith('.json')) return;
-  const j = JSON.parse(fs.readFileSync(p, 'utf-8'));
-  // #998: 磁盘上的页面新旧两种形状都可能有（新的是 blocks，老的是 sections）。这里读的是原始文件，
-  // 不是 sync-config 归一化之后的东西，所以两种都要认。
-  (j.blocks || j.sections || []).forEach((s, i) => { baseline[`${j.slug}#${i}`] = s.data && s.data.variant; });
-});
-walk(`${NEXT_DIR}/site/pages`);
-
-let overridden = 0, untouched = 0;
-for (const [, list] of Object.entries(pages)) {
-  for (const page of list) {
-    // config-data.ts 里是归一化之后的形状（#998 起恒为 blocks）
-    (page.blocks || []).forEach((s, i) => {
-      const key = `${page.slug}#${i}`;
-      // #1162 —— 跟 sync-config.js 那一处同一个形状、同一个理由，两处必须一起改：这里以前也先读
-      // 别名层写上去的那个隐藏字段。别名层 2026-08-23 退役之后没有任何地方再写它，两边都收成
-      // `s.type` 一句。**两处要读同一个键**，否则这份对账会拿另一套口径去核 sync-config 的产物。
-      const want = variants[s.type];
-      const got = s.data && s.data.variant;
-      if (want) {
-        overridden++;
-        if (got !== want) fail.push(`layout ${key} (${s.type}): page has "${got}", registry wants "${want}"`);
-      } else {
-        untouched++;
-        if (got !== baseline[key]) fail.push(`layout ${key} (${s.type}): registry says nothing about it, yet it changed from "${baseline[key]}" to "${got}"`);
-      }
-    });
+{
+  const said = [];
+  let compared = 0;
+  for (const key of ['header', 'footer', 'topbar']) {
+    const want = variants[key];
+    if (!want) { said.push(`${key}: the registry states no preference`); continue; }
+    compared += 1;
+    const got = builtRegions[key];
+    if (got !== want) fail.push(`layout ${key}: the page is on "${got}", the registry declares "${want}"`);
+    else said.push(`${key}: "${got}"`);
   }
+  // 🔴 一个都没比成时要说出来 —— 「全对」和「没有对象」在只印 ✅ 时长得一样。
+  if (compared === 0) info.push(`layout: this theme declares none of header / footer / topbar — nothing was compared (${said.join(' · ')})`);
+  else if (!fail.length) ok.push(`layout: ${compared} region(s) match the registry — ${said.join(' · ')}`);
+  else ok.push(`layout: ${compared} region(s) compared — see 🔴 below`);
 }
-if (!fail.length) ok.push(`layout: ${overridden} sections took the table's variant and all match; ${untouched} the table says nothing about are untouched`);
-else ok.push(`layout: ${overridden} overridden, ${untouched} untouched — see 🔴 below`);
 
 // ── colours + fonts: read out of the STYLESHEET the build actually produced ──────────────────
 // 🔴 #1002 moved them out of index.html. They used to be an inline <style> plus a <link> to Google
@@ -129,12 +118,17 @@ if (fontOk) ok.push('fonts: --font-sans and the Google Fonts link both match the
 //      AND NO LONGER READ）；`data-block-layout` 来自页面 JSON 的 `block_layout`，不是主题写的。
 //      ⟹ 「这个站现在穿的是哪套 hero 版式」这件事**在产物 DOM 上没有痕迹**，不是尺子没找对。
 //
-// 🔴 覆盖边界写在这里，也印在下面的输出里：hero 那一维仍然被查，但只在**配置层** —— 上面
-//    §layout 那一段拿 `layoutFor(id)` 跟 `config-data.ts` 逐块对账，hero 就是其中一块。少掉的是
-//    「浏览器里那一格」。别把这次退役读成「hero 没人管了」，也别读成「浏览器里验过了」。
-//    主题真正长什么样今天由样式表决定，而颜色/字体那两段读的就是产物里那份 `out/…/theme.css`。
+// 🔴 覆盖边界写在这里，也印在下面的输出里。**#1341 之后它变窄了，要说清楚**：
+//    上面 §layout 那一段以前拿 `layoutFor(id)` 跟 `config-data.ts` **逐块**对账，hero 是其中一块；
+//    #1341 把「主题对每个块的内容结构有什么意见」这一整维退役了（没有任何主题再声明它、构建也不再
+//    写 `data.variant`）⟹ 那段对账没有对象了，今天它只对顶栏 / 页脚这两个【区】。
+//    也就是说 hero 那一维在这个脚本里**既不在浏览器那格、也不在配置那段** —— 它不再存在，不是没人管。
+//    主题真正长什么样今天由样式表决定，而颜色/字体那两段读的就是产物里那份 `out/…/theme.css`；
+//    hero 排成什么样由平台的 `public/shapes.css` + 池里的 `shapes` 选择单决定（#1318），
+//    那一维的机械核对在 `theme-pipeline/pool.test.js` ⑪。
 info.push('browser: hero 的版式在产物 DOM 上今天没有痕迹（#1008 把九棵 variant 树收成一棵中性 markup，'
-  + '而 variant 只写不读）⟹ 那格真浏览器读数已退役（#1171）；hero 仍在上面的 layout 段按配置对账');
+  + '而 variant 只写不读）⟹ 那格真浏览器读数已退役（#1171）。#1341 之后配置那一段也不再对 hero 说话'
+  + '（主题对块内容结构的意见整维退役）—— 上面 §layout 只对顶栏 / 页脚；hero 的画法归 #1318 的 shapes 选择单');
 
 console.log(`\n=== ${id} ===`);
 ok.forEach(l => console.log('  ✅ ' + l));

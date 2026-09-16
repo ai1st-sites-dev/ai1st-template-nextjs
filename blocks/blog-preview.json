@@ -2,9 +2,6 @@
   "type": "blog-preview",
   "category": "blog",
   "roleDefault": "optional",
-  "block_layout": [
-    "default"
-  ],
   "shapes": [
     {
       "name": "two-up",
@@ -45,11 +42,6 @@
       "required": true,
       "promptOptional": false,
       "shape": "[{title, excerpt, category?, date?}]"
-    },
-    "variant": {
-      "kind": "variant",
-      "required": false,
-      "promptOptional": false
     }
   },
   "variants": {

@@ -39,8 +39,11 @@ import type { BlockConfig } from '@/lib/types/config';
 // The service's OWN icon stays: it comes from services.json, so it is content, not decoration, and
 // `.services-list__icon` is the hook the sheet sizes it through.
 //
-// 🔴 THE THIRD HOOK IS NOT OPTIONAL — `blockAttrs('services-list', block)`, never
-// `blockAttrs('services-list')` (#998's `data-block-layout`, invisible to `tsc`; #1008 r1's bounce).
+// 🔴 THE SECOND ARGUMENT IS NOT OPTIONAL — `blockAttrs('services-list', block)`, never
+// `blockAttrs('services-list')`. #1341 retired the third hook `data-block-layout`, but `data-role`,
+// `data-shape` and `data-has-*` all still come from that second argument, and dropping it is
+// silent in every instrument we own (`registry.ts` types the components as
+// `ComponentType<any>`, so `tsc` cannot see it). #1008 r1 was bounced for exactly that.
 export default function ServicesListSection({ locale, block }: { locale: string; block?: BlockConfig }) {
   const services = getServices(locale);
   const labels = getLabels(locale);

@@ -163,14 +163,10 @@ export interface BlockConfig {
   /** 站内唯一的名字。跨页复用的块靠它被 `{ "ref": "<id>" }` 引用。老站归一化出来的块没有 id。 */
   id?: string;
   type: string;
-  /** 内容结构（`with-media` / `text-only` …），**不是外观**（spec D5）。外观今天仍由
-   *  `data.variant` 决定（`HeroSection.tsx:21`），两个字段并存、各管各的，不做换算。
-   *  写了才会变成 DOM 上的 `data-block-layout`；没写就一个属性都不多。 */
-  block_layout?: string;
   /** #1318 — 这个块排成什么样，DOM 上的 `data-shape`，`public/shapes.css` 靠它点名。
    *  取值三级（spec D18，一处实现在 `scripts/sync-config.js` 的 `shapeForBlock`）：这里写的值
    *  → 主题的选择单（`scripts/theme-pool.json` 的 `shapes`）→ 块 manifest 的 `shapes[0]`。
-   *  🔴 跟 `block_layout` 并存、彼此不换算：那个说内容结构（有没有配图），这个说排版（图在哪侧）。 */
+   *  📌 #1341 之前旁边还有 `block_layout`（内容结构：有没有配图），两个字段并存；那一维退役后只剩这个。 */
   shape?: string;
   /** #1331 — 这个块 manifest 里 `required: false` 且填了的槽位名（原样，如 `imageUrl`），
    *  `scripts/sync-config.js` 构建时算好写在这儿，`blockAttrs.ts` 逐个送成 `data-has-<名字>="true"`。

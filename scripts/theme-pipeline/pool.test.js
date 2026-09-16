@@ -312,92 +312,21 @@ console.log('\n── ⑧ 透明浮层只给深底首屏；判据里那个遮罩
   }
 }
 
-// ── ⑨ hero 的两条轴：池里存的是内容结构，画法只在表里（#1065）──────────────────────────────────
+// 📌 ⑨ 删了（#1341）—— 这里原来是「hero 的两条轴：池里存的是内容结构，画法只在表里」（#1065）。
 //
-// 这一格问的是**池子这份数据**，跟 `sheet-recipes.test.js` ⑤ 那一格问生成器不是同一个对象：
-// 生成器改对了而池子忘了重新生成，是这条流水线已经付过账的失败形态（`sheet-fresh.js` 的文件头）。
-console.log('\n── ⑨ hero：supports 里只有内容结构，画法在表里');
-{
-  const heroManifest = JSON.parse(fs.readFileSync(path.join(NEXT, 'blocks', 'hero.json'), 'utf-8'));
-  const allowed = heroManifest.block_layout;
-  let recipes;
-  try {
-    recipes = require(path.join(DIR, 'sheet-recipes.js'));   // eslint-disable-line global-require
-  } catch (e) {
-    die(`sheet-recipes.js require 失败：${e.message}`);
-  }
-  const { heroLookFor, HERO_LOOKS, HERO_LOOK_NAMES } = recipes;
-
-  // 判据写成函数：反向对照要拿一份动过手脚的池子再问一次同样的话。
-  const heroValueProblems = (pool) => Object.entries(pool)
-    .map(([id, t]) => {
-      const forms = ((t || {}).supports || {}).hero;
-      if (!Array.isArray(forms) || !forms.length) return `${id}: supports.hero 是空的`;
-      const badOnes = forms.filter((f) => !allowed.includes(f));
-      if (badOnes.length) {
-        return `${id}: supports.hero 里有 blocks/hero.json 不认的值 ${JSON.stringify(badOnes)}`
-          + `（认的是 ${allowed.join(' / ')}）`;
-      }
-      return null;
-    })
-    .filter(Boolean);
-
-  const problems = heroValueProblems(poolThemes);
-  const vocab = [...new Set(poolIds.flatMap((id) => poolThemes[id].supports.hero))].sort();
-  if (problems.length) {
-    bad(`${problems.length} 处不达标：${problems.slice(0, 4).join(' · ')}`);
-  } else {
-    ok(`${poolIds.length} 套的 supports.hero 只用了内容结构词：${vocab.join(' / ')}`);
-  }
-
-  // 🔴 反向对照 —— 把一套的 supports.hero 换成 #1065 之前那个外观词，这把尺必须当场点名。
-  const rigged = {
-    ...poolThemes,
-    [poolIds[0]]: {
-      ...poolThemes[poolIds[0]],
-      supports: { ...poolThemes[poolIds[0]].supports, hero: ['with-media-left'] },
-    },
-  };
-  const caught = heroValueProblems(rigged);
-  if (caught.length === 1 && caught[0].includes('with-media-left')) {
-    ok(`反向对照：把 ${poolIds[0]} 的 supports.hero 换回外观词 with-media-left，它当场被点名`);
-  } else {
-    bad(`反向对照对不上：点名了 ${caught.length} 条（应当只有 1 条）—— ${caught.join(' · ')}`);
-  }
-
-  // 每一套的表是 `sheetFor(i, seed)` 的产物，而 `(i, seed)` 就写在表自己横幅的候选号
-  // `gen-<seed>-<i+1>` 里（`sheet-fresh.js` 靠的是同一条）。⟹ 池里每一套的画法是问得出来的，
-  // 而「这套主题声明的内容结构」必须等于「它那份表实际画的那种画法的内容结构」。
-  // 两者对不上 = 池子跟表分叉，正是 #1051 r1 那个「说的和画的不一致」换了个地方。
-  const counts = new Map(HERO_LOOK_NAMES.map((n) => [n, []]));
-  const mismatched = [];
-  const unreadable = [];
-  for (const id of poolIds) {
-    const sheet = path.join(NEXT, 'public', 'themes', `${poolThemes[id].sheet || id}.css`);
-    const m = /gen-\d+-(\d+)/.exec(fs.readFileSync(sheet, 'utf-8').slice(0, 400));
-    if (!m) { unreadable.push(id); continue; }
-    const look = heroLookFor(Number(m[1]) - 1);
-    counts.get(look).push(id);
-    if (poolThemes[id].supports.hero[0] !== HERO_LOOKS[look].content) {
-      mismatched.push(`${id}: 表画的是 ${look}（${HERO_LOOKS[look].content}），池里写的是 ${poolThemes[id].supports.hero[0]}`);
-    }
-  }
-  if (unreadable.length) bad(`${unreadable.length} 套的表读不出候选号（${unreadable.slice(0, 3).join(', ')}）—— 这一格什么都没验成`);
-  else if (mismatched.length) bad(`${mismatched.length} 套的池子记录跟它自己那份表对不上：${mismatched.slice(0, 3).join(' · ')}`);
-  else ok(`${poolIds.length} 套逐套：池里写的内容结构 == 它那份表实际画的那种画法的内容结构`);
-
-  // AC-C 的下限：每种外观 ≥ 8 套。🔴 「几种」从 `HERO_LOOK_NAMES` 现取，不写死
-  //（#1333 把 `form-side` 搬去了 `hero-with-form`，这张表从 8 种变 7 种）。
-  const thin = [...counts].filter(([, ids]) => ids.length < 8);
-  const line = [...counts].map(([n, ids]) => `${n} ${ids.length}`).join(' · ');
-  // 🔴 上面那三条（值域 / 反向对照 / 池子跟表对不对得上）跟池子几套无关，照跑；只有这条下限要门控：
-  //    画法种数 × 每种 ≥8 套（今天 7 × 8 = 56），脚手架池 2 套按构造到不了。
-  if (skip('⑨ 每种画法 ≥ 8 套',
-    `脚手架池 2 套分不出 ${HERO_LOOK_NAMES.length} 种画法的下限（今天的分布：${line}）`)) {
-    // ⏭ 已打印
-  } else if (thin.length) bad(`有画法不到 8 套：${thin.map(([n, ids]) => `${n} ${ids.length}`).join(', ')}（全表：${line}）`);
-  else ok(`每种画法都 ≥ 8 套：${line}`);
-}
+//    它做的事：拿 `blocks/hero.json` 的 `block_layout` 当取值表，逐套检查 `theme-pool.json` 的
+//    `supports.hero` 只装内容结构（不许出现画法名），再把每套的 `supports.hero[0]` 跟它那份表实际
+//    画出来的 hero 画法对账（`HERO_LOOKS[heroLookFor(i)].content`）。
+//
+//    🔴 **没有继承者，这是有意的。** 它是当时唯一机械核对「表画的 hero 画法 ↔ 池里声明的内容结构」
+//    的地方，而 #1341 把内容结构那一整维退役了：manifest 里没有那份取值表、池里的 `supports` 只剩
+//    顶栏 / 页脚、候选也不再产 `<id>.layout.json` —— 对账的两边同时没了，问题本身不存在了。
+//    留这句话是因为「一格无声消失」跟「一格从来没有过」长得一样。
+//
+//    🔴 **随它一起走的还有一条跟这一维无关的判据**：这一格末尾那条「80 套里每种 hero 画法都 ≥ 8 套」
+//    的分布下限（今天在 2 套的脚手架池上是 skip 状态）。生成器那一侧同名的下限我搬进了
+//    `sheet-recipes.test.js` 的夹具自检里（那一格照旧每轮跑，不看池子大小）；池子这一侧的那条
+//    没有继承者。
 
 // ── ⑩ 挑主题按【词边界】匹配，不是子串（#1115，#1119 换了量的对象）───────────────────────────
 //

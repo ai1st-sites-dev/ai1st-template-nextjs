@@ -306,6 +306,7 @@ if (MINIMAL) {
 //
 // 以前这里写的是 `s.block_layout = 'with-form'`：`.hero__form` 只在页面 JSON 说「这块 hero 是带表单
 // 的那种」时才渲染（#1065），而 `gen-allblocks.js` 从组件的 props 类型推数据，推不出那个字段。
+// 📌 #1341 之后连那个字段本身都没有了（内容结构那一维整条退役）。
 // #1333 把带表单的首屏拆成了自己一个块类型 `hero-with-form`，它**在注册表里** ⟹ `gen-allblocks.js`
 // 按构造就把它连同 `data.form` 一起写进这一页了（组件类型里那个槽是 `{ buttonText?, successMessage? }`，
 // 合成器照着造一个对象）。
@@ -513,8 +514,10 @@ const EXTRA_SERVICES = [
   if (!MINIMAL) {
     if (find('gallery').data.items[2].imageUrl !== undefined) bad.push('gallery item 3 still has imageUrl');
     if (find('feature-comparison').data.comparisons[0].them !== false) bad.push('feature-comparison row 1 them is not false');
-    // #1333 —— 换了对象：`.hero__form` 现在由 `hero-with-form` 这个块自己带进来，不再是 hero 上的一个字段。
-    if (find('hero').block_layout !== undefined) bad.push('hero still carries block_layout — #1333 took that branch out of HeroSection');
+    // 📌 #1341 —— 这里原来还有一条「hero 不许带 `block_layout`」（#1333 立的）。那个字段整条退役了
+    //    （manifest 里没有清单、`blockAttrs` 不落属性、老站残留的键读的时候丢掉）⟹ 那条判据恒真，
+    //    留着就是一格靠语料没了而绿的死判据。`.hero__form` 由 `hero-with-form` 这个块带进来这件事，
+    //    上面那两条（块在不在 · `data.form` 是不是对象）仍然在问。
   } else {
     // 🔴 最少版自己的读回，两个方向都问 —— 「削过了」和「一个字节都没削」在只问前半句时长得一样。
     //    ① 可选槽位真的**不存在**（不是空串）· ② 必填列表槽真的只剩一项 · ③ 那五处 propping 真的没写进去。
@@ -534,7 +537,6 @@ const EXTRA_SERVICES = [
         }
       }
     }
-    if (find('hero').block_layout !== undefined) bad.push('hero block_layout was set in the minimal version');
     const cgMin = find('card-group');
     if (cgMin && cgMin.data && Array.isArray(cgMin.data.items) && cgMin.data.items.some((i) => i && i.features)) {
       bad.push('card-group items still carry features in the minimal version');

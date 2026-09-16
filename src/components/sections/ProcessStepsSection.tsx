@@ -12,7 +12,8 @@ interface ProcessStepsSectionProps {
     subheadline?: string;
     steps: Step[];
   };
-  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的 `data-role` / `data-shape` / `data-has-*` 从它来。
+   *  （#998 当初加它是为了第三个钩子 `data-block-layout`，#1341 把那个钩子退役了。） */
   block?: BlockConfig;
 }
 
@@ -78,16 +79,23 @@ interface ProcessStepsSectionProps {
 // painted. `border` on `.process-steps__step` and `::before { content: "" }` + `background` are both
 // in §2, and an empty div is the markup deciding a look.
 //
-// 🔴 `variant` IS STILL WRITTEN AND NO LONGER READ (#1008 AC5's precedent), gone from the props type
-// above; `blocks/process-steps.json` still declares the slot and its five-key `variants` table.
+// 📌 #1341 — this line used to read "`variant` IS STILL WRITTEN AND NO LONGER READ". It is no
+//    longer written either: sync-config.js's line that overwrote `data.variant` from the theme
+//    went with the rest of that dimension, and a page JSON that still carries the key has it
+//    dropped on read (`scripts/blocks.js` §normalizeListSlots), so it never reaches a component.
+// 🔴 `variant` IS NO LONGER WRITTEN AND NO LONGER READ (#1008 AC5's precedent), gone from the props type
+// above; `blocks/process-steps.json` no longer declares the slot (#1341); its five-key `variants` table stays.
 //
 // 🔴 THE STEPS ARE CHILDREN OF THE BLOCK AND THEIR THREE PARTS ARE CHILDREN OF THE STEP — one flat
 // level each, because CSS grid and flex only place CHILDREN. That is what lets a sheet do the old
 // `zigzag` (alternating columns through `grid-column`), `vertical` (one column) and `horizontal`
 // (a 4-up row) without the markup choosing.
 //
-// 🔴 THE THIRD HOOK IS NOT OPTIONAL — `blockAttrs('process-steps', block)`, never
-// `blockAttrs('process-steps')` (#998's `data-block-layout`, invisible to `tsc`; #1008 r1's bounce).
+// 🔴 THE SECOND ARGUMENT IS NOT OPTIONAL — `blockAttrs('process-steps', block)`, never
+// `blockAttrs('process-steps')`. #1341 retired the third hook `data-block-layout`, but `data-role`,
+// `data-shape` and `data-has-*` all still come from that second argument, and dropping it is
+// silent in every instrument we own (`registry.ts` types the components as
+// `ComponentType<any>`, so `tsc` cannot see it). #1008 r1 was bounced for exactly that.
 export default function ProcessStepsSection({ data, block }: ProcessStepsSectionProps) {
   return (
     <section {...blockAttrs('process-steps', block)} className="process-steps" aria-labelledby="process-heading">

@@ -2,10 +2,6 @@
   "type": "logo-carousel",
   "category": "gallery",
   "roleDefault": "optional",
-  "block_layout": [
-    "with-media",
-    "text-only"
-  ],
   "shapes": [
     {
       "name": "row",
@@ -30,11 +26,6 @@
       "required": true,
       "promptOptional": false,
       "shape": "[string]"
-    },
-    "variant": {
-      "kind": "variant",
-      "required": false,
-      "promptOptional": false
     }
   },
   "variants": {

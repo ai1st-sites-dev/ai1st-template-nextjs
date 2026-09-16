@@ -2,9 +2,6 @@
   "type": "announcement-bar",
   "category": "banner",
   "roleDefault": "optional",
-  "block_layout": [
-    "default"
-  ],
   "shapes": [
     {
       "name": "stack",
@@ -29,11 +26,6 @@
       "required": false,
       "promptOptional": true,
       "shape": "{label, href}"
-    },
-    "variant": {
-      "kind": "variant",
-      "required": false,
-      "promptOptional": false
     }
   },
   "variants": {

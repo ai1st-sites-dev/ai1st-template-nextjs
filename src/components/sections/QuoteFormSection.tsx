@@ -22,7 +22,8 @@ interface QuoteFormSectionProps {
     buttonText: string;
   };
   locale: string;
-  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的 `data-role` / `data-shape` / `data-has-*` 从它来。
+   *  （#998 当初加它是为了第三个钩子 `data-block-layout`，#1341 把那个钩子退役了。） */
   block?: BlockConfig;
 }
 
@@ -57,8 +58,11 @@ type SubmitState = 'idle' | 'submitting' | 'success' | 'error';
 // own rather than a transparent wrapper. CSS grid only places CHILDREN, so those two are direct
 // children of it and nothing sits between.
 //
-// 🔴 THE THIRD HOOK IS NOT OPTIONAL — `blockAttrs('quote-form', block)`, never `blockAttrs('quote-form')`
-// (#998's `data-block-layout`; #1008 r1 was bounced for exactly that, and it is invisible to `tsc`).
+// 🔴 THE SECOND ARGUMENT IS NOT OPTIONAL — `blockAttrs('quote-form', block)`, never
+// `blockAttrs('quote-form')`. #1341 retired the third hook `data-block-layout`, but `data-role`,
+// `data-shape` and `data-has-*` all still come from that second argument, and dropping it is
+// silent in every instrument we own (`registry.ts` types the components as
+// `ComponentType<any>`, so `tsc` cannot see it). #1008 r1 was bounced for exactly that.
 export default function QuoteFormSection({ data, locale, block }: QuoteFormSectionProps) {
   const services = getServices(locale);
   const labels = getLabels(locale);

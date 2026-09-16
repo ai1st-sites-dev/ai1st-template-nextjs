@@ -2,10 +2,6 @@
   "type": "hero",
   "category": "banner",
   "roleDefault": "lead",
-  "block_layout": [
-    "with-media",
-    "text-only"
-  ],
   "shapes": [
     {
       "name": "text-center",
@@ -96,11 +92,6 @@
     }
   ],
   "slots": {
-    "variant": {
-      "kind": "variant",
-      "required": false,
-      "promptOptional": false
-    },
     "headline": {
       "kind": "text",
       "required": true,

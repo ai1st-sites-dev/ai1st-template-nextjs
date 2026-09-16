@@ -53,8 +53,8 @@ const fs = require('fs');            // #1135 ⑨ 的分母自检要数池子里
 const crypto = require('crypto');
 
 const DIR = __dirname;
-let sheetFor; let geometryFor; let voiceFor; let heroLayoutFor; let HERO_LAYOUTS; let postcss; let paletteFor;
-let CARD_BLOCKS; let layoutNamesFor;
+let sheetFor; let geometryFor; let voiceFor; let postcss; let paletteFor;
+let CARD_BLOCKS;
 let heroLookFor; let HERO_LOOK_NAMES; let HERO_LOOKS;
 let ctaLookFor; let CTA_LOOK_NAMES; let formLookFor; let FORM_LOOK_NAMES;   // #1135
 let LOOK_FAMILIES;                                                          // #1139
@@ -70,7 +70,7 @@ const skip = (what, why) => { if (!skipOnScaffoldingPool(what, why)) return fals
 
 try {
   ({
-    sheetFor, geometryFor, voiceFor, heroLayoutFor, HERO_LAYOUTS, CARD_BLOCKS, layoutNamesFor,
+    sheetFor, geometryFor, voiceFor, CARD_BLOCKS,
     heroLookFor, HERO_LOOK_NAMES, HERO_LOOKS,
     ctaLookFor, CTA_LOOK_NAMES, formLookFor, FORM_LOOK_NAMES,
     LOOK_FAMILIES, SCROLL_STRIP_EXPERIMENT,
@@ -261,6 +261,19 @@ const TRIO = [];                                   // 每种画法一个序号�
     die(`夹具不成立：这一列的 voice 差在 [${differing.join(', ')}]，其中 [${strayed.join(', ')}] `
       + `不在允许清单 [${ALLOWED.join(', ')}] 里。各档的模数改过之后，这里的 ${VOICE_PERIOD} `
       + '要跟着重算（周期 = lcm(各档模数)）。');
+  }
+
+  // #1341 —— 从 ⑤ 搬来：80 套里每种 hero 画法各有几套，下限是每种 ≥ 8（#1065 AC-C）。
+  // 它问的是 `heroLookFor` 这个**挑法**（挑法是序号的函数，不用建站就问得出来），跟本票退役的
+  // 「内容结构」那一维没有关系 —— ⑤ 整格删掉时它会跟着消失，所以搬到这里，判据一个字没改。
+  {
+    const N = 80;
+    const counts = new Map(HERO_LOOK_NAMES.map((n) => [n, 0]));
+    for (let i = 0; i < N; i += 1) counts.set(heroLookFor(i), counts.get(heroLookFor(i)) + 1);
+    const thin = [...counts].filter(([, n]) => n < 8);
+    const line = [...counts].map(([n, c]) => `${n} ${c}`).join(' · ');
+    if (thin.length) bad(`${N} 套里有画法不到 8 套：${thin.map(([n, c]) => `${n} ${c}`).join(', ')}（全表：${line}）`);
+    else ok(`${N} 套逐套归类，每种画法都 ≥ 8 套：${line}`);
   }
 }
 
@@ -575,91 +588,21 @@ console.log('④ 表说了居中，产物里那几样东西真的居中吗');
   }
 }
 
-console.log('⑤ 两条轴有没有串（#1065）');
-{
-  // 轴一（内容结构）的取值表**权威在 `blocks/hero.json`** —— 那份 manifest 是 #999 的交付物，
-  // 也是 2026-08-12 spec 第 208 行那张值表在磁盘上的样子。这里不另抄一份清单：抄了就会分叉，
-  // 而分叉的方向正是这一格要拦的（生成器往 `supports.hero` 里吐一个 manifest 不认的值）。
-  const manifest = JSON.parse(
-    require('fs').readFileSync(path.join(DIR, '..', '..', 'blocks', 'hero.json'), 'utf-8'),
-  );
-  const allowed = manifest.block_layout;
-
-  // 判据写成一个函数，因为下面的反向对照要拿一张**动过手脚**的表再问一次同样的话。
-  const axisProblems = (looks) => {
-    const out = [];
-    for (const [name, look] of Object.entries(looks)) {
-      if (!allowed.includes(look.content)) {
-        out.push(`画法 ${name} 的 content 是 ${JSON.stringify(look.content)}，`
-          + `不在 blocks/hero.json 的 block_layout 里（${allowed.join(' / ')}）`);
-      }
-      // 外观词长什么样，判据不是「我认识这个词」，而是「它是不是这张表自己的画法名」——
-      // 画法名进了轴一，就是两条轴又黏回去了。
-      if (Object.keys(looks).includes(look.content)) {
-        out.push(`画法 ${name} 的 content 就是一个画法名（${look.content}）—— 两条轴黏在一起了`);
-      }
-    }
-    return out;
-  };
-
-  const problems = axisProblems(HERO_LOOKS);
-  if (problems.length) {
-    bad(`轴串了：${problems.join(' · ')}`);
-  } else {
-    ok(`${Object.keys(HERO_LOOKS).length} 种画法的 content 全部落在 blocks/hero.json 声明的 `
-      + `${allowed.length} 个内容结构里（${allowed.join(' / ')}），没有一个外观词`);
-  }
-
-  // 派生出来的轴一取值表必须**逐字等于** manifest 的那几个（顺序不算）—— 多一个少一个都是问题。
-  // 📌 #1065 当时这句话写的是「`with-form` 掉出去就意味着池里没有一套主题声明支持带表单的 hero」。
-  //    #1333 之后那个后果不存在了：带表单的首屏是自己一个块类型，跟主题声明什么无关，而 `with-form`
-  //    本来就该从 hero 的取值表里消失。今天这一格守的是「生成器与 manifest 不许分叉」这件事本身。
-  const derived = [...HERO_LAYOUTS].sort();
-  if (JSON.stringify(derived) === JSON.stringify([...allowed].sort())) {
-    ok(`轴一的取值集合逐字等于 manifest：${derived.join(' / ')}`);
-  } else {
-    bad(`轴一的取值集合是 ${derived.join(' / ')}，manifest 是 ${[...allowed].sort().join(' / ')}`);
-  }
-
-  // 🔴 反向对照 —— 往内容结构那一栏塞一个外观词，这把尺必须当场点名它（AC-A 点名要的那一格）。
-  const rigged = {
-    ...HERO_LOOKS,
-    'media-left': { ...HERO_LOOKS['media-left'], content: 'with-media-left' },
-  };
-  const caught = axisProblems(rigged);
-  if (caught.length === 1 && /with-media-left/.test(caught[0])) {
-    ok(`反向对照：把 media-left 的 content 改成外观词 with-media-left，这把尺当场点名（${caught[0]}）`);
-  } else if (caught.length) {
-    bad(`反向对照对不上：点名了 ${caught.length} 条，应当只有那一条 —— ${caught.join(' · ')}`);
-  } else {
-    bad('反向对照失败：把外观词塞进内容结构表之后，这把尺一句话都没说');
-  }
-
-  // 每一种内容结构都要有人画 —— 「值表里有一个词」和「有画法产得出它」是两件事，而 #1065 立票时
-  // 坏的正是后者（`with-form` 写在值表里，池里 0 套画得出来）。那个词 #1333 已经从 hero 的值表里
-  // 拿掉了（带表单的首屏是自己一个块类型），这一格守的性质没变，只是不再有它那一行。
-  const byContent = new Map();
-  for (const [name, look] of Object.entries(HERO_LOOKS)) {
-    if (!byContent.has(look.content)) byContent.set(look.content, []);
-    byContent.get(look.content).push(name);
-  }
-  const empty = allowed.filter((c) => !byContent.has(c));
-  if (empty.length) bad(`${empty.join(' / ')} 没有任何画法产得出来 —— 声明支持一个渲染不出来的形态`);
-  else {
-    ok(`每种内容结构都有画法：${[...byContent].map(([c, ns]) => `${c} ${ns.length} 种`).join(' · ')}`);
-  }
-
-  // 80 套池子里每种画法各有几套（AC-C 的下限是每种 ≥ 8）。挑法是序号的函数，所以这个数不用建站就问得出来。
-  {
-    const N = 80;
-    const counts = new Map(HERO_LOOK_NAMES.map((n) => [n, 0]));
-    for (let i = 0; i < N; i += 1) counts.set(heroLookFor(i), counts.get(heroLookFor(i)) + 1);
-    const thin = [...counts].filter(([, n]) => n < 8);
-    const line = [...counts].map(([n, c]) => `${n} ${c}`).join(' · ');
-    if (thin.length) bad(`${N} 套里有画法不到 8 套：${thin.map(([n, c]) => `${n} ${c}`).join(', ')}（全表：${line}）`);
-    else ok(`${N} 套逐套归类，每种画法都 ≥ 8 套：${line}`);
-  }
-}
+// 📌 ⑤ 删了（#1341）—— 这里原来是「两条轴有没有串」（#1065）。
+//
+//    它做的事：拿 `blocks/hero.json` 的 `block_layout` 当取值表，检查 `HERO_LOOKS` 每一项的
+//    `content` 都落在那份表里、而且不是一个画法名；再把生成器派生出来的 `HERO_LAYOUTS` 跟那份表
+//    逐字比；还带一条反向对照（往 `content` 那一栏塞一个画法词，这把尺必须当场点名）。
+//
+//    🔴 **没有继承者，这是有意的。** #1341 把内容结构那一整维退役了 —— `blocks/hero.json` 没有
+//    `block_layout` 这份清单，`HERO_LOOKS` 每一项的 `content` 字段、派生它的 `heroLayoutFor` 和
+//    `HERO_LAYOUTS` 也一起删了。比较的两边同时没了，问题本身不存在了。留这句话是因为
+//    「一格无声消失」跟「一格从来没有过」长得一样。
+//
+//    🔴 **它里面有一条跟这一维无关的判据，我把它搬走了、没有删**：末尾那条「80 套里每种 hero 画法
+//    都 ≥ 8 套」的分布下限（问的是 `heroLookFor` 这个挑法，不是内容结构）。它现在在上面那段夹具
+//    自检里（搜 `#1341 —— 从 ⑤ 搬来`）。同名的另一条在 `pool.test.js` ⑨ 里，那一条随 ⑨ 一起没了
+//    （它问的是池子那份数据，而这一条问的是生成器）。
 
 // ══ ⑥ 每一种画法都要给 `.hero__form` 排一个位置（#1065 r2）══════════════════════════════════════
 //
@@ -826,7 +769,7 @@ console.log('\n⑦ 换画法之后，桌面那一段还在吗（#1090 r2）');
   const FAMILIES = KEEPERS.flatMap((f) => f.blocks);
   const sheets = [];
   for (let i = 0; i < N; i += 1) sheets.push({ i, css: sheetFor(i), v: voiceFor(i) });
-  /** 第 i 套在这个块所属那一族里挑的那副画法（读注册表，不读写死的 layoutNamesFor 四个键）。 */
+  /** 第 i 套在这个块所属那一族里挑的那副画法（从注册表 `LOOK_FAMILIES` 派生，不抄一份名单）。 */
   const lookOn = (x, block) => {
     const f = LOOK_FAMILIES.find((g) => g.blocks.includes(block));
     return f ? `${f.key}=${x.v[f.key]}` : '（无候选表）';
@@ -916,7 +859,12 @@ console.log('\n⑧ 画法自己声明的留白，桌面上还作数吗（#1090 r
     return v;
   };
   const tight = [];
-  for (let i = 0; i < N; i += 1) if (layoutNamesFor(i).cards === 'four-up-tight') tight.push(i);
+  // #1341 —— 这一行原来读的是 `layoutNamesFor(i).cards`。那个函数随内容结构那一维一起退役了，
+  //    改读 `voiceFor(i).cards`：`cards` 这一档的唯一出口本来就是 `voiceFor`
+  //    （`sheet-recipes.js` 的 `cards: cardGridFor(i)`），而 `layoutNamesFor` 逐字就是它的一层壳
+  //    （`{ hero: v.hero, split: v.split, splitRhythm: v.splitRhythm, cards: v.cards }`）⟹ 等价替换，
+  //    这一格守的性质不变。
+  for (let i = 0; i < N; i += 1) if (voiceFor(i).cards === 'four-up-tight') tight.push(i);
   if (tight.length === 0) die('夹具不成立：80 套里没有一套用 four-up-tight —— 这一格无处可量');
   const clobbered = [];
   for (const i of tight) {

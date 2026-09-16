@@ -8,7 +8,8 @@ interface TextBlockSectionProps {
     attribution?: string;
     items?: string[];
   };
-  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的 `data-role` / `data-shape` / `data-has-*` 从它来。
+   *  （#998 当初加它是为了第三个钩子 `data-block-layout`，#1341 把那个钩子退役了。） */
   block?: BlockConfig;
 }
 
@@ -23,15 +24,18 @@ interface TextBlockSectionProps {
 //     with-list                               headline · content · items
 //
 // Three of the five are the same content drawn three ways — a box with a rule down its left, two
-// newspaper columns, plain prose. The other two CARRY SOMETHING MORE, and that is what
-// `block_layout` is for (spec §5.2): its manifest goes from one value to three — `default`,
-// `quote`, `with-list`. Nothing converts the old `variant` into the new value and nothing should
-// (`scripts/blocks.js:21-22`, spec D5): they are two coexisting fields.
+// newspaper columns, plain prose. The other two CARRY SOMETHING MORE, and #1031 put that difference
+// in `block_layout` (three values: `default` / `quote` / `with-list`).
+// 📌 #1341 retired that field. What names the difference today is which optional slots the page
+//    actually filled — `data-has-attribution` / `data-has-items` on the root element (#1331) — asked
+//    of the data instead of of a name somebody typed. 🔴 That hook belongs to the PLATFORM's layout
+//    layer (`public/shapes.css`); it is not on the theme contract's §1 list, so a theme sheet cannot
+//    select it.
 //
-// 🔴 SO THIS BLOCK RENDERS WHAT THE DATA HAS, NOT WHAT A LAYOUT NAME SAYS. `block_layout` is a hook
-// for the SHEET; the markup shows an attribution when there is an attribution and a list when there
-// are items. A site that writes `block_layout: "quote"` and no attribution gets a quote-shaped
-// stylesheet over prose, which is the right failure — visible, not silent.
+// 🔴 SO THIS BLOCK RENDERS WHAT THE DATA HAS, NOT WHAT A LAYOUT NAME SAYS. The markup shows an
+// attribution when there is an attribution and a list when there are items — and since #1341 there
+// is no layout name to disagree with, so the old failure mode (a quote-shaped sheet over prose
+// because someone typed the wrong name) cannot happen at all.
 //
 // 🔴 WHAT NO SHEET CAN REDRAW, AND THIS IS THE ONE REAL LOSS IN THIS BATCH: the old `two-column`
 // look set Tailwind's `columns-2`, and CSS `columns` is NOT on contract §2's property list
@@ -73,8 +77,11 @@ interface TextBlockSectionProps {
 // The `<li>`s are not: contract §1 refuses tag selectors, so list internals are laid out by the
 // structure layer in `globals.css` (the same split #1027 drew for `.services-list__features ul`).
 //
-// 🔴 THE THIRD HOOK IS NOT OPTIONAL — `blockAttrs('text-block', block)` (#998's `data-block-layout`,
-// invisible to `tsc`; #1008 r1's bounce).
+// 🔴 THE SECOND ARGUMENT IS NOT OPTIONAL — `blockAttrs('text-block', block)`, never
+// `blockAttrs('text-block')`. #1341 retired the third hook `data-block-layout`, but `data-role`,
+// `data-shape` and `data-has-*` all still come from that second argument, and dropping it is
+// silent in every instrument we own (`registry.ts` types the components as
+// `ComponentType<any>`, so `tsc` cannot see it). #1008 r1 was bounced for exactly that.
 export default function TextBlockSection({ data, block }: TextBlockSectionProps) {
   return (
     <section

@@ -2,9 +2,6 @@
   "type": "process-steps",
   "category": "process",
   "roleDefault": "optional",
-  "block_layout": [
-    "default"
-  ],
   "shapes": [
     {
       "name": "heading-side",
@@ -67,11 +64,6 @@
       "required": true,
       "promptOptional": false,
       "shape": "[{title, description}]"
-    },
-    "variant": {
-      "kind": "variant",
-      "required": false,
-      "promptOptional": false
     }
   },
   "variants": {

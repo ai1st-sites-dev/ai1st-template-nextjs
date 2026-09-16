@@ -2,9 +2,6 @@
   "type": "contact-info",
   "category": "contact",
   "roleDefault": "essential",
-  "block_layout": [
-    "default"
-  ],
   "shapes": [
     {
       "name": "label-side",
@@ -44,11 +41,6 @@
     "headline": {
       "kind": "text",
       "required": true,
-      "promptOptional": false
-    },
-    "variant": {
-      "kind": "variant",
-      "required": false,
       "promptOptional": false
     }
   },

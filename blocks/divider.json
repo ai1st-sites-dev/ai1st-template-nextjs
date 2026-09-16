@@ -2,9 +2,6 @@
   "type": "divider",
   "category": "divider",
   "roleDefault": "optional",
-  "block_layout": [
-    "default"
-  ],
   "shapes": [
     {
       "name": "stack",
@@ -23,11 +20,6 @@
       "kind": "text",
       "required": false,
       "promptOptional": true
-    },
-    "variant": {
-      "kind": "variant",
-      "required": false,
-      "promptOptional": false
     }
   },
   "variants": {

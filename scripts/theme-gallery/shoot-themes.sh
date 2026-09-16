@@ -152,7 +152,11 @@ for id in "${IDS[@]}"; do
   #
   # 换成量被拍的那份产物，两条独立的读数，两条都得成立：
   #   ① 调色板真的到了页面上   —— out/<站>/theme.css 里 --color-primary-500 等于注册表那套
-  #   ② 主题的画法真的到了页面上 —— 生成的 config-data.ts 里 hero 的 variant 等于这套主题声明的
+  #   ② 主题的结构真的到了页面上 —— 生成的 config-data.ts 里 regionLayout 等于这套主题声明的
+  #      📌 #1341 之前 ② 读的是「hero 的 variant 等于这套主题声明的」。主题对每个块的内容结构有什么
+  #         意见，这一整维退役了（没有主题再声明它、构建也不再写 data.variant）⟹ 那条读数会对每一套
+  #         主题都退化成「这套主题没表态」，而那看起来跟量过了一模一样。换成顶栏 / 页脚那一维 ——
+  #         它是 layoutFor() 今天真的还在答的那一维。
   # ① 覆盖旧判据本来管的那件事（sync-config 认得这个 id 并按它上了色）而且更强：旧判据只要那行
   # 日志在就放行，日志在跟字节落地不是一件事。② 是旧判据里「N section variant(s)」那一半的直接
   # 读数。两条都不依赖任何一句话的措辞 —— 下一次改日志不会再断一次。
@@ -172,26 +176,23 @@ for id in "${IDS[@]}"; do
       console.error(`the page is on --color-primary-500 ${got || "(not found)"}, the registry says ${want}`);
       process.exit(1);
     }
-    // ② hero 的画法。主题对 hero 没有偏好时这一半没有可比的东西，说出来而不是假装量过了。
-    const heroWant = layoutFor(id).hero;
-    let heroNote = "hero: this theme states no preference (nothing to compare)";
-    if (heroWant) {
+    // ② 顶栏 / 页脚这两个区的结构。主题两个都没表态时这一半没有可比的东西，说出来而不是假装量过了。
+    const wantRegions = layoutFor(id);
+    const keys = ["header", "footer", "topbar"].filter((k) => wantRegions[k]);
+    let regionNote = "regions: this theme states no preference (nothing to compare)";
+    if (keys.length) {
       const cd = fs.readFileSync(path.join(next, "src/lib/config-data.ts"), "utf-8");
-      const m = cd.match(/export const pagesByLocale = (.*);\n/);
-      if (!m) { console.error("cannot read pagesByLocale out of config-data.ts"); process.exit(1); }
-      const heroes = [];
-      for (const list of Object.values(JSON.parse(m[1])))
-        for (const p of list)
-          for (const b of (p.blocks || [])) if (b.type === "hero") heroes.push(b.data && b.data.variant);
-      if (!heroes.length) { console.error("no hero block in the built config — cannot check the variant"); process.exit(1); }
-      const wrong = heroes.filter((v) => v !== heroWant);
+      const m = cd.match(/export const regionLayout = (.*);\n/);
+      if (!m) { console.error("cannot read regionLayout out of config-data.ts"); process.exit(1); }
+      const got = JSON.parse(m[1]);
+      const wrong = keys.filter((k) => got[k] !== wantRegions[k]);
       if (wrong.length) {
-        console.error(`${wrong.length} of ${heroes.length} hero block(s) are on "${wrong[0]}", the theme declares "${heroWant}"`);
+        console.error(`${wrong.map((k) => `${k} is "${got[k]}", the theme declares "${wantRegions[k]}"`).join("; ")}`);
         process.exit(1);
       }
-      heroNote = `hero: ${heroes.length} block(s) all on "${heroWant}"`;
+      regionNote = `regions: ${keys.map((k) => `${k} "${got[k]}"`).join(" · ")}`;
     }
-    console.log(`--color-primary-500 ${want} · ${heroNote}`);
+    console.log(`--color-primary-500 ${want} · ${regionNote}`);
   ' "$NEXT" "$built" "$id"); then
     echo "🔴 $id built, but the theme did not reach the page (log: $log) — nothing was shot for it"
     continue

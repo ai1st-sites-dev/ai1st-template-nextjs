@@ -2,9 +2,6 @@
   "type": "page-header",
   "category": "banner",
   "roleDefault": "optional",
-  "block_layout": [
-    "default"
-  ],
   "shapes": [
     {
       "name": "stack-left",
@@ -71,11 +68,6 @@
       "required": false,
       "promptOptional": false,
       "shape": "[{label:\"Home\", href:\"/\"}, {label:\"<Page Name>\"}]"
-    },
-    "variant": {
-      "kind": "variant",
-      "required": false,
-      "promptOptional": true
     }
   },
   "variants": {

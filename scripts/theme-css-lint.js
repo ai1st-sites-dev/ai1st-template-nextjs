@@ -110,9 +110,9 @@ const CONTRACT_VERSION = 'v3';
 // Exact strings. A prefix rule (`starts with .hero__`) would admit the next typo as a new part.
 const HOOKS = new Set([
   '.hero', '.hero__media', '.hero__body', '.hero__title', '.hero__sub', '.hero__cta', '.hero__deco',
-  // #1065 — the eighth part. `with-form` has been in hero's `block_layout` value table since the
-  // 2026-08-12 spec (§208) while nothing rendered it; HeroSection now renders `.hero__form` when the
-  // page JSON asks for that content shape, so a sheet must be able to name it. A part that exists in
+  // #1065 — the eighth part. `with-form` had been in hero's content-shape value table since the
+  // 2026-08-12 spec (§208) while nothing rendered it; HeroSection then rendered `.hero__form` when the
+  // page JSON asked for that content shape, so a sheet must be able to name it. A part that exists in
   // the markup but not on this list is the silent half: sheets cannot dress it and gate ② calls the
   // whole candidate out for a hook it has no rule for.
   // 🔴 #1333 — WHO RENDERS IT CHANGED; THE HOOK NAME DID NOT. `with-form` is no longer one of hero's
@@ -198,10 +198,11 @@ const HOOKS = new Set([
   '[data-block="blog-preview"]',
   // #1031 — batch F, seven blocks whose branches were only ever a look or a content shape (no
   // interaction: not one of them is a `'use client'` component). Three of them grew their
-  // `block_layout` list at the same time, because their branches really did carry different
+  // content-shape list at the same time, because their branches really did carry different
   // content: text-block (default / quote / with-list), content-split (with-media / text-only /
   // with-stats / with-bullets) and social-proof (default / with-platforms / with-badges /
-  // with-quote). The other four keep one value.
+  // with-quote). The other four kept one value.
+  // 📌 #1341 — that whole dimension is retired; no block has a content-shape list any more.
   '.content-split', '.content-split__media', '.content-split__headline', '.content-split__body',
   '.content-split__bullets', '.content-split__stats', '.content-split__stat',
   '.content-split__stat-value', '.content-split__stat-label',
@@ -359,7 +360,7 @@ const HOOKS = new Set([
 // have told you — when did the markup grow — is written down here, where it costs nothing:
 //
 //   #991  hero parts, block/role/page hooks           (phase 1)
-//   #998  [data-block-layout="…"]                     (the third hook)
+//   #998  [data-block-layout="…"]                     (the third hook — RETIRED by #1341, see below)
 //   #1018 cta-banner parts + [data-block="cta-banner"]
 //   #1019 page-header parts + [data-block="page-header"]
 //   #1027 contact-form / quote-form / services-list / values-grid / services-nav /
@@ -397,15 +398,32 @@ const HOOKS = new Set([
 // `[data-region-layout="pill-floating"]` and friends: the attribute is on the list, its values are
 // the region names #960 already ships, so a value-qualified form is legal.
 //
-// #998 adds `[data-block-layout="…"]` on the same footing — the third hook (spec §5.2). Its values are
-// each block's own content-structure list, which lives in that block's manifest (#999), so this file
-// checks the SHAPE of the value and the build checks that the site only ever writes a value the
-// manifest declares. Two checkers, two different questions: "is this a legal selector" is not "does
-// this site use that layout".
+// 🔴 #1341 — `[data-block-layout="…"]` USED TO BE HERE AND IS NOW REFUSED BY NAME.
+// #998 added it as the third hook (spec §5.2); its values were each block's own content-structure
+// list, kept in that block's manifest (#999). That whole dimension is retired: `blockAttrs.ts` no
+// longer emits the attribute, the manifests no longer carry the list, and a sheet written against it
+// would select nothing at all. Refusing it silently (just dropping it off the list) would give the
+// author the generic "not a contract hook" message, which reads like a typo; `RETIRED_HOOKS` below
+// says what actually happened. `[data-region-layout="…"]` is unaffected — regions are a live
+// dimension (`scripts/region-layout.js`).
 const HOOK_PATTERNS = [
   /^\[data-region-layout="[a-z-]+"\]$/,
-  /^\[data-block-layout="[a-z0-9-]+"\]$/,
 ];
+
+// 退役的钩子：形状认得出来，但一律拒。值是给作者看的那句话。
+const RETIRED_HOOKS = [
+  [/^\[data-block-layout(="[a-z0-9-]*")?\]$/,
+    'it is a RETIRED hook (#1341). The content-structure dimension is gone: nothing emits'
+    + ' `data-block-layout` any more, so this selector would match nothing. A sheet gets no'
+    + ' replacement for it — since v3 (#1318) layout is the platform\'s, answered in'
+    + ' `public/shapes.css` by `[data-shape="…"]` / `[data-has-<slot>="true"]`, and neither is on'
+    + ' §1\'s list. A hero with a form is its own block type, so `[data-block="hero-with-form"]`'
+    + ' (#1333) IS on the list. To cover the case at all, style `[data-block="…"]` itself'],
+];
+const retiredHookNote = (s) => {
+  for (const [re, why] of RETIRED_HOOKS) if (re.test(s)) return why;
+  return null;
+};
 
 // 🔴 THE CLASS HOOKS ALONE, WITHOUT THE LEADING DOT — derived here so nobody keeps a second copy.
 // The two RUNTIME checks (`theme-css-invariants.mjs`, `theme-pipeline/gates.js`) ask a different
@@ -633,12 +651,16 @@ function compoundsOf(selector) {
 
 // #998 — A COMPOUND MAY BE SEVERAL HOOKS ON ONE ELEMENT, AND THE THIRD HOOK IS WHY.
 //
-// Until now a compound had to be exactly one hook, so `[data-block="hero"][data-block-layout="with-media"]`
-// was refused. That form is the entire point of `data-block-layout`: the layout values are each block's own
-// list, and different blocks reuse the same word — `with-media` on hero and on features-grid mean different
+// Until then a compound had to be exactly one hook, so `[data-block="hero"][data-block-layout="with-media"]`
+// was refused. That form was the entire point of `data-block-layout`: the layout values were each block's own
+// list, and different blocks reused the same word — `with-media` on hero and on features-grid meant different
 // pictures in different places. Without the qualifier a sheet could only write the value alone, which would
-// style every block that happens to share the word. So the rule becomes: split the compound into its simple
+// style every block that happens to share the word. So the rule became: split the compound into its simple
 // selectors and require EVERY one of them to be on the list.
+// 📌 #1341 retired that hook. The compound rule stays because it is not hero-specific — e.g.
+//    `[data-block="cta-banner"][data-role="optional"]` is the same shape, and both parts are hooks.
+//    (`[data-shape=…]` / `[data-has-…=…]` are NOT hooks: they belong to `public/shapes.css`, the
+//    platform's layer, which this linter does not govern.)
 //
 // 🔴 This does not widen what a sheet can reach. `div[data-block="hero"]` still fails (a tag selector is not
 // a hook), `.md\:flex[data-role="lead"]` still fails, `#id[data-block="hero"]` still fails — one non-hook part
@@ -661,7 +683,11 @@ function checkSelector(sel, report) {
       const base = (m && m[1]) || compound;
       for (const simple of simpleSelectorsOf(base)) {
         if (!isHook(simple)) {
-          report(`selector "${complex}" reaches for "${simple}", which is not a contract hook`);
+          // #1341 —— 退役的钩子单独说一句。形状对、含义没了，跟「写错了一个名字」是两件事。
+          const retired = retiredHookNote(simple);
+          report(retired
+            ? `selector "${complex}" reaches for "${simple}", and ${retired}`
+            : `selector "${complex}" reaches for "${simple}", which is not a contract hook`);
         }
       }
     }

@@ -2,9 +2,6 @@
   "type": "timeline",
   "category": "process",
   "roleDefault": "optional",
-  "block_layout": [
-    "default"
-  ],
   "shapes": [
     {
       "name": "stack",
@@ -34,11 +31,6 @@
       "required": true,
       "promptOptional": false,
       "shape": "[{year, title, description}]"
-    },
-    "variant": {
-      "kind": "variant",
-      "required": false,
-      "promptOptional": false
     }
   },
   "variants": {

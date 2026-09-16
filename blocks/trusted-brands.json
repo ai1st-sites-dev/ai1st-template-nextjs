@@ -2,9 +2,6 @@
   "type": "trusted-brands",
   "category": "gallery",
   "roleDefault": "optional",
-  "block_layout": [
-    "default"
-  ],
   "shapes": [
     {
       "name": "row",
@@ -29,11 +26,6 @@
       "required": true,
       "promptOptional": false,
       "shape": "[6 brand name strings]"
-    },
-    "variant": {
-      "kind": "variant",
-      "required": false,
-      "promptOptional": false
     }
   },
   "variants": {

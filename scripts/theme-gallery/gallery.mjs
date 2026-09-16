@@ -33,23 +33,23 @@ const IS_SUBSET = ids.length !== POOL_TOTAL;
 // ⟹ 整个「新增 / 原有」这一维去掉。要区分代次的话，判据该是主题自己的出身（`theme-pool.json` 里
 // 那份 provenance），不是一份手抄的 id 名单 —— 那正是这一行为什么会悄悄失效。
 
-// 🔴 #932 r4 —— 图旁的版式读数。它【不是】把注册表抄一遍：layout-readback.py 分别算了
+// 🔴 #932 r4 —— 图旁的版式读数。它【不是】把注册表抄一遍：`layout-readback.py` 分别算了
 //   「页面按渲染骨架分组」和「注册表按声明 variant 分组」，两个分组完全相同才认。
-//   读的是 sites/<id>/ 里那份被拍的产物本身。对不上它就报错不写文件，所以这里读不到就该停。
-// 🔴 #1174 —— 这里原来是无条件 readFileSync，读不到就整份脚本抛在第一屏，**图册一张也出不来**。
-// 今天 `layout-readback.py` 在**任何**套数上都写不出这份文件，而原因是结构性的、不是本票造的：
-// 它的判据是「把这些套按页面上真渲染出来的骨架分组」，而今天产物里那一段是
-// `<section data-block="hero" class="hero">` —— **一个固定的语义类名，长相全靠主题那张表**。
-// 于是每个位置的分组恒为「1 组、全部成员都在里面」，它按自己的纪律拒绝写文件（那条纪律是对的）。
-// 实测：本轮 17 套，首页 4 段 + 内页 2 段，六个位置全部读到 `1 组 [17]`。
-// 对照 `/root/theme-gallery/963/sites`（那一轮它成功过，14 个类型都认出来了）：同一位置的 class 是
-// `bg-white` / `border-b bg-gray-50 py-10` / `section-padding` —— 那时候写法差异确实落在 class 上。
-// ⟹ 是模板从「每种写法一套 Tailwind 类」换成「语义类名 + 主题表」之后，这把尺失明了。**圈外，另开票。**
 //
-// 🔴 处置是「读不到就说读不到」，不是造一个看起来像读数的东西（#1004 的教训，dev 记忆里记着：
-//    自己出一份图册时，把拿不到的那条标注**和为什么拿不到**写在页面上）。所以这里跟下面 review.json
-//    同款：缺了就渲染，页面上用红字讲清缺的是哪一维、为什么缺、这一页因此**不能**用来核对
-//    「这套主题有没有按它声明的写法渲染」。
+// 🔴 #1341 —— **那个脚本退役了，这份文件从此不会再被写出来。** 它对的那一维（主题对每个块声明
+//   用哪种内容结构）整条没了：没有任何主题再声明它，构建也不再往块上写 `data.variant`，
+//   `layoutFor()` 今天只答顶栏 / 页脚。对账的两边同时不在了，对账本身没有对象。
+//   📌 在那之前它已经瞎了一段时间，原因是另一件事（#1174 实测）：它的判据是「按页面上真渲染出来的
+//   骨架分组」，而今天产物里那一段是 `<section data-block="hero" class="hero">` —— 一个固定的语义
+//   类名，长相全靠主题那张表 ⟹ 每个位置恒为「1 组、全部成员都在里面」，它按自己的纪律拒绝写文件
+//   （那条纪律是对的）。两件事都成立，而 #1341 让它**没有修法**：要对的东西不存在了。
+//
+// 🔴 顶栏 / 页脚那一维**没有跟着走**：它在下面 `readFacts` 那一段，读的是每张图那份产物上
+//   `data-region-layout` 的真实值，跟这份文件无关。
+//
+// 🔴 处置是「读不到就说读不到」，不是造一个看起来像读数的东西（#1004 的教训）。所以这里跟下面
+//    review.json 同款：缺了就渲染，页面上用红字讲清缺的是哪一维、为什么缺、这一页因此**不能**用来
+//    核对「这套主题有没有按它声明的写法渲染」。
 const rbPath = `${GAL}/layout-readback.json`;
 const RB = fs.existsSync(rbPath) ? JSON.parse(fs.readFileSync(rbPath, 'utf-8')) : null;
 
@@ -101,8 +101,8 @@ const seenTypes = (page) => (RB ? RB.matched.filter(m => m.page === page).map(m 
 const readback = (id, page) => seenTypes(page)
   .map(t => `${t} = <b>${RB.themes[id][t].variant}</b>`).join(' · ');
 
-// #981 条6/条7 —— 顶栏和页脚的读数。layout-readback.py 只看 <main> 里面的 <section>,而这两个在它外面
-// ⟹ 它们一直没有读数。**这一行读的是产物**:shoot.mjs 在浏览器里从 <header>/<footer> 身上的
+// #981 条6/条7 —— 顶栏和页脚的读数。退役的那个 layout-readback.py 只看 <main> 里面的 <section>,
+// 而这两个在它外面 ⟹ 它们一直没有读数。**这一行读的是产物**:shoot.mjs 在浏览器里从 <header>/<footer> 身上的
 // `data-region-layout` 取的,不是把注册表的 supports.header 抄一遍 —— 抄注册表会说假话,因为
 // resolveRegionLayout 会改主意(不认识的写法退回默认;透明浮层自己带一层遮罩)。
 //
@@ -193,7 +193,7 @@ const card = (id) => {
     ? `这一页上有 <b>${blockTypesOnAllBlocks}</b> 种块，每种一次（从这张图那份产物的 <code>data-block</code> 数回来的）`
     : '<b>这一轮没读到这一页上有几种块</b>（sites/ 里没有 allblocks.html，重跑 shoot-themes.sh）'}。
           上面两张图上只有其中一部分，所以不在首页和关于页上的那些块，只有在这一张上看得见（#1061）。
-          这一页下面没有版式读数：layout-readback.py 只给首页和内页分了组，
+          这一页下面没有版式读数（#1341 起任何一页都没有：产出它的 <code>layout-readback.py</code> 退役了），
           <b>拿不到的读数就不摆一个看起来像读数的东西</b>。<br>
           图很高，<b>在下面这个框里往下滚</b>；点它开原图。</figcaption>
         ${fs.existsSync(`${PUB}/shots/${id}-allblocks.png`)
@@ -280,13 +280,16 @@ const html = `<!doctype html>
   <details class="ceiling"><summary>每张图下面那行「版式」是什么 / 这一页看不出什么（点开）</summary>
     ${RB
       ? `<p><b>图下面那行版式是从这张图那份产物里读回来的</b>，不是把注册表抄一遍：把这些套按「页面上真渲染出来的结构」分一次组，再按「注册表里声明的写法」分一次组，两次分组完全一样才敢写上去。所以你可以拿它当核对用——比如 hero 写着 <code>split</code> 的那 ${RB.facts.hero_distribution.split ?? 0} 套，图上就该是左文右图。</p>`
-      : `<p style="color:#b00"><b>🔴 这一轮没有「版式读回」那条标注，图下面那一行是空的。</b>
-         产出它的 <code>layout-readback.py</code> 按自己的纪律拒绝写文件，而那条纪律是对的：它的判据是
-         「把这些套按页面上真渲染出来的骨架分组」，而今天产物里那一段是
-         <code>&lt;section data-block="hero" class="hero"&gt;</code> —— 一个固定的语义类名，长相全靠主题那张表。
-         于是每个位置都只有一组（本轮实测：首页 4 段 + 内页 2 段，六个位置全部是「1 组、17 套都在里面」）。
+      : `<p style="color:#b00"><b>🔴 没有「版式读回」那条标注，图下面那一行是空的，而且以后也不会有。</b>
+         产出它的 <code>layout-readback.py</code> 在 #1341 退役了：它对的那一维（主题对每个块声明用哪种
+         内容结构）整条没了 —— #1341 之后没有任何主题再声明它，构建也不再往块上写 <code>data.variant</code>。
+         在那之前它已经瞎了一段时间，原因是另一件事：它按「页面上真渲染出来的骨架」分组，而今天那一段是
+         <code>&lt;section data-block="hero" class="hero"&gt;</code>（一个固定的语义类名，长相全靠主题那张表），
+         于是每个位置都只有一组。
          <b>后果说在明处：这一页可以用来看「好不好看」，但【不能】用来核对「这套主题有没有按它声明的写法渲染」</b>
-         —— 那一维这一轮没有读数。</p>`}
+         —— 主题今天决定的是<b>皮</b>（颜色 / 字体 / 圆角 / 留白）和顶栏 / 页脚的结构；块排成什么样归平台的
+         <code>public/shapes.css</code> + 池里的 <code>shapes</code> 选择单（#1318），那一维的机械核对在
+         <code>theme-pipeline/pool.test.js</code> ⑪。</p>`}
     <p><b>这一页看不出差别的三样（也是量出来的）：</b></p>
     <ul>
       ${RB ? `<li>每套的<b>页面组成完全相同</b> —— 首页都是 ${RB.facts.sections_home} 段、内页都是 ${RB.facts.sections_about} 段，顺序也一样。今天的换装只能给每一段挑一种写法，改不了「这页上有哪些段、按什么顺序排」。</li>` : ''}

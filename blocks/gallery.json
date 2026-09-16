@@ -2,9 +2,6 @@
   "type": "gallery",
   "category": "gallery",
   "roleDefault": "optional",
-  "block_layout": [
-    "default"
-  ],
   "shapes": [
     {
       "name": "two-up",
@@ -45,11 +42,6 @@
       "required": true,
       "promptOptional": false,
       "shape": "[{title, description?, category?, imageUrl?: string}]"
-    },
-    "variant": {
-      "kind": "variant",
-      "required": false,
-      "promptOptional": false
     }
   },
   "variants": {

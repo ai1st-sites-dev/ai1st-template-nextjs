@@ -9,7 +9,8 @@ interface NewsletterSignupSectionProps {
     buttonText?: string;
   };
   locale: string;
-  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的 `data-role` / `data-shape` / `data-has-*` 从它来。
+   *  （#998 当初加它是为了第三个钩子 `data-block-layout`，#1341 把那个钩子退役了。） */
   block?: BlockConfig;
 }
 
@@ -18,8 +19,8 @@ interface NewsletterSignupSectionProps {
 // Four branches went out of here (`card`, `minimal`, `split` and the `inline` fallback), selected by
 // `data.variant`. Measured before deleting them: all four read `data.headline` / `data.description` /
 // `data.buttonText`, and `minimal` merely skipped the description — dropped content, not different
-// content, which is a look (same reading as awards' `banner` above). `block_layout` keeps its single
-// value.
+// content, which is a look (same reading as awards' `banner` above). There was nothing left for a
+// content-structure axis to say here, and #1341 retired `block_layout` outright.
 //
 // 🔴 THE CONTROLS ARE UNREACHABLE FROM A SHEET, NOT "LEFT TO BASE" — the distinction #1027 had to
 // draw for the two forms applies here too. Contract §1 refuses tag selectors, so `input` and
@@ -39,7 +40,11 @@ interface NewsletterSignupSectionProps {
 // both before and after this change. That is the #1012 family of defect (page JSON and component
 // disagree on a field name), it predates this ticket, and it is not in this ticket's scope.
 //
-// 🔴 `variant` IS STILL WRITTEN AND NO LONGER READ (#1008 AC5 precedent) — see the note in
+// 📌 #1341 — this line used to read "`variant` IS STILL WRITTEN AND NO LONGER READ". It is no
+//    longer written either: sync-config.js's line that overwrote `data.variant` from the theme
+//    went with the rest of that dimension, and a page JSON that still carries the key has it
+//    dropped on read (`scripts/blocks.js` §normalizeListSlots), so it never reaches a component.
+// 🔴 `variant` IS NO LONGER WRITTEN AND NO LONGER READ (#1008 AC5 precedent) — see the note in
 // `AwardsCertificationsSection.tsx`. Live: 1 instance, `inline`.
 export default function NewsletterSignupSection({ data, locale, block }: NewsletterSignupSectionProps) {
   const labels = getLabels(locale);

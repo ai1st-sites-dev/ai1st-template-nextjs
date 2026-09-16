@@ -13,7 +13,8 @@ interface TeamGridSectionProps {
     subheadline?: string;
     members: TeamMember[];
   };
-  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的 `data-role` / `data-shape` / `data-has-*` 从它来。
+   *  （#998 当初加它是为了第三个钩子 `data-block-layout`，#1341 把那个钩子退役了。） */
   block?: BlockConfig;
 }
 
@@ -36,10 +37,17 @@ interface TeamGridSectionProps {
 // 🔴 每个人是块的**直接子元素**，三个部件是他的直接子元素 —— 各一层，因为 grid / flex 只摆子元素。
 // 老的 `compact`（头像在左、文字在右）由主题在 `.team-grid__member` 上写 grid 列复原。
 //
-// 🔴 `variant` 照旧写在页面 JSON 里、照旧被 sync-config.js 从主题的 `supports` 覆盖，只是没人读了
+// 📌 #1341 —— 下面这句话原来的写法是「`variant` 照旧写在页面 JSON 里、照旧被 sync-config.js 从主题的
+//    `supports` 覆盖」。那条覆盖随内容结构那一维一起退役了：构建期不再往任何块写 `data.variant`，
+//    而老站磁盘上残留的这个键在构建读页面时就被丢掉（`scripts/blocks.js` 的 `normalizeListSlots`）
+//    ⟹ 它根本到不了组件。
+// 🔴 `variant` 只剩在老站磁盘上的页面 JSON 里，没人读了
 // （#1008 AC5 / #1018 的既定状态，别去「修」它），并且从上面的 props 类型里去掉了。
 //
-// 🔴 第三个钩子不是可选的 —— `blockAttrs('team-grid', block)`（#998 的 `data-block-layout`）。
+// 🔴 那第二个参数不是可选的 —— `blockAttrs('team-grid', block)`，不许写成 `blockAttrs('team-grid')`。
+// #1341 把第三个钩子 `data-block-layout` 退役了，但 `data-role` / `data-shape` /
+// `data-has-*` 仍然全从这个参数来；漏掉它 `tsc` 看不见（`registry.ts` 把组件类型写成
+// `ComponentType<any>`），#1008 r1 因此被打回。
 export default function TeamGridSection({ data, block }: TeamGridSectionProps) {
   return (
     <section {...blockAttrs('team-grid', block)} className="team-grid" aria-labelledby="team-heading">

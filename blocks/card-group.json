@@ -2,9 +2,6 @@
   "type": "card-group",
   "category": "feature",
   "roleDefault": "optional",
-  "block_layout": [
-    "default"
-  ],
   "shapes": [
     {
       "name": "two-up",

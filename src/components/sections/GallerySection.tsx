@@ -14,7 +14,8 @@ interface GallerySectionProps {
     subheadline?: string;
     items: GalleryItem[];
   };
-  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的 `data-role` / `data-shape` / `data-has-*` 从它来。
+   *  （#998 当初加它是为了第三个钩子 `data-block-layout`，#1341 把那个钩子退役了。） */
   block?: BlockConfig;
 }
 
@@ -43,11 +44,17 @@ interface GallerySectionProps {
 // 🔴 `<img>` 保留成 `.gallery__image`，因为它是**数据**（`item.imageUrl`），不是长相。有图就画图、
 // 没图画占位，这个二选一是内容结构，留在 markup 里。
 //
-// 🔴 `variant` 照旧写在页面 JSON 里、照旧被 sync-config.js 从主题的 `supports` 覆盖，只是没人读了
+// 📌 #1341 —— 下面这句话原来的写法是「`variant` 照旧写在页面 JSON 里、照旧被 sync-config.js 从主题的
+//    `supports` 覆盖」。那条覆盖随内容结构那一维一起退役了：构建期不再往任何块写 `data.variant`，
+//    而老站磁盘上残留的这个键在构建读页面时就被丢掉（`scripts/blocks.js` 的 `normalizeListSlots`）
+//    ⟹ 它根本到不了组件。
+// 🔴 `variant` 只剩在老站磁盘上的页面 JSON 里，没人读了
 // —— 同 hero / cta-banner 那个有意的状态（#1008 AC5 / #1018）。`'use client'` 和 `useRef` 一起没了。
 //
-// 🔴 第三个钩子不是可选的 —— `blockAttrs('gallery', block)`（#998 的 `data-block-layout`；
-// `tsc` 看不见它，#1008 r1 因此被打回）。
+// 🔴 那第二个参数不是可选的 —— `blockAttrs('gallery', block)`，不许写成 `blockAttrs('gallery')`。
+// #1341 把第三个钩子 `data-block-layout` 退役了，但 `data-role` / `data-shape` /
+// `data-has-*` 仍然全从这个参数来；漏掉它 `tsc` 看不见（`registry.ts` 把组件类型写成
+// `ComponentType<any>`），#1008 r1 因此被打回。
 export default function GallerySection({ data, block }: GallerySectionProps) {
   return (
     <section {...blockAttrs('gallery', block)} className="gallery" aria-labelledby="gallery-heading">

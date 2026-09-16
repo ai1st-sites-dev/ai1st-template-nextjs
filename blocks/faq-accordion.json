@@ -2,9 +2,6 @@
   "type": "faq-accordion",
   "category": "faq",
   "roleDefault": "essential",
-  "block_layout": [
-    "default"
-  ],
   "shapes": [
     {
       "name": "stack",
@@ -67,11 +64,6 @@
       "required": true,
       "promptOptional": false,
       "shape": "[{question, answer}]"
-    },
-    "variant": {
-      "kind": "variant",
-      "required": false,
-      "promptOptional": false
     }
   },
   "variants": {

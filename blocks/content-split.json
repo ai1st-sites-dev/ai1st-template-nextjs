@@ -2,12 +2,6 @@
   "type": "content-split",
   "category": "text",
   "roleDefault": "optional",
-  "block_layout": [
-    "with-media",
-    "text-only",
-    "with-stats",
-    "with-bullets"
-  ],
   "shapes": [
     {
       "name": "narrow-stack-uniform",
@@ -128,11 +122,6 @@
       "required": false,
       "promptOptional": true,
       "shape": "[{value, label}]"
-    },
-    "variant": {
-      "kind": "variant",
-      "required": false,
-      "promptOptional": false
     },
     "imageUrl": {
       "kind": "image",

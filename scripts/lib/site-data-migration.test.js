@@ -11,8 +11,10 @@
  *
  *   改少了 → 老类型名留在磁盘上，新模板不认识它，`SectionRenderer` 一句 console.warn + return null
  *            ⟹ 块从页面上消失，构建 exit 0，UI 报完成。真实付费客户（dexin.ca）身上有 6 个这种块。
- *   改多了 → 动了 AC1 没点名的东西。`data.variant` 被删掉，`theme-gallery/verify-applied.mjs`
- *            那一格就红在一件没发生的事上；正文文字被碰一个字节，就是改了客人的内容。
+ *   改多了 → 动了 AC1 没点名的东西。`data.variant` 被删掉 = 动了客人磁盘上的 data；正文文字被碰
+ *            一个字节，就是改了客人的内容。
+ *            📌 #1341 —— 这一句原来举的例子是「`theme-gallery/verify-applied.mjs` 那一格就红在一件
+ *               没发生的事上」。那段逐块对账随内容结构那一维一起退役了，例子换成上面那半句。
  *
  * 所以每一格都是「这一样变了」+「其余逐字节没变」两半一起断言。
  */

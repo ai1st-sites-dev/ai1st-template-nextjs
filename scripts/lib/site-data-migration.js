@@ -25,18 +25,23 @@
 //
 // 🔴 #1333 加了第四样，**只对它那一条规则生效**：`hero` + `block_layout: "with-form"` 改写成
 //   `hero-with-form` 时，顺手删掉 `block_layout` 并补一个空的 `data.form`。两样都不是可选的：
-//     · 删 `block_layout`：新块的取值表里没有 `with-form` 这个值（`blocks/hero-with-form.json` 的
-//       `block_layout` 是 `["default"]`，照 `card-group` 的先例）。留着它，`blockAttrs` 会把
-//       `data-block-layout="with-form"` 原样送进 DOM —— 一个今天没有任何东西声明过的取值。
+//     · 删 `block_layout`：📌 #1341 —— 这一条原来的理由是「新块的取值表里没有 `with-form` 这个值
+//       （`blocks/hero-with-form.json` 的 `block_layout` 是 `["default"]`），留着它 `blockAttrs` 会把
+//       `data-block-layout="with-form"` 原样送进 DOM」。那两句今天都不成立了：内容结构那一维整条
+//       退役，32 份 manifest 里都没有那份取值表了，`blockAttrs.ts` 也不再输出那个属性，老站残留的
+//       这个键由 `scripts/blocks.js` 的 `readPageBlocks` 读的时候丢掉。**这一步照旧删它**：迁移的
+//       产物是写回磁盘的页面 JSON，把一个已经没人读的键就地清掉，比留着它等下游每次读都丢干净。
 //     · 补 `data.form = {}`：`form` 是新块的**必填**槽位，而 `validateSite` 第 ① 条在构建期按必填查
 //       （scope 'build' ⟹ warning 不拦）。不补的话这个站此后每一次构建都多一行「缺必填槽 form」的
 //       假警报。补的是一个**空**记录：按钮文案和成功提示仍然缺省，由 `HeroLeadForm` 自己那两句顶上
 //       ⟹ 客人看到的字一个都没变。建站那条路（`lib/hero-lead-form.js`）写的是同一个东西。
 //
-// 🔴 `data.variant` / `data.style` 留着，不删。它们今天没人读，而**留在 data 里是有理由的**：
-// `CardGroupSection.tsx` 顶上那段写着 `scripts/theme-gallery/verify-applied.mjs` 拿磁盘上的
-// `data.variant` 跟产物里的对账，删掉它那一格会红在一件没发生的事上。别名表里那些 `null` 的意思
-// 是「继续忽略」，不是「删掉」。
+// 🔴 `data.variant` / `data.style` 留着，不删。它们今天没人读，而**这一步只做 AC1 点名的那几样**
+// —— 不碰客人磁盘上的 data。别名表里那些 `null` 的意思是「继续忽略」，不是「删掉」。
+// 📌 #1341 —— 这里原来给的理由是「`CardGroupSection.tsx` 顶上那段写着
+//    `scripts/theme-gallery/verify-applied.mjs` 拿磁盘上的 `data.variant` 跟产物里的对账，删掉它
+//    那一格会红」。那段逐块对账随内容结构那一维一起退役了（`CardGroupSection.tsx` 顶上那段同日
+//    改过），所以今天的理由只剩上面那条。结论没变：照旧不删。
 //
 // 🔴 `checklist` 的 `items` 是 `[string]`，这里【不动】它。把它升成 `[{title}]` 的是
 // `scripts/blocks.js` 的 `normalizeGenericItems`，而那个函数的判据是**归一化之后的 type 落在哪个

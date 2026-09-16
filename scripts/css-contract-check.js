@@ -122,9 +122,12 @@ function checkHookTable(rootDir, hooks, isHook) {
   }
 
   const problems = [];
-  // Rows written with a placeholder (`[data-block-layout="<value>"]`) stand for a whole family and
+  // Rows written with a placeholder (`[data-something="<value>"]`) stand for a whole family and
   // cannot be compared as strings. They are checked the only way that means anything: instantiate
   // one and ask the linter whether it would accept it.
+  // 📌 #1341 —— 今天 §1 的表里【一行都没有】占位符：唯一那一行是 `[data-block-layout="<value>"]`
+  //    （#998 的第三个钩子），而那一维退役了。这条分支留着是因为它问的是形状、不是那个具体的名字
+  //    —— 下一个按值分族的钩子进表时它照旧成立。
   const exact = new Set();
   for (const t of tokens) {
     if (t.includes('<')) {

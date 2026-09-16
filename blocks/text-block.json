@@ -2,11 +2,6 @@
   "type": "text-block",
   "category": "text",
   "roleDefault": "optional",
-  "block_layout": [
-    "default",
-    "quote",
-    "with-list"
-  ],
   "shapes": [
     {
       "name": "stack",
@@ -42,11 +37,6 @@
       "required": false,
       "promptOptional": true,
       "shape": "true"
-    },
-    "variant": {
-      "kind": "variant",
-      "required": false,
-      "promptOptional": true
     },
     "items": {
       "kind": "list",

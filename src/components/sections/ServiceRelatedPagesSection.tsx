@@ -10,7 +10,8 @@ interface ServiceRelatedPagesSectionProps {
     subheadline?: string;
   };
   locale: string;
-  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的 `data-role` / `data-shape` / `data-has-*` 从它来。
+   *  （#998 当初加它是为了第三个钩子 `data-block-layout`，#1341 把那个钩子退役了。） */
   block?: BlockConfig;
 }
 
@@ -37,8 +38,11 @@ interface ServiceRelatedPagesSectionProps {
 // `<ol>`/`<li>` (#1019): a sheet decides where the card sits and how big it is; what a card IS
 // belongs to the structure layer.
 //
-// 🔴 THE THIRD HOOK IS NOT OPTIONAL — `blockAttrs('service-related-pages', block)`, never
-// `blockAttrs('service-related-pages')` (#998's `data-block-layout`, invisible to `tsc`).
+// 🔴 THE SECOND ARGUMENT IS NOT OPTIONAL — `blockAttrs('service-related-pages', block)`, never
+// `blockAttrs('service-related-pages')`. #1341 retired the third hook `data-block-layout`, but `data-role`,
+// `data-shape` and `data-has-*` all still come from that second argument, and dropping it is
+// silent in every instrument we own (`registry.ts` types the components as
+// `ComponentType<any>`, so `tsc` cannot see it). #1008 r1 was bounced for exactly that.
 export default function ServiceRelatedPagesSection({ data, locale, block }: ServiceRelatedPagesSectionProps) {
   const allPages = pagesByLocale[locale] ?? [];
   const relatedPages = allPages.filter(

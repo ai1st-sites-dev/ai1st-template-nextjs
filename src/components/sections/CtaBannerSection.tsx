@@ -8,7 +8,8 @@ interface CtaBannerSectionProps {
     description: string;
     button: { label: string; href: string };
   };
-  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的第三个钩子从它来。 */
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的 `data-role` / `data-shape` / `data-has-*` 从它来。
+   *  （#998 当初加它是为了第三个钩子 `data-block-layout`，#1341 把那个钩子退役了。） */
   block?: BlockConfig;
 }
 
@@ -37,26 +38,31 @@ interface CtaBannerSectionProps {
 // changes too". Fixing it means picking a per-block id, which changes the DOM of a block phase 2 has
 // not been asked to change yet. Reported instead of quietly altered.
 //
-// 🔴 `variant` IS STILL WRITTEN AND NO LONGER READ — the same deliberate state hero is in (#1008 AC5),
+// 📌 #1341 — this line used to read "`variant` IS STILL WRITTEN AND NO LONGER READ". It is no
+//    longer written either: sync-config.js's line that overwrote `data.variant` from the theme
+//    went with the rest of that dimension, and a page JSON that still carries the key has it
+//    dropped on read (`scripts/blocks.js` §normalizeListSlots), so it never reaches a component.
+// 🔴 `variant` IS NO LONGER WRITTEN AND NO LONGER READ — the same deliberate state hero is in (#1008 AC5),
 // do not "fix" it here. It is also gone from the props type above, which is hero's precedent too
 // (`git show origin/main:…/HeroSection.tsx` — its `data` names five fields and `variant` is not one):
-// a component that declares a field it never reads is telling the next reader it matters. The field
-// keeps arriving in the JSON and React ignores extra keys, so nothing breaks; the manifest
-// (`blocks/cta-banner.json`) still declares the slot and the `variants` table, untouched, exactly as
-// #1008 left hero's — that file is what the AI writes against, and 32 blocks still use it. Page JSON carries `data.variant`, and sync-config.js still overwrites it from
-// the applied theme's `supports` table (the line reading
-// `block.data = { ...(block.data || {}), variant: preferred }` — quoted rather than numbered because
-// that file moves almost daily). All 30 frozen themes name a cta-banner variant (`gradient` ×9,
+// a component that declares a field it never reads is telling the next reader it matters. The key is still
+// on disk in older sites, but the build drops it before rendering, so nothing breaks; the manifest
+// (`blocks/cta-banner.json`) still carries the `variants` table — that file is what the AI writes
+// against.
+// 📌 #1341 — the manifest's `variant` SLOT is gone, and so is sync-config.js's line that overwrote
+//    `data.variant` from the applied theme's `supports`. A page JSON that already carries
+//    `data.variant` keeps carrying it and nobody reads it.
+// All 30 frozen themes name a cta-banner variant (`gradient` ×9,
 // `dark` ×7, `solid` ×6, `outlined` ×4, `split` ×4) and not one of those values reaches the page any
 // more; that is the accepted degradation (spec D3 + D12, Chris 2026-08-13) — the old pool is retired
-// and the real one is generated in phase 3 against the final contract. Both the field and the overwrite
-// stay because the other 32 blocks have not moved yet and they read it through the same path.
+// and the real one is generated in phase 3 against the final contract. The overwrite is gone (#1341); the manifests
+// keep their `variants` tables because that is what the site-building AI writes against.
 //
-// 🔴 THE THIRD HOOK IS NOT OPTIONAL — `blockAttrs('cta-banner', block)`, never `blockAttrs('cta-banner')`.
-// #998 puts the page JSON's `block_layout` and `role` on the root element through that second argument.
-// Dropping it is silent in every instrument we own: `registry.ts` types the components as
-// `ComponentType<any>`, so `tsc` cannot see it, the build stays green and the page still opens — only
-// `data-block-layout` is gone from the tree. #1008 r1 was bounced for exactly that.
+// 🔴 THE SECOND ARGUMENT IS NOT OPTIONAL — `blockAttrs('cta-banner', block)`, never
+// `blockAttrs('cta-banner')`. #1341 retired the third hook `data-block-layout`, but `data-role`,
+// `data-shape` and `data-has-*` all still come from that second argument, and dropping it is
+// silent in every instrument we own (`registry.ts` types the components as
+// `ComponentType<any>`, so `tsc` cannot see it). #1008 r1 was bounced for exactly that.
 export default function CtaBannerSection({ data, block }: CtaBannerSectionProps) {
   return (
     <section {...blockAttrs('cta-banner', block)} className="cta-banner" aria-labelledby="cta-heading">

@@ -2,7 +2,6 @@
   "card-group": {
     "type": "card-group",
     "role": "optional",
-    "block_layout": null,
     "data": {},
     "itemTag": "div",
     "headingId": "card-group-heading",
