@@ -23,6 +23,9 @@
 //    落在渲染出来的页面上(量 hero 那块的实际颜色),那是另一套机制;在它存在之前,这里只说得出
 //    「证明不了」,而「证明不了 ⟹ 加遮罩」就是下面这一行。
 
+const fs = require('fs');
+const path = require('path');
+
 // 🔴 #1353 —— 这里原来是三张写死的清单（`HEADER_VARIANTS` 4 · `FOOTER_VARIANTS` 3 ·
 // `TOPBAR_VARIANTS` 4）。顶栏 / 页脚 / 公告条按块的规矩搬进形态层之后，「这个区有哪些结构」的
 // 唯一权威是**块 manifest**（`blocks/<区>.json` 的 `shapes`），跟别的 32 个块一模一样。
@@ -35,13 +38,29 @@
 // **全树没有任何 CSS 选它**（判据：8 份 CSS 里 `region-layout` 命中 0；同一把 grep 换成
 // `data-shape` 命中 2 ⟹ 尺子不是恒 0）。搬「四个画出来相同的名字」不是 #1318 的搬不删，是新造
 // 四种形态 —— 本文件头上那条「不为将来可能有预留名字」（`public/shapes.css` 文件头同款）禁的就是它。
-const blockManifest = require('./lib/block-manifest');
-
-/** 一个区有哪些形态 —— 现从它自己的 manifest 取（第 0 项是默认，`block-manifest.js` 保证它 needs 为空）。 */
+/** 一个区有哪些形态 —— 从它自己的 manifest 现取（第 0 项是默认，`block-manifest.js` 的
+ * `checkManifestShape` 保证它 needs 为空）。
+ *
+ * 🔴 **直接读那一份 JSON，不走 `block-manifest.js` 的 `loadManifests()`。** 权威是同一个文件，
+ * 差别在依赖面：`loadManifests()` 会顺带把**全部 34 份** manifest 读一遍、逐份跑校验、还要核
+ * `public/shapes.css`（形态清单两向对账）。本文件只想知道「这个区有哪几个名字」，而它有一批调用方
+ * 跑在**只有部分模板**的临时树里（`lib/remediation.test.js` 与 `lib/site-shape.test.js` 造的那几棵
+ * 对照树）。走那条重的链，那些树要跟着补 `scripts/blocks.js` + `src/lib/sections/` +
+ * `public/shapes.css` 才跑得起来 —— 我真的一步步补过，补到第四样才发现是依赖方向错了：
+ * **校验是构建的职责，不是「读一张清单」的职责。**
+ * 📌 manifest 本身的合法性照旧有人管：`loadManifests()` 在构建和 `block-manifest.test.js` 里跑，
+ *    一份写坏的 manifest 在那两处当场抛。这里读到空清单时 `resolveRegionShapes` 会退回空串并记 notes。
+ */
+const _shapesCache = new Map();
 function shapesOf(blockType) {
-  const m = blockManifest.loadManifests().get(blockType);
-  if (!m || !Array.isArray(m.shapes)) return [];
-  return m.shapes.map((sh) => sh.name);
+  if (_shapesCache.has(blockType)) return _shapesCache.get(blockType);
+  let names = [];
+  try {
+    const raw = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'blocks', `${blockType}.json`), 'utf-8'));
+    if (Array.isArray(raw.shapes)) names = raw.shapes.map((sh) => sh && sh.name).filter(Boolean);
+  } catch { names = []; }
+  _shapesCache.set(blockType, names);
+  return names;
 }
 
 /** 三个区各自的块类型。`topbar` 这个区名对应的块是公告条。 */

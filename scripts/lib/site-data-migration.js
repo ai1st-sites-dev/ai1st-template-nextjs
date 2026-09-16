@@ -101,8 +101,22 @@ const LEGACY_BLOCK_TYPES = {
 // require 不动，而按正则去抠一份 TS 文件就是第二份实现。那张 JSON 是类型级角色表，CLAUDE.md 的
 // 「Adding a New Section」第 3 步要求每个新类型都在里面有一行，`978-theme-preview-layout.spec.ts`
 // 会当场抓住漏的。两边的键集相等由 §site-data-migration.test.js 盯着。
+// 🔴 #1353 —— 这个集合问的是「**页面 JSON 里**写得出哪些 type」，所以**外壳区不算**。顶栏 / 页脚
+// 今天在角色表里各占一行（它们是块：有 manifest、有形态、受同一批守卫），但它们**不进页面 JSON**：
+// 哪一页有它们由 page layout 库说、`SiteShell.tsx` 渲染，`registry.ts` 那张「页面 JSON 的 type →
+// 组件」的表里按构造没有它们。不滤掉的后果是这个函数会把 `{"type":"header"}` 判成一个认得的页面块
+// —— 迁移放行、构建不拦，而 `SectionRenderer` 查不到组件，那一块**静默不渲染**。
+// 判据用 manifest 自己声明的 `region: true`，不推断（同 `block-manifest.js` 的 `isRegionManifest`）。
 function knownBlockTypes(rootDir) {
-  return new Set(Object.keys(blockRoles(rootDir)));
+  let manifests;
+  try {
+    manifests = require(path.join(rootDir, 'scripts', 'lib', 'block-manifest.js'))
+      .loadManifests(path.join(rootDir, 'blocks'));
+  } catch {
+    manifests = null; // 读不到 manifest 就不滤 —— 失败方向是「多认几个」，跟本函数此前的行为一致。
+  }
+  return new Set(Object.keys(blockRoles(rootDir))
+    .filter((t) => !(manifests && manifests.get(t) && manifests.get(t).region === true)));
 }
 
 // blockRoles —— 今天那张类型级角色表本身（`knownBlockTypes` 只要它的键，补 role 那一步要它的值）。

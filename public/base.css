@@ -1330,9 +1330,15 @@
   box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
 }
 
+/* 遮罩的**渐变**在这里（单个类），露不露面由 `shapes.css` 说。浓度是按「首屏是纯白」这个最坏情况
+   定的 —— 浮层的字是白的，不这么浓就读不出来；那段论证和实测读数在 `scripts/region-layout.js` 的
+   文件头。🔴 `via-black/55` 那个数还有第二处（`region-layout.js` 的 `HEADER_SCRIM_MID_ALPHA`），
+   `theme-pipeline/pool.test.js` 有一格盯着两处一致。 */
 .header__scrim {
   display: none;
   pointer-events: none;
+  height: 10rem;
+  background-image: linear-gradient(to bottom, rgb(0 0 0 / 0.75), rgb(0 0 0 / 0.55), transparent);
 }
 
 .header__bar {
@@ -1342,6 +1348,21 @@
   align-items: center;
   gap: 2rem;
   padding: 1rem;
+}
+
+/* 顶栏默认那一支的左右内边距三档（改造前 `px-4 sm:px-6 lg:px-8`）。上下恒 1rem（`py-4`）。 */
+@media (min-width: 640px) {
+  .header__bar {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .header__bar {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
 }
 
 .header__logo {

@@ -167,8 +167,8 @@ console.log('\n── ④ 已下架那 30 套：新建网站一套都抽不到�
   else bad(`NEUTRAL_TOPUP 指向池外的 id：${topupOutside.join(' · ')}`);
 }
 
-// ── ⑤ layout → supports（AC6）───────────────────────────────────────────────────────────────────
-console.log('\n── ⑤ 池里每一套都有 supports、没有一套还留着 layout');
+// ── ⑤ layout → 选择单（AC6；#1353 起顶栏 / 页脚也在选择单里，`supports` 整个退役）──────────────
+console.log('\n── ⑤ 池里每一套都有选择单、没有一套还留着 layout 或 supports');
 {
   const problems = verifyPool(poolThemes);
   if (!problems.length) ok(`${poolIds.length} 套逐套查过`);
@@ -182,17 +182,32 @@ console.log('\n── ⑤ 池里每一套都有 supports、没有一套还留着
   if (caught.length) ok(`反向对照：给 ${firstId} 留一个 layout 键，它当场被点名`);
   else bad('反向对照失败：留着 layout 的那一套没被点名 —— 这把尺量不出东西');
 
-  const noSupports = { ...poolThemes, [firstId]: { ...poolThemes[firstId], supports: {} } };
-  if (verifyPool(noSupports).some((p) => p.startsWith(`${firstId}:`))) {
-    ok(`反向对照：把 ${firstId} 的 supports 清空，它当场被点名`);
+  const noShapes = { ...poolThemes, [firstId]: { ...poolThemes[firstId], shapes: {} } };
+  if (verifyPool(noShapes).some((p) => p.startsWith(`${firstId}:`))) {
+    ok(`反向对照：把 ${firstId} 的选择单清空，它当场被点名`);
   } else {
-    bad('反向对照失败：supports 为空的那一套没被点名');
+    bad('反向对照失败：选择单为空的那一套没被点名');
   }
 
-  // `layoutFor()` 是 #1010 那条「行为不变」保证的消费方 —— 池里每一套都要取得到值。
-  const noLayout = poolIds.filter((id) => !Object.keys(themesMod.layoutFor(id)).length);
-  if (!noLayout.length) ok('layoutFor() 对池里每一套都取得到值');
-  else bad(`layoutFor() 对这几套返回 {}：${noLayout.slice(0, 6).join(' · ')}`);
+  // #1353 —— `supports` 那个键**一个都不许再有**（`themes.js` 的 `themesWithSupports`，
+  // `sync-config.js` 拿它拦构建）。反向对照：塞一个回去，这把尺必须点名。
+  const withSupports = {
+    ...poolThemes, [firstId]: { ...poolThemes[firstId], supports: { header: ['solid-bar'] } },
+  };
+  if (verifyPool(withSupports).some((p) => p.startsWith(`${firstId}:`))) {
+    ok(`反向对照：给 ${firstId} 塞回一个 supports 键，它当场被点名`);
+  } else {
+    bad('反向对照失败：还留着 supports 的那一套没被点名 —— 那个键就是它回来的路');
+  }
+
+  // `regionShapesFor()` 是构建那条路的消费方（#1353 之前叫 `layoutFor`，读 `supports`）——
+  // 池里每一套都要取得到顶栏 / 页脚两个值，取不到的站会落回 manifest 的默认。
+  const noRegion = poolIds.filter((id) => {
+    const r = themesMod.regionShapesFor(id);
+    return !r.header || !r.footer;
+  });
+  if (!noRegion.length) ok('regionShapesFor() 对池里每一套都取得到 header / footer');
+  else bad(`regionShapesFor() 对这几套取不全：${noRegion.slice(0, 6).join(' · ')}`);
 }
 
 // ── ⑥ 每一套的表都在磁盘上 ─────────────────────────────────────────────────────────────────────
@@ -240,22 +255,27 @@ console.log('\n── ⑦ 行业组表：不重不漏，位子数 == 池子大�
 console.log('\n── ⑧ 透明浮层只给深底首屏；判据里那个遮罩浓度跟组件里的一致');
 {
   const region = require(path.join(NEXT, 'scripts', 'region-layout.js'));
-  const headerTsx = path.join(NEXT, 'src', 'components', 'Header.tsx');
+  // 🔴 #1353 —— 遮罩的**渐变搬家了**：它以前是 `Header.tsx` 里的一串 Tailwind 类
+  //    （`from-black/75 via-black/55 to-transparent`），顶栏搬进形态层之后那个元素恒在 DOM 里、
+  //    渐变写在 `public/base.css` 的 `.header__scrim`（单个类，地板）。这一格问的性质**一个字没变**
+  //    ——「判据里那个 55% 跟真遮罩是不是同一个数」—— 只是去问另一份字节。
+  //    📌 这一格不许改成「读 region-layout.js 的常量再跟它自己比」：那样两边是同一个来源，恒绿。
+  const scrimCss = path.join(NEXT, 'public', 'base.css');
   let src = '';
-  try { src = fs.readFileSync(headerTsx, 'utf-8'); } catch { /* 下面按读不到处理 */ }
-  const scrim = /from-black\/(\d+)\s+via-black\/(\d+)\s+to-transparent/.exec(src);
+  try { src = fs.readFileSync(scrimCss, 'utf-8'); } catch { /* 下面按读不到处理 */ }
+  const scrim = /linear-gradient\(\s*to bottom\s*,\s*rgb\(0 0 0 \/ ([0-9.]+)\)\s*,\s*rgb\(0 0 0 \/ ([0-9.]+)\)\s*,\s*transparent\s*\)/.exec(src);
   if (!src) {
-    bad(`读不到 src/components/Header.tsx —— 遮罩浓度那半没法核，这不是通过`);
+    bad('读不到 public/base.css —— 遮罩浓度那半没法核，这不是通过');
   } else if (!scrim) {
-    bad('Header.tsx 里找不到 `from-black/NN via-black/NN to-transparent` 那条遮罩 —— '
-      + '要么遮罩改写法了、要么没了，两种情况下 region-layout.js 那条规则都要重新量一次');
+    bad('public/base.css 的 `.header__scrim` 里找不到 `linear-gradient(to bottom, rgb(0 0 0 / a), rgb(0 0 0 / b), transparent)` '
+      + '那条遮罩 —— 要么遮罩改写法了、要么没了，两种情况下 region-layout.js 那条规则都要重新量一次');
   } else {
-    const mid = Number(scrim[2]) / 100;
+    const mid = Number(scrim[2]);
     if (Math.abs(mid - region.HEADER_SCRIM_MID_ALPHA) < 1e-9) {
-      ok(`Header.tsx 的遮罩是 from-black/${scrim[1]} via-black/${scrim[2]}，`
+      ok(`base.css 的遮罩是 rgb(0 0 0 / ${scrim[1]}) → rgb(0 0 0 / ${scrim[2]}) → transparent，`
         + `跟 region-layout.js 的 HEADER_SCRIM_MID_ALPHA=${region.HEADER_SCRIM_MID_ALPHA} 一致`);
     } else {
-      bad(`遮罩浓度对不上：Header.tsx 是 via-black/${scrim[2]}（${mid}），`
+      bad(`遮罩浓度对不上：base.css 中段是 ${mid}，`
         + `region-layout.js 按 ${region.HEADER_SCRIM_MID_ALPHA} 挑顶栏 —— 挑的时候量的不是真遮罩`);
     }
   }
@@ -301,8 +321,10 @@ console.log('\n── ⑧ 透明浮层只给深底首屏；判据里那个遮罩
     bad('池里找不到一套浅底首屏的表 —— 反向对照没法做，那么上面那句"每一套都过"证明不了函数在判事');
   } else {
     const paleCss = fs.readFileSync(path.join(NEXT, 'public', 'themes', `${poolThemes[paleId].sheet}.css`), 'utf-8');
-    // index 取 HEADER_VARIANTS 里浮层那一格，也就是"本来该轮到浮层"的那些位子。
-    const overlayIndex = region.HEADER_VARIANTS.indexOf('transparent-overlay');
+    // index 取顶栏形态清单里浮层那一格，也就是"本来该轮到浮层"的那些位子。
+    // #1353 —— 清单从 `blocks/header.json` 现取（`region.shapesOf('header')`），
+    // `HEADER_VARIANTS` 那张写死的表随顶栏搬进形态层一起退役了。
+    const overlayIndex = region.shapesOf('header').indexOf('transparent-overlay');
     const picked = region.headerVariantForPool(overlayIndex, paleCss, poolThemes[paleId].colors);
     if (picked.variant !== 'transparent-overlay' && picked.why) {
       ok(`反向对照：拿 ${paleId} 那份浅底表 + 本来轮到浮层的位子 ⟹ 让开成 ${picked.variant}（${picked.why}）`);

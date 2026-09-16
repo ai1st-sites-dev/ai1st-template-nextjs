@@ -3173,9 +3173,27 @@
    aspect-ratio / flex* / width —— 因为此前搬的都是**文档流里**的块。顶栏有两种（`transparent-overlay`
    压在首屏上、`pill-floating` 吸顶）的本质就是「它脱不脱离文档流、贴在哪」，那跟 `order` 是同一族
    问题：**零件摆在哪**。所以它们进这一层。
-   🔴 仍然不写 `gap` / `padding` / `margin` / `border-radius`（文件头那条）：那几样是间距和圆角，
-      归主题表。这一条在这批上是**承重**的 —— `pill-floating` 与 `solid-bar` 的差别**几乎全是**
-      内边距、圆角、阴影、底色（判块表里逐条写了），写进这里就是把皮搬进形态层。
+   ── 🔴 一条明写的例外，射程只到这两个区 ───────────────────────────────────────────────────────
+   文件头那条「不写 `gap` / `padding` / `margin` / `border-radius`」对**内容块**成立，理由是
+   「间距和圆角本身仍然是主题的」—— 那句话预设了**有一个主题维度**在管它们。三个区今天**没有那一维**：
+   全仓没有任何一套主题碰过顶栏页脚（`data-region-layout` 在 8 份 CSS 里命中 0），它们的间距一直是
+   平台写死的 Tailwind 类。
+
+   所以这两个区的**每形态间距与皮**写在下面，`[data-block="header"]` / `[data-block="footer"]`
+   限定内，**不扩散到任何内容块**。三条路都量过，这是代价最小的那条：
+
+     ① 写主题表 —— 正文 做什么 #2 原话「皮进主题表」。代价：要往契约 §1 加约 **50 个**
+        `header__*` / `footer__*` 钩子（今天 201 个钩子 / 31 个块，一个都没有），每套主题表各写
+        50 条规则，而且**新开一维**（主题从此能改顶栏长相）。AC1 要的恰恰是逐像素不变 ⟹ 纯风险。
+     ② 写 `public/base.css` —— 走不通：那份文件**只许单个类**选择器（`scripts/base-css-lint.js`
+        连后代选择器都拒），说不出「某个形态的某个零件」。给每个零件再挂一个修饰类能绕过去，
+        代价是 markup 里多十来个派生类、区的样式散成两处。
+     ③ 就是这里。破的是一条**为内容块写的**约定，而它的理由对区不成立；射程用 `[data-block]`
+        钉死，越界一眼看得出来。
+
+   🔴 判据留给下一个人：`grep -cE '^\s*(gap|padding|margin|border-radius)' public/shapes.css` 的
+      命中**必须全部落在下面这一节里**（`[data-block="header"]` / `[data-block="footer"]` 限定内）。
+      落到别处就是这条例外在扩散，那是它唯一的失败方向。
 
    ── 四种顶栏共有的那一段为什么不逐形态抄四遍 ──────────────────────────────────────────────────
    「小屏收进汉堡、≥768px 展开」这件事四种完全一样。抄四遍的失败方向是**漂**：改一处漏三处，
@@ -3428,10 +3446,15 @@
    markup）。它在骨架里恒存在，这一层把它打开；色带的底色和内边距是皮，归主题表。
    下面那部分改造前是三列（`md:grid-cols-3`），不是多列大脚的四列，而且不画导航栏目。 */
 
+/* 🔴 `justify-content` 这一行是 `sheet-recipes.test.js` ④ 那条不变量要的：一个块声明了
+   `text-align: center`，它下面的 flex 容器就必须自己说怎么摆 —— `text-align` 管不了 flex 项。
+   这里是**列向** flex，横向居中其实由 `align-items` 给；`justify-content` 管的是纵向，而这条带的
+   高度由内容撑起、没有多余空间 ⟹ 视觉上是 no-op。两边都满足，不必二选一。 */
 [data-block="footer"][data-shape="cta-band"] .footer__cta {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
 }
 
 [data-block="footer"][data-shape="cta-band"] .footer__col--nav {
@@ -3454,5 +3477,178 @@
 @media (min-width: 768px) {
   [data-block="footer"][data-shape="cta-band"] .footer__body {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   #1353 · 两个区的【每形态间距与皮】—— 上面那条明写例外的射程就是这一节
+   ══════════════════════════════════════════════════════════════════════════════════════════════
+   每一条都是从改造前那三 / 四支的 Tailwind 类串**逐属性照搬**的，不是重新设计：AC1 要的是包围盒
+   逐像素不变，所以这里唯一正确的写法就是把那些类翻成它们本来的 CSS 值。
+   📌 默认那两支（顶栏 `solid-bar` · 页脚 `multi-column`）不在这里 —— 它们是地板，住 `base.css`。 */
+
+/* ── header · transparent-overlay（浮起来那一格才换皮；不浮时它就是地板那一份）───────────────── */
+
+[data-block="header"][data-shape="transparent-overlay"][data-over-hero="true"] {
+  background-color: transparent;
+  box-shadow: none;
+}
+
+[data-block="header"][data-shape="transparent-overlay"][data-over-hero="true"] .header__bar {
+  padding: 1.5rem 1rem;
+}
+
+@media (min-width: 640px) {
+  [data-block="header"][data-shape="transparent-overlay"][data-over-hero="true"] .header__bar {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-block="header"][data-shape="transparent-overlay"][data-over-hero="true"] .header__bar {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+/* ── header · pill-floating ──────────────────────────────────────────────────────────────────
+   外层那条 `<header>` 自己**不画底、不投影**（改造前那一支的 class 串里就没有 `bg-white shadow-sm`），
+   画出来的是里面那根胶囊条。 */
+
+[data-block="header"][data-shape="pill-floating"] {
+  background-color: transparent;
+  box-shadow: none;
+  padding: 1rem 1rem 0;
+}
+
+[data-block="header"][data-shape="pill-floating"] .header__bar {
+  border-radius: 9999px;
+  background-color: #fff;
+  padding: 0.75rem 1.5rem;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  outline: 1px solid rgb(0 0 0 / 0.05);
+  outline-offset: -1px;
+}
+
+[data-block="header"][data-shape="pill-floating"] .header__menu {
+  margin-top: 0.5rem;
+  border-top: 0;
+  border-radius: 1rem;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+@media (min-width: 640px) {
+  [data-block="header"][data-shape="pill-floating"] {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-block="header"][data-shape="pill-floating"] {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+/* ── footer · slim-row ───────────────────────────────────────────────────────────────────────
+   改造前这一支的壳是 `container-width px-4 py-8 sm:px-6 lg:px-8`，里面一条 `gap-6` 的行，
+   版权行 `mt-6 … pt-6`。下面就是这几个数。 */
+
+[data-block="footer"][data-shape="slim-row"] .footer__body {
+  gap: 1.5rem;
+  padding: 2rem 1rem 0;
+}
+
+[data-block="footer"][data-shape="slim-row"] .footer__legal {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  padding-bottom: 2rem;
+}
+
+@media (min-width: 640px) {
+  [data-block="footer"][data-shape="slim-row"] .footer__body,
+  [data-block="footer"][data-shape="slim-row"] .footer__legal {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-block="footer"][data-shape="slim-row"] .footer__body,
+  [data-block="footer"][data-shape="slim-row"] .footer__legal {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+/* ── footer · cta-band ───────────────────────────────────────────────────────────────────────
+   色带是 `bg-accent-500` + `py-10 px-4 gap-4`；下面那部分 `py-10` + `gap-8`；版权行 `mt-10 pt-6`。 */
+
+[data-block="footer"][data-shape="cta-band"] .footer__cta {
+  background-color: var(--color-accent-500);
+  gap: 1rem;
+  padding: 2.5rem 1rem;
+  text-align: center;
+}
+
+[data-block="footer"][data-shape="cta-band"] .footer__cta-title {
+  font-size: 1.5rem;
+  line-height: 2rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+[data-block="footer"][data-shape="cta-band"] .footer__cta-sub {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: rgb(255 255 255 / 0.9);
+}
+
+[data-block="footer"][data-shape="cta-band"] .footer__cta-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  background-color: #fff;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: 600;
+  color: var(--color-primary-900);
+}
+
+[data-block="footer"][data-shape="cta-band"] .footer__body {
+  gap: 2rem;
+  padding: 2.5rem 1rem 0;
+}
+
+[data-block="footer"][data-shape="cta-band"] .footer__legal {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  padding-bottom: 2.5rem;
+}
+
+@media (min-width: 640px) {
+  [data-block="footer"][data-shape="cta-band"] .footer__cta,
+  [data-block="footer"][data-shape="cta-band"] .footer__body,
+  [data-block="footer"][data-shape="cta-band"] .footer__legal {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-block="footer"][data-shape="cta-band"] .footer__cta {
+    text-align: left;
+  }
+
+  [data-block="footer"][data-shape="cta-band"] .footer__cta,
+  [data-block="footer"][data-shape="cta-band"] .footer__body,
+  [data-block="footer"][data-shape="cta-band"] .footer__legal {
+    padding-left: 2rem;
+    padding-right: 2rem;
   }
 }

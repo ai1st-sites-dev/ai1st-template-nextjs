@@ -191,6 +191,11 @@ const PAGE_READS = [
     // 顶栏四种结构全部渲染那个按钮（三种直接用 `const cta = …` 那个别名，`cta-band` 页脚里
     // 还另有一份）。所以它永远不会走到下面那句话 —— 本票的正文说它「读不到的站 = 0」。
     renderedBy: ['solid-bar', 'transparent-overlay', 'centered-logo', 'pill-floating'],
+    // #1353 —— 决定它在某一种形态下看不看得见的那些类（**任何一个** display:none 就算看不见）。一副骨架之后，组件对每一种形态都渲染同样的
+    // DOM，差别整个落在 `public/shapes.css` 把哪几个零件 `display:none`。这个键**显式声明**、不推断
+    // （同 `block-manifest.js` 的 `hooksFrom` / `region`），因为它有时是零件自己、有时是它的容器：
+    // 栏目链接归 `.footer__col--nav`（`cta-band` 关掉的是整栏，不是每条链接）。
+    visibilityClasses: ['header__cta'],
     renderPaths: ['header.cta.label', 'header.cta.href'],
     what: 'the button at the top of every page',
     read: (nav) => (isObj(nav) && isObj(nav.header) ? nav.header.cta : undefined),
@@ -201,6 +206,7 @@ const PAGE_READS = [
     // 三支都读。前两支读的是 `const copyright = …` 那个别名（`Footer.tsx` 里 hoist 出来的一个
     // 变量），只 grep 字段名会漏掉它们 —— ⑫ 那把解析器跟着别名走，所以这一格是量出来的。
     renderedBy: ['slim-row', 'cta-band', 'multi-column'],
+    visibilityClasses: ['footer__legal'],
     renderPaths: ['footer.copyright'],
     what: 'the copyright line at the bottom of every page',
     read: (nav) => (isObj(nav) && isObj(nav.footer) ? nav.footer.copyright : undefined),
@@ -209,6 +215,7 @@ const PAGE_READS = [
     key: 'footer.description',
     region: 'footer',
     renderedBy: ['cta-band', 'multi-column'],
+    visibilityClasses: ['footer__desc'],
     renderPaths: ['footer.description'],
     what: 'the short blurb in the footer',
     read: (nav) => (isObj(nav) && isObj(nav.footer) ? nav.footer.description : undefined),
@@ -217,6 +224,10 @@ const PAGE_READS = [
     key: 'footer.columns[].title',
     region: 'footer',
     renderedBy: ['multi-column'],
+    // 🔴 **两个**决定者，缺一不可：`cta-band` 关掉的是整栏（`.footer__col--nav`），
+    // `slim-row` 关掉的只是标题（`.footer__col-title`，那一栏自己是 `display: contents`）。
+    // 只写后者，`cta-band` 会被判成「栏目标题看得见」；只写前者，`slim-row` 会。
+    visibilityClasses: ['footer__col--nav', 'footer__col-title'],
     renderPaths: ['footer.columns[].title'],
     what: 'the footer column titles',
     read: (nav) => {
@@ -234,6 +245,7 @@ const PAGE_READS = [
     key: 'footer.columns[>0].links',
     region: 'footer',
     renderedBy: ['slim-row', 'multi-column'],
+    visibilityClasses: ['footer__col--nav'],
     renderPaths: ['footer.columns[].links'],
     what: 'the links in the footer columns after the first one',
     read: (nav) => {
@@ -247,7 +259,11 @@ const PAGE_READS = [
     // `renderedBy` 列的是全部 topbar 版式：区在，四种结构都画它；区不在，一种都画不到。
     key: 'topbar',
     region: 'topbar',
-    renderedBy: ['solid', 'bordered', 'dismissible', 'floating'],
+    // #1353 —— 公告条的形态清单今天是 `blocks/announcement-bar.json` 的（一种：`stack`）。那四个
+    // 名字（solid/bordered/dismissible/floating）在 #1036 就已经没有对应的 markup 了，#1353 把它们从
+    // 清单里拿掉 —— 这一格问的仍是「这个站的页面上有没有那个区」，跟形态名无关。
+    renderedBy: ['stack'],
+    visibilityClasses: ['announcement-bar'],
     renderPaths: ['topbar.message'],
     what: 'the thin strip above the header',
     read: (nav) => (isObj(nav) ? nav.topbar : undefined),
