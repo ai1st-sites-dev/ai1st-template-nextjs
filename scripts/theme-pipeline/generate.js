@@ -63,6 +63,11 @@ const FONT_PAIRS = [
 // 版式那个名字仍然从这里出（`layout.json` 写的就是它），配方模块与它共用同一份清单。
 const { sheetFor, layoutNamesFor } = require('./sheet-recipes.js');
 
+// #1342 —— 候选的**选择单**（每个块一个形态名）。挑法和它为什么不是 `(i + k) % n` 都在那个文件头上。
+// 🔴 它跟 `layout` 是同一个形状的东西：生成器算一次、落一个自己的文件、`promote.js` 读回来翻成池
+// 成员的一个键。所以下面那三条纪律（不进 tokens、不能只活在内存里、只算一处）对它逐字适用。
+const { shapeSheetFor, shapeSheetPath } = require('./shape-sheet.js');
+
 /** 生成 n 套候选。同一个 seed 出同一批 —— 闸的每一格都要能被同一个输入反复驱动。 */
 function generateCandidates(n = 3, { seed = 7, outDir } = {}) {
   const out = [];
@@ -103,6 +108,9 @@ function generateCandidates(n = 3, { seed = 7, outDir } = {}) {
       id,
       tokens,
       layout: layoutNamesFor(i),
+      // #1342 —— 第六道闸（`gates.js` 的 `gateShapes`）问的就是这个键：`blocks/` 里每个块一个形态名，
+      // 不多不少。名字从块 manifest 的 `shapes` 清单里挑，分母和取值范围都现读，见 shape-sheet.js。
+      shapes: shapeSheetFor(i, seed),
       sheet,
     };
     if (outDir) {
@@ -115,6 +123,10 @@ function generateCandidates(n = 3, { seed = 7, outDir } = {}) {
       // 的版式那一项永远没得比（QA2 在 r2 量到的那件事的一半）。它自己一个文件。
       fs.writeFileSync(path.join(outDir, `${id}.layout.json`),
         `${JSON.stringify(entry.layout, null, 2)}\n`);
+      // #1342 —— 选择单同理：它也不进 tokens（多一个键该被第一道闸点名），也不能只活在内存里
+      // （`run.js --candidates` 那条路从磁盘读回候选，读不回来的话第六道闸对它恒拒）。文件名只算
+      // 一处（`shapeSheetPath`）—— 写它的是这里，读它的是另一个进程里的 `promote.js`。
+      fs.writeFileSync(shapeSheetPath(outDir, id), `${JSON.stringify(entry.shapes, null, 2)}\n`);
     }
     out.push(entry);
   }

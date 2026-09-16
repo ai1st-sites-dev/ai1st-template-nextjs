@@ -28,6 +28,8 @@ const path = require('path');
 const NEXT = path.resolve(__dirname, '..', '..');
 const { poolSlots } = require('./industry-sectors.js');
 const { regionsForPool } = require('../region-layout.js');
+// #1342 —— `<id>.shapes.json` 这个文件名只算一处：写它的是 generate.js，读它的是这里。
+const { shapeSheetPath } = require('./shape-sheet.js');
 
 const POOL_PATH = path.join(NEXT, 'scripts', 'theme-pool.json');
 const SHEETS_DIR = path.join(NEXT, 'public', 'themes');
@@ -129,6 +131,12 @@ function toPoolEntry(candidate, slot) {
       // 都没有，它们的样子全在 colors/fonts/settings 里）；阶段 2 之后一套主题的样子**主要在表里**，
       // 所以池成员必须说得出自己的表是哪一份。
       sheet: id,
+      // #1342 —— 选择单落到池成员上。在这之前这个键**根本不写**：候选那边算出来的东西到不了池子，
+      // 于是 `themes.js` 的 `shapesFor` 对每套新主题都回 `{}`，`sync-config.js` 的 `shapeForBlock`
+      // 每个块都走「主题选择单里没有它」那条落回默认的路 —— 而那条路是静默的（#1338 才给它加了
+      // 一行日志）。翻译在这里只是**原样搬**，不做任何加工：名字合不合法由 manifest 那一端管
+      // （`checkManifestShape`），齐不齐由第六道闸和 `pool.test.js` ⑪ 管。
+      shapes: { ...(candidate.shapes || {}) },
     },
   };
 }
@@ -141,11 +149,17 @@ function readCandidates(dir) {
     .map((f) => {
       const id = path.basename(f, '.css');
       const layoutFile = path.join(dir, `${id}.layout.json`);
+      // #1342 —— 选择单跟版式走同一条路：生成器落一个文件，这里读回来。文件不在就回 `{}`，跟
+      // `layout` 那一行同一个失败方向 —— 手工摆的候选目录没有这个文件是常态，而「选择单是空的」
+      // 这件事有人说话：候选那一端是第六道闸（`gates.js` 的 `gateShapes`，逐块点名缺了谁），
+      // 池那一端是 `pool.test.js` 第 ⑪ 段。这里不造兜底名字（理由同 sync-config §shapeForBlock）。
+      const shapesFile = shapeSheetPath(dir, id);
       return {
         id,
         sheetPath: path.join(dir, f),
         tokens: JSON.parse(fs.readFileSync(path.join(dir, `${id}.tokens.json`), 'utf-8')),
         layout: fs.existsSync(layoutFile) ? JSON.parse(fs.readFileSync(layoutFile, 'utf-8')) : {},
+        shapes: fs.existsSync(shapesFile) ? JSON.parse(fs.readFileSync(shapesFile, 'utf-8')) : {},
       };
     });
 }
@@ -153,10 +167,18 @@ function readCandidates(dir) {
 /**
  * 一批候选 → 整个池（对象，键是新 id）。`accepted` 是候选 id 的白名单，不传就全收。
  * `slotOf`（#1182）是「候选 id → 它该占的位子下标」；不传就退回「按过滤之后的位置发位子」。
+ *
+ * 🔴 #1342 —— **「没有名单」和「名单是空的」是相反的两件事，而这两种入参长得很像。**
+ *    · `accepted` 是 `null` / `undefined`（手工挑候选那条路，目录里没有裁定文件）⟹ **全收**
+ *    · `accepted` 是 `[]`（流水线跑过、五道闸一套都没放过）⟹ **取空集**，收 0 套
+ *    这一行原来写的是 `accepted ? … : candidates`，靠的是「空数组是真值」这条 JS 规则把第二种送进
+ *    filter 那一支 —— 结论是对的，但它是**默认值撞对了**，读的人看不出哪一支是有意的。改成问
+ *    `Array.isArray`：同样的两种入参走同样的两支，而「这里问的是有没有这份名单」写在脸上。
+ *    （收 0 套之后**不写盘**是 §main 那一段的事，不是这里 —— 这个函数只负责算出那个空池子。）
  */
 function buildPool(candidates, { accepted, slotOf } = {}) {
   const slots = poolSlots();
-  const take = accepted ? candidates.filter((c) => accepted.includes(c.id)) : candidates;
+  const take = Array.isArray(accepted) ? candidates.filter((c) => accepted.includes(c.id)) : candidates;
   if (take.length > slots.length) {
     throw new Error(`池位子只有 ${slots.length} 个，收到 ${take.length} 套候选 —— `
       + '位子表在 industry-sectors.js（16 组各 THEMES_PER_SECTOR 套，再加 EXTRA_THEMES 里那几组的增量），'
@@ -323,10 +345,32 @@ function main(argv) {
   const { pool, map } = buildPool(candidates, { accepted, slotOf });
 
   const outPath = arg('--out', POOL_PATH);
+
+  // 🔴 #1342 —— **自查在写盘之前。** 这一段原来在最底下（写完池、拷完表、打完日志之后），于是
+  //    「收 0 套」这条最常走的路是这样的：`buildPool` 回一个空对象 → `theme-pool.json` 被整份覆盖
+  //    成 `{}` → 然后才轮到自查说「池子是空的」再 `exit 1`。盘上那一步已经发生了：池子里那几套
+  //    主题当场没了，要 `git checkout` 才回得来。#1338 装的第六道闸让「收 0 套」从异常变成了
+  //    **每一轮的常态**（生成器还不产选择单时每套候选都被它拒掉），这条顺序于是从「理论上不好」
+  //    变成「每跑一次流水线就清一次池子」。
+  //    清空进不了 main（池子空时 `npm run test:scripts` 当场红，CI 的 template-scripts job 跑的
+  //    正是它），所以它不是能溜进生产的洞 —— 它是**盘上破坏 + 让重建池子的人白折腾**。
+  //    两条路里选的是「先自查后写盘」而不是「0 套直接拒绝」：`verifyPool` 判的不止「空不空」
+  //    （还有 `layout` 没翻成 `supports`、`supports.x` 不是非空字符串清单），而那几种不达标今天
+  //    同样是**写完盘才说**。收窄成只拦 0 套的话，剩下那几种照旧会把一份不达标的池子留在盘上。
+  const problems = verifyPool(pool);
+  if (problems.length) {
+    console.error(`🔴 一个字节都没写 ${path.relative(NEXT, outPath)} —— 翻出来的池子先自查了一遍，不达标：`);
+    for (const p of problems) console.error(`   ${p}`);
+    console.error(`   （${map.length} 套收进池；自查在写盘之前，所以 ${path.relative(NEXT, outPath)} 还是原来那份。`
+      + '要看闸为什么收 0 套，读候选目录里的 pipeline-verdict.json。）');
+    process.exit(1);
+  }
+
   fs.writeFileSync(outPath, `${JSON.stringify(pool, null, 2)}\n`);
 
   // 表跟着一起进 public/themes/ —— 阶段 2 之后一套主题的样子主要在它的表里，池成员光有 tokens
   // 是一身没有衣服的骨架。
+  // 🔴 #1342 —— 拷表也在自查之后：一份被自查拒掉的池子不该在 public/themes/ 里留下它的表。
   if (!argv.includes('--no-sheets')) {
     fs.mkdirSync(SHEETS_DIR, { recursive: true });
     for (const m of map) {
@@ -351,12 +395,6 @@ function main(argv) {
   console.log(`顶栏：${Object.entries(headerCounts).map(([h, n]) => `${h} ${n}`).join(' · ')}`
     + ` —— 其中 ${moved.length} 套本来轮到透明浮层、按「浅底首屏不配浮层」那条让开了`
     + `${moved.length ? `（${moved.map((m) => m.id).join(' ')}）` : ''}`);
-  const problems = verifyPool(pool);
-  if (problems.length) {
-    console.error('🔴 翻完之后自己查了一遍，不达标：');
-    for (const p of problems) console.error(`   ${p}`);
-    process.exit(1);
-  }
   process.exit(0);
 }
 
