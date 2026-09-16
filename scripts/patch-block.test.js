@@ -245,5 +245,88 @@ console.log('\n── ⑤ 参数与安全：路径、键名、换块');
   else bad(`被拒的调用动了文件: ${JSON.stringify(now.blocks)}`);
 }
 
+// ── ⑥ 藏起来的块不占一格（AC2，QA1 r3 抓到的那一格）──────────────────────────────────────────────
+//
+// 藏起来的块在建出来的页面上没有 DOM，所以老板看到的「下一块」是下一个**没被藏**的块，预览里的
+// 上移下移换的也是它。服务端要是按完整顺序取邻居，一个藏起来的邻居就把这一次点击整个吃掉：
+// 权重确实换了，而看得见的顺序一个字没变 —— 点了、预览里动了、重建完跟点之前一模一样，没有任何
+// 地方会红。下面每一格都同时量两件事：**看得见的顺序真的变了** + **那个藏起来的块没被碰**。
+console.log('\n── ⑥ 藏起来的块不占一格：找邻居跳过它，到头也按看得见的算');
+{
+  const mk = () => makeSite({
+    home: {
+      slug: 'home',
+      blocks: [
+        { id: 'home-hero', type: 'hero', role: 'lead', region: 'content', weight: 0, data: {} },
+        { id: 'home-features', type: 'features-grid', role: 'optional', region: 'content', weight: 10, data: {} },
+        { id: 'home-quiet', type: 'cta-banner', role: 'optional', region: 'content', weight: 20, hidden: true, data: {} },
+        { id: 'home-testimonials', type: 'testimonials', role: 'optional', region: 'content', weight: 30, data: {} },
+      ],
+    },
+  });
+
+  const root = mk();
+  const before = rendered(root, 'home');            // 看得见的：hero · features · testimonials
+  const r = run(root, { page: 'home', blockId: 'home-features' }, null, 'down');
+  const now = readPage(root, 'home');
+  const byId = (id) => now.blocks.find((b) => b.id === id);
+  if (r.code !== 0) bad(`跨过藏起来的邻居下移失败 rc=${r.code}: ${r.err}`);
+  else if (JSON.stringify(rendered(root, 'home')) !== JSON.stringify(['home-hero', 'home-testimonials', 'home-features'])) {
+    bad(`下移之后看得见的顺序不对: ${rendered(root, 'home').join(' ')}（之前 ${before.join(' ')}）`);
+  } else if (byId('home-features').weight !== 30 || byId('home-testimonials').weight !== 10) {
+    bad(`换的不是 testimonials 的权重: features=${byId('home-features').weight} testimonials=${byId('home-testimonials').weight}`);
+  } else ok('下移：跳过藏起来的那块、跟下一个看得见的换权重，看得见的顺序跟着变');
+
+  // 🔴 反向对照：**那个藏起来的块一个字节都没被碰**。修之前换的正是它的权重（20 ↔ 10），
+  //    而那一次的可见顺序跟动手之前逐块相同 —— 也就是「点了等于没点」。
+  const quiet = byId('home-quiet');
+  if (quiet && quiet.weight === 20 && quiet.hidden === true) ok('反向对照: 藏起来的那块权重仍是 20、仍是藏着的（没拿它当邻居）');
+  else bad(`藏起来的那块被动了: ${JSON.stringify(quiet)}`);
+
+  // 🔴 到头也按**看得见的**算：后面只剩藏起来的块 ⟹ 下移退 6，文件逐字节不动。
+  const root2 = makeSite({
+    home: {
+      slug: 'home',
+      blocks: [
+        { id: 'home-hero', type: 'hero', role: 'lead', region: 'content', weight: 0, data: {} },
+        { id: 'home-features', type: 'features-grid', role: 'optional', region: 'content', weight: 10, data: {} },
+        { id: 'home-quiet', type: 'cta-banner', role: 'optional', region: 'content', weight: 20, hidden: true, data: {} },
+      ],
+    },
+  });
+  const snap2 = fs.readFileSync(path.join(root2, 'site', 'pages', 'home.json'), 'utf-8');
+  const rEnd = run(root2, { page: 'home', blockId: 'home-features' }, null, 'down');
+  const untouched2 = fs.readFileSync(path.join(root2, 'site', 'pages', 'home.json'), 'utf-8') === snap2;
+  if (rEnd.code === 6 && untouched2) ok('到头：后面只剩藏起来的块 ⟹ 下移退 6，文件逐字节没动');
+  else bad(`到头这一格不对: rc=${rEnd.code} · 文件没动=${untouched2}`);
+
+  // 老 `sections` 形状同一臂：换的是数组位置，跨过中间那条藏起来的。
+  const root3 = makeSite({
+    home: {
+      slug: 'home',
+      sections: [
+        { type: 'hero', data: {} },
+        { type: 'features-grid', data: {} },
+        { type: 'cta-banner', hidden: true, data: {} },
+        { type: 'testimonials', data: {} },
+      ],
+    },
+  });
+  const r3 = run(root3, { page: 'home', index: 1 }, null, 'down');
+  const types3 = readPage(root3, 'home').sections.map((s) => `${s.type}${s.hidden ? '(藏)' : ''}`);
+  if (r3.code !== 0) bad(`老形状跨过藏起来的邻居下移失败 rc=${r3.code}: ${r3.err}`);
+  else if (types3.join(' ') !== 'hero testimonials cta-banner(藏) features-grid') bad(`老形状数组顺序不对: ${types3.join(' ')}`);
+  else if (JSON.parse(r3.out).index !== 3) bad(`老形状回带的新下标不对: ${JSON.parse(r3.out).index}`);
+  else ok('老 sections 形状：跨过藏起来的那条换数组位置，回带新下标 3');
+
+  // 藏起来的块自己被挪时，换的也是它跟**看得见的**那些的相对位置 —— 而看得见的顺序当然不变。
+  const root4 = mk();
+  const vis4 = rendered(root4, 'home');
+  const r4 = run(root4, { page: 'home', blockId: 'home-quiet' }, null, 'down');
+  if (r4.code === 0 && JSON.stringify(rendered(root4, 'home')) === JSON.stringify(vis4)) {
+    ok('藏起来的块自己挪：rc=0，而看得见的顺序一个字不变（它本来就不在页面上）');
+  } else bad(`藏起来的块自己挪读数不对: rc=${r4.code} · 顺序 ${rendered(root4, 'home').join(' ')}`);
+}
+
 console.log(`\n══ ${pass} 过 / ${fail} 败 ══`);
 process.exit(fail ? 1 : 0);

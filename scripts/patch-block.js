@@ -214,8 +214,18 @@ if (patch) {
   // 认块靠上面盖的那个原始下标，不靠 id（老 sections 形状没有 id）。
   const here = before.findIndex((b) => b.raw === at);
   if (here === -1) die(3, '这一页渲染出来的块里没有要挪的那一个');
-  const to = move === 'up' ? here - 1 : here + 1;
-  if (to < 0 || to >= before.length) die(6, move === 'up' ? '它已经是第一个了' : '它已经是最后一个了');
+  // 🔴 **藏起来的块不占一格：找邻居时跳过它们。**（QA1 r3 抓到的那一格）
+  //    藏起来的块在建出来的页面上根本没有 DOM（`SectionRenderer.tsx` 直接 `return null`），所以
+  //    老板在预览里看到的「下一块」就是下一个**没被藏**的块，而预览里的上移下移换的也是它。
+  //    这里要是按完整顺序取邻居，一个藏起来的邻居就会把这一次点击整个吃掉：页面 JSON 里两个权重
+  //    确实换了，而**看得见的顺序一个字没变** —— 老板点了、预览里动了、重建完跟点之前一模一样，
+  //    没有任何地方会红。所以两边用同一条规矩：邻居 = 这个方向上最近的那个没被藏的块。
+  //    到头的判据跟着一起变：后面只剩藏起来的块 = 它已经是（看得见的）最后一个了。
+  let to = -1;
+  for (let i = move === 'up' ? here - 1 : here + 1; i >= 0 && i < before.length; i += (move === 'up' ? -1 : 1)) {
+    if (!before[i].hidden) { to = i; break; }
+  }
+  if (to === -1) die(6, move === 'up' ? '它已经是第一个了' : '它已经是最后一个了');
 
   const nb = before[to].raw;
   if (nb === -1) {
@@ -308,12 +318,16 @@ const allowed = (() => {
     return changed.length === 0 || (changed.length === 1 && ti >= 0 && changed[0] === ak[ti]);
   }
 
-  // 上移下移：两个相邻的对调，别的位置不动，谁的显隐都不许变（按名字比，不按位置比 ——
+  // 上移下移：两个块对调，别的位置不动，谁的显隐都不许变（按名字比，不按位置比 ——
   // 按位置比会被对调那一步本身带偏）。
+  // 🔴 对调的这两个**不一定挨着**：藏起来的块不占一格（见上面找邻居那段），所以它们中间可以隔着
+  //    几个藏起来的块 —— 但**只能是藏起来的**。夹在中间的块如果看得见，那就是这一次改动顺带把
+  //    第三个块的位置也改了，照旧拒掉。（中间那些块自己没动 —— `diff` 只有两项就是这个意思。）
   const hb = new Map(bk.map((k, i) => [k, before[i].hidden]));
   if (!ak.every((k, i) => hb.get(k) === after[i].hidden)) return false;
   const diff = bk.map((k, i) => (k === ak[i] ? -1 : i)).filter((i) => i >= 0);
-  return diff.length === 2 && diff[1] === diff[0] + 1
+  return diff.length === 2
+    && before.slice(diff[0] + 1, diff[1]).every((b) => b.hidden)
     && bk[diff[0]] === ak[diff[1]] && bk[diff[1]] === ak[diff[0]];
 })();
 

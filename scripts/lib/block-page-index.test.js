@@ -15,6 +15,10 @@
  *    有 `weight` 的页面上两者不是一回事，所以这里造一个 weight 与数组顺序相反的夹具去分开它们。
  * ④ **站级块两条路都找得到**：`{ref}` 条目那条、以及 `visibility` 命中而这一页没有条目那条。
  * ⑤ 多语言站：同名页在两个语言里各有一份，不许串页。
+ * ⑥ **`visPos` / `visTotal` 只数看得见的那几个**，面板的上移下移按钮按这一对置灰。藏起来的块在
+ *    产物里没有 DOM ⟹ 它不占一格（`patch-block.js` 挪一格时跳过它）。夹具里专门有一页最后一块
+ *    是藏起来的：按 `pos`/`total` 判它的上一块「还能往下走」，按 `visPos`/`visTotal` 判是到头了 ——
+ *    两把尺必须在这一页上给出不同答案，否则这一格什么都没量到（#1351 QA1 r3 抓到的就是这个形状）。
  *
  * 🔴 判据用的是**构建时那一个函数**（`blocks.js` §normalizeLocalePages）。这里若自己写一套排序/解析，
  *    分叉的样子是「面板说它排第 2、构建出来它排第 3」，而两边各自都绿。
@@ -71,6 +75,15 @@ write(path.join(site, 'en', 'pages', 'about.json'), {
   blocks: [
     { id: 'about-hero-0', type: 'hero', weight: 0, data: { headline: 'D' } },
     { ref: 'shared-cta', weight: 10 },
+  ],
+});
+// 🔴 最后一个块被藏起来的一页 —— 「按钮什么时候置灰」两把尺在这一页上给出不同答案（第 ⑥ 条读数）。
+write(path.join(site, 'en', 'pages', 'tail.json'), {
+  slug: 'tail',
+  blocks: [
+    { id: 'tail-hero-0', type: 'hero', weight: 0, data: { headline: 'E' } },
+    { id: 'tail-cta-1', type: 'cta-banner', weight: 10, data: { headline: 'F' } },
+    { id: 'tail-faq-2', type: 'faq-accordion', weight: 20, hidden: true, data: { headline: 'G' } },
   ],
 });
 write(path.join(site, 'fr', 'pages', 'home.json'), {
@@ -165,6 +178,28 @@ console.log('\n⑦ 找不到 / 没说找谁');
 {
   check(locateBlockInSite({ rootDir: root, blockId: 'nope' }).reason === 'not-found', '找不到 ⟹ not-found');
   check(locateBlockInSite({ rootDir: root }).reason === 'bad-locator', '没给 blockId ⟹ bad-locator');
+}
+
+console.log('\n⑧ visPos / visTotal 只数看得见的那几个（按钮什么时候置灰）');
+{
+  // home 页：cta(10) · faq(20，藏) · hero(30) · floating-team(99)
+  const hero = locateBlockInSite({ rootDir: root, blockId: 'home-hero-0' });
+  check(hero.pos === 2 && hero.total === 4 && hero.visPos === 1 && hero.visTotal === 3,
+    `同一个块两把尺读数不同：完整顺序 ${hero.pos}/${hero.total} · 看得见的 ${hero.visPos}/${hero.visTotal}`);
+  const faq = locateBlockInSite({ rootDir: root, blockId: 'home-faq-1' });
+  check(faq.hidden === true && faq.visPos === 1 && faq.visTotal === 3,
+    `被藏的块自己也有 visPos，意思是「它前面有几个看得见的」（实际 ${faq.visPos}/${faq.visTotal}）`);
+
+  // 🔴 这一格是 QA1 在 r3 抓到的那个形状：tail 页的最后一块被藏起来了。
+  //    按 pos/total 判，cta 是「第 1 个，共 3 个」⟹ 下移按钮亮着，而按下去的结果是权重换了、
+  //    看得见的顺序一个字没变。按 visPos/visTotal 判，它是「最后一个看得见的」⟹ 灰。
+  const cta = locateBlockInSite({ rootDir: root, blockId: 'tail-cta-1' });
+  const greyByPos = cta.pos >= cta.total - 1;
+  const greyByVis = cta.visPos >= cta.visTotal - 1;
+  check(greyByVis === true && greyByPos === false,
+    `最后一个看得见的块后面挂着一个藏起来的块：按 visPos 判是到头了（灰），按 pos 判不是（亮）`
+    + `—— 两把尺在这一页上必须给出不同答案（pos ${cta.pos}/${cta.total} · vis ${cta.visPos}/${cta.visTotal}）`);
+  check(cta.visTotal === 2 && cta.total === 3, `visTotal 不数藏起来的那一个（${cta.visTotal} vs total ${cta.total}）`);
 }
 
 fs.rmSync(root, { recursive: true, force: true });

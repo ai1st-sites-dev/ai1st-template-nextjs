@@ -28,7 +28,14 @@
 // 回：`{ ok, page, locale, shape, index, id, type, hidden, pos, total, blocks: [...] }`
 //   · `shape`  这一页写的是 `blocks` 还是 `sections` —— PATCH 的定位方式由它决定，调用方猜不出来
 //   · `index`  它在**文件数组**里的下标（PATCH 老形状用这个）
-//   · `pos` / `total`  它在**渲染顺序**里排第几 / 这一页渲染出几个块（面板据此把到头的上移/下移置灰）
+//   · `pos` / `total`  它在**渲染顺序**里排第几 / 这一页渲染出几个块（含被藏起来的那些）
+//   · `visPos` / `visTotal`  **只数看得见的那几个**：它前面有几个没被藏的 / 这一页看得见几个块。
+//     🔴 面板的上移下移按钮什么时候置灰，用的是这一对，不是上面那一对 —— 藏起来的块在建出来的
+//     页面上没有 DOM，所以它不占一格：`patch-block.js` 挪一格时会跳过它，预览里换的也是下一个
+//     看得见的块。要是按 `pos`/`total` 置灰，「最后一个看得见的块」后面还挂着一个藏起来的块时
+//     下移按钮是亮的，而按下去的结果是权重换了、看得见的顺序一个字没变（QA1 在 #1351 r3 抓到的
+//     就是这一格：点了、预览里动了、重建完跟点之前一模一样，没有任何地方会红）。
+//     被藏起来的块自己也有 `visPos`，它的意思是「它前面有几个看得见的块」。
 //   · `blocks` 这一页渲染顺序上的全部块 `{id, type, role, hidden, index}`，含隐藏的
 'use strict';
 
@@ -138,6 +145,10 @@ function locateBlockInSite(opts) {
         hidden: hit.hidden,
         pos,
         total: list.length,
+        // 看得见的那几个里它排第几 / 一共几个。被藏的块不占位置，所以这两个数跟上面那两个
+        // 在「这一页有块被藏起来」时就不是一回事 —— 面板的按钮用的是这一对（见文件头）。
+        visPos: list.slice(0, pos).filter((b) => !b.hidden).length,
+        visTotal: list.filter((b) => !b.hidden).length,
         blocks: list,
       };
     }
