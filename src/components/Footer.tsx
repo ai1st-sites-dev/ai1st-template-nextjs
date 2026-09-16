@@ -92,7 +92,7 @@ export default function Footer({ locale, variant: variantOverride }: { locale: s
     <footer {...blockAttrs('footer', footerBlock)} className="footer">
       {/* 强调色 CTA 色带。`cta-band` 之外的形态把它关掉。 */}
       <div className="footer__cta" data-role="optional">
-        <div className="footer__cta-text">
+        <div>
           <p className="footer__cta-title">{getBrandName(locale)}</p>
           <p className="footer__cta-sub">{footer.description}</p>
         </div>
@@ -143,8 +143,13 @@ export default function Footer({ locale, variant: variantOverride }: { locale: s
           )}
         </div>
 
+        {/* 🔴 三栏都是 `data-role="optional"`，而且这不是为了让哪把尺闭嘴：**哪几栏上场由形态说了算**，
+            改造前就是这样 —— `cta-band` 那一支不画导航栏目、`slim-row` 那一支不画栏目标题也不画地址。
+            搬成一副骨架之后它们改成「在 DOM 里、由 `shapes.css` 关掉」，而访客看到的一模一样
+            （AC1 的包围盒逐项对比证的就是这件事）。这个属性是 markup 自己说「这一块可以不在」的地方
+            （`blockAttrs.ts`，#1331），`theme-css-invariants.mjs` 的 §3 读它。 */}
         {footer.columns.map((column) => (
-          <div key={column.title} className="footer__col footer__col--nav">
+          <div key={column.title} className="footer__col--nav" data-role="optional">
             <h3 className="footer__col-title">{column.title}</h3>
             <ul className="footer__list">
               {column.links.map((link) => (
@@ -156,7 +161,7 @@ export default function Footer({ locale, variant: variantOverride }: { locale: s
           </div>
         ))}
 
-        <div className="footer__col footer__col--services">
+        <div className="footer__col--services" data-role="optional">
           <h3 className="footer__col-title">{labels.services}</h3>
           <ul className="footer__list">
             {services.slice(0, 6).map((service) => (
@@ -167,7 +172,7 @@ export default function Footer({ locale, variant: variantOverride }: { locale: s
           </ul>
         </div>
 
-        <div className="footer__col footer__col--contact">
+        <div className="footer__col--contact" data-role="optional">
           <h3 className="footer__col-title">{labels.contact}</h3>
           <ul className="footer__list footer__list--contact">
             {brand.locations.map((location) => (
@@ -191,7 +196,7 @@ export default function Footer({ locale, variant: variantOverride }: { locale: s
       </div>
 
       <div className="footer__legal" data-role="essential">
-        <p className="footer__copyright">&copy; {currentYear} {footer.copyright}</p>
+        <p>&copy; {currentYear} {footer.copyright}</p>
       </div>
     </footer>
   );
