@@ -40,6 +40,7 @@ import { filledOptionalSlots } from '../../../scripts/lib/block-manifest.js';
 import { buildThemeCss } from '../../../scripts/theme-css.js';
 import themePool from '../../../scripts/theme-pool.json';
 import CatalogBoard, { type CatalogTheme } from './CatalogBoard';
+import CatalogScroll from './CatalogScroll';
 import ShapeSelect from './ShapeSelect';
 
 export const metadata = {
@@ -62,6 +63,17 @@ interface PoolTheme {
 //    `ENOENT … .next/dev/server/app/src/lib/sections/registry.ts`）。所以这里把路径显式传进去。
 //    `next dev` 的 cwd 就是 `templates/nextjs`（`npm run dev` 与容器里的启动命令都在这个目录下跑）。
 const NEXT_DIR = process.cwd();
+
+// 🔴 **谁可以让这一页滚（#1345）。** admin 的「区块与主题」页把这一页放进 iframe，点一行就发一条
+//    `ai1st:catalog-scroll`。允许哪一个来源发，由**部署那一层**给：
+//    `deploy/cloud-dev/build-showcase-from-main.sh` 的 `SHOWCASE_ADMIN_ORIGIN`（默认
+//    `https://appdev.ai1st.site`，跟同一份脚本里的 `SHOWCASE_FRAME_ANCESTORS` 并排）会把它作为
+//    `AI1ST_CATALOG_ADMIN_ORIGIN` 传给 `next dev`。
+//    🔴 **没配就不挂那个监听器**（下面是条件渲染）—— 失败方向是「不滚」，不是「谁发都收」。
+//    同族做法在 `layout.tsx` §previewTrustedOrigin：取不出来源就一个监听器都不发。那一条的来源是
+//    `leadApi`，而展示站建出来 `leadApi` 是空串（现取 `slots/*/src/lib/config-data.ts`），
+//    所以这一页不共用它，走自己的环境变量。
+const CATALOG_ADMIN_ORIGIN = (process.env.AI1ST_CATALOG_ADMIN_ORIGIN || '').trim();
 const sheetPath = (sheet: string) => path.join(NEXT_DIR, 'public', 'themes', `${sheet}.css`);
 const CATALOG_PATHS = {
   registryPath: path.join(NEXT_DIR, 'src', 'lib', 'sections', 'registry.ts'),
@@ -223,6 +235,8 @@ export default function CatalogPage() {
           主题设定覆盖）因此不随页顶切主题而变。
           🔴 它是一段**解析期就跑**的内联脚本，不是 effect：晚一帧关掉就会先闪一眼别人的画法。 */}
       <script dangerouslySetInnerHTML={{ __html: OWN_THEME_OFF }} />
+      {/* 收 admin 页发来的滚动消息。来源没配就整个不挂（见 CATALOG_ADMIN_ORIGIN 上面那段）。 */}
+      {CATALOG_ADMIN_ORIGIN ? <CatalogScroll adminOrigin={CATALOG_ADMIN_ORIGIN} /> : null}
       {/* 图册自己的外壳样式。它跟主题层没有共用的选择器，所以两边不会互相压。 */}
       <style dangerouslySetInnerHTML={{ __html: CHROME_CSS }} />
       <CatalogBoard
@@ -259,7 +273,10 @@ const CHROME_CSS = `
 .catalog-row__count { opacity: .6; font-weight: 400; }
 .catalog-row__warn { color: #ffb4a2; font-weight: 400; }
 .catalog-row__cells { display: block; }
-.catalog-cell { border-top: 1px dashed #b9c2d0; }
+.catalog-cell { border-top: 1px dashed #b9c2d0;
+  /* 滚到一格时让开吸顶的那两条（.catalog-bar 约 2.3rem + .catalog-row__name 约 2.4rem），
+     否则 scrollIntoView 把格顶推到视口顶、正好被它们盖住。 */
+  scroll-margin-top: 5rem; }
 .catalog-cell__head { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;
   padding: .45rem 1rem; background: #eef1f6; color: #1d2330;
   font: 12px/1.4 ui-monospace, monospace; }
