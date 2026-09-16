@@ -262,6 +262,15 @@ export function judgeIntent(r, intent, { phone, where, arm }) {
     ok('headline-dom-order', r.head.dom < ref.dom,
       `标题在 DOM 里排在第一项 .${ref.cls} 之后（DOM 次序 ${r.head.dom} vs ${ref.dom}）——`
       + ' 视觉上在上面而读屏 / 搜索引擎先读到项，是 D14 那条边界');
+  } else if (intent.headline === 'below') {
+    // 🔴 #1340 —— 这一支是 `above` 的镜像，但**故意不配 DOM 次序那条断言**。`above` 那边查
+    //    `head.dom < ref.dom` 是因为「视觉在上、读屏后读到」是 D14 的边界；而 `below` 这一族
+    //    （`page-header/kicker-above`）恰恰是**有意**让标题在 DOM 里排第一、靠 `order` 视觉下移，
+    //    副标题当眉题排在它上面（`sheet-recipes.js` 那张表的注释逐字这么写）。给它配一条
+    //    「DOM 里也要在后面」的断言就是把这个形态本身判成错的。
+    ok('headline-below', r.head.top >= ref.bottom - S,
+      `标题该在第一项下面，实际标题 y 从 ${Math.round(r.head.top)} 起，`
+      + `第一项 .${ref.cls} y ${Math.round(ref.top)}–${Math.round(ref.bottom)}`);
   } else if (intent.headline === 'side') {
     const overlap = r.head.top < ref.bottom - S && ref.top < r.head.bottom - S;
     ok('headline-side', r.head.right <= ref.left + S && overlap,

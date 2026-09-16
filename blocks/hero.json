@@ -30,6 +30,69 @@
         "media": "cover",
         "columns": "one"
       }
+    },
+    {
+      "name": "media-left",
+      "needs": [
+        "imageUrl"
+      ],
+      "layout_intent": {
+        "items": "none",
+        "item_wrap": "allow",
+        "headline": "none",
+        "media": "side",
+        "columns": "two"
+      }
+    },
+    {
+      "name": "media-right",
+      "needs": [
+        "imageUrl"
+      ],
+      "layout_intent": {
+        "items": "none",
+        "item_wrap": "allow",
+        "headline": "none",
+        "media": "side",
+        "columns": "two"
+      }
+    },
+    {
+      "name": "media-top",
+      "needs": [
+        "imageUrl"
+      ],
+      "layout_intent": {
+        "items": "none",
+        "item_wrap": "allow",
+        "headline": "none",
+        "media": "above",
+        "columns": "one"
+      }
+    },
+    {
+      "name": "media-bottom",
+      "needs": [
+        "imageUrl"
+      ],
+      "layout_intent": {
+        "items": "none",
+        "item_wrap": "allow",
+        "headline": "none",
+        "media": "below",
+        "columns": "one"
+      }
+    },
+    {
+      "name": "text-left",
+      "needs": [],
+      "layout_intent": {
+        "items": "none",
+        "item_wrap": "allow",
+        "headline": "none",
+        "media": "below",
+        "columns": "one"
+      }
     }
   ],
   "slots": {

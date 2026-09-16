@@ -12,6 +12,7 @@
     ],
     "headline": [
       "above",
+      "below",
       "side",
       "none"
     ],
@@ -26,13 +27,15 @@
       "one",
       "two",
       "three",
+      "four",
       "many"
     ]
   },
   "columnCount": {
     "one": 1,
     "two": 2,
-    "three": 3
+    "three": 3,
+    "four": 4
   },
   "headingSuffixes": [
     "__headline",

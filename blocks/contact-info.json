@@ -27,6 +27,17 @@
         "media": "none",
         "columns": "two"
       }
+    },
+    {
+      "name": "card-then-email",
+      "needs": [],
+      "layout_intent": {
+        "items": "none",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "none",
+        "columns": "two"
+      }
     }
   ],
   "slots": {

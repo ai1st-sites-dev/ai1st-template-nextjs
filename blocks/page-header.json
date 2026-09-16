@@ -29,6 +29,30 @@
         "media": "none",
         "columns": "two"
       }
+    },
+    {
+      "name": "centered",
+      "needs": [],
+      "layout_intent": {
+        "items": "none",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "none",
+        "columns": "one"
+      }
+    },
+    {
+      "name": "kicker-above",
+      "needs": [
+        "subtitle"
+      ],
+      "layout_intent": {
+        "items": "none",
+        "item_wrap": "allow",
+        "headline": "below",
+        "media": "none",
+        "columns": "one"
+      }
     }
   ],
   "slots": {

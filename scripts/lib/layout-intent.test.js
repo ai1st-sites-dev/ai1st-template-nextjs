@@ -156,10 +156,13 @@ try {
   check(ph(rig({}), { items: 'none', headline: 'none', media: 'none' }).checks.length >= 1,
     '一个零件都没点名的块（divider 这类）退回判「块自己不溢出」，所以没有 0 条断言的格子');
 
-  // ── ⑥ 盘上 50 对的意图都是合法的 ───────────────────────────────────────
-  console.log('── ⑥ 盘上的 50 对');
+  // ── ⑥ 盘上每一对的意图都是合法的 ───────────────────────────────────────
+  // 🔴 这里原来打的是写死的「盘上的 50 对」（#1332 落地那天的真值），而断言用的是现算的 `pairs`
+  //    —— 两个数会分家，#1340 交付后真值是 83。改成先数再打，谁加形态都不用再回来改这一行。
   let pairs = 0; let broken = 0;
-  for (const [t, mm] of bm.loadManifests()) {
+  const manifests = [...bm.loadManifests()];
+  console.log(`── ⑥ 盘上的 ${manifests.reduce((n, [, mm]) => n + (mm.shapes || []).length, 0)} 对`);
+  for (const [t, mm] of manifests) {
     for (const sh of mm.shapes || []) {
       pairs += 1;
       const gaps = bm.layoutIntentProblems(bm.layoutIntentFor(mm, sh.name));

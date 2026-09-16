@@ -270,6 +270,68 @@
   }
 }
 
+/* card-group · three-up  （#1340 从生成器的 cards['three-up'] 剪来；今天没有主题选它） */
+
+[data-block="card-group"][data-shape="three-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="card-group"][data-shape="three-up"] .card-group__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="card-group"][data-shape="three-up"] .card-group__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="card-group"][data-shape="three-up"] .card-group__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="card-group"][data-shape="three-up"] .card-group__features {
+  display: grid;
+}
+
+@media (min-width: 1024px) {
+  [data-block="card-group"][data-shape="three-up"] {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+/* card-group · four-up-tight  （#1340 从生成器的 cards['four-up-tight'] 剪来；今天没有主题选它） */
+
+[data-block="card-group"][data-shape="four-up-tight"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="card-group"][data-shape="four-up-tight"] .card-group__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="card-group"][data-shape="four-up-tight"] .card-group__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="card-group"][data-shape="four-up-tight"] .card-group__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="card-group"][data-shape="four-up-tight"] .card-group__features {
+  display: grid;
+}
+
+@media (min-width: 1024px) {
+  [data-block="card-group"][data-shape="four-up-tight"] {
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+  }
+}
+
 /* ══ contact-form ══════════════════════════════════════════════════════════════════════ */
 
 /* contact-form · panel-below  （ember-12 今天选的就是它） */
@@ -349,6 +411,163 @@
   }
 }
 
+/* contact-form · panel-right  （#1340 从生成器的 formLook['panel-right'] 剪来；今天没有主题选它） */
+
+[data-block="contact-form"][data-shape="panel-right"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="contact-form"][data-shape="panel-right"] .contact-form__heading {
+  grid-column: 1 / -1;
+}
+
+[data-block="contact-form"][data-shape="panel-right"] .contact-form__intro {
+  grid-column: auto;
+  max-width: 32rem;
+}
+
+[data-block="contact-form"][data-shape="panel-right"] .contact-form__form {
+  display: grid;
+  grid-column: auto;
+}
+
+[data-block="contact-form"][data-shape="panel-right"] .contact-form__error {
+  grid-column: 1 / -1;
+}
+
+[data-block="contact-form"][data-shape="panel-right"] .contact-form__success {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="contact-form"][data-shape="panel-right"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* contact-form · centered-narrow  （#1340 从生成器的 formLook['centered-narrow'] 剪来；今天没有主题选它） */
+
+[data-block="contact-form"][data-shape="centered-narrow"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+  justify-items: center;
+}
+
+[data-block="contact-form"][data-shape="centered-narrow"] .contact-form__heading {
+  grid-column: 1 / -1;
+  max-width: 40rem;
+}
+
+[data-block="contact-form"][data-shape="centered-narrow"] .contact-form__intro {
+  grid-column: 1 / -1;
+  max-width: 34rem;
+}
+
+[data-block="contact-form"][data-shape="centered-narrow"] .contact-form__form {
+  display: grid;
+  max-width: 34rem;
+}
+
+[data-block="contact-form"][data-shape="centered-narrow"] .contact-form__error {
+  grid-column: 1 / -1;
+}
+
+[data-block="contact-form"][data-shape="centered-narrow"] .contact-form__note {
+  max-width: 34rem;
+}
+
+[data-block="contact-form"][data-shape="centered-narrow"] .contact-form__success {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="contact-form"][data-shape="centered-narrow"] {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* contact-form · heading-side  （#1340 从生成器的 formLook['heading-side'] 剪来；今天没有主题选它） */
+
+[data-block="contact-form"][data-shape="heading-side"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="contact-form"][data-shape="heading-side"] .contact-form__heading {
+  grid-column: auto;
+  align-self: start;
+}
+
+[data-block="contact-form"][data-shape="heading-side"] .contact-form__intro {
+  grid-column: auto;
+  max-width: 36rem;
+}
+
+[data-block="contact-form"][data-shape="heading-side"] .contact-form__form {
+  display: grid;
+  grid-column: 1 / -1;
+}
+
+[data-block="contact-form"][data-shape="heading-side"] .contact-form__error {
+  grid-column: 1 / -1;
+}
+
+[data-block="contact-form"][data-shape="heading-side"] .contact-form__success {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="contact-form"][data-shape="heading-side"] {
+    grid-template-columns: 1fr 2fr;
+  }
+}
+
+/* contact-form · note-beside  （#1340 从生成器的 formLook['note-beside'] 剪来；今天没有主题选它） */
+
+[data-block="contact-form"][data-shape="note-beside"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="contact-form"][data-shape="note-beside"] .contact-form__heading {
+  grid-column: 1 / -1;
+}
+
+[data-block="contact-form"][data-shape="note-beside"] .contact-form__intro {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="contact-form"][data-shape="note-beside"] .contact-form__form {
+  display: grid;
+  grid-column: auto;
+}
+
+[data-block="contact-form"][data-shape="note-beside"] .contact-form__error {
+  grid-column: 1 / -1;
+}
+
+[data-block="contact-form"][data-shape="note-beside"] .contact-form__note {
+  grid-column: auto;
+  align-self: start;
+  max-width: 22rem;
+}
+
+[data-block="contact-form"][data-shape="note-beside"] .contact-form__success {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="contact-form"][data-shape="note-beside"] {
+    grid-template-columns: 2fr 1fr;
+  }
+}
+
 /* ══ contact-info ══════════════════════════════════════════════════════════════════════ */
 
 /* contact-info · label-side  （ember-12 今天选的就是它） */
@@ -424,6 +643,36 @@
 
 @media (min-width: 1024px) {
   [data-block="contact-info"][data-shape="phone-first"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* contact-info · card-then-email  （#1340 从生成器的 infoLook['card-then-email'] 剪来；今天没有主题选它） */
+
+[data-block="contact-info"][data-shape="card-then-email"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="contact-info"][data-shape="card-then-email"] .contact-info__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="contact-info"][data-shape="card-then-email"] .contact-info__location {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="contact-info"][data-shape="card-then-email"] .contact-info__phone {
+  justify-self: start;
+}
+
+[data-block="contact-info"][data-shape="card-then-email"] .contact-info__email {
+  justify-self: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="contact-info"][data-shape="card-then-email"] {
     grid-template-columns: 1fr 1fr;
   }
 }
@@ -560,6 +809,392 @@
   }
 }
 
+/* content-split · media-left-alternate  （#1340 从生成器的 split['media-left'] + 节律 alternate 剪来；今天没有主题选它） */
+
+[data-block="content-split"][data-shape="media-left-alternate"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+}
+
+[data-block="content-split"][data-shape="media-left-alternate"] .content-split__media {
+  aspect-ratio: 4 / 3;
+  order: 1;
+}
+
+[data-block="content-split"][data-shape="media-left-alternate"] .content-split__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="content-split"][data-shape="media-left-alternate"] .content-split__body {
+  display: grid;
+  align-content: start;
+  max-width: 38rem;
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="media-left-alternate"] .content-split__bullets {
+  display: grid;
+}
+
+[data-block="content-split"][data-shape="media-left-alternate"] .content-split__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+[data-block="content-split"][data-shape="media-left-alternate"] .content-split__stat {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] .content-split__media {
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] .content-split__body {
+  order: 1;
+}
+
+[data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] .content-split__media {
+  order: 1;
+}
+
+[data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] .content-split__body {
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] .content-split__media {
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] .content-split__body {
+  order: 1;
+}
+
+[data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] .content-split__media {
+  order: 1;
+}
+
+[data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] .content-split__body {
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] .content-split__media {
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] + [data-block="content-split"][data-shape="media-left-alternate"] .content-split__body {
+  order: 1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="content-split"][data-shape="media-left-alternate"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* content-split · media-top-uniform  （#1340 从生成器的 split['media-top'] + 节律 uniform 剪来；今天没有主题选它） */
+
+[data-block="content-split"][data-shape="media-top-uniform"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="content-split"][data-shape="media-top-uniform"] .content-split__media {
+  aspect-ratio: auto;
+  order: 1;
+}
+
+[data-block="content-split"][data-shape="media-top-uniform"] .content-split__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="content-split"][data-shape="media-top-uniform"] .content-split__body {
+  display: grid;
+  align-content: start;
+  max-width: 46rem;
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="media-top-uniform"] .content-split__bullets {
+  display: grid;
+}
+
+[data-block="content-split"][data-shape="media-top-uniform"] .content-split__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+[data-block="content-split"][data-shape="media-top-uniform"] .content-split__stat {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="content-split"][data-shape="media-top-uniform"] {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* content-split · media-left-uniform  （#1340 从生成器的 split['media-left'] + 节律 uniform 剪来；今天没有主题选它） */
+
+[data-block="content-split"][data-shape="media-left-uniform"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+}
+
+[data-block="content-split"][data-shape="media-left-uniform"] .content-split__media {
+  aspect-ratio: 4 / 3;
+  order: 1;
+}
+
+[data-block="content-split"][data-shape="media-left-uniform"] .content-split__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="content-split"][data-shape="media-left-uniform"] .content-split__body {
+  display: grid;
+  align-content: start;
+  max-width: 38rem;
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="media-left-uniform"] .content-split__bullets {
+  display: grid;
+}
+
+[data-block="content-split"][data-shape="media-left-uniform"] .content-split__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+[data-block="content-split"][data-shape="media-left-uniform"] .content-split__stat {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="content-split"][data-shape="media-left-uniform"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* content-split · media-right-uniform  （#1340 从生成器的 split['media-right'] + 节律 uniform 剪来；今天没有主题选它） */
+
+[data-block="content-split"][data-shape="media-right-uniform"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+}
+
+[data-block="content-split"][data-shape="media-right-uniform"] .content-split__media {
+  aspect-ratio: 4 / 3;
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="media-right-uniform"] .content-split__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="content-split"][data-shape="media-right-uniform"] .content-split__body {
+  display: grid;
+  align-content: start;
+  max-width: 38rem;
+  order: 1;
+}
+
+[data-block="content-split"][data-shape="media-right-uniform"] .content-split__bullets {
+  display: grid;
+}
+
+[data-block="content-split"][data-shape="media-right-uniform"] .content-split__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+[data-block="content-split"][data-shape="media-right-uniform"] .content-split__stat {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="content-split"][data-shape="media-right-uniform"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* content-split · media-top-alternate  （#1340 从生成器的 split['media-top'] + 节律 alternate 剪来；今天没有主题选它） */
+
+[data-block="content-split"][data-shape="media-top-alternate"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="content-split"][data-shape="media-top-alternate"] .content-split__media {
+  aspect-ratio: auto;
+  order: 1;
+}
+
+[data-block="content-split"][data-shape="media-top-alternate"] .content-split__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="content-split"][data-shape="media-top-alternate"] .content-split__body {
+  display: grid;
+  align-content: start;
+  max-width: 46rem;
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="media-top-alternate"] .content-split__bullets {
+  display: grid;
+}
+
+[data-block="content-split"][data-shape="media-top-alternate"] .content-split__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+[data-block="content-split"][data-shape="media-top-alternate"] .content-split__stat {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] .content-split__media {
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] .content-split__body {
+  order: 1;
+}
+
+[data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] .content-split__media {
+  order: 1;
+}
+
+[data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] .content-split__body {
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] .content-split__media {
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] .content-split__body {
+  order: 1;
+}
+
+[data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] .content-split__media {
+  order: 1;
+}
+
+[data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] .content-split__body {
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] .content-split__media {
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] + [data-block="content-split"][data-shape="media-top-alternate"] .content-split__body {
+  order: 1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="content-split"][data-shape="media-top-alternate"] {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* content-split · narrow-stack-alternate  （#1340 从生成器的 split['narrow-stack'] + 节律 alternate 剪来；今天没有主题选它） */
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+  justify-items: center;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__media {
+  aspect-ratio: 3 / 2;
+  order: 1;
+  max-width: 30rem;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__body {
+  display: grid;
+  align-content: start;
+  max-width: 34rem;
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__bullets {
+  display: grid;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__stat {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__media {
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__body {
+  order: 1;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__media {
+  order: 1;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__body {
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__media {
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__body {
+  order: 1;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__media {
+  order: 1;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__body {
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__media {
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__body {
+  order: 1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="content-split"][data-shape="narrow-stack-alternate"] {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ══ cta-banner ══════════════════════════════════════════════════════════════════════ */
 
 /* cta-banner · title-side  （ember-12 + azure-29 今天选的就是它） */
@@ -590,6 +1225,131 @@
 @media (min-width: 1024px) {
   [data-block="cta-banner"][data-shape="title-side"] {
     grid-template-columns: 1fr 2fr;
+  }
+}
+
+/* cta-banner · band-left  （#1340 从生成器的 ctaLook['band-left'] 剪来；今天没有主题选它） */
+
+[data-block="cta-banner"][data-shape="band-left"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="cta-banner"][data-shape="band-left"] .cta-banner__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="cta-banner"][data-shape="band-left"] .cta-banner__desc {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="cta-banner"][data-shape="band-left"] .cta-banner__action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+@media (min-width: 1024px) {
+  [data-block="cta-banner"][data-shape="band-left"] {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* cta-banner · band-center  （#1340 从生成器的 ctaLook['band-center'] 剪来；今天没有主题选它） */
+
+[data-block="cta-banner"][data-shape="band-center"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+  justify-items: center;
+}
+
+[data-block="cta-banner"][data-shape="band-center"] .cta-banner__headline {
+  grid-column: 1 / -1;
+  max-width: 44rem;
+}
+
+[data-block="cta-banner"][data-shape="band-center"] .cta-banner__desc {
+  grid-column: 1 / -1;
+  max-width: 38rem;
+}
+
+[data-block="cta-banner"][data-shape="band-center"] .cta-banner__action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (min-width: 1024px) {
+  [data-block="cta-banner"][data-shape="band-center"] {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* cta-banner · text-left-action-right  （#1340 从生成器的 ctaLook['text-left-action-right'] 剪来；今天没有主题选它） */
+
+[data-block="cta-banner"][data-shape="text-left-action-right"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+}
+
+[data-block="cta-banner"][data-shape="text-left-action-right"] .cta-banner__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="cta-banner"][data-shape="text-left-action-right"] .cta-banner__desc {
+  grid-column: auto;
+  max-width: 40rem;
+}
+
+[data-block="cta-banner"][data-shape="text-left-action-right"] .cta-banner__action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  grid-column: auto;
+  justify-content: flex-end;
+  align-self: center;
+}
+
+@media (min-width: 1024px) {
+  [data-block="cta-banner"][data-shape="text-left-action-right"] {
+    grid-template-columns: 2fr 1fr;
+  }
+}
+
+/* cta-banner · action-first  （#1340 从生成器的 ctaLook['action-first'] 剪来；今天没有主题选它） */
+
+[data-block="cta-banner"][data-shape="action-first"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="cta-banner"][data-shape="action-first"] .cta-banner__headline {
+  grid-column: 1 / -1;
+  order: 2;
+}
+
+[data-block="cta-banner"][data-shape="action-first"] .cta-banner__desc {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+  order: 3;
+}
+
+[data-block="cta-banner"][data-shape="action-first"] .cta-banner__action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  order: 1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="cta-banner"][data-shape="action-first"] {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -655,6 +1415,56 @@
   [data-block="faq-accordion"][data-shape="heading-side"] {
     grid-template-columns: 1fr 2fr;
   }
+}
+
+/* faq-accordion · two-column  （#1340 从生成器的 faqLook['two-column'] 剪来；今天没有主题选它） */
+
+[data-block="faq-accordion"][data-shape="two-column"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="faq-accordion"][data-shape="two-column"] .faq-accordion__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="faq-accordion"][data-shape="two-column"] .faq-accordion__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="faq-accordion"][data-shape="two-column"] .faq-accordion__item {
+  display: grid;
+}
+
+@media (min-width: 1024px) {
+  [data-block="faq-accordion"][data-shape="two-column"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* faq-accordion · centered  （#1340 从生成器的 faqLook['centered'] 剪来；今天没有主题选它） */
+
+[data-block="faq-accordion"][data-shape="centered"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+}
+
+[data-block="faq-accordion"][data-shape="centered"] .faq-accordion__headline {
+  grid-column: 1 / -1;
+  max-width: 44rem;
+}
+
+[data-block="faq-accordion"][data-shape="centered"] .faq-accordion__sub {
+  grid-column: 1 / -1;
+  max-width: 34rem;
+}
+
+[data-block="faq-accordion"][data-shape="centered"] .faq-accordion__item {
+  display: grid;
+  max-width: 48rem;
 }
 
 /* ══ feature-comparison ══════════════════════════════════════════════════════════════════════ */
@@ -749,6 +1559,70 @@
 @media (min-width: 1024px) {
   [data-block="features-grid"][data-shape="wide-rows"] {
     grid-template-columns: 1fr;
+  }
+}
+
+/* features-grid · three-up  （#1340 从生成器的 cards['three-up'] 剪来；今天没有主题选它） */
+
+[data-block="features-grid"][data-shape="three-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="features-grid"][data-shape="three-up"] .features-grid__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="features-grid"][data-shape="three-up"] .features-grid__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="features-grid"][data-shape="three-up"] .features-grid__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="features-grid"][data-shape="three-up"] .features-grid__icon {
+  display: grid;
+  place-items: center;
+}
+
+@media (min-width: 1024px) {
+  [data-block="features-grid"][data-shape="three-up"] {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+/* features-grid · four-up-tight  （#1340 从生成器的 cards['four-up-tight'] 剪来；今天没有主题选它） */
+
+[data-block="features-grid"][data-shape="four-up-tight"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="features-grid"][data-shape="four-up-tight"] .features-grid__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="features-grid"][data-shape="four-up-tight"] .features-grid__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="features-grid"][data-shape="four-up-tight"] .features-grid__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="features-grid"][data-shape="four-up-tight"] .features-grid__icon {
+  display: grid;
+  place-items: center;
+}
+
+@media (min-width: 1024px) {
+  [data-block="features-grid"][data-shape="four-up-tight"] {
+    grid-template-columns: 1fr 1fr 1fr 1fr;
   }
 }
 
@@ -949,6 +1823,251 @@
 [data-block="hero"][data-shape="text-center"][data-has-imageUrl] .hero__media {
   width: 100%;
   aspect-ratio: 21 / 9;
+}
+
+/* hero · media-left  （#1340 从生成器的 heroLook['media-left'] 剪来；今天没有主题选它）
+
+   丢掉了生成器里这 2 条：.hero__form · .hero__form-success —— 那几个部件今天不在这个块的 DOM 里（#1333 把表单整段搬去了 hero-with-form，`HeroSection.tsx` 现在不渲染它们）。 */
+
+[data-block="hero"][data-shape="media-left"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+  min-height: 34rem;
+}
+
+[data-block="hero"][data-shape="media-left"] .hero__media {
+  aspect-ratio: 4 / 5;
+  order: 2;
+  max-width: 34rem;
+}
+
+[data-block="hero"][data-shape="media-left"] .hero__body {
+  display: grid;
+  align-content: start;
+  max-width: 34rem;
+  order: 3;
+}
+
+[data-block="hero"][data-shape="media-left"] .hero__title {
+  grid-column: 1 / -1;
+}
+
+[data-block="hero"][data-shape="media-left"] .hero__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="hero"][data-shape="media-left"] .hero__cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+[data-block="hero"][data-shape="media-left"] .hero__deco {
+  grid-column: 1 / -1;
+  order: 1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="hero"][data-shape="media-left"] {
+    grid-template-columns: 5fr 6fr;
+  }
+}
+
+/* hero · media-right  （#1340 从生成器的 heroLook['media-right'] 剪来；今天没有主题选它）
+
+   丢掉了生成器里这 2 条：.hero__form · .hero__form-success —— 那几个部件今天不在这个块的 DOM 里（#1333 把表单整段搬去了 hero-with-form，`HeroSection.tsx` 现在不渲染它们）。 */
+
+[data-block="hero"][data-shape="media-right"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+  min-height: 32rem;
+}
+
+[data-block="hero"][data-shape="media-right"] .hero__media {
+  aspect-ratio: 5 / 4;
+  order: 3;
+  max-width: 36rem;
+}
+
+[data-block="hero"][data-shape="media-right"] .hero__body {
+  display: grid;
+  align-content: start;
+  max-width: 33rem;
+  order: 2;
+}
+
+[data-block="hero"][data-shape="media-right"] .hero__title {
+  grid-column: 1 / -1;
+}
+
+[data-block="hero"][data-shape="media-right"] .hero__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="hero"][data-shape="media-right"] .hero__cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+[data-block="hero"][data-shape="media-right"] .hero__deco {
+  grid-column: 1 / -1;
+  order: 1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="hero"][data-shape="media-right"] {
+    grid-template-columns: 6fr 5fr;
+  }
+}
+
+/* hero · media-top  （#1340 从生成器的 heroLook['media-top'] 剪来；今天没有主题选它）
+
+   丢掉了生成器里这 2 条：.hero__form · .hero__form-success —— 那几个部件今天不在这个块的 DOM 里（#1333 把表单整段搬去了 hero-with-form，`HeroSection.tsx` 现在不渲染它们）。 */
+
+[data-block="hero"][data-shape="media-top"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+  min-height: 0;
+}
+
+[data-block="hero"][data-shape="media-top"] .hero__media {
+  aspect-ratio: auto;
+  order: 1;
+}
+
+[data-block="hero"][data-shape="media-top"] .hero__body {
+  display: grid;
+  align-content: start;
+  max-width: 46rem;
+  order: 3;
+}
+
+[data-block="hero"][data-shape="media-top"] .hero__title {
+  grid-column: 1 / -1;
+}
+
+[data-block="hero"][data-shape="media-top"] .hero__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="hero"][data-shape="media-top"] .hero__cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-block="hero"][data-shape="media-top"] .hero__deco {
+  grid-column: 1 / -1;
+  order: 2;
+  max-width: 4rem;
+}
+
+/* hero · media-bottom  （#1340 从生成器的 heroLook['media-bottom'] 剪来；今天没有主题选它）
+
+   丢掉了生成器里这 2 条：.hero__form · .hero__form-success —— 那几个部件今天不在这个块的 DOM 里（#1333 把表单整段搬去了 hero-with-form，`HeroSection.tsx` 现在不渲染它们）。 */
+
+[data-block="hero"][data-shape="media-bottom"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+  min-height: 30rem;
+}
+
+[data-block="hero"][data-shape="media-bottom"] .hero__media {
+  aspect-ratio: auto;
+  order: 3;
+}
+
+[data-block="hero"][data-shape="media-bottom"] .hero__body {
+  display: grid;
+  align-content: start;
+  max-width: 42rem;
+  order: 2;
+}
+
+[data-block="hero"][data-shape="media-bottom"] .hero__title {
+  grid-column: 1 / -1;
+}
+
+[data-block="hero"][data-shape="media-bottom"] .hero__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="hero"][data-shape="media-bottom"] .hero__cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+[data-block="hero"][data-shape="media-bottom"] .hero__deco {
+  grid-column: 1 / -1;
+  order: 1;
+  max-width: 6rem;
+}
+
+/* hero · text-left  （#1340 从生成器的 heroLook['text-left'] 剪来；今天没有主题选它）
+
+   丢掉了生成器里这 2 条：.hero__form · .hero__form-success —— 那几个部件今天不在这个块的 DOM 里（#1333 把表单整段搬去了 hero-with-form，`HeroSection.tsx` 现在不渲染它们）。 */
+
+[data-block="hero"][data-shape="text-left"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+  justify-items: start;
+  min-height: 24rem;
+}
+
+/* 🔴 位置**无条件**给，尺寸才挂在 `[data-has-imageUrl]` 上 —— 逐字照上面 `text-center` 那一段的理由：
+   `text-left` 跟它一样是**纯文字**那一档（生成器里 `HERO_LOOKS['text-left'].content` 是 `text-only`），
+   所以它的 `needs` 是空的，没填图的 hero 落回来也会戴上它。合并成一条的话，没图的那些站会拿到一个
+   有 `aspect-ratio` 的空色块（主题表给 `.hero__media` 画了底色）；反过来只给尺寸不给 `order`，那个
+   高度为 0 的媒体位会按默认 `order: 0` 跑到最上沿，而 `blocks/hero.json` 这一形态的排版意图写着
+   `media: "below"`（图在文之下）—— 几何守卫按边界框判，在没图的页面上会当场读到「图在文之上」。 */
+
+[data-block="hero"][data-shape="text-left"] .hero__media {
+  order: 3;
+}
+
+[data-block="hero"][data-shape="text-left"][data-has-imageUrl] .hero__media {
+  width: 100%;
+  aspect-ratio: 24 / 7;
+}
+
+[data-block="hero"][data-shape="text-left"] .hero__body {
+  display: grid;
+  align-content: start;
+  max-width: 44rem;
+  order: 2;
+}
+
+[data-block="hero"][data-shape="text-left"] .hero__title {
+  grid-column: 1 / -1;
+}
+
+[data-block="hero"][data-shape="text-left"] .hero__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="hero"][data-shape="text-left"] .hero__cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+[data-block="hero"][data-shape="text-left"] .hero__deco {
+  grid-column: 1 / -1;
+  order: 1;
+  max-width: 5rem;
 }
 
 /* ══ hero-with-form ══════════════════════════════════════════════════════════════════════ */
@@ -1178,6 +2297,47 @@
   }
 }
 
+/* page-header · centered  （#1340 从生成器的 headerLook['centered'] 剪来；今天没有主题选它） */
+
+[data-block="page-header"][data-shape="centered"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+}
+
+[data-block="page-header"][data-shape="centered"] .page-header__title {
+  grid-column: 1 / -1;
+  max-width: 48rem;
+}
+
+[data-block="page-header"][data-shape="centered"] .page-header__sub {
+  grid-column: 1 / -1;
+  max-width: 34rem;
+}
+
+/* page-header · kicker-above  （#1340 从生成器的 headerLook['kicker-above'] 剪来；今天没有主题选它） */
+
+[data-block="page-header"][data-shape="kicker-above"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="page-header"][data-shape="kicker-above"] .page-header__crumbs {
+  order: 1;
+}
+
+[data-block="page-header"][data-shape="kicker-above"] .page-header__title {
+  grid-column: 1 / -1;
+  order: 3;
+}
+
+[data-block="page-header"][data-shape="kicker-above"] .page-header__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+  order: 2;
+}
+
 /* ══ pricing-table ══════════════════════════════════════════════════════════════════════ */
 
 /* pricing-table · two-up  （ember-12 今天选的就是它） */
@@ -1332,6 +2492,70 @@
 @media (min-width: 1024px) {
   [data-block="process-steps"][data-shape="numbered-rail"] {
     grid-template-columns: 1fr;
+  }
+}
+
+/* process-steps · three-up  （#1340 从生成器的 stepsLook['three-up'] 剪来；今天没有主题选它） */
+
+[data-block="process-steps"][data-shape="three-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="process-steps"][data-shape="three-up"] .process-steps__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="process-steps"][data-shape="three-up"] .process-steps__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="process-steps"][data-shape="three-up"] .process-steps__step {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="process-steps"][data-shape="three-up"] .process-steps__num {
+  display: grid;
+  place-items: center;
+}
+
+@media (min-width: 1024px) {
+  [data-block="process-steps"][data-shape="three-up"] {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+/* process-steps · two-up  （#1340 从生成器的 stepsLook['two-up'] 剪来；今天没有主题选它） */
+
+[data-block="process-steps"][data-shape="two-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="process-steps"][data-shape="two-up"] .process-steps__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="process-steps"][data-shape="two-up"] .process-steps__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="process-steps"][data-shape="two-up"] .process-steps__step {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="process-steps"][data-shape="two-up"] .process-steps__num {
+  display: grid;
+  place-items: center;
+}
+
+@media (min-width: 1024px) {
+  [data-block="process-steps"][data-shape="two-up"] {
+    grid-template-columns: 1fr 1fr;
   }
 }
 
@@ -1725,6 +2949,85 @@
 @media (min-width: 1024px) {
   [data-block="testimonials"][data-shape="two-up"] {
     grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* testimonials · three-up  （#1340 从生成器的 testimonialLook['three-up'] 剪来；今天没有主题选它） */
+
+[data-block="testimonials"][data-shape="three-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="testimonials"][data-shape="three-up"] .testimonials__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="testimonials"][data-shape="three-up"] .testimonials__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="testimonials"][data-shape="three-up"] .testimonials__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="testimonials"][data-shape="three-up"] .testimonials__rating {
+  display: flex;
+  align-items: center;
+}
+
+[data-block="testimonials"][data-shape="three-up"] .testimonials__service {
+  justify-self: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="testimonials"][data-shape="three-up"] {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+/* testimonials · quote-rail  （#1340 从生成器的 testimonialLook['quote-rail'] 剪来；今天没有主题选它） */
+
+[data-block="testimonials"][data-shape="quote-rail"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="testimonials"][data-shape="quote-rail"] .testimonials__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="testimonials"][data-shape="quote-rail"] .testimonials__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="testimonials"][data-shape="quote-rail"] .testimonials__item {
+  display: grid;
+  align-content: start;
+  grid-template-columns: 2fr 1fr;
+  align-items: start;
+}
+
+[data-block="testimonials"][data-shape="quote-rail"] .testimonials__rating {
+  display: flex;
+  align-items: center;
+}
+
+[data-block="testimonials"][data-shape="quote-rail"] .testimonials__quote {
+  grid-column: 1;
+  grid-row: 1 / 5;
+}
+
+[data-block="testimonials"][data-shape="quote-rail"] .testimonials__service {
+  justify-self: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="testimonials"][data-shape="quote-rail"] {
+    grid-template-columns: 1fr;
   }
 }
 

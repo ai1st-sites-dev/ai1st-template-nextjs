@@ -27,6 +27,50 @@
         "media": "none",
         "columns": "two"
       }
+    },
+    {
+      "name": "panel-right",
+      "needs": [],
+      "layout_intent": {
+        "items": "none",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "none",
+        "columns": "two"
+      }
+    },
+    {
+      "name": "centered-narrow",
+      "needs": [],
+      "layout_intent": {
+        "items": "none",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "none",
+        "columns": "one"
+      }
+    },
+    {
+      "name": "heading-side",
+      "needs": [],
+      "layout_intent": {
+        "items": "none",
+        "item_wrap": "allow",
+        "headline": "side",
+        "media": "none",
+        "columns": "two"
+      }
+    },
+    {
+      "name": "note-beside",
+      "needs": [],
+      "layout_intent": {
+        "items": "none",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "none",
+        "columns": "two"
+      }
     }
   ],
   "slots": {
