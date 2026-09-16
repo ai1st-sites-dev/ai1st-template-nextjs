@@ -3,12 +3,20 @@
  * shape-survey.js — 生成器里那十张画法候选表，跟 `blocks/*.json` 的形态清单对一次账（#1340）。
  *
  *   node scripts/theme-pipeline/shape-survey.js                  普查：候选对 N = 已在库 X + 待迁 Y
- *   node scripts/theme-pipeline/shape-survey.js --cut <块> <形态>  把那一对的几何按 shapes.css 的写法打出来
- *   node scripts/theme-pipeline/shape-survey.js --check           拿同一把刀重剪盘上每一对，跟 shapes.css 比
  *
- * 退出码：0 正常 · 2 跑不起来（**不许当成 0**）。`--check` 有对不上的也是 0 —— 它是取读数的工具，
- * 不是闸：盘上有几对是人手调过的（`hero/text-center` 的 `[data-has-imageUrl]` 拆分就是一处，
- * 理由写在 `public/shapes.css` 那一段里），把它判成红会逼下一个人去把手调的那处改回机器的样子。
+ * 退出码：0 正常 · 2 跑不起来（**不许当成 0**）。
+ *
+ * 🔴 **`--cut` 与 `--check` 两个模式已于 #1339 删掉，别照旧记忆去敲。** 它们是「拿配方里的几何
+ *    重剪一遍，再跟盘上比」，而唯一的输入是 `sheet-recipes.js` 的 `geometryFor` —— #1339 把配方里
+ *    的几何整族删掉之后那个函数不存在了，刀没有了料。**从那天起 `public/shapes.css` 是几何的唯一
+ *    出处，而且它是手维护的**：要加一副新画法就在那份表里写规则、在 `blocks/<块>.json` 的 `shapes`
+ *    里登记名字，没有「从配方剪一份」这条路了。
+ *    它们最后一次跑的读数（2026-09-16，#1339 动手当天）：普查 **候选对 53 = 已在库 53 + 待迁 0**；
+ *    `--check` 重剪对账 **一致 51 · 不一致 2**，那 2 对是盘上人手调过的 `hero/text-center` 与
+ *    `hero/text-left`（`[data-has-imageUrl]` 拆分，理由在 `public/shapes.css` 的文件头）。
+ *
+ * 📌 留下来的这一半**不依赖几何**：它问的是「生成器挑得出来的每一个形态名，在 manifest 里登记了吗」
+ *    —— 那条不变量在 #1339 之后照样活着（生成器仍然挑画法，只是不再自己画它）。
  *
  * ══ 尺子是「(块, 形态) 对」，不是形态名 ══════════════════════════════════════════════════════
  * 形态名不唯一：`three-up` 在九个块上都有，`two-up` 在十三个块上都有。问的是「`process-steps` 有没有
@@ -45,11 +53,11 @@ const DIR = __dirname;
 const NEXT = path.resolve(DIR, '..', '..');
 const BLOCKS = path.join(NEXT, 'blocks');
 
-let recipes; let postcss;
+let recipes;
 try {
   recipes = require(path.join(DIR, 'sheet-recipes.js'));
-  // eslint-disable-next-line global-require
-  postcss = require('postcss');
+  // #1339 —— `postcss` 是 `--cut` / `--check` 那两个模式用的（它们要解析剪出来的 CSS 再跟盘上比），
+  // 那两个模式删掉之后这里不再需要它。留着一个没人用的 require 会让下一个人以为这个脚本还在读 CSS。
 } catch (e) {
   console.error(`🔴 跑不起来：${e.message}`);
   process.exit(2);
@@ -107,161 +115,15 @@ function survey() {
   return { todo, done };
 }
 
-// ── 剪几何：跟 #1318 剪 `public/shapes.css` 用的是同一把刀 ─────────────────────────────────────
-//
-// 🔴 `geometryFor(i)` 是那把刀本身（`sheet-recipes.js` 里 `EMIT='geom'` 的那一半），不是它的复制品。
-//    「哪个画法画成什么样」这件知识只有那几张表有；这里做的只是**换选择器**：`.hero` 换成
-//    `[data-block="hero"][data-shape="<名>"]`，声明一个字节不动。
-// 🔴 同一个画法名、不同候选号剪出来必须一样 —— 下面取三个候选号比一次，不一样就当场停
-//    （那说明这一对的几何还依赖别的维度，「一对一段几何」这个前提不成立）。
-
-/** look 名 == name 的前 n 个候选号 */
-function pickIds(pred, n = 3, max = 40000) {
-  const out = [];
-  for (let i = 0; i < max && out.length < n; i += 1) if (pred(recipes.voiceFor(i))) out.push(i);
-  return out;
-}
-
-/** 第 i 套候选的几何里属于 block 的那些规则 */
-function segmentFor(i, block) {
-  const root = postcss.parse(recipes.geometryFor(i));
-  const keep = [];
-  root.walkRules((rule) => {
-    if (!rule.selectors.every((s) => s.includes(`.${block}`))) {
-      if (rule.selectors.some((s) => s.includes(`.${block}`))) throw new Error(`选择器混了：${rule.selector}`);
-      return;
-    }
-    const media = rule.parent && rule.parent.type === 'atrule' ? rule.parent.params : null;
-    keep.push({ media, selectors: rule.selectors, decls: rule.nodes.map((d) => `${d.prop}: ${d.value}`) });
-  });
-  return keep;
-}
-
-/** 这个块今天真的会渲染出来的类名 —— 从它的组件现读，不手抄 */
-const COMPONENT = {
-  hero: 'HeroSection',
-  'content-split': 'ContentSplitSection',
-  'features-grid': 'FeaturesGridSection',
-  'card-group': 'CardGroupSection',
-  'cta-banner': 'CtaBannerSection',
-  'contact-form': 'ContactFormSection',
-  'page-header': 'PageHeaderSection',
-  'faq-accordion': 'FaqAccordionSection',
-  'process-steps': 'ProcessStepsSection',
-  'contact-info': 'ContactInfoSection',
-  testimonials: 'TestimonialsSection',
-};
-function liveHooks(block) {
-  const f = path.join(NEXT, 'src', 'components', 'sections', `${COMPONENT[block]}.tsx`);
-  const src = fs.readFileSync(f, 'utf-8');
-  const out = new Set([block]);
-  for (const m of src.matchAll(/([a-z][a-z0-9-]*)__([a-z][a-z0-9-]*)/g)) {
-    if (m[1] === block) out.add(`${block}__${m[2]}`);
-  }
-  // `card-group` 这类用 `${v.name}__x` 写类名
-  for (const m of src.matchAll(/\$\{v\.name\}__([a-z][a-z0-9-]*)/g)) out.add(`${block}__${m[1]}`);
-  return out;
-}
-
-/** `.hero` → `[data-block=…][data-shape=…]`；`.hero__x` → 那个属性选择器后面跟着它；兄弟链两端都带 */
-function remap(sel, block, shape) {
-  const at = `[data-block="${block}"][data-shape="${shape}"]`;
-  let seen = false;
-  return sel.trim().split(/\s+/).map((p) => {
-    if (p === `.${block}`) { seen = true; return at; }
-    if (p === '+' || p === '>' || p === '~') return p;
-    if (p.startsWith(`.${block}__`)) { const o = seen ? p : `${at} ${p}`; seen = true; return o; }
-    return p;
-  }).join(' ');
-}
-
-/** 一对的 shapes.css 文本。`dropped` 是丢掉的规则：那些部件今天不在这个块的 DOM 里 */
-function emit(block, shape, seg, hooks) {
-  const dropped = [];
-  const rules = seg.filter((x) => {
-    const cls = x.selectors.flatMap((s) => [...s.matchAll(/\.([a-z][a-z0-9_-]*)/g)].map((m) => m[1]));
-    const dead = [...new Set(cls.filter((c) => !hooks.has(c)))];
-    if (dead.length) { dropped.push({ sel: x.selectors.join(', '), dead }); return false; }
-    return true;
-  });
-  const body = (x) => `${x.selectors.map((s) => remap(s, block, shape)).join(',\n')} {\n`
-    + `${x.decls.map((d) => `  ${d};`).join('\n')}\n}`;
-  let css = rules.filter((x) => !x.media).map(body).join('\n\n');
-  const byQ = new Map();
-  for (const x of rules.filter((y) => y.media)) {
-    if (!byQ.has(x.media)) byQ.set(x.media, []);
-    byQ.get(x.media).push(x);
-  }
-  for (const [q, xs] of byQ) {
-    css += `\n\n@media ${q} {\n${xs.map((x) => body(x).split('\n')
-      .map((l) => (l ? `  ${l}` : l)).join('\n')).join('\n\n')}\n}`;
-  }
-  return { css, dropped };
-}
-
-/** 一对 → { css, dropped, ids }；`familyFor` 负责找出这个形态名属于哪一族 */
-function cutPair(block, shape) {
-  const fam = recipes.LOOK_FAMILIES.find((f) => f.blocks.includes(block)
-    && Object.keys(f.table).some((n) => shape === n || shape.startsWith(`${n}-`)));
-  if (!fam) throw new Error(`${block}/${shape}: 候选表里没有这一族`);
-  const name = Object.keys(fam.table).find((n) => shape === n || shape.startsWith(`${n}-`));
-  const rhythm = shape === name ? null : shape.slice(name.length + 1);
-  const ids = pickIds((v) => v[fam.key] === name && (!rhythm || v.splitRhythm === rhythm));
-  if (!ids.length) throw new Error(`${block}/${shape}: 一个候选号都没挑到`);
-  const segs = ids.map((i) => segmentFor(i, block));
-  if (!segs.every((s) => JSON.stringify(s) === JSON.stringify(segs[0]))) {
-    throw new Error(`${block}/${shape}: 三个候选号剪出来的几何不一样 —— 「一对一段几何」这个前提不成立`);
-  }
-  return { ...emit(block, shape, segs[0], liveHooks(block)), ids, family: fam.key, name, rhythm };
-}
-
 // ── 入口 ──────────────────────────────────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
+if (args.length) {
+  console.error(`🔴 这个脚本今天只有一个模式（普查），不认参数：${args.join(' ')}`);
+  console.error('   `--cut` / `--check` 已于 #1339 删掉 —— 理由与它们最后一次的读数写在文件头。');
+  process.exit(2);
+}
 try {
-  if (args[0] === '--cut') {
-    const [, block, shape] = args;
-    if (!block || !shape) { console.error('用法：--cut <块> <形态>'); process.exit(2); }
-    const r = cutPair(block, shape);
-    console.error(`# ${block}/${shape} ← ${r.family}='${r.name}'${r.rhythm ? ` 节律 ${r.rhythm}` : ''}`
-      + ` · 候选号 ${r.ids.join(' ')}`);
-    for (const d of r.dropped) console.error(`#   丢掉 ${d.sel}（${d.dead.join(' ')} 今天不在这个块的 DOM 里）`);
-    console.log(r.css);
-  } else if (args[0] === '--check') {
-    const cssText = fs.readFileSync(path.join(NEXT, 'public', 'shapes.css'), 'utf-8');
-    const shipped = (block, shape) => {
-      const at = `[data-block="${block}"][data-shape="${shape}"]`;
-      const keep = [];
-      postcss.parse(cssText).walkRules((rule) => {
-        if (!rule.selectors.every((s) => s.includes(at))) return;
-        keep.push({
-          media: rule.parent && rule.parent.type === 'atrule' ? rule.parent.params : null,
-          decls: rule.nodes.map((d) => `${d.prop}: ${d.value}`).join('; '),
-        });
-      });
-      return keep;
-    };
-    let same = 0; let diff = 0;
-    const man = shapesByBlock();
-    for (const f of recipes.LOOK_FAMILIES) {
-      for (const b of f.blocks) {
-        for (const look of Object.keys(f.table)) {
-          for (const hit of expand(f, look)) {
-          if (!(man[b] || []).includes(hit)) continue;
-          const cut = cutPair(b, hit);
-          const mineDecls = [];
-          postcss.parse(cut.css).walkRules((rule) => mineDecls.push({
-            media: rule.parent && rule.parent.type === 'atrule' ? rule.parent.params : null,
-            decls: rule.nodes.map((d) => `${d.prop}: ${d.value}`).join('; '),
-          }));
-          const key = (xs) => JSON.stringify([...xs].map((x) => `${x.media}|${x.decls}`).sort());
-          if (key(mineDecls) === key(shipped(b, hit))) { same += 1; console.log(`  ✅ ${b}/${hit}`); }
-          else { diff += 1; console.log(`  ⚠️  ${b}/${hit} —— 跟刀剪出来的不一样（人手调过的那几对会落在这里）`); }
-          }
-        }
-      }
-    }
-    console.log(`\n══ 重剪对账：跟刀一致 ${same} · 不一致 ${diff} ══`);
-  } else {
+  {
     console.log(selfCheck());
     const { todo, done } = survey();
     console.log(`候选对 ${done.length + todo.length} = 已在库 ${done.length} + 待迁 ${todo.length}`);

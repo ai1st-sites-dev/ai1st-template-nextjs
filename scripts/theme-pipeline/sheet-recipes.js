@@ -147,51 +147,49 @@ const CARD_BLOCKS = ['features-grid', 'card-group'];
 const CTA_LOOKS = {
   // ① 左对齐横带 —— 今天全池那一副骨架，留作候选之一。
   'band-left': {
-    cols: '1fr',
-    rootExtra: () => ({ 'align-items': 'start' }),
+    wideSpacing: false,
+    rootExtra: () => ({}),
     partExtra: {},
   },
   // ② 居中横带
   'band-center': {
-    cols: '1fr',
-    rootExtra: () => ({ 'align-items': 'center', 'justify-items': 'center', 'text-align': 'center' }),
+    wideSpacing: false,
+    rootExtra: () => ({ 'text-align': 'center' }),
     partExtra: {
       // 🔴 带 `max-width` 的每一处都要配 auto 外边距 —— `sheet-recipes.test.js` ④ 那道不变量：
       //    「哪个容器声明了居中，它同一个块里那些不受 text-align 管的东西就得被摆正」。
       //    我第一版只给 desc 配了，headline 漏了，那一格当场点名（80 套里 27 套）。
-      headline: () => ({ 'max-width': '44rem', 'margin-left': 'auto', 'margin-right': 'auto' }),
-      desc: () => ({ 'max-width': '38rem', 'margin-left': 'auto', 'margin-right': 'auto' }),
-      action: () => ({ 'justify-content': 'center' }),
+      headline: () => ({ 'margin-left': 'auto', 'margin-right': 'auto' }),
+      desc: () => ({ 'margin-left': 'auto', 'margin-right': 'auto' }),
+      action: () => ({}),
     },
   },
   // ③ 文左钮右 —— 标题占满上面一行，说明和按钮在**同一行**分左右。
   //    `desc` / `action` 都改成 `auto`：桌面两栏时它们各落一栏，手机上仍然是上下两块。
   'text-left-action-right': {
-    cols: '2fr 1fr',
-    rootExtra: () => ({ 'align-items': 'center' }),
+    rootExtra: () => ({}),
     partExtra: {
-      desc: () => ({ 'grid-column': 'auto', 'max-width': '40rem', 'margin-top': '0' }),
-      action: () => ({ 'grid-column': 'auto', 'justify-content': 'flex-end', 'align-self': 'center' }),
+      desc: () => ({ 'margin-top': '0' }),
+      action: () => ({}),
     },
   },
   // ④ 标题在侧 —— 标题和说明在同一行分左右，按钮自己占满下面一行。
   'title-side': {
-    cols: '1fr 2fr',
-    rootExtra: () => ({ 'align-items': 'start' }),
+    rootExtra: () => ({}),
     partExtra: {
-      headline: () => ({ 'grid-column': 'auto', 'align-self': 'start' }),
-      desc: () => ({ 'grid-column': 'auto', 'margin-top': '0', 'max-width': '44rem' }),
-      action: () => ({ 'grid-column': '1 / -1' }),
+      headline: () => ({}),
+      desc: () => ({ 'margin-top': '0' }),
+      action: () => ({}),
     },
   },
   // ⑤ 按钮在前 —— 按钮排在文字**上面**（`order`，跟 hero 那一族同一个手法）。
   'action-first': {
-    cols: '1fr',
-    rootExtra: () => ({ 'align-items': 'start' }),
+    wideSpacing: false,
+    rootExtra: () => ({}),
     partExtra: {
-      action: () => ({ order: 1 }),
-      headline: () => ({ order: 2 }),
-      desc: () => ({ order: 3, 'margin-top': '0.5rem' }),
+      action: () => ({}),
+      headline: () => ({}),
+      desc: () => ({ 'margin-top': '0.5rem' }),
     },
   },
 };
@@ -199,17 +197,16 @@ const CTA_LOOKS = {
 const FORM_LOOKS = {
   // ① 表单在下 —— 今天全池那一副骨架。
   'panel-below': {
-    cols: '1fr',
-    rootExtra: () => ({ 'align-items': 'start' }),
+    wideSpacing: false,
+    rootExtra: () => ({}),
     partExtra: {},
   },
   // ② 表单在右 —— 说明和表单同一行分左右。
   'panel-right': {
-    cols: '1fr 1fr',
-    rootExtra: () => ({ 'align-items': 'start' }),
+    rootExtra: () => ({}),
     partExtra: {
-      intro: () => ({ 'grid-column': 'auto', 'max-width': '32rem' }),
-      form: () => ({ 'grid-column': 'auto' }),
+      intro: () => ({}),
+      form: () => ({}),
     },
   },
   // ③ 表单在左 —— 同 ② 但左右调过来（`order`，不是显式落位）。
@@ -230,43 +227,40 @@ const FORM_LOOKS = {
   //    他而不是替他补 order —— 他必须先重算那个地板。（`keepsWideBreakpoint` 那条的「不需要记得」
   //    仍然成立，它讲的是**默认值自动有**这个机制，不是守卫的射程。）
   'panel-left': {
-    cols: '1fr 1fr',
-    rootExtra: () => ({ 'align-items': 'start' }),
+    rootExtra: () => ({}),
     partExtra: {
-      form: () => ({ 'grid-column': 'auto', order: 1 }),
-      intro: () => ({ 'grid-column': 'auto', order: 2, 'max-width': '32rem' }),
-      note: () => ({ order: 3 }),
+      form: () => ({}),
+      intro: () => ({}),
+      note: () => ({}),
     },
   },
   // ④ 居中窄栏
   'centered-narrow': {
-    cols: '1fr',
-    rootExtra: () => ({ 'align-items': 'center', 'justify-items': 'center', 'text-align': 'center' }),
+    wideSpacing: false,
+    rootExtra: () => ({ 'text-align': 'center' }),
     partExtra: {
       // 同 `band-center`：每一处 `max-width` 都配 auto 外边距（④ 那道不变量）。
-      heading: () => ({ 'max-width': '40rem', 'margin-left': 'auto', 'margin-right': 'auto' }),
-      intro: () => ({ 'max-width': '34rem', 'margin-left': 'auto', 'margin-right': 'auto' }),
-      form: () => ({ 'max-width': '34rem', width: '100%', 'text-align': 'left', 'margin-left': 'auto', 'margin-right': 'auto' }),
-      note: () => ({ 'max-width': '34rem', 'margin-left': 'auto', 'margin-right': 'auto' }),
+      heading: () => ({ 'margin-left': 'auto', 'margin-right': 'auto' }),
+      intro: () => ({ 'margin-left': 'auto', 'margin-right': 'auto' }),
+      form: () => ({ width: '100%', 'text-align': 'left', 'margin-left': 'auto', 'margin-right': 'auto' }),
+      note: () => ({ 'margin-left': 'auto', 'margin-right': 'auto' }),
     },
   },
   // ⑤ 标题在侧 —— 标题和说明分左右，表单占满下面一行。
   'heading-side': {
-    cols: '1fr 2fr',
-    rootExtra: () => ({ 'align-items': 'start' }),
+    rootExtra: () => ({}),
     partExtra: {
-      heading: () => ({ 'grid-column': 'auto', 'align-self': 'start' }),
-      intro: () => ({ 'grid-column': 'auto', 'margin-top': '0' }),
-      form: () => ({ 'grid-column': '1 / -1' }),
+      heading: () => ({}),
+      intro: () => ({ 'margin-top': '0' }),
+      form: () => ({}),
     },
   },
   // ⑥ 表单占大半、附注在侧 —— 表单和那行小字同一行分左右。
   'note-beside': {
-    cols: '2fr 1fr',
-    rootExtra: () => ({ 'align-items': 'start' }),
+    rootExtra: () => ({}),
     partExtra: {
-      form: () => ({ 'grid-column': 'auto' }),
-      note: () => ({ 'grid-column': 'auto', 'align-self': 'start', 'max-width': '22rem' }),
+      form: () => ({}),
+      note: () => ({}),
     },
   },
 };
@@ -329,40 +323,39 @@ const lookFor = (names, m) => (i) => names[(i + Math.floor(i / m)) % names.lengt
 const HEADER_LOOKS = {
   // ① 左对齐堆叠 —— 今天全池那一副骨架，留作候选之一（同 `CTA_LOOKS` 的 `band-left`）。
   //    `rootExtra` 空着是**故意的**：这一副的产物要跟本票之前逐字节相同，反向对照才有一个已知的锚。
-  'stack-left': { cols: '1fr', rootExtra: () => ({}), partExtra: {} },
+  'stack-left': { wideSpacing: false, rootExtra: () => ({}), partExtra: {} },
   // ② 居中 —— 标题和副标题都收窄居中。
   centered: {
-    cols: '1fr',
-    rootExtra: () => ({ 'justify-items': 'center', 'text-align': 'center' }),
+    wideSpacing: false,
+    rootExtra: () => ({ 'text-align': 'center' }),
     partExtra: {
       // 🔴 每一处 `max-width` 都要配 auto 外边距 —— `sheet-recipes.test.js` ④ 那道不变量：
       //    `text-align` 只管行内内容，带 `max-width` 的块级元素的位置由外边距定。
-      title: () => ({ 'max-width': '48rem', 'margin-left': 'auto', 'margin-right': 'auto' }),
-      sub: () => ({ 'max-width': '34rem', 'margin-left': 'auto', 'margin-right': 'auto' }),
+      title: () => ({ 'margin-left': 'auto', 'margin-right': 'auto' }),
+      sub: () => ({ 'margin-left': 'auto', 'margin-right': 'auto' }),
     },
   },
   // ③ 标题在侧 —— 标题和副标题在**同一行**分左右，面包屑占满上面一行。
   //    🔴 面包屑必须显式写 `1 / -1`：`crumbs` 这个角色自己不写 `grid-column`（不像 `display` /
   //    `lede`），两栏下它会被自动流塞进第一格、把标题挤到第二格去。
   'title-side': {
-    cols: '2fr 1fr',
-    rootExtra: () => ({ 'align-items': 'end' }),
+    rootExtra: () => ({}),
     partExtra: {
-      crumbs: () => ({ 'grid-column': '1 / -1' }),
-      title: () => ({ 'grid-column': 'auto' }),
-      sub: () => ({ 'grid-column': 'auto', 'margin-top': '0', 'max-width': '26rem' }),
+      crumbs: () => ({}),
+      title: () => ({}),
+      sub: () => ({ 'margin-top': '0' }),
     },
   },
   // ④ 副标题在上 —— 副标题当眉题排在标题前面。
   //    🔴 三个部件**都**要写 `order`（同 `FORM_LOOKS` 的 `panel-left` 那条）：`order` 默认 0，
   //    只给两个写就会让没写的那个跑到最前面。
   'kicker-above': {
-    cols: '1fr',
-    rootExtra: () => ({ 'align-items': 'start' }),
+    wideSpacing: false,
+    rootExtra: () => ({}),
     partExtra: {
-      crumbs: () => ({ order: 1 }),
-      sub: () => ({ order: 2, 'margin-top': '0' }),
-      title: () => ({ order: 3 }),
+      crumbs: () => ({}),
+      sub: () => ({ 'margin-top': '0' }),
+      title: () => ({}),
     },
   },
 };
@@ -375,28 +368,27 @@ const HEADER_LOOKS = {
 //    靠它的话，在没有 `defaultOpen` 的页面上四副全塌。
 const FAQ_LOOKS = {
   // ① 单栏堆叠 —— 今天全池那一副。
-  stack: { cols: '1fr', rootExtra: () => ({}), partExtra: {} },
+  stack: { wideSpacing: false, rootExtra: () => ({}), partExtra: {} },
   // ② 两栏问答 —— 标题和引言占满，条目两个一行。
-  'two-column': { cols: '1fr 1fr', rootExtra: () => ({ 'align-items': 'start' }), partExtra: {} },
+  'two-column': { rootExtra: () => ({}), partExtra: {} },
   // ③ 标题在侧 —— 标题和引言同一行分左右，条目占满下面各行。
   'heading-side': {
-    cols: '1fr 2fr',
-    rootExtra: () => ({ 'align-items': 'start' }),
+    rootExtra: () => ({}),
     partExtra: {
-      headline: () => ({ 'grid-column': 'auto', 'align-self': 'start' }),
-      sub: () => ({ 'grid-column': 'auto', 'margin-top': '0' }),
-      item: () => ({ 'grid-column': '1 / -1' }),
+      headline: () => ({}),
+      sub: () => ({ 'margin-top': '0' }),
+      item: () => ({}),
     },
   },
   // ④ 居中窄栏 —— 条目本身收窄居中，但条目里的字仍然靠左（一段问答居中读起来很累）。
   centered: {
-    cols: '1fr',
-    rootExtra: () => ({ 'justify-items': 'center', 'text-align': 'center' }),
+    wideSpacing: false,
+    rootExtra: () => ({ 'text-align': 'center' }),
     partExtra: {
-      headline: () => ({ 'max-width': '44rem', 'margin-left': 'auto', 'margin-right': 'auto' }),
-      sub: () => ({ 'max-width': '34rem', 'margin-left': 'auto', 'margin-right': 'auto' }),
+      headline: () => ({ 'margin-left': 'auto', 'margin-right': 'auto' }),
+      sub: () => ({ 'margin-left': 'auto', 'margin-right': 'auto' }),
       item: () => ({
-        width: '100%', 'max-width': '48rem', 'margin-left': 'auto', 'margin-right': 'auto', 'text-align': 'left',
+        width: '100%','margin-left': 'auto', 'margin-right': 'auto', 'text-align': 'left',
       }),
     },
   },
@@ -409,29 +401,28 @@ const FAQ_LOOKS = {
 //    自己的骨架决定，而不是跟全站别的无候选块一起转。
 const STEPS_LOOKS = {
   // ① 三个一行（= 今天 `v.wide` 的 `1fr 1fr 1fr` 那一档）
-  'three-up': { cols: '1fr 1fr 1fr', rootExtra: () => ({}), partExtra: {} },
+  'three-up': { rootExtra: () => ({}), partExtra: {} },
   // ② 两个一行（= 今天 `v.wide` 的 `1fr 1fr` 那一档）
-  'two-up': { cols: '1fr 1fr', rootExtra: () => ({}), partExtra: {} },
+  'two-up': { rootExtra: () => ({}), partExtra: {} },
   // ③ 编号在侧的长条 —— 一行一步；编号占左边一整格，标题和说明在它右边上下排。
   //    🔴 编号那条 `grid-row` 是**卡片内部**的落位，跟块根那条 🔴（只许 `auto` 或 `1 / -1`）不冲突：
   //    卡片自己的两栏网格就写在同一条基础规则里（下面 `step` 那行），所以窄屏上它也是两栏，
   //    不会长出隐式列。
   'numbered-rail': {
-    cols: '1fr',
-    rootExtra: () => ({ 'align-items': 'start' }),
+    wideSpacing: false,
+    rootExtra: () => ({}),
     partExtra: {
-      step: () => ({ 'grid-template-columns': 'auto 1fr', 'align-items': 'start', gap: '0.4rem 1.25rem' }),
-      num: () => ({ 'grid-row': '1 / 3' }),
+      step: () => ({ gap: '0.4rem 1.25rem' }),
+      num: () => ({}),
     },
   },
   // ④ 标题在侧 —— 标题和引言同一行分左右，步骤占满下面各行。
   'heading-side': {
-    cols: '1fr 2fr',
-    rootExtra: () => ({ 'align-items': 'start' }),
+    rootExtra: () => ({}),
     partExtra: {
-      headline: () => ({ 'grid-column': 'auto', 'align-self': 'start' }),
-      sub: () => ({ 'grid-column': 'auto', 'margin-top': '0' }),
-      step: () => ({ 'grid-column': '1 / -1' }),
+      headline: () => ({}),
+      sub: () => ({ 'margin-top': '0' }),
+      step: () => ({}),
     },
   },
 };
@@ -458,28 +449,27 @@ const STEPS_LOOKS = {
 // 📌 ① 的 `rootExtra` / `partExtra` 都空着：这一副的产物跟本票之前逐字节相同。
 const INFO_LOOKS = {
   // ① 卡片在左、邮箱在右 —— 今天全池那一副（两栏，卡片和邮箱同一行）。
-  'card-then-email': { cols: '1fr 1fr', rootExtra: () => ({}), partExtra: {} },
+  'card-then-email': { rootExtra: () => ({}), partExtra: {} },
   // ② 地点名在侧 —— 卡片内部分两栏：地点名占左边一整格，地址和电话在右边上下排；邮箱落到卡片下面。
   'label-side': {
-    cols: '1fr',
+    wideSpacing: false,
     rootExtra: () => ({}),
     partExtra: {
-      location: () => ({ 'grid-template-columns': 'auto 1fr', 'align-items': 'baseline', gap: '0.35rem 1.5rem' }),
-      label: () => ({ 'grid-row': '1 / 3' }),
+      location: () => ({ gap: '0.35rem 1.5rem' }),
+      label: () => ({}),
     },
   },
   // ③ 电话在前 —— 卡片内部把电话排到最上面，邮箱排到卡片上面。
   //    🔴 卡片里三个部件**都**写 `order`、块里那两个也都写（同 `panel-left` 那条：`order` 默认 0，
   //    只写一部分会让没写的那个跑到最前面）。
   'phone-first': {
-    cols: '1fr 1fr',
     rootExtra: () => ({}),
     partExtra: {
-      email: () => ({ order: 1 }),
-      location: () => ({ order: 2 }),
-      phone: () => ({ order: 1 }),
-      label: () => ({ order: 2 }),
-      address: () => ({ order: 3 }),
+      email: () => ({}),
+      location: () => ({}),
+      phone: () => ({}),
+      label: () => ({}),
+      address: () => ({}),
     },
   },
 };
@@ -489,98 +479,48 @@ const INFO_LOOKS = {
 // 📌 前两副同 `process-steps`：今天这个块的桌面列数也来自 `v.wide`。
 const TESTIMONIAL_LOOKS = {
   // ① 三个一行（= 今天 `v.wide` 的 `1fr 1fr 1fr` 那一档）
-  'three-up': { cols: '1fr 1fr 1fr', rootExtra: () => ({}), partExtra: {} },
+  'three-up': { rootExtra: () => ({}), partExtra: {} },
   // ② 两个一行（= 今天 `v.wide` 的 `1fr 1fr` 那一档）
-  'two-up': { cols: '1fr 1fr', rootExtra: () => ({}), partExtra: {} },
+  'two-up': { rootExtra: () => ({}), partExtra: {} },
   // ③ 引语在左、评分和署名在右 —— 一行一条，卡片横过来。
   //    卡片里五个部件（rating / quote / name / meta / service，`TestimonialsSection.tsx:73-85`），
   //    引语占左栏竖着跨满，其余四个顺着排在右栏 —— 所以 `grid-row` 是 `1 / 5`。
   'quote-rail': {
-    cols: '1fr',
+    wideSpacing: false,
     rootExtra: () => ({}),
     partExtra: {
-      item: () => ({ 'grid-template-columns': '2fr 1fr', 'align-items': 'start', gap: '0.5rem 2rem' }),
-      quote: () => ({ 'grid-column': '1', 'grid-row': '1 / 5' }),
+      item: () => ({ gap: '0.5rem 2rem' }),
+      quote: () => ({}),
     },
   },
   // ④ 署名在前 —— 卡片内部把名字和身份排到引语上面（五个部件都写 `order`）。
   'attribution-first': {
-    cols: '1fr 1fr',
     rootExtra: () => ({}),
     partExtra: {
-      name: () => ({ order: 1 }),
-      meta: () => ({ order: 2 }),
-      rating: () => ({ order: 3 }),
-      quote: () => ({ order: 4 }),
-      service: () => ({ order: 5 }),
+      name: () => ({}),
+      meta: () => ({}),
+      rating: () => ({}),
+      quote: () => ({}),
+      service: () => ({}),
     },
   },
 };
 
-// ── #1190 —— 实验钉：一套候选，把 testimonials 画成一条能滑而且停得住的横条 ─────────────────────
+// ── #1190 实验钉（「一套候选把 testimonials 画成能滑的横条」）已于 #1339 整条删掉 ───────────────
 //
-// 🔴 **它住在 `TESTIMONIAL_LOOKS` 外面，这是 PM 2026-08-25 的裁定，理由是量出来的**：
-//   · 往那张表里加第 5 副画法 ⟹ 97 套里画法档变掉 **75** 套（分布 20/19/20/19/19，最小档 19.6%，
-//     所以拦住它的**不是**那条 15% 地板）。🔴 这段读数是在 97 套的池子上量的；#1317（2026-09-14）
-//     把池子删到 2 套整池重建，所以「75/97」今天不是现状，池子重生成那天要重量一遍。当年那 97 张是
-//     **在售**的表，客户站重建就跟着变 —— 75 个站的
-//     客户评价段换个排法，是产品决定，不该当成一张实证票的副作用。
-//   · 而且 `sheet-recipes.test.js` 第 ⑨ 格会当场红：它的判据是 `d.archs !== r.L`（`L` =
-//     `Object.keys(f.table).length`），加了第 5 个键而挑法仍走 4 个名字 ⟹ 报「5 种候选里只轮到 4 种」。
-//
-// 🔴 **这跟本流水线「用分布不用 flag」那条纪律不冲突，因为它们回答的不是同一个问题**：分布回答
-//    「97 套怎么各不相同」，而这张票问的是「拿一套试穿」。一个实验要的就是**一个**受试者，而分布这种
-//    机制按构造说不出「恰好一个」。所以照实写成一条**明写的实验钉**：一个候选号、一句 CSS 注释，
-//    外加 `sheet-recipes.test.js` 一格断言「命中的候选恰好 1 个」。
-//    📌 将来它要转正成一副真画法，是另一张票的事 —— 那时才付「重新分布 75 套」那笔账。
-//
-// 🔴 **候选号是 27（`gen-07-28` = `lime-28`），挑它的判据写在这里，别随手换**：① 它的
-//    `testimonialLook` 是 `three-up`（最朴素那一副，覆盖起来最干净）；② 全仓 grep 它 **0 命中**
-//    —— `tests/e2e/specs/1139-real-site-block-skeletons.spec.ts` 把 i=0…4 那五套的骨架逐块钉死了，
-//    钉在它们身上会把那一格弄红，而 `lime-28` 不在任何一格的射程里。
-//
-// 🔴 **`overflow-x` 而不是 `overflow`**：只开横轴。竖轴留给块自己（`globals.css` 的
-//    `.testimonials { overflow: hidden }`）。
-// 🔴 **`display: flex` 这一行不是可选的**：这一层的默认是 `globals.css` 里的 `display: contents`，
-//    而 `overflow-x` 写在一个没有盒子的元素上什么都不会发生。改 `display` 的活只能由表来做。
-const SCROLL_STRIP_EXPERIMENT = {
-  candidate: 27,
-  block: 'testimonials',
-  note: '#1190 experiment pin — the one sheet in the pool that draws testimonials as a slide-able strip',
-  // `v` 是这套候选的 voice：gap 跟着这套主题自己的节奏走，不另起一个数。
-  rules: (v) => [
-    ['[data-block-part="testimonials-list"]', {
-      display: 'flex',
-      // 桌面上块根是多栏网格（`wideRule`），不跨满的话这一层只占第一栏。
-      'grid-column': '1 / -1',
-      gap: v.gap,
-      'overflow-x': 'auto',
-      'scroll-snap-type': 'x mandatory',
-    }],
-    ['.testimonials__item', {
-      'flex-shrink': 0,
-      // 窄屏：一张卡占满一屏还露出下一张的一角。
-      // 🔴 这里是**百分比**而不是 `20rem`，而这一条是被 QA2 在真机上逼出来的（#1190 r2）：定长卡
-      //    的宽度不跟着容器走，于是屏一窄它就比容器还宽 —— r1 交付的 `min-width: 20rem` 在 320 /
-      //    344 / 360px 三档手机上**开页时第一张卡就是被裁的**（实测各裁 48 / 24 / 8px；375 才刚好
-      //    完整，只剩 7px 余量）。r1 那句注释「手机上块的内容宽 ≈ 327px 实测」量的是 375 那一档，
-      //    而它下面还有三档。写成 `%` 之后卡宽是容器可视宽的一个真分数 ⟹ **任何宽度**上首项都完整，
-      //    这是按构造成立的，不是在几个抽样宽度上碰巧成立。
-      'min-width': '80%',
-      'scroll-snap-align': 'start',
-    }],
-  ],
-  // 🔴 桌面那一段不是装饰，它是「这条横条在任何屏上都真的是一条横条」的那一半，而且这一条是被
-  //    读数逼出来的：只写 `min-width: 20rem` 时，1440px 上块的内容宽是 1344，三张 320 的卡加两个
-  //    间隙才 1024 ⟹ `scrollWidth === clientWidth`，**根本没得滑**，而「设成 100 静止后读到 0」在
-  //    那种页面上是恒真的 —— 一个读起来像交付了的假绿。
-  // 📌 用**百分比**而不是又一个 rem：卡宽跟着容器走，于是 3 张卡按构造就是 126%+，在 1440、1920、
-  //    任何桌面宽度上都溢出。部件不受 §2 那条「块上的长度只许一个方向」管（那条只管块和区域的钩
-  //    子），所以这里写 `%` 是合法的 —— 交付时逐条 lint 过。
-  wide: () => [
-    ['.testimonials__item', { 'min-width': '42%' }],
-  ],
-};
+// 🔴 **没有继承者，这是有意的，不是漏搬。** 搬去 `public/shapes.css` 这条路走不通，理由是机制性的：
+//    形态层是平台表，`layout.tsx` 无条件加载，按 `[data-block][data-shape]` 点名，而 `data-shape`
+//    来自**站点内容**；实验钉要表达的却是「池子里这一套表把 testimonials 画成横条」，是**跟主题走**
+//    的。形态层没有地方放「只有这套主题才生效」。
+// 🔴 而且它从 #1318 起就已经不工作了：`display: flex` / `grid-column` / `flex-shrink` 三条被几何
+//    滤网滤掉，只剩 `overflow-x` 那一半 —— 而按 `src/app/globals.css` 自己写的话，`overflow-x` 写在
+//    一个 `display: contents` 的元素上什么都不会发生。所以删掉的是一条从 #1318 起就没有效果的东西。
+// 📌 想把横条要回来：让它变成 testimonials 的一副**真形态**（`public/shapes.css` 写规则 +
+//    `blocks/testimonials.json` 的 `shapes` 登记名字），那是另一张票的事。
+// 📌 盯着它的是 `sheet-recipes.test.js` 的 ⑮ 格，而那一格在脚手架期整格跳过（被钉的 `lime-28` 已
+//    随 #1161 下架、盘上只剩 2 份生成表）⟹ 删它不会让任何东西变红。**那是预期，不是「没验」**：
+//    这一步的判据是交付留言里那条差集（整池 `declBlock` 采到的几何集合为空），不是测试变不变色。
+
 
 // #1139 那批各自的档位。**这里是唯一说得出「第 i 套是哪一副」的地方**（同 hero / split / cards /
 // cta / form 那几行的纪律）：名字表就是那张画法表自己的键，不另抄一份清单。
@@ -651,7 +591,7 @@ const GAP_STEPS = [4, 5, 6, 8];
 /** `var(--x)` 或 `calc(var(--x) * k)` —— k=1 时不写 calc（一个乘 1 的 calc 只是噪音）。 */
 function tokenLen(name, k) {
   const n = Number(k.toFixed(6));           // 5 × 1.4 在二进制里是 7.000000000000001
-  return n === 1 ? `var(${name})` : `calc(var(${name}) * ${n})`;
+  return n === 1 ? `var(${name })` : `calc(var(${name }) * ${n })`;
 }
 
 function voiceFor(i) {
@@ -707,7 +647,11 @@ function voiceFor(i) {
     headingSize: ['1.75rem', '2rem', '2.25rem'][i % 3],
     tracking: ['0', '-0.01em', '-0.02em'][i % 3],
     caps: i % 2 === 1,
-    wide: i % 2 === 0 ? '1fr 1fr 1fr' : '1fr 1fr',
+    // #1339 —— 这一项以前是 `wide: i % 2 === 0 ? '1fr 1fr 1fr' : '1fr 1fr'`，也就是**桌面列数**，
+    // 而列数是几何、今天住在 `public/shapes.css`。但它携带的那条「这套候选在没有候选表的那几个块
+    // 上是 3 栏还是 2 栏」的轴**不能跟着列数一起没**：没有它，那 9 个块就从「各有 2 副骨架」塌成
+    // 「全都只有 1 副」。所以这一项换成**形态名**这一层的同一条轴 —— 值是形态库里那两个名字。
+    plainGrid: i % 2 === 0 ? 'three-up' : 'two-up',
   };
 }
 
@@ -721,8 +665,8 @@ const SURFACES = {
   mid: { bg: 800, fg: 50, soft: 100, card: 900, line: 700, chip: 'accent-400' },
   pale: { bg: 50, fg: 900, soft: 800, card: 100, line: 200, chip: 'accent-500' },
 };
-const primary = (n) => `var(--color-primary-${n})`;
-const accent = (n) => `var(--color-accent-${n})`;
+const primary = (n) => `var(--color-primary-${n })`;
+const accent = (n) => `var(--color-accent-${n })`;
 const colourOf = (token) => {
   const t = String(token);
   if (t.startsWith('accent-')) return accent(t.slice(7));
@@ -899,13 +843,12 @@ const SHAPES = {
   //    落回去拿到的是保底的 `desc` —— 那是一段普通段落，没有底色也没有内距，而这一句是回执。
   //    （同一个坑 `form-error` 已经踩过一次：那一条也是显式写的，理由逐字相同。）
   hero: {
-    cols: '5fr 6fr', rootExtra: { 'align-items': 'center' },
+    rootExtra: {},
     role: { media: 'media', body: 'column', title: 'display', sub: 'lede', cta: 'actions', deco: 'deco', 'form-error': 'error', 'form-success': 'success' },
   },
-  'cta-banner': { cols: '2fr 1fr', rootExtra: { 'align-items': 'center' }, role: { headline: 'display', desc: 'lede', action: 'actions' } },
-  'page-header': { cols: '1fr', role: { crumbs: 'crumbs', title: 'display', sub: 'lede' } },
+  'cta-banner': { rootExtra: {}, role: { headline: 'display', desc: 'lede', action: 'actions' } },
+  'page-header': { wideSpacing: false, role: { crumbs: 'crumbs', title: 'display', sub: 'lede' } },
   'contact-form': {
-    cols: '1fr 1fr',
     role: { heading: 'headline', intro: 'lede', form: 'panel', error: 'error', success: 'success', note: 'fineprint' },
     // 🔴 #1135 —— **成功那条**状态消息一律跨满整宽，写在**块这一层**而不是每个候选里。
     //    `pick()` 先摊 `base.partExtra`、再摊候选自己的，所以候选想覆写还是覆写得了，而**不写就
@@ -926,42 +869,42 @@ const SHAPES = {
     //    而「今天它是恒等式」这个前提由 `sheet-recipes.test.js` ⑩ 钉着 —— 挪出去那一格会红，
     //    逼那个人回来重新量一次，而不是继承一句没人验过的话。
     partExtra: {
-      error: () => ({ 'grid-column': '1 / -1' }),
-      success: () => ({ 'grid-column': '1 / -1' }),
+      error: () => ({}),
+      success: () => ({}),
     },
   },
   // `step` 不写在这里 —— 它走 ROLE_BY_PART 的默认值 `card`。它是容器（见上面那段 🔴）。
-  'quote-form': { cols: '3fr 2fr', role: { form: 'panel', intro: 'lede', main: 'column', aside: 'panel', error: 'error', success: 'success', action: 'actions' } },
-  'services-list': { cols: '1fr 1fr', role: { item: 'card', icon: 'icon', title: 'title', desc: 'desc', actions: 'actions', features: 'list', products: 'list' } },
+  'quote-form': { role: { form: 'panel', intro: 'lede', main: 'column', aside: 'panel', error: 'error', success: 'success', action: 'actions' } },
+  'services-list': { role: { item: 'card', icon: 'icon', title: 'title', desc: 'desc', actions: 'actions', features: 'list', products: 'list' } },
   // #1132 —— 通用块「卡片组」。
   // 📌 #1162：这一行上面原来还有一行 `values-grid`，跟它逐字相同（它就是那两个块并起来的那个）。
   //    别名兼容层退役之后 `values-grid` 不在注册表也不在 `HOOKS` 里了 ⟹ 那一行是死的，删掉。
   //    同一批删掉的还有 `benefits-list` / `checklist` / `service-highlights` 三行。
   'card-group': { role: { item: 'card', title: 'title', desc: 'desc' } },
-  'services-nav': { cols: '1fr', role: { link: 'chip' } },
+  'services-nav': { wideSpacing: false, role: { link: 'chip' } },
   'service-related-pages': { role: { card: 'card' } },
-  'contact-info': { cols: '1fr 1fr', role: { location: 'card', label: 'eyebrow', address: 'desc', phone: 'contact', email: 'contact' } },
+  'contact-info': { role: { location: 'card', label: 'eyebrow', address: 'desc', phone: 'contact', email: 'contact' } },
   'stats-counter': { role: { stat: 'card', value: 'figure', label: 'eyebrow' } },
   'process-steps': { role: { step: 'card', num: 'numeral', title: 'title', desc: 'desc' } },
-  timeline: { cols: '1fr', role: { event: 'row-card', year: 'figure', title: 'title', desc: 'desc' } },
+  timeline: { wideSpacing: false, role: { event: 'row-card', year: 'figure', title: 'title', desc: 'desc' } },
   'team-grid': { role: { member: 'card', name: 'title', role: 'eyebrow', bio: 'desc' } },
   'blog-preview': { role: { post: 'card', category: 'chip', date: 'meta', title: 'title', excerpt: 'desc' } },
-  'content-split': { cols: '1fr 1fr', rootExtra: { 'align-items': 'center' }, role: { media: 'media', body: 'column', bullets: 'list', stats: 'inline-grid-3', stat: 'card', 'stat-value': 'figure', 'stat-label': 'eyebrow' } },
-  'text-block': { cols: '1fr', role: { body: 'prose', attribution: 'meta', list: 'list' } },
-  divider: { cols: '1fr', role: { rule: 'deco', label: 'eyebrow' } },
+  'content-split': { rootExtra: {}, role: { media: 'media', body: 'column', bullets: 'list', stats: 'inline-grid-3', stat: 'card', 'stat-value': 'figure', 'stat-label': 'eyebrow' } },
+  'text-block': { wideSpacing: false, role: { body: 'prose', attribution: 'meta', list: 'list' } },
+  divider: { wideSpacing: false, role: { rule: 'deco', label: 'eyebrow' } },
   'social-proof': { role: { rating: 'figure', reviews: 'meta', platform: 'chip', badge: 'chip', quote: 'quote', 'quote-author': 'meta' } },
   'features-grid': { role: { item: 'card', icon: 'icon', title: 'title', desc: 'desc' } },
   'awards-certifications': { role: { item: 'card', title: 'title', year: 'eyebrow', desc: 'desc' } },
-  'newsletter-signup': { cols: '2fr 1fr', role: { desc: 'lede', form: 'panel' } },
-  'faq-accordion': { cols: '1fr', role: { item: 'row-card', question: 'title', answer: 'desc' } },
+  'newsletter-signup': { role: { desc: 'lede', form: 'panel' } },
+  'faq-accordion': { wideSpacing: false, role: { item: 'row-card', question: 'title', answer: 'desc' } },
   testimonials: { role: { item: 'card', rating: 'inline-row', star: 'star', quote: 'quote', name: 'title', meta: 'meta', service: 'chip' } },
-  'announcement-bar': { cols: '1fr', role: { message: 'lede', link: 'contact' } },
+  'announcement-bar': { wideSpacing: false, role: { message: 'lede', link: 'contact' } },
   'pricing-table': { role: { item: 'card', 'item--featured': 'featured', badge: 'chip', name: 'title', price: 'figure', desc: 'desc', features: 'list', action: 'actions' } },
   gallery: { role: { item: 'card', image: 'media', placeholder: 'media', caption: 'meta', category: 'chip', title: 'title', desc: 'desc' } },
-  'feature-comparison': { cols: '1fr', role: { head: 'row-head', label: 'eyebrow', row: 'row-card', feature: 'title', mark: 'mark', 'mark--yes': 'yes', 'mark--no': 'no' } },
-  'logo-carousel': { cols: '1fr', role: { logo: 'logo' } },
+  'feature-comparison': { wideSpacing: false, role: { head: 'row-head', label: 'eyebrow', row: 'row-card', feature: 'title', mark: 'mark', 'mark--yes': 'yes', 'mark--no': 'no' } },
+  'logo-carousel': { wideSpacing: false, role: { logo: 'logo' } },
   'map-area': { role: { area: 'card', name: 'title', desc: 'desc' } },
-  'trusted-brands': { cols: '1fr', role: { brand: 'logo' } },
+  'trusted-brands': { wideSpacing: false, role: { brand: 'logo' } },
 };
 
 // ── hero 那一块：版式的名字必须在产物里真的看得出来 ────────────────────────────────────────────────
@@ -1007,7 +950,7 @@ const SHAPES = {
 //    没有任何一格会说话；写在最前 ⟹ 被顶掉的是居中那两处，而那正是 `sheet-recipes.test.js`
 //    第④格在问的事（声明了居中、产物却没居中 = 当场点名）。挑失败方向已经有尺子的那一种。
 const CENTERED_INLINE_PARTS = {
-  cta: () => ({ 'justify-content': 'center' }),
+  cta: () => ({}),
   sub: () => ({ 'margin-left': 'auto', 'margin-right': 'auto' }),
 };
 
@@ -1015,75 +958,50 @@ const CENTERED_INLINE_PARTS = {
 //
 // 🔴 每一种都要**在产物上真的不同**，不是换个名字（承 #1051 r1「名字不同产物相同」那次）。四种各自
 //    动的是不同的维度：栏数（2 栏 / 1 栏）、媒体位（order）、正文宽度、以及宽屏那条规则要不要出现。
-/**
- * #1090 交替节奏发出来的那几条规则。
- *
- * 链式兄弟选择器：第 2 个图文段（`A + A`）翻，第 3 个（`A + A + A`）翻回来，如此往下。**靠特异度
- * 决胜，不靠源码顺序** —— 每多一节 `+ .content-split` 就多一个类，`A+A+A`（4 个类）压过 `A+A`
- * （3 个类），所以第 3 个不会被第 2 个那条顺带改掉。写到第 6 个为止：再往下一页里连排六个图文段
- * 已经不是这套表该操心的事，而每一节都要多发两条规则。
- *
- * 🔴 `uniform` 回空数组，不是回一条「都一样」的规则 —— 发一条恒等规则会让「这套主题不交替」和
- *    「这套主题交替但翻成了原样」在产物上长得一模一样，AC2 的 md5 对照就分不开这两件事。
- */
-function splitAlternation(v, mediaOrder, bodyOrder) {
-  if (v.splitRhythm !== 'alternate') return [];
-  const rules = [];
-  let sel = '.content-split';
-  for (let nth = 2; nth <= 6; nth += 1) {
-    sel += ' + .content-split';
-    const flipped = nth % 2 === 0;
-    const m = flipped ? bodyOrder : mediaOrder;
-    const b = flipped ? mediaOrder : bodyOrder;
-    rules.push([`${sel} .content-split__media`, { order: m }]);
-    rules.push([`${sel} .content-split__body`, { order: b }]);
-  }
-  return rules;
-}
-
+// 🔴 #1339 —— 上面那句「四种各自动的是不同的维度」讲的是**画法**，不是这底下这几行：那四维里除了
+//    「宽屏那条规则要不要出现」（今天由非几何的 `wideSpacing` 携带），栏数 / 媒体位 / 正文宽度全是
+//    几何，已经搬到 `public/shapes.css` 的 content-split 那八个（画法, 节律）组合里去了。所以这里
+//    剩下的只有皮，`media-left` 与 `media-right` 在这一层本来就写得一模一样 —— 那是对的，不是漏写。
+//    连带删掉的还有 `siblingRules`（#1090 的同页节奏：`.content-split + .content-split …` 那 10 条，
+//    整条只有 `order`），它今天住在那四个 `*-alternate` 组合的规则里（`media-right-alternate` 那份
+//    #1318 就搬过去了，另外三个随 #1340 搬完）。**别在这里写回来** —— `declBlock` 撞见就抛。
 const SPLIT_SHAPES = {
   'media-left': {
-    cols: '1fr 1fr',
-    rootExtra: () => ({ 'align-items': 'center' }),
+    rootExtra: () => ({}),
     partExtra: {
-      media: (v) => ({ order: 1, 'aspect-ratio': '4 / 3', 'border-radius': v.radius }),
-      body: () => ({ order: 2 }),
+      media: (v) => ({ 'border-radius': v.radius }),
+      body: () => ({}),
     },
-    siblingRules: (v) => splitAlternation(v, 1, 2),
   },
   'media-right': {
-    cols: '1fr 1fr',
-    rootExtra: () => ({ 'align-items': 'center' }),
+    rootExtra: () => ({}),
     partExtra: {
-      media: (v) => ({ order: 2, 'aspect-ratio': '4 / 3', 'border-radius': v.radius }),
-      body: () => ({ order: 1 }),
+      media: (v) => ({ 'border-radius': v.radius }),
+      body: () => ({}),
     },
-    siblingRules: (v) => splitAlternation(v, 2, 1),
   },
   'media-top': {
     // 🔴 单栏 —— 这一条就是「图在上」跟「图在左」的分界。写成 `1fr 1fr` 等于名字说在上、画出来在左边
     //    （HERO_LOOKS 的 `media-top` 上面记着这个坑，同一个）。
-    cols: '1fr',
+    wideSpacing: false,
     // 🔴 #1090 r2 去掉了这里原来那条 `padding: `${v.pad} 1.5rem``。它**今天是逐字重复根规则的值**
     //    （`rootRule` 已经写 `padding: ${v.pad} 1.5rem`，spread 覆盖成同一个值、键的位置也不动
     //    ⟹ 产物逐字节相同，这一点单独量过）；而在下面那条新判据下它会变成「把手机的边距钉在桌面上」，
     //    也就是 QA2 报的那个退步本身。
-    rootExtra: () => ({ 'align-items': 'start' }),
+    rootExtra: () => ({}),
     partExtra: {
-      media: () => ({ order: 1, width: '100%', height: '18rem', 'aspect-ratio': 'auto', 'border-radius': '0' }),
-      body: () => ({ order: 2, 'max-width': '46rem' }),
+      media: () => ({ width: '100%', height: '18rem','border-radius': '0' }),
+      body: () => ({}),
     },
     // 单栏时「翻」= 图跑到文字下面，同样是看得见的交替。
-    siblingRules: (v) => splitAlternation(v, 1, 2),
   },
   'narrow-stack': {
-    cols: '1fr',
-    rootExtra: () => ({ 'align-items': 'start', 'justify-items': 'center' }),
+    wideSpacing: false,
+    rootExtra: () => ({}),
     partExtra: {
-      media: (v) => ({ order: 1, width: '100%', 'max-width': '30rem', 'aspect-ratio': '3 / 2', 'border-radius': v.radius }),
-      body: () => ({ order: 2, 'max-width': '34rem' }),
+      media: (v) => ({ width: '100%','border-radius': v.radius }),
+      body: () => ({}),
     },
-    siblingRules: (v) => splitAlternation(v, 1, 2),
   },
 };
 
@@ -1092,19 +1010,18 @@ const SPLIT_SHAPES = {
 // 🔴 动的是**列数**和**卡片形态**，两维一起动 —— 只动列数的话，`wide` 那一维本来就在 voiceFor 里
 //    按 `i % 2` 转（`1fr 1fr 1fr` / `1fr 1fr`），加一张只换列数的表等于把已有的那一维改个名字。
 const CARD_SHAPES = {
-  'three-up': { cols: '1fr 1fr 1fr', rootExtra: () => ({}), partExtra: {} },
-  'two-up': { cols: '1fr 1fr', rootExtra: () => ({}), partExtra: {} },
+  'three-up': { rootExtra: () => ({}), partExtra: {} },
+  'two-up': { rootExtra: () => ({}), partExtra: {} },
   'four-up-tight': {
-    cols: '1fr 1fr 1fr 1fr',
     rootExtra: (v) => ({ gap: tokenLen('--section-block-gap', Math.max(1, v.gapStep - 2)) }),
     partExtra: { item: (v) => ({ padding: tokenLen('--section-block-pad', Math.max(1, v.padStep - 3)) }) },
   },
   'wide-rows': {
     // 一行一张、卡片横过来：标题和描述并排，而不是堆叠。
-    cols: '1fr',
-    rootExtra: () => ({ 'justify-items': 'stretch' }),
+    wideSpacing: false,
+    rootExtra: () => ({}),
     partExtra: {
-      item: () => ({ display: 'grid', 'grid-template-columns': '1fr 2fr', 'align-items': 'start', gap: '1.5rem' }),
+      item: () => ({ gap: '1.5rem' }),
     },
   },
 };
@@ -1190,33 +1107,28 @@ const CARD_SHAPES = {
 // 排在正文后面，是因为这七种画法的主角都不是表单（表单是 `form-side` 那一种的主角）。`grid-column:
 // 1 / -1` 是给两栏的那几种写的：不写的话它会掉进第二栏，宽度由那一栏说了算。
 const heroFormAfterBody = (centred) => () => ({
-  order: 4,
-  'grid-column': '1 / -1',
-  'max-width': '32rem',
   ...(centred ? { 'margin-left': 'auto', 'margin-right': 'auto' } : {}),
 });
 
 const HERO_LOOKS = {
   // ① 图在左
   'media-left': {
-    cols: '5fr 6fr',
-    rootExtra: () => ({ 'align-items': 'center', 'min-height': '34rem' }),
+    rootExtra: () => ({}),
     partExtra: {
-      deco: () => ({ order: 1 }),
-      media: (v) => ({ order: 2, 'aspect-ratio': '4 / 5', 'max-width': '34rem', 'border-radius': v.radius }),
-      body: () => ({ order: 3, 'max-width': '34rem' }),
+      deco: () => ({}),
+      media: (v) => ({ 'border-radius': v.radius }),
+      body: () => ({}),
       form: heroFormAfterBody(false),
       title: () => ({ 'font-size': '3.25rem', 'line-height': '1.04' }),
     },
   },
   // ② 图在右 —— 跟①同一副骨架，只有 order 反过来 + 两栏的宽度比反过来。
   'media-right': {
-    cols: '6fr 5fr',
-    rootExtra: () => ({ 'align-items': 'center', 'min-height': '32rem' }),
+    rootExtra: () => ({}),
     partExtra: {
-      deco: () => ({ order: 1 }),
-      body: () => ({ order: 2, 'max-width': '33rem' }),
-      media: (v) => ({ order: 3, 'aspect-ratio': '5 / 4', 'max-width': '36rem', 'border-radius': v.radius }),
+      deco: () => ({}),
+      body: () => ({}),
+      media: (v) => ({ 'border-radius': v.radius }),
       form: heroFormAfterBody(false),
       title: () => ({ 'font-size': '3rem', 'line-height': '1.06' }),
     },
@@ -1225,27 +1137,27 @@ const HERO_LOOKS = {
   // 🔴 宽屏也是**单栏** —— 这一条就是「媒体位在上」跟「媒体位在左」的分界。#1051 r1 那一版这里跟
   //    left 拿到同一个 `5fr 6fr`，也就是名字说在上、画出来在左边。
   'media-top': {
-    cols: '1fr',
+    wideSpacing: false,
     rootExtra: (v) => ({
-      'align-items': 'start', 'text-align': 'center', 'min-height': '0', padding: `0 0 ${v.pad}`,
+'text-align': 'center',padding: `0 0 ${v.pad}`,
     }),
     partExtra: {
       ...CENTERED_INLINE_PARTS,
-      media: () => ({ order: 1, width: '100%', height: '16rem', 'aspect-ratio': 'auto', 'border-radius': '0' }),
-      deco: () => ({ order: 2, 'max-width': '4rem', 'margin-left': 'auto', 'margin-right': 'auto' }),
-      body: () => ({ order: 3, 'max-width': '46rem', 'margin-left': 'auto', 'margin-right': 'auto', 'padding-top': '1.5rem' }),
+      media: () => ({ width: '100%', height: '16rem','border-radius': '0' }),
+      deco: () => ({ 'margin-left': 'auto', 'margin-right': 'auto' }),
+      body: () => ({ 'margin-left': 'auto', 'margin-right': 'auto', 'padding-top': '1.5rem' }),
       form: heroFormAfterBody(true),
       title: () => ({ 'font-size': '2.25rem', 'line-height': '1.2', 'text-transform': 'uppercase', 'letter-spacing': '0.02em' }),
     },
   },
   // ④ 图在下 —— 字先落地，图作为一条宽横幅收在正文下面。
   'media-bottom': {
-    cols: '1fr',
-    rootExtra: (v) => ({ 'align-items': 'start', 'min-height': '30rem', padding: `${v.pad} 1.5rem 0` }),
+    wideSpacing: false,
+    rootExtra: (v) => ({ padding: `${v.pad} 1.5rem 0` }),
     partExtra: {
-      deco: () => ({ order: 1, 'max-width': '6rem' }),
-      body: () => ({ order: 2, 'max-width': '42rem' }),
-      media: () => ({ order: 3, width: '100%', height: '18rem', 'aspect-ratio': 'auto', 'border-radius': '0' }),
+      deco: () => ({}),
+      body: () => ({}),
+      media: () => ({ width: '100%', height: '18rem','border-radius': '0' }),
       form: heroFormAfterBody(false),
       title: () => ({ 'font-size': '3rem', 'line-height': '1.08' }),
     },
@@ -1262,41 +1174,38 @@ const HERO_LOOKS = {
   //     检查），而表不可能知道站主放的是哪张图。给正文块一块不透明的底色之后，那对颜色跟别的画法
   //     是同一对，保证照旧成立；图从那块底的四周露出来，整屏仍然是它。
   'media-cover': {
-    cols: '1fr',
-    rootExtra: () => ({ 'align-items': 'center', 'text-align': 'center', 'min-height': '36rem' }),
+    wideSpacing: false,
+    rootExtra: () => ({ 'text-align': 'center' }),
     partExtra: {
       ...CENTERED_INLINE_PARTS,
       media: () => ({
-        'grid-row': '1', 'grid-column': '1 / -1', 'align-self': 'stretch',
-        width: '100%', 'min-height': '30rem', 'aspect-ratio': 'auto',
+        width: '100%',
         'border-radius': '0', overflow: 'hidden',
       }),
       body: (v, s) => ({
-        'grid-row': '1', 'grid-column': '1 / -1', 'align-self': 'center',
-        'max-width': '44rem', 'margin-left': 'auto', 'margin-right': 'auto',
+'margin-left': 'auto', 'margin-right': 'auto',
         padding: '2.5rem', 'border-radius': v.radius, 'background-color': primary(s.bg),
       }),
-      deco: () => ({ 'grid-row': '2', 'max-width': '7rem', 'margin-left': 'auto', 'margin-right': 'auto' }),
+      deco: () => ({ 'margin-left': 'auto', 'margin-right': 'auto' }),
       // 🔴 这一种的位置由 `grid-row` 说了算，不是 `order` —— 图和正文都显式落在第 1 行上
       //    （那正是「叠字」这件事本身），`order` 只在自动排位时说话。
       form: () => ({
-        'grid-row': '3', 'grid-column': '1 / -1',
-        'max-width': '32rem', 'margin-left': 'auto', 'margin-right': 'auto',
+'margin-left': 'auto', 'margin-right': 'auto',
       }),
       title: () => ({ 'font-size': '3.5rem', 'line-height': '1.05' }),
     },
   },
   // ⑥ 纯文字居中
   'text-center': {
-    cols: '1fr',
+    wideSpacing: false,
     rootExtra: () => ({
-      'align-items': 'center', 'justify-items': 'center', 'text-align': 'center', 'min-height': '26rem',
+'text-align': 'center',
     }),
     partExtra: {
       ...CENTERED_INLINE_PARTS,
-      deco: () => ({ order: 1, 'max-width': '5rem', 'margin-left': 'auto', 'margin-right': 'auto' }),
-      body: () => ({ order: 2, 'max-width': '48rem', 'margin-left': 'auto', 'margin-right': 'auto' }),
-      media: (v) => ({ order: 3, 'aspect-ratio': '21 / 9', width: '100%', 'margin-top': '2rem', 'border-radius': v.radius }),
+      deco: () => ({ 'margin-left': 'auto', 'margin-right': 'auto' }),
+      body: () => ({ 'margin-left': 'auto', 'margin-right': 'auto' }),
+      media: (v) => ({ width: '100%', 'margin-top': '2rem', 'border-radius': v.radius }),
       form: heroFormAfterBody(true),
       title: () => ({ 'font-size': '3.75rem', 'line-height': '1.02' }),
     },
@@ -1306,12 +1215,12 @@ const HERO_LOOKS = {
   //    （`sheet-recipes.test.js` 第④格问的就是「声明了居中的块，有没有把不受 text-align 管的
   //    东西一起摆正」；没声明居中的块不在它射程里）。
   'text-left': {
-    cols: '1fr',
-    rootExtra: () => ({ 'align-items': 'start', 'justify-items': 'start', 'min-height': '24rem' }),
+    wideSpacing: false,
+    rootExtra: () => ({}),
     partExtra: {
-      deco: () => ({ order: 1, 'max-width': '5rem' }),
-      body: () => ({ order: 2, 'max-width': '44rem' }),
-      media: (v) => ({ order: 3, 'aspect-ratio': '24 / 7', width: '100%', 'margin-top': '2.5rem', 'border-radius': v.radius }),
+      deco: () => ({}),
+      body: () => ({}),
+      media: (v) => ({ width: '100%', 'margin-top': '2.5rem', 'border-radius': v.radius }),
       form: heroFormAfterBody(false),
       title: () => ({ 'font-size': '3.25rem', 'line-height': '1.06', 'letter-spacing': '-0.02em' }),
     },
@@ -1393,9 +1302,11 @@ const heroLookFor = (i) => HERO_LOOK_NAMES[
  * · `table`      画法表本身
  * · `pick`       第 i 套挑哪一副（`voiceFor` 用它，测试用它算分布）
  * · `keepsWide`  换画法时不许把 `@media (min-width: 1024px)` 那一段丢掉（#1090 r2 的那个退步）。
- *   🔴 取值不是口味，是量出来的：**这个块在本票之前就有那一段吗**。有（`cols` 不是单栏，或者
- *   压根没写 `cols` 而落到 `v.wide`）⟹ true，否则单栏画法会把桌面留白一起弄丢。本票之前就
- *   没有那一段的（`page-header` / `faq-accordion`，`SHAPES` 里 `cols` 就是 `'1fr'`）⟹ false：
+ *   🔴 取值不是口味，是量出来的：**这个块在 #1090 r2 之前就有那一段吗**。有（当年的 `cols` 不是
+ *   单栏，或者压根没写 `cols` 而落到 `v.wide`）⟹ true，否则单栏画法会把桌面留白一起弄丢。当年
+ *   就没有那一段的（`page-header` / `faq-accordion`）⟹ false：
+ *   📌 #1339 把 `cols` 整族删了（列数是几何，今天住在 `public/shapes.css`），那条判据的携带者
+ *   换成了 `wideSpacing: false` —— 当年写 `cols: '1fr'` 的那 31 条今天写的就是它，一一对应。
  *   传 true 会给这两个块**凭空加上**一段它今天没有的桌面留白，而那不是本票要做的事。
  *   hero 是唯一的例外，它归 #1065：它那些纯文字画法今天本来就没有桌面那一段。
  */
@@ -1416,6 +1327,85 @@ const LOOK_FAMILIES = [
 /** 这个块属于哪一族（没有候选表就是 undefined）。 */
 const familyOf = (block) => LOOK_FAMILIES.find((f) => f.blocks.includes(block));
 
+// ── #1339 —— 第 i 套候选的配方**自己画的是哪一副形态** ──────────────────────────────────────────
+//
+// 🔴 **它不是「选择单」，别跟 `shape-sheet.js` 的 `shapeSheetFor(i, seed)` 混起来（#1342，2026-09-16
+//    落地）。两个函数回答的不是同一个问题，值也真的不一样（本票交付当天实测：97 套 × 32 块 = 3104 项，
+//    两份只有 1838 项相同 = 59.2%；hero 这一块 97 套里只有 11 套相同）：**
+//    · `shapeSheetFor(i, seed)` 答「这套候选**装进池子**时，产品给每个块选哪一副形态」。它按哈希挑，
+//      有意**不问**配方画的是哪一副（那个文件头自己写着「不问这个形态跟这套主题的版式搭不搭」），
+//      进 `theme-pool.json` 的 `shapes`，站上的 `data-shape` 就是它。
+//    · 下面这个答「**配方自己**在这个块上画的是哪一副」——`LOOK_FAMILIES` 的 `pick(i)` 就是那个挑法。
+//      它只有一个用处：把「这套候选的皮」跟「同一副画法的几何」配成一对，好让
+//      `sheet-recipes.test.js` 那几格能按画法逐副地问「这副画法画得对吗」。
+//    📌 所以它**不写进任何产物**，也不参与任何一道闸；它是尺子的一部分，不是产品的一部分。
+//
+// 🔴 **为什么现在需要它，而 #1339 之前不需要**：以前「这套候选在这个块上排成什么样」这件事是
+//    **隐式**的 —— 它藏在配方发出去的那几条几何里（列数、order、grid-column）。本票把几何从配方
+//    里删干净之后，那件事必须有一个**明写的名字**，否则它就没有出处了。尤其是没有候选表的那 9 个
+//    块：它们的「3 栏还是 2 栏」以前只活在 `v.wide` 这个列数里，列数一删就整条没了 —— 那不是少了
+//    一条 CSS，是那 9 个块从「各有 2 副骨架」塌成「全都只有 1 副」。
+//
+// 🔴 有候选表的 11 个块**机械取**，不手抄：族的 `pick(i)` 就是挑法本身。`content-split` 的形态名
+//    带节律后缀（图在哪 + 隔一段翻不翻面两维，而形态名只有一个），所以它要拼全名 —— 这一条跟
+//    `shape-survey.js` 那份展开集是同一条规矩，按前缀匹配对节律那一维是瞎的。
+//
+// 🔴 没有候选表的 20 个块在下面这张表里**明写**。它不是「随便起的名字」：每一个都必须是
+//    `blocks/<块>.json` 的 `shapes` 里登记过、并且 `public/shapes.css` 里真有规则的那个名字
+//    （`gates-shapes.test.js` 与 `sheet-recipes.test.js` 各自核这件事）。表里少一个块 ⟹ 当场抛，
+//    不悄悄回 undefined：静默少一个的样子是「那个块没戴形态」，而页面照样打开。
+const PLAIN_SHAPE_NAMES = {
+  // 单栏堆叠的那几个
+  'announcement-bar': 'stack',
+  divider: 'stack',
+  'feature-comparison': 'stack',
+  'text-block': 'stack',
+  timeline: 'stack',
+  // 横排一行的那几个
+  'logo-carousel': 'row',
+  'services-nav': 'row',
+  'trusted-brands': 'row',
+  // 各自只有一副的
+  'services-list': 'two-up',
+  'quote-form': 'main-aside',
+  'newsletter-signup': 'form-side',
+  'hero-with-form': 'form-side',
+  // 🔴 这 9 个跟着候选走：3 栏 / 2 栏两副轮着来（`voiceFor` 的 `plainGrid`，按 i % 2）。
+  //    这条轴以前住在 `v.wide` 那个**列数**里，#1339 把它抬到形态名这一层，理由在 `plainGrid` 上面。
+  'awards-certifications': (v) => v.plainGrid,
+  'blog-preview': (v) => v.plainGrid,
+  gallery: (v) => v.plainGrid,
+  'map-area': (v) => v.plainGrid,
+  'pricing-table': (v) => v.plainGrid,
+  'service-related-pages': (v) => v.plainGrid,
+  'social-proof': (v) => v.plainGrid,
+  'stats-counter': (v) => v.plainGrid,
+  'team-grid': (v) => v.plainGrid,
+};
+
+/** 第 i 套候选的配方在这个块上画的是哪一副形态。 */
+function recipeShapeFor(block, i) {
+  const v = voiceFor(i);
+  const fam = familyOf(block);
+  if (fam) {
+    const name = v[fam.key];
+    // content-split 的形态名是「画法 + 节律」两维拼出来的全名（理由在 PLAIN_SHAPE_NAMES 上面那段）
+    return block === 'content-split' ? `${name}-${v.splitRhythm}` : name;
+  }
+  const plain = PLAIN_SHAPE_NAMES[block];
+  if (plain === undefined) {
+    throw new Error(`PLAIN_SHAPE_NAMES 里没有块 ${block} —— 新加的块要在那张表里登记它的形态名（#1339）`);
+  }
+  return typeof plain === 'function' ? plain(v) : plain;
+}
+
+/** 第 i 套候选的配方在每个块上画的那一副：块名 → 形态名。块的清单从契约现取，不手抄。 */
+function recipeShapesFor(i) {
+  const out = {};
+  for (const [block] of hooksByBlock()) out[block] = recipeShapeFor(block, i);
+  return out;
+}
+
 // 有候选表的族见上面那张 `LOOK_FAMILIES`；其余的块仍然直接用 SHAPES 里那条。
 // 🔴 挑出来的名字必须在对应那张候选表里 —— 落回默认等于又一次「名字说一套、画的是另一样」，
 //    所以这里宁可当场炸，也不悄悄拿第一种顶上。
@@ -1428,10 +1418,13 @@ function shapeFor(block, v) {
     if (!shape) throw new Error(`${what} 画法 ${name} 在候选表里没有 —— 加画法就在那张表里加，一处`);
     return {
       ...base,
-      cols: shape.cols,
+      // #1339 —— `cols`（列数）与 `siblingRules`（同页节奏）都是几何，已经整族删掉；
+      // `wideSpacing` 是接替 `cols` 携带「桌面要不要另给一套留白」的那个非几何标记（理由在
+      // `buildSheet` 里那个调用点上），`name` 让 `declBlock` 抛错时说得出是哪一副画法。
+      name,
+      wideSpacing: shape.wideSpacing,
       rootExtra: { ...(base.rootExtra || {}), ...shape.rootExtra(v) },
       partExtra: { ...(base.partExtra || {}), ...(shape.partExtra || {}) },
-      siblingRules: shape.siblingRules,
       keepsWideBreakpoint,
     };
   };
@@ -1542,7 +1535,6 @@ const ROLE_BY_PART = {
 // 🔴 一条 `display: none` 都没有 —— 契约 §3 不许藏 essential 块和它的部件（#1043/#1050）。
 const ROLES = {
   headline: (v, s) => ({
-    'grid-column': '1 / -1',
     'font-family': 'var(--font-heading)',
     'font-size': v.headingSize,
     'line-height': '1.15',
@@ -1551,7 +1543,6 @@ const ROLES = {
     color: primary(s.fg),
   }),
   display: (v, s) => ({
-    'grid-column': '1 / -1',
     'font-family': 'var(--font-heading)',
     'font-size': '2.5rem',
     'line-height': '1.08',
@@ -1560,28 +1551,20 @@ const ROLES = {
     color: primary(s.fg),
   }),
   lede: (v, s) => ({
-    'grid-column': '1 / -1',
-    'max-width': '36rem',
     'margin-top': '0.75rem',
     'font-size': '1.0625rem',
     'line-height': '1.7',
     color: primary(s.soft),
   }),
   prose: (v, s) => ({
-    'max-width': '38rem',
     'font-size': '1rem',
     'line-height': '1.75',
     color: primary(s.soft),
   }),
   column: () => ({
-    display: 'grid',
-    'align-content': 'start',
     gap: '1rem',
-    'max-width': '38rem',
   }),
   card: (v, s) => ({
-    display: 'grid',
-    'align-content': 'start',
     gap: '0.75rem',
     padding: v.card === 'underlined' ? '0 0 1.5rem' : '1.75rem',
     'border-radius': v.card === 'underlined' ? '0' : v.radius,
@@ -1590,7 +1573,6 @@ const ROLES = {
       : { 'border-width': v.card === 'outlined' ? '1px' : '0 0 2px', 'border-style': 'solid', 'border-color': primary(s.line) }),
   }),
   'row-card': (v, s) => ({
-    display: 'grid',
     gap: '0.5rem',
     padding: '1.25rem 0',
     'border-width': '0 0 1px',
@@ -1598,7 +1580,6 @@ const ROLES = {
     'border-color': primary(s.line),
   }),
   'row-head': (v, s) => ({
-    display: 'grid',
     gap: '0.5rem',
     'padding-bottom': '0.75rem',
     'border-width': '0 0 2px',
@@ -1615,7 +1596,6 @@ const ROLES = {
     'background-color': primary(s.card),
   }),
   panel: (v, s) => ({
-    display: 'grid',
     gap: '1rem',
     padding: '1.75rem',
     'border-radius': v.radius,
@@ -1651,7 +1631,6 @@ const ROLES = {
     color: primary(s.soft),
   }),
   chip: (v, s) => ({
-    'justify-self': 'start',
     padding: '0.25rem 0.75rem',
     'border-radius': v.pillRadius,
     'background-color': colourOf(s.fill),
@@ -1675,7 +1654,6 @@ const ROLES = {
   // 的 `PROP_EXACT` / `PROP_PREFIXES`，实测各报 3 处违规）。`justify-self: start` 是配套的：
   // 一条 border 会撑满整个网格格子，而下划线要跟着字走。
   contact: (v, s) => ({
-    'justify-self': 'start',
     'font-size': '1rem',
     'font-weight': 600,
     'line-height': '1.5',
@@ -1691,8 +1669,6 @@ const ROLES = {
     color: primary(s.fg),
   }),
   'inline-row': () => ({
-    display: 'flex',
-    'align-items': 'center',
     gap: '0.25rem',
   }),
   star: (v, s) => ({
@@ -1701,12 +1677,9 @@ const ROLES = {
     color: colourOf(s.ink),
   }),
   'inline-grid-3': () => ({
-    display: 'grid',
-    'grid-template-columns': '1fr 1fr 1fr',
     gap: '1rem',
   }),
   list: (v, s) => ({
-    display: 'grid',
     gap: '0.5rem',
     'padding-left': '1.1rem',
     'font-size': '0.9375rem',
@@ -1718,15 +1691,10 @@ const ROLES = {
   //    2026-08-23 退役 ⟹ 全仓零引用（`grep -rn ticked scripts/ src/ tests/` 只剩这条注释），
   //    所以删掉。`ROLE_BY_PART` 里也没有任何部件名映到它（默认是 `card`/`list`）。
   actions: () => ({
-    display: 'flex',
-    'flex-wrap': 'wrap',
-    'align-items': 'center',
     gap: '0.75rem',
     'margin-top': '1.25rem',
   }),
   icon: (v, s) => ({
-    display: 'grid',
-    'place-items': 'center',
     width: '2.75rem',
     height: '2.75rem',
     'border-radius': v.card === 'underlined' ? v.pillRadius : v.radius,
@@ -1734,8 +1702,6 @@ const ROLES = {
     color: primary(s.fillFg),
   }),
   numeral: (v, s) => ({
-    display: 'grid',
-    'place-items': 'center',
     width: '2.5rem',
     height: '2.5rem',
     'border-radius': v.pillRadius,
@@ -1747,17 +1713,13 @@ const ROLES = {
   }),
   media: (v, s) => ({
     width: '100%',
-    'aspect-ratio': '4 / 3',
     'border-radius': v.radius,
     'object-fit': 'cover',
     'object-position': 'center',
     'background-color': primary(s.card),
   }),
   logo: (v, s) => ({
-    display: 'grid',
-    'place-items': 'center',
     height: '2.5rem',
-    'max-width': '9rem',
     'object-fit': 'contain',
     opacity: '0.85',
     color: primary(s.soft),
@@ -1766,7 +1728,6 @@ const ROLES = {
   // 把正文挤到第二行去。实测（截图看的）：hero 的装饰条占了左上那一格，标题被推到媒体位下面，
   // 首屏左半边空出 500px。同一条也适用于 divider 的那根线。
   deco: (v, s) => ({
-    'grid-column': '1 / -1',
     height: '0.25rem',
     'border-radius': v.pillRadius,
     'background-color': colourOf(s.fill),
@@ -1807,49 +1768,80 @@ const ROLES = {
 
 // ── 把上面三样拼成 CSS ────────────────────────────────────────────────────────────────────────────
 //
-// 🔴 #1318（契约 v3）—— **几何那一族在这里被滤掉，不在这里被删掉。** 下面那些画法表、角色表、
-//    `rootRule` / `wideRule` 仍然算出 `display` / `grid-template-columns` / `order` / `align-*`：
-//    它们是 `public/shapes.css` 那一层的**出处**（那份表就是照这些值剪出来的），删了就没人说得清
-//    形态层为什么长这样。真正变的是**谁把它写进主题表** —— 一条都不写了。
+// 🔴 #1339 —— **配方里不再有几何，而这一行是那件事的守卫。** 上一版（#1318，契约 v3）在这里挂了
+//    一道**滤网**：几何照样算出来，只是不写进主题表；那是因为当时 `public/shapes.css` 还没收齐，
+//    配方仍然是那批画法几何的唯一出处。#1340 把 53 对 (块, 形态) 全部搬进形态层之后那个理由没有了
+//    （交付当天现取：候选对 53 = 已在库 53 + 待迁 0），于是本票把出处删干净。
 //
-// 🔴 为什么是一道集中的滤网，不是把几十处几何行逐处改掉：判据要能被证明是**完备**的。滤网让
-//    「生成器再也写不出几何」成为这个文件的一条构造性质（包括 `SCROLL_STRIP_EXPERIMENT` 那条
-//    今天点不着的实验钉），而逐处删是一张要人记得的清单 —— 漏一处的方向是静默的（表照样生成，
-//    只有 `css-contract-check.js` 在下一次运行时才说话）。
-//    判据不是这段注释：`theme-css-lint.js` 对生成出来的每份表跑一遍，rc=0 才算数。
+// 🔴 滤网改成**撞见就抛**，不是保留一道悄悄滤掉的网。两者的失败方向相反：滤网让「有人又把几何
+//    写回配方」变成静默的（表照样生成、lint 照样绿，那条声明只是不见了）；抛错让它当场红，
+//    并且点名是哪个配方、哪个角色或画法、哪条属性。本仓对「静默吃掉」这个方向付过账。
 //
 // 🔴 `isGeometry` 从 `theme-css-lint.js` 取，**这里不另抄一份**：判「这是不是几何」的那份名单
 //    要跟判「这条声明合不合法」的那份是同一份，否则分叉的方向是「生成器写了、检查器拒了」。
 //
-// 📌 一条规则被滤成空就整条不发（返回空串，`sheetFor` 把空串滤掉）。实测：`ember-12` 有 10 条
-//    `.content-split + .content-split …` 的兄弟规则整条只有 `order`，剥完就该消失；`azure-29` 是 0 条。
+// 🔴 `where` 不是装饰：`declBlock` 有三个调用点（块根 / 桌面段 / 部件），而报文只说
+//    「某处写了 order」的话，读它的人还得自己去找是哪张表的哪一项。三个调用点各自把自己的身份
+//    传进来，报文直接可定位。
+//    📌 本票之前是四个，第四个是同页节奏（`siblingRules`）—— 它随几何一起删掉了（去处写在
+//       `buildSheet` 里那个调用点上），所以 `sheet-recipes.test.js` ⑮ 那条反向臂是三臂不是四臂。
 //
-// 🔴 **两个出口，一条配方。** `EMIT` 决定这一趟发哪一半：
-//    · `'skin'` —— 主题表（`public/themes/<id>.css`）。几何被滤掉，这是契约 v3 的交付。
-//    · `'geom'` —— 形态层的**出处**（`public/shapes.css` 就是照它剪出来的），只发几何。
-//    要的是「两半合起来逐字节等于 #1318 之前那份表」这条性质：同一个 `decls` 对象被同一个谓词
-//    分成互补的两份，所以它按构造成立，不靠谁记得同步改两处。
-//    📌 它是模块级变量而不是参数，因为 `declBlock` 有四个调用点（`rootRule` / `wideRule` /
-//    `sheetFor` 主循环 / 实验钉），逐个穿参数会让「漏掉一个调用点」这个错法写得出来，而漏掉的
-//    方向是静默的（那条规则的几何两边都不出现）。切换只发生在 `buildSheet` 里，同步、带 finally。
-let EMIT = 'skin';
-const declBlock = (selector, decls) => {
-  const kept = Object.entries(decls).filter(([k]) => (EMIT === 'geom' ? isGeometry(k) : !isGeometry(k)));
+// 📌 一条规则没有任何声明就整条不发（返回空串，`sheetFor` 把空串滤掉）。
+//
+// 📌 `GEOM_SCAN` 是**收集模式**，只有 `scanGeometry()` 会打开它：抛错那一支一次只说得出第一处，
+//    而验收要的是「整池扫一遍，命中集合为空」——那需要把全部命中收齐再一起看。它不是给生产代码
+//    开的门：打开它的唯一入口是下面那个导出的函数，而那个函数自己负责关掉它。
+let GEOM_SCAN = null;
+const declBlock = (selector, decls, where) => {
+  const entries = Object.entries(decls);
+  const geo = entries.filter(([k]) => isGeometry(k));
+  if (geo.length) {
+    const what = geo.map(([k, val]) => `${k}: ${val}`).join(' · ');
+    if (GEOM_SCAN) {
+      for (const [k, val] of geo) GEOM_SCAN.push({ where, selector, prop: k, value: String(val) });
+    } else {
+      throw new Error(`配方里写了几何：${where} → ${selector} 的 ${what}\n`
+        + '几何的唯一出处是 public/shapes.css（#1339）—— 配方只发皮。'
+        + '要改一个块排成什么样，改形态层那份表，不要写回这里。');
+    }
+  }
+  const kept = GEOM_SCAN ? entries.filter(([k]) => !isGeometry(k)) : entries;
   if (kept.length === 0) return '';
   return `${selector} {\n${kept.map(([k, val]) => `  ${k}: ${val};`).join('\n')}\n}\n`;
 };
 
-/** 块根自己那条规则 —— 深浅、留白、窄屏单栏。`extra` 是这个块骨架自己要加的几条。 */
+/**
+ * #1339 —— 把 `fn()` 跑一遍，把这期间配方写出的每一条几何收成一张表（不抛错）。
+ * 验收标准第 1 条那把尺就是它：拿 `declBlock` 当采集点扫满整池，命中集合必须为空。
+ *
+ * 🔴 采集点是 `declBlock`，不是「遍历角色表和 rootExtra」：角色和 `rootExtra` 都是**函数**，
+ *    直接 `Object.keys` 读到 0；而本票删掉之前，同页节奏那条（`siblingRules`）和实验钉根本不住在
+ *    那三样里 —— 按那三样扫是空的、几何却还在配方里。这把尺挂在 `declBlock` 上就不挑出处。
+ * 🔴 它自己的盲区写在这儿：只看得见走 `declBlock` 的声明。有人把一条规则拼成字符串直接 push 进
+ *    `out`，这把尺读到空而几何上了表。挡那一种的是另一条判据 —— 生成出来的表跑 `theme-css-lint.js`。
+ */
+function scanGeometry(fn) {
+  const prev = GEOM_SCAN;
+  GEOM_SCAN = [];
+  try { fn(); return GEOM_SCAN; } finally { GEOM_SCAN = prev; }
+}
+
+/**
+ * 块根自己那条规则 —— 深浅、留白。`extra` 是这个块骨架自己要加的几条。
+ *
+ * 🔴 #1339 —— 这里以前还发 `display: grid` 与 `grid-template-columns: 1fr`（窄屏单栏）。
+ *    那两条是几何，今天住在 `public/shapes.css`（平台表无条件加载，按 `[data-block][data-shape]`
+ *    点名）。删掉它们不是「少了一条兜底」：形态层对每个 (块, 形态) 对都写了自己的骨架，而
+ *    `base.css` 那份地板管没戴形态的块。
+ */
 function rootRule(block, v, s, extra) {
   return declBlock(`.${block}`, {
-    display: 'grid',
-    'grid-template-columns': '1fr',
     gap: v.gap,
     padding: `${v.pad} 1.5rem`,
     'background-color': primary(s.bg),
     color: primary(s.fg),
     ...(extra || {}),
-  });
+  }, `块根 ${block}`);
 }
 
 /**
@@ -1862,17 +1854,16 @@ function rootRule(block, v, s, extra) {
  *    那条注释都说它紧。（卡片内边距那一半没被盖掉，因为它走的是 `partExtra`，不是这条规则。）
  *    hero 不受这一条影响：`HERO_LOOKS` 的 rootExtra 一条都没写过 gap / padding（本轮重量过）。
  */
-function wideRule(block, v, cols, stated = {}) {
-  const decls = { 'grid-template-columns': cols };
+function wideRule(block, v, stated = {}) {
+  const decls = {};
   // #1078 —— 放大的倍数乘进 token 的系数里，而不是再套一层 calc。算出来的长度与改造前
   // 逐字相同：`calc(1.25rem * 1.5)` = 1.875rem = `calc(var(--section-block-gap) * 7.5)`。
   if (!('gap' in stated)) decls.gap = tokenLen('--section-block-gap', v.gapStep * 1.5);
   if (!('padding' in stated)) decls.padding = `${tokenLen('--section-block-pad', v.padStep * 1.4)} 3rem`;
-  // 🔴 #1318 —— 列数是几何，被 `declBlock` 滤掉；桌面的 gap / padding 不是，留在主题表里。
-  //    **发不发这一段的判据一个字都没动**（调用点那个 `cols !== '1fr' || keepsWideBreakpoint`）：
-  //    它决定的是「桌面要不要另给一套留白」，而那一半仍然是主题的（#1090 r2 把列数和留白分开的
-  //    那次量过：两件事不该由同一个判据决定）。滤完整段空掉时才整段不发。
-  const body = declBlock(`.${block}`, decls);
+  // 🔴 #1339 —— 这一段以前还发 `grid-template-columns`（桌面列数），#1318 起它被滤掉、今天整个删掉。
+  //    剩下的是**桌面的 gap 和 padding**，那一半仍然是主题的（#1090 r2 把列数和留白分开的那次
+  //    量过：两件事不该由同一个判据决定）。所以这个函数不再收 `cols` 这个形参。
+  const body = declBlock(`.${block}`, decls, `桌面段 ${block}`);
   if (!body) return '';
   return `@media (min-width: 1024px) {\n  ${body.trim().split('\n').join('\n  ')}\n}\n`;
 }
@@ -1899,20 +1890,24 @@ function buildSheet(i, seed) {
     const s = surfaces.get(v.rhythm[(n + v.phase) % v.rhythm.length]);
     n += 1;
     out.push(rootRule(block, v, s, shape.rootExtra));
-    const cols = shape.cols || v.wide;
-    // 🔴 #1090 r2 —— 这个判据以前只问「列数变不变」，而 `wideRule` 里同时装着**列数**和**桌面留白**
+    // 🔴 #1339 —— 「桌面要不要另给一套 gap / padding」这个判据以前挂在**列数**上
+    //    （`cols !== '1fr'`）。列数是几何，本票把它从配方里删干净了 ⟹ 判据必须换一个不是几何的
+    //    携带者，否则它跟着列数一起没。换成 `wideSpacing`：画法自己说「桌面不用另给一套留白」。
+    //    ⚠️ **这不是换个名字而已，两个方向都要看**：旧判据里 `cols` 恒等于 `'1fr'` 的那 31 条
+    //    （单栏画法）才是「不发」，其余一律发；而没写 `cols` 的块落到 `v.wide`，那个值永远不是
+    //    `'1fr'` ⟹ 也是发。所以新写法是「默认发，只有明写 `wideSpacing: false` 的才不发」，
+    //    与旧判据在整池 97 套上逐字节等价（交付留言里贴了两臂的字节比对）。
+    // 🔴 #1090 r2 那段账仍然成立，原文留在这里：`wideRule` 里以前同时装着**列数**和**桌面留白**
     //    （#1078 把留白折进来的那一次）。于是一个选了单栏的画法把它所在块族的桌面留白一起弄丢了：
     //    QA2 逐份表数出来 content-split 40 套 / features-grid·values-grid·service-highlights 各 20 套
     //    （#1162 注：`values-grid` / `service-highlights` 这两个 type 名今天已经退役，这句是 #1090 r2
     //    当天的读数、留作出处；同一族今天的成员见 `CARD_BLOCKS`）
     //    在交付里没有了 `@media (min-width: 1024px)` 那一段，桌面上用回手机的 gap 与 padding
     //    （1440px 实测 gap 24→16、padding 56/48→40/24）。**列数是这个画法的选择，留白是这个断点的
-    //    性质** —— 两件事不该由同一个判据决定。
-    // 🔴 判据用的是「这个块族有候选表」这个结构事实（`shapeFor` 里一处设定），不是给三个条目各贴
-    //    一个 flag：贴 flag 的话下一个加单栏画法的人漏掉它就又丢一次，而漏掉不会有任何一格报错。
-    // 📌 只覆盖本票拥有的两族。hero 也走同一个 `pick()`，但它归 #1065 —— 它那些纯文字画法今天就
-    //    没有宽屏那一段，本票不给它加（那会改掉另一张票的产物）。
-    if (cols !== '1fr' || shape.keepsWideBreakpoint) out.push(wideRule(block, v, cols, shape.rootExtra));
+    //    性质** —— 两件事不该由同一个判据决定。本票把它们**彻底**分开了：列数已经不在这个文件里。
+    // 🔴 `keepsWideBreakpoint` 那一半一个字没动：判据用的是「这个块族有候选表」这个结构事实
+    //    （`shapeFor` 里一处设定），不是给三个条目各贴一个 flag。
+    if (shape.wideSpacing !== false || shape.keepsWideBreakpoint) out.push(wideRule(block, v, shape.rootExtra));
     for (const hook of hooks) {
       const part = partOf(hook);
       if (!part) continue;
@@ -1922,59 +1917,48 @@ function buildSheet(i, seed) {
       const make = ROLES[roleName] || ROLES.desc;
       // 这个块的骨架可以给个别部件再补几条（今天只有 hero 用：版式靠 order 分左右上下）。
       const extra = (shape.partExtra || {})[part];
-      out.push(declBlock(`.${hook}`, { ...make(v, s), ...(extra ? extra(v, s) : {}) }));
+      out.push(declBlock(`.${hook}`, { ...make(v, s), ...(extra ? extra(v, s) : {}) },
+        `部件 ${block}/${shape.name || '(无候选表)'} 的 ${part}（角色 ${roleName}）`));
     }
-    // #1090 —— 同页节奏那几条（今天只有 content-split 的 `alternate` 会产出）。发在这个块所有部件
-    // 规则**之后**，因为它改的就是上面刚写下的 `order`。
-    for (const [sel, decls] of (shape.siblingRules ? shape.siblingRules(v, s) : [])) {
-      out.push(declBlock(sel, decls));
-    }
-    // #1190 —— 实验钉（整段理由在 `SCROLL_STRIP_EXPERIMENT` 上面）。发在这个块所有规则**之后**，
-    // 因为它要盖掉刚写下的 `.testimonials__item`；`i` 不对就一行都不发 ⟹ 其余 96 张逐字节不变。
-    if (i === SCROLL_STRIP_EXPERIMENT.candidate && block === SCROLL_STRIP_EXPERIMENT.block) {
-      out.push(`/* ${SCROLL_STRIP_EXPERIMENT.note} */\n`);
-      for (const [sel, decls] of SCROLL_STRIP_EXPERIMENT.rules(v, s)) out.push(declBlock(sel, decls));
-      // 🔴 #1318 —— 内层规则被几何滤网滤空时整段不发（空的 `@media { }` 不是合法交付）。
-      const wideBodies = SCROLL_STRIP_EXPERIMENT.wide(v, s)
-        .map(([sel, decls]) => declBlock(sel, decls))
-        .filter(Boolean)
-        .map((body) => body.trim().split('\n').join('\n  '));
-      if (wideBodies.length) out.push(`@media (min-width: 1024px) {\n  ${wideBodies.join('\n  ')}\n}\n`);
-    }
+    // 🔴 #1339 —— 这里以前还有两段，都跟着几何一起删掉了：
+    //    ① 同页节奏（`siblingRules`，#1090）—— `.content-split + .content-split …` 那 10 条，
+    //       整条只有 `order`。它今天住在 `public/shapes.css` 里 content-split 那四个
+    //       `*-alternate` 组合的规则里（`media-right-alternate` 那份在 #1318 就搬过去了，
+    //       另外三个 alternate 组合随 #1340 搬完）。
+    //    ② 实验钉（`SCROLL_STRIP_EXPERIMENT`，#1190）—— 「第 27 套候选把 testimonials 画成横条」。
+    //       **它没有继承者，这是有意的**：形态层是平台表，按 `[data-block][data-shape]` 点名，而
+    //       `data-shape` 来自站点内容；实验钉要表达的却是「池子里这一套表这么画」，是跟主题走的，
+    //       形态层没有地方放它。而且它从 #1318 起就已经是半条了（`display` / `grid-column` /
+    //       `flex-shrink` 被滤掉，只剩 `overflow-x`，而按 `globals.css` 自己那段话，
+    //       `overflow-x` 写在 `display: contents` 的元素上什么都不会发生）。
+    //       想把横条要回来，得让它变成 testimonials 的一个真形态（`shapes.css` + manifest），
+    //       那是另一张票的事。
   }
-  // 🔴 #1318 —— 被几何滤网滤空的规则回的是空串；滤掉它们，否则 join 会在表里留下空行。
+  // 🔴 一条声明都没有的规则回的是空串；滤掉它们，否则 join 会在表里留下空行。
   return out.filter(Boolean).join('\n');
 }
 
 /**
- * 一套候选的主题表 —— 皮那一半（契约 v3：几何不在里面）。
+ * 一套候选的主题表。契约 v3：几何不在里面 —— 而从 #1339 起它**根本没被算出来过**，不是算了再滤掉。
  */
 function sheetFor(i, seed = 7) {
-  const prev = EMIT;
-  EMIT = 'skin';
-  try { return buildSheet(i, seed); } finally { EMIT = prev; }
+  return buildSheet(i, seed);
 }
 
 /**
- * 同一套候选的**几何**那一半 —— `public/shapes.css` 的出处（#1318）。
+ * 🔴 #1339 —— 这里以前是 `geometryFor(i)`：同一份配方的**几何**那一半，`public/shapes.css` 就是
+ * 照它剪出来的。#1340 把 53 对 (块, 形态) 全部搬进形态层之后（交付当天现取：已在库 53 · 待迁 0），
+ * 配方里的几何成了没人读的死字，本票把它连同这个出口一起删掉。
  *
- * 🔴 它不是「给测试开的门」。#1318 把排版从主题表搬进平台那一份形态层，而**哪个画法画成什么样**
- * 这件知识仍然只有这里有（`HERO_LOOKS` / `SPLIT_SHAPES` / `CARD_SHAPES` / `ROLES` 那几张表）。
- * `public/shapes.css` 今天那 50 个 (block, shape) 对就是照这个函数的产出剪的：把选择器从 `.hero`
- * 换成 `[data-block="hero"][data-shape="<画法名>"]`，声明一个字节不动。池子重新生成那天新画法的
- * 规则也从这里来。
+ * **从今天起 `public/shapes.css` 是几何的唯一出处，而且它是手维护的。** 要给一个块加一副新画法，
+ * 就在那份表里写它的规则、在 `blocks/<块>.json` 的 `shapes` 里登记它的名字 —— 不要把几何写回
+ * 这个文件（写了会被 `declBlock` 当场抛出来，报文点名是哪张表的哪一项）。
  *
- * 🔴 **它不参与任何一个站的构建**：站装的是 `sheetFor` 的产物 + 平台那份手维护的 `shapes.css`。
- * 所以这个函数变了不会有站跟着变 —— 要让它变成页面上的东西，得有人把它剪进 `shapes.css`。
- *
- * 🔴 `sheetFor(i, seed)` 与 `geometryFor(i, seed)` 是**互补**的两半：同一个声明表、同一个
- * `isGeometry` 谓词，一个取补集。合起来逐字节等于 #1318 之前 `sheetFor` 那份表。
+ * 📌 跟着一起退役的还有 `scripts/theme-pipeline/shape-survey.js`（#1340 的搬迁工具：`--cut` 把一对
+ * 的几何按形态层的写法剪出来、`--check` 拿同一把刀重剪去跟盘上比）。它唯一的输入就是 `geometryFor`，
+ * 输入没了工具也就没了对象；它最后一次跑的读数写在 #1339 的交付留言里（一致 51 · 不一致 2，
+ * 那 2 对是盘上人手调过的 `hero/text-center` 与 `hero/text-left`）。
  */
-function geometryFor(i, seed = 7) {
-  const prev = EMIT;
-  EMIT = 'geom';
-  try { return buildSheet(i, seed); } finally { EMIT = prev; }
-}
 
 // 📌 #1341 —— 这里原来有 `layoutNamesFor(i)`（#1090）：第 i 套候选的四个版式名一次给全
 //    （`hero` / `split` / `splitRhythm` / `cards`），`generate.js` 把它写进 `<id>.layout.json`，
@@ -1984,8 +1968,9 @@ function geometryFor(i, seed = 7) {
 //    函数逐字就是 `voiceFor` 的一层壳）。
 
 module.exports = {
-  // #1318 —— 两半：sheetFor = 皮（主题表），geometryFor = 几何（形态层的出处）。
-  sheetFor, geometryFor, voiceFor, hooksByBlock,
+  // #1339 —— 只剩一半了：配方发皮，几何的唯一出处是 public/shapes.css（`geometryFor` 已删）。
+  // `scanGeometry` 是那条性质的尺子（验收标准第 1 条）：拿 declBlock 当采集点扫一遍，命中集合必须为空。
+  sheetFor, scanGeometry, voiceFor, hooksByBlock,
   heroLookFor, HERO_LOOKS, HERO_LOOK_NAMES,
   ctaLookFor, CTA_LOOKS, CTA_LOOK_NAMES,
   formLookFor, FORM_LOOKS, FORM_LOOK_NAMES,
@@ -1999,6 +1984,7 @@ module.exports = {
   INFO_LOOKS, INFO_LOOK_NAMES, infoLookFor,
   TESTIMONIAL_LOOKS, TESTIMONIAL_LOOK_NAMES, testimonialLookFor,
   LOOK_FAMILIES, familyOf,
-  // #1190 —— 实验钉。导出是为了让 `sheet-recipes.test.js` 那一格从它派生候选号，而不是手抄一个 27。
-  SCROLL_STRIP_EXPERIMENT,
+  // #1339 —— 「配方自己在这个块上画的是哪一副形态」。🔴 **不是选择单**（那是 shape-sheet.js 的
+  // `shapeSheetFor`，#1342）—— 两者的分工与实测差异写在 PLAIN_SHAPE_NAMES 上面那段。
+  PLAIN_SHAPE_NAMES, recipeShapeFor, recipeShapesFor,
 };

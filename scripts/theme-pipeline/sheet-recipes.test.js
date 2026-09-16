@@ -53,12 +53,12 @@ const fs = require('fs');            // #1135 ⑨ 的分母自检要数池子里
 const crypto = require('crypto');
 
 const DIR = __dirname;
-let sheetFor; let geometryFor; let voiceFor; let postcss; let paletteFor;
+let sheetFor; let scanGeometry; let voiceFor; let postcss; let paletteFor;
 let CARD_BLOCKS;
 let heroLookFor; let HERO_LOOK_NAMES; let HERO_LOOKS;
 let ctaLookFor; let CTA_LOOK_NAMES; let formLookFor; let FORM_LOOK_NAMES;   // #1135
 let LOOK_FAMILIES;                                                          // #1139
-let SCROLL_STRIP_EXPERIMENT;                                                // #1190
+let recipeShapeFor; let recipeShapesFor;                                        // #1339
 
 let pass = 0; let fail = 0; let skipCount = 0;
 const ok = (m) => { pass += 1; console.log(`  ✅ ${m}`); };
@@ -70,10 +70,10 @@ const skip = (what, why) => { if (!skipOnScaffoldingPool(what, why)) return fals
 
 try {
   ({
-    sheetFor, geometryFor, voiceFor, CARD_BLOCKS,
+    sheetFor, scanGeometry, voiceFor, CARD_BLOCKS,
     heroLookFor, HERO_LOOK_NAMES, HERO_LOOKS,
     ctaLookFor, CTA_LOOK_NAMES, formLookFor, FORM_LOOK_NAMES,
-    LOOK_FAMILIES, SCROLL_STRIP_EXPERIMENT,
+    LOOK_FAMILIES, recipeShapeFor, recipeShapesFor,
   } = require(path.join(DIR, 'sheet-recipes.js')));
   ({ paletteFor } = require(path.join(DIR, 'palette.js')));
   postcss = require('postcss');
@@ -111,14 +111,32 @@ const POOL_IDS = Object.keys(POOL).sort();
  *    根上），所以这个还原不是近似。
  */
 /**
- * 配方那一侧的**完整**表 = 皮 + 几何，也就是 #1318 之前 `sheetFor(i)` 那份字节。
+ * 「第 i 套候选今天画出来是什么样」的那份完整 CSS = **它选中的那几副形态**（从 `public/shapes.css`
+ * 还原成类名）+ **它自己那份皮**（`sheetFor(i)`）。
  *
- * 🔴 两个语料回答的是两个问题，下面几格**两个都问**：
- *    · `recipeSheetFor(i)`     —— 「这张画法表本身画得对吗」。域是全部候选（7 种 hero 画法、
- *                                 6 种 form 画法、80 套候选），这是 #1065 / #1135 那些红当初的域。
+ * 🔴 #1339 —— 这一行以前是 `mergeCss([sheetFor(i), geometryFor(i)])`，也就是「配方的皮 + 配方的
+ *    几何」。本票把几何从配方里删干净之后 `geometryFor` 不存在了，所以另一半改从形态层取。
+ *    **换的是几何从哪儿来，不是遍历什么**：仍然按候选号 0…N 走，域一套不少。
+ *
+ * 🔴 走到这一步之前排除过两条更省事的路，两条都会让下面几格**恒绿或者失明**：
+ *    · ❌ 只读皮（这一行只取 `sheetFor(i)`）。④ ⑥ ⑩ ⑪ ⑭ 问的位置键 `order` / `grid-column` /
+ *      `display` 全是几何，只读皮时两边都读到空串 ⟹「两边一不一样」恒为假 ⟹ 恒绿。
+ *      ⑭ 自己那段注释记着 #1318 r1 就是这个状态，而它的阳性对照照样开火 —— 对照证的是「这把尺
+ *      读得懂 order」，不是「语料里有 order」。
+ *    · ❌ 直接改读 `effectiveSheetFor(themeId)`。它按**主题 id** 取盘上的表，而盘上今天只有 2 套
+ *      ⟹ ⑥ 的域从「7 种 hero 画法 + 2 站」塌成 2 站，⑫ 从 97 套候选塌成 2 套。而 #1065 / #1135 /
+ *      #1139 / #1150 / #1158 那批红当初的域就是前者。
+ *
+ * 🔴 候选 → (块, 形态) 的映射是**机械取**的：`recipeShapesFor(i)`（`sheet-recipes.js` 导出），
+ *    它有候选表的 11 个块走族自己的 `pick(i)`、`content-split` 拼节律全名，其余 20 个块走那份
+ *    明写的 `PLAIN_SHAPE_NAMES`。它自己的分母自检在下面那一格：97 套候选用到的 (块, 形态) 对与
+ *    `public/shapes.css` 里的集合**双向差集都空**。
+ *
+ * 🔴 两个语料回答的仍然是两个问题，下面几格**两个都问**：
+ *    · `recipeSheetFor(i)`     —— 「这套候选画出来对吗」。域是全部候选（7 种 hero 画法、
+ *                                 6 种 form 画法、80/97 套候选），这是那批红当初的域。
  *    · `effectiveSheetFor(id)` —— 「一个站今天真的拿到了吗」。域是池子里的每一套主题，语料是
  *                                 主题表 + 平台那份手维护的 `shapes.css`。
- *    只问前者：有人把 `shapes.css` 改坏，这几格照样绿（形态层是手维护的，配方管不着它）。
  *    只问后者：域塌到 2，而 7 种 hero 画法里只有 2 种被判到。
  */
 /**
@@ -126,7 +144,20 @@ const POOL_IDS = Object.keys(POOL).sort();
  * 就是两条同名规则 —— 而下面那些尺子一律取**第一条**（`lines.find` / 单次 `match`），于是它们会读到
  * 只有皮的那一条，判成「这个画法没给表单排位置」。这一条是实测过的：第一版就这么拼，8 种画法全红。
  */
-const recipeSheetFor = (i) => mergeCss([sheetFor(i), geometryFor(i)]);
+// #1339 —— 语料换了一半,理由整段在下面。
+const recipeSheetFor = (i, shapesText, opts = {}) => mergeCss([
+  restoreShapes(
+    // 🔴 `hero-with-form` 只在点名问它的时候才进这份映射。它借用 `.hero__*` 那套类名
+    //    （manifest 的 `hooksFrom`），无条件放进来的话它那几条规则会以 `.hero-with-form …` 的
+    //    形状混进整份表，而下面 ⑫ 那格的分母自检按块名认领规则 ⟹ 当场报「有 10 条读不到」。
+    //    它不是 `hooksByBlock()` 的成员（那 31 个块里没有它），所以 `recipeShapesFor` 本来也不给它。
+    opts.only === 'hero-with-form'
+      ? { 'hero-with-form': recipeShapeFor('hero-with-form', i) }
+      : recipeShapesFor(i),
+    shapesText, opts,
+  ),
+  sheetFor(i),
+]);
 
 /**
  * 把几份 CSS 合成一份：同一个 (at-rule, 选择器) 的声明并进同一条规则，后面那份盖前面那份。
@@ -171,21 +202,32 @@ function mergeCss(cssList, pick) {
  *    直接把 `.hero-with-form` 也换成 `.hero` 又不行：那样 hero 自己那份形态规则会跟它**并进同一条**，
  *    两个块的几何糊在一起。所以做法是「一次只还原一个块，并说明它借的是谁的类名」。
  */
+/**
+ * 形态层里属于这份**选择单**的那些规则，还原成类名形态（`.hero` / `.hero__form`）。
+ *
+ * 🔴 `shapesText` 是个参数，不是常量 —— 下面好几格的反向对照要拿一份**动过手脚**的形态层再问一次
+ *    同样的话。#1339 之前那些对照改的是配方（几何住在配方里），今天几何住在这儿，所以扰动也得下在
+ *    这儿。改配方的那种写法今天会「立不起来」：被摘的那行根本不在配方里了。
+ */
+function restoreShapes(selection, shapesText, opts = {}) {
+  return mergeCss([shapesText === undefined ? fs.readFileSync(SHAPES_PATH, 'utf-8') : shapesText], (selector) => {
+    if (!/\[data-block=/.test(selector)) return selector;
+    const m = /\[data-block="([^"]+)"\]\[data-shape="([^"]+)"\]/.exec(selector);
+    if (!m || selection[m[1]] !== m[2]) return null;        // 这个站/这套候选没戴这个画法
+    if (opts.only && m[1] !== opts.only) return null;       // #1333 —— 只还原点名的那个块
+    const prefix = opts.as || m[1];
+    return selector
+      .split(new RegExp(`\\[data-block="${m[1]}"\\]\\[data-shape="${m[2]}"\\]`)).join(`.${prefix}`)
+      .replace(/\.([a-z0-9-]+) \.\1__/g, '.$1__');            // `.hero .hero__form` → `.hero__form`
+  });
+}
+
 function effectiveSheetFor(themeId, opts = {}) {
   const selection = (POOL[themeId] || {}).shapes || {};
-  return mergeCss(
-    [fs.readFileSync(SHAPES_PATH, 'utf-8'), fs.readFileSync(path.join(THEMES_DIR, `${themeId}.css`), 'utf-8')],
-    (selector) => {
-      if (!/\[data-block=/.test(selector)) return selector;
-      const m = /\[data-block="([^"]+)"\]\[data-shape="([^"]+)"\]/.exec(selector);
-      if (!m || selection[m[1]] !== m[2]) return null;        // 这个站没戴这个画法
-      if (opts.only && m[1] !== opts.only) return null;       // #1333 —— 只还原点名的那个块
-      const prefix = opts.as || m[1];
-      return selector
-        .split(new RegExp(`\\[data-block="${m[1]}"\\]\\[data-shape="${m[2]}"\\]`)).join(`.${prefix}`)
-        .replace(/\.([a-z0-9-]+) \.\1__/g, '.$1__');            // `.hero .hero__form` → `.hero__form`
-    },
-  );
+  return mergeCss([
+    restoreShapes(selection, opts.shapesText, opts),
+    fs.readFileSync(path.join(THEMES_DIR, `${themeId}.css`), 'utf-8'),
+  ]);
 }
 
 
@@ -667,11 +709,19 @@ const formPlacementProblems = (rules) => {
   return out;
 };
 {
-  // #1318 —— 语料换成「池子里每一套主题真正拿到的那份 CSS」，键是它在 hero 上戴的那个画法名
-  // （理由整段在 effectiveSheetFor 上面：`order` 今天住在形态层，`sheetFor(i)` 里一行几何都没有，
-  // 而形态层只有池子真的用到的那些画法）。TRIO 那个夹具留着 —— ⑤ 那一格还在用它问**内容结构**，
-  // 那一维仍然是每个候选都答得出来的。
-  const rules = new Map(TRIO.map((i) => [heroLookFor(i), heroRulesOf(recipeSheetFor(i))]));
+  // 🔴 #1339 —— **这一格的域从 9 项变成 3 项，而那不是这次换语料换掉的，是它本来就没有对象。**
+  //    逐条说清楚，免得下一个人把它当成「判据放松了」：
+  //    · 表单是 `hero-with-form` 这个**块**的部件。#1333 之后 `hero` 自己不渲染表单了
+  //      （`HeroSection.tsx` 里 `hero__form` 现取 **0** 命中），下面站那一臂的注释早就写着这一条。
+  //    · 形态层里 `.hero__form` 的规则只挂在 `[data-block="hero-with-form"][data-shape="form-side"]`
+  //      底下（`public/shapes.css` 现取：7 副 hero 画法底下一条 `.hero__form` 都没有）。
+  //    · 而 `hero-with-form` 的形态**只有一副**（`blocks/hero-with-form.json` 的 `shapes` = 1 项）。
+  //    ⟹ 「每一种 hero 画法都把表单排在正文之后吗」今天没有 7 个对象，只有 1 个。
+  //    #1339 之前这一格的候选那一臂读到 7 项，是因为配方里还留着 7 副 hero 画法各自的 `.hero__form`
+  //    位置 —— 那是 #1333 之后**没有任何 DOM 会用到**的死字，正是本票要删的东西。
+  //    TRIO 那个夹具留着 —— ⑤ 那一格还在用它问**内容结构**，那一维仍然是每个候选都答得出来的。
+  const rules = new Map([[`form-side（配方侧，候选 ${TRIO[0]}）`,
+    heroRulesOf(recipeSheetFor(TRIO[0], undefined, { only: 'hero-with-form', as: 'hero' }))]]);
   // 🔴 #1333 —— 站那一臂问的块从 `hero` 换成了 `hero-with-form`：表单是**那个块**的部件，hero 自己
   //    已经没有表单了（`HeroSection.tsx` 里那一支删了）。照旧问 hero 的话，这一格问的是
   //    「一个不存在的部件排在哪」，而它答得出来的唯一答案是「没排」—— 两套站当场全红，而那两套
@@ -686,9 +736,10 @@ const formPlacementProblems = (rules) => {
     rules.set(`${shape} @ 站 ${id}`, heroRulesOf(effectiveSheetFor(id, { only: FORM_BLOCK, as: 'hero' })));
   }
   const LOOKS_HERE = [...rules.keys()];
-  if (LOOKS_HERE.length < HERO_LOOK_NAMES.length + POOL_IDS.length) {
-    die(`⑥ 的语料只有 ${LOOKS_HERE.length} 项，而 ${HERO_LOOK_NAMES.length} 种画法 + `
-      + `${POOL_IDS.length} 套池内主题应当是 ${HERO_LOOK_NAMES.length + POOL_IDS.length} 项 —— 有键撞掉了`);
+  // 分母自检：1 项配方侧 + 池里每一套站。少一项就是有键撞掉了（不是「这一格变松了」）。
+  if (LOOKS_HERE.length !== 1 + POOL_IDS.length) {
+    die(`⑥ 的语料有 ${LOOKS_HERE.length} 项，而「配方侧 1 项 + ${POOL_IDS.length} 套池内主题」`
+      + `应当是 ${1 + POOL_IDS.length} 项 —— 有键撞掉了`);
   }
   const problems = formPlacementProblems(rules);
   if (problems.length) problems.forEach((m) => bad(m));
@@ -699,7 +750,7 @@ const formPlacementProblems = (rules) => {
       const b = placementOf(lines.find((l) => /^\.hero__body \{/.test(l)));
       return `${n} 正文 ${b.axis}=${b.raw}→表单 ${f.raw}`;
     });
-    ok(`${LOOKS_HERE.length} 项逐项（${HERO_LOOK_NAMES.length} 种画法出自配方 + ${POOL_IDS.length} 套`
+    ok(`${LOOKS_HERE.length} 项逐项（1 项出自配方侧的 hero-with-form/form-side + ${POOL_IDS.length} 套`
       + `池内主题真正拿到的那份）：.hero__form 排在正文之后（${shapes.join(' · ')}）`);
   }
 
@@ -811,9 +862,12 @@ console.log('\n⑦ 换画法之后，桌面那一段还在吗（#1090 r2）');
     return root.toString();
   };
   // 🔴 「这一套里哪些块选了单栏画法」也从注册表算，不再手抄画法名（原来是写死的
-  //    `new Set(['media-top','narrow-stack','wide-rows'])`）—— 判据是那副画法自己的 `cols`。
+  //    `new Set(['media-top','narrow-stack','wide-rows'])`）。
+  // 🔴 #1339 —— 判据以前是那副画法自己的 `cols === '1fr'`，而列数是几何、已经从配方里删干净。
+  //    携带同一件事的今天是 `wideSpacing: false`（当年写 `cols: '1fr'` 的那 31 条一一对应，
+  //    理由在 `sheet-recipes.js` 的 `buildSheet` 里那个调用点上）。
   const singlesOn = (x) => KEEPERS.flatMap((f) => (
-    f.table[x.v[f.key]].cols === '1fr' ? f.blocks : []));
+    f.table[x.v[f.key]].wideSpacing === false ? f.blocks : []));
   let caught = 0;
   let shouldCatch = 0;
   for (const x of sheets) {
@@ -1289,25 +1343,23 @@ console.log('\n⑪ #1135 那行细则小字，每一种画法下都排在表单�
       + `（源序读自组件本身：${PARTS.map((p) => p).join(' < ')}）`);
   } else problems.forEach(bad);
 
-  // 阳性对照 A：把 `panel-left` 那行 note 的 order 摘掉（本轮修的就是它）⟹ 必须点名 panel-left
+  // 阳性对照 A：把 `panel-left` 那行 note 的 order 摘掉 ⟹ 必须点名 panel-left
+  //
+  // 🔴 #1339 —— 扰动下在**形态层**，不再是重新编译一份配方。那行 `order: 3` 以前住在
+  //    `sheet-recipes.js` 的 `FORM_LOOKS['panel-left'].partExtra.note` 里；几何整族搬走之后它住在
+  //    `public/shapes.css`。照旧改配方的话这一格会报「立不起来」（被摘的那行根本不在配方里了），
+  //    而「立不起来」跟「这把尺瞎了」在输出里长得不一样，但都不是绿 —— 所以扰动必须跟着语料走。
   {
-    const Module = require('module');
-    const target = path.join(DIR, 'sheet-recipes.js');
-    const src = fs.readFileSync(target, 'utf-8');
-    const line = "      note: () => ({ order: 3 }),";
-    const hits = src.split(line).length - 1;
+    const shapesSrc = fs.readFileSync(SHAPES_PATH, 'utf-8');
+    const block = '[data-block="contact-form"][data-shape="panel-left"] .contact-form__note {\n  order: 3;\n}\n';
+    const hits = shapesSrc.split(block).length - 1;
     if (hits !== 1) {
-      bad(`⑪ 阳性对照 A 立不起来：sheet-recipes.js 里 \`${line.trim()}\` 出现 ${hits} 次（要求正好 1 次）`);
+      bad(`⑪ 阳性对照 A 立不起来：public/shapes.css 里 panel-left 那条 note 的 order 规则出现 ${hits} 次（要求正好 1 次）`);
     } else {
-      const m = new Module(target, module);
-      m.filename = target;
-      m.paths = Module._nodeModulePaths(path.dirname(target));
-      m._compile(src.split(line).join('      // r2 control: order removed'), target);
-      // #1318 —— 重新编译出来的那份配方也要取【两半】，否则扰动落在几何那一半上而尺子只读皮，
-      // 这个对照会退化成恒绿（实测：只读皮时它读到 0 条）。
-      const named = offenders((i) => mergeCss([m.exports.sheetFor(i), m.exports.geometryFor(i)]), at);
-      if (named.some((s) => s.startsWith('panel-left'))) {
-        ok(`⑪ 阳性对照 A：摘掉 panel-left 那行 order，这一格当场点名它（${named.length} 条）—— 上面那些绿是这行挣来的`);
+      const rigged = shapesSrc.split(block).join('/* #1339 control: panel-left note order removed */\n');
+      const named = offenders((i) => recipeSheetFor(i, rigged), at);
+      if (named.some((x) => x.startsWith('panel-left'))) {
+        ok(`⑪ 阳性对照 A：把形态层里 panel-left 那行 order 摘掉，这一格当场点名它（${named.length} 条）—— 上面那些绿是这行挣来的`);
       } else {
         bad(`⑪ 阳性对照 A 失败：摘掉之后没人被点名（${named.length} 条）—— 那这一格钉的不是这处修法`);
       }
@@ -1552,7 +1604,9 @@ console.log(`\n⑫ #1139 每个块在 ${SAMPLE_N} 套候选里有几副骨架（
     else ok(`⑫ ${LOOK_FAMILIES.length} 族逐族：两副不同的画法从不画出同一副骨架，且种数都在下限之上（${said.join(' · ')}）`);
   }
 
-  // ── 没有候选表的块：种数由 `SHAPES` 里有没有写 `cols` 决定（写死 ⟹ 1 副；没写 ⟹ 落到 v.wide 的 2 副）
+  // ── 没有候选表的块：种数由 `PLAIN_SHAPE_NAMES` 里那一项决定（写死一个名字 ⟹ 1 副；写成读
+  //    `v.plainGrid` 的函数 ⟹ three-up / two-up 两副）。#1339 之前这条轴住在 `SHAPES` 的 `cols`
+  //    里（列数），几何删干净之后它被抬到形态名这一层 —— 同一条轴，换了个不是几何的携带者。
   //    这一条把「27 个块只有一副骨架」那个基线钉成机器读数，而不是一句散文。
   {
     const problems = [];
@@ -1566,8 +1620,8 @@ console.log(`\n⑫ #1139 每个块在 ${SAMPLE_N} 套候选里有几副骨架（
     }
     if (problems.length) problems.forEach(bad);
     else {
-      ok(`⑫ 没有候选表的 ${one + two} 个块：${one} 个恒 1 副（SHAPES 里写死了 cols）、`
-        + `${two} 个 2 副（列数落到 voiceFor 的 v.wide，按 i % 2 转 3 栏/2 栏）`);
+      ok(`⑫ 没有候选表的 ${one + two} 个块：${one} 个恒 1 副（PLAIN_SHAPE_NAMES 里写死了形态名）、`
+        + `${two} 个 2 副（形态名落到 voiceFor 的 plainGrid，按 i % 2 在 three-up / two-up 之间转）`);
     }
   }
 
@@ -1831,13 +1885,19 @@ console.log('\n⑬ #1150 首屏表单那行报错，跟联系/报价那两行拿
   // 🔴 那正是 QA2 在 #1318 r1 上量到的状态（8 种画法里 5 种两边都空、**没有一种还带 order**），
   //    而这一格自己的阳性对照**照样开火** —— 它证的是「这把尺读得懂 order」，不是「语料里有 order」。
   //    所以下面多了一道**分母自检**：语料里带 order 的条目为 0 就当场 die，不许再绿一次。
-  const looks = new Map();
-  for (let i = 0; i < 80; i += 1) {
-    const look = heroLookFor(i);
-    if (!looks.has(look)) looks.set(look, { i, css: recipeSheetFor(i) });
-  }
+  // 🔴 #1339 —— 域从 9 项变成 3 项，理由跟 ⑥ 那一格逐字相同（那里写全了）：表单和「已收到」都是
+  //    `hero-with-form` 这个**块**的部件，#1333 之后 `hero` 自己不渲染它们；形态层里
+  //    `.hero__form` / `.hero__form-success` 的规则只挂在 `hero-with-form/form-side` 底下，
+  //    而那个块只有**一副**形态。#1339 之前这一格从配方侧读到 7 项，读的是 7 副 hero 画法各自
+  //    那份**没有任何 DOM 会用到**的表单位置 —— 本票删的正是它。
+  //    `only` / `as` 两个参数是因为这个块借用 `.hero__*` 那套类名（manifest 的 `hooksFrom`）。
+  const FORM_BLOCK = 'hero-with-form';
+  const looks = new Map([[`form-side（配方侧，候选 0）`,
+    { i: 0, css: recipeSheetFor(0, undefined, { only: FORM_BLOCK, as: 'hero' }) }]]);
   for (const id of POOL_IDS) {
-    looks.set(`${(POOL[id].shapes || {}).hero} @ 站 ${id}`, { i: `站 ${id}`, css: effectiveSheetFor(id) });
+    const shape = (POOL[id].shapes || {})[FORM_BLOCK];
+    if (!shape) die(`⑭ 池里 ${id} 的选择单没有 ${FORM_BLOCK} —— 这一格问不出「它的已收到排在哪」`);
+    looks.set(`${shape} @ 站 ${id}`, { i: `站 ${id}`, css: effectiveSheetFor(id, { only: FORM_BLOCK, as: 'hero' }) });
   }
   // 分母自检：这一格问的是「两个部件的放置键一不一样」，而语料里一个 `order` 都没有时，
   // 「逐字相同」说的只是「两边都没有位置」。基线（#1318 之前）这个数是 7/8。
@@ -1846,12 +1906,17 @@ console.log('\n⑬ #1150 首屏表单那行报错，跟联系/报价那两行拿
       const p = placeOf(css, '.hero__form');
       return typeof p === 'string' && p.includes('order');
     }).length;
-    if (withOrder === 0) {
-      die(`⑭ 的语料里 ${looks.size} 条没有一条的 .hero__form 带 order —— 「两边逐字相同」此时说的是`
-        + '「两边都没有位置」，这一格是空绿，不许当成过');
+    // 🔴 #1339 —— 判据从「至少有一条带 order」收紧成「**每一条**都带」。理由是量出来的，不是口味：
+    //    本票把域从 9 项收成 3 项（1 项配方侧 + 2 套站），而站那两臂读的是 `public/shapes.css`，
+    //    **配方那一臂怎么坏都不影响它们**。拿旧判据（≥1）跑「只读皮」那条反向臂，实测读到 2/3、
+    //    整格照旧全绿 —— 也就是配方那一臂已经瞎了而这一格不说话，正是这条自检本来要拦的那件事。
+    //    收紧之后同一条反向臂当场 die。
+    if (withOrder !== looks.size) {
+      die(`⑭ 的语料里 ${looks.size} 条只有 ${withOrder} 条的 .hero__form 带 order —— 缺的那几条上`
+        + '「两边逐字相同」说的是「两边都没有位置」，那是空绿，不许当成过');
     }
-    ok(`⑭ 分母自检：${looks.size} 条语料里 ${withOrder} 条的 .hero__form 真的带着 order`
-      + '（读到 0 就是空绿，那时上面这一格会 die 而不是绿）');
+    ok(`⑭ 分母自检：${looks.size} 条语料**每一条**的 .hero__form 都带着 order`
+      + '（少一条就是那一臂瞎了，这一格会 die 而不是绿）');
   }
   const wrong = [];
   for (const [look, { i, css }] of looks) {
@@ -1861,9 +1926,9 @@ console.log('\n⑬ #1150 首屏表单那行报错，跟联系/报价那两行拿
     if (f !== s) wrong.push(`画法 ${look}（i=${i}）：表单在「${f}」而「已收到」在「${s}」`);
   }
   if (!wrong.length) {
-    ok(`${looks.size} 种画法逐种：「已收到」与表单的这 ${PLACE.length} 个放置键逐字相同`
-      + `（不含 grid-row —— 见上面那段注释与第 24 批台账）（media-left 那一份是 ${
-      placeOf(looks.get('media-left').css, '.hero__form-success')}）`);
+    ok(`${looks.size} 项逐项：「已收到」与表单的这 ${PLACE.length} 个放置键逐字相同`
+      + `（不含 grid-row —— 见上面那段注释与第 24 批台账）（${[...looks.keys()][0]} 那一份是 ${
+      placeOf([...looks.values()][0].css, '.hero__form-success')}）`);
   } else {
     wrong.forEach((w) => bad(`⑭ ${w}`));
   }
@@ -1899,127 +1964,104 @@ console.log('\n⑬ #1150 首屏表单那行报错，跟联系/报价那两行拿
   }
 }
 
-console.log('\n⑮ #1190 实验钉：恰好一套候选画出滑条，其余逐字节不动');
-// 🔴 #1317 —— 这一格要「全池渲染两遍再逐字节比」，而它的分母自检拿盘上带 `gen-` 横幅的表数核
-//    `POOL`；脚手架期那是 2 份。更要紧的是**被钉的那一套 `lime-28` 已经下架了** ⟹ 「恰好一套画出
-//    滑条」这句话今天的对象是零套，这一格没有东西可量。池子重生成那天要连同这个实验钉一起重新定。
-if (!skip('⑮ #1190 实验钉（恰好一套画出滑条）', '被钉的 lime-28 已下架，而盘上只剩 2 份生成表 —— 这一格没有对象')) {
-  // ══ 这一格为什么存在 ═══════════════════════════════════════════════════════════════════════════
-  // #1190 要「拿一套主题试穿一条能滑的横条」。这条流水线平时用**分布**说话（第 i 套是哪一副画法由
-  // 一个式子决定），而分布按构造说不出「恰好一个」—— 往 `TESTIMONIAL_LOOKS` 里加第 5 副画法，实测
-  // 97 套里有 75 套的画法档会跟着变，而那 97 张是**在售**的表，客户站重建就跟着变。所以钉子住在那张
-  // 表外面，而**「它只碰了一套」这件事必须有一格量它**：漏了的样子跟通过一模一样（表照样生成、
-  // 契约 lint 照样 rc=0、准入闸②照样过），只有逐字节比才看得见。
+// ── ⑮ #1190 实验钉那一格已随实验钉本身于 #1339 删掉 ──────────────────────────────────────────────
+//
+// 它守的是「恰好一套候选画出滑条，其余逐字节不动」，而 #1339 把那个实验钉整条删了（理由是机制性的：
+// 形态层按 `[data-block][data-shape]` 点名、`data-shape` 来自站点内容，而实验钉要表达的是「池子里
+// 这一套表这么画」，跟主题走 —— 形态层没有地方放它；而且它从 #1318 起就只剩 `overflow-x` 那一半，
+// 写在 `display: contents` 的元素上什么都不会发生）。
+//
+// 🔴 **没有继承者，这是有意的。** 删它之前这一格本来就整格跳过（被钉的 `lime-28` 随 #1161 下架，
+//    盘上只剩 2 份生成表），所以删掉不会让任何东西变红 —— 那是预期，不是「没验」。
+// 📌 想把横条要回来：让它成为 testimonials 的一副**真形态**（`public/shapes.css` 写规则 +
+//    `blocks/testimonials.json` 的 `shapes` 登记名字），那时这一格的继承者是形态层自己那几道
+//    （`gates-shapes.test.js` 的选择单一致性 + 下面 ⑫ 的骨架种数），不用再为它单开一格。
+
+console.log('\n⑮ #1339 配方里还有没有几何（整池扫一遍，命中集合必须为空）');
+{
+  // ══ 这一格是本票的主判据 ══════════════════════════════════════════════════════════════════════
+  // 采集点是 `declBlock`（`sheet-recipes.js` 导出的 `scanGeometry` 打开收集模式），**不是**遍历
+  // 角色表和 `rootExtra`：那两样都是**函数**，直接 `Object.keys` 读到 0；而本票删掉之前，同页节奏
+  // 那条（`siblingRules`）和实验钉根本不住在「角色表 / rootExtra / partExtra」里 —— 按那三样扫是
+  // 空的、几何却还在配方里。（PM 复核本票时踩过那把坏尺，写在票上。）
   //
-  // 🔴 两臂比的是**同一个函数在两种配置下的产物**，不是拿盘上的文件比：盘上那份 `lime-28.css` 已经
-  //    是钉过之后的字节，拿它当「不动」的基线等于用结论证结论。关掉钉子的做法是把候选号临时设成一个
-  //    池子里不存在的值（钉子在 `sheetFor` 里是按值现读的），跑完复位，并且**验证复位真的成功** ——
-  //    一个只留在这次进程里的副作用会让同一进程后面的格子读到别的东西。
-  //
-  // 📌 代价说在明处：全池渲染一遍约 26 秒（本轮实测），所以这一格跑**两**遍全池、其余几格只渲染
-  //    要用到的那两套。「其余 96 张的**文件**没变」那一半由交付时的 `git diff public/themes/`
-  //    与逐份 `sheet-fresh --check` 全量证（真产物，不抽样）；这一格证的是**生成器**那一半。
-  const PIN = SCROLL_STRIP_EXPERIMENT;
-  // 🔴 #1317 —— 同 ⑨：这是标定那一次的池子大小，不是今天的（今天 2 套，整格已门控）。
-  const POOL = 97;                       // 同 ⑨ 那一格；下面用盘上的份数自核
-  const SEL = '[data-block-part="testimonials-list"]';
-  const SNAP = 'scroll-snap-type: x mandatory';
-  const THEMES = path.join(DIR, '..', '..', 'public', 'themes');
-
-  const generated = fs.readdirSync(THEMES).filter((f) => f.endsWith('.css')).filter((f) => /^\/\* theme-css-contract: v\d+\n {3}gen-\d+-\d+ /
-    .test(fs.readFileSync(path.join(THEMES, f), 'utf8').slice(0, 200)));
-  if (generated.length !== POOL) {
-    die(`⑮ 分母对不上：public/themes 里带 gen- 横幅的表有 ${generated.length} 份，这一格按 ${POOL} 算 —— `
-      + '两个数不一样时下面每一条都是假的');
+  // 🔴 这把尺自己的盲区：它只看得见走 `declBlock` 的声明。有人把一条规则拼成字符串直接 push 进
+  //    `out`，这把尺读到空而几何上了表。挡那一种的是**另一条判据** —— 生成出来的表逐份跑
+  //    `theme-css-lint.js`（`generate.js --count 28` 那一步，读的是产出的字节）。两条一起才盖满。
+  const N = 97;
+  const hits = [];
+  for (let i = 0; i < N; i += 1) {
+    for (const h of scanGeometry(() => sheetFor(i))) hits.push({ ...h, i });
   }
-  ok(`⑮ 分母自检：池子就是 ${POOL} 份生成表`);
-
-  const saved = PIN.candidate;
-  const renderAll = () => [...Array(POOL).keys()].map((i) => sheetFor(i));
-  const withPin = renderAll();
-  PIN.candidate = -1;                    // 池子里没有这个候选号 ⟹ 钉子一行都不发
-  const withoutPin = renderAll();
-  PIN.candidate = saved;
-
-  // ① 复位真的复位了 —— 先验这一条，不然下面每一条「不同」都可能是这个副作用造的
-  if (sheetFor(saved) !== withPin[saved] || sheetFor((saved + 1) % POOL) !== withPin[(saved + 1) % POOL]) {
-    die('⑮ 关掉钉子那一臂留下了副作用：复位之后重新渲染跟第一次不一样 —— 夹具不成立，不给读数');
-  }
-  ok('⑮ 两臂夹具自检：把候选号改掉再改回来，重新渲染逐字节回到原样');
-
-  // ② 钉子碰过的候选，恰好是它自己点名的那一个（全池逐套逐字节）
-  const touched = withPin.map((css, i) => (css === withoutPin[i] ? null : i)).filter((i) => i !== null);
-  if (touched.length === 1 && touched[0] === PIN.candidate) {
-    ok(`⑮ 全池逐字节两臂比：钉子只碰了 1 套候选，就是它点名的那个（i=${PIN.candidate}，`
-      + `gen-07-${PIN.candidate + 1}）—— 其余 ${POOL - 1} 套两臂逐字节相同`);
+  if (hits.length === 0) {
+    ok(`⑮ 整池 ${N} 套候选，declBlock 采到的几何声明 0 条 —— 配方里没有几何了`);
   } else {
-    bad(`⑮ 钉子碰了 ${touched.length} 套候选（${touched.join(', ')}），而它点名的是 ${PIN.candidate} —— `
-      + '这不是「拿一套试穿」，是改了在售的表');
+    const by = new Map();
+    for (const h of hits) {
+      const k = `${h.where} → ${h.selector} 的 ${h.prop}`;
+      by.set(k, (by.get(k) || 0) + 1);
+    }
+    bad(`⑮ 配方里还有 ${hits.length} 条几何（${by.size} 种）：`
+      + [...by].slice(0, 8).map(([k, n]) => `${n}× ${k}`).join(' · ')
+      + (by.size > 8 ? ` …（还有 ${by.size - 8} 种）` : ''));
   }
 
-  // ③ 它碰出来的东西真的是那条滑条（不是「变了一点什么」）
-  const pinned = withPin[PIN.candidate];
-  const bare = withoutPin[PIN.candidate];
-  const has = (css) => css.includes(SEL) && css.includes(SNAP);
-  if (has(pinned) && !bare.includes(SEL) && !bare.includes(SNAP)) {
-    ok(`⑮ 那一套的两臂：钉上有 \`${SEL}\` + \`${SNAP}\`，钉掉两样都没有`);
-  } else {
-    bad(`⑮ 那一套的两臂读不出滑条：钉上 has=${has(pinned)} · 钉掉出现 SEL=${bare.includes(SEL)} `
-      + `SNAP=${bare.includes(SNAP)}`);
+  // 🔴 反向臂：**还活着的每一个 `declBlock` 调用点各一臂**。断言虽然只有一处，但「那一处收不收得到
+  //    某个调用点的声明」是**三件独立的事** —— 只打角色那一臂时，`rootExtra` 和桌面段是不是也被盖到，
+  //    这一臂说不出话。
+  //    📌 本票之前有**四个**调用点，第四个是同页节奏（`siblingRules`）—— 它随几何一起删掉了，
+  //       所以这里是三臂不是四臂（`sheet-recipes.js` 的 `buildSheet` 里写着它去哪儿了）。
+  {
+    const Module = require('module');
+    const target = path.join(DIR, 'sheet-recipes.js');
+    const src = fs.readFileSync(target, 'utf-8');
+    const ARMS = [
+      ['块根（rootRule / rootExtra）', "    gap: v.gap,\n    padding: `${v.pad} 1.5rem`,",
+        "    gap: v.gap,\n    display: 'grid',\n    padding: `${v.pad} 1.5rem`,"],
+      ['桌面段（wideRule）', "  const decls = {};", "  const decls = { order: 1 };"],
+      ['部件（ROLES + partExtra）', "  desc: (v, s) => ({\n", "  desc: (v, s) => ({\n    order: 1,\n"],
+    ];
+    for (const [what, needle, replacement] of ARMS) {
+      const n = src.split(needle).length - 1;
+      if (n !== 1) { bad(`⑮ 反向臂「${what}」立不起来：锚点在 sheet-recipes.js 里出现 ${n} 次（要求正好 1 次）`); continue; }
+      const m = new Module(target, module);
+      m.filename = target;
+      m.paths = Module._nodeModulePaths(path.dirname(target));
+      m._compile(src.split(needle).join(replacement), target);
+      let threw = null;
+      try { m.exports.sheetFor(0); } catch (e) { threw = e.message; }
+      const seen = m.exports.scanGeometry(() => { try { m.exports.sheetFor(0); } catch (e) { /* 收集模式不抛 */ } });
+      if (threw && seen.length) {
+        ok(`⑮ 反向臂「${what}」：往这个调用点写回一条几何 ⟹ 当场抛并点名（${threw.split('\n')[0].slice(0, 90)}…）`);
+      } else {
+        bad(`⑮ 反向臂「${what}」失败：写回一条几何之后没抛（threw=${threw ? 'yes' : 'no'} · 采到 ${seen.length} 条）`
+          + ' —— 那这道断言收不到这个调用点的声明');
+      }
+    }
   }
 
-  // ④ 全池数选择器 —— 跟 ② 是两种数法（②数「两臂有差」，④数「有这个选择器」），
-  //    一起过才排掉「差在别处、而滑条其实每张都有」这种读法
-  const drawn = withPin.filter((css) => css.includes(SEL)).length;
-  const drawnBare = withoutPin.filter((css) => css.includes(SEL)).length;
-  if (drawn === 1 && drawnBare === 0) {
-    ok(`⑮ 全池数选择器：钉上 ${drawn} 份表画了这一层、钉掉 ${drawnBare} 份 —— 这把尺读的是钉子本身`);
-  } else {
-    bad(`⑮ 全池数选择器读到 钉上 ${drawn} / 钉掉 ${drawnBare}，期望 1 / 0`);
-  }
-
-  // ⑤ 阳性对照：把候选号挪到另一套，滑条必须跟着挪 —— 没有它，一个「永远只给 27 号发」的写死实现
-  //    也能让上面每一格全绿。只渲染这两套（全池再跑一遍要 26 秒，而这条性质只落在这两套上）。
-  const other = (saved + 7) % POOL;
-  PIN.candidate = other;
-  const movedOther = sheetFor(other);
-  const movedSaved = sheetFor(saved);
-  PIN.candidate = saved;
-  if (movedOther.includes(SEL) && !movedSaved.includes(SEL)) {
-    ok(`⑮ 阳性对照：候选号挪到 ${other} ⟹ 第 ${other} 套长出滑条、第 ${saved} 套没有了（读的是这个钉子）`);
-  } else {
-    bad(`⑮ 阳性对照失败：候选号挪到 ${other} 之后，第 ${other} 套 has=${movedOther.includes(SEL)} · `
-      + `第 ${saved} 套 has=${movedSaved.includes(SEL)} —— 上面几格读的不是这个钉子`);
-  }
-  if (sheetFor(saved) !== withPin[saved] || sheetFor(other) !== withPin[other]) {
-    die('⑮ 阳性对照之后没复位干净 —— 这个进程后面的读数都不可信');
-  }
-
-  // ⑥ 窄屏那张卡的宽度必须是**容器的一个真分数**，不是定长（#1190 r2，QA2 在真机上抓到的那条）
-  //
-  // 量过的性质：卡宽 = 容器可视宽 × f（0 < f < 1）⟹ **任何**视口上开页时第一张卡都完整。定长做不到
-  // 这一条 —— r1 写的 `min-width: 20rem` 在 320 / 344 / 360px 三档手机上各裁掉 48 / 24 / 8px，而
-  // 375px 上刚好完整（只剩 7px 余量），所以「在几个宽度上试过都对」不等于这条性质成立。
-  // 🔴 这一格是**便宜的那张网**：真网是 `theme-css-invariants.mjs` 的检查 ⑦（真浏览器、逐档宽度量
-  //    首项完不完整）。这里只读配方的字面值，抓的是「有人把它改回定长」——那种改动在没有浏览器的
-  //    环境里也该当场红。
-  const share = (v) => /^\s*(\d+(?:\.\d+)?)%\s*$/.test(String(v)) && parseFloat(v) < 100;
-  // 尺子自检：先证这把尺读得出两种错法，否则下面那条恒真
-  if (share('20rem') || share('100%') || share('320px') || !share('80%')) {
-    die('⑮ 那把「是不是真分数」的尺自检没过 —— 它对 20rem / 100% / 320px 说不，对 80% 说是');
-  }
-  const narrowItem = PIN.rules(voiceFor(PIN.candidate))
-    .find(([sel]) => sel === '.testimonials__item');
-  const wideItem = PIN.wide(voiceFor(PIN.candidate))
-    .find(([sel]) => sel === '.testimonials__item');
-  if (narrowItem && share(narrowItem[1]['min-width'])
-      && wideItem && share(wideItem[1]['min-width'])) {
-    ok(`⑮ 卡宽是容器的真分数：窄屏 ${narrowItem[1]['min-width']} · 桌面 ${wideItem[1]['min-width']} `
-      + '⟹ 开页时首项在任何视口宽度上都完整（定长做不到这一条）');
-  } else {
-    bad(`⑮ 卡宽不是真分数：窄屏 min-width=${narrowItem && narrowItem[1]['min-width']} · `
-      + `桌面 min-width=${wideItem && wideItem[1]['min-width']} —— 定长的卡在窄屏上比容器还宽，`
-      + '开页时第一张就是被裁的（#1190 r1 实测 320px 裁 48px）');
+  // 🔴 分母自检：配方自己画的那一副（`recipeShapesFor`）与形态层**双向差集都空**。
+  //    它是上面 ④ ⑥ ⑩ ⑪ ⑫ ⑭ 六格新语料的地基：配方画的那一副在形态层里没有 ⟹ 那几格的语料
+  //    里少一块几何，而少了的样子是「这个画法没排位置」；反过来形态层里有、97 套一次都没画到 ⟹
+  //    那副画法**没有任何一格在看它**。
+  {
+    const shapesCss = fs.readFileSync(SHAPES_PATH, 'utf-8');
+    const have = new Set([...shapesCss.matchAll(/\[data-block="([a-z0-9-]+)"\]\[data-shape="([a-z0-9-]+)"\]/g)]
+      .map((x) => `${x[1]}/${x[2]}`));
+    const used = new Set();
+    for (let i = 0; i < N; i += 1) {
+      const sel = { ...recipeShapesFor(i), 'hero-with-form': recipeShapeFor('hero-with-form', i) };
+      for (const [b, sh] of Object.entries(sel)) used.add(`${b}/${sh}`);
+    }
+    const missing = [...used].filter((k) => !have.has(k));
+    const orphan = [...have].filter((k) => !used.has(k));
+    if (missing.length === 0 && orphan.length === 0) {
+      ok(`⑮ 配方画的那一副 vs 形态层：双向差集都空：${N} 套候选用到 ${used.size} 个 (块, 形态) 对，`
+        + `跟 public/shapes.css 里的集合逐个对上`);
+    } else {
+      bad(`⑮ 配方画的那一副与形态层对不上：形态层里查不到的 ${missing.join(' ') || '(无)'} · `
+        + `形态层有而一次都没被选中的 ${orphan.join(' ') || '(无)'}`);
+    }
   }
 }
 

@@ -902,9 +902,15 @@
    at a stroke. `display: contents` takes the box away again: measured element by element, flat vs
    wrapped, the headline, the sub and every item land on identical coordinates.
 
-   🔴 SO A SHEET THAT WANTS THE STRIP MUST SET `display` HERE ITSELF. `overflow-x: auto` on a
-   `display: contents` element does nothing at all — there is no box to scroll. `lime-28` is the one
-   sheet in the pool that does it today (`theme-pipeline/sheet-recipes.js`, the experiment pin).
+   🔴 SO ANYTHING THAT WANTS THE STRIP MUST SET `display` ITSELF. `overflow-x: auto` on a
+   `display: contents` element does nothing at all — there is no box to scroll.
+   🔴 #1339 — the sentence that used to stand here («`lime-28` is the one sheet in the pool that does
+   it today, the experiment pin in `theme-pipeline/sheet-recipes.js`») is no longer true, twice over:
+   `lime-28` was retired by #1161/#1317, and #1339 deleted the experiment pin itself. **No sheet does
+   it today, and no sheet can**: geometry left the generator with #1318/#1339 and `display` is
+   geometry, so a theme sheet cannot set it. The place that can is the shape layer
+   (`public/shapes.css`), and it needs a real shape name to hang on — see the note where the pin used
+   to live in `sheet-recipes.js` for why the pin could not simply move there.
 
    🔴 NOTHING ELSE HERE. Any padding / background / gap default would be a fourth theme all 97 sheets
    would have to override, which is the rule the batch headers above already state. */
