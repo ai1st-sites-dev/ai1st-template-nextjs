@@ -25,7 +25,17 @@ if (typeof keywordPageSectionOptions !== 'function') die('keyword-page-options.j
 
 const REPO = path.resolve(__dirname, '..', '..', '..', '..');
 const REL = 'templates/nextjs/scripts/create-site.js';
-const BASELINE = 'origin/main';
+// 🔴 【钉死的一个 commit，不是 `origin/main`】——#1379 hotfix，2026-09-16。
+// 写 `origin/main` 时这一格【在本票自己落地的那一刻必红】：基线取的就是改完的那份字节，而本票改的
+// 正是下面要切的那个三元表达式 ⟹ 正则切不出来 ⟹ `die()` rc=2。实测：#1346 ship (`b819f59c`) 那一轮
+// CI 的 `template-scripts` 当场 failure、`sync-template` 因此 skipped —— 模板侧字节没能到 test/dev。
+// ship 之前每一次本地跑都是绿的，因为那时 `origin/main` 还指着改动【之前】的字节：**这把尺当时指着的
+// 是它自己要防的那件事的反面**。
+// 兄弟文件 `catalog-disabled.test.js` 的头注早就为同一件事写过明文规矩（#1034 r2 起，理由逐字是
+// 「下一个改 templates 的人会收到跟他无关的红」），#1346 那批只改了那一份，漏了这一份。
+// **维护约定**：这一格哪天真的对不上了，先问「那段散文为什么变了」；确实该变，就把 `BASELINE` 往前
+// 挪一格**并在票上说明**，而不是改回一个会动的 ref。
+const BASELINE = '9d056fd7';
 
 /** 从某个 commit 上的 create-site.js 里切出那段写死的清单（不含 `EACH PAGE MUST…` 那一行）。 */
 function baselineMenu(hasServiceDetailPages) {
