@@ -172,15 +172,17 @@ const SIDE_EFFECTS = [
 // 🔴 「一共有哪些版式」和「哪几类区每一页必然有」从它们各自的唯一出处取，**不在这里抄一份**。
 //    下面 `renderedBy` 是另一回事：它是一句关于「哪几支真的画了这个字段」的断言，今天有两格恰好
 //    等于全集，但它由 ⑫ 对着组件两向核对，不是抄来的。两者混成一个值，就再没有东西能红了。
-const { HEADER_VARIANTS, FOOTER_VARIANTS, TOPBAR_VARIANTS } = require('../region-layout');
+const { shapesOf, REGION_BLOCK } = require('../region-layout');
 const { REQUIRED_KINDS } = require('./page-layout');
 
-/** 每一类区一共有哪些版式（唯一出处 `scripts/region-layout.js`）。 */
-const VARIANTS_BY_REGION = {
-  header: HEADER_VARIANTS,
-  footer: FOOTER_VARIANTS,
-  topbar: TOPBAR_VARIANTS,
-};
+/** 每一类区一共有哪些形态。#1353 起唯一出处是**块 manifest**（`blocks/<块>.json` 的 `shapes`）——
+ *  `region-layout.js` 那三张写死的清单跟顶栏页脚搬进形态层一起退役了。现取，不在加载时固化。 */
+const VARIANTS_BY_REGION = new Proxy({}, {
+  get: (_t, region) => (typeof region === 'string' && REGION_BLOCK[region] ? shapesOf(REGION_BLOCK[region]) : undefined),
+  has: (_t, region) => typeof region === 'string' && !!REGION_BLOCK[region],
+  ownKeys: () => Object.keys(REGION_BLOCK),
+  getOwnPropertyDescriptor: () => ({ enumerable: true, configurable: true }),
+});
 
 const PAGE_READS = [
   {

@@ -154,21 +154,24 @@ function themeStyle(themeId) {
   return (t && t.style) || DEFAULT_LOGO_STYLE;
 }
 
-// 一套主题对每个 block 用哪种写法的结论，或者 {}（主题不认识 / 什么都没声明）。调用方把 {}
-// 当成「页面 JSON 说了算」。
+// 一套主题给三个【区】选的形态，或者 {}（注册表里没有这个 id / 它没写选择单）。
 //
-// 🔴 #1010 —— 注册表那边的值是「一个清单」，而这个函数吐「一个写法」：每个键取清单的第一项。
-// 🔴 #1341 —— 它今天唯一的用途是**区**那条路：`header` / `footer`（以及还没有人声明的 `topbar`）。
-//    在那之前 `supports` 里还有四个 block 那一维的键，这个函数也替站选过它们；那一维整条退役了，
-//    读它的只剩 `lib/site-regions.js` / `lib/remediation.js` / `theme-gallery/gallery.mjs`，
-//    三处读的都是 `.header` / `.footer`。**别给它加第二个用途。**
-function layoutFor(themeId) {
+// 🔴 #1353 —— 这个函数以前叫 `layoutFor`，读的是 `supports`（「这套主题能画哪几种顶栏/页脚」，
+//    一个清单，取第一项当结论）。顶栏 / 页脚按块的规矩搬进形态层之后，**它们跟别的 32 个块共用
+//    同一张选择单**（`theme-pool.json` 的 `shapes`，一个块一个名字），`supports` 整个退役了 ——
+//    留着它就是两张清单说同一件事，而漂了没有任何东西会红（那正是 #1341 删掉它另外四个键时写下
+//    的理由，这一条把最后三个键也收掉）。
+//
+// 🔴 三个区的键名就是三个块类型：`header` / `footer` / `announcement-bar`（公告条那条外壳带）。
+//    公告条那个键**本来就在选择单里**（两套池主题都写着 `"announcement-bar": "stack"`）——
+//    #1353 之前它服务的是页面里那个内容块，今天外壳区那条路也读它，两条路同一个值。
+function regionShapesFor(themeId) {
   const t = themes[themeId];
-  if (!t || !t.supports) return {};
+  if (!t || !t.shapes || typeof t.shapes !== 'object') return {};
   const out = {};
-  for (const [type, forms] of Object.entries(t.supports)) {
-    if (Array.isArray(forms)) { if (forms.length) out[type] = forms[0]; }
-    else out[type] = forms;
+  for (const key of ['header', 'footer', 'announcement-bar']) {
+    const v = t.shapes[key];
+    if (typeof v === 'string' && v) out[key] = v;
   }
   return out;
 }
@@ -225,28 +228,24 @@ function themesWithRhythm() {
   return Object.keys(themes).filter((id) => themes[id].rhythm !== undefined);
 }
 
-// #1341 — `supports` 里只许有【区】那三个键，这是说这句话的地方。照 `themesWithRhythm`（#993）的样子写。
+// #1353 — 注册表里**不许再有 `supports` 这个键**，这是说这句话的地方。照 `themesWithRhythm`（#993）
+// 的样子写。
 //
-// 为什么这条规则：`supports` 原来装两样东西 —— 顶栏 / 页脚的结构（`header` / `footer`，#960），
-// 和「我为这个块的哪些内容结构写了样式」（`hero` / `split` / `splitRhythm` / `cards`）。第二样
-// 整条退役了（内容结构这一维今天由 `data-has-<槽位>`(#1331) 和独立块 `hero-with-form`(#1333) 接管），
-// 而**一个没人读的键就是它回来的路**：写回去不会有任何东西报错，`layoutFor()` 照样把它吐出来。
-//
-// 🔴 `topbar` 必须在白名单里，它是活的输入：`lib/site-regions.js` 把 `layoutFor(themeId)` **整份**
-//    摊进 `resolveRegionLayout`，后者读 `wanted.topbar` 并拿 `region-layout.js` 的 `TOPBAR_VARIANTS`
-//    校验。今天 0 套主题声明它 —— 那是这条规则今天不会变红的原因，不是该禁掉它的理由。
+// 为什么从「只许有区那三个键」（#1341）收成「一个都不许有」：`supports` 最后剩下的用途是顶栏 /
+// 页脚 / 公告条这三个区的结构，而 #1353 把这三个区按块的规矩搬进形态层之后，它们跟别的 32 个块
+// 读**同一张选择单**（`shapes`）。两张清单说同一件事，漂了没有任何东西会红 —— 而漂的方向尤其难查：
+// `supports` 写着 `pill-floating`、选择单写着 `solid-bar`，页面按选择单画，而所有讲「这套主题的顶栏
+// 是什么」的地方（图册、`remediation` 给老板的那句话）可能读的是另一份。
 //
 // 🔴 报的是**整个注册表**，不是这个站穿的那一套 —— 理由跟 `themesWithRhythm` 上面那段逐字相同：
 //    只看当前这一套，剩下每一套里留着的那个键就是它回来的路。
-//    返回 `[[id, ['hero', …]], …]`：点名是哪一套的哪几个键，不只说「有问题」。
-const SUPPORTS_KEYS = ['header', 'footer', 'topbar'];
-function themesWithBadSupportsKeys() {
+//    返回 `[[id, ['header', …]], …]`：点名是哪一套、里面还剩哪几个键，不只说「有问题」。
+function themesWithSupports() {
   const out = [];
   for (const id of Object.keys(themes)) {
     const sup = themes[id].supports;
     if (!sup || typeof sup !== 'object') continue;
-    const bad = Object.keys(sup).filter((k) => !SUPPORTS_KEYS.includes(k));
-    if (bad.length) out.push([id, bad]);
+    out.push([id, Object.keys(sup)]);
   }
   return out;
 }
@@ -368,13 +367,12 @@ module.exports = {
   NEUTRAL_TOPUP,
   THEME_SETTING_VALUES,
   themeStyle,
-  layoutFor,
+  regionShapesFor,
   // #1318 —— 选择单（每个块类型一个画法名），`sync-config.js` 按它写 DOM 上的 `data-shape`。
   shapesFor,
   settingsFor,
   themesWithRhythm,
-  themesWithBadSupportsKeys,
-  SUPPORTS_KEYS,
+  themesWithSupports,
   candidateThemesForIndustry,
   rotationIndexFromSiteId,
   pickThemeForIndustry,

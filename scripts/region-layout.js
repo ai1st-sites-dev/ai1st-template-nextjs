@@ -23,35 +23,29 @@
 //    落在渲染出来的页面上(量 hero 那块的实际颜色),那是另一套机制;在它存在之前,这里只说得出
 //    「证明不了」,而「证明不了 ⟹ 加遮罩」就是下面这一行。
 
-// 这两张表就是「这两个 Region 有哪些结构」的唯一清单 —— 组件按它渲染,theme 注册表按它填,
-// 校验也按它。多一处清单就会有一处漂。
-const HEADER_VARIANTS = [
-  'solid-bar', // 现状:白底实色横条,sticky
-  'transparent-overlay', // 透明浮层,压在首屏 hero 上(一律配一层遮罩,见文件顶上 ②)
-  'centered-logo', // logo 居中,菜单分两侧
-  'pill-floating', // 圆角胶囊浮动条,离顶部有间距
-];
+// 🔴 #1353 —— 这里原来是三张写死的清单（`HEADER_VARIANTS` 4 · `FOOTER_VARIANTS` 3 ·
+// `TOPBAR_VARIANTS` 4）。顶栏 / 页脚 / 公告条按块的规矩搬进形态层之后，「这个区有哪些结构」的
+// 唯一权威是**块 manifest**（`blocks/<区>.json` 的 `shapes`），跟别的 32 个块一模一样。
+// 留着这三张表就是第二份清单 —— 而本文件原来那句话（「多一处清单就会有一处漂」）说的正是这件事，
+// 只不过那时它是唯一那一份，今天它成了多出来的那一份。
+//
+// 📌 公告条的 manifest 今天只有 **一种** 形态（`stack`）。它以前在这里有四个名字
+// （`solid` / `bordered` / `dismissible` / `floating`），但那四个名字**今天画出来是同一个东西**：
+// #1036 已经把那四棵树收成一份中性 markup，而四个值只落在 `data-region-layout` 这个属性上，
+// **全树没有任何 CSS 选它**（判据：8 份 CSS 里 `region-layout` 命中 0；同一把 grep 换成
+// `data-shape` 命中 2 ⟹ 尺子不是恒 0）。搬「四个画出来相同的名字」不是 #1318 的搬不删，是新造
+// 四种形态 —— 本文件头上那条「不为将来可能有预留名字」（`public/shapes.css` 文件头同款）禁的就是它。
+const blockManifest = require('./lib/block-manifest');
 
-const FOOTER_VARIANTS = [
-  'multi-column', // 现状:多列大脚
-  'slim-row', // 单行小脚
-  'cta-band', // 强调色 CTA 色带 + 小脚
-];
+/** 一个区有哪些形态 —— 现从它自己的 manifest 取（第 0 项是默认，`block-manifest.js` 保证它 needs 为空）。 */
+function shapesOf(blockType) {
+  const m = blockManifest.loadManifests().get(blockType);
+  if (!m || !Array.isArray(m.shapes)) return [];
+  return m.shapes.map((sh) => sh.name);
+}
 
-// #1000 —— topbar 是 page layout 库里的第四种区（`with-topbar`）。它渲染的是既有的
-// `AnnouncementBarSection`，所以这张清单逐字抄它的 props（`AnnouncementBarSection.tsx:11`）。
-// 放在这里而不是那个组件里，理由跟 header/footer 一样：组件按它渲染、主题注册表按它填、校验按它，
-// 多一处清单就会有一处漂。
-const TOPBAR_VARIANTS = [
-  'solid', // 现状默认:强调色实底细条
-  'bordered', // 白底 + 强调色描边
-  'dismissible', // 带关闭按钮
-  'floating', // 居中圆角胶囊
-];
-
-const DEFAULT_HEADER = 'solid-bar';
-const DEFAULT_FOOTER = 'multi-column';
-const DEFAULT_TOPBAR = 'solid';
+/** 三个区各自的块类型。`topbar` 这个区名对应的块是公告条。 */
+const REGION_BLOCK = { header: 'header', footer: 'footer', topbar: 'announcement-bar' };
 
 // resolveRegionLayout —— 一次构建里这两个 Region 到底长什么样。
 //
@@ -66,51 +60,24 @@ const DEFAULT_TOPBAR = 'solid';
 //   header / footer  组件要渲染的结构名
 //   headerScrim      透明浮层是否需要遮罩(见上面那条规则)
 //   notes            人话解释,构建日志打出来 —— 「静默降级」是这类改动最容易长出来的病
-function resolveRegionLayout(layout) {
-  const wanted = layout || {};
+function resolveRegionShapes(chosen) {
+  const wanted = chosen || {};
   const notes = [];
-
-  let header = DEFAULT_HEADER;
-  if (wanted.header) {
-    if (HEADER_VARIANTS.includes(wanted.header)) {
-      header = wanted.header;
-    } else {
-      notes.push(`theme 想要的 header 版式 "${wanted.header}" 不在清单里,退回 ${DEFAULT_HEADER}`);
+  const out = {};
+  for (const [region, blockType] of Object.entries(REGION_BLOCK)) {
+    const list = shapesOf(blockType);
+    const fallback = list[0] || '';
+    // 区名与块名不同的那一个：选择单里公告条的键是块类型 `announcement-bar`，不是区名 `topbar`。
+    const asked = wanted[blockType] !== undefined ? wanted[blockType] : wanted[region];
+    let shape = fallback;
+    if (asked) {
+      if (list.includes(asked)) shape = asked;
+      else notes.push(`theme 给 ${region} 选的形态 "${asked}" 不在 blocks/${blockType}.json 的清单里(${list.join(' / ')}),退回 ${fallback}`);
     }
+    out[region] = { shape };
   }
-
-  let footer = DEFAULT_FOOTER;
-  if (wanted.footer) {
-    if (FOOTER_VARIANTS.includes(wanted.footer)) {
-      footer = wanted.footer;
-    } else {
-      notes.push(`theme 想要的 footer 版式 "${wanted.footer}" 不在清单里,退回 ${DEFAULT_FOOTER}`);
-    }
-  }
-
-  // #1000 —— topbar 的结构跟 header / footer 走同一条路:主题注册表想要什么就给什么,给不出来
-  // 就退回默认并把理由记进 notes。没有 topbar 区的站也照样算出这个值(不占字节、不影响产物)。
-  let topbar = DEFAULT_TOPBAR;
-  if (wanted.topbar) {
-    if (TOPBAR_VARIANTS.includes(wanted.topbar)) {
-      topbar = wanted.topbar;
-    } else {
-      notes.push(`theme 想要的 topbar 版式 "${wanted.topbar}" 不在清单里,退回 ${DEFAULT_TOPBAR}`);
-    }
-  }
-
-  // 对比度:透明浮层的字是白的,而它压着的那一段是什么颜色,这里没有任何办法知道 —— 底色住在
-  // 主题的样式表里(见文件顶上 ②)。所以判据只剩一条:**是浮层就加遮罩**。
-  //
-  // 📌 遮罩本身只在浮层那一支里渲染(`Header.tsx` 的 floating 分支),而浮层只在第一段是 hero 的
-  //    页面上才浮起来(SiteShell 的 overHero)。其余页面顶栏退回实色横条,这个值到不了 DOM,
-  //    所以「整站一个值」不会让不浮的页面平白多一层遮罩。
-  const headerScrim = header === 'transparent-overlay';
-  if (headerScrim) {
-    notes.push('透明浮层 ⟹ 加遮罩(首屏底色由主题样式表决定,这里证明不了它是深的;少一层遮罩就是白字压浅底)');
-  }
-
-  return { header, footer, topbar, headerScrim, notes };
+  out.notes = notes;
+  return out;
 }
 
 // ── #1016 —— 透明浮层要求首屏是深的，而这一问只有【生成池子的时候】答得出来 ────────────────────
@@ -190,11 +157,12 @@ function heroTitleSurvivesHeaderScrim(sheetCss, colors) {
  * @returns {{variant: string, wanted: string, why: string|null}} `why` 非空 = 让开了,原因在里面
  */
 function headerVariantForPool(index, sheetCss, colors) {
-  const wanted = HEADER_VARIANTS[index % HEADER_VARIANTS.length];
+  const HEADER_SHAPES = shapesOf('header');
+  const wanted = HEADER_SHAPES[index % HEADER_SHAPES.length];
   if (wanted !== 'transparent-overlay') return { variant: wanted, wanted, why: null };
   const verdict = heroTitleSurvivesHeaderScrim(sheetCss, colors);
   if (verdict.ok) return { variant: wanted, wanted, why: null };
-  const next = HEADER_VARIANTS.filter((v) => v !== 'transparent-overlay');
+  const next = HEADER_SHAPES.filter((v) => v !== 'transparent-overlay');
   return {
     variant: next[index % next.length],
     wanted,
@@ -231,21 +199,17 @@ function regionsForPool(index, sheetCss, colors) {
   const headerPick = headerVariantForPool(index, sheetCss, colors);
   return {
     header: headerPick.variant,
-    footer: FOOTER_VARIANTS[index % FOOTER_VARIANTS.length],
+    footer: shapesOf('footer')[index % shapesOf('footer').length],
     headerMovedBy: headerPick.why,
   };
 }
 
 module.exports = {
-  HEADER_VARIANTS,
-  FOOTER_VARIANTS,
-  TOPBAR_VARIANTS,
-  DEFAULT_HEADER,
-  DEFAULT_FOOTER,
-  DEFAULT_TOPBAR,
+  REGION_BLOCK,
+  shapesOf,
   HEADER_SCRIM_MID_ALPHA,
   HEADER_SCRIM_INK_FLOOR,
-  resolveRegionLayout,
+  resolveRegionShapes,
   heroTitleSurvivesHeaderScrim,
   headerVariantForPool,
   regionsForPool,

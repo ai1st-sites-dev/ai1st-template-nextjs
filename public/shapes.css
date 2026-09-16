@@ -3159,3 +3159,300 @@
 [data-block="content-split"]:not([data-has-imageUrl]) .content-split__media {
   display: none;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   #1353 — 三个 Region 进形态层：顶栏 4 种 · 页脚 3 种
+   ══════════════════════════════════════════════════════════════════════════════════════════════
+
+   顶栏和页脚是设计文档 D14 点名的**已知例外** —— 块在 #1008 之前那种「一变体一棵树」的模型，
+   `Header.tsx` 按 `regionLayout.header` 的四个值各渲染一份 `<header>`，页脚同理。D14 写明 3.5 步
+   按块的规矩清掉它，这就是那一步。骨架在 `src/components/Header.tsx` / `Footer.tsx`。
+
+   ── 这一批为什么多用了三条属性：`position` / `top` / `inset-inline` / `z-index` ────────────────
+   本文件此前只出现过 display / grid-* / order / align-* / justify-* / max-width / min-height /
+   aspect-ratio / flex* / width —— 因为此前搬的都是**文档流里**的块。顶栏有两种（`transparent-overlay`
+   压在首屏上、`pill-floating` 吸顶）的本质就是「它脱不脱离文档流、贴在哪」，那跟 `order` 是同一族
+   问题：**零件摆在哪**。所以它们进这一层。
+   🔴 仍然不写 `gap` / `padding` / `margin` / `border-radius`（文件头那条）：那几样是间距和圆角，
+      归主题表。这一条在这批上是**承重**的 —— `pill-floating` 与 `solid-bar` 的差别**几乎全是**
+      内边距、圆角、阴影、底色（判块表里逐条写了），写进这里就是把皮搬进形态层。
+
+   ── 四种顶栏共有的那一段为什么不逐形态抄四遍 ──────────────────────────────────────────────────
+   「小屏收进汉堡、≥768px 展开」这件事四种完全一样。抄四遍的失败方向是**漂**：改一处漏三处，
+   而漏掉的那一处在别的宽度上才看得见。本文件其余块逐形态各写一份，是因为它们各自的几何真的不同。
+   */
+
+/* ── 顶栏：四种共有的收展 ────────────────────────────────────────────────────────────────── */
+
+[data-block="header"][data-shape="solid-bar"] .header__nav,
+[data-block="header"][data-shape="solid-bar"] .header__cta,
+[data-block="header"][data-shape="solid-bar"] .header__lang,
+[data-block="header"][data-shape="transparent-overlay"] .header__nav,
+[data-block="header"][data-shape="transparent-overlay"] .header__cta,
+[data-block="header"][data-shape="transparent-overlay"] .header__lang,
+[data-block="header"][data-shape="centered-logo"] .header__nav,
+[data-block="header"][data-shape="centered-logo"] .header__cta,
+[data-block="header"][data-shape="centered-logo"] .header__lang,
+[data-block="header"][data-shape="pill-floating"] .header__nav,
+[data-block="header"][data-shape="pill-floating"] .header__cta,
+[data-block="header"][data-shape="pill-floating"] .header__lang {
+  display: none;
+}
+
+[data-block="header"][data-shape="solid-bar"] .header__burger,
+[data-block="header"][data-shape="transparent-overlay"] .header__burger,
+[data-block="header"][data-shape="centered-logo"] .header__burger,
+[data-block="header"][data-shape="pill-floating"] .header__burger {
+  display: inline-flex;
+}
+
+[data-block="header"][data-shape="solid-bar"] .header__menu[data-open="true"],
+[data-block="header"][data-shape="transparent-overlay"] .header__menu[data-open="true"],
+[data-block="header"][data-shape="centered-logo"] .header__menu[data-open="true"],
+[data-block="header"][data-shape="pill-floating"] .header__menu[data-open="true"] {
+  display: block;
+}
+
+@media (min-width: 768px) {
+  [data-block="header"][data-shape="solid-bar"] .header__nav,
+  [data-block="header"][data-shape="solid-bar"] .header__cta,
+  [data-block="header"][data-shape="solid-bar"] .header__lang,
+  [data-block="header"][data-shape="transparent-overlay"] .header__nav,
+  [data-block="header"][data-shape="transparent-overlay"] .header__cta,
+  [data-block="header"][data-shape="transparent-overlay"] .header__lang,
+  [data-block="header"][data-shape="centered-logo"] .header__nav,
+  [data-block="header"][data-shape="centered-logo"] .header__cta,
+  [data-block="header"][data-shape="centered-logo"] .header__lang,
+  [data-block="header"][data-shape="pill-floating"] .header__nav,
+  [data-block="header"][data-shape="pill-floating"] .header__cta,
+  [data-block="header"][data-shape="pill-floating"] .header__lang {
+    display: flex;
+  }
+
+  /* 🔴 汉堡和抽屉这两条必须**在媒体查询里把那个更强的选择器打掉**，不能只写
+     `.header__menu { display: none }`：上面开抽屉那条带 `[data-open="true"]`（0,3,0），
+     比这里不带属性那条（0,2,0）强，而媒体查询不改变特异度 —— 桌面上点过汉堡再拉宽窗口，
+     抽屉会一直挂在那儿。 */
+  [data-block="header"][data-shape="solid-bar"] .header__burger,
+  [data-block="header"][data-shape="solid-bar"] .header__menu[data-open="true"],
+  [data-block="header"][data-shape="transparent-overlay"] .header__burger,
+  [data-block="header"][data-shape="transparent-overlay"] .header__menu[data-open="true"],
+  [data-block="header"][data-shape="centered-logo"] .header__burger,
+  [data-block="header"][data-shape="centered-logo"] .header__menu[data-open="true"],
+  [data-block="header"][data-shape="pill-floating"] .header__burger,
+  [data-block="header"][data-shape="pill-floating"] .header__menu[data-open="true"] {
+    display: none;
+  }
+}
+
+/* ── header · solid-bar（默认；没换装的站看到的就是它）─────────────────────────────────────
+   它的几何全是地板那一份（`public/base.css`）：sticky 贴顶、一行 flex、logo 在左、其余靠右。
+   这里只把「它是文档流里那一支」写明，好让四种形态在这一层各自说得出自己是什么 —— 另外三种都会
+   改掉 `position`，不写这一条的话，从别的形态切回来时读到的是继承下来的值。 */
+
+[data-block="header"][data-shape="solid-bar"] .header__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ── header · transparent-overlay（压在首屏上的浮层）────────────────────────────────────────
+
+   🔴 只有 `data-over-hero="true"` 时它才真的浮起来。这一页的第一段不是 hero（about 页是
+   page-header）时它就是 `solid-bar` —— 那不是这一层的默认值兜底，是 `Header.tsx` 明确不写那个属性
+   （头注里写了为什么这条判断归组件：页面才知道自己第一段是什么）。
+   🔴 遮罩的**渐变**不在这里，在 `base.css` 的 `.header__scrim`（单个类）—— 这一层只说它露不露面。
+      浓度为什么是那个值，写在 `scripts/region-layout.js` 的文件头（白字压纯白首屏的最坏情况）。 */
+
+[data-block="header"][data-shape="transparent-overlay"][data-over-hero="true"] {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  z-index: 50;
+}
+
+[data-block="header"][data-shape="transparent-overlay"][data-over-hero="true"] .header__scrim {
+  display: block;
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 10rem;
+}
+
+[data-block="header"][data-shape="transparent-overlay"][data-over-hero="true"] .header__bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ── header · centered-logo（logo 居中）──────────────────────────────────────────────────────
+
+   🔴 **这一种有一处有意的偏差，判块表里单列了一条。** 原来那一支用 JS 把导航链接
+   `Math.ceil(n/2)` 切成两半摆在 logo 两侧（`Header.tsx:160`，改造前）。D14 第 1 句写死
+   「骨架固定，包括 DOM 顺序……要换 DOM 顺序的，是另一个块」—— 按行数算出来的 DOM 顺序正是它禁的
+   那种。所以这里改成四条列带：导航 | logo | CTA | 语言，logo 居前三条列带的中间。
+   代价说在明处：链接不再分列两侧。两套池主题一套都没选它（`ember-12` = pill-floating ·
+   `azure-29` = solid-bar），它也不是默认（默认是 solid-bar）⟹ AC1 的包围盒判据和 AC5 的老站判据
+   都不覆盖这一种，这处偏差不会让任何一个今天存在的站变样。 */
+
+@media (min-width: 768px) {
+  [data-block="header"][data-shape="centered-logo"] .header__bar {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr auto;
+    align-items: center;
+  }
+
+  [data-block="header"][data-shape="centered-logo"] .header__nav {
+    grid-column: 1;
+    justify-self: start;
+  }
+
+  [data-block="header"][data-shape="centered-logo"] .header__logo {
+    grid-column: 2;
+    justify-self: center;
+  }
+
+  [data-block="header"][data-shape="centered-logo"] .header__cta {
+    grid-column: 3;
+    justify-self: end;
+  }
+
+  [data-block="header"][data-shape="centered-logo"] .header__lang {
+    grid-column: 4;
+    justify-self: end;
+  }
+}
+
+/* 小屏退回 logo 左 + 汉堡右，跟另外三种一样（改造前那一支也是这么退的）。 */
+[data-block="header"][data-shape="centered-logo"] .header__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ── header · pill-floating（圆角胶囊浮条）───────────────────────────────────────────────────
+
+   🔴 判块表里这一条写得最长，因为它是四种里**最不像形态**的一个：它跟 `solid-bar` 的差别是
+   外层多一圈内边距、内条有圆角 + 阴影 + 白底 —— 内边距、圆角、阴影、底色，**四样全是皮**
+   （设计文档 D5，契约 v3 §2）。所以这一层只写它那一条真几何：它仍然吸顶，而内条是独立的一条，
+   不占满整幅宽。皮和间距由主题表给（`sheet-recipes.js` 的 `HEADER_LOOKS['pill-floating']`）。
+   为什么还是给它一个形态名而不是并进 `solid-bar`：选择单（`theme-pool.json` 的 `shapes`）是
+   「这套主题的顶栏长什么样」的**唯一用户可见旋钮**，把它并掉之后一套主题选不出胶囊条。 */
+
+[data-block="header"][data-shape="pill-floating"] {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+[data-block="header"][data-shape="pill-floating"] .header__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ── footer · multi-column（多列大脚；没换装的站看到的就是它）───────────────────────────────
+
+   地板给了它 grid + 3rem 的行距（`base.css` 的 `.footer__body`），这里给列数那三档 ——
+   小屏一列、≥768 两列、≥1024 四列，逐档照搬改造前 `Footer.tsx` 那串 `md:grid-cols-2 lg:grid-cols-4`。
+   🔴 CTA 色带在这一种里关掉（`base.css` 的 `.footer__cta { display: none }` 已经是默认，
+      这里不重复写）。 */
+
+[data-block="footer"][data-shape="multi-column"] .footer__body {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 768px) {
+  [data-block="footer"][data-shape="multi-column"] .footer__body {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-block="footer"][data-shape="multi-column"] .footer__body {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* ── footer · slim-row（单行小脚）────────────────────────────────────────────────────────────
+
+   改造前这一支**不渲染**描述、服务栏、联系栏和各栏标题，只画 logo + 六条链接 + 邮箱 + 社交。
+   搬进形态层之后它们都在 DOM 里，由这一层关掉 —— D14 第 2 句（零件缺席不算 HTML 不同）的正用法。
+
+   🔴 `display: contents` 这两处是承重的，不是花招：邮箱在骨架里是**联系那一栏的孩子**
+   （多列大脚要它排在地址下面）。把整栏 `display: none` 会把邮箱一起关掉；把邮箱在 DOM 里挪到
+   外面则是 D14 第 1 句禁的「换 DOM 顺序」。`contents` 让那一栏自己消失、孩子升成这一行的成员，
+   于是「关掉标题和地址、留下邮箱」说得出来，而 DOM 一个字节没动。 */
+
+[data-block="footer"][data-shape="slim-row"] .footer__body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-block="footer"][data-shape="slim-row"] .footer__desc,
+[data-block="footer"][data-shape="slim-row"] .footer__col-title,
+[data-block="footer"][data-shape="slim-row"] .footer__col--services,
+[data-block="footer"][data-shape="slim-row"] .footer__list--contact {
+  display: none;
+}
+
+[data-block="footer"][data-shape="slim-row"] .footer__col--nav,
+[data-block="footer"][data-shape="slim-row"] .footer__col--contact,
+[data-block="footer"][data-shape="slim-row"] .footer__list {
+  display: contents;
+}
+
+[data-block="footer"][data-shape="slim-row"] .footer__item {
+  display: inline-flex;
+  align-items: center;
+}
+
+[data-block="footer"][data-shape="slim-row"] .footer__brand {
+  display: flex;
+  align-items: center;
+}
+
+@media (min-width: 768px) {
+  [data-block="footer"][data-shape="slim-row"] .footer__body {
+    justify-content: space-between;
+  }
+}
+
+/* ── footer · cta-band（强调色色带 + 小脚）───────────────────────────────────────────────────
+
+   这一种真的多一个零件上场：顶上那条 CTA 色带（改造前是 `cta-band` 那一支自己 return 的一段
+   markup）。它在骨架里恒存在，这一层把它打开；色带的底色和内边距是皮，归主题表。
+   下面那部分改造前是三列（`md:grid-cols-3`），不是多列大脚的四列，而且不画导航栏目。 */
+
+[data-block="footer"][data-shape="cta-band"] .footer__cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+[data-block="footer"][data-shape="cta-band"] .footer__col--nav {
+  display: none;
+}
+
+[data-block="footer"][data-shape="cta-band"] .footer__body {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 1024px) {
+  [data-block="footer"][data-shape="cta-band"] .footer__cta {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+}
+
+@media (min-width: 768px) {
+  [data-block="footer"][data-shape="cta-band"] .footer__body {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

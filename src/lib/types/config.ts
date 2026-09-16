@@ -212,18 +212,28 @@ export interface DynamicPageConfig {
   blocks: BlockConfig[];
 }
 
-// #960 — 顶栏 / 页脚这两个 Region 的结构。唯一权威清单在 `scripts/region-layout.js`
-// (组件按它渲染、theme 注册表按它填、构建期校验也按它);这里的联合类型跟那份清单逐字对应。
-// `headerScrim` 是那条对比度规则的产物:#1024 起 = 顶栏是不是透明浮层(浮层一律配遮罩)。
-export type HeaderVariant = 'solid-bar' | 'transparent-overlay' | 'centered-logo' | 'pill-floating';
-export type FooterVariant = 'multi-column' | 'slim-row' | 'cta-band';
+// #1353 — 三个 Region（顶栏 / 页脚 / 公告条）的**形态**。
+//
+// 🔴 这里以前是 `HeaderVariant` / `FooterVariant` 两个写死的联合类型 + `RegionLayoutConfig`，
+//    也就是「一变体一棵树」那个模型的类型面。#1353 把三个 Region 按块的规矩搬进形态层之后，
+//    形态清单的唯一权威是 **块 manifest**（`blocks/header.json` / `footer.json` /
+//    `announcement-bar.json` 的 `shapes`），跟别的 32 个块一模一样 —— 所以这里**不再重抄一份联合
+//    类型**：抄一份就是第二份清单，而两份清单漂了没有任何东西会红（联合类型漂的方向尤其静默，
+//    `tsc` 只会在「组件写死某个名字」时才说话，而搬完之后没有一处写死）。
+//
+// 🔴 `headerScrim` 也随之没了：遮罩今天恒在 DOM 里，显不显示由 `shapes.css` 按
+//    `[data-shape="transparent-overlay"][data-over-hero="true"]` 决定（`Header.tsx` 头注）。
+export interface RegionShape {
+  /** 这个区选中的形态名 —— 对应 `blocks/<区>.json` 的 `shapes[].name`，也是 DOM 上的 `data-shape`。 */
+  shape: string;
+}
 
-export interface RegionLayoutConfig {
-  header: HeaderVariant;
-  footer: FooterVariant;
-  // #1000 — page layout 库里 topbar 区的结构，取值同 AnnouncementBarSection 的 variant。
-  topbar: 'solid' | 'bordered' | 'dismissible' | 'floating';
-  headerScrim: boolean;
+export interface RegionsConfig {
+  header: RegionShape;
+  footer: RegionShape;
+  /** 公告条那条外壳带（page layout 库里的 `topbar` 区）；形态取自 `blocks/announcement-bar.json`。 */
+  topbar: RegionShape;
+  /** 构建日志里那几句人话（「主题想要的形态不在清单里，退回 X」之类）。 */
   notes: string[];
 }
 

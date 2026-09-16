@@ -1,11 +1,12 @@
 import AnnouncementBarSection from './sections/AnnouncementBarSection';
-import { getNavigation, regionLayout } from '@/lib/config';
+import { getNavigation, regions } from '@/lib/config';
 
 // #1000 — 顶栏那条细带，page layout 库里 `with-topbar` 的那个区。
 //
 // 内容来自 `navigation.json` 新增的可选 `topbar` 段（Header / Footer 的导航内容今天就在这个文件里），
-// 结构来自 `regionLayout.topbar` —— 跟 header / footer 同一条路：主题注册表说了算，换装才接管
-// （`scripts/region-layout.js`）。选了 `with-topbar` 却没配内容的站在**构建期**就被拒绝了
+// 结构来自 `regions.topbar.shape` —— 跟 header / footer 同一条路。🔴 #1353 起这条路不再是
+// 「主题注册表的 supports」，而是跟别的 32 个块同一张**选择单**（`theme-pool.json` 的 `shapes`），
+// 形态清单归 `blocks/announcement-bar.json`。选了 `with-topbar` 却没配内容的站在**构建期**就被拒绝了
 // （`sync-config.js`），所以这里读到空只可能是有人绕过了构建，画不出东西也不该假装有。
 //
 // 🔴 它渲染的是既有的 `AnnouncementBarSection`，但**不带块属性**（`asRegion`）。PM 在 #1000 让我在
@@ -24,7 +25,7 @@ export default function TopbarRegion({ locale }: { locale: string }) {
   return (
     <AnnouncementBarSection
       asRegion
-      data={{ message: topbar.message, link: topbar.link, variant: regionLayout.topbar }}
+      data={{ message: topbar.message, link: topbar.link, variant: regions.topbar.shape }}
     />
   );
 }

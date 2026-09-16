@@ -4,7 +4,7 @@
 import fs from 'fs';
 import { NEXT_DIR, galleryDir } from './paths.mjs';
 
-const { themes, layoutFor } = await import(`${NEXT_DIR}/scripts/themes.js`);
+const { themes, regionShapesFor } = await import(`${NEXT_DIR}/scripts/themes.js`);
 
 const GAL = galleryDir();
 // 🔴 #932 r2 —— 页面和图都写进 public/，那一层才是 caddy 对外开的 root（见 shoot-themes.sh 的注释）。
@@ -123,8 +123,8 @@ const regionCaption = (id) => {
 };
 // 注册表**声明**的那两个,只用来跟上面那个读数比对。两者不一致本身就是要给人看的东西。
 const declaredRegions = (id) => ({
-  header: layoutFor(id).header || '(没声明)',
-  footer: layoutFor(id).footer || '(没声明)',
+  header: regionShapesFor(id).header || '(没声明)',
+  footer: regionShapesFor(id).footer || '(没声明)',
 });
 const regionMismatch = (id) => {
   const r = REG[id]; if (!r) return '';

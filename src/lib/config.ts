@@ -1,4 +1,4 @@
-import type { BrandConfig, NavigationConfig, SeoConfig, ServiceConfig, BlogPostConfig, DynamicPageConfig, RegionLayoutConfig, PageLayoutConfig } from './types/config';
+import type { BrandConfig, NavigationConfig, SeoConfig, ServiceConfig, BlogPostConfig, DynamicPageConfig, RegionsConfig, PageLayoutConfig } from './types/config';
 
 import {
   brand as _brand,
@@ -11,7 +11,7 @@ import {
   navigationByLocale as _navigationByLocale,
   pagesByLocale as _pagesByLocale,
   blogPostsByLocale as _blogPostsByLocale,
-  regionLayout as _regionLayout,
+  regions as _regions,
   pageLayout as _pageLayout,
 } from './config-data';
 
@@ -26,9 +26,11 @@ export const servicesByLocale = _servicesByLocale as Record<string, ServiceConfi
 export const navigationByLocale = _navigationByLocale as Record<string, NavigationConfig>;
 export const pagesByLocale = _pagesByLocale as Record<string, DynamicPageConfig[]>;
 export const blogPostsByLocale = _blogPostsByLocale as Record<string, BlogPostConfig[]>;
-// #960: 顶栏和页脚的结构。它们是 Region 不是 section,所以走的是自己的写出口(sync-config.js 的
-// §Regions),不是那张按 section.type 索引的偏好表 —— 那张表对它们按构造是瞎的。
-export const regionLayout = _regionLayout as RegionLayoutConfig;
+// #1353: 三个 Region（顶栏 / 页脚 / 公告条）选中的形态。它们是 Region 不是 section，所以走的是自己
+// 的写出口（sync-config.js 的 §Regions），不是那张按 section.type 索引的偏好表 —— 那张表对它们按
+// 构造是瞎的。🔴 这个导出以前叫 `regionLayout` 且带 `headerScrim`；#1353 把它们搬进形态层之后，
+// 值是**形态名**（跟别的 32 个块同一套词），遮罩由 CSS 决定，所以两样都换了。
+export const regions = _regions as RegionsConfig;
 // #1000: 这个站的页面由哪些区组成(page-layouts/ 里的一个)。构建期选出来并校验过 —— 缺 header /
 // content / footer 的布局进不来(spec §4.4 / D11 的替身)。没有 site/page-layout.json 的站(今天全部)
 // 拿到的是 `standard`,也就是 header → content → footer 这一条老路。

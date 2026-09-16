@@ -1,0 +1,61 @@
+{
+  "type": "header",
+  "category": "region",
+  "region": true,
+  "roleDefault": "essential",
+  "layout_intent": {
+    "items": "none",
+    "item_wrap": "allow",
+    "headline": "none",
+    "media": "none",
+    "columns": "one"
+  },
+  "shapes": [
+    {
+      "name": "solid-bar",
+      "needs": []
+    },
+    {
+      "name": "transparent-overlay",
+      "needs": []
+    },
+    {
+      "name": "centered-logo",
+      "needs": []
+    },
+    {
+      "name": "pill-floating",
+      "needs": []
+    }
+  ],
+  "slots": {
+    "menu": {
+      "kind": "links",
+      "required": true,
+      "promptOptional": false,
+      "shape": "[{label, href}]"
+    },
+    "cta": {
+      "kind": "link",
+      "required": true,
+      "promptOptional": false,
+      "shape": "{label, href}"
+    },
+    "logo": {
+      "kind": "image",
+      "required": false,
+      "promptOptional": true
+    },
+    "language": {
+      "kind": "control",
+      "required": false,
+      "promptOptional": true
+    }
+  },
+  "variants": {},
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  }
+}

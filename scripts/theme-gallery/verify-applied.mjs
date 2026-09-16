@@ -21,14 +21,14 @@
 //    Nothing here opens a browser any more.
 import fs from 'fs';
 import { NEXT_DIR } from './paths.mjs';
-const { themes, layoutFor } = await import(`${NEXT_DIR}/scripts/themes.js`);
+const { themes, regionShapesFor } = await import(`${NEXT_DIR}/scripts/themes.js`);
 
 const id = process.argv[2];
 const t = themes[id];
 if (!t) { console.log(`🔴 no theme "${id}" in the registry`); process.exit(2); }
 // #1010 —— 注册表里那张表叫 `supports` 了,装的是清单;「这套 theme 对每个 block 最终用哪个写法」
 // 由 `layoutFor()` 说,别在这里自己从清单里挑（两处实现必然分叉）。
-const variants = layoutFor(id);
+const variants = regionShapesFor(id);
 
 const fail = [];
 const ok = [];

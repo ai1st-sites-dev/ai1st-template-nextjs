@@ -1302,3 +1302,341 @@
   display: grid;
   gap: 0.5rem;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   #1353 — 顶栏 / 页脚的地板。
+   ══════════════════════════════════════════════════════════════════════════════════════════════
+   这两个 Region 以前不在这份文件里：它们是「一变体一棵树」，长相整段写在 `Header.tsx` /
+   `Footer.tsx` 的 Tailwind 类串里。#1353 把它们按块的规矩搬进形态层之后，分工跟别的 32 个块一样：
+
+       这里（base.css）   没有主题表时的地板 = **今天默认那一支**逐属性照搬
+                          （顶栏 `solid-bar`、页脚 `multi-column`，也就是没换装的站今天看到的那个）
+       shapes.css         四种顶栏 / 三种页脚各自的**几何**（摆哪、排几列、什么时候收起来）
+       主题表             间距、圆角、颜色 —— 按这套主题在选择单上选的那个形态写
+
+   🔴 这里每一条都是**单个类**选择器（本文件头上那条，`scripts/base-css-lint.js` 拒绝更强的）。
+      所以「某个形态的内边距」写不进来 —— 它归主题表。地板只管默认那一支，而默认那一支不需要
+      任何 `[data-shape]` 就能说清楚。
+   🔴 这里也不写 `transition` / `animation`（同上，本文件头）。原来那些 `transition-colors`
+      因此没有搬过来 —— 它们是 hover 的过渡，不影响任何一个包围盒。
+
+   ── 顶栏 ──────────────────────────────────────────────────────────────────────────────────── */
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background-color: #fff;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+.header__scrim {
+  display: none;
+  pointer-events: none;
+}
+
+.header__bar {
+  margin-inline: auto;
+  max-width: 80rem;
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  padding: 1rem;
+}
+
+.header__logo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.header__logo-img {
+  height: 2.5rem;
+  width: auto;
+  max-width: 160px;
+  object-fit: contain;
+}
+
+.header__logo-mark {
+  display: flex;
+  height: 2.5rem;
+  width: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  background-color: var(--color-primary-500);
+}
+
+.header__logo-icon {
+  height: 1.5rem;
+  width: 1.5rem;
+  color: #fff;
+}
+
+.header__logo-name {
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  font-weight: 700;
+  color: var(--color-primary-900);
+}
+
+/* 🔴 `margin-left: auto` 是这一行的承重件：顶栏原来是 `justify-between` 的**两个**孩子
+   （logo 与「链接+CTA+语言」那一个 div）。搬成一副骨架之后孩子变成五个，`justify-between`
+   会把它们摊开 —— 不是同一个排法。把导航那一组顶到右边、其余靠 2rem 的 gap 串起来，
+   摆出来的位置跟原来逐像素相同。 */
+.header__nav {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  margin-left: auto;
+}
+
+.header__link {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  color: var(--color-gray-600, #4b5563);
+}
+
+.header__cta {
+  display: flex;
+  align-items: center;
+}
+
+.header__cta-link {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.header__lang {
+  display: flex;
+  align-items: center;
+}
+
+.header__burger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.375rem;
+  padding: 0.5rem;
+  color: var(--color-gray-600, #4b5563);
+}
+
+.header__burger-icon {
+  height: 1.5rem;
+  width: 1.5rem;
+}
+
+.header__menu {
+  display: none;
+  border-top: 1px solid var(--color-gray-200, #e5e7eb);
+  background-color: #fff;
+  padding: 0.5rem 1rem 1rem;
+}
+
+.header__menu-link {
+  display: block;
+  padding-block: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  color: var(--color-gray-600, #4b5563);
+}
+
+.header__menu-cta {
+  margin-top: 0.5rem;
+  display: block;
+  width: 100%;
+  text-align: center;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.header__menu-lang {
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--color-gray-200, #e5e7eb);
+  padding-top: 0.5rem;
+}
+
+/* ── 页脚 ──────────────────────────────────────────────────────────────────────────────────── */
+
+.footer {
+  background-color: var(--color-primary-900);
+  color: var(--color-gray-300, #d1d5db);
+}
+
+.footer__cta {
+  display: none;
+}
+
+/* 🔴 页脚原来是「一个 `.container-width.section-padding` 的壳，里面一张 grid + 一条版权行」。
+   骨架把那层壳去掉了（多一层 div 就多一层 CSS 摆不动的东西），所以壳的四档内边距在这里逐档照搬 ——
+   `.section-padding` 那四条（globals.css §961）一个断点都不能少，少一个就是某个宽度上的包围盒变了。
+   版权行的 `padding-bottom` 由它自己给：原来它是壳里最后一个孩子，壳的下内边距兜着它。 */
+.footer__body {
+  margin-inline: auto;
+  max-width: 80rem;
+  display: grid;
+  gap: 3rem;
+  padding: var(--section-y) var(--section-x) 0;
+}
+
+@media (min-width: 640px) {
+  .footer__body {
+    padding-left: var(--section-xSm);
+    padding-right: var(--section-xSm);
+  }
+}
+
+@media (min-width: 768px) {
+  .footer__body {
+    padding-top: var(--section-yMd);
+  }
+}
+
+@media (min-width: 1024px) {
+  .footer__body {
+    padding-left: var(--section-xLg);
+    padding-right: var(--section-xLg);
+  }
+}
+
+.footer__brand-id {
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.footer__logo-pill {
+  display: inline-flex;
+  align-items: center;
+  background-color: #fff;
+  padding: 0.375rem;
+  border-radius: 0.375rem;
+}
+
+.footer__logo-img {
+  height: 1.75rem;
+  width: auto;
+  max-width: 120px;
+  object-fit: contain;
+}
+
+.footer__logo-mark {
+  display: flex;
+  height: 2rem;
+  width: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  background-color: var(--color-primary-500);
+}
+
+.footer__logo-icon {
+  height: 1.25rem;
+  width: 1.25rem;
+  color: #fff;
+}
+
+.footer__logo-name {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.footer__desc {
+  font-size: 0.875rem;
+  line-height: 1.625;
+}
+
+.footer__social {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.footer__social-link {
+  display: flex;
+  height: 2.25rem;
+  width: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background-color: var(--color-primary-800);
+  color: var(--color-gray-400, #9ca3af);
+}
+
+.footer__social-fallback {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.footer__col-title {
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #fff;
+}
+
+.footer__list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.footer__list--contact {
+  gap: 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.footer__link {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.footer__loc-label {
+  color: #fff;
+}
+
+.footer__email {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.footer__legal {
+  margin-inline: auto;
+  max-width: 80rem;
+  margin-top: 3rem;
+  border-top: 1px solid var(--color-gray-700, #374151);
+  padding: 2rem var(--section-x) var(--section-y);
+  text-align: center;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+@media (min-width: 640px) {
+  .footer__legal {
+    padding-left: var(--section-xSm);
+    padding-right: var(--section-xSm);
+  }
+}
+
+@media (min-width: 768px) {
+  .footer__legal {
+    padding-bottom: var(--section-yMd);
+  }
+}
+
+@media (min-width: 1024px) {
+  .footer__legal {
+    padding-left: var(--section-xLg);
+    padding-right: var(--section-xLg);
+  }
+}
