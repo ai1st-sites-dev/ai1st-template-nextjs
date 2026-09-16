@@ -29,6 +29,22 @@ export const INTENT_PROBE = (V) => {
   const first = (el) => (el.classList && el.classList[0]) || '';
   const isHead = (el) => V.headingSuffixes.some((s) => first(el).endsWith(s));
   const isMedia = (el) => first(el).endsWith(V.mediaSuffix);
+  // 🔴 #1337 —— 「这个零件还在不在版面里」。`display: none` 的元素 `getBoundingClientRect()` 每一项
+  //    都读 0，而 0 是个**合法的坐标** —— 下面按 x 归列带、数「填得满几条列带的子元素」两处都会
+  //    把它当成一个真的、贴在最左边的零件。本票让空的媒体容器 `display: none` 之后这就不是假设了：
+  //    实测 `content-split/media-right-alternate`（最少版 · 1280px · /allblocks.html）在两套主题上
+  //    都从 ✅ 变成「该占 2 条列带，实际占 1 条」—— 那一页上这个块**只有一个**看得见的零件，
+  //    两条列带没有样本可占，是 D14 第 2 条那种「可选零件缺席」，不是排错了。
+  //
+  // 🔴 判据是 `display === 'none'`，**不是** `getClientRects().length === 0`（检查 ⑥ 用的那把尺）。
+  //    两把尺在这个文件里不通用，实测分歧就在盘上：`testimonials` 的三个直接子元素里有一个是
+  //    `<div data-block-part="testimonials-list">`，它 `display: contents` —— 自己没有盒子
+  //    （rects 0）而**它的孩子实实在在占着格**。拿 ⑥ 那把尺一量，这个包装层被当成「不在版面里」，
+  //    `testimonials/{two-up,attribution-first}` 的 `placeable` 从 1 掉到 0，`columns` 那条严格判据
+  //    （占用列带 === 声明数）当场退化成 `columns-degraded`（占用 ≤ 声明），两版夹具 × 两套主题
+  //    共 8 格判据变松 —— 绿的，但量的东西少了。⑥ 问的是「画在谁前面」，一个没有盒子的元素确实
+  //    没画在任何地方；这里问的是「它占没占位置」，而 `display: contents` 占了。
+  const laidOut = (el) => getComputedStyle(el).display !== 'none';
   const px = (v) => parseFloat(v) || 0;
   // 🔴 文字占了几行，不是盒子有多高 —— 逐字照 ⑧ 那一格的理由（`height` 不在形态层能改的族里，
   //    按盒子判的话那两个块无论形态怎么排都是红的）。
@@ -60,6 +76,10 @@ export const INTENT_PROBE = (V) => {
     const tracks = cs.display === 'grid' && cs.gridTemplateColumns !== 'none'
       ? cs.gridTemplateColumns.trim().split(/\s+/).map(px) : [];
     const kids = [...el.children];
+    // 🔴 #1337 —— 只有真被排版的子元素才算占了位置。`kids` 本身**不动**：下面认 head / media /
+    //    body 那几处问的是「哪个零件是它」，藏起来的容器照样是媒体容器（`mediaEl` 那一处按本票
+    //    正文 §做什么 4 单独判「看不看得见」）。这里分出来的 `laid` 只喂几何。
+    const laid = kids.filter(laidOut);
     const spansAll = (c) => {
       const g = getComputedStyle(c).gridColumn || '';
       return /(^|\s)1\s*\/\s*-1(\s|$)/.test(g) || g.trim() === '1 / -1';
@@ -91,7 +111,7 @@ export const INTENT_PROBE = (V) => {
     if (tracks.length > 0) {
       const edges = []; let acc = contentLeft;
       for (const t of tracks) { edges.push([acc, acc + t]); acc += t + gap; }
-      for (const c of kids) {
+      for (const c of laid) {
         const b = c.getBoundingClientRect();
         // 🔴 跨列先看 computed `grid-column`，再看宽度。只看宽度会把 `grid-column: 1 / -1` 而**内容为空**
         //    的零件（`.hero__deco` 在首页宽 0）算成「占了一条列带」，于是「这个块凑不出第二列的零件」
@@ -104,10 +124,18 @@ export const INTENT_PROBE = (V) => {
       }
       if (bands.size === 0) bands = new Set([0]);
     } else {
-      for (const c of kids) bands.add(Math.round(c.getBoundingClientRect().left));
+      for (const c of laid) bands.add(Math.round(c.getBoundingClientRect().left));
     }
     const headEl = kids.find(isHead);
-    const mediaEl = kids.find(isMedia);
+    // 🔴 #1337 —— 看得见才算有图。`shapes.css` 从此让「可选图槽位没填」的媒体容器 `display: none`
+    //    （元素留着，是契约 §2 给主题皮的 ::before/::after 钩子）。下面 media 轴那条「这一页上这个
+    //    块没有图（可选槽为空）⟹ 报告而不判」（D14 第 2 条）本来就是为这件事写的，它只是用
+    //    「元素在不在」问了「有没有图」—— 改成问「浏览器有没有给它排版」。
+    //    不这么改的后果是实测过的：藏起来的容器 `getBoundingClientRect()` 全读 0 而被当成真几何，
+    //    `hero/form-side` 在真站上从 ✅ 变「图该在正文下面，实际图 y 从 0 起」（反向对照见票上 AC4）。
+    //    📌 只动这一处（`mediaEl`）：:112/:113/:131 那几处 `!isMedia(c)` 是在**排除**媒体容器，
+    //    藏起来的容器照样不该当 bodyEl / after，语义相反，动它们是另一件事。
+    const mediaEl = kids.find((c) => isMedia(c) && laidOut(c));
     const bodyEl = kids.find((c) => first(c).endsWith(V.bodySuffix))
       || kids.find((c) => !isHead(c) && !isMedia(c) && first(c) !== itemCls)
       || kids.find((c) => !isHead(c) && !isMedia(c));
@@ -136,7 +164,7 @@ export const INTENT_PROBE = (V) => {
       itemCls, items,
       // `columns` 的样本量：不跨列的直接子元素有几个。比声明的列数还少 ⟹ 那几条列带**没有样本**
       // 可占，不是排错了（夹具上 service-related-pages 只有一张卡）。判据据此退化，见 judgeIntent。
-      placeable: kids.filter((c) => {
+      placeable: laid.filter((c) => {
         const b = c.getBoundingClientRect();
         return !(spansAll(c) || (b.width >= room - V.slack * 2 && tracks.length > 1));
       }).length,

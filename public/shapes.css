@@ -3093,3 +3093,69 @@
   display: grid;
   place-items: center;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════════
+   没图就不画媒体带（#1337，设计文档 D4 / D11 ⑥）
+   ══════════════════════════════════════════════════════════════════════════════════════════════════
+
+   可选的图槽位没填时，组件照样把媒体容器渲染出来（`HeroSection.tsx:67` / `ContentSplitSection.tsx:86`
+   无条件渲染，只有 `<img>` 才看 `imageUrl`）—— 那是契约 §2「每个零件都在」要的：主题皮拿它当
+   `::before/::after` 的钩子。于是上面那些形态规则给这个空 `div` 一条 `aspect-ratio`、主题皮给它一块
+   底色，页面上就多出一条什么都没有的空色带（Chris 2026-09-15 在 test 站 azure-29 / ember-12 两套下
+   都看到了：1280px 下 `.hero__media` 是 1280×267、底色 `rgb(30,58,138)`、**0 个子元素**）。
+
+   判据用 `data-has-imageUrl` —— #1331 按 manifest 的 `required: false` + 这一页真填了，在块根上写
+   `data-has-<槽位>="true"`（`src/lib/sections/blockAttrs.ts`）。🔴 不用 `:has()` / `:empty`：那两个
+   问的是「DOM 里有没有子元素」，而这里要问的是「这个槽位有没有数据」—— 两者在「填了图但图 404」
+   这类情形上分岔，而且 `:empty` 对空白文本节点敏感。
+
+   🔴 **这条规则只能住在这一层，`base.css` 不是可选项。** `base.css` 有自己的检查
+   （`scripts/base-css-lint.js`）只放行单个 class 的选择器（目的是保证主题永远盖得过地板），而
+   `sync-config.js` 每次建站都调 `css-contract-check.js`（射程 = `public/base.css` + `public/themes/*.css`，
+   `shapes.css` 不在里面），一有违规就**拒绝这次构建** —— 放错地方不是报个警告，是所有站建不出来。
+   实测：原样 `base.css` rc=0；把下面这两行加到它末尾就是 `🔴 2 violation(s)`、rc=1，点名「后代选择器」。
+
+   🔴 **按 `data-block` 逐个写，不写通配。** 覆盖面 = 「`imageUrl` 是可选槽」的块，现取（2026-09-15，
+   `origin/main faa39001`）：解析 32 份 manifest，`imageUrl` 且 `required: false` 的是
+   `{hero, hero-with-form, content-split}` 三个，别的块连带 `image` 字样的槽位都没有。图**必填**
+   的块（gallery 那类）没图是数据错，该由 `validateSite` 说话，不是默默藏起来。加一个可选图槽位的块
+   时，这里补一条。
+   📌 `hero-with-form` 是 #1333 落到 main 上的第三个成员（本票开工那天落的）—— 它跟 `hero` 用的是
+   **同一个** `.hero__media` 类名、不同的 `data-block`，所以两条规则各写各的，不能合并成一条按类名
+   的写法：按类名写就等于通配，把「图必填的块不许被盖到」这条边界丢掉。
+   📌 上游 #1333 已经用同一个钩子治了 `hero/text-center` 一格（`[data-has-imageUrl]` 才给
+   `aspect-ratio`，见本表 §hero · text-center）。那是**只管尺寸**的半条：容器还在版面里、高度 0。
+   本票这条更强也更统一 —— 没图就整个不在版面里，`hero-with-form/form-side`（`aspect-ratio: 24 / 5`
+   无条件给）和 `content-split` 那两条无条件比例只有这么写才盖得住。两者不冲突：那边管「有图时多大」，
+   这边管「没图时在不在」。
+
+   📌 **放在文件末尾，但今天不是它靠位置才生效的。** 这条选择器是 (0,3,0)，跟上面每一条形态规则
+   （块属性 + 画法属性 + 一个类名）逐位相同，同特异度靠先后定胜负；而实测五份表（`base.css` /
+   本表 / 两套 `themes/*.css` / `src/app/globals.css`）里，这两个媒体容器身上**一条 `display` 声明
+   都没有**（本条之外命中 0）—— 所以今天没有对手，没有「因为排在前面所以被盖掉」这回事。写在末尾
+   是为了将来：形态层真要给某个 (块, 画法) 写 `display` 时，同特异度下它排在前面、这一条赢，空媒体
+   带不会因为加了一条画法又冒回来。
+   🔴 **这段注释里不许写出 `[data-block=…][data-shape=…]` 那个形状的字面串。**
+   `block-manifest.js` 的 `shapePairsFromCss` 拿正则扫**整份文件**、不剥注释（:65），注释里举个例子
+   就会凭空多出一个 (块, 画法) 对。实测：第一版这里举的例子是 hero 的 form-side，而 #1333 刚把它搬去
+   `hero-with-form` —— `lib/block-shapes.test.js` 当场红「CSS 有、manifest 没有：1 个 —— hero/form-side」，
+   而 `shapes.css` 我一行都没删。
+   🔴 主题皮那一侧不用担心：`display` 不在契约 §2 的主题可写属性表里（`theme-css-lint.js` 的
+   `PROP_EXACT` / `PROP_PREFIXES` 没有它；它在 `GEOM_EXACT` 里，`isGeometry('display')` 为真）。
+   拿 `lint()` 真跑过五臂（每臂一份单规则的表）：合法属性那一臂只报「缺 v3 头」这条共通的，
+   而 `.hero__media{display:none}` / `.content-split__media{display:none}` / `[data-block="hero"]{display:none}`
+   三臂各多出一条 `"display" is not on the contract's property whitelist` —— 部件上、块根上都写不出。
+   ⟹ 今天能藏住媒体容器的只有平台层，而平台层唯一会藏它的就是下面这三条、判据正是「槽位空着」。
+   ══════════════════════════════════════════════════════════════════════════════════════════════════ */
+
+[data-block="hero"]:not([data-has-imageUrl]) .hero__media {
+  display: none;
+}
+
+[data-block="hero-with-form"]:not([data-has-imageUrl]) .hero__media {
+  display: none;
+}
+
+[data-block="content-split"]:not([data-has-imageUrl]) .content-split__media {
+  display: none;
+}
