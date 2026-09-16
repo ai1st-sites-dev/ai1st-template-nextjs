@@ -597,8 +597,11 @@ function industryMatches(industry, word) {
  *        contact-info」被拒，而那件事既不是这次编辑造成的，模型也没法在 about.json 里修好它
  *        ⟹ 那个站从此改不动了。整站那条检查的家在建站那一刻和构建期，不在这里。
  */
-function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks = {} } = {}) {
+function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks = {}, disabledBlocks = [] } = {}) {
   const manifests = loadManifests(dir);
+  // #1346 —— 后台「区块与主题」页关掉的那些块。只有建站那条路会传（create-site.js 的两个调用点），
+  // 构建期和 AI 改站那两条路不传 ⟹ `off` 是空集合，下面两处一个字节都不改变行为。
+  const off = new Set((disabledBlocks || []).filter((t) => typeof t === 'string' && t));
   const problems = [];
   const warnings = [];
   const seenTypes = new Set();
@@ -658,6 +661,16 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
         continue;
       }
       seenTypes.add(sec.type);
+
+      // ⑦ #1346 —— 这个块被关掉了。只有建站那条路会传清单进来，所以这条检查也只在那一刻存在。
+      //
+      // 🔴 它必须是 problem 而不是只剔菜单就算了：菜单是**建议**，模型照旧可以吐一个不在清单上的
+      //    块名（清单也不是它唯一的语料，提示词别处还点名过几个块）。剔菜单少了这一条，"关掉了"
+      //    这件事就只有在模型听话的时候才成立 —— 而那是一个不可复算的条件。进 problems 之后它走的
+      //    是这个函数本来就有的那条路:重试一次，再不行 create-site.js §generateContent 干净失败。
+      if (off.has(sec.type)) {
+        flag(`${where}: 这个块已经在后台关掉了 —— 换一个（后台「区块与主题」页可以重新打开它）`);
+      }
 
       // ① 必填槽
       const data = sec.data || {};
@@ -764,6 +777,10 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
       }
     }
     for (const m of manifests.values()) {
+      // #1346 —— 关掉压过「行业必需」。少了这一句，关掉 contact-info（它写着 required: ["*"]）之后
+      // **每一个**新站都建不出来：菜单里没有它 ⟹ 模型不放 ⟹ 这里报 problem ⟹ 重试仍缺 ⟹
+      // create-site.js 那句 fatal。关掉一个块的意思是「以后别再选它」，不是「以后建不出站」。
+      if (off.has(m.type)) continue;
       const req = (m.industries && m.industries.required) || [];
       if (!req.some((w) => industryMatches(industry, w))) continue;
       if (seenTypes.has(m.type)) continue;

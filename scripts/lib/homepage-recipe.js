@@ -117,11 +117,20 @@ function industryRank(m, industry) {
  *    ⟹ 逐字节等于改动之前。`"zzz-unknown"`（正文 AC2 的反向对照）和 `"gallery"`（它是**块名**，
  *    不是词表里的行业）走的都是这一支，而且**不报错**。
  */
-function poolFor(manifests, industry = '') {
+function poolFor(manifests, industry = '', disabledBlocks = []) {
+  // #1346 —— 后台关掉的块不进配方。配方点名的块（opener / mustInclude）在提示词里是**硬要求**
+  // （create-site.js §recipePromptLines），而同一份清单已经把它从候选菜单里剔掉了 ⟹ 不滤的话
+  // 提示词会一边不给这个块、一边要求它，模型两条都对不了。
+  const off = new Set((disabledBlocks || []).filter((t) => typeof t === 'string' && t));
   const homepage = [...manifests.values()]
-    .filter((m) => m.prompt && m.prompt.group === 'homepage')
+    .filter((m) => m.prompt && m.prompt.group === 'homepage' && !off.has(m.type))
     .sort((a, b) => a.prompt.order - b.prompt.order);
-  const known = new Set(homepage.map((m) => m.type));
+  // 🔴 #1346 —— 这条不变量问的是「排除名单点名的块还在不在块库里」，而**不是**「它在不在今天这一池」。
+  //    上面那句 filter 现在会因为「被关掉」而少掉一个块；拿过滤后的集合去核，关掉 cta-banner 就会被
+  //    读成「有人把 cta-banner 改名/删了」，于是整个配方停用 —— 一次关块变成一次静默的功能退化。
+  //    所以核的是 manifests 全集。
+  const known = new Set([...manifests.values()]
+    .filter((m) => m.prompt && m.prompt.group === 'homepage').map((m) => m.type));
   const missing = Object.keys(NOT_IN_POOL).filter((t) => !known.has(t));
   if (missing.length) {
     // 排除项点名的块不在候选里了（改名 / 删了 / 换了组）。静默继续 = 它可能已经悄悄回到池子里。
@@ -168,14 +177,28 @@ function drawDistinct(pool, index, k) {
  *   mustInclude —— 首页里还必须出现的两块（位置随便）
  *   promptOrder —— 提示词里那份候选清单该按什么顺序印（每站不同，见下）
  */
-function homepageRecipe(index, manifests, industry = '') {
-  const pool = poolFor(manifests, industry);
+function homepageRecipe(index, manifests, industry = '', disabledBlocks = []) {
+  const off = new Set((disabledBlocks || []).filter((t) => typeof t === 'string' && t));
+  const pool = poolFor(manifests, industry, disabledBlocks);
   const i = Math.abs(Math.trunc(Number(index) || 0));
-  const withBar = i % BAR_EVERY === BAR_EVERY - 1;
+  // #1346 —— 开场那两个写死的块名也要过一遍清单。`hero` 被关掉时整份配方就没有意义了（它是每份
+  // 配方的第一块），那时抛出去让 tryHomepageRecipe 接住 —— 落回「这一趟不用配方」，也就是本文件
+  // 头上那条「不为骨架让一次建站失败」。
+  if (off.has('hero')) {
+    throw new Error('homepage-recipe: "hero" 被后台关掉了 —— 开场配方以它为第一块，这一趟不用配方');
+  }
+  const withBar = i % BAR_EVERY === BAR_EVERY - 1 && !off.has('announcement-bar');
 
   // 开场:带 bar 的是 [bar, hero, x, y];不带的是 [hero, x, y, z]。两种都钉住 4 个位置 ——
   // 只钉 3 个的话「前 4 块相同」那个数还留着一半由 AI 决定，而它是本票的防回退条款。
-  const picks = drawDistinct(pool, i, withBar ? 4 : 5);
+  // #1346 —— 池子被关小之后可能不够抽。`drawDistinct` 抽不满时会重复往里塞同一个块（它的 while
+  // 只挪 pool.length 次就放弃），而重复的 opener 是一份坏配方 ⟹ 宁可这一趟不用配方。
+  const want = withBar ? 4 : 5;
+  if (pool.length < want) {
+    throw new Error(`homepage-recipe: 首页候选池只剩 ${pool.length} 个块（关掉了 ${off.size} 个），`
+      + `抽不出 ${want} 个互不相同的 —— 这一趟不用配方`);
+  }
+  const picks = drawDistinct(pool, i, want);
   const opener = withBar
     ? ['announcement-bar', 'hero', picks[0], picks[1]]
     : ['hero', picks[0], picks[1], picks[2]];
@@ -187,7 +210,7 @@ function homepageRecipe(index, manifests, industry = '') {
   // 🔴 转多少格写成 `i * 5 + 1`，不是 `i`：`i = 0` 时 `rotate(list, 0)` 是恒等 —— 第一个站的清单
   //    顺序会跟改动之前一模一样，而 `themeRotationIndex: 0` 正是最常见的那个入参
   //    （测试第一版就在这里红了）。5 跟清单长度 28 互质，所以连着 8 个站转到 8 个不同的起点。
-  const promptOrder = rotate(allHomepageTypes(manifests), i * 5 + 1);
+  const promptOrder = rotate(allHomepageTypes(manifests).filter((t) => !off.has(t)), i * 5 + 1);
 
   return { opener, mustInclude, promptOrder, withBar, index: i, poolSize: pool.length };
 }
@@ -208,9 +231,9 @@ function homepageRecipe(index, manifests, industry = '') {
  * 📌 写成这里的一个函数而不是调用方的 try/catch，是为了它能被测到：`create-site.js` 没有单测，
  *    而这条分支恰恰是本票新开的口子带来的风险（同 `afterRetry` 的理由）。
  */
-function tryHomepageRecipe(index, manifests, industry = '') {
+function tryHomepageRecipe(index, manifests, industry = '', disabledBlocks = []) {
   try {
-    return { recipe: homepageRecipe(index, manifests, industry), error: null };
+    return { recipe: homepageRecipe(index, manifests, industry, disabledBlocks), error: null };
   } catch (e) {
     return { recipe: null, error: e };
   }
@@ -230,8 +253,15 @@ function rotate(list, i) {
   return [...list.slice(at), ...list.slice(0, at)];
 }
 
-/** 提示词里那几行硬要求。 */
-function recipePromptLines(recipe) {
+/**
+ * 提示词里那几行硬要求。
+ *
+ * 🔴 #1346 r3 —— 第二个入参是**后台关掉的块**。前两行的块名来自配方本身（`homepageRecipe` 那一侧
+ *    已经按同一份清单剔过池子），第三行却把 `cta-banner` / `divider` **写死在正文里** ——
+ *    菜单里没有它、正文却要求它，模型两条要求对不上。缺省空数组 ⟹ 不传的调用方逐字节不变。
+ */
+function recipePromptLines(recipe, disabledBlocks = []) {
+  const off = new Set(disabledBlocks);
   return [
     `- 🔒 YOUR HOMEPAGE MUST OPEN WITH EXACTLY THESE SECTIONS, IN THIS ORDER: `
       + recipe.opener.map((t) => `"${t}"`).join(' → ')
@@ -239,9 +269,11 @@ function recipePromptLines(recipe) {
     `- 🔒 THE HOMEPAGE MUST ALSO INCLUDE these sections somewhere after the opening: `
       + recipe.mustInclude.map((t) => `"${t}"`).join(', ')
       + `. You choose where.`,
+    // 两个尾巴各自可以掉；都掉了就只剩前半句（「自己再挑 4-6 个」本身跟块名无关）。
     `- After the opening, pick 4-6 more sections yourself (the two required ones above count toward `
-      + `that) and order them however suits this industry. End with "cta-banner". `
-      + `Use "divider" 1-2 times to break the page up.`,
+      + `that) and order them however suits this industry.`
+      + (off.has('cta-banner') ? '' : ` End with "cta-banner".`)
+      + (off.has('divider') ? '' : ` Use "divider" 1-2 times to break the page up.`),
   ].join('\n');
 }
 

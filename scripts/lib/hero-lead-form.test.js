@@ -272,5 +272,71 @@ console.log('\n── ⑥ 53 个上门行业词逐词：建出来的首页第一
   }
 }
 
+// ── ⑦ #1346 —— 后台关掉 hero-with-form，这一处也要让开（QA1 r1 第 2 条）───────────────────────
+//
+// 🔴 **为什么这一处非补不可：它不在菜单那条路上。** `applyHeroLeadForm` 跑在两次 `validateBlocks`
+//    之后、也不经 AI 提示词 ⟹ 剔菜单、改校验器都管不到它。而后台那一页是从 `blocks/*.json` 列
+//    全部 32 个块（`manager/catalog_admin.go`），`hero-with-form` 就在里面、可以被关。少这一处的
+//    坏法很具体：后台关掉它，每一个**上门服务行业**的新站首屏照样是它 —— 开关看着生效了，产物里没有。
+//
+// 🔴 **为什么这一节在这里，而不是在 `catalog-disabled.test.js` 里跟 `contact-form` 那一节作伴**：
+//    那份文件的夹具全是 `skipAI` 真建站，而 `skipAI` 分支有它自己的 `writeSiteConfig` 并在到达
+//    `applyHeroLeadForm` 之前就 return 了 —— 按构造够不着。我在那边先写过一节，正臂当场红
+//    （读到 `hero` 而不是 `hero-with-form`），这才把它搬到这里。
+console.log('\n── ⑦ #1346 关掉 hero-with-form ⟹ 这一处让开');
+{
+  const mk = () => ({ pages: [{ slug: 'home', sections: [{ type: 'hero', data: { headline: 'H' } }] }] });
+  const first = (c) => c.pages[0].sections[0].type;
+
+  // 正臂先立起来：不关的时候它**真的**换了。没有这一格，下面那格在「这段逻辑根本没跑」时也会绿。
+  const cOn = mk();
+  const rOn = applyHeroLeadForm({ content: cOn, industry: 'plumbing' });
+  rOn.applied && first(cOn) === HERO_FORM_BLOCK
+    ? ok(`正臂：不关的时候 plumbing 站首屏被换成 ${HERO_FORM_BLOCK}`)
+    : bad(`正臂失败：applied=${rOn.applied} 首屏=${first(cOn)} —— 下面几格没有判别力`);
+
+  const cOff = mk();
+  const rOff = applyHeroLeadForm({ content: cOff, industry: 'plumbing', disabledBlocks: [HERO_FORM_BLOCK] });
+  !rOff.applied && first(cOff) === 'hero'
+    ? ok('关掉它 ⟹ 首屏原样留着 hero，一个字节没动')
+    : bad(`关掉它却还是换了：applied=${rOff.applied} 首屏=${first(cOff)}`);
+  // 🔴 `reason` 要说得出是**哪一种**「没换」：这个函数有四个完全不同的答案，而它们在产物里长得
+  //    一模一样（文件头那条）。读日志的人分不开的话，这个开关出问题时没人查得下去。
+  rOff.reason.includes(HERO_FORM_BLOCK) && /停用/.test(rOff.reason)
+    ? ok(`reason 点名了是「被停用」这一种：${rOff.reason}`)
+    : bad(`reason 没说清是哪一种：${rOff.reason}`);
+
+  // 对照：只关**别的**块不许影响它 —— 否则「关任何一个块都退回 hero」也会让上面那格绿。
+  const cOther = mk();
+  applyHeroLeadForm({ content: cOther, industry: 'plumbing', disabledBlocks: ['cta-banner'] });
+  first(cOther) === HERO_FORM_BLOCK
+    ? ok('对照：关掉别的块（cta-banner）⟹ 首屏仍是 hero-with-form')
+    : bad(`对照失败：关掉 cta-banner 之后首屏是 ${first(cOther)}`);
+
+  // 老 manager 不送这个字段 ⟹ 缺席必须等于「什么都没关」，不是「全关」。
+  const cAbsent = mk();
+  applyHeroLeadForm({ content: cAbsent, industry: 'plumbing', disabledBlocks: undefined });
+  first(cAbsent) === HERO_FORM_BLOCK
+    ? ok('字段缺席（老 manager）⟹ 跟不关一样')
+    : bad(`字段缺席时首屏是 ${first(cAbsent)} —— 缺席被当成了「关掉」`);
+}
+
+// ── ⑧ 接线：调用点真的把清单传进去了（#1346）──────────────────────────────────────────────────
+//
+// 🔴 上面那一节全绿也可能是**假的**：函数认了这个参数，而唯一的调用方不传 —— 那样产物里这个开关
+//    依旧不生效，而函数级的测试一条都不会红。这一格问的是调用点本身。
+console.log('\n── ⑧ #1346 create-site.js 的调用点把 disabledBlocks 传进来了');
+{
+  const src = fs.readFileSync(path.join(NEXT, 'scripts', 'create-site.js'), 'utf-8');
+  const call = src.match(/applyHeroLeadForm\(\{[^}]*\}\)/);
+  if (!call) {
+    bad('create-site.js 里找不到 applyHeroLeadForm 的调用 —— 这一格从此什么都没核');
+  } else if (/disabledBlocks/.test(call[0])) {
+    ok(`调用点带上了清单：${call[0]}`);
+  } else {
+    bad(`调用点没传清单：${call[0]} —— 函数认了这个参数而没人送，开关对产物不说话`);
+  }
+}
+
 console.log(`\n══ ${pass} 过 · ${fail} 失败 ══`);
 process.exit(fail ? 1 : 0);
