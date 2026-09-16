@@ -3661,18 +3661,33 @@
   text-align: center;
 }
 
+/* 🔴🔴 这两行字的颜色是**本票唯一一处有意改掉的长相**，而且是被量出来才发现的，不是顺手改的。
+   改造前它们是白字压在 `accent-500` 上（`text-white` / `text-white/90`）。这一票把页脚做成块之后，
+   `blockAttrs` 给它盖上 `data-role="essential"`，于是 `theme-css-invariants.mjs` 的 §3 第一次去问
+   「这几行字读得出来吗」—— 现取读数（ember-12，真机像素）：
+       footer__cta-title  rgb(250,253,251) 压在 rgb(194,182,61) 上 = **2.04:1**
+       footer__cta-sub    rgb(237,241,225) 压在 rgb(194,182,61) 上 = **1.82:1**   （门槛 2.5:1）
+   这不是本票造成的 —— 改造前的站就是这个样子，只是那时没有任何东西在看它（老的 `<footer>` 上
+   一个 `data-role` 都没有，整个页脚不在这把尺的射程里）。
+   🔴 为什么在这张票里改而不是开新票：不改的话 `origin/main` 的 CI 会红 —— `theme-css` 那个 job
+   逐套表建一个样例站跑这把尺（`theme-css-invariants-all-sheets.sh`），ember-12 的页脚就是这一种。
+   🔴 为什么是 `gray-900`：这是产品对「accent 底上的字」已有的答案 —— `.btn-accent`（globals.css）
+   用的就是 `bg-accent-400` + `text-gray-900`，#1100 为那一对量过 80 套表。这里底色不动
+   （仍是 `accent-500`），只换字色：现取 ember-12 上 gray-900 压 rgb(194,182,61) ≈ **8.0:1**。
+   🔴 将来别的主题这一对合不合格，判据不是我这句话，是 CI 那个逐表跑的 job —— 池子重新生成那天
+   它会逐套表把这一格重问一遍。 */
 [data-block="footer"][data-shape="cta-band"] .footer__cta-title {
   font-size: 1.5rem;
   line-height: 2rem;
   font-weight: 700;
-  color: #fff;
+  color: var(--color-gray-900, #111827);
 }
 
 [data-block="footer"][data-shape="cta-band"] .footer__cta-sub {
   margin-top: 0.25rem;
   font-size: 0.875rem;
   line-height: 1.25rem;
-  color: rgb(255 255 255 / 0.9);
+  color: rgb(17 24 39 / 0.9);
 }
 
 [data-block="footer"][data-shape="cta-band"] .footer__cta-link {

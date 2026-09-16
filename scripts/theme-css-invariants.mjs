@@ -1016,6 +1016,17 @@ const ESSENTIAL_TEXT_PROBE = () => {
     for (let e = el, from = null; e; from = e, e = e.parentElement) {
       if (e.getAttribute('aria-hidden') === 'true') return `${name(e)} carries aria-hidden="true"`;
       if (e.hasAttribute('hidden')) return `${name(e)} carries the hidden attribute`;
+      // 🔴 #1353 — the same reason ESSENTIAL_PARTS_PROBE reads this attribute, and the same words:
+      // until the three regions moved into the shape layer, "this shape does not show that part" and
+      // "that part is not in the DOM" were the same thing. D14 requires ONE skeleton per block, so a
+      // part the shape turns off is now IN the markup — the mobile drawer at 1280px, the footer's
+      // link columns under `cta-band`. `data-role="optional"` (blockAttrs.ts, #1331) is where the
+      // markup says a part may be absent; a part with no such marking is judged exactly as before.
+      // It lands in the exempt list, which this check PRINTS with a reason for every entry — the
+      // whole point of that list being the same sentence in both directions.
+      if (e.getAttribute('data-role') === 'optional') {
+        return `${name(e)} carries data-role="optional" — the markup says this part may be absent`;
+      }
       // A closed native `<details>` hides everything under it EXCEPT its own first `<summary>` —
       // that one is the control a visitor clicks and is on screen the whole time. So the branch is
       // not "am I inside a closed <details>", it is "am I inside the part of it that is closed":
@@ -1104,6 +1115,12 @@ const ESSENTIAL_TEXT_PROBE = () => {
         where: (el.getAttribute('class') || el.tagName).trim().split(/\s+/)[0],
         text: texts.map((t) => t.textContent.trim()).join(' ').replace(/\s+/g, ' ').slice(0, 40),
         exempt: exemptedBy(el),
+        // 🔴 #1353 —— 「这一块可以不在」跟「它在屏幕上但读不出来」是**两个问题**，所以这一条
+        // 单独记一笔。`data-role="optional"` 只答前一个：可达性那一格放过它（②d），而墨色那一格
+        // （②e）照旧问它 —— 一个形态真的把 CTA 色带画出来了，那条字就必须读得出来。
+        // 不分开的话，给一个零件标上 optional 会把它的对比度检查一起关掉，而那是本仓记过的形状：
+        // 压制一个症状会把另一个的诊断一起删掉。
+        exemptOptional: !!el.closest('[data-role="optional"]'),
         lines: measured.length,
         alive: measured.filter((m) => m.alive).length,
         rawArea: Math.round(measured.reduce((n, m) => n + m.line.w * m.line.h, 0)),
@@ -1146,9 +1163,10 @@ const settlePage = async () => {
 // The sentence every ②d/②e finding ends with. PM's requirement on this ticket: a person reading the
 // red has to be told, in the red itself, that the exemption was considered and did not apply — and
 // therefore what to write in the markup if this text really is meant to be off right now.
-const NOT_EXEMPT = 'It was not skipped: neither it nor any ancestor carries aria-hidden="true" or the '
-  + 'hidden attribute, no aria-expanded="false" control names it through aria-controls, and it is not '
-  + 'in the closed panel of a <details> — so as far as the markup says, this text is on right now';
+const NOT_EXEMPT = 'It was not skipped: neither it nor any ancestor carries aria-hidden="true", the '
+  + 'hidden attribute or data-role="optional", no aria-expanded="false" control names it through '
+  + 'aria-controls, and it is not in the closed panel of a <details> — so as far as the markup says, '
+  + 'this text is on right now';
 
 // ── ②d where the text ended up, and what is left of it ──────────────────────────────────────────
 function judgeEssentialText(reading, where) {
@@ -1286,7 +1304,10 @@ async function judgeEssentialPaint(reading, where) {
   const blocks = await page.$$('[data-role="essential"]');
   for (let i = 0; i < reading.length; i += 1) {
     const b = reading[i];
-    const candidates = b.runs.filter((r) => !r.exempt && r.alive > 0 && r.visRects.length > 0);
+    // `exemptOptional` 的那些照量：它们被放过的只有「不在屏幕上算不算错」那一问，而这里问的是
+    // 「在屏幕上的这几行字读不读得出来」—— `r.alive > 0` 本来就要求它真的在屏幕上。
+    const candidates = b.runs.filter((r) => (!r.exempt || r.exemptOptional)
+      && r.alive > 0 && r.visRects.length > 0);
     if (candidates.length === 0) continue;
     const el = blocks[i];
     if (!el) {
