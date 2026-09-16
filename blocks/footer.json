@@ -1,5 +1,6 @@
 {
   "type": "footer",
+  "displayName": "Site Footer",
   "category": "region",
   "region": true,
   "roleDefault": "essential",
