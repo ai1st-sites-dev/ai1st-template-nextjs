@@ -32,6 +32,9 @@ const siteShape = require('./lib/site-shape');
 // #1195 —— 写进图片字段的那个地址，是不是有人真的给过它。为什么必须是「谁给的」而不是「取不取得到」，
 // 以及那张 IMAGE_FIELDS 清单为什么不是手抄的，整段写在那个文件头上。
 const imageUrls = require('./lib/image-urls');
+// #1351 —— 「让 AI 改这一块」：面板把块 id 和它在哪一页带进这次会话，这一轮就只许动那一个块。
+// 判据是**拿磁盘上那份逐块比一遍**，不是在提示词里请它守规矩（理由在那个文件头上）。
+const blockScope = require('./lib/block-scope');
 
 // ─── Emit structured events to stdout ─────────────────────────────────────────
 
@@ -612,7 +615,7 @@ function siteBlocksJsonError(relPath, parsed) {
  * @param {Map<string, Buffer|null|{why:string}>} [snapshots]
  *   #1102 —— `write_file` 往这里记「这个文件在被写之前是什么样」。同步失败时按它回滚。
  */
-function executeTool(toolName, toolInput, siteDir, snapshots, allowedImageUrls) {
+function executeTool(toolName, toolInput, siteDir, snapshots, allowedImageUrls, blockScopeInfo) {
   switch (toolName) {
     case 'read_file': {
       const relPath = toolInput.path;
@@ -676,6 +679,12 @@ function executeTool(toolName, toolInput, siteDir, snapshots, allowedImageUrls) 
       }
       const blockError = pageJsonBlockError(relPath, parsed);
       if (blockError) return { error: blockError };
+      // #1351 —— 这一轮如果被收窄到某一个块（面板的「让 AI 改这一块」），别的块一个字节都不许动。
+      // 位置跟上下这几关同一个道理：拒的时候磁盘一个字节没动，模型拿着原因在同一轮里改口。
+      // 🔴 排在 `pageJsonBlockError` **后面**：那一关问「这份内容建得出来吗」，这一关问「你动了谁」。
+      //    反过来的话，一份既越界又写坏了的内容会先收到一句关于范围的话，而它真正的毛病没人说。
+      const outOfScope = blockScope.blockScopeRejection(relPath, parsed, blockScopeInfo, writeCtx.readCurrent);
+      if (outOfScope) return { error: outOfScope };
       // #1160 —— 站级块库走的是同一条 write_file,而上面那道闸的正则钉在 `pages/**.json` 上,
       // 所以它在这里补一道。位置跟上面那条一样在 `JSON.parse` 之后、落盘之前:这两关问的都是
       // 「这份内容建得出来吗」,而拒绝时磁盘一个字节没动、模型拿着原因在同一轮里重写。
@@ -941,6 +950,8 @@ async function main() {
 
   // TICKET-093: optional images attached by the user as multimodal content blocks.
   const { siteId, message, conversationHistory = [], images = [] } = input;
+  // #1351 —— 这一轮编辑被收窄到哪一个块（面板的「让 AI 改这一块」按钮带进来的）。
+  // 没带就是 null，这条路跟本票之前逐字节一样。
   const configModel = input.model || 'claude-sonnet-4-6';
   const configMaxTokens = parseInt(input.maxTokens, 10) || 8192;
 
@@ -950,6 +961,12 @@ async function main() {
 
   const rootDir = path.resolve(__dirname, '..');
   const siteDir = path.join(rootDir, 'site');
+
+  // #1351 —— 这一轮被收窄到哪一个块。`null` = 没收窄，这条路跟本票之前逐字节一样。
+  const scope = blockScope.scopeFromInput(input, siteShape.readSiteShape(siteDir));
+  if (scope) {
+    emit('progress', { message: `Working on one block on ${scope.pagePath}...` });
+  }
 
   if (!fs.existsSync(siteDir)) {
     fatal('Site directory not found: site/');
@@ -1134,7 +1151,7 @@ async function main() {
 
         emit('tool_use', { tool: block.name, ...(block.input.path ? { path: block.input.path } : {}) });
 
-        const result = executeTool(block.name, block.input, siteDir, writeSnapshots, allowedImageUrls);
+        const result = executeTool(block.name, block.input, siteDir, writeSnapshots, allowedImageUrls, scope);
 
         if (block.name === 'write_file' && result.success) {
           filesModified = true;

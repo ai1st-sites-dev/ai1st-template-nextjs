@@ -472,12 +472,31 @@ function normalizeLocalePages(pages, siteBlocks, locale, report) {
         usedSiteBlockIds.add(entry.ref);
         // 站级块自带的 weight 在这里被**丢掉**（`weight: undefined` 之后再赋值）：这一页显式写了
         // 位置，显式的赢（见上面 visibilityMatches 那段注释）。ref 自己写了 weight 就用它自己的。
-        resolved.push({
+        const refBlock = {
           ...target,
           id: entry.ref,
           weight: refWeightOk ? entry.weight : i * 10,
           __order: i,
-        });
+        };
+        // #1351 —— 这一页对这个站级块的覆盖。在这张票之前，`ref` 条目上写的 `hidden` **从来没被读过**
+        // （上面那个对象只摊开 target 再覆盖 id / weight / __order），所以在一页里单独隐藏一个跨页
+        // 复用的块是静默无效的：文件里写着 hidden:true，页面上它照样在。
+        //
+        // 🔴 只有这一页真写了才带过来，没写就不带 —— 不给它造默认值。造一个 `hidden: false` 会把站级
+        // 块自己的显隐（`...target` 带过来的那个）悄悄改写掉，而症状是「我在块库里把它藏了，页面上
+        // 它还在」，构建全绿。
+        if (entry.hidden !== undefined) {
+          if (typeof entry.hidden === 'boolean') {
+            refBlock.hidden = entry.hidden;
+          } else {
+            // 照这个文件对 role / weight 的同一套处置：点名 + 忽略这个字段，不中断构建。
+            // 🔴 为什么不能直接放行：SectionRenderer 判的是 `if (block.hidden) return null;` ——
+            // 字符串 "false" 是真值，于是「写了 false」和「写了 true」在页面上是同一个结果。
+            note(`${where} 第 ${i} 个块（ref ${JSON.stringify(entry.ref)}）的 "hidden" 是 `
+              + `${JSON.stringify(entry.hidden)}，必须是 true 或 false —— 这个字段被忽略`);
+          }
+        }
+        resolved.push(refBlock);
         return;
       }
       if (typeof entry.type !== 'string' || !entry.type) {
@@ -658,6 +677,81 @@ function pageWithBlocks(page) {
   return out;
 }
 
+
+// ── 在一页里找到「那一个块」（#1351；#1350 / #1352 共用同一份）───────────────────────────────────
+//
+// 🔴 **一份实现，两个调用方**，而且这一条是承重的：manager 侧要在入队之前拿这个块的 `type` / `data`
+//    做同步校验（#1350 的形态校验要 400 + 不写文件 + 不入队），worker 侧要拿它去改文件。两边各写
+//    一份的失败形态是**校验放行的是 A 块、写下去的是 B 块**，而两边各自都绿 —— 没有任何东西会红。
+//    （dev2 在 #1350 上点名要的就是这个。）
+//
+// 三种定位，对应页面 JSON 的两种形状（#998 的双 schema）与站级块的两条路：
+//   ① 老 `sections` 形状 → `index`（数组下标）。**那一类的块 id 是现算的**（§pageWithBlocks 结尾
+//      拼的 `<slug>-<type>-<下标>`），挪一次位置 id 就变，拿它当目标会打到隔壁那块上。
+//   ② 新 `blocks` 形状、这一页有它的条目（自己的块，或者一条 `{ref}`）→ 按 `blockId` 找。
+//   ③ 新形状、站级块靠 `visibility` 命中而这一页**没有**它的条目 → 这一页没地方写它的覆盖。
+//      `materialize` 为真时在这里补出来（见下），为假时只回「它在，但文件里没有它」。
+//
+// 回 `{ at, entry, blockId, added, error }`：
+//   · `at`    它在这一页数组里的下标；第 ③ 种且不补条目时是 -1
+//   · `entry` 那一条本身（第 ③ 种且不补条目时是**解出来的站级块**，给校验读 type / data 用）
+//   · `added` 这次往数组里补了哪些 `{ref}` 条目的 id（没补就是空数组）
+//   · `error` 找不到 / 定位不合法时的原因码：'bad-locator' | 'out-of-range' | 'not-found' | 'shape'
+//
+// 🔴 `materialize` 补条目时**补的是这一页全部**靠 visibility 进来的站级块，不是只补要改的那一个，
+//    而且每条都带上它今天解出来的 `weight`。只补一条的话数组变长、后面那些没写 weight 的站级块
+//    的位置（「追加进来时那个序号 × 10」）整体后移一格，两块会对调 —— 实测过，而且症状是静默的
+//    （被改的那个正好是藏起来的，光看这一页的可见顺序看不出来）。
+function findBlockInPage(page, siteBlocks, opts) {
+  const o = opts || {};
+  const lib = siteBlocks || {};
+  const hasBlocks = Object.prototype.hasOwnProperty.call(page || {}, 'blocks');
+  const hasSections = Object.prototype.hasOwnProperty.call(page || {}, 'sections');
+  if (hasBlocks === hasSections) return { at: -1, entry: null, blockId: '', added: [], error: 'shape' };
+  const arr = hasBlocks ? page.blocks : page.sections;
+  if (!Array.isArray(arr)) return { at: -1, entry: null, blockId: '', added: [], error: 'shape' };
+
+  const slug = typeof o.slug === 'string' ? o.slug : (page && page.slug) || '';
+  const isEntryFor = (e, id) => e && typeof e === 'object' && (e.id === id || e.ref === id);
+
+  if (!hasBlocks) {
+    if (!Number.isInteger(o.index)) return { at: -1, entry: null, blockId: '', added: [], error: 'bad-locator' };
+    if (o.index < 0 || o.index >= arr.length) return { at: -1, entry: null, blockId: '', added: [], error: 'out-of-range' };
+    return { at: o.index, entry: arr[o.index], blockId: '', added: [], error: null };
+  }
+
+  const id = typeof o.blockId === 'string' ? o.blockId : '';
+  if (!id) return { at: -1, entry: null, blockId: '', added: [], error: 'bad-locator' };
+
+  const at = arr.findIndex((e) => isEntryFor(e, id));
+  if (at !== -1) return { at, entry: arr[at], blockId: id, added: [], error: null };
+
+  const target = lib[id];
+  if (!target || !visibilityMatches(target, slug)) {
+    return { at: -1, entry: null, blockId: '', added: [], error: 'not-found' };
+  }
+  if (!o.materialize) {
+    // 只读：把它解出来交给调用方看 type / data，文件一个字节不动。
+    return { at: -1, entry: { ...target, id }, blockId: id, added: [], error: null };
+  }
+
+  const baseLen = arr.length;
+  const added = [];
+  let n = 0;
+  for (const other of Object.keys(lib)) {
+    if (arr.some((e) => isEntryFor(e, other))) continue;
+    if (!visibilityMatches(lib[other], slug)) continue;
+    const own = lib[other].weight;
+    const w = (typeof own === 'number' && Number.isFinite(own)) ? own : (baseLen + n) * 10;
+    arr.push({ ref: other, weight: w });
+    added.push(other);
+    n += 1;
+  }
+  const now = arr.findIndex((e) => isEntryFor(e, id));
+  if (now === -1) return { at: -1, entry: null, blockId: '', added, error: 'not-found' };
+  return { at: now, entry: arr[now], blockId: id, added, error: null };
+}
+
 module.exports = {
   BLOCK_ROLES,
   BLOCK_ALIASES,
@@ -676,5 +770,6 @@ module.exports = {
   loadBlockManifests,
   pageWithBlocks,
   generatedBlockId,
+  findBlockInPage,
   MANIFEST_DIR,
 };
