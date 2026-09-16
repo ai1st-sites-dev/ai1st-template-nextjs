@@ -48,7 +48,8 @@ const FOOTER_LABELS: Record<string, { services: string; contact: string }> = {
 //
 // 走了三棵树：`multi-column`（多列大脚，也是没换装时的默认）、`slim-row`（单行小脚）、
 // `cta-band`（强调色 CTA 色带 + 小脚）。今天是下面这同一副骨架，排版住在 `public/shapes.css` 的
-// `[data-block="footer"][data-shape="…"]`，间距和皮住在 `public/base.css` 与主题表。
+// `[data-block="footer"][data-shape="…"]`；默认那一支的间距在 `public/base.css`（地板），另外两种形态
+// 的间距和皮在 `shapes.css` 末尾那一节（**不在主题表**，理由见那份文件的 `#1353` 那条明写例外）。
 //
 // 🔴 这个文件里【一个 Tailwind 响应式类都不许有】（AC2 逐条 grep `(sm|md|lg|xl):`）。三支原来一共
 //    14 处，它们说的是「小屏一列、中屏两列、大屏四列」—— 那是几何，归 shapes.css 的 `@media`。
@@ -170,17 +171,22 @@ export default function Footer({ locale, variant: variantOverride }: { locale: s
           <h3 className="footer__col-title">{labels.contact}</h3>
           <ul className="footer__list footer__list--contact">
             {brand.locations.map((location) => (
-              <li key={location.label} className="footer__item">
+              <li key={location.label} className="footer__item footer__item--location">
                 <strong className="footer__loc-label">{location.label}</strong>
                 <br />{location.address}
                 <br />{location.phone}
               </li>
             ))}
+            {/* 🔴 邮箱是这张表的**最后一项**，改造前也是（`<li>` 在同一个 `space-y-3` 的 `<ul>` 里）。
+                第一版把它挪成了那张表的兄弟，理由是 `slim-row` 要把它摆进那一行而 `display: contents`
+                只摊平直接子元素 —— 那个理由不成立：`contents` 可以一层一层往下摊（栏 → 表 → 项），
+                而挪出去的代价是量得出来的：它不再吃那张表的 0.75rem 行距，多列大脚里整整上移 9px，
+                补一道上边距又要 `inline-block`，盒子高度从 17 变成 20。**留在原位是唯一两边都对的写法。**
+                地址那几项带自己的修饰类，好让 `slim-row` 只关掉它们、留下这一项。 */}
+            <li className="footer__item footer__item--email">
+              <a href={`mailto:${brand.email}`} className="footer__email">{brand.email}</a>
+            </li>
           </ul>
-          {/* 🔴 邮箱是联系那一栏的**兄弟**，不在上面那个 `<ul>` 里面 —— `slim-row` 要把它摆进那一行，
-              而 `display: contents` 只摊平**直接子元素**。放在 `<li>` 里的话，摊平之后它跟着地址一起
-              被关掉，或者要给 `<li>` 再摊一层（那就是靠 DOM 形状写 CSS，契约不许）。 */}
-          <a href={`mailto:${brand.email}`} className="footer__email">{brand.email}</a>
         </div>
       </div>
 

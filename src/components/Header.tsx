@@ -20,7 +20,8 @@ function localizeHref(href: string, locale: string): string {
 //
 // 走了四棵树：`solid-bar`（实色横条）、`transparent-overlay`（压在首屏上的浮层）、`centered-logo`
 // （logo 居中）、`pill-floating`（圆角胶囊浮条）。它们今天是下面这同一副骨架，**排版整段住在
-// `public/shapes.css` 的 `[data-block="header"][data-shape="…"]`**，皮住在主题表。
+// `public/shapes.css` 的 `[data-block="header"][data-shape="…"]`**，每种形态的间距和皮也在那份文件
+// 末尾那一节（**不在主题表** —— 那条明写的例外和它的射程写在 `shapes.css` 的 `#1353` 那一段）。
 // 📌 #960 把它们做成四棵树时，块那一层还没有形态层（#1008 之后才有）。D14 把顶栏页脚点成「已知例外」
 //    并写明 3.5 步清掉，这就是那一步。
 //

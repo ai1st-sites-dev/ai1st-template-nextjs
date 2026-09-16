@@ -3247,6 +3247,16 @@
     display: flex;
   }
 
+  /* 🔴 单语言站上语言开关自己渲染 null，于是这个壳是**空的**。空壳在 flex 行里照样算一个成员，
+     `gap: 2rem` 会替它留一道缝 —— 实测（#1353 的两臂包围盒对比，1280 宽）：四种顶栏里每一条
+     导航链接和 CTA 都因此**左移正好 32px**。改造前那个壳压根不渲染（`LanguageSwitcher` 在
+     单语言站上 return null），所以那道缝不存在。
+     🔴 这一条要排在上面那条 `display: flex` **后面**：两条特异度相同（0,3,0），媒体查询不改变
+        特异度，顺序就是判据。 */
+  [data-block="header"] .header__lang:empty {
+    display: none;
+  }
+
   /* 🔴 汉堡和抽屉这两条必须**在媒体查询里把那个更强的选择器打掉**，不能只写
      `.header__menu { display: none }`：上面开抽屉那条带 `[data-open="true"]`（0,3,0），
      比这里不带属性那条（0,2,0）强，而媒体查询不改变特异度 —— 桌面上点过汉堡再拉宽窗口，
@@ -3314,11 +3324,32 @@
    `azure-29` = solid-bar），它也不是默认（默认是 solid-bar）⟹ AC1 的包围盒判据和 AC5 的老站判据
    都不覆盖这一种，这处偏差不会让任何一个今天存在的站变样。 */
 
+/* 🔴 小屏那一支要排在下面那段媒体查询【前面】。两条特异度相同（0,3,0），而媒体查询不改变特异度 ——
+   写在后面的话它把 ≥768px 那张网格整个盖掉，桌面上 logo 就回到最左边（实测：改造后 logo 的 x=32，
+   改造前是 589，而那不是判块表里承认的那处偏差，是这条顺序写反了）。
+   小屏退回 logo 左 + 汉堡右，跟另外三种一样（改造前那一支也是这么退的）。 */
+
+[data-block="header"][data-shape="centered-logo"] .header__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
 @media (min-width: 768px) {
+  /* 🔴 每一项都要显式钉 `grid-row: 1`。网格的**稀疏**放置按 DOM 顺序走，而骨架的 DOM 顺序是
+     logo 在前（第 2 列）、导航在后（第 1 列）—— 放完 logo 之后光标已经过了第 1 列，导航就被放到
+     **第二行**去了。实测：顶栏高度 76 → 148，导航整条掉到 y=100。 */
   [data-block="header"][data-shape="centered-logo"] .header__bar {
     display: grid;
     grid-template-columns: 1fr auto 1fr auto;
     align-items: center;
+  }
+
+  [data-block="header"][data-shape="centered-logo"] .header__nav,
+  [data-block="header"][data-shape="centered-logo"] .header__logo,
+  [data-block="header"][data-shape="centered-logo"] .header__cta,
+  [data-block="header"][data-shape="centered-logo"] .header__lang {
+    grid-row: 1;
   }
 
   [data-block="header"][data-shape="centered-logo"] .header__nav {
@@ -3342,19 +3373,18 @@
   }
 }
 
-/* 小屏退回 logo 左 + 汉堡右，跟另外三种一样（改造前那一支也是这么退的）。 */
-[data-block="header"][data-shape="centered-logo"] .header__bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
 /* ── header · pill-floating（圆角胶囊浮条）───────────────────────────────────────────────────
 
    🔴 判块表里这一条写得最长，因为它是四种里**最不像形态**的一个：它跟 `solid-bar` 的差别是
    外层多一圈内边距、内条有圆角 + 阴影 + 白底 —— 内边距、圆角、阴影、底色，**四样全是皮**
    （设计文档 D5，契约 v3 §2）。所以这一层只写它那一条真几何：它仍然吸顶，而内条是独立的一条，
-   不占满整幅宽。皮和间距由主题表给（`sheet-recipes.js` 的 `HEADER_LOOKS['pill-floating']`）。
+   不占满整幅宽。
+   🔴 那四样皮**不在主题表**，在本文件末尾那一节（`#1353 · 两个区的【每形态间距与皮】`），
+      理由和另外两条路的代价写在本文件 `#1353` 那条明写例外里。上一版这里写的是
+      「由主题表给（`sheet-recipes.js` 的 `HEADER_LOOKS['pill-floating']`）」—— 那句话两头都不成立：
+      皮没进主题表，而 `HEADER_LOOKS` 是 **`page-header` 这个块**的四种写法
+      （现取 `Object.keys(HEADER_LOOKS)` = stack-left / centered / title-side / kicker-above），
+      里面根本没有 `pill-floating` 这个键。
    为什么还是给它一个形态名而不是并进 `solid-bar`：选择单（`theme-pool.json` 的 `shapes`）是
    「这套主题的顶栏长什么样」的**唯一用户可见旋钮**，把它并掉之后一套主题选不出胶囊条。 */
 
@@ -3396,25 +3426,36 @@
 
 /* ── footer · slim-row（单行小脚）────────────────────────────────────────────────────────────
 
-   改造前这一支**不渲染**描述、服务栏、联系栏和各栏标题，只画 logo + 六条链接 + 邮箱 + 社交。
-   搬进形态层之后它们都在 DOM 里，由这一层关掉 —— D14 第 2 句（零件缺席不算 HTML 不同）的正用法。
+   改造前这一支**不渲染**描述、服务栏、联系地址和各栏标题，只画 logo + 六条链接 + 邮箱 + 社交，
+   而且那六条链接和邮箱在**同一个会换行的盒子**里（改造前的 `<nav class="flex flex-wrap …
+   gap-x-6 gap-y-2">`）。搬进形态层之后零件都在 DOM 里，由这一层关掉 —— D14 第 2 句的正用法。
 
-   🔴 `display: contents` 这两处是承重的，不是花招：邮箱在骨架里是**联系那一栏的孩子**
-   （多列大脚要它排在地址下面）。把整栏 `display: none` 会把邮箱一起关掉；把邮箱在 DOM 里挪到
-   外面则是 D14 第 1 句禁的「换 DOM 顺序」。`contents` 让那一栏自己消失、孩子升成这一行的成员，
-   于是「关掉标题和地址、留下邮箱」说得出来，而 DOM 一个字节没动。 */
+   🔴 三处 `display: contents` 是承重的，而且要**一层一层往下摊**（栏 → 表 → 项）：链接住在导航那一栏、
+   邮箱住在联系那一栏，改造前它们是同一个换行盒子里的邻居。只摊一层的话，邮箱仍然是「联系那一栏」
+   这个盒子里的东西，它跟链接就换不到同一行去 —— 实测（两臂包围盒对比，azure-29 / 375 宽）：改造前
+   最后一条链接和邮箱同在 y=2188 那一行，只摊一层时邮箱自己占一行。
+
+   🔴 两个宽度用**同一套摊平**，只换「谁把谁推开」：
+     · <768：改造前是一列（`flex-col items-center gap-6`）。这里让品牌那块独占一行
+       （`flex-basis: 100%`），链接和邮箱跟着在下面按 24 / 8 的行列间距换行居中 —— 那正是改造前
+       那个 `<nav>` 自己的 `gap-x-6 gap-y-2`。品牌到链接那 24px 由它自己的下边距补足（行距 8 + 16）。
+     · ≥768：改造前是 `justify-between` 的两组（左 logo、右 nav）。这里给品牌一个
+       `margin-right: auto`，其余全部靠右，间距仍是 24px —— 逐个算过：邮箱右沿 1248、Contact 1063、
+       Home 769，与改造前逐个相同。 */
 
 [data-block="footer"][data-shape="slim-row"] .footer__body {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
+  column-gap: 1.5rem;
+  row-gap: 0.5rem;
 }
 
 [data-block="footer"][data-shape="slim-row"] .footer__desc,
 [data-block="footer"][data-shape="slim-row"] .footer__col-title,
 [data-block="footer"][data-shape="slim-row"] .footer__col--services,
-[data-block="footer"][data-shape="slim-row"] .footer__list--contact {
+[data-block="footer"][data-shape="slim-row"] .footer__item--location {
   display: none;
 }
 
@@ -3424,7 +3465,12 @@
   display: contents;
 }
 
-[data-block="footer"][data-shape="slim-row"] .footer__item {
+/* 🔴 这里点名**导航那一栏的项**和**邮箱那一项**，不写成光秃秃的 `.footer__item`：后者跟上面
+   `.footer__item--location { display: none }` 特异度相同（都是 0,3,0）、又排在后面 ⟹ 地址那几项被
+   它反超成可见（实测：改造后页脚里多出「Main Office」和那条地址，而改造前这一支不渲染它们）。
+   本文件这一批里同一个形状踩过两次，两次都是「同特异度 + 靠后」。 */
+[data-block="footer"][data-shape="slim-row"] .footer__col--nav .footer__item,
+[data-block="footer"][data-shape="slim-row"] .footer__item--email {
   display: inline-flex;
   align-items: center;
 }
@@ -3432,18 +3478,28 @@
 [data-block="footer"][data-shape="slim-row"] .footer__brand {
   display: flex;
   align-items: center;
+  justify-content: center;
+  flex-basis: 100%;
+  margin-bottom: 1rem;
 }
 
 @media (min-width: 768px) {
   [data-block="footer"][data-shape="slim-row"] .footer__body {
-    justify-content: space-between;
+    justify-content: flex-start;
+  }
+
+  [data-block="footer"][data-shape="slim-row"] .footer__brand {
+    flex-basis: auto;
+    margin-bottom: 0;
+    margin-right: auto;
   }
 }
 
 /* ── footer · cta-band（强调色色带 + 小脚）───────────────────────────────────────────────────
 
    这一种真的多一个零件上场：顶上那条 CTA 色带（改造前是 `cta-band` 那一支自己 return 的一段
-   markup）。它在骨架里恒存在，这一层把它打开；色带的底色和内边距是皮，归主题表。
+   markup）。它在骨架里恒存在，这一层把它打开；色带的底色和内边距写在本文件末尾那一节
+   （`#1353 · 两个区的【每形态间距与皮】`），不在主题表 —— 理由见本文件 `#1353` 那条明写例外。
    下面那部分改造前是三列（`md:grid-cols-3`），不是多列大脚的四列，而且不画导航栏目。 */
 
 /* 🔴 `justify-content` 这一行是 `sheet-recipes.test.js` ④ 那条不变量要的：一个块声明了
@@ -3457,7 +3513,11 @@
   justify-content: center;
 }
 
-[data-block="footer"][data-shape="cta-band"] .footer__col--nav {
+/* 🔴 描述在这一种里只上场**一次** —— 在顶上那条色带里（`.footer__cta-sub`）。改造前品牌那一栏
+   只有 logo + 社交，没有描述。不关掉它就是同一句话在页脚里印两遍（实测：两臂对比里它是
+   「只在改造后」的那一条）。 */
+[data-block="footer"][data-shape="cta-band"] .footer__col--nav,
+[data-block="footer"][data-shape="cta-band"] .footer__desc {
   display: none;
 }
 
@@ -3556,15 +3616,23 @@
    改造前这一支的壳是 `container-width px-4 py-8 sm:px-6 lg:px-8`，里面一条 `gap-6` 的行，
    版权行 `mt-6 … pt-6`。下面就是这几个数。 */
 
+/* 🔴 这里只给内边距，**不写 `gap`**：行列间距在上面那一节里是两个不同的数（列 1.5rem、行 0.5rem，
+   照搬改造前那个 `<nav>` 的 `gap-x-6 gap-y-2`），而 `gap: 1.5rem` 是简写、会把行距一起改掉，
+   又排在后面 ⟹ 它赢。实测那一格是 375 宽下链接换行之后的行距。 */
 [data-block="footer"][data-shape="slim-row"] .footer__body {
-  gap: 1.5rem;
   padding: 2rem 1rem 0;
 }
 
+/* 🔴 `padding-left/right` 也要写：`base.css` 给的是 `var(--section-x)`，而那个变量今天解析出来是
+   **19.2px**（现取：`getComputedStyle(.footer__legal).paddingLeft`），不是 1rem —— 多列大脚改造前
+   走的正是 `.section-padding`（同一个变量，所以那一支两臂相同），而这两支改造前是字面的 `px-4`。
+   少写这两行，版权行在 375 宽上左右各差 3px（实测 before x=16 w=343 / after x=19 w=337）。 */
 [data-block="footer"][data-shape="slim-row"] .footer__legal {
   margin-top: 1.5rem;
   padding-top: 1.5rem;
   padding-bottom: 2rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
 }
 
 @media (min-width: 640px) {
@@ -3625,10 +3693,13 @@
   padding: 2.5rem 1rem 0;
 }
 
+/* 同 slim-row 那条：这一支改造前也是字面的 `px-4`，不是 `--section-x`。 */
 [data-block="footer"][data-shape="cta-band"] .footer__legal {
   margin-top: 2.5rem;
   padding-top: 1.5rem;
   padding-bottom: 2.5rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
 }
 
 @media (min-width: 640px) {

@@ -215,7 +215,15 @@ const PAGE_READS = [
     key: 'footer.description',
     region: 'footer',
     renderedBy: ['cta-band', 'multi-column'],
-    visibilityClasses: ['footer__desc'],
+    // 🔴 #1353 —— 这一项有**两个画它的地方**，而且没有哪一种形态两个都开：多列大脚用品牌栏里那段
+    // `.footer__desc`，CTA 色带那一种用色带里的 `.footer__cta-sub`（改造前也是这样：那一支的品牌栏
+    // 只有 logo + 社交，描述只在色带里出现一次）。所以这里写成**一组**：一组里只要还有一个看得见，
+    // 这句话就在页面上。写成两个平列的名字会得出相反的答案 —— 那是「每一个都得看得见」。
+    // 📌 组里第二个名字写的是**色带那个容器** `footer__cta`，不是色带里那行字 `footer__cta-sub`：
+    //    这把尺读的是「有没有一条规则把这个类 `display: none`」，而那行字自己从来没有这种规则 ——
+    //    管它露不露面的是容器（`base.css` 关掉、`cta-band` 打开）。写成那行字的话它对每一种形态都
+    //    读成「看得见」，这一维当场失去量程（实测：阳性对照改前改后同值）。
+    visibilityClasses: [['footer__desc', 'footer__cta']],
     renderPaths: ['footer.description'],
     what: 'the short blurb in the footer',
     read: (nav) => (isObj(nav) && isObj(nav.footer) ? nav.footer.description : undefined),

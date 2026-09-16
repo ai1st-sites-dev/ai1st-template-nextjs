@@ -1428,8 +1428,14 @@ function flattenShape(shape, at = '', out = []) {
     }
     return scoped !== undefined ? scoped : base;
   };
+  // 🔴 #1353 —— 一项里可以是**一个名字**，也可以是**一组名字**（数组）。两者的意思不同，而这个差别
+  // 是承重的：平列的两个名字 = 「每一个都得看得见」（`footer.columns[].title` 要的就是这个：
+  // cta-band 关掉整栏、slim-row 关掉标题，任一关掉这句话就没了）；一组 = 「有一个看得见就算数」
+  // （`footer.description` 要的是这个：它有两个画它的地方，而没有哪一种形态两个都开）。
+  const groupHidden = (cssText, entry, block, shape) => (Array.isArray(entry) ? entry : [entry])
+    .every((cls) => displayOf(cssText, cls, block, shape) === 'none');
   const hiddenIn = (cssText, e, block, shape) => (e.visibilityClasses || [])
-    .some((cls) => displayOf(cssText, cls, block, shape) === 'none');
+    .some((entry) => groupHidden(cssText, entry, block, shape));
 
   const REGION_BLOCK = require(path.join(TEMPLATE_ROOT, 'scripts', 'region-layout.js')).REGION_BLOCK;
 
@@ -1452,7 +1458,7 @@ function flattenShape(shape, at = '', out = []) {
       const claimed = e.renderedBy.includes(v);
       if (claimed && !visible) {
         problems.push(`⑫ \`${e.key}\`：表里说 "${v}" 看得见它，而实测`
-          + `${reallyReads ? `形态 "${v}" 的 CSS 把 ${e.visibilityClasses.join(' / ')} 关掉了` : '组件根本没把它画进 DOM'}`
+          + `${reallyReads ? `形态 "${v}" 的 CSS 把 ${e.visibilityClasses.map((x) => (Array.isArray(x) ? `(${x.join(' 或 ')})` : x)).join(' / ')} 关掉了` : '组件根本没把它画进 DOM'}`
           + ' —— 这道门现在会漏说那句话（老板会拿到「已完成」而页面没变）');
       } else if (!claimed && visible) {
         problems.push(`⑫ \`${e.key}\`：实测 "${v}" 下它是看得见的，而表里没写 —— `

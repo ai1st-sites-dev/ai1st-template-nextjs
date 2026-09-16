@@ -63,7 +63,8 @@ node scripts/block-migration/ac3.js http://…/ph-only.html base-only \
 
 📌 `geo.js` 的输出形状随之变了：原来是 `{media, body, title}` 三个固定键，现在是
 `{sheets, boxes: {"<选择器>": {x,y,width}}}`。**数是同一批数**，只是键由 `--parts` 决定。
-| `paths.js` | 上面三个用浏览器的脚本从这里取 playwright。**它是这次搬家唯一改过的东西** —— 原来三个文件各自写死 `/root/wt/1008/tests/e2e/node_modules/playwright-core`。要指别处就设 `PLAYWRIGHT_CORE_MODULE` |
+| `region-geo.js` | #1353 加的第四把尺：**顶栏 / 页脚这两个区**改造前后「每个元素的包围盒一模一样」。🔴 它不是 `geo.js` 的复制品，因为 `geo.js` 答不了这一问：`geo.js` 的键是**选择器**，两臂共用；而这两个区改造前身上一个 `.header__*` 类都没有（几何全在 Tailwind 工具类串里），选择器这个键在两臂之间不通用。所以这把尺的键是**内容**（元素自己带的那段文字 / 链接的 href / 图片的 src），内容两臂逐字相同。它取 x/y/w/**h** 四个数（`geo.js` 只取三个 —— 对块够用，对区不够：一个矮了 20px 的页脚在那三个数上读不出来），`--width` 可换宽度，`--computed` 可顺带读几个计算样式。用法：两臂各跑一次，然后比两份 JSON |
+| `paths.js` | 上面几个用浏览器的脚本从这里取 playwright。**它是这次搬家唯一改过的东西** —— 原来三个文件各自写死 `/root/wt/1008/tests/e2e/node_modules/playwright-core`。要指别处就设 `PLAYWRIGHT_CORE_MODULE` |
 
 ## 怎么把夹具重建出来
 
