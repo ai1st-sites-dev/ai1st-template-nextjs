@@ -849,11 +849,12 @@ if (staleSupports.length) {
 // 一律配遮罩,所以这个函数只要 theme 的那份结论。
 //
 // 🔴 #1086 —— 这一行以前问的是「这个站换过装了吗」(`appliedThemeId ? layoutFor(…) : readPreview…()`),
-// 📌 #1353:那个 `layoutFor` 今天叫 `regionShapesFor`,读的是选择单不是 supports;这一段其余不变。
+// 📌 #1353:那个 `layoutFor` 今天叫 `regionShapesFor`,读的是选择单不是 supports;下面 ① 那一行
+//    跟着改了名字(`shapes.header` / `shapes.footer`),这一段其余不变。
 // 现在问的是「这个站穿的是哪套主题」。`applied` 在结构这条路上一处都不再出现,而它以前在这里出现两次
 // (这个三元表达式,以及 `readPreviewRegionLayout` 开头那句 `if (appliedThemeId) return {}`)。
 // 优先级从低到高:
-//   ① 注册表里那套主题声明的 `supports.header` / `supports.footer` —— `structureThemeId`,不看 applied。
+//   ① 注册表里那套主题选择单上的 `shapes.header` / `shapes.footer` —— `structureThemeId`,不看 applied。
 //      这是本票的交付:新建的站(`applied:false`)从此拿到它那套主题的骨,不再落回 solid-bar + multi-column。
 //   ② theme.json 自己写的 `regionLayout`,**逐键**压过 ①。写了 header 就用它写的 header,没写 footer
 //      就还是注册表那套的 footer(#1079 候选图册那条路要的正是这个:候选的 id 还不在注册表里,① 是空的)。
@@ -911,9 +912,10 @@ console.log(`  Page layout: ${pageLayout.id} → ${pageLayout.regions.join(' · 
 // 渲染出来但一个像素看不见，而且没有任何东西会报错。
 //
 // 量到的形状（QA1 与我各在浏览器里读过一次，读数一致）：浮层是 `absolute inset-x-0 top-0`、
-// `z-index:50`、高 92px（`Header.tsx:125`），topbar 占 0–44px ⟹ **重叠 44px = topbar 整条**，
-// `elementFromPoint(topbar 中点)` 拿到的是 header 里的 nav。而 `bold-red` 这类主题就会解析成
-// `transparent-overlay`（`themes.js` 的 supports.header）。
+// `z-index:50`、高 92px（当时的 `Header.tsx`；#1353 把那套几何搬进了 `public/shapes.css` 的
+// `[data-shape="transparent-overlay"]` 那一节，行号不再指得准，值没变），topbar 占 0–44px ⟹
+// **重叠 44px = topbar 整条**，`elementFromPoint(topbar 中点)` 拿到的是 header 里的 nav。
+// 而 `bold-red` 这类主题就会解析成 `transparent-overlay`（#1353 起读的是选择单 `shapes.header`）。
 //
 // 🔴 为什么在这里拒绝，而不是「渲染时躲一下」：躲要么给 header 加 top 偏移（那会打断浮层压在
 // 首屏 hero 上这件事本身，#960 那条对比度规则就是围着它写的），要么把 topbar 塞进 header 里面

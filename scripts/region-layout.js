@@ -66,11 +66,13 @@ function shapesOf(blockType) {
 /** 三个区各自的块类型。`topbar` 这个区名对应的块是公告条。 */
 const REGION_BLOCK = { header: 'header', footer: 'footer', topbar: 'announcement-bar' };
 
-// resolveRegionLayout —— 一次构建里这两个 Region 到底长什么样。
+// resolveRegionShapes —— 一次构建里这三个 Region 到底长什么样。
 //
 // 入参:
-//   layout   theme 对每个 block 用哪种写法的结论(`layoutFor(themeId)` —— 注册表里那张表 #1010 起
-//            叫 `supports`,装的是清单,这个函数吐结论);没换装时传 {},两个 Region 都回到现状
+//   chosen   这套主题给三个区挑的形态(`regionShapesFor(themeId)` —— 读的是选择单 `shapes` 里
+//            `header` / `footer` / `announcement-bar` 那三行,每行一个名字);注册表里查不到这个
+//            id 就传 {},三个区都落回各自 manifest 的默认形态
+//            🔴 #1353 之前这个入参叫 `layout`、读的是 `supports`(一个清单,取第一项)。那个键退役了。
 //
 // 📌 #1024 把 `pages` 和 `palette` 两个入参去掉了:它们只喂上面那张已经没有依据的证据表,
 //    而「透明浮层一律加遮罩」不需要看页面、也不需要看调色板。留着不读的入参就是这张表回来的路。
@@ -102,8 +104,10 @@ function resolveRegionShapes(chosen) {
 // ── #1016 —— 透明浮层要求首屏是深的，而这一问只有【生成池子的时候】答得出来 ────────────────────
 //
 // 上面 ② 说的是一半：构建期证明不了首屏是深的,所以浮层一律配遮罩。那层遮罩是页面最上面 160px
-// 的一条黑色渐变(`src/components/Header.tsx` 的 `from-black/75 via-black/55 to-transparent`),
-// 浓度按「首屏是纯白」这个最坏情况定的 —— 浮层的字是白的,不这么浓就读不出来。
+// 的一条黑色渐变,浓度按「首屏是纯白」这个最坏情况定的 —— 浮层的字是白的,不这么浓就读不出来。
+// 📌 #1353 之前它写在 `Header.tsx` 的 Tailwind 串上(`from-black/75 via-black/55 to-transparent`),
+//    今天写在 `public/base.css` 的 `.header__scrim`。浏览器算出来的 `background-image` 两边同一个串
+//    (`linear-gradient(rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0))`,#1353 两臂各量一次)。
 //
 // 🔴 另一半此前没人管:同一层遮罩压在【浅底 + 深字】的 hero 上,把标题最上面那一截压到 rgb(110)
 //    左右,而标题的字本来就是深的。实测(#1016 r5,真机、脚本自己造的样例站、80 份表全量跑):
@@ -113,18 +117,20 @@ function resolveRegionShapes(chosen) {
 //
 // 🔴 这不是挑颜色的事,所以修法不是换一档字色:遮罩那一段里要浅字,遮罩外的浅底上要深字,
 //    没有哪一种字色能同时活过两段。⟹ 只能【不产生这个搭配】—— 一套主题的表把首屏画成浅底时,
-//    它不许声明 `transparent-overlay`。这就是下面这两个函数,`promote.js` 定 `supports.header`
-//    时用它们。
+//    它不许声明 `transparent-overlay`。这就是下面这两个函数,`promote.js` 定选择单里 `header` 那一行
+//    时用它们(#1353 之前那一行叫 `supports.header`)。
 //
 // 🔴 判据落在【表自己的字节 + 这套主题自己的调色板】上,不是版式的名字 —— 上面 ② 已经写明
 //    「从 variant 的名字推底色这条路本身不成立」。生成器手里同时有这两样东西,所以它答得出来;
-//    `resolveRegionLayout` 手里没有,所以它一个字节都没改,现有的站和退役那 30 套的行为完全不变。
+//    `resolveRegionShapes`(#1353 之前叫 `resolveRegionLayout`)手里没有,所以它一个字节都没改,
+//    现有的站和退役那 30 套的行为完全不变。
 //
 // 🔴 证明不了「深」就当它不是深的。两个方向的错法仍然不对称:少一套浮层最多是少一点花样,
 //    多一套是老板首屏上的标题读不出来。
 //
-// 🔴 `via-black/55` 这个数在两处出现(那个组件里的 class 串 + 这里),而两处必然分叉。
-//    `theme-pipeline/pool.test.js` 有一格读 `Header.tsx` 的原文盯它,改了那个 class 会红。
+// 🔴 这个数在两处出现(遮罩那条 CSS 规则 + 这里),而两处必然分叉。
+//    `theme-pipeline/pool.test.js` 有一格盯着它:#1353 之前读 `Header.tsx` 里的 `via-black/55`,
+//    今天读 `public/base.css` 的 `.header__scrim` 那条 `linear-gradient` 的中间那一档。改了会红。
 const HEADER_SCRIM_MID_ALPHA = 0.55;
 // 标题要读得出来的门槛。跟 `sheet-recipes.js` 的 `INK_FLOOR` 同一个数(WCAG 正文 4.5:1),
 // 但故意不 require 它:那份文件是生成表用的配方,而这条规则管的是顶栏,两者没有依赖关系。

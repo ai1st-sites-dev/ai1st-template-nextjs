@@ -11,12 +11,12 @@
 //   colors      配色 — primary 50-900 + accent 50-600, copied into brand.json at creation, and
 //               again whenever the owner changes theme (#1121: brand.json 是颜色的唯一出处)
 //   fonts       字体 — heading/body families + the Google Fonts URL
-//   supports    顶栏 / 页脚这两个【区】的结构 — `header` / `footer`(以及还没有人声明的 `topbar`),
-//               每个键一个清单。`{}` means "no preference"。由 `scripts/region-layout.js` +
-//               sync-config 的 §Regions 消费,清单也在那个文件。
-//               🔴 #1341 起这个键**只许**放 `header` / `footer` / `topbar` 三个名字(检查在下面
-//               `themesWithBadSupportsKeys`)。在那之前它还带四个 block 那一维的键(`hero` / `split` /
-//               `splitRhythm` / `cards`),装的是「我为哪些内容结构写了样式」——那一整维退役了。
+//   shapes      选择单 — 每个块类型一个形态名(`{ "hero": "media-left", "header": "solid-bar", … }`),
+//               值进 DOM 的 `data-shape`,`public/shapes.css` 靠它点名。由 `shapesFor()` /
+//               `regionShapesFor()` 读,`sync-config.js` 消费。
+//               🔴 #1353 起**顶栏 / 页脚 / 公告条这三个区也在这张表里**,跟别的 31 个块一个待遇。
+//               在那之前它们住在另一个键 `supports`(每个键一个清单),而那个键今天**一个都不许有**
+//               (检查在下面 `themesWithSupports`,`sync-config.js` 拿它拦构建)。
 //   style       风格形容词 — one phrase, used in the AI logo prompt (was THEME_STYLE_MAP)
 // plus `industries`, the keyword list the creation-time picker matches against.
 //
@@ -53,8 +53,9 @@
 // 🔴 #1016 —— **新池那 80 套不是这个形状，而且不该是。** 阶段 2（#1030 收尾）把 34 个块的外观全部搬
 // 进了主题自己那份 CSS，组件里再没有一处按 variant 分支（`grep -c 'variant === ' src/components/
 // sections/*.tsx` 今天是 0）。所以「这套主题在这个块上用哪种写法」已经不是靠一个 variant 名字表达的了
-// —— 新池每套的 supports 只有三个键：`hero`（生成器唯一还在选的那个版式）+ `header` / `footer`
-// （#960 的 Region 结构，它们仍然是**结构**而不是 CSS）。其余 31 个块的差异全在那份表的字节里。
+// —— 写它的那天新池每套的 supports 只有三个键：`hero` + `header` / `footer`（#960 的 Region 结构）。
+// 🔴 #1353 起这句话只剩历史价值：`hero` 那个键 #1341 就删了，顶栏 / 页脚这一轮搬进了选择单，
+//    `supports` **一个都不许再有**。今天「这套主题在这个块上用哪种写法」只有一个答案处：`shapes`。
 // ⟹ 拿 #956 那两条去核新池会红，而那不是「新池漏填了」，是那两条说的是另一批主题。
 //
 // 🔴 #993 — A THEME DOES NOT DECIDE BLOCK PLACEMENT. It used to (#962/#983 gave every theme a
@@ -189,12 +190,14 @@ const THEME_SETTING_VALUES = {
   buttonShape: ['rounded', 'square', 'pill'],
 };
 
-// #1318 — 这套主题的**选择单**：31 个块类型各选一个画法名（`theme-pool.json` 的 `shapes`）。
+// #1318 — 这套主题的**选择单**：每个块类型各选一个画法名（`theme-pool.json` 的 `shapes`）。
 //
-// 🔴 它跟 `layoutFor` 是两件事，别合并：`layoutFor` 读的是 `supports`（#1341 之后那里只剩顶栏 /
-//    页脚两个【区】的结构），选择单读的是 `shapes`（这个块**排成
-//    什么样**，值进 DOM 的 `data-shape`，`public/shapes.css` 靠它点名）。一个是能力声明、一个是
-//    做出的选择 —— spec §4.5 / §4.6 把这两件事分开了，合并回去就是把那条边界又抹掉一次。
+// 🔴 #1353 —— 这里原来写着「31 个块类型」，并且旁边一整段讲它跟 `layoutFor`（读 `supports`）
+//    是两件事、别合并。那两句今天都不成立：`supports` 整个退役了，`layoutFor` 改名
+//    `regionShapesFor` 并且读的就是这张表（见它自己那段）。今天这张表有 **34** 个键 ——
+//    31 个内容块 + 顶栏 / 页脚 / 公告条三个区。数别抄这里，现取：
+//    `node -e "const{blockShapeCatalog}=require('./scripts/lib/block-catalog.js');console.log(blockShapeCatalog().blocks.length)"`
+//    （`regionShapesFor` 只是同一张表的一个视图：它只挑三个区那三行。）
 //
 // 🔴 注册表里查不到这个 id（候选流水线装候选、或者站穿着一套已下架的主题）时回**空对象**，不是
 //    报错：调用方 `sync-config.js` 拿不到选择单就不写 `data-shape`，页面落回 `base.css` 的地板，

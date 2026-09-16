@@ -2,7 +2,8 @@
 // #963 — paths parameterised (see paths.mjs); behaviour unchanged.
 // #981 条6/条7 — also reads the header/footer Region back off the page, and can shoot a header close-up.
 //   This is where tests/e2e/region-shots.mjs was folded in; that file is gone. Its captions came out of the
-//   theme registry (`themes[id].supports.header`, called `layout` before #1010), which is a claim, not a
+//   theme registry (`themes[id].supports.header`, called `layout` before #1010 and, since #1353, gone —
+//   the registry now carries one shape name per block in `shapes`), which is a claim, not a
 //   reading: resolveRegionLayout can
 //   hand back something else entirely — it falls back to the default when the variant is unknown, and a
 //   transparent-overlay header always comes with a scrim of its own (#1024). So the caption could

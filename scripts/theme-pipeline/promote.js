@@ -10,8 +10,10 @@
 //    —— 一个值；池子那边要的是 `supports: { hero: ['with-media-left'] }` —— 一个清单（#1010 改名时
 //    连着换了方向：`layout` 是主题替站做选择，`supports` 是主题声明能力）。两种形状同时存在是
 //    #1010 有意留的，但**从候选变成池成员的那一刻谁做这个翻译**，在这张票之前没人管。
-//    翻漏了不会有任何东西报错：`layoutFor()` 读的是 `supports`，读不到就返回 `{}`，
+//    翻漏了不会有任何东西报错：当时的 `layoutFor()` 读的是 `supports`，读不到就返回 `{}`，
 //    于是那套主题静默地"对每个块都没有意见"，而 `region-layout.js` 拿到 `{}` 就把顶栏页脚落回现状。
+//    📌 #1353 起这一族的键叫 `shapes`、函数叫 `regionShapesFor()`；静默失败的形状一模一样，
+//       所以 `verifyPool()` 那两条（不许有 `supports` / 选择单里三个区要在）就是这一段的今天版。
 //
 // 候选自己带不来的三样东西在这里补上，它们是「一套主题」的其余部分（`scripts/themes.js` 文件头
 // 列的四件套 + `industries`）：
@@ -74,10 +76,11 @@ function feelOf(settings = {}) {
 /**
  * 一套候选 + 一个池位子 → 一个池成员。
  *
- * 🔴 `layout`（一个值）在这里变成 `supports`（一个清单），而且**不带进 layout 这个键** ——
- *    两个键同时在一套主题上，`layoutSetsOf()`（gates.js）会拿后写的那个盖掉前一个，
- *    `layoutFor()` 只认 `supports`，于是"到底哪个说了算"取决于读的人是谁。AC6 的判据就是这条：
- *    有 supports 的是全部、还留 layout 的一套都没有。
+ * 🔴 #1353 —— 这段原来写的是「`layout`（一个值）在这里变成 `supports`（一个清单）」。今天不是了：
+ *    顶栏 / 页脚的结构跟别的 31 个块一样写进**选择单** `shapes`（一个名字），`supports` 整个退役，
+ *    `layoutFor()` 也改名 `regionShapesFor()` 并且读选择单。那条规矩本身没变、只是换了键名：
+ *    **一件事只许有一个答案处**，两个键同时在一套主题上就变成"谁说了算取决于读的人是谁"。
+ *    `verifyPool()` 现在两向都查：不许再有 `supports`，且 `shapes.header` / `shapes.footer` 要在。
  */
 function toPoolEntry(candidate, slot) {
   const tokens = candidate.tokens || {};
