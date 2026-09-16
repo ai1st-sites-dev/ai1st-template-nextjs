@@ -94,6 +94,7 @@ console.log('\n① 新 blocks 形状 + ② 隐藏的块也在清单里 + ③ pos
   check(r.ok === true && r.page === 'home' && r.locale === 'en',
     `找到了，并说出是哪一页哪个语言（实际 ${r.page} / ${r.locale}）`);
   check(r.index === 1, `index 是**文件数组**里的下标（实际 ${r.index}）`);
+  check(r.shape === 'blocks', `新形状的页面回 shape='blocks'（实际 ${JSON.stringify(r.shape)}）`);
   check(r.hidden === true, '被藏起来的块照样找得到，并带着 hidden:true ← 老板要靠它把块放回来');
   check(r.total === 4, `total 数的是渲染出来的块（3 个页面块 + 1 个 visibility 命中的，实际 ${r.total}）`);
   // weight: cta 10 → faq 20 → hero 30；floating-team 99 排最后
@@ -125,6 +126,13 @@ console.log('\n⑤ 老 sections 形状：id 是现算的，下标要现查');
   check(r.ok === true && r.page === 'services' && r.index === 1,
     `按构建时算出来的 id 找得到，并回带数组下标（实际 ${JSON.stringify({ ok: r.ok, page: r.page, index: r.index })}）`);
   check(r.locale === '', `老扁平站没有语言目录 ⟹ locale 是空串（实际 ${JSON.stringify(r.locale)}）`);
+  // 🔴 这一格是承重的，不是凑数：面板靠 `shape` 决定 PATCH 怎么定位（新形状按 blockId、老形状按
+  //    index）。我第一版让面板拿「回来的 id 跟我手上那个一不一样」去判 —— 它**恒为假**（老形状的
+  //    块 id 也是同一个现算出来的串，两边逐字相同），于是老站上每一次保存都会撞 bad-locator，
+  //    而新站一切正常。这一格就是那次的守卫。
+  check(r.shape === 'sections', `老 sections 的页面回 shape='sections'（实际 ${JSON.stringify(r.shape)}）`);
+  check(r.id === 'services-services-list-1',
+    `而它回的 id 跟面板手上那个**逐字相同** ⟹ 「id 一不一样」当不了判据（实际 ${JSON.stringify(r.id)}）`);
   // 🔴 反向对照：**这个 id 是位置的函数**。把那一块挪到别处，同一个 id 指向的就是另一个类型的块 ——
   //    这正是「老形状不许拿 id 当 PATCH 目标」的原因，也是本函数必须现查而不是反解字符串的原因。
   const moved = path.join(root, 'legacy2');

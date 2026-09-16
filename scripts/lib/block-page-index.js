@@ -25,7 +25,8 @@
 //    被藏的块在产物里根本不存在（`SectionRenderer.tsx:17` 直接 `return null`）⟹ 预览里点不到 ⟹
 //    只靠「点一下选中」那条路，老板把一个块藏起来之后就再也没有入口把它放回来。
 //
-// 回：`{ ok, page, locale, index, id, type, hidden, pos, total, blocks: [...] }`
+// 回：`{ ok, page, locale, shape, index, id, type, hidden, pos, total, blocks: [...] }`
+//   · `shape`  这一页写的是 `blocks` 还是 `sections` —— PATCH 的定位方式由它决定，调用方猜不出来
 //   · `index`  它在**文件数组**里的下标（PATCH 老形状用这个）
 //   · `pos` / `total`  它在**渲染顺序**里排第几 / 这一页渲染出几个块（面板据此把到头的上移/下移置灰）
 //   · `blocks` 这一页渲染顺序上的全部块 `{id, type, role, hidden, index}`，含隐藏的
@@ -112,6 +113,8 @@ function locateBlockInSite(opts) {
       // `normalizeLocalePages` 按页面自己的 slug 判 visibility，而文件名才是权威（页面 JSON 里那个
       // `slug` 字段老站不一定有）。补上，免得靠 visibility 进来的站级块在这里少一块。
       if (typeof page.slug !== 'string' || !page.slug) page.slug = slug;
+      const hasSections = !Object.prototype.hasOwnProperty.call(page, 'blocks')
+        && Object.prototype.hasOwnProperty.call(page, 'sections');
       let list;
       try { list = blocksOfPage(page, siteBlocks, locale); } catch { continue; }
       const pos = list.findIndex((b) => b.id === wantId);
@@ -121,6 +124,14 @@ function locateBlockInSite(opts) {
         ok: true,
         page: slug,
         locale,
+        // 🔴 **这一页写的是 `blocks` 还是 `sections`，必须由这里说出来 —— 调用方猜不出来。**
+        //    两种形状的 PATCH 定位方式不同（新形状按 `blockId`，老形状按 `index`，因为老形状的
+        //    id 是构建时按下标现算的、一移动就变），而 dev3 的 `findBlockInPage` 对老形状的
+        //    `blockId` 直接回 'bad-locator'。
+        //    我第一版让面板拿「回来的 id 跟我手上那个一不一样」去判 —— **它恒为假**：老形状的块
+        //    id 也是现算出来的同一个串，两边逐字相同。于是老站上每一次保存都会撞 bad-locator，
+        //    而新站上一切正常 ⟹ 这种坏法只有在老站上才看得见，最容易漏过去。
+        shape: hasSections ? 'sections' : 'blocks',
         index: hit.index,
         id: hit.id,
         type: hit.type,

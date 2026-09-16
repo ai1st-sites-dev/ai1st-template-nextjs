@@ -112,6 +112,9 @@ if (hasBlocks === hasSections) {
   die(5, `${path.relative(ROOT, file)} 必须恰好写 blocks 或 sections 其中一个`);
 }
 const key = hasBlocks ? 'blocks' : 'sections';
+// 老 `sections` 形状：这一页的块 id 是构建时按数组下标现算的（#1349 的 generatedBlockId），
+// 所以它**不是**一个能跨移动认块的名字。下面 §keyList 那段写了这条的完整来历。
+const legacyShape = !hasBlocks;
 const arr = page[key];
 if (!Array.isArray(arr)) die(5, `${path.relative(ROOT, file)} 的 "${key}" 不是数组`);
 
@@ -257,18 +260,30 @@ if (patch) {
 //    一把只在「反正也看不见」的时候失明的尺子，等老板把那个块放回来的那天才会显形。
 const after = orderOf(page);
 
-// 认一个块用什么名字：有 `id` 就用 id；没有就用「类型 + 它是同类里的第几个」。
+// 认一个块用什么名字：新 `blocks` 形状用它写在文件里的 `id`；老 `sections` 形状一律用
+// 「类型 + 它是同类里的第几个」。
 //
 // 🔴 **不能用数组下标当名字**（试过，错的）：老 `sections` 形状挪一格换的就是数组下标，
 //    于是「两个相邻的对调」在那把尺子下读成「两个块都变成了别的东西」，一次正常的下移被判成 rc=7。
-// 🔴 已知盲区，写在这里而不是假装没有：同一页上**相邻两个同类型、又都没有 id** 的块互相对调，
-//    这把尺子看到的前后名单一模一样 ⟹ 判成「什么都没发生」而拒掉（rc=7）。方向是拒绝、不是放行，
-//    文件一个字节不动、老板收到一句话，所以宁可这样。要治它得给老 `sections` 形状发稳定 id，
-//    那是另一张票的事。
+//
+// 🔴🔴 **所以老形状那一支必须【看形状】判，不能写成「有 id 就用 id」** —— 这一条是 #1349 与本票
+//    合在一起才露头的，两张票各自跑都是绿的：
+//      · 本票自己那棵树上，老 `sections` 的块**没有** id，`if (b.id)` 那支不开火 ⟹ 走 `type#n`，对；
+//      · #1349 让 `normalizeLocalePages` 给它们**补**了一个 id，而那个 id 是
+//        `<页>-<类型>-<数组下标>`（`blocks.js` §generatedBlockId）—— 位置的函数。
+//      · 合起来：下移一格 ⟹ 两个块的 id 都变 ⟹ 这把尺读成「两个块都变成了别的东西」⟹ rc=7。
+//        实测：`node scripts/patch-block.test.js` 第 ③ 节在合并树上红、在本票自己那棵树上 14/0 绿。
+//    ⟹ 判据换成**页面的形状**（`key`），不是「这个块有没有 id」。新形状的 id 写在文件里、不随位置变
+//    （`{ref}` 解出来的也是站级块自己的 id），那一支不受影响。
+//
+// 🔴 已知盲区，写在这里而不是假装没有：同一页上**相邻两个同类型**的块互相对调（老形状上它们的
+//    名字都是 `type#n`），这把尺子看到的前后名单一模一样 ⟹ 判成「什么都没发生」而拒掉（rc=7）。
+//    方向是拒绝、不是放行，文件一个字节不动、老板收到一句话，所以宁可这样。这跟 #1349 之前一模一样
+//    —— 上面那个改动只是让老形状**回到**它本来的判法，没有新增也没有消掉这个盲区。
 const keyList = (list) => {
   const seen = new Map();
   return list.map((b) => {
-    if (b.id) return b.id;
+    if (b.id && !legacyShape) return b.id;
     const n = seen.get(b.type) || 0;
     seen.set(b.type, n + 1);
     return `${b.type}#${n}`;
