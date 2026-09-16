@@ -462,10 +462,42 @@
 
 /* ── services-list: the parts a sheet cannot select ───────────────────────────────────────────── */
 /* `services-nav` links to `#<service.id>`, which is the id on each item. Without this the sticky bar
-   lands on top of the heading it just scrolled to. `scroll-margin-*` is not on the contract's
-   property list, so this is the only file that can say it. */
+   lands on top of the heading it just scrolled to.
+
+   🔴 #1327 — THE DISTANCE IS NOT A CONSTANT, AND `6rem` WAS ONE. The bar is `position: sticky` and it
+   WRAPS, so how tall it is depends on how many services the business has, how wide the window is, and
+   what the theme sheet writes — `.services-nav` and `.services-nav__link` are both §1 hooks and
+   `padding` / `font-` are both on §2's property list, so a sheet really does move it. Measured on an
+   eight-service fixture (the skipAI demo site `scripts/theme-css-invariants-all-sheets.sh` builds —
+   siteId `themecss1` — with eight services on its /services page, measured 2026-09-15): the bar is
+   320px at 375 and 208px at 1280 (no one length is right at two widths), and swapping ONLY the
+   declarations a sheet is allowed — `.services-nav { padding: 16px 24px }` and
+   `.services-nav__link { padding: 2px 8px; font-size: 11px }` — takes 1280 from 208px to 110px
+   (so this file cannot write an upper bound either — not even "services × line-height", because the
+   line height is the sheet's). With `6rem` the heading a visitor had just clicked was covered 25px out
+   of its own 25px — 100% of it — at BOTH widths.
+
+   🔴 THOSE PIXEL COUNTS MOVE, AND NOTHING HERE STANDS ON THEM. Which sheet that fixture wears is
+   picked by rotation (`scripts/themes.js` §pickThemeForIndustry), so the day the theme pool changes
+   the same recipe reads different numbers: this paragraph has read 500/208, then 298/162, then
+   320/208 — every one of them on "eight services". That is the argument, not a wobble in it, because
+   a bar's height is not a property of "eight services". For a reading that is always current, check
+   ⑩ in `scripts/theme-css-invariants.mjs` prints the bar's height on whatever fixture it is given.
+
+   So the number is measured in the browser instead: `buildServicesNavOffsetScript()` in
+   `src/app/layout.tsx` writes the bar's sticky `top` + its current height + a 16px gap into
+   `--services-nav-scroll-margin`, and keeps it in step through a ResizeObserver.
+
+   🔴 THE FALLBACK IS `6rem` ON PURPOSE, AND IT IS THE OLD VALUE, NOT 0. With no JavaScript — or
+   before that script has run — this lands exactly where it landed before #1327: unchanged, never
+   worse.
+
+   🔴 AND A SHEET MAY NOT WRITE IT. `scroll-margin-*` IS on §2's property list (#1190 put it there for
+   scroll-snap landings), so until #1327 a sheet could legally write the constant back and bring this
+   same defect in through the other door. `scripts/theme-css-lint.js` now refuses `scroll-margin*` on
+   this ONE selector, and only on it. */
 .services-list__item {
-  scroll-margin-top: 6rem;
+  scroll-margin-top: var(--services-nav-scroll-margin, 6rem);
 }
 
 .services-list__actions {

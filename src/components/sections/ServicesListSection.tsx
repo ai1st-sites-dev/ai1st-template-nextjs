@@ -24,7 +24,15 @@ import type { BlockConfig } from '@/lib/types/config';
 // 🔴 THE `<article id={service.id}>` AND ITS `scroll-mt` ARE NOT COSMETIC. `services-nav` links to
 // `#<service.id>`, so the id stays; the scroll offset that keeps the sticky nav from covering the
 // heading moves to globals.css (`scroll-margin-top` on `.services-list__item`), because it is a
-// property of the structure, not of any theme, and `scroll-margin-*` is not on the contract's list.
+// property of the structure, not of any theme.
+// 🔴 #1327 — THE SENTENCE THAT USED TO END THAT LINE ("and `scroll-margin-*` is not on the contract's
+// list") HAS BEEN FALSE SINCE #1190, which put `scroll-padding` / `scroll-margin` on §2's property
+// prefix list so a sheet could say where a scroll-snap lands. A sheet could therefore write this
+// offset back to a constant — the exact defect #1327 is about — so `scripts/theme-css-lint.js` now
+// refuses `scroll-margin*` on `.services-list__item` specifically, and the value globals.css writes
+// is `var(--services-nav-scroll-margin, 6rem)`: the bar measures its own height into that property
+// (`buildServicesNavOffsetScript()` in `src/app/layout.tsx`) because the bar wraps, so how far this
+// item has to move is not a number any stylesheet can know.
 //
 // 🔴 THE PER-FEATURE TICK `<svg>` IS GONE — a sheet paints a mark with `::before { content: "" }` +
 // `background-image`, which is the boundary #1018 drew when it deleted the `dark` variant's overlay.

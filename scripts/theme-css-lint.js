@@ -1011,6 +1011,16 @@ const onlyAddsToLayout = (prop) => ADDS_ONLY_PROPS.has(prop)
 // carrying the same thing, reached by class, by `[data-block=…]`, through a pseudo-element, from a
 // selector list, behind an escape, sizing itself off the window) do not move.
 const PART_HOOKS = new Set([...HOOKS].filter((h) => /^\.[\w-]*__[\w-]+$/.test(h)));
+// #1327 — the one hook whose `scroll-margin*` the structure keeps for itself. Named once, and
+// asserted to be a hook: if the class is ever renamed, this file stops rather than quietly guarding
+// a selector that no longer exists (a deny rule that matches nothing is indistinguishable from a
+// deny rule that is working).
+const SERVICE_ITEM_HOOK = '.services-list__item';
+if (!HOOKS.has(SERVICE_ITEM_HOOK)) {
+  console.error(`theme-css-lint: ${SERVICE_ITEM_HOOK} is not on the contract hook list any more, so `
+    + 'the #1327 check below would guard nothing while still printing a pass. Refusing to run.');
+  process.exit(2);
+}
 // 🔴 #1028 那 22 个名字(批 C 的部件)和 #1029 那 21 个(批 D 的部件)都不在这里手写,它们由上面
 //    这一行从 HOOKS 派生出来。每次跟 main 合并都重新求值核一遍,#1031 r5 这次的读数:main 那份
 //    手写清单 84 条,拿这个谓词从 main 自己的 HOOKS 派生也是 84 条,逐条相同(手写有而派生没有的
@@ -1920,6 +1930,74 @@ function lint(file) {
         + `hide — that selector reaches ${targets.join(' / ')}, and `
         + `${targets.length === 1 ? 'that block is' : 'those blocks are'} \`essential\` in `
         + 'src/lib/sections/block-roles.json (contract §3)');
+    });
+  });
+
+  // ── #1327 — ONE SELECTOR'S `scroll-margin*` IS THE STRUCTURE'S, NOT THE THEME'S ─────────────────
+  //
+  // `.services-list__item`'s `scroll-margin-top` is how far a service moves down the page so the
+  // sticky `services-nav` bar does not land on the heading the visitor just clicked. #1327 measured
+  // that distance: it is the bar's own height, the bar WRAPS, and a sheet moves it (`.services-nav`
+  // and `.services-nav__link` are hooks; `padding` and `font-` are on §2's list) — 320px at 375 and
+  // 208px at 1280 on an eight-service fixture (the skipAI demo site
+  // theme-css-invariants-all-sheets.sh builds, siteId `themecss1`, measured 2026-09-15), and
+  // 208px → 110px at 1280 from swapping only what a sheet may write. 🔴 Those pixel counts move with
+  // whichever sheet the rotation hands that fixture — which IS the argument, not a wobble in it, and
+  // check ⑩ in theme-css-invariants.mjs is where a current one comes from.
+  // So globals.css stopped writing a constant and writes
+  // `var(--services-nav-scroll-margin, 6rem)`, filled in from the browser.
+  //
+  // 🔴 WITHOUT THIS PASS THE SAME DEFECT WALKS BACK IN THROUGH THE OTHER DOOR. #1190 put
+  // `scroll-padding` / `scroll-margin` on §2's PREFIX list — for scroll-snap landings, a real need —
+  // and `.services-list__item` is a §1 hook, so one line in one sheet
+  // (`.services-list__item { scroll-margin-top: 6rem }`) legally puts the constant back and no
+  // reading anywhere goes red. No sheet in the pool writes it today
+  // (`grep -rln 'scroll-margin' scripts/handwritten-sheets/` → 0), which is what makes this the
+  // moment to close it: nothing has to be migrated.
+  //
+  // 🔴 THIS IS DELIBERATELY THE NARROWEST REFUSAL THAT DOES THE JOB — one selector, one property
+  // family. `scroll-padding*` stays legal everywhere (it is on the CONTAINER, which is not this
+  // number), and `scroll-margin*` stays legal on every other hook, so #1190's snap landings are
+  // untouched.
+  //
+  // 🔴 WHY A LITERAL NAME IS ENOUGH HERE, WHEN A DENY RULE USUALLY IS NOT. This file's own warning
+  // (above `checkDecl`) is that refusing by naming what you dislike has the wrong sign, because a
+  // spelling you did not think of walks past. It does not bite here, because a deny rule that sits
+  // BEHIND an allow rule inherits the allow rule's completeness: `checkSelector` already refuses
+  // every simple selector that is not literally on `HOOKS` (`HOOK_PATTERNS` only ever matches
+  // `[data-region-layout=…]` / `[data-block-layout=…]`, neither of which reaches an item), and a
+  // pseudo-CLASS is refused outright. So the only spelling that can reach this element at all is the
+  // literal one this pass names — an escaped `.services-list__it\65 m` is already rc=1, one screen
+  // up, for not being a hook.
+  //
+  // 🔴 A PSEUDO-ELEMENT SUBJECT IS **NOT** SKIPPED HERE, unlike the essential-content pass above.
+  // There the skip bought something real (a sheet taking away a `::after` underline was being called
+  // "hiding essential content"). Here there is nothing to buy: nobody writes a scroll offset on a
+  // `::before`, and on a deny rule the wider reading is the safe one.
+  const reachesServiceItem = (selector) => selector.split(',').some((raw) => {
+    const complex = raw.trim();
+    if (!complex) return false;
+    const compounds = compoundsOf(complex);
+    const subject = compounds[compounds.length - 1] || complex;
+    const base = subject.replace(/::(?:before|after)$/, '');
+    return simpleSelectorsOf(base).includes(SERVICE_ITEM_HOOK);
+  });
+  root.walkRules((rule) => {
+    if (!reachesServiceItem(rule.selector)) return;
+    rule.walkDecls((decl) => {
+      if (!decl.prop.toLowerCase().startsWith('scroll-margin')) return;
+      at(decl, `"${rule.selector} { ${decl.prop}: ${decl.value} }" writes the scroll offset of `
+        + `\`${SERVICE_ITEM_HOOK}\`, which belongs to the structure and not to a theme (#1327). That `
+        + 'number is how far a service moves down so the sticky `services-nav` bar does not land on '
+        + 'the heading the visitor just clicked, and it is the BAR\'S OWN HEIGHT — which wraps, and '
+        + 'which this very sheet moves through `.services-nav` / `.services-nav__link` (measured: '
+        + '320px at 375, 208px at 1280 on an eight-service fixture, and 208px → 110px at 1280 from '
+        + 'padding and font-size alone). No '
+        + 'constant is right at two widths, so src/app/globals.css writes '
+        + '`var(--services-nav-scroll-margin, 6rem)` and the browser fills it in. A constant here '
+        + 'puts the covered heading back. `scroll-padding*` is unaffected, and `scroll-margin*` is '
+        + 'still allowed on every other hook (#1190). The contract writes this exception down in '
+        + 'docs/reference/theme-css-contract.md §2, under the scrolling row.');
     });
   });
 

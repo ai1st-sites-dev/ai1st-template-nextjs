@@ -444,6 +444,52 @@ const EXTRA_SERVICES = [
   patched.push(`page ${SERVICE_SLUG}/oil-change → .service-related-pages*`);
 }
 
+// ── ⑤ 服务页也挂一条服务导航（#1327）─────────────────────────────────────────────────────────
+//
+// 🔴 检查 ⑩ 要的那一对（同一页上既有 `services-nav` 又有 `services-list`）在这个夹具站上此前
+//    只出现在 /allblocks.html，而那一页的 navLabel 是空的、按构造不进任何一页的导航（上面 §② 那段
+//    注释就是为此写的）⟹ 检查 ⑩ 里「从首页点链接走过去」那条臂**没有任何一页可走**，它会报
+//    「这一轮什么都没量到」。而站内跳转正是 #1327 r3 漏掉的那个形状：next/link 换页不重新执行
+//    layout 里那段量条高的脚本。夹具缺这一对，那条臂就永远说不出话。
+//
+// 🔴 补的是夹具缺的**真形状**，不是为了让检查变绿摆的姿势：`create-site.js:2185` 给模型的规矩
+//    逐字是 `SERVICES pages must include: "page-header", "services-nav", "services-list", "cta-banner"`
+//    —— 真站的服务页有这一对。而夹具站走 skipAI 那条路，根本不问模型、用写死的 demo 配置，那份
+//    配置的服务页只有 page-header + services-list（本机现测）。
+//
+// 🔴 补在服务页而不是别处，是因为它的 navLabel 非空（`Services`）⟹ 首页页头真有一个链接指着它。
+//    给 /allblocks.html 加 navLabel 是另一条路，上面 §② 已经把它判掉了（那会给每一页多一个链接，
+//    改掉所有页面的读数）。
+// 🔴 幂等：按块类型判在不在，重复跑不会堆第二条。
+{
+  const svc = path.join(pagesDir, `${SERVICE_SLUG}.json`);
+  if (!fs.existsSync(svc)) die(`no ${path.relative(NEXT, svc)} — the demo site has no services page`);
+  const sp = readJson(svc);
+  const sbs = sp.sections || sp.blocks || [];
+  if (!sbs.some((s) => s.type === 'services-list')) {
+    die(`${path.relative(NEXT, svc)} has no services-list — the pair check ⑩ needs cannot be made here`);
+  }
+  if (!sbs.some((s) => s.type === 'services-nav')) {
+    const listAt = sbs.findIndex((s) => s.type === 'services-list');
+    // 排在 services-list 前面（真站的顺序：先条后列表），weight 取两者之间。
+    const listWeight = Number(sbs[listAt].weight);
+    const prevWeight = listAt > 0 ? Number(sbs[listAt - 1].weight) : listWeight - 10;
+    sbs.splice(listAt, 0, {
+      id: `${SERVICE_SLUG}-services-nav-fixture`,
+      type: 'services-nav',
+      role: 'essential',
+      region: 'content',
+      weight: Number.isFinite(listWeight) && Number.isFinite(prevWeight)
+        ? (prevWeight + listWeight) / 2
+        : listWeight,
+      data: {},
+    });
+    if (sp.sections) sp.sections = sbs; else sp.blocks = sbs;
+    writeJson(svc, sp);
+  }
+  patched.push(`page ${SERVICE_SLUG} 上补了 services-nav → 检查 ⑩ 那一对落在一个首页点得到的页面上（#1327）`);
+}
+
 // ── 读回验一次 ────────────────────────────────────────────────────────────────────────────────
 // 🔴 上面每一处都是「我写了」，这里问的是「盘上现在是什么」。少了这一步，某一处被后来的改动
 //    弄丢时，这个脚本仍然会打印它做过 —— 而那正是本票要治的那种「看起来在工作」。
@@ -538,6 +584,21 @@ const EXTRA_SERVICES = [
     if (!svc.some((s) => s.id === extra.id && s.name === extra.name)) {
       bad.push(`services.json has no service "${extra.id}" (${extra.name}) — services-nav would be too `
         + 'narrow on the fixture page and the row-shape assertions would have nothing to measure (#1320)');
+    }
+  }
+  // #1327 —— 读回两半，因为它们各自都能单独坏掉，而只问前半句时两种坏法长得一样：
+  //   ① 服务页上那一对（services-nav + services-list）真的都在盘上；
+  //   ② 那一页真的进得了导航（navLabel 非空）—— 检查 ⑩ 的软导航臂走的是首页上的链接，
+  //      navLabel 一空，那一对还在而那条臂又没路可走了。
+  {
+    const sp = readJson(path.join(pagesDir, `${SERVICE_SLUG}.json`));
+    const types = (sp.sections || sp.blocks || []).map((s) => s.type);
+    for (const t of ['services-nav', 'services-list']) {
+      if (!types.includes(t)) bad.push(`the ${SERVICE_SLUG} page has no "${t}" — check ⑩ needs both on one page (#1327)`);
+    }
+    if (!sp.navLabel) {
+      bad.push(`the ${SERVICE_SLUG} page has an empty navLabel — nothing on the home page would link to it, `
+        + "and check ⑩'s click-through arm would have nowhere to go (#1327)");
     }
   }
   const childPath = path.join(pagesDir, `${SERVICE_SLUG}-oil-change.json`);

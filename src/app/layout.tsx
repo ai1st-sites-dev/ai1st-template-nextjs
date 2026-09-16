@@ -588,6 +588,95 @@ window.addEventListener('message',function(e){
 })();`;
 }
 
+// ── #1327 —— 服务页那条吸顶导航条【自己多高】，写给 CSS 看 ───────────────────────────────────────
+//
+// `.services-list__item { scroll-margin-top }` 是「点了服务导航里的一个服务之后，那一项要往下让多远
+// 才不会被吸顶条盖住」。它原来是一个常数 `6rem`，而条的高度**不是常数**：
+//
+//   · 服务多一个就可能多一行 —— 8 个服务的夹具上（`theme-css-invariants-all-sheets.sh` 建的那个
+//     skipAI 演示站，siteId `themecss1`，/services 页放 8 个服务，2026-09-15 现取），条在 375 是
+//     320px、在 1280 是 208px；
+//   · 主题表也搬得动它 —— `.services-nav` / `.services-nav__link` 都是契约 §1 的 hook，`padding` 和
+//     `font-` 都在 §2 的属性表里。同一个站同样 8 个服务同样 1280，只换主题表写得动的那三条声明
+//     （`.services-nav{padding:16px 24px}` + `.services-nav__link{padding:2px 8px;font-size:11px}`），
+//     条从 208px 变 110px（375 上同时从 320px 变 274px）。
+//
+// 🔴 上面这几个像素数会变，而本段的论点一点都不靠它们。那个夹具穿哪张表是轮换挑的
+// （`scripts/themes.js` §pickThemeForIndustry），主题池一动，同一份配方就读出另一组数 —— 这几行
+// 先后写过 500/208、298/162、320/208，每一组都是「8 个服务」。这正是论点本身：条有多高不是「8 个
+// 服务」的属性。要一个永远现取的读数，看 `scripts/theme-css-invariants.mjs` 的检查 ⑩ —— 它把当场
+// 那条的高度打进读数行。
+//
+// ⟹ 没有任何一个 CSS 长度对两个宽度都成立，globals.css 连它的**上界**都写不出来（「服务数 × 行高」
+// 也不行，行高归主题）。实测的后果是：那行标题 `h2.services-list__title` 在 375 和 1280 上都被盖掉
+// 25px，而它自己就只有 25px 高 —— 两个宽度各 100%，用户点进去看见的是别的服务的正文。
+//
+// 所以这个数在浏览器里量一次，写进 `--services-nav-scroll-margin`。
+//
+// 🔴 量的是 `getComputedStyle(bar).top`，不是 `getBoundingClientRect().top`。条是 `position: sticky`：
+// 页面在顶上时它的 rect.top 是它在文档流里的位置，而**跳过去之后**它会停在 sticky 的那个 `top`（今天
+// globals.css 写的是 73px，页头的高度）。要让位的是后者。
+//
+// 🔴 取不到就不写这个变量，而不是写 0：CSS 那边的兜底是 `6rem`，也就是本票之前的行为。失败方向是
+// 「跟以前一样」，不是「一点都不让位」。没有 JS 的浏览器同理。
+//
+// 🔴 ResizeObserver 盯的是条自己，不是窗口：条变高的原因不止一个（窗口宽度、字体换成真字体之后重新
+// 换行、主题预览当场换了一张表），而这三件事都会让它的盒子变，窗口 resize 只覆盖第一件。没有
+// ResizeObserver 的浏览器退回 `resize` + `load` 两个事件。
+//
+// 🔴 这段脚本一个文档只执行一次，而用户到达服务页的路不止一条（#1327 第二轮，QA3 量出来的）：
+// 站内点页头的 Services 属于客户端跳转 —— App Router 只换掉 `{children}`，layout 一直活着，所以
+// 这段脚本【不会】重跑。第一轮交付在那条路上：变量从没被写过，`scroll-margin-top` 落回 `6rem`，
+// 标题在 375 和 1280 上又被整行盖住（2026-09-15 在上面那个夹具上把这份 layout.tsx 单独换回第一轮
+// 那份现取：item 297/558 与 185/485、标题两个宽度各 25/25，而同一份产物【直开】仍然是 0）。跳走再
+// 跳回还多一个形态：ResizeObserver 盯的是【当时那个】条的节点，跳页后那个节点已经被换掉，观察静默
+// 失效 —— 回来之后把窗口从 1280 拖到 375，条变成 320px 而变量停在 297px（实测 covered 96/558、
+// 标题 12/25；同一次里【不离开页面】只把窗口拖窄的对照写的是 409px）。
+//
+// 所以这段脚本现在跟的是【条自己的生死】，不是文档的加载：MutationObserver 看着 body，条一换人就
+// 重新量一次、并且把 ResizeObserver 挪到新条上。条不在了就把变量摘掉 —— 摘掉之后 CSS 落回 `6rem`，
+// 也就是本票之前的行为，跟「取不到就不写」是同一个失败方向。
+//
+// 🔴 MutationObserver 的回调只做一次 querySelector 和一次身份比较，真正要量的时候才碰 offsetHeight
+// （那一下会强制排版）：水合期间 body 底下的改动是成批的，回调按帧合并一次，条没换就什么都不做。
+function buildServicesNavOffsetScript(): string {
+  return `(function(){
+var SEL='.services-nav',NAME='--services-nav-scroll-margin',GAP=16;
+var root=document.documentElement,bar=null,ro=null,queued=false;
+function measure(){
+  if(!bar)return;
+  var top=parseFloat(getComputedStyle(bar).top);
+  if(!isFinite(top))return;
+  root.style.setProperty(NAME,(top+bar.offsetHeight+GAP)+'px');
+}
+function sync(){
+  queued=false;
+  var next=document.querySelector(SEL);
+  if(next===bar)return;
+  bar=next;
+  if(ro){ro.disconnect();if(bar)ro.observe(bar);}
+  if(bar)measure();else root.style.removeProperty(NAME);
+}
+function schedule(){
+  if(queued)return;
+  queued=true;
+  if(window.requestAnimationFrame)requestAnimationFrame(sync);else setTimeout(sync,0);
+}
+if(window.ResizeObserver)ro=new ResizeObserver(measure);
+else window.addEventListener('resize',measure);
+// The bar is normally already parsed when this runs (this script is emitted after the page's
+// content), and a parser-blocking inline script also waits for the stylesheets - so the first
+// reading is taken here, not a tick later.
+sync();
+// The bar comes and goes with client-side navigation, and it can also arrive later than this script
+// on a document where it is rendered below. Both are the same question - "is the bar on the page
+// the one we are watching?" - so both are answered here rather than by waiting for DOMContentLoaded.
+if(window.MutationObserver)new MutationObserver(schedule).observe(document.body,{childList:true,subtree:true});
+else document.addEventListener('DOMContentLoaded',sync);
+window.addEventListener('load',function(){sync();measure();});
+})();`;
+}
+
 export const metadata: Metadata = {
   title: {
     default: seo.siteTitle,
@@ -700,6 +789,16 @@ export default function RootLayout({
           />
         )}
         {children}
+        {/* #1327: how far a service has to sit below the sticky services-nav bar is the bar's own
+            height, which is not a constant (see buildServicesNavOffsetScript). This script measures
+            it into `--services-nav-scroll-margin`; globals.css falls back to the old `6rem` when it
+            has not run. 🔴 AFTER {children} on purpose — a parser-blocking inline script here runs
+            with the bar already parsed AND with the stylesheets applied, so the very first reading
+            is a real one; before {children} it would have to wait for DOMContentLoaded. It is a
+            no-op on every page that has no services-nav block, and it keeps watching: this layout
+            survives client-side navigation, so the script measures again whenever the bar itself is
+            swapped out or removed. */}
+        <script dangerouslySetInnerHTML={{ __html: buildServicesNavOffsetScript() }} />
         {/* TICKET-273: AI chat widget. Always injected (siteId+leadApi from 268); the widget self-gates
             at runtime via /api/chat/widget-config, so toggling chat_enabled off deactivates it on the
             next load with no rebuild. Absent leadApi/siteId (dev) → skipped. */}
