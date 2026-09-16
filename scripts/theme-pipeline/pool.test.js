@@ -290,7 +290,10 @@ console.log('\n── ⑧ 透明浮层只给深底首屏；判据里那个遮罩
     '脚手架池里一套 transparent-overlay 都没有 ⟹ 正向断言没有对象；反向对照仍然照跑');
   const overlay = overlaySkipped
     ? []
-    : poolIds.filter((id) => ((poolThemes[id].supports || {}).header || [])[0] === 'transparent-overlay');
+    // 🔴 #1353 —— 这里原来读的是 `supports.header`（一个清单，取第 0 项）。`supports` 整个退役了，
+    //    留着它这一行**恒读到空**，而空的样子跟「池里真的没有浮层主题」一模一样（这一维本来就
+    //    在脚手架期被跳过 ⟹ 池子重生成那天它会带着一个假的空集合回来）。改读选择单 `shapes.header`。
+    : poolIds.filter((id) => (poolThemes[id].shapes || {}).header === 'transparent-overlay');
   const breaks = [];
   for (const id of overlay) {
     const sheetPath = path.join(NEXT, 'public', 'themes', `${poolThemes[id].sheet}.css`);
