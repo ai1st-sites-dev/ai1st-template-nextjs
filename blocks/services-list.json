@@ -1,5 +1,6 @@
 {
   "type": "services-list",
+  "displayName": "Services",
   "category": "services",
   "roleDefault": "essential",
   "shapes": [

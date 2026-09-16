@@ -156,6 +156,17 @@ function checkManifestShape(name, m, cssShapes) {
   const isStr = (v) => typeof v === 'string' && v.length > 0;
   const strArray = (v) => Array.isArray(v) && v.every(isStr);
 
+  // #1349 —— 这个块给**用户**看的名字。点选检查器的右侧面板显示的就是它。
+  //
+  // 🔴 必填，而且不许拿 `type` 顶替：`hero` / `cta-banner` 是内行黑话，CLAUDE.md 的术语冻结不许它
+  // 出现在用户可见 UI。少一个的失败方向是静默的 —— 面板会显示 `undefined`（或者退化成类型原文），
+  // 而那一格看起来就像「这个块没名字」，没有人会红。所以在这儿当场拒。
+  // 🔴 也不是 manifest 里的 `label`：那是**槽位**名（`divider.json` 的 `slots.label`、按钮的
+  // `{label, href}`），跟「这个块叫什么」是两件事。
+  if (!isStr(m.displayName)) {
+    bad(`displayName 是 ${JSON.stringify(m.displayName)} —— 必须是非空字符串（给用户看的名字，`
+      + '编辑器右侧面板显示的就是它；不许拿 type 原文顶替，那是内行黑话）');
+  }
   if (!isStr(m.category)) bad('category 必须是非空字符串');
   if (!ROLE_NAMES.includes(m.roleDefault)) {
     bad(`roleDefault 是 ${JSON.stringify(m.roleDefault)} —— 只能是 ${ROLE_NAMES.join(' / ')}`

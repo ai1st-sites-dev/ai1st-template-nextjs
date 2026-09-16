@@ -1,5 +1,6 @@
 {
   "type": "services-nav",
+  "displayName": "Services Menu",
   "category": "services",
   "roleDefault": "essential",
   "shapes": [

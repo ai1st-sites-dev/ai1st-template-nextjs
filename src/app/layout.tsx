@@ -564,6 +564,104 @@ function paintCss(text){
   }
   st={ignored:ignored,refused:false};
 }
+// ── #1349 —— 点选检查器的站侧那一半 ────────────────────────────────────────────────────────────
+//
+// 契约（消息名、字段、方向）写在 docs/reference/block-preview-messages.md，那份文档跟这段代码是
+// 同一次改动 —— 面板那一侧照它写，后面三张票（形态下拉 / 显隐排序 / 文字直改）只往上加消息。
+//
+// 🔴 它住在 buildThemePreviewScript 里面，所以自动继承了本脚本第一行那个 window.parent===window
+// 早退 —— 这正是 AC4 要的那条性质：直接打开的站（真实访客）连这段代码都不会执行，点块没有任何反应、
+// 不加类、一条 postMessage 都不发。写成一段独立的 script 标签就得把那个早退再抄一遍，而抄漏的方向
+// 是静默的（访客点一下自己的网站，页面上出现一个蓝框）。
+//
+// 🔴 D4 那条「形态零 JS」不管这一段：它是**预览通道**，不是块的画法。真实访客拿到的页面里，块怎么
+// 排仍然全部由 public/shapes.css 决定，这段代码在那儿从不执行。
+//
+// 🔴 编辑模式是【面板说了算】，不是这边自己开。默认关，收到 ai1st:block-mode 才开。理由是关着的时候
+// 这段代码必须对预览**一点影响都没有** —— 老板在预览里点导航、点 FAQ、填表单都是真要发生的事，而开着
+// 的时候每一次 click 都被 preventDefault 掉（见 onClick 那段）。两种行为差得这么远，不能由这边猜。
+var bOn=false,bSel=null,bStyle=null;
+function bCss(){
+  if(bStyle)return bStyle;
+  bStyle=document.createElement('style');
+  bStyle.id='ai1st-block-inspect';
+  // 🔴 outline 而不是 border/box-shadow：outline 不占盒子、不参与布局 ⟹ 开编辑模式不会把页面推歪，
+  // 而「点一下预览，版面跳一下」正是老板会当成 bug 报上来的那种事。outline-offset 取负数让框画在
+  // 块里面，免得相邻两块的框叠在一起。
+  bStyle.textContent='[data-block].ai1st-blk-hi{outline:3px solid #2563eb;outline-offset:-3px}'
+    +'[data-block].ai1st-blk-hover{outline:2px dashed rgba(37,99,235,.6);outline-offset:-2px}';
+  document.head.appendChild(bStyle);
+  return bStyle;
+}
+function bRootOf(el){
+  var n=el;
+  while(n&&n.nodeType===1){
+    if(n.getAttribute&&n.getAttribute('data-block')!==null)return n;
+    if(n===document.body)break;
+    n=n.parentNode;
+  }
+  return null;
+}
+function bById(id){
+  var ns=document.querySelectorAll('[data-block]'),i;
+  for(i=0;i<ns.length;i++){if(ns[i].getAttribute('data-block-id')===id)return ns[i];}
+  return null;
+}
+function bPaint(el){
+  var ns=document.querySelectorAll('[data-block]'),i;
+  for(i=0;i<ns.length;i++){ns[i].className=String(ns[i].className||'').split(' ')
+    .filter(function(x){return x&&x!=='ai1st-blk-hi'&&x!=='ai1st-blk-hover';}).join(' ');}
+  bSel=el||null;
+  if(el){bCss();el.className=(el.className?el.className+' ':'')+'ai1st-blk-hi';}
+}
+// 一个块「说了什么」—— 面板右侧那三行读的就是它。
+// 🔴 消息信封那个 type 字段是九条既有消息定下来的形状（layout.tsx 从 #925 起就是它），所以**块的
+// 类型不能也叫 type**。它叫 block，跟它在 DOM 上的属性名 data-block 一样 —— 票正文把两者都写成
+// type，那个形状在一个对象里落不下来。
+// 🔴 id 为 null = 「现在什么都没选中」。另起一条 -deselected 消息也行，但面板那边就要把两种消息
+// 合成同一个状态，而漏接一条的方向是静默的（面板停在上一次选中的块上）。
+function bInfo(el){
+  var has=[],a,i;
+  if(el){
+    a=el.attributes;
+    for(i=0;i<a.length;i++){if(a[i].name.indexOf('data-has-')===0)has.push(a[i].name.slice(9));}
+    has.sort();
+  }
+  return {type:'ai1st:block-selected',
+    id:el?(el.getAttribute('data-block-id')||null):null,
+    block:el?el.getAttribute('data-block'):null,
+    shape:el?(el.getAttribute('data-shape')||null):null,
+    has:has};
+}
+function bSay(el){try{window.parent.postMessage(bInfo(el),T);}catch(err){}}
+// 🔴 capture 阶段 + preventDefault + stopPropagation，三个一起，而且只在编辑模式里。
+// 点中的很可能是块【里面】的一个链接或按钮（AC 末条点名的就是 hero 的 CTA）：
+//   · 不 preventDefault → iframe 当场跳页，老板选个块把预览跳走了；
+//   · 不 stopPropagation → 站自己的 React 处理器照跑（FAQ 展开、轮播翻页、表单提交）；
+//   · 不用 capture → 上面两件事里有一半在冒泡到 document 之前就已经发生了。
+// 选中的是**块根**（bRootOf 往上找最近的 [data-block]），所以点块里任何地方都选中这一块。
+function bClick(ev){
+  if(!bOn)return;
+  ev.preventDefault();
+  ev.stopPropagation();
+  var el=bRootOf(ev.target);
+  bPaint(el);
+  bSay(el);
+}
+function bOver(ev){
+  if(!bOn||!bStyle)return;
+  var el=bRootOf(ev.target),ns=document.querySelectorAll('.ai1st-blk-hover'),i;
+  for(i=0;i<ns.length;i++){ns[i].className=String(ns[i].className||'').split(' ')
+    .filter(function(x){return x&&x!=='ai1st-blk-hover';}).join(' ');}
+  if(el&&el!==bSel){el.className=(el.className?el.className+' ':'')+'ai1st-blk-hover';}
+}
+function bMode(on){
+  bOn=!!on;
+  if(bOn){bCss();}
+  else{bPaint(null);}
+}
+document.addEventListener('click',bClick,true);
+document.addEventListener('mouseover',bOver,true);
 window.addEventListener('message',function(e){
   if(e.origin!==T)return;
   var d=e.data;
@@ -582,6 +680,28 @@ window.addEventListener('message',function(e){
     if(Object.prototype.hasOwnProperty.call(d,'shapes')){paintShapes(d.shapes);}
   }
   else if(d.type==='ai1st:theme-preview-reset'){clear();}
+  // #1349 —— 块那一组。放在 theme-preview 那几条**后面**、在最后那个兜底 return 之前，所以
+  // theme-preview 那组一个字节都没动（它们的 ack 仍然只由下面那一行发）。
+  else if(d.type==='ai1st:block-ping'){
+    // 老模板判据的另一半：这条 ack 就是「这个站的产物带着本票这段脚本」。面板 2 秒收不到就灰掉
+    // 编辑开关（AC3）。🔴 不能靠版本号 —— 站仓里没有任何东西写着模板版本，而 Apply/换主题都不重建
+    // （#1002），所以「这个站是什么时候建的」跟「它的产物里有没有这段代码」不是一回事。
+    try{window.parent.postMessage({type:'ai1st:block-ack'},T);}catch(err){}
+    return;
+  }
+  else if(d.type==='ai1st:block-mode'){bMode(d.on);return;}
+  else if(d.type==='ai1st:block-highlight'){
+    var bt=typeof d.id==='string'?bById(d.id):null;
+    bPaint(bt);
+    if(bt&&d.scroll)bt.scrollIntoView({block:'center'});
+    return;
+  }
+  else if(d.type==='ai1st:block-clear'){bPaint(null);return;}
+  else if(d.type==='ai1st:block-scroll'){
+    var bs=typeof d.id==='string'?bById(d.id):null;
+    if(bs)bs.scrollIntoView({block:'center'});
+    return;
+  }
   else if(d.type!=='ai1st:theme-preview-ping'){return;}
   try{window.parent.postMessage({type:'ai1st:theme-preview-ack'},T);}catch(err){}
 });

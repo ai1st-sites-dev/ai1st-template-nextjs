@@ -1,5 +1,6 @@
 {
   "type": "hero-with-form",
+  "displayName": "Opening Banner with Form",
   "category": "banner",
   "roleDefault": "lead",
   "hooksFrom": "hero",

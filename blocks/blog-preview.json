@@ -1,5 +1,6 @@
 {
   "type": "blog-preview",
+  "displayName": "Latest Blog Posts",
   "category": "blog",
   "roleDefault": "optional",
   "shapes": [

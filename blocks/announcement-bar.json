@@ -1,5 +1,6 @@
 {
   "type": "announcement-bar",
+  "displayName": "Announcement Bar",
   "category": "banner",
   "roleDefault": "optional",
   "shapes": [

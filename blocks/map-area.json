@@ -1,5 +1,6 @@
 {
   "type": "map-area",
+  "displayName": "Areas We Serve",
   "category": "location",
   "roleDefault": "essential",
   "shapes": [

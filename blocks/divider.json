@@ -1,5 +1,6 @@
 {
   "type": "divider",
+  "displayName": "Divider",
   "category": "divider",
   "roleDefault": "optional",
   "shapes": [

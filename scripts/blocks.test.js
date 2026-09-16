@@ -392,5 +392,60 @@ console.log('\n── ⑩ #1341 老站残留的 block_layout / variant 读的时
   else ok('夹具成立: hero 没有列表槽，上面那条 variant 读数因此走的是「提前返回」那一支');
 }
 
+// ── #1349 —— 块 id：两条路一处实现 ──────────────────────────────────────────────────────────────
+//
+// 🔴 这一格守的不是「id 长得对」，是**两个调用方算出来的是同一个东西**。它们服务同一个站的两个
+//    时刻：`pageWithBlocks()` 在建站写盘那一刻、`normalizeLocalePages()` 在每一次构建（老
+//    `sections` 形状的页面在那里才拿到 id）。两处各写一遍的失败方向是静默的 —— 页面照样打开、
+//    构建照样绿，而编辑器点中一个块、拿这个 id 回头去改页面 JSON 时改到的是别的块。
+//
+// 🔴 所以判据是**把同一份页面喂给两条路，比两组 id**，不是各自跟一个手打的字面量比：
+//    手打字面量在两边一起抄错时是绿的，而那正是这一格要抓的那种错。
+{
+  const { pageWithBlocks, generatedBlockId } = blocks;
+  if (typeof pageWithBlocks !== 'function' || typeof generatedBlockId !== 'function') {
+    die('blocks.js 没导出 pageWithBlocks / generatedBlockId');
+  }
+
+  // 老 `sections` 形状（磁盘上今天每一个既有站的样子）：没有 id、没有 role/region/weight。
+  const oldShape = () => ({
+    slug: 'services/drain-repair',
+    blocks: undefined,
+    sections: [
+      { type: 'page-header', data: { title: 'T' } },
+      { type: 'text-block', data: { body: 'B' } },
+      { type: 'contact-form', data: {} },
+    ],
+  });
+  const stripUndef = (p) => { const o = { ...p }; delete o.blocks; return o; };
+
+  const viaCreate = pageWithBlocks(stripUndef(oldShape())).blocks.map((b) => b.id);
+  const built = stripUndef(oldShape());
+  normalizeLocalePages([built], {}, 'en', {});
+  const viaBuild = built.blocks.map((b) => b.id);
+
+  if (JSON.stringify(viaCreate) === JSON.stringify(viaBuild)) {
+    ok(`块 id 两条路一致: ${JSON.stringify(viaBuild)}`);
+  } else {
+    bad(`块 id 两条路分叉了 —— 建站 ${JSON.stringify(viaCreate)} vs 构建 ${JSON.stringify(viaBuild)}`);
+  }
+
+  // 形状本身也要钉一格，否则「两边一起变成空字符串」也会让上面那格绿。
+  // 斜杠换横杠是承重的：id 进的是 DOM 属性，也是 React 的 key。
+  const want = 'services-drain-repair-text-block-1';
+  if (viaBuild[1] === want) ok(`块 id 是三段「页-类型-序号」且斜杠换成了横杠: ${want}`);
+  else bad(`块 id 形状不对: 想要 ${want}，拿到 ${viaBuild[1]}`);
+
+  if (generatedBlockId('home', 'hero', 0) === 'home-hero-0') ok('generatedBlockId 直接调用的读数对');
+  else bad(`generatedBlockId('home','hero',0) = ${generatedBlockId('home', 'hero', 0)}`);
+
+  // 🔴 反向对照：**页面 JSON 自己写了 id 的块，构建期不许覆盖它**。覆盖的话
+  //    `{ "ref": "<id>" }` 那条路（站级块库）会指不到东西，而那是静默的。
+  const authored = { slug: 'home', blocks: [{ id: 'my-own-name', type: 'hero', data: {} }] };
+  normalizeLocalePages([authored], {}, 'en', {});
+  if (authored.blocks[0].id === 'my-own-name') ok('反向对照: 页面自己写的 id 没被现算的那个覆盖掉');
+  else bad(`页面自己写的 id 被覆盖成了 ${authored.blocks[0].id}`);
+}
+
 console.log(`\n══ ${pass} 过 / ${fail} 败 ══`);
 process.exit(fail ? 1 : 0);

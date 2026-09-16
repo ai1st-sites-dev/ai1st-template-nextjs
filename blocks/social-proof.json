@@ -1,5 +1,6 @@
 {
   "type": "social-proof",
+  "displayName": "Ratings & Reviews",
   "category": "testimonial",
   "roleDefault": "optional",
   "shapes": [

@@ -1,5 +1,6 @@
 {
   "type": "stats-counter",
+  "displayName": "Key Numbers",
   "category": "metrics",
   "roleDefault": "optional",
   "shapes": [

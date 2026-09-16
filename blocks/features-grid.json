@@ -1,5 +1,6 @@
 {
   "type": "features-grid",
+  "displayName": "Feature Highlights",
   "category": "feature",
   "roleDefault": "optional",
   "shapes": [

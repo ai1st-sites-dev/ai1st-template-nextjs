@@ -1,5 +1,6 @@
 {
   "type": "content-split",
+  "displayName": "Text & Image",
   "category": "text",
   "roleDefault": "optional",
   "shapes": [

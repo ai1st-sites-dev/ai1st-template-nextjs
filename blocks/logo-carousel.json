@@ -1,5 +1,6 @@
 {
   "type": "logo-carousel",
+  "displayName": "Logo Strip",
   "category": "gallery",
   "roleDefault": "optional",
   "shapes": [

@@ -1,5 +1,6 @@
 {
   "type": "card-group",
+  "displayName": "Card Group",
   "category": "feature",
   "roleDefault": "optional",
   "shapes": [

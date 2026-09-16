@@ -1,5 +1,6 @@
 {
   "type": "contact-form",
+  "displayName": "Contact Form",
   "category": "contact",
   "roleDefault": "essential",
   "shapes": [

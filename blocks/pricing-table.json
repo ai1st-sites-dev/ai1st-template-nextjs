@@ -1,5 +1,6 @@
 {
   "type": "pricing-table",
+  "displayName": "Pricing",
   "category": "pricing",
   "roleDefault": "optional",
   "shapes": [

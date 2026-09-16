@@ -1,5 +1,6 @@
 {
   "type": "timeline",
+  "displayName": "Timeline",
   "category": "process",
   "roleDefault": "optional",
   "shapes": [

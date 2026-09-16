@@ -1,5 +1,6 @@
 {
   "type": "trusted-brands",
+  "displayName": "Trusted Brands",
   "category": "gallery",
   "roleDefault": "optional",
   "shapes": [

@@ -1,5 +1,6 @@
 {
   "type": "hero",
+  "displayName": "Opening Banner",
   "category": "banner",
   "roleDefault": "lead",
   "shapes": [

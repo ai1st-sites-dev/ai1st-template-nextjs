@@ -485,6 +485,13 @@ function normalizeLocalePages(pages, siteBlocks, locale, report) {
         throw new Error(`${where} 第 ${i} 个块既没有 "type" 也没有 "ref"`);
       }
       const block = { ...entry, __order: i };
+      // #1349 —— 老 `sections` 形状的块没有 id（`config.ts` 的 `BlockConfig.id` 那行注释说的就是它），
+      // 而点选检查器要一个能指回页面 JSON 的名字。这里按跟 `pageWithBlocks()` **同一个函数**现算一个。
+      // 🔴 只在没有的时候补：写了 id 的块（新形状、以及 `ref` 解出来的站级块）一律用它自己的那个，
+      //    否则 `{ "ref": … }` 那条路的 id 会被这里覆盖掉，而下面那道唯一性检查读的就是它。
+      if (typeof block.id !== 'string' || !block.id) {
+        block.id = generatedBlockId(page.slug, block.type, i);
+      }
       if (block.role !== undefined && !ROLE_NAMES.includes(block.role)) {
         note(`${where} 第 ${i} 个块的 "role" 是 ${JSON.stringify(block.role)}，只能是 `
           + `${ROLE_NAMES.join(' / ')} —— 这个字段被忽略，按类型默认表算（${block.type} → `
@@ -511,7 +518,11 @@ function normalizeLocalePages(pages, siteBlocks, locale, report) {
     }
 
     // id 在一页之内必须唯一 —— SectionRenderer 拿它当 React 的 key。撞了的话 React 会把两个块当成
-    // 同一个,页面上少一块而构建是绿的(老站没有 id,走的是 type+位置那条兜底,不受这条影响)。
+    // 同一个,页面上少一块而构建是绿的。
+    // 📌 #1349 之前这句后面还有一个括号：「老站没有 id，走的是 type+位置那条兜底，不受这条影响」。
+    //    那一半**不再成立** —— 上面那个 `generatedBlockId` 现在给每个页面块都补了一个 id，所以老站
+    //    也进这道检查。补出来的 id 自带 `-<i>` 后缀，页面块之间按构造不会撞；真会撞的只剩一种：
+    //    站级块库里有人把某个块的 id 起成了 `<页>-<类型>-<序号>` 这个形状。撞了的处置没变（下面那段）。
     // 🔴 撞了的处置是「点名 + 把后面那个的 id 摘掉」，不是 exit 1（PM r4 那条原则的直接应用：
     // 摘掉 id 之后那个块照样渲染，只是 React 的 key 落回 `type+位置` 那条兜底 —— 有明确、无歧义的
     // 默认行为 ⟹ 属于「能安全兜底」那一栏。留着才是真丢东西：React 把两个块当成同一个，页面上
@@ -603,6 +614,24 @@ function loadBlockManifests(rootDir) {
 //    `readPageBlocks` 读的时候丢掉。
 
 
+// ── 块 id 的算法，一处（#1349）────────────────────────────────────────────────────────────────────
+//
+// 三段：`<页 slug，斜杠换成横杠>-<块类型>-<它在页面数组里的位置>`。
+//
+// 🔴 **为什么必须只有一处实现。** 这个算法有两个调用方，而它们服务的是**同一个站的两个时刻**：
+//   · `pageWithBlocks()` —— 建站那一刻写盘（#998 之后新建的站，页面 JSON 里每个块都已经带 id）；
+//   · `normalizeLocalePages()` —— 每次构建，给**老 `sections` 形状**那些没有 id 的块现算一个。
+// 两处各写一遍的失败方向是静默的：老站构建出来的 `data-block-id` 跟同一份页面 JSON 过一遍
+// `pageWithBlocks()` 得到的 id 对不上，而页面照样打开、构建照样绿 —— 坏的是编辑器点中一个块之后
+// 拿这个 id 回头去改页面 JSON 时，改到的是另一个块（或者谁都不是）。
+//
+// 🔴 序号取的是**归一化之前**那个数组里的位置，不是排序之后的。理由是它得可复算：排序（weight）
+// 和站级块注入都发生在这之后，而 `pageWithBlocks()` 那一侧根本没有这两步。两边都在同一个时刻取数，
+// 才有「两处没分叉」这件事可言。
+function generatedBlockId(pageSlug, type, index) {
+  return `${String(pageSlug).replace(/\//g, '-')}-${type}-${index}`;
+}
+
 // ── 建站脚本那一侧：AI 产出的 sections → 写进磁盘的 blocks ──────────────────────────────────────
 //
 // 🔴 建站提示词今天仍然让 AI 吐 `sections`。这里做的
@@ -616,7 +645,7 @@ function pageWithBlocks(page) {
   out.blocks = raw.map((s, i) => {
     if (typeof s.ref === 'string') return { ...s };
     const b = {
-      id: `${page.slug.replace(/\//g, '-')}-${s.type}-${i}`,
+      id: generatedBlockId(page.slug, s.type, i),
       type: s.type,
       role: s.role || roleFor(s.type),
       region: s.region || 'content',
@@ -646,5 +675,6 @@ module.exports = {
   normalizeLocalePages,
   loadBlockManifests,
   pageWithBlocks,
+  generatedBlockId,
   MANIFEST_DIR,
 };

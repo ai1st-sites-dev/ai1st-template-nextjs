@@ -1,5 +1,6 @@
 {
   "type": "feature-comparison",
+  "displayName": "Feature Comparison",
   "category": "feature",
   "roleDefault": "optional",
   "shapes": [

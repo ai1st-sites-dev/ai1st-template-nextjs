@@ -52,6 +52,14 @@ export const BLOCK_ROLES: Record<string, BlockRole> = blockRoles as Record<strin
 export interface BlockAttrs {
   'data-block': string;
   'data-role': BlockRole;
+  /** #1349 — 这个块在它那一页里的名字。点选检查器（dashboard 的编辑模式）靠它把「用户点中的那个
+   *  DOM 元素」跟「页面 JSON 里的那条记录」对上，后面三张票（形态下拉 / 显隐排序 / 文字直改）
+   *  都拿它回头去改那条记录。
+   *  🔴 **它是标识，不是画法钩子。** 主题表不许写它的选择器 —— `scripts/theme-css-lint.js` 的
+   *  `EDITOR_ATTRS` 点名拒绝，理由与写法在 `docs/reference/theme-css-contract.md` 那一段。
+   *  🔴 值不在这里算：`scripts/blocks.js` 的 `generatedBlockId()` 是唯一算它的地方（建站写盘和
+   *  构建期归一化两条路都调它），这里跟 `shape` / `has` 一样只负责把写下的值送到 DOM。 */
+  'data-block-id'?: string;
   /** #1318 — 这个块排成什么样。`public/shapes.css` 靠 `[data-block][data-shape]` 点名。 */
   'data-shape'?: string;
   /** #1331 — 可选槽位填了没：manifest 里 required:false 且填了的每个槽位一个 `data-has-<槽位>="true"`。 */
@@ -79,6 +87,13 @@ export interface BlockAttrs {
 export function blockAttrs(type: string, block?: BlockConfig): BlockAttrs {
   const role = block && block.role ? block.role : (BLOCK_ROLES[type] || 'essential');
   const attrs: BlockAttrs = { 'data-block': type, 'data-role': role };
+  // #1349 — `data-block-id`。跟下面 `shape` / `has` 两段逐字同一个分工：值由构建期算好写进页面 JSON
+  // （`scripts/blocks.js` §generatedBlockId），这里**不再算一遍**。
+  // 🔴 没有就一个字符都不多，不造兜底值：造一个的话，一个「其实没人给过 id」的块在编辑器里会得到
+  // 一个看起来正常、却指不回任何一条页面 JSON 记录的名字 —— 而那是静默的（点得中、改不动）。
+  if (block && typeof block.id === 'string' && block.id) {
+    attrs['data-block-id'] = block.id;
+  }
   // #1318 — `data-shape`，这个块排成什么样。
   // 📌 #1341 之前它旁边还有 #998 那第三个钩子（内容结构：这个块有没有配图），两个钩子并存、
   //    各说一件事；那一维退役之后只剩这一个。

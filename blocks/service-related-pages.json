@@ -1,5 +1,6 @@
 {
   "type": "service-related-pages",
+  "displayName": "Related Pages",
   "category": "services",
   "roleDefault": "optional",
   "shapes": [

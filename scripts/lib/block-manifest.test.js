@@ -313,5 +313,67 @@ console.log('── ⑩ 站级块提供的块，第 ④ 条也要看得见（#11
   }
 }
 
+// ── #1349 —— 每份 manifest 都有一个给用户看的名字 ───────────────────────────────────────────────
+//
+// 🔴 两臂，而且反臂是**真跑一次校验器**，不是读一遍字段。少一个 displayName 的失败方向是静默的：
+//    点选检查器的面板会显示空白（或退化成 `hero` 这种内行黑话），而没有任何一格会红。
+console.log('\n── #1349 每个块都有 displayName');
+{
+  const fsx = require('fs');
+  const osx = require('os');
+  const BLOCKS = path.join(NEXT, 'blocks');
+
+  // ① 正臂：今天 32 份全都有，而且是非空字符串、互不相同。
+  const all = [...loadManifests().entries()];
+  const missingName = all.filter(([, m]) => typeof m.displayName !== 'string' || !m.displayName)
+    .map(([t]) => t);
+  if (missingName.length === 0) ok(`${all.length} 份 manifest 全都有非空的 displayName`);
+  else bad(`这几份没有 displayName: ${missingName.join(' / ')}`);
+
+  // 🔴 重名要当场红：面板上两个不同的块显示同一个名字，老板点了两下看不出自己点中了哪个 ——
+  //    而那一格看起来就像「点选没生效」。
+  const seen = new Map();
+  const dupes = [];
+  for (const [t, m] of all) {
+    if (seen.has(m.displayName)) dupes.push(`${m.displayName} (${seen.get(m.displayName)} / ${t})`);
+    else seen.set(m.displayName, t);
+  }
+  if (dupes.length === 0) ok('32 个 displayName 互不相同');
+  else bad(`displayName 重名: ${dupes.join(' · ')}`);
+
+  // 🔴 而且不许拿类型原文顶替（CLAUDE.md 的术语冻结：用户可见 UI 不出现内行黑话）。
+  const jargon = all.filter(([t, m]) => m.displayName === t).map(([t]) => t);
+  if (jargon.length === 0) ok('没有一份把 displayName 写成 type 原文');
+  else bad(`这几份的 displayName 就是 type 原文: ${jargon.join(' / ')}`);
+
+  // ② 反臂：把一份 manifest 的 displayName 删掉，`loadManifests()` 必须 throw，而且点名那个文件。
+  //    夹具是**整个 blocks/ 的副本 + 配套的 public/shapes.css**（loadManifests 按 dir 的真路径推
+  //    CSS 的位置，见它自己那段注释），不碰仓里的文件。
+  const tmp = fsx.mkdtempSync(path.join(osx.tmpdir(), 'blk1349-'));
+  try {
+    fsx.mkdirSync(path.join(tmp, 'blocks'));
+    fsx.mkdirSync(path.join(tmp, 'public'));
+    for (const f of fsx.readdirSync(BLOCKS)) fsx.copyFileSync(path.join(BLOCKS, f), path.join(tmp, 'blocks', f));
+    fsx.copyFileSync(path.join(NEXT, 'public', 'shapes.css'), path.join(tmp, 'public', 'shapes.css'));
+
+    const victim = path.join(tmp, 'blocks', 'hero.json');
+    const m = JSON.parse(fsx.readFileSync(victim, 'utf-8'));
+    delete m.displayName;
+    fsx.writeFileSync(victim, JSON.stringify(m, null, 2));
+
+    let threw = null;
+    try { loadManifests(path.join(tmp, 'blocks')); } catch (e) { threw = e; }
+    if (!threw) {
+      bad('反臂: 删掉 hero.json 的 displayName 之后 loadManifests() 照样过了 —— 这道守卫不存在');
+    } else if (!threw.message.includes('blocks/hero.json') || !threw.message.includes('displayName')) {
+      bad(`反臂: 报了，但没同时点名文件和字段: ${threw.message}`);
+    } else {
+      ok(`反臂: 删掉 displayName ⟹ throw，且点名了 blocks/hero.json（${threw.message.slice(0, 60)}…）`);
+    }
+  } finally {
+    fsx.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
 console.log(`\n══ ${pass} 过 / ${fail} 败 ══`);
 process.exit(fail ? 1 : 0);

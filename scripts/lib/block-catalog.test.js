@@ -61,13 +61,17 @@ function fixture(blocks, registryTypes) {
   for (const [type, shapes] of Object.entries(blocks)) {
     fs.writeFileSync(path.join(root, 'blocks', `${type}.json`), JSON.stringify({
       type,
+      // #1349 —— 第三个这样的键。夹具少了它，下面四个反臂又会全部变成「夹具自己不合法」（见下面
+      //          那条 🔴 —— 这正是它记下来的那件事，第二次发生）。
+      displayName: `Test ${type}`,
       category: 'test',
       roleDefault: 'optional',
       layout_intent: { items: 'none', item_wrap: 'allow', headline: 'none', media: 'none', columns: 'one' },
       shapes: shapes.map((name, i) => ({ name, needs: i === 0 ? [] : [] })),
       slots: { headline: { kind: 'text', required: true, promptOptional: false } },
-      // 🔴 `checkManifestShape` 还要这两个键 —— 少了它当场抛，而那句话跟本文件要测的那条错**长得不一样**
-      //    却同样是「抛了」。第一版夹具就少了 `variants`，四个反臂于是全都在测「夹具自己不合法」。
+      // 🔴 `checkManifestShape` 还要这几个键 —— 少了它当场抛，而那句话跟本文件要测的那条错**长得不一样**
+      //    却同样是「抛了」。第一版夹具就少了 `variants`，四个反臂于是全都在测「夹具自己不合法」；
+      //    #1349 加 `displayName` 时又撞了一次同一件事（上面那个键）。
       variants: {},
       industries: { required: [], recommended: [], discouraged: [] },
     }, null, 2));
