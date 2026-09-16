@@ -2864,6 +2864,137 @@
   }
 }
 
+/* team-grid · four-up  （#1365 · FlyonUI team-1「4×2 成员卡网格」的骨架）
+   三端出处逐字：电脑 4 列 × 2 行 · iPad 降为 2 列 · 手机单列堆叠。下面就是这三档。
+   🔴 出处那一版每张卡上有方形照片和一行社交图标 —— 本块的中性 markup 里**没有这两样**
+   （#1029 有意删掉了那个首字母头像；照片是数据不是长相，要加是另一张票）。所以这一种买的是
+   「一行放四个人」这一维，跟 three-up 的差别就是列数，D12 的读数也落在这一根上。 */
+
+[data-block="team-grid"][data-shape="four-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="team-grid"][data-shape="four-up"] .team-grid__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="team-grid"][data-shape="four-up"] .team-grid__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="team-grid"][data-shape="four-up"] .team-grid__member {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 640px) {
+  [data-block="team-grid"][data-shape="four-up"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-block="team-grid"][data-shape="four-up"] {
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+  }
+}
+
+/* team-grid · single-feature  （#1365 · FlyonUI team-19「单人聚焦」的骨架）
+   三端出处逐字：电脑 左文右照并排 · iPad 仍并排、照片收窄 · 手机 上下（文上照下）。
+   🔴 右边那张竖幅人像本块没有（同上）⟹ 这一种买的是「一位一行、栏收窄」这一维：
+   `columns: one` + 每个人的卡有自己的上限宽。它是 team-grid 名下**唯一**一种同级项纵向一列的，
+   `items` 和 `columns` 两根轴都跟其余四种不同。
+   🔴 这里**不写** `margin-inline: auto` 把卡居中：文件头那条契约说这一层不写 margin，而且居中之后
+   每个人的左边界会随各自内容宽度变，`items: stack` 那条断言要的正是「同级项 x 只有一个值」。 */
+
+[data-block="team-grid"][data-shape="single-feature"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="team-grid"][data-shape="single-feature"] .team-grid__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="team-grid"][data-shape="single-feature"] .team-grid__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="team-grid"][data-shape="single-feature"] .team-grid__member {
+  display: grid;
+  align-content: start;
+  max-width: 42rem;
+}
+
+/* team-grid · two-up-horizontal  （#1365 · FlyonUI team-6「2×2 横向成员卡」的骨架）
+   三端出处逐字：电脑 2 列 × 2 行横向卡（左照片 / 右姓名职位与简介）· iPad 卡改竖版、仍 2 列 ·
+   手机 单列堆叠。
+   🔴 出处那个「横向」是照片与文字并排，而本块没有照片 ⟹ 横的是**文字自己的两栏**：
+   姓名与职位在左、简介在右。买到的那一维是「卡内部横向」，出处那一维本身还在。
+   🔴🔴 **已知盲区，写在这儿而不是脚注**：#1332 的词表只有五根轴
+   （`items / item_wrap / headline / media / columns`），**没有「卡内部朝向」这一根** ⟹ 这一种与
+   既有的 `two-up` 在守卫 ⑨ 眼里意图完全一样（都是 grid/allow/above/none/two）。它们真的不同
+   这件事今天只由几何读数说（交付留言里那张 D12 对照表）。要让机器自己看见这一维得加第六根轴，
+   而校验器 `layoutIntentProblems` 要求**每根轴都在**（`scripts/lib/block-manifest.js` §layoutIntentProblems
+   第一条就是「缺 "<轴>" 这根轴」）⟹ 32 份 manifest 里今天这 86 个形态逐个都要补一行，
+   还跟在飞的姊妹票撞车 —— 那是另一张票。#1360 名下 `three-up-heading-*` 那两种是同一形状的先例。
+   🔴 卡内部那两栏按比例分（`2fr 3fr`），不写死宽度：图册里一格只有半个屏宽，写死 12rem 会把简介
+   挤成一列竖着的字（实测 640 宽的格子里简介只剩 40px）。比例分在任何卡宽下都按 40% / 60% 走。
+   🔴 三档就是出处那三端，两个断点管两件不同的事：**640 起根上分两列**（iPad：两列、卡仍竖着）、
+   **1024 起卡自己分两栏**（电脑：两列 + 卡内部横向）。手机（<640）一列堆叠，守卫在 375 下只判
+   「零件留在内容盒里」。📌 第一版把这两个断点写反了（640 卡横、1024 根两列），iPad 那一档就成了
+   「一列 + 横卡」—— 出处那三端里没有这一档；实测 768 下量出来才看见。 */
+
+[data-block="team-grid"][data-shape="two-up-horizontal"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="team-grid"][data-shape="two-up-horizontal"] .team-grid__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="team-grid"][data-shape="two-up-horizontal"] .team-grid__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="team-grid"][data-shape="two-up-horizontal"] .team-grid__member {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 640px) {
+  [data-block="team-grid"][data-shape="two-up-horizontal"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-block="team-grid"][data-shape="two-up-horizontal"] .team-grid__member {
+    grid-template-columns: 2fr 3fr;
+    align-items: start;
+  }
+
+  [data-block="team-grid"][data-shape="two-up-horizontal"] .team-grid__name {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  [data-block="team-grid"][data-shape="two-up-horizontal"] .team-grid__role {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  [data-block="team-grid"][data-shape="two-up-horizontal"] .team-grid__bio {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+}
+
 /* ══ testimonials ══════════════════════════════════════════════════════════════════════ */
 
 /* testimonials · attribution-first  （ember-12 今天选的就是它） */
