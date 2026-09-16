@@ -148,8 +148,24 @@ export default function Footer({ locale, variant: variantOverride }: { locale: s
             搬成一副骨架之后它们改成「在 DOM 里、由 `shapes.css` 关掉」，而访客看到的一模一样
             （AC1 的包围盒逐项对比证的就是这件事）。这个属性是 markup 自己说「这一块可以不在」的地方
             （`blockAttrs.ts`，#1331），`theme-css-invariants.mjs` 的 §3 读它。 */}
+        {/* 🔴 这一栏是 `<nav>`，不是 `<div>`（#1353 r5，QA3 第 1 条 / PM 判在射程内）：改造之前
+            `slim-row` 那一支把这些链接包在一个 `<nav>` 里，而搬成一副骨架时它变成了 `div` ——
+            于是**页脚的 navigation 地标整个没了**，而池里 azure-29 正穿着 slim-row。
+            🔴 换标签不动几何，这一条是量出来的不是推的：`public/shapes.css` 与 `globals.css` 里
+            **按标签名选 `div` / `nav` 的规则是 0 条**（现取），页脚这一层全按类名选；两者的 UA
+            默认样式又都是 `display: block`。AC1 那两把尺（包围盒 + 逐像素）的读数贴在交接留言里。
+            🔴 **只换标签，不给它 `aria-label={column.title}`** —— 试过，两处都不行，理由是量出来的：
+            ① 那会让 `column.title` 在组件里有**两个**渲染点，而 `navigation-owned.test.js` 的 ⑫ 阳性
+               对照①正是「只删掉 `<h3>` 里那一处，解析器就得说组件不再画它」—— 加了之后那一格当场红，
+               而红得对：组件确实还在画它。
+            ② 更要紧的是语义：`slim-row` 把 `.footer__col-title` 关掉了，而 `PAGE_READS` 里
+               `footer.columns[].title` 那一格据此告诉老板「你这个站不显示栏目标题」。给 `<nav>` 起个
+               用标题当名字的名，等于让它在那一种形态下又被读屏念出来 —— 那句话就变成半真的。
+            📌 代价写在明处：多栏页脚会出现几个**没有名字**的 navigation 地标。改造之前是 0 个
+            （只有 slim-row 有一个，同样没有名字），所以这不是回归；要给它们起名是另一件事，
+            得先想清楚名字从哪来（不能是这个字段）。 */}
         {footer.columns.map((column) => (
-          <div key={column.title} className="footer__col--nav" data-role="optional">
+          <nav key={column.title} className="footer__col--nav" data-role="optional">
             <h3 className="footer__col-title">{column.title}</h3>
             <ul className="footer__list">
               {column.links.map((link) => (
@@ -158,7 +174,7 @@ export default function Footer({ locale, variant: variantOverride }: { locale: s
                 </li>
               ))}
             </ul>
-          </div>
+          </nav>
         ))}
 
         <div className="footer__col--services" data-role="optional">
