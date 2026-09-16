@@ -325,7 +325,7 @@ function main(argv) {
     // 🔴 #1353 r2 —— 这里原来印「有 supports 的 X/N 套 · 还留着 layout 的 Y 套」。本票退役 `supports`
     //    之后 X 恒 0；而 Y 其实**一直**恒 0 —— 这两样正是上面 `verifyPool` 刚刚拒过的东西，走到这一行
     //    时它们按构造只能是 0。一句永远为真的话不是读数。换成池子里真的会变的那一维：三个区各自的
-    //    形态分布（跟 §main 末尾那行同一个读数）。公告条那一行单独印，因为 `verifyPool` 只强制
+    //    形态分布（跟本文件 `promote.js` §main 末尾那行同一个读数）。公告条那一行单独印，因为 `verifyPool` 只强制
     //    header / footer ⟹ 它是这三行里唯一可能读到 `(没有)` 的。
     const ids = Object.keys(pool);
     const dist = (region) => {
