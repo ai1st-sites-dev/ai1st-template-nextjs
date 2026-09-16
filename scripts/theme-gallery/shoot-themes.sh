@@ -152,11 +152,11 @@ for id in "${IDS[@]}"; do
   #
   # 换成量被拍的那份产物，两条独立的读数，两条都得成立：
   #   ① 调色板真的到了页面上   —— out/<站>/theme.css 里 --color-primary-500 等于注册表那套
-  #   ② 主题的结构真的到了页面上 —— 生成的 config-data.ts 里 regionLayout 等于这套主题声明的
+  #   ② 主题的结构真的到了页面上 —— 生成的 config-data.ts 里 regions 等于这套主题声明的
   #      📌 #1341 之前 ② 读的是「hero 的 variant 等于这套主题声明的」。主题对每个块的内容结构有什么
   #         意见，这一整维退役了（没有主题再声明它、构建也不再写 data.variant）⟹ 那条读数会对每一套
   #         主题都退化成「这套主题没表态」，而那看起来跟量过了一模一样。换成顶栏 / 页脚那一维 ——
-  #         它是 layoutFor() 今天真的还在答的那一维。
+  #         它是 regionShapesFor()（#1353 之前叫 layoutFor）今天真的还在答的那一维。
   # ① 覆盖旧判据本来管的那件事（sync-config 认得这个 id 并按它上了色）而且更强：旧判据只要那行
   # 日志在就放行，日志在跟字节落地不是一件事。② 是旧判据里「N section variant(s)」那一半的直接
   # 读数。两条都不依赖任何一句话的措辞 —— 下一次改日志不会再断一次。
@@ -165,7 +165,8 @@ for id in "${IDS[@]}"; do
   if ! reading=$(node -e '
     const fs = require("fs"), path = require("path");
     const [next, built, id] = process.argv.slice(1);
-    const { themes, layoutFor } = require(path.join(next, "scripts/themes.js"));
+    const { themes, regionShapesFor } = require(path.join(next, "scripts/themes.js"));
+    const { REGION_BLOCK } = require(path.join(next, "scripts/region-layout.js"));
     const t = themes[id];
     if (!t) { console.error(`no theme "${id}" in the registry`); process.exit(1); }
     const want = t.colors && t.colors.primary && t.colors.primary["500"];
@@ -176,21 +177,32 @@ for id in "${IDS[@]}"; do
       console.error(`the page is on --color-primary-500 ${got || "(not found)"}, the registry says ${want}`);
       process.exit(1);
     }
-    // ② 顶栏 / 页脚这两个区的结构。主题两个都没表态时这一半没有可比的东西，说出来而不是假装量过了。
-    const wantRegions = layoutFor(id);
-    const keys = ["header", "footer", "topbar"].filter((k) => wantRegions[k]);
+    // ② 三个区的结构。主题一个都没表态时这一半没有可比的东西，说出来而不是假装量过了。
+    // 🔴 #1353 —— 这一段以前读 `layoutFor(id)`（注册表的 `supports`）跟产物里的 `export const
+    //    regionLayout`（值是字符串）对账。本票把顶栏 / 页脚 / 公告条按块的规矩搬进形态层之后
+    //    **三个名字同时变了**：函数叫 `regionShapesFor`、读的是选择单 `shapes`；产物那个导出叫
+    //    `regions`，每个区的值是 `{ shape: "…" }`。三样只改一样都会坏，而坏法各不相同：
+    //      · 函数名不改 ⟹ `layoutFor is not a function`，每套主题都走进下面那句「主题没到页面上」
+    //        ⟹ 一张图都拍不出来（跟上面那段 QA1 实测 1 → 0 的形状一模一样）
+    //      · 正则不改   ⟹ `m` 恒 null ⟹ 同上，每套都被判成读不出来
+    //      · 只改前两样 ⟹ 拿 `{shape:"solid-bar"}` 跟字符串比，**每套都不相等**，报的还是像模像样的
+    //        `header is "[object Object]"`
+    //    区名（`topbar`）与块类型（`announcement-bar`）的对照表不在这里手抄，取 `REGION_BLOCK`。
+    const wantRegions = regionShapesFor(id);
+    const pairs = Object.entries(REGION_BLOCK).filter(([, blockType]) => wantRegions[blockType]);
     let regionNote = "regions: this theme states no preference (nothing to compare)";
-    if (keys.length) {
+    if (pairs.length) {
       const cd = fs.readFileSync(path.join(next, "src/lib/config-data.ts"), "utf-8");
-      const m = cd.match(/export const regionLayout = (.*);\n/);
-      if (!m) { console.error("cannot read regionLayout out of config-data.ts"); process.exit(1); }
-      const got = JSON.parse(m[1]);
-      const wrong = keys.filter((k) => got[k] !== wantRegions[k]);
+      const m = cd.match(/export const regions = (.*);\n/);
+      if (!m) { console.error("cannot read regions out of config-data.ts"); process.exit(1); }
+      const built = JSON.parse(m[1]);
+      const got = (region) => ((built[region] || {}).shape);
+      const wrong = pairs.filter(([region, blockType]) => got(region) !== wantRegions[blockType]);
       if (wrong.length) {
-        console.error(`${wrong.map((k) => `${k} is "${got[k]}", the theme declares "${wantRegions[k]}"`).join("; ")}`);
+        console.error(`${wrong.map(([region, blockType]) => `${region} is "${got(region)}", the theme declares "${wantRegions[blockType]}"`).join("; ")}`);
         process.exit(1);
       }
-      regionNote = `regions: ${keys.map((k) => `${k} "${got[k]}"`).join(" · ")}`;
+      regionNote = `regions: ${pairs.map(([region]) => `${region} "${got(region)}"`).join(" · ")}`;
     }
     console.log(`--color-primary-500 ${want} · ${regionNote}`);
   ' "$NEXT" "$built" "$id"); then

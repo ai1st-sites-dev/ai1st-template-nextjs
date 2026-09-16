@@ -322,9 +322,22 @@ function main(argv) {
       for (const p of problems) console.error(`   ${p}`);
       process.exit(1);
     }
-    const withSupports = Object.values(pool).filter((t) => t.supports && Object.keys(t.supports).length).length;
-    const withLayout = Object.values(pool).filter((t) => t.layout !== undefined).length;
-    console.log(`✅ 有 supports 的 ${withSupports}/${Object.keys(pool).length} 套 · 还留着 layout 的 ${withLayout} 套`);
+    // 🔴 #1353 r2 —— 这里原来印「有 supports 的 X/N 套 · 还留着 layout 的 Y 套」。本票退役 `supports`
+    //    之后 X 恒 0；而 Y 其实**一直**恒 0 —— 这两样正是上面 `verifyPool` 刚刚拒过的东西，走到这一行
+    //    时它们按构造只能是 0。一句永远为真的话不是读数。换成池子里真的会变的那一维：三个区各自的
+    //    形态分布（跟 §main 末尾那行同一个读数）。公告条那一行单独印，因为 `verifyPool` 只强制
+    //    header / footer ⟹ 它是这三行里唯一可能读到 `(没有)` 的。
+    const ids = Object.keys(pool);
+    const dist = (region) => {
+      const counts = {};
+      for (const id of ids) {
+        const v = (pool[id].shapes || {})[region] || '(没有)';
+        counts[v] = (counts[v] || 0) + 1;
+      }
+      return Object.entries(counts).map(([v, n]) => `${v} ${n}`).join(' · ');
+    };
+    console.log(`✅ ${ids.length} 套的选择单：顶栏 ${dist('header')} · 页脚 ${dist('footer')}`
+      + ` · 公告条 ${dist('announcement-bar')}（公告条这一行 verifyPool 不强制）`);
     process.exit(0);
   }
 
@@ -369,7 +382,8 @@ function main(argv) {
   //    清空进不了 main（池子空时 `npm run test:scripts` 当场红，CI 的 template-scripts job 跑的
   //    正是它），所以它不是能溜进生产的洞 —— 它是**盘上破坏 + 让重建池子的人白折腾**。
   //    两条路里选的是「先自查后写盘」而不是「0 套直接拒绝」：`verifyPool` 判的不止「空不空」
-  //    （还有 `layout` 没翻成 `supports`、`supports.x` 不是非空字符串清单），而那几种不达标今天
+  //    （#1353 之后是：还留着 `supports` / `layout` 这两个退役键、`shapes.header` / `shapes.footer`
+  //    不是非空字符串），而那几种不达标今天
   //    同样是**写完盘才说**。收窄成只拦 0 套的话，剩下那几种照旧会把一份不达标的池子留在盘上。
   const problems = verifyPool(pool);
   if (problems.length) {
@@ -396,14 +410,18 @@ function main(argv) {
     + `${argv.includes('--no-sheets') ? '（没拷表）' : ` + ${map.length} 份表 → public/themes/`}`);
   for (const m of map) {
     console.log(`  ${m.candidate} → ${m.id}  (${m.sector})`
-      + `${m.headerMovedBy ? `  · 顶栏让开了 → ${(pool[m.id].supports.header || [])[0]}：${m.headerMovedBy}` : ''}`);
+      + `${m.headerMovedBy ? `  · 顶栏让开了 → ${(pool[m.id].shapes || {}).header}：${m.headerMovedBy}` : ''}`);
   }
   // 🔴 #1016 r5 —— 让开的套数单独报一次。逐行那句话在 80 行里翻页就看不见了，而这个数是
   //    「顶栏那一维还剩多少花样」的读数：全 80 套都让开就等于池子里根本没有透明浮层了。
+  // 🔴 #1353 r2 —— 上面那行和这里读的都是**选择单**（`shapes.header`，一个名字）。它们原来读
+  //    `supports.header`（一个清单，取首项）；本票把 `supports` 退役之后那两处一个抛 TypeError、
+  //    一个恒读 `(没有)`，而恒读那一个是**不出声**的那种坏法：这行日志照印，只是每套都算进
+  //    `(没有)` 那一格 —— 「顶栏那一维还剩多少花样」这个读数当场失明。QA1 在 #1353 r1 抓到。
   const moved = map.filter((m) => m.headerMovedBy);
   const headerCounts = {};
   for (const id of Object.keys(pool)) {
-    const h = ((pool[id].supports || {}).header || ['(没有)'])[0];
+    const h = (pool[id].shapes || {}).header || '(没有)';
     headerCounts[h] = (headerCounts[h] || 0) + 1;
   }
   console.log(`顶栏：${Object.entries(headerCounts).map(([h, n]) => `${h} ${n}`).join(' · ')}`
