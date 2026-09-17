@@ -198,7 +198,7 @@ const basePayload = (over = {}) => ({
 const { homepageRecipe, tryHomepageRecipe, recipeProblems, recipePromptLines, fingerprintEnabled,
   afterRetry, poolFor, industryRank, rotate, NOT_IN_POOL, BAR_EVERY } = require('./homepage-recipe');
 const { rotationIndexFromSiteId } = require('../themes');
-const { loadManifests, promptSection } = require('./block-manifest');
+const { loadManifests, promptSection, isRegionManifest, BLOCKS_DIR } = require('./block-manifest');
 const manifests = loadManifests();
 
 console.log('══ #1034 首页开场配方 ══');
@@ -311,7 +311,7 @@ console.log('── ④ recipeProblems:只看首页（AC6 射程），该红的�
   // 🔴 AC6 射程:子页面乱七八糟也不许报
   const otherPageBroken = [
     { slug: 'home', sections: [...r.opener, ...r.mustInclude].map((t) => ({ type: t })) },
-    { slug: 'about', sections: [{ type: 'cta-banner' }, { type: 'divider' }] },
+    { slug: 'about', sections: [{ type: 'cta-banner' }, { type: 'text-block' }] },
     { slug: 'services', sections: [{ type: 'hero' }] },
   ];
   recipeProblems(otherPageBroken, r).length === 0
@@ -434,11 +434,34 @@ try {
   const PROMPT_DELTAS = [
     // #1162：服务详情页那行「二选一」的举例
     { why: '#1162 服务详情页那行举例的块名', apply: (t) => t.split('process-steps OR benefits-list').join('process-steps OR card-group') },
-    // #1162：那份「大多数站不会有的块」举例名单（#1034 发现它被模型当成待办清单的那一行）
+    // #1162 + #1372：那份「大多数站不会有的块」举例名单（#1034 发现它被模型当成待办清单的那一行）。
+    // 🔴 两张票都落在**同一行**上：#1162 把 `benefits-list` 换成 `card-group`，#1372 又把那一行
+    //    里另外两个块整个删了。所以这一条改成【整行重写】，
+    //    而不是两条各自替换一个子串 —— 后者的第二条在链式套用时会找不到自己那段文本。
     {
-      why: '#1162 「大多数站不会有的块」那一行的块名',
-      apply: (t) => t.split('feature-comparison, benefits-list, announcement-bar')
-        .join('feature-comparison, card-group, announcement-bar'),
+      why: '#1162 那行举例的块名 + #1372 删掉其中两个块',
+      apply: (t) => t.split('\n').map((l) => (l.startsWith('- Include at least TWO sections')
+        ? '- Include at least TWO sections that most sites wouldn\'t have (e.g., content-split, '
+          + 'social-proof, card-group, announcement-bar).'
+        : l)).join('\n'),
+    },
+    // #1372：删掉 4 个块带来的另外三处。
+    {
+      why: '#1372 「有多少种块」那句：基线写死 32，今天按 blocks/ 现算',
+      // 🔴 这个数要跟 `create-site.js` 算它的那一行同口径：**滤掉外壳块**（#1353 之后 `blocks/` 里
+      //    多了 header / footer 两份 manifest，而模型永远点不到它们）。拿 manifests.size 会多算 2。
+      apply: (t) => t.split('There are 32 section types')
+        .join(`There are ${[...manifests.keys()].filter((ty) => !isRegionManifest(BLOCKS_DIR, ty)).length} section types`),
+    },
+    {
+      why: '#1372 `divider` 这个块删了 ⟹ 那条「用 divider 分段」的祈使句整行不再印',
+      apply: (t) => t.split('\n')
+        .filter((l) => !l.startsWith('- Use "divider" between sections occasionally'))
+        .join('\n'),
+    },
+    {
+      why: '#1372 删掉的那个对比块 ⟹ 「每样各生成几条」那行里它那一格不再印',
+      apply: (t) => t.split(', 5-7 comparison features,').join(','),
     },
     // #1341：内容结构那一维退役 ⟹ manifest 不再有取值表，提示词里那一行整行不再印。
     // 🔴 基线那一臂之所以还印得出来，是上面那个适配层按基线原样补回了那个字段（理由整段在它上面）。
@@ -636,9 +659,15 @@ console.log('── ⑪ 差异源:8 个不同站主各自的第一个站,配方�
   const under_r1 = homepageRecipe(0, manifests, 'dental clinic').opener.join('|');
   console.log(`     r1 下这 8 个站全都是这一份: ${under_r1.split('|').join(' → ')}`);
   for (let k = 0; k < IDS.length; k++) console.log(`     ${IDS[k]}  ${openers[k].split('|').join(' → ')}`);
-  new Set(openers).size >= 2 && !openers.includes(under_r1)
-    ? ok(`8 个站主各自的第一个站落在 ${new Set(openers).size} 份不同的配方上（r1 下是 1 份，而且没有一个站落回那一份）`)
-    : bad(`差异源没换干净:${new Set(openers).size} 份配方，含 r1 那一份: ${openers.includes(under_r1)}`);
+  // 🔴 #1372 —— 这一格原来还多要一句「没有一个站落回 r1 那一份」。那半句是**靠运气**的：
+  //    可达的配方一共 30 份（`homepageRecipe(i)` 跑 20000 个 i 数出来的，本票删 4 个块之后从 27 涨到
+  //    30），8 个站各自独立抽一份，其中恰好有一个抽到「第 0 号」那份的概率约 1-(29/30)^8 ≈ 24%。
+  //    本票删块之后 `4d7c1e93` 就抽中了它 —— 那不是「差异源没换干净」，它跟另外 7 个站两两都不同。
+  //    这里改成量真正那条性质：**8 个站不是全都落回 r1 那一份**，并把撞上的个数打出来。
+  const sameAsR1 = openers.filter((o) => o === under_r1).length;
+  new Set(openers).size >= 2 && sameAsR1 < openers.length
+    ? ok(`8 个站主各自的第一个站落在 ${new Set(openers).size} 份不同的配方上（r1 下是 1 份；其中 ${sameAsR1} 个跟 r1 那一份相同）`)
+    : bad(`差异源没换干净:${new Set(openers).size} 份配方，跟 r1 那一份相同的有 ${sameAsR1} 个`);
 
   // 🔴 上面那 8 个 id 是**一个样本**，不是判据 —— 换一批 id 数字就会变（这次 8 个里有一对撞了，
   //    真实分布本来就会撞）。判据要落在**配方一共有几种**上，那个数是可枚举的:

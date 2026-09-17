@@ -44,8 +44,8 @@ interface NewsletterSignupSectionProps {
 //    longer written either: sync-config.js's line that overwrote `data.variant` from the theme
 //    went with the rest of that dimension, and a page JSON that still carries the key has it
 //    dropped on read (`scripts/blocks.js` §normalizeListSlots), so it never reaches a component.
-// 🔴 `variant` IS NO LONGER WRITTEN AND NO LONGER READ (#1008 AC5 precedent) — see the note in
-// `AwardsCertificationsSection.tsx`. Live: 1 instance, `inline`.
+// 🔴 `variant` IS NO LONGER WRITTEN AND NO LONGER READ (#1008 AC5 precedent) — the component that
+// carried that note went with the four blocks #1372 deleted. Live: 1 instance, `inline`.
 export default function NewsletterSignupSection({ data, locale, block }: NewsletterSignupSectionProps) {
   const labels = getLabels(locale);
   const buttonText = data.buttonText || labels.subscribe;

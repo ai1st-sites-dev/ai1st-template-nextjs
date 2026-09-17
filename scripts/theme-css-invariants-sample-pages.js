@@ -23,13 +23,11 @@
 //       今天是一句讲 `ship-check-doc-paths.sh` 的注释。换成 job 名 + `needs:` 这个查得到的锚。
 //
 // ══ 光把块放上页面还不够 ═══════════════════════════════════════════════════════════════════════
-// 有六处要连**块的数据、甚至站的形状**一起给，否则那些钩子仍然不进 DOM（逐处在真机上量过）：
+// 有五处要连**块的数据、甚至站的形状**一起给，否则那些钩子仍然不进 DOM（逐处在真机上量过）：
+// 📌 #1372 —— 原来还有第六处（某个块的一对 `--yes` / `--no` 修饰钩子），那个块整个删了（D19）。
 //
 //   `.gallery__placeholder`      GallerySection.tsx:62-67 —— 有 imageUrl 就画 __image，没有才画它。
 //                                而夹具生成器给每张图都编了一个 URL ⟹ 让第 3 张不带 imageUrl。
-//   `.feature-comparison__mark--no`
-//                                FeatureComparisonSection.tsx:61 —— 类名由 boolean 决定，而生成器
-//                                把 boolean 一律编成 true ⟹ 把某一行的 `them` 设成 false。
 //   `.services-list__products`   ServicesListSection.tsx:74 要 `service.products.length > 0`，而它读
 //                                的是 **services.json**，不是块自己的 data ⟹ 给第一条服务加 products。
 //   `.service-related-pages`+3   ServiceRelatedPagesSection.tsx:45-48 —— 站里没有 slug 以
@@ -108,10 +106,10 @@
 // 🔴 为什么要有第二版：只量填满那一支，有两类错看不见 —— 「需要图」的形态在**没图**的 hero 上有没有
 //    真落回默认，三列卡片组**只填一张卡**时散不散。真站里可选槽位填不填是随机的（设计文档 D5）。
 //
-// 🔴 最少版**跳过**下面 ② 段里五处 propping，逐条印出来（不许静默少做）。代价写在明处：
-//    `.gallery__placeholder` / `.feature-comparison__mark--no` / FAQ 那对开关对照 /
-//    `.card-group__features` / `.hero__form` 这五族钩子在最少版上**没有人量** —— 这是接受的，不是漏的。
-//    那三处门槛（gallery ≥3 项 · feature-comparison 非空 · faq-accordion ≥2 项）也只对全填版成立：
+// 🔴 最少版**跳过**下面 ② 段里那几处 propping，逐条印出来（不许静默少做）。代价写在明处：
+//    `.gallery__placeholder` / FAQ 那对开关对照 / `.card-group__features` / `.hero__form`
+//    这几族钩子在最少版上**没有人量** —— 这是接受的，不是漏的。
+//    那两处门槛（gallery ≥3 项 · faq-accordion ≥2 项）也只对全填版成立：
 //    最少版把列表槽压到一项之后它们按构造撞死，而这个脚本撞死就是 exit 2。
 //
 // 🔴 ③ 段（services.json 的 products + #1320 那几条服务）和 ④ 段（services/oil-change 那一页）
@@ -262,17 +260,6 @@ if (MINIMAL) {
   // 第 3 张不带图 —— 组件在这一支画 __placeholder。留前两张带图，__image 那条也要有人量。
   delete items[2].imageUrl;
   patched.push('gallery item 3 has no imageUrl → .gallery__placeholder');
-}
-if (MINIMAL) {
-  // 最少版：不改那一行的 boolean ⟹ `.feature-comparison__mark--no` 在最少版上没有人量（接受的代价）。
-  skipped.push('feature-comparison row 1 has them:false → .feature-comparison__mark--no（最少版不动块数据）');
-} else {
-  const s = sectionOf('feature-comparison');
-  const rows = s && s.data && s.data.comparisons;
-  if (!Array.isArray(rows) || !rows.length) die('the generated feature-comparison block has no comparisons');
-  rows[0].us = true;            // --yes 和 --no 都要有人量，所以两种都留着
-  rows[0].them = false;
-  patched.push('feature-comparison row 1 has them:false → .feature-comparison__mark--no');
 }
 if (MINIMAL) {
   // 最少版：`items` 压到一项 ⟹ #1060 那对「一条开着、一条关着」的对照按构造造不出来，下面那道
@@ -513,7 +500,6 @@ const EXTRA_SERVICES = [
   }
   if (!MINIMAL) {
     if (find('gallery').data.items[2].imageUrl !== undefined) bad.push('gallery item 3 still has imageUrl');
-    if (find('feature-comparison').data.comparisons[0].them !== false) bad.push('feature-comparison row 1 them is not false');
     // 📌 #1341 —— 这里原来还有一条「hero 不许带 `block_layout`」（#1333 立的）。那个字段整条退役了
     //    （manifest 里没有清单、`blockAttrs` 不落属性、老站残留的键读的时候丢掉）⟹ 那条判据恒真，
     //    留着就是一格靠语料没了而绿的死判据。`.hero__form` 由 `hero-with-form` 这个块带进来这件事，

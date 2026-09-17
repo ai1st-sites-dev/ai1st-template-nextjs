@@ -68,8 +68,8 @@ interface ContentSplitSectionProps {
 //    longer written either: sync-config.js's line that overwrote `data.variant` from the theme
 //    went with the rest of that dimension, and a page JSON that still carries the key has it
 //    dropped on read (`scripts/blocks.js` §normalizeListSlots), so it never reaches a component.
-// 🔴 `variant` IS NO LONGER WRITTEN AND NO LONGER READ (#1008 AC5) — see the note in
-// `AwardsCertificationsSection.tsx`. Live values, in case a later ticket needs them:
+// 🔴 `variant` IS NO LONGER WRITTEN AND NO LONGER READ (#1008 AC5) — the component that carried
+// that note went with the four blocks #1372 deleted. Live values, in case a later ticket needs them:
 // `text-right-list` 13 · `text-left` 12 · `text-left-stats` 11 · `text-right` 9 ·
 // `centered-overlay` 5 · `cards-row` 1.
 //

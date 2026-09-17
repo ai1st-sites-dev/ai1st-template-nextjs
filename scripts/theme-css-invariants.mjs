@@ -897,7 +897,8 @@ for (const sel of MOVED_TEXT_TARGETS) await measureText(sel, pathOf(baseUrl), fa
 // measured", exempted by `reachableOnSubmitOnly` below.
 //
 // The parts that really are empty are the ones MEANT to be, and they are what this filter is for.
-// Same build, every occurrence empty by this very predicate: `.divider__rule` 1/1 · `.hero__deco`
+// Same build, every occurrence empty by this very predicate (📌 #1372 deleted the `divider` block,
+// so `.divider__rule` is no longer among them — the rest of the reading stands): `.hero__deco`
 // 2/2 · `.gallery__placeholder` 1/1 · `.testimonials__star` 9/9 · `.features-grid__icon` 2/2 ·
 // `.services-list__icon` 2/2 · `.testimonials__rating` 3/3 (the icons hold an inline <svg>, which is
 // not an <img> and so does not count as media here — deliberately: an inline <svg> is drawn by the
@@ -1701,9 +1702,10 @@ const BREAKPOINT_PROBE = () => {
 // (an `<h2>` and a `<p>`) and `quote-form__intro` — are that same heading-and-lede pair under other
 // names. The other four are left out on purpose and stay left out: `services-list__title` and
 // `services-list__desc` sit INSIDE each item, so a strip is supposed to carry them sideways; naming
-// them here would turn the rule against the layout it exists to protect. `announcement-bar__message`,
-// `divider__label` and `services-nav__link` are not a block's own heading either. `__heading`/`__intro`
-// resolve to exactly those three hooks today — enumerated, not assumed.
+// them here would turn the rule against the layout it exists to protect. `announcement-bar__message`
+// and `services-nav__link` are not a block's own heading either (`divider__label` was a third one
+// until #1372 deleted that block). `__heading`/`__intro` resolve to exactly those three hooks today
+// — enumerated, not assumed.
 //
 // 🔴 IT RUNS ON EVERY PAGE THIS SCRIPT OPENS, NOT ON THE HOME PAGE ALONE, and that is not a nicety:
 // `testimonials` — the block #1190 gave the layer to — is on NO home page in this repo. Measured on
@@ -3990,8 +3992,8 @@ if (widened && !SAMPLE_MINIMAL && unusedUnexpected.length) {
     + `sample site this run widened to cover every block — ${unusedUnexpected.map((h) => `.${h}`).join(', ')}`
     + ' — so no reading above says anything about whether any theme dresses them. Either the block '
     + 'that carries the hook needs data before it renders it (feed that data in '
-    + 'scripts/theme-css-invariants-sample-pages.js, the way `.gallery__placeholder` and '
-    + '`.feature-comparison__mark--no` are fed there), or the hook is in the contract and in no '
+    + 'scripts/theme-css-invariants-sample-pages.js, the way `.gallery__placeholder` is fed '
+    + 'there), or the hook is in the contract and in no '
     + 'component at all, which is its own bug');
 }
 for (const [hook, { pages, sheets }] of missingByHook) {

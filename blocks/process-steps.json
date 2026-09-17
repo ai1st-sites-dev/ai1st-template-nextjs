@@ -69,7 +69,7 @@
   },
   "variants": {
     "horizontal": "4 cols with connector",
-    "vertical": "timeline",
+    "vertical": "stacked with a connector line",
     "cards": "standalone cards with watermark numbers",
     "zigzag": "alternating left-right with center line",
     "icon-strip": "compact horizontal strip, titles only"

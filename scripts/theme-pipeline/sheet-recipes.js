@@ -277,7 +277,8 @@ const formLookFor = (i) => FORM_LOOK_NAMES[
 // #1135 收官时全池 80 套里仍然只有一副骨架的块有 27 个（35 个契约块 − 8 个已有候选表的）。按本机
 // 历次真跑 create-site 留下的站数出来的露面次数（66 个互异站 / 705 页，服务子页要递归读进去），
 // 前八名去掉两个另有判据的（`service-related-pages` 按设计在没有子页时不渲染 · `divider` 的部件
-// 少到分不出骨架），剩下的就是这六个。那个唯一的第三方付费客户站（德馨金融 · 14 页）上前六名同向。
+// 少到分不出骨架 —— 🔴 `divider` 这个块 #1372 已经整个删了，这里保留原话是因为它记的是当年怎么
+// 选出这六个的），剩下的就是这六个。那个唯一的第三方付费客户站（德馨金融 · 14 页）上前六名同向。
 //
 // 🔴 三条约束是本票立票时量出来的，不是设计口味：
 //   ① **判据是几何观感，不是 CSS 字节。** 承 #1135 —— 只把间距倍数或颜色换一下，字节确实不同而
@@ -683,7 +684,8 @@ const colourOf = (token) => {
 //    2.5:1 ⟹ 候选当场被准入闸②拦下。`contact-info` 是 essential 块，所以它红；同一个毛病还落在
 //    另外 8 个钩子上（timeline__year · content-split__stat-value ·
 //    social-proof__rating · testimonials__star · announcement-bar__link · pricing-table__price ·
-//    feature-comparison__mark--yes），**只是那些块不是 essential，检查看不见** —— 客人一样读不出来。
+//    外加一个对比块的钩子），**只是那些块不是 essential，检查看不见** —— 客人一样读不出来。
+//    📌 这是 #1051 当年的读数：其中两个钩子随它们的块在 #1372 删掉了，今天量同一件事只剩 6 个。
 //
 // 🔴 为什么不能靠「把 accent 调暗一点」一次性解决：accent 那条色阶已经被**反方向**钉住了 ——
 //    产品自己的 `.btn-accent` 是 `gray-900` 的字压 `--color-accent-400`（`globals.css:61-64`），
@@ -885,22 +887,18 @@ const SHAPES = {
   'service-related-pages': { role: { card: 'card' } },
   'contact-info': { role: { location: 'card', label: 'eyebrow', address: 'desc', phone: 'contact', email: 'contact' } },
   'process-steps': { role: { step: 'card', num: 'numeral', title: 'title', desc: 'desc' } },
-  timeline: { wideSpacing: false, role: { event: 'row-card', year: 'figure', title: 'title', desc: 'desc' } },
   'team-grid': { role: { member: 'card', name: 'title', role: 'eyebrow', bio: 'desc' } },
   'blog-preview': { role: { post: 'card', category: 'chip', date: 'meta', title: 'title', excerpt: 'desc' } },
   'content-split': { rootExtra: {}, role: { media: 'media', body: 'column', bullets: 'list', stats: 'inline-grid-3', stat: 'card', 'stat-value': 'figure', 'stat-label': 'eyebrow' } },
   'text-block': { wideSpacing: false, role: { body: 'prose', attribution: 'meta', list: 'list' } },
-  divider: { wideSpacing: false, role: { rule: 'deco', label: 'eyebrow' } },
   'social-proof': { role: { rating: 'figure', reviews: 'meta', platform: 'chip', badge: 'chip', quote: 'quote', 'quote-author': 'meta' } },
   'features-grid': { role: { item: 'card', icon: 'icon', title: 'title', desc: 'desc' } },
-  'awards-certifications': { role: { item: 'card', title: 'title', year: 'eyebrow', desc: 'desc' } },
   'newsletter-signup': { role: { desc: 'lede', form: 'panel' } },
   'faq-accordion': { wideSpacing: false, role: { item: 'row-card', question: 'title', answer: 'desc' } },
   testimonials: { role: { item: 'card', rating: 'inline-row', star: 'star', quote: 'quote', name: 'title', meta: 'meta', service: 'chip' } },
   'announcement-bar': { wideSpacing: false, role: { message: 'lede', link: 'contact' } },
   'pricing-table': { role: { item: 'card', 'item--featured': 'featured', badge: 'chip', name: 'title', price: 'figure', desc: 'desc', features: 'list', action: 'actions' } },
   gallery: { role: { item: 'card', image: 'media', placeholder: 'media', caption: 'meta', category: 'chip', title: 'title', desc: 'desc' } },
-  'feature-comparison': { wideSpacing: false, role: { head: 'row-head', label: 'eyebrow', row: 'row-card', feature: 'title', mark: 'mark', 'mark--yes': 'yes', 'mark--no': 'no' } },
   'logo-carousel': { wideSpacing: false, role: { logo: 'logo' } },
   'map-area': { role: { area: 'card', name: 'title', desc: 'desc' } },
   'trusted-brands': { wideSpacing: false, role: { brand: 'logo' } },
@@ -1356,10 +1354,7 @@ const familyOf = (block) => LOOK_FAMILIES.find((f) => f.blocks.includes(block));
 const PLAIN_SHAPE_NAMES = {
   // 单栏堆叠的那几个
   'announcement-bar': 'stack',
-  divider: 'stack',
-  'feature-comparison': 'stack',
   'text-block': 'stack',
-  timeline: 'stack',
   // 横排一行的那几个
   'logo-carousel': 'row',
   'services-nav': 'row',
@@ -1371,7 +1366,6 @@ const PLAIN_SHAPE_NAMES = {
   'hero-with-form': 'form-side',
   // 🔴 这 9 个跟着候选走：3 栏 / 2 栏两副轮着来（`voiceFor` 的 `plainGrid`，按 i % 2）。
   //    这条轴以前住在 `v.wide` 那个**列数**里，#1339 把它抬到形态名这一层，理由在 `plainGrid` 上面。
-  'awards-certifications': (v) => v.plainGrid,
   'blog-preview': (v) => v.plainGrid,
   gallery: (v) => v.plainGrid,
   'map-area': (v) => v.plainGrid,
@@ -1724,7 +1718,7 @@ const ROLES = {
   }),
   // 🔴 `grid-column: 1 / -1` 不是装饰，是**放置**：块根是网格，而装饰条不写跨列就会占掉第一格，
   // 把正文挤到第二行去。实测（截图看的）：hero 的装饰条占了左上那一格，标题被推到媒体位下面，
-  // 首屏左半边空出 500px。同一条也适用于 divider 的那根线。
+  // 首屏左半边空出 500px。
   deco: (v, s) => ({
     height: '0.25rem',
     'border-radius': v.pillRadius,
