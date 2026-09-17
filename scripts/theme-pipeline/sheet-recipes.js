@@ -682,10 +682,13 @@ const colourOf = (token) => {
 //    实测（#1051 r3 那批 80 套，QA2 在真机上复现过其中 3 套）：`contact-info__phone` / `__email`
 //    在 **20/80 套**里落在 **1.45–2.49:1**，而运行时那道检查（#1050 ②e）对 essential 块的下限是
 //    2.5:1 ⟹ 候选当场被准入闸②拦下。`contact-info` 是 essential 块，所以它红；同一个毛病还落在
-//    另外 8 个钩子上（timeline__year · content-split__stat-value ·
-//    social-proof__rating · testimonials__star · announcement-bar__link · pricing-table__price ·
-//    外加一个对比块的钩子），**只是那些块不是 essential，检查看不见** —— 客人一样读不出来。
-//    📌 这是 #1051 当年的读数：其中两个钩子随它们的块在 #1372 删掉了，今天量同一件事只剩 6 个。
+//    另外 8 个钩子上（timeline__year · content-split__stat-value · social-proof__rating ·
+//    testimonials__star · announcement-bar__link · pricing-table__price · 外加一个对比块的钩子，
+//    以及批次 C 那个「一排数字」块的数字钩子），**只是那些块不是 essential，检查看不见** ——
+//    客人一样读不出来。
+//    📌 这是 #1051 当年的读数，那 8 个名字一个都不删（删了这句话就变成另一个读数）：其中两个钩子随
+//       它们的块在 #1372 删掉了，第三个随 #1376 那次合并走了（那个块按 D19 并进了 `social-proof`，
+//       它自己那个数字钩子跟着消失）⟹ 今天量同一件事只剩 5 个。
 //
 // 🔴 为什么不能靠「把 accent 调暗一点」一次性解决：accent 那条色阶已经被**反方向**钉住了 ——
 //    产品自己的 `.btn-accent` 是 `gray-900` 的字压 `--color-accent-400`（`globals.css:61-64`），
