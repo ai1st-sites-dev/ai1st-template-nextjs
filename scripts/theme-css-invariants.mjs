@@ -2100,7 +2100,7 @@ async function judgeStrips(where) {
 
 // ── ⑧ the row shape lays its items out in a row, and wraps instead of stacking (#1320) ──────────
 //
-// `public/shapes.css` gives `services-nav`, `logo-carousel` and `trusted-brands` one shape, `row`:
+// `public/shapes.css` gives `services-nav` and `trusted-brands` one shape, `row`:
 // same-level items side by side, wrapping to the next line when they do not fit, each item on one
 // line of its own. Design doc D1 names the shape and D5 names this reading as the price of a shape
 // entering the library: "没有读数的形态不许进".
@@ -2123,11 +2123,13 @@ const ROW_SHAPE = 'row';
 // "nothing carries [data-shape=row], so ⑧ said nothing" — a red, but a red about the instrument
 // rather than about the six names stacked down the page. Design doc D1 is what makes the block list
 // legitimate rather than a duplicate of the selection list: "补一个今天不存在的形态「横排条」…
-// services-nav、logo-carousel、trusted-brands 三个块只允许它".
-// ⟹ the population is the UNION: anything wearing the shape (so a fourth block that takes it is
-// measured with no edit here) plus these three whatever they are wearing (so the day one of them
+// 这一族块只允许它". D1's sentence names THREE blocks; the third (batch E's logo wall) was removed
+// in #1375 per D19, so the list below is two. The quote is kept short on purpose — spelling out a
+// dead block name inside a quoted sentence is exactly what #1375 had to go clean up.
+// ⟹ the population is the UNION: anything wearing the shape (so a third block that takes it is
+// measured with no edit here) plus these two whatever they are wearing (so the day one of them
 // stops wearing it, the geometry is still measured AND the mismatch is named).
-const ROW_ONLY_BLOCKS = ['services-nav', 'logo-carousel', 'trusted-brands'];
+const ROW_ONLY_BLOCKS = ['services-nav', 'trusted-brands'];
 // 🔴 Two announced widths, not derived ones, and that is a difference from check ⑦ next door: ⑦ sweeps
 // the band floors the page's own sheets declare, because a strip can be cut at any width. This check
 // asks a question about TWO STATES — "on a desktop they are side by side" and "on a phone they wrap
@@ -2148,12 +2150,13 @@ const ROW_PROBE = ([headingHooks, selector]) => {
   const nameOf = (el) => el.tagName.toLowerCase()
     + (el.classList.length ? `.${[...el.classList].join('.')}` : '');
   // 🔴 HOW MANY LINES THE ITEM'S TEXT TOOK, NOT HOW TALL ITS BOX IS. The box is the wrong ruler here
-  // and that was measured, not reasoned: both pool sheets give `.logo-carousel__logo` and
-  // `.trusted-brands__brand` a `height: 2.5rem` (40px against a 24px line-height), and `height` is
-  // NOT in the family #1318 moved to the shape layer (`theme-css-lint.js` §GEOM_EXACT says so in as
-  // many words), so the shape layer cannot change it. A "box ≤ 1.5 lines" rule therefore reads red on
-  // those two blocks whatever the shape does — red before this ticket and red after it, which is a
-  // ruler that cannot see the thing it was pointed at. Counting the line boxes of the item's own text
+  // and that was measured, not reasoned: both pool sheets give `.trusted-brands__brand` a
+  // `height: 2.5rem` (40px against a 24px line-height), and `height` is NOT in the family #1318
+  // moved to the shape layer (`theme-css-lint.js` §GEOM_EXACT says so in as many words), so the
+  // shape layer cannot change it. A "box ≤ 1.5 lines" rule therefore reads red on that block
+  // whatever the shape does — red before this ticket and red after it, which is a ruler that cannot
+  // see the thing it was pointed at. (#1320 measured this on two blocks; the other one, batch E's
+  // logo wall, was removed in #1375 per D19.) Counting the line boxes of the item's own text
   // separates the arms: 2 lines before, 1 after (#1320 DEV, both arms on the same fixture).
   const lineCount = (el) => {
     const r = document.createRange();
@@ -2281,8 +2284,9 @@ async function judgeRowShapesAt(where, at, phone) {
       // failing to catch the very mutation AC2(a) names: with `flex-direction: column` and this
       // shape's `align-items: center`, items of unequal width are centred, so every one of them
       // starts at a DIFFERENT x while being stacked one per line. Measured on this fixture —
-      // `services-nav` and `trusted-brands` passed ① under that knife; only `logo-carousel`, whose
-      // three items happen to be identical strings and therefore identical widths, came out red.
+      // `services-nav` and `trusted-brands` passed ① under that knife; only batch E's logo wall
+      // (removed in #1375 per D19), whose three items happen to be identical strings and therefore
+      // identical widths, came out red.
       // ⟹ if the items FIT in the block, a row puts them on ONE line. Both are kept: ① is what the
       // ticket and D5 name, and it stays honest on a stacked-and-left-aligned block; ①b is what does
       // not depend on the items having the same width.
@@ -3650,7 +3654,7 @@ if (SAMPLE_WIDENED) {
   // §shapeForBlock) and only the built page knows which one won.
   if (rowWrongShape.length > 0) {
     problems.push(`row shape: ${rowWrongShape.join(' · ')}, and design doc D1 gives these blocks only `
-      + `"${ROW_SHAPE}" ("services-nav、logo-carousel、trusted-brands 三个块只允许它"). Whatever that `
+      + `"${ROW_SHAPE}" (D1 names three blocks; the third one was removed in #1375 per D19). Whatever that `
       + 'other shape lays them out as, it is not the one their geometry was measured for — check the '
       + "theme's selection list (scripts/theme-pool.json §shapes) and public/shapes.css");
   }

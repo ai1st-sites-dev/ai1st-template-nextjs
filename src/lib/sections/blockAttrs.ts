@@ -39,10 +39,12 @@ export type BlockRole = 'essential' | 'lead' | 'optional';
 //   map-area        areas（areaServed）
 //   faq-accordion   faq
 //
-// 🔴 这张表跟 30 套 theme 今天真在藏的东西**零交集**，我数过（`rhythm.hide` 的并集是
-// announcement-bar · divider · newsletter-signup · logo-carousel · trusted-brands · stats-counter ·
-// blog-preview · social-proof）。要是有交集，就会出现「预览里挡住了不许藏，Apply 之后 sync-config
-// 又真的把它藏了」——两个地方对同一件事给出相反答案，而那正是本票要治的那类假象。
+// 🔴 这张表跟那 30 套 theme 真在藏的东西**零交集**，我数过（那次 `rhythm.hide` 的并集是 8 个块：
+// announcement-bar · divider · newsletter-signup · trusted-brands · stats-counter ·
+// blog-preview · social-proof，外加批次 E 那个 logo 墙块 —— 它已在 #1375 按 D19 删掉，所以这里
+// 不再写它的名字；那次读数本身没变，零交集这个结论也没变）。要是有交集，就会出现「预览里挡住了
+// 不许藏，Apply 之后 sync-config 又真的把它藏了」——两个地方对同一件事给出相反答案，而那正是本票
+// 要治的那类假象。
 //
 // 📌 lead 只有 hero：spec §4.2 说 lead 是「这门生意的主角」，那是**每个生意各不相同**的判断，由建站
 // AI 在默认之上加标记（阶段 2 的内容层，spec §4.1 的 `role` 字段）。类型这一层能确定的只有 hero ——

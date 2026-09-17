@@ -50,9 +50,9 @@
    真正新增的是这一个；`hero-with-form/form-side` 是把 hero 名下那个整段改挂，也不加数。
 
    ── 有一个画法不是从那两套表里剪出来的 ────────────────────────────────────────────────────
-   `row`（横排条）是 #1320 手写的。搬迁前两套表给 services-nav / logo-carousel / trusted-brands
+   `row`（横排条）是 #1320 手写的。搬迁前两套表给 services-nav / trusted-brands
    写的都是一列的网格，而那正是它要治的缺陷：桌面上六个协会名、八个保险公司名一个一行竖着排，
-   名字还被折成两行。设计文档 D1 只允许这三个块用它（「同级项横排、放不下换行」）。它的几何
+   名字还被折成两行。设计文档 D1 只允许这一族块用它（「同级项横排、放不下换行」）—— 原文点名三个，其中一个（logo 墙那个）已在 #1375 按 D19 删掉，今天剩两个。它的几何
    读数在 `scripts/theme-css-invariants.mjs` 的检查 ⑧ —— D5 那条「没有读数的形态不许进」。
    🔴 所以它自己不加数：这三个块各自把 `stack` 换成了 `row`，不是各多一个名字。（今天的总数是 51，
    多出来的那一个是上面 #1333 那段量过的 `hero/text-center`。）
@@ -2431,38 +2431,6 @@
   }
 }
 
-/* ══ logo-carousel ══════════════════════════════════════════════════════════════════════ */
-
-/* logo-carousel · row  （ember-12 + azure-29 今天选的就是它；#1320 之前它俩选的是 stack，一列的网格） */
-
-/* 🔴 `align-items` 是 `flex-start` 而不是 `center`，这一条是 #1320 r2 按读数定的，别顺手改回去。
-   ① 那条几何读数（同级项的 x 至少两个不同值）在 `center` 下**测不出竖排**：竖排时宽度不同的项被
-   居中，每项的 x 本来就互不相同。实测（azure-29，把 `flex-direction` 改成 `column` 的那一刀）：
-   `center` 下三个块只有 logo-carousel 红（它三项等宽），`flex-start` 下三个块全红。
-   而换成 `flex-start` 今天**一个像素都不动**：两套主题各在同一个目录里构建两次、逐项比盒子，
-   1280 与 375 下三个块每一项的 x/y/宽/高逐个相同（两臂唯一的差别就是 `align-items` 这个属性
-   自己的值）—— 因为每个块内部的项等高
-   （主题给 `.logo-carousel__logo` / `.trusted-brands__brand` 写死 `height: 2.5rem`，
-   服务链接是一行的胶囊），而 `align-items` 只在项**不等高**时才有话说。
-   ⟹ 哪天某个块的项真的不等高了，这里要重新判：那时 `center` 好看，但①会再次变瞎，
-   得让①b（项放得下时必须只占一行）继续担着。 */
-
-[data-block="logo-carousel"][data-shape="row"] {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  align-items: flex-start;
-}
-
-[data-block="logo-carousel"][data-shape="row"] .logo-carousel__headline {
-  flex: 0 0 100%;
-}
-
-[data-block="logo-carousel"][data-shape="row"] .logo-carousel__logo {
-  display: grid;
-  place-items: center;
-}
-
 /* ══ map-area ══════════════════════════════════════════════════════════════════════ */
 
 /* map-area · two-up  （ember-12 今天选的就是它） */
@@ -2997,6 +2965,21 @@
 /* ══ services-nav ══════════════════════════════════════════════════════════════════════ */
 
 /* services-nav · row  （ember-12 + azure-29 今天选的就是它；#1320 之前它俩选的是 stack，一列的网格） */
+
+/* 🔴 用 `row` 的块（今天是 services-nav 与 trusted-brands）`align-items` 一律写 `flex-start`，不写
+   `center`，这一条是 #1320 r2 按读数定的，别顺手改回去。这段说明原来住在 logo 墙那个块自己那一节里，
+   #1375 按 D19 删掉那个块时把它搬到这儿 —— 不搬它就没有落点了，而它管的是剩下这两个块。
+   ① 那条几何读数（同级项的 x 至少两个不同值）在 `center` 下**测不出竖排**：竖排时宽度不同的项被
+   居中，每项的 x 本来就互不相同。#1320 r2 当时的实测（azure-29，把 `flex-direction` 改成 `column`
+   的那一刀；那时用 `row` 的是三个块，含已删掉的 logo 墙）：`center` 下只有 logo 墙那个块红
+   （它三项等宽），`flex-start` 下三个块全红。
+   而换成 `flex-start` 当时**一个像素都不动**：两套主题各在同一个目录里构建两次、逐项比盒子，
+   1280 与 375 下每一项的 x/y/宽/高逐个相同（两臂唯一的差别就是 `align-items` 这个属性自己的值）
+   —— 因为每个块内部的项等高（主题给 `.trusted-brands__brand` 写死 `height: 2.5rem`，今天在
+   azure-29:1629 / ember-12:1582 各现取到一条；服务链接是一行的胶囊），而 `align-items` 只在项
+   **不等高**时才有话说。
+   ⟹ 哪天某个块的项真的不等高了，这里要重新判：那时 `center` 好看，但①会再次变瞎，
+   得让①b（项放得下时必须只占一行）继续担着。 */
 
 [data-block="services-nav"][data-shape="row"] {
   display: flex;

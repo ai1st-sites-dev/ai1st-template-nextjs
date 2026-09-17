@@ -39,9 +39,10 @@ const REF_SECTION_MAPPING = {
   // 槽位一样（标题 + 副标题 + 若干项），是库里最近的替代。旧块名那个键一起删掉（那张票要求
   // 代码里 0 命中），抓站时抓到它会落到本文件末尾的 `text-block` 兜底。
   'awards': 'features-grid',
-  'partners': 'logo-carousel',
-  'partner-logos': 'logo-carousel',
-  'logo-carousel': 'logo-carousel',
+  // #1375 —— logo 墙那个块删了（D19，跟 `trusted-brands` 槽位相同：标题 + 一组 logo）。
+  // 抓到 logo 墙这类名字改指 `trusted-brands`；旧块名那个键一起删掉（本票要求代码里 0 命中）。
+  'partners': 'trusted-brands',
+  'partner-logos': 'trusted-brands',
   'features': 'features-grid',
   'features-grid': 'features-grid',
   'benefits': 'card-group',

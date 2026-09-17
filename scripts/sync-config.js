@@ -1012,9 +1012,9 @@ const MOVED_BLOCKS = ['hero', 'cta-banner', 'page-header',
   // As a BLOCK its markup no longer decides how it looks, which is what this list means.
   'faq-accordion', 'testimonials', 'announcement-bar', 'pricing-table',
   'gallery',
-  // #1030 batch E — 原来四个，其中一个随 #1372 删掉了（D19），今天剩三个。
+  // #1030 batch E —— 原来四个，两个已经随 #1372 / #1375 删掉（都按 D19），今天剩下面这两个。
   // Same meaning as above：这几个块的 markup 不再决定它们长什么样。
-  'logo-carousel', 'map-area', 'trusted-brands',
+  'map-area', 'trusted-brands',
   // #1132 —— 通用块「卡片组」。这张名单的含义没变：「这个块的 markup 不再决定它长什么样」。
   // 📌 #1162：这里原来写着「老名字 `values-grid` / `benefits-list` 一个都没删（老站还在吐老类名，
   //    见 blocks.js 那层别名映射），通用块另外加自己的名字」—— 那层兼容 2026-08-23 整层退役了，

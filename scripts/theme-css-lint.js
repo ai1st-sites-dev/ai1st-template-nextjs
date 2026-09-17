@@ -291,10 +291,10 @@ const HOOKS = new Set([
   //     shipped sheets give this part is a typographic rule, which was already this batch's
   //     decision for a different reason (#1042 / PM 2026-08-16: an unconditional `display:none` in
   //     a sheet lands on every site wearing it). The old `badge` look has no legal path today.
-  // What no hook brings back: the check mark `<svg>` and the bullet `<span>` in map-area, and the
-  // marquee in logo-carousel (`animation` and `@keyframes` are not in §2).
-  '.logo-carousel', '.logo-carousel__headline', '.logo-carousel__logo',
-  '[data-block="logo-carousel"]',
+  // What no hook brings back: the check mark `<svg>` and the bullet `<span>` in map-area. The two
+  // blocks this batch has lost since — the comparison table (#1372) and the logo wall (#1375), both
+  // per D19 — took their own unreachable defaults with them (a `<table>`'s semantics, and a marquee:
+  // `animation` and `@keyframes` are not in §2 either way).
   '.map-area', '.map-area__headline', '.map-area__sub', '.map-area__area', '.map-area__name',
   '.map-area__desc',
   '[data-block="map-area"]',
@@ -348,11 +348,12 @@ const HOOKS = new Set([
 //   #1028 contact-info / stats-counter / process-steps parts + their [data-block="…"]  (batch C)
 //   #1031 content-split / text-block / social-proof / features-grid / newsletter-signup parts +
 //         their [data-block="…"]  (batch F, seven blocks at once)
-//   #1030 logo-carousel / map-area / trusted-brands parts + their [data-block="…"]  (batch E; that
-//         batch also brought the contract's second pair of modifier hooks, after batch G's
+//   #1030 map-area / trusted-brands parts + their [data-block="…"]  (batch E; that batch also
+//         brought the contract's second pair of modifier hooks, after batch G's
 //         `.pricing-table__item--featured`)
-//   🔴 #1372 REMOVED four blocks and every hook they owned (D19). 上面 #1028 / #1031 / #1030 三行
-//         当年逐个点名过它们；名字按那张票的验收要求不留在代码里，要考证是哪四个去读 #1372。
+//   🔴 #1372 REMOVED four blocks and every hook they owned, #1375 a fifth (both D19). 上面 #1028 /
+//         #1031 / #1030 三行当年逐个点名过它们；名字按那两张票的验收要求不留在代码里，要考证是
+//         哪几个去读 #1372 / #1375。
 //   #1132 card-group parts + [data-block="card-group"]  (the first GENERIC block: values-grid and
 //         benefits-list are one type now; their 11 old hooks stay, because old sites keep emitting
 //         the old class names)

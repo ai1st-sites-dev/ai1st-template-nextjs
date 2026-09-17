@@ -1032,11 +1032,11 @@
   font-size: 0.875rem;
   line-height: 1.25rem;
 }
-/* ── #1030 batch E: logo-carousel · map-area · trusted-brands ───────────────────────────────────
+/* ── #1030 batch E: map-area · trusted-brands ───────────────────────────────────────────────────
    Same test as every batch before it — "would every sheet want to state this itself?" — checked
    against all three phase-1 sheets after their batch-E rules were written:
 
-     the three block hooks       display / gap / padding       all three set them → base leaks nothing
+     the two block hooks         display / gap / padding       all three set them → base leaks nothing
      every __headline            font-size / line-height       all three set them
 
    🔴 `min-width: 0` AND `max-width: 100%` ON EVERY PART, the pair batch G worked out (#1036) and
@@ -1045,10 +1045,9 @@
    clips it and the page-level "no horizontal scroll" reading still says everything is fine.
    `max-width: 100%` covers the part a sheet sizes as `fit-content` (a self-aligned pill).
 
-   🔴 NO `list-style` RULES HERE: none of these four renders a list element. map-area's ticks and
+   🔴 NO `list-style` RULES HERE: neither of these two renders a list element. map-area's ticks and
    bullets were `<svg>`s and `<span>`s in the markup and they are gone (#1030) — the contract admits
    only `content: ""`, so a sheet draws a shape back, not that glyph. */
-.logo-carousel,
 .map-area,
 .trusted-brands {
   display: grid;
@@ -1057,15 +1056,12 @@
 }
 
 @media (min-width: 1024px) {
-  .logo-carousel,
   .map-area,
   .trusted-brands {
     padding: 4rem 2rem;
   }
 }
 
-.logo-carousel__headline,
-.logo-carousel__logo,
 .map-area__headline,
 .map-area__sub,
 .map-area__area,
@@ -1114,8 +1110,7 @@
    as ancestor and descendant, and all three do. */
 
 
-/* ── the two lists of names ────────────────────────────────────────────────────────────────────── */
-.logo-carousel__headline,
+/* ── the list of names ─────────────────────────────────────────────────────────────────────────── */
 .trusted-brands__headline {
   font-size: 0.875rem;
   line-height: 1.5;

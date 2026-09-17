@@ -190,10 +190,12 @@ const pruned = [];
 //    `?` —— 那是两套字节，而且对 contact-form / services-list / services-nav 三个块给不出任何读数
 //    （它们的 .tsx 里没有 `data: {` 可解析）。#1321 已经把那个字段从 gen-allblocks.js 里删掉了。
 const BLOCKS_DIR = path.join(NEXT, 'blocks');
-// 🔴 「这个槽是不是一份列表」取**两把尺的并集**，不是任选一把 —— 两把在盘上真的不一致，而分歧那一处
-//    恰好是本票要压的块之一：`logo-carousel.logos` 的 `kind` 写的是 `"image"`、`shape` 写的是
-//    `"[string]"`。只按 `kind` 判会漏掉它（那个块的 logos 不会被压到一项，`trusted-brands` 会 ——
-//    一组对照里两个块走了两条路）。下面还有一道反向自检：产物里是数组、而这条判据说不是列表的，当场报。
+// 🔴 「这个槽是不是一份列表」取**两把尺的并集**，不是任选一把 —— 两把在盘上真的不一致。当时量到分歧的
+//    那一处是 #1320 那批里 logo 墙那个块的 `logos` 槽：`kind` 写的是 `"image"`、`shape` 写的是
+//    `"[string]"`，只按 `kind` 判会漏掉它（它的 logos 不会被压到一项，`trusted-brands` 会 —— 一组对照里
+//    两个块走了两条路）。📌 那个块本身已在 #1375 按 D19 删掉，这段留着是因为它说明的是「取并集」这条
+//    规矩，而下一个 `kind` / `shape` 对不上的槽随时会再出现。
+//    下面还有一道反向自检：产物里是数组、而这条判据说不是列表的，当场报。
 const isListSlot = (spec) => spec.kind === 'list'
   || (typeof spec.shape === 'string' && spec.shape.trim().startsWith('['));
 if (MINIMAL) {

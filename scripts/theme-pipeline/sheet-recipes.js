@@ -900,7 +900,6 @@ const SHAPES = {
   'announcement-bar': { wideSpacing: false, role: { message: 'lede', link: 'contact' } },
   'pricing-table': { role: { item: 'card', 'item--featured': 'featured', badge: 'chip', name: 'title', price: 'figure', desc: 'desc', features: 'list', action: 'actions' } },
   gallery: { role: { item: 'card', image: 'media', placeholder: 'media', caption: 'meta', category: 'chip', title: 'title', desc: 'desc' } },
-  'logo-carousel': { wideSpacing: false, role: { logo: 'logo' } },
   'map-area': { role: { area: 'card', name: 'title', desc: 'desc' } },
   'trusted-brands': { wideSpacing: false, role: { brand: 'logo' } },
 };
@@ -1357,7 +1356,6 @@ const PLAIN_SHAPE_NAMES = {
   'announcement-bar': 'stack',
   'text-block': 'stack',
   // 横排一行的那几个
-  'logo-carousel': 'row',
   'services-nav': 'row',
   'trusted-brands': 'row',
   // 各自只有一副的
