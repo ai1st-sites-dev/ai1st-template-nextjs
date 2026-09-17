@@ -30,18 +30,24 @@
 // 🔴 **图册不替代 QA 的真站验证。** 这里的数据是从 manifest 的槽位现造的示例；真站的数据形状不同
 //    （老 `sections` 形状、槽位缺失、站自己的 services.json），那些只有在真站上才看得见。
 
-import path from 'path';
-import fs from 'fs';
 import SectionRenderer from '@/components/SectionRenderer';
-import { defaultLocale, pagesByLocale } from '@/lib/config';
-import type { BlockConfig, DynamicPageConfig } from '@/lib/types/config';
-import { blockShapeCatalog, sampleDataFor } from '../../../scripts/lib/block-catalog.js';
+import { defaultLocale } from '@/lib/config';
+import type { BlockConfig } from '@/lib/types/config';
+import { blockShapeCatalog } from '../../../scripts/lib/block-catalog.js';
+import { demoDataFor } from '../../../scripts/lib/demo-content/index.js';
 import { filledOptionalSlots } from '../../../scripts/lib/block-manifest.js';
-import { buildThemeCss } from '../../../scripts/theme-css.js';
-import themePool from '../../../scripts/theme-pool.json';
-import CatalogBoard, { type CatalogTheme } from './CatalogBoard';
+import CatalogBoard from './CatalogBoard';
 import CatalogScroll from './CatalogScroll';
 import ShapeSelect from './ShapeSelect';
+import {
+  CATALOG_LOCALE,
+  CATALOG_PATHS,
+  CATALOG_SERVICE_SLUG,
+  OWN_THEME_OFF,
+  catalogThemes,
+  readSheetCss,
+  registerCatalogFixturePages,
+} from './catalogShared';
 
 export const metadata = {
   title: 'Block catalogue',
@@ -49,103 +55,23 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
-interface PoolTheme {
-  label?: string;
-  colors: { primary: Record<string, string>; accent: Record<string, string> };
-  fonts: { heading: string[]; body: string[]; googleFontsUrl?: string };
-  settings?: Record<string, unknown>;
-  sheet?: string;
-}
-
-// 🔴 **路径要从 `process.cwd()` 起算，不能靠那几个脚本自己的 `__dirname`。** 它们是普通 node 脚本，
-//    默认按 `__dirname` 找 `blocks/` 和 `registry.ts`；而被 webpack 打进 Next 的服务端包之后
-//    `__dirname` 是**产物目录**（实测那一版报的是
-//    `ENOENT … .next/dev/server/app/src/lib/sections/registry.ts`）。所以这里把路径显式传进去。
-//    `next dev` 的 cwd 就是 `templates/nextjs`（`npm run dev` 与容器里的启动命令都在这个目录下跑）。
-const NEXT_DIR = process.cwd();
-
-// 🔴 **谁可以让这一页滚（#1345）。** admin 的「区块与主题」页把这一页放进 iframe，点一行就发一条
-//    `ai1st:catalog-scroll`。允许哪一个来源发，由**部署那一层**给：
-//    `deploy/cloud-dev/build-showcase-from-main.sh` 的 `SHOWCASE_ADMIN_ORIGIN`（默认
-//    `https://appdev.ai1st.site`，跟同一份脚本里的 `SHOWCASE_FRAME_ANCESTORS` 并排）会把它作为
-//    `AI1ST_CATALOG_ADMIN_ORIGIN` 传给 `next dev`。
-//    🔴 **没配就不挂那个监听器**（下面是条件渲染）—— 失败方向是「不滚」，不是「谁发都收」。
-//    同族做法在 `layout.tsx` §previewTrustedOrigin：取不出来源就一个监听器都不发。那一条的来源是
-//    `leadApi`，而展示站建出来 `leadApi` 是空串（现取 `slots/*/src/lib/config-data.ts`），
-//    所以这一页不共用它，走自己的环境变量。
+// 🔴 **每一格的内容来自演示内容包**（#1383）。#1343 那会儿它是 `sampleDataFor()` 现编的占位串
+//    （`Headline` / `Label`）加一张 `/images/grid-pattern.svg` 色块 —— 那份东西回答得了「这个块
+//    渲染得出来吗」，回答不了「这个形态排得好不好」。今天两边都读
+//    `scripts/lib/demo-content/`：一家虚构汽修店的真文案 + FlyonUI 的真图。
+//
 const CATALOG_ADMIN_ORIGIN = (process.env.AI1ST_CATALOG_ADMIN_ORIGIN || '').trim();
-const sheetPath = (sheet: string) => path.join(NEXT_DIR, 'public', 'themes', `${sheet}.css`);
-const CATALOG_PATHS = {
-  registryPath: path.join(NEXT_DIR, 'src', 'lib', 'sections', 'registry.ts'),
-  blocksDir: path.join(NEXT_DIR, 'blocks'),
-};
-
-/**
- * 🔴 **图册自带 `service-related-pages` 要的那几页。**
- *
- * 这是 32 个块里唯一一个**会整块不渲染**的：它拿 `serviceSlug` 去筛**这个站**的页面表
- * （`pagesByLocale[locale]`），一个子页都筛不到就 `return null`（`ServiceRelatedPagesSection.tsx:52`）。
- * 而 `create-site.js` 建出来的站默认一个带 `/` 的 slug 都没有（home / about / services / quote /
- * contact）—— r1 让图册去站里找这样一个前缀、找不到就在行首印一句话，于是在**默认站**上那两格是空的，
- * 双向差集读到 2。AC1 要的是无条件的 0，所以图册不再问这个站有什么页面，自己带着夹具。
- *
- * 配方是这个块自己写着的（`ServiceRelatedPagesSection.tsx:21-25` 原话：不给 `<serviceSlug>/` 下放
- * 两页的夹具，是在用一个空串量这个块；#1027 的夹具为此带了 `services/alpha` 和 `services/beta`）。
- * 这里放**三**页，因为 `three-up` 那一格要三项才看得出它是三列。
- *
- * 🔴 **为什么挂在一个属于图册自己的 locale 键下，而不是塞进站那个 locale**：塞进去就是改展示站 ——
- *    页脚、导航、sitemap 全都从 `pagesByLocale[<站的 locale>]` 取，这几页会当场出现在站上。挂在一个
- *    没有任何路由会问的键上，站那边按构造看不见：app 里对这张表的每一次读取都是按键取
- *    （`pagesByLocale[locale]`），而唯二两处遍历 —— `config.ts` 的 `slugToLocales` 和 `sitemap.ts` ——
- *    遍历的是 `locales` **数组**，图册没往那儿加东西。判据不是这段话，是反向对照：开过图册之后
- *    `/sitemap.xml` 和站的页面里 `sample-service` 0 命中。
- *
- * 🔴 这一格的 `locale` 因此跟别的格不一样，而**渲染那条路一个分支都没多**：每一格仍然是
- *    `<SectionRenderer blocks={[block]} locale={…} />` 走注册表里那个真组件。
- *
- * 📌 这个键写成 `__catalog-fixture` 而不是一个语言码：站的 `locales` 里装的是语言码（`en` / `zh`），
- *    撞不上它。真撞上了的后果也只在 `next dev` 这个进程里 —— 那个 locale 的页面表会被这份夹具盖掉，
- *    而生产构建里这个文件根本不是一个页面（`pageExtensions` 不认 `.dev.tsx`）。
- */
-const CATALOG_LOCALE = '__catalog-fixture';
-const CATALOG_SERVICE_SLUG = 'sample-service';
-const CATALOG_FIXTURE_PAGES: DynamicPageConfig[] = ['First', 'Second', 'Third'].map((ord, i) => ({
-  slug: `${CATALOG_SERVICE_SLUG}/keyword-page-${i + 1}`,
-  title: `${ord} Keyword Page`,
-  description: 'A keyword page under this service — the catalogue supplies these so the block has something to point at.',
-  blocks: [],
-}));
-
-/** 幂等：`next dev` 里这个模块只求值一次，但重复调用也只是原样写回同一份。 */
-function registerCatalogFixturePages(): void {
-  pagesByLocale[CATALOG_LOCALE] = CATALOG_FIXTURE_PAGES;
-}
+// 🔴 夹具页（`service-related-pages` 那一行要它才画得出来）、主题皮、以及关掉站自己那套主题的
+//    那段脚本，都搬去了 `./catalogShared`（#1383：单格页要用同一份，两处各写一份会分叉）。
 
 export default function CatalogPage() {
   const { blocks, manifests } = blockShapeCatalog(CATALOG_PATHS);
   const locale = defaultLocale;
   registerCatalogFixturePages();
 
-  const pool = themePool as unknown as Record<string, PoolTheme>;
-  const themes: CatalogTheme[] = Object.keys(pool).map((id) => {
-    const t = pool[id];
-    return {
-      id,
-      label: t.label || id,
-      sheet: t.sheet || id,
-      // 🔴 皮走那一份翻译器，一个公式都不在这里重写。`blockLayoutCss` 有意不传：那个参数在
-      //    `sync-config.js` 的调用里装的是**站自己的**画法表，而图册的画法是按主题换的那一张，
-      //    由 CatalogBoard 单独 fetch 进第二张 <style>（顺序跟这份翻译器自己拼的一样：皮在前）。
-      skinCss: buildThemeCss({ colors: t.colors, fonts: t.fonts, settings: t.settings }),
-    };
-  });
+  const themes = catalogThemes();
   const initial = themes[0];
-  let initialSheetCss = '';
-  if (initial) {
-    const p = sheetPath(initial.sheet);
-    initialSheetCss = fs.existsSync(p) ? fs.readFileSync(p, 'utf-8')
-      : `/* ${path.relative(NEXT_DIR, p)} 不在 —— 这套主题没有画法表 */`;
-  }
+  const initialSheetCss = initial ? readSheetCss(initial.sheet) : '';
 
   let cellCount = 0;
   const rows = blocks.map((type) => {
@@ -154,8 +80,8 @@ export default function CatalogPage() {
     // 只可能是那个保证自己坏了 —— 当场说出来，不许静默少画一行（少一行正是本票要消灭的那种失败）。
     if (!m) throw new Error(`block catalogue: "${type}" 在注册表里，而 manifests 里没有它`);
     const shapes: string[] = m.shapes.map((s) => s.name);
-    const full = sampleDataFor(m);
-    const minimal = sampleDataFor(m, { minimal: true });
+    const full = demoDataFor(m);
+    const minimal = demoDataFor(m, { minimal: true });
     // 这个块的示例数据不能用 manifest 里那个 `"<service-id>"` 占位串：它要筛得到东西才画得出来。
     const isRelatedPages = type === 'service-related-pages';
     if (isRelatedPages) {
@@ -250,9 +176,6 @@ export default function CatalogPage() {
     </>
   );
 }
-
-const OWN_THEME_OFF = "(function(){var l=document.querySelectorAll('link[rel=\"stylesheet\"]');"
-  + "for(var i=0;i<l.length;i++){if((l[i].getAttribute('href')||'')==='/theme.css'){l[i].disabled=true;}}})();";
 
 const CHROME_CSS = `
 .catalog { display: block; padding: 0 0 6rem; }
