@@ -904,10 +904,23 @@ for (const sel of MOVED_TEXT_TARGETS) await measureText(sel, pathOf(baseUrl), fa
 // component, not fetched, and a theme cannot empty it). A rule that a decorative <div> must contain
 // something a customer can read would be red on every correct site, and a check that goes red on
 // correct sites gets switched off.
+// 🔴 #1353 — A PART THE MARKUP ITSELF CALLS OPTIONAL IS NOT THE THEME HIDING SOMETHING.
+// §3 forbids a theme from hiding content the block says is essential. Until the three regions moved
+// into the shape layer, "the shape does not show this part" and "the part is not in the DOM" were the
+// same thing, so the question never came up. They are not the same thing any more: D14 requires ONE
+// skeleton per block and lets the shape layer turn parts off — the mobile drawer is in the DOM at
+// 1280px, the footer's link columns are in the DOM under `cta-band`. Neither is reachable for a
+// visitor, and neither was reachable before either — the only thing that changed is where the answer
+// is written down. `data-role="optional"` is where the markup writes it (`blockAttrs.ts`, #1331), so
+// that is what this probe reads. A part with no such marking, or one under an essential one, is
+// judged exactly as before.
+// 🔴 The skipped ones are PRINTED (see the `essential elements:` reading) — a check that quietly
+// stops looking at something reads the same as one that looked and found nothing.
 const ESSENTIAL_PARTS_PROBE = () => [...document.querySelectorAll('[data-role="essential"]')]
   .flatMap((block) => {
     const blockName = block.getAttribute('data-block') || block.className || 'essential block';
     return [...block.querySelectorAll('[class*="__"]')]
+      .filter((el) => !el.closest('[data-role="optional"]'))
       .filter((el) => {
         const hasText = (el.textContent || '').trim().length > 0;
         const hasMedia = el.tagName === 'IMG' || el.querySelector('img');
@@ -1003,6 +1016,17 @@ const ESSENTIAL_TEXT_PROBE = () => {
     for (let e = el, from = null; e; from = e, e = e.parentElement) {
       if (e.getAttribute('aria-hidden') === 'true') return `${name(e)} carries aria-hidden="true"`;
       if (e.hasAttribute('hidden')) return `${name(e)} carries the hidden attribute`;
+      // 🔴 #1353 — the same reason ESSENTIAL_PARTS_PROBE reads this attribute, and the same words:
+      // until the three regions moved into the shape layer, "this shape does not show that part" and
+      // "that part is not in the DOM" were the same thing. D14 requires ONE skeleton per block, so a
+      // part the shape turns off is now IN the markup — the mobile drawer at 1280px, the footer's
+      // link columns under `cta-band`. `data-role="optional"` (blockAttrs.ts, #1331) is where the
+      // markup says a part may be absent; a part with no such marking is judged exactly as before.
+      // It lands in the exempt list, which this check PRINTS with a reason for every entry — the
+      // whole point of that list being the same sentence in both directions.
+      if (e.getAttribute('data-role') === 'optional') {
+        return `${name(e)} carries data-role="optional" — the markup says this part may be absent`;
+      }
       // A closed native `<details>` hides everything under it EXCEPT its own first `<summary>` —
       // that one is the control a visitor clicks and is on screen the whole time. So the branch is
       // not "am I inside a closed <details>", it is "am I inside the part of it that is closed":
@@ -1091,6 +1115,12 @@ const ESSENTIAL_TEXT_PROBE = () => {
         where: (el.getAttribute('class') || el.tagName).trim().split(/\s+/)[0],
         text: texts.map((t) => t.textContent.trim()).join(' ').replace(/\s+/g, ' ').slice(0, 40),
         exempt: exemptedBy(el),
+        // 🔴 #1353 —— 「这一块可以不在」跟「它在屏幕上但读不出来」是**两个问题**，所以这一条
+        // 单独记一笔。`data-role="optional"` 只答前一个：可达性那一格放过它（②d），而墨色那一格
+        // （②e）照旧问它 —— 一个形态真的把 CTA 色带画出来了，那条字就必须读得出来。
+        // 不分开的话，给一个零件标上 optional 会把它的对比度检查一起关掉，而那是本仓记过的形状：
+        // 压制一个症状会把另一个的诊断一起删掉。
+        exemptOptional: !!el.closest('[data-role="optional"]'),
         lines: measured.length,
         alive: measured.filter((m) => m.alive).length,
         rawArea: Math.round(measured.reduce((n, m) => n + m.line.w * m.line.h, 0)),
@@ -1133,9 +1163,10 @@ const settlePage = async () => {
 // The sentence every ②d/②e finding ends with. PM's requirement on this ticket: a person reading the
 // red has to be told, in the red itself, that the exemption was considered and did not apply — and
 // therefore what to write in the markup if this text really is meant to be off right now.
-const NOT_EXEMPT = 'It was not skipped: neither it nor any ancestor carries aria-hidden="true" or the '
-  + 'hidden attribute, no aria-expanded="false" control names it through aria-controls, and it is not '
-  + 'in the closed panel of a <details> — so as far as the markup says, this text is on right now';
+const NOT_EXEMPT = 'It was not skipped: neither it nor any ancestor carries aria-hidden="true", the '
+  + 'hidden attribute or data-role="optional", no aria-expanded="false" control names it through '
+  + 'aria-controls, and it is not in the closed panel of a <details> — so as far as the markup says, '
+  + 'this text is on right now';
 
 // ── ②d where the text ended up, and what is left of it ──────────────────────────────────────────
 function judgeEssentialText(reading, where) {
@@ -1273,7 +1304,10 @@ async function judgeEssentialPaint(reading, where) {
   const blocks = await page.$$('[data-role="essential"]');
   for (let i = 0; i < reading.length; i += 1) {
     const b = reading[i];
-    const candidates = b.runs.filter((r) => !r.exempt && r.alive > 0 && r.visRects.length > 0);
+    // `exemptOptional` 的那些照量：它们被放过的只有「不在屏幕上算不算错」那一问，而这里问的是
+    // 「在屏幕上的这几行字读不读得出来」—— `r.alive > 0` 本来就要求它真的在屏幕上。
+    const candidates = b.runs.filter((r) => (!r.exempt || r.exemptOptional)
+      && r.alive > 0 && r.visRects.length > 0);
     if (candidates.length === 0) continue;
     const el = blocks[i];
     if (!el) {
@@ -1411,6 +1445,24 @@ function textReading(reading, where) {
     })();
 }
 
+// #1353 —— 被上面那条 `data-role="optional"` 跳过的零件，按类名数一遍。它进 readings，不进 problems：
+// 这是「这一轮这把尺没看哪些东西」的读数，而一个什么都没看的绿跟全过长得一模一样。
+const ESSENTIAL_SKIPPED_PROBE = () => {
+  const names = new Map();
+  for (const block of document.querySelectorAll('[data-role="essential"]')) {
+    for (const el of block.querySelectorAll('[class*="__"]')) {
+      if (!el.closest('[data-role="optional"]')) continue;
+      const hasText = (el.textContent || '').trim().length > 0;
+      const hasMedia = el.tagName === 'IMG' || el.querySelector('img');
+      const hasLink = el.tagName === 'A' ? el.getAttribute('href') : el.querySelector('a[href]');
+      if (!(hasText || hasMedia || hasLink)) continue;
+      const k = (el.getAttribute('class') || el.tagName).trim().split(/\s+/)[0];
+      names.set(k, (names.get(k) || 0) + 1);
+    }
+  }
+  return [...names].map(([k, n]) => `${k}×${n}`);
+};
+
 const ESSENTIAL_PROBE = () => ({
   roots: [...document.querySelectorAll('[data-role="essential"]')].map((n) => {
     const eff = window.__effective(n);
@@ -1424,6 +1476,7 @@ const ESSENTIAL_PROBE = () => ({
     };
   }),
   parts: window.__essentialParts(),
+  skipped: window.__essentialSkipped(),
 });
 
 // Turn one page's reading into findings. Named, because ②c hands the very same one to a browser
@@ -1452,6 +1505,7 @@ function judgeEssential(reading, where) {
 }
 
 await page.evaluate(`window.__essentialParts = ${ESSENTIAL_PARTS_PROBE.toString()}`);
+await page.evaluate(`window.__essentialSkipped = ${ESSENTIAL_SKIPPED_PROBE.toString()}`);
 const essentialReading = await page.evaluate(ESSENTIAL_PROBE);
 const essentials = essentialReading.roots;
 if (essentials.length === 0) {
@@ -1460,7 +1514,9 @@ if (essentials.length === 0) {
 }
 readings.push(`  essential elements: ${essentials.length}`
   + essentials.map((e) => ` · "${e.where}" opacity ${e.opacity}`).join('')
-  + ` · parts with content inside them: ${essentialReading.parts.length}`);
+  + ` · parts with content inside them: ${essentialReading.parts.length}`
+  + ` · parts the markup marks optional, so §3 does not ask about them: `
+  + `${essentialReading.skipped.length ? essentialReading.skipped.join(', ') : 'none'}`);
 problems.push(...judgeEssential(essentialReading, ''));
 // ②d/②e on this page. Installed and judged right here rather than folded into ESSENTIAL_PROBE
 // because ②e needs a camera, which lives in node, not in the document.
@@ -3454,6 +3510,7 @@ for (const p of otherPaths.slice(0, OTHER_PAGE_CAP)) {
   // `__essentialParts` calls `__effective`.
   await page.evaluate(INSTALL_EFFECTIVE);
   await page.evaluate(`window.__essentialParts = ${ESSENTIAL_PARTS_PROBE.toString()}`);
+  await page.evaluate(`window.__essentialSkipped = ${ESSENTIAL_SKIPPED_PROBE.toString()}`);
   const otherReading = await page.evaluate(ESSENTIAL_PROBE);
   problems.push(...judgeEssential(otherReading, ` on ${opened.at}`));
   // 🔴 #1049 — ②d/②e ON EVERY PAGE TOO, AND THAT IS A DELIBERATE 5.6s (PM's call on this ticket).

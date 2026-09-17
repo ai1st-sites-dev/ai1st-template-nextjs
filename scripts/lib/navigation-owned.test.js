@@ -1322,7 +1322,7 @@ function flattenShape(shape, at = '', out = []) {
     return {
       footerVariants: r.footerVariants,
       invisible: notRenderedHere(title, {
-        header: [r.regionLayout.header], footer: r.footerVariants, topbar: r.hasTopbarRegion ? [r.regionLayout.topbar] : [],
+        header: [r.regions.header.shape], footer: r.footerVariants, topbar: r.hasTopbarRegion ? [r.regions.topbar.shape] : [],
       }),
       hasTopbar: r.hasTopbarRegion,
     };
@@ -1363,25 +1363,31 @@ function flattenShape(shape, at = '', out = []) {
   for (const d of madeDirs) fs.rmSync(d, { recursive: true, force: true });
 }
 
-// ── ⑫ `PAGE_READS` 的 `renderedBy` == 组件里**真的**画了它的那几支（#1104 r6）─────────────────
+// ── ⑫ `PAGE_READS` 的 `renderedBy` == 页面上【真的看得见它】的那几种形态（#1104 r6 · #1353 改判据）
 //
 // 🔴 为什么这一格是这批改动里最要紧的：`renderedBy` 是一张表，而这张表决定「要不要跟老板说一句
 //    你这个站看不见它」。表漂了，两个方向的后果都是新的假话：
-//      · 表里说这一支画它、其实已经不画了 ⟹ 老板拿到「已完成」，页面上什么都没变（本票要治的病）
-//      · 表里没写、其实画了     ⟹ 我们对一个真会显示的字段说「你这个站不显示它」（新造一句假话）
-//    所以这里用 TypeScript 自己的解析器把 `Footer.tsx` / `Header.tsx` 按 `data-region-layout` 拆成
-//    各支，逐支解出「这一支读了 navigation.json 的哪几处」，再跟表两向比对。自带阳性对照：
-//    从源码里删掉一个渲染点，这一格必须当场红 —— 少了那个对照，「两边对得上」也可能是因为解析器
-//    一处都没找到（本票的三个人各自踩过一次这个坑）。
+//      · 表里说这一种画它、其实看不见 ⟹ 老板拿到「已完成」，页面上什么都没变（本票要治的病）
+//      · 表里没写、其实看得见     ⟹ 我们对一个真会显示的字段说「你这个站不显示它」（新造一句假话）
+//
+// 🔴 #1353 —— **判据换了家，性质一个字没变。** 顶栏 / 页脚以前是「一变体一棵树」，所以「这一支画不画
+//    它」用 TypeScript 解析器按 `data-region-layout` 拆分支就能答。今天只有**一副骨架**：组件对每一种
+//    形态渲染同样的 DOM，差别整个落在 `public/shapes.css` 把哪几个零件 `display:none`。所以这一格拆成
+//    两半，两半都带阳性对照：
+//      A 组件**真的把这个字段画进 DOM 了吗** —— 仍用那把解析器（它跟着别名和回调参数走）。
+//      B 这一种形态下它**看不看得见** —— 去问 `base.css` 的地板 + `shapes.css` 那一种形态的覆盖。
+//    只留 A：所有形态读数相同，这张表的判别力整个没了（恒绿）。只留 B：渲染点被删掉时 CSS 一个字
+//    不变 ⟹ 照样全绿。两半都要。
 {
   const { PAGE_READS, VARIANTS_BY_REGION } = mod;
-  // 每一类区由哪个组件画。`splitByVariant:false` = 这个组件不按版式分支，它读什么就是每一种版式
-  // 都读什么（下面会把「它真的不分支」也断言一次，哪天有人给它加了分支这一格会说话）。
+  // 每一类区由哪个组件画。#1353 起三个都不按形态分支（一副骨架），所以 `splitByVariant:false`；
+  // 哪天有人给某个组件加回分支，下面 A 那半会读到「某一种形态不画它」而当场说话。
   const REGION_FILES = [
-    { region: 'header', file: path.join('src', 'components', 'Header.tsx'), splitByVariant: true },
-    { region: 'footer', file: path.join('src', 'components', 'Footer.tsx'), splitByVariant: true },
+    { region: 'header', file: path.join('src', 'components', 'Header.tsx'), splitByVariant: false },
+    { region: 'footer', file: path.join('src', 'components', 'Footer.tsx'), splitByVariant: false },
     { region: 'topbar', file: path.join('src', 'components', 'TopbarRegion.tsx'), splitByVariant: false },
   ];
+  // 页脚那些零件住在 Footer.tsx，而 `topbar` 那一格读的是 `TopbarRegion.tsx`；顶栏读 Header.tsx。
 
   /** region → { variant → Set(读到的 navigation.json 路径) }；读不出来的一律 unavailable。 */
   const measured = {};
@@ -1393,32 +1399,79 @@ function flattenShape(shape, at = '', out = []) {
     measured[r.region] = got.byVariant;
   }
 
+  // ── B 那半要的那把尺：一个类在某一种形态下是不是 display:none ────────────────────────────────
+  //    只看两份平台 CSS（地板 + 形态层）—— 主题表按设计不碰这两个区（`public/shapes.css` 那条明写
+  //    例外里写了为什么），所以这里读全了。
+  const CSS_FILES = ['public/base.css', 'public/shapes.css']
+    .map((f) => path.join(TEMPLATE_ROOT, f));
+  for (const f of CSS_FILES) if (!fs.existsSync(f)) die(`⑫ 读不到 ${f} —— B 那半量的是它`);
+  const cssTextOf = (override) => CSS_FILES
+    .map((f) => (override && override.file === f ? override.text : fs.readFileSync(f, 'utf-8')))
+    .join('\n')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+
+  /** 这个类在这一种形态下的 display —— 形态层那条盖地板那条；都没有就回 undefined。 */
+  const displayOf = (cssText, cls, block, shape) => {
+    let base; let scoped;
+    for (const m of cssText.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      const sel = m[1].trim();
+      if (sel.startsWith('@')) continue;
+      const hitsClass = sel.split(',').some((one) => new RegExp(`\\.${cls.replace(/[-]/g, '\\-')}(?![\\w-])`).test(one));
+      if (!hitsClass) continue;
+      const decls = [...m[2].matchAll(/(?:^|[\s;])display\s*:\s*([a-z-]+)/g)].map((d) => d[1]);
+      if (!decls.length) continue;
+      const isScoped = new RegExp(`\\[data-block="${block}"\\]\\[data-shape="${shape}"\\]`).test(sel);
+      const isOtherShape = /\[data-shape="[^"]+"\]/.test(sel) && !isScoped;
+      if (isOtherShape) continue;             // 别的形态的规则，跟这一种无关
+      if (isScoped) scoped = decls[decls.length - 1];
+      else base = decls[decls.length - 1];
+    }
+    return scoped !== undefined ? scoped : base;
+  };
+  // 🔴 #1353 —— 一项里可以是**一个名字**，也可以是**一组名字**（数组）。两者的意思不同，而这个差别
+  // 是承重的：平列的两个名字 = 「每一个都得看得见」（`footer.columns[].title` 要的就是这个：
+  // cta-band 关掉整栏、slim-row 关掉标题，任一关掉这句话就没了）；一组 = 「有一个看得见就算数」
+  // （`footer.description` 要的是这个：它有两个画它的地方，而没有哪一种形态两个都开）。
+  const groupHidden = (cssText, entry, block, shape) => (Array.isArray(entry) ? entry : [entry])
+    .every((cls) => displayOf(cssText, cls, block, shape) === 'none');
+  const hiddenIn = (cssText, e, block, shape) => (e.visibilityClasses || [])
+    .some((entry) => groupHidden(cssText, entry, block, shape));
+
+  const REGION_BLOCK = require(path.join(TEMPLATE_ROOT, 'scripts', 'region-layout.js')).REGION_BLOCK;
+
   const problems = [];
   let compared = 0;
+  const baseCss = cssTextOf(null);
   for (const e of PAGE_READS) {
     const byVariant = measured[e.region];
     if (!byVariant) { problems.push(`⑫ \`${e.key}\` 的区 "${e.region}" 没有对应的组件文件`); continue; }
+    if (!Array.isArray(e.visibilityClasses) || !e.visibilityClasses.length) {
+      problems.push(`⑫ \`${e.key}\` 没有声明 \`visibilityClasses\` —— B 那半对它按构造失明`);
+      continue;
+    }
+    const block = REGION_BLOCK[e.region];
     for (const v of VARIANTS_BY_REGION[e.region]) {
       compared++;
       const reads = byVariant[v] || new Set();
-      const reallyReads = e.renderPaths.some((p) => reads.has(p));
+      const reallyReads = e.renderPaths.some((p) => reads.has(p));      // A
+      const visible = reallyReads && !hiddenIn(baseCss, e, block, v);    // A ∧ B
       const claimed = e.renderedBy.includes(v);
-      if (claimed && !reallyReads) {
-        problems.push(`⑫ \`${e.key}\`：表里说 "${v}" 这一支画它，而解析器在那一支里找不到 `
-          + `${e.renderPaths.map((p) => `\`${p}\``).join(' / ')} —— 渲染点没了，`
-          + '而这道门现在会漏说那句话（老板会拿到「已完成」而页面没变）');
-      } else if (!claimed && reallyReads) {
-        problems.push(`⑫ \`${e.key}\`：解析器量到 "${v}" 这一支真的画它，而表里没写 —— `
+      if (claimed && !visible) {
+        problems.push(`⑫ \`${e.key}\`：表里说 "${v}" 看得见它，而实测`
+          + `${reallyReads ? `形态 "${v}" 的 CSS 把 ${e.visibilityClasses.map((x) => (Array.isArray(x) ? `(${x.join(' 或 ')})` : x)).join(' / ')} 关掉了` : '组件根本没把它画进 DOM'}`
+          + ' —— 这道门现在会漏说那句话（老板会拿到「已完成」而页面没变）');
+      } else if (!claimed && visible) {
+        problems.push(`⑫ \`${e.key}\`：实测 "${v}" 下它是看得见的，而表里没写 —— `
           + '这道门会对一个真会显示的字段说「你这个站不显示它」，是新造的一句假话');
       }
     }
   }
   if (problems.length === 0) {
-    ok(`⑫ ${PAGE_READS.length} 格 × 各自那一类区的全部版式 = ${compared} 个组合，`
-      + '「表里说画不画」跟解析器在组件里量到的逐个相同');
+    ok(`⑫ ${PAGE_READS.length} 格 × 各自那一类区的全部形态 = ${compared} 个组合，`
+      + '「表里说看不看得见」跟【组件真的画了 ∧ 这一种形态的 CSS 没关掉它】逐个相同');
   } else problems.forEach(bad);
 
-  // 🔴 阳性对照 —— 两个方向各一个，都只改一处源码。
+  // 🔴 阳性对照 —— A 半、B 半各一个，都只改一处。
   const footerAbs = path.join(TEMPLATE_ROOT, 'src', 'components', 'Footer.tsx');
   const footerSrc = fs.readFileSync(footerAbs, 'utf-8');
   const footerCfg = REGION_FILES.find((r) => r.region === 'footer');
@@ -1427,9 +1480,9 @@ function flattenShape(shape, at = '', out = []) {
     return got.unavailable ? got : got.byVariant;
   };
 
-  // ① 删掉一个渲染点：`multi-column` 那一支里画栏目标题的那**一句** —— 只删 `<h3>` 里那处，
-  //    **`:266` 的 `key={column.title}` 留着**。这个夹具的选法是承重的：把两处一起删（我第一版
-  //    `split/join` 就是）的话，一个把 React key 也算成渲染的实现照样会红 ⟹ 对照分不出两种实现。
+  // ① A 半：删掉一个渲染点 —— `<h3>` 里画栏目标题的那**一句**，**`key={column.title}` 留着**。
+  //    这个夹具的选法是承重的：把两处一起删的话，一个把 React key 也算成渲染的实现照样会红
+  //    ⟹ 对照分不出两种实现。
   {
     const line = (footerSrc.split('\n').find((l) => l.includes('<h3') && l.includes('{column.title}')) || '');
     if (!line) {
@@ -1441,9 +1494,8 @@ function flattenShape(shape, at = '', out = []) {
       const got = readsOf(footerSrc.replace(line, line.replace('{column.title}', '{/* qa removed */}')));
       const still = got.unavailable ? null : (got['multi-column'] || new Set()).has('footer.columns[].title');
       if (still === false) {
-        ok('⑫ 阳性对照①：只把 `<h3>` 里那一处 `{column.title}` 删掉（`key={column.title}` 留着），'
-          + '解析器当场说 `multi-column` 不再画栏目标题 ⟹ 上面那格的绿是活的，而且这把尺没把 '
-          + 'React key 当成渲染');
+        ok('⑫ 阳性对照①（A 半）：只把 `<h3>` 里那一处 `{column.title}` 删掉（`key={column.title}` 留着），'
+          + '解析器当场说组件不再画栏目标题 ⟹ 那一半的绿是活的，而且这把尺没把 React key 当成渲染');
       } else {
         bad(`⑫ 阳性对照①失败：删掉那个渲染点之后解析器照样说它画（${got.unavailable || '仍然命中'}）`
           + ' —— 这把尺子没有真的在读组件');
@@ -1451,20 +1503,21 @@ function flattenShape(shape, at = '', out = []) {
     }
   }
 
-  // ② 反方向：给一支加一个它今天不画的渲染点，表里没写 ⟹ 必须报「新造的假话」那一条
+  // ② B 半：把 `slim-row` 那条「关掉描述」的规则拿掉 ⟹ 它在 slim-row 下就该变成看得见，
+  //    而表里没写 slim-row ⟹ 上面那段必须报「新造的假话」那一条。
   {
-    const anchor = 'data-region-layout="slim-row"';
-    if (!footerSrc.includes(anchor)) {
-      bad(`⑫ 阳性对照② 立不起来：Footer.tsx 里找不到 \`${anchor}\``);
+    const shapesPath = path.join(TEMPLATE_ROOT, 'public', 'shapes.css');
+    const shapesSrc = fs.readFileSync(shapesPath, 'utf-8');
+    const entry = PAGE_READS.find((x) => x.key === 'footer.description');
+    const before = hiddenIn(baseCss, entry, 'footer', 'slim-row');
+    const rigged = cssTextOf({ file: shapesPath, text: shapesSrc.replace(/\.footer__desc,/, '.footer__desc-disabled,') });
+    const after = hiddenIn(rigged, entry, 'footer', 'slim-row');
+    if (before === true && after === false) {
+      ok('⑫ 阳性对照②（B 半）：把 `slim-row` 那条关掉 `.footer__desc` 的规则改个名，'
+        + '这把尺当场说它在 slim-row 下看得见 ⟹ 「CSS 关没关掉它」这一维是活的');
     } else {
-      const got = readsOf(footerSrc.replace(anchor, `${anchor} title={footer.description}`));
-      const now = got.unavailable ? null : (got['slim-row'] || new Set()).has('footer.description');
-      if (now === true) {
-        ok('⑫ 阳性对照②：给 `slim-row` 那一支加上一处读 `footer.description`，解析器当场量到它 '
-          + '⟹ 「表里没写而其实画了」这个方向也有量程');
-      } else {
-        bad(`⑫ 阳性对照②失败：加了渲染点解析器没看见（${got.unavailable || '没命中'}）`);
-      }
+      bad(`⑫ 阳性对照②失败：改前 hidden=${before} · 改后 hidden=${after}`
+        + ' —— B 那半没有真的在读 CSS（两边同值 = 这一维没有量程）');
     }
   }
 }

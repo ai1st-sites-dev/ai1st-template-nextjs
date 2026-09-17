@@ -44,7 +44,7 @@ const REL = 'templates/nextjs';
 
 const themesMod = require('../themes');
 const { pickThemeForIndustry, candidateThemesForIndustry, candidateThemesAfterDisabled, poolThemes } = themesMod;
-const { validateSite, loadManifests } = require('./block-manifest');
+const { validateSite, loadManifests, isRegionManifest } = require('./block-manifest');
 const { poolFor, homepageRecipe, tryHomepageRecipe } = require('./homepage-recipe');
 
 for (const [k, v] of Object.entries({ pickThemeForIndustry, candidateThemesAfterDisabled, validateSite, poolFor, homepageRecipe, tryHomepageRecipe })) {
@@ -415,7 +415,7 @@ console.log('\n── ⑥ 脚本自己插的 contact-form：关掉之后它也�
     : bad(`还少了这些页: ${lost.join(' ')}`);
 }
 
-// ── ⑧ 32 个块逐个关一遍：CRITICAL RULES 那一段里一个都不许再点名（#1346 r3）──────────────────
+// ── ⑧ 每个【页面块】逐个关一遍：CRITICAL RULES 那一段里一个都不许再点名（#1346 r3）────────────
 //
 // 🔴 **为什么要有这一节，而 ④ 那一格不够**：④ 只对 `faq-accordion` 一个块跑，而且数的是**带引号**
 //    的命中。QA1 与 QA2 在 r2 上各自独立量到：32 个块逐个关一遍，**11 个**在提示词里仍被点名，
@@ -435,10 +435,29 @@ console.log('\n── ⑥ 脚本自己插的 contact-form：关掉之后它也�
 //        关掉 gallery 这个**块**不该让老板连 gallery 这个**页面**都不能有。
 //      · 品牌名那条规矩（TICKET-137）里「hero headlines」是在举「内容出现在哪儿」的例子，
 //        它不是 `- ` 开头的排版规则，也不在这一段里。
-console.log('\n── ⑧ 32 个块逐个关一遍：CRITICAL RULES 段里 0 点名 ──');
+console.log('\n── ⑧ 每个页面块逐个关一遍：CRITICAL RULES 段里 0 点名 ──');
 {
-  const allTypes = fs.readdirSync(path.join(work, 'blocks'))
+  const blocksDir = path.join(work, 'blocks');
+  const everyManifest = fs.readdirSync(blocksDir)
     .filter((n) => n.endsWith('.json')).map((n) => n.replace(/\.json$/, '')).sort();
+  // 🔴 **外壳区（顶栏 / 页脚）不进这一节的分母**（#1353）。这一节问的是「关掉一个块之后，命令模型
+  //    排版的那几行还提不提它」，而外壳区**模型一个都点不到**：它们的 manifest 没有 `prompt` 段、
+  //    不在菜单里、也不能写进 `sections`。留在分母里的后果是**误报**：CRITICAL RULES 里有两行把
+  //    `header` / `footer` 当**普通英文词**用（"…they go in the footer only." / "…it won't be in the
+  //    header nav…"，说的是导航位置），而这一节按块名做词边界匹配，读到的就是「关掉 footer 之后
+  //    还被点名 1 行」—— 而产品侧没有任何东西要改。
+  // 🔴 判据用 manifest 自己声明的 `region: true`（`block-manifest.js` §isRegionManifest），不在这里
+  //    写第二份、更不写死名字：写死名字的话，下一个外壳区块进来时这一格会重新误报，而那时没人记得。
+  const regionTypes = everyManifest.filter((t) => isRegionManifest(blocksDir, t));
+  const allTypes = everyManifest.filter((t) => !regionTypes.includes(t));
+  // 🔴 分母的下限：上面那条排除规则要是哪天把一大半块都排掉（比如有人给所有 manifest 写了
+  //    `region: true`），下面每一格都会恒绿而没人看得见。这一句让那种情况当场 die(2)。
+  if (allTypes.length < 20) {
+    die(`页面块只剩 ${allTypes.length} 个（外壳区排掉了 ${regionTypes.length} 个：${regionTypes.join(', ') || '无'}）`
+      + ' —— 分母塌了，下面那些格什么都量不到');
+  }
+  console.log(`  📌 分母：${allTypes.length} 个页面块；外壳区排除 ${regionTypes.length} 个`
+    + `（${regionTypes.join(', ') || '无'}，判据是 manifest 里的 region:true）`);
   const rulesSection = (prompt) => {
     const i = prompt.indexOf('\nCRITICAL RULES:');
     if (i < 0) die('提示词里找不到 CRITICAL RULES: —— 这一节什么都没量到');
@@ -447,11 +466,11 @@ console.log('\n── ⑧ 32 个块逐个关一遍：CRITICAL RULES 段里 0 点
   // 词边界：`process-steps` 不许被 `process-steps-foo` 匹配，也不许 `hero` 命中 `hero-with-form`。
   const names = (section) => allTypes.filter((t) => new RegExp(`(^|[^a-z-])${t}([^a-z-]|$)`).test(section));
 
-  // 反向臂先跑：什么都没关时这一段**确实**点名了一批块 —— 否则下面那 32 格量的是一段空气。
+  // 反向臂先跑：什么都没关时这一段**确实**点名了一批块 —— 否则下面逐块那些格量的是一段空气。
   const namedWhenAllOn = names(rulesSection(pNone));
   namedWhenAllOn.length >= 5
     ? ok(`反向臂：什么都没关时 CRITICAL RULES 段里点名了 ${namedWhenAllOn.length} 个块（${namedWhenAllOn.join(', ')}）`)
-    : bad(`反向臂失败：这一段只点名了 ${namedWhenAllOn.length} 个块 —— 下面 32 格没有判别力`);
+    : bad(`反向臂失败：这一段只点名了 ${namedWhenAllOn.length} 个块 —— 下面逐块那些格没有判别力`);
 
   const leaked = [];
   for (const t of allTypes) {
@@ -463,7 +482,7 @@ console.log('\n── ⑧ 32 个块逐个关一遍：CRITICAL RULES 段里 0 点
     ? ok(`分母 ${allTypes.length} 个块，逐个关掉之后 CRITICAL RULES 段里 0 点名`)
     : bad(`还有 ${leaked.length} 个块被点名:\n      ${leaked.join('\n      ')}`);
 
-  // 被点名的那 13 个里，每一个单独关掉都要真的消失 —— 这是上面那一格的逐块拆解，
+  // 被点名的那几个里，每一个单独关掉都要真的消失 —— 这是上面那一格的逐块拆解，
   // 它挡的是「整段被某个改动弄空了，于是 0 命中恒真」。
   const stillThere = namedWhenAllOn.filter((t) => {
     const section = rulesSection(promptFrom(work, basePayload({ disabledBlocks: [t] })));
@@ -474,6 +493,8 @@ console.log('\n── ⑧ 32 个块逐个关一遍：CRITICAL RULES 段里 0 点
     : bad(`这些关掉之后仍被点名: ${stillThere.join(', ')}`);
 
   // 「一共有几种块」那句话（QA1 r2 第 1 条）：它是说给模型听的**目录事实**，关掉一个就当场变成假话。
+  // 🔴 它数的是**页面块**，跟上面那个分母同一个口径（#1353）：外壳区不在菜单里、模型点不到，
+  //    把它们算进这句话就是给模型报一个它用不上的数（`create-site.js` §offeredTypeCount 同款过滤）。
   // 🔴 后半句那个 `130+` 故意没动，理由写在 `create-site.js` §offeredTypeCount 旁边（全仓 variants
   //    加起来今天是 112，也就是这句话在本票之前就多报了 —— 圈外，动它会让「什么都没关 ⟹ 逐字节
   //    不变」变红）。这一格只钉前半句的那个数。
@@ -486,8 +507,8 @@ console.log('\n── ⑧ 32 个块逐个关一遍：CRITICAL RULES 段里 0 点
   const three = ['divider', 'gallery', 'timeline'];
   const less = typeCountIn(promptFrom(work, basePayload({ disabledBlocks: three })));
   all === allTypes.length
-    ? ok(`什么都没关 ⟹ 那句话说 ${all} 种块，等于 blocks/ 里的份数`)
-    : bad(`什么都没关时它说 ${all}，而 blocks/ 里是 ${allTypes.length} 份`);
+    ? ok(`什么都没关 ⟹ 那句话说 ${all} 种块，等于 blocks/ 里的页面块份数（外壳区 ${regionTypes.length} 个不算）`)
+    : bad(`什么都没关时它说 ${all}，而 blocks/ 里的页面块是 ${allTypes.length} 份（外壳区 ${regionTypes.length} 个不算）`);
   less === allTypes.length - three.length
     ? ok(`关掉 ${three.length} 个 ⟹ 那句话跟着说 ${less}`)
     : bad(`关掉 ${three.length} 个之后它说 ${less}，应该是 ${allTypes.length - three.length}`);

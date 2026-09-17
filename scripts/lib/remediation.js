@@ -203,18 +203,21 @@ function howToChangePageLayout(opts) {
  *    实测（110 个主题）：照它挑得到 110 个候选，其中 **20 个解析出来仍然是透明浮层**。
  *    ⟹ 老板照着做，五分之一的概率换完还是看不见那条横条，而报错不会再说一次。
  *
- * 真正的权威是构建自己用的那两个函数：`layoutFor(themeId)` 吐结论、`resolveRegionLayout()` 定版式
- * （`sync-config.js` 判 `regionLayout.header === 'transparent-overlay'` 用的就是它）。所以这里**去问它们**。
+ * 真正的权威是构建自己用的那两个函数：`regionShapesFor(themeId)` 吐这套主题的选择单、
+ * `resolveRegionShapes()` 定形态（`sync-config.js` 判 `regions.header.shape === 'transparent-overlay'`
+ * 用的就是它）。所以这里**去问它们**。
+ * 📌 #1353：这两个函数以前叫 `layoutFor` / `resolveRegionLayout`，读的是 `supports`；顶栏搬进形态层
+ *    之后读的是选择单（`shapes`），`supports` 整个退役了。这一段的判据一个字没变。
  *
  * @param {{rootDir?: string}} [opts]
  * @returns {{viaProduct: boolean|null, sentence: string, safe: string[], overlay: string[]}}
  */
 function themesWithoutOverlayHeader(opts) {
   const rootDir = (opts && opts.rootDir) || path.join(__dirname, '..');
-  let themes, layoutFor, resolveRegionLayout;
+  let themes, regionShapesFor, resolveRegionShapes;
   try {
-    ({ themes, layoutFor } = require(path.join(rootDir, 'themes.js')));
-    ({ resolveRegionLayout } = require(path.join(rootDir, 'region-layout.js')));
+    ({ themes, regionShapesFor } = require(path.join(rootDir, 'themes.js')));
+    ({ resolveRegionShapes } = require(path.join(rootDir, 'region-layout.js')));
   } catch (e) {
     return {
       viaProduct: null,
@@ -228,7 +231,7 @@ function themesWithoutOverlayHeader(opts) {
   for (const id of Object.keys(themes || {})) {
     let header;
     try {
-      header = resolveRegionLayout(layoutFor(id)).header;
+      header = resolveRegionShapes(regionShapesFor(id)).header.shape;
     } catch (e) {
       continue;   // 这一套算不出来 ⟹ 不许把它算进"安全"那边（错的方向不对称）
     }
@@ -248,7 +251,7 @@ function themesWithoutOverlayHeader(opts) {
     safe,
     overlay,
     // 🔴 只报数 + 举几个例子，不把 90 个名字铺进老板的聊天窗口。
-    //    判据那句话必须说**真能用的**那个（`layoutFor` 的结论），不是 `supports` 那张清单。
+    //    判据那句话必须说**真能用的**那个（选择单解析之后的结论），不是某张能力清单。
     sentence: `换一套顶栏不是透明浮层的主题 —— 在 dashboard 的换装弹窗里挑，`
       + `${safe.length} 套里挑一套（例如 ${safe.slice(0, 3).join(' / ')}）；`
       + `另外 ${overlay.length} 套的顶栏是透明浮层，换过去还是同一个毛病。`,

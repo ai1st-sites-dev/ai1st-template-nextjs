@@ -18,7 +18,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const { HEADER_VARIANTS, FOOTER_VARIANTS, TOPBAR_VARIANTS } = require('../region-layout');
+const { shapesOf, REGION_BLOCK } = require('../region-layout');
 
 const LAYOUTS_DIR = path.join(__dirname, '..', '..', 'page-layouts');
 const DEFAULT_LAYOUT_ID = 'standard';
@@ -28,11 +28,14 @@ const REGION_KINDS = ['topbar', 'header', 'content', 'footer'];
 /** 缺了它们，页面就不是一个页面：header/footer 是 D11，content 是页面自己的块。 */
 const REQUIRED_KINDS = ['header', 'content', 'footer'];
 
-const VARIANTS_BY_KIND = {
-  header: HEADER_VARIANTS,
-  footer: FOOTER_VARIANTS,
-  topbar: TOPBAR_VARIANTS,
-};
+// #1353 —— 「这一类区有哪些结构」现从**块 manifest** 取（`blocks/<块>.json` 的 `shapes`），
+// 不再从 `region-layout.js` 那三张写死的清单取 —— 那三张表随顶栏页脚搬进形态层一起退役了。
+// 🔴 每次调用都现取，不在模块加载时固化成一个常量：`repeatVariants` 的校验只跑在构建 / 测试里，
+//    而现取让「往 manifest 里加一种形态」当天就被这道校验认得，不用记得来改第二处。
+function variantsForKind(kind) {
+  const block = REGION_BLOCK[kind];
+  return block ? shapesOf(block) : [];
+}
 
 /**
  * 哪些区可以在一个布局里出现多次。
@@ -116,10 +119,10 @@ function validateLayout(layout) {
       const v = declared[r];
       if (!v) {
         problems.push(`${where}: "${kind}" 出现了不止一次，但没说 "${r}" 用哪种结构 `
-          + `（repeatVariants 里补一个：${(VARIANTS_BY_KIND[kind] || []).join(' / ')}）`);
-      } else if (!(VARIANTS_BY_KIND[kind] || []).includes(v)) {
+          + `（repeatVariants 里补一个：${variantsForKind(kind).join(' / ')}）`);
+      } else if (!variantsForKind(kind).includes(v)) {
         problems.push(`${where}: repeatVariants["${r}"] = "${v}" 不在 ${kind} 的结构清单里`
-          + `（${(VARIANTS_BY_KIND[kind] || []).join(' / ')}）`);
+          + `（${variantsForKind(kind).join(' / ')}）`);
       }
     }
   }

@@ -58,7 +58,19 @@ function blockShapeCatalog(opts) {
   // 🔴 顺序取注册表自己写的那个，不是 `cov.known` 那份排过序的 —— 那一份排序是为了做差集。
   //    `gen-allblocks.js` 写出的那一页的 section 顺序是**看得见的东西**（主题图册在拍它），
   //    换成字典序就是一次没人要的改动。
-  const blocks = registryNames(registryPath);
+  const registryBlocks = registryNames(registryPath);
+  // #1353 —— **外壳区也是块，也要上图册。** `header` / `footer` 有 manifest、有形态、有 shapes.css 的
+  // 规则、在每套主题的选择单上各占一行 —— 跟别的 32 个块一模一样；它们唯一不同的地方是**不进页面
+  // JSON**，所以按构造不在 `registry.ts` 里（那张表是「页面 JSON 的 type → 组件」）。
+  // 🔴 只按 `registryNames` 取块，图册就会少掉它们，而那是静默的：页面照样打开、少两行没人会发现，
+  //    而这两行恰恰是本票要让人看见的东西（#1353 AC4）。判据用 manifest 自己声明的 `region: true`，
+  //    不推断 —— 同一条理由写在 `block-manifest.js` 的 `isRegionManifest` 上面。
+  // 🔴 排在注册表那批**之后**，顺序不插队：上面那段注释说的「那一页的 section 顺序是看得见的东西」
+  //    仍然成立，追加在末尾不会动已有的任何一行。
+  const regionBlocks = [...loadManifests(blocksDir).values()]
+    .filter((m) => m.region === true && !registryBlocks.includes(m.type))
+    .map((m) => m.type);
+  const blocks = [...registryBlocks, ...regionBlocks];
   const pairs = [];
   for (const block of blocks) {
     const m = manifests.get(block);

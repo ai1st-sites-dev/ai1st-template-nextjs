@@ -5,7 +5,7 @@
  *
  *   const { resolveSiteRegions } = require('./lib/site-regions.js');
  *   const r = resolveSiteRegions(siteDir);
- *   r.regionLayout.footer   // 主题给的页脚版式
+ *   r.regions.footer.shape  // 主题给的页脚形态（#1353 起是形态名，跟别的 32 个块同一套词）
  *   r.footerVariants        // 这个站【真的渲染出来】的那几个页脚，按区的顺序
  *   r.hasTopbarRegion       // 这个站的页面上有没有那条顶部横带
  *
@@ -25,8 +25,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const { themes, layoutFor } = require('../themes');
-const { resolveRegionLayout } = require('../region-layout');
+const { themes, regionShapesFor } = require('../themes');
+const { resolveRegionShapes } = require('../region-layout');
 const pageLayoutLib = require('./page-layout');
 
 // ── 下面这两个函数 2026-08-20 从 `sync-config.js` 搬过来（#1104 r6），逐字未改，只把它们读的
@@ -121,23 +121,26 @@ function readStructureThemeId(siteDir) {
 /**
  * 这个站的两个 Region 解析成什么版式 —— `sync-config.js` 原来在文件中段做的那次 `resolveRegionLayout`。
  *
- * @returns {{regionLayout: object, structureThemeId: string|null, explicitRegionLayout: object}}
+ * @returns {{regions: object, structureThemeId: string|null, explicitRegionLayout: object}}
  *   后两项 `sync-config.js` 的日志要用（它得说得出**结构是从哪来的**，不只说结果是什么）。
  */
 function resolveSiteRegionLayout(siteDir) {
   const structureThemeId = readStructureThemeId(siteDir);
   const explicitRegionLayout = readPreviewRegionLayout(siteDir);
-  const regionLayout = resolveRegionLayout({
-    ...(structureThemeId ? layoutFor(structureThemeId) : {}),
+  // #1353 —— 第一级从**选择单**取（`regionShapesFor`，键是块类型），不再从 `supports` 取。
+  // theme.json 自己写的 `regionLayout` 仍然逐键压过它（#1086 那条，候选图册那条路要的就是这个）——
+  // 它的键是**区名**（`header` / `footer` / `topbar`），`resolveRegionShapes` 两种键都认。
+  const regions = resolveRegionShapes({
+    ...(structureThemeId ? regionShapesFor(structureThemeId) : {}),
     ...explicitRegionLayout,
   });
-  return { regionLayout, structureThemeId, explicitRegionLayout };
+  return { regions, structureThemeId, explicitRegionLayout };
 }
 
 /**
  * 这个站的一页上到底渲染出几个页脚、各是什么版式。
  *
- * 🔴 **不是** `regionLayout.footer` 一个值。page layout 库里的 `tri-footer` 把页脚拆成三个区，
+ * 🔴 **不是** `regions.footer.shape` 一个值。page layout 库里的 `tri-footer` 把页脚拆成三个区，
  *    每个区的版式由布局自己钉（`repeatVariants`，`SiteShell.tsx` 只有 footer 这一类接了这条线）。
  *    挑了它的站三种页脚同时在页面上 ⟹ 三种里任何一种读的字段，这个站都看得见。
  *    只看主题那一个值会把这种站判成「读不到」，而那正是本票要避免的那类假话。
@@ -145,13 +148,13 @@ function resolveSiteRegionLayout(siteDir) {
  * @returns {string[]} 按区的顺序，可能有重复；至少一项（schema 要求每个布局都有 footer 区）。
  */
 function footerVariantsFor(siteDir) {
-  const { regionLayout } = resolveSiteRegionLayout(siteDir);
+  const { regions: siteRegions } = resolveSiteRegionLayout(siteDir);
   const picked = pageLayoutLib.resolveSiteLayout(siteDir);
   const repeat = (picked.layout && picked.layout.repeatVariants) || {};
-  const regions = (picked.layout && picked.layout.regions) || [];
-  return regions
+  const layoutRegions = (picked.layout && picked.layout.regions) || [];
+  return layoutRegions
     .filter((r) => pageLayoutLib.kindOf(r) === 'footer')
-    .map((r) => repeat[r] || regionLayout.footer);
+    .map((r) => repeat[r] || siteRegions.footer.shape);
 }
 
 /** 这个站的页面上有没有那条顶部横带（`with-topbar` 那种布局才有）。 */

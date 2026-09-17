@@ -159,7 +159,8 @@ console.log('② 一批候选里没有「客人看不出区别」的两套（跑
       ok(`没有 layout 的候选照样出得了分，而且输出点名这一维缺席：${textOf(noLayout).slice(0, 120)}`);
     }
 
-    // 反臂：手工给候选带上一个池里那套真的有的键（`supports` 今天只剩 header / footer），
+    // 反臂：手工给候选和池里那套都塞一个 `supports`（#1353 之后注册表里**一个都没有了** —— 这两行
+    // 是这道闸自己的合成夹具，专门驱动 `layoutSetsOf` 的 supports 那一支；池子真实的形状不再有它），
     // `parts.layout` 就该是个数，那句话也就不该出现。
     const poolWithRegion = { [one]: { ...pool[one], supports: { header: ['solid-bar'] } } };
     const withLayout = gateSimilarity({ id: 'probe', tokens: pool[one], layout: { header: 'solid-bar' } },

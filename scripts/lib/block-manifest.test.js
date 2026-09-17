@@ -323,7 +323,9 @@ console.log('\n── #1349 每个块都有 displayName');
   const osx = require('os');
   const BLOCKS = path.join(NEXT, 'blocks');
 
-  // ① 正臂：今天 32 份全都有，而且是非空字符串、互不相同。
+  // ① 正臂：盘上这些全都有，而且是非空字符串、互不相同。
+  //    🔴 数从 `all.length` 现取，别写死：#1353 把外壳区也变成块之后是 34 份，而写死的那个数
+  //    只会让成功那行**印错**（判据在 dupes 上，不会红）—— 一个不会红的错读数比没有更坏。
   const all = [...loadManifests().entries()];
   const missingName = all.filter(([, m]) => typeof m.displayName !== 'string' || !m.displayName)
     .map(([t]) => t);
@@ -338,7 +340,7 @@ console.log('\n── #1349 每个块都有 displayName');
     if (seen.has(m.displayName)) dupes.push(`${m.displayName} (${seen.get(m.displayName)} / ${t})`);
     else seen.set(m.displayName, t);
   }
-  if (dupes.length === 0) ok('32 个 displayName 互不相同');
+  if (dupes.length === 0) ok(`${all.length} 个 displayName 互不相同`);
   else bad(`displayName 重名: ${dupes.join(' · ')}`);
 
   // 🔴 而且不许拿类型原文顶替（CLAUDE.md 的术语冻结：用户可见 UI 不出现内行黑话）。

@@ -38,8 +38,20 @@ console.log('① 真树上的读数（都现算，不写死任何数）');
 const real = blockShapeCatalog();
 const regNames = bm.registryNames(path.join(NEXT, 'src', 'lib', 'sections', 'registry.ts'));
 if (regNames === null) die('读不出 registry.ts（typescript 模块不在？）—— 这不是关于注册表的读数');
-check(JSON.stringify(real.blocks) === JSON.stringify(regNames),
-  `blocks 逐项等于注册表自己声明的顺序（${real.blocks.length} 个）`);
+// #1353 —— 这一格原来写的是 `real.blocks` **逐项等于** `registryNames()`。那条断言今天会假红：
+// 外壳区（`header` / `footer`）是块、有 manifest、有形态、在选择单上各占一行，但按构造**不在
+// registry.ts 里**（那张表是「页面 JSON 的 type → 组件」，而外壳区不进页面 JSON）。
+// 🔴 改成两半判，两半都要：① 注册表那批**逐项、按注册表自己的顺序**排在前面（原来那句话要买的
+//    性质：那一页看得见的 section 顺序不许被改成字典序）；② 追加的那一批**恰好**是声明了
+//    `region: true` 的那些，不多不少 —— 少了就是图册漏行（静默），多了就是把内容块当成外壳区。
+const regionTypes = [...real.manifests.values()].filter((m) => m.region === true).map((m) => m.type);
+check(JSON.stringify(real.blocks.slice(0, regNames.length)) === JSON.stringify(regNames),
+  `blocks 的前 ${regNames.length} 个逐项等于注册表自己声明的顺序`);
+check(JSON.stringify(real.blocks.slice(regNames.length).slice().sort())
+  === JSON.stringify(regionTypes.slice().sort()),
+  `追加的那批恰好是 manifest 里声明 region:true 的（${regionTypes.slice().sort().join(' / ')}）`);
+check(real.blocks.length === regNames.length + regionTypes.length,
+  `blocks 一共 ${real.blocks.length} 个 = 注册表 ${regNames.length} + 外壳区 ${regionTypes.length}`);
 const manifestPairs = real.blocks.reduce((n, t) => n + real.manifests.get(t).shapes.length, 0);
 check(real.pairs.length === manifestPairs,
   `pairs 的条数 ${real.pairs.length} == 每份 manifest 的 shapes 之和 ${manifestPairs}`);

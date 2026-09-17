@@ -256,6 +256,19 @@ function checkManifestShape(name, m, cssShapes) {
     bad('hooksFrom 有的话必须是非空字符串（另一个块的 type —— 这个块的 HTML 用的是它那套部件类名）');
   }
 
+  // #1353 —— `region: true` 说的是「这个块是**外壳区**，不是页面里的内容块」。今天只有两个：
+  // `header` / `footer`（顶栏页脚从 D14 的已知例外搬进形态层之后，它们跟别的 32 个块共用 manifest、
+  // 形态层、选择单和守卫，唯独**不进页面 JSON** —— 哪一页有没有它们由 page layout 库说，
+  // `SiteShell.tsx` 渲染，`registry.ts` 那张「页面 JSON 的 type → 组件」的表里按构造不该有它们）。
+  //
+  // 🔴 它必须被**声明**，不能靠 `category === 'region'` 之类去推：`category` 今天是自由文本
+  // （上面那条只校验它是非空字符串，17 个取值没有任何消费者），拿它当判据就是把一个没人守的字段
+  // 悄悄变成承重件 —— 改一个 category 的人不会知道自己关掉了一道闸。同一条理由写在上面 `hooksFrom`
+  // 那段里，那是本仓第一个走这条路的键。
+  if (m.region !== undefined && typeof m.region !== 'boolean') {
+    bad(`region 有的话必须是 true/false（现在是 ${JSON.stringify(m.region)}）—— 它说的是「这个块是外壳区，不进页面 JSON、不在 registry.ts 里」`);
+  }
+
   const ind = m.industries;
   if (ind === null || typeof ind !== 'object' || Array.isArray(ind)) bad('industries 必须是对象');
   for (const key of ['required', 'recommended', 'discouraged']) {
@@ -855,6 +868,12 @@ function registryNames(registryPath) {
   return names;
 }
 
+/** 这个块是不是外壳区（manifest 里显式写了 `region: true`）。#1353。 */
+function isRegionManifest(dir, type) {
+  const m = loadManifests(dir).get(type);
+  return !!(m && m.region === true);
+}
+
 function registryCoverage(registryPath, dir) {
   const known = registryNames(registryPath);
   const manifests = [...loadManifests(dir).keys()];
@@ -885,7 +904,11 @@ function registryCoverage(registryPath, dir) {
     known: known.slice().sort(),
     manifests: manifests.slice().sort(),
     missingManifest: known.filter((t) => !manifests.includes(t)).sort(),
-    unknownBlock: manifests.filter((t) => !known.includes(t)).sort(),
+    // #1353 —— 外壳区（`region: true`）按构造不在 registry.ts 里：那张表是「页面 JSON 里写的 type
+    // → 渲染它的组件」，而顶栏页脚不进页面 JSON（由 page layout 库决定哪一页有它们，`SiteShell.tsx`
+    // 渲染）。把它们算进 `unknownBlock` 会让 sync-config 那道 `process.exit(1)` 拒掉**每一个站**。
+    // 🔴 反过来那一半（`missingManifest`）一个字没改：registry 里有而 blocks/ 里没有，仍然是错。
+    unknownBlock: manifests.filter((t) => !known.includes(t) && !isRegionManifest(dir, t)).sort(),
     unavailable: null,
   };
 }
@@ -921,6 +944,7 @@ module.exports = {
   // 图册按这个顺序排行、`gen-allblocks.js` 按这个顺序写那一页 —— 它们要的是「注册表里写成什么样」，
   // 不是字典序（改成字典序会把那一页既有的 section 顺序整个换掉）。
   registryNames,
+  isRegionManifest,
   applyRoleDefaults,
   industryMatches,
   recogniseIndustry,

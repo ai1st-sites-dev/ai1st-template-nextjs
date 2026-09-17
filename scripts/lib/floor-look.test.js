@@ -25,7 +25,21 @@ const ok = (m) => console.log(`  ✅ ${m}`);
 const bad = (m) => { failed += 1; console.log(`  ❌ ${m}`); };
 
 const ROOT = path.resolve(__dirname, '..', '..');
-const ALL = Object.keys(require(path.join(ROOT, 'src/lib/sections/block-roles.json')));
+// #1353 —— 分母是「**主题表要画的**块」，而不是「`block-roles.json` 里的每一个键」。这两句今天第一次
+// 分家：顶栏 / 页脚成了块（有 manifest、有形态、在选择单上各占一行），但**没有任何一套主题碰它们**
+// —— 契约 §1 的钩子表里一个 `header__*` / `footer__*` 都没有（现取 0），它们的间距和皮住在
+// `public/base.css` 的地板与 `public/shapes.css` 的那一节。
+// 🔴 拿 34 当分母，这一格会永远红在一件**没人打算做的事**上（「两套表都没覆盖 34 种」），而它本来要
+//    守的是「某个内容块被主题漏画了」。判据用 manifest 自己声明的 `region: true`，不推断 ——
+//    同一条理由写在 `block-manifest.js` 的 `isRegionManifest` 上面。
+// 📌 真要让主题能换顶栏的皮，那是另一张票（往契约 §1 加钩子 + 给生成器加配方）；那一天把这里的
+//    过滤去掉，这一格当天就会说话。
+const { loadManifests } = require('./block-manifest.js');
+const ALL = Object.keys(require(path.join(ROOT, 'src/lib/sections/block-roles.json')))
+  .filter((t) => {
+    const m = loadManifests().get(t);
+    return !(m && m.region === true);
+  });
 
 /** `site-194f1f41` 线上那份 theme.css 的三行（token，零画法）。 */
 const TOKENS_ONLY = [
