@@ -264,9 +264,15 @@ console.log('── ③ 提示词里那份候选清单:只换顺序,块集合逐
   //    当天就印出了 -1）。本票删掉四个老 type 名之后它读到 24，于是这一格红在一件**它并不打算测**的
   //    事上。它真正要证的是「这把尺子分得开多一块和少一块」，所以判据换成**相对**的：
   //    拿掉一整块之后正好少一种，而且总数不能退化成 0/1（那才是尺子坏了）。数照旧打出来，只是不钉死。
-  a.length >= 20 && typesIn(oneLess).length === a.length - 1 && !typesIn(oneLess).includes('trusted-brands')
+  // 🔴 #1376：那个下限当时写的是 20，而它是**同一个错的慢动作版** —— 区块库正按设计文档 D19 逐票
+  //    收缩（#1372 删 4 个、本票并掉 1 个、#1375 还要再删 1 个），而 `origin/main c26076d8` 上这一格
+  //    现取**正好读到 20**，也就是再删任何一个块它都会红，红在「这把尺子还分不分得开」之外的事上。
+  //    上面那句自己写了地板该防的是什么：「总数不能退化成 0/1」⟹ 下限照那句话写成 2。
+  //    判别力没有变松 —— 它住在同一行的 `=== a.length - 1` 与 `!includes('trusted-brands')` 上：
+  //    第一版那把坏尺子（取每行第一个词）对任何清单都只返回一种东西，两个条件都过不了。
+  a.length >= 2 && typesIn(oneLess).length === a.length - 1 && !typesIn(oneLess).includes('trusted-brands')
     ? ok(`取块名这把尺子有判别力:完整清单读到 ${a.length} 种,手工拿掉 trusted-brands 之后读到 ${typesIn(oneLess).length} 种（少正好一种）`)
-    : bad(`取块名这把尺子坏了:完整 ${a.length} 种 / 拿掉一块之后 ${typesIn(oneLess).length} 种（期望少正好一种，且总数 ≥20）`);
+    : bad(`取块名这把尺子坏了:完整 ${a.length} 种 / 拿掉一块之后 ${typesIn(oneLess).length} 种（期望少正好一种，且总数 ≥2）`);
 
   JSON.stringify([...a].sort()) === JSON.stringify([...b].sort())
     ? ok(`块集合一样（各 ${a.length} 种）`)
@@ -469,17 +475,10 @@ try {
       why: '#1341 内容结构那一维退役，`content structures:` 那些行不再印',
       apply: (t) => t.split('\n').filter((l) => !/^ {2}content structures: /.test(l)).join('\n'),
     },
-    // #1376：按设计文档 D19 从区块库里删掉一个块（它那组数字成了 `social-proof` 的一个可选槽）。
-    // 基线那份 create-site.js 把「There are N section types」里的 N **写死成 32**；#1353 之后它改成
-    // 按 `blocks/` 现算，而两臂共用这棵树的 `blocks/` ⟹ 块库一少，这一句就是 OFF 那条路上唯一变的
-    // 字节（本票实测：套上前三条之后 diff 只剩第 221 行这一句）。
-    // 🔴 这里写死 31 是有意的：跟着现算就等于拿被测代码自己的输出当判据，那一格再也红不了。
-    //    区块库 32 → 26 那几张票（#1372 / #1375）各自 ship 时这条会变成死条目，判别力②当场点名，
-    //    到时候把 31 改成那天的数。
-    {
-      why: '#1376 删掉一个块 ⟹ 那句「There are N section types」的 N 从基线写死的 32 变 31',
-      apply: (t) => t.replace(/^- There are 32 section types /m, '- There are 31 section types '),
-    },
+    // 📌 #1376（同样按 D19 删掉一个块）**没有在这里加条目**。r1 加过一条「32 → 31」，而 #1372 先落地
+    //    了，它上面那条差异已经把那句写死的 32 换成**按 `blocks/` 现算**的数 ⟹ 链式套用时 r1 那条
+    //    再也匹配不到自己那段文本，是一条在链上恒 no-op 的条目（判别力② 是拿每条**单独**套基线判的，
+    //    所以它不会被点名 —— 那正是它该被删掉而不是留着的理由）。块库再少一个，由上面那条吸收。
   ];
   const applyRenames = (text) => PROMPT_DELTAS.reduce((acc, d) => d.apply(acc), text);
   const promptBaseRenamed = applyRenames(promptBase);
@@ -524,10 +523,13 @@ try {
   const homeSeg = (s) => s.slice(s.indexOf('HOMEPAGE SECTIONS'), s.indexOf('PAGE-SPECIFIC SECTION RULES'));
   const onTypes = typesIn(homeSeg(promptOn)); const offTypes = typesIn(homeSeg(promptOff));
   // 🔴 #1162：同上，原来写死 28。这一格问的是「尺子在真提示词上读得到一个像样的数，不是恒 0/恒 1」，
-  //    所以判据是「两份读到的数相同且 ≥20」，把那个数打出来而不是钉死它。
-  onTypes.length === offTypes.length && onTypes.length >= 20
+  //    所以判据是「两份读到的数相同且不退化」，把那个数打出来而不是钉死它。
+  // 🔴 #1376：那个下限原来写的是 20，跟 ③ 那一格是同一处，理由也同一条 —— `origin/main c26076d8`
+  //    现取正好 20，区块库每按 D19 少一个它就红一次。照这句话自己写的「不是恒 0/恒 1」改成 2；
+  //    这一格真正承重的是 `onTypes.length === offTypes.length` 和下面那条集合逐个相同。
+  onTypes.length === offTypes.length && onTypes.length >= 2
     ? ok(`两份提示词里各读到 ${onTypes.length} 种块（相同，且不是恒 0/恒 1）`)
-    : bad(`读到的块数不对:开着 ${onTypes.length} / 关着 ${offTypes.length}（期望两者相同且 ≥20）`);
+    : bad(`读到的块数不对:开着 ${onTypes.length} / 关着 ${offTypes.length}（期望两者相同且 ≥2）`);
   JSON.stringify([...onTypes].sort()) === JSON.stringify([...offTypes].sort())
     ? ok('候选块集合一样 —— 只换了顺序，没拿掉任何块')
     : bad(`候选块集合变了: 只在开着 ${onTypes.filter((x) => !offTypes.includes(x))}`
