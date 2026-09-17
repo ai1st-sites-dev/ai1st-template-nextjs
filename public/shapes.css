@@ -15,9 +15,17 @@
 
    ── 一个块有几个画法 ──────────────────────────────────────────────────────────────────────────
    🔴 **= 今天真的量到几种不同的排版**，不为「将来可能有」预留名字（PM 2026-09-15 裁定 ③）。
-   这份表是从 `ember-12` / `azure-29` 两套表搬迁前那一版里逐条剪出来的：31 个块里 19 个两套画得不
-   一样（各两个名字）、12 个逐字相同（各一个名字），一共 50 个 (block, shape) 对。要加第 51 个，
-   先量出「它跟已有的哪一个真的不同」。
+   这份表是从 `ember-12` / `azure-29` 两套表搬迁前那一版里逐条剪出来的：**搬迁那一刻**是 31 个块里
+   19 个两套画得不一样（各两个名字）、12 个逐字相同（各一个名字），一共 50 个 (block, shape) 对。
+   🔴 **那三个数是 2026-09 搬迁时的历史读数，早就不是今天的了 —— 别从这里抄**（2026-09-17 现取已是
+   34 个块 / 101 对，而且还在涨）。自己取，用仓里那个规范读数：
+       node scripts/lib/block-shapes.test.js      # 印「✅ shapes.css 里 N 对，覆盖 M 个块」
+   📌 别自己写 glob 去数 `blocks/*.json` 的 `shapes` 长度：**共享树 `/root/work/ai1st` 落后 main
+      九百多个 commit，那里的 manifest 还是没有 `shapes` 字段的老版本，同一条命令在它上面读 0 对。**
+      （2026-09-17 作者实测：工作区读 `0 对 / 34 个块`、`origin/main` 读 `101 对 / 34 个块`。）
+   要加新的一种，先量出「它跟已有的哪一个真的不同」—— 判据是 D5 的**几何读数**（真浏览器量边界框），
+   不是「五根轴的元组跟别人不同」：元组相同**不阻断**，但必须量得出盒子差别（PM 2026-09-16 裁定；
+   今天 main 上就有多组元组逐字相同的形态）。
 
    ── 第 51 个：`hero · text-center`（#1333）──────────────────────────────────────────────────
    它是 hero 的新默认排版。为什么非有一个不可：#1333 把 `form-side` 整段搬去了 `hero-with-form`，
@@ -81,62 +89,6 @@
 
 [data-block="announcement-bar"][data-shape="stack"] .announcement-bar__link {
   justify-self: start;
-}
-
-/* ══ awards-certifications ══════════════════════════════════════════════════════════════════════ */
-
-/* awards-certifications · two-up  （ember-12 今天选的就是它） */
-
-[data-block="awards-certifications"][data-shape="two-up"] {
-  display: grid;
-  grid-template-columns: 1fr;
-}
-
-[data-block="awards-certifications"][data-shape="two-up"] .awards-certifications__headline {
-  grid-column: 1 / -1;
-}
-
-[data-block="awards-certifications"][data-shape="two-up"] .awards-certifications__sub {
-  grid-column: 1 / -1;
-  max-width: 36rem;
-}
-
-[data-block="awards-certifications"][data-shape="two-up"] .awards-certifications__item {
-  display: grid;
-  align-content: start;
-}
-
-@media (min-width: 1024px) {
-  [data-block="awards-certifications"][data-shape="two-up"] {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
-/* awards-certifications · three-up  （azure-29 今天选的就是它） */
-
-[data-block="awards-certifications"][data-shape="three-up"] {
-  display: grid;
-  grid-template-columns: 1fr;
-}
-
-[data-block="awards-certifications"][data-shape="three-up"] .awards-certifications__headline {
-  grid-column: 1 / -1;
-}
-
-[data-block="awards-certifications"][data-shape="three-up"] .awards-certifications__sub {
-  grid-column: 1 / -1;
-  max-width: 36rem;
-}
-
-[data-block="awards-certifications"][data-shape="three-up"] .awards-certifications__item {
-  display: grid;
-  align-content: start;
-}
-
-@media (min-width: 1024px) {
-  [data-block="awards-certifications"][data-shape="three-up"] {
-    grid-template-columns: 1fr 1fr 1fr;
-  }
 }
 
 /* ══ blog-preview ══════════════════════════════════════════════════════════════════════ */
@@ -329,6 +281,195 @@
 @media (min-width: 1024px) {
   [data-block="card-group"][data-shape="four-up-tight"] {
     grid-template-columns: 1fr 1fr 1fr 1fr;
+  }
+}
+
+/* card-group · four-up-heading-center  （#1360，出处 FlyonUI features-2「4 列极简卡片 · 居中标题」；今天没有主题选它）
+
+   🔴 它跟同一个块的 `four-up-tight` 的差别**只有一处，而且是量得出来的那一处**：标题与副标题不再
+      通栏拉满，而是收进 36rem 里居中（`justify-self: center` + `max-width`，两者都在几何族里）。
+      列数两者相同（都是四列），所以 `layout_intent` 五根轴上两者取值一样 —— D12 的差异读数因此是
+      **几何读数**（1280 下 `__headline` 的左右边界），逐格对照贴在 #1360 的交接留言里。
+   🔴 **出处那一版的竖线我们不画。** FlyonUI features-2 的卡片之间是 `border-left`，而 border 属于皮
+      （`scripts/theme-css-lint.js` 的 `PROP_PREFIXES` 里有 `border`，几何族 `isGeometry()` 里没有），
+      本票又明写「两套主题一个字节不动」⟹ 分隔线要等某套主题自己去写。这里只交它的排版那一半。
+      这个形态原来叫 `four-up-divided`，正因为线画不出来、名字会名不副实，Chris 2026-09-16 在 #1360 上
+      定了改成现在这个名字（它说的是这段 CSS 真做的事：四列 + 标题居中）。 */
+
+[data-block="card-group"][data-shape="four-up-heading-center"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="card-group"][data-shape="four-up-heading-center"] .card-group__headline {
+  grid-column: 1 / -1;
+  justify-self: center;
+  max-width: 36rem;
+}
+
+[data-block="card-group"][data-shape="four-up-heading-center"] .card-group__sub {
+  grid-column: 1 / -1;
+  justify-self: center;
+  max-width: 36rem;
+}
+
+[data-block="card-group"][data-shape="four-up-heading-center"] .card-group__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="card-group"][data-shape="four-up-heading-center"] .card-group__features {
+  display: grid;
+}
+
+@media (min-width: 1024px) {
+  [data-block="card-group"][data-shape="four-up-heading-center"] {
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+  }
+}
+
+/* card-group · heading-side-staggered  （#1360，出处 FlyonUI features-8「左文 + 右侧错落 2×2 卡片」；今天没有主题选它）
+
+   桌面宽下这个块变成三条列带：第一条装标题和副标题（所以 `layout_intent` 的 `headline` 是
+   `side`，而不是这个块其余形态的 `above`），后两条装同级项，两列交替。手机宽照旧塌成一列、
+   标题回到最上面 —— 出处那份三端对照表的 390 那一栏写的就是「文案 + 4 张卡片全部单列堆叠」。
+
+   🔴 **错落（stagger）是靠行带做的，不是靠外边距。** 每个同级项占两行带，而右边那一列从第 2 行带
+      起步（`card-group__item:nth-of-type(2)` 那条），于是右列整体比左列低半张卡 —— 出处说明里的
+      「右列整体向下错开半格」。用 `margin-top` 也能做，但 margin 是皮（`theme-css-lint.js` 的
+      `PROP_PREFIXES`），形态层写不了。
+   🔴 `nth-of-type` 在这两个块上等于「第几个同级项」：两个块的根下面只有 `h2` + `p` + 一族同类型的
+      项（features-grid 是 `a`、card-group 是 `div`），项以外没有第二个同类型的兄弟。换块用之前先核
+      这条（`:nth-of-type` 数的是元素类型，不是类名）。 */
+
+[data-block="card-group"][data-shape="heading-side-staggered"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="card-group"][data-shape="heading-side-staggered"] .card-group__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="card-group"][data-shape="heading-side-staggered"] .card-group__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="card-group"][data-shape="heading-side-staggered"] .card-group__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="card-group"][data-shape="heading-side-staggered"] .card-group__features {
+  display: grid;
+}
+
+@media (min-width: 1024px) {
+  [data-block="card-group"][data-shape="heading-side-staggered"] {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  [data-block="card-group"][data-shape="heading-side-staggered"] .card-group__headline {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: start;
+  }
+
+  [data-block="card-group"][data-shape="heading-side-staggered"] .card-group__sub {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  [data-block="card-group"][data-shape="heading-side-staggered"] .card-group__item {
+    grid-column: 2;
+    grid-row: span 2;
+  }
+
+  [data-block="card-group"][data-shape="heading-side-staggered"] .card-group__item:nth-of-type(2n) {
+    grid-column: 3;
+  }
+
+  [data-block="card-group"][data-shape="heading-side-staggered"] .card-group__item:nth-of-type(2) {
+    grid-row: 2 / span 2;
+  }
+}
+
+/* card-group · three-up-heading-center  （#1360，出处 FlyonUI features-14「3×2 圆角卡片网格 · 居中标题」；今天没有主题选它） */
+
+[data-block="card-group"][data-shape="three-up-heading-center"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="card-group"][data-shape="three-up-heading-center"] .card-group__headline {
+  grid-column: 1 / -1;
+  justify-self: center;
+  max-width: 36rem;
+}
+
+[data-block="card-group"][data-shape="three-up-heading-center"] .card-group__sub {
+  grid-column: 1 / -1;
+  justify-self: center;
+  max-width: 36rem;
+}
+
+[data-block="card-group"][data-shape="three-up-heading-center"] .card-group__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="card-group"][data-shape="three-up-heading-center"] .card-group__features {
+  display: grid;
+}
+
+@media (min-width: 1024px) {
+  [data-block="card-group"][data-shape="three-up-heading-center"] {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+/* card-group · three-up-heading-left  （#1360，出处 FlyonUI features-1「3×2 描边卡片网格 · 左对齐标题」；今天没有主题选它）
+
+   🔴 这两个 `three-up-heading-*` 跟这个块原有的 `three-up` 差在**标题那一块的盒子**：`three-up` 的标题
+      通栏拉满（`grid-column: 1 / -1` 默认 stretch），这两个把它收进 36rem 并各自钉死靠哪边
+      （`justify-self: center` / `start`）。钉死的好处是**跟皮无关**：主题写 `text-align: center`
+      也改不动盒子落在哪。
+   🔴 **已知盲区（写给 QA 和下一个人）**：#1332 的词表里没有「标题靠哪边」这根轴（`headline` 那根说的是
+      在同级项的上面 / 下面 / 旁边 / 没有），所以这三种形态在守卫 ⑨ 眼里**意图完全一样**、判据也一样。
+      它们真的不同这件事今天只由几何读数说（#1360 交接留言里的对照表）。要让机器自己看见这一维，得往
+      `scripts/lib/layout-intent-vocab.json` 加第六根轴 —— 那要改 31 份 manifest 的每一个形态，是另一张票。 */
+
+[data-block="card-group"][data-shape="three-up-heading-left"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="card-group"][data-shape="three-up-heading-left"] .card-group__headline {
+  grid-column: 1 / -1;
+  justify-self: start;
+  max-width: 36rem;
+}
+
+[data-block="card-group"][data-shape="three-up-heading-left"] .card-group__sub {
+  grid-column: 1 / -1;
+  justify-self: start;
+  max-width: 36rem;
+}
+
+[data-block="card-group"][data-shape="three-up-heading-left"] .card-group__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="card-group"][data-shape="three-up-heading-left"] .card-group__features {
+  display: grid;
+}
+
+@media (min-width: 1024px) {
+  [data-block="card-group"][data-shape="three-up-heading-left"] {
+    grid-template-columns: 1fr 1fr 1fr;
   }
 }
 
@@ -1353,19 +1494,6 @@
   }
 }
 
-/* ══ divider ══════════════════════════════════════════════════════════════════════ */
-
-/* divider · stack  （ember-12 + azure-29 今天选的就是它） */
-
-[data-block="divider"][data-shape="stack"] {
-  display: grid;
-  grid-template-columns: 1fr;
-}
-
-[data-block="divider"][data-shape="stack"] .divider__rule {
-  grid-column: 1 / -1;
-}
-
 /* ══ faq-accordion ══════════════════════════════════════════════════════════════════════ */
 
 /* faq-accordion · stack  （ember-12 今天选的就是它） */
@@ -1465,32 +1593,6 @@
 [data-block="faq-accordion"][data-shape="centered"] .faq-accordion__item {
   display: grid;
   max-width: 48rem;
-}
-
-/* ══ feature-comparison ══════════════════════════════════════════════════════════════════════ */
-
-/* feature-comparison · stack  （ember-12 + azure-29 今天选的就是它） */
-
-[data-block="feature-comparison"][data-shape="stack"] {
-  display: grid;
-  grid-template-columns: 1fr;
-}
-
-[data-block="feature-comparison"][data-shape="stack"] .feature-comparison__headline {
-  grid-column: 1 / -1;
-}
-
-[data-block="feature-comparison"][data-shape="stack"] .feature-comparison__sub {
-  grid-column: 1 / -1;
-  max-width: 36rem;
-}
-
-[data-block="feature-comparison"][data-shape="stack"] .feature-comparison__head {
-  display: grid;
-}
-
-[data-block="feature-comparison"][data-shape="stack"] .feature-comparison__row {
-  display: grid;
 }
 
 /* ══ features-grid ══════════════════════════════════════════════════════════════════════ */
@@ -1623,6 +1725,199 @@
 @media (min-width: 1024px) {
   [data-block="features-grid"][data-shape="four-up-tight"] {
     grid-template-columns: 1fr 1fr 1fr 1fr;
+  }
+}
+
+/* features-grid · four-up-heading-center  （#1360，出处 FlyonUI features-2「4 列极简卡片 · 居中标题」；今天没有主题选它）
+
+   🔴 它跟同一个块的 `four-up-tight` 的差别**只有一处，而且是量得出来的那一处**：标题与副标题不再
+      通栏拉满，而是收进 36rem 里居中（`justify-self: center` + `max-width`，两者都在几何族里）。
+      列数两者相同（都是四列），所以 `layout_intent` 五根轴上两者取值一样 —— D12 的差异读数因此是
+      **几何读数**（1280 下 `__headline` 的左右边界），逐格对照贴在 #1360 的交接留言里。
+   🔴 **出处那一版的竖线我们不画。** FlyonUI features-2 的卡片之间是 `border-left`，而 border 属于皮
+      （`scripts/theme-css-lint.js` 的 `PROP_PREFIXES` 里有 `border`，几何族 `isGeometry()` 里没有），
+      本票又明写「两套主题一个字节不动」⟹ 分隔线要等某套主题自己去写。这里只交它的排版那一半。
+      这个形态原来叫 `four-up-divided`，正因为线画不出来、名字会名不副实，Chris 2026-09-16 在 #1360 上
+      定了改成现在这个名字（它说的是这段 CSS 真做的事：四列 + 标题居中）。 */
+
+[data-block="features-grid"][data-shape="four-up-heading-center"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="features-grid"][data-shape="four-up-heading-center"] .features-grid__headline {
+  grid-column: 1 / -1;
+  justify-self: center;
+  max-width: 36rem;
+}
+
+[data-block="features-grid"][data-shape="four-up-heading-center"] .features-grid__sub {
+  grid-column: 1 / -1;
+  justify-self: center;
+  max-width: 36rem;
+}
+
+[data-block="features-grid"][data-shape="four-up-heading-center"] .features-grid__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="features-grid"][data-shape="four-up-heading-center"] .features-grid__icon {
+  display: grid;
+  place-items: center;
+}
+
+@media (min-width: 1024px) {
+  [data-block="features-grid"][data-shape="four-up-heading-center"] {
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+  }
+}
+
+/* features-grid · heading-side-staggered  （#1360，出处 FlyonUI features-8「左文 + 右侧错落 2×2 卡片」；今天没有主题选它）
+
+   桌面宽下这个块变成三条列带：第一条装标题和副标题（所以 `layout_intent` 的 `headline` 是
+   `side`，而不是这个块其余形态的 `above`），后两条装同级项，两列交替。手机宽照旧塌成一列、
+   标题回到最上面 —— 出处那份三端对照表的 390 那一栏写的就是「文案 + 4 张卡片全部单列堆叠」。
+
+   🔴 **错落（stagger）是靠行带做的，不是靠外边距。** 每个同级项占两行带，而右边那一列从第 2 行带
+      起步（`features-grid__item:nth-of-type(2)` 那条），于是右列整体比左列低半张卡 —— 出处说明里的
+      「右列整体向下错开半格」。用 `margin-top` 也能做，但 margin 是皮（`theme-css-lint.js` 的
+      `PROP_PREFIXES`），形态层写不了。
+   🔴 `nth-of-type` 在这两个块上等于「第几个同级项」：两个块的根下面只有 `h2` + `p` + 一族同类型的
+      项（features-grid 是 `a`、card-group 是 `div`），项以外没有第二个同类型的兄弟。换块用之前先核
+      这条（`:nth-of-type` 数的是元素类型，不是类名）。 */
+
+[data-block="features-grid"][data-shape="heading-side-staggered"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="features-grid"][data-shape="heading-side-staggered"] .features-grid__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="features-grid"][data-shape="heading-side-staggered"] .features-grid__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="features-grid"][data-shape="heading-side-staggered"] .features-grid__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="features-grid"][data-shape="heading-side-staggered"] .features-grid__icon {
+  display: grid;
+  place-items: center;
+}
+
+@media (min-width: 1024px) {
+  [data-block="features-grid"][data-shape="heading-side-staggered"] {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  [data-block="features-grid"][data-shape="heading-side-staggered"] .features-grid__headline {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: start;
+  }
+
+  [data-block="features-grid"][data-shape="heading-side-staggered"] .features-grid__sub {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  [data-block="features-grid"][data-shape="heading-side-staggered"] .features-grid__item {
+    grid-column: 2;
+    grid-row: span 2;
+  }
+
+  [data-block="features-grid"][data-shape="heading-side-staggered"] .features-grid__item:nth-of-type(2n) {
+    grid-column: 3;
+  }
+
+  [data-block="features-grid"][data-shape="heading-side-staggered"] .features-grid__item:nth-of-type(2) {
+    grid-row: 2 / span 2;
+  }
+}
+
+/* features-grid · three-up-heading-center  （#1360，出处 FlyonUI features-14「3×2 圆角卡片网格 · 居中标题」；今天没有主题选它） */
+
+[data-block="features-grid"][data-shape="three-up-heading-center"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="features-grid"][data-shape="three-up-heading-center"] .features-grid__headline {
+  grid-column: 1 / -1;
+  justify-self: center;
+  max-width: 36rem;
+}
+
+[data-block="features-grid"][data-shape="three-up-heading-center"] .features-grid__sub {
+  grid-column: 1 / -1;
+  justify-self: center;
+  max-width: 36rem;
+}
+
+[data-block="features-grid"][data-shape="three-up-heading-center"] .features-grid__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="features-grid"][data-shape="three-up-heading-center"] .features-grid__icon {
+  display: grid;
+  place-items: center;
+}
+
+@media (min-width: 1024px) {
+  [data-block="features-grid"][data-shape="three-up-heading-center"] {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+/* features-grid · three-up-heading-left  （#1360，出处 FlyonUI features-1「3×2 描边卡片网格 · 左对齐标题」；今天没有主题选它）
+
+   🔴 这两个 `three-up-heading-*` 跟这个块原有的 `three-up` 差在**标题那一块的盒子**：`three-up` 的标题
+      通栏拉满（`grid-column: 1 / -1` 默认 stretch），这两个把它收进 36rem 并各自钉死靠哪边
+      （`justify-self: center` / `start`）。钉死的好处是**跟皮无关**：主题写 `text-align: center`
+      也改不动盒子落在哪。
+   🔴 **已知盲区（写给 QA 和下一个人）**：#1332 的词表里没有「标题靠哪边」这根轴（`headline` 那根说的是
+      在同级项的上面 / 下面 / 旁边 / 没有），所以这三种形态在守卫 ⑨ 眼里**意图完全一样**、判据也一样。
+      它们真的不同这件事今天只由几何读数说（#1360 交接留言里的对照表）。要让机器自己看见这一维，得往
+      `scripts/lib/layout-intent-vocab.json` 加第六根轴 —— 那要改 31 份 manifest 的每一个形态，是另一张票。 */
+
+[data-block="features-grid"][data-shape="three-up-heading-left"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="features-grid"][data-shape="three-up-heading-left"] .features-grid__headline {
+  grid-column: 1 / -1;
+  justify-self: start;
+  max-width: 36rem;
+}
+
+[data-block="features-grid"][data-shape="three-up-heading-left"] .features-grid__sub {
+  grid-column: 1 / -1;
+  justify-self: start;
+  max-width: 36rem;
+}
+
+[data-block="features-grid"][data-shape="three-up-heading-left"] .features-grid__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="features-grid"][data-shape="three-up-heading-left"] .features-grid__icon {
+  display: grid;
+  place-items: center;
+}
+
+@media (min-width: 1024px) {
+  [data-block="features-grid"][data-shape="three-up-heading-left"] {
+    grid-template-columns: 1fr 1fr 1fr;
   }
 }
 
@@ -2847,6 +3142,137 @@
   }
 }
 
+/* team-grid · four-up  （#1365 · FlyonUI team-1「4×2 成员卡网格」的骨架）
+   三端出处逐字：电脑 4 列 × 2 行 · iPad 降为 2 列 · 手机单列堆叠。下面就是这三档。
+   🔴 出处那一版每张卡上有方形照片和一行社交图标 —— 本块的中性 markup 里**没有这两样**
+   （#1029 有意删掉了那个首字母头像；照片是数据不是长相，要加是另一张票）。所以这一种买的是
+   「一行放四个人」这一维，跟 three-up 的差别就是列数，D12 的读数也落在这一根上。 */
+
+[data-block="team-grid"][data-shape="four-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="team-grid"][data-shape="four-up"] .team-grid__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="team-grid"][data-shape="four-up"] .team-grid__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="team-grid"][data-shape="four-up"] .team-grid__member {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 640px) {
+  [data-block="team-grid"][data-shape="four-up"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-block="team-grid"][data-shape="four-up"] {
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+  }
+}
+
+/* team-grid · single-feature  （#1365 · FlyonUI team-19「单人聚焦」的骨架）
+   三端出处逐字：电脑 左文右照并排 · iPad 仍并排、照片收窄 · 手机 上下（文上照下）。
+   🔴 右边那张竖幅人像本块没有（同上）⟹ 这一种买的是「一位一行、栏收窄」这一维：
+   `columns: one` + 每个人的卡有自己的上限宽。它是 team-grid 名下**唯一**一种同级项纵向一列的，
+   `items` 和 `columns` 两根轴都跟其余四种不同。
+   🔴 这里**不写** `margin-inline: auto` 把卡居中：文件头那条契约说这一层不写 margin，而且居中之后
+   每个人的左边界会随各自内容宽度变，`items: stack` 那条断言要的正是「同级项 x 只有一个值」。 */
+
+[data-block="team-grid"][data-shape="single-feature"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="team-grid"][data-shape="single-feature"] .team-grid__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="team-grid"][data-shape="single-feature"] .team-grid__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="team-grid"][data-shape="single-feature"] .team-grid__member {
+  display: grid;
+  align-content: start;
+  max-width: 42rem;
+}
+
+/* team-grid · two-up-horizontal  （#1365 · FlyonUI team-6「2×2 横向成员卡」的骨架）
+   三端出处逐字：电脑 2 列 × 2 行横向卡（左照片 / 右姓名职位与简介）· iPad 卡改竖版、仍 2 列 ·
+   手机 单列堆叠。
+   🔴 出处那个「横向」是照片与文字并排，而本块没有照片 ⟹ 横的是**文字自己的两栏**：
+   姓名与职位在左、简介在右。买到的那一维是「卡内部横向」，出处那一维本身还在。
+   🔴🔴 **已知盲区，写在这儿而不是脚注**：#1332 的词表只有五根轴
+   （`items / item_wrap / headline / media / columns`），**没有「卡内部朝向」这一根** ⟹ 这一种与
+   既有的 `two-up` 在守卫 ⑨ 眼里意图完全一样（都是 grid/allow/above/none/two）。它们真的不同
+   这件事今天只由几何读数说（交付留言里那张 D12 对照表）。要让机器自己看见这一维得加第六根轴，
+   而校验器 `layoutIntentProblems` 要求**每根轴都在**（`scripts/lib/block-manifest.js` §layoutIntentProblems
+   第一条就是「缺 "<轴>" 这根轴」）⟹ 32 份 manifest 里今天这 86 个形态逐个都要补一行，
+   还跟在飞的姊妹票撞车 —— 那是另一张票。#1360 名下 `three-up-heading-*` 那两种是同一形状的先例。
+   🔴 卡内部那两栏按比例分（`2fr 3fr`），不写死宽度：图册里一格只有半个屏宽，写死 12rem 会把简介
+   挤成一列竖着的字（实测 640 宽的格子里简介只剩 40px）。比例分在任何卡宽下都按 40% / 60% 走。
+   🔴 三档就是出处那三端，两个断点管两件不同的事：**640 起根上分两列**（iPad：两列、卡仍竖着）、
+   **1024 起卡自己分两栏**（电脑：两列 + 卡内部横向）。手机（<640）一列堆叠，守卫在 375 下只判
+   「零件留在内容盒里」。📌 第一版把这两个断点写反了（640 卡横、1024 根两列），iPad 那一档就成了
+   「一列 + 横卡」—— 出处那三端里没有这一档；实测 768 下量出来才看见。 */
+
+[data-block="team-grid"][data-shape="two-up-horizontal"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="team-grid"][data-shape="two-up-horizontal"] .team-grid__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="team-grid"][data-shape="two-up-horizontal"] .team-grid__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="team-grid"][data-shape="two-up-horizontal"] .team-grid__member {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 640px) {
+  [data-block="team-grid"][data-shape="two-up-horizontal"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-block="team-grid"][data-shape="two-up-horizontal"] .team-grid__member {
+    grid-template-columns: 2fr 3fr;
+    align-items: start;
+  }
+
+  [data-block="team-grid"][data-shape="two-up-horizontal"] .team-grid__name {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  [data-block="team-grid"][data-shape="two-up-horizontal"] .team-grid__role {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  [data-block="team-grid"][data-shape="two-up-horizontal"] .team-grid__bio {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+}
+
 /* ══ testimonials ══════════════════════════════════════════════════════════════════════ */
 
 /* testimonials · attribution-first  （ember-12 今天选的就是它） */
@@ -3032,28 +3458,6 @@
 }
 
 [data-block="text-block"][data-shape="stack"] .text-block__list {
-  display: grid;
-}
-
-/* ══ timeline ══════════════════════════════════════════════════════════════════════ */
-
-/* timeline · stack  （ember-12 + azure-29 今天选的就是它） */
-
-[data-block="timeline"][data-shape="stack"] {
-  display: grid;
-  grid-template-columns: 1fr;
-}
-
-[data-block="timeline"][data-shape="stack"] .timeline__headline {
-  grid-column: 1 / -1;
-}
-
-[data-block="timeline"][data-shape="stack"] .timeline__sub {
-  grid-column: 1 / -1;
-  max-width: 36rem;
-}
-
-[data-block="timeline"][data-shape="stack"] .timeline__event {
   display: grid;
 }
 

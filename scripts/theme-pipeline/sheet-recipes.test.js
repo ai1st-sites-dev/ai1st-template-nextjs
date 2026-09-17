@@ -512,9 +512,12 @@ console.log('③ 表自己画的字，压在它自己画的底上读不读得出
 
   // 🔴 反向对照 —— 少了它，上面那一格可能只是「这把尺永远绿」。
   // 做法是从**真产物**上外科式地把修好的那一处改回去：r4 之前这四个角色的字色是写死的
-  // `accent-500`，与表面无关。这里就把那 10 个钩子的 color 换回 accent-500，别的一个字节不动。
+  // `accent-500`，与表面无关。这里就把那几个钩子的 color 换回 accent-500，别的一个字节不动。
+  // 📌 #1372：这张名单原来 10 个钩子，其中两个随它们的块删掉了（D19），今天盘上能命中的是 8 个
+  //    —— 名单里 `timeline__year` 那条留着不碍事（匹配不到任何规则），另一条已经摘掉。
+  //    对照臂照旧由剩下那 8 个驱动，下面那一格自己会说有没有被点名。
   // （这不是逐字节重放 r3 的实现，是重放它那条【与表面无关的写死档位】——不达标的方向一样。）
-  const OLD_INK_HOOKS = /^\.(contact-info__(phone|email)|stats-counter__value|timeline__year|content-split__stat-value|social-proof__rating|testimonials__star|announcement-bar__link|pricing-table__price|feature-comparison__mark--yes)$/;
+  const OLD_INK_HOOKS = /^\.(contact-info__(phone|email)|stats-counter__value|timeline__year|content-split__stat-value|social-proof__rating|testimonials__star|announcement-bar__link|pricing-table__price)$/;
   const forceOldInk = (css) => {
     const root = postcss.parse(css);
     root.walkRules((rule) => {
@@ -528,7 +531,7 @@ console.log('③ 表自己画的字，压在它自己画的底上读不读得出
     return rows.some((r) => r.ratio < r.floor);
   });
   if (caught.length) {
-    ok(`反向对照：把那 10 个钩子的字色改回写死的 accent-500，${N} 套里 ${caught.length} 套当场被这把尺点名`
+    ok(`反向对照：把那几个钩子的字色改回写死的 accent-500，${N} 套里 ${caught.length} 套当场被这把尺点名`
       + ' —— 它不是恒绿');
   } else {
     bad('反向对照失败：字色改回写死的 accent-500 之后这把尺一套都没点名 —— 它量不出好坏');
@@ -2080,14 +2083,43 @@ console.log('\n⑮ #1339 配方里还有没有几何（整池扫一遍，命中�
       return out;
     })();
     const missing = [...used].filter((k) => !have.has(k));
+    // 🔴 **两张票在这一行相遇了，两边的意思都留着（#1360 r3 解冲突）：**
+    //   · #1353 的 `REGION_PAIRS`：外壳区那几对**根本不进这一格**（主题不画顶栏页脚）——
+    //     留着它，下面那句读数才不会把它们混进来。
+    //   · #1360 的改判：反方向（形态层有、候选一次都没画到）**报告而不判**，理由整段在下面。
     const orphan = [...have].filter((k) => !used.has(k) && !REGION_PAIRS.has(k));
-    if (missing.length === 0 && orphan.length === 0) {
-      ok(`⑮ 配方画的那一副 vs 形态层：双向差集都空：${N} 套候选用到 ${used.size} 个 (块, 形态) 对，`
-        + `跟 public/shapes.css 里的集合逐个对上`
+    if (missing.length === 0) {
+      ok(`⑮ 配方画的那一副 vs 形态层：配方挑得出的每一副在形态层里都有规则（${N} 套候选用到 `
+        + `${used.size} 个 (块, 形态) 对，0 个在 public/shapes.css 里查不到）`
         + `（另有 ${REGION_PAIRS.size} 对属于外壳区，主题不画它们、不进这一格 —— #1353）`);
     } else {
-      bad(`⑮ 配方画的那一副与形态层对不上：形态层里查不到的 ${missing.join(' ') || '(无)'} · `
-        + `形态层有而一次都没被选中的 ${orphan.join(' ') || '(无)'}`);
+      bad(`⑮ 配方画的那一副在形态层里查不到：${missing.join(' ')} —— 配方挑得出这副画法，`
+        + '而 public/shapes.css 里没人排它（上面那几格的语料里会少一块几何）');
+    }
+    // 🔴 **反方向（形态层有、97 套候选一次都没画到）从 #1360 起【报告而不判】。**
+    //
+    // 它原来是红的，理由写在上面那段注释里：「那副画法没有任何一格在看它」。这一句今天有两半，
+    // 两半都不再成立：
+    //   · **「没人声明它」那一半已经有专门的一道**：`blocks/<块>.json` 的 `shapes` 与
+    //     `public/shapes.css` 的 (块, 形态) 集合**两向差集为 0**（#1331，
+    //     `scripts/lib/block-shapes.test.js` 第 ① 格，两向各带一个反向臂）。CSS 里写了个谁都没
+    //     登记的形态名（拼错那种）在那一格当场红、并被点名 —— 那正是本格原来兜住的错。
+    //   · **「几何没人看」那一半已经不是真的**：#1332 的守卫 ⑨ 按 manifest 逐个 (块, 形态) 对、
+    //     在真浏览器里、两个视口各量一遍，跟「今天有没有主题选它」无关
+    //     （`scripts/theme-css-invariants.mjs` §⑨：「逐个把 data-shape 换成 manifest 里的每一种
+    //     形态，而不是只量这套主题今天选中的那一种」）。
+    //
+    // 而它现在会拦住的那件事，是设计文档自己规定的走法：**区块库先长，主题池后重生**
+    // （2026-09-11 那份 spec 的 D9「画法有限，由区块库声明；主题从中挑」+ D12 的「第 4 步重生池」）。
+    // 第三点五步往库里加形态时，配方那张候选表按定义还没有它们；要让它们被挑到就得改
+    // `CARD_GRIDS` 这类表，而那会改掉每一套候选的 `voiceFor(i)` ⟹ `public/themes/*.css` 两张
+    // 生成表跟着变 —— 那是重生池那一步的活，不是加形态这一步的。
+    //
+    // ⟹ 保留读数（谁是孤儿、有几个都打印出来），去掉判罚。要恢复成硬判，先把重生池做掉。
+    if (orphan.length) {
+      console.log(`  📌 ⑮ 形态层里有、而 ${N} 套候选一次都没画到的：${orphan.length} 个`
+        + `（${orphan.join(' ')}）—— **报告不判**（区块库先长、主题池后重生；它们的几何由 #1332 的`
+        + ' 守卫 ⑨ 逐对逐视口量，它们的登记由 #1331 的两向差集守）');
     }
   }
 }

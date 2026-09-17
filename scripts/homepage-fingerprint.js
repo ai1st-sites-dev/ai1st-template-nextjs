@@ -153,7 +153,7 @@ function selftest() {
       { type: 'announcement-bar', data: { text: 'x' } },
       { type: 'hero', data: { headline: 'x' } },
       { type: 'stats-counter', data: {} },
-      { type: 'divider', data: {} },
+      { type: 'text-block', data: {} },
       { type: 'cta-banner', data: {} },
     ],
   };

@@ -103,6 +103,24 @@
   margin-top: 2rem;
 }
 
+/* 🔴 #1374 —— 可选槽 `socialProof` 的地板。跟上面那几条同一个判据（「没有皮的时候读得出来吗」），
+   而它比上面那些多一层理由：这四个类名**不是契约钩子**（同 `.hero__img`），所以三套皮一条规则都不会
+   给它们写 —— 这里不写就真的什么都没有。
+   `min-width: 0` 与 `overflow-wrap` 是同一对老理由：一行没有空格的长字符串会把网格轨道撑得比屏幕宽，
+   而块自己的 `overflow: hidden`（globals.css）会把它剪掉，页面级那条「没有横向滚动」照样说一切正常。 */
+.hero__proof {
+  margin-top: 1.5rem;
+  min-width: 0;
+}
+
+.hero__proof-rating,
+.hero__proof-text {
+  min-width: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  overflow-wrap: break-word;
+}
+
 /* ── #1018 cta-banner ───────────────────────────────────────────────────────────────────────────
    Same two jobs as the hero rules above, and the same test for what may go in here: "would every
    sheet want to state this itself?". Checked against all three phase-1 sheets after their
@@ -402,11 +420,11 @@
   line-height: 1.25rem;
 }
 
-/* ── #1028 batch C: contact-info · stats-counter · process-steps · timeline ─────────────────────
+/* ── #1028 batch C: contact-info · stats-counter · process-steps ────────────────────────────────
    Same test as every block above — "would all three sheets want to state this themselves?" —
    checked against the three phase-1 sheets after their batch-C rules were written:
 
-     the four block hooks      display / gap / padding        all three set them → base leaks nothing
+     the three block hooks     display / gap / padding        all three set them → base leaks nothing
      every __headline          font-size / line-height        all three set them
      every __title / __label   font-size / line-height        all three set them
      .stats-counter__value     font-size                      all three set it
@@ -429,8 +447,7 @@
 
 .contact-info,
 .stats-counter,
-.process-steps,
-.timeline {
+.process-steps {
   display: grid;
   gap: 1.5rem;
   padding: 3rem 1.5rem;
@@ -439,8 +456,7 @@
 @media (min-width: 1024px) {
   .contact-info,
   .stats-counter,
-  .process-steps,
-  .timeline {
+  .process-steps {
     padding: 4rem 2rem;
   }
 }
@@ -460,13 +476,7 @@
 .process-steps__step,
 .process-steps__num,
 .process-steps__title,
-.process-steps__desc,
-.timeline__headline,
-.timeline__sub,
-.timeline__event,
-.timeline__year,
-.timeline__title,
-.timeline__desc {
+.process-steps__desc {
   min-width: 0;
   overflow-wrap: break-word;
 }
@@ -479,14 +489,12 @@
 /* ── the headlines and the sub-headlines ──────────────────────────────────────────────────────── */
 .contact-info__headline,
 .stats-counter__headline,
-.process-steps__headline,
-.timeline__headline {
+.process-steps__headline {
   font-size: 1.75rem;
   line-height: 1.25;
 }
 
-.process-steps__sub,
-.timeline__sub {
+.process-steps__sub {
   font-size: 1rem;
   line-height: 1.6;
 }
@@ -494,23 +502,20 @@
 /* ── the repeated units: a location, a stat, a step, an event ─────────────────────────────────── */
 .contact-info__location,
 .stats-counter__stat,
-.process-steps__step,
-.timeline__event {
+.process-steps__step {
   display: grid;
   gap: 0.5rem;
 }
 
 .contact-info__label,
 .stats-counter__label,
-.process-steps__title,
-.timeline__title {
+.process-steps__title {
   font-size: 1.125rem;
   line-height: 1.4;
 }
 
 .contact-info__address,
-.process-steps__desc,
-.timeline__desc {
+.process-steps__desc {
   font-size: 0.875rem;
   line-height: 1.6;
 }
@@ -522,10 +527,7 @@
   line-height: 1.1;
 }
 
-.timeline__year {
-  font-size: 1.25rem;
-  line-height: 1.2;
-}
+
 
 /* The step number. A circle without a sheet, because `.process-steps__num` is a `<span>` and an
    unstyled numeral in the flow reads as part of the title next to it. */
@@ -649,18 +651,16 @@
   gap: 0.375rem;
 }
 
-/* ── #1031 batch F: content-split · text-block · divider · social-proof · features-grid ·
-      awards-certifications · newsletter-signup ───────────────────────────────────────────────────
+/* ── #1031 batch F: content-split · text-block · social-proof · features-grid ·
+      newsletter-signup ───────────────────────────────────────────────────────────────────────────
    Same test as every block above — "would every sheet want to state this itself?" — checked against
    all three phase-1 sheets after their batch-F rules were written:
 
-     the seven block hooks    display / gap / padding      all three set them → base leaks nothing
+     the five block hooks     display / gap / padding      all three set them → base leaks nothing
      every __headline         font-size / line-height      all three set them
      every __body / __desc /
        __sub                  font-size / line-height      all three set them
-     .features-grid__item,
-       .awards-…__item        padding / border-radius      all three set them
-     .divider__rule           height / background          all three set them
+     .features-grid__item     padding / border-radius      all three set them
 
    🔴 `min-width: 0` ON EVERY PART THAT IS A GRID OR FLEX ITEM, the same rule and the same measured
    reason the earlier blocks have it: a grid item's automatic minimum size is its CONTENT's size, so
@@ -677,10 +677,8 @@
 
 .content-split,
 .text-block,
-.divider,
 .social-proof,
 .features-grid,
-.awards-certifications,
 .newsletter-signup {
   display: grid;
   gap: 1.5rem;
@@ -692,17 +690,9 @@
   .text-block,
   .social-proof,
   .features-grid,
-  .awards-certifications,
   .newsletter-signup {
     padding: 4rem 2rem;
   }
-}
-
-/* The divider is a rule between two blocks, not a block with content in it — a 3rem floor above and
-   below would make every site's page twice as long. It is the one block in this batch whose padding
-   base states differently from the six. */
-.divider {
-  padding: 1.5rem 1.5rem;
 }
 
 .content-split__media,
@@ -717,8 +707,6 @@
 .text-block__body,
 .text-block__attribution,
 .text-block__list,
-.divider__rule,
-.divider__label,
 .social-proof__headline,
 .social-proof__rating,
 .social-proof__reviews,
@@ -731,12 +719,6 @@
 .features-grid__item,
 .features-grid__title,
 .features-grid__desc,
-.awards-certifications__headline,
-.awards-certifications__sub,
-.awards-certifications__item,
-.awards-certifications__title,
-.awards-certifications__year,
-.awards-certifications__desc,
 .newsletter-signup__headline,
 .newsletter-signup__desc,
 .newsletter-signup__form {
@@ -749,15 +731,13 @@
 .text-block__headline,
 .social-proof__headline,
 .features-grid__headline,
-.awards-certifications__headline,
 .newsletter-signup__headline {
   font-size: 1.75rem;
   line-height: 1.2;
   font-weight: 700;
 }
 
-.features-grid__title,
-.awards-certifications__title {
+.features-grid__title {
   font-size: 1.25rem;
   line-height: 1.3;
   font-weight: 600;
@@ -767,7 +747,6 @@
 .content-split__body,
 .text-block__body,
 .features-grid__sub,
-.awards-certifications__sub,
 .newsletter-signup__desc {
   max-width: 34rem;
   font-size: 1.0625rem;
@@ -775,9 +754,7 @@
 }
 
 .features-grid__desc,
-.awards-certifications__desc,
-.social-proof__reviews,
-.awards-certifications__year {
+.social-proof__reviews {
   font-size: 0.9375rem;
   line-height: 1.6;
 }
@@ -798,7 +775,6 @@
 
 /* ── the repeated units ───────────────────────────────────────────────────────────────────────── */
 .features-grid__item,
-.awards-certifications__item,
 .social-proof__platform,
 .social-proof__badge,
 .content-split__stat {
@@ -835,20 +811,6 @@
 .content-split__media {
   aspect-ratio: 16 / 10;
   border-radius: 0.75rem;
-}
-
-/* The divider's whole job. Without a sheet it is a hairline; sheets paint bars, waves and dots on
-   the same hook. */
-.divider__rule {
-  display: block;
-  height: 1px;
-  background-color: currentColor;
-  opacity: 0.25;
-}
-
-.divider__label {
-  font-size: 0.875rem;
-  line-height: 1.5;
 }
 
 .newsletter-signup__form {
@@ -1070,15 +1032,12 @@
   font-size: 0.875rem;
   line-height: 1.25rem;
 }
-/* ── #1030 batch E: feature-comparison · map-area · trusted-brands ─────────────────────────────
+/* ── #1030 batch E: map-area · trusted-brands ───────────────────────────────────────────────────
    Same test as every batch before it — "would every sheet want to state this itself?" — checked
    against all three phase-1 sheets after their batch-E rules were written:
 
-     the four block hooks        display / gap / padding       all three set them → base leaks nothing
+     the two block hooks         display / gap / padding       all three set them → base leaks nothing
      every __headline            font-size / line-height       all three set them
-     .feature-comparison__head
-       and __row                 display / grid-template-columns  all three set them
-     .feature-comparison__mark   text-align                    all three set it
 
    🔴 `min-width: 0` AND `max-width: 100%` ON EVERY PART, the pair batch G worked out (#1036) and
    batch D measured per block: `min-width: 0` fixes a grid item's AUTOMATIC minimum, without which one
@@ -1086,15 +1045,9 @@
    clips it and the page-level "no horizontal scroll" reading still says everything is fine.
    `max-width: 100%` covers the part a sheet sizes as `fit-content` (a self-aligned pill).
 
-   🔴 THE COMPARISON'S THREE COLUMNS ARE A FLOOR, NOT A LOOK. Without a rule here the feature name
-   and its two marks are three stacked lines, and the block stops saying which mark belongs to which
-   side — the one thing it exists to say. All three sheets state their own column widths on the same
-   hooks, so nothing here reaches a themed page; what it covers is the site with no sheet at all.
-
-   🔴 NO `list-style` RULES HERE: none of these four renders a list element. map-area's ticks and
+   🔴 NO `list-style` RULES HERE: neither of these two renders a list element. map-area's ticks and
    bullets were `<svg>`s and `<span>`s in the markup and they are gone (#1030) — the contract admits
    only `content: ""`, so a sheet draws a shape back, not that glyph. */
-.feature-comparison,
 .map-area,
 .trusted-brands {
   display: grid;
@@ -1103,20 +1056,12 @@
 }
 
 @media (min-width: 1024px) {
-  .feature-comparison,
   .map-area,
   .trusted-brands {
     padding: 4rem 2rem;
   }
 }
 
-.feature-comparison__headline,
-.feature-comparison__sub,
-.feature-comparison__head,
-.feature-comparison__label,
-.feature-comparison__row,
-.feature-comparison__feature,
-.feature-comparison__mark,
 .map-area__headline,
 .map-area__sub,
 .map-area__area,
@@ -1130,20 +1075,17 @@
 }
 
 /* ── headings and body copy: the readable floor ────────────────────────────────────────────────── */
-.feature-comparison__headline,
 .map-area__headline {
   font-size: 1.75rem;
   line-height: 1.2;
 }
 
 @media (min-width: 1024px) {
-  .feature-comparison__headline,
   .map-area__headline {
     font-size: 2.25rem;
   }
 }
 
-.feature-comparison__sub,
 .map-area__sub {
   /* Roughly 70 characters — the same reading measure every other block's sub gets. */
   max-width: 34rem;
@@ -1155,27 +1097,18 @@
   line-height: 1.3;
 }
 
-.map-area__desc,
-.feature-comparison__feature {
+.map-area__desc {
   line-height: 1.6;
 }
 
 /* ── the comparison's rows: which mark belongs to which side ───────────────────────────────────── */
-.feature-comparison__head,
-.feature-comparison__row {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
-  gap: 0.75rem;
-  align-items: center;
-}
+
 
 /* Only the marks are centred here. The header row's three labels are one class, so telling the first
    one apart needs a descendant selector — and base.css refuses those on purpose (a specificity above
    a theme's is a floor a theme cannot lift). A sheet may write it: §1 lets a sheet combine two hooks
    as ancestor and descendant, and all three do. */
-.feature-comparison__mark {
-  text-align: center;
-}
+
 
 /* ── the list of names ─────────────────────────────────────────────────────────────────────────── */
 .trusted-brands__headline {

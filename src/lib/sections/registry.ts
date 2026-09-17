@@ -20,14 +20,10 @@ import TeamGridSection from '@/components/sections/TeamGridSection';
 import PricingTableSection from '@/components/sections/PricingTableSection';
 import GallerySection from '@/components/sections/GallerySection';
 import ContentSplitSection from '@/components/sections/ContentSplitSection';
-import FeatureComparisonSection from '@/components/sections/FeatureComparisonSection';
 import SocialProofSection from '@/components/sections/SocialProofSection';
-import DividerSection from '@/components/sections/DividerSection';
 import AnnouncementBarSection from '@/components/sections/AnnouncementBarSection';
-import TimelineSection from '@/components/sections/TimelineSection';
 import NewsletterSignupSection from '@/components/sections/NewsletterSignupSection';
 import MapAreaSection from '@/components/sections/MapAreaSection';
-import AwardsCertificationsSection from '@/components/sections/AwardsCertificationsSection';
 import BlogPreviewSection from '@/components/sections/BlogPreviewSection';
 import ServiceRelatedPagesSection from '@/components/sections/ServiceRelatedPagesSection';
 
@@ -68,14 +64,10 @@ export const sectionRegistry: Record<string, ComponentType<any>> = {
   'pricing-table': PricingTableSection,
   'gallery': GallerySection,
   'content-split': ContentSplitSection,
-  'feature-comparison': FeatureComparisonSection,
   'social-proof': SocialProofSection,
-  'divider': DividerSection,
   'announcement-bar': AnnouncementBarSection,
-  'timeline': TimelineSection,
   'newsletter-signup': NewsletterSignupSection,
   'map-area': MapAreaSection,
-  'awards-certifications': AwardsCertificationsSection,
   'blog-preview': BlogPreviewSection,
   'service-related-pages': ServiceRelatedPagesSection,
 };

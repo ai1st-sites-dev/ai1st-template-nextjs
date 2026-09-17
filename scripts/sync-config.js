@@ -994,17 +994,17 @@ const MOVED_BLOCKS = ['hero', 'cta-banner', 'page-header',
   // no longer decides how it looks", and that is now true of all six.
   'contact-form', 'quote-form', 'services-list', 'services-nav',
   'service-related-pages',
-  // #1028 batch C — four more. Same meaning as above: these blocks' markup no longer decides how
-  // they look.
-  'contact-info', 'stats-counter', 'process-steps', 'timeline',
+  // #1028 batch C — 原来四个，`timeline` 随 #1372 删掉了（D19），今天剩三个。
+  // Same meaning as above: these blocks' markup no longer decides how they look.
+  'contact-info', 'stats-counter', 'process-steps',
   // #1029 batch D — four more. Same meaning as above: these blocks' markup no longer decides how
   // they look. `blog-preview` keeps reading `data.fromBlog` / `data.maxPosts`, and that is not a
   // contradiction: those two say WHICH articles the block draws, not what it looks like.
   'team-grid', 'blog-preview',
   // #1031 batch F — seven at once. All seven had a `data.variant` branch and nothing else: none of
   // them is a `'use client'` component, so there was no behaviour to keep on the way out.
-  'content-split', 'text-block', 'divider', 'social-proof', 'features-grid',
-  'awards-certifications', 'newsletter-signup',
+  // 🔴 #1372 从这一批里删了两个块（D19），所以它今天只剩五个名字。
+  'content-split', 'text-block', 'social-proof', 'features-grid', 'newsletter-signup',
   // #1036 batch G — the six blocks that had behaviour in at least one variant. `announcement-bar`
   // belongs on this list even though it still reads `data.variant`: that read is the REGION path
   // (`TopbarRegion.tsx` passes `regions.topbar.shape` through the same prop and it lands on
@@ -1012,12 +1012,9 @@ const MOVED_BLOCKS = ['hero', 'cta-banner', 'page-header',
   // As a BLOCK its markup no longer decides how it looks, which is what this list means.
   'faq-accordion', 'testimonials', 'announcement-bar', 'pricing-table',
   'gallery',
-  // #1030 batch E — three more (the batch started as four; the logo wall was removed in #1375 per
-  // D19). Same meaning as above. `feature-comparison` still renders a ✓ or a ✗
-  // per cell, and that is not a contradiction: those two characters say WHAT the site claims about
-  // itself and a competitor, not what the block looks like — how they LOOK (colour, size, whether
-  // there is a shape behind them) is the sheet's, through `.feature-comparison__mark--yes` / `--no`.
-  'feature-comparison', 'map-area', 'trusted-brands',
+  // #1030 batch E —— 原来四个，两个已经随 #1372 / #1375 删掉（都按 D19），今天剩下面这两个。
+  // Same meaning as above：这几个块的 markup 不再决定它们长什么样。
+  'map-area', 'trusted-brands',
   // #1132 —— 通用块「卡片组」。这张名单的含义没变：「这个块的 markup 不再决定它长什么样」。
   // 📌 #1162：这里原来写着「老名字 `values-grid` / `benefits-list` 一个都没删（老站还在吐老类名，
   //    见 blocks.js 那层别名映射），通用块另外加自己的名字」—— 那层兼容 2026-08-23 整层退役了，

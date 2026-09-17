@@ -25,6 +25,39 @@
         "media": "none",
         "columns": "three"
       }
+    },
+    {
+      "name": "four-up",
+      "needs": [],
+      "layout_intent": {
+        "items": "grid",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "none",
+        "columns": "four"
+      }
+    },
+    {
+      "name": "single-feature",
+      "needs": [],
+      "layout_intent": {
+        "items": "stack",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "none",
+        "columns": "one"
+      }
+    },
+    {
+      "name": "two-up-horizontal",
+      "needs": [],
+      "layout_intent": {
+        "items": "grid",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "none",
+        "columns": "two"
+      }
     }
   ],
   "slots": {

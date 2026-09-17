@@ -303,14 +303,15 @@ console.log('── ⑨ #1154 所有块的列表槽兜底');
   else ok(`不归通用块管的 ${nonGeneric.length} 个块、逐个槽喂 null，一个都没漏过`);
 
   // 票里点名的那五个，逐个把报错那句对上（`npm run build` 那一张表在票上，这里守的是同一条性质）
-  for (const [t, slot] of [['timeline', 'events'], ['testimonials', 'items'], ['process-steps', 'steps'], ['team-grid', 'members'], ['faq-accordion', 'items']]) {
+  // 📌 #1372：这一行原来第一个是 `timeline`/`events`，那个块删了；换成同样带列表槽的 `blog-preview`/`posts`。
+  for (const [t, slot] of [['blog-preview', 'posts'], ['testimonials', 'items'], ['process-steps', 'steps'], ['team-grid', 'members'], ['faq-accordion', 'items']]) {
     const out = normalizeListSlots({ type: t, data: { [slot]: [{ x: 1 }, null] } });
     if (JSON.stringify(out.data[slot]) === '[{"x":1}]') ok(`${t}.${slot}: null 被滤掉`);
     else bad(`${t}.${slot}: ${JSON.stringify(out.data[slot])}`);
   }
 
   // 槽的值整个不是数组 ⟹ 换成空数组（组件 map 出零个条目，不炸）
-  for (const [t, slot, v] of [['timeline', 'events', 'abc'], ['card-group', 'items', 'abc'], ['team-grid', 'members', {}]]) {
+  for (const [t, slot, v] of [['blog-preview', 'posts', 'abc'], ['card-group', 'items', 'abc'], ['team-grid', 'members', {}]]) {
     const out = normalizeListSlots({ type: t, data: { [slot]: v } });
     if (JSON.stringify(out.data[slot]) === '[]') ok(`${t}.${slot} = ${JSON.stringify(v)} ⟹ []`);
     else bad(`${t}.${slot} 没被换成 []: ${JSON.stringify(out.data[slot])}`);
@@ -318,23 +319,23 @@ console.log('── ⑨ #1154 所有块的列表槽兜底');
 
   // 🔴 反向对照一：良构 ⟹ **同一个 block、同一个数组**。AC4 的「逐字节不变」立足在这上面；
   //    无条件 `filter()` 每次都造新数组，这一格当场红。
-  const objs = [{ year: '2020', title: 't' }];
-  const good = { type: 'timeline', data: { headline: 'H', events: objs } };
+  const objs = [{ date: '2020-01-01', title: 't' }];
+  const good = { type: 'blog-preview', data: { headline: 'H', posts: objs } };
   const same = normalizeListSlots(good);
-  if (same === good && same.data.events === objs) ok('反向对照: 良构时返回同一个 block、同一个数组（没有重建对象）');
-  else bad(`良构时对象被换掉了: same===good ${same === good} · 数组同一个 ${same.data.events === objs}`);
+  if (same === good && same.data.posts === objs) ok('反向对照: 良构时返回同一个 block、同一个数组（没有重建对象）');
+  else bad(`良构时对象被换掉了: same===good ${same === good} · 数组同一个 ${same.data.posts === objs}`);
 
   // 🔴 反向对照二：没写的选填列表槽不许被无中生有塞一个 []（那会给每个块的 data 多出一堆键）
-  const bare = { type: 'timeline', data: { headline: 'H' } };
+  const bare = { type: 'blog-preview', data: { headline: 'H' } };
   const afterBare = normalizeListSlots(bare);
-  if (afterBare === bare && !Object.prototype.hasOwnProperty.call(afterBare.data, 'events')) {
+  if (afterBare === bare && !Object.prototype.hasOwnProperty.call(afterBare.data, 'posts')) {
     ok('反向对照: 没写的列表槽不会被塞一个空数组');
   } else bad(`没写的槽被动过了: ${JSON.stringify(afterBare.data)}`);
 
   // 🔴 反向对照三：跟 validateSite 第 ⑤ 条同一条判据 —— 字符串和普通对象都留着（AC5 的 "" 和 {}）
-  const keep = normalizeListSlots({ type: 'timeline', data: { events: ['', {}, { year: 'y' }] } });
-  if (JSON.stringify(keep.data.events) === '["",{},{"year":"y"}]') ok('反向对照: "" 和 {} 是合法条目，一个都没被误杀');
-  else bad(`"" / {} 被误杀了: ${JSON.stringify(keep.data.events)}`);
+  const keep = normalizeListSlots({ type: 'blog-preview', data: { posts: ['', {}, { title: 'y' }] } });
+  if (JSON.stringify(keep.data.posts) === '["",{},{"title":"y"}]') ok('反向对照: "" 和 {} 是合法条目，一个都没被误杀');
+  else bad(`"" / {} 被误杀了: ${JSON.stringify(keep.data.posts)}`);
 
   // 🔴 两步串起来还对吗（`blocks.js` 那个循环写的就是 `normalizeListSlots(normalizeGenericItems(x))`）。
   //    #1162：这一格原来测的是「`service-highlights` 先被别名改成 `card-group` + `items`，再按新

@@ -207,7 +207,7 @@ export function judgeIntent(r, intent, { phone, where, arm }) {
     ok('parts-inside', outside.length === 0,
       `${outside.length} 个零件伸到块的内容盒外面（${outside.map((i) => `${i.cls} 右边到 ${Math.round(i.right)}，盒子到 ${Math.round(r.root.contentRight)}`).join('；')}）`);
   } else {
-    // 意图一个零件都没点名（divider / announcement-bar 这类）—— 那就判块自己不溢出，
+    // 意图一个零件都没点名（announcement-bar 这类）—— 那就判块自己不溢出，
     // 这样每一格仍然至少有一条断言（正文 AC2 的下限：0 条 = 什么都没判）。
     ok('no-overflow', r.scrollWidth <= r.clientWidth + S,
       `块自己横向溢出了（scrollWidth ${Math.round(r.scrollWidth)} > clientWidth ${Math.round(r.clientWidth)}）`);

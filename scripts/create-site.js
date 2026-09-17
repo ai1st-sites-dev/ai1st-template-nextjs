@@ -1993,9 +1993,6 @@ async function generateContent(opts) {
   };
   const criticalBlockRules = (() => {
     const lines = [
-      // 「用 divider 分段」—— 它只点名一个块，关了就整行不印。
-      blockOff.has('divider') ? null
-        : '- Use "divider" between sections occasionally (1-2 times per homepage) to break up the page visually.',
       // 非首页的开头 / 结尾各点名一个块，两半各自可以掉。
       ruleIfAnyOn(['page-header', 'cta-banner'], (_on, set) => '- Non-home pages should use 3-8 sections.'
         + (set.has('page-header') ? ' Always start with "page-header".' : '')
@@ -2043,7 +2040,6 @@ async function generateContent(opts) {
       ['faq-accordion', '4-6 FAQ items'],
       ['process-steps', '3-4 process steps'],
       ['pricing-table', '2-3 pricing tiers'],
-      ['feature-comparison', '5-7 comparison features'],
     ].filter(([t]) => !blockOff.has(t)).map(([, text]) => text);
     const social = blockOff.has('social-proof') ? [] : ['3-4 social proof badges/platforms'];
     const parts = ['6-8 services', ...bound, '3-5 benefits', ...social];
@@ -2055,7 +2051,7 @@ async function generateContent(opts) {
   })();
   // 配方关着时走的那一行「挑两个别人不会有的块」—— 举例名单同样过滤（#1346 r3）。
   const rareSectionExamplesRule = (() => {
-    const ex = keepBlocks(['content-split', 'social-proof', 'feature-comparison', 'card-group', 'announcement-bar', 'divider']);
+    const ex = keepBlocks(['content-split', 'social-proof', 'card-group', 'announcement-bar']);
     return ex.length
       ? `- Include at least TWO sections that most sites wouldn't have (e.g., ${ex.join(', ')}).`
       : '- Include at least TWO sections that most sites wouldn\'t have.';
@@ -2459,8 +2455,9 @@ ${varySectionOrderRule}
 - Choose DIFFERENT variants for each section — don't use all "grid" or all "cards". Mix "minimal", "split", "gradient", "dark" etc.
 ${homeRecipe ? recipePromptLines(homeRecipe, disabledBlocks)
   // #1034 — 关着的时候这一行逐字回到改动之前。它原来那份举例名单
-  // (content-split / social-proof / feature-comparison / card-group / announcement-bar / divider)
-  // 正好就是 6 个真实站实际选中的那批 —— 举例清单被当成了待办清单。开着的时候由上面那份
+  // （content-split / social-proof / card-group / announcement-bar，外加 #1372 删掉的那两个块）
+  // 正好就是 6 个真实站实际选中的那批 —— 举例清单被当成了待办清单。
+  // 🔴 #1372 之后那份名单只剩 4 个：被删的两个块的名字按那张票的验收要求不再出现在代码里。开着的时候由上面那份
   // 每站不同的硬要求取代它。
   // 🔴 #1346 r3 —— 那份举例名单里的块名同样要按清单过滤（配方关着的时候走的就是这一支）。
   //    一个都不剩时整行不印：举例清单为空的 "e.g., ()" 比不给例子更糟。
