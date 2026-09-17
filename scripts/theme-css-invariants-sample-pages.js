@@ -184,6 +184,31 @@ const skipped = [];
 // 最少版每个块削成什么样。
 const pruned = [];
 
+// ── ①a 每个块的内容换成**演示内容包**（#1383）────────────────────────────────────────────────
+//
+// 🔴 `gen-allblocks.js` 合成的数据是从**组件 TS 类型**推的占位串（`Headline text` / `/images/
+//    grid-pattern.svg` / 三项等长的列表）。图册页 `/__catalog` 与单格页 `/__catalog/<块>/<形态>`
+//    今天都读 `scripts/lib/demo-content/`，这一页要跟它们**同一份内容**，否则同一个块在两个地方
+//    长得不一样，而看的人分不清哪一份才是我们要给人看的样子。
+//
+// 🔴 **只换 `data`，不换这一页的骨架**：块有哪些、顺序、id 仍然由 `gen-allblocks.js` 定
+//    （本文件头上那条「先请它生成，再在产物上补」原样成立，这里补的是内容那一层）。
+// 🔴 换完之后每个键都来自 manifest 的 `slots` ⟹ 下面最少版那段的「manifest 里没有的键」按构造
+//    是空的。那段代码不动：它是对**输入**的断言，不是对这一次替换的断言。
+const { demoDataFor } = require('./lib/demo-content');
+const { loadManifests: loadDemoManifests } = require('./lib/block-manifest');
+const DEMO_MANIFESTS = loadDemoManifests(path.join(NEXT, 'blocks'));
+for (const sec of sections) {
+  const m = DEMO_MANIFESTS.get(sec.type);
+  if (!m) die(`no blocks/${sec.type}.json — 演示内容按 manifest 的槽位发，没有 manifest 就发不出`);
+  try {
+    sec.data = demoDataFor(m);
+  } catch (e) {
+    die(`demo-content 发不出 ${sec.type} 的内容: ${(e && e.message) || e}`);
+  }
+}
+patched.push(`每个块的 data 换成演示内容包（${sections.length} 个块，scripts/lib/demo-content/）`);
+
 // ── ①b 最少版：每个块只留必填槽，列表槽只放一项（#1321）──────────────────────────────────────
 //
 // 🔴 判据只有一个来源：`blocks/<type>.json` 的 `slots.<名>.required`。**不读**组件 TS 类型里的那个
@@ -307,9 +332,20 @@ if (MINIMAL) {
 //    `required: false` 的槽位。#1065 当时接受的那个代价（「`.hero__form` 这一族在最少版上没有人量」）
 //    本票顺带还掉了。
 if (MINIMAL) {
-  // 最少版：`items` 是必填列表槽、已被压到一项，而且不替换它的内容 ⟹ `.card-group__features`
-  // 在最少版上没有人量（接受的代价）。这一版要问的是「三列卡片组只填一张卡时散不散」。
-  skipped.push('card-group item 1 has features → .card-group__features（items 压到 1 项，内容不替换）');
+  // 🔴 #1383 —— 这一格从「接受的代价」变成了「顺带还上」，所以这句话换了内容：
+  //    以前最少版的那一张卡是 `gen-allblocks.js` 合成的，而它按构造合成不出 `features`
+  //    （原因在下面 else 那支的 ② 里）⟹ `.card-group__features` 在最少版上没有人量。
+  //    现在两臂的内容都来自演示内容包（上面 ①a），包里 `card-group.items` 每一项自带 `features`，
+  //    压到一项之后那一项照样带 ⟹ 这条钩子在最少版上**也被量到了**。
+  // 🔴 这不是把最少版弄宽了：最少版的合同是**槽位**那一层（可选槽位不存在、必填列表槽只剩一项），
+  //    而 `features` 是必填槽 `items` 里**一个条目自己的键**，不是一个槽位。两条合同各自照旧，
+  //    由下面读回那段的通用循环逐块核。
+  const cgMin = sectionOf('card-group');
+  const cgMinItems = cgMin && cgMin.data && cgMin.data.items;
+  if (!Array.isArray(cgMinItems) || !cgMinItems.some((it) => Array.isArray(it && it.features) && it.features.length)) {
+    die('card-group：最少版那一张卡不带 features ⟹ .card-group__features 在这一臂上又没人量了');
+  }
+  patched.push('card-group 最少版那一张卡也带 features → .card-group__features 在最少版上也被量到（#1383）');
 } else {
   // #1143 —— 并进「卡片组」的块要连数据一起补，否则钩子一页都不进 DOM。
   //
@@ -333,17 +369,20 @@ if (MINIMAL) {
   //    这是那个工具的既有脆弱处，不归这里修（它自己的注释写着别把这道检查的需要塞进它）——
   //    这里的做法照本文件头上那条：**先请它生成，再在产物上补**。
   //    📌 这个洞吃掉的键不止一个，清单与处置写在本文件头上那一段（`variant` 本轮不补，理由在那里）。
-  const FEATURED = (n) => ({
-    title: `Title text ${n}`,
-    description: 'Description text',
-    features: ['Feature one', 'Feature two'],
-  });
-  const PLAIN = (n) => ({ title: `Title text ${n}`, description: 'Description text' });
-
+  // 🔴 #1383 —— 这里原来拿三个占位条目（`Title text 1` / `Description text`）**整条覆盖**
+  //    `cg.data.items`，为的就是让某一项带上 `features`。演示内容包自己就带 `features`
+  //    （`content.js` 的 `card-group.items`），所以覆盖那一手去掉了 —— 留着它等于把刚换上去的
+  //    真文案又换回占位串，而本票要的正是这一页跟图册**同一份内容**。
+  //    换成一条**对内容包的断言**：一项都没有 `features` 就当场说出来，别让这族钩子静默地
+  //    没人量（那正是本文件存在的理由）。
   const cg = sectionOf('card-group');
   if (!cg || !cg.data) die('the generated page has no card-group block');
-  cg.data.items = [FEATURED(1), PLAIN(2), PLAIN(3)];
-  patched.push('card-group item 1 has features → .card-group__features');
+  const cgItems = cg.data.items;
+  if (!Array.isArray(cgItems) || !cgItems.some((it) => Array.isArray(it && it.features) && it.features.length)) {
+    die('card-group：演示内容里没有一项带 features ⟹ .card-group__features 一页都不进 DOM');
+  }
+  patched.push(`card-group ${cgItems.filter((it) => Array.isArray(it && it.features) && it.features.length).length}`
+    + `/${cgItems.length} 项带 features → .card-group__features（内容来自演示内容包）`);
 }
 const SERVICE_SLUG = 'services';
 {
@@ -523,9 +562,17 @@ const EXTRA_SERVICES = [
         }
       }
     }
+    // 🔴 #1383 —— 这条断言**翻了个方向**。它原来问的是「最少版不许带 features」，守的是
+    //    「全填版那次【整条覆盖 items】没有漏进最少版」；而那次覆盖本票已经删掉了（两臂内容
+    //    同出一个演示内容包），于是那个问题按构造不可能发生 —— 一条问不出坏的断言，就是一格
+    //    靠语料没了而绿的死判据（同 :531 那段 #1341 划掉 `block_layout` 的理由）。
+    //    现在问的是**还剩的那件真事**：最少版那一张卡真的带上了 features，所以
+    //    `.card-group__features` 在这一臂上真的有人量。上面那句 `patched` 说的就是它，这里读回。
     const cgMin = find('card-group');
-    if (cgMin && cgMin.data && Array.isArray(cgMin.data.items) && cgMin.data.items.some((i) => i && i.features)) {
-      bad.push('card-group items still carry features in the minimal version');
+    const cgMinItems = cgMin && cgMin.data && cgMin.data.items;
+    if (!Array.isArray(cgMinItems) || !cgMinItems.some((i) => Array.isArray(i && i.features) && i.features.length)) {
+      bad.push('card-group: the one card in the minimal version carries no features — '
+        + '.card-group__features goes unmeasured on this arm (#1383)');
     }
   }
   // #1060 —— 两个方向都读回来：第 1 条真的开着，而第 2 条真的还关着。只问前半句的话，

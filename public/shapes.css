@@ -1590,8 +1590,15 @@
   max-width: 34rem;
 }
 
+/* 🔴 `width: 100%` 不是装饰（#1383）。上面那条 `justify-items: center` 是对**每一个**网格项说的，
+   而一个网格项默认是 `stretch` —— 但这条规则自己把项改成了 `display: grid`，加上 `max-width`
+   之后它在 `justify-items: center` 下缩到**自己那条问题的宽度**再居中。等长的占位串看不出来
+   （六条一样宽、x 也就一样）；换上真文案之后六条问题长短不一 ⟹ 六个不同的 x、六条不同宽的下边框，
+   accordion 的每一行左右都参差。判它的是 `layout_intent.items = "stack"`（同级项该纵向一列，
+   判据是 x 相同）：#1383 的演示内容一上去这一格当场红，读数是「6 个不同的 x / 6 行」。 */
 [data-block="faq-accordion"][data-shape="centered"] .faq-accordion__item {
   display: grid;
+  width: 100%;
   max-width: 48rem;
 }
 

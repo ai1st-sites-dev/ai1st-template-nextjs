@@ -40,12 +40,15 @@ function localizeHref(href: string, locale: string): string {
 // 🔴 遮罩（`header__scrim`）**永远在 DOM 里**，显不显示由 CSS 说。D14 第 2 句：可选零件缺席不算
 //    HTML 不同；反过来，一个只在某一支里才存在的元素就是「另一棵树」，正是本票要清的东西。
 //    它的浓度为什么是那样，写在 `scripts/region-layout.js` 的文件头（白字压纯白首屏的最坏情况）。
-type HeaderProps = { locale: string; overHero?: boolean };
+// 🔴 `variant` 跟 `Footer` 那个同名参数是**同一件事**（#1383）：图册的单格页要把同一副骨架按
+//    四种形态各画一页，而形态平时来自构建期算好的 `regions.header.shape`。站上的每一个调用点都
+//    **不传**它 —— 现取 `git grep -n '<Header' src` 逐个看过 ⟹ 站的行为一个字节不变。
+type HeaderProps = { locale: string; overHero?: boolean; variant?: string };
 
-export default function Header({ locale, overHero = false }: HeaderProps) {
+export default function Header({ locale, overHero = false, variant: variantOverride }: HeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { header } = getNavigation(locale);
-  const shape = regions.header.shape;
+  const shape = variantOverride || regions.header.shape;
 
   // 浮层压在首屏上时，顶栏的字是白的。这是**这一页**的事（见上面那段），所以它是一个属性，不是一种形态。
   const overlaid = shape === 'transparent-overlay' && overHero;
