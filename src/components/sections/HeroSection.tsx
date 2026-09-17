@@ -7,6 +7,18 @@ import type { BlockConfig } from '@/lib/types/config';
 // 「有图 / 没图」两种内容结构，两种都是下面这同一份 HTML，差别归 `public/shapes.css`。
 // 说明写在 interface **外面**是有意的：`scripts/block-migration/gen-allblocks.js` 按文本切这份字段表
 // （`fields()`），一条写在里面的注释会被它当成又一个字段名，写进演示站的夹具数据里 —— 实测过一次。
+// 🔴 #1374 —— 可选槽 `socialProof`：CTA 下面那条社会证明（头像组 + 评分 + 一句话），出处是 FlyonUI
+// hero-3 / hero-4 左栏 CTA 下方那一条（Chris 2026-09-16 在对表里定为「要」）。不填时整块不渲染，
+// 页面一个像素不变；形态数不变（仍是那七种），`needs` 一个都不改 —— 它是装饰，没有它每种形态照样成立。
+// 🔴 头像那一串是**对象**而不是字符串数组，字段名沿用既有的 `imageUrl` —— 这两点都是量出来的，
+// 别"简化"回去：
+//   · AI 改站那条路上有一道闸只认 `IMAGE_FIELDS` 里的键、而且**只在值是字符串时**收
+//     （`scripts/lib/image-urls.js` §collectImagePositions）。写成 `avatarImages: string[]` 的话，
+//     模型编出来的头像地址整条通道对它隐身 —— 正是 #1195 治的那个毛病（老板看见一张裂图）。
+//   · `image-urls.test.js` 那道两向守卫从**这份组件**现读 `<img src={…}>` 的叶子字段名，两边差一个
+//     就当场红：叫 `imageUrl` 就落在既有的清单与 `edit-site.js` 的 `## Images` 段里，不用新开口子。
+//   · 演示站夹具从这个接口合成（`gen-allblocks.js` 的 `synth()`），名字带 image 才会合成出一个真的
+//     图片路径 —— `imageUrl` 同样满足。
 interface HeroSectionProps {
   data: {
     headline: string;
@@ -14,6 +26,11 @@ interface HeroSectionProps {
     ctaPrimary: { label: string; href: string };
     ctaSecondary: { label: string; href: string };
     imageUrl?: string;
+    socialProof?: {
+      avatars?: { imageUrl?: string }[];
+      rating?: string;
+      text?: string;
+    };
   };
   /** #998 — 这个块在页面 JSON 里的那条记录；根元素的 `data-role` / `data-shape` / `data-has-*` 从它来。
    *  （#998 当初加它是为了第三个钩子 `data-block-layout`，#1341 把那个钩子退役了。） */
@@ -81,6 +98,31 @@ export default function HeroSection({ data, block }: HeroSectionProps) {
             {data.ctaSecondary?.label}
           </Link>
         </div>
+        {/* 🔴 #1374 —— 这个零件住在 `hero__body` 【里面】是承重的，不是随手放的。#1332 的排版探针只看
+            `<section data-block="hero">` 的**直接子元素**（`scripts/lib/layout-intent.mjs:78`），而 hero
+            七种形态全写着 `items: "none"` 与 `headline: "none"`。头像组天生是一排同类元素 —— 它或它的
+            包装层一旦成了直接子元素（带 `data-block-part` 的包装层也算候选面，`:88-92`），`items-none`
+            （`:235`）会让七格一起红；第一个 class 若以 `__title` / `__headline` / `__heading` 结尾，
+            `headline-none`（`:276`）同样七格一起红。放在 body 里面，那五根轴一根都不会换读数。
+            ⟹ 改这里的人：不许上提成直接子元素、不许加 `data-block-part`、第一个 class 不许以那三个
+            后缀（以及 `__media`）结尾。 */}
+        {data.socialProof ? (
+          <div className="hero__proof">
+            {data.socialProof.avatars?.length ? (
+              <span className="hero__proof-avatars">
+                {data.socialProof.avatars.map((avatar, i) => (avatar?.imageUrl ? (
+                  <img key={`${avatar.imageUrl}-${i}`} className="hero__proof-avatar" src={avatar.imageUrl} alt="" />
+                ) : null))}
+              </span>
+            ) : null}
+            {data.socialProof.rating ? (
+              <span className="hero__proof-rating">{data.socialProof.rating}</span>
+            ) : null}
+            {data.socialProof.text ? (
+              <span className="hero__proof-text">{data.socialProof.text}</span>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </section>
   );

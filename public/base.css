@@ -103,6 +103,24 @@
   margin-top: 2rem;
 }
 
+/* 🔴 #1374 —— 可选槽 `socialProof` 的地板。跟上面那几条同一个判据（「没有皮的时候读得出来吗」），
+   而它比上面那些多一层理由：这四个类名**不是契约钩子**（同 `.hero__img`），所以三套皮一条规则都不会
+   给它们写 —— 这里不写就真的什么都没有。
+   `min-width: 0` 与 `overflow-wrap` 是同一对老理由：一行没有空格的长字符串会把网格轨道撑得比屏幕宽，
+   而块自己的 `overflow: hidden`（globals.css）会把它剪掉，页面级那条「没有横向滚动」照样说一切正常。 */
+.hero__proof {
+  margin-top: 1.5rem;
+  min-width: 0;
+}
+
+.hero__proof-rating,
+.hero__proof-text {
+  min-width: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  overflow-wrap: break-word;
+}
+
 /* ── #1018 cta-banner ───────────────────────────────────────────────────────────────────────────
    Same two jobs as the hero rules above, and the same test for what may go in here: "would every
    sheet want to state this itself?". Checked against all three phase-1 sheets after their
