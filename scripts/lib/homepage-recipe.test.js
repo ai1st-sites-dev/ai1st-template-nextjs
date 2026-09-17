@@ -446,6 +446,17 @@ try {
       why: '#1341 内容结构那一维退役，`content structures:` 那些行不再印',
       apply: (t) => t.split('\n').filter((l) => !/^ {2}content structures: /.test(l)).join('\n'),
     },
+    // #1376：按设计文档 D19 从区块库里删掉一个块（它那组数字成了 `social-proof` 的一个可选槽）。
+    // 基线那份 create-site.js 把「There are N section types」里的 N **写死成 32**；#1353 之后它改成
+    // 按 `blocks/` 现算，而两臂共用这棵树的 `blocks/` ⟹ 块库一少，这一句就是 OFF 那条路上唯一变的
+    // 字节（本票实测：套上前三条之后 diff 只剩第 221 行这一句）。
+    // 🔴 这里写死 31 是有意的：跟着现算就等于拿被测代码自己的输出当判据，那一格再也红不了。
+    //    区块库 32 → 26 那几张票（#1372 / #1375）各自 ship 时这条会变成死条目，判别力②当场点名，
+    //    到时候把 31 改成那天的数。
+    {
+      why: '#1376 删掉一个块 ⟹ 那句「There are N section types」的 N 从基线写死的 32 变 31',
+      apply: (t) => t.replace(/^- There are 32 section types /m, '- There are 31 section types '),
+    },
   ];
   const applyRenames = (text) => PROMPT_DELTAS.reduce((acc, d) => d.apply(acc), text);
   const promptBaseRenamed = applyRenames(promptBase);

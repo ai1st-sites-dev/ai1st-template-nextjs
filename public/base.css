@@ -402,15 +402,18 @@
   line-height: 1.25rem;
 }
 
-/* ── #1028 batch C: contact-info · stats-counter · process-steps · timeline ─────────────────────
+/* ── #1028 batch C: contact-info · process-steps · timeline ─────────────────────────────────────
    Same test as every block above — "would all three sheets want to state this themselves?" —
    checked against the three phase-1 sheets after their batch-C rules were written:
 
-     the four block hooks      display / gap / padding        all three set them → base leaks nothing
+     the three block hooks     display / gap / padding        all three set them → base leaks nothing
      every __headline          font-size / line-height        all three set them
      every __title / __label   font-size / line-height        all three set them
-     .stats-counter__value     font-size                      all three set it
      .process-steps__num       width / height / border-radius all three set them
+
+   📌 #1376 —— 这一批开始是**四个**块，第四个（那个统计数字块）按设计文档 D19 并进了 `social-proof`
+   （它唯一的内容 —— 一组数字 —— 成了那个块的一个可选槽）。上面那行「.<它>__value font-size」是当年
+   真量到的读数，今天它的等价物是 batch F 那一节里的 `.social-proof__stat-value`。
 
    🔴 `min-width: 0` ON EVERY PART THAT IS A GRID OR FLEX ITEM, the same rule and the same reason the
    hero, cta-banner, page-header and batch-B parts have it: a grid item's automatic minimum size is
@@ -428,7 +431,6 @@
    the thing that set the card's width. */
 
 .contact-info,
-.stats-counter,
 .process-steps,
 .timeline {
   display: grid;
@@ -438,7 +440,6 @@
 
 @media (min-width: 1024px) {
   .contact-info,
-  .stats-counter,
   .process-steps,
   .timeline {
     padding: 4rem 2rem;
@@ -451,10 +452,6 @@
 .contact-info__address,
 .contact-info__phone,
 .contact-info__email,
-.stats-counter__headline,
-.stats-counter__stat,
-.stats-counter__value,
-.stats-counter__label,
 .process-steps__headline,
 .process-steps__sub,
 .process-steps__step,
@@ -478,7 +475,6 @@
 
 /* ── the headlines and the sub-headlines ──────────────────────────────────────────────────────── */
 .contact-info__headline,
-.stats-counter__headline,
 .process-steps__headline,
 .timeline__headline {
   font-size: 1.75rem;
@@ -493,7 +489,6 @@
 
 /* ── the repeated units: a location, a stat, a step, an event ─────────────────────────────────── */
 .contact-info__location,
-.stats-counter__stat,
 .process-steps__step,
 .timeline__event {
   display: grid;
@@ -501,7 +496,6 @@
 }
 
 .contact-info__label,
-.stats-counter__label,
 .process-steps__title,
 .timeline__title {
   font-size: 1.125rem;
@@ -515,13 +509,9 @@
   line-height: 1.6;
 }
 
-/* The number a customer dials and the number a business is proud of: both are the thing their own
-   part exists to show, so without a sheet they are still the biggest thing in it. */
-.stats-counter__value {
-  font-size: 2rem;
-  line-height: 1.1;
-}
-
+/* The year an event happened is the thing its own part exists to show, so without a sheet it is
+   still the biggest thing in it. (#1376 took the stat's number out of this pair — that block was
+   merged into `social-proof`; its floor is `.social-proof__stat-value` in batch F below.) */
 .timeline__year {
   font-size: 1.25rem;
   line-height: 1.2;
@@ -726,6 +716,10 @@
 .social-proof__badge,
 .social-proof__quote,
 .social-proof__quote-author,
+.social-proof__stat,
+.social-proof__stat-value,
+.social-proof__stat-label,
+.social-proof__media,
 .features-grid__headline,
 .features-grid__sub,
 .features-grid__item,
@@ -817,6 +811,19 @@
   font-weight: 700;
 }
 
+/* #1376 —— `social-proof` 从此也能放一组数字（batch C 那个统计数字块按 D19 并进来的那一半）。
+   两条都是从那个块的地板逐条搬过来的：单元自己是个小网格，数字是这个单元存在的理由，所以没有
+   主题表时它仍是里面最大的那个（那边写的也是 2rem）。 */
+.social-proof__stat {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.social-proof__stat-value {
+  font-size: 2rem;
+  line-height: 1.1;
+}
+
 .content-split__stats,
 .content-split__bullets,
 .text-block__list {
@@ -835,6 +842,14 @@
 .content-split__media {
   aspect-ratio: 16 / 10;
   border-radius: 0.75rem;
+}
+
+/* #1376 —— `social-proof` 的那张可选图，同一条理由。页面 JSON 没给图时这个零件**根本不在树上**
+   （组件那一头是「有则出、无则不出」），给了图它也得有个形状，不然在图加载完之前那一行是塌的。 */
+.social-proof__media {
+  aspect-ratio: 16 / 10;
+  border-radius: 0.75rem;
+  overflow: hidden;
 }
 
 /* The divider's whole job. Without a sheet it is a hairline; sheets paint bars, waves and dots on

@@ -9,8 +9,8 @@
 // DOM 元素，而本票的承诺是「产物每块多两个属性、视觉逐像素不变」。多出来的那个 <div> 会让 HTML 的
 // 差异不再只是两个属性；而且 block 是 <main> 的直接子元素，多一层就把 order 那一层挪走了。
 //
-// 🔴 为什么每个 variant 都要带：34 个组件一共 134 个根元素（hero 9 个、content-split / stats-counter
-// 各 6 个……每种写法一支早返回）。只给默认那一支加钩子的话，theme 挑了别的写法，那块就没有钩子 ——
+// 🔴 为什么每个 variant 都要带：当时 34 个组件一共 134 个根元素（hero 9 个、content-split 6 个，
+// 另一个显示一排数字的块也是 6 个 —— 它已在 #1376 按 D19 并进 `social-proof`；每种写法一支早返回）。只给默认那一支加钩子的话，theme 挑了别的写法，那块就没有钩子 ——
 // 而这种失败是静默的：页面照样好看，只是 theme 的 CSS 点不到它。`blockRootCoverage()`（978 的 spec）
 // 逐支数这件事。
 import blockRoles from './block-roles.json';
@@ -39,9 +39,10 @@ export type BlockRole = 'essential' | 'lead' | 'optional';
 //   map-area        areas（areaServed）
 //   faq-accordion   faq
 //
-// 🔴 这张表跟 30 套 theme 今天真在藏的东西**零交集**，我数过（`rhythm.hide` 的并集是
-// announcement-bar · divider · newsletter-signup · logo-carousel · trusted-brands · stats-counter ·
-// blog-preview · social-proof）。要是有交集，就会出现「预览里挡住了不许藏，Apply 之后 sync-config
+// 🔴 这张表跟那 30 套 theme 真在藏的东西**零交集**，我数过（那次 `rhythm.hide` 的并集是 8 个块：
+// announcement-bar · divider · newsletter-signup · logo-carousel · trusted-brands · blog-preview ·
+// social-proof，外加那个显示一排数字的块 —— 它已在 #1376 按 D19 并进 `social-proof`，所以这里不再
+// 写它的名字；那次读数本身没变，零交集这个结论也没变）。要是有交集，就会出现「预览里挡住了不许藏，Apply 之后 sync-config
 // 又真的把它藏了」——两个地方对同一件事给出相反答案，而那正是本票要治的那类假象。
 //
 // 📌 lead 只有 hero：spec §4.2 说 lead 是「这门生意的主角」，那是**每个生意各不相同**的判断，由建站

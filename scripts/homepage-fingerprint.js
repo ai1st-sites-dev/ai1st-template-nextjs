@@ -152,7 +152,7 @@ function selftest() {
     sections: [
       { type: 'announcement-bar', data: { text: 'x' } },
       { type: 'hero', data: { headline: 'x' } },
-      { type: 'stats-counter', data: {} },
+      { type: 'social-proof', data: {} },
       { type: 'divider', data: {} },
       { type: 'cta-banner', data: {} },
     ],

@@ -681,7 +681,7 @@ const colourOf = (token) => {
 //    实测（#1051 r3 那批 80 套，QA2 在真机上复现过其中 3 套）：`contact-info__phone` / `__email`
 //    在 **20/80 套**里落在 **1.45–2.49:1**，而运行时那道检查（#1050 ②e）对 essential 块的下限是
 //    2.5:1 ⟹ 候选当场被准入闸②拦下。`contact-info` 是 essential 块，所以它红；同一个毛病还落在
-//    另外 8 个钩子上（stats-counter__value · timeline__year · content-split__stat-value ·
+//    另外 8 个钩子上（timeline__year · content-split__stat-value ·
 //    social-proof__rating · testimonials__star · announcement-bar__link · pricing-table__price ·
 //    feature-comparison__mark--yes），**只是那些块不是 essential，检查看不见** —— 客人一样读不出来。
 //
@@ -884,7 +884,6 @@ const SHAPES = {
   'services-nav': { wideSpacing: false, role: { link: 'chip' } },
   'service-related-pages': { role: { card: 'card' } },
   'contact-info': { role: { location: 'card', label: 'eyebrow', address: 'desc', phone: 'contact', email: 'contact' } },
-  'stats-counter': { role: { stat: 'card', value: 'figure', label: 'eyebrow' } },
   'process-steps': { role: { step: 'card', num: 'numeral', title: 'title', desc: 'desc' } },
   timeline: { wideSpacing: false, role: { event: 'row-card', year: 'figure', title: 'title', desc: 'desc' } },
   'team-grid': { role: { member: 'card', name: 'title', role: 'eyebrow', bio: 'desc' } },
@@ -1379,7 +1378,6 @@ const PLAIN_SHAPE_NAMES = {
   'pricing-table': (v) => v.plainGrid,
   'service-related-pages': (v) => v.plainGrid,
   'social-proof': (v) => v.plainGrid,
-  'stats-counter': (v) => v.plainGrid,
   'team-grid': (v) => v.plainGrid,
 };
 

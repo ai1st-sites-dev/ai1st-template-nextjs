@@ -533,47 +533,6 @@
   color: var(--color-accent-300);
 }
 
-.stats-counter {
-  gap: 1.5rem;
-  padding: 3rem 1.5rem;
-  background-color: var(--color-primary-800);
-  color: var(--color-primary-50);
-}
-
-/* Four across. hero-media-right keeps two and hero-media-top runs them as one centred row. */
-@media (min-width: 1024px) {
-  .stats-counter {
-    gap: 2.5rem;
-    padding: 4rem 4rem;
-  }
-}
-
-.stats-counter__headline {
-  font-size: 0.875rem;
-  line-height: 1.4;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--color-primary-300);
-}
-
-.stats-counter__stat {
-  gap: 0.25rem;
-}
-
-.stats-counter__value {
-  font-size: 2.5rem;
-  line-height: 1;
-  font-weight: 800;
-  color: var(--color-primary-50);
-}
-
-.stats-counter__label {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--color-primary-300);
-}
-
 .process-steps {
   gap: 1.5rem;
   padding: 3rem 1.5rem;

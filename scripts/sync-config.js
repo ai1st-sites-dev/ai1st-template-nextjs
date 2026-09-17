@@ -994,9 +994,10 @@ const MOVED_BLOCKS = ['hero', 'cta-banner', 'page-header',
   // no longer decides how it looks", and that is now true of all six.
   'contact-form', 'quote-form', 'services-list', 'services-nav',
   'service-related-pages',
-  // #1028 batch C — four more. Same meaning as above: these blocks' markup no longer decides how
-  // they look.
-  'contact-info', 'stats-counter', 'process-steps', 'timeline',
+  // #1028 batch C — three more (the batch started as four; the row-of-figures block was merged into
+  // `social-proof` in #1376 per design doc D19). Same meaning as above: these blocks' markup no
+  // longer decides how they look.
+  'contact-info', 'process-steps', 'timeline',
   // #1029 batch D — four more. Same meaning as above: these blocks' markup no longer decides how
   // they look. `blog-preview` keeps reading `data.fromBlog` / `data.maxPosts`, and that is not a
   // contradiction: those two say WHICH articles the block draws, not what it looks like.

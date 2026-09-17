@@ -165,16 +165,15 @@ const HOOKS = new Set([
   '.service-related-pages', '.service-related-pages__headline', '.service-related-pages__sub',
   '.service-related-pages__card',
   '[data-block="service-related-pages"]',
-  // #1028 — batch C, four blocks whose old branches were pure appearance. One of them
+  // #1028 — batch C, three blocks whose old branches were pure appearance (the batch started as
+  // four; the one that showed a row of figures was merged into `social-proof` in #1376 per design
+  // doc D19, and its hooks left with it). One of them
   // (`contact-info`) is `essential`, and its hooks are the ones a sheet needs to lay out a phone
   // number and an address without the markup deciding: `__location` is the child grid/flex places,
   // `__phone` and `__email` are the two links a customer actually uses.
   '.contact-info', '.contact-info__headline', '.contact-info__location', '.contact-info__label',
   '.contact-info__address', '.contact-info__phone', '.contact-info__email',
   '[data-block="contact-info"]',
-  '.stats-counter', '.stats-counter__headline', '.stats-counter__stat', '.stats-counter__value',
-  '.stats-counter__label',
-  '[data-block="stats-counter"]',
   '.process-steps', '.process-steps__headline', '.process-steps__sub', '.process-steps__step',
   '.process-steps__num', '.process-steps__title', '.process-steps__desc',
   '[data-block="process-steps"]',
@@ -365,8 +364,9 @@ const HOOKS = new Set([
 //   #1019 page-header parts + [data-block="page-header"]
 //   #1027 contact-form / quote-form / services-list / values-grid / services-nav /
 //         service-related-pages parts + their six [data-block="…"]
-//   #1028 contact-info / stats-counter / process-steps / timeline parts + their four
-//         [data-block="…"]  (batch C)
+//   #1028 contact-info / process-steps / timeline parts + their three [data-block="…"]
+//         (batch C, which started as four blocks — the row-of-figures one was merged into
+//         `social-proof` in #1376 per D19)
 //   #1031 content-split / text-block / divider / social-proof / features-grid /
 //         awards-certifications / newsletter-signup parts + their seven [data-block="…"]
 //         (batch F, seven blocks at once)

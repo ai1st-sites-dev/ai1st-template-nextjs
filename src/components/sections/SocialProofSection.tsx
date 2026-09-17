@@ -10,6 +10,8 @@ interface SocialProofSectionProps {
     platforms?: { name: string; rating: string; reviews: string }[];
     badges?: string[];
     featuredQuote?: { text: string; author: string };
+    stats?: { value: string; label: string }[];
+    imageUrl?: string;
   };
   locale: string;
   /** #998 — 这个块在页面 JSON 里的那条记录；根元素的 `data-role` / `data-shape` / `data-has-*` 从它来。
@@ -89,6 +91,38 @@ interface SocialProofSectionProps {
 // `data-shape` and `data-has-*` all still come from that second argument, and dropping it is
 // silent in every instrument we own (`registry.ts` types the components as
 // `ComponentType<any>`, so `tsc` cannot see it). #1008 r1 was bounced for exactly that.
+// ══ #1376：那个「一排数字」的块并进来了，两个可选槽 `stats` / `imageUrl` ═══════════════════════════
+//
+// 设计文档 D19 把批次 C 那个专门显示一排数字的块和这个块判成同一类（FlyonUI 的 Social Proof），
+// D14 又说「可选槽位空着不算一个新块」⟹ 那个块整个删掉，它唯一的内容（一组数字）变成这里的一个
+// 可选槽。老站不迁移：页面 JSON 里还写着那个老块的记录，走 `SectionRenderer.tsx` 的既有兜底消失。
+//
+// 🔴 **这两个字段的说明写在这儿，不写在上面那个 `data: { … }` 里面 —— 那对花括号里一条注释都不能有。**
+// 量主题用的那份夹具页是从这段类型文本现切出来的（`scripts/block-migration/gen-allblocks.js` §fields：
+// 在 `data: {` 和它配对的 `}` 之间按顶层的 `;` / `,` 切，每段取第一个 `:` 之前的那串当字段名）。一条
+// 注释落在字段前面，切出来的「字段名」就是注释加字段名那一长串，于是全填版夹具里那个槽根本不存在，
+// 而它的下场不是红、是一格退化成「报告而不判」（#1362 实测过）。
+//
+// 🔴 `imageUrl` 这个名字是抄来的，不是随手起的：写入闸 `scripts/lib/image-urls.js` 的 `IMAGE_FIELDS`
+// 按【字段名】认「这个值是一张图的地址」。换个名字那道闸就看不见它，AI 编出来的地址会一路写进老板的
+// 站里。另外 `scripts/edit-site.js` 的 `## Images` 段也要跟着列一行，否则 `image-urls.test.js` 的两向
+// 守卫当场红。
+//
+// 🔴 两个零件**有则出、无则不出**，排在骨架最后（D14 第 2 条），骨架前面那几个零件一个字节没动。
+// 「无则不出」而不是「留个空盒子再藏起来」（hero / content-split 那一族的做法）：那一族的空盒子是留给
+// 主题皮画底的钩子，而这两个零件今天没有任何主题皮要画它们 —— 留一个空盒子只会让「可选槽没填」这件事
+// 多出一条要在每一种形态里写 `display: none` 的规矩，而每漏一种，老板的页面上就多一条空带子。
+//
+// 🔴 图放成 `[data-block]` 的**直接子元素**，而且第一个 class 以 `__media` 结尾 —— 这里是**要**被排版
+// 意图探针认成「图」的（`scripts/lib/layout-intent.mjs` §isMedia / §mediaEl 只看直接子元素）。塞进别的
+// 包装层里，探针就看不见它。代价是 `two-up` / `three-up` 那两副原来写着 `media: none`（= 断言「这个块
+// 没有图」），图槽一填就当场红 ⟹ 本票按 #1362 的先例**照实把那两副的 `media` 轴改成 `below`**，并在
+// `public/shapes.css` 把图钉在最后一行通栏。不藏图，也不用 `needs` 绕。
+//
+// 🔴 一条数字的两个零件跟着 `content-split` 的叫法走（`__stat-value` / `__stat-label`），不是
+// `__value` / `__label`：这个块已经有 `__rating` / `__reviews` 两个「也是数字」的零件，光秃秃的
+// `__value` 在这儿说不清是哪一个。三个新类名都不是契约钩子（主题表选不中它们），跟 #1362 的
+// `.faq-accordion__media` 同一条边界：地板在 `public/base.css`，排版在 `public/shapes.css`。
 export default function SocialProofSection({ data, locale, block }: SocialProofSectionProps) {
   const labels = getLabels(locale);
 
@@ -125,6 +159,19 @@ export default function SocialProofSection({ data, locale, block }: SocialProofS
           <footer className="social-proof__quote-author">{data.featuredQuote.author}</footer>
         </blockquote>
       )}
+      {data.stats?.map((stat, index) => (
+        <div key={index} className="social-proof__stat">
+          <p className="social-proof__stat-value">{stat.value}</p>
+          <p className="social-proof__stat-label">{stat.label}</p>
+        </div>
+      ))}
+      {data.imageUrl ? (
+        <div className="social-proof__media">
+          {/* `<img>` 不是契约钩子，跟 `.hero__img` / `.content-split__media img` 是同一条边界：
+              盒子归形态层和主题，图片本身归 `globals.css`，一个属性只有一个主人。 */}
+          <img src={data.imageUrl} alt="" />
+        </div>
+      ) : null}
     </section>
   );
 }

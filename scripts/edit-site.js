@@ -832,7 +832,7 @@ from a block you are editing. A page must have exactly one of the two arrays; a 
 fails the build. When you add a block to a \`blocks\` page, give it an \`id\` unique within that page and a
 \`weight\` that puts it where you want it (blocks are ordered by \`weight\`, smaller first).
 
-Available section types: hero, hero-with-form, trusted-brands, features-grid, card-group, testimonials, cta-banner, contact-info, text-block, page-header, services-nav, services-list, quote-form, contact-form, stats-counter, faq-accordion, process-steps, team-grid, pricing-table, gallery, logo-carousel, content-split, feature-comparison, social-proof, divider, announcement-bar, timeline, newsletter-signup, map-area, awards-certifications, blog-preview, service-related-pages
+Available section types: hero, hero-with-form, trusted-brands, features-grid, card-group, testimonials, cta-banner, contact-info, text-block, page-header, services-nav, services-list, quote-form, contact-form, faq-accordion, process-steps, team-grid, pricing-table, gallery, logo-carousel, content-split, feature-comparison, social-proof, divider, announcement-bar, timeline, newsletter-signup, map-area, awards-certifications, blog-preview, service-related-pages
 
 Hero variants: left, centered, split, minimal, video-style, gradient-overlay, light-split, light-editorial, light-showcase
 (dark full-bleed: left, centered, split, video-style, gradient-overlay · light background: minimal, light-split, light-editorial, light-showcase)
@@ -849,6 +849,8 @@ other type does not show a picture, and putting an image field on one has no eff
 - a **hero-with-form** block → \`data.imageUrl\` (the first screen that also collects the visitor's phone
   number — same picture field as **hero**, it is just a different block type)
 - a **content-split** block → \`data.imageUrl\`
+- a **social-proof** block → \`data.imageUrl\` (optional — the block shows a picture only when one is
+  set; without it the ratings, badges and figures simply have no picture beside them)
 - a **gallery** block → \`data.items[].imageUrl\` (one per item)
 - **a blog post** (\`blog/<slug>.json\`) → an \`<img src="...">\` inside its \`content\`, which is rendered as
   HTML. This is the one place a picture is not a field of its own: to change the picture in an article, edit

@@ -11,7 +11,7 @@
         "items": "grid",
         "item_wrap": "allow",
         "headline": "above",
-        "media": "none",
+        "media": "below",
         "columns": "two"
       }
     },
@@ -22,7 +22,7 @@
         "items": "grid",
         "item_wrap": "allow",
         "headline": "above",
-        "media": "none",
+        "media": "below",
         "columns": "three"
       }
     }
@@ -62,6 +62,18 @@
       "required": false,
       "promptOptional": true,
       "shape": "{text, author}"
+    },
+    "stats": {
+      "kind": "list",
+      "required": false,
+      "promptOptional": true,
+      "shape": "[{value:\"500+\", label:\"Projects Completed\"}]"
+    },
+    "imageUrl": {
+      "kind": "image",
+      "required": false,
+      "promptOptional": true,
+      "shape": "string"
     }
   },
   "variants": {

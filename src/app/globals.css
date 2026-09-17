@@ -627,7 +627,8 @@
 /* `.hero__img` is deliberately absent from the contract and `.content-split__media`'s `<img>` is
    absent for the same reason — two owners for one dimension is a bug generator. The sheet gives the
    box a size; this makes the picture fill whatever box it got. */
-.content-split__media img {
+.content-split__media img,
+.social-proof__media img {
   display: block;
   width: 100%;
   height: 100%;
@@ -715,8 +716,9 @@
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
-   #1028 — THE NEUTRAL SKELETONS FOR BATCH C: contact-info · stats-counter · process-steps ·
-   timeline. Same division of labour as everything above.
+   #1028 — THE NEUTRAL SKELETONS FOR BATCH C: contact-info · process-steps · timeline.
+   Same division of labour as everything above. (The batch started as four blocks; the fourth — the
+   one that showed a row of figures — was merged into `social-proof` in #1376 per design doc D19.)
    ══════════════════════════════════════════════════════════════════════════════════════════════
    Here: the things that must be true whichever sheet is loaded. In a theme sheet: the whole look.
    The floor for a page with NO sheet — spacing and readable type on the HOOKS — is public/base.css.
@@ -724,7 +726,7 @@
    🔴 THIS SECTION IS SHORT, AND THAT IS THE POINT. Batch B needed 180 lines here because two of its
    blocks are forms: `input`, `textarea`, `label`, `ol`, `li` cannot be selected by any sheet
    (contract §1 refuses tag selectors), so somebody had to lay them out and this is the only file
-   allowed to. Batch C's four blocks have no such internals — every element in all four carries a
+   allowed to. Batch C's blocks have no such internals — every element in all four carries a
    hook — so a sheet reaches all of them and there is nothing here to own but the guard.
 
    🔴 `overflow: hidden` ON EACH BLOCK is the guard hero, cta-banner, page-header and batch B have: it
@@ -743,7 +745,6 @@
    about which LAYER owns the colour, not what the colour is: `.contact-info__phone` is a hook, so a
    sheet that wants blue links writes blue. */
 .contact-info,
-.stats-counter,
 .process-steps,
 .timeline {
   overflow: hidden;
