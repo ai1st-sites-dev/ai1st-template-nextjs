@@ -47,6 +47,11 @@ const {
   BLOCKS_DIR: BLOCK_MANIFEST_DIR,
 } = require('./lib/block-manifest');
 const blockDataLine = (type) => blockDataLineFor(loadBlockManifests().get(type));
+// #1386 —— 建站选图：哪些槽要图、提示词怎么拼、上限怎么截、求不到怎么说，都在那个文件里。
+// 名单不再写在本文件里（此前是四个块名 + 四个 case，`hero-with-form` 因此永远拿不到图）。
+const { fillImageSlots } = require('./lib/image-slots');
+// skipAI 那条路给图槽填的那张图 —— 模板自己带的资源，不调外部图库（#1386）。
+const PLACEHOLDER_IMAGE_URL = '/images/grid-pattern.svg';
 // #1034 — 每个站一份首页开场配方（开头四块 + 两个必须出现的块 + 候选清单的印刷顺序）。
 // 治的是「6 个真实站 100% 以 announcement-bar → hero 开场」那件事，理由整段在那个文件头上。
 const {
@@ -365,69 +370,6 @@ async function callNanoBanana({ prompt, apiKey, timeoutMs = 30_000 }) {
 // `input.maxImagesPerSite` (sourced from Admin Settings → ai1st.site.maxImagesPerSite).
 let photoHardCap = 100;
 
-function collectImageSlots(pages) {
-  const slots = [];
-  for (const page of pages || []) {
-    const sections = page.sections || [];
-    for (let i = 0; i < sections.length; i++) {
-      const sec = sections[i];
-      const t = sec.type;
-      if (t === 'hero' || t === 'cta-banner' || t === 'content-split') {
-        slots.push({ pageSlug: page.slug, secIdx: i, secType: t, itemIdx: null });
-      } else if (t === 'gallery' && sec.data && Array.isArray(sec.data.items)) {
-        for (let j = 0; j < sec.data.items.length; j++) {
-          slots.push({ pageSlug: page.slug, secIdx: i, secType: 'gallery', itemIdx: j });
-        }
-      }
-    }
-  }
-  return slots;
-}
-
-function buildSlotPrompt({ secType, industry, primaryColor, themeWord }) {
-  // Shared scene prefix → visual cohesion across all photos in same site.
-  // TICKET-164 v2 (path B): apply 160 PM addendum §1 "ABSOLUTELY NO TEXT"
-  // pattern verbatim (proven 2/2 industries prod-clean Florist + Realty
-  // commit 577b22e). Root-cause fix:
-  // (a) drop "accents in signage" → ${primaryColor} now binds to "decor and
-  //     ambient lighting" only, removing signage invitation into scene
-  // (b) replace weak "AVOID logos or text overlays" with ABSOLUTELY NO TEXT
-  //     block enumerating 9 visual-text variants (signage / wordmarks / labels /
-  //     etc.) — model can no longer interpret AVOID as post-process overlay
-  //     suppression only.
-  // Faces ALLOWED (preserves v1 user decision — no walk-back).
-  const scene = `${industry} business interior or exterior scene, warm natural lighting, photorealistic, ${themeWord} aesthetic. Use ${primaryColor} as the dominant color tone in the decor, walls, furnishings, and ambient lighting. Professional friendly diverse people (varied ages and ethnicities) may appear naturally. AVOID children unless industry is pediatric/childcare/school; AVOID medical surgery, distress, or sensitive scenes; AVOID religious symbols not relevant to the brand.
-
-ABSOLUTELY NO TEXT IN THE IMAGE. The scene must contain ZERO visible business signage with letters, ZERO storefront signs with words, ZERO wall-mounted signs with text, ZERO printed wordmarks or brand names, ZERO menu boards with readable words, ZERO product labels with letters, ZERO English or any-language words, ZERO numbers or digits, ZERO logos with characters, ZERO typography of any kind anywhere in the scene. Buildings, products, walls, and decor must be free of any written or printed text elements.`;
-
-  switch (secType) {
-    case 'hero':
-      return `Wide-angle 16:9 exterior storefront or entrance view of ${scene} Daytime, inviting, welcoming atmosphere with depth.`;
-    case 'cta-banner':
-      return `Atmospheric 16:9 mood-setting background image evoking ${scene} Soft lighting suitable for overlay text. No prominent foreground subject.`;
-    case 'content-split':
-      return `4:3 contextual scene of ${scene} Authentic candid moment, not posed.`;
-    case 'gallery':
-      return `4:3 detail or moment shot of ${scene} Variety: product close-up / service action / interior detail / candid interaction (different from other gallery photos).`;
-    default:
-      return null;  // shouldn't happen given collectImageSlots filter
-  }
-}
-
-function setSlotImageUrl(pages, slot, url) {
-  const page = pages.find(p => p.slug === slot.pageSlug);
-  if (!page) return;
-  const section = page.sections[slot.secIdx];
-  if (!section) return;
-  if (slot.secType === 'gallery') {
-    if (!section.data?.items?.[slot.itemIdx]) return;
-    section.data.items[slot.itemIdx].imageUrl = url;
-  } else {
-    if (!section.data) section.data = {};
-    section.data.imageUrl = url;
-  }
-}
-
 // TICKET-172 (hotfix): AI sometimes invents placeholder strings like
 // "gradient-about" / "tbd" for slots that exceed photoHardCap or fail Nano
 // Banana generation — instead of leaving imageUrl unset per prompt. Those
@@ -459,47 +401,44 @@ function sanitizeImageUrls(pages) {
   return dropped;
 }
 
-// Returns { attempted, success, totalSlots } so caller can log + emit. Failures
-// are silent (per-slot try/catch + debug event) so a single Nano Banana 5xx
-// can't take the build down.
-async function generateSlotPhotos({ pages, industry, primaryColor, themeName, apiKey, outputDir, emitFn }) {
+// Returns { attempted, success, totalSlots, dropped, failures } so caller can log + emit.
+// 单个槽失败不让建站倒（per-slot try/catch 在 fillImageSlots 里），imageUrl 留空 ⟹ 块按
+// `shapes[].needs` 落回不要图的那个形态（#1331）。
+// #1386 —— 哪些槽要图、提示词怎么拼、上限怎么截，都在 `lib/image-slots.js`；这里只剩
+// 「真去调 Nano Banana 并把字节写盘」这一件事，以及计费事件。
+async function generateSlotPhotos({ pages, manifests, industry, primaryColor, themeName, apiKey, outputDir, emitFn }) {
   const themeWord = themeName || 'minimal';
   fs.mkdirSync(outputDir, { recursive: true });
 
-  let slots = collectImageSlots(pages);
-  const originalCount = slots.length;
-  if (slots.length > photoHardCap) {
-    slots = slots.slice(0, photoHardCap);
-    if (emitFn) emitFn('debug', { photoCapped: true, originalCount, capped: photoHardCap });
-  }
-
-  let successCount = 0;
-  for (const slot of slots) {
-    const startMs = Date.now();
-    const keyParts = [slot.pageSlug, `s${slot.secIdx}`, slot.secType];
-    if (slot.itemIdx !== null) keyParts.push(`i${slot.itemIdx}`);
-    const uniqueKey = keyParts.join('-').replace(/[^a-zA-Z0-9-]/g, '_');
-    try {
-      const prompt = buildSlotPrompt({ secType: slot.secType, industry, primaryColor, themeWord });
-      if (!prompt) continue;
+  const result = await fillImageSlots({
+    pages,
+    manifests,
+    industry,
+    primaryColor,
+    themeWord,
+    cap: photoHardCap,
+    log: (line) => debug(line),
+    produce: async ({ prompt, key }) => {
+      const startMs = Date.now();
       const imageBytes = await callNanoBanana({ prompt, apiKey });
-      fs.writeFileSync(path.join(outputDir, `${uniqueKey}.jpg`), imageBytes);
-      setSlotImageUrl(pages, slot, `/photos/${uniqueKey}.jpg`);
-      successCount++;
+      fs.writeFileSync(path.join(outputDir, `${key}.jpg`), imageBytes);
       if (emitFn) emitFn('cost', {
         operation: 'nano-banana-photo',
         provider: 'Google',
         model: NANO_BANANA_MODEL, // #1251
         cost: 0.005,
         duration: Date.now() - startMs,
-        detail: uniqueKey,
+        detail: key,
       });
-    } catch (err) {
-      if (emitFn) emitFn('debug', { photoFailure: uniqueKey, reason: err.message });
-      // per-slot independent: skip, others continue. imageUrl 留空 → template fallback.
-    }
+      return `/photos/${key}.jpg`;
+    },
+  });
+
+  if (emitFn && result.dropped.length) {
+    emitFn('debug', { photoCapped: true, originalCount: result.totalSlots, capped: photoHardCap });
   }
-  return { attempted: slots.length, success: successCount, totalSlots: originalCount };
+  if (emitFn) for (const f of result.failures) emitFn('debug', { photoFailure: f.slot.secType, reason: f.reason });
+  return result;
 }
 
 const availableIcons = [
@@ -1059,6 +998,20 @@ async function main() {
         content.brand.name[norm] = name.trim();
       }
     }
+    // #1386 —— skipAI 这条路也填图，但**不调任何外部图库**：每个内容图槽填同一张本地占位图，
+    // 逐槽打一行读数。此前这条路在上面那个 `if (input.skipAI)` 就 return 了，根本走不到选图 ⟹
+    // 示例站（夹具 / 演示 / QA 取读数最常用的那几个站）的 hero 永远没有图，「块有图时长什么样」
+    // 在这条路上一次都量不到。占位图用仓库自带的 `public/images/grid-pattern.svg`（模板自己的
+    // 资源，不是外部链接）。
+    await fillImageSlots({
+      pages: content.pages,
+      manifests: loadBlockManifests(),
+      industry,
+      primaryColor: content.brand.colors.primary['500'],
+      themeWord: themeName,
+      produce: async () => PLACEHOLDER_IMAGE_URL,
+      log: (line) => debug(line),
+    });
     writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks);
     debug(`Demo site config written to site/`);
     // TICKET-122b: in skipAI mode, secondary locales get a verbatim copy of the
@@ -2725,8 +2678,8 @@ ${ctaHrefRule ? `${ctaHrefRule}
   }
 
   // TICKET-164: v2 slot-driven photo gen — Pass 2 walks ai.pages sections,
-  // collects every image slot (hero/cta-banner/content-split single +
-  // gallery items[]), generates per-slot context-aware prompts, calls Nano
+  // collects every image slot (#1386 起按 manifest 现算，不再是写死的四个块名),
+  // generates per-slot context-aware prompts, calls Nano
   // Banana, writes /public/photos/<key>.jpg, mutates ai.pages to fill imageUrl.
   // Faces allowed per TICKET-164 user decision. Hard cap photoHardCap (100).
   // Per-slot independent failure (build never blocks). Skipped when the user
@@ -2738,6 +2691,7 @@ ${ctaHrefRule ? `${ctaHrefRule}
     const photosOutputDir = path.join(path.resolve(__dirname, '..'), 'public', 'photos');
     const result = await generateSlotPhotos({
       pages: ai.pages,
+      manifests: loadBlockManifests(),
       industry,
       primaryColor: brand.colors.primary['500'],
       themeName: resolvedThemeName,

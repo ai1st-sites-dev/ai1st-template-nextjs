@@ -111,6 +111,33 @@ function filledOptionalSlots(m, data) {
 }
 
 /**
+ * 这个块有哪些【内容图槽】—— 按槽位判，不按块名判（#1386）。回 [{ name, kind }]，
+ * 顺序照 manifest 里槽位的书写顺序，`kind` 是 `'image'`（单图）或 `'list'`（每项一张）。
+ *
+ * 算：`kind: "image"` 的单图槽 · `kind: "list"` 且 `shape` 里带 `imageUrl` 的列表槽。
+ * 不算：
+ *   · 槽名是 `logo` / `logos` —— 那是生意自己的商标位，塞图库照片进去就是假商标。
+ *   · `kind: "object"` —— hero 的 `socialProof` 的 shape 里**也有** `imageUrl`
+ *     （`{avatars: [{imageUrl}], rating, text}`），但那是顾客头像不是内容图。这一条不是可省的
+ *     小心眼：去掉它，每个站的 hero 就会多生成一批冒充真人的头像。
+ *
+ * 🔴 为什么这条规则住在这里：#1386 之前「哪些块能拿到图」是 create-site.js 里手写的四个块名，
+ *    manifest 里新加的图槽进不来（`hero-with-form` 有图槽却永远拿不到图）。判据放在 manifest 这一侧，
+ *    加槽的那张票不用回头改建站脚本。
+ */
+function imageSlotsOf(m) {
+  const out = [];
+  for (const [name, spec] of Object.entries((m && m.slots) || {})) {
+    if (!spec || /^logos?$/.test(name)) continue;
+    if (spec.kind === 'image') { out.push({ name, kind: 'image' }); continue; }
+    if (spec.kind === 'list' && typeof spec.shape === 'string' && spec.shape.includes('imageUrl')) {
+      out.push({ name, kind: 'list' });
+    }
+  }
+  return out;
+}
+
+/**
  * manifest 清单 vs shapes.css 集合的两向差集（守卫用）。`manifests` 是 Map 或按类型索引的对象。
  * 回 { onlyInCss: ["block/shape"…], onlyInManifests: ["block/shape"…] }，两个都空才算对齐。
  */
@@ -955,6 +982,8 @@ module.exports = {
   defaultShapeOf,
   shapeNeedsGap,
   filledOptionalSlots,
+  // #1386 —— 「这个块有哪些内容图槽」，建站选图那条路的唯一判据
+  imageSlotsOf,
   diffShapesAgainstCss,
   // #1332 —— 排版意图
   LAYOUT_INTENT_VOCAB,
