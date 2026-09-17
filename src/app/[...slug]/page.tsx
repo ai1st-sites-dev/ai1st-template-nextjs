@@ -178,5 +178,7 @@ export default async function CatchAllPage({ params }: { params: Promise<{ slug:
     r.kind === 'home' ? getHomePage(r.locale)
       : r.kind === 'subpage' ? getPage(r.slug, r.locale)
         : undefined;
-  return <SiteShell locale={r.locale} overHero={pageStartsWithHero(page)}>{body}</SiteShell>;
+  // #1351 —— 把这一页的名字带到 DOM 上（`<main data-page>`），检查器靠它分清站级共用块改的是哪一页。
+  //    博客那两种没有 `pages/` 里的记录 ⟹ `page` 是 undefined ⟹ 不写这个属性。
+  return <SiteShell locale={r.locale} page={page?.slug} overHero={pageStartsWithHero(page)}>{body}</SiteShell>;
 }

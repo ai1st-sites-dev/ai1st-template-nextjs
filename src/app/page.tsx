@@ -15,7 +15,7 @@ export default async function RootHomePage() {
   return (
     // #960: 首页第一段是 hero 时,透明浮层顶栏压在它上面(其余顶栏结构不看这个参数)。
     // 判断走 pageStartsWithHero —— 它跳过 #962 藏起来的 block,理由写在 config.ts 那里。
-    <SiteShell locale={defaultLocale} overHero={pageStartsWithHero(getHomePage(defaultLocale))}>
+    <SiteShell locale={defaultLocale} page={getHomePage(defaultLocale)?.slug} overHero={pageStartsWithHero(getHomePage(defaultLocale))}>
       <HomePage locale={defaultLocale} />
     </SiteShell>
   );

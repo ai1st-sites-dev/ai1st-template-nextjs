@@ -204,6 +204,12 @@ const previewTrustedOrigin = (() => {
 //   curl -s <站的预览地址>/ | grep -c "u.pathname==='/custom.css'"
 // 面板要不要在「这个站还是旧脚本」时改口说一句，是**用户可见文案**、且要给 ack 加一个能力位 ——
 // 那是本票 scope 之外的一件事，留在票上交作者定夺（#1129 交接留言里那条）。
+// 🔴 下面这一整段是一个**模板字面量**（一直到 §`})();`;` 那一行）。里面一个反引号都不许出现，
+//    注释里也不许 —— 一个反引号就把这个字符串在那儿截断，之后的文字变成 TypeScript 代码，
+//    `next build` 当场报 `Expected ';', got 'ident'`。引用标识符请用「」。
+//    #1351 r3 在这里踩过一次：注释里写了 `data-role` 这样的反引号，站的构建整个红掉，
+//    而 tsc（只看 dashboard）、npm run test:scripts、以及那份从源文件里抠字节的 Playwright
+//    spec 三样都看不见它 —— 唯一会红的是 `npm run build` 和 CI 的 region-layouts / theme-css。
 function buildThemePreviewScript(trustedOrigin: string): string {
   return `(function(){
 if(window.parent===window)return;
@@ -627,10 +633,27 @@ function bInfo(el){
     for(i=0;i<a.length;i++){if(a[i].name.indexOf('data-has-')===0)has.push(a[i].name.slice(9));}
     has.sort();
   }
+  // #1351 —— 多带一个 role（「data-role」，essential / lead / optional）。面板拿它来决定隐藏
+  // 一个块时要不要多说一句（AC7：essential 的块被藏起来，它承载的正文会从被抓取的页面上消失）。
+  // 🔴 **从 DOM 上取，不让面板自己查一张表**：「data-role」 的唯一来源是 「block-roles.json」
+  //    （「blockAttrs.ts」 读它），而且页面 JSON 可以逐块覆盖 —— 面板那边再抄一张类型→角色的表，
+  //    读到的是**类型的默认值**，不是这一块真正的角色，而两者不一致时是静默的。
+  // #1351 —— 这一页是谁。站级共用块（blocks/site-blocks.json）在好几页上叫同一个 id，
+  // 不带页面的话面板只能让服务器按文件名顺序挑第一个 —— 老板在 A 页点隐藏、改的是 B 页，
+  // 而两页都照样建得出来，没有任何东西会红。
+  // 🔴 读的是 SiteShell 写在 §main 上的那两个属性，不是从 location 反推：把 URL 还原成页面名
+  //    是 src/app/[...slug]/page.tsx §resolveSlug 那一套（语言前缀 / blog / 默认语言的重定向桩），
+  //    在这里再写一遍就是第二份实现，而分叉的样子正是「改了另一页的同名块」——两边都绿。
+  // 🔴 老站（本票之前的字节）没有这两个属性 ⟹ 这里回 null ⟹ 面板不带 page 去问，
+  //    行为跟本票之前逐字一样。不造猜出来的值。
+  var mn=document.querySelector('main[data-page]');
   return {type:'ai1st:block-selected',
     id:el?(el.getAttribute('data-block-id')||null):null,
     block:el?el.getAttribute('data-block'):null,
     shape:el?(el.getAttribute('data-shape')||null):null,
+    role:el?(el.getAttribute('data-role')||null):null,
+    page:mn?(mn.getAttribute('data-page')||null):null,
+    locale:mn?(mn.getAttribute('data-locale')||null):null,
     has:has};
 }
 function bSay(el){try{window.parent.postMessage(bInfo(el),T);}catch(err){}}
@@ -655,10 +678,84 @@ function bOver(ev){
     .filter(function(x){return x&&x!=='ai1st-blk-hover';}).join(' ');}
   if(el&&el!==bSel){el.className=(el.className?el.className+' ':'')+'ai1st-blk-hover';}
 }
+// ── #1351 —— 预览里的「先看效果，还没保存」──────────────────────────────────────────────────────
+//
+// 面板上按「隐藏」或「上移」时，改动**还没写进页面 JSON**。这几条消息让老板当场看见结果；点保存才
+// 走 PATCH → worker 改文件 → commit → 重建（那时 iframe 整个重载，下面这些痕迹随之消失）。
+// 不保存就离开（关编辑模式 / 换选中的块 / 离开页面）⟹ 面板发 ai1st:block-preview-reset，全部还原。
+//
+// 🔴 **隐藏用行内 style + !important，不用 [hidden] 属性。** 票正文 v1 那半句（「[hidden] 不许主题皮
+//    覆盖，lint 已拒 display」）两半都不成立，PM 2026-09-16 的技术裁定一推翻了它，我自己又量了一遍：
+//    「scripts/theme-css-lint.js」 §BLOCK_DISPLAY 的白名单是
+//    「block / flow-root / flex / inline-flex / grid / inline-grid / inline-block / none」 八个值 ——
+//    lint **不拒** display，只收窄它的值。所以主题皮在 「[data-block]」 上写一条 「display:flex」 是
+//    合法的，而它盖过 「[hidden]」 那个来自浏览器自带样式表的 「display:none」 ⟹ 老板点了隐藏、块还在。
+//    行内样式的优先级高于任何作者样式表规则，「!important」 再挡住带 !important 的那一条。
+//
+// 🔴 **还原要记「原来是什么」，不是「设成空」。** 块自己可能本来就带行内 display（主题图册、某些
+//    section 组件会写），直接 「style.display=''」 会把它抹掉 —— 而那是一个**不保存也回不去**的改动。
+//    所以第一次动它的时候把原值（含 priority）抄下来，还原时原样写回去。
+//
+// 🔴 **上移下移换的是 DOM 位置，而且只在同一个父节点里换。** 块可能分在不同 Region（顶栏 / 内容 /
+//    页脚），跨父节点搬会把一个内容块塞进页脚里 —— 预览里看着像成功，保存之后按 weight 排出来的却
+//    是另一回事。找不到同父的邻居就什么都不做（面板那边到头的按钮本来就是灰的）。
+var bPrevHide=[],bPrevMove=[];
+function bFindHide(el){var i;for(i=0;i<bPrevHide.length;i++){if(bPrevHide[i][0]===el)return bPrevHide[i];}return null;}
+function bPreviewHide(id,hide){
+  var el=bById(id);
+  if(!el)return;
+  if(!bFindHide(el)){
+    // 原值抄一次就够 —— 之后来回切也只还原到最初那个。
+    bPrevHide.push([el,el.style.display,el.style.getPropertyPriority('display')]);
+  }
+  if(hide)el.style.setProperty('display','none','important');
+  else{
+    var rec=bFindHide(el);
+    if(rec)el.style.setProperty('display',rec[1],rec[2]);
+    else el.style.removeProperty('display');
+  }
+}
+function bPreviewMove(id,dir){
+  var el=bById(id);
+  if(!el||!el.parentNode)return;
+  var sibs=[],n=el.parentNode.firstChild;
+  while(n){if(n.nodeType===1&&n.getAttribute&&n.getAttribute('data-block')!==null)sibs.push(n);n=n.nextSibling;}
+  var at=sibs.indexOf(el);
+  if(at===-1)return;
+  var to=dir==='up'?at-1:at+1;
+  if(to<0||to>=sibs.length)return;
+  // 还原用的底稿：第一次动一个块之前，记下它当时的父节点和下一个兄弟。
+  if(!bPrevMove.length){
+    var all=document.querySelectorAll('[data-block]'),i;
+    for(i=0;i<all.length;i++)bPrevMove.push([all[i],all[i].parentNode,all[i].nextSibling]);
+  }
+  var other=sibs[to];
+  if(dir==='up')el.parentNode.insertBefore(el,other);
+  else el.parentNode.insertBefore(other,el);
+}
+function bPreviewReset(){
+  var i,rec;
+  for(i=0;i<bPrevHide.length;i++){
+    rec=bPrevHide[i];
+    if(rec[1])rec[0].style.setProperty('display',rec[1],rec[2]);
+    else rec[0].style.removeProperty('display');
+  }
+  bPrevHide=[];
+  // 🔴 倒着放回去：insertBefore(el, next) 要求 next 还在它原来的位置上，而前面的元素回位会把后面的
+  //    挤走。从最后一个往前放，每一步的参照点都已经归位了。
+  for(i=bPrevMove.length-1;i>=0;i--){
+    rec=bPrevMove[i];
+    if(rec[1])rec[1].insertBefore(rec[0],rec[2]);
+  }
+  bPrevMove=[];
+}
 function bMode(on){
   bOn=!!on;
   if(bOn){bCss();}
-  else{bPaint(null);}
+  // 🔴 关编辑模式 = 那一轮没保存的改动作废。面板也会发一条 preview-reset，但它可能因为组件已经卸载
+  //    而发不出来（老板直接离开页面、或者 iframe 正在重载）—— 而「预览里躺着一个没保存的改动」是
+  //    静默的：老板下次回来看见的不是他的网站。两边各做一次，多做一次的代价是零（都是幂等的）。
+  else{bPaint(null);bPreviewReset();}
 }
 document.addEventListener('click',bClick,true);
 document.addEventListener('mouseover',bOver,true);
@@ -697,6 +794,17 @@ window.addEventListener('message',function(e){
     return;
   }
   else if(d.type==='ai1st:block-clear'){bPaint(null);return;}
+  // #1351 —— 「还没保存」的三条。放在这里而不是和上面那几条混在一起，是因为它们**改页面的样子**，
+  // 而上面那几条只画框；两组的还原责任也不同（画框的框由 bPaint 管，这三条由 bPreviewReset 管）。
+  else if(d.type==='ai1st:block-preview-hidden'){
+    if(typeof d.id==='string')bPreviewHide(d.id,!!d.hidden);
+    return;
+  }
+  else if(d.type==='ai1st:block-preview-move'){
+    if(typeof d.id==='string'&&(d.dir==='up'||d.dir==='down'))bPreviewMove(d.id,d.dir);
+    return;
+  }
+  else if(d.type==='ai1st:block-preview-reset'){bPreviewReset();return;}
   else if(d.type==='ai1st:block-scroll'){
     var bs=typeof d.id==='string'?bById(d.id):null;
     if(bs)bs.scrollIntoView({block:'center'});
