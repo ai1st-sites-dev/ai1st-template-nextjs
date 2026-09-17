@@ -2,13 +2,15 @@
 // themes-retired.js — 已下架那 125 套的【名字和配色】，只为了弹窗里那一张「当前卡」（#1161 / #1317）
 // ══════════════════════════════════════════════════════════════════════════════════════════════════
 //
-// 🔴 这里面【不是主题】。一套主题有 colors / fonts / supports / settings / style / industries 六部分
+// 🔴 这里面【不是主题】。一套主题有 colors / fonts / shapes / settings / style / industries 六部分
+//    （`shapes` 是选择单；#1353 之前区结构住在另一个键 `supports`，那个键退役了）
 //    （见 themes.js 文件头）；这里每一条只有三样东西：id、显示名、配色。少掉的那几样是【故意】不留的
 //    —— 留着就等于这些套还能被穿上，而下架要的正好相反。
 // 🔴 **这个数会变，别从这里抄**：`node -e "console.log(Object.keys(require('./scripts/themes-retired.js').retiredThemes).length)"`
 //
 // 🔴 `themes.js` 【不再】把它并进 `const themes`。所以：按 id 查这些套查不到、新站抽不到、
-//    弹窗里没有它们的卡、`layoutFor()` / `settingsFor()` / `themeStyle()` 对它们落回默认值。
+//    弹窗里没有它们的卡、`regionShapesFor()`（#1353 之前叫 `layoutFor()`）/ `settingsFor()` /
+//    `themeStyle()` 对它们落回默认值。
 //    有一格测试盯着这条（`theme-pipeline/pool.test.js` 的 ④）。
 //
 // ── 那为什么还要留这些名字 ────────────────────────────────────────────────────────────────────

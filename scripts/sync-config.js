@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const blockManifest = require('./lib/block-manifest');
 const {
-  themes, layoutFor, shapesFor, themesWithRhythm, themesWithBadSupportsKeys, SUPPORTS_KEYS,
+  themes, regionShapesFor, shapesFor, themesWithRhythm, themesWithSupports,
 } = require('./themes');
 const pageLayoutLib = require('./lib/page-layout');
 // #1108 —— 报错里「那你去做 X」那几句话由代码算出来（判据是白名单自己），不写死。
@@ -231,7 +231,7 @@ readAppliedThemeId();
 //    加了一个**新的消费者**：下面那个按主题写块字段的循环（#1121 那时写的是 `data.variant`，
 //    #1341 退役它之后剩下的是 #1318 的 `shape`）。`const` 有 TDZ，声明挪到那个循环之后 ⟹ 每一次
 //    构建当场 ReferenceError。合并 #1121 时踩到过这一下。
-const { regionLayout, structureThemeId, explicitRegionLayout } = siteRegions.resolveSiteRegionLayout(siteDir);
+const { regions, structureThemeId, explicitRegionLayout } = siteRegions.resolveSiteRegionLayout(siteDir);
 
 // #991 — THE THEME **CSS** SHEET, WHICH IS A DIFFERENT SWITCH FROM `applied` ABOVE.
 //
@@ -827,16 +827,17 @@ if (withRhythm.length) {
   process.exit(1);
 }
 
-// #1341 —— `supports` 里只许有【区】那三个键（`header` / `footer` / `topbar`）。同一个形状、同一个
-// 理由：内容结构那一维退役之后，一个没人读的键就是它回来的路。判据在 themes.js §themesWithBadSupportsKeys，
-// 它报的是整个注册表，不是这个站穿的那一套。
-const badSupports = themesWithBadSupportsKeys();
-if (badSupports.length) {
-  console.error(`🔴 ${badSupports.length} theme(s) 的 \`supports\` 里有不该有的键。`
-    + `一套主题的 \`supports\` 只说【区】的结构（允许的键：${SUPPORTS_KEYS.join(' / ')}）——`
-    + ' 「我为这个块的哪些内容结构写了样式」那一维 #1341 已经退役（今天由 data-has-<槽位> #1331 和'
-    + ' 独立块 hero-with-form #1333 接管）。删掉这些键：\n  '
-    + badSupports.map(([id, keys]) => `${id}: ${keys.join(' / ')}`).join('\n  '));
+// #1353 —— 注册表里**不许再有 `supports` 这个键**（AC3）。#1341 把它收成「只许有区那三个键」，
+// 本票把最后三个键也收掉：顶栏 / 页脚 / 公告条按块的规矩搬进形态层之后，它们跟别的 32 个块读**同一张
+// 选择单**（`shapes`）。理由与 #1341 逐字相同，只是射程从「四个块的键」扩到「整个 supports」：
+// 一个没人读的键就是它回来的路 —— 而这一次更难查，两份清单会各自说一套主题的顶栏是什么。
+// 判据在 themes.js §themesWithSupports，它报的是整个注册表，不是这个站穿的那一套。
+const staleSupports = themesWithSupports();
+if (staleSupports.length) {
+  console.error(`🔴 ${staleSupports.length} theme(s) 还带着 \`supports\` 这个键。`
+    + '#1353 起顶栏 / 页脚 / 公告条的结构跟别的 32 个块走同一张选择单（`shapes` 里的 `header` /'
+    + ' `footer` / `announcement-bar`），`supports` 整个退役了。把这些键搬进 `shapes` 再删掉它：\n  '
+    + staleSupports.map(([id, keys]) => `${id}: supports.${keys.join(' / supports.')}`).join('\n  '));
   process.exit(1);
 }
 
@@ -848,10 +849,12 @@ if (badSupports.length) {
 // 一律配遮罩,所以这个函数只要 theme 的那份结论。
 //
 // 🔴 #1086 —— 这一行以前问的是「这个站换过装了吗」(`appliedThemeId ? layoutFor(…) : readPreview…()`),
+// 📌 #1353:那个 `layoutFor` 今天叫 `regionShapesFor`,读的是选择单不是 supports;下面 ① 那一行
+//    跟着改了名字(`shapes.header` / `shapes.footer`),这一段其余不变。
 // 现在问的是「这个站穿的是哪套主题」。`applied` 在结构这条路上一处都不再出现,而它以前在这里出现两次
 // (这个三元表达式,以及 `readPreviewRegionLayout` 开头那句 `if (appliedThemeId) return {}`)。
 // 优先级从低到高:
-//   ① 注册表里那套主题声明的 `supports.header` / `supports.footer` —— `structureThemeId`,不看 applied。
+//   ① 注册表里那套主题选择单上的 `shapes.header` / `shapes.footer` —— `structureThemeId`,不看 applied。
 //      这是本票的交付:新建的站(`applied:false`)从此拿到它那套主题的骨,不再落回 solid-bar + multi-column。
 //   ② theme.json 自己写的 `regionLayout`,**逐键**压过 ①。写了 header 就用它写的 header,没写 footer
 //      就还是注册表那套的 footer(#1079 候选图册那条路要的正是这个:候选的 id 还不在注册表里,① 是空的)。
@@ -875,8 +878,11 @@ const regionSource = [
   Object.keys(explicitRegionLayout).length
     ? `theme.json regionLayout (${Object.keys(explicitRegionLayout).join(', ')} — wins per key)` : null,
 ].filter(Boolean).join(' + ') || 'defaults (no theme.json, or its themeId is not in the registry)';
-console.log(`  Regions: header=${regionLayout.header} footer=${regionLayout.footer}` +
-  (regionLayout.headerScrim ? ' (+scrim)' : '') + ` — from ${regionSource}`);
+// #1353 —— 遮罩那一项从这行日志里去掉了：它不再是构建期算出来的一个值（`headerScrim`），
+// 而是 CSS 按 `[data-shape="transparent-overlay"][data-over-hero="true"]` 当场决定的
+// （`Header.tsx` 头注写了为什么那条判断归组件）。日志里留着它就是报一个没人算的数。
+console.log(`  Regions: header=${regions.header.shape} footer=${regions.footer.shape}`
+  + ` topbar=${regions.topbar.shape} — from ${regionSource}`);
 
 // #1000 —— 这个站的页面由哪些区组成。库在 page-layouts/，站在 site/page-layout.json 里挑一个
 // （缺文件 ⟹ standard，也就是今天所有站的那一条路）。
@@ -906,9 +912,10 @@ console.log(`  Page layout: ${pageLayout.id} → ${pageLayout.regions.join(' · 
 // 渲染出来但一个像素看不见，而且没有任何东西会报错。
 //
 // 量到的形状（QA1 与我各在浏览器里读过一次，读数一致）：浮层是 `absolute inset-x-0 top-0`、
-// `z-index:50`、高 92px（`Header.tsx:125`），topbar 占 0–44px ⟹ **重叠 44px = topbar 整条**，
-// `elementFromPoint(topbar 中点)` 拿到的是 header 里的 nav。而 `bold-red` 这类主题就会解析成
-// `transparent-overlay`（`themes.js` 的 supports.header）。
+// `z-index:50`、高 92px（当时的 `Header.tsx`；#1353 把那套几何搬进了 `public/shapes.css` 的
+// `[data-shape="transparent-overlay"]` 那一节，行号不再指得准，值没变），topbar 占 0–44px ⟹
+// **重叠 44px = topbar 整条**，`elementFromPoint(topbar 中点)` 拿到的是 header 里的 nav。
+// 而 `bold-red` 这类主题就会解析成 `transparent-overlay`（#1353 起读的是选择单 `shapes.header`）。
 //
 // 🔴 为什么在这里拒绝，而不是「渲染时躲一下」：躲要么给 header 加 top 偏移（那会打断浮层压在
 // 首屏 hero 上这件事本身，#960 那条对比度规则就是围着它写的），要么把 topbar 塞进 header 里面
@@ -917,7 +924,7 @@ console.log(`  Page layout: ${pageLayout.id} → ${pageLayout.regions.join(' · 
 //
 // 🔴 用 `needsTopbar` 而不是自己再数一遍 regions：上面那道「有 topbar 区就必须有 topbar 内容」
 // 用的就是它，两道判的必须是同一件事，否则总有一天一个说有、一个说没有。
-if (pageLayoutLib.needsTopbar(picked.layout) && regionLayout.header === 'transparent-overlay') {
+if (pageLayoutLib.needsTopbar(picked.layout) && regions.header.shape === 'transparent-overlay') {
   console.error(`page layout "${pageLayout.id}" 有 topbar 区，而这个站的顶栏解析成 `
     + '"transparent-overlay"（透明浮层）—— 浮层是 absolute top-0、高 92px、z-index 50，会把 '
     + 'topbar 那 44px 整条压在底下：横条会渲染出来，但用户一个像素都看不见。');
@@ -928,7 +935,7 @@ if (pageLayoutLib.needsTopbar(picked.layout) && regionLayout.header === 'transpa
   // 🔴 #1108 —— 这一句以前把判据写成 `themes.js 的 supports.header !== 'transparent-overlay'`。
   //    `supports` 装的是**清单**（数组），拿它 `!==` 一个字符串恒为真 ⟹ 那个判据一个主题都排除不掉：
   //    照它挑出 110 个候选，其中 20 个解析出来仍然是透明浮层。现在这份名单**算出来** ——
-  //    问的是构建自己用的 `layoutFor` + `resolveRegionLayout`（也就是上面那个 if 的判据本身）。
+  //    问的是构建自己用的 `regionShapesFor` + `resolveRegionShapes`（也就是上面那个 if 的判据本身）。
   console.error(`  · 或者${remediation.themesWithoutOverlayHeader().sentence}`);
   process.exit(1);
 }
@@ -957,7 +964,7 @@ if (pageLayoutLib.needsTopbar(picked.layout)) {
     process.exit(1);
   }
 }
-for (const note of regionLayout.notes) console.log(`    · ${note}`);
+for (const note of regions.notes) console.log(`    · ${note}`);
 // #991 — say it out loud either way. "No sheet" and "a sheet that did nothing" look identical on the
 // page, and the theme-gallery loop greps this kind of line to tell a real application from a no-op.
 // 🔴 #1008 rewrote the second line. It used to read "every block keeps its own variant markup", which
@@ -1000,7 +1007,7 @@ const MOVED_BLOCKS = ['hero', 'cta-banner', 'page-header',
   'awards-certifications', 'newsletter-signup',
   // #1036 batch G — the six blocks that had behaviour in at least one variant. `announcement-bar`
   // belongs on this list even though it still reads `data.variant`: that read is the REGION path
-  // (`TopbarRegion.tsx` passes `regionLayout.topbar` through the same prop and it lands on
+  // (`TopbarRegion.tsx` passes `regions.topbar.shape` through the same prop and it lands on
   // `data-region-layout`), and regions are `scripts/region-layout.js`'s business, not phase 2's.
   // As a BLOCK its markup no longer decides how it looks, which is what this list means.
   'faq-accordion', 'testimonials', 'announcement-bar', 'pricing-table',
@@ -1445,7 +1452,7 @@ export const servicesByLocale = ${JSON.stringify(servicesByLocale)};
 export const navigationByLocale = ${JSON.stringify(navigationByLocale)};
 export const pagesByLocale = ${JSON.stringify(pagesByLocale)};
 export const blogPostsByLocale = ${JSON.stringify(blogPostsByLocale)};
-export const regionLayout = ${JSON.stringify(regionLayout)};
+export const regions = ${JSON.stringify(regions)};
 export const pageLayout = ${JSON.stringify(pageLayout)};
 `;
 fs.writeFileSync(configDataPath, tsContent);

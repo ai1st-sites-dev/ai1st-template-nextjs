@@ -11,12 +11,12 @@
 //   colors      配色 — primary 50-900 + accent 50-600, copied into brand.json at creation, and
 //               again whenever the owner changes theme (#1121: brand.json 是颜色的唯一出处)
 //   fonts       字体 — heading/body families + the Google Fonts URL
-//   supports    顶栏 / 页脚这两个【区】的结构 — `header` / `footer`(以及还没有人声明的 `topbar`),
-//               每个键一个清单。`{}` means "no preference"。由 `scripts/region-layout.js` +
-//               sync-config 的 §Regions 消费,清单也在那个文件。
-//               🔴 #1341 起这个键**只许**放 `header` / `footer` / `topbar` 三个名字(检查在下面
-//               `themesWithBadSupportsKeys`)。在那之前它还带四个 block 那一维的键(`hero` / `split` /
-//               `splitRhythm` / `cards`),装的是「我为哪些内容结构写了样式」——那一整维退役了。
+//   shapes      选择单 — 每个块类型一个形态名(`{ "hero": "media-left", "header": "solid-bar", … }`),
+//               值进 DOM 的 `data-shape`,`public/shapes.css` 靠它点名。由 `shapesFor()` /
+//               `regionShapesFor()` 读,`sync-config.js` 消费。
+//               🔴 #1353 起**顶栏 / 页脚 / 公告条这三个区也在这张表里**,跟别的 31 个块一个待遇。
+//               在那之前它们住在另一个键 `supports`(每个键一个清单),而那个键今天**一个都不许有**
+//               (检查在下面 `themesWithSupports`,`sync-config.js` 拿它拦构建)。
 //   style       风格形容词 — one phrase, used in the AI logo prompt (was THEME_STYLE_MAP)
 // plus `industries`, the keyword list the creation-time picker matches against.
 //
@@ -53,8 +53,9 @@
 // 🔴 #1016 —— **新池那 80 套不是这个形状，而且不该是。** 阶段 2（#1030 收尾）把 34 个块的外观全部搬
 // 进了主题自己那份 CSS，组件里再没有一处按 variant 分支（`grep -c 'variant === ' src/components/
 // sections/*.tsx` 今天是 0）。所以「这套主题在这个块上用哪种写法」已经不是靠一个 variant 名字表达的了
-// —— 新池每套的 supports 只有三个键：`hero`（生成器唯一还在选的那个版式）+ `header` / `footer`
-// （#960 的 Region 结构，它们仍然是**结构**而不是 CSS）。其余 31 个块的差异全在那份表的字节里。
+// —— 写它的那天新池每套的 supports 只有三个键：`hero` + `header` / `footer`（#960 的 Region 结构）。
+// 🔴 #1353 起这句话只剩历史价值：`hero` 那个键 #1341 就删了，顶栏 / 页脚这一轮搬进了选择单，
+//    `supports` **一个都不许再有**。今天「这套主题在这个块上用哪种写法」只有一个答案处：`shapes`。
 // ⟹ 拿 #956 那两条去核新池会红，而那不是「新池漏填了」，是那两条说的是另一批主题。
 //
 // 🔴 #993 — A THEME DOES NOT DECIDE BLOCK PLACEMENT. It used to (#962/#983 gave every theme a
@@ -154,21 +155,24 @@ function themeStyle(themeId) {
   return (t && t.style) || DEFAULT_LOGO_STYLE;
 }
 
-// 一套主题对每个 block 用哪种写法的结论，或者 {}（主题不认识 / 什么都没声明）。调用方把 {}
-// 当成「页面 JSON 说了算」。
+// 一套主题给三个【区】选的形态，或者 {}（注册表里没有这个 id / 它没写选择单）。
 //
-// 🔴 #1010 —— 注册表那边的值是「一个清单」，而这个函数吐「一个写法」：每个键取清单的第一项。
-// 🔴 #1341 —— 它今天唯一的用途是**区**那条路：`header` / `footer`（以及还没有人声明的 `topbar`）。
-//    在那之前 `supports` 里还有四个 block 那一维的键，这个函数也替站选过它们；那一维整条退役了，
-//    读它的只剩 `lib/site-regions.js` / `lib/remediation.js` / `theme-gallery/gallery.mjs`，
-//    三处读的都是 `.header` / `.footer`。**别给它加第二个用途。**
-function layoutFor(themeId) {
+// 🔴 #1353 —— 这个函数以前叫 `layoutFor`，读的是 `supports`（「这套主题能画哪几种顶栏/页脚」，
+//    一个清单，取第一项当结论）。顶栏 / 页脚按块的规矩搬进形态层之后，**它们跟别的 32 个块共用
+//    同一张选择单**（`theme-pool.json` 的 `shapes`，一个块一个名字），`supports` 整个退役了 ——
+//    留着它就是两张清单说同一件事，而漂了没有任何东西会红（那正是 #1341 删掉它另外四个键时写下
+//    的理由，这一条把最后三个键也收掉）。
+//
+// 🔴 三个区的键名就是三个块类型：`header` / `footer` / `announcement-bar`（公告条那条外壳带）。
+//    公告条那个键**本来就在选择单里**（两套池主题都写着 `"announcement-bar": "stack"`）——
+//    #1353 之前它服务的是页面里那个内容块，今天外壳区那条路也读它，两条路同一个值。
+function regionShapesFor(themeId) {
   const t = themes[themeId];
-  if (!t || !t.supports) return {};
+  if (!t || !t.shapes || typeof t.shapes !== 'object') return {};
   const out = {};
-  for (const [type, forms] of Object.entries(t.supports)) {
-    if (Array.isArray(forms)) { if (forms.length) out[type] = forms[0]; }
-    else out[type] = forms;
+  for (const key of ['header', 'footer', 'announcement-bar']) {
+    const v = t.shapes[key];
+    if (typeof v === 'string' && v) out[key] = v;
   }
   return out;
 }
@@ -186,12 +190,14 @@ const THEME_SETTING_VALUES = {
   buttonShape: ['rounded', 'square', 'pill'],
 };
 
-// #1318 — 这套主题的**选择单**：31 个块类型各选一个画法名（`theme-pool.json` 的 `shapes`）。
+// #1318 — 这套主题的**选择单**：每个块类型各选一个画法名（`theme-pool.json` 的 `shapes`）。
 //
-// 🔴 它跟 `layoutFor` 是两件事，别合并：`layoutFor` 读的是 `supports`（#1341 之后那里只剩顶栏 /
-//    页脚两个【区】的结构），选择单读的是 `shapes`（这个块**排成
-//    什么样**，值进 DOM 的 `data-shape`，`public/shapes.css` 靠它点名）。一个是能力声明、一个是
-//    做出的选择 —— spec §4.5 / §4.6 把这两件事分开了，合并回去就是把那条边界又抹掉一次。
+// 🔴 #1353 —— 这里原来写着「31 个块类型」，并且旁边一整段讲它跟 `layoutFor`（读 `supports`）
+//    是两件事、别合并。那两句今天都不成立：`supports` 整个退役了，`layoutFor` 改名
+//    `regionShapesFor` 并且读的就是这张表（见它自己那段）。今天这张表有 **34** 个键 ——
+//    31 个内容块 + 顶栏 / 页脚 / 公告条三个区。数别抄这里，现取：
+//    `node -e "const{blockShapeCatalog}=require('./scripts/lib/block-catalog.js');console.log(blockShapeCatalog().blocks.length)"`
+//    （`regionShapesFor` 只是同一张表的一个视图：它只挑三个区那三行。）
 //
 // 🔴 注册表里查不到这个 id（候选流水线装候选、或者站穿着一套已下架的主题）时回**空对象**，不是
 //    报错：调用方 `sync-config.js` 拿不到选择单就不写 `data-shape`，页面落回 `base.css` 的地板，
@@ -225,28 +231,24 @@ function themesWithRhythm() {
   return Object.keys(themes).filter((id) => themes[id].rhythm !== undefined);
 }
 
-// #1341 — `supports` 里只许有【区】那三个键，这是说这句话的地方。照 `themesWithRhythm`（#993）的样子写。
+// #1353 — 注册表里**不许再有 `supports` 这个键**，这是说这句话的地方。照 `themesWithRhythm`（#993）
+// 的样子写。
 //
-// 为什么这条规则：`supports` 原来装两样东西 —— 顶栏 / 页脚的结构（`header` / `footer`，#960），
-// 和「我为这个块的哪些内容结构写了样式」（`hero` / `split` / `splitRhythm` / `cards`）。第二样
-// 整条退役了（内容结构这一维今天由 `data-has-<槽位>`(#1331) 和独立块 `hero-with-form`(#1333) 接管），
-// 而**一个没人读的键就是它回来的路**：写回去不会有任何东西报错，`layoutFor()` 照样把它吐出来。
-//
-// 🔴 `topbar` 必须在白名单里，它是活的输入：`lib/site-regions.js` 把 `layoutFor(themeId)` **整份**
-//    摊进 `resolveRegionLayout`，后者读 `wanted.topbar` 并拿 `region-layout.js` 的 `TOPBAR_VARIANTS`
-//    校验。今天 0 套主题声明它 —— 那是这条规则今天不会变红的原因，不是该禁掉它的理由。
+// 为什么从「只许有区那三个键」（#1341）收成「一个都不许有」：`supports` 最后剩下的用途是顶栏 /
+// 页脚 / 公告条这三个区的结构，而 #1353 把这三个区按块的规矩搬进形态层之后，它们跟别的 32 个块
+// 读**同一张选择单**（`shapes`）。两张清单说同一件事，漂了没有任何东西会红 —— 而漂的方向尤其难查：
+// `supports` 写着 `pill-floating`、选择单写着 `solid-bar`，页面按选择单画，而所有讲「这套主题的顶栏
+// 是什么」的地方（图册、`remediation` 给老板的那句话）可能读的是另一份。
 //
 // 🔴 报的是**整个注册表**，不是这个站穿的那一套 —— 理由跟 `themesWithRhythm` 上面那段逐字相同：
 //    只看当前这一套，剩下每一套里留着的那个键就是它回来的路。
-//    返回 `[[id, ['hero', …]], …]`：点名是哪一套的哪几个键，不只说「有问题」。
-const SUPPORTS_KEYS = ['header', 'footer', 'topbar'];
-function themesWithBadSupportsKeys() {
+//    返回 `[[id, ['header', …]], …]`：点名是哪一套、里面还剩哪几个键，不只说「有问题」。
+function themesWithSupports() {
   const out = [];
   for (const id of Object.keys(themes)) {
     const sup = themes[id].supports;
     if (!sup || typeof sup !== 'object') continue;
-    const bad = Object.keys(sup).filter((k) => !SUPPORTS_KEYS.includes(k));
-    if (bad.length) out.push([id, bad]);
+    out.push([id, Object.keys(sup)]);
   }
   return out;
 }
@@ -395,13 +397,12 @@ module.exports = {
   NEUTRAL_TOPUP,
   THEME_SETTING_VALUES,
   themeStyle,
-  layoutFor,
+  regionShapesFor,
   // #1318 —— 选择单（每个块类型一个画法名），`sync-config.js` 按它写 DOM 上的 `data-shape`。
   shapesFor,
   settingsFor,
   themesWithRhythm,
-  themesWithBadSupportsKeys,
-  SUPPORTS_KEYS,
+  themesWithSupports,
   candidateThemesForIndustry,
   // #1346 —— 候选池减掉后台关掉的那些。导出来让 create-site.js 之外的人也能复算「为什么抽到它」。
   candidateThemesAfterDisabled,

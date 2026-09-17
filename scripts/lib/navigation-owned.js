@@ -172,15 +172,17 @@ const SIDE_EFFECTS = [
 // 🔴 「一共有哪些版式」和「哪几类区每一页必然有」从它们各自的唯一出处取，**不在这里抄一份**。
 //    下面 `renderedBy` 是另一回事：它是一句关于「哪几支真的画了这个字段」的断言，今天有两格恰好
 //    等于全集，但它由 ⑫ 对着组件两向核对，不是抄来的。两者混成一个值，就再没有东西能红了。
-const { HEADER_VARIANTS, FOOTER_VARIANTS, TOPBAR_VARIANTS } = require('../region-layout');
+const { shapesOf, REGION_BLOCK } = require('../region-layout');
 const { REQUIRED_KINDS } = require('./page-layout');
 
-/** 每一类区一共有哪些版式（唯一出处 `scripts/region-layout.js`）。 */
-const VARIANTS_BY_REGION = {
-  header: HEADER_VARIANTS,
-  footer: FOOTER_VARIANTS,
-  topbar: TOPBAR_VARIANTS,
-};
+/** 每一类区一共有哪些形态。#1353 起唯一出处是**块 manifest**（`blocks/<块>.json` 的 `shapes`）——
+ *  `region-layout.js` 那三张写死的清单跟顶栏页脚搬进形态层一起退役了。现取，不在加载时固化。 */
+const VARIANTS_BY_REGION = new Proxy({}, {
+  get: (_t, region) => (typeof region === 'string' && REGION_BLOCK[region] ? shapesOf(REGION_BLOCK[region]) : undefined),
+  has: (_t, region) => typeof region === 'string' && !!REGION_BLOCK[region],
+  ownKeys: () => Object.keys(REGION_BLOCK),
+  getOwnPropertyDescriptor: () => ({ enumerable: true, configurable: true }),
+});
 
 const PAGE_READS = [
   {
@@ -189,6 +191,11 @@ const PAGE_READS = [
     // 顶栏四种结构全部渲染那个按钮（三种直接用 `const cta = …` 那个别名，`cta-band` 页脚里
     // 还另有一份）。所以它永远不会走到下面那句话 —— 本票的正文说它「读不到的站 = 0」。
     renderedBy: ['solid-bar', 'transparent-overlay', 'centered-logo', 'pill-floating'],
+    // #1353 —— 决定它在某一种形态下看不看得见的那些类（**任何一个** display:none 就算看不见）。一副骨架之后，组件对每一种形态都渲染同样的
+    // DOM，差别整个落在 `public/shapes.css` 把哪几个零件 `display:none`。这个键**显式声明**、不推断
+    // （同 `block-manifest.js` 的 `hooksFrom` / `region`），因为它有时是零件自己、有时是它的容器：
+    // 栏目链接归 `.footer__col--nav`（`cta-band` 关掉的是整栏，不是每条链接）。
+    visibilityClasses: ['header__cta'],
     renderPaths: ['header.cta.label', 'header.cta.href'],
     what: 'the button at the top of every page',
     read: (nav) => (isObj(nav) && isObj(nav.header) ? nav.header.cta : undefined),
@@ -199,6 +206,7 @@ const PAGE_READS = [
     // 三支都读。前两支读的是 `const copyright = …` 那个别名（`Footer.tsx` 里 hoist 出来的一个
     // 变量），只 grep 字段名会漏掉它们 —— ⑫ 那把解析器跟着别名走，所以这一格是量出来的。
     renderedBy: ['slim-row', 'cta-band', 'multi-column'],
+    visibilityClasses: ['footer__legal'],
     renderPaths: ['footer.copyright'],
     what: 'the copyright line at the bottom of every page',
     read: (nav) => (isObj(nav) && isObj(nav.footer) ? nav.footer.copyright : undefined),
@@ -207,6 +215,15 @@ const PAGE_READS = [
     key: 'footer.description',
     region: 'footer',
     renderedBy: ['cta-band', 'multi-column'],
+    // 🔴 #1353 —— 这一项有**两个画它的地方**，而且没有哪一种形态两个都开：多列大脚用品牌栏里那段
+    // `.footer__desc`，CTA 色带那一种用色带里的 `.footer__cta-sub`（改造前也是这样：那一支的品牌栏
+    // 只有 logo + 社交，描述只在色带里出现一次）。所以这里写成**一组**：一组里只要还有一个看得见，
+    // 这句话就在页面上。写成两个平列的名字会得出相反的答案 —— 那是「每一个都得看得见」。
+    // 📌 组里第二个名字写的是**色带那个容器** `footer__cta`，不是色带里那行字 `footer__cta-sub`：
+    //    这把尺读的是「有没有一条规则把这个类 `display: none`」，而那行字自己从来没有这种规则 ——
+    //    管它露不露面的是容器（`base.css` 关掉、`cta-band` 打开）。写成那行字的话它对每一种形态都
+    //    读成「看得见」，这一维当场失去量程（实测：阳性对照改前改后同值）。
+    visibilityClasses: [['footer__desc', 'footer__cta']],
     renderPaths: ['footer.description'],
     what: 'the short blurb in the footer',
     read: (nav) => (isObj(nav) && isObj(nav.footer) ? nav.footer.description : undefined),
@@ -215,6 +232,10 @@ const PAGE_READS = [
     key: 'footer.columns[].title',
     region: 'footer',
     renderedBy: ['multi-column'],
+    // 🔴 **两个**决定者，缺一不可：`cta-band` 关掉的是整栏（`.footer__col--nav`），
+    // `slim-row` 关掉的只是标题（`.footer__col-title`，那一栏自己是 `display: contents`）。
+    // 只写后者，`cta-band` 会被判成「栏目标题看得见」；只写前者，`slim-row` 会。
+    visibilityClasses: ['footer__col--nav', 'footer__col-title'],
     renderPaths: ['footer.columns[].title'],
     what: 'the footer column titles',
     read: (nav) => {
@@ -232,6 +253,7 @@ const PAGE_READS = [
     key: 'footer.columns[>0].links',
     region: 'footer',
     renderedBy: ['slim-row', 'multi-column'],
+    visibilityClasses: ['footer__col--nav'],
     renderPaths: ['footer.columns[].links'],
     what: 'the links in the footer columns after the first one',
     read: (nav) => {
@@ -245,7 +267,11 @@ const PAGE_READS = [
     // `renderedBy` 列的是全部 topbar 版式：区在，四种结构都画它；区不在，一种都画不到。
     key: 'topbar',
     region: 'topbar',
-    renderedBy: ['solid', 'bordered', 'dismissible', 'floating'],
+    // #1353 —— 公告条的形态清单今天是 `blocks/announcement-bar.json` 的（一种：`stack`）。那四个
+    // 名字（solid/bordered/dismissible/floating）在 #1036 就已经没有对应的 markup 了，#1353 把它们从
+    // 清单里拿掉 —— 这一格问的仍是「这个站的页面上有没有那个区」，跟形态名无关。
+    renderedBy: ['stack'],
+    visibilityClasses: ['announcement-bar'],
     renderPaths: ['topbar.message'],
     what: 'the thin strip above the header',
     read: (nav) => (isObj(nav) ? nav.topbar : undefined),

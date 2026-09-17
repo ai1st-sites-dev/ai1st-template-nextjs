@@ -6,8 +6,13 @@
 // Three things are checked:
 //   colours  17 CSS variables (primary 10 steps + accent 7) each equal themes.js
 //   fonts    --font-sans equals fonts.body, and the page's Google Fonts link equals the registry's
-//   layout   the generated config-data.ts's `regionLayout` (the topbar / header / footer shells)
+//   layout   the generated config-data.ts's `regions` (the topbar / header / footer shells)
 //            equals what the registry declares for this theme
+//            📌 #1353 — that export used to be called `regionLayout` and its values were plain
+//            strings; today it is `regions` and each region is `{ shape: "…" }`. Both halves have to
+//            change together: swapping only the name leaves the comparison reading an object, and
+//            `{shape:"solid-bar"} !== "solid-bar"` is true for every theme ⟹ every theme fails with
+//            `the page is on "[object Object]"`. QA1 caught exactly this half-migration on r1.
 //
 // 📌 #1341 — `layout` used to reconcile EVERY block's `data.variant` in config-data.ts against the
 //    registry's per-block opinion. That dimension is retired: the build no longer writes
@@ -21,14 +26,18 @@
 //    Nothing here opens a browser any more.
 import fs from 'fs';
 import { NEXT_DIR } from './paths.mjs';
-const { themes, layoutFor } = await import(`${NEXT_DIR}/scripts/themes.js`);
+const { themes, regionShapesFor } = await import(`${NEXT_DIR}/scripts/themes.js`);
+// 🔴 #1353 — 区名（`header` / `footer` / `topbar`，产物那一侧）与块类型（`header` / `footer` /
+//    `announcement-bar`，注册表选择单那一侧）只有公告条那一个对不上。这张对照表不在这里手抄一份 ——
+//    权威是 `region-layout.js` 的 `REGION_BLOCK`，`resolveRegionShapes` 用的就是它。
+const { REGION_BLOCK } = await import(`${NEXT_DIR}/scripts/region-layout.js`);
 
 const id = process.argv[2];
 const t = themes[id];
 if (!t) { console.log(`🔴 no theme "${id}" in the registry`); process.exit(2); }
-// #1010 —— 注册表里那张表叫 `supports` 了,装的是清单;「这套 theme 对每个 block 最终用哪个写法」
-// 由 `layoutFor()` 说,别在这里自己从清单里挑（两处实现必然分叉）。
-const variants = layoutFor(id);
+// 📌 #1353 —— 注册表里那张表今天叫 `shapes`（选择单，一个块一个名字），`supports` 整个退役了；
+// 「这套 theme 给三个区选了哪个形态」由 `regionShapesFor()` 说,别在这里自己从表里挑（两处实现必然分叉）。
+const variants = regionShapesFor(id);
 
 const fail = [];
 const ok = [];
@@ -37,24 +46,24 @@ const info = [];
 
 // ── layout: the regions in config-data.ts vs the registry ────────────────────────────────────
 //
-// 🔴 两边取的是同一个函数（`layoutFor`），但**这一份不自己算最终值** —— 站可以在 `site/theme.json`
+// 🔴 两边取的是同一个函数（`regionShapesFor`），但**这一份不自己算最终值** —— 站可以在 `site/theme.json`
 //    的 `regionLayout` 里逐键压过注册表（#1079 候选图册那条路要的就是它）。所以注册表没说的那一维
 //    不判「不相等」，只报「注册表没表态」；说了的那一维才逐字比。
 const cd = fs.readFileSync(`${NEXT_DIR}/src/lib/config-data.ts`, 'utf-8');
-const regionLine = cd.match(/export const regionLayout = (.*);\n/);
-if (!regionLine) { console.log('🔴 cannot read regionLayout out of config-data.ts'); process.exit(2); }
+const regionLine = cd.match(/export const regions = (.*);\n/);
+if (!regionLine) { console.log('🔴 cannot read regions out of config-data.ts'); process.exit(2); }
 const builtRegions = JSON.parse(regionLine[1]);
 
 {
   const said = [];
   let compared = 0;
-  for (const key of ['header', 'footer', 'topbar']) {
-    const want = variants[key];
-    if (!want) { said.push(`${key}: the registry states no preference`); continue; }
+  for (const [region, blockType] of Object.entries(REGION_BLOCK)) {
+    const want = variants[blockType];
+    if (!want) { said.push(`${region}: the registry states no preference`); continue; }
     compared += 1;
-    const got = builtRegions[key];
-    if (got !== want) fail.push(`layout ${key}: the page is on "${got}", the registry declares "${want}"`);
-    else said.push(`${key}: "${got}"`);
+    const got = (builtRegions[region] || {}).shape;
+    if (got !== want) fail.push(`layout ${region}: the page is on "${got}", the registry declares "${want}"`);
+    else said.push(`${region}: "${got}"`);
   }
   // 🔴 一个都没比成时要说出来 —— 「全对」和「没有对象」在只印 ✅ 时长得一样。
   if (compared === 0) info.push(`layout: this theme declares none of header / footer / topbar — nothing was compared (${said.join(' · ')})`);
@@ -121,14 +130,16 @@ if (fontOk) ok.push('fonts: --font-sans and the Google Fonts link both match the
 // 🔴 覆盖边界写在这里，也印在下面的输出里。**#1341 之后它变窄了，要说清楚**：
 //    上面 §layout 那一段以前拿 `layoutFor(id)` 跟 `config-data.ts` **逐块**对账，hero 是其中一块；
 //    #1341 把「主题对每个块的内容结构有什么意见」这一整维退役了（没有任何主题再声明它、构建也不再
-//    写 `data.variant`）⟹ 那段对账没有对象了，今天它只对顶栏 / 页脚这两个【区】。
+//    写 `data.variant`）⟹ 那段对账没有对象了，今天它只对顶栏 / 页脚 / 公告条这三个【区】
+//    （#1353 之前公告条那一维按构造也比不成：注册表那侧的键从来只有 header / footer）。
 //    也就是说 hero 那一维在这个脚本里**既不在浏览器那格、也不在配置那段** —— 它不再存在，不是没人管。
 //    主题真正长什么样今天由样式表决定，而颜色/字体那两段读的就是产物里那份 `out/…/theme.css`；
 //    hero 排成什么样由平台的 `public/shapes.css` + 池里的 `shapes` 选择单决定（#1318），
 //    那一维的机械核对在 `theme-pipeline/pool.test.js` ⑪。
 info.push('browser: hero 的版式在产物 DOM 上今天没有痕迹（#1008 把九棵 variant 树收成一棵中性 markup，'
   + '而 variant 只写不读）⟹ 那格真浏览器读数已退役（#1171）。#1341 之后配置那一段也不再对 hero 说话'
-  + '（主题对块内容结构的意见整维退役）—— 上面 §layout 只对顶栏 / 页脚；hero 的画法归 #1318 的 shapes 选择单');
+  + '（主题对块内容结构的意见整维退役）—— 上面 §layout 只对顶栏 / 页脚 / 公告条这三个区；'
+  + 'hero 的画法归 #1318 的 shapes 选择单');
 
 console.log(`\n=== ${id} ===`);
 ok.forEach(l => console.log('  ✅ ' + l));

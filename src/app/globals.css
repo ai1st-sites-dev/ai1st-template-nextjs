@@ -221,6 +221,31 @@
   gap: 1rem;
 }
 
+/* 🔴 #1374 —— 可选槽 `socialProof` 那条社会证明。跟 `.hero__img` 同一条理由：**这四个类名都不是契约
+   钩子**，所以它们的样子只能由这里和 base.css 说；主题表不认识它们，也就不会有两个主人抢同一维。
+   这里只放「不管哪套皮都得成立」的那几条：横排 + 换行（一排头像 + 评分 + 一句话，窄屏要能折）、
+   头像圆形且不被拉变形（`object-fit`，跟 `.hero__img` 同款理由）。
+   🔴 没有 colour / font-size / background —— 那是皮的事，而它今天没有钩子，所以留给 base.css 的地板。 */
+.hero__proof {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.hero__proof-avatars {
+  display: inline-flex;
+  align-items: center;
+}
+
+.hero__proof-avatar {
+  display: block;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9999px;
+  object-fit: cover;
+}
+
 /* 🔴 THE OUTLINE BUTTON FOLLOWS THE HERO'S OWN TEXT COLOUR, AND IT HAS TO.
    `.btn-secondary` is primary-500 text on a transparent background — written for a white page, and
    the site's own class, which every other block uses unchanged. In the neutral hero the background

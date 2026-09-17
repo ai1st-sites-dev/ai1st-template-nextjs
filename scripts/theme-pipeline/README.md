@@ -281,7 +281,7 @@ Chris 2026-08-14 在 #1004 拍的板：「两套主题，颜色逐字相同、�
 | `public/themes/<id>.css` | 每套自己那份表。阶段 2 之后 34 个块的外观都住在这儿 |
 
 🔴 `themes.js` 导出的 `themes` 是**两者的并集** —— 「按 id 查得到」（sync-config 的 applied 分支、
-`themeStyle` / `layoutFor` / `settingsFor`、换主题对话框）必须包含退役那 30 套，否则穿着它们的站
+`themeStyle` / `regionShapesFor` / `settingsFor`、换主题对话框）必须包含退役那 30 套，否则穿着它们的站
 建不出来。而**挑**那条路（`candidateThemesForIndustry`）只走 `poolThemes`。两件事，别合并。
 
 ## 生成器是确定性的，不是 AI

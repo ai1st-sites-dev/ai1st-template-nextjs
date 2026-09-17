@@ -41,6 +41,10 @@ const {
   loadManifests: loadBlockManifests,
   validateSite: validateBlocks,
   applyRoleDefaults: applyBlockRoleDefaults,
+  // #1353 —— 「这个块是外壳区（顶栏 / 页脚），不是页面里的内容块」。判据是 manifest 自己声明的
+  // `region: true`，不在这里第二次实现（`block-manifest.js` §isRegionManifest）。
+  isRegionManifest,
+  BLOCKS_DIR: BLOCK_MANIFEST_DIR,
 } = require('./lib/block-manifest');
 const blockDataLine = (type) => blockDataLineFor(loadBlockManifests().get(type));
 // #1034 — 每个站一份首页开场配方（开头四块 + 两个必须出现的块 + 候选清单的印刷顺序）。
@@ -2006,11 +2010,17 @@ async function generateContent(opts) {
     return lines.filter(Boolean).join('\n');
   })();
   // 「一共有几种块」这句话是**说给模型听的目录事实**，关掉一个它就当场变成假话。类型数现算；
-  // 🔴 后面那个 `130+` **故意留着没动**：全仓 32 份 manifest 的 variants 加起来今天是 112 个
+  // 🔴 后面那个 `130+` **故意留着没动**：全仓那些 manifest 的 variants 加起来今天是 112 个
   //    （`node -e "…Object.keys(m.variants).length…"` 现取），也就是这句话在 main 上**本来就**多报了
   //    18 个 —— 那是本票之前就在的一处不准，跟「关掉一个块」无关。改它会让「什么都没关 ⟹ 提示词
   //    逐字节不变」那道守卫变红，属于圈外，我写在交接留言里交作者定夺。
-  const offeredTypeCount = [...loadBlockManifests().keys()].filter((t) => !blockOff.has(t)).length;
+  // 🔴 **外壳区（`region: true`）不算一种 section type**（#1353）。这句话是说给模型听的「你能往
+  //    页面上放几种东西」，而顶栏 / 页脚既不在下面那份菜单里（它们的 manifest 没有 `prompt` 段），
+  //    模型也永远不能把它们写进 `sections`。不滤掉的话，本票把 blocks/ 从 32 份加到 34 份那一刻，
+  //    这句话就从 32 变成 34 —— 多出来的两个模型一个都点不到，而「关掉一个块 ⟹ 提示词只少那一处」
+  //    那道守卫会因此在一条跟它无关的差异上变红（#1353 r5 就是这么红的）。
+  const offeredTypeCount = [...loadBlockManifests().keys()]
+    .filter((t) => !blockOff.has(t) && !isRegionManifest(BLOCK_MANIFEST_DIR, t)).length;
   // 举例里点名的块同样要过滤；两个例子都没了就只留那句「把顺序变一变」。
   const varySectionOrderRule = (() => {
     const ex = [];

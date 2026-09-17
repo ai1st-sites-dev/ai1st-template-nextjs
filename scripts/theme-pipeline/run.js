@@ -134,7 +134,7 @@ function whyRegionsNotWired(buildStdout, regions) {
   return `顶栏/页脚没接上：这套候选上线后是 ${regions.header} / ${regions.footer}，`
     + `而这次构建按 ${m[1]} / ${m[2]} 建的 —— 图册会把后者摆给人审看。`
     + '（链子三段：run.js 写 theme.json 的 regionLayout → sync-config 的 readPreviewRegionLayout'
-    + ' → region-layout.js 的 resolveRegionLayout，断哪段都是这个症状。）';
+    + ' → region-layout.js 的 resolveRegionShapes，断哪段都是这个症状。）';
 }
 
 /**

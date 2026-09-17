@@ -240,11 +240,14 @@ function siteWithNav(dir, locale) {
   // 独立复算：不信它的分类，自己拿同一个权威再算一遍
   let indep = null;
   try {
-    const { themes, layoutFor } = require(path.join(NEXTJS, 'scripts', 'themes.js'));
-    const { resolveRegionLayout } = require(path.join(NEXTJS, 'scripts', 'region-layout.js'));
+    // #1353 —— 这两个函数改名了（`layoutFor` → `regionShapesFor`、`resolveRegionLayout` →
+    // `resolveRegionShapes`），因为它们读的东西换了：顶栏的结构今天在**选择单**（`shapes.header`）
+    // 里，`supports` 整个退役。这一格问的性质一个字没变：拿同一个权威自己再算一遍分类。
+    const { themes, regionShapesFor } = require(path.join(NEXTJS, 'scripts', 'themes.js'));
+    const { resolveRegionShapes } = require(path.join(NEXTJS, 'scripts', 'region-layout.js'));
     indep = { safe: [], overlay: [] };
     for (const id of Object.keys(themes)) {
-      const h = resolveRegionLayout(layoutFor(id)).header;
+      const h = resolveRegionShapes(regionShapesFor(id)).header.shape;
       (h === 'transparent-overlay' ? indep.overlay : indep.safe).push(id);
     }
   } catch (e) { indep = null; }
@@ -285,15 +288,30 @@ function siteWithNav(dir, locale) {
 
   // 🔴 阳性对照：换一个只有两套主题的假注册表 —— 名单必须跟着换（证明它是算出来的，不是抄的）
   {
-    const t = fs.mkdtempSync(path.join(os.tmpdir(), 'remediation-themes-'));
+    // 🔴 #1353 —— 假树的**层级**是承重的。`region-layout.js` 今天要问块 manifest（形态清单的唯一
+    //    出处），而 `lib/block-manifest.js` 按 `__dirname/../../blocks` 找那个目录。所以假树必须长成
+    //    `<base>/scripts/{themes.js,region-layout.js,lib/}` + `<base>/blocks/`，而不是把东西平铺在
+    //    一个临时目录里 —— 平铺的话它会去 `os.tmpdir()/blocks` 找，那是**共享目录**，往那儿写就是
+    //    污染别人的机器（我第一版就这么写过，当场在 /tmp 下造了一个 blocks/）。
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'remediation-themes-'));
+    const t = path.join(base, 'scripts');
+    fs.mkdirSync(t, { recursive: true });
     fs.writeFileSync(path.join(t, 'themes.js'),
       "'use strict';\nmodule.exports = {\n"
       + "  themes: { 'fake-safe': {}, 'fake-overlay': {} },\n"
-      + "  layoutFor: (id) => (id === 'fake-overlay' ? { header: 'transparent-overlay' } : { header: 'solid-bar' }),\n"
+      + "  regionShapesFor: (id) => (id === 'fake-overlay' ? { header: 'transparent-overlay' } : { header: 'solid-bar' }),\n"
       + "};\n");
+    // 🔴 #1353 —— 这棵假树里也要有 `lib/block-manifest.js` 与 `blocks/`：`region-layout.js` 的
+    //    形态清单今天从块 manifest 现取（三张写死的表退役了）。只拷 `region-layout.js` 的话它在
+    //    `shapesOf()` 那一步拿不到清单 ⟹ 这一格 die 在一个其实正确的状态上。
     fs.copyFileSync(path.join(NEXTJS, 'scripts', 'region-layout.js'), path.join(t, 'region-layout.js'));
+    // `region-layout.js` 今天要问形态清单，而清单的出处是 `blocks/<块>.json` —— 假树得有它。
+    // 📌 只要这一样：那个函数直接读那份 JSON，不走 `block-manifest.js` 的全量加载+校验
+    //    （理由写在 `region-layout.js` 的 `shapesOf` 上面；我先按那条重链补过 `scripts/blocks.js`、
+    //    `src/lib/sections/`、`public/shapes.css` 三样，补到第四样才发现是依赖方向错了）。
+    fs.cpSync(path.join(NEXTJS, 'blocks'), path.join(base, 'blocks'), { recursive: true });
     const r2 = themesWithoutOverlayHeader({ rootDir: t });
-    fs.rmSync(t, { recursive: true, force: true });
+    fs.rmSync(base, { recursive: true, force: true });
     if (r2.safe.join(',') === 'fake-safe' && r2.overlay.join(',') === 'fake-overlay') {
       ok('⑤b 阳性对照：换一个假注册表（一套浮层 / 一套不浮层），分类跟着换 ⟹ 它是算出来的');
     } else {

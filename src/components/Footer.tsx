@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import ServiceIcon from '@/components/ServiceIcon';
-import { brand, defaultLocale, getNavigation, getServices, getBrandName, pagesByLocale, regionLayout } from '@/lib/config';
+import { blockAttrs } from '@/lib/sections/blockAttrs';
+import type { BlockConfig } from '@/lib/types/config';
+import { brand, defaultLocale, getNavigation, getServices, getBrandName, pagesByLocale, regions } from '@/lib/config';
 
 const socialIcons: Record<string, { label: string; icon: React.ReactNode }> = {
   google: { label: 'Google', icon: <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/></svg> },
@@ -42,10 +44,28 @@ const FOOTER_LABELS: Record<string, { services: string; contact: string }> = {
   th: { services: 'บริการ',        contact: 'ติดต่อเรา' },
 };
 
-// #1000 — `variant` 这个 prop 只在**同一个布局里出现多个页脚区**时才传（`tri-footer` 的
-// footer-a/b/c）：主题每类区只给一个值，分不出第几个，所以那时由布局自己钉（`page-layouts/*.json`
-// 的 `repeatVariants`，构建期对着 `region-layout.js` 那张清单校验过）。只有一个页脚的布局不传它，
-// 走的还是老路 —— 主题说了算。
+// 🔴🔴 #1353 — ONE MARKUP。页脚跟顶栏同一批从「一变体一棵树」搬进形态层（设计文档 D14）。
+//
+// 走了三棵树：`multi-column`（多列大脚，也是没换装时的默认）、`slim-row`（单行小脚）、
+// `cta-band`（强调色 CTA 色带 + 小脚）。今天是下面这同一副骨架，排版住在 `public/shapes.css` 的
+// `[data-block="footer"][data-shape="…"]`；默认那一支的间距在 `public/base.css`（地板），另外两种形态
+// 的间距和皮在 `shapes.css` 末尾那一节（**不在主题表**，理由见那份文件的 `#1353` 那条明写例外）。
+//
+// 🔴 这个文件里【一个 Tailwind 响应式类都不许有】（AC2 逐条 grep `(sm|md|lg|xl):`）。三支原来一共
+//    14 处，它们说的是「小屏一列、中屏两列、大屏四列」—— 那是几何，归 shapes.css 的 `@media`。
+//
+// 🔴 `regionLayout` 不再从这里读。结构走跟别的块同一条路：主题的**选择单**
+//    （`scripts/theme-pool.json` 的 `shapes.footer`）→ 构建期算好 → `regions.footer.shape`。
+//
+// 🔴 每一个零件都恒在 DOM 里，谁露面由 CSS 说（D14 第 2 句）。三支各自少画的那些东西 ——
+//    `slim-row` 不画描述和服务/联系两栏、`cta-band` 不画导航栏目 —— 今天是靠**不渲染**做的，
+//    也就是三棵不同的树。搬进形态层之后它们是同一棵树上被 `display:none` 关掉的零件。
+//    🔴 `slim-row` 那一行里的邮箱是靠 `.footer__col--contact { display: contents }` 把联系那一栏
+//    摊平、只留邮箱做到的 —— 不是把邮箱在 DOM 里挪个位置。挪位置就是 D14 第 1 句说的「另一个块」。
+//
+// 🔴 `variant` 这个 prop 的来历没变（#1000）：只在**同一个布局里出现多个页脚区**时才传
+//    （`tri-footer` 的 footer-a/b/c），主题每类区只给一个值、分不出第几个。它今天传的是**形态名**，
+//    跟选择单同一套名字（`page-layouts/*.json` 的 `repeatVariants`，构建期对着 manifest 的形态清单校验）。
 export default function Footer({ locale, variant: variantOverride }: { locale: string; variant?: string }) {
   const { footer } = getNavigation(locale);
   const services = getServices(locale);
@@ -62,252 +82,141 @@ export default function Footer({ locale, variant: variantOverride }: { locale: s
     localePages.filter(p => p.slug.startsWith('services/') && p.slug !== 'services').map(p => p.slug.replace('services/', ''))
   );
 
-  // #960 — 页脚以前只有一个结构(多列大脚),30 套 theme 换下来它一个像素都不动。结构从
-  // `regionLayout.footer` 来,构建时定(sync-config.js 的 §Regions);没换装的站拿到的是 'multi-column',
-  // 也就是这一票之前那份 —— 下面那支的标记逐字没动过。
-  const variant = variantOverride || regionLayout.footer;
-
-  const logoBlock = (
-    <div className="mb-4 flex items-center gap-2">
-      {brand.logoUrl ? (
-        // TICKET-192: white pill container so footer logo is visible on
-        // dark bg-primary-900 regardless of logo's own colors / alpha
-        // channel. Pre-fix a brightness+invert filter assumed the logo
-        // had a transparent background and produced a white silhouette
-        // — but AI-generated PNGs (Nano Banana prompt forces "pure
-        // white background") and user JPG uploads broke that
-        // assumption, turning the whole bounding box solid white.
-        <span className="inline-flex items-center bg-white p-1.5 rounded-md">
-          <img src={brand.logoUrl} alt={getBrandName(locale)} className="h-7 w-auto max-w-[120px] object-contain" />
-        </span>
-      ) : (
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-500">
-          <ServiceIcon icon={brand.logoIcon} className="h-5 w-5 text-white" />
-        </div>
-      )}
-      {/* TICKET-159: render company-name text alongside the logo when
-          the logo is icon-only (AI-generated, logoHasWordmark=false)
-          OR when there is no logo at all. User-uploaded logos are
-          assumed to include their own wordmark (logoHasWordmark=true). */}
-      {(!brand.logoUrl || !brand.logoHasWordmark) && (
-        <span className="text-lg font-bold text-white">{getBrandName(locale)}</span>
-      )}
-    </div>
-  );
-
-  const socialRow = links.length > 0 && (
-    <div className="mt-4 flex gap-3">
-      {links.map(([platform, url]) => {
-        const info = socialIcons[platform];
-        return (
-          <a
-            key={platform}
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={info?.label || platform}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-800 text-gray-400 transition-colors hover:bg-primary-700 hover:text-white"
-          >
-            {info?.icon || <span className="text-xs font-bold uppercase">{platform[0]}</span>}
-          </a>
-        );
-      })}
-    </div>
-  );
+  const shape = variantOverride || regions.footer.shape;
+  const footerBlock = { type: 'footer', shape, role: 'essential' } as unknown as BlockConfig;
 
   const serviceHref = (id: string) =>
     localizeHref(serviceDetailSlugs.has(id) ? `/services/${id}` : `/services#${id}`, locale);
 
-  const copyright = <p>&copy; {currentYear} {footer.copyright}</p>;
-
-  // ── 单行小脚:一行 logo + 链接 + 版权,没有分栏 ─────────────────────────────────────────
-  if (variant === 'slim-row') {
-    return (
-      <footer className="bg-primary-900 text-gray-300" data-region-layout="slim-row">
-        <div className="container-width px-4 py-8 sm:px-6 lg:px-8">
-          <div className="flex flex-col items-center gap-6 md:flex-row md:justify-between">
-            <div className="flex items-center gap-2">{logoBlock}</div>
-            <nav className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
-              {footer.columns.flatMap(c => c.links).slice(0, 6).map((link) => (
-                <Link key={link.href} href={localizeHref(link.href, locale)} className="text-sm transition-colors hover:text-white">{link.label}</Link>
-              ))}
-              <a href={`mailto:${brand.email}`} className="text-sm transition-colors hover:text-white">{brand.email}</a>
-            </nav>
-            {links.length > 0 && (
-              <div className="flex gap-3">
-                {links.map(([platform, url]) => {
-                  const info = socialIcons[platform];
-                  return (
-                    <a key={platform} href={url} target="_blank" rel="noopener noreferrer" aria-label={info?.label || platform}
-                      className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-800 text-gray-400 transition-colors hover:bg-primary-700 hover:text-white">
-                      {info?.icon || <span className="text-xs font-bold uppercase">{platform[0]}</span>}
-                    </a>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-          <div className="mt-6 border-t border-gray-700 pt-6 text-center text-sm">{copyright}</div>
-        </div>
-      </footer>
-    );
-  }
-
-  // ── CTA 色带 + 小脚:强调色横幅压在页脚顶上,底下是一条紧凑的信息行 ─────────────────────
-  if (variant === 'cta-band') {
-    return (
-      <footer className="bg-primary-900 text-gray-300" data-region-layout="cta-band">
-        <div className="bg-accent-500" data-region="footer-cta-band">
-          <div className="container-width flex flex-col items-center gap-4 px-4 py-10 text-center sm:px-6 lg:flex-row lg:justify-between lg:px-8 lg:text-left">
-            <div>
-              <p className="text-2xl font-bold text-white">{getBrandName(locale)}</p>
-              <p className="mt-1 text-sm text-white/90">{footer.description}</p>
-            </div>
-            <Link href={localizeHref(getNavigation(locale).header.cta.href, locale)}
-              className="inline-flex items-center justify-center rounded-lg bg-white px-6 py-3 text-base font-semibold text-primary-900 transition-colors hover:bg-gray-100">
-              {getNavigation(locale).header.cta.label}
-            </Link>
-          </div>
-        </div>
-        <div className="container-width px-4 py-10 sm:px-6 lg:px-8">
-          <div className="grid gap-8 md:grid-cols-3">
-            <div>
-              {logoBlock}
-              {socialRow}
-            </div>
-            <div>
-              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-white">{labels.services}</h3>
-              <ul className="space-y-2">
-                {services.slice(0, 5).map((service) => (
-                  <li key={service.id}>
-                    <Link href={serviceHref(service.id)} className="text-sm transition-colors hover:text-white">{service.name}</Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-white">{labels.contact}</h3>
-              <ul className="space-y-3 text-sm">
-                {brand.locations.map((location) => (
-                  <li key={location.label}>
-                    <strong className="text-white">{location.label}</strong>
-                    <br />{location.address}
-                    <br />{location.phone}
-                  </li>
-                ))}
-                <li>
-                  <a href={`mailto:${brand.email}`} className="transition-colors hover:text-white">{brand.email}</a>
-                </li>
-              </ul>
-            </div>
-          </div>
-          <div className="mt-10 border-t border-gray-700 pt-6 text-center text-sm">{copyright}</div>
-        </div>
-      </footer>
-    );
-  }
-
-  // ── 多列大脚(现状,也是没换装时的默认) ──────────────────────────────────────────────────
   return (
-    <footer className="bg-primary-900 text-gray-300" data-region-layout="multi-column">
-      <div className="container-width section-padding">
-        <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-4">
-          {/* Company Info */}
-          <div>
-            <div className="mb-4 flex items-center gap-2">
-              {brand.logoUrl ? (
-                // TICKET-192: white pill container so footer logo is visible on
-                // dark bg-primary-900 regardless of logo's own colors / alpha
-                // channel. Pre-fix a brightness+invert filter assumed the logo
-                // had a transparent background and produced a white silhouette
-                // — but AI-generated PNGs (Nano Banana prompt forces "pure
-                // white background") and user JPG uploads broke that
-                // assumption, turning the whole bounding box solid white.
-                <span className="inline-flex items-center bg-white p-1.5 rounded-md">
-                  <img src={brand.logoUrl} alt={getBrandName(locale)} className="h-7 w-auto max-w-[120px] object-contain" />
-                </span>
-              ) : (
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-500">
-                  <ServiceIcon icon={brand.logoIcon} className="h-5 w-5 text-white" />
-                </div>
-              )}
-              {/* TICKET-159: render company-name text alongside the logo when
-                  the logo is icon-only (AI-generated, logoHasWordmark=false)
-                  OR when there is no logo at all. User-uploaded logos are
-                  assumed to include their own wordmark (logoHasWordmark=true). */}
-              {(!brand.logoUrl || !brand.logoHasWordmark) && (
-                <span className="text-lg font-bold text-white">{getBrandName(locale)}</span>
-              )}
-            </div>
-            <p className="text-sm leading-relaxed">{footer.description}</p>
-            {links.length > 0 && (
-              <div className="mt-4 flex gap-3">
-                {links.map(([platform, url]) => {
-                  const info = socialIcons[platform];
-                  return (
-                    <a
-                      key={platform}
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      aria-label={info?.label || platform}
-                      className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-800 text-gray-400 transition-colors hover:bg-primary-700 hover:text-white"
-                    >
-                      {info?.icon || <span className="text-xs font-bold uppercase">{platform[0]}</span>}
-                    </a>
-                  );
-                })}
-              </div>
+    <footer {...blockAttrs('footer', footerBlock)} className="footer">
+      {/* 强调色 CTA 色带。`cta-band` 之外的形态把它关掉。 */}
+      <div className="footer__cta" data-role="optional">
+        <div>
+          <p className="footer__cta-title">{getBrandName(locale)}</p>
+          <p className="footer__cta-sub">{footer.description}</p>
+        </div>
+        <Link href={localizeHref(getNavigation(locale).header.cta.href, locale)} className="footer__cta-link">
+          {getNavigation(locale).header.cta.label}
+        </Link>
+      </div>
+
+      <div className="footer__body">
+        <div className="footer__brand" data-role="optional">
+          <div className="footer__brand-id">
+            {brand.logoUrl ? (
+              // TICKET-192: 白底药丸把 logo 托起来 —— 深色页脚上，logo 自己的颜色和透明通道都不可靠。
+              // 修之前那套 brightness+invert 滤镜假定 logo 背景透明，而 AI 生成的 PNG（提示词强制
+              // "pure white background"）和用户上传的 JPG 都不是，整个包围盒被刷成纯白。
+              <span className="footer__logo-pill">
+                <img src={brand.logoUrl} alt={getBrandName(locale)} className="footer__logo-img" />
+              </span>
+            ) : (
+              <span className="footer__logo-mark">
+                <ServiceIcon icon={brand.logoIcon} className="footer__logo-icon" />
+              </span>
+            )}
+            {/* TICKET-159: icon-only logo 或干脆没有 logo 时补一行公司名；用户自传的认为自带字标。 */}
+            {(!brand.logoUrl || !brand.logoHasWordmark) && (
+              <span className="footer__logo-name">{getBrandName(locale)}</span>
             )}
           </div>
-
-          {/* Footer Columns */}
-          {footer.columns.map((column) => (
-            <div key={column.title}>
-              <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-white">{column.title}</h3>
-              <ul className="space-y-2">
-                {column.links.map((link) => (
-                  <li key={link.href}>
-                    <Link href={localizeHref(link.href, locale)} className="text-sm transition-colors hover:text-white">{link.label}</Link>
-                  </li>
-                ))}
-              </ul>
+          <p className="footer__desc">{footer.description}</p>
+          {links.length > 0 && (
+            <div className="footer__social">
+              {links.map(([platform, url]) => {
+                const info = socialIcons[platform];
+                return (
+                  <a
+                    key={platform}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={info?.label || platform}
+                    className="footer__social-link"
+                  >
+                    {info?.icon || <span className="footer__social-fallback">{platform[0]}</span>}
+                  </a>
+                );
+              })}
             </div>
-          ))}
+          )}
+        </div>
 
-          {/* Services */}
-          <div>
-            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-white">{labels.services}</h3>
-            <ul className="space-y-2">
-              {services.slice(0, 6).map((service) => (
-                <li key={service.id}>
-                  <Link href={localizeHref(serviceDetailSlugs.has(service.id) ? `/services/${service.id}` : `/services#${service.id}`, locale)} className="text-sm transition-colors hover:text-white">{service.name}</Link>
+        {/* 🔴 三栏都是 `data-role="optional"`，而且这不是为了让哪把尺闭嘴：**哪几栏上场由形态说了算**，
+            改造前就是这样 —— `cta-band` 那一支不画导航栏目、`slim-row` 那一支不画栏目标题也不画地址。
+            搬成一副骨架之后它们改成「在 DOM 里、由 `shapes.css` 关掉」，而访客看到的一模一样
+            （AC1 的包围盒逐项对比证的就是这件事）。这个属性是 markup 自己说「这一块可以不在」的地方
+            （`blockAttrs.ts`，#1331），`theme-css-invariants.mjs` 的 §3 读它。 */}
+        {/* 🔴 这一栏是 `<nav>`，不是 `<div>`（#1353 r5，QA3 第 1 条 / PM 判在射程内）：改造之前
+            `slim-row` 那一支把这些链接包在一个 `<nav>` 里，而搬成一副骨架时它变成了 `div` ——
+            于是**页脚的 navigation 地标整个没了**，而池里 azure-29 正穿着 slim-row。
+            🔴 换标签不动几何，这一条是量出来的不是推的：`public/shapes.css` 与 `globals.css` 里
+            **按标签名选 `div` / `nav` 的规则是 0 条**（现取），页脚这一层全按类名选；两者的 UA
+            默认样式又都是 `display: block`。AC1 那两把尺（包围盒 + 逐像素）的读数贴在交接留言里。
+            🔴 **只换标签，不给它 `aria-label={column.title}`** —— 试过，两处都不行，理由是量出来的：
+            ① 那会让 `column.title` 在组件里有**两个**渲染点，而 `navigation-owned.test.js` 的 ⑫ 阳性
+               对照①正是「只删掉 `<h3>` 里那一处，解析器就得说组件不再画它」—— 加了之后那一格当场红，
+               而红得对：组件确实还在画它。
+            ② 更要紧的是语义：`slim-row` 把 `.footer__col-title` 关掉了，而 `PAGE_READS` 里
+               `footer.columns[].title` 那一格据此告诉老板「你这个站不显示栏目标题」。给 `<nav>` 起个
+               用标题当名字的名，等于让它在那一种形态下又被读屏念出来 —— 那句话就变成半真的。
+            📌 代价写在明处：多栏页脚会出现几个**没有名字**的 navigation 地标。改造之前是 0 个
+            （只有 slim-row 有一个，同样没有名字），所以这不是回归；要给它们起名是另一件事，
+            得先想清楚名字从哪来（不能是这个字段）。 */}
+        {footer.columns.map((column) => (
+          <nav key={column.title} className="footer__col--nav" data-role="optional">
+            <h3 className="footer__col-title">{column.title}</h3>
+            <ul className="footer__list">
+              {column.links.map((link) => (
+                <li key={link.href} className="footer__item">
+                  <Link href={localizeHref(link.href, locale)} className="footer__link">{link.label}</Link>
                 </li>
               ))}
             </ul>
-          </div>
+          </nav>
+        ))}
 
-          {/* Contact */}
-          <div>
-            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-white">{labels.contact}</h3>
-            <ul className="space-y-3 text-sm">
-              {brand.locations.map((location) => (
-                <li key={location.label}>
-                  <strong className="text-white">{location.label}</strong>
-                  <br />{location.address}
-                  <br />{location.phone}
-                </li>
-              ))}
-              <li>
-                <a href={`mailto:${brand.email}`} className="transition-colors hover:text-white">{brand.email}</a>
+        <div className="footer__col--services" data-role="optional">
+          <h3 className="footer__col-title">{labels.services}</h3>
+          <ul className="footer__list">
+            {services.slice(0, 6).map((service) => (
+              <li key={service.id} className="footer__item">
+                <Link href={serviceHref(service.id)} className="footer__link">{service.name}</Link>
               </li>
-            </ul>
-          </div>
+            ))}
+          </ul>
         </div>
 
-        <div className="mt-12 border-t border-gray-700 pt-8 text-center text-sm">
-          <p>&copy; {currentYear} {footer.copyright}</p>
+        <div className="footer__col--contact" data-role="optional">
+          <h3 className="footer__col-title">{labels.contact}</h3>
+          <ul className="footer__list footer__list--contact">
+            {brand.locations.map((location) => (
+              <li key={location.label} className="footer__item footer__item--location">
+                <strong className="footer__loc-label">{location.label}</strong>
+                <br />{location.address}
+                <br />{location.phone}
+              </li>
+            ))}
+            {/* 🔴 邮箱是这张表的**最后一项**，改造前也是（`<li>` 在同一个 `space-y-3` 的 `<ul>` 里）。
+                第一版把它挪成了那张表的兄弟，理由是 `slim-row` 要把它摆进那一行而 `display: contents`
+                只摊平直接子元素 —— 那个理由不成立：`contents` 可以一层一层往下摊（栏 → 表 → 项），
+                而挪出去的代价是量得出来的：它不再吃那张表的 0.75rem 行距，多列大脚里整整上移 9px，
+                补一道上边距又要 `inline-block`，盒子高度从 17 变成 20。**留在原位是唯一两边都对的写法。**
+                地址那几项带自己的修饰类，好让 `slim-row` 只关掉它们、留下这一项。 */}
+            <li className="footer__item footer__item--email">
+              <a href={`mailto:${brand.email}`} className="footer__email">{brand.email}</a>
+            </li>
+          </ul>
         </div>
+      </div>
+
+      {/* 🔴 那条分隔线画在**里面**这个 `<p>` 上，不在 `.footer__legal` 上（#1353 r3）：改造前它是
+          容器里的一个 `border-t` 的 div，线的宽度 = 容器内容宽（1280 宽下 1216px）。`.footer__legal`
+          今天是整幅宽、左右留白靠自己的 `padding`，线画在它身上就会顶到屏幕两边 —— QA2 在真机上量到
+          的正是这一处（两端各多出 32px）。`<p>` 填满内容盒，线因此回到 1216px。 */}
+      <div className="footer__legal" data-role="essential">
+        <p className="footer__copyright">&copy; {currentYear} {footer.copyright}</p>
       </div>
     </footer>
   );

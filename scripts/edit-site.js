@@ -655,9 +655,9 @@ function executeTool(toolName, toolInput, siteDir, snapshots, allowedImageUrls, 
           try {
             const r = siteRegions.resolveSiteRegions(siteDir);
             return {
-              header: [r.regionLayout.header],
+              header: [r.regions.header.shape],
               footer: r.footerVariants,
-              topbar: r.hasTopbarRegion ? [r.regionLayout.topbar] : [],
+              topbar: r.hasTopbarRegion ? [r.regions.topbar.shape] : [],
             };
           } catch (e) {
             return null;

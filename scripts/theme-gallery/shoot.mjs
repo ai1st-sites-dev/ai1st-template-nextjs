@@ -2,7 +2,8 @@
 // #963 — paths parameterised (see paths.mjs); behaviour unchanged.
 // #981 条6/条7 — also reads the header/footer Region back off the page, and can shoot a header close-up.
 //   This is where tests/e2e/region-shots.mjs was folded in; that file is gone. Its captions came out of the
-//   theme registry (`themes[id].supports.header`, called `layout` before #1010), which is a claim, not a
+//   theme registry (`themes[id].supports.header`, called `layout` before #1010 and, since #1353, gone —
+//   the registry now carries one shape name per block in `shapes`), which is a claim, not a
 //   reading: resolveRegionLayout can
 //   hand back something else entirely — it falls back to the default when the variant is unknown, and a
 //   transparent-overlay header always comes with a scrim of its own (#1024). So the caption could
@@ -78,19 +79,26 @@ page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.
 // Which header/footer this theme actually rendered, read off the DOM of the page being shot.
 //
 // 🔴 It has to be the HOME page, and that is not a detail. `transparent-overlay` only floats when the page's
-// first block is a hero (Header.tsx: `floating = variant === 'transparent-overlay' && overHero`), and when it
-// does not float that branch is never taken — an about page whose first block is a page-header renders the
-// plain bar and stamps `data-region-layout="solid-bar"`. So reading this after the loop (which ends on
-// about.html) reports `solid-bar` for every overlay theme. Measured, not reasoned: see the run in #981.
-/* global document */
+// first block is a hero, and an about page whose first block is a page-header is drawn as the plain bar.
+// So reading this after the loop (which ends on about.html) describes the wrong page. Measured, not
+// reasoned: see the run in #981.
+//
+// 🔴 #1353 — the two regions became blocks, so the hook is `data-shape` (same as the other 32 blocks),
+// not `data-region-layout`, and there is no `data-region-scrim` attribute any more: whether the scrim is
+// painted is now a CSS question keyed on `data-over-hero`. Reading the retired attribute names would have
+// reported `(no header)` for every theme in the gallery — and that looks exactly like "this theme has no
+// header", which is the kind of false reading this file exists to prevent.
+/* global document, getComputedStyle */
 const readRegions = () => page.evaluate(() => {
-  const h = document.querySelector('header[data-region-layout]');
-  const f = document.querySelector('footer[data-region-layout]');
+  const h = document.querySelector('header[data-shape]');
+  const f = document.querySelector('footer[data-shape]');
+  const scrim = h && h.querySelector('.header__scrim');
   return {
-    header: h ? h.getAttribute('data-region-layout') : '(no header)',
-    footer: f ? f.getAttribute('data-region-layout') : '(no footer)',
-    // 'on'/'off' comes from the build-time contrast rule; '(n/a)' means this structure has no scrim to speak of.
-    headerScrim: h ? (h.getAttribute('data-region-scrim') || '(n/a)') : '(no header)',
+    header: h ? h.getAttribute('data-shape') : '(no header)',
+    footer: f ? f.getAttribute('data-shape') : '(no footer)',
+    // Whether the scrim is actually painted on this page — read off the rendered element, not off an
+    // attribute: the node is always in the DOM and CSS decides if it shows.
+    headerScrim: h ? (scrim ? (getComputedStyle(scrim).display === 'none' ? 'off' : 'on') : '(n/a)') : '(no header)',
     // The language switcher only exists on a multi-locale site, so on the 30 single-locale shots this is 0.
     // It is here because it is the one thing in the header that a human cannot check from a full-page shot.
     langSwitchers: document.querySelectorAll('[data-region-ondark]').length,

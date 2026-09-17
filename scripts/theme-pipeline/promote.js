@@ -10,8 +10,10 @@
 //    —— 一个值；池子那边要的是 `supports: { hero: ['with-media-left'] }` —— 一个清单（#1010 改名时
 //    连着换了方向：`layout` 是主题替站做选择，`supports` 是主题声明能力）。两种形状同时存在是
 //    #1010 有意留的，但**从候选变成池成员的那一刻谁做这个翻译**，在这张票之前没人管。
-//    翻漏了不会有任何东西报错：`layoutFor()` 读的是 `supports`，读不到就返回 `{}`，
+//    翻漏了不会有任何东西报错：当时的 `layoutFor()` 读的是 `supports`，读不到就返回 `{}`，
 //    于是那套主题静默地"对每个块都没有意见"，而 `region-layout.js` 拿到 `{}` 就把顶栏页脚落回现状。
+//    📌 #1353 起这一族的键叫 `shapes`、函数叫 `regionShapesFor()`；静默失败的形状一模一样，
+//       所以 `verifyPool()` 那两条（不许有 `supports` / 选择单里三个区要在）就是这一段的今天版。
 //
 // 候选自己带不来的三样东西在这里补上，它们是「一套主题」的其余部分（`scripts/themes.js` 文件头
 // 列的四件套 + `industries`）：
@@ -74,10 +76,11 @@ function feelOf(settings = {}) {
 /**
  * 一套候选 + 一个池位子 → 一个池成员。
  *
- * 🔴 `layout`（一个值）在这里变成 `supports`（一个清单），而且**不带进 layout 这个键** ——
- *    两个键同时在一套主题上，`layoutSetsOf()`（gates.js）会拿后写的那个盖掉前一个，
- *    `layoutFor()` 只认 `supports`，于是"到底哪个说了算"取决于读的人是谁。AC6 的判据就是这条：
- *    有 supports 的是全部、还留 layout 的一套都没有。
+ * 🔴 #1353 —— 这段原来写的是「`layout`（一个值）在这里变成 `supports`（一个清单）」。今天不是了：
+ *    顶栏 / 页脚的结构跟别的 31 个块一样写进**选择单** `shapes`（一个名字），`supports` 整个退役，
+ *    `layoutFor()` 也改名 `regionShapesFor()` 并且读选择单。那条规矩本身没变、只是换了键名：
+ *    **一件事只许有一个答案处**，两个键同时在一套主题上就变成"谁说了算取决于读的人是谁"。
+ *    `verifyPool()` 现在两向都查：不许再有 `supports`，且 `shapes.header` / `shapes.footer` 要在。
  */
 function toPoolEntry(candidate, slot) {
   const tokens = candidate.tokens || {};
@@ -93,9 +96,10 @@ function toPoolEntry(candidate, slot) {
   // 📌 #1341 —— 这里原来先把候选的 `layout`（`generate.js` 产的四个版式名）逐键翻成 `supports`
   //    清单，再补 header / footer 两个键。内容结构那一维整条退役了，候选不再产 `layout`，所以
   //    `supports` 里今天只有下面这两个【区】的键。
-  const supports = {};
-  // 顶栏 / 页脚的结构（#960）。它们不是 block，由 `region-layout.js` 单独消费；注册表那 30 套每套
-  // 都有这两个键，新池不给就等于**结构上比旧池少一维**（换装换掉的是结构，不只是颜色）。
+  // 🔴 #1353 —— 顶栏 / 页脚的结构以前写进 `supports`（一个清单），因为它们那时不是 block。
+  // 它们现在是 block（`blocks/header.json` / `blocks/footer.json`，D14 的已知例外清掉了），所以
+  // 它们的结构跟别的 32 个块一样写进**选择单** `shapes`（一个名字），`supports` 整个退役了。
+  const regionShapes = {};
   // 🔴 #1016 r5 —— 顶栏那一维不是纯轮换了:浅底首屏不许配透明浮层。判据和实测读数写在
   //    `region-layout.js` 的 `heroTitleSurvivesHeaderScrim` 上面那段。一句话版:浮层配一层压在
   //    页面最上面 160px 的黑色渐变(浮层的字是白的,不这么浓读不出来),而同一层遮罩压在「浅底 +
@@ -109,21 +113,20 @@ function toPoolEntry(candidate, slot) {
   const sheetCss = candidate.sheetPath && fs.existsSync(candidate.sheetPath)
     ? fs.readFileSync(candidate.sheetPath, 'utf-8') : '';
   const regions = regionsForPool(slot.index, sheetCss, tokens.colors);
-  supports.header = [regions.header];
-  supports.footer = [regions.footer];
+  regionShapes.header = regions.header;
+  regionShapes.footer = regions.footer;
 
   return {
     id,
     // 🔴 #1016 r5 —— 顶栏那一维被规则挪走时，把原因带出来给调用方打印。它不是池成员的一部分
     //    （不写进 `entry`），只是这一次翻译的一句说明；不带出来的话，「本来该轮到浮层、这套没拿到」
-    //    的唯一痕迹就是 supports.header 里的一个字符串，没人看得出它是规则挪的还是轮换本来如此。
+    //    的唯一痕迹就是选择单里 header 那一行的字符串，没人看得出它是规则挪的还是轮换本来如此。
     headerMovedBy: regions.headerMovedBy,
     entry: {
       label: `${word[0].toUpperCase()}${word.slice(1)} ${nn} — ${feel.shape} ${feel.air} ${word}`
         + ` with ${accentWord} accent, for ${sector}`,
       colors: tokens.colors,
       fonts: tokens.fonts,
-      supports,
       settings: tokens.settings,
       style: `${feel.shape} ${feel.weight} ${word} and ${accentWord}`,
       industries: slot.industries.slice(),
@@ -136,7 +139,10 @@ function toPoolEntry(candidate, slot) {
       // 每个块都走「主题选择单里没有它」那条落回默认的路 —— 而那条路是静默的（#1338 才给它加了
       // 一行日志）。翻译在这里只是**原样搬**，不做任何加工：名字合不合法由 manifest 那一端管
       // （`checkManifestShape`），齐不齐由第六道闸和 `pool.test.js` ⑪ 管。
-      shapes: { ...(candidate.shapes || {}) },
+      // 🔴 #1353 起顶栏 / 页脚那两行也在这里（上面 `regionShapes`）—— 它们不再有自己的键。
+      //    顺序有意让区在后：候选那边不会产这两个键，但万一产了，权威是这里算的那个
+      //    （`regionsForPool`，跟图册那条路同一个函数）。
+      shapes: { ...(candidate.shapes || {}), ...regionShapes },
     },
   };
 }
@@ -277,15 +283,23 @@ function verifyPool(pool) {
     const t = pool[id] || {};
     if (t.layout !== undefined) {
       problems.push(`${id}: 还留着 \`layout\` 这个键（${JSON.stringify(t.layout)}）—— `
-        + '候选那边的形状没翻成池子这边的 `supports`');
+        + '候选那边的形状没翻成池子这边的选择单（`shapes`）');
     }
-    if (!t.supports || typeof t.supports !== 'object' || !Object.keys(t.supports).length) {
-      problems.push(`${id}: 没有 \`supports\` —— layoutFor() 会返回 {}，这套主题对每个块都没有意见`);
+    // 🔴 #1353 —— 这一段以前查的是 `supports`。顶栏 / 页脚成了块之后，它们的结构住在选择单里，
+    // 而 `supports` **一个都不许再有**（`themes.js` 的 `themesWithSupports`，`sync-config.js` 拿它
+    // 拦构建）。所以这里两件事都要查：不许有旧键，且新键要在。
+    if (t.supports !== undefined) {
+      problems.push(`${id}: 还留着 \`supports\` 这个键（${JSON.stringify(Object.keys(t.supports || {}))}）`
+        + ' —— #1353 起顶栏 / 页脚的结构写进 `shapes.header` / `shapes.footer`，`supports` 退役了');
+    }
+    if (!t.shapes || typeof t.shapes !== 'object' || !Object.keys(t.shapes).length) {
+      problems.push(`${id}: 没有 \`shapes\` —— shapesFor() 会返回 {}，这套主题对每个块都没有意见`);
       continue;
     }
-    for (const [type, forms] of Object.entries(t.supports)) {
-      if (!Array.isArray(forms) || !forms.length || forms.some((f) => typeof f !== 'string')) {
-        problems.push(`${id}: supports.${type} 不是一个非空的字符串清单（${JSON.stringify(forms)}）`);
+    for (const region of ['header', 'footer']) {
+      if (typeof t.shapes[region] !== 'string' || !t.shapes[region]) {
+        problems.push(`${id}: shapes.${region} 不是一个非空字符串（${JSON.stringify(t.shapes[region])}）`
+          + ` —— 这个区的形态没翻过来，站会落回 blocks/${region}.json 的默认`);
       }
     }
   }
@@ -308,9 +322,22 @@ function main(argv) {
       for (const p of problems) console.error(`   ${p}`);
       process.exit(1);
     }
-    const withSupports = Object.values(pool).filter((t) => t.supports && Object.keys(t.supports).length).length;
-    const withLayout = Object.values(pool).filter((t) => t.layout !== undefined).length;
-    console.log(`✅ 有 supports 的 ${withSupports}/${Object.keys(pool).length} 套 · 还留着 layout 的 ${withLayout} 套`);
+    // 🔴 #1353 r2 —— 这里原来印「有 supports 的 X/N 套 · 还留着 layout 的 Y 套」。本票退役 `supports`
+    //    之后 X 恒 0；而 Y 其实**一直**恒 0 —— 这两样正是上面 `verifyPool` 刚刚拒过的东西，走到这一行
+    //    时它们按构造只能是 0。一句永远为真的话不是读数。换成池子里真的会变的那一维：三个区各自的
+    //    形态分布（跟本文件 `promote.js` §main 末尾那行同一个读数）。公告条那一行单独印，因为 `verifyPool` 只强制
+    //    header / footer ⟹ 它是这三行里唯一可能读到 `(没有)` 的。
+    const ids = Object.keys(pool);
+    const dist = (region) => {
+      const counts = {};
+      for (const id of ids) {
+        const v = (pool[id].shapes || {})[region] || '(没有)';
+        counts[v] = (counts[v] || 0) + 1;
+      }
+      return Object.entries(counts).map(([v, n]) => `${v} ${n}`).join(' · ');
+    };
+    console.log(`✅ ${ids.length} 套的选择单：顶栏 ${dist('header')} · 页脚 ${dist('footer')}`
+      + ` · 公告条 ${dist('announcement-bar')}（公告条这一行 verifyPool 不强制）`);
     process.exit(0);
   }
 
@@ -355,7 +382,8 @@ function main(argv) {
   //    清空进不了 main（池子空时 `npm run test:scripts` 当场红，CI 的 template-scripts job 跑的
   //    正是它），所以它不是能溜进生产的洞 —— 它是**盘上破坏 + 让重建池子的人白折腾**。
   //    两条路里选的是「先自查后写盘」而不是「0 套直接拒绝」：`verifyPool` 判的不止「空不空」
-  //    （还有 `layout` 没翻成 `supports`、`supports.x` 不是非空字符串清单），而那几种不达标今天
+  //    （#1353 之后是：还留着 `supports` / `layout` 这两个退役键、`shapes.header` / `shapes.footer`
+  //    不是非空字符串），而那几种不达标今天
   //    同样是**写完盘才说**。收窄成只拦 0 套的话，剩下那几种照旧会把一份不达标的池子留在盘上。
   const problems = verifyPool(pool);
   if (problems.length) {
@@ -382,14 +410,18 @@ function main(argv) {
     + `${argv.includes('--no-sheets') ? '（没拷表）' : ` + ${map.length} 份表 → public/themes/`}`);
   for (const m of map) {
     console.log(`  ${m.candidate} → ${m.id}  (${m.sector})`
-      + `${m.headerMovedBy ? `  · 顶栏让开了 → ${(pool[m.id].supports.header || [])[0]}：${m.headerMovedBy}` : ''}`);
+      + `${m.headerMovedBy ? `  · 顶栏让开了 → ${(pool[m.id].shapes || {}).header}：${m.headerMovedBy}` : ''}`);
   }
   // 🔴 #1016 r5 —— 让开的套数单独报一次。逐行那句话在 80 行里翻页就看不见了，而这个数是
   //    「顶栏那一维还剩多少花样」的读数：全 80 套都让开就等于池子里根本没有透明浮层了。
+  // 🔴 #1353 r2 —— 上面那行和这里读的都是**选择单**（`shapes.header`，一个名字）。它们原来读
+  //    `supports.header`（一个清单，取首项）；本票把 `supports` 退役之后那两处一个抛 TypeError、
+  //    一个恒读 `(没有)`，而恒读那一个是**不出声**的那种坏法：这行日志照印，只是每套都算进
+  //    `(没有)` 那一格 —— 「顶栏那一维还剩多少花样」这个读数当场失明。QA1 在 #1353 r1 抓到。
   const moved = map.filter((m) => m.headerMovedBy);
   const headerCounts = {};
   for (const id of Object.keys(pool)) {
-    const h = ((pool[id].supports || {}).header || ['(没有)'])[0];
+    const h = (pool[id].shapes || {}).header || '(没有)';
     headerCounts[h] = (headerCounts[h] || 0) + 1;
   }
   console.log(`顶栏：${Object.entries(headerCounts).map(([h, n]) => `${h} ${n}`).join(' · ')}`

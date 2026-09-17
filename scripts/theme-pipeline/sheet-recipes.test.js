@@ -1450,7 +1450,7 @@ console.log(`\n⑫ #1139 每个块在 ${SAMPLE_N} 套候选里有几副骨架（
   //    📌 上面那段注释里那句「这个数今天没有判别力」仍然成立（把它退回 80 这份测试逐字不变）。
   const N = SAMPLE_N;
   const ROLES_PATH = path.join(DIR, '..', '..', 'src', 'lib', 'sections', 'block-roles.json');
-  let BLOCKS; let BORROWERS;
+  let BLOCKS; let BORROWERS; let REGIONS;
   try {
     // #1333 —— 借用别的块那套部件类名的块（manifest 的 `hooksFrom`）**不是自己一族骨架**，
     // 所以它不进这一格的分母。今天只有 `hero-with-form`（它渲染 `.hero__*` 那一家，理由写在
@@ -1458,7 +1458,17 @@ console.log(`\n⑫ #1139 每个块在 ${SAMPLE_N} 套候选里有几副骨架（
     // 借用者出现时这一格 die 在一个其实正确的状态上，而 die 的样子跟真出问题一模一样。
     const manifests = require(path.join(DIR, '..', 'lib', 'block-manifest.js')).loadManifests();
     BORROWERS = [...manifests].filter(([, m]) => m.hooksFrom).map(([t]) => t);
-    BLOCKS = Object.keys(JSON.parse(fs.readFileSync(ROLES_PATH, 'utf8'))).filter((b) => !BORROWERS.includes(b));
+    // #1353 —— **外壳区（`region: true`）不进这一格的分母。** 这一格问的是「配方给这一族画了几副
+    // 骨架」，而顶栏 / 页脚今天**没有配方、也没有钩子**：契约 §1 的钩子表里一个 `header__*` /
+    // `footer__*` 都没有，它们的间距和皮住在 `public/base.css` 的地板与 `public/shapes.css` 的那一节
+    // （那里写了为什么不走主题表：要往契约加约 50 个钩子、每套表各写 50 条规则，而且**新开一维** ——
+    // 主题从此能改顶栏长相，而 #1353 AC1 要的恰恰是逐像素不变）。
+    // 🔴 这是下面那条自检消息里没列的**第三种可能**，所以在这里写成一个显式的分类，而不是把那条
+    //    自检放宽：放宽的话「某个内容块真的漏了钩子」跟「外壳区按设计没有钩子」会长成同一个样子。
+    //    判据用 manifest 自己声明的 `region: true`，不推断。
+    REGIONS = [...manifests].filter(([, m]) => m.region === true).map(([t]) => t);
+    BLOCKS = Object.keys(JSON.parse(fs.readFileSync(ROLES_PATH, 'utf8')))
+      .filter((b) => !BORROWERS.includes(b) && !REGIONS.includes(b));
   } catch (e) {
     die(`⑫ 读不到 ${ROLES_PATH}：${e.message} —— 族清单的权威就是它，读不到就什么都没量成`);
   }
@@ -1481,8 +1491,9 @@ console.log(`\n⑫ #1139 每个块在 ${SAMPLE_N} 套候选里有几副骨架（
     if (onlyRoles.length || onlyHooks.length) {
       die(`⑫ 分母自检不成立：block-roles.json（去掉借用类名的 ${BORROWERS.length} 个）有 ${BLOCKS.length} 个块、`
         + `钩子清单有 ${hooked.size} 个，只在前者 [${onlyRoles.join(' ')}]，只在后者 [${onlyHooks.join(' ')}]`
-        + '。🔴 一个块只在前者出现有两种可能：它真的没被钩子清单认领（那是本条要抓的洞），'
-        + '或者它借用别的块那套类名而 manifest 里忘了写 `hooksFrom`（那就去补那个键，别改这道自检）');
+        + '。🔴 一个块只在前者出现有三种可能：它真的没被钩子清单认领（那是本条要抓的洞）；'
+        + '它借用别的块那套类名而 manifest 里忘了写 `hooksFrom`（那就去补那个键，别改这道自检）；'
+        + '或者它是外壳区而 manifest 里忘了写 `region: true`（#1353 —— 主题按设计不画顶栏 / 页脚）');
     }
     ok(`⑫ 分母自检：block-roles.json 与钩子清单同为 ${BLOCKS.length} 个块，双向差集都空`
       + (BORROWERS.length ? `（另有 ${BORROWERS.length} 个借用别人类名、不自成一族：${BORROWERS.join(' ')}）` : ''));
@@ -2053,14 +2064,59 @@ console.log('\n⑮ #1339 配方里还有没有几何（整池扫一遍，命中�
       const sel = { ...recipeShapesFor(i), 'hero-with-form': recipeShapeFor('hero-with-form', i) };
       for (const [b, sh] of Object.entries(sel)) used.add(`${b}/${sh}`);
     }
+    // #1353 —— **外壳区的那 7 对不在这一格的射程里。** 这一格问的是「配方画的那一副」，而顶栏 /
+    // 页脚**没有配方**（主题不画它们，理由在 ⑫ 分母自检那段和 `public/shapes.css` 那条明写例外里），
+    // 它们的几何整份住在形态层、由 `base.css` 的地板托底。不滤掉的话这一格会永远红在
+    // 「形态层有而一次都没被选中」，而那句话对它们按构造为真、永远修不好。
+    // 🔴 只滤 `orphan` 那一半，`missing` 一个字没动：配方要是**画了**一个形态层里没有的 (块, 形态)，
+    //    照旧红 —— 那才是这一格要抓的洞。
+    const REGION_PAIRS = (() => {
+      const ms = require(path.join(DIR, '..', 'lib', 'block-manifest.js')).loadManifests();
+      const out = new Set();
+      for (const [t, m] of ms) {
+        if (m.region !== true) continue;
+        for (const sh of m.shapes) out.add(`${t}/${sh.name}`);
+      }
+      return out;
+    })();
     const missing = [...used].filter((k) => !have.has(k));
-    const orphan = [...have].filter((k) => !used.has(k));
-    if (missing.length === 0 && orphan.length === 0) {
-      ok(`⑮ 配方画的那一副 vs 形态层：双向差集都空：${N} 套候选用到 ${used.size} 个 (块, 形态) 对，`
-        + `跟 public/shapes.css 里的集合逐个对上`);
+    // 🔴 **两张票在这一行相遇了，两边的意思都留着（#1360 r3 解冲突）：**
+    //   · #1353 的 `REGION_PAIRS`：外壳区那几对**根本不进这一格**（主题不画顶栏页脚）——
+    //     留着它，下面那句读数才不会把它们混进来。
+    //   · #1360 的改判：反方向（形态层有、候选一次都没画到）**报告而不判**，理由整段在下面。
+    const orphan = [...have].filter((k) => !used.has(k) && !REGION_PAIRS.has(k));
+    if (missing.length === 0) {
+      ok(`⑮ 配方画的那一副 vs 形态层：配方挑得出的每一副在形态层里都有规则（${N} 套候选用到 `
+        + `${used.size} 个 (块, 形态) 对，0 个在 public/shapes.css 里查不到）`
+        + `（另有 ${REGION_PAIRS.size} 对属于外壳区，主题不画它们、不进这一格 —— #1353）`);
     } else {
-      bad(`⑮ 配方画的那一副与形态层对不上：形态层里查不到的 ${missing.join(' ') || '(无)'} · `
-        + `形态层有而一次都没被选中的 ${orphan.join(' ') || '(无)'}`);
+      bad(`⑮ 配方画的那一副在形态层里查不到：${missing.join(' ')} —— 配方挑得出这副画法，`
+        + '而 public/shapes.css 里没人排它（上面那几格的语料里会少一块几何）');
+    }
+    // 🔴 **反方向（形态层有、97 套候选一次都没画到）从 #1360 起【报告而不判】。**
+    //
+    // 它原来是红的，理由写在上面那段注释里：「那副画法没有任何一格在看它」。这一句今天有两半，
+    // 两半都不再成立：
+    //   · **「没人声明它」那一半已经有专门的一道**：`blocks/<块>.json` 的 `shapes` 与
+    //     `public/shapes.css` 的 (块, 形态) 集合**两向差集为 0**（#1331，
+    //     `scripts/lib/block-shapes.test.js` 第 ① 格，两向各带一个反向臂）。CSS 里写了个谁都没
+    //     登记的形态名（拼错那种）在那一格当场红、并被点名 —— 那正是本格原来兜住的错。
+    //   · **「几何没人看」那一半已经不是真的**：#1332 的守卫 ⑨ 按 manifest 逐个 (块, 形态) 对、
+    //     在真浏览器里、两个视口各量一遍，跟「今天有没有主题选它」无关
+    //     （`scripts/theme-css-invariants.mjs` §⑨：「逐个把 data-shape 换成 manifest 里的每一种
+    //     形态，而不是只量这套主题今天选中的那一种」）。
+    //
+    // 而它现在会拦住的那件事，是设计文档自己规定的走法：**区块库先长，主题池后重生**
+    // （2026-09-11 那份 spec 的 D9「画法有限，由区块库声明；主题从中挑」+ D12 的「第 4 步重生池」）。
+    // 第三点五步往库里加形态时，配方那张候选表按定义还没有它们；要让它们被挑到就得改
+    // `CARD_GRIDS` 这类表，而那会改掉每一套候选的 `voiceFor(i)` ⟹ `public/themes/*.css` 两张
+    // 生成表跟着变 —— 那是重生池那一步的活，不是加形态这一步的。
+    //
+    // ⟹ 保留读数（谁是孤儿、有几个都打印出来），去掉判罚。要恢复成硬判，先把重生池做掉。
+    if (orphan.length) {
+      console.log(`  📌 ⑮ 形态层里有、而 ${N} 套候选一次都没画到的：${orphan.length} 个`
+        + `（${orphan.join(' ')}）—— **报告不判**（区块库先长、主题池后重生；它们的几何由 #1332 的`
+        + ' 守卫 ⑨ 逐对逐视口量，它们的登记由 #1331 的两向差集守）');
     }
   }
 }

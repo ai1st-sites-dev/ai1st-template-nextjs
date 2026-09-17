@@ -103,6 +103,24 @@
   margin-top: 2rem;
 }
 
+/* 🔴 #1374 —— 可选槽 `socialProof` 的地板。跟上面那几条同一个判据（「没有皮的时候读得出来吗」），
+   而它比上面那些多一层理由：这四个类名**不是契约钩子**（同 `.hero__img`），所以三套皮一条规则都不会
+   给它们写 —— 这里不写就真的什么都没有。
+   `min-width: 0` 与 `overflow-wrap` 是同一对老理由：一行没有空格的长字符串会把网格轨道撑得比屏幕宽，
+   而块自己的 `overflow: hidden`（globals.css）会把它剪掉，页面级那条「没有横向滚动」照样说一切正常。 */
+.hero__proof {
+  margin-top: 1.5rem;
+  min-width: 0;
+}
+
+.hero__proof-rating,
+.hero__proof-text {
+  min-width: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  overflow-wrap: break-word;
+}
+
 /* ── #1018 cta-banner ───────────────────────────────────────────────────────────────────────────
    Same two jobs as the hero rules above, and the same test for what may go in here: "would every
    sheet want to state this itself?". Checked against all three phase-1 sheets after their
@@ -1301,4 +1319,383 @@
 .card-group__features {
   display: grid;
   gap: 0.5rem;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   #1353 — 顶栏 / 页脚的地板。
+   ══════════════════════════════════════════════════════════════════════════════════════════════
+   这两个 Region 以前不在这份文件里：它们是「一变体一棵树」，长相整段写在 `Header.tsx` /
+   `Footer.tsx` 的 Tailwind 类串里。#1353 把它们按块的规矩搬进形态层之后，分工跟别的 32 个块一样：
+
+       这里（base.css）   没有主题表时的地板 = **今天默认那一支**逐属性照搬
+                          （顶栏 `solid-bar`、页脚 `multi-column`，也就是没换装的站今天看到的那个）
+       shapes.css         四种顶栏 / 三种页脚各自的**几何**（摆哪、排几列、什么时候收起来）
+       shapes.css 末尾     那两个区的**每形态间距与皮**（间距、圆角、阴影、底色）。
+                          🔴 它**不在主题表**：那条例外和另外两条路的代价写在 `shapes.css` 的
+                          `#1353` 那一段；射程用 `[data-block="header"]` / `[data-block="footer"]` 钉死。
+
+   🔴 这里每一条都是**单个类**选择器（本文件头上那条，`scripts/base-css-lint.js` 拒绝更强的）。
+      所以「某个形态的内边距」写不进来 —— 它住在 `shapes.css` 末尾那一节。地板只管默认那一支，而默认那一支不需要
+      任何 `[data-shape]` 就能说清楚。
+   🔴 这里也不写 `transition` / `animation`（同上，本文件头）。原来那些 `transition-colors`
+      因此没有搬过来 —— 它们是 hover 的过渡，不影响任何一个包围盒。
+
+   ── 顶栏 ──────────────────────────────────────────────────────────────────────────────────── */
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background-color: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+/* 遮罩的**渐变**在这里（单个类），露不露面由 `shapes.css` 说。浓度是按「首屏是纯白」这个最坏情况
+   定的 —— 浮层的字是白的，不这么浓就读不出来；那段论证和实测读数在 `scripts/region-layout.js` 的
+   文件头。🔴 `via-black/55` 那个数还有第二处（`region-layout.js` 的 `HEADER_SCRIM_MID_ALPHA`），
+   `theme-pipeline/pool.test.js` 有一格盯着两处一致。 */
+.header__scrim {
+  display: none;
+  pointer-events: none;
+  height: 10rem;
+  background-image: linear-gradient(to bottom, rgb(0 0 0 / 0.75), rgb(0 0 0 / 0.55), transparent);
+}
+
+.header__bar {
+  margin-inline: auto;
+  max-width: 80rem;
+  display: flex;
+  align-items: center;
+  padding: 1rem;
+}
+
+/* 顶栏默认那一支的左右内边距三档（改造前 `px-4 sm:px-6 lg:px-8`）。上下恒 1rem（`py-4`）。 */
+@media (min-width: 640px) {
+  .header__bar {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .header__bar {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+.header__logo {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.header__logo-img {
+  height: 2.5rem;
+  width: auto;
+  max-width: 160px;
+  object-fit: contain;
+}
+
+.header__logo-mark {
+  display: flex;
+  height: 2.5rem;
+  width: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-lg);
+  background-color: var(--color-primary-500);
+}
+
+.header__logo-icon {
+  height: 1.5rem;
+  width: 1.5rem;
+  color: #fff;
+}
+
+.header__logo-name {
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  font-weight: 700;
+  color: var(--color-primary-900);
+}
+
+/* 🔴 `margin-left: auto` 是这一行的承重件：顶栏原来是 `justify-between` 的**两个**孩子
+   （logo 与「链接+CTA+语言」那一个 div）。搬成一副骨架之后孩子变成五个，`justify-between`
+   会把它们摊开 —— 不是同一个排法。把导航那一组顶到右边、其余靠 2rem 的 gap 串起来，
+   摆出来的位置跟原来逐像素相同。 */
+.header__nav {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  margin-left: auto;
+}
+
+/* 🔴 那 2rem 挂在**这两件自己身上**，不挂在 `.header__bar` 上 —— 这两处间距改造前是**两回事**：
+   改造前顶栏是 `justify-between` 的两个孩子（logo · 「链接+CTA+语言」那一个 div），
+   logo 与那一组之间**没有固定间距**（空的都归 space-between），而 `gap-8` 只在那一组**里面**。
+   搬成一副骨架之后孩子变成五个，把 2rem 写在条上就等于给 logo 和它右边那件也塞了 32px ——
+   宽屏看不出来（`margin-left:auto` 把空的全吃了），**窄屏和平板上那 32px 是真从名字嘴里抢的**：
+   768 以下 nav/cta/lang 全 `display:none`，条上只剩 logo 和汉堡，那条 gap 就顶在它们中间；
+   768 那一档刚好是三件露面的第一格，也放不下。症状是生意名和 CTA 被挤成两行、整条顶栏高 16–20px
+   （QA2 在 #1353 r3 逐宽度量到：ember 375/768 · azure 320/768 四个组合都中）。 */
+.header__cta,
+.header__lang {
+  margin-left: 2rem;
+}
+
+.header__link {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  color: var(--color-gray-600, #4b5563);
+}
+
+.header__cta {
+  display: flex;
+  align-items: center;
+}
+
+.header__cta-link {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.header__lang {
+  display: flex;
+  align-items: center;
+}
+
+.header__burger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  padding: 0.5rem;
+  color: var(--color-gray-600, #4b5563);
+}
+
+.header__burger-icon {
+  height: 1.5rem;
+  width: 1.5rem;
+}
+
+.header__menu {
+  display: none;
+  border-top: 1px solid var(--color-gray-200, #e5e7eb);
+  background-color: #fff;
+  padding: 0.5rem 1rem 1rem;
+}
+
+.header__menu-link {
+  display: block;
+  padding-block: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  color: var(--color-gray-600, #4b5563);
+}
+
+.header__menu-cta {
+  margin-top: 0.5rem;
+  display: block;
+  width: 100%;
+  text-align: center;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.header__menu-lang {
+  margin-top: 0.5rem;
+  border-top: 1px solid var(--color-gray-200, #e5e7eb);
+  padding-top: 0.5rem;
+}
+
+/* ── 页脚 ──────────────────────────────────────────────────────────────────────────────────── */
+
+.footer {
+  background-color: var(--color-primary-900);
+  color: var(--color-gray-300, #d1d5db);
+}
+
+.footer__cta {
+  display: none;
+}
+
+/* 🔴 页脚原来是「一个 `.container-width.section-padding` 的壳，里面一张 grid + 一条版权行」。
+   骨架把那层壳去掉了（多一层 div 就多一层 CSS 摆不动的东西），所以壳的四档内边距在这里逐档照搬 ——
+   `.section-padding` 那四条（globals.css §961）一个断点都不能少，少一个就是某个宽度上的包围盒变了。
+   版权行的 `padding-bottom` 由它自己给：原来它是壳里最后一个孩子，壳的下内边距兜着它。 */
+.footer__body {
+  margin-inline: auto;
+  max-width: 80rem;
+  display: grid;
+  gap: 3rem;
+  padding: var(--section-y) var(--section-x) 0;
+}
+
+@media (min-width: 640px) {
+  .footer__body {
+    padding-left: var(--section-xSm);
+    padding-right: var(--section-xSm);
+  }
+}
+
+@media (min-width: 768px) {
+  .footer__body {
+    padding-top: var(--section-yMd);
+  }
+}
+
+@media (min-width: 1024px) {
+  .footer__body {
+    padding-left: var(--section-xLg);
+    padding-right: var(--section-xLg);
+  }
+}
+
+.footer__brand-id {
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.footer__logo-pill {
+  display: inline-flex;
+  align-items: center;
+  background-color: #fff;
+  padding: 0.375rem;
+  border-radius: var(--radius-md);
+}
+
+.footer__logo-img {
+  height: 1.75rem;
+  width: auto;
+  max-width: 120px;
+  object-fit: contain;
+}
+
+.footer__logo-mark {
+  display: flex;
+  height: 2rem;
+  width: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-lg);
+  background-color: var(--color-primary-500);
+}
+
+.footer__logo-icon {
+  height: 1.25rem;
+  width: 1.25rem;
+  color: #fff;
+}
+
+.footer__logo-name {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.footer__desc {
+  font-size: 0.875rem;
+  line-height: 1.625;
+}
+
+.footer__social {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.footer__social-link {
+  display: flex;
+  height: 2.25rem;
+  width: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background-color: var(--color-primary-800);
+  color: var(--color-gray-400, #9ca3af);
+}
+
+.footer__social-fallback {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.footer__col-title {
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #fff;
+}
+
+.footer__list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.footer__list--contact {
+  gap: 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.footer__link {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.footer__loc-label {
+  color: #fff;
+}
+
+.footer__email {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.footer__legal {
+  margin-inline: auto;
+  max-width: 80rem;
+  margin-top: 3rem;
+  padding: 0 var(--section-x) var(--section-y);
+  text-align: center;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+/* 线和「线到字」那段留白住在这里，不在外面那层 —— 理由写在 `Footer.tsx` 版权那段的注释里。
+   `padding-top` 的三个数（多列 2rem / 细行 1.5rem / 色带 1.5rem）跟着形态走，在 `shapes.css`。 */
+.footer__copyright {
+  border-top: 1px solid var(--color-gray-700, #374151);
+  padding-top: 2rem;
+}
+
+@media (min-width: 640px) {
+  .footer__legal {
+    padding-left: var(--section-xSm);
+    padding-right: var(--section-xSm);
+  }
+}
+
+@media (min-width: 768px) {
+  .footer__legal {
+    padding-bottom: var(--section-yMd);
+  }
+}
+
+@media (min-width: 1024px) {
+  .footer__legal {
+    padding-left: var(--section-xLg);
+    padding-right: var(--section-xLg);
+  }
 }

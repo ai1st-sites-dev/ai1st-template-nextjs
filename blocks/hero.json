@@ -120,6 +120,12 @@
       "required": false,
       "promptOptional": true,
       "shape": "string"
+    },
+    "socialProof": {
+      "kind": "object",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{avatars: [{imageUrl}], rating, text}"
     }
   },
   "variants": {
