@@ -43,15 +43,29 @@ const HERO_FORM_BLOCK = 'hero-with-form';
  * 就地改 `content`（调用方紧接着就把它写盘），返回一句给日志用的结论：
  *   { applied: boolean, reason: string }
  *
- * 🔴 `reason` 不是装饰。「这个站首屏没有表单」有三个完全不同的答案（行业不算上门 · 这一页没有
- * hero · 压根没有首页），它们在产物里长得一模一样。调用方必须把它打出来。
+ * 🔴 `reason` 不是装饰。「这个站首屏没有表单」有**四**个完全不同的答案（#1346 起多了「这个块被
+ * 后台停用了」；另外三个是：行业不算上门 · 这一页没有 hero · 压根没有首页），它们在产物里长得
+ * 一模一样。调用方必须把它打出来。
  *
  * 🔴 为什么要写 `data.form = {}`：`form` 是新块的**必填**槽位（`blocks/hero-with-form.json`），
  * 而 `validateSite` 第 ① 条按必填查。这条记录说的是「这个块有一个表单」；按钮文案和成功提示仍然
  * 各自可选，缺省时由 `HeroLeadForm` 自己那两句默认文案顶上 —— 也就是**渲染出来的字一个都没变**。
  * 文案本身不写在这里：库定义结构与槽，不定义内容（Chris 2026-08-13 的边界）。
  */
-function applyHeroLeadForm({ content, industry }) {
+function applyHeroLeadForm({ content, industry, disabledBlocks = [] }) {
+  // #1346 —— 后台把 `hero-with-form` 关掉了就什么都不做。
+  //
+  // 🔴 **这一处不在菜单那条路上，所以剔菜单管不到它。** 它是脚本自己硬插的一块：跑在两次
+  //    `validateBlocks` 之后、也不经 AI 提示词，跟 `writeSiteConfig` 里那个 `contact-form`
+  //    （TICKET-268b/268e）是同一类。少这一处的坏法很具体：后台关掉 `hero-with-form`、后台那一页
+  //    照样把它列出来可以关（`catalog_admin.go` 从 `blocks/*.json` 列全部 32 个），而每一个
+  //    上门服务行业的新站首屏**照样是它** —— 开关看着生效了，产物里没有。
+  //
+  // 🔴 这条判断放在**最前面**：下面那三条 `reason` 各自说的是「为什么这个站首屏没有表单」，而
+  //    「这个块被关了」是一个跟行业/页面结构无关的答案，混进那三条里读日志的人分不开。
+  if (Array.isArray(disabledBlocks) && disabledBlocks.includes(HERO_FORM_BLOCK)) {
+    return { applied: false, reason: `${HERO_FORM_BLOCK} 在后台被停用了 ⟹ 首页第一个 hero 原样留着` };
+  }
   if (!isOnSiteIndustry(industry)) {
     return { applied: false, reason: `industry "${industry}" 不在上门服务那四组行业词里` };
   }

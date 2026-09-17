@@ -345,12 +345,39 @@ function rotationIndexFromSiteId(siteId) {
 // (`themeRotationOffset` in manager/sites.go), because the bare counter made EVERY user's first
 // site index 0, i.e. one fixed theme per industry for every first site on the platform. Only the
 // starting point moved; the +1-per-site part is what keeps the guarantee in the line above.
-function pickThemeForIndustry(industry, rotationIndex) {
-  const pool = candidateThemesForIndustry(industry);
+function pickThemeForIndustry(industry, rotationIndex, disabledThemes = []) {
+  const pool = candidateThemesAfterDisabled(industry, disabledThemes);
+  // 🔴 #1346 —— 一套都不剩时返回 null，让调用方干净失败。原来这里是 `pool[n % pool.length]`，
+  //    空池上 `n % 0` 是 `NaN` ⟹ 下标 `NaN` ⟹ `undefined` ⟹ 下一行 `themes[undefined]` 也是
+  //    undefined，然后建站一路往下走，产出一个没有主题的站。那是静默的错法。
+  if (!pool.length) return null;
   const n = Number.isInteger(rotationIndex) && rotationIndex >= 0
     ? rotationIndex
     : Math.floor(Math.random() * pool.length);
   return pool[n % pool.length];
+}
+
+/**
+ * 候选池减掉后台关掉的那些（#1346）。两级，顺序是承重的：
+ *
+ *   ① 这个行业的候选池减去停用的 —— 正常情况走这一支，轮换的保证一个字没变（`drawDistinct` 那一侧
+ *      同理：池子小了但仍然是按位置取）。
+ *   ② ① 空了 ⟹ 落回**全池**减去停用的。这一步是有意的：行业候选池只有 5-10 套（#1119 那 16 组），
+ *      关掉几套就可能整组清空，而那时平台上明明还有别的主题能穿。宁可给一套「不那么对味」的，
+ *      也不要因为一次后台开关就建不出站。
+ *   ③ ② 也空了 = 池里全部被关掉。返回空数组，调用方点名失败（本函数不 throw：它也被 sync-config
+ *      那一侧以外的地方读，报文该由知道上下文的那一方写）。
+ *
+ * 🔴 清单为空时**原样**返回 candidateThemesForIndustry 的结果，一个 filter 都不跑 —— 这样
+ *    「没有任何东西被关掉」那条路逐字节等于 #1346 之前。
+ */
+function candidateThemesAfterDisabled(industry, disabledThemes = []) {
+  const off = new Set((disabledThemes || []).filter((id) => typeof id === 'string' && id));
+  const candidates = candidateThemesForIndustry(industry);
+  if (!off.size) return candidates;
+  const narrowed = candidates.filter((id) => !off.has(id));
+  if (narrowed.length) return narrowed;
+  return Object.keys(poolThemes).filter((id) => !off.has(id));
 }
 
 module.exports = {
@@ -376,6 +403,8 @@ module.exports = {
   themesWithBadSupportsKeys,
   SUPPORTS_KEYS,
   candidateThemesForIndustry,
+  // #1346 —— 候选池减掉后台关掉的那些。导出来让 create-site.js 之外的人也能复算「为什么抽到它」。
+  candidateThemesAfterDisabled,
   rotationIndexFromSiteId,
   pickThemeForIndustry,
 };

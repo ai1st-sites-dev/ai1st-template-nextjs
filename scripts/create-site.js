@@ -25,9 +25,11 @@ const { parseRefSections, parseRefNavLinks } = require('./ref-section-mapping');
 // #924: the theme registry (colors + fonts + layout preferences + logo style adjective)
 // lives in scripts/themes.js and is the single source of truth. sync-config.js reads the
 // same file at build time.
-const { themes, themeStyle, pickThemeForIndustry, rotationIndexFromSiteId } = require('./themes');
+const { themes, poolThemes, themeStyle, pickThemeForIndustry, rotationIndexFromSiteId } = require('./themes');
 // #1064: 主题的形态样式表叫什么 —— 判据只在那个文件里，见它开头那段注释。
 const { sheetNameForTheme } = require('./theme-sheet');
+// #1346 —— 关键词页那一通的块清单（住在 lib 里是为了它能被测到，理由写在那个文件头上）。
+const { keywordPageSectionOptions } = require('./lib/keyword-page-options');
 // #1120: 每站微扰派哪三个数 —— 表和判据都在那个文件里（含为什么它不能塞进 scripts/tweaks.js）。
 const { tweaksForSite } = require('./lib/site-tweaks');
 // #999 — 块清单（槽 / 形态 / 外观词 / 角色兜底 / 哪些行业需要它）住在 blocks/*.json，34 份。
@@ -764,6 +766,22 @@ async function main() {
   // TICKET-166: admin override for AI image hard cap (default 100).
   if (input.maxImagesPerSite) photoHardCap = parseInt(input.maxImagesPerSite, 10) || photoHardCap;
 
+  // #1346 —— 后台「区块与主题」页关掉了哪些主题 / 哪些块（manager 从 platform_config 读出来塞进
+  // payload，#1345 存的就是那两行）。
+  //
+  // 🔴 **字段缺席 = 派这个活的 manager 比 #1346 老**，一律读成「什么都没关」。manager 那一侧永远送
+  //    数组（空的时候是 `[]`），所以「缺席」和「空清单」在这里是两件可以分开的事，而两件事的处置
+  //    恰好相同 —— 相同不代表可以合并：真要分开时（比如将来想在日志里说一句「这台 manager 不带
+  //    禁用清单」）判据还在。
+  // 🔴 只收字符串。手改过的 platform_config 行会一路流到这里，而 `new Set([null])` 之类的东西
+  //    在下游是静默的：它不匹配任何块名，于是「关掉了」变成「没关掉」。
+  const idList = (v) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string' && x.trim()).map((x) => x.trim()) : []);
+  const disabledThemes = idList(input.disabledThemes);
+  const disabledBlocks = idList(input.disabledBlocks);
+  if (disabledThemes.length || disabledBlocks.length) {
+    debug(`[catalog] 后台关掉的: 主题 ${disabledThemes.join(', ') || '（无）'} | 块 ${disabledBlocks.join(', ') || '（无）'}`);
+  }
+
   if (!siteId) fatal('siteId is required');
   if (!companyName) fatal('companyName is required');
   if (!industry) fatal('industry is required');
@@ -849,7 +867,22 @@ async function main() {
   //    payload 里塞 `template`，默认值是 `'ai'`），但**造语料 / 造夹具的脚本很容易踩到**，而失败方向
   //    是假绿：绕开之后「改之前」和「改之后」两臂都读「没变化」，反向对照那一格看上去还是绿的。
   //    要量轮换，别传 `template`（或传 `'ai'`）。
-  const themeName = (template && template !== 'ai' && themes[template]) ? template : pickThemeForIndustry(industry, themeRotationIndex);
+  // 🔴 #1346 —— 上面那条注释说的「整条绕过轮换」正是为什么这一支要有自己的拒绝分支：它不经
+  //    `pickThemeForIndustry`，所以那边剔停用主题的那一步对它一个字都不说。
+  const named = (template && template !== 'ai' && themes[template]) ? template : '';
+  if (named && disabledThemes.includes(named)) {
+    fatal(`Theme "${named}" is switched off in Blocks & Themes, so it cannot be put on a new website. `
+      + 'Switch it back on, or leave the theme to us (template: "ai").');
+  }
+  const themeName = named || pickThemeForIndustry(industry, themeRotationIndex, disabledThemes);
+  // 🔴 #1346 —— 池里的主题**全部**被关掉时干净失败，不静默建一个没有主题的站。
+  //    (`pickThemeForIndustry` 在空池上返回 null；改之前它返回 `undefined`，下一行的 `themes[…]`
+  //    也是 undefined，然后一路往下走。)
+  if (!themeName) {
+    const total = Object.keys(poolThemes).length;
+    fatal(`No theme is available: all ${total} theme(s) in the pool are switched off in Blocks & Themes `
+      + `(${disabledThemes.join(', ')}). Switch at least one back on, then create the website again.`);
+  }
   const theme = themes[themeName];
   debug(`Theme: ${themeName} — ${theme.label} (rotation index ${themeRotationIndex})`);
 
@@ -889,7 +922,7 @@ async function main() {
     && !!(refAnalysis && refAnalysis.sections);
   const recipeIndex = rotationIndexFromSiteId(siteId);
   const recipeAttempt = (fingerprintEnabled(input) && !input.skipAI && !wantsRefLayout)
-    ? tryHomepageRecipe(recipeIndex, loadBlockManifests(), industry)
+    ? tryHomepageRecipe(recipeIndex, loadBlockManifests(), industry, disabledBlocks)
     : { recipe: null, error: null };
   const homeRecipe = recipeAttempt.recipe;
   if (homeRecipe) {
@@ -986,6 +1019,21 @@ async function main() {
   if (input.skipAI) {
     progress('Setting up demo site (no AI)...', 10);
     const content = getDemoConfig(siteId);
+    // #1346 —— skipAI 这条路**不经 AI、也不经 validateBlocks**，所以关掉的块只能在这里剔。
+    // 漏掉它的话「关掉一个块」对示例站（夹具、演示、QA 的 4 个站）完全不说话，而那正是最常被拿去
+    // 取读数的一条路。整页被剔空就连页一起去掉：一个只剩标题的页面不是一个页面。
+    if (disabledBlocks.length) {
+      const off = new Set(disabledBlocks);
+      const before = content.pages.length;
+      for (const pg of content.pages) pg.sections = (pg.sections || []).filter((sec) => !off.has(sec.type));
+      // 🔴 Contact 那一页跟 §writeSiteConfig 里那条**同一个判据**：它存在的理由是那个表单
+      //    （268e：POST 到 /api/leads，进老板的 Customers）。表单关掉了就整页去掉，而不是留一个
+      //    只剩标题、点进去什么都没有的页。两处写的是同一句话，因为示例站这一份是 getDemoConfig
+      //    自己带的，走不到那一处。
+      if (off.has('contact-form')) content.pages = content.pages.filter((pg) => pg.slug !== 'contact');
+      content.pages = content.pages.filter((pg) => (pg.sections || []).length);
+      debug(`[catalog] skipAI 示例站剔掉关掉的块：页面 ${before} → ${content.pages.length}`);
+    }
     // #984: the demo site wears the theme we just picked, same registry the AI path reads.
     // getDemoConfig's own palette is a hardcoded blue that matches no registered theme, so
     // without this the themeId in theme.json would name a theme the site isn't using — the
@@ -1007,7 +1055,7 @@ async function main() {
         content.brand.name[norm] = name.trim();
       }
     }
-    writeSiteConfig(siteDir, content, defaultLocale);
+    writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks);
     debug(`Demo site config written to site/`);
     // TICKET-122b: in skipAI mode, secondary locales get a verbatim copy of the
     // primary demo content (no real translation), with seo.locale rewritten so
@@ -1093,6 +1141,9 @@ async function main() {
     geminiApiKey,
     // #1034: 这个站的首页开场配方（null = 本次不参与，理由在上面 debug 那行里）
     homeRecipe,
+    // #1346: 后台关掉的块。提示词里那份菜单、两行写死的页面规则、以及 AI 吐回来之后那道校验，
+    // 三处用的是同一份清单 —— 少一处就换一种坏法（票面做什么 #4）。
+    disabledBlocks,
   });
 
   // TICKET-119: Layout hard-copy compliance check
@@ -1154,6 +1205,8 @@ async function main() {
       location,
       languageName,
       serviceDetailMap,
+      // #1346 —— Call 2 有它自己那份写死的块清单，所以同一份禁用清单也要传到这儿。
+      disabledBlocks,
     });
 
     // #1176 —— 面包屑里的 href 只许指向真的会被生成出来的页面。判据和整段理由（含「为什么提示词
@@ -1205,10 +1258,10 @@ async function main() {
   //    `theme` 因此不再传进去。
   //
   // 🔴 `reason` 必须打出来：不给表单有三个完全不同的答案，而它们在产物里长得一模一样。
-  const heroForm = applyHeroLeadForm({ content, industry });
+  const heroForm = applyHeroLeadForm({ content, industry, disabledBlocks });
   debug(`[hero lead form] ${heroForm.applied ? '换了' : '没换'} 首页第一个 hero → hero-with-form — ${heroForm.reason}`);
 
-  writeSiteConfig(siteDir, content, defaultLocale);
+  writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks);
 
   // ─── TICKET-122b: Secondary locale generation ────────────────────────────────
   // After primary locale ships, generate secondary locales sequentially. Each
@@ -1601,7 +1654,9 @@ function writeSecondaryLocaleConfig(siteDir, secContent, secondaryLocale, primar
 
 // ─── Write Site Config Files ─────────────────────────────────────────────────
 
-function writeSiteConfig(siteDir, content, defaultLocale) {
+// #1346 —— `disabledBlocks` 传到这里，因为**这个函数自己会插块**（268b/268e 那个 Contact 页）。
+// 那一处发生在两次 `validateBlocks` **之后**，所以剔菜单、传清单进校验器这两步都管不到它。
+function writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks = []) {
   // TICKET-122a: multi-locale schema (layout B — locale top-level subtree).
   //   brand.json:           cross-locale shared (kept at site/ root); brand.tagline wrapped to { [defaultLocale]: string } here
   //   <locale>/seo.json
@@ -1640,15 +1695,24 @@ function writeSiteConfig(siteDir, content, defaultLocale) {
   // TICKET-268e: every generated site must have a NAV-CLICKABLE Contact page (a home-section alone is
   // easy to miss). If the AI didn't produce a `contact` page, add one with a contact-form (→ /api/leads).
   // Idempotent — content.pages is shared across locales, so this only injects once.
-  if (!content.pages.some((p) => p.slug === 'contact')) {
+  // #1346 —— 后台关掉的块这里也要让开。这两块是脚本**自己**插的，不经菜单、不经校验器；
+  // 关掉 `contact-form` 而这里照插，就等于后台那个开关对每一个新站都是假的。
+  const contactOff = new Set(disabledBlocks);
+  const contactSections = [
+    { type: 'page-header', data: { title: 'Contact Us', subtitle: "Send us a message and we'll get back to you shortly." } },
+    { type: 'contact-form', data: { heading: 'Get in touch', intro: 'Leave your details and we will reach out soon.', buttonText: 'Send message' } },
+  ].filter((sec) => !contactOff.has(sec.type));
+  // 🔴 `contact-form` 被关掉时**整页不插**，不是插一个只剩标题的 Contact 页。268e 要的是
+  //    「有一条看得见的联系路径」（那个表单 POST 到 /api/leads，进老板的 Customers），而一个
+  //    导航里点得进去、进去什么都没有的页面比没有这一页更坏。`page-header` 被单独关掉时那一页
+  //    照插，只是没有标题块 —— 表单还在，路径还在。
+  const contactPageWanted = !contactOff.has('contact-form') && contactSections.length > 0;
+  if (!content.pages.some((p) => p.slug === 'contact') && contactPageWanted) {
     const maxOrder = content.pages.reduce((m, p) => Math.max(m, p.navOrder ?? 0), 0);
     content.pages.push({
       slug: 'contact', title: 'Contact Us', description: `Get in touch with ${content.brand?.name || 'us'}`,
       navLabel: 'Contact', navOrder: maxOrder + 1, changeFrequency: 'monthly', priority: 0.7,
-      sections: [
-        { type: 'page-header', data: { title: 'Contact Us', subtitle: "Send us a message and we'll get back to you shortly." } },
-        { type: 'contact-form', data: { heading: 'Get in touch', intro: 'Leave your details and we will reach out soon.', buttonText: 'Send message' } },
-      ],
+      sections: contactSections,
     });
   }
 
@@ -1885,7 +1949,123 @@ async function generateContent(opts) {
     //    (`homepage-recipe.test.js` ⑥ 那格比的就是这个)。只有明确说「这个站没有关键词页」时
     //    才把那两句拿掉。
     hasKeywordPages = true,
+    // #1346 —— 后台关掉的块。缺省空数组 ⟹ 不传这个字段的调用方拿到的提示词跟改之前逐字节相同。
+    disabledBlocks = [],
   } = opts;
+
+  // #1346 —— 一个块被关掉之后，提示词里**三个地方**都不能再提它：菜单（下面那两处
+  // `blockPromptSection`）、写死的页面规则那两行、以及 Call 2 的服务子页提示词（它不点名块）。
+  // 漏掉任何一处的形态都一样：菜单里没有、正文却要求，模型两条要求对不上。
+  const blockOff = new Set(disabledBlocks);
+  const keepBlocks = (types) => types.filter((t) => !blockOff.has(t));
+  const quotedList = (types) => types.map((t) => `"${t}"`).join(', ');
+  // 🔴 什么都没关掉时，这三行**逐字节**等于 #1346 之前写死的那三行（判据在
+  // `scripts/lib/catalog-disabled.test.js` ④：两臂比同一份提示词的这一段）。整条规则里的块全被关掉
+  // 时那一行整条不印 —— 印一条空的 `must include:` 就是在告诉模型「这一页什么都不用有」。
+  const pageRuleLines = (() => {
+    const lines = [];
+    const services = keepBlocks(['page-header', 'services-nav', 'services-list', 'cta-banner']);
+    if (services.length) lines.push(`- SERVICES pages must include: ${quotedList(services)}`);
+    const quote = keepBlocks(['page-header', 'quote-form']);
+    if (quote.length) lines.push(`- QUOTE pages must include: ${quotedList(quote)}`);
+    // `quote-form` 那一行印的是它的 data 形状，关掉它之后这一行没有对象可说。
+    if (!blockOff.has('quote-form')) lines.push(`  quote-form ${blockDataLine('quote-form')}`);
+    return lines.join('\n');
+  })();
+  // ══ #1346 r3 —— CRITICAL RULES 那一段里的块名，同样一个都不许写死 ══════════════════════════
+  //
+  // QA1 / QA2 在 r2 上各自独立量到同一个读数：**32 个块逐个关一遍，有 11 个在提示词里仍被点名**，
+  // 其中 6 行是【祈使句】—— 菜单已经把那个块剔掉了，正文却还在命令模型去用它。模型两条要求对不上，
+  // 代价实测有两种、取决于它那一次听不听话：要么第一遍 14 处不合规、重试一次才过（每个新站白烧一次
+  // Call 1b，$0.67 vs $0.23，而且退出码 0、只有翻 stderr 才看得见），要么重试后仍不合规 ⟹
+  // `:2392` fatal，那一天起每个新站都建不出来。两种都不是「以后别再选它」的意思。
+  //
+  // 🔴 下面每一行在**什么都没关**时逐字节等于 #1346 之前那一行（判据：`catalog-disabled.test.js` ⑧
+  //    拿 origin/main 那棵树的提示词整份比）。整条规则里的块全被关掉时，那一行整条不印 ——
+  //    印一条只剩半句的规则，比不印更容易被模型读成别的意思。
+  const ruleIfAnyOn = (types, render) => {
+    const on = keepBlocks(types);
+    return on.length ? render(on, new Set(on)) : null;
+  };
+  const criticalBlockRules = (() => {
+    const lines = [
+      // 「用 divider 分段」—— 它只点名一个块，关了就整行不印。
+      blockOff.has('divider') ? null
+        : '- Use "divider" between sections occasionally (1-2 times per homepage) to break up the page visually.',
+      // 非首页的开头 / 结尾各点名一个块，两半各自可以掉。
+      ruleIfAnyOn(['page-header', 'cta-banner'], (_on, set) => '- Non-home pages should use 3-8 sections.'
+        + (set.has('page-header') ? ' Always start with "page-header".' : '')
+        + (set.has('cta-banner') ? ' End with "cta-banner" when appropriate.' : ''))
+        || '- Non-home pages should use 3-8 sections.',
+      // 「换着用 A 和 B 的外观」—— 只剩一个时就说那一个。
+      ruleIfAnyOn(['page-header', 'text-block'], (on) => `- Use different ${on.join(' and ')} variants`
+        + ' across pages — don\'t reuse the same variant on every page.'),
+      blockOff.has('cta-banner') ? null
+        : '- For the SERVICES page cta-banner, choose a variant other than "solid" — try "gradient", "split", or "dark".',
+    ];
+    return lines.filter(Boolean).join('\n');
+  })();
+  // 「一共有几种块」这句话是**说给模型听的目录事实**，关掉一个它就当场变成假话。类型数现算；
+  // 🔴 后面那个 `130+` **故意留着没动**：全仓 32 份 manifest 的 variants 加起来今天是 112 个
+  //    （`node -e "…Object.keys(m.variants).length…"` 现取），也就是这句话在 main 上**本来就**多报了
+  //    18 个 —— 那是本票之前就在的一处不准，跟「关掉一个块」无关。改它会让「什么都没关 ⟹ 提示词
+  //    逐字节不变」那道守卫变红，属于圈外，我写在交接留言里交作者定夺。
+  const offeredTypeCount = [...loadBlockManifests().keys()].filter((t) => !blockOff.has(t)).length;
+  // 举例里点名的块同样要过滤；两个例子都没了就只留那句「把顺序变一变」。
+  const varySectionOrderRule = (() => {
+    const ex = [];
+    if (!blockOff.has('process-steps')) ex.push('A dental site might lead with stats + process-steps.');
+    if (!blockOff.has('features-grid') && !blockOff.has('testimonials')) {
+      ex.push('A security site might prioritize features-grid + testimonials.');
+    }
+    return ['- Vary the section ORDER.', ...ex].join(' ');
+  })();
+  // 这一行说的是 gallery 这个**块**的 data 怎么填（不是 gallery 那个页面原型）。
+  const galleryItemsRule = blockOff.has('gallery') ? null
+    : '- For gallery items, use project/work descriptions. If uploaded images are available, set imageUrl on items; otherwise the component renders gradient placeholders.';
+  // 「每样各生成几条」那一行把数量绑在**块**上（6 条评价 / 4-6 条 FAQ / …）。它不是祈使句
+  // （末尾自己写着 if you use those sections），但块被关掉之后那一格就是在让模型白写内容 ——
+  // 而且它落在 CRITICAL RULES 里，留着会让「这一段里 0 命中」那条判据必须开例外。一起滤掉（#1346 r3）。
+  // `6-8 services` 与 `3-5 benefits` 不绑任何块（services 是生意的服务，benefits 是槽位），恒留。
+  const contentAmountsRule = (() => {
+    const bound = [
+      ['testimonials', '6 unique testimonials'],
+      ['faq-accordion', '4-6 FAQ items'],
+      ['process-steps', '3-4 process steps'],
+      ['pricing-table', '2-3 pricing tiers'],
+      ['feature-comparison', '5-7 comparison features'],
+    ].filter(([t]) => !blockOff.has(t)).map(([, text]) => text);
+    const social = blockOff.has('social-proof') ? [] : ['3-4 social proof badges/platforms'];
+    const parts = ['6-8 services', ...bound, '3-5 benefits', ...social];
+    const body = parts.length > 1
+      ? `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`
+      : parts[0];
+    const tail = (bound.length || social.length) ? ' if you use those sections' : '';
+    return `- Generate ${body}${tail}.`;
+  })();
+  // 配方关着时走的那一行「挑两个别人不会有的块」—— 举例名单同样过滤（#1346 r3）。
+  const rareSectionExamplesRule = (() => {
+    const ex = keepBlocks(['content-split', 'social-proof', 'feature-comparison', 'card-group', 'announcement-bar', 'divider']);
+    return ex.length
+      ? `- Include at least TWO sections that most sites wouldn't have (e.g., ${ex.join(', ')}).`
+      : '- Include at least TWO sections that most sites wouldn\'t have.';
+  })();
+  const ctaHrefRule = ruleIfAnyOn(['hero', 'cta-banner'], (_on, set) => '- CTA hrefs in '
+    + [set.has('hero') ? 'hero sections' : null, set.has('cta-banner') ? 'cta-banners' : null].filter(Boolean).join(' and ')
+    + ' should point to "/<ctaPage slug>".');
+
+  // 服务详情页那一行同样是写死的块名清单（#1346）。「A OR B」那一格里只剩一个时就写成那一个。
+  const serviceDetailSectionRule = (() => {
+    const pick = keepBlocks(['process-steps', 'card-group']);
+    const parts = [
+      ...keepBlocks(['page-header', 'content-split']),
+      ...(pick.length === 2 ? ['process-steps OR card-group'] : pick),
+      ...keepBlocks(['faq-accordion']),
+      ...(hasKeywordPages ? keepBlocks(['service-related-pages']) : []),
+      ...keepBlocks(['cta-banner']),
+    ];
+    return parts.join(', ');
+  })();
 
   // TICKET-164: v2 replaces 161 v1's pre-Claude photo gen with a 2-pass
   // scan-and-fill post-Claude (below, after `ai = result.parsed`). With v2,
@@ -2109,9 +2289,9 @@ ${servicesList.length >= 3 ? `Generate an individual service detail page for EAC
 - Slug format: "services/{service-id}" — use the EXACT service id from the services array
 - Set serviceDetailPage: true and parentService: "{service-id}" on each
 - navOrder: 10-19, priority: 0.8, changeFrequency: "monthly"
-- Each page needs 5-7 sections: page-header, content-split, process-steps OR card-group, faq-accordion,${hasKeywordPages ? ' service-related-pages,' : ''} cta-banner
-- page-header breadcrumbs: [{label:"Home",href:"/"},{label:"Services",href:"/services"},{label:"{Service Name}"}]${hasKeywordPages ? `
-- service-related-pages data: { serviceSlug: "{service-id}", headline: "Related {Service} Topics" }` : ''}
+- Each page needs 5-7 sections: ${serviceDetailSectionRule}
+${blockOff.has('page-header') ? '' : `- page-header breadcrumbs: [{label:"Home",href:"/"},{label:"Services",href:"/services"},{label:"{Service Name}"}]
+`}${hasKeywordPages && !blockOff.has('service-related-pages') ? `- service-related-pages data: { serviceSlug: "{service-id}", headline: "Related {Service} Topics" }` : ''}
 - Vary layouts and section variants across service detail pages — don't repeat the same structure
 - Write unique, detailed SEO content for each service` : `Skip service detail pages — only ${servicesList.length} service(s), not enough to warrant individual pages.`}`;
 
@@ -2180,13 +2360,11 @@ AVAILABLE SECTION TYPES AND THEIR VARIANTS:
 You are a layout designer. For each page, you choose WHICH sections to include, in WHAT order, and with WHICH variant. Not every page needs every section. Mix it up based on what makes sense for this industry.
 
 HOMEPAGE SECTIONS (pick 7-10 from these, in any order):
-${blockPromptSection('homepage', undefined, { ...(homeRecipe ? { order: homeRecipe.promptOrder } : {}), ...(hasKeywordPages ? {} : { omit: ['service-related-pages'] }) })}
+${blockPromptSection('homepage', undefined, { ...(homeRecipe ? { order: homeRecipe.promptOrder } : {}), omit: [...disabledBlocks, ...(hasKeywordPages ? [] : ['service-related-pages'])] })}
 
 PAGE-SPECIFIC SECTION RULES:
-${blockPromptSection('page-specific')}
-- SERVICES pages must include: "page-header", "services-nav", "services-list", "cta-banner"
-- QUOTE pages must include: "page-header", "quote-form"
-  quote-form ${blockDataLine('quote-form')}
+${blockPromptSection('page-specific', undefined, { omit: disabledBlocks })}
+${pageRuleLines}
 
 Generate a JSON object with this EXACT structure:
 
@@ -2266,28 +2444,27 @@ CRITICAL RULES:
 - navOrder determines the order in the navigation. Home is always 0. Assign sequential numbers (1, 2, 3...) to other pages.
 - The CTA page (navigation.ctaPage) should have a higher navOrder so it appears last (but it won't be in the header nav — it becomes the CTA button).
 - The HOMEPAGE must feel unique. Choose 7-10 sections. Do NOT use all sections — pick what fits the industry.
-- There are 32 section types with 130+ total variants. USE THIS VARIETY. Each site should feel different.
-- Vary the section ORDER. A dental site might lead with stats + process-steps. A security site might prioritize features-grid + testimonials.
+- There are ${offeredTypeCount} section types with 130+ total variants. USE THIS VARIETY. Each site should feel different.
+${varySectionOrderRule}
 - Choose DIFFERENT variants for each section — don't use all "grid" or all "cards". Mix "minimal", "split", "gradient", "dark" etc.
-${homeRecipe ? recipePromptLines(homeRecipe)
+${homeRecipe ? recipePromptLines(homeRecipe, disabledBlocks)
   // #1034 — 关着的时候这一行逐字回到改动之前。它原来那份举例名单
   // (content-split / social-proof / feature-comparison / card-group / announcement-bar / divider)
   // 正好就是 6 个真实站实际选中的那批 —— 举例清单被当成了待办清单。开着的时候由上面那份
   // 每站不同的硬要求取代它。
-  : '- Include at least TWO sections that most sites wouldn\'t have (e.g., content-split, social-proof, feature-comparison, card-group, announcement-bar, divider).'}
-- Use "divider" between sections occasionally (1-2 times per homepage) to break up the page visually.
-- Non-home pages should use 3-8 sections. Always start with "page-header". End with "cta-banner" when appropriate.
-- Use different page-header and text-block variants across pages — don't reuse the same variant on every page.
-- For the SERVICES page cta-banner, choose a variant other than "solid" — try "gradient", "split", or "dark".
-- Generate 6-8 services, 6 unique testimonials, 4-6 FAQ items, 3-4 process steps, 2-3 pricing tiers, 5-7 comparison features, 3-5 benefits, and 3-4 social proof badges/platforms if you use those sections.
+  // 🔴 #1346 r3 —— 那份举例名单里的块名同样要按清单过滤（配方关着的时候走的就是这一支）。
+  //    一个都不剩时整行不印：举例清单为空的 "e.g., ()" 比不给例子更糟。
+  : rareSectionExamplesRule}
+${criticalBlockRules}
+${contentAmountsRule}
 - For stats, use realistic numbers (e.g., "500+", "15+", "98%", "24/7").
-- For gallery items, use project/work descriptions. If uploaded images are available, set imageUrl on items; otherwise the component renders gradient placeholders.
-- All meta titles under 60 characters, all meta descriptions under 155 characters.
+${galleryItemsRule ? `${galleryItemsRule}
+` : ''}- All meta titles under 60 characters, all meta descriptions under 155 characters.
 - Use specific language, not generic fluff. Testimonials should mention the company name.
 - Include location names naturally in content.
-- CTA hrefs in hero sections and cta-banners should point to "/<ctaPage slug>".
-- Service detail pages (slug "services/{id}") must set serviceDetailPage: true and parentService: "{service-id}".
-- Service detail pages should NOT appear in the header nav — they go in the footer only.${hasKeywordPages ? `
+${ctaHrefRule ? `${ctaHrefRule}
+` : ''}- Service detail pages (slug "services/{id}") must set serviceDetailPage: true and parentService: "{service-id}".
+- Service detail pages should NOT appear in the header nav — they go in the footer only.${hasKeywordPages && !blockOff.has('service-related-pages') ? `
 - Include a "service-related-pages" section on each service detail page with serviceSlug matching the service id.` : ''}`;
 
   emit('prompt', { name: 'Base Site', content: prompt });
@@ -2347,7 +2524,7 @@ ${homeRecipe ? recipePromptLines(homeRecipe)
   // 🔴 只重试一次。再失败就退出并把问题逐条打出来 —— 一直重试等于把「AI 今天不听话」变成一笔看不见
   // 的账单，而这些问题（缺必填槽、把 essential 降成 optional、行业必需的块没放）都是提示词里写着的。
   {
-    const first = validateBlocks({ pages: ai.pages, industry });
+    const first = validateBlocks({ pages: ai.pages, industry, disabledBlocks });
     // #1013 洞 1 —— 行业是自由文本，认不出来的写法一定存在。校验器会为此产出一条 warning，
     // 而「认不出行业」跟「这个行业不需要任何特定的块」在读数上长得一模一样（两种都是零 problem）
     // ⟹ 它必须被打出来，否则日志里那句「校验通过」是关于一次没做的检查说的。
@@ -2383,7 +2560,7 @@ ${homeRecipe ? recipePromptLines(homeRecipe)
       });
       const before = ai;
       ai = retry.parsed;
-      issues = validateBlocks({ pages: ai.pages, industry }).problems;
+      issues = validateBlocks({ pages: ai.pages, industry, disabledBlocks }).problems;
       // #1034 —— 判决写在 lib/homepage-recipe.js 的 afterRetry() 里(纯函数,能测;这条分支
       // 只有 AI 参与时才走得到)。'fatal' 逐字保持改动之前的行为;'revert' 是本票新开的口子
       // 带来的风险的解药:第一次块库干净、只因骨架撞车才重试,而重试把它改坏了 —— 那就退回第一次。
@@ -2634,7 +2811,15 @@ async function generateKeywordPages(opts) {
   const {
     keywordPages, brand, seo, companyName, industry, location, languageName,
     serviceDetailMap = {},
+    // #1346 —— 后台关掉的块。这一通（Call 2，关键词页）有它**自己**那份写死的块清单，跟 Call 1 的
+    // 菜单是两处；只改 Call 1 的话，关掉的块照样会出现在关键词页上（实测过：`faq-accordion` 在这
+    // 份清单里写着 REQUIRED）。缺省空数组 ⟹ 不传的调用方拿到的提示词逐字节不变。
+    disabledBlocks = [],
   } = opts;
+  const keywordSectionOptions = keywordPageSectionOptions({
+    hasServiceDetailPages: Object.keys(serviceDetailMap).length > 0,
+    disabledBlocks,
+  });
 
   const client = new Anthropic();
 
@@ -2689,21 +2874,7 @@ ${keywordPages.map((kp, i) => {
 }).join('\n')}
 
 EACH PAGE MUST have 4-6 sections from these options:
-1. "page-header" (REQUIRED first) — variants: "default", "minimal", "centered", "with-description"
-   data: { title, subtitle?, breadcrumbs: ${Object.keys(serviceDetailMap).length > 0
-     ? '[{label:"Home", href:"/"}, {label:"<Service>", href:"<the breadcrumb middle level given for THIS page above — omit the href field entirely when it says NO LINK>"}, {label:"<Page Title>"}]'
-     : `[{label:"Home", href:"/"}, {label:"<Page Title>"}]  ← EXACTLY TWO LEVELS. This site has no service detail pages, so there is no middle level to link to. Do NOT invent one.`}, variant }
-2. "text-block" (REQUIRED, 2-3 paragraphs of unique SEO content) — variants: "default", "two-column", "highlight-box", "with-list", "quote"
-   data: { headline?, content (2-3 paragraphs), variant, items?: [string] }
-3. "card-group" OR "process-steps" (pick one per page, alternate between pages)
-   card-group has NO variants — do not write one (its manifest declares "variants": {})
-   data: { headline, subheadline?, items: [{title, description?, features?: [string]}] }
-   process-steps variants: "horizontal", "vertical", "cards", "zigzag"
-   data: { headline, steps: [{title, description}], variant }
-4. "faq-accordion" (REQUIRED, 3-4 questions) — variants: "centered", "two-column", "cards", "numbered"
-   data: { headline, items: [{question, answer}], variant }
-5. "cta-banner" (REQUIRED last) — variants: "solid", "outlined", "gradient", "split", "dark"
-   data: { headline, description, button: {label, href}, variant }
+${keywordSectionOptions}
 
 Return a JSON ARRAY of page objects:
 [
