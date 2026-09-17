@@ -699,7 +699,13 @@ function bOver(ev){
 // 🔴 **上移下移换的是 DOM 位置，而且只在同一个父节点里换。** 块可能分在不同 Region（顶栏 / 内容 /
 //    页脚），跨父节点搬会把一个内容块塞进页脚里 —— 预览里看着像成功，保存之后按 weight 排出来的却
 //    是另一回事。找不到同父的邻居就什么都不做（面板那边到头的按钮本来就是灰的）。
-var bPrevHide=[],bPrevMove=[];
+//
+// 🔴 **#1350 的形态预览也住在这一组，用的是同一条 ai1st:block-preview-reset。** 票正文 §做什么 2
+//    给它起的名字是 ai1st:block-shape-preview / ai1st:block-shape-reset；这里跟的是 #1349/#1351
+//    已经落地的那一族（ai1st:block-preview-*）并**共用**那一条 reset。理由是第二条 reset 就是
+//    第二件「离开时要记得发」的事，而漏发的方向是静默的：预览里躺着一个没保存的形态，老板下次
+//    回来看见的不是他的网站。bMode(false) 那一支也只调一次 bPreviewReset()。
+var bPrevHide=[],bPrevMove=[],bPrevShape=[];
 function bFindHide(el){var i;for(i=0;i<bPrevHide.length;i++){if(bPrevHide[i][0]===el)return bPrevHide[i];}return null;}
 function bPreviewHide(id,hide){
   var el=bById(id);
@@ -714,6 +720,25 @@ function bPreviewHide(id,hide){
     if(rec)el.style.setProperty('display',rec[1],rec[2]);
     else el.style.removeProperty('display');
   }
+}
+// #1350 —— 形态预览：改这个块根元素上的 data-shape，public/shapes.css 当场重排（AC4：不重载）。
+//
+// 🔴 **还原要记「原来有没有这个属性」，不是「设成空」。** 三级取值取不到时块上根本没有 data-shape
+//    （「blockAttrs.ts」 那段：不造兜底值），而 setAttribute('data-shape','') 会留下一个空属性 ——
+//    「[data-block][data-shape]」 这类选择器**选得中**它，于是「不保存离开」回不到原样。
+//    所以第一次动它的时候把原值抄下来（没有就记 null），还原时有就写回、没有就 removeAttribute。
+// 🔴 shape 为空串/null = 「恢复主题默认」的预览。它**不能**在这里自己算主题选择单给这个块什么
+//    （那是 sync-config 三级取值那一份判据，在浏览器里再写一份必然分叉）—— 它退回到这个块**这次
+//    构建时**戴的那个形态，也就是抄下来的原值。这跟「恢复主题默认」保存之后重建出来的结果一致，
+//    只要老板这一轮没先挑过别的：先挑再点恢复，预览退回构建时那个，而那正是重建后的结果。
+function bPreviewShape(id,shape){
+  var el=bById(id),i,rec=null;
+  if(!el)return;
+  for(i=0;i<bPrevShape.length;i++){if(bPrevShape[i][0]===el){rec=bPrevShape[i];break;}}
+  if(!rec){rec=[el,el.getAttribute('data-shape')];bPrevShape.push(rec);}
+  if(typeof shape==='string'&&shape){el.setAttribute('data-shape',shape);}
+  else if(rec[1]!==null){el.setAttribute('data-shape',rec[1]);}
+  else{el.removeAttribute('data-shape');}
 }
 function bPreviewMove(id,dir){
   var el=bById(id);
@@ -741,6 +766,13 @@ function bPreviewReset(){
     else rec[0].style.removeProperty('display');
   }
   bPrevHide=[];
+  // #1350 —— 形态：有原值就写回，原来没有这个属性就把它去掉（见 bPreviewShape 那段）。
+  for(i=0;i<bPrevShape.length;i++){
+    rec=bPrevShape[i];
+    if(rec[1]!==null)rec[0].setAttribute('data-shape',rec[1]);
+    else rec[0].removeAttribute('data-shape');
+  }
+  bPrevShape=[];
   // 🔴 倒着放回去：insertBefore(el, next) 要求 next 还在它原来的位置上，而前面的元素回位会把后面的
   //    挤走。从最后一个往前放，每一步的参照点都已经归位了。
   for(i=bPrevMove.length-1;i>=0;i--){
@@ -802,6 +834,11 @@ window.addEventListener('message',function(e){
   }
   else if(d.type==='ai1st:block-preview-move'){
     if(typeof d.id==='string'&&(d.dir==='up'||d.dir==='down'))bPreviewMove(d.id,d.dir);
+    return;
+  }
+  // #1350 —— 形态下拉改一下就当场看见（AC4）。shape 是空串 / null / 没写 = 恢复主题默认的预览。
+  else if(d.type==='ai1st:block-preview-shape'){
+    if(typeof d.id==='string')bPreviewShape(d.id,typeof d.shape==='string'?d.shape:'');
     return;
   }
   else if(d.type==='ai1st:block-preview-reset'){bPreviewReset();return;}
