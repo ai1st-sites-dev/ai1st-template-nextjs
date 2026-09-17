@@ -45,6 +45,17 @@ const REL = 'templates/nextjs';
 // 「改动之前」= 本票开工时的那个 commit(#1034 的 base)。理由和维护约定见文件头最后两条。
 const BASELINE = 'd882d5de';
 
+// 「取块名这把尺子没退化成恒 0 / 恒 1」的下限。③ 和 ⑦ 两格共用它。
+//
+// 🔴 它守的是**尺子**，不是块库有多大 —— 两处的原注释（#1162）写得很清楚：判据是相对的
+//    （拿掉一整块就正好少一种 / 两份读到同一个数），这个下限只是不让那个数退化成 0 或 1。
+// 🔴 所以它不许按当前输入现算：现算的下限测的是自洽不是回归（同 `MAX_COLLIDING_PAIRS` 那条）。
+// 📌 #1162 当时写死的是 20，那是 34 个块的年代。今天（#1375 删掉 logo 墙之后）这两格读到 19，
+//    而 `origin/main` 上读 20 —— 也就是说 20 这个数会被区块库瘦身（#1372/#1375/#1376，32 → 26）
+//    一路擦着过去，每删一个块就要有人来动它一次。定 12 是为了在整个瘦身期间不用再动：瘦身做完
+//    这两格预计还有 17 上下，而离它真正要挡的那件事（0/1）仍隔一个数量级。
+const NOT_DEGENERATE = 12;
+
 let pass = 0; let fail = 0;
 const ok = (m) => { pass++; console.log(`  ✅ ${m}`); };
 const bad = (m) => { fail++; console.log(`  ❌ ${m}`); };
@@ -264,9 +275,9 @@ console.log('── ③ 提示词里那份候选清单:只换顺序,块集合逐
   //    当天就印出了 -1）。本票删掉四个老 type 名之后它读到 24，于是这一格红在一件**它并不打算测**的
   //    事上。它真正要证的是「这把尺子分得开多一块和少一块」，所以判据换成**相对**的：
   //    拿掉一整块之后正好少一种，而且总数不能退化成 0/1（那才是尺子坏了）。数照旧打出来，只是不钉死。
-  a.length >= 20 && typesIn(oneLess).length === a.length - 1 && !typesIn(oneLess).includes('trusted-brands')
+  a.length >= NOT_DEGENERATE && typesIn(oneLess).length === a.length - 1 && !typesIn(oneLess).includes('trusted-brands')
     ? ok(`取块名这把尺子有判别力:完整清单读到 ${a.length} 种,手工拿掉 trusted-brands 之后读到 ${typesIn(oneLess).length} 种（少正好一种）`)
-    : bad(`取块名这把尺子坏了:完整 ${a.length} 种 / 拿掉一块之后 ${typesIn(oneLess).length} 种（期望少正好一种，且总数 ≥20）`);
+    : bad(`取块名这把尺子坏了:完整 ${a.length} 种 / 拿掉一块之后 ${typesIn(oneLess).length} 种（期望少正好一种，且总数 ≥${NOT_DEGENERATE}）`);
 
   JSON.stringify([...a].sort()) === JSON.stringify([...b].sort())
     ? ok(`块集合一样（各 ${a.length} 种）`)
@@ -463,16 +474,6 @@ try {
       why: '#1372 删掉的那个对比块 ⟹ 「每样各生成几条」那行里它那一格不再印',
       apply: (t) => t.split(', 5-7 comparison features,').join(','),
     },
-    // #1375：按 D19 从区块库里删掉一个块（logo 墙）。基线那份 create-site.js 把
-    // 「There are N section types」里的 N **写死成 32**；#1353 之后它改成按 `blocks/` 现算，
-    // 而两臂共用这棵树的 `blocks/` ⟹ 块库一少，这一句就是 OFF 那条路上唯一变的字节。
-    // 🔴 这里写死 31 是有意的：跟着现算就等于拿被测代码自己的输出当判据，那一格再也红不了。
-    //    32 → 26 那三张票（#1372 / #1376）各自 ship 时这条会变成死条目，判别力②当场点名，
-    //    到时候把 31 改成那天的数。
-    {
-      why: '#1375 删掉一个块 ⟹ 那句「There are N section types」的 N 从基线写死的 32 变 31',
-      apply: (t) => t.replace(/^- There are 32 section types /m, '- There are 31 section types '),
-    },
     // #1341：内容结构那一维退役 ⟹ manifest 不再有取值表，提示词里那一行整行不再印。
     // 🔴 基线那一臂之所以还印得出来，是上面那个适配层按基线原样补回了那个字段（理由整段在它上面）。
     {
@@ -524,9 +525,9 @@ try {
   const onTypes = typesIn(homeSeg(promptOn)); const offTypes = typesIn(homeSeg(promptOff));
   // 🔴 #1162：同上，原来写死 28。这一格问的是「尺子在真提示词上读得到一个像样的数，不是恒 0/恒 1」，
   //    所以判据是「两份读到的数相同且 ≥20」，把那个数打出来而不是钉死它。
-  onTypes.length === offTypes.length && onTypes.length >= 20
+  onTypes.length === offTypes.length && onTypes.length >= NOT_DEGENERATE
     ? ok(`两份提示词里各读到 ${onTypes.length} 种块（相同，且不是恒 0/恒 1）`)
-    : bad(`读到的块数不对:开着 ${onTypes.length} / 关着 ${offTypes.length}（期望两者相同且 ≥20）`);
+    : bad(`读到的块数不对:开着 ${onTypes.length} / 关着 ${offTypes.length}（期望两者相同且 ≥${NOT_DEGENERATE}）`);
   JSON.stringify([...onTypes].sort()) === JSON.stringify([...offTypes].sort())
     ? ok('候选块集合一样 —— 只换了顺序，没拿掉任何块')
     : bad(`候选块集合变了: 只在开着 ${onTypes.filter((x) => !offTypes.includes(x))}`
@@ -765,9 +766,20 @@ console.log('── ⑬ #1124 行业参与结构:两两不同 · 认不出来的
   //      33 → 27 时基线自己也掉到 27，所以它按构造照旧绿。想看那一维要拿两棵树各跑一次
   //      （#1162 的交付留言里给了 33→27 与 75→98 两组数）。这里不给 (c) 加一个写死的下限，
   //      是因为「合并要不要付这个代价」是产品决定，已经由 Chris 拍过（#1162 / #1161 同一裁定框架）。
-  //    · 上限写死成 98，不按当前输入现算 —— 现算的下限测的是自洽不是回归（同 `SHAPE_FLOOR` 那条）。
+  //    · 上限写死，不按当前输入现算 —— 现算的下限测的是自洽不是回归（同 `SHAPE_FLOOR` 那条）。
   //      合并批 3~6 还会往下压这个数，那时**在同一次改动里**把它改掉并写下新的两组读数。
-  const MAX_COLLIDING_PAIRS = 98;   // 2026-08-23 实测（改前 75）。1200 对里的对数。
+  //
+  // 🔴 #1375（2026-09-17）按上面那句话把它从 98 挪到 107，两组读数如下（同一天、同一条命令，
+  //    两棵树各跑一次 `node scripts/lib/homepage-recipe.test.js`）：
+  //      改前 `origin/main c26076d8`：撞车 **59**/1200 对（59/200 个序号）· 每个行业的候选池 15 块
+  //      改后 本票交付            ：撞车 **107**/1200 对（107/200 个序号）· 候选池 14 块
+  //    · 变差的原因跟 #1162 那次同族、而且是**这一族票要买的东西本身**：按 spec D19 从区块库里删块
+  //      （#1372 删 4 个、本票删 logo 墙、#1376 还要并一个），候选池一小，能排出来的开场组合就少，
+  //      四个行业在同一个序号上撞上的概率必然上升。它不是实现缺陷。
+  //    · 🔴 「删块要不要付这个代价」是产品决定，已经由 Chris 在本票上拍过（2026-09-17：「不写搬家
+  //      规则，直接删（并）…按 D19 继续，可以上线」），跟 #1162 / #1161 是同一个裁定框架。
+  //    · #1376 ship 时这个数还会再涨一次，到时候照这一段的格式再挪一次并写下那天的两组读数。
+  const MAX_COLLIDING_PAIRS = 107;  // 2026-09-17 实测（改前 59）。1200 对里的对数。
   const SPAN = 200;                 // 序号 0…199，跟上面两个数同一个口径
   const openerAt = (i, ind) => tryHomepageRecipe(i, manifests, ind).recipe.opener.join('>');
   let collidingPairs = 0; let collidingIndices = 0;
