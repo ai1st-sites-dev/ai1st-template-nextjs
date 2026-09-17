@@ -305,16 +305,14 @@ const HOOKS = new Set([
   //     decision for a different reason (#1042 / PM 2026-08-16: an unconditional `display:none` in
   //     a sheet lands on every site wearing it). The old `badge` look has no legal path today.
   // What no hook brings back: the check mark `<svg>` and the bullet `<span>` in map-area, the
-  // marquee in logo-carousel (`animation` and `@keyframes` are not in §2), the `columns` variant's
-  // zebra striping (a sheet cannot name "every other row"), and the default feature-comparison's
-  // `<table>` semantics.
+  // marquee batch E's logo wall used to have (`animation` and `@keyframes` are not in §2; that block
+  // itself was removed in #1375 per D19), the `columns` variant's zebra striping (a sheet cannot
+  // name "every other row"), and the default feature-comparison's `<table>` semantics.
   '.feature-comparison', '.feature-comparison__headline', '.feature-comparison__sub',
   '.feature-comparison__head', '.feature-comparison__label', '.feature-comparison__row',
   '.feature-comparison__feature', '.feature-comparison__mark', '.feature-comparison__mark--yes',
   '.feature-comparison__mark--no',
   '[data-block="feature-comparison"]',
-  '.logo-carousel', '.logo-carousel__headline', '.logo-carousel__logo',
-  '[data-block="logo-carousel"]',
   '.map-area', '.map-area__headline', '.map-area__sub', '.map-area__area', '.map-area__name',
   '.map-area__desc',
   '[data-block="map-area"]',
@@ -370,9 +368,10 @@ const HOOKS = new Set([
 //   #1031 content-split / text-block / divider / social-proof / features-grid /
 //         awards-certifications / newsletter-signup parts + their seven [data-block="…"]
 //         (batch F, seven blocks at once)
-//   #1030 feature-comparison / logo-carousel / map-area / trusted-brands parts + their four
-//         [data-block="…"]  (batch E; `__mark--yes` / `--no` is the second pair of modifier
-//         hooks, after batch G's `.pricing-table__item--featured` — that batch left no line here)
+//   #1030 feature-comparison / map-area / trusted-brands parts + their three [data-block="…"]
+//         (batch E, which started as four blocks — the logo wall was removed in #1375 per D19;
+//         `__mark--yes` / `--no` is the second pair of modifier hooks, after batch G's
+//         `.pricing-table__item--featured` — that batch left no line here)
 //   #1132 card-group parts + [data-block="card-group"]  (the first GENERIC block: values-grid and
 //         benefits-list are one type now; their 11 old hooks stay, because old sites keep emitting
 //         the old class names)

@@ -440,6 +440,16 @@ try {
       apply: (t) => t.split('feature-comparison, benefits-list, announcement-bar')
         .join('feature-comparison, card-group, announcement-bar'),
     },
+    // #1375：按 D19 从区块库里删掉一个块（logo 墙）。基线那份 create-site.js 把
+    // 「There are N section types」里的 N **写死成 32**；#1353 之后它改成按 `blocks/` 现算，
+    // 而两臂共用这棵树的 `blocks/` ⟹ 块库一少，这一句就是 OFF 那条路上唯一变的字节。
+    // 🔴 这里写死 31 是有意的：跟着现算就等于拿被测代码自己的输出当判据，那一格再也红不了。
+    //    32 → 26 那三张票（#1372 / #1376）各自 ship 时这条会变成死条目，判别力②当场点名，
+    //    到时候把 31 改成那天的数。
+    {
+      why: '#1375 删掉一个块 ⟹ 那句「There are N section types」的 N 从基线写死的 32 变 31',
+      apply: (t) => t.replace(/^- There are 32 section types /m, '- There are 31 section types '),
+    },
     // #1341：内容结构那一维退役 ⟹ manifest 不再有取值表，提示词里那一行整行不再印。
     // 🔴 基线那一臂之所以还印得出来，是上面那个适配层按基线原样补回了那个字段（理由整段在它上面）。
     {

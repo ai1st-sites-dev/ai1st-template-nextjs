@@ -19,7 +19,6 @@ import ProcessStepsSection from '@/components/sections/ProcessStepsSection';
 import TeamGridSection from '@/components/sections/TeamGridSection';
 import PricingTableSection from '@/components/sections/PricingTableSection';
 import GallerySection from '@/components/sections/GallerySection';
-import LogoCarouselSection from '@/components/sections/LogoCarouselSection';
 import ContentSplitSection from '@/components/sections/ContentSplitSection';
 import FeatureComparisonSection from '@/components/sections/FeatureComparisonSection';
 import SocialProofSection from '@/components/sections/SocialProofSection';
@@ -68,7 +67,6 @@ export const sectionRegistry: Record<string, ComponentType<any>> = {
   'team-grid': TeamGridSection,
   'pricing-table': PricingTableSection,
   'gallery': GallerySection,
-  'logo-carousel': LogoCarouselSection,
   'content-split': ContentSplitSection,
   'feature-comparison': FeatureComparisonSection,
   'social-proof': SocialProofSection,

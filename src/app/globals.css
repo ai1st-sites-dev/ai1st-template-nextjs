@@ -936,7 +936,7 @@
   white-space: nowrap;
 }
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
-   #1030 — THE NEUTRAL SKELETONS FOR BATCH E: feature-comparison · logo-carousel · map-area ·
+   #1030 — THE NEUTRAL SKELETONS FOR BATCH E: feature-comparison · map-area ·
    trusted-brands. Same division of labour as every batch above.
    ══════════════════════════════════════════════════════════════════════════════════════════════
    Here: the things that must be true whichever sheet is loaded. In a theme sheet: the whole look.
@@ -947,8 +947,9 @@
 
    🔴 `overflow: hidden` ON EACH BLOCK is the guard every migrated block has: it keeps a phone from
    getting a horizontal scrollbar when a sheet paints something wider than the block. It matters more
-   in this batch than in the last one: `logo-carousel`'s old default was a marquee that overflowed on
-   purpose, so a sheet reaching for that look is the one most likely to make something too wide.
+   in this batch than in the last one: batch E's logo wall had a marquee default that overflowed on
+   purpose, so a sheet reaching for that look is the one most likely to make something too wide. That
+   block itself was removed in #1375 per D19; the guard stands unchanged for the other three.
    🔴 A sheet that wants a strip the visitor can swipe writes `overflow: auto` on the block itself —
    that is a hook and `overflow` is on §2's list, so this line is a default, not a ceiling.
 
@@ -956,7 +957,6 @@
    fourth theme that all three sheets have to override, and it would be invisible to a byte comparison
    of the HTML — the difference would be visual only. */
 .feature-comparison,
-.logo-carousel,
 .map-area,
 .trusted-brands {
   overflow: hidden;

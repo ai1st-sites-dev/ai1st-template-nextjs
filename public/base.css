@@ -1070,7 +1070,7 @@
   font-size: 0.875rem;
   line-height: 1.25rem;
 }
-/* ── #1030 batch E: feature-comparison · logo-carousel · map-area · trusted-brands ──────────────
+/* ── #1030 batch E: feature-comparison · map-area · trusted-brands ─────────────────────────────
    Same test as every batch before it — "would every sheet want to state this itself?" — checked
    against all three phase-1 sheets after their batch-E rules were written:
 
@@ -1095,7 +1095,6 @@
    bullets were `<svg>`s and `<span>`s in the markup and they are gone (#1030) — the contract admits
    only `content: ""`, so a sheet draws a shape back, not that glyph. */
 .feature-comparison,
-.logo-carousel,
 .map-area,
 .trusted-brands {
   display: grid;
@@ -1105,7 +1104,6 @@
 
 @media (min-width: 1024px) {
   .feature-comparison,
-  .logo-carousel,
   .map-area,
   .trusted-brands {
     padding: 4rem 2rem;
@@ -1119,8 +1117,6 @@
 .feature-comparison__row,
 .feature-comparison__feature,
 .feature-comparison__mark,
-.logo-carousel__headline,
-.logo-carousel__logo,
 .map-area__headline,
 .map-area__sub,
 .map-area__area,
@@ -1181,8 +1177,7 @@
   text-align: center;
 }
 
-/* ── the two lists of names ────────────────────────────────────────────────────────────────────── */
-.logo-carousel__headline,
+/* ── the list of names ─────────────────────────────────────────────────────────────────────────── */
 .trusted-brands__headline {
   font-size: 0.875rem;
   line-height: 1.5;

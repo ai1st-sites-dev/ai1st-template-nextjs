@@ -1012,11 +1012,12 @@ const MOVED_BLOCKS = ['hero', 'cta-banner', 'page-header',
   // As a BLOCK its markup no longer decides how it looks, which is what this list means.
   'faq-accordion', 'testimonials', 'announcement-bar', 'pricing-table',
   'gallery',
-  // #1030 batch E — four more. Same meaning as above. `feature-comparison` still renders a ✓ or a ✗
+  // #1030 batch E — three more (the batch started as four; the logo wall was removed in #1375 per
+  // D19). Same meaning as above. `feature-comparison` still renders a ✓ or a ✗
   // per cell, and that is not a contradiction: those two characters say WHAT the site claims about
   // itself and a competitor, not what the block looks like — how they LOOK (colour, size, whether
   // there is a shape behind them) is the sheet's, through `.feature-comparison__mark--yes` / `--no`.
-  'feature-comparison', 'logo-carousel', 'map-area', 'trusted-brands',
+  'feature-comparison', 'map-area', 'trusted-brands',
   // #1132 —— 通用块「卡片组」。这张名单的含义没变：「这个块的 markup 不再决定它长什么样」。
   // 📌 #1162：这里原来写着「老名字 `values-grid` / `benefits-list` 一个都没删（老站还在吐老类名，
   //    见 blocks.js 那层别名映射），通用块另外加自己的名字」—— 那层兼容 2026-08-23 整层退役了，
