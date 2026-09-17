@@ -89,16 +89,30 @@ function blocksOfPage(page, siteBlocks, locale) {
 }
 
 /**
- * 按 `blockId` 在整个站里找它住在哪一页。
+ * 按 `blockId`，或者按 `{page, index}`，在站里找一个块住在哪一页。
  *
- * @param {object} opts `{ rootDir?, blockId, page?, locale? }` —— 给了 `page` 就只查那一页（省一圈 IO）。
+ * @param {object} opts `{ rootDir?, blockId?, index?, page?, locale? }` —— 给了 `page` 就只查那一页（省一圈 IO）。
+ *
+ * 🔴 **为什么要有 `{page, index}` 这条问法（#1351 r6，QA2 在真机上量到的那一格）。**
+ *    老 `sections` 形状的块 id 是按数组下标现算的，**挪一格 id 就变**。面板存下一笔之后要重新问
+ *    「它现在住在哪」—— 那时它手上那个 id 已经不存在了（真机读数：`legacy-features-grid-1` 回 404，
+ *    而那个块已经变成 `legacy-features-grid-3`），面板于是把控件全收起来，老板看到一句
+ *    "Could not read this section."。挪完之后的下标是 `patch-block.js` 回带、经 worker 带给面板的，
+ *    所以这里要能按那个下标问 —— 这一条跟 PATCH 的定位方式是同一条规矩（老形状按下标，新形状按 id），
+ *    而不是给面板一个「自己从 id 串里反解下标」的新路（那条路要猜页名和类型各占几段，都可能带横杠）。
+ * 🔴 **按下标问时 `page` 必填，而且只认 ≥ 0 的整数。** 下标只在一页之内有意义；而 `-1` 是
+ *    「靠 visibility 进来、这一页文件里没有它的条目」那一类的下标，同一页上可以有好几个 —— 拿它
+ *    当定位会静默指到另一个块上。
  */
 function locateBlockInSite(opts) {
   const o = opts || {};
   const rootDir = o.rootDir || process.cwd();
   const siteDir = path.join(rootDir, 'site');
   const wantId = typeof o.blockId === 'string' ? o.blockId : '';
-  if (!wantId) return { ok: false, reason: 'bad-locator', message: '没说要找哪一个块' };
+  const wantPage = typeof o.page === 'string' ? o.page : '';
+  const wantIndex = Number.isInteger(o.index) && o.index >= 0 ? o.index : -1;
+  if (!wantId && wantIndex === -1) return { ok: false, reason: 'bad-locator', message: '没说要找哪一个块' };
+  if (!wantId && !wantPage) return { ok: false, reason: 'bad-locator', message: '按下标找块要说是哪一页' };
 
   const isLegacy = !fs.existsSync(path.join(siteDir, 'site_meta.json'));
   const locales = (typeof o.locale === 'string' && o.locale) ? [o.locale] : localesOf(siteDir);
@@ -124,7 +138,7 @@ function locateBlockInSite(opts) {
         && Object.prototype.hasOwnProperty.call(page, 'sections');
       let list;
       try { list = blocksOfPage(page, siteBlocks, locale); } catch { continue; }
-      const pos = list.findIndex((b) => b.id === wantId);
+      const pos = wantId ? list.findIndex((b) => b.id === wantId) : list.findIndex((b) => b.index === wantIndex);
       if (pos === -1) continue;
       const hit = list[pos];
       return {
@@ -153,7 +167,13 @@ function locateBlockInSite(opts) {
       };
     }
   }
-  return { ok: false, reason: 'not-found', message: `这个网站上找不到 ${JSON.stringify(wantId)} 这个块` };
+  return {
+    ok: false,
+    reason: 'not-found',
+    message: wantId
+      ? `这个网站上找不到 ${JSON.stringify(wantId)} 这个块`
+      : `${JSON.stringify(wantPage)} 这一页上没有第 ${wantIndex} 个块`,
+  };
 }
 
 module.exports = { locateBlockInSite, blocksOfPage, localesOf };

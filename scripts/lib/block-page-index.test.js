@@ -202,6 +202,41 @@ console.log('\n⑧ visPos / visTotal 只数看得见的那几个（按钮什么�
   check(cta.visTotal === 2 && cta.total === 3, `visTotal 不数藏起来的那一个（${cta.visTotal} vs total ${cta.total}）`);
 }
 
+console.log('\n⑨ #1351 r6 —— 按 {page, index} 问（老 sections 形状存完一笔之后唯一能用的问法）');
+{
+  // 🔴 为什么要有它：老形状的块 id 是按数组下标现算的，挪一格就变。面板存完之后要重新问一次
+  //    「它现在住在哪」，而那时它手上那个 id 已经不存在了（QA2 2026-09-16 真机：
+  //    问 legacy-features-grid-1 回 404，块已经变成 -3，面板把控件全收起来）。
+  const byIndex = locateBlockInSite({ rootDir: legacy, page: 'services', index: 1 });
+  const byId = locateBlockInSite({ rootDir: legacy, blockId: 'services-services-list-1' });
+  check(byIndex.ok === true && byIndex.index === 1 && byIndex.id === byId.id,
+    `按下标问到的是同一个块，而且带回它【现在】的 id（实际 ${JSON.stringify({ index: byIndex.index, id: byIndex.id })}）`);
+  check(JSON.stringify(byIndex) === JSON.stringify(byId),
+    '两种问法回的是逐字相同的一份答案 —— 面板后面那些数（pos/visPos/blocks）不因问法而不同');
+
+  // 挪一格之后：同一个下标上住着的是另一个块，而按【新下标】问回的是原来那个 —— 这正是面板要的。
+  const moved = locateBlockInSite({ rootDir: legacy, page: 'services', index: 2 });
+  check(moved.ok === true && moved.type === 'contact-form' && moved.id !== byIndex.id,
+    `换一个下标问到的是另一个块（实际 ${moved.type} / ${moved.id}）`);
+
+  // 新 blocks 形状也认这条路（面板对两种形状走同一段代码，只是老形状没有 id 可给）。
+  const newShape = locateBlockInSite({ rootDir: root, page: 'home', locale: 'en', index: 1 });
+  check(newShape.ok === true && newShape.id === 'home-faq-1',
+    `新 blocks 形状按下标问也对（实际 ${newShape.id}）`);
+
+  check(locateBlockInSite({ rootDir: legacy, index: 1 }).reason === 'bad-locator',
+    '不说哪一页就按下标问 ⟹ bad-locator（下标只在一页之内有意义，不然会答到另一页的第 N 个块）');
+  check(locateBlockInSite({ rootDir: legacy, page: 'services' }).reason === 'bad-locator',
+    '两个定位都不给 ⟹ bad-locator');
+  check(locateBlockInSite({ rootDir: legacy, page: 'services', index: -1 }).reason === 'bad-locator',
+    // -1 是「靠 visibility 进来、这一页没有条目」那一类的下标，同一页上可以有好几个。
+    '下标 -1 不是一个定位 ⟹ bad-locator，不许拿它去撞 visibility 那一类');
+  check(locateBlockInSite({ rootDir: legacy, page: 'services', index: 9 }).reason === 'not-found',
+    '这一页没有第 9 个块 ⟹ not-found（面板据此清掉选中，而不是显示一个错的块）');
+  check(locateBlockInSite({ rootDir: legacy, page: 'nope', index: 0 }).reason === 'not-found',
+    '这一页根本不存在 ⟹ not-found');
+}
+
 fs.rmSync(root, { recursive: true, force: true });
 console.log(`\n══ block-page-index.test.js: ${pass} 过 · ${fail} 失败 ══`);
 process.exit(fail ? 1 : 0);
