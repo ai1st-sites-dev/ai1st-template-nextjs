@@ -178,9 +178,6 @@ const HOOKS = new Set([
   '.process-steps', '.process-steps__headline', '.process-steps__sub', '.process-steps__step',
   '.process-steps__num', '.process-steps__title', '.process-steps__desc',
   '[data-block="process-steps"]',
-  '.timeline', '.timeline__headline', '.timeline__sub', '.timeline__event', '.timeline__year',
-  '.timeline__title', '.timeline__desc',
-  '[data-block="timeline"]',
   // #1029 — batch D, four more blocks whose old branches were pure appearance. Nothing new about the
   // shape of this list; the one thing worth writing down is what is NOT here:
   //   · no hook for the check mark, the sparkle, the two-digit number, the avatar's initial or the
@@ -210,8 +207,6 @@ const HOOKS = new Set([
   '.text-block', '.text-block__headline', '.text-block__body', '.text-block__attribution',
   '.text-block__list',
   '[data-block="text-block"]',
-  '.divider', '.divider__rule', '.divider__label',
-  '[data-block="divider"]',
   '.social-proof', '.social-proof__headline', '.social-proof__rating', '.social-proof__reviews',
   '.social-proof__platform', '.social-proof__badge', '.social-proof__quote',
   '.social-proof__quote-author',
@@ -219,10 +214,6 @@ const HOOKS = new Set([
   '.features-grid', '.features-grid__headline', '.features-grid__sub', '.features-grid__item',
   '.features-grid__icon', '.features-grid__title', '.features-grid__desc',
   '[data-block="features-grid"]',
-  '.awards-certifications', '.awards-certifications__headline', '.awards-certifications__sub',
-  '.awards-certifications__item', '.awards-certifications__title',
-  '.awards-certifications__year', '.awards-certifications__desc',
-  '[data-block="awards-certifications"]',
   '.newsletter-signup', '.newsletter-signup__headline', '.newsletter-signup__desc',
   '.newsletter-signup__form',
   '[data-block="newsletter-signup"]',
@@ -288,13 +279,9 @@ const HOOKS = new Set([
   '.gallery__placeholder', '.gallery__caption', '.gallery__category', '.gallery__title',
   '.gallery__desc',
   '[data-block="gallery"]',
-  // #1030 — batch E, four blocks whose old branches were pure appearance. Two things in this batch
-  // are not in any batch before it:
-  //   · `.feature-comparison__mark--yes` / `--no` is a MODIFIER hook, the second one in the contract
-  //     (`.pricing-table__item--featured` from batch G is the first). Whether a row's cell is a yes
-  //     or a no is DATA, and a sheet cannot select data: §1 refuses `nth-child` and there is no
-  //     attribute for it. Without these two a sheet can size and place the mark but cannot say the
-  //     one thing every old variant said about it — green for yes, red for no.
+  // #1030 — batch E. 🔴 #1372 删掉了这一批里的一个块（D19：FlyonUI 没有对应的类），连同它那对
+  // `--yes` / `--no` 修饰钩子 —— 当时那是契约里的第二对修饰钩子，今天剩下的第一对是 batch G 的
+  // `.pricing-table__item--featured`。这一批留下的是下面这条：
   //   · `.map-area__desc` belongs to an `essential` block whose `badge` variant did not draw it at
   //     all. The neutral markup draws it (superset), so that sentence is now in every site's HTML
   //     and 🔴 A SHEET CANNOT TAKE IT BACK OUT: the pass further down this file refuses `display:
@@ -304,15 +291,8 @@ const HOOKS = new Set([
   //     shipped sheets give this part is a typographic rule, which was already this batch's
   //     decision for a different reason (#1042 / PM 2026-08-16: an unconditional `display:none` in
   //     a sheet lands on every site wearing it). The old `badge` look has no legal path today.
-  // What no hook brings back: the check mark `<svg>` and the bullet `<span>` in map-area, the
-  // marquee in logo-carousel (`animation` and `@keyframes` are not in §2), the `columns` variant's
-  // zebra striping (a sheet cannot name "every other row"), and the default feature-comparison's
-  // `<table>` semantics.
-  '.feature-comparison', '.feature-comparison__headline', '.feature-comparison__sub',
-  '.feature-comparison__head', '.feature-comparison__label', '.feature-comparison__row',
-  '.feature-comparison__feature', '.feature-comparison__mark', '.feature-comparison__mark--yes',
-  '.feature-comparison__mark--no',
-  '[data-block="feature-comparison"]',
+  // What no hook brings back: the check mark `<svg>` and the bullet `<span>` in map-area, and the
+  // marquee in logo-carousel (`animation` and `@keyframes` are not in §2).
   '.logo-carousel', '.logo-carousel__headline', '.logo-carousel__logo',
   '[data-block="logo-carousel"]',
   '.map-area', '.map-area__headline', '.map-area__sub', '.map-area__area', '.map-area__name',
@@ -365,14 +345,14 @@ const HOOKS = new Set([
 //   #1019 page-header parts + [data-block="page-header"]
 //   #1027 contact-form / quote-form / services-list / values-grid / services-nav /
 //         service-related-pages parts + their six [data-block="…"]
-//   #1028 contact-info / stats-counter / process-steps / timeline parts + their four
-//         [data-block="…"]  (batch C)
-//   #1031 content-split / text-block / divider / social-proof / features-grid /
-//         awards-certifications / newsletter-signup parts + their seven [data-block="…"]
-//         (batch F, seven blocks at once)
-//   #1030 feature-comparison / logo-carousel / map-area / trusted-brands parts + their four
-//         [data-block="…"]  (batch E; `__mark--yes` / `--no` is the second pair of modifier
-//         hooks, after batch G's `.pricing-table__item--featured` — that batch left no line here)
+//   #1028 contact-info / stats-counter / process-steps parts + their [data-block="…"]  (batch C)
+//   #1031 content-split / text-block / social-proof / features-grid / newsletter-signup parts +
+//         their [data-block="…"]  (batch F, seven blocks at once)
+//   #1030 logo-carousel / map-area / trusted-brands parts + their [data-block="…"]  (batch E; that
+//         batch also brought the contract's second pair of modifier hooks, after batch G's
+//         `.pricing-table__item--featured`)
+//   🔴 #1372 REMOVED four blocks and every hook they owned (D19). 上面 #1028 / #1031 / #1030 三行
+//         当年逐个点名过它们；名字按那张票的验收要求不留在代码里，要考证是哪四个去读 #1372。
 //   #1132 card-group parts + [data-block="card-group"]  (the first GENERIC block: values-grid and
 //         benefits-list are one type now; their 11 old hooks stay, because old sites keep emitting
 //         the old class names)

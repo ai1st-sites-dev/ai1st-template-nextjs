@@ -648,7 +648,7 @@
 
 /* #1047 — 那条规则删掉之后，这个钩子在三套表里一条规则都没有了：契约的 120 个部件钩子里唯一
    这样的一个，运行时的第五条不变量（「页面上的钩子，这套表自己管不管」）为此报红。所以补的是
-   排版，不是把它藏回去。三套表各画各的，跟它们对 `.process-steps__sub` / `.timeline__desc`
+   排版，不是把它藏回去。三套表各画各的，跟它们对 `.process-steps__sub`
    的处理保持同一套口吻 —— 这一套是深底、四栏、字大行宽。 */
 .process-steps__desc {
   font-size: 1rem;
@@ -656,60 +656,23 @@
   color: var(--color-primary-100);
 }
 
-.timeline {
-  gap: 1.25rem;
-  padding: 3rem 1.5rem;
-  background-color: var(--color-primary-800);
-  color: var(--color-primary-50);
-}
+
 
 /* One column of wide cards, each with the year first. hero-media-right splits into two columns and
    hero-media-top runs the events across in a single row. */
-@media (min-width: 1024px) {
-  .timeline {
-    gap: 1.5rem;
-    padding: 5rem 8rem;
-  }
-}
 
-.timeline__headline {
-  font-size: 2rem;
-  line-height: 1.1;
-  font-weight: 800;
-  color: var(--color-primary-50);
-}
 
-.timeline__sub {
-  font-size: 1.0625rem;
-  line-height: 1.7;
-  color: var(--color-primary-100);
-}
 
-.timeline__event {
-  gap: 0.5rem;
-  padding: 1.75rem 2rem;
-  border-radius: 1rem;
-  background-color: var(--color-primary-900);
-}
 
-.timeline__year {
-  font-size: 2rem;
-  line-height: 1;
-  font-weight: 800;
-  color: var(--color-accent-400);
-}
 
-.timeline__title {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--color-primary-50);
-}
 
-.timeline__desc {
-  font-size: 1rem;
-  line-height: 1.7;
-  color: var(--color-primary-100);
-}
+
+
+
+
+
+
+
 
 /* ── #1029 batch D — the dark, generous, multi-column treatment ────────────────────────────────────
    Four blocks that used to carry their own variants in the markup; this sheet's opinion about all of
@@ -856,8 +819,8 @@
 }
 
 /* ══ #1031 batch F ═══════════════════════════════════════════════════════════════════════════════
-   content-split · text-block · divider · social-proof · features-grid · awards-certifications ·
-   newsletter-signup. This sheet's answer everywhere: dark ground, three across where there is a
+   content-split · text-block · social-proof · features-grid · newsletter-signup.
+   This sheet's answer everywhere: dark ground, three across where there is a
    repeated unit, and the picture on the LEFT — the same choice its hero makes. */
 
 .content-split {
@@ -972,27 +935,12 @@
   }
 }
 
-.divider {
-  gap: 0.5rem;
-  padding: 2rem 1.5rem;
-  background-color: var(--color-primary-900);
-}
+
 
 /* The old `gradient-bar` branch, as a rule instead of markup. */
-.divider__rule {
-  height: 0.25rem;
-  border-radius: 9999px;
-  background-image: linear-gradient(90deg, var(--color-primary-500), var(--color-accent-500));
-  opacity: 1;
-}
 
-.divider__label {
-  font-size: 0.8125rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  text-align: center;
-  color: var(--color-primary-200);
-}
+
+
 
 .social-proof {
   gap: 1.25rem;
@@ -1126,67 +1074,24 @@
   color: var(--color-primary-100);
 }
 
-.awards-certifications {
-  gap: 1.5rem;
-  padding: 3rem 1.5rem;
-  background-color: var(--color-primary-800);
-  color: var(--color-primary-50);
-}
 
-@media (min-width: 1024px) {
-  .awards-certifications {
-    gap: 2rem;
-    padding: 5rem 4rem;
-  }
-}
 
-.awards-certifications__headline {
-  font-size: 2rem;
-  line-height: 1.1;
-  font-weight: 800;
-  color: var(--color-primary-50);
-}
 
-.awards-certifications__sub {
-  font-size: 1.0625rem;
-  line-height: 1.7;
-  color: var(--color-primary-100);
-}
 
-.awards-certifications__item {
-  gap: 0.5rem;
-  padding: 1.75rem;
-  border-radius: 1rem;
-  background-color: var(--color-primary-900);
-}
+
+
+
+
+
 
 /* The star each old branch drew as inline SVG, on the same footing as the rating's above. */
-.awards-certifications__item::before {
-  content: "";
-  width: 1.75rem;
-  height: 1.75rem;
-  background-repeat: no-repeat;
-  background-size: contain;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23f59e0b'%3E%3Cpath d='M12 2l3 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.9 21l1.2-6.8-5-4.9 6.9-1z'/%3E%3C/svg%3E");
-}
 
-.awards-certifications__title {
-  font-size: 1.125rem;
-  font-weight: 700;
-  color: var(--color-primary-50);
-}
 
-.awards-certifications__year {
-  font-size: 0.8125rem;
-  letter-spacing: 0.08em;
-  color: var(--color-accent-500);
-}
 
-.awards-certifications__desc {
-  font-size: 0.9375rem;
-  line-height: 1.7;
-  color: var(--color-primary-100);
-}
+
+
+
+
 
 .newsletter-signup {
   gap: 1rem;
@@ -1522,88 +1427,33 @@
    accent colour, a cross in a muted one. That distinction is data (`.us` / `.them` in the page JSON),
    which is why it has a hook at all: a sheet cannot select "the cells that are true". */
 
-.feature-comparison {
-  gap: 0.75rem;
-  padding: 3rem 1.5rem;
-  background-color: var(--color-primary-900);
-  color: var(--color-primary-50);
-}
 
-@media (min-width: 1024px) {
-  .feature-comparison {
-    gap: 1rem;
-    padding: 5rem 4rem;
-  }
-}
 
-.feature-comparison__headline {
-  font-size: 2rem;
-  line-height: 1.1;
-  font-weight: 800;
-  color: var(--color-primary-50);
-}
 
-.feature-comparison__sub {
-  font-size: 1.0625rem;
-  line-height: 1.7;
-  color: var(--color-primary-100);
-}
 
-.feature-comparison__head,
-.feature-comparison__row {
-  gap: 1rem;
-  padding: 0.875rem 1.5rem;
-  border-radius: 0.75rem;
-}
 
-.feature-comparison__head {
-  background-color: var(--color-primary-800);
-}
 
-.feature-comparison__row {
-  border-bottom: 1px solid var(--color-primary-800);
-}
 
-.feature-comparison__label {
-  font-size: 0.8125rem;
-  line-height: 1.4;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  text-align: center;
-  color: var(--color-primary-200);
-}
 
-.feature-comparison__feature {
-  font-size: 1rem;
-  line-height: 1.5;
-  color: var(--color-primary-50);
-}
+
+
+
+
+
+
+
+
+
 
 /* The header row's first cell is the same hook as the column below it — this is the one rule that
    tells the two apart (§1 lets a sheet stack two hooks as ancestor and descendant). */
-.feature-comparison__head .feature-comparison__feature {
-  font-size: 0.8125rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-primary-200);
-}
 
-.feature-comparison__mark {
-  font-size: 1.25rem;
-  line-height: 1.2;
-  font-weight: 700;
-  text-align: center;
-}
 
-.feature-comparison__mark--yes {
-  color: var(--color-accent-400);
-}
 
-.feature-comparison__mark--no {
-  color: var(--color-primary-400);
-}
+
+
+
+
 
 .logo-carousel {
   gap: 1.5rem 3rem;

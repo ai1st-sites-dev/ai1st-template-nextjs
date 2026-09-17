@@ -35,8 +35,10 @@ const REF_SECTION_MAPPING = {
   'cta-banner': 'cta-banner',
   'newsletter': 'newsletter-signup',
   'newsletter-signup': 'newsletter-signup',
-  'awards': 'awards-certifications',
-  'awards-certifications': 'awards-certifications',
+  // #1372 —— 原来收「奖项 / 认证 / 徽章」的那个块删了（D19），这几条改指 `features-grid`：
+  // 槽位一样（标题 + 副标题 + 若干项），是库里最近的替代。旧块名那个键一起删掉（那张票要求
+  // 代码里 0 命中），抓站时抓到它会落到本文件末尾的 `text-block` 兜底。
+  'awards': 'features-grid',
   'partners': 'logo-carousel',
   'partner-logos': 'logo-carousel',
   'logo-carousel': 'logo-carousel',
@@ -47,14 +49,21 @@ const REF_SECTION_MAPPING = {
   'contact': 'contact-info',
   'contact-info': 'contact-info',
   'social-proof': 'social-proof',
-  'timeline': 'timeline',
+  // #1372 —— `timeline` 删了（D19，跟 `process-steps` 只差 events 里的日期）。
+  'timeline': 'process-steps',
   'service-highlights': 'card-group',
   'pricing-table': 'pricing-table',
-  'feature-comparison': 'feature-comparison',
+  // #1372 —— 「我们 vs 别人」那个对比块删了（D19）。抓到这类名字改指 `features-grid`：两者都是
+  // 「一串特性」，而 `pricing-table` 是套餐对比、槽位对不上（价格 / 套餐名都没有）。
+  // 旧块名那个键按那张票的要求不留，换成抓站里更常见的两种写法。
+  'comparison': 'features-grid',
+  'comparison-table': 'features-grid',
   'checklist': 'card-group',
   'blog-preview': 'blog-preview',
   'announcement-bar': 'announcement-bar',
-  'divider': 'divider',
+  // #1372 —— `divider` 删了（D19，它只有一个 label 槽、没有内容）。抓到它时**跳过**：
+  // 落到下面那条 `text-block` 兜底会在页面上插一个空的文字块。
+  'divider': null,
   'content-split': 'content-split',
   'text-block': 'text-block',
   'map-area': 'map-area',
@@ -111,9 +120,9 @@ const REF_SECTION_MAPPING = {
   'metrics': 'stats-counter',
   'subscribe': 'newsletter-signup',
   'email-signup': 'newsletter-signup',
-  'certifications': 'awards-certifications',
-  'badges': 'awards-certifications',
-  'trust-badges': 'awards-certifications',
+  'certifications': 'features-grid',
+  'badges': 'features-grid',
+  'trust-badges': 'features-grid',
 
   // Skipped (not rendered as sections — header/footer handled by layout components)
   'footer': null,

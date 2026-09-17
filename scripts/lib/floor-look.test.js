@@ -54,8 +54,10 @@ const TOKENS_ONLY = [
  * 不是手挑的代表。挑代表在这一格是危险的：这道守卫要判的正是「这个站的块**一个都没有**画法」，
  * 而子集在「全部没有」这一维上给出同一个读数。
  */
+// 📌 #1372 删了 `divider` 这个块（D19）。那个站首页当年确实摆着它，但它今天不在注册表里，
+//    留在这张表里会让这道守卫去问一个不存在的块有没有画法 —— 所以这里去掉它，其余九个逐字不动。
 const ON_SITE = ['announcement-bar', 'hero', 'trusted-brands', 'stats-counter', 'content-split',
-  'features-grid', 'divider', 'process-steps', 'testimonials', 'cta-banner'];
+  'features-grid', 'process-steps', 'testimonials', 'cta-banner'];
 
 const sheets = fs.existsSync(path.join(ROOT, 'public/themes'))
   ? fs.readdirSync(path.join(ROOT, 'public/themes')).filter((f) => f.endsWith('.css'))

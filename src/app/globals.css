@@ -624,8 +624,8 @@
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
-   #1031 — THE NEUTRAL SKELETONS FOR BATCH F: content-split · text-block · divider · social-proof ·
-   features-grid · awards-certifications · newsletter-signup. Same division of labour as above.
+   #1031 — THE NEUTRAL SKELETONS FOR BATCH F: content-split · text-block · social-proof ·
+   features-grid · newsletter-signup. Same division of labour as above.
    ══════════════════════════════════════════════════════════════════════════════════════════════
    Here: the things that must be true whichever sheet is loaded, plus the things NO SHEET CAN EVER
    REACH. In a theme sheet: the whole look. The floor for a page with no sheet is public/base.css.
@@ -640,10 +640,8 @@
    block. No sheet sets `overflow`, so nothing here reaches a themed page by accident. */
 .content-split,
 .text-block,
-.divider,
 .social-proof,
 .features-grid,
-.awards-certifications,
 .newsletter-signup {
   overflow: hidden;
 }
@@ -740,8 +738,8 @@
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
-   #1028 — THE NEUTRAL SKELETONS FOR BATCH C: contact-info · stats-counter · process-steps ·
-   timeline. Same division of labour as everything above.
+   #1028 — THE NEUTRAL SKELETONS FOR BATCH C: contact-info · stats-counter · process-steps.
+   Same division of labour as everything above.
    ══════════════════════════════════════════════════════════════════════════════════════════════
    Here: the things that must be true whichever sheet is loaded. In a theme sheet: the whole look.
    The floor for a page with NO sheet — spacing and readable type on the HOOKS — is public/base.css.
@@ -769,8 +767,7 @@
    sheet that wants blue links writes blue. */
 .contact-info,
 .stats-counter,
-.process-steps,
-.timeline {
+.process-steps {
   overflow: hidden;
 }
 
@@ -961,8 +958,8 @@
   white-space: nowrap;
 }
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
-   #1030 — THE NEUTRAL SKELETONS FOR BATCH E: feature-comparison · logo-carousel · map-area ·
-   trusted-brands. Same division of labour as every batch above.
+   #1030 — THE NEUTRAL SKELETONS FOR BATCH E: logo-carousel · map-area · trusted-brands.
+   Same division of labour as every batch above.
    ══════════════════════════════════════════════════════════════════════════════════════════════
    Here: the things that must be true whichever sheet is loaded. In a theme sheet: the whole look.
    The floor for a page with NO sheet — spacing and readable type on the HOOKS — is public/base.css.
@@ -980,7 +977,6 @@
    🔴 NO padding / background / colour / font-size / text-align HERE. Any default for those would be a
    fourth theme that all three sheets have to override, and it would be invisible to a byte comparison
    of the HTML — the difference would be visual only. */
-.feature-comparison,
 .logo-carousel,
 .map-area,
 .trusted-brands {

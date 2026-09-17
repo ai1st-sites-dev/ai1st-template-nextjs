@@ -155,15 +155,17 @@ console.log('── ⑥ 槽的值整个不是数组 ⟹ 报槽级那一句，不
 // ── ⑦ #1154：槽级那条也按 kind:list 走，槽名不叫 items 的一样管 ───────────────────────────────
 // 🔴 PM 在 #1154 立票留言里记过一次作废的读数：他拿 `timeline` 配了槽名 `items`，而它的列表槽叫
 //    `events` ⟹ 报的是「缺必填槽 events」，看起来像「这个块没问题」。槽名要从 manifest 取。
+//    📌 #1372 把 `timeline` 这个块删了，下面那几格改用 `blog-preview`/`posts` —— 同样是
+//    「槽名不叫 items」的块，这一条守的性质没变。
 console.log('── ⑦ 槽名不叫 items 的块，槽级那条一样开火（#1154）');
-for (const [type, slot] of [['timeline', 'events'], ['process-steps', 'steps'], ['team-grid', 'members'], ['card-group', 'items']]) {
+for (const [type, slot] of [['blog-preview', 'posts'], ['process-steps', 'steps'], ['team-grid', 'members'], ['card-group', 'items']]) {
   const r = run(type, slot, 'not-an-array');
   const hit = r.problems.filter((p) => p.includes(`槽 "${slot}" 不是列表`));
   if (hit.length === 1) ok(`${type}(${slot}): ${hit[0]}`);
   else bad(`${type}(${slot}) 没报槽级那一句: ${JSON.stringify(r.problems)}`);
 }
 // 反向对照：同一个槽换成正常数组，一条 problem 都不该有
-for (const [type, slot] of [['timeline', 'events'], ['card-group', 'items']]) {
+for (const [type, slot] of [['blog-preview', 'posts'], ['card-group', 'items']]) {
   const r = run(type, slot, [{ title: 'a' }]);
   if (r.problems.length === 0) ok(`反向对照 ${type}(${slot}): 正常数组放行（0 条 problem）`);
   else bad(`反向对照 ${type}(${slot}) 被误伤: ${JSON.stringify(r.problems)}`);
@@ -174,7 +176,7 @@ for (const [type, slot] of [['timeline', 'events'], ['card-group', 'items']]) {
     pages: [{
       slug: 'probe',
       blocks: [
-        { id: 't', type: 'timeline', region: 'content', weight: 10, data: { headline: 'H', events: [{ year: 'y' }], subheadline: 'S' } },
+        { id: 't', type: 'blog-preview', region: 'content', weight: 10, data: { headline: 'H', posts: [{ title: 'y' }], subheadline: 'S' } },
         { id: 'c', type: 'contact-info', region: 'content', weight: 20, data: { headline: 'Contact' } },
       ],
     }],

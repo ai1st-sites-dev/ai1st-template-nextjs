@@ -75,7 +75,8 @@ interface SocialProofSectionProps {
 //    longer written either: sync-config.js's line that overwrote `data.variant` from the theme
 //    went with the rest of that dimension, and a page JSON that still carries the key has it
 //    dropped on read (`scripts/blocks.js` §normalizeListSlots), so it never reaches a component.
-// 🔴 `variant` IS NO LONGER WRITTEN AND NO LONGER READ (#1008 AC5) — see `AwardsCertificationsSection.tsx`.
+// 🔴 `variant` IS NO LONGER WRITTEN AND NO LONGER READ (#1008 AC5) — the component that carried
+// that note was one of the four blocks #1372 deleted, so the reference is the ticket now.
 // Live: `review-platforms` 6 · `highlight` 6.
 //
 // 🔴 THE PARTS ARE FLAT, one level under the block, because CSS grid only places CHILDREN. Each

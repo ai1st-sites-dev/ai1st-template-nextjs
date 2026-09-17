@@ -136,7 +136,7 @@
     "video-style": "dark cinematic with play button",
     "gradient-overlay": "full gradient bg with decorative circles, white text",
     "light-split": "white bg, text left + framed image card right, accent rule",
-    "light-editorial": "light gray bg, centered editorial headline with a thin divider rule",
+    "light-editorial": "light gray bg, centered editorial headline with a thin horizontal rule",
     "light-showcase": "white bg, centered text above a full-width image band"
   },
   "variantKey": "variants",

@@ -576,7 +576,7 @@ function industryMatches(industry, word) {
  *    这不是假设：拿交付版对 GitHub 上**真实存在的 28 个站**跑一遍（dev 20 / test 2 / prod 6），
  *    prod 里有 2 个站会被拦死 —— `site-943130a2`（benefits-list 写成 `benefits`、
  *    service-highlights 写成 `items`）和 `site-77863888`（pricing-table 写成 `plans`、
- *    feature-comparison 写成 `plans`+`categories`）。那几个键名跟组件真读的对不上，
+ *    另一个块写成 `plans`+`categories`）。那几个键名跟组件真读的对不上，
  *    所以这四块**今天在页面上本来就是空的**；本票要是硬拦，它们会从「空一块」变成「打不开」。
  *    其中一个站建于 2026-08-07，不是只有老站才有的形状 —— 而 `edit-site.js §executeTool` 的 `JSON.parse` 只校验
  *    「是合法 JSON」就落盘，模型随时能再写出一个错键名。

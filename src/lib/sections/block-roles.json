@@ -1,15 +1,12 @@
 {
   "announcement-bar": "optional",
-  "awards-certifications": "optional",
   "blog-preview": "optional",
   "card-group": "optional",
   "contact-form": "essential",
   "contact-info": "essential",
   "content-split": "optional",
   "cta-banner": "optional",
-  "divider": "optional",
   "faq-accordion": "essential",
-  "feature-comparison": "optional",
   "features-grid": "optional",
   "footer": "essential",
   "gallery": "optional",
@@ -31,6 +28,5 @@
   "team-grid": "optional",
   "testimonials": "optional",
   "text-block": "optional",
-  "timeline": "optional",
   "trusted-brands": "optional"
 }

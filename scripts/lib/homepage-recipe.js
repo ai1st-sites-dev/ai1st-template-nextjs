@@ -56,7 +56,6 @@
 const NOT_IN_POOL = {
   'hero': '它自己就是开场的主角，位置由配方另外钉（第 1 或第 2 块）',
   'announcement-bar': '只当 hero 前面那一格用，不参与后面的抽取',
-  'divider': '是分隔线不是内容块，摆在开场里没有意义',
   'cta-banner': '收尾用的，钉在开场会把行动召唤提到读者还没读内容的位置',
   'newsletter-signup': '同上，属于页面末尾',
   'service-related-pages': 'blocks/service-related-pages.json 自己写着 "Use ONLY on service detail pages"',
@@ -64,6 +63,15 @@ const NOT_IN_POOL = {
 
 /** 抽取用的步长与偏移。步长都跟池子大小互质，所以连续的 index 会走遍池子而不是原地打转。 */
 const STRIDES = [1, 5, 9, 13, 17];
+
+/**
+ * 提示词候选清单转多少格用的步长（#1372）。它必须跟清单长度互质，否则连续的 index 会在清单上
+ * 原地打转 —— 块库一增一减清单长度就变，所以这个数不能写死（写死 5 撞上 20 条清单就是那次实测）。
+ */
+const gcdOf = (a, b) => (b === 0 ? a : gcdOf(b, a % b));
+function rotationStepFor(len) {
+  return [5, 7, 3, 11, 13].find((step) => gcdOf(step, len) === 1) || 1;
+}
 const OFFSETS = [0, 3, 7, 12, 18];
 
 /** 多少个站里有一个带 announcement-bar。今天是 6/6 全带 —— 那本身就是雷同的一部分。 */
@@ -207,10 +215,15 @@ function homepageRecipe(index, manifests, industry = '', disabledBlocks = []) {
   // 提示词里候选清单的顺序也每站不同。今天它恒按 prompt.order 印（block-manifest.js:197-201），
   // 而实测被选中的那批几乎就是清单靠前 + 正文点过名的那批 —— 清单顺序本身在参与选择。
   // 🔴 这里只换**印出来的顺序**，一个块都不加不减：清单少一块就等于把它从产品里拿掉了。
-  // 🔴 转多少格写成 `i * 5 + 1`，不是 `i`：`i = 0` 时 `rotate(list, 0)` 是恒等 —— 第一个站的清单
+  // 🔴 转多少格写成 `i * 步长 + 1`，不是 `i`：`i = 0` 时 `rotate(list, 0)` 是恒等 —— 第一个站的清单
   //    顺序会跟改动之前一模一样，而 `themeRotationIndex: 0` 正是最常见的那个入参
-  //    （测试第一版就在这里红了）。5 跟清单长度 28 互质，所以连着 8 个站转到 8 个不同的起点。
-  const promptOrder = rotate(allHomepageTypes(manifests).filter((t) => !off.has(t)), i * 5 + 1);
+  //    （测试第一版就在这里红了）。
+  // 🔴 #1372 —— 步长原来写死 5，理由是「5 跟清单长度 28 互质」。那是**把一个会变的数写进了常数**：
+  //    本票删掉 4 个块之后这份候选清单是 20 条，而 5 整除 20 ⟹ 连着 8 个站只转出 4 个不同的起点
+  //    （实测：announcement-bar / process-steps / gallery / newsletter-signup 循环两遍）。
+  //    所以步长现算：按清单长度挑第一个跟它互质的。20 条时选 7，8 个站又是 8 个不同的起点。
+  const promptList = allHomepageTypes(manifests).filter((t) => !off.has(t));
+  const promptOrder = rotate(promptList, i * rotationStepFor(promptList.length) + 1);
 
   return { opener, mustInclude, promptOrder, withBar, index: i, poolSize: pool.length };
 }
@@ -257,8 +270,9 @@ function rotate(list, i) {
  * 提示词里那几行硬要求。
  *
  * 🔴 #1346 r3 —— 第二个入参是**后台关掉的块**。前两行的块名来自配方本身（`homepageRecipe` 那一侧
- *    已经按同一份清单剔过池子），第三行却把 `cta-banner` / `divider` **写死在正文里** ——
- *    菜单里没有它、正文却要求它，模型两条要求对不上。缺省空数组 ⟹ 不传的调用方逐字节不变。
+ *    已经按同一份清单剔过池子），第三行却把块名**写死在正文里** —— 菜单里没有它、正文却要求它，
+ *    模型两条要求对不上。缺省空数组 ⟹ 不传的调用方逐字节不变。
+ *    📌 #1372：那一行原来写死两个块名，其中一个随它的块删掉了，今天只剩 `cta-banner`。
  */
 function recipePromptLines(recipe, disabledBlocks = []) {
   const off = new Set(disabledBlocks);
@@ -272,8 +286,7 @@ function recipePromptLines(recipe, disabledBlocks = []) {
     // 两个尾巴各自可以掉；都掉了就只剩前半句（「自己再挑 4-6 个」本身跟块名无关）。
     `- After the opening, pick 4-6 more sections yourself (the two required ones above count toward `
       + `that) and order them however suits this industry.`
-      + (off.has('cta-banner') ? '' : ` End with "cta-banner".`)
-      + (off.has('divider') ? '' : ` Use "divider" 1-2 times to break the page up.`),
+      + (off.has('cta-banner') ? '' : ` End with "cta-banner".`),
   ].join('\n');
 }
 

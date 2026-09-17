@@ -154,7 +154,7 @@ try {
   check(phoneOk.checks.length >= 1 && phoneBad.problems.length === 1,
     `手机宽仍执行 ${phoneOk.checks.length} 条断言，零件伸出盒子时红（${phoneBad.problems.length} 条）`);
   check(ph(rig({}), { items: 'none', headline: 'none', media: 'none' }).checks.length >= 1,
-    '一个零件都没点名的块（divider 这类）退回判「块自己不溢出」，所以没有 0 条断言的格子');
+    '一个零件都没点名的块（announcement-bar 这类）退回判「块自己不溢出」，所以没有 0 条断言的格子');
 
   // ── ⑥ 盘上每一对的意图都是合法的 ───────────────────────────────────────
   // 🔴 这里原来打的是写死的「盘上的 50 对」（#1332 落地那天的真值），而断言用的是现算的 `pairs`

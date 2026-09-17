@@ -44,7 +44,7 @@ const REL = 'templates/nextjs';
 
 const themesMod = require('../themes');
 const { pickThemeForIndustry, candidateThemesForIndustry, candidateThemesAfterDisabled, poolThemes } = themesMod;
-const { validateSite, loadManifests, isRegionManifest } = require('./block-manifest');
+const { validateSite, loadManifests, isRegionManifest, BLOCKS_DIR } = require('./block-manifest');
 const { poolFor, homepageRecipe, tryHomepageRecipe } = require('./homepage-recipe');
 
 for (const [k, v] of Object.entries({ pickThemeForIndustry, candidateThemesAfterDisabled, validateSite, poolFor, homepageRecipe, tryHomepageRecipe })) {
@@ -347,10 +347,57 @@ const pNone = promptFrom(work, basePayload());
   let baseRoot = '';
   try { baseRoot = treeAt(BASELINE); } catch (e) { baseRoot = ''; console.log(`  ⚠️  取不到基线那棵树 ${BASELINE}（${e.message}）`); }
   if (baseRoot) {
-    const pBase = promptFrom(baseRoot, basePayload());
-    pBase === pNone
-      ? ok(`不传禁用清单 ⟹ 提示词跟基线 ${BASELINE} 那棵树逐字节相同`)
-      : bad(`不传禁用清单，提示词跟基线 ${BASELINE} 不一样（长度 ${pBase.length} vs ${pNone.length}）`);
+    // ── 🔴 #1372 改了这一格两处，两处都写清楚为什么 ──────────────────────────────────────────
+    //
+    // ① **比的那条路从「配方开着」换成「配方关掉」**（两臂都传 `homepageFingerprint: false`）。
+    //    不是为了好看：基线那棵树的 `NOT_IN_POOL` 里写着 `divider`，而本票把这个块删了 ⟹ 基线的
+    //    scripts 配上今天的 `blocks/` 时，`poolFor` 那条「名单点名的块还在不在块库里」的自检不成立、
+    //    配方**整个停用**。那时两边差的是「基线跑不动配方」，不是本票改的字节 —— 那不是读数。
+    //    配方开着那条路的字节由 `homepage-recipe.test.js` 的 ⑥⑦ 两格盯着，没有失守。
+    //
+    // ② **加一张差异表**。本票有意改了三处提示词字节（块从 32 个变成 28 个）。文件头那条维护约定
+    //    说「确实该变就把 BASELINE 往前挪一格」，而要挪到的那个 commit 就是本票自己 —— 一个 commit
+    //    的 sha 写不进它自己的树。#1162 在 `homepage-recipe.test.js` 上撞过同一件事，那里的做法是
+    //    逐条登记差异并配两格判别力，这里照抄：不套差异表必须对不上，且每一条都要真的改变基线那份。
+    const DELTAS = [
+      {
+        why: '#1372 「有多少种块」那句：基线写死 32，今天按 blocks/ 现算',
+        // 🔴 同 `create-site.js` 的口径：滤掉外壳块（header / footer 的 manifest 在 blocks/ 里，
+        //    但模型点不到它们，那句话本来就不数它们）。
+        apply: (t) => t.split('There are 32 section types')
+          .join(`There are ${[...loadManifests().keys()].filter((ty) => !isRegionManifest(BLOCKS_DIR, ty)).length} section types`),
+      },
+      {
+        why: '#1372 `divider` 这个块删了 ⟹ 那条「用 divider 分段」的祈使句整行不再印',
+        apply: (t) => t.split('\n')
+          .filter((l) => !l.startsWith('- Use "divider" between sections occasionally'))
+          .join('\n'),
+      },
+      {
+        why: '#1372 删掉的那个对比块 ⟹ 「每样各生成几条」那行里它那一格不再印',
+        apply: (t) => t.split(', 5-7 comparison features,').join(','),
+      },
+      {
+        why: '#1372 那行「大多数站不会有的块」举例名单里去掉了被删的那两个块',
+        apply: (t) => t.split('\n').map((l) => (l.startsWith('- Include at least TWO sections')
+          ? '- Include at least TWO sections that most sites wouldn\'t have (e.g., content-split, '
+            + 'social-proof, card-group, announcement-bar).'
+          : l)).join('\n'),
+      },
+    ];
+    const pBaseOff = promptFrom(baseRoot, basePayload({ homepageFingerprint: false }));
+    const pNoneOff = promptFrom(work, basePayload({ homepageFingerprint: false }));
+    const patched = DELTAS.reduce((acc, d) => d.apply(acc), pBaseOff);
+    patched === pNoneOff
+      ? ok(`不传禁用清单（配方关掉）⟹ 基线 ${BASELINE} 套上登记的那 ${DELTAS.length} 条差异之后逐字节相同（${pNoneOff.length} 字节）`)
+      : bad(`不传禁用清单，跟基线 ${BASELINE} 对不上（基线+差异 ${patched.length} vs 这棵树 ${pNoneOff.length}）`);
+    pBaseOff !== pNoneOff
+      ? ok('判别力①：一条差异都不套就对不上 ⟹ 上面那格不是恒真')
+      : bad('一条都不套也相同 ⟹ 这张差异表是死的，这一格已经退化');
+    const dead = DELTAS.filter((d) => d.apply(pBaseOff) === pBaseOff);
+    dead.length === 0
+      ? ok(`判别力②：${DELTAS.length} 条差异每一条都真的改变了基线那份提示词（没有死条目）`)
+      : bad(`差异表里有 ${dead.length} 条对基线什么都没做：${dead.map((d) => d.why).join(' · ')}`);
   }
 }
 
@@ -422,6 +469,8 @@ console.log('\n── ⑥ 脚本自己插的 contact-form：关掉之后它也�
 //    其中 6 行是祈使句（`- Use "divider" …` / `- Always start with "page-header". End with
 //    "cta-banner"` / …）—— 而 `faq-accordion` 恰好属于残留 0 行的那 21 个。**一个块的抽样对
 //    「32 个里有 11 个漏」按构造是盲的。**
+//    📌 #1372 起块少了 4 个（32 → 28），上面那两个数是 #1346 当年的读数、原样留着；这一节自己
+//    从 `blocks/` 现数，不吃这两个数。那行举例里的 `- Use "divider" …` 也随块一起删掉了。
 //
 // 🔴 **判据的射程写在这里，因为它不是「整份提示词 0 命中」**（那条更严的写法会要求删掉
 //    `- "blog-preview" — variants: … "featured" (hero post + grid below)` 里的 "hero" 两个字，
@@ -504,7 +553,7 @@ console.log('\n── ⑧ 每个页面块逐个关一遍：CRITICAL RULES 段里
     return m ? Number(m[1]) : null;
   };
   const all = typeCountIn(pNone);
-  const three = ['divider', 'gallery', 'timeline'];
+  const three = ['gallery', 'testimonials', 'team-grid'];   // #1372：原来这里是 divider / gallery / timeline，前后两个块删了
   const less = typeCountIn(promptFrom(work, basePayload({ disabledBlocks: three })));
   all === allTypes.length
     ? ok(`什么都没关 ⟹ 那句话说 ${all} 种块，等于 blocks/ 里的页面块份数（外壳区 ${regionTypes.length} 个不算）`)
