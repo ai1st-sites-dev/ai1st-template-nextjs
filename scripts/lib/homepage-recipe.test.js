@@ -45,6 +45,17 @@ const REL = 'templates/nextjs';
 // 「改动之前」= 本票开工时的那个 commit(#1034 的 base)。理由和维护约定见文件头最后两条。
 const BASELINE = 'd882d5de';
 
+// 「取块名这把尺子没退化成恒 0 / 恒 1」的下限。③ 和 ⑦ 两格共用它。
+//
+// 🔴 它守的是**尺子**，不是块库有多大 —— 两处的原注释（#1162）写得很清楚：判据是相对的
+//    （拿掉一整块就正好少一种 / 两份读到同一个数），这个下限只是不让那个数退化成 0 或 1。
+// 🔴 所以它不许按当前输入现算：现算的下限测的是自洽不是回归（同 `MAX_COLLIDING_PAIRS` 那条）。
+// 📌 #1162 当时写死的是 20，那是 34 个块的年代。今天（#1375 删掉 logo 墙之后）这两格读到 19，
+//    而 `origin/main` 上读 20 —— 也就是说 20 这个数会被区块库瘦身（#1372/#1375/#1376，32 → 26）
+//    一路擦着过去，每删一个块就要有人来动它一次。定 12 是为了在整个瘦身期间不用再动：瘦身做完
+//    这两格预计还有 17 上下，而离它真正要挡的那件事（0/1）仍隔一个数量级。
+const NOT_DEGENERATE = 12;
+
 let pass = 0; let fail = 0;
 const ok = (m) => { pass++; console.log(`  ✅ ${m}`); };
 const bad = (m) => { fail++; console.log(`  ❌ ${m}`); };
@@ -264,15 +275,9 @@ console.log('── ③ 提示词里那份候选清单:只换顺序,块集合逐
   //    当天就印出了 -1）。本票删掉四个老 type 名之后它读到 24，于是这一格红在一件**它并不打算测**的
   //    事上。它真正要证的是「这把尺子分得开多一块和少一块」，所以判据换成**相对**的：
   //    拿掉一整块之后正好少一种，而且总数不能退化成 0/1（那才是尺子坏了）。数照旧打出来，只是不钉死。
-  // 🔴 #1376：那个下限当时写的是 20，而它是**同一个错的慢动作版** —— 区块库正按设计文档 D19 逐票
-  //    收缩（#1372 删 4 个、本票并掉 1 个、#1375 还要再删 1 个），而 `origin/main c26076d8` 上这一格
-  //    现取**正好读到 20**，也就是再删任何一个块它都会红，红在「这把尺子还分不分得开」之外的事上。
-  //    上面那句自己写了地板该防的是什么：「总数不能退化成 0/1」⟹ 下限照那句话写成 2。
-  //    判别力没有变松 —— 它住在同一行的 `=== a.length - 1` 与 `!includes('trusted-brands')` 上：
-  //    第一版那把坏尺子（取每行第一个词）对任何清单都只返回一种东西，两个条件都过不了。
-  a.length >= 2 && typesIn(oneLess).length === a.length - 1 && !typesIn(oneLess).includes('trusted-brands')
+  a.length >= NOT_DEGENERATE && typesIn(oneLess).length === a.length - 1 && !typesIn(oneLess).includes('trusted-brands')
     ? ok(`取块名这把尺子有判别力:完整清单读到 ${a.length} 种,手工拿掉 trusted-brands 之后读到 ${typesIn(oneLess).length} 种（少正好一种）`)
-    : bad(`取块名这把尺子坏了:完整 ${a.length} 种 / 拿掉一块之后 ${typesIn(oneLess).length} 种（期望少正好一种，且总数 ≥2）`);
+    : bad(`取块名这把尺子坏了:完整 ${a.length} 种 / 拿掉一块之后 ${typesIn(oneLess).length} 种（期望少正好一种，且总数 ≥${NOT_DEGENERATE}）`);
 
   JSON.stringify([...a].sort()) === JSON.stringify([...b].sort())
     ? ok(`块集合一样（各 ${a.length} 种）`)
@@ -523,13 +528,11 @@ try {
   const homeSeg = (s) => s.slice(s.indexOf('HOMEPAGE SECTIONS'), s.indexOf('PAGE-SPECIFIC SECTION RULES'));
   const onTypes = typesIn(homeSeg(promptOn)); const offTypes = typesIn(homeSeg(promptOff));
   // 🔴 #1162：同上，原来写死 28。这一格问的是「尺子在真提示词上读得到一个像样的数，不是恒 0/恒 1」，
-  //    所以判据是「两份读到的数相同且不退化」，把那个数打出来而不是钉死它。
-  // 🔴 #1376：那个下限原来写的是 20，跟 ③ 那一格是同一处，理由也同一条 —— `origin/main c26076d8`
-  //    现取正好 20，区块库每按 D19 少一个它就红一次。照这句话自己写的「不是恒 0/恒 1」改成 2；
-  //    这一格真正承重的是 `onTypes.length === offTypes.length` 和下面那条集合逐个相同。
-  onTypes.length === offTypes.length && onTypes.length >= 2
+  //    所以判据是「两份读到的数相同且不退化」，把那个数打出来而不是钉死它。下限见模块顶部
+  //    `NOT_DEGENERATE`（#1375 写的那一份，#1376 逐字采用）。
+  onTypes.length === offTypes.length && onTypes.length >= NOT_DEGENERATE
     ? ok(`两份提示词里各读到 ${onTypes.length} 种块（相同，且不是恒 0/恒 1）`)
-    : bad(`读到的块数不对:开着 ${onTypes.length} / 关着 ${offTypes.length}（期望两者相同且 ≥2）`);
+    : bad(`读到的块数不对:开着 ${onTypes.length} / 关着 ${offTypes.length}（期望两者相同且 ≥${NOT_DEGENERATE}）`);
   JSON.stringify([...onTypes].sort()) === JSON.stringify([...offTypes].sort())
     ? ok('候选块集合一样 —— 只换了顺序，没拿掉任何块')
     : bad(`候选块集合变了: 只在开着 ${onTypes.filter((x) => !offTypes.includes(x))}`
