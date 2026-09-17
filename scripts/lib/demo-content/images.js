@@ -17,10 +17,11 @@
 //    `brand-logo` / `client` / `clients` / `companies` / `partners` / `logo-cloud` / `icons` /
 //    `pricing` / `stats` 逐个 HEAD 全是 404）：有图的是 `hero` / `gallery` / `team` / `about` /
 //    `contact` / `blog` / `testimonials` / `features` / `faq` / `cta` 这十类。
-// 🔴 **所以「品牌墙」那两个块一张图都不用** —— 不是退而求其次拿照片顶上：`logo-carousel.logos` 与
-//    `trusted-brands.brands` 这两个槽**本来就装文字**（组件把每一项原样渲染进一个 `<span>`，
-//    `LogoCarouselSection.tsx:50`）。#1383 第一版往 `logos` 里塞了六条 CDN 地址，它们被当字面文字
-//    画出来、每条 585px 宽，那一排在 1280px 下排成 3 行 —— 理由与读数记在 `content.js` 那两个块上。
+// 🔴 **所以「品牌墙」那个块一张图都不用** —— 不是退而求其次拿照片顶上：`trusted-brands.brands`
+//    这个槽**本来就装文字**（组件把每一项原样渲染进一个 `<span>`）。#1383 第一版往当时还在的
+//    `logo-carousel.logos` 里塞了六条 CDN 地址，它们被当字面文字画出来、每条 585px 宽，那一排在
+//    1280px 下排成 3 行。📌 `logo-carousel` 这个块 2026-09-17 已被 #1375 删掉（与 `trusted-brands`
+//    槽位相同、一类一块），这里留着是因为它是「凭什么判一个槽装的是文字」的那个反例。
 'use strict';
 
 const CDN = 'https://cdn.flyonui.com/fy-assets/blocks/marketing-ui';
@@ -58,6 +59,13 @@ const IMAGES = {
   'work-5': { url: cdn('gallery', 9),  fallback: solid('#435072') },
   'work-6': { url: cdn('gallery', 10), fallback: solid('#475478') },
 
+  // #1376 把「一排数字」那个块并进 `social-proof` 时给它加了一个可选图槽（`imageUrl`）。那个零件是
+  // 钉在块最后一行的通栏图（`.social-proof__media`，`public/shapes.css` 给它 `max-width: 48rem`，
+  // 实测盒子 768x480），而 `globals.css:654` 给里面的 `<img>` 写的是 `object-fit: cover`。
+  // 🔴 **所以这里要一张横图。** `testimonials` 那一类十张没有一张是横的（现取 576x947 / 461x541 /
+  // 509x509），放进 768x480 的带子里 `cover` 会把上下裁掉大半、只剩一张脸。`about-12` 是 1152x728，
+  // 跟那条带子同一个方向，裁掉的是边上一点。
+  'reviews-band': { url: cdn('about', 12), fallback: solid('#2a3448') },
 };
 
 /**

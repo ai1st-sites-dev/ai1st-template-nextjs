@@ -68,18 +68,6 @@ const DEMO_CONTENT = {
     ],
   },
 
-  // 🔴 `logos` 这个槽**装的是文字，不是图**，尽管 manifest 把它的 `kind` 写成 `"image"`。
-  //    判据是组件本身：`LogoCarouselSection.tsx:50` 把每一项原样渲染进一个 `<span>`
-  //    （`{logo}`），没有任何 `<img>`。#1383 第一版往这里放了六条 CDN 地址，后果是那六条地址
-  //    **当字面文字画出来**，每条 585px 宽 ⟹ 那一排在 1280px 下排成 3 行，`logo-carousel/row`
-  //    的「该是一行」当场红（而放占位串的旧夹具三项各 7 个字，一行放得下，所以它一直是绿的）。
-  //    📌 manifest 那个 `kind: "image"` 与实现对不上是**既有**的不一致（`index.js` 的
-  //       `isListSlot` 注释里记的就是这处反例），本票不改它 —— 改 manifest 会动到建站那条路。
-  'logo-carousel': {
-    headline: 'Parts and diagnostics we stand behind',
-    logos: ['CAA', 'ASE Certified', 'OEM Parts Only', 'Two-Year Warranty', 'Licensed Technicians', 'MVIC'],
-  },
-
   'social-proof': {
     headline: 'What drivers say after they pick the car up',
     overallRating: '4.9',
@@ -105,6 +93,20 @@ const DEMO_CONTENT = {
         + 'bench, and still came in under the quote.',
       author: 'Priya R., Willowdale',
     },
+    // 🔴 下面两个槽是 #1376 并进来的（那张票把「一排数字」那个块整个删掉，它唯一的内容变成这里的
+    //    一个可选槽）。这一组数字就是从那个块的演示内容原样搬过来的 —— 搬，不是重写：图册上
+    //    `social-proof` 那几种形态画的正是它，两处各写一份的话，分歧那天两边都不会红。
+    //    守卫 (c) 量的是每条「给人读的字」有多少个（`value` + `label`），这六条现测
+    //    7 / 10 / 48 / 32 / 7 / 11 —— 最长 48 ≥ 最短 7 的 2 倍。
+    stats: [
+      { value: '27', label: 'Years' },
+      { value: '612', label: 'Reviews' },
+      { value: '4.9', label: 'Average rating across Google, Yelp and CARFAX' },
+      { value: '2 yr', label: 'Warranty on parts and labour' },
+      { value: '11', label: 'Makes' },
+      { value: '94%', label: 'Same-day' },
+    ],
+    imageUrl: imageUrl('reviews-band'),
   },
 
   testimonials: {
@@ -335,18 +337,6 @@ const DEMO_CONTENT = {
   },
 
   // ── 数据 / 清单 ─────────────────────────────────────────────────────────────────────────────
-  'stats-counter': {
-    headline: 'Twenty-seven years, counted',
-    stats: [
-      { value: '27', label: 'Years' },
-      { value: '612', label: 'Reviews' },
-      { value: '4.9', label: 'Average rating across Google, Yelp and CARFAX' },
-      { value: '2 yr', label: 'Warranty on parts and labour' },
-      { value: '11', label: 'Makes' },
-      { value: '94%', label: 'Same-day' },
-    ],
-  },
-
   'faq-accordion': {
     headline: 'Questions we get at the counter',
     subheadline: 'If yours is not here, call and ask — we answer the phone.',

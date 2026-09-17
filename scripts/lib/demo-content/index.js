@@ -21,8 +21,9 @@ const { IMAGES, imageUrl } = require('./images');
 
 /**
  * 这个槽是不是一份列表 —— **两把尺的并集**，不是任选一把。
- * 盘上真的不一致：`logo-carousel.logos` 的 `kind` 写的是 `"image"`、`shape` 写的是 `"[string]"`。
- * 同一条判据 `theme-css-invariants-sample-pages.js` 也有一份（它的注释里记着同一个反例）。
+ * 盘上真的不一致，今天 3 处（现取）：`footer/columns` · `footer/social` · `header/menu` 的 `kind`
+ * 都写的是 `"links"`，而 `shape` 是 `[…]`。只看 `kind` 会把它们全漏掉。
+ * 同一条判据 `theme-css-invariants-sample-pages.js` 也有一份（它的注释里记着同族的反例）。
  */
 function isListSlot(spec) {
   if (!spec) return false;
@@ -61,10 +62,12 @@ const isAddress = (s) => /^(https?:|data:|tel:|mailto:|#|\/)/.test(s);
  *    的差别在 label 上，不在 href 上。把地址算进来会让一串长得差不多的 CDN 地址把真正的差别抹平。
  * 🔴 数字和布尔也**不计**：`rating: 5` / `highlighted: true` 不是给人读的文字。
  *
- * 🔴 **代价写在明处**：条目**只有**地址的那种 list 槽（今天就一处 —— `logo-carousel/logos`，
- *    它是一串图片地址）每一项都量到 0，于是「最长 ≥ 最短的 2 倍」在那一格退化成 `0 >= 0`、
- *    恒真。守卫不会假装它查过：`guardC` 把这种槽单独列出来印一行「没有文字可量」，
- *    ≥ 6 项那一半照旧真查。
+ * 🔴 **代价写在明处**：条目**只有**地址的那种 list 槽，每一项都量到 0，于是「最长 ≥ 最短的
+ *    2 倍」在那一格退化成 `0 >= 0`、恒真。守卫不会假装它查过：`guardC` 把这种槽单独列出来印一行
+ *    「没有文字可量」，≥ 6 项那一半照旧真查。
+ *    📌 今天这种槽**一处都没有**（`demo-content.test.js` ② 段那行印的就是这个集合，现在是空的）。
+ *    它的来历是 `logo-carousel/logos`（一串图片地址），而那个块 2026-09-17 已被 #1375 删掉 ——
+ *    这一段留着，是因为下一个往包里写地址列表的人会重新踩进来。
  */
 function itemTextLength(item) {
   if (typeof item === 'string') return isAddress(item) ? 0 : item.length;

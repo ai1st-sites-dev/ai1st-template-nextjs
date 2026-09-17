@@ -178,8 +178,8 @@ for (const type of blocks) walk(realContentOf(type), type);
 check(strayText.length === 0, `没有 ${placeholderWords.join(' / ')} 这类占位串${strayText.length ? ` —— ${strayText.join(' | ')}` : ''}`);
 check(strayImage.length === 0, `没有一张图是 ${PLACEHOLDER_IMAGE}${strayImage.length ? ` —— ${strayImage.join(' | ')}` : ''}`);
 
-// 🔴 包里不许留**没人用**的图。#1383 自己踩过：`logo-carousel.logos` 那六条一开始放的是 CDN 地址
-//    （那个槽其实装文字），改对之后 `brand-1..6` 六个键就成了孤儿 —— 而上面每一道守卫都照样绿，
+// 🔴 包里不许留**没人用**的图。#1383 自己踩过：当时还在的 `logo-carousel.logos` 那六条一开始放的是
+//    CDN 地址（那个槽其实装文字），改对之后 `brand-1..6` 六个键就成了孤儿 —— 而上面每一道守卫都照样绿，
 //    因为它们问的是「槽位有没有值」，没有一道反过来问「图有没有人要」。失败方向是静默的：
 //    ④ 那一段会去 HEAD 六张谁也不看的图，而读这份包的人会以为品牌墙用的是图。
 const usedUrls = new Set();
