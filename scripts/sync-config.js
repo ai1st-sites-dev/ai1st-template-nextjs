@@ -994,9 +994,10 @@ const MOVED_BLOCKS = ['hero', 'cta-banner', 'page-header',
   // no longer decides how it looks", and that is now true of all six.
   'contact-form', 'quote-form', 'services-list', 'services-nav',
   'service-related-pages',
-  // #1028 batch C — 原来四个，`timeline` 随 #1372 删掉了（D19），今天剩三个。
+  // #1028 batch C — 原来四个：`timeline` 随 #1372 删掉了（D19），那个「一排数字」的块按同一份 D19
+  // 并进了 `social-proof`（#1376），今天剩两个。
   // Same meaning as above: these blocks' markup no longer decides how they look.
-  'contact-info', 'stats-counter', 'process-steps',
+  'contact-info', 'process-steps',
   // #1029 batch D — four more. Same meaning as above: these blocks' markup no longer decides how
   // they look. `blog-preview` keeps reading `data.fromBlog` / `data.maxPosts`, and that is not a
   // contradiction: those two say WHICH articles the block draws, not what it looks like.

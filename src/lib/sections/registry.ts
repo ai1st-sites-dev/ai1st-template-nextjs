@@ -13,7 +13,6 @@ import ServicesNavSection from '@/components/sections/ServicesNavSection';
 import ServicesListSection from '@/components/sections/ServicesListSection';
 import QuoteFormSection from '@/components/sections/QuoteFormSection';
 import ContactFormSection from '@/components/sections/ContactFormSection';
-import StatsCounterSection from '@/components/sections/StatsCounterSection';
 import FaqAccordionSection from '@/components/sections/FaqAccordionSection';
 import ProcessStepsSection from '@/components/sections/ProcessStepsSection';
 import TeamGridSection from '@/components/sections/TeamGridSection';
@@ -57,7 +56,6 @@ export const sectionRegistry: Record<string, ComponentType<any>> = {
   'services-list': ServicesListSection,
   'quote-form': QuoteFormSection,
   'contact-form': ContactFormSection, // TICKET-268b: real platform lead form (POST /api/leads)
-  'stats-counter': StatsCounterSection,
   'faq-accordion': FaqAccordionSection,
   'process-steps': ProcessStepsSection,
   'team-grid': TeamGridSection,

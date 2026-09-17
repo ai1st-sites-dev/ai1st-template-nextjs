@@ -165,16 +165,15 @@ const HOOKS = new Set([
   '.service-related-pages', '.service-related-pages__headline', '.service-related-pages__sub',
   '.service-related-pages__card',
   '[data-block="service-related-pages"]',
-  // #1028 — batch C, four blocks whose old branches were pure appearance. One of them
+  // #1028 — batch C, two blocks whose old branches were pure appearance (the batch started as
+  // four: one was deleted with #1372 and the one that showed a row of figures was merged into
+  // `social-proof` in #1376, both per design doc D19, and their hooks left with them). One of them
   // (`contact-info`) is `essential`, and its hooks are the ones a sheet needs to lay out a phone
   // number and an address without the markup deciding: `__location` is the child grid/flex places,
   // `__phone` and `__email` are the two links a customer actually uses.
   '.contact-info', '.contact-info__headline', '.contact-info__location', '.contact-info__label',
   '.contact-info__address', '.contact-info__phone', '.contact-info__email',
   '[data-block="contact-info"]',
-  '.stats-counter', '.stats-counter__headline', '.stats-counter__stat', '.stats-counter__value',
-  '.stats-counter__label',
-  '[data-block="stats-counter"]',
   '.process-steps', '.process-steps__headline', '.process-steps__sub', '.process-steps__step',
   '.process-steps__num', '.process-steps__title', '.process-steps__desc',
   '[data-block="process-steps"]',
@@ -345,7 +344,7 @@ const HOOKS = new Set([
 //   #1019 page-header parts + [data-block="page-header"]
 //   #1027 contact-form / quote-form / services-list / values-grid / services-nav /
 //         service-related-pages parts + their six [data-block="…"]
-//   #1028 contact-info / stats-counter / process-steps parts + their [data-block="…"]  (batch C)
+//   #1028 contact-info / process-steps parts + their [data-block="…"]  (batch C)
 //   #1031 content-split / text-block / social-proof / features-grid / newsletter-signup parts +
 //         their [data-block="…"]  (batch F, seven blocks at once)
 //   #1030 map-area / trusted-brands parts + their [data-block="…"]  (batch E; that batch also
@@ -354,6 +353,8 @@ const HOOKS = new Set([
 //   🔴 #1372 REMOVED four blocks and every hook they owned, #1375 a fifth (both D19). 上面 #1028 /
 //         #1031 / #1030 三行当年逐个点名过它们；名字按那两张票的验收要求不留在代码里，要考证是
 //         哪几个去读 #1372 / #1375。
+//   🔴 #1376 又从 batch C 拿走一个（那个「一排数字」的块按同一份 D19 并进了 `social-proof`，它的
+//         数字成了那个块的一个可选槽）。同样按那张票的验收要求不留名字，要考证去读 #1376。
 //   #1132 card-group parts + [data-block="card-group"]  (the first GENERIC block: values-grid and
 //         benefits-list are one type now; their 11 old hooks stay, because old sites keep emitting
 //         the old class names)

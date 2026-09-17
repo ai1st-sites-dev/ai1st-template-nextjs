@@ -54,9 +54,12 @@ const TOKENS_ONLY = [
  * 不是手挑的代表。挑代表在这一格是危险的：这道守卫要判的正是「这个站的块**一个都没有**画法」，
  * 而子集在「全部没有」这一维上给出同一个读数。
  */
-// 📌 #1372 删了 `divider` 这个块（D19）。那个站首页当年确实摆着它，但它今天不在注册表里，
-//    留在这张表里会让这道守卫去问一个不存在的块有没有画法 —— 所以这里去掉它，其余九个逐字不动。
-const ON_SITE = ['announcement-bar', 'hero', 'trusted-brands', 'stats-counter', 'content-split',
+// 🔴 原样那份读数里还有两个类型今天已经不在注册表里：一个专门显示一排数字的块按设计文档 D19 并进了
+//    `social-proof`（#1376），`divider` 随 #1372 删掉（同一份 D19）。那个站首页当年确实摆着它们，但
+//    注册表里已经没有这两个类型 ⟹ 主题表也不会再给它们写画法，而下面 ② 那一格问的正是「这张真表给
+//    这个站的每一种块都写了画法吗」。留着它们，这一格会永远红在**今天不存在的块**上。
+//    上面那句「不挑代表」仍然成立：拿掉的不是代表，是两个已经不在库里的类型。
+const ON_SITE = ['announcement-bar', 'hero', 'trusted-brands', 'content-split',
   'features-grid', 'process-steps', 'testimonials', 'cta-banner'];
 
 const sheets = fs.existsSync(path.join(ROOT, 'public/themes'))

@@ -480,6 +480,10 @@ try {
       why: '#1341 内容结构那一维退役，`content structures:` 那些行不再印',
       apply: (t) => t.split('\n').filter((l) => !/^ {2}content structures: /.test(l)).join('\n'),
     },
+    // 📌 #1376（同样按 D19 删掉一个块）**没有在这里加条目**。r1 加过一条「32 → 31」，而 #1372 先落地
+    //    了，它上面那条差异已经把那句写死的 32 换成**按 `blocks/` 现算**的数 ⟹ 链式套用时 r1 那条
+    //    再也匹配不到自己那段文本，是一条在链上恒 no-op 的条目（判别力② 是拿每条**单独**套基线判的，
+    //    所以它不会被点名 —— 那正是它该被删掉而不是留着的理由）。块库再少一个，由上面那条吸收。
   ];
   const applyRenames = (text) => PROMPT_DELTAS.reduce((acc, d) => d.apply(acc), text);
   const promptBaseRenamed = applyRenames(promptBase);
@@ -524,7 +528,8 @@ try {
   const homeSeg = (s) => s.slice(s.indexOf('HOMEPAGE SECTIONS'), s.indexOf('PAGE-SPECIFIC SECTION RULES'));
   const onTypes = typesIn(homeSeg(promptOn)); const offTypes = typesIn(homeSeg(promptOff));
   // 🔴 #1162：同上，原来写死 28。这一格问的是「尺子在真提示词上读得到一个像样的数，不是恒 0/恒 1」，
-  //    所以判据是「两份读到的数相同且 ≥20」，把那个数打出来而不是钉死它。
+  //    所以判据是「两份读到的数相同且不退化」，把那个数打出来而不是钉死它。下限见模块顶部
+  //    `NOT_DEGENERATE`（#1375 写的那一份，#1376 逐字采用）。
   onTypes.length === offTypes.length && onTypes.length >= NOT_DEGENERATE
     ? ok(`两份提示词里各读到 ${onTypes.length} 种块（相同，且不是恒 0/恒 1）`)
     : bad(`读到的块数不对:开着 ${onTypes.length} / 关着 ${offTypes.length}（期望两者相同且 ≥${NOT_DEGENERATE}）`);
@@ -778,7 +783,11 @@ console.log('── ⑬ #1124 行业参与结构:两两不同 · 认不出来的
   //      四个行业在同一个序号上撞上的概率必然上升。它不是实现缺陷。
   //    · 🔴 「删块要不要付这个代价」是产品决定，已经由 Chris 在本票上拍过（2026-09-17：「不写搬家
   //      规则，直接删（并）…按 D19 继续，可以上线」），跟 #1162 / #1161 是同一个裁定框架。
-  //    · #1376 ship 时这个数还会再涨一次，到时候照这一段的格式再挪一次并写下那天的两组读数。
+  //    · 🔴 上面那句预测（「#1376 ship 时这个数还会再涨一次」）**被实测推翻了，上限不用挪**：
+  //      PM 2026-09-17 在 #1375 + #1376 的合并形态上跑同一条命令，读到 **88**/1200 对
+  //      （88/200 个序号）· 候选池 13 块 —— 比 #1375 单独那次的 107 **低**。方向不是单调的：
+  //      候选池变小既减少可排的组合、也改变每个序号挑到谁，两个效应叠起来往哪走要量，不能推。
+  //      所以 `MAX_COLLIDING_PAIRS` 在 #1376 落地时保持 107（留着余量），没有按那句预测改动。
   const MAX_COLLIDING_PAIRS = 107;  // 2026-09-17 实测（改前 59）。1200 对里的对数。
   const SPAN = 200;                 // 序号 0…199，跟上面两个数同一个口径
   const openerAt = (i, ind) => tryHomepageRecipe(i, manifests, ind).recipe.opener.join('>');

@@ -513,11 +513,12 @@ console.log('③ 表自己画的字，压在它自己画的底上读不读得出
   // 🔴 反向对照 —— 少了它，上面那一格可能只是「这把尺永远绿」。
   // 做法是从**真产物**上外科式地把修好的那一处改回去：r4 之前这四个角色的字色是写死的
   // `accent-500`，与表面无关。这里就把那几个钩子的 color 换回 accent-500，别的一个字节不动。
-  // 📌 #1372：这张名单原来 10 个钩子，其中两个随它们的块删掉了（D19），今天盘上能命中的是 8 个
-  //    —— 名单里 `timeline__year` 那条留着不碍事（匹配不到任何规则），另一条已经摘掉。
-  //    对照臂照旧由剩下那 8 个驱动，下面那一格自己会说有没有被点名。
+  // 📌 这张名单原来 10 个钩子。#1372 删掉两个块（D19）后剩 9 条，其中 `timeline__year` 留着不碍事
+  //    （匹配不到任何规则）⟹ 盘上能命中的是 8 个；#1376 又摘掉一条（那个「一排数字」的块按同一份
+  //    D19 并进了 `social-proof`，它那个钩子跟着走）⟹ 名单 8 条、盘上能命中 7 个。
+  //    对照臂照旧由能命中的那些驱动，下面那一格自己会说有没有被点名。
   // （这不是逐字节重放 r3 的实现，是重放它那条【与表面无关的写死档位】——不达标的方向一样。）
-  const OLD_INK_HOOKS = /^\.(contact-info__(phone|email)|stats-counter__value|timeline__year|content-split__stat-value|social-proof__rating|testimonials__star|announcement-bar__link|pricing-table__price)$/;
+  const OLD_INK_HOOKS = /^\.(contact-info__(phone|email)|timeline__year|content-split__stat-value|social-proof__rating|testimonials__star|announcement-bar__link|pricing-table__price)$/;
   const forceOldInk = (css) => {
     const root = postcss.parse(css);
     root.walkRules((rule) => {
