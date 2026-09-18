@@ -101,18 +101,27 @@
     "headline": {
       "kind": "text",
       "required": true,
-      "promptOptional": false
+      "promptOptional": false,
+      "editLabel": "Headline"
     },
     "subheadline": {
       "kind": "text",
       "required": true,
-      "promptOptional": false
+      "promptOptional": false,
+      "editLabel": "Subheading"
     },
     "items": {
       "kind": "list",
       "required": true,
       "promptOptional": false,
-      "shape": "[{id, name, role, location, quote, rating:5, service}]"
+      "shape": "[{id, name, role, location, quote, rating:5, service}]",
+      "editLabel": {
+        "name": "Customer name",
+        "role": "Customer role",
+        "location": "Location",
+        "quote": "Quote",
+        "service": "Service"
+      }
     }
   },
   "variants": {

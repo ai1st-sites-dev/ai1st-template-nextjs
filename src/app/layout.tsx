@@ -620,6 +620,24 @@ function bPaint(el){
   bSel=el||null;
   if(el){bCss();el.className=(el.className?el.className+' ':'')+'ai1st-blk-hi';}
 }
+// #1352 —— 一个块里「老板能直接改的字」现在都写着什么。
+//
+// 🔴 只收**这一块自己**的：块理论上可以嵌套（今天不嵌，但这段代码活在产物里、比今天的组件活得久），
+//    而 querySelectorAll 是往下挖到底的 —— 不筛的话父块会把子块的字一起报上去，面板于是在父块的
+//    面板上显示子块的文字，改完保存写进父块的数据里。筛法跟点选用的是同一个函数（bRootOf）。
+function bSlots(el){
+  var out=[],ns,i,n,k;
+  if(!el)return out;
+  ns=el.querySelectorAll('[data-slot]');
+  for(i=0;i<ns.length;i++){
+    n=ns[i];
+    if(bRootOf(n)!==el)continue;
+    k=n.getAttribute('data-slot');
+    if(!k)continue;
+    out.push({slot:k,text:n.textContent==null?'':String(n.textContent)});
+  }
+  return out;
+}
 // 一个块「说了什么」—— 面板右侧那三行读的就是它。
 // 🔴 消息信封那个 type 字段是九条既有消息定下来的形状（layout.tsx 从 #925 起就是它），所以**块的
 // 类型不能也叫 type**。它叫 block，跟它在 DOM 上的属性名 data-block 一样 —— 票正文把两者都写成
@@ -654,7 +672,14 @@ function bInfo(el){
     role:el?(el.getAttribute('data-role')||null):null,
     page:mn?(mn.getAttribute('data-page')||null):null,
     locale:mn?(mn.getAttribute('data-locale')||null):null,
-    has:has};
+    has:has,
+    // #1352 —— 这一块里老板能直接改的那几行字，连**现在写着什么**一起带过去。
+    // 🔴 面板手上有 manifest（它知道哪几条路径该有输入框），但**没有这个站今天的内容** ——
+    //    iframe 跨源读不到，而再问一次服务器就是第二条读内容的路（第一条是页面 JSON 自己）。
+    //    两条路分叉的样子是「输入框里显示的字跟页面上那行不一样」，而两边都不会报错。
+    // 🔴 列表项的路径带序号（items.2.title），跟 data-slot 属性上写的逐字一样 —— 保存时它就是
+    //    写回页面 JSON 的那条路径，面板不许自己拼。
+    slots:bSlots(el)};
 }
 function bSay(el){try{window.parent.postMessage(bInfo(el),T);}catch(err){}}
 // 🔴 capture 阶段 + preventDefault + stopPropagation，三个一起，而且只在编辑模式里。
@@ -705,7 +730,7 @@ function bOver(ev){
 //    已经落地的那一族（ai1st:block-preview-*）并**共用**那一条 reset。理由是第二条 reset 就是
 //    第二件「离开时要记得发」的事，而漏发的方向是静默的：预览里躺着一个没保存的形态，老板下次
 //    回来看见的不是他的网站。bMode(false) 那一支也只调一次 bPreviewReset()。
-var bPrevHide=[],bPrevMove=[],bPrevShape=[];
+var bPrevHide=[],bPrevMove=[],bPrevText=[],bPrevShape=[];
 function bFindHide(el){var i;for(i=0;i<bPrevHide.length;i++){if(bPrevHide[i][0]===el)return bPrevHide[i];}return null;}
 function bPreviewHide(id,hide){
   var el=bById(id);
@@ -758,8 +783,27 @@ function bPreviewMove(id,dir){
   if(dir==='up')el.parentNode.insertBefore(el,other);
   else el.parentNode.insertBefore(other,el);
 }
+// #1352 —— 改一行字的即时预览。跟上面两条同一组：只动预览，不写文件；点保存才走 PATCH。
+//
+// 🔴 **用 textContent，不用 innerHTML。** 老板打的字里可以有 < 和 &；innerHTML 会把
+//    一串 <img onerror=…> 当成一个标签插进他自己的网站（AC 最后一条量的就是这个）。textContent 把
+//    整串当字，浏览器自己转义。保存那一头也只当字符串存（页面 JSON 是 JSON.stringify 写的）。
+// 🔴 **还原记的是「原来那几个字」，跟隐藏那条同一条理由**：改完不保存就离开，页面上要是原文。
+function bPreviewText(id,slot,value){
+  var el=bById(id),n,i;
+  if(!el||typeof slot!=='string')return;
+  n=null;
+  var ns=el.querySelectorAll('[data-slot]');
+  for(i=0;i<ns.length;i++){if(ns[i].getAttribute('data-slot')===slot&&bRootOf(ns[i])===el){n=ns[i];break;}}
+  if(!n)return;
+  for(i=0;i<bPrevText.length;i++){if(bPrevText[i][0]===n)break;}
+  if(i===bPrevText.length)bPrevText.push([n,n.textContent==null?'':String(n.textContent)]);
+  n.textContent=value==null?'':String(value);
+}
 function bPreviewReset(){
   var i,rec;
+  for(i=0;i<bPrevText.length;i++){bPrevText[i][0].textContent=bPrevText[i][1];}
+  bPrevText=[];
   for(i=0;i<bPrevHide.length;i++){
     rec=bPrevHide[i];
     if(rec[1])rec[0].style.setProperty('display',rec[1],rec[2]);
@@ -826,6 +870,16 @@ window.addEventListener('message',function(e){
     return;
   }
   else if(d.type==='ai1st:block-clear'){bPaint(null);return;}
+  // #1352 —— 「这一块里那几行字现在写着什么」。
+  // 🔴 为什么要有这一条，而不是让 highlight 回一条 block-selected：契约里写死了 highlight **不回声**
+  //    （面板已经知道它点名了谁，回声就是给面板自己的状态弄出第二个来源）。而面板从「这一页的清单」
+  //    里挑一个块时没有点过预览 ⟹ 它手上一条字都没有，输入框会是空的，老板改一下就把原文覆盖没了。
+  else if(d.type==='ai1st:block-slots'){
+    var bq=typeof d.id==='string'?bById(d.id):null;
+    try{window.parent.postMessage({type:'ai1st:block-slots-answer',
+      id:bq?d.id:null,slots:bSlots(bq)},T);}catch(err){}
+    return;
+  }
   // #1351 —— 「还没保存」的三条。放在这里而不是和上面那几条混在一起，是因为它们**改页面的样子**，
   // 而上面那几条只画框；两组的还原责任也不同（画框的框由 bPaint 管，这三条由 bPreviewReset 管）。
   else if(d.type==='ai1st:block-preview-hidden'){
@@ -834,6 +888,11 @@ window.addEventListener('message',function(e){
   }
   else if(d.type==='ai1st:block-preview-move'){
     if(typeof d.id==='string'&&(d.dir==='up'||d.dir==='down'))bPreviewMove(d.id,d.dir);
+    return;
+  }
+  // #1352 —— 改一行字，当场在预览里换掉。跟上面两条同一组（只动预览），还原也归 bPreviewReset。
+  else if(d.type==='ai1st:block-text-preview'){
+    if(typeof d.id==='string'&&typeof d.slot==='string')bPreviewText(d.id,d.slot,d.value);
     return;
   }
   // #1350 —— 形态下拉改一下就当场看见（AC4）。shape 是空串 / null / 没写 = 恢复主题默认的预览。

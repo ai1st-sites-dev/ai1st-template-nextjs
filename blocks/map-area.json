@@ -31,18 +31,24 @@
     "headline": {
       "kind": "text",
       "required": true,
-      "promptOptional": false
+      "promptOptional": false,
+      "editLabel": "Headline"
     },
     "subheadline": {
       "kind": "text",
       "required": false,
-      "promptOptional": true
+      "promptOptional": true,
+      "editLabel": "Subheading"
     },
     "areas": {
       "kind": "list",
       "required": true,
       "promptOptional": false,
-      "shape": "[{name, description?}]"
+      "shape": "[{name, description?}]",
+      "editLabel": {
+        "name": "Area name",
+        "description": "Area description"
+      }
     }
   },
   "variants": {

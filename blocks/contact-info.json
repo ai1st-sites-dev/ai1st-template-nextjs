@@ -42,7 +42,8 @@
     "headline": {
       "kind": "text",
       "required": true,
-      "promptOptional": false
+      "promptOptional": false,
+      "editLabel": "Headline"
     }
   },
   "variants": {

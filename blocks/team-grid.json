@@ -64,18 +64,25 @@
     "headline": {
       "kind": "text",
       "required": true,
-      "promptOptional": false
+      "promptOptional": false,
+      "editLabel": "Headline"
     },
     "subheadline": {
       "kind": "text",
       "required": false,
-      "promptOptional": true
+      "promptOptional": true,
+      "editLabel": "Subheading"
     },
     "members": {
       "kind": "list",
       "required": true,
       "promptOptional": false,
-      "shape": "[{name, role, bio?}]"
+      "shape": "[{name, role, bio?}]",
+      "editLabel": {
+        "name": "Name",
+        "role": "Role",
+        "bio": "Bio"
+      }
     }
   },
   "variants": {

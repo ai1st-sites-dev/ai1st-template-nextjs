@@ -71,18 +71,18 @@ export default function PageHeaderSection({ data, block }: PageHeaderSectionProp
               <li key={i}>
                 {i > 0 && <span aria-hidden="true">/</span>}
                 {crumb.href ? (
-                  <Link href={crumb.href}>{crumb.label}</Link>
+                  <Link href={crumb.href} data-slot={`breadcrumbs.${i}.label`}>{crumb.label}</Link>
                 ) : (
-                  <span>{crumb.label}</span>
+                  <span data-slot={`breadcrumbs.${i}.label`}>{crumb.label}</span>
                 )}
               </li>
             ))}
           </ol>
         </nav>
       )}
-      <h1 className="page-header__title">{data.title}</h1>
+      <h1 className="page-header__title" data-slot="title">{data.title}</h1>
       {data.subtitle && (
-        <p className="page-header__sub">{data.subtitle}</p>
+        <p className="page-header__sub" data-slot="subtitle">{data.subtitle}</p>
       )}
     </section>
   );

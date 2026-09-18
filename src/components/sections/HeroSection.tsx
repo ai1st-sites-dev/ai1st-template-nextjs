@@ -103,18 +103,18 @@ export default function HeroSection({ data, block }: HeroSectionProps) {
         ) : null}
       </div>
       <div className="hero__body" data-role="essential">
-        <h1 className="hero__title">{data.headline}</h1>
-        <p className="hero__sub">{data.subheadline}</p>
+        <h1 className="hero__title" data-slot="headline">{data.headline}</h1>
+        <p className="hero__sub" data-slot="subheadline">{data.subheadline}</p>
         <div className="hero__cta">
           {/* 🔴 The buttons keep the SITE's button classes rather than getting hooks of their own.
               A theme owns layout; what a primary button looks like is the brand's, and it already
               follows the palette through CSS variables (globals.css @layer components). Giving
               sheets a hook here would let one of the 30 themes quietly restyle every call to
               action on the site, which is a much bigger promise than "the picture moves". */}
-          <Link href={data.ctaPrimary?.href ?? '#'} className="btn-accent text-lg">
+          <Link href={data.ctaPrimary?.href ?? '#'} className="btn-accent text-lg" data-slot="ctaPrimary.label">
             {data.ctaPrimary?.label}
           </Link>
-          <Link href={data.ctaSecondary?.href ?? '#'} className="btn-secondary text-lg">
+          <Link href={data.ctaSecondary?.href ?? '#'} className="btn-secondary text-lg" data-slot="ctaSecondary.label">
             {data.ctaSecondary?.label}
           </Link>
         </div>

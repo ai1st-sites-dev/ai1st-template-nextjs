@@ -96,24 +96,32 @@
     "headline": {
       "kind": "text",
       "required": true,
-      "promptOptional": false
+      "promptOptional": false,
+      "editLabel": "Headline"
     },
     "subheadline": {
       "kind": "text",
       "required": true,
-      "promptOptional": false
+      "promptOptional": false,
+      "editLabel": "Subheading"
     },
     "ctaPrimary": {
       "kind": "link",
       "required": true,
       "promptOptional": false,
-      "shape": "{label, href}"
+      "shape": "{label, href}",
+      "editLabel": {
+        "label": "Button text"
+      }
     },
     "ctaSecondary": {
       "kind": "link",
       "required": true,
       "promptOptional": false,
-      "shape": "{label, href}"
+      "shape": "{label, href}",
+      "editLabel": {
+        "label": "Second button text"
+      }
     },
     "imageUrl": {
       "kind": "image",

@@ -186,6 +186,158 @@ const ROLE_NAMES = ['essential', 'lead', 'optional'];
 // 里写死的页面规则点名（`create-site.js §generateContent`，data 那行仍从 manifest 来）。
 const PROMPT_GROUPS = ['homepage', 'page-specific', 'page-rule'];
 
+// ── #1352 —— 槽位的 `kind` 词表，以及「老板能直接改的字」这一维 ────────────────────────────────
+//
+// 🔴 落定这张词表的理由是**校验器此前只查 `kind` 是不是非空字符串**（下面 §checkManifestShape
+// 那一行），所以写成 `"url"` / `"Text"` 这种也照样过 —— 而下游按 `kind` 分支的每一处都会静默地
+// 走进「不认识、当默认处理」那一支。
+const SLOT_KINDS = ['text', 'list', 'link', 'links', 'image', 'object', 'flag', 'control'];
+
+// 🔴 **这八个不是抄来的，是量出来的，而且有一道守卫盯着它别过期**（§slotKindVocabularyProblems，
+// 跑在 `block-manifest.test.js`）：它拿这个常量跟 `blocks/` 里**实际出现**的取值做两向差集，
+// 哪一向不空都点名是谁。下次 main 再加一种 `kind`，红的是那道守卫、报的是那个槽位的名字，
+// 不是这条注释再过期一次 —— 本票第一版就是照票里手抄的「六个」写死的，而 #1353 把顶栏页脚
+// 做成块之后立刻多出两个（`links` / `control`），照那六个写死会当场拒掉 main 自己的 manifest。
+// 现取（2026-09-18，28 份 manifest / 98 个槽位）：
+//   text 56 · list 21 · link 7 · image 6 · links 3 · object 3 · control 1 · flag 1
+//   links = footer.columns / footer.social / header.menu · control = header.language
+//   node -e "const {loadManifests}=require('./scripts/lib/block-manifest.js');const c={};
+//            for (const [,m] of loadManifests()) for (const s of Object.values(m.slots||{}))
+//              c[s.kind]=(c[s.kind]||0)+1; console.log(c)"
+
+// 🔴 **「哪些字是老板能直接改的」不从 `kind` 推，要显式标 `editLabel`。** 实测过 `kind` 答不了这个
+// 问题：`kind: text` 里混着 `features-grid.columns`（列数）、`text-block.background`（`"gray"`）、
+// `service-related-pages.serviceSlug`（一个 id）；反过来要改的文字不少在**子字段**上 ——
+// `hero.ctaPrimary` 的 kind 是 `link` 而按钮上那行字是它的 `label`，21 个 `list` 槽每项里也都是文字。
+//
+// `editLabel` 的两种写法：
+//   字符串 —— 这个槽位本身就是一行字：`"headline": {"kind":"text","editLabel":"Headline"}`
+//   对象   —— 要改的是它的子字段：`"ctaPrimary": {"kind":"link","editLabel":{"label":"Button text"}}`
+//                                 `"items": {"kind":"list","editLabel":{"title":"Item title"}}`
+// 值是**英文人话名**（dashboard 是英文界面），不拿 `subheadline` 这种原文当界面文字 ——
+// 跟 #1349 给块加顶层 `displayName` 同一条理由。
+const EDIT_LABEL_KINDS = ['text', 'link', 'object', 'list'];
+
+// 🔴 **`kind: text` 但【不是】老板要改的字** —— 只有这三个，写死在这里而不是靠「谁没标就算例外」。
+// 方向是有意的：新加一个文字槽忘了标 `editLabel` ⟹ 当场红，而不是静默地不出现在面板上
+// （后者跟「这个槽位还没做」长得一模一样）。
+//
+// 🔴 名单里每一项都要在 manifest 里找得到同名槽位，写错名字当场红 —— 一个拼错的例外等于把那个
+// 槽位的检查关掉，而它看起来跟「已经豁免过了」一模一样。
+const NON_EDITABLE_TEXT_SLOTS = [
+  'features-grid.columns',          // 列数，不是文字
+  'text-block.background',          // "gray" 这种取值
+  'service-related-pages.serviceSlug', // 一个 id
+];
+
+// 🔴 **外壳区的两个块整块不进这一维** —— 它们没有「老板能直接改的字」这条路可走，不是「这几个槽位
+// 不是文字」。`header` / `footer`（#1353）不经 `SectionRenderer` 渲染，`Header.tsx` / `Footer.tsx`
+// 上今天连 `data-block-id` 都没有 ⟹ 点选检查器选不中它们，给它们标 `editLabel` 就是标一条谁也走不到
+// 的路（面板列出输入框、改完保存、页面一个字不变，而没有任何东西会出声 —— 本票在 `blog-preview`
+// 上已经抓过一次同形的假象）。
+// 🔴 **所以它们也不进 `NON_EDITABLE_TEXT_SLOTS`**：那张名单说的是「这个槽位不是文字」，
+// 而 `footer.copyright` / `footer.description` 恰恰**是**文字。两件事分两张表，理由才不会串。
+// 📌 #1353 把外壳区接进检查器的那天，把这两个名字从这里拿掉、按普通块标 `editLabel` 即可。
+const NO_SLOT_PATH_BLOCKS = ['header', 'footer'];
+
+// ── #1352 —— 一份 manifest 上「老板能直接改的字」都在哪儿 ──────────────────────────────────────
+//
+// 🔴 **一份实现，两个调用方。** 面板按它列出可改的字，守卫按它跟组件里真的挂上的 `data-slot` 做差集。
+// 两份实现的失败形态是「面板列出来的和组件挂上的对不上」，而两边各自都绿 —— 差集那道守卫用的要是
+// 自己另算的一份，它就是在跟自己比。（这条教训的出处是 #1351：那张票里「找哪一条」被两个调用方
+// 各写一遍，失败形态是「校验放行的是 A、写下去的是 B」。）
+//
+// 回一个数组，每项 `{ path, label, slot, kind, sub }`：
+//   · `path`  组件上 `data-slot` 要写的值 —— **不带列表序号**。列表项的实际属性是 `items.2.title`，
+//              而这里回的是 `items.title`；两边比之前由 §stripSlotIndex 把序号去掉（AC1 那条差集）。
+//   · `sub`   子字段名（`editLabel` 写成对象时才有），顶层槽位是 `null`。
+function editableSlotPaths(manifest) {
+  const out = [];
+  for (const [slot, s] of Object.entries((manifest && manifest.slots) || {})) {
+    if (!s || s.editLabel === undefined) continue;
+    if (typeof s.editLabel === 'string') {
+      out.push({ path: slot, label: s.editLabel, slot, kind: s.kind, sub: null });
+      continue;
+    }
+    for (const [sub, label] of Object.entries(s.editLabel)) {
+      out.push({ path: `${slot}.${sub}`, label, slot, kind: s.kind, sub });
+    }
+  }
+  return out;
+}
+
+// #1352 —— 例外名单里每一项，在 manifest 里都找得到同名槽位吗。
+//
+// 🔴 **它不挂在 `loadManifests` 上，这是量出来的**：第一版挂在那儿，结果任何**局部**的 manifest
+// 夹具（`block-catalog.test.js` 只造一份 `alpha.json`）一加载就抛 —— 名单点名的 `features-grid`
+// 根本不在那份夹具里。它查的是**全仓的一条不变量**，不是「这一批 manifest 合不合法」，所以它的家
+// 是 `test:scripts`，调用方拿全套 `blocks/` 喂它。
+//
+// 🔴 它守的是**唯一**逐槽位那条检查够不着的那一格：一个例外**什么都没豁免**（块名或槽位名拼错）。
+// 拼错槽位名的另一半由逐槽位那条兜住 —— 那个槽位不再被豁免，于是它当场变成「kind: text 却没有
+// editLabel」而红（`block-manifest.test.js` ⑫ 里两格分别钉着这两条路）。
+//
+// 回一个字符串数组，空数组 = 名单是干净的。
+// #1352 —— 词表常量跟 `blocks/` 里**实际在用**的取值对得上吗（两向差集）。
+//
+// 🔴 它治的是**这张常量表自己会过期**：本票第一版照票里手抄的六个写死，而 #1353 把顶栏页脚做成块
+// 时带进了 `links` / `control` 两个新取值 —— 那种过期的样子跟没过期一模一样，直到有人建站时撞上
+// 「kind 只能是 …」当场拒。加了这一道之后，失败方向变成**守卫点名**：哪个取值多了、哪个少了、
+// 少的那个是被哪几个槽位在用。
+//
+// 🔴 跟 §nonEditableExceptionProblems 同一个安排：**不挂在 `loadManifests` 上**。它查的是全仓的一条
+// 不变量，而局部 manifest 夹具（`block-catalog.test.js` 只造一份 `alpha.json`）按构造凑不齐八个取值，
+// 挂上去就是一片跟被测那一维无关的红。所以它的家在 `test:scripts`，调用方拿全套 `blocks/` 喂它。
+//
+// 两向各报一次，回一个字符串数组，空数组 = 对得上。
+function slotKindVocabularyProblems(manifests, kinds = SLOT_KINDS) {
+  const byType = manifests instanceof Map ? manifests : new Map(Object.entries(manifests || {}));
+  const used = new Map();
+  for (const [type, m] of byType) {
+    for (const [slot, s] of Object.entries((m && m.slots) || {})) {
+      if (!s || typeof s.kind !== 'string' || !s.kind) continue;
+      if (!used.has(s.kind)) used.set(s.kind, []);
+      used.get(s.kind).push(`${type}.${slot}`);
+    }
+  }
+  const out = [];
+  // 一向：manifest 在用、词表里没有 —— 点名是哪几个槽位在用它（谁都建不出站的那一向）。
+  for (const kind of [...used.keys()].sort()) {
+    if (!kinds.includes(kind)) {
+      out.push(`blocks/ 里有槽位在用 kind: ${JSON.stringify(kind)}，而词表里没有它 —— 用它的是 `
+        + `${used.get(kind).sort().join(' / ')}`);
+    }
+  }
+  // 另一向：词表里写着、全仓一个槽位都不用 —— 多半是删块/改槽之后忘了收，留着它就等于把
+  // 「kind 只能是这几个」那条检查悄悄放宽一格。
+  for (const kind of kinds) {
+    if (!used.has(kind)) {
+      out.push(`词表里写着 ${JSON.stringify(kind)}，而今天 blocks/ 里没有任何槽位在用它`);
+    }
+  }
+  return out;
+}
+
+function nonEditableExceptionProblems(manifests, list = NON_EDITABLE_TEXT_SLOTS) {
+  const byType = manifests instanceof Map ? manifests : new Map(Object.entries(manifests || {}));
+  const out = [];
+  for (const ref of list) {
+    const [type, slot] = ref.split('.');
+    const m = byType.get(type);
+    if (!m) { out.push(`NON_EDITABLE_TEXT_SLOTS 里写着 "${ref}"，而 blocks/ 里没有 ${type} 这个块`); continue; }
+    if (!m.slots || m.slots[slot] === undefined) {
+      out.push(`NON_EDITABLE_TEXT_SLOTS 里写着 "${ref}"，而 ${type} 没有 ${slot} 这个槽位`);
+    }
+  }
+  return out;
+}
+
+// 把一个真实的 `data-slot` 值归一成 manifest 里那条路径：去掉纯数字的那一段（列表序号）。
+// `items.2.title` → `items.title`；`headline` 原样。
+function stripSlotIndex(value) {
+  return String(value).split('.').filter((seg) => !/^\d+$/.test(seg)).join('.');
+}
+
 function checkManifestShape(name, m, cssShapes) {
   const bad = (msg) => { throw new Error(`blocks/${name}: ${msg}`); };
   const isStr = (v) => typeof v === 'string' && v.length > 0;
@@ -211,6 +363,36 @@ function checkManifestShape(name, m, cssShapes) {
   for (const [slot, s] of Object.entries(m.slots)) {
     if (s === null || typeof s !== 'object') bad(`slots.${slot} 必须是对象`);
     if (!isStr(s.kind)) bad(`slots.${slot}.kind 必须是非空字符串`);
+    // #1352 —— 取值也要在词表里。只查「是非空字符串」的话，`"url"` / `"Text"` 这种照样过，
+    // 而下游每一处按 kind 分支的地方都会静默走进「不认识」那一支。
+    if (isStr(s.kind) && !SLOT_KINDS.includes(s.kind)) {
+      bad(`slots.${slot}.kind 是 ${JSON.stringify(s.kind)} —— 只能是 ${SLOT_KINDS.join(' / ')}`);
+    }
+    // #1352 —— 可改文字这一维的两条。
+    if (s.editLabel !== undefined) {
+      if (!EDIT_LABEL_KINDS.includes(s.kind)) {
+        bad(`slots.${slot} 的 kind 是 ${JSON.stringify(s.kind)}，不该有 editLabel`
+          + `（只有 ${EDIT_LABEL_KINDS.join(' / ')} 这几种装得下老板能直接改的字）`);
+      }
+      if (isStr(s.editLabel)) {
+        // 这个槽位本身就是一行字 —— 没别的要查的。
+      } else if (s.editLabel !== null && typeof s.editLabel === 'object' && !Array.isArray(s.editLabel)) {
+        const keys = Object.keys(s.editLabel);
+        if (!keys.length) bad(`slots.${slot}.editLabel 是空对象 —— 要么写一个字符串，要么列出子字段`);
+        for (const k of keys) {
+          if (!isStr(s.editLabel[k])) bad(`slots.${slot}.editLabel.${k} 必须是非空字符串（给人看的名字）`);
+        }
+      } else {
+        bad(`slots.${slot}.editLabel 必须是字符串，或者一个「子字段 → 名字」的对象`);
+      }
+    } else if (s.kind === 'text' && !NO_SLOT_PATH_BLOCKS.includes(name.replace(/\.json$/, ''))
+      && !NON_EDITABLE_TEXT_SLOTS.includes(`${name.replace(/\.json$/, '')}.${slot}`)) {
+      // 🔴 这一条的方向：忘了标当场红，不是静默不出现在面板上。后者跟「这个槽位还没做」
+      //    在界面上长得一模一样，而这正是本票要治的那族毛病。
+      bad(`slots.${slot} 是 kind: text 但没有 editLabel —— 要么标上（老板能直接改的字），`
+        + `要么把它加进 block-manifest.js 的 NON_EDITABLE_TEXT_SLOTS（现在名单上是 `
+        + `${NON_EDITABLE_TEXT_SLOTS.join(' / ')}）`);
+    }
     if (typeof s.required !== 'boolean') bad(`slots.${slot}.required 必须是 true/false（现在是 ${JSON.stringify(s.required)}）`);
     if (typeof s.promptOptional !== 'boolean') bad(`slots.${slot}.promptOptional 必须是 true/false`);
     if (s.shape !== undefined && !isStr(s.shape)) bad(`slots.${slot}.shape 有的话必须是非空字符串`);
@@ -1013,6 +1195,15 @@ module.exports = {
   // #1386 —— 「这个块有哪些内容图槽」，建站选图那条路的唯一判据
   imageSlotsOf,
   diffShapesAgainstCss,
+  // #1352 —— 槽位的 kind 词表 + 「老板能直接改的字」这一维
+  SLOT_KINDS,
+  EDIT_LABEL_KINDS,
+  NON_EDITABLE_TEXT_SLOTS,
+  NO_SLOT_PATH_BLOCKS,
+  nonEditableExceptionProblems,
+  slotKindVocabularyProblems,
+  editableSlotPaths,
+  stripSlotIndex,
   // #1332 —— 排版意图
   LAYOUT_INTENT_VOCAB,
   LAYOUT_INTENT_AXES,

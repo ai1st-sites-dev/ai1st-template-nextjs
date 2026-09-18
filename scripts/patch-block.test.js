@@ -328,5 +328,163 @@ console.log('\n── ⑥ 藏起来的块不占一格：找邻居跳过它，到
   } else bad(`藏起来的块自己挪读数不对: rc=${r4.code} · 顺序 ${rendered(root4, 'home').join(' ')}`);
 }
 
+// ── ⑦ #1352 文字直改：`patch.data` 是一张「路径 → 新的字」的表 ──────────────────────────────────
+//
+// 🔴 每一格都配一条反向对照，因为这一族的错法同样是**静默**的：写到了别的字段上 / 整份 data 被换掉 /
+//    写进了一个 ref 条目（那种改动重建完页面一个字不变，而调用方收到的是 rc=0）。
+console.log('\n── ⑦ #1352 文字直改：patch.data 那张路径表');
+{
+  const withText = () => ({
+    home: {
+      slug: 'home',
+      blocks: [
+        {
+          id: 'home-hero',
+          type: 'hero',
+          role: 'lead',
+          region: 'content',
+          weight: 0,
+          data: {
+            headline: 'Old headline',
+            subheadline: 'Old sub',
+            ctaPrimary: { label: 'Old button', href: '/contact' },
+            imageUrl: '/a.png',
+          },
+        },
+        {
+          id: 'home-cards',
+          type: 'card-group',
+          role: 'optional',
+          region: 'content',
+          weight: 10,
+          data: { items: [{ title: 'A' }, { title: 'B' }, { title: 'C' }] },
+        },
+      ],
+    },
+  });
+
+  // ① 顶层一行字。
+  {
+    const root = makeSite(withText());
+    const r = run(root, { page: 'home', blockId: 'home-hero' }, { data: { headline: 'New headline' } });
+    const hero = readPage(root, 'home').blocks[0];
+    if (r.code === 0 && hero.data.headline === 'New headline') {
+      ok('顶层槽位：headline 改掉了');
+    } else bad(`顶层槽位读数不对: rc=${r.code} ${r.err} · headline=${JSON.stringify(hero.data.headline)}`);
+    // 反向对照：同一个块别的字段一个都没动 —— 「整份 data 被换掉」是这条路最容易犯的错。
+    if (hero.data.subheadline === 'Old sub' && hero.data.ctaPrimary.href === '/contact'
+      && hero.data.imageUrl === '/a.png') {
+      ok('反向对照: 这个块别的内容一个字都没动（不是整份 data 被换掉）');
+    } else bad(`别的内容被动了: ${JSON.stringify(hero.data)}`);
+  }
+
+  // ② 子字段（按钮上那行字）。
+  {
+    const root = makeSite(withText());
+    const r = run(root, { page: 'home', blockId: 'home-hero' }, { data: { 'ctaPrimary.label': 'Book now' } });
+    const cta = readPage(root, 'home').blocks[0].data.ctaPrimary;
+    if (r.code === 0 && cta.label === 'Book now' && cta.href === '/contact') {
+      ok('子字段：ctaPrimary.label 改掉了，href 没动');
+    } else bad(`子字段读数不对: rc=${r.code} ${r.err} · ${JSON.stringify(cta)}`);
+  }
+
+  // ③ 列表项里的一条。
+  {
+    const root = makeSite(withText());
+    const r = run(root, { page: 'home', blockId: 'home-cards' }, { data: { 'items.1.title': 'Middle' } });
+    const items = readPage(root, 'home').blocks[1].data.items;
+    if (r.code === 0 && items[1].title === 'Middle' && items[0].title === 'A' && items[2].title === 'C') {
+      ok('列表项：items.1.title 改掉了，另外两项没动');
+    } else bad(`列表项读数不对: rc=${r.code} ${r.err} · ${JSON.stringify(items)}`);
+  }
+
+  // ④ 叶子可以新建（组件无条件渲染一个 data-slot，而这个字段数据里还没有）。
+  {
+    const root = makeSite(withText());
+    const r = run(root, { page: 'home', blockId: 'home-hero' }, { data: { 'ctaPrimary.title': 'Tooltip' } });
+    const cta = readPage(root, 'home').blocks[0].data.ctaPrimary;
+    if (r.code === 0 && cta.title === 'Tooltip') ok('叶子那一格允许新建（父容器已经在）');
+    else bad(`新建叶子读数不对: rc=${r.code} ${r.err} · ${JSON.stringify(cta)}`);
+  }
+
+  // ⑤ 拒的那几种，每一种一格，并且证明文件一个字节没动。
+  {
+    const cases = [
+      ['父容器不在', { data: { 'nothingHere.title': 'x' } }, 3],
+      ['列表越界', { data: { 'items.9.title': 'x' } }, 3],
+      ['路径里有不像标识符的一段', { data: { 'items.1.ti tle': 'x' } }, 3],
+      ['新值不是字符串', { data: { headline: 42 } }, 3],
+      ['新值超过 500 字', { data: { headline: 'x'.repeat(501) } }, 3],
+      ['data 不是一张表', { data: 'nope' }, 5],
+      ['现在放的不是一串字（改的是一个对象）', { data: { ctaPrimary: 'x' } }, 3],
+    ];
+    let good = 0;
+    let untouched = 0;
+    for (const [what, patch, want] of cases) {
+      const root = makeSite(withText());
+      const before = fs.readFileSync(path.join(root, 'site', 'pages', 'home.json'));
+      const target = Object.keys(patch.data || {})[0] === 'items.9.title'
+        || String(Object.keys(patch.data || {})[0]).startsWith('items.') ? 'home-cards' : 'home-hero';
+      const r = run(root, { page: 'home', blockId: target }, patch);
+      if (r.code === want) good += 1;
+      else bad(`${what}: 期望 rc=${want}，实际 rc=${r.code} ${r.err}`);
+      if (Buffer.compare(before, fs.readFileSync(path.join(root, 'site', 'pages', 'home.json'))) === 0) untouched += 1;
+      else bad(`${what}: 被拒了，文件却动了`);
+    }
+    if (good === cases.length) ok(`${cases.length} 种拒法的退出码都对上了`);
+    if (untouched === cases.length) ok('反向对照: 被拒的那些调用一个字节都没写进文件');
+  }
+
+  // ⑥ 站级共用块（`{ref}` 条目）当场拒 —— 这一格挡的是「保存成功、页面一个字不变」那种假象。
+  {
+    const root = makeSite({
+      home: { slug: 'home', blocks: [{ ref: 'our-team', weight: 0 }] },
+    }, { 'our-team': { type: 'team-grid', data: { headline: 'The team' } } });
+    const before = fs.readFileSync(path.join(root, 'site', 'pages', 'home.json'));
+    const r = run(root, { page: 'home', blockId: 'our-team' }, { data: { headline: 'New' } });
+    const after = fs.readFileSync(path.join(root, 'site', 'pages', 'home.json'));
+    if (r.code === 8 && Buffer.compare(before, after) === 0) {
+      ok('站级共用块的 ref 条目：rc=8，文件一个字节没动');
+    } else bad(`ref 条目读数不对: rc=${r.code} ${r.err}`);
+    // 反向对照：证明这个夹具本身是能改的 —— 同一个块换成隐藏就成功。
+    const r2 = run(root, { page: 'home', blockId: 'our-team' }, { hidden: true });
+    if (r2.code === 0) ok('反向对照: 同一条 ref 条目改 hidden 照样成功（rc=8 不是夹具本身不成立）');
+    else bad(`反向对照失败: 改 hidden 也不行 rc=${r2.code} ${r2.err}`);
+  }
+
+  // ⑦ 老 sections 形状同样走得通（票里 AC7）。
+  {
+    const root = makeSite({
+      home: {
+        slug: 'home',
+        sections: [
+          { type: 'hero', data: { headline: 'Old' } },
+          { type: 'features-grid', data: {} },
+        ],
+      },
+    });
+    const r = run(root, { page: 'home', index: 0 }, { data: { headline: 'New on legacy' } });
+    const page = readPage(root, 'home');
+    if (r.code === 0 && page.sections[0].data.headline === 'New on legacy') {
+      ok('老 sections 形状：按下标定位，文字改掉了');
+    } else bad(`老形状读数不对: rc=${r.code} ${r.err} · ${JSON.stringify(page.sections[0].data)}`);
+    if (page.sections[1].data && Object.keys(page.sections[1].data).length === 0) {
+      ok('反向对照: 同一页另一个块没被碰');
+    } else bad('老形状: 另一个块被动了');
+  }
+
+  // ⑧ 字里带 HTML —— 存的是一串字，不是一个标签（票里最后一条 AC 的存储侧那一半）。
+  {
+    const root = makeSite(withText());
+    const evil = '<img src=x onerror="alert(1)">';
+    const r = run(root, { page: 'home', blockId: 'home-hero' }, { data: { headline: evil } });
+    const raw = fs.readFileSync(path.join(root, 'site', 'pages', 'home.json'), 'utf-8');
+    const back = JSON.parse(raw).blocks[0].data.headline;
+    if (r.code === 0 && back === evil && raw.includes('\\u003c') === false) {
+      ok(`带 HTML 的字原样存成一个字符串（${JSON.stringify(back).slice(0, 40)}…）`);
+    } else bad(`带 HTML 的字读数不对: rc=${r.code} · ${JSON.stringify(back)}`);
+  }
+}
+
 console.log(`\n══ ${pass} 过 / ${fail} 败 ══`);
 process.exit(fail ? 1 : 0);

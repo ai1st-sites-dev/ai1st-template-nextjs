@@ -38,13 +38,15 @@
       "kind": "text",
       "required": true,
       "promptOptional": false,
-      "shape": "\"Related Topics\""
+      "shape": "\"Related Topics\"",
+      "editLabel": "Headline"
     },
     "subheadline": {
       "kind": "text",
       "required": false,
       "promptOptional": true,
-      "shape": "string"
+      "shape": "string",
+      "editLabel": "Subheading"
     }
   },
   "variants": {},

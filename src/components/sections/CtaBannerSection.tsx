@@ -89,10 +89,10 @@ interface CtaBannerSectionProps {
 export default function CtaBannerSection({ data, block }: CtaBannerSectionProps) {
   return (
     <section {...blockAttrs('cta-banner', block)} className="cta-banner" aria-labelledby="cta-heading">
-      <h2 id="cta-heading" className="cta-banner__headline">
+      <h2 id="cta-heading" className="cta-banner__headline" data-slot="headline">
         {data.headline}
       </h2>
-      <p className="cta-banner__desc">
+      <p className="cta-banner__desc" data-slot="description">
         {data.description}
       </p>
       {/* 🔴 The button keeps the SITE's button class rather than getting a hook of its own — the same
@@ -101,7 +101,7 @@ export default function CtaBannerSection({ data, block }: CtaBannerSectionProps)
           The hook is on the box AROUND it, so a sheet can move the button (the old `split` look put it
           in a column of its own) without being able to restyle every call to action on the site. */}
       <div className="cta-banner__action">
-        <Link href={data.button?.href ?? "#"} className="btn-accent text-lg">
+        <Link href={data.button?.href ?? "#"} className="btn-accent text-lg" data-slot="button.label">
           {data.button?.label}
         </Link>
       </div>

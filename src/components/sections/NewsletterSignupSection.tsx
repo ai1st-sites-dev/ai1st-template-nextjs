@@ -56,11 +56,11 @@ export default function NewsletterSignupSection({ data, locale, block }: Newslet
       className="newsletter-signup"
       aria-labelledby="newsletter-heading"
     >
-      <h2 id="newsletter-heading" className="newsletter-signup__headline">
+      <h2 id="newsletter-heading" className="newsletter-signup__headline" data-slot="headline">
         {data.headline}
       </h2>
       {data.description && (
-        <p className="newsletter-signup__desc">{data.description}</p>
+        <p className="newsletter-signup__desc" data-slot="description">{data.description}</p>
       )}
       <form action="#" className="newsletter-signup__form">
         <input
@@ -69,7 +69,7 @@ export default function NewsletterSignupSection({ data, locale, block }: Newslet
           aria-label={labels.emailAddress}
           readOnly
         />
-        <button type="button">{buttonText}</button>
+        <button type="button" data-slot="buttonText">{buttonText}</button>
       </form>
     </section>
   );

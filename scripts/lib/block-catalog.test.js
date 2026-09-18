@@ -86,7 +86,9 @@ function fixture(blocks, registryTypes) {
       // #1384 —— 一项可以写成 `'名字'`，也可以写成 `{ name, candidate: true }`（3a 那个臂要后者）。
       shapes: shapes.map((sh) => (typeof sh === 'string' ? { name: sh, needs: [] }
         : { name: sh.name, needs: [], ...(sh.candidate === undefined ? {} : { candidate: sh.candidate }) })),
-      slots: { headline: { kind: 'text', required: true, promptOptional: false } },
+      // #1352 —— `kind: text` 的槽位必须带 `editLabel`（或者进例外名单），否则 `loadManifests`
+      // 当场拒。这里给它一个，因为这份夹具问的是**目录与注册表对不对得上**，不是标签这一维。
+      slots: { headline: { kind: 'text', required: true, promptOptional: false, editLabel: 'Headline' } },
       // 🔴 `checkManifestShape` 还要这几个键 —— 少了它当场抛，而那句话跟本文件要测的那条错**长得不一样**
       //    却同样是「抛了」。第一版夹具就少了 `variants`，四个反臂于是全都在测「夹具自己不合法」；
       //    #1349 加 `displayName` 时又撞了一次同一件事（上面那个键）。

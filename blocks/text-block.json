@@ -20,12 +20,14 @@
     "headline": {
       "kind": "text",
       "required": false,
-      "promptOptional": true
+      "promptOptional": true,
+      "editLabel": "Headline"
     },
     "content": {
       "kind": "text",
       "required": true,
-      "promptOptional": false
+      "promptOptional": false,
+      "editLabel": "Body text"
     },
     "background": {
       "kind": "text",
@@ -43,13 +45,15 @@
       "kind": "list",
       "required": false,
       "promptOptional": true,
-      "shape": "[string]"
+      "shape": "[string]",
+      "editLabel": "List item"
     },
     "attribution": {
       "kind": "text",
       "required": false,
       "promptOptional": true,
-      "shape": "string"
+      "shape": "string",
+      "editLabel": "Attribution"
     }
   },
   "variants": {

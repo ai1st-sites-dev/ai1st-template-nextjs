@@ -44,13 +44,15 @@
     "headline": {
       "kind": "text",
       "required": true,
-      "promptOptional": false
+      "promptOptional": false,
+      "editLabel": "Headline"
     },
     "brands": {
       "kind": "list",
       "required": true,
       "promptOptional": false,
-      "shape": "[6 brand name strings]"
+      "shape": "[6 brand name strings]",
+      "editLabel": "Brand name"
     }
   },
   "variants": {

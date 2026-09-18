@@ -412,16 +412,16 @@ const RETIRED_HOOKS = [
     + ' (#1333) IS on the list. To cover the case at all, style `[data-block="…"]` itself'],
 ];
 // 编辑器的标识属性：形状认得出来，但一律拒 —— 跟 RETIRED_HOOKS 同一个机制，**不是**同一件事，
-// 所以是自己一张表（#1349）。
+// 所以是自己一张表（#1349 建的，#1352 往里加了 `data-slot`）。
 //
-// 🔴 为什么不塞进 `RETIRED_HOOKS`：那张表说的是「这个钩子曾经是契约的一部分，现在退役了」，而
-// `data-block-id` 从来不是钩子，也没有退役 —— 它是 2026-09-16 **新加**的标识。混进去的话，下一个
-// 读那张表的人会拿到一句假历史（「它以前能用」），而那正是 #1341 当初特意不让作者读到通用句
-// 「写错了一个名字」的同一个理由：话说错了比不说更难纠。
+// 🔴 为什么不塞进 `RETIRED_HOOKS`：那张表说的是「这个钩子曾经是契约的一部分，现在退役了」，而这些
+// 属性从来不是钩子、也没有退役 —— 它们是编辑器**新加**的标识。混进去的话，下一个读那张表的人会拿到
+// 一句假历史（「它以前能用」），而那正是 #1341 当初特意不让作者读到通用句「写错了一个名字」的同一个
+// 理由：话说错了比不说更难纠。
 //
-// 🔴 为什么它不能当钩子用：它的值是**每个站、每一页各不相同**的（`<页>-<块类型>-<序号>`，
-// `scripts/blocks.js` §generatedBlockId）。一份主题表要服务所有站，写一条点名某个站某一页某个块的
-// 规则，在别的站上一条都选不中 —— 而那是静默的。
+// 🔴 为什么它们不能当钩子用：值是**每个站各不相同**的内容 —— `data-block-id` 是 `<页>-<块类型>-<序号>`
+// （`scripts/blocks.js` §generatedBlockId），`data-slot` 是块数据里的字段路径（列表上还带行号）。
+// 一份主题表要服务所有站，写一条点名其中一个的规则，在别的站上一条都选不中 —— 而那是静默的。
 const EDITOR_ATTRS = [
   [/^\[data-block-id(="[^"]*")?\]$/,
     'it is `data-block-id` (#1349) — the EDITOR\'s identity for one block on one page, not a'
@@ -437,9 +437,17 @@ const EDITOR_ATTRS = [
     + ' should be changed on. Page names are per-site, so a rule naming one selects nothing on any'
     + ' other site — silently. A sheet that wants to style a page differently has no hook for it by'
     + ' design: a theme styles blocks (`[data-block="<type>"]`), not pages'],
+  [/^\[data-slot(="[^"]*")?\]$/,
+    'it is `data-slot` (#1352) — the EDITOR\'s handle on one piece of text inside a block, not a'
+    + ' contract hook. Its value is the path to a field in that block\'s data (`headline`,'
+    + ' `ctaPrimary.label`, `items.2.title`), so a rule naming one would depend on which field'
+    + ' happens to sit at that path — and on a list it depends on the row number, which is the'
+    + ' owner\'s content, not a design decision. The inspector reads it to put an edit box over the'
+    + ' right words; a theme has no business selecting it. To style the text of a block, style the'
+    + ' block (`[data-block="<type>"]`) or the element itself'],
 ];
 
-// 一个不是钩子的选择器，能不能多说一句为什么。两张表一处汇合 —— 分开两处调用的话，下一张表
+// 一个不是钩子的选择器，能不能多说一句为什么。三张表一处汇合 —— 分开几处调用的话，下一张表
 // 只会接到其中一处，而那是静默的（作者拿到通用句，跟「写错了一个名字」分不开）。
 const refusalNote = (s) => {
   for (const [re, why] of RETIRED_HOOKS) if (re.test(s)) return why;
@@ -706,7 +714,8 @@ function checkSelector(sel, report) {
       for (const simple of simpleSelectorsOf(base)) {
         if (!isHook(simple)) {
           // #1341 —— 退役的钩子单独说一句。形状对、含义没了，跟「写错了一个名字」是两件事。
-          // #1349 —— 编辑器的标识属性（`data-block-id`）同理，走同一个汇合点 `refusalNote`。
+          // #1349 / #1352 —— 编辑器的标识属性（`data-block-id` / `data-slot`）同理，
+          // 走同一个汇合点 `refusalNote`。
           const note = refusalNote(simple);
           report(note
             ? `selector "${complex}" reaches for "${simple}", and ${note}`

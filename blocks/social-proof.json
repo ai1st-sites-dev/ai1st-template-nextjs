@@ -64,43 +64,58 @@
     "headline": {
       "kind": "text",
       "required": true,
-      "promptOptional": false
+      "promptOptional": false,
+      "editLabel": "Headline"
     },
     "overallRating": {
       "kind": "text",
       "required": true,
       "promptOptional": false,
-      "shape": "\"4.9\""
+      "shape": "\"4.9\"",
+      "editLabel": "Overall rating"
     },
     "totalReviews": {
       "kind": "text",
       "required": true,
       "promptOptional": false,
-      "shape": "\"500+\""
+      "shape": "\"500+\"",
+      "editLabel": "Total reviews"
     },
     "platforms": {
       "kind": "list",
       "required": false,
       "promptOptional": true,
-      "shape": "[{name, rating, reviews}]"
+      "shape": "[{name, rating, reviews}]",
+      "editLabel": {
+        "name": "Platform name"
+      }
     },
     "badges": {
       "kind": "list",
       "required": false,
       "promptOptional": true,
-      "shape": "[string]"
+      "shape": "[string]",
+      "editLabel": "Badge"
     },
     "featuredQuote": {
       "kind": "object",
       "required": false,
       "promptOptional": true,
-      "shape": "{text, author}"
+      "shape": "{text, author}",
+      "editLabel": {
+        "text": "Quote",
+        "author": "Quote author"
+      }
     },
     "stats": {
       "kind": "list",
       "required": false,
       "promptOptional": true,
-      "shape": "[{value:\"500+\", label:\"Projects Completed\"}]"
+      "shape": "[{value:\"500+\", label:\"Projects Completed\"}]",
+      "editLabel": {
+        "value": "Stat number",
+        "label": "Stat label"
+      }
     },
     "imageUrl": {
       "kind": "image",

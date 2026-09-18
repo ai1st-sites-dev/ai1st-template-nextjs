@@ -58,7 +58,7 @@ interface ContactInfoSectionProps {
 export default function ContactInfoSection({ data, block }: ContactInfoSectionProps) {
   return (
     <section {...blockAttrs('contact-info', block)} className="contact-info" aria-labelledby="locations-heading">
-      <h2 id="locations-heading" className="contact-info__headline">
+      <h2 id="locations-heading" className="contact-info__headline" data-slot="headline">
         {data.headline}
       </h2>
       {brand.locations.map((location) => (

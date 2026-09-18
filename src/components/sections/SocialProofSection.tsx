@@ -140,37 +140,37 @@ export default function SocialProofSection({ data, locale, block }: SocialProofS
       className="social-proof"
       aria-labelledby="social-proof-heading"
     >
-      <h2 id="social-proof-heading" className="social-proof__headline">
+      <h2 id="social-proof-heading" className="social-proof__headline" data-slot="headline">
         {data.headline}
       </h2>
       {data.overallRating && (
         <p className="social-proof__rating">
-          {data.overallRating} <span>{labels.outOfFive}</span>
+          <span data-slot="overallRating">{data.overallRating}</span> <span>{labels.outOfFive}</span>
         </p>
       )}
       {data.totalReviews && (
-        <p className="social-proof__reviews">{data.totalReviews} {labels.reviews}</p>
+        <p className="social-proof__reviews"><span data-slot="totalReviews">{data.totalReviews}</span> {labels.reviews}</p>
       )}
       {data.platforms?.map((platform, index) => (
         <div key={index} className="social-proof__platform">
-          <span>{platform.name}</span>
+          <span data-slot={`platforms.${index}.name`}>{platform.name}</span>
           <span>{platform.rating} {labels.outOfFive}</span>
           <span>{platform.reviews} {labels.reviews}</span>
         </div>
       ))}
       {data.badges?.map((badge, index) => (
-        <p key={index} className="social-proof__badge">{badge}</p>
+        <p key={index} className="social-proof__badge" data-slot={`badges.${index}`}>{badge}</p>
       ))}
       {data.featuredQuote && (
         <blockquote className="social-proof__quote">
-          <p>{data.featuredQuote.text}</p>
-          <footer className="social-proof__quote-author">{data.featuredQuote.author}</footer>
+          <p data-slot="featuredQuote.text">{data.featuredQuote.text}</p>
+          <footer className="social-proof__quote-author" data-slot="featuredQuote.author">{data.featuredQuote.author}</footer>
         </blockquote>
       )}
       {data.stats?.map((stat, index) => (
         <div key={index} className="social-proof__stat">
-          <p className="social-proof__stat-value">{stat.value}</p>
-          <p className="social-proof__stat-label">{stat.label}</p>
+          <p className="social-proof__stat-value" data-slot={`stats.${index}.value`}>{stat.value}</p>
+          <p className="social-proof__stat-label" data-slot={`stats.${index}.label`}>{stat.label}</p>
         </div>
       ))}
       {data.imageUrl ? (

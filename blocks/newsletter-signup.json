@@ -32,17 +32,20 @@
     "headline": {
       "kind": "text",
       "required": true,
-      "promptOptional": false
+      "promptOptional": false,
+      "editLabel": "Headline"
     },
     "description": {
       "kind": "text",
       "required": false,
-      "promptOptional": true
+      "promptOptional": true,
+      "editLabel": "Description"
     },
     "buttonText": {
       "kind": "text",
       "required": false,
-      "promptOptional": true
+      "promptOptional": true,
+      "editLabel": "Button text"
     }
   },
   "variants": {

@@ -29,8 +29,10 @@
 //     调用方要拿它刷新自己手上的定位（票里 AC3 量的就是这件事）。
 //
 // 退出码（每一个都对应一句给老板看的话，worker 那边一一对上）：
-//   0 成功   3 找不到那个块   4 找不到那一页   5 参数或页面形状不对   6 已经到头了，挪不动
+//   0 成功   3 找不到那个块（#1352 起也包括「那条文字路径在这个块里不存在」）   4 找不到那一页
+//   5 参数或页面形状不对   6 已经到头了，挪不动
 //   7 这一次改动会把页面上别的块的顺序也改掉 —— 不写，报错（见下面 §orderOf 那段）
+//   8 这一块的字是整个网站共用的（`{ref}` 条目），不在这一页里改（#1352）
 
 const fs = require('fs');
 const path = require('path');
@@ -199,6 +201,57 @@ if (!entry || typeof entry !== 'object' || Array.isArray(entry)) die(5, `第 ${a
 //    权威定位是下面那个 `index`。
 if (!blockId && typeof entry.id === 'string') blockId = entry.id;
 
+// ── #1352 —— `data` 这个键是「块里的一行字」，写法跟别的键不一样 ────────────────────────────────
+//
+// 别的键（`hidden` / `weight` / `shape`）改的是**块本身**的一个属性，一层就到底。文字不是：它住在
+// `entry.data` 里面，而且可能在子字段上（`ctaPrimary.label`）或者列表项里（`items.2.title`）。
+//
+// 🔴 **所以 `patch.data` 的值是一张「路径 → 新的字」的表，不是一份新的 data。** 整份换掉的话，
+//    老板改一行标题会把这个块别的内容全抹掉 —— 而页面照样建得出来（少了的那些字只是不见了）。
+//    manager 那一头把 `slot` + `value` 两个字段翻成这张表（一次一条），形状写在 §handleSiteBlockPatch。
+//
+// 🔴 **只写已经有父容器的那条路径，不自己造容器。** `items.2.title` 要求 `items[2]` 真的在；
+//    造得出来的话，一次打错的路径会往页面里塞一个空的列表项，而它会被画出来（票里写明不做增删列表项）。
+//    叶子那一格允许新建：组件可以无条件渲染一个 `data-slot`，而那个字段在数据里还没有（老板要填的
+//    正是它）。
+const SLOT_SEG = /^[A-Za-z][A-Za-z0-9_]{0,31}$/;
+const MAX_SLOT_TEXT = 500;
+
+function writeSlotText(target, pathStr, value) {
+  const segs = String(pathStr).split('.');
+  if (!segs.length) return `路径是空的`;
+  for (const seg of segs) {
+    if (SLOT_SEG.test(seg)) continue;
+    if (/^(0|[1-9][0-9]{0,3})$/.test(seg)) continue;
+    return `路径里这一段不对：${JSON.stringify(seg)}`;
+  }
+  if (typeof value !== 'string') return `${pathStr} 的新值必须是一串字（收到 ${JSON.stringify(typeof value)}）`;
+  if (value.length > MAX_SLOT_TEXT) return `${pathStr} 的新值有 ${value.length} 个字，上限 ${MAX_SLOT_TEXT}`;
+  let node = target;
+  for (let i = 0; i < segs.length - 1; i += 1) {
+    const seg = segs[i];
+    const key = /^\d+$/.test(seg) ? Number(seg) : seg;
+    if (node === null || typeof node !== 'object') return `${pathStr} 走不下去：${segs.slice(0, i).join('.') || '(根)'} 不是一个对象`;
+    if (Array.isArray(node) && typeof key !== 'number') return `${pathStr} 走不下去：${seg} 用在一个列表上`;
+    if (!Array.isArray(node) && typeof key === 'number') return `${pathStr} 走不下去：第 ${seg} 项用在一个不是列表的东西上`;
+    const next = node[key];
+    if (next === undefined || next === null) return `${pathStr} 在这个块里不存在（${segs.slice(0, i + 1).join('.')} 没有内容）`;
+    node = next;
+  }
+  const last = segs[segs.length - 1];
+  const lastKey = /^\d+$/.test(last) ? Number(last) : last;
+  if (node === null || typeof node !== 'object') return `${pathStr} 走不下去：${segs.slice(0, -1).join('.') || '(根)'} 不是一个对象`;
+  if (Array.isArray(node) !== (typeof lastKey === 'number')) return `${pathStr} 的最后一段跟它所在的容器对不上`;
+  if (typeof lastKey === 'number' && (lastKey < 0 || lastKey >= node.length)) {
+    return `${pathStr} 在这个块里不存在（这个列表只有 ${node.length} 项）`;
+  }
+  if (node[lastKey] !== undefined && node[lastKey] !== null && typeof node[lastKey] !== 'string') {
+    return `${pathStr} 现在放的不是一串字，本票不改它`;
+  }
+  node[lastKey] = value;
+  return null;
+}
+
 // ── 改 ──────────────────────────────────────────────────────────────────────────────────────────
 if (patch) {
   for (const k of Object.keys(patch)) {
@@ -206,6 +259,29 @@ if (patch) {
     //    挡它的责任在写文件的这一处（同上面 slug 那条）。
     if (!/^[A-Za-z][A-Za-z0-9_]{0,31}$/.test(k)) die(5, `patch 里的键名不对：${JSON.stringify(k)}`);
     if (k === 'id' || k === 'ref' || k === 'type') die(5, `不许用 patch 改 "${k}" —— 那会把这个块换成另一个块`);
+    if (k === 'data') {
+      const table = patch[k];
+      if (!table || typeof table !== 'object' || Array.isArray(table)) {
+        die(5, 'patch.data 必须是一张「路径 → 新的字」的表');
+      }
+      // 🔴 站级共用块（`{ref}` 条目）的内容不住在这一页里 —— 它在 `blocks/site-blocks.json`。
+      //    往 ref 条目上写 `data` 是**静默无效**的：`blocks.js` 解 ref 那一支摊开的是站级块本体
+      //    （`{ ...target, id: entry.ref, … }`），条目自己写的 data 一个字都读不到 ⟹ 老板改完、
+      //    保存成功、重建完页面一个字没变。#1351 把 `hidden` 做成了这一页的覆盖，文字没有这条路，
+      //    所以这里当场拒掉，别让它变成一次假的成功。
+      if (typeof entry.ref === 'string' && entry.type === undefined) {
+        die(8, '这一块的内容是整个网站共用的（它写在站级块库里），暂时不能在这里改字');
+      }
+      if (entry.data === undefined) entry.data = {};
+      if (!entry.data || typeof entry.data !== 'object' || Array.isArray(entry.data)) {
+        die(5, '这个块的 data 不是一个对象');
+      }
+      for (const [slotPath, value] of Object.entries(table)) {
+        const problem = writeSlotText(entry.data, slotPath, value);
+        if (problem) die(3, problem);
+      }
+      continue;
+    }
     if (patch[k] === null) delete entry[k];
     else entry[k] = patch[k];
   }

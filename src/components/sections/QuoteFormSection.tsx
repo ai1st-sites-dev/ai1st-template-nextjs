@@ -122,7 +122,7 @@ export default function QuoteFormSection({ data, locale, block }: QuoteFormSecti
   if (state === 'success') {
     return (
       <section {...blockAttrs('quote-form', block)} className="quote-form">
-        <p className="quote-form__success">{data.redirectMessage || "Thank you! We'll be in touch soon."}</p>
+        <p className="quote-form__success" data-slot="redirectMessage">{data.redirectMessage || "Thank you! We'll be in touch soon."}</p>
       </section>
     );
   }
@@ -131,7 +131,7 @@ export default function QuoteFormSection({ data, locale, block }: QuoteFormSecti
     <section {...blockAttrs('quote-form', block)} className="quote-form">
       <form onSubmit={handleSubmit} className="quote-form__form">
         <div className="quote-form__main">
-          <p className="quote-form__intro">{data.formIntro}</p>
+          <p className="quote-form__intro" data-slot="formIntro">{data.formIntro}</p>
 
           {/* Step 1: Select Services */}
           <div className="quote-form__step">
@@ -156,8 +156,8 @@ export default function QuoteFormSection({ data, locale, block }: QuoteFormSecti
           {/* Step 2: Property Type */}
           <div className="quote-form__step">
             <h2>2. What type of property?</h2>
-            {data.propertyTypes?.map((type) => (
-              <button key={type} type="button" aria-pressed={propertyType === type} onClick={() => setPropertyType(type)}>
+            {data.propertyTypes?.map((type, index) => (
+              <button key={type} type="button" aria-pressed={propertyType === type} onClick={() => setPropertyType(type)} data-slot={`propertyTypes.${index}`}>
                 {type}
               </button>
             ))}
@@ -166,8 +166,8 @@ export default function QuoteFormSection({ data, locale, block }: QuoteFormSecti
           {/* Step 3: Urgency */}
           <div className="quote-form__step">
             <h2>3. How soon do you need this?</h2>
-            {data.urgencyOptions?.map((option) => (
-              <button key={option} type="button" aria-pressed={urgency === option} onClick={() => setUrgency(option)}>
+            {data.urgencyOptions?.map((option, index) => (
+              <button key={option} type="button" aria-pressed={urgency === option} onClick={() => setUrgency(option)} data-slot={`urgencyOptions.${index}`}>
                 {option}
               </button>
             ))}
@@ -192,9 +192,9 @@ export default function QuoteFormSection({ data, locale, block }: QuoteFormSecti
           {error && <p className="quote-form__error">{error}</p>}
 
           <div className="quote-form__action">
-            <p>{data.redirectMessage}</p>
+            <p data-slot="redirectMessage">{data.redirectMessage}</p>
             {/* The button keeps the SITE's button class — same boundary hero / cta-banner draw. */}
-            <button type="submit" disabled={state === 'submitting'} className="btn-accent">
+            <button type="submit" disabled={state === 'submitting'} className="btn-accent" data-slot="buttonText">
               {state === 'submitting' ? 'Sending…' : (data.buttonText || 'Submit Request')} &rarr;
             </button>
           </div>
@@ -204,7 +204,7 @@ export default function QuoteFormSection({ data, locale, block }: QuoteFormSecti
           <h3>{labels.whatYouGet}</h3>
           <ul>
             {data.benefits?.map((benefit, index) => (
-              <li key={index}>{benefit}</li>
+              <li key={index} data-slot={`benefits.${index}`}>{benefit}</li>
             ))}
           </ul>
           <h4>{labels.needImmediateHelp}</h4>

@@ -66,9 +66,9 @@ export default function AnnouncementBarSection({ data, asRegion = false, block }
 
   return (
     <div {...idAttrs} className="announcement-bar" role="banner" aria-label="Announcement">
-      <p className="announcement-bar__message">{data.message}</p>
+      <p className="announcement-bar__message" data-slot="message">{data.message}</p>
       {data.link && (
-        <Link href={data.link?.href ?? '#'} className="announcement-bar__link">
+        <Link href={data.link?.href ?? '#'} className="announcement-bar__link" data-slot="link.label">
           {data.link?.label}
         </Link>
       )}

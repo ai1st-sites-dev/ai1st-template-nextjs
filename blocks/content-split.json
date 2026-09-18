@@ -105,24 +105,31 @@
     "headline": {
       "kind": "text",
       "required": true,
-      "promptOptional": false
+      "promptOptional": false,
+      "editLabel": "Headline"
     },
     "content": {
       "kind": "text",
       "required": true,
-      "promptOptional": false
+      "promptOptional": false,
+      "editLabel": "Body text"
     },
     "bullets": {
       "kind": "list",
       "required": false,
       "promptOptional": true,
-      "shape": "[string]"
+      "shape": "[string]",
+      "editLabel": "Bullet"
     },
     "stats": {
       "kind": "list",
       "required": false,
       "promptOptional": true,
-      "shape": "[{value, label}]"
+      "shape": "[{value, label}]",
+      "editLabel": {
+        "value": "Stat number",
+        "label": "Stat label"
+      }
     },
     "imageUrl": {
       "kind": "image",

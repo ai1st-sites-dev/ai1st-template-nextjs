@@ -379,5 +379,165 @@ console.log('\n── #1349 每个块都有 displayName');
   }
 }
 
+// ── #1352 校验器新增的三条：每一条弄坏一次，看它红不红 ──────────────────────────────────────────
+//
+// 🔴 三条都靠**在临时目录里造一份真的 blocks/**，然后跑真正的 `loadManifests` —— 不是直接调
+//    `checkManifestShape`（它没导出，而且直接调等于绕开「这条路上真的会经过它吗」那一维）。
+//    `loadManifests` 就是 create-site / sync-config 走的那个入口。
+console.log('\n── ⑫ #1352 校验器新增的三条（每条弄坏一次，证明它会红）');
+{
+  const os = require('os');
+  const fs = require('fs');
+  const NEXTDIR = NEXT;
+
+  // 造一棵最小的树：blocks/ 是真文件，public/shapes.css 软链回本仓（形态那一半要它）。
+  function sandbox(mutate) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bm-'));
+    fs.mkdirSync(path.join(root, 'blocks'));
+    fs.mkdirSync(path.join(root, 'public'));
+    fs.symlinkSync(path.join(NEXTDIR, 'public', 'shapes.css'), path.join(root, 'public', 'shapes.css'));
+    for (const f of fs.readdirSync(path.join(NEXTDIR, 'blocks'))) {
+      fs.copyFileSync(path.join(NEXTDIR, 'blocks', f), path.join(root, 'blocks', f));
+    }
+    if (mutate) mutate(root);
+    return root;
+  }
+  const loadIn = (root) => {
+    try {
+      require(path.join(NEXTDIR, 'scripts', 'lib', 'block-manifest.js')).loadManifests(path.join(root, 'blocks'));
+      return null;
+    } catch (e) { return e.message; }
+  };
+  const editJson = (root, name, fn) => {
+    const p = path.join(root, 'blocks', name);
+    const d = JSON.parse(fs.readFileSync(p, 'utf-8'));
+    fn(d);
+    fs.writeFileSync(p, JSON.stringify(d, null, 2) + '\n');
+  };
+
+  // 🔴 正臂先跑：没弄坏的那份必须过。少了它，下面三条红可能只是「这棵沙箱树本来就建不起来」。
+  {
+    const err = loadIn(sandbox(null));
+    if (err) bad(`夹具不成立：没弄坏的那份就报了 —— ${err}`);
+    else ok('正臂：原样复制一份 blocks/ ⟹ 校验通过（下面三条红才归因得到「是我弄坏的那一处」）');
+  }
+
+  const cases = [
+    ['kind 写成词表外的值（url）',
+     (root) => editJson(root, 'hero.json', (d) => { d.slots.headline.kind = 'url'; }),
+     /kind 是 "url"/],
+    ['editLabel 挂在 kind: image 上',
+     (root) => editJson(root, 'hero.json', (d) => { d.slots.imageUrl.editLabel = 'Picture'; }),
+     /不该有 editLabel/],
+    ['新增一个 kind: text 的槽位，既没 editLabel 也不在例外名单',
+     (root) => editJson(root, 'hero.json', (d) => {
+       d.slots.brandNewTextSlot = { kind: 'text', required: false, promptOptional: true };
+     }),
+     /没有 editLabel/],
+  ];
+  for (const [what, mutate, want] of cases) {
+    const err = loadIn(sandbox(mutate));
+    if (!err) bad(`${what} ⟹ 没红`);
+    else if (!want.test(err)) bad(`${what} ⟹ 红了，但报的不是这条：${err}`);
+    else ok(`${what} ⟹ 红，并点名：${err.split('——')[0].trim()}`);
+  }
+
+  // 🔴 例外名单里写错一个名字也要红 —— 一个拼错的例外等于把那个槽位的检查**关掉**，
+  //    而它看起来跟「已经豁免过了」一模一样（AC2 最后一句）。
+  {
+    const lib = path.join(NEXTDIR, 'scripts', 'lib', 'block-manifest.js');
+    const src = fs.readFileSync(lib, 'utf-8');
+    const marker = "'features-grid.columns',";
+    if (!src.includes(marker)) {
+      bad('夹具不成立：例外名单里找不到 features-grid.columns');
+    } else {
+      // 在内存里把名单改坏，用 Module 的编译钩子换掉那一份源码再重新 require。
+      const broken = src.replace(marker, "'features-grid.colunms',");
+      // 🔴 改坏的那份要放在**原文件旁边**，不能放 /tmp：这个模块里全是相对 require（`../blocks`），
+      //    搬到别处它第一行就 `Cannot find module`，而那个红跟被测的那一维没有关系（试过了）。
+      const tmp = path.join(path.dirname(lib), `.block-manifest-broken-${Date.now()}.js`);
+      fs.writeFileSync(tmp, broken);
+      let err = null;
+      try {
+        delete require.cache[tmp];
+        require(tmp).loadManifests(path.join(NEXTDIR, 'blocks'));
+      } catch (e) { err = e.message; }
+      fs.rmSync(tmp, { force: true });
+      // 🔴 这一格问的是「拼错了会不会静默放过」，**不问是哪一道检查开的火**。
+      //    实测开火的是逐槽位那一条（`columns` 不再被豁免 ⟹ 它变成「kind: text 却没有 editLabel」），
+      //    而不是我为名单本身加的那条 —— 因为逐槽位那条先抛。两条都红，但要说清是哪一条，
+      //    不然下一个人会以为名单那条检查在这一格被验过了。
+      if (err && /slots\.columns 是 kind: text 但没有 editLabel/.test(err)) {
+        ok('例外名单里把 columns 拼成 colunms ⟹ 红（开火的是逐槽位那一条：columns 不再被豁免）');
+      } else if (err) {
+        bad(`拼错例外名单红了，但报的不是预期那条：${err}`);
+      } else bad('把例外名单拼错了却没红 —— 那等于可以静默关掉任意一个槽位的检查');
+    }
+  }
+
+  // 🔴 上面那一格开火的是逐槽位那条。**名单本身**那条（例外什么都没豁免）住在
+  //    `nonEditableExceptionProblems` 里，它不挂在 `loadManifests` 上 —— 挂上去的话任何局部
+  //    manifest 夹具一加载就抛（`block-catalog.test.js` 只造一份 alpha.json，实测被误伤 4 格）。
+  //    所以它的家在这里，拿全套 blocks/ 喂它。
+  {
+    const { nonEditableExceptionProblems, NON_EDITABLE_TEXT_SLOTS } =
+      require(path.join(NEXT, 'scripts', 'lib', 'block-manifest.js'));
+    const all = loadManifests(path.join(NEXT, 'blocks'));
+
+    // 正臂：今天这份名单是干净的。
+    const real = nonEditableExceptionProblems(all);
+    if (real.length) bad(`今天的例外名单就有问题：${real.join(' / ')}`);
+    else ok(`例外名单 ${NON_EDITABLE_TEXT_SLOTS.length} 项，每一项都在 blocks/ 里找得到同名槽位`);
+
+    // 🔴 反臂两个方向，证明这条检查真会开火（不是一条从出生起就没响过的检查）。
+    const ghostSlot = nonEditableExceptionProblems(all, ['hero.noSuchSlotAtAll']);
+    const ghostBlock = nonEditableExceptionProblems(all, ['no-such-block.headline']);
+    if (ghostSlot.length === 1 && /noSuchSlotAtAll/.test(ghostSlot[0])) {
+      ok(`名单里写一个不存在的【槽位】⟹ 点名：${ghostSlot[0]}`);
+    } else bad(`不存在的槽位没被点名：${JSON.stringify(ghostSlot)}`);
+    if (ghostBlock.length === 1 && /no-such-block/.test(ghostBlock[0])) {
+      ok(`名单里写一个不存在的【块】⟹ 点名：${ghostBlock[0]}`);
+    } else bad(`不存在的块没被点名：${JSON.stringify(ghostBlock)}`);
+  }
+}
+
+// ── ⑬ #1352 —— kind 词表跟 blocks/ 里实际在用的取值，两向差集都为空 ───────────────────────────
+//
+// 🔴 这一格治的是**常量表自己会过期**：本票第一版照票里手抄的六个写死，而 #1353 把顶栏页脚做成块
+//    时带进了 `links` / `control`。过期的样子跟没过期一模一样，直到有人建站时撞上校验器当场拒。
+console.log('\n── ⑬ #1352 kind 词表 ↔ blocks/ 实际在用的取值（两向）');
+{
+  const { slotKindVocabularyProblems, SLOT_KINDS } =
+    require(path.join(NEXT, 'scripts', 'lib', 'block-manifest.js'));
+  const all = loadManifests(path.join(NEXT, 'blocks'));
+
+  // 正臂：今天对得上。顺带把分母说出来 —— 这一格要是在一份空 manifest 上跑，两向也都空。
+  const counts = new Map();
+  for (const [, m] of all) {
+    for (const spec of Object.values(m.slots || {})) {
+      if (spec && typeof spec.kind === 'string') counts.set(spec.kind, (counts.get(spec.kind) || 0) + 1);
+    }
+  }
+  const real = slotKindVocabularyProblems(all);
+  if (real.length) bad(`词表跟 blocks/ 对不上：${real.join(' / ')}`);
+  else {
+    ok(`词表 ${SLOT_KINDS.length} 个取值 ↔ ${all.size} 份 manifest 里实际在用的 ${counts.size} 个，两向差集都空`
+      + `（${[...counts].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(' · ')}）`);
+  }
+
+  // 🔴 反臂一（AC 点名的那个）：词表里删掉 `links` ⟹ 红，并点名在用它的那三个槽位。
+  const noLinks = slotKindVocabularyProblems(all, SLOT_KINDS.filter((k) => k !== 'links'));
+  const named = ['footer.columns', 'footer.social', 'header.menu'];
+  if (noLinks.length === 1 && named.every((n) => noLinks[0].includes(n))) {
+    ok(`词表里删掉 links ⟹ 红，并点名：${noLinks[0]}`);
+  } else bad(`删掉 links 之后没点名那三个槽位：${JSON.stringify(noLinks)}`);
+
+  // 🔴 反臂二（另一向）：词表里多写一个谁都不用的取值 ⟹ 也要红。
+  const ghost = slotKindVocabularyProblems(all, [...SLOT_KINDS, 'url']);
+  if (ghost.length === 1 && /"url"/.test(ghost[0])) {
+    ok(`词表里多写一个没人用的取值 ⟹ 红：${ghost[0]}`);
+  } else bad(`多写一个没人用的取值没被点名：${JSON.stringify(ghost)}`);
+}
+
 console.log(`\n══ ${pass} 过 / ${fail} 败 ══`);
 process.exit(fail ? 1 : 0);

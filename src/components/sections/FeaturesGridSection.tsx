@@ -71,10 +71,10 @@ export default function FeaturesGridSection({ data, locale, block }: FeaturesGri
 
   return (
     <section {...blockAttrs('features-grid', block)} className="features-grid" aria-labelledby="services-heading">
-      <h2 id="services-heading" className="features-grid__headline">
+      <h2 id="services-heading" className="features-grid__headline" data-slot="headline">
         {data.headline}
       </h2>
-      <p className="features-grid__sub">{data.subheadline}</p>
+      <p className="features-grid__sub" data-slot="subheadline">{data.subheadline}</p>
       {services.map((service) => (
         <Link key={service.id} href={getServiceHref(service.id)} className="features-grid__item">
           <ServiceIcon icon={service.icon} className="features-grid__icon" />

@@ -64,18 +64,23 @@
     "headline": {
       "kind": "text",
       "required": true,
-      "promptOptional": false
+      "promptOptional": false,
+      "editLabel": "Headline"
     },
     "description": {
       "kind": "text",
       "required": true,
-      "promptOptional": false
+      "promptOptional": false,
+      "editLabel": "Description"
     },
     "button": {
       "kind": "link",
       "required": true,
       "promptOptional": false,
-      "shape": "{label, href}"
+      "shape": "{label, href}",
+      "editLabel": {
+        "label": "Button text"
+      }
     },
     "avatars": {
       "kind": "list",

@@ -176,4 +176,77 @@ function locateBlockInSite(opts) {
   };
 }
 
-module.exports = { locateBlockInSite, blocksOfPage, localesOf };
+/**
+ * #1352 —— 「这条文字路径，老板真的可以直接改吗」。manager 在入队**之前**问这一句。
+ *
+ * 🔴 **为什么这一问必须在站自己的容器里跑，而不是在 manager 里查一张表。** 「哪几处是能直接改的字」
+ *    的唯一来源是 manifest 上的 `editLabel`，而 manifest **住在每个站自己的仓里**，版本是它建站那天
+ *    （或最后一次「更新网站」那天）的模板。manager 里放一份等于放一份「今天模板」的副本 —— 对一个
+ *    老站，它会放行一条那个站根本渲染不出来的路径，而那一笔会一路走到重建：保存成功、页面一个字不变。
+ *
+ * 🔴 **判据跟差集守卫、跟面板列输入框用的是同一个函数**（`block-manifest.js` §editableSlotPaths）。
+ *    再写一份的失败形态是「面板给了输入框、服务器拒收」或者反过来，而两边各自都绿。
+ *
+ * @param {object} opts `{ rootDir?, blockId?, index?, page?, locale?, slot | slots[] }`
+ * 回 `{ ok:true, type, page, locale, index, shape }`，或 `{ ok:false, reason, message }`。
+ *   reason: `not-found` / `bad-locator`（同本文件 `block-page-index.js` §locateBlockInSite）· `no-editor`（这个站的模板还没有
+ *   这一维）· `unknown-block`（这个站的 blocks/ 里没有这种块的 manifest）· `not-editable`（路径没标）
+ */
+function checkEditableSlot(opts) {
+  const o = opts || {};
+  const rootDir = o.rootDir || process.cwd();
+  // 一次可以问好几条：面板的**一次保存**可以改好几行字，而那一笔必须是一个请求
+  // （两笔 = 两条队列任务 = 两个脚本同时对同一份页面 JSON 做读-改-写，#1351 量到 60 次里有 1 次
+  // 把那份文件写坏）。所以这里也一次问完 —— 逐条问的话，第 2 条被拒时第 1 条已经放行了。
+  const slots = Array.isArray(o.slots)
+    ? o.slots.filter((x) => typeof x === 'string' && x)
+    : (typeof o.slot === 'string' && o.slot ? [o.slot] : []);
+  if (!slots.length) return { ok: false, reason: 'bad-locator', message: '没说要改哪一处的字' };
+
+  const where = locateBlockInSite(o);
+  if (!where.ok) return where;
+
+  let manifestLib;
+  try {
+    // eslint-disable-next-line global-require
+    manifestLib = require('./block-manifest.js');
+  } catch (e) {
+    return { ok: false, reason: 'no-editor', message: `读不到 block-manifest.js：${e.message}` };
+  }
+  // 🔴 老模板的这份 lib 里没有这两个函数 —— 那不是「这条路径不能改」，是**这个站还没有这一维**。
+  //    两者的处置完全不同（前者是拒绝，后者是「先更新一次网站」），所以分开回。
+  if (typeof manifestLib.editableSlotPaths !== 'function' || typeof manifestLib.stripSlotIndex !== 'function') {
+    return { ok: false, reason: 'no-editor', message: '这个网站的模板还没有「直接改字」这一维' };
+  }
+  let manifests;
+  try {
+    manifests = manifestLib.loadManifests(path.join(rootDir, 'blocks'));
+  } catch (e) {
+    return { ok: false, reason: 'no-editor', message: `读不出这个网站的块清单：${e.message}` };
+  }
+  const m = manifests.get(where.type);
+  if (!m) {
+    return { ok: false, reason: 'unknown-block', message: `这个网站的块清单里没有 ${JSON.stringify(where.type)}` };
+  }
+  const paths = manifestLib.editableSlotPaths(m).map((x) => x.path);
+  const refused = slots.filter((one) => !paths.includes(manifestLib.stripSlotIndex(one)));
+  if (refused.length) {
+    return {
+      ok: false,
+      reason: 'not-editable',
+      message: `${where.type} 的 ${refused.map((x) => JSON.stringify(x)).join(' / ')} 不是可以直接改的字`,
+    };
+  }
+  return {
+    ok: true,
+    type: where.type,
+    page: where.page,
+    locale: where.locale,
+    index: where.index,
+    shape: where.shape,
+  };
+}
+
+module.exports = {
+  locateBlockInSite, blocksOfPage, localesOf, checkEditableSlot,
+};

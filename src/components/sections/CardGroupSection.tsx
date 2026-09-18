@@ -84,12 +84,12 @@ export default function CardGroupSection({ data, block }: CardGroupSectionProps)
 
   return (
     <section {...attrs} className={v.name} aria-labelledby={v.headingId}>
-      <h2 id={v.headingId} className={`${v.name}__headline`}>{data.headline}</h2>
-      {data.subheadline && <p className={`${v.name}__sub`}>{data.subheadline}</p>}
+      <h2 id={v.headingId} className={`${v.name}__headline`} data-slot="headline">{data.headline}</h2>
+      {data.subheadline && <p className={`${v.name}__sub`} data-slot="subheadline">{data.subheadline}</p>}
       {data.items?.map((item, index) => (
         <Item key={index} className={`${v.name}__item`}>
-          <h3 className={`${v.name}__title`}>{item.title}</h3>
-          <p className={`${v.name}__desc`}>{item.description}</p>
+          <h3 className={`${v.name}__title`} data-slot={`items.${index}.title`}>{item.title}</h3>
+          <p className={`${v.name}__desc`} data-slot={`items.${index}.description`}>{item.description}</p>
           {item.features && item.features.length > 0 && (
             <ul className={`${v.name}__features`}>
               {item.features.map((feature, fIndex) => (

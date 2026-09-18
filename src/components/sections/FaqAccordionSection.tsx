@@ -118,16 +118,16 @@ interface FaqAccordionSectionProps {
 export default function FaqAccordionSection({ data, block }: FaqAccordionSectionProps) {
   return (
     <section {...blockAttrs('faq-accordion', block)} className="faq-accordion" aria-labelledby="faq-heading">
-      <h2 id="faq-heading" className="faq-accordion__headline">
+      <h2 id="faq-heading" className="faq-accordion__headline" data-slot="headline">
         {data.headline}
       </h2>
       {data.subheadline && (
-        <p className="faq-accordion__sub">{data.subheadline}</p>
+        <p className="faq-accordion__sub" data-slot="subheadline">{data.subheadline}</p>
       )}
       {data.items?.map((item, index) => (
         <details key={index} className="faq-accordion__item" {...(item.defaultOpen ? { open: true } : {})}>
-          <summary className="faq-accordion__question">{item.question}</summary>
-          <p className="faq-accordion__answer">{item.answer}</p>
+          <summary className="faq-accordion__question" data-slot={`items.${index}.question`}>{item.question}</summary>
+          <p className="faq-accordion__answer" data-slot={`items.${index}.answer`}>{item.answer}</p>
         </details>
       ))}
       {/* 🔴 #1362 —— 这两个零件**有则出、无则不出**，而且排在骨架最后（D14 第 2 条）。

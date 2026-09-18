@@ -34,9 +34,9 @@ interface TrustedBrandsSectionProps {
 export default function TrustedBrandsSection({ data, block }: TrustedBrandsSectionProps) {
   return (
     <section {...blockAttrs('trusted-brands', block)} className="trusted-brands" aria-label="Trusted brands">
-      <p className="trusted-brands__headline">{data.headline}</p>
-      {data.brands?.map((brand) => (
-        <span key={brand} className="trusted-brands__brand">
+      <p className="trusted-brands__headline" data-slot="headline">{data.headline}</p>
+      {data.brands?.map((brand, index) => (
+        <span key={brand} className="trusted-brands__brand" data-slot={`brands.${index}`}>
           {brand}
         </span>
       ))}

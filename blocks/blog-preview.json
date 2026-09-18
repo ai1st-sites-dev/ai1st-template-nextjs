@@ -31,18 +31,24 @@
     "headline": {
       "kind": "text",
       "required": true,
-      "promptOptional": false
+      "promptOptional": false,
+      "editLabel": "Headline"
     },
     "subheadline": {
       "kind": "text",
       "required": false,
-      "promptOptional": true
+      "promptOptional": true,
+      "editLabel": "Subheading"
     },
     "posts": {
       "kind": "list",
       "required": true,
       "promptOptional": false,
-      "shape": "[{title, excerpt, category?, date?}]"
+      "shape": "[{title, excerpt, category?, date?}]",
+      "editLabel": {
+        "title": "Post title",
+        "excerpt": "Post excerpt"
+      }
     }
   },
   "variants": {

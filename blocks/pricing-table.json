@@ -55,18 +55,25 @@
     "headline": {
       "kind": "text",
       "required": true,
-      "promptOptional": false
+      "promptOptional": false,
+      "editLabel": "Headline"
     },
     "subheadline": {
       "kind": "text",
       "required": false,
-      "promptOptional": true
+      "promptOptional": true,
+      "editLabel": "Subheading"
     },
     "tiers": {
       "kind": "list",
       "required": true,
       "promptOptional": false,
-      "shape": "[{name, price, description, features:[], highlighted?:bool}]"
+      "shape": "[{name, price, description, features:[], highlighted?:bool}]",
+      "editLabel": {
+        "name": "Plan name",
+        "price": "Price",
+        "description": "Plan description"
+      }
     }
   },
   "variants": {

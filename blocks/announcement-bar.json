@@ -20,13 +20,17 @@
     "message": {
       "kind": "text",
       "required": true,
-      "promptOptional": false
+      "promptOptional": false,
+      "editLabel": "Message"
     },
     "link": {
       "kind": "link",
       "required": false,
       "promptOptional": true,
-      "shape": "{label, href}"
+      "shape": "{label, href}",
+      "editLabel": {
+        "label": "Link text"
+      }
     }
   },
   "variants": {

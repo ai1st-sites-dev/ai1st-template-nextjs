@@ -52,13 +52,13 @@ export default function HeroWithFormSection({ data, block }: HeroWithFormSection
         ) : null}
       </div>
       <div className="hero__body" data-role="essential">
-        <h1 className="hero__title">{data.headline}</h1>
-        <p className="hero__sub">{data.subheadline}</p>
+        <h1 className="hero__title" data-slot="headline">{data.headline}</h1>
+        <p className="hero__sub" data-slot="subheadline">{data.subheadline}</p>
         <div className="hero__cta">
-          <Link href={data.ctaPrimary?.href ?? '#'} className="btn-accent text-lg">
+          <Link href={data.ctaPrimary?.href ?? '#'} className="btn-accent text-lg" data-slot="ctaPrimary.label">
             {data.ctaPrimary?.label}
           </Link>
-          <Link href={data.ctaSecondary?.href ?? '#'} className="btn-secondary text-lg">
+          <Link href={data.ctaSecondary?.href ?? '#'} className="btn-secondary text-lg" data-slot="ctaSecondary.label">
             {data.ctaSecondary?.label}
           </Link>
         </div>

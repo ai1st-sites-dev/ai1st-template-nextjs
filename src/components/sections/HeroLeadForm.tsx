@@ -87,7 +87,7 @@ export default function HeroLeadForm({ data }: HeroLeadFormProps) {
   // `<p className="contact-form__success">`，`contact-form__form` 那个面板钩子不在上面。
   // 角色仍是 `essential`：它是客人「我留下联系方式了吗」的唯一回执，藏掉它跟藏掉表单一样严重。
   if (state === 'success') {
-    return <p className="hero__form-success" data-role="essential">{successMessage}</p>;
+    return <p className="hero__form-success" data-role="essential" data-slot="form.successMessage">{successMessage}</p>;
   }
 
   return (
@@ -121,7 +121,7 @@ export default function HeroLeadForm({ data }: HeroLeadFormProps) {
           `contact-form` 那条同名 `partExtra` 是同一个形状 —— 那里已经写明它今天也是恒等式,留着是保险。 */}
       {error && <p className="hero__form-error">{error}</p>}
 
-      <button type="submit" disabled={state === 'submitting'} className="btn-accent">
+      <button type="submit" disabled={state === 'submitting'} className="btn-accent" data-slot="form.buttonText">
         {state === 'submitting' ? 'Sending…' : buttonText}
       </button>
     </form>

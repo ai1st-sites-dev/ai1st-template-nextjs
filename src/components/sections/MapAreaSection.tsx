@@ -58,14 +58,14 @@ interface MapAreaSectionProps {
 export default function MapAreaSection({ data, block }: MapAreaSectionProps) {
   return (
     <section {...blockAttrs('map-area', block)} className="map-area" aria-labelledby="areas-heading">
-      <h2 id="areas-heading" className="map-area__headline">
+      <h2 id="areas-heading" className="map-area__headline" data-slot="headline">
         {data.headline}
       </h2>
-      {data.subheadline && <p className="map-area__sub">{data.subheadline}</p>}
+      {data.subheadline && <p className="map-area__sub" data-slot="subheadline">{data.subheadline}</p>}
       {data.areas?.map((area, index) => (
         <div key={index} className="map-area__area">
-          <span className="map-area__name">{area.name}</span>
-          {area.description && <p className="map-area__desc">{area.description}</p>}
+          <span className="map-area__name" data-slot={`areas.${index}.name`}>{area.name}</span>
+          {area.description && <p className="map-area__desc" data-slot={`areas.${index}.description`}>{area.description}</p>}
         </div>
       ))}
     </section>

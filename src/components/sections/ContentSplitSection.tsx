@@ -96,14 +96,14 @@ export default function ContentSplitSection({ data, block }: ContentSplitSection
       <div className="content-split__media">
         {data.imageUrl ? <img src={data.imageUrl} alt={data.headline} /> : null}
       </div>
-      <h2 id="content-split-heading" className="content-split__headline">
+      <h2 id="content-split-heading" className="content-split__headline" data-slot="headline">
         {data.headline}
       </h2>
-      <p className="content-split__body">{data.content}</p>
+      <p className="content-split__body" data-slot="content">{data.content}</p>
       {data.bullets && data.bullets.length > 0 && (
         <ul className="content-split__bullets">
           {data.bullets.map((bullet, index) => (
-            <li key={index}>{bullet}</li>
+            <li key={index} data-slot={`bullets.${index}`}>{bullet}</li>
           ))}
         </ul>
       )}
@@ -111,8 +111,8 @@ export default function ContentSplitSection({ data, block }: ContentSplitSection
         <div className="content-split__stats">
           {data.stats.map((stat, index) => (
             <div key={index} className="content-split__stat">
-              <span className="content-split__stat-value">{stat.value}</span>
-              <span className="content-split__stat-label">{stat.label}</span>
+              <span className="content-split__stat-value" data-slot={`stats.${index}.value`}>{stat.value}</span>
+              <span className="content-split__stat-label" data-slot={`stats.${index}.label`}>{stat.label}</span>
             </div>
           ))}
         </div>

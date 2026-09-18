@@ -90,12 +90,12 @@ interface TestimonialsSectionProps {
 export default function TestimonialsSection({ data, block }: TestimonialsSectionProps) {
   return (
     <section {...blockAttrs('testimonials', block)} className="testimonials" aria-labelledby="testimonials-heading">
-      <h2 id="testimonials-heading" className="testimonials__headline">
+      <h2 id="testimonials-heading" className="testimonials__headline" data-slot="headline">
         {data.headline}
       </h2>
-      <p className="testimonials__sub">{data.subheadline}</p>
+      <p className="testimonials__sub" data-slot="subheadline">{data.subheadline}</p>
       <div data-block-part="testimonials-list">
-        {data.items?.map((testimonial) => (
+        {data.items?.map((testimonial, index) => (
           <article key={testimonial.id} className="testimonials__item">
             <p className="testimonials__rating" aria-label={`Rated ${testimonial.rating} out of 5`}>
               {Array.from({ length: testimonial.rating }).map((_, i) => (
@@ -104,12 +104,13 @@ export default function TestimonialsSection({ data, block }: TestimonialsSection
                 </svg>
               ))}
             </p>
-            <blockquote className="testimonials__quote">{testimonial.quote}</blockquote>
-            <p className="testimonials__name">{testimonial.name}</p>
+            <blockquote className="testimonials__quote" data-slot={`items.${index}.quote`}>{testimonial.quote}</blockquote>
+            <p className="testimonials__name" data-slot={`items.${index}.name`}>{testimonial.name}</p>
             <p className="testimonials__meta">
-              {testimonial.role} &middot; {testimonial.location}
+              <span data-slot={`items.${index}.role`}>{testimonial.role}</span> &middot;{' '}
+              <span data-slot={`items.${index}.location`}>{testimonial.location}</span>
             </p>
-            <p className="testimonials__service">{testimonial.service}</p>
+            <p className="testimonials__service" data-slot={`items.${index}.service`}>{testimonial.service}</p>
           </article>
         ))}
       </div>

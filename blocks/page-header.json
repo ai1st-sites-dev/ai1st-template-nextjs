@@ -57,18 +57,23 @@
     "title": {
       "kind": "text",
       "required": true,
-      "promptOptional": false
+      "promptOptional": false,
+      "editLabel": "Title"
     },
     "subtitle": {
       "kind": "text",
       "required": false,
-      "promptOptional": true
+      "promptOptional": true,
+      "editLabel": "Subtitle"
     },
     "breadcrumbs": {
       "kind": "list",
       "required": false,
       "promptOptional": false,
-      "shape": "[{label:\"Home\", href:\"/\"}, {label:\"<Page Name>\"}]"
+      "shape": "[{label:\"Home\", href:\"/\"}, {label:\"<Page Name>\"}]",
+      "editLabel": {
+        "label": "Breadcrumb text"
+      }
     }
   },
   "variants": {

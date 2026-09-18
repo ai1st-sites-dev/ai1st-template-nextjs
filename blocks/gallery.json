@@ -67,18 +67,24 @@
     "headline": {
       "kind": "text",
       "required": true,
-      "promptOptional": false
+      "promptOptional": false,
+      "editLabel": "Headline"
     },
     "subheadline": {
       "kind": "text",
       "required": false,
-      "promptOptional": true
+      "promptOptional": true,
+      "editLabel": "Subheading"
     },
     "items": {
       "kind": "list",
       "required": true,
       "promptOptional": false,
-      "shape": "[{title, description?, category?, imageUrl?: string}]"
+      "shape": "[{title, description?, category?, imageUrl?: string}]",
+      "editLabel": {
+        "title": "Item title",
+        "description": "Item description"
+      }
     }
   },
   "variants": {

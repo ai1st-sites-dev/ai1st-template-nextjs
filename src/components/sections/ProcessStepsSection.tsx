@@ -99,15 +99,15 @@ interface ProcessStepsSectionProps {
 export default function ProcessStepsSection({ data, block }: ProcessStepsSectionProps) {
   return (
     <section {...blockAttrs('process-steps', block)} className="process-steps" aria-labelledby="process-heading">
-      <h2 id="process-heading" className="process-steps__headline">
+      <h2 id="process-heading" className="process-steps__headline" data-slot="headline">
         {data.headline}
       </h2>
-      {data.subheadline && <p className="process-steps__sub">{data.subheadline}</p>}
+      {data.subheadline && <p className="process-steps__sub" data-slot="subheadline">{data.subheadline}</p>}
       {data.steps?.map((step, index) => (
         <div key={index} className="process-steps__step">
           <span className="process-steps__num">{index + 1}</span>
-          <h3 className="process-steps__title">{step.title}</h3>
-          <p className="process-steps__desc">{step.description}</p>
+          <h3 className="process-steps__title" data-slot={`steps.${index}.title`}>{step.title}</h3>
+          <p className="process-steps__desc" data-slot={`steps.${index}.description`}>{step.description}</p>
         </div>
       ))}
     </section>

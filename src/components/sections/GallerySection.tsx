@@ -58,11 +58,11 @@ interface GallerySectionProps {
 export default function GallerySection({ data, block }: GallerySectionProps) {
   return (
     <section {...blockAttrs('gallery', block)} className="gallery" aria-labelledby="gallery-heading">
-      <h2 id="gallery-heading" className="gallery__headline">
+      <h2 id="gallery-heading" className="gallery__headline" data-slot="headline">
         {data.headline}
       </h2>
       {data.subheadline && (
-        <p className="gallery__sub">{data.subheadline}</p>
+        <p className="gallery__sub" data-slot="subheadline">{data.subheadline}</p>
       )}
       {data.items?.map((item, index) => (
         <figure key={index} className="gallery__item">
@@ -75,8 +75,8 @@ export default function GallerySection({ data, block }: GallerySectionProps) {
           )}
           <figcaption className="gallery__caption">
             {item.category && <span className="gallery__category">{item.category}</span>}
-            <span className="gallery__title">{item.title}</span>
-            {item.description && <span className="gallery__desc">{item.description}</span>}
+            <span className="gallery__title" data-slot={`items.${index}.title`}>{item.title}</span>
+            {item.description && <span className="gallery__desc" data-slot={`items.${index}.description`}>{item.description}</span>}
           </figcaption>
         </figure>
       ))}

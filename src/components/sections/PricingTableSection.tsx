@@ -65,11 +65,11 @@ export default function PricingTableSection({ data, block }: PricingTableSection
   const ctaHref = data.ctaHref || '/quote';
   return (
     <section {...blockAttrs('pricing-table', block)} className="pricing-table" aria-labelledby="pricing-heading">
-      <h2 id="pricing-heading" className="pricing-table__headline">
+      <h2 id="pricing-heading" className="pricing-table__headline" data-slot="headline">
         {data.headline}
       </h2>
       {data.subheadline && (
-        <p className="pricing-table__sub">{data.subheadline}</p>
+        <p className="pricing-table__sub" data-slot="subheadline">{data.subheadline}</p>
       )}
       {(data.tiers ?? []).map((tier, index) => (
         <article
@@ -77,9 +77,9 @@ export default function PricingTableSection({ data, block }: PricingTableSection
           className={`pricing-table__item${tier.highlighted ? ' pricing-table__item--featured' : ''}`}
         >
           {tier.highlighted && <p className="pricing-table__badge">Most Popular</p>}
-          <h3 className="pricing-table__name">{tier.name}</h3>
-          <p className="pricing-table__price">{tier.price}</p>
-          <p className="pricing-table__desc">{tier.description}</p>
+          <h3 className="pricing-table__name" data-slot={`tiers.${index}.name`}>{tier.name}</h3>
+          <p className="pricing-table__price" data-slot={`tiers.${index}.price`}>{tier.price}</p>
+          <p className="pricing-table__desc" data-slot={`tiers.${index}.description`}>{tier.description}</p>
           <ul className="pricing-table__features">
             {tier.features.map((feature, i) => (
               <li key={i}>{feature}</li>

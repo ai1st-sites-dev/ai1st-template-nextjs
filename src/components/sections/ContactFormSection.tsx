@@ -137,15 +137,15 @@ export default function ContactFormSection({ data, block }: ContactFormSectionPr
   if (state === 'success') {
     return (
       <section {...blockAttrs('contact-form', block)} className="contact-form">
-        <p className="contact-form__success">{successMessage}</p>
+        <p className="contact-form__success" data-slot="successMessage">{successMessage}</p>
       </section>
     );
   }
 
   return (
     <section {...blockAttrs('contact-form', block)} className="contact-form">
-      <h2 className="contact-form__heading">{heading}</h2>
-      <p className="contact-form__intro">{intro}</p>
+      <h2 className="contact-form__heading" data-slot="heading">{heading}</h2>
+      <p className="contact-form__intro" data-slot="intro">{intro}</p>
 
       {/* 🔴 #1370 —— 两个零件的**盒子一直在树上，里面的东西按形态出**。三件事同时要成立，只有这个
           写法都满足（每一条都是量出来的，读数在票上）：
@@ -215,7 +215,7 @@ export default function ContactFormSection({ data, block }: ContactFormSectionPr
         {/* 🔴 The button keeps the SITE's button class rather than getting a hook of its own — the same
             boundary hero and cta-banner draw. A theme owns layout; what a call to action looks like is
             the brand's, and it already follows the palette through CSS variables. */}
-        <button type="submit" disabled={state === 'submitting'} className="btn-accent">
+        <button type="submit" disabled={state === 'submitting'} className="btn-accent" data-slot="buttonText">
           {state === 'submitting' ? 'Sending…' : buttonText}
         </button>
       </form>

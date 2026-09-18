@@ -237,6 +237,68 @@ console.log('\n⑨ #1351 r6 —— 按 {page, index} 问（老 sections 形状�
     '这一页根本不存在 ⟹ not-found');
 }
 
+console.log('\n⑦ #1352 checkEditableSlot：这条文字路径，老板真的可以直接改吗');
+{
+  const { checkEditableSlot } = require(path.join(NEXT, 'scripts', 'lib', 'block-page-index.js'));
+  // 🔴 这一节要一棵**带 blocks/ 的**树 —— 判据是那个站自己的 manifest，而上面那个夹具没有它。
+  //    软链回本仓，跟 `patch-block.test.js` 的 makeSite 同一个做法：在容器里，「站自己那份」就是这一份。
+  const r2 = fs.mkdtempSync(path.join(os.tmpdir(), 'bpi-slot-'));
+  fs.symlinkSync(path.join(NEXT, 'blocks'), path.join(r2, 'blocks'));
+  fs.symlinkSync(path.join(NEXT, 'public'), path.join(r2, 'public'));
+  write(path.join(r2, 'site', 'pages', 'home.json'), {
+    slug: 'home',
+    blocks: [
+      { id: 'home-hero-0', type: 'hero', weight: 0, data: { headline: 'A' } },
+      { id: 'home-cards-1', type: 'card-group', weight: 10, data: { items: [{ title: 'x' }] } },
+    ],
+  });
+
+  const a = checkEditableSlot({ rootDir: r2, blockId: 'home-hero-0', slot: 'headline' });
+  check(a.ok === true && a.type === 'hero' && a.page === 'home',
+    `顶层文字槽放行（ok=${a.ok} type=${a.type}）`);
+  const b = checkEditableSlot({ rootDir: r2, blockId: 'home-hero-0', slot: 'ctaPrimary.label' });
+  check(b.ok === true, `子字段那条路径也放行（ok=${b.ok} ${b.message || ''}）`);
+  const c = checkEditableSlot({ rootDir: r2, blockId: 'home-cards-1', slot: 'items.2.title' });
+  check(c.ok === true, `列表项带序号也放行（序号在比之前被去掉）（ok=${c.ok} ${c.message || ''}）`);
+
+  // 🔴 反向对照四条 —— 没有它们，上面三格全绿也可能只是「这个函数什么都不拒」。
+  const d = checkEditableSlot({ rootDir: r2, blockId: 'home-hero-0', slot: 'imageUrl' });
+  check(d.ok === false && d.reason === 'not-editable',
+    `没标 editLabel 的槽位被拒（kind: image）：${d.reason} · ${d.message || ''}`);
+  const e = checkEditableSlot({ rootDir: r2, blockId: 'home-hero-0', slot: 'ctaPrimary.href' });
+  check(e.ok === false && e.reason === 'not-editable',
+    `标了的是 label、href 被拒：${e.reason}`);
+  const f = checkEditableSlot({ rootDir: r2, blockId: 'home-hero-0', slot: '' });
+  check(f.ok === false && f.reason === 'bad-locator', `没说改哪一处 ⟹ bad-locator（实际 ${f.reason}）`);
+  const g = checkEditableSlot({ rootDir: r2, blockId: 'no-such-block', slot: 'headline' });
+  check(g.ok === false && g.reason === 'not-found', `块不在这个站上 ⟹ not-found（实际 ${g.reason}）`);
+
+  // 一次问好几条：全好才放行；有一条不好就整笔拒，而且**点名是哪一条**。
+  // 🔴 逐条问是错的：第 2 条被拒时第 1 条已经放行了，而面板的一次保存只发一笔。
+  const m1 = checkEditableSlot({ rootDir: r2, blockId: 'home-hero-0', slots: ['headline', 'subheadline'] });
+  check(m1.ok === true, `一次问两条都可改 ⟹ 放行（ok=${m1.ok} ${m1.message || ''}）`);
+  const m2 = checkEditableSlot({ rootDir: r2, blockId: 'home-hero-0', slots: ['headline', 'imageUrl'] });
+  check(m2.ok === false && m2.reason === 'not-editable' && /imageUrl/.test(m2.message)
+    && !/headline/.test(m2.message),
+  `一好一坏 ⟹ 整笔拒，并且只点名坏的那条：${m2.message}`);
+
+  // 🔴 「这个站的模板还没有这一维」跟「这条路径不能改」必须分开回：前者的处置是「先更新一次网站」，
+  //    后者是拒绝。夹具做法是把 blocks/ 指到一个空目录 —— 那时 loadManifests 读不出任何块。
+  const r3 = fs.mkdtempSync(path.join(os.tmpdir(), 'bpi-old-'));
+  fs.mkdirSync(path.join(r3, 'blocks'));
+  fs.symlinkSync(path.join(NEXT, 'public'), path.join(r3, 'public'));
+  write(path.join(r3, 'site', 'pages', 'home.json'), {
+    slug: 'home',
+    blocks: [{ id: 'home-hero-0', type: 'hero', weight: 0, data: { headline: 'A' } }],
+  });
+  const h = checkEditableSlot({ rootDir: r3, blockId: 'home-hero-0', slot: 'headline' });
+  check(h.ok === false && (h.reason === 'no-editor' || h.reason === 'unknown-block'),
+    `站里读不出块清单 ⟹ 不是 not-editable，而是 ${h.reason}（处置不同：先更新网站）`);
+
+  fs.rmSync(r2, { recursive: true, force: true });
+  fs.rmSync(r3, { recursive: true, force: true });
+}
+
 fs.rmSync(root, { recursive: true, force: true });
 console.log(`\n══ block-page-index.test.js: ${pass} 过 · ${fail} 失败 ══`);
 process.exit(fail ? 1 : 0);

@@ -53,11 +53,11 @@ export default function ServiceRelatedPagesSection({ data, locale, block }: Serv
 
   return (
     <section {...blockAttrs('service-related-pages', block)} className="service-related-pages" aria-labelledby="related-pages-heading">
-      <h2 id="related-pages-heading" className="service-related-pages__headline">
+      <h2 id="related-pages-heading" className="service-related-pages__headline" data-slot="headline">
         {data.headline}
       </h2>
       {data.subheadline && (
-        <p className="service-related-pages__sub">{data.subheadline}</p>
+        <p className="service-related-pages__sub" data-slot="subheadline">{data.subheadline}</p>
       )}
       {relatedPages.map((page) => (
         <Link key={page.slug} href={localeUrl(page.slug, locale)} className="service-related-pages__card">

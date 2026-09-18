@@ -51,15 +51,15 @@ interface TeamGridSectionProps {
 export default function TeamGridSection({ data, block }: TeamGridSectionProps) {
   return (
     <section {...blockAttrs('team-grid', block)} className="team-grid" aria-labelledby="team-heading">
-      <h2 id="team-heading" className="team-grid__headline">
+      <h2 id="team-heading" className="team-grid__headline" data-slot="headline">
         {data.headline}
       </h2>
-      {data.subheadline && <p className="team-grid__sub">{data.subheadline}</p>}
+      {data.subheadline && <p className="team-grid__sub" data-slot="subheadline">{data.subheadline}</p>}
       {data.members?.map((member, index) => (
         <div key={index} className="team-grid__member">
-          <h3 className="team-grid__name">{member.name}</h3>
-          <p className="team-grid__role">{member.role}</p>
-          {member.bio && <p className="team-grid__bio">{member.bio}</p>}
+          <h3 className="team-grid__name" data-slot={`members.${index}.name`}>{member.name}</h3>
+          <p className="team-grid__role" data-slot={`members.${index}.role`}>{member.role}</p>
+          {member.bio && <p className="team-grid__bio" data-slot={`members.${index}.bio`}>{member.bio}</p>}
         </div>
       ))}
     </section>

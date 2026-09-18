@@ -75,18 +75,24 @@ export default function BlogPreviewSection({ data, locale, block }: BlogPreviewS
 
   return (
     <section {...blockAttrs('blog-preview', block)} className="blog-preview" aria-labelledby="blog-heading">
-      <h2 id="blog-heading" className="blog-preview__headline">
+      <h2 id="blog-heading" className="blog-preview__headline" data-slot="headline">
         {data.headline}
       </h2>
-      {data.subheadline && <p className="blog-preview__sub">{data.subheadline}</p>}
+      {data.subheadline && <p className="blog-preview__sub" data-slot="subheadline">{data.subheadline}</p>}
       {displayPosts?.map((post, index) => {
         const slug = fromBlog ? blogPosts[index]?.slug : undefined;
+        // #1352 —— 🔴 **只有在这一块真的画着 `data.posts` 时才挂 `data-slot`。**
+        // `fromBlog` 为真时上面那个三元式画的是这个站**真正的博客文章**（`getBlogPosts`），
+        // 跟页面 JSON 里的 `posts` 没有关系。那时挂上去的后果不是报错：检查器会给老板一个输入框，
+        // 他改完、保存、重建，页面上一个字都不变 —— 而这条路上没有任何东西会说一句话。
+        // 本仓为这个形状（「写了什么都不发生」）付过多次账，所以这里按**这一次画的是谁**决定挂不挂。
+        const editable = !fromBlog;
         const parts = (
           <>
             {post.category && <span className="blog-preview__category">{post.category}</span>}
             {post.date && <span className="blog-preview__date">{post.date}</span>}
-            <span className="blog-preview__title">{post.title}</span>
-            <span className="blog-preview__excerpt">{post.excerpt}</span>
+            <span className="blog-preview__title" {...(editable ? { 'data-slot': `posts.${index}.title` } : {})}>{post.title}</span>
+            <span className="blog-preview__excerpt" {...(editable ? { 'data-slot': `posts.${index}.excerpt` } : {})}>{post.excerpt}</span>
           </>
         );
         return slug ? (

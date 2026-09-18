@@ -90,18 +90,18 @@ export default function TextBlockSection({ data, block }: TextBlockSectionProps)
       aria-labelledby={data.headline ? 'text-block-heading' : undefined}
     >
       {data.headline && (
-        <h2 id="text-block-heading" className="text-block__headline">
+        <h2 id="text-block-heading" className="text-block__headline" data-slot="headline">
           {data.headline}
         </h2>
       )}
-      <p className="text-block__body">{data.content}</p>
+      <p className="text-block__body" data-slot="content">{data.content}</p>
       {data.attribution && (
-        <p className="text-block__attribution">{data.attribution}</p>
+        <p className="text-block__attribution" data-slot="attribution">{data.attribution}</p>
       )}
       {data.items && data.items.length > 0 && (
         <ul className="text-block__list">
           {data.items.map((item, index) => (
-            <li key={index}>{item}</li>
+            <li key={index} data-slot={`items.${index}`}>{item}</li>
           ))}
         </ul>
       )}
