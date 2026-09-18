@@ -291,6 +291,10 @@ const DEMO_CONTENT = {
     headline: 'Something not sounding right?',
     description: 'Describe it in a sentence and we will tell you what it usually costs to fix.',
     button: { label: 'Get an estimate', href: '/quote' },
+    // #1361 —— 这个块的可选头像带。**同一批脸**故意跟 hero 的 `socialProof.avatars` 复用：
+    // 两处画的是同一件事（这家店的顾客），图册上并排看时换一批脸只会让人以为它们是两群人。
+    // 🔴 六张不是凑数：守卫 (c) 要求每个 list 槽 ≥ 6 项（`demo-content.test.js` 的 MIN_ITEMS）。
+    avatars: [1, 2, 3, 4, 5, 6].map((n) => ({ imageUrl: imageUrl(`avatar-${n}`) })),
   },
 
   'announcement-bar': {

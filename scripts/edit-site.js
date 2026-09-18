@@ -864,6 +864,8 @@ other type does not show a picture, and putting an image field on one has no eff
 - a **social-proof** block → \`data.imageUrl\` (optional — the block shows a picture only when one is
   set; without it the ratings, badges and figures simply have no picture beside them)
 - a **gallery** block → \`data.items[].imageUrl\` (one per item)
+- a **cta-banner** block → \`data.avatars[].imageUrl\` (one per face in the small row of customer
+  photos this block can show; the row is optional — with no \`avatars\` the block draws no picture at all)
 - **a blog post** (\`blog/<slug>.json\`) → an \`<img src="...">\` inside its \`content\`, which is rendered as
   HTML. This is the one place a picture is not a field of its own: to change the picture in an article, edit
   the \`src\` of that \`<img>\` tag in the article's \`content\`. Everything below about which URLs you may

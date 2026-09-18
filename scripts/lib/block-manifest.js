@@ -117,6 +117,14 @@ function filledOptionalSlots(m, data) {
  * 算：`kind: "image"` 的单图槽 · `kind: "list"` 且 `shape` 里带 `imageUrl` 的列表槽。
  * 不算：
  *   · 槽名是 `logo` / `logos` —— 那是生意自己的商标位，塞图库照片进去就是假商标。
+ *   · 槽名是 `avatar` / `avatars`（#1361）—— 那是**顾客的脸**，跟下面 `socialProof` 那条是同一件事。
+ *     #1361 给 `cta-banner` 加的 `avatars`（`kind: "list"` · `shape: "[{imageUrl}]"`）按上面那条本来
+ *     会被算进来，而算进来买到的是**假脸**：列表槽的提示词（`image-slots.js §buildSlotPrompt`）写的是
+ *     「4:3 detail or moment shot … product close-up / service action / interior detail」—— 生成的是
+ *     店内细节照，被塞进 40×40 的圆框里。判据跟 `socialProof` 那条逐字同源：**顾客头像不是内容图**。
+ *     🔴 名字这一层是有意的：写入闸那一侧（`image-urls.js` 的 `IMAGE_FIELDS`）必须仍然认得出
+ *     `avatars[].imageUrl` 是一张图的地址（否则模型编的外链会落盘），所以字段名不能换 ——
+ *     能分开这两件事的只有槽名。
  *   · `kind: "object"` —— hero 的 `socialProof` 的 shape 里**也有** `imageUrl`
  *     （`{avatars: [{imageUrl}], rating, text}`），但那是顾客头像不是内容图。这一条不是可省的
  *     小心眼：去掉它，每个站的 hero 就会多生成一批冒充真人的头像。
@@ -128,7 +136,7 @@ function filledOptionalSlots(m, data) {
 function imageSlotsOf(m) {
   const out = [];
   for (const [name, spec] of Object.entries((m && m.slots) || {})) {
-    if (!spec || /^logos?$/.test(name)) continue;
+    if (!spec || /^(logos?|avatars?)$/.test(name)) continue;
     if (spec.kind === 'image') { out.push({ name, kind: 'image' }); continue; }
     if (spec.kind === 'list' && typeof spec.shape === 'string' && spec.shape.includes('imageUrl')) {
       out.push({ name, kind: 'list' });

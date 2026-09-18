@@ -309,6 +309,18 @@
   gap: 1rem;
 }
 
+/* ── one face in the avatar strip: an <img> is inline, and no sheet can reach it ──────────────── */
+/* #1361. Same split as `.hero__img` above and `.content-split__media img` below: how big the face is
+   and its round corner are the floor with no sheet at all (public/base.css); what must be true
+   whichever sheet is loaded is here — an <img> with no `object-fit` stretches a photo that is not
+   square into a smear, and an inline <img> sits on the text baseline with a gap under it.
+   Contract §1 refuses tag selectors, and neither this class nor the box around it is in the hook
+   table, so no theme can reach either one (why that is deliberate: the long note in base.css). */
+.cta-banner__avatar {
+  display: block;
+  object-fit: cover;
+}
+
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
    #1019 — THE NEUTRAL PAGE-HEADER SKELETON. Same division of labour as the two blocks above.
    ══════════════════════════════════════════════════════════════════════════════════════════════

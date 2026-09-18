@@ -65,9 +65,10 @@ const isAddress = (s) => /^(https?:|data:|tel:|mailto:|#|\/)/.test(s);
  * 🔴 **代价写在明处**：条目**只有**地址的那种 list 槽，每一项都量到 0，于是「最长 ≥ 最短的
  *    2 倍」在那一格退化成 `0 >= 0`、恒真。守卫不会假装它查过：`guardC` 把这种槽单独列出来印一行
  *    「没有文字可量」，≥ 6 项那一半照旧真查。
- *    📌 今天这种槽**一处都没有**（`demo-content.test.js` ② 段那行印的就是这个集合，现在是空的）。
- *    它的来历是 `logo-carousel/logos`（一串图片地址），而那个块 2026-09-17 已被 #1375 删掉 ——
- *    这一段留着，是因为下一个往包里写地址列表的人会重新踩进来。
+ *    📌 今天这种槽有**一处**：`cta-banner/avatars`（#1361 加的头像带，每项只有 `imageUrl`）——
+ *    `demo-content.test.js` ② 段那行印的就是这个集合，现取一个名字。它原来是空的，来历是
+ *    `logo-carousel/logos`（一串图片地址），而那个块 2026-09-17 已被 #1375 删掉。
+ *    🔴 别把这行数字当判据用，它随包一起变；判据是那一行自己印出来的名单。
  */
 function itemTextLength(item) {
   if (typeof item === 'string') return isAddress(item) ? 0 : item.length;

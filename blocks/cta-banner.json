@@ -76,6 +76,12 @@
       "required": true,
       "promptOptional": false,
       "shape": "{label, href}"
+    },
+    "avatars": {
+      "kind": "list",
+      "required": false,
+      "promptOptional": true,
+      "shape": "[{imageUrl}]"
     }
   },
   "variants": {

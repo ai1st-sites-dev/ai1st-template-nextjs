@@ -1424,6 +1424,15 @@
   justify-content: center;
 }
 
+/* #1361 —— 头像带在这一副里排在最上面。骨架里它是最后一个零件（理由在 `CtaBannerSection.tsx`：
+   插在前面会换掉 `text-left-action-right` 的自动排位），所以这里用形态层的 `order` 把它挪上去，
+   不动 DOM。对照的是 Chris 定的那张 FlyonUI cta-2：整宽卡片全部居中，顶上一组头像。
+   🔴 槽位空着时这条不产生任何画面差别：那时整条带子 `display: none`（本表末尾那一族），
+   不参与排版 ⟹ 今天两套主题的真站（都没填这个槽）逐像素不变。 */
+[data-block="cta-banner"][data-shape="band-center"] .cta-banner__avatars {
+  order: -1;
+}
+
 @media (min-width: 1024px) {
   [data-block="cta-banner"][data-shape="band-center"] {
     grid-template-columns: 1fr;
@@ -1486,6 +1495,14 @@
   flex-wrap: wrap;
   align-items: center;
   order: 1;
+}
+
+/* #1361 —— 头像带在这一副里要显式写 `order`，而别的四副不用。这一副给三个零件都写了 `order`
+   （按钮 1 / 标题 2 / 说明 3），而新加的这个零件默认是 `order: 0` ⟹ 不写这条它会跑到**最前面**，
+   跟骨架里「排在最后」正好相反（实测：活图册 1280px 下头像 y=19823 而按钮 y=19929，它在按钮上面）。
+   写成 4 之后它回到最后。🔴 槽位空着时这条不产生任何画面差别（那时整条带子 `display: none`）。 */
+[data-block="cta-banner"][data-shape="action-first"] .cta-banner__avatars {
+  order: 4;
 }
 
 @media (min-width: 1024px) {
@@ -2823,6 +2840,57 @@
   }
 }
 
+/* newsletter-signup · centered-inline  （#1361，照 Chris 定的 FlyonUI cta-3；今天没有主题选它）
+
+   整块居中、标题与说明竖排、表单自己占一行（输入框和按钮在这一行里并排）——
+   跟 form-side 的差别是画出来的那个样子：form-side 桌面端两条轨道 2fr / 1fr、内容一律靠左，
+   表单坐在左边那条 2fr 里；这里一条轨道，每个零件按自己的宽度居中。
+   🔴 居中靠 `justify-items`，不用 `text-align` —— 这一层整份表里 `text-align` 出现 0 次
+   （band-center 同一个画面也是这么写的），字的对齐归皮那一层。
+   表单里那两个控件的并排与换行由 base.css 的 `.newsletter-signup__form`（flex + wrap）与
+   globals.css 的 `input { flex: 1 1 12rem }` 给 —— 主题按契约 §1 选不中标签，所以这里只把
+   表单这个盒子摆好，不碰它里面。
+   🔴 **表单那条 `width: 100%` 不是装饰，它挡住一处实测到的横向溢出。** `justify-items: center` 让
+   每个零件按自己的宽度定宽，而 `<input>` 有一个固有宽度（浏览器给的默认字符宽），`min-width: 0`
+   改不动它 —— 容器比它还窄时，表单就顶出块的内容盒。实测（活图册 `/__catalog`，375px，一格
+   188px、内容盒 140px）：不写这条时表单量到 264px、块 `scrollWidth 226 > clientWidth 188`，
+   溢出 38px；同一格里 `form-side` 不溢出，因为它的表单是 `display: grid` 被拉伸到轨道宽。
+   写上之后表单跟着容器走，里面的输入框按 flex 收缩/换行。
+   🔴 **同一个成因的第二处在标题和说明上，而它被 `overflow: hidden` 藏着 —— `scrollWidth` 看不见它。**
+   居中让这两个零件也按 max-content 定宽：同一格里标题量到 167px 而内容盒只有 140px，多出来的
+   27px 被 `.newsletter-signup { overflow: hidden }`（globals.css）剪掉，块的 `scrollWidth` 仍等于
+   `clientWidth`。所以这里给它们一条 `max-width`（说明那条要连 38rem 的阅读宽一起取小），让宽度
+   回到容器里，断词交给 base.css 已有的 `overflow-wrap: break-word`。
+   🔴 **这里【不】给三个零件写 `grid-column: 1 / -1`**（form-side 那一段给两个零件写了）。一条轨道时
+   它对画面毫无影响，却让检查 ⑨ 的探针把每个零件都数成「跨列」—— 实测：写着它的那一版，
+   `columns` 那根轴在 1280px 上读到「只有 0 个不跨列的子元素」，退化成「报告而不判」
+   （`layout-intent.mjs` 的 `placeable` / `columns-degraded`）；去掉之后同一格判的是严格那条
+   `occupied === 1`。**画面没有跟着变**：1280px 下标题与说明两版逐数相同（标题 x=517 / 宽 246、
+   说明 x=579 / 宽 123，两版各量一次）—— 一条轨道时 `1 / -1` 跟自动排位落在同一格。
+   （表单那一格两版不同，那是后面 `width: 100%` 那条带来的，跟这条无关。） */
+
+[data-block="newsletter-signup"][data-shape="centered-inline"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+}
+
+[data-block="newsletter-signup"][data-shape="centered-inline"] .newsletter-signup__headline {
+  max-width: 100%;
+}
+
+[data-block="newsletter-signup"][data-shape="centered-inline"] .newsletter-signup__desc {
+  max-width: min(38rem, 100%);
+}
+
+[data-block="newsletter-signup"][data-shape="centered-inline"] .newsletter-signup__form {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  width: 100%;
+  max-width: 34rem;
+}
+
 /* ══ page-header ══════════════════════════════════════════════════════════════════════ */
 
 /* page-header · stack-left  （ember-12 今天选的就是它） */
@@ -3989,7 +4057,7 @@
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════════
-   没图就不画媒体带（#1337，设计文档 D4 / D11 ⑥）
+   可选槽位没填，就不画那个零件（#1337 立，#1361 起不再只管「图」；设计文档 D4 / D11 ⑥）
    ══════════════════════════════════════════════════════════════════════════════════════════════════
 
    可选的图槽位没填时，组件照样把媒体容器渲染出来（`HeroSection.tsx:67` / `ContentSplitSection.tsx:86`
@@ -4009,11 +4077,17 @@
    `shapes.css` 不在里面），一有违规就**拒绝这次构建** —— 放错地方不是报个警告，是所有站建不出来。
    实测：原样 `base.css` rc=0；把下面这两行加到它末尾就是 `🔴 2 violation(s)`、rc=1，点名「后代选择器」。
 
-   🔴 **按 `data-block` 逐个写，不写通配。** 覆盖面 = 「`imageUrl` 是可选槽」的块，现取（2026-09-15，
-   `origin/main faa39001`）：解析 32 份 manifest，`imageUrl` 且 `required: false` 的是
-   `{hero, hero-with-form, content-split}` 三个，别的块连带 `image` 字样的槽位都没有。图**必填**
-   的块（gallery 那类）没图是数据错，该由 `validateSite` 说话，不是默默藏起来。加一个可选图槽位的块
-   时，这里补一条。
+   🔴 **按 `data-block` 逐个写，不写通配。** 覆盖面 = 「那个槽位是可选的」的块。图这一族现取
+   （2026-09-15，`origin/main faa39001`）：解析 32 份 manifest，`imageUrl` 且 `required: false` 的是
+   `{hero, hero-with-form, content-split}` 三个。图**必填**的块（gallery 那类）没图是数据错，
+   该由 `validateSite` 说话，不是默默藏起来。加一个可选槽位、而且它的零件是无条件渲染的块时，
+   这里补一条。
+   🔴 **#1361 加了第四条，判的槽位不叫 `imageUrl`**：`cta-banner` 的头像带（可选槽 `avatars`，
+   每一项带一个 `imageUrl`）。判据、写法、「按 `data-block` 逐条写」这三样跟上面三条逐字相同，
+   唯一的差别是槽位名 —— 所以这一族的名字从「没图就不画媒体带」改成了「可选槽位没填就不画那个零件」。
+   📌 里面装的确实是图片，但这个盒子**不是**上面那三条说的「媒体容器」：它的类名不以 `__media`
+   结尾，而那个后缀是 `layout-intent-vocab.json` 判「这个零件是这个块的图」的唯一判据，
+   `cta-banner` 五种形态也全写着 `media: none`。两件事分开：这里判的是「槽位空不空」。
    📌 `hero-with-form` 是 #1333 落到 main 上的第三个成员（本票开工那天落的）—— 它跟 `hero` 用的是
    **同一个** `.hero__media` 类名、不同的 `data-block`，所以两条规则各写各的，不能合并成一条按类名
    的写法：按类名写就等于通配，把「图必填的块不许被盖到」这条边界丢掉。
@@ -4023,12 +4097,16 @@
    无条件给）和 `content-split` 那两条无条件比例只有这么写才盖得住。两者不冲突：那边管「有图时多大」，
    这边管「没图时在不在」。
 
-   📌 **放在文件末尾，但今天不是它靠位置才生效的。** 这条选择器是 (0,3,0)，跟上面每一条形态规则
+   📌 **放在文件末尾，但今天不是它靠位置才生效的。** 这几条选择器是 (0,3,0)，跟上面每一条形态规则
    （块属性 + 画法属性 + 一个类名）逐位相同，同特异度靠先后定胜负；而实测五份表（`base.css` /
-   本表 / 两套 `themes/*.css` / `src/app/globals.css`）里，这两个媒体容器身上**一条 `display` 声明
+   本表 / 两套 `themes/*.css` / `src/app/globals.css`）里，那两个媒体容器身上**一条 `display` 声明
    都没有**（本条之外命中 0）—— 所以今天没有对手，没有「因为排在前面所以被盖掉」这回事。写在末尾
    是为了将来：形态层真要给某个 (块, 画法) 写 `display` 时，同特异度下它排在前面、这一条赢，空媒体
    带不会因为加了一条画法又冒回来。
+   🔴 **#1361 那条头像带不一样，它【有】对手**：`base.css` 给 `.cta-banner__avatars` 写了
+   `display: flex`（那是没有任何表时也得成立的地板）。这一条赢不是靠排在后面，是靠特异度
+   —— (0,3,0) 对 (0,1,0)，而且 `base.css` 那条 `<link>` 本来就排在本表前面（`layout.tsx`：
+   base.css → shapes.css → theme.css → custom.css）。两个理由各自单独成立。
    🔴 **这段注释里不许写出 `[data-block=…][data-shape=…]` 那个形状的字面串。**
    `block-manifest.js` 的 `shapePairsFromCss` 拿正则扫**整份文件**、不剥注释（:65），注释里举个例子
    就会凭空多出一个 (块, 画法) 对。实测：第一版这里举的例子是 hero 的 form-side，而 #1333 刚把它搬去
@@ -4039,7 +4117,7 @@
    拿 `lint()` 真跑过五臂（每臂一份单规则的表）：合法属性那一臂只报「缺 v3 头」这条共通的，
    而 `.hero__media{display:none}` / `.content-split__media{display:none}` / `[data-block="hero"]{display:none}`
    三臂各多出一条 `"display" is not on the contract's property whitelist` —— 部件上、块根上都写不出。
-   ⟹ 今天能藏住媒体容器的只有平台层，而平台层唯一会藏它的就是下面这三条、判据正是「槽位空着」。
+   ⟹ 今天能藏住这些零件的只有平台层，而平台层唯一会藏它们的就是下面这四条、判据正是「槽位空着」。
    ══════════════════════════════════════════════════════════════════════════════════════════════════ */
 
 [data-block="hero"]:not([data-has-imageUrl]) .hero__media {
@@ -4051,6 +4129,10 @@
 }
 
 [data-block="content-split"]:not([data-has-imageUrl]) .content-split__media {
+  display: none;
+}
+
+[data-block="cta-banner"]:not([data-has-avatars]) .cta-banner__avatars {
   display: none;
 }
 

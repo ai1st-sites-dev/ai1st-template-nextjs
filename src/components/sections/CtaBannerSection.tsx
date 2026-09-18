@@ -3,10 +3,33 @@ import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig } from '@/lib/types/config';
 
 interface CtaBannerSectionProps {
+  /** #1361 —— `data.avatars` 是一组头像（可选装饰）。空着时整条带子 `display: none`
+   *  （public/shapes.css 末尾那族），元素留着，跟媒体容器空着时的处置逐字同一条（#1337）。
+   *  🔴 每一项的图片字段叫 `imageUrl`，跟 hero / content-split / gallery 逐字相同，**这不是随手起的名**：
+   *  写入闸 `scripts/lib/image-urls.js` 的 `IMAGE_FIELDS` 按【字段名】认「这个值是一张图的地址」，
+   *  换个名字（`avatarImages: string[]` 那种）它对这里按构造失明 —— 模型编出来的外链会落盘。
+   *  实测：那一版让 `scripts/lib/image-urls.test.js` 当场红三格。
+   *
+   *  🔴🔴 **这段话必须待在 `data` 那一层外面，别挪回字段头上。** 全填版夹具是
+   *  `scripts/block-migration/gen-allblocks.js` 从这个类型现造的，它的 `fields()`（:16-33）按最外层的
+   *  `,` / `;` 切段、拿**第一个冒号**前面那截当字段名，而且**不剥注释**。这段话里有一个
+   *  `` `display: none` `` ⟹ 整段注释连同后面那个字段被切成一个名叫
+   *  `/** #1361 —— 一组头像（可选装饰）。空着时整条带子 \`display` 的字段，**`avatars` 一次都不出现**。
+   *  失败方向是静默的：夹具照样生成、检查 ⑨ 照样全绿，只是那几格量的是「头像不在」的画面 ——
+   *  #1361 第一版就是这么交出去的，QA1 在验收标准第 3 条上抓到（同一个洞在 `card-group__features`
+   *  上咬过一次，出处见 `scripts/theme-css-invariants-sample-pages.js` 的文件头）。
+   *  🔴 注意：不是「别写带冒号的注释」——`fields()` 把注释正文一起算进字段名，所以
+   *  **`data` 那一层里任何一条注释都会吃掉它下面那个字段**，有没有冒号只决定名字被截在哪儿。
+   *  🔴 还有一条同源的：这段话里**不许出现 `data:` 紧跟一个左花括号**那个写法。定位那一层用的是
+   *  `src.match(/data:\s*\{/)` —— 全文第一处命中，写在注释里就把它抢走了，然后从注释里那个括号
+   *  开始配对，切出来的字段是**空的**（我改这段注释时第一版就这么写，当场读到 `[]`）。
+   *  判据（改完跑一次）：`node scripts/block-migration/gen-allblocks.js` 之后
+   *  `site/en/pages/allblocks.json` 里 cta-banner 的 data 键要有 `avatars`，值是三个图片路径。 */
   data: {
     headline: string;
     description: string;
     button: { label: string; href: string };
+    avatars?: { imageUrl: string }[];
   };
   /** #998 — 这个块在页面 JSON 里的那条记录；根元素的 `data-role` / `data-shape` / `data-has-*` 从它来。
    *  （#998 当初加它是为了第三个钩子 `data-block-layout`，#1341 把那个钩子退役了。） */
@@ -81,6 +104,35 @@ export default function CtaBannerSection({ data, block }: CtaBannerSectionProps)
         <Link href={data.button?.href ?? "#"} className="btn-accent text-lg">
           {data.button?.label}
         </Link>
+      </div>
+      {/* 🔴 #1361 — THE AVATAR STRIP IS LAST IN THE SKELETON, AND THAT IS NOT A STYLE CHOICE.
+          `text-left-action-right` puts the description on the left and the buttons on the right by
+          letting the grid place them itself (both parts say `grid-column: auto`, public/shapes.css),
+          so a part inserted BEFORE them changes which cell each one lands in. A shape that wants the
+          faces higher up says so with `order`, which is what the shape layer is for.
+
+          🔴 NO `data-block-part` ON THE WRAPPER. The layout probe's candidate pool goes one level
+          INTO such a wrapper (`scripts/lib/layout-intent.mjs`), so a group of same-class faces would
+          read as N sibling items — and all five cta-banner shapes declare `items: none`. Hiding the
+          box would not save it either: the pool is built from every child, not from the laid-out
+          ones (PM measured this on #1358 and ruled it on #1361).
+
+          🔴 The first class may not end in `__media` or `__headline` / `__heading` / `__title`:
+          those suffixes are how `layout-intent-vocab.json` decides "this part is the picture" and
+          "this part is the heading", and all five shapes here say `media: none`.
+
+          The picture itself is deliberately not a contract hook, the same boundary `.hero__img`
+          draws (globals.css): the platform owns the <img>, and for this family it owns the box too
+          until a faces recipe exists (PM's ruling ⓐ on #1361). */}
+      <div className="cta-banner__avatars">
+        {/* 🔴 #1361 r4 — 每一张脸先判有没有地址，没有就**不出这个 `<img>`**（跟 `HeroSection` 的
+            `socialProof.avatars` 逐字同一条写法）。`src={a && a.imageUrl}` 那种写法在 `a` 是
+            `{}` / `'bare'` 这类条目上得到 `undefined` / 一个不是地址的串，浏览器当场画一个破图 ——
+            #1358 r1 退回的是同一个形状（图片带里缺 `imageUrl` 的条目导出成没有 src 的 `<img>`），
+            PM 在 #1361 r3 验收里把两票的口径定成同一个：修。 */}
+        {(data.avatars ?? []).map((a, i) => (a?.imageUrl ? (
+          <img key={`${a.imageUrl}-${i}`} className="cta-banner__avatar" src={a.imageUrl} alt="" />
+        ) : null))}
       </div>
     </section>
   );

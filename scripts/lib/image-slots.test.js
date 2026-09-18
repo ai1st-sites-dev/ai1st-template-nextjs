@@ -8,7 +8,7 @@
  * ══ 守什么 ═══════════════════════════════════════════════════════════════
  * ① 「哪些槽算内容图槽」这条规则本身：单图槽算 · 列表槽带 imageUrl 算 · 列表槽不带不算 ·
  *    `kind: object` 即使 shape 里有 imageUrl 也不算（hero 的 socialProof 是顾客头像）·
- *    槽名 logo / logos 不算（生意自己的商标位）。
+ *    槽名 logo / logos 不算（生意自己的商标位）· 槽名 avatar / avatars 不算（顾客的脸，#1361）。
  * ② **本票的要害 —— 名单是不是真的现算的**：给一份 manifest 临时加一个新的 `kind: image` 槽
  *    （只在内存里加，不动盘上的文件，也不改 create-site.js 里任何名单）⟹ 那个槽被填到；
  *    把它去掉再跑 ⟹ 它不再出现。这一格红了就说明名单又变回写死的了。
@@ -17,7 +17,10 @@
  * ④ 上限：按块在页面里的先后截断，被截掉的逐个点名进日志。
  * ⑤ 拿不到图时那行日志的格式（哪一页 · 哪个块 · 哪个槽 · 什么原因），以及一个槽失败不牵连别的槽。
  * ⑥ 今天真 manifest 上的两条回归判据：`hero-with-form.imageUrl` 在名单里（它正是本票要治的洞），
- *    `cta-banner` 一个图槽都没有（本票把它从名单里省掉）；外壳区那两个 `logo` 槽不在名单里。
+ *    `cta-banner` 一个图槽都没有；外壳区那两个 `logo` 槽不在名单里。
+ *    🔴 `cta-banner` 那条 2026-09-18（#1361）起换了理由，green 的来历不一样了：它**有**一个
+ *    `avatars` 列表槽、每项带 `imageUrl`，是槽名那条规则把它挡在名单外的。所以那一格现在**先**
+ *    断言这个槽真的在 manifest 里 —— 否则有人把槽删了，这一格照样绿，而它什么都没守。
  */
 
 'use strict';
@@ -73,7 +76,13 @@ const fakeManifests = () => new Map(Object.entries({
   },
   'cta-banner': {
     type: 'cta-banner', displayName: 'Call To Action', category: 'cta',
-    slots: { headline: { kind: 'text', required: true }, description: { kind: 'text', required: false } },
+    slots: {
+      headline: { kind: 'text', required: true },
+      description: { kind: 'text', required: false },
+      // #1361 —— 顾客头像带。形状跟 gallery 的 items 是同一族（列表 + imageUrl），**只有槽名不同** ——
+      // 所以下面那一格量的就是「名字这条规则真的在起作用」，不是「这个块碰巧没有列表槽」。
+      avatars: { kind: 'list', required: false, shape: '[{imageUrl}]' },
+    },
   },
 }));
 
@@ -82,7 +91,7 @@ const fakeSite = () => ([
     slug: 'home',
     sections: [
       { type: 'hero', data: { headline: 'Hi' } },
-      { type: 'cta-banner', data: { headline: 'Call' } },
+      { type: 'cta-banner', data: { headline: 'Call', avatars: [{ imageUrl: '' }, { imageUrl: '' }] } },
       { type: 'gallery', data: { headline: 'Work', items: [{ title: 'a' }, { title: 'b' }, { title: 'c' }] } },
       { type: 'header', data: {} },
     ],
@@ -128,7 +137,15 @@ const slotsOf = (pages) => {
   check(names('gallery') === 'items:list', `列表槽带 imageUrl 算（gallery 读到 "${names('gallery')}"）`);
   check(imageSlotsOf(ms.get('content-split')).length === 1, '同一个块里不带 imageUrl 的列表槽（bullets）不算');
   check(names('header') === '', 'logo 槽不算 —— 那是生意自己的商标位，不能塞图库照片');
-  check(names('cta-banner') === '', '一个图槽都没有的块，名单里不出现');
+  check(names('cta-banner') === '',
+    `槽名 avatars 不算 —— 那是顾客的脸，列表槽的提示词求的是店内细节照（cta-banner 读到 "${names('cta-banner')}"）`);
+  // 🔴 反过来那一半：同一份 spec 换个槽名就**算**。少了这一格，上面那条绿也可能是
+  //    「列表槽带 imageUrl 这条规则整个坏了」换来的 —— 两种原因给出同一个读数。
+  const renamed = fakeManifests();
+  const ctaSlots = renamed.get('cta-banner').slots;
+  ctaSlots.faces = ctaSlots.avatars; delete ctaSlots.avatars;
+  check(imageSlotsOf(renamed.get('cta-banner')).map((x) => `${x.name}:${x.kind}`).join(',') === 'faces:list',
+    '同一份 spec 改名叫 faces ⟹ 它又算了（挡住它的是槽名，不是别的）');
 
   // ── ② 名单真的是现算的（本票的要害）──────────────────────────────────────────────────────
   console.log('── ② 往 manifest 里加一个新图槽 ⟹ 不改任何名单它就被填到');
@@ -216,8 +233,13 @@ const slotsOf = (pages) => {
   const realNames = (t) => (real.get(t) ? imageSlotsOf(real.get(t)).map((s) => s.name) : null);
   check(Array.isArray(realNames('hero-with-form')) && realNames('hero-with-form').includes('imageUrl'),
     'hero-with-form 的 imageUrl 在名单里 —— 它就是本票立票的那个洞（它有图槽却一直拿不到图）');
+  // 🔴 先证「有东西可挡」再证「挡住了」：#1361 给 cta-banner 加了 avatars（列表 + imageUrl）之后，
+  //    这一格的绿是**槽名规则**换来的。不先量一句，删掉那个槽也是绿 —— 那时它什么都没守。
+  const ctaSlotSpec = ((real.get('cta-banner') || {}).slots || {}).avatars;
+  check(!!ctaSlotSpec && ctaSlotSpec.kind === 'list' && String(ctaSlotSpec.shape).includes('imageUrl'),
+    `cta-banner 真的有一个列表图槽 avatars（现取 ${JSON.stringify(ctaSlotSpec)}）—— 下面那一格挡的就是它`);
   check(Array.isArray(realNames('cta-banner')) && realNames('cta-banner').length === 0,
-    'cta-banner 一个图槽都没有 ⟹ 不再为它生成图（这是省掉，不是退化）');
+    'cta-banner 一个图槽都没有 ⟹ 不再为它生成图（avatars 是顾客的脸，跟 hero 的 socialProof 同一条判据）');
   for (const shell of ['header', 'footer']) {
     check(Array.isArray(realNames(shell)) && realNames(shell).length === 0,
       `${shell} 的 logo 槽不在名单里`);

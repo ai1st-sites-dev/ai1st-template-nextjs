@@ -153,9 +153,9 @@
   }
 }
 
-/* 🔴 `min-width: 0` ON ALL THREE, the same rule and the same reason `.hero__media` / `.hero__body`
-   have it above: a grid item's automatic minimum size is its CONTENT's size, so one unbreakable word
-   pushes the track wider than the screen. `overflow-wrap: break-word` does NOT prevent that — it
+/* 🔴 `min-width: 0` ON ALL FOUR (three until #1361 added the avatar strip), the same rule and the
+   same reason `.hero__media` / `.hero__body` have it above: a grid item's automatic minimum size is
+   its CONTENT's size, so one unbreakable word pushes the track wider than the screen. `overflow-wrap: break-word` does NOT prevent that — it
    allows a break when the box is already too narrow, but it does not shrink the box's min-content
    size, so without this the two properties fight and the word wins.
    Measured on a phone (375) before this rule existed: the headline came out 787px wide with a 50
@@ -164,7 +164,8 @@
    half. With the rule: 327px, and the word wraps. */
 .cta-banner__headline,
 .cta-banner__desc,
-.cta-banner__action {
+.cta-banner__action,
+.cta-banner__avatars {
   min-width: 0;
 }
 
@@ -187,6 +188,50 @@
   max-width: 42rem;
   line-height: 1.6;
   overflow-wrap: break-word;
+}
+
+/* 🔴 #1361 THE AVATAR STRIP IS NOT A CONTRACT HOOK, SO THIS IS THE ONLY FLOOR IT HAS. Neither
+   `.cta-banner__avatars` nor `.cta-banner__avatar` is listed in docs/reference/theme-css-contract.md
+   §1, so `scripts/theme-css-lint.js` refuses them to every sheet and no generated theme can state
+   these properties itself. That means the test the rest of this file applies — "would every sheet
+   want to state this itself? then base must not" — does not apply to them: they are UNREACHABLE,
+   like the newsletter's `input` and `button` further down, not "left to base".
+
+   🔴 WHY THEY ARE UNREACHABLE ON PURPOSE (PM's ruling ⓐ on #1361, measured). Putting
+   `.cta-banner__avatars` in the hook table costs four places (the table, the contract document, and
+   both generated sheets, which `scripts/theme-pipeline/sheet-fresh.js --check` turns red until they
+   are regenerated) — and what it buys today is wrong: the generator has no recipe for a row of
+   faces, so what it writes for an unknown hook is `font-size` / `line-height` / `color`, a text rule
+   on a box that holds pictures. A faces recipe (`sheet-recipes.js`) is another ticket; this one's
+   body says it does not do the skin. `.hero__img` is the same boundary already drawn one layer in:
+   the sheet sizes the box through `.hero__media`, the platform owns the <img> (globals.css), because
+   two owners for one dimension is a bug generator. Here the platform owns the box as well — that is
+   the only difference, and it ends the day the faces recipe lands.
+
+   Round, equal-sized and in one row is what makes a handful of pictures read as a GROUP of customers
+   rather than as loose images, and it has to hold with no sheet at all — which is what this file is
+   for. (How many faces there are is the site's data, not this rule's business: the demo pack feeds
+   six because the demo-content guard wants every list slot at six or more, a real page may feed
+   three. `flex-wrap` is deliberately not set here — a box too narrow for the row clips instead of
+   wrapping, which is what `.cta-banner { overflow: hidden }` in globals.css does to every part of
+   this block; whether a row of faces should wrap is an open question QA3 put to the author on #1361
+   and nobody has answered.)
+
+   Where the strip sits inside the block is per shape and lives in public/shapes.css; this says
+   nothing about that. */
+.cta-banner__avatars {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cta-banner__avatar {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 9999px;
+  border-width: 2px;
+  border-style: solid;
+  border-color: currentColor;
 }
 
 /* ── #1019 page-header ──────────────────────────────────────────────────────────────────────────

@@ -14,6 +14,18 @@
         "media": "none",
         "columns": "one"
       }
+    },
+    {
+      "name": "centered-inline",
+      "candidate": true,
+      "needs": [],
+      "layout_intent": {
+        "items": "none",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "none",
+        "columns": "one"
+      }
     }
   ],
   "slots": {

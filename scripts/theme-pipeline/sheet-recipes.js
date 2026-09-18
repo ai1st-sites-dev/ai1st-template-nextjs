@@ -278,9 +278,16 @@ const formLookFor = (i) => FORM_LOOK_NAMES[
 // 🔴 它**没有**候选表（上面 CTA_LOOKS / FORM_LOOKS 那种）：这三副之间的差别整个住在
 //    `public/shapes.css`（设计文档 D4 —— 形态只能是 CSS），皮那一层一个字都不用改，所以这里只需要
 //    一个名字的轮换，跟 `voiceFor` 的 `plainGrid` 同一档。
-// 🔴 为什么非轮换不可：`sheet-recipes.test.js` 的 ⑮ 拿「97 套候选真的画到过的 (块, 形态) 对」跟
-//    `public/shapes.css` 里的集合做**双向差集**。写死一个名字 ⟹ 新加的两副落进「形态层有而一次都
-//    没被选中」那一半，那一格当场红并点名 —— 意思是那两副没有任何一格在看它们。
+// 🔴 轮换在这里买到的是**那两副在 ⑮ 的报告里看得见**，不是一道守卫 —— 原来这几行写的是「写死一个
+//    名字 ⟹ 那一格当场红并点名」，**那句话是假的**（#1361 r4 按 PM 裁定连同下面 newsletter-signup
+//    那段一起改成实话）。⑮ 对这个方向（形态层有、候选一次都没画到）从 #1360 起**只报不判**：
+//    `sheet-recipes.test.js` 的 `if (orphan.length) { console.log(…**报告不判**…) }` 是 `console.log`，
+//    不是 `bad()`。单变量实测（2026-09-18，只改本行）：
+//      把这一项退回 `'hero-with-form': 'form-side'` ⟹ `node scripts/theme-pipeline/sheet-recipes.test.js`
+//      的 ⑮ 孤儿行多出 `hero-with-form/form-band hero-with-form/form-inline`，而
+//      `══ 汇总: 通过 52 · 失败 0 ══`、**rc=0**。
+//    真正拦住「形态没登记」的是 #1331 的两向差集（`scripts/lib/block-shapes.test.js` ①），
+//    量它们几何的是 #1332 的守卫 ⑨（逐对逐视口，跟今天有没有主题选它无关）。
 // 🔴 这**不是**「改主题的选择单」：`PLAIN_SHAPE_NAMES` / `recipeShapeFor` 今天只有
 //    `sheet-recipes.test.js` 一个消费者（现取：全仓 grep 这两个名字，产品侧 0 命中），它们不写进
 //    任何产物。盘上那 2 套主题选哪一副仍然由 `scripts/theme-pool.json` 说，本票没碰它。
@@ -671,6 +678,21 @@ function voiceFor(i) {
     // 上是 3 栏还是 2 栏」的轴**不能跟着列数一起没**：没有它，那 9 个块就从「各有 2 副骨架」塌成
     // 「全都只有 1 副」。所以这一项换成**形态名**这一层的同一条轴 —— 值是形态库里那两个名字。
     plainGrid: i % 2 === 0 ? 'three-up' : 'two-up',
+    // #1361 —— newsletter-signup 从 1 副长到 2 副（对表 FlyonUI 新增 `centered-inline`）。
+    // 🔴 **它自己一条轴，不挂在 `plainGrid` 上**：那一项是另外 9 个块共用的，把这两个名字塞进去
+    //    等于同时改掉那 9 个块画什么（#1368 给 gallery 加轴时写下的同一条理由）。
+    // 🔴 它买到的是**这一副在 ⑮ 的报告里看得见**，不是一道守卫 —— 这几行原来写的是「只登记
+    //    `form-side` 的话……当场红」，**那句话是假的**（#1361 r4 按 PM 裁定改成实话；上面
+    //    `HERO_FORM_LOOK_NAMES` 那段是同族的同一句，一起改了）。⑮ 的这个方向从 #1360 起**只报不判**
+    //    （`sheet-recipes.test.js` 里那句是 `console.log`，不是 `bad()`）。单变量实测（2026-09-18，
+    //    只改本行）：退回 `'newsletter-signup': 'form-side'` ⟹ ⑮ 的孤儿行多出
+    //    `newsletter-signup/centered-inline`，而 `══ 汇总: 通过 52 · 失败 0 ══`、**rc=0**。
+    //    登记那一侧由 #1331 的两向差集守，几何那一侧由 #1332 的守卫 ⑨ 量。
+    // 📌 它**不进任何产物**：生成表走的是 `shapeFor(block, v)` 那条路（:1889），而那条路读的是
+    //    `SHAPES` 与各族候选表，不读 `PLAIN_SHAPE_NAMES`。所以这一项只被尺子那一侧读到
+    //    （`recipeShapeFor`），两套已生成的主题表一个字节不变（`sheet-fresh.js --check` 现跑 rc=0）。
+    // 📌 周期：`i % 2`，而第 ⑫ 格那条夹具用的 PERIOD = 14400 是偶数 ⟹ 它仍然是这条轴的整数倍。
+    newsletterForm: i % 2 === 0 ? 'form-side' : 'centered-inline',
     // #1364 —— trusted-brands 从一副变成三副（`row` / `heading-side` / `two-row`）。跟 `plainGrid`
     // 同一条理由：形态层里多出来的那两副必须有人选得到它，否则 `sheet-recipes.test.js` 第 ⑮ 格
     // 「配方画的那一副 vs 形态层双向差集都空」当场红，报文逐字是「形态层有而一次都没被选中的
@@ -1390,7 +1412,8 @@ const PLAIN_SHAPE_NAMES = {
   // 各自只有一副的
   'services-list': 'two-up',
   'quote-form': 'main-aside',
-  'newsletter-signup': 'form-side',
+  // #1361 —— newsletter-signup 自己一条轴（两副），理由写在 `voiceFor` 的 `newsletterForm` 旁边。
+  'newsletter-signup': (v) => v.newsletterForm,
   // #1358 —— 这一项从写死的一个名字换成跟着候选走的三副（理由在 HERO_FORM_LOOK_NAMES 上面）。
   //    它不在 `hooksByBlock()` 里（借 hero 的类名，manifest 的 `hooksFrom`），所以只有点名问它的
   //    那两格会读到它：⑮ 的双向差集，和 `recipeSheetFor(..., {only: 'hero-with-form'})`。
