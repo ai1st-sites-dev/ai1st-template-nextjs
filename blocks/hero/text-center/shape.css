@@ -1,0 +1,68 @@
+/* hero · text-center  （默认排版，ember-12 从 #1333 起穿的就是它）
+
+   为什么 hero 需要这一个：#1333 把 form-side 整段搬去了 hero-with-form，而 hero 剩下的 media-cover
+   要求有图（`blocks/hero/manifest.json` 的 `needs: ["imageUrl"]`）。`block-manifest.js` 的 checkManifestShape
+   明文禁止「默认排版要求槽位」—— 别的排版缺槽位落回的就是它，它自己再缺就无处可落。所以 hero 得有
+   一个不要求任何槽位的默认，设计文档 D1 给 hero 列的五种排版里就有「纯文字居中」，几何照生成器里
+   同名那一份（`sheet-recipes.js` 的 `HERO_LOOKS['text-center']`）搬，不新发明。
+
+   🔴 `.hero__media` 的尺寸挂在 `[data-has-imageUrl]` 上，不是无条件给 —— 这一条是承重的。没填图的
+   hero 落回的就是这个排版，而 `HeroSection.tsx` 无图时那个 `<div class="hero__media">` 照样在 DOM 里，
+   主题表还给它画了底色（`.hero__media { background-color: var(--color-primary-100) }`）。无条件给它
+   `aspect-ratio` 就是给每一个没填图的站的首屏加一个空色块 —— 那正是 #1333 里被否掉的那条路
+   （「去掉 media-cover 的『要求有图』」）。`data-has-imageUrl` 是 #1331 立的钩子，这里是第一个用它的。 */
+
+[data-block="hero"][data-shape="text-center"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+  justify-items: center;
+  min-height: 26rem;
+}
+
+[data-block="hero"][data-shape="text-center"] .hero__deco {
+  order: 1;
+  max-width: 5rem;
+}
+
+[data-block="hero"][data-shape="text-center"] .hero__body {
+  display: grid;
+  align-content: start;
+  order: 2;
+  max-width: 48rem;
+}
+
+[data-block="hero"][data-shape="text-center"] .hero__title {
+  grid-column: 1 / -1;
+}
+
+[data-block="hero"][data-shape="text-center"] .hero__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="hero"][data-shape="text-center"] .hero__cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 🔴 位置**无条件**给，尺寸才挂在 `[data-has-imageUrl]` 上 —— 这两行不许合并成一条。
+   合并的话，没填图的 hero 上 `.hero__media` 拿不到 `order`，而 CSS 的默认 order 是 **0**，
+   这个块其余部件从 1 起 ⟹ 那个（高度为 0 的）媒体位会排到**最上沿**，正文前面凭空多一段网格间距，
+   而且 `blocks/hero/manifest.json` 那段排版意图写着 `media: "below"`（图在文之下）—— 几何守卫按边界框判，
+   在没图的页面上会当场读到「图在文之上」。实测（无图、1280px 真浏览器）：
+     合并写法   媒体 y 186–186（order 0，在正文 261 之上）· 块高 547
+     现在这样   媒体 y 排在正文之后，意图那一条成立
+   尺寸仍然只在有图时给：无条件给 `aspect-ratio` 就是给每一个没填图的站加一个空色块
+   （主题表给 `.hero__media` 画了底色），那正是 #1333 里被否掉的那条路。 */
+
+[data-block="hero"][data-shape="text-center"] .hero__media {
+  order: 3;
+}
+
+[data-block="hero"][data-shape="text-center"][data-has-imageUrl] .hero__media {
+  width: 100%;
+  aspect-ratio: 21 / 9;
+}

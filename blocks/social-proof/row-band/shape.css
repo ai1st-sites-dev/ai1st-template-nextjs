@@ -1,0 +1,41 @@
+/* social-proof · row-band  （#1367 · FlyonUI social-proof-3：单条 4 格统计带）
+
+   居中一行标题，下面一条把数字均分开的带子。这一副用弹性排布而不是网格：带子要的是「几个数字
+   不管多少个都摊在同一行」，而网格的列数是写死在表里的。数字给 `flex: 1 1 0` + `min-width: 0`
+   （后者 `base.css` 已经给了全部零件），于是它们的起始宽度是 0、永远挤得下 ⟹ 不换行。
+   手机宽下改成整行一个，照设计文档三端说明的手机那一栏。 */
+
+[data-block="social-proof"][data-shape="row-band"] {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+[data-block="social-proof"][data-shape="row-band"] .social-proof__headline,
+[data-block="social-proof"][data-shape="row-band"] .social-proof__quote,
+[data-block="social-proof"][data-shape="row-band"] .social-proof__media {
+  flex: 0 0 100%;
+}
+
+[data-block="social-proof"][data-shape="row-band"] .social-proof__headline {
+  text-align: center;
+}
+
+[data-block="social-proof"][data-shape="row-band"] .social-proof__media {
+  width: 100%;
+  max-width: 48rem;
+  margin-inline: auto;
+}
+
+[data-block="social-proof"][data-shape="row-band"] .social-proof__stat {
+  display: grid;
+  align-content: start;
+  flex: 1 1 100%;
+}
+
+@media (min-width: 1024px) {
+  [data-block="social-proof"][data-shape="row-band"] .social-proof__stat {
+    flex: 1 1 0;
+  }
+}

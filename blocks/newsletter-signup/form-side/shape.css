@@ -1,0 +1,25 @@
+/* newsletter-signup · form-side  （ember-12 + azure-29 今天选的就是它） */
+
+[data-block="newsletter-signup"][data-shape="form-side"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="newsletter-signup"][data-shape="form-side"] .newsletter-signup__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="newsletter-signup"][data-shape="form-side"] .newsletter-signup__desc {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="newsletter-signup"][data-shape="form-side"] .newsletter-signup__form {
+  display: grid;
+}
+
+@media (min-width: 1024px) {
+  [data-block="newsletter-signup"][data-shape="form-side"] {
+    grid-template-columns: 2fr 1fr;
+  }
+}

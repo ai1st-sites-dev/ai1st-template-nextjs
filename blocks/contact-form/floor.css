@@ -1,0 +1,95 @@
+/* ── #1027 batch B: contact-form · quote-form · services-list · values-grid · services-nav ·
+      service-related-pages ─────────────────────────────────────────────────────────────────────
+   🔴 #1162 (2026-08-23): `values-grid` is gone as a block type — the compat layer that kept the old
+   names alive retired, so nothing emits `.values-grid*` any more and its rules were deleted from the
+   lists below. The name stays in this header because it says which blocks batch B was measured on;
+   the readings underneath were taken with it in. Six block hooks then, five now.
+   Same test as the three blocks above — "would every sheet want to state this itself?" — checked
+   against all three phase-1 sheets after their batch-B rules were written:
+
+     the six block hooks       display / gap / padding      all three set them → base leaks nothing
+     every __title / __heading font-size / line-height      all three set them
+     every __desc / __sub      font-size / line-height      all three set them
+     .services-nav__link       padding / border-radius      all three set them
+
+   🔴 `min-width: 0` ON EVERY PART THAT IS A GRID OR FLEX ITEM, the same rule and the same reason the
+   hero, cta-banner and page-header parts have it: a grid item's automatic minimum size is its
+   CONTENT's size, so one long word pushes the track wider than the screen and the block's
+   `overflow: hidden` (globals.css) then CLIPS it — while the page-level "no horizontal scroll"
+   reading says everything is fine. `overflow-wrap: break-word` does not prevent it. Measured per
+   block on a 375px viewport, which is the only width where it is visible (#1008: without base the
+   font size drops to 16px and the long word fits, so a 1280px reading says the protection is there
+   when it is not).
+
+   🔴 THE FORM CONTROLS THEMSELVES ARE NOT HERE. `input` / `textarea` / `label` / `ol` / `li` cannot
+   be selected by any theme (contract §1 refuses tag selectors), so they are not a floor a sheet
+   might want to raise — they are unreachable, and globals.css lays them out. One owner per property.  */
+
+.contact-form {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .contact-form {
+    padding: 4rem 2rem;
+  }
+}
+
+.contact-form__heading,
+.contact-form__intro,
+.contact-form__form,
+.contact-form__error,
+.contact-form__note,
+.contact-form__success,
+.contact-form__media,
+.contact-form__aside,
+.contact-form__aside-label,
+.contact-form__aside-address,
+.contact-form__aside-phone,
+.contact-form__aside-email {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+/* ── headings and body copy: the readable floor ────────────────────────────────────────────────── */
+.contact-form__heading {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.contact-form__intro {
+  /* Roughly 70 characters — the same reading measure the hero body, the cta-banner description and
+     the page-header subtitle get. */
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+}
+
+.contact-form__note,
+.contact-form__error {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.contact-form__success {
+  font-size: 1.125rem;
+  line-height: 1.6;
+  padding: 2rem 1.5rem;
+}
+
+/* ── the repeated units: a form's fields, a service, a value, a related page ───────────────────── */
+.contact-form__form {
+  display: grid;
+  gap: 1rem;
+}
+
+/* #1370 —— `form-over-media` 那张图。跟上面那条同一个理由：主题给它底和圆角，没有皮的时候它也得
+   有个形状，不然那一行在图加载完之前是塌的。 */
+.contact-form__media {
+  aspect-ratio: 16 / 9;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}

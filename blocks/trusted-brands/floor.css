@@ -1,0 +1,35 @@
+.trusted-brands {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .trusted-brands {
+    padding: 4rem 2rem;
+  }
+}
+
+.trusted-brands__headline,
+.trusted-brands__brand {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+/* ── the comparison's rows: which mark belongs to which side ───────────────────────────────────── */
+
+
+/* Only the marks are centred here. The header row's three labels are one class, so telling the first
+   one apart needs a descendant selector — and base.css refuses those on purpose (a specificity above
+   a theme's is a floor a theme cannot lift). A sheet may write it: §1 lets a sheet combine two hooks
+   as ancestor and descendant, and all three do. */
+
+
+/* ── the list of names ─────────────────────────────────────────────────────────────────────────── */
+.trusted-brands__headline {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}

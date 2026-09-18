@@ -26,7 +26,7 @@
 // 🔴 #1333 加了第四样，**只对它那一条规则生效**：`hero` + `block_layout: "with-form"` 改写成
 //   `hero-with-form` 时，顺手删掉 `block_layout` 并补一个空的 `data.form`。两样都不是可选的：
 //     · 删 `block_layout`：📌 #1341 —— 这一条原来的理由是「新块的取值表里没有 `with-form` 这个值
-//       （`blocks/hero-with-form.json` 的 `block_layout` 是 `["default"]`），留着它 `blockAttrs` 会把
+//       （`blocks/hero-with-form/manifest.json` 的 `block_layout` 是 `["default"]`），留着它 `blockAttrs` 会把
 //       `data-block-layout="with-form"` 原样送进 DOM」。那两句今天都不成立了：内容结构那一维整条
 //       退役，32 份 manifest 里都没有那份取值表了，`blockAttrs.ts` 也不再输出那个属性，老站残留的
 //       这个键由 `scripts/blocks.js` 的 `readPageBlocks` 读的时候丢掉。**这一步照旧删它**：迁移的

@@ -1,0 +1,43 @@
+/* content-split · media-top-uniform  （#1340 从生成器的 split['media-top'] + 节律 uniform 剪来；今天没有主题选它） */
+
+[data-block="content-split"][data-shape="media-top-uniform"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="content-split"][data-shape="media-top-uniform"] .content-split__media {
+  aspect-ratio: auto;
+  order: 1;
+}
+
+[data-block="content-split"][data-shape="media-top-uniform"] .content-split__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="content-split"][data-shape="media-top-uniform"] .content-split__body {
+  display: grid;
+  align-content: start;
+  max-width: 46rem;
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="media-top-uniform"] .content-split__bullets {
+  display: grid;
+}
+
+[data-block="content-split"][data-shape="media-top-uniform"] .content-split__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+[data-block="content-split"][data-shape="media-top-uniform"] .content-split__stat {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="content-split"][data-shape="media-top-uniform"] {
+    grid-template-columns: 1fr;
+  }
+}

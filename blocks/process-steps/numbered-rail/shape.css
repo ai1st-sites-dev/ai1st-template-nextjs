@@ -1,0 +1,35 @@
+/* process-steps · numbered-rail  （azure-29 今天选的就是它） */
+
+[data-block="process-steps"][data-shape="numbered-rail"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="process-steps"][data-shape="numbered-rail"] .process-steps__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="process-steps"][data-shape="numbered-rail"] .process-steps__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="process-steps"][data-shape="numbered-rail"] .process-steps__step {
+  display: grid;
+  align-content: start;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+}
+
+[data-block="process-steps"][data-shape="numbered-rail"] .process-steps__num {
+  display: grid;
+  place-items: center;
+  grid-row: 1 / 3;
+}
+
+@media (min-width: 1024px) {
+  [data-block="process-steps"][data-shape="numbered-rail"] {
+    grid-template-columns: 1fr;
+  }
+}

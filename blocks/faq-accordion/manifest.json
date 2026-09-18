@@ -1,0 +1,69 @@
+{
+  "type": "faq-accordion",
+  "displayName": "FAQ",
+  "category": "faq",
+  "roleDefault": "essential",
+  "slots": {
+    "headline": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false,
+      "editLabel": "Headline"
+    },
+    "subheadline": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true,
+      "editLabel": "Subheading"
+    },
+    "items": {
+      "kind": "list",
+      "required": true,
+      "promptOptional": false,
+      "shape": "[{question, answer}]",
+      "editLabel": {
+        "question": "Question",
+        "answer": "Answer"
+      }
+    },
+    "imageUrl": {
+      "kind": "image",
+      "required": false,
+      "promptOptional": true,
+      "shape": "string"
+    },
+    "helpCard": {
+      "kind": "object",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{headline, body, button: {label, href}}"
+    }
+  },
+  "variants": {
+    "centered": "single column",
+    "two-column": "heading left, FAQ right",
+    "cards": "each FAQ as separate card",
+    "numbered": "zero-padded numbers prefix"
+  },
+  "variantKey": "variants",
+  "industries": {
+    "required": [],
+    "recommended": [
+      "insurance",
+      "law",
+      "dental",
+      "roofing"
+    ],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "homepage",
+    "order": 12,
+    "headPrefix": "",
+    "headSuffix": "",
+    "headExtra": null,
+    "lines": [
+      "@data"
+    ]
+  }
+}

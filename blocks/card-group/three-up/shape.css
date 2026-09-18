@@ -1,0 +1,30 @@
+/* card-group · three-up  （#1340 从生成器的 cards['three-up'] 剪来；今天没有主题选它） */
+
+[data-block="card-group"][data-shape="three-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="card-group"][data-shape="three-up"] .card-group__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="card-group"][data-shape="three-up"] .card-group__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="card-group"][data-shape="three-up"] .card-group__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="card-group"][data-shape="three-up"] .card-group__features {
+  display: grid;
+}
+
+@media (min-width: 1024px) {
+  [data-block="card-group"][data-shape="three-up"] {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}

@@ -586,7 +586,7 @@ const TESTIMONIAL_LOOKS = {
 //    滤网滤掉，只剩 `overflow-x` 那一半 —— 而按 `src/app/globals.css` 自己写的话，`overflow-x` 写在
 //    一个 `display: contents` 的元素上什么都不会发生。所以删掉的是一条从 #1318 起就没有效果的东西。
 // 📌 想把横条要回来：让它变成 testimonials 的一副**真形态**（`public/shapes.css` 写规则 +
-//    `blocks/testimonials.json` 的 `shapes` 登记名字），那是另一张票的事。
+//    `blocks/testimonials/manifest.json` 的 `shapes` 登记名字），那是另一张票的事。
 // 📌 盯着它的是 `sheet-recipes.test.js` 的 ⑮ 格，而那一格在脚手架期整格跳过（被钉的 `lime-28` 已
 //    随 #1161 下架、盘上只剩 2 份生成表）⟹ 删它不会让任何东西变红。**那是预期，不是「没验」**：
 //    这一步的判据是交付留言里那条差集（整池 `declBlock` 采到的几何集合为空），不是测试变不变色。
@@ -1185,13 +1185,13 @@ const CARD_SHAPES = {
 // 的 hero 值表逐字是 `"hero": ["with-media", "text-only", "with-form"]`。
 // 📌 #1333 起第三个值不在了：带表单的首屏拆成了自己一个块类型 `hero-with-form`，「有没有表单」由
 //    块类型说，不再是 hero 的一种内容结构。
-// 📌 #1341 起**整条轴一都不在了**：`blocks/hero.json` 没有 `block_layout` 这份清单，页面 JSON 里
+// 📌 #1341 起**整条轴一都不在了**：`blocks/hero/manifest.json` 没有 `block_layout` 这份清单，页面 JSON 里
 //    残留的那个键读的时候丢掉，池里的 `supports` 只剩顶栏 / 页脚。下面那段讲两条轴的话留作出处
 //    —— 它说明了今天这张表为什么只说外观一件事。
 //
 // 当时 hero 这一块有两条轴：
 //   轴一 **内容结构**（这块 hero 装什么）—— 站说了算，写进页面 JSON 的 `block_layout`；主题这边是
-//        `supports.hero`（我为哪些内容形态写了造型）。清单的权威是 `blocks/hero.json` 的
+//        `supports.hero`（我为哪些内容形态写了造型）。清单的权威是 `blocks/hero/manifest.json` 的
 //        `block_layout`（#999 的 manifest，与 spec 第 208 行同源）。**#1341 整条退役。**
 //   轴二 **外观**（画成什么样）—— 主题自己的事，只活在这个文件和它生成的那份 CSS 里。
 //        **今天这张表只说它。**
@@ -1436,7 +1436,7 @@ const heroLookFor = (i) => HERO_LOOK_NAMES[
   (i + Math.floor(i / HERO_LOOK_NAMES.length)) % HERO_LOOK_NAMES.length];
 
 // 📌 #1341 —— 这里原来有 `heroLayoutFor(i)`（第 i 套候选的**内容结构**，`generate.js` 写进
-//    `<id>.layout.json` 的就是它）和 `HERO_LAYOUTS`（那一维的取值表，判据是 `blocks/hero.json` 的
+//    `<id>.layout.json` 的就是它）和 `HERO_LAYOUTS`（那一维的取值表，判据是 `blocks/hero/manifest.json` 的
 //    `block_layout`）。内容结构那一维整条退役了：manifest 里那份清单没了，`<id>.layout.json`
 //    不再产出，池里的 `supports` 只剩顶栏 / 页脚。这张表今天只说**外观**一件事。
 

@@ -1,0 +1,65 @@
+/* team-grid · two-up-horizontal  （#1365 · FlyonUI team-6「2×2 横向成员卡」的骨架）
+   三端出处逐字：电脑 2 列 × 2 行横向卡（左照片 / 右姓名职位与简介）· iPad 卡改竖版、仍 2 列 ·
+   手机 单列堆叠。
+   🔴 出处那个「横向」是照片与文字并排，而本块没有照片 ⟹ 横的是**文字自己的两栏**：
+   姓名与职位在左、简介在右。买到的那一维是「卡内部横向」，出处那一维本身还在。
+   ✅ **原来这儿写的那条「已知盲区」已经由 #1381 补上了**（2026-09-18）：词表里现在有
+   `item_parts`（同级项**内部**的零件是竖着堆还是横着并排），这一种是 `item_parts: side`、
+   既有的 `two-up` 是 `item_parts: stack`，守卫 ⑨ 逐格判它 —— 判据是「项里有没有一对零件纵向重叠、
+   横向彼此分开」（`scripts/lib/layout-intent.mjs` 的 `partsSideBySide`）。
+   📌 原文留个出处：那条盲区说的是「#1332 的词表没有『卡内部朝向』这一根，于是这一种与 `two-up`
+   在守卫眼里意图完全一样」，靠交付留言里那张 D12 几何对照表才看得出两者不同。#1360 名下
+   `three-up-heading-*` 那两种是同一形状的先例，也一并由 #1381 的 `align` 轴补上了。
+   🔴 卡内部那两栏按比例分（`2fr 3fr`），不写死宽度：图册里一格只有半个屏宽，写死 12rem 会把简介
+   挤成一列竖着的字（实测 640 宽的格子里简介只剩 40px）。比例分在任何卡宽下都按 40% / 60% 走。
+   🔴 三档就是出处那三端，两个断点管两件不同的事：**640 起根上分两列**（iPad：两列、卡仍竖着）、
+   **1024 起卡自己分两栏**（电脑：两列 + 卡内部横向）。手机（<640）一列堆叠，守卫在 375 下只判
+   「零件留在内容盒里」。📌 第一版把这两个断点写反了（640 卡横、1024 根两列），iPad 那一档就成了
+   「一列 + 横卡」—— 出处那三端里没有这一档；实测 768 下量出来才看见。 */
+
+[data-block="team-grid"][data-shape="two-up-horizontal"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="team-grid"][data-shape="two-up-horizontal"] .team-grid__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="team-grid"][data-shape="two-up-horizontal"] .team-grid__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="team-grid"][data-shape="two-up-horizontal"] .team-grid__member {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 640px) {
+  [data-block="team-grid"][data-shape="two-up-horizontal"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-block="team-grid"][data-shape="two-up-horizontal"] .team-grid__member {
+    grid-template-columns: 2fr 3fr;
+    align-items: start;
+  }
+
+  [data-block="team-grid"][data-shape="two-up-horizontal"] .team-grid__name {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  [data-block="team-grid"][data-shape="two-up-horizontal"] .team-grid__role {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  [data-block="team-grid"][data-shape="two-up-horizontal"] .team-grid__bio {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+}

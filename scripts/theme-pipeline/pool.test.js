@@ -325,7 +325,7 @@ console.log('\n── ⑧ 透明浮层只给深底首屏；判据里那个遮罩
   } else {
     const paleCss = fs.readFileSync(path.join(NEXT, 'public', 'themes', `${poolThemes[paleId].sheet}.css`), 'utf-8');
     // index 取顶栏形态清单里浮层那一格，也就是"本来该轮到浮层"的那些位子。
-    // #1353 —— 清单从 `blocks/header.json` 现取（`region.shapesOf('header')`），
+    // #1353 —— 清单从 `blocks/header/manifest.json` 现取（`region.shapesOf('header')`），
     // `HEADER_VARIANTS` 那张写死的表随顶栏搬进形态层一起退役了。
     const overlayIndex = region.shapesOf('header').indexOf('transparent-overlay');
     const picked = region.headerVariantForPool(overlayIndex, paleCss, poolThemes[paleId].colors);
@@ -339,7 +339,7 @@ console.log('\n── ⑧ 透明浮层只给深底首屏；判据里那个遮罩
 
 // 📌 ⑨ 删了（#1341）—— 这里原来是「hero 的两条轴：池里存的是内容结构，画法只在表里」（#1065）。
 //
-//    它做的事：拿 `blocks/hero.json` 的 `block_layout` 当取值表，逐套检查 `theme-pool.json` 的
+//    它做的事：拿 `blocks/hero/manifest.json` 的 `block_layout` 当取值表，逐套检查 `theme-pool.json` 的
 //    `supports.hero` 只装内容结构（不许出现画法名），再把每套的 `supports.hero[0]` 跟它那份表实际
 //    画出来的 hero 画法对账（`HERO_LOOKS[heroLookFor(i)].content`）。
 //
@@ -616,7 +616,7 @@ if (!skip('⑩ 词边界匹配（a/b/c 三臂）',
 //    ① 键是齐的 ② 属性照样写进 DOM ③ 页面照样打开 —— 只是那个块**塌回 `base.css` 的地板**，
 //    而没有任何东西会说一句话。这正是 #1318 AC3 里那半条判据的理由，这一格把它变成常设的闸。
 //
-// 🔴 分母从 `blocks/*.json` 现数，不写死 31：加一个块类型时，没跟着补选择单的那套主题当场红。
+// 🔴 分母从 `blocks/<块>/manifest.json` 现数，不写死 31：加一个块类型时，没跟着补选择单的那套主题当场红。
 //    失败方向因此是「点名」，不是「这一格自己缩小了」。
 //
 // 🔴 #1338 —— 这一格的本职，写清楚是给谁看的：**新加一份块 manifest 时，池里每套主题的选择单都要
@@ -636,7 +636,9 @@ if (!skip('⑩ 词边界匹配（a/b/c 三臂）',
   const shapesPath = path.join(NEXT, 'public', 'shapes.css');
   let allBlocks; let shapesCss;
   try {
-    allBlocks = fs.readdirSync(blocksDir).filter((f) => f.endsWith('.json')).map((f) => f.replace(/\.json$/, '')).sort();
+    // #1387 —— 一个块一个文件夹：块名 = 文件夹名。
+    allBlocks = fs.readdirSync(blocksDir, { withFileTypes: true })
+      .filter((e) => e.isDirectory()).map((e) => e.name).sort();
     shapesCss = fs.readFileSync(shapesPath, 'utf-8');
   } catch (e) {
     die(`⑪ 读不到 blocks/ 或 public/shapes.css：${e.message} —— 什么都没量成`);

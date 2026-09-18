@@ -1,0 +1,67 @@
+/* ── #1036 batch G: faq-accordion · testimonials · announcement-bar · service-highlights ·
+      pricing-table · gallery ───────────────────────────────────────────────────────────────────
+   🔴 #1162 (2026-08-23): `service-highlights` is gone as a block type — the compat layer that kept
+   the old names alive retired, so nothing emits `.service-highlights*` any more and its rules were
+   deleted from the lists below. The name stays in this header because it says which blocks batch G
+   was measured on. Six block hooks then, five now.
+   Same test as every batch before it — "would every sheet want to state this itself?" — checked
+   against all three phase-1 sheets after their batch-G rules were written:
+
+     the six block hooks       display / gap / padding      all three set them → base leaks nothing
+     every __headline          font-size / line-height      all three set them
+     every __sub / __desc      font-size / line-height      all three set them
+     .testimonials__star       width / height               all three set them
+
+   🔴 `min-width: 0` ON EVERY PART THAT IS A GRID OR FLEX ITEM — same rule, same reason as the ten
+   blocks above: a grid item's automatic minimum size is its CONTENT's size, so one long word pushes
+   the track wider than the screen and the block's `overflow: hidden` (globals.css) then CLIPS it,
+   while the page-level "no horizontal scroll" reading still says everything is fine. Measured per
+   block on a 375px viewport, the only width where it shows.
+
+   🔴 `max-width: 100%` ON THE SAME PARTS, AND THIS BATCH IS THE FIRST THAT NEEDED IT. `min-width: 0`
+   fixes the part's AUTOMATIC minimum; it does nothing to a part whose width is not `stretch` in the
+   first place. Batch G is the first batch whose sheets give a part a self-alignment — the pill badge
+   on `.testimonials__service` and `.pricing-table__badge` are `justify-self: start` in all three
+   sheets — and a grid item aligned that way is sized `fit-content`, i.e. at least its MIN-CONTENT
+   width. `overflow-wrap: break-word` does not shrink min-content (only `anywhere` does), so one long
+   word made the badge wider than its track: measured on the three-across sheet at 1280 with a
+   51-letter word in `service`, `.testimonials__service` came out 428px inside a 362px track and the
+   block's `overflow: hidden` clipped 35px of it — while the page-level reading still said "no
+   horizontal scroll". Capping at 100% puts the box back inside the track, and `break-word` then
+   breaks the word to fit. Zero effect on every part that was already stretching.
+
+   🔴 `<summary>`, `<li>`, `<figcaption>` AND `<blockquote>` ARE NOT HERE where they are not hooks.
+   Tag selectors cannot be written by any theme (contract §1), so they are not a floor a sheet might
+   want to raise — they are unreachable, and globals.css lays them out. One owner per property. */
+
+.announcement-bar {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+/* The announcement bar is a thin strip, not a section — it must not inherit the section padding. */
+.announcement-bar {
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+}
+
+.announcement-bar__message,
+.announcement-bar__link {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+/* ── announcement-bar: one line, message and link side by side ─────────────────────────────────── */
+.announcement-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.announcement-bar__message,
+.announcement-bar__link {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}

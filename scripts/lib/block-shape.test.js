@@ -496,16 +496,12 @@ console.log('\n⑧ 候选形态 —— 校验那一半也要拒（跟构建同�
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'candsite-'));
     const en = path.join(tmp, 'site', 'en');
     fs.mkdirSync(path.join(en, 'pages'), { recursive: true });
-    fs.mkdirSync(path.join(tmp, 'blocks'), { recursive: true });
-    for (const f of fs.readdirSync(path.join(NEXT, 'blocks'))) {
-      fs.copyFileSync(path.join(NEXT, 'blocks', f), path.join(tmp, 'blocks', f));
-    }
-    const heroFile = path.join(tmp, 'blocks', 'hero.json');
-    const heroDoc = JSON.parse(fs.readFileSync(heroFile, 'utf-8'));
-    const target = (heroDoc.shapes || []).find((x) => x && x.name === CAND_FREE);
-    if (!target) die(`夹具里 hero 没有 ${CAND_FREE}`);
-    target.candidate = true;
-    fs.writeFileSync(heroFile, `${JSON.stringify(heroDoc, null, 2)}\n`);
+    // #1387 —— 一个块一个文件夹，形态在子文件夹里，所以整棵拷；标候选是改那个形态的 shape.md。
+    fs.cpSync(path.join(NEXT, 'blocks'), path.join(tmp, 'blocks'), { recursive: true });
+    const heroShapeMd = path.join(tmp, 'blocks', 'hero', CAND_FREE, 'shape.md');
+    if (!fs.existsSync(heroShapeMd)) die(`夹具里 hero 没有 ${CAND_FREE}`);
+    fs.writeFileSync(heroShapeMd,
+      fs.readFileSync(heroShapeMd, 'utf-8').replace(/^---\n/, '---\ncandidate: true\n'));
     fs.writeFileSync(path.join(tmp, 'site', 'site_meta.json'), JSON.stringify({ defaultLocale: 'en' }));
     fs.writeFileSync(path.join(tmp, 'site', 'theme.json'), JSON.stringify({ themeId: 'azure-29', applied: true }));
     fs.writeFileSync(path.join(en, 'pages', 'home.json'), JSON.stringify({
@@ -520,8 +516,8 @@ console.log('\n⑧ 候选形态 —— 校验那一半也要拒（跟构建同�
     check(typeof r.message === 'string' && r.message.includes('签字进库'),
       'manager 原样转给老板的那句话就是它（不是一个 kind 代号）');
     // 🔴 反臂：同一个夹具、同一个形态，只把那个字段摘掉 ⟹ 放行。
-    delete target.candidate;
-    fs.writeFileSync(heroFile, `${JSON.stringify(heroDoc, null, 2)}\n`);
+    fs.writeFileSync(heroShapeMd,
+      fs.readFileSync(heroShapeMd, 'utf-8').replace(/^candidate: true\n/m, ''));
     const r2 = checkShapeInSite({ rootDir: tmp, page: 'home', blockId: 'home-hero-0', shape: CAND_FREE });
     check(r2.ok === true, `摘掉那个字段 ⟹ 同一个请求放行（实际 ${JSON.stringify(r2)}）`);
     // 页面 JSON 一个字节没被写（校验不写东西，AC5 的后半句）

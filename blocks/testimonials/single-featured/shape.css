@@ -1,0 +1,59 @@
+/* testimonials · single-featured  （#1363，对表 FlyonUI testimonial-11：一条大评价唱主角）
+
+   出处底部那一行 logo 归 trusted-brands，这里不做（正文点名）。
+   🔴 它的五轴跟库里 `quote-rail` 逐字相同（`stack·allow·above·none·one`），PM 2026-09-16 裁定
+   「形态进库按 D5 的**几何读数**判，元组相同不阻断」。两者的几何差别在**每条评价内部**：
+   `quote-rail` 把一条评价排成 `2fr 1fr` 两栏（引言占左栏、跨 1/5 行，评分姓名在右栏），
+   这里是**一栏居中**，引言放大、其余零件在它下面居中排 —— 逐零件边界框对照贴在交接留言里。 */
+
+[data-block="testimonials"][data-shape="single-featured"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+}
+
+[data-block="testimonials"][data-shape="single-featured"] .testimonials__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="testimonials"][data-shape="single-featured"] .testimonials__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="testimonials"][data-shape="single-featured"] .testimonials__item {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  align-content: start;
+  /* 🔴 `width` 而不是只写 `max-width`（#1363 r3）：块那一层是 `justify-items: center`，网格项在
+     这种对齐下按**内容**定宽 —— 评价长短不一时每一条的左边就落在不同的 x 上，而这副形态的
+     `layout_intent.items` 是 `stack`，判据要的是「所有同级项同一个 x」（`layout-intent.mjs:250`
+     的 `xs.size === 1`）。夹具从 3 条变 6 条、长短不一之后这一格当场红（#1383 的演示内容包要求
+     list 槽 ≥ 6 项且长短不一）。写死宽度让六条同宽同左边，居中的观感由这一层里的
+     `justify-items: center` 给，长相不变。 */
+  width: min(100%, 48rem);
+}
+
+[data-block="testimonials"][data-shape="single-featured"] .testimonials__rating {
+  display: flex;
+  align-items: center;
+  order: 1;
+}
+
+[data-block="testimonials"][data-shape="single-featured"] .testimonials__quote {
+  order: 2;
+}
+
+[data-block="testimonials"][data-shape="single-featured"] .testimonials__name {
+  order: 3;
+}
+
+[data-block="testimonials"][data-shape="single-featured"] .testimonials__meta {
+  order: 4;
+}
+
+[data-block="testimonials"][data-shape="single-featured"] .testimonials__service {
+  justify-self: center;
+  order: 5;
+}

@@ -1,0 +1,30 @@
+/* card-group · four-up-tight  （#1340 从生成器的 cards['four-up-tight'] 剪来；今天没有主题选它） */
+
+[data-block="card-group"][data-shape="four-up-tight"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="card-group"][data-shape="four-up-tight"] .card-group__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="card-group"][data-shape="four-up-tight"] .card-group__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="card-group"][data-shape="four-up-tight"] .card-group__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="card-group"][data-shape="four-up-tight"] .card-group__features {
+  display: grid;
+}
+
+@media (min-width: 1024px) {
+  [data-block="card-group"][data-shape="four-up-tight"] {
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+  }
+}

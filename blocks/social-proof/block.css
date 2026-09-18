@@ -1,0 +1,18 @@
+/* social-proof · 那张可选的图排在哪儿（#1376）
+
+   🔴 这个块从本票起有了一个可选图槽，而槽是**块级**的：老板（或 AI）填了图，两副形态就都有图。
+   不写这一段的话它跟着自动流落进下一个空格子，在两列 / 三列里会挤进评分和徽章中间，而 manifest
+   那两行原来还写着 `media: none`（= 断言「这个块没有图」）。处置是照实说，不是把图藏起来：
+   `layout_intent.media` 从 `none` 改成 `below`（先例 #1362），这里把它钉在最后一行通栏。
+
+   🔴 `width: 100%` 不是可省的：网格里 `justify-self: center` 会让这个零件按**内在宽**定宽，而图的
+   内在宽就是原图的像素宽 —— #1362 在同族上量到过一张缩成邮票大小的图，而 `media: below` 只判上下
+   顺序、对尺寸一个字不说。 */
+
+[data-block="social-proof"][data-shape="two-up"] .social-proof__media,
+[data-block="social-proof"][data-shape="three-up"] .social-proof__media {
+  grid-column: 1 / -1;
+  width: 100%;
+  max-width: 48rem;
+  justify-self: center;
+}

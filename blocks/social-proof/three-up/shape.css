@@ -1,0 +1,29 @@
+/* social-proof · three-up  （azure-29 今天选的就是它） */
+
+[data-block="social-proof"][data-shape="three-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="social-proof"][data-shape="three-up"] .social-proof__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="social-proof"][data-shape="three-up"] .social-proof__platform {
+  justify-self: start;
+}
+
+[data-block="social-proof"][data-shape="three-up"] .social-proof__badge {
+  justify-self: start;
+}
+
+[data-block="social-proof"][data-shape="three-up"] .social-proof__stat {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="social-proof"][data-shape="three-up"] {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}

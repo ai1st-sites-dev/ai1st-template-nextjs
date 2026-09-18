@@ -23,8 +23,8 @@
 //    主题 id 不该让整页消失。落回哪一套写在根元素的 `data-catalog-theme` 上，页面自己说得出来。
 
 import { notFound } from 'next/navigation';
-import Footer from '@/components/Footer';
-import Header from '@/components/Header';
+import Footer from '@blocks/footer/Section';
+import Header from '@blocks/header/Section';
 import SectionRenderer from '@/components/SectionRenderer';
 import { defaultLocale } from '@/lib/config';
 import type { BlockConfig } from '@/lib/types/config';

@@ -1,0 +1,22 @@
+/* page-header · kicker-above  （#1340 从生成器的 headerLook['kicker-above'] 剪来；今天没有主题选它） */
+
+[data-block="page-header"][data-shape="kicker-above"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="page-header"][data-shape="kicker-above"] .page-header__crumbs {
+  order: 1;
+}
+
+[data-block="page-header"][data-shape="kicker-above"] .page-header__title {
+  grid-column: 1 / -1;
+  order: 3;
+}
+
+[data-block="page-header"][data-shape="kicker-above"] .page-header__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+  order: 2;
+}

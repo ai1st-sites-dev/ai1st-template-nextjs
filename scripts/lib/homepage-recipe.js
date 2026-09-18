@@ -59,7 +59,7 @@ const NOT_IN_POOL = {
   'announcement-bar': '只当 hero 前面那一格用，不参与后面的抽取',
   'cta-banner': '收尾用的，钉在开场会把行动召唤提到读者还没读内容的位置',
   'newsletter-signup': '同上，属于页面末尾',
-  'service-related-pages': 'blocks/service-related-pages.json 自己写着 "Use ONLY on service detail pages"',
+  'service-related-pages': 'blocks/service-related-pages/manifest.json 自己写着 "Use ONLY on service detail pages"',
 };
 
 /** 抽取用的步长与偏移。步长都跟池子大小互质，所以连续的 index 会走遍池子而不是原地打转。 */

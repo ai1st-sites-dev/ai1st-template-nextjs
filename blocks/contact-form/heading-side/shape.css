@@ -1,0 +1,36 @@
+/* contact-form · heading-side  （#1340 从生成器的 formLook['heading-side'] 剪来；今天没有主题选它） */
+
+[data-block="contact-form"][data-shape="heading-side"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="contact-form"][data-shape="heading-side"] .contact-form__heading {
+  grid-column: auto;
+  align-self: start;
+}
+
+[data-block="contact-form"][data-shape="heading-side"] .contact-form__intro {
+  grid-column: auto;
+  max-width: 36rem;
+}
+
+[data-block="contact-form"][data-shape="heading-side"] .contact-form__form {
+  display: grid;
+  grid-column: 1 / -1;
+}
+
+[data-block="contact-form"][data-shape="heading-side"] .contact-form__error {
+  grid-column: 1 / -1;
+}
+
+[data-block="contact-form"][data-shape="heading-side"] .contact-form__success {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="contact-form"][data-shape="heading-side"] {
+    grid-template-columns: 1fr 2fr;
+  }
+}

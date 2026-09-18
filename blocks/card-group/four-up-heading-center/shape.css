@@ -1,0 +1,45 @@
+/* card-group · four-up-heading-center  （#1360，出处 FlyonUI features-2「4 列极简卡片 · 居中标题」；今天没有主题选它）
+
+   🔴 它跟同一个块的 `four-up-tight` 的差别**只有一处，而且是量得出来的那一处**：标题与副标题不再
+      通栏拉满，而是收进 36rem 里居中（`justify-self: center` + `max-width`，两者都在几何族里）。
+      列数两者相同（都是四列）。📌 **这段原来写着「所以 `layout_intent` 五根轴上两者取值一样」——
+      #1381 之后不再成立**：词表加了 `align`（块里的内容横向靠哪边），两者现在是
+      `align: stretch` / `align: center`，守卫 ⑨ 量的就是这里说的那条边界
+      （1280 下 `__headline` 的左右余量：拉满 0/0 ⟹ stretch，收进 36rem 居中 ⟹ 左右余量相等）。
+   🔴 **出处那一版的竖线我们不画。** FlyonUI features-2 的卡片之间是 `border-left`，而 border 属于皮
+      （`scripts/theme-css-lint.js` 的 `PROP_PREFIXES` 里有 `border`，几何族 `isGeometry()` 里没有），
+      本票又明写「两套主题一个字节不动」⟹ 分隔线要等某套主题自己去写。这里只交它的排版那一半。
+      这个形态原来叫 `four-up-divided`，正因为线画不出来、名字会名不副实，Chris 2026-09-16 在 #1360 上
+      定了改成现在这个名字（它说的是这段 CSS 真做的事：四列 + 标题居中）。 */
+
+[data-block="card-group"][data-shape="four-up-heading-center"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="card-group"][data-shape="four-up-heading-center"] .card-group__headline {
+  grid-column: 1 / -1;
+  justify-self: center;
+  max-width: 36rem;
+}
+
+[data-block="card-group"][data-shape="four-up-heading-center"] .card-group__sub {
+  grid-column: 1 / -1;
+  justify-self: center;
+  max-width: 36rem;
+}
+
+[data-block="card-group"][data-shape="four-up-heading-center"] .card-group__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="card-group"][data-shape="four-up-heading-center"] .card-group__features {
+  display: grid;
+}
+
+@media (min-width: 1024px) {
+  [data-block="card-group"][data-shape="four-up-heading-center"] {
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "type": "announcement-bar",
+  "displayName": "Announcement Bar",
+  "category": "banner",
+  "roleDefault": "optional",
+  "slots": {
+    "message": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false,
+      "editLabel": "Message"
+    },
+    "link": {
+      "kind": "link",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{label, href}",
+      "editLabel": {
+        "label": "Link text"
+      }
+    }
+  },
+  "variants": {
+    "solid": "accent bg",
+    "bordered": "white bg, accent border",
+    "dismissible": "with close button",
+    "floating": "centered pill with shadow"
+  },
+  "variantKey": "variants",
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "homepage",
+    "order": 1,
+    "headPrefix": "",
+    "headSuffix": "",
+    "headExtra": null,
+    "lines": [
+      "@data"
+    ]
+  }
+}

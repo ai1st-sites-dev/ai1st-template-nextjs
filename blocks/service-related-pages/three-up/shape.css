@@ -1,0 +1,26 @@
+/* service-related-pages · three-up  （azure-29 今天选的就是它） */
+
+[data-block="service-related-pages"][data-shape="three-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="service-related-pages"][data-shape="three-up"] .service-related-pages__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="service-related-pages"][data-shape="three-up"] .service-related-pages__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="service-related-pages"][data-shape="three-up"] .service-related-pages__card {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="service-related-pages"][data-shape="three-up"] {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}

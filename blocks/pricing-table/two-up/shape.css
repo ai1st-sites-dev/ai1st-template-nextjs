@@ -1,0 +1,40 @@
+/* pricing-table · two-up  （ember-12 今天选的就是它） */
+
+[data-block="pricing-table"][data-shape="two-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="pricing-table"][data-shape="two-up"] .pricing-table__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="pricing-table"][data-shape="two-up"] .pricing-table__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="pricing-table"][data-shape="two-up"] .pricing-table__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="pricing-table"][data-shape="two-up"] .pricing-table__badge {
+  justify-self: start;
+}
+
+[data-block="pricing-table"][data-shape="two-up"] .pricing-table__features {
+  display: grid;
+}
+
+[data-block="pricing-table"][data-shape="two-up"] .pricing-table__action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+@media (min-width: 1024px) {
+  [data-block="pricing-table"][data-shape="two-up"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}

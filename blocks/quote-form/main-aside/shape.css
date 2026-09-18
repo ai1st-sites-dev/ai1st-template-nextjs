@@ -1,0 +1,42 @@
+/* quote-form · main-aside  （ember-12 + azure-29 今天选的就是它） */
+
+[data-block="quote-form"][data-shape="main-aside"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="quote-form"][data-shape="main-aside"] .quote-form__form {
+  display: grid;
+}
+
+[data-block="quote-form"][data-shape="main-aside"] .quote-form__intro {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="quote-form"][data-shape="main-aside"] .quote-form__main {
+  display: grid;
+  align-content: start;
+  max-width: 38rem;
+}
+
+[data-block="quote-form"][data-shape="main-aside"] .quote-form__aside {
+  display: grid;
+}
+
+[data-block="quote-form"][data-shape="main-aside"] .quote-form__step {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="quote-form"][data-shape="main-aside"] .quote-form__action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+@media (min-width: 1024px) {
+  [data-block="quote-form"][data-shape="main-aside"] {
+    grid-template-columns: 3fr 2fr;
+  }
+}

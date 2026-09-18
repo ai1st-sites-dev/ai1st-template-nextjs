@@ -1,0 +1,36 @@
+{
+  "type": "card-group",
+  "displayName": "Card Group",
+  "category": "feature",
+  "roleDefault": "optional",
+  "slots": {
+    "headline": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false,
+      "editLabel": "Headline"
+    },
+    "subheadline": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true,
+      "editLabel": "Subheading"
+    },
+    "items": {
+      "kind": "list",
+      "required": true,
+      "promptOptional": false,
+      "shape": "[{title, description?, features?: [string]}]",
+      "editLabel": {
+        "title": "Card title",
+        "description": "Card text"
+      }
+    }
+  },
+  "variants": {},
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  }
+}

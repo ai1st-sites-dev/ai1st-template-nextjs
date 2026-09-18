@@ -216,7 +216,7 @@ export interface DynamicPageConfig {
 //
 // 🔴 这里以前是 `HeaderVariant` / `FooterVariant` 两个写死的联合类型 + `RegionLayoutConfig`，
 //    也就是「一变体一棵树」那个模型的类型面。#1353 把三个 Region 按块的规矩搬进形态层之后，
-//    形态清单的唯一权威是 **块 manifest**（`blocks/header.json` / `footer.json` /
+//    形态清单的唯一权威是 **块 manifest**（`blocks/header/manifest.json` / `footer.json` /
 //    `announcement-bar.json` 的 `shapes`），跟别的 32 个块一模一样 —— 所以这里**不再重抄一份联合
 //    类型**：抄一份就是第二份清单，而两份清单漂了没有任何东西会红（联合类型漂的方向尤其静默，
 //    `tsc` 只会在「组件写死某个名字」时才说话，而搬完之后没有一处写死）。
@@ -231,7 +231,7 @@ export interface RegionShape {
 export interface RegionsConfig {
   header: RegionShape;
   footer: RegionShape;
-  /** 公告条那条外壳带（page layout 库里的 `topbar` 区）；形态取自 `blocks/announcement-bar.json`。 */
+  /** 公告条那条外壳带（page layout 库里的 `topbar` 区）；形态取自 `blocks/announcement-bar/manifest.json`。 */
   topbar: RegionShape;
   /** 构建日志里那几句人话（「主题想要的形态不在清单里，退回 X」之类）。 */
   notes: string[];

@@ -1,0 +1,26 @@
+/* team-grid · two-up  （ember-12 今天选的就是它） */
+
+[data-block="team-grid"][data-shape="two-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="team-grid"][data-shape="two-up"] .team-grid__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="team-grid"][data-shape="two-up"] .team-grid__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="team-grid"][data-shape="two-up"] .team-grid__member {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="team-grid"][data-shape="two-up"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}

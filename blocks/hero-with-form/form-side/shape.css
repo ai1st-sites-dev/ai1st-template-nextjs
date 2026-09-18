@@ -1,0 +1,63 @@
+/* hero-with-form · form-side  （这个块今天只有这一种排版；azure-29 与 ember-12 的选择单都指向它）
+
+   🔴 下面这一段是 #1333 从 `hero · form-side` **整段搬过来**的，规则正文一个字没动 —— 变的只有
+   `[data-block="hero"]` 变成 `[data-block="hero-with-form"]`。带表单的首屏从此是自己一个块类型
+   （设计文档 D1 / D14：槽位集合不同或行为不同就是另一个块），所以 (块, 排版) 对没有多出来一个：
+   hero 名下少一个、这里多一个。 */
+
+[data-block="hero-with-form"][data-shape="form-side"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+  min-height: 32rem;
+}
+
+[data-block="hero-with-form"][data-shape="form-side"] .hero__media {
+  aspect-ratio: 24 / 5;
+  order: 4;
+  grid-column: 1 / -1;
+}
+
+[data-block="hero-with-form"][data-shape="form-side"] .hero__body {
+  display: grid;
+  align-content: start;
+  max-width: 32rem;
+  order: 2;
+}
+
+[data-block="hero-with-form"][data-shape="form-side"] .hero__title {
+  grid-column: 1 / -1;
+}
+
+[data-block="hero-with-form"][data-shape="form-side"] .hero__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="hero-with-form"][data-shape="form-side"] .hero__cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+[data-block="hero-with-form"][data-shape="form-side"] .hero__deco {
+  grid-column: 1 / -1;
+  order: 1;
+}
+
+[data-block="hero-with-form"][data-shape="form-side"] .hero__form {
+  display: grid;
+  order: 3;
+  max-width: 30rem;
+}
+
+[data-block="hero-with-form"][data-shape="form-side"] .hero__form-success {
+  order: 3;
+  max-width: 30rem;
+}
+
+@media (min-width: 1024px) {
+  [data-block="hero-with-form"][data-shape="form-side"] {
+    grid-template-columns: 6fr 5fr;
+  }
+}

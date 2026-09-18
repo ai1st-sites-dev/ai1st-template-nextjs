@@ -1,0 +1,13 @@
+/* contact-info · media-side-grid  （#1382 · 对表 FlyonUI contact-us-1：一侧一张实景图，另一侧联系方式）
+
+   🔴 **这个块的图零件默认不参与排版，只有这一副把它放出来。** 另外三种形态的 `layout_intent.media`
+   写着 `none`，那是一条断言：「这个块【没有】图」（`layout-intent.mjs` §media-none）。而图槽是**块级**
+   的 —— 老板（或量主题那份全填夹具）一填，四种形态就都有那个零件。默认隐藏 + 单点放出，方向是安全的：
+   将来加第 5 种形态而忘了处理它，图不会冒出来，反而是 `media-side-grid` 这一副的 `media: side` 断言
+   会当场点名。反过来写（给那三种各写一条 `display: none`）漏一种就是静默失败。
+   🔴 判「在不在版面里」用的是 `display !== 'none'`（`layout-intent.mjs` §laidOut，#1337），所以
+   `display: none` 是真的让它不参与，不是视觉上藏起来。 */
+
+[data-block="contact-info"] .contact-info__media {
+  display: none;
+}

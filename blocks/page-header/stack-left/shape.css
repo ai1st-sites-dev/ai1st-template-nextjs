@@ -1,0 +1,15 @@
+/* page-header · stack-left  （ember-12 今天选的就是它） */
+
+[data-block="page-header"][data-shape="stack-left"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="page-header"][data-shape="stack-left"] .page-header__title {
+  grid-column: 1 / -1;
+}
+
+[data-block="page-header"][data-shape="stack-left"] .page-header__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}

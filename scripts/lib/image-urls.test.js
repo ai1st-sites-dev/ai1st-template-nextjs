@@ -889,7 +889,7 @@ console.log('\n── 一之九、#1207 AC7：回执的措辞 ──────
 console.log('\n── 二、提示词的 ## Images 段 vs 模板真的画出来的 ────────────────');
 
 // ── 尺子一侧：模板 ────────────────────────────────────────────────────────────────────────────
-const regPath = path.join(SRC, 'lib', 'sections', 'registry.ts');
+const regPath = path.join(SRC, 'lib', 'sections', 'registry.generated.ts');
 let reg;
 try { reg = fs.readFileSync(regPath, 'utf-8'); } catch (e) { die(`读不到 ${regPath}: ${e.message}`); }
 const imports = Object.fromEntries(
@@ -908,7 +908,8 @@ const leafOf = (expr) => {
 const blocksThatDrawImages = [];   // 注册表里那些真的画 <img> 的块
 const leafFields = new Set();      // 那些 <img src> 读的字段名（叶子）
 for (const [, key, comp] of entries) {
-  const file = path.join(SRC, 'components', 'sections', `${imports[comp]}.tsx`);
+  // #1387 —— 组件住在 blocks/<块>/Section.tsx，注册表 import 的路径就是它。
+  const file = path.join(NEXT, 'blocks', key, 'Section.tsx');
   let t;
   try { t = fs.readFileSync(file, 'utf-8'); } catch (e) { die(`读不到块 ${key} 的组件 ${file}: ${e.message}`); }
   const hits = [...t.matchAll(IMG_SRC_RE)].map((m) => m[1]);
@@ -917,12 +918,13 @@ for (const [, key, comp] of entries) {
     for (const h of hits) { const l = leafOf(h); if (l) leafFields.add(l); }
   }
 }
-// 顶栏/页脚那两处不属于任何块 —— 它们读 brand.logoUrl。
-for (const shell of ['Header.tsx', 'Footer.tsx']) {
-  const t = fs.readFileSync(path.join(SRC, 'components', shell), 'utf-8');
+// 顶栏/页脚是外壳区 —— 它们不在注册表里（上面那一圈按构造够不着），读的是 brand.logoUrl。
+// #1387 —— 它们的骨架搬进了自己的块文件夹。
+for (const shell of ['header', 'footer']) {
+  const t = fs.readFileSync(path.join(NEXT, 'blocks', shell, 'Section.tsx'), 'utf-8');
   for (const m of t.matchAll(IMG_SRC_RE)) { const l = leafOf(m[1]); if (l) leafFields.add(l); }
 }
-if (blocksThatDrawImages.length === 0) die('从 src/components/sections 里一个画 <img> 的块都没抠出来 —— 尺子坏了');
+if (blocksThatDrawImages.length === 0) die('从 blocks/ 里一个画 <img> 的块都没抠出来 —— 尺子坏了');
 if (leafFields.size === 0) die('从模板里一个 <img src> 字段都没抠出来 —— 尺子坏了');
 ok(`模板现读：画图的块 ${blocksThatDrawImages.length} 个（${blocksThatDrawImages.join(' · ')}）`
    + `；<img src> 读的字段 ${leafFields.size} 个（${[...leafFields].join(' · ')}）`);

@@ -1,0 +1,24 @@
+.services-nav {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+.services-nav__link {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+/* ── services-nav: without a sheet this is still a row of links, not a stack ───────────────────── */
+.services-nav {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+}
+
+.services-nav__link {
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}

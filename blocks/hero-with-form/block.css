@@ -1,0 +1,3 @@
+[data-block="hero-with-form"]:not([data-has-imageUrl]) .hero__media {
+  display: none;
+}

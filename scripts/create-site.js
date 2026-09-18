@@ -32,7 +32,8 @@ const { sheetNameForTheme } = require('./theme-sheet');
 const { keywordPageSectionOptions } = require('./lib/keyword-page-options');
 // #1120: 每站微扰派哪三个数 —— 表和判据都在那个文件里（含为什么它不能塞进 scripts/tweaks.js）。
 const { tweaksForSite } = require('./lib/site-tweaks');
-// #999 — 块清单（槽 / 形态 / 外观词 / 角色兜底 / 哪些行业需要它）住在 blocks/*.json，34 份。
+// #999 — 块清单（槽 / 外观词 / 角色兜底 / 哪些行业需要它）住在 blocks/<块>/manifest.json；形态清单是
+//        blocks/<块>/ 下的子文件夹（#1387）。🔴 份数会变，别从这里抄：`ls -d templates/nextjs/blocks/*/ | wc -l`。
 // 下面提示词里那两段块清单**从它们生成**，AI 吐回来之后的校验读的也是同一份 —— 在这之前，
 // 「hero 有哪些槽」只存在于这个文件的散文里，填错没人管。
 const {

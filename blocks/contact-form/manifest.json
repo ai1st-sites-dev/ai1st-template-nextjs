@@ -1,0 +1,55 @@
+{
+  "type": "contact-form",
+  "displayName": "Contact Form",
+  "category": "contact",
+  "roleDefault": "essential",
+  "slots": {
+    "heading": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true,
+      "editLabel": "Heading"
+    },
+    "intro": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true,
+      "editLabel": "Intro text"
+    },
+    "buttonText": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true,
+      "editLabel": "Button text"
+    },
+    "successMessage": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true,
+      "editLabel": "Success message"
+    },
+    "imageUrl": {
+      "kind": "image",
+      "required": false,
+      "promptOptional": true,
+      "shape": "string"
+    }
+  },
+  "variants": {},
+  "variantKey": "variants",
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "page-rule",
+    "headSuffix": "",
+    "order": 3,
+    "headPrefix": "",
+    "headExtra": null,
+    "lines": [
+      "Posts to the platform lead API (/api/leads) — TICKET-268b."
+    ]
+  }
+}

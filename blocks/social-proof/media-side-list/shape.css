@@ -1,0 +1,59 @@
+/* social-proof · media-side-list  （#1367 · FlyonUI social-proof-7：左统计清单 + 右实景照片）
+
+   🔴 「左边一列内容、右边一张图」在这个块里要**挂条件**，因为这个块的零件是平铺的（没有 `__body`
+   那样的包装层，`content-split` / `hero` 有）。图槽没填时那一列根本没有东西可放，所以把左右分栏
+   挂在 `[data-has-imageUrl]` 上：
+     · 填了图  → 除图以外的零件全部进第 1 列，图独占第 2 列 ⟹ 占用 2 条列带
+     · 没填图  → 不写这条，零件照常自动排进两列       ⟹ 照样占用 2 条列带
+   两种情况都对得上 manifest 的 `columns: two`。写成无条件的话，最少版（可选槽全空）只剩评分和
+   评论数两个零件、全被摁进第 1 列，`columns` 那条断言当场读到「该占 2 条，实际占 1 条」。
+
+   🔴 图那一行的 `grid-row: 2 / span 6` 不是随手写的数：图的高度由 `base.css` 的 `aspect-ratio: 16/10`
+   定，跨几行不改变它的高度，只决定它旁边让出多少行。跨 1 行的话那一行会被撑到图那么高，左列的
+   「评分」就孤零零地坐在一个 250px 高的行里；跨到底（`span 99` 之类）则会凭空造出几十个空行，而
+   `.social-proof` 的 `gap: 1.5rem` 对空行照收 —— 算下来是上千像素的空白。6 行是这个块在全填版上
+   左列真实行数（21 行）之内的一个稳定值。 */
+
+[data-block="social-proof"][data-shape="media-side-list"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="social-proof"][data-shape="media-side-list"] .social-proof__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="social-proof"][data-shape="media-side-list"] .social-proof__platform,
+[data-block="social-proof"][data-shape="media-side-list"] .social-proof__badge {
+  justify-self: start;
+}
+
+[data-block="social-proof"][data-shape="media-side-list"] .social-proof__stat {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="social-proof"][data-shape="media-side-list"] .social-proof__media {
+  width: 100%;
+}
+
+@media (min-width: 1024px) {
+  [data-block="social-proof"][data-shape="media-side-list"] {
+    grid-template-columns: 3fr 2fr;
+  }
+
+  [data-block="social-proof"][data-shape="media-side-list"][data-has-imageUrl] .social-proof__rating,
+  [data-block="social-proof"][data-shape="media-side-list"][data-has-imageUrl] .social-proof__reviews,
+  [data-block="social-proof"][data-shape="media-side-list"][data-has-imageUrl] .social-proof__platform,
+  [data-block="social-proof"][data-shape="media-side-list"][data-has-imageUrl] .social-proof__badge,
+  [data-block="social-proof"][data-shape="media-side-list"][data-has-imageUrl] .social-proof__quote,
+  [data-block="social-proof"][data-shape="media-side-list"][data-has-imageUrl] .social-proof__stat {
+    grid-column: 1;
+  }
+
+  [data-block="social-proof"][data-shape="media-side-list"][data-has-imageUrl] .social-proof__media {
+    grid-column: 2;
+    grid-row: 2 / span 6;
+    align-self: start;
+  }
+}

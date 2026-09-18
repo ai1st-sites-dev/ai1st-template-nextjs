@@ -1,0 +1,61 @@
+.process-steps {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .process-steps {
+    padding: 4rem 2rem;
+  }
+}
+
+.process-steps__headline,
+.process-steps__sub,
+.process-steps__step,
+.process-steps__num,
+.process-steps__title,
+.process-steps__desc {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.process-steps__headline {
+  font-size: 1.75rem;
+  line-height: 1.25;
+}
+
+.process-steps__sub {
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.process-steps__step {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.process-steps__title {
+  font-size: 1.125rem;
+  line-height: 1.4;
+}
+
+.process-steps__desc {
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+/* The step number. A circle without a sheet, because `.process-steps__num` is a `<span>` and an
+   unstyled numeral in the flow reads as part of the title next to it. */
+.process-steps__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9999px;
+  border-width: 1px;
+  border-style: solid;
+  border-color: currentColor;
+  font-size: 0.875rem;
+}

@@ -1,0 +1,26 @@
+/* page-header · title-side  （azure-29 今天选的就是它） */
+
+[data-block="page-header"][data-shape="title-side"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: end;
+}
+
+[data-block="page-header"][data-shape="title-side"] .page-header__crumbs {
+  grid-column: 1 / -1;
+}
+
+[data-block="page-header"][data-shape="title-side"] .page-header__title {
+  grid-column: auto;
+}
+
+[data-block="page-header"][data-shape="title-side"] .page-header__sub {
+  grid-column: auto;
+  max-width: 26rem;
+}
+
+@media (min-width: 1024px) {
+  [data-block="page-header"][data-shape="title-side"] {
+    grid-template-columns: 2fr 1fr;
+  }
+}

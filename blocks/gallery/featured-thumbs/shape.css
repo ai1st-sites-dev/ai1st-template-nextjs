@@ -1,0 +1,68 @@
+/* gallery · featured-thumbs  （#1368，对表 FlyonUI gallery-2：一张大图 + 右侧一组小图）
+
+   🔴 **这一节用了 `:first-of-type`，而 `shapes.css` 里此前 0 处结构选择器** —— 说清为什么必须用：
+   这个块的 DOM 是平的、每条都是同一个 `.gallery__item`（`GallerySection.tsx` 的 map），组件**没有**
+   给「第一张」任何标记。「一大 N 小」按定义要区别对待第一张 ⟹ 要么用结构选择器，要么改组件多发
+   一个钩子。本票是「加形态」，改组件属于另一件事（正文「不做」里没写，但 D4 说形态零 JS、只动
+   `shapes.css` 与 manifest），所以走前者。
+   📌 它合法：`css-contract-check.js` 的射程是 `public/base.css` + `public/themes/*.css`，
+   `shapes.css` 不在里面；禁结构选择器那条是**主题表**的契约（§1），平台这一层不受它管。
+
+   手机端（`min-width` 之下）退回单列一张一张 —— 出处的手机栏也是这么塌的。
+
+   🔴 manifest 里 `columns` 写的是 **three**，而这根轴的真值**跟着这一页有几张图变**，所以说清它是
+   怎么数出来的：守卫按每个不跨列子元素的中心 x 把它归到一条列带上，再数**用到了几条**
+   （`layout-intent.mjs` 的 `bands`）。报文里那句「另有 2 个跨列子元素」数的是标题和副标题
+   （两者都是 `grid-column: 1 / -1`）—— **那张大图不在其中**：它是 `1 / span 2`，既不是 `1 / -1`
+   也没宽到整行，所以它照样算一个占了第 1 条带的子元素。
+   ⟹ 3 张图时：大图在第 1 条、另两张都流进第 3 条 = 占 2 条；6 张图时：大图第 1 条、第 2/3 张进
+   第 3 条、第 4/5/6 张铺满第 3 行 = 占满 3 条。
+   📌 2026-09-16 交付时这里写的是 `two`，那是**当年夹具只有 3 张图**量出来的真值；#1383 的演示内容包
+   把每个 list 槽撑到 ≥ 6 项之后它就变成 3，那一格当场红。实测（2026-09-18，`site/` 由
+   `--make-sample-site` 现造）：`two` → 🔴「该占 2 条列带（"two"），实际占 3 条（根上声明了 3 条轨道，
+   另有 2 个跨列子元素）」，azure-29 / ember-12 各红一次；改成 `three` → 同一格 ✅。 */
+
+[data-block="gallery"][data-shape="featured-thumbs"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="gallery"][data-shape="featured-thumbs"] .gallery__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="gallery"][data-shape="featured-thumbs"] .gallery__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="gallery"][data-shape="featured-thumbs"] .gallery__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="gallery"][data-shape="featured-thumbs"] .gallery__image {
+  aspect-ratio: 4 / 3;
+}
+
+[data-block="gallery"][data-shape="featured-thumbs"] .gallery__placeholder {
+  aspect-ratio: 4 / 3;
+}
+
+@media (min-width: 1024px) {
+  [data-block="gallery"][data-shape="featured-thumbs"] {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  /* 第一张占左边两条列带、两行高；其余自动流进第 3 条，一条一行 —— 这就是「一大三小」。 */
+  [data-block="gallery"][data-shape="featured-thumbs"] .gallery__item:first-of-type {
+    grid-column: 1 / span 2;
+    grid-row: span 2;
+  }
+
+  [data-block="gallery"][data-shape="featured-thumbs"] .gallery__item:first-of-type .gallery__image,
+  [data-block="gallery"][data-shape="featured-thumbs"] .gallery__item:first-of-type .gallery__placeholder {
+    aspect-ratio: 16 / 10;
+  }
+}

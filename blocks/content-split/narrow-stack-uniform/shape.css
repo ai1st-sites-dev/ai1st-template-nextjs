@@ -1,0 +1,45 @@
+/* content-split · narrow-stack-uniform  （azure-29 今天选的就是它） */
+
+[data-block="content-split"][data-shape="narrow-stack-uniform"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+  justify-items: center;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-uniform"] .content-split__media {
+  aspect-ratio: 3 / 2;
+  order: 1;
+  max-width: 30rem;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-uniform"] .content-split__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-uniform"] .content-split__body {
+  display: grid;
+  align-content: start;
+  max-width: 34rem;
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-uniform"] .content-split__bullets {
+  display: grid;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-uniform"] .content-split__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-uniform"] .content-split__stat {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="content-split"][data-shape="narrow-stack-uniform"] {
+    grid-template-columns: 1fr;
+  }
+}

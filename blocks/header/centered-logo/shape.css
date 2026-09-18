@@ -1,0 +1,58 @@
+/* ── header · centered-logo（logo 居中）──────────────────────────────────────────────────────
+
+   🔴 **这一种有一处有意的偏差，判块表里单列了一条。** 原来那一支用 JS 把导航链接
+   `Math.ceil(n/2)` 切成两半摆在 logo 两侧（`Header.tsx:160`，改造前）。D14 第 1 句写死
+   「骨架固定，包括 DOM 顺序……要换 DOM 顺序的，是另一个块」—— 按行数算出来的 DOM 顺序正是它禁的
+   那种。所以这里改成四条列带：导航 | logo | CTA | 语言，logo 居前三条列带的中间。
+   代价说在明处：链接不再分列两侧。两套池主题一套都没选它（`ember-12` = pill-floating ·
+   `azure-29` = solid-bar），它也不是默认（默认是 solid-bar）⟹ AC1 的包围盒判据和 AC5 的老站判据
+   都不覆盖这一种，这处偏差不会让任何一个今天存在的站变样。 */
+
+/* 🔴 小屏那一支要排在下面那段媒体查询【前面】。两条特异度相同（0,3,0），而媒体查询不改变特异度 ——
+   写在后面的话它把 ≥768px 那张网格整个盖掉，桌面上 logo 就回到最左边（实测：改造后 logo 的 x=32，
+   改造前是 589，而那不是判块表里承认的那处偏差，是这条顺序写反了）。
+   小屏退回 logo 左 + 汉堡右，跟另外三种一样（改造前那一支也是这么退的）。 */
+
+[data-block="header"][data-shape="centered-logo"] .header__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+@media (min-width: 768px) {
+  /* 🔴 每一项都要显式钉 `grid-row: 1`。网格的**稀疏**放置按 DOM 顺序走，而骨架的 DOM 顺序是
+     logo 在前（第 2 列）、导航在后（第 1 列）—— 放完 logo 之后光标已经过了第 1 列，导航就被放到
+     **第二行**去了。实测：顶栏高度 76 → 148，导航整条掉到 y=100。 */
+  [data-block="header"][data-shape="centered-logo"] .header__bar {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr auto;
+    align-items: center;
+  }
+
+  [data-block="header"][data-shape="centered-logo"] .header__nav,
+  [data-block="header"][data-shape="centered-logo"] .header__logo,
+  [data-block="header"][data-shape="centered-logo"] .header__cta,
+  [data-block="header"][data-shape="centered-logo"] .header__lang {
+    grid-row: 1;
+  }
+
+  [data-block="header"][data-shape="centered-logo"] .header__nav {
+    grid-column: 1;
+    justify-self: start;
+  }
+
+  [data-block="header"][data-shape="centered-logo"] .header__logo {
+    grid-column: 2;
+    justify-self: center;
+  }
+
+  [data-block="header"][data-shape="centered-logo"] .header__cta {
+    grid-column: 3;
+    justify-self: end;
+  }
+
+  [data-block="header"][data-shape="centered-logo"] .header__lang {
+    grid-column: 4;
+    justify-self: end;
+  }
+}

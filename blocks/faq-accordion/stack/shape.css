@@ -1,0 +1,19 @@
+/* faq-accordion · stack  （ember-12 今天选的就是它） */
+
+[data-block="faq-accordion"][data-shape="stack"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="faq-accordion"][data-shape="stack"] .faq-accordion__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="faq-accordion"][data-shape="stack"] .faq-accordion__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="faq-accordion"][data-shape="stack"] .faq-accordion__item {
+  display: grid;
+}

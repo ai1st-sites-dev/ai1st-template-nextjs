@@ -1,0 +1,28 @@
+/* cta-banner · band-left  （#1340 从生成器的 ctaLook['band-left'] 剪来；今天没有主题选它） */
+
+[data-block="cta-banner"][data-shape="band-left"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="cta-banner"][data-shape="band-left"] .cta-banner__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="cta-banner"][data-shape="band-left"] .cta-banner__desc {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="cta-banner"][data-shape="band-left"] .cta-banner__action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+@media (min-width: 1024px) {
+  [data-block="cta-banner"][data-shape="band-left"] {
+    grid-template-columns: 1fr;
+  }
+}

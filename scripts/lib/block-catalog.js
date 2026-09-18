@@ -27,7 +27,7 @@ const { loadManifests, registryCoverage, registryNames, layoutIntentFor } = requ
 
 const NEXT_DIR = path.resolve(__dirname, '..', '..');
 /** 注册表 —— `sectionRegistry` 那张表的家。`registryCoverage` 用 TS 的 AST 读它的键，不是正则。 */
-const REGISTRY_TS = path.join(NEXT_DIR, 'src', 'lib', 'sections', 'registry.ts');
+const REGISTRY_TS = path.join(NEXT_DIR, 'src', 'lib', 'sections', 'registry.generated.ts');
 
 /**
  * 全集：注册表里的每个块 × 它 manifest 里的每个形态。
@@ -43,7 +43,7 @@ const REGISTRY_TS = path.join(NEXT_DIR, 'src', 'lib', 'sections', 'registry.ts')
  * Chris 看的，不是给站主挑的。#1384 只把这个读数摆出来，不碰 `dashboard/src/components/BlockInspector.tsx`。
  *
  * @param {object} [opts]
- * @param {string} [opts.registryPath]  默认 `src/lib/sections/registry.ts`
+ * @param {string} [opts.registryPath]  默认 `src/lib/sections/registry.generated.ts`
  * @param {string} [opts.blocksDir]     默认 `blocks/`（`loadManifests` 自己的默认值）
  * @throws 注册表与 manifest 对不上、或者根本读不出注册表时
  */

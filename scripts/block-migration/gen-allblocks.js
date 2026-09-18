@@ -4,8 +4,10 @@ const fs=require('fs'), path=require('path');
 // 派生函数给（它用 TS 的 AST 读注册表，并且逼着注册表和 blocks/ 逐个对上），下面那个正则只留下它
 // 另一半活：type → 组件名。🔴 注册表里有而正则没配到的块会落进 `skipped` 并印出来 —— 不再静默消失。
 const { blockShapeCatalog } = require('../lib/block-catalog');
+// #1387 —— 块组件搬进了块自己的文件夹，注册表 import 的是 `@blocks/<块>/Section`。
+// `@/` 还留着（`src/`），因为块的零件仍住在 src/components/sections/。
 const SEC='src/components/sections';
-const reg=fs.readFileSync('src/lib/sections/registry.ts','utf8');
+const reg=fs.readFileSync('src/lib/sections/registry.generated.ts','utf8');
 // type → 组件文件名
 const map={};
 for (const m of reg.matchAll(/^\s*'([a-z0-9-]+)':\s*([A-Za-z0-9_]+),?/gm)) map[m[1]]=m[2];
@@ -25,7 +27,7 @@ function fields(body){
   return out.map(s=>{
     const i=s.indexOf(':'); if(i<0) return null;
     const name=s.slice(0,i).trim().replace(/\?$/,'');
-    // 🔴 #1321 删掉了这里的 `opt`（那个 `?` 是不是可选）。它来自**组件 TS 类型**，跟 `blocks/*.json`
+    // 🔴 #1321 删掉了这里的 `opt`（那个 `?` 是不是可选）。它来自**组件 TS 类型**，跟 `blocks/<块>/manifest.json`
     //    的 `slots.<名>.required` 是两套字节，而且对 `contact-form` / `services-list` / `services-nav`
     //    给不出任何读数（这三个的 .tsx 里没有 `data: {` 可解析，下面那支给它们写 `data: {}`）。
     //    它全文只被写、不被读 —— 留着只会让下一个人以为「可选与否」这件事这里已经有答案了。
@@ -66,7 +68,7 @@ const types=blockShapeCatalog().blocks, page={slug:'allblocks',title:'All Blocks
 const skipped=[];
 for (const t of types){
   if (!map[t]) { skipped.push(t+' (registry.ts 里这一项的组件名读不出来)'); continue; }
-  const rel=(imports[map[t]]||'').replace(/^@\//,'src/');
+  const rel=(imports[map[t]]||'').replace(/^@blocks\//,'blocks/').replace(/^@\//,'src/');
   const file=rel?rel+'.tsx':path.join(SEC,map[t]+'.tsx');
   if (!fs.existsSync(file)) { skipped.push(t+' (找不到 '+file+')'); continue; }
   const src=fs.readFileSync(file,'utf8');

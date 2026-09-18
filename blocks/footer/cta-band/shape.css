@@ -1,0 +1,135 @@
+/* ── footer · cta-band（强调色色带 + 小脚）───────────────────────────────────────────────────
+
+   这一种真的多一个零件上场：顶上那条 CTA 色带（改造前是 `cta-band` 那一支自己 return 的一段
+   markup）。它在骨架里恒存在，这一层把它打开；色带的底色和内边距写在本文件末尾那一节
+   （`#1353 · 两个区的【每形态间距与皮】`），不在主题表 —— 理由见本文件 `#1353` 那条明写例外。
+   下面那部分改造前是三列（`md:grid-cols-3`），不是多列大脚的四列，而且不画导航栏目。 */
+
+/* 🔴 `justify-content` 这一行是 `sheet-recipes.test.js` ④ 那条不变量要的：一个块声明了
+   `text-align: center`，它下面的 flex 容器就必须自己说怎么摆 —— `text-align` 管不了 flex 项。
+   这里是**列向** flex，横向居中其实由 `align-items` 给；`justify-content` 管的是纵向，而这条带的
+   高度由内容撑起、没有多余空间 ⟹ 视觉上是 no-op。两边都满足，不必二选一。 */
+[data-block="footer"][data-shape="cta-band"] .footer__cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 🔴 描述在这一种里只上场**一次** —— 在顶上那条色带里（`.footer__cta-sub`）。改造前品牌那一栏
+   只有 logo + 社交，没有描述。不关掉它就是同一句话在页脚里印两遍（实测：两臂对比里它是
+   「只在改造后」的那一条）。 */
+[data-block="footer"][data-shape="cta-band"] .footer__col--nav,
+[data-block="footer"][data-shape="cta-band"] .footer__desc {
+  display: none;
+}
+
+[data-block="footer"][data-shape="cta-band"] .footer__body {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 1024px) {
+  [data-block="footer"][data-shape="cta-band"] .footer__cta {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+}
+
+@media (min-width: 768px) {
+  [data-block="footer"][data-shape="cta-band"] .footer__body {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* ── footer · cta-band ───────────────────────────────────────────────────────────────────────
+   色带是 `bg-accent-500` + `py-10 px-4 gap-4`；下面那部分 `py-10` + `gap-8`；版权行 `mt-10 pt-6`。 */
+
+[data-block="footer"][data-shape="cta-band"] .footer__cta {
+  background-color: var(--color-accent-500);
+  gap: 1rem;
+  padding: 2.5rem 1rem;
+  text-align: center;
+}
+
+/* 🔴🔴 这两行字的颜色是**本票唯一一处有意改掉的长相**，而且是被量出来才发现的，不是顺手改的。
+   改造前它们是白字压在 `accent-500` 上（`text-white` / `text-white/90`）。这一票把页脚做成块之后，
+   `blockAttrs` 给它盖上 `data-role="essential"`，于是 `theme-css-invariants.mjs` 的 §3 第一次去问
+   「这几行字读得出来吗」—— 现取读数（ember-12，真机像素）：
+       footer__cta-title  rgb(250,253,251) 压在 rgb(194,182,61) 上 = **2.04:1**
+       footer__cta-sub    rgb(237,241,225) 压在 rgb(194,182,61) 上 = **1.82:1**   （门槛 2.5:1）
+   这不是本票造成的 —— 改造前的站就是这个样子，只是那时没有任何东西在看它（老的 `<footer>` 上
+   一个 `data-role` 都没有，整个页脚不在这把尺的射程里）。
+   🔴 为什么在这张票里改而不是开新票：不改的话 `origin/main` 的 CI 会红 —— `theme-css` 那个 job
+   逐套表建一个样例站跑这把尺（`theme-css-invariants-all-sheets.sh`），ember-12 的页脚就是这一种。
+   🔴 为什么是 `gray-900`：这是产品对「accent 底上的字」已有的答案 —— `.btn-accent`（globals.css）
+   用的就是 `bg-accent-400` + `text-gray-900`，#1100 为那一对量过 80 套表。这里底色不动
+   （仍是 `accent-500`），只换字色：现取 ember-12 上 gray-900 压 rgb(194,182,61) ≈ **8.0:1**。
+   🔴 将来别的主题这一对合不合格，判据不是我这句话，是 CI 那个逐表跑的 job —— 池子重新生成那天
+   它会逐套表把这一格重问一遍。 */
+[data-block="footer"][data-shape="cta-band"] .footer__cta-title {
+  font-size: 1.5rem;
+  line-height: 2rem;
+  font-weight: 700;
+  color: var(--color-gray-900, #111827);
+}
+
+[data-block="footer"][data-shape="cta-band"] .footer__cta-sub {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: rgb(17 24 39 / 0.9);
+}
+
+[data-block="footer"][data-shape="cta-band"] .footer__cta-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-lg);
+  background-color: #fff;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: 600;
+  color: var(--color-primary-900);
+}
+
+[data-block="footer"][data-shape="cta-band"] .footer__body {
+  gap: 2rem;
+  padding: 2.5rem 1rem 0;
+}
+
+/* 同 slim-row 那条：这一支改造前也是字面的 `px-4`，不是 `--section-x`。 */
+[data-block="footer"][data-shape="cta-band"] .footer__legal {
+  margin-top: 2.5rem;
+  padding-bottom: 2.5rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+[data-block="footer"][data-shape="cta-band"] .footer__copyright {
+  padding-top: 1.5rem;
+}
+
+@media (min-width: 640px) {
+  [data-block="footer"][data-shape="cta-band"] .footer__cta,
+  [data-block="footer"][data-shape="cta-band"] .footer__body,
+  [data-block="footer"][data-shape="cta-band"] .footer__legal {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-block="footer"][data-shape="cta-band"] .footer__cta {
+    text-align: left;
+  }
+
+  [data-block="footer"][data-shape="cta-band"] .footer__cta,
+  [data-block="footer"][data-shape="cta-band"] .footer__body,
+  [data-block="footer"][data-shape="cta-band"] .footer__legal {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}

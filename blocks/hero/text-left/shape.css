@@ -1,0 +1,55 @@
+/* hero · text-left  （#1340 从生成器的 heroLook['text-left'] 剪来；今天没有主题选它）
+
+   丢掉了生成器里这 2 条：.hero__form · .hero__form-success —— 那几个部件今天不在这个块的 DOM 里（#1333 把表单整段搬去了 hero-with-form，`HeroSection.tsx` 现在不渲染它们）。 */
+
+[data-block="hero"][data-shape="text-left"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+  justify-items: start;
+  min-height: 24rem;
+}
+
+/* 🔴 位置**无条件**给，尺寸才挂在 `[data-has-imageUrl]` 上 —— 逐字照上面 `text-center` 那一段的理由：
+   `text-left` 跟它一样是**纯文字**那一档（生成器里 `HERO_LOOKS['text-left'].content` 是 `text-only`），
+   所以它的 `needs` 是空的，没填图的 hero 落回来也会戴上它。合并成一条的话，没图的那些站会拿到一个
+   有 `aspect-ratio` 的空色块（主题表给 `.hero__media` 画了底色）；反过来只给尺寸不给 `order`，那个
+   高度为 0 的媒体位会按默认 `order: 0` 跑到最上沿，而 `blocks/hero/manifest.json` 这一形态的排版意图写着
+   `media: "below"`（图在文之下）—— 几何守卫按边界框判，在没图的页面上会当场读到「图在文之上」。 */
+
+[data-block="hero"][data-shape="text-left"] .hero__media {
+  order: 3;
+}
+
+[data-block="hero"][data-shape="text-left"][data-has-imageUrl] .hero__media {
+  width: 100%;
+  aspect-ratio: 24 / 7;
+}
+
+[data-block="hero"][data-shape="text-left"] .hero__body {
+  display: grid;
+  align-content: start;
+  max-width: 44rem;
+  order: 2;
+}
+
+[data-block="hero"][data-shape="text-left"] .hero__title {
+  grid-column: 1 / -1;
+}
+
+[data-block="hero"][data-shape="text-left"] .hero__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="hero"][data-shape="text-left"] .hero__cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+[data-block="hero"][data-shape="text-left"] .hero__deco {
+  grid-column: 1 / -1;
+  order: 1;
+  max-width: 5rem;
+}

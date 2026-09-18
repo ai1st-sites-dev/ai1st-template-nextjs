@@ -25,13 +25,13 @@ import type { CatalogTheme } from './CatalogBoard';
  * 🔴 **路径要从 `process.cwd()` 起算，不能靠那几个脚本自己的 `__dirname`。** 它们是普通 node
  *    脚本，默认按 `__dirname` 找 `blocks/` 和 `registry.ts`；而被 webpack 打进 Next 的服务端包
  *    之后 `__dirname` 是**产物目录**（#1343 实测那一版报的是
- *    `ENOENT … .next/dev/server/app/src/lib/sections/registry.ts`）。所以这里把路径显式传进去。
+ *    `ENOENT … .next/dev/server/app/src/lib/sections/registry.generated.ts`）。所以这里把路径显式传进去。
  *    `next dev` 的 cwd 就是 `templates/nextjs`。
  */
 const NEXT_DIR = process.cwd();
 
 export const CATALOG_PATHS = {
-  registryPath: path.join(NEXT_DIR, 'src', 'lib', 'sections', 'registry.ts'),
+  registryPath: path.join(NEXT_DIR, 'src', 'lib', 'sections', 'registry.generated.ts'),
   blocksDir: path.join(NEXT_DIR, 'blocks'),
 };
 

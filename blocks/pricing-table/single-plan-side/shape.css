@@ -1,0 +1,65 @@
+/* pricing-table · single-plan-side  （#1366 · FlyonUI pricing-2「左特性说明 + 右定价卡」的骨架）
+   三端出处逐字：电脑 左右两栏（左是标题与说明、右是定价卡）· iPad 两栏仍并排、只是收窄 ·
+   手机 改成上下。所以两栏那一档从 **640** 起，不是 1024 —— iPad 那一端出处是并排的。
+   🔴 本块的标题与副标题就是左栏那一整块（出处左栏还有 4 条带图标的特性说明，那是它自己的数据，
+   本块没有那个槽）。右栏是这个块的套餐卡：小生意常常只有一个价，那时右栏就是一张卡。
+   🔴 `grid-auto-flow: row dense`：不写的话右栏第一张卡会从副标题所在的那一行开始排（稀疏排布不回头），
+   卡顶就跟标题对不齐；dense 让右栏从第 1 行排起。
+   🔴 左栏那两行是 `min-content 1fr`，而每张卡 `grid-row: span 2` —— 这一对是承重的，不是修饰：
+   行高由行里最高的那件定，第一张卡（实测 387px）跟标题同处第 1 行的话，副标题就被推到卡底下去了
+   （改之前实测：副标题掉到第二张卡旁边；而这个形态的正经用法是**只有一个价**，那时它会掉到卡的下面）。
+   让卡跨两行、第一行取 min-content，标题与副标题就贴在一起，卡从顶上排起。
+   🔴 标题**不写** `grid-column: 1 / -1` —— 它要真的占住左边那条列带：`layout-intent.mjs` 判 columns
+   时把 `1 / -1` 的子元素当成跨列、不计进占用的列带，写了它这一格就只剩一条带、`columns: two` 当场红。 */
+
+[data-block="pricing-table"][data-shape="single-plan-side"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="pricing-table"][data-shape="single-plan-side"] .pricing-table__sub {
+  max-width: 36rem;
+}
+
+[data-block="pricing-table"][data-shape="single-plan-side"] .pricing-table__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="pricing-table"][data-shape="single-plan-side"] .pricing-table__badge {
+  justify-self: start;
+}
+
+[data-block="pricing-table"][data-shape="single-plan-side"] .pricing-table__features {
+  display: grid;
+}
+
+[data-block="pricing-table"][data-shape="single-plan-side"] .pricing-table__action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+@media (min-width: 640px) {
+  [data-block="pricing-table"][data-shape="single-plan-side"] {
+    grid-template-columns: 2fr 3fr;
+    grid-template-rows: min-content 1fr;
+    grid-auto-flow: row dense;
+    align-items: start;
+  }
+
+  [data-block="pricing-table"][data-shape="single-plan-side"] .pricing-table__headline {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  [data-block="pricing-table"][data-shape="single-plan-side"] .pricing-table__sub {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  [data-block="pricing-table"][data-shape="single-plan-side"] .pricing-table__item {
+    grid-column: 2;
+    grid-row: span 2;
+  }
+}

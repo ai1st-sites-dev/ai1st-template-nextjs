@@ -355,12 +355,10 @@ console.log('\n── #1349 每个块都有 displayName');
   //    CSS 的位置，见它自己那段注释），不碰仓里的文件。
   const tmp = fsx.mkdtempSync(path.join(osx.tmpdir(), 'blk1349-'));
   try {
-    fsx.mkdirSync(path.join(tmp, 'blocks'));
-    fsx.mkdirSync(path.join(tmp, 'public'));
-    for (const f of fsx.readdirSync(BLOCKS)) fsx.copyFileSync(path.join(BLOCKS, f), path.join(tmp, 'blocks', f));
-    fsx.copyFileSync(path.join(NEXT, 'public', 'shapes.css'), path.join(tmp, 'public', 'shapes.css'));
+    // #1387 —— 一个块一个文件夹，整棵拷（逐文件拷会把形态子文件夹全丢掉）。
+    fsx.cpSync(BLOCKS, path.join(tmp, 'blocks'), { recursive: true });
 
-    const victim = path.join(tmp, 'blocks', 'hero.json');
+    const victim = path.join(tmp, 'blocks', 'hero', 'manifest.json');
     const m = JSON.parse(fsx.readFileSync(victim, 'utf-8'));
     delete m.displayName;
     fsx.writeFileSync(victim, JSON.stringify(m, null, 2));
@@ -368,11 +366,11 @@ console.log('\n── #1349 每个块都有 displayName');
     let threw = null;
     try { loadManifests(path.join(tmp, 'blocks')); } catch (e) { threw = e; }
     if (!threw) {
-      bad('反臂: 删掉 hero.json 的 displayName 之后 loadManifests() 照样过了 —— 这道守卫不存在');
-    } else if (!threw.message.includes('blocks/hero.json') || !threw.message.includes('displayName')) {
+      bad('反臂: 删掉 hero 的 displayName 之后 loadManifests() 照样过了 —— 这道守卫不存在');
+    } else if (!threw.message.includes('blocks/hero') || !threw.message.includes('displayName')) {
       bad(`反臂: 报了，但没同时点名文件和字段: ${threw.message}`);
     } else {
-      ok(`反臂: 删掉 displayName ⟹ throw，且点名了 blocks/hero.json（${threw.message.slice(0, 60)}…）`);
+      ok(`反臂: 删掉 displayName ⟹ throw，且点名了 blocks/hero（${threw.message.slice(0, 60)}…）`);
     }
   } finally {
     fsx.rmSync(tmp, { recursive: true, force: true });
@@ -390,15 +388,12 @@ console.log('\n── ⑫ #1352 校验器新增的三条（每条弄坏一次，
   const fs = require('fs');
   const NEXTDIR = NEXT;
 
-  // 造一棵最小的树：blocks/ 是真文件，public/shapes.css 软链回本仓（形态那一半要它）。
+  // 造一棵最小的树：blocks/ 是真文件的整棵副本（#1387 起形态住在子文件夹里，所以要 recursive）。
+  // 📌 不再软链 public/shapes.css —— `loadManifests` 不再读它（#1331 那道两向差集随 #1387 删了，
+  //    形态清单就是子文件夹清单，两边按构造是同一份）。
   function sandbox(mutate) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'bm-'));
-    fs.mkdirSync(path.join(root, 'blocks'));
-    fs.mkdirSync(path.join(root, 'public'));
-    fs.symlinkSync(path.join(NEXTDIR, 'public', 'shapes.css'), path.join(root, 'public', 'shapes.css'));
-    for (const f of fs.readdirSync(path.join(NEXTDIR, 'blocks'))) {
-      fs.copyFileSync(path.join(NEXTDIR, 'blocks', f), path.join(root, 'blocks', f));
-    }
+    fs.cpSync(path.join(NEXTDIR, 'blocks'), path.join(root, 'blocks'), { recursive: true });
     if (mutate) mutate(root);
     return root;
   }
@@ -408,8 +403,8 @@ console.log('\n── ⑫ #1352 校验器新增的三条（每条弄坏一次，
       return null;
     } catch (e) { return e.message; }
   };
-  const editJson = (root, name, fn) => {
-    const p = path.join(root, 'blocks', name);
+  const editJson = (root, type, fn) => {
+    const p = path.join(root, 'blocks', type, 'manifest.json');
     const d = JSON.parse(fs.readFileSync(p, 'utf-8'));
     fn(d);
     fs.writeFileSync(p, JSON.stringify(d, null, 2) + '\n');
@@ -424,13 +419,13 @@ console.log('\n── ⑫ #1352 校验器新增的三条（每条弄坏一次，
 
   const cases = [
     ['kind 写成词表外的值（url）',
-     (root) => editJson(root, 'hero.json', (d) => { d.slots.headline.kind = 'url'; }),
+     (root) => editJson(root, 'hero', (d) => { d.slots.headline.kind = 'url'; }),
      /kind 是 "url"/],
     ['editLabel 挂在 kind: image 上',
-     (root) => editJson(root, 'hero.json', (d) => { d.slots.imageUrl.editLabel = 'Picture'; }),
+     (root) => editJson(root, 'hero', (d) => { d.slots.imageUrl.editLabel = 'Picture'; }),
      /不该有 editLabel/],
     ['新增一个 kind: text 的槽位，既没 editLabel 也不在例外名单',
-     (root) => editJson(root, 'hero.json', (d) => {
+     (root) => editJson(root, 'hero', (d) => {
        d.slots.brandNewTextSlot = { kind: 'text', required: false, promptOptional: true };
      }),
      /没有 editLabel/],

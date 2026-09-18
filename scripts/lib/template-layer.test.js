@@ -24,7 +24,7 @@ const check = (c, m) => (c ? ok(m) : bad(m));
 // 数据层，而今天的模板把那四个 *Section.tsx 合并掉了。
 const FIRST_COMMIT = [
   'package.json', 'package-lock.json', 'next.config.js', 'public/base.css',
-  'src/lib/sections/registry.ts',
+  'src/lib/sections/registry.generated.ts',
   'src/components/sections/ValuesGridSection.tsx',
   'src/components/sections/BenefitsListSection.tsx',
   'src/components/sections/ChecklistSection.tsx',
@@ -37,7 +37,7 @@ const HEAD_NOW = [
 ];
 const TODAY = [
   'package.json', 'package-lock.json', 'next.config.js', 'public/base.css',
-  'src/lib/sections/registry.ts',
+  'src/lib/sections/registry.generated.ts',
   'src/components/sections/CardGroupSection.tsx',
   'src/lib/sections/block-roles.json',
   'scripts/upgrade-site-data.js',

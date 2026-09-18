@@ -671,11 +671,11 @@ console.log('④ 表说了居中，产物里那几样东西真的居中吗');
 
 // 📌 ⑤ 删了（#1341）—— 这里原来是「两条轴有没有串」（#1065）。
 //
-//    它做的事：拿 `blocks/hero.json` 的 `block_layout` 当取值表，检查 `HERO_LOOKS` 每一项的
+//    它做的事：拿 `blocks/hero/manifest.json` 的 `block_layout` 当取值表，检查 `HERO_LOOKS` 每一项的
 //    `content` 都落在那份表里、而且不是一个画法名；再把生成器派生出来的 `HERO_LAYOUTS` 跟那份表
 //    逐字比；还带一条反向对照（往 `content` 那一栏塞一个画法词，这把尺必须当场点名）。
 //
-//    🔴 **没有继承者，这是有意的。** #1341 把内容结构那一整维退役了 —— `blocks/hero.json` 没有
+//    🔴 **没有继承者，这是有意的。** #1341 把内容结构那一整维退役了 —— `blocks/hero/manifest.json` 没有
 //    `block_layout` 这份清单，`HERO_LOOKS` 每一项的 `content` 字段、派生它的 `heroLayoutFor` 和
 //    `HERO_LAYOUTS` 也一起删了。比较的两边同时没了，问题本身不存在了。留这句话是因为
 //    「一格无声消失」跟「一格从来没有过」长得一样。
@@ -754,7 +754,7 @@ const formPlacementProblems = (rules) => {
   //      （`HeroSection.tsx` 里 `hero__form` 现取 **0** 命中），下面站那一臂的注释早就写着这一条。
   //    · 形态层里 `.hero__form` 的规则只挂在 `[data-block="hero-with-form"][data-shape="form-side"]`
   //      底下（`public/shapes.css` 现取：7 副 hero 画法底下一条 `.hero__form` 都没有）。
-  //    · 而 `hero-with-form` 的形态**只有一副**（`blocks/hero-with-form.json` 的 `shapes` = 1 项）。
+  //    · 而 `hero-with-form` 的形态**只有一副**（`blocks/hero-with-form/manifest.json` 的 `shapes` = 1 项）。
   //    ⟹ 「每一种 hero 画法都把表单排在正文之后吗」今天没有 7 个对象，只有 1 个。
   //    #1339 之前这一格的候选那一臂读到 7 项，是因为配方里还留着 7 副 hero 画法各自的 `.hero__form`
   //    位置 —— 那是 #1333 之后**没有任何 DOM 会用到**的死字，正是本票要删的东西。
@@ -1151,7 +1151,8 @@ const FORM_LOOK_SAMPLE = (() => {
 })();
 
 /** 那个块的源码 —— ⑩ ⑪ 两格都要问「这个部件在 DOM 里排第几 / 在谁里面」。 */
-const CONTACT_TSX = path.resolve(DIR, '..', '..', 'src', 'components', 'sections', 'ContactFormSection.tsx');
+// #1387 —— 块组件搬进了块自己的文件夹。
+const CONTACT_TSX = path.resolve(DIR, '..', '..', 'blocks', 'contact-form', 'Section.tsx');
 
 console.log('\n⑩ #1135 成功那条状态消息，每一种画法下都跨满整宽（报错那条为什么不在这里，见下）');
 {
@@ -2046,7 +2047,7 @@ console.log('\n⑬ #1150 首屏表单那行报错，跟联系/报价那两行拿
 // 🔴 **没有继承者，这是有意的。** 删它之前这一格本来就整格跳过（被钉的 `lime-28` 随 #1161 下架，
 //    盘上只剩 2 份生成表），所以删掉不会让任何东西变红 —— 那是预期，不是「没验」。
 // 📌 想把横条要回来：让它成为 testimonials 的一副**真形态**（`public/shapes.css` 写规则 +
-//    `blocks/testimonials.json` 的 `shapes` 登记名字），那时这一格的继承者是形态层自己那几道
+//    `blocks/testimonials/manifest.json` 的 `shapes` 登记名字），那时这一格的继承者是形态层自己那几道
 //    （`gates-shapes.test.js` 的选择单一致性 + 下面 ⑫ 的骨架种数），不用再为它单开一格。
 
 console.log('\n⑮ #1339 配方里还有没有几何（整池扫一遍，命中集合必须为空）');

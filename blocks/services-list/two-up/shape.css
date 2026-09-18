@@ -1,0 +1,36 @@
+/* services-list · two-up  （ember-12 + azure-29 今天选的就是它） */
+
+[data-block="services-list"][data-shape="two-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="services-list"][data-shape="two-up"] .services-list__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="services-list"][data-shape="two-up"] .services-list__icon {
+  display: grid;
+  place-items: center;
+}
+
+[data-block="services-list"][data-shape="two-up"] .services-list__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+[data-block="services-list"][data-shape="two-up"] .services-list__features {
+  display: grid;
+}
+
+[data-block="services-list"][data-shape="two-up"] .services-list__products {
+  display: grid;
+}
+
+@media (min-width: 1024px) {
+  [data-block="services-list"][data-shape="two-up"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}

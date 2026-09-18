@@ -28,7 +28,7 @@ const path = require('path');
 
 // 🔴 #1353 —— 这里原来是三张写死的清单（`HEADER_VARIANTS` 4 · `FOOTER_VARIANTS` 3 ·
 // `TOPBAR_VARIANTS` 4）。顶栏 / 页脚 / 公告条按块的规矩搬进形态层之后，「这个区有哪些结构」的
-// 唯一权威是**块 manifest**（`blocks/<区>.json` 的 `shapes`），跟别的 32 个块一模一样。
+// 唯一权威是**块自己那个文件夹**（`blocks/<区>/` 下的形态子文件夹，#1387），跟别的块一模一样。
 // 留着这三张表就是第二份清单 —— 而本文件原来那句话（「多一处清单就会有一处漂」）说的正是这件事，
 // 只不过那时它是唯一那一份，今天它成了多出来的那一份。
 //
@@ -52,15 +52,50 @@ const path = require('path');
  *    一份写坏的 manifest 在那两处当场抛。这里读到空清单时 `resolveRegionShapes` 会退回空串并记 notes。
  */
 const _shapesCache = new Map();
-function shapesOf(blockType) {
+
+// #1387 —— 形态住在 `blocks/<块>/<形态>/`：名字是子文件夹名，`order` 与 `candidate` 在
+// `shape.md` 的 frontmatter 里。
+//
+// 🔴 **这里只认那两个键，而且是自己读的，不 require `block-build/build-blocks.js` 的解析器。**
+//    理由跟上面那条「不走 loadManifests」逐字同一条：本文件有一批调用方跑在**只有部分模板**的临时树里
+//    （`region-layout.test.js` / `lib/remediation.test.js` / `lib/site-shape.test.js` 造的那几棵），
+//    它们今天只拷 `scripts/region-layout.js` 这一个文件。多 require 一个模块，那几棵树全部要跟着补
+//    ——「读一张清单」不该拖着别的模块走。这两个键都是顶层、零缩进的标量，写它的是同一个子集
+//    （`block-build/frontmatter.js` 的 formatFrontmatter），所以这两条正则是够的。
+function shapeMetaFrom(md) {
+  const order = md.match(/^order:\s*(-?\d+)\s*$/m);
+  return {
+    order: order ? Number(order[1]) : null,
+    candidate: /^candidate:\s*true\s*$/m.test(md),
+  };
+}
+
+function readShapeDirs(blockType) {
   if (_shapesCache.has(blockType)) return _shapesCache.get(blockType);
-  let names = [];
+  let shapes = [];
   try {
-    const raw = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'blocks', `${blockType}.json`), 'utf-8'));
-    if (Array.isArray(raw.shapes)) names = raw.shapes.map((sh) => sh && sh.name).filter(Boolean);
-  } catch { names = []; }
-  _shapesCache.set(blockType, names);
-  return names;
+    const dir = path.join(__dirname, '..', 'blocks', blockType);
+    shapes = fs.readdirSync(dir, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => {
+        let md = '';
+        try { md = fs.readFileSync(path.join(dir, e.name, 'shape.md'), 'utf-8'); } catch { md = ''; }
+        const meta = shapeMetaFrom(md);
+        return { name: e.name, order: meta.order, candidate: meta.candidate };
+      })
+      .sort((a, b) => {
+        if (a.order !== null && b.order !== null && a.order !== b.order) return a.order - b.order;
+        if (a.order !== null && b.order === null) return -1;
+        if (a.order === null && b.order !== null) return 1;
+        return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+      });
+  } catch { shapes = []; }
+  _shapesCache.set(blockType, shapes);
+  return shapes;
+}
+
+function shapesOf(blockType) {
+  return readShapeDirs(blockType).map((sh) => sh.name);
 }
 
 /**
@@ -85,25 +120,15 @@ function pickableShapesOf(blockType) {
   if (!all.length) return all;
   const pickable = all.filter((name) => !candidateShapeNames(blockType).has(name));
   if (!pickable.length) {
-    throw new Error(`blocks/${blockType}.json 的形态全是 candidate —— 这个区没得挑。`
+    throw new Error(`blocks/${blockType}/ 的形态全是 candidate —— 这个区没得挑。`
       + '默认形态（shapes[0]）按 checkManifestShape 就不许是候选，走到这里说明那条校验被放宽了');
   }
   return pickable;
 }
 
-/** 这个块里标了 `candidate: true` 的形态名（#1384）。跟 `shapesOf` 同一个读法、同一份缓存纪律。 */
-const _candidateCache = new Map();
+/** 这个块里标了 `candidate: true` 的形态名（#1384）。跟 `shapesOf` 同一个读法、同一份缓存。 */
 function candidateShapeNames(blockType) {
-  if (_candidateCache.has(blockType)) return _candidateCache.get(blockType);
-  let names = new Set();
-  try {
-    const raw = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'blocks', `${blockType}.json`), 'utf-8'));
-    if (Array.isArray(raw.shapes)) {
-      names = new Set(raw.shapes.filter((sh) => sh && sh.candidate === true).map((sh) => sh.name));
-    }
-  } catch { names = new Set(); }
-  _candidateCache.set(blockType, names);
-  return names;
+  return new Set(readShapeDirs(blockType).filter((sh) => sh.candidate).map((sh) => sh.name));
 }
 
 /** 三个区各自的块类型。`topbar` 这个区名对应的块是公告条。 */
@@ -141,7 +166,7 @@ function resolveRegionShapes(chosen) {
       if (candidateShapeNames(blockType).has(asked)) {
         notes.push(`theme 给 ${region} 选的形态 "${asked}" 是候选(还没签字进库),退回 ${fallback}`);
       } else if (list.includes(asked)) shape = asked;
-      else notes.push(`theme 给 ${region} 选的形态 "${asked}" 不在 blocks/${blockType}.json 的清单里(${list.join(' / ')}),退回 ${fallback}`);
+      else notes.push(`theme 给 ${region} 选的形态 "${asked}" 不在 blocks/${blockType}/ 的清单里(${list.join(' / ')}),退回 ${fallback}`);
     }
     out[region] = { shape };
   }

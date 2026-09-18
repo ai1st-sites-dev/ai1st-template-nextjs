@@ -1,0 +1,65 @@
+/* faq-accordion · aside-cta  （#1362 · 对表 FlyonUI faq-8：左边手风琴，右边一张求助卡）
+
+   🔴 它在**原来那五根轴**上跟已有的 `heading-side` 逐字相同（stack·allow·above·none·two）—— 按
+   PM 2026-09-16 定的口径（D5 几何读数），元组相同不阻断，两种形态之间要有**量得出来的几何差别**。
+   这两种的差别是版面：`heading-side` 把标题放在左栏，`aside-cta` 把标题留在问答那一栏、右栏给求助卡。
+   交付里贴了一组逐零件的边界框对照。
+   📌 **#1381 之后词表也分得开了**：`ratio` 是 `major-end`（1fr 2fr）对 `major-start`（3fr 2fr）。 */
+
+[data-block="faq-accordion"][data-shape="aside-cta"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="faq-accordion"][data-shape="aside-cta"] .faq-accordion__headline {
+  grid-column: auto;
+}
+
+[data-block="faq-accordion"][data-shape="aside-cta"] .faq-accordion__sub {
+  grid-column: auto;
+  max-width: 36rem;
+}
+
+[data-block="faq-accordion"][data-shape="aside-cta"] .faq-accordion__item {
+  display: grid;
+}
+
+@media (min-width: 1024px) {
+  [data-block="faq-accordion"][data-shape="aside-cta"] {
+    grid-template-columns: 3fr 2fr;
+  }
+
+  [data-block="faq-accordion"][data-shape="aside-cta"] .faq-accordion__headline,
+  [data-block="faq-accordion"][data-shape="aside-cta"] .faq-accordion__sub,
+  [data-block="faq-accordion"][data-shape="aside-cta"] .faq-accordion__item {
+    grid-column: 1;
+  }
+
+  [data-block="faq-accordion"][data-shape="aside-cta"] .faq-accordion__aside {
+    grid-column: 2;
+    grid-row: 2 / -1;
+    align-self: start;
+  }
+}
+
+/* 🔴 求助卡没填时这一副退回一栏 —— 理由跟上面 `media-side` 那一段逐字相同（#1362）。 */
+
+[data-block="faq-accordion"][data-shape="aside-cta"]:not([data-has-helpCard]) .faq-accordion__headline,
+[data-block="faq-accordion"][data-shape="aside-cta"]:not([data-has-helpCard]) .faq-accordion__sub,
+[data-block="faq-accordion"][data-shape="aside-cta"]:not([data-has-helpCard]) .faq-accordion__item {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="faq-accordion"][data-shape="aside-cta"]:not([data-has-helpCard]) {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* `aside-cta` 的右栏留给求助卡，所以它的图钉在左栏最后一行（通栏会把卡挤下去）。 */
+[data-block="faq-accordion"][data-shape="aside-cta"] .faq-accordion__media {
+  grid-column: 1;
+  width: 100%;
+  max-width: 48rem;
+}

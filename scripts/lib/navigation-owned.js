@@ -267,7 +267,7 @@ const PAGE_READS = [
     // `renderedBy` 列的是全部 topbar 版式：区在，四种结构都画它；区不在，一种都画不到。
     key: 'topbar',
     region: 'topbar',
-    // #1353 —— 公告条的形态清单今天是 `blocks/announcement-bar.json` 的（一种：`stack`）。那四个
+    // #1353 —— 公告条的形态清单今天是 `blocks/announcement-bar/manifest.json` 的（一种：`stack`）。那四个
     // 名字（solid/bordered/dismissible/floating）在 #1036 就已经没有对应的 markup 了，#1353 把它们从
     // 清单里拿掉 —— 这一格问的仍是「这个站的页面上有没有那个区」，跟形态名无关。
     renderedBy: ['stack'],

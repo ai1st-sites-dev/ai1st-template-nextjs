@@ -1,0 +1,73 @@
+/* ── header · pill-floating（圆角胶囊浮条）───────────────────────────────────────────────────
+
+   🔴 判块表里这一条写得最长，因为它是四种里**最不像形态**的一个：它跟 `solid-bar` 的差别是
+   外层多一圈内边距、内条有圆角 + 阴影 + 白底 —— 内边距、圆角、阴影、底色，**四样全是皮**
+   （设计文档 D5，契约 v3 §2）。所以这一层只写它那一条真几何：它仍然吸顶，而内条是独立的一条，
+   不占满整幅宽。
+   🔴 那四样皮**不在主题表**，在本文件末尾那一节（`#1353 · 两个区的【每形态间距与皮】`），
+      理由和另外两条路的代价写在本文件 `#1353` 那条明写例外里。上一版这里写的是
+      「由主题表给（`sheet-recipes.js` 的 `HEADER_LOOKS['pill-floating']`）」—— 那句话两头都不成立：
+      皮没进主题表，而 `HEADER_LOOKS` 是 **`page-header` 这个块**的四种写法
+      （现取 `Object.keys(HEADER_LOOKS)` = stack-left / centered / title-side / kicker-above），
+      里面根本没有 `pill-floating` 这个键。
+   为什么还是给它一个形态名而不是并进 `solid-bar`：选择单（`theme-pool.json` 的 `shapes`）是
+   「这套主题的顶栏长什么样」的**唯一用户可见旋钮**，把它并掉之后一套主题选不出胶囊条。 */
+
+[data-block="header"][data-shape="pill-floating"] {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+[data-block="header"][data-shape="pill-floating"] .header__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ── header · pill-floating ──────────────────────────────────────────────────────────────────
+   外层那条 `<header>` 自己**不画底、不投影**（改造前那一支的 class 串里就没有 `bg-white shadow-sm`），
+   画出来的是里面那根胶囊条。 */
+
+[data-block="header"][data-shape="pill-floating"] {
+  background-color: transparent;
+  box-shadow: none;
+  padding: 1rem 1rem 0;
+}
+
+/* 🔴 阴影和那圈描边都**不许写字面值**（#1353 r3 —— QA2 在真机上量到的那处）：
+   改造前这根条是 `shadow-lg ring-1 ring-black/5`，而 `shadow-lg` 经 `tailwind.config.ts` 走的是
+   `var(--shadow-lg)` —— 浓度由站自己的 `brand.settings.shadowStrength` 算出来（`theme-settings.js`
+   §numericSettingsToCssVars）。写死 `rgb(0 0 0 / 0.1)` 等于把**全部站**钉在默认那一档：夹具站
+   `shadowStrength: 0.22` 实测就从 22% 黑变成了 10% 黑。
+   🔴 `ring-1` 画在**外面**（Tailwind 的 ring 是一层 outset 的 box-shadow），`outline-offset: -1px`
+   画在**里面** —— 药丸看得见的上沿因此整体挪了 1px。所以这里照 Tailwind 那串的层序原样复刻：
+   ring-offset（0 spread，画不出东西，留着是为了 computed 值逐字相同）→ ring → shadow。 */
+[data-block="header"][data-shape="pill-floating"] .header__bar {
+  border-radius: 9999px;
+  background-color: #fff;
+  padding: 0.75rem 1.5rem;
+  box-shadow: 0 0 0 0 #fff, 0 0 0 1px rgb(0 0 0 / 0.05), var(--shadow-lg);
+}
+
+/* 同上：改造前是 `rounded-2xl shadow-lg`，两个都跟着风格设定走（`--radius-2xl` = radius×4）。 */
+[data-block="header"][data-shape="pill-floating"] .header__menu {
+  margin-top: 0.5rem;
+  border-top: 0;
+  border-radius: var(--radius-2xl);
+  box-shadow: var(--shadow-lg);
+}
+
+@media (min-width: 640px) {
+  [data-block="header"][data-shape="pill-floating"] {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-block="header"][data-shape="pill-floating"] {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}

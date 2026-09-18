@@ -1,0 +1,58 @@
+/* contact-form · info-side  （#1370 · 对表 FlyonUI contact-us-2：左边一张联系方式卡，右边表单）
+
+   🔴 它跟已有的 `panel-left` 在**原来那五根轴**上相同（none·allow·above·none·two），按 PM 2026-09-16
+   定的 D5 口径（几何读数，不是元组差异）不阻断 —— 两者的差别是**左栏放什么**：`panel-left` 的左栏是
+   标题和引子，`info-side` 的左栏是那张联系方式卡（标题和引子通栏在最上面）。交付里贴了逐零件的
+   边界框对照。
+   📌 **#1381 之后这两种在词表里也分得开了**：`ratio`（列带宽度关系）是 `even`（1fr 1fr）对
+   `major-end`（2fr 3fr），`order`（零件次序有没有被 `order` 换过）是 `reordered` 对 `dom`。 */
+
+[data-block="contact-form"][data-shape="info-side"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="contact-form"][data-shape="info-side"] .contact-form__heading,
+[data-block="contact-form"][data-shape="info-side"] .contact-form__intro {
+  grid-column: 1 / -1;
+}
+
+[data-block="contact-form"][data-shape="info-side"] .contact-form__intro {
+  max-width: 36rem;
+}
+
+[data-block="contact-form"][data-shape="info-side"] .contact-form__aside {
+  display: grid;
+  align-content: start;
+  gap: 0.5rem;
+}
+
+[data-block="contact-form"][data-shape="info-side"] .contact-form__form {
+  display: grid;
+}
+
+[data-block="contact-form"][data-shape="info-side"] .contact-form__error,
+[data-block="contact-form"][data-shape="info-side"] .contact-form__success {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="contact-form"][data-shape="info-side"] {
+    grid-template-columns: 2fr 3fr;
+  }
+
+  [data-block="contact-form"][data-shape="info-side"] .contact-form__aside {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  [data-block="contact-form"][data-shape="info-side"] .contact-form__form {
+    grid-column: 2;
+    grid-row: 3;
+  }
+
+  [data-block="contact-form"][data-shape="info-side"] .contact-form__note {
+    grid-column: 1 / -1;
+  }
+}

@@ -200,7 +200,7 @@ const { loadManifests: loadDemoManifests } = require('./lib/block-manifest');
 const DEMO_MANIFESTS = loadDemoManifests(path.join(NEXT, 'blocks'));
 for (const sec of sections) {
   const m = DEMO_MANIFESTS.get(sec.type);
-  if (!m) die(`no blocks/${sec.type}.json — 演示内容按 manifest 的槽位发，没有 manifest 就发不出`);
+  if (!m) die(`no blocks/${sec.type}/manifest.json — 演示内容按 manifest 的槽位发，没有 manifest 就发不出`);
   try {
     sec.data = demoDataFor(m);
   } catch (e) {
@@ -226,9 +226,10 @@ const isListSlot = (spec) => spec.kind === 'list'
 if (MINIMAL) {
   const judgeMissed = [];
   for (const sec of sections) {
-    const mf = path.join(BLOCKS_DIR, `${sec.type}.json`);
+    // #1387 —— 一个块一个文件夹，槽位住在 `blocks/<块>/manifest.json`。
+    const mf = path.join(BLOCKS_DIR, sec.type, 'manifest.json');
     if (!fs.existsSync(mf)) {
-      die(`no blocks/${sec.type}.json — 最少版的判据只有 manifest 一个来源，没有它就说不出这个块该削成什么样`);
+      die(`no blocks/${sec.type}/manifest.json — 最少版的判据只有 manifest 一个来源，没有它就说不出这个块该削成什么样`);
     }
     const slots = readJson(mf).slots || {};
     const data = sec.data || {};
@@ -306,7 +307,7 @@ if (MINIMAL) {
   //    重新被量（本票要的视力），关着的那两条照旧被豁免（#1056 的结论，不许回退）。全开会把后半句
   //    从这个站上抹掉，那时「豁免坏了」跟「一切正常」在读数上长得一模一样。
   //
-  // 🔴 这个字段只写在这里。`blocks/faq-accordion.json` 故意没有这个槽，所以 AI 建的真实站一条都
+  // 🔴 这个字段只写在这里。`blocks/faq-accordion/manifest.json` 故意没有这个槽，所以 AI 建的真实站一条都
   //    不会带上它 —— 客人的 FAQ 照旧默认全部关着（#1060 正文里那条硬边界）。
   const s = sectionOf('faq-accordion');
   const items = s && s.data && s.data.items;
@@ -330,7 +331,7 @@ if (MINIMAL) {
 //    只有「提交之后才进 DOM 的表单状态」那一族（`reachableOnSubmitOnly`）。`.hero__form` 不在豁免里
 //    ⟹ 它一页都不进 DOM 就是 CI 红。今天保它进 DOM 的是注册表那一行，不是这里的一次 patch，
 //    而「它真的在这一页上」由下面那段读回逐版核。
-// 🔴 最少版也照样有它：`form` 是 `blocks/hero-with-form.json` 的**必填**槽，而最少版削的是
+// 🔴 最少版也照样有它：`form` 是 `blocks/hero-with-form/manifest.json` 的**必填**槽，而最少版削的是
 //    `required: false` 的槽位。#1065 当时接受的那个代价（「`.hero__form` 这一族在最少版上没有人量」）
 //    本票顺带还掉了。
 if (MINIMAL) {
@@ -549,7 +550,7 @@ const EXTRA_SERVICES = [
     // 🔴 最少版自己的读回，两个方向都问 —— 「削过了」和「一个字节都没削」在只问前半句时长得一样。
     //    ① 可选槽位真的**不存在**（不是空串）· ② 必填列表槽真的只剩一项 · ③ 那五处 propping 真的没写进去。
     for (const sec of back.sections || back.blocks || []) {
-      const mf = path.join(BLOCKS_DIR, `${sec.type}.json`);
+      const mf = path.join(BLOCKS_DIR, sec.type, 'manifest.json');  // #1387 —— 一个块一个文件夹
       if (!fs.existsSync(mf)) continue;
       const slots = readJson(mf).slots || {};
       const d = sec.data || {};

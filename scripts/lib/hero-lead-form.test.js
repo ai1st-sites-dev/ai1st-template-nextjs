@@ -37,7 +37,7 @@ try {
   heroForm = require(path.join(DIR, 'hero-lead-form.js'));
   manifests = require(path.join(DIR, 'block-manifest.js')).loadManifests();
   blockRoles = JSON.parse(fs.readFileSync(path.join(NEXT, 'src', 'lib', 'sections', 'block-roles.json'), 'utf-8'));
-  registrySrc = fs.readFileSync(path.join(NEXT, 'src', 'lib', 'sections', 'registry.ts'), 'utf-8');
+  registrySrc = fs.readFileSync(path.join(NEXT, 'src', 'lib', 'sections', 'registry.generated.ts'), 'utf-8');
 } catch (e) {
   die(`require 失败: ${e.message}`);
 }
@@ -275,7 +275,7 @@ console.log('\n── ⑥ 53 个上门行业词逐词：建出来的首页第一
 // ── ⑦ #1346 —— 后台关掉 hero-with-form，这一处也要让开（QA1 r1 第 2 条）───────────────────────
 //
 // 🔴 **为什么这一处非补不可：它不在菜单那条路上。** `applyHeroLeadForm` 跑在两次 `validateBlocks`
-//    之后、也不经 AI 提示词 ⟹ 剔菜单、改校验器都管不到它。而后台那一页是从 `blocks/*.json` 列
+//    之后、也不经 AI 提示词 ⟹ 剔菜单、改校验器都管不到它。而后台那一页是从 `blocks/<块>/manifest.json` 列
 //    全部 32 个块（`manager/catalog_admin.go`），`hero-with-form` 就在里面、可以被关。少这一处的
 //    坏法很具体：后台关掉它，每一个**上门服务行业**的新站首屏照样是它 —— 开关看着生效了，产物里没有。
 //

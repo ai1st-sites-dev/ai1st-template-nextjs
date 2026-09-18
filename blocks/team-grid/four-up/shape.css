@@ -1,0 +1,36 @@
+/* team-grid · four-up  （#1365 · FlyonUI team-1「4×2 成员卡网格」的骨架）
+   三端出处逐字：电脑 4 列 × 2 行 · iPad 降为 2 列 · 手机单列堆叠。下面就是这三档。
+   🔴 出处那一版每张卡上有方形照片和一行社交图标 —— 本块的中性 markup 里**没有这两样**
+   （#1029 有意删掉了那个首字母头像；照片是数据不是长相，要加是另一张票）。所以这一种买的是
+   「一行放四个人」这一维，跟 three-up 的差别就是列数，D12 的读数也落在这一根上。 */
+
+[data-block="team-grid"][data-shape="four-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="team-grid"][data-shape="four-up"] .team-grid__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="team-grid"][data-shape="four-up"] .team-grid__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="team-grid"][data-shape="four-up"] .team-grid__member {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 640px) {
+  [data-block="team-grid"][data-shape="four-up"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-block="team-grid"][data-shape="four-up"] {
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+  }
+}

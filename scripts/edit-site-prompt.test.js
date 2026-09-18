@@ -7,7 +7,7 @@
  *   退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
  *
  * ── 为什么要有它 ────────────────────────────────────────────────────────────────────────────────
- * 那一行必须逐项等于 `src/lib/sections/registry.ts` 的键集合，而它是**人手抄的**。两个方向都坏过，
+ * 那一行必须逐项等于 `src/lib/sections/registry.generated.ts` 的键集合，而它是**人手抄的**。两个方向都坏过，
  * 而且坏法都是静默的：
  *   · 清单里有注册表**没有**的名字 ⟹ 模型照着写出那个块，`SectionRenderer` 走未知类型那一支
  *     （`console.warn` + `return null`）—— **块在页面上直接不出现，而构建是绿的**；
@@ -57,7 +57,7 @@ const promptSet = new Set(promptList);
 // ── 尺子另一侧：注册表的键 ──────────────────────────────────────────────────────────────────────
 // 📌 用文本抠而不是 require：那是 TypeScript，node 直接读不了。同样的抠法在
 //    `blocks.test.js` 与 `lib/site-data-migration.test.js` 里各有一处，理由同。
-const regPath = path.join(NEXT, 'src', 'lib', 'sections', 'registry.ts');
+const regPath = path.join(NEXT, 'src', 'lib', 'sections', 'registry.generated.ts');
 let reg;
 try { reg = fs.readFileSync(regPath, 'utf-8'); } catch (e) { die(`读不到 ${regPath}: ${e.message}`); }
 const body = reg.slice(reg.indexOf('sectionRegistry'));

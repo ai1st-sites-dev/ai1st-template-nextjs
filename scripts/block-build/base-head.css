@@ -1,0 +1,60 @@
+/* base-css-contract: v1
+   base.css — the floor under the neutral markup (#1001, spec §4.8 + §7.3, decision D16).
+
+   Two jobs, and neither of them is "look good":
+
+     1. A FLOOR, so a theme sheet only has to write what makes it DIFFERENT. Paragraph rhythm, line
+        length and "the words are not glued to the edge of the screen" have nothing to do with which
+        of the 30 themes is applied, and nobody should write them 30 times.
+     2. A FALLBACK, so a page with NO theme sheet is still a page. That is not hypothetical: on dev
+        the template overlay is on (deploy/config/manager.dev.json `local.templatePath`), so an old
+        site that rebuilds — publishing a blog post is enough — gets today's neutral markup while its
+        own theme has no sheet for it. Without this file that page has no spacing at all.
+
+   🔴 NOTHING HERE IS IN A CASCADE LAYER, AND THAT IS THE MECHANISM (spec §4.8, measured twice
+   wrong before it was measured right). Tailwind 3.4 compiles to an UNLAYERED bundle (`@layer` in the
+   real product CSS: 0 hits), and unlayered rules beat everything inside any layer. So:
+
+     base   .hero__title { … }   a class, (0,1,0) — beats preflight's `h1` (0,0,1) on specificity
+     theme  .hero__title { … }   also a class — same specificity, loaded LATER, so it wins on order
+
+   Put base in `@layer base` and the first line stops being true: preflight then beats it, and the
+   fallback arm — the only reason this file exists — is exactly where that happens.
+
+   🔴 EVERY SELECTOR HERE IS A SINGLE CLASS. Not a preference: raise the specificity even once
+   (`[data-block="hero"] .hero__title` is (0,2,0)) and a theme's `.hero__title` can never override
+   it again, whatever the load order. `scripts/base-css-lint.js` refuses anything else.
+
+   🔴 WHAT MAY GO IN HERE, PRACTICALLY: a property a sheet does not set is a property base still
+   decides — on the THEMED page too. So the test for a new rule is "would every sheet want to state
+   this itself?", and the safe set is the properties the sheets already do state. Checked against all
+   three phase-1 sheets before this file was written:
+
+     .hero          display / gap / padding      all three set them → base leaks nothing
+     .hero__body    max-width                    all three set it
+     .hero__title   font-size / line-height      all three set them
+     .hero__sub     margin-top / line-height     all three set them
+     .hero__cta     margin-top                   all three set it
+
+   The two deliberate leftovers are `overflow-wrap` and `min-width: 0`: no sheet sets either, both
+   only prevent overflow, and a sheet that wanted the overflow back can say so.
+
+   🔴 WHAT IS DELIBERATELY NOT HERE:
+   · a max-width on `.hero` — none of the sheets resets it, so it would silently un-full-bleed every
+     one of them (hero-media-top paints a band across the whole viewport).
+   · `.hero__deco { display: … }` — no sheet sets `display` on it, so anything here would decide it
+     for all of them, including hiding a decoration the sheet drew.
+   · `.hero__img` / `.hero__cta { display }` — already owned by the structure layer in globals.css
+     (#991). One owner per property.
+
+   📌 Phase 2 moves the blocks one at a time and each of those tickets brings its own base rules with
+   it. Today: hero (#1008), cta-banner (#1018) and page-header (#1019). */
+
+/* 🔴 这份文件是拼出来的 —— 手改会被下一次 `node scripts/block-build/build-blocks.js` 覆盖，
+   而 `scripts/block-build/generated-fresh.test.js` 会在那之前就把它点名。要改一个块的地板，
+   改 `blocks/<块>/floor.css`。#1387（设计文档 D20）。
+
+   🔴 有 47 条规则原来一条同时写了好几个块（`.contact-form, .quote-form, …`）。一块一份
+   `floor.css` 之后它们按块拆开了，而**解释它们的那段注释只留在按字典序第一个块的 floor.css 里**
+   —— 每个块各抄一份的话这份文件要多 43 KB，而它是 `layout.tsx` 直接 <link> 给访客的。
+   在别的块里看到一组没有来由的规则时，去那一组里名字最靠前的那个块的 `floor.css` 找。 */

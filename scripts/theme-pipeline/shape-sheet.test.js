@@ -50,7 +50,7 @@ const allBlocks = [...byType.keys()].sort();
 const namesOf = (t) => byType.get(t).shapes.map((sh) => sh.name);
 if (!allBlocks.length) die('blocks/ 下一份 manifest 都没有 —— 分母塌了，不许当成过');
 
-// ── ① 键集合 == `blocks/*.json` 的集合，不多不少 ───────────────────────────────────────────────
+// ── ① 键集合 == `blocks/<块>/manifest.json` 的集合，不多不少 ───────────────────────────────────────────────
 //
 // 这跟第六道闸（`gates.js` 的 gateShapes）问的是同一件事，判据也是同一个分母 —— 两边都从
 // `blocks/` 现数 —— 但**读法不同**，而这是有意的：闸数的是目录里的文件名（`gates.js` 的 gateShapes

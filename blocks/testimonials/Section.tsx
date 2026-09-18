@@ -1,0 +1,119 @@
+import { blockAttrs } from '@/lib/sections/blockAttrs';
+import type { BlockConfig } from '@/lib/types/config';
+
+interface Testimonial {
+  id: string;
+  name: string;
+  role: string;
+  location: string;
+  quote: string;
+  rating: number;
+  service: string;
+}
+
+interface TestimonialsSectionProps {
+  data: {
+    headline: string;
+    subheadline: string;
+    items: Testimonial[];
+  };
+  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的 `data-role` / `data-shape` / `data-has-*` 从它来。
+   *  （#998 当初加它是为了第三个钩子 `data-block-layout`，#1341 把那个钩子退役了。） */
+  block?: BlockConfig;
+}
+
+// 🔴🔴 #1036 — 一份中性 markup，别的什么都没有。阶段 2 批 G。
+//
+// 五支走了：`grid`（三列卡片，默认）、`featured`（一张大卡 + 三张小卡）、`quote-wall`（深底三列）、
+// `minimal`（一栏、分隔线）、`carousel`（一次一条 + 圆点导航）。
+//
+// 🔴 这一块跟本批别的块不一样：**五支读的字段并不相同**，而少读的那几支是在【少画数据】，不是换长相。
+// 逐支量过（删之前）：
+//   grid       quote · rating · name · role · location · service    ← 字段最全的一支
+//   featured   quote · rating · name · role · location              ← 而且只画 1 + rest.slice(0, 3)
+//   quote-wall quote · name · role · location
+//   minimal    quote · name · role
+//   carousel   quote · name · role · location                        ← 而且一次只画 1 条
+// ⟹ 中性 markup 取**并集**（= 旧 `grid` 那一支画的东西），逐条画，一条不落。这不是「多加了功能」：
+//    `service` / `rating` / `location` 本来就在每个站的数据里，是那三支自己没画。
+//
+// 🔴 搬完之后线上会多出来的内容，写在明处（PM 在 6 个站上复算过）：
+//   · `carousel` 从「一次 1 条」变成全部进 DOM —— 线上 0 个实例，所以今天没人受影响，但值得写下来
+//   · `featured` 的 `rest.slice(0, 3)` 没了：线上 4 个首页各有 6 条评价而只画 4 条，**每页静默丢 2 条、
+//     合计 8 条**，搬完全部回到页面上。对一个卖「被搜索和 AI 找到」的产品，那 8 条是白丢的
+//   · `quote-wall` / `minimal` 的每一条从此也带上评分和服务名
+//
+// 🔴 `carousel` 那一支为什么不留成一个开关：主题自己画得出来。实测契约放行 `display:flex` ·
+// `overflow:auto` · `gap` · `flex-shrink` · `min-width`，真浏览器里这五个属性就是一条能横滑的条，
+// 而**四条内容全在 DOM 里**。所以「轮播」搬完之后是主题的一种长相，不是站要选的形态。
+//
+// 🔴 #1190 —— 上面那条「哪套主题真做出一条能滑的横条、真觉得停位难看，那时带真读数开票」的触发
+//    条款**已经兑现了**，所以下面这一层 `<div data-block-part="testimonials-list">` 是它的产物：
+//   · 停位那件事今天做得到了 —— 契约 §2 收了 `scroll-snap-type` / `scroll-snap-align` /
+//     `scroll-snap-stop` / `overflow-x` 以及 `scroll-padding*` / `scroll-margin*`（枚举，不是
+//     `scroll-*` 通配；`scroll-behavior` 与 `overflow-y` 明确不收）。两臂读数（本仓样例站真建真跑，
+//     `lime-28`，六档视口 320/360/375/768/1024/1440）：`scrollLeft` 设成 100，加了 `scroll-snap-type`
+//     **六档全部静止在条目边界上**（1440 上条目吸附位 0·596·1193）、按选择器精确删掉那一条则
+//     **六档全部停在 100**。📌 票正文记的「条目步长 336」是它自己那个 5 条的独立探针，不是这里的数。
+//   · 📌 2026-08-16 那条裁定**没有被推翻**：它说的是别往 `globals.css` 加一条谁都盖不掉的死规则。
+//     这里加的仍然不是那种东西 —— `globals.css` 里只有 `display: contents`（对布局透明，实测扁平
+//     与包一层的逐元素几何逐项相同），会不会滑由**主题表**自己决定，而且今天池里 97 套只有一套
+//     （`lime-28`）真画了它。
+//   · 为什么必须有这一层、而不是让 `.testimonials` 自己当滑动容器：标题和副题就在 `.testimonials`
+//     里。实测（把这个组件改回扁平 markup、把滑条规则指到 `.testimonials` 自己身上，真建真跑）：
+//     滑到底时标题左沿相对容器左沿 **-429px**，已经不在视口内了 —— 而 `position` / `left` 都被
+//     契约拒。包一层之后标题和副题是这一层的**兄弟**，滑动轴开在这一层上就带不走它们。
+//     📌 票正文记的是 -728px，那是它自己那个 5 条的独立探针；这里这个 -429 是交付时在本仓样例站
+//     （1440px、3 条）上重量的。同一个毛病、两个夹具，别把两个数混着引。
+//   · 为什么是**属性**钩子而不是 class：class 会进 `HOOK_CLASSES`，那是池子配方逐个写规则、准入
+//     闸②逐个要规则的那份名单 —— 实测加 class 形态会让闸②点名 100/100 张表，重生成则 97 张全变。
+//     代价写在契约 §1：闸②因此**永远不会问**「有没有哪套表画了这一层」。
+//
+// 🔴 头像那个圆圈里的首字母（`name.charAt(0)`）没了。它不是数据，是 markup 现算出来的一个装饰，
+// 而名字就在它旁边。跟 #1027 values-grid 的序号是同一笔账：markup 里算出来的东西，主题表补不回来。
+//
+// 🔴 评分保留成 N 个 `<svg>`，因为**它是数据驱动的结构**（`rating` 决定几颗星），不是长相 ——
+// 主题表画不出「N 颗」。这跟 #1027 的 `services-list__icon` 是同一条界线：图形本身给一个钩子，
+// 主题管它多大什么颜色，管不了有几个。
+//
+// 📌 #1341 —— 下面这句话原来的写法是「`variant` 照旧写在页面 JSON 里、照旧被 sync-config.js 从主题的
+//    `supports` 覆盖」。那条覆盖随内容结构那一维一起退役了：构建期不再往任何块写 `data.variant`，
+//    而老站磁盘上残留的这个键在构建读页面时就被丢掉（`scripts/blocks.js` 的 `normalizeListSlots`）
+//    ⟹ 它根本到不了组件。
+// 🔴 `variant` 只剩在老站磁盘上的页面 JSON 里，没人读了
+// —— 同 hero / cta-banner 那个有意的状态（#1008 AC5 / #1018）。`'use client'` 和 `useState` 一起没了。
+//
+// 🔴 那第二个参数不是可选的 —— `blockAttrs('testimonials', block)`，不许写成 `blockAttrs('testimonials')`。
+// #1341 把第三个钩子 `data-block-layout` 退役了，但 `data-role` / `data-shape` /
+// `data-has-*` 仍然全从这个参数来；漏掉它 `tsc` 看不见（`registry.generated.ts` 把组件类型写成
+// `ComponentType<any>`），#1008 r1 因此被打回。
+export default function TestimonialsSection({ data, block }: TestimonialsSectionProps) {
+  return (
+    <section {...blockAttrs('testimonials', block)} className="testimonials" aria-labelledby="testimonials-heading">
+      <h2 id="testimonials-heading" className="testimonials__headline" data-slot="headline">
+        {data.headline}
+      </h2>
+      <p className="testimonials__sub" data-slot="subheadline">{data.subheadline}</p>
+      <div data-block-part="testimonials-list">
+        {data.items?.map((testimonial, index) => (
+          <article key={testimonial.id} className="testimonials__item">
+            <p className="testimonials__rating" aria-label={`Rated ${testimonial.rating} out of 5`}>
+              {Array.from({ length: testimonial.rating }).map((_, i) => (
+                <svg key={i} className="testimonials__star" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
+              ))}
+            </p>
+            <blockquote className="testimonials__quote" data-slot={`items.${index}.quote`}>{testimonial.quote}</blockquote>
+            <p className="testimonials__name" data-slot={`items.${index}.name`}>{testimonial.name}</p>
+            <p className="testimonials__meta">
+              <span data-slot={`items.${index}.role`}>{testimonial.role}</span> &middot;{' '}
+              <span data-slot={`items.${index}.location`}>{testimonial.location}</span>
+            </p>
+            <p className="testimonials__service" data-slot={`items.${index}.service`}>{testimonial.service}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}

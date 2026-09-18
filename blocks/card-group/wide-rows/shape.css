@@ -1,0 +1,33 @@
+/* card-group · wide-rows  （azure-29 今天选的就是它） */
+
+[data-block="card-group"][data-shape="wide-rows"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: stretch;
+}
+
+[data-block="card-group"][data-shape="wide-rows"] .card-group__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="card-group"][data-shape="wide-rows"] .card-group__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="card-group"][data-shape="wide-rows"] .card-group__item {
+  display: grid;
+  align-content: start;
+  grid-template-columns: 1fr 2fr;
+  align-items: start;
+}
+
+[data-block="card-group"][data-shape="wide-rows"] .card-group__features {
+  display: grid;
+}
+
+@media (min-width: 1024px) {
+  [data-block="card-group"][data-shape="wide-rows"] {
+    grid-template-columns: 1fr;
+  }
+}

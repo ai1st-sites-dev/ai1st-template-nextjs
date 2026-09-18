@@ -1,0 +1,3 @@
+[data-block="cta-banner"]:not([data-has-avatars]) .cta-banner__avatars {
+  display: none;
+}

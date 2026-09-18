@@ -1,0 +1,31 @@
+/* process-steps · two-up  （#1340 从生成器的 stepsLook['two-up'] 剪来；今天没有主题选它） */
+
+[data-block="process-steps"][data-shape="two-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="process-steps"][data-shape="two-up"] .process-steps__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="process-steps"][data-shape="two-up"] .process-steps__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="process-steps"][data-shape="two-up"] .process-steps__step {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="process-steps"][data-shape="two-up"] .process-steps__num {
+  display: grid;
+  place-items: center;
+}
+
+@media (min-width: 1024px) {
+  [data-block="process-steps"][data-shape="two-up"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}

@@ -1,0 +1,34 @@
+/* contact-form · panel-below  （ember-12 今天选的就是它） */
+
+[data-block="contact-form"][data-shape="panel-below"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="contact-form"][data-shape="panel-below"] .contact-form__heading {
+  grid-column: 1 / -1;
+}
+
+[data-block="contact-form"][data-shape="panel-below"] .contact-form__intro {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="contact-form"][data-shape="panel-below"] .contact-form__form {
+  display: grid;
+}
+
+[data-block="contact-form"][data-shape="panel-below"] .contact-form__error {
+  grid-column: 1 / -1;
+}
+
+[data-block="contact-form"][data-shape="panel-below"] .contact-form__success {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="contact-form"][data-shape="panel-below"] {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,11 +1,11 @@
-import AnnouncementBarSection from './sections/AnnouncementBarSection';
+import AnnouncementBarSection from '@blocks/announcement-bar/Section';
 import { getNavigation, regions } from '@/lib/config';
 
 // #1000 — 顶栏那条细带，page layout 库里 `with-topbar` 的那个区。
 //
 // 内容来自 `navigation.json` 新增的可选 `topbar` 段（Header / Footer 的导航内容今天就在这个文件里），
 // 结构值来自 `regions.topbar.shape`。🔴 #1353 起这个**值**不再是「主题注册表的 supports」，而是跟别的
-// 32 个块同一张**选择单**（`theme-pool.json` 的 `shapes`），形态清单归 `blocks/announcement-bar.json`。
+// 32 个块同一张**选择单**（`theme-pool.json` 的 `shapes`），形态清单归 `blocks/announcement-bar/manifest.json`。
 //
 // 🔴🔴 但它跟 header / footer **不是同一条路**，别照字面读（#1353 r3 —— r2 的注释写成了「同一条路」，
 //    QA2 在真机上量穿了）：顶栏 / 页脚这两个区挂的是 `data-block` + `data-shape`，画法真的由

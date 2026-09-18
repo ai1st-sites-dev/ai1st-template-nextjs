@@ -1,0 +1,49 @@
+{
+  "type": "footer",
+  "displayName": "Site Footer",
+  "category": "region",
+  "region": true,
+  "roleDefault": "essential",
+  "layout_intent": {
+    "items": "none",
+    "item_wrap": "allow",
+    "headline": "none",
+    "media": "none",
+    "columns": "one"
+  },
+  "slots": {
+    "columns": {
+      "kind": "links",
+      "required": true,
+      "promptOptional": false,
+      "shape": "[{title, links:[{label, href}]}]"
+    },
+    "copyright": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false
+    },
+    "description": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true
+    },
+    "logo": {
+      "kind": "image",
+      "required": false,
+      "promptOptional": true
+    },
+    "social": {
+      "kind": "links",
+      "required": false,
+      "promptOptional": true,
+      "shape": "[{platform, url}]"
+    }
+  },
+  "variants": {},
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  }
+}

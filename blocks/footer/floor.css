@@ -1,0 +1,188 @@
+/* ── 页脚 ──────────────────────────────────────────────────────────────────────────────────── */
+
+.footer {
+  background-color: var(--color-primary-900);
+  color: var(--color-gray-300, #d1d5db);
+}
+
+.footer__cta {
+  display: none;
+}
+
+/* 🔴 页脚原来是「一个 `.container-width.section-padding` 的壳，里面一张 grid + 一条版权行」。
+   骨架把那层壳去掉了（多一层 div 就多一层 CSS 摆不动的东西），所以壳的四档内边距在这里逐档照搬 ——
+   `.section-padding` 那四条（globals.css §961）一个断点都不能少，少一个就是某个宽度上的包围盒变了。
+   版权行的 `padding-bottom` 由它自己给：原来它是壳里最后一个孩子，壳的下内边距兜着它。 */
+.footer__body {
+  margin-inline: auto;
+  max-width: 80rem;
+  display: grid;
+  gap: 3rem;
+  padding: var(--section-y) var(--section-x) 0;
+}
+
+@media (min-width: 640px) {
+  .footer__body {
+    padding-left: var(--section-xSm);
+    padding-right: var(--section-xSm);
+  }
+}
+
+@media (min-width: 768px) {
+  .footer__body {
+    padding-top: var(--section-yMd);
+  }
+}
+
+@media (min-width: 1024px) {
+  .footer__body {
+    padding-left: var(--section-xLg);
+    padding-right: var(--section-xLg);
+  }
+}
+
+.footer__brand-id {
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.footer__logo-pill {
+  display: inline-flex;
+  align-items: center;
+  background-color: #fff;
+  padding: 0.375rem;
+  border-radius: var(--radius-md);
+}
+
+.footer__logo-img {
+  height: 1.75rem;
+  width: auto;
+  max-width: 120px;
+  object-fit: contain;
+}
+
+.footer__logo-mark {
+  display: flex;
+  height: 2rem;
+  width: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-lg);
+  background-color: var(--color-primary-500);
+}
+
+.footer__logo-icon {
+  height: 1.25rem;
+  width: 1.25rem;
+  color: #fff;
+}
+
+.footer__logo-name {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.footer__desc {
+  font-size: 0.875rem;
+  line-height: 1.625;
+}
+
+.footer__social {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.footer__social-link {
+  display: flex;
+  height: 2.25rem;
+  width: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background-color: var(--color-primary-800);
+  color: var(--color-gray-400, #9ca3af);
+}
+
+.footer__social-fallback {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.footer__col-title {
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #fff;
+}
+
+.footer__list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.footer__list--contact {
+  gap: 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.footer__link {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.footer__loc-label {
+  color: #fff;
+}
+
+.footer__email {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.footer__legal {
+  margin-inline: auto;
+  max-width: 80rem;
+  margin-top: 3rem;
+  padding: 0 var(--section-x) var(--section-y);
+  text-align: center;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+/* 线和「线到字」那段留白住在这里，不在外面那层 —— 理由写在 `Footer.tsx` 版权那段的注释里。
+   `padding-top` 的三个数（多列 2rem / 细行 1.5rem / 色带 1.5rem）跟着形态走，在 `shapes.css`。 */
+.footer__copyright {
+  border-top: 1px solid var(--color-gray-700, #374151);
+  padding-top: 2rem;
+}
+
+@media (min-width: 640px) {
+  .footer__legal {
+    padding-left: var(--section-xSm);
+    padding-right: var(--section-xSm);
+  }
+}
+
+@media (min-width: 768px) {
+  .footer__legal {
+    padding-bottom: var(--section-yMd);
+  }
+}
+
+@media (min-width: 1024px) {
+  .footer__legal {
+    padding-left: var(--section-xLg);
+    padding-right: var(--section-xLg);
+  }
+}

@@ -1,0 +1,18 @@
+/* text-block · stack  （ember-12 + azure-29 今天选的就是它） */
+
+[data-block="text-block"][data-shape="stack"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="text-block"][data-shape="stack"] .text-block__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="text-block"][data-shape="stack"] .text-block__body {
+  max-width: 38rem;
+}
+
+[data-block="text-block"][data-shape="stack"] .text-block__list {
+  display: grid;
+}

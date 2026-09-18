@@ -1,0 +1,62 @@
+/* blog-preview · two-up-horizontal  （#1369，对表 FlyonUI blog-2：2×2 横向文章卡，左图右文）
+
+   出处那一版每卡 ＝ 左缩略图 + 右侧分类、标题、作者行。没有图 ⟹ 左边那一栏放**分类与日期**，
+   右边放标题与摘要。与同块 `two-up` 的分界整个落在**卡片内部**：`two-up` 的四个零件是一列堆下来的，
+   这一种把它们分成左右两区（守卫 ⑨ 量的是文章条自己的边界框，量不到这一层，所以本票另外贴了一份
+   逐零件的 D5 读数）。
+
+   🔴 内部那两条列带只在 `min-width: 1024px` 里分 —— 手机宽下卡片本来就只有一列的宽度。 */
+
+[data-block="blog-preview"][data-shape="two-up-horizontal"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="blog-preview"][data-shape="two-up-horizontal"] .blog-preview__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="blog-preview"][data-shape="two-up-horizontal"] .blog-preview__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="blog-preview"][data-shape="two-up-horizontal"] .blog-preview__post {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="blog-preview"][data-shape="two-up-horizontal"] .blog-preview__category {
+  justify-self: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="blog-preview"][data-shape="two-up-horizontal"] {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  [data-block="blog-preview"][data-shape="two-up-horizontal"] .blog-preview__post {
+    grid-template-columns: 7rem 1fr;
+    align-items: start;
+  }
+
+  [data-block="blog-preview"][data-shape="two-up-horizontal"] .blog-preview__category {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  [data-block="blog-preview"][data-shape="two-up-horizontal"] .blog-preview__date {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  [data-block="blog-preview"][data-shape="two-up-horizontal"] .blog-preview__title {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  [data-block="blog-preview"][data-shape="two-up-horizontal"] .blog-preview__excerpt {
+    grid-column: 2;
+    grid-row: 2;
+  }
+}

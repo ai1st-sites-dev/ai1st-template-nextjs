@@ -1,0 +1,35 @@
+/* testimonials · two-up  （azure-29 今天选的就是它） */
+
+[data-block="testimonials"][data-shape="two-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="testimonials"][data-shape="two-up"] .testimonials__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="testimonials"][data-shape="two-up"] .testimonials__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="testimonials"][data-shape="two-up"] .testimonials__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="testimonials"][data-shape="two-up"] .testimonials__rating {
+  display: flex;
+  align-items: center;
+}
+
+[data-block="testimonials"][data-shape="two-up"] .testimonials__service {
+  justify-self: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="testimonials"][data-shape="two-up"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}

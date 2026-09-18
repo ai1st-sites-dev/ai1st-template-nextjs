@@ -97,7 +97,7 @@ function toPoolEntry(candidate, slot) {
   //    清单，再补 header / footer 两个键。内容结构那一维整条退役了，候选不再产 `layout`，所以
   //    `supports` 里今天只有下面这两个【区】的键。
   // 🔴 #1353 —— 顶栏 / 页脚的结构以前写进 `supports`（一个清单），因为它们那时不是 block。
-  // 它们现在是 block（`blocks/header.json` / `blocks/footer.json`，D14 的已知例外清掉了），所以
+  // 它们现在是 block（`blocks/header/manifest.json` / `blocks/footer/manifest.json`，D14 的已知例外清掉了），所以
   // 它们的结构跟别的 32 个块一样写进**选择单** `shapes`（一个名字），`supports` 整个退役了。
   const regionShapes = {};
   // 🔴 #1016 r5 —— 顶栏那一维不是纯轮换了:浅底首屏不许配透明浮层。判据和实测读数写在
@@ -299,7 +299,7 @@ function verifyPool(pool) {
     for (const region of ['header', 'footer']) {
       if (typeof t.shapes[region] !== 'string' || !t.shapes[region]) {
         problems.push(`${id}: shapes.${region} 不是一个非空字符串（${JSON.stringify(t.shapes[region])}）`
-          + ` —— 这个区的形态没翻过来，站会落回 blocks/${region}.json 的默认`);
+          + ` —— 这个区的形态没翻过来，站会落回 blocks/${region}/ 里排第一的那个形态`);
       }
     }
   }

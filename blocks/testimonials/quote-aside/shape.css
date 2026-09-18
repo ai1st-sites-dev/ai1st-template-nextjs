@@ -1,0 +1,58 @@
+/* testimonials · quote-aside  （#1363，对表 FlyonUI testimonial-18：左文 + 右侧超大引言）
+
+   🔴 名字不是 md 里那个 `quote-rail`：库里**已经有**一个 `quote-rail`，而它是**单列堆叠**
+   （`columns: one` / `items: stack`，宽屏仍是一列），跟这里要的左右两栏不是一回事。正文按
+   「同名不同物 ⟹ 给新的改名」处置，库里那个一个字节不动。
+
+   跟上面 heading-side 的差别是**量得出来的**：这里右栏只有一条列带，评价一条一行竖着堆
+   （`items: stack`），那边右侧是两条列带、每行两条（`items: grid`）—— 这一根轴守卫真的在判
+   （`items-stack` vs `items-grid` 两条断言各自开火）。`columns` 同上写 `one`。 */
+
+[data-block="testimonials"][data-shape="quote-aside"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="testimonials"][data-shape="quote-aside"] .testimonials__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="testimonials"][data-shape="quote-aside"] .testimonials__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="testimonials"][data-shape="quote-aside"] .testimonials__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="testimonials"][data-shape="quote-aside"] .testimonials__rating {
+  display: flex;
+  align-items: center;
+}
+
+[data-block="testimonials"][data-shape="quote-aside"] .testimonials__service {
+  justify-self: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="testimonials"][data-shape="quote-aside"] {
+    grid-template-columns: 1fr 1.4fr;
+  }
+
+  [data-block="testimonials"][data-shape="quote-aside"] .testimonials__headline {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  [data-block="testimonials"][data-shape="quote-aside"] .testimonials__sub {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  [data-block="testimonials"][data-shape="quote-aside"] .testimonials__item {
+    grid-column: 2;
+  }
+}

@@ -200,10 +200,9 @@ if (RULES.length < 50) die(`从 shapes.css 只切出 ${RULES.length} 条规则 �
   const mkTree = (mutate) => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'region-cand-'));
     fs.mkdirSync(path.join(root, 'scripts'));
-    fs.mkdirSync(path.join(root, 'blocks'));
     fs.copyFileSync(path.join(__dirname, 'region-layout.js'), path.join(root, 'scripts', 'region-layout.js'));
-    const blocksDir = path.join(__dirname, '..', 'blocks');
-    for (const f of fs.readdirSync(blocksDir)) fs.copyFileSync(path.join(blocksDir, f), path.join(root, 'blocks', f));
+    // #1387 —— 一个块一个文件夹，所以整棵拷（形态住在子文件夹里，逐文件拷会把它们全丢掉）。
+    fs.cpSync(path.join(__dirname, '..', 'blocks'), path.join(root, 'blocks'), { recursive: true });
     if (mutate) mutate(root);
     // 🔴 只 disable `global-require` 这一条 —— `import/no-dynamic-require` 需要 eslint-plugin-import，
     //    而 `scripts/.eslintrc.json` 没装它 ⟹ 写在 disable 注释里会让 `npm run lint:scripts` 当场红
@@ -211,11 +210,13 @@ if (RULES.length < 50) die(`从 shapes.css 只切出 ${RULES.length} 条规则 �
     // eslint-disable-next-line global-require
     return require(path.join(root, 'scripts', 'region-layout.js'));
   };
+  // #1387 —— 「这个形态是候选」写在 `blocks/<块>/<形态>/shape.md` 的 frontmatter 里。
   const markCandidate = (root, block, names) => {
-    const p2 = path.join(root, 'blocks', `${block}.json`);
-    const m = JSON.parse(fs.readFileSync(p2, 'utf-8'));
-    for (const sh of m.shapes) if (names.includes(sh.name)) sh.candidate = true;
-    fs.writeFileSync(p2, JSON.stringify(m, null, 2));
+    for (const name of names) {
+      const md = path.join(root, 'blocks', block, name, 'shape.md');
+      const src = fs.readFileSync(md, 'utf-8');
+      fs.writeFileSync(md, src.replace(/^---\n/, '---\ncandidate: true\n'));
+    }
   };
 
   // 正向臂：未改动的副本，`pickableShapesOf` 逐项等于 `shapesOf`（今天真树上 0 个候选）

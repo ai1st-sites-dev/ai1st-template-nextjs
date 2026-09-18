@@ -1,0 +1,38 @@
+/* social-proof · heading-above-band  （#1367 · FlyonUI social-proof-6：文案卡 + 4 格指标条）
+
+   标题与评分在上，数字排成一条四格的带子在下。带子之所以从新的一行开始，是因为引语
+   （`.social-proof__quote`）在 DOM 里正排在第一个数字前面，而它通栏 —— 网格的自动排布到这里换行，
+   下一个零件（第一个 `.social-proof__stat`）就落在新一行的第一格。这不是巧合，是照 DOM 次序摆的。 */
+
+[data-block="social-proof"][data-shape="heading-above-band"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="social-proof"][data-shape="heading-above-band"] .social-proof__headline,
+[data-block="social-proof"][data-shape="heading-above-band"] .social-proof__quote {
+  grid-column: 1 / -1;
+}
+
+[data-block="social-proof"][data-shape="heading-above-band"] .social-proof__platform,
+[data-block="social-proof"][data-shape="heading-above-band"] .social-proof__badge {
+  justify-self: start;
+}
+
+[data-block="social-proof"][data-shape="heading-above-band"] .social-proof__stat {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="social-proof"][data-shape="heading-above-band"] .social-proof__media {
+  grid-column: 1 / -1;
+  width: 100%;
+  max-width: 48rem;
+  justify-self: center;
+}
+
+@media (min-width: 1024px) {
+  [data-block="social-proof"][data-shape="heading-above-band"] {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}

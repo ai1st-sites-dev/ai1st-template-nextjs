@@ -1,0 +1,81 @@
+[data-block="contact-info"][data-shape="media-side-grid"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="contact-info"][data-shape="media-side-grid"] .contact-info__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="contact-info"][data-shape="media-side-grid"] .contact-info__location {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="contact-info"][data-shape="media-side-grid"] .contact-info__phone {
+  justify-self: start;
+}
+
+[data-block="contact-info"][data-shape="media-side-grid"] .contact-info__email {
+  justify-self: start;
+}
+
+/* 🔴 `width: 100%` 不是可省的：网格里这个零件会按**内在宽**定宽，而图的内在宽就是原图的像素宽 ——
+   #1362 在同族上量到过一张缩成邮票大小的图，而 `media: side` 只判「跟正文不在同一列且上下有重叠」，
+   对尺寸一个字不说。 */
+[data-block="contact-info"][data-shape="media-side-grid"] .contact-info__media {
+  display: block;
+  width: 100%;
+}
+
+/* 窄屏一栏：DOM 里图排在最后（骨架顺序，D14 第 2 条），照原样排就是「联系方式全划完才看到那张图」，
+   而这一副的主角正是那张图。给联系方式一条 `order: 1` 把图提到它们前面，标题仍在最上面。 */
+@media (max-width: 1023.98px) {
+  [data-block="contact-info"][data-shape="media-side-grid"] .contact-info__location,
+  [data-block="contact-info"][data-shape="media-side-grid"] .contact-info__email {
+    order: 1;
+  }
+}
+
+/* 🔴 图槽空着时这一副退回一栏（#1382）。
+
+   产品里这一格走不到：`media-side-grid` 的 `needs` 写着 `imageUrl`，槽空着时 `sync-config.js` 会落回
+   `label-side`（`shapes[0]`）。走得到的是**量主题那份夹具的最少版** —— 它给每一种形态都强行戴一次
+   帽子，好把几何量全，而最少版按定义不填任何可选槽。不写这一条的话，那一趟里左栏空着、右栏一列
+   零件，而 manifest 那行写着 `columns: two`：几何守卫读到「该占 2 条列带，实际占 1 条」（本票第一版
+   实测就是这条，两套主题各一次）。先例逐字同 #1362 的 `media-side`。 */
+
+[data-block="contact-info"][data-shape="media-side-grid"]:not([data-has-imageUrl]) .contact-info__location,
+[data-block="contact-info"][data-shape="media-side-grid"]:not([data-has-imageUrl]) .contact-info__email {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="contact-info"][data-shape="media-side-grid"] {
+    grid-template-columns: 2fr 3fr;
+  }
+
+  [data-block="contact-info"][data-shape="media-side-grid"]:not([data-has-imageUrl]) {
+    grid-template-columns: 1fr;
+  }
+
+  [data-block="contact-info"][data-shape="media-side-grid"] .contact-info__location,
+  [data-block="contact-info"][data-shape="media-side-grid"] .contact-info__email {
+    grid-column: 2;
+  }
+
+  [data-block="contact-info"][data-shape="media-side-grid"]:not([data-has-imageUrl]) .contact-info__location,
+  [data-block="contact-info"][data-shape="media-side-grid"]:not([data-has-imageUrl]) .contact-info__email {
+    grid-column: 1 / -1;
+  }
+
+  /* 🔴 行跨度写 `span 2`，**不是** `1 / -1`：`-1` 指的是**显式**行网格的最后一条线，而这一段只声明
+     了列、没有声明行 ⟹ `1 / -1` 会缩成「只占第 1 行」，图于是排到标题旁边、跟联系方式上下错开，
+     `media: side` 那条断言当场点名（#1362 在 faq 上实测过这一条）。从第 2 行起跨 2 行 = 标题下面
+     那两行，右栏无论有几条联系方式都至少有这么多行，所以不会跨进空的隐式行。 */
+  [data-block="contact-info"][data-shape="media-side-grid"] .contact-info__media {
+    grid-column: 1;
+    grid-row: 2 / span 2;
+    align-self: start;
+  }
+}

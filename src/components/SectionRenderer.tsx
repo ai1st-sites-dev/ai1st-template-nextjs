@@ -1,5 +1,5 @@
 import type { BlockConfig } from '@/lib/types/config';
-import { sectionRegistry } from '@/lib/sections/registry';
+import { sectionRegistry } from '@/lib/sections/registry.generated';
 
 interface SectionRendererProps {
   blocks: BlockConfig[];

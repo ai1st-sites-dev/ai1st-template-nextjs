@@ -1,0 +1,34 @@
+/* features-grid · three-up-heading-center  （#1360，出处 FlyonUI features-14「3×2 圆角卡片网格 · 居中标题」；今天没有主题选它） */
+
+[data-block="features-grid"][data-shape="three-up-heading-center"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="features-grid"][data-shape="three-up-heading-center"] .features-grid__headline {
+  grid-column: 1 / -1;
+  justify-self: center;
+  max-width: 36rem;
+}
+
+[data-block="features-grid"][data-shape="three-up-heading-center"] .features-grid__sub {
+  grid-column: 1 / -1;
+  justify-self: center;
+  max-width: 36rem;
+}
+
+[data-block="features-grid"][data-shape="three-up-heading-center"] .features-grid__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="features-grid"][data-shape="three-up-heading-center"] .features-grid__icon {
+  display: grid;
+  place-items: center;
+}
+
+@media (min-width: 1024px) {
+  [data-block="features-grid"][data-shape="three-up-heading-center"] {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}

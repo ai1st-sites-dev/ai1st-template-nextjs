@@ -1,0 +1,40 @@
+/* cta-banner · band-center  （#1340 从生成器的 ctaLook['band-center'] 剪来；今天没有主题选它） */
+
+[data-block="cta-banner"][data-shape="band-center"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+  justify-items: center;
+}
+
+[data-block="cta-banner"][data-shape="band-center"] .cta-banner__headline {
+  grid-column: 1 / -1;
+  max-width: 44rem;
+}
+
+[data-block="cta-banner"][data-shape="band-center"] .cta-banner__desc {
+  grid-column: 1 / -1;
+  max-width: 38rem;
+}
+
+[data-block="cta-banner"][data-shape="band-center"] .cta-banner__action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+}
+
+/* #1361 —— 头像带在这一副里排在最上面。骨架里它是最后一个零件（理由在 `CtaBannerSection.tsx`：
+   插在前面会换掉 `text-left-action-right` 的自动排位），所以这里用形态层的 `order` 把它挪上去，
+   不动 DOM。对照的是 Chris 定的那张 FlyonUI cta-2：整宽卡片全部居中，顶上一组头像。
+   🔴 槽位空着时这条不产生任何画面差别：那时整条带子 `display: none`（本表末尾那一族），
+   不参与排版 ⟹ 今天两套主题的真站（都没填这个槽）逐像素不变。 */
+[data-block="cta-banner"][data-shape="band-center"] .cta-banner__avatars {
+  order: -1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="cta-banner"][data-shape="band-center"] {
+    grid-template-columns: 1fr;
+  }
+}

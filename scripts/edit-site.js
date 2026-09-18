@@ -505,7 +505,7 @@ function pageJsonBlockError(relPath, parsed) {
       + '{"type": "hero", "data": {…}} — write the whole file again.';
   }
   if (problems.length === 0) return null;
-  return `This page breaks the block library (blocks/*.json). Fix these and write the file again:\n`
+  return `This page breaks the block library (blocks/<块>/manifest.json). Fix these and write the file again:\n`
     + problems.map((p) => `  - ${p}`).join('\n')
     + '\n\nNothing was written. Read the block\'s manifest if you need the exact slot names.';
 }
@@ -605,7 +605,7 @@ function siteBlocksJsonError(relPath, parsed) {
       + `\nNothing was written.${shapeHelp}`;
   }
   if (problems.length === 0) return null;
-  return 'These site-wide blocks break the block library (blocks/*.json). Fix these and write the '
+  return 'These site-wide blocks break the block library (blocks/<块>/manifest.json). Fix these and write the '
     + 'file again:\n'
     + problems.map((p) => `  - ${p}`).join('\n')
     + '\n\nNothing was written. Read the block\'s manifest if you need the exact slot names.';
@@ -768,7 +768,7 @@ function executeTool(toolName, toolInput, siteDir, snapshots, allowedImageUrls, 
 // ─── System prompt ────────────────────────────────────────────────────────────
 
 // 🔴 下面那份提示词里的 `Available section types:` 一行，必须逐项等于
-//    `src/lib/sections/registry.ts` 的键集合。行里出现注册表没有的名字时，模型照着写出来的块会走
+//    `src/lib/sections/registry.generated.ts` 的键集合。行里出现注册表没有的名字时，模型照着写出来的块会走
 //    `SectionRenderer.tsx:19-21` 的未知类型那一支（`console.warn` + `return null`）——
 //    **那一块在页面上直接不出现，而构建是绿的**。
 //    #1162 现取时它漂了两个方向：清单里有 `values-grid` / `benefits-list` / `checklist` /

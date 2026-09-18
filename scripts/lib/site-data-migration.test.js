@@ -328,7 +328,7 @@ console.log('\n⑤ 这张表不依赖 block-aliases.json（#1162 要删它；从
 // ══ ⑥ 「今天认得哪些类型」这个权威跟 registry 不许分叉 ═══════════════════════════════════════════
 console.log('\n⑥ block-roles.json 的键集 == registry.ts 的键集（判「未知类型」用前者）');
 {
-  const reg = fs.readFileSync(path.join(NEXT, 'src', 'lib', 'sections', 'registry.ts'), 'utf-8');
+  const reg = fs.readFileSync(path.join(NEXT, 'src', 'lib', 'sections', 'registry.generated.ts'), 'utf-8');
   const body = reg.slice(reg.indexOf('sectionRegistry'));
   const regKeys = new Set([...body.matchAll(/^\s*'([a-z0-9-]+)':/gm)].map((m) => m[1]));
   const roleKeys = M.knownBlockTypes(NEXT);

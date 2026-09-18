@@ -1,0 +1,30 @@
+/* blog-preview · two-up  （ember-12 今天选的就是它） */
+
+[data-block="blog-preview"][data-shape="two-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="blog-preview"][data-shape="two-up"] .blog-preview__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="blog-preview"][data-shape="two-up"] .blog-preview__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="blog-preview"][data-shape="two-up"] .blog-preview__post {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="blog-preview"][data-shape="two-up"] .blog-preview__category {
+  justify-self: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="blog-preview"][data-shape="two-up"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}

@@ -1,0 +1,27 @@
+/* team-grid · single-feature  （#1365 · FlyonUI team-19「单人聚焦」的骨架）
+   三端出处逐字：电脑 左文右照并排 · iPad 仍并排、照片收窄 · 手机 上下（文上照下）。
+   🔴 右边那张竖幅人像本块没有（同上）⟹ 这一种买的是「一位一行、栏收窄」这一维：
+   `columns: one` + 每个人的卡有自己的上限宽。它是 team-grid 名下**唯一**一种同级项纵向一列的，
+   `items` 和 `columns` 两根轴都跟其余四种不同。
+   🔴 这里**不写** `margin-inline: auto` 把卡居中：文件头那条契约说这一层不写 margin，而且居中之后
+   每个人的左边界会随各自内容宽度变，`items: stack` 那条断言要的正是「同级项 x 只有一个值」。 */
+
+[data-block="team-grid"][data-shape="single-feature"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="team-grid"][data-shape="single-feature"] .team-grid__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="team-grid"][data-shape="single-feature"] .team-grid__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="team-grid"][data-shape="single-feature"] .team-grid__member {
+  display: grid;
+  align-content: start;
+  max-width: 42rem;
+}

@@ -1,9 +1,16 @@
 import type { Config } from 'tailwindcss';
 
 const config: Config = {
+  // 🔴 #1387 —— `./blocks/**` 这一行是承重的，不是顺手加的。块组件从 `src/components/sections/`
+  // 搬进了 `blocks/<块>/Section.tsx`（设计文档 D20），而 Tailwind 只给**扫到的文件**里出现过的
+  // 类名出 CSS。少了这一行，只在块组件里用到的那些工具类**整批不进产物** —— 页面照样建得出来、
+  // 构建照样绿、HTML 一个字节都不差，只是那些元素在浏览器里按默认样式画。
+  // 实测（本票交付时）：少这一行 ⟹ `theme-css-invariants.mjs` 报
+  // 「unstyled class: "a.btn-primary" … no loaded stylesheet has a rule for it」，两套皮各 2 处。
   content: [
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
+    './blocks/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
     extend: {

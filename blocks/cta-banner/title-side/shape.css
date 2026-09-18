@@ -1,0 +1,30 @@
+/* cta-banner · title-side  （ember-12 + azure-29 今天选的就是它） */
+
+[data-block="cta-banner"][data-shape="title-side"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="cta-banner"][data-shape="title-side"] .cta-banner__headline {
+  grid-column: auto;
+  align-self: start;
+}
+
+[data-block="cta-banner"][data-shape="title-side"] .cta-banner__desc {
+  grid-column: auto;
+  max-width: 44rem;
+}
+
+[data-block="cta-banner"][data-shape="title-side"] .cta-banner__action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="cta-banner"][data-shape="title-side"] {
+    grid-template-columns: 1fr 2fr;
+  }
+}

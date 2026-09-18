@@ -49,13 +49,11 @@ const die = (m) => { console.error(`🔴 跑不起来: ${m}`); process.exit(2); 
 function mkTree(mutate) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'page-layout-cand-'));
   fs.mkdirSync(path.join(root, 'scripts', 'lib'), { recursive: true });
-  fs.mkdirSync(path.join(root, 'blocks'));
   fs.mkdirSync(path.join(root, 'page-layouts'));
   fs.copyFileSync(path.join(NEXT, 'scripts', 'region-layout.js'), path.join(root, 'scripts', 'region-layout.js'));
   fs.copyFileSync(path.join(NEXT, 'scripts', 'lib', 'page-layout.js'), path.join(root, 'scripts', 'lib', 'page-layout.js'));
-  for (const f of fs.readdirSync(path.join(NEXT, 'blocks'))) {
-    fs.copyFileSync(path.join(NEXT, 'blocks', f), path.join(root, 'blocks', f));
-  }
+  // #1387 —— 一个块一个文件夹，整棵拷（逐文件拷会把形态子文件夹全丢掉）。
+  fs.cpSync(path.join(NEXT, 'blocks'), path.join(root, 'blocks'), { recursive: true });
   for (const f of fs.readdirSync(path.join(NEXT, 'page-layouts'))) {
     fs.copyFileSync(path.join(NEXT, 'page-layouts', f), path.join(root, 'page-layouts', f));
   }
@@ -67,24 +65,25 @@ function mkTree(mutate) {
 }
 
 const markCandidate = (root, block, names) => {
-  const p = path.join(root, 'blocks', `${block}.json`);
-  const m = JSON.parse(fs.readFileSync(p, 'utf-8'));
-  for (const sh of m.shapes) if (names.includes(sh.name)) sh.candidate = true;
-  fs.writeFileSync(p, JSON.stringify(m, null, 2));
+  // #1387 —— 「这个形态是候选」写在 blocks/<块>/<形态>/shape.md 的 frontmatter 里。
+  for (const name of names) {
+    const md = path.join(root, 'blocks', block, name, 'shape.md');
+    fs.writeFileSync(md, fs.readFileSync(md, 'utf-8').replace(/^---\n/, '---\ncandidate: true\n'));
+  }
 };
 
 // 盘上的真读数，夹具的前提都从这儿来（不写死，manifest / 布局改了这一格要跟着说话）。
 const triFooter = JSON.parse(fs.readFileSync(path.join(NEXT, 'page-layouts', 'tri-footer.json'), 'utf-8'));
-const footerManifest = JSON.parse(fs.readFileSync(path.join(NEXT, 'blocks', 'footer.json'), 'utf-8'));
-const FOOTER_SHAPES = footerManifest.shapes.map((sh) => sh.name);
+// #1387 —— 形态清单 = blocks/footer/ 下的子文件夹，顺序由 region-layout 自己那份读法定。
+const FOOTER_SHAPES = require(path.join(NEXT, 'scripts', 'region-layout.js')).shapesOf('footer');
 const DECLARED = triFooter.repeatVariants || {};
 const VICTIM_REGION = 'footer-c';
 const VICTIM_SHAPE = DECLARED[VICTIM_REGION];
 if (!VICTIM_SHAPE) die(`page-layouts/tri-footer.json 的 repeatVariants 里没有 ${VICTIM_REGION} —— 这一格没有对象`);
-if (!FOOTER_SHAPES.includes(VICTIM_SHAPE)) die(`blocks/footer.json 里没有 "${VICTIM_SHAPE}" —— 夹具前提不成立`);
+if (!FOOTER_SHAPES.includes(VICTIM_SHAPE)) die(`blocks/footer/ 里没有 "${VICTIM_SHAPE}" —— 夹具前提不成立`);
 // 落回值要跟布局钉的那个**不同**，否则 ②③ 两格分不出「落回了」和「没落回」。
 const RESOLVED_FOOTER = FOOTER_SHAPES.find((n) => n !== VICTIM_SHAPE);
-if (!RESOLVED_FOOTER) die('blocks/footer.json 只有一个形态 —— 这一格量不出落回');
+if (!RESOLVED_FOOTER) die('blocks/footer/ 只有一个形态 —— 这一格量不出落回');
 
 const regionsWith = (footerShape) => ({
   header: { shape: 'x' }, footer: { shape: footerShape }, topbar: { shape: 'y' },

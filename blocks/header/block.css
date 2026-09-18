@@ -1,0 +1,112 @@
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   #1353 — 三个 Region 进形态层：顶栏 4 种 · 页脚 3 种
+   ══════════════════════════════════════════════════════════════════════════════════════════════
+
+   顶栏和页脚是设计文档 D14 点名的**已知例外** —— 块在 #1008 之前那种「一变体一棵树」的模型，
+   `Header.tsx` 按 `regionLayout.header` 的四个值各渲染一份 `<header>`，页脚同理。D14 写明 3.5 步
+   按块的规矩清掉它，这就是那一步。骨架在 `src/components/Header.tsx` / `Footer.tsx`。
+
+   ── 这一批为什么多用了三条属性：`position` / `top` / `inset-inline` / `z-index` ────────────────
+   本文件此前只出现过 display / grid-* / order / align-* / justify-* / max-width / min-height /
+   aspect-ratio / flex* / width —— 因为此前搬的都是**文档流里**的块。顶栏有两种（`transparent-overlay`
+   压在首屏上、`pill-floating` 吸顶）的本质就是「它脱不脱离文档流、贴在哪」，那跟 `order` 是同一族
+   问题：**零件摆在哪**。所以它们进这一层。
+   ── 🔴 一条明写的例外，射程只到这两个区 ───────────────────────────────────────────────────────
+   文件头那条「不写 `gap` / `padding` / `margin` / `border-radius`」对**内容块**成立，理由是
+   「间距和圆角本身仍然是主题的」—— 那句话预设了**有一个主题维度**在管它们。三个区今天**没有那一维**：
+   全仓没有任何一套主题碰过顶栏页脚（`data-region-layout` 在 8 份 CSS 里命中 0），它们的间距一直是
+   平台写死的 Tailwind 类。
+
+   所以这两个区的**每形态间距与皮**写在下面，`[data-block="header"]` / `[data-block="footer"]`
+   限定内，**不扩散到任何内容块**。三条路都量过，这是代价最小的那条：
+
+     ① 写主题表 —— 正文 做什么 #2 原话「皮进主题表」。代价：要往契约 §1 加约 **50 个**
+        `header__*` / `footer__*` 钩子（今天 201 个钩子 / 31 个块，一个都没有），每套主题表各写
+        50 条规则，而且**新开一维**（主题从此能改顶栏长相）。AC1 要的恰恰是逐像素不变 ⟹ 纯风险。
+     ② 写 `public/base.css` —— 走不通：那份文件**只许单个类**选择器（`scripts/base-css-lint.js`
+        连后代选择器都拒），说不出「某个形态的某个零件」。给每个零件再挂一个修饰类能绕过去，
+        代价是 markup 里多十来个派生类、区的样式散成两处。
+     ③ 就是这里。破的是一条**为内容块写的**约定，而它的理由对区不成立；射程用 `[data-block]`
+        钉死，越界一眼看得出来。
+
+   🔴 判据留给下一个人：`grep -cE '^\s*(gap|padding|margin|border-radius)' public/shapes.css` 的
+      命中**必须全部落在下面这一节里**（`[data-block="header"]` / `[data-block="footer"]` 限定内）。
+      落到别处就是这条例外在扩散，那是它唯一的失败方向。
+
+   ── 四种顶栏共有的那一段为什么不逐形态抄四遍 ──────────────────────────────────────────────────
+   「小屏收进汉堡、≥768px 展开」这件事四种完全一样。抄四遍的失败方向是**漂**：改一处漏三处，
+   而漏掉的那一处在别的宽度上才看得见。本文件其余块逐形态各写一份，是因为它们各自的几何真的不同。
+   */
+
+/* ── 顶栏：四种共有的收展 ────────────────────────────────────────────────────────────────── */
+
+[data-block="header"][data-shape="solid-bar"] .header__nav,
+[data-block="header"][data-shape="solid-bar"] .header__cta,
+[data-block="header"][data-shape="solid-bar"] .header__lang,
+[data-block="header"][data-shape="transparent-overlay"] .header__nav,
+[data-block="header"][data-shape="transparent-overlay"] .header__cta,
+[data-block="header"][data-shape="transparent-overlay"] .header__lang,
+[data-block="header"][data-shape="centered-logo"] .header__nav,
+[data-block="header"][data-shape="centered-logo"] .header__cta,
+[data-block="header"][data-shape="centered-logo"] .header__lang,
+[data-block="header"][data-shape="pill-floating"] .header__nav,
+[data-block="header"][data-shape="pill-floating"] .header__cta,
+[data-block="header"][data-shape="pill-floating"] .header__lang {
+  display: none;
+}
+
+[data-block="header"][data-shape="solid-bar"] .header__burger,
+[data-block="header"][data-shape="transparent-overlay"] .header__burger,
+[data-block="header"][data-shape="centered-logo"] .header__burger,
+[data-block="header"][data-shape="pill-floating"] .header__burger {
+  display: inline-flex;
+}
+
+[data-block="header"][data-shape="solid-bar"] .header__menu[data-open="true"],
+[data-block="header"][data-shape="transparent-overlay"] .header__menu[data-open="true"],
+[data-block="header"][data-shape="centered-logo"] .header__menu[data-open="true"],
+[data-block="header"][data-shape="pill-floating"] .header__menu[data-open="true"] {
+  display: block;
+}
+
+@media (min-width: 768px) {
+  [data-block="header"][data-shape="solid-bar"] .header__nav,
+  [data-block="header"][data-shape="solid-bar"] .header__cta,
+  [data-block="header"][data-shape="solid-bar"] .header__lang,
+  [data-block="header"][data-shape="transparent-overlay"] .header__nav,
+  [data-block="header"][data-shape="transparent-overlay"] .header__cta,
+  [data-block="header"][data-shape="transparent-overlay"] .header__lang,
+  [data-block="header"][data-shape="centered-logo"] .header__nav,
+  [data-block="header"][data-shape="centered-logo"] .header__cta,
+  [data-block="header"][data-shape="centered-logo"] .header__lang,
+  [data-block="header"][data-shape="pill-floating"] .header__nav,
+  [data-block="header"][data-shape="pill-floating"] .header__cta,
+  [data-block="header"][data-shape="pill-floating"] .header__lang {
+    display: flex;
+  }
+
+  /* 🔴 单语言站上语言开关自己渲染 null，于是这个壳是**空的**。空壳在 flex 行里照样算一个成员，
+     `gap: 2rem` 会替它留一道缝 —— 实测（#1353 的两臂包围盒对比，1280 宽）：四种顶栏里每一条
+     导航链接和 CTA 都因此**左移正好 32px**。改造前那个壳压根不渲染（`LanguageSwitcher` 在
+     单语言站上 return null），所以那道缝不存在。
+     🔴 这一条要排在上面那条 `display: flex` **后面**：两条特异度相同（0,3,0），媒体查询不改变
+        特异度，顺序就是判据。 */
+  [data-block="header"] .header__lang:empty {
+    display: none;
+  }
+
+  /* 🔴 汉堡和抽屉这两条必须**在媒体查询里把那个更强的选择器打掉**，不能只写
+     `.header__menu { display: none }`：上面开抽屉那条带 `[data-open="true"]`（0,3,0），
+     比这里不带属性那条（0,2,0）强，而媒体查询不改变特异度 —— 桌面上点过汉堡再拉宽窗口，
+     抽屉会一直挂在那儿。 */
+  [data-block="header"][data-shape="solid-bar"] .header__burger,
+  [data-block="header"][data-shape="solid-bar"] .header__menu[data-open="true"],
+  [data-block="header"][data-shape="transparent-overlay"] .header__burger,
+  [data-block="header"][data-shape="transparent-overlay"] .header__menu[data-open="true"],
+  [data-block="header"][data-shape="centered-logo"] .header__burger,
+  [data-block="header"][data-shape="centered-logo"] .header__menu[data-open="true"],
+  [data-block="header"][data-shape="pill-floating"] .header__burger,
+  [data-block="header"][data-shape="pill-floating"] .header__menu[data-open="true"] {
+    display: none;
+  }
+}

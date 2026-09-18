@@ -622,26 +622,56 @@ function normalizeLocalePages(pages, siteBlocks, locale, report) {
 
 // ── block manifest（#999 的交付物）───────────────────────────────────────────────────────────────
 //
-// 一个块一份 manifest，`blocks/<type>.json`：这个块有哪些槽、默认角色、有哪些形态（`shapes`）。
+// 一个块一个文件夹（#1387，设计文档 D20）：`blocks/<type>/manifest.json` 是槽位 / 默认角色 /
+// 是不是外壳区，形态是它下面的子文件夹（`<形态>/shape.md` + `<形态>/shape.css`）。
+// 这里把两半拼回一个对象（`m.shapes` 仍然是那个数组），因为读它的人（`lib/block-shape.js` 判
+// 「这个站能不能戴这个形态」、`create-site.js` 的提示词）问的就是那个形状。
+// 🔴 **这一份不做校验** —— 校验在 `lib/block-manifest.js` 的 `loadManifests`（建站时跑）。
 // 读不到 manifest 的块类型，读它的那几处**跳过并点名**（不是静默跳过：静默跳过和「校验通过」
 // 在日志里长得一模一样，而它们是两件完全不同的事）。
 const MANIFEST_DIR = 'blocks';
+
+// eslint-disable-next-line global-require
+const { parseFrontmatter } = require('./block-build/frontmatter.js');
+
+/** 一个块文件夹下的形态清单，按 shape.md 的 `order` 排（没写的落到名字序、排在后面）。 */
+function shapesFromDirs(blockDir) {
+  const out = [];
+  for (const e of fs.readdirSync(blockDir, { withFileTypes: true })) {
+    if (!e.isDirectory()) continue;
+    let fm = {};
+    try { fm = parseFrontmatter(fs.readFileSync(path.join(blockDir, e.name, 'shape.md'), 'utf-8')); } catch { fm = {}; }
+    const one = { name: e.name, needs: Array.isArray(fm.needs) ? fm.needs : [] };
+    if (fm.candidate !== undefined) one.candidate = fm.candidate;
+    if (fm.source !== undefined) one.source = fm.source;
+    if (fm.layout_intent !== undefined) one.layout_intent = fm.layout_intent;
+    out.push({ one, order: typeof fm.order === 'number' ? fm.order : null, name: e.name });
+  }
+  out.sort((a, b) => {
+    if (a.order !== null && b.order !== null && a.order !== b.order) return a.order - b.order;
+    if (a.order !== null && b.order === null) return -1;
+    if (a.order === null && b.order !== null) return 1;
+    return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+  });
+  return out.map((x) => x.one);
+}
 
 function loadBlockManifests(rootDir) {
   const dir = path.join(rootDir, MANIFEST_DIR);
   if (!fs.existsSync(dir)) return {};
   const out = {};
-  for (const f of fs.readdirSync(dir)) {
-    if (!f.endsWith('.json')) continue;
-    const p = path.join(dir, f);
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (!e.isDirectory()) continue;
+    const p = path.join(dir, e.name, 'manifest.json');
+    if (!fs.existsSync(p)) continue;
     let m;
     try {
       m = JSON.parse(fs.readFileSync(p, 'utf-8'));
-    } catch (e) {
-      throw new Error(`${p} 不是合法 JSON：${e.message}`);
+    } catch (err) {
+      throw new Error(`${p} 不是合法 JSON：${err.message}`);
     }
-    const type = typeof m.type === 'string' && m.type ? m.type : f.replace(/\.json$/, '');
-    out[type] = m;
+    const type = typeof m.type === 'string' && m.type ? m.type : e.name;
+    out[type] = { ...m, shapes: shapesFromDirs(path.join(dir, e.name)) };
   }
   return out;
 }

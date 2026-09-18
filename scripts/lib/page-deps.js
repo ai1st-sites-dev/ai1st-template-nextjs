@@ -25,7 +25,7 @@
 // ── SERVICES：谁会读 services.json 是**从代码里量出来的，不是手写的清单** ──────────────────────
 //
 // 手写清单会过期，而过期的样子跟没过期一模一样：将来谁加一个读 services 的块，忘了回来改清单，
-// 那个块所在的页面从此少报，构建照样是绿的。所以这里读 `src/lib/sections/registry.ts`（块类型 →
+// 那个块所在的页面从此少报，构建照样是绿的。所以这里读 `src/lib/sections/registry.generated.ts`（块类型 →
 // 组件），再看那个组件文件里有没有 `getServices` —— 组件拿服务数据只有这一个入口
 // （`src/lib/config.ts` 导出的那个函数）。
 //
@@ -60,7 +60,7 @@ const path = require('path');
 // 键的引号可有可无、单双都行，末尾逗号可有可无 —— 这些都是格式，改了不该让这里失明。真正卡住的
 // 是右边那个名字：它必须是本文件 import 进来的某个组件（下面 componentPath 查得到），所以文件里
 // 别的对象字面量不会被误当成注册表。
-const IMPORT_RE = /^import\s+([A-Za-z0-9_$]+)\s+from\s+'(@\/[^']+)';/gm;
+const IMPORT_RE = /^import\s+([A-Za-z0-9_$]+)\s+from\s+'(@(?:\/|blocks\/)[^']+)';/gm;
 const ENTRY_RE = /^\s*['"]?([a-z0-9-]+)['"]?\s*:\s*([A-Za-z0-9_$]+)\s*,?\s*$/gm;
 
 // 组件拿服务数据的唯一入口（src/lib/config.ts 导出）。
@@ -70,7 +70,9 @@ const SERVICES_MARKER = /\bgetServices\b/;
 // （为什么算 / 为什么不算）。不在这张表里、也不是注册表里的块组件 = 归不了属，调用方多报 + 点名。
 const ACCOUNTED = new Map([
   ['src/lib/config.ts', 'getServices 自己的定义，不是使用处'],
-  ['src/components/Footer.tsx', '页脚里那份服务清单 —— 站级外壳，说在明处不算'],
+  // #1387 —— 页脚从 `src/components/Footer.tsx` 搬成了 `blocks/footer/Section.tsx`。它仍然是站级
+  // 外壳（不进页面 JSON、不进注册表），所以理由一个字没变，变的只是它住在哪儿。
+  ['blocks/footer/Section.tsx', '页脚里那份服务清单 —— 站级外壳，说在明处不算'],
   ['src/components/JsonLd.tsx', '每页都发的那份 LocalBusiness 结构化数据 —— 站级外壳，不算'],
   ['src/components/pages/SubPage.tsx', '服务详情页自己那份 Service 结构化数据 —— 下面 isServiceDetailPage 那条'],
 ]);
@@ -106,10 +108,11 @@ function walkSources(dir, out) {
 }
 
 function resolveAlias(rootDir, spec) {
-  // tsconfig 里只有 `@/*` → `./src/*` 这一个别名（CLAUDE.md §Path Aliases）。
-  const rel = spec.replace(/^@\//, '');
+  // tsconfig 里两个别名：`@/*` → `./src/*`，`@blocks/*` → `./blocks/*`（#1387 加的后者）。
+  const base = spec.startsWith('@blocks/') ? 'blocks' : 'src';
+  const rel = spec.replace(/^@blocks\//, '').replace(/^@\//, '');
   for (const ext of ['.tsx', '.ts']) {
-    const p = path.join(rootDir, 'src', rel + ext);
+    const p = path.join(rootDir, base, rel + ext);
     if (fs.existsSync(p)) return p;
   }
   return null;
@@ -132,7 +135,7 @@ function readFileOrNull(p) {
  *                 （#1033 r2）。非空 = 有一条到达页面的路我算不出来，调用方也按「所有页面都算」处理。
  */
 function blockTypesReadingServices(rootDir) {
-  const registryPath = path.join(rootDir, 'src', 'lib', 'sections', 'registry.ts');
+  const registryPath = path.join(rootDir, 'src', 'lib', 'sections', 'registry.generated.ts');
   const src = readFileOrNull(registryPath);
   if (src === null) {
     return {
@@ -177,16 +180,22 @@ function blockTypesReadingServices(rootDir) {
   //   · sections/ 里没进注册表的组件 = 它根本渲染不出来，影响零个页面 ⟹ 只点名（多半是注册表
   //     解析漏了一条，那种漏法本身是静默的）
   //   · 其它位置 = 有一条我算不出来的到达路径 ⟹ 点名 + 多报（调用方处理）
-  const sectionsDir = path.resolve(rootDir, 'src', 'components', 'sections');
+  // #1387 —— 块组件从 `src/components/sections/` 搬进了 `blocks/<块>/Section.tsx`，所以这两件事
+  // 一起变：判「它是不是块组件」看的是 `blocks/` 这个目录，扫描面也要把 `blocks/` 加进来
+  // （只扫 `src/` 的话，块组件里的 `getServices` 从此一处都读不到 —— 那正是这段要防的静默）。
+  const sectionsDir = path.resolve(rootDir, 'blocks');
   const unmapped = [];
   const unaccounted = [];
-  for (const abs of walkSources(path.join(rootDir, 'src'), [])) {
+  for (const abs of [...walkSources(path.join(rootDir, 'src'), []), ...walkSources(path.join(rootDir, 'blocks'), [])]) {
     if (usedComponentFiles.has(path.resolve(abs))) continue;
     const body = readFileOrNull(abs);
     if (body === null || !SERVICES_MARKER.test(body)) continue;
     const rel = path.relative(rootDir, abs).split(path.sep).join('/');
     if (ACCOUNTED.has(rel)) continue;
-    if (path.resolve(abs).startsWith(sectionsDir + path.sep)) unmapped.push(path.basename(abs));
+    if (path.resolve(abs).startsWith(sectionsDir + path.sep)) {
+      // `blocks/<块>/Section.tsx` 的 basename 全都叫 Section.tsx —— 点名要带块名才有用。
+      unmapped.push(path.relative(sectionsDir, abs).split(path.sep).join('/'));
+    }
     else unaccounted.push(rel);
   }
 

@@ -1,0 +1,41 @@
+/* contact-form · centered-narrow  （#1340 从生成器的 formLook['centered-narrow'] 剪来；今天没有主题选它） */
+
+[data-block="contact-form"][data-shape="centered-narrow"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+  justify-items: center;
+}
+
+[data-block="contact-form"][data-shape="centered-narrow"] .contact-form__heading {
+  grid-column: 1 / -1;
+  max-width: 40rem;
+}
+
+[data-block="contact-form"][data-shape="centered-narrow"] .contact-form__intro {
+  grid-column: 1 / -1;
+  max-width: 34rem;
+}
+
+[data-block="contact-form"][data-shape="centered-narrow"] .contact-form__form {
+  display: grid;
+  max-width: 34rem;
+}
+
+[data-block="contact-form"][data-shape="centered-narrow"] .contact-form__error {
+  grid-column: 1 / -1;
+}
+
+[data-block="contact-form"][data-shape="centered-narrow"] .contact-form__note {
+  max-width: 34rem;
+}
+
+[data-block="contact-form"][data-shape="centered-narrow"] .contact-form__success {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="contact-form"][data-shape="centered-narrow"] {
+    grid-template-columns: 1fr;
+  }
+}

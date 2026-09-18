@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * shape-survey.js — 生成器里那十张画法候选表，跟 `blocks/*.json` 的形态清单对一次账（#1340）。
+ * shape-survey.js — 生成器里那十张画法候选表，跟 `blocks/<块>/manifest.json` 的形态清单对一次账（#1340）。
  *
  *   node scripts/theme-pipeline/shape-survey.js                  普查：候选对 N = 已在库 X + 待迁 Y
  *

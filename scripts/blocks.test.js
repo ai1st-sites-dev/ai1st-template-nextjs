@@ -113,7 +113,7 @@ for (const name of Object.keys(BLOCK_ALIASES)) {
 
   // 🔴 四个老 type 名**不许**再被任何一处认出来。逐处枚举，不抽样。
   const OLD = ['values-grid', 'benefits-list', 'checklist', 'service-highlights'];
-  const reg = fs.readFileSync(path.join(NEXT, 'src/lib/sections/registry.ts'), 'utf8');
+  const reg = fs.readFileSync(path.join(NEXT, 'src/lib/sections/registry.generated.ts'), 'utf8');
   const regKeys = new Set([...reg.matchAll(/^ {2}'([a-z0-9-]+)':/gm)].map((m) => m[1]));
   const roleKeys = new Set(Object.keys(require(path.join(NEXT, 'src/lib/sections/block-roles.json'))));
   const where = [];
@@ -121,7 +121,7 @@ for (const name of Object.keys(BLOCK_ALIASES)) {
     if (Object.prototype.hasOwnProperty.call(BLOCK_ALIASES, n)) where.push(`block-aliases.json:${n}`);
     if (regKeys.has(n)) where.push(`registry.ts:${n}`);
     if (roleKeys.has(n)) where.push(`block-roles.json:${n}`);
-    if (fs.existsSync(path.join(NEXT, 'blocks', `${n}.json`))) where.push(`blocks/${n}.json`);
+    if (fs.existsSync(path.join(NEXT, 'blocks', n, 'manifest.json'))) where.push(`blocks/${n}/`);
     // 还认得它 = 别名层没真的退役
     const round = normalizeGenericItems({ type: n, data: { headline: 'H' } });
     if (round.type !== n) where.push(`normalizeGenericItems 仍然把 ${n} 换成了 ${round.type}`);
@@ -166,7 +166,7 @@ for (const [shapeName, page] of [
     bad('老槽位名 highlights 被改成了 items —— 那会让一块本来空着的地方凭空长出内容');
   } else ok('老 type 名原样留着、老槽位名不被改名 ⟹ 它走 SectionRenderer 的未知类型那一支（AC5）');
 
-  const manifest = require(path.join(NEXT, 'blocks', 'card-group.json'));
+  const manifest = require(path.join(NEXT, 'blocks', 'card-group', 'manifest.json'));
   const slots = Object.keys(manifest.slots || {});
   const lists = slots.filter((k) => manifest.slots[k].kind === 'list');
   if (slots.includes('highlights')) bad('通用块的 manifest 上还有 highlights 这个槽位（AC4）');

@@ -1,0 +1,39 @@
+/* cta-banner · action-first  （#1340 从生成器的 ctaLook['action-first'] 剪来；今天没有主题选它） */
+
+[data-block="cta-banner"][data-shape="action-first"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="cta-banner"][data-shape="action-first"] .cta-banner__headline {
+  grid-column: 1 / -1;
+  order: 2;
+}
+
+[data-block="cta-banner"][data-shape="action-first"] .cta-banner__desc {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+  order: 3;
+}
+
+[data-block="cta-banner"][data-shape="action-first"] .cta-banner__action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  order: 1;
+}
+
+/* #1361 —— 头像带在这一副里要显式写 `order`，而别的四副不用。这一副给三个零件都写了 `order`
+   （按钮 1 / 标题 2 / 说明 3），而新加的这个零件默认是 `order: 0` ⟹ 不写这条它会跑到**最前面**，
+   跟骨架里「排在最后」正好相反（实测：活图册 1280px 下头像 y=19823 而按钮 y=19929，它在按钮上面）。
+   写成 4 之后它回到最后。🔴 槽位空着时这条不产生任何画面差别（那时整条带子 `display: none`）。 */
+[data-block="cta-banner"][data-shape="action-first"] .cta-banner__avatars {
+  order: 4;
+}
+
+@media (min-width: 1024px) {
+  [data-block="cta-banner"][data-shape="action-first"] {
+    grid-template-columns: 1fr;
+  }
+}

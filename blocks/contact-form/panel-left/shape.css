@@ -1,0 +1,41 @@
+/* contact-form · panel-left  （azure-29 今天选的就是它） */
+
+[data-block="contact-form"][data-shape="panel-left"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="contact-form"][data-shape="panel-left"] .contact-form__heading {
+  grid-column: 1 / -1;
+}
+
+[data-block="contact-form"][data-shape="panel-left"] .contact-form__intro {
+  grid-column: auto;
+  max-width: 32rem;
+  order: 2;
+}
+
+[data-block="contact-form"][data-shape="panel-left"] .contact-form__form {
+  display: grid;
+  grid-column: auto;
+  order: 1;
+}
+
+[data-block="contact-form"][data-shape="panel-left"] .contact-form__error {
+  grid-column: 1 / -1;
+}
+
+[data-block="contact-form"][data-shape="panel-left"] .contact-form__note {
+  order: 3;
+}
+
+[data-block="contact-form"][data-shape="panel-left"] .contact-form__success {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="contact-form"][data-shape="panel-left"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}

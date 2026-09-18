@@ -1,0 +1,27 @@
+/* faq-accordion · 图在【不以图为主】的那六种形态里排哪儿（#1362）
+
+   🔴 这个块从本票起有了一个可选图槽，而槽是**块级**的：老板（或 AI）填了图，七种形态就都有图，
+   不是只有 `media-side` 有。所以另外六种必须各自说清楚那张图排哪儿 —— 不写的话它跟着自动流落进
+   下一个空格子，在两列 / 三列的形态里会挤进问答中间，而 manifest 那一行还写着 `media: none`。
+   本票在真浏览器上量过这件事（1280px，两套主题）：六种全部读到「manifest 说这个块没有图，
+   实际有 .faq-accordion__media」。
+
+   🔴 处置是**照实说**，不是把图藏起来：`layout_intent.media` 从 `none` 改成 `below`，并在这里把它
+   钉在最后一行通栏。理由是库里已经这么做了 —— 带可选图槽的块（hero / content-split / hero-with-form）
+   **没有一种形态**写 `media: none`：hero 的 `text-center` / `text-left` 写 `below`，content-split 的
+   四种 narrow-stack / media-top 写 `above`。把图藏起来是另一条路，本票量过它的代价，写在交付里。 */
+
+/* 🔴 `width: 100%` 不是可省的：网格里 `justify-self: center` 会让这个零件按**内在宽**定宽，而图的内在宽
+   就是原图的像素宽 —— 实测（1280px，heading-side，夹具那张 40×30 的 svg）：这个盒子读出来
+   x=620 w=40 h=30，一张缩成邮票大小的图，而检查 ⑨ 的 `media: below` 只判上下顺序、对尺寸一个字不说。
+   同族一条在 #1361（`justify-items: center` 把零件按 fit-content 定宽）。 */
+[data-block="faq-accordion"][data-shape="stack"] .faq-accordion__media,
+[data-block="faq-accordion"][data-shape="heading-side"] .faq-accordion__media,
+[data-block="faq-accordion"][data-shape="two-column"] .faq-accordion__media,
+[data-block="faq-accordion"][data-shape="centered"] .faq-accordion__media,
+[data-block="faq-accordion"][data-shape="three-column-open"] .faq-accordion__media {
+  grid-column: 1 / -1;
+  width: 100%;
+  max-width: 48rem;
+  justify-self: center;
+}

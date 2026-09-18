@@ -1,0 +1,68 @@
+.testimonials {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .testimonials {
+    padding: 4rem 2rem;
+  }
+}
+
+.testimonials__headline,
+.testimonials__sub,
+.testimonials__item,
+.testimonials__rating,
+.testimonials__quote,
+.testimonials__name,
+.testimonials__meta,
+.testimonials__service {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+.testimonials__headline {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.testimonials__sub {
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+}
+
+.testimonials__quote {
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.testimonials__meta,
+.testimonials__service {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.testimonials__item {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  border-width: 1px;
+  border-style: solid;
+  border-color: currentColor;
+  border-radius: 0.75rem;
+}
+
+/* ── the two parts that are DATA rather than markup (see the contract's §1 note) ───────────────── */
+.testimonials__rating {
+  display: flex;
+  gap: 0.125rem;
+}
+
+.testimonials__star {
+  width: 1rem;
+  height: 1rem;
+}

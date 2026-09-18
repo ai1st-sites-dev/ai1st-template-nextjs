@@ -1,0 +1,38 @@
+/* gallery · three-up  （azure-29 今天选的就是它） */
+
+[data-block="gallery"][data-shape="three-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="gallery"][data-shape="three-up"] .gallery__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="gallery"][data-shape="three-up"] .gallery__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="gallery"][data-shape="three-up"] .gallery__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="gallery"][data-shape="three-up"] .gallery__image {
+  aspect-ratio: 4 / 3;
+}
+
+[data-block="gallery"][data-shape="three-up"] .gallery__placeholder {
+  aspect-ratio: 4 / 3;
+}
+
+[data-block="gallery"][data-shape="three-up"] .gallery__category {
+  justify-self: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="gallery"][data-shape="three-up"] {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}

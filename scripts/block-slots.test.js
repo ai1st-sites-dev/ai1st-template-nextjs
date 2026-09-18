@@ -98,13 +98,12 @@ process.on('exit', () => { try { fs.rmSync(STUB_DIR, { recursive: true, force: t
 // 🔴 从 `registry.ts` 现读，不手抄一份清单。手抄的那份漏掉一个块时，那个块在这道检查里
 //    **按构造隐身** —— 而「漏了一个」跟「全都对上了」在输出里长得一模一样。
 function componentFileFor(type) {
-  const reg = fs.readFileSync(path.join(SRC, 'lib', 'sections', 'registry.ts'), 'utf-8');
-  const re = new RegExp(`'${type.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}':\\s*\\w+`);
-  if (!re.test(reg)) return null;
-  const imp = new RegExp(`import\\s+(\\w+)\\s+from\\s+'([^']*${type.split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join('')}Section)'`);
-  const m = reg.match(imp);
-  if (m) return path.join(SRC, m[2].replace(/^@\//, '')) + '.tsx';
-  return null;
+  const reg = fs.readFileSync(path.join(SRC, 'lib', 'sections', 'registry.generated.ts'), 'utf-8');
+  const esc = type.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (!new RegExp(`'${esc}':\\s*\\w+`).test(reg)) return null;
+  // #1387 —— 组件住在块自己的文件夹里，注册表 import 的就是 `@blocks/<type>/Section`。
+  if (!new RegExp(`import\\s+\\w+\\s+from\\s+'@blocks/${esc}/Section'`).test(reg)) return null;
+  return path.join(NEXT, 'blocks', type, 'Section.tsx');
 }
 
 // ── 夹具：按 manifest 自己造 ────────────────────────────────────────────────────────────────────
@@ -304,11 +303,20 @@ console.log('\n── ④ 渲染一次够不着的那几条（只在提交成功
     const [type, ...rest] = ref.split('.');
     const slotPath = rest.join('.');
     // 源码里找 —— 这几条的钩子写成字面量，所以字面量查得到。
-    const files = fs.readdirSync(SECTIONS).filter((f) => f.endsWith('.tsx'))
-      .map((f) => path.join(SECTIONS, f));
+    // #1387 —— 组件搬进了 `blocks/<块>/Section.tsx`，所以扫的是那一批（外加 `src/components/sections/`
+    // 里剩下的那些不是块的零件，例如 HeroLeadForm.tsx）。
+    const files = [
+      ...fs.readdirSync(path.join(NEXT, 'blocks'), { withFileTypes: true })
+        .filter((e) => e.isDirectory())
+        .map((e) => path.join(NEXT, 'blocks', e.name, 'Section.tsx'))
+        .filter((f) => fs.existsSync(f)),
+      ...(fs.existsSync(SECTIONS)
+        ? fs.readdirSync(SECTIONS).filter((f) => f.endsWith('.tsx')).map((f) => path.join(SECTIONS, f))
+        : []),
+    ];
     const hit = files.filter((f) => fs.readFileSync(f, 'utf-8').includes(`data-slot="${slotPath}"`));
     if (hit.length) {
-      ok(`${ref}：源码里挂着（${path.basename(hit[0])}）—— 🔴 弱判据，只证「写了」不证「那条分支会被走到」`
+      ok(`${ref}：源码里挂着（${path.relative(NEXT, hit[0])}）—— 🔴 弱判据，只证「写了」不证「那条分支会被走到」`
         + `；够不着的原因：${why}`);
     } else {
       bad(`${ref}：源码里都找不到 data-slot="${slotPath}"（${why}）`);
@@ -330,18 +338,18 @@ console.log('\n── ④ 渲染一次够不着的那几条（只在提交成功
 //    「这里根本没有这个块」而不是「这个块上没有钩子」。源码这一侧读到的 0 才是真的那个 0。
 console.log('\n── ⑤ 外壳区（header / footer）没漏进来：组件里没有 data-slot，manifest 那两个文字槽原样');
 {
-  for (const f of ['Header.tsx', 'Footer.tsx']) {
-    const file = path.join(SRC, 'components', f);
-    if (!fs.existsSync(file)) { bad(`${f} 不在 ${file}`); continue; }
+  for (const f of ['header', 'footer']) {
+    const file = path.join(NEXT, 'blocks', f, 'Section.tsx');
+    if (!fs.existsSync(file)) { bad(`${f} 的组件不在 ${file}`); continue; }
     const hits = (fs.readFileSync(file, 'utf-8').match(/data-slot/g) || []).length;
-    if (hits) bad(`${f} 里有 ${hits} 处 data-slot —— 外壳区本轮不在这一维里（它们渲染出来没有 data-block-id，检查器点不中）`);
-    else ok(`${f}：data-slot 命中 0`);
+    if (hits) bad(`blocks/${f}/Section.tsx 里有 ${hits} 处 data-slot —— 外壳区本轮不在这一维里（它们渲染出来没有 data-block-id，检查器点不中）`);
+    else ok(`blocks/${f}/Section.tsx：data-slot 命中 0`);
   }
   // `footer.copyright` / `footer.description` 是 `kind: text` 却没有 `editLabel` —— 这两个槽位正是
   // 「跳过外壳区」那条规则在挡的那一格。它们要是被人顺手标上，第 ① 节会红；这里钉的是反过来那句：
   // 今天它们没标，而校验器（上面 loadManifests 已经跑过一遍）**没有**因此红。
   const footer = manifests.get('footer');
-  if (!footer) bad('blocks/footer.json 读不出来');
+  if (!footer) bad('blocks/footer/ 读不出来');
   else {
     const both = ['copyright', 'description'].map((k) => [k, footer.slots && footer.slots[k]]);
     const wrong = both.filter(([, spec]) => !spec || spec.kind !== 'text' || spec.editLabel !== undefined);

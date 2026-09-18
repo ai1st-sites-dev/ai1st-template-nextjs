@@ -35,8 +35,9 @@ let gates; let pool; let allBlocks;
 try {
   gates = require(path.join(DIR, 'gates.js'));
   pool = require(path.join(NEXT, 'scripts', 'theme-pool.json'));
-  allBlocks = fs.readdirSync(path.join(NEXT, 'blocks')).filter((f) => f.endsWith('.json'))
-    .map((f) => f.replace(/\.json$/, '')).sort();
+  // #1387 —— 一个块一个文件夹：块名 = 文件夹名。
+  allBlocks = fs.readdirSync(path.join(NEXT, 'blocks'), { withFileTypes: true })
+    .filter((e) => e.isDirectory()).map((e) => e.name).sort();
 } catch (e) {
   die(`读不到 gates.js / theme-pool.json / blocks/：${e.message} —— 什么都没量成`);
 }

@@ -1,0 +1,49 @@
+/* gallery · heading-side  （#1368，对表 FlyonUI gallery-4：左文 + 右侧图网格）
+
+   跟 #1364 / #1363 那两张同名形态一个做法：标题与副标题钉在第 1 条列带，图从第 2 条开始流。
+   这个块的 `columns` 轴**量得到**（图就是根的直接子元素，没有 `display: contents` 的包装层），
+   所以这里写的是真值 `three`。 */
+
+[data-block="gallery"][data-shape="heading-side"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="gallery"][data-shape="heading-side"] .gallery__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="gallery"][data-shape="heading-side"] .gallery__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="gallery"][data-shape="heading-side"] .gallery__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="gallery"][data-shape="heading-side"] .gallery__image {
+  aspect-ratio: 4 / 3;
+}
+
+[data-block="gallery"][data-shape="heading-side"] .gallery__placeholder {
+  aspect-ratio: 4 / 3;
+}
+
+@media (min-width: 1024px) {
+  [data-block="gallery"][data-shape="heading-side"] {
+    grid-template-columns: 1.1fr 1fr 1fr;
+  }
+
+  [data-block="gallery"][data-shape="heading-side"] .gallery__headline {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  [data-block="gallery"][data-shape="heading-side"] .gallery__sub {
+    grid-column: 1;
+    grid-row: 2;
+  }
+}

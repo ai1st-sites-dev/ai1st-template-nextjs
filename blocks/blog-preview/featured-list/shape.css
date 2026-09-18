@@ -1,0 +1,72 @@
+/* blog-preview · featured-list  （#1369，对表 FlyonUI blog-3：一篇主推文章 + 右侧一列其余文章）
+
+   出处那一版主推文章带一张大封面，而 `BlogPreviewSection.tsx` 的 markup 里**没有图**（一篇文章就是
+   `.blog-preview__post` 里的分类 / 日期 / 标题 / 摘要四个 `<span>`，#1029 定的中性 markup）。所以
+   「主推」在这里落在**版面**上而不是图上：第一篇占左边那条更宽的列带、纵向跨两行，其余文章一条一行
+   流进右边那条窄列带。这正是 `featured-list` 与同块 `two-up` 的分界 —— 后者四篇同宽同高。
+
+   🔴 **用了 `:first-of-type`**：这个块的 DOM 是平的、每篇都是同一个 `.blog-preview__post`（组件里的
+   `map`），没有给「第一篇」任何钩子。「一大 N 小」按定义要区别对待第一篇 ⟹ 要么用结构选择器、要么
+   改组件多发一个钩子，而本票是「加形态」（D4：形态只能是 CSS）。同一条理由、同一个写法在
+   `gallery/featured-thumbs` 那一节里也写着。
+   📌 它合法：禁结构选择器那条是**主题表**的契约（§1，`theme-css-lint.js` 的射程是
+   `public/base.css` + `public/themes/*.css`），`shapes.css` 是平台这一层，不受它管。
+   📌 **它的边界**：`:first-of-type` 认的是**标签**。一篇文章有 slug 时是 `<a>`、没有时是 `<div>`
+   （组件里那个三元），所以一页上两种标签混着出现时，两种各自的第一篇都会被选中 —— 「主推」会变成
+   两篇。今天到不了这一步：`fromBlog` 为真时全部有 slug（全是 `<a>`），为假时一个都没有（全是 `<div>`）。
+   要它对混合也成立就得给组件多发一个钩子，那是 markup 的事、不是形态的事。
+
+   🔴 列带只在 `min-width: 1024px` 里分。手机宽下根上只有一条轨道，那时**不能**给文章写
+   `grid-column: 2` —— 那会开出一条隐式轨道，四篇文章全跑到一条看不见的第二列里去。
+
+   🔴 manifest 的 `columns` 写 **two**，与根上声明的两条轨道一致：主推那篇不跨列（`grid-column: 1`），
+   所以两条列带都有样本占着，守卫 ⑨ 数的是被占用的列带。 */
+
+[data-block="blog-preview"][data-shape="featured-list"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="blog-preview"][data-shape="featured-list"] .blog-preview__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="blog-preview"][data-shape="featured-list"] .blog-preview__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="blog-preview"][data-shape="featured-list"] .blog-preview__post {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="blog-preview"][data-shape="featured-list"] .blog-preview__category {
+  justify-self: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="blog-preview"][data-shape="featured-list"] {
+    grid-template-columns: 1.6fr 1fr;
+  }
+
+  /* 其余文章先全部钉到右边那条窄列带，再把第一篇挪回左边并让它纵向跨两行。两条规则的先后就是
+     「默认 → 例外」，不靠优先级打架：后一条选择器更长，本来就赢。
+
+     🔴 `span 2` 是个**常量**，不是「跨满右边那一列」——纯 CSS 数不出右边有几条。选 2 的依据是这个块
+     真实的篇数：`maxPosts` 默认 3（`BlogPreviewSection.tsx`），1 篇主推 + 2 篇列表 ⟹ 跨 2 行正好齐平。
+     篇数更多时主推比右列矮一截、只有 1 篇时（最少版夹具）右边空着 —— 两种都只是高度，
+     「主推那篇更宽」这一条在任何篇数下都成立，而那正是它与 `two-up` 分得开的那一处。 */
+  [data-block="blog-preview"][data-shape="featured-list"] .blog-preview__post {
+    grid-column: 2;
+  }
+
+  [data-block="blog-preview"][data-shape="featured-list"] .blog-preview__post:first-of-type {
+    grid-column: 1;
+    grid-row: span 2;
+    /* 根上是 `align-items: start`（右边那一列每条按自己的内容高），主推那篇要**占满**它跨的两行 ——
+       不写这一条它就缩到自己内容那么高、底下空一块，出处那张大面板的样子就没了（实测过两版）。 */
+    align-self: stretch;
+  }
+}

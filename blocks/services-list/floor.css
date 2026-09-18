@@ -1,0 +1,55 @@
+.services-list {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .services-list {
+    padding: 4rem 2rem;
+  }
+}
+
+.services-list__item,
+.services-list__icon,
+.services-list__title,
+.services-list__desc,
+.services-list__actions,
+.services-list__features,
+.services-list__products {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.services-list__title {
+  font-size: 1.5rem;
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+.services-list__desc {
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+}
+
+.services-list__item {
+  display: grid;
+  gap: 1rem;
+}
+
+.services-list__features,
+.services-list__products {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  border-width: 1px;
+  border-style: solid;
+  border-color: currentColor;
+  border-radius: 0.75rem;
+}
+
+.services-list__icon {
+  width: 2.5rem;
+  height: 2.5rem;
+}

@@ -6,7 +6,7 @@ import { siteId, leadApi } from '@/lib/config';
 // #1065 — hero 的第八个部件：`.hero__form`。
 //
 // 🔴 为什么会有它（#1065 的原话）：`with-form` 从 2026-08-12 那份 spec 起就写在 hero 的内容形态值表里
-// （当时那张表是 `blocks/hero.json` 的 `block_layout`），而在这个文件之前**没有任何东西渲染它**
+// （当时那张表是 `blocks/hero/manifest.json` 的 `block_layout`），而在这个文件之前**没有任何东西渲染它**
 // —— 主题可以声明「我给带表单的 hero 写了造型」，站也可以在页面 JSON 里写那个值，产物里一个表单
 // 都不会出现。声明一个渲染不出来的形态，比不声明更糟：它是静默的。
 //

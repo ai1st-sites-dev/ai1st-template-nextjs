@@ -1,0 +1,29 @@
+/* contact-info · card-then-email  （#1340 从生成器的 infoLook['card-then-email'] 剪来；今天没有主题选它） */
+
+[data-block="contact-info"][data-shape="card-then-email"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="contact-info"][data-shape="card-then-email"] .contact-info__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="contact-info"][data-shape="card-then-email"] .contact-info__location {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="contact-info"][data-shape="card-then-email"] .contact-info__phone {
+  justify-self: start;
+}
+
+[data-block="contact-info"][data-shape="card-then-email"] .contact-info__email {
+  justify-self: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="contact-info"][data-shape="card-then-email"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}

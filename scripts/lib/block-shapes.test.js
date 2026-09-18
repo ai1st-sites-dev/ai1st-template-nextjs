@@ -6,9 +6,13 @@
  * 退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
  *
  * ══ 守什么 ═══════════════════════════════════════════════════════════════
- * ① `public/shapes.css` 里出现的 (块, 形态) 集合 == 31 份 `blocks/*.json` 的 `shapes` 名字集合，两向差集为 0。
- *    形态以前只住在 CSS 里（manifest 里 0 份知道），提示词 / 验证器 / 检查器三个消费者一个都读不到；
- *    现在两边各有一份，就得有人守「它们是同一份」。任一 manifest 少写一个形态，这里当场红并点名。
+ * 🔴 **原来的第 ① 段（`public/shapes.css` 的 (块,形态) 集合 == manifest 的 `shapes` 名字集合，两向
+ *    差集为 0）随 #1387 删掉了，因为它按构造成立了。** 形态清单现在就是 `blocks/<块>/` 下的子文件夹
+ *    清单，而 `public/shapes.css` 由 `scripts/block-build/build-blocks.js` 从同一批子文件夹拼出来
+ *    —— 两边不再是「各写一份、要有人守它们相等」，是同一份的两种形态。接它班的是两道别的：
+ *      · `scripts/block-build/generated-fresh.test.js`：盘上那份生成物 == 现在拼出来的那份；
+ *      · 本文件 ③ 那一格新加的「shape.css 空了 / 不在 ⟹ 当场拒」：清单里多出一个没有几何的名字，
+ *        是这条路上唯一还剩的失败方向。
  * ② `validateSite` 第 ⑥ 条：页面 JSON 点名的形态缺它 `needs` 的槽位 ⟹ 报一条；填上 ⟹ 不报。两臂都量。
  * ③ `checkManifestShape` 对 `shapes` 的白名单校验：逐种写错各自被拒（拼错键静默失效是 #1013 那次的失败方向）。
  *    🔴 **别在这句话里写个数** —— 这一格的清单是 `cases` 那个数组，加一条就改一次数，而那个数在这儿
@@ -40,39 +44,16 @@ try {
   die(`require 失败: ${e.message}`);
 }
 const {
-  loadManifests, validateSite, shapePairsFromCss, slotFilled, defaultShapeOf, shapeNeedsGap,
-  filledOptionalSlots, diffShapesAgainstCss, BLOCKS_DIR, SHAPES_CSS,
+  loadManifests, validateSite, slotFilled, defaultShapeOf, shapeNeedsGap,
+  filledOptionalSlots, BLOCKS_DIR,
 } = bm;
-for (const [k, v] of Object.entries({ loadManifests, validateSite, shapePairsFromCss, slotFilled, defaultShapeOf, shapeNeedsGap, filledOptionalSlots, diffShapesAgainstCss })) {
+for (const [k, v] of Object.entries({ loadManifests, validateSite, slotFilled, defaultShapeOf, shapeNeedsGap, filledOptionalSlots })) {
   if (typeof v !== 'function') die(`block-manifest.js 没导出 ${k}`);
 }
 
 let manifests;
 try { manifests = loadManifests(); } catch (e) { die(`loadManifests 抛了: ${e.message}`); }
 if (manifests.size === 0) die('loadManifests 读到 0 份 manifest');
-
-// ── ① 两向差集 ─────────────────────────────────────────────────────────────
-console.log('── ① manifest 的 shapes 清单 vs public/shapes.css 的 (块, 形态) 集合');
-{
-  const withShapes = [...manifests.values()].filter((m) => Array.isArray(m.shapes) && m.shapes.length > 0).length;
-  check(withShapes === manifests.size, `每份 manifest 都有非空 shapes（${withShapes}/${manifests.size}）`);
-  const css = shapePairsFromCss();
-  let pairs = 0; for (const s of css.values()) pairs += s.size;
-  check(pairs > 0 && css.size === manifests.size, `shapes.css 里 ${pairs} 对，覆盖 ${css.size} 个块（== manifest 数 ${manifests.size}）`);
-  const d = diffShapesAgainstCss(manifests, css);
-  check(d.onlyInCss.length === 0, `CSS 有、manifest 没有：${d.onlyInCss.length} 个${d.onlyInCss.length ? ` —— ${d.onlyInCss.join(', ')}` : ''}`);
-  check(d.onlyInManifests.length === 0, `manifest 有、CSS 没有：${d.onlyInManifests.length} 个${d.onlyInManifests.length ? ` —— ${d.onlyInManifests.join(', ')}` : ''}`);
-
-  // 反向臂：这道守卫真的会红、而且点得出名字。在副本上做，盘上的文件一个字节不动。
-  const copy = new Map([...manifests].map(([t, m]) => [t, JSON.parse(JSON.stringify(m))]));
-  copy.get('hero').shapes = copy.get('hero').shapes.filter((s) => s.name !== 'media-cover');
-  copy.get('card-group').shapes.push({ name: 'bogus-shape', needs: [] });
-  const d2 = diffShapesAgainstCss(copy, css);
-  check(d2.onlyInCss.length === 1 && d2.onlyInCss[0] === 'hero/media-cover',
-    `反向臂：从 hero 删掉 media-cover ⟹ onlyInCss 点名它（读到 ${JSON.stringify(d2.onlyInCss)}）`);
-  check(d2.onlyInManifests.length === 1 && d2.onlyInManifests[0] === 'card-group/bogus-shape',
-    `反向臂：给 card-group 加一个 CSS 里没有的形态 ⟹ onlyInManifests 点名它（读到 ${JSON.stringify(d2.onlyInManifests)}）`);
-}
 
 // ── ④ 谓词读数表 + AC2 的两个事实 ───────────────────────────────────────────
 console.log('── ④ 三个谓词');
@@ -94,7 +75,7 @@ console.log('── ④ 三个谓词');
   for (const [t, m] of manifests) {
     if (m.shapes[0].needs.length) bad(`${t} 的默认形态 ${m.shapes[0].name} 带 needs —— 落回它就无处可落`);
   }
-  ok('31 份的默认形态 needs 全空（缺槽位落回的落点是实的）');
+  ok(`${manifests.size} 个块的默认形态 needs 全空（缺槽位落回的落点是实的）`);
 }
 
 // ── ② validateSite 第 ⑥ 条两臂 ─────────────────────────────────────────────
@@ -123,56 +104,103 @@ console.log('── ② validateSite 第 ⑥ 条');
   check(unknown.length === 1 && unknown[0].includes('不在'), `shape 不在清单里 ⟹ 一条「不在 … 清单里」：${unknown[0] || '(没有)'}`);
 }
 
-// ── ③ checkManifestShape 对 shapes 的逐种拒绝（清单 = 下面那个 cases 数组）─────────────────────
+// ── ③ checkManifestShape 对形态清单的逐种拒绝（清单 = 下面那个 cases 数组）─────────────────────
 console.log('── ③ checkManifestShape 白名单');
 {
+  const { formatFrontmatter, parseFrontmatter } = require(path.join(NEXT, 'scripts', 'block-build', 'frontmatter.js'));
   const rig = () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'block-shapes-'));
-    fs.mkdirSync(path.join(root, 'blocks'));
-    fs.mkdirSync(path.join(root, 'public'));
-    for (const f of fs.readdirSync(BLOCKS_DIR)) fs.copyFileSync(path.join(BLOCKS_DIR, f), path.join(root, 'blocks', f));
-    fs.copyFileSync(SHAPES_CSS, path.join(root, 'public', 'shapes.css'));
+    fs.cpSync(BLOCKS_DIR, path.join(root, 'blocks'), { recursive: true });
     return root;
   };
+  // mutate 拿到的是这份副本的 blocks/ 目录，想怎么改就怎么改（改 manifest.json、动子文件夹都行）。
   const withHero = (mutate) => {
     const root = rig();
-    const p = path.join(root, 'blocks', 'hero.json');
-    const m = JSON.parse(fs.readFileSync(p, 'utf-8'));
-    mutate(m);
-    fs.writeFileSync(p, JSON.stringify(m, null, 2));
-    try { loadManifests(path.join(root, 'blocks')); return null; } catch (e) { return e.message; } finally { fs.rmSync(root, { recursive: true, force: true }); }
+    const blocks = path.join(root, 'blocks');
+    const hero = path.join(blocks, 'hero');
+    const readMd = (shape) => parseFrontmatter(fs.readFileSync(path.join(hero, shape, 'shape.md'), 'utf-8'));
+    const writeMd = (shape, fm) => {
+      fs.mkdirSync(path.join(hero, shape), { recursive: true });
+      fs.writeFileSync(path.join(hero, shape, 'shape.md'), `${formatFrontmatter(fm)}\n# ${shape}\n`);
+    };
+    mutate({ root, blocks, hero, readMd, writeMd });
+    try { loadManifests(blocks); return null; } catch (e) { return e.message; } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   };
-  // 正向臂先行：未改动的副本在临时目录里装得起来，否则下面五个「被拒」不说明任何事。
+  // 正向臂先行：未改动的副本在临时目录里装得起来，否则下面那些「被拒」不说明任何事。
   const clean = withHero(() => {});
   check(clean === null, `未改动的副本在临时目录装得起来（${clean === null ? '是' : `抛了: ${clean}`}）`);
+
+  // hero 的形态顺序（order）：0 text-center（默认）· 1 media-cover · …
   const cases = [
-    ['没有 shapes', (m) => { delete m.shapes; }, 'shapes 是 undefined'],
-    ['needs 指向不存在的槽位', (m) => { m.shapes[1].needs = ['nope']; }, '"nope" 不是这个块的槽位'],
-    ['needs 指向必填槽', (m) => { m.shapes[1].needs = ['headline']; }, '"headline" 是必填槽'],
-    ['默认形态带 needs', (m) => { m.shapes[0].needs = ['imageUrl']; }, 'shapes[0] ("text-center") 是默认形态，needs 必须为空'],
-    ['形态名在 CSS 里没有规则', (m) => { m.shapes[1].name = 'no-such-shape'; }, '[data-block="hero"][data-shape="no-such-shape"]'],
-    // 🔴 推的那一项要带 `layout_intent`：#1332 起「意图不完整」那条检查排在「写了两次」**前面**，
-    //    不带的话这一格读到的是「缺某几根轴」的报文，而它要验的是重名 —— 尺子会点名另一件事。
-    ['同一个形态写两次',
-      (m) => { m.shapes.push({ name: 'text-center', needs: [], layout_intent: m.shapes[0].layout_intent }); },
-      '"text-center" 写了两次'],
+    ['一个形态子文件夹都没有',
+      ({ hero }) => { for (const e of fs.readdirSync(hero, { withFileTypes: true })) if (e.isDirectory()) fs.rmSync(path.join(hero, e.name), { recursive: true }); },
+      'shapes 是 []'],
+    ['manifest.json 里还写着 shapes',
+      ({ hero }) => {
+        const f = path.join(hero, 'manifest.json');
+        const m = JSON.parse(fs.readFileSync(f, 'utf-8'));
+        m.shapes = [{ name: 'text-center', needs: [] }];
+        fs.writeFileSync(f, JSON.stringify(m, null, 2));
+      },
+      '还写着 shapes'],
+    // 🔴 #1387 —— 接 #1331 班的那一条：形态清单 = 子文件夹清单之后，「清单里有个名字而它没有几何」
+    //    是这条路上唯一还剩的失败方向（以前靠两向差集抓）。
+    ['形态子文件夹里 shape.css 是空的',
+      ({ hero }) => fs.writeFileSync(path.join(hero, 'media-cover', 'shape.css'), '\n'),
+      'shape.css 不在或者是空的'],
+    ['形态子文件夹里没有 shape.md',
+      ({ hero }) => fs.rmSync(path.join(hero, 'media-cover', 'shape.md')),
+      '少了 shape.md'],
+    ['needs 指向不存在的槽位',
+      ({ readMd, writeMd }) => { const fm = readMd('media-cover'); fm.needs = ['nope']; writeMd('media-cover', fm); },
+      '"nope" 不是这个块的槽位'],
+    ['needs 指向必填槽',
+      ({ readMd, writeMd }) => { const fm = readMd('media-cover'); fm.needs = ['headline']; writeMd('media-cover', fm); },
+      '"headline" 是必填槽'],
+    ['默认形态带 needs',
+      ({ readMd, writeMd }) => { const fm = readMd('text-center'); fm.needs = ['imageUrl']; writeMd('text-center', fm); },
+      'shapes[0] ("text-center") 是默认形态，needs 必须为空'],
     // #1384 —— candidate 那两条。
     // 🔴 第二条是本票整条堵法的地基：候选不上真站是靠「落回 manifest 默认」实现的，默认自己是候选
     //    的话那个落点就是个候选 ⟹ 两条堵法（选择单、页面 JSON）从落回那一端一起漏掉。
-    ['candidate 不是布尔', (m) => { m.shapes[1].candidate = 'yes'; }, '.candidate 有的话必须是 true/false'],
-    ['默认形态标了 candidate', (m) => { m.shapes[0].candidate = true; },
+    ['candidate 不是布尔',
+      ({ readMd, writeMd }) => { const fm = readMd('media-cover'); fm.candidate = 'yes'; writeMd('media-cover', fm); },
+      '.candidate 有的话必须是 true/false'],
+    ['默认形态标了 candidate',
+      ({ readMd, writeMd }) => { const fm = readMd('text-center'); fm.candidate = true; writeMd('text-center', fm); },
       'shapes[0] ("text-center") 是默认形态，不许标 candidate'],
+    ['排版意图少一根轴',
+      ({ readMd, writeMd }) => { const fm = readMd('media-cover'); delete fm.layout_intent.columns; writeMd('media-cover', fm); },
+      '排版意图不完整'],
+    ['排版意图里有一根不存在的轴',
+      ({ readMd, writeMd }) => { const fm = readMd('media-cover'); fm.layout_intent.nope = 'x'; writeMd('media-cover', fm); },
+      '不存在的轴 "nope"'],
   ];
   for (const [label, mutate, marker] of cases) {
     const msg = withHero(mutate);
     check(msg !== null && msg.includes(marker), `${label} ⟹ 被拒且报文含「${marker}」${msg === null ? '（没拒）' : (msg.includes(marker) ? '' : ` —— 实际: ${msg}`)}`);
   }
   // 🔴 #1384 —— candidate 那两条各自的**正向臂**。少了它，「`candidate` 这个键一律被拒」会把上面
-  //    两格打绿，而那是本票的反面（候选必须装得进 manifest、进 shapes.css、过每一道检查）。
-  const okNonDefault = withHero((m) => { m.shapes[1].candidate = true; });
+  //    两格打绿，而那是本票的反面（候选必须装得进清单、进 shapes.css、过每一道检查）。
+  const okNonDefault = withHero(({ readMd, writeMd }) => { const fm = readMd('media-cover'); fm.candidate = true; writeMd('media-cover', fm); });
   check(okNonDefault === null, `非默认形态标 candidate: true ⟹ 照常装得起来（${okNonDefault === null ? '是' : `抛了: ${okNonDefault}`}）`);
-  const okFalse = withHero((m) => { m.shapes[0].candidate = false; });
+  const okFalse = withHero(({ readMd, writeMd }) => { const fm = readMd('text-center'); fm.candidate = false; writeMd('text-center', fm); });
   check(okFalse === null, `默认形态写 candidate: false ⟹ 照常装得起来（${okFalse === null ? '是' : `抛了: ${okFalse}`}）`);
+  // 🔴 #1387 —— 新形态「丢进来就在」的那一半，在这一层的读数：新建一个子文件夹（两个文件），
+  //    不改任何清单，`loadManifests` 就多认一个形态。
+  let dropped = null;
+  const dropIn = withHero(({ hero, readMd, writeMd, blocks }) => {
+    const fm = readMd('media-cover');
+    delete fm.needs;
+    fm.order = 99;
+    writeMd('fake-drop-in', fm);
+    fs.writeFileSync(path.join(hero, 'fake-drop-in', 'shape.css'),
+      '[data-block="hero"][data-shape="fake-drop-in"] { display: grid; }\n');
+    dropped = blocks;
+  });
+  check(dropIn === null, `丢进一个新形态子文件夹（两个文件、不改任何清单）⟹ 装得起来（${dropIn === null ? '是' : `抛了: ${dropIn}`}）`);
 }
 
 console.log(`\n══ block-shapes.test.js: ${pass} 过 · ${fail} 失败 ══`);

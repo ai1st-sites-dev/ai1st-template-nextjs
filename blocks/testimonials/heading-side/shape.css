@@ -1,0 +1,65 @@
+/* testimonials · heading-side  （#1363，对表 FlyonUI testimonial-1：左文 + 右两卡）
+
+   🔴 DOM 是平的：`[data-block-part="testimonials-list"]` 在 `globals.css` 里是 `display: contents`
+   （那条规则自己写着理由），所以每条 `.testimonials__item` 都是**根的网格子元素**。
+   ⟹「左栏文案 + 右侧两卡并排」= 根上三条列带：标题与副标题钉在第 1 条，评价从第 2 条开始流，
+   每行放得下两条。
+
+   🔴 **但 manifest 里 `columns` 写的是 `one`，不是 `three`** —— 这不是笔误，是这个块上那根轴
+   **量不到**：几何守卫的 columns 只数**根的直接子元素**（`layout-intent.mjs` 的 `laid` = `el.children`
+   过滤出有盒子的），而评价是**孙子**（它们在 `[data-block-part="testimonials-list"]` 里，那一层
+   `display: contents` 没有盒子、被滤掉）⟹ 它只看得见标题和副标题两个，永远读到「占 1 条」。
+   实测：写 `three` 时这一格红「该占 3 条列带，实际占 1 条（根上声明了 3 条轨道）」。
+   库里已有的四副（含 `two-up` 那种真两列的）也全都写 `one`，就是这个原因。 */
+
+[data-block="testimonials"][data-shape="heading-side"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="testimonials"][data-shape="heading-side"] .testimonials__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="testimonials"][data-shape="heading-side"] .testimonials__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="testimonials"][data-shape="heading-side"] .testimonials__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="testimonials"][data-shape="heading-side"] .testimonials__rating {
+  display: flex;
+  align-items: center;
+}
+
+[data-block="testimonials"][data-shape="heading-side"] .testimonials__service {
+  justify-self: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="testimonials"][data-shape="heading-side"] {
+    grid-template-columns: 1.2fr 1fr 1fr;
+  }
+
+  /* 标题与副标题占住左栏（各自一行），评价从第 2 条列带开始流 —— 不钉的话第三条评价会掉回
+     左栏、压在副标题下面，右侧那两列就不成立了。 */
+  [data-block="testimonials"][data-shape="heading-side"] .testimonials__headline {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  [data-block="testimonials"][data-shape="heading-side"] .testimonials__sub {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  /* 🔴 评价**不钉列带**：标题与副标题被钉在第 1 条之后，自动摆放的游标从第 1 行找空格，
+     于是第一条评价落在 (1 行, 2 带)、第二条 (1 行, 3 带)、第三条 (2 行, 2 带) —— 正好是
+     「右侧两列」。这里不写 `:first-of-type` 之类的结构选择器：全仓 `shapes.css` 里
+     `nth-child` / `first-child` 各 0 处（现取），这一层的惯例是靠列带和 order 排，不数第几个。 */
+}

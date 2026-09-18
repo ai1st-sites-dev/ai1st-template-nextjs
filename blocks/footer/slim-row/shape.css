@@ -1,0 +1,112 @@
+/* ── footer · slim-row（单行小脚）────────────────────────────────────────────────────────────
+
+   改造前这一支**不渲染**描述、服务栏、联系地址和各栏标题，只画 logo + 六条链接 + 邮箱 + 社交，
+   而且那六条链接和邮箱在**同一个会换行的盒子**里（改造前的 `<nav class="flex flex-wrap …
+   gap-x-6 gap-y-2">`）。搬进形态层之后零件都在 DOM 里，由这一层关掉 —— D14 第 2 句的正用法。
+
+   🔴 三处 `display: contents` 是承重的，而且要**一层一层往下摊**（栏 → 表 → 项）：链接住在导航那一栏、
+   邮箱住在联系那一栏，改造前它们是同一个换行盒子里的邻居。只摊一层的话，邮箱仍然是「联系那一栏」
+   这个盒子里的东西，它跟链接就换不到同一行去 —— 实测（两臂包围盒对比，azure-29 / 375 宽）：改造前
+   最后一条链接和邮箱同在 y=2188 那一行，只摊一层时邮箱自己占一行。
+
+   🔴 两个宽度用**同一套摊平**，只换「谁把谁推开」：
+     · <768：改造前是一列（`flex-col items-center gap-6`）。这里让品牌那块独占一行
+       （`flex-basis: 100%`），链接和邮箱跟着在下面按 24 / 8 的行列间距换行居中 —— 那正是改造前
+       那个 `<nav>` 自己的 `gap-x-6 gap-y-2`。品牌到链接那 24px 由它自己的下边距补足（行距 8 + 16）。
+     · ≥768：改造前是 `justify-between` 的两组（左 logo、右 nav）。这里给品牌一个
+       `margin-right: auto`，其余全部靠右，间距仍是 24px —— 逐个算过：邮箱右沿 1248、Contact 1063、
+       Home 769，与改造前逐个相同。 */
+
+[data-block="footer"][data-shape="slim-row"] .footer__body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  column-gap: 1.5rem;
+  row-gap: 0.5rem;
+}
+
+[data-block="footer"][data-shape="slim-row"] .footer__desc,
+[data-block="footer"][data-shape="slim-row"] .footer__col-title,
+[data-block="footer"][data-shape="slim-row"] .footer__col--services,
+[data-block="footer"][data-shape="slim-row"] .footer__item--location {
+  display: none;
+}
+
+[data-block="footer"][data-shape="slim-row"] .footer__col--nav,
+[data-block="footer"][data-shape="slim-row"] .footer__col--contact,
+[data-block="footer"][data-shape="slim-row"] .footer__list {
+  display: contents;
+}
+
+/* 🔴 这里点名**导航那一栏的项**和**邮箱那一项**，不写成光秃秃的 `.footer__item`：后者跟上面
+   `.footer__item--location { display: none }` 特异度相同（都是 0,3,0）、又排在后面 ⟹ 地址那几项被
+   它反超成可见（实测：改造后页脚里多出「Main Office」和那条地址，而改造前这一支不渲染它们）。
+   本文件这一批里同一个形状踩过两次，两次都是「同特异度 + 靠后」。 */
+[data-block="footer"][data-shape="slim-row"] .footer__col--nav .footer__item,
+[data-block="footer"][data-shape="slim-row"] .footer__item--email {
+  display: inline-flex;
+  align-items: center;
+}
+
+[data-block="footer"][data-shape="slim-row"] .footer__brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-basis: 100%;
+  margin-bottom: 1rem;
+}
+
+@media (min-width: 768px) {
+  [data-block="footer"][data-shape="slim-row"] .footer__body {
+    justify-content: flex-start;
+  }
+
+  [data-block="footer"][data-shape="slim-row"] .footer__brand {
+    flex-basis: auto;
+    margin-bottom: 0;
+    margin-right: auto;
+  }
+}
+
+/* ── footer · slim-row ───────────────────────────────────────────────────────────────────────
+   改造前这一支的壳是 `container-width px-4 py-8 sm:px-6 lg:px-8`，里面一条 `gap-6` 的行，
+   版权行 `mt-6 … pt-6`。下面就是这几个数。 */
+
+/* 🔴 这里只给内边距，**不写 `gap`**：行列间距在上面那一节里是两个不同的数（列 1.5rem、行 0.5rem，
+   照搬改造前那个 `<nav>` 的 `gap-x-6 gap-y-2`），而 `gap: 1.5rem` 是简写、会把行距一起改掉，
+   又排在后面 ⟹ 它赢。实测那一格是 375 宽下链接换行之后的行距。 */
+[data-block="footer"][data-shape="slim-row"] .footer__body {
+  padding: 2rem 1rem 0;
+}
+
+/* 🔴 `padding-left/right` 也要写：`base.css` 给的是 `var(--section-x)`，而那个变量今天解析出来是
+   **19.2px**（现取：`getComputedStyle(.footer__legal).paddingLeft`），不是 1rem —— 多列大脚改造前
+   走的正是 `.section-padding`（同一个变量，所以那一支两臂相同），而这两支改造前是字面的 `px-4`。
+   少写这两行，版权行在 375 宽上左右各差 3px（实测 before x=16 w=343 / after x=19 w=337）。 */
+[data-block="footer"][data-shape="slim-row"] .footer__legal {
+  margin-top: 1.5rem;
+  padding-bottom: 2rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+[data-block="footer"][data-shape="slim-row"] .footer__copyright {
+  padding-top: 1.5rem;
+}
+
+@media (min-width: 640px) {
+  [data-block="footer"][data-shape="slim-row"] .footer__body,
+  [data-block="footer"][data-shape="slim-row"] .footer__legal {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-block="footer"][data-shape="slim-row"] .footer__body,
+  [data-block="footer"][data-shape="slim-row"] .footer__legal {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}

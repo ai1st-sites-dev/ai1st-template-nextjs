@@ -1,0 +1,38 @@
+/* gallery · mosaic  （#1368，对表 FlyonUI gallery-1：马赛克图墙）
+
+   四条列带的图墙，图自己保留各自的高度（`align-items: start`）、画幅比 two-up / three-up 更方，
+   所以同样的图排出来的墙是**密的**而不是**整齐的行**。零 JS：不做真马赛克算法，也不做滚动。 */
+
+[data-block="gallery"][data-shape="mosaic"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="gallery"][data-shape="mosaic"] .gallery__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="gallery"][data-shape="mosaic"] .gallery__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="gallery"][data-shape="mosaic"] .gallery__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="gallery"][data-shape="mosaic"] .gallery__image {
+  aspect-ratio: 1 / 1;
+}
+
+[data-block="gallery"][data-shape="mosaic"] .gallery__placeholder {
+  aspect-ratio: 1 / 1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="gallery"][data-shape="mosaic"] {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}

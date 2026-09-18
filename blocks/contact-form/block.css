@@ -1,0 +1,28 @@
+/* contact-form · 那两个零件默认藏起来，只有用得着它的那一种形态把它放出来（#1370）
+
+   🔴 这个块从本票起多了两个零件（`__media` / `__aside`），它们的**盒子一直在树上**（理由在
+   `ContactFormSection.tsx` 文件头：不这样的话契约钩子在任何一页上都不出现，检查 ⑤ 当场红），
+   而里面的东西只在用得着它的那一种形态上渲染。所以在别的形态上它们是**空盒子** ——
+   不藏的话：① `base.css` 给 `__media` 的比例会画出一条空带子；② 排版意图那条 `media-none`
+   （一个 `__media` 都不许有）会当场红，而这个块已有的六种形态全写着 `media: none`。
+   🔴 藏的是**空盒子**，所以不撞检查 ②（essential 块里有内容的零件不许被藏）—— 那一条只判
+   「里面有东西」的零件。里面有东西的那一格（`form-over-media` 的图 / `info-side` 的卡）
+   在它自己的形态上是**显示**的。
+
+   🔴 **为什么是「默认藏 + 逐个放出来」，不是「逐个形态各写一条藏」（QA2 在 r2 上打回的那条）。**
+   第一版写的是后者：六种既有形态各一条、外加 `form-over-media` 藏卡 / `info-side` 藏图，一共八条，
+   全都钉在 `[data-shape="…"]` 上。而 `data-shape` **不是每个站都有**：`sync-config.js:784` 那个
+   `if (structureThemeId)` 才写它，而 `lib/site-regions.js` 的 `readStructureThemeId()` 在
+   「没有 theme.json」「themeId 不在 `scripts/themes.js` 的注册表里」两种情况下返回 `null`
+   —— 后者是条普通历史：站当初上装的主题**退役**了（#1161 把 30 套下架，`readAppliedThemeId()`
+   那里从 `process.exit(1)` 降级成一行日志，所以这类站照样建得出来）。
+   那个状态下八条一条都不匹配，两个空盒子就露出来：实测夹具站 `contact.html` 块高
+   **912 → 1726px**（1280）· **847 → 1148px**（375），多出来的是两块涂了主题
+   `--color-primary-100` 的实心空面板，而这个块是 `essential`。
+   默认藏把失败方向掉了个个儿：**认不出形态 ⟹ 藏**。顺带也治了「将来加第 9 种形态时忘了写藏的那条」
+   —— 那种漏是静默的（图会在一个写着 `media: none` 的形态上冒出来）。 */
+
+[data-block="contact-form"] .contact-form__media,
+[data-block="contact-form"] .contact-form__aside {
+  display: none;
+}

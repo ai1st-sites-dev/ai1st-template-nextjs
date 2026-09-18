@@ -2,6 +2,12 @@
    shapes.css — 形态层（#1318，设计文档 D1 / D2 / D4）
    ══════════════════════════════════════════════════════════════════════════════════════════════════
 
+   🔴 **这份文件是拼出来的，别手改**（#1387，设计文档 D20）。手改会被下一次
+      `node scripts/block-build/build-blocks.js` 覆盖，而 `scripts/block-build/generated-fresh.test.js`
+      会在那之前就把它点名。要改一个形态的几何，改 `blocks/<块>/<形态>/shape.css`；要加一个形态，
+      新建一个子文件夹放 `shape.css` + `shape.md`，然后跑一次生成器。
+      这段开头住在 `scripts/block-build/shapes-head.css`。
+
    一个块**怎么排**住在这里，一份，平台的。主题表（`public/themes/<id>.css`）只剩皮：颜色、字体、
    圆角、阴影、内边距、间距刻度。契约 v3（`docs/reference/theme-css-contract.md`）把几何那一族从
    §2 的主题可写属性表里拿掉了，所以一套主题从此**写不出排版错**。
@@ -11,18 +17,22 @@
    元素上（`src/lib/sections/blockAttrs.ts`）：`data-block` 是块的类型，`data-shape` 是这个站在这个
    块上选的画法。取值三级（spec D18，`scripts/sync-config.js`）：
        页面 JSON 里这个块自己的 `shape`  →  主题的选择单（`scripts/theme-pool.json` 的 `shapes`）
-                                         →  块 manifest 的默认（`blocks/<type>.json` 的 `shapes[0]`）
+                                         →  块的默认形态（`blocks/<块>/` 里 `order` 最小的那个子文件夹）
 
    ── 一个块有几个画法 ──────────────────────────────────────────────────────────────────────────
    🔴 **= 今天真的量到几种不同的排版**，不为「将来可能有」预留名字（PM 2026-09-15 裁定 ③）。
    这份表是从 `ember-12` / `azure-29` 两套表搬迁前那一版里逐条剪出来的：**搬迁那一刻**是 31 个块里
    19 个两套画得不一样（各两个名字）、12 个逐字相同（各一个名字），一共 50 个 (block, shape) 对。
-   🔴 **那三个数是 2026-09 搬迁时的历史读数，早就不是今天的了 —— 别从这里抄**（2026-09-17 现取已是
-   34 个块 / 101 对，而且还在涨）。自己取，用仓里那个规范读数：
-       node scripts/lib/block-shapes.test.js      # 印「✅ shapes.css 里 N 对，覆盖 M 个块」
-   📌 别自己写 glob 去数 `blocks/*.json` 的 `shapes` 长度：**共享树 `/root/work/ai1st` 落后 main
-      九百多个 commit，那里的 manifest 还是没有 `shapes` 字段的老版本，同一条命令在它上面读 0 对。**
-      （2026-09-17 作者实测：工作区读 `0 对 / 34 个块`、`origin/main` 读 `101 对 / 34 个块`。）
+   🔴 **那三个数是 2026-09 搬迁时的历史读数，早就不是今天的了 —— 别从这里抄。** 自己取（#1387 之后
+   形态清单就是子文件夹清单，所以直接数目录）：
+       find templates/nextjs/blocks -mindepth 1 -maxdepth 1 -type d | wc -l    # 有几个块
+       find templates/nextjs/blocks -mindepth 2 -maxdepth 2 -type d | wc -l    # 有几个 (块, 形态) 对
+   🔴 这两条用 `find` 而不是 `ls -d` 加通配，是因为这一段住在一个 CSS 块注释里：通配那种写法里
+      「星号紧跟斜杠」的组合**会把这条注释当场关掉**，后面几十行就变成了选择器。第一版就是那么写的，
+      `scripts/block-migration/css-equiv.js` 当场读出「多了一条 (媒体查询, 选择器)」，
+      而生成器现在自己也拦这一格（见 build-blocks.js 的 assertNoLostRules）。
+   📌 别在共享树 `/root/work/ai1st` 上取这个数：它常年落后 main 几百个 commit，读到的是旧的那一版
+      区块库。要 main 的读数就在自己那棵票的工作区里 `git fetch` 之后取。
    要加新的一种，先量出「它跟已有的哪一个真的不同」—— 判据是 D5 的**几何读数**（真浏览器量边界框），
    不是「排版意图的元组跟别人不同」：元组相同**不阻断**，但必须量得出盒子差别（PM 2026-09-16 裁定；
    今天 main 上就有多组元组逐字相同的形态）。
@@ -74,7 +84,6 @@
    ══════════════════════════════════════════════════════════════════════════════════════════════════ */
 
 /* ══ announcement-bar ══════════════════════════════════════════════════════════════════════ */
-
 /* announcement-bar · stack  （ember-12 + azure-29 今天选的就是它） */
 
 [data-block="announcement-bar"][data-shape="stack"] {
@@ -92,7 +101,6 @@
 }
 
 /* ══ blog-preview ══════════════════════════════════════════════════════════════════════ */
-
 /* blog-preview · two-up  （ember-12 今天选的就是它） */
 
 [data-block="blog-preview"][data-shape="two-up"] {
@@ -355,7 +363,6 @@
 }
 
 /* ══ card-group ══════════════════════════════════════════════════════════════════════ */
-
 /* card-group · two-up  （ember-12 今天选的就是它） */
 
 [data-block="card-group"][data-shape="two-up"] {
@@ -678,6 +685,34 @@
 }
 
 /* ══ contact-form ══════════════════════════════════════════════════════════════════════ */
+/* contact-form · 那两个零件默认藏起来，只有用得着它的那一种形态把它放出来（#1370）
+
+   🔴 这个块从本票起多了两个零件（`__media` / `__aside`），它们的**盒子一直在树上**（理由在
+   `ContactFormSection.tsx` 文件头：不这样的话契约钩子在任何一页上都不出现，检查 ⑤ 当场红），
+   而里面的东西只在用得着它的那一种形态上渲染。所以在别的形态上它们是**空盒子** ——
+   不藏的话：① `base.css` 给 `__media` 的比例会画出一条空带子；② 排版意图那条 `media-none`
+   （一个 `__media` 都不许有）会当场红，而这个块已有的六种形态全写着 `media: none`。
+   🔴 藏的是**空盒子**，所以不撞检查 ②（essential 块里有内容的零件不许被藏）—— 那一条只判
+   「里面有东西」的零件。里面有东西的那一格（`form-over-media` 的图 / `info-side` 的卡）
+   在它自己的形态上是**显示**的。
+
+   🔴 **为什么是「默认藏 + 逐个放出来」，不是「逐个形态各写一条藏」（QA2 在 r2 上打回的那条）。**
+   第一版写的是后者：六种既有形态各一条、外加 `form-over-media` 藏卡 / `info-side` 藏图，一共八条，
+   全都钉在 `[data-shape="…"]` 上。而 `data-shape` **不是每个站都有**：`sync-config.js:784` 那个
+   `if (structureThemeId)` 才写它，而 `lib/site-regions.js` 的 `readStructureThemeId()` 在
+   「没有 theme.json」「themeId 不在 `scripts/themes.js` 的注册表里」两种情况下返回 `null`
+   —— 后者是条普通历史：站当初上装的主题**退役**了（#1161 把 30 套下架，`readAppliedThemeId()`
+   那里从 `process.exit(1)` 降级成一行日志，所以这类站照样建得出来）。
+   那个状态下八条一条都不匹配，两个空盒子就露出来：实测夹具站 `contact.html` 块高
+   **912 → 1726px**（1280）· **847 → 1148px**（375），多出来的是两块涂了主题
+   `--color-primary-100` 的实心空面板，而这个块是 `essential`。
+   默认藏把失败方向掉了个个儿：**认不出形态 ⟹ 藏**。顺带也治了「将来加第 9 种形态时忘了写藏的那条」
+   —— 那种漏是静默的（图会在一个写着 `media: none` 的形态上冒出来）。 */
+
+[data-block="contact-form"] .contact-form__media,
+[data-block="contact-form"] .contact-form__aside {
+  display: none;
+}
 
 /* contact-form · panel-below  （ember-12 今天选的就是它） */
 
@@ -913,35 +948,6 @@
   }
 }
 
-/* contact-form · 那两个零件默认藏起来，只有用得着它的那一种形态把它放出来（#1370）
-
-   🔴 这个块从本票起多了两个零件（`__media` / `__aside`），它们的**盒子一直在树上**（理由在
-   `ContactFormSection.tsx` 文件头：不这样的话契约钩子在任何一页上都不出现，检查 ⑤ 当场红），
-   而里面的东西只在用得着它的那一种形态上渲染。所以在别的形态上它们是**空盒子** ——
-   不藏的话：① `base.css` 给 `__media` 的比例会画出一条空带子；② 排版意图那条 `media-none`
-   （一个 `__media` 都不许有）会当场红，而这个块已有的六种形态全写着 `media: none`。
-   🔴 藏的是**空盒子**，所以不撞检查 ②（essential 块里有内容的零件不许被藏）—— 那一条只判
-   「里面有东西」的零件。里面有东西的那一格（`form-over-media` 的图 / `info-side` 的卡）
-   在它自己的形态上是**显示**的。
-
-   🔴 **为什么是「默认藏 + 逐个放出来」，不是「逐个形态各写一条藏」（QA2 在 r2 上打回的那条）。**
-   第一版写的是后者：六种既有形态各一条、外加 `form-over-media` 藏卡 / `info-side` 藏图，一共八条，
-   全都钉在 `[data-shape="…"]` 上。而 `data-shape` **不是每个站都有**：`sync-config.js:784` 那个
-   `if (structureThemeId)` 才写它，而 `lib/site-regions.js` 的 `readStructureThemeId()` 在
-   「没有 theme.json」「themeId 不在 `scripts/themes.js` 的注册表里」两种情况下返回 `null`
-   —— 后者是条普通历史：站当初上装的主题**退役**了（#1161 把 30 套下架，`readAppliedThemeId()`
-   那里从 `process.exit(1)` 降级成一行日志，所以这类站照样建得出来）。
-   那个状态下八条一条都不匹配，两个空盒子就露出来：实测夹具站 `contact.html` 块高
-   **912 → 1726px**（1280）· **847 → 1148px**（375），多出来的是两块涂了主题
-   `--color-primary-100` 的实心空面板，而这个块是 `essential`。
-   默认藏把失败方向掉了个个儿：**认不出形态 ⟹ 藏**。顺带也治了「将来加第 9 种形态时忘了写藏的那条」
-   —— 那种漏是静默的（图会在一个写着 `media: none` 的形态上冒出来）。 */
-
-[data-block="contact-form"] .contact-form__media,
-[data-block="contact-form"] .contact-form__aside {
-  display: none;
-}
-
 /* contact-form · form-over-media  （#1370 · 对表 FlyonUI contact-us-6：一张实景大图，表单卡叠在图上）
 
    🔴 「叠」这件事靠的是**同一个网格坑**：图和表单都放进第 2 行，图跨满两列、表单占右边那一列并写
@@ -1078,6 +1084,19 @@
 }
 
 /* ══ contact-info ══════════════════════════════════════════════════════════════════════ */
+/* contact-info · media-side-grid  （#1382 · 对表 FlyonUI contact-us-1：一侧一张实景图，另一侧联系方式）
+
+   🔴 **这个块的图零件默认不参与排版，只有这一副把它放出来。** 另外三种形态的 `layout_intent.media`
+   写着 `none`，那是一条断言：「这个块【没有】图」（`layout-intent.mjs` §media-none）。而图槽是**块级**
+   的 —— 老板（或量主题那份全填夹具）一填，四种形态就都有那个零件。默认隐藏 + 单点放出，方向是安全的：
+   将来加第 5 种形态而忘了处理它，图不会冒出来，反而是 `media-side-grid` 这一副的 `media: side` 断言
+   会当场点名。反过来写（给那三种各写一条 `display: none`）漏一种就是静默失败。
+   🔴 判「在不在版面里」用的是 `display !== 'none'`（`layout-intent.mjs` §laidOut，#1337），所以
+   `display: none` 是真的让它不参与，不是视觉上藏起来。 */
+
+[data-block="contact-info"] .contact-info__media {
+  display: none;
+}
 
 /* contact-info · label-side  （ember-12 今天选的就是它） */
 
@@ -1186,20 +1205,6 @@
   }
 }
 
-/* contact-info · media-side-grid  （#1382 · 对表 FlyonUI contact-us-1：一侧一张实景图，另一侧联系方式）
-
-   🔴 **这个块的图零件默认不参与排版，只有这一副把它放出来。** 另外三种形态的 `layout_intent.media`
-   写着 `none`，那是一条断言：「这个块【没有】图」（`layout-intent.mjs` §media-none）。而图槽是**块级**
-   的 —— 老板（或量主题那份全填夹具）一填，四种形态就都有那个零件。默认隐藏 + 单点放出，方向是安全的：
-   将来加第 5 种形态而忘了处理它，图不会冒出来，反而是 `media-side-grid` 这一副的 `media: side` 断言
-   会当场点名。反过来写（给那三种各写一条 `display: none`）漏一种就是静默失败。
-   🔴 判「在不在版面里」用的是 `display !== 'none'`（`layout-intent.mjs` §laidOut，#1337），所以
-   `display: none` 是真的让它不参与，不是视觉上藏起来。 */
-
-[data-block="contact-info"] .contact-info__media {
-  display: none;
-}
-
 [data-block="contact-info"][data-shape="media-side-grid"] {
   display: grid;
   grid-template-columns: 1fr;
@@ -1283,6 +1288,55 @@
 }
 
 /* ══ content-split ══════════════════════════════════════════════════════════════════════ */
+[data-block="content-split"]:not([data-has-imageUrl]) .content-split__media {
+  display: none;
+}
+
+/* content-split · narrow-stack-uniform  （azure-29 今天选的就是它） */
+
+[data-block="content-split"][data-shape="narrow-stack-uniform"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+  justify-items: center;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-uniform"] .content-split__media {
+  aspect-ratio: 3 / 2;
+  order: 1;
+  max-width: 30rem;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-uniform"] .content-split__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-uniform"] .content-split__body {
+  display: grid;
+  align-content: start;
+  max-width: 34rem;
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-uniform"] .content-split__bullets {
+  display: grid;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-uniform"] .content-split__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-uniform"] .content-split__stat {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="content-split"][data-shape="narrow-stack-uniform"] {
+    grid-template-columns: 1fr;
+  }
+}
 
 /* content-split · media-right-alternate  （ember-12 今天选的就是它） */
 
@@ -1365,52 +1419,6 @@
 @media (min-width: 1024px) {
   [data-block="content-split"][data-shape="media-right-alternate"] {
     grid-template-columns: 1fr 1fr;
-  }
-}
-
-/* content-split · narrow-stack-uniform  （azure-29 今天选的就是它） */
-
-[data-block="content-split"][data-shape="narrow-stack-uniform"] {
-  display: grid;
-  grid-template-columns: 1fr;
-  align-items: start;
-  justify-items: center;
-}
-
-[data-block="content-split"][data-shape="narrow-stack-uniform"] .content-split__media {
-  aspect-ratio: 3 / 2;
-  order: 1;
-  max-width: 30rem;
-}
-
-[data-block="content-split"][data-shape="narrow-stack-uniform"] .content-split__headline {
-  grid-column: 1 / -1;
-}
-
-[data-block="content-split"][data-shape="narrow-stack-uniform"] .content-split__body {
-  display: grid;
-  align-content: start;
-  max-width: 34rem;
-  order: 2;
-}
-
-[data-block="content-split"][data-shape="narrow-stack-uniform"] .content-split__bullets {
-  display: grid;
-}
-
-[data-block="content-split"][data-shape="narrow-stack-uniform"] .content-split__stats {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-}
-
-[data-block="content-split"][data-shape="narrow-stack-uniform"] .content-split__stat {
-  display: grid;
-  align-content: start;
-}
-
-@media (min-width: 1024px) {
-  [data-block="content-split"][data-shape="narrow-stack-uniform"] {
-    grid-template-columns: 1fr;
   }
 }
 
@@ -2037,6 +2045,9 @@
 }
 
 /* ══ cta-banner ══════════════════════════════════════════════════════════════════════ */
+[data-block="cta-banner"]:not([data-has-avatars]) .cta-banner__avatars {
+  display: none;
+}
 
 /* cta-banner · title-side  （ember-12 + azure-29 今天选的就是它） */
 
@@ -2212,6 +2223,33 @@
 }
 
 /* ══ faq-accordion ══════════════════════════════════════════════════════════════════════ */
+/* faq-accordion · 图在【不以图为主】的那六种形态里排哪儿（#1362）
+
+   🔴 这个块从本票起有了一个可选图槽，而槽是**块级**的：老板（或 AI）填了图，七种形态就都有图，
+   不是只有 `media-side` 有。所以另外六种必须各自说清楚那张图排哪儿 —— 不写的话它跟着自动流落进
+   下一个空格子，在两列 / 三列的形态里会挤进问答中间，而 manifest 那一行还写着 `media: none`。
+   本票在真浏览器上量过这件事（1280px，两套主题）：六种全部读到「manifest 说这个块没有图，
+   实际有 .faq-accordion__media」。
+
+   🔴 处置是**照实说**，不是把图藏起来：`layout_intent.media` 从 `none` 改成 `below`，并在这里把它
+   钉在最后一行通栏。理由是库里已经这么做了 —— 带可选图槽的块（hero / content-split / hero-with-form）
+   **没有一种形态**写 `media: none`：hero 的 `text-center` / `text-left` 写 `below`，content-split 的
+   四种 narrow-stack / media-top 写 `above`。把图藏起来是另一条路，本票量过它的代价，写在交付里。 */
+
+/* 🔴 `width: 100%` 不是可省的：网格里 `justify-self: center` 会让这个零件按**内在宽**定宽，而图的内在宽
+   就是原图的像素宽 —— 实测（1280px，heading-side，夹具那张 40×30 的 svg）：这个盒子读出来
+   x=620 w=40 h=30，一张缩成邮票大小的图，而检查 ⑨ 的 `media: below` 只判上下顺序、对尺寸一个字不说。
+   同族一条在 #1361（`justify-items: center` 把零件按 fit-content 定宽）。 */
+[data-block="faq-accordion"][data-shape="stack"] .faq-accordion__media,
+[data-block="faq-accordion"][data-shape="heading-side"] .faq-accordion__media,
+[data-block="faq-accordion"][data-shape="two-column"] .faq-accordion__media,
+[data-block="faq-accordion"][data-shape="centered"] .faq-accordion__media,
+[data-block="faq-accordion"][data-shape="three-column-open"] .faq-accordion__media {
+  grid-column: 1 / -1;
+  width: 100%;
+  max-width: 48rem;
+  justify-self: center;
+}
 
 /* faq-accordion · stack  （ember-12 今天选的就是它） */
 
@@ -2457,6 +2495,13 @@
   }
 }
 
+/* `aside-cta` 的右栏留给求助卡，所以它的图钉在左栏最后一行（通栏会把卡挤下去）。 */
+[data-block="faq-accordion"][data-shape="aside-cta"] .faq-accordion__media {
+  grid-column: 1;
+  width: 100%;
+  max-width: 48rem;
+}
+
 /* faq-accordion · three-column-open  （#1362 · 对表 FlyonUI faq-7：问答卡排成三列）
 
    📌 名字里那个 `open` 是对表那一条的叫法，形态层**给不了**它：一条问答开着还是收着由数据决定
@@ -2495,44 +2540,7 @@
   }
 }
 
-
-/* faq-accordion · 图在【不以图为主】的那六种形态里排哪儿（#1362）
-
-   🔴 这个块从本票起有了一个可选图槽，而槽是**块级**的：老板（或 AI）填了图，七种形态就都有图，
-   不是只有 `media-side` 有。所以另外六种必须各自说清楚那张图排哪儿 —— 不写的话它跟着自动流落进
-   下一个空格子，在两列 / 三列的形态里会挤进问答中间，而 manifest 那一行还写着 `media: none`。
-   本票在真浏览器上量过这件事（1280px，两套主题）：六种全部读到「manifest 说这个块没有图，
-   实际有 .faq-accordion__media」。
-
-   🔴 处置是**照实说**，不是把图藏起来：`layout_intent.media` 从 `none` 改成 `below`，并在这里把它
-   钉在最后一行通栏。理由是库里已经这么做了 —— 带可选图槽的块（hero / content-split / hero-with-form）
-   **没有一种形态**写 `media: none`：hero 的 `text-center` / `text-left` 写 `below`，content-split 的
-   四种 narrow-stack / media-top 写 `above`。把图藏起来是另一条路，本票量过它的代价，写在交付里。 */
-
-/* 🔴 `width: 100%` 不是可省的：网格里 `justify-self: center` 会让这个零件按**内在宽**定宽，而图的内在宽
-   就是原图的像素宽 —— 实测（1280px，heading-side，夹具那张 40×30 的 svg）：这个盒子读出来
-   x=620 w=40 h=30，一张缩成邮票大小的图，而检查 ⑨ 的 `media: below` 只判上下顺序、对尺寸一个字不说。
-   同族一条在 #1361（`justify-items: center` 把零件按 fit-content 定宽）。 */
-[data-block="faq-accordion"][data-shape="stack"] .faq-accordion__media,
-[data-block="faq-accordion"][data-shape="heading-side"] .faq-accordion__media,
-[data-block="faq-accordion"][data-shape="two-column"] .faq-accordion__media,
-[data-block="faq-accordion"][data-shape="centered"] .faq-accordion__media,
-[data-block="faq-accordion"][data-shape="three-column-open"] .faq-accordion__media {
-  grid-column: 1 / -1;
-  width: 100%;
-  max-width: 48rem;
-  justify-self: center;
-}
-
-/* `aside-cta` 的右栏留给求助卡，所以它的图钉在左栏最后一行（通栏会把卡挤下去）。 */
-[data-block="faq-accordion"][data-shape="aside-cta"] .faq-accordion__media {
-  grid-column: 1;
-  width: 100%;
-  max-width: 48rem;
-}
-
 /* ══ features-grid ══════════════════════════════════════════════════════════════════════ */
-
 /* features-grid · two-up  （ember-12 今天选的就是它） */
 
 [data-block="features-grid"][data-shape="two-up"] {
@@ -2863,7 +2871,6 @@
 }
 
 /* ══ gallery ══════════════════════════════════════════════════════════════════════ */
-
 /* gallery · two-up  （ember-12 今天选的就是它） */
 
 [data-block="gallery"][data-shape="two-up"] {
@@ -2941,7 +2948,6 @@
     grid-template-columns: 1fr 1fr 1fr;
   }
 }
-
 
 /* gallery · featured-thumbs  （#1368，对表 FlyonUI gallery-2：一张大图 + 右侧一组小图）
 
@@ -3102,59 +3108,135 @@
 }
 
 /* ══ hero ══════════════════════════════════════════════════════════════════════ */
+/* hero · 图片带（#1358）—— 这是一个**可选零件**，不是一种形态
 
-/* hero · media-cover  （ember-12 今天选的就是它） */
+   FlyonUI hero-1 的下半截：文案之下一整条横向照片带。它跟着**内容**出现（`blocks/hero/manifest.json` 的
+   `imageBand` 槽填了才渲染，`HeroSection.tsx` 空着时一个字节都不画），所以主题**选不了**「有带 /
+   没带」—— 这一条是 PM 在 #1358 r4 裁定的代价，写在票的正文里：五根排版轴里表达不出「一张图」和
+   「一条图片带」的区别，照 hero-5 的先例它落在**已有的 `text-center`** 加这个槽上，hero 的形态数不变。
 
-[data-block="hero"][data-shape="media-cover"] {
+   🔴 下面这几条**只落在 `.hero__band` / `.hero__band-img` 这两个新类名上**，七种已有形态自己的选择器
+   一条都没碰 —— 验收那条「已有的对不退化」靠的就是这个（改到它们的话，HTML 没变也不等于画出来没变）。
+
+   🔴 `grid-column: 1 / -1` 是承重的，不是顺手写的。两栏的 `media-left` / `media-right` 在 ≥1024px 上是
+   `5fr 6fr` / `6fr 5fr`，这条带不跨列的话会被检查 ⑨ 算成**第三条列带**上的一个零件，那两种形态
+   `columns: "two"` 当场红（判据：`scripts/lib/layout-intent.mjs:119` 判跨列、`:343-352` 判列数）。
+   一栏的那五种上它是恒等式（只有一条列带），留着是保险。
+
+   🔴 `order: 4` 让它排在最后一位：七种形态里 `.hero__deco` / `.hero__body` / `.hero__media` 用掉的是
+   1–3（`media-cover` 那种不用 order、用 grid-row，带按自动放置落到它们下面那一行）。排最后是
+   FlyonUI hero-1 的样子，也让 `media: "below"`（图在正文之下）那条断言的两个当事人不被它隔开。
+
+   三端照 `docs/reference/flyonui/flyonui-hero-section-matrix.html` 的 hero-1：电脑端一整行（几张就是
+   几列，`grid-auto-flow: column`）· iPad 三张一行 · 手机两张并排。
+   🔴 列宽一律 `minmax(0, 1fr)`：`1fr` 的下限是 `auto`（内容的最小尺寸），照片那点最小宽度在 375px 上
+   会把这条带撑出块的内容盒 —— 而验收那条「手机端不横向滚动」数的正是检查 ⑨ 的自溢出清单
+   （开工前基线：全站 0 格）。
+   🔴 **没做上下错位**（FlyonUI 那条带的照片是交错的）：错位要按第几张来排，写法是 `:nth-child()`，
+   而错位之后那几张图的几何**没有任何机器判据**（带里的图不在检查 ⑨ 的取样面上，见 `HeroSection.tsx`
+   那段注释）。票的正文把这一格列成了本票买不到的东西，所以这里不加一个没人看得住的花样。 */
+
+[data-block="hero"] .hero__band {
+  order: 4;
+  grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: 1fr;
-  align-items: center;
-  min-height: 36rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  width: 100%;
 }
 
-[data-block="hero"][data-shape="media-cover"] .hero__media {
-  aspect-ratio: auto;
-  grid-row: 1;
-  grid-column: 1 / -1;
-  align-self: stretch;
-  min-height: 30rem;
+[data-block="hero"] .hero__band-img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
 }
 
-[data-block="hero"][data-shape="media-cover"] .hero__body {
-  display: grid;
-  align-content: start;
-  max-width: 44rem;
-  grid-row: 1;
-  grid-column: 1 / -1;
-  align-self: center;
+@media (min-width: 768px) {
+  [data-block="hero"] .hero__band {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
-[data-block="hero"][data-shape="media-cover"] .hero__title {
-  grid-column: 1 / -1;
+@media (min-width: 1024px) {
+  [data-block="hero"] .hero__band {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+  }
 }
 
-[data-block="hero"][data-shape="media-cover"] .hero__sub {
-  grid-column: 1 / -1;
-  max-width: 36rem;
-}
+/* ══════════════════════════════════════════════════════════════════════════════════════════════════
+   可选槽位没填，就不画那个零件（#1337 立，#1361 起不再只管「图」；设计文档 D4 / D11 ⑥）
+   ══════════════════════════════════════════════════════════════════════════════════════════════════
 
-[data-block="hero"][data-shape="media-cover"] .hero__cta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-}
+   可选的图槽位没填时，组件照样把媒体容器渲染出来（`HeroSection.tsx:67` / `ContentSplitSection.tsx:86`
+   无条件渲染，只有 `<img>` 才看 `imageUrl`）—— 那是契约 §2「每个零件都在」要的：主题皮拿它当
+   `::before/::after` 的钩子。于是上面那些形态规则给这个空 `div` 一条 `aspect-ratio`、主题皮给它一块
+   底色，页面上就多出一条什么都没有的空色带（Chris 2026-09-15 在 test 站 azure-29 / ember-12 两套下
+   都看到了：1280px 下 `.hero__media` 是 1280×267、底色 `rgb(30,58,138)`、**0 个子元素**）。
 
-[data-block="hero"][data-shape="media-cover"] .hero__deco {
-  grid-column: 1 / -1;
-  grid-row: 2;
-  max-width: 7rem;
+   判据用 `data-has-imageUrl` —— #1331 按 manifest 的 `required: false` + 这一页真填了，在块根上写
+   `data-has-<槽位>="true"`（`src/lib/sections/blockAttrs.ts`）。🔴 不用 `:has()` / `:empty`：那两个
+   问的是「DOM 里有没有子元素」，而这里要问的是「这个槽位有没有数据」—— 两者在「填了图但图 404」
+   这类情形上分岔，而且 `:empty` 对空白文本节点敏感。
+
+   🔴 **这条规则只能住在这一层，`base.css` 不是可选项。** `base.css` 有自己的检查
+   （`scripts/base-css-lint.js`）只放行单个 class 的选择器（目的是保证主题永远盖得过地板），而
+   `sync-config.js` 每次建站都调 `css-contract-check.js`（射程 = `public/base.css` + `public/themes/*.css`，
+   `shapes.css` 不在里面），一有违规就**拒绝这次构建** —— 放错地方不是报个警告，是所有站建不出来。
+   实测：原样 `base.css` rc=0；把下面这两行加到它末尾就是 `🔴 2 violation(s)`、rc=1，点名「后代选择器」。
+
+   🔴 **按 `data-block` 逐个写，不写通配。** 覆盖面 = 「那个槽位是可选的」的块。图这一族现取
+   （2026-09-15，`origin/main faa39001`）：解析 32 份 manifest，`imageUrl` 且 `required: false` 的是
+   `{hero, hero-with-form, content-split}` 三个。图**必填**的块（gallery 那类）没图是数据错，
+   该由 `validateSite` 说话，不是默默藏起来。加一个可选槽位、而且它的零件是无条件渲染的块时，
+   这里补一条。
+   🔴 **#1361 加了第四条，判的槽位不叫 `imageUrl`**：`cta-banner` 的头像带（可选槽 `avatars`，
+   每一项带一个 `imageUrl`）。判据、写法、「按 `data-block` 逐条写」这三样跟上面三条逐字相同，
+   唯一的差别是槽位名 —— 所以这一族的名字从「没图就不画媒体带」改成了「可选槽位没填就不画那个零件」。
+   📌 里面装的确实是图片，但这个盒子**不是**上面那三条说的「媒体容器」：它的类名不以 `__media`
+   结尾，而那个后缀是 `layout-intent-vocab.json` 判「这个零件是这个块的图」的唯一判据，
+   `cta-banner` 五种形态也全写着 `media: none`。两件事分开：这里判的是「槽位空不空」。
+   📌 `hero-with-form` 是 #1333 落到 main 上的第三个成员（本票开工那天落的）—— 它跟 `hero` 用的是
+   **同一个** `.hero__media` 类名、不同的 `data-block`，所以两条规则各写各的，不能合并成一条按类名
+   的写法：按类名写就等于通配，把「图必填的块不许被盖到」这条边界丢掉。
+   📌 上游 #1333 已经用同一个钩子治了 `hero/text-center` 一格（`[data-has-imageUrl]` 才给
+   `aspect-ratio`，见本表 §hero · text-center）。那是**只管尺寸**的半条：容器还在版面里、高度 0。
+   本票这条更强也更统一 —— 没图就整个不在版面里，`hero-with-form/form-side`（`aspect-ratio: 24 / 5`
+   无条件给）和 `content-split` 那两条无条件比例只有这么写才盖得住。两者不冲突：那边管「有图时多大」，
+   这边管「没图时在不在」。
+
+   📌 **放在文件末尾，但今天不是它靠位置才生效的。** 这几条选择器是 (0,3,0)，跟上面每一条形态规则
+   （块属性 + 画法属性 + 一个类名）逐位相同，同特异度靠先后定胜负；而实测五份表（`base.css` /
+   本表 / 两套 `themes/*.css` / `src/app/globals.css`）里，那两个媒体容器身上**一条 `display` 声明
+   都没有**（本条之外命中 0）—— 所以今天没有对手，没有「因为排在前面所以被盖掉」这回事。写在末尾
+   是为了将来：形态层真要给某个 (块, 画法) 写 `display` 时，同特异度下它排在前面、这一条赢，空媒体
+   带不会因为加了一条画法又冒回来。
+   🔴 **#1361 那条头像带不一样，它【有】对手**：`base.css` 给 `.cta-banner__avatars` 写了
+   `display: flex`（那是没有任何表时也得成立的地板）。这一条赢不是靠排在后面，是靠特异度
+   —— (0,3,0) 对 (0,1,0)，而且 `base.css` 那条 `<link>` 本来就排在本表前面（`layout.tsx`：
+   base.css → shapes.css → theme.css → custom.css）。两个理由各自单独成立。
+   🔴 **这段注释里不许写出 `[data-block=…][data-shape=…]` 那个形状的字面串。**
+   `block-manifest.js` 的 `shapePairsFromCss` 拿正则扫**整份文件**、不剥注释（:65），注释里举个例子
+   就会凭空多出一个 (块, 画法) 对。实测：第一版这里举的例子是 hero 的 form-side，而 #1333 刚把它搬去
+   `hero-with-form` —— `lib/block-shapes.test.js` 当场红「CSS 有、manifest 没有：1 个 —— hero/form-side」，
+   而 `shapes.css` 我一行都没删。
+   🔴 主题皮那一侧不用担心：`display` 不在契约 §2 的主题可写属性表里（`theme-css-lint.js` 的
+   `PROP_EXACT` / `PROP_PREFIXES` 没有它；它在 `GEOM_EXACT` 里，`isGeometry('display')` 为真）。
+   拿 `lint()` 真跑过五臂（每臂一份单规则的表）：合法属性那一臂只报「缺 v3 头」这条共通的，
+   而 `.hero__media{display:none}` / `.content-split__media{display:none}` / `[data-block="hero"]{display:none}`
+   三臂各多出一条 `"display" is not on the contract's property whitelist` —— 部件上、块根上都写不出。
+   ⟹ 今天能藏住这些零件的只有平台层，而平台层唯一会藏它们的就是下面这四条、判据正是「槽位空着」。
+   ══════════════════════════════════════════════════════════════════════════════════════════════════ */
+
+[data-block="hero"]:not([data-has-imageUrl]) .hero__media {
+  display: none;
 }
 
 /* hero · text-center  （默认排版，ember-12 从 #1333 起穿的就是它）
 
    为什么 hero 需要这一个：#1333 把 form-side 整段搬去了 hero-with-form，而 hero 剩下的 media-cover
-   要求有图（`blocks/hero.json` 的 `needs: ["imageUrl"]`）。`block-manifest.js` 的 checkManifestShape
+   要求有图（`blocks/hero/manifest.json` 的 `needs: ["imageUrl"]`）。`block-manifest.js` 的 checkManifestShape
    明文禁止「默认排版要求槽位」—— 别的排版缺槽位落回的就是它，它自己再缺就无处可落。所以 hero 得有
    一个不要求任何槽位的默认，设计文档 D1 给 hero 列的五种排版里就有「纯文字居中」，几何照生成器里
    同名那一份（`sheet-recipes.js` 的 `HERO_LOOKS['text-center']`）搬，不新发明。
@@ -3204,7 +3286,7 @@
 /* 🔴 位置**无条件**给，尺寸才挂在 `[data-has-imageUrl]` 上 —— 这两行不许合并成一条。
    合并的话，没填图的 hero 上 `.hero__media` 拿不到 `order`，而 CSS 的默认 order 是 **0**，
    这个块其余部件从 1 起 ⟹ 那个（高度为 0 的）媒体位会排到**最上沿**，正文前面凭空多一段网格间距，
-   而且 `blocks/hero.json` 那段排版意图写着 `media: "below"`（图在文之下）—— 几何守卫按边界框判，
+   而且 `blocks/hero/manifest.json` 那段排版意图写着 `media: "below"`（图在文之下）—— 几何守卫按边界框判，
    在没图的页面上会当场读到「图在文之上」。实测（无图、1280px 真浏览器）：
      合并写法   媒体 y 186–186（order 0，在正文 261 之上）· 块高 547
      现在这样   媒体 y 排在正文之后，意图那一条成立
@@ -3218,6 +3300,54 @@
 [data-block="hero"][data-shape="text-center"][data-has-imageUrl] .hero__media {
   width: 100%;
   aspect-ratio: 21 / 9;
+}
+
+/* hero · media-cover  （ember-12 今天选的就是它） */
+
+[data-block="hero"][data-shape="media-cover"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+  min-height: 36rem;
+}
+
+[data-block="hero"][data-shape="media-cover"] .hero__media {
+  aspect-ratio: auto;
+  grid-row: 1;
+  grid-column: 1 / -1;
+  align-self: stretch;
+  min-height: 30rem;
+}
+
+[data-block="hero"][data-shape="media-cover"] .hero__body {
+  display: grid;
+  align-content: start;
+  max-width: 44rem;
+  grid-row: 1;
+  grid-column: 1 / -1;
+  align-self: center;
+}
+
+[data-block="hero"][data-shape="media-cover"] .hero__title {
+  grid-column: 1 / -1;
+}
+
+[data-block="hero"][data-shape="media-cover"] .hero__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="hero"][data-shape="media-cover"] .hero__cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-block="hero"][data-shape="media-cover"] .hero__deco {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  max-width: 7rem;
 }
 
 /* hero · media-left  （#1340 从生成器的 heroLook['media-left'] 剪来；今天没有主题选它）
@@ -3425,7 +3555,7 @@
    `text-left` 跟它一样是**纯文字**那一档（生成器里 `HERO_LOOKS['text-left'].content` 是 `text-only`），
    所以它的 `needs` 是空的，没填图的 hero 落回来也会戴上它。合并成一条的话，没图的那些站会拿到一个
    有 `aspect-ratio` 的空色块（主题表给 `.hero__media` 画了底色）；反过来只给尺寸不给 `order`，那个
-   高度为 0 的媒体位会按默认 `order: 0` 跑到最上沿，而 `blocks/hero.json` 这一形态的排版意图写着
+   高度为 0 的媒体位会按默认 `order: 0` 跑到最上沿，而 `blocks/hero/manifest.json` 这一形态的排版意图写着
    `media: "below"`（图在文之下）—— 几何守卫按边界框判，在没图的页面上会当场读到「图在文之上」。 */
 
 [data-block="hero"][data-shape="text-left"] .hero__media {
@@ -3465,64 +3595,10 @@
   max-width: 5rem;
 }
 
-/* hero · 图片带（#1358）—— 这是一个**可选零件**，不是一种形态
-
-   FlyonUI hero-1 的下半截：文案之下一整条横向照片带。它跟着**内容**出现（`blocks/hero.json` 的
-   `imageBand` 槽填了才渲染，`HeroSection.tsx` 空着时一个字节都不画），所以主题**选不了**「有带 /
-   没带」—— 这一条是 PM 在 #1358 r4 裁定的代价，写在票的正文里：五根排版轴里表达不出「一张图」和
-   「一条图片带」的区别，照 hero-5 的先例它落在**已有的 `text-center`** 加这个槽上，hero 的形态数不变。
-
-   🔴 下面这几条**只落在 `.hero__band` / `.hero__band-img` 这两个新类名上**，七种已有形态自己的选择器
-   一条都没碰 —— 验收那条「已有的对不退化」靠的就是这个（改到它们的话，HTML 没变也不等于画出来没变）。
-
-   🔴 `grid-column: 1 / -1` 是承重的，不是顺手写的。两栏的 `media-left` / `media-right` 在 ≥1024px 上是
-   `5fr 6fr` / `6fr 5fr`，这条带不跨列的话会被检查 ⑨ 算成**第三条列带**上的一个零件，那两种形态
-   `columns: "two"` 当场红（判据：`scripts/lib/layout-intent.mjs:119` 判跨列、`:343-352` 判列数）。
-   一栏的那五种上它是恒等式（只有一条列带），留着是保险。
-
-   🔴 `order: 4` 让它排在最后一位：七种形态里 `.hero__deco` / `.hero__body` / `.hero__media` 用掉的是
-   1–3（`media-cover` 那种不用 order、用 grid-row，带按自动放置落到它们下面那一行）。排最后是
-   FlyonUI hero-1 的样子，也让 `media: "below"`（图在正文之下）那条断言的两个当事人不被它隔开。
-
-   三端照 `docs/reference/flyonui/flyonui-hero-section-matrix.html` 的 hero-1：电脑端一整行（几张就是
-   几列，`grid-auto-flow: column`）· iPad 三张一行 · 手机两张并排。
-   🔴 列宽一律 `minmax(0, 1fr)`：`1fr` 的下限是 `auto`（内容的最小尺寸），照片那点最小宽度在 375px 上
-   会把这条带撑出块的内容盒 —— 而验收那条「手机端不横向滚动」数的正是检查 ⑨ 的自溢出清单
-   （开工前基线：全站 0 格）。
-   🔴 **没做上下错位**（FlyonUI 那条带的照片是交错的）：错位要按第几张来排，写法是 `:nth-child()`，
-   而错位之后那几张图的几何**没有任何机器判据**（带里的图不在检查 ⑨ 的取样面上，见 `HeroSection.tsx`
-   那段注释）。票的正文把这一格列成了本票买不到的东西，所以这里不加一个没人看得住的花样。 */
-
-[data-block="hero"] .hero__band {
-  order: 4;
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: start;
-  width: 100%;
-}
-
-[data-block="hero"] .hero__band-img {
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
-}
-
-@media (min-width: 768px) {
-  [data-block="hero"] .hero__band {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 1024px) {
-  [data-block="hero"] .hero__band {
-    grid-template-columns: none;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(0, 1fr);
-  }
-}
-
 /* ══ hero-with-form ══════════════════════════════════════════════════════════════════════ */
+[data-block="hero-with-form"]:not([data-has-imageUrl]) .hero__media {
+  display: none;
+}
 
 /* hero-with-form · form-side  （这个块今天只有这一种排版；azure-29 与 ember-12 的选择单都指向它）
 
@@ -3833,7 +3909,6 @@
 }
 
 /* ══ map-area ══════════════════════════════════════════════════════════════════════ */
-
 /* map-area · two-up  （ember-12 今天选的就是它） */
 
 [data-block="map-area"][data-shape="two-up"] {
@@ -3889,7 +3964,6 @@
 }
 
 /* ══ newsletter-signup ══════════════════════════════════════════════════════════════════════ */
-
 /* newsletter-signup · form-side  （ember-12 + azure-29 今天选的就是它） */
 
 [data-block="newsletter-signup"][data-shape="form-side"] {
@@ -3968,7 +4042,6 @@
 }
 
 /* ══ page-header ══════════════════════════════════════════════════════════════════════ */
-
 /* page-header · stack-left  （ember-12 今天选的就是它） */
 
 [data-block="page-header"][data-shape="stack-left"] {
@@ -4054,7 +4127,6 @@
 }
 
 /* ══ pricing-table ══════════════════════════════════════════════════════════════════════ */
-
 /* pricing-table · two-up  （ember-12 今天选的就是它） */
 
 [data-block="pricing-table"][data-shape="two-up"] {
@@ -4292,7 +4364,6 @@
 }
 
 /* ══ process-steps ══════════════════════════════════════════════════════════════════════ */
-
 /* process-steps · heading-side  （ember-12 今天选的就是它） */
 
 [data-block="process-steps"][data-shape="heading-side"] {
@@ -4429,7 +4500,6 @@
 }
 
 /* ══ quote-form ══════════════════════════════════════════════════════════════════════ */
-
 /* quote-form · main-aside  （ember-12 + azure-29 今天选的就是它） */
 
 [data-block="quote-form"][data-shape="main-aside"] {
@@ -4474,7 +4544,6 @@
 }
 
 /* ══ service-related-pages ══════════════════════════════════════════════════════════════════════ */
-
 /* service-related-pages · two-up  （ember-12 今天选的就是它） */
 
 [data-block="service-related-pages"][data-shape="two-up"] {
@@ -4530,7 +4599,6 @@
 }
 
 /* ══ services-list ══════════════════════════════════════════════════════════════════════ */
-
 /* services-list · two-up  （ember-12 + azure-29 今天选的就是它） */
 
 [data-block="services-list"][data-shape="two-up"] {
@@ -4569,7 +4637,6 @@
 }
 
 /* ══ services-nav ══════════════════════════════════════════════════════════════════════ */
-
 /* services-nav · row  （ember-12 + azure-29 今天选的就是它；#1320 之前它俩选的是 stack，一列的网格） */
 
 /* 🔴 用 `row` 的块（今天是 services-nav 与 trusted-brands）`align-items` 一律写 `flex-start`，不写
@@ -4595,6 +4662,24 @@
 }
 
 /* ══ social-proof ══════════════════════════════════════════════════════════════════════ */
+/* social-proof · 那张可选的图排在哪儿（#1376）
+
+   🔴 这个块从本票起有了一个可选图槽，而槽是**块级**的：老板（或 AI）填了图，两副形态就都有图。
+   不写这一段的话它跟着自动流落进下一个空格子，在两列 / 三列里会挤进评分和徽章中间，而 manifest
+   那两行原来还写着 `media: none`（= 断言「这个块没有图」）。处置是照实说，不是把图藏起来：
+   `layout_intent.media` 从 `none` 改成 `below`（先例 #1362），这里把它钉在最后一行通栏。
+
+   🔴 `width: 100%` 不是可省的：网格里 `justify-self: center` 会让这个零件按**内在宽**定宽，而图的
+   内在宽就是原图的像素宽 —— #1362 在同族上量到过一张缩成邮票大小的图，而 `media: below` 只判上下
+   顺序、对尺寸一个字不说。 */
+
+[data-block="social-proof"][data-shape="two-up"] .social-proof__media,
+[data-block="social-proof"][data-shape="three-up"] .social-proof__media {
+  grid-column: 1 / -1;
+  width: 100%;
+  max-width: 48rem;
+  justify-self: center;
+}
 
 /* social-proof · two-up  （ember-12 今天选的就是它） */
 
@@ -4654,25 +4739,6 @@
   [data-block="social-proof"][data-shape="three-up"] {
     grid-template-columns: 1fr 1fr 1fr;
   }
-}
-
-/* social-proof · 那张可选的图排在哪儿（#1376）
-
-   🔴 这个块从本票起有了一个可选图槽，而槽是**块级**的：老板（或 AI）填了图，两副形态就都有图。
-   不写这一段的话它跟着自动流落进下一个空格子，在两列 / 三列里会挤进评分和徽章中间，而 manifest
-   那两行原来还写着 `media: none`（= 断言「这个块没有图」）。处置是照实说，不是把图藏起来：
-   `layout_intent.media` 从 `none` 改成 `below`（先例 #1362），这里把它钉在最后一行通栏。
-
-   🔴 `width: 100%` 不是可省的：网格里 `justify-self: center` 会让这个零件按**内在宽**定宽，而图的
-   内在宽就是原图的像素宽 —— #1362 在同族上量到过一张缩成邮票大小的图，而 `media: below` 只判上下
-   顺序、对尺寸一个字不说。 */
-
-[data-block="social-proof"][data-shape="two-up"] .social-proof__media,
-[data-block="social-proof"][data-shape="three-up"] .social-proof__media {
-  grid-column: 1 / -1;
-  width: 100%;
-  max-width: 48rem;
-  justify-self: center;
 }
 
 /* social-proof · heading-above-band  （#1367 · FlyonUI social-proof-6：文案卡 + 4 格指标条）
@@ -4817,7 +4883,6 @@
 }
 
 /* ══ team-grid ══════════════════════════════════════════════════════════════════════ */
-
 /* team-grid · two-up  （ember-12 今天选的就是它） */
 
 [data-block="team-grid"][data-shape="two-up"] {
@@ -5004,6 +5069,41 @@
 }
 
 /* ══ testimonials ══════════════════════════════════════════════════════════════════════ */
+/* testimonials · two-up  （azure-29 今天选的就是它） */
+
+[data-block="testimonials"][data-shape="two-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="testimonials"][data-shape="two-up"] .testimonials__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="testimonials"][data-shape="two-up"] .testimonials__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="testimonials"][data-shape="two-up"] .testimonials__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="testimonials"][data-shape="two-up"] .testimonials__rating {
+  display: flex;
+  align-items: center;
+}
+
+[data-block="testimonials"][data-shape="two-up"] .testimonials__service {
+  justify-self: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="testimonials"][data-shape="two-up"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
 
 /* testimonials · attribution-first  （ember-12 今天选的就是它） */
 
@@ -5051,42 +5151,6 @@
 
 @media (min-width: 1024px) {
   [data-block="testimonials"][data-shape="attribution-first"] {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
-/* testimonials · two-up  （azure-29 今天选的就是它） */
-
-[data-block="testimonials"][data-shape="two-up"] {
-  display: grid;
-  grid-template-columns: 1fr;
-}
-
-[data-block="testimonials"][data-shape="two-up"] .testimonials__headline {
-  grid-column: 1 / -1;
-}
-
-[data-block="testimonials"][data-shape="two-up"] .testimonials__sub {
-  grid-column: 1 / -1;
-  max-width: 36rem;
-}
-
-[data-block="testimonials"][data-shape="two-up"] .testimonials__item {
-  display: grid;
-  align-content: start;
-}
-
-[data-block="testimonials"][data-shape="two-up"] .testimonials__rating {
-  display: flex;
-  align-items: center;
-}
-
-[data-block="testimonials"][data-shape="two-up"] .testimonials__service {
-  justify-self: start;
-}
-
-@media (min-width: 1024px) {
-  [data-block="testimonials"][data-shape="two-up"] {
     grid-template-columns: 1fr 1fr;
   }
 }
@@ -5169,7 +5233,6 @@
     grid-template-columns: 1fr;
   }
 }
-
 
 /* testimonials · heading-side  （#1363，对表 FlyonUI testimonial-1：左文 + 右两卡）
 
@@ -5398,7 +5461,6 @@
 }
 
 /* ══ text-block ══════════════════════════════════════════════════════════════════════ */
-
 /* text-block · stack  （ember-12 + azure-29 今天选的就是它） */
 
 [data-block="text-block"][data-shape="stack"] {
@@ -5419,7 +5481,6 @@
 }
 
 /* ══ trusted-brands ══════════════════════════════════════════════════════════════════════ */
-
 /* trusted-brands · row  （ember-12 + azure-29 今天选的就是它；#1320 之前它俩选的是 stack，一列的网格） */
 
 [data-block="trusted-brands"][data-shape="row"] {
@@ -5513,86 +5574,281 @@
   }
 }
 
-/* ══════════════════════════════════════════════════════════════════════════════════════════════════
-   可选槽位没填，就不画那个零件（#1337 立，#1361 起不再只管「图」；设计文档 D4 / D11 ⑥）
-   ══════════════════════════════════════════════════════════════════════════════════════════════════
+/* ══ footer ══════════════════════════════════════════════════════════════════════ */
+/* ── footer · multi-column（多列大脚；没换装的站看到的就是它）───────────────────────────────
 
-   可选的图槽位没填时，组件照样把媒体容器渲染出来（`HeroSection.tsx:67` / `ContentSplitSection.tsx:86`
-   无条件渲染，只有 `<img>` 才看 `imageUrl`）—— 那是契约 §2「每个零件都在」要的：主题皮拿它当
-   `::before/::after` 的钩子。于是上面那些形态规则给这个空 `div` 一条 `aspect-ratio`、主题皮给它一块
-   底色，页面上就多出一条什么都没有的空色带（Chris 2026-09-15 在 test 站 azure-29 / ember-12 两套下
-   都看到了：1280px 下 `.hero__media` 是 1280×267、底色 `rgb(30,58,138)`、**0 个子元素**）。
+   地板给了它 grid + 3rem 的行距（`base.css` 的 `.footer__body`），这里给列数那三档 ——
+   小屏一列、≥768 两列、≥1024 四列，逐档照搬改造前 `Footer.tsx` 那串 `md:grid-cols-2 lg:grid-cols-4`。
+   🔴 CTA 色带在这一种里关掉（`base.css` 的 `.footer__cta { display: none }` 已经是默认，
+      这里不重复写）。 */
 
-   判据用 `data-has-imageUrl` —— #1331 按 manifest 的 `required: false` + 这一页真填了，在块根上写
-   `data-has-<槽位>="true"`（`src/lib/sections/blockAttrs.ts`）。🔴 不用 `:has()` / `:empty`：那两个
-   问的是「DOM 里有没有子元素」，而这里要问的是「这个槽位有没有数据」—— 两者在「填了图但图 404」
-   这类情形上分岔，而且 `:empty` 对空白文本节点敏感。
+[data-block="footer"][data-shape="multi-column"] .footer__body {
+  display: grid;
+  grid-template-columns: 1fr;
+}
 
-   🔴 **这条规则只能住在这一层，`base.css` 不是可选项。** `base.css` 有自己的检查
-   （`scripts/base-css-lint.js`）只放行单个 class 的选择器（目的是保证主题永远盖得过地板），而
-   `sync-config.js` 每次建站都调 `css-contract-check.js`（射程 = `public/base.css` + `public/themes/*.css`，
-   `shapes.css` 不在里面），一有违规就**拒绝这次构建** —— 放错地方不是报个警告，是所有站建不出来。
-   实测：原样 `base.css` rc=0；把下面这两行加到它末尾就是 `🔴 2 violation(s)`、rc=1，点名「后代选择器」。
+@media (min-width: 768px) {
+  [data-block="footer"][data-shape="multi-column"] .footer__body {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 
-   🔴 **按 `data-block` 逐个写，不写通配。** 覆盖面 = 「那个槽位是可选的」的块。图这一族现取
-   （2026-09-15，`origin/main faa39001`）：解析 32 份 manifest，`imageUrl` 且 `required: false` 的是
-   `{hero, hero-with-form, content-split}` 三个。图**必填**的块（gallery 那类）没图是数据错，
-   该由 `validateSite` 说话，不是默默藏起来。加一个可选槽位、而且它的零件是无条件渲染的块时，
-   这里补一条。
-   🔴 **#1361 加了第四条，判的槽位不叫 `imageUrl`**：`cta-banner` 的头像带（可选槽 `avatars`，
-   每一项带一个 `imageUrl`）。判据、写法、「按 `data-block` 逐条写」这三样跟上面三条逐字相同，
-   唯一的差别是槽位名 —— 所以这一族的名字从「没图就不画媒体带」改成了「可选槽位没填就不画那个零件」。
-   📌 里面装的确实是图片，但这个盒子**不是**上面那三条说的「媒体容器」：它的类名不以 `__media`
-   结尾，而那个后缀是 `layout-intent-vocab.json` 判「这个零件是这个块的图」的唯一判据，
-   `cta-banner` 五种形态也全写着 `media: none`。两件事分开：这里判的是「槽位空不空」。
-   📌 `hero-with-form` 是 #1333 落到 main 上的第三个成员（本票开工那天落的）—— 它跟 `hero` 用的是
-   **同一个** `.hero__media` 类名、不同的 `data-block`，所以两条规则各写各的，不能合并成一条按类名
-   的写法：按类名写就等于通配，把「图必填的块不许被盖到」这条边界丢掉。
-   📌 上游 #1333 已经用同一个钩子治了 `hero/text-center` 一格（`[data-has-imageUrl]` 才给
-   `aspect-ratio`，见本表 §hero · text-center）。那是**只管尺寸**的半条：容器还在版面里、高度 0。
-   本票这条更强也更统一 —— 没图就整个不在版面里，`hero-with-form/form-side`（`aspect-ratio: 24 / 5`
-   无条件给）和 `content-split` 那两条无条件比例只有这么写才盖得住。两者不冲突：那边管「有图时多大」，
-   这边管「没图时在不在」。
+@media (min-width: 1024px) {
+  [data-block="footer"][data-shape="multi-column"] .footer__body {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
 
-   📌 **放在文件末尾，但今天不是它靠位置才生效的。** 这几条选择器是 (0,3,0)，跟上面每一条形态规则
-   （块属性 + 画法属性 + 一个类名）逐位相同，同特异度靠先后定胜负；而实测五份表（`base.css` /
-   本表 / 两套 `themes/*.css` / `src/app/globals.css`）里，那两个媒体容器身上**一条 `display` 声明
-   都没有**（本条之外命中 0）—— 所以今天没有对手，没有「因为排在前面所以被盖掉」这回事。写在末尾
-   是为了将来：形态层真要给某个 (块, 画法) 写 `display` 时，同特异度下它排在前面、这一条赢，空媒体
-   带不会因为加了一条画法又冒回来。
-   🔴 **#1361 那条头像带不一样，它【有】对手**：`base.css` 给 `.cta-banner__avatars` 写了
-   `display: flex`（那是没有任何表时也得成立的地板）。这一条赢不是靠排在后面，是靠特异度
-   —— (0,3,0) 对 (0,1,0)，而且 `base.css` 那条 `<link>` 本来就排在本表前面（`layout.tsx`：
-   base.css → shapes.css → theme.css → custom.css）。两个理由各自单独成立。
-   🔴 **这段注释里不许写出 `[data-block=…][data-shape=…]` 那个形状的字面串。**
-   `block-manifest.js` 的 `shapePairsFromCss` 拿正则扫**整份文件**、不剥注释（:65），注释里举个例子
-   就会凭空多出一个 (块, 画法) 对。实测：第一版这里举的例子是 hero 的 form-side，而 #1333 刚把它搬去
-   `hero-with-form` —— `lib/block-shapes.test.js` 当场红「CSS 有、manifest 没有：1 个 —— hero/form-side」，
-   而 `shapes.css` 我一行都没删。
-   🔴 主题皮那一侧不用担心：`display` 不在契约 §2 的主题可写属性表里（`theme-css-lint.js` 的
-   `PROP_EXACT` / `PROP_PREFIXES` 没有它；它在 `GEOM_EXACT` 里，`isGeometry('display')` 为真）。
-   拿 `lint()` 真跑过五臂（每臂一份单规则的表）：合法属性那一臂只报「缺 v3 头」这条共通的，
-   而 `.hero__media{display:none}` / `.content-split__media{display:none}` / `[data-block="hero"]{display:none}`
-   三臂各多出一条 `"display" is not on the contract's property whitelist` —— 部件上、块根上都写不出。
-   ⟹ 今天能藏住这些零件的只有平台层，而平台层唯一会藏它们的就是下面这四条、判据正是「槽位空着」。
-   ══════════════════════════════════════════════════════════════════════════════════════════════════ */
+/* ── footer · slim-row（单行小脚）────────────────────────────────────────────────────────────
 
-[data-block="hero"]:not([data-has-imageUrl]) .hero__media {
+   改造前这一支**不渲染**描述、服务栏、联系地址和各栏标题，只画 logo + 六条链接 + 邮箱 + 社交，
+   而且那六条链接和邮箱在**同一个会换行的盒子**里（改造前的 `<nav class="flex flex-wrap …
+   gap-x-6 gap-y-2">`）。搬进形态层之后零件都在 DOM 里，由这一层关掉 —— D14 第 2 句的正用法。
+
+   🔴 三处 `display: contents` 是承重的，而且要**一层一层往下摊**（栏 → 表 → 项）：链接住在导航那一栏、
+   邮箱住在联系那一栏，改造前它们是同一个换行盒子里的邻居。只摊一层的话，邮箱仍然是「联系那一栏」
+   这个盒子里的东西，它跟链接就换不到同一行去 —— 实测（两臂包围盒对比，azure-29 / 375 宽）：改造前
+   最后一条链接和邮箱同在 y=2188 那一行，只摊一层时邮箱自己占一行。
+
+   🔴 两个宽度用**同一套摊平**，只换「谁把谁推开」：
+     · <768：改造前是一列（`flex-col items-center gap-6`）。这里让品牌那块独占一行
+       （`flex-basis: 100%`），链接和邮箱跟着在下面按 24 / 8 的行列间距换行居中 —— 那正是改造前
+       那个 `<nav>` 自己的 `gap-x-6 gap-y-2`。品牌到链接那 24px 由它自己的下边距补足（行距 8 + 16）。
+     · ≥768：改造前是 `justify-between` 的两组（左 logo、右 nav）。这里给品牌一个
+       `margin-right: auto`，其余全部靠右，间距仍是 24px —— 逐个算过：邮箱右沿 1248、Contact 1063、
+       Home 769，与改造前逐个相同。 */
+
+[data-block="footer"][data-shape="slim-row"] .footer__body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  column-gap: 1.5rem;
+  row-gap: 0.5rem;
+}
+
+[data-block="footer"][data-shape="slim-row"] .footer__desc,
+[data-block="footer"][data-shape="slim-row"] .footer__col-title,
+[data-block="footer"][data-shape="slim-row"] .footer__col--services,
+[data-block="footer"][data-shape="slim-row"] .footer__item--location {
   display: none;
 }
 
-[data-block="hero-with-form"]:not([data-has-imageUrl]) .hero__media {
+[data-block="footer"][data-shape="slim-row"] .footer__col--nav,
+[data-block="footer"][data-shape="slim-row"] .footer__col--contact,
+[data-block="footer"][data-shape="slim-row"] .footer__list {
+  display: contents;
+}
+
+/* 🔴 这里点名**导航那一栏的项**和**邮箱那一项**，不写成光秃秃的 `.footer__item`：后者跟上面
+   `.footer__item--location { display: none }` 特异度相同（都是 0,3,0）、又排在后面 ⟹ 地址那几项被
+   它反超成可见（实测：改造后页脚里多出「Main Office」和那条地址，而改造前这一支不渲染它们）。
+   本文件这一批里同一个形状踩过两次，两次都是「同特异度 + 靠后」。 */
+[data-block="footer"][data-shape="slim-row"] .footer__col--nav .footer__item,
+[data-block="footer"][data-shape="slim-row"] .footer__item--email {
+  display: inline-flex;
+  align-items: center;
+}
+
+[data-block="footer"][data-shape="slim-row"] .footer__brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-basis: 100%;
+  margin-bottom: 1rem;
+}
+
+@media (min-width: 768px) {
+  [data-block="footer"][data-shape="slim-row"] .footer__body {
+    justify-content: flex-start;
+  }
+
+  [data-block="footer"][data-shape="slim-row"] .footer__brand {
+    flex-basis: auto;
+    margin-bottom: 0;
+    margin-right: auto;
+  }
+}
+
+/* ── footer · slim-row ───────────────────────────────────────────────────────────────────────
+   改造前这一支的壳是 `container-width px-4 py-8 sm:px-6 lg:px-8`，里面一条 `gap-6` 的行，
+   版权行 `mt-6 … pt-6`。下面就是这几个数。 */
+
+/* 🔴 这里只给内边距，**不写 `gap`**：行列间距在上面那一节里是两个不同的数（列 1.5rem、行 0.5rem，
+   照搬改造前那个 `<nav>` 的 `gap-x-6 gap-y-2`），而 `gap: 1.5rem` 是简写、会把行距一起改掉，
+   又排在后面 ⟹ 它赢。实测那一格是 375 宽下链接换行之后的行距。 */
+[data-block="footer"][data-shape="slim-row"] .footer__body {
+  padding: 2rem 1rem 0;
+}
+
+/* 🔴 `padding-left/right` 也要写：`base.css` 给的是 `var(--section-x)`，而那个变量今天解析出来是
+   **19.2px**（现取：`getComputedStyle(.footer__legal).paddingLeft`），不是 1rem —— 多列大脚改造前
+   走的正是 `.section-padding`（同一个变量，所以那一支两臂相同），而这两支改造前是字面的 `px-4`。
+   少写这两行，版权行在 375 宽上左右各差 3px（实测 before x=16 w=343 / after x=19 w=337）。 */
+[data-block="footer"][data-shape="slim-row"] .footer__legal {
+  margin-top: 1.5rem;
+  padding-bottom: 2rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+[data-block="footer"][data-shape="slim-row"] .footer__copyright {
+  padding-top: 1.5rem;
+}
+
+@media (min-width: 640px) {
+  [data-block="footer"][data-shape="slim-row"] .footer__body,
+  [data-block="footer"][data-shape="slim-row"] .footer__legal {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-block="footer"][data-shape="slim-row"] .footer__body,
+  [data-block="footer"][data-shape="slim-row"] .footer__legal {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+/* ── footer · cta-band（强调色色带 + 小脚）───────────────────────────────────────────────────
+
+   这一种真的多一个零件上场：顶上那条 CTA 色带（改造前是 `cta-band` 那一支自己 return 的一段
+   markup）。它在骨架里恒存在，这一层把它打开；色带的底色和内边距写在本文件末尾那一节
+   （`#1353 · 两个区的【每形态间距与皮】`），不在主题表 —— 理由见本文件 `#1353` 那条明写例外。
+   下面那部分改造前是三列（`md:grid-cols-3`），不是多列大脚的四列，而且不画导航栏目。 */
+
+/* 🔴 `justify-content` 这一行是 `sheet-recipes.test.js` ④ 那条不变量要的：一个块声明了
+   `text-align: center`，它下面的 flex 容器就必须自己说怎么摆 —— `text-align` 管不了 flex 项。
+   这里是**列向** flex，横向居中其实由 `align-items` 给；`justify-content` 管的是纵向，而这条带的
+   高度由内容撑起、没有多余空间 ⟹ 视觉上是 no-op。两边都满足，不必二选一。 */
+[data-block="footer"][data-shape="cta-band"] .footer__cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 🔴 描述在这一种里只上场**一次** —— 在顶上那条色带里（`.footer__cta-sub`）。改造前品牌那一栏
+   只有 logo + 社交，没有描述。不关掉它就是同一句话在页脚里印两遍（实测：两臂对比里它是
+   「只在改造后」的那一条）。 */
+[data-block="footer"][data-shape="cta-band"] .footer__col--nav,
+[data-block="footer"][data-shape="cta-band"] .footer__desc {
   display: none;
 }
 
-[data-block="content-split"]:not([data-has-imageUrl]) .content-split__media {
-  display: none;
+[data-block="footer"][data-shape="cta-band"] .footer__body {
+  display: grid;
+  grid-template-columns: 1fr;
 }
 
-[data-block="cta-banner"]:not([data-has-avatars]) .cta-banner__avatars {
-  display: none;
+@media (min-width: 1024px) {
+  [data-block="footer"][data-shape="cta-band"] .footer__cta {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
 }
 
+@media (min-width: 768px) {
+  [data-block="footer"][data-shape="cta-band"] .footer__body {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* ── footer · cta-band ───────────────────────────────────────────────────────────────────────
+   色带是 `bg-accent-500` + `py-10 px-4 gap-4`；下面那部分 `py-10` + `gap-8`；版权行 `mt-10 pt-6`。 */
+
+[data-block="footer"][data-shape="cta-band"] .footer__cta {
+  background-color: var(--color-accent-500);
+  gap: 1rem;
+  padding: 2.5rem 1rem;
+  text-align: center;
+}
+
+/* 🔴🔴 这两行字的颜色是**本票唯一一处有意改掉的长相**，而且是被量出来才发现的，不是顺手改的。
+   改造前它们是白字压在 `accent-500` 上（`text-white` / `text-white/90`）。这一票把页脚做成块之后，
+   `blockAttrs` 给它盖上 `data-role="essential"`，于是 `theme-css-invariants.mjs` 的 §3 第一次去问
+   「这几行字读得出来吗」—— 现取读数（ember-12，真机像素）：
+       footer__cta-title  rgb(250,253,251) 压在 rgb(194,182,61) 上 = **2.04:1**
+       footer__cta-sub    rgb(237,241,225) 压在 rgb(194,182,61) 上 = **1.82:1**   （门槛 2.5:1）
+   这不是本票造成的 —— 改造前的站就是这个样子，只是那时没有任何东西在看它（老的 `<footer>` 上
+   一个 `data-role` 都没有，整个页脚不在这把尺的射程里）。
+   🔴 为什么在这张票里改而不是开新票：不改的话 `origin/main` 的 CI 会红 —— `theme-css` 那个 job
+   逐套表建一个样例站跑这把尺（`theme-css-invariants-all-sheets.sh`），ember-12 的页脚就是这一种。
+   🔴 为什么是 `gray-900`：这是产品对「accent 底上的字」已有的答案 —— `.btn-accent`（globals.css）
+   用的就是 `bg-accent-400` + `text-gray-900`，#1100 为那一对量过 80 套表。这里底色不动
+   （仍是 `accent-500`），只换字色：现取 ember-12 上 gray-900 压 rgb(194,182,61) ≈ **8.0:1**。
+   🔴 将来别的主题这一对合不合格，判据不是我这句话，是 CI 那个逐表跑的 job —— 池子重新生成那天
+   它会逐套表把这一格重问一遍。 */
+[data-block="footer"][data-shape="cta-band"] .footer__cta-title {
+  font-size: 1.5rem;
+  line-height: 2rem;
+  font-weight: 700;
+  color: var(--color-gray-900, #111827);
+}
+
+[data-block="footer"][data-shape="cta-band"] .footer__cta-sub {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: rgb(17 24 39 / 0.9);
+}
+
+[data-block="footer"][data-shape="cta-band"] .footer__cta-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-lg);
+  background-color: #fff;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: 600;
+  color: var(--color-primary-900);
+}
+
+[data-block="footer"][data-shape="cta-band"] .footer__body {
+  gap: 2rem;
+  padding: 2.5rem 1rem 0;
+}
+
+/* 同 slim-row 那条：这一支改造前也是字面的 `px-4`，不是 `--section-x`。 */
+[data-block="footer"][data-shape="cta-band"] .footer__legal {
+  margin-top: 2.5rem;
+  padding-bottom: 2.5rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+[data-block="footer"][data-shape="cta-band"] .footer__copyright {
+  padding-top: 1.5rem;
+}
+
+@media (min-width: 640px) {
+  [data-block="footer"][data-shape="cta-band"] .footer__cta,
+  [data-block="footer"][data-shape="cta-band"] .footer__body,
+  [data-block="footer"][data-shape="cta-band"] .footer__legal {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-block="footer"][data-shape="cta-band"] .footer__cta {
+    text-align: left;
+  }
+
+  [data-block="footer"][data-shape="cta-band"] .footer__cta,
+  [data-block="footer"][data-shape="cta-band"] .footer__body,
+  [data-block="footer"][data-shape="cta-band"] .footer__legal {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+/* ══ header ══════════════════════════════════════════════════════════════════════ */
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
    #1353 — 三个 Region 进形态层：顶栏 4 种 · 页脚 3 种
    ══════════════════════════════════════════════════════════════════════════════════════════════
@@ -5769,6 +6025,38 @@
   color: rgb(255 255 255 / 0.9);
 }
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   #1353 · 两个区的【每形态间距与皮】—— 上面那条明写例外的射程就是这一节
+   ══════════════════════════════════════════════════════════════════════════════════════════════
+   每一条都是从改造前那三 / 四支的 Tailwind 类串**逐属性照搬**的，不是重新设计：AC1 要的是包围盒
+   逐像素不变，所以这里唯一正确的写法就是把那些类翻成它们本来的 CSS 值。
+   📌 默认那两支（顶栏 `solid-bar` · 页脚 `multi-column`）不在这里 —— 它们是地板，住 `base.css`。 */
+
+/* ── header · transparent-overlay（浮起来那一格才换皮；不浮时它就是地板那一份）───────────────── */
+
+[data-block="header"][data-shape="transparent-overlay"][data-over-hero="true"] {
+  background-color: transparent;
+  box-shadow: none;
+}
+
+[data-block="header"][data-shape="transparent-overlay"][data-over-hero="true"] .header__bar {
+  padding: 1.5rem 1rem;
+}
+
+@media (min-width: 640px) {
+  [data-block="header"][data-shape="transparent-overlay"][data-over-hero="true"] .header__bar {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-block="header"][data-shape="transparent-overlay"][data-over-hero="true"] .header__bar {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
 /* ── header · centered-logo（logo 居中）──────────────────────────────────────────────────────
 
    🔴 **这一种有一处有意的偏差，判块表里单列了一条。** 原来那一支用 JS 把导航链接
@@ -5855,178 +6143,6 @@
   justify-content: space-between;
 }
 
-/* ── footer · multi-column（多列大脚；没换装的站看到的就是它）───────────────────────────────
-
-   地板给了它 grid + 3rem 的行距（`base.css` 的 `.footer__body`），这里给列数那三档 ——
-   小屏一列、≥768 两列、≥1024 四列，逐档照搬改造前 `Footer.tsx` 那串 `md:grid-cols-2 lg:grid-cols-4`。
-   🔴 CTA 色带在这一种里关掉（`base.css` 的 `.footer__cta { display: none }` 已经是默认，
-      这里不重复写）。 */
-
-[data-block="footer"][data-shape="multi-column"] .footer__body {
-  display: grid;
-  grid-template-columns: 1fr;
-}
-
-@media (min-width: 768px) {
-  [data-block="footer"][data-shape="multi-column"] .footer__body {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 1024px) {
-  [data-block="footer"][data-shape="multi-column"] .footer__body {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
-/* ── footer · slim-row（单行小脚）────────────────────────────────────────────────────────────
-
-   改造前这一支**不渲染**描述、服务栏、联系地址和各栏标题，只画 logo + 六条链接 + 邮箱 + 社交，
-   而且那六条链接和邮箱在**同一个会换行的盒子**里（改造前的 `<nav class="flex flex-wrap …
-   gap-x-6 gap-y-2">`）。搬进形态层之后零件都在 DOM 里，由这一层关掉 —— D14 第 2 句的正用法。
-
-   🔴 三处 `display: contents` 是承重的，而且要**一层一层往下摊**（栏 → 表 → 项）：链接住在导航那一栏、
-   邮箱住在联系那一栏，改造前它们是同一个换行盒子里的邻居。只摊一层的话，邮箱仍然是「联系那一栏」
-   这个盒子里的东西，它跟链接就换不到同一行去 —— 实测（两臂包围盒对比，azure-29 / 375 宽）：改造前
-   最后一条链接和邮箱同在 y=2188 那一行，只摊一层时邮箱自己占一行。
-
-   🔴 两个宽度用**同一套摊平**，只换「谁把谁推开」：
-     · <768：改造前是一列（`flex-col items-center gap-6`）。这里让品牌那块独占一行
-       （`flex-basis: 100%`），链接和邮箱跟着在下面按 24 / 8 的行列间距换行居中 —— 那正是改造前
-       那个 `<nav>` 自己的 `gap-x-6 gap-y-2`。品牌到链接那 24px 由它自己的下边距补足（行距 8 + 16）。
-     · ≥768：改造前是 `justify-between` 的两组（左 logo、右 nav）。这里给品牌一个
-       `margin-right: auto`，其余全部靠右，间距仍是 24px —— 逐个算过：邮箱右沿 1248、Contact 1063、
-       Home 769，与改造前逐个相同。 */
-
-[data-block="footer"][data-shape="slim-row"] .footer__body {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  column-gap: 1.5rem;
-  row-gap: 0.5rem;
-}
-
-[data-block="footer"][data-shape="slim-row"] .footer__desc,
-[data-block="footer"][data-shape="slim-row"] .footer__col-title,
-[data-block="footer"][data-shape="slim-row"] .footer__col--services,
-[data-block="footer"][data-shape="slim-row"] .footer__item--location {
-  display: none;
-}
-
-[data-block="footer"][data-shape="slim-row"] .footer__col--nav,
-[data-block="footer"][data-shape="slim-row"] .footer__col--contact,
-[data-block="footer"][data-shape="slim-row"] .footer__list {
-  display: contents;
-}
-
-/* 🔴 这里点名**导航那一栏的项**和**邮箱那一项**，不写成光秃秃的 `.footer__item`：后者跟上面
-   `.footer__item--location { display: none }` 特异度相同（都是 0,3,0）、又排在后面 ⟹ 地址那几项被
-   它反超成可见（实测：改造后页脚里多出「Main Office」和那条地址，而改造前这一支不渲染它们）。
-   本文件这一批里同一个形状踩过两次，两次都是「同特异度 + 靠后」。 */
-[data-block="footer"][data-shape="slim-row"] .footer__col--nav .footer__item,
-[data-block="footer"][data-shape="slim-row"] .footer__item--email {
-  display: inline-flex;
-  align-items: center;
-}
-
-[data-block="footer"][data-shape="slim-row"] .footer__brand {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-basis: 100%;
-  margin-bottom: 1rem;
-}
-
-@media (min-width: 768px) {
-  [data-block="footer"][data-shape="slim-row"] .footer__body {
-    justify-content: flex-start;
-  }
-
-  [data-block="footer"][data-shape="slim-row"] .footer__brand {
-    flex-basis: auto;
-    margin-bottom: 0;
-    margin-right: auto;
-  }
-}
-
-/* ── footer · cta-band（强调色色带 + 小脚）───────────────────────────────────────────────────
-
-   这一种真的多一个零件上场：顶上那条 CTA 色带（改造前是 `cta-band` 那一支自己 return 的一段
-   markup）。它在骨架里恒存在，这一层把它打开；色带的底色和内边距写在本文件末尾那一节
-   （`#1353 · 两个区的【每形态间距与皮】`），不在主题表 —— 理由见本文件 `#1353` 那条明写例外。
-   下面那部分改造前是三列（`md:grid-cols-3`），不是多列大脚的四列，而且不画导航栏目。 */
-
-/* 🔴 `justify-content` 这一行是 `sheet-recipes.test.js` ④ 那条不变量要的：一个块声明了
-   `text-align: center`，它下面的 flex 容器就必须自己说怎么摆 —— `text-align` 管不了 flex 项。
-   这里是**列向** flex，横向居中其实由 `align-items` 给；`justify-content` 管的是纵向，而这条带的
-   高度由内容撑起、没有多余空间 ⟹ 视觉上是 no-op。两边都满足，不必二选一。 */
-[data-block="footer"][data-shape="cta-band"] .footer__cta {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-/* 🔴 描述在这一种里只上场**一次** —— 在顶上那条色带里（`.footer__cta-sub`）。改造前品牌那一栏
-   只有 logo + 社交，没有描述。不关掉它就是同一句话在页脚里印两遍（实测：两臂对比里它是
-   「只在改造后」的那一条）。 */
-[data-block="footer"][data-shape="cta-band"] .footer__col--nav,
-[data-block="footer"][data-shape="cta-band"] .footer__desc {
-  display: none;
-}
-
-[data-block="footer"][data-shape="cta-band"] .footer__body {
-  display: grid;
-  grid-template-columns: 1fr;
-}
-
-@media (min-width: 1024px) {
-  [data-block="footer"][data-shape="cta-band"] .footer__cta {
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
-  }
-}
-
-@media (min-width: 768px) {
-  [data-block="footer"][data-shape="cta-band"] .footer__body {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-/* ══════════════════════════════════════════════════════════════════════════════════════════════
-   #1353 · 两个区的【每形态间距与皮】—— 上面那条明写例外的射程就是这一节
-   ══════════════════════════════════════════════════════════════════════════════════════════════
-   每一条都是从改造前那三 / 四支的 Tailwind 类串**逐属性照搬**的，不是重新设计：AC1 要的是包围盒
-   逐像素不变，所以这里唯一正确的写法就是把那些类翻成它们本来的 CSS 值。
-   📌 默认那两支（顶栏 `solid-bar` · 页脚 `multi-column`）不在这里 —— 它们是地板，住 `base.css`。 */
-
-/* ── header · transparent-overlay（浮起来那一格才换皮；不浮时它就是地板那一份）───────────────── */
-
-[data-block="header"][data-shape="transparent-overlay"][data-over-hero="true"] {
-  background-color: transparent;
-  box-shadow: none;
-}
-
-[data-block="header"][data-shape="transparent-overlay"][data-over-hero="true"] .header__bar {
-  padding: 1.5rem 1rem;
-}
-
-@media (min-width: 640px) {
-  [data-block="header"][data-shape="transparent-overlay"][data-over-hero="true"] .header__bar {
-    padding-left: 1.5rem;
-    padding-right: 1.5rem;
-  }
-}
-
-@media (min-width: 1024px) {
-  [data-block="header"][data-shape="transparent-overlay"][data-over-hero="true"] .header__bar {
-    padding-left: 2rem;
-    padding-right: 2rem;
-  }
-}
-
 /* ── header · pill-floating ──────────────────────────────────────────────────────────────────
    外层那条 `<header>` 自己**不画底、不投影**（改造前那一支的 class 串里就没有 `bg-white shadow-sm`），
    画出来的是里面那根胶囊条。 */
@@ -6069,139 +6185,6 @@
 
 @media (min-width: 1024px) {
   [data-block="header"][data-shape="pill-floating"] {
-    padding-left: 2rem;
-    padding-right: 2rem;
-  }
-}
-
-/* ── footer · slim-row ───────────────────────────────────────────────────────────────────────
-   改造前这一支的壳是 `container-width px-4 py-8 sm:px-6 lg:px-8`，里面一条 `gap-6` 的行，
-   版权行 `mt-6 … pt-6`。下面就是这几个数。 */
-
-/* 🔴 这里只给内边距，**不写 `gap`**：行列间距在上面那一节里是两个不同的数（列 1.5rem、行 0.5rem，
-   照搬改造前那个 `<nav>` 的 `gap-x-6 gap-y-2`），而 `gap: 1.5rem` 是简写、会把行距一起改掉，
-   又排在后面 ⟹ 它赢。实测那一格是 375 宽下链接换行之后的行距。 */
-[data-block="footer"][data-shape="slim-row"] .footer__body {
-  padding: 2rem 1rem 0;
-}
-
-/* 🔴 `padding-left/right` 也要写：`base.css` 给的是 `var(--section-x)`，而那个变量今天解析出来是
-   **19.2px**（现取：`getComputedStyle(.footer__legal).paddingLeft`），不是 1rem —— 多列大脚改造前
-   走的正是 `.section-padding`（同一个变量，所以那一支两臂相同），而这两支改造前是字面的 `px-4`。
-   少写这两行，版权行在 375 宽上左右各差 3px（实测 before x=16 w=343 / after x=19 w=337）。 */
-[data-block="footer"][data-shape="slim-row"] .footer__legal {
-  margin-top: 1.5rem;
-  padding-bottom: 2rem;
-  padding-left: 1rem;
-  padding-right: 1rem;
-}
-
-[data-block="footer"][data-shape="slim-row"] .footer__copyright {
-  padding-top: 1.5rem;
-}
-
-@media (min-width: 640px) {
-  [data-block="footer"][data-shape="slim-row"] .footer__body,
-  [data-block="footer"][data-shape="slim-row"] .footer__legal {
-    padding-left: 1.5rem;
-    padding-right: 1.5rem;
-  }
-}
-
-@media (min-width: 1024px) {
-  [data-block="footer"][data-shape="slim-row"] .footer__body,
-  [data-block="footer"][data-shape="slim-row"] .footer__legal {
-    padding-left: 2rem;
-    padding-right: 2rem;
-  }
-}
-
-/* ── footer · cta-band ───────────────────────────────────────────────────────────────────────
-   色带是 `bg-accent-500` + `py-10 px-4 gap-4`；下面那部分 `py-10` + `gap-8`；版权行 `mt-10 pt-6`。 */
-
-[data-block="footer"][data-shape="cta-band"] .footer__cta {
-  background-color: var(--color-accent-500);
-  gap: 1rem;
-  padding: 2.5rem 1rem;
-  text-align: center;
-}
-
-/* 🔴🔴 这两行字的颜色是**本票唯一一处有意改掉的长相**，而且是被量出来才发现的，不是顺手改的。
-   改造前它们是白字压在 `accent-500` 上（`text-white` / `text-white/90`）。这一票把页脚做成块之后，
-   `blockAttrs` 给它盖上 `data-role="essential"`，于是 `theme-css-invariants.mjs` 的 §3 第一次去问
-   「这几行字读得出来吗」—— 现取读数（ember-12，真机像素）：
-       footer__cta-title  rgb(250,253,251) 压在 rgb(194,182,61) 上 = **2.04:1**
-       footer__cta-sub    rgb(237,241,225) 压在 rgb(194,182,61) 上 = **1.82:1**   （门槛 2.5:1）
-   这不是本票造成的 —— 改造前的站就是这个样子，只是那时没有任何东西在看它（老的 `<footer>` 上
-   一个 `data-role` 都没有，整个页脚不在这把尺的射程里）。
-   🔴 为什么在这张票里改而不是开新票：不改的话 `origin/main` 的 CI 会红 —— `theme-css` 那个 job
-   逐套表建一个样例站跑这把尺（`theme-css-invariants-all-sheets.sh`），ember-12 的页脚就是这一种。
-   🔴 为什么是 `gray-900`：这是产品对「accent 底上的字」已有的答案 —— `.btn-accent`（globals.css）
-   用的就是 `bg-accent-400` + `text-gray-900`，#1100 为那一对量过 80 套表。这里底色不动
-   （仍是 `accent-500`），只换字色：现取 ember-12 上 gray-900 压 rgb(194,182,61) ≈ **8.0:1**。
-   🔴 将来别的主题这一对合不合格，判据不是我这句话，是 CI 那个逐表跑的 job —— 池子重新生成那天
-   它会逐套表把这一格重问一遍。 */
-[data-block="footer"][data-shape="cta-band"] .footer__cta-title {
-  font-size: 1.5rem;
-  line-height: 2rem;
-  font-weight: 700;
-  color: var(--color-gray-900, #111827);
-}
-
-[data-block="footer"][data-shape="cta-band"] .footer__cta-sub {
-  margin-top: 0.25rem;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-  color: rgb(17 24 39 / 0.9);
-}
-
-[data-block="footer"][data-shape="cta-band"] .footer__cta-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-lg);
-  background-color: #fff;
-  padding: 0.75rem 1.5rem;
-  font-size: 1rem;
-  line-height: 1.5rem;
-  font-weight: 600;
-  color: var(--color-primary-900);
-}
-
-[data-block="footer"][data-shape="cta-band"] .footer__body {
-  gap: 2rem;
-  padding: 2.5rem 1rem 0;
-}
-
-/* 同 slim-row 那条：这一支改造前也是字面的 `px-4`，不是 `--section-x`。 */
-[data-block="footer"][data-shape="cta-band"] .footer__legal {
-  margin-top: 2.5rem;
-  padding-bottom: 2.5rem;
-  padding-left: 1rem;
-  padding-right: 1rem;
-}
-
-[data-block="footer"][data-shape="cta-band"] .footer__copyright {
-  padding-top: 1.5rem;
-}
-
-@media (min-width: 640px) {
-  [data-block="footer"][data-shape="cta-band"] .footer__cta,
-  [data-block="footer"][data-shape="cta-band"] .footer__body,
-  [data-block="footer"][data-shape="cta-band"] .footer__legal {
-    padding-left: 1.5rem;
-    padding-right: 1.5rem;
-  }
-}
-
-@media (min-width: 1024px) {
-  [data-block="footer"][data-shape="cta-band"] .footer__cta {
-    text-align: left;
-  }
-
-  [data-block="footer"][data-shape="cta-band"] .footer__cta,
-  [data-block="footer"][data-shape="cta-band"] .footer__body,
-  [data-block="footer"][data-shape="cta-band"] .footer__legal {
     padding-left: 2rem;
     padding-right: 2rem;
   }

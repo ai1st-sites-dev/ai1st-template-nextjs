@@ -1,0 +1,84 @@
+/* #1362 —— FAQ 的两个可选零件。两条都只是**地板**：这个块今天没有任何主题皮画它们，所以没有
+   哪张表会覆盖这两条；写在这里而不是 `shapes.css`，是因为它们跟形态无关 —— 七种形态都用同一块图、
+   同一张卡，只是摆的位置不同。
+
+   图的比例跟 `.content-split__media` 同一个理由：页面 JSON 没给图时这个零件**根本不在树上**
+   （组件那一头是「有则出、无则不出」），给了图它也得有个形状，不然那一列在图加载完之前是塌的。 */
+.faq-accordion__media {
+  aspect-ratio: 4 / 3;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+/* 求助卡：没有皮的时候它就是一摞字。卡的长相（底色、描边、圆角、内边距）是主题的事，
+   这里只保证它自己不散架。 */
+.faq-accordion__aside {
+  display: grid;
+  gap: 0.5rem;
+  align-content: start;
+  padding: 1.25rem;
+  border-radius: 0.75rem;
+}
+
+.faq-accordion {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .faq-accordion {
+    padding: 4rem 2rem;
+  }
+}
+
+.faq-accordion__headline,
+.faq-accordion__sub,
+.faq-accordion__item,
+.faq-accordion__question,
+.faq-accordion__answer,
+.faq-accordion__media,
+.faq-accordion__aside,
+.faq-accordion__aside-lead,
+.faq-accordion__aside-text,
+.faq-accordion__aside-action {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+/* ── headings and body copy: the readable floor ────────────────────────────────────────────────── */
+.faq-accordion__headline {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.faq-accordion__sub {
+  /* Roughly 70 characters — the same reading measure every other block's subtitle gets. */
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+}
+
+.faq-accordion__question {
+  font-size: 1.125rem;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.faq-accordion__answer {
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+/* ── the repeated units: a question, a testimonial, a highlight, a tier, a picture ─────────────── */
+.faq-accordion__item {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  border-width: 1px;
+  border-style: solid;
+  border-color: currentColor;
+  border-radius: 0.75rem;
+}

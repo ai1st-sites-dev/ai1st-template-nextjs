@@ -1,5 +1,5 @@
-import Header from './Header';
-import Footer from './Footer';
+import Header from '@blocks/header/Section';
+import Footer from '@blocks/footer/Section';
 import TopbarRegion from './TopbarRegion';
 import { LocalBusinessJsonLd, WebSiteJsonLd } from './JsonLd';
 import { pageLayout } from '@/lib/config';

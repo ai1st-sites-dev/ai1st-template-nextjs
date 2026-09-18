@@ -1,0 +1,35 @@
+/* contact-info · label-side  （ember-12 今天选的就是它） */
+
+[data-block="contact-info"][data-shape="label-side"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="contact-info"][data-shape="label-side"] .contact-info__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="contact-info"][data-shape="label-side"] .contact-info__location {
+  display: grid;
+  align-content: start;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+}
+
+[data-block="contact-info"][data-shape="label-side"] .contact-info__label {
+  grid-row: 1 / 3;
+}
+
+[data-block="contact-info"][data-shape="label-side"] .contact-info__phone {
+  justify-self: start;
+}
+
+[data-block="contact-info"][data-shape="label-side"] .contact-info__email {
+  justify-self: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="contact-info"][data-shape="label-side"] {
+    grid-template-columns: 1fr;
+  }
+}

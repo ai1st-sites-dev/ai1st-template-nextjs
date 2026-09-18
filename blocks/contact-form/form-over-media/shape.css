@@ -1,0 +1,75 @@
+/* contact-form · form-over-media  （#1370 · 对表 FlyonUI contact-us-6：一张实景大图，表单卡叠在图上）
+
+   🔴 「叠」这件事靠的是**同一个网格坑**：图和表单都放进第 2 行，图跨满两列、表单占右边那一列并写
+   `z-index`。不用 `position: absolute` —— 绝对定位的零件会从网格里消失，`parts-inside`
+   （零件要留在块的内容盒里）那一条就没东西可量了。
+
+   🔴 manifest 那一行写的是 `media: below`，因为探针的 media 轴问的是**图相对正文**（`__intro`）在哪儿，
+   不是「表单在图上面」。图在标题和引子下面 ⟹ `below` 是照实写；表单压在图上这件事，几何对照表里
+   用两者的边界框说（交付里贴了）。 */
+
+[data-block="contact-form"][data-shape="form-over-media"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="contact-form"][data-shape="form-over-media"] .contact-form__heading,
+[data-block="contact-form"][data-shape="form-over-media"] .contact-form__intro {
+  grid-column: 1 / -1;
+}
+
+[data-block="contact-form"][data-shape="form-over-media"] .contact-form__intro {
+  max-width: 36rem;
+}
+
+[data-block="contact-form"][data-shape="form-over-media"] .contact-form__media {
+  /* 🔴 `display` 在这里是承重的，不是抄来的：上面那条块级默认把这个零件藏掉了，这一副是把它
+     放出来的唯一一处。选择器多一个属性 ⟹ 权重比默认那条高，跟先后顺序无关。 */
+  display: block;
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+[data-block="contact-form"][data-shape="form-over-media"] .contact-form__form {
+  display: grid;
+}
+
+[data-block="contact-form"][data-shape="form-over-media"] .contact-form__error,
+[data-block="contact-form"][data-shape="form-over-media"] .contact-form__success {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="contact-form"][data-shape="form-over-media"] {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* 🔴 第 3 行，不是第 2 行：标题占第 1 行、引子占第 2 行，图写 `grid-row: 2` 就跟引子同排 ——
+     而 manifest 那一行说的是 `media: below`。实测过（1280px）：「图该在正文下面，实际图 y 从 3320 起，
+     正文 .contact-form__intro 到 4051」。表单跟图放**同一个坑**，靠 `z-index` 压在图上。 */
+  [data-block="contact-form"][data-shape="form-over-media"] .contact-form__media {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    /* 🔴 `min-height` 而不是 `height`：图和表单同住第 3 行，行高是两者里高的那个。
+       图的高本来由 `aspect-ratio: 16 / 9`（`base.css`）按宽度定，而表单的高由它自己的内容定 ——
+       断点附近（块宽 ≈ 928px，即视口 1024px）16:9 只有 522px，而表单卡连外边距是 568px，
+       于是表单会探出图外 14px（实测：1024px 探出 14px，1060px 起收回）。
+       写 `min-height: 100%` 让图在【行更高时】才跟着长到行高，图更高时仍按 16:9 ——
+       写成 `height: 100%` 就反了：那会让 1280px 那一档的图从 666px 缩到表单那么高。
+       盒子变高是安全的：`globals.css` 给里面那张 `<img>` 写的是 `object-fit: cover`。 */
+    min-height: 100%;
+  }
+
+  [data-block="contact-form"][data-shape="form-over-media"] .contact-form__form {
+    grid-column: 2;
+    grid-row: 3;
+    z-index: 1;
+    align-self: center;
+    margin: 2rem;
+  }
+
+  [data-block="contact-form"][data-shape="form-over-media"] .contact-form__note {
+    grid-column: 1 / -1;
+  }
+}

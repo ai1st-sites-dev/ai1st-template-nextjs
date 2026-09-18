@@ -526,8 +526,9 @@ console.log('\n── ⑥ 脚本自己插的 contact-form：关掉之后它也�
 console.log('\n── ⑧ 每个页面块逐个关一遍：CRITICAL RULES 段里 0 点名 ──');
 {
   const blocksDir = path.join(work, 'blocks');
-  const everyManifest = fs.readdirSync(blocksDir)
-    .filter((n) => n.endsWith('.json')).map((n) => n.replace(/\.json$/, '')).sort();
+  // #1387 —— 一个块一个文件夹：块名 = 文件夹名。
+  const everyManifest = fs.readdirSync(blocksDir, { withFileTypes: true })
+    .filter((e) => e.isDirectory()).map((e) => e.name).sort();
   // 🔴 **外壳区（顶栏 / 页脚）不进这一节的分母**（#1353）。这一节问的是「关掉一个块之后，命令模型
   //    排版的那几行还提不提它」，而外壳区**模型一个都点不到**：它们的 manifest 没有 `prompt` 段、
   //    不在菜单里、也不能写进 `sections`。留在分母里的后果是**误报**：CRITICAL RULES 里有两行把

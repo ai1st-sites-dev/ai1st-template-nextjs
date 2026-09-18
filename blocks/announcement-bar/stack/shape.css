@@ -1,0 +1,15 @@
+/* announcement-bar · stack  （ember-12 + azure-29 今天选的就是它） */
+
+[data-block="announcement-bar"][data-shape="stack"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="announcement-bar"][data-shape="stack"] .announcement-bar__message {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="announcement-bar"][data-shape="stack"] .announcement-bar__link {
+  justify-self: start;
+}

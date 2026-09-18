@@ -1,0 +1,44 @@
+/* hero · media-top  （#1340 从生成器的 heroLook['media-top'] 剪来；今天没有主题选它）
+
+   丢掉了生成器里这 2 条：.hero__form · .hero__form-success —— 那几个部件今天不在这个块的 DOM 里（#1333 把表单整段搬去了 hero-with-form，`HeroSection.tsx` 现在不渲染它们）。 */
+
+[data-block="hero"][data-shape="media-top"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+  min-height: 0;
+}
+
+[data-block="hero"][data-shape="media-top"] .hero__media {
+  aspect-ratio: auto;
+  order: 1;
+}
+
+[data-block="hero"][data-shape="media-top"] .hero__body {
+  display: grid;
+  align-content: start;
+  max-width: 46rem;
+  order: 3;
+}
+
+[data-block="hero"][data-shape="media-top"] .hero__title {
+  grid-column: 1 / -1;
+}
+
+[data-block="hero"][data-shape="media-top"] .hero__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="hero"][data-shape="media-top"] .hero__cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-block="hero"][data-shape="media-top"] .hero__deco {
+  grid-column: 1 / -1;
+  order: 2;
+  max-width: 4rem;
+}

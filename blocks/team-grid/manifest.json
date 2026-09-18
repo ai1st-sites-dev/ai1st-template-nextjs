@@ -1,0 +1,58 @@
+{
+  "type": "team-grid",
+  "displayName": "Team Section",
+  "category": "team",
+  "roleDefault": "optional",
+  "slots": {
+    "headline": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false,
+      "editLabel": "Headline"
+    },
+    "subheadline": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true,
+      "editLabel": "Subheading"
+    },
+    "members": {
+      "kind": "list",
+      "required": true,
+      "promptOptional": false,
+      "shape": "[{name, role, bio?}]",
+      "editLabel": {
+        "name": "Name",
+        "role": "Role",
+        "bio": "Bio"
+      }
+    }
+  },
+  "variants": {
+    "grid": "large cards with bio",
+    "compact": "small inline cards",
+    "card-with-social": "cards with gradient header + social icons",
+    "centered": "single column centered"
+  },
+  "variantKey": "variants",
+  "industries": {
+    "required": [],
+    "recommended": [
+      "dental",
+      "law",
+      "medical",
+      "salon"
+    ],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "homepage",
+    "order": 15,
+    "headPrefix": "",
+    "headSuffix": "",
+    "headExtra": null,
+    "lines": [
+      "@data"
+    ]
+  }
+}

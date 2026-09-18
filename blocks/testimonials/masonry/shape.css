@@ -1,0 +1,40 @@
+/* testimonials · masonry  （#1363，对表 FlyonUI testimonial-2：三列错落的评价墙）
+
+   零 JS（D4）：不做真瀑布流算法，靠三条等宽列带 + `align-items: start` —— 每条评价的高度由它自己的
+   引言长短决定，顶端对齐之后自然错落。出处里的滚动不做（同 D4）。
+   `columns` 同上写 `one`（这个块的那根轴看不见评价，理由写在 heading-side 那一节）。 */
+
+[data-block="testimonials"][data-shape="masonry"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="testimonials"][data-shape="masonry"] .testimonials__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="testimonials"][data-shape="masonry"] .testimonials__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="testimonials"][data-shape="masonry"] .testimonials__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="testimonials"][data-shape="masonry"] .testimonials__rating {
+  display: flex;
+  align-items: center;
+}
+
+[data-block="testimonials"][data-shape="masonry"] .testimonials__service {
+  justify-self: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="testimonials"][data-shape="masonry"] {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}

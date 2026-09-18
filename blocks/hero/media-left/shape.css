@@ -1,0 +1,49 @@
+/* hero · media-left  （#1340 从生成器的 heroLook['media-left'] 剪来；今天没有主题选它）
+
+   丢掉了生成器里这 2 条：.hero__form · .hero__form-success —— 那几个部件今天不在这个块的 DOM 里（#1333 把表单整段搬去了 hero-with-form，`HeroSection.tsx` 现在不渲染它们）。 */
+
+[data-block="hero"][data-shape="media-left"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+  min-height: 34rem;
+}
+
+[data-block="hero"][data-shape="media-left"] .hero__media {
+  aspect-ratio: 4 / 5;
+  order: 2;
+  max-width: 34rem;
+}
+
+[data-block="hero"][data-shape="media-left"] .hero__body {
+  display: grid;
+  align-content: start;
+  max-width: 34rem;
+  order: 3;
+}
+
+[data-block="hero"][data-shape="media-left"] .hero__title {
+  grid-column: 1 / -1;
+}
+
+[data-block="hero"][data-shape="media-left"] .hero__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="hero"][data-shape="media-left"] .hero__cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+[data-block="hero"][data-shape="media-left"] .hero__deco {
+  grid-column: 1 / -1;
+  order: 1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="hero"][data-shape="media-left"] {
+    grid-template-columns: 5fr 6fr;
+  }
+}

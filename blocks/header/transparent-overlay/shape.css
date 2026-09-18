@@ -1,0 +1,83 @@
+/* ── header · transparent-overlay（压在首屏上的浮层）────────────────────────────────────────
+
+   🔴 只有 `data-over-hero="true"` 时它才真的浮起来。这一页的第一段不是 hero（about 页是
+   page-header）时它就是 `solid-bar` —— 那不是这一层的默认值兜底，是 `Header.tsx` 明确不写那个属性
+   （头注里写了为什么这条判断归组件：页面才知道自己第一段是什么）。
+   🔴 遮罩的**渐变**不在这里，在 `base.css` 的 `.header__scrim`（单个类）—— 这一层只说它露不露面。
+      浓度为什么是那个值，写在 `scripts/region-layout.js` 的文件头（白字压纯白首屏的最坏情况）。 */
+
+[data-block="header"][data-shape="transparent-overlay"][data-over-hero="true"] {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  z-index: 50;
+}
+
+[data-block="header"][data-shape="transparent-overlay"][data-over-hero="true"] .header__scrim {
+  display: block;
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 10rem;
+}
+
+[data-block="header"][data-shape="transparent-overlay"][data-over-hero="true"] .header__bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* 🔴🔴 浮起来那一刻，顶栏上**每一个自己带颜色的东西**都要翻成白的 —— 它压的是遮罩，而遮罩是深的。
+   改造前这件事由 `Header.tsx` 的 `onDark` 三行 class 做（`text-white` / `text-white/90` / `text-white`）；
+   搬进形态层时这三行掉了，而 `base.css` 的地板色（primary-900 / gray-600 / gray-600）照常生效
+   ⟹ 深字压深底。#1353 r3 实测（azure-29 钉成 transparent-overlay、首屏是 hero、1280 宽）：
+     品牌名   main `rgb(255,255,255)` → 交付 `rgb(24,36,58)`
+     4 条导航 main `rgba(255,255,255,.9)` → 交付 `rgb(75,85,99)`
+     汉堡     main `rgb(255,255,255)` → 交付 `rgb(75,85,99)`
+   🔴 今天池里 0 套主题穿这一种（#1317 重建期，池子只有 2 套）⟹ 没有一个活站会因此变样，
+      e2e 那几格也因此跳过。**它是搬迁漏的一维，不是今天线上的红** —— 但池子一重建它就活了。
+   🔴 语言开关**不在这里**：它是子组件，靠 `Header.tsx` 的 `onDark={overlaid}` 显式接线
+      （`LanguageSwitcher.tsx` 头注写了为什么不靠继承）—— 那一条改造前后都在，没有丢。
+   🔴 CTA 按钮也不在这里：它改造前就是 `btn-accent`（深字压 accent 底），不跟 onDark 走。 */
+
+[data-block="header"][data-shape="transparent-overlay"][data-over-hero="true"] .header__logo-name,
+[data-block="header"][data-shape="transparent-overlay"][data-over-hero="true"] .header__burger {
+  color: #fff;
+}
+
+[data-block="header"][data-shape="transparent-overlay"][data-over-hero="true"] .header__link {
+  color: rgb(255 255 255 / 0.9);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   #1353 · 两个区的【每形态间距与皮】—— 上面那条明写例外的射程就是这一节
+   ══════════════════════════════════════════════════════════════════════════════════════════════
+   每一条都是从改造前那三 / 四支的 Tailwind 类串**逐属性照搬**的，不是重新设计：AC1 要的是包围盒
+   逐像素不变，所以这里唯一正确的写法就是把那些类翻成它们本来的 CSS 值。
+   📌 默认那两支（顶栏 `solid-bar` · 页脚 `multi-column`）不在这里 —— 它们是地板，住 `base.css`。 */
+
+/* ── header · transparent-overlay（浮起来那一格才换皮；不浮时它就是地板那一份）───────────────── */
+
+[data-block="header"][data-shape="transparent-overlay"][data-over-hero="true"] {
+  background-color: transparent;
+  box-shadow: none;
+}
+
+[data-block="header"][data-shape="transparent-overlay"][data-over-hero="true"] .header__bar {
+  padding: 1.5rem 1rem;
+}
+
+@media (min-width: 640px) {
+  [data-block="header"][data-shape="transparent-overlay"][data-over-hero="true"] .header__bar {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-block="header"][data-shape="transparent-overlay"][data-over-hero="true"] .header__bar {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}

@@ -1,0 +1,49 @@
+/* testimonials · attribution-first  （ember-12 今天选的就是它） */
+
+[data-block="testimonials"][data-shape="attribution-first"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="testimonials"][data-shape="attribution-first"] .testimonials__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="testimonials"][data-shape="attribution-first"] .testimonials__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="testimonials"][data-shape="attribution-first"] .testimonials__item {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="testimonials"][data-shape="attribution-first"] .testimonials__rating {
+  display: flex;
+  align-items: center;
+  order: 3;
+}
+
+[data-block="testimonials"][data-shape="attribution-first"] .testimonials__quote {
+  order: 4;
+}
+
+[data-block="testimonials"][data-shape="attribution-first"] .testimonials__name {
+  order: 1;
+}
+
+[data-block="testimonials"][data-shape="attribution-first"] .testimonials__meta {
+  order: 2;
+}
+
+[data-block="testimonials"][data-shape="attribution-first"] .testimonials__service {
+  justify-self: start;
+  order: 5;
+}
+
+@media (min-width: 1024px) {
+  [data-block="testimonials"][data-shape="attribution-first"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}

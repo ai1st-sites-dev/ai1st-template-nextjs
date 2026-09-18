@@ -1,0 +1,29 @@
+/* social-proof · two-up  （ember-12 今天选的就是它） */
+
+[data-block="social-proof"][data-shape="two-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="social-proof"][data-shape="two-up"] .social-proof__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="social-proof"][data-shape="two-up"] .social-proof__platform {
+  justify-self: start;
+}
+
+[data-block="social-proof"][data-shape="two-up"] .social-proof__badge {
+  justify-self: start;
+}
+
+[data-block="social-proof"][data-shape="two-up"] .social-proof__stat {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="social-proof"][data-shape="two-up"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}

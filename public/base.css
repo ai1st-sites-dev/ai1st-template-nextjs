@@ -50,879 +50,16 @@
    📌 Phase 2 moves the blocks one at a time and each of those tickets brings its own base rules with
    it. Today: hero (#1008), cta-banner (#1018) and page-header (#1019). */
 
-.hero {
-  /* Grid rather than the structure layer's `display: block`, for one reason: it puts the gap
-     between the picture, the words and the decoration in ONE place, instead of hanging a margin on
-     each child. Sheets set both properties themselves, so neither reaches a themed page. */
-  display: grid;
-  gap: 2rem;
-  padding: 3rem 1.5rem;
-}
-
-@media (min-width: 1024px) {
-  .hero {
-    padding: 4rem 2rem;
-  }
-}
-
-/* A grid item's automatic minimum size is its CONTENT's size, so a 1600px-wide photo can push the
-   column wider than the screen and give a phone a horizontal scrollbar — the picture obeys
-   `max-width: 100%` and the page still overflows, which is why capping the image is not enough. */
-.hero__media {
-  min-width: 0;
-}
-
-.hero__body {
-  min-width: 0;
-  /* Roughly 70 characters. Longer lines are measurably harder to read, and with no sheet the words
-     would otherwise run the full width of a desktop screen. */
-  max-width: 42rem;
-}
-
-.hero__title {
-  font-size: 2rem;
-  line-height: 1.2;
-  /* A business name or a URL with no spaces in it is one word to a browser, and one word longer
-     than the screen is a horizontal scrollbar. */
-  overflow-wrap: break-word;
-}
-
-@media (min-width: 1024px) {
-  .hero__title {
-    font-size: 2.75rem;
-  }
-}
-
-.hero__sub {
-  margin-top: 1rem;
-  line-height: 1.6;
-  overflow-wrap: break-word;
-}
-
-.hero__cta {
-  margin-top: 2rem;
-}
-
-/* 🔴 #1374 —— 可选槽 `socialProof` 的地板。跟上面那几条同一个判据（「没有皮的时候读得出来吗」），
-   而它比上面那些多一层理由：这四个类名**不是契约钩子**（同 `.hero__img`），所以三套皮一条规则都不会
-   给它们写 —— 这里不写就真的什么都没有。
-   `min-width: 0` 与 `overflow-wrap` 是同一对老理由：一行没有空格的长字符串会把网格轨道撑得比屏幕宽，
-   而块自己的 `overflow: hidden`（globals.css）会把它剪掉，页面级那条「没有横向滚动」照样说一切正常。 */
-.hero__proof {
-  margin-top: 1.5rem;
-  min-width: 0;
-}
-
-.hero__proof-rating,
-.hero__proof-text {
-  min-width: 0;
-  font-size: 0.875rem;
-  line-height: 1.5;
-  overflow-wrap: break-word;
-}
-
-/* ── #1018 cta-banner ───────────────────────────────────────────────────────────────────────────
-   Same two jobs as the hero rules above, and the same test for what may go in here: "would every
-   sheet want to state this itself?". Checked against all three phase-1 sheets after their
-   cta-banner sections were written:
-
-     .cta-banner            display / gap / padding      all three set them → base leaks nothing
-     .cta-banner__headline  font-size / line-height      all three set them
-     .cta-banner__desc      font-size / line-height      all three set them
-
-   The deliberate leftovers are the same pair hero has — `overflow-wrap` and the reading measure on
-   `__desc`: no sheet sets either, both only prevent something unreadable, and a sheet that wanted
-   the overflow back can say so.
-
-   🔴 THE SPACING BETWEEN THE THREE PARTS IS A GRID GAP, NOT MARGINS. All three parts are direct
-   children of `.cta-banner` (that is what lets a sheet put the button in a column of its own — the
-   old `split` look), so one `gap` spaces them; margins on top of it would double-space every themed
-   page whose sheet sets its own gap.
-
-   🔴 NO text-align HERE. Four of the five old looks were centred and one was not, which makes it a
-   look, not a floor — and a default would fight every sheet that wants the other one. */
-.cta-banner {
-  display: grid;
-  gap: 1rem;
-  padding: 3rem 1.5rem;
-}
-
-@media (min-width: 1024px) {
-  .cta-banner {
-    padding: 4rem 2rem;
-  }
-}
-
-/* 🔴 `min-width: 0` ON ALL FOUR (three until #1361 added the avatar strip), the same rule and the
-   same reason `.hero__media` / `.hero__body` have it above: a grid item's automatic minimum size is
-   its CONTENT's size, so one unbreakable word pushes the track wider than the screen. `overflow-wrap: break-word` does NOT prevent that — it
-   allows a break when the box is already too narrow, but it does not shrink the box's min-content
-   size, so without this the two properties fight and the word wins.
-   Measured on a phone (375) before this rule existed: the headline came out 787px wide with a 50
-   character word in it, and `.cta-banner { overflow: hidden }` (globals.css) then CLIPPED it — no
-   horizontal scrollbar, which is why the page-level reading looked fine while the word was cut in
-   half. With the rule: 327px, and the word wraps. */
-.cta-banner__headline,
-.cta-banner__desc,
-.cta-banner__action,
-.cta-banner__avatars {
-  min-width: 0;
-}
-
-.cta-banner__headline {
-  font-size: 1.75rem;
-  line-height: 1.25;
-  /* A business name or a URL with no spaces in it is one word to a browser, and one word longer than
-     the screen is a horizontal scrollbar. */
-  overflow-wrap: break-word;
-}
-
-@media (min-width: 1024px) {
-  .cta-banner__headline {
-    font-size: 2.25rem;
-  }
-}
-
-.cta-banner__desc {
-  /* Roughly 70 characters — the same reading measure the hero body gets, for the same reason. */
-  max-width: 42rem;
-  line-height: 1.6;
-  overflow-wrap: break-word;
-}
-
-/* 🔴 #1361 THE AVATAR STRIP IS NOT A CONTRACT HOOK, SO THIS IS THE ONLY FLOOR IT HAS. Neither
-   `.cta-banner__avatars` nor `.cta-banner__avatar` is listed in docs/reference/theme-css-contract.md
-   §1, so `scripts/theme-css-lint.js` refuses them to every sheet and no generated theme can state
-   these properties itself. That means the test the rest of this file applies — "would every sheet
-   want to state this itself? then base must not" — does not apply to them: they are UNREACHABLE,
-   like the newsletter's `input` and `button` further down, not "left to base".
-
-   🔴 WHY THEY ARE UNREACHABLE ON PURPOSE (PM's ruling ⓐ on #1361, measured). Putting
-   `.cta-banner__avatars` in the hook table costs four places (the table, the contract document, and
-   both generated sheets, which `scripts/theme-pipeline/sheet-fresh.js --check` turns red until they
-   are regenerated) — and what it buys today is wrong: the generator has no recipe for a row of
-   faces, so what it writes for an unknown hook is `font-size` / `line-height` / `color`, a text rule
-   on a box that holds pictures. A faces recipe (`sheet-recipes.js`) is another ticket; this one's
-   body says it does not do the skin. `.hero__img` is the same boundary already drawn one layer in:
-   the sheet sizes the box through `.hero__media`, the platform owns the <img> (globals.css), because
-   two owners for one dimension is a bug generator. Here the platform owns the box as well — that is
-   the only difference, and it ends the day the faces recipe lands.
-
-   Round, equal-sized and in one row is what makes a handful of pictures read as a GROUP of customers
-   rather than as loose images, and it has to hold with no sheet at all — which is what this file is
-   for. (How many faces there are is the site's data, not this rule's business: the demo pack feeds
-   six because the demo-content guard wants every list slot at six or more, a real page may feed
-   three. `flex-wrap` is deliberately not set here — a box too narrow for the row clips instead of
-   wrapping, which is what `.cta-banner { overflow: hidden }` in globals.css does to every part of
-   this block; whether a row of faces should wrap is an open question QA3 put to the author on #1361
-   and nobody has answered.)
-
-   Where the strip sits inside the block is per shape and lives in public/shapes.css; this says
-   nothing about that. */
-.cta-banner__avatars {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.cta-banner__avatar {
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 9999px;
-  border-width: 2px;
-  border-style: solid;
-  border-color: currentColor;
-}
-
-/* ── #1019 page-header ──────────────────────────────────────────────────────────────────────────
-   Same two jobs as the rules above, and the same test for what may go in here: "would every sheet
-   want to state this itself?". Checked against all three phase-1 sheets after their page-header
-   sections were written:
-
-     .page-header           display / gap / padding      all three set them → base leaks nothing
-     .page-header__title    font-size / line-height      all three set them
-     .page-header__sub      font-size / line-height / max-width   all three set them
-     .page-header__crumbs   font-size                    all three set it
-
-   The deliberate leftovers are the same pair the other two blocks have — `overflow-wrap` and
-   `min-width: 0`: no sheet sets either, both only prevent something unreadable, and a sheet that
-   wanted the overflow back can say so.
-
-   🔴 THE SPACING BETWEEN THE THREE PARTS IS A GRID GAP, NOT MARGINS. The crumbs, the heading and the
-   subtitle are direct children of `.page-header` (that is what lets a sheet put the subtitle in a
-   column of its own — the old `with-description` look), so one `gap` spaces them; margins on top of
-   it would double-space every themed page whose sheet sets its own gap.
-
-   🔴 NO text-align AND NO background HERE, and this block is the one where that matters most: two of
-   the four deleted looks were centred and two were not, and three of them painted a dark gradient
-   while `minimal` was white. Both are therefore looks, not floors — a default would fight whichever
-   sheet wanted the other one, on every page of the site except the home page. */
-.page-header {
-  display: grid;
-  gap: 1rem;
-  padding: 3rem 1.5rem;
-}
-
-@media (min-width: 1024px) {
-  .page-header {
-    padding: 4rem 2rem;
-  }
-}
-
-/* 🔴 `min-width: 0` ON ALL THREE, the same rule and the same reason `.hero__media` / `.hero__body`
-   and the cta-banner parts have it above: a grid item's automatic minimum size is its CONTENT's
-   size, so one unbreakable word pushes the track wider than the screen. `overflow-wrap: break-word`
-   does NOT prevent that — it allows a break once the box is already too narrow, but it does not
-   shrink the box's min-content size, so without this the two properties fight and the word wins. */
-.page-header__crumbs,
-.page-header__title,
-.page-header__sub {
-  min-width: 0;
-}
-
-.page-header__title {
-  font-size: 1.875rem;
-  line-height: 1.2;
-  /* A service name, a city name joined by hyphens, or a URL with no spaces in it is one word to a
-     browser, and one word longer than the screen is a horizontal scrollbar. */
-  overflow-wrap: break-word;
-}
-
-@media (min-width: 1024px) {
-  .page-header__title {
-    font-size: 2.5rem;
-  }
-}
-
-.page-header__sub {
-  /* Roughly 70 characters — the same reading measure the hero body and the cta-banner description
-     get, for the same reason. */
-  max-width: 42rem;
-  line-height: 1.6;
-  overflow-wrap: break-word;
-}
-
-/* The crumb trail is navigation, not reading matter: smaller than the body text on every sheet, and
-   it wraps rather than pushing the page sideways when a page sits three levels deep. */
-.page-header__crumbs {
-  font-size: 0.875rem;
-  overflow-wrap: break-word;
-}
-
-/* ── #1027 batch B: contact-form · quote-form · services-list · values-grid · services-nav ·
-      service-related-pages ─────────────────────────────────────────────────────────────────────
-   🔴 #1162 (2026-08-23): `values-grid` is gone as a block type — the compat layer that kept the old
-   names alive retired, so nothing emits `.values-grid*` any more and its rules were deleted from the
-   lists below. The name stays in this header because it says which blocks batch B was measured on;
-   the readings underneath were taken with it in. Six block hooks then, five now.
-   Same test as the three blocks above — "would every sheet want to state this itself?" — checked
-   against all three phase-1 sheets after their batch-B rules were written:
-
-     the six block hooks       display / gap / padding      all three set them → base leaks nothing
-     every __title / __heading font-size / line-height      all three set them
-     every __desc / __sub      font-size / line-height      all three set them
-     .services-nav__link       padding / border-radius      all three set them
-
-   🔴 `min-width: 0` ON EVERY PART THAT IS A GRID OR FLEX ITEM, the same rule and the same reason the
-   hero, cta-banner and page-header parts have it: a grid item's automatic minimum size is its
-   CONTENT's size, so one long word pushes the track wider than the screen and the block's
-   `overflow: hidden` (globals.css) then CLIPS it — while the page-level "no horizontal scroll"
-   reading says everything is fine. `overflow-wrap: break-word` does not prevent it. Measured per
-   block on a 375px viewport, which is the only width where it is visible (#1008: without base the
-   font size drops to 16px and the long word fits, so a 1280px reading says the protection is there
-   when it is not).
-
-   🔴 THE FORM CONTROLS THEMSELVES ARE NOT HERE. `input` / `textarea` / `label` / `ol` / `li` cannot
-   be selected by any theme (contract §1 refuses tag selectors), so they are not a floor a sheet
-   might want to raise — they are unreachable, and globals.css lays them out. One owner per property.  */
-
-.contact-form,
-.quote-form,
-.services-list,
-.services-nav,
-.service-related-pages {
-  display: grid;
-  gap: 1.5rem;
-  padding: 3rem 1.5rem;
-}
-
-@media (min-width: 1024px) {
-  .contact-form,
-  .quote-form,
-  .services-list,
-  .service-related-pages {
-    padding: 4rem 2rem;
-  }
-}
-
-.contact-form__heading,
-.contact-form__intro,
-.contact-form__form,
-.contact-form__error,
-.contact-form__note,
-.contact-form__success,
-.contact-form__media,
-.contact-form__aside,
-.contact-form__aside-label,
-.contact-form__aside-address,
-.contact-form__aside-phone,
-.contact-form__aside-email,
-.quote-form__form,
-.quote-form__intro,
-.quote-form__main,
-.quote-form__aside,
-.quote-form__step,
-.quote-form__error,
-.quote-form__action,
-.quote-form__success,
-.services-list__item,
-.services-list__icon,
-.services-list__title,
-.services-list__desc,
-.services-list__actions,
-.services-list__features,
-.services-list__products,
-.services-nav__link,
-.service-related-pages__headline,
-.service-related-pages__sub,
-.service-related-pages__card {
-  min-width: 0;
-  overflow-wrap: break-word;
-}
-
-/* ── headings and body copy: the readable floor ────────────────────────────────────────────────── */
-.contact-form__heading,
-.service-related-pages__headline {
-  font-size: 1.75rem;
-  line-height: 1.2;
-  font-weight: 700;
-}
-
-.services-list__title {
-  font-size: 1.5rem;
-  line-height: 1.25;
-  font-weight: 700;
-}
-
-.contact-form__intro,
-.quote-form__intro,
-.services-list__desc,
-.service-related-pages__sub {
-  /* Roughly 70 characters — the same reading measure the hero body, the cta-banner description and
-     the page-header subtitle get. */
-  max-width: 34rem;
-  font-size: 1.0625rem;
-  line-height: 1.7;
-}
-
-.contact-form__note,
-.contact-form__error,
-.quote-form__error {
-  font-size: 0.875rem;
-  line-height: 1.5;
-}
-
-.contact-form__success,
-.quote-form__success {
-  font-size: 1.125rem;
-  line-height: 1.6;
-  padding: 2rem 1.5rem;
-}
-
-/* ── the repeated units: a form's fields, a service, a value, a related page ───────────────────── */
-.contact-form__form,
-.quote-form__form,
-.quote-form__main,
-.quote-form__step,
-.services-list__item {
-  display: grid;
-  gap: 1rem;
-}
-
-.quote-form__aside,
-.services-list__features,
-.services-list__products,
-.service-related-pages__card {
-  display: grid;
-  gap: 0.75rem;
-  padding: 1.5rem;
-  border-width: 1px;
-  border-style: solid;
-  border-color: currentColor;
-  border-radius: 0.75rem;
-}
-
-.services-list__icon {
-  width: 2.5rem;
-  height: 2.5rem;
-}
-
-/* ── services-nav: without a sheet this is still a row of links, not a stack ───────────────────── */
-.services-nav {
-  display: flex;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-}
-
-.services-nav__link {
-  padding: 0.5rem 1rem;
-  border-radius: 9999px;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-}
-
-/* ── #1028 batch C: contact-info · process-steps ────────────────────────────────────────────
-   Same test as every block above — "would all three sheets want to state this themselves?" —
-   checked against the three phase-1 sheets after their batch-C rules were written:
-
-     the two block hooks       display / gap / padding        all three set them → base leaks nothing
-     every __headline          font-size / line-height        all three set them
-     every __title / __label   font-size / line-height        all three set them
-     .process-steps__num       width / height / border-radius all three set them
-
-   📌 这一批开始是**四个**块，今天剩两个。`timeline` 随 #1372 删掉了（D19）；第四个（那个统计数字
-   块）按同一份设计文档的 D19 并进了 `social-proof`（它唯一的内容 —— 一组数字 —— 成了那个块的一个
-   可选槽，#1376）。当年那张表里还有一行「.<它>__value font-size」，是真量到的读数，今天它的等价物
-   是 batch F 那一节里的 `.social-proof__stat-value`。
-
-   🔴 `min-width: 0` ON EVERY PART THAT IS A GRID OR FLEX ITEM, the same rule and the same reason the
-   hero, cta-banner, page-header and batch-B parts have it: a grid item's automatic minimum size is
-   its CONTENT's size, so one long word pushes the track wider than the screen and the block's
-   `overflow: hidden` (globals.css) then CLIPS it — while the page-level "no horizontal scroll"
-   reading says everything is fine. `overflow-wrap: break-word` does not prevent it. Measured per
-   block on a 375px viewport, which is the only width where it is visible (#1008: without base the
-   font size drops to 16px and the long word fits, so a 1280px reading says the protection is there
-   when it is not).
-
-   🔴 A PHONE NUMBER AND AN EMAIL ADDRESS ARE THE TWO STRINGS ON A SMALL BUSINESS SITE THAT MUST NOT
-   BE HALF-VISIBLE, and `contact-info` is the batch's one `essential` block. `overflow-wrap: anywhere`
-   on those two parts rather than `break-word`: an email address has no space in it and `break-word`
-   only breaks a word that is alone on its line, so at 375 an address inside a padded card was still
-   the thing that set the card's width. */
-
-.contact-info,
-.process-steps {
-  display: grid;
-  gap: 1.5rem;
-  padding: 3rem 1.5rem;
-}
-
-@media (min-width: 1024px) {
-  .contact-info,
-  .process-steps {
-    padding: 4rem 2rem;
-  }
-}
-
-.contact-info__headline,
-.contact-info__location,
-.contact-info__label,
-.contact-info__address,
-.contact-info__phone,
-.contact-info__email,
-.contact-info__media,
-.process-steps__headline,
-.process-steps__sub,
-.process-steps__step,
-.process-steps__num,
-.process-steps__title,
-.process-steps__desc {
-  min-width: 0;
-  overflow-wrap: break-word;
-}
-
-.contact-info__phone,
-.contact-info__email {
-  overflow-wrap: anywhere;
-}
-
-/* ── the headlines and the sub-headlines ──────────────────────────────────────────────────────── */
-.contact-info__headline,
-.process-steps__headline {
-  font-size: 1.75rem;
-  line-height: 1.25;
-}
-
-.process-steps__sub {
-  font-size: 1rem;
-  line-height: 1.6;
-}
-
-/* ── the repeated units: a location, a stat, a step, an event ─────────────────────────────────── */
-.contact-info__location,
-.process-steps__step {
-  display: grid;
-  gap: 0.5rem;
-}
-
-.contact-info__label,
-.process-steps__title {
-  font-size: 1.125rem;
-  line-height: 1.4;
-}
-
-.contact-info__address,
-.process-steps__desc {
-  font-size: 0.875rem;
-  line-height: 1.6;
-}
-
-/* #1382 —— contact-info 那张可选的图。跟 `.content-split__media` 同一条理由：页面 JSON 没给图时这个
-   零件**根本不在树上**（组件那一头是「有则出、无则不出」），给了图它也得有个形状，不然在图加载完
-   之前那一列是塌的。
-   🔴 这里不写 `display` —— 「这一副形态给不给它排版」整件事只有一个主人，在 `public/shapes.css`
-   （默认 `display: none`，只有 `media-side-grid` 放出来）。两个地方各写一句就是两个主人。 */
-.contact-info__media {
-  aspect-ratio: 4 / 3;
-  border-radius: 0.75rem;
-  overflow: hidden;
-}
-
-/* The step number. A circle without a sheet, because `.process-steps__num` is a `<span>` and an
-   unstyled numeral in the flow reads as part of the title next to it. */
-.process-steps__num {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 9999px;
-  border-width: 1px;
-  border-style: solid;
-  border-color: currentColor;
-  font-size: 0.875rem;
-}
-
-/* ── #1029 batch D: benefits-list · team-grid · checklist · blog-preview ────────────────────────
-   🔴 #1162 (2026-08-23): `benefits-list` and `checklist` are gone as block types — the compat layer
-   that kept the old names alive retired, so nothing emits `.benefits-list*` / `.checklist*` any more
-   and their rules were deleted from the lists below. Both names stay in this header because it says
-   which blocks batch D was measured on. Four block hooks then, two now.
-   Same test as every batch before it — "would every sheet want to state this itself?" — checked
-   against all three phase-1 sheets after their batch-D rules were written:
-
-     the four block hooks      display / gap / padding      all three set them → base leaks nothing
-     every __headline          font-size / line-height      all three set them
-     every __sub / __desc      font-size / line-height      all three set them
-     .blog-preview__category   font-size                    all three set it
-
-   🔴 `min-width: 0` AND `max-width: 100%` ON EVERY PART, the pair batch G had to work out (#1036):
-   `min-width: 0` fixes a grid item's AUTOMATIC minimum — without it one long word makes the track
-   wider than the screen and the block's `overflow: hidden` (globals.css) CLIPS it, while the
-   page-level "no horizontal scroll" reading still says everything is fine. `max-width: 100%` covers
-   the other case, a part whose width is not `stretch` at all: a sheet that gives a part a
-   self-alignment (`justify-self: start` on a pill-shaped date or category) sizes it `fit-content`,
-   i.e. at least its min-content width, and `overflow-wrap: break-word` does not shrink min-content.
-   Measured per block, both on a 375px viewport and on the three-across sheet at 1280.
-
-   🔴 NO `list-style` / `<li>` RULES HERE, because none of the batch renders a list element — the
-   check marks that used to make `checklist` look like a list were `<svg>`s, and they are gone
-   (#1029: the contract admits only `content: ""`, so a sheet draws a shape back, not that glyph). */
-.team-grid,
-.blog-preview {
-  display: grid;
-  gap: 1.5rem;
-  padding: 3rem 1.5rem;
-}
-
-@media (min-width: 1024px) {
-  .team-grid,
-  .blog-preview {
-    padding: 4rem 2rem;
-  }
-}
-
-.team-grid__headline,
-.team-grid__sub,
-.team-grid__member,
-.team-grid__name,
-.team-grid__role,
-.team-grid__bio,
-.blog-preview__headline,
-.blog-preview__sub,
-.blog-preview__post,
-.blog-preview__category,
-.blog-preview__date,
-.blog-preview__title,
-.blog-preview__excerpt {
-  min-width: 0;
-  max-width: 100%;
-  overflow-wrap: break-word;
-}
-
-/* ── headings and body copy: the readable floor ────────────────────────────────────────────────── */
-.team-grid__headline,
-.blog-preview__headline {
-  font-size: 1.75rem;
-  line-height: 1.2;
-}
-
-@media (min-width: 1024px) {
-  .team-grid__headline,
-  .blog-preview__headline {
-    font-size: 2.25rem;
-  }
-}
-
-.team-grid__sub,
-.blog-preview__sub {
-  /* Roughly 70 characters — the same reading measure every other block's sub gets. */
-  max-width: 34rem;
-  line-height: 1.6;
-}
-
-.team-grid__name,
-.blog-preview__title {
-  font-size: 1.125rem;
-  line-height: 1.3;
-}
-
-.team-grid__bio,
-.blog-preview__excerpt {
-  line-height: 1.6;
-}
-
-/* The two labels that are one short line each. Smaller than body copy without a sheet, because
-   without that they read as a sentence of their own above the name / the title. */
-.team-grid__role,
-.blog-preview__category,
-.blog-preview__date {
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-}
-
-/* A post is a box even with no sheet: its four parts have to hang together as one card rather than
-   run into the next post's. `display: grid` (not the structure layer's `display: block`) puts the
-   space between them in ONE place. All three sheets set both properties themselves. */
-.blog-preview__post,
-.team-grid__member {
-  display: grid;
-  gap: 0.375rem;
-}
-
-/* ── #1031 batch F: content-split · text-block · social-proof · features-grid ·
-      newsletter-signup ───────────────────────────────────────────────────────────────────────────
-   Same test as every block above — "would every sheet want to state this itself?" — checked against
-   all three phase-1 sheets after their batch-F rules were written:
-
-     the five block hooks     display / gap / padding      all three set them → base leaks nothing
-     every __headline         font-size / line-height      all three set them
-     every __body / __desc /
-       __sub                  font-size / line-height      all three set them
-     .features-grid__item     padding / border-radius      all three set them
-
-   🔴 `min-width: 0` ON EVERY PART THAT IS A GRID OR FLEX ITEM, the same rule and the same measured
-   reason the earlier blocks have it: a grid item's automatic minimum size is its CONTENT's size, so
-   one long word pushes the track wider than the screen and the block's `overflow: hidden`
-   (globals.css) then CLIPS it — while the page-level "no horizontal scroll" reading says everything
-   is fine. `overflow-wrap: break-word` alone does not prevent it. Taken per block on a 375px
-   viewport, which is the only width where it is visible at all (#1008: without base the font size
-   drops to 16px and the long word fits, so a 1280px reading says the protection is there when it
-   is not).
-
-   🔴 THE LIST ITEMS AND THE NEWSLETTER'S CONTROLS ARE NOT HERE. `li`, `input` and `button` cannot be
-   selected by any theme (contract §1 refuses tag selectors), so they are not a floor a sheet might
-   want to raise — they are unreachable, and globals.css lays them out. One owner per property.  */
-
-.content-split,
-.text-block,
-.social-proof,
-.features-grid,
-.newsletter-signup {
-  display: grid;
-  gap: 1.5rem;
-  padding: 3rem 1.5rem;
-}
-
-@media (min-width: 1024px) {
-  .content-split,
-  .text-block,
-  .social-proof,
-  .features-grid,
-  .newsletter-signup {
-    padding: 4rem 2rem;
-  }
-}
-
-.content-split__media,
-.content-split__headline,
-.content-split__body,
-.content-split__bullets,
-.content-split__stats,
-.content-split__stat,
-.content-split__stat-value,
-.content-split__stat-label,
-.text-block__headline,
-.text-block__body,
-.text-block__attribution,
-.text-block__list,
-.social-proof__headline,
-.social-proof__rating,
-.social-proof__reviews,
-.social-proof__platform,
-.social-proof__badge,
-.social-proof__quote,
-.social-proof__quote-author,
-.social-proof__stat,
-.social-proof__stat-value,
-.social-proof__stat-label,
-.social-proof__media,
-.features-grid__headline,
-.features-grid__sub,
-.features-grid__item,
-.features-grid__title,
-.features-grid__desc,
-.newsletter-signup__headline,
-.newsletter-signup__desc,
-.newsletter-signup__form {
-  min-width: 0;
-  overflow-wrap: break-word;
-}
-
-/* ── headings: the readable floor ─────────────────────────────────────────────────────────────── */
-.content-split__headline,
-.text-block__headline,
-.social-proof__headline,
-.features-grid__headline,
-.newsletter-signup__headline {
-  font-size: 1.75rem;
-  line-height: 1.2;
-  font-weight: 700;
-}
-
-.features-grid__title {
-  font-size: 1.25rem;
-  line-height: 1.3;
-  font-weight: 600;
-}
-
-/* ── body copy: roughly 70 characters, the same reading measure every migrated block gets ─────── */
-.content-split__body,
-.text-block__body,
-.features-grid__sub,
-.newsletter-signup__desc {
-  max-width: 34rem;
-  font-size: 1.0625rem;
-  line-height: 1.7;
-}
-
-.features-grid__desc,
-.social-proof__reviews {
-  font-size: 0.9375rem;
-  line-height: 1.6;
-}
-
-/* The score and the quote are the two things this block exists to show, so without a sheet they are
-   still the two biggest things in it. */
-.social-proof__rating {
-  font-size: 2.5rem;
-  line-height: 1.1;
-  font-weight: 700;
-}
-
-.social-proof__quote,
-.text-block__attribution {
-  font-size: 1.125rem;
-  line-height: 1.6;
-}
-
-/* ── the repeated units ───────────────────────────────────────────────────────────────────────── */
-.features-grid__item,
-.social-proof__platform,
-.social-proof__badge,
-.content-split__stat {
-  display: grid;
-  gap: 0.5rem;
-  padding: 1.5rem;
-  border-width: 1px;
-  border-style: solid;
-  border-color: currentColor;
-  border-radius: 0.75rem;
-}
-
-.content-split__stat-value {
-  font-size: 1.5rem;
-  line-height: 1.2;
-  font-weight: 700;
-}
-
-/* #1376 —— `social-proof` 从此也能放一组数字（batch C 那个统计数字块按 D19 并进来的那一半）。
-   两条都是从那个块的地板逐条搬过来的：单元自己是个小网格，数字是这个单元存在的理由，所以没有
-   主题表时它仍是里面最大的那个（那边写的也是 2rem）。 */
-.social-proof__stat {
-  display: grid;
-  gap: 0.5rem;
-}
-
-.social-proof__stat-value {
-  font-size: 2rem;
-  line-height: 1.1;
-}
-
-.content-split__stats,
-.content-split__bullets,
-.text-block__list {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.features-grid__icon {
-  width: 2.5rem;
-  height: 2.5rem;
-}
-
-/* Without a sheet the media box would be a zero-height nothing when the page JSON has no picture,
-   and the block would read as a gap. An aspect ratio gives it a shape either way; every sheet sets
-   its own, so this reaches no themed page. */
-.content-split__media {
-  aspect-ratio: 16 / 10;
-  border-radius: 0.75rem;
-}
-
-/* #1362 —— FAQ 的两个可选零件。两条都只是**地板**：这个块今天没有任何主题皮画它们，所以没有
-   哪张表会覆盖这两条；写在这里而不是 `shapes.css`，是因为它们跟形态无关 —— 七种形态都用同一块图、
-   同一张卡，只是摆的位置不同。
-
-   图的比例跟 `.content-split__media` 同一个理由：页面 JSON 没给图时这个零件**根本不在树上**
-   （组件那一头是「有则出、无则不出」），给了图它也得有个形状，不然那一列在图加载完之前是塌的。 */
-.faq-accordion__media {
-  aspect-ratio: 4 / 3;
-  border-radius: 0.75rem;
-  overflow: hidden;
-}
-
-/* #1370 —— `form-over-media` 那张图。跟上面那条同一个理由：主题给它底和圆角，没有皮的时候它也得
-   有个形状，不然那一行在图加载完之前是塌的。 */
-.contact-form__media {
-  aspect-ratio: 16 / 9;
-  border-radius: 0.75rem;
-  overflow: hidden;
-}
-
-/* 求助卡：没有皮的时候它就是一摞字。卡的长相（底色、描边、圆角、内边距）是主题的事，
-   这里只保证它自己不散架。 */
-.faq-accordion__aside {
-  display: grid;
-  gap: 0.5rem;
-  align-content: start;
-  padding: 1.25rem;
-  border-radius: 0.75rem;
-}
-
-/* #1376 —— `social-proof` 的那张可选图，同一条理由。页面 JSON 没给图时这个零件**根本不在树上**
-   （组件那一头是「有则出、无则不出」），给了图它也得有个形状，不然在图加载完之前那一行是塌的。 */
-.social-proof__media {
-  aspect-ratio: 16 / 10;
-  border-radius: 0.75rem;
-  overflow: hidden;
-}
-
-.newsletter-signup__form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
+/* 🔴 这份文件是拼出来的 —— 手改会被下一次 `node scripts/block-build/build-blocks.js` 覆盖，
+   而 `scripts/block-build/generated-fresh.test.js` 会在那之前就把它点名。要改一个块的地板，
+   改 `blocks/<块>/floor.css`。#1387（设计文档 D20）。
+
+   🔴 有 47 条规则原来一条同时写了好几个块（`.contact-form, .quote-form, …`）。一块一份
+   `floor.css` 之后它们按块拆开了，而**解释它们的那段注释只留在按字典序第一个块的 floor.css 里**
+   —— 每个块各抄一份的话这份文件要多 43 KB，而它是 `layout.tsx` 直接 <link> 给访客的。
+   在别的块里看到一组没有来由的规则时，去那一组里名字最靠前的那个块的 `floor.css` 找。 */
+
+/* ══ announcement-bar ══════════════════════════════════════════════════════════════════════ */
 /* ── #1036 batch G: faq-accordion · testimonials · announcement-bar · service-highlights ·
       pricing-table · gallery ───────────────────────────────────────────────────────────────────
    🔴 #1162 (2026-08-23): `service-highlights` is gone as a block type — the compat layer that kept
@@ -959,11 +96,7 @@
    Tag selectors cannot be written by any theme (contract §1), so they are not a floor a sheet might
    want to raise — they are unreachable, and globals.css lays them out. One owner per property. */
 
-.faq-accordion,
-.testimonials,
-.announcement-bar,
-.pricing-table,
-.gallery {
+.announcement-bar {
   display: grid;
   gap: 1.5rem;
   padding: 3rem 1.5rem;
@@ -975,158 +108,11 @@
   padding: 0.75rem 1.5rem;
 }
 
-@media (min-width: 1024px) {
-  .faq-accordion,
-  .testimonials,
-  .pricing-table,
-  .gallery {
-    padding: 4rem 2rem;
-  }
-}
-
-.faq-accordion__headline,
-.faq-accordion__sub,
-.faq-accordion__item,
-.faq-accordion__question,
-.faq-accordion__answer,
-.faq-accordion__media,
-.faq-accordion__aside,
-.faq-accordion__aside-lead,
-.faq-accordion__aside-text,
-.faq-accordion__aside-action,
-.testimonials__headline,
-.testimonials__sub,
-.testimonials__item,
-.testimonials__rating,
-.testimonials__quote,
-.testimonials__name,
-.testimonials__meta,
-.testimonials__service,
 .announcement-bar__message,
-.announcement-bar__link,
-.pricing-table__headline,
-.pricing-table__sub,
-.pricing-table__item,
-.pricing-table__badge,
-.pricing-table__name,
-.pricing-table__price,
-.pricing-table__desc,
-.pricing-table__features,
-.pricing-table__action,
-.gallery__headline,
-.gallery__sub,
-.gallery__item,
-.gallery__caption,
-.gallery__category,
-.gallery__title,
-.gallery__desc {
+.announcement-bar__link {
   min-width: 0;
   max-width: 100%;
   overflow-wrap: break-word;
-}
-
-/* ── headings and body copy: the readable floor ────────────────────────────────────────────────── */
-.faq-accordion__headline,
-.testimonials__headline,
-.pricing-table__headline,
-.gallery__headline {
-  font-size: 1.75rem;
-  line-height: 1.2;
-  font-weight: 700;
-}
-
-.faq-accordion__sub,
-.testimonials__sub,
-.pricing-table__sub,
-.gallery__sub {
-  /* Roughly 70 characters — the same reading measure every other block's subtitle gets. */
-  max-width: 34rem;
-  font-size: 1.0625rem;
-  line-height: 1.7;
-}
-
-.faq-accordion__question,
-.pricing-table__name,
-.gallery__title {
-  font-size: 1.125rem;
-  line-height: 1.3;
-  font-weight: 600;
-}
-
-.pricing-table__price {
-  font-size: 2rem;
-  line-height: 1.1;
-  font-weight: 700;
-}
-
-.faq-accordion__answer,
-.pricing-table__desc,
-.testimonials__quote,
-.gallery__desc {
-  font-size: 1rem;
-  line-height: 1.7;
-}
-
-.testimonials__meta,
-.testimonials__service,
-.gallery__category,
-.pricing-table__badge {
-  font-size: 0.875rem;
-  line-height: 1.5;
-}
-
-/* ── the repeated units: a question, a testimonial, a highlight, a tier, a picture ─────────────── */
-.faq-accordion__item,
-.testimonials__item,
-.pricing-table__item {
-  display: grid;
-  gap: 0.75rem;
-  padding: 1.5rem;
-  border-width: 1px;
-  border-style: solid;
-  border-color: currentColor;
-  border-radius: 0.75rem;
-}
-
-.gallery__item {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.gallery__caption {
-  display: grid;
-  gap: 0.25rem;
-}
-
-.pricing-table__features {
-  display: grid;
-  gap: 0.5rem;
-}
-
-/* ── the two parts that are DATA rather than markup (see the contract's §1 note) ───────────────── */
-.testimonials__rating {
-  display: flex;
-  gap: 0.125rem;
-}
-
-.testimonials__star {
-  width: 1rem;
-  height: 1rem;
-}
-
-/* ── gallery: a picture without a sheet still has to be a picture, not a full-bleed banner ─────── */
-.gallery__image,
-.gallery__placeholder {
-  display: block;
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  border-radius: 0.5rem;
-  object-fit: cover;
-}
-
-.gallery__placeholder {
-  background-color: currentColor;
-  opacity: 0.12;
 }
 
 /* ── announcement-bar: one line, message and link side by side ─────────────────────────────────── */
@@ -1141,92 +127,101 @@
   font-size: 0.875rem;
   line-height: 1.25rem;
 }
-/* ── #1030 batch E: map-area · trusted-brands ───────────────────────────────────────────────────
+
+/* ══ blog-preview ══════════════════════════════════════════════════════════════════════ */
+/* ── #1029 batch D: benefits-list · team-grid · checklist · blog-preview ────────────────────────
+   🔴 #1162 (2026-08-23): `benefits-list` and `checklist` are gone as block types — the compat layer
+   that kept the old names alive retired, so nothing emits `.benefits-list*` / `.checklist*` any more
+   and their rules were deleted from the lists below. Both names stay in this header because it says
+   which blocks batch D was measured on. Four block hooks then, two now.
    Same test as every batch before it — "would every sheet want to state this itself?" — checked
-   against all three phase-1 sheets after their batch-E rules were written:
+   against all three phase-1 sheets after their batch-D rules were written:
 
-     the two block hooks         display / gap / padding       all three set them → base leaks nothing
-     every __headline            font-size / line-height       all three set them
+     the four block hooks      display / gap / padding      all three set them → base leaks nothing
+     every __headline          font-size / line-height      all three set them
+     every __sub / __desc      font-size / line-height      all three set them
+     .blog-preview__category   font-size                    all three set it
 
-   🔴 `min-width: 0` AND `max-width: 100%` ON EVERY PART, the pair batch G worked out (#1036) and
-   batch D measured per block: `min-width: 0` fixes a grid item's AUTOMATIC minimum, without which one
-   long word makes the track wider than the screen while the block's `overflow: hidden` (globals.css)
-   clips it and the page-level "no horizontal scroll" reading still says everything is fine.
-   `max-width: 100%` covers the part a sheet sizes as `fit-content` (a self-aligned pill).
+   🔴 `min-width: 0` AND `max-width: 100%` ON EVERY PART, the pair batch G had to work out (#1036):
+   `min-width: 0` fixes a grid item's AUTOMATIC minimum — without it one long word makes the track
+   wider than the screen and the block's `overflow: hidden` (globals.css) CLIPS it, while the
+   page-level "no horizontal scroll" reading still says everything is fine. `max-width: 100%` covers
+   the other case, a part whose width is not `stretch` at all: a sheet that gives a part a
+   self-alignment (`justify-self: start` on a pill-shaped date or category) sizes it `fit-content`,
+   i.e. at least its min-content width, and `overflow-wrap: break-word` does not shrink min-content.
+   Measured per block, both on a 375px viewport and on the three-across sheet at 1280.
 
-   🔴 NO `list-style` RULES HERE: neither of these two renders a list element. map-area's ticks and
-   bullets were `<svg>`s and `<span>`s in the markup and they are gone (#1030) — the contract admits
-   only `content: ""`, so a sheet draws a shape back, not that glyph. */
-.map-area,
-.trusted-brands {
+   🔴 NO `list-style` / `<li>` RULES HERE, because none of the batch renders a list element — the
+   check marks that used to make `checklist` look like a list were `<svg>`s, and they are gone
+   (#1029: the contract admits only `content: ""`, so a sheet draws a shape back, not that glyph). */
+.blog-preview {
   display: grid;
   gap: 1.5rem;
   padding: 3rem 1.5rem;
 }
 
 @media (min-width: 1024px) {
-  .map-area,
-  .trusted-brands {
+  .blog-preview {
     padding: 4rem 2rem;
   }
 }
 
-.map-area__headline,
-.map-area__sub,
-.map-area__area,
-.map-area__name,
-.map-area__desc,
-.trusted-brands__headline,
-.trusted-brands__brand {
+.blog-preview__headline,
+.blog-preview__sub,
+.blog-preview__post,
+.blog-preview__category,
+.blog-preview__date,
+.blog-preview__title,
+.blog-preview__excerpt {
   min-width: 0;
   max-width: 100%;
   overflow-wrap: break-word;
 }
 
 /* ── headings and body copy: the readable floor ────────────────────────────────────────────────── */
-.map-area__headline {
+.blog-preview__headline {
   font-size: 1.75rem;
   line-height: 1.2;
 }
 
 @media (min-width: 1024px) {
-  .map-area__headline {
+  .blog-preview__headline {
     font-size: 2.25rem;
   }
 }
 
-.map-area__sub {
+.blog-preview__sub {
   /* Roughly 70 characters — the same reading measure every other block's sub gets. */
   max-width: 34rem;
   line-height: 1.6;
 }
 
-.map-area__name {
+.blog-preview__title {
   font-size: 1.125rem;
   line-height: 1.3;
 }
 
-.map-area__desc {
+.blog-preview__excerpt {
   line-height: 1.6;
 }
 
-/* ── the comparison's rows: which mark belongs to which side ───────────────────────────────────── */
-
-
-/* Only the marks are centred here. The header row's three labels are one class, so telling the first
-   one apart needs a descendant selector — and base.css refuses those on purpose (a specificity above
-   a theme's is a floor a theme cannot lift). A sheet may write it: §1 lets a sheet combine two hooks
-   as ancestor and descendant, and all three do. */
-
-
-/* ── the list of names ─────────────────────────────────────────────────────────────────────────── */
-.trusted-brands__headline {
+/* The two labels that are one short line each. Smaller than body copy without a sheet, because
+   without that they read as a sentence of their own above the name / the title. */
+.blog-preview__category,
+.blog-preview__date {
   font-size: 0.875rem;
-  line-height: 1.5;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  line-height: 1.25rem;
 }
 
+/* A post is a box even with no sheet: its four parts have to hang together as one card rather than
+   run into the next post's. `display: grid` (not the structure layer's `display: block`) puts the
+   space between them in ONE place. All three sheets set both properties themselves. */
+.blog-preview__post {
+  display: grid;
+  gap: 0.375rem;
+}
+
+/* ══ card-group ══════════════════════════════════════════════════════════════════════ */
 /* ── #1175 card-group: the one block in the registry that had no floor at all ───────────────────
    `card-group` is the generic block #1132 / #1143 merged `values-grid` · `benefits-list` ·
    `checklist` · `service-highlights` into. The merge gave it a registry entry, a manifest, a
@@ -1340,6 +335,1678 @@
   gap: 0.5rem;
 }
 
+/* ══ contact-form ══════════════════════════════════════════════════════════════════════ */
+/* ── #1027 batch B: contact-form · quote-form · services-list · values-grid · services-nav ·
+      service-related-pages ─────────────────────────────────────────────────────────────────────
+   🔴 #1162 (2026-08-23): `values-grid` is gone as a block type — the compat layer that kept the old
+   names alive retired, so nothing emits `.values-grid*` any more and its rules were deleted from the
+   lists below. The name stays in this header because it says which blocks batch B was measured on;
+   the readings underneath were taken with it in. Six block hooks then, five now.
+   Same test as the three blocks above — "would every sheet want to state this itself?" — checked
+   against all three phase-1 sheets after their batch-B rules were written:
+
+     the six block hooks       display / gap / padding      all three set them → base leaks nothing
+     every __title / __heading font-size / line-height      all three set them
+     every __desc / __sub      font-size / line-height      all three set them
+     .services-nav__link       padding / border-radius      all three set them
+
+   🔴 `min-width: 0` ON EVERY PART THAT IS A GRID OR FLEX ITEM, the same rule and the same reason the
+   hero, cta-banner and page-header parts have it: a grid item's automatic minimum size is its
+   CONTENT's size, so one long word pushes the track wider than the screen and the block's
+   `overflow: hidden` (globals.css) then CLIPS it — while the page-level "no horizontal scroll"
+   reading says everything is fine. `overflow-wrap: break-word` does not prevent it. Measured per
+   block on a 375px viewport, which is the only width where it is visible (#1008: without base the
+   font size drops to 16px and the long word fits, so a 1280px reading says the protection is there
+   when it is not).
+
+   🔴 THE FORM CONTROLS THEMSELVES ARE NOT HERE. `input` / `textarea` / `label` / `ol` / `li` cannot
+   be selected by any theme (contract §1 refuses tag selectors), so they are not a floor a sheet
+   might want to raise — they are unreachable, and globals.css lays them out. One owner per property.  */
+
+.contact-form {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .contact-form {
+    padding: 4rem 2rem;
+  }
+}
+
+.contact-form__heading,
+.contact-form__intro,
+.contact-form__form,
+.contact-form__error,
+.contact-form__note,
+.contact-form__success,
+.contact-form__media,
+.contact-form__aside,
+.contact-form__aside-label,
+.contact-form__aside-address,
+.contact-form__aside-phone,
+.contact-form__aside-email {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+/* ── headings and body copy: the readable floor ────────────────────────────────────────────────── */
+.contact-form__heading {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.contact-form__intro {
+  /* Roughly 70 characters — the same reading measure the hero body, the cta-banner description and
+     the page-header subtitle get. */
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+}
+
+.contact-form__note,
+.contact-form__error {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.contact-form__success {
+  font-size: 1.125rem;
+  line-height: 1.6;
+  padding: 2rem 1.5rem;
+}
+
+/* ── the repeated units: a form's fields, a service, a value, a related page ───────────────────── */
+.contact-form__form {
+  display: grid;
+  gap: 1rem;
+}
+
+/* #1370 —— `form-over-media` 那张图。跟上面那条同一个理由：主题给它底和圆角，没有皮的时候它也得
+   有个形状，不然那一行在图加载完之前是塌的。 */
+.contact-form__media {
+  aspect-ratio: 16 / 9;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+/* ══ contact-info ══════════════════════════════════════════════════════════════════════ */
+/* ── #1028 batch C: contact-info · process-steps ────────────────────────────────────────────
+   Same test as every block above — "would all three sheets want to state this themselves?" —
+   checked against the three phase-1 sheets after their batch-C rules were written:
+
+     the two block hooks       display / gap / padding        all three set them → base leaks nothing
+     every __headline          font-size / line-height        all three set them
+     every __title / __label   font-size / line-height        all three set them
+     .process-steps__num       width / height / border-radius all three set them
+
+   📌 这一批开始是**四个**块，今天剩两个。`timeline` 随 #1372 删掉了（D19）；第四个（那个统计数字
+   块）按同一份设计文档的 D19 并进了 `social-proof`（它唯一的内容 —— 一组数字 —— 成了那个块的一个
+   可选槽，#1376）。当年那张表里还有一行「.<它>__value font-size」，是真量到的读数，今天它的等价物
+   是 batch F 那一节里的 `.social-proof__stat-value`。
+
+   🔴 `min-width: 0` ON EVERY PART THAT IS A GRID OR FLEX ITEM, the same rule and the same reason the
+   hero, cta-banner, page-header and batch-B parts have it: a grid item's automatic minimum size is
+   its CONTENT's size, so one long word pushes the track wider than the screen and the block's
+   `overflow: hidden` (globals.css) then CLIPS it — while the page-level "no horizontal scroll"
+   reading says everything is fine. `overflow-wrap: break-word` does not prevent it. Measured per
+   block on a 375px viewport, which is the only width where it is visible (#1008: without base the
+   font size drops to 16px and the long word fits, so a 1280px reading says the protection is there
+   when it is not).
+
+   🔴 A PHONE NUMBER AND AN EMAIL ADDRESS ARE THE TWO STRINGS ON A SMALL BUSINESS SITE THAT MUST NOT
+   BE HALF-VISIBLE, and `contact-info` is the batch's one `essential` block. `overflow-wrap: anywhere`
+   on those two parts rather than `break-word`: an email address has no space in it and `break-word`
+   only breaks a word that is alone on its line, so at 375 an address inside a padded card was still
+   the thing that set the card's width. */
+
+.contact-info {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .contact-info {
+    padding: 4rem 2rem;
+  }
+}
+
+.contact-info__headline,
+.contact-info__location,
+.contact-info__label,
+.contact-info__address,
+.contact-info__phone,
+.contact-info__email,
+.contact-info__media {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.contact-info__phone,
+.contact-info__email {
+  overflow-wrap: anywhere;
+}
+
+/* ── the headlines and the sub-headlines ──────────────────────────────────────────────────────── */
+.contact-info__headline {
+  font-size: 1.75rem;
+  line-height: 1.25;
+}
+
+/* ── the repeated units: a location, a stat, a step, an event ─────────────────────────────────── */
+.contact-info__location {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.contact-info__label {
+  font-size: 1.125rem;
+  line-height: 1.4;
+}
+
+.contact-info__address {
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+/* #1382 —— contact-info 那张可选的图。跟 `.content-split__media` 同一条理由：页面 JSON 没给图时这个
+   零件**根本不在树上**（组件那一头是「有则出、无则不出」），给了图它也得有个形状，不然在图加载完
+   之前那一列是塌的。
+   🔴 这里不写 `display` —— 「这一副形态给不给它排版」整件事只有一个主人，在 `public/shapes.css`
+   （默认 `display: none`，只有 `media-side-grid` 放出来）。两个地方各写一句就是两个主人。 */
+.contact-info__media {
+  aspect-ratio: 4 / 3;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+/* ══ content-split ══════════════════════════════════════════════════════════════════════ */
+/* ── #1031 batch F: content-split · text-block · social-proof · features-grid ·
+      newsletter-signup ───────────────────────────────────────────────────────────────────────────
+   Same test as every block above — "would every sheet want to state this itself?" — checked against
+   all three phase-1 sheets after their batch-F rules were written:
+
+     the five block hooks     display / gap / padding      all three set them → base leaks nothing
+     every __headline         font-size / line-height      all three set them
+     every __body / __desc /
+       __sub                  font-size / line-height      all three set them
+     .features-grid__item     padding / border-radius      all three set them
+
+   🔴 `min-width: 0` ON EVERY PART THAT IS A GRID OR FLEX ITEM, the same rule and the same measured
+   reason the earlier blocks have it: a grid item's automatic minimum size is its CONTENT's size, so
+   one long word pushes the track wider than the screen and the block's `overflow: hidden`
+   (globals.css) then CLIPS it — while the page-level "no horizontal scroll" reading says everything
+   is fine. `overflow-wrap: break-word` alone does not prevent it. Taken per block on a 375px
+   viewport, which is the only width where it is visible at all (#1008: without base the font size
+   drops to 16px and the long word fits, so a 1280px reading says the protection is there when it
+   is not).
+
+   🔴 THE LIST ITEMS AND THE NEWSLETTER'S CONTROLS ARE NOT HERE. `li`, `input` and `button` cannot be
+   selected by any theme (contract §1 refuses tag selectors), so they are not a floor a sheet might
+   want to raise — they are unreachable, and globals.css lays them out. One owner per property.  */
+
+.content-split {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .content-split {
+    padding: 4rem 2rem;
+  }
+}
+
+.content-split__media,
+.content-split__headline,
+.content-split__body,
+.content-split__bullets,
+.content-split__stats,
+.content-split__stat,
+.content-split__stat-value,
+.content-split__stat-label {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+/* ── headings: the readable floor ─────────────────────────────────────────────────────────────── */
+.content-split__headline {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+/* ── body copy: roughly 70 characters, the same reading measure every migrated block gets ─────── */
+.content-split__body {
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+}
+
+/* ── the repeated units ───────────────────────────────────────────────────────────────────────── */
+.content-split__stat {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1.5rem;
+  border-width: 1px;
+  border-style: solid;
+  border-color: currentColor;
+  border-radius: 0.75rem;
+}
+
+.content-split__stat-value {
+  font-size: 1.5rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.content-split__stats,
+.content-split__bullets {
+  display: grid;
+  gap: 0.75rem;
+}
+
+/* Without a sheet the media box would be a zero-height nothing when the page JSON has no picture,
+   and the block would read as a gap. An aspect ratio gives it a shape either way; every sheet sets
+   its own, so this reaches no themed page. */
+.content-split__media {
+  aspect-ratio: 16 / 10;
+  border-radius: 0.75rem;
+}
+
+/* ══ cta-banner ══════════════════════════════════════════════════════════════════════ */
+/* ── #1018 cta-banner ───────────────────────────────────────────────────────────────────────────
+   Same two jobs as the hero rules above, and the same test for what may go in here: "would every
+   sheet want to state this itself?". Checked against all three phase-1 sheets after their
+   cta-banner sections were written:
+
+     .cta-banner            display / gap / padding      all three set them → base leaks nothing
+     .cta-banner__headline  font-size / line-height      all three set them
+     .cta-banner__desc      font-size / line-height      all three set them
+
+   The deliberate leftovers are the same pair hero has — `overflow-wrap` and the reading measure on
+   `__desc`: no sheet sets either, both only prevent something unreadable, and a sheet that wanted
+   the overflow back can say so.
+
+   🔴 THE SPACING BETWEEN THE THREE PARTS IS A GRID GAP, NOT MARGINS. All three parts are direct
+   children of `.cta-banner` (that is what lets a sheet put the button in a column of its own — the
+   old `split` look), so one `gap` spaces them; margins on top of it would double-space every themed
+   page whose sheet sets its own gap.
+
+   🔴 NO text-align HERE. Four of the five old looks were centred and one was not, which makes it a
+   look, not a floor — and a default would fight every sheet that wants the other one. */
+.cta-banner {
+  display: grid;
+  gap: 1rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .cta-banner {
+    padding: 4rem 2rem;
+  }
+}
+
+/* 🔴 `min-width: 0` ON ALL FOUR (three until #1361 added the avatar strip), the same rule and the
+   same reason `.hero__media` / `.hero__body` have it above: a grid item's automatic minimum size is
+   its CONTENT's size, so one unbreakable word pushes the track wider than the screen. `overflow-wrap: break-word` does NOT prevent that — it
+   allows a break when the box is already too narrow, but it does not shrink the box's min-content
+   size, so without this the two properties fight and the word wins.
+   Measured on a phone (375) before this rule existed: the headline came out 787px wide with a 50
+   character word in it, and `.cta-banner { overflow: hidden }` (globals.css) then CLIPPED it — no
+   horizontal scrollbar, which is why the page-level reading looked fine while the word was cut in
+   half. With the rule: 327px, and the word wraps. */
+.cta-banner__headline,
+.cta-banner__desc,
+.cta-banner__action,
+.cta-banner__avatars {
+  min-width: 0;
+}
+
+.cta-banner__headline {
+  font-size: 1.75rem;
+  line-height: 1.25;
+  /* A business name or a URL with no spaces in it is one word to a browser, and one word longer than
+     the screen is a horizontal scrollbar. */
+  overflow-wrap: break-word;
+}
+
+@media (min-width: 1024px) {
+  .cta-banner__headline {
+    font-size: 2.25rem;
+  }
+}
+
+.cta-banner__desc {
+  /* Roughly 70 characters — the same reading measure the hero body gets, for the same reason. */
+  max-width: 42rem;
+  line-height: 1.6;
+  overflow-wrap: break-word;
+}
+
+/* 🔴 #1361 THE AVATAR STRIP IS NOT A CONTRACT HOOK, SO THIS IS THE ONLY FLOOR IT HAS. Neither
+   `.cta-banner__avatars` nor `.cta-banner__avatar` is listed in docs/reference/theme-css-contract.md
+   §1, so `scripts/theme-css-lint.js` refuses them to every sheet and no generated theme can state
+   these properties itself. That means the test the rest of this file applies — "would every sheet
+   want to state this itself? then base must not" — does not apply to them: they are UNREACHABLE,
+   like the newsletter's `input` and `button` further down, not "left to base".
+
+   🔴 WHY THEY ARE UNREACHABLE ON PURPOSE (PM's ruling ⓐ on #1361, measured). Putting
+   `.cta-banner__avatars` in the hook table costs four places (the table, the contract document, and
+   both generated sheets, which `scripts/theme-pipeline/sheet-fresh.js --check` turns red until they
+   are regenerated) — and what it buys today is wrong: the generator has no recipe for a row of
+   faces, so what it writes for an unknown hook is `font-size` / `line-height` / `color`, a text rule
+   on a box that holds pictures. A faces recipe (`sheet-recipes.js`) is another ticket; this one's
+   body says it does not do the skin. `.hero__img` is the same boundary already drawn one layer in:
+   the sheet sizes the box through `.hero__media`, the platform owns the <img> (globals.css), because
+   two owners for one dimension is a bug generator. Here the platform owns the box as well — that is
+   the only difference, and it ends the day the faces recipe lands.
+
+   Round, equal-sized and in one row is what makes a handful of pictures read as a GROUP of customers
+   rather than as loose images, and it has to hold with no sheet at all — which is what this file is
+   for. (How many faces there are is the site's data, not this rule's business: the demo pack feeds
+   six because the demo-content guard wants every list slot at six or more, a real page may feed
+   three. `flex-wrap` is deliberately not set here — a box too narrow for the row clips instead of
+   wrapping, which is what `.cta-banner { overflow: hidden }` in globals.css does to every part of
+   this block; whether a row of faces should wrap is an open question QA3 put to the author on #1361
+   and nobody has answered.)
+
+   Where the strip sits inside the block is per shape and lives in public/shapes.css; this says
+   nothing about that. */
+.cta-banner__avatars {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cta-banner__avatar {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 9999px;
+  border-width: 2px;
+  border-style: solid;
+  border-color: currentColor;
+}
+
+/* ══ faq-accordion ══════════════════════════════════════════════════════════════════════ */
+/* #1362 —— FAQ 的两个可选零件。两条都只是**地板**：这个块今天没有任何主题皮画它们，所以没有
+   哪张表会覆盖这两条；写在这里而不是 `shapes.css`，是因为它们跟形态无关 —— 七种形态都用同一块图、
+   同一张卡，只是摆的位置不同。
+
+   图的比例跟 `.content-split__media` 同一个理由：页面 JSON 没给图时这个零件**根本不在树上**
+   （组件那一头是「有则出、无则不出」），给了图它也得有个形状，不然那一列在图加载完之前是塌的。 */
+.faq-accordion__media {
+  aspect-ratio: 4 / 3;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+/* 求助卡：没有皮的时候它就是一摞字。卡的长相（底色、描边、圆角、内边距）是主题的事，
+   这里只保证它自己不散架。 */
+.faq-accordion__aside {
+  display: grid;
+  gap: 0.5rem;
+  align-content: start;
+  padding: 1.25rem;
+  border-radius: 0.75rem;
+}
+
+.faq-accordion {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .faq-accordion {
+    padding: 4rem 2rem;
+  }
+}
+
+.faq-accordion__headline,
+.faq-accordion__sub,
+.faq-accordion__item,
+.faq-accordion__question,
+.faq-accordion__answer,
+.faq-accordion__media,
+.faq-accordion__aside,
+.faq-accordion__aside-lead,
+.faq-accordion__aside-text,
+.faq-accordion__aside-action {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+/* ── headings and body copy: the readable floor ────────────────────────────────────────────────── */
+.faq-accordion__headline {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.faq-accordion__sub {
+  /* Roughly 70 characters — the same reading measure every other block's subtitle gets. */
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+}
+
+.faq-accordion__question {
+  font-size: 1.125rem;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.faq-accordion__answer {
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+/* ── the repeated units: a question, a testimonial, a highlight, a tier, a picture ─────────────── */
+.faq-accordion__item {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  border-width: 1px;
+  border-style: solid;
+  border-color: currentColor;
+  border-radius: 0.75rem;
+}
+
+/* ══ features-grid ══════════════════════════════════════════════════════════════════════ */
+.features-grid {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .features-grid {
+    padding: 4rem 2rem;
+  }
+}
+
+.features-grid__headline,
+.features-grid__sub,
+.features-grid__item,
+.features-grid__title,
+.features-grid__desc {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+.features-grid__headline {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.features-grid__title {
+  font-size: 1.25rem;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.features-grid__sub {
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+}
+
+.features-grid__desc {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+.features-grid__item {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1.5rem;
+  border-width: 1px;
+  border-style: solid;
+  border-color: currentColor;
+  border-radius: 0.75rem;
+}
+
+.features-grid__icon {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+/* ══ gallery ══════════════════════════════════════════════════════════════════════ */
+.gallery {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .gallery {
+    padding: 4rem 2rem;
+  }
+}
+
+.gallery__headline,
+.gallery__sub,
+.gallery__item,
+.gallery__caption,
+.gallery__category,
+.gallery__title,
+.gallery__desc {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+.gallery__headline {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.gallery__sub {
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+}
+
+.gallery__title {
+  font-size: 1.125rem;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.gallery__desc {
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.gallery__category {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.gallery__item {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.gallery__caption {
+  display: grid;
+  gap: 0.25rem;
+}
+
+/* ── gallery: a picture without a sheet still has to be a picture, not a full-bleed banner ─────── */
+.gallery__image,
+.gallery__placeholder {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 0.5rem;
+  object-fit: cover;
+}
+
+.gallery__placeholder {
+  background-color: currentColor;
+  opacity: 0.12;
+}
+
+/* ══ hero ══════════════════════════════════════════════════════════════════════ */
+.hero {
+  /* Grid rather than the structure layer's `display: block`, for one reason: it puts the gap
+     between the picture, the words and the decoration in ONE place, instead of hanging a margin on
+     each child. Sheets set both properties themselves, so neither reaches a themed page. */
+  display: grid;
+  gap: 2rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .hero {
+    padding: 4rem 2rem;
+  }
+}
+
+/* A grid item's automatic minimum size is its CONTENT's size, so a 1600px-wide photo can push the
+   column wider than the screen and give a phone a horizontal scrollbar — the picture obeys
+   `max-width: 100%` and the page still overflows, which is why capping the image is not enough. */
+.hero__media {
+  min-width: 0;
+}
+
+.hero__body {
+  min-width: 0;
+  /* Roughly 70 characters. Longer lines are measurably harder to read, and with no sheet the words
+     would otherwise run the full width of a desktop screen. */
+  max-width: 42rem;
+}
+
+.hero__title {
+  font-size: 2rem;
+  line-height: 1.2;
+  /* A business name or a URL with no spaces in it is one word to a browser, and one word longer
+     than the screen is a horizontal scrollbar. */
+  overflow-wrap: break-word;
+}
+
+@media (min-width: 1024px) {
+  .hero__title {
+    font-size: 2.75rem;
+  }
+}
+
+.hero__sub {
+  margin-top: 1rem;
+  line-height: 1.6;
+  overflow-wrap: break-word;
+}
+
+.hero__cta {
+  margin-top: 2rem;
+}
+
+/* 🔴 #1374 —— 可选槽 `socialProof` 的地板。跟上面那几条同一个判据（「没有皮的时候读得出来吗」），
+   而它比上面那些多一层理由：这四个类名**不是契约钩子**（同 `.hero__img`），所以三套皮一条规则都不会
+   给它们写 —— 这里不写就真的什么都没有。
+   `min-width: 0` 与 `overflow-wrap` 是同一对老理由：一行没有空格的长字符串会把网格轨道撑得比屏幕宽，
+   而块自己的 `overflow: hidden`（globals.css）会把它剪掉，页面级那条「没有横向滚动」照样说一切正常。 */
+.hero__proof {
+  margin-top: 1.5rem;
+  min-width: 0;
+}
+
+.hero__proof-rating,
+.hero__proof-text {
+  min-width: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  overflow-wrap: break-word;
+}
+
+/* ══ map-area ══════════════════════════════════════════════════════════════════════ */
+/* ── #1030 batch E: map-area · trusted-brands ───────────────────────────────────────────────────
+   Same test as every batch before it — "would every sheet want to state this itself?" — checked
+   against all three phase-1 sheets after their batch-E rules were written:
+
+     the two block hooks         display / gap / padding       all three set them → base leaks nothing
+     every __headline            font-size / line-height       all three set them
+
+   🔴 `min-width: 0` AND `max-width: 100%` ON EVERY PART, the pair batch G worked out (#1036) and
+   batch D measured per block: `min-width: 0` fixes a grid item's AUTOMATIC minimum, without which one
+   long word makes the track wider than the screen while the block's `overflow: hidden` (globals.css)
+   clips it and the page-level "no horizontal scroll" reading still says everything is fine.
+   `max-width: 100%` covers the part a sheet sizes as `fit-content` (a self-aligned pill).
+
+   🔴 NO `list-style` RULES HERE: neither of these two renders a list element. map-area's ticks and
+   bullets were `<svg>`s and `<span>`s in the markup and they are gone (#1030) — the contract admits
+   only `content: ""`, so a sheet draws a shape back, not that glyph. */
+.map-area {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .map-area {
+    padding: 4rem 2rem;
+  }
+}
+
+.map-area__headline,
+.map-area__sub,
+.map-area__area,
+.map-area__name,
+.map-area__desc {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+/* ── headings and body copy: the readable floor ────────────────────────────────────────────────── */
+.map-area__headline {
+  font-size: 1.75rem;
+  line-height: 1.2;
+}
+
+@media (min-width: 1024px) {
+  .map-area__headline {
+    font-size: 2.25rem;
+  }
+}
+
+.map-area__sub {
+  /* Roughly 70 characters — the same reading measure every other block's sub gets. */
+  max-width: 34rem;
+  line-height: 1.6;
+}
+
+.map-area__name {
+  font-size: 1.125rem;
+  line-height: 1.3;
+}
+
+.map-area__desc {
+  line-height: 1.6;
+}
+
+/* ══ newsletter-signup ══════════════════════════════════════════════════════════════════════ */
+.newsletter-signup {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .newsletter-signup {
+    padding: 4rem 2rem;
+  }
+}
+
+.newsletter-signup__headline,
+.newsletter-signup__desc,
+.newsletter-signup__form {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+.newsletter-signup__headline {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.newsletter-signup__desc {
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+}
+
+.newsletter-signup__form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+/* ══ page-header ══════════════════════════════════════════════════════════════════════ */
+/* ── #1019 page-header ──────────────────────────────────────────────────────────────────────────
+   Same two jobs as the rules above, and the same test for what may go in here: "would every sheet
+   want to state this itself?". Checked against all three phase-1 sheets after their page-header
+   sections were written:
+
+     .page-header           display / gap / padding      all three set them → base leaks nothing
+     .page-header__title    font-size / line-height      all three set them
+     .page-header__sub      font-size / line-height / max-width   all three set them
+     .page-header__crumbs   font-size                    all three set it
+
+   The deliberate leftovers are the same pair the other two blocks have — `overflow-wrap` and
+   `min-width: 0`: no sheet sets either, both only prevent something unreadable, and a sheet that
+   wanted the overflow back can say so.
+
+   🔴 THE SPACING BETWEEN THE THREE PARTS IS A GRID GAP, NOT MARGINS. The crumbs, the heading and the
+   subtitle are direct children of `.page-header` (that is what lets a sheet put the subtitle in a
+   column of its own — the old `with-description` look), so one `gap` spaces them; margins on top of
+   it would double-space every themed page whose sheet sets its own gap.
+
+   🔴 NO text-align AND NO background HERE, and this block is the one where that matters most: two of
+   the four deleted looks were centred and two were not, and three of them painted a dark gradient
+   while `minimal` was white. Both are therefore looks, not floors — a default would fight whichever
+   sheet wanted the other one, on every page of the site except the home page. */
+.page-header {
+  display: grid;
+  gap: 1rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .page-header {
+    padding: 4rem 2rem;
+  }
+}
+
+/* 🔴 `min-width: 0` ON ALL THREE, the same rule and the same reason `.hero__media` / `.hero__body`
+   and the cta-banner parts have it above: a grid item's automatic minimum size is its CONTENT's
+   size, so one unbreakable word pushes the track wider than the screen. `overflow-wrap: break-word`
+   does NOT prevent that — it allows a break once the box is already too narrow, but it does not
+   shrink the box's min-content size, so without this the two properties fight and the word wins. */
+.page-header__crumbs,
+.page-header__title,
+.page-header__sub {
+  min-width: 0;
+}
+
+.page-header__title {
+  font-size: 1.875rem;
+  line-height: 1.2;
+  /* A service name, a city name joined by hyphens, or a URL with no spaces in it is one word to a
+     browser, and one word longer than the screen is a horizontal scrollbar. */
+  overflow-wrap: break-word;
+}
+
+@media (min-width: 1024px) {
+  .page-header__title {
+    font-size: 2.5rem;
+  }
+}
+
+.page-header__sub {
+  /* Roughly 70 characters — the same reading measure the hero body and the cta-banner description
+     get, for the same reason. */
+  max-width: 42rem;
+  line-height: 1.6;
+  overflow-wrap: break-word;
+}
+
+/* The crumb trail is navigation, not reading matter: smaller than the body text on every sheet, and
+   it wraps rather than pushing the page sideways when a page sits three levels deep. */
+.page-header__crumbs {
+  font-size: 0.875rem;
+  overflow-wrap: break-word;
+}
+
+/* ══ pricing-table ══════════════════════════════════════════════════════════════════════ */
+.pricing-table {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .pricing-table {
+    padding: 4rem 2rem;
+  }
+}
+
+.pricing-table__headline,
+.pricing-table__sub,
+.pricing-table__item,
+.pricing-table__badge,
+.pricing-table__name,
+.pricing-table__price,
+.pricing-table__desc,
+.pricing-table__features,
+.pricing-table__action {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+.pricing-table__headline {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.pricing-table__sub {
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+}
+
+.pricing-table__name {
+  font-size: 1.125rem;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+.pricing-table__price {
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 700;
+}
+
+.pricing-table__desc {
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.pricing-table__badge {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.pricing-table__item {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  border-width: 1px;
+  border-style: solid;
+  border-color: currentColor;
+  border-radius: 0.75rem;
+}
+
+.pricing-table__features {
+  display: grid;
+  gap: 0.5rem;
+}
+
+/* ══ process-steps ══════════════════════════════════════════════════════════════════════ */
+.process-steps {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .process-steps {
+    padding: 4rem 2rem;
+  }
+}
+
+.process-steps__headline,
+.process-steps__sub,
+.process-steps__step,
+.process-steps__num,
+.process-steps__title,
+.process-steps__desc {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.process-steps__headline {
+  font-size: 1.75rem;
+  line-height: 1.25;
+}
+
+.process-steps__sub {
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.process-steps__step {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.process-steps__title {
+  font-size: 1.125rem;
+  line-height: 1.4;
+}
+
+.process-steps__desc {
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+/* The step number. A circle without a sheet, because `.process-steps__num` is a `<span>` and an
+   unstyled numeral in the flow reads as part of the title next to it. */
+.process-steps__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9999px;
+  border-width: 1px;
+  border-style: solid;
+  border-color: currentColor;
+  font-size: 0.875rem;
+}
+
+/* ══ quote-form ══════════════════════════════════════════════════════════════════════ */
+.quote-form {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .quote-form {
+    padding: 4rem 2rem;
+  }
+}
+
+.quote-form__form,
+.quote-form__intro,
+.quote-form__main,
+.quote-form__aside,
+.quote-form__step,
+.quote-form__error,
+.quote-form__action,
+.quote-form__success {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.quote-form__intro {
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+}
+
+.quote-form__error {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.quote-form__success {
+  font-size: 1.125rem;
+  line-height: 1.6;
+  padding: 2rem 1.5rem;
+}
+
+.quote-form__form,
+.quote-form__main,
+.quote-form__step {
+  display: grid;
+  gap: 1rem;
+}
+
+.quote-form__aside {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  border-width: 1px;
+  border-style: solid;
+  border-color: currentColor;
+  border-radius: 0.75rem;
+}
+
+/* ══ service-related-pages ══════════════════════════════════════════════════════════════════════ */
+.service-related-pages {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .service-related-pages {
+    padding: 4rem 2rem;
+  }
+}
+
+.service-related-pages__headline,
+.service-related-pages__sub,
+.service-related-pages__card {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.service-related-pages__headline {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.service-related-pages__sub {
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+}
+
+.service-related-pages__card {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  border-width: 1px;
+  border-style: solid;
+  border-color: currentColor;
+  border-radius: 0.75rem;
+}
+
+/* ══ services-list ══════════════════════════════════════════════════════════════════════ */
+.services-list {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .services-list {
+    padding: 4rem 2rem;
+  }
+}
+
+.services-list__item,
+.services-list__icon,
+.services-list__title,
+.services-list__desc,
+.services-list__actions,
+.services-list__features,
+.services-list__products {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.services-list__title {
+  font-size: 1.5rem;
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+.services-list__desc {
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+}
+
+.services-list__item {
+  display: grid;
+  gap: 1rem;
+}
+
+.services-list__features,
+.services-list__products {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  border-width: 1px;
+  border-style: solid;
+  border-color: currentColor;
+  border-radius: 0.75rem;
+}
+
+.services-list__icon {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+/* ══ services-nav ══════════════════════════════════════════════════════════════════════ */
+.services-nav {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+.services-nav__link {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+/* ── services-nav: without a sheet this is still a row of links, not a stack ───────────────────── */
+.services-nav {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+}
+
+.services-nav__link {
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+/* ══ social-proof ══════════════════════════════════════════════════════════════════════ */
+.social-proof {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .social-proof {
+    padding: 4rem 2rem;
+  }
+}
+
+.social-proof__headline,
+.social-proof__rating,
+.social-proof__reviews,
+.social-proof__platform,
+.social-proof__badge,
+.social-proof__quote,
+.social-proof__quote-author,
+.social-proof__stat,
+.social-proof__stat-value,
+.social-proof__stat-label,
+.social-proof__media {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+.social-proof__headline {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.social-proof__reviews {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+/* The score and the quote are the two things this block exists to show, so without a sheet they are
+   still the two biggest things in it. */
+.social-proof__rating {
+  font-size: 2.5rem;
+  line-height: 1.1;
+  font-weight: 700;
+}
+
+.social-proof__quote {
+  font-size: 1.125rem;
+  line-height: 1.6;
+}
+
+.social-proof__platform,
+.social-proof__badge {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1.5rem;
+  border-width: 1px;
+  border-style: solid;
+  border-color: currentColor;
+  border-radius: 0.75rem;
+}
+
+/* #1376 —— `social-proof` 从此也能放一组数字（batch C 那个统计数字块按 D19 并进来的那一半）。
+   两条都是从那个块的地板逐条搬过来的：单元自己是个小网格，数字是这个单元存在的理由，所以没有
+   主题表时它仍是里面最大的那个（那边写的也是 2rem）。 */
+.social-proof__stat {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.social-proof__stat-value {
+  font-size: 2rem;
+  line-height: 1.1;
+}
+
+/* #1376 —— `social-proof` 的那张可选图，同一条理由。页面 JSON 没给图时这个零件**根本不在树上**
+   （组件那一头是「有则出、无则不出」），给了图它也得有个形状，不然在图加载完之前那一行是塌的。 */
+.social-proof__media {
+  aspect-ratio: 16 / 10;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+/* ══ team-grid ══════════════════════════════════════════════════════════════════════ */
+.team-grid {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .team-grid {
+    padding: 4rem 2rem;
+  }
+}
+
+.team-grid__headline,
+.team-grid__sub,
+.team-grid__member,
+.team-grid__name,
+.team-grid__role,
+.team-grid__bio {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+.team-grid__headline {
+  font-size: 1.75rem;
+  line-height: 1.2;
+}
+
+@media (min-width: 1024px) {
+  .team-grid__headline {
+    font-size: 2.25rem;
+  }
+}
+
+.team-grid__sub {
+  max-width: 34rem;
+  line-height: 1.6;
+}
+
+.team-grid__name {
+  font-size: 1.125rem;
+  line-height: 1.3;
+}
+
+.team-grid__bio {
+  line-height: 1.6;
+}
+.team-grid__role {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+.team-grid__member {
+  display: grid;
+  gap: 0.375rem;
+}
+
+/* ══ testimonials ══════════════════════════════════════════════════════════════════════ */
+.testimonials {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .testimonials {
+    padding: 4rem 2rem;
+  }
+}
+
+.testimonials__headline,
+.testimonials__sub,
+.testimonials__item,
+.testimonials__rating,
+.testimonials__quote,
+.testimonials__name,
+.testimonials__meta,
+.testimonials__service {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+.testimonials__headline {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.testimonials__sub {
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+}
+
+.testimonials__quote {
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.testimonials__meta,
+.testimonials__service {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.testimonials__item {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  border-width: 1px;
+  border-style: solid;
+  border-color: currentColor;
+  border-radius: 0.75rem;
+}
+
+/* ── the two parts that are DATA rather than markup (see the contract's §1 note) ───────────────── */
+.testimonials__rating {
+  display: flex;
+  gap: 0.125rem;
+}
+
+.testimonials__star {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* ══ text-block ══════════════════════════════════════════════════════════════════════ */
+.text-block {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .text-block {
+    padding: 4rem 2rem;
+  }
+}
+
+.text-block__headline,
+.text-block__body,
+.text-block__attribution,
+.text-block__list {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+.text-block__headline {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.text-block__body {
+  max-width: 34rem;
+  font-size: 1.0625rem;
+  line-height: 1.7;
+}
+
+.text-block__attribution {
+  font-size: 1.125rem;
+  line-height: 1.6;
+}
+
+.text-block__list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+/* ══ trusted-brands ══════════════════════════════════════════════════════════════════════ */
+.trusted-brands {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .trusted-brands {
+    padding: 4rem 2rem;
+  }
+}
+
+.trusted-brands__headline,
+.trusted-brands__brand {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+/* ── the comparison's rows: which mark belongs to which side ───────────────────────────────────── */
+
+
+/* Only the marks are centred here. The header row's three labels are one class, so telling the first
+   one apart needs a descendant selector — and base.css refuses those on purpose (a specificity above
+   a theme's is a floor a theme cannot lift). A sheet may write it: §1 lets a sheet combine two hooks
+   as ancestor and descendant, and all three do. */
+
+
+/* ── the list of names ─────────────────────────────────────────────────────────────────────────── */
+.trusted-brands__headline {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ══ footer ══════════════════════════════════════════════════════════════════════ */
+/* ── 页脚 ──────────────────────────────────────────────────────────────────────────────────── */
+
+.footer {
+  background-color: var(--color-primary-900);
+  color: var(--color-gray-300, #d1d5db);
+}
+
+.footer__cta {
+  display: none;
+}
+
+/* 🔴 页脚原来是「一个 `.container-width.section-padding` 的壳，里面一张 grid + 一条版权行」。
+   骨架把那层壳去掉了（多一层 div 就多一层 CSS 摆不动的东西），所以壳的四档内边距在这里逐档照搬 ——
+   `.section-padding` 那四条（globals.css §961）一个断点都不能少，少一个就是某个宽度上的包围盒变了。
+   版权行的 `padding-bottom` 由它自己给：原来它是壳里最后一个孩子，壳的下内边距兜着它。 */
+.footer__body {
+  margin-inline: auto;
+  max-width: 80rem;
+  display: grid;
+  gap: 3rem;
+  padding: var(--section-y) var(--section-x) 0;
+}
+
+@media (min-width: 640px) {
+  .footer__body {
+    padding-left: var(--section-xSm);
+    padding-right: var(--section-xSm);
+  }
+}
+
+@media (min-width: 768px) {
+  .footer__body {
+    padding-top: var(--section-yMd);
+  }
+}
+
+@media (min-width: 1024px) {
+  .footer__body {
+    padding-left: var(--section-xLg);
+    padding-right: var(--section-xLg);
+  }
+}
+
+.footer__brand-id {
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.footer__logo-pill {
+  display: inline-flex;
+  align-items: center;
+  background-color: #fff;
+  padding: 0.375rem;
+  border-radius: var(--radius-md);
+}
+
+.footer__logo-img {
+  height: 1.75rem;
+  width: auto;
+  max-width: 120px;
+  object-fit: contain;
+}
+
+.footer__logo-mark {
+  display: flex;
+  height: 2rem;
+  width: 2rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-lg);
+  background-color: var(--color-primary-500);
+}
+
+.footer__logo-icon {
+  height: 1.25rem;
+  width: 1.25rem;
+  color: #fff;
+}
+
+.footer__logo-name {
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.footer__desc {
+  font-size: 0.875rem;
+  line-height: 1.625;
+}
+
+.footer__social {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.footer__social-link {
+  display: flex;
+  height: 2.25rem;
+  width: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background-color: var(--color-primary-800);
+  color: var(--color-gray-400, #9ca3af);
+}
+
+.footer__social-fallback {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.footer__col-title {
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #fff;
+}
+
+.footer__list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.footer__list--contact {
+  gap: 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.footer__link {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.footer__loc-label {
+  color: #fff;
+}
+
+.footer__email {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.footer__legal {
+  margin-inline: auto;
+  max-width: 80rem;
+  margin-top: 3rem;
+  padding: 0 var(--section-x) var(--section-y);
+  text-align: center;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+/* 线和「线到字」那段留白住在这里，不在外面那层 —— 理由写在 `Footer.tsx` 版权那段的注释里。
+   `padding-top` 的三个数（多列 2rem / 细行 1.5rem / 色带 1.5rem）跟着形态走，在 `shapes.css`。 */
+.footer__copyright {
+  border-top: 1px solid var(--color-gray-700, #374151);
+  padding-top: 2rem;
+}
+
+@media (min-width: 640px) {
+  .footer__legal {
+    padding-left: var(--section-xSm);
+    padding-right: var(--section-xSm);
+  }
+}
+
+@media (min-width: 768px) {
+  .footer__legal {
+    padding-bottom: var(--section-yMd);
+  }
+}
+
+@media (min-width: 1024px) {
+  .footer__legal {
+    padding-left: var(--section-xLg);
+    padding-right: var(--section-xLg);
+  }
+}
+
+/* ══ header ══════════════════════════════════════════════════════════════════════ */
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
    #1353 — 顶栏 / 页脚的地板。
    ══════════════════════════════════════════════════════════════════════════════════════════════
@@ -1528,193 +2195,4 @@
   margin-top: 0.5rem;
   border-top: 1px solid var(--color-gray-200, #e5e7eb);
   padding-top: 0.5rem;
-}
-
-/* ── 页脚 ──────────────────────────────────────────────────────────────────────────────────── */
-
-.footer {
-  background-color: var(--color-primary-900);
-  color: var(--color-gray-300, #d1d5db);
-}
-
-.footer__cta {
-  display: none;
-}
-
-/* 🔴 页脚原来是「一个 `.container-width.section-padding` 的壳，里面一张 grid + 一条版权行」。
-   骨架把那层壳去掉了（多一层 div 就多一层 CSS 摆不动的东西），所以壳的四档内边距在这里逐档照搬 ——
-   `.section-padding` 那四条（globals.css §961）一个断点都不能少，少一个就是某个宽度上的包围盒变了。
-   版权行的 `padding-bottom` 由它自己给：原来它是壳里最后一个孩子，壳的下内边距兜着它。 */
-.footer__body {
-  margin-inline: auto;
-  max-width: 80rem;
-  display: grid;
-  gap: 3rem;
-  padding: var(--section-y) var(--section-x) 0;
-}
-
-@media (min-width: 640px) {
-  .footer__body {
-    padding-left: var(--section-xSm);
-    padding-right: var(--section-xSm);
-  }
-}
-
-@media (min-width: 768px) {
-  .footer__body {
-    padding-top: var(--section-yMd);
-  }
-}
-
-@media (min-width: 1024px) {
-  .footer__body {
-    padding-left: var(--section-xLg);
-    padding-right: var(--section-xLg);
-  }
-}
-
-.footer__brand-id {
-  margin-bottom: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.footer__logo-pill {
-  display: inline-flex;
-  align-items: center;
-  background-color: #fff;
-  padding: 0.375rem;
-  border-radius: var(--radius-md);
-}
-
-.footer__logo-img {
-  height: 1.75rem;
-  width: auto;
-  max-width: 120px;
-  object-fit: contain;
-}
-
-.footer__logo-mark {
-  display: flex;
-  height: 2rem;
-  width: 2rem;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-lg);
-  background-color: var(--color-primary-500);
-}
-
-.footer__logo-icon {
-  height: 1.25rem;
-  width: 1.25rem;
-  color: #fff;
-}
-
-.footer__logo-name {
-  font-size: 1.125rem;
-  line-height: 1.75rem;
-  font-weight: 700;
-  color: #fff;
-}
-
-.footer__desc {
-  font-size: 0.875rem;
-  line-height: 1.625;
-}
-
-.footer__social {
-  margin-top: 1rem;
-  display: flex;
-  gap: 0.75rem;
-}
-
-.footer__social-link {
-  display: flex;
-  height: 2.25rem;
-  width: 2.25rem;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9999px;
-  background-color: var(--color-primary-800);
-  color: var(--color-gray-400, #9ca3af);
-}
-
-.footer__social-fallback {
-  font-size: 0.75rem;
-  line-height: 1rem;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.footer__col-title {
-  margin-bottom: 1rem;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #fff;
-}
-
-.footer__list {
-  display: grid;
-  gap: 0.5rem;
-}
-
-.footer__list--contact {
-  gap: 0.75rem;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-}
-
-.footer__link {
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-}
-
-.footer__loc-label {
-  color: #fff;
-}
-
-.footer__email {
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-}
-
-.footer__legal {
-  margin-inline: auto;
-  max-width: 80rem;
-  margin-top: 3rem;
-  padding: 0 var(--section-x) var(--section-y);
-  text-align: center;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-}
-
-/* 线和「线到字」那段留白住在这里，不在外面那层 —— 理由写在 `Footer.tsx` 版权那段的注释里。
-   `padding-top` 的三个数（多列 2rem / 细行 1.5rem / 色带 1.5rem）跟着形态走，在 `shapes.css`。 */
-.footer__copyright {
-  border-top: 1px solid var(--color-gray-700, #374151);
-  padding-top: 2rem;
-}
-
-@media (min-width: 640px) {
-  .footer__legal {
-    padding-left: var(--section-xSm);
-    padding-right: var(--section-xSm);
-  }
-}
-
-@media (min-width: 768px) {
-  .footer__legal {
-    padding-bottom: var(--section-yMd);
-  }
-}
-
-@media (min-width: 1024px) {
-  .footer__legal {
-    padding-left: var(--section-xLg);
-    padding-right: var(--section-xLg);
-  }
 }

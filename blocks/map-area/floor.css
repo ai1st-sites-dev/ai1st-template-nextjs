@@ -1,0 +1,64 @@
+/* ── #1030 batch E: map-area · trusted-brands ───────────────────────────────────────────────────
+   Same test as every batch before it — "would every sheet want to state this itself?" — checked
+   against all three phase-1 sheets after their batch-E rules were written:
+
+     the two block hooks         display / gap / padding       all three set them → base leaks nothing
+     every __headline            font-size / line-height       all three set them
+
+   🔴 `min-width: 0` AND `max-width: 100%` ON EVERY PART, the pair batch G worked out (#1036) and
+   batch D measured per block: `min-width: 0` fixes a grid item's AUTOMATIC minimum, without which one
+   long word makes the track wider than the screen while the block's `overflow: hidden` (globals.css)
+   clips it and the page-level "no horizontal scroll" reading still says everything is fine.
+   `max-width: 100%` covers the part a sheet sizes as `fit-content` (a self-aligned pill).
+
+   🔴 NO `list-style` RULES HERE: neither of these two renders a list element. map-area's ticks and
+   bullets were `<svg>`s and `<span>`s in the markup and they are gone (#1030) — the contract admits
+   only `content: ""`, so a sheet draws a shape back, not that glyph. */
+.map-area {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .map-area {
+    padding: 4rem 2rem;
+  }
+}
+
+.map-area__headline,
+.map-area__sub,
+.map-area__area,
+.map-area__name,
+.map-area__desc {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+/* ── headings and body copy: the readable floor ────────────────────────────────────────────────── */
+.map-area__headline {
+  font-size: 1.75rem;
+  line-height: 1.2;
+}
+
+@media (min-width: 1024px) {
+  .map-area__headline {
+    font-size: 2.25rem;
+  }
+}
+
+.map-area__sub {
+  /* Roughly 70 characters — the same reading measure every other block's sub gets. */
+  max-width: 34rem;
+  line-height: 1.6;
+}
+
+.map-area__name {
+  font-size: 1.125rem;
+  line-height: 1.3;
+}
+
+.map-area__desc {
+  line-height: 1.6;
+}

@@ -1,0 +1,17 @@
+/* trusted-brands · row  （ember-12 + azure-29 今天选的就是它；#1320 之前它俩选的是 stack，一列的网格） */
+
+[data-block="trusted-brands"][data-shape="row"] {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+[data-block="trusted-brands"][data-shape="row"] .trusted-brands__headline {
+  flex: 0 0 100%;
+}
+
+[data-block="trusted-brands"][data-shape="row"] .trusted-brands__brand {
+  display: grid;
+  place-items: center;
+}

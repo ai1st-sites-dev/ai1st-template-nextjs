@@ -1,0 +1,47 @@
+/* hero · media-cover  （ember-12 今天选的就是它） */
+
+[data-block="hero"][data-shape="media-cover"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+  min-height: 36rem;
+}
+
+[data-block="hero"][data-shape="media-cover"] .hero__media {
+  aspect-ratio: auto;
+  grid-row: 1;
+  grid-column: 1 / -1;
+  align-self: stretch;
+  min-height: 30rem;
+}
+
+[data-block="hero"][data-shape="media-cover"] .hero__body {
+  display: grid;
+  align-content: start;
+  max-width: 44rem;
+  grid-row: 1;
+  grid-column: 1 / -1;
+  align-self: center;
+}
+
+[data-block="hero"][data-shape="media-cover"] .hero__title {
+  grid-column: 1 / -1;
+}
+
+[data-block="hero"][data-shape="media-cover"] .hero__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="hero"][data-shape="media-cover"] .hero__cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-block="hero"][data-shape="media-cover"] .hero__deco {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  max-width: 7rem;
+}

@@ -590,14 +590,14 @@ for (const locale of locales) {
   // #999 —— 「渲染器认得的块」与「有 manifest 的块」必须是同一个集合。加了块忘了补 manifest 的话，
   // 那个块从此在提示词里不出现、校验也不认它，而没有任何东西会红。
   {
-    const cov = blockManifest.registryCoverage(path.join(rootDir, 'src', 'lib', 'sections', 'registry.ts'));
+    const cov = blockManifest.registryCoverage(path.join(rootDir, 'src', 'lib', 'sections', 'registry.generated.ts'));
     // 🔴 #1013：「读不出来」不走 exit 1 那一支。这里的退出码 1 会让这个站从此重建不出来，而
     //    「拿不到解析器」根本不是关于注册表的读数 —— 但它也不能安静地过去，否则日志里那行
     //    「对得上」会变成一句没人查过的话。
     if (cov.unavailable) {
       console.log(`  ⚠️  blocks/ 与 registry.ts 没有对照：${cov.unavailable}`);
     } else if (cov.missingManifest.length || cov.unknownBlock.length) {
-      console.error('blocks/ 与 src/lib/sections/registry.ts 对不上：');
+      console.error('blocks/ 与 src/lib/sections/registry.generated.ts 对不上：');
       if (cov.missingManifest.length) console.error(`  registry 有、blocks/ 没有: ${cov.missingManifest.join(' ')}`);
       if (cov.unknownBlock.length) console.error(`  blocks/ 有、registry 没有: ${cov.unknownBlock.join(' ')}`);
       process.exit(1);

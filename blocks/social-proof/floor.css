@@ -1,0 +1,81 @@
+.social-proof {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .social-proof {
+    padding: 4rem 2rem;
+  }
+}
+
+.social-proof__headline,
+.social-proof__rating,
+.social-proof__reviews,
+.social-proof__platform,
+.social-proof__badge,
+.social-proof__quote,
+.social-proof__quote-author,
+.social-proof__stat,
+.social-proof__stat-value,
+.social-proof__stat-label,
+.social-proof__media {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+.social-proof__headline {
+  font-size: 1.75rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+
+.social-proof__reviews {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+
+/* The score and the quote are the two things this block exists to show, so without a sheet they are
+   still the two biggest things in it. */
+.social-proof__rating {
+  font-size: 2.5rem;
+  line-height: 1.1;
+  font-weight: 700;
+}
+
+.social-proof__quote {
+  font-size: 1.125rem;
+  line-height: 1.6;
+}
+
+.social-proof__platform,
+.social-proof__badge {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1.5rem;
+  border-width: 1px;
+  border-style: solid;
+  border-color: currentColor;
+  border-radius: 0.75rem;
+}
+
+/* #1376 —— `social-proof` 从此也能放一组数字（batch C 那个统计数字块按 D19 并进来的那一半）。
+   两条都是从那个块的地板逐条搬过来的：单元自己是个小网格，数字是这个单元存在的理由，所以没有
+   主题表时它仍是里面最大的那个（那边写的也是 2rem）。 */
+.social-proof__stat {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.social-proof__stat-value {
+  font-size: 2rem;
+  line-height: 1.1;
+}
+
+/* #1376 —— `social-proof` 的那张可选图，同一条理由。页面 JSON 没给图时这个零件**根本不在树上**
+   （组件那一头是「有则出、无则不出」），给了图它也得有个形状，不然在图加载完之前那一行是塌的。 */
+.social-proof__media {
+  aspect-ratio: 16 / 10;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}

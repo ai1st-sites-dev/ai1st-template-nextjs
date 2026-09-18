@@ -1,0 +1,89 @@
+/* ── #1028 batch C: contact-info · process-steps ────────────────────────────────────────────
+   Same test as every block above — "would all three sheets want to state this themselves?" —
+   checked against the three phase-1 sheets after their batch-C rules were written:
+
+     the two block hooks       display / gap / padding        all three set them → base leaks nothing
+     every __headline          font-size / line-height        all three set them
+     every __title / __label   font-size / line-height        all three set them
+     .process-steps__num       width / height / border-radius all three set them
+
+   📌 这一批开始是**四个**块，今天剩两个。`timeline` 随 #1372 删掉了（D19）；第四个（那个统计数字
+   块）按同一份设计文档的 D19 并进了 `social-proof`（它唯一的内容 —— 一组数字 —— 成了那个块的一个
+   可选槽，#1376）。当年那张表里还有一行「.<它>__value font-size」，是真量到的读数，今天它的等价物
+   是 batch F 那一节里的 `.social-proof__stat-value`。
+
+   🔴 `min-width: 0` ON EVERY PART THAT IS A GRID OR FLEX ITEM, the same rule and the same reason the
+   hero, cta-banner, page-header and batch-B parts have it: a grid item's automatic minimum size is
+   its CONTENT's size, so one long word pushes the track wider than the screen and the block's
+   `overflow: hidden` (globals.css) then CLIPS it — while the page-level "no horizontal scroll"
+   reading says everything is fine. `overflow-wrap: break-word` does not prevent it. Measured per
+   block on a 375px viewport, which is the only width where it is visible (#1008: without base the
+   font size drops to 16px and the long word fits, so a 1280px reading says the protection is there
+   when it is not).
+
+   🔴 A PHONE NUMBER AND AN EMAIL ADDRESS ARE THE TWO STRINGS ON A SMALL BUSINESS SITE THAT MUST NOT
+   BE HALF-VISIBLE, and `contact-info` is the batch's one `essential` block. `overflow-wrap: anywhere`
+   on those two parts rather than `break-word`: an email address has no space in it and `break-word`
+   only breaks a word that is alone on its line, so at 375 an address inside a padded card was still
+   the thing that set the card's width. */
+
+.contact-info {
+  display: grid;
+  gap: 1.5rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .contact-info {
+    padding: 4rem 2rem;
+  }
+}
+
+.contact-info__headline,
+.contact-info__location,
+.contact-info__label,
+.contact-info__address,
+.contact-info__phone,
+.contact-info__email,
+.contact-info__media {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+.contact-info__phone,
+.contact-info__email {
+  overflow-wrap: anywhere;
+}
+
+/* ── the headlines and the sub-headlines ──────────────────────────────────────────────────────── */
+.contact-info__headline {
+  font-size: 1.75rem;
+  line-height: 1.25;
+}
+
+/* ── the repeated units: a location, a stat, a step, an event ─────────────────────────────────── */
+.contact-info__location {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.contact-info__label {
+  font-size: 1.125rem;
+  line-height: 1.4;
+}
+
+.contact-info__address {
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+/* #1382 —— contact-info 那张可选的图。跟 `.content-split__media` 同一条理由：页面 JSON 没给图时这个
+   零件**根本不在树上**（组件那一头是「有则出、无则不出」），给了图它也得有个形状，不然在图加载完
+   之前那一列是塌的。
+   🔴 这里不写 `display` —— 「这一副形态给不给它排版」整件事只有一个主人，在 `public/shapes.css`
+   （默认 `display: none`，只有 `media-side-grid` 放出来）。两个地方各写一句就是两个主人。 */
+.contact-info__media {
+  aspect-ratio: 4 / 3;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}

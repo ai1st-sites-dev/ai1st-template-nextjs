@@ -1,0 +1,3 @@
+[data-block="content-split"]:not([data-has-imageUrl]) .content-split__media {
+  display: none;
+}

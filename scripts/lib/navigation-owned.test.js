@@ -1383,11 +1383,13 @@ function flattenShape(shape, at = '', out = []) {
   // 每一类区由哪个组件画。#1353 起三个都不按形态分支（一副骨架），所以 `splitByVariant:false`；
   // 哪天有人给某个组件加回分支，下面 A 那半会读到「某一种形态不画它」而当场说话。
   const REGION_FILES = [
-    { region: 'header', file: path.join('src', 'components', 'Header.tsx'), splitByVariant: false },
-    { region: 'footer', file: path.join('src', 'components', 'Footer.tsx'), splitByVariant: false },
+    // #1387 —— 顶栏 / 页脚这两个区是块，骨架搬进了它们自己的文件夹（`blocks/<区>/Section.tsx`）。
+    { region: 'header', file: path.join('blocks', 'header', 'Section.tsx'), splitByVariant: false },
+    { region: 'footer', file: path.join('blocks', 'footer', 'Section.tsx'), splitByVariant: false },
     { region: 'topbar', file: path.join('src', 'components', 'TopbarRegion.tsx'), splitByVariant: false },
   ];
-  // 页脚那些零件住在 Footer.tsx，而 `topbar` 那一格读的是 `TopbarRegion.tsx`；顶栏读 Header.tsx。
+  // 页脚那些零件住在 blocks/footer/Section.tsx，`topbar` 那一格读的是 `TopbarRegion.tsx`；
+  // 顶栏读 blocks/header/Section.tsx。
 
   /** region → { variant → Set(读到的 navigation.json 路径) }；读不出来的一律 unavailable。 */
   const measured = {};
@@ -1472,7 +1474,7 @@ function flattenShape(shape, at = '', out = []) {
   } else problems.forEach(bad);
 
   // 🔴 阳性对照 —— A 半、B 半各一个，都只改一处。
-  const footerAbs = path.join(TEMPLATE_ROOT, 'src', 'components', 'Footer.tsx');
+  const footerAbs = path.join(TEMPLATE_ROOT, 'blocks', 'footer', 'Section.tsx');
   const footerSrc = fs.readFileSync(footerAbs, 'utf-8');
   const footerCfg = REGION_FILES.find((r) => r.region === 'footer');
   const readsOf = (src) => {

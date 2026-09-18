@@ -1,0 +1,69 @@
+{
+  "type": "text-block",
+  "displayName": "Text Block",
+  "category": "text",
+  "roleDefault": "optional",
+  "slots": {
+    "headline": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true,
+      "editLabel": "Headline"
+    },
+    "content": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false,
+      "editLabel": "Body text"
+    },
+    "background": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true,
+      "shape": "\"gray\""
+    },
+    "centered": {
+      "kind": "flag",
+      "required": false,
+      "promptOptional": true,
+      "shape": "true"
+    },
+    "items": {
+      "kind": "list",
+      "required": false,
+      "promptOptional": true,
+      "shape": "[string]",
+      "editLabel": "List item"
+    },
+    "attribution": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true,
+      "shape": "string",
+      "editLabel": "Attribution"
+    }
+  },
+  "variants": {
+    "default": "",
+    "two-column": "CSS columns",
+    "highlight-box": "callout with left border",
+    "with-list": "paragraph + checklist",
+    "quote": "blockquote with large decorative marks"
+  },
+  "variantKey": "variants",
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "page-specific",
+    "order": 1,
+    "headPrefix": "",
+    "headSuffix": "",
+    "headExtra": null,
+    "lines": [
+      "@data"
+    ]
+  }
+}

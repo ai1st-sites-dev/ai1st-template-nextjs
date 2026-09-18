@@ -1,0 +1,46 @@
+/* trusted-brands · heading-side  （#1364，对表 FlyonUI logo-cloud-9）
+
+   出处：左栏标题 + 段落 + CTA，右栏 2 列 × 3 行 logo 卡。**本票不加槽**（PM 2026-09-16 裁定：
+   「加一个可选槽」要有自己的判定，塞进一张加形态的票就没人管它）⟹ 左栏只放 headline，
+   出处里那段文案和那个按钮不做。
+
+   🔴 DOM 是**平的**（`TrustedBrandsSection.tsx`：headline 与 N 个 brand 都是根的直接子元素），
+   所以「左栏标题 + 右侧两列」只能靠根上的列带排：三条列带，标题占第 1 条并跨满行，
+   brand 自动流进第 2、3 条 —— 6 个品牌正好 2 列 × 3 行。
+   ⟹ manifest 里 `columns` 写的是 **three**（几何守卫数的是**被占用的列带**，而这里真的是 3 条），
+   不是"看起来像两栏"的 two。 */
+
+[data-block="trusted-brands"][data-shape="heading-side"] {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+}
+
+[data-block="trusted-brands"][data-shape="heading-side"] .trusted-brands__headline {
+  grid-column: 1 / -1;
+  align-self: start;
+}
+
+[data-block="trusted-brands"][data-shape="heading-side"] .trusted-brands__brand {
+  display: grid;
+  place-items: center;
+}
+
+@media (min-width: 1024px) {
+  [data-block="trusted-brands"][data-shape="heading-side"] {
+    grid-template-columns: 2fr 1fr 1fr;
+  }
+
+  /* 🔴 `1 / span 3`：标题占满左栏，品牌才会从第 2 条列带开始自动流 —— 只写 `grid-row: 1` 的话
+     第 3 个品牌会掉回第 2 行第 1 列（标题正下方），右侧那两列就不成立了。span 3 是按 manifest 里
+     写的 6 个品牌 ÷ 2 列 = 3 行取的；品牌少于 6 个时多出来的那一行是空的（夹具上是 3 个）。
+     🔴 `align-self` 必须是 start，不许 center：判据要「标题与第一项在竖直方向有重叠」
+     （`layout-intent.mjs` §headline-side），而 center 会把标题压到第一项下沿之外 ——
+     实测 ember-12 上就是这么红的（标题 y −3352–−3311，第一项 y −3403–−3363，不重叠），
+     而同一份 CSS 在 azure-29 上是绿的：两套皮的刻度不同，只看一套会漏掉。 */
+  [data-block="trusted-brands"][data-shape="heading-side"] .trusted-brands__headline {
+    grid-column: 1;
+    grid-row: 1 / span 3;
+    align-self: start;
+  }
+}

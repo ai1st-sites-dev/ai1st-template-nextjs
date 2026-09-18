@@ -1,0 +1,41 @@
+/* contact-form · note-beside  （#1340 从生成器的 formLook['note-beside'] 剪来；今天没有主题选它） */
+
+[data-block="contact-form"][data-shape="note-beside"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="contact-form"][data-shape="note-beside"] .contact-form__heading {
+  grid-column: 1 / -1;
+}
+
+[data-block="contact-form"][data-shape="note-beside"] .contact-form__intro {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="contact-form"][data-shape="note-beside"] .contact-form__form {
+  display: grid;
+  grid-column: auto;
+}
+
+[data-block="contact-form"][data-shape="note-beside"] .contact-form__error {
+  grid-column: 1 / -1;
+}
+
+[data-block="contact-form"][data-shape="note-beside"] .contact-form__note {
+  grid-column: auto;
+  align-self: start;
+  max-width: 22rem;
+}
+
+[data-block="contact-form"][data-shape="note-beside"] .contact-form__success {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="contact-form"][data-shape="note-beside"] {
+    grid-template-columns: 2fr 1fr;
+  }
+}

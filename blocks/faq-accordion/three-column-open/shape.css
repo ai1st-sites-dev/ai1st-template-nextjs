@@ -1,0 +1,37 @@
+/* faq-accordion · three-column-open  （#1362 · 对表 FlyonUI faq-7：问答卡排成三列）
+
+   📌 名字里那个 `open` 是对表那一条的叫法，形态层**给不了**它：一条问答开着还是收着由数据决定
+   （`FaqAccordionSection.tsx` 每条是原生 `<details>`，`defaultOpen` 是每条自己的字段），而主题的
+   契约连 `details[open]` 这种属性选择器都不收（`theme-css-lint.js` §1）。这一段能给的是三列。 */
+
+[data-block="faq-accordion"][data-shape="three-column-open"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="faq-accordion"][data-shape="three-column-open"] .faq-accordion__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="faq-accordion"][data-shape="three-column-open"] .faq-accordion__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="faq-accordion"][data-shape="three-column-open"] .faq-accordion__item {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 640px) {
+  [data-block="faq-accordion"][data-shape="three-column-open"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-block="faq-accordion"][data-shape="three-column-open"] {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}

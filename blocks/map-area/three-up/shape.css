@@ -1,0 +1,26 @@
+/* map-area · three-up  （azure-29 今天选的就是它） */
+
+[data-block="map-area"][data-shape="three-up"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="map-area"][data-shape="three-up"] .map-area__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="map-area"][data-shape="three-up"] .map-area__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="map-area"][data-shape="three-up"] .map-area__area {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="map-area"][data-shape="three-up"] {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}

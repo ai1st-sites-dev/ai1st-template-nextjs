@@ -1,0 +1,61 @@
+{
+  "type": "hero-with-form",
+  "displayName": "Hero Section with Form",
+  "category": "banner",
+  "roleDefault": "lead",
+  "hooksFrom": "hero",
+  "slots": {
+    "headline": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false,
+      "editLabel": "Headline"
+    },
+    "subheadline": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false,
+      "editLabel": "Subheading"
+    },
+    "ctaPrimary": {
+      "kind": "link",
+      "required": true,
+      "promptOptional": false,
+      "shape": "{label, href}",
+      "editLabel": {
+        "label": "Button text"
+      }
+    },
+    "ctaSecondary": {
+      "kind": "link",
+      "required": true,
+      "promptOptional": false,
+      "shape": "{label, href}",
+      "editLabel": {
+        "label": "Second button text"
+      }
+    },
+    "imageUrl": {
+      "kind": "image",
+      "required": false,
+      "promptOptional": true,
+      "shape": "string"
+    },
+    "form": {
+      "kind": "object",
+      "required": true,
+      "promptOptional": false,
+      "shape": "{buttonText, successMessage}",
+      "editLabel": {
+        "buttonText": "Form button text",
+        "successMessage": "Form success message"
+      }
+    }
+  },
+  "variants": {},
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  }
+}

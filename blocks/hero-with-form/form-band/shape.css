@@ -1,0 +1,120 @@
+/* hero-with-form · form-band  （#1358；FlyonUI hero-11 / 15 / 22）
+
+   一整幅大图铺满第一屏、文案压在图上，**下面一整条横向表单条**。三端照
+   `docs/reference/flyonui/flyonui-hero-section-matrix.html`：电脑端三个字段加按钮同一行（hero-15 的
+   「3 个下拉 + 搜索按钮同一行」）· iPad 排成 2×2（那三条的 t 段逐条写着「4 格变成 2×2 网格」）·
+   手机字段竖排、按钮独占一行（m 段：「3 个字段竖排、搜索按钮独占一行」）。
+
+   🔴 表单里的 `label` / `input` 怎么配成一列一列的：靠 `grid-auto-flow: column` + 两行的显式行轨道，
+   **不靠 `:nth-child()`**。`HeroLeadForm` 渲染出来的是 label→input→label→input→label→input→按钮
+   这样一串平级子元素，按列流放置正好把每一对 label+input 收进同一列。蜜罐那个 `<div>` 不占格子 ——
+   它带着行内 `position: absolute`（`HeroLeadForm.tsx` 里那段注释说了为什么必须是行内），绝对定位的
+   子元素不是网格项。按钮用**显式**行列坐标放在最后一格，不跟着列流走。
+
+   🔴 **四个直接子元素每一个都点名 `grid-column: 1`**，这一条是实测出来的，不是啰嗦：图和文案都写着
+   `grid-row: 1`（文案压在图上就是这个形态的意思），而**不点名列**的话自动放置会把第二个挤进一条
+   **隐式**列带 —— 那时根上真的有两条轨道。实测（1280px 真浏览器，点名之前）：
+   `grid-template-columns` 读到 `793.203px 408.406px`、图只有 793/1232 宽 ⟹ 检查 ⑨ 的 `media-cover`
+   （要 ≥95% 内容盒宽）和 `columns`（声明 one、实际占 2 条）两条一起红；375px 上文案被挤到
+   x 238–518，块自己横向溢出 143px。**点名之后两个都落在第 1 列、真正叠在一起。**
+   📌 为什么不照 `hero/media-cover` 那样写 `grid-column: 1 / -1`：那样写会让每个子元素都成为
+   「跨列」的，检查 ⑨ 的 `placeable` 掉到 0，`columns` 那条严格判据退化成 `columns-degraded`
+   （占用 ≤ 声明）—— 绿的，但量的东西少了。`grid-column: 1` 在一条轨道的网格里效果相同而不跨列。
+
+   🔴 `min-width: 0` 那条点的是 `input` 这个标签，而这是这份文件里第一次出现标签选择器 ——
+   理由是那个零件**按设计没有自己的类名**：契约 §1 拒绝标签选择器，所以 `.hero__form input` 的样式
+   住在结构层（`src/app/globals.css`，它给了 `display: block; width: 100%`），主题够不着它。
+   而网格项的自动最小尺寸是 `min-content`，输入框那点最小宽度会把 `minmax(0, 1fr)` 的列撑破 ⟹
+   在窄视口上整条表单伸出块的内容盒。收在这两种形态的选择器里，射程不越过它们。 */
+
+[data-block="hero-with-form"][data-shape="form-band"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+  min-height: 36rem;
+}
+
+[data-block="hero-with-form"][data-shape="form-band"] .hero__media {
+  aspect-ratio: auto;
+  grid-row: 1;
+  grid-column: 1;
+  align-self: stretch;
+  min-height: 30rem;
+}
+
+[data-block="hero-with-form"][data-shape="form-band"] .hero__body {
+  display: grid;
+  align-content: start;
+  align-self: center;
+  max-width: 44rem;
+  grid-row: 1;
+  grid-column: 1;
+}
+
+[data-block="hero-with-form"][data-shape="form-band"] .hero__title {
+  grid-column: 1 / -1;
+}
+
+[data-block="hero-with-form"][data-shape="form-band"] .hero__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="hero-with-form"][data-shape="form-band"] .hero__cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+[data-block="hero-with-form"][data-shape="form-band"] .hero__deco {
+  grid-row: 2;
+  grid-column: 1;
+  max-width: 7rem;
+}
+
+[data-block="hero-with-form"][data-shape="form-band"] .hero__form {
+  grid-row: 3;
+  grid-column: 1;
+  display: grid;
+  width: 100%;
+}
+
+[data-block="hero-with-form"][data-shape="form-band"] .hero__form-success {
+  grid-row: 3;
+  grid-column: 1;
+}
+
+[data-block="hero-with-form"][data-shape="form-band"] .hero__form input {
+  min-width: 0;
+}
+
+/* iPad：四格排成 2×2 —— 两条列轨道 × 四条行轨道，按列流放置 ⟹ 左列是前两对 label+input、
+   右列是第三对，按钮显式占右列下半。 */
+@media (min-width: 768px) {
+  [data-block="hero-with-form"][data-shape="form-band"] .hero__form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: auto auto auto auto;
+    grid-auto-flow: column;
+    align-items: end;
+  }
+
+  [data-block="hero-with-form"][data-shape="form-band"] .hero__form button {
+    grid-column: 2;
+    grid-row: 3 / -1;
+    align-self: end;
+  }
+}
+
+/* 电脑端：三个字段加按钮同一行。 */
+@media (min-width: 1024px) {
+  [data-block="hero-with-form"][data-shape="form-band"] .hero__form {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+    grid-template-rows: auto auto;
+  }
+
+  [data-block="hero-with-form"][data-shape="form-band"] .hero__form button {
+    grid-column: 4;
+    grid-row: 1 / -1;
+    align-self: end;
+  }
+}

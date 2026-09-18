@@ -36,7 +36,7 @@ const { blockShapeCatalog, sampleDataFor } = cat;
 // ── ① 真树：块 ≡ 注册表、对数 ≡ 每份 manifest 的 shapes 之和、顺序 ≡ 注册表写的顺序 ────────────
 console.log('① 真树上的读数（都现算，不写死任何数）');
 const real = blockShapeCatalog();
-const regNames = bm.registryNames(path.join(NEXT, 'src', 'lib', 'sections', 'registry.ts'));
+const regNames = bm.registryNames(path.join(NEXT, 'src', 'lib', 'sections', 'registry.generated.ts'));
 if (regNames === null) die('读不出 registry.ts（typescript 模块不在？）—— 这不是关于注册表的读数');
 // #1353 —— 这一格原来写的是 `real.blocks` **逐项等于** `registryNames()`。那条断言今天会假红：
 // 外壳区（`header` / `footer`）是块、有 manifest、有形态、在选择单上各占一行，但按构造**不在
@@ -61,10 +61,11 @@ check(real.pairs.every((p) => p.intent && Object.keys(p.intent).length > 0),
 //    不是「有没有这个键」；#1350 那个形态下拉就按这个字段过滤。
 check(real.pairs.every((p) => typeof p.candidate === 'boolean'),
   `每一对都带 candidate 布尔（今天盘上是候选的有 ${real.pairs.filter((p) => p.candidate).length} 对）`);
-// 跟 `shapes.css` 那一半的两向差集 —— 用 block-manifest 自己那把尺，不在这里重写一份
-const d = bm.diffShapesAgainstCss(real.manifests);
-check(d.onlyInCss.length === 0 && d.onlyInManifests.length === 0,
-  `manifest 的形态清单与 shapes.css 双向差集 0（onlyInCss ${d.onlyInCss.length} · onlyInManifests ${d.onlyInManifests.length}）`);
+// 📌 #1387 —— 这里原来还有一格「manifest 的形态清单 vs shapes.css 的 (块,形态) 集合，两向差集 0」
+//    （`bm.diffShapesAgainstCss`）。形态清单现在**就是** `blocks/<块>/` 的子文件夹清单，而
+//    `public/shapes.css` 由 `scripts/block-build/build-blocks.js` 从同一批子文件夹拼出来 ——
+//    两向差集按构造是 0，没有东西可量。接它班的是 `block-build/generated-fresh.test.js`
+//    （盘上那份生成物 == 现在拼出来的那份）。
 
 // ── ② 反臂：造一棵对不上的树，它必须抛，而且点名 ───────────────────────────────────────────────
 console.log('② 反臂 —— 注册表与 blocks/ 对不上（真树上造不出来，所以造一棵）');
@@ -74,8 +75,13 @@ function fixture(blocks, registryTypes) {
   fs.mkdirSync(path.join(root, 'blocks'));
   fs.mkdirSync(path.join(root, 'public'));
   const css = [];
+  const vocabAxes = require(path.join(NEXT, 'scripts', 'lib', 'layout-intent-vocab.json')).axes;
+  const anyValue = Object.fromEntries(Object.entries(vocabAxes)
+    .map(([ax, words]) => [ax, words.includes('none') ? 'none' : words[0]]));
   for (const [type, shapes] of Object.entries(blocks)) {
-    fs.writeFileSync(path.join(root, 'blocks', `${type}.json`), JSON.stringify({
+    // #1387 —— 一个块一个文件夹：manifest.json 没有 shapes，形态是子文件夹（shape.md + shape.css）。
+    fs.mkdirSync(path.join(root, 'blocks', type), { recursive: true });
+    fs.writeFileSync(path.join(root, 'blocks', type, 'manifest.json'), JSON.stringify({
       type,
       // #1349 —— 第三个这样的键。夹具少了它，下面四个反臂又会全部变成「夹具自己不合法」（见下面
       //          那条 🔴 —— 这正是它记下来的那件事，第二次发生）。
@@ -86,12 +92,7 @@ function fixture(blocks, registryTypes) {
       //    所以这里从词表自己取名字、给每根轴一个合法值 —— 写死一串轴名的话，#1381 那种「加了七根轴」
       //    的改动会让这份夹具自己不合法，四个反臂又会集体去测「夹具坏了」（上面那条 🔴 记的同一件事，
       //    第三次发生）。
-      layout_intent: Object.fromEntries(Object.entries(require(
-        path.join(NEXT, 'scripts', 'lib', 'layout-intent-vocab.json'),
-      ).axes).map(([ax, words]) => [ax, words.includes('none') ? 'none' : words[0]])),
-      // #1384 —— 一项可以写成 `'名字'`，也可以写成 `{ name, candidate: true }`（3a 那个臂要后者）。
-      shapes: shapes.map((sh) => (typeof sh === 'string' ? { name: sh, needs: [] }
-        : { name: sh.name, needs: [], ...(sh.candidate === undefined ? {} : { candidate: sh.candidate }) })),
+      layout_intent: anyValue,
       // #1352 —— `kind: text` 的槽位必须带 `editLabel`（或者进例外名单），否则 `loadManifests`
       // 当场拒。这里给它一个，因为这份夹具问的是**目录与注册表对不对得上**，不是标签这一维。
       slots: { headline: { kind: 'text', required: true, promptOptional: false, editLabel: 'Headline' } },
@@ -101,14 +102,24 @@ function fixture(blocks, registryTypes) {
       variants: {},
       industries: { required: [], recommended: [], discouraged: [] },
     }, null, 2));
-    for (const s of shapes) {
-      const n = typeof s === 'string' ? s : s.name;
+    // #1384 —— 一项可以写成 `'名字'`，也可以写成 `{ name, candidate: true }`（3a 那个臂要后者）。
+    shapes.forEach((sh, i) => {
+      const n = typeof sh === 'string' ? sh : sh.name;
+      const cand = typeof sh === 'string' ? undefined : sh.candidate;
+      const dir = path.join(root, 'blocks', type, n);
+      fs.mkdirSync(dir, { recursive: true });
+      const fm = ['---', `order: ${i}`, 'needs: []'];
+      if (cand !== undefined) fm.push(`candidate: ${cand}`);
+      fm.push('---', '');
+      fs.writeFileSync(path.join(dir, 'shape.md'), `${fm.join('\n')}\n# ${type} · ${n}\n`);
+      fs.writeFileSync(path.join(dir, 'shape.css'),
+        `[data-block="${type}"][data-shape="${n}"] { display: block; }\n`);
       css.push(`[data-block="${type}"][data-shape="${n}"] { display: block; }`);
-    }
+    });
   }
   fs.writeFileSync(path.join(root, 'public', 'shapes.css'), `${css.join('\n')}\n`);
   const body = registryTypes.map((t) => `  '${t}': Stub,`).join('\n');
-  fs.writeFileSync(path.join(root, 'registry.ts'),
+  fs.writeFileSync(path.join(root, 'registry.generated.ts'),
     `const Stub = () => null;\nexport const sectionRegistry = {\n${body}\n};\n`);
   return root;
 }
@@ -124,14 +135,14 @@ const throwsWith = (fn, needle, label) => {
 {
   const root = fixture({ alpha: ['solo'] }, ['alpha', 'ghost']);
   throwsWith(() => blockShapeCatalog({
-    registryPath: path.join(root, 'registry.ts'), blocksDir: path.join(root, 'blocks'),
+    registryPath: path.join(root, 'registry.generated.ts'), blocksDir: path.join(root, 'blocks'),
   }), 'ghost', '2a 注册表多一个假类型、不给它 manifest');
   // 正对照：同一棵树，把注册表改回对得上 ⟹ 不抛（证明上面那一条红的是**这个差异**，不是这棵树本身）
   const okRoot = fixture({ alpha: ['solo'] }, ['alpha']);
   let threw = null;
   try {
     const c = blockShapeCatalog({
-      registryPath: path.join(okRoot, 'registry.ts'), blocksDir: path.join(okRoot, 'blocks'),
+      registryPath: path.join(okRoot, 'registry.generated.ts'), blocksDir: path.join(okRoot, 'blocks'),
     });
     check(c.blocks.length === 1 && c.pairs.length === 1, '2a 正对照：同构的一棵树对得上时不抛，读到 1 块 / 1 对');
   } catch (e) { threw = e.message; }
@@ -147,7 +158,7 @@ const throwsWith = (fn, needle, label) => {
 {
   const root = fixture({ alpha: ['solo', { name: 'draft', candidate: true }] }, ['alpha']);
   const c = blockShapeCatalog({
-    registryPath: path.join(root, 'registry.ts'), blocksDir: path.join(root, 'blocks'),
+    registryPath: path.join(root, 'registry.generated.ts'), blocksDir: path.join(root, 'blocks'),
   });
   const draft = c.pairs.find((p) => p.shape === 'draft');
   const solo = c.pairs.find((p) => p.shape === 'solo');
@@ -159,7 +170,7 @@ const throwsWith = (fn, needle, label) => {
 {
   const root = fixture({ alpha: ['solo'], orphan: ['solo'] }, ['alpha']);
   throwsWith(() => blockShapeCatalog({
-    registryPath: path.join(root, 'registry.ts'), blocksDir: path.join(root, 'blocks'),
+    registryPath: path.join(root, 'registry.generated.ts'), blocksDir: path.join(root, 'blocks'),
   }), 'orphan', '2b blocks/ 里多一份 manifest、注册表里没有它');
 }
 
@@ -174,9 +185,9 @@ const throwsWith = (fn, needle, label) => {
 //    「全都对得上」），错的只是给人的那句提示。本票不动它（scope 圈外），判据只认「有没有抛」。
 {
   const root = fixture({ alpha: ['solo'] }, ['alpha']);
-  fs.writeFileSync(path.join(root, 'registry.ts'), 'export const notTheRegistry = {};\n');
+  fs.writeFileSync(path.join(root, 'registry.generated.ts'), 'export const notTheRegistry = {};\n');
   throwsWith(() => blockShapeCatalog({
-    registryPath: path.join(root, 'registry.ts'), blocksDir: path.join(root, 'blocks'),
+    registryPath: path.join(root, 'registry.generated.ts'), blocksDir: path.join(root, 'blocks'),
   }), '什么都没查', '2c 注册表在、但里面没有 sectionRegistry（回的是 unavailable 那一支）');
 }
 

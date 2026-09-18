@@ -2,7 +2,7 @@
  * ref-section-mapping.js — TICKET-119
  *
  * Maps Gemini-extracted reference site section names to our registered
- * section types (see src/lib/sections/registry.ts). Used by create-site.js
+ * section types (see src/lib/sections/registry.generated.ts). Used by create-site.js
  * when refPrefs.includes('layout') to hard-copy the reference site's
  * homepage section structure.
  *

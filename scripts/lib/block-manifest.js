@@ -19,9 +19,6 @@ const path = require('path');
 const { resolveBlockTypesForCheck } = require('../blocks');
 
 const BLOCKS_DIR = path.join(__dirname, '..', '..', 'blocks');
-// #1331 —— 形态层的另一半。manifest 的 `shapes` 清单跟这份 CSS 里出现的 (块, 形态) 对必须逐块相等
-// （守卫 `block-shapes.test.js` 两向差集为 0；`checkManifestShape` 逐份核 manifest → CSS 这一向）。
-const SHAPES_CSS = path.join(__dirname, '..', '..', 'public', 'shapes.css');
 // #1332 —— 排版意图的词表。🔴 **一份定义，两处读**：这里（建站期的校验器，CommonJS）和
 // `layout-intent.mjs`（几何守卫，ESM）。两边各抄一份词表的失败方向是静默的 —— 校验器放行一个词、
 // 守卫不认识它，于是那一格什么都没判而没有人会红。
@@ -49,26 +46,6 @@ function layoutIntentProblems(intent) {
     if (!LAYOUT_INTENT_VOCAB.axes[ax].includes(v)) {
       out.push(`"${ax}" 写的是 ${JSON.stringify(v)} —— 只能是 ${LAYOUT_INTENT_VOCAB.axes[ax].join(' / ')}`);
     }
-  }
-  return out;
-}
-
-/**
- * `public/shapes.css` 里出现的 (块, 形态) 对 —— Map<块名, Set<形态名>>。
- * 只认 `[data-block="x"][data-shape="y"]` 这个组合选择器（形态层的全部规则都长这样，spec D4）。
- * 🔴 文件不在就抛，不回空表：空表会让「manifest 写的形态在 CSS 里没有规则」那条检查对一切沉默。
- */
-function shapePairsFromCss(cssPath = SHAPES_CSS) {
-  if (!fs.existsSync(cssPath)) {
-    throw new Error(`${cssPath} 不存在 —— 形态清单的 CSS 那一半没了，manifest 的 shapes 没法核`);
-  }
-  const css = fs.readFileSync(cssPath, 'utf-8');
-  const re = /\[data-block="([a-z0-9-]+)"\]\[data-shape="([a-z0-9-]+)"\]/g;
-  const out = new Map();
-  let mm;
-  while ((mm = re.exec(css)) !== null) {
-    if (!out.has(mm[1])) out.set(mm[1], new Set());
-    out.get(mm[1]).add(mm[2]);
   }
   return out;
 }
@@ -145,30 +122,10 @@ function imageSlotsOf(m) {
   return out;
 }
 
-/**
- * manifest 清单 vs shapes.css 集合的两向差集（守卫用）。`manifests` 是 Map 或按类型索引的对象。
- * 回 { onlyInCss: ["block/shape"…], onlyInManifests: ["block/shape"…] }，两个都空才算对齐。
- */
-function diffShapesAgainstCss(manifests, cssShapes = shapePairsFromCss()) {
-  const entries = manifests instanceof Map ? [...manifests.entries()] : Object.entries(manifests || {});
-  const inManifests = new Set();
-  for (const [type, m] of entries) {
-    for (const sh of (m && Array.isArray(m.shapes) ? m.shapes : [])) {
-      if (sh && typeof sh.name === 'string') inManifests.add(`${type}/${sh.name}`);
-    }
-  }
-  const inCss = new Set();
-  for (const [block, shapes] of cssShapes) for (const sh of shapes) inCss.add(`${block}/${sh}`);
-  return {
-    onlyInCss: [...inCss].filter((x) => !inManifests.has(x)).sort(),
-    onlyInManifests: [...inManifests].filter((x) => !inCss.has(x)).sort(),
-  };
-}
-
 // ── manifest 自己的形状（#1013 洞 2）────────────────────────────────────────────────────────────
 //
 // 🔴 为什么 manifest 也要有人校验：下面那五条检查**读的就是 manifest**，所以 manifest 里一个拼错的
-// 字就等于把某一条检查静默关掉。实测（#999 ship 时 QA3 量的）：把 `blocks/hero.json` 的
+// 字就等于把某一条检查静默关掉。实测（#999 ship 时 QA3 量的）：把 `blocks/hero/manifest.json` 的
 // `roleDefault` 拼成 `"Essential"`（大写 E），②「角色只能加不能降」那条就再也不会报 ——
 // `ROLE_RANK["Essential"]` 是 `undefined`，`ROLE_RANK[sec.role] < undefined` 恒为假。
 // 三盏灯全绿，而那条检查已经不在了。同族的还有 `industries.required` 写成字符串（`.some` 报
@@ -338,7 +295,7 @@ function stripSlotIndex(value) {
   return String(value).split('.').filter((seg) => !/^\d+$/.test(seg)).join('.');
 }
 
-function checkManifestShape(name, m, cssShapes) {
+function checkManifestShape(name, m) {
   const bad = (msg) => { throw new Error(`blocks/${name}: ${msg}`); };
   const isStr = (v) => typeof v === 'string' && v.length > 0;
   const strArray = (v) => Array.isArray(v) && v.every(isStr);
@@ -464,11 +421,6 @@ function checkManifestShape(name, m, cssShapes) {
         + '🔴 一根都不能省 —— 省掉的那一根恰好是这个块两种形态分歧最大的地方时，守卫会全绿而'
         + '什么都没看（#1332 PM 退回的第三条）');
     }
-    const inCss = cssShapes instanceof Map ? cssShapes.get(m.type) : undefined;
-    if (!inCss || !inCss.has(sh.name)) {
-      bad(`shapes 里的 "${sh.name}" 在 public/shapes.css 没有 [data-block="${m.type}"][data-shape="${sh.name}"] 的规则`
-        + ' —— 写进 manifest 的形态必须有人排它（要加形态先写 CSS）');
-    }
   });
   if (m.layout_intent !== undefined
     && (m.layout_intent === null || typeof m.layout_intent !== 'object' || Array.isArray(m.layout_intent))) {
@@ -541,21 +493,74 @@ function checkManifestShape(name, m, cssShapes) {
   }
 }
 
+// ── 形态住在子文件夹里（#1387，设计文档 D20）───────────────────────────────────────────────────
+//
+// 一个块一个文件夹，一个形态一个子文件夹：
+//     blocks/hero/manifest.json         槽位 / 行业 / displayName / 外壳区标记 —— 没有 shapes 这个键
+//     blocks/hero/media-cover/shape.md  这个形态的说明；frontmatter 里是 order / needs / candidate /
+//                                       source / layout_intent
+//     blocks/hero/media-cover/shape.css 这个形态的几何
+//
+// 🔴 **形态清单 = 子文件夹的清单**，没有第二份。#1331 那道守卫（manifest 的 `shapes` 跟
+//    `public/shapes.css` 里的 (块,形态) 对两向差集为 0）随本票删掉了 —— 那两份现在是同一份的两种
+//    形态：`public/shapes.css` 由 `scripts/block-build/build-blocks.js` 从这些子文件夹拼出来，
+//    盯着「盘上那份 == 现在拼出来的那份」的是 `scripts/block-build/generated-fresh.test.js`。
+//    ⟹ 「manifest 写了一个 CSS 里没有的形态」这件事按构造发生不了；能发生的是「这个子文件夹的
+//    shape.css 是空的」，而那一条在下面当场拒。
+const { parseFrontmatter } = require('../block-build/frontmatter.js');
+
+/** 一个形态子文件夹 → `shapes[i]` 那个对象（读 shape.md 的 frontmatter）。 */
+function readShapeDir(blockDir, name) {
+  const md = path.join(blockDir, name, 'shape.md');
+  const css = path.join(blockDir, name, 'shape.css');
+  const type = path.basename(blockDir);
+  if (!fs.existsSync(md)) {
+    throw new Error(`blocks/${type}/${name}: 少了 shape.md（形态子文件夹必须有 shape.md + shape.css）`);
+  }
+  if (!fs.existsSync(css) || !fs.readFileSync(css, 'utf-8').trim()) {
+    throw new Error(`blocks/${type}/${name}: shape.css 不在或者是空的`
+      + ' —— 一个没有任何几何的形态，戴上它跟没戴一样，而清单里会多出一个名字');
+  }
+  const fm = parseFrontmatter(fs.readFileSync(md, 'utf-8'));
+  const out = { name, needs: Array.isArray(fm.needs) ? fm.needs : [] };
+  if (fm.candidate !== undefined) out.candidate = fm.candidate;
+  if (fm.source !== undefined) out.source = fm.source;
+  if (fm.layout_intent !== undefined) out.layout_intent = fm.layout_intent;
+  out.order = typeof fm.order === 'number' ? fm.order : null;
+  return out;
+}
+
+/** 这个块的形态清单，按 `order` 排（没写 order 的落到名字字典序，排在写了的后面）。 */
+function readShapes(blockDir) {
+  const names = fs.readdirSync(blockDir, { withFileTypes: true })
+    .filter((e) => e.isDirectory()).map((e) => e.name).sort();
+  const shapes = names.map((n) => readShapeDir(blockDir, n));
+  shapes.sort((a, b) => {
+    if (a.order !== null && b.order !== null && a.order !== b.order) return a.order - b.order;
+    if (a.order !== null && b.order === null) return -1;
+    if (a.order === null && b.order !== null) return 1;
+    return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
+  });
+  return shapes.map(({ order, ...rest }) => rest);
+}
+
 let cache = null;
 function loadManifests(dir = BLOCKS_DIR) {
   if (cache && cache.dir === dir) return cache.byType;
   const byType = new Map();
-  // #1331 —— CSS 那一半读一次给每份 manifest 核。路径按 dir 推（`<dir>/../public/shapes.css`），测试用临时
-  // 目录时把 CSS 也摆到同样的相对位置。
-  // 🔴 先 realpath：homepage-recipe.test.js 那类夹具只把 `blocks/` **软链**进临时树、不带 `public/`，按软链
-  //    的位置推会推到一个不存在的 public/ ⟹ 整个 create-site 在提示词那一步就死（第一版就是这么把它打红的）。
-  //    顺着软链到真目录再推，读到的是那份 blocks/ 真正配套的 CSS。
-  const cssShapes = shapePairsFromCss(path.resolve(fs.realpathSync(dir), '..', 'public', 'shapes.css'));
-  for (const name of fs.readdirSync(dir).sort()) {
-    if (!name.endsWith('.json')) continue;
-    const m = JSON.parse(fs.readFileSync(path.join(dir, name), 'utf-8'));
-    if (m.type !== path.basename(name, '.json')) {
-      throw new Error(`blocks/${name}: type 是 "${m.type}"，跟文件名对不上`);
+  for (const e of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
+    if (!e.isDirectory()) continue;
+    const type = e.name;
+    const blockDir = path.join(dir, type);
+    const file = path.join(blockDir, 'manifest.json');
+    if (!fs.existsSync(file)) throw new Error(`blocks/${type}: 少了 manifest.json`);
+    const m = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    if (m.type !== type) {
+      throw new Error(`blocks/${type}/manifest.json: type 是 "${m.type}"，跟文件夹名对不上`);
+    }
+    if (m.shapes !== undefined) {
+      throw new Error(`blocks/${type}/manifest.json: 还写着 shapes —— 形态清单现在是子文件夹的清单`
+        + '（#1387）。把它删掉，每个形态一个子文件夹（shape.css + shape.md）。');
     }
     // 🔴 空的 `slots` 必须是**有意**的，不能是掉了（#999 r2，QA1 抓到的那条阻断）。
     // r1 的 `quote-form.json` 槽是空的：提示词里那行于是生成成 `data: {  }`，六个字段（formIntro /
@@ -565,21 +570,22 @@ function loadManifests(dir = BLOCKS_DIR) {
     // 真的没有（services-list / services-nav 自己从 services.json 渲染）就写一句 slotsNote，
     // 掉了的话这里当场拒绝。
     if (Object.keys(m.slots || {}).length === 0 && !m.slotsNote) {
-      throw new Error(`blocks/${name}: slots 是空的，而且没写 slotsNote。`
+      throw new Error(`blocks/${type}: slots 是空的，而且没写 slotsNote。`
         + '如果这个块真的不需要任何数据，用 slotsNote 说一句为什么（它从哪儿取内容）；'
         + '如果是漏了，把槽补上 —— 空 slots 会让提示词里那行退化成 "data: {  }"，而校验永远不会报。');
     }
-    checkManifestShape(name, m, cssShapes);
+    m.shapes = readShapes(blockDir);
+    checkManifestShape(type, m);
     byType.set(m.type, m);
   }
   // #1333 —— `hooksFrom` 指的必须是这一批里真的有的块。拼错的方向是静默的：借用关系认不出来，
   // 于是那个块在「钩子清单里有没有它」那道差集里被当成漏了一个块（见 checkManifestShape 里那段）。
   for (const [type, m] of byType) {
     if (m.hooksFrom !== undefined && !byType.has(m.hooksFrom)) {
-      throw new Error(`blocks/${type}.json: hooksFrom 指向 "${m.hooksFrom}"，而 blocks/ 里没有这个块`);
+      throw new Error(`blocks/${type}/manifest.json: hooksFrom 指向 "${m.hooksFrom}"，而 blocks/ 里没有这个块`);
     }
     if (m.hooksFrom === type) {
-      throw new Error(`blocks/${type}.json: hooksFrom 指向自己 —— 它说的是「借用【别的】块那套部件类名」`);
+      throw new Error(`blocks/${type}/manifest.json: hooksFrom 指向自己 —— 它说的是「借用【别的】块那套部件类名」`);
     }
   }
   cache = { dir, byType };
@@ -592,7 +598,7 @@ function loadManifests(dir = BLOCKS_DIR) {
 // 顺序、括号、破折号全部照抄，改的只是「它从哪儿来」。
 function dataLineFor(m) {
   const parts = Object.entries(m.slots).map(([name, s]) => {
-    // 🔴 提示词那行看的是 promptOptional，不是 required —— 两者不是一回事，见 blocks/*.json 的注释：
+    // 🔴 提示词那行看的是 promptOptional，不是 required —— 两者不是一回事，见 blocks/<块>/manifest.json 的注释：
     //    `variant` 提示词里不带 ?（我们确实希望 AI 每次都给），但校验不拦它（组件自己有默认值，
     //    而 27 个既有站里有 8 个块的 variant 到位率是 0）。
     const opt = s.promptOptional ? '?' : '';
@@ -663,7 +669,7 @@ function promptEntryLegacyOnly(m) {
  *    `Use ONLY on service detail pages` 和 `safe to include on all service detail pages`
  *    —— 在模型眼里就是「加它」。⟹ 光把散文改成有条件的不够，清单这一条也要跟着让开。
  * 📌 #1140 已经把 `lines` 里那半句 `safe to include on all service detail pages` 删掉了
- *    （`blocks/service-related-pages.json` 现在那一行讲的是「没有关键词页时它整块不渲染，
+ *    （`blocks/service-related-pages/manifest.json` 现在那一行讲的是「没有关键词页时它整块不渲染，
  *    但仍占掉页面的一个位置」）；`headExtra` 那句 `Use ONLY on service detail pages` 原样还在。
  *    上面这段是 #1134 r1 当时的读数，照原样留着 —— 它是 `omit` 这个参数存在的理由。
  */
@@ -1186,15 +1192,12 @@ module.exports = {
   industryMatches,
   recogniseIndustry,
   // #1331 —— 形态层
-  SHAPES_CSS,
-  shapePairsFromCss,
   slotFilled,
   defaultShapeOf,
   shapeNeedsGap,
   filledOptionalSlots,
   // #1386 —— 「这个块有哪些内容图槽」，建站选图那条路的唯一判据
   imageSlotsOf,
-  diffShapesAgainstCss,
   // #1352 —— 槽位的 kind 词表 + 「老板能直接改的字」这一维
   SLOT_KINDS,
   EDIT_LABEL_KINDS,

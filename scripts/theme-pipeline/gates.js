@@ -155,25 +155,54 @@ function gateStatic(candidate) {
 //    第 ① 段（manifest 的形态清单 == `shapes.css` 的集合）接起来，而那两道都跑在**池成员**上、
 //    不跑在候选上 ⟹ 候选阶段名字写错，要等它进了池才有人说话。这条边界如实写在这里，不悄悄兜。
 //
-// 🔴 分母从 `blocks/*.json` 现数，不写死：读不到那个目录、或者一份 manifest 都没有 ⟹ `jammed`
+// 🔴 分母从 `blocks/<块>/manifest.json` 现数，不写死：读不到那个目录、或者一份 manifest 都没有 ⟹ `jammed`
 //    （这道闸**没量成**，不是这套候选不合格），跟这个文件其余部分同一个失败方向。
 const BLOCKS_DIR = path.join(NEXT, 'blocks');
+
+// #1387 —— 一个块一个文件夹之后，「有哪些块」是文件夹清单；「这个块有哪些形态、哪些是候选」
+// 要读它下面每个形态子文件夹的 shape.md。这里只要 candidate 这一个键，所以读法窄：顶层零缩进的
+// `candidate: true`（写它的是 `block-build/frontmatter.js` 的 formatFrontmatter，形状是已知的）。
+function blocksWithTheirShapes(blocksDir) {
+  const out = [];
+  for (const e of fs.readdirSync(blocksDir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
+    if (!e.isDirectory()) continue;
+    const dir = path.join(blocksDir, e.name);
+    if (!fs.existsSync(path.join(dir, 'manifest.json'))) continue;
+    const shapes = [];
+    for (const se of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
+      if (!se.isDirectory()) continue;
+      const md = path.join(dir, se.name, 'shape.md');
+      const fm = fs.existsSync(md) ? fs.readFileSync(md, 'utf-8') : '';
+      shapes.push({ name: se.name, candidate: /^candidate:\s*true\s*$/m.test(fm) });
+    }
+    out.push({ type: e.name, shapes });
+  }
+  return out;
+}
+
 function gateShapes(candidate, { blocksDir = BLOCKS_DIR } = {}) {
-  let allBlocks;
+  let blocks;
   try {
-    allBlocks = fs.readdirSync(blocksDir).filter((f) => f.endsWith('.json'))
-      .map((f) => f.replace(/\.json$/, '')).sort();
+    blocks = blocksWithTheirShapes(blocksDir);
   } catch (e) {
     return jammed('⑥ 选择单', [`读不到 ${path.relative(NEXT, blocksDir)}（${e.message}）`
       + ' —— 这道闸的分母塌了，什么都没量成，不是「这套候选合格」']);
   }
-  if (!allBlocks.length) {
+  if (!blocks.length) {
     return jammed('⑥ 选择单', [`${path.relative(NEXT, blocksDir)} 底下一份块 manifest 都没有`
       + ' —— 分母塌了，不许当成通过']);
   }
+  const allBlocks = blocks.map((b) => b.type);
+  // 🔴 #1387 —— 一个例外：**形态全是候选的块可以缺**。候选的意思是「过了全部机器检查，但 Chris
+  //    还没点头」，而选择单是会让真站戴上它的那条路之一（`themes.js` 的 `shapesFor`）⟹ 生成器
+  //    按构造挑不出名字来填这一格。没有这个例外的话，往一个块里丢进第一个候选形态会让**每一套**
+  //    候选主题在这道闸上被拒，而那跟「这套主题不合格」没有任何关系。
+  //    一个块只要还有一个非候选形态，它就照旧必须在选择单里 —— 例外只盖「一个都挑不出来」那一格。
+  const allCandidate = new Set(blocks.filter((b) => b.shapes.length > 0
+    && b.shapes.every((sh) => sh.candidate)).map((b) => b.type));
   const sel = (candidate && candidate.shapes && typeof candidate.shapes === 'object') ? candidate.shapes : {};
   const problems = [];
-  const missing = allBlocks.filter((b) => typeof sel[b] !== 'string' || !sel[b]);
+  const missing = allBlocks.filter((b) => !allCandidate.has(b) && (typeof sel[b] !== 'string' || !sel[b]));
   if (missing.length) {
     problems.push(`选择单缺 ${missing.length}/${allBlocks.length} 个块：${missing.join(' · ')}`);
   }
@@ -182,7 +211,8 @@ function gateShapes(candidate, { blocksDir = BLOCKS_DIR } = {}) {
     problems.push(`选择单多 ${extra.length} 个 blocks/ 里没有的键：${extra.join(' · ')}`);
   }
   return problems.length ? bad('⑥ 选择单', problems)
-    : ok('⑥ 选择单', `${allBlocks.length} 个块逐块有画法名，没有多余的键`);
+    : ok('⑥ 选择单', `${allBlocks.length} 个块逐块有画法名，没有多余的键`
+      + (allCandidate.size ? `（其中 ${allCandidate.size} 个形态全是候选、按 #1387 的例外不要求）` : ''));
 }
 
 // ── ② 动态：样例站真构建 + 五条不变量 + 钩子在 theme 那份表里有规则 ──────────────────────────────

@@ -1,0 +1,10 @@
+/* ── header · solid-bar（默认；没换装的站看到的就是它）─────────────────────────────────────
+   它的几何全是地板那一份（`public/base.css`）：sticky 贴顶、一行 flex、logo 在左、其余靠右。
+   这里只把「它是文档流里那一支」写明，好让四种形态在这一层各自说得出自己是什么 —— 另外三种都会
+   改掉 `position`，不写这一条的话，从别的形态切回来时读到的是继承下来的值。 */
+
+[data-block="header"][data-shape="solid-bar"] .header__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}

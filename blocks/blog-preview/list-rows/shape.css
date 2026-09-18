@@ -1,0 +1,62 @@
+/* blog-preview · list-rows  （#1369，对表 FlyonUI blog-4：整宽横向文章条）
+
+   出处那一版每条 ＝ 左缩略图 + 中间标题与作者 + 右侧「Read More」按钮。我们没有图也没有按钮，
+   横向那三段落在已有的四个零件上：**左边分类、中间标题与摘要、右边日期**。所以它与 `two-up-horizontal`
+   的分界有两处量得出来的：根上一条列带 vs 两条，条目内部三个横向区 vs 两个。
+
+   🔴 文章条之间是纵向一列（manifest 的 `items: stack`）—— 整宽横条的要害就是不并排，这跟本块其余
+   四种形态（都是 `grid`）在守卫 ⑨ 的 items 那根轴上取值不同。
+
+   🔴 内部那三条列带只在 `min-width: 1024px` 里分；手机宽下四个零件照旧一个一行堆下来（出处的手机栏
+   也是这么塌的）。 */
+
+[data-block="blog-preview"][data-shape="list-rows"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="blog-preview"][data-shape="list-rows"] .blog-preview__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="blog-preview"][data-shape="list-rows"] .blog-preview__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="blog-preview"][data-shape="list-rows"] .blog-preview__post {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="blog-preview"][data-shape="list-rows"] .blog-preview__category {
+  justify-self: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="blog-preview"][data-shape="list-rows"] .blog-preview__post {
+    grid-template-columns: 9rem 1fr 10rem;
+    align-items: start;
+  }
+
+  [data-block="blog-preview"][data-shape="list-rows"] .blog-preview__category {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  [data-block="blog-preview"][data-shape="list-rows"] .blog-preview__title {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  [data-block="blog-preview"][data-shape="list-rows"] .blog-preview__excerpt {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  [data-block="blog-preview"][data-shape="list-rows"] .blog-preview__date {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+  }
+}

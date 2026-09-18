@@ -1,0 +1,40 @@
+/* contact-info · phone-first  （azure-29 今天选的就是它） */
+
+[data-block="contact-info"][data-shape="phone-first"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="contact-info"][data-shape="phone-first"] .contact-info__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="contact-info"][data-shape="phone-first"] .contact-info__location {
+  display: grid;
+  align-content: start;
+  order: 2;
+}
+
+[data-block="contact-info"][data-shape="phone-first"] .contact-info__label {
+  order: 2;
+}
+
+[data-block="contact-info"][data-shape="phone-first"] .contact-info__address {
+  order: 3;
+}
+
+[data-block="contact-info"][data-shape="phone-first"] .contact-info__phone {
+  justify-self: start;
+  order: 1;
+}
+
+[data-block="contact-info"][data-shape="phone-first"] .contact-info__email {
+  justify-self: start;
+  order: 1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="contact-info"][data-shape="phone-first"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}

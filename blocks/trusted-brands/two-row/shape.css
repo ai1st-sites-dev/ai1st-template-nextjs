@@ -1,0 +1,27 @@
+/* trusted-brands · two-row  （#1364，对表 FlyonUI logo-cloud-1）
+
+   出处：居中标题 + 副标题，下面一张卡里两行 logo（6 + 5）。副标题这个块没有槽（同上，不加），
+   卡片那层是皮不是几何（D4：形态只排位置，不画外观）⟹ 这里只做「标题在上、logo 排成两行」。
+   6 个品牌 ÷ 3 列 = 正好两行。 */
+
+[data-block="trusted-brands"][data-shape="two-row"] {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  justify-items: center;
+  align-items: start;
+}
+
+[data-block="trusted-brands"][data-shape="two-row"] .trusted-brands__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="trusted-brands"][data-shape="two-row"] .trusted-brands__brand {
+  display: grid;
+  place-items: center;
+}
+
+@media (min-width: 1024px) {
+  [data-block="trusted-brands"][data-shape="two-row"] {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}

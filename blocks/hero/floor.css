@@ -1,0 +1,70 @@
+.hero {
+  /* Grid rather than the structure layer's `display: block`, for one reason: it puts the gap
+     between the picture, the words and the decoration in ONE place, instead of hanging a margin on
+     each child. Sheets set both properties themselves, so neither reaches a themed page. */
+  display: grid;
+  gap: 2rem;
+  padding: 3rem 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .hero {
+    padding: 4rem 2rem;
+  }
+}
+
+/* A grid item's automatic minimum size is its CONTENT's size, so a 1600px-wide photo can push the
+   column wider than the screen and give a phone a horizontal scrollbar — the picture obeys
+   `max-width: 100%` and the page still overflows, which is why capping the image is not enough. */
+.hero__media {
+  min-width: 0;
+}
+
+.hero__body {
+  min-width: 0;
+  /* Roughly 70 characters. Longer lines are measurably harder to read, and with no sheet the words
+     would otherwise run the full width of a desktop screen. */
+  max-width: 42rem;
+}
+
+.hero__title {
+  font-size: 2rem;
+  line-height: 1.2;
+  /* A business name or a URL with no spaces in it is one word to a browser, and one word longer
+     than the screen is a horizontal scrollbar. */
+  overflow-wrap: break-word;
+}
+
+@media (min-width: 1024px) {
+  .hero__title {
+    font-size: 2.75rem;
+  }
+}
+
+.hero__sub {
+  margin-top: 1rem;
+  line-height: 1.6;
+  overflow-wrap: break-word;
+}
+
+.hero__cta {
+  margin-top: 2rem;
+}
+
+/* 🔴 #1374 —— 可选槽 `socialProof` 的地板。跟上面那几条同一个判据（「没有皮的时候读得出来吗」），
+   而它比上面那些多一层理由：这四个类名**不是契约钩子**（同 `.hero__img`），所以三套皮一条规则都不会
+   给它们写 —— 这里不写就真的什么都没有。
+   `min-width: 0` 与 `overflow-wrap` 是同一对老理由：一行没有空格的长字符串会把网格轨道撑得比屏幕宽，
+   而块自己的 `overflow: hidden`（globals.css）会把它剪掉，页面级那条「没有横向滚动」照样说一切正常。 */
+.hero__proof {
+  margin-top: 1.5rem;
+  min-width: 0;
+}
+
+.hero__proof-rating,
+.hero__proof-text {
+  min-width: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  overflow-wrap: break-word;
+}

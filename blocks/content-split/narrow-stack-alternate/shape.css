@@ -1,0 +1,85 @@
+/* content-split · narrow-stack-alternate  （#1340 从生成器的 split['narrow-stack'] + 节律 alternate 剪来；今天没有主题选它） */
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+  justify-items: center;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__media {
+  aspect-ratio: 3 / 2;
+  order: 1;
+  max-width: 30rem;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__body {
+  display: grid;
+  align-content: start;
+  max-width: 34rem;
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__bullets {
+  display: grid;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__stat {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__media {
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__body {
+  order: 1;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__media {
+  order: 1;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__body {
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__media {
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__body {
+  order: 1;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__media {
+  order: 1;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__body {
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__media {
+  order: 2;
+}
+
+[data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] + [data-block="content-split"][data-shape="narrow-stack-alternate"] .content-split__body {
+  order: 1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="content-split"][data-shape="narrow-stack-alternate"] {
+    grid-template-columns: 1fr;
+  }
+}

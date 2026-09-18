@@ -1,0 +1,23 @@
+/* ── footer · multi-column（多列大脚；没换装的站看到的就是它）───────────────────────────────
+
+   地板给了它 grid + 3rem 的行距（`base.css` 的 `.footer__body`），这里给列数那三档 ——
+   小屏一列、≥768 两列、≥1024 四列，逐档照搬改造前 `Footer.tsx` 那串 `md:grid-cols-2 lg:grid-cols-4`。
+   🔴 CTA 色带在这一种里关掉（`base.css` 的 `.footer__cta { display: none }` 已经是默认，
+      这里不重复写）。 */
+
+[data-block="footer"][data-shape="multi-column"] .footer__body {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 768px) {
+  [data-block="footer"][data-shape="multi-column"] .footer__body {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-block="footer"][data-shape="multi-column"] .footer__body {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}

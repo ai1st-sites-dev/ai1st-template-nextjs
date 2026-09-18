@@ -114,7 +114,7 @@ function treeAt(ref, tmp) {
 //
 // 🔴 #1341 把 manifest 的一个顶层键整个删了（内容结构那一维退役），而基线那份 `checkManifestShape`
 //    要求它必须是非空字符串数组 ⟹ 基线那一臂**在吐出提示词之前就抛**（实测：
-//    `blocks/announcement-bar.json: … 必须是非空的字符串【数组】`）。这不是字节差异，是这一臂
+//    `blocks/announcement-bar/manifest.json: … 必须是非空的字符串【数组】`）。这不是字节差异，是这一臂
 //    整个没有读数。
 //
 // 处置：**基线那份 manifest 有、而今天这份没有的顶层键，按基线那份的值补回去**，只补给基线那一臂
@@ -147,8 +147,15 @@ function baselineManifestShim(root, ref) {
         { cwd: REPO, stdio: ['ignore', 'pipe', 'ignore'] }).toString());
     } catch { return null; }
   };
-  const names = fs.readdirSync(path.join(NEXT, 'blocks')).filter((n) => n.endsWith('.json'));
-  const today = new Map(names.map((n) => [n, JSON.parse(fs.readFileSync(path.join(NEXT, 'blocks', n), 'utf8'))]));
+  // 🔴 #1387 —— 今天一个块是一个**文件夹**（`blocks/<type>/manifest.json` + 形态子文件夹），而基线
+  //    那棵树读的是 `blocks/<type>.json`。所以这个适配层多做一件事：把今天那两半拼回基线认得的
+  //    那个扁平形状（manifest 的键 + `shapes` 数组）写进 shim 目录。少了这一步，基线那一臂读到的是
+  //    一个空的 blocks/ —— 而空的 blocks/ 不会报错，它会让基线那份提示词少掉每一个块，
+  //    于是下面 ⑥ 的差异清单变成「什么都不同」而看起来像被测的那件事。
+  const { loadBlockManifests } = require(path.join(NEXT, 'scripts', 'blocks.js'));
+  const todayByType = loadBlockManifests(NEXT);
+  const names = Object.keys(todayByType).sort().map((t) => `${t}.json`);
+  const today = new Map(names.map((n) => [n, todayByType[n.replace(/\.json$/, '')]]));
   const atRefByName = new Map(names.map((n) => [n, atRef(n)]));
   // 基线那些 manifest 有、而今天同名那份没有的顶层键 —— 键名现读，不写死。
   const dropped = new Set();
@@ -562,7 +569,7 @@ try {
   // 🔴 r2 扩的那一半（QA2 在 r1 上量到的）：只把那三句散文改成有条件的**不够** —— 交付版提示词
   //    确实少了那三句（−237 字节），而**站建出来一点没变**：3 个互异 siteId × 6 个服务详情页
   //    = 18/18 照旧带那个块，与基线那次 6/6 逐个相同。真因是**清单**那一条自己就在说「加它」：
-  //    `blocks/service-related-pages.json` 的 `headExtra` 是 `Use ONLY on service detail pages`，
+  //    `blocks/service-related-pages/manifest.json` 的 `headExtra` 是 `Use ONLY on service detail pages`，
   //    它的 `lines` 里还有 `safe to include on all service detail pages` ⟹ 模型照做。
   //    📌 #1140 已经把 `lines` 里那半句删掉了（现在那一行讲的是「没有关键词页时它整块不渲染，
   //    但仍占掉页面的一个位置」）；`headExtra` 那句原样还在。上面记的是 #1134 r1 当时的读数，

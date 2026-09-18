@@ -1,0 +1,51 @@
+{
+  "type": "page-header",
+  "displayName": "Page Header",
+  "category": "banner",
+  "roleDefault": "optional",
+  "slots": {
+    "title": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false,
+      "editLabel": "Title"
+    },
+    "subtitle": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true,
+      "editLabel": "Subtitle"
+    },
+    "breadcrumbs": {
+      "kind": "list",
+      "required": false,
+      "promptOptional": false,
+      "shape": "[{label:\"Home\", href:\"/\"}, {label:\"<Page Name>\"}]",
+      "editLabel": {
+        "label": "Breadcrumb text"
+      }
+    }
+  },
+  "variants": {
+    "default": "gradient left-aligned",
+    "minimal": "white bg, underline",
+    "centered": "gradient centered",
+    "with-description": "two-column"
+  },
+  "variantKey": "variants",
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "page-specific",
+    "order": 0,
+    "headPrefix": "always the first section on non-home pages. ",
+    "headSuffix": "",
+    "headExtra": null,
+    "lines": [
+      "@data"
+    ]
+  }
+}
