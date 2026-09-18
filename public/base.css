@@ -361,6 +361,12 @@
 .contact-form__error,
 .contact-form__note,
 .contact-form__success,
+.contact-form__media,
+.contact-form__aside,
+.contact-form__aside-label,
+.contact-form__aside-address,
+.contact-form__aside-phone,
+.contact-form__aside-email,
 .quote-form__form,
 .quote-form__intro,
 .quote-form__main,
@@ -869,6 +875,14 @@
    （组件那一头是「有则出、无则不出」），给了图它也得有个形状，不然那一列在图加载完之前是塌的。 */
 .faq-accordion__media {
   aspect-ratio: 4 / 3;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+/* #1370 —— `form-over-media` 那张图。跟上面那条同一个理由：主题给它底和圆角，没有皮的时候它也得
+   有个形状，不然那一行在图加载完之前是塌的。 */
+.contact-form__media {
+  aspect-ratio: 16 / 9;
   border-radius: 0.75rem;
   overflow: hidden;
 }

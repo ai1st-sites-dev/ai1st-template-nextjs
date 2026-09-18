@@ -1401,6 +1401,7 @@ console.log('\n⑪ #1135 那行细则小字，每一种画法下都排在表单�
         //    6 种 form 画法里，`panel-left` 自己写了 order 3（所以搬源序也压不倒它），其余 5 种
         //    note 的 order 都是缺省 0 ⟹ 把 note 搬到源码最前面之后，那 5 种的二元组 (0, 最小源序)
         //    就比 form / intro 小，逐个被点名。
+        // 值是现算的；括号里那个数只是今天的读数。
         const EXPECT_B = FORM_LOOK_SAMPLE.size - 1;      // 6 − 1（panel-left 自己写了 order）
         if (named.length === EXPECT_B) {
           ok(`⑪ 阳性对照 B：把 note 在源码里搬到最前面，这一格点名 ${named.length} 种画法（= ${EXPECT_B}，`

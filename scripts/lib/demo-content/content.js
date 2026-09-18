@@ -346,6 +346,14 @@ const DEMO_CONTENT = {
       + 'safe to drive until Monday.',
     buttonText: 'Send message',
     successMessage: 'Thanks — we reply within one business hour.',
+    // #1370 —— 可选图槽，只有 `form-over-media` 那一副形态用它（`shapes.css` 里别的形态把
+    // `.contact-form__media` 藏掉）。守卫 (a) 要每个槽位都有值，包括可选槽。
+    // 🔴 借的是 `about-workshop` 这张（`content-split` 也用它）：`.contact-form__media` 在
+    // `public/base.css` 里是 `aspect-ratio: 16 / 9` + `object-fit: cover`，要一张**横图**，
+    // 而 `about-9` 是 1216x642（≈1.89，现取）。`contact` 那一类我试过 —— `contact-1` 带
+    // 「Unsplash+」水印（图册是给 Chris 判形态的，别让水印替形态说话）、`contact-2`/`-3` 近正方，
+    // 放进 16/9 会把上下裁掉大半。
+    imageUrl: imageUrl('about-workshop'),
   },
 
   'contact-info': {

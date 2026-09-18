@@ -17,6 +17,7 @@ interface ContactFormSectionProps {
     intro?: string;
     buttonText?: string;
     successMessage?: string;
+    imageUrl?: string;
   };
   /** #998 — 这个块在页面 JSON 里的那条记录；根元素的 `data-role` / `data-shape` / `data-has-*` 从它来。
    *  （#998 当初加它是为了第三个钩子 `data-block-layout`，#1341 把那个钩子退役了。） */
@@ -60,11 +61,37 @@ type SubmitState = 'idle' | 'submitting' | 'success' | 'error';
 // `data-shape` and `data-has-*` all still come from that second argument, and dropping it is
 // silent in every instrument we own (`registry.ts` types the components as
 // `ComponentType<any>`, so `tsc` cannot see it). #1008 r1 was bounced for exactly that.
+// ══ #1370：两个按形态出的零件（`__media` / `__aside`）═══════════════════════════════════════════
+//
+// 🔴 **为什么是「按形态渲染」而不是「总在树上、用 CSS 藏起来」。** 这个块已有的六种形态在 manifest 里
+// 都写着 `media: none`，而排版意图探针那条判据是「一个 `__media` 都不许有」
+// （`scripts/lib/layout-intent.mjs` §media-none）。量主题那份夹具会把每个可选槽都填上，所以图零件
+// 只要在树上就得处置。两条路都试过，只有一条走得通：
+//   · `display: none` 藏掉 —— **撞检查 ②**（essential 块里有内容的零件被藏起来就报）。这个块是
+//     `essential`（`block-roles.json:6`），藏起来的那个零件里是一张真 `<img>`。同一件事我在 #1362
+//     的 `faq-accordion`（也是 essential）上量过，本票在这个块上又量了一遍，两次都红，读数贴在票上。
+//   · **按形态出** —— 不需要它的六种形态里这个零件根本不在 DOM 上，`media-none` 与检查 ② 都不问它。
+//
+// 🔴 **零件是根的直接子元素，内部不带 `data-block-part`，也不放两个以上同类元素。** 探针的取样面是
+// 根的直接子元素加 `data-block-part` 包装层里一层，而 `items` 轴判「同类同级项少于两个」——
+// 一进取样面，这个块已有的六种形态会一起红。`__aside` 里那几行各有各的 class，不是同类项。
+//
+// 🔴 **图的字段名叫 `imageUrl`**，跟 hero / content-split / gallery 逐字相同：写入闸
+// `scripts/lib/image-urls.js` 的 `IMAGE_FIELDS` 按【字段名】认「这个值是一张图的地址」，换个名字
+// 那道闸就看不见它（#1361 四臂实测）。`scripts/edit-site.js` 的 `## Images` 段要跟着列一行。
+//
+// 🔴 **说明写在这里，不写进上面那个 `data: { … }`。** 量主题那份夹具页是从那对花括号之间的文本
+// **现切**出来的（`scripts/block-migration/gen-allblocks.js` §fields 按顶层 `;` / `,` 切、取第一个
+// `:` 之前的串当字段名），一条 JSDoc 落在字段前面，切出来的键就是「注释+字段名」那一长串 ——
+// 全填版夹具里那个槽于是根本不存在，而它的下场不是红（#1362 实测：media 轴退化成「报告而不判」）。
 export default function ContactFormSection({ data, block }: ContactFormSectionProps) {
   const heading = data?.heading ?? 'Get in touch';
   const intro = data?.intro ?? "Leave your details and we'll get back to you shortly.";
   const buttonText = data?.buttonText ?? 'Send message';
   const successMessage = data?.successMessage ?? "Thanks! We've received your message and will be in touch soon.";
+  // #1370 —— 这个块排成什么样。`sync-config.js` 构建时按 spec D18 的三级算好写进页面 JSON
+  // （缺槽落回也在那里做完），所以这里读到的就是 DOM 上那个 `data-shape`，两者不会分叉。
+  const shape = block?.shape;
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -119,6 +146,49 @@ export default function ContactFormSection({ data, block }: ContactFormSectionPr
     <section {...blockAttrs('contact-form', block)} className="contact-form">
       <h2 className="contact-form__heading">{heading}</h2>
       <p className="contact-form__intro">{intro}</p>
+
+      {/* 🔴 #1370 —— 两个零件的**盒子一直在树上，里面的东西按形态出**。三件事同时要成立，只有这个
+          写法都满足（每一条都是量出来的，读数在票上）：
+          ① 盒子一直在 ⟹ 契约钩子不会「在任何一页上都没出现」（检查 ⑤ 的 sample coverage 那一条，
+             第一版按形态整个不渲染，它当场红：`2 contract hook(s) are on no page`）。
+          ② 里面的东西按形态出 ⟹ 不需要它的六种形态上这个盒子是**空的**，而空盒子被藏起来时
+             检查 ②（essential 块里有内容的零件不许被藏）会跳过它 —— 它只判「里面有东西」的。
+             反过来（图一直渲染、靠 CSS 藏）在 #1362 的 faq-accordion 上量过：当场红。
+          ③ 六种形态上把空盒子藏掉 ⟹ 排版意图那条 `media-none`（一个 `__media` 都不许有）照旧成立，
+             而且老板的页面上不会多出一条空带子（`public/shapes.css` 那一段）。
+          🔴 **这两个盒子放在 `__intro` 之后、`__form` 之前，这个位置是承重的，别挪到 `</section>` 前面去。**
+             窄屏（<1024px）一列堆叠时 DOM 顺序就是视觉顺序：放在最后的话，`form-over-media` 的那张图会落在
+             细则小字**下面**（实测 375px：note y=1683 而 media y=1732），`info-side` 的联系方式卡同理
+             （note y=2745 / aside y=2794）。对一个叫「表单叠在图上」的形态，图排最后不是「换行或减列」，
+             是 DOM 顺序漏出来了。
+             🔴 用 DOM 位置解决而**不是**在形态层写 `order`：写 order 就得连 `__note` 一起写（它必须排在
+             `__form` 之后，#1135 立的那条性质），而那会把 `sheet-recipes.test.js` ⑪ 的阳性对照 B 打掉 ——
+             它标定的前提是「八副画法里只有 `panel-left` 自己写了 note 的 order」，实测点名数会从 7 掉到 5。
+             这六种既有形态上两个盒子都是 `display: none`，所以挪 DOM 位置对它们**一个像素都不动**。 */}
+      <div className="contact-form__media">
+        {shape === 'form-over-media' && data?.imageUrl ? <img src={data.imageUrl} alt="" /> : null}
+      </div>
+      <div className="contact-form__aside">
+        {shape === 'info-side' ? (
+          <>
+            {brand.locations?.[0] && (
+              <>
+                <p className="contact-form__aside-label">{brand.locations[0].label}</p>
+                <p className="contact-form__aside-address">{brand.locations[0].address}</p>
+                <a
+                  href={`tel:${brand.locations[0].phone.replace(/\s/g, '')}`}
+                  className="contact-form__aside-phone"
+                >
+                  {brand.locations[0].phone}
+                </a>
+              </>
+            )}
+            {brand.email && (
+              <a href={`mailto:${brand.email}`} className="contact-form__aside-email">{brand.email}</a>
+            )}
+          </>
+        ) : null}
+      </div>
 
       <form onSubmit={handleSubmit} className="contact-form__form">
         <label htmlFor="cf-name">Name</label>

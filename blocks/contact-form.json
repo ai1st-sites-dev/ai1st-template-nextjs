@@ -69,6 +69,32 @@
         "media": "none",
         "columns": "two"
       }
+    },
+    {
+      "name": "form-over-media",
+      "candidate": true,
+      "needs": [
+        "imageUrl"
+      ],
+      "layout_intent": {
+        "items": "none",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "below",
+        "columns": "one"
+      }
+    },
+    {
+      "name": "info-side",
+      "candidate": true,
+      "needs": [],
+      "layout_intent": {
+        "items": "none",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "none",
+        "columns": "two"
+      }
     }
   ],
   "slots": {
@@ -91,6 +117,12 @@
       "kind": "text",
       "required": false,
       "promptOptional": true
+    },
+    "imageUrl": {
+      "kind": "image",
+      "required": false,
+      "promptOptional": true,
+      "shape": "string"
     }
   },
   "variants": {},

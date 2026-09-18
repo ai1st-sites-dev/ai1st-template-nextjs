@@ -151,6 +151,10 @@ const HOOKS = new Set([
   // classes that decided a look left the markup and these hooks arrived in its place.
   '.contact-form', '.contact-form__heading', '.contact-form__intro', '.contact-form__form',
   '.contact-form__error', '.contact-form__note', '.contact-form__success',
+  // #1370 —— 两个按形态出的零件（`form-over-media` 的图、`info-side` 的联系方式卡）。进清单的判据
+  // 跟同族一样：库里已有同族钩子、而且两张表都管着它（`.hero__media` / `.content-split__media` 与
+  // `.quote-form__aside`）。不进的话主题画不了它们，而这个块是 essential、这两个零件都带内容。
+  '.contact-form__media', '.contact-form__aside',
   '[data-block="contact-form"]',
   '.quote-form', '.quote-form__form', '.quote-form__intro', '.quote-form__main',
   '.quote-form__aside', '.quote-form__step', '.quote-form__error', '.quote-form__action',

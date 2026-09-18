@@ -861,6 +861,8 @@ other type does not show a picture, and putting an image field on one has no eff
 - a **hero-with-form** block → \`data.imageUrl\` (the first screen that also collects the visitor's phone
   number — same picture field as **hero**, it is just a different block type)
 - a **content-split** block → \`data.imageUrl\`
+- a **contact-form** block → \`data.imageUrl\` (optional — only the one layout that puts the form over a
+  picture shows it; on the other layouts the block has no picture)
 - a **social-proof** block → \`data.imageUrl\` (optional — the block shows a picture only when one is
   set; without it the ratings, badges and figures simply have no picture beside them)
 - a **faq-accordion** block → \`data.imageUrl\` (optional — only one of its layouts puts a picture next to

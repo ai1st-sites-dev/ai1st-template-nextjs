@@ -263,6 +263,11 @@ const FORM_LOOKS = {
       note: () => ({}),
     },
   },
+  // 🔴 #1370 给 `contact-form` 新加的 `form-over-media` / `info-side` **故意不在这张表里**
+  //    （PM 2026-09-17 裁定）。加进来会把档数从 6 变 8 ⟹ `formLookFor(i)` 重新发牌 ⟹ 两张生成
+  //    的主题表要重生，实测代价是 `ember-12` 的 `.contact-form__intro` 少 12px。而买不到东西：
+  //    #1360 之后 ⑮ 的「形态层里有、候选一次都没画到」那一半只打印读数、不判罚，它们跟 #1360 的
+  //    8 副、#1365 的 3 副一样待在那条 📌 里。什么时候进配方层 → #1377（重生主题池那一步）。
 };
 
 const CTA_LOOK_NAMES = Object.keys(CTA_LOOKS);
@@ -910,7 +915,14 @@ const SHAPES = {
   'cta-banner': { rootExtra: {}, role: { headline: 'display', desc: 'lede', action: 'actions' } },
   'page-header': { wideSpacing: false, role: { crumbs: 'crumbs', title: 'display', sub: 'lede' } },
   'contact-form': {
-    role: { heading: 'headline', intro: 'lede', form: 'panel', error: 'error', success: 'success', note: 'fineprint' },
+    // #1370 —— `media` / `aside` 两个零件按形态出（`form-over-media` 的图、`info-side` 的联系方式卡）。
+    // 角色跟库里同族逐字一样：图走 `media`（同 hero / content-split），卡走 `panel`（同 quote-form 的
+    // `aside`）。不登记的话这两个钩子在**每一套候选**里都没有规则，而检查 ⑤ 的窄读数问的正是
+    // 「主题自己那张表有没有管这个钩子」。
+    role: {
+      heading: 'headline', intro: 'lede', form: 'panel', error: 'error', success: 'success',
+      note: 'fineprint', media: 'media', aside: 'panel',
+    },
     // 🔴 #1135 —— **成功那条**状态消息一律跨满整宽，写在**块这一层**而不是每个候选里。
     //    `pick()` 先摊 `base.partExtra`、再摊候选自己的，所以候选想覆写还是覆写得了，而**不写就
     //    自动有** —— 加第 7 个候选的人不需要记得任何事（同 `keepsWideBreakpoint` 那条的理由）。
