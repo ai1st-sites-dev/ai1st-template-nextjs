@@ -122,8 +122,15 @@ interface SocialProofSectionProps {
 //
 // 🔴 一条数字的两个零件跟着 `content-split` 的叫法走（`__stat-value` / `__stat-label`），不是
 // `__value` / `__label`：这个块已经有 `__rating` / `__reviews` 两个「也是数字」的零件，光秃秃的
-// `__value` 在这儿说不清是哪一个。三个新类名都不是契约钩子（主题表选不中它们），跟 #1362 的
-// `.faq-accordion__media` 同一条边界：地板在 `public/base.css`，排版在 `public/shapes.css`。
+// `__value` 在这儿说不清是哪一个。
+//
+// 🔴 **#1367 更正：这四个零件（`__stat` / `__stat-value` / `__stat-label` / `__media`）现在是契约
+// 钩子，主题表选得中它们。** 上一版这里写的是「都不是契约钩子…跟 `.faq-accordion__media` 同一条
+// 边界」，那句话有两处不成立：① 它援引的先例在盘上查不到实体（全树 `faq-accordion__media` 只有
+// 那句注释自己命中，`faq-accordion` 也没有图槽）；② 同名的四个零件在 `content-split` 上本来就是
+// 钩子，一组数字在一个块里被主题画、在另一个块里只有地板，等于同一页上两种长相。
+// 今天的分工是：地板在 `public/base.css`，排版在 `public/shapes.css`，**外观（颜色 / 字号 / 圆角 /
+// 边框）在主题表**（`theme-css-lint.js` 的 `HOOKS` + 契约 §1 的 Social-proof parts 那一行）。
 export default function SocialProofSection({ data, locale, block }: SocialProofSectionProps) {
   const labels = getLabels(locale);
 

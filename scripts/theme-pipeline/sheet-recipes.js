@@ -894,7 +894,7 @@ const SHAPES = {
   'blog-preview': { role: { post: 'card', category: 'chip', date: 'meta', title: 'title', excerpt: 'desc' } },
   'content-split': { rootExtra: {}, role: { media: 'media', body: 'column', bullets: 'list', stats: 'inline-grid-3', stat: 'card', 'stat-value': 'figure', 'stat-label': 'eyebrow' } },
   'text-block': { wideSpacing: false, role: { body: 'prose', attribution: 'meta', list: 'list' } },
-  'social-proof': { role: { rating: 'figure', reviews: 'meta', platform: 'chip', badge: 'chip', quote: 'quote', 'quote-author': 'meta' } },
+  'social-proof': { role: { rating: 'figure', reviews: 'meta', platform: 'chip', badge: 'chip', quote: 'quote', 'quote-author': 'meta', stat: 'card', 'stat-value': 'figure', 'stat-label': 'eyebrow', media: 'media' } },
   'features-grid': { role: { item: 'card', icon: 'icon', title: 'title', desc: 'desc' } },
   'newsletter-signup': { role: { desc: 'lede', form: 'panel' } },
   'faq-accordion': { wideSpacing: false, role: { item: 'row-card', question: 'title', answer: 'desc' } },
