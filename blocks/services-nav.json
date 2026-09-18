@@ -12,7 +12,14 @@
         "item_wrap": "avoid",
         "headline": "none",
         "media": "none",
-        "columns": "many"
+        "columns": "many",
+        "align": "stretch",
+        "cross": "stretch",
+        "ratio": "none",
+        "media_side": "none",
+        "order": "dom",
+        "item_parts": "none",
+        "inner": "none"
       }
     }
   ],

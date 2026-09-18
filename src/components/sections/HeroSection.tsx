@@ -123,7 +123,7 @@ export default function HeroSection({ data, block }: HeroSectionProps) {
             七种形态全写着 `items: "none"` 与 `headline: "none"`。头像组天生是一排同类元素 —— 它或它的
             包装层一旦成了直接子元素（带 `data-block-part` 的包装层也算候选面，`:88-92`），`items-none`
             （`:235`）会让七格一起红；第一个 class 若以 `__title` / `__headline` / `__heading` 结尾，
-            `headline-none`（`:276`）同样七格一起红。放在 body 里面，那五根轴一根都不会换读数。
+            `headline-none`（`:276`）同样七格一起红。放在 body 里面，排版意图那些轴一根都不会换读数。
             ⟹ 改这里的人：不许上提成直接子元素、不许加 `data-block-part`、第一个 class 不许以那三个
             后缀（以及 `__media`）结尾。 */}
         {data.socialProof ? (

@@ -152,7 +152,7 @@ console.log('── ③ checkManifestShape 白名单');
     ['默认形态带 needs', (m) => { m.shapes[0].needs = ['imageUrl']; }, 'shapes[0] ("text-center") 是默认形态，needs 必须为空'],
     ['形态名在 CSS 里没有规则', (m) => { m.shapes[1].name = 'no-such-shape'; }, '[data-block="hero"][data-shape="no-such-shape"]'],
     // 🔴 推的那一项要带 `layout_intent`：#1332 起「意图不完整」那条检查排在「写了两次」**前面**，
-    //    不带的话这一格读到的是缺五根轴的报文，而它要验的是重名 —— 尺子会点名另一件事。
+    //    不带的话这一格读到的是「缺某几根轴」的报文，而它要验的是重名 —— 尺子会点名另一件事。
     ['同一个形态写两次',
       (m) => { m.shapes.push({ name: 'text-center', needs: [], layout_intent: m.shapes[0].layout_intent }); },
       '"text-center" 写了两次'],

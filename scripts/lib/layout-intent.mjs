@@ -1,13 +1,14 @@
 // layout-intent.mjs — 检查 ⑨ 的探针与判据（#1332，设计文档 D15 第 3 层 / D5）。
 //
-// 一份 `layout_intent` 说「这个块的这一种形态该长什么样」，用五根轴上的有限词表说；这里把每个词
+// 一份 `layout_intent` 说「这个块的这一种形态该长什么样」，用一组轴上的有限词表说（#1332 立了五根，
+// #1381 加到十二根）；这里把每个词
 // 翻成一条**在真浏览器上量边界框**的断言。词表本身住在 `layout-intent-vocab.json` —— 校验器
 // （`block-manifest.js`，CommonJS）和这道守卫（ESM）两边读同一份，两处各抄一份的失败方向是静默的。
 //
 // 🔴 为什么探针要往 `data-block-part` 包装层里下一层：`testimonials` 把它的三条评价装在
 //    `<div data-block-part="testimonials-list">` 里（31 个块里只有它这么做，现取 1）。不下这一层，
 //    「同级项」在它身上读到的是那个包装层本身 —— 一个成员的组，于是 `items` 那根轴对它永远退化，
-//    而它恰好是本票唯一一个两种形态在五根轴上同值的块（正文 §已知盲区）。
+//    而它恰好是 #1332 那一轮唯一一个两种形态在当时那五根轴上同值的块（#1332 正文 §已知盲区）。
 //
 // 🔴 `columns` 读的是【真正被占用的列带】，不是 `grid-template-columns` 的轨道数。两把尺在盘上
 //    真的不一致，而分歧的方向正是本票要看见的那一类：`newsletter-signup/form-side` 的根有 2 条轨道，
@@ -79,7 +80,24 @@ export const INTENT_PROBE = (V) => {
     // 🔴 #1337 —— 只有真被排版的子元素才算占了位置。`kids` 本身**不动**：下面认 head / media /
     //    body 那几处问的是「哪个零件是它」，藏起来的容器照样是媒体容器（`mediaEl` 那一处按本票
     //    正文 §做什么 4 单独判「看不看得见」）。这里分出来的 `laid` 只喂几何。
-    const laid = kids.filter(laidOut);
+    // 🔴 #1381 —— `display: contents` 的直接子元素自己没有盒子，它的孩子才真占着格。上一版把它
+    //    当成一个占着第 0 条列带的零件，于是 `testimonials` 的 `occupied` 恒等于 1（无论那一种形态
+    //    声明了几列），`placeable` 也恒等于 1 ⟹ `columns` 那条严格判据在这个块的每一种形态上都
+    //    退化成「占用 ≤ 声明」。实测（azure-29 · 1280px · /allblocks.html）：two-up 的轨道读数是
+    //    `[580, 580]`（两条）、六个 `testimonials__item` 分落两条带，而 `occupied` 读 1。展开之后
+    //    two-up 读 2、three-up / masonry 读 3，跟它们的 `grid-template-columns` 对得上。
+    //    🔴 展开的只有 `display: contents` 这一种，不是「所有包装层」：contents 的语义就是「我不生成
+    //    盒子」，而一个有盒子的包装层确实占着一条列带，把它换成它的孩子会把真读数换成假读数。
+    //    📌 全仓现取只有 `testimonials` 一个块有这种直接子元素（`data-block-part="testimonials-list"`）。
+    //    🔴 别在这里钉行号，自己取（行号会漂）：
+    //       grep -rn 'display: contents' templates/nextjs/src/app/globals.css templates/nextjs/public/base.css
+    const expand = (list) => list.reduce((acc, c) => {
+      const d = getComputedStyle(c).display;
+      if (d === 'none') return acc;
+      if (d === 'contents') return acc.concat(expand([...c.children]));
+      acc.push(c); return acc;
+    }, []);
+    const laid = expand(kids);
     const spansAll = (c) => {
       const g = getComputedStyle(c).gridColumn || '';
       return /(^|\s)1\s*\/\s*-1(\s|$)/.test(g) || g.trim() === '1 / -1';
@@ -139,7 +157,156 @@ export const INTENT_PROBE = (V) => {
     const bodyEl = kids.find((c) => first(c).endsWith(V.bodySuffix))
       || kids.find((c) => !isHead(c) && !isMedia(c) && first(c) !== itemCls)
       || kids.find((c) => !isHead(c) && !isMedia(c));
+
+    // ══ #1381 的七根新轴，取数那一半 ════════════════════════════════════════════════════════════
+    // 判断一律在 node 侧（同这个文件原来的规矩），这里只回数。
+    const contentBoxOf = (c) => {
+      const s = getComputedStyle(c); const b = c.getBoundingClientRect();
+      return {
+        left: b.left + px(s.borderLeftWidth) + px(s.paddingLeft),
+        right: b.right - px(s.borderRightWidth) - px(s.paddingRight),
+      };
+    };
+    // ── align：横向对齐量在哪个零件上 ────────────────────────────────────────────────────────
+    // 标题部件优先，其次**严格**的 `__body`。🔴 这里不用上面那个 `bodyEl`：它的第二、三条兜底会
+    // 把「随便哪个不是标题也不是图的子元素」当正文，于是 `header` 这种既没标题也没 `__body` 的块
+    // 也拿得到一个参照（实测拿到的是 `.header__bar`，而它横向填满 ⟹ 四种顶栏形态全读 stretch）。
+    // 既没标题也没 `__body` 时**下沉一层**：取「零件最多的那个直接子元素」的第一个零件，并且改用
+    // 那个容器自己的内容盒当分母（顶栏的 `.header__bar` 自带内边距，拿块的内容盒量会把 centered-logo
+    // 和 solid-bar 都读成 start）。现取只有 5 个块既没有标题也没有 `__body`（两版夹具读数相同）：
+    // announcement-bar · header · quote-form · services-list · services-nav —— 其中 header /
+    // quote-form / services-list 真的下沉到了主容器的第一个零件，announcement-bar 与 services-nav
+    // 连「零件 ≥2 的直接子元素」都没有 ⟹ 回 null，align 轴在它们身上【报告而不判】。
+    const strictBody = kids.find((c) => first(c).endsWith(V.bodySuffix));
+    let refEl = headEl || strictBody || null;
+    let refFrom = headEl ? 'head' : (strictBody ? 'body' : null);
+    let refBox = { left: contentLeft, right: contentRight };
+    if (!refEl) {
+      let host = null; let hostN = 0;
+      for (const c of laid) {
+        if (isMedia(c)) continue;
+        const n = expand([...c.children]).length;
+        if (n > hostN) { host = c; hostN = n; }
+      }
+      if (host && hostN >= 2) {
+        const inner = expand([...host.children])[0];
+        if (inner) { refEl = inner; refFrom = 'inner'; refBox = contentBoxOf(host); }
+      }
+    }
+    // 🔴 分母是**参照零件所在的那条列带**，不是整个块的内容盒 —— 两栏块（hero/media-left 那一族）
+    //    的正文只住在其中一栏里，拿整块当分母量出来永远是「偏左 628 偏右 60」这种谁都不是的读数。
+    //    跨整行的零件（标题那种 `grid-column: 1 / -1`）照旧拿整个内容盒当分母。
+    if (refEl && refFrom !== 'inner' && tracks.length > 1) {
+      const b0 = refEl.getBoundingClientRect();
+      const mid0 = (b0.left + b0.right) / 2;
+      let acc0 = contentLeft; let hit = null;
+      for (const t of tracks) {
+        if (mid0 >= acc0 - V.slack && mid0 <= acc0 + t + V.slack) { hit = { left: acc0, right: acc0 + t }; break; }
+        acc0 += t + gap;
+      }
+      if (hit && !spansAll(refEl) && b0.width < (contentRight - contentLeft) - V.slack * 2) refBox = hit;
+    }
+    // `left0` / `right0` 是**分母**（参照零件所在容器的内容盒），`left` / `right` 是零件自己的盒子。
+    const alignRef = refEl ? (() => {
+      const b = refEl.getBoundingClientRect();
+      return {
+        cls: first(refEl) || refEl.tagName.toLowerCase(), from: refFrom,
+        left: b.left, right: b.right, left0: refBox.left, right0: refBox.right,
+        lines: lineCount(refEl),
+      };
+    })() : null;
+
+    // ── order：把零件按 (computed `order`, DOM 次序) 排一遍，跟 DOM 次序一不一样 ──────────────
+    // 🔴 用的是**全部**子元素，不是 `laid`：`order` 是 CSS 属性，藏起来的零件照样带着它，而「这一页
+    //    上那个可选槽填没填」在两版夹具之间是不同的 —— 只数看得见的，同一个形态在全填版和最少版会
+    //    读出不同的答案（hero 的图没填时它就是这样）。
+    const inverted = (list) => {
+      const arr = list.map((c, i) => [parseFloat(getComputedStyle(c).order) || 0, i]);
+      const sorted = arr.slice().sort((a, b) => (a[0] - b[0]) || (a[1] - b[1]));
+      return sorted.some((x, i) => x[1] !== i);
+    };
+    const itemEls = (hist.get(itemCls) || []).map(([c]) => c);
+    const orderInverted = {
+      root: inverted(kids), item: itemEls[0] ? inverted([...itemEls[0].children]) : false,
+      // 能不能谈「次序」：块只有一个零件、项里只有一个零件时谈不上（最少版夹具上 page-header 就只剩
+      // 一个 `__title`，而 `kicker-above` 靠 `order` 提上去的那个副标题**整个没有渲染**）。
+      kids: kids.length, itemKids: itemEls[0] ? itemEls[0].children.length : 0,
+    };
+
+    // ── item_parts：同级项【内部】的零件是竖着堆还是横着并排 ──────────────────────────────────
+    // 判据是「有没有一对零件纵向范围重叠、横向彼此不重叠」，不是「左边界有几个不同的值」：后者
+    // 在居中排的项上（testimonials/single-featured 每个零件宽度不同、各自居中）会把一列读成并排。
+    const partsSideBySide = (() => {
+      if (!itemEls[0]) return null;
+      const ps = expand([...itemEls[0].children]).map((c) => c.getBoundingClientRect());
+      if (ps.length < 2) return null;
+      for (let i = 0; i < ps.length; i += 1) {
+        for (let j = i + 1; j < ps.length; j += 1) {
+          const a = ps[i]; const b2 = ps[j];
+          const vOverlap = a.top < b2.bottom - V.slack && b2.top < a.bottom - V.slack;
+          const hApart = a.right <= b2.left + V.slack || b2.right <= a.left + V.slack;
+          if (vOverlap && hApart) return true;
+        }
+      }
+      return false;
+    })();
+
+    // ── inner：块的主内层容器里，零件占了几条列带 ────────────────────────────────────────────
+    // 主内层容器 = 被排版的直接子元素里，**不是同级项**、有 ≥2 个被排版子元素、而且那些子元素的
+    // 类名不全相同的那一个（并列取子元素最多的）。最后那条排掉的是「一串同类的东西」——
+    // `.hero__band` 里六张同类的图、`.content-split__bullets` 里的 `li`：那是内容有几条，不是版式。
+    const innerHostOf = (skipItems) => {
+      let best = null; let bestN = 0;
+      for (const c of laid) {
+        if (isMedia(c) || (skipItems && first(c) === itemCls)) continue;
+        const ch = expand([...c.children]);
+        if (ch.length < 2) continue;
+        const names = new Set(ch.map((x) => first(x) || x.tagName.toLowerCase()));
+        if (names.size < 2) continue;
+        if (ch.length > bestN) { best = [c, ch]; bestN = ch.length; }
+      }
+      return best;
+    };
+    const readInner = (innerHost) => (innerHost ? (() => {
+      const [host, ch] = innerHost;
+      const hs = getComputedStyle(host);
+      const hb = contentBoxOf(host);
+      const ht = hs.display === 'grid' && hs.gridTemplateColumns !== 'none'
+        ? hs.gridTemplateColumns.trim().split(/\s+/).map(px) : [];
+      const hgap = hs.columnGap === 'normal' ? 0 : px(hs.columnGap);
+      const hband = new Set();
+      if (ht.length > 0) {
+        const edges = []; let acc = hb.left;
+        for (const t of ht) { edges.push([acc, acc + t]); acc += t + hgap; }
+        for (const c of ch) {
+          const b = c.getBoundingClientRect();
+          const mid = (b.left + b.right) / 2;
+          let idx = edges.findIndex(([a, z]) => mid >= a - V.slack && mid <= z + V.slack);
+          if (idx < 0) idx = 0;
+          hband.add(idx);
+        }
+      } else {
+        // 不是 grid：同一视觉行上并排了几个零件（纵向范围跟第一个零件重叠的那些）。
+        const bs = ch.map((c) => c.getBoundingClientRect()).filter((b) => b.width > 0 || b.height > 0);
+        const first0 = bs[0];
+        if (first0) {
+          for (const b of bs) {
+            if (b.top < first0.bottom - V.slack && first0.top < b.bottom - V.slack) hband.add(Math.round(b.left));
+          }
+        }
+      }
+      return { cls: first(host) || host.tagName.toLowerCase(), count: ch.length, bands: hband.size || 1 };
+    })() : null);
+    // 🔴 两份读数，因为「哪个直接子元素是同级项」这件事只有 manifest 说了算，探针说不了：
+    //    `items: none` 的块上探针挑出来的那个「项」是个凑数的单件（hero 在 / 上是 `.hero__body`、
+    //    在 /allblocks.html 上是 `.hero__band`），按它去排除会让同一个形态两页两个答案；而真有
+    //    同级项的块**必须**排除它们，否则最少版夹具上只剩一张卡时，那张卡自己就成了主内层容器。
+    //    判据那一侧按 `intent.items` 取其中一份（judgeIntent 里那段）。
+    const innerReading = readInner(innerHostOf(true));
+    const innerReadingFree = readInner(innerHostOf(false));
+
     out.push({
+      alignRef, orderInverted, partsSideBySide, inner: innerReading, innerFree: innerReadingFree, trackWidths: tracks,
       block: el.getAttribute('data-block'), shape: el.getAttribute('data-shape') || '(none)',
       display: cs.display, flexDirection: cs.flexDirection, flexWrap: cs.flexWrap,
       trackCount: tracks.length, occupied: bands.size, spanning,
@@ -182,6 +349,79 @@ export function visualRows(items, slack = VOCAB.slack) {
     else rows.push({ items: [it], bottom: it.bottom });
   }
   return rows;
+}
+
+
+// ══ #1381 —— 七根新轴的「量出来是什么」，一份定义两处用 ═══════════════════════════════════════
+// 判据（下面 judgeIntent 里那几段）和 manifest 的填值脚本读的是同一组函数。两边各写一遍的失败
+// 方向是静默的：填进 manifest 的值跟守卫算出来的值差一点点，守卫当场红，而红的原因看起来像排版错了。
+// 回 null = 这一格没有样本，判不了（调用方退化成报告）。
+
+/** 参照零件在它那个内容盒里靠哪边。 */
+export function deriveAlign(r, S = VOCAB.slack) {
+  const A = r.alignRef;
+  if (!A) return null;
+  const room = A.right0 - A.left0;
+  const S2 = Math.max(S, room * VOCAB.alignSlackRatio);
+  const gapL = A.left - A.left0;
+  const gapR = A.right0 - A.right;
+  if (gapL <= S2 && gapR <= S2) return 'stretch';
+  if (Math.abs(gapL - gapR) <= S2) return 'center';
+  if (gapL <= S2) return 'start';
+  if (gapR <= S2) return 'end';
+  return `其它（左余 ${Math.round(gapL)} 右余 ${Math.round(gapR)}）`;
+}
+
+/** 同一视觉行上并排的同级项，纵向怎么对齐。回 null = 没有一行并排 ≥2 项。 */
+export function deriveCross(r, S = VOCAB.slack) {
+  const row = visualRows(r.items).find((g) => g.items.length >= 2);
+  if (!row) return null;
+  const hs = row.items.map((i) => i.height);
+  const ts = row.items.map((i) => i.top);
+  const ms = row.items.map((i) => (i.top + i.bottom) / 2);
+  const span = (a) => Math.max(...a) - Math.min(...a);
+  if (span(hs) <= S) return 'stretch';
+  if (span(ts) <= S) return 'start';
+  if (span(ms) <= S) return 'center';
+  // 高矮和起点都对不齐 —— 那一行里有一项被放大或错落（gallery/featured-thumbs 的大图、
+  // card-group/heading-side-staggered 的交错两列）。它是一个**读数**，不是「没量到」。
+  return 'mixed';
+}
+
+/** 块自己那几条列带的宽度关系。 */
+export function deriveRatio(r) {
+  const t = r.trackWidths || [];
+  if (t.length < 2) return 'none';
+  const a = t[0]; const b = t[t.length - 1];
+  if (Math.abs(a - b) <= (a + b) * VOCAB.ratioSlackRatio) return 'even';
+  return a > b ? 'major-start' : 'major-end';
+}
+
+/** 图落在哪一侧。回 null = 这一页上这个块没有图。 */
+export function deriveMediaSide(r) {
+  if (!r.media) return null;
+  const mid = (r.media.left + r.media.right) / 2;
+  return mid < (r.root.contentLeft + r.root.contentRight) / 2 ? 'start' : 'end';
+}
+
+/** 零件的次序有没有被 `order` 换过（块的直接子元素 / 同级项内部，两层任一算）。 */
+export function deriveOrder(r) {
+  const inv = r.orderInverted || {};
+  return (inv.root || inv.item) ? 'reordered' : 'dom';
+}
+
+/** 同级项内部的零件是竖着堆还是横着并排。回 null = 项里没有两个以上的零件可比。 */
+export function deriveItemParts(r) {
+  if (r.partsSideBySide === null || r.partsSideBySide === undefined) return null;
+  return r.partsSideBySide ? 'side' : 'stack';
+}
+
+/** 主内层容器里，零件占了几条列带。回 null = 这个块没有主内层容器。 */
+export function deriveInner(r, items) {
+  const inner = items === 'none' ? r.innerFree : r.inner;
+  if (!inner) return null;
+  const NAME = ['none', 'one', 'two', 'three', 'four'];
+  return inner.bands >= 5 ? 'many' : NAME[inner.bands];
 }
 
 /**
@@ -340,8 +580,19 @@ export function judgeIntent(r, intent, { phone, where, arm }) {
       `"many" 说列数由内容定（横排条），实际 display:${r.display} / ${r.flexDirection} / ${r.flexWrap}`);
   } else {
     const want = VOCAB.columnCount[intent.columns];
-    if (r.placeable < want) {
-      notes.push(`  ⑨ ${who}: 只有 ${r.placeable} 个不跨列的子元素，填不满 ${want} 条列带 —— `
+    // 🔴 #1381 —— 第二个退化条件：占这几条列带的是**同级项**，而这一页上项比列数还少。
+    //    `placeable` 数的是「不跨列的子元素」，标题和副标题在有些形态里也算进去（testimonials/
+    //    heading-side 的标题占第 1 条列带），于是最少版夹具上 placeable=3、项只有 1 个，严格判据
+    //    读出「该占 3 条实际占 2 条」—— 那是没有样本，不是排错了。
+    // 🔴 只收 `row` / `grid` 两种：那两种的同级项**本来就是**占着这几条列带的东西，项比列数少 ⟹
+    //    有几条列带没有样本。`stack` 不是 —— 它的项是竖着堆的一列，占列带的是别的零件
+    //    （contact-info/media-side-grid 是「一列联系方式 + 一张图」），按项数去退化会把一格本来
+    //    判得动的严格判据无故放松（实测：不加这个限定时，全填版的 contact-info/media-side-grid
+    //    从 `columns` 掉成 `columns-degraded`）。
+    const itemsShort = (intent.items === 'row' || intent.items === 'grid')
+      && r.items.length > 0 && r.items.length < want;
+    if (r.placeable < want || itemsShort) {
+      notes.push(`  ⑨ ${who}: 只有 ${r.placeable} 个不跨列的子元素 / ${r.items.length} 个同级项，填不满 ${want} 条列带 —— `
         + '这是**没有样本**不是排错了，退化成「占用的列带 ≤ 声明数」，这一格的 columns 轴【报告而不判】'
         + '（正文 §3，承 #1321 / #1324）');
       ok('columns-degraded', r.occupied <= want,
@@ -356,5 +607,180 @@ export function judgeIntent(r, intent, { phone, where, arm }) {
         + ' 这个读数打印出来【不判】（正文 §已知盲区：多声明的空轨道不是本票的判据）');
     }
   }
+
+  // ══ #1381 的七根新轴（都只在桌面宽判 —— 上面那条 `if (phone) return` 已经把手机宽挡掉了）══════
+  //
+  // 为什么加它们：加之前全仓 121 个形态里有 63 个落在「五根轴上逐字相同」的撞车组里（16 个块 /
+  // 23 组，复算命令在 #1381 正文）。两个形态的意图逐字相同，就意味着把其中一个的 CSS 整段删掉、
+  // 让它退化成另一个，⑨ 照样全绿 —— 那一维没有任何机器在看。
+
+  // ── align：块里的内容横向靠哪边 ──────────────────────────────────────
+  // 量的是「标题部件」（没有标题就量 `__body`，两个都没有就下沉到主内层容器的第一个零件）的盒子
+  // 在它那个内容盒里的左右余量。`justify-self` / `justify-items` / `max-width` 三种写法都落在这个
+  // 读数上，而主题改不动它们（都在几何族里）。
+  if (!r.alignRef) {
+    notes.push(`  ⑨ ${who}: 找不到可以量对齐的零件（没有标题、没有 __body、也没有主内层容器），align 轴【报告而不判】`);
+  } else if (r.alignRef.lines > 1
+    && r.alignRef.right - r.alignRef.left >= (r.alignRef.right0 - r.alignRef.left0) - Math.max(S, (r.alignRef.right0 - r.alignRef.left0) * VOCAB.alignSlackRatio)) {
+    // 🔴 文字折了行**而且**盒子已经跟容器一样宽 ⟹ 左右都没有余量可量，「靠哪边」在这一格
+    //    按构造观察不到。这不是排错了，是没有样本（同 D14 第 2 条那一族的处置）。
+    //    实测：`trusted-brands/two-row` 的标题是 `justify-items: center` 的收缩盒，azure-29 的
+    //    2rem 标题一行装得下（左右各余 97px ⟹ 量得出居中），ember-12 的 2.25rem 装不下、折成两行
+    //    并撑满 1232px ⟹ 同一个形态两套主题两个答案。字号是皮，形态改不动它。
+    //    🔴 判据里那个「而且盒子已经跟容器一样宽」不能省：`max-width` 限住的标题折行之后照样比
+    //    容器窄，那种情况居中仍然量得出来，省掉它会把本票要买的那条断言（把 `justify-self: center`
+    //    删掉 ⟹ 当场红）一起放走。
+    notes.push(`  ⑨ ${who}: .${r.alignRef.cls} 的文字折成了 ${r.alignRef.lines} 行并撑满容器，左右没有余量，align 轴【报告而不判】`);
+  } else if (intent.headline !== 'none' && r.alignRef.from !== 'head') {
+    // 🔴 这个形态**该有**标题（headline 轴不是 none），而这一页上它没有 —— 可选槽为空（D14 第 2 条，
+    //    同 headline / media 两根轴的处置）。换成别的零件去量对齐会读出另一个答案：实测
+    //    `text-block/stack` 在 /allblocks.html 上量 `.text-block__headline` 读 stretch，在 /about.html
+    //    上（那一页没填标题）退到 `.text-block__body` 读 start —— 同一个形态两个答案。
+    notes.push(`  ⑨ ${who}: 这一页上这个块没有标题部件（可选槽为空），align 轴【报告而不判】（D14 第 2 条）`);
+  } else {
+    const A = r.alignRef;
+    const got = deriveAlign(r, S);
+    const gapL = A.left - A.left0;
+    const gapR = A.right0 - A.right;
+    const room = A.right0 - A.left0;
+    ok('align', got === intent.align,
+      `.${A.cls}（参照取自 ${A.from}）该是 "${intent.align}"，量出来是 "${got}"：`
+      + `左余 ${Math.round(gapL)}px · 右余 ${Math.round(gapR)}px · 容器内容盒 ${Math.round(room)}px`);
+  }
+
+  // ── cross：同一视觉行上并排的同级项，纵向怎么对齐 ────────────────────
+  // `none` 说的是「这个形态没有『并排的同级项』这件事」（items 是 none 或 stack），它照样是一条
+  // 判得动的断言。其余三个值要有一行 ≥2 项才判得了 —— 没有样本时退化成报告，同 items / columns。
+  {
+    const row = visualRows(r.items).find((g) => g.items.length >= 2);
+    if (intent.cross === 'mixed') {
+      // 🔴 `mixed` 是「这一行既不等高、也不齐顶、也不居中」—— 而落到这个桶里的形态，那个「同一行」
+      //    本身就不牢：`gallery/featured-thumbs` 的大图跨两行，被按纵向重叠并进第一行；
+      //    `features-grid/heading-side-staggered` 是有意错落的两列。它们的高矮还跟主题的字号有关
+      //    （实测 features-grid/heading-side-staggered：azure-29 读 stretch、ember-12 读 mixed，
+      //    同一份 CSS 两个答案）。所以这个取值**只用来把 manifest 上的形态分开，不判**。
+      notes.push(`  ⑨ ${who}: cross 是 "mixed"（错落 / 有一项跨行），这一格的「同一行」分组本身不牢，`
+        + `cross 轴【报告而不判】—— 量出来是 "${deriveCross(r, S)}"`);
+    } else if (intent.cross === 'none') {
+      ok('cross-none', !row,
+        `manifest 说这个形态没有并排的同级项，实际有一行并排了 ${row ? row.items.length : 0} 个 .${r.itemCls}`);
+    } else if (!row) {
+      notes.push(`  ⑨ ${who}: 没有一行并排 ≥2 个同级项，"${intent.cross}" 没有样本，cross 轴【报告而不判】`);
+    } else {
+      const hs = row.items.map((i) => i.height);
+      const ts = row.items.map((i) => i.top);
+      const got = deriveCross(r, S);
+      ok('cross', got === intent.cross,
+        `同一行里的 ${row.items.length} 个 .${r.itemCls} 该按 "${intent.cross}" 对齐，量出来是 "${got}"：`
+        + `高 ${hs.map(Math.round).join('/')} · 顶 ${ts.map(Math.round).join('/')}`);
+    }
+  }
+
+  // ── ratio：块自己那几条列带的宽度关系 ────────────────────────────────
+  {
+    const t = r.trackWidths || [];
+    const got = deriveRatio(r);
+    // 🔴 声明了不止一条列带、而这一页上第二条没有占用者时，形态自己会把列带收回去
+    //    （`§:not([data-has-helpCard]) { grid-template-columns: 1fr }` 那一族），于是轨道只剩一条。
+    //    那跟「有人把两栏规则删了」读数一模一样，分开它们的是 columns 轴同一格的那个退化条件：
+    //    `placeable < 声明的列数` ⟹ 那几条列带**没有样本**。两根轴用同一个退化条件，不另立判据。
+    const want = intent.columns === 'many' ? 0 : VOCAB.columnCount[intent.columns];
+    const colsDegraded = want > 1 && r.placeable < want;
+    if (intent.ratio !== 'none' && got === 'none' && colsDegraded) {
+      notes.push(`  ⑨ ${who}: 只有 ${r.placeable} 个不跨列的子元素，填不满 ${want} 条列带，形态自己把列带收成了一条 —— `
+        + 'ratio 轴在这一格【报告而不判】（跟 columns 轴同一个退化条件）');
+    } else {
+      ok('ratio', got === intent.ratio,
+        `列带宽度关系该是 "${intent.ratio}"，量出来是 "${got}"（轨道 ${t.length ? t.map(Math.round).join(' / ') : '无'}）`);
+    }
+  }
+
+  // ── media_side：图落在哪一侧 ─────────────────────────────────────────
+  // 只有 `media: side` 的形态判得了；其余形态这根轴该写 none，而「图根本不在侧面」这件事由 media
+  // 轴自己判，这里不重复判它（重复判会让同一个错误报两遍，读的人分不清是两个问题还是一个）。
+  if (intent.media !== 'side') {
+    if (intent.media_side !== 'none') {
+      problems.push(`⑨ ${who}: media 轴是 "${intent.media}"（图不在侧面），media_side 只能写 none，manifest 写的是 "${intent.media_side}"`);
+    }
+    notes.push(`  ⑨ ${who}: 这个形态的图不在侧面（media:${intent.media}），media_side 轴【报告而不判】`);
+  } else if (!r.media) {
+    notes.push(`  ⑨ ${who}: 这一页上这个块没有图（可选槽为空），media_side 轴【报告而不判】（D14 第 2 条）`);
+  } else {
+    const mid = (r.media.left + r.media.right) / 2;
+    const half = (r.root.contentLeft + r.root.contentRight) / 2;
+    const got = deriveMediaSide(r);
+    ok('media-side', got === intent.media_side,
+      `图该落在 "${intent.media_side}" 那一侧，量出来是 "${got}"：图的中线 ${Math.round(mid)}，块内容盒的中线 ${Math.round(half)}`);
+  }
+
+  // ── order：零件的视觉先后跟 DOM 先后一不一致 ────────────────────────
+  // 判据读的是 `order` 这个属性在两层（块的直接子元素 / 同级项内部）上有没有把次序换掉，不是量盒子：
+  // 换次序的手段在形态层就只有它，而「哪个零件视觉上在前面」按盒子量会被内容多少牵着走（同一个形态
+  // 在全填版和最少版读出不同答案）。主题写不了 `order`（它在几何族里），所以这个读数只由形态层决定。
+  {
+    const inv = (r.orderInverted || {});
+    const got = deriveOrder(r);
+    const tooFew = (inv.kids || 0) < 2 && (inv.itemKids || 0) < 2;
+    const where2 = inv.root && inv.item ? '块和项两层' : (inv.root ? '块这一层' : (inv.item ? '项内部' : '哪一层都没有'));
+    if (tooFew && intent.order !== 'dom') {
+      // 🔴 这一页上这个块只剩一个零件 ⟹ 换没换过次序按构造看不出来（D14 第 2 条那一族）。
+      //    实测：`page-header/kicker-above` 靠 `order` 把副标题提到标题上面，而最少版夹具上那个
+      //    副标题是空的可选槽、**元素整个没有渲染**，于是「有没有换过次序」这件事没有样本。
+      notes.push(`  ⑨ ${who}: 这一页上这个块只有 ${inv.kids} 个零件（项里 ${inv.itemKids} 个），谈不上次序，order 轴【报告而不判】`);
+    } else if (intent.order === 'alternate') {
+      // 「按兄弟序数左右交替」的形态。第一个实例这一半判得了（它跟 reordered 同形）；翻转那一半
+      // 这一页上没有第二个实例可比 —— 取数那一半一次只给一个块换形态（`theme-css-invariants.mjs`
+      // 的 `judgeLayoutIntent` 用的是 `document.querySelector`），所以那一半按构造没有样本。
+      ok('order-alternate-first', got === 'reordered',
+        `"alternate" 的第一个实例该跟 "reordered" 同形（用 order 换过次序），量出来是 "${got}"`);
+      notes.push(`  ⑨ ${who}: "alternate" 的另一半（相邻实例左右翻转）这一页上没有第二个同形态实例可比，【报告而不判】`);
+    } else {
+      ok('order', got === intent.order,
+        `零件次序该是 "${intent.order}"，量出来是 "${got}"（换过次序的是：${where2}）`);
+    }
+  }
+
+  // ── item_parts：同级项【内部】的零件是竖着堆还是横着并排 ────────────
+  // 这是 #1381 正文点名必须能表达的那一根（team-grid 的 two-up vs two-up-horizontal：简介在姓名
+  // 下面 vs 在姓名右边）。
+  if (intent.items === 'none') {
+    // 🔴 `items: none` 的块（hero / content-split 那一族）没有「同级项」这回事，探针挑出来的那个
+    //    「项」是个凑数的单件 —— 而它是谁**跟这一页上哪几个可选槽填了**有关（实测：hero 在
+    //    /allblocks.html 上挑中 `.hero__band`（六张并排的图 ⟹ side），在 / 上挑中 `.hero__body`
+    //    （竖着堆 ⟹ stack）。同一个形态、同一套主题，两页两个答案）。所以这一族的 item_parts
+    //    只做静态一致性检查：manifest 只能写 none。
+    if (intent.item_parts !== 'none') {
+      problems.push(`⑨ ${who}: items 轴是 "none"（这个形态没有同级项），item_parts 只能写 none，manifest 写的是 "${intent.item_parts}"`);
+    }
+    notes.push(`  ⑨ ${who}: 这个形态没有同级项（items:none），item_parts 轴【报告而不判】`);
+  } else if (intent.item_parts === 'none') {
+    // 有同级项，但项里只有一个零件（trusted-brands 的一枚 logo、page-header 的一条面包屑）。
+    ok('item-parts-none', deriveItemParts(r) === null,
+      `manifest 说同级项内部没有可排的零件，实际量出来是 "${deriveItemParts(r)}"（.${r.itemCls}）`);
+  } else if (r.partsSideBySide === null) {
+    notes.push(`  ⑨ ${who}: 同级项里没有两个以上的零件可比，item_parts 轴【报告而不判】`);
+  } else {
+    const got = deriveItemParts(r);
+    ok('item-parts', got === intent.item_parts,
+      `同级项内部的零件该是 "${intent.item_parts}"，量出来是 "${got}"（.${r.itemCls} 里有没有一对零件纵向重叠、横向分开）`);
+  }
+
+  // ── inner：块的主内层容器里，零件占了几条列带 ────────────────────────
+  // 顶栏和页脚这两个外壳块的版式整个住在内层容器里（`.header__bar` / `.footer__body`），块根这一层
+  // 看不到 —— 加这一根之前 footer 的三种形态、header 的四种形态在 ⑨ 眼里逐字相同。
+  {
+    const host = intent.items === 'none' ? r.innerFree : r.inner;
+    if (intent.inner === 'none') {
+      ok('inner-none', !host,
+        `manifest 说这个形态没有主内层容器，实际有 .${host && host.cls}（${host && host.count} 个零件）`);
+    } else if (!host) {
+      notes.push(`  ⑨ ${who}: 这一页上这个块没有主内层容器（零件都不在一个容器里），inner 轴【报告而不判】`);
+    } else {
+      const got = deriveInner(r, intent.items);
+      ok('inner', got === intent.inner,
+        `主内层容器 .${host.cls} 里该占 "${intent.inner}" 条列带，量出来是 "${got}"（${host.bands} 条 · ${host.count} 个零件）`);
+    }
+  }
+
   return { checks, problems, notes, selfOverflow };
 }

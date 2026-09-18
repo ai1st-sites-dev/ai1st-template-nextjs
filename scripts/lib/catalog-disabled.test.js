@@ -252,6 +252,38 @@ function treeAt(ref) {
       fs.symlinkSync(target, path.join(root, link));
     }
   }
+  // 🔴 #1381 —— 基线那棵树拿的是**今天**的 `blocks/`，而基线那份校验器对 `layout_intent` 里
+  //    **不认识的轴**是拒绝的（`block-manifest.js`：「有一根不存在的轴 "<名字>"」），不是宽容的
+  //    （文件头那句「对多出来的 manifest 键宽容」说的是顶层键，不是轴名）。#1381 往词表里加了轴，
+  //    于是基线那棵树连 `loadManifests` 都跑不到头，整份测试 `die(2)` —— ⑤⑥ 两节根本跑不到，
+  //    跟 r1 用会动的 `origin/main` 时那次是同一个形状。
+  //
+  //    处置**不是**挪 BASELINE：没有哪个更早的 commit 认识这几根新轴（加它们的就是本票），挪到
+  //    `origin/main` 也一样拒。这里给基线那棵树一份**把它自己不认识的轴摘掉**的 blocks/ 副本：
+  //    轴名从基线那份词表自己取（BASELINE 哪天往前挪，这个过滤跟着走，不用回来改）。
+  //    🔴 这么做是**byte-neutral** 的，判据是「`layout_intent` 进不进提示词」：全仓现取它只有两个
+  //    消费者 —— `block-manifest.js` 的校验器和 `theme-css-invariants.mjs` 的检查 ⑨，
+  //    `promptSection` 一个字都不读它（`grep -n 'layout_intent' scripts/lib/block-manifest.js` 的
+  //    命中全在校验那几行）。所以这一格比的仍然是同一批块、同一份内容。
+  if (ref !== null) {
+    const vocabPath = path.join(root, 'scripts', 'lib', 'layout-intent-vocab.json');
+    if (fs.existsSync(vocabPath)) {
+      const known = new Set(Object.keys(JSON.parse(fs.readFileSync(vocabPath, 'utf-8')).axes || {}));
+      const src = path.join(NEXT, 'blocks');
+      const dst = path.join(root, '.blocks-for-baseline');
+      fs.mkdirSync(dst, { recursive: true });
+      const strip = (o) => (o && typeof o === 'object'
+        ? Object.fromEntries(Object.entries(o).filter(([k]) => known.has(k))) : o);
+      for (const f of fs.readdirSync(src)) {
+        const j = JSON.parse(fs.readFileSync(path.join(src, f), 'utf-8'));
+        if (j.layout_intent) j.layout_intent = strip(j.layout_intent);
+        for (const sh of j.shapes || []) { if (sh.layout_intent) sh.layout_intent = strip(sh.layout_intent); }
+        fs.writeFileSync(path.join(dst, f), JSON.stringify(j, null, 2));
+      }
+      fs.rmSync(path.join(root, 'blocks'), { force: true });
+      fs.symlinkSync(dst, path.join(root, 'blocks'));
+    }
+  }
   return root;
 }
 

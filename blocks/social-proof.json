@@ -12,7 +12,14 @@
         "item_wrap": "allow",
         "headline": "above",
         "media": "below",
-        "columns": "two"
+        "columns": "two",
+        "align": "stretch",
+        "cross": "stretch",
+        "ratio": "even",
+        "media_side": "none",
+        "order": "dom",
+        "item_parts": "stack",
+        "inner": "one"
       }
     },
     {
@@ -23,40 +30,75 @@
         "item_wrap": "allow",
         "headline": "above",
         "media": "below",
-        "columns": "three"
+        "columns": "three",
+        "align": "stretch",
+        "cross": "stretch",
+        "ratio": "even",
+        "media_side": "none",
+        "order": "dom",
+        "item_parts": "stack",
+        "inner": "one"
       }
     },
     {
       "name": "heading-above-band",
-      "needs": ["stats"],
+      "needs": [
+        "stats"
+      ],
       "layout_intent": {
         "items": "grid",
         "item_wrap": "allow",
         "headline": "above",
         "media": "below",
-        "columns": "four"
+        "columns": "four",
+        "align": "stretch",
+        "cross": "stretch",
+        "ratio": "even",
+        "media_side": "none",
+        "order": "dom",
+        "item_parts": "stack",
+        "inner": "one"
       }
     },
     {
       "name": "media-side-list",
-      "needs": ["stats", "imageUrl"],
+      "needs": [
+        "stats",
+        "imageUrl"
+      ],
       "layout_intent": {
         "items": "stack",
         "item_wrap": "allow",
         "headline": "above",
         "media": "side",
-        "columns": "two"
+        "columns": "two",
+        "align": "stretch",
+        "cross": "none",
+        "ratio": "major-start",
+        "media_side": "end",
+        "order": "dom",
+        "item_parts": "stack",
+        "inner": "one"
       }
     },
     {
       "name": "row-band",
-      "needs": ["stats"],
+      "needs": [
+        "stats"
+      ],
       "layout_intent": {
         "items": "row",
         "item_wrap": "allow",
         "headline": "above",
         "media": "below",
-        "columns": "many"
+        "columns": "many",
+        "align": "stretch",
+        "cross": "start",
+        "ratio": "none",
+        "media_side": "none",
+        "order": "dom",
+        "item_parts": "stack",
+        "inner": "one"
       }
     }
   ],

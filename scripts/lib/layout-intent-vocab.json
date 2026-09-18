@@ -29,6 +29,48 @@
       "three",
       "four",
       "many"
+    ],
+    "align": [
+      "stretch",
+      "start",
+      "center",
+      "end"
+    ],
+    "cross": [
+      "none",
+      "stretch",
+      "start",
+      "center",
+      "mixed"
+    ],
+    "ratio": [
+      "none",
+      "even",
+      "major-start",
+      "major-end"
+    ],
+    "media_side": [
+      "none",
+      "start",
+      "end"
+    ],
+    "order": [
+      "dom",
+      "reordered",
+      "alternate"
+    ],
+    "item_parts": [
+      "none",
+      "stack",
+      "side"
+    ],
+    "inner": [
+      "none",
+      "one",
+      "two",
+      "three",
+      "four",
+      "many"
     ]
   },
   "columnCount": {
@@ -54,5 +96,7 @@
     "__intro",
     "__desc",
     "__body"
-  ]
+  ],
+  "ratioSlackRatio": 0.05,
+  "alignSlackRatio": 0.02
 }

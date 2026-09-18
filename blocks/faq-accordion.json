@@ -12,7 +12,14 @@
         "item_wrap": "allow",
         "headline": "above",
         "media": "below",
-        "columns": "one"
+        "columns": "one",
+        "align": "stretch",
+        "cross": "none",
+        "ratio": "none",
+        "media_side": "none",
+        "order": "dom",
+        "item_parts": "stack",
+        "inner": "one"
       }
     },
     {
@@ -23,7 +30,14 @@
         "item_wrap": "allow",
         "headline": "above",
         "media": "below",
-        "columns": "two"
+        "columns": "two",
+        "align": "stretch",
+        "cross": "none",
+        "ratio": "major-end",
+        "media_side": "none",
+        "order": "dom",
+        "item_parts": "stack",
+        "inner": "one"
       }
     },
     {
@@ -34,7 +48,14 @@
         "item_wrap": "allow",
         "headline": "above",
         "media": "below",
-        "columns": "two"
+        "columns": "two",
+        "align": "stretch",
+        "cross": "start",
+        "ratio": "even",
+        "media_side": "none",
+        "order": "dom",
+        "item_parts": "stack",
+        "inner": "one"
       }
     },
     {
@@ -45,7 +66,14 @@
         "item_wrap": "allow",
         "headline": "above",
         "media": "below",
-        "columns": "one"
+        "columns": "one",
+        "align": "center",
+        "cross": "none",
+        "ratio": "none",
+        "media_side": "none",
+        "order": "dom",
+        "item_parts": "stack",
+        "inner": "one"
       }
     },
     {
@@ -59,7 +87,14 @@
         "item_wrap": "allow",
         "headline": "above",
         "media": "side",
-        "columns": "two"
+        "columns": "two",
+        "align": "stretch",
+        "cross": "none",
+        "ratio": "major-end",
+        "media_side": "start",
+        "order": "dom",
+        "item_parts": "stack",
+        "inner": "one"
       }
     },
     {
@@ -73,7 +108,14 @@
         "item_wrap": "allow",
         "headline": "above",
         "media": "below",
-        "columns": "two"
+        "columns": "two",
+        "align": "stretch",
+        "cross": "none",
+        "ratio": "major-start",
+        "media_side": "none",
+        "order": "dom",
+        "item_parts": "stack",
+        "inner": "one"
       }
     },
     {
@@ -85,7 +127,14 @@
         "item_wrap": "allow",
         "headline": "above",
         "media": "below",
-        "columns": "three"
+        "columns": "three",
+        "align": "stretch",
+        "cross": "start",
+        "ratio": "even",
+        "media_side": "none",
+        "order": "dom",
+        "item_parts": "stack",
+        "inner": "one"
       }
     }
   ],

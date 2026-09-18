@@ -14,19 +14,55 @@
   "shapes": [
     {
       "name": "solid-bar",
-      "needs": []
+      "needs": [],
+      "layout_intent": {
+        "align": "start",
+        "cross": "none",
+        "ratio": "none",
+        "media_side": "none",
+        "order": "dom",
+        "item_parts": "none",
+        "inner": "three"
+      }
     },
     {
       "name": "transparent-overlay",
-      "needs": []
+      "needs": [],
+      "layout_intent": {
+        "align": "start",
+        "cross": "none",
+        "ratio": "none",
+        "media_side": "none",
+        "order": "dom",
+        "item_parts": "none",
+        "inner": "three"
+      }
     },
     {
       "name": "centered-logo",
-      "needs": []
+      "needs": [],
+      "layout_intent": {
+        "align": "center",
+        "cross": "none",
+        "ratio": "none",
+        "media_side": "none",
+        "order": "dom",
+        "item_parts": "none",
+        "inner": "three"
+      }
     },
     {
       "name": "pill-floating",
-      "needs": []
+      "needs": [],
+      "layout_intent": {
+        "align": "start",
+        "cross": "none",
+        "ratio": "none",
+        "media_side": "none",
+        "order": "dom",
+        "item_parts": "none",
+        "inner": "three"
+      }
     }
   ],
   "slots": {

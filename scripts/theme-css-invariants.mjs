@@ -2428,7 +2428,8 @@ async function judgeRowShapes(where) {
 // 检查 ⑧ 量的是一种形态（`row`，3 个块 / 3 对）。50 个 (块, 形态) 对里其余 47 对今天一条几何断言
 // 都没有 —— 主题已经写不出几何（契约 v3），所以还会写错几何的只剩形态层，而它没人看。
 //
-// 每份 `blocks/<type>.json` 的每个形态带一段 `layout_intent`：五根轴上的一个有限词表，每个词对应
+// 每份 `blocks/<type>.json` 的每个形态带一段 `layout_intent`：一组轴上的有限词表（#1332 立了五根，
+// #1381 加到十二根），每个词对应
 // 一条边界框断言（判据全在 `scripts/lib/layout-intent.mjs`，词表在 `layout-intent-vocab.json`，
 // 建站期的校验器 `block-manifest.js` 读同一份）。这里做的是取数那一半：
 //

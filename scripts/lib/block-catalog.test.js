@@ -82,7 +82,13 @@ function fixture(blocks, registryTypes) {
       displayName: `Test ${type}`,
       category: 'test',
       roleDefault: 'optional',
-      layout_intent: { items: 'none', item_wrap: 'allow', headline: 'none', media: 'none', columns: 'one' },
+      // 🔴 **词表里的每一根轴**都要在（`layoutIntentProblems` 第一条就是「缺 "<轴>" 这根轴」），
+      //    所以这里从词表自己取名字、给每根轴一个合法值 —— 写死一串轴名的话，#1381 那种「加了七根轴」
+      //    的改动会让这份夹具自己不合法，四个反臂又会集体去测「夹具坏了」（上面那条 🔴 记的同一件事，
+      //    第三次发生）。
+      layout_intent: Object.fromEntries(Object.entries(require(
+        path.join(NEXT, 'scripts', 'lib', 'layout-intent-vocab.json'),
+      ).axes).map(([ax, words]) => [ax, words.includes('none') ? 'none' : words[0]])),
       // #1384 —— 一项可以写成 `'名字'`，也可以写成 `{ name, candidate: true }`（3a 那个臂要后者）。
       shapes: shapes.map((sh) => (typeof sh === 'string' ? { name: sh, needs: [] }
         : { name: sh.name, needs: [], ...(sh.candidate === undefined ? {} : { candidate: sh.candidate }) })),

@@ -31,7 +31,7 @@ const LAYOUT_INTENT_AXES = Object.keys(LAYOUT_INTENT_VOCAB.axes);
 /**
  * 合并后的排版意图：块级 `layout_intent` 当默认，`shapes[i].layout_intent` 按轴覆盖（#1332）。
  * 形态不在这个块的清单里 ⟹ 回 null（跟「意图不全」分得开，同 `shapeNeedsGap` 的做法）。
- * 🔴 守卫与校验器判的都是**合并之后**的东西，而且合并后五根轴必须齐全 —— 那条闸堵的是
+ * 🔴 守卫与校验器判的都是**合并之后**的东西，而且合并后**词表里的每一根轴**都必须在 —— 那条闸堵的是
  *    「只声明各形态一致的那几根轴、把分歧最大的那根省掉」这条回避路（#1332 PM 退回第三条）。
  */
 function layoutIntentFor(m, shapeName) {
@@ -446,10 +446,10 @@ function checkManifestShape(name, m, cssShapes) {
         + '它自己是候选的话「候选不许上真站」这条就从落回那一端整个漏掉');
     }
     // `name` 是文件名（带 .json），CSS 里点名用的是块类型 —— 上面 loadManifests 已核过两者对得上。
-    // #1332 —— 每个形态一段排版意图（可以只写跟块级默认不同的轴，但**合并之后**五根轴必须齐全）。
+    // #1332 —— 每个形态一段排版意图（可以只写跟块级默认不同的轴，但**合并之后**词表里的每一根轴都要在）。
     if (sh.layout_intent !== undefined
       && (sh.layout_intent === null || typeof sh.layout_intent !== 'object' || Array.isArray(sh.layout_intent))) {
-      bad(`shapes[${i}] ("${sh.name}").layout_intent 有的话必须是对象（五根轴 → 词表里的一个词）`);
+      bad(`shapes[${i}] ("${sh.name}").layout_intent 有的话必须是对象（每根轴 → 词表里的一个词）`);
     }
     const merged = { ...(m.layout_intent || {}), ...(sh.layout_intent || {}) };
     for (const k of Object.keys(merged)) {
@@ -461,7 +461,7 @@ function checkManifestShape(name, m, cssShapes) {
     const gaps = layoutIntentProblems(merged);
     if (gaps.length) {
       bad(`shapes[${i}] ("${sh.name}") 的排版意图不完整：${gaps.join('；')}。`
-        + '🔴 五根轴一根都不能省 —— 省掉的那一根恰好是这个块两种形态分歧最大的地方时，守卫会全绿而'
+        + '🔴 一根都不能省 —— 省掉的那一根恰好是这个块两种形态分歧最大的地方时，守卫会全绿而'
         + '什么都没看（#1332 PM 退回的第三条）');
     }
     const inCss = cssShapes instanceof Map ? cssShapes.get(m.type) : undefined;
