@@ -11,7 +11,7 @@
         "items": "stack",
         "item_wrap": "allow",
         "headline": "above",
-        "media": "none",
+        "media": "below",
         "columns": "one"
       }
     },
@@ -22,7 +22,7 @@
         "items": "stack",
         "item_wrap": "allow",
         "headline": "above",
-        "media": "none",
+        "media": "below",
         "columns": "two"
       }
     },
@@ -33,7 +33,7 @@
         "items": "grid",
         "item_wrap": "allow",
         "headline": "above",
-        "media": "none",
+        "media": "below",
         "columns": "two"
       }
     },
@@ -44,8 +44,48 @@
         "items": "stack",
         "item_wrap": "allow",
         "headline": "above",
-        "media": "none",
+        "media": "below",
         "columns": "one"
+      }
+    },
+    {
+      "name": "media-side",
+      "candidate": true,
+      "needs": [
+        "imageUrl"
+      ],
+      "layout_intent": {
+        "items": "stack",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "side",
+        "columns": "two"
+      }
+    },
+    {
+      "name": "aside-cta",
+      "candidate": true,
+      "needs": [
+        "helpCard"
+      ],
+      "layout_intent": {
+        "items": "stack",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "below",
+        "columns": "two"
+      }
+    },
+    {
+      "name": "three-column-open",
+      "candidate": true,
+      "needs": [],
+      "layout_intent": {
+        "items": "grid",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "below",
+        "columns": "three"
       }
     }
   ],
@@ -65,6 +105,18 @@
       "required": true,
       "promptOptional": false,
       "shape": "[{question, answer}]"
+    },
+    "imageUrl": {
+      "kind": "image",
+      "required": false,
+      "promptOptional": true,
+      "shape": "string"
+    },
+    "helpCard": {
+      "kind": "object",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{headline, body, button: {label, href}}"
     }
   },
   "variants": {

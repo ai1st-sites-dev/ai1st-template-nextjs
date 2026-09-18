@@ -663,7 +663,8 @@
    absent for the same reason — two owners for one dimension is a bug generator. The sheet gives the
    box a size; this makes the picture fill whatever box it got. */
 .content-split__media img,
-.social-proof__media img {
+.social-proof__media img,
+.faq-accordion__media img {
   display: block;
   width: 100%;
   height: 100%;

@@ -861,6 +861,28 @@
   border-radius: 0.75rem;
 }
 
+/* #1362 —— FAQ 的两个可选零件。两条都只是**地板**：这个块今天没有任何主题皮画它们，所以没有
+   哪张表会覆盖这两条；写在这里而不是 `shapes.css`，是因为它们跟形态无关 —— 七种形态都用同一块图、
+   同一张卡，只是摆的位置不同。
+
+   图的比例跟 `.content-split__media` 同一个理由：页面 JSON 没给图时这个零件**根本不在树上**
+   （组件那一头是「有则出、无则不出」），给了图它也得有个形状，不然那一列在图加载完之前是塌的。 */
+.faq-accordion__media {
+  aspect-ratio: 4 / 3;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+/* 求助卡：没有皮的时候它就是一摞字。卡的长相（底色、描边、圆角、内边距）是主题的事，
+   这里只保证它自己不散架。 */
+.faq-accordion__aside {
+  display: grid;
+  gap: 0.5rem;
+  align-content: start;
+  padding: 1.25rem;
+  border-radius: 0.75rem;
+}
+
 /* #1376 —— `social-proof` 的那张可选图，同一条理由。页面 JSON 没给图时这个零件**根本不在树上**
    （组件那一头是「有则出、无则不出」），给了图它也得有个形状，不然在图加载完之前那一行是塌的。 */
 .social-proof__media {
@@ -941,6 +963,11 @@
 .faq-accordion__item,
 .faq-accordion__question,
 .faq-accordion__answer,
+.faq-accordion__media,
+.faq-accordion__aside,
+.faq-accordion__aside-lead,
+.faq-accordion__aside-text,
+.faq-accordion__aside-action,
 .testimonials__headline,
 .testimonials__sub,
 .testimonials__item,

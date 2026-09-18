@@ -386,6 +386,15 @@ const DEMO_CONTENT = {
           + 'whether or not it passes.',
       },
     ],
+    // #1362 —— 两个可选槽，只有本票新加的那两副把它们画出来（`media-side` 用图、`aside-cta` 用卡）。
+    // 全填版夹具每个可选槽都填，所以这里必须有值 —— 守卫 (a) 两向都查。
+    imageUrl: imageUrl('faq-advisor'),
+    helpCard: {
+      headline: 'Still not sure what it needs?',
+      body: 'Describe the noise, the smell or the warning light in one sentence. We will tell you '
+        + 'what it usually turns out to be and what that costs to put right.',
+      button: { label: 'Ask a technician', href: '/contact' },
+    },
   },
 
   'process-steps': {

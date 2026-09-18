@@ -1619,6 +1619,217 @@
   max-width: 48rem;
 }
 
+/* faq-accordion · media-side  （#1362 · 对表 FlyonUI faq-6：左边一张人物图，右边手风琴）
+
+   🔴 图排在 DOM 最后（组件的骨架顺序），所以「它在左边」只能由这一段显式指位置：
+   `grid-column: 1` + `grid-row: 1 / -1` 让它占满左列，标题 / 副标题 / 每条问答全部留在右列。
+   自动流的话它会落在最后一条问答下面 —— 而 manifest 那一行写的是 `media: side`，几何守卫
+   （检查 ⑨）会当场点名。 */
+
+[data-block="faq-accordion"][data-shape="media-side"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="faq-accordion"][data-shape="media-side"] .faq-accordion__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="faq-accordion"][data-shape="media-side"] .faq-accordion__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="faq-accordion"][data-shape="media-side"] .faq-accordion__item {
+  display: grid;
+}
+
+/* 手机宽只有一栏，这一副的零件按 DOM 顺序排就是「问答全部划完才看到那张图」——而这一副的主角
+   正是那张图。给问答一条 `order: 1` 把图提到它们前面（标题 / 副标题仍在最上面）。
+   🔴 只在窄屏改：桌面那一段是显式指位置的，`order` 在那儿没有作用，但写在这里边界清楚。 */
+@media (max-width: 1023.98px) {
+  [data-block="faq-accordion"][data-shape="media-side"] .faq-accordion__item {
+    order: 1;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-block="faq-accordion"][data-shape="media-side"] {
+    grid-template-columns: 2fr 3fr;
+  }
+
+  [data-block="faq-accordion"][data-shape="media-side"] .faq-accordion__headline,
+  [data-block="faq-accordion"][data-shape="media-side"] .faq-accordion__sub,
+  [data-block="faq-accordion"][data-shape="media-side"] .faq-accordion__item {
+    grid-column: 2;
+  }
+
+  /* 🔴 **行跨度写的是 `span 3`，不是 `1 / -1`。** `-1` 指的是**显式**行网格的最后一条线，而这一段
+     只声明了列、没有声明行 ⟹ `1 / -1` 缩成「只占第 1 行」，图于是排在标题那一行的左边、
+     跟副标题**上下错开**。实测（1280px，改之前）：图 y 4242–4590、副标题 y 4614–4643，两者不重叠，
+     几何守卫当场点名「图该与文并排」。
+     跨 3 行 = 标题 + 副标题 + 第一条问答，右栏无论有几条问答都至少有这 3 行，所以不会跨进
+     空的隐式行（空行会连带一个 `gap` 的高度，那是看得见的一条空带子）。 */
+  [data-block="faq-accordion"][data-shape="media-side"] .faq-accordion__media {
+    grid-column: 1;
+    grid-row: 1 / span 3;
+    align-self: start;
+  }
+}
+
+/* 🔴 图没填时这一副退回一栏（#1362）。
+
+   产品里这一格走不到：`media-side` 的 `needs` 写着 `imageUrl`，槽空着时 `sync-config.js` 会落回
+   `stack`。走得到的是**量主题那份夹具** —— 它给每一种形态都强行戴一次帽子，好把几何量全。
+   不写这一条的话，那一趟里右栏空着、左栏一列零件，而 manifest 那行写着 `columns: two`：
+   几何守卫读到「该占 2 条列带、实际占 1 条」。这跟 hero 的 `media-left` 在同一趟里的处置是同一条
+   （那一副的零件少，探针自己退化成「报告而不判」；这个块零件多，退化不了，所以由这里说清楚）。 */
+
+[data-block="faq-accordion"][data-shape="media-side"]:not([data-has-imageUrl]) .faq-accordion__headline,
+[data-block="faq-accordion"][data-shape="media-side"]:not([data-has-imageUrl]) .faq-accordion__sub,
+[data-block="faq-accordion"][data-shape="media-side"]:not([data-has-imageUrl]) .faq-accordion__item {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="faq-accordion"][data-shape="media-side"]:not([data-has-imageUrl]) {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* faq-accordion · aside-cta  （#1362 · 对表 FlyonUI faq-8：左边手风琴，右边一张求助卡）
+
+   🔴 它的五根轴跟已有的 `heading-side` 逐字相同（stack·allow·above·none·two）—— 按 PM 2026-09-16
+   定的口径（D5 几何读数），元组相同不阻断，两种形态之间要有**量得出来的几何差别**。这两种的差别是
+   版面：`heading-side` 把标题放在左栏，`aside-cta` 把标题留在问答那一栏、右栏给求助卡。
+   交付里贴了一组逐零件的边界框对照。 */
+
+[data-block="faq-accordion"][data-shape="aside-cta"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="faq-accordion"][data-shape="aside-cta"] .faq-accordion__headline {
+  grid-column: auto;
+}
+
+[data-block="faq-accordion"][data-shape="aside-cta"] .faq-accordion__sub {
+  grid-column: auto;
+  max-width: 36rem;
+}
+
+[data-block="faq-accordion"][data-shape="aside-cta"] .faq-accordion__item {
+  display: grid;
+}
+
+@media (min-width: 1024px) {
+  [data-block="faq-accordion"][data-shape="aside-cta"] {
+    grid-template-columns: 3fr 2fr;
+  }
+
+  [data-block="faq-accordion"][data-shape="aside-cta"] .faq-accordion__headline,
+  [data-block="faq-accordion"][data-shape="aside-cta"] .faq-accordion__sub,
+  [data-block="faq-accordion"][data-shape="aside-cta"] .faq-accordion__item {
+    grid-column: 1;
+  }
+
+  [data-block="faq-accordion"][data-shape="aside-cta"] .faq-accordion__aside {
+    grid-column: 2;
+    grid-row: 2 / -1;
+    align-self: start;
+  }
+}
+
+/* 🔴 求助卡没填时这一副退回一栏 —— 理由跟上面 `media-side` 那一段逐字相同（#1362）。 */
+
+[data-block="faq-accordion"][data-shape="aside-cta"]:not([data-has-helpCard]) .faq-accordion__headline,
+[data-block="faq-accordion"][data-shape="aside-cta"]:not([data-has-helpCard]) .faq-accordion__sub,
+[data-block="faq-accordion"][data-shape="aside-cta"]:not([data-has-helpCard]) .faq-accordion__item {
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 1024px) {
+  [data-block="faq-accordion"][data-shape="aside-cta"]:not([data-has-helpCard]) {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* faq-accordion · three-column-open  （#1362 · 对表 FlyonUI faq-7：问答卡排成三列）
+
+   📌 名字里那个 `open` 是对表那一条的叫法，形态层**给不了**它：一条问答开着还是收着由数据决定
+   （`FaqAccordionSection.tsx` 每条是原生 `<details>`，`defaultOpen` 是每条自己的字段），而主题的
+   契约连 `details[open]` 这种属性选择器都不收（`theme-css-lint.js` §1）。这一段能给的是三列。 */
+
+[data-block="faq-accordion"][data-shape="three-column-open"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+[data-block="faq-accordion"][data-shape="three-column-open"] .faq-accordion__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="faq-accordion"][data-shape="three-column-open"] .faq-accordion__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="faq-accordion"][data-shape="three-column-open"] .faq-accordion__item {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 640px) {
+  [data-block="faq-accordion"][data-shape="three-column-open"] {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-block="faq-accordion"][data-shape="three-column-open"] {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+
+/* faq-accordion · 图在【不以图为主】的那六种形态里排哪儿（#1362）
+
+   🔴 这个块从本票起有了一个可选图槽，而槽是**块级**的：老板（或 AI）填了图，七种形态就都有图，
+   不是只有 `media-side` 有。所以另外六种必须各自说清楚那张图排哪儿 —— 不写的话它跟着自动流落进
+   下一个空格子，在两列 / 三列的形态里会挤进问答中间，而 manifest 那一行还写着 `media: none`。
+   本票在真浏览器上量过这件事（1280px，两套主题）：六种全部读到「manifest 说这个块没有图，
+   实际有 .faq-accordion__media」。
+
+   🔴 处置是**照实说**，不是把图藏起来：`layout_intent.media` 从 `none` 改成 `below`，并在这里把它
+   钉在最后一行通栏。理由是库里已经这么做了 —— 带可选图槽的块（hero / content-split / hero-with-form）
+   **没有一种形态**写 `media: none`：hero 的 `text-center` / `text-left` 写 `below`，content-split 的
+   四种 narrow-stack / media-top 写 `above`。把图藏起来是另一条路，本票量过它的代价，写在交付里。 */
+
+/* 🔴 `width: 100%` 不是可省的：网格里 `justify-self: center` 会让这个零件按**内在宽**定宽，而图的内在宽
+   就是原图的像素宽 —— 实测（1280px，heading-side，夹具那张 40×30 的 svg）：这个盒子读出来
+   x=620 w=40 h=30，一张缩成邮票大小的图，而检查 ⑨ 的 `media: below` 只判上下顺序、对尺寸一个字不说。
+   同族一条在 #1361（`justify-items: center` 把零件按 fit-content 定宽）。 */
+[data-block="faq-accordion"][data-shape="stack"] .faq-accordion__media,
+[data-block="faq-accordion"][data-shape="heading-side"] .faq-accordion__media,
+[data-block="faq-accordion"][data-shape="two-column"] .faq-accordion__media,
+[data-block="faq-accordion"][data-shape="centered"] .faq-accordion__media,
+[data-block="faq-accordion"][data-shape="three-column-open"] .faq-accordion__media {
+  grid-column: 1 / -1;
+  width: 100%;
+  max-width: 48rem;
+  justify-self: center;
+}
+
+/* `aside-cta` 的右栏留给求助卡，所以它的图钉在左栏最后一行（通栏会把卡挤下去）。 */
+[data-block="faq-accordion"][data-shape="aside-cta"] .faq-accordion__media {
+  grid-column: 1;
+  width: 100%;
+  max-width: 48rem;
+}
+
 /* ══ features-grid ══════════════════════════════════════════════════════════════════════ */
 
 /* features-grid · two-up  （ember-12 今天选的就是它） */

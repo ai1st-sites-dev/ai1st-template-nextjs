@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig } from '@/lib/types/config';
 
@@ -17,6 +18,8 @@ interface FaqAccordionSectionProps {
     headline: string;
     subheadline?: string;
     items: FaqItem[];
+    imageUrl?: string;
+    helpCard?: { headline: string; body: string; button?: { label: string; href: string } };
   };
   /** #998 — 这个块在页面 JSON 里的那条记录；根元素的 `data-role` / `data-shape` / `data-has-*` 从它来。
    *  （#998 当初加它是为了第三个钩子 `data-block-layout`，#1341 把那个钩子退役了。） */
@@ -91,6 +94,27 @@ interface FaqAccordionSectionProps {
 //    RSC 负载会多带一个键，实测 `"className":"faq-accordion__item","open":"$undefined"`，
 //    allblocks.html 因此长了 72 字节。`undefined` 是**一个值**，不是「没有这个 prop」。
 //    条件展开时那个键根本不存在 ⟹ 18 个 HTML 文件逐字节相同。
+// ══ #1362：两个可选槽 `imageUrl` / `helpCard` ═══════════════════════════════════════════════════
+//
+// 🔴 **这两个字段的说明写在这儿，不写在上面那个 `data: { … }` 里面 —— 那对花括号里一条注释都不能有。**
+// 量主题用的那份夹具页是**从这段类型文本现切出来的**（`scripts/block-migration/gen-allblocks.js`
+// §fields：在 `data: {` 和它配对的 `}` 之间按顶层的 `;` / `,` 切，每段取第一个 `:` 之前的那串当字段名）。
+// 一条 JSDoc 落在字段前面，切出来的"字段名"就是**注释加字段名**那一长串 —— 实测过：夹具页里那一条写的是
+// `"/**\n * #1362 —— 可选的一张图…imageUrl": "/images/grid-pattern.svg"`，而组件读的是 `data.imageUrl`，
+// 于是**全填版的夹具里这张图根本不存在**。它的下场不是红：`media-side` 那一格的 media 轴退化成
+// 「这一页上这个块没有图 ⟹ 报告而不判」，`columns` 因为右栏空着读成「该占 2 条列带、实际 1 条」——
+// 一格假的红加一格空的绿。**这一行注释放错地方，会让一整格几何判据变成摆设。**
+// 📌 库里其它组件的 `data: { … }` 全都是一串光秃秃的字段（hero / content-split / cta-banner 逐个看过），
+//    这不是巧合，就是这个原因。
+//
+// 🔴 `imageUrl` 这个名字是**抄来的**，不是随手起的：写入闸 `scripts/lib/image-urls.js` 的 `IMAGE_FIELDS`
+// 按【字段名】认「这个值是一张图的地址」。换个名字（`photoUrl` / `avatarUrl`）那道闸就看不见它，
+// AI 编出来的地址会一路写进老板的站里（#1361 四臂实测过）。另外 `scripts/edit-site.js` 的 `## Images`
+// 段也要跟着列一行，否则 `image-urls.test.js` 的两向守卫当场红（本票就是这么被它拦了一次）。
+//
+// 🔴 `helpCard` **不是**图也**不是**标题：它那个包装层的第一个 class 不许以 `__media` 结尾，也不许以
+// `__headline` / `__heading` / `__title` 结尾 —— `scripts/lib/layout-intent-vocab.json` 正是按这两组后缀
+// 认「哪个零件是图」「哪个零件是标题」，撞上了这个块已有的四种形态（它们都写着 `media: none`）会当场判错。
 export default function FaqAccordionSection({ data, block }: FaqAccordionSectionProps) {
   return (
     <section {...blockAttrs('faq-accordion', block)} className="faq-accordion" aria-labelledby="faq-heading">
@@ -106,6 +130,34 @@ export default function FaqAccordionSection({ data, block }: FaqAccordionSection
           <p className="faq-accordion__answer">{item.answer}</p>
         </details>
       ))}
+      {/* 🔴 #1362 —— 这两个零件**有则出、无则不出**，而且排在骨架最后（D14 第 2 条）。
+          「无则不出」而不是「留个空盒子再藏起来」（hero / content-split 那一族的做法）：那一族的空盒子
+          是留给主题皮画底的钩子，而这两个零件今天没有任何主题皮要画它们 —— 留一个空盒子只会让
+          「可选槽没填」这件事多出一条要在【每一种形态】里写 `display: none` 的规矩（#1337 那族规则），
+          而每漏一种，老板的页面上就多一条空带子。
+
+          🔴 每一种形态都要自己决定这两个零件放哪儿 —— 排在最后只是 DOM 顺序，不是版面顺序。
+          加零件时把这个块**每一副形态**都 grep 一遍 `order` / `grid-column`：别的形态写了位置的话，
+          新零件会落在它没打算待的地方，而**没有任何守卫会说话**（#1361 在 cta-banner 上踩过：
+          新零件的默认 `order: 0` 把它顶到了写了 `order: 1/2/3` 的三个零件之前）。 */}
+      {data.imageUrl ? (
+        <div className="faq-accordion__media">
+          {/* `<img>` 不是契约钩子，跟 `.hero__img` / `.content-split__media img` 是同一条边界：
+              盒子归形态层和主题，图片本身归 `globals.css`，一个属性只有一个主人。 */}
+          <img src={data.imageUrl} alt="" />
+        </div>
+      ) : null}
+      {data.helpCard ? (
+        <div className="faq-accordion__aside">
+          <p className="faq-accordion__aside-lead">{data.helpCard.headline}</p>
+          <p className="faq-accordion__aside-text">{data.helpCard.body}</p>
+          {data.helpCard.button?.href ? (
+            <Link className="faq-accordion__aside-action" href={data.helpCard.button.href}>
+              {data.helpCard.button.label}
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }

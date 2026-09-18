@@ -66,6 +66,12 @@ const IMAGES = {
   // 509x509），放进 768x480 的带子里 `cover` 会把上下裁掉大半、只剩一张脸。`about-12` 是 1152x728，
   // 跟那条带子同一个方向，裁掉的是边上一点。
   'reviews-band': { url: cdn('about', 12), fallback: solid('#2a3448') },
+
+  // #1362 —— faq-accordion 的 `media-side` 那一侧的人物图。取 `faq` 那一类：它跟这个块是同一件事，
+  // 而复用 `about-workshop` 会让图册上这两个块看起来是同一段内容。
+  // 🔴 这张要竖一点才对：`.faq-accordion__media` 在 base.css 里是 `aspect-ratio: 4 / 3`，里面的 `<img>`
+  //    走 `object-fit: cover`（globals.css）；faq-1 现取 1176x980（约 6:5），裁掉的只是上下一点。
+  'faq-advisor': { url: cdn('faq', 1), fallback: solid('#2b3546') },
 };
 
 /**
