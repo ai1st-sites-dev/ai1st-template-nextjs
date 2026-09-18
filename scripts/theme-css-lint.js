@@ -209,6 +209,11 @@ const HOOKS = new Set([
   '.social-proof', '.social-proof__headline', '.social-proof__rating', '.social-proof__reviews',
   '.social-proof__platform', '.social-proof__badge', '.social-proof__quote',
   '.social-proof__quote-author',
+  // #1367 —— #1376 把那个「一排数字」的块并进来时带进了四个零件，它们当时只有 base.css 的地板。
+  // 同名零件在 `content-split` 上本来就是钩子（上面 :202-204），一组数字在一个块里被主题画、在另一个
+  // 块里画不了，等于同一页上两种长相。加钩子是只增不减，不动 CONTRACT_VERSION（见下面那段的理由）。
+  '.social-proof__stat', '.social-proof__stat-value', '.social-proof__stat-label',
+  '.social-proof__media',
   '[data-block="social-proof"]',
   '.features-grid', '.features-grid__headline', '.features-grid__sub', '.features-grid__item',
   '.features-grid__icon', '.features-grid__title', '.features-grid__desc',

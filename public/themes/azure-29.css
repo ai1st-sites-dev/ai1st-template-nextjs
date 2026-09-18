@@ -865,6 +865,40 @@
   color: var(--color-primary-800);
 }
 
+.social-proof__stat {
+  gap: 0.75rem;
+  padding: 0 0 1.5rem;
+  border-radius: 0;
+  border-width: 0 0 2px;
+  border-style: solid;
+  border-color: var(--color-primary-200);
+}
+
+.social-proof__stat-value {
+  font-family: var(--font-heading);
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--color-primary-500);
+}
+
+.social-proof__stat-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--color-primary-800);
+}
+
+.social-proof__media {
+  width: 100%;
+  border-radius: var(--radius-block);
+  object-fit: cover;
+  object-position: center;
+  background-color: var(--color-primary-100);
+}
+
 .features-grid {
   gap: calc(var(--section-block-gap) * 4);
   padding: calc(var(--section-block-pad) * 5) 1.5rem;

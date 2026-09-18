@@ -1625,18 +1625,23 @@ console.log(`\n⑫ #1139 每个块在 ${SAMPLE_N} 套候选里有几副骨架（
   //    这一条把「27 个块只有一副骨架」那个基线钉成机器读数，而不是一句散文。
   {
     const problems = [];
-    let one = 0; let two = 0;
+    let one = 0; let two = 0; const three = [];
     for (const b of BLOCKS) {
       if (LOOK_FAMILIES.some((f) => f.blocks.includes(b))) continue;
       const got = varietyOf(b);
       if (got === 1) one += 1;
       else if (got === 2) two += 1;
+      // #1364 —— 第三档。`trusted-brands` 从一副长到三副（`row` / `heading-side` / `two-row`），
+      // 形态名落到 `voiceFor` 的 `brandWall`，按 i % 3 转。这一档**不是把上限放开**：3 副仍要逐个
+      // 报出来是谁，而 0 副或 ≥4 副照旧进 problems —— 那两种才是「骨架是从哪儿来的」问的情形。
+      else if (got === 3) three.push(b);
       else problems.push(`${b}：没有候选表却读到 ${got} 种骨架 —— 那它的骨架是从哪儿来的？`);
     }
     if (problems.length) problems.forEach(bad);
     else {
-      ok(`⑫ 没有候选表的 ${one + two} 个块：${one} 个恒 1 副（PLAIN_SHAPE_NAMES 里写死了形态名）、`
-        + `${two} 个 2 副（形态名落到 voiceFor 的 plainGrid，按 i % 2 在 three-up / two-up 之间转）`);
+      ok(`⑫ 没有候选表的 ${one + two + three.length} 个块：${one} 个恒 1 副（PLAIN_SHAPE_NAMES 里写死了形态名）、`
+        + `${two} 个 2 副（形态名落到 voiceFor 的 plainGrid，按 i % 2 在 three-up / two-up 之间转）、`
+        + `${three.length} 个 3 副（${three.join(' ') || '无'}，按 i % 3 转）`);
     }
   }
 

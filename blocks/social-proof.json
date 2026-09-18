@@ -25,6 +25,39 @@
         "media": "below",
         "columns": "three"
       }
+    },
+    {
+      "name": "heading-above-band",
+      "needs": ["stats"],
+      "layout_intent": {
+        "items": "grid",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "below",
+        "columns": "four"
+      }
+    },
+    {
+      "name": "media-side-list",
+      "needs": ["stats", "imageUrl"],
+      "layout_intent": {
+        "items": "stack",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "side",
+        "columns": "two"
+      }
+    },
+    {
+      "name": "row-band",
+      "needs": ["stats"],
+      "layout_intent": {
+        "items": "row",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "below",
+        "columns": "many"
+      }
     }
   ],
   "slots": {

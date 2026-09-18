@@ -3076,6 +3076,147 @@
   justify-self: center;
 }
 
+/* social-proof · heading-above-band  （#1367 · FlyonUI social-proof-6：文案卡 + 4 格指标条）
+
+   标题与评分在上，数字排成一条四格的带子在下。带子之所以从新的一行开始，是因为引语
+   （`.social-proof__quote`）在 DOM 里正排在第一个数字前面，而它通栏 —— 网格的自动排布到这里换行，
+   下一个零件（第一个 `.social-proof__stat`）就落在新一行的第一格。这不是巧合，是照 DOM 次序摆的。 */
+
+[data-block="social-proof"][data-shape="heading-above-band"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="social-proof"][data-shape="heading-above-band"] .social-proof__headline,
+[data-block="social-proof"][data-shape="heading-above-band"] .social-proof__quote {
+  grid-column: 1 / -1;
+}
+
+[data-block="social-proof"][data-shape="heading-above-band"] .social-proof__platform,
+[data-block="social-proof"][data-shape="heading-above-band"] .social-proof__badge {
+  justify-self: start;
+}
+
+[data-block="social-proof"][data-shape="heading-above-band"] .social-proof__stat {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="social-proof"][data-shape="heading-above-band"] .social-proof__media {
+  grid-column: 1 / -1;
+  width: 100%;
+  max-width: 48rem;
+  justify-self: center;
+}
+
+@media (min-width: 1024px) {
+  [data-block="social-proof"][data-shape="heading-above-band"] {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* social-proof · media-side-list  （#1367 · FlyonUI social-proof-7：左统计清单 + 右实景照片）
+
+   🔴 「左边一列内容、右边一张图」在这个块里要**挂条件**，因为这个块的零件是平铺的（没有 `__body`
+   那样的包装层，`content-split` / `hero` 有）。图槽没填时那一列根本没有东西可放，所以把左右分栏
+   挂在 `[data-has-imageUrl]` 上：
+     · 填了图  → 除图以外的零件全部进第 1 列，图独占第 2 列 ⟹ 占用 2 条列带
+     · 没填图  → 不写这条，零件照常自动排进两列       ⟹ 照样占用 2 条列带
+   两种情况都对得上 manifest 的 `columns: two`。写成无条件的话，最少版（可选槽全空）只剩评分和
+   评论数两个零件、全被摁进第 1 列，`columns` 那条断言当场读到「该占 2 条，实际占 1 条」。
+
+   🔴 图那一行的 `grid-row: 2 / span 6` 不是随手写的数：图的高度由 `base.css` 的 `aspect-ratio: 16/10`
+   定，跨几行不改变它的高度，只决定它旁边让出多少行。跨 1 行的话那一行会被撑到图那么高，左列的
+   「评分」就孤零零地坐在一个 250px 高的行里；跨到底（`span 99` 之类）则会凭空造出几十个空行，而
+   `.social-proof` 的 `gap: 1.5rem` 对空行照收 —— 算下来是上千像素的空白。6 行是这个块在全填版上
+   左列真实行数（21 行）之内的一个稳定值。 */
+
+[data-block="social-proof"][data-shape="media-side-list"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="social-proof"][data-shape="media-side-list"] .social-proof__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="social-proof"][data-shape="media-side-list"] .social-proof__platform,
+[data-block="social-proof"][data-shape="media-side-list"] .social-proof__badge {
+  justify-self: start;
+}
+
+[data-block="social-proof"][data-shape="media-side-list"] .social-proof__stat {
+  display: grid;
+  align-content: start;
+}
+
+[data-block="social-proof"][data-shape="media-side-list"] .social-proof__media {
+  width: 100%;
+}
+
+@media (min-width: 1024px) {
+  [data-block="social-proof"][data-shape="media-side-list"] {
+    grid-template-columns: 3fr 2fr;
+  }
+
+  [data-block="social-proof"][data-shape="media-side-list"][data-has-imageUrl] .social-proof__rating,
+  [data-block="social-proof"][data-shape="media-side-list"][data-has-imageUrl] .social-proof__reviews,
+  [data-block="social-proof"][data-shape="media-side-list"][data-has-imageUrl] .social-proof__platform,
+  [data-block="social-proof"][data-shape="media-side-list"][data-has-imageUrl] .social-proof__badge,
+  [data-block="social-proof"][data-shape="media-side-list"][data-has-imageUrl] .social-proof__quote,
+  [data-block="social-proof"][data-shape="media-side-list"][data-has-imageUrl] .social-proof__stat {
+    grid-column: 1;
+  }
+
+  [data-block="social-proof"][data-shape="media-side-list"][data-has-imageUrl] .social-proof__media {
+    grid-column: 2;
+    grid-row: 2 / span 6;
+    align-self: start;
+  }
+}
+
+/* social-proof · row-band  （#1367 · FlyonUI social-proof-3：单条 4 格统计带）
+
+   居中一行标题，下面一条把数字均分开的带子。这一副用弹性排布而不是网格：带子要的是「几个数字
+   不管多少个都摊在同一行」，而网格的列数是写死在表里的。数字给 `flex: 1 1 0` + `min-width: 0`
+   （后者 `base.css` 已经给了全部零件），于是它们的起始宽度是 0、永远挤得下 ⟹ 不换行。
+   手机宽下改成整行一个，照设计文档三端说明的手机那一栏。 */
+
+[data-block="social-proof"][data-shape="row-band"] {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+[data-block="social-proof"][data-shape="row-band"] .social-proof__headline,
+[data-block="social-proof"][data-shape="row-band"] .social-proof__quote,
+[data-block="social-proof"][data-shape="row-band"] .social-proof__media {
+  flex: 0 0 100%;
+}
+
+[data-block="social-proof"][data-shape="row-band"] .social-proof__headline {
+  text-align: center;
+}
+
+[data-block="social-proof"][data-shape="row-band"] .social-proof__media {
+  width: 100%;
+  max-width: 48rem;
+  margin-inline: auto;
+}
+
+[data-block="social-proof"][data-shape="row-band"] .social-proof__stat {
+  display: grid;
+  align-content: start;
+  flex: 1 1 100%;
+}
+
+@media (min-width: 1024px) {
+  [data-block="social-proof"][data-shape="row-band"] .social-proof__stat {
+    flex: 1 1 0;
+  }
+}
+
 /* ══ team-grid ══════════════════════════════════════════════════════════════════════ */
 
 /* team-grid · two-up  （ember-12 今天选的就是它） */
@@ -3469,6 +3610,81 @@
 [data-block="trusted-brands"][data-shape="row"] .trusted-brands__brand {
   display: grid;
   place-items: center;
+}
+
+/* trusted-brands · heading-side  （#1364，对表 FlyonUI logo-cloud-9）
+
+   出处：左栏标题 + 段落 + CTA，右栏 2 列 × 3 行 logo 卡。**本票不加槽**（PM 2026-09-16 裁定：
+   「加一个可选槽」要有自己的判定，塞进一张加形态的票就没人管它）⟹ 左栏只放 headline，
+   出处里那段文案和那个按钮不做。
+
+   🔴 DOM 是**平的**（`TrustedBrandsSection.tsx`：headline 与 N 个 brand 都是根的直接子元素），
+   所以「左栏标题 + 右侧两列」只能靠根上的列带排：三条列带，标题占第 1 条并跨满行，
+   brand 自动流进第 2、3 条 —— 6 个品牌正好 2 列 × 3 行。
+   ⟹ manifest 里 `columns` 写的是 **three**（几何守卫数的是**被占用的列带**，而这里真的是 3 条），
+   不是"看起来像两栏"的 two。 */
+
+[data-block="trusted-brands"][data-shape="heading-side"] {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: start;
+}
+
+[data-block="trusted-brands"][data-shape="heading-side"] .trusted-brands__headline {
+  grid-column: 1 / -1;
+  align-self: start;
+}
+
+[data-block="trusted-brands"][data-shape="heading-side"] .trusted-brands__brand {
+  display: grid;
+  place-items: center;
+}
+
+@media (min-width: 1024px) {
+  [data-block="trusted-brands"][data-shape="heading-side"] {
+    grid-template-columns: 2fr 1fr 1fr;
+  }
+
+  /* 🔴 `1 / span 3`：标题占满左栏，品牌才会从第 2 条列带开始自动流 —— 只写 `grid-row: 1` 的话
+     第 3 个品牌会掉回第 2 行第 1 列（标题正下方），右侧那两列就不成立了。span 3 是按 manifest 里
+     写的 6 个品牌 ÷ 2 列 = 3 行取的；品牌少于 6 个时多出来的那一行是空的（夹具上是 3 个）。
+     🔴 `align-self` 必须是 start，不许 center：判据要「标题与第一项在竖直方向有重叠」
+     （`layout-intent.mjs` §headline-side），而 center 会把标题压到第一项下沿之外 ——
+     实测 ember-12 上就是这么红的（标题 y −3352–−3311，第一项 y −3403–−3363，不重叠），
+     而同一份 CSS 在 azure-29 上是绿的：两套皮的刻度不同，只看一套会漏掉。 */
+  [data-block="trusted-brands"][data-shape="heading-side"] .trusted-brands__headline {
+    grid-column: 1;
+    grid-row: 1 / span 3;
+    align-self: start;
+  }
+}
+
+/* trusted-brands · two-row  （#1364，对表 FlyonUI logo-cloud-1）
+
+   出处：居中标题 + 副标题，下面一张卡里两行 logo（6 + 5）。副标题这个块没有槽（同上，不加），
+   卡片那层是皮不是几何（D4：形态只排位置，不画外观）⟹ 这里只做「标题在上、logo 排成两行」。
+   6 个品牌 ÷ 3 列 = 正好两行。 */
+
+[data-block="trusted-brands"][data-shape="two-row"] {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  justify-items: center;
+  align-items: start;
+}
+
+[data-block="trusted-brands"][data-shape="two-row"] .trusted-brands__headline {
+  grid-column: 1 / -1;
+}
+
+[data-block="trusted-brands"][data-shape="two-row"] .trusted-brands__brand {
+  display: grid;
+  place-items: center;
+}
+
+@media (min-width: 1024px) {
+  [data-block="trusted-brands"][data-shape="two-row"] {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════════
