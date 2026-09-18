@@ -496,6 +496,26 @@ function normalizeLocalePages(pages, siteBlocks, locale, report) {
               + `${JSON.stringify(entry.hidden)}，必须是 true 或 false —— 这个字段被忽略`);
           }
         }
+        // #1350 —— 同一个洞的第二个字段（QA3 在真构建上量到的）。检查器给**站级块**挑形态时，
+        // 写路径把 `shape` 写在这一页的 `{ref}` 条目上，而上面那个对象只摊开 target 再覆盖
+        // id / weight / __order ⟹ 构建把它静默丢掉：manager 放行、worker 真写进页面 JSON、预览里
+        // 当场看得见（那是浏览器侧改属性），保存重建之后产物里却是主题形态。
+        // 🔴 而清除那一侧（`lib/block-shape.js` §resetShapesInSite）本来就认识 `{ref}` 条目 ⟹
+        //    修之前这个字段**只能删、不能用**，两侧不对称本身就是这条的判据。
+        //
+        // 🔴 跟 hidden 同一套：只在这一页真写了、且形状对的时候才带，没写就不带 —— 不造默认值。
+        //    造一个的话 `shapeForBlock` 的第 ① 级（页面 JSON）恒命中，主题选择单从此对站级块失效。
+        // 🔴 这里只判**形状**（是不是非空字符串），不判这个形态名存不存在：名字对不对由
+        //    `lib/block-shape.js` §shapeForBlock 在拿得到 manifest 的地方判（清单里没有 / 缺槽位
+        //    都落回默认并打一行日志，#1331）。两处各判各的那一半，别在这里重写第二份判据。
+        if (entry.shape !== undefined) {
+          if (typeof entry.shape === 'string' && entry.shape) {
+            refBlock.shape = entry.shape;
+          } else {
+            note(`${where} 第 ${i} 个块（ref ${JSON.stringify(entry.ref)}）的 "shape" 是 `
+              + `${JSON.stringify(entry.shape)}，必须是形态名（非空字符串）—— 这个字段被忽略`);
+          }
+        }
         resolved.push(refBlock);
         return;
       }
