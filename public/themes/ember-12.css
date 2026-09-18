@@ -485,6 +485,14 @@
   color: var(--color-accent-400);
 }
 
+.contact-info__media {
+  width: 100%;
+  border-radius: calc(var(--radius-block) * 7);
+  object-fit: cover;
+  object-position: center;
+  background-color: var(--color-primary-800);
+}
+
 .process-steps {
   gap: calc(var(--section-block-gap) * 8);
   padding: calc(var(--section-block-pad) * 8) 1.5rem;

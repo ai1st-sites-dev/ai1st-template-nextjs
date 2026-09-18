@@ -665,7 +665,8 @@
 .content-split__media img,
 .contact-form__media img,
 .social-proof__media img,
-.faq-accordion__media img {
+.faq-accordion__media img,
+.contact-info__media img {
   display: block;
   width: 100%;
   height: 100%;

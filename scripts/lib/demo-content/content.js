@@ -358,6 +358,9 @@ const DEMO_CONTENT = {
 
   'contact-info': {
     headline: 'Find the shop',
+    // #1382 —— 只有 `media-side-grid` 这一副把它画出来（其余三副 `shapes.css` 里默认藏起来）。
+    // 全填版夹具每个可选槽都填，所以这里必须有值 —— 守卫 (a) 两向都查。
+    imageUrl: imageUrl('contact-desk'),
   },
 
   // ── 数据 / 清单 ─────────────────────────────────────────────────────────────────────────────

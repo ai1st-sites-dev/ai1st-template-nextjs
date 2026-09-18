@@ -488,7 +488,18 @@ const INFO_LOOKS = {
       label: () => ({}),
     },
   },
-  // ③ 电话在前 —— 卡片内部把电话排到最上面，邮箱排到卡片上面。
+  // ③ 图在一侧 —— #1382 对表 FlyonUI contact-us-1：一侧一张实景图，另一侧联系方式。
+  //    🔴 **插在这个位置不是随手放的。** `infoLookFor` 是 `lookFor(INFO_LOOK_NAMES, 4)`
+  //    （`names[(i + Math.floor(i / 4)) % names.length]`），表一变长，每个候选挑到的那一副都会重算。
+  //    盘上那两份表是候选 **11**（gen-07-12）和 **28**（gen-07-29），今天挑的是 `label-side` /
+  //    `phone-first`，而 `scripts/theme-pool.json` 里那两行写的就是这两个名字 —— 挑法一变，表和
+  //    选择单当场对不上。四个插入位置我都算过一遍：**只有插在这里**（`label-side` 之后、
+  //    `phone-first` 之前）让这两个候选的结果一个字都不变，而 97 个候选仍然把四副全用到
+  //    （`sheet-recipes.test.js` ⑮ 要的正是「形态层有的，97 套里有人画到」）。
+  //    📌 这一副的 `rootExtra` / `partExtra` 空着：它跟 ① 一样不给非几何的额外声明，几何整份住在
+  //    `public/shapes.css`（#1339 起配方里不许有几何）。
+  'media-side-grid': { rootExtra: () => ({}), partExtra: {} },
+  // ④ 电话在前 —— 卡片内部把电话排到最上面，邮箱排到卡片上面。
   //    🔴 卡片里三个部件**都**写 `order`、块里那两个也都写（同 `panel-left` 那条：`order` 默认 0，
   //    只写一部分会让没写的那个跑到最前面）。
   'phone-first': {
@@ -983,7 +994,7 @@ const SHAPES = {
   'card-group': { role: { item: 'card', title: 'title', desc: 'desc' } },
   'services-nav': { wideSpacing: false, role: { link: 'chip' } },
   'service-related-pages': { role: { card: 'card' } },
-  'contact-info': { role: { location: 'card', label: 'eyebrow', address: 'desc', phone: 'contact', email: 'contact' } },
+  'contact-info': { role: { media: 'media', location: 'card', label: 'eyebrow', address: 'desc', phone: 'contact', email: 'contact' } },
   'process-steps': { role: { step: 'card', num: 'numeral', title: 'title', desc: 'desc' } },
   'team-grid': { role: { member: 'card', name: 'title', role: 'eyebrow', bio: 'desc' } },
   'blog-preview': { role: { post: 'card', category: 'chip', date: 'meta', title: 'title', excerpt: 'desc' } },

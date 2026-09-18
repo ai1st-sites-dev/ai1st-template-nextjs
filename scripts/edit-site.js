@@ -867,6 +867,8 @@ other type does not show a picture, and putting an image field on one has no eff
   set; without it the ratings, badges and figures simply have no picture beside them)
 - a **faq-accordion** block → \`data.imageUrl\` (optional — only one of its layouts puts a picture next to
   the questions; on the others the block simply has no picture)
+- a **contact-info** block → \`data.imageUrl\` (optional — only the layout that puts a picture beside the
+  contact details shows it; on the others the block simply has no picture)
 - a **gallery** block → \`data.items[].imageUrl\` (one per item)
 - a **cta-banner** block → \`data.avatars[].imageUrl\` (one per face in the small row of customer
   photos this block can show; the row is optional — with no \`avatars\` the block draws no picture at all)

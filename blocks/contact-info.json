@@ -36,6 +36,20 @@
         "media": "none",
         "columns": "two"
       }
+    },
+    {
+      "name": "media-side-grid",
+      "candidate": true,
+      "needs": [
+        "imageUrl"
+      ],
+      "layout_intent": {
+        "items": "stack",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "side",
+        "columns": "two"
+      }
     }
   ],
   "slots": {
@@ -44,6 +58,12 @@
       "required": true,
       "promptOptional": false,
       "editLabel": "Headline"
+    },
+    "imageUrl": {
+      "kind": "image",
+      "required": false,
+      "promptOptional": true,
+      "shape": "string"
     }
   },
   "variants": {

@@ -503,6 +503,14 @@
   color: var(--color-primary-600);
 }
 
+.contact-info__media {
+  width: 100%;
+  border-radius: var(--radius-block);
+  object-fit: cover;
+  object-position: center;
+  background-color: var(--color-primary-100);
+}
+
 .process-steps {
   gap: calc(var(--section-block-gap) * 4);
   padding: calc(var(--section-block-pad) * 5) 1.5rem;

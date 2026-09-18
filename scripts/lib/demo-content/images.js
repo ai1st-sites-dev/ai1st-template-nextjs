@@ -72,6 +72,11 @@ const IMAGES = {
   // 🔴 这张要竖一点才对：`.faq-accordion__media` 在 base.css 里是 `aspect-ratio: 4 / 3`，里面的 `<img>`
   //    走 `object-fit: cover`（globals.css）；faq-1 现取 1176x980（约 6:5），裁掉的只是上下一点。
   'faq-advisor': { url: cdn('faq', 1), fallback: solid('#2b3546') },
+  // #1382 —— contact-info 的 `media-side-grid` 那一侧的实景图。取 `contact` 那一类而不是复用
+  // `about-workshop`：图册上这两个块今天并排着看，同一张照片会读成「这是同一段内容」。
+  // 🔴 横图：`.contact-info__media` 在 base.css 里是 `aspect-ratio: 4 / 3`，里面的 `<img>` 走
+  //    `object-fit: cover`（globals.css）—— 竖图进这个盒子会被裁掉上下大半。contact-1 现取 1600x878（16:9 偏宽，裁的是左右一点）。
+  'contact-desk': { url: cdn('contact', 1), fallback: solid('#26323f') },
 };
 
 /**

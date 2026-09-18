@@ -177,6 +177,12 @@ const HOOKS = new Set([
   // `__phone` and `__email` are the two links a customer actually uses.
   '.contact-info', '.contact-info__headline', '.contact-info__location', '.contact-info__label',
   '.contact-info__address', '.contact-info__phone', '.contact-info__email',
+  // #1382 —— 这个块从此有一个可选图槽（对表 contact-us-1 的 `media-side-grid`）。它进这张表的判据是
+  // 「库里有没有同族零件、同族今天是不是被两张表都管着」：`.hero__media` / `.content-split__media`
+  // 两张池主题表都写了规则 ⟹ 进。🔴 这里原来钉着那四条规则的行号，而 2026-09-18 合并今天的 main
+  // 时它们全漂了（main 删了几个块、两张表跟着重生）—— 所以改成现取：
+  //   grep -n 'hero__media\|content-split__media' public/themes/*.css
+  '.contact-info__media',
   '[data-block="contact-info"]',
   '.process-steps', '.process-steps__headline', '.process-steps__sub', '.process-steps__step',
   '.process-steps__num', '.process-steps__title', '.process-steps__desc',

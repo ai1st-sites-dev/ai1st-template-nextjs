@@ -520,6 +520,7 @@
 .contact-info__address,
 .contact-info__phone,
 .contact-info__email,
+.contact-info__media,
 .process-steps__headline,
 .process-steps__sub,
 .process-steps__step,
@@ -564,6 +565,17 @@
 .process-steps__desc {
   font-size: 0.875rem;
   line-height: 1.6;
+}
+
+/* #1382 —— contact-info 那张可选的图。跟 `.content-split__media` 同一条理由：页面 JSON 没给图时这个
+   零件**根本不在树上**（组件那一头是「有则出、无则不出」），给了图它也得有个形状，不然在图加载完
+   之前那一列是塌的。
+   🔴 这里不写 `display` —— 「这一副形态给不给它排版」整件事只有一个主人，在 `public/shapes.css`
+   （默认 `display: none`，只有 `media-side-grid` 放出来）。两个地方各写一句就是两个主人。 */
+.contact-info__media {
+  aspect-ratio: 4 / 3;
+  border-radius: 0.75rem;
+  overflow: hidden;
 }
 
 /* The step number. A circle without a sheet, because `.process-steps__num` is a `<span>` and an
