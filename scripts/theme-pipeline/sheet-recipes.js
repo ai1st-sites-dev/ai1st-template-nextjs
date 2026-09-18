@@ -1480,6 +1480,30 @@ const PLAIN_SHAPE_NAMES = {
   'team-grid': (v) => v.plainGrid,
 };
 
+// #1371 —— content-split 的形态名此前恒等于「画法 + 节律」两维拼出来的全名（4 × 2 = 8 副）。
+// 对表 FlyonUI 新增的那两副（`media-bottom` = 大图在下 + 统计带叠在图上；`overlap-card` = 左照片
+// 右文字压在照片右缘）**不在那两维里** —— 它们不是某一副画法的另一种节律，所以拼不出来。
+//
+// 🔴 **必须让它们真被某些候选选中**：`sheet-recipes.test.js` 第 ⑮ 格要求「配方画得出来的
+//    (块,形态) 对」与 `public/shapes.css` 的集合**双向差集都空**，只写进形态层而配方一次都不画，
+//    就是「形态层里有、97 套一次都没画到」，当场红（本票实测过一次：
+//    `形态层有而一次都没被选中的 content-split/media-bottom content-split/overlap-card`）。
+//
+// 🔴 **每一副只许住在【一组】画法里**，不能撒到多组。⑫ 那一格按 `v.split` 把候选分成 4 组、
+//    要求「两组永远画不出同一副骨架」；同一个名字出现在两组里，那一格当场红。
+//
+// 🔴 **两套活主题的选择单一个字节不许变**（本票 AC）：ember-12 是候选号 12 ⟹ i=11 ⟹
+//    `v.split = 'media-right'`，azure-29 是 29 ⟹ i=28 ⟹ `v.split = 'narrow-stack'`。
+//    所以新的两副挂在**另外两组**（`media-top` / `media-left`）上 —— 那两套候选按构造碰不到。
+//
+// 🔴 `i % 3` 那一层是为了**别把原来那一副挤掉**：整组都换成新名字的话，
+//    `media-top-alternate` / `media-top-uniform` 反过来变成「形态层有而没人选」，⑮ 从另一头红。
+function splitShapeName(v, i) {
+  if (v.split === 'media-top' && i % 3 === 0) return 'media-bottom';
+  if (v.split === 'media-left' && i % 3 === 1) return 'overlap-card';
+  return `${v.split}-${v.splitRhythm}`;
+}
+
 /** 第 i 套候选的配方在这个块上画的是哪一副形态。 */
 function recipeShapeFor(block, i) {
   const v = voiceFor(i);
@@ -1487,7 +1511,7 @@ function recipeShapeFor(block, i) {
   if (fam) {
     const name = v[fam.key];
     // content-split 的形态名是「画法 + 节律」两维拼出来的全名（理由在 PLAIN_SHAPE_NAMES 上面那段）
-    return block === 'content-split' ? `${name}-${v.splitRhythm}` : name;
+    return block === 'content-split' ? splitShapeName(v, i) : name;
   }
   const plain = PLAIN_SHAPE_NAMES[block];
   if (plain === undefined) {

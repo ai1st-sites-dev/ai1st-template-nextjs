@@ -99,6 +99,32 @@
         "media": "above",
         "columns": "one"
       }
+    },
+    {
+      "name": "media-bottom",
+      "candidate": true,
+      "needs": [
+        "stats"
+      ],
+      "layout_intent": {
+        "items": "none",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "below",
+        "columns": "one"
+      }
+    },
+    {
+      "name": "overlap-card",
+      "candidate": true,
+      "needs": [],
+      "layout_intent": {
+        "items": "none",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "side",
+        "columns": "two"
+      }
     }
   ],
   "slots": {

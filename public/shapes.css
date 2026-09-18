@@ -1696,6 +1696,242 @@
   }
 }
 
+/* content-split · media-bottom  （#1371，对表 FlyonUI about-us-1：居中文案 + 下方大图 + 统计带叠在图上）
+
+   出处那一版是「居中标题 + 段落 + CTA；下方一张大图，图片**底部叠着**一条 4 格统计带」。这个块的
+   markup 里统计带已经有了（`ContentSplitSection.tsx:110`，`stats` 槽 `required:false`），所以本形态
+   只做两件事：把图挪到文字**下面**，再把统计带和图放进**同一个格子**（同一条 grid 行 + 同一条列）、
+   `align-self: end` —— 这就是「叠在图的下缘上」。🔴 **不用负 margin**：形态层不写 `margin`
+   （文件头那条），而同一个格子 + `align-self` 是纯几何。DOM 次序里 `__media` 是第一个子元素、
+   `__stats` 是最后一个 ⟹ 统计带天然画在图上面，不用 `z-index`。
+
+   🔴 **五个零件每个都要写 `grid-column: 1`。少写就没有叠压 —— 这是量出来的，不是防御性写法。**
+   只写 `grid-row: 4` 而把列留成 `auto` 时，自动布局看到那一行已经被 `__media` 占了，就把 `__stats`
+   放进一条**隐式的第 2 列**：1280px 下根上的轨道从 `1fr` 变成 `213.56px 922.44px`，图 x=48–262、
+   统计带 x=310–1232，两个盒子**相离** —— 而这个形态的全部意义就是它们相交。375px 下更糟：第 1 条
+   轨道被挤到 17.6px，标题跑到 x=-51（块的内容盒从 24 起），检查 ⑨ 的 `parts-inside` 当场红
+   （`⑨ layout intent — content-split/media-bottom … 🔴 1 条不成立`，两个视口都红）。
+
+   🔴 **这是库里第一个 `needs` 不为空、且点名 `stats` 的形态**。缺这个槽时按 #1331 落回 `shapes[0]`
+   （`narrow-stack-uniform`）并在构建日志打一句 ⚠️ —— 那条路今天已经被同块另外 4 种
+   （`needs: ["imageUrl"]`）走着，不是新机制。
+
+   🔴 **「居中」只做到盒子这一层，不写 `text-align`。** 出处那张是「居中标题 + 段落」，而
+   `text-align` 是**排版皮、不是几何**：整份 `shapes.css` 今天 `text-align` 出现 **0 次**、`margin`
+   也是 **0 次**，而 `max-width` 99 次、`justify-items` 11 次 —— 这一层的工具就是后两样。所以这里用
+   `justify-items: center` 把三个文字零件摆到中线上，字在盒子里左对齐还是居中由主题定。
+   📌 这不是偷懒，是实测过的：第一版写了 `text-align: center` + `max-width`，`sheet-recipes.test.js`
+   第 ④ 格当场红（`82 套里 8 套「说的居中、画的是左」—— .content-split__headline（max-width 没有
+   auto 外边距）`）。那一格要的修法是 `margin: auto`，而形态层不写 `margin` ⟹ 正确的出路是不在这一层
+   声明居中，不是绕开那道闸。
+
+   🔴 `bullets` 缺席时那条空行用 `:not([data-has-bullets="true"])` 收掉。`data-has-<槽>` 正是 #1331
+   给这种判断准备的机制（替代 `:has()`，设计文档 D4），而 `bullets` 是 `required:false` 的槽 ——
+   不收的话，bullets 为空时第 3 行没有样本却照样占一条 `row-gap`，图和统计带下面多出一条空档。 */
+
+[data-block="content-split"][data-shape="media-bottom"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  justify-items: center;
+}
+
+[data-block="content-split"][data-shape="media-bottom"] .content-split__headline {
+  grid-column: 1;
+  grid-row: 1;
+  max-width: 48rem;
+}
+
+[data-block="content-split"][data-shape="media-bottom"] .content-split__body {
+  grid-column: 1;
+  display: grid;
+  align-content: start;
+  grid-row: 2;
+  max-width: 44rem;
+}
+
+[data-block="content-split"][data-shape="media-bottom"] .content-split__bullets {
+  grid-column: 1;
+  display: grid;
+  grid-row: 3;
+}
+
+[data-block="content-split"][data-shape="media-bottom"] .content-split__media {
+  grid-column: 1;
+  grid-row: 4;
+  width: 100%;
+  aspect-ratio: 16 / 7;
+}
+
+[data-block="content-split"][data-shape="media-bottom"] .content-split__stats {
+  grid-column: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-row: 4;
+  align-self: end;
+  width: min(100%, 60rem);
+}
+
+[data-block="content-split"][data-shape="media-bottom"] .content-split__stat {
+  display: grid;
+  align-content: start;
+}
+
+/* bullets 没填 ⟹ 图与统计带提到第 3 行，不留那条空行（理由在上面） */
+[data-block="content-split"][data-shape="media-bottom"]:not([data-has-bullets="true"]) .content-split__media,
+[data-block="content-split"][data-shape="media-bottom"]:not([data-has-bullets="true"]) .content-split__stats {
+  grid-row: 3;
+}
+
+/* 🔴 **图和统计带都在的时候，图高不许由 `aspect-ratio` 定死**（Chris 2026-09-17 在 390 宽上看到的缺陷，
+   缺陷回原票）。上面那几条把两者放进同一个格子就算叠上了，但图的高度是按宽度乘一个固定比例算出来的，
+   而统计带的高度是**内容**给的：屏幕一窄，统计带从 4 格一行变 2 格一行，行数翻倍，很快就比图还高。
+   那时它不再是「压在图的下缘上」，而是把整张图盖住、还往图下面伸出去一截。真浏览器量到的：
+
+       夹具站（6 条统计）· ember-12       图                统计带              结果
+       1280  只写 aspect-ratio           1184×451          960×298            盖住图 66%，不外溢
+       390   只写 aspect-ratio           342×150           342×492            盖住图 100%，下溢 342px  🔴
+       390   本节这几条                  342×682           342×492            盖住图 72%，不外溢
+   （Chris 看的那张是 3 条统计的页面，同一个方向，那次的数是下溢 183px。）
+
+   修法是**让图自己去够统计带**，不是反过来限制统计带：图跨两行（看得见的那一截 + 统计带压着的那一截），
+   统计带单独占后面那一行并贴着底边。于是「统计带底边 ≤ 图底边」是**排出来就成立**的，跟统计有几条、
+   屏幕多宽都没关系。`aspect-ratio: auto` 是必须的：`base.css` 给 `.content-split__media` 写了 16/10，
+   比例还在的话图就不会被拉到两行那么高，反而会跟统计带**分开**（比例赢过拉伸，这是量出来的）。
+   第一行 `minmax(10rem, auto)` 是「看得见的那一截图」的下限 —— 没有它，统计带高的时候图会缩到跟
+   统计带一样高，又变成 100% 全盖。
+
+   🔴 **这几条挂在「图和统计带都填了」这个条件上，不是无条件生效**：无条件写的话，图没填时
+   （`.content-split__media` 被 #1337 藏起来）那两行仍然占位，正文和统计带之间会多出一块空档 ——
+   1280 下实测块高从 959 涨到 1164、空档从 275 涨到 481。两个 `data-has-*` 都是 #1331 那套机制。 */
+[data-block="content-split"][data-shape="media-bottom"][data-has-imageUrl="true"][data-has-stats="true"] {
+  grid-template-rows: auto auto auto minmax(10rem, auto) auto;
+}
+
+[data-block="content-split"][data-shape="media-bottom"][data-has-imageUrl="true"][data-has-stats="true"] .content-split__media {
+  grid-row: 4 / span 2;
+  aspect-ratio: auto;
+}
+
+[data-block="content-split"][data-shape="media-bottom"][data-has-imageUrl="true"][data-has-stats="true"] .content-split__stats {
+  grid-row: 5;
+}
+
+/* bullets 没填 ⟹ 上面那两行各提前一行（跟前面那条同一个理由） */
+[data-block="content-split"][data-shape="media-bottom"][data-has-imageUrl="true"][data-has-stats="true"]:not([data-has-bullets="true"]) {
+  grid-template-rows: auto auto minmax(10rem, auto) auto;
+}
+
+[data-block="content-split"][data-shape="media-bottom"][data-has-imageUrl="true"][data-has-stats="true"]:not([data-has-bullets="true"]) .content-split__media {
+  grid-row: 3 / span 2;
+}
+
+[data-block="content-split"][data-shape="media-bottom"][data-has-imageUrl="true"][data-has-stats="true"]:not([data-has-bullets="true"]) .content-split__stats {
+  grid-row: 4;
+}
+
+@media (min-width: 1024px) {
+  [data-block="content-split"][data-shape="media-bottom"] .content-split__media {
+    aspect-ratio: 21 / 8;
+  }
+
+  [data-block="content-split"][data-shape="media-bottom"] .content-split__stats {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* content-split · overlap-card  （#1371，对表 FlyonUI about-us-14：左人像照 + 右介绍卡叠压在照片右缘）
+
+   🔴 **这一节交付的是「叠压」这个几何，交付不了出处那块白色卡板 —— 说清楚为什么。** 这个块的文字侧
+   是三个**平级**零件（`__headline` / `__body` / `__bullets`），markup 里**没有「卡」这个元素**，而
+   两套主题都不给这三个零件底色（`.content-split__body` 只有 `gap`；有底色的是 `.content-split__stat`）。
+   要那块板要么给组件加一层包装（本票「不做」里写着不改组件），要么让主题给文字侧一块底色（那是皮，
+   不是形态）。所以这里做的是：**文字列压在照片的右缘上**，重叠量刻意做窄（中间那条 0.14fr 的列带）。
+   够不够像出处那张，由 Chris 在 `/__catalog` 上判（D10 / D13）。
+
+   🔴 **三条轨道而 `columns` 写 two**：守卫 ⑨ 数的是**被占用的**列带，不是声明的轨道数
+   （`layout-intent.mjs` 文件头那段）。照片跨第 1–2 条、文字跨第 2–3 条，两者的中心分别落在第 1 条和
+   第 3 条里 ⟹ 占用 2 条，中间那条只是叠压区、没有谁的中心在里面。同款写法与理由见
+   `gallery/featured-thumbs`。
+
+   DOM 次序里 `__media` 是第一个子元素 ⟹ 文字天然画在照片上面，不用 `z-index`。
+   手机宽（`min-width: 1024px` 之下）退回单列竖排、不叠压 —— 出处的手机栏也是这么塌的。 */
+
+[data-block="content-split"][data-shape="overlap-card"] {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+[data-block="content-split"][data-shape="overlap-card"] .content-split__media {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+}
+
+[data-block="content-split"][data-shape="overlap-card"] .content-split__body {
+  display: grid;
+  align-content: start;
+  max-width: 38rem;
+}
+
+[data-block="content-split"][data-shape="overlap-card"] .content-split__bullets {
+  display: grid;
+}
+
+[data-block="content-split"][data-shape="overlap-card"] .content-split__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+[data-block="content-split"][data-shape="overlap-card"] .content-split__stat {
+  display: grid;
+  align-content: start;
+}
+
+@media (min-width: 1024px) {
+  [data-block="content-split"][data-shape="overlap-card"] {
+    grid-template-columns: 1.25fr 0.14fr 1fr;
+    align-items: center;
+  }
+
+  [data-block="content-split"][data-shape="overlap-card"] .content-split__media {
+    grid-column: 1 / span 2;
+    grid-row: 1 / span 4;
+    aspect-ratio: 4 / 5;
+  }
+
+  [data-block="content-split"][data-shape="overlap-card"] .content-split__headline {
+    grid-column: 2 / span 2;
+    grid-row: 1;
+  }
+
+  [data-block="content-split"][data-shape="overlap-card"] .content-split__body {
+    grid-column: 2 / span 2;
+    grid-row: 2;
+  }
+
+  [data-block="content-split"][data-shape="overlap-card"] .content-split__bullets {
+    grid-column: 2 / span 2;
+    grid-row: 3;
+  }
+
+  [data-block="content-split"][data-shape="overlap-card"] .content-split__stats {
+    grid-column: 2 / span 2;
+    grid-row: 4;
+  }
+
+  /* 🔴 图槽没填 ⟹ 没有可压的东西，文字整条铺满（量出来的，不是防御性写法）。
+     `imageUrl` 是 `required:false` 的槽，没填时 `.content-split__media` 被 #1337 那条藏起来
+     （`display:none`，不进排版）。不写这一段的话，文字仍然挤在第 2–3 条轨道里，而第 1 条空着 ——
+     检查 ⑨ 的 `columns` 当场红：`该占 2 条列带（"two"），实际占 1 条（根上声明了 3 条轨道）`
+     （最少版 · 1280px，交付留言里贴了原文）。同块已有的 4 种 `media:side` 形态靠的是同一件事：
+     它们的标题写 `grid-column: 1 / -1`，图一藏，能排的子元素只剩 1 个，⑨ 就退化成「占的列带 ≤ 声明数」。 */
+  [data-block="content-split"][data-shape="overlap-card"]:not([data-has-imageUrl]) .content-split__headline,
+  [data-block="content-split"][data-shape="overlap-card"]:not([data-has-imageUrl]) .content-split__body,
+  [data-block="content-split"][data-shape="overlap-card"]:not([data-has-imageUrl]) .content-split__bullets,
+  [data-block="content-split"][data-shape="overlap-card"]:not([data-has-imageUrl]) .content-split__stats {
+    grid-column: 1 / -1;
+  }
+}
+
 /* ══ cta-banner ══════════════════════════════════════════════════════════════════════ */
 
 /* cta-banner · title-side  （ember-12 + azure-29 今天选的就是它） */
