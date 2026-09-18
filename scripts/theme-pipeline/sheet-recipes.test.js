@@ -465,7 +465,13 @@ const heroLook = new Map(TRIO.map((i) => [heroLookFor(i), dropColours(heroRulesO
   //    L=7 下 14400 不是 49 的倍数，但 `heroLookFor(14400)` 恰好又回到第 0 项（算式
   //    `(14400 + 2057) % 7 = 0`）。我先按 lcm(3600, 49) = 176400 改过一版，那一版当场 die
   //    「176400 不再是 voice 的周期整数倍」—— 所以这里写的是量出来的数，不是推出来的数。
-  const PERIOD = 14400;
+  // 🔴 #1363 —— 这个数**重新量过，从 14400 变成 28800**。`testimonialLook` 的候选从 4 副长到 8 副
+  //    （对表 FlyonUI 新增 heading-side / masonry / quote-aside / single-featured），而
+  //    `testimonialLook` 也在 voice 里 ⟹ 原来那个 14400 当场不成立，这个文件退 2、整份从这里往下
+  //    一行都不跑（实测：不改就是 `夹具不成立：i 与 i+14400 的 voice 不同`）。
+  //    跟上面 #1333 那次一样，**这是量出来的数不是推出来的**：穷举 0..800000，voice 与调色板
+  //    逐字全同的 P 依次是 28800 / 57600 / 86400 / 720000，取第一个。
+  const PERIOD = 28800;
   if (JSON.stringify(voiceFor(BASE)) !== JSON.stringify(voiceFor(BASE + PERIOD))) {
     die(`夹具不成立：i 与 i+${PERIOD} 的 voice 不同 —— ${PERIOD} 不再是 voice 的周期整数倍`);
   }

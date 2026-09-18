@@ -47,6 +47,54 @@
         "media": "none",
         "columns": "one"
       }
+    },
+    {
+      "name": "heading-side",
+      "candidate": true,
+      "needs": [],
+      "layout_intent": {
+        "items": "grid",
+        "item_wrap": "allow",
+        "headline": "side",
+        "media": "none",
+        "columns": "one"
+      }
+    },
+    {
+      "name": "masonry",
+      "candidate": true,
+      "needs": [],
+      "layout_intent": {
+        "items": "grid",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "none",
+        "columns": "one"
+      }
+    },
+    {
+      "name": "quote-aside",
+      "candidate": true,
+      "needs": [],
+      "layout_intent": {
+        "items": "stack",
+        "item_wrap": "allow",
+        "headline": "side",
+        "media": "none",
+        "columns": "one"
+      }
+    },
+    {
+      "name": "single-featured",
+      "candidate": true,
+      "needs": [],
+      "layout_intent": {
+        "items": "stack",
+        "item_wrap": "allow",
+        "headline": "above",
+        "media": "none",
+        "columns": "one"
+      }
     }
   ],
   "slots": {

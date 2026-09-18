@@ -528,6 +528,14 @@ const TESTIMONIAL_LOOKS = {
       service: () => ({}),
     },
   },
+  // ⑤~⑧ #1363 对表 FlyonUI 新增的四副。几何全在 `public/shapes.css`（#1339 之后这张表里不许再有
+  //     几何），所以这里只登记名字 —— 但**必须登记**：`sheet-recipes.test.js` 第 ⑮ 格要求
+  //     「配方画得出来的 (块,形态) 对」与形态层**双向差集都空**，不登记那四副就是
+  //     「形态层里有、97 套一次都没画到」，当场红（#1364 上踩过同一格）。
+  'heading-side': { rootExtra: () => ({}), partExtra: {} },
+  masonry: { rootExtra: () => ({}), partExtra: {} },
+  'quote-aside': { rootExtra: () => ({}), partExtra: {} },
+  'single-featured': { rootExtra: () => ({}), partExtra: {} },
 };
 
 // ── #1190 实验钉（「一套候选把 testimonials 画成能滑的横条」）已于 #1339 整条删掉 ───────────────
