@@ -653,6 +653,14 @@ function voiceFor(i) {
     // 上是 3 栏还是 2 栏」的轴**不能跟着列数一起没**：没有它，那 9 个块就从「各有 2 副骨架」塌成
     // 「全都只有 1 副」。所以这一项换成**形态名**这一层的同一条轴 —— 值是形态库里那两个名字。
     plainGrid: i % 2 === 0 ? 'three-up' : 'two-up',
+    // #1364 —— trusted-brands 从一副变成三副（`row` / `heading-side` / `two-row`）。跟 `plainGrid`
+    // 同一条理由：形态层里多出来的那两副必须有人选得到它，否则 `sheet-recipes.test.js` 第 ⑮ 格
+    // 「配方画的那一副 vs 形态层双向差集都空」当场红，报文逐字是「形态层有而一次都没被选中的
+    // trusted-brands/heading-side trusted-brands/two-row」（实测：不加这一项，那一格就是这么红的）。
+    // 🔴 这一项**不改任何已经发出去的选择单**：`theme-pool.json` 与 `public/themes/*.css` 是已经
+    //    生成好、提交进仓的产物，这里只决定**将来重生成池子时**第 i 套候选画哪一副；
+    //    今天没有任何产品代码读 `recipeShapeFor`（现取：除 `sheet-recipes.test.js` 外 0 个消费者）。
+    brandWall: ['row', 'heading-side', 'two-row'][i % 3],
   };
 }
 
@@ -1359,7 +1367,8 @@ const PLAIN_SHAPE_NAMES = {
   'text-block': 'stack',
   // 横排一行的那几个
   'services-nav': 'row',
-  'trusted-brands': 'row',
+  // #1364 —— 三副轮着来（`voiceFor` 的 `brandWall`，按 i % 3），理由写在那一项旁边。
+  'trusted-brands': (v) => v.brandWall,
   // 各自只有一副的
   'services-list': 'two-up',
   'quote-form': 'main-aside',
