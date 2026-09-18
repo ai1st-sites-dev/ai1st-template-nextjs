@@ -706,6 +706,33 @@ function voiceFor(i) {
     //    （`recipeShapeFor`），两套已生成的主题表一个字节不变（`sheet-fresh.js --check` 现跑 rc=0）。
     // 📌 周期：`i % 2`，而第 ⑫ 格那条夹具用的 PERIOD = 14400 是偶数 ⟹ 它仍然是这条轴的整数倍。
     newsletterForm: i % 2 === 0 ? 'form-side' : 'centered-inline',
+    // #1369 —— blog-preview 从 2 副长到 5 副（对表 FlyonUI 新增 featured-list / list-rows /
+    // two-up-horizontal）。
+    // 🔴 **不能挂在 `plainGrid` 上**：那一项在今天的 main（34c85d5e）上是 **7** 个块共用的
+    //    （现取 `grep -c '=> v.plainGrid'`；本票搬走 blog-preview 之后剩 6），动它等于同时改掉
+    //    另外那几个块画什么（与上面 `newsletterForm` / 下面 `brandWall` 同一条理由）。所以
+    //    blog-preview 自己一条轴，按 i % 5 在五副之间转。
+    // 🔴 它买到的是**这三副在 ⑮ 的报告里看得见**，不是一道守卫 —— 这几行原来写的是「不登记那三副
+    //    就是『形态层有而一次都没被选中』，当场红」，**那句话是假的**（#1369 r3 按 PM 2026-09-18
+    //    那条裁定改成实话；同族第 5 处，已登记 #1325）。⑮ 的这个方向从 #1360 起**只报不判**
+    //    （`sheet-recipes.test.js` 里那句是 `console.log`，不是 `bad()`）。
+    //    单变量实测（2026-09-18，两臂同目录、同一份 node_modules，唯一的差是
+    //    `PLAIN_SHAPE_NAMES['blog-preview']` 那一行）：把它退回 `(v) => v.plainGrid` ⟹
+    //    ⑮ 那行「形态层里有、而 97 套候选一次都没画到的」从 **22 个变成 25 个**（多出来的正是
+    //    blog-preview/featured-list · list-rows · two-up-horizontal），整池用到的 (块,形态) 对
+    //    **87 → 84**，而两臂都是 `══ 汇总: 通过 52 · 失败 0 ══`、**rc=0**。
+    //    登记那一侧由 #1331 的两向差集守，几何那一侧由 #1332 的守卫 ⑨ 量。
+    // 🔴 **数组的次序不是随手排的**：两套活主题的选择单一个字节都不许变（本票 AC）。
+    //    ember-12 是候选号 12 ⟹ i=11 ⟹ 11 % 5 = 1，azure-29 是 29 ⟹ i=28 ⟹ 28 % 5 = 3，
+    //    所以第 1 位必须仍是 `two-up`、第 3 位必须仍是 `three-up`（`plainGrid` 给这两个 i 的答案）。
+    //    实测在 `sheet-recipes.test.js` 的 ⑮ 与 `theme-pool.json` 的读回里。
+    // 📌 周期：`i % 5`。吃 voice 周期的那条夹具是**反向 ②**（「voice / 画法 / 调色板三样都相同的
+    //    两套，hero 规则逐字节相同」），它要求 `voiceFor(i)` 与 `voiceFor(i + PERIOD)` 逐字相同，
+    //    而那个 `PERIOD` 今天是 **28800**（#1363 把它从 14400 重量成 28800）⟹ 28800 / 5 = 5760，
+    //    这条新轴不破它（实测：那一格绿，整份 52 过 0 失败）。
+    //    📌 上一版这里写的是「第 ⑫ 格那条夹具」—— 那个格号是错的（⑫ 是「每个块有几副骨架」那格，
+    //       不吃周期），沿袭自 `newsletterForm` 那段的同一句。
+    blogWall: ['featured-list', 'two-up', 'list-rows', 'three-up', 'two-up-horizontal'][i % 5],
     // #1364 —— trusted-brands 从一副变成三副（`row` / `heading-side` / `two-row`）。跟 `plainGrid`
     // 同一条理由：形态层里多出来的那两副必须有人选得到它，否则 `sheet-recipes.test.js` 第 ⑮ 格
     // 「配方画的那一副 vs 形态层双向差集都空」当场红，报文逐字是「形态层有而一次都没被选中的
@@ -1438,9 +1465,13 @@ const PLAIN_SHAPE_NAMES = {
   //    它不在 `hooksByBlock()` 里（借 hero 的类名，manifest 的 `hooksFrom`），所以只有点名问它的
   //    那两格会读到它：⑮ 的双向差集，和 `recipeSheetFor(..., {only: 'hero-with-form'})`。
   'hero-with-form': (v) => v.heroFormLook,
-  // 🔴 这 9 个跟着候选走：3 栏 / 2 栏两副轮着来（`voiceFor` 的 `plainGrid`，按 i % 2）。
+  // 🔴 这 6 个跟着候选走：3 栏 / 2 栏两副轮着来（`voiceFor` 的 `plainGrid`，按 i % 2）。
+  //    📌 这个数原来写的是 9，而 `grep -c '=> v.plainGrid'` 在今天的 main（34c85d5e）上现取是 **7**
+  //       —— #1361 / #1364 各把一个块搬去自己那条轴时没回来改它。本票（#1369）又搬走 blog-preview
+  //       ⟹ 现取 6，一并改对。
   //    这条轴以前住在 `v.wide` 那个**列数**里，#1339 把它抬到形态名这一层，理由在 `plainGrid` 上面。
-  'blog-preview': (v) => v.plainGrid,
+  // #1369 —— blog-preview 自己一条轴（五副），理由写在 `voiceFor` 的 `blogWall` 旁边。
+  'blog-preview': (v) => v.blogWall,
   gallery: (v) => v.plainGrid,
   'map-area': (v) => v.plainGrid,
   'pricing-table': (v) => v.plainGrid,

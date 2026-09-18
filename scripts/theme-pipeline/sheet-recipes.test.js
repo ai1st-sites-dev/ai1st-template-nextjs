@@ -1638,24 +1638,40 @@ console.log(`\n⑫ #1139 每个块在 ${SAMPLE_N} 套候选里有几副骨架（
   //    里（列数），几何删干净之后它被抬到形态名这一层 —— 同一条轴，换了个不是几何的携带者。
   //    这一条把「27 个块只有一副骨架」那个基线钉成机器读数，而不是一句散文。
   {
+    // 🔴 #1369 —— 这一格原来把「没有候选表的块」钉死成 **1 副或 2 副**（写死一个名字 / 落到
+    //    `v.plainGrid` 那两副），第三种当场进 problems。blog-preview 这一批对表票给它加到 5 副之后
+    //    那个写法就挡在正路上了。**改成更强的判据，不是更松的**：
+    //      旧：种数 ∈ {1, 2}                                  —— 数字对不上就红，但 2 副时并不查
+    //                                                            那两副是不是真画出两副不同的骨架
+    //      新：种数 == 这个块的配方在整池里**能画出的形态个数**  —— 跟上面家族那一格同一条判据
+    //    也就是说「配方说它有 N 副，就必须真读到 N 副不同的骨架」；两副撞成一副照样红，
+    //    而块长到几副都不用回来改这里。
     const problems = [];
-    let one = 0; let two = 0; const three = [];
+    const byCount = new Map();
     for (const b of BLOCKS) {
       if (LOOK_FAMILIES.some((f) => f.blocks.includes(b))) continue;
+      const declared = new Set();
+      for (let i = 0; i < N; i += 1) declared.add(recipeShapeFor(b, i));
       const got = varietyOf(b);
-      if (got === 1) one += 1;
-      else if (got === 2) two += 1;
-      // #1364 —— 第三档。`trusted-brands` 从一副长到三副（`row` / `heading-side` / `two-row`），
-      // 形态名落到 `voiceFor` 的 `brandWall`，按 i % 3 转。这一档**不是把上限放开**：3 副仍要逐个
-      // 报出来是谁，而 0 副或 ≥4 副照旧进 problems —— 那两种才是「骨架是从哪儿来的」问的情形。
-      else if (got === 3) three.push(b);
-      else problems.push(`${b}：没有候选表却读到 ${got} 种骨架 —— 那它的骨架是从哪儿来的？`);
+      if (got !== declared.size) {
+        problems.push(`${b}：配方在整池里能画 ${declared.size} 副（${[...declared].join(' / ')}），`
+          + `实际只读到 ${got} 种骨架 —— 有两副撞成同一副了`);
+      }
+      if (!byCount.has(got)) byCount.set(got, []);
+      byCount.get(got).push(b);
     }
     if (problems.length) problems.forEach(bad);
     else {
-      ok(`⑫ 没有候选表的 ${one + two + three.length} 个块：${one} 个恒 1 副（PLAIN_SHAPE_NAMES 里写死了形态名）、`
-        + `${two} 个 2 副（形态名落到 voiceFor 的 plainGrid，按 i % 2 在 three-up / two-up 之间转）、`
-        + `${three.length} 个 3 副（${three.join(' ') || '无'}，按 i % 3 转）`);
+      // 🔴 合并 #1364 时保留的那半句话：**3 副及以上要逐个报出是谁**（`trusted-brands` 的
+      //    `row` / `heading-side` / `two-row` 就是第一个 3 副的块，形态名落到 `voiceFor` 的
+      //    `brandWall` 按 i % 3 转）。#1364 那一版是「1 / 2 / 3 三档 + 其余进 problems」，
+      //    而 blog-preview 在本票里是 **5 副** ⟹ 那个写法会把它判成「骨架是从哪儿来的？」。
+      //    下面这一版把档位整个换成「配方说几副就要真读到几副」，三档是它的特例，
+      //    ≥3 副照样逐个点名，所以 #1364 要的那条信息一个字没丢。
+      const said = [...byCount.keys()].sort((x, y) => x - y)
+        .map((k) => `${byCount.get(k).length} 个 ${k} 副${k >= 3 ? `（${byCount.get(k).join(' ')}）` : ''}`);
+      ok(`⑫ 没有候选表的 ${[...byCount.values()].reduce((a2, v) => a2 + v.length, 0)} 个块，`
+        + `配方说几副就真读到几副不同的骨架：${said.join(' · ')}`);
     }
   }
 
