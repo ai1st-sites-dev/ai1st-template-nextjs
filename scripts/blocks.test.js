@@ -367,10 +367,23 @@ console.log('\n── ⑩ #1341 老站残留的 block_layout / variant 读的时
     else ok(`readPageBlocks 丢掉了块上的 block_layout（${key} 形状），其余一个字节没动`);
   }
 
-  const withVariant = normalizeListSlots({ type: 'hero', data: { headline: 'H', variant: 'centered' } });
+  // 🔴 这一格问的是「没有列表槽的块也丢得掉 variant 吗」，所以被问的那个块**现取**，不写死名字
+  //    （#1358 之前这里写的是 `hero`，而本票给 hero 加了 `imageBand` 这个列表槽 —— 写死一个名字的
+  //    失败方向是静默的：这一格照样绿，而它走的已经不是「提前返回」那一支了）。
+  //    判据跟 `blocks.js` 的 `listSlotsFor` 逐字同一条：`spec.kind === 'list'`。
+  const manifestsForList = blocks.loadBlockManifests(NEXT);
+  const noListType = Object.keys(manifestsForList).sort()
+    .find((t) => !Object.values((manifestsForList[t] || {}).slots || {}).some((sp) => sp && sp.kind === 'list'));
+  if (!noListType) {
+    bad(`夹具不成立: ${Object.keys(manifestsForList).length} 份 manifest 里一个没有列表槽的块都没有`
+      + ' —— 这一格问不出「提前返回」那一支');
+  } else ok(`夹具成立: 拿 ${noListType} 来问（它没有列表槽），下面两条读数因此走的是「提前返回」那一支`);
+  const variantType = noListType || 'hero';
+
+  const withVariant = normalizeListSlots({ type: variantType, data: { headline: 'H', variant: 'centered' } });
   if ('variant' in withVariant.data) bad(`normalizeListSlots 没丢掉 data.variant: ${JSON.stringify(withVariant.data)}`);
   else if (withVariant.data.headline !== 'H') bad(`normalizeListSlots 把别的键也动了: ${JSON.stringify(withVariant.data)}`);
-  else ok('normalizeListSlots 丢掉了 data.variant，同一个 data 里别的键原样留着');
+  else ok(`normalizeListSlots 丢掉了 ${variantType} 的 data.variant，同一个 data 里别的键原样留着`);
 
   // 🔴 后半（反向对照）：**没写这两个键时一个字节都不动**。丢弃那两行如果写成无条件重建对象，
   //    这一格当场红 —— 而「逐字节不变」那条 AC 就立足在这上面。
@@ -380,17 +393,22 @@ console.log('\n── ⑩ #1341 老站残留的 block_layout / variant 读的时
     ok('反向对照: 没写 block_layout 时 readPageBlocks 返回同一个数组、同一个块对象（没有重建）');
   } else bad(`没写 block_layout 时对象被换掉了: 数组同一个 ${sameArr === clean.blocks} · 块同一个 ${sameArr[0] === clean.blocks[0]}`);
 
-  const noVariant = { type: 'hero', data: { headline: 'H' } };
+  const noVariant = { type: variantType, data: { headline: 'H' } };
   if (normalizeListSlots(noVariant) === noVariant) ok('反向对照: 没写 variant 时 normalizeListSlots 返回同一个 block（没有重建）');
   else bad('没写 variant 时 block 被换掉了');
 
-  // 🔴 还要问一句：`normalizeListSlots` 丢 variant 这件事在**没有列表槽的块**上也成立吗。
-  //    它原来头几行就是 `if (!slots.length) return block;` —— 丢弃写在那一行后面的话，hero 这种
-  //    没有列表槽的块就丢不掉，而 hero 恰好是老站里最常带 variant 的那一个。
-  const heroSlots = (blocks.loadBlockManifests(NEXT).hero || {}).slots || {};
-  const heroHasList = Object.values(heroSlots).some((sp) => sp && sp.kind === 'list');
-  if (heroHasList) bad('夹具不成立: hero 现在有列表槽了 —— 换一个没有列表槽的块来问这一格');
-  else ok('夹具成立: hero 没有列表槽，上面那条 variant 读数因此走的是「提前返回」那一支');
+  // 🔴 另一半：**有**列表槽的块上，丢 variant 这件事同样要成立 —— 它走的是
+  //    `if (!slots.length) return out || block;` 之后那条路（列表槽没填 ⟹ 循环里 `continue`，
+  //    最后回的是丢过 variant 的那个 out）。#1358 之前这一支没有人问：那时 hero 没有列表槽。
+  const listType = Object.keys(manifestsForList).sort()
+    .find((t) => Object.values((manifestsForList[t] || {}).slots || {}).some((sp) => sp && sp.kind === 'list'));
+  if (!listType) bad('夹具不成立: 一份带列表槽的 manifest 都没有 —— 问不出「不提前返回」那一支');
+  else {
+    const withList = normalizeListSlots({ type: listType, data: { headline: 'H', variant: 'centered' } });
+    if ('variant' in withList.data) bad(`normalizeListSlots 在带列表槽的 ${listType} 上没丢掉 data.variant: ${JSON.stringify(withList.data)}`);
+    else if (withList.data.headline !== 'H') bad(`normalizeListSlots 在 ${listType} 上把别的键也动了: ${JSON.stringify(withList.data)}`);
+    else ok(`normalizeListSlots 在带列表槽的 ${listType} 上也丢掉了 data.variant（走的是另一支）`);
+  }
 }
 
 // ── #1349 —— 块 id：两条路一处实现 ──────────────────────────────────────────────────────────────

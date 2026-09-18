@@ -7,6 +7,16 @@ import type { BlockConfig } from '@/lib/types/config';
 // 「有图 / 没图」两种内容结构，两种都是下面这同一份 HTML，差别归 `public/shapes.css`。
 // 说明写在 interface **外面**是有意的：`scripts/block-migration/gen-allblocks.js` 按文本切这份字段表
 // （`fields()`），一条写在里面的注释会被它当成又一个字段名，写进演示站的夹具数据里 —— 实测过一次。
+//
+// 🔴 #1358 —— `imageBand` 是可选的图片带（FlyonUI hero-1 那条横向照片带）。`imageUrl` 是**一张**图，
+// 装不下一条带，所以它是自己一个列表槽（`blocks/hero.json` 的 `imageBand`，`required: false`，
+// 没有任何形态把它写进 `needs` —— 它不挑形态，七种都要应付它在与不在）。
+// 🔴 每一项是**对象**、图片那个键叫 `imageUrl`，两条理由都是量出来的，别改成 `string[]`：
+//   ① `scripts/lib/image-urls.test.js` 从 `src/components/**` 现读每个 `<img src={…}>` 的**叶子标识符**，
+//      再核它在 `scripts/lib/image-urls.js` 的 `IMAGE_FIELDS`（今天是 `imageUrl` / `logoUrl`）里 ——
+//      叶子换成 `url` / `src` 这类新名字，那道「这个图片地址是谁给的」的写入闸对这个位置按构造失明
+//      （模型编出来的地址照样写得进去），而那一格会当场红并点名。
+//   ② 同一个名字也让 `collectImagePositions` 把带里的每张图算进「这个站已经有的图」。
 // 🔴 #1374 —— 可选槽 `socialProof`：CTA 下面那条社会证明（头像组 + 评分 + 一句话），出处是 FlyonUI
 // hero-3 / hero-4 左栏 CTA 下方那一条（Chris 2026-09-16 在对表里定为「要」）。不填时整块不渲染，
 // 页面一个像素不变；形态数不变（仍是那七种），`needs` 一个都不改 —— 它是装饰，没有它每种形态照样成立。
@@ -26,6 +36,7 @@ interface HeroSectionProps {
     ctaPrimary: { label: string; href: string };
     ctaSecondary: { label: string; href: string };
     imageUrl?: string;
+    imageBand?: { imageUrl: string; alt?: string }[];
     socialProof?: {
       avatars?: { imageUrl?: string }[];
       rating?: string;
@@ -71,6 +82,15 @@ interface HeroSectionProps {
 // hide, and the invariant checker reads the computed display of exactly these attributes — with no
 // `data-role` in the tree that check passes by having nothing to look at.
 export default function HeroSection({ data, block }: HeroSectionProps) {
+  // 🔴 #1358 r2 —— 带里没有 `imageUrl` 的条目整条不渲染。裸 `<img src={img.imageUrl}>` 在静态导出
+  // 里会写成 `<img class="hero__band-img" alt="…"/>`（没有 src），浏览器里就是一个破图，而建站那道
+  // 校验放它过去（`validateSite` 对 `imageBand` 一条意见都没有）。这条不是新规矩：同一棵组件树里
+  // 另外四处写 `src={…imageUrl}` 的地方都先判了有没有图：`GallerySection` · `ContentSplitSection` ·
+  // 本文件上面那个 `hero__media` · `HeroWithFormSection`（行号会漂，自己 grep `imageUrl ?`）。
+  // 这里 filter 掉而不像 gallery 那样画占位，是因为带里的一条**只有一张图**：没有 `imageUrl` 就什么
+  // 都不剩，而 gallery 那一条还有标题和描述要显示。
+  const imageBand = (data.imageBand ?? []).filter((img) => img && img.imageUrl);
+
   return (
     <section {...blockAttrs('hero', block)} className="hero">
       {/* Decorative only, and empty on purpose: the contract gives sheets ::before/::after on this
@@ -124,6 +144,21 @@ export default function HeroSection({ data, block }: HeroSectionProps) {
           </div>
         ) : null}
       </div>
+      {/* #1358 —— 图片带。空着时**一个字节都不渲染**：验收那条「槽缺席时画出来不变」要的就是这个
+          （最少版产物里这个块的 HTML 与开工前逐字相同）。
+          🔴 这个包装层上**不许**出现 `data-block-part`，它的直接子元素也不许 —— 检查 ⑨ 的同级项取样面
+          是「块的直接子元素 + 带 `data-block-part` 的包装层里一层」（`scripts/lib/layout-intent.mjs:88-92`），
+          带上它，六张照片会一起进取样面，而 hero 七种形态的排版意图写的都是 `items: "none"`
+          （判据 `:234-236`：同类的同级项少于 2 个）—— 七格当场一起红。实测两臂：带 ⟹ items=6 ❌，
+          不带 ⟹ items=1 ✅（读数在 #1358 的留言里）。今天这一层是块的第四个直接子元素、类名独一份，
+          所以直方图里它自己一组一个，`items.length` 仍然 < 2。 */}
+      {imageBand.length > 0 ? (
+        <div className="hero__band" data-role="optional">
+          {imageBand.map((img, i) => (
+            <img key={i} className="hero__band-img" src={img.imageUrl} alt={img.alt || ''} />
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }

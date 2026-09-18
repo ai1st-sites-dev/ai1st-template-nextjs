@@ -272,6 +272,22 @@ const ctaLookFor = (i) => CTA_LOOK_NAMES[
 const formLookFor = (i) => FORM_LOOK_NAMES[
   (i + Math.floor(i / FORM_LOOK_NAMES.length)) % FORM_LOOK_NAMES.length];
 
+// #1358 —— `hero-with-form` 从此有三副形态：`form-side`（表单在侧栏，#1333 那一副）·
+// `form-band`（大图铺满、表单在下方一整条横带）· `form-inline`（表单排进文案那一栏、一行内排开）。
+//
+// 🔴 它**没有**候选表（上面 CTA_LOOKS / FORM_LOOKS 那种）：这三副之间的差别整个住在
+//    `public/shapes.css`（设计文档 D4 —— 形态只能是 CSS），皮那一层一个字都不用改，所以这里只需要
+//    一个名字的轮换，跟 `voiceFor` 的 `plainGrid` 同一档。
+// 🔴 为什么非轮换不可：`sheet-recipes.test.js` 的 ⑮ 拿「97 套候选真的画到过的 (块, 形态) 对」跟
+//    `public/shapes.css` 里的集合做**双向差集**。写死一个名字 ⟹ 新加的两副落进「形态层有而一次都
+//    没被选中」那一半，那一格当场红并点名 —— 意思是那两副没有任何一格在看它们。
+// 🔴 这**不是**「改主题的选择单」：`PLAIN_SHAPE_NAMES` / `recipeShapeFor` 今天只有
+//    `sheet-recipes.test.js` 一个消费者（现取：全仓 grep 这两个名字，产品侧 0 命中），它们不写进
+//    任何产物。盘上那 2 套主题选哪一副仍然由 `scripts/theme-pool.json` 说，本票没碰它。
+const HERO_FORM_LOOK_NAMES = ['form-side', 'form-band', 'form-inline'];
+const heroFormLookFor = (i) => HERO_FORM_LOOK_NAMES[
+  (i + Math.floor(i / HERO_FORM_LOOK_NAMES.length)) % HERO_FORM_LOOK_NAMES.length];
+
 // ── #1139 真站上露面最多的六个块，第三批画法候选 ─────────────────────────────────────────────────
 //
 // #1135 收官时全池 80 套里仍然只有一副骨架的块有 27 个（35 个契约块 − 8 个已有候选表的）。按本机
@@ -626,6 +642,8 @@ function voiceFor(i) {
     //    模数 5 / 6 是量出来的，不是随手取的（理由整段在 CTA_LOOKS 上面那条 🔴）。
     ctaLook: ctaLookFor(i),
     formLook: formLookFor(i),
+    // #1358 —— 带表单的首屏那三副形态之间的轮换（理由在 HERO_FORM_LOOK_NAMES 上面）。
+    heroFormLook: heroFormLookFor(i),
     // #1139 —— 真站上露面最多那六块的画法档。同上一条纪律：这里是唯一的出口。
     //    这六族的「错开步长」m 各不相同，而且都不等于自己的候选数 —— 理由整段在 HEADER_LOOKS
     //    上面那条 🔴（同式同模的两族会完全互相决定）。
@@ -1373,7 +1391,10 @@ const PLAIN_SHAPE_NAMES = {
   'services-list': 'two-up',
   'quote-form': 'main-aside',
   'newsletter-signup': 'form-side',
-  'hero-with-form': 'form-side',
+  // #1358 —— 这一项从写死的一个名字换成跟着候选走的三副（理由在 HERO_FORM_LOOK_NAMES 上面）。
+  //    它不在 `hooksByBlock()` 里（借 hero 的类名，manifest 的 `hooksFrom`），所以只有点名问它的
+  //    那两格会读到它：⑮ 的双向差集，和 `recipeSheetFor(..., {only: 'hero-with-form'})`。
+  'hero-with-form': (v) => v.heroFormLook,
   // 🔴 这 9 个跟着候选走：3 栏 / 2 栏两副轮着来（`voiceFor` 的 `plainGrid`，按 i % 2）。
   //    这条轴以前住在 `v.wide` 那个**列数**里，#1339 把它抬到形态名这一层，理由在 `plainGrid` 上面。
   'blog-preview': (v) => v.plainGrid,

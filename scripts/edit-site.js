@@ -855,6 +855,9 @@ other type does not show a picture, and putting an image field on one has no eff
   when the image already contains the company name (the name is then not drawn as text next to it), false when
   it is an icon only.
 - a **hero** block → \`data.imageUrl\`
+- a **hero** block → \`data.imageBand[].imageUrl\` (one per picture in the optional photo strip under the
+  text — a list of \`{ "imageUrl": "...", "alt": "..." }\`; a hero with no strip simply has no such field,
+  and leaving it out is how you remove the strip)
 - a **hero-with-form** block → \`data.imageUrl\` (the first screen that also collects the visitor's phone
   number — same picture field as **hero**, it is just a different block type)
 - a **content-split** block → \`data.imageUrl\`

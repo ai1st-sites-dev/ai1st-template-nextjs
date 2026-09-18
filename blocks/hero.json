@@ -121,6 +121,12 @@
       "promptOptional": true,
       "shape": "string"
     },
+    "imageBand": {
+      "kind": "list",
+      "required": false,
+      "promptOptional": true,
+      "shape": "[{imageUrl, alt?}]"
+    },
     "socialProof": {
       "kind": "object",
       "required": false,

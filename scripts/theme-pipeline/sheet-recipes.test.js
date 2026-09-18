@@ -297,7 +297,11 @@ const TRIO = [];                                   // 每种画法一个序号�
   //    （i=0 / 60 / 120 都算出 0）。第一版我按「恰好相等」写，这一格当场退 2，而它抱怨的那件事
   //    （某个画法键**没**变）对隔离 hero 变量毫无影响 —— 少变一个键只会让这一列更干净。
   const LOOK_KEYS = LOOK_FAMILIES.map((f) => f.key);
-  const ALLOWED = [...LOOK_KEYS, 'hero', 'splitRhythm'].sort();
+  // 🔴 #1358 —— `heroFormLook` 跟这张名单上的其余几个是同一类：它是**某个块挑哪一副形态**的那一档
+  //    （`hero-with-form` 的 form-side / form-band / form-inline），本来就该沿这一列变。它没有候选表
+  //    （那三副之间的差别整个住在 `public/shapes.css`，皮那一层不用改），所以 `LOOK_FAMILIES` 里
+  //    没有它，只能跟 `splitRhythm` 一样明写。下面那道执照连它一起证（它在 SPLIT_KEYS 里）。
+  const ALLOWED = [...LOOK_KEYS, 'hero', 'splitRhythm', 'heroFormLook'].sort();
   const strayed = differing.filter((k) => !ALLOWED.includes(k));
   if (strayed.length) {
     die(`夹具不成立：这一列的 voice 差在 [${differing.join(', ')}]，其中 [${strayed.join(', ')}] `
@@ -327,7 +331,10 @@ const TRIO = [];                                   // 每种画法一个序号�
 // 本身就是要被量的那个东西。
 // #1139 —— 同样从注册表派生：hero 之外**每一族**的档，加上同页节奏。手抄的那一版每加一族都要有人
 // 记得回来补一个名字，而漏掉的样子是「执照照样发得出来」（那一族变了却没被证明够不着 hero 规则）。
-const SPLIT_KEYS = [...LOOK_FAMILIES.map((f) => f.key).filter((k) => k !== 'heroLook'), 'splitRhythm'];
+// #1358 —— `heroFormLook`（`hero-with-form` 挑哪一副形态）也进这张名单：执照要证的事一个字没变
+// ——**这个键变了，hero 规则不许跟着变**。它今天按构造够不着任何一条 sheet 规则（那三副形态的差别
+// 整个住在 `public/shapes.css`），而「按构造」这三个字本身就是要被量的那个东西。
+const SPLIT_KEYS = [...LOOK_FAMILIES.map((f) => f.key).filter((k) => k !== 'heroLook'), 'splitRhythm', 'heroFormLook'];
 {
   const J = JSON.stringify;
   const keys = Object.keys(voiceFor(0));

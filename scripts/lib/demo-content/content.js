@@ -35,6 +35,18 @@ const DEMO_CONTENT = {
     ctaPrimary: { label: 'Book a service', href: '/quote' },
     ctaSecondary: { label: 'See what we charge', href: '/services' },
     imageUrl: imageUrl('hero-bay'),
+    // #1358 —— 可选的图片带槽（FlyonUI hero-1 那条横向照片带）。六条是守卫 (c) 的下限，
+    // alt 长短不一是它的第二条（最长 ≥ 最短的 2 倍）—— 两条都别往下压。
+    // 🔴 每条都要有 `imageUrl`：缺图的条目组件会整条丢掉（`HeroSection.tsx` 的 filter），
+    //    而图册那一格看起来只是「照片少了一张」，是静默的。
+    imageBand: [
+      { imageUrl: imageUrl('work-1'), alt: 'A technician on the hoist checking brake lines' },
+      { imageUrl: imageUrl('work-2'), alt: 'Rear rotors' },
+      { imageUrl: imageUrl('work-3'), alt: 'Diagnostic scan running on a sedan in bay two' },
+      { imageUrl: imageUrl('work-4'), alt: 'Alignment rack' },
+      { imageUrl: imageUrl('work-5'), alt: 'Oil change underway, drain pan and fresh filter ready' },
+      { imageUrl: imageUrl('work-6'), alt: 'Safety inspection' },
+    ],
     socialProof: {
       avatars: [1, 2, 3, 4, 5, 6].map((n) => ({ imageUrl: imageUrl(`avatar-${n}`) })),
       rating: 4.9,

@@ -2372,6 +2372,63 @@
   max-width: 5rem;
 }
 
+/* hero · 图片带（#1358）—— 这是一个**可选零件**，不是一种形态
+
+   FlyonUI hero-1 的下半截：文案之下一整条横向照片带。它跟着**内容**出现（`blocks/hero.json` 的
+   `imageBand` 槽填了才渲染，`HeroSection.tsx` 空着时一个字节都不画），所以主题**选不了**「有带 /
+   没带」—— 这一条是 PM 在 #1358 r4 裁定的代价，写在票的正文里：五根排版轴里表达不出「一张图」和
+   「一条图片带」的区别，照 hero-5 的先例它落在**已有的 `text-center`** 加这个槽上，hero 的形态数不变。
+
+   🔴 下面这几条**只落在 `.hero__band` / `.hero__band-img` 这两个新类名上**，七种已有形态自己的选择器
+   一条都没碰 —— 验收那条「已有的对不退化」靠的就是这个（改到它们的话，HTML 没变也不等于画出来没变）。
+
+   🔴 `grid-column: 1 / -1` 是承重的，不是顺手写的。两栏的 `media-left` / `media-right` 在 ≥1024px 上是
+   `5fr 6fr` / `6fr 5fr`，这条带不跨列的话会被检查 ⑨ 算成**第三条列带**上的一个零件，那两种形态
+   `columns: "two"` 当场红（判据：`scripts/lib/layout-intent.mjs:119` 判跨列、`:343-352` 判列数）。
+   一栏的那五种上它是恒等式（只有一条列带），留着是保险。
+
+   🔴 `order: 4` 让它排在最后一位：七种形态里 `.hero__deco` / `.hero__body` / `.hero__media` 用掉的是
+   1–3（`media-cover` 那种不用 order、用 grid-row，带按自动放置落到它们下面那一行）。排最后是
+   FlyonUI hero-1 的样子，也让 `media: "below"`（图在正文之下）那条断言的两个当事人不被它隔开。
+
+   三端照 `docs/reference/flyonui/flyonui-hero-section-matrix.html` 的 hero-1：电脑端一整行（几张就是
+   几列，`grid-auto-flow: column`）· iPad 三张一行 · 手机两张并排。
+   🔴 列宽一律 `minmax(0, 1fr)`：`1fr` 的下限是 `auto`（内容的最小尺寸），照片那点最小宽度在 375px 上
+   会把这条带撑出块的内容盒 —— 而验收那条「手机端不横向滚动」数的正是检查 ⑨ 的自溢出清单
+   （开工前基线：全站 0 格）。
+   🔴 **没做上下错位**（FlyonUI 那条带的照片是交错的）：错位要按第几张来排，写法是 `:nth-child()`，
+   而错位之后那几张图的几何**没有任何机器判据**（带里的图不在检查 ⑨ 的取样面上，见 `HeroSection.tsx`
+   那段注释）。票的正文把这一格列成了本票买不到的东西，所以这里不加一个没人看得住的花样。 */
+
+[data-block="hero"] .hero__band {
+  order: 4;
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  width: 100%;
+}
+
+[data-block="hero"] .hero__band-img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+@media (min-width: 768px) {
+  [data-block="hero"] .hero__band {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  [data-block="hero"] .hero__band {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+  }
+}
+
 /* ══ hero-with-form ══════════════════════════════════════════════════════════════════════ */
 
 /* hero-with-form · form-side  （这个块今天只有这一种排版；azure-29 与 ember-12 的选择单都指向它）
@@ -2435,6 +2492,250 @@
 @media (min-width: 1024px) {
   [data-block="hero-with-form"][data-shape="form-side"] {
     grid-template-columns: 6fr 5fr;
+  }
+}
+
+/* hero-with-form · form-band  （#1358；FlyonUI hero-11 / 15 / 22）
+
+   一整幅大图铺满第一屏、文案压在图上，**下面一整条横向表单条**。三端照
+   `docs/reference/flyonui/flyonui-hero-section-matrix.html`：电脑端三个字段加按钮同一行（hero-15 的
+   「3 个下拉 + 搜索按钮同一行」）· iPad 排成 2×2（那三条的 t 段逐条写着「4 格变成 2×2 网格」）·
+   手机字段竖排、按钮独占一行（m 段：「3 个字段竖排、搜索按钮独占一行」）。
+
+   🔴 表单里的 `label` / `input` 怎么配成一列一列的：靠 `grid-auto-flow: column` + 两行的显式行轨道，
+   **不靠 `:nth-child()`**。`HeroLeadForm` 渲染出来的是 label→input→label→input→label→input→按钮
+   这样一串平级子元素，按列流放置正好把每一对 label+input 收进同一列。蜜罐那个 `<div>` 不占格子 ——
+   它带着行内 `position: absolute`（`HeroLeadForm.tsx` 里那段注释说了为什么必须是行内），绝对定位的
+   子元素不是网格项。按钮用**显式**行列坐标放在最后一格，不跟着列流走。
+
+   🔴 **四个直接子元素每一个都点名 `grid-column: 1`**，这一条是实测出来的，不是啰嗦：图和文案都写着
+   `grid-row: 1`（文案压在图上就是这个形态的意思），而**不点名列**的话自动放置会把第二个挤进一条
+   **隐式**列带 —— 那时根上真的有两条轨道。实测（1280px 真浏览器，点名之前）：
+   `grid-template-columns` 读到 `793.203px 408.406px`、图只有 793/1232 宽 ⟹ 检查 ⑨ 的 `media-cover`
+   （要 ≥95% 内容盒宽）和 `columns`（声明 one、实际占 2 条）两条一起红；375px 上文案被挤到
+   x 238–518，块自己横向溢出 143px。**点名之后两个都落在第 1 列、真正叠在一起。**
+   📌 为什么不照 `hero/media-cover` 那样写 `grid-column: 1 / -1`：那样写会让每个子元素都成为
+   「跨列」的，检查 ⑨ 的 `placeable` 掉到 0，`columns` 那条严格判据退化成 `columns-degraded`
+   （占用 ≤ 声明）—— 绿的，但量的东西少了。`grid-column: 1` 在一条轨道的网格里效果相同而不跨列。
+
+   🔴 `min-width: 0` 那条点的是 `input` 这个标签，而这是这份文件里第一次出现标签选择器 ——
+   理由是那个零件**按设计没有自己的类名**：契约 §1 拒绝标签选择器，所以 `.hero__form input` 的样式
+   住在结构层（`src/app/globals.css`，它给了 `display: block; width: 100%`），主题够不着它。
+   而网格项的自动最小尺寸是 `min-content`，输入框那点最小宽度会把 `minmax(0, 1fr)` 的列撑破 ⟹
+   在窄视口上整条表单伸出块的内容盒。收在这两种形态的选择器里，射程不越过它们。 */
+
+[data-block="hero-with-form"][data-shape="form-band"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+  min-height: 36rem;
+}
+
+[data-block="hero-with-form"][data-shape="form-band"] .hero__media {
+  aspect-ratio: auto;
+  grid-row: 1;
+  grid-column: 1;
+  align-self: stretch;
+  min-height: 30rem;
+}
+
+[data-block="hero-with-form"][data-shape="form-band"] .hero__body {
+  display: grid;
+  align-content: start;
+  align-self: center;
+  max-width: 44rem;
+  grid-row: 1;
+  grid-column: 1;
+}
+
+[data-block="hero-with-form"][data-shape="form-band"] .hero__title {
+  grid-column: 1 / -1;
+}
+
+[data-block="hero-with-form"][data-shape="form-band"] .hero__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="hero-with-form"][data-shape="form-band"] .hero__cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+[data-block="hero-with-form"][data-shape="form-band"] .hero__deco {
+  grid-row: 2;
+  grid-column: 1;
+  max-width: 7rem;
+}
+
+[data-block="hero-with-form"][data-shape="form-band"] .hero__form {
+  grid-row: 3;
+  grid-column: 1;
+  display: grid;
+  width: 100%;
+}
+
+[data-block="hero-with-form"][data-shape="form-band"] .hero__form-success {
+  grid-row: 3;
+  grid-column: 1;
+}
+
+[data-block="hero-with-form"][data-shape="form-band"] .hero__form input {
+  min-width: 0;
+}
+
+/* iPad：四格排成 2×2 —— 两条列轨道 × 四条行轨道，按列流放置 ⟹ 左列是前两对 label+input、
+   右列是第三对，按钮显式占右列下半。 */
+@media (min-width: 768px) {
+  [data-block="hero-with-form"][data-shape="form-band"] .hero__form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: auto auto auto auto;
+    grid-auto-flow: column;
+    align-items: end;
+  }
+
+  [data-block="hero-with-form"][data-shape="form-band"] .hero__form button {
+    grid-column: 2;
+    grid-row: 3 / -1;
+    align-self: end;
+  }
+}
+
+/* 电脑端：三个字段加按钮同一行。 */
+@media (min-width: 1024px) {
+  [data-block="hero-with-form"][data-shape="form-band"] .hero__form {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+    grid-template-rows: auto auto;
+  }
+
+  [data-block="hero-with-form"][data-shape="form-band"] .hero__form button {
+    grid-column: 4;
+    grid-row: 1 / -1;
+    align-self: end;
+  }
+}
+
+/* hero-with-form · form-inline  （#1358；FlyonUI hero-14 / 16 / 20）
+
+   表单排进**文案那一栏**、一行内排开；电脑端图在文旁边（hero-14 的「左文右图」）。手机上那一行
+   **不拆**（hero-14 的 m 段逐字写着「输入框与按钮仍保持在同一行（内联不拆）」）—— 所以列流那几条
+   不挂在断点里，三端都在一行。
+
+   🔴 跟 `form-band` 的差别不止是几何，manifest 里那五根轴上也两两不同：`form-side` 是
+   `media: below` + `columns: two`、`form-band` 是 `media: cover` + `columns: one`、这一种是
+   `media: side` + `columns: two`。三者在检查 ⑨ 的断言名表上因此分别落在 `media-below` /
+   `media-cover` / `media-side` —— 验收那条「靠某根轴的声明区分时，那根轴的断言名必须真出现在
+   名字表里」要的就是这个（`item_wrap: avoid` 那条在容器没有余宽时整条不执行，所以没拿它区分）。
+
+   🔴 FlyonUI 那三条是「一个邮箱框 + 按钮」，我们的表单固定三个字段（姓名 / 邮箱 / 电话，
+   `HeroLeadForm.tsx`）—— 字段数是**内容**不是几何（设计文档 D14 第 3 条），本票不动它。 */
+
+[data-block="hero-with-form"][data-shape="form-inline"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+  min-height: 30rem;
+}
+
+[data-block="hero-with-form"][data-shape="form-inline"] .hero__deco {
+  grid-column: 1 / -1;
+  order: 1;
+  max-width: 5rem;
+}
+
+[data-block="hero-with-form"][data-shape="form-inline"] .hero__body {
+  display: grid;
+  align-content: start;
+  max-width: 36rem;
+  order: 2;
+}
+
+[data-block="hero-with-form"][data-shape="form-inline"] .hero__title {
+  grid-column: 1 / -1;
+}
+
+[data-block="hero-with-form"][data-shape="form-inline"] .hero__sub {
+  grid-column: 1 / -1;
+  max-width: 36rem;
+}
+
+[data-block="hero-with-form"][data-shape="form-inline"] .hero__cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+[data-block="hero-with-form"][data-shape="form-inline"] .hero__form {
+  order: 3;
+  display: grid;
+  grid-template-rows: auto auto;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  align-items: end;
+  width: 100%;
+}
+
+[data-block="hero-with-form"][data-shape="form-inline"] .hero__form button {
+  grid-row: 1 / -1;
+  align-self: end;
+}
+
+[data-block="hero-with-form"][data-shape="form-inline"] .hero__form input {
+  min-width: 0;
+}
+
+[data-block="hero-with-form"][data-shape="form-inline"] .hero__form-success {
+  order: 3;
+}
+
+[data-block="hero-with-form"][data-shape="form-inline"] .hero__media {
+  order: 4;
+  aspect-ratio: 5 / 4;
+}
+
+/* 🔴 没填图的时候这个形态只有一列 —— 表单跟着跨满它。
+
+   为什么要单独写这一条：`hero-with-form` 的图是可选槽，没填时 `.hero__media` 整个
+   `display: none`（本文件末尾那条 `:not([data-has-imageUrl])`，#1337 立的）。那时右边那一列
+   **没有样本**，而左列里还站着正文和表单两个不跨列的零件 ⟹ 检查 ⑨ 的 `placeable` 是 2、够得着
+   声明的 two，于是走**严格**那条判据（占用的列带 === 2），而实际只占 1 条 —— 当场红。
+   实测（最少版 · 1280px · /allblocks.html）：`该占 2 条列带（"two"），实际占 1 条`。
+   让表单跨满之后 `placeable` 掉到 1（只剩正文），判据按设计退化成「占用 ≤ 声明」（`layout-intent.mjs`
+   `:343-352`：没有样本不是排错了）—— 跟 `hero/media-left` 在同一版夹具上的走法逐字相同。
+   📌 有图的那一版一个字节都不受影响（选择器带 `:not([data-has-imageUrl])`）。 */
+@media (min-width: 1024px) {
+  [data-block="hero-with-form"][data-shape="form-inline"]:not([data-has-imageUrl]) {
+    grid-template-columns: 1fr;
+  }
+
+  [data-block="hero-with-form"][data-shape="form-inline"]:not([data-has-imageUrl]) .hero__form {
+    grid-column: 1 / -1;
+  }
+
+  [data-block="hero-with-form"][data-shape="form-inline"] {
+    grid-template-columns: 6fr 5fr;
+  }
+
+  [data-block="hero-with-form"][data-shape="form-inline"] .hero__deco {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  [data-block="hero-with-form"][data-shape="form-inline"] .hero__body {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  [data-block="hero-with-form"][data-shape="form-inline"] .hero__form {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  [data-block="hero-with-form"][data-shape="form-inline"] .hero__media {
+    grid-column: 2;
+    grid-row: 2 / 4;
+    align-self: stretch;
   }
 }
 

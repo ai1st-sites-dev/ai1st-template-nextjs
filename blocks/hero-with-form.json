@@ -15,6 +15,34 @@
         "media": "below",
         "columns": "two"
       }
+    },
+    {
+      "name": "form-band",
+      "candidate": true,
+      "needs": [
+        "imageUrl"
+      ],
+      "layout_intent": {
+        "items": "none",
+        "item_wrap": "allow",
+        "headline": "none",
+        "media": "cover",
+        "columns": "one"
+      }
+    },
+    {
+      "name": "form-inline",
+      "candidate": true,
+      "needs": [
+        "imageUrl"
+      ],
+      "layout_intent": {
+        "items": "none",
+        "item_wrap": "allow",
+        "headline": "none",
+        "media": "side",
+        "columns": "two"
+      }
     }
   ],
   "slots": {
