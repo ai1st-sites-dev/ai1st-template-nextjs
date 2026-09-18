@@ -539,5 +539,100 @@ console.log('\n── ⑪ #1351 ref 条目上的 hidden 被页面级覆盖读到
   }
 }
 
+// ── ⑫ #1350 站级共用块的页面级覆盖：`ref` 条目上的 shape 真的被读了 ──────────────────────────
+//
+// 跟上面 ⑪ 是同一个洞的第二个字段，而它在 #1350 交付里漏了：`ref` 那一支只显式带过 `hidden`，
+// 于是老板给一个**站级块**挑形态时，manager 放行、worker 真把 `shape` 写进页面 JSON 的 `{ref}`
+// 条目、预览里也当场看得见（AC4 是浏览器侧改属性），**而构建把它静默丢掉** —— 保存重建之后产物里
+// 那个块回到主题形态。#1350 要治的正是「点了保存、产物里却是另一个形态」，这一格是它自己的漏网。
+// 📌 清除那一侧（`resetShapesInSite`）本来就认识 `{ref}` 条目 ⟹ 修之前这个字段只能删、不能用。
+console.log('\n── ⑫ #1350 ref 条目上的 shape 被页面级覆盖读到');
+{
+  const LIB = { 'our-team': { type: 'team-grid', role: 'optional', region: 'content', data: { headline: '团队' } } };
+  const runOne = (entry, lib = LIB) => {
+    const report = {};
+    const out = normalizeLocalePages([{ slug: 'home', blocks: [entry] }], lib, 'en', report);
+    return { block: out[0].blocks.find(b => b.id === 'our-team'), report };
+  };
+
+  // 正臂：这一页写了 shape ⟹ 解出来的块带着它（sync-config 的三级取值第 ① 级读的就是 block.shape）
+  {
+    const { block } = runOne({ ref: 'our-team', shape: 'band-left' });
+    if (!block) bad('正臂: ref 根本没解出来（夹具坏了）');
+    else if (block.shape === 'band-left') ok('正臂: ref 条目上的 shape 被带到解出来的块上');
+    else bad(`正臂: shape 没被带过来（block.shape = ${JSON.stringify(block.shape)}）—— 这正是改动前的读数`);
+  }
+
+  // 🔴 反向对照一：这一页**没写** shape ⟹ 块上不许凭空出现这个键。
+  //    无条件 `shape: entry.shape` 会给每个 ref 条目塞一个 `shape: undefined`；而更坏的变体
+  //    （补一个默认值）会让 `shapeForBlock` 的第 ① 级恒命中，主题选择单从此对站级块失效。
+  {
+    const { block } = runOne({ ref: 'our-team' });
+    if (block && !Object.prototype.hasOwnProperty.call(block, 'shape')) {
+      ok('反向对照: 这一页没写 shape 时，块上不会凭空多出这个键');
+    } else bad(`没写 shape 却多出了这个键: ${JSON.stringify(block && block.shape)}`);
+  }
+
+  // 🔴 反向对照二：站级块自己写了形态、这一页没说话 ⟹ 站级那个要留着（`...target` 带过来的）。
+  {
+    const shapedLib = { 'our-team': { ...LIB['our-team'], shape: 'grid-3' } };
+    const { block } = runOne({ ref: 'our-team' }, shapedLib);
+    if (block && block.shape === 'grid-3') ok('反向对照: 站级块自己写的 shape 没被这一页抹掉');
+    else bad(`站级块自己的 shape 丢了: ${JSON.stringify(block && block.shape)}`);
+  }
+
+  // 🔴 反向对照三：两边都写了 ⟹ **这一页的赢**（「站级共用块只改本页那一份」是 #1351 定的口径，
+  //    本票的写路径也照它）。少了这一格，一个「站级的永远赢」的实现也能让上面三格全绿。
+  {
+    const shapedLib = { 'our-team': { ...LIB['our-team'], shape: 'grid-3' } };
+    const { block } = runOne({ ref: 'our-team', shape: 'band-left' }, shapedLib);
+    if (block && block.shape === 'band-left') ok('反向对照: 站级写 grid-3、这一页写 band-left ⟹ 这一页的赢');
+    else bad(`页面级覆盖没赢过站级: ${JSON.stringify(block && block.shape)}`);
+  }
+
+  // 🔴 坏形状：shape 不是字符串 ⟹ 忽略这个字段 + 点名，照 role / weight / hidden 那一套。
+  //    🔴 这里只判**形状**，不判这个名字存不存在：形态名对不对由 `shapeForBlock` 在有 manifest 的
+  //    地方判（#1331 的落回默认 + 日志，本票 AC7 钉的就是它）。两处各判各的那一半，别在这里重写。
+  {
+    const { block, report } = runOne({ ref: 'our-team', shape: 123 });
+    const named = (report.notes || []).filter(n => n.includes('"shape"') && n.includes('our-team'));
+    if (block && Object.prototype.hasOwnProperty.call(block, 'shape')) {
+      bad(`坏形状被放行了: block.shape = ${JSON.stringify(block.shape)}`);
+    } else if (named.length !== 1) {
+      bad(`坏形状没被点名（命中 ${named.length} 条）: ${JSON.stringify(report.notes)}`);
+    } else ok(`坏形状 shape:123 被忽略并点名：${named[0]}`);
+  }
+
+  // 🔴 空字符串跟「没写」是同一个下场，但走的是**另一条**判断：`shapeForBlock` 判的是
+  //    `typeof block.shape === 'string' && block.shape`，空串在那里是假值 ⟹ 落到第 ② 级。
+  //    带一个空串过去不会改变结果，但会让页面 JSON 里那个键看起来「有人挑过」，所以一样不带。
+  {
+    const { block: b2, report: r2 } = runOne({ ref: 'our-team', shape: '' });
+    const named2 = (r2.notes || []).filter(n => n.includes('"shape"') && n.includes('our-team'));
+    if (b2 && Object.prototype.hasOwnProperty.call(b2, 'shape')) {
+      bad(`空串被带过去了: ${JSON.stringify(b2.shape)}`);
+    } else if (named2.length !== 1) {
+      bad(`空串没被点名（命中 ${named2.length} 条）: ${JSON.stringify(r2.notes)}`);
+    } else ok('空串 shape 不带过去、并且点名（跟没写的区别在于它被说了一句）');
+  }
+
+  // 🔴 坏形状不许连累别的字段：构建不中断、块照样解出来。
+  {
+    const { block } = runOne({ ref: 'our-team', shape: 123 });
+    if (block && block.type === 'team-grid' && block.data && block.data.headline === '团队') {
+      ok('坏形状只丢掉 shape 这一个字段，块本身原样解出来（构建不中断）');
+    } else bad(`坏形状把别的东西也弄坏了: ${JSON.stringify(block)}`);
+  }
+
+  // 🔴 跟 ⑪ 的合流：同一个 ref 条目上 hidden 与 shape 一起写 ⟹ 两个都要带出来。
+  //    这一格挡的是「用 else if 接在 hidden 后面」这种写法（两个字段互斥，而没有任何单字段的格子会红）。
+  {
+    const { block } = runOne({ ref: 'our-team', hidden: true, shape: 'band-left' });
+    if (block && block.hidden === true && block.shape === 'band-left') {
+      ok('hidden 与 shape 写在同一个 ref 条目上时，两个都被带出来');
+    } else bad(`两个字段没能同时带出: hidden=${JSON.stringify(block && block.hidden)} shape=${JSON.stringify(block && block.shape)}`);
+  }
+}
+
 console.log(`\n══ ${pass} 过 / ${fail} 败 ══`);
 process.exit(fail ? 1 : 0);
