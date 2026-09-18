@@ -37,7 +37,6 @@ import { blockShapeCatalog } from '../../../scripts/lib/block-catalog.js';
 import { demoDataFor } from '../../../scripts/lib/demo-content/index.js';
 import { filledOptionalSlots } from '../../../scripts/lib/block-manifest.js';
 import CatalogBoard from './CatalogBoard';
-import CatalogScroll from './CatalogScroll';
 import ShapeSelect from './ShapeSelect';
 import {
   CATALOG_LOCALE,
@@ -60,7 +59,14 @@ export const metadata = {
 //    渲染得出来吗」，回答不了「这个形态排得好不好」。今天两边都读
 //    `scripts/lib/demo-content/`：一家虚构汽修店的真文案 + FlyonUI 的真图。
 //
-const CATALOG_ADMIN_ORIGIN = (process.env.AI1ST_CATALOG_ADMIN_ORIGIN || '').trim();
+// 🔴 **#1385 删掉了「admin 页发消息让这一页滚过去」那条路** —— 那条消息本身、发它的 admin 页、收它的
+//    那个客户端组件，以及本文件原来读的那个 `AI1ST_CATALOG_*` 环境变量，四样一起没了。admin 那一页现在
+//    不再嵌整页图册：它按【块 × 形态】列卡片，每张卡自己嵌 `/__catalog/<块>/<形态>` 那个单格地址
+//    （#1383），所以「滚到哪一行」这个问题在它那边已经不存在了。这一页本身一个字节没少，它仍然是
+//    「一眼看全部块」的那个地址。
+//    📌 那条消息的**名字**这里一个字都不写：#1385 的 AC4 的尺子就是对着它 `git grep -c`，而写一句
+//    「我们删了 X」正好把 X 放回尺子的视野里（CLAUDE.md §Section-Based Pages 那九个 hero variant 名
+//    就是这么 9/9 命中的）。
 // 🔴 夹具页（`service-related-pages` 那一行要它才画得出来）、主题皮、以及关掉站自己那套主题的
 //    那段脚本，都搬去了 `./catalogShared`（#1383：单格页要用同一份，两处各写一份会分叉）。
 
@@ -161,8 +167,6 @@ export default function CatalogPage() {
           主题设定覆盖）因此不随页顶切主题而变。
           🔴 它是一段**解析期就跑**的内联脚本，不是 effect：晚一帧关掉就会先闪一眼别人的画法。 */}
       <script dangerouslySetInnerHTML={{ __html: OWN_THEME_OFF }} />
-      {/* 收 admin 页发来的滚动消息。来源没配就整个不挂（见 CATALOG_ADMIN_ORIGIN 上面那段）。 */}
-      {CATALOG_ADMIN_ORIGIN ? <CatalogScroll adminOrigin={CATALOG_ADMIN_ORIGIN} /> : null}
       {/* 图册自己的外壳样式。它跟主题层没有共用的选择器，所以两边不会互相压。 */}
       <style dangerouslySetInnerHTML={{ __html: CHROME_CSS }} />
       <CatalogBoard
