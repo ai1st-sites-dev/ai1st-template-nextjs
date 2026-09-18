@@ -102,15 +102,43 @@ function shapeForBlock(block, selection, manifests, log = (line) => console.log(
 //    构建时落回另一个形态），正是 #1350 要治的那种不一致。
 //
 // 回 `{ ok: true }`，或 `{ ok: false, kind, missing, message }`：
+//   · `kind === 'candidate'` —— 形态在清单里、槽位也不缺，但它**还没签字进库**（manifest 上标着
+//     `candidate: true`，#1384）。老板按不到它（下拉里整条不出现），所以走到这里的只有直接打端点
+//     的请求 —— 而它必须被拒，理由见下面那段。
 //   · `kind === 'unknown'` —— 这个块的清单里没有这个形态（区块库里压根没有，或者后来被删了）
 //   · `kind === 'gap'`     —— 形态在清单里，但这个站的这一块缺它 `needs` 的槽位，`missing` 是槽位名
 //   · `message` 是给老板看的**一句话**，manager 原样放进 400 的 `error` 里。
+//
+// 🔴 **候选那一支必须在这里，不能只在构建那一半（#1350 r6）。** 这两半今天读的是**同一个字段**
+//    （`shapes[i].candidate`），而在 r5 之前只有构建那一半读它 ⟹ 校验回 `{ ok: true }`、manager 回
+//    202、worker 真把它写进页面 JSON、构建再静默落回主题形态。QA3 2026-09-18 把两半分别量过：
+//    `checkShapeInSite` 回 `{"ok":true,…}`，同一状态下构建打「它是候选（还没签字进库），落回默认」。
+//    那正是本票要治的「点了保存、产物里却是另一个形态」，只是这一次的触发条件是「区块库里进了一个
+//    候选形态」而不是「条目种类不对」。#1364 落地之后它不再是假设（main 上 `trusted-brands` 的
+//    `heading-side` / `two-row` 就是候选）。
+// 🔴 **判据是 manifest 那个字段，不是一份形态名单。** 名单的失败方向是静默的：区块库明天添一个候选
+//    形态，写死名单的那一版正向仍然绿（旧的那两个还在名单里），而新来的那个放行 —— 本票 AC 的反向臂
+//    （去掉某个形态的 `candidate` 再重建，它该回到下拉里、而另一个仍不在）就是照这个来的。
+// 🔴 **顺序跟 §shapeForBlock 一致：候选在缺槽位【之前】。** 一个形态同时是候选又缺槽位时，两半必须
+//    说同一句话；先判缺槽位的话校验会说「先填上 X」，而构建说的是「它是候选」，老板填完 X 再存一次
+//    还是存不进去。
 //
 // 🔴 拿不到这个块的 manifest（`m` 是 undefined）时回 `ok: true` —— 跟 `shapeForBlock` 的
 //    `if (!m) return shape;` 是同一个立场：「这个块类型没有 manifest」是另一回事，不由这个函数裁。
 //    两处要是在这一格上不一致，就会出现「校验拒了、而构建其实会照戴」这种对不上的话。
 function shapeVerdict(m, shapeName, data) {
   if (!m) return { ok: true };
+  // 候选那一支 —— 读的是 §shapeForBlock 上面那一段读的同一个字段，写法也照它（按名字找那一项，
+  // 找不到就不是这一支的事，交给下面的 `unknown`）。
+  const chosen = (Array.isArray(m.shapes) ? m.shapes : []).find((x) => x && x.name === shapeName);
+  if (chosen && chosen.candidate === true) {
+    return {
+      ok: false,
+      kind: 'candidate',
+      missing: [],
+      message: `“${shapeName}” 还没签字进库 —— 它过了全部机器检查，但还等着拍板，所以还不能上真站。`,
+    };
+  }
   const gap = blockManifest.shapeNeedsGap(m, shapeName, data);
   if (gap === null) {
     const known = (Array.isArray(m.shapes) ? m.shapes : []).map((s) => s && s.name).filter(Boolean);
@@ -155,7 +183,7 @@ function shapeVerdict(m, shapeName, data) {
 //   { rootDir?, page, locale?, blockId?, index?, shape }
 // 回（一行 JSON，manager 解它）：
 //   { ok, kind?, missing?, message?, type?, blockId?, index?, themeShape? }
-//     · `kind` —— 'unknown' | 'gap'（形态本身不合法，manager 回 400 并原样转 `message`）
+//     · `kind` —— 'candidate' | 'unknown' | 'gap'（形态本身不合法，manager 回 400 并原样转 `message`）
 //                 'no-page' | 'no-block' | 'bad-locator' | 'bad-shape'（定位不对，同样是 400）
 //     · `themeShape` —— 这套主题的选择单给这个块的形态。做什么 #5：老板挑的跟它一样时
 //       **不写 `shape` 字段**（manager 把这一笔改发成 `{"shape":null}`），免得页面 JSON 里

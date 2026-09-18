@@ -374,5 +374,185 @@ console.log('\n⑦ resetShapesInSite —— 页面级 / 站级一次清空');
   }
 }
 
+// ── ⑧ 候选形态（#1384 交接给本票的那一条，#1350 r6）─────────────────────────────────────────────
+//
+// 🔴 **这一节守的是「两半读同一个字段」。** 在 r5 之前只有构建那一半读 `shapes[i].candidate`：
+//    `shapeVerdict` 回 `{ ok: true }` ⟹ manager 202 ⟹ worker 真写进页面 JSON ⟹ 构建再静默落回
+//    主题形态。老板点了保存、看到成功，产物却是原来那副 —— 与本票 r4 被打回的那一条同款，只是触发
+//    条件换成了「区块库里进了一个候选形态」。
+// 🔴 **照本文件头那条纪律，用【真 manifest 的深拷贝】改一个字段，不造合成 manifest。** 这样「真 hero
+//    到底长什么样」这一维还在，而且这几格**不依赖今天盘上有没有候选** —— 候选是会进也会出的（Chris
+//    签了字，对表票就把那个标摘掉），而断言不该跟着那件事一红一绿。
+// 🔴 **顺序也要量**：一个形态同时是候选又缺槽位时，两半必须说同一句话（都说「候选」）。先判缺槽位
+//    的实现会让老板去填那个槽，填完再存还是存不进去。
+console.log('\n⑧ 候选形态 —— 校验那一半也要拒（跟构建同一个字段、同一个顺序）');
+{
+  const clone = (o) => JSON.parse(JSON.stringify(o));
+  // 「这个形态在这块数据上缺哪些槽位」—— 借被测对象自己的判据（`shapeVerdict` 的 gap 那一支），
+  // 不在这里另写一份减法：本节要的只是「夹具前提成立吗」，而那个前提的口径必须跟被测的一致。
+  const needsOf = (m, name) => {
+    const r = shapeVerdict(m, name, { headline: 'H' });
+    return r.ok === false && r.kind === 'gap' ? r.missing : [];
+  };
+  const CAND_FREE = 'media-top';      // 不缺槽位？不一定 —— 下面自己量，不假设
+  const CAND_NEEDY = 'media-cover';   // hero 里要 imageUrl 的那个（文件顶部已 die 过它存在）
+
+  const heroCand = clone(manifests.hero);
+  const mark = (name) => {
+    const sh = (heroCand.shapes || []).find((x) => x && x.name === name);
+    if (!sh) die(`hero 的清单里没有 ${name} —— 本节的断言要跟着改`);
+    sh.candidate = true;
+  };
+  mark(CAND_FREE);
+  mark(CAND_NEEDY);
+  const msCand = { ...manifests, hero: heroCand };
+  // 这一节压着的前提先自己量一次：CAND_NEEDY 确实缺槽位（这样「候选压过缺槽位」才有对照）
+  // 🔴 这个前提要在**没标候选**的那份上量：标上之后候选那一支在前面就短路了，量出来永远是 `[]`
+  //    （第一版就是这么写的，它会把一个假前提读成真）。
+  check(needsOf(manifests.hero, CAND_NEEDY).length > 0,
+    `夹具前提：${CAND_NEEDY} 在没填图的块上确实缺槽位（这样下面那格才分得开两种 kind）`);
+
+  // ① 校验那一半：拒，并且点名是「候选」这一种
+  const v = shapeVerdict(heroCand, CAND_FREE, withImage);
+  check(v.ok === false && v.kind === 'candidate',
+    `候选形态 ⟹ kind=candidate（实际 ${JSON.stringify(v.kind)}）← 在 r5 上这里是 ok:true，manager 会 202`);
+  check(typeof v.message === 'string' && v.message.includes(CAND_FREE) && v.message.includes('签字进库'),
+    `candidate 的报文点名了这个形态、并说出它为什么不能选（实际 ${JSON.stringify(v.message)}）`);
+  check(Array.isArray(v.missing) && v.missing.length === 0,
+    'candidate 不报缺槽位 —— 它跟这个网站缺什么无关（老板补什么都不会让它可选）');
+
+  // ② 构建那一半：落回默认并说一行（这一半在 r5 上就是对的，这里是为了并排看「两半一句话」）
+  const built = run({ type: 'hero', shape: CAND_FREE, data: withImage }, {}, msCand);
+  check(built.out === manifests.hero.shapes[0].name && !built.threw,
+    `构建落回默认 ${manifests.hero.shapes[0].name}（实际 ${JSON.stringify(built.out)}），不抛`);
+  check(built.log.includes('候选'), `构建说了那一行（实际 ${JSON.stringify(built.log)}）`);
+
+  // ③ 🔴 候选压过缺槽位 —— 两半说的是同一种，而不是一边「候选」一边「先填上 imageUrl」
+  const vNeedy = shapeVerdict(heroCand, CAND_NEEDY, { headline: 'H' });
+  check(vNeedy.ok === false && vNeedy.kind === 'candidate',
+    `同时是候选又缺槽位 ⟹ 校验说 candidate（实际 ${JSON.stringify(vNeedy.kind)}）← 顺序与 shapeForBlock 一致`);
+  const builtNeedy = run({ type: 'hero', shape: CAND_NEEDY, data: { headline: 'H' } }, {}, msCand);
+  check(builtNeedy.log.includes('候选') && !builtNeedy.log.includes('缺槽位'),
+    `构建也说 candidate 那一句、不说缺槽位（实际 ${JSON.stringify(builtNeedy.log)}）`);
+
+  // ④ 🔴 逐形态两半一致 —— 就是第 ⑤ 节那个不变量，跑在一份**带候选**的 manifest 上。
+  //    r5 的实现在这一格上会红：候选那两个形态「校验放行、构建不戴」。
+  {
+    const probes = [{ headline: 'H' }, withImage];
+    let agree = 0; const disagree = [];
+    for (const shape of heroShapes.concat(['no-such-shape'])) {
+      for (const data of probes) {
+        const verdict = shapeVerdict(heroCand, shape, data).ok;
+        const wears = run({ type: 'hero', shape, data }, {}, msCand).out === shape;
+        if (verdict === wears) agree += 1;
+        else disagree.push(`${shape} / data=${JSON.stringify(Object.keys(data))}: 校验=${verdict} 构建戴上=${wears}`);
+      }
+    }
+    check(disagree.length === 0,
+      `${agree} 组（${heroShapes.length + 1} 个形态 × 2 份 data，其中 2 个形态是候选）逐组一致：校验放行 ⟺ 构建真戴上`
+      + (disagree.length ? ` —— 不一致: ${disagree.join(' | ')}` : ''));
+  }
+
+  // ⑤ 🔴 反向臂 —— 这一臂专防「按形态名写死一份候选名单」：把标摘掉，同一个形态就该回来。
+  //    写死名单的实现在上面那些正臂上全绿，在这一臂上红。
+  {
+    const heroBack = clone(manifests.hero);
+    const back = (heroBack.shapes || []).find((x) => x && x.name === CAND_FREE);
+    back.candidate = true;
+    delete back.candidate;                       // 摘掉标（区块库返工 / Chris 签了字就是这个动作）
+    const msBack = { ...manifests, hero: heroBack };
+    const gapBack = needsOf(heroBack, CAND_FREE);
+    const data = gapBack.length ? withImage : { headline: 'H' };
+    const vb = shapeVerdict(heroBack, CAND_FREE, data);
+    check(vb.ok === true, `摘掉 candidate ⟹ 校验放行（实际 ${JSON.stringify(vb)}）`);
+    check(run({ type: 'hero', shape: CAND_FREE, data }, {}, msBack).out === CAND_FREE,
+      '摘掉 candidate ⟹ 构建也真戴上它（两半一起翻面）');
+    // 而同一份里另一个仍标着的形态**仍然**被拒 —— 单变量：两个形态只差那个字段
+    const heroMixed = clone(heroCand);
+    const one = (heroMixed.shapes || []).find((x) => x && x.name === CAND_FREE);
+    delete one.candidate;
+    check(shapeVerdict(heroMixed, CAND_FREE, data).ok === true
+      && shapeVerdict(heroMixed, CAND_NEEDY, withImage).kind === 'candidate',
+      '同一份 manifest 里摘掉一个、留着另一个 ⟹ 只有摘掉的那个回来（判据是字段，不是名单）');
+  }
+
+  // ⑥ `candidate: false` 与「压根没写」都不是候选（别把「有这个键」当成判据）
+  {
+    const heroFalse = clone(manifests.hero);
+    const sh = (heroFalse.shapes || []).find((x) => x && x.name === CAND_FREE);
+    sh.candidate = false;
+    check(shapeVerdict(heroFalse, CAND_FREE, withImage).ok === true, '`candidate: false` 不是候选');
+    check(shapeVerdict(manifests.hero, CAND_FREE, withImage).ok === true, '压根没写 candidate 的不是候选');
+  }
+
+  // ⑥b 🔴 `checkShapeInSite` —— **manager 真正收到的就是这个函数的返回值**，所以 `kind` 必须一路
+  //    传到它。manager 那一侧是 kind 无关的（`block_shape.go` 把 `verdict.Kind` 原样放进 400 的
+  //    `reason`），所以这一格就是「PUT 一个候选形态回 400 并点名是这一种」在容器里的那一段。
+  //    🔴 夹具的 `blocks/` 是真 manifest 的**拷贝**（不是软链），这样标一个 candidate 不碰盘上那份，
+  //       而这几格也不依赖今天盘上有没有候选。
+  {
+    const fs = require('fs');
+    const os = require('os');
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'candsite-'));
+    const en = path.join(tmp, 'site', 'en');
+    fs.mkdirSync(path.join(en, 'pages'), { recursive: true });
+    fs.mkdirSync(path.join(tmp, 'blocks'), { recursive: true });
+    for (const f of fs.readdirSync(path.join(NEXT, 'blocks'))) {
+      fs.copyFileSync(path.join(NEXT, 'blocks', f), path.join(tmp, 'blocks', f));
+    }
+    const heroFile = path.join(tmp, 'blocks', 'hero.json');
+    const heroDoc = JSON.parse(fs.readFileSync(heroFile, 'utf-8'));
+    const target = (heroDoc.shapes || []).find((x) => x && x.name === CAND_FREE);
+    if (!target) die(`夹具里 hero 没有 ${CAND_FREE}`);
+    target.candidate = true;
+    fs.writeFileSync(heroFile, `${JSON.stringify(heroDoc, null, 2)}\n`);
+    fs.writeFileSync(path.join(tmp, 'site', 'site_meta.json'), JSON.stringify({ defaultLocale: 'en' }));
+    fs.writeFileSync(path.join(tmp, 'site', 'theme.json'), JSON.stringify({ themeId: 'azure-29', applied: true }));
+    fs.writeFileSync(path.join(en, 'pages', 'home.json'), JSON.stringify({
+      slug: 'home',
+      title: 'Home',
+      blocks: [{ id: 'home-hero-0', type: 'hero', weight: 0, data: { headline: '有图', imageUrl: 'https://e/a.jpg' } }],
+    }));
+
+    const r = checkShapeInSite({ rootDir: tmp, page: 'home', blockId: 'home-hero-0', shape: CAND_FREE });
+    check(r.ok === false && r.kind === 'candidate',
+      `checkShapeInSite 把 candidate 这一种传了出去（实际 ${JSON.stringify(r)}）← manager 据它回 400 + reason`);
+    check(typeof r.message === 'string' && r.message.includes('签字进库'),
+      'manager 原样转给老板的那句话就是它（不是一个 kind 代号）');
+    // 🔴 反臂：同一个夹具、同一个形态，只把那个字段摘掉 ⟹ 放行。
+    delete target.candidate;
+    fs.writeFileSync(heroFile, `${JSON.stringify(heroDoc, null, 2)}\n`);
+    const r2 = checkShapeInSite({ rootDir: tmp, page: 'home', blockId: 'home-hero-0', shape: CAND_FREE });
+    check(r2.ok === true, `摘掉那个字段 ⟹ 同一个请求放行（实际 ${JSON.stringify(r2)}）`);
+    // 页面 JSON 一个字节没被写（校验不写东西，AC5 的后半句）
+    const after = JSON.parse(fs.readFileSync(path.join(en, 'pages', 'home.json'), 'utf-8'));
+    check(after.blocks.length === 1 && after.blocks[0].shape === undefined,
+      '两次校验跑完页面 JSON 还是原样、没有被写上 shape');
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+
+  // ⑦ 盘上**今天真有的**候选，逐个过两半（这一格的分母会变 —— 它是报读数，上面那几格才是不变量）
+  {
+    const real = [];
+    for (const [type, m] of Object.entries(manifests)) {
+      for (const sh of (m.shapes || [])) {
+        if (sh && sh.candidate === true && sh.name) real.push({ type, name: sh.name, m });
+      }
+    }
+    console.log(`  📌 盘上今天有 ${real.length} 个候选形态${real.length ? `：${real.map((r) => `${r.type}/${r.name}`).join('、')}` : '（一个都没有 —— 上面那几格不依赖它）'}`);
+    const bad2 = [];
+    for (const r of real) {
+      const vr = shapeVerdict(r.m, r.name, {});
+      const wears = run({ type: r.type, shape: r.name, data: {} }, {}, manifests).out === r.name;
+      if (vr.kind !== 'candidate' || wears) bad2.push(`${r.type}/${r.name}: kind=${vr.kind} 构建戴上=${wears}`);
+    }
+    if (real.length) {
+      check(bad2.length === 0,
+        `盘上那 ${real.length} 个候选逐个：校验说 candidate 且构建不戴上`
+        + (bad2.length ? ` —— ${bad2.join(' | ')}` : ''));
+    }
+  }
+}
+
 console.log(`\n══ block-shape.test.js: ${pass} 过 · ${fail} 失败 ══`);
 process.exit(fail ? 1 : 0);
