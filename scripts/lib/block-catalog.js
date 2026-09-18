@@ -36,6 +36,12 @@ const REGISTRY_TS = path.join(NEXT_DIR, 'src', 'lib', 'sections', 'registry.ts')
  * TypeScript，得有类型；在这里再写一遍 `@returns {{…}}` 就是第二份，而且实测 `tsc` 从那一份里
  * 只推出了半个返回值）。
  *
+ * 🔴 **每一对都带 `candidate`（#1384）** —— manifest 的 `shapes[i].candidate`，归一成布尔。候选 =
+ * 过了全部机器检查、Chris 还没点头。**候选照样在这份清单里**：图册要画它、几何守卫要量它；它只是不许
+ * 被挑上真站（两条堵法在 `theme-pipeline/shape-sheet.js` 与 `sync-config.js` §shapeForBlock）。
+ * 🔴 **交接给 #1350**：点选检查器那个形态下拉要**过滤掉 `candidate === true` 的项** —— 候选进图册是给
+ * Chris 看的，不是给站主挑的。#1384 只把这个读数摆出来，不碰 `dashboard/src/components/BlockInspector.tsx`。
+ *
  * @param {object} [opts]
  * @param {string} [opts.registryPath]  默认 `src/lib/sections/registry.ts`
  * @param {string} [opts.blocksDir]     默认 `blocks/`（`loadManifests` 自己的默认值）
@@ -80,6 +86,12 @@ function blockShapeCatalog(opts) {
         shape: sh.name,
         needs: Array.isArray(sh.needs) ? sh.needs.slice() : [],
         intent: layoutIntentFor(m, sh.name),
+        // #1384 —— 候选身份跟着形态走。🔴 **候选照样进这份清单**：图册要画它、几何守卫要量它
+        //    （`theme-css-invariants.mjs` 检查 ⑨ 从这里取 manifests），它只是不许被**挑**上真站。
+        //    归一成布尔，消费者不用去判「有没有这个键」。
+        // 🔴 交接给 #1350：形态下拉要过滤掉 `candidate === true` 的项（理由在 block-catalog.d.ts
+        //    的那个字段上）。本票不碰 `BlockInspector.tsx`。
+        candidate: sh.candidate === true,
       });
     }
   }

@@ -10,7 +10,9 @@
  *    形态以前只住在 CSS 里（manifest 里 0 份知道），提示词 / 验证器 / 检查器三个消费者一个都读不到；
  *    现在两边各有一份，就得有人守「它们是同一份」。任一 manifest 少写一个形态，这里当场红并点名。
  * ② `validateSite` 第 ⑥ 条：页面 JSON 点名的形态缺它 `needs` 的槽位 ⟹ 报一条；填上 ⟹ 不报。两臂都量。
- * ③ `checkManifestShape` 对 `shapes` 的白名单校验：五种写错各自被拒（拼错键静默失效是 #1013 那次的失败方向）。
+ * ③ `checkManifestShape` 对 `shapes` 的白名单校验：逐种写错各自被拒（拼错键静默失效是 #1013 那次的失败方向）。
+ *    🔴 **别在这句话里写个数** —— 这一格的清单是 `cases` 那个数组，加一条就改一次数，而那个数在这儿
+ *    没有任何消费者。#1384 往里加了两条（candidate 的两种写错）+ 两个正向臂。
  *    🔴 负向臂跑在一个临时目录上，**先拿未改动的副本证明这套夹具本身立得起来**，否则五次「被拒」可能全是
  *    夹具坏了（一组对照全读到同一个值 = 尺子坏了）。
  * ④ 三个谓词（slotFilled / shapeNeedsGap / filledOptionalSlots）的读数表 + AC2 钉的两个事实
@@ -121,7 +123,7 @@ console.log('── ② validateSite 第 ⑥ 条');
   check(unknown.length === 1 && unknown[0].includes('不在'), `shape 不在清单里 ⟹ 一条「不在 … 清单里」：${unknown[0] || '(没有)'}`);
 }
 
-// ── ③ checkManifestShape 对 shapes 的五种拒绝 ───────────────────────────────
+// ── ③ checkManifestShape 对 shapes 的逐种拒绝（清单 = 下面那个 cases 数组）─────────────────────
 console.log('── ③ checkManifestShape 白名单');
 {
   const rig = () => {
@@ -154,11 +156,23 @@ console.log('── ③ checkManifestShape 白名单');
     ['同一个形态写两次',
       (m) => { m.shapes.push({ name: 'text-center', needs: [], layout_intent: m.shapes[0].layout_intent }); },
       '"text-center" 写了两次'],
+    // #1384 —— candidate 那两条。
+    // 🔴 第二条是本票整条堵法的地基：候选不上真站是靠「落回 manifest 默认」实现的，默认自己是候选
+    //    的话那个落点就是个候选 ⟹ 两条堵法（选择单、页面 JSON）从落回那一端一起漏掉。
+    ['candidate 不是布尔', (m) => { m.shapes[1].candidate = 'yes'; }, '.candidate 有的话必须是 true/false'],
+    ['默认形态标了 candidate', (m) => { m.shapes[0].candidate = true; },
+      'shapes[0] ("text-center") 是默认形态，不许标 candidate'],
   ];
   for (const [label, mutate, marker] of cases) {
     const msg = withHero(mutate);
     check(msg !== null && msg.includes(marker), `${label} ⟹ 被拒且报文含「${marker}」${msg === null ? '（没拒）' : (msg.includes(marker) ? '' : ` —— 实际: ${msg}`)}`);
   }
+  // 🔴 #1384 —— candidate 那两条各自的**正向臂**。少了它，「`candidate` 这个键一律被拒」会把上面
+  //    两格打绿，而那是本票的反面（候选必须装得进 manifest、进 shapes.css、过每一道检查）。
+  const okNonDefault = withHero((m) => { m.shapes[1].candidate = true; });
+  check(okNonDefault === null, `非默认形态标 candidate: true ⟹ 照常装得起来（${okNonDefault === null ? '是' : `抛了: ${okNonDefault}`}）`);
+  const okFalse = withHero((m) => { m.shapes[0].candidate = false; });
+  check(okFalse === null, `默认形态写 candidate: false ⟹ 照常装得起来（${okFalse === null ? '是' : `抛了: ${okFalse}`}）`);
 }
 
 console.log(`\n══ block-shapes.test.js: ${pass} 过 · ${fail} 失败 ══`);

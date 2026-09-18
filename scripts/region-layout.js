@@ -63,6 +63,49 @@ function shapesOf(blockType) {
   return names;
 }
 
+/**
+ * 同一份清单，**去掉候选**（#1384）—— 「这个区可以被挑中哪几个形态」。
+ *
+ * 🔴 `shapesOf` 自己**不过滤**，是有意的：它回答的是「这个块有哪些形态」，`region-layout.test.js` ⑦
+ *    正拿它跟 manifest 逐项对账，`lib/page-layout.js` / `lib/navigation-owned.js` 也按那个语义读它。
+ *    过滤掉候选就是把一个「清单」悄悄变成一份「可选项」，两个语义住在一个函数名下是它们分叉的方式。
+ *
+ * 🔴 **为什么这条也要有**：Region（顶栏 / 页脚 / 公告条）的形态**不走** `theme-pipeline/shape-sheet.js`
+ *    的 `shapeSheetFor`，也**不走** `sync-config.js` 的 `shapeForBlock` —— 它们由 `regionsForPool`
+ *    （生成池成员时）与 `resolveRegionShapes`（构建时）各自挑。#1384 正文点名的两处堵法按构造
+ *    对这三个区一个字都不说，而它们跟别的 30 个块共用 manifest、共用形态层 ⟹ 一个标了候选的顶栏形态
+ *    会被轮换直接挑中，戴到每一个穿这套主题的真站上。两处各堵一处，同一条规矩。
+ *
+ * 🔴 空清单当场抛，不悄悄回一个候选或者空串：按构造走不到（`checkManifestShape` 不许 `shapes[0]`
+ *    是候选 ⟹ 每个块至少剩一个非候选），真响那天说明那条校验被人放宽了。
+ *    读不出 manifest（`shapesOf` 回 []）时照旧回 [] —— 那是「读不到」，由调用方自己的 notes 处置。
+ */
+function pickableShapesOf(blockType) {
+  const all = shapesOf(blockType);
+  if (!all.length) return all;
+  const pickable = all.filter((name) => !candidateShapeNames(blockType).has(name));
+  if (!pickable.length) {
+    throw new Error(`blocks/${blockType}.json 的形态全是 candidate —— 这个区没得挑。`
+      + '默认形态（shapes[0]）按 checkManifestShape 就不许是候选，走到这里说明那条校验被放宽了');
+  }
+  return pickable;
+}
+
+/** 这个块里标了 `candidate: true` 的形态名（#1384）。跟 `shapesOf` 同一个读法、同一份缓存纪律。 */
+const _candidateCache = new Map();
+function candidateShapeNames(blockType) {
+  if (_candidateCache.has(blockType)) return _candidateCache.get(blockType);
+  let names = new Set();
+  try {
+    const raw = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'blocks', `${blockType}.json`), 'utf-8'));
+    if (Array.isArray(raw.shapes)) {
+      names = new Set(raw.shapes.filter((sh) => sh && sh.candidate === true).map((sh) => sh.name));
+    }
+  } catch { names = new Set(); }
+  _candidateCache.set(blockType, names);
+  return names;
+}
+
 /** 三个区各自的块类型。`topbar` 这个区名对应的块是公告条。 */
 const REGION_BLOCK = { header: 'header', footer: 'footer', topbar: 'announcement-bar' };
 
@@ -92,7 +135,12 @@ function resolveRegionShapes(chosen) {
     const asked = wanted[blockType] !== undefined ? wanted[blockType] : wanted[region];
     let shape = fallback;
     if (asked) {
-      if (list.includes(asked)) shape = asked;
+      // #1384 —— 候选点名了也退回默认。跟 `sync-config.js` §shapeForBlock 那条同一条规矩，只是这三个区
+      // 不走那个函数（它只走页面 JSON 里的块），所以判据在这里再说一次。**分开报**：「是候选」跟
+      // 「不在清单里」是两件事，合成一句会让读日志的人以为 manifest 写漏了一个名字。
+      if (candidateShapeNames(blockType).has(asked)) {
+        notes.push(`theme 给 ${region} 选的形态 "${asked}" 是候选(还没签字进库),退回 ${fallback}`);
+      } else if (list.includes(asked)) shape = asked;
       else notes.push(`theme 给 ${region} 选的形态 "${asked}" 不在 blocks/${blockType}.json 的清单里(${list.join(' / ')}),退回 ${fallback}`);
     }
     out[region] = { shape };
@@ -182,7 +230,8 @@ function heroTitleSurvivesHeaderScrim(sheetCss, colors) {
  * @returns {{variant: string, wanted: string, why: string|null}} `why` 非空 = 让开了,原因在里面
  */
 function headerVariantForPool(index, sheetCss, colors) {
-  const HEADER_SHAPES = shapesOf('header');
+  // #1384 —— 挑的时候跳过候选（`pickableShapesOf`，理由在它上面）。
+  const HEADER_SHAPES = pickableShapesOf('header');
   const wanted = HEADER_SHAPES[index % HEADER_SHAPES.length];
   if (wanted !== 'transparent-overlay') return { variant: wanted, wanted, why: null };
   const verdict = heroTitleSurvivesHeaderScrim(sheetCss, colors);
@@ -224,7 +273,7 @@ function regionsForPool(index, sheetCss, colors) {
   const headerPick = headerVariantForPool(index, sheetCss, colors);
   return {
     header: headerPick.variant,
-    footer: shapesOf('footer')[index % shapesOf('footer').length],
+    footer: pickableShapesOf('footer')[index % pickableShapesOf('footer').length],
     headerMovedBy: headerPick.why,
   };
 }
@@ -232,6 +281,8 @@ function regionsForPool(index, sheetCss, colors) {
 module.exports = {
   REGION_BLOCK,
   shapesOf,
+  pickableShapesOf,
+  candidateShapeNames,
   HEADER_SCRIM_MID_ALPHA,
   HEADER_SCRIM_INK_FLOOR,
   resolveRegionShapes,

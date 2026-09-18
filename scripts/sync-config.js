@@ -749,6 +749,19 @@ function shapeForBlock(block, selection, manifests, log = (line) => console.log(
     return fallback;
   }
   if (!m) return shape;
+  // #1384 —— **候选形态点名了也落回默认。** 候选 = 过了全部机器检查、Chris 还没点头；它进 `shapes.css`、
+  // 进图册、被每一道守卫量，唯独不许真站戴上它。两条会让站戴上形态的路各堵一处，这里是第二条
+  // （第一条是主题选择单，堵在 `theme-pipeline/shape-sheet.js` 的 `shapeSheetFor`）。
+  // 🔴 **不按来源分**：正文点名的是页面 JSON 那一条，而这里对两个来源一视同仁 —— 选择单那一侧虽然有
+  //    生成器和 `pool.test.js` ⑪ 两道在前面挡着，但它们挡的是「新产出的 / 池里的」单子，手改一份
+  //    `theme-pool.json` 或者装一套候选主题都能绕过去，而绕过去的后果正好是本票要防的那一件事。
+  //    分来源写就是把这条堵法做成「只在一条路上成立」，那不是堵。
+  // 🔴 落回的是 manifest 默认，而默认按 `checkManifestShape` 不许是候选 ⟹ 落点一定是实的。
+  const chosen = (Array.isArray(m.shapes) ? m.shapes : []).find((x) => x && x.name === shape);
+  if (chosen && chosen.candidate === true) {
+    log(`  ⚠️  块 ${block.type} 选了形态 ${shape}（${from}）但它是候选（还没签字进库），落回默认 ${fallback}`);
+    return fallback;
+  }
   const gap = blockManifest.shapeNeedsGap(m, shape, block.data);
   if (gap === null) {
     log(`  ⚠️  块 ${block.type} 选了形态 ${shape}（${from}）但 blocks/${block.type}.json 的 shapes 清单里没有它，落回默认 ${fallback}`);
@@ -903,8 +916,15 @@ if (layoutProblems.length) {
   console.error(`  · ${remediation.howToChangePageLayout({ rootDir, siteDir }).sentence}`);
   process.exit(1);
 }
+// #1384 —— 布局钉死的那几个区形态里，候选落回这个站那一类区已经解析出来的形态（`regions`，
+// 它自己已经把候选挡掉了）。理由与「为什么不让 `validateLayout` 报错」整段写在
+// `lib/page-layout.js` §resolveRepeatVariants 上面。
+// 🔴 那一行日志跟页面 JSON 那条（`lib/block-shape.js` §shapeForBlock 打的）同一个样式，并且点名
+//    是哪个布局的哪个区 —— 「静默降级」是这类改动最容易长出来的病。
+const repeated = pageLayoutLib.resolveRepeatVariants(picked.layout, regions);
+for (const note of repeated.notes) console.log(`  ⚠️  ${note}`);
 const pageLayout = { id: picked.layout.id, regions: picked.layout.regions,
-  ...(picked.layout.repeatVariants ? { repeatVariants: picked.layout.repeatVariants } : {}) };
+  ...(picked.layout.repeatVariants ? { repeatVariants: repeated.variants } : {}) };
 console.log(`  Page layout: ${pageLayout.id} → ${pageLayout.regions.join(' · ')}`
   + (picked.explicit ? '' : '（站没挑，按默认）'));
 

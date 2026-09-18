@@ -150,11 +150,18 @@ function resolveSiteRegionLayout(siteDir) {
 function footerVariantsFor(siteDir) {
   const { regions: siteRegions } = resolveSiteRegionLayout(siteDir);
   const picked = pageLayoutLib.resolveSiteLayout(siteDir);
-  const repeat = (picked.layout && picked.layout.repeatVariants) || {};
+  // #1384 —— 读的是**落回之后**的那张表（`resolveRepeatVariants`），不是布局里原样那份。
+  //
+  // 🔴 这不是多一道保险，两处不一致本身就是缺陷：这个函数喂的是 `edit-site.js` 递给 AI 编辑器的
+  //    notes（`resolveSiteRegions` → `edit-site.js` 的 `footer: r.footerVariants`），而产物走的是
+  //    `sync-config.js` 里同一个 `resolveRepeatVariants`。布局点名了一个候选时，产物落回而这里
+  //    不落回的话，我们就是在告诉 AI 编辑器「这个站戴着一个它并没戴的形态」——它会照那句话去改
+  //    只有那个形态才读的字段，而那些字段在页面上根本不存在。
+  const { variants } = pageLayoutLib.resolveRepeatVariants(picked.layout, siteRegions);
   const layoutRegions = (picked.layout && picked.layout.regions) || [];
   return layoutRegions
     .filter((r) => pageLayoutLib.kindOf(r) === 'footer')
-    .map((r) => repeat[r] || siteRegions.footer.shape);
+    .map((r) => variants[r] || siteRegions.footer.shape);
 }
 
 /** 这个站的页面上有没有那条顶部横带（`with-topbar` 那种布局才有）。 */
