@@ -18,7 +18,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const { shapesOf, REGION_BLOCK } = require('../region-layout');
+const { shapesOf, candidateShapeNames, REGION_BLOCK } = require('../region-layout');
 
 const LAYOUTS_DIR = path.join(__dirname, '..', '..', 'page-layouts');
 const DEFAULT_LAYOUT_ID = 'standard';
@@ -206,6 +206,54 @@ function needsTopbar(layout) {
   return ((layout && layout.regions) || []).some((r) => kindOf(r) === 'topbar');
 }
 
+/**
+ * 布局钉死的那几个区形态（`repeatVariants`），**去掉里面的候选**（#1384）。
+ *
+ * 🔴 **这是第三条能让真站戴上候选的路，而它跟另外两条都不重叠。** 主题选择单那条走
+ *    `theme-pipeline/shape-sheet.js` 的 `shapeSheetFor`，页面 JSON 那条走 `sync-config.js` 的
+ *    `shapeForBlock` —— 而布局把「这个页脚区戴哪种形态」直接写在 `page-layouts/*.json` 这份**数据
+ *    文件**里，两条都不经过。QA3 2026-09-17 在会落地的合并形态上真构建复现过：把 `footer` 的
+ *    `slim-row` 标成候选、站挑 `tri-footer`，构建退出码 0、零提示，产物里 `"footer-c":"slim-row"`，
+ *    `SiteShell.tsx` 直传 `Footer` 渲染出来。
+ *
+ * 🔴 **落回的是「这个站那一类区已经解析出来的那个形态」，不是 manifest 的第 0 项。** 传进来的
+ *    `regions` 是 `resolveRegionShapes` 的产物（`{header:{shape},footer:{shape},topbar:{shape}}`），
+ *    它自己已经把候选挡掉了（`region-layout.js` §resolveRegionShapes），所以落回值按构造不是候选。
+ *    取 manifest 第 0 项的话，一个把页脚设成 `cta-band` 的站会在这条路上突然掉回 `multi-column` ——
+ *    那是一个没人要求过的、看得见的改动。
+ *
+ * 🔴 **这里落回，而不是让 `validateLayout` 报错。** 那条路今天存在（`repeatVariants` 的值不在
+ *    结构清单里就 push 一条 problem），而 `sync-config.js` 见到 problem 会 `process.exit(1)`，
+ *    并且它**校验库里每一份布局、不只校验这个站挑的那份** —— 哪天对表票把 `slim-row` 原名重做成
+ *    候选，所有站的构建当天一起红，连没挑 `tri-footer` 的站也红。所以 `validateLayout` 一个字不动
+ *    （它的成员判据仍然是不过滤候选的 `shapesOf`），候选在这里静静落回并说一行话。
+ *
+ * @param {object} layout   `resolveSiteLayout()` 回的那份布局
+ * @param {object} regions  `resolveRegionShapes()` 的产物；缺某一类时那一类不落回（原样留着）
+ * @returns {{variants: object, notes: string[]}}
+ *   `variants` 是落回之后的那张表（键与 `layout.repeatVariants` 逐个相同）；
+ *   `notes` 一行一句人话，调用方自己决定打不打（`sync-config.js` 打，库不打）。
+ */
+function resolveRepeatVariants(layout, regions) {
+  const declared = (layout && layout.repeatVariants) || {};
+  const variants = {};
+  const notes = [];
+  for (const [region, shape] of Object.entries(declared)) {
+    variants[region] = shape;
+    const kind = kindOf(region);
+    const blockType = kind ? REGION_BLOCK[kind] : null;
+    if (!blockType || !candidateShapeNames(blockType).has(shape)) continue;
+    // 这一类区解析出来的那个形态。读不到（布局写了一个 `resolveRegionShapes` 不管的区类）就不动它 ——
+    // 「没有可落回的值」跟「落回一个猜的值」是两件事，后者才是这张票在治的病。
+    const fallback = regions && regions[kind] && regions[kind].shape;
+    if (!fallback) continue;
+    variants[region] = fallback;
+    notes.push(`布局 ${layout && layout.id ? layout.id : '?'} 的 ${region} 点名形态 ${shape} `
+      + `但它是候选（还没签字进库），落回 ${fallback}`);
+  }
+  return { variants, notes };
+}
+
 module.exports = {
   LAYOUTS_DIR,
   DEFAULT_LAYOUT_ID,
@@ -216,5 +264,6 @@ module.exports = {
   loadLayouts,
   validateLayout,
   resolveSiteLayout,
+  resolveRepeatVariants,
   needsTopbar,
 };

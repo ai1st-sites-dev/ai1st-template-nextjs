@@ -83,7 +83,20 @@ function shapeSheetFor(i, seed = 7, { blocksDir = BLOCKS_DIR } = {}) {
   const byType = loadManifests(blocksDir);
   const sheet = {};
   for (const type of [...byType.keys()].sort()) {
-    const names = byType.get(type).shapes.map((sh) => sh.name);
+    // #1384 —— **候选形态不进选择单。** 选择单是「一个真站在这个块上戴哪个形态」的来源
+    //（`themes.js` 的 `shapesFor` → `sync-config.js` 的 `shapeForBlock`），而候选的定义就是
+    // 「过了全部机器检查、Chris 还没点头」⟹ 它可以进库、进图册、被每一道守卫量，就是不许被挑上站。
+    // 🔴 这里是**挑**形态的唯一一处（`generate.js:119` 调的就是这个函数），所以这一条只写在这儿。
+    //    池那一端另有一道常设的闸去问「池里有没有哪套主题指向了候选」（`pool.test.js` ⑪ 第四条子句）
+    //    —— 那道闸管的是**已经在池里**的选择单，包括不是这个函数产出的那些（手改过的、老版本留下的）。
+    const names = byType.get(type).shapes.filter((sh) => sh.candidate !== true).map((sh) => sh.name);
+    // 🔴 失败方向是**喊**，不是悄悄回一个候选或者少一个键：少一个键会在第六道闸上被读成
+    //    「生成器坏了」，回一个候选则整条堵法作废。按构造走不到这儿（`checkManifestShape` 不许
+    //    `shapes[0]` 是候选 ⟹ 每个块至少剩一个非候选），所以它真响的那天说明那条校验被人放宽了。
+    if (names.length === 0) {
+      throw new Error(`blocks/${type}.json 的形态全是 candidate —— 选择单没得挑。`
+        + '默认形态（shapes[0]）按 checkManifestShape 就不许是候选，走到这里说明那条校验被放宽了');
+    }
     sheet[type] = names[mix32(fnv1a32(`${seed}:${i}:${type}`)) % names.length];
   }
   return sheet;

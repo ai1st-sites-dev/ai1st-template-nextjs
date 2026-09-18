@@ -183,5 +183,82 @@ if (RULES.length < 50) die(`从 shapes.css 只切出 ${RULES.length} 条规则 �
   } else problems.forEach(bad);
 }
 
+// ── ⑧ 候选形态不许被这三个区挑中，点名也退回默认（#1384）──────────────────────────────────────
+//
+// 🔴 **为什么这一格在这个文件里**：Region 的形态既不走 `theme-pipeline/shape-sheet.js` 的
+//    `shapeSheetFor`（那是 30 个内容块的选择单），也不走 `sync-config.js` 的 `shapeForBlock`
+//    （那只管页面 JSON 里的块）—— 它们由本文件的 `regionsForPool`（生成池成员时挑）和
+//    `resolveRegionShapes`（构建时用）各自挑。#1384 那两处堵法对这三个区按构造一个字都不说。
+//
+// 🔴 **臂跑在一棵【复制出来的树】上**，盘上的 `blocks/` 一个字节不动：这一格要的是「某个形态是候选」
+//    这个状态，而今天真树上一个候选都没有（那正是 #1384 交付时的状态）。`region-layout.js` 只
+//    require fs / path，且按 `__dirname/../blocks` 找 manifest ⟹ 把它和 blocks/ 一起复制到临时目录，
+//    改临时目录里那一份，再 require 那一份，量到的就是这段代码本身。
+// 🔴 **先拿未改动的副本证明这棵树立得起来**，否则下面三个读数可能全是「副本自己坏了」。
+{
+  const os = require('os');
+  const mkTree = (mutate) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'region-cand-'));
+    fs.mkdirSync(path.join(root, 'scripts'));
+    fs.mkdirSync(path.join(root, 'blocks'));
+    fs.copyFileSync(path.join(__dirname, 'region-layout.js'), path.join(root, 'scripts', 'region-layout.js'));
+    const blocksDir = path.join(__dirname, '..', 'blocks');
+    for (const f of fs.readdirSync(blocksDir)) fs.copyFileSync(path.join(blocksDir, f), path.join(root, 'blocks', f));
+    if (mutate) mutate(root);
+    // 🔴 只 disable `global-require` 这一条 —— `import/no-dynamic-require` 需要 eslint-plugin-import，
+    //    而 `scripts/.eslintrc.json` 没装它 ⟹ 写在 disable 注释里会让 `npm run lint:scripts` 当场红
+    //    （「Definition for rule … was not found」）。实测：origin/main 上那条命令 rc=0，带上它 rc=1。
+    // eslint-disable-next-line global-require
+    return require(path.join(root, 'scripts', 'region-layout.js'));
+  };
+  const markCandidate = (root, block, names) => {
+    const p2 = path.join(root, 'blocks', `${block}.json`);
+    const m = JSON.parse(fs.readFileSync(p2, 'utf-8'));
+    for (const sh of m.shapes) if (names.includes(sh.name)) sh.candidate = true;
+    fs.writeFileSync(p2, JSON.stringify(m, null, 2));
+  };
+
+  // 正向臂：未改动的副本，`pickableShapesOf` 逐项等于 `shapesOf`（今天真树上 0 个候选）
+  const clean = mkTree(null);
+  const cleanOK = JSON.stringify(clean.pickableShapesOf('header')) === JSON.stringify(HEADER_SHAPES);
+  if (cleanOK) ok(`⑧ 正向臂：未改动的副本立得起来，pickableShapesOf('header') 逐项等于 shapesOf（${HEADER_SHAPES.join(' / ')}）`);
+  else bad(`⑧ 正向臂对不上：副本读到 ${JSON.stringify(clean.pickableShapesOf('header'))}，真树是 ${JSON.stringify(HEADER_SHAPES)} —— 下面三个读数不说明任何事`);
+
+  // 🔴 挑不中：把 HEADER_SHAPES[1] 标成候选 ⟹ 它从可挑清单里消失，而且 regionsForPool 在【每一个位子】
+  //    上都挑不到它。只问一个 index 的话，轮换恰好没轮到它时这一格会假绿。
+  const victim = HEADER_SHAPES[1];
+  if (!victim) die('⑧ header 只有一个形态 —— 这一格没有可标成候选的对象');
+  const one = mkTree((root) => markCandidate(root, 'header', [victim]));
+  const pickable = one.pickableShapesOf('header');
+  const everPicked = [];
+  for (let i = 0; i < HEADER_SHAPES.length * 4; i += 1) {
+    everPicked.push(one.regionsForPool(i, '', {}).header);
+  }
+  if (!pickable.includes(victim) && !everPicked.includes(victim)) {
+    ok(`⑧ 把 header 的 "${victim}" 标成候选 ⟹ 可挑清单变成 ${pickable.join(' / ')}，`
+      + `而且 ${HEADER_SHAPES.length * 4} 个位子逐个挑过去一次都没挑到它`);
+  } else {
+    bad(`⑧ 候选仍被挑中：可挑清单 ${JSON.stringify(pickable)}，${HEADER_SHAPES.length * 4} 个位子挑到的是 `
+      + `${JSON.stringify([...new Set(everPicked)])} —— 候选不许上真站`);
+  }
+
+  // 🔴 点名也不行：选择单里手写一个候选（池子里那份单子是可以被手改的）⟹ 退回默认 + notes 说是候选
+  const named = one.resolveRegionShapes({ header: victim });
+  const saidCandidate = (named.notes || []).some((n) => n.includes(victim) && n.includes('候选'));
+  if (named.header.shape === DEFAULT_HEADER && saidCandidate) {
+    ok(`⑧ 选择单点名候选 "${victim}" ⟹ 退回默认 ${DEFAULT_HEADER}，notes 说明它是候选：${(named.notes || []).join(' | ')}`);
+  } else {
+    bad(`⑧ 点名候选之后读到 shape=${named.header.shape}（应当是 ${DEFAULT_HEADER}）· notes=${JSON.stringify(named.notes)}`);
+  }
+
+  // 🔴 全是候选 ⟹ 抛，不悄悄回一个候选或者空串。按构造走不到（checkManifestShape 不许 shapes[0] 是候选），
+  //    所以这一格量的是「那条校验被放宽的那天，这里会喊而不是静默」。
+  const all = mkTree((root) => markCandidate(root, 'header', HEADER_SHAPES));
+  let threw = null;
+  try { all.pickableShapesOf('header'); } catch (e) { threw = e.message; }
+  if (threw && threw.includes('candidate')) ok(`⑧ header 的形态全标成候选 ⟹ 当场抛：${threw.slice(0, 80)}…`);
+  else bad(`⑧ 全是候选时没抛（读到 ${threw === null ? '没抛' : threw}）—— 失败方向必须是喊，不是悄悄挑一个`);
+}
+
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);

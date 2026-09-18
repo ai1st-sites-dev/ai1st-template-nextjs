@@ -59,6 +59,21 @@ function shapeForBlock(block, selection, manifests, log = (line) => console.log(
     return fallback;
   }
   if (!m) return shape;
+  // #1384 —— **候选形态点名了也落回默认。** 候选 = 过了全部机器检查、Chris 还没点头；它进 `shapes.css`、
+  // 进图册、被每一道守卫量，唯独不许真站戴上它。两条会让站戴上形态的路各堵一处，这里是第二条
+  // （第一条是主题选择单，堵在 `theme-pipeline/shape-sheet.js` 的 `shapeSheetFor`）。
+  // 🔴 **不按来源分**：正文点名的是页面 JSON 那一条，而这里对两个来源一视同仁 —— 选择单那一侧虽然有
+  //    生成器和 `pool.test.js` ⑪ 两道在前面挡着，但它们挡的是「新产出的 / 池里的」单子，手改一份
+  //    `theme-pool.json` 或者装一套候选主题都能绕过去，而绕过去的后果正好是本票要防的那一件事。
+  //    分来源写就是把这条堵法做成「只在一条路上成立」，那不是堵。
+  // 🔴 落回的是 manifest 默认，而默认按 `checkManifestShape` 不许是候选 ⟹ 落点一定是实的。
+  // 📌 #1350 r5 —— 这一段是 #1384 写在 `sync-config.js` 里那份 `shapeForBlock` 上的，而本票把这个函数
+  //    搬来了这里。合并时**原样搬过来**，不是重写：两份实现会静默分叉，而这恰好是搬家那张票自己的理由。
+  const chosen = (Array.isArray(m.shapes) ? m.shapes : []).find((x) => x && x.name === shape);
+  if (chosen && chosen.candidate === true) {
+    log(`  ⚠️  块 ${block.type} 选了形态 ${shape}（${from}）但它是候选（还没签字进库），落回默认 ${fallback}`);
+    return fallback;
+  }
   const gap = blockManifest.shapeNeedsGap(m, shape, block.data);
   if (gap === null) {
     log(`  ⚠️  块 ${block.type} 选了形态 ${shape}（${from}）但 blocks/${block.type}.json 的 shapes 清单里没有它，落回默认 ${fallback}`);

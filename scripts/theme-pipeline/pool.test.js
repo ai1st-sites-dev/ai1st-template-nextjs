@@ -642,6 +642,21 @@ if (!skip('⑩ 词边界匹配（a/b/c 三臂）',
     die(`⑪ 读不到 blocks/ 或 public/shapes.css：${e.message} —— 什么都没量成`);
   }
   if (!allBlocks.length) die('⑪ blocks/ 下一份 manifest 都没有 —— 分母塌了，不许当成过');
+  // #1384 —— 第四条子句要的那一半：哪些 (块, 形态) 是**候选**（过了机器检查、Chris 还没点头）。
+  // 🔴 从 manifest 现读，不写死名单：候选是会动的东西（Chris 点头就删掉那个键），抄一份下来的
+  //    失败方向是静默的 —— 名单旧了这一格照样全绿，而池里那套主题已经指着一个未签字的形态。
+  // 🔴 走 `loadManifests` 而不是 `blockShapeCatalog()`：后者把注册表也拉进来当分母，注册表跟 blocks/
+  //    对不上时它抛 —— 那跟这一格要问的事无关，会让「池子好不好」死在别人的毛病上。
+  let candidatePairs;
+  try {
+    const { loadManifests } = require(path.join(NEXT, 'scripts', 'lib', 'block-manifest.js'));
+    candidatePairs = new Set();
+    for (const [type, m] of loadManifests()) {
+      for (const sh of m.shapes) if (sh.candidate === true) candidatePairs.add(`${type}|${sh.name}`);
+    }
+  } catch (e) {
+    die(`⑪ 读不到块 manifest（候选那一半）：${e.message} —— 什么都没量成`);
+  }
   const declared = new Set();
   // 🔴 先把注释剥掉再匹配：`shapes.css` 的文件头里写着 `[data-block="<块类型>"][data-shape="<画法名>"]`
   //    这个**样例**，不剥的话它会被数成第 51 个 (块, 画法) 对 —— 判据不受影响（它只问某一对在不在），
@@ -672,6 +687,19 @@ if (!skip('⑩ 词边界匹配（a/b/c 三臂）',
     if (extraKey.length) {
       out.push(`${label} 的选择单多 ${extraKey.length} 个 blocks/ 里没有的键（块改名或删掉之后留下的老键）：`
         + extraKey.join(' · '));
+    }
+    // #1384 —— 第四条：选择单指向一个**候选**形态。
+    //
+    // 候选 = 过了全部机器检查、Chris 还没点头。它进 `shapes.css`、进图册、被每一道守卫量 —— 上面三条
+    // 子句对它**全部是绿的**（键是齐的 ①、`shapes.css` 里真有那条规则 ②、键也不多 ③），而池里那套
+    // 主题会把它戴到每一个穿这套主题的真站上。这一格是那条「候选不上真站」在**池**这一端的闸。
+    // 🔴 生成器那一端（`shape-sheet.js` 已经跳过候选）挡的是**新产出**的单子；这一条挡的是**已经在
+    //    池里**的那些 —— 手改过的、老版本留下的、候选主题装进来的，那几条路不经过生成器。
+    const onCandidate = allBlocks.filter((b) => typeof sel[b] === 'string' && sel[b]
+      && candidatePairs.has(`${b}|${sel[b]}`));
+    if (onCandidate.length) {
+      out.push(`${label} 选了 ${onCandidate.length} 个候选形态（candidate: true —— 过了机器检查但 Chris `
+        + `还没点头，不许让真站戴上）：${onCandidate.map((b) => `${b}=${sel[b]}`).join(' · ')}`);
     }
     return out;
   };
@@ -730,6 +758,31 @@ if (!skip('⑩ 词边界匹配（a/b/c 三臂）',
     } else {
       bad(`⑪ 反向臂 C 对不上：多出来 ${extra.length} 条（${extra.join(' · ')}）、其余 ${rest.length}/`
         + `${base.length} 条逐条相同 —— 应当正好多一条、且同时点名 ${LAST} 和 not-a-block`);
+    }
+  }
+  // 🔴 #1384 —— 第四个臂，驱动的还是上面那个 `judge()` 本身（同一条理由：在旁边另写一遍表达式的
+  //    对照，把真判断整个换掉照样打绿）。这个臂喂的不是「改一个选择单」，而是**改候选名单**：
+  //    拿这套主题今天真选着的那个形态，在副本里把它标成候选 ⟹ 同一份选择单必须当场被点名。
+  //    这样它量的正是「候选那一半」，跟臂 A（名字查不到）和臂 B（键缺了）分得开。
+  {
+    const T = ids[0];
+    const sel = themesMod.shapesFor(T);
+    const base = judge(T, sel);
+    const pinned = `${B0}|${sel[B0]}`;
+    const had = candidatePairs.has(pinned);
+    candidatePairs.add(pinned);
+    const caught = judge(T, sel);
+    if (!had) candidatePairs.delete(pinned);
+    const extra = caught.filter((l) => !base.includes(l));
+    const rest = caught.filter((l) => base.includes(l));
+    if (extra.length === 1 && extra[0].includes(T) && extra[0].includes(`${B0}=${sel[B0]}`)
+      && extra[0].includes('候选')
+      && rest.length === base.length && rest.every((l, i) => l === base[i])) {
+      ok(`⑪ 反向臂 D（「有没有指向候选」那一半，#1384）：把 ${T} 今天选的 ${B0}=${sel[B0]} 在副本里`
+        + `标成候选，同一段判断比不标时正好多一条、且同时点名 ${T} 和 ${B0}=${sel[B0]}，其余报文逐字不变`);
+    } else {
+      bad(`⑪ 反向臂 D 对不上：多出来 ${extra.length} 条（${extra.join(' · ')}）、其余 ${rest.length}/`
+        + `${base.length} 条逐条相同 —— 应当正好多一条、且点名 ${T} 与 ${B0}=${sel[B0]}`);
     }
   }
 }

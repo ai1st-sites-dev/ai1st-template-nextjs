@@ -235,6 +235,26 @@ function checkManifestShape(name, m, cssShapes) {
     if (i === 0 && sh.needs.length > 0) {
       bad(`shapes[0] ("${sh.name}") 是默认形态，needs 必须为空 —— 别的形态缺槽位落回的就是它，它自己再缺就无处可落`);
     }
+    // #1384 —— `candidate: true` 说的是「这个形态**过了全部机器检查，但 Chris 还没点头**」。
+    //
+    // 它是身份，不是豁免：候选**进** `shapes.css`、**进** `blockShapeCatalog()`、**过**每一道自动
+    // 检查（含 #1332 那道排版意图闸）—— 唯独不进任何一条会让真站戴上它的路（主题选择单：
+    // `theme-pipeline/shape-sheet.js`；页面 JSON：`sync-config.js` §shapeForBlock）。Chris 说「进」
+    // 就删掉这个键，一行改动。
+    //
+    // 🔴 它必须被**声明**，跟上面 `hooksFrom` / 下面 `region` 同一条路：不许靠别的字段推。推出来的
+    //    身份没人守，改那个字段的人不会知道自己让一个未签字的形态戴到了客户站上。
+    if (sh.candidate !== undefined && typeof sh.candidate !== 'boolean') {
+      bad(`shapes[${i}] ("${sh.name}").candidate 有的话必须是 true/false（现在是 ${JSON.stringify(sh.candidate)}）`
+        + ' —— 它说的是「这个形态还没被 Chris 点头，别让真站戴上」');
+    }
+    // 🔴 **默认形态不许是候选**，而这一条就是「`defaultShapeOf` 不许回一个候选」的**唯一**写法
+    //    （`defaultShapeOf` 取的就是 `shapes[0]`，PM 2026-09-17 定：实现一处，别写成两道判据）。
+    //    少了它，上面那两条「不许戴上候选」的路会把站落回默认——而默认自己就是候选，整条堵法作废。
+    if (i === 0 && sh.candidate === true) {
+      bad(`shapes[0] ("${sh.name}") 是默认形态，不许标 candidate —— 别的形态点名候选时落回的就是它，`
+        + '它自己是候选的话「候选不许上真站」这条就从落回那一端整个漏掉');
+    }
     // `name` 是文件名（带 .json），CSS 里点名用的是块类型 —— 上面 loadManifests 已核过两者对得上。
     // #1332 —— 每个形态一段排版意图（可以只写跟块级默认不同的轴，但**合并之后**五根轴必须齐全）。
     if (sh.layout_intent !== undefined

@@ -57,6 +57,10 @@ check(real.pairs.length === manifestPairs,
   `pairs 的条数 ${real.pairs.length} == 每份 manifest 的 shapes 之和 ${manifestPairs}`);
 check(real.pairs.every((p) => p.intent && Object.keys(p.intent).length > 0),
   '每一对都带得出合并后的 layout_intent');
+// #1384 —— 候选身份跟着每一对走。🔴 **归一成布尔**（manifest 里没写 = false），消费者判的是值、
+//    不是「有没有这个键」；#1350 那个形态下拉就按这个字段过滤。
+check(real.pairs.every((p) => typeof p.candidate === 'boolean'),
+  `每一对都带 candidate 布尔（今天盘上是候选的有 ${real.pairs.filter((p) => p.candidate).length} 对）`);
 // 跟 `shapes.css` 那一半的两向差集 —— 用 block-manifest 自己那把尺，不在这里重写一份
 const d = bm.diffShapesAgainstCss(real.manifests);
 check(d.onlyInCss.length === 0 && d.onlyInManifests.length === 0,
@@ -79,7 +83,9 @@ function fixture(blocks, registryTypes) {
       category: 'test',
       roleDefault: 'optional',
       layout_intent: { items: 'none', item_wrap: 'allow', headline: 'none', media: 'none', columns: 'one' },
-      shapes: shapes.map((name, i) => ({ name, needs: i === 0 ? [] : [] })),
+      // #1384 —— 一项可以写成 `'名字'`，也可以写成 `{ name, candidate: true }`（3a 那个臂要后者）。
+      shapes: shapes.map((sh) => (typeof sh === 'string' ? { name: sh, needs: [] }
+        : { name: sh.name, needs: [], ...(sh.candidate === undefined ? {} : { candidate: sh.candidate }) })),
       slots: { headline: { kind: 'text', required: true, promptOptional: false } },
       // 🔴 `checkManifestShape` 还要这几个键 —— 少了它当场抛，而那句话跟本文件要测的那条错**长得不一样**
       //    却同样是「抛了」。第一版夹具就少了 `variants`，四个反臂于是全都在测「夹具自己不合法」；
@@ -87,7 +93,10 @@ function fixture(blocks, registryTypes) {
       variants: {},
       industries: { required: [], recommended: [], discouraged: [] },
     }, null, 2));
-    for (const s of shapes) css.push(`[data-block="${type}"][data-shape="${s}"] { display: block; }`);
+    for (const s of shapes) {
+      const n = typeof s === 'string' ? s : s.name;
+      css.push(`[data-block="${type}"][data-shape="${n}"] { display: block; }`);
+    }
   }
   fs.writeFileSync(path.join(root, 'public', 'shapes.css'), `${css.join('\n')}\n`);
   const body = registryTypes.map((t) => `  '${t}': Stub,`).join('\n');
@@ -119,6 +128,23 @@ const throwsWith = (fn, needle, label) => {
     check(c.blocks.length === 1 && c.pairs.length === 1, '2a 正对照：同构的一棵树对得上时不抛，读到 1 块 / 1 对');
   } catch (e) { threw = e.message; }
   if (threw) bad(`2a 正对照本该不抛，却抛了：${threw}`);
+}
+
+// 2a′ #1384 —— 候选**照样进这份清单**，而且它的 `candidate` 是 true、别的对是 false。
+//
+// 🔴 这一格是本票的正向臂，方向跟「候选不上真站」相反、两条缺一不可：候选必须被图册画出来、被几何
+//    守卫量到（`theme-css-invariants.mjs` 检查 ⑨ 的 manifests 就从这个函数来），它只是不许被**挑**上站。
+//    实现成「从清单里滤掉候选」的话这一格当场红，而那种实现会让候选在图册上消失、在守卫里失明 ——
+//    也就是「转正那天才发现它一直坏着」，正是本票要防的那件事。
+{
+  const root = fixture({ alpha: ['solo', { name: 'draft', candidate: true }] }, ['alpha']);
+  const c = blockShapeCatalog({
+    registryPath: path.join(root, 'registry.ts'), blocksDir: path.join(root, 'blocks'),
+  });
+  const draft = c.pairs.find((p) => p.shape === 'draft');
+  const solo = c.pairs.find((p) => p.shape === 'solo');
+  check(c.pairs.length === 2 && !!draft && draft.candidate === true && !!solo && solo.candidate === false,
+    `2a′ 候选进清单：2 对里 draft.candidate=${draft && draft.candidate} · solo.candidate=${solo && solo.candidate}`);
 }
 
 // 2b blocks/ 里多一份 manifest、注册表里没有它

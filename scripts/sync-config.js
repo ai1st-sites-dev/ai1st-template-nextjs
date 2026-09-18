@@ -858,8 +858,15 @@ if (layoutProblems.length) {
   console.error(`  · ${remediation.howToChangePageLayout({ rootDir, siteDir }).sentence}`);
   process.exit(1);
 }
+// #1384 —— 布局钉死的那几个区形态里，候选落回这个站那一类区已经解析出来的形态（`regions`，
+// 它自己已经把候选挡掉了）。理由与「为什么不让 `validateLayout` 报错」整段写在
+// `lib/page-layout.js` §resolveRepeatVariants 上面。
+// 🔴 那一行日志跟页面 JSON 那条（`lib/block-shape.js` §shapeForBlock 打的）同一个样式，并且点名
+//    是哪个布局的哪个区 —— 「静默降级」是这类改动最容易长出来的病。
+const repeated = pageLayoutLib.resolveRepeatVariants(picked.layout, regions);
+for (const note of repeated.notes) console.log(`  ⚠️  ${note}`);
 const pageLayout = { id: picked.layout.id, regions: picked.layout.regions,
-  ...(picked.layout.repeatVariants ? { repeatVariants: picked.layout.repeatVariants } : {}) };
+  ...(picked.layout.repeatVariants ? { repeatVariants: repeated.variants } : {}) };
 console.log(`  Page layout: ${pageLayout.id} → ${pageLayout.regions.join(' · ')}`
   + (picked.explicit ? '' : '（站没挑，按默认）'));
 
