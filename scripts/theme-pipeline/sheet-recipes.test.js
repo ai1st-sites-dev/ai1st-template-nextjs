@@ -471,7 +471,13 @@ const heroLook = new Map(TRIO.map((i) => [heroLookFor(i), dropColours(heroRulesO
   //    一行都不跑（实测：不改就是 `夹具不成立：i 与 i+14400 的 voice 不同`）。
   //    跟上面 #1333 那次一样，**这是量出来的数不是推出来的**：穷举 0..800000，voice 与调色板
   //    逐字全同的 P 依次是 28800 / 57600 / 86400 / 720000，取第一个。
-  const PERIOD = 28800;
+  // 🔴 #1377 —— 这个数**重新量过，从 28800 变成 1411200**。本票让 `faqLook` 从 4 副长到 7 副
+  //    （对表 FlyonUI 新增 media-side / aside-cta / three-column-open），它的挑法
+  //    `(i + floor(i/10)) % 7` 周期里带了个 7，而 28800 不是 7 的倍数 ⟹ 原来那个数当场不成立，
+  //    这个文件退 2、从这里往下一行都不跑（实测：不改就是 `夹具不成立：i 与 i+28800 的 voice 不同`）。
+  //    跟 #1333 / #1363 那两次一样，**这是量出来的数不是推出来的**：穷举 1..3000000，voice 与
+  //    调色板逐字全同的 P 依次是 1411200 / 2822400，取第一个。
+  const PERIOD = 1411200;
   if (JSON.stringify(voiceFor(BASE)) !== JSON.stringify(voiceFor(BASE + PERIOD))) {
     die(`夹具不成立：i 与 i+${PERIOD} 的 voice 不同 —— ${PERIOD} 不再是 voice 的周期整数倍`);
   }
@@ -571,18 +577,34 @@ console.log('④ 表说了居中，产物里那几样东西真的居中吗');
         const m = sel.match(/^\.([A-Za-z_][\w-]*)/);
         if (!m) continue;
         rules.push({ sel, cls: m[1], decls });
-        if (decls['text-align'] === 'center') centred.add(m[1].split('__')[0]);
+        // 🔴 #1377 —— 「这个块声明了居中」只认**块根**那条规则（`.hero`），不认部件
+        //    （`.hero__sub`）。原来是任意一条规则说了 center 就把整个块标成居中，而部件上的
+        //    `text-align: center` 只管它自己那点行内内容，说不了它兄弟该不该被摆正。
+        //    这条不是放宽，是把谓词对准它自己那句话（「哪个**容器**声明了居中」）：
+        //    形态层 `[data-block="social-proof"][data-shape="row-band"]` 把 center 写在
+        //    `.social-proof__headline` 上，而块根是一条 `display: flex` 的横排、子项全是
+        //    `flex: 0 0 100%`（整行占满）—— 按旧谓词它被点名 16 套，而那 16 套在浏览器里是对的。
+        //    反向对照（下面那一格）仍然逐套点名 hero 居中的那些套，因为皮里的居中一律写在块根上
+        //    （`HERO_LOOKS` / `CTA_LOOKS` / `FORM_LOOKS` / `FAQ_LOOKS` / `HEADER_LOOKS` 的
+        //    `rootExtra`），一处例外都没有。
+        if (decls['text-align'] === 'center' && !m[1].includes('__')) centred.add(m[1]);
       }
     });
+    // 🔴 #1377 —— 「被摆正了」要连 `margin-inline` 一起认。形态层用的是这个逻辑属性
+    //    （`margin-inline: auto`，`public/shapes.css` 里 2 处 —— 现取
+    //    `grep -o 'margin-inline[a-z-]*' public/shapes.css | wc -l`），而这把尺原来只认
+    //    `margin-left/right: auto` 与 `margin` 简写 ⟹ 它把一个真居中的东西报成没居中。
+    const centredByMargin = (d) => (d['margin-left'] === 'auto' && d['margin-right'] === 'auto')
+      || /\bauto\b/.test(d.margin || '')
+      || /\bauto\b/.test(d['margin-inline'] || '')
+      || (d['margin-inline-start'] === 'auto' && d['margin-inline-end'] === 'auto');
     const out = [];
     for (const r of rules) {
       if (!centred.has(r.cls.split('__')[0])) continue;
       if (r.decls.display === 'flex' && !r.decls['justify-content']) {
         out.push(`${r.sel}（display:flex 没有 justify-content）`);
       }
-      if (r.decls['max-width']
-        && !(r.decls['margin-left'] === 'auto' && r.decls['margin-right'] === 'auto')
-        && !/\bauto\b/.test(r.decls.margin || '')) {
+      if (r.decls['max-width'] && !centredByMargin(r.decls)) {
         out.push(`${r.sel}（max-width 没有 auto 外边距）`);
       }
     }
@@ -2132,10 +2154,21 @@ console.log('\n⑮ #1339 配方里还有没有几何（整池扫一遍，命中�
       bad(`⑮ 配方画的那一副在形态层里查不到：${missing.join(' ')} —— 配方挑得出这副画法，`
         + '而 public/shapes.css 里没人排它（上面那几格的语料里会少一块几何）');
     }
-    // 🔴 **反方向（形态层有、97 套候选一次都没画到）从 #1360 起【报告而不判】。**
+    // 🔴 **反方向（形态层有、97 套候选一次都没画到）是硬判 —— #1360 降成读数，#1377 改回来。**
     //
-    // 它原来是红的，理由写在上面那段注释里：「那副画法没有任何一格在看它」。这一句今天有两半，
-    // 两半都不再成立：
+    // 为什么降过：区块库先长、主题池后重生（2026-09-11 那份 spec 的 D9 + D12 第 4 步）。第三点五步
+    // 那批对表票每落一张就往形态层加几副，而配方那张候选表按定义还没有它们 ⟹ 这一格会在整批
+    // 期间一直红，红的还是一件「按计划就该这样」的事。批次落完之后那个理由到期了：#1377 把那 24 对
+    // 孤儿全部接进候选表（`CARD_GRIDS` 后四副 · `FORM_LOOKS` 后两副 · `FAQ_LOOKS` 后三副 ·
+    // `voiceFor` 的 galleryWall / pricingWall / socialWall / teamWall 四条轴），于是这里改回硬判。
+    //
+    // 🔴 **这一格不是「没人管这件事」的唯一那道**，下面两条仍然成立（#1360 写下的，留作出处）：
+    //   · 「没人声明它」由 #1331 的两向差集守（`scripts/lib/block-shapes.test.js` 第 ① 格）；
+    //   · 「几何没人看」由 #1332 的守卫 ⑨ 逐对逐视口量，跟今天有没有主题选它无关。
+    // 那两条各自都不覆盖本格要抓的东西：形态层长出一副而**配方一次都不挑它**，上面两道都是绿的
+    // —— 那一副于是永远不会出现在任何一套候选画出来的页面上。
+    //
+    // 📌 下面这两条是 #1360 当时写的、解释「为什么原来的理由不再成立」的两半，一个字没删：
     //   · **「没人声明它」那一半已经有专门的一道**：`blocks/<块>.json` 的 `shapes` 与
     //     `public/shapes.css` 的 (块, 形态) 集合**两向差集为 0**（#1331，
     //     `scripts/lib/block-shapes.test.js` 第 ① 格，两向各带一个反向臂）。CSS 里写了个谁都没
@@ -2145,17 +2178,18 @@ console.log('\n⑮ #1339 配方里还有没有几何（整池扫一遍，命中�
     //     （`scripts/theme-css-invariants.mjs` §⑨：「逐个把 data-shape 换成 manifest 里的每一种
     //     形态，而不是只量这套主题今天选中的那一种」）。
     //
-    // 而它现在会拦住的那件事，是设计文档自己规定的走法：**区块库先长，主题池后重生**
-    // （2026-09-11 那份 spec 的 D9「画法有限，由区块库声明；主题从中挑」+ D12 的「第 4 步重生池」）。
-    // 第三点五步往库里加形态时，配方那张候选表按定义还没有它们；要让它们被挑到就得改
-    // `CARD_GRIDS` 这类表，而那会改掉每一套候选的 `voiceFor(i)` ⟹ `public/themes/*.css` 两张
-    // 生成表跟着变 —— 那是重生池那一步的活，不是加形态这一步的。
     //
-    // ⟹ 保留读数（谁是孤儿、有几个都打印出来），去掉判罚。要恢复成硬判，先把重生池做掉。
-    if (orphan.length) {
-      console.log(`  📌 ⑮ 形态层里有、而 ${N} 套候选一次都没画到的：${orphan.length} 个`
-        + `（${orphan.join(' ')}）—— **报告不判**（区块库先长、主题池后重生；它们的几何由 #1332 的`
-        + ' 守卫 ⑨ 逐对逐视口量，它们的登记由 #1331 的两向差集守）');
+    // 🔴 **改回硬判要连「两张生成表重发」一起做**（#1377 的交付就是这样）：接一副新形态进候选表
+    //    会改掉 `voiceFor(i)` ⟹ `public/themes/*.css` 那两张表跟着变。只改这一行不改表，
+    //    `sheet-fresh.js --check` 当场 rc=1。
+    if (orphan.length === 0) {
+      ok(`⑮ 形态层里的每一副都有候选画它：0 对孤儿`
+        + `（形态层共 ${have.size} 对，其中 ${REGION_PAIRS.size} 对属于外壳区、按 #1353 不进这一格）`);
+    } else {
+      bad(`⑮ 形态层里有、而 ${N} 套候选一次都没画到的：${orphan.length} 个（${orphan.join(' ')}）`
+        + ' —— 这几副画法没有任何一套候选挑得到它，等于形态层里躺着谁都不画的规则。'
+        + '修法是把它接进那个块所在的候选表（有候选表的族）或它自己那条轴（`PLAIN_SHAPE_NAMES`），'
+        + '不是把它从 public/shapes.css 里删掉');
     }
   }
 }

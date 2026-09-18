@@ -96,7 +96,18 @@ const splitRhythmFor = (i) => SPLIT_RHYTHMS[
 
 // 卡片组（features-grid / card-group 共用一套候选 —— 它们的部件角色逐字相同
 // （`item`/`title`/`desc`），画法不同才是这一族存在的理由）。
-const CARD_GRIDS = ['three-up', 'two-up', 'four-up-tight', 'wide-rows'];
+// #1377 —— 后四副是第三点五步那批对表票加进形态层的（`three-up-heading-left` /
+// `three-up-heading-center` / `four-up-heading-center` / `heading-side-staggered`）。加进来之前
+// 它们是「形态层里有、而 97 套候选一次都没画到」的孤儿，⑮ 那一格从此对它们硬判。
+const CARD_GRIDS = ['three-up', 'two-up', 'four-up-tight', 'wide-rows',
+  'three-up-heading-left', 'three-up-heading-center', 'four-up-heading-center', 'heading-side-staggered'];
+// 🔴 错开的步长仍然是 8（= 候选数），而 `formLook` 这一族同时也长到 8 副 —— 所以**那一族的步长
+//    改成了 6**（它原来也写成「步长 = 候选数」）。两族同式同模会完全互相决定，那正是
+//    `CTA_LOOKS` 上面那条 🔴 和 `lookFor` 的注释讲的事。
+//    🔴 量这件事的 ⑨ 今天在脚手架池下整格跳过（池子 2 套），所以这个读数是 #1377 手取的：
+//    把 ⑨ 那段「互相决定度」的算法照搬、N 取 97，改前 `cards↔split` / `cards↔infoLook` /
+//    `split↔infoLook` 三对都是 **1**（完全互相决定），改后只剩 `split↔infoLook` 1（它跟本票无关，
+//    两族一个字没动），`cards↔formLook` = **2**。命令与逐对读数在 #1377 的交付留言里。
 const cardGridFor = (i) => CARD_GRIDS[
   (i + Math.floor(i / CARD_GRIDS.length)) % CARD_GRIDS.length];
 /** 卡片组这一族是哪几个块 —— 一处定义，`shapeFor` 和覆盖率那格都读它。 */
@@ -263,19 +274,25 @@ const FORM_LOOKS = {
       note: () => ({}),
     },
   },
-  // 🔴 #1370 给 `contact-form` 新加的 `form-over-media` / `info-side` **故意不在这张表里**
-  //    （PM 2026-09-17 裁定）。加进来会把档数从 6 变 8 ⟹ `formLookFor(i)` 重新发牌 ⟹ 两张生成
-  //    的主题表要重生，实测代价是 `ember-12` 的 `.contact-form__intro` 少 12px。而买不到东西：
-  //    #1360 之后 ⑮ 的「形态层里有、候选一次都没画到」那一半只打印读数、不判罚，它们跟 #1360 的
-  //    8 副、#1365 的 3 副一样待在那条 📌 里。什么时候进配方层 → #1377（重生主题池那一步）。
+  // ⑦⑧ #1377 —— `form-over-media` / `info-side` 是 #1370 加进形态层的那两副。
+  //     它们此前**故意不在这张表里**（PM 2026-09-17 裁定：进来会把档数从 6 变 8 ⟹ `formLookFor(i)`
+  //     重新发牌 ⟹ 两张生成的主题表要重生），那条裁定把时机点给了本票。现在进来了，两张表已重发。
+  //     几何全在 `public/shapes.css`，所以这里只登记名字（同 `CARD_SHAPES` 后四副、
+  //     `TESTIMONIAL_LOOKS` 后四副）。
+  'form-over-media': { rootExtra: () => ({}), partExtra: {} },
+  'info-side': { rootExtra: () => ({}), partExtra: {} },
 };
 
 const CTA_LOOK_NAMES = Object.keys(CTA_LOOKS);
 const FORM_LOOK_NAMES = Object.keys(FORM_LOOKS);
 const ctaLookFor = (i) => CTA_LOOK_NAMES[
   (i + Math.floor(i / CTA_LOOK_NAMES.length)) % CTA_LOOK_NAMES.length];
+// 🔴 #1377 —— 错开的步长**写死成 6**，不再跟着候选数走。本票让这一族从 6 副长到 8 副，而
+//    `cards` 同一轮也长到 8 副、步长就是它的候选数 8；两族同式同模会完全互相决定
+//    （`CTA_LOOKS` 上面那条 🔴 讲的就是这件事，`lookFor` 的注释里有同一段）。6 是这一族原来那个
+//    步长，留着它两族就解开了。读数在交付留言里（量它的 ⑨ 在脚手架池下整格跳过）。
 const formLookFor = (i) => FORM_LOOK_NAMES[
-  (i + Math.floor(i / FORM_LOOK_NAMES.length)) % FORM_LOOK_NAMES.length];
+  (i + Math.floor(i / 6)) % FORM_LOOK_NAMES.length];
 
 // #1358 —— `hero-with-form` 从此有三副形态：`form-side`（表单在侧栏，#1333 那一副）·
 // `form-band`（大图铺满、表单在下方一整条横带）· `form-inline`（表单排进文案那一栏、一行内排开）。
@@ -421,6 +438,11 @@ const FAQ_LOOKS = {
       }),
     },
   },
+  // ⑤⑥⑦ #1377 —— 第三点五步那批对表票往形态层加的三副。只登记名字，几何全在
+  //     `public/shapes.css`（同 `CARD_SHAPES` 后四副、`TESTIMONIAL_LOOKS` 后四副）。
+  'media-side': { rootExtra: () => ({}), partExtra: {} },
+  'aside-cta': { rootExtra: () => ({}), partExtra: {} },
+  'three-column-open': { rootExtra: () => ({}), partExtra: {} },
 };
 
 // ── process-steps（166 个实例 · 56/66 个站 · 真客户站 4 次）──────────────────────────────────────
@@ -752,6 +774,23 @@ function voiceFor(i) {
     //    生成好、提交进仓的产物，这里只决定**将来重生成池子时**第 i 套候选画哪一副；
     //    今天没有任何产品代码读 `recipeShapeFor`（现取：除 `sheet-recipes.test.js` 外 0 个消费者）。
     brandWall: ['row', 'heading-side', 'two-row'][i % 3],
+    // #1377 —— 下面四条轴是同一件事：这四个块在形态层里各有 4~5 副，而它们此前都挂在
+    // `plainGrid` 上（只有 three-up / two-up 两副）⟹ 其余那 11 副是「形态层里有、而 97 套候选
+    // 一次都没画到」的孤儿。本票把 ⑮ 那一格的这个方向改回硬判，所以它们必须真被选到。
+    // 🔴 每个块自己一条轴，不挂在 `plainGrid` 上 —— 与上面 `newsletterForm` / `blogWall` /
+    //    `brandWall` 同一条理由：那一项是几个块共用的，动它等于同时改掉别的块画什么。
+    // 🔴 **数组的次序不是随手排的**（抄 `blogWall` 那条）：`plainGrid` 给 ember-12（候选号 12 ⟹
+    //    i=11，奇数）的是 `two-up`、给 azure-29（29 ⟹ i=28，偶数）的是 `three-up`。所以 `% 5`
+    //    那三条把 `two-up` 摆在第 1 位、`three-up` 摆在第 3 位（11 % 5 = 1 · 28 % 5 = 3），
+    //    `% 4` 那条把 `three-up` 摆在第 0 位、`two-up` 摆在第 3 位（28 % 4 = 0 · 11 % 4 = 3）——
+    //    这两套候选画的那一副因此一个字没变。
+    // 📌 周期：4 和 5 都整除 VOICE_PERIOD（60）与下面那条反向对照的 PERIOD，所以这四条轴不动它们。
+    // 📌 它们**不进任何产物**：生成表走 `shapeFor(block, v)`，那条路读 `SHAPES` 与各族候选表，
+    //    不读 `PLAIN_SHAPE_NAMES`（同 `blogWall` 那段）。
+    galleryWall: ['featured-thumbs', 'two-up', 'heading-side', 'three-up', 'mosaic'][i % 5],
+    pricingWall: ['three-up', 'rows', 'single-plan-side', 'two-up'][i % 4],
+    socialWall: ['heading-above-band', 'two-up', 'media-side-list', 'three-up', 'row-band'][i % 5],
+    teamWall: ['four-up', 'two-up', 'single-feature', 'three-up', 'two-up-horizontal'][i % 5],
   };
 }
 
@@ -1129,6 +1168,14 @@ const CARD_SHAPES = {
       item: () => ({ gap: '1.5rem' }),
     },
   },
+  // ⑤~⑧ #1377 —— 第三点五步那批对表票往形态层加的四副。几何全在 `public/shapes.css`（#1339 之后
+  //     这张表里不许再有几何），所以这里只登记名字 —— 但**必须登记**，否则它们就是
+  //     `sheet-recipes.test.js` ⑮ 那一格说的「形态层里有、而 97 套候选一次都没画到」。
+  //     同一形状的先例：`TESTIMONIAL_LOOKS` 的后四副（#1363）。
+  'three-up-heading-left': { rootExtra: () => ({}), partExtra: {} },
+  'three-up-heading-center': { rootExtra: () => ({}), partExtra: {} },
+  'four-up-heading-center': { rootExtra: () => ({}), partExtra: {} },
+  'heading-side-staggered': { rootExtra: () => ({}), partExtra: {} },
 };
 
 // ══ 两张表，两条轴（#1065）══════════════════════════════════════════════════════════════════════
@@ -1476,19 +1523,23 @@ const PLAIN_SHAPE_NAMES = {
   //    它不在 `hooksByBlock()` 里（借 hero 的类名，manifest 的 `hooksFrom`），所以只有点名问它的
   //    那两格会读到它：⑮ 的双向差集，和 `recipeSheetFor(..., {only: 'hero-with-form'})`。
   'hero-with-form': (v) => v.heroFormLook,
-  // 🔴 这 6 个跟着候选走：3 栏 / 2 栏两副轮着来（`voiceFor` 的 `plainGrid`，按 i % 2）。
+  // 🔴 这 2 个跟着候选走：3 栏 / 2 栏两副轮着来（`voiceFor` 的 `plainGrid`，按 i % 2）。
+  //    📌 #1377 把 gallery / pricing-table / social-proof / team-grid 四个块搬去了各自的轴
+  //       （它们在形态层里各有 4~5 副，留在这里就只画得出 2 副）⟹ 这一族今天是 2 个块。
+  //       🔴 数它别用 `grep -c '=> v.plainGrid'`：那个词今天在本文件的注释里也出现，那条命令读 6。
+  //       只数真条目：`grep -cE "^  '?[a-z-]+'?: \(v\) => v\.plainGrid,$"` —— 现取 2。
   //    📌 这个数原来写的是 9，而 `grep -c '=> v.plainGrid'` 在今天的 main（34c85d5e）上现取是 **7**
   //       —— #1361 / #1364 各把一个块搬去自己那条轴时没回来改它。本票（#1369）又搬走 blog-preview
   //       ⟹ 现取 6，一并改对。
   //    这条轴以前住在 `v.wide` 那个**列数**里，#1339 把它抬到形态名这一层，理由在 `plainGrid` 上面。
   // #1369 —— blog-preview 自己一条轴（五副），理由写在 `voiceFor` 的 `blogWall` 旁边。
   'blog-preview': (v) => v.blogWall,
-  gallery: (v) => v.plainGrid,
+  gallery: (v) => v.galleryWall,
   'map-area': (v) => v.plainGrid,
-  'pricing-table': (v) => v.plainGrid,
+  'pricing-table': (v) => v.pricingWall,
   'service-related-pages': (v) => v.plainGrid,
-  'social-proof': (v) => v.plainGrid,
-  'team-grid': (v) => v.plainGrid,
+  'social-proof': (v) => v.socialWall,
+  'team-grid': (v) => v.teamWall,
 };
 
 // #1371 —— content-split 的形态名此前恒等于「画法 + 节律」两维拼出来的全名（4 × 2 = 8 副）。

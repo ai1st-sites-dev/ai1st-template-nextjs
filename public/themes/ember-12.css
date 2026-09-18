@@ -175,7 +175,7 @@
 }
 
 .contact-form__intro {
-  margin-top: 0.75rem;
+  margin-top: 0;
   font-size: 1.0625rem;
   line-height: 1.7;
   color: var(--color-primary-800);
@@ -995,6 +995,13 @@
   padding: calc(var(--section-block-pad) * 8) 1.5rem;
   background-color: var(--color-primary-900);
   color: var(--color-primary-50);
+}
+
+@media (min-width: 1024px) {
+  .faq-accordion {
+    gap: calc(var(--section-block-gap) * 12);
+    padding: calc(var(--section-block-pad) * 11.2) 3rem;
+  }
 }
 
 .faq-accordion__headline {
