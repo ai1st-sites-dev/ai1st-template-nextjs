@@ -6,6 +6,8 @@
 const fs = require('fs');
 const path = require('path');
 const blockManifest = require('./lib/block-manifest');
+// #1350 —— 形态的三级取值搬去了这里（原来是本文件里的 `shapeForBlock`）。
+const { shapeForBlock } = require('./lib/block-shape');
 const {
   themes, regionShapesFor, shapesFor, themesWithRhythm, themesWithSupports,
 } = require('./themes');
@@ -711,55 +713,8 @@ for (const locale of locales) {
 //
 // Runs after the locale loop on purpose — navigation.json is the one file written back to disk up
 // there, and it must not pick any of this up.
-// #1318 —— `data-shape` 的取值，spec D18 的三级，**一处实现**：
-//
-//     ① 页面 JSON 里这个块自己的 `shape`   —— 站级的选择。本票用不到（建站 AI 还不写它），先接上，
-//                                             免得第三步（站级覆盖那张票）再把这个函数拆一遍。
-//     ② 这套主题的选择单                    —— `theme-pool.json` 的 `shapes`，今天两套各 31 个键。
-//     ③ 块 manifest 的默认                  —— `blocks/<type>.json` 的 `shapes[0]`。今天 31 份里
-//                                             **0 份**有这个键（那是设计文档第一步的活，PM 裁定 ④
-//                                             说本票不加），所以这一级现在恒回 undefined。
-//
-// 🔴 三级都取不到就**不写这个属性**，不造一个兜底值。造一个（比如 "default"）会让
-//    `public/shapes.css` 里 `[data-shape="default"]` 这类选择器选中一批「其实没人选过画法」的块，
-//    而那是静默的：页面照样打开。同一条理由写在 `blockAttrs.ts` 的 `data-shape` 那一段上
-//    （#1341 之前它是写在已退役的 `block_layout` 那一段上的）。
-//
-// #1331 —— 第 ③ 级填上了（31 份 manifest 都有 `shapes`，第 0 项是默认），而且取到形态之后**多问一句**
-// （设计文档 D11 ⑥）：这个站的这块填了它 `needs` 的槽位没有 —— 没填就落回 manifest 默认，并在构建
-// 日志说一行。判据是 block-manifest.js 的 `shapeNeedsGap`，跟 validateSite 第 ⑥ 条是**同一个函数**
-// （那里说「会落回」，这里真落回；两份实现会静默分叉）。形态不在清单里（主题选择单或页面 JSON 写了
-// 一个 CSS 里没有的名字）也落回默认 —— 写一个没人排它的名字，跟造兜底值是同一种静默失败。
-// 🔴 默认形态自己不再核 needs：checkManifestShape 保证 shapes[0].needs 为空，落回它就是落地。
-function shapeForBlock(block, selection, manifests, log = (line) => console.log(line)) {
-  const m = manifests[block.type];
-  const fallback = blockManifest.defaultShapeOf(m);
-  let shape; let from;
-  if (typeof block.shape === 'string' && block.shape) { shape = block.shape; from = '页面 JSON'; }
-  else if (typeof selection[block.type] === 'string' && selection[block.type]) { shape = selection[block.type]; from = '主题选择单'; }
-  else {
-    // #1338 —— 这条路以前是**静默**的：页面 JSON 没点名形态、主题选择单里也没有这个块 ⟹ 直接落回
-    // manifest 的默认形态，一行日志都不打。同一个函数里「形态不在这个块的清单里」那条（下面那行
-    // ⚠️）是说话的，而两条的后果一模一样 —— 这个块戴的不是主题想给它的那个形态 —— 所以这条也要
-    // 说一句。格式跟那条逐字同构，只有中间说原因的那半句不同。
-    // 🔴 拿不到这个块的 manifest 时**不说话**：那时 `fallback` 是 undefined，打出来就是「落回默认
-    //    undefined」，一句会把读日志的人带偏的话。「这个块类型没有 manifest」是另一回事，不在这条
-    //    日志的射程里。
-    if (m) log(`  ⚠️  块 ${block.type} 页面 JSON 和主题选择单都没给它形态，落回默认 ${fallback}`);
-    return fallback;
-  }
-  if (!m) return shape;
-  const gap = blockManifest.shapeNeedsGap(m, shape, block.data);
-  if (gap === null) {
-    log(`  ⚠️  块 ${block.type} 选了形态 ${shape}（${from}）但 blocks/${block.type}.json 的 shapes 清单里没有它，落回默认 ${fallback}`);
-    return fallback;
-  }
-  if (gap.length > 0) {
-    log(`  ⚠️  块 ${block.type} 选了形态 ${shape} 但缺槽位 ${gap.join('、')}，落回默认 ${fallback}`);
-    return fallback;
-  }
-  return shape;
-}
+// #1318 —— `data-shape` 的取值（spec D18 的三级）搬到了 `lib/block-shape.js`，理由写在那个文件头上：
+// #1350 的 manager 端点要在入队之前回答同一个问题，而判据留在这个从头跑到尾的脚本里时它只能再写一份。
 
 // #1331 —— `data-has-<槽位>`：块 manifest 里 required:false 且填了的槽位，构建时按 manifest 算好写在
 // 块的 `has` 上，`blockAttrs.ts` 只负责把每个名字送成 `data-has-<名字>="true"`（跟 `shape` / `role`
