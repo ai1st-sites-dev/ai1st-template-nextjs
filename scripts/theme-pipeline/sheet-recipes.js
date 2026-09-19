@@ -1064,7 +1064,7 @@ const SHAPES = {
 //    却是两栏 —— 没有任何东西会为此报错」），三个名字里当时只守住了一个。
 //
 // 🔴 分左右/上下的机制照抄三套实证表：`.hero` 的直接子元素只有 `__deco` / `__media` / `__body`
-//    三个（`src/components/sections/HeroSection.tsx:61-67`），实证表就是拿 `order` 排它们的
+//    三个（`blocks/hero/Section.tsx`），实证表就是拿 `order` 排它们的
 //    （`hero-media-left.css` 是 media 2 / body 3，`hero-media-right.css` 反过来，
 //    `hero-media-top.css` 是 media 1 满宽 + 正文居中）。
 //
@@ -1209,7 +1209,7 @@ const CARD_SHAPES = {
 //    也一起删了：没有第二处要对齐了。
 //
 // ── 分左右/上下靠什么 ────────────────────────────────────────────────────────────────────────────
-// `.hero` 的直接子元素只有 `__deco` / `__media` / `__body`（`src/components/sections/HeroSection.tsx:61-67`；
+// `.hero` 的直接子元素只有 `__deco` / `__media` / `__body`（`blocks/hero/Section.tsx`；
 // 带表单时多一个 `__form`），三套实证表就是拿 `order` 排它们的：`hero-media-left.css` 是 media 2 /
 // body 3，`hero-media-right.css:27` 反过来（`order: 3`），`hero-media-top.css` 是 media 1 满宽。
 // 「图在右」这件事引擎本来就画得出来，#1065 之前只是生成器没往外吐。
@@ -1236,8 +1236,8 @@ const CARD_SHAPES = {
 //
 // 为什么最上沿会红：`transparent-overlay` 那种页眉（`supports.header`，12 套候选有它）在页面最上面
 // 铺一层 160px 高的黑色渐变遮罩（`linear-gradient(rgba(0,0,0,.75), rgba(0,0,0,.55), transparent)`，
-// 见 `src/components/Header.tsx:136` 那个 `data-region="header-scrim"` 的 div），把压在它下面的东西
-// 冲淡。violet-74 两臂真机实测（1440×900，hero 带真图，两臂都先证过「服出来的 theme.css
+// 见 `blocks/header/Section.tsx` 里那个 `className="header__scrim"` 的 div，渐变本身在
+// `public/base.css` 的 `.header__scrim`），把压在它下面的东西冲淡。violet-74 两臂真机实测（1440×900，hero 带真图，两臂都先证过「服出来的 theme.css
 // 含这一版表的全部字节」）：
 //
 //                     .hero__form 的 computed order   form.top   四个 label 的 y      带内(y<160)
