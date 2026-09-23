@@ -1039,6 +1039,29 @@ export const metadata: Metadata = {
   verification: seo.verification,
 };
 
+// #1409 — answers `ai1st:editor-ping` with `ai1st:editor-pong {page, locale}` (read off `<main data-page>`,
+// the same attributes the inspector reads — SiteShell writes them). Pages without them (blog, redirect
+// stubs) answer with nulls, and the dashboard then says this page cannot be edited here.
+function buildEditorProbeScript(trusted: string): string {
+  const T = JSON.stringify(trusted).replace(/</g, '\\u003c');
+  return `(function(){if(window.parent===window)return;var T=${T};`
+    + `window.addEventListener("message",function(e){if(e.origin!==T)return;var d=e.data;`
+    + `if(!d||typeof d!=="object"||d.type!=="ai1st:editor-ping")return;`
+    + `var m=document.querySelector("main[data-page]");`
+    + `try{window.parent.postMessage({type:"ai1st:editor-pong",page:m?m.getAttribute("data-page"):null,`
+    + `locale:m?m.getAttribute("data-locale"):null},T);}catch(err){}});})();`;
+}
+
+// #1409 — the chat widget loader. Everything except the editor route gets the widget; see the call site.
+// 🔴 The prefix is the editor's route (`src/app/~editor`). Not exported: a layout file may only export
+//    Next's own names. `JSON.stringify` + escaping `<` keeps the URL one string literal inside the script.
+const EDITOR_ROUTE_PREFIX = '/~editor/';
+function buildChatWidgetLoader(src: string): string {
+  return `(function(){if(location.pathname.indexOf(${JSON.stringify(EDITOR_ROUTE_PREFIX)})===0)return;`
+    + `var s=document.createElement("script");s.async=true;s.src=${JSON.stringify(src).replace(/</g, '\\u003c')};`
+    + `document.body.appendChild(s);})();`;
+}
+
 export default function RootLayout({
   children,
 }: {
@@ -1112,6 +1135,13 @@ export default function RootLayout({
             dangerouslySetInnerHTML={{ __html: buildThemePreviewScript(previewTrustedOrigin) }}
           />
         )}
+        {/* #1409: "does this build have the new editor, and which page is showing?" The dashboard asks
+            the preview iframe before it lights the editor switch — the answer, not a version number,
+            decides it (the #1349 rule). A site built before this code never answers ⟹ the switch stays
+            grey. Same trusted origin as the theme preview above, compared with ===, answered to it only. */}
+        {previewTrustedOrigin && (
+          <script dangerouslySetInnerHTML={{ __html: buildEditorProbeScript(previewTrustedOrigin) }} />
+        )}
         {children}
         {/* #1327: how far a service has to sit below the sticky services-nav bar is the bar's own
             height, which is not a constant (see buildServicesNavOffsetScript). This script measures
@@ -1126,8 +1156,19 @@ export default function RootLayout({
         {/* TICKET-273: AI chat widget. Always injected (siteId+leadApi from 268); the widget self-gates
             at runtime via /api/chat/widget-config, so toggling chat_enabled off deactivates it on the
             next load with no rebuild. Absent leadApi/siteId (dev) → skipped. */}
+        {/* #1409: NOT on the editor route. `leadApi` is the manager's own host (`cfg.AppBaseURL`), and the
+            editor page (`/~editor/…`, served from the preview container's domain) must not send the
+            manager a single request — the one hard constraint of the Puck editor (design D7 §4). The
+            widget would also leave a visitor session in that origin's storage. A layout cannot know
+            which route it is wrapping in a static export, so the check runs in the browser; everywhere
+            else the widget loads exactly as before (an injected script is async, and widget.js finds
+            itself through `document.currentScript`, which is set for injected scripts too). */}
         {siteId && leadApi && (
-          <script async src={`${leadApi.replace(/\/$/, '')}/widget.js?site=${siteId}`} />
+          <script
+            dangerouslySetInnerHTML={{
+              __html: buildChatWidgetLoader(`${leadApi.replace(/\/$/, '')}/widget.js?site=${siteId}`),
+            }}
+          />
         )}
       </body>
     </html>

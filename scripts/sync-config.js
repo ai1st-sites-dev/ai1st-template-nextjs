@@ -408,24 +408,8 @@ const HOME_LABELS = {
   ar: 'الرئيسية', hi: 'होम', th: 'หน้าแรก',
 };
 
-// #1026 —— `sourceBySlug` 记下每个页面是从哪个文件读出来的。sitemap 的 <lastmod> 要问那个文件
-// 上次什么时候变的，而这里是唯一还知道文件路径的地方（下面的流程只剩页面对象）。
-function readPagesRecursive(dir, prefix, accumulator, sourceBySlug) {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (entry.isDirectory()) {
-      readPagesRecursive(path.join(dir, entry.name), prefix ? `${prefix}/${entry.name}` : entry.name, accumulator, sourceBySlug);
-    } else if (entry.name.endsWith('.json')) {
-      const filePath = path.join(dir, entry.name);
-      const content = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-      if (prefix) {
-        const baseName = entry.name.replace(/\.json$/, '');
-        content.slug = `${prefix}/${baseName}`;
-      }
-      accumulator.push(content);
-      if (sourceBySlug) sourceBySlug.set(content.slug, filePath);
-    }
-  }
-}
+// 「slug → 文件」住在 scripts/lib/page-files.js（#1409 搬过去，编辑器页存盘时要同一份答案）。
+const { readPagesRecursive } = require('./lib/page-files.js');
 
 // #1026 —— 这次构建的时刻。只在「既拿不到 git 提交时间、也读不到文件修改时间」时才会被用上，
 // 而且那时会在日志里点名说出来。
