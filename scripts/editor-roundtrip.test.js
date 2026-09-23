@@ -84,7 +84,8 @@ console.log('② 字段两层比');
     const gotTop = c.fields.map((f) => f.slot).sort();
     if (JSON.stringify(wantTop) !== JSON.stringify(gotTop)) problems.push(`${m.type} 顶层 ${gotTop} ≠ ${wantTop}`);
     for (const f of c.fields) {
-      const wantSub = esp.filter((e) => e.slot === f.slot && e.sub !== null).map((e) => e.sub).sort();
+      // 验收 ③：`kind: link` 在 sub 集合之外只许多一个 `href`（#1404 r3），别的都不许多。
+      const wantSub = [...esp.filter((e) => e.slot === f.slot && e.sub !== null).map((e) => e.sub), ...(f.kind === 'link' ? ['href'] : [])].sort();
       const gotSub = f.subs.map((s) => s.sub).sort();
       if (JSON.stringify(wantSub) !== JSON.stringify(gotSub)) problems.push(`${m.type}.${f.slot} 子字段 ${gotSub} ≠ ${wantSub}`);
       // 控件由 kind 决定：list → array；link / object → object；绝不把对象做成 array
@@ -299,6 +300,53 @@ console.log('⑦ 改字段');
   data2.content.find((c) => c.type === 'testimonials').props._shape = 'three-up';
   const out2 = convert.puckToPage({ raw, data: data2, initial: initial2, schema, slug: 'home' });
   check(out2.blocks.find((b) => b.type === 'testimonials').shape === 'three-up', '改形态 → 那一条写上 shape');
+}
+
+// ══ ⑦b 按钮链接（#1404 r3）：6 个 link 槽位都有 Link 框；改了才写、不改逐字节不变 ═══════════════════
+console.log('⑦b 按钮链接');
+{
+  const links = [];
+  for (const c of schema.components) for (const f of c.fields) if (f.kind === 'link') links.push(`${c.type}.${f.slot}`);
+  const wantLinks = [];
+  for (const m of nonRegion) for (const [slot, sp] of Object.entries(m.slots || {})) {
+    if (sp.kind === 'link' && sp.editLabel !== undefined) wantLinks.push(`${m.type}.${slot}`);
+  }
+  check(JSON.stringify(links.sort()) === JSON.stringify(wantLinks.sort()) && links.length === 6, `link 字段逐个列出（${links.length}）：${links.join(' · ')}`, wantLinks.join(' · '));
+  const noHref = [];
+  for (const c of schema.components) for (const f of c.fields) {
+    if (f.kind === 'link' && !f.subs.some((x) => x.sub === 'href' && x.label === 'Link')) noHref.push(`${c.type}.${f.slot}`);
+  }
+  check(noHref.length === 0, '每个 link 字段都有显示名为 Link 的 href 子字段', noHref.join(' '));
+  // PM 21:58 第 1 点：href 成了可写字段之后，全填满夹具不动就存仍然 deepEqual（href 逐字节不变）
+  const raw = fixturePage(false);
+  const hrefs = (page) => page.blocks.flatMap((b) => Object.values(b.data || {}).filter((v) => v && typeof v === 'object' && !Array.isArray(v) && 'href' in v).map((v) => v.href));
+  check(hrefs(raw).length >= 6, `夹具里带 href 的对象 ${hrefs(raw).length} 个（量得到）`);
+  const back = roundTrip(raw);
+  check(convert.deepEqual(back, raw), 'href 是字段之后：不动就存，全页 deepEqual');
+  // 只改文字：href 不变；只改链接：label 不变
+  const { initial, data } = openPage(raw);
+  const cta = data.content.find((c) => c.type === 'cta-banner');
+  const hero = data.content.find((c) => c.type === 'hero');
+  cta.props.button.href = '/contact-1404';
+  hero.props.ctaPrimary.label = 'Text only 1404';
+  const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
+  const rc = raw.blocks.find((b) => b.type === 'cta-banner'); const oc = out.blocks.find((b) => b.type === 'cta-banner');
+  const rh = raw.blocks.find((b) => b.type === 'hero'); const oh = out.blocks.find((b) => b.type === 'hero');
+  check(oc.data.button.href === '/contact-1404' && oc.data.button.label === rc.data.button.label, '老块只改链接 → href 变、按钮文字不变');
+  check(oh.data.ctaPrimary.label === 'Text only 1404' && oh.data.ctaPrimary.href === rh.data.ctaPrimary.href, '只改文字 → href 逐字节不变');
+  // 新插一个 hero，填文字和链接 → 落盘
+  const { initial: i2, data: d2 } = openPage(raw);
+  const heroComp = compOf('hero');
+  const props = { id: 'puck-new-hero', ...convert.fieldProps(heroComp, {}), _shape: heroComp.defaultShape };
+  props.ctaPrimary = { ...props.ctaPrimary, label: 'Book', href: '/contact' };
+  d2.content.push({ type: 'hero', props });
+  const nh = convert.puckToPage({ raw, data: d2, initial: i2, schema, slug: 'home' }).blocks.slice(-1)[0];
+  check(nh.type === 'hero' && nh.data.ctaPrimary && nh.data.ctaPrimary.href === '/contact' && nh.data.ctaPrimary.label === 'Book', '新插的 hero 填了链接 → 写成 ctaPrimary {label, href}', JSON.stringify(nh.data));
+  // PM 21:58 第 2 点：共用块里 link 的 href 也只读
+  const siteBlocks = { promo: { type: 'cta-banner', data: catalogLib.sampleDataFor(manifests.get('cta-banner')), visibility: ['home'] } };
+  const rawS = { slug: 'home', blocks: [{ id: 'home-hero-0', type: 'hero', data: catalogLib.sampleDataFor(manifests.get('hero')) }, { ref: 'promo' }] };
+  const lockedItems = toPuck(rawS, siteBlocks).content.filter((c) => c.props._src.locked);
+  check(lockedItems.length === 1 && lockedItems[0].readOnly['button.href'] === true && lockedItems[0].readOnly['button.label'] === true, '共用块的 button.href / button.label 都只读', JSON.stringify(lockedItems[0] && lockedItems[0].readOnly));
 }
 
 // ══ ⑧ 排序 / 增删 / 复制 ══════════════════════════════════════════════════════════════════════

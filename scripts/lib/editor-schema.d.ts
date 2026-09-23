@@ -21,3 +21,4 @@ export interface EditorSchema {
 export function editorSchema(opts?: { rootDir?: string; registryPath?: string; blocksDir?: string }): EditorSchema;
 export function fieldsOf(manifest: unknown): EditorField[];
 export function slotCoverageProblems(schema: EditorSchema, manifests: Map<string, unknown>): string[];
+export const LINK_HREF: string;

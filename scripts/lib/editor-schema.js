@@ -23,7 +23,8 @@
 //   editLabel 是字符串  kind text/link…        → 一个 text 字段（`control: 'text'`）
 //                       kind list（`[string]`） → array，每项一个内部子字段 `value`（`control: 'strings'`）
 //   editLabel 是对象    kind list              → array，子字段 = 那几个 `sub`（`control: 'list'`）
-//                       kind link / object     → object，子字段 = 那几个 `sub`（`control: 'object'`）
+//                       kind link / object     → object，子字段 = 那几个 `sub`（`control: 'object'`）；
+//                                                link 再多一个 `href`（显示名 Link，#1404 r3，理由在 §fieldsOf）
 // 🔴 「带 `sub`」≠「列表」：`link`（`{label, href}`）和 `object`（`hero-with-form.form`）也带 `sub`。
 //    把它们做成 array 字段，Puck 会把一个对象当数组编辑，存回去就坏了。
 //
@@ -36,6 +37,9 @@ const { editableSlotPaths } = require('./block-manifest');
 const { shapeForBlock } = require('./block-shape');
 const siteRegions = require('./site-regions');
 const { shapesFor } = require('../themes');
+
+/** `kind: link` 的字段在 manifest 的 `editLabel` 之外多出来的那一个子字段（#1404 r3）。 */
+const LINK_HREF = 'href';
 
 /** 一份 manifest → 字段清单（顺序照 manifest 里槽位的书写顺序）。 */
 function fieldsOf(manifest) {
@@ -51,13 +55,19 @@ function fieldsOf(manifest) {
       fields.push({ slot, kind, label: entries[0].label, control: kind === 'list' ? 'strings' : 'text', subs: [] });
       continue;
     }
+    const subs = entries.map((e) => ({ sub: e.sub, label: e.label }));
+    // #1404 r3 —— `kind: link` 再补一个 `href`（显示名 Link）。按钮链接不是一段看得见的字，所以它不在
+    // `editableSlotPaths()` 里（那个函数说的是「带 `data-slot` 的字」，检查器面板和 `data-slot` 守卫也吃它，
+    // 往 `editLabel` 里加 `href` 就得给守卫开豁免）。而编辑器开放了插入：新插的 hero 不填链接，按钮就是
+    // `href="#"`，访客点了没反应 —— 所以这里只在编辑器自己的 schema 里补，按 kind 派生、不写块名单。
+    if (kind === 'link' && !subs.some((x) => x.sub === LINK_HREF)) subs.push({ sub: LINK_HREF, label: 'Link' });
     fields.push({
       slot,
       kind,
       // 一个带子字段的槽位没有自己的 editLabel；显示名用 manifest 的槽位名（Puck 会在它下面列子字段）。
       label: humanize(slot),
       control: kind === 'list' ? 'list' : 'object',
-      subs: entries.map((e) => ({ sub: e.sub, label: e.label })),
+      subs,
     });
   }
   return fields;
@@ -136,4 +146,4 @@ function slotCoverageProblems(schema, manifests) {
   return out;
 }
 
-module.exports = { editorSchema, fieldsOf, slotCoverageProblems };
+module.exports = { editorSchema, fieldsOf, slotCoverageProblems, LINK_HREF };
