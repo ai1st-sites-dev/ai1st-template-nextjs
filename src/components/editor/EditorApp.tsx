@@ -38,6 +38,11 @@ export interface EditorAppProps {
   page: string;
   /** 文件里那一份，存盘的底。见 `scripts/lib/editor-page.js` 文件头。 */
   raw: Record<string, unknown>;
+  /**
+   * 那份文件字节的 sha256。存盘时原样带回去：站里的 `write-page.js` 拿它跟当前文件比，编辑器打开之后
+   * 这一页被别处改过就拒绝写入（#1409 QA2 r1：旧底稿整份写回会冲掉检查器 / AI 聊天刚做的改动）。
+   */
+  baseHash: string;
   heroes: EditorHero[];
   /** 框住我们的 dashboard 的 origin。空串 = 构建时没拿到（本地模板 dev），这时不能保存。 */
   trustedOrigin: string;
@@ -109,7 +114,7 @@ function SaveButton({ onSave, status }: { onSave: (d: Data) => void; status: Sta
   );
 }
 
-export default function EditorApp({ locale, page, raw, heroes, trustedOrigin }: EditorAppProps) {
+export default function EditorApp({ locale, page, raw, baseHash, heroes, trustedOrigin }: EditorAppProps) {
   const [status, setStatus] = useState<Status>({ kind: 'idle', text: '' });
   const statusRef = useRef(status);
   statusRef.current = status;
@@ -160,7 +165,7 @@ export default function EditorApp({ locale, page, raw, heroes, trustedOrigin }: 
     }
     setStatus({ kind: 'saving', text: 'Saving…' });
     // 不带文件路径：写哪个文件由站里的 `scripts/write-page.js` 按 page/locale 自己算（它文件头说为什么）。
-    window.parent.postMessage({ type: 'ai1st:editor-save', page, locale, json }, trustedOrigin);
+    window.parent.postMessage({ type: 'ai1st:editor-save', page, locale, json, baseHash }, trustedOrigin);
   }
 
   if (heroes.length === 0) {

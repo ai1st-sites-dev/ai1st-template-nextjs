@@ -18,6 +18,7 @@
 //   它的字住在 `blocks/site-blocks.json`，写在这一页的条目上是静默无效的（解 ref 时条目自己的键
 //   一个都不读）。那一格归 #1406。
 
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { readSiteShape } = require('./site-shape.js');
@@ -28,8 +29,11 @@ const { readSiteBlocks, findBlockInPage, generatedBlockId } = require('../blocks
  * @param {string} rootDir 模板根（`site/` 的上一层）
  * @param {string} locale
  * @param {string} slug
- * @returns {{ file: string, raw: Record<string, unknown>, siteBlocks: Record<string, any> } | { error: string }}
+ * @returns {{ file: string, raw: Record<string, unknown>, baseHash: string, siteBlocks: Record<string, any> } | { error: string }}
  *   `file` 是相对仓根的路径（`site/en/pages/home.json` / 扁平站 `site/pages/home.json`）。
+ *   `baseHash` 是那个文件**字节**的 sha256（hex）—— 编辑器存盘时带回去，`scripts/write-page.js` 拿它跟
+ *   容器里当前的文件比：不一样就说明编辑器打开之后这一页被别处改过（检查器 / AI 聊天 / 另一个标签页），
+ *   拒绝写入，而不是拿这份旧底稿把别人的改动冲掉（#1409 QA2 r1 第 1 条）。
  */
 function editorSource(rootDir, locale, slug) {
   const siteDir = path.join(rootDir, 'site');
@@ -44,10 +48,12 @@ function editorSource(rootDir, locale, slug) {
   const abs = sourceBySlug.get(slug);
   if (!abs) return { error: 'no-page' };
   // 重新读一遍文件：readPagesRecursive 会把子目录页面的 slug 覆盖进内容里，那不是文件里的字节。
-  const raw = JSON.parse(fs.readFileSync(abs, 'utf-8'));
+  const bytes = fs.readFileSync(abs);
+  const raw = JSON.parse(bytes.toString('utf-8'));
   return {
     file: path.relative(rootDir, abs).split(path.sep).join('/'),
     raw,
+    baseHash: crypto.createHash('sha256').update(bytes).digest('hex'),
     siteBlocks: readSiteBlocks(localeDir),
   };
 }

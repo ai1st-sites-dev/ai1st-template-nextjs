@@ -19,6 +19,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const cp = require('child_process');
+const crypto = require('crypto');
 
 const NEXT = path.resolve(__dirname, '..');
 
@@ -54,7 +55,29 @@ function makeSite(label, flat) {
   return work;
 }
 
+const sha = (p) => crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
+
+/** 找到这一页的文件（跟 write-page.js 同一份实现），拿不到就回 null。 */
+function fileOf(work, loc) {
+  const { readSiteShape } = require(path.join(work, 'scripts', 'lib', 'site-shape.js'));
+  const { readPagesRecursive } = require(path.join(work, 'scripts', 'lib', 'page-files.js'));
+  const shape = readSiteShape(path.join(work, 'site'));
+  const dir = shape.flat ? path.join(work, 'site', 'pages') : path.join(work, 'site', loc.locale || 'en', 'pages');
+  if (!fs.existsSync(dir)) return null;
+  const m = new Map();
+  readPagesRecursive(dir, '', [], m);
+  return m.get(loc.page) || null;
+}
+
+/**
+ * 调一次 write-page.js。`loc.baseHash` 没写时默认带**当前文件**的 sha256（= 编辑器底稿就是当前文件，
+ * 正常路径）；要测过期 / 缺失时显式传。
+ */
 function write(work, loc, json) {
+  if (!Object.prototype.hasOwnProperty.call(loc, 'baseHash')) {
+    const f = fileOf(work, loc);
+    loc = { ...loc, baseHash: f ? sha(f) : '0'.repeat(64) };
+  }
   const r = cp.spawnSync(process.execPath, [path.join(work, 'scripts', 'write-page.js'), JSON.stringify(loc)], {
     cwd: work, input: typeof json === 'string' ? json : JSON.stringify(json), encoding: 'utf8', timeout: 60000,
   });
@@ -139,6 +162,18 @@ console.log('⑤ 拒绝的几种（文件逐字不变）');
     const r = write(multi, loc, json);
     check(r.rc === want && fs.readFileSync(file, 'utf-8') === bytes, `${name} → exit ${want}、文件不变`, `rc=${r.rc} ${r.err.slice(0, 160)}`);
   }
+  // #1409 QA2 r1 —— 底稿过期：编辑器打开之后别处改了这一页（这里用「文件末尾多一个换行」模拟一次别处的写入），
+  // 编辑器拿旧底稿的 hash 来存 ⟹ exit 10、别处那次改动原样留着。
+  const staleHash = sha(file);
+  fs.writeFileSync(file, `${bytes}\n`);
+  const other = fs.readFileSync(file, 'utf-8');
+  const st = write(multi, { page: 'home', locale: 'en', baseHash: staleHash }, page);
+  check(st.rc === 10 && fs.readFileSync(file, 'utf-8') === other, '底稿过期（别处改过这一页）→ exit 10、别处的改动原样留着', `rc=${st.rc} ${st.err.slice(0, 160)}`);
+  const miss = write(multi, { page: 'home', locale: 'en', baseHash: undefined }, page);
+  check(miss.rc === 5 && fs.readFileSync(file, 'utf-8') === other, '没带 baseHash → exit 5、文件不变（这道检查不许因为漏带就跳过）', `rc=${miss.rc}`);
+  const bad = write(multi, { page: 'home', locale: 'en', baseHash: 'ABC' }, page);
+  check(bad.rc === 5, 'baseHash 形状不对 → exit 5', `rc=${bad.rc}`);
+  fs.writeFileSync(file, bytes);
   // 反向对照：同一份页面原样写回是 rc=0 —— 证明上面那些 exit 是被各自那一格挡下的，不是这个夹具本来就写不进去。
   const r = write(multi, { page: 'home', locale: 'en' }, page);
   check(r.rc === 0, '对照：原样写回 rc=0', `rc=${r.rc} ${r.err}`);
@@ -151,6 +186,7 @@ console.log('⑥ editor-page.js');
   const { editorSource, locateInRaw } = require(path.join(multi, 'scripts', 'lib', 'editor-page.js'));
   const src = editorSource(multi, 'en', 'home');
   check(src.file === 'site/en/pages/home.json', `多语言站 file = site/en/pages/home.json`, JSON.stringify(src.file || src.error));
+  check(src.baseHash === sha(path.join(multi, src.file)), 'baseHash = 那个文件字节的 sha256（write-page.js 拿同一个值比）', src.baseHash);
   const hero = heroOf(src.raw);
   const at = src.raw.blocks.indexOf(hero);
   const loc = locateInRaw(src.raw, src.siteBlocks, 'home', { id: hero.id, type: 'hero' });

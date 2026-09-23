@@ -7,7 +7,8 @@
 // 不构建 —— 那两件事归 worker。
 //
 // 用法：
-//   node scripts/write-page.js '{"page":"<页面 slug>","locale":"<语言，可空>"}'   页面 JSON 从 stdin 进
+//   node scripts/write-page.js '{"page":"<页面 slug>","locale":"<语言，可空>","baseHash":"<sha256>"}'
+//   页面 JSON 从 stdin 进
 //
 //   🔴 页面 JSON 走 stdin 不走 argv：一页的 JSON 可以比 Linux 单个 argv 的 128 KiB 上限还大
 //      （`manager/blocks_api.go` §maxBlockPatchBytes 为同一个上限付过账）。
@@ -17,6 +18,14 @@
 // 退出码（worker 一一对上一句给老板看的话）：
 //   0 成功   4 找不到那一页   5 参数或页面 JSON 的形状不对
 //   9 这份页面放进去，这个站就建不出来了（构建自己那套校验不收）—— 不写
+//  10 这一页在编辑器打开之后被别处改过了（`baseHash` 对不上当前文件）—— 不写
+//
+// ── baseHash：编辑器的底稿是不是当前这份文件（#1409 QA2 r1）──────────────────────────────────────
+// 🔴 编辑器页是**构建时**烤出来的，它手上那份页面 JSON 是那一刻的文件。它打开期间，检查器 / AI 聊天 /
+//    另一个标签页都可能改同一页；编辑器拿旧底稿整份写回，就把那些改动悄悄冲掉了（QA2 实测：检查器藏掉
+//    cta-banner，编辑器再存一次标题，cta-banner 回到了真页面上）。所以调用方必须带上它底稿那份文件字节
+//    的 sha256，这里拿当前文件比，不一样就拒绝 —— 让老板重新打开编辑器、在最新的那份上改，而不是这里
+//    猜怎么合并。缺了 baseHash 也拒（exit 5）：这道检查不许因为调用方忘了带就静默跳过。
 //
 // ── 写哪个文件：自己算，不收调用方给的路径 ─────────────────────────────────────────────────────
 // 🔴 「slug → 文件」只有一份实现（`scripts/lib/page-files.js`，构建读页面用的就是它）。顶层页面的 slug
@@ -61,6 +70,8 @@ try {
 if (!loc || typeof loc !== 'object' || Array.isArray(loc)) die(5, '第一个参数必须是一个对象');
 const slug = typeof loc.page === 'string' ? loc.page : '';
 if (!/^[a-z0-9][a-z0-9-]*(\/[a-z0-9][a-z0-9-]*)*$/.test(slug)) die(5, `page slug 形状不对：${JSON.stringify(slug)}`);
+const baseHash = typeof loc.baseHash === 'string' ? loc.baseHash : '';
+if (!/^[0-9a-f]{64}$/.test(baseHash)) die(5, 'baseHash 缺失或形状不对（要 64 位小写 hex 的 sha256）');
 let locale = typeof loc.locale === 'string' ? loc.locale : '';
 if (locale && !/^[a-z]{2}(-[A-Za-z0-9]{2,8})?$/.test(locale)) die(5, `locale 形状不对：${JSON.stringify(locale)}`);
 
@@ -108,7 +119,12 @@ if (!file) die(4, `找不到这一页：${slug}`);
 
 // 🔴 slug 不许借存盘改掉：顶层页面的 slug 就是文件内容里那个键，改了等于把这一页挪到另一个地址
 //    （还可能撞上另一页）。子目录里的页面 slug 由路径定，内容里写什么构建都会覆盖掉。
-const before = JSON.parse(fs.readFileSync(file, 'utf-8'));
+const beforeBytes = fs.readFileSync(file);
+const currentHash = require('crypto').createHash('sha256').update(beforeBytes).digest('hex');
+if (currentHash !== baseHash) {
+  die(10, `这一页在编辑器打开之后被改过了（底稿 ${baseHash.slice(0, 12)} ≠ 当前 ${currentHash.slice(0, 12)}）`);
+}
+const before = JSON.parse(beforeBytes.toString('utf-8'));
 const nested = path.dirname(file) !== pagesDir;
 if (!nested && next.slug !== before.slug) die(5, `不能在这里改页面地址：${JSON.stringify(before.slug)} → ${JSON.stringify(next.slug)}`);
 

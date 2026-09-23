@@ -85,6 +85,7 @@ export default async function EditorPage({ params }: { params: Promise<{ target:
       locale={locale}
       page={slug}
       raw={src.raw}
+      baseHash={src.baseHash}
       heroes={heroes}
       trustedOrigin={trustedOrigin()}
     />
