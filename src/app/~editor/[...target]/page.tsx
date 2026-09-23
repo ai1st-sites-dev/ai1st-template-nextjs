@@ -26,9 +26,11 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import path from 'path';
-import EditorApp, { type EditorHero } from '@/components/editor/EditorApp';
+import EditorApp from '@/components/editor/EditorApp';
 import { leadApi, locales, pagesByLocale, getPage } from '@/lib/config';
-import { editorSource, locateInRaw } from '../../../../scripts/lib/editor-page.js';
+import { editorSource, locateInRaw, effectiveWeights } from '../../../../scripts/lib/editor-page.js';
+import { editorSchema } from '../../../../scripts/lib/editor-schema.js';
+import { pageToPuck } from '../../../../scripts/lib/editor-convert.js';
 
 // 只导出 generateStaticParams 给出的那些；别的路径在静态导出里本来就不存在（serve 回 404）。
 export const dynamicParams = false;
@@ -76,9 +78,25 @@ export default async function EditorPage({ params }: { params: Promise<{ target:
     throw new Error(`#1409 editor: ${locale}/${slug} → ${src.error}`);
   }
 
-  const heroes: EditorHero[] = page.blocks
-    .filter((b) => b.type === 'hero' && !b.hidden)
-    .map((b) => ({ block: b, ...locateInRaw(src.raw, src.siteBlocks, slug, b) }));
+  // #1404 —— 组件清单 / 字段 / 形态下拉从**这个站自己的**区块库算（构建就在站自己的仓里跑，
+  // `blocks/` 就是它建站那天的版本）。整页每一块都上画布，顺序 = 构建里的顺序。
+  // 🔴 路径从 `process.cwd()` 起算、显式传进去：那几个脚本默认按自己的 `__dirname` 找 `blocks/` 与
+  //    注册表，而被打进 Next 服务端包之后 `__dirname` 是产物目录（实测报 `ENOENT …/.next/server/app/src/
+  //    lib/sections/registry.generated.ts`）—— 跟 `/__catalog` 的 `CATALOG_PATHS` 同一个坑。
+  const root = process.cwd();
+  const schema = editorSchema({
+    rootDir: root,
+    registryPath: path.join(root, 'src', 'lib', 'sections', 'registry.generated.ts'),
+    blocksDir: path.join(root, 'blocks'),
+  });
+  const located = page.blocks.map((b) => locateInRaw(src.raw, src.siteBlocks, slug, b));
+  const initialData = pageToPuck({
+    raw: src.raw,
+    blocks: page.blocks,
+    located,
+    schema,
+    weights: effectiveWeights(src.raw, src.siteBlocks, page.blocks, located),
+  });
 
   return (
     <EditorApp
@@ -86,7 +104,8 @@ export default async function EditorPage({ params }: { params: Promise<{ target:
       page={slug}
       raw={src.raw}
       baseHash={src.baseHash}
-      heroes={heroes}
+      schema={schema}
+      initialData={initialData}
       trustedOrigin={trustedOrigin()}
     />
   );

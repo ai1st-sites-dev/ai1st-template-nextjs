@@ -75,4 +75,32 @@ function locateInRaw(raw, siteBlocks, slug, block) {
   return { at: r.at, writable: true, reason: '' };
 }
 
-module.exports = { editorSource, locateInRaw };
+/**
+ * #1404 —— 归一化之后每一块在构建里的**有效权重**（`blocks.js` §effectiveWeight 的同一套算法）。
+ * config 里的块不带 `__order`，没写 `weight` 的块它的权重是「位置 × 10」，这里按原始 JSON 把它还原：
+ *   · 文件里有的那一条（含 `{ref}`）：它自己写的 `weight`，否则 `下标 × 10`
+ *   · 按 `visibility` 注进来的共用块：站级块自带的 `weight`，否则排在页面全部条目之后
+ *     （`(条目数 + 第几个注入) × 10`，跟 normalizeLocalePages 里 `extra++` 同一个顺序）
+ * 编辑器存盘时拿注入块的这个数当锚点（`editor-convert.js` §assignWeights）。
+ */
+function effectiveWeights(raw, siteBlocks, blocks, located) {
+  const arr = raw && (Array.isArray(raw.blocks) ? raw.blocks : raw.sections);
+  const n = Array.isArray(arr) ? arr.length : 0;
+  const injectedOrder = Object.keys(siteBlocks || {});
+  const injectedHere = blocks
+    .map((b, i) => (located[i] && located[i].at === -1 ? b.id : null))
+    .filter(Boolean)
+    .sort((a, b) => injectedOrder.indexOf(a) - injectedOrder.indexOf(b));
+  const num = (v) => typeof v === 'number' && Number.isFinite(v);
+  return blocks.map((b, i) => {
+    const at = located[i] ? located[i].at : -1;
+    if (at >= 0) {
+      const e = arr[at];
+      return e && num(e.weight) ? e.weight : at * 10;
+    }
+    const sb = siteBlocks && siteBlocks[b.id];
+    return sb && num(sb.weight) ? sb.weight : (n + injectedHere.indexOf(b.id)) * 10;
+  });
+}
+
+module.exports = { editorSource, locateInRaw, effectiveWeights };

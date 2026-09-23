@@ -1,6 +1,6 @@
 'use client';
 
-// #1409 —— 编辑器页的客户端那一半：Puck + 一个写死的 hero（只有标题一个字段）。
+// #1409 / #1404 —— 编辑器页的客户端那一半：Puck + 从这个站自己的区块库生成的 config。
 //
 // 🔴 唯一的硬约束（设计稿 §4）：**这个页面所在的域名上不许出现任何凭证，也不许向 manager 发请求。**
 //    所以这里没有 fetch、没有存储、没有 token。存盘 = 把整份页面 JSON `postMessage` 给框住我们的
@@ -12,26 +12,19 @@
 //    · 收：`e.origin !== trustedOrigin` 的消息一律忽略。
 //    `manager/ticket1409_postmessage_test.go` 守着这两条（改成 `'*'` / 删掉 origin 判断都会红）。
 //
-// 本票只做**一个写死的块**（票正文 §做什么 7）：config 手写、不从 manifest 生成（那是 #1404）。
-// 所以画布上只放这一页的 hero，拖拽 / 增删 / 复制都关着 —— 不是「不给权限」（Chris 2026-09-19 拍的
-// 是全开），而是本票的存盘只认 hero 的标题：放开的话老板拖了、删了、点 Save 说「已保存」，重建完
-// 什么都没变。#1404 接上整页往返时一起打开。
+// #1404 —— config 不手写：组件、字段、形态下拉全部来自构建时算好的 `schema`（`scripts/lib/editor-schema.js`
+// 文件头说三份清单各从哪儿来），页面 JSON ⇄ Puck Data 走 `scripts/lib/editor-convert.js`（往返守卫
+// `scripts/editor-roundtrip.test.js` 跑的是同一份字节）。拖拽 / 增删 / 复制全开（Chris 2026-09-19）；
+// 只有共用块（`{ref}` 或按 `visibility` 注进来的）锁着 —— 改它归 #1406。
 
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Puck, createUsePuck, type Config, type Data } from '@puckeditor/core';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Puck, createUsePuck, type Config, type Data, type Field, type Fields } from '@puckeditor/core';
 import '@puckeditor/core/puck.css';
-import HeroSection from '@blocks/hero/Section';
+import SectionRenderer from '@/components/SectionRenderer';
 import type { BlockConfig } from '@/lib/types/config';
-
-export interface EditorHero {
-  /** 归一化之后的块（画布照它渲染：`data-shape` / `data-has-*` 都从它来，跟真页面同一份）。 */
-  block: BlockConfig;
-  /** 它在**原始**页面 JSON 数组里的下标；不可写时是 -1 或它那条 `{ref}` 的下标。 */
-  at: number;
-  writable: boolean;
-  /** 不可写的原因：'shared' = 字住在站级块库里（#1406 的事）。 */
-  reason: string;
-}
+import type { EditorComponent, EditorField, EditorSchema } from '../../../scripts/lib/editor-schema';
+import type { PuckItemSrc, PuckLikeData } from '../../../scripts/lib/editor-convert';
+import { puckToPage, fieldProps, dataFromProps, deepEqual } from '../../../scripts/lib/editor-convert.js';
 
 export interface EditorAppProps {
   locale: string;
@@ -43,56 +36,143 @@ export interface EditorAppProps {
    * 这一页被别处改过就拒绝写入（#1409 QA2 r1：旧底稿整份写回会冲掉检查器 / AI 聊天刚做的改动）。
    */
   baseHash: string;
-  heroes: EditorHero[];
+  schema: EditorSchema;
+  initialData: PuckLikeData;
   /** 框住我们的 dashboard 的 origin。空串 = 构建时没拿到（本地模板 dev），这时不能保存。 */
   trustedOrigin: string;
 }
 
-type HeroProps = { headline: string; block: BlockConfig; at: number };
-
 const usePuck = createUsePuck();
 
-// 类型参数只列**字段**（Puck 要求每个声明过的 prop 都有字段）；`block` / `at` 是跟着数据走、不给老板编辑
-// 的两个 prop，render 里按 HeroProps 读。
-const config: Config<{ hero: { headline: string } }> = {
-  components: {
-    hero: {
-      label: 'Hero',
-      fields: { headline: { type: 'text', label: 'Headline' } },
-      render: (props) => {
-        const { headline, block } = props as unknown as HeroProps;
-        // 画布里渲染的就是真站那一个组件，只把标题换成字段里的值。
-        return <HeroSection data={{ ...(block.data || {}), headline } as never} block={block} />;
-      },
-    },
-  },
-};
-
-/** 把 Puck 里的标题写回原始页面 JSON 的对应那一条。回新的一份，原来那份不动。 */
-export function applyHeroHeadlines(raw: Record<string, unknown>, heroes: EditorHero[], data: Data) {
-  const next = JSON.parse(JSON.stringify(raw)) as Record<string, unknown>;
-  const arr = (Array.isArray(next.blocks) ? next.blocks : next.sections) as Record<string, unknown>[] | undefined;
-  let changed = 0;
-  if (!Array.isArray(arr)) return { json: next, changed };
-  for (const item of data.content || []) {
-    const props = item.props as unknown as HeroProps;
-    const hero = heroes.find((h) => h.at === props.at && h.writable);
-    if (!hero) continue;
-    const entry = arr[hero.at];
-    if (!entry || typeof entry !== 'object') continue;
-    const before = (entry.data as Record<string, unknown> | undefined) || {};
-    if (before.headline === props.headline) continue;
-    entry.data = { ...before, headline: props.headline };
-    changed += 1;
+function summaryOf(item: unknown, index: number | undefined, subs: string[]): string {
+  const o = (item || {}) as Record<string, unknown>;
+  for (const k of subs) {
+    const v = o[k];
+    if (typeof v === 'string' && v.trim()) return v.length > 40 ? `${v.slice(0, 40)}…` : v;
   }
-  return { json: next, changed };
+  return `Item ${(index ?? 0) + 1}`;
+}
+
+/** manifest 的一个槽位 → 一个 Puck 字段。控件由 `kind` 决定（editor-schema.js 文件头那张表）。 */
+function puckField(f: EditorField): Field {
+  switch (f.control) {
+    case 'text':
+      return { type: 'text', label: f.label };
+    case 'object':
+      return {
+        type: 'object',
+        label: f.label,
+        objectFields: Object.fromEntries(f.subs.map((s) => [s.sub, { type: 'text', label: s.label }])),
+      } as Field;
+    case 'list':
+      return {
+        type: 'array',
+        label: f.label,
+        arrayFields: Object.fromEntries(f.subs.map((s) => [s.sub, { type: 'text', label: s.label }])),
+        defaultItemProps: {},
+        getItemSummary: (item: unknown, i?: number) => summaryOf(item, i, f.subs.map((s) => s.sub)),
+      } as Field;
+    case 'strings':
+      return {
+        type: 'array',
+        label: f.label,
+        arrayFields: { value: { type: 'text', label: f.label } },
+        defaultItemProps: { value: '' },
+        getItemSummary: (item: unknown, i?: number) => summaryOf(item, i, ['value']),
+      } as Field;
+  }
+}
+
+type ItemProps = Record<string, unknown> & { id: string; _shape?: string; _src?: PuckItemSrc };
+
+// 共用块面板顶上那句话（只读的说明，不是输入框）。
+const SHARED_NOTE: Field = {
+  type: 'custom',
+  label: 'Shared section',
+  render: () => (
+    <p data-editor-shared-note style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: '#475467' }}>
+      This section is shared with other pages, so it can&apos;t be changed, moved or removed here yet.
+    </p>
+  ),
+} as Field;
+
+/**
+ * 画布上的一块：真站那一个组件（经 `SectionRenderer`），不是示意图。
+ *
+ * 数据的底是**归一化之后**那一块（`_src.view`，跟真页面同一份：列表已升格、`data-has-*` 已算好），
+ * 老板改过的字段才换成新值 —— 用的是存盘时同一个合法（§dataFromProps），画布和落盘不会各说各的。
+ */
+function CanvasBlock({ component, props, locale }: { component: EditorComponent; props: ItemProps; locale: string }) {
+  const src = props._src;
+  // 复制出来的条目跟原件共用一份 `_src.view`，画布上的 `data-block-id` 换成它自己的 id（存盘时它也会拿到新 id）。
+  const baseView = (src?.view || { type: component.type }) as unknown as BlockConfig;
+  const view = { ...baseView, id: src && props.id === src.pid ? baseView.id : props.id } as BlockConfig;
+  let data: Record<string, unknown>;
+  if (src) {
+    const baseData = (src.locked ? view.data : src.entry?.data) || {};
+    const initial = fieldProps(component, baseData);
+    const merged = dataFromProps(component, baseData, props);
+    data = { ...((view.data as Record<string, unknown>) || {}) };
+    for (const f of component.fields) {
+      if (deepEqual(props[f.slot], initial[f.slot])) continue;
+      if (f.slot in merged) data[f.slot] = merged[f.slot]; else delete data[f.slot];
+    }
+  } else {
+    data = dataFromProps(component, {}, props);
+  }
+  const block = { ...view, data, shape: props._shape || undefined } as BlockConfig;
+  if (view.hidden) {
+    // `hidden` 整条由 #1411 退役；在那之前它还在页面 JSON 里，画布上给一条看得见的占位，别让它成为
+    // 一个点不中的空条目。
+    return (
+      <div data-editor-hidden style={{ padding: '10px 16px', fontSize: 13, color: '#667085', background: '#f2f4f7' }}>
+        {component.label} — hidden on the live page
+      </div>
+    );
+  }
+  return <SectionRenderer blocks={[block]} locale={locale} />;
+}
+
+export function buildConfig(schema: EditorSchema, locale: string): Config {
+  const components: Record<string, Config['components'][string]> = {};
+  for (const c of schema.components) {
+    const fields: Fields = {};
+    for (const f of c.fields) fields[f.slot] = puckField(f);
+    fields._shape = {
+      type: 'select',
+      label: 'Layout',
+      // 选项 = 形态子目录去掉候选（schema 里已经过滤好）。`needs` 不为空的形态，这个块缺那些槽位时
+      // 构建会落回默认 —— 选项上写明，别让老板选了之后以为坏了。
+      options: c.shapes.map((s) => ({ value: s.name, label: s.needs.length ? `${s.name} (needs ${s.needs.join(', ')})` : s.name })),
+    };
+    const defaultProps: Record<string, unknown> = { ...fieldProps(c, {}) };
+    if (c.defaultShape) defaultProps._shape = c.defaultShape;
+    components[c.type] = {
+      label: c.label,
+      fields,
+      defaultProps,
+      // 共用块：内容 / 位置 / 删除都归 #1406，这里一样都不许动（复制会造出同 id 的第二条 `{ref}`）。
+      // 🔴 不关 `edit`：Puck 对 `edit: false` 的块整块禁用、点都点不中 —— 那就是「点了没反应」。
+      //    留着能选中，字段按条目上的 `readOnly` 灰掉，面板顶上一句话说为什么。
+      resolvePermissions: (data: { props?: ItemProps }) => (data.props?._src?.locked
+        ? { drag: false, duplicate: false, delete: false }
+        : {}),
+      resolveFields: (data: { props?: ItemProps }) => (data.props?._src?.locked
+        ? { _shared: SHARED_NOTE, ...fields }
+        : fields),
+      render: (props: ItemProps) => <CanvasBlock component={c} props={props} locale={locale} />,
+    } as unknown as Config['components'][string];
+  }
+  // 根上不放字段：Puck 默认给根一个 `title` 输入框，而页面标题 / 外壳归 #1405 —— 留着它就是一个
+  // 「改了、保存、什么都没变」的输入框。
+  return { components, root: { fields: {} } };
 }
 
 type Status = { kind: 'idle' | 'saving' | 'saved' | 'error'; text: string };
 
 function SaveButton({ onSave, status }: { onSave: (d: Data) => void; status: Status }) {
   const data = usePuck((s) => s.appState.data);
-  // 🔴 按钮上写的是 Save，因为它做的就是保存（票正文 §做什么 9 三选一的「等于保存」）。
+  // 🔴 按钮上写的是 Save，因为它做的就是保存（#1409 票正文 §做什么 9 三选一的「等于保存」）。
   //    发布到正式域名是 dashboard 上另一个动作（Publish），两件事不许共用一个字。
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
@@ -114,24 +194,12 @@ function SaveButton({ onSave, status }: { onSave: (d: Data) => void; status: Sta
   );
 }
 
-export default function EditorApp({ locale, page, raw, baseHash, heroes, trustedOrigin }: EditorAppProps) {
+export default function EditorApp({ locale, page, raw, baseHash, schema, initialData, trustedOrigin }: EditorAppProps) {
   const [status, setStatus] = useState<Status>({ kind: 'idle', text: '' });
   const statusRef = useRef(status);
   statusRef.current = status;
 
-  const initialData = useMemo<Data>(() => ({
-    root: { props: {} },
-    content: heroes.map((h, i) => ({
-      type: 'hero',
-      props: {
-        id: h.block.id || `hero-${i}`,
-        headline: String((h.block.data as Record<string, unknown> | undefined)?.headline ?? ''),
-        block: h.block,
-        at: h.at,
-      },
-      ...(h.writable ? {} : { readOnly: { headline: true } }),
-    })),
-  }), [heroes]);
+  const config = useMemo(() => buildConfig(schema, locale), [schema, locale]);
 
   // 告诉 dashboard「编辑器起来了、我编辑的是哪一页」。它拿这条确认 iframe 里真的是编辑器。
   useEffect(() => {
@@ -158,8 +226,14 @@ export default function EditorApp({ locale, page, raw, baseHash, heroes, trusted
       setStatus({ kind: 'error', text: 'Open this editor from your dashboard to save.' });
       return;
     }
-    const { json, changed } = applyHeroHeadlines(raw, heroes, data);
-    if (changed === 0) {
+    let json: Record<string, unknown>;
+    try {
+      json = puckToPage({ raw, data: data as never, initial: initialData, schema, slug: page });
+    } catch (e) {
+      setStatus({ kind: 'error', text: `Could not save: ${(e as Error).message}` });
+      return;
+    }
+    if (deepEqual(json, raw)) {
       setStatus({ kind: 'idle', text: 'Nothing to save.' });
       return;
     }
@@ -168,21 +242,22 @@ export default function EditorApp({ locale, page, raw, baseHash, heroes, trusted
     window.parent.postMessage({ type: 'ai1st:editor-save', page, locale, json, baseHash }, trustedOrigin);
   }
 
-  if (heroes.length === 0) {
-    return (
+  let empty: ReactNode = null;
+  if (schema.components.length === 0) {
+    empty = (
       <div style={{ padding: 32, fontFamily: 'system-ui, sans-serif' }} data-editor-empty>
-        This page has no section that can be edited here yet.
+        This site has no sections the editor knows about.
       </div>
     );
   }
+  if (empty) return empty;
 
   return (
     <div data-editor-root style={{ height: '100vh' }}>
       <Puck
-        config={config as unknown as Config}
-        data={initialData}
+        config={config}
+        data={initialData as unknown as Data}
         iframe={{ enabled: true, syncHostStyles: true, waitForStyles: true }}
-        permissions={{ drag: false, insert: false, delete: false, duplicate: false }}
         overrides={{
           headerActions: () => <SaveButton onSave={save} status={status} />,
         }}
