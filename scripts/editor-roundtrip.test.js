@@ -388,6 +388,42 @@ console.log('⑨ 共用块');
   check(out4.blocks.filter((b) => b.ref === 'faq').length === 1, '复制共用块不会造出第二条 {ref}');
 }
 
+// ══ ⑩a 页面里有一个区块库不认识的块（QA1 r1）：能打开、往返无损、那一条原样写回 ══════════════════
+console.log('⑩a 不认识的块类型');
+{
+  const retired = { id: 'home-retired-block-xyz-1', type: 'retired-block-xyz', data: { headline: 'Old', items: [1, 2] }, weight: 7 };
+  const raw = {
+    slug: 'home',
+    blocks: [
+      { id: 'home-hero-0', type: 'hero', data: catalogLib.sampleDataFor(manifests.get('hero')) },
+      retired,
+      { id: 'home-gallery-2', type: 'gallery', data: catalogLib.sampleDataFor(manifests.get('gallery')) },
+    ],
+  };
+  let opened = null; let err = '';
+  try { opened = openPage(raw); } catch (e) { err = e.message; }
+  check(!!opened, '能打开（不抛）', err);
+  if (opened) {
+    const u = opened.initial.content.find((c) => c.props.id === retired.id);
+    check(!!u && u.type === convert.UNKNOWN_TYPE && u.props._src.locked === true, '画布上是一个锁住的「未知块」占位', JSON.stringify(u && { type: u.type, locked: u.props._src.locked }));
+    check(firstDiff(raw, convert.puckToPage({ raw, data: opened.data, initial: opened.initial, schema, slug: 'home' })) === null, '不动 → 往返无损');
+    // 其余块换位：未知块那一条原样（只可能多一个 weight），不丢
+    const { initial, data } = openPage(raw);
+    [data.content[0], data.content[2]] = [data.content[2], data.content[0]];
+    const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
+    const kept = out.blocks.find((b) => b.id === retired.id);
+    const { weight: _w, ...keptRest } = kept || {};
+    const { weight: _w0, ...origRest } = retired;
+    check(!!kept && convert.deepEqual(keptRest, origRest), '其余块换位之后，未知块那一条原样写回', JSON.stringify(kept));
+    check(out.blocks.length === 3, '块数不变', String(out.blocks.length));
+  }
+  // 按 visibility 注进来的共用块类型也不认识：同样能打开，而且不被抄进这一页
+  const siteBlocks = { oldpromo: { type: 'retired-block-xyz', data: {}, visibility: ['home'] } };
+  const raw2 = { slug: 'home', blocks: [{ id: 'home-hero-0', type: 'hero', data: catalogLib.sampleDataFor(manifests.get('hero')) }] };
+  let back2 = null; try { back2 = roundTrip(raw2, siteBlocks); } catch (e) { back2 = e.message; }
+  check(back2 && typeof back2 === 'object' && firstDiff(raw2, back2) === null, '注入的共用块类型不认识 → 也能打开、往返无损', String(typeof back2 === 'string' ? back2 : ''));
+}
+
 // ══ ⑩ 两种站形状：真站（skipAI 建站路）每一页都往返一次 ═════════════════════════════════════════
 console.log('⑩ 两种站形状');
 function makeSite(label, flat) {

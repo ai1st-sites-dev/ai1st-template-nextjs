@@ -24,7 +24,7 @@ import SectionRenderer from '@/components/SectionRenderer';
 import type { BlockConfig } from '@/lib/types/config';
 import type { EditorComponent, EditorField, EditorSchema } from '../../../scripts/lib/editor-schema';
 import type { PuckItemSrc, PuckLikeData } from '../../../scripts/lib/editor-convert';
-import { puckToPage, fieldProps, dataFromProps, deepEqual } from '../../../scripts/lib/editor-convert.js';
+import { UNKNOWN_TYPE, puckToPage, fieldProps, dataFromProps, deepEqual } from '../../../scripts/lib/editor-convert.js';
 
 export interface EditorAppProps {
   locale: string;
@@ -86,6 +86,17 @@ function puckField(f: EditorField): Field {
 type ItemProps = Record<string, unknown> & { id: string; _shape?: string; _src?: PuckItemSrc };
 
 // 共用块面板顶上那句话（只读的说明，不是输入框）。
+const UNKNOWN_NOTE: Field = {
+  type: 'custom',
+  label: 'Unknown section',
+  render: () => (
+    <p data-editor-unknown-note style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: '#475467' }}>
+      This section&apos;s type isn&apos;t in this site&apos;s section library, so it doesn&apos;t show on the live page.
+      It is kept as is when you save.
+    </p>
+  ),
+} as Field;
+
 const SHARED_NOTE: Field = {
   type: 'custom',
   label: 'Shared section',
@@ -163,9 +174,32 @@ export function buildConfig(schema: EditorSchema, locale: string): Config {
       render: (props: ItemProps) => <CanvasBlock component={c} props={props} locale={locale} />,
     } as unknown as Config['components'][string];
   }
+  // 页面里有、而这个站的区块库里没有的块（#1404 QA1 r1）：锁住的占位，能选中、看得见，不进左栏
+  // （下面 `categories` 把它藏起来），存盘时那一条原样留在原位。
+  components[UNKNOWN_TYPE] = {
+    label: 'Unknown section',
+    fields: { _unknown: UNKNOWN_NOTE },
+    resolvePermissions: () => ({ drag: false, duplicate: false, delete: false }),
+    render: (props: ItemProps) => {
+      const t = String((props._src?.view as { type?: unknown } | undefined)?.type ?? '');
+      return (
+        <div data-editor-unknown={t} style={{ padding: '14px 16px', fontSize: 13, color: '#667085', background: '#f2f4f7', border: '1px dashed #d0d5dd' }}>
+          Unknown section “{t}” — not in this site&apos;s section library, so it isn&apos;t shown on the live page. It is kept as is.
+        </div>
+      );
+    },
+  } as unknown as Config['components'][string];
   // 根上不放字段：Puck 默认给根一个 `title` 输入框，而页面标题 / 外壳归 #1405 —— 留着它就是一个
   // 「改了、保存、什么都没变」的输入框。
-  return { components, root: { fields: {} } };
+  return {
+    components,
+    categories: {
+      sections: { title: 'Sections', components: schema.components.map((c) => c.type) },
+      unknown: { components: [UNKNOWN_TYPE], visible: false },
+      other: { visible: false },
+    },
+    root: { fields: {} },
+  } as Config;
 }
 
 type Status = { kind: 'idle' | 'saving' | 'saved' | 'error'; text: string };

@@ -25,6 +25,12 @@
 
 const ITEM_ORIG = '__orig';
 
+// 页面上有、而这个站的组件清单里没有的块（区块库删掉了它的类型，老页面 JSON 里还留着）。
+// 构建对它只打一行 `Unknown block type` 就跳过（`SectionRenderer`），编辑器也不许因为它打不开 ——
+// 画布上一个锁住的占位，存盘时那一条原样留在原位（#1404 QA1 r1）。
+const UNKNOWN_TYPE = '__unknown-block';
+const UNKNOWN_COMPONENT = { type: UNKNOWN_TYPE, label: 'Unknown section', fields: [], carried: [], shapes: [], defaultShape: null };
+
 function isPlainObject(v) {
   return v !== null && typeof v === 'object' && !Array.isArray(v);
 }
@@ -118,6 +124,7 @@ function mergeSlot(data, field, prop) {
 function schemaIndex(schema) {
   const m = new Map();
   for (const c of schema.components) m.set(c.type, c);
+  m.set(UNKNOWN_TYPE, UNKNOWN_COMPONENT);
   return m;
 }
 
@@ -154,18 +161,17 @@ function pageToPuck({ raw, blocks, located, schema, weights }) {
   const content = [];
   blocks.forEach((view, i) => {
     const loc = located[i] || { at: -1, writable: false, reason: 'not-found' };
-    const component = idx.get(view.type);
-    if (!component) {
-      throw new Error(`editor-convert: 页面上有块 ${JSON.stringify(view.type)}，编辑器的组件清单里没有它`);
-    }
+    const known = idx.get(view.type);
+    const unknown = !known || view.type === UNKNOWN_TYPE;
+    const component = unknown ? UNKNOWN_COMPONENT : known;
     const entry = loc.at >= 0 && arr ? arr[loc.at] : undefined;
-    const locked = !loc.writable;
+    const locked = unknown || !loc.writable;
     // 锁住的块字段显示归一化后的内容（它的字不在这一页的文件里）；可写的块显示文件里的原值。
     const data = locked ? (view.data || {}) : ((entry && entry.data) || {});
     const pid = typeof view.id === 'string' && view.id ? view.id : `${view.type}-${i}`;
     const shape0 = typeof view.shape === 'string' && view.shape ? view.shape : (component.defaultShape || '');
     const item = {
-      type: view.type,
+      type: component.type,
       props: {
         id: pid,
         ...fieldProps(component, data),
@@ -174,7 +180,7 @@ function pageToPuck({ raw, blocks, located, schema, weights }) {
           at: loc.at,
           entry: clone(entry === undefined ? null : entry),
           locked,
-          reason: loc.reason || '',
+          reason: unknown ? 'unknown-type' : (loc.reason || ''),
           view: clone(view),
           weight: weights && typeof weights[i] === 'number' ? weights[i] : null,
           shape0,
@@ -236,6 +242,9 @@ function entryOf(item, component, { isCopy, newId }) {
 // 🔴 按 `visibility` 注进来的共用块不在这一页的文件里、位置也不归这里改 ⟹ 它们是**锚点**：页面自己的
 //    块在两个锚点之间先试 `画布下标 × 10`，放不下（会越过锚点）才在那一段里均匀插值 —— 保证重建之后
 //    的顺序 = 画布顺序。
+// 📌 做不到的一格（QA1 r1 低）：两个注入块 weight 相等、老板把页面块拖到它俩中间。没有一个数严格落在
+//    两者之间，而平手时按 `__order` 排、页面条目恒在注入块之前 ⟹ 它重建后排到这两个锚点前面。要两个
+//    站级块同权、又都按 visibility 注进同一页才会碰到；真要治得改锚点自己的 weight，那是 #1406 的地盘。
 // @param slots  画布顺序的 `{ anchor: number|null }`
 function assignWeights(slots) {
   const out = new Array(slots.length).fill(null);
@@ -349,4 +358,4 @@ function puckToPage({ raw, data, initial, schema, slug }) {
   return next;
 }
 
-module.exports = { pageToPuck, puckToPage, fieldProps, dataFromProps, assignWeights, deepEqual, ITEM_ORIG };
+module.exports = { UNKNOWN_TYPE, pageToPuck, puckToPage, fieldProps, dataFromProps, assignWeights, deepEqual, ITEM_ORIG };

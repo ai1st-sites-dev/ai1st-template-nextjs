@@ -35,3 +35,4 @@ export function dataFromProps(component: EditorComponent, base: unknown, props: 
 export function assignWeights(slots: { anchor: number | null }[]): number[];
 export function deepEqual(a: unknown, b: unknown): boolean;
 export const ITEM_ORIG: string;
+export const UNKNOWN_TYPE: string;
