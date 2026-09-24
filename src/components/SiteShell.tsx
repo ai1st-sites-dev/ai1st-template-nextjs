@@ -27,9 +27,20 @@ import { pageLayout } from '@/lib/config';
 // 🔴 不传就不写这个属性（博客那两页没有 pages/ 里的记录），老站也没有它 —— 面板那边退回本票之前的
 //    行为（不带 page 去问），不造一个猜出来的值。
 // 🔴 它跟 `data-block-id` 同类：是编辑器的标识，不是主题表的钩子（`theme-css-lint.js` §EDITOR_ATTRS 拒绝它）。
-export default function SiteShell({ locale, overHero = false, page, children }: { locale: string; overHero?: boolean; page?: string; children: React.ReactNode }) {
-  const regions = pageLayout.regions;
-  const repeatVariants = pageLayout.repeatVariants || {};
+//
+// #1405 —— `shell`：编辑器画布用的覆盖值（布局 / 顶栏形态 / 页脚形态 / 公告条文字）。编辑器的 root 字段
+// 改了之后画布要当场变，而站上的这几样是构建时烤进 config 的 —— 所以编辑器把它手上那一份传进来，
+// 走的仍是这一个组件、这几个真组件（票正文做什么 3「不做简化版」）。站上的页面不传它，行为一个字节不变。
+export interface ShellOverride {
+  layout: { regions: string[]; repeatVariants?: Record<string, string> };
+  headerShape: string;
+  footerShape: string;
+  topbar: { message: string; link?: { label: string; href: string } } | null;
+}
+
+export default function SiteShell({ locale, overHero = false, page, shell, children }: { locale: string; overHero?: boolean; page?: string; shell?: ShellOverride; children: React.ReactNode }) {
+  const regions = shell ? shell.layout.regions : pageLayout.regions;
+  const repeatVariants = (shell ? shell.layout.repeatVariants : pageLayout.repeatVariants) || {};
 
   // 区名是「类」本身（`footer`）或者「类-后缀」（`footer-a`）；后缀只在同一类出现多次时用来区分谁是谁，
   // 那时结构由布局自己钉（主题每类只有一个值，分不出第几个）。
@@ -47,9 +58,9 @@ export default function SiteShell({ locale, overHero = false, page, children }: 
       {regions.map((region) => {
         switch (kindOf(region)) {
           case 'topbar':
-            return <TopbarRegion key={region} locale={locale} />;
+            return <TopbarRegion key={region} locale={locale} {...(shell ? { topbar: shell.topbar } : {})} />;
           case 'header':
-            return <Header key={region} locale={locale} overHero={overHero} />;
+            return <Header key={region} locale={locale} overHero={overHero} variant={shell?.headerShape} />;
           case 'content':
             // #1351 —— `data-locale` 跟 `data-page` 一起写：多语言站里同一个站级块 id 在每种语言下都存在，
             //    只说页面仍然分不清是哪一份。值取的是**站自己的语言目录名**（`site/<locale>/`），不是
@@ -61,7 +72,7 @@ export default function SiteShell({ locale, overHero = false, page, children }: 
             // 里写 `repeatVariants` 给它们是不生效的 —— 那件事现在由 schema 直接拒绝
             // （`scripts/lib/page-layout.js` 的 `REPEATABLE_KINDS`）。给它们也接上线的话，记得
             // 同时把那个常量改掉，两处必须一起动。
-            return <Footer key={region} locale={locale} variant={repeatVariants[region]} />;
+            return <Footer key={region} locale={locale} variant={repeatVariants[region] || shell?.footerShape} />;
           default:
             // 构建期的 schema 已经把不认识的区拦掉了（scripts/lib/page-layout.js）。这一支是为了
             // 「万一」也不静默：什么都不画，但类型上说得清楚。

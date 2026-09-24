@@ -18,13 +18,14 @@
 // 只有共用块（`{ref}` 或按 `visibility` 注进来的）锁着 —— 改它归 #1406。
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Puck, createUsePuck, type Config, type Data, type Field, type Fields } from '@puckeditor/core';
+import { Puck, FieldLabel, createUsePuck, type Config, type Data, type Field, type Fields } from '@puckeditor/core';
 import '@puckeditor/core/puck.css';
 import SectionRenderer from '@/components/SectionRenderer';
+import SiteShell from '@/components/SiteShell';
 import type { BlockConfig } from '@/lib/types/config';
 import type { EditorComponent, EditorField, EditorSchema } from '../../../scripts/lib/editor-schema';
 import type { PuckItemSrc, PuckLikeData } from '../../../scripts/lib/editor-convert';
-import { UNKNOWN_TYPE, puckToPage, fieldProps, dataFromProps, deepEqual } from '../../../scripts/lib/editor-convert.js';
+import { UNKNOWN_TYPE, puckToPage, fieldProps, dataFromProps, deepEqual, puckRootChanges } from '../../../scripts/lib/editor-convert.js';
 
 export interface EditorAppProps {
   locale: string;
@@ -37,7 +38,10 @@ export interface EditorAppProps {
    */
   baseHash: string;
   schema: EditorSchema;
+  /** `root.props` 是外壳四样打开时的值（#1405）—— 存盘时逐字段比的就是它。 */
   initialData: PuckLikeData;
+  /** 这一页第一段是不是 hero（透明浮层顶栏只在那时浮起来，同真页面的 `SiteShell overHero`）。 */
+  overHero: boolean;
   /** 框住我们的 dashboard 的 origin。空串 = 构建时没拿到（本地模板 dev），这时不能保存。 */
   trustedOrigin: string;
 }
@@ -144,7 +148,7 @@ function CanvasBlock({ component, props, locale }: { component: EditorComponent;
   return <SectionRenderer blocks={[block]} locale={locale} />;
 }
 
-export function buildConfig(schema: EditorSchema, locale: string): Config {
+export function buildConfig(schema: EditorSchema, locale: string, overHero = false): Config {
   const components: Record<string, Config['components'][string]> = {};
   for (const c of schema.components) {
     const fields: Fields = {};
@@ -189,8 +193,6 @@ export function buildConfig(schema: EditorSchema, locale: string): Config {
       );
     },
   } as unknown as Config['components'][string];
-  // 根上不放字段：Puck 默认给根一个 `title` 输入框，而页面标题 / 外壳归 #1405 —— 留着它就是一个
-  // 「改了、保存、什么都没变」的输入框。
   return {
     components,
     categories: {
@@ -198,8 +200,101 @@ export function buildConfig(schema: EditorSchema, locale: string): Config {
       unknown: { components: [UNKNOWN_TYPE], visible: false },
       other: { visible: false },
     },
-    root: { fields: {} },
+    root: rootConfig(schema, locale, overHero),
   } as Config;
+}
+
+const NOTE_STYLE = { margin: 0, fontSize: 13, lineHeight: 1.5, color: '#475467' } as const;
+
+// 形态下拉底下那句话（票正文做什么 5）。它是真话：只有换成另一套主题才清掉按站覆盖（worker §themeWriteCommand），
+// 只改颜色字体 / 更新网站都留着。
+const SHAPE_NOTE: Field = {
+  type: 'custom',
+  label: 'About these styles',
+  render: () => (
+    <p data-editor-shape-note style={NOTE_STYLE}>
+      Header and footer styles apply to every page and every language. Changing the theme puts them back to the
+      new theme&apos;s own styles.
+    </p>
+  ),
+} as Field;
+
+type RootProps = {
+  layout?: string;
+  headerShape?: string;
+  footerShape?: string;
+  topbarMessage?: string;
+  topbarLink?: { label?: string; href?: string };
+  children?: ReactNode;
+};
+
+/**
+ * #1405 —— 外壳四样：Puck 的 root 字段（整页一份，不在块列表里）。可选值全部来自构建时的 schema
+ * （形态 = 子目录去掉候选；布局 = `page-layouts/` 库），这里不写任何名单。
+ *
+ * 🔴 **这里不判「哪些组合构建不收」**（带公告条的布局 + 透明浮层顶栏 / 缺某种语言的公告条文字）：那条规则
+ *    只住在站里的写盘脚本（用构建同一个 `needsTopbar`），拒了那句话原样回到状态栏（票正文做什么 6）。
+ *    在这里按自己的判断禁用选项，总有一天一个说行、一个说不行。
+ * 🔴 唯一在这里灰掉的是「布局自己钉了页脚形态」时的页脚下拉（做什么 8）—— 判据是 schema 给的 `pinsFooter`
+ *    （从布局文件算出来的），不是布局名。
+ */
+function rootConfig(schema: EditorSchema, locale: string, overHero: boolean) {
+  const opts = (names: string[]) => names.map((n) => ({ value: n, label: n }));
+  const fields: Fields = {
+    layout: { type: 'select', label: 'Page layout (whole website)', options: schema.root.layouts.map((l) => ({ value: l.id, label: l.id })) },
+    headerShape: { type: 'select', label: 'Header style (whole website)', options: opts(schema.root.header) },
+    footerShape: { type: 'select', label: 'Footer style (whole website)', options: opts(schema.root.footer) },
+    _shapeNote: SHAPE_NOTE,
+    topbarMessage: { type: 'text', label: 'Announcement bar text (this language only)' },
+    topbarLink: {
+      type: 'object',
+      label: 'Announcement bar link (this language only)',
+      objectFields: { label: { type: 'text', label: 'Label' }, href: { type: 'text', label: 'Link' } },
+    } as Field,
+  };
+  const layoutOf = (id: unknown) => schema.root.layouts.find((l) => l.id === id);
+  return {
+    fields,
+    resolveFields: (data: { props?: RootProps }) => {
+      if (!layoutOf(data.props?.layout)?.pinsFooter) return fields;
+      return {
+        ...fields,
+        footerShape: {
+          type: 'custom',
+          label: 'Footer style (whole website)',
+          render: () => (
+            <FieldLabel label="Footer style (whole website)" readOnly>
+              <div data-editor-footer-pinned>
+                <select disabled value="" style={{ width: '100%', padding: 6 }} aria-label="Footer style">
+                  <option value="">Set by the page layout</option>
+                </select>
+                <p style={{ ...NOTE_STYLE, marginTop: 6 }}>This layout comes with its own footer styles, so this can&apos;t be changed while it is selected.</p>
+              </div>
+            </FieldLabel>
+          ),
+        } as Field,
+      };
+    },
+    render: ({ children, layout, headerShape, footerShape, topbarMessage, topbarLink }: RootProps) => {
+      const l = layoutOf(layout) || schema.root.layouts[0];
+      const link = topbarLink && (topbarLink.label || topbarLink.href)
+        ? { label: topbarLink.label || '', href: topbarLink.href || '' } : undefined;
+      return (
+        <SiteShell
+          locale={locale}
+          overHero={overHero}
+          shell={{
+            layout: { regions: l ? l.regions : ['header', 'content', 'footer'], repeatVariants: l ? l.repeatVariants : {} },
+            headerShape: headerShape || '',
+            footerShape: footerShape || '',
+            topbar: topbarMessage ? { message: topbarMessage, ...(link ? { link } : {}) } : null,
+          }}
+        >
+          {children}
+        </SiteShell>
+      );
+    },
+  };
 }
 
 type Status = { kind: 'idle' | 'saving' | 'saved' | 'error'; text: string };
@@ -228,12 +323,12 @@ function SaveButton({ onSave, status }: { onSave: (d: Data) => void; status: Sta
   );
 }
 
-export default function EditorApp({ locale, page, raw, baseHash, schema, initialData, trustedOrigin }: EditorAppProps) {
+export default function EditorApp({ locale, page, raw, baseHash, schema, initialData, overHero, trustedOrigin }: EditorAppProps) {
   const [status, setStatus] = useState<Status>({ kind: 'idle', text: '' });
   const statusRef = useRef(status);
   statusRef.current = status;
 
-  const config = useMemo(() => buildConfig(schema, locale), [schema, locale]);
+  const config = useMemo(() => buildConfig(schema, locale, overHero), [schema, locale, overHero]);
 
   // 告诉 dashboard「编辑器起来了、我编辑的是哪一页」。它拿这条确认 iframe 里真的是编辑器。
   useEffect(() => {
@@ -267,13 +362,23 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
       setStatus({ kind: 'error', text: `Could not save: ${(e as Error).message}` });
       return;
     }
-    if (deepEqual(json, raw)) {
+    // #1405 —— 外壳四样只交**改过的**那几个字段（跟打开时的值逐字段比，做什么 7）。页面块没改就不交页面：
+    // 不然一次只改公告条的存盘也要带着页面底稿去比 baseHash，别处刚改过这一页时它会被无端拒掉。
+    const root = puckRootChanges({ initial: initialData, now: data as never, schema });
+    const pageChanged = !deepEqual(json, raw);
+    if (!pageChanged && Object.keys(root).length === 0) {
       setStatus({ kind: 'idle', text: 'Nothing to save.' });
       return;
     }
     setStatus({ kind: 'saving', text: 'Saving…' });
-    // 不带文件路径：写哪个文件由站里的 `scripts/write-page.js` 按 page/locale 自己算（它文件头说为什么）。
-    window.parent.postMessage({ type: 'ai1st:editor-save', page, locale, json, baseHash }, trustedOrigin);
+    // 不带文件路径：写哪个文件由站里的脚本按 page/locale 自己算（`write-page.js` 文件头说为什么）。
+    window.parent.postMessage({
+      type: 'ai1st:editor-save',
+      page,
+      locale,
+      ...(pageChanged ? { json, baseHash } : {}),
+      ...(Object.keys(root).length ? { root } : {}),
+    }, trustedOrigin);
   }
 
   let empty: ReactNode = null;

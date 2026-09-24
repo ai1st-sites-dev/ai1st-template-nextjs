@@ -36,3 +36,17 @@ export function assignWeights(slots: { anchor: number | null }[]): number[];
 export function deepEqual(a: unknown, b: unknown): boolean;
 export const ITEM_ORIG: string;
 export const UNKNOWN_TYPE: string;
+/** #1405 —— 外壳四样在站级文件里的现值 */
+export interface RootValues {
+  layout: string;
+  headerShape: string;
+  footerShape: string;
+  topbarMessage: string;
+  topbarLink: { label: string; href: string } | null;
+}
+export function rootToPuck(values: RootValues): Record<string, unknown>;
+export function puckRootChanges(args: {
+  initial: { root?: { props?: Record<string, unknown> } };
+  now: { root?: { props?: Record<string, unknown> } };
+  schema: EditorSchema;
+}): Record<string, unknown>;

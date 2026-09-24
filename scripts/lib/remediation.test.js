@@ -184,7 +184,7 @@ function siteWithNav(dir, locale) {
 // ── ⑤ 换 page layout:那句话必须说实话,而且库的名单是【读目录】读出来的 ────────────────────────
 {
   const r = howToChangePageLayout({ rootDir: NEXTJS });
-  if (/手改/.test(r.sentence)) ok('⑤ 给了今天唯一真能走的路（手改站仓的 site/page-layout.json）');
+  if (/手改/.test(r.sentence)) ok('⑤ 给了真能走的路（页面编辑器之外，也写了手改站仓的 site/page-layout.json）');
   else bad(`⑤ 没给真能走的路：${r.sentence}`);
   if (/picker|换装弹窗|布局选择器/i.test(r.sentence)) {
     bad(`⑤ 把人指到一个不存在的布局选择器 —— #1087 r3 就是为这个被退回过：${r.sentence}`);
@@ -332,7 +332,7 @@ function siteWithNav(dir, locale) {
   }
 }
 
-// ── ⑥ 「产品里没有任何界面会写 page-layout.json」是一句关于仓库的断言,在仓库上钉住它 ──────────
+// ── ⑥ 「改布局去哪儿改」是一句关于仓库的断言,在仓库上钉住它（#1405 起答案是页面编辑器）──────────
 {
   const { execFileSync } = require('child_process');
   const dirs = ['dashboard/src', 'manager', 'worker'].map((d) => path.join(REPO, d));
@@ -349,17 +349,29 @@ function siteWithNav(dir, locale) {
         return 0;   // grep 没命中时退出码 1
       }
     };
-    const writers = count('page-layout\\.json|layoutId');
-    const calib = count('themeId');
-    if (calib === 0) {
-      bad('⑥ 尺子校准失败：连 themeId 都数到 0 —— 这几个 grep 的读数一个都不能信');
-    } else if (writers === 0) {
-      ok(`⑥ dashboard/src · manager · worker 里 page-layout.json|layoutId 命中 0 个文件`
-        + `（同一把尺量 themeId = ${calib} 个文件 ⟹ 这个 0 是真的）`);
+    // 🔴 #1405 起产品里**有**写入者了：页面编辑器的 root 字段「Page layout」（容器里那一步是
+    //    `scripts/write-editor-save.js`）。这一格原来钉的是「0 个写入者」—— 那一天它红了，正是它该红的时候，
+    //    措辞随之改成把人指到编辑器。现在钉反过来那一半：句子声称有一个界面，那个界面就必须真在。
+    const editorDir = path.join(REPO, 'templates', 'nextjs', 'src', 'components', 'editor');
+    const field = fs.existsSync(editorDir) ? (() => {
+      try {
+        return execFileSync('grep', ['-rIlF', 'Page layout (whole website)', editorDir], { encoding: 'utf-8' }).split('\n').filter(Boolean).length;
+      } catch (e) {
+        return 0;
+      }
+    })() : 0;
+    const sentence = howToChangePageLayout({ rootDir: NEXTJS }).sentence;
+    const writer = fs.existsSync(path.join(REPO, 'templates', 'nextjs', 'scripts', 'write-editor-save.js'));
+    if (!/Page layout \(whole website\)/.test(sentence)) {
+      bad(`⑥ 页面编辑器能改布局了，而那句补救的话没把人指到它：${sentence}`);
+    } else if (field === 0 || !writer) {
+      bad('⑥ 那句话把人指到页面编辑器的「Page layout (whole website)」，而编辑器里找不到这个字段 / 容器里没有'
+        + ' write-editor-save.js —— 那句话现在是假的，回去改措辞');
     } else {
-      bad(`⑥ 有 ${writers} 个文件提到 page-layout.json / layoutId 了 —— 如果产品真做出了改布局的界面，`
-        + 'remediation.js 里那句「产品里没有任何界面或工具会写它」就成了假话，回去改措辞');
+      ok(`⑥ 补救的话指到页面编辑器的「Page layout」，而那个字段真在编辑器里（${field} 个文件）、写它的脚本真在`);
     }
+    const calib = count('themeId');
+    if (calib === 0) bad('⑥ 尺子校准失败：连 themeId 都数到 0 —— 这几个 grep 的读数一个都不能信');
     // 🔴 反过来的那一半也要钉:透明浮层那条报错把人指到「dashboard 的换装弹窗」，
     //    那是一句**声称某个界面存在**的话 —— 跟 #1087 r3 那个不存在的 layout picker 同一族。
     //    有人把换装弹窗删掉/改名时，这一格必须红，否则那句话会静默变成假话。
