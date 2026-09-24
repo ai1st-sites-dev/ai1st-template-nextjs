@@ -6,10 +6,11 @@
 const fs = require('fs');
 const path = require('path');
 const blockManifest = require('./lib/block-manifest');
-// #1350 —— 形态的三级取值搬去了这里（原来是本文件里的 `shapeForBlock`）。
-const { shapeForBlock } = require('./lib/block-shape');
+// #1350 —— 形态的三级取值搬去了 `lib/block-shape.js`（原来是本文件里的 `shapeForBlock`）；#1415 又把
+// 「给每个块补 `has` / `shape`」那两段循环整体搬进 `lib/block-decorate.js`（编辑器的探针也调它）。
+const { decorateBlocks } = require('./lib/block-decorate');
 const {
-  themes, regionShapesFor, shapesFor, themesWithRhythm, themesWithSupports,
+  themes, regionShapesFor, themesWithRhythm, themesWithSupports,
 } = require('./themes');
 const pageLayoutLib = require('./lib/page-layout');
 // #1108 —— 报错里「那你去做 X」那几句话由代码算出来（判据是白名单自己），不写死。
@@ -23,7 +24,7 @@ const { checkCssContracts } = require('./css-contract-check');
 // #998 — 页面内容层的形状（sections → blocks）。归一化、站级块库、校验都在那个文件里，
 // `create-site.js` 写盘时读的是同一份实现。
 const {
-  readSiteBlocks, normalizeLocalePages, loadBlockManifests,
+  readSiteBlocks, normalizeLocalePages,
   BLOCK_ROLES,
 } = require('./blocks');
 const tweakLib = require('./tweaks');
@@ -700,49 +701,10 @@ for (const locale of locales) {
 // #1318 —— `data-shape` 的取值（spec D18 的三级）搬到了 `lib/block-shape.js`，理由写在那个文件头上：
 // #1350 的 manager 端点要在入队之前回答同一个问题，而判据留在这个从头跑到尾的脚本里时它只能再写一份。
 
-// #1331 —— `data-has-<槽位>`：块 manifest 里 required:false 且填了的槽位，构建时按 manifest 算好写在
-// 块的 `has` 上，`blockAttrs.ts` 只负责把每个名字送成 `data-has-<名字>="true"`（跟 `shape` / `role`
-// 同一个分工：判据一处实现，DOM 端不再算一遍）。给 shapes.css 和守卫用，替代 `:has()`（设计文档 D4）。
-// 不看主题：它说的是这个站的内容填了什么，跟穿哪套主题无关，所以放在 `if (structureThemeId)` 外面。
-{
-  const manifestsForHas = loadBlockManifests(rootDir);
-  let carried = 0;
-  for (const locale of locales) {
-    for (const page of pagesByLocale[locale]) {
-      for (const block of page.blocks) {
-        const m = manifestsForHas[block.type];
-        if (!m) continue;
-        const has = blockManifest.filledOptionalSlots(m, block.data);
-        if (has.length > 0) { block.has = has; carried++; }
-      }
-    }
-  }
-  console.log(`  data-has-*: ${carried} block(s) carry at least one filled optional slot`);
-}
-
-if (structureThemeId) {
-  // #1318 —— 选择单从 `structureThemeId` 取（「这个站穿的是哪套主题」）：注册表里查不到的 id 回空表
-  // 而不是打死构建，候选流水线那条路必须活着。
-  const selection = shapesFor(structureThemeId);
-  const manifestsForShapes = loadBlockManifests(rootDir);
-  let shaped = 0;
-  for (const locale of locales) {
-    for (const page of pagesByLocale[locale]) {
-      for (const block of page.blocks) {
-        // #1331 —— 落回默认那一行带上页名：同一种块（hero）几页都有，不带页名就说不清是哪一块落回了。
-        const shape = shapeForBlock(block, selection, manifestsForShapes,
-          (line) => console.log(line.replace(/^(\s*⚠️\s*)块 /, `$1页 ${page.slug || locale}: 块 `)));
-        if (shape) { block.shape = shape; shaped++; }
-      }
-    }
-  }
-  // 🔴 #1121 —— 这行以前写的是「colors + fonts + N section variant(s)」，而颜色和字体已经不
-  // 从这里来了。日志说的话必须跟代码做的事一样，否则下一个读构建日志的人会以为覆盖还在。
-  // 📌 #1341 —— 「N section variant(s)」那一半也没了：这里原来还按主题的 `supports` 往每个块写
-  //    `data.variant`（内容结构那一维），整条退役了。今天这段只写 `shape`。
-  console.log(`  Theme "${structureThemeId}": ${shaped} block shape(s)`
-    + ' —— 颜色 / 字体 / 风格设定来自这个站自己的 brand.json，不从注册表来');
-}
+// #1331 —— `data-has-<槽位>` 与 #1318 —— `shape`：两个字段的补法在 `lib/block-decorate.js`（#1415 搬过去的，
+// 理由写在那个文件头上：编辑器的探针要在站容器里补出跟这里同一份块）。它先补 `has`（不看主题），
+// 再在 `structureThemeId` 有值时按主题选择单补 `shape`。
+decorateBlocks(pagesByLocale, { rootDir, structureThemeId });
 
 // 🔴 #993 — A THEME MAY NOT DECIDE BLOCK PLACEMENT, and this is where that is enforced.
 //

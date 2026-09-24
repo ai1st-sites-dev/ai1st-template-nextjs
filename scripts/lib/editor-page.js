@@ -23,7 +23,9 @@ const fs = require('fs');
 const path = require('path');
 const { readSiteShape } = require('./site-shape.js');
 const { readPagesRecursive } = require('./page-files.js');
-const { readSiteBlocks, findBlockInPage, generatedBlockId } = require('../blocks.js');
+const { readSiteBlocks, findBlockInPage, generatedBlockId, normalizeLocalePages } = require('../blocks.js');
+const { decorateBlocks } = require('./block-decorate.js');
+const { resolveSiteRegionLayout } = require('./site-regions.js');
 
 /**
  * @param {string} rootDir 模板根（`site/` 的上一层）
@@ -103,4 +105,86 @@ function effectiveWeights(raw, siteBlocks, blocks, located) {
   });
 }
 
-module.exports = { editorSource, locateInRaw, effectiveWeights };
+/**
+ * #1415 —— 编辑器的底稿，**运行时**在站容器里现算（manager 的 `GET /api/sites/{id}/pages` 经 `docker exec`
+ * 调这一个函数，dashboard 拿到后 `postMessage` 进编辑器 iframe）。
+ *
+ * 回的东西跟编辑器页构建时烤进去的那份（`src/app/~editor/[...target]/page.tsx`）逐项同源：
+ *   · `raw` / `siteBlocks` / `hash` —— §editorSource（文件里那一份、它字节的 sha256）
+ *   · `blocks` —— 这一页**构建里那一份**块：跟 `sync-config.js` 同样喂整个 locale 的页面给
+ *     `blocks.js` §normalizeLocalePages，再经 `block-decorate.js` §decorateBlocks 补 `has` / `shape`。
+ *     🔴 两步都不能少：只归一化不补字段的话，画布上每个块落回 manifest 默认形态（穿 azure-29 的站有
+ *        16 种块跟默认不同），打开编辑器版式就整片换掉。两步的实现都只有这一份，这里只是调用。
+ *   · `located` / `weights` —— §locateInRaw / §effectiveWeights，跟 page.tsx 同一对调用
+ * 浏览器那一侧只做 `editor-convert.js` §pageToPuck（纯函数）—— 归一化与定位要读磁盘，不许搬去客户端。
+ *
+ * @param {{ rootDir?: string, page: string, locale?: string }} opts  `locale` 空 = 默认语言；扁平站不看它
+ * @returns {{ ok: true, page, locale, raw, siteBlocks, hash, blocks, located, weights }
+ *          | { ok: false, reason: string, message: string }}
+ *   `locale` 回的是实际用的那一个（扁平站回 ''）。`reason`：'bad-request' | 'no-site' | 'no-locale' |
+ *   'no-pages' | 'no-page' | 'build-error'（这个站现在就建不出来 —— 构建会在同一个地方报错）。
+ */
+function editorBaseline(opts) {
+  const o = opts || {};
+  const rootDir = o.rootDir || process.cwd();
+  const slug = typeof o.page === 'string' ? o.page : '';
+  if (!slug) return { ok: false, reason: 'bad-request', message: '没说是哪一页' };
+  const siteDir = path.join(rootDir, 'site');
+  const shape = readSiteShape(siteDir);
+  if (!shape) return { ok: false, reason: 'no-site', message: '读不到 site/' };
+  let locale = '';
+  if (!shape.flat) {
+    locale = typeof o.locale === 'string' ? o.locale : '';
+    if (!locale) {
+      try {
+        locale = JSON.parse(fs.readFileSync(path.join(siteDir, 'site_meta.json'), 'utf-8')).defaultLocale || '';
+      } catch {
+        locale = '';
+      }
+    }
+    // 跟 `write-page.js` 同一条判据：存盘那头不认的语言，这里也不许给出一份底稿。
+    if (!locale || (shape.locales.length && !shape.locales.includes(locale))) {
+      return { ok: false, reason: 'no-locale', message: `这个网站没有这种语言：${JSON.stringify(locale)}` };
+    }
+  }
+  const src = editorSource(rootDir, locale, slug);
+  if ('error' in src) return { ok: false, reason: src.error, message: `读不到这一页（${src.error}）` };
+
+  // 扁平站在构建里的 locale 是 'en'（sync-config 的 legacy 分支），归一化 / 补字段只拿它当标签。
+  const label = locale || 'en';
+  const localeDir = shape.flat ? siteDir : path.join(siteDir, locale);
+  const localePages = [];
+  let blocks;
+  try {
+    readPagesRecursive(path.join(localeDir, 'pages'), '', localePages, new Map());
+    localePages.sort((a, b) => (a.navOrder ?? 99) - (b.navOrder ?? 99));
+    // 🔴 站级块库另读一份喂归一化：它会**改**传进去的对象（不合法的 role / weight 被删），而回给编辑器的
+    //    `siteBlocks` 必须是文件里那一份（§locateInRaw / §effectiveWeights 跟构建时一样拿原样的算）。
+    normalizeLocalePages(localePages, readSiteBlocks(localeDir), label, {});
+    decorateBlocks({ [label]: localePages }, {
+      rootDir,
+      structureThemeId: resolveSiteRegionLayout(siteDir).structureThemeId,
+      log: () => {},
+    });
+    const page = localePages.find((p) => p.slug === slug);
+    if (!page) return { ok: false, reason: 'no-page', message: `找不到这一页：${slug}` };
+    // 跟 config 里那份同形：sync-config 是 JSON.stringify 写进 config-data.ts 的（undefined 的键不在）。
+    blocks = JSON.parse(JSON.stringify(page.blocks));
+  } catch (e) {
+    return { ok: false, reason: 'build-error', message: e && e.message ? e.message : String(e) };
+  }
+  const located = blocks.map((b) => locateInRaw(src.raw, src.siteBlocks, slug, b));
+  return {
+    ok: true,
+    page: slug,
+    locale,
+    raw: src.raw,
+    siteBlocks: src.siteBlocks,
+    hash: src.baseHash,
+    blocks,
+    located,
+    weights: effectiveWeights(src.raw, src.siteBlocks, blocks, located),
+  };
+}
+
+module.exports = { editorSource, locateInRaw, effectiveWeights, editorBaseline };

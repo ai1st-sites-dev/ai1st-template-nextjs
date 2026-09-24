@@ -13,7 +13,7 @@
 //   🔴 页面 JSON 走 stdin 不走 argv：一页的 JSON 可以比 Linux 单个 argv 的 128 KiB 上限还大
 //      （`manager/blocks_api.go` §maxBlockPatchBytes 为同一个上限付过账）。
 //
-// 成功时 stdout 打**一行** JSON：{"ok":true,"file":"site/en/pages/home.json"}
+// 成功时 stdout 打**一行** JSON：{"ok":true,"file":"site/en/pages/home.json","hash":"<写完之后文件字节的 sha256>"}（`hash` 是 #1415 加的）
 //
 // 退出码（worker 一一对上一句给老板看的话）：
 //   0 成功   4 找不到那一页   5 参数或页面 JSON 的形状不对
@@ -145,6 +145,15 @@ try {
 // 格式跟 patch-block.js 与建站脚本写出来的逐字同形（两空格缩进 + 结尾换行），diff 只落在改过的那几行。
 // 先写临时文件再改名：写到一半被打断也不会留下半份 JSON（那一份会让整站建不出来）。
 const tmp = `${file}.tmp-${process.pid}`;
-fs.writeFileSync(tmp, `${JSON.stringify(next, null, 2)}\n`);
+const afterBytes = Buffer.from(`${JSON.stringify(next, null, 2)}\n`, 'utf-8');
+fs.writeFileSync(tmp, afterBytes);
 fs.renameSync(tmp, file);
-process.stdout.write(`${JSON.stringify({ ok: true, file: path.relative(ROOT, file).split(path.sep).join('/') })}\n`);
+// #1415 —— `hash` 是写完之后那份文件字节的 sha256（跟上面比对 baseHash 同一个算法）。worker 在 commit + push
+// 成功之后把它随 `page-saved` 事件发给 dashboard，编辑器拿它当下一次存盘的 baseHash —— 不用等重建完、
+// 重新加载一份烤出来的底稿。算的是**写进去的那份字节**，不是再读一次文件：两者之间没有别人能插进来
+// （worker 这一步在按站的锁里），而再读一次多一次 IO、还多一个「读到一半」的窗口。
+process.stdout.write(`${JSON.stringify({
+  ok: true,
+  file: path.relative(ROOT, file).split(path.sep).join('/'),
+  hash: require('crypto').createHash('sha256').update(afterBytes).digest('hex'),
+})}\n`);

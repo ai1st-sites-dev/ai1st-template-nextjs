@@ -16,6 +16,16 @@
 // 文件头说三份清单各从哪儿来），页面 JSON ⇄ Puck Data 走 `scripts/lib/editor-convert.js`（往返守卫
 // `scripts/editor-roundtrip.test.js` 跑的是同一份字节）。拖拽 / 增删 / 复制全开（Chris 2026-09-19）；
 // 只有共用块（`{ref}` 或按 `visibility` 注进来的）锁着 —— 改它归 #1406。
+//
+// #1415 —— 底稿以 dashboard 送来的为准。props 里那份是构建时烤进来的，只当首屏；dashboard 在运行时从站容器里
+// 现取一份（manager `GET /api/sites/{id}/pages`，站里 `scripts/lib/editor-page.js` §editorBaseline），
+// `postMessage(ai1st:editor-baseline)` 递进来。这个页面仍然一个请求都不发 —— 网络全在 dashboard 那一侧。
+//   reason = open      刚打开：换成这一份（跟首屏不同才换），撤销历史清零
+//            saved     刚存下去的那一次成功了（在重建之前就到）：只换 baseHash，画布不动 —— 于是不刷新、
+//                      不等重建也能接着存
+//            external  别处改过这一页：把数据换上、换 baseHash；**不进撤销历史**（怎么进归 #1410）
+// 转换只做 `editor-convert.js` §pageToPuck（纯函数）；归一化 / 定位 / 补字段都在容器里算好了，客户端
+// 不 import 任何读磁盘的库（那样构建会红在 `Can't resolve 'fs'`，而且归一化就有了两份实现）。
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Puck, createUsePuck, type Config, type Data, type Field, type Fields } from '@puckeditor/core';
@@ -24,7 +34,7 @@ import SectionRenderer from '@/components/SectionRenderer';
 import type { BlockConfig } from '@/lib/types/config';
 import type { EditorComponent, EditorField, EditorSchema } from '../../../scripts/lib/editor-schema';
 import type { PuckItemSrc, PuckLikeData } from '../../../scripts/lib/editor-convert';
-import { UNKNOWN_TYPE, puckToPage, fieldProps, dataFromProps, deepEqual } from '../../../scripts/lib/editor-convert.js';
+import { UNKNOWN_TYPE, pageToPuck, puckToPage, fieldProps, dataFromProps, deepEqual } from '../../../scripts/lib/editor-convert.js';
 
 export interface EditorAppProps {
   locale: string;
@@ -204,6 +214,17 @@ export function buildConfig(schema: EditorSchema, locale: string): Config {
 
 type Status = { kind: 'idle' | 'saving' | 'saved' | 'error'; text: string };
 
+/** 存盘要用的那一份底：原始 JSON + 打开时的 Puck Data（§puckToPage 要它）+ 文件的 sha256 + 上一次存下去的 JSON。 */
+type Base = { raw: Record<string, unknown>; initial: PuckLikeData; hash: string; saved: Record<string, unknown> };
+
+type PuckDispatch = (action: { type: 'setData'; data: Data; recordHistory?: boolean }) => void;
+
+/** 拿到 Puck 自己的 dispatch（`external` 换数据用）。放在 headerActions 里，它才在 Puck 的 store 之下。 */
+function DispatchHandle({ handle }: { handle: { current: PuckDispatch | null } }) {
+  handle.current = usePuck((s) => s.dispatch) as unknown as PuckDispatch;
+  return null;
+}
+
 function SaveButton({ onSave, status }: { onSave: (d: Data) => void; status: Status }) {
   const data = usePuck((s) => s.appState.data);
   // 🔴 按钮上写的是 Save，因为它做的就是保存（#1409 票正文 §做什么 9 三选一的「等于保存」）。
@@ -235,45 +256,100 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
 
   const config = useMemo(() => buildConfig(schema, locale), [schema, locale]);
 
+  // #1415 —— 存盘的底。首屏是构建时烤进来的那份；dashboard 的 baseline 到了就换（见文件头）。放在 ref 里：
+  // 它只在存盘那一刻被读，换它不该让整棵 Puck 重新渲染。
+  const baseRef = useRef<Base>({ raw, initial: initialData, hash: baseHash, saved: raw });
+  // 这一次存盘送出去的 JSON：`saved` 到了才算它进了文件（「Nothing to save」要跟它比，不跟打开时比）。
+  const sendingRef = useRef<Record<string, unknown> | null>(null);
+  const [canvas, setCanvas] = useState<{ key: number; data: PuckLikeData }>({ key: 0, data: initialData });
+  const dispatchRef = useRef<PuckDispatch | null>(null);
+
   // 告诉 dashboard「编辑器起来了、我编辑的是哪一页」。它拿这条确认 iframe 里真的是编辑器。
+  // `baseline: 1` 说「我认 ai1st:editor-baseline」—— dashboard 据此决定走新路（不重载 iframe）还是老路
+  // （#1409 之后、#1415 之前建的站：这个键不在，dashboard 照旧在重建完重载 iframe，行为跟今天一样）。
   useEffect(() => {
     if (!trustedOrigin || window.parent === window) return;
-    window.parent.postMessage({ type: 'ai1st:editor-ready', page, locale }, trustedOrigin);
+    window.parent.postMessage({ type: 'ai1st:editor-ready', page, locale, baseline: 1 }, trustedOrigin);
   }, [trustedOrigin, page, locale]);
 
-  // dashboard 回的保存结果。🔴 只认那一个 origin。
+  // dashboard 发来的两种消息。🔴 只认那一个 origin。
   useEffect(() => {
     if (!trustedOrigin) return;
     function onMessage(e: MessageEvent) {
       if (e.origin !== trustedOrigin) return;
-      const d = e.data as { type?: unknown; ok?: unknown; message?: unknown };
-      if (!d || typeof d !== 'object' || d.type !== 'ai1st:editor-save-result') return;
-      const text = typeof d.message === 'string' ? d.message : '';
-      setStatus(d.ok === true ? { kind: 'saved', text: text || 'Saved.' } : { kind: 'error', text: text || 'Could not save.' });
+      const d = e.data as {
+        type?: unknown; ok?: unknown; message?: unknown; page?: unknown; locale?: unknown; reason?: unknown; hash?: unknown;
+        raw?: unknown; siteBlocks?: unknown; blocks?: unknown; located?: unknown; weights?: unknown;
+      };
+      if (!d || typeof d !== 'object') return;
+      if (d.type === 'ai1st:editor-save-result') {
+        const text = typeof d.message === 'string' ? d.message : '';
+        setStatus(d.ok === true ? { kind: 'saved', text: text || 'Saved.' } : { kind: 'error', text: text || 'Could not save.' });
+        if (d.ok !== true) sendingRef.current = null;
+        return;
+      }
+      if (d.type !== 'ai1st:editor-baseline') return;
+      // 别的页面的底稿不许换进来（扁平站 dashboard 那头的 locale 是空的，只在两边都有时才比）。
+      if (d.page !== page) return;
+      if (typeof d.locale === 'string' && d.locale && d.locale !== locale) return;
+      if (typeof d.hash !== 'string' || !/^[0-9a-f]{64}$/.test(d.hash)) return;
+      if (d.reason === 'saved') {
+        baseRef.current = { ...baseRef.current, hash: d.hash, saved: sendingRef.current || baseRef.current.saved };
+        sendingRef.current = null;
+        return;
+      }
+      if (d.reason !== 'open' && d.reason !== 'external') return;
+      if (!d.raw || typeof d.raw !== 'object' || !Array.isArray(d.blocks) || !Array.isArray(d.located)) return;
+      const nextRaw = d.raw as Record<string, unknown>;
+      let next: PuckLikeData;
+      try {
+        next = pageToPuck({
+          raw: nextRaw,
+          blocks: d.blocks as never,
+          located: d.located as never,
+          schema,
+          weights: Array.isArray(d.weights) ? (d.weights as number[]) : undefined,
+        }) as PuckLikeData;
+      } catch {
+        return; // 转不出来就留着手上这一份：存盘的 hash 没换，存的时候 write-page 会说实话。
+      }
+      const same = deepEqual(next, baseRef.current.initial);
+      baseRef.current = { raw: nextRaw, initial: next, hash: d.hash, saved: nextRaw };
+      if (same) return; // 跟首屏一样（构建之后没人改过）：画布不动，不打断已经开始的编辑。
+      if (d.reason === 'external' && dispatchRef.current) {
+        dispatchRef.current({ type: 'setData', data: next as unknown as Data, recordHistory: false });
+      } else {
+        // open：换一个新的 Puck —— 撤销历史跟着清零（历史里那几步是对着烤进去的那份做的）。
+        setCanvas((c) => ({ key: c.key + 1, data: next }));
+      }
     }
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [trustedOrigin]);
+  }, [trustedOrigin, page, locale, schema]);
 
   function save(data: Data) {
     if (!trustedOrigin || window.parent === window) {
       setStatus({ kind: 'error', text: 'Open this editor from your dashboard to save.' });
       return;
     }
+    const base = baseRef.current;
     let json: Record<string, unknown>;
     try {
-      json = puckToPage({ raw, data: data as never, initial: initialData, schema, slug: page });
+      json = puckToPage({ raw: base.raw, data: data as never, initial: base.initial, schema, slug: page });
     } catch (e) {
       setStatus({ kind: 'error', text: `Could not save: ${(e as Error).message}` });
       return;
     }
-    if (deepEqual(json, raw)) {
+    // 跟**上一次存下去的那份**比，不跟打开时比：存过一次之后把字改回原来那句，文件里是改过的那句，
+    // 这一笔必须发出去（#1409 QA2 r1 第 2 条，那时靠重载 iframe 解决，#1415 起不再重载）。
+    if (deepEqual(json, base.saved)) {
       setStatus({ kind: 'idle', text: 'Nothing to save.' });
       return;
     }
     setStatus({ kind: 'saving', text: 'Saving…' });
+    sendingRef.current = json;
     // 不带文件路径：写哪个文件由站里的 `scripts/write-page.js` 按 page/locale 自己算（它文件头说为什么）。
-    window.parent.postMessage({ type: 'ai1st:editor-save', page, locale, json, baseHash }, trustedOrigin);
+    window.parent.postMessage({ type: 'ai1st:editor-save', page, locale, json, baseHash: base.hash }, trustedOrigin);
   }
 
   let empty: ReactNode = null;
@@ -289,11 +365,17 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
   return (
     <div data-editor-root style={{ height: '100vh' }}>
       <Puck
+        key={canvas.key}
         config={config}
-        data={initialData as unknown as Data}
+        data={canvas.data as unknown as Data}
         iframe={{ enabled: true, syncHostStyles: true, waitForStyles: true }}
         overrides={{
-          headerActions: () => <SaveButton onSave={save} status={status} />,
+          headerActions: () => (
+            <>
+              <DispatchHandle handle={dispatchRef} />
+              <SaveButton onSave={save} status={status} />
+            </>
+          ),
         }}
         onPublish={save}
       />

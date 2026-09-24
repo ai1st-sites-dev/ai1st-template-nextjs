@@ -99,6 +99,16 @@ const multi = makeSite('multi', false);
   check(heroOf(read(file)).data.headline === 'Brakes done right 1409', '磁盘上那一行变了');
   check(fs.readFileSync(file, 'utf-8') === `${JSON.stringify(page, null, 2)}\n`, '格式是两空格缩进 + 结尾换行（跟建站脚本同形）');
   check(!fs.readdirSync(path.dirname(file)).some((f) => f.includes('.tmp-')), '没有留下临时文件');
+  // #1415 —— 成功那一行带回写完之后文件字节的 sha256：编辑器拿它当下一次存盘的 baseHash。
+  const got = JSON.parse(r.out || '{}').hash;
+  check(got === sha(file), '回报的 hash = 写完之后文件字节的 sha256', `回报 ${got} · 实际 ${sha(file)}`);
+  // 反向对照：这个 hash 拿去当下一次的 baseHash 真的通得过（它要是写之前那份的，这一次就是 exit 10）。
+  const again = read(file);
+  heroOf(again).data.headline = 'Second save without reopening 1415';
+  const r2 = write(multi, { page: 'home', locale: 'en', baseHash: got }, again);
+  check(r2.rc === 0, '拿回报的 hash 连存第二次 rc=0', `rc=${r2.rc} ${r2.err}`);
+  const r3 = write(multi, { page: 'home', locale: 'en', baseHash: got }, again);
+  check(r3.rc === 10, '再拿第一次的 hash 存第三次 ⟹ exit 10（它已经不是当前文件了）', `rc=${r3.rc}`);
 }
 
 // ══ ② 扁平站：同一件事写回 site/pages/home.json ══════════════════════════════════════════════════
