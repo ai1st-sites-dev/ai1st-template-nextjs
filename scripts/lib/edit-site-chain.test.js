@@ -1686,5 +1686,65 @@ console.log('\n⑮ 链接协议（#1416）：页面 / navigation.json / 站级�
   else bad(`🔴 ⑮ 对照：合法地址没照收 —— 落盘 ${JSON.stringify(got)} · 回执 ${String(toolResultContent(good, 1, 'g1')).slice(0, 160)} / ${String(toolResultContent(good, 1, 'g2')).slice(0, 160)}`);
 }
 
+// ══ ⑯ 块多带一个字符串 ref 键 / 顶层是数组：链接照样查（#1430）══════════════════════════════════════
+//
+// #1416 为了跳过纯引用条目（`{ref:"promo"}`，里面没有老板的字）写了「有字符串 ref 就跳过」。块库里的块多带一个
+// ref 键时，渲染用的是它自己的 data ⟹ 按 ref 跳过就是这个块的链接一条都不查（PM ship #1427 时逐步真跑复现过）。
+// 判「被拒」同 ⑮：tool_result 带着这一关的话 + 文件逐字节不变。
+// 📌 顶层是数组那一半不在这一格：AI 这条路在链接检查之前就有一道形状关（「This file must be a JSON object, but it is
+//    an array」），数组到不了这一关。数组那一格在 `scripts/link-href.test.js`，打在 §commitWrites 上。
+console.log('\n⑯ 块带 ref 又带自己的 data（#1430）：坏链接被拒；纯引用条目照收');
+{
+  const ctx = makeRoot('links-ref');
+  const site = writeSite(ctx.work);
+  assertSyncsClean(ctx.work, '⑯');
+  ctx.git('git add -A && git commit -q -m base && git push -q origin main');
+  const homeFile = path.join(site, 'en', 'pages', 'home.json');
+  const libFile = path.join(site, 'en', 'blocks', 'site-blocks.json');
+  const refBlock = (href) => ({ type: 'cta-banner', ref: 'whatever', visibility: ['*'],
+    data: { headline: 'Ready?', description: 'Call us today.', button: { label: 'Go', href } } });
+
+  const BAD = ['javascript:alert(1)', 'vbscript:msgbox(1)', 'data:text/html,<script>alert(1)</script>'];
+  const calls = [];
+  BAD.forEach((href, i) => {
+    calls.push({ id: `r${i}`, what: `块库里带 ref 的块 ${href.split(':')[0]}:`, call: writeCall(`r${i}`, 'en/blocks/site-blocks.json', JSON.stringify({ evil: refBlock(href) }, null, 2)) });
+  });
+  const beforeHome = fs.readFileSync(homeFile);
+  const libExisted = fs.existsSync(libFile);
+  const beforeLib = libExisted ? fs.readFileSync(libFile) : null;
+  const res = runEdit(ctx, [
+    reply([textBlock('Updating the links.'), ...calls.map((c) => c.call)], 'tool_use'),
+    reply([textBlock('Done.')], 'end_turn'),
+  ]);
+  for (const c of calls) {
+    const why = toolResultContent(res, 1, c.id);
+    // 回执是 tool_result 的 JSON 串 ⟹ 按钮字两边的引号是转义过的 `\"Go\"`。
+    if (why !== null && /not an address a link can use/.test(why) && /The link \\?"Go\\?"/.test(why)) ok(`⑯ ${c.what} 被拒，理由是这一关的话、点名了 "Go"`);
+    else bad(`🔴 ⑯ ${c.what} 没被这一关拒：${String(why).slice(0, 200)}`);
+  }
+  const same = (f, b) => Buffer.compare(fs.readFileSync(f), b) === 0;
+  if (libExisted ? same(libFile, beforeLib) : !fs.existsSync(libFile)) ok('⑯ 站级块库没被写（本来不在的仍然不在）');
+  else bad('🔴 ⑯ 站级块库被写了');
+  if (same(homeFile, beforeHome)) ok('⑯ home.json 逐字节没变');
+  else bad('🔴 ⑯ home.json 变了');
+
+  // 对照：同一个带 ref 的块，链接合法 ⟹ 照收；首页里再加一条纯引用 `{ref}` ⟹ 也照收（不误伤今天的站文件）。
+  const home = JSON.parse(fs.readFileSync(homeFile, 'utf8'));
+  home.blocks = [...(home.blocks || []), { ref: 'evil' }];
+  const good = runEdit(ctx, [
+    reply([
+      textBlock('Adding a shared banner.'),
+      writeCall('g1', 'en/blocks/site-blocks.json', JSON.stringify({ evil: refBlock('https://example.com/book') }, null, 2)),
+      writeCall('g2', 'en/pages/home.json', JSON.stringify(home, null, 2)),
+    ], 'tool_use'),
+    reply([textBlock('Done.')], 'end_turn'),
+  ]);
+  const lib = fs.existsSync(libFile) ? JSON.parse(fs.readFileSync(libFile, 'utf8')) : {};
+  const refs = (JSON.parse(fs.readFileSync(homeFile, 'utf8')).blocks || []).filter((b) => b && b.ref === 'evil');
+  const gotHref = lib.evil && lib.evil.data && lib.evil.data.button && lib.evil.data.button.href;
+  if (gotHref === 'https://example.com/book' && refs.length === 1) ok('⑯ 对照：带 ref 的块链接合法 → 照收、逐字落盘；纯引用 {ref} 照收');
+  else bad(`🔴 ⑯ 对照：合法的没照收 —— 块库 href=${JSON.stringify(gotHref)} · 首页 ref 条目 ${refs.length} · 回执 ${String(toolResultContent(good, 1, 'g1')).slice(0, 160)} / ${String(toolResultContent(good, 1, 'g2')).slice(0, 160)}`);
+}
+
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);

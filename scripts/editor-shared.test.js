@@ -479,6 +479,51 @@ console.log('⑨ 反向对照：删除不动 visibility');
   reset();
 }
 
+// ══ ⑪ #1430：块库里的块多带一个字符串 ref 键 —— 编辑器存共用块那条路照样查它的链接 ════════════════════
+// #1416 那一行按「有字符串 ref 就跳过」判，本意是跳过页面里 `{ref:"promo"}` 这种纯引用；块库里的块带 ref 时渲染的是
+// 它自己的 data，那一行让它的链接一条都不查。AI 对话那条路能造出这种块（`edit-site-chain.test.js` ⑯）。
+console.log('⑪ 共用块带 ref 键（#1430）：坏链接拒、好的收、老数据不炸');
+{
+  const BAD = ['javascript:alert(1)', 'vbscript:msgbox(1)', 'data:text/html,<script>alert(1)</script>'];
+  const GOOD = ['https://example.com/book', 'mailto:hi@example.com', 'tel:+14165550100', '/contact'];
+  const lib = path.join(SITE, 'en', 'blocks', 'site-blocks.json');
+  const withRef = () => { const l = readJSON(lib); l.promo.ref = 'whatever'; writeJSON(lib, l); };
+  const setButton = (o, href) => { itemOf(o.data, 'promo').props.button = { label: 'Go', href }; };
+  const refusedMsg = (r) => (r.last && r.last.ok === false ? String(r.last.message || '') : '');
+
+  for (const href of BAD) {
+    reset(); withRef();
+    const before = fs.readFileSync(lib, 'utf-8');
+    const o = open('home');
+    setButton(o, href);
+    const r = save('home', o);
+    check(Boolean(r.input.shared && r.input.shared.promo), `${href.split(':')[0]}: 这次存盘真的带着共用块的改动`, JSON.stringify(r.input));
+    const msg = refusedMsg(r);
+    check(r.status === 11 && /not an address a link can use/.test(msg) && /"Go"/.test(msg) && fs.readFileSync(lib, 'utf-8') === before,
+      `${href.split(':')[0]}: 带 ref 的共用块 → exit 11、点名按钮、块库逐字节不变`, `rc=${r.status} ${JSON.stringify(msg.slice(0, 120))} ${String(r.stderr).slice(0, 160)}`);
+  }
+  for (const href of GOOD) {
+    reset(); withRef();
+    const o = open('home');
+    setButton(o, href);
+    const r = save('home', o);
+    const got = sb().promo.data.button;
+    check(r.status === 0 && got && got.href === href && sb().promo.ref === 'whatever', `带 ref 的共用块 合法 ${href} → rc=0、落盘逐字相同、ref 键留着`, `rc=${r.status} ${JSON.stringify(got)} ${String(r.stderr).slice(0, 160)}`);
+  }
+  // 老数据：带 ref 的块里本来就有坏链接，只改标题 → 照存
+  reset(); withRef();
+  { const l = readJSON(lib); l.promo.data.button = { label: 'Old', href: 'vbscript:legacy()' }; writeJSON(lib, l); }
+  {
+    const o = open('home');
+    itemOf(o.data, 'promo').props.headline = 'Only the headline 1430';
+    const r = save('home', o);
+    const d = sb().promo.data;
+    check(r.status === 0 && d.headline === 'Only the headline 1430' && d.button.href === 'vbscript:legacy()',
+      '带 ref 的共用块 老数据：只改标题 → rc=0（老坏链接原样留着）', `rc=${r.status} ${JSON.stringify(d)} ${String(r.stderr).slice(0, 160)}`);
+  }
+  reset();
+}
+
 // ══ ⑩ #1427：共用块里的链接过同一道白名单（lib/link-href.js）—— 帽子在 lib/page-write.js §commitWrites ════
 console.log('⑩ 共用块的按钮链接：坏的拒、好的收、老数据不炸、新的写入方不用接线');
 {

@@ -191,5 +191,46 @@ console.log('⑦ 一次存盘里页面是好的、公告条链接是坏的 ⟹ �
   expectRefused('页面好 + 链接坏', r, [home, nav], before);
 }
 
+// ══ ⑧ #1430：块多带一个字符串 ref 键 —— 编辑器存页面那条路照样查它自己的 data ═════════════════════════
+// 修之前这一格是 exit 9（构建试跑说「ref 和 type 同时写了」）而不是 11：链接那一关整块跳过了它。
+console.log('⑧ 页面里的块带 ref 又带自己的 data（#1430）：链接照样查');
+for (const href of BAD) {
+  const before = [fs.readFileSync(home, 'utf-8')];
+  const page = homeWith(href);
+  heroOf(page).ref = 'whatever';
+  expectRefused(`write-page.js 带 ref 的块 ${href.split(':')[0]}:`, run(work, 'write-page.js', { page: 'home', locale: 'en', baseHash: sha(home) }, page), [home], before);
+  expectRefused(`write-editor-save.js 带 ref 的块 ${href.split(':')[0]}:`, run(work, 'write-editor-save.js', { page: 'home', locale: 'en', baseHash: sha(home) }, { page }), [home], before);
+}
+
+// ══ ⑨ #1430：要写的那份顶层是 JSON 数组 —— §commitWrites 不许整份跳过 ═══════════════════════════════════
+// 今天没有写入方会产出顶层数组；#1427 承诺「新写入方不用记得接线」，这一类正好是它按构造看不见的。
+console.log('⑨ commitWrites：顶层是数组的一份里埋一个坏链接 → 拒、不落盘；合法的照写');
+{
+  const pw = require(path.join(work, 'scripts', 'lib', 'page-write.js'));
+  const file = path.join(work, 'site', 'en', 'blocks', 'promos-1430.json');
+  fs.mkdirSync(path.dirname(file), { recursive: true }); // skipAI 建的站没有 blocks/ 目录
+  const doc = (href) => `${JSON.stringify([{ id: 'spring', block: { type: 'cta-banner', data: { headline: 'Spring', button: { label: 'Go', href } } } }], null, 2)}\n`;
+  for (const href of BAD) {
+    let err = null;
+    try { pw.commitWrites([{ file, content: doc(href) }]); } catch (e) { err = e; }
+    check(err instanceof pw.PageWriteError && err.code === pw.REFUSED && /"Go"/.test(err.message) && !fs.existsSync(file),
+      `顶层数组 ${href.split(':')[0]}: → PageWriteError(REFUSED)、点名 "Go"、文件没落盘`, err ? `${err.code} ${String(err.message).slice(0, 100)}` : '没抛');
+  }
+  for (const href of GOOD) {
+    let err = null;
+    try { pw.commitWrites([{ file, content: doc(href) }]); } catch (e) { err = e; }
+    const got = fs.existsSync(file) ? read(file)[0].block.data.button.href : null;
+    check(!err && got === href, `顶层数组 ${href} → 照写、落盘逐字相同`, err ? String(err.message).slice(0, 100) : JSON.stringify(got));
+  }
+  // 老数据：数组里本来就有的坏链接，这次只改别的字 → 照写
+  fs.writeFileSync(file, doc('vbscript:legacy()'));
+  const legacy = read(file);
+  legacy[0].block.data.headline = 'Only the headline 1430';
+  let err = null;
+  try { pw.commitWrites([{ file, content: `${JSON.stringify(legacy, null, 2)}\n` }]); } catch (e) { err = e; }
+  check(!err && read(file)[0].block.data.headline === 'Only the headline 1430', '顶层数组：老坏链接没碰 → 照写', err && err.message);
+  fs.rmSync(file, { force: true });
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

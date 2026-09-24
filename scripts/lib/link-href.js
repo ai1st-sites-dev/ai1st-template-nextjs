@@ -95,12 +95,17 @@ function deepBlockLinks(doc) {
   return blockLinks(found);
 }
 
-/** 一串块里的全部链接：`{ place, where, label, href }`。`{ref}` 条目的字不在这里，跳过。 */
+/**
+ * 一串块里的全部链接：`{ place, where, label, href }`。
+ * 纯引用条目（`{ ref: "promo" }` / `{ ref, weight }`）没有自己的 `type` 和 `data`，下面两步自然跳过它。
+ * 🔴 #1430：不按「有没有 `ref` 键」跳过。块库里的一个块多带一个字符串 `ref` 键时，渲染用的就是它自己的 `data`
+ *    （`blocks.js` §normalizeLocalePages）；按 `ref` 跳过的话，它的链接一条都不查，而 `visibility: ["*"]` 就是每一页都有。
+ */
 function blockLinks(blocks) {
   const out = [];
   const byType = linkSlotsByType();
   for (const b of blocks) {
-    if (!isObj(b) || typeof b.ref === 'string' || !isObj(b.data)) continue;
+    if (!isObj(b) || !isObj(b.data)) continue;
     const t = byType.get(b.type);
     if (!t) continue;
     for (const slot of t.slots) {
@@ -117,6 +122,9 @@ function blockLinks(blocks) {
  * @param {'page'|'site-blocks'|'navigation'|'any'} kind
  */
 function linksOf(kind, doc) {
+  // 🔴 #1430：顶层是数组的一份（今天没有写入方会产出，但 §commitWrites 承诺「新写入方不用记得接线」）不许整份跳过 ——
+  //    按任意深度找块。不是任何一种已知的站文件形状 ⟹ 方向是多拦：`'page'` / `'site-blocks'` 收到数组也走这一步。
+  if (Array.isArray(doc)) return kind === 'navigation' ? [] : deepBlockLinks(doc);
   if (!isObj(doc)) return [];
   if (kind === 'page') {
     const arr = Array.isArray(doc.blocks) ? doc.blocks : (Array.isArray(doc.sections) ? doc.sections : []);
