@@ -189,7 +189,8 @@ function toPuck(raw, siteBlocks = {}, conv = convert, sch = schema) {
   const blocks = normalize(raw, siteBlocks);
   const located = blocks.map((b) => editorPage.locateInRaw(raw, siteBlocks, raw.slug, b));
   const weights = editorPage.effectiveWeights(raw, siteBlocks, blocks, located);
-  return conv.pageToPuck({ raw, blocks, located, schema: sch, weights });
+  // #1406 —— 跟两个真调用方（编辑器页 page.tsx / 运行时底稿）一样把块库传进去：共用块的字段从它取。
+  return conv.pageToPuck({ raw, blocks, located, schema: sch, weights, siteBlocks });
 }
 
 /** 两份页面 JSON 逐块比，回第一处差异（`块.槽位`），相等回 null。 */
@@ -342,11 +343,15 @@ console.log('⑦b 按钮链接');
   d2.content.push({ type: 'hero', props });
   const nh = convert.puckToPage({ raw, data: d2, initial: i2, schema, slug: 'home' }).blocks.slice(-1)[0];
   check(nh.type === 'hero' && nh.data.ctaPrimary && nh.data.ctaPrimary.href === '/contact' && nh.data.ctaPrimary.label === 'Book', '新插的 hero 填了链接 → 写成 ctaPrimary {label, href}', JSON.stringify(nh.data));
-  // PM 21:58 第 2 点：共用块里 link 的 href 也只读
+  // PM 21:58 第 2 点那一格（共用块里 link 的 href 只读）#1406 起反过来：共用块能改字，link 的两格都能改，
+  // 只锁形态；字段值取自块库**文件里**那一份（改动合回的就是它）。
   const siteBlocks = { promo: { type: 'cta-banner', data: catalogLib.sampleDataFor(manifests.get('cta-banner')), visibility: ['home'] } };
   const rawS = { slug: 'home', blocks: [{ id: 'home-hero-0', type: 'hero', data: catalogLib.sampleDataFor(manifests.get('hero')) }, { ref: 'promo' }] };
-  const lockedItems = toPuck(rawS, siteBlocks).content.filter((c) => c.props._src.locked);
-  check(lockedItems.length === 1 && lockedItems[0].readOnly['button.href'] === true && lockedItems[0].readOnly['button.label'] === true, '共用块的 button.href / button.label 都只读', JSON.stringify(lockedItems[0] && lockedItems[0].readOnly));
+  const sharedItems = toPuck(rawS, siteBlocks).content.filter((c) => c.props._src.shared);
+  const si = sharedItems[0];
+  check(sharedItems.length === 1 && si.props._src.locked === false && JSON.stringify(si.readOnly) === JSON.stringify({ _shape: true }),
+    '共用块不锁：只有形态只读（button.href / button.label 都能改）', JSON.stringify(si && si.readOnly));
+  check(!!si && JSON.stringify(si.props.button) === JSON.stringify(siteBlocks.promo.data.button), '共用块的字段值 = 块库文件里那一份', JSON.stringify(si && si.props.button));
 }
 
 // ══ ⑧ 排序 / 增删 / 复制 ══════════════════════════════════════════════════════════════════════
@@ -390,7 +395,7 @@ function orderAfterRebuild(page, siteBlocks = {}) {
   check(Array.isArray(out3.sections) && !out3.blocks && out3.sections.every((s) => s.id === undefined), 'sections 形状保持 sections，条目不长出 id');
 }
 
-// ══ ⑨ 共用块：锁住、原样保留、当锚点 ═══════════════════════════════════════════════════════════
+// ══ ⑨ 共用块：原样保留、没拖过就当锚点（#1406 之前是「锁住」）═══════════════════════════════════════════════════════════
 console.log('⑨ 共用块');
 {
   const siteBlocks = {
@@ -409,8 +414,9 @@ console.log('⑨ 共用块');
   const { initial, data } = openPage(raw, siteBlocks);
   const canvas0 = data.content.map((c) => c.props.id);
   check(JSON.stringify(canvas0) === JSON.stringify(['home-hero-0', 'home-text-block-1', 'promo', 'faq', 'home-gallery-3']), '画布顺序 = 构建顺序（promo 按 weight 15 插在中间）', canvas0.join(' '));
+  const shared = data.content.filter((c) => c.props._src.shared).map((c) => c.props.id);
   const locked = data.content.filter((c) => c.props._src.locked).map((c) => c.props.id);
-  check(JSON.stringify(locked) === JSON.stringify(['promo', 'faq']), '两种共用块都是锁住的', locked.join(' '));
+  check(JSON.stringify(shared) === JSON.stringify(['promo', 'faq']) && locked.length === 0, '两种共用块都认得是共用的，都不锁（#1406）', `shared=${shared.join(' ')} locked=${locked.join(' ')}`);
   check(firstDiff(raw, convert.puckToPage({ raw, data, initial, schema, slug: 'home' })) === null, '不动 → 往返无损（注入的 promo 不被抄进这一页）');
   // 把 gallery 拖到最前、hero 拖到最后：promo(15) 是锚点，重建顺序必须 = 画布顺序
   const d2 = JSON.parse(JSON.stringify(data));
@@ -428,7 +434,7 @@ console.log('⑨ 共用块');
   const canvas3 = d3.content.map((c) => c.props.id);
   const out3 = convert.puckToPage({ raw, data: d3, initial, schema, slug: 'home' });
   check(JSON.stringify(orderAfterRebuild(out3, siteBlocks)) === JSON.stringify(canvas3), '块拖到锚点之后 → 重建顺序仍 = 画布顺序', `${orderAfterRebuild(out3, siteBlocks).join(' ')} ≠ ${canvas3.join(' ')}`);
-  // 复制一个锁住的共用块：不落盘（否则一页里两条同 id 的 ref）
+  // 复制一个共用块：不落盘（否则一页里两条同 id 的 ref）
   const d4 = JSON.parse(JSON.stringify(data));
   const dup = JSON.parse(JSON.stringify(d4.content[3])); dup.props.id = 'puck-dup-ref';
   d4.content.push(dup);

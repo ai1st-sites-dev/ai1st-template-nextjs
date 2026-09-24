@@ -6,6 +6,10 @@ export interface PuckItemSrc {
   at: number;
   entry: Record<string, unknown> | null;
   locked: boolean;
+  /** #1406：站级共用块的 id；不是共用块时为 null */
+  shared: string | null;
+  /** #1406：共用块打开时块库里那一份 data */
+  sharedData: Record<string, unknown> | null;
   reason: string;
   view: Record<string, unknown>;
   weight: number | null;
@@ -22,6 +26,8 @@ export function pageToPuck(args: {
   located: Located[];
   schema: EditorSchema;
   weights?: number[];
+  /** #1406：这种语言的站级块库（文件里那一份）—— 共用块的字段从它取 */
+  siteBlocks?: Record<string, unknown>;
 }): PuckLikeData;
 export function puckToPage(args: {
   raw: Record<string, unknown>;
@@ -29,6 +35,8 @@ export function puckToPage(args: {
   initial: PuckLikeData;
   schema: EditorSchema;
   slug: string;
+  /** #1406：画布上被拖过的块（Puck id） */
+  moved?: string[] | Set<string>;
 }): Record<string, unknown>;
 export function fieldProps(component: EditorComponent, data: unknown): Record<string, unknown>;
 export function dataFromProps(component: EditorComponent, base: unknown, props: Record<string, unknown>): Record<string, unknown>;
@@ -50,3 +58,26 @@ export function puckRootChanges(args: {
   now: { root?: { props?: Record<string, unknown> } };
   schema: EditorSchema;
 }): Record<string, unknown>;
+/** #1406 —— 站级共用块（说明在 editor-convert.js 那一段） */
+export type SharedChanges = Record<string, { data?: Record<string, unknown>; unlist?: true }>;
+export function sharedReach(args: {
+  siteBlocks: Record<string, unknown>;
+  refs?: Record<string, string[]>;
+  slugs?: string[];
+  id: string;
+}): { all: boolean; pages: number };
+export function sharedRemovable(siteBlocks: Record<string, unknown>, id: string): boolean;
+export function puckSharedChanges(args: {
+  data: { content?: { type: string; props: Record<string, unknown> }[] };
+  initial: PuckLikeData;
+  siteBlocks: Record<string, unknown>;
+  schema: EditorSchema;
+  slug: string;
+  own?: Record<string, Record<string, unknown>>;
+}): SharedChanges;
+export function sharedOwnAfter(args: {
+  initial: PuckLikeData;
+  own?: Record<string, Record<string, unknown>>;
+  changes: SharedChanges;
+}): Record<string, Record<string, unknown>>;
+export function applySharedChanges(siteBlocks: Record<string, unknown>, changes: SharedChanges, slug: string): Record<string, unknown>;

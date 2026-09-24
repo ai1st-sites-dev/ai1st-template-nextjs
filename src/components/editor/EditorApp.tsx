@@ -14,8 +14,12 @@
 //
 // #1404 —— config 不手写：组件、字段、形态下拉全部来自构建时算好的 `schema`（`scripts/lib/editor-schema.js`
 // 文件头说三份清单各从哪儿来），页面 JSON ⇄ Puck Data 走 `scripts/lib/editor-convert.js`（往返守卫
-// `scripts/editor-roundtrip.test.js` 跑的是同一份字节）。拖拽 / 增删 / 复制全开（Chris 2026-09-19）；
-// 只有共用块（`{ref}` 或按 `visibility` 注进来的）锁着 —— 改它归 #1406。
+// `scripts/editor-roundtrip.test.js` 跑的是同一份字节）。拖拽 / 增删 / 复制全开（Chris 2026-09-19）。
+//
+// #1406 —— 站级共用块（`{ref}` 或按 `visibility` 注进来的）不再锁着：画布上一枚「Shared」、面板顶上一句「在 N 个
+// 页面上」，改字 / 挪位置 / 删除三件各写对文件（`editor-convert.js` §#1406 那段是规矩的全文）。改字与「从 visibility
+// 里撤掉这一页」随存盘消息的 `shared` 交出去，站里的 `write-editor-save.js` 写块库；挪位置与拿掉 `{ref}` 在页面 JSON 里。
+// 仍然不许的：复制（会造出同 id 的第二条 `{ref}`）、换形态（按页还是全站要另定）、删「所有页面」上的块（Chris 2026-09-23）。
 //
 // #1415 —— 底稿以 dashboard 送来的为准。props 里那份是构建时烤进来的，只当首屏；dashboard 在运行时从站容器里
 // 现取一份（manager `GET /api/sites/{id}/pages`，站里 `scripts/lib/editor-page.js` §editorBaseline），
@@ -27,15 +31,18 @@
 // 转换只做 `editor-convert.js` §pageToPuck（纯函数）；归一化 / 定位 / 补字段都在容器里算好了，客户端
 // 不 import 任何读磁盘的库（那样构建会红在 `Can't resolve 'fs'`，而且归一化就有了两份实现）。
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Puck, FieldLabel, createUsePuck, type Config, type Data, type Field, type Fields } from '@puckeditor/core';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Puck, FieldLabel, createUsePuck, type Config, type Data, type Field, type Fields, type PuckAction } from '@puckeditor/core';
 import '@puckeditor/core/puck.css';
 import SectionRenderer from '@/components/SectionRenderer';
 import SiteShell from '@/components/SiteShell';
 import type { BlockConfig } from '@/lib/types/config';
 import type { EditorComponent, EditorField, EditorSchema } from '../../../scripts/lib/editor-schema';
-import type { PuckItemSrc, PuckLikeData } from '../../../scripts/lib/editor-convert';
-import { UNKNOWN_TYPE, pageToPuck, puckToPage, fieldProps, dataFromProps, deepEqual, puckRootChanges } from '../../../scripts/lib/editor-convert.js';
+import type { PuckItemSrc, PuckLikeData, SharedChanges } from '../../../scripts/lib/editor-convert';
+import {
+  UNKNOWN_TYPE, pageToPuck, puckToPage, fieldProps, dataFromProps, deepEqual, puckRootChanges,
+  sharedReach, sharedRemovable, puckSharedChanges, sharedOwnAfter, applySharedChanges,
+} from '../../../scripts/lib/editor-convert.js';
 
 export interface EditorAppProps {
   locale: string;
@@ -54,7 +61,17 @@ export interface EditorAppProps {
   overHero: boolean;
   /** 框住我们的 dashboard 的 origin。空串 = 构建时没拿到（本地模板 dev），这时不能保存。 */
   trustedOrigin: string;
+  /** #1406 —— 这种语言的站级块库（文件里那一份）：共用块的字段从它取，存盘时改动跟它比。 */
+  siteBlocks: Record<string, unknown>;
+  /** #1406 —— 每个共用块被哪几页 `ref`（`editor-page.js` §sharedRefs）；算「在 N 个页面上」用。 */
+  refs: Record<string, string[]>;
+  /** #1406 —— 这种语言现有的页（`visibility` 里写了不存在的页不算进 N）。 */
+  slugs: string[];
 }
+
+/** #1406 —— 算「在 N 个页面上」要的三样。放在 context 里：它随底稿换，换它不该让整棵 Puck 重建。 */
+type SharedInfo = { siteBlocks: Record<string, unknown>; refs: Record<string, string[]>; slugs: string[] };
+const SharedInfoContext = createContext<SharedInfo>({ siteBlocks: {}, refs: {}, slugs: [] });
 
 const usePuck = createUsePuck();
 
@@ -111,15 +128,41 @@ const UNKNOWN_NOTE: Field = {
   ),
 } as Field;
 
-const SHARED_NOTE: Field = {
+// 在原始页面 JSON 里定位不到的块（`locateInRaw` 的 not-found）：只读、原样留着。
+const LOCKED_NOTE: Field = {
   type: 'custom',
-  label: 'Shared section',
+  label: 'Locked section',
   render: () => (
-    <p data-editor-shared-note style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: '#475467' }}>
-      This section is shared with other pages, so it can&apos;t be changed, moved or removed here yet.
+    <p data-editor-locked-note style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: '#475467' }}>
+      This section can&apos;t be edited here. It is kept as is when you save.
     </p>
   ),
 } as Field;
+
+/** #1406 —— 共用块面板顶上那句话。N 按底稿现算（§sharedReach），`"*"` 的块写「所有页面」、不写数字。 */
+function SharedNote({ id }: { id: string }) {
+  const info = useContext(SharedInfoContext);
+  const reach = sharedReach({ siteBlocks: info.siteBlocks, refs: info.refs, slugs: info.slugs, id });
+  const removable = sharedRemovable(info.siteBlocks, id);
+  return (
+    <div data-editor-shared-note data-shared-pages={reach.all ? 'all' : String(reach.pages)} style={{ fontSize: 13, lineHeight: 1.5, color: '#475467' }}>
+      <p style={{ margin: 0 }}>
+        {reach.all
+          ? 'This section is on all pages. Changing it changes every page.'
+          : `This section is on ${reach.pages} ${reach.pages === 1 ? 'page' : 'pages'}. Changing it changes ${reach.pages === 1 ? 'that page' : `all ${reach.pages} of them`}.`}
+      </p>
+      {!removable && (
+        <p data-editor-shared-no-remove style={{ margin: '6px 0 0' }}>
+          It is on every page, so it can&apos;t be removed from just this one.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function sharedNoteField(id: string): Field {
+  return { type: 'custom', label: 'Shared section', render: () => <SharedNote id={id} /> } as Field;
+}
 
 /**
  * 画布上的一块：真站那一个组件（经 `SectionRenderer`），不是示意图。
@@ -134,7 +177,9 @@ function CanvasBlock({ component, props, locale }: { component: EditorComponent;
   const view = { ...baseView, id: src && props.id === src.pid ? baseView.id : props.id } as BlockConfig;
   let data: Record<string, unknown>;
   if (src) {
-    const baseData = (src.locked ? view.data : src.entry?.data) || {};
+    // 字段 prop 是按哪一份取的，就跟哪一份比：锁住的块 → 归一化后的那份；共用块 → 块库文件里那份（#1406）；
+    // 其余 → 页面文件里那一条。
+    const baseData = (src.locked ? view.data : src.shared ? src.sharedData : src.entry?.data) || {};
     const initial = fieldProps(component, baseData);
     const merged = dataFromProps(component, baseData, props);
     data = { ...((view.data as Record<string, unknown>) || {}) };
@@ -146,6 +191,24 @@ function CanvasBlock({ component, props, locale }: { component: EditorComponent;
     data = dataFromProps(component, {}, props);
   }
   const block = { ...view, data, shape: props._shape || undefined } as BlockConfig;
+  if (src?.shared) {
+    // #1406 —— 共用块在画布上一眼看得出来：左上角一枚标，块名旁写「Shared」（不接鼠标，点它等于点这一块）。
+    return (
+      <div data-editor-shared={src.shared} style={{ position: 'relative' }}>
+        <span
+          data-editor-shared-badge
+          style={{ position: 'absolute', top: 8, left: 8, zIndex: 5, pointerEvents: 'none', padding: '2px 8px', borderRadius: 999, fontSize: 12, fontWeight: 600, background: '#1d4ed8', color: '#fff', fontFamily: 'system-ui, sans-serif' }}
+        >
+          {component.label} · Shared
+        </span>
+        {view.hidden ? (
+          <div data-editor-hidden style={{ padding: '10px 16px', fontSize: 13, color: '#667085', background: '#f2f4f7' }}>
+            {component.label} — hidden on the live page
+          </div>
+        ) : <SectionRenderer blocks={[block]} locale={locale} />}
+      </div>
+    );
+  }
   if (view.hidden) {
     // `hidden` 整条由 #1411 退役；在那之前它还在页面 JSON 里，画布上给一条看得见的占位，别让它成为
     // 一个点不中的空条目。
@@ -158,7 +221,10 @@ function CanvasBlock({ component, props, locale }: { component: EditorComponent;
   return <SectionRenderer blocks={[block]} locale={locale} />;
 }
 
-export function buildConfig(schema: EditorSchema, locale: string, overHero = false): Config {
+/**
+ * @param removable #1406 —— 这个共用块能不能从这一页删（`"*"` 的不能）。读的是编辑器手上**现在**那份块库。
+ */
+export function buildConfig(schema: EditorSchema, locale: string, overHero = false, removable: (id: string) => boolean = () => true): Config {
   const components: Record<string, Config['components'][string]> = {};
   for (const c of schema.components) {
     const fields: Fields = {};
@@ -176,15 +242,22 @@ export function buildConfig(schema: EditorSchema, locale: string, overHero = fal
       label: c.label,
       fields,
       defaultProps,
-      // 共用块：内容 / 位置 / 删除都归 #1406，这里一样都不许动（复制会造出同 id 的第二条 `{ref}`）。
+      // 锁住的块（定位不到）：一样都不许动。共用块（#1406）：能改字、能挪、能删，不能复制（会造出同 id 的第二条
+      // `{ref}`，构建当场报撞车）；「所有页面」上的共用块不能删（Chris 2026-09-23）。
       // 🔴 不关 `edit`：Puck 对 `edit: false` 的块整块禁用、点都点不中 —— 那就是「点了没反应」。
       //    留着能选中，字段按条目上的 `readOnly` 灰掉，面板顶上一句话说为什么。
-      resolvePermissions: (data: { props?: ItemProps }) => (data.props?._src?.locked
-        ? { drag: false, duplicate: false, delete: false }
-        : {}),
-      resolveFields: (data: { props?: ItemProps }) => (data.props?._src?.locked
-        ? { _shared: SHARED_NOTE, ...fields }
-        : fields),
+      resolvePermissions: (data: { props?: ItemProps }) => {
+        const src = data.props?._src;
+        if (src?.locked) return { drag: false, duplicate: false, delete: false };
+        if (src?.shared) return { duplicate: false, delete: removable(src.shared) };
+        return {};
+      },
+      resolveFields: (data: { props?: ItemProps }) => {
+        const src = data.props?._src;
+        if (src?.locked) return { _locked: LOCKED_NOTE, ...fields };
+        if (src?.shared) return { _shared: sharedNoteField(src.shared), ...fields };
+        return fields;
+      },
       render: (props: ItemProps) => <CanvasBlock component={c} props={props} locale={locale} />,
     } as unknown as Config['components'][string];
   }
@@ -313,7 +386,10 @@ type Status = { kind: 'idle' | 'saving' | 'saved' | 'error'; text: string };
  * 存盘要用的那一份底：原始 JSON + 打开时的 Puck Data（§puckToPage 要它的 content）+ 文件的 sha256 + 上一次存下去的 JSON。
  * `initial.root.props` 是外壳四样的比较基准（#1405）：打开时是构建时那份，每存成功一次就把送出去的字段合进去。
  */
-type Base = { raw: Record<string, unknown>; initial: PuckLikeData; hash: string; saved: Record<string, unknown> };
+// #1406 —— `siteBlocks`：块库的底（共用块的改动跟它比；每存成功一次把送出去的那几处合进去）。
+// `sharedOwn`（#1406）：画布上每个共用块的字段是按哪一份 data 取的 —— 存成功过的才在里面（没有就是打开时的
+// `_src.sharedData`）。「老板改过没有」跟它比，不跟 `siteBlocks`（dashboard 重取的、带着别处改动的那份）比。
+type Base = { raw: Record<string, unknown>; initial: PuckLikeData; hash: string; saved: Record<string, unknown>; siteBlocks: Record<string, unknown>; sharedOwn: Record<string, Record<string, unknown>> };
 
 type PuckDispatch = (action: { type: 'setData'; data: Data; recordHistory?: boolean }) => void;
 
@@ -347,18 +423,25 @@ function SaveButton({ onSave, status }: { onSave: (d: Data) => void; status: Sta
   );
 }
 
-export default function EditorApp({ locale, page, raw, baseHash, schema, initialData, overHero, trustedOrigin }: EditorAppProps) {
+export default function EditorApp({ locale, page, raw, baseHash, schema, initialData, overHero, trustedOrigin, siteBlocks, refs, slugs }: EditorAppProps) {
   const [status, setStatus] = useState<Status>({ kind: 'idle', text: '' });
   const statusRef = useRef(status);
   statusRef.current = status;
 
-  const config = useMemo(() => buildConfig(schema, locale, overHero), [schema, locale, overHero]);
-
   // #1415 —— 存盘的底。首屏是构建时烤进来的那份；dashboard 的 baseline 到了就换（见文件头）。放在 ref 里：
   // 它只在存盘那一刻被读，换它不该让整棵 Puck 重新渲染。
-  const baseRef = useRef<Base>({ raw, initial: initialData, hash: baseHash, saved: raw });
+  const baseRef = useRef<Base>({ raw, initial: initialData, hash: baseHash, saved: raw, siteBlocks: siteBlocks || {}, sharedOwn: {} });
+  // #1406 —— 「在 N 个页面上」那句话读的三样（context，见 SharedInfoContext）。
+  const [sharedInfo, setSharedInfo] = useState<SharedInfo>({ siteBlocks: siteBlocks || {}, refs: refs || {}, slugs: slugs || [] });
+  const config = useMemo(
+    () => buildConfig(schema, locale, overHero, (id) => sharedRemovable(baseRef.current.siteBlocks, id)),
+    [schema, locale, overHero],
+  );
+  // #1406 —— 老板在画布上拖过的块（Puck id）。按 `visibility` 注进来的共用块只有拖过的才写成这一页的 `{ref}`
+  // （`editor-convert.js` §puckToPage 的 `moved`）。换一份新画布（open / external）时清空。
+  const movedRef = useRef<Set<string>>(new Set());
   // 这一次存盘送出去的 JSON：`saved` 到了才算它进了文件（「Nothing to save」要跟它比，不跟打开时比）。
-  const sendingRef = useRef<{ json: Record<string, unknown> | null; root: Record<string, unknown> | null } | null>(null);
+  const sendingRef = useRef<{ json: Record<string, unknown> | null; root: Record<string, unknown> | null; shared: SharedChanges | null } | null>(null);
   const [canvas, setCanvas] = useState<{ key: number; data: PuckLikeData }>({ key: 0, data: initialData });
   const dispatchRef = useRef<PuckDispatch | null>(null);
 
@@ -377,7 +460,7 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
       if (e.origin !== trustedOrigin) return;
       const d = e.data as {
         type?: unknown; ok?: unknown; message?: unknown; page?: unknown; locale?: unknown; reason?: unknown; hash?: unknown;
-        raw?: unknown; siteBlocks?: unknown; blocks?: unknown; located?: unknown; weights?: unknown;
+        raw?: unknown; siteBlocks?: unknown; blocks?: unknown; located?: unknown; weights?: unknown; refs?: unknown; slugs?: unknown;
       };
       if (!d || typeof d !== 'object') return;
       if (d.type === 'ai1st:editor-save-result') {
@@ -390,6 +473,16 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
       // 别的页面的底稿不许换进来（扁平站 dashboard 那头的 locale 是空的，只在两边都有时才比）。
       if (d.page !== page) return;
       if (typeof d.locale === 'string' && d.locale && d.locale !== locale) return;
+      const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+      if (d.reason === 'shared') {
+        // #1406 —— 存盘成功之后 dashboard 重取的那一份：只换「在 N 个页面上」要的三样和块库的底，画布与 hash 不动。
+        // 🔴 `sharedOwn` 也不动：画布的字段不是按这一份取的（QA2 r1 的 F）。
+        if (!isObj(d.siteBlocks)) return;
+        const lib = d.siteBlocks;
+        baseRef.current = { ...baseRef.current, siteBlocks: lib };
+        setSharedInfo({ siteBlocks: lib, refs: isObj(d.refs) ? (d.refs as Record<string, string[]>) : {}, slugs: Array.isArray(d.slugs) ? (d.slugs as string[]) : [] });
+        return;
+      }
       const hashOk = typeof d.hash === 'string' && /^[0-9a-f]{64}$/.test(d.hash);
       if (d.reason === 'saved') {
         // hash 可以缺：只改外壳的那一笔（#1405）没动页面文件，baseHash 不用换。带了就必须是合形的。
@@ -399,7 +492,10 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
         const initial = sent?.root
           ? { ...b.initial, root: { ...b.initial.root, props: { ...(b.initial.root?.props || {}), ...sent.root } } }
           : b.initial;
-        baseRef.current = { ...b, initial, hash: hashOk ? (d.hash as string) : b.hash, saved: sent?.json || b.saved };
+        const lib = sent?.shared ? applySharedChanges(b.siteBlocks, sent.shared, page) as Record<string, unknown> : b.siteBlocks;
+        const sharedOwn = sent?.shared ? sharedOwnAfter({ initial: b.initial, own: b.sharedOwn, changes: sent.shared }) : b.sharedOwn;
+        baseRef.current = { ...b, initial, hash: hashOk ? (d.hash as string) : b.hash, saved: sent?.json || b.saved, siteBlocks: lib, sharedOwn };
+        if (sent?.shared) setSharedInfo((x) => ({ ...x, siteBlocks: lib }));
         sendingRef.current = null;
         return;
       }
@@ -407,6 +503,7 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
       if (d.reason !== 'open' && d.reason !== 'external') return;
       if (!d.raw || typeof d.raw !== 'object' || !Array.isArray(d.blocks) || !Array.isArray(d.located)) return;
       const nextRaw = d.raw as Record<string, unknown>;
+      const nextLib = isObj(d.siteBlocks) ? d.siteBlocks : {};
       let next: PuckLikeData;
       try {
         next = pageToPuck({
@@ -415,6 +512,7 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
           located: d.located as never,
           schema,
           weights: Array.isArray(d.weights) ? (d.weights as number[]) : undefined,
+          siteBlocks: nextLib,
         }) as PuckLikeData;
       } catch {
         return; // 转不出来就留着手上这一份：存盘的 hash 没换，存的时候 write-page 会说实话。
@@ -423,8 +521,11 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
       // 的那份，存过就是存下去的那份）。不接上的话 root 字段全空，画布的顶栏页脚会变成默认、存盘的逐字段比较也全乱。
       next = { ...next, root: baseRef.current.initial.root };
       const same = deepEqual(next, baseRef.current.initial);
-      baseRef.current = { raw: nextRaw, initial: next, hash: d.hash as string, saved: nextRaw };
+      // 画布换成新的一份时，共用块的字段就是按 nextLib 取的 ⟹ `sharedOwn` 清空；画布不动（same）就留着。
+      baseRef.current = { raw: nextRaw, initial: next, hash: d.hash as string, saved: nextRaw, siteBlocks: nextLib, sharedOwn: same ? baseRef.current.sharedOwn : {} };
+      setSharedInfo({ siteBlocks: nextLib, refs: isObj(d.refs) ? (d.refs as Record<string, string[]>) : {}, slugs: Array.isArray(d.slugs) ? (d.slugs as string[]) : [] });
       if (same) return; // 跟首屏一样（构建之后没人改过）：画布不动，不打断已经开始的编辑。
+      movedRef.current = new Set();
       if (d.reason === 'external' && dispatchRef.current) {
         dispatchRef.current({ type: 'setData', data: next as unknown as Data, recordHistory: false });
       } else {
@@ -443,8 +544,11 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
     }
     const base = baseRef.current;
     let json: Record<string, unknown>;
+    let shared: SharedChanges;
     try {
-      json = puckToPage({ raw: base.raw, data: data as never, initial: base.initial, schema, slug: page });
+      json = puckToPage({ raw: base.raw, data: data as never, initial: base.initial, schema, slug: page, moved: movedRef.current });
+      // #1406 —— 共用块改了字 / 从这一页删了（而它的 visibility 列了这一页）：写块库那几处。
+      shared = puckSharedChanges({ data: data as never, initial: base.initial, siteBlocks: base.siteBlocks, schema, slug: page, own: base.sharedOwn });
     } catch (e) {
       setStatus({ kind: 'error', text: `Could not save: ${(e as Error).message}` });
       return;
@@ -456,12 +560,13 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
     // 页面底稿去比 baseHash，别处刚改过这一页时它会被无端拒掉。
     const root = puckRootChanges({ initial: base.initial, now: data as never, schema });
     const pageChanged = !deepEqual(json, base.saved);
-    if (!pageChanged && Object.keys(root).length === 0) {
+    const hasShared = Object.keys(shared).length > 0;
+    if (!pageChanged && Object.keys(root).length === 0 && !hasShared) {
       setStatus({ kind: 'idle', text: 'Nothing to save.' });
       return;
     }
     setStatus({ kind: 'saving', text: 'Saving…' });
-    sendingRef.current = { json: pageChanged ? json : null, root: Object.keys(root).length ? root : null };
+    sendingRef.current = { json: pageChanged ? json : null, root: Object.keys(root).length ? root : null, shared: hasShared ? shared : null };
     // 不带文件路径：写哪个文件由站里的脚本按 page/locale 自己算（`write-page.js` 文件头说为什么）。
     window.parent.postMessage({
       type: 'ai1st:editor-save',
@@ -469,7 +574,15 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
       locale,
       ...(pageChanged ? { json, baseHash: base.hash } : {}),
       ...(Object.keys(root).length ? { root } : {}),
+      ...(hasShared ? { shared } : {}),
     }, trustedOrigin);
+  }
+
+  // #1406 —— 记下老板拖过哪一块（Puck 的 reorder / move 带着拖之前的下标；页面只有一个根区）。
+  function onAction(action: PuckAction, _next: unknown, prev: { data?: { content?: { props?: { id?: unknown } }[] } }) {
+    if (action.type !== 'reorder' && action.type !== 'move') return;
+    const id = prev?.data?.content?.[action.sourceIndex]?.props?.id;
+    if (typeof id === 'string') movedRef.current.add(id);
   }
 
   let empty: ReactNode = null;
@@ -483,12 +596,14 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
   if (empty) return empty;
 
   return (
+    <SharedInfoContext.Provider value={sharedInfo}>
     <div data-editor-root style={{ height: '100vh' }}>
       <Puck
         key={canvas.key}
         config={config}
         data={canvas.data as unknown as Data}
         iframe={{ enabled: true, syncHostStyles: true, waitForStyles: true }}
+        onAction={onAction as never}
         overrides={{
           headerActions: () => (
             <>
@@ -500,5 +615,6 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
         onPublish={save}
       />
     </div>
+    </SharedInfoContext.Provider>
   );
 }
