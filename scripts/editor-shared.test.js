@@ -479,5 +479,84 @@ console.log('⑨ 反向对照：删除不动 visibility');
   reset();
 }
 
+// ══ ⑩ #1427：共用块里的链接过同一道白名单（lib/link-href.js）—— 帽子在 lib/page-write.js §commitWrites ════
+console.log('⑩ 共用块的按钮链接：坏的拒、好的收、老数据不炸、新的写入方不用接线');
+{
+  const BAD = ['javascript:alert(1)', 'vbscript:msgbox(1)', 'data:text/html,<script>alert(1)</script>'];
+  const GOOD = ['https://example.com/book', 'mailto:hi@example.com', 'tel:+14165550100', '/contact'];
+  const lib = path.join(SITE, 'en', 'blocks', 'site-blocks.json');
+  const setButton = (o, href) => { itemOf(o.data, 'promo').props.button = { label: 'Go', href }; };
+  const refusedMsg = (r) => (r.last && r.last.ok === false ? String(r.last.message || '') : '');
+
+  for (const href of BAD) {
+    reset();
+    const before = fs.readFileSync(lib, 'utf-8');
+    const o = open('home');
+    setButton(o, href);
+    const r = save('home', o);
+    check(Boolean(r.input.shared && r.input.shared.promo), `${href.split(':')[0]}: 这次存盘真的带着共用块的改动`, JSON.stringify(r.input));
+    const msg = refusedMsg(r);
+    check(r.status === 11 && /not an address a link can use/.test(msg) && /"Go"/.test(msg),
+      `${href.split(':')[0]}: → exit 11、stdout 那一行点名了按钮`, `rc=${r.status} ${JSON.stringify(msg.slice(0, 120))} ${String(r.stderr).slice(0, 160)}`);
+    check(fs.readFileSync(lib, 'utf-8') === before && changed().length === 0, `${href.split(':')[0]}: 块库逐字节不变、站仓 git status 为空`, changed().join(' '));
+  }
+
+  for (const href of GOOD) {
+    reset();
+    const o = open('home');
+    setButton(o, href);
+    const r = save('home', o);
+    const got = sb().promo.data.button;
+    check(r.status === 0 && got && got.href === href && got.label === 'Go', `合法 ${href} → rc=0、落盘逐字相同`, `rc=${r.status} ${JSON.stringify(got)} ${String(r.stderr).slice(0, 160)}`);
+  }
+
+  // 老数据：块库里本来就有一个坏链接（模拟本票之前存进去的）。
+  reset();
+  const legacy = readJSON(lib);
+  legacy.promo.data.button = { label: 'Old', href: 'vbscript:legacy()' };
+  writeJSON(lib, legacy);
+  {
+    const o = open('home');
+    itemOf(o.data, 'promo').props.headline = 'Only the headline 1427';
+    const r = save('home', o);
+    const d = sb().promo.data;
+    check(r.status === 0 && d.headline === 'Only the headline 1427' && d.button.href === 'vbscript:legacy()',
+      '老数据：只改这个块的标题 → rc=0（老坏链接原样留着）', `rc=${r.status} ${JSON.stringify(d)} ${String(r.stderr).slice(0, 160)}`);
+  }
+  {
+    const before = fs.readFileSync(lib, 'utf-8');
+    const o = open('home');
+    itemOf(o.data, 'promo').props.button = { label: 'Old', href: 'data:text/html,x' };
+    const r = save('home', o);
+    const msg = refusedMsg(r);
+    check(r.status === 11 && /"Old"/.test(msg) && /CTA/i.test(msg) && fs.readFileSync(lib, 'utf-8') === before,
+      '老数据：把那个坏链接改成另一个坏的 → 拒，点名按钮和块，块库不变', `rc=${r.status} ${JSON.stringify(msg.slice(0, 160))}`);
+  }
+  reset();
+
+  // 🔴 源头帽「按构造覆盖」：一种今天不存在的写入（新文件、新种类），不经任何 plan 函数、直接交给 commitWrites。
+  const pw = require(path.join(TEMPLATE, 'scripts', 'lib', 'page-write.js'));
+  const fifth = path.join(SITE, 'en', 'blocks', 'footer-promos-1427.json');
+  const doc = (href) => `${JSON.stringify({ spring: { type: 'cta-banner', data: { ...sample('cta-banner'), button: { label: 'Go', href } } } }, null, 2)}\n`;
+  for (const href of BAD) {
+    let err = null;
+    try { pw.commitWrites([{ file: fifth, content: doc(href) }]); } catch (e) { err = e; }
+    check(err instanceof pw.PageWriteError && err.code === pw.REFUSED && !fs.existsSync(fifth),
+      `第五种写入 ${href.split(':')[0]}: → PageWriteError(REFUSED)、文件没落盘`, err ? `${err.code} ${err.message.slice(0, 100)}` : '没抛');
+  }
+  {
+    // 一次交两份：好的页面 + 坏的新文件 ⟹ 两份都不写（所有校验先于所有写入）
+    const home = path.join(SITE, 'en', 'pages', 'home.json');
+    const hb = fs.readFileSync(home, 'utf-8');
+    const pg = readJSON(home); pg.title = 'Would be written 1427';
+    let err = null;
+    try { pw.commitWrites([{ file: home, content: `${JSON.stringify(pg, null, 2)}\n` }, { file: fifth, content: doc('vbscript:x') }]); } catch (e) { err = e; }
+    check(err && err.code === pw.REFUSED && fs.readFileSync(home, 'utf-8') === hb && !fs.existsSync(fifth), '好页面 + 坏的第五种写入一起交 ⟹ 一个字节都不写', err ? err.message.slice(0, 100) : '没抛');
+    pw.commitWrites([{ file: fifth, content: doc('/contact') }]);
+    check(fs.existsSync(fifth) && readJSON(fifth).spring.data.button.href === '/contact', '第五种写入合法链接 → 照写', '');
+  }
+  reset();
+}
+
 console.log(`\n${fail === 0 ? '✅' : '❌'} ${pass} 过 · ${fail} 失败`);
 process.exit(fail === 0 ? 0 : 1);

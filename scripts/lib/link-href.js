@@ -1,13 +1,15 @@
 'use strict';
 
-// link-href.js —— 老板填的链接能去哪儿（#1416）。三条写入路径共用这一份，判据只有这里一处：
+// link-href.js —— 老板填的链接能去哪儿（#1416）。写站文件的两套机制共用这一份，判据只有这里一处：
 //
-//   · `lib/page-write.js` §planPageWrite   编辑器存页面（`write-page.js` / `write-editor-save.js` 都走它）
-//   · `lib/editor-root.js` §planRootWrite  编辑器存公告条链接（→ `navigation.json` 的 `topbar.link`）
+//   · `lib/page-write.js` §commitWrites    编辑器那一侧**每一份**落盘（#1427 源头帽，kind `'any'`）——
+//                                           页面 / 站级共用块（`lib/shared-blocks-write.js`）/ 外壳四样，
+//                                           以及以后交给它的任何一种。新写入方不用记得接线。
+//     另有两处更早的检查留着（报错更早、话更贴上下文）：§planPageWrite（`'page'`）、
+//     `lib/editor-root.js` §planRootWrite（`'navigation'`）。
 //   · `edit-site.js` 的 write_file          AI 对话改站：页面 JSON / `navigation.json` / `blocks/site-blocks.json`
-// 🔴 新的写入口要接进来，不另写一份：#1406 在做的 `lib/shared-blocks-write.js`（编辑器写站级块库，里面有
-//    cta-banner 这类链接槽）落地时，在它算出块库的新内容之后调 `linkRejection('site-blocks', 新的, 旧的)`，
-//    拒了走它自己的 11。
+// 🔴 #1416 当初把射程写成「三条路径」的清单，第四条（#1406 的共用块）同一天落地、零调用（#1427）。
+//    编辑器那一侧从此不按写入方逐个设卡：写站文件就交给 §commitWrites。
 //
 // ── 放行什么 ────────────────────────────────────────────────────────────────────────────────────
 //   `http:` `https:` `mailto:` `tel:`（大小写不论），以及站内路径（`/` 开头，第二个字不是 `/` 也不是 `\`）。
@@ -33,12 +35,12 @@
 //   上同一串 href，写之前的文件里有几个就放过几个。不按块的下标比 —— 老 `sections` 页面的块没有 id，
 //   编辑器挪一下顺序就会把没碰过的链接误判成新写的。
 //
-// ── 🔴 第四个入口今天不存在，哪天可能会有 ──────────────────────────────────────────────────────────
+// ── 🔴 检查器那个入口今天写不到链接，哪天可能会写到 ─────────────────────────────────────────────────
 //   `scripts/patch-block.js`（检查器那条路）收任意 JSON merge patch，路径正则连 `ctaPrimary.href` 都放得过。
 //   今天它写不到 href，只因为 link 槽位的 `editLabel` 只标了 `label`（能改哪些字由 `editLabel` 定，
 //   `lib/block-manifest.js` §editableSlotPaths）。哪天给某个 link 槽位的 `editLabel` 加上 `href`，
-//   `patch-block.js` 就成了第四个入口 ⟹ `link-href.test.js` 那一格当场红，点名那个槽位：
-//   到时候把这里接进 `patch-block.js`，再改那一格。
+//   `patch-block.js` 就成了又一个入口 —— 它自己 `writeFileSync`，不走 `lib/page-write.js` §commitWrites，
+//   源头帽盖不到它 ⟹ `link-href.test.js` 那一格当场红，点名那个槽位：到时候把它改成走 §commitWrites，再改那一格。
 //
 // 📌 不管的：目标可不可达（`check-dead-links.js`）、外链的 `rel`、图片地址（`create-site.js`
 //    §isValidImageUrl 故意放行 `data:`，那是 `<img src>`，不是链接 —— 别合并成一个函数）。
@@ -77,6 +79,22 @@ function linkSlotsByType() {
   return m;
 }
 
+/**
+ * 一份 JSON 里**任何深度**上的块形状对象（`{ type, data }`）的全部链接（#1427，kind `'any'`）。
+ * 不问这是哪种文件：页面的 `blocks` / `sections`、块库的值、以后新的装块的文件，块长得都一样。
+ */
+function deepBlockLinks(doc) {
+  const found = [];
+  const walk = (v) => {
+    if (Array.isArray(v)) { for (const x of v) walk(x); return; }
+    if (!isObj(v)) return;
+    if (typeof v.type === 'string' && isObj(v.data)) found.push(v);
+    for (const x of Object.values(v)) walk(x);
+  };
+  walk(doc);
+  return blockLinks(found);
+}
+
 /** 一串块里的全部链接：`{ place, where, label, href }`。`{ref}` 条目的字不在这里，跳过。 */
 function blockLinks(blocks) {
   const out = [];
@@ -96,7 +114,7 @@ function blockLinks(blocks) {
 
 /**
  * 一份文件里老板填的全部链接。
- * @param {'page'|'site-blocks'|'navigation'} kind
+ * @param {'page'|'site-blocks'|'navigation'|'any'} kind
  */
 function linksOf(kind, doc) {
   if (!isObj(doc)) return [];
@@ -105,6 +123,10 @@ function linksOf(kind, doc) {
     return blockLinks(arr);
   }
   if (kind === 'site-blocks') return blockLinks(Object.values(doc));
+  // 🔴 `'any'` 不按文件名认种类（#1427）：按文件名认，一种今天不存在的新文件按定义认不得、帽子对它失明；
+  //    而且 `pages/navigation.json`（slug 叫 navigation 的页面）会跟 navigation.json 撞。navigation 那两个键
+  //    对别的文件也查一遍 —— 方向是多拦；老数据照样按「写之前有几个」放过。
+  if (kind === 'any') return [...deepBlockLinks(doc), ...linksOf('navigation', doc)];
   if (kind === 'navigation') {
     const out = [];
     for (const n of NAV_LINKS) {
@@ -120,7 +142,7 @@ function linksOf(kind, doc) {
 /**
  * 这一次写入里有没有新写进去的、不能收的链接。有 ⟹ 回一句给老板看的话（英文，跟编辑器其余文案一种语言）；
  * 没有 ⟹ `null`。
- * @param {'page'|'site-blocks'|'navigation'} kind
+ * @param {'page'|'site-blocks'|'navigation'|'any'} kind
  * @param {unknown} next    要写的那份
  * @param {unknown} before  磁盘上现在那份（没有 ⟹ `null`）
  */

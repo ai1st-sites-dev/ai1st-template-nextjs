@@ -16,6 +16,8 @@
 // 失败抛 `SharedWriteError`（带退出码，意思同 write-editor-save.js 文件头）：
 //   4 块库里没有这个块 / 这种语言没有块库   5 形状不对   9 写进去这个站就建不出来了
 //  11 拒收：`"*"` 的块不能只从这一页删（那句话原样进编辑器状态栏）
+//  📌 共用块里填的链接不在这里判（#1427）：落盘那一步 `lib/page-write.js` §commitWrites 对每一份写入都判，
+//     拒了抛 `PageWriteError(11)`，同一条通道进状态栏。
 
 const fs = require('fs');
 const path = require('path');

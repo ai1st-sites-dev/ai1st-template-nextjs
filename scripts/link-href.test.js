@@ -103,7 +103,7 @@ console.log('② 块清单那一侧');
     const s = m.get(n.block) && m.get(n.block).slots && m.get(n.block).slots[n.slot];
     check(Boolean(s && s.kind === 'link'), `NAV_LINKS 的 ${n.key.join('.')} 对得上 blocks/${n.block} 的 link 槽位 ${n.slot}`);
   }
-  // 🔴 第四个入口的哨兵（lib/link-href.js 文件头）：`patch-block.js` 能改哪些字由 `editLabel` 定。哪个 link
+  // 🔴 检查器那个入口的哨兵（lib/link-href.js 文件头）：`patch-block.js` 能改哪些字由 `editLabel` 定。哪个 link
   //    槽位的 `editLabel` 一旦点名 `href`，检查器那条路就写得到链接地址了，而它今天不过这道判据。
   const opened = linkSlots.filter(({ s }) => typeof s.editLabel === 'string'
     || (s.editLabel && typeof s.editLabel === 'object' && Object.prototype.hasOwnProperty.call(s.editLabel, 'href')));

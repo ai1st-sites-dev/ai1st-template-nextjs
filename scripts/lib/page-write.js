@@ -137,9 +137,23 @@ function planPageWrite({ root, blocks, pageFiles, target, slug, baseHash, next, 
 /**
  * 把判过的那几份一起落盘。先把**每一份**写成临时文件，全部写成之后再逐个改名：写到一半被打断也不会
  * 留下半份 JSON（那一份会让整站建不出来），而改名这一步不会半途失败在「写了一半的内容」上。
+ *
+ * #1427 —— 🔴 **落盘之前，每一份都过一遍链接判据**（`lib/link-href.js`，kind `'any'`），一份被拒就一个字节都不写。
+ * 编辑器那一侧的每一种写入（页面 / 站级共用块 / 外壳四样）最后都交到这里，所以帽子扣在这里 ——
+ * 以后新加一种写入，不用记得接线。各 plan 函数里更早的那几处检查留着（报错更早），这里是兜底。
+ * `before` 从盘上现读（此刻还没换掉）；读不出 / 不是 JSON 的旧文件当「没有旧链接」—— 方向是多拦。
+ * 要写的内容不是 JSON ⟹ 里面没有判据认得的链接，跳过。
  * @param {{ file: string, content: string }[]} writes
  */
 function commitWrites(writes) {
+  for (const w of writes) {
+    let next;
+    try { next = JSON.parse(w.content); } catch (e) { continue; }
+    let before = null;
+    try { before = JSON.parse(fs.readFileSync(w.file, 'utf-8')); } catch (e) { before = null; }
+    const badLink = linkRejection('any', next, before);
+    if (badLink) fail(REFUSED, badLink);
+  }
   const staged = writes.map((w) => {
     const tmp = `${w.file}.tmp-${process.pid}`;
     fs.writeFileSync(tmp, w.content);
