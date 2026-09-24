@@ -18,12 +18,6 @@
       "editLabel": "Brand name"
     }
   },
-  "variants": {
-    "default": "text logos",
-    "pill": "rounded pill badges",
-    "dark": "dark bg"
-  },
-  "variantKey": "variants",
   "industries": {
     "required": [],
     "recommended": [],

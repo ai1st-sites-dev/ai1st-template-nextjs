@@ -27,13 +27,6 @@
       }
     }
   },
-  "variants": {
-    "list": "checkmark grid",
-    "cards": "bordered cards",
-    "grouped": "two-column split",
-    "badge": "inline pills"
-  },
-  "variantKey": "variants",
   "industries": {
     "required": [],
     "recommended": [

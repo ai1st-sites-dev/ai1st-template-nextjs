@@ -17,13 +17,6 @@
       "shape": "string"
     }
   },
-  "variants": {
-    "cards": "location cards",
-    "inline": "compact list",
-    "map-style": "two-column with map placeholder",
-    "banner": "horizontal compact strip"
-  },
-  "variantKey": "variants",
   "industries": {
     "required": [
       "*"
@@ -39,7 +32,7 @@
     "headExtra": null,
     "lines": [
       "@data",
-      "NOTE: This section auto-renders locations from brand.json. Only provide headline + variant."
+      "NOTE: This section auto-renders locations from brand.json. Only provide headline."
     ]
   }
 }

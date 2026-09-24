@@ -23,13 +23,6 @@
       "editLabel": "Button text"
     }
   },
-  "variants": {
-    "inline": "accent bg with inline form",
-    "card": "centered card",
-    "split": "two-column",
-    "minimal": "compact single-row strip"
-  },
-  "variantKey": "variants",
   "industries": {
     "required": [],
     "recommended": [],

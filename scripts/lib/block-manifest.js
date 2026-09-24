@@ -9,11 +9,13 @@
 // 🔴 库定义结构与槽，不定义内容（Chris 2026-08-13 的边界）。manifest 里没有一句文案 —— 文案是
 // 建站时 AI 按这家生意生成、填进槽里的。
 //
-// 🔴 `variants` 是过渡字段（阶段 3 随旧外观退役整字段删除）。它装的是**外观**词，喂的是建站提示词。
-// 📌 #1341 —— 它旁边原来还有一个 `block_layout`（**内容结构**：这个块有没有配图 / 带不带表单），
-//    两者并存。那一维整条退役了：可选槽位填没填由 `data-has-<槽位>` 说（#1331），带表单的首屏是
-//    自己一个块类型 `hero-with-form`（#1333）。manifest 里 `block_layout` 与 `slots.variant`
-//    两个键都没有了，`variants` / `variantKey` 留着（提示词要用）。
+// 📌 #1419 —— manifest 里原来还有 `variants` / `variantKey`（一份**外观**词表，拼进建站提示词让 AI 挑）。
+//    D20 之后形态的真相是子目录（`blocks/<块>/<形态>/`），那份词表跟它对不上（hero 9 个名字 0 个撞上），
+//    而 AI 挑的答案落在 `data.variant`、形态只读 `block.shape`（`block-shape.js`）⟹ 挑了也没用。
+//    两个键已从 28 份 manifest 删掉：形态归取值链（页面 JSON 的 shape / 主题选择单 / 库默认），AI 只写内容。
+// 📌 #1341 —— 更早还有一个 `block_layout`（**内容结构**：这个块有没有配图 / 带不带表单）。那一维整条
+//    退役了：可选槽位填没填由 `data-has-<槽位>` 说（#1331），带表单的首屏是自己一个块类型
+//    `hero-with-form`（#1333）。manifest 里 `block_layout` 与 `slots.variant` 两个键都没有了。
 const fs = require('fs');
 const path = require('path');
 const { resolveBlockTypesForCheck } = require('../blocks');
@@ -426,10 +428,6 @@ function checkManifestShape(name, m) {
     && (m.layout_intent === null || typeof m.layout_intent !== 'object' || Array.isArray(m.layout_intent))) {
     bad('layout_intent 有的话必须是对象（块级默认，形态可以按轴覆盖）');
   }
-  if (m.variants === null || typeof m.variants !== 'object' || Array.isArray(m.variants)) {
-    bad('variants 必须是对象（外观词 → 一句说明）');
-  }
-  if (m.variantKey !== undefined && !isStr(m.variantKey)) bad('variantKey 有的话必须是非空字符串');
   // #1333 —— `hooksFrom` 说的是「这个块的 HTML 用的是**另一个块**那套部件类名」。
   //
   // 今天只有一个：`hero-with-form` 渲染的是 `.hero` / `.hero__body` / `.hero__form` 这一家
@@ -607,13 +605,13 @@ function dataLineFor(m) {
   return `data: { ${parts.join(', ')} }`;
 }
 
+// #1419 —— 头行不再带形态清单：AI 不挑形态（它挑的名字落在 `data.variant`，没有人读）。
+// 剩下的只有块名，加上 manifest 给的那半句说明（headPrefix / headSuffix，没有就不带破折号）。
 function headLineFor(m) {
   const p = m.prompt || {};
   if (p.headExtra) return `- "${m.type}" — ${p.headExtra}`;
-  const list = Object.entries(m.variants)
-    .map(([word, desc]) => (desc ? `"${word}" (${desc})` : `"${word}"`))
-    .join(', ');
-  return `- "${m.type}" — ${p.headPrefix || ''}${m.variantKey || 'variants'}: ${list}${p.headSuffix || ''}`;
+  const note = [p.headPrefix, p.headSuffix].map((x) => (x || '').trim()).filter(Boolean).join(' ');
+  return note ? `- "${m.type}" — ${note}` : `- "${m.type}"`;
 }
 
 /**

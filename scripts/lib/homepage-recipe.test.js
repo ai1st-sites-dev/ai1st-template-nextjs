@@ -163,11 +163,24 @@ function baselineManifestShim(root, ref) {
     if (!old) continue;
     for (const k of Object.keys(old)) if (!(k in today.get(n))) dropped.add(k);
   }
+  // 🔴 #1419 —— 基线上没有的块（`card-group`）落到的中性值要跟那个键**在基线上的类型**一致。
+  //    `NEUTRAL_FALLBACK` 是个数组，那是 #1341 那个键的形状；#1419 删掉的 `variants` 在基线上是
+  //    对象（基线校验器要求「必须是对象」，喂数组当场抛）、`variantKey` 是可选的字符串。所以按基线
+  //    那些 manifest 里这个键实际的值现判：数组 ⟹ NEUTRAL_FALLBACK · 对象 ⟹ `{}` · 其余 ⟹ 不补
+  //    （可选键缺席就是中性的）。仍然不点名任何一个键。
+  const neutralFor = (k) => {
+    const sample = [...atRefByName.values()].find((o) => o && o[k] !== undefined);
+    const v = sample ? sample[k] : undefined;
+    if (Array.isArray(v)) return NEUTRAL_FALLBACK;
+    if (v && typeof v === 'object') return {};
+    return undefined;
+  };
   for (const [n, m] of today) {
     const old = atRefByName.get(n);
     for (const k of dropped) {
       if (k in m) continue;
-      m[k] = (old && old[k] !== undefined) ? old[k] : NEUTRAL_FALLBACK;
+      const v = (old && old[k] !== undefined) ? old[k] : neutralFor(k);
+      if (v !== undefined) m[k] = v;
     }
     fs.writeFileSync(path.join(real, n), `${JSON.stringify(m, null, 2)}\n`);
   }
@@ -216,7 +229,7 @@ const basePayload = (over = {}) => ({
 const { homepageRecipe, tryHomepageRecipe, recipeProblems, recipePromptLines, fingerprintEnabled,
   afterRetry, poolFor, industryRank, rotate, NOT_IN_POOL, BAR_EVERY } = require('./homepage-recipe');
 const { rotationIndexFromSiteId } = require('../themes');
-const { loadManifests, promptSection, isRegionManifest, BLOCKS_DIR } = require('./block-manifest');
+const { loadManifests, promptSection, isRegionManifest, BLOCKS_DIR, headLineFor } = require('./block-manifest');
 const manifests = loadManifests();
 
 console.log('══ #1034 首页开场配方 ══');
@@ -486,6 +499,36 @@ try {
     {
       why: '#1341 内容结构那一维退役，`content structures:` 那些行不再印',
       apply: (t) => t.split('\n').filter((l) => !/^ {2}content structures: /.test(l)).join('\n'),
+    },
+    // #1419：AI 不再挑形态。基线那一臂之所以还印得出形态清单，是上面那个适配层按基线原样补回了
+    // `variants`（理由同 #1341 那条）。两条差异：
+    // ① 每个块的头行不再带 `variants: …`，换成今天 `headLineFor` 印的那一行（按 type 逐行对应，
+    //    一个块都不多不少；没有被改到的块会让下面那格对不上）。
+    {
+      why: '#1419 块清单的头行不再带形态清单',
+      apply: (t) => t.split('\n').map((l) => {
+        const hit = l.match(/^- "([a-z0-9-]+)" — .*variants: /);
+        const m = hit && manifests.get(hit[1]);
+        return m ? headLineFor(m) : l;
+      }).join('\n'),
+    },
+    // ② `create-site.js` 里让 AI 挑形态的那几句。🔴 一句没命中就整条不生效（原样返回）⟹ 判别力② 会
+    //    把它当成死条目点名 —— 不许「七句里命中六句」静默过关。
+    {
+      why: '#1419 create-site.js 里让 AI 挑形态的那几句删掉 / 改写',
+      apply: (t) => {
+        const pairs = [
+          ['- Vary layouts and section variants across service detail pages', '- Vary layouts across service detail pages'],
+          ['AVAILABLE SECTION TYPES AND THEIR VARIANTS:\n', 'AVAILABLE SECTION TYPES:\n'],
+          ['you choose WHICH sections to include, in WHAT order, and with WHICH variant.', 'you choose WHICH sections to include and in WHAT order.'],
+          [' section types with 130+ total variants. USE THIS VARIETY.', ' section types. USE THIS VARIETY.'],
+          ['- Choose DIFFERENT variants for each section — don\'t use all "grid" or all "cards". Mix "minimal", "split", "gradient", "dark" etc.\n', ''],
+          ['- Use different page-header and text-block variants across pages — don\'t reuse the same variant on every page.\n', ''],
+          ['- For the SERVICES page cta-banner, choose a variant other than "solid" — try "gradient", "split", or "dark".\n', ''],
+        ];
+        if (pairs.some(([a]) => !t.includes(a))) return t;
+        return pairs.reduce((acc, [a, b]) => acc.split(a).join(b), t);
+      },
     },
     // 📌 #1376（同样按 D19 删掉一个块）**没有在这里加条目**。r1 加过一条「32 → 31」，而 #1372 先落地
     //    了，它上面那条差异已经把那句写死的 32 换成**按 `blocks/` 现算**的数 ⟹ 链式套用时 r1 那条

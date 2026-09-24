@@ -64,7 +64,35 @@ function baselineMenu(hasServiceDetailPages) {
   return cut.replace(ternary[0], hasServiceDetailPages ? withDetail : without);
 }
 
-console.log('\n── ① 什么都没关掉 ⟹ 跟 origin/main 那段写死的散文逐字节相同 ──');
+// 🔴 #1419 有意改了这段字节：AI 不再挑形态，每条的形态清单（`— variants: …` / 单独一行的
+//    `<块> variants: …` / card-group 那句「没有形态」）和 `data` 里的 `variant` 字段都删了；
+//    card-group / process-steps 那两行 data 前面各补上块名（它们原来靠上一行的形态清单认块，
+//    那一行没了就分不清哪行 data 是谁的）。BASELINE 不能挪到本票自己（一个 commit 的 sha 写不进
+//    它自己的树），所以照 `homepage-recipe.test.js` ⑥ 的做法逐条登记，并配两格判别力。
+const DELTAS = [
+  {
+    why: '#1419 card-group 那句「没有形态」和 process-steps 那行形态清单整行删掉',
+    apply: (t) => t.split('\n').filter((l) => !/^ {3}(card-group has NO variants|process-steps variants: )/.test(l)).join('\n'),
+  },
+  {
+    why: '#1419 编号那行尾巴上的 `— variants: …` 删掉',
+    apply: (t) => t.replace(/ — variants: [^\n]*/g, ''),
+  },
+  {
+    why: '#1419 data 里的 `variant` 字段删掉',
+    apply: (t) => t.replace(/, variant(?= \}|,)/g, ''),
+  },
+  {
+    why: '#1419 card-group / process-steps 那两行 data 前面补块名',
+    apply: (t) => t
+      .replace('\n   data: { headline, subheadline?, items: [{title, description?, features?: [string]}] }',
+        '\n   card-group data: { headline, subheadline?, items: [{title, description?, features?: [string]}] }')
+      .replace(/\n {3}data: \{ headline, steps: \[\{title, description\}\](, variant)? \}/,
+        '\n   process-steps data: { headline, steps: [{title, description}] }'),
+  },
+];
+
+console.log('\n── ① 什么都没关掉 ⟹ 跟基线那段写死的散文（套上登记的差异）逐字节相同 ──');
 {
   let measured = 0;
   for (const hasDetail of [true, false]) {
@@ -72,11 +100,19 @@ console.log('\n── ① 什么都没关掉 ⟹ 跟 origin/main 那段写死的
     if (base === null) { console.log(`  ⚠️  取不到 ${BASELINE} 上的 create-site.js —— 这一格没有读数（不是通过）`); break; }
     measured++;
     const got = keywordPageSectionOptions({ hasServiceDetailPages: hasDetail, disabledBlocks: [] });
-    if (got === base) {
-      ok(`hasServiceDetailPages=${hasDetail}：${got.length} 字节，逐字节相同`);
+    const patched = DELTAS.reduce((acc, d) => d.apply(acc), base);
+    if (got === patched) {
+      ok(`hasServiceDetailPages=${hasDetail}：${got.length} 字节，套上 ${DELTAS.length} 条差异后逐字节相同`);
     } else {
-      bad(`hasServiceDetailPages=${hasDetail}：不一样\n--- 基线 ---\n${base}\n--- 现在 ---\n${got}`);
+      bad(`hasServiceDetailPages=${hasDetail}：不一样\n--- 基线+差异 ---\n${patched}\n--- 现在 ---\n${got}`);
     }
+    // 判别力①：一条都不套就对不上 ⟹ 上面那格不是恒真
+    base !== got ? ok(`判别力①（${hasDetail}）：一条差异都不套就对不上`)
+      : bad(`判别力①（${hasDetail}）：一条都不套也相同 ⟹ 差异表是死的`);
+    // 判别力②：每一条单独套在基线上都真的改变它（没有死条目）
+    const dead = DELTAS.filter((d) => d.apply(base) === base);
+    dead.length === 0 ? ok(`判别力②（${hasDetail}）：${DELTAS.length} 条差异每一条都改变了基线`)
+      : bad(`判别力②（${hasDetail}）：${dead.length} 条对基线什么都没做：${dead.map((d) => d.why).join(' · ')}`);
   }
   if (measured === 0) bad(`① 一个读数都没取到（拿不到 ${BASELINE}）—— 这一格不报 PASS`);
 }

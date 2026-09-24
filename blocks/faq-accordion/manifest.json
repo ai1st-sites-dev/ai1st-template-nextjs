@@ -39,13 +39,6 @@
       "shape": "{headline, body, button: {label, href}}"
     }
   },
-  "variants": {
-    "centered": "single column",
-    "two-column": "heading left, FAQ right",
-    "cards": "each FAQ as separate card",
-    "numbered": "zero-padded numbers prefix"
-  },
-  "variantKey": "variants",
   "industries": {
     "required": [],
     "recommended": [

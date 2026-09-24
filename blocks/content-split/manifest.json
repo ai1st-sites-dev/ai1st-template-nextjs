@@ -40,15 +40,6 @@
       "shape": "string"
     }
   },
-  "variants": {
-    "text-left": "text left, image/gradient right",
-    "text-right": "flipped",
-    "text-left-stats": "text left, stats box right",
-    "text-right-list": "image/gradient left, checklist right",
-    "centered-overlay": "full-width gradient with white card",
-    "cards-row": "headline above, 3 cards below using bullets as titles"
-  },
-  "variantKey": "variants",
   "industries": {
     "required": [],
     "recommended": [],

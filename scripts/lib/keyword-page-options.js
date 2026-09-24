@@ -5,10 +5,11 @@
 // 跑 main()、等 stdin），所以留在原地的话这段逻辑没有任何东西看得见 —— 同 `homepage-recipe.js` 里
 // `afterRetry` / `tryHomepageRecipe` 抽出来的理由（那两个函数的注释写着同一句话）。
 //
-// 🔴 **什么都没关掉时印出来的字节，跟 #1346 之前那五条写死的散文逐字相同。** 那是这个文件唯一的
-// 风险面：提示词变了，AI 吐的东西就会变，而那是花钱才能测的东西。判据在
-// `scripts/lib/keyword-page-options.test.js` 第 ① 格（拿 `origin/main` 上 `create-site.js` 里那段
-// 原文比），不是靠人眼看。
+// 🔴 **什么都没关掉时印出来的字节，跟 #1346 之前那五条写死的散文逐字相同** —— 只差 #1419 删掉的
+// 形态清单（每条列的那串形态名、`data` 里那个形态字段：22 个名字有 19 个磁盘上不存在，而 AI 写的
+// 那个字段没有人读，形态归取值链）。那是这个文件唯一的风险面：提示词变了，AI 吐的东西
+// 就会变，而那是花钱才能测的东西。判据在 `scripts/lib/keyword-page-options.test.js` 第 ① 格
+// （拿基线上 `create-site.js` 里那段原文比，差异逐条登记在那份文件里），不是靠人眼看。
 
 'use strict';
 
@@ -31,23 +32,21 @@ function keywordPageSectionOptions({ hasServiceDetailPages = false, disabledBloc
     pair.length === 2
       ? '"card-group" OR "process-steps" (pick one per page, alternate between pages)'
       : `"${pair[0]}" (use it on every page)`,
-    ...(pair.includes('card-group') ? [`   card-group has NO variants — do not write one (its manifest declares "variants": {})
-   data: { headline, subheadline?, items: [{title, description?, features?: [string]}] }`] : []),
-    ...(pair.includes('process-steps') ? [`   process-steps variants: "horizontal", "vertical", "cards", "zigzag"
-   data: { headline, steps: [{title, description}], variant }`] : []),
+    ...(pair.includes('card-group') ? ['   card-group data: { headline, subheadline?, items: [{title, description?, features?: [string]}] }'] : []),
+    ...(pair.includes('process-steps') ? ['   process-steps data: { headline, steps: [{title, description}] }'] : []),
   ].join('\n') : '';
 
   /** @type {[string, string][]} 每条 = [这一条讲的是哪个块, 正文（不带编号）] */
   const entries = [
-    ['page-header', `"page-header" (REQUIRED first) — variants: "default", "minimal", "centered", "with-description"
-   data: { title, subtitle?, breadcrumbs: ${breadcrumbs}, variant }`],
-    ['text-block', `"text-block" (REQUIRED, 2-3 paragraphs of unique SEO content) — variants: "default", "two-column", "highlight-box", "with-list", "quote"
-   data: { headline?, content (2-3 paragraphs), variant, items?: [string] }`],
+    ['page-header', `"page-header" (REQUIRED first)
+   data: { title, subtitle?, breadcrumbs: ${breadcrumbs} }`],
+    ['text-block', `"text-block" (REQUIRED, 2-3 paragraphs of unique SEO content)
+   data: { headline?, content (2-3 paragraphs), items?: [string] }`],
     [pair.length ? pair[0] : 'card-group', pairLines],
-    ['faq-accordion', `"faq-accordion" (REQUIRED, 3-4 questions) — variants: "centered", "two-column", "cards", "numbered"
-   data: { headline, items: [{question, answer}], variant }`],
-    ['cta-banner', `"cta-banner" (REQUIRED last) — variants: "solid", "outlined", "gradient", "split", "dark"
-   data: { headline, description, button: {label, href}, variant }`],
+    ['faq-accordion', `"faq-accordion" (REQUIRED, 3-4 questions)
+   data: { headline, items: [{question, answer}] }`],
+    ['cta-banner', `"cta-banner" (REQUIRED last)
+   data: { headline, description, button: {label, href} }`],
   ];
 
   return entries

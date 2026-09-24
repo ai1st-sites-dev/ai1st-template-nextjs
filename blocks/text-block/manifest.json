@@ -43,14 +43,6 @@
       "editLabel": "Attribution"
     }
   },
-  "variants": {
-    "default": "",
-    "two-column": "CSS columns",
-    "highlight-box": "callout with left border",
-    "with-list": "paragraph + checklist",
-    "quote": "blockquote with large decorative marks"
-  },
-  "variantKey": "variants",
   "industries": {
     "required": [],
     "recommended": [],

@@ -864,9 +864,6 @@ fails the build. When you add a block to a \`blocks\` page, give it an \`id\` un
 
 Available section types: hero, hero-with-form, trusted-brands, features-grid, card-group, testimonials, cta-banner, contact-info, text-block, page-header, services-nav, services-list, quote-form, contact-form, faq-accordion, process-steps, team-grid, pricing-table, gallery, content-split, social-proof, announcement-bar, newsletter-signup, map-area, blog-preview, service-related-pages
 
-Hero variants: left, centered, split, minimal, video-style, gradient-overlay, light-split, light-editorial, light-showcase
-(dark full-bleed: left, centered, split, video-style, gradient-overlay · light background: minimal, light-split, light-editorial, light-showcase)
-
 ## Images
 
 Every picture on the site is a URL sitting in one of these places. There are no others — a block of any

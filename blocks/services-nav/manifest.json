@@ -5,8 +5,6 @@
   "roleDefault": "essential",
   "slots": {},
   "slotsNote": "Auto-renders the services from services.json — this block takes no data.",
-  "variants": {},
-  "variantKey": "variants",
   "industries": {
     "required": [],
     "recommended": [],

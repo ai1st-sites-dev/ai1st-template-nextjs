@@ -162,9 +162,11 @@ console.log('⑤ 形态下拉');
   check(JSON.stringify(t) === JSON.stringify(['two-up', 'attribution-first', 'three-up', 'quote-rail']),
     'testimonials = two-up · attribution-first · three-up · quote-rail', t.join(' · '));
   check(['heading-side', 'masonry', 'quote-aside', 'single-featured'].every((x) => !t.includes(x)), 'testimonials 不含四个候选');
-  const legacy = Object.keys(manifests.get('hero').variants || {});
-  const hero = compOf('hero').shapes.map((s) => s.name);
-  check(legacy.length > 0 && legacy.every((v) => !hero.includes(v)), `hero 下拉不含 legacy variants（${legacy.length} 条）`, hero.join(' · '));
+  // #1419 —— manifest 里那份旧的 `variants` 词表整套删了（它跟子目录对不上，下拉从来不该读它）。
+  // 这一格原来断言「hero 下拉不含那 9 个旧名字」，词表没了就改成断言这个键不再存在 —— 写回去的话这里红。
+  const legacyKeyed = [...manifests.values()].filter((m) => 'variants' in m || 'variantKey' in m).map((m) => m.type);
+  check(manifests.size > 0 && legacyKeyed.length === 0,
+    `manifest 里没有 variants / variantKey 键（${manifests.size} 份）`, legacyKeyed.join(' · '));
   // 反向对照：去掉 masonry 的 candidate → 它回到下拉，另外三个候选仍不在（写死名单过不了这一格）
   const dir = tmpdir('blocks-cand');
   cp.execSync(`cp -a "${path.join(NEXT, 'blocks')}/." "${dir}"`);

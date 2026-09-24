@@ -35,8 +35,6 @@
       "shape": "string"
     }
   },
-  "variants": {},
-  "variantKey": "variants",
   "industries": {
     "required": [],
     "recommended": [],
