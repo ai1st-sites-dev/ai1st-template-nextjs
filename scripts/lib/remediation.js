@@ -186,11 +186,15 @@ function howToChangePageLayout(opts) {
     };
   }
   return {
-    // null（问不到）也走这一支:两种情况下这句话都成立 —— 手改站仓永远是一条真路。
+    // null（问不到）也走这一支:两种情况下这句话都成立 —— 页面编辑器与手改站仓都是真路。
+    // 🔴 #1405 —— 这里原来说「产品里没有任何界面或工具会写 site/page-layout.json」。页面编辑器（Puck）的
+    //    root 字段「Page layout」从本票起写它（`scripts/write-editor-save.js`），那句话就成了假话 ——
+    //    `remediation.test.js` ⑥ 钉的正是这件事：它数仓里有没有写入者，也数那个字段在不在编辑器里。
+    // 📌 `viaProduct` 的意思没变：它只答「AI 聊天编辑器能不能写」（白名单），编辑器那条路写在句子里。
     viaProduct: can === false ? false : null,
-    sentence: `现在还换不了：产品里没有任何界面或工具会写 site/page-layout.json。`
-      + `今天唯一的办法是手改这个站仓里的 site/page-layout.json（{"layoutId":"…"}，`
-      + `库里有：${list}；这个文件不在就按 standard 走）。`,
+    sentence: `在网站编辑页点「Edit page」打开页面编辑器，在右侧的「Page layout (whole website)」里换一个`
+      + `（库里有：${list}）；也可以手改这个站仓里的 site/page-layout.json（{"layoutId":"…"}；`
+      + `这个文件不在就按 standard 走）。`,
   };
 }
 

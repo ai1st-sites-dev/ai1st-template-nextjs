@@ -59,16 +59,20 @@ const canWrite = (p) => writeRejection(p) === null;
     // 🔴 #1087 r3 —— 这一格原来钉的是 `layout picker`，而那个东西**不存在**（dashboard/manager/worker
     //    里 grep 命中 0，尺子校准 ThemeModal=3）。钉住它等于把「去某某地方改」这个假象钉在原地 ——
     //    跟 r2 治掉 navigation.json 那个 `regenerates` needle 是同一件事。现在钉承重的那半句。
-    ['page-layout.json', 'cannot be changed yet'],
+    // 🔴 #1405 —— 从「还换不了」改成指向页面编辑器里那个真实存在的字段（本票之后它是 page-layout.json 的写入者）。
+    ['page-layout.json', 'Page layout (whole website)'],
     // 📌 #1104 —— `navigation.json` **搬出这张表了**：它现在是有条件可写的（改顶部那个按钮放行，
     // 改菜单链接拒），判断和它的全部断言住在 `navigation-owned.test.js`。这里原来有两格钉着
     // 「no way to change those yet」——那句话本票之后是**假的**，钉着它等于把「老板改不了」钉在原地。
   ];
   // 🔴 #1087 r3 —— page-layout.json 那句话也有两个承重的半句，跟 navigation.json 同构：
-  //   ① 它是干什么的（缺文件按 standard 走）② 今天没有任何东西写它 —— 少了 ②，模型又会指一个假地方。
+  //   ① 它是干什么的（缺文件按 standard 走）② 去哪儿改 —— 少了 ②，模型又会指一个假地方。
+  //   📌 #1405 —— ② 原来是「nothing writes it today」（那天是真话）。页面编辑器之后它是假话，换成
+  //   「在页面编辑器里改」+ 一句祈使「别自己写」（#1096 B2：祈使那半才是行为差异的来源）。
   const PAGE_LAYOUT_ALSO = [
-    'the "standard" layout',      // ① 说清缺文件时的真实行为
-    'nothing writes it today',    // ② 承重：产品里没有任何写它的地方
+    'the "standard" layout',            // ① 说清缺文件时的真实行为
+    '"Edit page"',                      // ② 承重：dashboard 上那个按钮的原文（EditPage.tsx）
+    'do not write this file yourself',  // ③ 祈使：这条路不写它
   ];
   const problems = [];
   for (const needle of PAGE_LAYOUT_ALSO) {
@@ -199,9 +203,11 @@ const canWrite = (p) => writeRejection(p) === null;
     { must: 'header.cta', why: 'SYSTEM_PROMPT 没点名 header.cta —— 模型会以为改页面元数据能动顶部那个按钮' },
     { mustNot: 'It is auto-regenerated from page metadata.',
       why: 'SYSTEM_PROMPT 里那句「整份由页面元数据自动重建」又回来了 —— header.cta 恰恰不是' },
-    // page-layout.json —— 真话：没有 picker
-    { must: 'nothing in the product changes it today',
-      why: 'SYSTEM_PROMPT 没说清 page-layout.json 今天没人改得了' },
+    // page-layout.json —— #1405 之后的真话：在页面编辑器里改（原来钉的是「没人改得了」，那句本票之后是假的）
+    { must: 'the owner changes it in the page editor: "Edit page", then "Page layout (whole website)"',
+      why: 'SYSTEM_PROMPT 没把老板指到页面编辑器 —— 模型会说布局换不了，而编辑器里就能换' },
+    { mustNot: 'nothing in the product changes it today',
+      why: 'SYSTEM_PROMPT 里「没人改得了 page-layout.json」又回来了 —— #1405 之后页面编辑器写它' },
     { mustNot: 'page-layout.json (the layout picker)',
       why: 'SYSTEM_PROMPT 又把 page-layout.json 说成归一个不存在的 layout picker 管' },
 
@@ -658,6 +664,26 @@ const MISSPELLED = ['en/navigation.json/', 'en/navigation.json//', 'en/./navigat
       } else bad('⑩c 摘掉那道门之后 writeNotes 照样闭嘴 ⟹ 上面那格什么都没证');
     }
   }
+}
+
+// ── ⑪ #1405 —— 给模型的那两个名字在界面上真的存在 ────────────────────────────────────────────
+// page-layout.json 的理由把老板指到「Edit page」→「Page layout (whole website)」。哪一个改了名，
+// 这句话就又成了指向一个不存在的地方（#1087 r3 治过的同一个病），所以拿界面源码当被审对象。
+{
+  const fsx = require('fs');
+  const pathx = require('path');
+  const tpl = pathx.join(__dirname, '..', '..');
+  const editorSrc = fsx.readFileSync(pathx.join(tpl, 'src', 'components', 'editor', 'EditorApp.tsx'), 'utf-8');
+  const why = writeRejection('page-layout.json') || '';
+  const field = 'Page layout (whole website)';
+  if (why.includes(field) && editorSrc.includes(`label: '${field}'`)) ok(`⑪ 「${field}」是编辑器里那个 root 字段的原文`);
+  else bad(`⑪ 理由里的「${field}」在 EditorApp.tsx 的 root 字段里找不到（或理由里没有它）`);
+  // dashboard 那个按钮住在模板外面（dashboard/src）；模板单独发布时它不在，那时这一半跳过、不当成通过。
+  const dash = pathx.join(tpl, '..', '..', 'dashboard', 'src', 'pages', 'sites', 'EditPage.tsx');
+  if (fsx.existsSync(dash)) {
+    if (why.includes('"Edit page"') && fsx.readFileSync(dash, 'utf-8').includes("'Edit page'")) ok('⑪ 「Edit page」是 dashboard 上那个按钮的原文');
+    else bad('⑪ 理由里的「Edit page」在 dashboard 的 EditPage.tsx 里找不到');
+  } else console.log('  ⏭  ⑪ dashboard 不在这棵树里（模板单独发布），「Edit page」那一半没量');
 }
 
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);

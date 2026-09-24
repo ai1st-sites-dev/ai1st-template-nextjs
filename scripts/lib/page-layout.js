@@ -207,6 +207,17 @@ function needsTopbar(layout) {
 }
 
 /**
+ * #1405 —— 这个布局自己钉了页脚形态吗（`repeatVariants` 里有没有 footer 类的区）。
+ *
+ * 钉了的话 `SiteShell.tsx` 的 footer 那一支直接用 `repeatVariants[区名]`，站在 `theme.json` 里写的
+ * `regionLayout.footer` 画不出来 ⟹ 编辑器那个「页脚形态」下拉在这种布局下改了也没用，要灰掉，存盘时也
+ * 不许写它。判据只看布局文件本身，按 §kindOf 认区类（`footer-a` → footer），不列布局名。
+ */
+function layoutPinsFooter(layout) {
+  return Object.keys((layout && layout.repeatVariants) || {}).some((r) => kindOf(r) === 'footer');
+}
+
+/**
  * 布局钉死的那几个区形态（`repeatVariants`），**去掉里面的候选**（#1384）。
  *
  * 🔴 **这是第三条能让真站戴上候选的路，而它跟另外两条都不重叠。** 主题选择单那条走
@@ -266,4 +277,5 @@ module.exports = {
   resolveSiteLayout,
   resolveRepeatVariants,
   needsTopbar,
+  layoutPinsFooter,
 };
