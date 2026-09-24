@@ -1317,10 +1317,11 @@ async function main() {
       const why = 'your website was being changed somewhere else at the same time (for example in the visual editor), '
         + 'and every time the AI went to save, the file had changed again since it last read it.';
       // 🔴 「什么都没改」只在 failed 和 kept 都为空时才说（kept 的意思见 rollbackWrittenFiles 的 aiWrote）。
+      const one = rb.kept.length === 1;
       const keptNote = rb.kept.length
-        ? ` ⚠️ Before that, the AI had already changed ${rb.kept.join(', ')}, and that file was then saved again `
-          + 'somewhere else (for example in the visual editor) on top of the AI\'s version. It was left exactly as it '
-          + 'is now so that save is not lost — it includes the AI\'s change, so please check it.'
+        ? ` ⚠️ Before that, the AI had already changed ${rb.kept.join(', ')}, and ${one ? 'that file was' : 'those files were'} then saved again `
+          + `somewhere else (for example in the visual editor) on top of the AI's version. ${one ? 'It was' : 'They were'} left exactly as `
+          + `${one ? 'it is' : 'they are'} now so that save is not lost — ${one ? 'it includes' : 'they include'} the AI's change, so please check ${one ? 'it' : 'them'}.`
         : '';
       const failedNote = rb.failed.length
         ? ` ⚠️ Part of it had already been written and could not be undone (${rb.failed.join('; ')}), `

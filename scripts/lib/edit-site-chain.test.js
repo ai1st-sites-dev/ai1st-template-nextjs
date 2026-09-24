@@ -1755,14 +1755,14 @@ console.log('\n⑯ 块带 ref 又带自己的 data（#1430）：坏链接被拒�
   else bad(`🔴 ⑯ 对照：合法的没照收 —— 块库 href=${JSON.stringify(gotHref)} · 首页 ref 条目 ${refs.length} · 回执 ${String(toolResultContent(good, 1, 'g1')).slice(0, 160)} / ${String(toolResultContent(good, 1, 'g2')).slice(0, 160)}`);
 }
 
-// ══ ⑯ 读完之后别处改过 ⟹ 这一笔写被拒、模型重读后照常写；一直被改 ⟹ 到上限就失败并告诉老板（#1420）════
+// ══ ⑰ 读完之后别处改过 ⟹ 这一笔写被拒、模型重读后照常写；一直被改 ⟹ 到上限就失败并告诉老板（#1420）════
 //
 // 形状照 #1420 在夹具上复现的那一条：AI 读了一份 → 老板在编辑器里存了一处 → AI 把手上那份旧读数整份写回。
 // 判据是**谓词**（这一轮读过的任何文件），所以两种文件各走一遍：页面 JSON 和站级块库。
 // 🔴 判「被拒」看三样：老板那一处还在、那条 tool_result 带着这一关的话（不是别的关拒的）、以及模型重读后
 //    写的那一笔真的落盘（不是「什么都拒」）。
 // 🔴 对照臂：同样的脚本、`__before` 去掉 ⟹ 第一笔就落盘。没有这一臂，上面三条也可能是「这条路坏了」。
-console.log('\n⑯ 读完之后别处改过（#1420）：拒 → 重读 → 写；一直被改 ⟹ 第 3 次失败、回滚、告诉老板');
+console.log('\n⑰ 读完之后别处改过（#1420）：拒 → 重读 → 写；一直被改 ⟹ 第 3 次失败、回滚、告诉老板');
 {
   const ctx = makeRoot('stale');
   const site = writeSite(ctx.work);
@@ -1770,7 +1770,7 @@ console.log('\n⑯ 读完之后别处改过（#1420）：拒 → 重读 → 写�
   const libFile = path.join(site, 'en', 'blocks', 'site-blocks.json');
   const home = JSON.parse(fs.readFileSync(homeFile, 'utf8'));
   const arrayKey = Array.isArray(home.blocks) ? 'blocks' : null;
-  if (!arrayKey) die('⑯ 前提不成立：建出来的首页没有 blocks');
+  if (!arrayKey) die('⑰ 前提不成立：建出来的首页没有 blocks');
   const lib = {
     promo: { type: 'cta-banner', data: { headline: 'Promo ORIGINAL', description: 'Call us today.', button: { label: 'Call', href: '/contact' } } },
     badge: { type: 'cta-banner', data: { headline: 'Badge ORIGINAL', description: 'Same-day service.', button: { label: 'Book', href: '/contact' } } },
@@ -1779,7 +1779,7 @@ console.log('\n⑯ 读完之后别处改过（#1420）：拒 → 重读 → 写�
   fs.writeFileSync(libFile, JSON.stringify(lib, null, 2));
   home.blocks = home.blocks.concat([{ ref: 'promo', weight: 95 }, { ref: 'badge', weight: 96 }]);
   fs.writeFileSync(homeFile, JSON.stringify(home, null, 2));
-  assertSyncsClean(ctx.work, '⑯');
+  assertSyncsClean(ctx.work, '⑰');
   ctx.git('git add -A && git commit -q -m base && git push -q origin main');
   const baseLib = fs.readFileSync(libFile, 'utf8');
   const baseHome = fs.readFileSync(homeFile, 'utf8');
@@ -1793,7 +1793,7 @@ console.log('\n⑯ 读完之后别处改过（#1420）：拒 → 重读 → 写�
   // 老板改 hero 的标题；AI 改另一个块（第一个带 headline 的非 hero 块）—— 两处不相干，旧版的整份写照样会把前者退回。
   const homeEditorSaved = (() => { const h = JSON.parse(baseHome); heroOf(baseHome) && (h.blocks.find((b) => b && b.type === 'hero').data.headline = 'Hero EDITOR SAVED'); return JSON.stringify(h, null, 2); })();
   const otherOf = (h) => h.blocks.find((b) => b && b.type !== 'hero' && b.data && typeof b.data.headline === 'string');
-  if (!heroOf(baseHome) || !otherOf(JSON.parse(baseHome))) die('⑯ 前提不成立：首页上要有一个 hero 和另一个带 headline 的块');
+  if (!heroOf(baseHome) || !otherOf(JSON.parse(baseHome))) die('⑰ 前提不成立：首页上要有一个 hero 和另一个带 headline 的块');
   const homeAi = (from) => { const h = JSON.parse(from); otherOf(h).data.headline = 'Other AI'; return JSON.stringify(h, null, 2); };
 
   for (const arm of [
@@ -1813,12 +1813,12 @@ console.log('\n⑯ 读完之后别处改过（#1420）：拒 → 重读 → 写�
     ]);
     const receipt = String(toolResultContent(res, 2, 'w1'));
     const now = fs.readFileSync(arm.file, 'utf8');
-    if (/changed somewhere else/.test(receipt) && /Nothing was written/.test(receipt)) ok(`⑯ ${arm.name}：旧读数那一笔被这一关拒（回执 ${receipt.slice(0, 90)}…）`);
-    else bad(`🔴 ⑯ ${arm.name}：旧读数那一笔没被这一关拒 —— 回执 ${receipt.slice(0, 200)}`);
-    if (arm.editorStill(now)) ok(`⑯ ${arm.name}：老板在编辑器里存的那一处还在`);
-    else bad(`🔴 ⑯ ${arm.name}：老板存的那一处被 AI 退回了`);
-    if (arm.aiLanded(now) && ev(res, 'edit-complete').length === 1) ok(`⑯ ${arm.name}：模型重读后那一笔落盘、编辑正常完成（commit ${res.commitsBefore}→${res.commitsAfter}）`);
-    else bad(`🔴 ⑯ ${arm.name}：重读后那一笔没落盘 / 没完成 —— events ${JSON.stringify(res.events.map((e) => e.event))} · ${res.stderr.slice(-300)}`);
+    if (/changed somewhere else/.test(receipt) && /Nothing was written/.test(receipt)) ok(`⑰ ${arm.name}：旧读数那一笔被这一关拒（回执 ${receipt.slice(0, 90)}…）`);
+    else bad(`🔴 ⑰ ${arm.name}：旧读数那一笔没被这一关拒 —— 回执 ${receipt.slice(0, 200)}`);
+    if (arm.editorStill(now)) ok(`⑰ ${arm.name}：老板在编辑器里存的那一处还在`);
+    else bad(`🔴 ⑰ ${arm.name}：老板存的那一处被 AI 退回了`);
+    if (arm.aiLanded(now) && ev(res, 'edit-complete').length === 1) ok(`⑰ ${arm.name}：模型重读后那一笔落盘、编辑正常完成（commit ${res.commitsBefore}→${res.commitsAfter}）`);
+    else bad(`🔴 ⑰ ${arm.name}：重读后那一笔没落盘 / 没完成 —— events ${JSON.stringify(res.events.map((e) => e.event))} · ${res.stderr.slice(-300)}`);
   }
 
   // 对照臂：同样的脚本，没有「别处改过」⟹ 第一笔就落盘（上面那几条不是「这条路什么都拒」）。
@@ -1829,8 +1829,8 @@ console.log('\n⑯ 读完之后别处改过（#1420）：拒 → 重读 → 写�
     reply([textBlock('Done.')], 'end_turn'),
   ]);
   const ctlReceipt = String(toolResultContent(ctl, 2, 'w1'));
-  if (/Written/.test(ctlReceipt) && JSON.parse(fs.readFileSync(libFile, 'utf8')).badge.data.headline === 'Badge AI') ok('⑯ 对照：没人在中间改 ⟹ 第一笔就落盘');
-  else bad(`🔴 ⑯ 对照：第一笔没落盘 —— 回执 ${ctlReceipt.slice(0, 200)}`);
+  if (/Written/.test(ctlReceipt) && JSON.parse(fs.readFileSync(libFile, 'utf8')).badge.data.headline === 'Badge AI') ok('⑰ 对照：没人在中间改 ⟹ 第一笔就落盘');
+  else bad(`🔴 ⑰ 对照：第一笔没落盘 —— 回执 ${ctlReceipt.slice(0, 200)}`);
 
   // 同一轮里先写后写：自己写进去的那份不算「别处改过」。
   reset();
@@ -1840,8 +1840,8 @@ console.log('\n⑯ 读完之后别处改过（#1420）：拒 → 重读 → 写�
     reply([writeCall('w2', 'en/blocks/site-blocks.json', libAi(baseLib).replace('Badge AI', 'Badge AI 2'))], 'tool_use'),
     reply([textBlock('Done.')], 'end_turn'),
   ]);
-  if (/Written/.test(String(toolResultContent(twice, 3, 'w2'))) && JSON.parse(fs.readFileSync(libFile, 'utf8')).badge.data.headline === 'Badge AI 2') ok('⑯ 同一轮先写后写：第二笔照收（自己写进去的不算别处改过）');
-  else bad(`🔴 ⑯ 同一轮先写后写：第二笔被拒 —— ${String(toolResultContent(twice, 3, 'w2')).slice(0, 200)}`);
+  if (/Written/.test(String(toolResultContent(twice, 3, 'w2'))) && JSON.parse(fs.readFileSync(libFile, 'utf8')).badge.data.headline === 'Badge AI 2') ok('⑰ 同一轮先写后写：第二笔照收（自己写进去的不算别处改过）');
+  else bad(`🔴 ⑰ 同一轮先写后写：第二笔被拒 —— ${String(toolResultContent(twice, 3, 'w2')).slice(0, 200)}`);
 
   // 上限：每次读完都被改 ⟹ 第 3 次被拒时这一轮失败；这一轮先写成功的别的文件退回去；老板收到一句话。
   reset();
@@ -1858,18 +1858,18 @@ console.log('\n⑯ 读完之后别处改过（#1420）：拒 → 重读 → 写�
     reply([textBlock('should never be asked for')], 'end_turn'),
   ]);
   const errs = ev(cap, 'error');
-  if (errs.length === 1 && /was not saved/.test(errs[0].message) && /somewhere else/.test(errs[0].message) && ev(cap, 'edit-complete').length === 0) ok(`⑯ 上限：第 3 次被拒 ⟹ 失败并告诉老板（${errs[0].message.slice(0, 80)}…）`);
-  else bad(`🔴 ⑯ 上限：没按失败收场 —— events ${JSON.stringify(cap.events.map((e) => e.event))}`);
-  if (cap.requests.length === 6) ok('⑯ 上限：第 3 次被拒之后没有再问模型（6 次请求）');
-  else bad(`🔴 ⑯ 上限：请求了 ${cap.requests.length} 次（应为 6）`);
-  if (heroOf(fs.readFileSync(homeFile, 'utf8')).data.headline === hero.data.headline) ok('⑯ 上限：这一轮先写成功的首页被退回原样');
-  else bad('🔴 ⑯ 上限：首页留着这一轮的改动');
-  if (JSON.parse(fs.readFileSync(libFile, 'utf8')).promo.data.headline === 'Promo EDITOR SAVED 3') ok('⑯ 上限：老板最后存的那一处还在');
-  else bad('🔴 ⑯ 上限：老板存的那一处没了');
-  if (cap.commitsAfter === cap.commitsBefore) ok('⑯ 上限：没有 commit');
-  else bad(`🔴 ⑯ 上限：多了 ${cap.commitsAfter - cap.commitsBefore} 个 commit`);
-  if (ev(cap, 'cost').length === 1) ok('⑯ 上限：花掉的 token 照样记账（cost 事件 1 条）');
-  else bad(`🔴 ⑯ 上限：cost 事件 ${ev(cap, 'cost').length} 条`);
+  if (errs.length === 1 && /was not saved/.test(errs[0].message) && /somewhere else/.test(errs[0].message) && ev(cap, 'edit-complete').length === 0) ok(`⑰ 上限：第 3 次被拒 ⟹ 失败并告诉老板（${errs[0].message.slice(0, 80)}…）`);
+  else bad(`🔴 ⑰ 上限：没按失败收场 —— events ${JSON.stringify(cap.events.map((e) => e.event))}`);
+  if (cap.requests.length === 6) ok('⑰ 上限：第 3 次被拒之后没有再问模型（6 次请求）');
+  else bad(`🔴 ⑰ 上限：请求了 ${cap.requests.length} 次（应为 6）`);
+  if (heroOf(fs.readFileSync(homeFile, 'utf8')).data.headline === hero.data.headline) ok('⑰ 上限：这一轮先写成功的首页被退回原样');
+  else bad('🔴 ⑰ 上限：首页留着这一轮的改动');
+  if (JSON.parse(fs.readFileSync(libFile, 'utf8')).promo.data.headline === 'Promo EDITOR SAVED 3') ok('⑰ 上限：老板最后存的那一处还在');
+  else bad('🔴 ⑰ 上限：老板存的那一处没了');
+  if (cap.commitsAfter === cap.commitsBefore) ok('⑰ 上限：没有 commit');
+  else bad(`🔴 ⑰ 上限：多了 ${cap.commitsAfter - cap.commitsBefore} 个 commit`);
+  if (ev(cap, 'cost').length === 1) ok('⑰ 上限：花掉的 token 照样记账（cost 事件 1 条）');
+  else bad(`🔴 ⑰ 上限：cost 事件 ${ev(cap, 'cost').length} 条`);
 
   // 上限之后那次回滚，碰上【老板存在 AI 已经写成的文件上】（#1420 r1 QA3 终审打回的那条）：
   // AI 先写成首页 → 老板在编辑器里基于 AI 那份改了首页的 hero → AI 在块库上连拒 3 次放弃。
@@ -1879,7 +1879,7 @@ console.log('\n⑯ 读完之后别处改过（#1420）：拒 → 重读 → 写�
   const aboutFile = path.join(site, 'en', 'pages', 'about.json');
   const baseAbout = fs.readFileSync(aboutFile, 'utf8');
   const aboutAi = baseAbout.replace(/"title"\s*:\s*"[^"]*"/, '"title": "About AI (should be rolled back)"');
-  if (aboutAi === baseAbout) die('⑯ 上限+老板改过：前提不成立 —— about.json 里没有 title 可改');
+  if (aboutAi === baseAbout) die('⑰ 上限+老板改过：前提不成立 —— about.json 里没有 title 可改');
   const homeAiWrote = homeAi(baseHome);
   const homeOwnerOnTop = (() => { const h = JSON.parse(homeAiWrote); heroOf(homeAiWrote) && (h.blocks.find((b) => b && b.type === 'hero').data.headline = 'Hero EDITOR SAVED'); return JSON.stringify(h, null, 2); })();
   const kept = runEdit(ctx, [
@@ -1894,16 +1894,16 @@ console.log('\n⑯ 读完之后别处改过（#1420）：拒 → 重读 → 写�
   ]);
   const kErrs = ev(kept, 'error');
   const kMsg = kErrs.length === 1 ? String(kErrs[0].message) : '';
-  if (kErrs.length === 1 && /was not saved/.test(kMsg) && ev(kept, 'edit-complete').length === 0) ok('⑯ 上限+老板改过：仍按失败收场');
-  else bad(`🔴 ⑯ 上限+老板改过：没按失败收场 —— events ${JSON.stringify(kept.events.map((e) => e.event))}`);
+  if (kErrs.length === 1 && /was not saved/.test(kMsg) && ev(kept, 'edit-complete').length === 0) ok('⑰ 上限+老板改过：仍按失败收场');
+  else bad(`🔴 ⑰ 上限+老板改过：没按失败收场 —— events ${JSON.stringify(kept.events.map((e) => e.event))}`);
   const homeNow = fs.readFileSync(homeFile, 'utf8');
-  if (homeNow === homeOwnerOnTop) ok('⑯ 上限+老板改过：老板存在首页上的 hero 还在（回滚跳过了写完之后又被改过的那份）');
-  else bad(`🔴 ⑯ 上限+老板改过：老板存的那一笔被回滚退掉了 —— hero.headline 现在是 "${heroOf(homeNow).data.headline}"`);
-  if (fs.readFileSync(aboutFile, 'utf8') === baseAbout) ok('⑯ 上限+老板改过：老板没碰的 about.json 照样逐字节退回');
-  else bad('🔴 ⑯ 上限+老板改过：about.json 留着这一轮的改动（该退的没退）');
+  if (homeNow === homeOwnerOnTop) ok('⑰ 上限+老板改过：老板存在首页上的 hero 还在（回滚跳过了写完之后又被改过的那份）');
+  else bad(`🔴 ⑰ 上限+老板改过：老板存的那一笔被回滚退掉了 —— hero.headline 现在是 "${heroOf(homeNow).data.headline}"`);
+  if (fs.readFileSync(aboutFile, 'utf8') === baseAbout) ok('⑰ 上限+老板改过：老板没碰的 about.json 照样逐字节退回');
+  else bad('🔴 ⑰ 上限+老板改过：about.json 留着这一轮的改动（该退的没退）');
   // 🔴 改口要说对：首页是【有意不退】、而且带着 AI 那一处（老板是在 AI 那份上存的）—— 不是「退不掉、下次可能带上」。
-  if (!/Nothing on your site was changed/.test(kMsg) && /en\/pages\/home\.json/.test(kMsg) && /includes the AI's change/.test(kMsg) && !/could not be undone/.test(kMsg)) ok(`⑯ 上限+老板改过：报文改口、点名首页、说清它带着 AI 那一处（${kMsg.slice(kMsg.indexOf('⚠️'), kMsg.indexOf('⚠️') + 70)}…）`);
-  else bad(`🔴 ⑯ 上限+老板改过：报文不对 —— 「${kMsg.slice(0, 300)}」`);
+  if (!/Nothing on your site was changed/.test(kMsg) && /en\/pages\/home\.json/.test(kMsg) && /that file was then saved again/.test(kMsg) && /includes the AI's change/.test(kMsg) && !/could not be undone/.test(kMsg)) ok(`⑰ 上限+老板改过：报文改口、点名首页、说清它带着 AI 那一处（${kMsg.slice(kMsg.indexOf('⚠️'), kMsg.indexOf('⚠️') + 70)}…）`);
+  else bad(`🔴 ⑰ 上限+老板改过：报文不对 —— 「${kMsg.slice(0, 300)}」`);
 
   // 同一件事的第二条路（#1420 r2 真模型跑出来的轨迹）：老板存在 AI 写过的首页上之后，AI 又去写首页 → 被拒 →
   // **重读**（读到的是老板那份）→ 在老板那份上改完**写成功**。这时盘上 == AI 最后写的那份，只比「盘上是不是
@@ -1923,15 +1923,15 @@ console.log('\n⑯ 读完之后别处改过（#1420）：拒 → 重读 → 写�
     reply([textBlock('should never be asked for')], 'end_turn'),
   ]);
   const mMsg = ev(merged, 'error').length === 1 ? String(ev(merged, 'error')[0].message) : '';
-  if (/changed somewhere else/.test(String(toolResultContent(merged, 4, 'h2'))) && /Written/.test(String(toolResultContent(merged, 6, 'h3')))) ok('⑯ 上限+重读后写成：前提成立（h2 被拒、h3 在老板那份上写成）');
-  else bad(`⑯ 上限+重读后写成：前提不成立 —— h2 ${String(toolResultContent(merged, 4, 'h2')).slice(0, 80)} · h3 ${String(toolResultContent(merged, 6, 'h3')).slice(0, 80)}`);
-  if (mMsg && ev(merged, 'edit-complete').length === 0) ok('⑯ 上限+重读后写成：仍按失败收场');
-  else bad(`🔴 ⑯ 上限+重读后写成：没按失败收场 —— events ${JSON.stringify(merged.events.map((e) => e.event))}`);
+  if (/changed somewhere else/.test(String(toolResultContent(merged, 4, 'h2'))) && /Written/.test(String(toolResultContent(merged, 6, 'h3')))) ok('⑰ 上限+重读后写成：前提成立（h2 被拒、h3 在老板那份上写成）');
+  else bad(`⑰ 上限+重读后写成：前提不成立 —— h2 ${String(toolResultContent(merged, 4, 'h2')).slice(0, 80)} · h3 ${String(toolResultContent(merged, 6, 'h3')).slice(0, 80)}`);
+  if (mMsg && ev(merged, 'edit-complete').length === 0) ok('⑰ 上限+重读后写成：仍按失败收场');
+  else bad(`🔴 ⑰ 上限+重读后写成：没按失败收场 —— events ${JSON.stringify(merged.events.map((e) => e.event))}`);
   const mHome = fs.readFileSync(homeFile, 'utf8');
-  if (heroOf(mHome).data.headline === 'Hero EDITOR SAVED') ok('⑯ 上限+重读后写成：老板存的 hero 还在');
-  else bad(`🔴 ⑯ 上限+重读后写成：老板存的那一笔被回滚退掉了 —— hero.headline 现在是 "${heroOf(mHome).data.headline}"`);
-  if (!/Nothing on your site was changed/.test(mMsg) && /en\/pages\/home\.json/.test(mMsg) && /includes the AI's change/.test(mMsg)) ok('⑯ 上限+重读后写成：报文改口、点名首页');
-  else bad(`🔴 ⑯ 上限+重读后写成：报文不对 —— 「${mMsg.slice(0, 300)}」`);
+  if (heroOf(mHome).data.headline === 'Hero EDITOR SAVED') ok('⑰ 上限+重读后写成：老板存的 hero 还在');
+  else bad(`🔴 ⑰ 上限+重读后写成：老板存的那一笔被回滚退掉了 —— hero.headline 现在是 "${heroOf(mHome).data.headline}"`);
+  if (!/Nothing on your site was changed/.test(mMsg) && /en\/pages\/home\.json/.test(mMsg) && /includes the AI's change/.test(mMsg)) ok('⑰ 上限+重读后写成：报文改口、点名首页');
+  else bad(`🔴 ⑰ 上限+重读后写成：报文不对 —— 「${mMsg.slice(0, 300)}」`);
 }
 
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
