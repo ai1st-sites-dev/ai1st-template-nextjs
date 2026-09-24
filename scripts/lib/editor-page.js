@@ -128,10 +128,10 @@ function editorBaseline(opts) {
   const o = opts || {};
   const rootDir = o.rootDir || process.cwd();
   const slug = typeof o.page === 'string' ? o.page : '';
-  if (!slug) return { ok: false, reason: 'bad-request', message: '没说是哪一页' };
+  if (!slug) return { ok: false, reason: 'bad-request', message: 'no page was named' };
   const siteDir = path.join(rootDir, 'site');
   const shape = readSiteShape(siteDir);
-  if (!shape) return { ok: false, reason: 'no-site', message: '读不到 site/' };
+  if (!shape) return { ok: false, reason: 'no-site', message: 'this repository has no site/ folder' };
   let locale = '';
   if (!shape.flat) {
     locale = typeof o.locale === 'string' ? o.locale : '';
@@ -144,11 +144,11 @@ function editorBaseline(opts) {
     }
     // 跟 `write-page.js` 同一条判据：存盘那头不认的语言，这里也不许给出一份底稿。
     if (!locale || (shape.locales.length && !shape.locales.includes(locale))) {
-      return { ok: false, reason: 'no-locale', message: `这个网站没有这种语言：${JSON.stringify(locale)}` };
+      return { ok: false, reason: 'no-locale', message: `this website has no language ${JSON.stringify(locale)}` };
     }
   }
   const src = editorSource(rootDir, locale, slug);
-  if ('error' in src) return { ok: false, reason: src.error, message: `读不到这一页（${src.error}）` };
+  if ('error' in src) return { ok: false, reason: src.error, message: `could not read this page (${src.error})` };
 
   // 扁平站在构建里的 locale 是 'en'（sync-config 的 legacy 分支），归一化 / 补字段只拿它当标签。
   const label = locale || 'en';
@@ -167,7 +167,7 @@ function editorBaseline(opts) {
       log: () => {},
     });
     const page = localePages.find((p) => p.slug === slug);
-    if (!page) return { ok: false, reason: 'no-page', message: `找不到这一页：${slug}` };
+    if (!page) return { ok: false, reason: 'no-page', message: `this website has no page ${JSON.stringify(slug)}` };
     // 跟 config 里那份同形：sync-config 是 JSON.stringify 写进 config-data.ts 的（undefined 的键不在）。
     blocks = JSON.parse(JSON.stringify(page.blocks));
   } catch (e) {
