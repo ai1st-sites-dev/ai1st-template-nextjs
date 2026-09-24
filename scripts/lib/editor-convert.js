@@ -17,7 +17,11 @@
 //   · `_src`     没有字段、老板改不到：
 //       at       它在原始数组里的下标；-1 = 这一页的文件里没有它（按 `visibility` 注进来的共用块）
 //       entry    原始那一条的副本（新插入的块没有 `_src`）
-//       locked   共用块（`{ref}` 条目或 `visibility` 注入）—— 内容 / 位置归 #1406，这里只读、不许动
+//       locked   不许动的块：清单里没有的类型（`UNKNOWN_TYPE`）、在原始 JSON 里定位不到的块
+//       shared   #1406：站级共用块的 id（`{ref}` 条目或按 `visibility` 注入）；不是共用块时为 null。
+//                它的字住在 `site-blocks.json`（§puckSharedChanges 算出要写回的那几处），位置写在这一页
+//                （`{ref}` + `weight`），删除看它是怎么出现在这一页的（§puckSharedChanges 文件头那张表）
+//       sharedData 共用块打开时块库文件里那一份 `data`（它的字段 prop 就是按它取的）；不是共用块时为 null
 //       view     归一化之后的那一块（画布照它渲染：`data-shape` / `data-has-*` / 升格后的列表）
 //       weight   它在构建里的有效权重（锁住的块拿它当锚点，见 §assignWeights）
 //       shape0   画布一打开时它戴的形态（`_shape` 没改过就不写 `shape`，否则往返会多出一个键）
@@ -155,9 +159,10 @@ function dataFromProps(component, base, props) {
  * @param {object}   args.schema   `editor-schema.js` §editorSchema 的产物
  * @param {number[]} [args.weights] 每块在构建里的有效权重（与 `blocks` 对齐）
  */
-function pageToPuck({ raw, blocks, located, schema, weights }) {
+function pageToPuck({ raw, blocks, located, schema, weights, siteBlocks }) {
   const idx = schemaIndex(schema);
   const arr = rawArray(raw);
+  const lib = isPlainObject(siteBlocks) ? siteBlocks : {};
   const content = [];
   blocks.forEach((view, i) => {
     const loc = located[i] || { at: -1, writable: false, reason: 'not-found' };
@@ -165,9 +170,12 @@ function pageToPuck({ raw, blocks, located, schema, weights }) {
     const unknown = !known || view.type === UNKNOWN_TYPE;
     const component = unknown ? UNKNOWN_COMPONENT : known;
     const entry = loc.at >= 0 && arr ? arr[loc.at] : undefined;
-    const locked = unknown || !loc.writable;
-    // 锁住的块字段显示归一化后的内容（它的字不在这一页的文件里）；可写的块显示文件里的原值。
-    const data = locked ? (view.data || {}) : ((entry && entry.data) || {});
+    // #1406 —— 共用块：块库里真有它（`visibility` 注入的 id 就是块库的键；`{ref}` 条目的 id 就是 ref）。
+    const sharedId = !unknown && loc.reason === 'shared' && typeof view.id === 'string' && isPlainObject(lib[view.id]) ? view.id : null;
+    const locked = unknown || (!loc.writable && !sharedId);
+    // 共用块的字段显示**块库文件里**那一份（存盘时改动合回的就是它，往返才无损）；锁住的块显示归一化后的
+    // 内容（它的字不在这一页的文件里）；可写的块显示文件里的原值。
+    const data = sharedId ? (lib[sharedId].data || {}) : locked ? (view.data || {}) : ((entry && entry.data) || {});
     const pid = typeof view.id === 'string' && view.id ? view.id : `${view.type}-${i}`;
     const shape0 = typeof view.shape === 'string' && view.shape ? view.shape : (component.defaultShape || '');
     const item = {
@@ -180,6 +188,9 @@ function pageToPuck({ raw, blocks, located, schema, weights }) {
           at: loc.at,
           entry: clone(entry === undefined ? null : entry),
           locked,
+          shared: sharedId,
+          // 共用块的字段是按它取的（块库文件里那一份 data）：画布判「这个字段改过没有」要跟同一份比（EditorApp §CanvasBlock）。
+          sharedData: sharedId ? clone(lib[sharedId].data || {}) : null,
           reason: unknown ? 'unknown-type' : (loc.reason || ''),
           view: clone(view),
           weight: weights && typeof weights[i] === 'number' ? weights[i] : null,
@@ -188,7 +199,10 @@ function pageToPuck({ raw, blocks, located, schema, weights }) {
         },
       },
     };
-    if (locked) {
+    if (sharedId) {
+      // 形态不在本票：写在 `{ref}` 上是「只这一页」（#1350），写进块库是「所有页」—— 两种意思要另定。
+      item.readOnly = { _shape: true };
+    } else if (locked) {
       item.readOnly = { _shape: true };
       // 子字段要单独点名（Puck 的键：对象 `slot.sub`、数组每项 `slot[*].sub`），只锁顶层的话
       // 对象里的输入框照样能改。
@@ -214,11 +228,21 @@ function rawArray(raw) {
 }
 
 // ── 一个 Puck 条目 → 原始数组里的一条 ─────────────────────────────────────────────────────────
-function entryOf(item, component, { isCopy, newId }) {
+function entryOf(item, component, { isCopy, newId, promote }) {
   const src = item.props._src;
   // 锁住的块原样（注入的那种不进文件）。复制一个共用块会在这一页造出第二条同 id 的 `{ref}`
   // （构建当场报 id 撞车）—— 权限上已经关了复制，这里再兜一次：复制品不落盘。
   if (src && src.locked) return !isCopy && src.entry ? clone(src.entry) : null;
+  // #1406 共用块：这一页只写它的 `{ref}`（字在块库里，§puckSharedChanges 另算）。
+  //   · 这一页本来就有那条 `{ref}` → 原样（`weight` 由 puckToPage 按画布顺序改）
+  //   · 按 `visibility` 注进来、老板把它挪了（`promote`）→ 新加一条 `{ref}`：它压过块自带的位置（`blocks.js`
+  //     §normalizeLocalePages 那条「ref 赢」）
+  //   · 按 `visibility` 注进来、没挪 → 不进文件（位置照块自带的 weight，是 puckToPage 的锚点）
+  if (src && src.shared) {
+    if (isCopy) return null;
+    if (src.entry) return clone(src.entry);
+    return promote ? { ref: src.shared } : null;
+  }
   const base = src && src.entry ? clone(src.entry) : { type: item.type };
   if (isCopy || !src) {
     // 新块 / 复制出来的块：id 另起（`blocks.js` 要求一页之内 id 唯一；老 sections 形状本来就不写 id）。
@@ -284,7 +308,11 @@ function assignWeights(slots) {
  * 顺序没变、没增没删 ⟹ 一个 `weight` 都不写（只改一个字不该让整页多出权重）。
  * 顺序变了 / 增删过 ⟹ 数组按画布顺序重排，并按 §assignWeights 给每一条（含 `{ref}`）写 `weight`。
  */
-function puckToPage({ raw, data, initial, schema, slug }) {
+function puckToPage({ raw, data, initial, schema, slug, moved }) {
+  // #1406 —— `moved`：老板在画布上拖过的块（Puck id）。按 `visibility` 注进来的共用块只有被拖过的才写成
+  // 这一页的 `{ref}`；没拖过的仍是锚点 —— 顺着别的块的挪动把它也写成 ref，会让「从块库的 visibility 里撤掉
+  // 这一页」从此对这一页失效（ref 那条来路还留着它）。
+  const movedIds = new Set(Array.isArray(moved) ? moved : moved instanceof Set ? [...moved] : []);
   const idx = schemaIndex(schema);
   const next = clone(raw);
   const key = rawKey(next);
@@ -317,8 +345,9 @@ function puckToPage({ raw, data, initial, schema, slug }) {
       usedIds.add(newId);
       fresh += 1;
     }
-    const entry = entryOf(item, component, { isCopy, newId });
-    const injected = src && src.locked && src.at < 0;
+    const promote = !!src && !!src.shared && src.at < 0 && !isCopy && movedIds.has(item.props.id);
+    const entry = entryOf(item, component, { isCopy, newId, promote });
+    const injected = src && (src.locked || src.shared) && src.at < 0 && !promote;
     out.push({ entry, anchor: injected ? (typeof src.weight === 'number' ? src.weight : null) : null, fromAt: src && !isCopy ? src.at : -1 });
   }
 
@@ -355,6 +384,106 @@ function puckToPage({ raw, data, initial, schema, slug }) {
     });
   }
   next[key] = arr;
+  return next;
+}
+
+// ── #1406 站级共用块 ────────────────────────────────────────────────────────────────────────────
+//
+// 一个共用块出现在一页上有两条来路（`blocks.js` §normalizeLocalePages，两条是「或」）：
+//   ① 这一页写了 `{ "ref": "<id>" }`      ② 块库里它的 `visibility` 列了这一页（或 `"*"`）
+// 编辑器对它的三种动作各落到对的文件：
+//   改内容   → `site-blocks.json` 里那个块的 `data`（§puckSharedChanges 的 `data`）；这一页不变
+//   挪位置   → 这一页的 `{ref}` + `weight`（puckToPage；注进来的块被拖过就新加一条 `{ref}`）
+//   删除     → 看它是怎么来的：
+//                只在 ② → 从 `visibility` 里移除这一页（§puckSharedChanges 的 `unlist`）
+//                只在 ① → 只拿掉这一页的 `{ref}`（puckToPage），块库一个字节不动
+//                两条都有 → 两个都做
+//              块本身永远留在块库里（别的页可能还在用）。🔴 不用 `hidden`（它由 #1411 退役）。
+//   `"*"` 的块不许删（Chris 2026-09-23）：`"*"` 是「所有页，含以后新建的」，删掉它 = 每一页都撤掉，展开成清单
+//   又会让以后的新页不再带它。编辑器把删除按钮关掉；这里再兜一次（抛错，存盘不发出去）。
+// 🔴 字符串 `visibility` 跟构建一样当没写（`blocks.js` 那条 note：整个字段被忽略）：它不算「列了这一页」，
+//    存盘也不碰它。
+
+/** 这个块的 `visibility`：是数组才算数（跟 `blocks.js` §visibilityMatches 同一个判法）。 */
+function visibilityOf(b) {
+  return isPlainObject(b) && Array.isArray(b.visibility) ? b.visibility : null;
+}
+
+/**
+ * 编辑器那句「这个块在 N 个页面上」的 N。
+ * @param {{ siteBlocks: object, refs?: Record<string, string[]>, slugs?: string[], id: string }} a
+ *   `refs` / `slugs` 来自底稿（`editor-page.js` §sharedRefs）。`slugs` 缺时 `visibility` 里的页不过滤。
+ * @returns {{ all: boolean, pages: number }}  `all` = `visibility` 含 `"*"`（「所有页面」，不写数字）
+ *   N = `visibility` 列的页（这种语言真有的那些 —— 构建丢掉不存在的）∪ 用 `{ref}` 指着它的页。
+ */
+function sharedReach({ siteBlocks, refs, slugs, id }) {
+  const vis = visibilityOf(isPlainObject(siteBlocks) ? siteBlocks[id] : null);
+  if (vis && vis.includes('*')) return { all: true, pages: 0 };
+  const known = Array.isArray(slugs) ? new Set(slugs) : null;
+  const pages = new Set();
+  for (const s of vis || []) if (typeof s === 'string' && (!known || known.has(s))) pages.add(s);
+  for (const s of (isPlainObject(refs) && Array.isArray(refs[id]) ? refs[id] : [])) pages.add(s);
+  return { all: false, pages: pages.size };
+}
+
+/** 这个共用块能不能从这一页删掉（`"*"` 的不能，见上面那段）。 */
+function sharedRemovable(siteBlocks, id) {
+  const vis = visibilityOf(isPlainObject(siteBlocks) ? siteBlocks[id] : null);
+  return !(vis && vis.includes('*'));
+}
+
+/**
+ * 这一次存盘要写回块库的那几处 → `{ <块 id>: { data?: <整份新 data>, unlist?: true } }`（一处都没有 ⟹ `{}`）。
+ *   · `data`    画布上改过它的字段：按块库**文件里**那一份 `data` 合（跟页面块同一个 §mergeSlot），没改就不带
+ *   · `unlist`  老板在这一页把它删了、而它的 `visibility` 数组里列了这一页 ⟹ 站里的脚本从数组里移除这一页
+ * 「删了」= 打开时画布上有它（按 Puck id 认），现在没有。
+ * @param {{ data: object, initial: object, siteBlocks: object, schema: object, slug: string }} a
+ */
+function puckSharedChanges({ data, initial, siteBlocks, schema, slug }) {
+  const idx = schemaIndex(schema);
+  const lib = isPlainObject(siteBlocks) ? siteBlocks : {};
+  const now = new Map();
+  for (const it of (data && data.content) || []) {
+    const src = it && it.props && it.props._src;
+    if (src && src.shared && it.props.id === src.pid) now.set(src.pid, it);
+  }
+  const out = {};
+  for (const it of (initial && initial.content) || []) {
+    const src = it && it.props && it.props._src;
+    if (!src || !src.shared) continue;
+    const id = src.shared;
+    const b = lib[id];
+    if (!isPlainObject(b)) continue;
+    const cur = now.get(src.pid);
+    if (!cur) {
+      if (!sharedRemovable(lib, id)) throw new Error('editor-convert: 这个共用块在所有页面上，不能只从这一页拿掉');
+      const vis = visibilityOf(b);
+      if (vis && vis.includes(slug)) out[id] = { ...(out[id] || {}), unlist: true };
+      continue;
+    }
+    const component = idx.get(cur.type);
+    if (!component) continue;
+    const before = isPlainObject(b.data) ? b.data : {};
+    const next = dataFromProps(component, before, cur.props);
+    if (!deepEqual(next, before)) out[id] = { ...(out[id] || {}), data: next };
+  }
+  return out;
+}
+
+/**
+ * 一次存盘成功之后，把送出去的那几处合进编辑器手上的块库底（下一次存盘跟它比）。站里的脚本做的是同一件事
+ * （`lib/shared-blocks-write.js` §applySharedChanges 调的就是这一个函数）—— 两边不各写一份。回新的一份。
+ */
+function applySharedChanges(siteBlocks, changes, slug) {
+  const next = clone(isPlainObject(siteBlocks) ? siteBlocks : {});
+  for (const [id, c] of Object.entries(changes || {})) {
+    const b = next[id];
+    if (!isPlainObject(b) || !isPlainObject(c)) continue;
+    if (has(c, 'data')) b.data = clone(c.data);
+    if (c.unlist === true && Array.isArray(b.visibility) && !b.visibility.includes('*')) {
+      b.visibility = b.visibility.filter((s) => s !== slug);
+    }
+  }
   return next;
 }
 
@@ -407,4 +536,7 @@ function puckRootChanges({ initial, now, schema }) {
   return out;
 }
 
-module.exports = { UNKNOWN_TYPE, pageToPuck, puckToPage, fieldProps, dataFromProps, assignWeights, deepEqual, ITEM_ORIG, rootToPuck, puckRootChanges };
+module.exports = {
+  UNKNOWN_TYPE, pageToPuck, puckToPage, fieldProps, dataFromProps, assignWeights, deepEqual, ITEM_ORIG, rootToPuck, puckRootChanges,
+  sharedReach, sharedRemovable, puckSharedChanges, applySharedChanges,
+};

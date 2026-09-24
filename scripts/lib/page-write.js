@@ -62,8 +62,10 @@ function resolveTarget(root, siteShape, localeIn) {
  * @param {string} a.slug
  * @param {string} a.baseHash
  * @param {unknown} a.next      整份页面 JSON
+ * @param {object} [a.siteBlocks] #1406：这一次存盘同时要写的块库（写完之后那一份）。校验要拿它，不拿磁盘上那份 ——
+ *                              页面和块库一起写，建得出来的判据是两份**写完以后**放在一起。缺 ⟹ 读磁盘上那份。
  */
-function planPageWrite({ root, blocks, pageFiles, target, slug, baseHash, next }) {
+function planPageWrite({ root, blocks, pageFiles, target, slug, baseHash, next, siteBlocks }) {
   if (!/^[a-z0-9][a-z0-9-]*(\/[a-z0-9][a-z0-9-]*)*$/.test(slug)) fail(5, `page slug 形状不对：${JSON.stringify(slug)}`);
   if (!/^[0-9a-f]{64}$/.test(baseHash || '')) fail(5, 'baseHash 缺失或形状不对（要 64 位小写 hex 的 sha256）');
   if (!next || typeof next !== 'object' || Array.isArray(next)) fail(5, '页面 JSON 必须是一个对象');
@@ -105,7 +107,8 @@ function planPageWrite({ root, blocks, pageFiles, target, slug, baseHash, next }
     return q;
   });
   try {
-    blocks.normalizeLocalePages(trial, blocks.readSiteBlocks(localeDir), locale || 'en', {});
+    const lib = siteBlocks ? JSON.parse(JSON.stringify(siteBlocks)) : blocks.readSiteBlocks(localeDir);
+    blocks.normalizeLocalePages(trial, lib, locale || 'en', {});
   } catch (e) {
     fail(9, `这份页面会让网站建不出来：${e.message}`);
   }
