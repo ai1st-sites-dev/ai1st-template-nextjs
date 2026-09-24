@@ -16,7 +16,7 @@
 //   这里按同一个函数反查下标。
 // · 站级共用块（一条 `{ref}`，或者靠 `visibility` 注进来、这一页根本没有它的条目）→ **不可写**：
 //   它的字住在 `blocks/site-blocks.json`，写在这一页的条目上是静默无效的（解 ref 时条目自己的键
-//   一个都不读）。那一格归 #1406。
+//   一个都不读）。那一格归 #1406：它的字写回 `site-blocks.json`（`lib/shared-blocks-write.js`），不在这一页。
 
 const crypto = require('crypto');
 const fs = require('fs');
@@ -31,7 +31,7 @@ const { resolveSiteRegionLayout } = require('./site-regions.js');
  * @param {string} rootDir 模板根（`site/` 的上一层）
  * @param {string} locale
  * @param {string} slug
- * @returns {{ file: string, raw: Record<string, unknown>, baseHash: string, siteBlocks: Record<string, any> } | { error: string }}
+ * @returns {{ file: string, raw: Record<string, unknown>, baseHash: string, siteBlocks: Record<string, any>, refs: Record<string, string[]>, slugs: string[] } | { error: string }}
  *   `file` 是相对仓根的路径（`site/en/pages/home.json` / 扁平站 `site/pages/home.json`）。
  *   `baseHash` 是那个文件**字节**的 sha256（hex）—— 编辑器存盘时带回去，`scripts/write-page.js` 拿它跟
  *   容器里当前的文件比：不一样就说明编辑器打开之后这一页被别处改过（检查器 / AI 聊天 / 另一个标签页），
@@ -46,7 +46,8 @@ function editorSource(rootDir, locale, slug) {
   const pagesDir = path.join(localeDir, 'pages');
   if (!fs.existsSync(pagesDir)) return { error: 'no-pages' };
   const sourceBySlug = new Map();
-  readPagesRecursive(pagesDir, '', [], sourceBySlug);
+  const localePages = [];
+  readPagesRecursive(pagesDir, '', localePages, sourceBySlug);
   const abs = sourceBySlug.get(slug);
   if (!abs) return { error: 'no-page' };
   // 重新读一遍文件：readPagesRecursive 会把子目录页面的 slug 覆盖进内容里，那不是文件里的字节。
@@ -57,7 +58,33 @@ function editorSource(rootDir, locale, slug) {
     raw,
     baseHash: crypto.createHash('sha256').update(bytes).digest('hex'),
     siteBlocks: readSiteBlocks(localeDir),
+    refs: sharedRefs(localePages),
+    slugs: localePages.map((p) => p.slug).sort(),
   };
+}
+
+/**
+ * #1406 —— 每个站级共用块被这一种语言的哪几页用 `{ "ref": … }` 指着：`{ <块 id>: [<页 slug>…] }`。
+ *
+ * 编辑器那句「这个块在 N 个页面上」的 N 是**两条来路的并集**（`blocks.js` §normalizeLocalePages 那两条：
+ * 这一页写了 `{ref}` ／ `visibility` 列了这一页）。`visibility` 在块库里、编辑器手上就有；`ref` 散在每一页的
+ * 文件里，而编辑器只拿到这一页 ⟹ 这里读全部页面现算，随底稿一起递进去（不烤进构建：改了 `ref` 就过时）。
+ * 🔴 判「这一条是 ref」跟构建同一个谓词：`ref` 是字符串、且没写 `type`（两个都写的构建当场报错，不算）。
+ * 🔴 页面列表要走 `page-files.js` §readPagesRecursive（子目录页面的 slug 由路径定，跟构建同一个读法）。
+ */
+function sharedRefs(localePages) {
+  const out = {};
+  for (const p of localePages) {
+    const arr = p && (Array.isArray(p.blocks) ? p.blocks : p.sections);
+    if (!Array.isArray(arr)) continue;
+    for (const e of arr) {
+      if (!e || typeof e !== 'object' || typeof e.ref !== 'string' || e.type !== undefined) continue;
+      const list = out[e.ref] || (out[e.ref] = []);
+      if (!list.includes(p.slug)) list.push(p.slug);
+    }
+  }
+  for (const k of Object.keys(out)) out[k].sort();
+  return out;
 }
 
 /**
@@ -119,7 +146,9 @@ function effectiveWeights(raw, siteBlocks, blocks, located) {
  * 浏览器那一侧只做 `editor-convert.js` §pageToPuck（纯函数）—— 归一化与定位要读磁盘，不许搬去客户端。
  *
  * @param {{ rootDir?: string, page: string, locale?: string }} opts  `locale` 空 = 默认语言；扁平站不看它
- * @returns {{ ok: true, page, locale, raw, siteBlocks, hash, blocks, located, weights }
+ *   · `refs` / `slugs` —— #1406：共用块被哪几页 `ref`（§sharedRefs）、这种语言现有哪些页（算 N 时 `visibility`
+ *     里写了不存在的页不算，跟构建丢掉它们同一个判法）
+ * @returns {{ ok: true, page, locale, raw, siteBlocks, hash, blocks, located, weights, refs, slugs }
  *          | { ok: false, reason: string, message: string }}
  *   `locale` 回的是实际用的那一个（扁平站回 ''）。`reason`：'bad-request' | 'no-site' | 'no-locale' |
  *   'no-pages' | 'no-page' | 'build-error'（这个站现在就建不出来 —— 构建会在同一个地方报错）。
@@ -184,7 +213,9 @@ function editorBaseline(opts) {
     blocks,
     located,
     weights: effectiveWeights(src.raw, src.siteBlocks, blocks, located),
+    refs: src.refs,
+    slugs: src.slugs,
   };
 }
 
-module.exports = { editorSource, locateInRaw, effectiveWeights, editorBaseline };
+module.exports = { editorSource, locateInRaw, effectiveWeights, editorBaseline, sharedRefs };

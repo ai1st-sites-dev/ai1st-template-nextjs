@@ -103,6 +103,7 @@ export default async function EditorPage({ params }: { params: Promise<{ target:
       located,
       schema,
       weights: effectiveWeights(src.raw, src.siteBlocks, page.blocks, located),
+      siteBlocks: src.siteBlocks,
     }),
     root: {
       props: rootToPuck({
@@ -125,6 +126,9 @@ export default async function EditorPage({ params }: { params: Promise<{ target:
       initialData={initialData}
       overHero={pageStartsWithHero(page)}
       trustedOrigin={trustedOrigin()}
+      siteBlocks={src.siteBlocks}
+      refs={src.refs}
+      slugs={src.slugs}
     />
   );
 }
