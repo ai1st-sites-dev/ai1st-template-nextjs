@@ -1591,5 +1591,89 @@ console.log('\n⑬ 图片取不到 ⟹ 一句人话，不是一段 JS 栈（#120
   }
 }
 
+// ══ ⑮ 老板的链接只收那几种地址：AI 那条路也拦（#1416）═══════════════════════════════════════════
+//
+// 编辑器那两条路在 `scripts/link-href.test.js`；这一格是第三条 —— AI 聊天的 write_file。判据是同一个函数
+// （`lib/link-href.js` §linkRejection），所以把它改坏一次，那边和这边要一起红。
+// 三种文件都要问：页面 JSON、navigation.json（公告条 + 顶栏按钮）、站级块库。只拦其中一种的话，模型
+// 换个文件就把同一个链接写进去了。
+// 🔴 判「被拒」看两样：文件逐字节不变（站级块库那份本来不在 ⟹ 仍然不在），以及那条 tool_result
+//    自己带着这一关的话（不是别的关拒的 —— 别的关拒也会让文件不变，那样这一格就不在测本票）。
+console.log('\n⑮ 链接协议（#1416）：页面 / navigation.json / 站级块库，三种坏协议全被拒，四种好的照收');
+{
+  const ctx = makeRoot('links');
+  const site = writeSite(ctx.work);
+  assertSyncsClean(ctx.work, '⑮');
+  ctx.git('git add -A && git commit -q -m base && git push -q origin main');
+  const homeFile = path.join(site, 'en', 'pages', 'home.json');
+  const navFile = path.join(site, 'en', 'navigation.json');
+  const libFile = path.join(site, 'en', 'blocks', 'site-blocks.json');
+  const home = JSON.parse(fs.readFileSync(homeFile, 'utf8'));
+  const hero = (home.blocks || []).find((b) => b && b.type === 'hero');
+  if (!hero || !hero.data || !hero.data.ctaPrimary) die('⑮：夹具首页没有带 ctaPrimary 的 hero');
+  const nav = JSON.parse(fs.readFileSync(navFile, 'utf8'));
+
+  const pageWith = (slot, href) => {
+    const p = JSON.parse(JSON.stringify(home));
+    p.blocks.find((b) => b && b.type === 'hero').data[slot] = { label: 'Book now', href };
+    return JSON.stringify(p, null, 2);
+  };
+  const navWith = (edit) => { const n = JSON.parse(JSON.stringify(nav)); edit(n); return JSON.stringify(n, null, 2); };
+  const libWith = (href) => JSON.stringify({
+    'shared-cta': { type: 'cta-banner', data: { headline: 'Ready?', description: 'Call us today.', button: { label: 'Call', href } } },
+  }, null, 2);
+
+  const BAD = ['javascript:alert(1)', 'vbscript:msgbox(1)', 'data:text/html,<script>alert(1)</script>'];
+  const calls = [];
+  BAD.forEach((href, i) => {
+    calls.push({ id: `p${i}`, what: `页面 hero 按钮 ${href.split(':')[0]}:`, call: writeCall(`p${i}`, 'en/pages/home.json', pageWith('ctaPrimary', href)) });
+    calls.push({ id: `t${i}`, what: `navigation.json 公告条 ${href.split(':')[0]}:`, call: writeCall(`t${i}`, 'en/navigation.json', navWith((n) => { n.topbar = { message: 'Open Saturday', link: { label: 'Details', href } }; })) });
+    calls.push({ id: `h${i}`, what: `navigation.json 顶栏按钮 ${href.split(':')[0]}:`, call: writeCall(`h${i}`, 'en/navigation.json', navWith((n) => { n.header.cta = { label: 'Get a Quote', href }; })) });
+    calls.push({ id: `s${i}`, what: `站级块库 cta-banner ${href.split(':')[0]}:`, call: writeCall(`s${i}`, 'en/blocks/site-blocks.json', libWith(href)) });
+  });
+  const beforeHome = fs.readFileSync(homeFile);
+  const beforeNav = fs.readFileSync(navFile);
+  const libExisted = fs.existsSync(libFile);
+  const beforeLib = libExisted ? fs.readFileSync(libFile) : null;
+
+  const res = runEdit(ctx, [
+    reply([textBlock('Updating the links.'), ...calls.map((c) => c.call)], 'tool_use'),
+    reply([textBlock('Done.')], 'end_turn'),
+  ]);
+  for (const c of calls) {
+    const why = toolResultContent(res, 1, c.id);
+    if (why !== null && /not an address a link can use/.test(why)) ok(`⑮ ${c.what} 被拒，理由是这一关的话`);
+    else bad(`🔴 ⑮ ${c.what} 没被这一关拒：${String(why).slice(0, 200)}`);
+  }
+  const same = (f, b) => Buffer.compare(fs.readFileSync(f), b) === 0;
+  if (same(homeFile, beforeHome) && same(navFile, beforeNav)) ok('⑮ home.json / navigation.json 逐字节没变');
+  else bad('🔴 ⑮ 被拒之后文件还是变了');
+  if (libExisted ? same(libFile, beforeLib) : !fs.existsSync(libFile)) ok('⑮ 站级块库没被写（本来不在的仍然不在）');
+  else bad('🔴 ⑮ 站级块库被写了');
+
+  // 反向对照：同一条路、同样三种文件，合法的四种照收并逐字落盘 —— 上面不是「什么都拒」。
+  const good = runEdit(ctx, [
+    reply([
+      textBlock('Updating the links.'),
+      writeCall('g1', 'en/pages/home.json', (() => {
+        const p = JSON.parse(pageWith('ctaPrimary', 'https://example.com'));
+        p.blocks.find((b) => b && b.type === 'hero').data.ctaSecondary = { label: 'Email us', href: 'mailto:a@b.com' };
+        return JSON.stringify(p, null, 2);
+      })()),
+      writeCall('g2', 'en/navigation.json', navWith((n) => {
+        n.topbar = { message: 'Open Saturday', link: { label: 'Call', href: 'tel:+15551234' } };
+        n.header.cta = { label: 'Contact', href: '/contact' };
+      })),
+    ], 'tool_use'),
+    reply([textBlock('Done.')], 'end_turn'),
+  ]);
+  const h = JSON.parse(fs.readFileSync(homeFile, 'utf8')).blocks.find((b) => b && b.type === 'hero').data;
+  const n = JSON.parse(fs.readFileSync(navFile, 'utf8'));
+  const got = [h.ctaPrimary && h.ctaPrimary.href, h.ctaSecondary && h.ctaSecondary.href, n.topbar && n.topbar.link && n.topbar.link.href, n.header && n.header.cta && n.header.cta.href];
+  const want = ['https://example.com', 'mailto:a@b.com', 'tel:+15551234', '/contact'];
+  if (JSON.stringify(got) === JSON.stringify(want)) ok(`⑮ 对照：四种合法地址照收、逐字落盘 ${JSON.stringify(got)}`);
+  else bad(`🔴 ⑮ 对照：合法地址没照收 —— 落盘 ${JSON.stringify(got)} · 回执 ${String(toolResultContent(good, 1, 'g1')).slice(0, 160)} / ${String(toolResultContent(good, 1, 'g2')).slice(0, 160)}`);
+}
+
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);

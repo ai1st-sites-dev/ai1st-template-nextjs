@@ -20,6 +20,7 @@
 //   0 成功   4 找不到那一页 / 那种语言   5 参数或内容的形状不对
 //   9 写进去这个站就建不出来了 —— 不写     10 这一页在编辑器打开之后被别处改过了（baseHash）—— 不写
 //  11 **拒收**：这个组合构建不收（带公告条的布局 + 透明浮层顶栏 / 某种语言缺公告条文字 / 布局自带页脚时改页脚），
+//     或者老板填的链接不是能用的地址（#1416：页面里块的链接 / 公告条链接，判据在 `lib/link-href.js`），
 //     那句话原样进编辑器状态栏（worker 从 stdout 那一行取 `message`）—— 不写
 //
 // 🔴 所有校验在所有写入之前（票正文做什么 6）：页面判过了、外壳被拒 ⟹ 页面也一个字节不写。判与写分开
@@ -94,7 +95,8 @@ try {
   const files = writes.map((w) => path.relative(ROOT, w.file).split(path.sep).join('/'));
   process.stdout.write(`${JSON.stringify(pageHash ? { ok: true, files, hash: pageHash } : { ok: true, files })}\n`);
 } catch (e) {
-  if (e instanceof editorRoot.RootWriteError && e.code === editorRoot.REFUSED) {
+  if ((e instanceof editorRoot.RootWriteError && e.code === editorRoot.REFUSED)
+    || (e instanceof pageWrite.PageWriteError && e.code === pageWrite.REFUSED)) {
     process.stdout.write(`${JSON.stringify({ ok: false, message: e.message })}\n`);
     die(e.code, e.message);
   }

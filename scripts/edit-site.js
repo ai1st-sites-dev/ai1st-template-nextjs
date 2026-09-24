@@ -32,6 +32,8 @@ const siteShape = require('./lib/site-shape');
 // #1195 —— 写进图片字段的那个地址，是不是有人真的给过它。为什么必须是「谁给的」而不是「取不取得到」，
 // 以及那张 IMAGE_FIELDS 清单为什么不是手抄的，整段写在那个文件头上。
 const imageUrls = require('./lib/image-urls');
+// #1416 —— 老板的链接只收那几种地址（http/https/mailto/tel/站内路径）。判据只有这一份，编辑器那两个存盘脚本也走它。
+const linkHref = require('./lib/link-href');
 // #1351 —— 「让 AI 改这一块」：面板把块 id 和它在哪一页带进这次会话，这一轮就只许动那一个块。
 // 判据是**拿磁盘上那份逐块比一遍**，不是在提示词里请它守规矩（理由在那个文件头上）。
 const blockScope = require('./lib/block-scope');
@@ -518,6 +520,8 @@ function pageJsonBlockError(relPath, parsed) {
 // 第一段是 `blocks`、文件名是 `site-blocks.json`),而 `writeRejection` 跑在这之前 ——
 // 走到这一行的路径已经过了白名单,所以这条正则只负责认出「是它」。
 const SITE_BLOCKS_JSON = /(?:^|\/)blocks\/site-blocks\.json$/i;
+// #1416 —— 链接那一关要认出 navigation.json（多语言站在 `<语言>/` 下，扁平站在根上）。
+const NAVIGATION_JSON = /(?:^|\/)navigation\.json$/i;
 
 /**
  * 站级块库的内容闸(#1160)。
@@ -696,6 +700,19 @@ function executeTool(toolName, toolInput, siteDir, snapshots, allowedImageUrls, 
       //    一份 JSON 写错了的内容不该先收到一句关于图片的错误。
       const badImageUrl = imageUrls.imageUrlRejection(parsed, allowedImageUrls);
       if (badImageUrl) return { error: badImageUrl };
+      // #1416 —— 链接槽位上的地址只收那几种（`lib/link-href.js`）。三种文件都查：页面 JSON、站级块库、
+      // navigation.json（公告条链接 + 顶栏按钮）—— 只查其中一种的话，模型换个文件就绕过去了。
+      // 拿磁盘上现在那份比：文件里本来就有的不合规链接，这一次没碰它就不拦（老数据不炸）。
+      // 🔴 读不出 / 不是 JSON 的旧文件当成「没有旧链接」—— 方向是多拦，不是多放。
+      const linkKind = PAGE_JSON.test(relPath) ? 'page'
+        : SITE_BLOCKS_JSON.test(relPath) ? 'site-blocks'
+          : NAVIGATION_JSON.test(relPath) ? 'navigation' : null;
+      if (linkKind) {
+        let beforeDoc = null;
+        try { beforeDoc = JSON.parse(writeCtx.readCurrent(relPath)); } catch (e) { beforeDoc = null; }
+        const badLink = linkHref.linkRejection(linkKind, parsed, beforeDoc);
+        if (badLink) return { error: badLink };
+      }
       const fullPath = path.join(siteDir, relPath);
       // #1102 —— 落盘**之前**把这个文件本来的样子记下来（同步失败时按它回滚）。
       // 🔴 只在第一次写它的时候记：同一次编辑里模型可能把同一个文件写两遍，而"这次编辑之前"

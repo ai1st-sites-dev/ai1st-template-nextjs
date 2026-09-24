@@ -30,6 +30,7 @@ const path = require('path');
 const pageLayoutLib = require('./page-layout');
 const siteRegions = require('./site-regions');
 const navigationOwned = require('./navigation-owned');
+const { linkRejection } = require('./link-href');
 const { pickableShapesOf } = require('../region-layout');
 
 const { ROOT_FIELDS } = require('./editor-root-fields');
@@ -206,6 +207,11 @@ function planRootWrite({ siteDir, localeDir, locale, shape, root, layoutsDir }) 
       if (!e.doc.topbar.message && !e.doc.topbar.link) delete e.doc.topbar;
     }
     if (e.f.file === 'navigation.json') {
+      // #1416 —— 公告条链接只收那几种地址（判据在 `lib/link-href.js`，三条写入路径共用）。拿写之前那份比：
+      // 文件里本来就有的不合规链接，这一次没碰它就不拦。排在下面那道门前面：这一条是给老板看的话（11），
+      // 那一道是「形状过不了构建」（9）。
+      const badLink = linkRejection('navigation', e.doc, e.before);
+      if (badLink) refuse(badLink);
       // 构建每次重写的那几处（菜单链接 / 第一栏页脚链接 / 栏数）一个都不许动，形状要过得了构建 ——
       // 判据是 `navigation-owned.js` 那一道门本身（AI 聊天编辑器写这个文件也过它），不在这里另列字段名。
       const why = navigationOwned.navigationEditRejection(e.doc, e.before);

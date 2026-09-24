@@ -16,6 +16,15 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
+const { linkRejection } = require('./link-href');
+
+/**
+ * 拒收：给老板看的一句话（#1416 起页面那一半也有）。跟 `editor-root.js` §REFUSED 同一个码 ——
+ * worker 那个 `switch code` 是两个脚本共用的，11 就从 stdout 最后一行取 `message` 原样给老板
+ * （`worker/blocks_task.go` 的 `editorRefused`）。
+ */
+const REFUSED = 11;
+
 class PageWriteError extends Error {
   constructor(code, message) {
     super(message);
@@ -97,6 +106,11 @@ function planPageWrite({ root, blocks, pageFiles, target, slug, baseHash, next }
   const nested = path.dirname(file) !== pagesDir;
   if (!nested && next.slug !== before.slug) fail(5, `不能在这里改页面地址：${JSON.stringify(before.slug)} → ${JSON.stringify(next.slug)}`);
 
+  // #1416 —— 老板填的链接只收那几种地址（判据在 `lib/link-href.js`，三条写入路径共用）。拿写之前那份比：
+  // 文件里本来就有的不合规链接，这一次没碰它就不拦（老数据不炸）。
+  const badLink = linkRejection('page', next, before);
+  if (badLink) fail(REFUSED, badLink);
+
   // ── 写之前先让构建自己的校验过一遍（见 write-page.js 文件头）──────────────────────────────────
   const trial = localePages.map((p) => {
     if (p.slug !== slug) return JSON.parse(JSON.stringify(p));
@@ -131,4 +145,4 @@ function commitWrites(writes) {
   for (const s of staged) fs.renameSync(s.tmp, s.file);
 }
 
-module.exports = { PageWriteError, resolveTarget, planPageWrite, commitWrites };
+module.exports = { REFUSED, PageWriteError, resolveTarget, planPageWrite, commitWrites };

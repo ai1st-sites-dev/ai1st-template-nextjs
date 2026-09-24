@@ -19,6 +19,8 @@
 //   0 成功   4 找不到那一页   5 参数或页面 JSON 的形状不对
 //   9 这份页面放进去，这个站就建不出来了（构建自己那套校验不收）—— 不写
 //  10 这一页在编辑器打开之后被别处改过了（`baseHash` 对不上当前文件）—— 不写
+//  11 **拒收**：老板填的链接不是能用的地址（#1416，判据在 `lib/link-href.js`）。stdout 也打一行
+//     {"ok":false,"message":"<给老板看的一句话>"}，worker 原样放进编辑器状态栏 —— 不写
 //
 // ── baseHash：编辑器的底稿是不是当前这份文件（#1409 QA2 r1）──────────────────────────────────────
 // 🔴 编辑器页是**构建时**烤出来的，它手上那份页面 JSON 是那一刻的文件。它打开期间，检查器 / AI 聊天 /
@@ -92,6 +94,9 @@ try {
   // 成功之后把它随 `page-saved` 发给编辑器，当下一次存盘的 baseHash —— 不用等重建完再取一份烤出来的底稿。
   process.stdout.write(`${JSON.stringify({ ok: true, file: path.relative(ROOT, w.file).split(path.sep).join('/'), hash: w.hash })}\n`);
 } catch (e) {
+  if (e instanceof pageWrite.PageWriteError && e.code === pageWrite.REFUSED) {
+    process.stdout.write(`${JSON.stringify({ ok: false, message: e.message })}\n`);
+  }
   if (e instanceof pageWrite.PageWriteError) die(e.code, e.message);
   throw e;
 }
