@@ -8,7 +8,10 @@
 // 挪位置、以及删掉只靠 `{ref}` 出现的块，都只改这一页的页面 JSON（`lib/page-write.js` 那一半）。
 // 为什么这样分、`"*"` 为什么不许删、字符串 `visibility` 为什么不碰：`lib/editor-convert.js` §#1406 那段。
 //
-// stdin 里的 `shared`：{ "<块 id>": { "data"?: { … }, "unlist"?: true } }
+// stdin 里的 `shared`：{ "<块 id>": { "data"?: { … }, "was"?: { … }, "unlist"?: true } }
+//   🔴 `was`（#1420）：`data` 里每个字段在编辑器画布上是按哪个值取的。磁盘上现在那个值跟它不一样 ⟹ 别处（AI 聊天 /
+//      另一页的编辑器）在这期间改过**同一个字段**。照旧后存的赢（同一个老板的两条路，Chris 的产品不做「摆两份让人挑」），
+//      但回一句 `notice` 让老板知道那句刚被别处改过的字被他这一笔替换了。`was` 缺 ⟹ 不判（老编辑器）。
 //   🔴 `unlist` 不带页名：移除的是**这一次存盘那一页**（参数里的 page），不收浏览器给的另一个名字。
 //   🔴 合并是在这里对着**现在磁盘上**那一份做的（§applySharedChanges，跟编辑器那一侧同一个函数），不是拿浏览器
 //      手上的整份块库盖回去：只动点名的那几个块、点名的那几个键。
@@ -56,8 +59,9 @@ function planSharedWrite({ blocks, pageFiles, target, slug, shared }) {
     if (!ID.test(id)) fail(5, `共用块 id 形状不对：${JSON.stringify(id)}`);
     const c = shared[id];
     if (!isObj(c)) fail(5, `共用块 ${id} 的改动必须是一个对象`);
-    for (const k of Object.keys(c)) if (k !== 'data' && k !== 'unlist') fail(5, `共用块 ${id} 的改动里有不认识的键 ${JSON.stringify(k)}`);
+    for (const k of Object.keys(c)) if (k !== 'data' && k !== 'unlist' && k !== 'was') fail(5, `共用块 ${id} 的改动里有不认识的键 ${JSON.stringify(k)}`);
     if (Object.prototype.hasOwnProperty.call(c, 'data') && !isObj(c.data)) fail(5, `共用块 ${id} 的 data 必须是一个对象`);
+    if (Object.prototype.hasOwnProperty.call(c, 'was') && !isObj(c.was)) fail(5, `共用块 ${id} 的 was 必须是一个对象`);
     if (Object.prototype.hasOwnProperty.call(c, 'unlist') && c.unlist !== true) fail(5, `共用块 ${id} 的 unlist 只能是 true`);
   }
 
@@ -82,8 +86,11 @@ function planSharedWrite({ blocks, pageFiles, target, slug, shared }) {
 
   const next = applySharedChanges(before, shared, slug);
   if (deepEqual(next, before)) return null;
+  const overwrote = overwrittenFields(before, shared);
 
   // 写之前让构建自己的校验过一遍（跟 page-write.js 同一条理由：它不收的块库会让整站从此建不出来）。
+  // #1420 —— 可达，但只有一种来路：这一笔只动 data / visibility，造不出构建会抛的形状；走到这里 = 编辑器打开之后磁盘上
+  //    别的页 / 别的块被写坏了（先坏再打开的话，底稿那一步就拒了）。格子在 editor-shared.test.js ⑫。
   const pages = [];
   try {
     pageFiles.readPagesRecursive(path.join(localeDir, 'pages'), '', pages, new Map());
@@ -93,7 +100,37 @@ function planSharedWrite({ blocks, pageFiles, target, slug, shared }) {
   }
   // 两空格缩进（跟 page-write.js 写页面同形）；结尾换行照原文件，diff 只落在改过的那几行。
   const content = `${JSON.stringify(next, null, 2)}${text.endsWith('\n') ? '\n' : ''}`;
-  return { file, content, next };
+  return { file, content, next, overwrote, notice: overwriteNotice(overwrote) };
 }
 
-module.exports = { SharedWriteError, REFUSED, planSharedWrite };
+const hasKey = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+
+/**
+ * #1420 —— 这一笔替换掉的、「别处在编辑器打开之后改过」的那几个字段 → `[{ id, slot }]`。
+ * 判据：磁盘上现在的值 ≠ 编辑器画布取的那个值（`was`，缺这个键 = 本来没有），且 ≠ 这一笔要写的值
+ * （别处恰好改成了一样的字，没有东西被替换）。没带 `was` 的块不判。
+ */
+function overwrittenFields(before, shared) {
+  const out = [];
+  for (const [id, c] of Object.entries(shared)) {
+    if (!isObj(c.data) || !isObj(c.was)) continue;
+    const disk = isObj(before[id].data) ? before[id].data : {};
+    for (const slot of Object.keys(c.data)) {
+      const now = hasKey(disk, slot) ? disk[slot] : undefined;
+      const expected = hasKey(c.was, slot) ? c.was[slot] : undefined;
+      if (deepEqual(now, expected) || deepEqual(now, c.data[slot])) continue;
+      out.push({ id, slot });
+    }
+  }
+  return out;
+}
+
+/** 给老板看的那一句（空数组 ⟹ ''）。字段名是块的 slot 名（编辑器侧栏里的字段就叫这个）。 */
+function overwriteNotice(overwrote) {
+  if (!overwrote.length) return '';
+  const fields = [...new Set(overwrote.map((o) => o.slot))].map((f) => `"${f}"`).join(', ');
+  return `Saved. Heads up: ${fields} in a shared section had been changed somewhere else (for example by the AI `
+    + 'chat) after you opened the editor — your version replaced that change.';
+}
+
+module.exports = { SharedWriteError, REFUSED, planSharedWrite, overwrittenFields };

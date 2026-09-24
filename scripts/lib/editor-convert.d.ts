@@ -59,7 +59,7 @@ export function puckRootChanges(args: {
   schema: EditorSchema;
 }): Record<string, unknown>;
 /** #1406 —— 站级共用块（说明在 editor-convert.js 那一段） */
-export type SharedChanges = Record<string, { data?: Record<string, unknown>; unlist?: true }>;
+export type SharedChanges = Record<string, { data?: Record<string, unknown>; was?: Record<string, unknown>; unlist?: true }>;
 export function sharedReach(args: {
   siteBlocks: Record<string, unknown>;
   refs?: Record<string, string[]>;

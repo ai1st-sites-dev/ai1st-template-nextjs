@@ -120,6 +120,8 @@ function planPageWrite({ root, blocks, pageFiles, target, slug, baseHash, next, 
     if (nested) q.slug = slug; // 同 readPagesRecursive：子目录页面的 slug 由路径定
     return q;
   });
+  // #1420 —— 从输入直接可达：编辑器交来的这一页自己就能带一个构建不收的形状（例：一个既没 type 也没 ref 的块）。
+  //    格子在 editor-shared.test.js ⑫。
   try {
     const lib = siteBlocks ? JSON.parse(JSON.stringify(siteBlocks)) : blocks.readSiteBlocks(localeDir);
     blocks.normalizeLocalePages(trial, lib, locale || 'en', {});

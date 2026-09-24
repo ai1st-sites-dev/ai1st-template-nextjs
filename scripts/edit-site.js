@@ -12,6 +12,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const http = require('http');
 const { execSync } = require('child_process');
 const Anthropic = require('@anthropic-ai/sdk');
@@ -354,6 +355,38 @@ async function readStdin() {
   });
 }
 
+// ─── #1420：写的那一刻核对「读完之后这个文件变过没有」 ─────────────────────────────────────
+//
+// 这条路是**整份写**：`read_file` 读一份 → 模型改 → `write_file` 把整份写回。而 AI 这一轮**不持站锁**
+// （`worker/main.go` 在容器起好就 `unlockSite()`，注释写明是有意的）⟹ 老板在这一轮的窗口里用编辑器存下的
+// 任何一处（页面 JSON、站级块库、navigation.json …）都会被模型手上那份旧读数整份盖回去，而编辑器拿到的是
+// `ok:true`。#1420 在夹具上复现过：编辑器改 promo.headline rc=0 → AI 按旧读数改另一个块 → promo.headline 回到原值。
+//
+// 🔴 判据写成**谓词**，不是文件清单：「这一轮 `read_file` 读过的**任何**文件，`write_file` 落盘前拿磁盘现在的
+//    字节比一次；对不上就拒」。按构造覆盖今天的三种文件和明天新增的任何一种（只列清单的下场见 #1416 → #1427）。
+// 🔴 键是 `path.join(siteDir, relPath)` —— 跟下面快照 / `writeFileSync` 同一个值，理由整段在 rollbackWrittenFiles 上面。
+// 🔴 模型自己写过之后，记下的就是它写进去的那份字节：同一轮里先写后写不算「别处改过」。
+// 🔴 **残留洞（本票不解，说在明处）**：模型**没读就写**一个已经存在的文件时这道闸不响 —— 它没有「读的那一刻」
+//    可比。系统提示第 1 条要求先读（`You MUST call read_file …`），但那是请求，不是闸。
+// 📌 比较与落盘之间还剩一个微秒级的窗口（两次系统调用之间），不是零；它比原来整轮模型调用的窗口（秒级）小几个数量级。
+/** 这一轮里被拒的次数到了这个数，就当这一轮失败并告诉老板（不让模型跟自己无限来回）。 */
+const MAX_STALE_WRITES = 3;
+const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
+
+/**
+ * 这个文件自这一轮读过之后变过没有。没读过 ⟹ null（放行，见上面的残留洞）；没变 ⟹ null；变了 ⟹ 一句给模型的话。
+ * @param {Map<string, string>} readSeen  键 = 落盘绝对路径，值 = 读到（或自己写进去）那份字节的 sha256
+ */
+function staleSinceRead(readSeen, fullPath, relPath) {
+  if (!readSeen || !readSeen.has(fullPath)) return null;
+  let now = null;
+  try { now = sha256(fs.readFileSync(fullPath)); } catch (e) { now = `(${e.code || 'unreadable'})`; }
+  if (now === readSeen.get(fullPath)) return null;
+  return `${relPath} was changed somewhere else (for example the owner saved it in the visual editor) after you `
+    + 'read it, so this write was refused — writing your copy would silently undo that change. Nothing was written. '
+    + 'Call read_file on it again and apply your change to the current content.';
+}
+
 // ─── Tool definitions ─────────────────────────────────────────────────────────
 
 const tools = [
@@ -619,14 +652,21 @@ function siteBlocksJsonError(relPath, parsed) {
  * @param {Map<string, Buffer|null|{why:string}>} [snapshots]
  *   #1102 —— `write_file` 往这里记「这个文件在被写之前是什么样」。同步失败时按它回滚。
  */
-function executeTool(toolName, toolInput, siteDir, snapshots, allowedImageUrls, blockScopeInfo) {
+/**
+ * @param {Map<string, string>} [readSeen]
+ *   #1420 —— 这一轮读过的文件 → 那份字节的 sha256（§staleSinceRead）。
+ */
+function executeTool(toolName, toolInput, siteDir, snapshots, allowedImageUrls, blockScopeInfo, readSeen) {
   switch (toolName) {
     case 'read_file': {
       const relPath = toolInput.path;
       if (!validatePath(relPath)) return { error: 'Invalid path: must be relative, no ".."' };
       const fullPath = path.join(siteDir, relPath);
       if (!fs.existsSync(fullPath)) return { error: `File not found: ${relPath}` };
-      return { content: fs.readFileSync(fullPath, 'utf-8') };
+      // #1420 —— 记下读到的是哪一份字节（写的那一刻拿它跟磁盘比，§staleSinceRead）。
+      const bytes = fs.readFileSync(fullPath);
+      if (readSeen) readSeen.set(fullPath, sha256(bytes));
+      return { content: bytes.toString('utf-8') };
     }
     case 'write_file': {
       const relPath = toolInput.path;
@@ -718,6 +758,11 @@ function executeTool(toolName, toolInput, siteDir, snapshots, allowedImageUrls, 
         if (badLink) return { error: badLink };
       }
       const fullPath = path.join(siteDir, relPath);
+      // #1420 —— 最后一关、紧贴落盘：读完之后别处改过它 ⟹ 拒，磁盘一个字节不动，模型重读后在同一轮里改口。
+      // 🔴 排在所有内容检查**后面**：那些问的是「这份内容对不对」，这一关问的是「它是不是基于现在那份」——
+      //    放在前面的话，检查跑的那段时间又成了一个没人核对的窗口。
+      const stale = staleSinceRead(readSeen, fullPath, relPath);
+      if (stale) return { error: stale, stale: true };
       // #1102 —— 落盘**之前**把这个文件本来的样子记下来（同步失败时按它回滚）。
       // 🔴 只在第一次写它的时候记：同一次编辑里模型可能把同一个文件写两遍，而"这次编辑之前"
       //    是它第一次被写之前那一刻，不是第二次。
@@ -746,6 +791,8 @@ function executeTool(toolName, toolInput, siteDir, snapshots, allowedImageUrls, 
       }
       fs.mkdirSync(path.dirname(fullPath), { recursive: true });
       fs.writeFileSync(fullPath, toolInput.content);
+      // #1420 —— 从现在起「这一轮手上那份」就是刚写进去的这份（再写一次不算别处改过）。
+      if (readSeen) readSeen.set(fullPath, sha256(Buffer.from(toolInput.content, 'utf-8')));
       // 🔴 #1104 r5 —— 这一行上有两张票的交付，两侧都要留。rebase 时它们冲突在同一行上而已，
       // 取一侧就是静默删掉另一张票的东西。
       //   · `path`         #1102 加的（`5ccfb541`）。**它在本文件里没有消费者** —— 整个返回值被
@@ -1046,6 +1093,9 @@ async function main() {
   // #1102 —— 键 = 这次 write_file 真正写出去的路径，值 = 它**被写之前**的字节
   // （`null` = 本次新建）。同步失败时按它回滚，见 rollbackWrittenFiles。
   const writeSnapshots = new Map();
+  // #1420 —— 这一轮读过的文件 → 读到那份字节的 sha256（§staleSinceRead），以及因此被拒了几次。
+  const readSeen = new Map();
+  let staleWrites = 0;
   let commitHash = '';
   // #1192 —— 提交（`git add -A && git commit`）失败时那句话。它跟 archiveError 是两件不同的事：
   // 推送失败 = 本地存下了、GitHub 上没有（改动仍然生效）；**提交失败 = 什么都没存下**，而这一次编辑
@@ -1182,11 +1232,12 @@ async function main() {
 
         emit('tool_use', { tool: block.name, ...(block.input.path ? { path: block.input.path } : {}) });
 
-        const result = executeTool(block.name, block.input, siteDir, writeSnapshots, allowedImageUrls, scope);
+        const result = executeTool(block.name, block.input, siteDir, writeSnapshots, allowedImageUrls, scope, readSeen);
 
         if (block.name === 'write_file' && result.success) {
           filesModified = true;
         }
+        if (result.stale) staleWrites += 1;
 
         // Truncate large file contents in tool results for debug
         const resultStr = JSON.stringify(result);
@@ -1198,6 +1249,33 @@ async function main() {
           content: resultStr,
         });
       }
+    }
+
+    // #1420 —— 读完就被别处改、改了又被拒，到了上限 ⟹ 这一轮失败，告诉老板（不静默、不无限来回）。
+    // 这一轮已经写过的别的文件先退回去，「什么都没改」这句话才成立（顺序同 syncError 那一支，理由在 rollbackWrittenFiles 上面）。
+    if (staleWrites >= MAX_STALE_WRITES) {
+      const pricing = getModelPricing(model);
+      const cost = ((totalInputTokens * pricing.input) + (totalOutputTokens * pricing.output)) / 1_000_000;
+      emit('cost', {
+        operation: 'edit-site',
+        provider: 'Claude',
+        model,
+        cost,
+        detail: `Edit (${totalInputTokens} in / ${totalOutputTokens} out)`,
+        duration: Date.now() - startTime,
+      });
+      const rb = rollbackWrittenFiles(siteDir, writeSnapshots);
+      debug(`#1420 gave up after ${staleWrites} stale writes; rollback: restored ${rb.restored.length}`
+        + ` · removed ${rb.removed.length} · failed ${rb.failed.length}${rb.failed.length ? ' — ' + rb.failed.join(' | ') : ''}`);
+      const why = 'your website was being changed somewhere else at the same time (for example in the visual editor), '
+        + 'and every time the AI went to save, the file had changed again since it last read it.';
+      emit('error', {
+        message: rb.failed.length
+          ? `This change was not saved: ${why} ⚠️ Part of it had already been written and could not be undone `
+            + `(${rb.failed.join('; ')}), so it may be included the next time an edit is saved.`
+          : `This change was not saved: ${why} Nothing on your site was changed by this request — please try again once you have finished editing.`,
+      });
+      return;
     }
 
     // If stop_reason is end_turn, we're done

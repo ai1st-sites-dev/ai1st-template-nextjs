@@ -462,6 +462,101 @@ console.log('⑩ 同一个标签页连存几次 · 别处的改动');
   reset();
 }
 
+// ══ ⑪ 同一个字段两边都改：照旧后存的赢，但这一笔回一句 notice 让老板知道（#1420，处置 (a)）══════════
+// 「别处」= 直接改盘上的块库（AI 聊天那条路落盘就是这个样子）。判据看三样：盘上是老板那一笔、`notice` 点名那个字段、
+// 以及三条对照 —— 别处改的是另一个字段 / 别处没改 / 别处恰好改成了一样的字 ⟹ 都没有 notice。
+console.log('⑪ 同一个共用块字段两边都改 · notice');
+{
+  const libFile = path.join(SITE, 'en', 'blocks', 'site-blocks.json');
+  const ext = (fn) => { const lib = readJSON(libFile); fn(lib); writeJSON(libFile, lib); };
+  const run = (external, mine = 'Promo MINE 1420') => {
+    reset();
+    const o = open('home');
+    if (external) ext(external);
+    itemOf(o.data, 'promo').props.headline = mine;
+    return { r: save('home', o), o };
+  };
+
+  const hit = run((lib) => { lib.promo.data.headline = 'Promo AI 1420'; });
+  check(hit.r.status === 0, '同字段：rc=0（后存的赢，不拒）', hit.r.stderr);
+  check(sb().promo.data.headline === 'Promo MINE 1420', '同字段：盘上是老板这一笔', sb().promo.data.headline);
+  check(hit.r.last && typeof hit.r.last.notice === 'string' && /"headline"/.test(hit.r.last.notice) && /changed somewhere else/.test(hit.r.last.notice),
+    '同字段：回执带 notice、点名 headline', JSON.stringify(hit.r.last));
+  check(hit.r.input.shared.promo.was && hit.r.input.shared.promo.was.headline === 'Promo en', '同字段：编辑器交出去的 was 是画布取的那个值', JSON.stringify(hit.r.input.shared));
+
+  const other = run((lib) => { lib.promo.data.description = 'EXT-desc 1420'; });
+  check(other.r.status === 0 && !('notice' in (other.r.last || {})), '对照：别处改的是另一个字段 ⟹ 没有 notice', JSON.stringify(other.r.last));
+  check(sb().promo.data.description === 'EXT-desc 1420', '对照：别处改的那个字段还在', sb().promo.data.description);
+  const none = run(null);
+  check(none.r.status === 0 && !('notice' in (none.r.last || {})), '对照：别处没改 ⟹ 没有 notice', JSON.stringify(none.r.last));
+  const same = run((lib) => { lib.promo.data.headline = 'Promo MINE 1420'; }, 'Promo MINE 1420');
+  check(!('notice' in (same.r.last || {})), '对照：别处恰好改成了一样的字 ⟹ 没东西被替换、没有 notice', JSON.stringify(same.r.last));
+
+  // 同一个标签页第二次存：was 取的是上次存成功那一份（own），不是打开时那份 —— 否则第一次存过之后每一次都会误报。
+  reset();
+  const o = open('home');
+  itemOf(o.data, 'promo').props.headline = 'Promo first 1420';
+  const first = save('home', o);
+  o.own = convert.sharedOwnAfter({ initial: o.initial, own: o.own, changes: first.input.shared });
+  itemOf(o.data, 'promo').props.headline = 'Promo second 1420';
+  const second = save('home', o);
+  check(first.status === 0 && second.status === 0 && !('notice' in (second.last || {})), '同一标签页连存两次、中间没人改 ⟹ 第二次没有 notice', JSON.stringify(second.last));
+  o.own = convert.sharedOwnAfter({ initial: o.initial, own: o.own, changes: second.input.shared });
+  ext((lib) => { lib.promo.data.headline = 'Promo AI later 1420'; });
+  itemOf(o.data, 'promo').props.headline = 'Promo third 1420';
+  const third = save('home', o);
+  check(third.status === 0 && /"headline"/.test((third.last || {}).notice || ''), '同一标签页：存过之后别处又改了同一字段 ⟹ 第三次有 notice', JSON.stringify(third.last));
+  reset();
+
+  // 老编辑器（没有 was）⟹ 不判，照旧写。
+  reset();
+  const legacy = { ...convert, puckSharedChanges: (a) => {
+    const out = convert.puckSharedChanges(a);
+    for (const k of Object.keys(out)) delete out[k].was;
+    return out;
+  } };
+  const lo = open('home');
+  ext((lib) => { lib.promo.data.headline = 'Promo AI 1420'; });
+  itemOf(lo.data, 'promo').props.headline = 'Promo MINE 1420';
+  const lr = save('home', lo, { conv: legacy });
+  check(lr.status === 0 && !('notice' in (lr.last || {})) && sb().promo.data.headline === 'Promo MINE 1420', '没带 was 的老编辑器：照旧写、不判', JSON.stringify(lr.last));
+  reset();
+}
+
+// ══ ⑫ exit 9「写之前让构建自己的校验过一遍」今天可达吗 —— 两处各一格（#1420 另一件事）════════════════
+// 构建那一步（blocks.js §normalizeLocalePages）只在【形状】上抛：块既没 type 也没 ref / ref 和 type 同写 / blocks
+// 不是数组 / 站级块缺 type。它不看 data 的内容。所以：
+//   · page-write.js：编辑器交来的这一页自己就能带一个 `{}` 块 ⟹ 从输入直接可达。
+//   · shared-blocks-write.js：这一笔只改 data / visibility，按构造造不出那几种形状 ⟹ 只有「磁盘上别的页 / 别的块已经坏了」
+//     时才走到，而且得是编辑器**打开之后**才坏的（坏了再打开，底稿那一步就拒了）—— 这时拒掉是对的（写进去这个站照样建不出来，而那句话点名了哪一页坏）。
+// 两格都跑真脚本，判据是退出码 9 + 文件一个字节没动；各自做过单变量变异（把 fail(9) 换成注释 ⟹ 这一格红）。
+console.log('⑫ exit 9 可达性');
+{
+  reset();
+  const o = open('home');
+  const homeFile = path.join(SITE, 'en', 'pages', 'home.json');
+  const before = md5(homeFile);
+  const bad = { ...o.b.raw, blocks: [...o.b.raw.blocks, {}] };
+  const r = cp.spawnSync(process.execPath, [path.join(TEMPLATE, 'scripts', 'write-editor-save.js'), JSON.stringify({ page: 'home', locale: 'en', baseHash: o.b.hash })], {
+    cwd: TEMPLATE, input: JSON.stringify({ page: bad }), encoding: 'utf8', timeout: 60000,
+  });
+  check(r.status === 9 && md5(homeFile) === before, 'page-write：这一页带一个既没 type 也没 ref 的块 ⟹ exit 9、home.json 没动', `rc=${r.status} ${r.stderr.slice(-200)}`);
+  reset();
+
+  const aboutFile = path.join(SITE, 'en', 'pages', 'about.json');
+  const about = readJSON(aboutFile);
+  about.blocks.push({ ref: 'badge', type: 'text-block' });   // 别处已经写坏的一页（ref 和 type 同写）
+  writeJSON(aboutFile, about);
+  const libFile = path.join(SITE, 'en', 'blocks', 'site-blocks.json');
+  const libBefore = md5(libFile);
+  // 📌 这时编辑器连底稿都取不到（editorBaseline 回 build-error）⟹ 这一支只在「编辑器开着的时候别处把盘写坏了」时走到。
+  const r3 = cp.spawnSync(process.execPath, [path.join(TEMPLATE, 'scripts', 'write-editor-save.js'), JSON.stringify({ page: 'home', locale: 'en' })], {
+    cwd: TEMPLATE, input: JSON.stringify({ shared: { promo: { data: { headline: 'Promo 1420 exit9' } } } }), encoding: 'utf8', timeout: 60000,
+  });
+  check(r3.status === 9 && md5(libFile) === libBefore && /about/.test(r3.stderr), 'shared-blocks-write：只在磁盘上别的页已经坏了时可达 ⟹ exit 9、块库没动、那句话点名 about', `rc=${r3.status} ${r3.stderr.slice(-200)}`);
+  reset();
+}
+
 // ══ ⑨ 守卫真会红：把「删除只从页面 JSON 拿掉 ref、不动 visibility」当成实现跑一遍 ═══════════════
 console.log('⑨ 反向对照：删除不动 visibility');
 {

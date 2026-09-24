@@ -438,6 +438,8 @@ function sharedRemovable(siteBlocks, id) {
  *               （§applySharedChanges）。没改过的字段不交 —— 编辑器开着的时候别处（AI 聊天 / 检查器 / 另一页的
  *               编辑器）改过的字，不会被画布上打开时那一份悄悄冲掉（#1406 QA2 r1 的 F；跟 #1405 外壳四样
  *               逐字段交、#1409 baseHash 是同一个病）。
+ *   · `was`     #1420：跟 `data` 同一批字段，各自「画布是按哪个值取的」（打开时 / 上次存成功时）。只用来判
+ *               「这一笔盖掉了别处刚改过的同一个字段」并告诉老板；不参与合并（§applySharedChanges 不读它）。
  *   · `unlist`  老板在这一页把它删了、而它的 `visibility` 数组里列了这一页 ⟹ 站里的脚本从数组里移除这一页
  * 「删了」= 打开时画布上有它（按 Puck id 认），现在没有。
  * 🔴 「改过没有」跟**画布的字段是按哪一份取的**比（`own[id]`，没有就是打开时的 `_src.sharedData`），不跟
@@ -469,8 +471,15 @@ function puckSharedChanges({ data, initial, siteBlocks, schema, slug, own }) {
     }
     const component = idx.get(cur.type);
     if (!component) continue;
-    const patch = changedSharedSlots(component, sharedBasis(src, own), cur.props);
-    if (patch) out[id] = { ...(out[id] || {}), data: patch };
+    const basis = sharedBasis(src, own);
+    const patch = changedSharedSlots(component, basis, cur.props);
+    if (patch) {
+      // #1420 —— 每个改过的字段「画布是按哪个值取的」一起交（basis 里没有这个字段 ⟹ 不写这个键 = 「本来没有」）。
+      // 站里的脚本拿它跟磁盘上现在那个值比：不一样 ⟹ 别处在这期间改过同一个字段，照旧后存的赢，但要告诉老板。
+      const was = {};
+      for (const slot of Object.keys(patch)) if (has(basis, slot)) was[slot] = clone(basis[slot]);
+      out[id] = { ...(out[id] || {}), data: patch, was };
+    }
   }
   return out;
 }

@@ -12,6 +12,7 @@
 //
 // 成功时 stdout 打**一行** JSON：{"ok":true,"files":["site/en/pages/home.json","site/theme.json",…],"hash":"<sha256>"}
 //   （`files` 是这次真写了的文件，worker 拿它 `git add`；一个都没写 ⟹ 空数组）
+//   （`notice` 是 #1420 加的，可缺：这一笔替换掉了一个「编辑器打开之后别处改过」的共用块字段时，给老板看的一句话）
 //   （`hash` 是 #1415 加的：**这次写了页面**才有，是写进去那份页面字节的 sha256，编辑器拿它当下一次的 baseHash。
 //    只改外壳时没有这个键 —— 页面文件没动，编辑器手上那个 baseHash 仍然对；回一个「当前文件的 hash」反而会
 //    把别处在这期间对这一页的改动悄悄认成底稿，下一次存页面就把那次改动冲掉了）
@@ -103,7 +104,9 @@ try {
   }));
   pageWrite.commitWrites(writes);
   const files = writes.map((w) => path.relative(ROOT, w.file).split(path.sep).join('/'));
-  process.stdout.write(`${JSON.stringify(pageHash ? { ok: true, files, hash: pageHash } : { ok: true, files })}\n`);
+  // #1420 —— `notice`：这一笔替换掉了别处刚改过的同一个共用块字段（§shared-blocks-write overwrittenFields），worker 原样带进 page-saved。
+  const out = { ok: true, files, ...(pageHash ? { hash: pageHash } : {}), ...(s && s.notice ? { notice: s.notice } : {}) };
+  process.stdout.write(`${JSON.stringify(out)}\n`);
 } catch (e) {
   if ((e instanceof editorRoot.RootWriteError && e.code === editorRoot.REFUSED)
     || (e instanceof pageWrite.PageWriteError && e.code === pageWrite.REFUSED)

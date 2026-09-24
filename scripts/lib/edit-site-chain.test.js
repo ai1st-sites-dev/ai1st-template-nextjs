@@ -142,6 +142,14 @@ class FakeAnthropic {
       const r = script[turn];
       turn += 1;
       if (!r) throw new Error('回放脚本用完了，但被测代码又要了一轮 —— 脚本写少了');
+      // #1420：这一轮回复发出去之前，先替「别处」改几个文件（老板在编辑器里存盘）。时刻落在上一轮的工具
+      // 已经执行完、这一轮的工具还没执行之间 —— 真 API 那段几秒的思考时间就是这个缝。键不带进回复里。
+      if (Array.isArray(r.__before)) {
+        for (const w of r.__before) fs.writeFileSync(w.file, w.content);
+        const clean = Object.assign({}, r);
+        delete clean.__before;
+        return clean;
+      }
       return r;
     };
     // #1200：一轮也可以是"provider 拒收"。形状照真 SDK 的 APIError 写：status 是判据，
@@ -200,6 +208,7 @@ const textBlock = (text) => ({ type: 'text', text });
 const writeCall = (id, filePath, content) => ({
   type: 'tool_use', id, name: 'write_file', input: { path: filePath, content },
 });
+const readCall = (id, filePath) => ({ type: 'tool_use', id, name: 'read_file', input: { path: filePath } });
 
 // ── 造一棵只属于这一格的树 ──────────────────────────────────────────────────────────────────────
 //
@@ -1744,6 +1753,123 @@ console.log('\n⑯ 块带 ref 又带自己的 data（#1430）：坏链接被拒�
   const gotHref = lib.evil && lib.evil.data && lib.evil.data.button && lib.evil.data.button.href;
   if (gotHref === 'https://example.com/book' && refs.length === 1) ok('⑯ 对照：带 ref 的块链接合法 → 照收、逐字落盘；纯引用 {ref} 照收');
   else bad(`🔴 ⑯ 对照：合法的没照收 —— 块库 href=${JSON.stringify(gotHref)} · 首页 ref 条目 ${refs.length} · 回执 ${String(toolResultContent(good, 1, 'g1')).slice(0, 160)} / ${String(toolResultContent(good, 1, 'g2')).slice(0, 160)}`);
+}
+
+// ══ ⑯ 读完之后别处改过 ⟹ 这一笔写被拒、模型重读后照常写；一直被改 ⟹ 到上限就失败并告诉老板（#1420）════
+//
+// 形状照 #1420 在夹具上复现的那一条：AI 读了一份 → 老板在编辑器里存了一处 → AI 把手上那份旧读数整份写回。
+// 判据是**谓词**（这一轮读过的任何文件），所以两种文件各走一遍：页面 JSON 和站级块库。
+// 🔴 判「被拒」看三样：老板那一处还在、那条 tool_result 带着这一关的话（不是别的关拒的）、以及模型重读后
+//    写的那一笔真的落盘（不是「什么都拒」）。
+// 🔴 对照臂：同样的脚本、`__before` 去掉 ⟹ 第一笔就落盘。没有这一臂，上面三条也可能是「这条路坏了」。
+console.log('\n⑯ 读完之后别处改过（#1420）：拒 → 重读 → 写；一直被改 ⟹ 第 3 次失败、回滚、告诉老板');
+{
+  const ctx = makeRoot('stale');
+  const site = writeSite(ctx.work);
+  const homeFile = path.join(site, 'en', 'pages', 'home.json');
+  const libFile = path.join(site, 'en', 'blocks', 'site-blocks.json');
+  const home = JSON.parse(fs.readFileSync(homeFile, 'utf8'));
+  const arrayKey = Array.isArray(home.blocks) ? 'blocks' : null;
+  if (!arrayKey) die('⑯ 前提不成立：建出来的首页没有 blocks');
+  const lib = {
+    promo: { type: 'cta-banner', data: { headline: 'Promo ORIGINAL', description: 'Call us today.', button: { label: 'Call', href: '/contact' } } },
+    badge: { type: 'cta-banner', data: { headline: 'Badge ORIGINAL', description: 'Same-day service.', button: { label: 'Book', href: '/contact' } } },
+  };
+  fs.mkdirSync(path.dirname(libFile), { recursive: true });
+  fs.writeFileSync(libFile, JSON.stringify(lib, null, 2));
+  home.blocks = home.blocks.concat([{ ref: 'promo', weight: 95 }, { ref: 'badge', weight: 96 }]);
+  fs.writeFileSync(homeFile, JSON.stringify(home, null, 2));
+  assertSyncsClean(ctx.work, '⑯');
+  ctx.git('git add -A && git commit -q -m base && git push -q origin main');
+  const baseLib = fs.readFileSync(libFile, 'utf8');
+  const baseHome = fs.readFileSync(homeFile, 'utf8');
+  // 每一臂都从同一个底开始：前面的臂会 commit（HEAD 往前走），所以回的是底那个 commit，不是 HEAD。
+  const baseSha = ctx.git('git rev-parse HEAD').toString().trim();
+  const reset = () => ctx.git(`git reset -q --hard ${baseSha} && git push -q -f origin main`);
+
+  const libEditorSaved = (() => { const l = JSON.parse(baseLib); l.promo.data.headline = 'Promo EDITOR SAVED'; return JSON.stringify(l, null, 2); })();
+  const libAi = (from) => { const l = JSON.parse(from); l.badge.data.headline = 'Badge AI'; return JSON.stringify(l, null, 2); };
+  const heroOf = (text) => JSON.parse(text).blocks.find((b) => b && b.type === 'hero');
+  // 老板改 hero 的标题；AI 改另一个块（第一个带 headline 的非 hero 块）—— 两处不相干，旧版的整份写照样会把前者退回。
+  const homeEditorSaved = (() => { const h = JSON.parse(baseHome); heroOf(baseHome) && (h.blocks.find((b) => b && b.type === 'hero').data.headline = 'Hero EDITOR SAVED'); return JSON.stringify(h, null, 2); })();
+  const otherOf = (h) => h.blocks.find((b) => b && b.type !== 'hero' && b.data && typeof b.data.headline === 'string');
+  if (!heroOf(baseHome) || !otherOf(JSON.parse(baseHome))) die('⑯ 前提不成立：首页上要有一个 hero 和另一个带 headline 的块');
+  const homeAi = (from) => { const h = JSON.parse(from); otherOf(h).data.headline = 'Other AI'; return JSON.stringify(h, null, 2); };
+
+  for (const arm of [
+    { name: '站级块库', rel: 'en/blocks/site-blocks.json', file: libFile, base: baseLib, editor: libEditorSaved, ai: libAi,
+      editorStill: (t) => JSON.parse(t).promo.data.headline === 'Promo EDITOR SAVED', aiLanded: (t) => JSON.parse(t).badge.data.headline === 'Badge AI' },
+    { name: '页面 JSON', rel: 'en/pages/home.json', file: homeFile, base: baseHome, editor: homeEditorSaved, ai: homeAi,
+      editorStill: (t) => heroOf(t).data.headline === 'Hero EDITOR SAVED', aiLanded: (t) => t.includes('"Other AI"') },
+  ]) {
+    reset();
+    const res = runEdit(ctx, [
+      reply([readCall('r1', arm.rel)], 'tool_use'),
+      // 老板在这一段存了一处；AI 拿着 r1 读到的旧份写回。
+      Object.assign(reply([writeCall('w1', arm.rel, arm.ai(arm.base))], 'tool_use'), { __before: [{ file: arm.file, content: arm.editor }] }),
+      reply([readCall('r2', arm.rel)], 'tool_use'),
+      reply([writeCall('w2', arm.rel, arm.ai(arm.editor))], 'tool_use'),
+      reply([textBlock('Done.')], 'end_turn'),
+    ]);
+    const receipt = String(toolResultContent(res, 2, 'w1'));
+    const now = fs.readFileSync(arm.file, 'utf8');
+    if (/changed somewhere else/.test(receipt) && /Nothing was written/.test(receipt)) ok(`⑯ ${arm.name}：旧读数那一笔被这一关拒（回执 ${receipt.slice(0, 90)}…）`);
+    else bad(`🔴 ⑯ ${arm.name}：旧读数那一笔没被这一关拒 —— 回执 ${receipt.slice(0, 200)}`);
+    if (arm.editorStill(now)) ok(`⑯ ${arm.name}：老板在编辑器里存的那一处还在`);
+    else bad(`🔴 ⑯ ${arm.name}：老板存的那一处被 AI 退回了`);
+    if (arm.aiLanded(now) && ev(res, 'edit-complete').length === 1) ok(`⑯ ${arm.name}：模型重读后那一笔落盘、编辑正常完成（commit ${res.commitsBefore}→${res.commitsAfter}）`);
+    else bad(`🔴 ⑯ ${arm.name}：重读后那一笔没落盘 / 没完成 —— events ${JSON.stringify(res.events.map((e) => e.event))} · ${res.stderr.slice(-300)}`);
+  }
+
+  // 对照臂：同样的脚本，没有「别处改过」⟹ 第一笔就落盘（上面那几条不是「这条路什么都拒」）。
+  reset();
+  const ctl = runEdit(ctx, [
+    reply([readCall('r1', 'en/blocks/site-blocks.json')], 'tool_use'),
+    reply([writeCall('w1', 'en/blocks/site-blocks.json', libAi(baseLib))], 'tool_use'),
+    reply([textBlock('Done.')], 'end_turn'),
+  ]);
+  const ctlReceipt = String(toolResultContent(ctl, 2, 'w1'));
+  if (/Written/.test(ctlReceipt) && JSON.parse(fs.readFileSync(libFile, 'utf8')).badge.data.headline === 'Badge AI') ok('⑯ 对照：没人在中间改 ⟹ 第一笔就落盘');
+  else bad(`🔴 ⑯ 对照：第一笔没落盘 —— 回执 ${ctlReceipt.slice(0, 200)}`);
+
+  // 同一轮里先写后写：自己写进去的那份不算「别处改过」。
+  reset();
+  const twice = runEdit(ctx, [
+    reply([readCall('r1', 'en/blocks/site-blocks.json')], 'tool_use'),
+    reply([writeCall('w1', 'en/blocks/site-blocks.json', libAi(baseLib))], 'tool_use'),
+    reply([writeCall('w2', 'en/blocks/site-blocks.json', libAi(baseLib).replace('Badge AI', 'Badge AI 2'))], 'tool_use'),
+    reply([textBlock('Done.')], 'end_turn'),
+  ]);
+  if (/Written/.test(String(toolResultContent(twice, 3, 'w2'))) && JSON.parse(fs.readFileSync(libFile, 'utf8')).badge.data.headline === 'Badge AI 2') ok('⑯ 同一轮先写后写：第二笔照收（自己写进去的不算别处改过）');
+  else bad(`🔴 ⑯ 同一轮先写后写：第二笔被拒 —— ${String(toolResultContent(twice, 3, 'w2')).slice(0, 200)}`);
+
+  // 上限：每次读完都被改 ⟹ 第 3 次被拒时这一轮失败；这一轮先写成功的别的文件退回去；老板收到一句话。
+  reset();
+  const hero = heroOf(baseHome);
+  const homeTouched = (() => { const h = JSON.parse(baseHome); h.blocks.find((b) => b && b.type === 'hero').data.headline = 'Hero AI (should be rolled back)'; return JSON.stringify(h, null, 2); })();
+  const bump = (n) => [{ file: libFile, content: libEditorSaved.replace('Promo EDITOR SAVED', `Promo EDITOR SAVED ${n}`) }];
+  const cap = runEdit(ctx, [
+    reply([readCall('r0', 'en/pages/home.json'), readCall('r1', 'en/blocks/site-blocks.json')], 'tool_use'),
+    Object.assign(reply([writeCall('h1', 'en/pages/home.json', homeTouched), writeCall('w1', 'en/blocks/site-blocks.json', libAi(baseLib))], 'tool_use'), { __before: bump(1) }),
+    reply([readCall('r2', 'en/blocks/site-blocks.json')], 'tool_use'),
+    Object.assign(reply([writeCall('w2', 'en/blocks/site-blocks.json', libAi(baseLib))], 'tool_use'), { __before: bump(2) }),
+    reply([readCall('r3', 'en/blocks/site-blocks.json')], 'tool_use'),
+    Object.assign(reply([writeCall('w3', 'en/blocks/site-blocks.json', libAi(baseLib))], 'tool_use'), { __before: bump(3) }),
+    reply([textBlock('should never be asked for')], 'end_turn'),
+  ]);
+  const errs = ev(cap, 'error');
+  if (errs.length === 1 && /was not saved/.test(errs[0].message) && /somewhere else/.test(errs[0].message) && ev(cap, 'edit-complete').length === 0) ok(`⑯ 上限：第 3 次被拒 ⟹ 失败并告诉老板（${errs[0].message.slice(0, 80)}…）`);
+  else bad(`🔴 ⑯ 上限：没按失败收场 —— events ${JSON.stringify(cap.events.map((e) => e.event))}`);
+  if (cap.requests.length === 6) ok('⑯ 上限：第 3 次被拒之后没有再问模型（6 次请求）');
+  else bad(`🔴 ⑯ 上限：请求了 ${cap.requests.length} 次（应为 6）`);
+  if (heroOf(fs.readFileSync(homeFile, 'utf8')).data.headline === hero.data.headline) ok('⑯ 上限：这一轮先写成功的首页被退回原样');
+  else bad('🔴 ⑯ 上限：首页留着这一轮的改动');
+  if (JSON.parse(fs.readFileSync(libFile, 'utf8')).promo.data.headline === 'Promo EDITOR SAVED 3') ok('⑯ 上限：老板最后存的那一处还在');
+  else bad('🔴 ⑯ 上限：老板存的那一处没了');
+  if (cap.commitsAfter === cap.commitsBefore) ok('⑯ 上限：没有 commit');
+  else bad(`🔴 ⑯ 上限：多了 ${cap.commitsAfter - cap.commitsBefore} 个 commit`);
+  if (ev(cap, 'cost').length === 1) ok('⑯ 上限：花掉的 token 照样记账（cost 事件 1 条）');
+  else bad(`🔴 ⑯ 上限：cost 事件 ${ev(cap, 'cost').length} 条`);
 }
 
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
