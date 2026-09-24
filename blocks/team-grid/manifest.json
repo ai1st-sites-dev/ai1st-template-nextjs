@@ -28,13 +28,6 @@
       }
     }
   },
-  "variants": {
-    "grid": "large cards with bio",
-    "compact": "small inline cards",
-    "card-with-social": "cards with gradient header + social icons",
-    "centered": "single column centered"
-  },
-  "variantKey": "variants",
   "industries": {
     "required": [],
     "recommended": [

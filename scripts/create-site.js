@@ -1751,7 +1751,7 @@ function getDemoConfig(siteId) {
       {
         slug: 'home', title: 'Home', description: 'Welcome to Demo Company', navLabel: 'Home', navOrder: 0, changeFrequency: 'weekly', priority: 1,
         sections: [
-          { type: 'hero', data: { variant: 'centered', headline: 'Welcome to Demo Company', subheadline: 'Your trusted local business partner', ctaPrimary: { label: 'Get Started', href: '/quote' }, ctaSecondary: { label: 'Learn More', href: '/about' } } },
+          { type: 'hero', data: { headline: 'Welcome to Demo Company', subheadline: 'Your trusted local business partner', ctaPrimary: { label: 'Get Started', href: '/quote' }, ctaSecondary: { label: 'Learn More', href: '/about' } } },
           { type: 'features-grid', data: { headline: 'Why Choose Us', subheadline: 'What sets us apart from the rest' } },
           { type: 'cta-banner', data: { headline: 'Ready to get started?', description: 'Contact us today for a free consultation.', button: { label: 'Contact Us', href: '/quote' } } },
           { type: 'contact-form', data: { heading: 'Contact us', intro: "Leave your details and we'll get back to you shortly.", buttonText: 'Send message' } }, // TICKET-268b
@@ -1952,19 +1952,13 @@ async function generateContent(opts) {
         + (set.has('page-header') ? ' Always start with "page-header".' : '')
         + (set.has('cta-banner') ? ' End with "cta-banner" when appropriate.' : ''))
         || '- Non-home pages should use 3-8 sections.',
-      // 「换着用 A 和 B 的外观」—— 只剩一个时就说那一个。
-      ruleIfAnyOn(['page-header', 'text-block'], (on) => `- Use different ${on.join(' and ')} variants`
-        + ' across pages — don\'t reuse the same variant on every page.'),
-      blockOff.has('cta-banner') ? null
-        : '- For the SERVICES page cta-banner, choose a variant other than "solid" — try "gradient", "split", or "dark".',
+      // #1419 —— 这里原来还有两条让 AI 挑外观的话（page-header / text-block 换着用，SERVICES 页的
+      // cta-banner 别用 "solid"）。AI 写的那个字段没人读，形态归取值链，所以两条都删了。
     ];
     return lines.filter(Boolean).join('\n');
   })();
   // 「一共有几种块」这句话是**说给模型听的目录事实**，关掉一个它就当场变成假话。类型数现算；
-  // 🔴 后面那个 `130+` **故意留着没动**：全仓那些 manifest 的 variants 加起来今天是 112 个
-  //    （`node -e "…Object.keys(m.variants).length…"` 现取），也就是这句话在 main 上**本来就**多报了
-  //    18 个 —— 那是本票之前就在的一处不准，跟「关掉一个块」无关。改它会让「什么都没关 ⟹ 提示词
-  //    逐字节不变」那道守卫变红，属于圈外，我写在交接留言里交作者定夺。
+  // 📌 这句话后半原来还有一个 `130+`（形态总数，而且本来就数不准），#1419 随 AI 不再挑形态一起删了。
   // 🔴 **外壳区（`region: true`）不算一种 section type**（#1353）。这句话是说给模型听的「你能往
   //    页面上放几种东西」，而顶栏 / 页脚既不在下面那份菜单里（它们的 manifest 没有 `prompt` 段），
   //    模型也永远不能把它们写进 `sections`。不滤掉的话，本票把 blocks/ 从 32 份加到 34 份那一刻，
@@ -2043,7 +2037,7 @@ async function generateContent(opts) {
   };
 
   const languageInstruction = languageName !== 'English'
-    ? `\nLANGUAGE: Write ALL content in ${languageName}.${chineseVariantHint(languageName)} This includes: taglines, descriptions, headlines, subheadlines, testimonial quotes, FAQ answers, service names, navigation labels, page titles, meta descriptions, keywords, and all other user-facing text. Only JSON keys and technical values (slugs, hrefs, icon names, variant names, section type names) should remain in English.\n`
+    ? `\nLANGUAGE: Write ALL content in ${languageName}.${chineseVariantHint(languageName)} This includes: taglines, descriptions, headlines, subheadlines, testimonial quotes, FAQ answers, service names, navigation labels, page titles, meta descriptions, keywords, and all other user-facing text. Only JSON keys and technical values (slugs, hrefs, icon names, section type names) should remain in English.\n`
     : '';
 
   // Build services instruction from real form data
@@ -2252,7 +2246,7 @@ ${servicesList.length >= 3 ? `Generate an individual service detail page for EAC
 - Each page needs 5-7 sections: ${serviceDetailSectionRule}
 ${blockOff.has('page-header') ? '' : `- page-header breadcrumbs: [{label:"Home",href:"/"},{label:"Services",href:"/services"},{label:"{Service Name}"}]
 `}${hasKeywordPages && !blockOff.has('service-related-pages') ? `- service-related-pages data: { serviceSlug: "{service-id}", headline: "Related {Service} Topics" }` : ''}
-- Vary layouts and section variants across service detail pages — don't repeat the same structure
+- Vary layouts across service detail pages — don't repeat the same structure
 - Write unique, detailed SEO content for each service` : `Skip service detail pages — only ${servicesList.length} service(s), not enough to warrant individual pages.`}`;
 
   // Build uploaded images instruction
@@ -2265,13 +2259,12 @@ The business owner has uploaded the following photos. Use them in sections that 
 ${imageList}
 
 IMAGE PLACEMENT RULES:
-- "hero" (split variant): set imageUrl on the hero data to show the best/most general business photo
-- "content-split" (text-left, text-right, text-right-list variants): set imageUrl to show a relevant photo next to the text
+- "hero": set imageUrl on the hero data to show the best/most general business photo
+- "content-split": set imageUrl to show a relevant photo next to the text
 - "gallery": set imageUrl on individual items to show the photos in the gallery grid
 - Match images to sections by filename context (e.g., "storefront.jpg" → hero, "team.jpg" → about page content-split, "product1.jpg" → gallery item)
 - You may reuse the same image URL across multiple sections if it fits
-- If there are more sections than images, **OMIT the imageUrl field entirely** (do not write the key). Do NOT invent placeholder strings like "gradient-about", "tbd", "placeholder", or any descriptive name — only valid paths starting with "/" or "http(s)://" are acceptable. The template will render a gradient automatically when imageUrl is absent.
-- Prefer "split" variant for hero when images are available`;
+- If there are more sections than images, **OMIT the imageUrl field entirely** (do not write the key). Do NOT invent placeholder strings like "gradient-about", "tbd", "placeholder", or any descriptive name — only valid paths starting with "/" or "http(s)://" are acceptable. The template will render a gradient automatically when imageUrl is absent.`;
   }
 
   progress('AI is writing content...', 15);
@@ -2316,8 +2309,8 @@ Examples — RIGHT:
 AVAILABLE ICONS (pick the most relevant for each service):
 ${availableIcons.join(', ')}
 
-AVAILABLE SECTION TYPES AND THEIR VARIANTS:
-You are a layout designer. For each page, you choose WHICH sections to include, in WHAT order, and with WHICH variant. Not every page needs every section. Mix it up based on what makes sense for this industry.
+AVAILABLE SECTION TYPES:
+You are a layout designer. For each page, you choose WHICH sections to include and in WHAT order. Not every page needs every section. Mix it up based on what makes sense for this industry.
 
 HOMEPAGE SECTIONS (pick 7-10 from these, in any order):
 ${blockPromptSection('homepage', undefined, { ...(homeRecipe ? { order: homeRecipe.promptOrder } : {}), omit: [...disabledBlocks, ...(hasKeywordPages ? [] : ['service-related-pages'])] })}
@@ -2404,9 +2397,8 @@ CRITICAL RULES:
 - navOrder determines the order in the navigation. Home is always 0. Assign sequential numbers (1, 2, 3...) to other pages.
 - The CTA page (navigation.ctaPage) should have a higher navOrder so it appears last (but it won't be in the header nav — it becomes the CTA button).
 - The HOMEPAGE must feel unique. Choose 7-10 sections. Do NOT use all sections — pick what fits the industry.
-- There are ${offeredTypeCount} section types with 130+ total variants. USE THIS VARIETY. Each site should feel different.
+- There are ${offeredTypeCount} section types. USE THIS VARIETY. Each site should feel different.
 ${varySectionOrderRule}
-- Choose DIFFERENT variants for each section — don't use all "grid" or all "cards". Mix "minimal", "split", "gradient", "dark" etc.
 ${homeRecipe ? recipePromptLines(homeRecipe, disabledBlocks)
   // #1034 — 关着的时候这一行逐字回到改动之前。它原来那份举例名单
   // （content-split / social-proof / card-group / announcement-bar，外加 #1372 删掉的那两个块）
@@ -2801,7 +2793,7 @@ async function generateKeywordPages(opts) {
   };
 
   const languageInstruction = languageName !== 'English'
-    ? `\nLANGUAGE: Write ALL content in ${languageName}.${chineseVariantHint(languageName)} Only JSON keys and technical values (slugs, hrefs, icon names, variant names, section type names) should remain in English.\n`
+    ? `\nLANGUAGE: Write ALL content in ${languageName}.${chineseVariantHint(languageName)} Only JSON keys and technical values (slugs, hrefs, icon names, section type names) should remain in English.\n`
     : '';
 
   const prompt = `You are an expert SEO copywriter. Generate keyword-optimized landing pages for a local service business. Return ONLY a valid JSON array, no markdown fences, no explanation.
@@ -2859,8 +2851,8 @@ CRITICAL RULES:
 - Each page MUST have 4-6 sections (NOT 3). Quality matters — write detailed, unique content.
 - text-block content should be 2-3 substantial paragraphs (400-600 words) of unique SEO copy, not just 1-2 sentences.
 - FAQ answers should be 2-3 sentences each, naturally incorporating the keyword and location.
-- Make each page unique — don't use the same template/variant for every page.
-- Vary section types and variants across pages. Alternate between card-group and process-steps.
+- Make each page unique — don't use the same template for every page.
+- Vary section types across pages. Alternate between card-group and process-steps.
 - CTA href should point to "/quote" or the appropriate contact page, or alternate with a service detail page link (e.g. "/services/{slug}") when available.
 - Breadcrumb middle level: ${Object.keys(serviceDetailMap).length > 0
   ? 'use EXACTLY the "breadcrumb middle level for THIS page" value given with that page above. If it says NO LINK, write the label with NO href field at all. NEVER point it at another service\'s detail page — the label says one service and the link would go to a different one (#1184).'

@@ -20,13 +20,6 @@
       }
     }
   },
-  "variants": {
-    "solid": "accent bg",
-    "bordered": "white bg, accent border",
-    "dismissible": "with close button",
-    "floating": "centered pill with shadow"
-  },
-  "variantKey": "variants",
   "industries": {
     "required": [],
     "recommended": [],

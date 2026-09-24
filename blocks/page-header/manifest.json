@@ -26,13 +26,6 @@
       }
     }
   },
-  "variants": {
-    "default": "gradient left-aligned",
-    "minimal": "white bg, underline",
-    "centered": "gradient centered",
-    "with-description": "two-column"
-  },
-  "variantKey": "variants",
   "industries": {
     "required": [],
     "recommended": [],

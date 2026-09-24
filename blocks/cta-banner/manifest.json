@@ -32,14 +32,6 @@
       "shape": "[{imageUrl}]"
     }
   },
-  "variants": {
-    "solid": "colored bg",
-    "outlined": "bordered card",
-    "gradient": "diagonal gradient",
-    "split": "two-column",
-    "dark": "dark bg with pattern"
-  },
-  "variantKey": "variants",
   "industries": {
     "required": [],
     "recommended": [],

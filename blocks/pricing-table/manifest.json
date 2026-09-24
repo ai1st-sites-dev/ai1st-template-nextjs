@@ -28,13 +28,6 @@
       }
     }
   },
-  "variants": {
-    "cards": "standalone cards",
-    "comparison": "side-by-side columns",
-    "minimal": "no cards, text-link CTAs",
-    "toggle": "monthly/annual toggle"
-  },
-  "variantKey": "variants",
   "industries": {
     "required": [],
     "recommended": [

@@ -27,12 +27,6 @@
       }
     }
   },
-  "variants": {
-    "cards": "3-col post cards",
-    "list": "compact horizontal rows",
-    "featured": "hero post + grid below"
-  },
-  "variantKey": "variants",
   "industries": {
     "required": [],
     "recommended": [

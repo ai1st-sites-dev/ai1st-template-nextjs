@@ -22,15 +22,6 @@
       "promptOptional": false
     }
   },
-  "variants": {
-    "card": "",
-    "icon-top": "",
-    "list": "single column rows",
-    "alternating": "alternating emphasis",
-    "bordered": "left border cards",
-    "minimal": "ultra-clean, no cards/borders"
-  },
-  "variantKey": "variants",
   "industries": {
     "required": [],
     "recommended": [],
@@ -40,7 +31,7 @@
     "group": "homepage",
     "order": 4,
     "headPrefix": "",
-    "headSuffix": "; columns: 2, 3, or 4",
+    "headSuffix": "columns: 2, 3, or 4",
     "headExtra": null,
     "lines": [
       "@data",

@@ -584,12 +584,10 @@ console.log('\n── ⑧ 每个页面块逐个关一遍：CRITICAL RULES 段里
   // 「一共有几种块」那句话（QA1 r2 第 1 条）：它是说给模型听的**目录事实**，关掉一个就当场变成假话。
   // 🔴 它数的是**页面块**，跟上面那个分母同一个口径（#1353）：外壳区不在菜单里、模型点不到，
   //    把它们算进这句话就是给模型报一个它用不上的数（`create-site.js` §offeredTypeCount 同款过滤）。
-  // 🔴 后半句那个 `130+` 故意没动，理由写在 `create-site.js` §offeredTypeCount 旁边（全仓 variants
-  //    加起来今天是 112，也就是这句话在本票之前就多报了 —— 圈外，动它会让「什么都没关 ⟹ 逐字节
-  //    不变」变红）。这一格只钉前半句的那个数。
+  // 📌 这句话后半原来还有一个 `130+ total variants`，#1419 随 AI 不再挑形态一起删了 ⟹ 这里按
+  //    `There are N section types` 本身找那一行（原来按 `section types with` 找，那几个字已经不在了）。
   const typeCountIn = (prompt) => {
-    const line = prompt.split('\n').find((l) => l.includes('section types with')) || '';
-    const m = line.match(/There are (\d+) section types/);
+    const m = prompt.match(/There are (\d+) section types\b/);
     return m ? Number(m[1]) : null;
   };
   const all = typeCountIn(pNone);

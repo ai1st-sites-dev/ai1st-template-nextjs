@@ -27,13 +27,6 @@
       }
     }
   },
-  "variants": {
-    "grid": "equal cards",
-    "masonry": "varied heights",
-    "carousel": "horizontal scrollable",
-    "overlay": "image/gradient bg with text overlay"
-  },
-  "variantKey": "variants",
   "industries": {
     "required": [
       "photography"

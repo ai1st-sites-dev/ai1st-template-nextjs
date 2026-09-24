@@ -30,14 +30,6 @@
       }
     }
   },
-  "variants": {
-    "grid": "3-col cards",
-    "featured": "1 large + 3 side",
-    "carousel": "one at a time with dots",
-    "quote-wall": "dark bg grid",
-    "minimal": "stacked, no cards"
-  },
-  "variantKey": "variants",
   "industries": {
     "required": [],
     "recommended": [],
