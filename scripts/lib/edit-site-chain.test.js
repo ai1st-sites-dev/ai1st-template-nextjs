@@ -1870,6 +1870,68 @@ console.log('\n⑯ 读完之后别处改过（#1420）：拒 → 重读 → 写�
   else bad(`🔴 ⑯ 上限：多了 ${cap.commitsAfter - cap.commitsBefore} 个 commit`);
   if (ev(cap, 'cost').length === 1) ok('⑯ 上限：花掉的 token 照样记账（cost 事件 1 条）');
   else bad(`🔴 ⑯ 上限：cost 事件 ${ev(cap, 'cost').length} 条`);
+
+  // 上限之后那次回滚，碰上【老板存在 AI 已经写成的文件上】（#1420 r1 QA3 终审打回的那条）：
+  // AI 先写成首页 → 老板在编辑器里基于 AI 那份改了首页的 hero → AI 在块库上连拒 3 次放弃。
+  // r1 的回滚拿「这一轮之前」的首页整份写回 ⟹ 老板的 hero 没了，而报文照说「Nothing on your site was changed」。
+  // 🔴 同一次还让 AI 写成 about.json、老板不碰它 ⟹ 它照样要被退回（修法只跳过「写完之后又被改过」的那份，不是不回滚）。
+  reset();
+  const aboutFile = path.join(site, 'en', 'pages', 'about.json');
+  const baseAbout = fs.readFileSync(aboutFile, 'utf8');
+  const aboutAi = baseAbout.replace(/"title"\s*:\s*"[^"]*"/, '"title": "About AI (should be rolled back)"');
+  if (aboutAi === baseAbout) die('⑯ 上限+老板改过：前提不成立 —— about.json 里没有 title 可改');
+  const homeAiWrote = homeAi(baseHome);
+  const homeOwnerOnTop = (() => { const h = JSON.parse(homeAiWrote); heroOf(homeAiWrote) && (h.blocks.find((b) => b && b.type === 'hero').data.headline = 'Hero EDITOR SAVED'); return JSON.stringify(h, null, 2); })();
+  const kept = runEdit(ctx, [
+    reply([readCall('r0', 'en/pages/home.json'), readCall('ra', 'en/pages/about.json'), readCall('r1', 'en/blocks/site-blocks.json')], 'tool_use'),
+    reply([writeCall('h1', 'en/pages/home.json', homeAiWrote), writeCall('a1', 'en/pages/about.json', aboutAi)], 'tool_use'),
+    Object.assign(reply([writeCall('w1', 'en/blocks/site-blocks.json', libAi(baseLib))], 'tool_use'), { __before: [{ file: homeFile, content: homeOwnerOnTop }, ...bump(1)] }),
+    reply([readCall('r2', 'en/blocks/site-blocks.json')], 'tool_use'),
+    Object.assign(reply([writeCall('w2', 'en/blocks/site-blocks.json', libAi(baseLib))], 'tool_use'), { __before: bump(2) }),
+    reply([readCall('r3', 'en/blocks/site-blocks.json')], 'tool_use'),
+    Object.assign(reply([writeCall('w3', 'en/blocks/site-blocks.json', libAi(baseLib))], 'tool_use'), { __before: bump(3) }),
+    reply([textBlock('should never be asked for')], 'end_turn'),
+  ]);
+  const kErrs = ev(kept, 'error');
+  const kMsg = kErrs.length === 1 ? String(kErrs[0].message) : '';
+  if (kErrs.length === 1 && /was not saved/.test(kMsg) && ev(kept, 'edit-complete').length === 0) ok('⑯ 上限+老板改过：仍按失败收场');
+  else bad(`🔴 ⑯ 上限+老板改过：没按失败收场 —— events ${JSON.stringify(kept.events.map((e) => e.event))}`);
+  const homeNow = fs.readFileSync(homeFile, 'utf8');
+  if (homeNow === homeOwnerOnTop) ok('⑯ 上限+老板改过：老板存在首页上的 hero 还在（回滚跳过了写完之后又被改过的那份）');
+  else bad(`🔴 ⑯ 上限+老板改过：老板存的那一笔被回滚退掉了 —— hero.headline 现在是 "${heroOf(homeNow).data.headline}"`);
+  if (fs.readFileSync(aboutFile, 'utf8') === baseAbout) ok('⑯ 上限+老板改过：老板没碰的 about.json 照样逐字节退回');
+  else bad('🔴 ⑯ 上限+老板改过：about.json 留着这一轮的改动（该退的没退）');
+  // 🔴 改口要说对：首页是【有意不退】、而且带着 AI 那一处（老板是在 AI 那份上存的）—— 不是「退不掉、下次可能带上」。
+  if (!/Nothing on your site was changed/.test(kMsg) && /en\/pages\/home\.json/.test(kMsg) && /includes the AI's change/.test(kMsg) && !/could not be undone/.test(kMsg)) ok(`⑯ 上限+老板改过：报文改口、点名首页、说清它带着 AI 那一处（${kMsg.slice(kMsg.indexOf('⚠️'), kMsg.indexOf('⚠️') + 70)}…）`);
+  else bad(`🔴 ⑯ 上限+老板改过：报文不对 —— 「${kMsg.slice(0, 300)}」`);
+
+  // 同一件事的第二条路（#1420 r2 真模型跑出来的轨迹）：老板存在 AI 写过的首页上之后，AI 又去写首页 → 被拒 →
+  // **重读**（读到的是老板那份）→ 在老板那份上改完**写成功**。这时盘上 == AI 最后写的那份，只比「盘上是不是
+  // AI 写的」会判成「没人动过」⟹ 回滚退回这一轮之前的首页，老板的 hero 又没了。
+  // 🔴 判据因此是「AI 写过之后，别人有没有【任何一次】碰过它」，一旦碰过就不退（它已经是两边混在一起的字节）。
+  reset();
+  const homeAiMerged = (() => { const h = JSON.parse(homeOwnerOnTop); otherOf(h).data.headline = 'Other AI again'; return JSON.stringify(h, null, 2); })();
+  const merged = runEdit(ctx, [
+    reply([readCall('r0', 'en/pages/home.json'), readCall('r1', 'en/blocks/site-blocks.json')], 'tool_use'),
+    reply([writeCall('h1', 'en/pages/home.json', homeAiWrote)], 'tool_use'),
+    Object.assign(reply([writeCall('w1', 'en/blocks/site-blocks.json', libAi(baseLib))], 'tool_use'), { __before: [{ file: homeFile, content: homeOwnerOnTop }, ...bump(1)] }),
+    reply([writeCall('h2', 'en/pages/home.json', homeAiWrote)], 'tool_use'),
+    reply([readCall('r2', 'en/pages/home.json')], 'tool_use'),
+    reply([writeCall('h3', 'en/pages/home.json', homeAiMerged)], 'tool_use'),
+    reply([readCall('r3', 'en/blocks/site-blocks.json')], 'tool_use'),
+    Object.assign(reply([writeCall('w2', 'en/blocks/site-blocks.json', libAi(baseLib))], 'tool_use'), { __before: bump(2) }),
+    reply([textBlock('should never be asked for')], 'end_turn'),
+  ]);
+  const mMsg = ev(merged, 'error').length === 1 ? String(ev(merged, 'error')[0].message) : '';
+  if (/changed somewhere else/.test(String(toolResultContent(merged, 4, 'h2'))) && /Written/.test(String(toolResultContent(merged, 6, 'h3')))) ok('⑯ 上限+重读后写成：前提成立（h2 被拒、h3 在老板那份上写成）');
+  else bad(`⑯ 上限+重读后写成：前提不成立 —— h2 ${String(toolResultContent(merged, 4, 'h2')).slice(0, 80)} · h3 ${String(toolResultContent(merged, 6, 'h3')).slice(0, 80)}`);
+  if (mMsg && ev(merged, 'edit-complete').length === 0) ok('⑯ 上限+重读后写成：仍按失败收场');
+  else bad(`🔴 ⑯ 上限+重读后写成：没按失败收场 —— events ${JSON.stringify(merged.events.map((e) => e.event))}`);
+  const mHome = fs.readFileSync(homeFile, 'utf8');
+  if (heroOf(mHome).data.headline === 'Hero EDITOR SAVED') ok('⑯ 上限+重读后写成：老板存的 hero 还在');
+  else bad(`🔴 ⑯ 上限+重读后写成：老板存的那一笔被回滚退掉了 —— hero.headline 现在是 "${heroOf(mHome).data.headline}"`);
+  if (!/Nothing on your site was changed/.test(mMsg) && /en\/pages\/home\.json/.test(mMsg) && /includes the AI's change/.test(mMsg)) ok('⑯ 上限+重读后写成：报文改口、点名首页');
+  else bad(`🔴 ⑯ 上限+重读后写成：报文不对 —— 「${mMsg.slice(0, 300)}」`);
 }
 
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);

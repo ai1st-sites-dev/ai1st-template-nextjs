@@ -281,15 +281,33 @@ const SNAPSHOT_MAX_BYTES = 32 * 1024 * 1024;
  * @param {Map<string, Buffer|null|{why:string}>} snapshots
  *        键 = 这次 `write_file` 真正写到的**绝对**路径；值 = **写之前**那个文件的字节；
  *        `null` = 写之前它不存在（本次新建）；`{why}` = 原样没存下来，why 是原因。
- * @returns {{restored:string[], removed:string[], failed:string[]}}
+ * @param {Map<string, string>} [aiWrote]  #1420 r2 —— 键同上，值 = 这一轮 AI **最后一次写进去**那份字节的
+ *        sha256。给了它，回滚写回之前先拿磁盘现在的字节比一次：对不上 = AI 写完之后别处（编辑器）又存过
+ *        这个文件 ⟹ **不动它**，记进 `kept`（调用点据此改口，不说「什么都没改」）。写回快照会把那一笔
+ *        一起退掉 —— 那正是 #1420 要治的病（老板的存盘被悄悄退回），QA3 在 r1 上从这条回滚路复现过。
+ *        不给（老调用点）⟹ 行为不变。
+ *        📌 不进 `failed`：`failed` 那句话是「退不掉、下一次存盘可能会带上它」，而这里是**有意不退**，而且
+ *        编辑器那一次存盘已经把它提交了（它是基于 AI 写过的那份存的）⟹ 那份文件现在就带着 AI 的改动。
+ * @returns {{restored:string[], removed:string[], failed:string[], kept:string[]}}
  */
-function rollbackWrittenFiles(siteDir, snapshots) {
-  const out = { restored: [], removed: [], failed: [] };
+function rollbackWrittenFiles(siteDir, snapshots, aiWrote) {
+  const out = { restored: [], removed: [], failed: [], kept: [] };
   for (const [full, before] of snapshots) {
     // 给人看的那个名字用归一化之后的相对路径 —— 老板看到的是「哪个文件」，不该是模型手滑打出来的
     // `./en/pages/about.json` 那种写法。
     const rel = path.relative(siteDir, full) || full;
     try {
+      // #1420 r2 —— 跟写之前那道核对（§staleSinceRead）是同一个判断：盘上这份还是不是 AI 自己写进去的那份。
+      // 文件已经不在了（别处删了）也算变过：删掉的动作同样不该被回滚撤销。
+      if (aiWrote && aiWrote.has(full)) {
+        let now = null;
+        try { now = sha256(fs.readFileSync(full)); } catch (e) { now = `(${e.code || 'unreadable'})`; }
+        // 这一轮里任何一次看见过别处改它（TOUCHED_ELSEWHERE），或者此刻盘上不是 AI 最后写的那份 ⟹ 不动。
+        if (now !== aiWrote.get(full)) {
+          out.kept.push(rel);
+          continue;
+        }
+      }
       if (before && !Buffer.isBuffer(before)) {
         out.failed.push(`${rel}: ${before.why}`);
       } else if (before === null) {
@@ -372,15 +390,33 @@ async function readStdin() {
 /** 这一轮里被拒的次数到了这个数，就当这一轮失败并告诉老板（不让模型跟自己无限来回）。 */
 const MAX_STALE_WRITES = 3;
 const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
+/**
+ * #1420 r2 —— `aiWrote` 里的记号：AI 写过这个文件之后，**别处又改过它**（被看见过一次就永久记住）。
+ * 这时盘上是两边混在一起的字节 —— 退回这一轮之前那份会把别处那一笔一起退掉 ⟹ 回滚不动它（§rollbackWrittenFiles）。
+ * 🔴 不能只在回滚那一刻比「盘上是不是 AI 最后写的」：AI 可以被拒 → 重读（读到的是老板那份）→ 在上面改完再写成，
+ *    那时盘上 == AI 最后写的，而老板那一笔就在里面。这是 r2 真模型跑出来的轨迹。
+ * 它永远不等于任何 sha256。
+ */
+const TOUCHED_ELSEWHERE = '(changed elsewhere after the AI wrote it)';
+/**
+ * AI 写过的文件，现在看到的字节不是 AI 最后写的那份 ⟹ 打上记号。
+ * 📌 只挂在 §staleSinceRead 一处就够：AI 每一次**写成**之前都要过那道核对，而它每次都读盘 ⟹ 「别处改过、
+ *    AI 又在上面写成」这条路按构造必经这里；AI 没再写成的那种，回滚那一刻自己比一次盘就看得见。
+ *    （read_file 那里再挂一处是多余的 —— 变异实测：两处各拿掉一处，测试都不红。）
+ */
+function noteForeignChange(aiWrote, fullPath, nowSha) {
+  if (aiWrote && aiWrote.has(fullPath) && aiWrote.get(fullPath) !== nowSha) aiWrote.set(fullPath, TOUCHED_ELSEWHERE);
+}
 
 /**
  * 这个文件自这一轮读过之后变过没有。没读过 ⟹ null（放行，见上面的残留洞）；没变 ⟹ null；变了 ⟹ 一句给模型的话。
  * @param {Map<string, string>} readSeen  键 = 落盘绝对路径，值 = 读到（或自己写进去）那份字节的 sha256
  */
-function staleSinceRead(readSeen, fullPath, relPath) {
+function staleSinceRead(readSeen, fullPath, relPath, aiWrote) {
   if (!readSeen || !readSeen.has(fullPath)) return null;
   let now = null;
   try { now = sha256(fs.readFileSync(fullPath)); } catch (e) { now = `(${e.code || 'unreadable'})`; }
+  noteForeignChange(aiWrote, fullPath, now);
   if (now === readSeen.get(fullPath)) return null;
   return `${relPath} was changed somewhere else (for example the owner saved it in the visual editor) after you `
     + 'read it, so this write was refused — writing your copy would silently undo that change. Nothing was written. '
@@ -656,7 +692,7 @@ function siteBlocksJsonError(relPath, parsed) {
  * @param {Map<string, string>} [readSeen]
  *   #1420 —— 这一轮读过的文件 → 那份字节的 sha256（§staleSinceRead）。
  */
-function executeTool(toolName, toolInput, siteDir, snapshots, allowedImageUrls, blockScopeInfo, readSeen) {
+function executeTool(toolName, toolInput, siteDir, snapshots, allowedImageUrls, blockScopeInfo, readSeen, aiWrote) {
   switch (toolName) {
     case 'read_file': {
       const relPath = toolInput.path;
@@ -761,7 +797,7 @@ function executeTool(toolName, toolInput, siteDir, snapshots, allowedImageUrls, 
       // #1420 —— 最后一关、紧贴落盘：读完之后别处改过它 ⟹ 拒，磁盘一个字节不动，模型重读后在同一轮里改口。
       // 🔴 排在所有内容检查**后面**：那些问的是「这份内容对不对」，这一关问的是「它是不是基于现在那份」——
       //    放在前面的话，检查跑的那段时间又成了一个没人核对的窗口。
-      const stale = staleSinceRead(readSeen, fullPath, relPath);
+      const stale = staleSinceRead(readSeen, fullPath, relPath, aiWrote);
       if (stale) return { error: stale, stale: true };
       // #1102 —— 落盘**之前**把这个文件本来的样子记下来（同步失败时按它回滚）。
       // 🔴 只在第一次写它的时候记：同一次编辑里模型可能把同一个文件写两遍，而"这次编辑之前"
@@ -793,6 +829,10 @@ function executeTool(toolName, toolInput, siteDir, snapshots, allowedImageUrls, 
       fs.writeFileSync(fullPath, toolInput.content);
       // #1420 —— 从现在起「这一轮手上那份」就是刚写进去的这份（再写一次不算别处改过）。
       if (readSeen) readSeen.set(fullPath, sha256(Buffer.from(toolInput.content, 'utf-8')));
+      // #1420 r2 —— 回滚时拿它认「盘上这份还是不是我写的」（§rollbackWrittenFiles 的 aiWrote）。
+      // 🔴 不能复用 readSeen：模型之后再 read_file 一次，readSeen 就换成了别人存过的那份字节。
+      // 🔴 已经打上 TOUCHED_ELSEWHERE 的不覆盖：AI 在别处那份上再写一次，那一笔照样混在里面。
+      if (aiWrote && aiWrote.get(fullPath) !== TOUCHED_ELSEWHERE) aiWrote.set(fullPath, sha256(Buffer.from(toolInput.content, 'utf-8')));
       // 🔴 #1104 r5 —— 这一行上有两张票的交付，两侧都要留。rebase 时它们冲突在同一行上而已，
       // 取一侧就是静默删掉另一张票的东西。
       //   · `path`         #1102 加的（`5ccfb541`）。**它在本文件里没有消费者** —— 整个返回值被
@@ -1095,6 +1135,8 @@ async function main() {
   const writeSnapshots = new Map();
   // #1420 —— 这一轮读过的文件 → 读到那份字节的 sha256（§staleSinceRead），以及因此被拒了几次。
   const readSeen = new Map();
+  // #1420 r2 —— 这一轮 AI 写过的文件 → 它最后写进去那份字节的 sha256（回滚前核对用，§rollbackWrittenFiles）。
+  const aiWrote = new Map();
   let staleWrites = 0;
   let commitHash = '';
   // #1192 —— 提交（`git add -A && git commit`）失败时那句话。它跟 archiveError 是两件不同的事：
@@ -1232,7 +1274,7 @@ async function main() {
 
         emit('tool_use', { tool: block.name, ...(block.input.path ? { path: block.input.path } : {}) });
 
-        const result = executeTool(block.name, block.input, siteDir, writeSnapshots, allowedImageUrls, scope, readSeen);
+        const result = executeTool(block.name, block.input, siteDir, writeSnapshots, allowedImageUrls, scope, readSeen, aiWrote);
 
         if (block.name === 'write_file' && result.success) {
           filesModified = true;
@@ -1253,6 +1295,10 @@ async function main() {
 
     // #1420 —— 读完就被别处改、改了又被拒，到了上限 ⟹ 这一轮失败，告诉老板（不静默、不无限来回）。
     // 这一轮已经写过的别的文件先退回去，「什么都没改」这句话才成立（顺序同 syncError 那一支，理由在 rollbackWrittenFiles 上面）。
+    // 🔴 r2（QA3 终审打回 r1）：这条路上老板**正在**存盘 ⟹ 他可能刚存在 AI 已经写成的那份文件上。回滚带上 aiWrote，
+    //    那种文件不退、改口点名它；不带的话退回快照会把老板那一笔一起退掉，而报文照说「什么都没改」。
+    // 📌 同一个回滚的另三个调用点（#1102 同步失败 / #1192 提交失败 / #1200 图片 400）没有带它 —— 那三条路上
+    //    同样的丢法早于本票就在，不在本票范围内（交作者定要不要开新票）。
     if (staleWrites >= MAX_STALE_WRITES) {
       const pricing = getModelPricing(model);
       const cost = ((totalInputTokens * pricing.input) + (totalOutputTokens * pricing.output)) / 1_000_000;
@@ -1264,15 +1310,25 @@ async function main() {
         detail: `Edit (${totalInputTokens} in / ${totalOutputTokens} out)`,
         duration: Date.now() - startTime,
       });
-      const rb = rollbackWrittenFiles(siteDir, writeSnapshots);
+      const rb = rollbackWrittenFiles(siteDir, writeSnapshots, aiWrote);
       debug(`#1420 gave up after ${staleWrites} stale writes; rollback: restored ${rb.restored.length}`
-        + ` · removed ${rb.removed.length} · failed ${rb.failed.length}${rb.failed.length ? ' — ' + rb.failed.join(' | ') : ''}`);
+        + ` · removed ${rb.removed.length} · failed ${rb.failed.length} · kept ${rb.kept.length}`
+        + `${rb.failed.length ? ' — ' + rb.failed.join(' | ') : ''}${rb.kept.length ? ' — kept: ' + rb.kept.join(' | ') : ''}`);
       const why = 'your website was being changed somewhere else at the same time (for example in the visual editor), '
         + 'and every time the AI went to save, the file had changed again since it last read it.';
+      // 🔴 「什么都没改」只在 failed 和 kept 都为空时才说（kept 的意思见 rollbackWrittenFiles 的 aiWrote）。
+      const keptNote = rb.kept.length
+        ? ` ⚠️ Before that, the AI had already changed ${rb.kept.join(', ')}, and that file was then saved again `
+          + 'somewhere else (for example in the visual editor) on top of the AI\'s version. It was left exactly as it '
+          + 'is now so that save is not lost — it includes the AI\'s change, so please check it.'
+        : '';
+      const failedNote = rb.failed.length
+        ? ` ⚠️ Part of it had already been written and could not be undone (${rb.failed.join('; ')}), `
+          + 'so it may be included the next time an edit is saved.'
+        : '';
       emit('error', {
-        message: rb.failed.length
-          ? `This change was not saved: ${why} ⚠️ Part of it had already been written and could not be undone `
-            + `(${rb.failed.join('; ')}), so it may be included the next time an edit is saved.`
+        message: (keptNote || failedNote)
+          ? `This change was not saved: ${why}${keptNote}${failedNote}`
           : `This change was not saved: ${why} Nothing on your site was changed by this request — please try again once you have finished editing.`,
       });
       return;
