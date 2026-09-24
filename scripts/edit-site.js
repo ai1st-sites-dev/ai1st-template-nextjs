@@ -704,12 +704,16 @@ function executeTool(toolName, toolInput, siteDir, snapshots, allowedImageUrls, 
       // navigation.json（公告条链接 + 顶栏按钮）—— 只查其中一种的话，模型换个文件就绕过去了。
       // 拿磁盘上现在那份比：文件里本来就有的不合规链接，这一次没碰它就不拦（老数据不炸）。
       // 🔴 读不出 / 不是 JSON 的旧文件当成「没有旧链接」—— 方向是多拦，不是多放。
-      const linkKind = PAGE_JSON.test(relPath) ? 'page'
-        : SITE_BLOCKS_JSON.test(relPath) ? 'site-blocks'
-          : NAVIGATION_JSON.test(relPath) ? 'navigation' : null;
+      // 🔴 按【落盘那个路径】分类，不按模型给的字符串（#1416 r1 QA3 打回）：`en/pages//home.json` /
+      //    `blocks/./site-blocks.json` 三个正则都不认，而下面 `path.join` 把它们收敛到真文件上 —— 按原串判
+      //    就是整道检查被一种拼写跳过、坏链接照样落盘。这里用的正是 `writeFileSync` 那一个 `path.join`。
+      const landedRel = path.relative(siteDir, path.join(siteDir, relPath)).split(path.sep).join('/');
+      const linkKind = PAGE_JSON.test(landedRel) ? 'page'
+        : SITE_BLOCKS_JSON.test(landedRel) ? 'site-blocks'
+          : NAVIGATION_JSON.test(landedRel) ? 'navigation' : null;
       if (linkKind) {
         let beforeDoc = null;
-        try { beforeDoc = JSON.parse(writeCtx.readCurrent(relPath)); } catch (e) { beforeDoc = null; }
+        try { beforeDoc = JSON.parse(writeCtx.readCurrent(landedRel)); } catch (e) { beforeDoc = null; }
         const badLink = linkHref.linkRejection(linkKind, parsed, beforeDoc);
         if (badLink) return { error: badLink };
       }

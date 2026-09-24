@@ -1631,6 +1631,17 @@ console.log('\n⑮ 链接协议（#1416）：页面 / navigation.json / 站级�
     calls.push({ id: `h${i}`, what: `navigation.json 顶栏按钮 ${href.split(':')[0]}:`, call: writeCall(`h${i}`, 'en/navigation.json', navWith((n) => { n.header.cta = { label: 'Get a Quote', href }; })) });
     calls.push({ id: `s${i}`, what: `站级块库 cta-banner ${href.split(':')[0]}:`, call: writeCall(`s${i}`, 'en/blocks/site-blocks.json', libWith(href)) });
   });
+  // #1416 r1 QA3 —— 路径拼写那一维：同一个文件的非规范写法（`//`、`./`）`path.join` 之后落在同一个真文件上。
+  // 分类要按落盘路径判，否则这几种拼写整道检查被跳过（r1 就是这样：`en/pages//home.json` 把 vbscript 写了进去）。
+  [
+    ['en/pages//home.json', () => pageWith('ctaPrimary', 'vbscript:msgbox(1)')],
+    ['en/./pages/home.json', () => pageWith('ctaPrimary', 'vbscript:msgbox(1)')],
+    ['en/blocks//site-blocks.json', () => libWith('vbscript:msgbox(1)')],
+    ['en/blocks/./site-blocks.json', () => libWith('vbscript:msgbox(1)')],
+    ['en//navigation.json', () => navWith((n) => { n.header.cta = { label: 'Get a Quote', href: 'vbscript:msgbox(1)' }; })],
+  ].forEach(([p, body], i) => {
+    calls.push({ id: `w${i}`, what: `拼写 ${p} vbscript:`, call: writeCall(`w${i}`, p, body()) });
+  });
   const beforeHome = fs.readFileSync(homeFile);
   const beforeNav = fs.readFileSync(navFile);
   const libExisted = fs.existsSync(libFile);
