@@ -41,7 +41,7 @@ import type { EditorComponent, EditorField, EditorSchema } from '../../../script
 import type { PuckItemSrc, PuckLikeData, SharedChanges } from '../../../scripts/lib/editor-convert';
 import {
   UNKNOWN_TYPE, pageToPuck, puckToPage, fieldProps, dataFromProps, deepEqual, puckRootChanges,
-  sharedReach, sharedRemovable, puckSharedChanges, applySharedChanges,
+  sharedReach, sharedRemovable, puckSharedChanges, sharedOwnAfter, applySharedChanges,
 } from '../../../scripts/lib/editor-convert.js';
 
 export interface EditorAppProps {
@@ -387,7 +387,9 @@ type Status = { kind: 'idle' | 'saving' | 'saved' | 'error'; text: string };
  * `initial.root.props` 是外壳四样的比较基准（#1405）：打开时是构建时那份，每存成功一次就把送出去的字段合进去。
  */
 // #1406 —— `siteBlocks`：块库的底（共用块的改动跟它比；每存成功一次把送出去的那几处合进去）。
-type Base = { raw: Record<string, unknown>; initial: PuckLikeData; hash: string; saved: Record<string, unknown>; siteBlocks: Record<string, unknown> };
+// `sharedOwn`（#1406）：画布上每个共用块的字段是按哪一份 data 取的 —— 存成功过的才在里面（没有就是打开时的
+// `_src.sharedData`）。「老板改过没有」跟它比，不跟 `siteBlocks`（dashboard 重取的、带着别处改动的那份）比。
+type Base = { raw: Record<string, unknown>; initial: PuckLikeData; hash: string; saved: Record<string, unknown>; siteBlocks: Record<string, unknown>; sharedOwn: Record<string, Record<string, unknown>> };
 
 type PuckDispatch = (action: { type: 'setData'; data: Data; recordHistory?: boolean }) => void;
 
@@ -428,7 +430,7 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
 
   // #1415 —— 存盘的底。首屏是构建时烤进来的那份；dashboard 的 baseline 到了就换（见文件头）。放在 ref 里：
   // 它只在存盘那一刻被读，换它不该让整棵 Puck 重新渲染。
-  const baseRef = useRef<Base>({ raw, initial: initialData, hash: baseHash, saved: raw, siteBlocks: siteBlocks || {} });
+  const baseRef = useRef<Base>({ raw, initial: initialData, hash: baseHash, saved: raw, siteBlocks: siteBlocks || {}, sharedOwn: {} });
   // #1406 —— 「在 N 个页面上」那句话读的三样（context，见 SharedInfoContext）。
   const [sharedInfo, setSharedInfo] = useState<SharedInfo>({ siteBlocks: siteBlocks || {}, refs: refs || {}, slugs: slugs || [] });
   const config = useMemo(
@@ -474,6 +476,7 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
       const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
       if (d.reason === 'shared') {
         // #1406 —— 存盘成功之后 dashboard 重取的那一份：只换「在 N 个页面上」要的三样和块库的底，画布与 hash 不动。
+        // 🔴 `sharedOwn` 也不动：画布的字段不是按这一份取的（QA2 r1 的 F）。
         if (!isObj(d.siteBlocks)) return;
         const lib = d.siteBlocks;
         baseRef.current = { ...baseRef.current, siteBlocks: lib };
@@ -490,7 +493,8 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
           ? { ...b.initial, root: { ...b.initial.root, props: { ...(b.initial.root?.props || {}), ...sent.root } } }
           : b.initial;
         const lib = sent?.shared ? applySharedChanges(b.siteBlocks, sent.shared, page) as Record<string, unknown> : b.siteBlocks;
-        baseRef.current = { ...b, initial, hash: hashOk ? (d.hash as string) : b.hash, saved: sent?.json || b.saved, siteBlocks: lib };
+        const sharedOwn = sent?.shared ? sharedOwnAfter({ initial: b.initial, own: b.sharedOwn, changes: sent.shared }) : b.sharedOwn;
+        baseRef.current = { ...b, initial, hash: hashOk ? (d.hash as string) : b.hash, saved: sent?.json || b.saved, siteBlocks: lib, sharedOwn };
         if (sent?.shared) setSharedInfo((x) => ({ ...x, siteBlocks: lib }));
         sendingRef.current = null;
         return;
@@ -517,7 +521,8 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
       // 的那份，存过就是存下去的那份）。不接上的话 root 字段全空，画布的顶栏页脚会变成默认、存盘的逐字段比较也全乱。
       next = { ...next, root: baseRef.current.initial.root };
       const same = deepEqual(next, baseRef.current.initial);
-      baseRef.current = { raw: nextRaw, initial: next, hash: d.hash as string, saved: nextRaw, siteBlocks: nextLib };
+      // 画布换成新的一份时，共用块的字段就是按 nextLib 取的 ⟹ `sharedOwn` 清空；画布不动（same）就留着。
+      baseRef.current = { raw: nextRaw, initial: next, hash: d.hash as string, saved: nextRaw, siteBlocks: nextLib, sharedOwn: same ? baseRef.current.sharedOwn : {} };
       setSharedInfo({ siteBlocks: nextLib, refs: isObj(d.refs) ? (d.refs as Record<string, string[]>) : {}, slugs: Array.isArray(d.slugs) ? (d.slugs as string[]) : [] });
       if (same) return; // 跟首屏一样（构建之后没人改过）：画布不动，不打断已经开始的编辑。
       movedRef.current = new Set();
@@ -543,7 +548,7 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
     try {
       json = puckToPage({ raw: base.raw, data: data as never, initial: base.initial, schema, slug: page, moved: movedRef.current });
       // #1406 —— 共用块改了字 / 从这一页删了（而它的 visibility 列了这一页）：写块库那几处。
-      shared = puckSharedChanges({ data: data as never, initial: base.initial, siteBlocks: base.siteBlocks, schema, slug: page });
+      shared = puckSharedChanges({ data: data as never, initial: base.initial, siteBlocks: base.siteBlocks, schema, slug: page, own: base.sharedOwn });
     } catch (e) {
       setStatus({ kind: 'error', text: `Could not save: ${(e as Error).message}` });
       return;

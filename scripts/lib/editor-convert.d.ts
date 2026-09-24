@@ -73,5 +73,11 @@ export function puckSharedChanges(args: {
   siteBlocks: Record<string, unknown>;
   schema: EditorSchema;
   slug: string;
+  own?: Record<string, Record<string, unknown>>;
 }): SharedChanges;
+export function sharedOwnAfter(args: {
+  initial: PuckLikeData;
+  own?: Record<string, Record<string, unknown>>;
+  changes: SharedChanges;
+}): Record<string, Record<string, unknown>>;
 export function applySharedChanges(siteBlocks: Record<string, unknown>, changes: SharedChanges, slug: string): Record<string, unknown>;

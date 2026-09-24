@@ -433,13 +433,19 @@ function sharedRemovable(siteBlocks, id) {
 }
 
 /**
- * 这一次存盘要写回块库的那几处 → `{ <块 id>: { data?: <整份新 data>, unlist?: true } }`（一处都没有 ⟹ `{}`）。
- *   · `data`    画布上改过它的字段：按块库**文件里**那一份 `data` 合（跟页面块同一个 §mergeSlot），没改就不带
+ * 这一次存盘要写回块库的那几处 → `{ <块 id>: { data?: { <改过的字段>: <新值> }, unlist?: true } }`（一处都没有 ⟹ `{}`）。
+ *   · `data`    **只带老板改过的那几个字段**（顶层 slot），站里的脚本把它们合进**磁盘上现在那一份** `data`
+ *               （§applySharedChanges）。没改过的字段不交 —— 编辑器开着的时候别处（AI 聊天 / 检查器 / 另一页的
+ *               编辑器）改过的字，不会被画布上打开时那一份悄悄冲掉（#1406 QA2 r1 的 F；跟 #1405 外壳四样
+ *               逐字段交、#1409 baseHash 是同一个病）。
  *   · `unlist`  老板在这一页把它删了、而它的 `visibility` 数组里列了这一页 ⟹ 站里的脚本从数组里移除这一页
  * 「删了」= 打开时画布上有它（按 Puck id 认），现在没有。
- * @param {{ data: object, initial: object, siteBlocks: object, schema: object, slug: string }} a
+ * 🔴 「改过没有」跟**画布的字段是按哪一份取的**比（`own[id]`，没有就是打开时的 `_src.sharedData`），不跟
+ *    `siteBlocks` 比：`siteBlocks` 是存盘后 dashboard 重取的那份（算 N、判删除用），它会带着别处的改动，
+ *    跟它比就会把「别人改了」读成「老板改了」。`own` 由 §sharedOwnAfter 在每次存盘成功后往前推。
+ * @param {{ data: object, initial: object, siteBlocks: object, schema: object, slug: string, own?: Record<string, object> }} a
  */
-function puckSharedChanges({ data, initial, siteBlocks, schema, slug }) {
+function puckSharedChanges({ data, initial, siteBlocks, schema, slug, own }) {
   const idx = schemaIndex(schema);
   const lib = isPlainObject(siteBlocks) ? siteBlocks : {};
   const now = new Map();
@@ -463,11 +469,46 @@ function puckSharedChanges({ data, initial, siteBlocks, schema, slug }) {
     }
     const component = idx.get(cur.type);
     if (!component) continue;
-    const before = isPlainObject(b.data) ? b.data : {};
-    const next = dataFromProps(component, before, cur.props);
-    if (!deepEqual(next, before)) out[id] = { ...(out[id] || {}), data: next };
+    const patch = changedSharedSlots(component, sharedBasis(src, own), cur.props);
+    if (patch) out[id] = { ...(out[id] || {}), data: patch };
   }
   return out;
+}
+
+/** 画布上这个共用块的字段是按哪一份 `data` 取的：存成功过就是存完那一份（`own`），否则是打开时那份。 */
+function sharedBasis(src, own) {
+  const o = isPlainObject(own) ? own[src.shared] : undefined;
+  return isPlainObject(o) ? o : (isPlainObject(src.sharedData) ? src.sharedData : {});
+}
+
+/** 跟 `basis` 比改过的顶层字段 → `{ slot: 新值 }`；一个都没改 ⟹ null。判法跟画布同一个（EditorApp §CanvasBlock）。 */
+function changedSharedSlots(component, basis, props) {
+  const initialProps = fieldProps(component, basis);
+  const merged = dataFromProps(component, basis, props);
+  let patch = null;
+  for (const f of component.fields) {
+    if (deepEqual(props[f.slot], initialProps[f.slot])) continue;
+    if (!has(merged, f.slot) || deepEqual(merged[f.slot], basis[f.slot])) continue;
+    (patch || (patch = {}))[f.slot] = clone(merged[f.slot]);
+  }
+  return patch;
+}
+
+/**
+ * 存盘成功之后，画布上每个共用块的字段「是按哪一份取的」往前推一步：`own[id]` = 原来那份合上这次交出去的字段。
+ * 下一次 §puckSharedChanges 跟它比 —— 不然这一次改过的字会在之后每一次存盘里再交一遍（盖掉别处在两次存盘
+ * 之间对同一字段的改动）。回新的一份。
+ */
+function sharedOwnAfter({ initial, own, changes }) {
+  const next = { ...(isPlainObject(own) ? own : {}) };
+  for (const it of (initial && initial.content) || []) {
+    const src = it && it.props && it.props._src;
+    if (!src || !src.shared) continue;
+    const c = isPlainObject(changes) ? changes[src.shared] : undefined;
+    if (!isPlainObject(c) || !isPlainObject(c.data)) continue;
+    next[src.shared] = { ...clone(sharedBasis(src, next)), ...clone(c.data) };
+  }
+  return next;
 }
 
 /**
@@ -479,7 +520,8 @@ function applySharedChanges(siteBlocks, changes, slug) {
   for (const [id, c] of Object.entries(changes || {})) {
     const b = next[id];
     if (!isPlainObject(b) || !isPlainObject(c)) continue;
-    if (has(c, 'data')) b.data = clone(c.data);
+    // `data` 只带改过的字段（§puckSharedChanges）：合进现在这一份，没点名的字段原样。
+    if (isPlainObject(c.data)) b.data = { ...(isPlainObject(b.data) ? b.data : {}), ...clone(c.data) };
     if (c.unlist === true && Array.isArray(b.visibility) && !b.visibility.includes('*')) {
       b.visibility = b.visibility.filter((s) => s !== slug);
     }
@@ -538,5 +580,5 @@ function puckRootChanges({ initial, now, schema }) {
 
 module.exports = {
   UNKNOWN_TYPE, pageToPuck, puckToPage, fieldProps, dataFromProps, assignWeights, deepEqual, ITEM_ORIG, rootToPuck, puckRootChanges,
-  sharedReach, sharedRemovable, puckSharedChanges, applySharedChanges,
+  sharedReach, sharedRemovable, puckSharedChanges, sharedOwnAfter, applySharedChanges,
 };

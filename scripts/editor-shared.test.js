@@ -130,7 +130,7 @@ function open(slug, locale = 'en') {
  */
 function save(slug, o, { moved = [], locale = 'en', conv = convert } = {}) {
   const json = conv.puckToPage({ raw: o.b.raw, data: o.data, initial: o.initial, schema, slug, moved });
-  const shared = conv.puckSharedChanges({ data: o.data, initial: o.initial, siteBlocks: o.b.siteBlocks, schema, slug });
+  const shared = conv.puckSharedChanges({ data: o.data, initial: o.initial, siteBlocks: o.b.siteBlocks, schema, slug, own: o.own });
   const pageChanged = !convert.deepEqual(json, o.b.raw);
   const input = {};
   if (pageChanged) input.page = json;
@@ -393,6 +393,72 @@ console.log('⑧ 多语言');
     const diff = cp.execSync(`git diff -- ${l}/`, { cwd: SITE, encoding: 'utf8' });
     check(diff === '' && md5(path.join(SITE, l, 'blocks', 'site-blocks.json')) === before[l], `${l}/ 的 git diff 为空`, diff.slice(0, 200));
   }
+  reset();
+}
+
+// ══ ⑩ 一个标签页存好几次：别处改过的共用块不被抹回去（QA2 r1 的 F）══════════════════════════
+// 跟 EditorApp 的真时序走：存盘成功 → `sharedOwnAfter` 推 own → dashboard 重取底稿（新的块库、新的 hash），
+// 画布不换（#1415 起不重载 iframe）。
+console.log('⑩ 同一个标签页连存几次 · 别处的改动');
+{
+  const commit = (m) => cp.execSync(`git add -A && git -c user.email=t@t -c user.name=t commit -qm ${JSON.stringify(m)}`, { cwd: SITE });
+  const extWrite = (fn) => { const f = path.join(SITE, 'en', 'blocks', 'site-blocks.json'); const lib = readJSON(f); fn(lib); writeJSON(f, lib); commit('ext'); };
+  const saveAndRefresh = (o) => {
+    const r = save('home', o);
+    const files = changed();
+    if (r.status === 0) {
+      o.own = convert.sharedOwnAfter({ initial: o.initial, own: o.own, changes: r.input.shared || {} });
+      const fresh = editorPage.editorBaseline({ rootDir: TEMPLATE, page: 'home', locale: 'en' });
+      o.b = { ...o.b, raw: fresh.raw, hash: fresh.hash, siteBlocks: fresh.siteBlocks };
+      if (files.length) commit('save');
+    }
+    return { r, files };
+  };
+  const heroOf = (d) => d.content.find((c) => !c.props._src.shared && !c.props._src.locked && typeof c.props.headline === 'string');
+  const runFG = (external) => {
+    reset();
+    const head = cp.execSync('git rev-parse HEAD', { cwd: SITE, encoding: 'utf8' }).trim();
+    const o = open('home');
+    if (external) extWrite((lib) => { lib.promo.data.description = 'EXT-F 1406'; });
+    heroOf(o.data).props.headline = 'Hero one 1406';
+    const s1 = saveAndRefresh(o);
+    heroOf(o.data).props.headline = 'Hero two 1406';
+    const s2 = saveAndRefresh(o);
+    const out = { s1, s2, desc: sb().promo.data.description };
+    cp.execSync(`git reset -q --hard ${head}`, { cwd: SITE });
+    return out;
+  };
+  const F = runFG(true);
+  check(F.s1.r.status === 0 && F.s2.r.status === 0, 'F：两次只改 hero 的存盘都 rc=0', `${F.s1.r.stderr} ${F.s2.r.stderr}`);
+  check(JSON.stringify(F.s1.files) === JSON.stringify(['en/pages/home.json']) && JSON.stringify(F.s2.files) === JSON.stringify(['en/pages/home.json']),
+    'F：别处改过 promo 之后，两次只改 hero 的存盘都只写 home.json', `${F.s1.files.join(' ')} | ${F.s2.files.join(' ')}`);
+  check(!F.s2.r.input.shared, 'F：第二次存盘不带 shared', JSON.stringify(F.s2.r.input.shared));
+  check(F.desc === 'EXT-F 1406', 'F：别处改的 promo.description 还在（没被抹回打开时那一份）', F.desc);
+  const G = runFG(false);
+  check(JSON.stringify(G.s1.files) === JSON.stringify(['en/pages/home.json']) && JSON.stringify(G.s2.files) === JSON.stringify(['en/pages/home.json']),
+    'G（对照）：不做别处改动，两次都只写 home.json', `${G.s1.files.join(' ')} | ${G.s2.files.join(' ')}`);
+
+  // E：老板改了 promo 的 headline，别处刚改了它的 description → 只交 headline，description 留着别处那句
+  reset();
+  const head0 = cp.execSync('git rev-parse HEAD', { cwd: SITE, encoding: 'utf8' }).trim();
+  const o = open('home');
+  extWrite((lib) => { lib.promo.data.description = 'EXT-E 1406'; });
+  itemOf(o.data, 'promo').props.headline = 'Promo E 1406';
+  const e = saveAndRefresh(o);
+  check(JSON.stringify(Object.keys((e.r.input.shared || {}).promo?.data || {})) === JSON.stringify(['headline']), 'E：shared 只带改过的那个字段', JSON.stringify(e.r.input.shared));
+  const pe = sb().promo.data;
+  check(pe.headline === 'Promo E 1406' && pe.description === 'EXT-E 1406', 'E：headline 写进去，别处改的 description 还在', JSON.stringify(pe));
+
+  // H：同一个标签页里，promo 改过一次、存过；之后别处又改了 promo.headline；老板再只改 hero 存 → 别处那句不被再交一遍盖掉
+  extWrite((lib) => { lib.promo.data.headline = 'EXT-H 1406'; });
+  heroOf(o.data).props.headline = 'Hero H 1406';
+  const h = saveAndRefresh(o);
+  check(!h.r.input.shared && JSON.stringify(h.files) === JSON.stringify(['en/pages/home.json']), 'H：存过的共用块字段不在之后每次存盘里重交', `${JSON.stringify(h.r.input.shared)} ${h.files.join(' ')}`);
+  check(sb().promo.data.headline === 'EXT-H 1406', 'H：别处后来改的 promo.headline 还在', sb().promo.data.headline);
+  // H 的反向对照：不推 own（= 永远跟打开时比）→ 第二次照样把 headline 交出去
+  const again = convert.puckSharedChanges({ data: o.data, initial: o.initial, siteBlocks: o.b.siteBlocks, schema, slug: 'home' });
+  check(again.promo && again.promo.data && again.promo.data.headline === 'Promo E 1406', 'H 对照：不推 own 的话，存过的字每次都会重交（所以 own 是承重的）', JSON.stringify(again));
+  cp.execSync(`git reset -q --hard ${head0}`, { cwd: SITE });
   reset();
 }
 
