@@ -128,13 +128,17 @@ const REJECT_REASON = {
   //        lib/page-layout.js），写它的 0 个；create-site.js 也不写（grep page-layout → 0）
   //    ⟹ 产品里既没有 picker，也没有任何东西会生成这个文件。存量站根本没有它，
   //       `lib/page-layout.js:164` 缺文件按 `standard` 走。
+  // 🔴 #1405 —— 上面那段量的是 #1087 那天：今天页面编辑器（Puck）的 root 字段「Page layout (whole website)」
+  //    写它（`scripts/write-editor-save.js`，产品里第一个写入者）。所以下面那句话从「还换不了、别指 picker」
+  //    改成指向那个真实存在的地方；这条路（AI 聊天编辑器）仍然不写它 —— 那样就有两条路改同一个站级文件、
+  //    还绕过写盘前的那道拒收校验（带公告条的布局 + 透明浮层顶栏 / 缺语言的公告条文字）。
   'page-layout.json':
     'page-layout.json is not edited here. It picks which page layout (which regions every page is '
     + 'made of) this site uses; the build reads it, and a site without the file gets the "standard" '
     + 'layout.\n'
-    + 'But nothing writes it today: no screen or tool in the product creates or changes it. If the '
-    + 'owner asks to change the page layout, the honest answer is that it cannot be changed yet — '
-    + 'do not point them at a picker, there is none.',
+    + 'The owner changes it in the page editor: on the website\'s edit page, "Edit page", then '
+    + '"Page layout (whole website)" on the right. If the owner asks to change the page layout, point them '
+    + 'there — do not write this file yourself.',
   // 📌 `navigation.json` **不在这张表里** —— #1104 起它是有条件可写的（改构建不碰的那几处放行，
   // 改构建重写的那几处拒），判断在 `lib/navigation-owned.js`，理由回给模型的也是那边那句。
   // 这里若再留一条，它会在 `writeRejection` 走到这张表之前就永远命中不到，是死代码。

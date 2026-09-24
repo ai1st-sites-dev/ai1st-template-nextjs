@@ -28,13 +28,14 @@
 // 不 import 任何读磁盘的库（那样构建会红在 `Can't resolve 'fs'`，而且归一化就有了两份实现）。
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Puck, createUsePuck, type Config, type Data, type Field, type Fields } from '@puckeditor/core';
+import { Puck, FieldLabel, createUsePuck, type Config, type Data, type Field, type Fields } from '@puckeditor/core';
 import '@puckeditor/core/puck.css';
 import SectionRenderer from '@/components/SectionRenderer';
+import SiteShell from '@/components/SiteShell';
 import type { BlockConfig } from '@/lib/types/config';
 import type { EditorComponent, EditorField, EditorSchema } from '../../../scripts/lib/editor-schema';
 import type { PuckItemSrc, PuckLikeData } from '../../../scripts/lib/editor-convert';
-import { UNKNOWN_TYPE, pageToPuck, puckToPage, fieldProps, dataFromProps, deepEqual } from '../../../scripts/lib/editor-convert.js';
+import { UNKNOWN_TYPE, pageToPuck, puckToPage, fieldProps, dataFromProps, deepEqual, puckRootChanges } from '../../../scripts/lib/editor-convert.js';
 
 export interface EditorAppProps {
   locale: string;
@@ -47,7 +48,10 @@ export interface EditorAppProps {
    */
   baseHash: string;
   schema: EditorSchema;
+  /** `root.props` 是外壳四样打开时的值（#1405）—— 存盘时逐字段比的就是它。 */
   initialData: PuckLikeData;
+  /** 这一页第一段是不是 hero（透明浮层顶栏只在那时浮起来，同真页面的 `SiteShell overHero`）。 */
+  overHero: boolean;
   /** 框住我们的 dashboard 的 origin。空串 = 构建时没拿到（本地模板 dev），这时不能保存。 */
   trustedOrigin: string;
 }
@@ -154,7 +158,7 @@ function CanvasBlock({ component, props, locale }: { component: EditorComponent;
   return <SectionRenderer blocks={[block]} locale={locale} />;
 }
 
-export function buildConfig(schema: EditorSchema, locale: string): Config {
+export function buildConfig(schema: EditorSchema, locale: string, overHero = false): Config {
   const components: Record<string, Config['components'][string]> = {};
   for (const c of schema.components) {
     const fields: Fields = {};
@@ -199,8 +203,6 @@ export function buildConfig(schema: EditorSchema, locale: string): Config {
       );
     },
   } as unknown as Config['components'][string];
-  // 根上不放字段：Puck 默认给根一个 `title` 输入框，而页面标题 / 外壳归 #1405 —— 留着它就是一个
-  // 「改了、保存、什么都没变」的输入框。
   return {
     components,
     categories: {
@@ -208,13 +210,109 @@ export function buildConfig(schema: EditorSchema, locale: string): Config {
       unknown: { components: [UNKNOWN_TYPE], visible: false },
       other: { visible: false },
     },
-    root: { fields: {} },
+    root: rootConfig(schema, locale, overHero),
   } as Config;
+}
+
+const NOTE_STYLE = { margin: 0, fontSize: 13, lineHeight: 1.5, color: '#475467' } as const;
+
+// 形态下拉底下那句话（票正文做什么 5）。它是真话：只有换成另一套主题才清掉按站覆盖（worker §themeWriteCommand），
+// 只改颜色字体 / 更新网站都留着。
+const SHAPE_NOTE: Field = {
+  type: 'custom',
+  label: 'About these styles',
+  render: () => (
+    <p data-editor-shape-note style={NOTE_STYLE}>
+      Header and footer styles apply to every page and every language. Changing the theme puts them back to the
+      new theme&apos;s own styles.
+    </p>
+  ),
+} as Field;
+
+type RootProps = {
+  layout?: string;
+  headerShape?: string;
+  footerShape?: string;
+  topbarMessage?: string;
+  topbarLink?: { label?: string; href?: string };
+  children?: ReactNode;
+};
+
+/**
+ * #1405 —— 外壳四样：Puck 的 root 字段（整页一份，不在块列表里）。可选值全部来自构建时的 schema
+ * （形态 = 子目录去掉候选；布局 = `page-layouts/` 库），这里不写任何名单。
+ *
+ * 🔴 **这里不判「哪些组合构建不收」**（带公告条的布局 + 透明浮层顶栏 / 缺某种语言的公告条文字）：那条规则
+ *    只住在站里的写盘脚本（用构建同一个 `needsTopbar`），拒了那句话原样回到状态栏（票正文做什么 6）。
+ *    在这里按自己的判断禁用选项，总有一天一个说行、一个说不行。
+ * 🔴 唯一在这里灰掉的是「布局自己钉了页脚形态」时的页脚下拉（做什么 8）—— 判据是 schema 给的 `pinsFooter`
+ *    （从布局文件算出来的），不是布局名。
+ */
+function rootConfig(schema: EditorSchema, locale: string, overHero: boolean) {
+  const opts = (names: string[]) => names.map((n) => ({ value: n, label: n }));
+  const fields: Fields = {
+    layout: { type: 'select', label: 'Page layout (whole website)', options: schema.root.layouts.map((l) => ({ value: l.id, label: l.id })) },
+    headerShape: { type: 'select', label: 'Header style (whole website)', options: opts(schema.root.header) },
+    footerShape: { type: 'select', label: 'Footer style (whole website)', options: opts(schema.root.footer) },
+    _shapeNote: SHAPE_NOTE,
+    topbarMessage: { type: 'text', label: 'Announcement bar text (this language only)' },
+    topbarLink: {
+      type: 'object',
+      label: 'Announcement bar link (this language only)',
+      objectFields: { label: { type: 'text', label: 'Label' }, href: { type: 'text', label: 'Link' } },
+    } as Field,
+  };
+  const layoutOf = (id: unknown) => schema.root.layouts.find((l) => l.id === id);
+  return {
+    fields,
+    resolveFields: (data: { props?: RootProps }) => {
+      if (!layoutOf(data.props?.layout)?.pinsFooter) return fields;
+      return {
+        ...fields,
+        footerShape: {
+          type: 'custom',
+          label: 'Footer style (whole website)',
+          render: () => (
+            <FieldLabel label="Footer style (whole website)" readOnly>
+              <div data-editor-footer-pinned>
+                <select disabled value="" style={{ width: '100%', padding: 6 }} aria-label="Footer style">
+                  <option value="">Set by the page layout</option>
+                </select>
+                <p style={{ ...NOTE_STYLE, marginTop: 6 }}>This layout comes with its own footer styles, so this can&apos;t be changed while it is selected.</p>
+              </div>
+            </FieldLabel>
+          ),
+        } as Field,
+      };
+    },
+    render: ({ children, layout, headerShape, footerShape, topbarMessage, topbarLink }: RootProps) => {
+      const l = layoutOf(layout) || schema.root.layouts[0];
+      const link = topbarLink && (topbarLink.label || topbarLink.href)
+        ? { label: topbarLink.label || '', href: topbarLink.href || '' } : undefined;
+      return (
+        <SiteShell
+          locale={locale}
+          overHero={overHero}
+          shell={{
+            layout: { regions: l ? l.regions : ['header', 'content', 'footer'], repeatVariants: l ? l.repeatVariants : {} },
+            headerShape: headerShape || '',
+            footerShape: footerShape || '',
+            topbar: topbarMessage ? { message: topbarMessage, ...(link ? { link } : {}) } : null,
+          }}
+        >
+          {children}
+        </SiteShell>
+      );
+    },
+  };
 }
 
 type Status = { kind: 'idle' | 'saving' | 'saved' | 'error'; text: string };
 
-/** 存盘要用的那一份底：原始 JSON + 打开时的 Puck Data（§puckToPage 要它）+ 文件的 sha256 + 上一次存下去的 JSON。 */
+/**
+ * 存盘要用的那一份底：原始 JSON + 打开时的 Puck Data（§puckToPage 要它的 content）+ 文件的 sha256 + 上一次存下去的 JSON。
+ * `initial.root.props` 是外壳四样的比较基准（#1405）：打开时是构建时那份，每存成功一次就把送出去的字段合进去。
+ */
 type Base = { raw: Record<string, unknown>; initial: PuckLikeData; hash: string; saved: Record<string, unknown> };
 
 type PuckDispatch = (action: { type: 'setData'; data: Data; recordHistory?: boolean }) => void;
@@ -249,18 +347,18 @@ function SaveButton({ onSave, status }: { onSave: (d: Data) => void; status: Sta
   );
 }
 
-export default function EditorApp({ locale, page, raw, baseHash, schema, initialData, trustedOrigin }: EditorAppProps) {
+export default function EditorApp({ locale, page, raw, baseHash, schema, initialData, overHero, trustedOrigin }: EditorAppProps) {
   const [status, setStatus] = useState<Status>({ kind: 'idle', text: '' });
   const statusRef = useRef(status);
   statusRef.current = status;
 
-  const config = useMemo(() => buildConfig(schema, locale), [schema, locale]);
+  const config = useMemo(() => buildConfig(schema, locale, overHero), [schema, locale, overHero]);
 
   // #1415 —— 存盘的底。首屏是构建时烤进来的那份；dashboard 的 baseline 到了就换（见文件头）。放在 ref 里：
   // 它只在存盘那一刻被读，换它不该让整棵 Puck 重新渲染。
   const baseRef = useRef<Base>({ raw, initial: initialData, hash: baseHash, saved: raw });
   // 这一次存盘送出去的 JSON：`saved` 到了才算它进了文件（「Nothing to save」要跟它比，不跟打开时比）。
-  const sendingRef = useRef<Record<string, unknown> | null>(null);
+  const sendingRef = useRef<{ json: Record<string, unknown> | null; root: Record<string, unknown> | null } | null>(null);
   const [canvas, setCanvas] = useState<{ key: number; data: PuckLikeData }>({ key: 0, data: initialData });
   const dispatchRef = useRef<PuckDispatch | null>(null);
 
@@ -292,12 +390,20 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
       // 别的页面的底稿不许换进来（扁平站 dashboard 那头的 locale 是空的，只在两边都有时才比）。
       if (d.page !== page) return;
       if (typeof d.locale === 'string' && d.locale && d.locale !== locale) return;
-      if (typeof d.hash !== 'string' || !/^[0-9a-f]{64}$/.test(d.hash)) return;
+      const hashOk = typeof d.hash === 'string' && /^[0-9a-f]{64}$/.test(d.hash);
       if (d.reason === 'saved') {
-        baseRef.current = { ...baseRef.current, hash: d.hash, saved: sendingRef.current || baseRef.current.saved };
+        // hash 可以缺：只改外壳的那一笔（#1405）没动页面文件，baseHash 不用换。带了就必须是合形的。
+        if (d.hash !== undefined && !hashOk) return;
+        const b = baseRef.current;
+        const sent = sendingRef.current;
+        const initial = sent?.root
+          ? { ...b.initial, root: { ...b.initial.root, props: { ...(b.initial.root?.props || {}), ...sent.root } } }
+          : b.initial;
+        baseRef.current = { ...b, initial, hash: hashOk ? (d.hash as string) : b.hash, saved: sent?.json || b.saved };
         sendingRef.current = null;
         return;
       }
+      if (!hashOk) return;
       if (d.reason !== 'open' && d.reason !== 'external') return;
       if (!d.raw || typeof d.raw !== 'object' || !Array.isArray(d.blocks) || !Array.isArray(d.located)) return;
       const nextRaw = d.raw as Record<string, unknown>;
@@ -313,8 +419,11 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
       } catch {
         return; // 转不出来就留着手上这一份：存盘的 hash 没换，存的时候 write-page 会说实话。
       }
+      // #1405 —— 底稿里只有页面（`pageToPuck` 回的 root 是空的）；外壳四样沿用手上的比较基准（打开时构建算出来
+      // 的那份，存过就是存下去的那份）。不接上的话 root 字段全空，画布的顶栏页脚会变成默认、存盘的逐字段比较也全乱。
+      next = { ...next, root: baseRef.current.initial.root };
       const same = deepEqual(next, baseRef.current.initial);
-      baseRef.current = { raw: nextRaw, initial: next, hash: d.hash, saved: nextRaw };
+      baseRef.current = { raw: nextRaw, initial: next, hash: d.hash as string, saved: nextRaw };
       if (same) return; // 跟首屏一样（构建之后没人改过）：画布不动，不打断已经开始的编辑。
       if (d.reason === 'external' && dispatchRef.current) {
         dispatchRef.current({ type: 'setData', data: next as unknown as Data, recordHistory: false });
@@ -342,14 +451,25 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
     }
     // 跟**上一次存下去的那份**比，不跟打开时比：存过一次之后把字改回原来那句，文件里是改过的那句，
     // 这一笔必须发出去（#1409 QA2 r1 第 2 条，那时靠重载 iframe 解决，#1415 起不再重载）。
-    if (deepEqual(json, base.saved)) {
+    // #1405 —— 外壳四样只交**改过的**那几个字段（跟 `base.initial.root` 逐字段比，做什么 7；它是打开时的值，
+    // 每存成功一次就换成刚存下去的值，道理同上）。页面块没改就不交页面：不然一次只改公告条的存盘也要带着
+    // 页面底稿去比 baseHash，别处刚改过这一页时它会被无端拒掉。
+    const root = puckRootChanges({ initial: base.initial, now: data as never, schema });
+    const pageChanged = !deepEqual(json, base.saved);
+    if (!pageChanged && Object.keys(root).length === 0) {
       setStatus({ kind: 'idle', text: 'Nothing to save.' });
       return;
     }
     setStatus({ kind: 'saving', text: 'Saving…' });
-    sendingRef.current = json;
-    // 不带文件路径：写哪个文件由站里的 `scripts/write-page.js` 按 page/locale 自己算（它文件头说为什么）。
-    window.parent.postMessage({ type: 'ai1st:editor-save', page, locale, json, baseHash: base.hash }, trustedOrigin);
+    sendingRef.current = { json: pageChanged ? json : null, root: Object.keys(root).length ? root : null };
+    // 不带文件路径：写哪个文件由站里的脚本按 page/locale 自己算（`write-page.js` 文件头说为什么）。
+    window.parent.postMessage({
+      type: 'ai1st:editor-save',
+      page,
+      locale,
+      ...(pageChanged ? { json, baseHash: base.hash } : {}),
+      ...(Object.keys(root).length ? { root } : {}),
+    }, trustedOrigin);
   }
 
   let empty: ReactNode = null;

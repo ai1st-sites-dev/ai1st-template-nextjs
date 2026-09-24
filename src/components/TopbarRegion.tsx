@@ -29,7 +29,16 @@ import { getNavigation, regions } from '@/lib/config';
 //   ③ #1002 的「骨一点没动」判据枚举的就是 `[data-block]` —— 外壳多一个块属性，那份基线当天就变。
 // 代价说在明处：这个区在产物里带的是 `data-region-layout`（跟 header / footer 一致，也是 PM 定的
 // 那条口径），主题要动它就走区那条路。
-export default function TopbarRegion({ locale }: { locale: string }) {
+// #1405 —— `topbar` 传了就用它（编辑器画布上老板正在改的那一份，`null` = 清空了），不传就读 navigation.json。
+// 🔴 编辑器那一支单独 return，读 navigation.json 的那几行一个字不动：`navigation-owned.test.js` ⑫ 用 AST 跟着
+//    `const topbar = nav.topbar` 这条别名去判「这个组件画了 topbar.message」，把它写成三元式那条守卫就跟丢了
+//    （实测：⑫ 红，说「组件根本没把它画进 DOM」）。
+type TopbarOverride = { message: string; link?: { label: string; href: string } } | null;
+export default function TopbarRegion({ locale, topbar: override }: { locale: string; topbar?: TopbarOverride }) {
+  if (override !== undefined) {
+    if (!override || !override.message) return null;
+    return <AnnouncementBarSection asRegion data={{ message: override.message, link: override.link, variant: regions.topbar.shape }} />;
+  }
   const nav = getNavigation(locale);
   const topbar = nav.topbar;
   if (!topbar || !topbar.message) return null;

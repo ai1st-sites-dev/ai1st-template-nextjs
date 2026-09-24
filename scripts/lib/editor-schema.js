@@ -36,6 +36,8 @@ const { blockShapeCatalog } = require('./block-catalog');
 const { editableSlotPaths } = require('./block-manifest');
 const { shapeForBlock } = require('./block-shape');
 const siteRegions = require('./site-regions');
+const pageLayoutLib = require('./page-layout');
+const { ROOT_FIELDS } = require('./editor-root-fields');
 const { shapesFor } = require('../themes');
 
 /** `kind: link` 的字段在 manifest 的 `editLabel` 之外多出来的那一个子字段（#1404 r3）。 */
@@ -83,6 +85,7 @@ function humanize(name) {
  * @param {string} [opts.rootDir]       模板根（`site/` 的上一层）；只用来读这个站穿哪套主题
  * @param {string} [opts.registryPath]  透传给 blockShapeCatalog（守卫用它换一份假注册表）
  * @param {string} [opts.blocksDir]     透传给 blockShapeCatalog
+ * @param {string} [opts.layoutsDir]    `page-layouts/`（#1405 的 root 字段用）；不给按 page-layout.js 的默认
  * @returns {{ components: Array<{ type, label, fields, carried, shapes, defaultShape }> }}
  *   · `carried`       没有字段、由转换器原样携带的槽位名（守卫拿它证明「每个槽位都有归属」）
  *   · `shapes`        下拉选项 `[{ name, needs }]`，已去掉候选，顺序照形态清单
@@ -116,7 +119,39 @@ function editorSchema(opts = {}) {
       defaultShape: shapeForBlock({ type, data: {} }, selection, manifestsObj, () => {}) || null,
     });
   }
-  return { components };
+  return { components, root: rootSchema(catalog, opts) };
+}
+
+/**
+ * #1405 —— 外壳四样（布局 / 顶栏形态 / 页脚形态 / 公告条文字）在 Puck 里是 **root 字段**，这里给出
+ * 它们的可选值。跟块一样不手写：
+ *   · 顶栏 / 页脚形态 → catalog 的 `pairs`（出处是 `blocks/header/*` 与 `blocks/footer/*` 两个子目录），
+ *     去掉候选（候选构建静默落回，列出来就是「选了、存了、页面没变」，同上面块的形态下拉）。
+ *   · 布局 → `page-layouts/` 库（`lib/page-layout.js` §loadLayouts）。每一份带上它的区与 `repeatVariants`，
+ *     画布照它排区；`pinsFooter` 由 §layoutPinsFooter 算（布局自己钉了页脚形态 ⟹ 页脚下拉灰掉）。
+ * 🔴 **没有「哪些组合构建不收」**（带 topbar 区 + 透明浮层 / 缺某种语言的 topbar 文字）：那条规则只住在
+ *    站里的写盘脚本（`scripts/write-editor-save.js`，用构建同一个 `needsTopbar` 判），编辑器不抄第二份
+ *    （票正文做什么 6）。
+ * 🔴 `layoutsDir` 要显式传：被打进 Next 服务端包之后 `__dirname` 是产物目录（同 `blocksDir` 那条）。
+ */
+function rootSchema(catalog, opts) {
+  const pickable = (block) => catalog.pairs
+    .filter((p) => p.block === block && p.candidate !== true)
+    .map((p) => p.shape);
+  const layouts = [...pageLayoutLib.loadLayouts(opts.layoutsDir).values()].map((l) => ({
+    id: l.id,
+    regions: Array.isArray(l.regions) ? l.regions.slice() : [],
+    repeatVariants: l.repeatVariants ? { ...l.repeatVariants } : {},
+    pinsFooter: pageLayoutLib.layoutPinsFooter(l),
+  }));
+  // `fields`：Puck root 上有哪几个字段、各是整站一份还是按语言一份 —— 照分派表（`editor-root-fields.js`）给，
+  // 编辑器存盘时逐个比的就是这几个（`editor-convert.js` §puckRootChanges）。
+  return {
+    fields: ROOT_FIELDS.map((f) => ({ field: f.field, scope: f.scope })),
+    layouts,
+    header: pickable('header'),
+    footer: pickable('footer'),
+  };
 }
 
 /**

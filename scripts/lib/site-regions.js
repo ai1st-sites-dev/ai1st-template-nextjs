@@ -60,6 +60,10 @@ const pageLayoutLib = require('./page-layout');
 // 写着为什么必须是 false);换装那一下(`worker/main.go` processThemeTask)写的是
 // `{ themeId, applied: true }`,连前一份的 regionLayout 都不带过去。⟹ `applied:true` + 这个键
 // 这个组合没有任何代码路径能造出来。
+// 📌 #1405 之后上面那段不再成立,写在这里别让人照它推:编辑器(`scripts/write-editor-save.js`)也写
+// 这个键,而且写在 `applied:true` 的站上;`themeWriteCommand` 在主题 id 没变时(只改颜色字体 / 同一套
+// 主题)把它原样带过去,只有换成另一套主题才清掉(Chris 2026-09-23 / 09-24 拍)。规则本身不变:
+// 谁显式写了哪个键,那个键就归他。
 //
 // 🔴 No new validation here on purpose: `resolveRegionLayout` already refuses a value that is not in
 // its list, falls back to the default and says so in `notes` (which sync-config.js prints). A second
@@ -121,12 +125,15 @@ function readStructureThemeId(siteDir) {
 /**
  * 这个站的两个 Region 解析成什么版式 —— `sync-config.js` 原来在文件中段做的那次 `resolveRegionLayout`。
  *
+ * @param {object} [pending]  #1405 —— 还没写进 theme.json、这次要写的那几个 `regionLayout` 键（`{ header: … }`）。
+ *   编辑器存盘前要判「写完以后顶栏是什么形态」（`scripts/write-editor-save.js`），用的是同一条路：
+ *   把它叠在文件里那份 `regionLayout` 上面，跟写完之后下一次构建读到的是同一个东西。
  * @returns {{regions: object, structureThemeId: string|null, explicitRegionLayout: object}}
  *   后两项 `sync-config.js` 的日志要用（它得说得出**结构是从哪来的**，不只说结果是什么）。
  */
-function resolveSiteRegionLayout(siteDir) {
+function resolveSiteRegionLayout(siteDir, pending) {
   const structureThemeId = readStructureThemeId(siteDir);
-  const explicitRegionLayout = readPreviewRegionLayout(siteDir);
+  const explicitRegionLayout = { ...readPreviewRegionLayout(siteDir), ...(pending || {}) };
   // #1353 —— 第一级从**选择单**取（`regionShapesFor`，键是块类型），不再从 `supports` 取。
   // theme.json 自己写的 `regionLayout` 仍然逐键压过它（#1086 那条，候选图册那条路要的就是这个）——
   // 它的键是**区名**（`header` / `footer` / `topbar`），`resolveRegionShapes` 两种键都认。

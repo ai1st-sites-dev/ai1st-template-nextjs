@@ -42,20 +42,22 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = process.cwd();
-const SITE = path.join(ROOT, 'site');
 
 function die(code, msg) {
   process.stderr.write(String(msg) + '\n');
   process.exit(code);
 }
 
+// #1405 —— 判与写搬进了 `lib/page-write.js`（`write-editor-save.js` 共用同一份），这里只剩读参数。
 let blocks;
 let pageFiles;
 let siteShape;
+let pageWrite;
 try {
   blocks = require(path.join(ROOT, 'scripts', 'blocks.js'));
   pageFiles = require(path.join(ROOT, 'scripts', 'lib', 'page-files.js'));
   siteShape = require(path.join(ROOT, 'scripts', 'lib', 'site-shape.js'));
+  pageWrite = require(path.join(ROOT, 'scripts', 'lib', 'page-write.js'));
 } catch (e) {
   die(5, `读不到构建脚本：${e.message}`);
 }
@@ -72,8 +74,8 @@ const slug = typeof loc.page === 'string' ? loc.page : '';
 if (!/^[a-z0-9][a-z0-9-]*(\/[a-z0-9][a-z0-9-]*)*$/.test(slug)) die(5, `page slug 形状不对：${JSON.stringify(slug)}`);
 const baseHash = typeof loc.baseHash === 'string' ? loc.baseHash : '';
 if (!/^[0-9a-f]{64}$/.test(baseHash)) die(5, 'baseHash 缺失或形状不对（要 64 位小写 hex 的 sha256）');
-let locale = typeof loc.locale === 'string' ? loc.locale : '';
-if (locale && !/^[a-z]{2}(-[A-Za-z0-9]{2,8})?$/.test(locale)) die(5, `locale 形状不对：${JSON.stringify(locale)}`);
+const localeIn = typeof loc.locale === 'string' ? loc.locale : '';
+if (localeIn && !/^[a-z]{2}(-[A-Za-z0-9]{2,8})?$/.test(localeIn)) die(5, `locale 形状不对：${JSON.stringify(localeIn)}`);
 
 let next;
 try {
@@ -81,79 +83,15 @@ try {
 } catch (e) {
   die(5, `stdin 不是合法 JSON：${e.message}`);
 }
-if (!next || typeof next !== 'object' || Array.isArray(next)) die(5, '页面 JSON 必须是一个对象');
-const hasBlocks = Object.prototype.hasOwnProperty.call(next, 'blocks');
-const hasSections = Object.prototype.hasOwnProperty.call(next, 'sections');
-if (hasBlocks === hasSections) die(5, '页面 JSON 必须恰好写 blocks 或 sections 其中一个');
-if (!Array.isArray(hasBlocks ? next.blocks : next.sections)) die(5, 'blocks / sections 必须是数组');
 
-// ── 哪一份文件 ──────────────────────────────────────────────────────────────────────────────────
-// 形状的判据只有一条（`site-shape.js`：site_meta.json 在不在）。问不出来就什么都不判。
-const shape = siteShape.readSiteShape(SITE);
-if (!shape) die(5, '读不到 site/ —— 这不是一个网站仓');
-if (shape.flat) {
-  locale = '';
-} else {
-  if (!locale) {
-    try {
-      locale = JSON.parse(fs.readFileSync(path.join(SITE, 'site_meta.json'), 'utf-8')).defaultLocale || '';
-    } catch (e) {
-      die(5, `读不到 site/site_meta.json：${e.message}`);
-    }
-  }
-  if (!locale || (shape.locales.length && !shape.locales.includes(locale))) die(4, `这个网站没有这种语言：${JSON.stringify(locale)}`);
-}
-const localeDir = shape.flat ? SITE : path.join(SITE, locale);
-const pagesDir = path.join(localeDir, 'pages');
-if (!fs.existsSync(pagesDir)) die(4, `找不到页面目录：${path.relative(ROOT, pagesDir)}`);
-
-const localePages = [];
-const sourceBySlug = new Map();
 try {
-  pageFiles.readPagesRecursive(pagesDir, '', localePages, sourceBySlug);
+  const target = pageWrite.resolveTarget(ROOT, siteShape, localeIn);
+  const w = pageWrite.planPageWrite({ root: ROOT, blocks, pageFiles, target, slug, baseHash, next });
+  pageWrite.commitWrites([w]);
+  // #1415 —— `hash`：写进去那份字节的 sha256（`lib/page-write.js` §planPageWrite 算的）。worker 在 commit + push
+  // 成功之后把它随 `page-saved` 发给编辑器，当下一次存盘的 baseHash —— 不用等重建完再取一份烤出来的底稿。
+  process.stdout.write(`${JSON.stringify({ ok: true, file: path.relative(ROOT, w.file).split(path.sep).join('/'), hash: w.hash })}\n`);
 } catch (e) {
-  die(5, `读不出这一种语言的页面：${e.message}`);
+  if (e instanceof pageWrite.PageWriteError) die(e.code, e.message);
+  throw e;
 }
-const file = sourceBySlug.get(slug);
-if (!file) die(4, `找不到这一页：${slug}`);
-
-// 🔴 slug 不许借存盘改掉：顶层页面的 slug 就是文件内容里那个键，改了等于把这一页挪到另一个地址
-//    （还可能撞上另一页）。子目录里的页面 slug 由路径定，内容里写什么构建都会覆盖掉。
-const beforeBytes = fs.readFileSync(file);
-const currentHash = require('crypto').createHash('sha256').update(beforeBytes).digest('hex');
-if (currentHash !== baseHash) {
-  die(10, `这一页在编辑器打开之后被改过了（底稿 ${baseHash.slice(0, 12)} ≠ 当前 ${currentHash.slice(0, 12)}）`);
-}
-const before = JSON.parse(beforeBytes.toString('utf-8'));
-const nested = path.dirname(file) !== pagesDir;
-if (!nested && next.slug !== before.slug) die(5, `不能在这里改页面地址：${JSON.stringify(before.slug)} → ${JSON.stringify(next.slug)}`);
-
-// ── 写之前先让构建自己的校验过一遍（见文件头）──────────────────────────────────────────────────
-const trial = localePages.map((p) => {
-  if (p.slug !== slug) return JSON.parse(JSON.stringify(p));
-  const q = JSON.parse(JSON.stringify(next));
-  if (nested) q.slug = slug; // 同 readPagesRecursive：子目录页面的 slug 由路径定
-  return q;
-});
-try {
-  blocks.normalizeLocalePages(trial, blocks.readSiteBlocks(localeDir), locale || 'en', {});
-} catch (e) {
-  die(9, `这份页面会让网站建不出来：${e.message}`);
-}
-
-// ── 写 ──────────────────────────────────────────────────────────────────────────────────────────
-// 格式跟 patch-block.js 与建站脚本写出来的逐字同形（两空格缩进 + 结尾换行），diff 只落在改过的那几行。
-// 先写临时文件再改名：写到一半被打断也不会留下半份 JSON（那一份会让整站建不出来）。
-const tmp = `${file}.tmp-${process.pid}`;
-const afterBytes = Buffer.from(`${JSON.stringify(next, null, 2)}\n`, 'utf-8');
-fs.writeFileSync(tmp, afterBytes);
-fs.renameSync(tmp, file);
-// #1415 —— `hash` 是写完之后那份文件字节的 sha256（跟上面比对 baseHash 同一个算法）。worker 在 commit + push
-// 成功之后把它随 `page-saved` 事件发给 dashboard，编辑器拿它当下一次存盘的 baseHash —— 不用等重建完、
-// 重新加载一份烤出来的底稿。算的是**写进去的那份字节**，不是再读一次文件：两者之间没有别人能插进来
-// （worker 这一步在按站的锁里），而再读一次多一次 IO、还多一个「读到一半」的窗口。
-process.stdout.write(`${JSON.stringify({
-  ok: true,
-  file: path.relative(ROOT, file).split(path.sep).join('/'),
-  hash: require('crypto').createHash('sha256').update(afterBytes).digest('hex'),
-})}\n`);
