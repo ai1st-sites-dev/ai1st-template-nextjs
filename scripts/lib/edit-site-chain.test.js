@@ -273,7 +273,7 @@ function assertSyncsClean(work, where) {
 /**
  * 跑一次真的编辑。返回这一跑留下的全部痕迹 —— 事件、退出码、仓里多了几个 commit、bare 上有没有。
  */
-function runEdit(ctx, script, stdinExtra = {}) {
+function runEdit(ctx, script, stdinExtra = {}, envExtra = {}) {
   const dir = temp('edit-stub-');
   const stubPath = path.join(dir, 'stub.js');
   const scriptPath = path.join(dir, 'script.json');
@@ -294,6 +294,7 @@ function runEdit(ctx, script, stdinExtra = {}) {
       EDIT_STUB_CALLS: callsPath,
       // 指向恒答 200 的替身 ⟹ 保存前那道预览健康检查一次就过，不进它那 35 秒的等待分支。
       PREVIEW_PORT: PREVIEW_STANDIN_PORT,
+      ...envExtra,   // #1441：⑱ 那一臂要让被测进程的 git 读不到身份（提交失败的真机制）
     },
     timeout: 120000,
   });
@@ -1478,8 +1479,8 @@ console.log('\n⑬ 图片取不到 ⟹ 一句人话，不是一段 JS 栈（#120
   // ── 反向对照（AC5 那一维）：把新加的那次回滚拿掉，上面四条必须红，而且红在**它该红的那一格** ──
   {
     const m = timeline('nofix', {
-      from: '            const rb = rollbackWrittenFiles(siteDir, writeSnapshots);',
-      to:   '            const rb = { restored: [], removed: [], failed: [] };',
+      from: '            const rb = rollbackWrittenFiles(siteDir, writeSnapshots, aiWrote);',   // #1441 起是三参
+      to:   '            const rb = { restored: [], removed: [], failed: [], kept: [] };',
     });
     if (m.anchorMissing) {
       bad('⑬F5 变异锚点找不到 —— 这一臂什么都没证明');
@@ -1932,6 +1933,103 @@ console.log('\n⑰ 读完之后别处改过（#1420）：拒 → 重读 → 写�
   else bad(`🔴 ⑰ 上限+重读后写成：老板存的那一笔被回滚退掉了 —— hero.headline 现在是 "${heroOf(mHome).data.headline}"`);
   if (!/Nothing on your site was changed/.test(mMsg) && /en\/pages\/home\.json/.test(mMsg) && /includes the AI's change/.test(mMsg)) ok('⑰ 上限+重读后写成：报文改口、点名首页');
   else bad(`🔴 ⑰ 上限+重读后写成：报文不对 —— 「${mMsg.slice(0, 300)}」`);
+}
+
+// ══ ⑱ 另三条回滚路也不退老板存在 AI 那份上的改动，而且不说「什么都没改」（#1441）══════════════════
+//
+// #1420 让「撞满上限放弃」那条回滚带上 aiWrote；同一个回滚还被三条老路调用：#1102 同步失败、#1200 图片 400、
+// #1192 提交失败。三臂同一个形状，只换触发：
+//   第 1 轮 AI 写成首页 + about（同步那一臂再加一份坏的 services.json 当触发）
+//   → 第 2 轮发出之前老板在编辑器里基于 AI 那份首页改了 hero（`__before`，同 ⑰）
+//   → 这一轮失败 ⟹ 回滚。
+// 触发都是**真机制**：① 那份 `services.json must be an array`、⑬F 那对 400、以及 git 读不到身份时 commit 的
+// `Author identity unknown`（GIT_CONFIG_GLOBAL / SYSTEM 指 /dev/null + 本仓 user.useConfigOnly=true）。
+// 🔴 每一臂四样：老板那份首页原样在盘上 · 他没碰的 about（和同步那一臂的 services）逐字节退回（修法不许变成
+//    不回滚）· 报文点名首页、不说「什么都没改 / 网站还是之前那样」· 终点照 ⑬F：下一次成功编辑之后 HEAD 里
+//    首页带着老板那一笔、about 里没有这一轮的字节。
+{
+  const MARK = 'MARK-1441-SHOULD-BE-ROLLED-BACK';
+  const heroOf = (text) => JSON.parse(text).blocks.find((b) => b && b.type === 'hero');
+  const otherOf = (h) => h.blocks.find((b) => b && b.type !== 'hero' && b.data && typeof b.data.headline === 'string');
+  const NOTHING_CHANGED = /Nothing on your site was changed|still shows the previous version|has not changed|rolled back/;
+
+  function arm1441(trigger) {
+    const c = makeRoot(`rollback-kept-${trigger}`);
+    const site = writeSite(c.work);
+    assertSyncsClean(c.work, `⑱(${trigger}) 夹具`);
+    c.git('git add -A && git commit -q -m base && git push -q origin main');
+
+    const homeFile = path.join(site, 'en', 'pages', 'home.json');
+    const aboutFile = path.join(site, 'en', 'pages', 'about.json');
+    const servicesFile = path.join(site, 'en', 'services.json');
+    const baseHome = fs.readFileSync(homeFile, 'utf8');
+    const baseAbout = fs.readFileSync(aboutFile);
+    const baseServices = fs.readFileSync(servicesFile);
+    if (!heroOf(baseHome) || !otherOf(JSON.parse(baseHome))) die('⑱ 前提不成立：首页上要有一个 hero 和另一个带 headline 的块');
+    const homeAi = (() => { const h = JSON.parse(baseHome); otherOf(h).data.headline = 'Other AI 1441'; return JSON.stringify(h, null, 2); })();
+    const homeOwner = (() => { const h = JSON.parse(homeAi); h.blocks.find((b) => b && b.type === 'hero').data.headline = 'Hero EDITOR SAVED 1441'; return JSON.stringify(h, null, 2); })();
+    const aboutAi = JSON.stringify({ ...JSON.parse(baseAbout.toString('utf8')), title: MARK }, null, 2);
+
+    const writes = [writeCall('h1', 'en/pages/home.json', homeAi), writeCall('a1', 'en/pages/about.json', aboutAi)];
+    if (trigger === 'sync') writes.push(writeCall('s1', 'en/services.json', JSON.stringify({ oops: 'an object, not an array' })));
+    const ownerSaves = { __before: [{ file: homeFile, content: homeOwner }] };
+    let script; let stdin = {}; let env = {};
+    if (trigger === 'image') {
+      script = [reply(writes, 'tool_use'), Object.assign({}, T1200_DOWNLOAD_400, ownerSaves), T1200_DOWNLOAD_400, reply([textBlock('.')])];
+      stdin = { message: 'Now put this photo on the home page', images: [{ url: 'https://uploads.ai1st.site/gone.png', originalFilename: 'gone.png' }] };
+    } else {
+      script = [reply(writes, 'tool_use'), Object.assign(reply([textBlock('Changes applied.')], 'end_turn'), ownerSaves)];
+    }
+    if (trigger === 'commit') {
+      c.git('git config --unset user.email && git config --unset user.name && git config user.useConfigOnly true');
+      env = { GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' };
+    }
+    const res = runEdit(c, script, stdin, env);
+    if (trigger === 'commit') c.git('git config user.email t@t.test && git config user.name t && git config --unset user.useConfigOnly');
+
+    const final = ev(res, trigger === 'image' ? 'edit-complete' : 'error');
+    const msg = final.length === 1 ? String(final[0].message) : '';
+    const kept = /rollback[^\n]* kept (\d+)/.exec(res.stderr);
+    const out = {
+      events: res.events.map((e) => e.event).join(' '), msg, stderrTail: res.stderr.slice(-400),
+      finalOk: final.length === 1 && (trigger === 'image' ? !ev(res, 'error').length : !ev(res, 'edit-complete').length),
+      kept: kept ? Number(kept[1]) : null, commits: res.commitsAfter - res.commitsBefore,
+      commitFailed: final.length === 1 && final[0].commitFailed === true,
+      ownerOnDisk: fs.readFileSync(homeFile, 'utf8') === homeOwner,
+      heroNow: heroOf(fs.readFileSync(homeFile, 'utf8')).data.headline,
+      aboutBack: fs.readFileSync(aboutFile).equals(baseAbout),
+      servicesBack: fs.readFileSync(servicesFile).equals(baseServices),
+    };
+    // 终点（同 ⑬F）：一次改别的文件的成功编辑，它的 `git add -A` 读的是盘上剩下的东西。
+    const good = [{ id: 's1', name: 'Renamed', shortDescription: 'a', fullDescription: 'b', icon: 'leaf', features: [], products: [] }];
+    const res2 = runEdit(c, [
+      reply([textBlock('Renaming the service.'), writeCall('t1', 'en/services.json', JSON.stringify(good, null, 2))], 'tool_use'),
+      reply([textBlock('Changes applied.')], 'end_turn'),
+    ]);
+    const head = (f) => { try { return cp.execSync(`git show HEAD:site/en/pages/${f}`, { cwd: c.work, encoding: 'utf8' }); } catch (e) { return ''; } };
+    out.secondCommitted = res2.commitsAfter === res2.commitsBefore + 1;
+    out.ownerInHead = head('home.json').includes('Hero EDITOR SAVED 1441');
+    out.markInHead = head('about.json').includes(MARK);
+    return out;
+  }
+
+  for (const [trigger, name] of [['sync', '#1102 同步失败'], ['image', '#1200 图片 400'], ['commit', '#1192 提交失败']]) {
+    console.log(`\n⑱ ${name}：老板存在 AI 写成的首页上 ⟹ 回滚不退它、报文点名它（#1441）`);
+    const t = arm1441(trigger);
+    const pre = trigger === 'sync' ? /services\.json must be an array/.test(t.msg)
+      : trigger === 'image' ? /gone\.png/.test(t.msg)
+        : t.commitFailed && /Author identity unknown/.test(t.msg) && t.commits === 0;
+    if (t.finalOk && pre && t.kept === 1) ok(`⑱ ${name}：前提成立（走的是这条失败路、回滚 kept 1）`);
+    else bad(`⑱ ${name}：前提不成立 —— events ${t.events} · kept=${t.kept} · commits=${t.commits} ·「${t.msg.slice(0, 160)}」· stderr 尾 ${t.stderrTail}`);
+    if (t.ownerOnDisk) ok(`⑱ ${name}：老板存在首页上的那份原样在盘上`);
+    else bad(`🔴 ⑱ ${name}：老板存的那一笔被回滚退掉了 —— hero.headline 现在是 "${t.heroNow}"`);
+    if (t.aboutBack && t.servicesBack) ok(`⑱ ${name}：老板没碰的 about${trigger === 'sync' ? ' / services' : ''} 照样逐字节退回`);
+    else bad(`🔴 ⑱ ${name}：该退的没退 —— about 退回=${t.aboutBack} services 退回=${t.servicesBack}`);
+    if (!NOTHING_CHANGED.test(t.msg) && /en\/pages\/home\.json/.test(t.msg) && /includes the AI's change/.test(t.msg) && !/could not be undone/.test(t.msg)) ok(`⑱ ${name}：报文改口、点名首页（${t.msg.slice(t.msg.indexOf('⚠️'), t.msg.indexOf('⚠️') + 70)}…）`);
+    else bad(`🔴 ⑱ ${name}：报文不对 —— 「${t.msg.slice(0, 300)}」`);
+    if (t.secondCommitted && t.ownerInHead && !t.markInHead) ok(`⑱ ${name}：下一次成功编辑之后 HEAD 里首页带着老板那一笔、about 没有这一轮的字节`);
+    else bad(`🔴 ⑱ ${name}：终点不对 —— 第二次编辑 commit=${t.secondCommitted} · 老板那笔在 HEAD=${t.ownerInHead} · about 标记在 HEAD=${t.markInHead}`);
+  }
 }
 
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);

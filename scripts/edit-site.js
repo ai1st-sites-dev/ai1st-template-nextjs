@@ -325,6 +325,21 @@ function rollbackWrittenFiles(siteDir, snapshots, aiWrote) {
   return out;
 }
 
+/**
+ * #1441 —— `rollbackWrittenFiles` 返回的 `kept` 非空时给老板的那半句（#1420 r3 的原文，含单复数）。
+ * 四个调用点共用这一份：`kept` 的意思是「AI 写过、随后别处（编辑器）又存在它上面 ⟹ 有意不退」，而编辑器那一次
+ * 存盘自己会 commit + push + 重建（`worker/blocks_task.go` 头注 ④）⟹ 这份文件（连同 AI 那一处）此刻已经在
+ * 网站上了。所以 `kept` 非空时任何一条路都不许再说「什么都没改 / 网站还是之前那样」。空 ⟹ 返回 ''。
+ * @param {string[]} kept
+ */
+function keptFilesNote(kept) {
+  if (!kept.length) return '';
+  const one = kept.length === 1;
+  return ` ⚠️ Before that, the AI had already changed ${kept.join(', ')}, and ${one ? 'that file was' : 'those files were'} then saved again `
+    + `somewhere else (for example in the visual editor) on top of the AI's version. ${one ? 'It was' : 'They were'} left exactly as `
+    + `${one ? 'it is' : 'they are'} now so that save is not lost — ${one ? 'it includes' : 'they include'} the AI's change, so please check ${one ? 'it' : 'them'}.`;
+}
+
 // ─── Dev server health check ─────────────────────────────────────────────────
 
 /**
@@ -1235,13 +1250,16 @@ async function main() {
             // 收到「什么都没改」而 `site/en/pages/about.json` 还带着改动，第 2 轮那次成功编辑的
             // commit 里它进了 HEAD）。
             // ⟹ 顺序跟 #1102 那一支一样是承重的：**先退回去，再说那句话**；退不掉就改口，不硬说。
-            const rb = rollbackWrittenFiles(siteDir, writeSnapshots);
+            // #1441 —— 带上 aiWrote：老板可能在这一轮里存在 AI 已经写成的文件上，那份不退、改口点名它（§keptFilesNote）。
+            const rb = rollbackWrittenFiles(siteDir, writeSnapshots, aiWrote);
             debug(`#1200 rollback: restored ${rb.restored.length} · removed ${rb.removed.length}`
-              + ` · failed ${rb.failed.length}${rb.failed.length ? ' — ' + rb.failed.join(' | ') : ''}`);
-            const diskNote = rb.failed.length
+              + ` · failed ${rb.failed.length} · kept ${rb.kept.length}${rb.failed.length ? ' — ' + rb.failed.join(' | ') : ''}`
+              + `${rb.kept.length ? ' — kept: ' + rb.kept.join(' | ') : ''}`);
+            const failedNote = rb.failed.length
               ? ' ⚠️ Part of this request had already been written to your site and could not be undone '
                 + `(${rb.failed.join('; ')}), so it may be included the next time an edit is saved.`
-              : ' Nothing on your site was changed.';
+              : '';
+            const diskNote = (failedNote + keptFilesNote(rb.kept)) || ' Nothing on your site was changed.';
             emit('edit-complete', {
               message: friendly + diskNote,
               inputTokens: totalInputTokens,
@@ -1297,8 +1315,7 @@ async function main() {
     // 这一轮已经写过的别的文件先退回去，「什么都没改」这句话才成立（顺序同 syncError 那一支，理由在 rollbackWrittenFiles 上面）。
     // 🔴 r2（QA3 终审打回 r1）：这条路上老板**正在**存盘 ⟹ 他可能刚存在 AI 已经写成的那份文件上。回滚带上 aiWrote，
     //    那种文件不退、改口点名它；不带的话退回快照会把老板那一笔一起退掉，而报文照说「什么都没改」。
-    // 📌 同一个回滚的另三个调用点（#1102 同步失败 / #1192 提交失败 / #1200 图片 400）没有带它 —— 那三条路上
-    //    同样的丢法早于本票就在，不在本票范围内（交作者定要不要开新票）。
+    // 📌 同一个回滚的另三个调用点（#1102 同步失败 / #1192 提交失败 / #1200 图片 400）#1441 起也带它，报文同一份（§keptFilesNote）。
     if (staleWrites >= MAX_STALE_WRITES) {
       const pricing = getModelPricing(model);
       const cost = ((totalInputTokens * pricing.input) + (totalOutputTokens * pricing.output)) / 1_000_000;
@@ -1317,12 +1334,7 @@ async function main() {
       const why = 'your website was being changed somewhere else at the same time (for example in the visual editor), '
         + 'and every time the AI went to save, the file had changed again since it last read it.';
       // 🔴 「什么都没改」只在 failed 和 kept 都为空时才说（kept 的意思见 rollbackWrittenFiles 的 aiWrote）。
-      const one = rb.kept.length === 1;
-      const keptNote = rb.kept.length
-        ? ` ⚠️ Before that, the AI had already changed ${rb.kept.join(', ')}, and ${one ? 'that file was' : 'those files were'} then saved again `
-          + `somewhere else (for example in the visual editor) on top of the AI's version. ${one ? 'It was' : 'They were'} left exactly as `
-          + `${one ? 'it is' : 'they are'} now so that save is not lost — ${one ? 'it includes' : 'they include'} the AI's change, so please check ${one ? 'it' : 'them'}.`
-        : '';
+      const keptNote = keptFilesNote(rb.kept);
       const failedNote = rb.failed.length
         ? ` ⚠️ Part of it had already been written and could not be undone (${rb.failed.join('; ')}), `
           + 'so it may be included the next time an edit is saved.'
@@ -1470,14 +1482,26 @@ async function main() {
         // #1102 —— 先把这次写出去的文件退回上一次提交的样子，**再**说那句话。顺序是承重的：
         // 「没有保存」这句话的真假取决于磁盘上还剩什么（下一次成功编辑的 `git add -A` 读的是磁盘），
         // 所以要么先让它成立、要么就别那么说。理由整段在 rollbackWrittenFiles 上面。
-        const rb = rollbackWrittenFiles(siteDir, writeSnapshots);
+        // #1441 —— 带上 aiWrote（同 #1420 那一支）：AI 写成之后老板又存过的文件不退，否则连他那一笔一起退掉。
+        const rb = rollbackWrittenFiles(siteDir, writeSnapshots, aiWrote);
         debug(`#1102 rollback: restored ${rb.restored.length} · removed ${rb.removed.length}`
-          + ` · failed ${rb.failed.length}${rb.failed.length ? ' — ' + rb.failed.join(' | ') : ''}`);
+          + ` · failed ${rb.failed.length} · kept ${rb.kept.length}${rb.failed.length ? ' — ' + rb.failed.join(' | ') : ''}`
+          + `${rb.kept.length ? ' — kept: ' + rb.kept.join(' | ') : ''}`);
         // 🔴 退不掉的时候**改口**，不硬说那句话（这是本票要治的那个毛病本身：跟老板说的话后来变成
         // 假的而没人被告知）。退不掉 = 那几个文件还带着这次的改动躺在工作树上，下一次成功的编辑
         // 会把它们一起提交。
+        // 🔴 #1441 —— `kept` 非空时也改口：那份文件被编辑器存盘 commit + 重建过，带着 AI 那一处已经在网站上了
+        //    ⟹「rolled back / still shows the previous version」都不成立（§keptFilesNote）。
         emit('error', {
-          message: rb.failed.length
+          message: rb.kept.length
+            ? 'This change was not saved. Rebuilding the site\'s configuration failed, so nothing from this '
+              + `request was committed.${keptFilesNote(rb.kept)}`
+              + (rb.failed.length
+                ? ` ⚠️ Part of it could not be undone on disk either (${rb.failed.join('; ')}), so it may be `
+                  + 'included the next time an edit is saved.'
+                : '')
+              + '\n\n' + syncError
+            : rb.failed.length
             ? 'Rebuilding the site\'s configuration failed, so nothing was committed and the site still '
               + 'shows the previous version. ⚠️ This change could not be undone on disk either '
               + `(${rb.failed.join('; ')}), so it may be included the next time an edit is saved:\n\n`
@@ -1503,13 +1527,25 @@ async function main() {
       // 信息的 "Edit failed: exit status 1" 覆盖掉 `last-event`）。
       //
       // 🔴 这条路**不重建**，而这不需要任何代码去保证：#1192 起重建是 commit 的后置条件，没有 commit
-      // 就没有重建（worker §settleCommittedWork 读的是容器仓的 HEAD）。老板看到的页面因此跟这句话一致。
+      // 就没有重建（worker §settleCommittedWork 读的是容器仓的 HEAD）。
+      // 🔴 #1441 —— 所以「网站还是之前那样」只在 `kept` 为空时成立。`kept` 非空 = 这一轮里老板在编辑器里存过
+      //    AI 已经写成的那份文件，而**那一次存盘自己** commit + push + 重建了（`worker/blocks_task.go` 头注 ④）
+      //    ⟹ 那份文件（连同 AI 那一处）已经在网站上了，这条路不重建也改变不了这一点。那时改口点名它（§keptFilesNote），
+      //    不说「rolled back / still shows the previous version」；别的文件照样退回，它们没进过任何 commit。
       if (commitError) {
-        const rb = rollbackWrittenFiles(siteDir, writeSnapshots);
+        const rb = rollbackWrittenFiles(siteDir, writeSnapshots, aiWrote);
         debug(`#1192 rollback after a failed commit: restored ${rb.restored.length} · removed ${rb.removed.length}`
-          + ` · failed ${rb.failed.length}${rb.failed.length ? ' — ' + rb.failed.join(' | ') : ''}`);
+          + ` · failed ${rb.failed.length} · kept ${rb.kept.length}${rb.failed.length ? ' — ' + rb.failed.join(' | ') : ''}`
+          + `${rb.kept.length ? ' — kept: ' + rb.kept.join(' | ') : ''}`);
         emit('error', {
-          message: rb.failed.length
+          message: rb.kept.length
+            ? `Something went wrong saving this change, so this request was NOT saved.${keptFilesNote(rb.kept)}`
+              + (rb.failed.length
+                ? ` ⚠️ Part of it could not be undone on disk either (${rb.failed.join('; ')}), so it may be `
+                  + 'included the next time an edit is saved.'
+                : '')
+              + ' Please contact your administrator — the server log has the details:\n\n' + commitError
+            : rb.failed.length
             ? 'Something went wrong saving this change, so it was NOT saved and your website has not '
               + `changed. ⚠️ It could not be undone on disk either (${rb.failed.join('; ')}), so it may be `
               + 'included the next time an edit is saved. Please contact your administrator — the server '
