@@ -56,6 +56,7 @@ import type { PuckItemSrc, PuckLikeData, SharedChanges } from '../../../scripts/
 import {
   UNKNOWN_TYPE, pageToPuck, puckToPage, fieldProps, dataFromProps, deepEqual, puckRootChanges,
   sharedReach, sharedRemovable, puckSharedChanges, sharedOwnAfter, applySharedChanges, aiBaselineStep,
+  THEME_DEFAULT, canvasShape,
 } from '../../../scripts/lib/editor-convert.js';
 
 export interface EditorAppProps {
@@ -204,7 +205,8 @@ function CanvasBlock({ component, props, locale }: { component: EditorComponent;
   } else {
     data = dataFromProps(component, {}, props);
   }
-  const block = { ...view, data, shape: props._shape || undefined } as BlockConfig;
+  // #1443 —— 形态按这块**当前的** data 现算（跟构建同一套，§canvasShape）：选了 Theme default 当场换回主题那一个。
+  const block = { ...view, data, shape: canvasShape(component, props._shape, data) } as BlockConfig;
   if (src?.shared) {
     // #1406 —— 共用块在画布上一眼看得出来：左上角一枚标，块名旁写「Shared」（不接鼠标，点它等于点这一块）。
     return (
@@ -248,10 +250,14 @@ export function buildConfig(schema: EditorSchema, locale: string, overHero = fal
       label: 'Layout',
       // 选项 = 形态子目录去掉候选（schema 里已经过滤好）。`needs` 不为空的形态，这个块缺那些槽位时
       // 构建会落回默认 —— 选项上写明，别让老板选了之后以为坏了。
-      options: c.shapes.map((s) => ({ value: s.name, label: s.needs.length ? `${s.name} (needs ${s.needs.join(', ')})` : s.name })),
+      // #1443 —— 第一项 `Theme default`：跟着主题走，存盘时删掉这个块的 `shape` 键（页面 JSON 里没有这个键的块
+      // 打开时显示的就是它）；新插的块也默认它。
+      options: [
+        { value: THEME_DEFAULT, label: 'Theme default' },
+        ...c.shapes.map((s) => ({ value: s.name, label: s.needs.length ? `${s.name} (needs ${s.needs.join(', ')})` : s.name })),
+      ],
     };
-    const defaultProps: Record<string, unknown> = { ...fieldProps(c, {}) };
-    if (c.defaultShape) defaultProps._shape = c.defaultShape;
+    const defaultProps: Record<string, unknown> = { ...fieldProps(c, {}), _shape: THEME_DEFAULT };
     components[c.type] = {
       label: c.label,
       fields,

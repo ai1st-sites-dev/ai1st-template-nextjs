@@ -33,7 +33,7 @@
 
 const path = require('path');
 const { blockShapeCatalog } = require('./block-catalog');
-const { editableSlotPaths } = require('./block-manifest');
+const { editableSlotPaths, defaultShapeOf } = require('./block-manifest');
 const { shapeForBlock } = require('./block-shape');
 const siteRegions = require('./site-regions');
 const pageLayoutLib = require('./page-layout');
@@ -86,11 +86,13 @@ function humanize(name) {
  * @param {string} [opts.registryPath]  透传给 blockShapeCatalog（守卫用它换一份假注册表）
  * @param {string} [opts.blocksDir]     透传给 blockShapeCatalog
  * @param {string} [opts.layoutsDir]    `page-layouts/`（#1405 的 root 字段用）；不给按 page-layout.js 的默认
- * @returns {{ components: Array<{ type, label, fields, carried, shapes, defaultShape }> }}
+ * @returns {{ components: Array<{ type, label, fields, carried, shapes, defaultShape, themeShape, fallbackShape }> }}
  *   · `carried`       没有字段、由转换器原样携带的槽位名（守卫拿它证明「每个槽位都有归属」）
  *   · `shapes`        下拉选项 `[{ name, needs }]`，已去掉候选，顺序照形态清单
  *   · `defaultShape`  新插进来的这种块画布上戴哪个形态 —— 跟构建同一个函数（§shapeForBlock）对一份
  *                     空 data 算，也就是「主题选择单给的，缺槽位就落回 manifest 默认」。
+ *   · `themeShape`    #1443：主题选择单给这种块的那一格（没给 = null），**没按 data 判过**
+ *   · `fallbackShape` #1443：manifest 默认（§shapeForBlock 的落点）
  */
 function editorSchema(opts = {}) {
   const catalog = blockShapeCatalog({ registryPath: opts.registryPath, blocksDir: opts.blocksDir });
@@ -117,6 +119,11 @@ function editorSchema(opts = {}) {
       carried: Object.keys(m.slots || {}).filter((s) => !fieldSlots.has(s)),
       shapes,
       defaultShape: shapeForBlock({ type, data: {} }, selection, manifestsObj, () => {}) || null,
+      // #1443 —— 画布上「跟着主题走」的块戴哪个形态，要拿这个块**当前的** data 现算（`editor-convert.js`
+      // §canvasShape）：`defaultShape` 是按空 data 塌缩过的，needs 门控的形态（hero 的 media-*、
+      // content-split 的四个）在它里面已经落回了默认。所以把塌缩之前的两格原料也交出去。
+      themeShape: typeof selection[type] === 'string' && selection[type] ? selection[type] : null,
+      fallbackShape: defaultShapeOf(m) || null,
     });
   }
   return { components, root: rootSchema(catalog, opts) };

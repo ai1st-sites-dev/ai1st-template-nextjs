@@ -340,7 +340,7 @@ console.log('⑦b 按钮链接');
   // 新插一个 hero，填文字和链接 → 落盘
   const { initial: i2, data: d2 } = openPage(raw);
   const heroComp = compOf('hero');
-  const props = { id: 'puck-new-hero', ...convert.fieldProps(heroComp, {}), _shape: heroComp.defaultShape };
+  const props = { id: 'puck-new-hero', ...convert.fieldProps(heroComp, {}), _shape: convert.THEME_DEFAULT };
   props.ctaPrimary = { ...props.ctaPrimary, label: 'Book', href: '/contact' };
   d2.content.push({ type: 'hero', props });
   const nh = convert.puckToPage({ raw, data: d2, initial: i2, schema, slug: 'home' }).blocks.slice(-1)[0];
@@ -354,6 +354,134 @@ console.log('⑦b 按钮链接');
   check(sharedItems.length === 1 && si.props._src.locked === false && JSON.stringify(si.readOnly) === JSON.stringify({ _shape: true }),
     '共用块不锁：只有形态只读（button.href / button.label 都能改）', JSON.stringify(si && si.readOnly));
   check(!!si && JSON.stringify(si.props.button) === JSON.stringify(siteBlocks.promo.data.button), '共用块的字段值 = 块库文件里那一份', JSON.stringify(si && si.props.button));
+}
+
+// ══ ⑦c 单个块「恢复主题默认」（#1443）：下拉多一项 Theme default；选它存盘删 shape 键；画布按当前 data 现算 ══
+console.log('⑦c 恢复主题默认');
+{
+  const hasShape = (b) => Object.prototype.hasOwnProperty.call(b, 'shape');
+  // 夹具：testimonials 钉着 three-up、faq-accordion 钉着它清单里第二个形态，其余块没有 shape 键
+  const raw = fixturePage(false);
+  const faqShapes = compOf('faq-accordion').shapes.map((x) => x.name);
+  if (faqShapes.length < 2) die('faq-accordion 的下拉不到两项，夹具钉不了第二个形态');
+  raw.blocks.find((b) => b.type === 'testimonials').shape = 'three-up';
+  raw.blocks.find((b) => b.type === 'faq-accordion').shape = faqShapes[1];
+  const { initial, data } = openPage(raw);
+  const item = (d, t) => d.content.find((c) => c.type === t);
+  check(item(data, 'testimonials').props._shape === 'three-up' && item(data, 'faq-accordion').props._shape === faqShapes[1],
+    '打开：钉着形态的块，下拉显示页面 JSON 里那个值');
+  const unpinned = data.content.filter((c) => !['testimonials', 'faq-accordion'].includes(c.type));
+  check(unpinned.length > 0 && unpinned.every((c) => c.props._shape === convert.THEME_DEFAULT),
+    `打开：没有 shape 键的块（${unpinned.length}），下拉显示 Theme default（值 = THEME_DEFAULT）`,
+    unpinned.filter((c) => c.props._shape !== convert.THEME_DEFAULT).map((c) => `${c.type}=${c.props._shape}`).join(' '));
+  check(firstDiff(raw, convert.puckToPage({ raw, data, initial, schema, slug: 'home' })) === null, '钉着形态的页不动 → 往返无损');
+
+  // AC1 + AC2：testimonials 选 Theme default → 存盘那一条没有 shape 键；faq-accordion 照旧钉着；其余块逐字节不变
+  item(data, 'testimonials').props._shape = convert.THEME_DEFAULT;
+  const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
+  const ot = out.blocks.find((b) => b.type === 'testimonials');
+  check(!hasShape(ot), 'AC1：选 Theme default → 存盘后这一块没有 shape 键（不是空串）', JSON.stringify(ot.shape));
+  check(out.blocks.find((b) => b.type === 'faq-accordion').shape === faqShapes[1], 'AC2：没点它的块，shape 原样保留');
+  const others = out.blocks.filter((b, i) => b.type !== 'testimonials' && JSON.stringify(b) !== JSON.stringify(raw.blocks[i])).map((b) => b.type);
+  check(others.length === 0, 'AC2：除这一块以外，每一块逐字节不变', others.join(' '));
+  const { shape: _gone, ...otRest } = raw.blocks.find((b) => b.type === 'testimonials');
+  check(JSON.stringify(ot) === JSON.stringify(otRest), '这一块只少了 shape，其余键原样', JSON.stringify(ot));
+  // 连存两次：存盘之后 `_src.entry` 不刷新（initial 仍是打开那份），第二次不许把 shape 从底稿带回来
+  const out2 = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
+  check(!hasShape(out2.blocks.find((b) => b.type === 'testimonials')), '连存两次（底稿没刷新）→ 第二次仍没有 shape 键');
+  // 恢复之后重开：下拉显示 Theme default，再存一次逐字节不变
+  const { initial: i3, data: d3 } = openPage(out);
+  check(item(d3, 'testimonials').props._shape === convert.THEME_DEFAULT, '恢复之后重开 → 下拉显示 Theme default');
+  check(firstDiff(out, convert.puckToPage({ raw: out, data: d3, initial: i3, schema, slug: 'home' })) === null, '恢复之后重开再存 → 往返无损');
+  // 跟着主题的块钉一个形态，再恢复 —— 两步都按当前值判
+  const { initial: i4, data: d4 } = openPage(raw);
+  const hero = item(d4, 'hero');
+  hero.props._shape = compOf('hero').shapes[0].name;
+  const pinnedOut = convert.puckToPage({ raw, data: d4, initial: i4, schema, slug: 'home' });
+  check(pinnedOut.blocks.find((b) => b.type === 'hero').shape === compOf('hero').shapes[0].name,
+    '跟着主题的块在下拉里点名一个形态（哪怕就是默认那个）→ 钉住，写上 shape');
+  hero.props._shape = convert.THEME_DEFAULT;
+  check(!hasShape(convert.puckToPage({ raw, data: d4, initial: i4, schema, slug: 'home' }).blocks.find((b) => b.type === 'hero')),
+    '同一次打开里再选回 Theme default → 不写 shape');
+  // 底稿那条的 shape 不是非空串（构建不认的值）：老板没碰就原样不动
+  const rawOdd = fixturePage(false);
+  rawOdd.blocks[0].shape = '';
+  check(firstDiff(rawOdd, roundTrip(rawOdd)) === null && rawOdd.blocks[0].shape === '' && hasShape(roundTrip(rawOdd).blocks[0]),
+    '底稿 shape 是空串（构建不认）→ 不动就原样，往返无损');
+  // 共用块 / 锁住的块：下拉只读，照旧显示它戴着的那个
+  const siteBlocks = { promo: { type: 'cta-banner', data: catalogLib.sampleDataFor(manifests.get('cta-banner')), visibility: ['home'] } };
+  const rawS = { slug: 'home', blocks: [{ id: 'home-hero-0', type: 'hero', data: catalogLib.sampleDataFor(manifests.get('hero')) }, { ref: 'promo' }] };
+  const si = toPuck(rawS, siteBlocks).content.find((c) => c.props._src.shared);
+  check(!!si && si.props._shape === si.props._src.shape0 && si.props._shape !== '', '共用块：下拉显示它解析后的形态（只读）', si && si.props._shape);
+
+  // 反向：entryOf 不删键（本票之前那一句）→ AC1 那一格红
+  const noDelete = mutantConverter(
+    "else if (typeof base.shape === 'string' && base.shape) delete base.shape;",
+    '',
+  );
+  const { initial: im, data: dm } = openPage(raw, {}, noDelete);
+  item(dm, 'testimonials').props._shape = noDelete.THEME_DEFAULT;
+  const om = noDelete.puckToPage({ raw, data: dm, initial: im, schema, slug: 'home' });
+  check(hasShape(om.blocks.find((b) => b.type === 'testimonials')), '反向：entryOf 不删 shape → 同一格判得出「键还在」');
+}
+{
+  // AC3：画布上的形态 = 构建会给的形态（§shapeForBlock），逐主题 × 逐块 × 点名 × data 对拍
+  const { shapeForBlock } = require('./lib/block-shape.js');
+  const { shapesFor } = require('./themes.js');
+  const pool = require('./theme-pool.json');
+  const manifestsObj = Object.fromEntries(catalog.manifests);
+  const quiet = () => {};
+  const problems = [];
+  let n = 0;
+  const themeIds = Object.keys(pool);
+  for (const tid of themeIds) {
+    const sel = shapesFor(tid);
+    for (const c0 of schema.components) {
+      const c = { ...c0, themeShape: typeof sel[c0.type] === 'string' && sel[c0.type] ? sel[c0.type] : null };
+      const m = manifests.get(c.type);
+      const needSlots = [...new Set((m.shapes || []).flatMap((x) => x.needs || []))];
+      const full = catalogLib.sampleDataFor(m);
+      const datas = [{}, full];
+      // 每个 needs 槽位单独挖空一次：门控正好在这一格上翻
+      for (const slot of needSlots) { const d = { ...full }; delete d[slot]; datas.push(d); }
+      const pins = ['', ...(m.shapes || []).map((x) => x.name), 'no-such-shape-1443'];
+      for (const data of datas) {
+        for (const pin of pins) {
+          n += 1;
+          const want = shapeForBlock({ type: c.type, data, ...(pin ? { shape: pin } : {}) }, sel, manifestsObj, quiet);
+          const got = convert.canvasShape(c, pin, data);
+          if (got !== want) problems.push(`${tid}/${c.type} pin=${pin || '∅'} data{${Object.keys(data).join(',')}}: 画布 ${got} ≠ 构建 ${want}`);
+        }
+      }
+    }
+  }
+  check(n > 0 && problems.length === 0, `AC3：画布形态 = 构建形态（${themeIds.length} 套主题 · ${n} 格）`, problems.slice(0, 5).join(' / '));
+  // PM 裁定里点名的那一格：ember-12 / content-split，带图 → media-right-alternate，空 data → 落回
+  const sel = shapesFor('ember-12');
+  const cs = { ...compOf('content-split'), themeShape: sel['content-split'] };
+  check(sel['content-split'] === 'media-right-alternate' && convert.canvasShape(cs, '', { imageUrl: '/x.jpg' }) === 'media-right-alternate',
+    'ember-12 / content-split 带图、跟着主题 → media-right-alternate', `${sel['content-split']} → ${convert.canvasShape(cs, '', { imageUrl: '/x.jpg' })}`);
+  check(convert.canvasShape(cs, '', {}) === compOf('content-split').fallbackShape, '同一块去掉图 → 落回 manifest 默认');
+  // 反向：画布照 schema 的 defaultShape（按空 data 塌缩过的）画 → 上面那一格红
+  const collapsedShape = shapeForBlock({ type: 'content-split', data: {} }, sel, manifestsObj, quiet);
+  const collapsed = { ...cs, themeShape: collapsedShape };
+  check(collapsedShape !== 'media-right-alternate' && convert.canvasShape(collapsed, '', { imageUrl: '/x.jpg' }) === collapsedShape,
+    `反向：拿按空 data 塌缩过的那个（${collapsedShape}）当主题形态 → 带图的 content-split 画成它、不是 media-right-alternate（判得出）`);
+  // 反向：needs 判定拿掉 → 对拍红
+  const noNeeds = mutantConverter("if (!sh || !(sh.needs || []).every((slot) => slotFilled(d[slot])))", 'if (!sh)');
+  let red = 0;
+  for (const tid of themeIds) {
+    const s2 = shapesFor(tid);
+    for (const c0 of schema.components) {
+      const c = { ...c0, themeShape: typeof s2[c0.type] === 'string' && s2[c0.type] ? s2[c0.type] : null };
+      if (noNeeds.canvasShape(c, '', {}) !== shapeForBlock({ type: c.type, data: {} }, s2, manifestsObj, quiet)) red += 1;
+    }
+  }
+  check(red > 0, `反向：canvasShape 不看 needs → 对拍红（${red} 格）`);
+  // schema 交出来的两格原料
+  const fb = schema.components.filter((c) => c.fallbackShape !== manifestLib.defaultShapeOf(manifests.get(c.type)));
+  check(fb.length === 0, 'schema 的 fallbackShape = manifest 默认（逐块）', fb.map((c) => c.type).join(' '));
+  check(schema.components.every((c) => c.themeShape === null), '没给 rootDir 的 schema：themeShape 全是 null（不猜主题）');
 }
 
 // ══ ⑧ 排序 / 增删 / 复制 ══════════════════════════════════════════════════════════════════════
@@ -372,7 +500,7 @@ function orderAfterRebuild(page, siteBlocks = {}) {
   // 删除 + 插入 + 复制
   const { initial: i2, data: d2 } = openPage(raw);
   const removed = d2.content.splice(2, 1)[0];
-  d2.content.splice(1, 0, { type: 'faq-accordion', props: { id: 'puck-new-1', ...convert.fieldProps(compOf('faq-accordion'), {}), headline: 'New FAQ', _shape: compOf('faq-accordion').defaultShape } });
+  d2.content.splice(1, 0, { type: 'faq-accordion', props: { id: 'puck-new-1', ...convert.fieldProps(compOf('faq-accordion'), {}), headline: 'New FAQ', _shape: convert.THEME_DEFAULT } });
   const dup = JSON.parse(JSON.stringify(d2.content[0])); dup.props.id = 'puck-dup-1';
   d2.content.splice(1, 0, dup);
   const out2 = convert.puckToPage({ raw, data: d2, initial: i2, schema, slug: 'home' });
@@ -382,7 +510,7 @@ function orderAfterRebuild(page, siteBlocks = {}) {
   const added = out2.blocks.find((b) => b.type === 'faq-accordion' && b.data && b.data.headline === 'New FAQ');
   check(!!added && added.shape === undefined, '插入的块落盘（没改形态就不写 shape）');
   const d5 = JSON.parse(JSON.stringify(i2));
-  d5.content.push({ type: 'gallery', props: { id: 'puck-new-empty', ...convert.fieldProps(compOf('gallery'), {}), _shape: compOf('gallery').defaultShape } });
+  d5.content.push({ type: 'gallery', props: { id: 'puck-new-empty', ...convert.fieldProps(compOf('gallery'), {}), _shape: convert.THEME_DEFAULT } });
   const emptyNew = convert.puckToPage({ raw, data: d5, initial: i2, schema, slug: 'home' }).blocks.slice(-1)[0];
   check(emptyNew.type === 'gallery' && emptyNew.data && typeof emptyNew.data === 'object' && Object.keys(emptyNew.data).length === 0,
     '什么都没填就插入的块也带 data: {}（不造一种没有 data 的块）', JSON.stringify(emptyNew));
@@ -512,6 +640,14 @@ for (const flat of [false, true]) {
   const pages = [];
   require('./lib/page-files.js').readPagesRecursive(pagesDir, '', pages, new Map());
   const siteSchema = editorSchema({ rootDir: work });
+  {
+    // #1443 —— schema 的 themeShape = 这个站穿的那套主题的选择单（没按 data 塌缩）
+    const { structureThemeId } = require('./lib/site-regions.js').resolveSiteRegionLayout(path.join(work, 'site'));
+    const sel = structureThemeId ? require('./themes.js').shapesFor(structureThemeId) : {};
+    const off = siteSchema.components.filter((c) => c.themeShape !== (typeof sel[c.type] === 'string' && sel[c.type] ? sel[c.type] : null));
+    check(!!structureThemeId && Object.keys(sel).length > 0 && off.length === 0,
+      `${flat ? '扁平' : '多语言'}站：schema 的 themeShape = 主题 ${structureThemeId} 的选择单（逐块）`, off.map((c) => `${c.type}=${c.themeShape}`).join(' '));
+  }
   const diffs = [];
   let n = 0;
   for (const p of pages) {

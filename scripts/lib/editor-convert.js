@@ -24,7 +24,7 @@
 //       sharedData 共用块打开时块库文件里那一份 `data`（它的字段 prop 就是按它取的）；不是共用块时为 null
 //       view     归一化之后的那一块（画布照它渲染：`data-shape` / `data-has-*` / 升格后的列表）
 //       weight   它在构建里的有效权重（锁住的块拿它当锚点，见 §assignWeights）
-//       shape0   画布一打开时它戴的形态（`_shape` 没改过就不写 `shape`，否则往返会多出一个键）
+//       shape0   画布一打开时它戴的形态（解析后的值，恒非空 —— 判「钉住没有」用 `entry.shape`，#1443）
 //       pid      打开时的 Puck id —— 复制出来的条目 id 不同，据此认出它是一个**新**块
 
 const ITEM_ORIG = '__orig';
@@ -33,7 +33,33 @@ const ITEM_ORIG = '__orig';
 // 构建对它只打一行 `Unknown block type` 就跳过（`SectionRenderer`），编辑器也不许因为它打不开 ——
 // 画布上一个锁住的占位，存盘时那一条原样留在原位（#1404 QA1 r1）。
 const UNKNOWN_TYPE = '__unknown-block';
-const UNKNOWN_COMPONENT = { type: UNKNOWN_TYPE, label: 'Unknown section', fields: [], carried: [], shapes: [], defaultShape: null };
+const UNKNOWN_COMPONENT = { type: UNKNOWN_TYPE, label: 'Unknown section', fields: [], carried: [], shapes: [], defaultShape: null, themeShape: null, fallbackShape: null };
+
+// #1443 —— 形态下拉里「跟着主题走」那一项的值。`_shape` 是它 ⟹ 这个块在页面 JSON 里**没有** `shape` 键
+// （存盘时删掉，§entryOf）；是别的非空串 ⟹ 钉住那个形态。新插的块默认也是它（`EditorApp.tsx` §buildConfig）。
+const THEME_DEFAULT = '';
+
+function slotFilled(v) {
+  return !(v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0));
+}
+
+/**
+ * #1443 —— 画布上这一块戴哪个形态：跟构建 `block-shape.js` §shapeForBlock 同一套取值，只是原料从 schema 来
+ * （本文件零 require）。点名的（`pinned`，页面 JSON 的 `shape`）优先，没点名用主题选择单那一格；点名的形态
+ * 不在下拉里（候选 / 清单里没有）或缺它 `needs` 的槽位 ⟹ 落回 manifest 默认。
+ * 🔴 `data` 要传这个块**当前的**内容（画布上那份）：按空 data 算（schema 的 `defaultShape`）会把 needs 门控的
+ *    形态算掉，hero / content-split 上画错。`component.shapes` 已去掉候选，needs 与 manifest 同一份
+ *    （`block-catalog.js` 的 pairs）⟹ 「不在 shapes 里」= §shapeForBlock 的「候选」+「清单里没有」两条。
+ * 守卫：`editor-roundtrip.test.js` ⑦c 逐主题 × 逐块 × 逐形态跟 §shapeForBlock 对拍。
+ */
+function canvasShape(component, pinned, data) {
+  const name = typeof pinned === 'string' && pinned ? pinned : component.themeShape;
+  if (!name) return component.fallbackShape || undefined;
+  const sh = (component.shapes || []).find((x) => x.name === name);
+  const d = isPlainObject(data) ? data : {};
+  if (!sh || !(sh.needs || []).every((slot) => slotFilled(d[slot]))) return component.fallbackShape || undefined;
+  return name;
+}
 
 function isPlainObject(v) {
   return v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -178,12 +204,15 @@ function pageToPuck({ raw, blocks, located, schema, weights, siteBlocks }) {
     const data = sharedId ? (lib[sharedId].data || {}) : locked ? (view.data || {}) : ((entry && entry.data) || {});
     const pid = typeof view.id === 'string' && view.id ? view.id : `${view.type}-${i}`;
     const shape0 = typeof view.shape === 'string' && view.shape ? view.shape : (component.defaultShape || '');
+    // #1443 —— 下拉显示的是**页面 JSON 里点没点名**，不是解析后的形态（`shape0` 恒非空，拿它就分不出
+    // 「钉住了」和「跟着主题」）。共用块 / 锁住的块形态只读，照旧显示它戴着的那个。
+    const pinned = entry && typeof entry.shape === 'string' && entry.shape ? entry.shape : THEME_DEFAULT;
     const item = {
       type: component.type,
       props: {
         id: pid,
         ...fieldProps(component, data),
-        _shape: shape0,
+        _shape: sharedId || locked ? shape0 : pinned,
         _src: {
           at: loc.at,
           entry: clone(entry === undefined ? null : entry),
@@ -253,9 +282,14 @@ function entryOf(item, component, { isCopy, newId, promote }) {
   for (const f of component.fields) mergeSlot(data, f, item.props[f.slot]);
   // 新块一律带 `data`（哪怕是空的）—— 页面 JSON 里每个块都有这个键，别造一种新形状。
   if (isPlainObject(base.data) || Object.keys(data).length > 0 || !src) base.data = data;
+  // #1443 —— 判据是 `_shape` 的**当前值**，不是「这次改过没有」：存盘之后 `_src.entry` 不刷新（`EditorApp.tsx`
+  // 存盘成功只并 root），按事件判的话连存两次，第二次会从 `clone(src.entry)` 把刚删掉的 `shape` 带回来。
+  //   · 非空 → 钉住它（打开时就钉着的块原样写回同一个值，往返无损）
+  //   · `THEME_DEFAULT` → 底稿那条钉着形态就删键（不是写成空串）；底稿那条的 `shape` 本来就不是非空串
+  //     （没有这个键 / 一个构建不认的值）就原样不动 —— 老板没碰过的块一个字节都不变
   const shape = item.props._shape;
-  const shape0 = src ? src.shape0 : component.defaultShape;
-  if (typeof shape === 'string' && shape && shape !== shape0) base.shape = shape;
+  if (typeof shape === 'string' && shape) base.shape = shape;
+  else if (typeof base.shape === 'string' && base.shape) delete base.shape;
   return base;
 }
 
@@ -683,5 +717,5 @@ function aiBaselineStep({ current, histories, next, hash, nextHash }) {
 module.exports = {
   UNKNOWN_TYPE, pageToPuck, puckToPage, fieldProps, dataFromProps, assignWeights, deepEqual, ITEM_ORIG, rootToPuck, puckRootChanges,
   sharedReach, sharedRemovable, puckSharedChanges, sharedOwnAfter, applySharedChanges,
-  aiBaselineStep,
+  aiBaselineStep, THEME_DEFAULT, canvasShape,
 };

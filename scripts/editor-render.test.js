@@ -116,7 +116,7 @@ function emptyOnCanvas() {
     const view = item.props._src.view;
     let html = '';
     try {
-      html = renderToStaticMarkup(React.createElement(SectionRenderer, { blocks: [{ ...view, shape: item.props._shape || undefined }], locale: 'en' }));
+      html = renderToStaticMarkup(React.createElement(SectionRenderer, { blocks: [{ ...view, shape: convert.canvasShape(schema.components.find((c) => c.type === view.type), item.props._shape, view.data) }], locale: 'en' }));
     } catch (e) {
       errors.push(`${view.type}: ${e.message}`);
       continue;

@@ -14,6 +14,10 @@ export interface EditorComponent {
   carried: string[];
   shapes: { name: string; needs: string[] }[];
   defaultShape: string | null;
+  /** #1443：主题选择单给这种块的形态（没按 data 判过）；没给 = null */
+  themeShape: string | null;
+  /** #1443：manifest 默认形态（落回时的落点） */
+  fallbackShape: string | null;
 }
 /** #1405 —— root 字段（外壳四样）的可选值。 */
 export interface EditorLayout {

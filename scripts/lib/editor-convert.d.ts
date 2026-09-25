@@ -44,6 +44,10 @@ export function assignWeights(slots: { anchor: number | null }[]): number[];
 export function deepEqual(a: unknown, b: unknown): boolean;
 export const ITEM_ORIG: string;
 export const UNKNOWN_TYPE: string;
+/** #1443 —— 形态下拉「跟着主题走」那一项的值：存盘时删掉 `shape` 键 */
+export const THEME_DEFAULT: string;
+/** #1443 —— 画布上这一块戴哪个形态（同构建 §shapeForBlock）；`data` 是这个块当前的内容 */
+export function canvasShape(component: EditorComponent, pinned: unknown, data: unknown): string | undefined;
 /** #1405 —— 外壳四样在站级文件里的现值 */
 export interface RootValues {
   layout: string;
