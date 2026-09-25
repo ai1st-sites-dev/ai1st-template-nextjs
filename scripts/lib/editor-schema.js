@@ -89,8 +89,10 @@ function humanize(name) {
  * @returns {{ components: Array<{ type, label, fields, carried, shapes, defaultShape, themeShape, fallbackShape }> }}
  *   · `carried`       没有字段、由转换器原样携带的槽位名（守卫拿它证明「每个槽位都有归属」）
  *   · `shapes`        下拉选项 `[{ name, needs }]`，已去掉候选，顺序照形态清单
- *   · `defaultShape`  新插进来的这种块画布上戴哪个形态 —— 跟构建同一个函数（§shapeForBlock）对一份
- *                     空 data 算，也就是「主题选择单给的，缺槽位就落回 manifest 默认」。
+ *   · `defaultShape`  按**空 data** 跑一次构建同一个函数（§shapeForBlock）得到的形态（主题选择单给的，缺槽位就
+ *                     落回 manifest 默认）。#1445：今天唯一的消费者是 `editor-convert.js` §pageToPuck 的 `shape0`
+ *                     兜底（归一化后的块没带 `shape` 时，共用块 / 锁住的块只读下拉显示它）。🔴 它**不是**新插块
+ *                     画布上戴的形态 —— #1443 起新块的 `_shape` 是 `THEME_DEFAULT`、画布走 §canvasShape 按当前 data 现算。
  *   · `themeShape`    #1443：主题选择单给这种块的那一格（没给 = null），**没按 data 判过**
  *   · `fallbackShape` #1443：manifest 默认（§shapeForBlock 的落点）
  */

@@ -56,7 +56,7 @@ import type { PuckItemSrc, PuckLikeData, SharedChanges } from '../../../scripts/
 import {
   UNKNOWN_TYPE, pageToPuck, puckToPage, fieldProps, dataFromProps, deepEqual, puckRootChanges,
   sharedReach, sharedRemovable, puckSharedChanges, sharedOwnAfter, applySharedChanges, aiBaselineStep,
-  THEME_DEFAULT, canvasShape,
+  THEME_DEFAULT, canvasShape, shapeOptions,
 } from '../../../scripts/lib/editor-convert.js';
 
 export interface EditorAppProps {
@@ -239,10 +239,15 @@ export function buildConfig(schema: EditorSchema, locale: string, overHero = fal
       // 构建会落回默认 —— 选项上写明，别让老板选了之后以为坏了。
       // #1443 —— 第一项 `Theme default`：跟着主题走，存盘时删掉这个块的 `shape` 键（页面 JSON 里没有这个键的块
       // 打开时显示的就是它）；新插的块也默认它。
-      options: [
-        { value: THEME_DEFAULT, label: 'Theme default' },
-        ...c.shapes.map((s) => ({ value: s.name, label: s.needs.length ? `${s.name} (needs ${s.needs.join(', ')})` : s.name })),
-      ],
+      // #1445 —— 这是**不带当前值**的那一份；钉着退役/候选形态的块在下面 `resolveFields` 里按它自己的值多一项。
+      options: shapeOptions(c, THEME_DEFAULT),
+    };
+    // #1445 —— 这一块的 `_shape` 不在清单里 ⟹ 换一份多了 `(retired)` 那一项的下拉，否则框里是空白的。
+    const fieldsFor = (shape: unknown): Fields => {
+      const options = shapeOptions(c, shape);
+      return options.length === (fields._shape as { options: unknown[] }).options.length
+        ? fields
+        : { ...fields, _shape: { ...fields._shape, options } } as Fields;
     };
     const defaultProps: Record<string, unknown> = { ...fieldProps(c, {}), _shape: THEME_DEFAULT };
     components[c.type] = {
@@ -261,9 +266,10 @@ export function buildConfig(schema: EditorSchema, locale: string, overHero = fal
       },
       resolveFields: (data: { props?: ItemProps }) => {
         const src = data.props?._src;
-        if (src?.locked) return { _locked: LOCKED_NOTE, ...fields };
-        if (src?.shared) return { _shared: sharedNoteField(src.shared), ...fields };
-        return fields;
+        const own = fieldsFor(data.props?._shape);
+        if (src?.locked) return { _locked: LOCKED_NOTE, ...own };
+        if (src?.shared) return { _shared: sharedNoteField(src.shared), ...own };
+        return own;
       },
       render: (props: ItemProps) => <CanvasBlock component={c} props={props} locale={locale} />,
     } as unknown as Config['components'][string];

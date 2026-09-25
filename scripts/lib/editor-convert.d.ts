@@ -48,6 +48,8 @@ export const UNKNOWN_TYPE: string;
 export const THEME_DEFAULT: string;
 /** #1443 —— 画布上这一块戴哪个形态（同构建 §shapeForBlock）；`data` 是这个块当前的内容 */
 export function canvasShape(component: EditorComponent, pinned: unknown, data: unknown): string | undefined;
+/** #1445 —— 这一块的形态下拉选项；`current` 不在清单里时多一项只显示它名字的 `(retired)` */
+export function shapeOptions(component: EditorComponent, current: unknown): Array<{ value: string; label: string }>;
 /** #1405 —— 外壳四样在站级文件里的现值 */
 export interface RootValues {
   layout: string;

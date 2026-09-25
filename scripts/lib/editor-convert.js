@@ -61,6 +61,26 @@ function canvasShape(component, pinned, data) {
   return name;
 }
 
+/**
+ * #1445 —— 一个块的形态下拉选项：`Theme default` + `component.shapes`（已去掉候选）。`current`（这一块的 `_shape`）
+ * 是个不在清单里的名字（老数据 / 后来退役或改成候选的形态）⟹ 再多一项只显示它的名字、标 `(retired)`。
+ * 不补这一项时，React 受控 `<select>` 的值配不上任何 `<option>` 就退到第一项 ⟹ 框里写着 `Theme default`，
+ * 而这块其实钉着别的（Chromium 实测 `selectedIndex = 0`，不是空白）；老板点 `Theme default` 也没反应（值没变，不发 change）。
+ * 🔴 这一项的值就是那个名字本身，不许做成 `THEME_DEFAULT`：不碰它直接存 ⟹ `shape` 原样（§entryOf 按当前值写）。
+ *    Puck 的选项没有 disabled；「不可再选」靠的是它只跟着当前值出现 —— 选了别的，它就不在选项里了。
+ */
+function shapeOptions(component, current) {
+  const shapes = component.shapes || [];
+  const options = [
+    { value: THEME_DEFAULT, label: 'Theme default' },
+    ...shapes.map((s) => ({ value: s.name, label: s.needs && s.needs.length ? `${s.name} (needs ${s.needs.join(', ')})` : s.name })),
+  ];
+  if (typeof current === 'string' && current !== THEME_DEFAULT && !shapes.some((s) => s.name === current)) {
+    options.push({ value: current, label: `${current} (retired)` });
+  }
+  return options;
+}
+
 function isPlainObject(v) {
   return v !== null && typeof v === 'object' && !Array.isArray(v);
 }
@@ -717,5 +737,5 @@ function aiBaselineStep({ current, histories, next, hash, nextHash }) {
 module.exports = {
   UNKNOWN_TYPE, pageToPuck, puckToPage, fieldProps, dataFromProps, assignWeights, deepEqual, ITEM_ORIG, rootToPuck, puckRootChanges,
   sharedReach, sharedRemovable, puckSharedChanges, sharedOwnAfter, applySharedChanges,
-  aiBaselineStep, THEME_DEFAULT, canvasShape,
+  aiBaselineStep, THEME_DEFAULT, canvasShape, shapeOptions,
 };

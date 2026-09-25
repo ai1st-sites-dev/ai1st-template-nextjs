@@ -484,6 +484,63 @@ console.log('⑦c 恢复主题默认');
   check(schema.components.every((c) => c.themeShape === null), '没给 rootDir 的 schema：themeShape 全是 null（不猜主题）');
 }
 
+// ══ ⑦d 钉着候选 / 退役形态的块（#1445）：下拉不空白、显示那个名字；不碰就存 → shape 原样 ══════════════
+console.log('⑦d 钉着退役形态');
+{
+  // 真候选对（不是编的名字）：区块库里 `candidate: true` 的每一对，逐个钉到夹具页那一块上
+  const cands = catalog.pairs.filter((p) => p.candidate === true && compOf(p.block));
+  if (cands.length === 0) die('区块库里没有一对候选形态（落在非外壳块上）—— 这一节量不到东西');
+  // 下拉框显示的是哪一项：值配上的那一项；配不上时 React 受控 <select> 退到第一项（`Theme default`）——
+  // Chromium 里 origin/main 实测 selectedIndex = 0，不是 -1。所以判据是「显示的那一项文字含形态名」，
+  // 光看 selectedIndex ≠ -1 在改之前也成立。
+  const selectedIndex = (options, value) => options.findIndex((o) => o.value === value);
+  const shownLabel = (options, value) => { const at = selectedIndex(options, value); return options[at === -1 ? 0 : at].label; };
+  let blank = 0; let lossy = 0; let unlabeled = 0;
+  for (const p of cands) {
+    const raw = fixturePage(false);
+    raw.blocks.find((b) => b.type === p.block).shape = p.shape;
+    const { data } = openPage(raw);
+    const it = data.content.find((c) => c.type === p.block);
+    const options = convert.shapeOptions(compOf(p.block), it.props._shape);
+    const shown = shownLabel(options, it.props._shape);
+    if (it.props._shape !== p.shape || selectedIndex(options, it.props._shape) === -1 || !shown.includes(p.shape)) blank += 1;
+    else if (!/retired/.test(shown)) unlabeled += 1;
+    if (firstDiff(raw, roundTrip(raw)) !== null) lossy += 1;
+  }
+  check(blank === 0, `AC1：${cands.length} 对候选逐个钉上 → 下拉配得上一项（selectedIndex ≠ -1），显示的文字含形态名`, `${blank} 对显示错`);
+  check(unlabeled === 0, 'AC1：那一项的文字含形态名、标着 retired', `${unlabeled} 对没标`);
+  check(lossy === 0, `AC2：${cands.length} 对都不碰直接存 → 整页逐字节无损（shape 原样）`, `${lossy} 对有损`);
+
+  // 那一项只跟着当前值出现：清单里的形态 / Theme default 不多出任何一项；选了别的，它就不在了（不可再选）
+  const p0 = cands[0];
+  const c0 = compOf(p0.block);
+  const base = convert.shapeOptions(c0, convert.THEME_DEFAULT);
+  check(base.length === c0.shapes.length + 1 && base[0].value === convert.THEME_DEFAULT, 'Theme default → 选项 = Theme default + 清单，不多一项');
+  check(convert.shapeOptions(c0, c0.shapes[0].name).length === base.length, '钉着清单里的形态 → 不多一项');
+  const raw = fixturePage(false);
+  raw.blocks.find((b) => b.type === p0.block).shape = p0.shape;
+  const { initial, data } = openPage(raw);
+  const it = data.content.find((c) => c.type === p0.block);
+  it.props._shape = c0.shapes[0].name;
+  check(!convert.shapeOptions(c0, it.props._shape).some((o) => o.value === p0.shape), `选了别的（${c0.shapes[0].name}）→ ${p0.shape} 不再是选项`);
+  const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
+  check(out.blocks.find((b) => b.type === p0.block).shape === c0.shapes[0].name, '选了别的存盘 → 覆盖成新形态');
+
+  // 反向 ①：下拉不补那一项（#1443 原样）→ AC1 那一格红
+  const noRetired = mutantConverter("    options.push({ value: current, label: `${current} (retired)` });", '');
+  const { data: dn } = openPage(raw, {}, noRetired);
+  const itn = dn.content.find((c) => c.type === p0.block);
+  const nOpts = noRetired.shapeOptions(c0, itn.props._shape);
+  check(selectedIndex(nOpts, itn.props._shape) === -1 && shownLabel(nOpts, itn.props._shape) === 'Theme default',
+    '反向：不补那一项 → 配不上，框里退成 Theme default（形态名看不见）', shownLabel(nOpts, itn.props._shape));
+  // 反向 ②：把它做成可选中的 Theme default（打开时退役的值换成 THEME_DEFAULT）→ 存盘丢掉 shape，AC2 那一格红
+  const toDefault = mutantConverter(
+    "const pinned = entry && typeof entry.shape === 'string' && entry.shape ? entry.shape : THEME_DEFAULT;",
+    "const pinned = entry && typeof entry.shape === 'string' && entry.shape && (component.shapes || []).some((s) => s.name === entry.shape) ? entry.shape : THEME_DEFAULT;",
+  );
+  check(firstDiff(raw, roundTrip(raw, {}, toDefault)) !== null, '反向：退役形态显示成 Theme default → 不碰就存也丢了 shape（往返有损）');
+}
+
 // ══ ⑧ 排序 / 增删 / 复制 ══════════════════════════════════════════════════════════════════════
 console.log('⑧ 排序 / 增删 / 复制');
 function orderAfterRebuild(page, siteBlocks = {}) {
