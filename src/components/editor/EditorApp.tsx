@@ -557,7 +557,28 @@ function EditorWithChat({ children }: { children: ReactNode }) {
   );
 }
 
-const EDITOR_OVERRIDES = { headerActions: EditorHeaderActions, puck: EditorWithChat };
+/**
+ * #1447 —— 画布里的链接一律不导航，只选中。画布是 Puck 的内层 iframe，但组件树（含块里的 `next/link`）挂在编辑器页上
+ * ⟹ 不拦的话，点顶栏的 Services 会把编辑器页自己导航走，编辑器整个没了。外链也拦（要看就发布后看）。
+ * 挂在 Puck 的 `iframe` override 上：它拿到的就是画布那份 document，而且要等 iframe 就绪才渲染、`<Puck key>` 重挂时
+ * 拿到新的那份 ⟹ 不用在 mount 时去 querySelector、也不用重试。
+ * 🔴 只 `preventDefault()`，不许 `stopPropagation`：next/link 在自己的 onClick 里看 `defaultPrevented` 就收手
+ *    （`next/dist/client/app-dir/link.js` §linkClicked 之前那一行），而 Puck 的选中还要收到这次点击。
+ */
+function CanvasLinkGuard({ children, document: doc }: { children: ReactNode; document?: Document }) {
+  useEffect(() => {
+    if (!doc) return;
+    const onClick = (e: Event) => {
+      const t = e.target as Element | null;
+      if (t && typeof t.closest === 'function' && t.closest('a[href]')) e.preventDefault();
+    };
+    doc.addEventListener('click', onClick, true);
+    return () => doc.removeEventListener('click', onClick, true);
+  }, [doc]);
+  return <>{children}</>;
+}
+
+const EDITOR_OVERRIDES = { headerActions: EditorHeaderActions, puck: EditorWithChat, iframe: CanvasLinkGuard };
 
 /**
  * #1410 做什么 4 末尾 —— AI 在改这一页的时候画布只读：从点发送（含「先存再发」那一笔）到 AI 结束、它那份底稿已经换进来
