@@ -1943,6 +1943,7 @@ console.log('\n⑰ 读完之后别处改过（#1420）：拒 → 重读 → 写�
   else bad(`🔴 ⑰ 上限+重读后写成：老板存的那一笔被回滚退掉了 —— hero.headline 现在是 "${heroOf(mHome).data.headline}"`);
   if (!/Nothing on your site was changed/.test(mMsg) && /en\/pages\/home\.json/.test(mMsg) && /includes the AI's change/.test(mMsg)) ok('⑰ 上限+重读后写成：报文改口、点名首页');
   else bad(`🔴 ⑰ 上限+重读后写成：报文不对 —— 「${mMsg.slice(0, 300)}」`);
+}
 
 // ══ ⑱ 模型说的话逐段发出来：`text` 事件（#1410）══════════════════════════════════════════════════
 //

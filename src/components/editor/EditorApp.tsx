@@ -437,7 +437,7 @@ type GetPuck = () => {
  * `aiStep` 是最近那次 AI 记下的那一步：它同时改了共用块、而老板把它撤销了（当前位置在它之前）⟹ 多说一句
  * 「共用块的改动请用聊天里的回退」（做什么 7 的 📌）—— 撤销 + Save 退不掉那一半。
  */
-function DirtyNote({ dirtyOf, aiStep }: { dirtyOf: (d: Data) => boolean; aiStep: { id: string; mixed: boolean } | null }) {
+function DirtyNote({ dirtyOf, aiStep, locked }: { dirtyOf: (d: Data) => boolean; aiStep: { id: string; mixed: boolean } | null; locked: boolean }) {
   const data = usePuck((s) => s.appState.data);
   const history = usePuck((s) => s.history);
   const dirty = useMemo(() => dirtyOf(data), [data, dirtyOf]);
@@ -445,6 +445,13 @@ function DirtyNote({ dirtyOf, aiStep }: { dirtyOf: (d: Data) => boolean; aiStep:
   const sharedStays = !!aiStep?.mixed && at >= 0 && history.index < at;
   // 撤销历史的读数（当前位置 / 条数）：不显示，给验收量「AI 这一下记没记进历史」用。
   const probe = <span data-editor-history hidden data-index={history.index} data-length={history.histories.length} />;
+  // AI 在改的时候只说那一句（§useAiLockGuard）：「先存再发」那一笔还在路上时这里会短暂算出「有未保存的改动」，那不是老板能处理的事。
+  if (locked) return (
+    <span data-editor-ai-lock style={{ fontSize: 13, color: '#475467' }}>
+      {probe}
+      The AI is editing this page — you can keep editing when it&apos;s done.
+    </span>
+  );
   if (!dirty && !sharedStays) return probe;
   return (
     <span data-editor-dirty style={{ fontSize: 13, color: '#b54708' }}>
@@ -465,6 +472,8 @@ function DirtyNote({ dirtyOf, aiStep }: { dirtyOf: (d: Data) => boolean; aiStep:
  * 所以两个 override 是模块级组件，要用的东西从 `EditorUiContext` 读（context 变了只让它们重渲染，不换类型）。
  */
 type EditorUi = {
+  /** AI 在改这一页（§useAiLockGuard）：画布只读、撤销 / 前进 / Save 不可用。 */
+  locked: boolean;
   dispatchRef: { current: PuckDispatch | null };
   getPuckRef: { current: GetPuck | null };
   dirtyOf: (d: Data) => boolean;
@@ -491,13 +500,13 @@ function EditorHeaderActions() {
   return (
     <>
       <DispatchHandle handle={ui.dispatchRef} getter={ui.getPuckRef} />
-      <DirtyNote dirtyOf={ui.dirtyOf} aiStep={ui.aiStep} />
+      <DirtyNote dirtyOf={ui.dirtyOf} aiStep={ui.aiStep} locked={ui.locked} />
       {!ui.chatOpen && (
         <button type="button" data-editor-chat-open onClick={ui.openChat} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #d0d5dd', background: '#fff', fontSize: 14, cursor: 'pointer' }}>
           AI chat
         </button>
       )}
-      <SaveButton onSave={ui.save} status={ui.status} />
+      <SaveButton onSave={ui.save} status={ui.status} locked={ui.locked} />
     </>
   );
 }
@@ -529,7 +538,63 @@ function EditorWithChat({ children }: { children: ReactNode }) {
 
 const EDITOR_OVERRIDES = { headerActions: EditorHeaderActions, puck: EditorWithChat };
 
-function SaveButton({ onSave, status }: { onSave: (d: Data) => void; status: Status }) {
+/**
+ * #1410 做什么 4 末尾 —— AI 在改这一页的时候画布只读：从点发送（含「先存再发」那一笔）到 AI 结束、它那份底稿已经换进来
+ * （dashboard 的 `busy`，见 useEditorChat.ts §EditorChatState.busy）。锁住是让「AI 改磁盘时磁盘上就是老板看到的那份」
+ * 在整个 AI 窗口里都成立、又不用合并两边页面 JSON 的唯一做法；不锁的话，这期间的手改会被 AI 那份底稿整份换掉
+ * （QA2 r2 ⑥ 真机量到：画布上、磁盘上都没有，提示也没了）。
+ *
+ * 三段，判据各不同（PM r2 三审 §二 量过）：
+ *   改字段 / 拖 / 增删块 / 复制 ⟹ Puck 的 `permissions`（全局那一份；它会在 prop 换了时重算，不用重挂 Puck）。
+ *   Save ⟹ 我们自己的按钮，自己灰掉（§SaveButton）。
+ *   撤销 / 前进 ⟹ 不在 `permissions` 里。按钮是 Puck 顶栏自己画的（`title="undo"` / `"redo"`），快捷键是 Puck 在编辑器
+ *     页和画布 iframe 两个 document 上**冒泡阶段**收的 keydown（`monitorHotkeys(document)` / `monitorHotkeys(frameDoc)`）
+ *     ⟹ 在两个 window 上挂**捕获阶段**的监听，锁着时把这两样拦下（§useAiLockGuard）。
+ * 📌 两个 permissions 对象是模块级常量：Puck 按对象身份判「换了没有」（`useRegisterPermissionsSlice` 的 deps）。
+ */
+const OPEN_PERMISSIONS = { drag: true, duplicate: true, delete: true, edit: true, insert: true };
+const LOCKED_PERMISSIONS = { drag: false, duplicate: false, delete: false, edit: false, insert: false };
+const HISTORY_BUTTONS = 'button[title="undo"], button[title="redo"]';
+
+function isHistoryKey(e: KeyboardEvent): boolean {
+  if (!(e.ctrlKey || e.metaKey)) return false;
+  return e.code === 'KeyZ' || e.code === 'KeyY';
+}
+
+function useAiLockGuard(locked: boolean) {
+  useEffect(() => {
+    if (!locked) return;
+    const stop = (e: Event) => { e.preventDefault(); e.stopImmediatePropagation(); };
+    const onKey = (e: KeyboardEvent) => { if (isHistoryKey(e)) stop(e); };
+    const onPointer = (e: Event) => {
+      const t = e.target as Element | null;
+      if (t && typeof t.closest === 'function' && t.closest(HISTORY_BUTTONS)) stop(e);
+    };
+    const wins: Window[] = [window];
+    const frame = document.querySelector('iframe#preview-frame') as HTMLIFrameElement | null;
+    if (frame?.contentWindow && frame.contentWindow !== window) wins.push(frame.contentWindow);
+    for (const w of wins) {
+      w.addEventListener('keydown', onKey, true);
+      w.addEventListener('click', onPointer, true);
+      w.addEventListener('pointerdown', onPointer, true);
+    }
+    // 按钮看得出是灰的（`disabled` 属性归 Puck 管，React 重渲染时会写回去，所以这里只改样子）。
+    const style = document.createElement('style');
+    style.setAttribute('data-editor-ai-lock-style', '');
+    style.textContent = `${HISTORY_BUTTONS} { opacity: 0.4; cursor: not-allowed; }`;
+    document.head.appendChild(style);
+    return () => {
+      for (const w of wins) {
+        w.removeEventListener('keydown', onKey, true);
+        w.removeEventListener('click', onPointer, true);
+        w.removeEventListener('pointerdown', onPointer, true);
+      }
+      style.remove();
+    };
+  }, [locked]);
+}
+
+function SaveButton({ onSave, status, locked }: { onSave: (d: Data) => void; status: Status; locked: boolean }) {
   const data = usePuck((s) => s.appState.data);
   // 🔴 按钮上写的是 Save，因为它做的就是保存（#1409 票正文 §做什么 9 三选一的「等于保存」）。
   //    发布到正式域名是 dashboard 上另一个动作（Publish），两件事不许共用一个字。
@@ -543,9 +608,9 @@ function SaveButton({ onSave, status }: { onSave: (d: Data) => void; status: Sta
       <button
         type="button"
         data-editor-save
-        disabled={status.kind === 'saving'}
-        onClick={() => onSave(data)}
-        style={{ padding: '6px 14px', borderRadius: 6, border: 0, background: '#1d4ed8', color: '#fff', fontSize: 14, cursor: 'pointer' }}
+        disabled={status.kind === 'saving' || locked}
+        onClick={() => { if (!locked) onSave(data); }}
+        style={{ padding: '6px 14px', borderRadius: 6, border: 0, background: '#1d4ed8', color: '#fff', fontSize: 14, cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.5 : 1 }}
       >
         Save
       </button>
@@ -585,6 +650,9 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
   const [chatPending, setChatPending] = useState(false);
   // 最近那次 AI 记下的那一步（Puck 历史条目的 id）+ 它有没有同时改共用块（状态栏那一句，见 §DirtyNote）。
   const [aiStep, setAiStep] = useState<{ id: string; mixed: boolean } | null>(null);
+  // §useAiLockGuard：点了发送、还没交给 dashboard（先存那一笔在路上）也算 —— 那一笔存的是点下去那一刻的画布。
+  const locked = chatPending || !!chat?.busy;
+  useAiLockGuard(locked);
 
   // 告诉 dashboard「编辑器起来了、我编辑的是哪一页」。它拿这条确认 iframe 里真的是编辑器。
   // `baseline: 1` 说「我认 ai1st:editor-baseline」—— dashboard 据此决定走新路（不重载 iframe）还是老路
@@ -851,6 +919,7 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
   if (empty) return empty;
 
   const ui: EditorUi = {
+    locked,
     dispatchRef, getPuckRef, dirtyOf, aiStep, save, status,
     chatOpen, openChat: () => setChatOpen(true), closeChat: () => setChatOpen(false),
     chat, chatNotice, chatPending, page, locale,
@@ -869,7 +938,8 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
         iframe={{ enabled: true, syncHostStyles: true, waitForStyles: true }}
         onAction={onAction as never}
         overrides={EDITOR_OVERRIDES}
-        onPublish={save}
+        permissions={locked ? LOCKED_PERMISSIONS : OPEN_PERMISSIONS}
+        onPublish={(d: Data) => { if (!locked) save(d); }}
       />
     </div>
     </EditorUiContext.Provider>
