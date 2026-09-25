@@ -1945,16 +1945,16 @@ console.log('\n⑰ 读完之后别处改过（#1420）：拒 → 重读 → 写�
   else bad(`🔴 ⑰ 上限+重读后写成：报文不对 —— 「${mMsg.slice(0, 300)}」`);
 }
 
-// ══ ⑱ 模型说的话逐段发出来：`text` 事件（#1410）══════════════════════════════════════════════════
+// ══ ⑲ 模型说的话逐段发出来：`text` 事件（#1410）══════════════════════════════════════════════════
 //
 // 编辑器里的聊天要「逐字」显示，靠的就是这一种事件。判据是真 edit-site.js 进程的 stdout：每一轮模型说的
 // 那句话都以 `text` 出现、带着它是第几轮，而且都在 `edit-complete` 之前 —— 在它之后才到的字对「看着它在写」
 // 没有用。落进聊天记录的仍然是 edit-complete 的 message（这一格也量它没被这条新事件改掉）。
-console.log('\n⑱ 逐字：每一轮模型说的话都作为 text 事件发出，且在 edit-complete 之前（#1410）');
+console.log('\n⑲ 逐字：每一轮模型说的话都作为 text 事件发出，且在 edit-complete 之前（#1410）');
 {
   const ctx = makeRoot('textstream');
   writeSite(ctx.work);
-  assertSyncsClean(ctx.work, '⑱');
+  assertSyncsClean(ctx.work, '⑲');
   ctx.git('git add -A && git commit -q -m base && git push -q origin main');
   const good = [{ id: 's1', name: 'Renamed', shortDescription: 'a', fullDescription: 'b', icon: 'leaf', features: [], products: [] }];
   const res = runEdit(ctx, [
@@ -1965,17 +1965,17 @@ console.log('\n⑱ 逐字：每一轮模型说的话都作为 text 事件发出�
   const byTurn = {};
   for (const t of texts) byTurn[t.turn] = (byTurn[t.turn] || '') + t.delta;
   if (byTurn[0] === 'Renaming the service.' && byTurn[1] === 'All done, the service has a new name.') {
-    ok(`⑱ 两轮各自的字都发出来了、轮次对得上：${JSON.stringify(byTurn)}`);
+    ok(`⑲ 两轮各自的字都发出来了、轮次对得上：${JSON.stringify(byTurn)}`);
   } else {
-    bad(`🔴 ⑱ text 事件不对：${JSON.stringify(texts)}（全部事件：${res.events.map((e) => e.event).join(' ')}）`);
+    bad(`🔴 ⑲ text 事件不对：${JSON.stringify(texts)}（全部事件：${res.events.map((e) => e.event).join(' ')}）`);
   }
   const at = (name) => res.events.findIndex((e) => e.event === name);
   const lastText = res.events.map((e) => e.event).lastIndexOf('text');
-  if (texts.length && at('edit-complete') > lastText) ok('⑱ 所有 text 都在 edit-complete 之前');
-  else bad(`🔴 ⑱ 顺序不对：最后一条 text 在 ${lastText}，edit-complete 在 ${at('edit-complete')}`);
+  if (texts.length && at('edit-complete') > lastText) ok('⑲ 所有 text 都在 edit-complete 之前');
+  else bad(`🔴 ⑲ 顺序不对：最后一条 text 在 ${lastText}，edit-complete 在 ${at('edit-complete')}`);
   const complete = ev(res, 'edit-complete');
-  if (complete.length === 1 && /All done/.test(String(complete[0].message))) ok('⑱ edit-complete 的 message 照旧（聊天记录落的还是它）');
-  else bad(`🔴 ⑱ edit-complete 变了：${JSON.stringify(complete)}`);
+  if (complete.length === 1 && /All done/.test(String(complete[0].message))) ok('⑲ edit-complete 的 message 照旧（聊天记录落的还是它）');
+  else bad(`🔴 ⑲ edit-complete 变了：${JSON.stringify(complete)}`);
 }
 
 // ══ ⑱ 另三条回滚路也不退老板存在 AI 那份上的改动，而且不说「什么都没改」（#1441）══════════════════

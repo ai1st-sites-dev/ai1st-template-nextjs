@@ -646,7 +646,11 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
   const [chatOpen, setChatOpen] = useState(true);
   const [chatNotice, setChatNotice] = useState<{ kind: 'info' | 'error'; text: string } | null>(null);
   // 先存再发：等存盘结果的那条消息。存成功才交给 dashboard；被拒就不发（做什么 4）。
-  const pendingChatRef = useRef<{ text: string; scope: ChatScope | null } | null>(null);
+  // `sending` = 它在等的那一笔（`sendingRef` 的那个对象）。🔴 放行只认**那一笔自己的** `saved` 底稿，不认
+  // `editor-save-result {ok}`：dashboard 一笔存盘会回不止一次 ok（落盘一次、重建收尾又一次 —— §settleSaved），
+  // 上一笔迟到的 ok 会把这一笔还没落盘的消息放出去（#1410 QA3 r3）。
+  // `resave: true` = 点发送时上一笔还在路上：等它落定，再对着新的底重新判一次要不要存（§releaseChat）。
+  const pendingChatRef = useRef<{ text: string; scope: ChatScope | null; sending: object; resave: boolean } | null>(null);
   const [chatPending, setChatPending] = useState(false);
   // 最近那次 AI 记下的那一步（Puck 历史条目的 id）+ 它有没有同时改共用块（状态栏那一句，见 §DirtyNote）。
   const [aiStep, setAiStep] = useState<{ id: string; mixed: boolean } | null>(null);
@@ -674,20 +678,21 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
       if (!d || typeof d !== 'object') return;
       if (d.type === 'ai1st:editor-save-result') {
         const text = typeof d.message === 'string' ? d.message : '';
+        // #1410 —— 手上这一笔的 ok 总在它自己的 `saved` 底稿之后到（VisualEditorPanel §landed 先 sendBaseline 再 tell），
+        // 那时 `sendingRef` 已经清掉。还没清就到的 ok 是上一笔迟到的那一次（重建收尾）：不许把状态栏说成「已存」、
+        // 也不许让 Save 按钮在这一笔还在路上时亮起来。
+        if (d.ok === true && sendingRef.current) return;
         setStatus(d.ok === true ? { kind: 'saved', text: text || 'Saved.' } : { kind: 'error', text: text || 'Could not save.' });
-        if (d.ok !== true) sendingRef.current = null;
-        // #1410 —— 先存再发：这一次存盘是为那条聊天消息做的。存上了才发；没存上就不发，把原因说出来
-        // （exit 10 那句「这一页在别处改过了，关掉编辑器重新打开」由 worker 写好，原样用）。
+        // #1410 —— 先存再发：它等的那一笔没存上 ⟹ 不发，把原因说出来（exit 10 那句「这一页在别处改过了，
+        // 关掉编辑器重新打开」由 worker 写好，原样用）。存上了在 `saved` 底稿那一支放行（见 pendingChatRef）。
+        // 🔴 只认它等的那一笔：失败只会来自 dashboard 手上在途的那一笔，而编辑器同一时刻只交出去一笔（§save）。
         const pc = pendingChatRef.current;
-        if (pc) {
+        if (d.ok !== true && pc && pc.sending === sendingRef.current) {
           pendingChatRef.current = null;
-          if (d.ok === true) {
-            postChat({ type: 'ai1st:chat-send', text: pc.text, ...(pc.scope ? { scope: pc.scope } : {}) });
-          } else {
-            setChatPending(false);
-            setChatNotice({ kind: 'error', text: `Your message was not sent. ${text || 'Your changes could not be saved first.'}` });
-          }
+          setChatPending(false);
+          setChatNotice({ kind: 'error', text: `Your message was not sent. ${text || 'Your changes could not be saved first.'}` });
         }
+        if (d.ok !== true) sendingRef.current = null;
         return;
       }
       if (d.type === 'ai1st:chat-state') {
@@ -728,6 +733,9 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
         baseRef.current = { ...b, initial, hash: hashOk ? (d.hash as string) : b.hash, saved: sent?.json || b.saved, siteBlocks: lib, sharedOwn };
         if (sent?.shared) setSharedInfo((x) => ({ ...x, siteBlocks: lib }));
         sendingRef.current = null;
+        // #1410 —— 聊天在等的就是这一笔：它进了文件。直接发，或（点发送时它已在路上）对着新的底重新判一次。
+        const pc = pendingChatRef.current;
+        if (pc && sent && pc.sending === sent) releaseChat(pc.text, pc.scope, pc.resave);
         return;
       }
       if (!hashOk) return;
@@ -839,12 +847,19 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [schema, page, status]);
 
-  /** 'sent' = 交给 dashboard 了（结果回 `ai1st:editor-save-result`）· 'nothing' = 没有要存的 · 'error' = 没交出去。 */
-  function save(data: Data): 'sent' | 'nothing' | 'error' {
+  /**
+   * 'sent' = 交给 dashboard 了（结果回 `ai1st:editor-save-result`）· 'nothing' = 没有要存的 · 'error' = 没交出去 ·
+   * 'busy' = 上一笔还在路上，这一笔没交（`sendingRef` 仍是上一笔的）。
+   */
+  function save(data: Data): 'sent' | 'nothing' | 'error' | 'busy' {
     if (!trustedOrigin || window.parent === window) {
       setStatus({ kind: 'error', text: 'Open this editor from your dashboard to save.' });
       return 'error';
     }
+    // #1410 —— 同一时刻只交出去一笔：dashboard 手上有一笔在途时会把新来的静默丢掉（VisualEditorPanel §editor-save），
+    // 而 `sendingRef` 一被覆盖，上一笔的 `saved` 底稿就会把这一笔没落盘的 JSON 记成「已存」（QA3 r3）。
+    // Save 按钮在 Saving 时是灰的；这一句挡的是别的调用方（先存再发、Puck 的 onPublish）。
+    if (sendingRef.current) return 'busy';
     let plan: ReturnType<typeof planSave>;
     try {
       plan = planSave(data);
@@ -886,18 +901,32 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
     if (!g) return;
     setChatNotice(null);
     setChatPending(true);
-    // 做什么 4：画布上有没存的改动 ⟹ 先存。AI 改的是磁盘，它看不见这里没存的那份。
-    const r = save(g.appState.data);
+    // 上一笔存盘还在路上（按了 Save 马上发）：先等它落定。这期间画布锁着（chatPending），等到的时候画布
+    // 就是点发送那一刻的样子。
+    if (sendingRef.current) {
+      pendingChatRef.current = { text, scope, sending: sendingRef.current, resave: true };
+      setChatNotice({ kind: 'info', text: 'Saving your changes first, then sending…' });
+      return;
+    }
+    releaseChat(text, scope, true);
+  }
+
+  /** 做什么 4：画布上有没存的改动 ⟹ 先存再发（AI 改的是磁盘，它看不见这里没存的那份）；`resave: false` = 已经存过，直接发。 */
+  function releaseChat(text: string, scope: ChatScope | null, resave: boolean) {
+    const g = getPuckRef.current ? getPuckRef.current() : null;
+    const r = resave && g ? save(g.appState.data) : 'nothing';
     if (r === 'nothing') {
+      pendingChatRef.current = null;
       postChat({ type: 'ai1st:chat-send', text, ...(scope ? { scope } : {}) });
       return;
     }
-    if (r === 'error') {
+    if (r === 'error' || r === 'busy' || !sendingRef.current) {
+      pendingChatRef.current = null;
       setChatPending(false);
       setChatNotice({ kind: 'error', text: 'Your message was not sent, because your changes could not be saved first. See the message next to Save.' });
       return;
     }
-    pendingChatRef.current = { text, scope };
+    pendingChatRef.current = { text, scope, sending: sendingRef.current, resave: false };
     setChatNotice({ kind: 'info', text: 'Saving your changes first, then sending…' });
   }
 
