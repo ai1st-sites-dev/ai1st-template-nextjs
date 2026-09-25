@@ -28,6 +28,7 @@
 //            saved     刚存下去的那一次成功了（在重建之前就到）：只换 baseHash，画布不动 —— 于是不刷新、
 //                      不等重建也能接着存
 //            external  别处改过这一页：把数据换上、换 baseHash；**不进撤销历史**（怎么进归 #1410）
+//                      #1442 —— 画布上有没存的改动时不换（`ai` 同），只换 baseHash，画布底部说一句（§Kept）
 // 转换只做 `editor-convert.js` §pageToPuck（纯函数）；归一化 / 定位 / 补字段都在容器里算好了，客户端
 // 不 import 任何读磁盘的库（那样构建会红在 `Can't resolve 'fs'`，而且归一化就有了两份实现）。
 //
@@ -406,6 +407,18 @@ type Base = { raw: Record<string, unknown>; initial: PuckLikeData; hash: string;
 
 type PuckDispatch = (action: { type: 'setData'; data: Data; recordHistory?: boolean }) => void;
 
+/**
+ * #1442 —— 新底稿到了、而画布上有没存的改动 ⟹ 画布不换，留住老板的字，画布底部浮一条说明（§EditorWithChat；`external` = 别处存过这一页，
+ * `ai` = AI 的改动迟到了：画布 20 秒兜底解锁之后才到，见 useEditorChat §APPLY_SAFETY_MS）。存成功 / 画布换成新的一份时清掉。
+ * 🔴 hash 换成新的（按 Save 覆盖那一笔），不留旧的：留旧的 Save 会撞 write-page exit 10，界面让他关掉重开 ——
+ *    打的字照样没了（PM 二审技术须知）。
+ */
+type Kept = 'external' | 'ai' | null;
+const KEPT_TEXT: Record<'external' | 'ai', string> = {
+  external: 'This page was changed after you opened it (in another tab, or by undoing an AI change), and that change was not put on the page because you had unsaved changes. Your changes are still here: Save keeps this version and replaces that change. To see that change instead, close the editor and open it again — your unsaved changes will be lost.',
+  ai: "The AI's change was not put on the page, because you had unsaved changes. Your changes are still here: Save keeps this version and replaces the AI's change to this page. To see the AI's change instead, close the editor and open it again — your unsaved changes will be lost.",
+};
+
 /** 拿到 Puck 自己的 dispatch（`external` 换数据用）。放在 headerActions 里，它才在 Puck 的 store 之下。 */
 function DispatchHandle({ handle, getter }: { handle: { current: PuckDispatch | null }; getter: { current: GetPuck | null } }) {
   handle.current = usePuck((s) => s.dispatch) as unknown as PuckDispatch;
@@ -478,6 +491,7 @@ type EditorUi = {
   getPuckRef: { current: GetPuck | null };
   dirtyOf: (d: Data) => boolean;
   aiStep: { id: string; mixed: boolean } | null;
+  kept: Kept;
   save: (d: Data) => unknown;
   status: Status;
   chatOpen: boolean;
@@ -518,7 +532,15 @@ function EditorWithChat({ children }: { children: ReactNode }) {
   const ui = useContext(EditorUiContext);
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-      <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>{children}</div>
+      <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
+        {children}
+        {/* #1442 —— 浮在画布底部，不进顶栏：这几句放进顶栏会把它撑成一长条竖排、画布被挤没（真机量到过）。 */}
+        {ui && ui.kept && (
+          <div data-editor-kept={ui.kept} role="status" style={{ position: 'absolute', left: '50%', bottom: 16, transform: 'translateX(-50%)', width: 'min(560px, calc(100% - 32px))', boxSizing: 'border-box', zIndex: 10, padding: '10px 14px', borderRadius: 8, background: '#fffaeb', border: '1px solid #fedf89', color: '#93370d', fontSize: 13, lineHeight: 1.5, boxShadow: '0 4px 12px rgba(16, 24, 40, 0.12)' }}>
+            {KEPT_TEXT[ui.kept]}
+          </div>
+        )}
+      </div>
       {ui && ui.chatOpen && (
         <EditorChat
           chat={ui.chat}
@@ -654,6 +676,8 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
   const [chatPending, setChatPending] = useState(false);
   // 最近那次 AI 记下的那一步（Puck 历史条目的 id）+ 它有没有同时改共用块（状态栏那一句，见 §DirtyNote）。
   const [aiStep, setAiStep] = useState<{ id: string; mixed: boolean } | null>(null);
+  // #1442 —— 新底稿因为画布上有没存的改动而没换进来（§Kept）。
+  const [kept, setKept] = useState<Kept>(null);
   // §useAiLockGuard：点了发送、还没交给 dashboard（先存那一笔在路上）也算 —— 那一笔存的是点下去那一刻的画布。
   const locked = chatPending || !!chat?.busy;
   useAiLockGuard(locked);
@@ -733,6 +757,8 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
         baseRef.current = { ...b, initial, hash: hashOk ? (d.hash as string) : b.hash, saved: sent?.json || b.saved, siteBlocks: lib, sharedOwn };
         if (sent?.shared) setSharedInfo((x) => ({ ...x, siteBlocks: lib }));
         sendingRef.current = null;
+        // #1442 —— 画布上那份进了文件（没交页面 = 页面本来就跟文件一样），画布跟文件又是一份了。
+        if (sent) setKept(null);
         // #1410 —— 聊天在等的就是这一笔：它进了文件。直接发，或（点发送时它已在路上）对着新的底重新判一次。
         const pc = pendingChatRef.current;
         if (pc && sent && pc.sending === sent) releaseChat(pc.text, pc.scope, pc.resave);
@@ -769,6 +795,17 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
         g.history.setHistories(hs.map(noIndexes));
         g.history.setHistoryIndex(Math.min(at, hs.length - 1));
       };
+      // #1442 —— 画布上有没存的改动时，新底稿不许把它整份换掉（§Kept）。判据就是状态栏那一个（§planSave），
+      // 🔴 要在改写 `baseRef` 之前问：改写之后问的是「画布跟新底稿一不一样」，答案恒为「不一样」。
+      // 留下画布 ⟹ 底里跟画布配套的那几样（raw / initial / sharedOwn，puckToPage 靠 `_src.at` 对回 raw 的下标）一样不动；
+      // 换的只有 hash 和 `saved`（文件里现在是哪一份 —— 于是按 Save 会把这一版整页交出去，状态栏也一直说「有未保存的改动」）
+      // 和块库的底（同 `shared` 那一支）。
+      const unsaved = (data: Data) => { try { return planSave(data) !== null; } catch { return true; } };
+      const keep = (why: 'external' | 'ai') => {
+        baseRef.current = { ...baseRef.current, hash: d.hash as string, saved: nextRaw, siteBlocks: nextLib };
+        setSharedInfo({ siteBlocks: nextLib, refs: isObj(d.refs) ? (d.refs as Record<string, string[]>) : {}, slugs: Array.isArray(d.slugs) ? (d.slugs as string[]) : [] });
+        setKept(why);
+      };
       if (d.reason === 'ai' && g && dispatchRef.current) {
         // #1410 —— AI 改完。§aiBaselineStep：这一页的页面 JSON 变了（hash 不同）⟹ 记成一步；否则只换画布（共用块）。
         const step = aiBaselineStep({
@@ -776,6 +813,11 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
           histories: g.history.histories as unknown as { state: { data: PuckLikeData } }[],
           next, hash: baseRef.current.hash, nextHash: d.hash as string,
         });
+        // #1442 路 B —— 正常路径上 AI 改的时候画布锁着、发之前先存过，这里不会有没存的改动；有 ⟹ 它是 20 秒兜底解锁之后才到的。
+        // 只拦「这一页的页面 JSON 变了」（record）：只动共用块的那种（含聊天里只退了共用块的回退，VisualEditorPanel §onReverted）
+        // 本来就不整份换，只换那几块、手上的改动留着（§aiBaselineStep）。
+        if (step.record && unsaved(g.appState.data)) { keep('ai'); return; }
+        setKept(null);
         baseRef.current = { raw: nextRaw, initial: next, hash: d.hash as string, saved: nextRaw, siteBlocks: nextLib, sharedOwn: {} };
         setSharedInfo({ siteBlocks: nextLib, refs: isObj(d.refs) ? (d.refs as Record<string, string[]>) : {}, slugs: Array.isArray(d.slugs) ? (d.slugs as string[]) : [] });
         movedRef.current = new Set();
@@ -796,9 +838,12 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
         return;
       }
       const same = deepEqual(next, baseRef.current.initial);
+      // #1442 路 A —— 别处存过这一页（含聊天里的回退）。
+      if (!same && d.reason === 'external' && g && unsaved(g.appState.data)) { keep('external'); return; }
       // 画布换成新的一份时，共用块的字段就是按 nextLib 取的 ⟹ `sharedOwn` 清空；画布不动（same）就留着。
       baseRef.current = { raw: nextRaw, initial: next, hash: d.hash as string, saved: nextRaw, siteBlocks: nextLib, sharedOwn: same ? baseRef.current.sharedOwn : {} };
       setSharedInfo({ siteBlocks: nextLib, refs: isObj(d.refs) ? (d.refs as Record<string, string[]>) : {}, slugs: Array.isArray(d.slugs) ? (d.slugs as string[]) : [] });
+      setKept(null);
       if (same) return; // 跟首屏一样（构建之后没人改过）：画布不动，不打断已经开始的编辑。
       movedRef.current = new Set();
       if (d.reason === 'external' && dispatchRef.current) {
@@ -949,7 +994,7 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
 
   const ui: EditorUi = {
     locked,
-    dispatchRef, getPuckRef, dirtyOf, aiStep, save, status,
+    dispatchRef, getPuckRef, dirtyOf, aiStep, kept, save, status,
     chatOpen, openChat: () => setChatOpen(true), closeChat: () => setChatOpen(false),
     chat, chatNotice, chatPending, page, locale,
     rawKey: Array.isArray((baseRef.current.raw as { sections?: unknown }).sections) && !('blocks' in baseRef.current.raw) ? 'sections' : 'blocks',
