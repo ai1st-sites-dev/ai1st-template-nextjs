@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // #1409 —— 把编辑器存下来的**整份页面 JSON** 写回这一页的文件。
 //
-// 跟 `patch-block.js` 同一个位置、同一种调用：在**站自己的容器里**跑
+// 在**站自己的容器里**跑
 // （`docker exec -i -w /app/repo <siteId> node scripts/write-page.js '<定位>' < 页面 JSON`），由 worker
 // 调用（`worker/blocks_task.go` §processBlockPatchTask 的「整页」那一支）。只写磁盘上那一份，不 commit、
 // 不构建 —— 那两件事归 worker。
@@ -11,7 +11,7 @@
 //   页面 JSON 从 stdin 进
 //
 //   🔴 页面 JSON 走 stdin 不走 argv：一页的 JSON 可以比 Linux 单个 argv 的 128 KiB 上限还大
-//      （`manager/blocks_api.go` §maxBlockPatchBytes 为同一个上限付过账）。
+//      （检查器那条单块路当年就为同一个上限付过账，#1352；那条路 #1444 删了）。
 //
 // 成功时 stdout 打**一行** JSON：{"ok":true,"file":"site/en/pages/home.json","hash":"<写完之后文件字节的 sha256>"}（`hash` 是 #1415 加的）
 //

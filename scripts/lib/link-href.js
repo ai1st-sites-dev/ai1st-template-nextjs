@@ -35,13 +35,6 @@
 //   上同一串 href，写之前的文件里有几个就放过几个。不按块的下标比 —— 老 `sections` 页面的块没有 id，
 //   编辑器挪一下顺序就会把没碰过的链接误判成新写的。
 //
-// ── 🔴 检查器那个入口今天写不到链接，哪天可能会写到 ─────────────────────────────────────────────────
-//   `scripts/patch-block.js`（检查器那条路）收任意 JSON merge patch，路径正则连 `ctaPrimary.href` 都放得过。
-//   今天它写不到 href，只因为 link 槽位的 `editLabel` 只标了 `label`（能改哪些字由 `editLabel` 定，
-//   `lib/block-manifest.js` §editableSlotPaths）。哪天给某个 link 槽位的 `editLabel` 加上 `href`，
-//   `patch-block.js` 就成了又一个入口 —— 它自己 `writeFileSync`，不走 `lib/page-write.js` §commitWrites，
-//   源头帽盖不到它 ⟹ `link-href.test.js` 那一格当场红，点名那个槽位：到时候把它改成走 §commitWrites，再改那一格。
-//
 // 📌 不管的：目标可不可达（`check-dead-links.js`）、外链的 `rel`、图片地址（`create-site.js`
 //    §isValidImageUrl 故意放行 `data:`，那是 `<img src>`，不是链接 —— 别合并成一个函数）。
 

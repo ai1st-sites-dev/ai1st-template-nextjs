@@ -2,10 +2,10 @@
 // block-shape.js — 一个块今天戴哪个形态（`data-shape` 的三级取值），一处实现（#1318 / #1331 / #1350）
 // ══════════════════════════════════════════════════════════════════════════════════════════════════
 //
-// 🔴 **为什么从 `sync-config.js` 搬出来：这个判据现在有第二个消费者。** #1350 的检查器让老板自己挑
-//    形态，而 manager 的那个端点必须在**入队之前**回答同一个问题（这个形态这个站能不能戴），否则
-//    「校验说能戴、构建时落回另一个形态」就是这张票要治的那种不一致。判据留在一个 1400 行、
-//    从头跑到尾、没有 `module.exports` 的构建脚本里时，第二个消费者按构造只能自己再写一份。
+// 🔴 **为什么从 `sync-config.js` 搬出来：这个判据有不止一个消费者。** 当年（#1350）是检查器的单块形态
+//    端点要在入队之前回答同一个问题；那条端点 #1444 删了，今天的消费者是构建（`lib/block-decorate.js`）、
+//    编辑器的 schema（`lib/editor-schema.js`）和下面的「全部恢复」。判据留在一个
+//    1400 行、没有 `module.exports` 的构建脚本里时，别的消费者按构造只能自己再写一份。
 //
 // 📌 搬动本身**零行为改动**：函数体逐字不变，调用方 `sync-config.js` 改成 require 它。
 //
@@ -14,12 +14,6 @@
 const fs = require('fs');
 const path = require('path');
 const blockManifest = require('./block-manifest');
-// #1350 —— 「找哪一个块」调 blocks.js 那一份（#1351 建的），不在这里另写一份；理由在
-// `scripts/lib/block-shape.js` §checkShapeInSite 上面（就是本文件）。`themes` / `site-regions`
-// 只为了回带「主题选择单给这个块的形态」。
-const blocksLib = require('../blocks');
-const siteRegions = require('./site-regions');
-const themes = require('../themes');
 
 // #1318 —— `data-shape` 的取值，spec D18 的三级，**一处实现**：
 //
@@ -86,211 +80,17 @@ function shapeForBlock(block, selection, manifests, log = (line) => console.log(
   return shape;
 }
 
-// ── #1350 —— 「这个块能不能戴这个形态」：一个判据，三个消费者 ────────────────────────────────────
-//
-// 三个消费者问的是同一个问题，所以判据只能有一份：
-//
-//   ① manager 的 `PUT /api/sites/{id}/blocks/{blockId}/shape` —— 入队之前同步回答，不行就 400
-//      并**点名是哪一种**（AC5：清单里没有它 / 缺槽位，缺槽位的要说缺哪个槽）。
-//   ② 检查器面板的形态下拉 —— 缺槽位的那几个灰显、并注明缺哪个槽（AC1 / 设计文档 D11 ⑥）。
-//   ③ 构建时的 `shapeForBlock`（上面那个函数）—— 同样两种情况都落回默认。
-//
-// 🔴 它**不是** `shapeNeedsGap` 的包装糖：`shapeNeedsGap` 回的是一个数组或 `null`，而 `null`
-//    （清单里没有这个形态）和 `[]`（一个槽不缺）在 JS 里都很容易被读成「假」。上面 §shapeForBlock
-//    那三条分支就是为了把这两件事分开写的。让 ① 和 ② 各自再解一次那个三态返回值，就是
-//    「两处各判一点、其中一处把 null 当成 []」——那一格的失败方向是**放行**（校验说能戴、
-//    构建时落回另一个形态），正是 #1350 要治的那种不一致。
-//
-// 回 `{ ok: true }`，或 `{ ok: false, kind, missing, message }`：
-//   · `kind === 'candidate'` —— 形态在清单里、槽位也不缺，但它**还没签字进库**（manifest 上标着
-//     `candidate: true`，#1384）。老板按不到它（下拉里整条不出现），所以走到这里的只有直接打端点
-//     的请求 —— 而它必须被拒，理由见下面那段。
-//   · `kind === 'unknown'` —— 这个块的清单里没有这个形态（区块库里压根没有，或者后来被删了）
-//   · `kind === 'gap'`     —— 形态在清单里，但这个站的这一块缺它 `needs` 的槽位，`missing` 是槽位名
-//   · `message` 是给老板看的**一句话**，manager 原样放进 400 的 `error` 里。
-//
-// 🔴 **候选那一支必须在这里，不能只在构建那一半（#1350 r6）。** 这两半今天读的是**同一个字段**
-//    （`shapes[i].candidate`），而在 r5 之前只有构建那一半读它 ⟹ 校验回 `{ ok: true }`、manager 回
-//    202、worker 真把它写进页面 JSON、构建再静默落回主题形态。QA3 2026-09-18 把两半分别量过：
-//    `checkShapeInSite` 回 `{"ok":true,…}`，同一状态下构建打「它是候选（还没签字进库），落回默认」。
-//    那正是本票要治的「点了保存、产物里却是另一个形态」，只是这一次的触发条件是「区块库里进了一个
-//    候选形态」而不是「条目种类不对」。#1364 落地之后它不再是假设（main 上 `trusted-brands` 的
-//    `heading-side` / `two-row` 就是候选）。
-// 🔴 **判据是 manifest 那个字段，不是一份形态名单。** 名单的失败方向是静默的：区块库明天添一个候选
-//    形态，写死名单的那一版正向仍然绿（旧的那两个还在名单里），而新来的那个放行 —— 本票 AC 的反向臂
-//    （去掉某个形态的 `candidate` 再重建，它该回到下拉里、而另一个仍不在）就是照这个来的。
-// 🔴 **顺序跟 §shapeForBlock 一致：候选在缺槽位【之前】。** 一个形态同时是候选又缺槽位时，两半必须
-//    说同一句话；先判缺槽位的话校验会说「先填上 X」，而构建说的是「它是候选」，老板填完 X 再存一次
-//    还是存不进去。
-//
-// 🔴 拿不到这个块的 manifest（`m` 是 undefined）时回 `ok: true` —— 跟 `shapeForBlock` 的
-//    `if (!m) return shape;` 是同一个立场：「这个块类型没有 manifest」是另一回事，不由这个函数裁。
-//    两处要是在这一格上不一致，就会出现「校验拒了、而构建其实会照戴」这种对不上的话。
-function shapeVerdict(m, shapeName, data) {
-  if (!m) return { ok: true };
-  // 候选那一支 —— 读的是 §shapeForBlock 上面那一段读的同一个字段，写法也照它（按名字找那一项，
-  // 找不到就不是这一支的事，交给下面的 `unknown`）。
-  const chosen = (Array.isArray(m.shapes) ? m.shapes : []).find((x) => x && x.name === shapeName);
-  if (chosen && chosen.candidate === true) {
-    return {
-      ok: false,
-      kind: 'candidate',
-      missing: [],
-      message: `“${shapeName}” 还没签字进库 —— 它过了全部机器检查，但还等着拍板，所以还不能上真站。`,
-    };
-  }
-  const gap = blockManifest.shapeNeedsGap(m, shapeName, data);
-  if (gap === null) {
-    const known = (Array.isArray(m.shapes) ? m.shapes : []).map((s) => s && s.name).filter(Boolean);
-    return {
-      ok: false,
-      kind: 'unknown',
-      missing: [],
-      message: `“${shapeName}” 不是 ${m.type} 这个块的形态。它今天有的是：${known.join('、') || '（一个都没有）'}`,
-    };
-  }
-  if (gap.length > 0) {
-    return {
-      ok: false,
-      kind: 'gap',
-      missing: gap.slice(),
-      message: `“${shapeName}” 这个形态要先填上 ${gap.join('、')}，填好就能选了`,
-    };
-  }
-  return { ok: true };
-}
-
-// ── #1350 —— 容器里那一次调用：「这个站的这一块，能不能戴这个形态」 ─────────────────────────────
-//
-// manager 的 `PUT /api/sites/{id}/blocks/{blockId}/shape` 在**入队之前**要同步回答这个问题
-// （AC5：不行就 400、页面 JSON 不动、队列里没有新任务）。它走的是换主题那条链上同一个机制 ——
-// `docker exec -w /app/repo <siteID> timeout … node -e`（`manager/theme.go:421` 的写法，PM 在
-// #1350 r2 裁定里点名的）—— 而 `-e` 里只有一句：`require(…).checkShapeInSite(JSON.parse(argv[1]))`。
-//
-// 🔴 **为什么判据写在这里，而不是写在那句 `node -e` 的字符串里**：写在 Go 的字符串字面量里的
-//    JS，`npm run test:scripts` 一个字都看不见。而这段要做的事有三处是**已经付过账**的坑：
-//    ① 老 `sections` 形状按下标定位、新形状按 id（id 是现算的，挪一次就变）；② `{ref}` 条目
-//    自己身上没有 `type` / `data`，要回站级块库取；③ 老扁平站没有 `site_meta.json`，localeDir
-//    就是 `site/` 本身。三条都不是能一眼看对的东西。
-//
-// 🔴 **「找哪一个块」调的是 `blocks.js` 的 `findBlockInPage`（#1351 建的，一份实现两个调用方）**，
-//    不在这里另写一份：worker 写文件时用的是同一个函数。两份实现的失败形态是**校验放行的是
-//    A 块、写下去的是 B 块**，而两边各自都绿 —— 没有任何东西会红。
-//
-// 🔴 `materialize: false`：校验这一步**一个字节都不许写**。补 `{ref}` 条目是写动作，归 worker。
-//
-// 入参（manager 原样 JSON 传进来）：
-//   { rootDir?, page, locale?, blockId?, index?, shape }
-// 回（一行 JSON，manager 解它）：
-//   { ok, kind?, missing?, message?, type?, blockId?, index?, themeShape? }
-//     · `kind` —— 'candidate' | 'unknown' | 'gap'（形态本身不合法，manager 回 400 并原样转 `message`）
-//                 'no-page' | 'no-block' | 'bad-locator' | 'bad-shape'（定位不对，同样是 400）
-//     · `themeShape` —— 这套主题的选择单给这个块的形态。做什么 #5：老板挑的跟它一样时
-//       **不写 `shape` 字段**（manager 把这一笔改发成 `{"shape":null}`），免得页面 JSON 里
-//       积一堆「跟主题一样」的显式值 —— 那些值会在下次换主题时把新主题的选择单挡住。
-function checkShapeInSite(opts) {
-  const o = opts || {};
-  const rootDir = o.rootDir || process.cwd();
-  const siteDir = path.join(rootDir, 'site');
-  const shape = typeof o.shape === 'string' ? o.shape : '';
-  if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(shape)) {
-    return { ok: false, kind: 'bad-shape', missing: [], message: `形态名不对：${JSON.stringify(o.shape)}` };
-  }
-
-  // 老扁平站（没有 site_meta.json）的 localeDir 就是 `site/` 本身 —— 跟 `sync-config.js` 判
-  // 语言目录是同一条判据，不是这里另立的规矩。
-  const isLegacy = !fs.existsSync(path.join(siteDir, 'site_meta.json'));
-  let locale = typeof o.locale === 'string' ? o.locale : '';
-  if (!isLegacy && !locale) {
-    try {
-      locale = JSON.parse(fs.readFileSync(path.join(siteDir, 'site_meta.json'), 'utf-8')).defaultLocale || 'en';
-    } catch (e) {
-      return { ok: false, kind: 'no-page', missing: [], message: `读不到 site/site_meta.json：${e.message}` };
-    }
-  }
-  if (locale && !/^[a-z]{2}(-[A-Za-z0-9]{2,8})?$/.test(locale)) {
-    return { ok: false, kind: 'bad-locator', missing: [], message: `locale 形状不对：${JSON.stringify(locale)}` };
-  }
-  const localeDir = isLegacy ? siteDir : path.join(siteDir, locale);
-
-  const slug = typeof o.page === 'string' ? o.page : '';
-  // slug 会被拼进文件路径，而这个值是从网络上来的 ⟹ 挡它的责任在拼路径的这一处。
-  if (!/^[a-z0-9][a-z0-9-]*(\/[a-z0-9][a-z0-9-]*)*$/.test(slug)) {
-    return { ok: false, kind: 'bad-locator', missing: [], message: `页面名不对：${JSON.stringify(o.page)}` };
-  }
-  const file = path.join(localeDir, 'pages', `${slug}.json`);
-  if (!fs.existsSync(file)) {
-    return { ok: false, kind: 'no-page', missing: [], message: `这个网站上没有 “${slug}” 这一页` };
-  }
-  let page;
-  try {
-    page = JSON.parse(fs.readFileSync(file, 'utf-8'));
-  } catch (e) {
-    return { ok: false, kind: 'no-page', missing: [], message: `${slug} 这一页的内容读不出来：${e.message}` };
-  }
-
-  let siteBlocks = {};
-  try { siteBlocks = blocksLib.readSiteBlocks(localeDir); } catch (e) {
-    return { ok: false, kind: 'no-page', missing: [], message: e.message };
-  }
-
-  const found = blocksLib.findBlockInPage(page, siteBlocks, {
-    slug, blockId: o.blockId, index: o.index, materialize: false,
-  });
-  if (found.error) {
-    const why = {
-      shape: `${slug} 这一页的内容格式不对`,
-      'bad-locator': '没说清楚要改哪一个块',
-      'out-of-range': `${slug} 这一页没有第 ${o.index} 个块`,
-      'not-found': `${slug} 这一页上找不到 ${JSON.stringify(o.blockId)} 这个块`,
-    }[found.error] || found.error;
-    return { ok: false, kind: found.error === 'bad-locator' ? 'bad-locator' : 'no-block', missing: [], message: why };
-  }
-
-  // `{ref}` 条目自己身上没有 type / data —— 那两样在站级块库里（`blocks.js` §readPageBlocks 解
-  // ref 那一支摊开的就是站级块本体）。第 ③ 种定位（visibility 命中、这一页没条目）回来的
-  // `entry` 已经是解开的，两条都落在下面这一句上。
-  let block = found.entry || {};
-  if (typeof block.ref === 'string' && block.type === undefined) {
-    const target = siteBlocks[block.ref];
-    if (!target) {
-      return { ok: false, kind: 'no-block', missing: [], message: `${slug} 这一页引用的 ${JSON.stringify(block.ref)} 在站级块库里没有` };
-    }
-    block = target;
-  }
-  if (typeof block.type !== 'string' || !block.type) {
-    return { ok: false, kind: 'no-block', missing: [], message: `${slug} 这一页上那个块没有 type` };
-  }
-
-  // 🔴 **区块库整个读不到 ⟹ 拒，不放行。** `loadBlockManifests` 对不存在的 `blocks/` 目录回空表，
-  //    而空表喂给 `shapeVerdict` 是**逐个形态都放行**（它对「这个块没有 manifest」的立场是不裁）。
-  //    那一格的失败方向是静默放行：老板在一个建站日期早于区块库的站上点了保存，manager 回 202、
-  //    worker 把一个没人排版的形态名写进页面 JSON，构建时再落回默认 —— 正是本票要治的不一致。
-  //    「这个块类型没有 manifest」跟「整个区块库不在」是两件事，只有后者在这里变成一句人话。
-  const manifests = blocksLib.loadBlockManifests(rootDir);
-  if (Object.keys(manifests).length === 0) {
-    return {
-      ok: false, kind: 'no-catalog', missing: [],
-      message: '这个网站要先更新一次才能在这里换形态（它建得比区块库早）',
-    };
-  }
-  const verdict = shapeVerdict(manifests[block.type], shape, block.data);
-
-  const structureThemeId = siteRegions.readStructureThemeId(siteDir);
-  const themeShape = structureThemeId ? (themes.shapesFor(structureThemeId) || {})[block.type] : undefined;
-
-  return {
-    ...verdict,
-    type: block.type,
-    blockId: found.blockId,
-    index: found.at,
-    ...(typeof themeShape === 'string' ? { themeShape } : {}),
-  };
-}
+// 📌 这里原来还有 `shapeVerdict`（「这个块能不能戴这个形态」）和 `checkShapeInSite`（manager 的
+//    `PUT /api/sites/{id}/blocks/{blockId}/shape` 入队前去容器里问的那一句）。两个都只为检查器那条
+//    单块形态端点存在；检查器 #1411 退役、那条端点 #1444 删了，它们跟着删。Puck 的形态随整页一起存
+//    （`PUT /api/sites/{id}/pages`），判据是构建时的 `lib/block-shape.js` §shapeForBlock 那一份。
+//    🔴 连带删掉的还有 `checkShapeInSite` 头上那条「老板挑的跟主题一样时不写 `shape` 字段」的规矩 ——
+//    #1443 已经把 Puck 的 Layout 下拉改成「点名任何形态都钉住，要跟着主题走就选 `Theme default`」，
+//    那条旧规矩跟线上行为相反，不留在仓里。
 
 // ── #1350 —— 「全部恢复主题默认」：一次清空一页 / 整个站手挑的形态 ───────────────────────────────
 //
-// 单个块的「恢复主题默认」走的是改一个块那条路（`patch: {"shape": null}`）。**这个函数是另一件事**：
+// 单个块的「恢复主题默认」在 Puck 里是 Layout 下拉的 `Theme default`，随整页存。**这个函数是另一件事**：
 // 页面级 / 站级的「全部恢复」，票里 AC3 第三句要它「对两个手挑块**一次**清空」。
 //
 // 🔴 **为什么不是「对每个块各发一笔」**：每一笔改动都 commit，而每个 commit 都重建预览
@@ -365,7 +165,7 @@ function resetShapesInSite(opts) {
 //    于是「点了一次全部恢复」
       //    会把全站每一页的 lastmod 都推到今天 —— 一个没人要求过的、对外可见的改动。
       if (touched === 0) continue;
-      // 缩进跟 `patch-block.js` / `create-site.js` 写盘时一样是两格，不然整份 JSON 会变成一个
+      // 缩进跟 `create-site.js` / `lib/page-write.js` 写盘时一样是两格，不然整份 JSON 会变成一个
       // 看不出改了什么的巨大 diff。
       fs.writeFileSync(file, `${JSON.stringify(page, null, 2)}\n`);
       files.push(path.relative(rootDir, file));
@@ -374,4 +174,4 @@ function resetShapesInSite(opts) {
   return { ok: true, cleared, files };
 }
 
-module.exports = { shapeForBlock, shapeVerdict, checkShapeInSite, resetShapesInSite };
+module.exports = { shapeForBlock, resetShapesInSite };

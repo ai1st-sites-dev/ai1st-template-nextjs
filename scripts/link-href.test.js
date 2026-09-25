@@ -103,12 +103,8 @@ console.log('② 块清单那一侧');
     const s = m.get(n.block) && m.get(n.block).slots && m.get(n.block).slots[n.slot];
     check(Boolean(s && s.kind === 'link'), `NAV_LINKS 的 ${n.key.join('.')} 对得上 blocks/${n.block} 的 link 槽位 ${n.slot}`);
   }
-  // 🔴 检查器那个入口的哨兵（lib/link-href.js 文件头）：`patch-block.js` 能改哪些字由 `editLabel` 定。哪个 link
-  //    槽位的 `editLabel` 一旦点名 `href`，检查器那条路就写得到链接地址了，而它今天不过这道判据。
-  const opened = linkSlots.filter(({ s }) => typeof s.editLabel === 'string'
-    || (s.editLabel && typeof s.editLabel === 'object' && Object.prototype.hasOwnProperty.call(s.editLabel, 'href')));
-  check(opened.length === 0, '没有一个 link 槽位让检查器改得到 href（否则 patch-block.js 要先接进 lib/link-href.js）',
-    opened.map(({ type, slot }) => `${type}.${slot}`).join(', '));
+  // 📌 这里原来还有一格「检查器那个入口的哨兵」（`patch-block.js` 能不能写到 href）。那个脚本随检查器那条
+  //    单块路 #1444 删了；今天写链接的入口只剩走 `lib/page-write.js` §commitWrites 的那几个，源头帽盖得到。
 }
 
 const work = makeSite();

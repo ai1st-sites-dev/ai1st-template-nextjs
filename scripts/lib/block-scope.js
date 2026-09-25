@@ -138,8 +138,9 @@ function blockScopeRejection(relPath, parsed, scope, readCurrent) {
 /**
  * scopeFromInput —— 把 edit-site.js 收到的那份 JSON 里的定位翻译成 scope，没有就回 null。
  *
- * 老 `sections` 形状带的是 `index`（数组下标），新形状带 `blockId` —— 两种形状为什么定位方式不同，
- * 理由在 `scripts/patch-block.js` 的文件头上。
+ * 老 `sections` 形状带的是 `index`（数组下标），新形状带 `blockId` —— 老形状的块 id 是构建时按数组
+ * 下标现算的（`blocks.js` §pageWithBlocks 拼的 `<slug>-<type>-<下标>`），挪一次位置就变，拿它当目标会打到
+ * 隔壁那块上；新形状的 id 写在文件里，不随位置变。
  */
 function scopeFromInput(input, siteShapeInfo) {
   if (!input || typeof input !== 'object') return null;

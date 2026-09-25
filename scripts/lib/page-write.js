@@ -129,7 +129,7 @@ function planPageWrite({ root, blocks, pageFiles, target, slug, baseHash, next, 
     fail(9, `这份页面会让网站建不出来：${e.message}`);
   }
 
-  // 格式跟 patch-block.js 与建站脚本写出来的逐字同形（两空格缩进 + 结尾换行），diff 只落在改过的那几行。
+  // 格式跟建站脚本写出来的逐字同形（两空格缩进 + 结尾换行），diff 只落在改过的那几行。
   // #1415 —— `hash` 是这份要写的字节的 sha256（跟上面比 baseHash 同一个算法）：写完之后文件就是这份字节，
   // 两个脚本都把它回给 worker，编辑器拿它当下一次存盘的 baseHash。只在这里算一次，两个脚本不各算一份。
   const content = `${JSON.stringify(next, null, 2)}\n`;
