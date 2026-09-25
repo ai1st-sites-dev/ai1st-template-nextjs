@@ -38,6 +38,8 @@ const linkHref = require('./lib/link-href');
 // #1351 —— 「让 AI 改这一块」：面板把块 id 和它在哪一页带进这次会话，这一轮就只许动那一个块。
 // 判据是**拿磁盘上那份逐块比一遍**，不是在提示词里请它守规矩（理由在那个文件头上）。
 const blockScope = require('./lib/block-scope');
+// #1410 —— 模型边写边出的字，编辑器里的聊天逐字显示（文件头说为什么攒批、为什么带轮次）。
+const { createTextRelay } = require('./lib/text-relay');
 
 // ─── Emit structured events to stdout ─────────────────────────────────────────
 
@@ -1184,6 +1186,7 @@ async function main() {
   // Tool use loop
   let currentMessages = messages;
   const maxIterations = 20;
+  const textRelay = createTextRelay(emit);
 
   for (let i = 0; i < maxIterations; i++) {
     debug(`Iteration ${i + 1}: sending ${currentMessages.length} messages`);
@@ -1212,6 +1215,7 @@ async function main() {
           // 原因就是同一道门 —— 它拿到的 maxTokens 是同一个 32000。这条路只是当年没跟上。
           // `finalMessage()` 返回的就是原来 `create()` 返回的那个 Message（含 content /
           // stop_reason / usage），所以下面整段逻辑一个字都不用改。
+          textRelay.begin(i, apiAttempt);
           const stream = await client.messages.stream({
             model,
             max_tokens: configMaxTokens,
@@ -1219,9 +1223,12 @@ async function main() {
             messages: currentMessages,
             tools,
           });
+          stream.on('text', (delta) => textRelay.push(delta));
           response = await stream.finalMessage();
+          textRelay.flush();
           break; // success → continue with normal flow below
         } catch (err) {
+          textRelay.flush();
           apiAttempt++;
           if (isRetryableApiError(err) && apiAttempt < maxApiAttempts) {
             const waitMs = 1000 * Math.pow(2, apiAttempt - 1) * 5; // 5s, 10s, 20s

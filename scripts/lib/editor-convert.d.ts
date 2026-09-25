@@ -81,3 +81,11 @@ export function sharedOwnAfter(args: {
   changes: SharedChanges;
 }): Record<string, Record<string, unknown>>;
 export function applySharedChanges(siteBlocks: Record<string, unknown>, changes: SharedChanges, slug: string): Record<string, unknown>;
+/** #1410 —— AI 改完、新底稿到了：撤销历史怎么动（实现与说明在 .js）。 */
+export function aiBaselineStep<H extends { state: { data: PuckLikeData } }>(args: {
+  current: PuckLikeData;
+  histories: H[];
+  next: PuckLikeData;
+  hash: string;
+  nextHash: string;
+}): { pageChanged: boolean; record: boolean; histories: H[]; current: PuckLikeData; sharedIds: string[]; mixed: boolean };

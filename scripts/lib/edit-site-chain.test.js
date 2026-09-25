@@ -167,7 +167,17 @@ class FakeAnthropic {
       // 包在同一个 try 里，两处抛对它等价，但假的东西照真的写才不会把下一个人带偏。
       stream: (req) => {
         const r = record(req, 'stream');
-        return { finalMessage: async () => (r.__throw ? raise(r) : r) };
+        // #1410：真 MessageStream 有 on('text')，被测代码会挂监听器把字逐段发出去。这里在
+        // finalMessage() 之前把这一轮 text 块的字喂给监听器，顺序跟真 SDK 一样（先出字、后完结）。
+        const onText = [];
+        return {
+          on: (ev, fn) => { if (ev === 'text') onText.push(fn); },
+          finalMessage: async () => {
+            if (r.__throw) raise(r);
+            for (const b of (r.content || [])) if (b && b.type === 'text' && b.text) for (const fn of onText) fn(b.text);
+            return r;
+          },
+        };
       },
       // 非流式这条留着，因为它仍是**真 SDK 上存在的一条路**，而本票的判据之一正是
       // "被测代码没有再走它"。它照旧正常应答（不抛），走的哪条路由上面 record() 记在
@@ -1933,6 +1943,38 @@ console.log('\n⑰ 读完之后别处改过（#1420）：拒 → 重读 → 写�
   else bad(`🔴 ⑰ 上限+重读后写成：老板存的那一笔被回滚退掉了 —— hero.headline 现在是 "${heroOf(mHome).data.headline}"`);
   if (!/Nothing on your site was changed/.test(mMsg) && /en\/pages\/home\.json/.test(mMsg) && /includes the AI's change/.test(mMsg)) ok('⑰ 上限+重读后写成：报文改口、点名首页');
   else bad(`🔴 ⑰ 上限+重读后写成：报文不对 —— 「${mMsg.slice(0, 300)}」`);
+
+// ══ ⑱ 模型说的话逐段发出来：`text` 事件（#1410）══════════════════════════════════════════════════
+//
+// 编辑器里的聊天要「逐字」显示，靠的就是这一种事件。判据是真 edit-site.js 进程的 stdout：每一轮模型说的
+// 那句话都以 `text` 出现、带着它是第几轮，而且都在 `edit-complete` 之前 —— 在它之后才到的字对「看着它在写」
+// 没有用。落进聊天记录的仍然是 edit-complete 的 message（这一格也量它没被这条新事件改掉）。
+console.log('\n⑱ 逐字：每一轮模型说的话都作为 text 事件发出，且在 edit-complete 之前（#1410）');
+{
+  const ctx = makeRoot('textstream');
+  writeSite(ctx.work);
+  assertSyncsClean(ctx.work, '⑱');
+  ctx.git('git add -A && git commit -q -m base && git push -q origin main');
+  const good = [{ id: 's1', name: 'Renamed', shortDescription: 'a', fullDescription: 'b', icon: 'leaf', features: [], products: [] }];
+  const res = runEdit(ctx, [
+    reply([textBlock('Renaming the service.'), writeCall('t1', 'en/services.json', JSON.stringify(good, null, 2))], 'tool_use'),
+    reply([textBlock('All done, the service has a new name.')], 'end_turn'),
+  ]);
+  const texts = ev(res, 'text');
+  const byTurn = {};
+  for (const t of texts) byTurn[t.turn] = (byTurn[t.turn] || '') + t.delta;
+  if (byTurn[0] === 'Renaming the service.' && byTurn[1] === 'All done, the service has a new name.') {
+    ok(`⑱ 两轮各自的字都发出来了、轮次对得上：${JSON.stringify(byTurn)}`);
+  } else {
+    bad(`🔴 ⑱ text 事件不对：${JSON.stringify(texts)}（全部事件：${res.events.map((e) => e.event).join(' ')}）`);
+  }
+  const at = (name) => res.events.findIndex((e) => e.event === name);
+  const lastText = res.events.map((e) => e.event).lastIndexOf('text');
+  if (texts.length && at('edit-complete') > lastText) ok('⑱ 所有 text 都在 edit-complete 之前');
+  else bad(`🔴 ⑱ 顺序不对：最后一条 text 在 ${lastText}，edit-complete 在 ${at('edit-complete')}`);
+  const complete = ev(res, 'edit-complete');
+  if (complete.length === 1 && /All done/.test(String(complete[0].message))) ok('⑱ edit-complete 的 message 照旧（聊天记录落的还是它）');
+  else bad(`🔴 ⑱ edit-complete 变了：${JSON.stringify(complete)}`);
 }
 
 // ══ ⑱ 另三条回滚路也不退老板存在 AI 那份上的改动，而且不说「什么都没改」（#1441）══════════════════

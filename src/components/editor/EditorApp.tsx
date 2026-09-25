@@ -30,18 +30,31 @@
 //            external  别处改过这一页：把数据换上、换 baseHash；**不进撤销历史**（怎么进归 #1410）
 // 转换只做 `editor-convert.js` §pageToPuck（纯函数）；归一化 / 定位 / 补字段都在容器里算好了，客户端
 // 不 import 任何读磁盘的库（那样构建会红在 `Can't resolve 'fs'`，而且归一化就有了两份实现）。
+//
+// #1410 —— AI 聊天的**界面**搬进来了（`EditorChat.tsx`），网络仍然全在 dashboard（`dashboard/src/hooks/useEditorChat.ts`）。这个页面多认 / 多发的：
+//   收  ai1st:chat-state        聊天记录 + 正在进行的那一次（逐字）—— 整份覆盖，这里不存副本
+//       ai1st:chat-sent         交给 dashboard 的那条消息发出去没有
+//       ai1st:editor-baseline {reason: ai}   AI 改完了，dashboard 重取的底稿。撤销历史怎么动全在
+//                                            `editor-convert.js` §aiBaselineStep：这一页的页面 JSON 变了才记一步；
+//                                            共用块的字不归撤销管，历史里每一条快照的共用块都换成新的
+//   发  ai1st:chat-send {text, scope?}       ai1st:chat-revert {messageId}
+// 发给 AI 之前**先存一次**（做什么 4，Chris 2026-09-23）：画布上有没存的改动就先走今天那条 `ai1st:editor-save`，
+// 存成功才发；被拒（这一页在别处改过，exit 10）就不发、把那句话原样说出来。撤销 AI 那一步只动画布、不自动存
+// （做什么 6）：状态栏说「有未保存的改动」，文件里是 AI 那版直到按 Save。#1412 起 Save 只落盘不重建、发布才上线，
+// 所以那句话说的是「按 Save 留下、发布后上线」，跟 dashboard 那句「Saved. It goes live on your website when you publish.」同一个口径。
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Puck, FieldLabel, createUsePuck, type Config, type Data, type Field, type Fields, type PuckAction } from '@puckeditor/core';
+import { Puck, FieldLabel, createUsePuck, useGetPuck, type Config, type Data, type Field, type Fields, type PuckAction } from '@puckeditor/core';
 import '@puckeditor/core/puck.css';
 import SectionRenderer from '@/components/SectionRenderer';
 import SiteShell from '@/components/SiteShell';
+import EditorChat, { type ChatScope, type EditorChatState } from './EditorChat';
 import type { BlockConfig } from '@/lib/types/config';
 import type { EditorComponent, EditorField, EditorSchema } from '../../../scripts/lib/editor-schema';
 import type { PuckItemSrc, PuckLikeData, SharedChanges } from '../../../scripts/lib/editor-convert';
 import {
   UNKNOWN_TYPE, pageToPuck, puckToPage, fieldProps, dataFromProps, deepEqual, puckRootChanges,
-  sharedReach, sharedRemovable, puckSharedChanges, sharedOwnAfter, applySharedChanges,
+  sharedReach, sharedRemovable, puckSharedChanges, sharedOwnAfter, applySharedChanges, aiBaselineStep,
 } from '../../../scripts/lib/editor-convert.js';
 
 export interface EditorAppProps {
@@ -394,10 +407,127 @@ type Base = { raw: Record<string, unknown>; initial: PuckLikeData; hash: string;
 type PuckDispatch = (action: { type: 'setData'; data: Data; recordHistory?: boolean }) => void;
 
 /** 拿到 Puck 自己的 dispatch（`external` 换数据用）。放在 headerActions 里，它才在 Puck 的 store 之下。 */
-function DispatchHandle({ handle }: { handle: { current: PuckDispatch | null } }) {
+function DispatchHandle({ handle, getter }: { handle: { current: PuckDispatch | null }; getter: { current: GetPuck | null } }) {
   handle.current = usePuck((s) => s.dispatch) as unknown as PuckDispatch;
+  // #1410 —— 撤销历史（`reason: ai` 要读、要换）。拿的是「读最新状态」的函数，不订阅：换历史不该让这里重渲染。
+  getter.current = useGetPuck() as unknown as GetPuck;
   return null;
 }
+
+type PuckHistory = { state: { data: Data; ui?: unknown }; id?: string };
+
+/**
+ * #1410 —— 交给 `setHistories` 的每一条都不带 `indexes`。撤销 / 前进 / setHistories 在 Puck 0.23 里都是 `set`
+ * （`reducer/actions/set.ts`），它见到 state 里有 `indexes` 就直接用、不按 data 重建 —— 换过 data 的快照（§swapShared）
+ * 留着旧的那份，画布就还按换之前的块画。没换过的快照拿掉它也无害：Puck 按 data 重建一份一样的。
+ * 📌 页面那一步（`reason: ai` 且 record）上一版曾在 e2e 里见过一次「撤销后位置对、画布仍是 AI 的字」，之后单变量拿掉这里
+ *    复现不出来（4/4 退对）；留着它是因为 Puck 对 indexes 的用法就是上面那样，不是因为有一格守着它。
+ */
+function noIndexes(h: PuckHistory): PuckHistory {
+  const { indexes: _stale, ...state } = h.state as Record<string, unknown>; // eslint-disable-line @typescript-eslint/no-unused-vars
+  return { ...h, state: state as PuckHistory['state'] };
+}
+type GetPuck = () => {
+  appState: { data: Data; ui?: unknown };
+  history: { histories: PuckHistory[]; index: number; setHistories: (h: PuckHistory[]) => void; setHistoryIndex: (i: number) => void };
+};
+
+/**
+ * #1410 —— 状态栏：画布跟网站不一样时说出来（做什么 6「撤销 AI 那一步之后进入『有未保存的改动』」）。
+ * `aiStep` 是最近那次 AI 记下的那一步：它同时改了共用块、而老板把它撤销了（当前位置在它之前）⟹ 多说一句
+ * 「共用块的改动请用聊天里的回退」（做什么 7 的 📌）—— 撤销 + Save 退不掉那一半。
+ */
+function DirtyNote({ dirtyOf, aiStep }: { dirtyOf: (d: Data) => boolean; aiStep: { id: string; mixed: boolean } | null }) {
+  const data = usePuck((s) => s.appState.data);
+  const history = usePuck((s) => s.history);
+  const dirty = useMemo(() => dirtyOf(data), [data, dirtyOf]);
+  const at = aiStep ? history.histories.findIndex((h) => h.id === aiStep.id) : -1;
+  const sharedStays = !!aiStep?.mixed && at >= 0 && history.index < at;
+  // 撤销历史的读数（当前位置 / 条数）：不显示，给验收量「AI 这一下记没记进历史」用。
+  const probe = <span data-editor-history hidden data-index={history.index} data-length={history.histories.length} />;
+  if (!dirty && !sharedStays) return probe;
+  return (
+    <span data-editor-dirty style={{ fontSize: 13, color: '#b54708' }}>
+      {probe}
+      {dirty ? 'Unsaved changes — press Save to keep them. They go live on your website when you publish.' : ''}
+      {sharedStays && (
+        <span data-editor-shared-stays>{dirty ? ' ' : ''}Changes the AI made to shared sections are not undone here — use Revert in the AI chat for those.</span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * #1410 —— 给 Puck 的 `overrides` 必须是**同一个对象**：Puck 按它算出 `overrides.puck`，拿来当组件类型用
+ * （`Layout` 的 `CustomPuck`），对象一换就是一个新组件类型 ⟹ 整个编辑器布局（画布 iframe、聊天侧栏）卸载重挂。
+ * 聊天状态流式时每 50ms 来一条、每条都让 EditorApp 重渲染，内联写法等于每 50ms 重挂一次画布：画布闪、输入框里没发
+ * 的字没了、Revert 的确认框自己关掉（e2e ⑩ 量这个；⑧ 等「Undo it」超时就是这么红的）。
+ * 所以两个 override 是模块级组件，要用的东西从 `EditorUiContext` 读（context 变了只让它们重渲染，不换类型）。
+ */
+type EditorUi = {
+  dispatchRef: { current: PuckDispatch | null };
+  getPuckRef: { current: GetPuck | null };
+  dirtyOf: (d: Data) => boolean;
+  aiStep: { id: string; mixed: boolean } | null;
+  save: (d: Data) => unknown;
+  status: Status;
+  chatOpen: boolean;
+  openChat: () => void;
+  closeChat: () => void;
+  chat: EditorChatState | null;
+  chatNotice: { kind: 'info' | 'error'; text: string } | null;
+  chatPending: boolean;
+  page: string;
+  locale: string;
+  rawKey: 'blocks' | 'sections';
+  sendChat: (text: string, scope: ChatScope | null) => void;
+  revertChat: (messageId: number) => void;
+};
+const EditorUiContext = createContext<EditorUi | null>(null);
+
+function EditorHeaderActions() {
+  const ui = useContext(EditorUiContext);
+  if (!ui) return <></>;
+  return (
+    <>
+      <DispatchHandle handle={ui.dispatchRef} getter={ui.getPuckRef} />
+      <DirtyNote dirtyOf={ui.dirtyOf} aiStep={ui.aiStep} />
+      {!ui.chatOpen && (
+        <button type="button" data-editor-chat-open onClick={ui.openChat} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #d0d5dd', background: '#fff', fontSize: 14, cursor: 'pointer' }}>
+          AI chat
+        </button>
+      )}
+      <SaveButton onSave={ui.save} status={ui.status} />
+    </>
+  );
+}
+
+// 聊天侧栏跟 Puck 同屏，放在 Puck 的 store 之下（它要读选中的块）。
+// 🔴 高度写 100vh 不写 100%：Puck 在这一层外面还套了一个不定高的 `div.Puck`，100% 等于没限 ——
+//    聊天记录一长就把整页撑高，Puck 被滚出视口（e2e 量过：视口 635px，页面被撑到 2368px）。
+function EditorWithChat({ children }: { children: ReactNode }) {
+  const ui = useContext(EditorUiContext);
+  return (
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+      <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>{children}</div>
+      {ui && ui.chatOpen && (
+        <EditorChat
+          chat={ui.chat}
+          notice={ui.chatNotice}
+          pending={ui.chatPending}
+          page={ui.page}
+          locale={ui.locale}
+          rawKey={ui.rawKey}
+          onSend={ui.sendChat}
+          onRevert={ui.revertChat}
+          onClose={ui.closeChat}
+        />
+      )}
+    </div>
+  );
+}
+
+const EDITOR_OVERRIDES = { headerActions: EditorHeaderActions, puck: EditorWithChat };
 
 function SaveButton({ onSave, status }: { onSave: (d: Data) => void; status: Status }) {
   const data = usePuck((s) => s.appState.data);
@@ -444,6 +574,17 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
   const sendingRef = useRef<{ json: Record<string, unknown> | null; root: Record<string, unknown> | null; shared: SharedChanges | null } | null>(null);
   const [canvas, setCanvas] = useState<{ key: number; data: PuckLikeData }>({ key: 0, data: initialData });
   const dispatchRef = useRef<PuckDispatch | null>(null);
+  const getPuckRef = useRef<GetPuck | null>(null);
+
+  // #1410 —— 聊天。`chat` 是 dashboard 递进来的整份状态（这里不存副本、不拼）。
+  const [chat, setChat] = useState<EditorChatState | null>(null);
+  const [chatOpen, setChatOpen] = useState(true);
+  const [chatNotice, setChatNotice] = useState<{ kind: 'info' | 'error'; text: string } | null>(null);
+  // 先存再发：等存盘结果的那条消息。存成功才交给 dashboard；被拒就不发（做什么 4）。
+  const pendingChatRef = useRef<{ text: string; scope: ChatScope | null } | null>(null);
+  const [chatPending, setChatPending] = useState(false);
+  // 最近那次 AI 记下的那一步（Puck 历史条目的 id）+ 它有没有同时改共用块（状态栏那一句，见 §DirtyNote）。
+  const [aiStep, setAiStep] = useState<{ id: string; mixed: boolean } | null>(null);
 
   // 告诉 dashboard「编辑器起来了、我编辑的是哪一页」。它拿这条确认 iframe 里真的是编辑器。
   // `baseline: 1` 说「我认 ai1st:editor-baseline」—— dashboard 据此决定走新路（不重载 iframe）还是老路
@@ -467,6 +608,28 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
         const text = typeof d.message === 'string' ? d.message : '';
         setStatus(d.ok === true ? { kind: 'saved', text: text || 'Saved.' } : { kind: 'error', text: text || 'Could not save.' });
         if (d.ok !== true) sendingRef.current = null;
+        // #1410 —— 先存再发：这一次存盘是为那条聊天消息做的。存上了才发；没存上就不发，把原因说出来
+        // （exit 10 那句「这一页在别处改过了，关掉编辑器重新打开」由 worker 写好，原样用）。
+        const pc = pendingChatRef.current;
+        if (pc) {
+          pendingChatRef.current = null;
+          if (d.ok === true) {
+            postChat({ type: 'ai1st:chat-send', text: pc.text, ...(pc.scope ? { scope: pc.scope } : {}) });
+          } else {
+            setChatPending(false);
+            setChatNotice({ kind: 'error', text: `Your message was not sent. ${text || 'Your changes could not be saved first.'}` });
+          }
+        }
+        return;
+      }
+      if (d.type === 'ai1st:chat-state') {
+        const st = (d as { state?: unknown }).state;
+        if (st && typeof st === 'object') setChat(st as EditorChatState);
+        return;
+      }
+      if (d.type === 'ai1st:chat-sent') {
+        setChatPending(false);
+        setChatNotice(d.ok === true ? null : { kind: 'error', text: typeof d.message === 'string' && d.message ? d.message : 'Your message was not sent.' });
         return;
       }
       if (d.type !== 'ai1st:editor-baseline') return;
@@ -500,7 +663,7 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
         return;
       }
       if (!hashOk) return;
-      if (d.reason !== 'open' && d.reason !== 'external') return;
+      if (d.reason !== 'open' && d.reason !== 'external' && d.reason !== 'ai') return;
       if (!d.raw || typeof d.raw !== 'object' || !Array.isArray(d.blocks) || !Array.isArray(d.located)) return;
       const nextRaw = d.raw as Record<string, unknown>;
       const nextLib = isObj(d.siteBlocks) ? d.siteBlocks : {};
@@ -520,6 +683,42 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
       // #1405 —— 底稿里只有页面（`pageToPuck` 回的 root 是空的）；外壳四样沿用手上的比较基准（打开时构建算出来
       // 的那份，存过就是存下去的那份）。不接上的话 root 字段全空，画布的顶栏页脚会变成默认、存盘的逐字段比较也全乱。
       next = { ...next, root: baseRef.current.initial.root };
+      const g = getPuckRef.current ? getPuckRef.current() : null;
+      // #1410 —— 历史里每一条快照的共用块换成新底稿里的那一块（它们的字不归撤销管；不换的话撤销一步，画布上
+      // 共用块退回旧字，而网站上是新字）。`ai` 和 `external`（含聊天里的 git 回退）都要做。
+      // setHistories 会把画布跳到最后一条 —— 老板可能正停在撤销之后的某一步，跳回原位置。
+      const swapShared = (hs: PuckHistory[]) => {
+        if (!g || !hs.some((h, i) => h !== g.history.histories[i])) return;
+        const at = g.history.index;
+        g.history.setHistories(hs.map(noIndexes));
+        g.history.setHistoryIndex(Math.min(at, hs.length - 1));
+      };
+      if (d.reason === 'ai' && g && dispatchRef.current) {
+        // #1410 —— AI 改完。§aiBaselineStep：这一页的页面 JSON 变了（hash 不同）⟹ 记成一步；否则只换画布（共用块）。
+        const step = aiBaselineStep({
+          current: g.appState.data as unknown as PuckLikeData,
+          histories: g.history.histories as unknown as { state: { data: PuckLikeData } }[],
+          next, hash: baseRef.current.hash, nextHash: d.hash as string,
+        });
+        baseRef.current = { raw: nextRaw, initial: next, hash: d.hash as string, saved: nextRaw, siteBlocks: nextLib, sharedOwn: {} };
+        setSharedInfo({ siteBlocks: nextLib, refs: isObj(d.refs) ? (d.refs as Record<string, string[]>) : {}, slugs: Array.isArray(d.slugs) ? (d.slugs as string[]) : [] });
+        movedRef.current = new Set();
+        if (step.record) {
+          // 这一步由我们自己拼进历史，**不走** `setData({recordHistory: true})`：Puck 的 record 有 250ms 防抖，
+          // 而 e2e ⑧ 实测那条路上 AI 之前那张快照会在防抖落下时被换成新的（历史变成 [新, 新]，撤销退不回去）。
+          // `setHistories` 同步写入、把最后一条设成当前画布、位置指到它 —— 当前位置之后的「前进」照 Puck 的规矩丢掉。
+          const hs = step.histories as unknown as PuckHistory[];
+          const at = g.history.index;
+          const { indexes: _stale, ...cur } = g.appState as unknown as Record<string, unknown>; // eslint-disable-line @typescript-eslint/no-unused-vars
+          const id = `ai-${Date.now()}`;
+          g.history.setHistories([...hs.slice(0, at + 1).map(noIndexes), { id, state: { ...cur, data: next as unknown as Data } }]);
+          setAiStep({ id, mixed: step.mixed });
+        } else {
+          swapShared(step.histories as unknown as PuckHistory[]);
+          dispatchRef.current({ type: 'setData', data: step.current as unknown as Data, recordHistory: false });
+        }
+        return;
+      }
       const same = deepEqual(next, baseRef.current.initial);
       // 画布换成新的一份时，共用块的字段就是按 nextLib 取的 ⟹ `sharedOwn` 清空；画布不动（same）就留着。
       baseRef.current = { raw: nextRaw, initial: next, hash: d.hash as string, saved: nextRaw, siteBlocks: nextLib, sharedOwn: same ? baseRef.current.sharedOwn : {} };
@@ -527,6 +726,14 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
       if (same) return; // 跟首屏一样（构建之后没人改过）：画布不动，不打断已经开始的编辑。
       movedRef.current = new Set();
       if (d.reason === 'external' && dispatchRef.current) {
+        if (g) {
+          const hs = aiBaselineStep({
+            current: g.appState.data as unknown as PuckLikeData,
+            histories: g.history.histories as unknown as { state: { data: PuckLikeData } }[],
+            next, hash: '', nextHash: '',
+          }).histories;
+          swapShared(hs as unknown as PuckHistory[]);
+        }
         dispatchRef.current({ type: 'setData', data: next as unknown as Data, recordHistory: false });
       } else {
         // open：换一个新的 Puck —— 撤销历史跟着清零（历史里那几步是对着烤进去的那份做的）。
@@ -537,22 +744,15 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
     return () => window.removeEventListener('message', onMessage);
   }, [trustedOrigin, page, locale, schema]);
 
-  function save(data: Data) {
-    if (!trustedOrigin || window.parent === window) {
-      setStatus({ kind: 'error', text: 'Open this editor from your dashboard to save.' });
-      return;
-    }
+  /**
+   * 这份画布要交出去的那一笔（页面 / 外壳 / 共用块）。什么都没改 ⟹ null。转不出来就抛（save 把原因说出来）。
+   * #1410 —— 状态栏「有未保存的改动」和「先存再发」问的是同一个问题，所以抽出来共用一份。
+   */
+  function planSave(data: Data) {
     const base = baseRef.current;
-    let json: Record<string, unknown>;
-    let shared: SharedChanges;
-    try {
-      json = puckToPage({ raw: base.raw, data: data as never, initial: base.initial, schema, slug: page, moved: movedRef.current });
-      // #1406 —— 共用块改了字 / 从这一页删了（而它的 visibility 列了这一页）：写块库那几处。
-      shared = puckSharedChanges({ data: data as never, initial: base.initial, siteBlocks: base.siteBlocks, schema, slug: page, own: base.sharedOwn });
-    } catch (e) {
-      setStatus({ kind: 'error', text: `Could not save: ${(e as Error).message}` });
-      return;
-    }
+    const json = puckToPage({ raw: base.raw, data: data as never, initial: base.initial, schema, slug: page, moved: movedRef.current });
+    // #1406 —— 共用块改了字 / 从这一页删了（而它的 visibility 列了这一页）：写块库那几处。
+    const shared: SharedChanges = puckSharedChanges({ data: data as never, initial: base.initial, siteBlocks: base.siteBlocks, schema, slug: page, own: base.sharedOwn });
     // 跟**上一次存下去的那份**比，不跟打开时比：存过一次之后把字改回原来那句，文件里是改过的那句，
     // 这一笔必须发出去（#1409 QA2 r1 第 2 条，那时靠重载 iframe 解决，#1415 起不再重载）。
     // #1405 —— 外壳四样只交**改过的**那几个字段（跟 `base.initial.root` 逐字段比，做什么 7；它是打开时的值，
@@ -561,10 +761,34 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
     const root = puckRootChanges({ initial: base.initial, now: data as never, schema });
     const pageChanged = !deepEqual(json, base.saved);
     const hasShared = Object.keys(shared).length > 0;
-    if (!pageChanged && Object.keys(root).length === 0 && !hasShared) {
-      setStatus({ kind: 'idle', text: 'Nothing to save.' });
-      return;
+    if (!pageChanged && Object.keys(root).length === 0 && !hasShared) return null;
+    return { base, json, shared, root, pageChanged, hasShared };
+  }
+
+  // 状态栏用：转不出来也算「有没存的」（按 Save 会把原因说出来）。
+  const dirtyOf = useMemo(() => (data: Data) => {
+    try { return planSave(data) !== null; } catch { return true; }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schema, page, status]);
+
+  /** 'sent' = 交给 dashboard 了（结果回 `ai1st:editor-save-result`）· 'nothing' = 没有要存的 · 'error' = 没交出去。 */
+  function save(data: Data): 'sent' | 'nothing' | 'error' {
+    if (!trustedOrigin || window.parent === window) {
+      setStatus({ kind: 'error', text: 'Open this editor from your dashboard to save.' });
+      return 'error';
     }
+    let plan: ReturnType<typeof planSave>;
+    try {
+      plan = planSave(data);
+    } catch (e) {
+      setStatus({ kind: 'error', text: `Could not save: ${(e as Error).message}` });
+      return 'error';
+    }
+    if (!plan) {
+      setStatus({ kind: 'idle', text: 'Nothing to save.' });
+      return 'nothing';
+    }
+    const { base, json, shared, root, pageChanged, hasShared } = plan;
     setStatus({ kind: 'saving', text: 'Saving…' });
     sendingRef.current = { json: pageChanged ? json : null, root: Object.keys(root).length ? root : null, shared: hasShared ? shared : null };
     // 不带文件路径：写哪个文件由站里的脚本按 page/locale 自己算（`write-page.js` 文件头说为什么）。
@@ -576,6 +800,37 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
       ...(Object.keys(root).length ? { root } : {}),
       ...(hasShared ? { shared } : {}),
     }, trustedOrigin);
+    return 'sent';
+  }
+
+  // #1410 —— 聊天那一侧要发给 dashboard 的两种消息。🔴 目标 origin 同存盘：只发给那一个 dashboard。
+  function postChat(msg: Record<string, unknown>) {
+    if (!trustedOrigin || window.parent === window) return;
+    window.parent.postMessage(msg, trustedOrigin);
+  }
+
+  function sendChat(text: string, scope: ChatScope | null) {
+    if (!trustedOrigin || window.parent === window) {
+      setChatNotice({ kind: 'error', text: 'Open this editor from your dashboard to use the AI chat.' });
+      return;
+    }
+    const g = getPuckRef.current ? getPuckRef.current() : null;
+    if (!g) return;
+    setChatNotice(null);
+    setChatPending(true);
+    // 做什么 4：画布上有没存的改动 ⟹ 先存。AI 改的是磁盘，它看不见这里没存的那份。
+    const r = save(g.appState.data);
+    if (r === 'nothing') {
+      postChat({ type: 'ai1st:chat-send', text, ...(scope ? { scope } : {}) });
+      return;
+    }
+    if (r === 'error') {
+      setChatPending(false);
+      setChatNotice({ kind: 'error', text: 'Your message was not sent, because your changes could not be saved first. See the message next to Save.' });
+      return;
+    }
+    pendingChatRef.current = { text, scope };
+    setChatNotice({ kind: 'info', text: 'Saving your changes first, then sending…' });
   }
 
   // #1406 —— 记下老板拖过哪一块（Puck 的 reorder / move 带着拖之前的下标；页面只有一个根区）。
@@ -595,8 +850,17 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
   }
   if (empty) return empty;
 
+  const ui: EditorUi = {
+    dispatchRef, getPuckRef, dirtyOf, aiStep, save, status,
+    chatOpen, openChat: () => setChatOpen(true), closeChat: () => setChatOpen(false),
+    chat, chatNotice, chatPending, page, locale,
+    rawKey: Array.isArray((baseRef.current.raw as { sections?: unknown }).sections) && !('blocks' in baseRef.current.raw) ? 'sections' : 'blocks',
+    sendChat, revertChat: (messageId) => postChat({ type: 'ai1st:chat-revert', messageId }),
+  };
+
   return (
     <SharedInfoContext.Provider value={sharedInfo}>
+    <EditorUiContext.Provider value={ui}>
     <div data-editor-root style={{ height: '100vh' }}>
       <Puck
         key={canvas.key}
@@ -604,17 +868,11 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
         data={canvas.data as unknown as Data}
         iframe={{ enabled: true, syncHostStyles: true, waitForStyles: true }}
         onAction={onAction as never}
-        overrides={{
-          headerActions: () => (
-            <>
-              <DispatchHandle handle={dispatchRef} />
-              <SaveButton onSave={save} status={status} />
-            </>
-          ),
-        }}
+        overrides={EDITOR_OVERRIDES}
         onPublish={save}
       />
     </div>
+    </EditorUiContext.Provider>
     </SharedInfoContext.Provider>
   );
 }

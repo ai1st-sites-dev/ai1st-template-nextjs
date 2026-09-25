@@ -587,7 +587,101 @@ function puckRootChanges({ initial, now, schema }) {
   return out;
 }
 
+// ── #1410 AI 改完之后的撤销历史 ───────────────────────────────────────────────────────────────────
+//
+// AI 改的是磁盘；改完 dashboard 重取一份底稿递进来（`reason: ai`），编辑器换上新的一份。共用块的字住在
+// `site-blocks.json`，**不归 Puck 的撤销管**（票正文做什么 7）：撤销只退这一页的页面 JSON，共用块在任何一步
+// 历史里都得是**当前**的内容 —— 不然撤销一步，画布上的共用块退回旧字，而网站上是新字（PM 三审技术须知）。
+// 所以每来一份新底稿，历史里每一条快照中的共用块都换成新底稿里那一块。
+//
+// 🔴 换进去的是新底稿里**整个条目**（字段 prop 和 `_src` 一起）：`_src.sharedData` 是 §puckSharedChanges 判
+//    「老板改过没有」的底，字段和底来自同一份 ⟹ 比出来的差是 0，Save 不会因为这次替换多写块库。只换字段、
+//    留着旧 `_src` 的话，换进去的新字会被读成「老板改的」，Save 把 AI 的字又写一遍（碰巧无害）或者在别处又改过
+//    之后把它盖回去（有害）。
+// 📌 代价（交接时单独量过）：老板更早手改过、已经存下去的共用块，那一步撤销换完之后是「撤了跟没撤一样」——
+//    那一步的前后两张快照里它都是当前内容。
+
+/** 画布上的共用块条目，按 Puck id。复制品（id ≠ pid）不算：它不落盘（§entryOf）。 */
+function sharedItemsById(data) {
+  const out = new Map();
+  for (const it of (data && data.content) || []) {
+    const src = it && it.props && it.props._src;
+    if (src && src.shared && it.props.id === src.pid) out.set(it.props.id, it);
+  }
+  return out;
+}
+
+/**
+ * 这一份新底稿里，哪几个共用块的字跟 `prev`（手上那一份）不一样了 —— 回块库 id 的数组（排好序）。
+ * 判据是块库里那份 `data`（`_src.sharedData`），不是字段 prop：老板没存的手改不算「底稿变了」。
+ */
+function sharedChangedIds(prev, next) {
+  const before = sharedItemsById(prev);
+  const ids = new Set();
+  for (const [pid, it] of sharedItemsById(next)) {
+    const old = before.get(pid);
+    if (old && !deepEqual(old.props._src.sharedData, it.props._src.sharedData)) ids.add(it.props._src.shared);
+  }
+  return [...ids].sort();
+}
+
+/**
+ * `data` 里每个共用块换成 `next` 里同一个 Puck id 的那一块（整个条目，见上）。别的条目、顺序、root 原样。
+ * 一个都没换 ⟹ 回 `data` 本身（调用方据此判断要不要动历史）。
+ */
+function withSharedFrom(data, next) {
+  const fresh = sharedItemsById(next);
+  let hit = false;
+  const content = ((data && data.content) || []).map((it) => {
+    const src = it && it.props && it.props._src;
+    if (!src || !src.shared || it.props.id !== src.pid) return it;
+    const n = fresh.get(it.props.id);
+    if (!n || deepEqual(n, it)) return it;
+    hit = true;
+    return clone(n);
+  });
+  return hit ? { ...data, content } : data;
+}
+
+/**
+ * AI 改完、新底稿到了：撤销历史怎么动（EditorApp 照这个回答做，`editor-ai-history.test.js` 跑的是同一个函数）。
+ *
+ *   pageChanged  这一页的页面 JSON 变了没有 —— 判据是底稿的 `hash`（文件字节的 sha256）跟手上那个比，不是
+ *                「Puck Data 变没变」：共用块的字变了 Puck Data 也会变，而那不是这一页的改动（票正文做什么 5 / 7）
+ *   record       要不要把新底稿记成撤销历史里的一步 = pageChanged
+ *   histories    每一条快照的共用块换成新底稿里的那一块（§withSharedFrom）
+ *   current      手上画布那一份，同样换好共用块（只在不 record 时用来换画布；record 时画布换成 next）
+ *   sharedIds    字变了的共用块
+ *   mixed        页面和共用块都变了 ⟹ 撤销只退页面那半，状态栏要多说一句（做什么 7 的 📌）
+ *
+ * @param {{ current: object, histories: {state:{data:object}}[], next: object, hash: string, nextHash: string }} a
+ */
+function aiBaselineStep({ current, histories, next, hash, nextHash }) {
+  const pageChanged = typeof nextHash === 'string' && nextHash !== hash;
+  const sharedIds = sharedChangedIds(current, next);
+  const mapped = (histories || []).map((h) => {
+    const data = h && h.state && h.state.data;
+    if (!data) return h;
+    const d2 = withSharedFrom(data, next);
+    if (d2 === data) return h;
+    // 🔴 换了 data 的那一条**不许带着原来的 `indexes`**：Puck 0.23 的 `set`（setHistories / 撤销 / 前进都走它，
+    //    `reducer/actions/set.ts`）见到 state 里有 `indexes` 就直接用、不按 data 重建 —— 留着旧的，节点索引就还指着
+    //    换之前的那些块。拿掉它，Puck 按新 data 重建一份。
+    const { indexes: _stale, ...rest } = h.state; // eslint-disable-line no-unused-vars
+    return { ...h, state: { ...rest, data: d2 } };
+  });
+  return {
+    pageChanged,
+    record: pageChanged,
+    histories: mapped,
+    current: withSharedFrom(current, next),
+    sharedIds,
+    mixed: pageChanged && sharedIds.length > 0,
+  };
+}
+
 module.exports = {
   UNKNOWN_TYPE, pageToPuck, puckToPage, fieldProps, dataFromProps, assignWeights, deepEqual, ITEM_ORIG, rootToPuck, puckRootChanges,
   sharedReach, sharedRemovable, puckSharedChanges, sharedOwnAfter, applySharedChanges,
+  aiBaselineStep,
 };
