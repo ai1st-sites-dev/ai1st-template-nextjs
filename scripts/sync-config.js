@@ -711,7 +711,8 @@ decorateBlocks(pagesByLocale, { rootDir, structureThemeId });
 // #962/#983 let a theme carry `rhythm: { hide, order }`, and this file applied it: it flagged blocks
 // as hidden and re-ordered them at build time, so changing theme changed which blocks a page showed
 // and in what order. Spec D8 (Chris 2026-08-13) removed that. Placement now comes only from the
-// site's own page JSON — the order of the `sections` array and each section's own `hidden` — and a
+// site's own page JSON — the order of its blocks (a block the site does not want is deleted; the
+// per-block `hidden` flag retired in #1411) — and a
 // theme changes colors, fonts, block variants and Region structure, nothing else.
 //
 // The check below runs on the WHOLE registry on every build (this file is predev/prebuild) and is

@@ -8,7 +8,7 @@
 //
 // ── 两种形状（双 schema，抄 TICKET-127 的先例：sync-config.js:99 / :139 / :203）──────────────
 //
-//   老（今天磁盘上每一个既有站）  { "sections": [ { "type": "hero", "data": {…}, "hidden": false } ] }
+//   老（今天磁盘上每一个既有站）  { "sections": [ { "type": "hero", "data": {…} } ] }
 //   新                          { "blocks":   [ { "id": "home-hero", "type": "hero", "role": "lead",
 //                                                 "region": "content", "weight": 0, "data": {…} },
 //                                               { "ref": "our-team" } ] }
@@ -326,7 +326,7 @@ function visibilityMatches(siteBlock, slug) {
 // 它也跟本文件 `:506` 那句既有注释（「追加（位置按它自己的 weight，见 effectiveWeight）」）相矛盾。
 // ⟹ **本函数回答的是「这一页上有哪些 type」，不是「它们按什么顺序排」**；两道调用它的检查
 // （第 ④ 条 / `recipeProblems` 的骨架）问的都是集合，不是顺序。要让检查反映**建出来的页面**顺序，
-// 那是另一张票的事（顺带:`hidden` 也要一起进去，见 #1149 台账里那条给未来那张票的射程说明）。
+// 那是另一张票的事。
 //
 // 逐条规矩：
 //   · `{ ref }` 指得到 → 换成那个站级块的 type，位置就是这条 ref 的位置
@@ -478,32 +478,14 @@ function normalizeLocalePages(pages, siteBlocks, locale, report) {
           weight: refWeightOk ? entry.weight : i * 10,
           __order: i,
         };
-        // #1351 —— 这一页对这个站级块的覆盖。在这张票之前，`ref` 条目上写的 `hidden` **从来没被读过**
-        // （上面那个对象只摊开 target 再覆盖 id / weight / __order），所以在一页里单独隐藏一个跨页
-        // 复用的块是静默无效的：文件里写着 hidden:true，页面上它照样在。
-        //
-        // 🔴 只有这一页真写了才带过来，没写就不带 —— 不给它造默认值。造一个 `hidden: false` 会把站级
-        // 块自己的显隐（`...target` 带过来的那个）悄悄改写掉，而症状是「我在块库里把它藏了，页面上
-        // 它还在」，构建全绿。
-        if (entry.hidden !== undefined) {
-          if (typeof entry.hidden === 'boolean') {
-            refBlock.hidden = entry.hidden;
-          } else {
-            // 照这个文件对 role / weight 的同一套处置：点名 + 忽略这个字段，不中断构建。
-            // 🔴 为什么不能直接放行：SectionRenderer 判的是 `if (block.hidden) return null;` ——
-            // 字符串 "false" 是真值，于是「写了 false」和「写了 true」在页面上是同一个结果。
-            note(`${where} 第 ${i} 个块（ref ${JSON.stringify(entry.ref)}）的 "hidden" 是 `
-              + `${JSON.stringify(entry.hidden)}，必须是 true 或 false —— 这个字段被忽略`);
-          }
-        }
-        // #1350 —— 同一个洞的第二个字段（QA3 在真构建上量到的）。检查器给**站级块**挑形态时，
+        // #1350 —— 这一页对这个站级块的覆盖（QA3 在真构建上量到的）。检查器给**站级块**挑形态时，
         // 写路径把 `shape` 写在这一页的 `{ref}` 条目上，而上面那个对象只摊开 target 再覆盖
         // id / weight / __order ⟹ 构建把它静默丢掉：manager 放行、worker 真写进页面 JSON、预览里
         // 当场看得见（那是浏览器侧改属性），保存重建之后产物里却是主题形态。
         // 🔴 而清除那一侧（`lib/block-shape.js` §resetShapesInSite）本来就认识 `{ref}` 条目 ⟹
         //    修之前这个字段**只能删、不能用**，两侧不对称本身就是这条的判据。
         //
-        // 🔴 跟 hidden 同一套：只在这一页真写了、且形状对的时候才带，没写就不带 —— 不造默认值。
+        // 🔴 只在这一页真写了、且形状对的时候才带，没写就不带 —— 不造默认值。
         //    造一个的话 `shapeForBlock` 的第 ① 级（页面 JSON）恒命中，主题选择单从此对站级块失效。
         // 🔴 这里只判**形状**（是不是非空字符串），不判这个形态名存不存在：名字对不对由
         //    `lib/block-shape.js` §shapeForBlock 在拿得到 manifest 的地方判（清单里没有 / 缺槽位
@@ -720,7 +702,6 @@ function pageWithBlocks(page) {
       region: s.region || 'content',
       weight: typeof s.weight === 'number' ? s.weight : i * 10,
     };
-    if (s.hidden !== undefined) b.hidden = s.hidden;
     b.data = s.data || {};
     return b;
   });

@@ -40,7 +40,7 @@ const REGISTRY_TS = path.join(NEXT_DIR, 'src', 'lib', 'sections', 'registry.gene
  * 过了全部机器检查、Chris 还没点头。**候选照样在这份清单里**：图册要画它、几何守卫要量它；它只是不许
  * 被挑上真站（两条堵法在 `theme-pipeline/shape-sheet.js` 与 `sync-config.js` §shapeForBlock）。
  * 🔴 **交接给 #1350**：点选检查器那个形态下拉要**过滤掉 `candidate === true` 的项** —— 候选进图册是给
- * Chris 看的，不是给站主挑的。#1384 只把这个读数摆出来，不碰 `dashboard/src/components/BlockInspector.tsx`。
+ * Chris 看的，不是给站主挑的。#1384 只把这个读数摆出来，不碰检查器（#1411 起检查器退役，Puck 的形态下拉在 editor-schema 里滤掉候选）。
  *
  * @param {object} [opts]
  * @param {string} [opts.registryPath]  默认 `src/lib/sections/registry.generated.ts`
@@ -90,7 +90,7 @@ function blockShapeCatalog(opts) {
         //    （`theme-css-invariants.mjs` 检查 ⑨ 从这里取 manifests），它只是不许被**挑**上真站。
         //    归一成布尔，消费者不用去判「有没有这个键」。
         // 🔴 交接给 #1350：形态下拉要过滤掉 `candidate === true` 的项（理由在 block-catalog.d.ts
-        //    的那个字段上）。本票不碰 `BlockInspector.tsx`。
+        //    的那个字段上）。本票不碰检查器（#1411 已退役）。
         candidate: sh.candidate === true,
       });
     }

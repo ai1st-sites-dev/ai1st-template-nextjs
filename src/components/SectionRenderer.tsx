@@ -10,11 +10,6 @@ export default function SectionRenderer({ blocks, locale }: SectionRendererProps
   return (
     <>
       {blocks.map((block, index) => {
-        // The site's own page JSON marked this block hidden — that is its only source since #993
-        // (spec D8 took the theme out of block placement). It is still in `blocks` on purpose
-        // (see BlockConfig.hidden): the page keeps its content, and whatever derives structured
-        // data from the page's composition keeps seeing it. Only the rendering skips it.
-        if (block.hidden) return null;
         const Component = sectionRegistry[block.type];
         if (!Component) {
           console.warn(`Unknown block type: ${block.type}`);

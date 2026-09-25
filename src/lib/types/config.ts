@@ -155,7 +155,7 @@ export interface BlogPostConfig {
 // ---- Page Blocks ----
 //
 // #998 — 页面的内容层是 `blocks`，不再是 `sections`。这个类型描述的是 **sync-config 归一化之后**
-// 的形状：老站磁盘上仍然是 `sections: [{type, data, hidden}]`，`scripts/blocks.js` 把它 1:1 映成
+// 的形状：老站磁盘上仍然是 `sections: [{type, data}]`，`scripts/blocks.js` 把它 1:1 映成
 // 下面这个形状，所以运行时只有一种形状要读（spec §4.6）。
 export type BlockRoleName = 'essential' | 'lead' | 'optional';
 
@@ -179,11 +179,6 @@ export interface BlockConfig {
   /** 排布顺序。没写就按它在数组里的位置算（见 `scripts/blocks.js` 的 effectiveWeight）。 */
   weight?: number;
   data?: Record<string, unknown>;
-  /** Written in the site's own page JSON — and nowhere else. #993 (spec D8) removed the theme's
-   *  ability to set it: which blocks a page shows is the site's decision, not the theme's.
-   *  The block keeps its content and stays in this array; only SectionRenderer skips it. Anything
-   *  that reasons about what the page is *made of* (SubPage's Service JSON-LD) still sees it. */
-  hidden?: boolean;
 }
 
 /** @deprecated #998 起用 `BlockConfig`。留着是因为 `blocks` 与 `sections` 的字段是超集关系，

@@ -217,20 +217,7 @@ function CanvasBlock({ component, props, locale }: { component: EditorComponent;
         >
           {component.label} · Shared
         </span>
-        {view.hidden ? (
-          <div data-editor-hidden style={{ padding: '10px 16px', fontSize: 13, color: '#667085', background: '#f2f4f7' }}>
-            {component.label} — hidden on the live page
-          </div>
-        ) : <SectionRenderer blocks={[block]} locale={locale} />}
-      </div>
-    );
-  }
-  if (view.hidden) {
-    // `hidden` 整条由 #1411 退役；在那之前它还在页面 JSON 里，画布上给一条看得见的占位，别让它成为
-    // 一个点不中的空条目。
-    return (
-      <div data-editor-hidden style={{ padding: '10px 16px', fontSize: 13, color: '#667085', background: '#f2f4f7' }}>
-        {component.label} — hidden on the live page
+        <SectionRenderer blocks={[block]} locale={locale} />
       </div>
     );
   }

@@ -14,7 +14,7 @@ export interface BlockShapePair {
    * `false`，所以消费者判的是布尔，不是「有没有这个键」。
    *
    * 🔴 **交接给 #1350**：点选检查器那个形态下拉要**过滤掉 `candidate === true` 的项** —— 候选进图册
-   *    是为了给 Chris 看，不是给站主挑。本票只把这个读数摆出来，不碰 `BlockInspector.tsx`。
+   *    是为了给 Chris 看，不是给站主挑。本票只把这个读数摆出来，不碰检查器（#1411 起检查器退役，Puck 的形态下拉在 editor-schema 里滤掉候选）。
    */
   candidate: boolean;
 }

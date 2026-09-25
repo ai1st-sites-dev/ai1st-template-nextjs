@@ -90,14 +90,10 @@ export function getHomePage(locale: string): DynamicPageConfig {
 //    「拿哪些页当首屏底色的证据」)。那条判断整条去掉了 —— 透明浮层现在一律配遮罩,不再需要
 //    知道哪一页第一段是 hero。于是这个谓词只剩这一处实现,不会再有两处分叉的问题。
 //
-// 🔴 数的是**画得出来的**第一段,不是数组的第 0 个:站自己的页面 JSON 可以把某一段标成不显示
-// (`hidden`,SectionRenderer 直接 return null),而那一段仍然留在 sections 里。按第 0 个数会错两次 ——
-// ① 首段被藏起来、hero 排第二 ⟹ 屏幕上顶栏压着的就是 hero,却判成不浮
-// ② 藏的正好是 hero 本身 ⟹ 判成浮,而顶栏底下换成了下一段(多半是白底),白字压白底,谁都看不见。
-// ② 以前造不出来(那时只有主题能藏,30 套没有一套藏 hero);#993 之后藏不藏由站自己的页面 JSON 说了算,
-//    所以它现在是**造得出来的** —— 这两行本来就不该靠"今天恰好没有"活着。
+// 📌 #1411 之前这里数的是「第一个没被 `hidden` 藏起来的块」。`hidden` 整条退役之后每个块都画得出来,
+//    数组的第 0 个就是屏幕上的第一段。
 export function pageStartsWithHero(page: DynamicPageConfig | undefined): boolean {
-  return page?.blocks.find((b) => !b.hidden)?.type === 'hero';
+  return page?.blocks[0]?.type === 'hero';
 }
 
 export function getNonHomePages(locale: string): DynamicPageConfig[] {

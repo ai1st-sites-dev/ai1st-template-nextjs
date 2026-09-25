@@ -958,7 +958,7 @@ When changing colors, update ALL shades consistently (lighter for low numbers, d
 
 Each page has a \`blocks\` array. Each block:
 \`{ "id": "...", "type": "...", "role": "essential|lead|optional", "region": "content", "weight": 0, "data": { ... } }\`
-A block may also carry \`"hidden": true\`.
+To take a block off a page, delete it from the array — blocks have no hide switch.
 
 🔴 Older sites still use a \`sections\` array of \`{ "type": "...", "data": { ... } }\` instead. **Keep whichever
 array the file already has** — never convert one into the other, and never drop \`id\` / \`role\` / \`weight\`

@@ -62,7 +62,8 @@
 // `rhythm: { hide, order }` that hid blocks and re-ordered them at build time); spec D8 removed it,
 // and a theme carrying that key is now a build error — see `themesWithRhythm` at the bottom of this
 // file for the check and the three reasons. Which blocks a page shows, and in what order, comes only
-// from the site's own page JSON: the order of the `sections` array, and each section's `hidden`.
+// from the site's own page JSON: the order of its blocks (`hidden` retired in #1411 — a block that
+// should not show is deleted).
 
 // ── 注册表 = 池子，就这一份（#1161，2026-08-23 Chris 拍板整体下架）─────────────────────────────
 //

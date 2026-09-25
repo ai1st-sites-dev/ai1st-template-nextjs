@@ -21,7 +21,7 @@
 //                 "index":   <老 sections 形状里的数组下标> }
 //
 //   patch = JSON merge patch，套在那个块上：写了什么就设什么，值写 `null` 就把那个键删掉。
-//           （隐藏 = `{"hidden":true}`；显示回来 = `{"hidden":null}`。）
+//           （例：换一个位置权重 = `{"weight":30}`。`hidden` 那一对 #1411 起退役。）
 //   move  = "up" / "down"，跟 patch 二选一，不能同时给。
 //
 // 成功时 stdout 打**一行** JSON：{"ok":true,"blockId":…,"index":…,"file":…}
@@ -144,7 +144,7 @@ function orderOf(pageObj) {
   return out[0].blocks.map((b) => {
     // 🔴 `{ref}` 条目上盖的序号**到不了**这里：`blocks.js` 解 ref 那一支摊开的是站级块本体
     //    （`{ ...target, id: entry.ref, … }`），条目自己身上的键一个都没带过来。所以那一类要按
-    //    id 回查一次原始数组。只认 `__pbIdx` 的话它们全都读成 -1，而守卫会把一次正确的隐藏
+    //    id 回查一次原始数组。只认 `__pbIdx` 的话它们全都读成 -1，而守卫会把一次正确的改动
     //    判成「别的块也动了」拒掉（实测过，rc=7）。
     let raw = Number.isInteger(b.__pbIdx) ? b.__pbIdx : -1;
     if (raw === -1 && typeof b.id === 'string' && b.id) {
@@ -155,7 +155,6 @@ function orderOf(pageObj) {
       raw,
       id: typeof b.id === 'string' && b.id ? b.id : '',
       type: b.type || '',
-      hidden: b.hidden === true,
     };
   });
 }
@@ -203,7 +202,7 @@ if (!blockId && typeof entry.id === 'string') blockId = entry.id;
 
 // ── #1352 —— `data` 这个键是「块里的一行字」，写法跟别的键不一样 ────────────────────────────────
 //
-// 别的键（`hidden` / `weight` / `shape`）改的是**块本身**的一个属性，一层就到底。文字不是：它住在
+// 别的键（`weight` / `shape`）改的是**块本身**的一个属性，一层就到底。文字不是：它住在
 // `entry.data` 里面，而且可能在子字段上（`ctaPrimary.label`）或者列表项里（`items.2.title`）。
 //
 // 🔴 **所以 `patch.data` 的值是一张「路径 → 新的字」的表，不是一份新的 data。** 整份换掉的话，
@@ -267,7 +266,7 @@ if (patch) {
       // 🔴 站级共用块（`{ref}` 条目）的内容不住在这一页里 —— 它在 `blocks/site-blocks.json`。
       //    往 ref 条目上写 `data` 是**静默无效**的：`blocks.js` 解 ref 那一支摊开的是站级块本体
       //    （`{ ...target, id: entry.ref, … }`），条目自己写的 data 一个字都读不到 ⟹ 老板改完、
-      //    保存成功、重建完页面一个字没变。#1351 把 `hidden` 做成了这一页的覆盖，文字没有这条路，
+      //    保存成功、重建完页面一个字没变。文字没有「这一页的覆盖」这条路，
       //    所以这里当场拒掉，别让它变成一次假的成功。
       if (typeof entry.ref === 'string' && entry.type === undefined) {
         die(8, '这一块的内容是整个网站共用的（它写在站级块库里），暂时不能在这里改字');
@@ -290,18 +289,10 @@ if (patch) {
   // 认块靠上面盖的那个原始下标，不靠 id（老 sections 形状没有 id）。
   const here = before.findIndex((b) => b.raw === at);
   if (here === -1) die(3, '这一页渲染出来的块里没有要挪的那一个');
-  // 🔴 **藏起来的块不占一格：找邻居时跳过它们。**（QA1 r3 抓到的那一格）
-  //    藏起来的块在建出来的页面上根本没有 DOM（`SectionRenderer.tsx` 直接 `return null`），所以
-  //    老板在预览里看到的「下一块」就是下一个**没被藏**的块，而预览里的上移下移换的也是它。
-  //    这里要是按完整顺序取邻居，一个藏起来的邻居就会把这一次点击整个吃掉：页面 JSON 里两个权重
-  //    确实换了，而**看得见的顺序一个字没变** —— 老板点了、预览里动了、重建完跟点之前一模一样，
-  //    没有任何地方会红。所以两边用同一条规矩：邻居 = 这个方向上最近的那个没被藏的块。
-  //    到头的判据跟着一起变：后面只剩藏起来的块 = 它已经是（看得见的）最后一个了。
-  let to = -1;
-  for (let i = move === 'up' ? here - 1 : here + 1; i >= 0 && i < before.length; i += (move === 'up' ? -1 : 1)) {
-    if (!before[i].hidden) { to = i; break; }
-  }
-  if (to === -1) die(6, move === 'up' ? '它已经是第一个了' : '它已经是最后一个了');
+  // 邻居 = 渲染顺序上紧挨着的那一块。📌 #1411 之前这里要跳过 `hidden` 的块（它们在页面上没有 DOM），
+  //    `hidden` 退役后每一块都画得出来，紧挨着的就是老板在页面上看到的那一块。
+  const to = move === 'up' ? here - 1 : here + 1;
+  if (to < 0 || to >= before.length) die(6, move === 'up' ? '它已经是第一个了' : '它已经是最后一个了');
 
   const nb = before[to].raw;
   if (nb === -1) {
@@ -337,13 +328,9 @@ if (patch) {
 //
 // 🔴 这一段不是锦上添花。补 `{ref}` 条目那条路会往数组里加一条，而**没写 weight 的站级块，
 //    它的位置是按「追加进来时那个序号」算的** —— 数组长一条，后面那些块的序号就整体后移一格。
-//    症状是老板点了「隐藏这一块」，页面上另外两块对调了位置，而构建全绿。
-//    所以这里前后各算一次顺序，只允许出现两种差别：那个块自己被藏起来（从名单里消失），
+//    症状是老板改了这一块，页面上另外两块对调了位置，而构建全绿。
+//    所以这里前后各算一次顺序，只允许出现两种差别：什么顺序都没变（改的是块自己的属性），
 //    或者上移下移那两块对调。别的差别一律不写，退 7。
-// 🔴 比的是**完整顺序**（连藏起来的那些一起比），不是「看得见的那几个」的顺序。
-//    这一条是实测逼出来的：拿掉上面那段「补条目时带上今天的 weight」之后，两个站级块确实对调了，
-//    而当时的守卫只比可见顺序 —— 被改的那个正好是藏着的，所以它一声没吭，照样写了下去。
-//    一把只在「反正也看不见」的时候失明的尺子，等老板把那个块放回来的那天才会显形。
 const after = orderOf(page);
 
 // 认一个块用什么名字：新 `blocks` 形状用它写在文件里的 `id`；老 `sections` 形状一律用
@@ -375,35 +362,21 @@ const keyList = (list) => {
     return `${b.type}#${n}`;
   });
 };
-const seqOf = (list) => keyList(list).map((k, i) => `${k}${list[i].hidden ? '(藏)' : ''}`);
-const beforeSeq = seqOf(before);
-const afterSeq = seqOf(after);
+const beforeSeq = keyList(before);
+const afterSeq = keyList(after);
 
 const allowed = (() => {
   if (before.length !== after.length) return false;
   const bk = keyList(before);
   const ak = keyList(after);
 
-  if (patch) {
-    // 藏起来 / 放回来：**位置一个都不许动**，只有被改的那一个块的显隐可以变。
-    if (!bk.every((k, i) => k === ak[i])) return false;
-    // 认被改的那一个用的是改完之后那份名单里 raw 等于 `at` 的那一条（补 `{ref}` 条目那条路上，
-    // 它在「改之前」那份名单里的 raw 是 -1 —— 那会儿文件里还没有它）。
-    const ti = after.findIndex((b) => b.raw === at);
-    const changed = bk.filter((k, i) => before[i].hidden !== after[i].hidden);
-    return changed.length === 0 || (changed.length === 1 && ti >= 0 && changed[0] === ak[ti]);
-  }
+  // 改块自己的属性：**位置一个都不许动**。
+  if (patch) return bk.every((k, i) => k === ak[i]);
 
-  // 上移下移：两个块对调，别的位置不动，谁的显隐都不许变（按名字比，不按位置比 ——
-  // 按位置比会被对调那一步本身带偏）。
-  // 🔴 对调的这两个**不一定挨着**：藏起来的块不占一格（见上面找邻居那段），所以它们中间可以隔着
-  //    几个藏起来的块 —— 但**只能是藏起来的**。夹在中间的块如果看得见，那就是这一次改动顺带把
-  //    第三个块的位置也改了，照旧拒掉。（中间那些块自己没动 —— `diff` 只有两项就是这个意思。）
-  const hb = new Map(bk.map((k, i) => [k, before[i].hidden]));
-  if (!ak.every((k, i) => hb.get(k) === after[i].hidden)) return false;
+  // 上移下移：紧挨着的两个块对调，别的位置不动（按名字比，不按位置比 —— 按位置比会被对调那一步
+  // 本身带偏）。
   const diff = bk.map((k, i) => (k === ak[i] ? -1 : i)).filter((i) => i >= 0);
-  return diff.length === 2
-    && before.slice(diff[0] + 1, diff[1]).every((b) => b.hidden)
+  return diff.length === 2 && diff[1] === diff[0] + 1
     && bk[diff[0]] === ak[diff[1]] && bk[diff[1]] === ak[diff[0]];
 })();
 

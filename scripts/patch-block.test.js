@@ -3,7 +3,7 @@
 // 这个脚本在站自己的容器里跑、直接改磁盘上的页面 JSON，所以这里测的方式也是「真建一棵目录树、
 // 真跑一次、再把文件读回来」，不 mock 文件系统：要守的性质本来就是「磁盘上那份文件变成了什么」。
 //
-// 🔴 每一格都配一条反向对照，因为这一族的错法是**静默**的：块没被藏起来 / 藏错了一个 /
+// 🔴 每一格都配一条反向对照，因为这一族的错法是**静默**的：块没被改到 / 改错了一个 /
 //    顺带把别的块挪了位置 —— 三种都不会报错，构建全绿，只有页面长得不对。
 
 const fs = require('fs');
@@ -62,7 +62,7 @@ function rendered(root, slug) {
   const p = path.join(root, 'site', 'blocks', 'site-blocks.json');
   if (fs.existsSync(p)) sb = JSON.parse(fs.readFileSync(p, 'utf-8'));
   const out = blocks.normalizeLocalePages([page], sb, 'en', {});
-  return out[0].blocks.filter((b) => !b.hidden).map((b) => b.id || b.type);
+  return out[0].blocks.map((b) => b.id || b.type);
 }
 
 const PAGE_NEW = {
@@ -86,26 +86,27 @@ const PAGE_OLD = {
   },
 };
 
-// ── ① 新 blocks 形状：隐藏 / 放回来 ─────────────────────────────────────────────────────────────
-console.log('\n── ① 新 blocks 形状：隐藏 / 放回来');
+// ── ① 新 blocks 形状：改块自己的一个属性 / 把它删掉 ──────────────────────────────────────────────
+// 📌 #1411 之前这一节量的是「隐藏 / 放回来」（`hidden`，已退役）。拿 `shape` 当样本：它跟 `hidden`
+//    走的是同一条 JSON merge patch 路径（写什么设什么，`null` 删键），而且不动顺序。
+console.log('\n── ① 新 blocks 形状：改一个属性 / 删掉它');
 {
   const root = makeSite(PAGE_NEW);
   const before = rendered(root, 'home');
 
-  const r = run(root, { page: 'home', blockId: 'home-testimonials' }, { hidden: true });
-  if (r.code !== 0) bad(`隐藏失败 rc=${r.code}: ${r.err}`);
-  else if (readPage(root, 'home').blocks[2].hidden !== true) bad('页面 JSON 里没写上 hidden:true');
-  else if (rendered(root, 'home').includes('home-testimonials')) bad('写上了 hidden 但它还是被建出来了');
-  else ok('隐藏：页面 JSON 写上 hidden:true，建出来的页面上没有它');
+  const r = run(root, { page: 'home', blockId: 'home-testimonials' }, { shape: 'grid-3' });
+  if (r.code !== 0) bad(`改属性失败 rc=${r.code}: ${r.err}`);
+  else if (readPage(root, 'home').blocks[2].shape !== 'grid-3') bad('页面 JSON 里没写上 shape');
+  else if (JSON.stringify(rendered(root, 'home')) !== JSON.stringify(before)) bad('改一个属性却动了顺序');
+  else ok('改属性：页面 JSON 写上 shape，建出来的顺序逐块不变');
 
-  // 🔴 反向对照：放回来之后，那个键要**从文件里消失**，不是写成 false。
-  //    留一个 `hidden:false` 在文件里，跟从没藏过的站就不是同一份字节了（同 theme.json 那条收敛规矩）。
-  const r2 = run(root, { page: 'home', blockId: 'home-testimonials' }, { hidden: null });
+  // 🔴 反向对照：写 null 之后，那个键要**从文件里消失**，不是写成空串 / false。
+  const r2 = run(root, { page: 'home', blockId: 'home-testimonials' }, { shape: null });
   const back = readPage(root, 'home').blocks[2];
-  if (r2.code !== 0) bad(`放回来失败 rc=${r2.code}: ${r2.err}`);
-  else if (Object.prototype.hasOwnProperty.call(back, 'hidden')) bad(`放回来之后 hidden 键还在: ${JSON.stringify(back.hidden)}`);
-  else if (JSON.stringify(rendered(root, 'home')) !== JSON.stringify(before)) bad('放回来之后顺序跟原来不一样了');
-  else ok('放回来：hidden 键从文件里删掉，顺序跟动手之前逐块相同');
+  if (r2.code !== 0) bad(`删键失败 rc=${r2.code}: ${r2.err}`);
+  else if (Object.prototype.hasOwnProperty.call(back, 'shape')) bad(`写 null 之后 shape 键还在: ${JSON.stringify(back.shape)}`);
+  else if (JSON.stringify(rendered(root, 'home')) !== JSON.stringify(before)) bad('删键之后顺序跟原来不一样了');
+  else ok('删键：shape 键从文件里删掉，顺序跟动手之前逐块相同');
 
   // 🔴 反向对照：别的块一个字节没动。
   const now = readPage(root, 'home');
@@ -149,11 +150,11 @@ console.log('\n── ③ 老 sections 形状：按下标定位，挪完回带�
     else if (got.blockId !== '') bad(`老形状不该编一个 id 回来: ${JSON.stringify(got.blockId)}`);
     else ok('下移：数组换了位置，回带新下标 2，不编 id');
 
-    // 🔴 AC3 正臂：拿回带的新下标对**同一块**再发一次 —— 被藏起来的要是它，不是它原来那个下标上的邻居。
-    const r2 = run(root, { page: 'home', index: got.index }, { hidden: true });
-    const hiddenType = (readPage(root, 'home').sections.find((s) => s.hidden === true) || {}).type;
-    if (r2.code === 0 && hiddenType === 'features-grid') ok('AC3 正臂: 用回带的下标再发一次，藏起来的是同一块（features-grid）');
-    else bad(`AC3 正臂读数不对: rc=${r2.code} · 被藏的是 ${hiddenType}`);
+    // 🔴 AC3 正臂：拿回带的新下标对**同一块**再发一次 —— 被改的要是它，不是它原来那个下标上的邻居。
+    const r2 = run(root, { page: 'home', index: got.index }, { shape: 'grid-3' });
+    const hitType = (readPage(root, 'home').sections.find((s) => s.shape === 'grid-3') || {}).type;
+    if (r2.code === 0 && hitType === 'features-grid') ok('AC3 正臂: 用回带的下标再发一次，改到的是同一块（features-grid）');
+    else bad(`AC3 正臂读数不对: rc=${r2.code} · 被改的是 ${hitType}`);
   }
 
   // 🔴 AC3 反向臂：改用 `blocks.js` 现算的那个 id 发同一次请求。那个 id 结尾是数组下标，挪过一次
@@ -161,10 +162,10 @@ console.log('\n── ③ 老 sections 形状：按下标定位，挪完回带�
   const root2 = makeSite(PAGE_OLD);
   run(root2, { page: 'home', index: 1 }, null, 'down');
   const computed = blocks.pageWithBlocks(JSON.parse(JSON.stringify(PAGE_OLD.home))).blocks[1].id;
-  const r3 = run(root2, { page: 'home', blockId: computed }, { hidden: true });
-  const anyHidden = readPage(root2, 'home').sections.some((s) => s.hidden === true);
-  if (r3.code === 5 && !anyHidden) ok(`AC3 反向臂: 拿现算 id（${computed}）发同一次 → 退 5、一个块都没被藏（跟正臂读数不同）`);
-  else bad(`AC3 反向臂读数不对: rc=${r3.code} · 有块被藏=${anyHidden}`);
+  const r3 = run(root2, { page: 'home', blockId: computed }, { shape: 'grid-3' });
+  const anyHit = readPage(root2, 'home').sections.some((s) => s.shape === 'grid-3');
+  if (r3.code === 5 && !anyHit) ok(`AC3 反向臂: 拿现算 id（${computed}）发同一次 → 退 5、一个块都没被改（跟正臂读数不同）`);
+  else bad(`AC3 反向臂读数不对: rc=${r3.code} · 有块被改=${anyHit}`);
 }
 
 // ── ④ visibility 命中而这一页没有条目的站级块（AC5②）──────────────────────────────────────────
@@ -183,14 +184,13 @@ console.log('\n── ④ 站级块靠 visibility 进来的那条路：补条目
   const sbPath = path.join(root, 'site', 'blocks', 'site-blocks.json');
   const sbBefore = fs.readFileSync(sbPath, 'utf-8');
 
-  const r = run(root, { page: 'home', blockId: 'our-team' }, { hidden: true });
+  const r = run(root, { page: 'home', blockId: 'our-team' }, { shape: 'band-left' });
   const homeNow = readPage(root, 'home');
   const refEntry = homeNow.blocks.find((b) => b.ref === 'our-team');
 
-  if (r.code !== 0) bad(`隐藏失败 rc=${r.code}: ${r.err}`);
-  else if (!refEntry || refEntry.hidden !== true) bad(`没补出带 hidden 的 ref 条目: ${JSON.stringify(homeNow.blocks)}`);
-  else if (rendered(root, 'home').includes('our-team')) bad('补了条目但它还是被建出来了');
-  else ok('这一页补出一个带 hidden 的 {ref} 条目，建出来的首页上没有它');
+  if (r.code !== 0) bad(`改属性失败 rc=${r.code}: ${r.err}`);
+  else if (!refEntry || refEntry.shape !== 'band-left') bad(`没补出带 shape 的 ref 条目: ${JSON.stringify(homeNow.blocks)}`);
+  else ok('这一页补出一个带 shape 的 {ref} 条目');
 
   // 🔴 反向对照一：**别的页一个字都不许受影响**。这是「只改本页那一份」的整个用途。
   if (JSON.stringify(rendered(root, 'about')) === JSON.stringify(aboutBefore)) {
@@ -216,17 +216,17 @@ console.log('\n── ⑤ 参数与安全：路径、键名、换块');
   const root = makeSite(PAGE_NEW);
   const snapshot = fs.readFileSync(path.join(root, 'site', 'pages', 'home.json'), 'utf-8');
   const cases = [
-    ['slug 里带 ..', { page: '../../etc/passwd', blockId: 'home-hero' }, { hidden: true }, '', 5],
-    ['slug 是绝对路径', { page: '/etc/passwd', blockId: 'home-hero' }, { hidden: true }, '', 5],
+    ['slug 里带 ..', { page: '../../etc/passwd', blockId: 'home-hero' }, { shape: 'grid-3' }, '', 5],
+    ['slug 是绝对路径', { page: '/etc/passwd', blockId: 'home-hero' }, { shape: 'grid-3' }, '', 5],
     ['patch 想改 id', { page: 'home', blockId: 'home-hero' }, { id: 'x' }, '', 5],
     ['patch 想改 type', { page: 'home', blockId: 'home-hero' }, { type: 'x' }, '', 5],
     ['patch 键名不像标识符', { page: 'home', blockId: 'home-hero' }, { 'a b': 1 }, '', 5],
-    ['patch 和 move 同时给', { page: 'home', blockId: 'home-hero' }, { hidden: true }, 'down', 5],
+    ['patch 和 move 同时给', { page: 'home', blockId: 'home-hero' }, { shape: 'grid-3' }, 'down', 5],
     ['两个都没给', { page: 'home', blockId: 'home-hero' }, null, '', 5],
     ['move 值不认识', { page: 'home', blockId: 'home-hero' }, null, 'sideways', 5],
-    ['找不到那一页', { page: 'nope', blockId: 'home-hero' }, { hidden: true }, '', 4],
-    ['找不到那个块', { page: 'home', blockId: 'no-such-block' }, { hidden: true }, '', 3],
-    ['老形状没给 index', { page: 'home', blockId: 'home-hero' }, { hidden: true }, '', 0],
+    ['找不到那一页', { page: 'nope', blockId: 'home-hero' }, { shape: 'grid-3' }, '', 4],
+    ['找不到那个块', { page: 'home', blockId: 'no-such-block' }, { shape: 'grid-3' }, '', 3],
+    ['老形状没给 index', { page: 'home', blockId: 'home-hero' }, { shape: 'grid-3' }, '', 0],
   ];
   let wrong = 0;
   for (const [name, loc, p, mv, want] of cases) {
@@ -237,96 +237,16 @@ console.log('\n── ⑤ 参数与安全：路径、键名、换块');
 
   // 🔴 反向对照：上面那些被拒的调用，**一个字节都不许写进文件**。
   //    最后一格是合法的（它会写），所以这里比的是「除了那一次之外没有别的写入」——
-  //    也就是文件现在只多了 home-hero 的 hidden，别的一处没变。
+  //    也就是文件现在只多了 home-hero 的 shape，别的一处没变。
   const now = JSON.parse(fs.readFileSync(path.join(root, 'site', 'pages', 'home.json'), 'utf-8'));
   const expect = JSON.parse(snapshot);
-  expect.blocks[0].hidden = true;
+  expect.blocks[0].shape = 'grid-3';
   if (JSON.stringify(now) === JSON.stringify(expect)) ok('反向对照: 被拒的那些调用一个字节都没写进文件');
   else bad(`被拒的调用动了文件: ${JSON.stringify(now.blocks)}`);
 }
 
-// ── ⑥ 藏起来的块不占一格（AC2，QA1 r3 抓到的那一格）──────────────────────────────────────────────
-//
-// 藏起来的块在建出来的页面上没有 DOM，所以老板看到的「下一块」是下一个**没被藏**的块，预览里的
-// 上移下移换的也是它。服务端要是按完整顺序取邻居，一个藏起来的邻居就把这一次点击整个吃掉：
-// 权重确实换了，而看得见的顺序一个字没变 —— 点了、预览里动了、重建完跟点之前一模一样，没有任何
-// 地方会红。下面每一格都同时量两件事：**看得见的顺序真的变了** + **那个藏起来的块没被碰**。
-console.log('\n── ⑥ 藏起来的块不占一格：找邻居跳过它，到头也按看得见的算');
-{
-  const mk = () => makeSite({
-    home: {
-      slug: 'home',
-      blocks: [
-        { id: 'home-hero', type: 'hero', role: 'lead', region: 'content', weight: 0, data: {} },
-        { id: 'home-features', type: 'features-grid', role: 'optional', region: 'content', weight: 10, data: {} },
-        { id: 'home-quiet', type: 'cta-banner', role: 'optional', region: 'content', weight: 20, hidden: true, data: {} },
-        { id: 'home-testimonials', type: 'testimonials', role: 'optional', region: 'content', weight: 30, data: {} },
-      ],
-    },
-  });
-
-  const root = mk();
-  const before = rendered(root, 'home');            // 看得见的：hero · features · testimonials
-  const r = run(root, { page: 'home', blockId: 'home-features' }, null, 'down');
-  const now = readPage(root, 'home');
-  const byId = (id) => now.blocks.find((b) => b.id === id);
-  if (r.code !== 0) bad(`跨过藏起来的邻居下移失败 rc=${r.code}: ${r.err}`);
-  else if (JSON.stringify(rendered(root, 'home')) !== JSON.stringify(['home-hero', 'home-testimonials', 'home-features'])) {
-    bad(`下移之后看得见的顺序不对: ${rendered(root, 'home').join(' ')}（之前 ${before.join(' ')}）`);
-  } else if (byId('home-features').weight !== 30 || byId('home-testimonials').weight !== 10) {
-    bad(`换的不是 testimonials 的权重: features=${byId('home-features').weight} testimonials=${byId('home-testimonials').weight}`);
-  } else ok('下移：跳过藏起来的那块、跟下一个看得见的换权重，看得见的顺序跟着变');
-
-  // 🔴 反向对照：**那个藏起来的块一个字节都没被碰**。修之前换的正是它的权重（20 ↔ 10），
-  //    而那一次的可见顺序跟动手之前逐块相同 —— 也就是「点了等于没点」。
-  const quiet = byId('home-quiet');
-  if (quiet && quiet.weight === 20 && quiet.hidden === true) ok('反向对照: 藏起来的那块权重仍是 20、仍是藏着的（没拿它当邻居）');
-  else bad(`藏起来的那块被动了: ${JSON.stringify(quiet)}`);
-
-  // 🔴 到头也按**看得见的**算：后面只剩藏起来的块 ⟹ 下移退 6，文件逐字节不动。
-  const root2 = makeSite({
-    home: {
-      slug: 'home',
-      blocks: [
-        { id: 'home-hero', type: 'hero', role: 'lead', region: 'content', weight: 0, data: {} },
-        { id: 'home-features', type: 'features-grid', role: 'optional', region: 'content', weight: 10, data: {} },
-        { id: 'home-quiet', type: 'cta-banner', role: 'optional', region: 'content', weight: 20, hidden: true, data: {} },
-      ],
-    },
-  });
-  const snap2 = fs.readFileSync(path.join(root2, 'site', 'pages', 'home.json'), 'utf-8');
-  const rEnd = run(root2, { page: 'home', blockId: 'home-features' }, null, 'down');
-  const untouched2 = fs.readFileSync(path.join(root2, 'site', 'pages', 'home.json'), 'utf-8') === snap2;
-  if (rEnd.code === 6 && untouched2) ok('到头：后面只剩藏起来的块 ⟹ 下移退 6，文件逐字节没动');
-  else bad(`到头这一格不对: rc=${rEnd.code} · 文件没动=${untouched2}`);
-
-  // 老 `sections` 形状同一臂：换的是数组位置，跨过中间那条藏起来的。
-  const root3 = makeSite({
-    home: {
-      slug: 'home',
-      sections: [
-        { type: 'hero', data: {} },
-        { type: 'features-grid', data: {} },
-        { type: 'cta-banner', hidden: true, data: {} },
-        { type: 'testimonials', data: {} },
-      ],
-    },
-  });
-  const r3 = run(root3, { page: 'home', index: 1 }, null, 'down');
-  const types3 = readPage(root3, 'home').sections.map((s) => `${s.type}${s.hidden ? '(藏)' : ''}`);
-  if (r3.code !== 0) bad(`老形状跨过藏起来的邻居下移失败 rc=${r3.code}: ${r3.err}`);
-  else if (types3.join(' ') !== 'hero testimonials cta-banner(藏) features-grid') bad(`老形状数组顺序不对: ${types3.join(' ')}`);
-  else if (JSON.parse(r3.out).index !== 3) bad(`老形状回带的新下标不对: ${JSON.parse(r3.out).index}`);
-  else ok('老 sections 形状：跨过藏起来的那条换数组位置，回带新下标 3');
-
-  // 藏起来的块自己被挪时，换的也是它跟**看得见的**那些的相对位置 —— 而看得见的顺序当然不变。
-  const root4 = mk();
-  const vis4 = rendered(root4, 'home');
-  const r4 = run(root4, { page: 'home', blockId: 'home-quiet' }, null, 'down');
-  if (r4.code === 0 && JSON.stringify(rendered(root4, 'home')) === JSON.stringify(vis4)) {
-    ok('藏起来的块自己挪：rc=0，而看得见的顺序一个字不变（它本来就不在页面上）');
-  } else bad(`藏起来的块自己挪读数不对: rc=${r4.code} · 顺序 ${rendered(root4, 'home').join(' ')}`);
-}
+// 📌 原来这里是 ⑥（藏起来的块不占一格：找邻居跳过 `hidden` 的块）。`hidden` 由 #1411 退役，每一块都画得
+//    出来，邻居就是紧挨着的那一块 —— ② 量的就是它。编号不重排。
 
 // ── ⑦ #1352 文字直改：`patch.data` 是一张「路径 → 新的字」的表 ──────────────────────────────────
 //
@@ -446,10 +366,10 @@ console.log('\n── ⑦ #1352 文字直改：patch.data 那张路径表');
     if (r.code === 8 && Buffer.compare(before, after) === 0) {
       ok('站级共用块的 ref 条目：rc=8，文件一个字节没动');
     } else bad(`ref 条目读数不对: rc=${r.code} ${r.err}`);
-    // 反向对照：证明这个夹具本身是能改的 —— 同一个块换成隐藏就成功。
-    const r2 = run(root, { page: 'home', blockId: 'our-team' }, { hidden: true });
-    if (r2.code === 0) ok('反向对照: 同一条 ref 条目改 hidden 照样成功（rc=8 不是夹具本身不成立）');
-    else bad(`反向对照失败: 改 hidden 也不行 rc=${r2.code} ${r2.err}`);
+    // 反向对照：证明这个夹具本身是能改的 —— 同一个块换成改形态就成功。
+    const r2 = run(root, { page: 'home', blockId: 'our-team' }, { shape: 'band-left' });
+    if (r2.code === 0) ok('反向对照: 同一条 ref 条目改 shape 照样成功（rc=8 不是夹具本身不成立）');
+    else bad(`反向对照失败: 改 shape 也不行 rc=${r2.code} ${r2.err}`);
   }
 
   // ⑦ 老 sections 形状同样走得通（票里 AC7）。

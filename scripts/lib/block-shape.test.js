@@ -300,7 +300,7 @@ console.log('\n⑦ resetShapesInSite —— 页面级 / 站级一次清空');
       slug: 'home',
       blocks: [
         { id: 'home-hero-0', type: 'hero', weight: 0, shape: 'media-cover', data: { headline: 'A' } },
-        { id: 'home-faq-1', type: 'faq-accordion', weight: 10, hidden: true, data: { headline: 'B' } },
+        { id: 'home-faq-1', type: 'faq-accordion', weight: 10, role: 'optional', data: { headline: 'B' } },
         { ref: 'shared-hero', weight: 20, shape: 'text-left' },
       ],
     }, null, 2)}\n`);
@@ -326,8 +326,8 @@ console.log('\n⑦ resetShapesInSite —— 页面级 / 站级一次清空');
       `页面级 ⟹ 一次清掉这一页那 2 个手挑的块（实际 ${r.cleared.length}：${JSON.stringify(r.cleared.map((c) => c.blockId))}）← AC3 第三句`);
     const home = JSON.parse(read(root, 'en/pages/home.json'));
     check(!home.blocks.some((b) => 'shape' in b), 'home.json 里已经一个 shape 键都没有了');
-    check(home.blocks[1].hidden === true && home.blocks[2].weight === 20 && home.blocks[0].data.headline === 'A',
-      '🔴 只删了 shape 这一个键 —— hidden / weight / data 原样还在');
+    check(home.blocks[1].role === 'optional' && home.blocks[2].weight === 20 && home.blocks[0].data.headline === 'A',
+      '🔴 只删了 shape 这一个键 —— role / weight / data 原样还在');
     check(read(root, 'en/pages/about.json') === beforeAbout,
       '一个都没挑的那一页**逐字节没被动过**（写回会换掉 mtime，而 sitemap 的 lastmod 有 mtime 兜底）');
     check(read(root, 'fr/pages/home.json') === beforeFr, '另一个语言的同名页也没被动（点名的是 en/home）');
