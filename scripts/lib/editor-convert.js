@@ -734,8 +734,111 @@ function aiBaselineStep({ current, histories, next, hash, nextHash }) {
   };
 }
 
+// ── #1454 这一次存盘说人话：AI chat 里那条手改记录的正文 ───────────────────────────────────────────
+//
+// 🔴 它说的是**这一笔**交出去的东西，比的底跟存盘本身同一个：页面跟 `saved`（上一次存下去的那份页面 JSON）比，
+//    外壳四样就是交出去的 `root`，共用块就是交出去的 `shared`。跟打开时比的话，存过一次之后第二笔会把第一笔
+//    又说一遍 —— 两条记录各自撤销时说的就不是同一件事了。
+// 🔴 名字全部来自 schema（块的 `label` = manifest 的 displayName，字段的 `label` = manifest 的 editLabel），
+//    外壳四样的名字由调用方给（`EditorApp.tsx` §ROOT_FIELD_LABELS，面板上那几个字段名就是它）—— 这里一个名字都不写，
+//    老板在记录里读到的就是他在面板上点的那几个字。
+// 📌 页面块怎么对上号：`blocks` 形状按 `id`（`{ref}` 按 ref），老的 `sections` 形状没有 id，按下标。
+
+/** 一条原始条目 → 它在记录里叫什么（块名）。共用块的 `{ref}` 条目按块库里那一块的类型取名。 */
+function entryLabel(e, idx, lib) {
+  if (!isPlainObject(e)) return null;
+  const type = typeof e.type === 'string' ? e.type
+    : typeof e.ref === 'string' && isPlainObject(lib[e.ref]) && typeof lib[e.ref].type === 'string' ? lib[e.ref].type : null;
+  const c = type ? idx.get(type) : null;
+  return c ? c.label : type || 'Section';
+}
+
+/** 同一块前后两份 `data` 里改了哪几个字段 → 字段名（照 schema 的字段顺序）。 */
+function changedFieldLabels(component, before, after) {
+  const a = isPlainObject(before) ? before : {};
+  const b = isPlainObject(after) ? after : {};
+  const out = [];
+  for (const f of component.fields) if (!deepEqual(has(a, f.slot) ? a[f.slot] : undefined, has(b, f.slot) ? b[f.slot] : undefined)) out.push(f.label);
+  return out;
+}
+
+/**
+ * @param {{ saved: object, json: object|null, root: object|null, shared: object|null, schema: object,
+ *           siteBlocks?: object, rootLabels: Record<string, string>, shapeLabel?: string }} a
+ *   json/root/shared 是这一笔**交出去的**那几样（没交 = null）；`saved` 是上一次存下去的页面 JSON。
+ * @returns {string} 一行话，各项用「; 」隔开（`Hero · Headline, Subheadline; Announcement Bar · Message`）。
+ *   一项都认不出（例如只动了一个没有字段的块）⟹ 一句通用话，不回空串：什么都没改的那一笔调用方根本不会存。
+ */
+function describeSave({ saved, json, root, shared, schema, siteBlocks, rootLabels, shapeLabel }) {
+  const idx = schemaIndex(schema);
+  const lib = isPlainObject(siteBlocks) ? siteBlocks : {};
+  const parts = [];
+  if (json) {
+    const before = rawArray(saved) || [];
+    const after = rawArray(json) || [];
+    const byKey = rawKey(json) === 'blocks';
+    const keyOf = (e, i) => {
+      if (!byKey) return `#${i}`;
+      if (isPlainObject(e) && typeof e.id === 'string' && e.id) return `id:${e.id}`;
+      if (isPlainObject(e) && typeof e.ref === 'string' && e.ref) return `ref:${e.ref}`;
+      return `#${i}`;
+    };
+    const old = new Map(before.map((e, i) => [keyOf(e, i), e]));
+    const seen = new Set();
+    let moved = false;
+    after.forEach((e, i) => {
+      const k = keyOf(e, i);
+      seen.add(k);
+      const o = old.get(k);
+      const label = entryLabel(e, idx, lib);
+      if (o === undefined) { parts.push(`${label} (added)`); return; }
+      if (deepEqual(o, e)) return;
+      const c = isPlainObject(e) && typeof e.type === 'string' ? idx.get(e.type) : null;
+      const fields = c ? changedFieldLabels(c, o.data, e.data) : [];
+      if ((isPlainObject(o) ? o.shape : undefined) !== (isPlainObject(e) ? e.shape : undefined)) fields.push(shapeLabel || 'Layout');
+      if (fields.length) parts.push(`${label} · ${fields.join(', ')}`);
+      else if (!deepEqual({ ...o, weight: undefined }, { ...e, weight: undefined })) parts.push(label);
+      else moved = true;
+    });
+    before.forEach((e, i) => { if (!seen.has(keyOf(e, i))) parts.push(`${entryLabel(e, idx, lib)} (removed)`); });
+    // 只动了位置（权重）：不逐块列 —— 拖一块，后面每块的 weight 都会跟着重写，逐块列出来就是「全改了」。
+    if (moved) parts.push('Section order');
+  }
+  if (isPlainObject(shared)) {
+    for (const id of Object.keys(shared)) {
+      const ch = shared[id] || {};
+      const b = lib[id];
+      const type = isPlainObject(b) && typeof b.type === 'string' ? b.type : null;
+      const c = type ? idx.get(type) : null;
+      const label = c ? c.label : type || 'Shared section';
+      if (isPlainObject(ch.data)) {
+        const fields = c ? patchedFieldLabels(c, ch.data) : [];
+        parts.push(fields.length ? `${label} · ${fields.join(', ')}` : label);
+      }
+      if (ch.unlist) parts.push(`${label} (removed from this page)`);
+    }
+  }
+  if (isPlainObject(root)) {
+    for (const { field } of schema.root.fields) {
+      if (!has(root, field)) continue;
+      const name = (rootLabels && rootLabels[field]) || field;
+      const v = root[field];
+      parts.push(typeof v === 'string' && ROOT_CHOICE_FIELDS.has(field) ? `${name} → ${v || '(default)'}` : name);
+    }
+  }
+  return parts.length ? parts.join('; ') : 'Saved changes in the page editor.';
+}
+
+/** 外壳四样里是「选一项」的那几个：记录里带上选了哪一项（`Page layout (whole website) → standard`）。 */
+const ROOT_CHOICE_FIELDS = new Set(['layout', 'headerShape', 'footerShape']);
+
+/** 共用块那一笔交的是「改过的字段 → 新值」，字段名照 schema 顺序取。 */
+function patchedFieldLabels(component, patch) {
+  return component.fields.filter((f) => has(patch, f.slot)).map((f) => f.label);
+}
+
 module.exports = {
-  UNKNOWN_TYPE, pageToPuck, puckToPage, fieldProps, dataFromProps, assignWeights, deepEqual, ITEM_ORIG, rootToPuck, puckRootChanges,
+  UNKNOWN_TYPE, describeSave, pageToPuck, puckToPage, fieldProps, dataFromProps, assignWeights, deepEqual, ITEM_ORIG, rootToPuck, puckRootChanges,
   sharedReach, sharedRemovable, puckSharedChanges, sharedOwnAfter, applySharedChanges,
   aiBaselineStep, THEME_DEFAULT, canvasShape, shapeOptions,
 };

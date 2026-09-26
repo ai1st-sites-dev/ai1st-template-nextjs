@@ -676,7 +676,10 @@ const MISSPELLED = ['en/navigation.json/', 'en/navigation.json//', 'en/./navigat
   const editorSrc = fsx.readFileSync(pathx.join(tpl, 'src', 'components', 'editor', 'EditorApp.tsx'), 'utf-8');
   const why = writeRejection('page-layout.json') || '';
   const field = 'Page layout (whole website)';
-  if (why.includes(field) && editorSrc.includes(`label: '${field}'`)) ok(`⑪ 「${field}」是编辑器里那个 root 字段的原文`);
+  // #1454 —— 外壳四样的字段名收进了 `ROOT_FIELD_LABELS`（存盘记录跟面板共用一份），root 字段的 label 从它取：
+  // 那种写法也算「界面上真的是这几个字」，但要同时看到常量里是这句话、字段真的读这个常量。
+  const inLabels = editorSrc.includes(`layout: '${field}'`) && editorSrc.includes('label: ROOT_FIELD_LABELS.layout');
+  if (why.includes(field) && (editorSrc.includes(`label: '${field}'`) || inLabels)) ok(`⑪ 「${field}」是编辑器里那个 root 字段的原文`);
   else bad(`⑪ 理由里的「${field}」在 EditorApp.tsx 的 root 字段里找不到（或理由里没有它）`);
   // dashboard 那个按钮住在模板外面（dashboard/src）；模板单独发布时它不在，那时这一半跳过、不当成通过。
   const dash = pathx.join(tpl, '..', '..', 'dashboard', 'src', 'pages', 'sites', 'EditPage.tsx');

@@ -18,7 +18,9 @@ const usePuck = createUsePuck();
 
 /** dashboard 递进来的聊天状态（形状在 `dashboard/src/hooks/useEditorChat.ts` §EditorChatState，两边同一份）。 */
 export interface EditorChatState {
-  messages: { key: string; role: 'user' | 'assistant' | 'error'; text: string; messageId?: number; canRevert?: boolean }[];
+  /** #1454 —— `manual` = 老板在编辑器里点 Save 存下的一笔（正文是编辑器自己算的那句人话）。它的撤销 = 回到这一笔之前，
+   *  后面的一起撤掉，跟 AI 那一行同一个后果，所以同一个确认、同一个按钮位置，只是字不说「AI」。 */
+  messages: { key: string; role: 'user' | 'assistant' | 'error' | 'manual'; text: string; messageId?: number; canRevert?: boolean }[];
   /** 正在进行的那一次编辑：进度一句话 + 模型已经说出来的字。`firstAt` = dashboard 收到第一个字的时刻。 */
   live: { status: string; text: string; firstAt: number | null } | null;
   busy: boolean;
@@ -44,8 +46,26 @@ function scopeOf(src: Src, page: string, locale: string, rawKey: 'blocks' | 'sec
 
 const C = {
   border: '#e4e7ec', text: '#101828', sub: '#475467', faint: '#667085',
-  user: '#4f46e5', bot: '#f2f4f7', err: '#fef3f2', errText: '#b42318',
+  user: '#4f46e5', bot: '#f2f4f7', err: '#fef3f2', errText: '#b42318', manual: '#ecfdf3', manualText: '#067647',
 };
+
+/**
+ * #1454 —— 撤销 `messageId` 那一行时，**还有哪些**改动会跟着没了（老板自己的话 / 手改记录的那句）。同
+ * `dashboard/src/components/ChatPanel.tsx` §laterChangesAfter：按聊天算，不按 git 算 —— 聊天是老板看得见的那份。
+ * AI 的回复和提示不算改动（AI 的那一笔记在它前面那条老板的话上）。
+ */
+function laterChangesAfter(messages: EditorChatState['messages'], messageId: number): string[] {
+  const at = messages.findIndex((m) => m.messageId === messageId);
+  if (at < 0) return [];
+  const out: string[] = [];
+  for (let i = at + 1; i < messages.length; i++) {
+    const m = messages[i];
+    if (m.messageId == null || (m.role !== 'user' && m.role !== 'manual')) continue;
+    const oneLine = m.text.replace(/\s+/g, ' ').trim();
+    out.push(oneLine.length > 80 ? `${oneLine.slice(0, 80)}…` : oneLine);
+  }
+  return out;
+}
 
 export default function EditorChat({ chat, notice, pending, page, locale, rawKey, onSend, onRevert }: {
   chat: EditorChatState | null;
@@ -119,20 +139,40 @@ export default function EditorChat({ chat, notice, pending, page, locale, rawKey
             Tell the AI what to change. Select a section on the page first to ask about just that section.
           </p>
         )}
-        {chat?.messages.map((m) => (
+        {chat?.messages.map((m) => {
+          const manual = m.role === 'manual';
+          const later = manual && confirming === m.messageId ? laterChangesAfter(chat.messages, m.messageId as number) : [];
+          return (
           <div key={m.key} data-editor-chat-msg={m.role} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '88%' }}>
+            {manual && <div style={{ fontSize: 11, color: C.faint, marginBottom: 2 }}>You saved</div>}
             <div style={{
               padding: '8px 12px', borderRadius: 10, fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-              background: m.role === 'user' ? C.user : m.role === 'error' ? C.err : C.bot,
-              color: m.role === 'user' ? '#fff' : m.role === 'error' ? C.errText : C.text,
+              background: m.role === 'user' ? C.user : m.role === 'error' ? C.err : manual ? C.manual : C.bot,
+              color: m.role === 'user' ? '#fff' : m.role === 'error' ? C.errText : manual ? C.manualText : C.text,
             }}>
               {m.text}
             </div>
             {m.canRevert && m.messageId != null && (
               confirming === m.messageId ? (
                 <div data-editor-chat-revert-confirm style={{ marginTop: 6, padding: 8, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.sub, lineHeight: 1.5 }}>
-                  This undoes the whole AI change for this message and everything after it — on every page it touched,
-                  including shared sections. It can&apos;t be undone step by step.
+                  {manual ? (
+                    <>
+                      Your website goes back to the way it was before this save.
+                      {later.length > 0 && (
+                        <>
+                          <div style={{ marginTop: 6 }}>{`This also undoes the ${later.length} change${later.length === 1 ? '' : 's'} made after it:`}</div>
+                          <ul data-editor-chat-revert-also style={{ margin: '4px 0 0', paddingLeft: 18 }}>
+                            {later.map((t, i) => <li key={i}>{t}</li>)}
+                          </ul>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      This undoes the whole AI change for this message and everything after it — on every page it touched,
+                      including shared sections. It can&apos;t be undone step by step.
+                    </>
+                  )}
                   <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                     <button type="button" data-editor-chat-revert-yes onClick={() => { setConfirming(null); onRevert(m.messageId as number); }} style={btn(true)}>Undo it</button>
                     <button type="button" onClick={() => setConfirming(null)} style={btn(false)}>Cancel</button>
@@ -144,17 +184,18 @@ export default function EditorChat({ chat, notice, pending, page, locale, rawKey
                     type="button"
                     data-editor-chat-revert={m.messageId}
                     disabled={busy}
-                    title="Put the website back the way it was before this message (the whole AI change)"
+                    title={manual ? 'Put the website back the way it was before this save' : 'Put the website back the way it was before this message (the whole AI change)'}
                     onClick={() => setConfirming(m.messageId as number)}
                     style={{ ...btn(false), fontSize: 12, opacity: busy ? 0.5 : 1 }}
                   >
-                    Revert whole AI change
+                    {manual ? 'Revert this save' : 'Revert whole AI change'}
                   </button>
                 </div>
               )
             )}
           </div>
-        ))}
+          );
+        })}
         {live && (
           <div data-editor-chat-live style={{ alignSelf: 'flex-start', maxWidth: '88%' }}>
             <div style={{ padding: '8px 12px', borderRadius: 10, fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: C.bot }}>
@@ -163,7 +204,7 @@ export default function EditorChat({ chat, notice, pending, page, locale, rawKey
             </div>
           </div>
         )}
-        {chat?.reverting && <p data-editor-chat-reverting style={{ margin: 0, fontSize: 13, color: C.sub }}>Undoing that AI change…</p>}
+        {chat?.reverting && <p data-editor-chat-reverting style={{ margin: 0, fontSize: 13, color: C.sub }}>Undoing that change…</p>}
         {notice && (
           <p data-editor-chat-notice={notice.kind} style={{ margin: 0, fontSize: 13, lineHeight: 1.5, color: notice.kind === 'error' ? C.errText : C.sub }}>
             {notice.text}

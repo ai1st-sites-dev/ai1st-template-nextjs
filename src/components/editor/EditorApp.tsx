@@ -63,7 +63,7 @@ import type { EditorPageGroup } from '../../../scripts/lib/editor-pages';
 import {
   UNKNOWN_TYPE, pageToPuck, puckToPage, fieldProps, dataFromProps, deepEqual, puckRootChanges, rootToPuck,
   sharedReach, sharedRemovable, puckSharedChanges, sharedOwnAfter, applySharedChanges, aiBaselineStep,
-  THEME_DEFAULT, canvasShape, shapeOptions,
+  THEME_DEFAULT, canvasShape, shapeOptions, describeSave,
 } from '../../../scripts/lib/editor-convert.js';
 
 export interface EditorAppProps {
@@ -239,6 +239,9 @@ function CanvasBlock({ component, props, locale }: { component: EditorComponent;
 /**
  * @param removable #1406 —— 这个共用块能不能从这一页删（`"*"` 的不能）。读的是编辑器手上**现在**那份块库。
  */
+/** 块的形态下拉叫什么（#1454 存盘记录里「改了形态」也用这个字）。 */
+const SHAPE_FIELD_LABEL = 'Layout';
+
 export function buildConfig(schema: EditorSchema, locale: string, overHero = false, removable: (id: string) => boolean = () => true): Config {
   const components: Record<string, Config['components'][string]> = {};
   for (const c of schema.components) {
@@ -246,7 +249,7 @@ export function buildConfig(schema: EditorSchema, locale: string, overHero = fal
     for (const f of c.fields) fields[f.slot] = puckField(f);
     fields._shape = {
       type: 'select',
-      label: 'Layout',
+      label: SHAPE_FIELD_LABEL,
       // 选项 = 形态子目录去掉候选（schema 里已经过滤好）。`needs` 不为空的形态，这个块缺那些槽位时
       // 构建会落回默认 —— 选项上写明，别让老板选了之后以为坏了。
       // #1443 —— 第一项 `Theme default`：跟着主题走，存盘时删掉这个块的 `shape` 键（页面 JSON 里没有这个键的块
@@ -346,17 +349,26 @@ type RootProps = {
  * 🔴 唯一在这里灰掉的是「布局自己钉了页脚形态」时的页脚下拉（做什么 8）—— 判据是 schema 给的 `pinsFooter`
  *    （从布局文件算出来的），不是布局名。
  */
+/** 外壳四样在面板上叫什么。#1454 —— 存盘记录（§describeSave）用同一份：老板在记录里读到的就是他点的那个字段名。 */
+const ROOT_FIELD_LABELS: Record<string, string> = {
+  layout: 'Page layout (whole website)',
+  headerShape: 'Header style (whole website)',
+  footerShape: 'Footer style (whole website)',
+  topbarMessage: 'Announcement bar text (this language only)',
+  topbarLink: 'Announcement bar link (this language only)',
+};
+
 function rootConfig(schema: EditorSchema, locale: string, overHero: boolean) {
   const opts = (names: string[]) => names.map((n) => ({ value: n, label: n }));
   const fields: Fields = {
-    layout: { type: 'select', label: 'Page layout (whole website)', options: schema.root.layouts.map((l) => ({ value: l.id, label: l.id })) },
-    headerShape: { type: 'select', label: 'Header style (whole website)', options: opts(schema.root.header) },
-    footerShape: { type: 'select', label: 'Footer style (whole website)', options: opts(schema.root.footer) },
+    layout: { type: 'select', label: ROOT_FIELD_LABELS.layout, options: schema.root.layouts.map((l) => ({ value: l.id, label: l.id })) },
+    headerShape: { type: 'select', label: ROOT_FIELD_LABELS.headerShape, options: opts(schema.root.header) },
+    footerShape: { type: 'select', label: ROOT_FIELD_LABELS.footerShape, options: opts(schema.root.footer) },
     _shapeNote: SHAPE_NOTE,
-    topbarMessage: { type: 'text', label: 'Announcement bar text (this language only)' },
+    topbarMessage: { type: 'text', label: ROOT_FIELD_LABELS.topbarMessage },
     topbarLink: {
       type: 'object',
-      label: 'Announcement bar link (this language only)',
+      label: ROOT_FIELD_LABELS.topbarLink,
       objectFields: { label: { type: 'text', label: 'Label' }, href: { type: 'text', label: 'Link' } },
     } as Field,
   };
@@ -787,7 +799,8 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
   // 不带的是 #1448 之前建的站：dashboard 那边就不出下拉。
   useEffect(() => {
     if (!trustedOrigin || window.parent === window) return;
-    window.parent.postMessage({ type: 'ai1st:editor-ready', page, locale, baseline: 1, ...(pages ? { pages } : {}) }, trustedOrigin);
+    // #1454 —— `manualRows: 1`：这一版的聊天认得「手改记录」那种行（dashboard 据此才把它们递进来，老编辑器不认）。
+    window.parent.postMessage({ type: 'ai1st:editor-ready', page, locale, baseline: 1, manualRows: 1, ...(pages ? { pages } : {}) }, trustedOrigin);
   }, [trustedOrigin, page, locale, pages]);
 
   // dashboard 发来的两种消息。🔴 只认那一个 origin。
@@ -957,7 +970,10 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
         }
         return;
       }
-      const same = deepEqual(next, baseRef.current.initial);
+      // 「画布要不要换」：`open` 问的是「构建之后有没有人改过」，跟打开时那份比。
+      // #1454 —— `external`（别处存过 / 聊天里的回退）要跟**画布此刻对着的那份文件**比（`saved`：打开时那份，存过就是
+      // 存下去那份）。跟打开时比的话，撤销这个编辑器里刚存的那一笔 = 文件退回打开时那份 = 「一样」⟹ 画布停在撤掉的字上。
+      const same = d.reason === 'external' ? deepEqual(nextRaw, baseRef.current.saved) : deepEqual(next, baseRef.current.initial);
       // #1442 路 A —— 别处存过这一页（含聊天里的回退）。
       if (!same && d.reason === 'external' && g && unsaved(g.appState.data)) { keep('external'); return; }
       // 画布换成新的一份时，共用块的字段就是按 nextLib 取的 ⟹ `sharedOwn` 清空；画布不动（same）就留着。
@@ -1037,6 +1053,14 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
       return 'nothing';
     }
     const { base, json, shared, root, pageChanged, hasShared } = plan;
+    // #1454 —— 这一笔说人话，manager 拿它写 AI chat 里那条手改记录。🔴 算不出来也照存：它只是说明，不是存盘的一部分。
+    let summary = '';
+    try {
+      summary = describeSave({
+        saved: base.saved, json: pageChanged ? json : null, root: Object.keys(root).length ? root : null, shared: hasShared ? shared : null,
+        schema, siteBlocks: base.siteBlocks, rootLabels: ROOT_FIELD_LABELS, shapeLabel: SHAPE_FIELD_LABEL,
+      });
+    } catch { /* 记录退回 manager 那句通用话 */ }
     setStatus({ kind: 'saving', text: 'Saving…' });
     sendingRef.current = { json: pageChanged ? json : null, root: Object.keys(root).length ? root : null, shared: hasShared ? shared : null };
     // 不带文件路径：写哪个文件由站里的脚本按 page/locale 自己算（`write-page.js` 文件头说为什么）。
@@ -1047,6 +1071,7 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
       ...(pageChanged ? { json, baseHash: base.hash } : {}),
       ...(Object.keys(root).length ? { root } : {}),
       ...(hasShared ? { shared } : {}),
+      ...(summary ? { summary } : {}),
     }, trustedOrigin);
     return 'sent';
   }

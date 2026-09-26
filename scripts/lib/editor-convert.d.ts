@@ -95,3 +95,14 @@ export function aiBaselineStep<H extends { state: { data: PuckLikeData } }>(args
   hash: string;
   nextHash: string;
 }): { pageChanged: boolean; record: boolean; histories: H[]; current: PuckLikeData; sharedIds: string[]; mixed: boolean };
+/** #1454 —— 这一笔存盘说人话（AI chat 里手改记录的正文；实现与说明在 .js）。 */
+export function describeSave(args: {
+  saved: Record<string, unknown>;
+  json: Record<string, unknown> | null;
+  root: Record<string, unknown> | null;
+  shared: SharedChanges | null;
+  schema: EditorSchema;
+  siteBlocks?: Record<string, unknown>;
+  rootLabels: Record<string, string>;
+  shapeLabel?: string;
+}): string;
