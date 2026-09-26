@@ -43,6 +43,11 @@
 // 存成功才发；被拒（这一页在别处改过，exit 10）就不发、把那句话原样说出来。撤销 AI 那一步只动画布、不自动存
 // （做什么 6）：状态栏说「有未保存的改动」，文件里是 AI 那版直到按 Save。#1412 起 Save 只落盘不重建、发布才上线，
 // 所以那句话说的是「按 Save 留下、发布后上线」，跟 dashboard 那句「Saved. It goes live on your website when you publish.」同一个口径。
+//
+// #1448 —— 换页（dashboard 面板条上的下拉；清单是 `pages` prop，随 `editor-ready` 交出去）：
+//   收  ai1st:editor-leave {id}                     dashboard 要换到别的页
+//   发  ai1st:editor-leave-result {id, ok, message?} 没存的改动已经存下去（或本来就没有）才 ok；存不上 / AI 在改 ⟹ ok: false
+// 换页本身是 dashboard 改 iframe 的地址，这里不导航。
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Puck, FieldLabel, createUsePuck, useGetPuck, type Config, type Data, type Field, type Fields, type PuckAction } from '@puckeditor/core';
@@ -53,6 +58,7 @@ import EditorChat, { type ChatScope, type EditorChatState } from './EditorChat';
 import type { BlockConfig } from '@/lib/types/config';
 import type { EditorComponent, EditorField, EditorSchema } from '../../../scripts/lib/editor-schema';
 import type { PuckItemSrc, PuckLikeData, SharedChanges } from '../../../scripts/lib/editor-convert';
+import type { EditorPageGroup } from '../../../scripts/lib/editor-pages';
 import {
   UNKNOWN_TYPE, pageToPuck, puckToPage, fieldProps, dataFromProps, deepEqual, puckRootChanges,
   sharedReach, sharedRemovable, puckSharedChanges, sharedOwnAfter, applySharedChanges, aiBaselineStep,
@@ -82,6 +88,11 @@ export interface EditorAppProps {
   refs: Record<string, string[]>;
   /** #1406 —— 这种语言现有的页（`visibility` 里写了不存在的页不算进 N）。 */
   slugs: string[];
+  /**
+   * #1448 —— 这个站有哪些编辑器页（`scripts/lib/editor-pages.js`，与 `generateStaticParams` 同一次调用），按语言分组。
+   * 随 `ai1st:editor-ready` 交给 dashboard，面板条上的换页下拉就是它。
+   */
+  pages?: EditorPageGroup[];
 }
 
 /** #1406 —— 算「在 N 个页面上」要的三样。放在 context 里：它随底稿换，换它不该让整棵 Puck 重建。 */
@@ -660,7 +671,7 @@ function SaveButton({ onSave, status, locked }: { onSave: (d: Data) => void; sta
   );
 }
 
-export default function EditorApp({ locale, page, raw, baseHash, schema, initialData, overHero, trustedOrigin, siteBlocks, refs, slugs }: EditorAppProps) {
+export default function EditorApp({ locale, page, raw, baseHash, schema, initialData, overHero, trustedOrigin, siteBlocks, refs, slugs, pages }: EditorAppProps) {
   const [status, setStatus] = useState<Status>({ kind: 'idle', text: '' });
   const statusRef = useRef(status);
   statusRef.current = status;
@@ -701,14 +712,21 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
   // §useAiLockGuard：点了发送、还没交给 dashboard（先存那一笔在路上）也算 —— 那一笔存的是点下去那一刻的画布。
   const locked = chatPending || !!chat?.busy;
   useAiLockGuard(locked);
+  // #1448 —— 换页那次握手在 message 监听里读它（监听只在 page / locale 变时重挂，读 state 会读到旧值）。
+  const lockedRef = useRef(locked);
+  lockedRef.current = locked;
+  // #1448 —— dashboard 要换页、在等手上这一笔落盘（`sending` 同 pendingChatRef：只认那一笔自己的 `saved` 底稿）。
+  const pendingLeaveRef = useRef<{ id: string; sending: object } | null>(null);
 
   // 告诉 dashboard「编辑器起来了、我编辑的是哪一页」。它拿这条确认 iframe 里真的是编辑器。
   // `baseline: 1` 说「我认 ai1st:editor-baseline」—— dashboard 据此决定走新路（不重载 iframe）还是老路
   // （#1409 之后、#1415 之前建的站：这个键不在，dashboard 照旧在重建完重载 iframe，行为跟今天一样）。
+  // #1448 —— `pages`：这个站的编辑器页清单（换页下拉）。带着它 = 我也认 `ai1st:editor-leave`（换页前先存，§releaseLeave）。
+  // 不带的是 #1448 之前建的站：dashboard 那边就不出下拉。
   useEffect(() => {
     if (!trustedOrigin || window.parent === window) return;
-    window.parent.postMessage({ type: 'ai1st:editor-ready', page, locale, baseline: 1 }, trustedOrigin);
-  }, [trustedOrigin, page, locale]);
+    window.parent.postMessage({ type: 'ai1st:editor-ready', page, locale, baseline: 1, ...(pages ? { pages } : {}) }, trustedOrigin);
+  }, [trustedOrigin, page, locale, pages]);
 
   // dashboard 发来的两种消息。🔴 只认那一个 origin。
   useEffect(() => {
@@ -736,7 +754,20 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
           setChatPending(false);
           setChatNotice({ kind: 'error', text: `Your message was not sent. ${text || 'Your changes could not be saved first.'}` });
         }
+        // #1448 —— 换页在等的那一笔没存上 ⟹ 不换页，把原因交回去（dashboard 在面板条上说）。同上，只认它等的那一笔。
+        const pl = pendingLeaveRef.current;
+        if (d.ok !== true && pl && pl.sending === sendingRef.current) {
+          pendingLeaveRef.current = null;
+          // 原因（`text`）dashboard 已经在面板条的存盘状态里说了，这里不再抄一遍。
+          answerLeave(pl.id, false, 'Your changes could not be saved, so the editor stayed on this page.');
+        }
         if (d.ok !== true) sendingRef.current = null;
+        return;
+      }
+      if (d.type === 'ai1st:editor-leave') {
+        // #1448 —— dashboard 要换到别的页：先把没存的存下去，存上了（或本来就没有）才回 ok（§releaseLeave）。
+        const id = (d as { id?: unknown }).id;
+        if (typeof id === 'string' && id) releaseLeave(id);
         return;
       }
       if (d.type === 'ai1st:chat-state') {
@@ -782,6 +813,9 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
         // #1410 —— 聊天在等的就是这一笔：它进了文件。直接发，或（点发送时它已在路上）对着新的底重新判一次。
         const pc = pendingChatRef.current;
         if (pc && sent && pc.sending === sent) releaseChat(pc.text, pc.scope, pc.resave);
+        // #1448 —— 换页在等的也是这一笔：再判一次（存的这几秒里老板可能又改了一处，那一处也要先存）。
+        const pl = pendingLeaveRef.current;
+        if (pl && sent && pl.sending === sent) releaseLeave(pl.id);
         return;
       }
       if (!hashOk) return;
@@ -993,6 +1027,31 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
     }
     pendingChatRef.current = { text, scope, sending: sendingRef.current, resave: false };
     setChatNotice({ kind: 'info', text: 'Saving your changes first, then sending…' });
+  }
+
+  // #1448 —— 换页（dashboard 面板条上的下拉）。🔴 画布上没存的改动不许被换页静默丢掉：有就先存，
+  // 存上了才回 ok；存不上 / AI 正在改这一页 ⟹ 回 ok: false 和一句话，dashboard 不换页。
+  // 形状同「先存再发」（§releaseChat）：交出去的那一笔落盘（它自己的 `saved` 底稿）才放行，并且放行前再判一次。
+  function answerLeave(id: string, ok: boolean, message?: string) {
+    postChat({ type: 'ai1st:editor-leave-result', id, ok, ...(message ? { message } : {}) });
+  }
+  function releaseLeave(id: string) {
+    if (lockedRef.current) {
+      pendingLeaveRef.current = null;
+      answerLeave(id, false, 'The AI is editing this page. Switch pages when it is done.');
+      return;
+    }
+    const g = getPuckRef.current ? getPuckRef.current() : null;
+    if (!g) { pendingLeaveRef.current = null; answerLeave(id, true); return; } // 没有画布（这个站没有编辑器认得的块）⟹ 没有可丢的
+    // 上一笔还在路上：等它落定再判（它的 `saved` 底稿会再叫一次这里）。
+    if (sendingRef.current) { pendingLeaveRef.current = { id, sending: sendingRef.current }; return; }
+    let clean = false;
+    try { clean = planSave(g.appState.data) === null; } catch { clean = false; }
+    if (clean) { pendingLeaveRef.current = null; answerLeave(id, true); return; }
+    const r = save(g.appState.data);
+    if (r === 'sent' && sendingRef.current) { pendingLeaveRef.current = { id, sending: sendingRef.current }; return; }
+    pendingLeaveRef.current = null;
+    answerLeave(id, false, 'Your changes could not be saved, so the editor stayed on this page. See the message next to Save.');
   }
 
   // #1406 —— 记下老板拖过哪一块（Puck 的 reorder / move 带着拖之前的下标；页面只有一个根区）。

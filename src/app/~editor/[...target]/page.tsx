@@ -31,22 +31,15 @@ import { leadApi, locales, pagesByLocale, getPage, pageLayout, regions, getNavig
 import { editorSource, locateInRaw, effectiveWeights } from '../../../../scripts/lib/editor-page.js';
 import { editorSchema } from '../../../../scripts/lib/editor-schema.js';
 import { pageToPuck, rootToPuck } from '../../../../scripts/lib/editor-convert.js';
+import { editorPages } from '../../../../scripts/lib/editor-pages.js';
 
 // 只导出 generateStaticParams 给出的那些；别的路径在静态导出里本来就不存在（serve 回 404）。
 export const dynamicParams = false;
 
-// 与 `[...slug]/page.tsx` 同一份保留字：这两个 slug 的页面 JSON 不会被渲染成页面。
-const RESERVED_SLUGS = ['blog', '_next'];
-
+// #1448 —— 哪些页有编辑器页（保留字 `blog` / `_next` 那两类没有）只在 `editor-pages.js` 一处：这里导出的，
+// 和传给 EditorApp、给面板条上那个换页下拉的清单（下面的 `pages`），是同一次调用的结果。
 export function generateStaticParams() {
-  const params: { target: string[] }[] = [];
-  for (const locale of locales) {
-    for (const p of pagesByLocale[locale] || []) {
-      if (RESERVED_SLUGS.some((r) => p.slug === r || p.slug.startsWith(r + '/'))) continue;
-      params.push({ target: [locale, ...p.slug.split('/')] });
-    }
-  }
-  return params;
+  return editorPages(locales, pagesByLocale).flatMap((g) => g.pages.map((p) => ({ target: [g.locale, ...p.slug.split('/')] })));
 }
 
 export const metadata: Metadata = {
@@ -129,6 +122,7 @@ export default async function EditorPage({ params }: { params: Promise<{ target:
       siteBlocks={src.siteBlocks}
       refs={src.refs}
       slugs={src.slugs}
+      pages={editorPages(locales, pagesByLocale)}
     />
   );
 }
