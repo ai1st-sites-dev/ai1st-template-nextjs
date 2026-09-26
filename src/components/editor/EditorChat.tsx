@@ -47,7 +47,7 @@ const C = {
   user: '#4f46e5', bot: '#f2f4f7', err: '#fef3f2', errText: '#b42318',
 };
 
-export default function EditorChat({ chat, notice, pending, page, locale, rawKey, onSend, onRevert, onClose }: {
+export default function EditorChat({ chat, notice, pending, page, locale, rawKey, onSend, onRevert }: {
   chat: EditorChatState | null;
   /** 这一侧自己的一句话（「先存一下…」「没发出去：…」）。 */
   notice: { kind: 'info' | 'error'; text: string } | null;
@@ -58,7 +58,6 @@ export default function EditorChat({ chat, notice, pending, page, locale, rawKey
   rawKey: 'blocks' | 'sections';
   onSend: (text: string, scope: ChatScope | null) => void;
   onRevert: (messageId: number) => void;
-  onClose: () => void;
 }) {
   const selected = usePuck((s) => s.selectedItem);
   const config = usePuck((s) => s.config);
@@ -109,13 +108,8 @@ export default function EditorChat({ chat, notice, pending, page, locale, rawKey
     <aside
       data-editor-chat
       data-editor-chat-first-ms={firstMs ?? undefined}
-      style={{ width: 340, flexShrink: 0, display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, overflow: 'hidden', borderLeft: `1px solid ${C.border}`, background: '#fff', fontFamily: 'system-ui, sans-serif', color: C.text }}
+      style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', background: '#fff', fontFamily: 'system-ui, sans-serif', color: C.text }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', padding: '10px 12px', borderBottom: `1px solid ${C.border}` }}>
-        <strong style={{ fontSize: 14, flex: 1 }}>AI chat</strong>
-        <button type="button" data-editor-chat-close onClick={onClose} aria-label="Close AI chat" style={{ border: 0, background: 'transparent', cursor: 'pointer', fontSize: 16, color: C.faint }}>×</button>
-      </div>
-
       {/* 🔴 minHeight: 0 —— 纵向 flex 里的子项默认最小高度 = 内容高度：不写它，消息一多列表就不滚、而是把整页撑高，
           编辑器页跟着能滚动，Puck 会被滚出视口（#1410 e2e ⑧ 截图：左边整片空白）。 */}
       <div ref={listRef} data-editor-chat-messages style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>

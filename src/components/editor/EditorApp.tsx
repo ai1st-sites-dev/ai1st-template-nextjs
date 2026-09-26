@@ -418,7 +418,7 @@ type Base = { raw: Record<string, unknown>; initial: PuckLikeData; hash: string;
 type PuckDispatch = (action: { type: 'setData'; data: Data; recordHistory?: boolean }) => void;
 
 /**
- * #1442 —— 新底稿到了、而画布上有没存的改动 ⟹ 画布不换，留住老板的字，画布底部浮一条说明（§EditorWithChat；`external` = 别处存过这一页，
+ * #1442 —— 新底稿到了、而画布上有没存的改动 ⟹ 画布不换，留住老板的字，画布底部浮一条说明（§EditorShell；`external` = 别处存过这一页，
  * `ai` = AI 的改动迟到了：画布 20 秒兜底解锁之后才到，见 useEditorChat §APPLY_SAFETY_MS）。存成功 / 画布换成新的一份时清掉。
  * 🔴 hash 换成新的（按 Save 覆盖那一笔），不留旧的：留旧的 Save 会撞 write-page exit 10，界面让他关掉重开 ——
  *    打的字照样没了（PM 二审技术须知）。
@@ -504,9 +504,6 @@ type EditorUi = {
   kept: Kept;
   save: (d: Data) => unknown;
   status: Status;
-  chatOpen: boolean;
-  openChat: () => void;
-  closeChat: () => void;
   chat: EditorChatState | null;
   chatNotice: { kind: 'info' | 'error'; text: string } | null;
   chatPending: boolean;
@@ -525,48 +522,97 @@ function EditorHeaderActions() {
     <>
       <DispatchHandle handle={ui.dispatchRef} getter={ui.getPuckRef} />
       <DirtyNote dirtyOf={ui.dirtyOf} aiStep={ui.aiStep} locked={ui.locked} />
-      {!ui.chatOpen && (
-        <button type="button" data-editor-chat-open onClick={ui.openChat} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #d0d5dd', background: '#fff', fontSize: 14, cursor: 'pointer' }}>
-          AI chat
-        </button>
-      )}
       <SaveButton onSave={ui.save} status={ui.status} locked={ui.locked} />
     </>
   );
 }
 
-// 聊天侧栏跟 Puck 同屏，放在 Puck 的 store 之下（它要读选中的块）。
+// #1442 的 kept 提示浮在画布底部 —— 它住在包住整个 Puck 的这一层（`puck` override），不进 rail 面板、不进顶栏。
 // 🔴 高度写 100vh 不写 100%：Puck 在这一层外面还套了一个不定高的 `div.Puck`，100% 等于没限 ——
 //    聊天记录一长就把整页撑高，Puck 被滚出视口（e2e 量过：视口 635px，页面被撑到 2368px）。
-function EditorWithChat({ children }: { children: ReactNode }) {
+function EditorShell({ children }: { children: ReactNode }) {
   const ui = useContext(EditorUiContext);
+  const shellRef = useRef<HTMLDivElement>(null);
+  const at = useCanvasBox(shellRef, !!(ui && ui.kept));
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
-      <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
-        {children}
-        {/* #1442 —— 浮在画布底部，不进顶栏：这几句放进顶栏会把它撑成一长条竖排、画布被挤没（真机量到过）。 */}
-        {ui && ui.kept && (
-          <div data-editor-kept={ui.kept} role="status" style={{ position: 'absolute', left: '50%', bottom: 16, transform: 'translateX(-50%)', width: 'min(560px, calc(100% - 32px))', boxSizing: 'border-box', zIndex: 10, padding: '10px 14px', borderRadius: 8, background: '#fffaeb', border: '1px solid #fedf89', color: '#93370d', fontSize: 13, lineHeight: 1.5, boxShadow: '0 4px 12px rgba(16, 24, 40, 0.12)' }}>
-            {KEPT_TEXT[ui.kept]}
-          </div>
-        )}
-      </div>
-      {ui && ui.chatOpen && (
-        <EditorChat
-          chat={ui.chat}
-          notice={ui.chatNotice}
-          pending={ui.chatPending}
-          page={ui.page}
-          locale={ui.locale}
-          rawKey={ui.rawKey}
-          onSend={ui.sendChat}
-          onRevert={ui.revertChat}
-          onClose={ui.closeChat}
-        />
+    <div ref={shellRef} style={{ position: 'relative', height: '100vh', overflow: 'hidden' }}>
+      {children}
+      {/* #1442 —— 浮在画布底部，不进顶栏：这几句放进顶栏会把它撑成一长条竖排、画布被挤没（真机量到过）。 */}
+      {ui && ui.kept && (
+        <div data-editor-kept={ui.kept} role="status" style={{ position: 'absolute', left: at ? at.left + at.width / 2 : '50%', bottom: at ? at.bottom + 16 : 16, transform: 'translateX(-50%)', width: at ? `min(560px, ${Math.max(at.width - 32, 200)}px)` : 'min(560px, calc(100% - 32px))', boxSizing: 'border-box', zIndex: 10, padding: '10px 14px', borderRadius: 8, background: '#fffaeb', border: '1px solid #fedf89', color: '#93370d', fontSize: 13, lineHeight: 1.5, boxShadow: '0 4px 12px rgba(16, 24, 40, 0.12)' }}>
+          {KEPT_TEXT[ui.kept]}
+        </div>
       )}
     </div>
   );
 }
+
+/**
+ * #1449 —— 画布那块区域在外壳里的位置（left / width / 离外壳底边多远）。聊天搬进 Puck 左栏以后，按整个外壳居中的提示会
+ * 压在聊天输入框和 Send 上（真机量到：提示 x=260..820，左栏到 324 为止），所以改成对着画布居中、贴画布底边。
+ * 只读 Puck 的几何，不往它的 DOM 里放东西：`#puck-canvas-root` 是画布缩放层，它的父节点是控制条下面那块画布区域
+ * （`@puckeditor/core` 0.23 §Canvas）。左右栏开合 / 拖宽 / 窄屏换布局都会改那块的尺寸 ⟹ ResizeObserver 跟得上。
+ * 找不到（Puck 换了结构）就回 null，提示退回按整个外壳居中 —— 位置差一点，但字照样在。
+ */
+function useCanvasBox(shellRef: { current: HTMLDivElement | null }, on: boolean) {
+  const [box, setBox] = useState<{ left: number; width: number; bottom: number } | null>(null);
+  useEffect(() => {
+    if (!on) return;
+    const shell = shellRef.current;
+    const area = document.getElementById('puck-canvas-root')?.parentElement;
+    if (!shell || !area) return;
+    const read = () => {
+      const s = shell.getBoundingClientRect(), a = area.getBoundingClientRect();
+      setBox({ left: a.left - s.left, width: a.width, bottom: s.bottom - a.bottom });
+    };
+    read();
+    const ro = new ResizeObserver(read);
+    ro.observe(area);
+    ro.observe(shell);
+    return () => ro.disconnect();
+  }, [shellRef, on]);
+  return on ? box : null;
+}
+
+// #1449 —— 聊天是 Puck 左栏 rail 上的一格（跟 Blocks / Outline 一样是个 plugin），面板就是 Blocks 清单那块地方。
+// 🔴 `render` 必须是这个模块级组件、身份不变：Puck 把它当组件类型渲染（`jsx(render, {})`），换一个函数身份
+//    = 整棵聊天子树卸载重挂（打到一半的字、正在跑的那一轮都丢）；而 EditorApp 每来一条聊天消息都重渲染。
+//    所以要的东西全从 context 取，不走闭包。Puck 切走一格只是 `display:none`，不卸载。
+function AiChatPanel() {
+  const ui = useContext(EditorUiContext);
+  if (!ui) return <></>;
+  return (
+    <EditorChat
+      chat={ui.chat}
+      notice={ui.chatNotice}
+      pending={ui.chatPending}
+      page={ui.page}
+      locale={ui.locale}
+      rawKey={ui.rawKey}
+      onSend={ui.sendChat}
+      onRevert={ui.revertChat}
+    />
+  );
+}
+
+// 跟 Puck 那两格同一套 lucide 线条图标的尺寸（24 / 描边 2）；仓里没有 lucide-react，手写这一个。
+const AI_ICON = (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M12 8V4H8" />
+    <rect width="16" height="12" x="4" y="8" rx="2" />
+    <path d="M2 14h2" />
+    <path d="M20 14h2" />
+    <path d="M15 13v2" />
+    <path d="M9 13v2" />
+  </svg>
+);
+
+// 🔴 必须带 `name`：Puck 只收 `name && render` 都在的那一格，缺 name 静默不出现。别撞 blocks / outline / fields / legacy-side-bar。
+// Puck 的 plugins 是追加在 Blocks / Outline 之后，所以这一格排第三（票正文：不调它的上下位置）。
+const AI_PLUGIN_NAME = 'ai-chat';
+const EDITOR_PLUGINS = [{ name: AI_PLUGIN_NAME, label: 'AI', icon: AI_ICON, render: AiChatPanel, mobilePanelHeight: 'toggle' as const }];
+// 打开编辑器默认就是 AI 这一格（不设的话 Puck 选第一格 Blocks，聊天就藏起来了）。只在 <Puck> 挂载那一次生效。
+const EDITOR_UI = { plugin: { current: AI_PLUGIN_NAME } };
 
 /**
  * #1447 —— 画布里的链接一律不导航，只选中。画布是 Puck 的内层 iframe，但组件树（含块里的 `next/link`）挂在编辑器页上
@@ -589,7 +635,7 @@ function CanvasLinkGuard({ children, document: doc }: { children: ReactNode; doc
   return <>{children}</>;
 }
 
-const EDITOR_OVERRIDES = { headerActions: EditorHeaderActions, puck: EditorWithChat, iframe: CanvasLinkGuard };
+const EDITOR_OVERRIDES = { headerActions: EditorHeaderActions, puck: EditorShell, iframe: CanvasLinkGuard };
 
 /**
  * #1410 做什么 4 末尾 —— AI 在改这一页的时候画布只读：从点发送（含「先存再发」那一笔）到 AI 结束、它那份底稿已经换进来
@@ -696,7 +742,6 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
 
   // #1410 —— 聊天。`chat` 是 dashboard 递进来的整份状态（这里不存副本、不拼）。
   const [chat, setChat] = useState<EditorChatState | null>(null);
-  const [chatOpen, setChatOpen] = useState(true);
   const [chatNotice, setChatNotice] = useState<{ kind: 'info' | 'error'; text: string } | null>(null);
   // 先存再发：等存盘结果的那条消息。存成功才交给 dashboard；被拒就不发（做什么 4）。
   // `sending` = 它在等的那一笔（`sendingRef` 的那个对象）。🔴 放行只认**那一笔自己的** `saved` 底稿，不认
@@ -1074,7 +1119,6 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
   const ui: EditorUi = {
     locked,
     dispatchRef, getPuckRef, dirtyOf, aiStep, kept, save, status,
-    chatOpen, openChat: () => setChatOpen(true), closeChat: () => setChatOpen(false),
     chat, chatNotice, chatPending, page, locale,
     rawKey: Array.isArray((baseRef.current.raw as { sections?: unknown }).sections) && !('blocks' in baseRef.current.raw) ? 'sections' : 'blocks',
     sendChat, revertChat: (messageId) => postChat({ type: 'ai1st:chat-revert', messageId }),
@@ -1091,6 +1135,8 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
         iframe={{ enabled: true, syncHostStyles: true, waitForStyles: true }}
         onAction={onAction as never}
         overrides={EDITOR_OVERRIDES}
+        plugins={EDITOR_PLUGINS}
+        ui={EDITOR_UI}
         permissions={locked ? LOCKED_PERMISSIONS : OPEN_PERMISSIONS}
         onPublish={(d: Data) => { if (!locked) save(d); }}
       />
