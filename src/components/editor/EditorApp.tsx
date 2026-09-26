@@ -24,7 +24,8 @@
 // #1415 —— 底稿以 dashboard 送来的为准。props 里那份是构建时烤进来的，只当首屏；dashboard 在运行时从站容器里
 // 现取一份（manager `GET /api/sites/{id}/pages`，站里 `scripts/lib/editor-page.js` §editorBaseline），
 // `postMessage(ai1st:editor-baseline)` 递进来。这个页面仍然一个请求都不发 —— 网络全在 dashboard 那一侧。
-//   reason = open      刚打开：换成这一份（跟首屏不同才换），撤销历史清零
+//   reason = open      刚打开：换成这一份（跟首屏不同才换），撤销历史清零；#1452 起外壳四样（root）也换成它带来的
+//                      盘上现值（§openRoot）—— 存盘不重建之后，烤进来的那份 root 在发布前都是旧的
 //            saved     刚存下去的那一次成功了（在重建之前就到）：只换 baseHash，画布不动 —— 于是不刷新、
 //                      不等重建也能接着存
 //            external  别处改过这一页：把数据换上、换 baseHash；**不进撤销历史**（怎么进归 #1410）
@@ -60,7 +61,7 @@ import type { EditorComponent, EditorField, EditorSchema } from '../../../script
 import type { PuckItemSrc, PuckLikeData, SharedChanges } from '../../../scripts/lib/editor-convert';
 import type { EditorPageGroup } from '../../../scripts/lib/editor-pages';
 import {
-  UNKNOWN_TYPE, pageToPuck, puckToPage, fieldProps, dataFromProps, deepEqual, puckRootChanges,
+  UNKNOWN_TYPE, pageToPuck, puckToPage, fieldProps, dataFromProps, deepEqual, puckRootChanges, rootToPuck,
   sharedReach, sharedRemovable, puckSharedChanges, sharedOwnAfter, applySharedChanges, aiBaselineStep,
   THEME_DEFAULT, canvasShape, shapeOptions,
 } from '../../../scripts/lib/editor-convert.js';
@@ -402,6 +403,22 @@ function rootConfig(schema: EditorSchema, locale: string, overHero: boolean) {
       );
     },
   };
+}
+
+/**
+ * #1452 —— 底稿送来的外壳四样现值（站里 `editor-root.js` §readRootValues，形状同 page.tsx 喂给 `rootToPuck` 的那份）
+ * 合进构建时那份 root。🔴 当外来数据：逐个字段查类型，不对（或底稿压根没带 —— #1452 之前建的站）就留构建时的值。
+ * 布局 / 形态**不**在这里按 schema 的名单筛：盘上的值不在名单里时，构建时那份也一样会是它，画布那头
+ * `layoutOf(layout) || schema.root.layouts[0]` 是现成的兜底（PM 裁定第 3 条）。
+ */
+function openRoot(built: PuckLikeData['root'], sent: unknown): PuckLikeData['root'] {
+  if (!sent || typeof sent !== 'object' || Array.isArray(sent)) return built;
+  const v = sent as Record<string, unknown>;
+  const str = (k: string) => (typeof v[k] === 'string' ? { [k]: v[k] as string } : {});
+  const link = v.topbarLink === null || (!!v.topbarLink && typeof v.topbarLink === 'object' && !Array.isArray(v.topbarLink));
+  const got = { ...str('layout'), ...str('headerShape'), ...str('footerShape'), ...str('topbarMessage'), ...(link ? { topbarLink: v.topbarLink } : {}) };
+  if (!Object.keys(got).length) return built;
+  return { ...built, props: rootToPuck({ ...built.props, ...got } as never) };
 }
 
 type Status = { kind: 'idle' | 'saving' | 'saved' | 'error'; text: string };
@@ -781,6 +798,7 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
       const d = e.data as {
         type?: unknown; ok?: unknown; message?: unknown; page?: unknown; locale?: unknown; reason?: unknown; hash?: unknown;
         raw?: unknown; siteBlocks?: unknown; blocks?: unknown; located?: unknown; weights?: unknown; refs?: unknown; slugs?: unknown;
+        root?: unknown;
       };
       if (!d || typeof d !== 'object') return;
       if (d.type === 'ai1st:editor-save-result') {
@@ -881,9 +899,12 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
       } catch {
         return; // 转不出来就留着手上这一份：存盘的 hash 没换，存的时候 write-page 会说实话。
       }
-      // #1405 —— 底稿里只有页面（`pageToPuck` 回的 root 是空的）；外壳四样沿用手上的比较基准（打开时构建算出来
+      // #1405 —— `pageToPuck` 回的 root 是空的；外壳四样沿用手上的比较基准（打开时构建算出来
       // 的那份，存过就是存下去的那份）。不接上的话 root 字段全空，画布的顶栏页脚会变成默认、存盘的逐字段比较也全乱。
-      next = { ...next, root: baseRef.current.initial.root };
+      // #1452 —— 刚打开（`open`）时换成底稿带来的**盘上现值**（§openRoot）：#1412 起存盘不重建，构建烤进来的那份
+      // 在下一次发布前都是旧的 ⟹ 换页 / 关掉重开之后，存过的外壳改动在右栏和画布上都「不见」。
+      // `external` / `ai` 不换：那两支问的是「这一页的页面块」，手上的比较基准就是这个 iframe 里存下去的那份。
+      next = { ...next, root: d.reason === 'open' ? openRoot(baseRef.current.initial.root, d.root) : baseRef.current.initial.root };
       const g = getPuckRef.current ? getPuckRef.current() : null;
       // #1410 —— 历史里每一条快照的共用块换成新底稿里的那一块（它们的字不归撤销管；不换的话撤销一步，画布上
       // 共用块退回旧字，而网站上是新字）。`ai` 和 `external`（含聊天里的 git 回退）都要做。

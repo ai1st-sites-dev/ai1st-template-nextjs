@@ -26,6 +26,7 @@ const { readPagesRecursive } = require('./page-files.js');
 const { readSiteBlocks, findBlockInPage, generatedBlockId, normalizeLocalePages } = require('../blocks.js');
 const { decorateBlocks } = require('./block-decorate.js');
 const { resolveSiteRegionLayout } = require('./site-regions.js');
+const { readRootValues } = require('./editor-root.js');
 
 /**
  * @param {string} rootDir 模板根（`site/` 的上一层）
@@ -148,7 +149,11 @@ function effectiveWeights(raw, siteBlocks, blocks, located) {
  * @param {{ rootDir?: string, page: string, locale?: string }} opts  `locale` 空 = 默认语言；扁平站不看它
  *   · `refs` / `slugs` —— #1406：共用块被哪几页 `ref`（§sharedRefs）、这种语言现有哪些页（算 N 时 `visibility`
  *     里写了不存在的页不算，跟构建丢掉它们同一个判法）
- * @returns {{ ok: true, page, locale, raw, siteBlocks, hash, blocks, located, weights, refs, slugs }
+ *   · `root` —— #1452：外壳四样（布局 / 顶栏形态 / 页脚形态 / 公告条）的**现值**，`editor-root.js` §readRootValues
+ *     读的（存盘那头写的就是那几份文件）。形状 = 编辑器页喂给 `rootToPuck` 的那一份。#1412 起存盘不再重建，
+ *     构建时烤进编辑器页的 root 在下一次发布前都是旧的 —— 不带它，存过的外壳改动一换页就「不见」。
+ *     读不出来（站级文件坏了）⟹ 不带这个键，编辑器沿用构建时那份，跟 #1452 之前一样。
+ * @returns {{ ok: true, page, locale, raw, siteBlocks, hash, blocks, located, weights, refs, slugs, root? }
  *          | { ok: false, reason: string, message: string }}
  *   `locale` 回的是实际用的那一个（扁平站回 ''）。`reason`：'bad-request' | 'no-site' | 'no-locale' |
  *   'no-pages' | 'no-page' | 'build-error'（这个站现在就建不出来 —— 构建会在同一个地方报错）。
@@ -203,6 +208,13 @@ function editorBaseline(opts) {
     return { ok: false, reason: 'build-error', message: e && e.message ? e.message : String(e) };
   }
   const located = blocks.map((b) => locateInRaw(src.raw, src.siteBlocks, slug, b));
+  // 🔴 `layoutsDir` 显式给（同 page.tsx 的 editorSchema 那条）：布局库在站仓根上的 `page-layouts/`。
+  let root;
+  try {
+    root = readRootValues({ siteDir, localeDir, layoutsDir: path.join(rootDir, 'page-layouts') });
+  } catch {
+    root = undefined;
+  }
   return {
     ok: true,
     page: slug,
@@ -215,6 +227,7 @@ function editorBaseline(opts) {
     weights: effectiveWeights(src.raw, src.siteBlocks, blocks, located),
     refs: src.refs,
     slugs: src.slugs,
+    ...(root ? { root } : {}),
   };
 }
 

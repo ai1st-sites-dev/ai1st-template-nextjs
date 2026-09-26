@@ -10,13 +10,15 @@
  * `blocks`（= 编辑器页 `getPage()` 拿到的那份），再按 `src/app/~editor/[...target]/page.tsx` 同一对调用算
  * `located` / `weights`。运行时那份必须一个字节都不差。
  *
- *   ① 穿 azure-29 的多语言站（它有 16 种块的主题形态跟 manifest 默认不同）：每一页相同，而且真有块戴着
+ *   ① 穿 azure-29 的多语言站（它有 16 种块的主题形态跟 manifest 默认不同）：每一页相同（#1452 起含 root），而且真有块戴着
  *     主题给的形态 —— 否则「相同」可能只是两边都没有 `shape`
  *   ② 反向对照：只归一化、不补字段 ⟹ 跟构建**不同**（这一格证明上面那个比对有分辨力，也就是 #1415 DEV
  *     开工前审查抓到的那一格）
  *   ③ 站级共用块（按 visibility 注入 + `{ref}`）、子目录页面、ember-12 的老扁平 `sections` 站
  *   ④ 探针那条路：子进程里调，stdout 只有一份 JSON —— 哪怕这一页有一个会触发「落回默认」日志的块
  *   ⑤ 拒绝：没有这一页 / 没有这种语言 / 读不到 site/ / 这一页会让构建报错
+ *   ⑥ #1452：外壳四样（root）存下去、没重建 ⟹ 底稿带的是盘上的现值，四样都跟构建时那份不同（跑在 ⑤ 之前：
+ *     ⑤ 最后一格把这个站弄成建不出来）
  */
 
 'use strict';
@@ -72,9 +74,27 @@ function build(work) {
   const r = cp.spawnSync(process.execPath, [path.join(work, 'scripts', 'sync-config.js')], { cwd: work, encoding: 'utf8', timeout: 180000 });
   if (r.status !== 0) die(`sync-config 失败（rc=${r.status}）\n${(r.stdout + r.stderr).slice(-800)}`);
   const txt = fs.readFileSync(path.join(work, 'src', 'lib', 'config-data.ts'), 'utf-8');
-  const m = txt.match(/^export const pagesByLocale = (.*);$/m);
-  if (!m) die('config-data.ts 里找不到 pagesByLocale');
-  return JSON.parse(m[1]);
+  const grab = (name) => {
+    const m = txt.match(new RegExp(`^export const ${name} = (.*);$`, 'm'));
+    if (!m) die(`config-data.ts 里找不到 ${name}`);
+    return JSON.parse(m[1]);
+  };
+  // #1452 —— 外壳四样在构建里的那一份（编辑器页 page.tsx 喂给 rootToPuck 的就是这几样）。
+  lastRoot = { regions: grab('regions'), pageLayout: grab('pageLayout'), nav: grab('navigationByLocale') };
+  return grab('pagesByLocale');
+}
+let lastRoot = null;
+
+/** #1452 —— page.tsx 的 root 初值原样（`topbar?.message || ''` / `topbar?.link || null`）。 */
+function builtRoot(locale) {
+  const topbar = (lastRoot.nav[locale] || lastRoot.nav.en || {}).topbar;
+  return {
+    layout: lastRoot.pageLayout.id,
+    headerShape: lastRoot.regions.header.shape,
+    footerShape: lastRoot.regions.footer.shape,
+    topbarMessage: (topbar && topbar.message) || '',
+    topbarLink: (topbar && topbar.link) || null,
+  };
 }
 
 /** 每一页：运行时那份 vs 构建那份。回 { pages, diff, shaped, diffs[] }。 */
@@ -93,6 +113,7 @@ function compare(work, flat, baselineFn) {
       const want = {
         raw: src.raw, siteBlocks: src.siteBlocks, hash: src.baseHash, blocks: p.blocks, located,
         weights: lib.effectiveWeights(src.raw, src.siteBlocks, p.blocks, located),
+        root: builtRoot(locale),
       };
       out.shaped += p.blocks.filter((b) => typeof b.shape === 'string' && b.shape).length;
       const bads = got && got.ok ? Object.keys(want).filter((k) => JSON.stringify(got[k]) !== JSON.stringify(want[k])) : ['ok=false'];
@@ -108,7 +129,7 @@ const multi = makeSite('multi', 'azure-29', false);
 {
   const c = compare(multi, false);
   check(c.pages >= 3, `比了 ${c.pages} 页（至少 3 页，否则夹具不对）`);
-  check(c.diff === 0, '每一页 raw / siteBlocks / hash / blocks / located / weights 都跟构建相同', c.diffs.join(' · '));
+  check(c.diff === 0, '每一页 raw / siteBlocks / hash / blocks / located / weights / root 都跟构建相同', c.diffs.join(' · '));
   check(c.shaped > 0, `构建里真有块戴着形态（${c.shaped} 个）—— 「相同」不是两边都没有 shape`);
   const home = require(path.join(multi, 'scripts', 'lib', 'editor-page.js')).editorBaseline({ rootDir: multi, page: 'home', locale: '' });
   check(home.ok && home.locale === 'en', 'locale 空 ⟹ 用 site_meta 的默认语言，回报实际用的那一个', JSON.stringify(home.locale));
@@ -194,6 +215,53 @@ console.log('④ 探针：子进程 stdout 只有那一份 JSON');
   check(r.status === 0 && parsed && parsed.ok === true, 'rc=0，stdout 整个是一份 JSON、ok=true', `rc=${r.status} stdout 开头 ${JSON.stringify((r.stdout || '').slice(0, 120))}`);
   const c = compare(multi, false);
   check(c.diff === 0, '有「落回默认」的块时仍然跟构建相同', c.diffs.join(' · '));
+}
+
+// ══ ⑥ #1452：外壳四样存了、没重建 ⟹ 底稿里是存下去的那份 ═════════════════════════════════════════
+console.log('⑥ #1452：外壳四样存盘之后（不重建），底稿带的是盘上的现值');
+{
+  const siteDir = path.join(multi, 'site');
+  const localeDir = path.join(siteDir, 'en');
+  const editorRoot = require(path.join(multi, 'scripts', 'lib', 'editor-root.js'));
+  const { pickableShapesOf } = require(path.join(multi, 'scripts', 'region-layout.js'));
+  const { editorBaseline } = require(path.join(multi, 'scripts', 'lib', 'editor-page.js'));
+  build(multi);
+  const before = builtRoot('en');
+  const other = (block, cur) => pickableShapesOf(block).find((x) => x !== cur && x !== 'transparent-overlay');
+  // 跟编辑器 Save 同一条写路（write-editor-save.js 调的就是 planRootWrite），只是不跑后面的构建。
+  const change = {
+    layout: 'with-topbar',
+    headerShape: other('header', before.headerShape),
+    footerShape: other('footer', before.footerShape),
+    topbarMessage: 'Open Sundays 1452',
+    topbarLink: { label: 'Book', href: '/contact' },
+  };
+  const writes = editorRoot.planRootWrite({
+    siteDir, localeDir, locale: 'en', shape: { flat: false, locales: ['en'] }, root: change,
+    layoutsDir: path.join(multi, 'page-layouts'),
+  });
+  for (const w of writes) fs.writeFileSync(w.file, w.content);
+  check(writes.length === 3, `写了 3 份文件（page-layout.json / theme.json / navigation.json）`, writes.map((w) => path.relative(siteDir, w.file)).join(' '));
+  const got = editorBaseline({ rootDir: multi, page: 'home', locale: 'en' });
+  check(got.ok && JSON.stringify(got.root) === JSON.stringify(change), '底稿的 root 就是刚存下去的那四样', JSON.stringify(got.root));
+  // 反向：构建里（= 编辑器页烤进去的首屏）还是旧的 —— 不送 root 的话编辑器显示的就是这一份（票正文「不见了」）。
+  const stale = ['layout', 'headerShape', 'footerShape', 'topbarMessage'].filter((k) => before[k] === (got.root || {})[k]);
+  check(stale.length === 0, '四样每一样都跟构建时那份不同 ⟹ 上面那格量得出「送的是现值还是构建值」', stale.join(','));
+
+  // 读不出来 ⟹ 不带 root（编辑器沿用构建时那份），底稿其余照常。
+  const nav = path.join(localeDir, 'navigation.json');
+  const keep = fs.readFileSync(nav);
+  fs.writeFileSync(nav, '{ not json');
+  const broken = editorBaseline({ rootDir: multi, page: 'home', locale: 'en' });
+  fs.writeFileSync(nav, keep);
+  check(broken.ok && !('root' in broken), 'navigation.json 坏了 ⟹ ok 照旧、不带 root 这个键', JSON.stringify(Object.keys(broken)));
+  // 探针那条路也带着它（manager 原样转发）。
+  const script = "const m = require(process.cwd() + '/scripts/lib/editor-page.js');"
+    + 'process.stdout.write(JSON.stringify(m.editorBaseline(JSON.parse(process.argv[1]))));';
+  const r = cp.spawnSync(process.execPath, ['-e', script, JSON.stringify({ page: 'home', locale: 'en' })], { cwd: multi, encoding: 'utf8', timeout: 60000 });
+  let parsed = null;
+  try { parsed = JSON.parse(r.stdout); } catch { parsed = null; }
+  check(parsed && JSON.stringify(parsed.root) === JSON.stringify(change), '子进程探针的 stdout 里也是这份 root');
 }
 
 // ══ ⑤ 拒绝 ═══════════════════════════════════════════════════════════════════════════════════════
