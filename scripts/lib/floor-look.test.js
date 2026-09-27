@@ -34,11 +34,16 @@ const ROOT = path.resolve(__dirname, '..', '..');
 //    同一条理由写在 `block-manifest.js` 的 `isRegionManifest` 上面。
 // 📌 真要让主题能换顶栏的皮，那是另一张票（往契约 §1 加钩子 + 给生成器加配方）；那一天把这里的
 //    过滤去掉，这一格当天就会说话。
-const { loadManifests } = require('./block-manifest.js');
-const ALL = Object.keys(require(path.join(ROOT, 'src/lib/sections/block-roles.json')))
+const { loadManifests, isSiteCssSkin } = require('./block-manifest.js');
+// 📌 #1463 —— 皮由 `site.css` 画的块（manifest `skin: "site-css"`）同一个理由不进分母：主题表按设计不画它
+//    （设计稿 D2 / B1：主题不再写 CSS），拿它当分母这一格会永远红在一件没人打算做的事上。判据只住
+//    `block-manifest.js` §isSiteCssSkin，名单现取、不写死；排除了谁在下面 ⑤ 那一行点名。
+const ROLE_TYPES = Object.keys(require(path.join(ROOT, 'src/lib/sections/block-roles.json')));
+const SITE_CSS = ROLE_TYPES.filter((t) => isSiteCssSkin(undefined, t));
+const ALL = ROLE_TYPES
   .filter((t) => {
     const m = loadManifests().get(t);
-    return !(m && m.region === true);
+    return !(m && m.region === true) && !SITE_CSS.includes(t);
   });
 
 /** `site-194f1f41` 线上那份 theme.css 的三行（token，零画法）。 */
@@ -126,7 +131,8 @@ console.log('⑤ 尺子本身：主题表的顶层类根集合就是块名 —�
   full === sheets.length
     ? ok(`${sheets.length}/${sheets.length} 份主题表各自覆盖全部 ${ALL.length} 种块`
       + `（其中 ${Object.keys(stylesFrom).length} 种是借别人的类名：`
-      + `${Object.entries(stylesFrom).map(([a, b]) => `${a}→${b}`).join(' · ') || '（无）'}）`)
+      + `${Object.entries(stylesFrom).map(([a, b]) => `${a}→${b}`).join(' · ') || '（无）'}）`
+      + `；按 skin=site-css 排除了 ${SITE_CSS.length} 个：${SITE_CSS.join(' · ') || '（无）'}`)
     : bad(`只有 ${full}/${sheets.length} 份覆盖全部 ${ALL.length} 种 —— 尺子或主题池有一边变了，先弄清哪边`);
 }
 

@@ -1,0 +1,165 @@
+/* ── hero-new · 跨形态的规则（#1463）────────────────────────────────────────────────────────────
+   hero-new 的排版由**实际生效的旋钮**决定，写在根元素上：data-align（left / center）· data-image
+   （normal / background / none）· data-form · data-reverse · data-tone（light / dark / brand）。
+   五个形态目录都是预设，自己不带几何（理由在各自的 shape.css 里）。
+
+   🔴 Webpixels 的工具类全带 !important（text-muted / bg-primary-subtle / text-primary …）。这里要压过
+      它们的规则**也带 !important**，而且选择器从 [data-block="hero-new"] 起步再加一个属性 —— 两个属性
+      选择器 + 一个类，特异度一定高过工具类的一个类。
+   🔴 藏东西这里一条都没有：部件有数据才渲染（Section.tsx），不靠 CSS 藏。 */
+
+/* 🔴 行的间距在 Section.tsx 里是 `gx-8 gy-10 gx-lg-16`，**不是**定稿抄来的 `g-10 gx-lg-16`，别「照定稿修回去」：
+      `.row` 左右负外边距 = 横向间距的一半，`g-10` 是 20px，而 `.container` 在手机上的内距只有 16px ⟹ 390 宽下
+      整页横向滚动 4px（#1463 实测 scrollWidth 394 / 390）。也别写成 `g-10 gx-8`：Bootstrap 按尺寸逐档生成
+      g / gx / gy，`.g-10` 排在 `.gx-8` 后面，会把它压回去。竖向与 ≥992 的横向照定稿不变。 */
+
+/* 图：left 时 4:3；center 时一整条 21:9、最高 460。 */
+[data-block="hero-new"] .hro-img {
+  aspect-ratio: 4 / 3;
+}
+[data-block="hero-new"][data-align="center"] .hro-img {
+  aspect-ratio: 21 / 9;
+  max-height: 460px;
+}
+[data-block="hero-new"][data-align="center"] .hro-side {
+  max-width: 1100px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* 大字号标题的光学对齐：left 时让大写字母左缘跟 eyebrow / 副标题对齐。 */
+[data-block="hero-new"][data-align="left"] .hro-title {
+  margin-left: -0.04em;
+}
+
+/* 副标题 ≤ 52ch；center 时文字块收到 64ch、居中。 */
+[data-block="hero-new"] .hro-sub {
+  max-width: 52ch;
+}
+[data-block="hero-new"][data-align="center"] .hro-textcol {
+  max-width: 64ch;
+  margin-left: auto;
+  margin-right: auto;
+}
+[data-block="hero-new"][data-align="center"] .hro-sub,
+[data-block="hero-new"][data-align="center"] .hro-form {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* 表单跟标题同宽，不超过 34rem。 */
+[data-block="hero-new"] .hro-form {
+  max-width: 34rem;
+}
+
+/* 头像组叠在一起；logo 一排等高。 */
+[data-block="hero-new"] .hro-avatar + .hro-avatar {
+  margin-left: -10px;
+}
+[data-block="hero-new"] .hro-logo {
+  height: 26px;
+  width: auto;
+  opacity: 0.75;
+}
+
+/* 图片带：竖构图 3:4。列数 = 张数（col-md 均分）；手机上两张一排。 */
+[data-block="hero-new"] .hro-band-img {
+  aspect-ratio: 3 / 4;
+}
+
+/* 图铺底：遮罩在 [data-part="bg"] 上（Section.tsx 的内联渐变），块本身撑高、内容竖直居中。 */
+[data-block="hero-new"][data-image="background"] {
+  min-height: 640px;
+  display: flex;
+  align-items: center;
+}
+[data-block="hero-new"][data-image="background"] > .container {
+  width: 100%;
+}
+
+/* ── 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneFor）───────────────────────────────
+   dark = 深底或图铺底：标题 / 副标题 / eyebrow / 统计 / logo 反白，outline 按钮翻成白描边。
+   brand = 主题主色底：同上，另外主按钮翻成白底主色字。 */
+[data-block="hero-new"][data-tone="dark"],
+[data-block="hero-new"][data-tone="brand"] {
+  color: #fff;
+}
+[data-block="hero-new"][data-tone="dark"] .hro-title,
+[data-block="hero-new"][data-tone="brand"] .hro-title,
+[data-block="hero-new"][data-tone="dark"] .hro-eyebrow-dash,
+[data-block="hero-new"][data-tone="brand"] .hro-eyebrow-dash,
+[data-block="hero-new"][data-tone="dark"] .hro-eyebrow-plain,
+[data-block="hero-new"][data-tone="brand"] .hro-eyebrow-plain {
+  color: #fff !important;
+}
+[data-block="hero-new"][data-tone="dark"] .text-muted,
+[data-block="hero-new"][data-tone="brand"] .text-muted {
+  color: rgba(255, 255, 255, 0.72) !important;
+}
+[data-block="hero-new"][data-tone="dark"] .border-top,
+[data-block="hero-new"][data-tone="brand"] .border-top {
+  border-color: rgba(255, 255, 255, 0.3) !important;
+}
+[data-block="hero-new"][data-tone="dark"] .btn-outline-primary,
+[data-block="hero-new"][data-tone="brand"] .btn-outline-primary {
+  color: #fff !important;
+  border-color: rgba(255, 255, 255, 0.6) !important;
+}
+[data-block="hero-new"][data-tone="dark"] .btn-link,
+[data-block="hero-new"][data-tone="brand"] .btn-link {
+  color: #fff !important;
+}
+[data-block="hero-new"][data-tone="dark"] .hro-eyebrow-pill,
+[data-block="hero-new"][data-tone="brand"] .hro-eyebrow-pill {
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #fff !important;
+}
+[data-block="hero-new"][data-tone="dark"] .hro-eyebrow-outline,
+[data-block="hero-new"][data-tone="brand"] .hro-eyebrow-outline {
+  border-color: rgba(255, 255, 255, 0.7) !important;
+  color: #fff !important;
+}
+[data-block="hero-new"][data-tone="dark"] .hro-logo,
+[data-block="hero-new"][data-tone="brand"] .hro-logo {
+  filter: brightness(0) invert(1);
+  opacity: 0.9;
+}
+/* 图铺底时 pill 用白底深字（图册 hero 段的样子：遮罩上半透明的白太淡）。 */
+[data-block="hero-new"][data-image="background"] .hro-eyebrow-pill {
+  background: #fff !important;
+  color: #0f172a !important;
+}
+/* ── 按钮的底色和字色：接平台按这个站最终配色算好的那几个变量（`scripts/lib/button-ink.js`）──────────
+   Webpixels 的 `.btn-primary` 用 `$primary` 当底、按**纯色**对比度挑白 / 黑字；中间调的主色上两种字都贴着 4.5
+   （实测 ember-12 的 #907230：白字纯色 4.53、黑字 4.60，抗锯齿后 4.42 / 4.49，theme-css-invariants 判红）。
+   `button-ink.js` 解的正是这件事：底色沿梯子挑一档过线的、字色按抗锯齿后的对比度挑，写成 `--btn-primary-*`
+   （旧块的 `.btn-primary` 读的也是它们）。拿不到这些变量的页面落回 Webpixels 自己的值。
+   🔴 这是平台算的可读性变量，不是主题表的皮 —— 跟 manifest 的 `skin: "site-css"` 不冲突。 */
+[data-block="hero-new"] .btn-primary {
+  --x-btn-bg: var(--btn-primary-bg, var(--x-primary));
+  --x-btn-border-color: var(--btn-primary-bg, var(--x-primary));
+  --x-btn-color: var(--btn-primary-ink, #fff);
+  --x-btn-hover-bg: var(--btn-primary-hover, var(--btn-primary-bg, var(--x-primary)));
+  --x-btn-hover-border-color: var(--btn-primary-hover, var(--btn-primary-bg, var(--x-primary)));
+  --x-btn-hover-color: var(--btn-primary-ink, #fff);
+  --x-btn-active-bg: var(--btn-primary-hover, var(--btn-primary-bg, var(--x-primary)));
+  --x-btn-active-color: var(--btn-primary-ink, #fff);
+}
+[data-block="hero-new"] .btn-outline-primary {
+  --x-btn-color: var(--btn-outline-ink, var(--x-primary));
+  --x-btn-border-color: var(--btn-outline-ink, var(--x-primary));
+}
+
+[data-block="hero-new"][data-tone="brand"] .btn-primary {
+  background: #fff !important;
+  border-color: #fff !important;
+  color: var(--x-primary) !important;
+}
+[data-block="hero-new"][data-tone="dark"] .form-control,
+[data-block="hero-new"][data-tone="brand"] .form-control,
+[data-block="hero-new"][data-tone="dark"] .form-select,
+[data-block="hero-new"][data-tone="brand"] .form-select {
+  color: #0f172a !important;
+  background-color: #fff !important;
+  border-color: #fff !important;
+}

@@ -966,7 +966,7 @@ from a block you are editing. A page must have exactly one of the two arrays; a 
 fails the build. When you add a block to a \`blocks\` page, give it an \`id\` unique within that page and a
 \`weight\` that puts it where you want it (blocks are ordered by \`weight\`, smaller first).
 
-Available section types: hero, hero-with-form, trusted-brands, features-grid, card-group, testimonials, cta-banner, contact-info, text-block, page-header, services-nav, services-list, quote-form, contact-form, faq-accordion, process-steps, team-grid, pricing-table, gallery, content-split, social-proof, announcement-bar, newsletter-signup, map-area, blog-preview, service-related-pages
+Available section types: hero, hero-new, hero-with-form, trusted-brands, features-grid, card-group, testimonials, cta-banner, contact-info, text-block, page-header, services-nav, services-list, quote-form, contact-form, faq-accordion, process-steps, team-grid, pricing-table, gallery, content-split, social-proof, announcement-bar, newsletter-signup, map-area, blog-preview, service-related-pages
 
 ## Images
 
@@ -982,6 +982,9 @@ other type does not show a picture, and putting an image field on one has no eff
   and leaving it out is how you remove the strip)
 - a **hero-with-form** block → \`data.imageUrl\` (the first screen that also collects the visitor's phone
   number — same picture field as **hero**, it is just a different block type)
+- a **hero-new** block → \`data.image.imageUrl\` (the one big picture; with \`options.image: "background"\` it
+  fills the whole banner) · \`data.band[].imageUrl\` (1–6 photos under the text) ·
+  \`data.proof.avatars[].imageUrl\` (up to 4 customer faces) · \`data.logos.items[].imageUrl\` (up to 6 logos)
 - a **content-split** block → \`data.imageUrl\`
 - a **contact-form** block → \`data.imageUrl\` (optional — only the one layout that puts the form over a
   picture shows it; on the other layouts the block has no picture)

@@ -25,6 +25,8 @@ const BLOCKS_DIR = path.join(__dirname, '..', '..', 'blocks');
 // `layout-intent.mjs`（几何守卫，ESM）。两边各抄一份词表的失败方向是静默的 —— 校验器放行一个词、
 // 守卫不认识它，于是那一格什么都没判而没有人会红。
 const LAYOUT_INTENT_VOCAB = require('./layout-intent-vocab.json');
+const { knobsOf, booleanOptionsOf, effectiveKnobs, knobDeclarationProblems } = require('./block-knobs');
+const { isColorValue } = require('./contrast');
 const LAYOUT_INTENT_AXES = Object.keys(LAYOUT_INTENT_VOCAB.axes);
 
 /**
@@ -150,7 +152,12 @@ const PROMPT_GROUPS = ['homepage', 'page-specific', 'page-rule'];
 // 🔴 落定这张词表的理由是**校验器此前只查 `kind` 是不是非空字符串**（下面 §checkManifestShape
 // 那一行），所以写成 `"url"` / `"Text"` 这种也照样过 —— 而下游按 `kind` 分支的每一处都会静默地
 // 走进「不认识、当默认处理」那一支。
-const SLOT_KINDS = ['text', 'list', 'link', 'links', 'image', 'object', 'flag', 'control'];
+// #1463 —— manifest `skin` 的合法值（§checkManifestShape 按它 fail-closed 校验，§isSiteCssSkin 读它）。
+const SKINS = ['site-css'];
+
+const SLOT_KINDS = ['text', 'list', 'link', 'links', 'image', 'object', 'flag', 'control', 'color'];
+// 📌 #1463 —— 第九个 `color`：一块底色（`hero-new.bg`）。取值 `#rrggbb`（大小写都收）或 `brand`，
+//    判据在 `contrast.js` §isColorValue，`validateSite` 与编辑器的取色器共用那一条正则。
 
 // 🔴 **这八个不是抄来的，是量出来的，而且有一道守卫盯着它别过期**（§slotKindVocabularyProblems，
 // 跑在 `block-manifest.test.js`）：它拿这个常量跟 `blocks/` 里**实际出现**的取值做两向差集，
@@ -358,6 +365,21 @@ function checkManifestShape(name, m) {
     if (typeof s.required !== 'boolean') bad(`slots.${slot}.required 必须是 true/false（现在是 ${JSON.stringify(s.required)}）`);
     if (typeof s.promptOptional !== 'boolean') bad(`slots.${slot}.promptOptional 必须是 true/false`);
     if (s.shape !== undefined && !isStr(s.shape)) bad(`slots.${slot}.shape 有的话必须是非空字符串`);
+    // #1463 —— `editItems: true`：一个没有可改文字的列表槽（纯图片的 `hero-new.band`），编辑器里照样给它
+    //    一个列表字段 —— 能挪、能删，每项整份原样带着。不写就跟今天一样不出字段（`hero.imageBand` 不受影响）。
+    if (s.editItems !== undefined && (s.editItems !== true || s.kind !== 'list' || s.editLabel !== undefined)) {
+      bad(`slots.${slot}.editItems 只能写 true，而且只给没有 editLabel 的 list 槽`);
+    }
+    // #1463 —— `choices`：这个槽某个子字段只能从一张词表里取（`hero-new.eyebrow.style` · `hero-new.form.fields`）。
+    //    `validateSite` 据它拦词表外的值，编辑器据它把那一格画成下拉。形状：`{ 子字段: [取值…] }`。
+    if (s.choices !== undefined) {
+      if (s.choices === null || typeof s.choices !== 'object' || Array.isArray(s.choices)) {
+        bad(`slots.${slot}.choices 有的话必须是对象 { 子字段: [取值…] }`);
+      }
+      for (const [sub, vals] of Object.entries(s.choices)) {
+        if (!strArray(vals) || !vals.length) bad(`slots.${slot}.choices.${sub} 必须是非空的字符串数组`);
+      }
+    }
   }
   // #1331 —— 形态清单。第 0 项是默认；每项 { name, needs }。四条都是白名单式（拼错键要当场红，不许静默）：
   //   name 在 public/shapes.css 里必须有 [data-block="<块>"][data-shape="<name>"] 的规则；
@@ -463,6 +485,25 @@ function checkManifestShape(name, m) {
   // 🔴 同 `region` / `hooksFrom`：必须**声明**，不靠 `-new` 这个名字后缀去推。
   if (m.staging !== undefined && typeof m.staging !== 'boolean') {
     bad(`staging 有的话必须是 true/false（现在是 ${JSON.stringify(m.staging)}）—— 它说的是「这个块还没进正式库，客户站不渲染，只在 admin 预览里」`);
+  }
+  // #1463 —— `parts`：这个块的**可选部件**（有数据就画、没有就不画），admin 单格页的工具条据它画「部件」那一组开关。
+  //    每一项必须是这个块的**可选**槽位（必填的关不掉）。
+  if (m.parts !== undefined) {
+    if (!strArray(m.parts)) bad('parts 有的话必须是字符串数组（可选部件的槽位名）');
+    for (const p of m.parts) {
+      if (!m.slots[p]) bad(`parts 里的 "${p}" 不是这个块的槽位`);
+      else if (m.slots[p].required !== false) bad(`parts 里的 "${p}" 是必填槽 —— 部件是可选的，必填的关不掉`);
+    }
+  }
+  // #1463 —— `skin: "site-css"` 说的是「这个块的皮和部件类名**不由主题表提供**，由编出来的 `site.css`
+  //    （Webpixels / Bootstrap）提供」。没写 = 今天的默认：主题表上皮。主题那一套守卫（floor-look ⑤、
+  //    sheet-recipes ⑫ / ⑮、theme-css-invariants ⑨）据它把这个块排出分母（§isSiteCssSkin）。
+  // 🔴 白名单、fail-closed：今天唯一合法的值是 "site-css"。写歪一个字母不许静默当成「没写」—— 那样它不会被
+  //    排除、守卫会红、下一个人就去放宽守卫；也不许反过来被当成「写了」。
+  // 🔴 同 `region` / `hooksFrom`：身份必须**声明**，不靠 `-new` 后缀或 `staging` 去推。
+  if (m.skin !== undefined && !SKINS.includes(m.skin)) {
+    bad(`skin 是 ${JSON.stringify(m.skin)} —— 只能是 ${SKINS.map((x) => JSON.stringify(x)).join(' / ')}，或者不写`
+      + '（不写 = 主题表上皮；"site-css" = 皮和部件类名由编出来的 site.css 提供，主题表不画它）');
   }
   if (m.region !== undefined && typeof m.region !== 'boolean') {
     bad(`region 有的话必须是 true/false（现在是 ${JSON.stringify(m.region)}）—— 它说的是「这个块是外壳区，不进页面 JSON、不在 registry.ts 里」`);
@@ -586,6 +627,12 @@ function loadManifests(dir = BLOCKS_DIR) {
     }
     m.shapes = readShapes(blockDir);
     checkManifestShape(type, m);
+    // #1463 —— 预设 + 旋钮的声明（`slots.options.knobs` / 顶层 `presets`）。放在这里而不是
+    //    checkManifestShape 里，是因为「预设的形态必须是真有的目录」要先读完子文件夹。
+    const knobProblems = knobDeclarationProblems(m);
+    if (knobProblems.length) {
+      throw new Error(`blocks/${type}/manifest.json: 预设 / 旋钮的声明不对 —— ${knobProblems.join('；')}`);
+    }
     byType.set(m.type, m);
   }
   // #1333 —— `hooksFrom` 指的必须是这一批里真的有的块。拼错的方向是静默的：借用关系认不出来，
@@ -962,6 +1009,55 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
         }
       }
 
+      // ⑨ #1463 —— 颜色槽、词表子字段、旋钮。判据全从 manifest 读（槽的 kind / `choices` / `slots.options.knobs`），
+      //    不写块名单。
+      for (const [slot, spec] of Object.entries(m.slots)) {
+        const v = data[slot];
+        if (v === undefined || v === null) continue;
+        if (spec.kind === 'color' && !isColorValue(v)) {
+          flag(`${where}: 槽 "${slot}" 是 ${JSON.stringify(v).slice(0, 40)} —— 颜色只能写 "#rrggbb"（六位十六进制）或 "brand"`);
+        }
+        if (spec.choices && v && typeof v === 'object' && !Array.isArray(v)) {
+          for (const [sub, allowed] of Object.entries(spec.choices)) {
+            const got = v[sub];
+            if (got === undefined || got === null) continue;
+            const vals = Array.isArray(got) ? got : [got];
+            const outside = vals.filter((x) => !allowed.includes(x));
+            if (outside.length) {
+              flag(`${where}: "${slot}.${sub}" 里有词表外的值 ${outside.map((x) => JSON.stringify(x)).join(' / ')}`
+                + ` —— 只能是 ${allowed.join(' / ')}`);
+            }
+          }
+        }
+      }
+      const knobs = knobsOf(m);
+      if (knobs.length) {
+        const opts = data.options && typeof data.options === 'object' && !Array.isArray(data.options) ? data.options : {};
+        for (const k of knobs) {
+          if (opts[k.name] !== undefined && !k.values.includes(opts[k.name])) {
+            flag(`${where}: 旋钮 options.${k.name} 是 ${JSON.stringify(opts[k.name])} —— 只能是 ${k.values.join(' / ')}`);
+          }
+        }
+        for (const b of booleanOptionsOf(m)) {
+          if (opts[b] !== undefined && typeof opts[b] !== 'boolean') {
+            flag(`${where}: options.${b} 是 ${JSON.stringify(opts[b])} —— 只能是 true / false`);
+          }
+        }
+        // 某个旋钮取某个值时，某个列表最多几项（`form: inline` ⟹ `form.fields` 只许 1 个：一行只放得下一个框）。
+        const eff = effectiveKnobs(m, sec.shape, opts);
+        for (const k of knobs) {
+          const limits = k.maxItems && k.maxItems[eff[k.name]];
+          if (!limits) continue;
+          for (const [p, max] of Object.entries(limits)) {
+            const [s1, s2] = p.split('.');
+            const list = data[s1] && typeof data[s1] === 'object' ? data[s1][s2] : undefined;
+            if (Array.isArray(list) && list.length > max) {
+              flag(`${where}: ${k.name} 是 "${eff[k.name]}" 时 ${p} 只能有 ${max} 项（现在 ${list.length} 项）`);
+            }
+          }
+        }
+      }
+
       // ⑤ 列表槽里的条目只能是字符串或对象（#1152）。
       //
       // 🔴 为什么这条非有不可：`null` 混进条目列表时，通用块 `CardGroupSection` 三支
@@ -1127,6 +1223,17 @@ function isRegionManifest(dir, type) {
   return !!(m && m.region === true);
 }
 
+/**
+ * #1463 —— 这个块的皮是不是由 `site.css` 提供（manifest `skin: "site-css"`），而不是主题表。
+ * 🔴 判据只住这一处：主题那一套守卫（floor-look ⑤、sheet-recipes ⑫ / ⑮、theme-css-invariants ⑨）都 import 它，
+ *    别在各处各写一遍 `m.skin === 'site-css'`。跟 §isRegionManifest 同一个签名。
+ * 📌 T3 之后每个块都是 site-css —— 那三道守卫的分母会空掉，届时按「守的那条路已不存在」删掉或重接，是那张票的活。
+ */
+function isSiteCssSkin(dir, type) {
+  const m = loadManifests(dir).get(type);
+  return !!(m && m.skin === 'site-css');
+}
+
 function registryCoverage(registryPath, dir) {
   const known = registryNames(registryPath);
   const manifests = [...loadManifests(dir).keys()];
@@ -1192,6 +1299,8 @@ module.exports = {
   dataLineFor,
   headLineFor,
   validateSite,
+  isSiteCssSkin,
+  SKINS,
   registryCoverage,
   // #1343 —— 注册表**自己声明的顺序**（`registryCoverage` 回的那两张单子是排过序的，那是为了做差集）。
   // 图册按这个顺序排行、`gen-allblocks.js` 按这个顺序写那一页 —— 它们要的是「注册表里写成什么样」，

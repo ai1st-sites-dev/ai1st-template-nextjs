@@ -120,6 +120,15 @@ const EXTRA = {
   'pricing-table': { _item: { features: ['f1', 'f2'] } }, // tier.features.map
   'social-proof': { _item: { rating: '4.9', reviews: '100' } },
   'content-split': { _item: { value: 'v', label: 'l' } },
+  // #1463 —— logo 行只在有图时画（一行说明字底下没有 logo 是没意义的）。
+  'hero-new': { logos: { caption: 'logos-caption', items: [{ imageUrl: '/a.png' }] } },
+};
+
+// #1463 —— 同一个块、互斥的两支：hero-new 有表单时不画 `ctas`（提交键就是 CTA），没表单时不画表单。
+// 一份夹具按构造只走得到一支，所以这种块渲染**几次**、每次换一组旋钮，钩子取并集。每一支都要真的渲染
+// 出东西 —— 并集只是把两次读数合起来，不是放宽判据。
+const VARIANTS = {
+  'hero-new': [{ options: { form: 'none' } }, { options: { form: 'stacked' } }],
 };
 
 function fixtureFor(type, manifest) {
@@ -172,6 +181,7 @@ function fixtureFor(type, manifest) {
 const STATE_ONLY = {
   'contact-form.successMessage': '只在表单提交成功那一屏出现（ContactFormSection 的 useState）',
   'hero-with-form.form.successMessage': '同上，在 HeroLeadForm 里',
+  'hero-new.form.successMessage': '同上，在 blocks/hero-new/HeroNewForm.tsx 里（#1463）',
 };
 
 // ── 渲染一个块，把产物里的 data-slot 抠出来 ─────────────────────────────────────────────────────
@@ -182,11 +192,11 @@ function slotsInOutput(type, manifest) {
   let html;
   try {
     const C = require(file).default;
-    html = renderToStaticMarkup(React.createElement(C, {
-      data: fixtureFor(type, manifest),
+    html = (VARIANTS[type] || [{}]).map((v) => renderToStaticMarkup(React.createElement(C, {
+      data: { ...fixtureFor(type, manifest), ...v },
       locale: 'en',
       block: { id: `${type}-0`, type, role: manifest.roleDefault, region: 'content', data: {} },
-    }));
+    }))).join('\n');
   } catch (e) {
     return { error: `渲染 ${type} 抛了：${e.message}` };
   }
@@ -305,11 +315,11 @@ console.log('\n── ④ 渲染一次够不着的那几条（只在提交成功
     // 源码里找 —— 这几条的钩子写成字面量，所以字面量查得到。
     // #1387 —— 组件搬进了 `blocks/<块>/Section.tsx`，所以扫的是那一批（外加 `src/components/sections/`
     // 里剩下的那些不是块的零件，例如 HeroLeadForm.tsx）。
+    // #1463 —— 只扫**这个块自己文件夹里**的每一份 .tsx（hero-new 的表单部件住在 `blocks/hero-new/HeroNewForm.tsx`）：
+    //    按字面串找，扫全部块文件夹的话 `form.successMessage` 会在别的块的文件里命中，报出一个错的出处。
+    const own = path.join(NEXT, 'blocks', type);
     const files = [
-      ...fs.readdirSync(path.join(NEXT, 'blocks'), { withFileTypes: true })
-        .filter((e) => e.isDirectory())
-        .map((e) => path.join(NEXT, 'blocks', e.name, 'Section.tsx'))
-        .filter((f) => fs.existsSync(f)),
+      ...(fs.existsSync(own) ? fs.readdirSync(own).filter((f) => f.endsWith('.tsx')).map((f) => path.join(own, f)) : []),
       ...(fs.existsSync(SECTIONS)
         ? fs.readdirSync(SECTIONS).filter((f) => f.endsWith('.tsx')).map((f) => path.join(SECTIONS, f))
         : []),

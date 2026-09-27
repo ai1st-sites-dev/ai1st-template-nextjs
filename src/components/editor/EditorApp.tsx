@@ -73,6 +73,8 @@ import {
   sharedReach, sharedRemovable, puckSharedChanges, sharedOwnAfter, applySharedChanges, aiBaselineStep,
   THEME_DEFAULT, canvasShape, shapeOptions, describeSave,
 } from '../../../scripts/lib/editor-convert.js';
+import { presetNameFor } from '../../../scripts/lib/block-knobs.js';
+import { normalizeColor, toneFor } from '../../../scripts/lib/contrast.js';
 
 export interface EditorAppProps {
   locale: string;
@@ -119,24 +121,124 @@ function summaryOf(item: unknown, index: number | undefined, subs: string[]): st
   return `Item ${(index ?? 0) + 1}`;
 }
 
+// ── #1463 —— 「预设 + 旋钮 + Custom」与颜色槽的两种控件 ────────────────────────────────────────
+const CTRL_ROW = { display: 'flex', flexWrap: 'wrap' as const, gap: 6, margin: '4px 0 10px' };
+const chip = (on: boolean) => ({
+  padding: '4px 10px', borderRadius: 999, fontSize: 12, cursor: 'pointer', fontFamily: 'system-ui, sans-serif',
+  border: `1px solid ${on ? '#1d4ed8' : '#d0d5dd'}`, background: on ? '#1d4ed8' : '#fff', color: on ? '#fff' : '#344054',
+});
+const SUB_LABEL = { fontSize: 12, fontWeight: 600, color: '#475467', margin: '6px 0 2px' } as const;
+
+type OptionsValue = Record<string, unknown>;
+
+/**
+ * 预设一排 + 每个旋钮一排单选 + 布尔修饰的勾选框。点预设 = 三个旋钮一次设好；拧偏了第一排显示 Custom。
+ * 判「是哪个预设」用 `block-knobs.js` §presetNameFor —— Section 渲染时算形态用的是同一个模块。
+ */
+function OptionsField({ f, value, onChange, readOnly }: { f: EditorField; value: OptionsValue; onChange: (v: OptionsValue) => void; readOnly?: boolean }) {
+  const v = value && typeof value === 'object' ? value : {};
+  const knobs = f.knobs || [];
+  const current = Object.fromEntries(knobs.map((k) => [k.name, typeof v[k.name] === 'string' ? v[k.name] : k.values[0]]));
+  const name = presetNameFor({ slots: { options: { knobs } }, presets: f.presets || [] }, current);
+  return (
+    <div data-editor-options="">
+      <div style={SUB_LABEL}>Preset</div>
+      <div style={CTRL_ROW}>
+        {(f.presets || []).map((p) => (
+          <button key={p.name} type="button" disabled={readOnly} style={chip(name === p.name)} data-editor-preset={p.name}
+            aria-pressed={name === p.name} onClick={() => onChange({ ...v, ...p.knobs })}>
+            {p.name}
+          </button>
+        ))}
+        <span style={{ ...chip(name === 'custom'), cursor: 'default' }} data-editor-custom={name === 'custom' ? 'true' : 'false'}>Custom</span>
+      </div>
+      {knobs.map((k) => (
+        <div key={k.name} data-editor-knob={k.name}>
+          <div style={SUB_LABEL}>{k.name.charAt(0).toUpperCase() + k.name.slice(1)}</div>
+          <div style={CTRL_ROW}>
+            {k.values.map((val) => (
+              <button key={val} type="button" disabled={readOnly} style={chip(current[k.name] === val)} data-editor-knob-value={val}
+                aria-pressed={current[k.name] === val} onClick={() => onChange({ ...v, [k.name]: val })}>
+                {val}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+      {(f.booleans || []).map((b) => (
+        <label key={b} style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13 }} data-editor-bool={b}>
+          <input type="checkbox" disabled={readOnly} checked={v[b] === true} onChange={(e) => onChange({ ...v, [b]: e.target.checked })} />
+          {b.charAt(0).toUpperCase() + b.slice(1)}
+        </label>
+      ))}
+    </div>
+  );
+}
+
+/** 一排预设色板 + 一个任意取色器 + 「无」。存的是小写 `#rrggbb` 或 `brand`（`contrast.js` §normalizeColor）。 */
+function ColorField({ f, value, onChange, readOnly }: { f: EditorField; value: unknown; onChange: (v: string | undefined) => void; readOnly?: boolean }) {
+  const cur = typeof value === 'string' ? value : '';
+  const tone = cur ? toneFor(cur) : 'light';
+  return (
+    <div data-editor-color="" data-editor-color-tone={tone}>
+      <div style={CTRL_ROW}>
+        {(f.swatches || []).map((c) => (
+          <button key={c} type="button" disabled={readOnly} title={c} data-editor-swatch={c} aria-pressed={cur === c}
+            onClick={() => onChange(normalizeColor(c) || undefined)}
+            style={{ width: 26, height: 26, borderRadius: 6, cursor: 'pointer', border: cur === c ? '2px solid #1d4ed8' : '1px solid #d0d5dd',
+              background: c === 'brand' ? 'var(--x-primary, #1d4ed8)' : c }} />
+        ))}
+        <input type="color" disabled={readOnly} aria-label="Any colour" data-editor-color-input=""
+          value={/^#[0-9a-f]{6}$/i.test(cur) ? cur.toLowerCase() : '#ffffff'}
+          onChange={(e) => onChange(normalizeColor(e.target.value) || undefined)} style={{ width: 34, height: 28, padding: 0, border: 'none' }} />
+        <button type="button" disabled={readOnly} style={chip(!cur)} data-editor-swatch="" onClick={() => onChange(undefined)}>None</button>
+      </div>
+      <div style={{ fontSize: 12, color: '#667085' }}>Text colour follows the background automatically.</div>
+    </div>
+  );
+}
+
+/** 一个子字段：词表里有它（`choices`）就是下拉，否则是一格文字。 */
+function subField(s: { sub: string; label: string; choices?: string[] }): Field {
+  return s.choices
+    ? ({ type: 'select', label: s.label, options: s.choices.map((c) => ({ label: c, value: c })) } as Field)
+    : ({ type: 'text', label: s.label } as Field);
+}
+
 /** manifest 的一个槽位 → 一个 Puck 字段。控件由 `kind` 决定（editor-schema.js 文件头那张表）。 */
 function puckField(f: EditorField): Field {
   switch (f.control) {
     case 'text':
       return { type: 'text', label: f.label };
+    case 'options':
+      return {
+        type: 'custom',
+        label: f.label,
+        render: ({ value, onChange, readOnly }: { value: OptionsValue; onChange: (v: OptionsValue) => void; readOnly?: boolean }) => (
+          <div><FieldLabel label={f.label} el="div" /><OptionsField f={f} value={value} onChange={onChange} readOnly={readOnly} /></div>
+        ),
+      } as unknown as Field;
+    case 'color':
+      return {
+        type: 'custom',
+        label: f.label,
+        render: ({ value, onChange, readOnly }: { value: unknown; onChange: (v: string | undefined) => void; readOnly?: boolean }) => (
+          <div><FieldLabel label={f.label} el="div" /><ColorField f={f} value={value} onChange={onChange} readOnly={readOnly} /></div>
+        ),
+      } as unknown as Field;
     case 'object':
       return {
         type: 'object',
         label: f.label,
-        objectFields: Object.fromEntries(f.subs.map((s) => [s.sub, { type: 'text', label: s.label }])),
+        objectFields: Object.fromEntries(f.subs.map((s) => [s.sub, subField(s)])),
       } as Field;
     case 'list':
       return {
         type: 'array',
         label: f.label,
-        arrayFields: Object.fromEntries(f.subs.map((s) => [s.sub, { type: 'text', label: s.label }])),
+        arrayFields: Object.fromEntries(f.subs.map((s) => [s.sub, subField(s)])),
         defaultItemProps: {},
-        getItemSummary: (item: unknown, i?: number) => summaryOf(item, i, f.subs.map((s) => s.sub)),
+        getItemSummary: (item: unknown, i?: number) => summaryOf(item, i, f.summary || f.subs.map((s) => s.sub)),
       } as Field;
     case 'strings':
       return {
@@ -255,6 +357,9 @@ export function buildConfig(schema: EditorSchema, locale: string, overHero = fal
   for (const c of schema.components) {
     const fields: Fields = {};
     for (const f of c.fields) fields[f.slot] = puckField(f);
+    // #1463 —— 带预设的块（hero-new）不再给「Layout」形态下拉：预设那一排就是它，两处各选一个会互相打架。
+    //    `_shape` 这个 prop 照旧在（defaultProps / 页面 JSON 里原来那个值），存盘原样带回去。
+    const hasPresets = c.fields.some((f) => f.control === 'options' && (f.presets || []).length > 0);
     fields._shape = {
       type: 'select',
       label: SHAPE_FIELD_LABEL,
@@ -266,7 +371,9 @@ export function buildConfig(schema: EditorSchema, locale: string, overHero = fal
       options: shapeOptions(c, THEME_DEFAULT),
     };
     // #1445 —— 这一块的 `_shape` 不在清单里 ⟹ 换一份多了 `(retired)` 那一项的下拉，否则框里是空白的。
+    if (hasPresets) delete fields._shape;
     const fieldsFor = (shape: unknown): Fields => {
+      if (hasPresets) return fields;
       const options = shapeOptions(c, shape);
       return options.length === (fields._shape as { options: unknown[] }).options.length
         ? fields

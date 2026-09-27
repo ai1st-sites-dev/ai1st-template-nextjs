@@ -27,6 +27,7 @@ import Header from '@blocks/header/Section';
 import CellOptions from './CellOptions';
 import type { IconTable } from '@/components/InlineIcon';
 import type { Preset, Widget } from './CellOptions';
+import KnobBar from './KnobBar';
 import SectionRenderer from '@/components/SectionRenderer';
 import { defaultLocale } from '@/lib/config';
 import type { BlockConfig } from '@/lib/types/config';
@@ -35,6 +36,10 @@ import { demoDataFor } from '../../../../../scripts/lib/demo-content/index.js';
 import { filledOptionalSlots } from '../../../../../scripts/lib/block-manifest.js';
 import { couplingOf, knobsOf, normalizeKnobs, presetForShape, presetsOf } from '../../../../../scripts/lib/header-knobs.js';
 import { iconTableFor } from '../../../../../scripts/lib/icons.js';
+// knobsOf / presetsOf 两份（header-knobs.js #1462 · block-knobs.js #1463）读的是同一份 manifest 声明、
+// 对合法声明给出同一结果；这一页用 header-knobs 那份，并掉哪一份归 T3。
+import { booleanOptionsOf, effectiveKnobs, presetNameFor } from '../../../../../scripts/lib/block-knobs.js';
+import { normalizeColor } from '../../../../../scripts/lib/contrast.js';
 import {
   CATALOG_LOCALE,
   CATALOG_PATHS,
@@ -92,6 +97,76 @@ function optionMetaOf(m: { slots?: Record<string, { shape?: unknown; knobs?: unk
   };
 }
 
+type ManifestForKnobs = { slots?: Record<string, { kind?: string; required?: boolean; swatches?: string[]; choices?: Record<string, string[]>; shape?: string }>; parts?: string[]; presets?: unknown };
+
+/**
+ * #1463 —— 「预设 + 旋钮」那一类**页面块**（今天是 hero-new）：地址栏 → 这一格的 data。
+ *   `?align=center&image=none&form=stacked`  旋钮（名字取 manifest 的 `slots.options.knobs`）
+ *   `?opt=reverse`                           布尔修饰（`options.shape` 那串里的 `: bool`，跟外壳区块同一个参数）
+ *   `?bg=%230f172a` / `?bg=brand`            颜色槽
+ *   `?parts=proof,stats`                     只留这几个部件（`-` = 一个都不留；不写 = 全留）
+ *   `?eyebrow.style=dash`                    词表子字段（manifest 的 `choices`）
+ * 认不出的值落回演示内容里那一份（跟 theme / fill 一样：看法不该让页面消失）。
+ * 🔴 这一段只管非外壳块。外壳区块（header-new / footer-new）走 CellOptions，那是 #1458 / #1462 的面。
+ */
+function knobOverrides(m: ManifestForKnobs, shape: string, data: Record<string, unknown>, sp: Search) {
+  const knobs = knobsOf(m);
+  const booleans = booleanOptionsOf(m);
+  const slots = m.slots || {};
+  const colorSlot = Object.keys(slots).find((s) => slots[s] && slots[s].kind === 'color') || null;
+  const parts = Array.isArray(m.parts) ? m.parts : [];
+  const choices: { key: string; values: string[] }[] = [];
+  for (const [slot, spec] of Object.entries(slots)) {
+    for (const [sub, values] of Object.entries((spec && spec.choices) || {})) {
+      // 数组取值的子字段（`form.fields`）不做成单选。
+      if (new RegExp(`${sub}\\s*:\\s*\\[`).test(spec.shape || '')) continue;
+      choices.push({ key: `${slot}.${sub}`, values });
+    }
+  }
+  const opts = { ...((data.options as Record<string, unknown>) || {}) };
+  for (const k of knobs) {
+    const v = one(sp[k.name]);
+    if (v && k.values.includes(v)) opts[k.name] = v;
+  }
+  if (one(sp.opt) !== undefined) {
+    const on = new Set((one(sp.opt) || '').split(',').map((x) => x.trim()));
+    for (const b of booleans) opts[b] = on.has(b);
+  }
+  data.options = opts;
+  if (colorSlot) {
+    const c = normalizeColor(one(sp.bg));
+    if (c) data[colorSlot] = c;
+  }
+  const partsParam = one(sp.parts);
+  const keep = partsParam === undefined ? parts : partsParam.split(',').map((x) => x.trim()).filter((x) => parts.includes(x));
+  for (const p of parts) if (!keep.includes(p)) delete data[p];
+  const chosen: Record<string, string> = {};
+  for (const c of choices) {
+    const [slot, sub] = c.key.split('.');
+    const v = one(sp[c.key]);
+    const obj = (data[slot] && typeof data[slot] === 'object' ? { ...(data[slot] as Record<string, unknown>) } : null);
+    if (obj && v && c.values.includes(v)) { obj[sub] = v; data[slot] = obj; }
+    chosen[c.key] = obj && typeof obj[sub] === 'string' ? String(obj[sub]) : c.values[0];
+  }
+  const eff = effectiveKnobs(m, shape, opts);
+  return {
+    knobs: knobs.map((k) => ({ name: k.name, values: k.values })),
+    presets: presetsOf(m).map((p) => ({ name: p.name, shape: p.shape, knobs: p.knobs })),
+    booleans,
+    swatches: colorSlot ? (slots[colorSlot].swatches || []) : null,
+    parts,
+    choices,
+    current: {
+      knobs: eff,
+      preset: presetNameFor(m, eff),
+      booleans: Object.fromEntries(booleans.map((b) => [b, opts[b] === true])),
+      bg: colorSlot && typeof data[colorSlot] === 'string' ? String(data[colorSlot]) : '',
+      parts: keep,
+      choices: chosen,
+    },
+  };
+}
+
 export async function generateMetadata({ params, searchParams }: Props) {
   const { block, shape } = await params;
   const sp = await searchParams;
@@ -128,6 +203,9 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
   const isRelatedPages = block === 'service-related-pages';
   if (isRelatedPages) data.serviceSlug = CATALOG_SERVICE_SLUG;
   const locale = isRelatedPages ? CATALOG_LOCALE : defaultLocale;
+
+  // #1463 —— 旋钮类页面块：地址栏先改 data，再算 `data-has-*`（关掉的部件不许还挂着「有它」）。
+  const knobBar = m.region !== true && knobsOf(m).length ? knobOverrides(m, shape, data as Record<string, unknown>, sp) : null;
 
   const cfg: BlockConfig = {
     type: block,
@@ -209,6 +287,7 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
             showBar={!embed}
           />
         ) : null}
+        {knobBar && !embed ? <KnobBar {...knobBar} /> : null}
         {isRegion ? null : <SectionRenderer blocks={[cfg]} locale={locale} />}
       </main>
     </>

@@ -14,6 +14,7 @@ import FaqAccordionSection from '@blocks/faq-accordion/Section';
 import FeaturesGridSection from '@blocks/features-grid/Section';
 import GallerySection from '@blocks/gallery/Section';
 import HeroSection from '@blocks/hero/Section';
+import HeroNewSection from '@blocks/hero-new/Section';
 import HeroWithFormSection from '@blocks/hero-with-form/Section';
 import MapAreaSection from '@blocks/map-area/Section';
 import NewsletterSignupSection from '@blocks/newsletter-signup/Section';
@@ -43,6 +44,7 @@ export const sectionRegistry: Record<string, ComponentType<any>> = {
   'features-grid': FeaturesGridSection,
   'gallery': GallerySection,
   'hero': HeroSection,
+  'hero-new': HeroNewSection,
   'hero-with-form': HeroWithFormSection,
   'map-area': MapAreaSection,
   'newsletter-signup': NewsletterSignupSection,

@@ -48,6 +48,10 @@ function siteScss(primary) {
   return [
     '// 生成的 —— scripts/lib/site-css.js（#1424）。$primary 必须在 @import 之前。',
     `$primary: ${primary};`,
+    // #1463 —— 标题色回到 Bootstrap 自己的默认 `inherit`（Webpixels 把它改成了 `$gray-900`）。site.css 从本票起挂
+    // 全站，而旧块的主题靠**继承**给标题上色：`h1–h4 { color: var(--x-heading-color) }` 一条就把深底上的浅色
+    // 标题盖成 #171717（theme-css-invariants 实测 ember-12 的 services-list 标题 1.66:1）。
+    '$headings-color: inherit;',
     '@import "@webpixels/css/all";',
     '',
   ].join('\n');

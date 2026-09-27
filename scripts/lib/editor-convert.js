@@ -102,6 +102,12 @@ function toProp(field, value) {
   switch (field.control) {
     case 'text':
       return value;
+    // #1463 —— 一块底色：原样一个字符串（`#rrggbb` / `brand`），没填就是 undefined。
+    case 'color':
+      return typeof value === 'string' ? value : undefined;
+    // #1463 —— 旋钮 + 布尔修饰：整份对象带着（没有字段的键也在里面，存盘原样还回去）。
+    case 'options':
+      return isPlainObject(value) ? clone(value) : {};
     case 'object': {
       const out = {};
       for (const { sub } of field.subs) out[sub] = isPlainObject(value) ? value[sub] : undefined;
@@ -135,6 +141,28 @@ function mergeSlot(data, field, prop) {
       if (emptyish(prop) && !has(data, slot)) return;
       data[slot] = prop === undefined ? '' : prop;
       return;
+    case 'color':
+      // 没改就不写；清空（取色器那一格「无」）⟹ 删掉这个键，块回到没有底色的样子。
+      if (deepEqual(prop, before)) return;
+      if (emptyish(prop)) { if (has(data, slot)) delete data[slot]; return; }
+      data[slot] = prop;
+      return;
+    case 'options': {
+      // 只写老板动过的那几个键；原来没有、现在是 undefined 的不写（点开又关掉不该让文件多出几个键）。
+      const base = isPlainObject(before) ? { ...before } : {};
+      const names = [...(field.knobs || []).map((k) => k.name), ...(field.booleans || [])];
+      let touched = false;
+      for (const k of names) {
+        const v = isPlainObject(prop) ? prop[k] : undefined;
+        if (deepEqual(v, base[k])) continue;
+        if (v === undefined) { if (has(base, k)) { delete base[k]; touched = true; } continue; }
+        base[k] = v;
+        touched = true;
+      }
+      if (!touched) return;
+      data[slot] = base;
+      return;
+    }
     case 'object': {
       const base = isPlainObject(before) ? { ...before } : {};
       let touched = false;

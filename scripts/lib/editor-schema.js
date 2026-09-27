@@ -34,6 +34,7 @@
 const path = require('path');
 const { blockShapeCatalog } = require('./block-catalog');
 const { editableSlotPaths, defaultShapeOf } = require('./block-manifest');
+const { knobsOf, presetsOf, booleanOptionsOf } = require('./block-knobs');
 const { shapeForBlock } = require('./block-shape');
 const siteRegions = require('./site-regions');
 const pageLayoutLib = require('./page-layout');
@@ -43,7 +44,19 @@ const { shapesFor } = require('../themes');
 /** `kind: link` 的字段在 manifest 的 `editLabel` 之外多出来的那一个子字段（#1404 r3）。 */
 const LINK_HREF = 'href';
 
-/** 一份 manifest → 字段清单（顺序照 manifest 里槽位的书写顺序）。 */
+/**
+ * 一份 manifest → 字段清单（顺序照 manifest 里槽位的书写顺序）。
+ *
+ * #1463 —— 除了带 `editLabel` 的槽位，还有两种槽位出字段：
+ *   · `kind: color`                    → 色板 + 取色器（`control: 'color'`），色板取 manifest 的 `swatches`
+ *   · 声明了 `knobs` 的 `options` 槽   → 「预设 + 旋钮 + Custom」（`control: 'options'`）：第一格是预设一排
+ *                                        （点一个就把旋钮一次设好），下面每个旋钮一个单选，再下面是
+ *                                        `options.shape` 那串里的布尔修饰（`reverse`）。是不是 custom 由
+ *                                        `block-knobs.js` §presetNameFor 判，Section 用同一个函数。
+ * 对象槽的子字段在 manifest 的 `choices` 里有词表的（`eyebrow.style`），那一格是下拉（`choices`）。
+ * 🔴 字段顺序就是 manifest 槽位的书写顺序 —— hero-new 的槽位按「排布 → 修饰 → 部件 → 细节 → 内容」写，
+ *    Puck 侧栏的顺序（AC8）靠的就是这一条，不在这里另排一遍。
+ */
 function fieldsOf(manifest) {
   const bySlot = new Map();
   for (const e of editableSlotPaths(manifest)) {
@@ -51,13 +64,47 @@ function fieldsOf(manifest) {
     bySlot.get(e.slot).push(e);
   }
   const fields = [];
-  for (const [slot, entries] of bySlot) {
+  for (const [slot, spec] of Object.entries((manifest && manifest.slots) || {})) {
+    if (spec && spec.kind === 'color') {
+      fields.push({ slot, kind: 'color', label: humanize(slot === 'bg' ? 'background' : slot), control: 'color', subs: [],
+        swatches: Array.isArray(spec.swatches) ? spec.swatches.slice() : [] });
+      continue;
+    }
+    if (spec && knobsOf({ slots: { [slot]: spec } }).length && slot === 'options') {
+      fields.push({
+        slot,
+        kind: spec.kind,
+        label: 'Layout options',
+        control: 'options',
+        subs: [],
+        knobs: knobsOf(manifest).map((k) => ({ name: k.name, values: k.values.slice() })),
+        booleans: booleanOptionsOf(manifest),
+        presets: presetsOf(manifest).map((p) => ({ name: p.name, shape: p.shape, knobs: { ...p.knobs } })),
+      });
+      continue;
+    }
+    const entries = bySlot.get(slot);
+    if (!entries && spec && spec.editItems === true) {
+      // 没有可改的字，只有「几项、什么顺序」可改（`hero-new.band`）。每项的摘要用它的 alt。
+      fields.push({ slot, kind: spec.kind, label: humanize(slot), control: 'list', subs: [], summary: ['alt'] });
+      continue;
+    }
+    if (!entries) continue;
     const kind = entries[0].kind;
     if (entries.length === 1 && entries[0].sub === null) {
       fields.push({ slot, kind, label: entries[0].label, control: kind === 'list' ? 'strings' : 'text', subs: [] });
       continue;
     }
+    const choices = (spec && spec.choices) || {};
     const subs = entries.map((e) => ({ sub: e.sub, label: e.label }));
+    // #1463 —— `choices` 里有、又不是 editLabel 的子字段（`eyebrow.style`）：一格下拉。取值是数组的
+    //    （`form.fields`）不出字段 —— 一个多选框不是这张票的活，它由转换器原样携带。
+    for (const [sub, vals] of Object.entries(choices)) {
+      if (subs.some((x) => x.sub === sub)) continue;
+      const shape = typeof spec.shape === 'string' ? spec.shape : '';
+      if (new RegExp(`${sub}\\s*:\\s*\\[`).test(shape)) continue;
+      subs.push({ sub, label: humanize(sub), choices: vals.slice() });
+    }
     // #1404 r3 —— `kind: link` 再补一个 `href`（显示名 Link）。按钮链接不是一段看得见的字，所以它不在
     // `editableSlotPaths()` 里（那个函数说的是「带 `data-slot` 的字」，检查器面板和 `data-slot` 守卫也吃它，
     // 往 `editLabel` 里加 `href` 就得给守卫开豁免）。而编辑器开放了插入：新插的 hero 不填链接，按钮就是

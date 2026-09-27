@@ -67,6 +67,65 @@ const DEMO_CONTENT = {
     },
   },
 
+  // #1463 —— Webpixels 那一版首屏（普通页面块，样式在全站挂的 site.css 里）。5 个预设 × 18 种旋钮组合吃的都是
+  // 这一份（AC1 / AC5 定死的夹具）：每个部件都填上，单格页的开关才有东西可切。
+  // 🔴 `ctas` / `stats` / `band` 是顶层 list 槽，守卫 (c) 要各 ≥ 6 项、最长 ≥ 最短 2 倍 —— 所以这里各给 6 条，
+  //    而组件按定稿的上限截（按钮 ≤ 2、统计 ≤ 3、图片带 ≤ 6，`Section.tsx` §MAX）。画出来的是前几条。
+  'hero-new': {
+    // 🔴 这里**不写三个旋钮**：写了就会压过每个预设形态自己那组值（`block-knobs.js` §effectiveKnobs），
+    //    5 张预设卡片会全部排成同一个样子。只写布尔修饰。
+    options: { reverse: false },
+    bg: '#ffffff',
+    proof: {
+      avatars: [1, 2, 3, 4].map((n) => ({ imageUrl: imageUrl(`avatar-${n}`) })),
+      rating: 4.9,
+      text: '612 Google reviews',
+    },
+    stats: [
+      { value: '1998', label: 'On Yonge Street since' },
+      { value: '14,000+', label: 'Cars back on the road' },
+      { value: '2 yr', label: 'Warranty on every repair' },
+      { value: 'Same day', label: 'Most jobs' },
+      { value: '4.9', label: 'Average Google rating across 612 reviews' },
+      { value: '6', label: 'Bays' },
+    ],
+    logos: {
+      caption: 'Certified by and rated on',
+      items: [
+        { imageUrl: imageUrl('logo-mark'), alt: 'OMVIC' },
+        { imageUrl: imageUrl('logo-mark-alt'), alt: 'CAA Approved Auto Repair' },
+        { imageUrl: imageUrl('logo-mark'), alt: 'Google' },
+        { imageUrl: imageUrl('logo-mark-alt'), alt: 'Yelp' },
+      ],
+    },
+    band: [
+      { imageUrl: imageUrl('work-1'), alt: 'A technician on the hoist checking brake lines' },
+      { imageUrl: imageUrl('work-2'), alt: 'Rear rotors' },
+      { imageUrl: imageUrl('work-3'), alt: 'Diagnostic scan running on a sedan in bay two' },
+      { imageUrl: imageUrl('work-4'), alt: 'Alignment rack' },
+      { imageUrl: imageUrl('work-5'), alt: 'Oil change underway, drain pan and fresh filter ready' },
+      { imageUrl: imageUrl('work-6'), alt: 'Safety inspection' },
+    ],
+    eyebrow: { text: 'North York · Licensed & insured', style: 'pill' },
+    headline: 'Honest auto repair, done the same day',
+    subheadline: 'Written estimates before we touch anything and a two-year warranty on every repair. '
+      + 'Most jobs are back on the road by closing.',
+    ctas: [
+      { label: 'Book a service', href: '/quote', style: 'solid', icon: 'calendar-check' },
+      { label: '(416) 555-0142', href: 'tel:+14165550142', style: 'outline', icon: 'telephone' },
+      { label: 'See what we charge for brakes, tires and diagnostics', href: '/services', style: 'link', arrow: true },
+      { label: 'Directions', href: '/contact', style: 'link' },
+      { label: 'Warranty', href: '/warranty', style: 'link' },
+      { label: 'Reviews', href: '/reviews', style: 'link' },
+    ],
+    image: { imageUrl: imageUrl('hero-bay'), alt: 'Bay two at Northside Auto Care with a car on the hoist' },
+    form: {
+      fields: ['name', 'phone', 'service'],
+      buttonText: 'Get a free quote',
+      successMessage: 'Got it — one of our advisors will call you back shortly.',
+    },
+  },
+
   // ── 信任 ────────────────────────────────────────────────────────────────────────────────────
   'trusted-brands': {
     headline: 'We service every make that comes through the door',

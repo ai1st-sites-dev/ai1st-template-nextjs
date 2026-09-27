@@ -129,8 +129,9 @@ export const OWN_THEME_OFF = "(function(){var l=document.querySelectorAll('link[
 
 /**
  * #1424 —— Webpixels 那一份 CSS 的地址（`scripts/lib/site-css.js` 写进 `public/site.css`）。
- * 🔴 **只有单格页 `<link>` 它**（#1458 之前还有整页索引）：客户站在 T4 之前不许挂 Bootstrap 的 CSS
- *    （设计稿 B1），验收拿 `grep -rl site.css out/ --include='*.html'` 为空守这一条。
+ * 📌 #1463 起它挂全站（`src/app/layout.tsx`，Chris 2026-09-27「现在没有客户」）。单格页这里再挂一次是冗余的、
+ *    无害（同一个地址浏览器只取一次），留着是因为单格页先于 layout 挂上它、它的 `data-catalog-site-css` 标记
+ *    还有人按它找。
  */
 export const SITE_CSS_HREF = '/site.css';
 

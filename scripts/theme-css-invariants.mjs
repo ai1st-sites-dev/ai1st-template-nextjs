@@ -2453,6 +2453,15 @@ const { manifests: INTENT_MANIFESTS } = await load(
   'run `npm ci` in templates/nextjs; if the message above names blocks, make registry.ts and blocks/ agree.',
 );
 const INTENT_ARM = SAMPLE_MINIMAL ? '最少版' : '全填版';
+// #1463 —— 皮不由主题表画的块（manifest `skin: "site-css"`，今天是 hero-new）不进 ⑨：这把尺按「块根的直接子元素 +
+// 类名后缀 `__title / __media / __body`」认零件，那是主题表上皮的 BEM 骨架；Bootstrap 的 `section > .container > .row`
+// 按构造对不上它（hero-new 根下只有一个 `.container`）。判据只住 `block-manifest.js` §isSiteCssSkin。
+// 🔴 **排除之后谁在量它，写在这里**：hero-new 的几何由 `tests/e2e/specs/1463-hero-new-knobs.spec.ts` 量（18 种旋钮组合 ×
+//    1440/820/390 不横向滚动 + 阳性对照、reverse 真的换位置、图片带列等宽）。🔴 而它 manifest 里那份 `layout_intent`
+//    今天**没有任何断言在读** —— ⑨ 是它唯一的消费者。T3 把每个块都换成 site-css 时，这道 ⑨ 的分母会空掉：
+//    那张票要么删掉它，要么给它接一套认得 Bootstrap 骨架的零件模型；别让 `layout_intent` 变成宣称一套、没人读的字段。
+const { isSiteCssSkin: INTENT_SITE_CSS } = createRequire(import.meta.url)('./lib/block-manifest.js');
+const intentSiteCssSkipped = new Set();
 const intentCells = [];
 const intentPairsSeen = new Set();
 const intentBlocksOnPage = new Set();
@@ -2483,6 +2492,7 @@ async function judgeLayoutIntent(where) {
     await settle();
     for (const block of present) {
       const m = INTENT_MANIFESTS.get(block);
+      if (m && INTENT_SITE_CSS(undefined, block)) { intentSiteCssSkipped.add(block); continue; }
       if (!m || !Array.isArray(m.shapes) || m.shapes.length === 0) {
         if (!phone) intentNoIntent.push(`${block}（${where}）: blocks/${block}.json 没有 shapes 清单`);
         continue;
@@ -4023,12 +4033,20 @@ if (PALETTE_IS_NOT_THE_SHEETS_OWN) {
   // 演示站只有 Tailwind 的 CSS，它们上去就是没样式的 HTML（设计稿 B1）。所以不算进「必须量到」的分母，
   // 并且在读数里点名跳过了谁 —— 跳过不说出来，就跟「量过了」长得一样。图册那边不跳（block-catalog.js）。
   const staged = [];
+  const skinned = [];
   for (const [t, m] of INTENT_MANIFESTS) {
     if (m.staging === true) { staged.push(t); continue; }
+    if (INTENT_SITE_CSS(undefined, t)) { skinned.push(t); continue; }
     for (const sh of (m.shapes || [])) declared.push(`${t}/${sh.name}`);
   }
   if (staged.length) {
     readings.push(`  ⑨: 跳过 ${staged.length} 个 staging 块（还没进正式库、客户页按构造不渲染，只在 admin 预览里）：${staged.join(', ')}`);
+  }
+  // #1463 —— 排除必须出现在读数里：不打这一行，下一个人读到「全过」会以为这些块被量过了。
+  if (skinned.length) {
+    readings.push(`  ⑨: 按 skin=site-css 排除了 ${skinned.length} 个块（皮由 site.css 画、骨架是 Bootstrap 的，这把尺的零件模型认不出；`
+      + `这一轮在页面上见到${intentSiteCssSkipped.size ? `并跳过了 ${[...intentSiteCssSkipped].join(', ')}` : '它们 0 次'}；`
+      + `它们的几何由各自票的 e2e 探针量）：${skinned.join(', ')}`);
   }
   const missed = declared.filter((k) => !intentPairsSeen.has(k));
   const counts = intentCells.map((c) => c.checks);
@@ -4036,7 +4054,7 @@ if (PALETTE_IS_NOT_THE_SHEETS_OWN) {
   const total = counts.reduce((a, b) => a + b, 0);
   readings.push(`  ⑨ layout intent（${INTENT_ARM}）: ${intentCells.length} 格 = `
     + `${intentPairsSeen.size}/${declared.length} 个 (块,形态) 对 × 2 视口 · 共 ${total} 条断言 · `
-    + `逐格最小 ${min} 条 · 块在这个站上出现 ${intentBlocksOnPage.size}/${INTENT_MANIFESTS.size - staged.length} 个`);
+    + `逐格最小 ${min} 条 · 块在这个站上出现 ${[...intentBlocksOnPage].filter((b) => !skinned.includes(b)).length}/${INTENT_MANIFESTS.size - staged.length - skinned.length} 个`);
   if (intentSelfOverflow.length) {
     const uniq = [...new Set(intentSelfOverflow.map((x) => x.split(' ')[0]))];
     readings.push(`  📌 ⑨: ${intentSelfOverflow.length} 格量到块自己横向溢出，涉及 ${uniq.length} 个 (块,形态) 对`

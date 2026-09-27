@@ -80,16 +80,32 @@ console.log('② 字段两层比');
     const c = compOf(m.type);
     if (!c) { problems.push(`${m.type} 整块缺`); continue; }
     const esp = manifestLib.editableSlotPaths(m);
-    const wantTop = [...new Set(esp.map((e) => e.slot))].sort();
+    // #1463 —— 另外三种槽位也出字段，判据全从 manifest 读：`kind: color`（色板）、声明了 `knobs` 的
+    //    `options`（预设 + 旋钮）、`editItems: true` 的列表（纯图片、只能挪 / 删）。
+    const slots = m.slots || {};
+    const special = (slot) => {
+      const sp = slots[slot] || {};
+      if (sp.kind === 'color') return 'color';
+      if (slot === 'options' && Array.isArray(sp.knobs) && sp.knobs.length) return 'options';
+      if (sp.editItems === true) return 'items';
+      return null;
+    };
+    const wantTop = [...new Set([...esp.map((e) => e.slot), ...Object.keys(slots).filter((x) => special(x))])].sort();
     const gotTop = c.fields.map((f) => f.slot).sort();
     if (JSON.stringify(wantTop) !== JSON.stringify(gotTop)) problems.push(`${m.type} 顶层 ${gotTop} ≠ ${wantTop}`);
     for (const f of c.fields) {
       // 验收 ③：`kind: link` 在 sub 集合之外只许多一个 `href`（#1404 r3），别的都不许多。
-      const wantSub = [...esp.filter((e) => e.slot === f.slot && e.sub !== null).map((e) => e.sub), ...(f.kind === 'link' ? ['href'] : [])].sort();
+      // #1463 —— `choices` 里有的（不是数组取值的）子字段是一格下拉，也算一个子字段。
+      const choiceSubs = Object.keys((slots[f.slot] || {}).choices || {})
+        .filter((sub) => !new RegExp(`${sub}\\s*:\\s*\\[`).test((slots[f.slot] || {}).shape || ''));
+      const wantSub = [...new Set([...esp.filter((e) => e.slot === f.slot && e.sub !== null).map((e) => e.sub), ...choiceSubs,
+        ...(f.kind === 'link' ? ['href'] : [])])].sort();
       const gotSub = f.subs.map((s) => s.sub).sort();
       if (JSON.stringify(wantSub) !== JSON.stringify(gotSub)) problems.push(`${m.type}.${f.slot} 子字段 ${gotSub} ≠ ${wantSub}`);
       // 控件由 kind 决定：list → array；link / object → object；绝不把对象做成 array
-      const wantControl = f.subs.length === 0 ? (f.kind === 'list' ? 'strings' : 'text') : (f.kind === 'list' ? 'list' : 'object');
+      const sp = special(f.slot);
+      const wantControl = sp === 'color' ? 'color' : sp === 'options' ? 'options' : sp === 'items' ? 'list'
+        : f.subs.length === 0 ? (f.kind === 'list' ? 'strings' : 'text') : (f.kind === 'list' ? 'list' : 'object');
       if (f.control !== wantControl) problems.push(`${m.type}.${f.slot} 控件 ${f.control} ≠ ${wantControl}（kind ${f.kind}）`);
       paths += f.subs.length || 1;
     }

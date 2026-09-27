@@ -763,6 +763,14 @@ export default function RootLayout({
             select single classes), so the later one wins — that ordering IS the mechanism by which
             a theme overrides the floor. See public/base.css's header. */}
         <link rel="stylesheet" href="/base.css" />
+        {/* #1463 —— Webpixels / Bootstrap 那一份 CSS（`public/site.css`，sync-config 按 brand 主色编、按源码 purge，
+            `scripts/lib/site-css.js`）。Chris 2026-09-27 拍板「现在没有客户」：新块（hero-new …）直接上真页面，这一份
+            挂全站、与 Tailwind 并存到 T4 一次删掉；旧块在这段时间可能被 Bootstrap 的 reboot 带得走样，接受
+            （设计稿 B1 那条 2026-09-27 的 📌）。
+            🔴 位置：在 base.css 之后、shapes.css 之前。形态层 / 主题 / 微调都排在它后面 ⟹ 同特异度时它们赢，旧块的
+               样子被 reboot 改掉的只剩元素级那几条；新块压 Webpixels 工具类靠的是 `!important` + 特异度
+               （`blocks/hero-new/block.css` 文件头），不靠这里的次序。 */}
+        <link rel="stylesheet" href="/site.css" />
         {/* #1318 — 形态层（`public/shapes.css`）。一个块**怎么排**住在这一份平台文件里，按
             `[data-block="<类型>"][data-shape="<画法>"]` 点名；主题表从此只剩皮（契约 v3 把几何那
             一族从 §2 拿掉了）。

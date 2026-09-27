@@ -3,9 +3,19 @@ export interface EditorField {
   slot: string;
   kind: string;
   label: string;
-  /** text = 一个输入框 · object = 子字段对象 · list = 对象数组 · strings = 字符串数组 */
-  control: 'text' | 'object' | 'list' | 'strings';
-  subs: { sub: string; label: string }[];
+  /** text = 一个输入框 · object = 子字段对象 · list = 对象数组 · strings = 字符串数组
+   *  · color = 色板 + 取色器（#1463）· options = 预设 + 旋钮 + 布尔修饰（#1463） */
+  control: 'text' | 'object' | 'list' | 'strings' | 'color' | 'options';
+  /** `choices` 有值的子字段是下拉（#1463，`eyebrow.style`） */
+  subs: { sub: string; label: string; choices?: string[] }[];
+  /** list：每项摘要取哪几个键（缺省 = subs）（#1463 `band` 用 alt） */
+  summary?: string[];
+  /** color：预设色板（`#rrggbb` / `brand`） */
+  swatches?: string[];
+  /** options：旋钮（顺序 = 控件顺序）、布尔修饰、预设 */
+  knobs?: { name: string; values: string[] }[];
+  booleans?: string[];
+  presets?: { name: string; shape: string; knobs: Record<string, string> }[];
 }
 export interface EditorComponent {
   type: string;

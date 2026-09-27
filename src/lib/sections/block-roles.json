@@ -12,6 +12,7 @@
   "gallery": "optional",
   "header": "essential",
   "hero": "lead",
+  "hero-new": "lead",
   "hero-with-form": "lead",
   "map-area": "essential",
   "newsletter-signup": "optional",

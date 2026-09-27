@@ -1005,10 +1005,9 @@ console.log(`  Generated public/theme.css — ${themeCssOrigin} (${themeCssBytes
 
 // ─── #1424 —— Webpixels 那一份 CSS（`public/site.css`）─────────────────────────────────────────────
 // brand.json 的主色 → Sass `$primary` → Webpixels → purge。实现与理由在 `lib/site-css.js`。
-// 🔴 **今天没有任何客户页面引用它**（设计稿 B1：客户站在 T4 之前只有 Tailwind）。唯一的读者是 dev 里的
-//    图册 `/__catalog`。它仍然每次构建都编，是因为 T4 之后它就是客户页那一份 CSS，而容器那条命令只调
-//    sync-config —— 编译链现在就在这三条路上跑，体积和耗时现在就量得到。
-// 🔴 编不出来【不】exit 1（#1424 QA2 打回）：这份 CSS 今天没有任何客户页面读它，而容器那条命令是
+// 🔴 **#1463 起每一页都 `<link>` 它**（`src/app/layout.tsx`，与 Tailwind 并存到 T4；Chris 2026-09-27「现在没有
+//    客户」）。在那之前唯一的读者是 dev 里的单格页 `/__catalog`（下面两段是那时写的，理由仍然成立）。
+// 🔴 编不出来【不】exit 1（#1424 QA2 打回）：这份 CSS 今天只有新块（hero-new）靠它，而容器那条命令是
 //    `sync-config && next build` —— exit 1 就是「为了一份没人读的文件，这个站从此建不出来」
 //    （实测：brand.json 主色写成 `rgb(…)` / 8 位 hex，main 上 rc=0，这里曾经 rc=1）。跟 #1161 同一个理由。
 //    但也不静默：先删掉上一次那份旧的 site.css（否则图册会拿着旧文件看起来一切正常），再喊一行。
@@ -1018,7 +1017,9 @@ require('./lib/site-css.js').writeSiteCss({ brand, rootDir })
     + `purged ${r.rawBytes} → ${r.bytes} bytes (${r.ms} ms)`))
   .catch((e) => {
     fs.rmSync(path.join(publicDir, 'site.css'), { force: true });
-    console.error(`  🔴 public/site.css 没编出来，旧的那份已删掉（今天没有客户页面引用它，构建照常往下走）: ${e && e.message}`);
+    // #1463 起每一页都 <link> 它（layout.tsx）：编不出来 ⟹ 那条样式表 404，hero-new 这类新块没有样式，旧块照常。
+    //    不拦构建（构建期没有救，只有毁 —— 同 validateSite 那段理由），但要喊得够响。
+    console.error(`  🔴 public/site.css 没编出来，旧的那份已删掉 —— 每一页都挂着它（#1463），新块（hero-new）这次会没有样式；构建照常往下走: ${e && e.message}`);
   });
 
 // ─── #1198 §「这个站会长成地板样」守卫 ────────────────────────────────────────────────────────

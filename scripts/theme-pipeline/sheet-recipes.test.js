@@ -1491,7 +1491,7 @@ console.log(`\n⑫ #1139 每个块在 ${SAMPLE_N} 套候选里有几副骨架（
   //    📌 上面那段注释里那句「这个数今天没有判别力」仍然成立（把它退回 80 这份测试逐字不变）。
   const N = SAMPLE_N;
   const ROLES_PATH = path.join(DIR, '..', '..', 'src', 'lib', 'sections', 'block-roles.json');
-  let BLOCKS; let BORROWERS; let REGIONS;
+  let BLOCKS; let BORROWERS; let REGIONS; let SITE_CSS;
   try {
     // #1333 —— 借用别的块那套部件类名的块（manifest 的 `hooksFrom`）**不是自己一族骨架**，
     // 所以它不进这一格的分母。今天只有 `hero-with-form`（它渲染 `.hero__*` 那一家，理由写在
@@ -1508,8 +1508,12 @@ console.log(`\n⑫ #1139 每个块在 ${SAMPLE_N} 套候选里有几副骨架（
     //    自检放宽：放宽的话「某个内容块真的漏了钩子」跟「外壳区按设计没有钩子」会长成同一个样子。
     //    判据用 manifest 自己声明的 `region: true`，不推断。
     REGIONS = [...manifests].filter(([, m]) => m.region === true).map(([t]) => t);
+    // #1463 —— 皮由 `site.css` 画的块（manifest `skin: "site-css"`）同一个理由不进分母：主题表按设计不画它，
+    //    配方里没有它、钩子清单也不认领它。判据只住 `block-manifest.js` §isSiteCssSkin，名单现取。
+    const { isSiteCssSkin } = require(path.join(DIR, '..', 'lib', 'block-manifest.js'));
+    SITE_CSS = [...manifests.keys()].filter((t) => isSiteCssSkin(undefined, t));
     BLOCKS = Object.keys(JSON.parse(fs.readFileSync(ROLES_PATH, 'utf8')))
-      .filter((b) => !BORROWERS.includes(b) && !REGIONS.includes(b));
+      .filter((b) => !BORROWERS.includes(b) && !REGIONS.includes(b) && !SITE_CSS.includes(b));
   } catch (e) {
     die(`⑫ 读不到 ${ROLES_PATH}：${e.message} —— 族清单的权威就是它，读不到就什么都没量成`);
   }
@@ -1534,10 +1538,12 @@ console.log(`\n⑫ #1139 每个块在 ${SAMPLE_N} 套候选里有几副骨架（
         + `钩子清单有 ${hooked.size} 个，只在前者 [${onlyRoles.join(' ')}]，只在后者 [${onlyHooks.join(' ')}]`
         + '。🔴 一个块只在前者出现有三种可能：它真的没被钩子清单认领（那是本条要抓的洞）；'
         + '它借用别的块那套类名而 manifest 里忘了写 `hooksFrom`（那就去补那个键，别改这道自检）；'
-        + '或者它是外壳区而 manifest 里忘了写 `region: true`（#1353 —— 主题按设计不画顶栏 / 页脚）');
+        + '或者它是外壳区而 manifest 里忘了写 `region: true`（#1353 —— 主题按设计不画顶栏 / 页脚）；'
+        + '或者它的皮不由主题表画而 manifest 里忘了写 `skin: "site-css"`（#1463 —— 样式在编出来的 site.css 里）');
     }
     ok(`⑫ 分母自检：block-roles.json 与钩子清单同为 ${BLOCKS.length} 个块，双向差集都空`
-      + (BORROWERS.length ? `（另有 ${BORROWERS.length} 个借用别人类名、不自成一族：${BORROWERS.join(' ')}）` : ''));
+      + (BORROWERS.length ? `（另有 ${BORROWERS.length} 个借用别人类名、不自成一族：${BORROWERS.join(' ')}）` : '')
+      + `；按 skin=site-css 排除了 ${SITE_CSS.length} 个：${SITE_CSS.join(' ') || '（无）'}`);
   }
 
   // ── 分母自检 2：这把尺子把每一条规则都归给了某个块 ─────────────────────────────────────────
@@ -2141,12 +2147,23 @@ console.log('\n⑮ #1339 配方里还有没有几何（整池扫一遍，命中�
       }
       return out;
     })();
+    // #1463 —— 皮由 `site.css` 画的块（manifest `skin: "site-css"`）同一个理由不进这一格：配方不画它，它的形态目录
+    //    是旋钮的预设、排版在 site.css + 它自己的 block.css 里。判据只住 `block-manifest.js` §isSiteCssSkin。
+    const SITE_CSS_PAIRS = (() => {
+      const bm = require(path.join(DIR, '..', 'lib', 'block-manifest.js'));
+      const out = new Set();
+      for (const [t, m] of bm.loadManifests()) {
+        if (!bm.isSiteCssSkin(undefined, t)) continue;
+        for (const sh of m.shapes) out.add(`${t}/${sh.name}`);
+      }
+      return out;
+    })();
     const missing = [...used].filter((k) => !have.has(k));
     // 🔴 **两张票在这一行相遇了，两边的意思都留着（#1360 r3 解冲突）：**
     //   · #1353 的 `REGION_PAIRS`：外壳区那几对**根本不进这一格**（主题不画顶栏页脚）——
     //     留着它，下面那句读数才不会把它们混进来。
     //   · #1360 的改判：反方向（形态层有、候选一次都没画到）**报告而不判**，理由整段在下面。
-    const orphan = [...have].filter((k) => !used.has(k) && !REGION_PAIRS.has(k));
+    const orphan = [...have].filter((k) => !used.has(k) && !REGION_PAIRS.has(k) && !SITE_CSS_PAIRS.has(k));
     if (missing.length === 0) {
       ok(`⑮ 配方画的那一副 vs 形态层：配方挑得出的每一副在形态层里都有规则（${N} 套候选用到 `
         + `${used.size} 个 (块, 形态) 对，0 个在 public/shapes.css 里查不到）`
@@ -2185,7 +2202,8 @@ console.log('\n⑮ #1339 配方里还有没有几何（整池扫一遍，命中�
     //    `sheet-fresh.js --check` 当场 rc=1。
     if (orphan.length === 0) {
       ok(`⑮ 形态层里的每一副都有候选画它：0 对孤儿`
-        + `（形态层共 ${have.size} 对，其中 ${REGION_PAIRS.size} 对属于外壳区、按 #1353 不进这一格）`);
+        + `（形态层共 ${have.size} 对，其中 ${REGION_PAIRS.size} 对属于外壳区、按 #1353 不进这一格；`
+        + `按 skin=site-css 排除了 ${SITE_CSS_PAIRS.size} 对：${[...SITE_CSS_PAIRS].join(' ') || '（无）'}）`);
     } else {
       bad(`⑮ 形态层里有、而 ${N} 套候选一次都没画到的：${orphan.length} 个（${orphan.join(' ')}）`
         + ' —— 这几副画法没有任何一套候选挑得到它，等于形态层里躺着谁都不画的规则。'
