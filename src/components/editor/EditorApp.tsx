@@ -1260,7 +1260,7 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
     cancelAutosave(); // 不等停手：这一笔现在就存
     if (lockedRef.current) {
       pendingLeaveRef.current = null;
-      answerLeave(id, false, 'The AI is editing this page. Switch pages when it is done.');
+      answerLeave(id, false, 'The AI is editing this page. Wait for it to finish.');
       return;
     }
     const g = getPuckRef.current ? getPuckRef.current() : null;
