@@ -1,5 +1,6 @@
 ---
 order: 5
+summary: "FlyonUI #4 · 上层：社交 · logo 正中 · 工具链接 · 下层：菜单居中 · 手机：logo + 汉堡，其余折进菜单"
 needs:
   - topbar
 source: flyonui#4

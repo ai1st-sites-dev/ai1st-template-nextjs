@@ -1,5 +1,6 @@
 ---
 order: 1
+summary: "Webpixels 4 / 4b · 居中叠放：logo · 一句话 · 链接 · 社交 · 联系一行 · 版权"
 source: webpixels/section-footer-4
 layout_intent:
   align: center

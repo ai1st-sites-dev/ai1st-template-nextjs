@@ -1,5 +1,6 @@
 ---
 order: 3
+summary: "Webpixels footer-6 / 6b · 只说一件事：一句邀约 · 大字号电话 / 邮箱 · 一个按钮 · 社交 · 版权 · 没有页面链接，内链靠 header；地址一行小字保留（SEO）"
 source: webpixels/section-footer-6
 layout_intent:
   align: stretch

@@ -1,5 +1,6 @@
 ---
 order: 0
+summary: "Webpixels 6 · FlyonUI #1 · 现有 slim-row · 一行：logo · 链接 · 社交 · 底下版权 + 电话 · 电话永远露出（SEO）"
 source: webpixels/section-footer-6 · flyonui#1
 layout_intent:
   align: stretch

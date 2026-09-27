@@ -133,3 +133,14 @@ export const OWN_THEME_OFF = "(function(){var l=document.querySelectorAll('link[
  *    （设计稿 B1），验收拿 `grep -rl site.css out/ --include='*.html'` 为空守这一条。
  */
 export const SITE_CSS_HREF = '/site.css';
+
+/**
+ * #1460 —— 单格页把自己的内容高度报给嵌它的父窗口（admin › Blocks & Themes 的卡片据此把框收到内容那么高，
+ * 不再是设备整屏高）。形状照定稿图册 `docs/reference/webpixels/gallery/build.py` §say：`load` / `resize` 各报一次，
+ * 再加一个 ResizeObserver —— 字体、图片到位后内容会变高，只报一次会停在第一次那个数。
+ * 🔴 目标 origin 是 `*`：这条消息只带一个数字，不带任何站的数据；认不认它由父窗口按 `e.source` 判（同图册）。
+ */
+export const HEIGHT_REPORTER = "(function(){function h(){return Math.max(document.documentElement.scrollHeight,document.body?document.body.scrollHeight:0,60)}"
+  + "function say(){try{parent.postMessage({type:'ai1st:catalog-height',height:h()},'*')}catch(e){}}"
+  + "addEventListener('load',say);addEventListener('resize',say);document.addEventListener('DOMContentLoaded',say);"
+  + "if(window.ResizeObserver&&document.body){new ResizeObserver(say).observe(document.body)}say();})();";

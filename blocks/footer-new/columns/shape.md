@@ -1,5 +1,6 @@
 ---
 order: 2
+summary: "Webpixels 1 / 1b / 2 / 3 · FlyonUI #2 #5 · 现有 multi-column · 品牌列 + 服务 / 服务区域 / 页面 / 联系 四种列 · 底栏版权 + 法务 · 列是固定语义、AI 从站内数据填、空列不渲染；订阅框挂品牌列下（可选）"
 needs:
   - columns
 source: webpixels/section-footer-1 · flyonui#2

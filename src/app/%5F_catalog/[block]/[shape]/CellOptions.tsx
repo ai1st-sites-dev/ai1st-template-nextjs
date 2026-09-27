@@ -29,6 +29,8 @@ interface Props {
   ctaStyles: string[];
   hasNewsletter: boolean;
   initial: CellOptionsInitial;
+  /** #1460 —— false = 被 admin 嵌着，开关条由外面那条块级工具栏代劳，这里不画（数据照旧按 initial 渲染）。 */
+  showBar?: boolean;
 }
 
 const barStyle = {
@@ -36,7 +38,7 @@ const barStyle = {
   font: '12px system-ui, sans-serif', background: '#f4f4f5', borderBottom: '1px solid #d4d4d8', color: '#3f3f46',
 };
 
-export default function CellOptions({ block, shape, data, has, optionKeys, ctaStyles, hasNewsletter, initial }: Props) {
+export default function CellOptions({ block, shape, data, has, optionKeys, ctaStyles, hasNewsletter, initial, showBar = true }: Props) {
   const [opts, setOpts] = useState<Record<string, boolean>>(initial.opts);
   const [cta, setCta] = useState<string>(initial.cta);
   const [newsletter, setNewsletter] = useState<boolean>(initial.newsletter);
@@ -56,6 +58,7 @@ export default function CellOptions({ block, shape, data, has, optionKeys, ctaSt
 
   return (
     <>
+      {showBar && (
       <div style={barStyle} data-catalog-options="">
         {optionKeys.map((k) => (
           <label key={k} style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
@@ -80,6 +83,7 @@ export default function CellOptions({ block, shape, data, has, optionKeys, ctaSt
           </label>
         ))}
       </div>
+      )}
       {block === 'header-new' ? <HeaderNewSection shape={shape} data={out as unknown as HeaderNewData} block={cfg} /> : null}
       {block === 'footer-new' ? <FooterNewSection shape={shape} data={out as unknown as FooterNewData} block={cfg} /> : null}
     </>

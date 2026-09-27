@@ -35,6 +35,7 @@ import {
   CATALOG_LOCALE,
   CATALOG_PATHS,
   CATALOG_SERVICE_SLUG,
+  HEIGHT_REPORTER,
   OWN_THEME_OFF,
   SITE_CSS_HREF,
   catalogThemes,
@@ -127,6 +128,8 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
   // 地址栏给的初值：认不出的键落回「关」，认不出的 cta 样式落回 none —— 跟 theme / fill 一样，看法不该让页面消失。
   const wanted = new Set((one(sp.opt) || '').split(',').map((x) => x.trim()).filter(Boolean));
   const ctaWanted = one(sp.cta) || 'none';
+  // #1460 —— 被 admin 嵌着时开关在外面那条块级工具栏上，这一页自己那条不画；「新窗口」单开（不带 embed）照旧画。
+  const embed = ['1', 'true'].includes(one(sp.embed) || '');
   const initial = {
     opts: Object.fromEntries(meta.optionKeys.map((k) => [k, wanted.has(k)])),
     cta: meta.ctaStyles.includes(ctaWanted) ? ctaWanted : 'none',
@@ -136,6 +139,8 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
   return (
     <>
       <script dangerouslySetInnerHTML={{ __html: OWN_THEME_OFF }} />
+      {/* #1460 —— 把内容高度报给嵌它的 admin 页（§HEIGHT_REPORTER）。 */}
+      <script dangerouslySetInnerHTML={{ __html: HEIGHT_REPORTER }} />
       {/* #1424 —— Webpixels 那一份 CSS，只有这个单格页加载（理由在 catalogShared.ts §SITE_CSS_HREF）。 */}
       <link rel="stylesheet" href={SITE_CSS_HREF} data-catalog-site-css="" />
       {/* 皮在前、画法在后，跟 `buildThemeCss()` 自己拼出来的顺序一样（`theme-css.js`：
@@ -167,6 +172,7 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
             ctaStyles={meta.ctaStyles}
             hasNewsletter={meta.hasNewsletter}
             initial={initial}
+            showBar={!embed}
           />
         ) : null}
         {isRegion ? null : <SectionRenderer blocks={[cfg]} locale={locale} />}

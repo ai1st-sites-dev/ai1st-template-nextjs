@@ -1,5 +1,6 @@
 ---
 order: 1
+summary: "FlyonUI #5 · Webpixels header-1 · logo 左 · 菜单真居中 · CTA 右 · 按钮：文字链 + solid(dark)"
 source: flyonui#5
 layout_intent:
   align: center

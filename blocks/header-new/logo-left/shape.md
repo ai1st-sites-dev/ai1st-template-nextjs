@@ -1,5 +1,6 @@
 ---
 order: 0
+summary: "FlyonUI #2 · Bootstrap ex 1/3 · logo 左 · 菜单 + CTA 右 · 按钮：outline + solid"
 source: flyonui#2
 layout_intent:
   align: start
