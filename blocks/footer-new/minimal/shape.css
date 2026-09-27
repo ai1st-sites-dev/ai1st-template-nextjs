@@ -1,0 +1,11 @@
+/* ── footer-new · minimal ───────────────────────────────────────────────────────────────────────
+   排版全在 markup 的工具类里（768 以下 `flex-column` 上下叠，768 起 `flex-md-row` 左右两组、
+   `align-items-md-end` 底对齐；reverse 是 `flex-md-row-reverse`）。这里只补一条工具类没有的：
+   邮箱 + 营业时间那一行、底栏的地址里一个**不可断的长词**（真站的邮箱）会把整行撑出页脚 ——
+   columns 形态在 390 上实测撞过。演示内容在这个形态上没撞到，这一条防的是真站那一份更长的。
+   🔴 大字号电话（`display-6`）不在射程里：号码断在中间比溢出更难读。它是一个不在 `span` 里的 `a`，
+      所以上面两条选择器按构造够不着它。 */
+[data-block="footer-new"][data-shape="minimal"] .container-lg span > a,
+[data-block="footer-new"][data-shape="minimal"] .container-lg span {
+  overflow-wrap: anywhere;
+}

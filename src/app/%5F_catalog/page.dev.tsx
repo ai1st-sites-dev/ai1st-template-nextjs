@@ -37,6 +37,7 @@ import { blockShapeCatalog } from '../../../scripts/lib/block-catalog.js';
 import { demoDataFor } from '../../../scripts/lib/demo-content/index.js';
 import { filledOptionalSlots } from '../../../scripts/lib/block-manifest.js';
 import CatalogBoard from './CatalogBoard';
+import FooterNewRow from './FooterNewRow';
 import HeaderNewRow from './HeaderNewRow';
 import ShapeSelect from './ShapeSelect';
 import {
@@ -108,6 +109,26 @@ export default function CatalogPage() {
             <span className="catalog-row__warn">还没进正式库（staging）—— 只有这条路由加载 /site.css</span>
           </h2>
           <HeaderNewRow
+            shapes={shapes}
+            full={full}
+            minimal={minimal}
+            hasFull={filledOptionalSlots(m, full)}
+            hasMinimal={filledOptionalSlots(m, minimal)}
+          />
+        </section>
+      );
+    }
+    // #1455 —— `footer-new`（Webpixels 那一版页脚）同 `header-new`：排布型块，每格固定一个形态，
+    // 勾选（dark / reverse / newsletter）和 cta 单选在 `FooterNewRow.tsx` 里。
+    if (type === 'footer-new') {
+      cellCount += shapes.length;
+      return (
+        <section className="catalog-row" data-catalog-row={type} key={type}>
+          <h2 className="catalog-row__name">
+            {type} <span className="catalog-row__count">{shapes.length} 种形态</span>
+            <span className="catalog-row__warn">还没进正式库（staging）—— 只有这条路由加载 /site.css</span>
+          </h2>
+          <FooterNewRow
             shapes={shapes}
             full={full}
             minimal={minimal}

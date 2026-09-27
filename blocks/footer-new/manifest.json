@@ -1,0 +1,90 @@
+{
+  "type": "footer-new",
+  "displayName": "Site Footer (Webpixels)",
+  "category": "region",
+  "region": true,
+  "staging": true,
+  "roleDefault": "essential",
+  "layout_intent": {
+    "items": "none",
+    "item_wrap": "allow",
+    "headline": "none",
+    "media": "none",
+    "columns": "one"
+  },
+  "slots": {
+    "logo": {
+      "kind": "image",
+      "required": false,
+      "promptOptional": true
+    },
+    "brandName": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false
+    },
+    "tagline": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true
+    },
+    "nav": {
+      "kind": "list",
+      "required": false,
+      "promptOptional": true,
+      "shape": "[{label, href}]"
+    },
+    "columns": {
+      "kind": "object",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{services: [{label, href}], areas: [{label, href}], contact: bool}"
+    },
+    "contact": {
+      "kind": "object",
+      "required": true,
+      "promptOptional": false,
+      "shape": "{phone?, address?, hours?, email?}"
+    },
+    "social": {
+      "kind": "list",
+      "required": false,
+      "promptOptional": true,
+      "shape": "[{label, href, icon?}]"
+    },
+    "legal": {
+      "kind": "list",
+      "required": false,
+      "promptOptional": true,
+      "shape": "[{label, href}]"
+    },
+    "copyright": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true
+    },
+    "cta": {
+      "kind": "object",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{style: \"band\" | \"bar\" | \"row\", title, subtitle?, buttons: [{label, href, style: \"solid\" | \"outline\" | \"link\"}]}"
+    },
+    "newsletter": {
+      "kind": "object",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{title, blurb?, placeholder, buttonLabel}"
+    },
+    "options": {
+      "kind": "object",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{dark: bool, reverse: bool}"
+    }
+  },
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  }
+}

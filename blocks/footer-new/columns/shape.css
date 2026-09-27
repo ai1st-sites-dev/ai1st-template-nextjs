@@ -1,0 +1,9 @@
+/* ── footer-new · columns ───────────────────────────────────────────────────────────────────────
+   排版全在 markup 的工具类里（Bootstrap 的 `row` / `col-6 col-lg`：768 以下两列一行、992 起一行排开；
+   reverse 是 `flex-lg-row-reverse` + 品牌列 `align-items-end text-end`）。这里只补一条工具类没有的：
+   列里的一条链接 / 联系方式是**一个不可断的长词**（邮箱、长网址）时，`col-6` 在 390 上只有 ~170px，
+   它会伸出页脚、整页横向滚动（390 实测：`service@northsideauto.ca` 画到 419）。让它在任意处换行。 */
+[data-block="footer-new"][data-shape="columns"] [data-footer-col] a,
+[data-block="footer-new"][data-shape="columns"] [data-footer-col] span {
+  overflow-wrap: anywhere;
+}

@@ -663,6 +663,78 @@ const DEMO_CONTENT = {
     options: { dark: false, icons: false, reverse: false },
   },
 
+  // #1455 —— Webpixels 那一版页脚（`staging: true`，只在图册里）。4 个形态吃同一份；`cta` / `newsletter`
+  // 两个可选部件也填上，图册那一行的勾选 / 单选才有东西可切（`FooterNewRow.tsx`）。
+  // 🔴 `nav` / `social` / `legal` 是顶层 list 槽，守卫 (c) 要各 ≥ 6 项、最长 ≥ 最短 2 倍（网址记 0 字，
+  //    `icon` 是字、要算进去）。`columns` / `contact` / `cta` / `newsletter` 是 object，底下的 list 不查。
+  'footer-new': {
+    logo: imageUrl('logo-mark-alt'),
+    brandName: SITE,
+    tagline: 'Independent auto repair on Yonge Street since 1998. Written estimates before we touch anything.',
+    nav: [
+      { label: 'Home', href: '/' },
+      { label: 'Services', href: '/services' },
+      { label: 'Brake repair and diagnostics', href: '/services/brakes' },
+      { label: 'Pricing', href: '/pricing' },
+      { label: 'About the shop', href: '/about' },
+      { label: 'Contact', href: '/contact' },
+    ],
+    columns: {
+      services: [
+        { label: 'Brakes', href: '/services/brakes' },
+        { label: 'Diagnostics', href: '/services/diagnostics' },
+        { label: 'Tires and seasonal changeover', href: '/services/tires' },
+        { label: 'Safety certificates', href: '/services/safety-certificate' },
+      ],
+      areas: [
+        { label: 'Willowdale', href: '/areas/willowdale' },
+        { label: 'Lawrence Park', href: '/areas/lawrence-park' },
+        { label: 'Leaside', href: '/areas/leaside' },
+        { label: 'Don Mills', href: '/areas/don-mills' },
+      ],
+      contact: true,
+    },
+    contact: {
+      phone: '(416) 555-0142',
+      address: '2150 Yonge St, Toronto',
+      hours: 'Mon–Sat 8am–6pm',
+      email: 'service@northsideauto.ca',
+    },
+    social: [
+      { label: 'Google reviews', href: 'https://g.page/northside-auto-care-toronto', icon: 'google' },
+      { label: 'Yelp', href: 'https://yelp.ca/biz/northside', icon: 'yelp' },
+      { label: 'Facebook', href: 'https://facebook.com/northsideautocare', icon: 'facebook' },
+      { label: 'Instagram', href: 'https://instagram.com/northside.auto', icon: 'instagram' },
+      { label: 'LinkedIn', href: 'https://linkedin.com/company/northside-auto-care-toronto', icon: 'linkedin' },
+      { label: 'WhatsApp', href: 'https://wa.me/14165550148', icon: 'whatsapp' },
+    ],
+    legal: [
+      { label: 'Privacy', href: '/privacy' },
+      { label: 'Terms', href: '/terms' },
+      { label: 'Warranty terms', href: '/warranty' },
+      { label: 'Accessibility (AODA) statement', href: '/accessibility' },
+      { label: 'Cookies', href: '/cookies' },
+      { label: 'Sitemap', href: '/sitemap' },
+    ],
+    copyright: `© 2026 ${SITE}. OMVIC licensed.`,
+    cta: {
+      style: 'band',
+      title: 'Car making a noise you do not like?',
+      subtitle: 'Book a free 15-minute check. We tell you what it is and what it costs before any work starts.',
+      buttons: [
+        { label: 'Book a free check', href: '/quote', style: 'solid' },
+        { label: 'Call (416) 555-0142', href: 'tel:+14165550142', style: 'outline' },
+      ],
+    },
+    newsletter: {
+      title: 'Seasonal reminders',
+      blurb: 'Two emails a year: when to switch tires, and what to check before winter.',
+      placeholder: 'you@example.com',
+      buttonLabel: 'Subscribe',
+    },
+    options: { dark: false, reverse: false },
+  },
+
   footer: {
     columns: [
       {

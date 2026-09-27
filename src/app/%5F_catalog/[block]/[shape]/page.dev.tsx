@@ -25,6 +25,7 @@
 import { notFound } from 'next/navigation';
 import Footer from '@blocks/footer/Section';
 import Header from '@blocks/header/Section';
+import FooterNewSection, { type FooterNewData } from '@blocks/footer-new/Section';
 import HeaderNewSection, { type HeaderNewData } from '@blocks/header-new/Section';
 import SectionRenderer from '@/components/SectionRenderer';
 import { defaultLocale } from '@/lib/config';
@@ -130,6 +131,8 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
         {isRegion && block === 'footer' ? <Footer locale={locale} variant={shape} /> : null}
         {/* #1424 —— Webpixels 那一版顶栏：内容来自演示内容包（槽位契约），不来自 navigation.json。 */}
         {isRegion && block === 'header-new' ? <HeaderNewSection shape={shape} data={data as HeaderNewData} block={cfg} /> : null}
+        {/* #1455 —— Webpixels 那一版页脚：同上，内容来自演示内容包（全填版带 cta 条 + 订阅框）。 */}
+        {isRegion && block === 'footer-new' ? <FooterNewSection shape={shape} data={data as FooterNewData} block={cfg} /> : null}
         {isRegion ? null : <SectionRenderer blocks={[cfg]} locale={locale} />}
       </main>
     </>

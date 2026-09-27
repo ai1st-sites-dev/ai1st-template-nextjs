@@ -199,7 +199,8 @@ const NON_EDITABLE_TEXT_SLOTS = [
 // 📌 #1353 把外壳区接进检查器的那天，把这两个名字从这里拿掉、按普通块标 `editLabel` 即可。
 // 📌 #1424 —— `header-new`（Webpixels 那一版顶栏，`staging: true`）同一个理由进来：它是外壳区块，今天
 //    只在图册里渲染，Puck 不接它。T3 接 Puck 时把它从这里拿掉、text 槽位标上 `editLabel`。
-const NO_SLOT_PATH_BLOCKS = ['header', 'footer', 'header-new'];
+// 📌 #1455 —— `footer-new`（Webpixels 那一版页脚）同一个理由、同一个退出条件（T3）。
+const NO_SLOT_PATH_BLOCKS = ['header', 'footer', 'header-new', 'footer-new'];
 
 // ── #1352 —— 一份 manifest 上「老板能直接改的字」都在哪儿 ──────────────────────────────────────
 //

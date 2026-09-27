@@ -1,0 +1,8 @@
+/* ── footer-new · slim-row（默认）────────────────────────────────────────────────────────────────
+   排版全在 markup 的工具类里（768 以下 `flex-column` 上下叠，768 起 `flex-md-row` 一行、
+   `justify-content-between`；reverse 是 `flex-md-row-reverse`）。这里只补一条工具类表达不了的：
+   中间那组页面链接是 flex 项，默认 `min-width: auto` —— 链接一多它不肯缩，整行被撑出页脚右边。
+   缩到 0 之后，链接在自己那一格里换行（它自己的 `ul` 带 `flex-wrap`）。 */
+[data-block="footer-new"][data-shape="slim-row"] .ftr-nav {
+  min-width: 0;
+}
