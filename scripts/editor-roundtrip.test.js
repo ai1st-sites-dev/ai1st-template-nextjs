@@ -247,7 +247,7 @@ for (const shape of ['blocks', 'sections']) {
   }
 }
 {
-  // 画布上一个字段都没改、立刻存盘 = 文件一个字节都不变（`Nothing to save.` 那条路的判据）
+  // 画布上一个字段都没改、立刻存盘 = 文件一个字节都不变（「没有要存的」那条路的判据 —— #1453 起 autosave 据它判停手之后发不发）
   const raw = fixturePage(false);
   check(convert.deepEqual(roundTrip(raw), raw), '没改任何东西 → 写回的 JSON 与原文 deepEqual（不会多出 weight / shape / 空串）');
 }

@@ -41,9 +41,17 @@
 //                                            共用块的字不归撤销管，历史里每一条快照的共用块都换成新的
 //   发  ai1st:chat-send {text, scope?}       ai1st:chat-revert {messageId}
 // 发给 AI 之前**先存一次**（做什么 4，Chris 2026-09-23）：画布上有没存的改动就先走今天那条 `ai1st:editor-save`，
-// 存成功才发；被拒（这一页在别处改过，exit 10）就不发、把那句话原样说出来。撤销 AI 那一步只动画布、不自动存
-// （做什么 6）：状态栏说「有未保存的改动」，文件里是 AI 那版直到按 Save。#1412 起 Save 只落盘不重建、发布才上线，
-// 所以那句话说的是「按 Save 留下、发布后上线」，跟 dashboard 那句「Saved. It goes live on your website when you publish.」同一个口径。
+// 存成功才发；被拒（这一页在别处改过，exit 10）就不发、把那句话原样说出来。
+//
+// #1453 —— 没有 Save 按钮了：画布停手 AUTOSAVE_IDLE_MS 就自动存一笔（§Autosave → §flushAutosave，走的还是
+// §save 那一条 `ai1st:editor-save`，#1454 的手改记录照样一笔一条）。粒度按「停手」不按键入，也不按失焦：
+// 从一个字段点到下一个字段就是一次失焦，按失焦存的话「连改同一块的 3 个字段 = 1 笔」就做不到。
+// 撤销 AI 那一步（做什么 6）现在也是画布上的一次改动，停手后照样存下去。先存再发 / 换页前先存仍在，
+// 它们现在是「不等停手、马上存这一笔」（§releaseChat / §releaseLeave 进门先撤掉计时器）。
+// autosave 停下来的两种情况（画布上的字留着，底部浮一条说明 + 按钮，§EditorShell）：
+//   · §Kept：别处的新版本因为画布上有没存的改动而没换进来 —— 自动存 = 静默盖掉 AI / 另一个标签页那次改动。
+//   · 冲突（`kept === 'stale'`）：这一笔被站里拒了（exit 10，dashboard 判出来的，§editor-save-result 的 `stale`）。
+// 状态字「Saving… / All changes saved」在 dashboard 的面板条上；这里只在出错时说话。
 //
 // #1448 —— 换页（dashboard 面板条上的下拉；清单是 `pages` prop，随 `editor-ready` 交出去）：
 //   收  ai1st:editor-leave {id}                     dashboard 要换到别的页
@@ -449,14 +457,29 @@ type PuckDispatch = (action: { type: 'setData'; data: Data; recordHistory?: bool
 /**
  * #1442 —— 新底稿到了、而画布上有没存的改动 ⟹ 画布不换，留住老板的字，画布底部浮一条说明（§EditorShell；`external` = 别处存过这一页，
  * `ai` = AI 的改动迟到了：画布 20 秒兜底解锁之后才到，见 useEditorChat §APPLY_SAFETY_MS）。存成功 / 画布换成新的一份时清掉。
- * 🔴 hash 换成新的（按 Save 覆盖那一笔），不留旧的：留旧的 Save 会撞 write-page exit 10，界面让他关掉重开 ——
+ * 🔴 hash 换成新的（按「Keep my changes」覆盖那一笔），不留旧的：留旧的就会撞 write-page exit 10，界面让他关掉重开 ——
  *    打的字照样没了（PM 二审技术须知）。
+ * #1453 —— 这两种情况下 autosave 停着（§autosavePaused）：自动存 = 不问他就盖掉那次改动（AC 4「解锁那一刻没有排队的
+ * 手改冲出去覆盖 AI 那份」）。`stale` = 这一笔被站里拒了（两个标签页，exit 10）：hash 是旧的，存不进去，只能重载。
  */
-type Kept = 'external' | 'ai' | null;
-const KEPT_TEXT: Record<'external' | 'ai', string> = {
-  external: 'This page was changed after you opened it (in another tab, or by undoing an AI change), and that change was not put on the page because you had unsaved changes. Your changes are still here: Save keeps this version and replaces that change. To see that change instead, close the editor and open it again — your unsaved changes will be lost.',
-  ai: "The AI's change was not put on the page, because you had unsaved changes. Your changes are still here: Save keeps this version and replaces the AI's change to this page. To see the AI's change instead, close the editor and open it again — your unsaved changes will be lost.",
+type Kept = 'external' | 'ai' | 'stale' | null;
+const KEPT_TEXT: Record<'external' | 'ai' | 'stale', string> = {
+  external: 'This page was changed somewhere else (in another tab, or by undoing a change in the AI chat) while you were editing, so that change is not shown here. Your changes are still here, and nothing is saved until you choose: keep yours (they replace that change), or load the latest version (your unsaved changes will be lost).',
+  ai: "The AI's change was not put on the page, because you were still editing. Your changes are still here, and nothing is saved until you choose: keep yours (they replace the AI's change to this page), or load the latest version (your unsaved changes will be lost).",
+  stale: 'This page was changed somewhere else (in another tab, or by the AI) after you opened it, so your latest changes were not saved. They are still here, but they cannot be saved on top of that change. Load the latest version to keep editing — the changes that were not saved will be lost.',
 };
+// 停手多久算「一笔改完」（Chris：失焦或停手 1–2 秒）。
+const AUTOSAVE_IDLE_MS = 1500;
+// 浮条在的时候，发 AI 消息 / 换页 / 关编辑器都先停下来等他（不替他选「留下我的」）。`stale` 那种没得选，只能加载最新版本。
+function keptBlocksText(kept: Kept, what: 'message' | 'leave'): string {
+  if (kept === 'stale') {
+    // 跟「先存被拒」那条路说同一件事（发得比停手快时走的是那条）：存不上，因为在别处改过。
+    const head = what === 'message' ? 'Your message was not sent.' : 'Your changes could not be saved, so the editor stayed on this page.';
+    return `${head} This page was changed somewhere else after you opened it — load the latest version (at the bottom of the editor) first.`;
+  }
+  const head = what === 'message' ? 'Your message was not sent.' : 'The editor stayed on this page.';
+  return `${head} First choose which version to keep, using the buttons at the bottom of the editor.`;
+}
 
 /** 拿到 Puck 自己的 dispatch（`external` 换数据用）。放在 headerActions 里，它才在 Puck 的 store 之下。 */
 function DispatchHandle({ handle, getter }: { handle: { current: PuckDispatch | null }; getter: { current: GetPuck | null } }) {
@@ -485,35 +508,41 @@ type GetPuck = () => {
 };
 
 /**
- * #1410 —— 状态栏：画布跟网站不一样时说出来（做什么 6「撤销 AI 那一步之后进入『有未保存的改动』」）。
- * `aiStep` 是最近那次 AI 记下的那一步：它同时改了共用块、而老板把它撤销了（当前位置在它之前）⟹ 多说一句
- * 「共用块的改动请用聊天里的回退」（做什么 7 的 📌）—— 撤销 + Save 退不掉那一半。
+ * #1410 —— 状态栏。`aiStep` 是最近那次 AI 记下的那一步：它同时改了共用块、而老板把它撤销了（当前位置在它之前）⟹ 说一句
+ * 「共用块的改动请用聊天里的回退」（做什么 7 的 📌）—— 撤销退不掉那一半。
+ * #1453 —— 「有未保存的改动，按 Save」那句没了：停手就自动存，状态字在 dashboard 的面板条上。
  */
-function DirtyNote({ dirtyOf, aiStep, locked }: { dirtyOf: (d: Data) => boolean; aiStep: { id: string; mixed: boolean } | null; locked: boolean }) {
-  const data = usePuck((s) => s.appState.data);
+function HistoryNote({ aiStep, locked }: { aiStep: { id: string; mixed: boolean } | null; locked: boolean }) {
   const history = usePuck((s) => s.history);
-  const dirty = useMemo(() => dirtyOf(data), [data, dirtyOf]);
   const at = aiStep ? history.histories.findIndex((h) => h.id === aiStep.id) : -1;
   const sharedStays = !!aiStep?.mixed && at >= 0 && history.index < at;
   // 撤销历史的读数（当前位置 / 条数）：不显示，给验收量「AI 这一下记没记进历史」用。
   const probe = <span data-editor-history hidden data-index={history.index} data-length={history.histories.length} />;
-  // AI 在改的时候只说那一句（§useAiLockGuard）：「先存再发」那一笔还在路上时这里会短暂算出「有未保存的改动」，那不是老板能处理的事。
   if (locked) return (
     <span data-editor-ai-lock style={{ fontSize: 13, color: '#475467' }}>
       {probe}
       The AI is editing this page — you can keep editing when it&apos;s done.
     </span>
   );
-  if (!dirty && !sharedStays) return probe;
+  if (!sharedStays) return probe;
   return (
-    <span data-editor-dirty style={{ fontSize: 13, color: '#b54708' }}>
+    <span data-editor-shared-stays style={{ fontSize: 13, color: '#b54708' }}>
       {probe}
-      {dirty ? 'Unsaved changes — press Save to keep them. They go live on your website when you publish.' : ''}
-      {sharedStays && (
-        <span data-editor-shared-stays>{dirty ? ' ' : ''}Changes the AI made to shared sections are not undone here — use Revert in the AI chat for those.</span>
-      )}
+      Changes the AI made to shared sections are not undone here — use Revert in the AI chat for those.
     </span>
   );
+}
+
+/**
+ * #1453 —— autosave 的眼睛：画布数据每变一次就告诉 EditorApp（§onCanvasChange 重新开始数停手的时间）。
+ * 放在 headerActions 里，它才在 Puck 的 store 之下；只订阅 data，不渲染任何东西。
+ */
+function Autosave({ onChange }: { onChange: (d: Data) => void }) {
+  const data = usePuck((s) => s.appState.data);
+  const ref = useRef(onChange);
+  ref.current = onChange;
+  useEffect(() => { ref.current(data); }, [data]);
+  return null;
 }
 
 /**
@@ -524,14 +553,17 @@ function DirtyNote({ dirtyOf, aiStep, locked }: { dirtyOf: (d: Data) => boolean;
  * 所以两个 override 是模块级组件，要用的东西从 `EditorUiContext` 读（context 变了只让它们重渲染，不换类型）。
  */
 type EditorUi = {
-  /** AI 在改这一页（§useAiLockGuard）：画布只读、撤销 / 前进 / Save 不可用。 */
+  /** AI 在改这一页（§useAiLockGuard）：画布只读、撤销 / 前进 / 自动存都停。 */
   locked: boolean;
   dispatchRef: { current: PuckDispatch | null };
   getPuckRef: { current: GetPuck | null };
-  dirtyOf: (d: Data) => boolean;
   aiStep: { id: string; mixed: boolean } | null;
   kept: Kept;
-  save: (d: Data) => unknown;
+  onCanvasChange: (d: Data) => void;
+  /** #1453 —— 浮条上那两颗：留下我的（照原样存这一笔，盖掉那次改动）/ 加载最新版本（重载编辑器）。 */
+  keepMine: () => void;
+  reloadLatest: () => void;
+  retrySave: () => void;
   status: Status;
   chat: EditorChatState | null;
   chatNotice: { kind: 'info' | 'error'; text: string } | null;
@@ -550,11 +582,14 @@ function EditorHeaderActions() {
   return (
     <>
       <DispatchHandle handle={ui.dispatchRef} getter={ui.getPuckRef} />
-      <DirtyNote dirtyOf={ui.dirtyOf} aiStep={ui.aiStep} locked={ui.locked} />
-      <SaveButton onSave={ui.save} status={ui.status} locked={ui.locked} />
+      <Autosave onChange={ui.onCanvasChange} />
+      <HistoryNote aiStep={ui.aiStep} locked={ui.locked} />
+      <SaveStatus status={ui.status} onRetry={ui.retrySave} hideError={!!ui.kept} />
     </>
   );
 }
+
+const KEPT_BUTTON = { padding: '4px 10px', borderRadius: 6, fontSize: 13, cursor: 'pointer' } as const;
 
 // #1442 的 kept 提示浮在画布底部 —— 它住在包住整个 Puck 的这一层（`puck` override），不进 rail 面板、不进顶栏。
 // 🔴 高度写 100vh 不写 100%：Puck 在这一层外面还套了一个不定高的 `div.Puck`，100% 等于没限 ——
@@ -570,6 +605,16 @@ function EditorShell({ children }: { children: ReactNode }) {
       {ui && ui.kept && (
         <div data-editor-kept={ui.kept} role="status" style={{ position: 'absolute', left: at ? at.left + at.width / 2 : '50%', bottom: at ? at.bottom + 16 : 16, transform: 'translateX(-50%)', width: at ? `min(560px, ${Math.max(at.width - 32, 200)}px)` : 'min(560px, calc(100% - 32px))', boxSizing: 'border-box', zIndex: 10, padding: '10px 14px', borderRadius: 8, background: '#fffaeb', border: '1px solid #fedf89', color: '#93370d', fontSize: 13, lineHeight: 1.5, boxShadow: '0 4px 12px rgba(16, 24, 40, 0.12)' }}>
           {KEPT_TEXT[ui.kept]}
+          <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+            {ui.kept !== 'stale' && (
+              <button type="button" data-editor-keep-mine onClick={ui.keepMine} disabled={ui.status.kind === 'saving'} style={{ ...KEPT_BUTTON, border: '1px solid #b54708', background: '#fff', color: '#93370d' }}>
+                Keep my changes
+              </button>
+            )}
+            <button type="button" data-editor-reload onClick={ui.reloadLatest} style={{ ...KEPT_BUTTON, border: 0, background: '#1d4ed8', color: '#fff' }}>
+              Load the latest version
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -674,7 +719,7 @@ const EDITOR_OVERRIDES = { headerActions: EditorHeaderActions, puck: EditorShell
  *
  * 三段，判据各不同（PM r2 三审 §二 量过）：
  *   改字段 / 拖 / 增删块 / 复制 ⟹ Puck 的 `permissions`（全局那一份；它会在 prop 换了时重算，不用重挂 Puck）。
- *   Save ⟹ 我们自己的按钮，自己灰掉（§SaveButton）。
+ *   自动存 ⟹ 锁着时不数停手的时间（§onCanvasChange）。
  *   撤销 / 前进 ⟹ 不在 `permissions` 里。按钮是 Puck 顶栏自己画的（`title="undo"` / `"redo"`），快捷键是 Puck 在编辑器
  *     页和画布 iframe 两个 document 上**冒泡阶段**收的 keydown（`monitorHotkeys(document)` / `monitorHotkeys(frameDoc)`）
  *     ⟹ 在两个 window 上挂**捕获阶段**的监听，锁着时把这两样拦下（§useAiLockGuard）。
@@ -722,26 +767,21 @@ function useAiLockGuard(locked: boolean) {
   }, [locked]);
 }
 
-function SaveButton({ onSave, status, locked }: { onSave: (d: Data) => void; status: Status; locked: boolean }) {
-  const data = usePuck((s) => s.appState.data);
-  // 🔴 按钮上写的是 Save，因为它做的就是保存（#1409 票正文 §做什么 9 三选一的「等于保存」）。
-  //    发布到正式域名是 dashboard 上另一个动作（Publish），两件事不许共用一个字。
+/**
+ * #1453 —— 顶栏里的存盘状态。「Saving… / All changes saved」说在 dashboard 的面板条上（它知道这一笔到底落没落盘），
+ * 这里只在**没存上**时说话，并给一颗「再试一次」。`data-editor-status` 一直在（不显示也在），给验收读这一侧的状态。
+ * `hideError`：画布底部那条浮条（§Kept）已经在说为什么没存、该怎么办，这里不再说第二遍。
+ */
+function SaveStatus({ status, onRetry, hideError }: { status: Status; onRetry: () => void; hideError: boolean }) {
+  const show = status.kind === 'error' && !hideError;
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-      {status.text && (
-        <span data-editor-status={status.kind} style={{ fontSize: 13, color: status.kind === 'error' ? '#b42318' : '#475467' }}>
-          {status.text}
-        </span>
+    <span data-editor-status={status.kind} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+      {show && <span style={{ fontSize: 13, color: '#b42318' }}>{status.text}</span>}
+      {show && (
+        <button type="button" data-editor-retry onClick={onRetry} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #b42318', background: '#fff', color: '#b42318', fontSize: 13, cursor: 'pointer' }}>
+          Try again
+        </button>
       )}
-      <button
-        type="button"
-        data-editor-save
-        disabled={status.kind === 'saving' || locked}
-        onClick={() => { if (!locked) onSave(data); }}
-        style={{ padding: '6px 14px', borderRadius: 6, border: 0, background: '#1d4ed8', color: '#fff', fontSize: 14, cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.5 : 1 }}
-      >
-        Save
-      </button>
     </span>
   );
 }
@@ -763,7 +803,7 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
   // #1406 —— 老板在画布上拖过的块（Puck id）。按 `visibility` 注进来的共用块只有拖过的才写成这一页的 `{ref}`
   // （`editor-convert.js` §puckToPage 的 `moved`）。换一份新画布（open / external）时清空。
   const movedRef = useRef<Set<string>>(new Set());
-  // 这一次存盘送出去的 JSON：`saved` 到了才算它进了文件（「Nothing to save」要跟它比，不跟打开时比）。
+  // 这一次存盘送出去的 JSON：`saved` 到了才算它进了文件（「还有没有要存的」要跟它比，不跟打开时比）。
   const sendingRef = useRef<{ json: Record<string, unknown> | null; root: Record<string, unknown> | null; shared: SharedChanges | null } | null>(null);
   const [canvas, setCanvas] = useState<{ key: number; data: PuckLikeData }>({ key: 0, data: initialData });
   const dispatchRef = useRef<PuckDispatch | null>(null);
@@ -779,10 +819,13 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
   // `resave: true` = 点发送时上一笔还在路上：等它落定，再对着新的底重新判一次要不要存（§releaseChat）。
   const pendingChatRef = useRef<{ text: string; scope: ChatScope | null; sending: object; resave: boolean } | null>(null);
   const [chatPending, setChatPending] = useState(false);
-  // 最近那次 AI 记下的那一步（Puck 历史条目的 id）+ 它有没有同时改共用块（状态栏那一句，见 §DirtyNote）。
+  // 最近那次 AI 记下的那一步（Puck 历史条目的 id）+ 它有没有同时改共用块（状态栏那一句，见 §HistoryNote）。
   const [aiStep, setAiStep] = useState<{ id: string; mixed: boolean } | null>(null);
   // #1442 —— 新底稿因为画布上有没存的改动而没换进来（§Kept）。
   const [kept, setKept] = useState<Kept>(null);
+  // 计时器 / message 监听里读它（它们是在更早的一次渲染里挂上的，读 state 会读到旧值）。
+  const keptRef = useRef<Kept>(kept);
+  keptRef.current = kept;
   // §useAiLockGuard：点了发送、还没交给 dashboard（先存那一笔在路上）也算 —— 那一笔存的是点下去那一刻的画布。
   const locked = chatPending || !!chat?.busy;
   useAiLockGuard(locked);
@@ -792,6 +835,47 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
   // #1448 —— dashboard 要换页、在等手上这一笔落盘（`sending` 同 pendingChatRef：只认那一笔自己的 `saved` 底稿）。
   const pendingLeaveRef = useRef<{ id: string; sending: object } | null>(null);
 
+  // #1453 —— autosave。画布每变一次（§Autosave）就重新数 AUTOSAVE_IDLE_MS；数到了存一笔（§flushAutosave）。
+  // 停着的时候（AI 在改 · 浮条在问他要哪一版）不数；停的原因一解除就重新数一次（下面那个 effect）——
+  // 解除时画布已经是 AI 那份 / 他选的那份，planSave 对着新的底判，不会把锁住之前的旧画布冲出去。
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelAutosave = () => {
+    if (autosaveTimerRef.current) { clearTimeout(autosaveTimerRef.current); autosaveTimerRef.current = null; }
+  };
+  // 「这一笔现在不该发」的唯一判据（QA1 r2 / QA2 r2：它曾散在几处、各查各的，漏了 AI 锁）。autosave、换页 / 发消息前的先存、
+  // 递给面板的 `paused`（§reportPending，面板的卸载兜底与面板条都据它）全读这一个。
+  //   kept = 浮条在问他要哪一版（不替他选）· ai = AI 在改这一页（§useAiLockGuard）
+  const holdReason = (): 'kept' | 'ai' | '' => (keptRef.current ? 'kept' : lockedRef.current ? 'ai' : '');
+  const autosavePaused = () => holdReason() !== '';
+  function scheduleAutosave() {
+    cancelAutosave();
+    if (autosavePaused()) return;
+    autosaveTimerRef.current = setTimeout(() => { autosaveTimerRef.current = null; flushAutosave(); }, AUTOSAVE_IDLE_MS);
+  }
+  /** 马上存手上这一笔（有的话）。上一笔还在路上 ⟹ 什么都不做：它的 `saved` 底稿到了会再叫一次 §scheduleAutosave。 */
+  function flushAutosave() {
+    cancelAutosave();
+    if (autosavePaused() || sendingRef.current) return;
+    const g = getPuckRef.current ? getPuckRef.current() : null;
+    if (!g) return;
+    let dirty = true;
+    try { dirty = planSave(g.appState.data) !== null; } catch { dirty = true; }
+    if (dirty) save(g.appState.data);
+  }
+  // §reportPending 上一次递出去的是什么（一样就不重复递）。
+  const pendingKeyRef = useRef('');
+  const onCanvasChangeRef = useRef<(d: Data) => void>(() => {});
+  onCanvasChangeRef.current = (d) => { if (!sendingRef.current) reportPending(d); scheduleAutosave(); };
+  // 身份不变：它经 context 递给 §Autosave，换身份只会多一次无用的重订阅。
+  const onCanvasChange = useMemo(() => (d: Data) => onCanvasChangeRef.current(d), []);
+  useEffect(() => {
+    reportPending(undefined); // 浮条出来 / 收起、上锁 / 解锁 ⟹ `paused` 变了
+    if (locked || kept) { cancelAutosave(); return; }
+    scheduleAutosave();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locked, kept]);
+  useEffect(() => () => cancelAutosave(), []);
+
   // 告诉 dashboard「编辑器起来了、我编辑的是哪一页」。它拿这条确认 iframe 里真的是编辑器。
   // `baseline: 1` 说「我认 ai1st:editor-baseline」—— dashboard 据此决定走新路（不重载 iframe）还是老路
   // （#1409 之后、#1415 之前建的站：这个键不在，dashboard 照旧在重建完重载 iframe，行为跟今天一样）。
@@ -800,7 +884,9 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
   useEffect(() => {
     if (!trustedOrigin || window.parent === window) return;
     // #1454 —— `manualRows: 1`：这一版的聊天认得「手改记录」那种行（dashboard 据此才把它们递进来，老编辑器不认）。
-    window.parent.postMessage({ type: 'ai1st:editor-ready', page, locale, baseline: 1, manualRows: 1, ...(pages ? { pages } : {}) }, trustedOrigin);
+    // #1453 —— `autosave: 1`：这一版没有 Save 按钮、自己存。dashboard 据此在关编辑器前也先问一次 `editor-leave`
+    // （停手计时器里那一笔还没交出去，直接卸掉 iframe 它就没了），并认 `ai1st:editor-reload`。
+    window.parent.postMessage({ type: 'ai1st:editor-ready', page, locale, baseline: 1, manualRows: 1, autosave: 1, ...(pages ? { pages } : {}) }, trustedOrigin);
   }, [trustedOrigin, page, locale, pages]);
 
   // dashboard 发来的两种消息。🔴 只认那一个 origin。
@@ -821,6 +907,9 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
         // 也不许让 Save 按钮在这一笔还在路上时亮起来。
         if (d.ok === true && sendingRef.current) return;
         setStatus(d.ok === true ? { kind: 'saved', text: text || 'Saved.' } : { kind: 'error', text: text || 'Could not save.' });
+        // #1453 —— 这一笔被站里拒了，因为这一页在别处改过（两个标签页 / AI，exit 10；是不是这个由 dashboard 判，
+        // 它去读了一次文件）。手上的 hash 是旧的，再存也是被拒 ⟹ autosave 停下，浮条说人话 + 「加载最新版本」。
+        if (d.ok !== true && (d as { stale?: unknown }).stale === true) { cancelAutosave(); keptRef.current = 'stale'; setKept('stale'); }
         // #1410 —— 先存再发：它等的那一笔没存上 ⟹ 不发，把原因说出来（exit 10 那句「这一页在别处改过了，
         // 关掉编辑器重新打开」由 worker 写好，原样用）。存上了在 `saved` 底稿那一支放行（见 pendingChatRef）。
         // 🔴 只认它等的那一笔：失败只会来自 dashboard 手上在途的那一笔，而编辑器同一时刻只交出去一笔（§save）。
@@ -837,7 +926,12 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
           // 原因（`text`）dashboard 已经在面板条的存盘状态里说了，这里不再抄一遍。
           answerLeave(pl.id, false, 'Your changes could not be saved, so the editor stayed on this page.');
         }
-        if (d.ok !== true) sendingRef.current = null;
+        if (d.ok !== true) { sendingRef.current = null; reportPending(undefined); }
+        return;
+      }
+      if (d.type === 'ai1st:editor-flush') {
+        // #1453 QA2 r1 —— dashboard 那一页要被刷新 / 关掉：不等停手，现在就存（浮条在问的时候照样不替他选）。
+        flushAutosave();
         return;
       }
       if (d.type === 'ai1st:editor-leave') {
@@ -892,6 +986,9 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
         // #1448 —— 换页在等的也是这一笔：再判一次（存的这几秒里老板可能又改了一处，那一处也要先存）。
         const pl = pendingLeaveRef.current;
         if (pl && sent && pl.sending === sent) releaseLeave(pl.id);
+        // #1453 —— 这一笔在路上的时候他可能又改了几处：那几处接着数停手（没改就什么都不会发生，§flushAutosave 先问 planSave）。
+        reportPending(undefined);
+        if (!pc && !pl) scheduleAutosave();
         return;
       }
       if (!hashOk) return;
@@ -931,8 +1028,8 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
       // #1442 —— 画布上有没存的改动时，新底稿不许把它整份换掉（§Kept）。判据就是状态栏那一个（§planSave），
       // 🔴 要在改写 `baseRef` 之前问：改写之后问的是「画布跟新底稿一不一样」，答案恒为「不一样」。
       // 留下画布 ⟹ 底里跟画布配套的那几样（raw / initial / sharedOwn，puckToPage 靠 `_src.at` 对回 raw 的下标）一样不动；
-      // 换的只有 hash 和 `saved`（文件里现在是哪一份 —— 于是按 Save 会把这一版整页交出去，状态栏也一直说「有未保存的改动」）
-      // 和块库的底（同 `shared` 那一支）。
+      // 换的只有 hash 和 `saved`（文件里现在是哪一份 —— 于是按「Keep my changes」会把这一版整页交出去）
+      // 和块库的底（同 `shared` 那一支）。#1453：浮条在的时候 autosave 停着（§autosavePaused），等他选。
       const unsaved = (data: Data) => { try { return planSave(data) !== null; } catch { return true; } };
       const keep = (why: 'external' | 'ai') => {
         baseRef.current = { ...baseRef.current, hash: d.hash as string, saved: nextRaw, siteBlocks: nextLib };
@@ -1022,12 +1119,6 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
     return { base, json, shared, root, pageChanged, hasShared };
   }
 
-  // 状态栏用：转不出来也算「有没存的」（按 Save 会把原因说出来）。
-  const dirtyOf = useMemo(() => (data: Data) => {
-    try { return planSave(data) !== null; } catch { return true; }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [schema, page, status]);
-
   /**
    * 'sent' = 交给 dashboard 了（结果回 `ai1st:editor-save-result`）· 'nothing' = 没有要存的 · 'error' = 没交出去 ·
    * 'busy' = 上一笔还在路上，这一笔没交（`sendingRef` 仍是上一笔的）。
@@ -1039,7 +1130,7 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
     }
     // #1410 —— 同一时刻只交出去一笔：dashboard 手上有一笔在途时会把新来的静默丢掉（VisualEditorPanel §editor-save），
     // 而 `sendingRef` 一被覆盖，上一笔的 `saved` 底稿就会把这一笔没落盘的 JSON 记成「已存」（QA3 r3）。
-    // Save 按钮在 Saving 时是灰的；这一句挡的是别的调用方（先存再发、Puck 的 onPublish）。
+    // #1453 起所有调用方（autosave、先存再发、换页前先存、浮条上那颗）都经这一句。
     if (sendingRef.current) return 'busy';
     let plan: ReturnType<typeof planSave>;
     try {
@@ -1049,9 +1140,20 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
       return 'error';
     }
     if (!plan) {
-      setStatus({ kind: 'idle', text: 'Nothing to save.' });
+      // #1453 —— 没有 Save 按钮了，「Nothing to save」没人要听。画布跟文件又是一份了 ⟹ 浮条要问的事也没了。
+      if (keptRef.current && keptRef.current !== 'stale') setKept(null);
       return 'nothing';
     }
+    const { json, shared, root, pageChanged, hasShared } = plan;
+    setStatus({ kind: 'saving', text: 'Saving…' });
+    sendingRef.current = { json: pageChanged ? json : null, root: Object.keys(root).length ? root : null, shared: hasShared ? shared : null };
+    window.parent.postMessage({ type: 'ai1st:editor-save', ...saveFields(plan) }, trustedOrigin);
+    reportPending(null);
+    return 'sent';
+  }
+
+  /** 一笔存盘消息的正文（`ai1st:editor-save` 与 §reportPending 递的待存那份同一个形状）。 */
+  function saveFields(plan: NonNullable<ReturnType<typeof planSave>>): Record<string, unknown> {
     const { base, json, shared, root, pageChanged, hasShared } = plan;
     // #1454 —— 这一笔说人话，manager 拿它写 AI chat 里那条手改记录。🔴 算不出来也照存：它只是说明，不是存盘的一部分。
     let summary = '';
@@ -1061,19 +1163,39 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
         schema, siteBlocks: base.siteBlocks, rootLabels: ROOT_FIELD_LABELS, shapeLabel: SHAPE_FIELD_LABEL,
       });
     } catch { /* 记录退回 manager 那句通用话 */ }
-    setStatus({ kind: 'saving', text: 'Saving…' });
-    sendingRef.current = { json: pageChanged ? json : null, root: Object.keys(root).length ? root : null, shared: hasShared ? shared : null };
     // 不带文件路径：写哪个文件由站里的脚本按 page/locale 自己算（`write-page.js` 文件头说为什么）。
-    window.parent.postMessage({
-      type: 'ai1st:editor-save',
+    return {
       page,
       locale,
       ...(pageChanged ? { json, baseHash: base.hash } : {}),
       ...(Object.keys(root).length ? { root } : {}),
       ...(hasShared ? { shared } : {}),
       ...(summary ? { summary } : {}),
-    }, trustedOrigin);
-    return 'sent';
+    };
+  }
+
+  /**
+   * #1453 QA2 r1 —— 画布跟文件不一样（停手计时器在数 / 浮条在问）时告诉 dashboard，并把「现在存会发什么」一起递过去：
+   *   · 面板条据 `dirty` 不再说「All changes saved」（那是上一笔的，这一刻的字还没落盘）；
+   *   · 站内跳走 / 刷新时面板那一侧把 `save` 这一份直接发出去（iframe 卸掉之后编辑器就没机会了）。
+   * `paused` + `why`：这一笔现在不该发 —— 跟 §autosavePaused 同一个判据（QA1 r2：只看浮条会漏掉 AI 锁）：
+   *   `kept` = 浮条在问他要哪一版（不替他选）· `ai` = AI 在改这一页（上锁之前没存的字等它改完再说，§useAiLockGuard）。
+   *   paused 时不带 `save`，面板那一侧就发不出去。`data` 省略 = 现在就重算（换底稿之后）；传 `null` = 刚交出去一笔、手上没有待存的。
+   */
+  function reportPending(data: Data | null | undefined) {
+    if (!trustedOrigin || window.parent === window) return;
+    let plan: ReturnType<typeof planSave> = null;
+    if (data !== null) {
+      const d = data ?? (getPuckRef.current ? getPuckRef.current().appState.data : null);
+      try { plan = d ? planSave(d) : null; } catch { plan = null; }
+    }
+    const dirty = !!plan;
+    const why = dirty ? holdReason() : '';
+    const paused = !!why;
+    const key = `${dirty}|${why}|${plan ? JSON.stringify(plan.json) + JSON.stringify(plan.root) + JSON.stringify(plan.shared) + plan.base.hash : ''}`;
+    if (key === pendingKeyRef.current) return;
+    pendingKeyRef.current = key;
+    window.parent.postMessage({ type: 'ai1st:editor-pending', dirty, paused, ...(why ? { why } : {}), ...(plan && !paused ? { save: saveFields(plan) } : {}) }, trustedOrigin);
   }
 
   // #1410 —— 聊天那一侧要发给 dashboard 的两种消息。🔴 目标 origin 同存盘：只发给那一个 dashboard。
@@ -1103,6 +1225,14 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
 
   /** 做什么 4：画布上有没存的改动 ⟹ 先存再发（AI 改的是磁盘，它看不见这里没存的那份）；`resave: false` = 已经存过，直接发。 */
   function releaseChat(text: string, scope: ChatScope | null, resave: boolean) {
+    cancelAutosave(); // 不等停手：这一笔现在就存（或已经存过）
+    // #1453 —— 浮条还在问他要哪一版：先存 = 替他选了「留下我的」。不发，请他先选。
+    if (resave && keptRef.current) {
+      pendingChatRef.current = null;
+      setChatPending(false);
+      setChatNotice({ kind: 'error', text: keptBlocksText(keptRef.current, 'message') });
+      return;
+    }
     const g = getPuckRef.current ? getPuckRef.current() : null;
     const r = resave && g ? save(g.appState.data) : 'nothing';
     if (r === 'nothing') {
@@ -1113,7 +1243,7 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
     if (r === 'error' || r === 'busy' || !sendingRef.current) {
       pendingChatRef.current = null;
       setChatPending(false);
-      setChatNotice({ kind: 'error', text: 'Your message was not sent, because your changes could not be saved first. See the message next to Save.' });
+      setChatNotice({ kind: 'error', text: 'Your message was not sent, because your changes could not be saved first. See the message at the top of the editor.' });
       return;
     }
     pendingChatRef.current = { text, scope, sending: sendingRef.current, resave: false };
@@ -1127,6 +1257,7 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
     postChat({ type: 'ai1st:editor-leave-result', id, ok, ...(message ? { message } : {}) });
   }
   function releaseLeave(id: string) {
+    cancelAutosave(); // 不等停手：这一笔现在就存
     if (lockedRef.current) {
       pendingLeaveRef.current = null;
       answerLeave(id, false, 'The AI is editing this page. Switch pages when it is done.');
@@ -1139,10 +1270,12 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
     let clean = false;
     try { clean = planSave(g.appState.data) === null; } catch { clean = false; }
     if (clean) { pendingLeaveRef.current = null; answerLeave(id, true); return; }
+    // #1453 —— 浮条在问他要哪一版（同 §releaseChat）：不替他选。
+    if (keptRef.current) { pendingLeaveRef.current = null; answerLeave(id, false, keptBlocksText(keptRef.current, 'leave')); return; }
     const r = save(g.appState.data);
     if (r === 'sent' && sendingRef.current) { pendingLeaveRef.current = { id, sending: sendingRef.current }; return; }
     pendingLeaveRef.current = null;
-    answerLeave(id, false, 'Your changes could not be saved, so the editor stayed on this page. See the message next to Save.');
+    answerLeave(id, false, 'Your changes could not be saved, so the editor stayed on this page. See the message at the top of the editor.');
   }
 
   // #1406 —— 记下老板拖过哪一块（Puck 的 reorder / move 带着拖之前的下标；页面只有一个根区）。
@@ -1164,7 +1297,12 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
 
   const ui: EditorUi = {
     locked,
-    dispatchRef, getPuckRef, dirtyOf, aiStep, kept, save, status,
+    dispatchRef, getPuckRef, aiStep, kept, onCanvasChange, status,
+    // 「留下我的」= 照原样存这一笔（hash 已经换成新的那份，§keep），盖掉那次改动。浮条等这一笔落盘（`saved` 底稿）才收。
+    keepMine: () => { cancelAutosave(); const g = getPuckRef.current ? getPuckRef.current() : null; if (g) save(g.appState.data); },
+    // 「加载最新版本」：dashboard 换一个新 iframe（跟换页一样），打开时的底稿就是文件里现在那份。画布上没存的字会没 —— 浮条上写明了。
+    reloadLatest: () => { cancelAutosave(); postChat({ type: 'ai1st:editor-reload' }); },
+    retrySave: () => flushAutosave(),
     chat, chatNotice, chatPending, page, locale,
     rawKey: Array.isArray((baseRef.current.raw as { sections?: unknown }).sections) && !('blocks' in baseRef.current.raw) ? 'sections' : 'blocks',
     sendChat, revertChat: (messageId) => postChat({ type: 'ai1st:chat-revert', messageId }),
@@ -1184,7 +1322,7 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
         plugins={EDITOR_PLUGINS}
         ui={EDITOR_UI}
         permissions={locked ? LOCKED_PERMISSIONS : OPEN_PERMISSIONS}
-        onPublish={(d: Data) => { if (!locked) save(d); }}
+        onPublish={() => { if (!locked) flushAutosave(); }}
       />
     </div>
     </EditorUiContext.Provider>
