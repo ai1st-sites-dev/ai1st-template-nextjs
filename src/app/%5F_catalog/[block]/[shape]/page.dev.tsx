@@ -110,7 +110,7 @@ type ManifestForKnobs = { slots?: Record<string, { kind?: string; required?: boo
  * 🔴 这一段只管非外壳块。外壳区块（header-new / footer-new）走 CellOptions，那是 #1458 / #1462 的面。
  */
 function knobOverrides(m: ManifestForKnobs, shape: string, data: Record<string, unknown>, sp: Search) {
-  const knobs = knobsOf(m);
+  const knobs = knobsOf(m) as Array<{ name: string; values: string[] }>;
   const booleans = booleanOptionsOf(m);
   const slots = m.slots || {};
   const colorSlot = Object.keys(slots).find((s) => slots[s] && slots[s].kind === 'color') || null;
@@ -151,7 +151,7 @@ function knobOverrides(m: ManifestForKnobs, shape: string, data: Record<string, 
   const eff = effectiveKnobs(m, shape, opts);
   return {
     knobs: knobs.map((k) => ({ name: k.name, values: k.values })),
-    presets: presetsOf(m).map((p) => ({ name: p.name, shape: p.shape, knobs: p.knobs })),
+    presets: (presetsOf(m) as Preset[]).map((p) => ({ name: p.name, shape: p.shape, knobs: p.knobs })),
     booleans,
     swatches: colorSlot ? (slots[colorSlot].swatches || []) : null,
     parts,

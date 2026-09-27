@@ -224,6 +224,51 @@ console.log('\n── AC6 表单（validateSite）');
   check(bogus.some((p) => p.includes('options.form')), '旋钮取值不在词表（form: "modal"）⟹ 报错');
 }
 
+// ══ #1463 r3（QA2 真 AI 改站抓到）：键写歪 ⟹ 当场报，不许「校验放行、页面上什么都没出来」 ═════════════
+console.log('\n── r3 键写歪（validateSite）');
+{
+  const one = (data, shape, scope = 'edit') => own(manifestLib.validateSite({
+    pages: [{ slug: 'about', blocks: [{ type: 'hero-new', ...(shape ? { shape } : {}), data }] }], scope,
+  }));
+  // QA2 那一块，逐字（AI 第 2 次 write_file 写进去、r2 校验 0 条放行的那份）。
+  const qa2 = {
+    eyebrow: { text: "Toronto's Trusted Auto Shop", style: 'dash' }, headline: 'About Northside Auto Care', subheadline: 'x',
+    options: { align: 'left', image: 'normal', background: 'dark', backgroundColor: '#0f172a' },
+    form: { layout: 'stacked', fields: ['name', 'phone', 'service'], button: { label: 'Get a Free Quote', href: '/quote' } },
+    stats: [{ value: '15+', label: 'Years Serving Toronto' }],
+  };
+  const got = one(qa2);
+  check(got.some((p) => p.includes('"background"') && p.includes('"bg"')) && got.some((p) => p.includes('"backgroundColor"')),
+    'options 里的生词（background / backgroundColor）⟹ 报错，并指向顶层 bg', JSON.stringify(got));
+  check(got.some((p) => p.includes('"layout"') && p.includes('"button"') && p.includes('buttonText')),
+    'form 里的生词（layout / button）⟹ 报错，并列出认得的键', JSON.stringify(got));
+  check(got.some((p) => p.includes('options.form 没写')), 'form 有内容、options.form 没写（默认 none）⟹ 报错', JSON.stringify(got));
+  check(got.length > 0 && one(qa2, undefined, 'create').length === got.length, `建站档同样拦（${got.length} 条）`);
+  const build = manifestLib.validateSite({ pages: [{ slug: 'about', blocks: [{ type: 'hero-new', data: qa2 }] }], scope: 'build' });
+  check(got.length > 0 && own(build).length === 0 && build.warnings.filter((w) => w.includes('("hero-new")')).length === got.length, '构建档只警告（#999：构建期不设硬闸）');
+  // 改对之后放行 —— 同一份内容，键写到该写的地方。
+  const fixed = {
+    ...qa2, bg: '#0f172a', options: { align: 'left', image: 'normal', form: 'stacked' },
+    form: { fields: ['name', 'phone', 'service'], buttonText: 'Get a Free Quote' },
+  };
+  check(one(fixed).length === 0, '同一份内容改对（bg 顶层、options.form、buttonText）⟹ 0 条', JSON.stringify(one(fixed)));
+  check(one({ headline: 'H', options: { form: 'none' }, form: { fields: ['name'] } }).length === 0, '明写 options.form: "none" ⟹ 不报（是明说不要）');
+  check(one({ headline: 'H', form: { fields: ['name', 'phone'] } }, 'lead-form').length === 0, '形态 lead-form 自带 stacked ⟹ 不写 options.form 也放行');
+  check(one({ headline: 'H', background: '#000' }).some((p) => p.includes('data 里没有 "background"')), 'data 顶层的生词 ⟹ 报错');
+  check(one({ headline: 'H', stats: [{ value: '1', label: 'a', icon: 'x' }] }).some((p) => p.includes('"stats" 里没有 "icon"')), '列表槽条目里的生词 ⟹ 报错');
+  check(one(clone(DEMO), 'lead-form').length === 0, '演示内容那一份（全部件、lead-form 形态）⟹ 0 条', JSON.stringify(one(clone(DEMO), 'lead-form')));
+  // 下拉选项由 Section 读站内服务列表传给表单（page-deps 只看 Section.tsx 找 getServices —— QA2 不阻断发现 1）。
+  const lf = render('lead-form', clone(DEMO));
+  check(/<option value="Brakes"/.test(lf) && /<option value="Tires"/.test(lf), 'lead-form 的「需求」下拉 = 站内服务列表（Section 读、传给表单）');
+  const deps = require(path.join(NEXT, 'scripts', 'lib', 'page-deps.js')).blockTypesReadingServices(NEXT);
+  check(deps.types.has('hero-new') && !deps.unmapped.some((f) => f.includes('hero-new')),
+    `page-deps 把 hero-new 算进「读 services 的块」、没有未归属的文件（unmapped=${JSON.stringify(deps.unmapped)}）`);
+  // 只对带旋钮的块收紧：老块 data 里的生词照旧不管（27 个既有站的 data 从没按 shape 串核过键）。
+  const old = manifestLib.validateSite({ pages: [{ slug: 'p', blocks: [{ type: 'hero', data: { headline: 'H', whatever: 1 } }] }], scope: 'edit' })
+    .problems.filter((p) => p.includes('("hero")') && p.includes('whatever'));
+  check(old.length === 0, '老块（hero）data 里的生词不报 —— 收紧只落在带旋钮的块上', JSON.stringify(old));
+}
+
 // ══ AC6：表单 —— 提交那一半（happy-dom 里真渲染、真点提交，fetch 换成记录器）════════════════════
 console.log('\n── AC6 表单（提交）');
 (async () => {
@@ -251,7 +296,7 @@ console.log('\n── AC6 表单（提交）');
       const host = win.document.createElement('div');
       win.document.body.appendChild(host);
       const root = createRoot(host);
-      await act(async () => { root.render(React.createElement(F, { data: formData, variant: 'stacked', locale: 'en' })); });
+      await act(async () => { root.render(React.createElement(F, { data: formData, variant: 'stacked', services: [{ id: 'brakes', name: 'Brakes' }, { id: 'tires', name: 'Tires' }] })); });
       const setVal = async (sel, val) => {
         const el = host.querySelector(sel);
         const proto = Object.getPrototypeOf(el);
@@ -335,7 +380,9 @@ console.log('\n── AC6 表单（提交）');
       const pageBlocks = [...manifestLib.loadManifests().values()].filter((m) => m.region !== true).length;
       const menuLine = real.split('\n').find((l) => l.startsWith('- "hero-new"'));
       check(!!menuLine, `建站提示词的块菜单里有它：${menuLine || '（没有）'}`);
-      check(/\n\s+data: \{ options\?: \{align, image, form, reverse: bool\}/.test(real), '它下面那行 data 从 manifest 生成（旋钮 / 底色 / 部件的槽位都在）');
+      check(/\n\s+data: \{ options\?: \{align: "left" \| "center", image: "normal" \| "background" \| "none", form: "none" \| "inline" \| "stacked", reverse: bool\}/.test(real),
+        '它下面那行 data 从 manifest 生成，旋钮带取值（r3：只写键名时 AI 自己编了 background: "dark"）');
+      check(/options\.form is "inline"/.test(real), '再下一行说清「表单只在 options.form = inline / stacked 时出现、bg 在顶层」');
       check(n(real) === pageBlocks, `「There are N section types」说 ${n(real)}，等于页面块份数 ${pageBlocks}（hero-new 算在里面）`);
       check(!dropped.split('\n').some((l) => l.startsWith('- "hero-new"')), '反向对照：拿掉 manifest 的 prompt 段 ⟹ 菜单里就没有它（判据分得开）');
       const v = own(manifestLib.validateSite({ pages: [{ slug: 'home', blocks: [{ type: 'hero-new', data: { headline: 'H' } }] }] }));

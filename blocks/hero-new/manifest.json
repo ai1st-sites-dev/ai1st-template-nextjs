@@ -140,7 +140,8 @@
     "headSuffix": "the first-screen banner with presets (use it or hero, never both on one page)",
     "headExtra": null,
     "lines": [
-      "@data"
+      "@data",
+      "the form only shows when options.form is \"inline\" (exactly one field) or \"stacked\" — with a form the ctas are not shown; bg is the background colour, top-level in data (not inside options)"
     ]
   }
 }

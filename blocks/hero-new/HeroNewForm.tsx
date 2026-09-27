@@ -15,7 +15,7 @@
 //    inline 只许一个字段，`validateSite` 按 manifest 旋钮上的 `maxItems` 拦；这里多给了也只画第一个。
 
 import { useState } from 'react';
-import { siteId, leadApi, getServices } from '@/lib/config';
+import { siteId, leadApi } from '@/lib/config';
 
 export type HeroNewField = 'name' | 'phone' | 'email' | 'message' | 'service';
 export interface HeroNewFormData {
@@ -40,15 +40,16 @@ const PLACEHOLDER: Record<HeroNewField, string> = {
 
 type SubmitState = 'idle' | 'submitting' | 'success' | 'error';
 
-export default function HeroNewForm({ data, variant, locale, center }: {
-  data?: HeroNewFormData; variant: 'inline' | 'stacked'; locale: string; center?: boolean;
+// 🔴 `services`（下拉的选项）由 Section.tsx 读好传进来，这里不自己读服务列表（#1463 r3）：
+//    `page-deps.js §blockTypesReadingServices` 只看注册表指向的那份 `Section.tsx`，兄弟文件里的调用
+//    会被归成「没注册、影响零页」⟹ 改服务列表时放了表单的页不报新日期（sitemap lastmod 静默少报）。
+export default function HeroNewForm({ data, variant, services = [], center }: {
+  data?: HeroNewFormData; variant: 'inline' | 'stacked'; services?: { id: string; name: string }[]; center?: boolean;
 }) {
   const asked = (Array.isArray(data?.fields) ? data!.fields : []).filter((f): f is HeroNewField => VOCAB.includes(f));
   const fields = (asked.length ? Array.from(new Set(asked)) : DEFAULT_FIELDS[variant]).slice(0, variant === 'inline' ? 1 : VOCAB.length);
   const buttonText = data?.buttonText || 'Get a free quote';
   const successMessage = data?.successMessage || "Thanks! We've got your details and will be in touch.";
-  let services: { id: string; name: string }[] = [];
-  try { services = (getServices(locale) || []).map((s: { id: string; name: string }) => ({ id: s.id, name: s.name })); } catch { services = []; }
 
   const [values, setValues] = useState<Record<string, string>>({});
   const [hp, setHp] = useState('');

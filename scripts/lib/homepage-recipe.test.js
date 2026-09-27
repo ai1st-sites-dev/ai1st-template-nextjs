@@ -229,7 +229,8 @@ const basePayload = (over = {}) => ({
 const { homepageRecipe, tryHomepageRecipe, recipeProblems, recipePromptLines, fingerprintEnabled,
   afterRetry, poolFor, industryRank, rotate, NOT_IN_POOL, BAR_EVERY } = require('./homepage-recipe');
 const { rotationIndexFromSiteId } = require('../themes');
-const { loadManifests, promptSection, isRegionManifest, BLOCKS_DIR, headLineFor } = require('./block-manifest');
+const { loadManifests, promptSection, isRegionManifest, BLOCKS_DIR, headLineFor, dataLineFor } = require('./block-manifest');
+const { knobsOf } = require('./block-knobs');
 const manifests = loadManifests();
 
 console.log('══ #1034 首页开场配方 ══');
@@ -528,6 +529,20 @@ try {
         ];
         if (pairs.some(([a]) => !t.includes(a))) return t;
         return pairs.reduce((acc, [a, b]) => acc.split(a).join(b), t);
+      },
+    },
+    // #1463 r3：带旋钮的块，data 行里 `options` 那一格列出每个旋钮的取值（`dataLineFor`，QA2 真改站时
+    // AI 只见到 `{align, image, form}` 就自己编了 `background: "dark"`）。基线那一臂用的是基线的 dataLineFor
+    // 印今天的 manifest ⟹ 只有带旋钮的块那一行 data 不同；按「上一行头行点名的块」逐行对应。
+    {
+      why: '#1463 r3 带旋钮的块 data 行列出旋钮取值',
+      apply: (t) => {
+        let cur = null;
+        return t.split('\n').map((l) => {
+          const head = l.match(/^- "([a-z0-9-]+)"/);
+          if (head) { cur = manifests.get(head[1]) || null; return l; }
+          return cur && knobsOf(cur).length && l.startsWith('  data: ') ? `  ${dataLineFor(cur)}` : l;
+        }).join('\n');
       },
     },
     // 📌 #1376（同样按 D19 删掉一个块）**没有在这里加条目**。r1 加过一条「32 → 31」，而 #1372 先落地

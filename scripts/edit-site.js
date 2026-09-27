@@ -18,7 +18,16 @@ const { execSync } = require('child_process');
 const Anthropic = require('@anthropic-ai/sdk');
 // #1013 洞 4 —— 块校验（#999）此前在这条路上一条都不跑：write_file 只看「是合法 JSON」就落盘。
 // 跑的是**同一个函数**，不是第二份实现（#999 定的规矩，本票 AC6）。
-const { validateSite: validateBlocks } = require('./lib/block-manifest');
+const { validateSite: validateBlocks, loadManifests, promptEntry } = require('./lib/block-manifest');
+const { knobsOf } = require('./lib/block-knobs');
+
+// #1463 r3 —— 带预设 / 旋钮的页面块（今天是 hero-new）在老站上没有样本可抄：QA2 真改站时 AI 只拿到一个块名，
+// 自己编了 `options.background` / `form.layout`，校验放行、页面上什么都没出来。所以把这类块的 data 形状
+// 原样印给它 —— 跟建站提示词那一行是同一个函数（§promptEntry）生成的，不另写一份。判据从 manifest 读。
+const PRESET_BLOCK_SHAPES = [...loadManifests().values()]
+  .filter((m) => m.region !== true && knobsOf(m).length)
+  .map(promptEntry)
+  .join('\n');
 // 页面的**形状**（哪个数组、每一格是什么）由 #998 那个模块说了算 —— 这里不写第二份，见
 // pageJsonBlockError 上面那段。
 const { readPageBlocks, normalizeLocalePages } = require('./blocks');
@@ -967,6 +976,10 @@ fails the build. When you add a block to a \`blocks\` page, give it an \`id\` un
 \`weight\` that puts it where you want it (blocks are ordered by \`weight\`, smaller first).
 
 Available section types: hero, hero-new, hero-with-form, trusted-brands, features-grid, card-group, testimonials, cta-banner, contact-info, text-block, page-header, services-nav, services-list, quote-form, contact-form, faq-accordion, process-steps, team-grid, pricing-table, gallery, content-split, social-proof, announcement-bar, newsletter-signup, map-area, blog-preview, service-related-pages
+
+Blocks with presets usually have no example on the site to copy, so here is their exact data shape — use only
+these keys (write_file refuses unknown ones):
+${PRESET_BLOCK_SHAPES}
 
 ## Images
 

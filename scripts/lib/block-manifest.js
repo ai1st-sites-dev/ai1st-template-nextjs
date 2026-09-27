@@ -653,12 +653,39 @@ function loadManifests(dir = BLOCKS_DIR) {
 // 🔴 生成的是**逐字节**跟今天那段散文相同的文本（本票交付时对着 origin/main 的 create-site.js 比过）。
 // 这一条是这次改动唯一的风险面：提示词变了，AI 吐的东西就会变，而那是花钱才能测的东西。所以形态、
 // 顺序、括号、破折号全部照抄，改的只是「它从哪儿来」。
+// #1463 r3 —— 槽的 shape 串里第一层的键：`{text, style: "a" | "b"}` → ['text','style']，`[{imageUrl, alt?}]` →
+// ['imageUrl','alt']。不是 `{…}` / `[{…}]` 形状（`"#rrggbb" | "brand"`、没写 shape）⟹ null（不核键）。
+function shapeKeys(shape) {
+  if (typeof shape !== 'string') return null;
+  const t = shape.trim();
+  const inner = t.startsWith('[{') && t.endsWith('}]') ? t.slice(2, -2) : t.startsWith('{') && t.endsWith('}') ? t.slice(1, -1) : null;
+  if (inner === null) return null;
+  const keys = [];
+  let depth = 0;
+  let cur = '';
+  const take = () => { const mm = cur.trim().match(/^(\w+)\??/); if (mm) keys.push(mm[1]); cur = ''; };
+  for (const ch of inner) {
+    if ('{[('.includes(ch)) depth++;
+    else if ('}])'.includes(ch)) depth--;
+    if (ch === ',' && depth === 0) take(); else cur += ch;
+  }
+  take();
+  return keys;
+}
+
 function dataLineFor(m) {
   const parts = Object.entries(m.slots).map(([name, s]) => {
     // 🔴 提示词那行看的是 promptOptional，不是 required —— 两者不是一回事，见 blocks/<块>/manifest.json 的注释：
     //    `variant` 提示词里不带 ?（我们确实希望 AI 每次都给），但校验不拦它（组件自己有默认值，
     //    而 27 个既有站里有 8 个块的 variant 到位率是 0）。
     const opt = s.promptOptional ? '?' : '';
+    // #1463 r3 —— 带旋钮的槽把每个旋钮的取值列出来（跟 eyebrow 的 `style: "pill" | …` 同一写法）。
+    //    只写 `{align, image, form}` 时 AI 不知道取值，真改站时就自己编了 `background: "dark"`。
+    if (name === 'options' && knobsOf(m).length) {
+      const bits = knobsOf(m).map((k) => `${k.name}: ${k.values.map((x) => `"${x}"`).join(' | ')}`)
+        .concat(booleanOptionsOf(m).map((b) => `${b}: bool`));
+      return `${name}${opt}: {${bits.join(', ')}}`;
+    }
     return s.shape !== undefined ? `${name}${opt}: ${s.shape}` : `${name}${opt}`;
   });
   return `data: { ${parts.join(', ')} }`;
@@ -1043,8 +1070,53 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
             flag(`${where}: options.${b} 是 ${JSON.stringify(opts[b])} —— 只能是 true / false`);
           }
         }
-        // 某个旋钮取某个值时，某个列表最多几项（`form: inline` ⟹ `form.fields` 只许 1 个：一行只放得下一个框）。
+        // 🔴 #1463 r3（QA2 在真 AI 改站上抓到）—— 键写歪不能静默放行。AI 写过
+        //    `options:{background:"dark",backgroundColor:"#0f172a"}` + `form:{layout:"stacked",button:{…}}`：
+        //    上面几条逐条只问「认识的键取值对不对」，不认识的键一律没人看 ⟹ 校验 0 条、页面上没表单也没深底，
+        //    AI 还跟老板说做好了。所以带旋钮的块把「只许这些键」收紧到三处：data 顶层、`options`、
+        //    写了 `{…}` / `[{…}]` 形状的槽。键集合全从 manifest 读（槽名 / knobs / shape 串），不写块名单。
+        //    📌 只对带旋钮的块收：老块在 27 个既有站里的 data 从没按 shape 串核过键，对它们收紧 =
+        //       AI 改一个无关的字，整页被一条从前就在的旧键拦下。
+        const colorSlots = Object.keys(m.slots).filter((x) => m.slots[x].kind === 'color');
+        const colorHint = colorSlots.length ? `；颜色写在顶层 ${colorSlots.map((x) => `"${x}"`).join(' / ')}` : '';
+        const optKeys = [...knobs.map((k) => k.name), ...booleanOptionsOf(m), 'preset'];
+        for (const key of Object.keys(opts)) {
+          if (!optKeys.includes(key)) {
+            flag(`${where}: options 里没有 "${key}" 这个键 —— 只认 ${optKeys.join(' / ')}${colorHint}`);
+          }
+        }
+        for (const key of Object.keys(data)) {
+          if (!(key in m.slots)) {
+            flag(`${where}: data 里没有 "${key}" 这个槽 —— 只认 ${Object.keys(m.slots).join(' / ')}${colorHint}`);
+          }
+        }
+        for (const [slot, spec] of Object.entries(m.slots)) {
+          if (slot === 'options') continue;
+          const keys = shapeKeys(spec.shape);
+          const v = data[slot];
+          if (!keys || v === undefined || v === null) continue;
+          const objs = Array.isArray(v) ? v : [v];
+          const extra = new Set();
+          for (const o of objs) {
+            if (o && typeof o === 'object' && !Array.isArray(o)) for (const key of Object.keys(o)) if (!keys.includes(key)) extra.add(key);
+          }
+          if (extra.size) {
+            flag(`${where}: "${slot}" 里没有 ${[...extra].map((x) => `"${x}"`).join(' / ')} —— 只认 ${keys.join(' / ')}`
+              + `（形状 ${spec.shape}）`);
+          }
+        }
+        // 跟旋钮同名的槽有内容，而那个旋钮哪儿都没写、默认又是 "none"（`form` 写了、`options.form` 没写）⟹
+        // 页面按 none 画、那份内容整个不出现。写了 `options.form: "none"` 是明说不要，不报。
         const eff = effectiveKnobs(m, sec.shape, opts);
+        for (const k of knobs) {
+          if (!(k.name in m.slots) || opts[k.name] !== undefined || eff[k.name] !== 'none') continue;
+          if (slotFilled(data[k.name])) {
+            const on = k.values.filter((x) => x !== 'none').map((x) => `"${x}"`).join(' / ');
+            flag(`${where}: 写了 "${k.name}" 但 options.${k.name} 没写（默认 "none"）⟹ 页面上不会出现它`
+              + ` —— 把 options.${k.name} 设成 ${on}，或者删掉 "${k.name}"`);
+          }
+        }
+        // 某个旋钮取某个值时，某个列表最多几项（`form: inline` ⟹ `form.fields` 只许 1 个：一行只放得下一个框）。
         for (const k of knobs) {
           const limits = k.maxItems && k.maxItems[eff[k.name]];
           if (!limits) continue;

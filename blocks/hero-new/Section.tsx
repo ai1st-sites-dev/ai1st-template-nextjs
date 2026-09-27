@@ -28,6 +28,7 @@
 import Link from 'next/link';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig } from '@/lib/types/config';
+import { getServices } from '@/lib/config';
 import Icon from '@/components/Icon';
 import HeroNewForm, { type HeroNewFormData } from './HeroNewForm';
 import manifest from './manifest.json';
@@ -99,6 +100,11 @@ function rowClass(align: string, reverse: boolean): string {
   return align === 'center' ? `${base} flex-column-reverse` : `${base} flex-column-reverse flex-lg-row-reverse`;
 }
 
+/** 表单「需求」下拉的选项 —— 站内服务列表（在这里读，理由见 HeroNewForm.tsx 的组件头）。 */
+function servicesFor(locale: string): { id: string; name: string }[] {
+  try { return (getServices(locale) || []).map((s: { id: string; name: string }) => ({ id: s.id, name: s.name })); } catch { return []; }
+}
+
 export default function HeroNewSection({ data, locale = 'en', block }: Props) {
   const d: HeroNewData = isObj(data) ? data : {};
   const shape = block && typeof block.shape === 'string' ? block.shape : undefined;
@@ -162,7 +168,7 @@ export default function HeroNewSection({ data, locale = 'en', block }: Props) {
               <h1 className="display-3 fw-bold lh-1 ls-tight mb-5 hro-title" data-slot="headline">{d.headline}</h1>
               {d.subheadline ? <p className="fs-5 text-muted mb-8 hro-sub" data-slot="subheadline">{d.subheadline}</p> : null}
               {showForm ? (
-                <HeroNewForm data={d.form} variant={k.form === 'inline' ? 'inline' : 'stacked'} locale={locale} center={center} />
+                <HeroNewForm data={d.form} variant={k.form === 'inline' ? 'inline' : 'stacked'} services={servicesFor(locale)} center={center} />
               ) : ctas.length ? (
                 <div className={`d-flex flex-column flex-sm-row gap-2${just}`} data-part="ctas">
                   {ctas.map((b, i) => (
