@@ -7,7 +7,8 @@ const nextConfig = {
   //   - [...slug]/page generateStaticParams() error
   // TICKET-211: see 209 invalid 4-direction lesson — root cause 在 template config 不在 CF/cert.
   output: process.env.NODE_ENV === 'production' ? 'export' : undefined,
-  // #1343 —— 只在开发服务里存在的路由（今天只有 `/__catalog` 区块活图册）。
+  // #1343 —— 只在开发服务里存在的路由（今天只有 `/__catalog/<块>/<形态>` 单格页 —— admin › Blocks & Themes
+  // 的预览引擎；整页图册 board 在 #1458 退役）。
   // production 下这张清单是 Next 的默认值，所以**产物一个字节都不受影响**；dev 下多认一种
   // 扩展名 `.dev.tsx`，`src/app/.../page.dev.tsx` 于是只在 `next dev` 里是一个页面。
   // 🔴 为什么不用 `generateStaticParams` 回 `[]`（那是本来打算走的路）：Next 16 判「有没有写

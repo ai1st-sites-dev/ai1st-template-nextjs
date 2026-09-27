@@ -1,17 +1,11 @@
-// ══════════════════════════════════════════════════════════════════════════════════════════════════
-// catalogShared.ts — 整页索引和单格页共用的那几样（#1383）
-// ══════════════════════════════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════
+// catalogShared.ts — 单格页 `/__catalog/<块>/<形态>` 用到的那几样（#1383；#1458 起只有它一个调用方）
+// ═════════════════════════════════════════════════
 //
-// #1343 建整页索引时这几样写在 `page.dev.tsx` 里。#1383 加了单格页
-// （`/__catalog/<块>/<形态>`），两页要用同一份**路径**、同一份**主题皮**、同一份**夹具页**、
-// 同一段**关掉站自己那套主题**的脚本 —— 所以它们搬到这里，两边 import。
-//
-// 🔴 **这不是重写整页索引。** `CatalogBoard` / `ShapeSelect` 一个字节没动，
-//    索引页的样子、格数、下拉、滚动消息全不变（#1383「不做」点名了这三个组件）。搬的只是
-//    「两页都要算一遍」的那几样常量与派生函数 —— 在两个文件里各写一份的话，分歧那天两边都不会红。
-//
-// 🔴 **这个文件不是页面。** `next.config.js` 的 `pageExtensions` 在 dev 下认的是 `.dev.tsx`，
-//    `.ts` 只是普通模块；production 下两个图册页整个不存在，它也就没有调用方。
+// #1343 建整页索引时这几样写在它的 `page.dev.tsx` 里。#1383 加了单格页，两页共用 ⟹ 搬到这里。
+// 🔴 #1458（Chris 2026-09-27）把整页索引 board 退役了：块的唯一可看面是 admin › Blocks & Themes，
+//    而那一页的每张卡片嵌的就是单格页（`CatalogPage.tsx` §cellUrl）。所以这里现在只剩单格页在用，
+//    但它仍然不是页面：`.ts` 在 dev 下只是普通模块，production 下单格页整个不存在，它也就没有调用方。
 
 import fs from 'fs';
 import path from 'path';
@@ -19,7 +13,20 @@ import { pagesByLocale } from '@/lib/config';
 import type { DynamicPageConfig } from '@/lib/types/config';
 import { buildThemeCss } from '../../../scripts/theme-css.js';
 import themePool from '../../../scripts/theme-pool.json';
-import type { CatalogTheme } from './CatalogBoard';
+/** 一套主题在单格页眼里的样子（#1458 起从已删的 CatalogBoard 搬到这里）。 */
+export interface CatalogTheme {
+  id: string;
+  label: string;
+  /** `public/themes/<sheet>.css` —— 这套主题的**画法表**。 */
+  sheet: string;
+  /**
+   * 这套主题的**皮**：`scripts/theme-css.js` 的 `buildThemeCss()` 现算出来的
+   * `@import` 字体表 + `:root{…}`。
+   * 🔴 公式只有一份，这里绝不重算 —— `layout.tsx:453-456` 为同一件事留过原话
+   *    「翻译器只有一份 …… 重写一遍就是第二份真相，而它分叉时两边都不会红」。
+   */
+  skinCss: string;
+}
 
 /**
  * 🔴 **路径要从 `process.cwd()` 起算，不能靠那几个脚本自己的 `__dirname`。** 它们是普通 node
@@ -122,7 +129,7 @@ export const OWN_THEME_OFF = "(function(){var l=document.querySelectorAll('link[
 
 /**
  * #1424 —— Webpixels 那一份 CSS 的地址（`scripts/lib/site-css.js` 写进 `public/site.css`）。
- * 🔴 **只有图册的两个页面 `<link>` 它**：客户站在 T4 之前不许挂 Bootstrap 的 CSS（设计稿 B1），
- *    验收 6 拿 `grep -rl site.css out/ --include='*.html'` 为空守这一条。
+ * 🔴 **只有单格页 `<link>` 它**（#1458 之前还有整页索引）：客户站在 T4 之前不许挂 Bootstrap 的 CSS
+ *    （设计稿 B1），验收拿 `grep -rl site.css out/ --include='*.html'` 为空守这一条。
  */
 export const SITE_CSS_HREF = '/site.css';

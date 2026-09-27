@@ -664,7 +664,7 @@ const DEMO_CONTENT = {
   },
 
   // #1455 —— Webpixels 那一版页脚（`staging: true`，只在图册里）。4 个形态吃同一份；`cta` / `newsletter`
-  // 两个可选部件也填上，图册那一行的勾选 / 单选才有东西可切（`FooterNewRow.tsx`）。
+  // 两个可选部件也填上，单格页工具栏上的勾选 / 单选才有东西可切（#1458 起开关住在 `[shape]/CellOptions.tsx`）。
   // 🔴 `nav` / `social` / `legal` 是顶层 list 槽，守卫 (c) 要各 ≥ 6 项、最长 ≥ 最短 2 倍（网址记 0 字，
   //    `icon` 是字、要算进去）。`columns` / `contact` / `cta` / `newsletter` 是 object，底下的 list 不查。
   'footer-new': {

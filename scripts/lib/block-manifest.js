@@ -456,12 +456,13 @@ function checkManifestShape(name, m) {
   // 悄悄变成承重件 —— 改一个 category 的人不会知道自己关掉了一道闸。同一条理由写在上面 `hooksFrom`
   // 那段里，那是本仓第一个走这条路的键。
   // #1424 —— `staging: true` 说的是「这个块**还没进正式库**」：Webpixels 那一套新块（`<块>-new`）在
-  // T3 切换之前跟旧库并存，只在图册里渲染（客户站没有 Bootstrap 的 CSS，设计稿 B1）。
-  // 它进 `blockShapeCatalog()`、进图册；`theme-css-invariants.mjs` 的 ⑨「每个 (块,形态) 对都要在演示站
-  // 上量到」**跳过**它 —— 演示站按构造不渲染它。T3 改名时删掉这个键。
+  // T3 切换之前跟旧库并存，**客户站不渲染它**（客户站没有 Bootstrap 的 CSS，设计稿 B1）；它只出现在
+  // admin › Blocks & Themes 的单格预览里（#1458 起那是块的唯一可看面，行上标着「未进正式库」）。
+  // 它进 `blockShapeCatalog()`；`theme-css-invariants.mjs` 的 ⑨「每个 (块,形态) 对都要在演示站
+  // 上量到」**跳过**它 —— 演示站的客户页按构造不渲染它。T3 改名时删掉这个键。
   // 🔴 同 `region` / `hooksFrom`：必须**声明**，不靠 `-new` 这个名字后缀去推。
   if (m.staging !== undefined && typeof m.staging !== 'boolean') {
-    bad(`staging 有的话必须是 true/false（现在是 ${JSON.stringify(m.staging)}）—— 它说的是「这个块还没进正式库，只在图册里」`);
+    bad(`staging 有的话必须是 true/false（现在是 ${JSON.stringify(m.staging)}）—— 它说的是「这个块还没进正式库，客户站不渲染，只在 admin 预览里」`);
   }
   if (m.region !== undefined && typeof m.region !== 'boolean') {
     bad(`region 有的话必须是 true/false（现在是 ${JSON.stringify(m.region)}）—— 它说的是「这个块是外壳区，不进页面 JSON、不在 registry.ts 里」`);

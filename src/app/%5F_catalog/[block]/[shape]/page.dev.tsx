@@ -8,10 +8,9 @@
 // 外壳条 —— 要看这个形态排得怎么样，看到的就该只是它。#1384 / #1385 的 admin 页拿这个地址当
 // iframe 的 src（那两张票的 AC 里钉着这个 URL 形状）。
 //
-// 🔴 **整页索引 `/__catalog` 本票一个字节没删**（票里「不做」点名）：删不删由 #1385 定。
-//    #1385 的答案（2026-09-18）是**留着它、删掉滚动那条路**：admin 页不再嵌整页图册，改成按
-//    【块 × 形态】列卡片、每卡嵌这个单格地址，于是那个客户端滚动组件连同它那条 postMessage 一起没了；
-//    整页索引本身仍在，它是「一眼看全部块」的那个地址。这一页是**加**出来的，不是替掉谁。
+// 🔴 整页索引 `/__catalog` 在 #1458（Chris 2026-09-27）退役了：块的唯一可看面是 admin › Blocks & Themes，
+//    那一页每张卡片嵌的就是这个单格地址。定稿长什么样看设计图册（artifact），已落地的块长什么样看 admin。
+//    这一页因此是 admin 预览的渲染引擎，**不是**可以顺手删掉的开发玩具。
 //
 // 🔴 **`page.dev.tsx` 这个文件名是承重的，不是花样。** `next.config.js` 的 `pageExtensions` 在
 //    production 下不认 `.dev.tsx`（`:19-21`），于是静态导出时这条路由**根本不存在** —— 客户站
@@ -25,8 +24,7 @@
 import { notFound } from 'next/navigation';
 import Footer from '@blocks/footer/Section';
 import Header from '@blocks/header/Section';
-import FooterNewSection, { type FooterNewData } from '@blocks/footer-new/Section';
-import HeaderNewSection, { type HeaderNewData } from '@blocks/header-new/Section';
+import CellOptions from './CellOptions';
 import SectionRenderer from '@/components/SectionRenderer';
 import { defaultLocale } from '@/lib/config';
 import type { BlockConfig } from '@/lib/types/config';
@@ -56,6 +54,23 @@ interface Props {
 
 /** `?theme=a&theme=b` 这种重复参数取第一个 —— 不抛，也不把数组塞进比较。 */
 const one = (v: string | string[] | undefined): string | undefined => (Array.isArray(v) ? v[0] : v);
+
+/**
+ * #1458 —— 这个块有哪些开关，从 manifest 读，不写名单：
+ *   `slots.options.shape` 形如 `{dark: bool, icons: bool, reverse: bool}` → 每个 `: bool` 前的键是一个开关；
+ *   `slots.cta.shape` 里的 `style: "band" | "bar" | "row"` → CTA 条的几种样式；
+ *   有 `slots.newsletter` → 订阅框开关。
+ * 三样都空 ⟹ 这个块没有开关，页面不画那条工具栏。
+ */
+function optionMetaOf(m: { slots?: Record<string, { shape?: unknown }> } | undefined) {
+  const slots = (m && m.slots) || {};
+  const optShape = slots.options && typeof slots.options.shape === 'string' ? slots.options.shape : '';
+  const optionKeys = Array.from(optShape.matchAll(/(\w+)\s*:\s*bool/g)).map((x) => x[1]);
+  const ctaShape = slots.cta && typeof slots.cta.shape === 'string' ? slots.cta.shape : '';
+  const styleMatch = ctaShape.match(/style:\s*((?:"[a-z]+"\s*\|?\s*)+)/);
+  const ctaStyles = styleMatch ? Array.from(styleMatch[1].matchAll(/"([a-z]+)"/g)).map((x) => x[1]) : [];
+  return { optionKeys, ctaStyles, hasNewsletter: 'newsletter' in slots };
+}
 
 export async function generateMetadata({ params, searchParams }: Props) {
   const { block, shape } = await params;
@@ -107,11 +122,21 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
   //    `console.warn` 加一个空页面。它们的内容来自站自己的 `navigation.json`，形态由 `variant`
   //    覆盖（`Footer` 本来就有这个参数，`Header` 的是本票照它加的，站上没有调用点传它）。
   const isRegion = m.region === true;
+  const meta = optionMetaOf(m);
+  const hasOptionBar = meta.optionKeys.length > 0 || meta.ctaStyles.length > 0 || meta.hasNewsletter;
+  // 地址栏给的初值：认不出的键落回「关」，认不出的 cta 样式落回 none —— 跟 theme / fill 一样，看法不该让页面消失。
+  const wanted = new Set((one(sp.opt) || '').split(',').map((x) => x.trim()).filter(Boolean));
+  const ctaWanted = one(sp.cta) || 'none';
+  const initial = {
+    opts: Object.fromEntries(meta.optionKeys.map((k) => [k, wanted.has(k)])),
+    cta: meta.ctaStyles.includes(ctaWanted) ? ctaWanted : 'none',
+    newsletter: meta.hasNewsletter && ['1', 'true', 'on'].includes(one(sp.newsletter) || ''),
+  };
 
   return (
     <>
       <script dangerouslySetInnerHTML={{ __html: OWN_THEME_OFF }} />
-      {/* #1424 —— Webpixels 那一份 CSS，只有图册的两个页面加载（理由在 catalogShared.ts §SITE_CSS_HREF）。 */}
+      {/* #1424 —— Webpixels 那一份 CSS，只有这个单格页加载（理由在 catalogShared.ts §SITE_CSS_HREF）。 */}
       <link rel="stylesheet" href={SITE_CSS_HREF} data-catalog-site-css="" />
       {/* 皮在前、画法在后，跟 `buildThemeCss()` 自己拼出来的顺序一样（`theme-css.js`：
           @import → :root → 画法表）。两张都在 <body> 里 ⟹ 文档顺序在 <head> 那几条 <link>
@@ -129,10 +154,21 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
       >
         {isRegion && block === 'header' ? <Header locale={locale} variant={shape} /> : null}
         {isRegion && block === 'footer' ? <Footer locale={locale} variant={shape} /> : null}
-        {/* #1424 —— Webpixels 那一版顶栏：内容来自演示内容包（槽位契约），不来自 navigation.json。 */}
-        {isRegion && block === 'header-new' ? <HeaderNewSection shape={shape} data={data as HeaderNewData} block={cfg} /> : null}
-        {/* #1455 —— Webpixels 那一版页脚：同上，内容来自演示内容包（全填版带 cta 条 + 订阅框）。 */}
-        {isRegion && block === 'footer-new' ? <FooterNewSection shape={shape} data={data as FooterNewData} block={cfg} /> : null}
+        {/* #1424 / #1455 —— Webpixels 那一版顶栏 / 页脚：内容来自演示内容包（槽位契约），不来自 navigation.json。
+            #1458 —— 它们的选项开关（dark / icons / reverse；footer 的 CTA 条 + 订阅框）住在这一页的工具栏里
+            （§CellOptions），初值可由地址栏给：`?opt=dark,reverse&cta=band&newsletter=1`。 */}
+        {isRegion && hasOptionBar ? (
+          <CellOptions
+            block={block}
+            shape={shape}
+            data={data as Record<string, unknown>}
+            has={cfg.has ?? []}
+            optionKeys={meta.optionKeys}
+            ctaStyles={meta.ctaStyles}
+            hasNewsletter={meta.hasNewsletter}
+            initial={initial}
+          />
+        ) : null}
         {isRegion ? null : <SectionRenderer blocks={[cfg]} locale={locale} />}
       </main>
     </>

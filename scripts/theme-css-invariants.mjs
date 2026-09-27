@@ -4019,7 +4019,7 @@ if (PALETTE_IS_NOT_THE_SHEETS_OWN) {
 // ── ⑨ 的汇总（#1332 AC2：逐格可见 + 逐格断言数的最小值必须 > 0）────────────────────────────────
 {
   const declared = [];
-  // #1424 —— `staging: true` 的块（Webpixels 那一批 `<块>-new`，T3 之前只在图册里）按构造不在演示站上：
+  // #1424 —— `staging: true` 的块（Webpixels 那一批 `<块>-new`，T3 之前客户站不渲染、只在 admin 预览里）按构造不在演示站的客户页上：
   // 演示站只有 Tailwind 的 CSS，它们上去就是没样式的 HTML（设计稿 B1）。所以不算进「必须量到」的分母，
   // 并且在读数里点名跳过了谁 —— 跳过不说出来，就跟「量过了」长得一样。图册那边不跳（block-catalog.js）。
   const staged = [];
@@ -4028,7 +4028,7 @@ if (PALETTE_IS_NOT_THE_SHEETS_OWN) {
     for (const sh of (m.shapes || [])) declared.push(`${t}/${sh.name}`);
   }
   if (staged.length) {
-    readings.push(`  ⑨: 跳过 ${staged.length} 个 staging 块（还没进正式库、演示站按构造不渲染）：${staged.join(', ')}`);
+    readings.push(`  ⑨: 跳过 ${staged.length} 个 staging 块（还没进正式库、客户页按构造不渲染，只在 admin 预览里）：${staged.join(', ')}`);
   }
   const missed = declared.filter((k) => !intentPairsSeen.has(k));
   const counts = intentCells.map((c) => c.checks);

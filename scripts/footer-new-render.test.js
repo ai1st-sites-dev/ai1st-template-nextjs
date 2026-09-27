@@ -8,7 +8,8 @@
  * 为什么是单测而不是只在图册上量：验收 3 / 4 要的是**数据的变体**（服务列空、`contact: false`、
  * `nav` 空、`contact` 整个为空），图册只有一份演示内容，按构造造不出这些。这里直接拿组件在 node 里
  * 渲染（`ts.transpileModule` + `renderToStaticMarkup`，`block-slots.test.js` 同一种做法）。
- * 几何那几条（reverse 贴右、三端、横向滚动、purge）要浏览器，在 `scripts/footer-new-catalog-check.mjs`。
+ * 几何那几条（reverse 贴右、三端、横向滚动、purge）要浏览器：#1458 起整页图册退役，它们归 admin › Blocks & Themes
+ * 那条 e2e（`tests/e2e/specs/1458-admin-fixed-regions.spec.ts`，单格页 `/__catalog/footer-new/<形态>`）。
  *
  * 🔴 每一段都带一格反向对照（同一进程、单变量），证明判据真会红：一道只在真组件上跑的检查恒绿时，
  *    「它在起作用」和「它瞎了」给出同一个读数。
