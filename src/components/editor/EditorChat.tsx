@@ -20,12 +20,31 @@ const usePuck = createUsePuck();
 export interface EditorChatState {
   /** #1454 —— `manual` = 老板在编辑器里点 Save 存下的一笔（正文是编辑器自己算的那句人话）。它的撤销 = 回到这一笔之前，
    *  后面的一起撤掉，跟 AI 那一行同一个后果，所以同一个确认、同一个按钮位置，只是字不说「AI」。 */
-  messages: { key: string; role: 'user' | 'assistant' | 'error' | 'manual'; text: string; messageId?: number; canRevert?: boolean }[];
+  /** #1456 —— 记录里的每一种行都递进来，跟 dashboard 的聊天一模一样：`system`（审计卡片 / Deployed to live 那种居中一行）、
+   *  `theme`（Theme changed，能撤）。哪些行、哪条能撤、带不带时间、卡片上写哪些字都是 dashboard 算好的（它那边
+   *  `lib/chatTimeline.ts` 一处），这里只排版 —— 这个 app 导不了 dashboard 的代码，自己再算一遍就是两份迟早对不上。 */
+  messages: {
+    key: string;
+    role: 'user' | 'assistant' | 'error' | 'manual' | 'system' | 'theme';
+    text: string;
+    messageId?: number;
+    canRevert?: boolean;
+    /** 气泡底下那句相对时间（「5 hours ago」）。没有 = 这一条不带时间（system / error 就没有，同 dashboard）。 */
+    time?: string;
+    /** 这条 system 行是审计事件：画卡片，不画 `text`（那是一段 JSON）。 */
+    audit?: { kind: 'complete'; card: AuditCard } | { kind: 'error'; message: string } | { kind: 'running' };
+  }[];
   /** 正在进行的那一次编辑：进度一句话 + 模型已经说出来的字。`firstAt` = dashboard 收到第一个字的时刻。 */
   live: { status: string; text: string; firstAt: number | null } | null;
   busy: boolean;
   reverting: boolean;
   enabled: boolean;
+}
+
+/** 审计卡片上的字（dashboard `lib/chatTimeline.ts` §auditCard 算的）：标题括号里那句 + 四行。 */
+export interface AuditCard {
+  subtitle: string;
+  rows: { dot: string; label: string; score: number; delta: string }[];
 }
 
 export interface ChatScope { page: string; locale?: string; blockId?: string; blockIndex?: number }
@@ -52,7 +71,7 @@ const C = {
 /**
  * #1454 —— 撤销 `messageId` 那一行时，**还有哪些**改动会跟着没了（老板自己的话 / 手改记录的那句）。同
  * `dashboard/src/components/ChatPanel.tsx` §laterChangesAfter：按聊天算，不按 git 算 —— 聊天是老板看得见的那份。
- * AI 的回复和提示不算改动（AI 的那一笔记在它前面那条老板的话上）。
+ * AI 的回复和提示不算改动（AI 的那一笔记在它前面那条老板的话上）。#1456 —— theme 行（换主题 / 升级）也是一笔改动，同 dashboard 那份。
  */
 function laterChangesAfter(messages: EditorChatState['messages'], messageId: number): string[] {
   const at = messages.findIndex((m) => m.messageId === messageId);
@@ -60,7 +79,7 @@ function laterChangesAfter(messages: EditorChatState['messages'], messageId: num
   const out: string[] = [];
   for (let i = at + 1; i < messages.length; i++) {
     const m = messages[i];
-    if (m.messageId == null || (m.role !== 'user' && m.role !== 'manual')) continue;
+    if (m.messageId == null || (m.role !== 'user' && m.role !== 'manual' && m.role !== 'theme')) continue;
     const oneLine = m.text.replace(/\s+/g, ' ').trim();
     out.push(oneLine.length > 80 ? `${oneLine.slice(0, 80)}…` : oneLine);
   }
@@ -140,10 +159,13 @@ export default function EditorChat({ chat, notice, pending, page, locale, rawKey
           </p>
         )}
         {chat?.messages.map((m) => {
+          if (m.role === 'system') return <SystemRow key={m.key} m={m} />;
           const manual = m.role === 'manual';
-          const later = manual && confirming === m.messageId ? laterChangesAfter(chat.messages, m.messageId as number) : [];
+          // #1456 —— theme 行跟手改那一行是同一种撤销（回到这一笔之前，后面的一起撤掉），同 dashboard 的聊天。
+          const ownChange = manual || m.role === 'theme';
+          const later = ownChange && confirming === m.messageId ? laterChangesAfter(chat.messages, m.messageId as number) : [];
           return (
-          <div key={m.key} data-editor-chat-msg={m.role} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '88%' }}>
+          <div key={m.key} data-editor-chat-msg={m.role} data-message-id={m.messageId} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '88%' }}>
             {manual && <div style={{ fontSize: 11, color: C.faint, marginBottom: 2 }}>You saved</div>}
             <div style={{
               padding: '8px 12px', borderRadius: 10, fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
@@ -151,13 +173,16 @@ export default function EditorChat({ chat, notice, pending, page, locale, rawKey
               color: m.role === 'user' ? '#fff' : m.role === 'error' ? C.errText : manual ? C.manualText : C.text,
             }}>
               {m.text}
+              {m.time && (
+                <div data-editor-chat-time style={{ marginTop: 6, fontSize: 11, color: m.role === 'user' ? 'rgba(255,255,255,0.7)' : C.faint, whiteSpace: 'normal' }}>{m.time}</div>
+              )}
             </div>
             {m.canRevert && m.messageId != null && (
               confirming === m.messageId ? (
                 <div data-editor-chat-revert-confirm style={{ marginTop: 6, padding: 8, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12, color: C.sub, lineHeight: 1.5 }}>
-                  {manual ? (
+                  {ownChange ? (
                     <>
-                      Your website goes back to the way it was before this save.
+                      {manual ? 'Your website goes back to the way it was before this save.' : 'Your website goes back to the way it looked before this change.'}
                       {later.length > 0 && (
                         <>
                           <div style={{ marginTop: 6 }}>{`This also undoes the ${later.length} change${later.length === 1 ? '' : 's'} made after it:`}</div>
@@ -184,11 +209,11 @@ export default function EditorChat({ chat, notice, pending, page, locale, rawKey
                     type="button"
                     data-editor-chat-revert={m.messageId}
                     disabled={busy}
-                    title={manual ? 'Put the website back the way it was before this save' : 'Put the website back the way it was before this message (the whole AI change)'}
+                    title={manual ? 'Put the website back the way it was before this save' : ownChange ? 'Put the website back the way it looked before this change' : 'Put the website back the way it was before this message (the whole AI change)'}
                     onClick={() => setConfirming(m.messageId as number)}
                     style={{ ...btn(false), fontSize: 12, opacity: busy ? 0.5 : 1 }}
                   >
-                    {manual ? 'Revert this save' : 'Revert whole AI change'}
+                    {manual ? 'Revert this save' : ownChange ? 'Revert this change' : 'Revert whole AI change'}
                   </button>
                 </div>
               )
@@ -246,6 +271,43 @@ export default function EditorChat({ chat, notice, pending, page, locale, rawKey
       </div>
     </aside>
   );
+}
+
+/**
+ * #1456 —— 一条 system 行，画法同 dashboard 的聊天（`ChatPanel.tsx` §renderBubble 的 system 那一支）：审计结果是一张卡片、
+ * 审计失败是一张红卡片、审计进行中是 ⏳ 一行，其余（「Deployed to live: …」）居中一行灰字。都不带时间，也没有撤销。
+ * 🔴 卡片不用 dashboard 那张 `<table>`：左栏只有两百来像素，四列定宽加起来就把「Best Practices」那格挤没了。这里每一行
+ *    是「圆点 · 名称 · 分数 · 差值」四格的 grid，名称那格可以换行、不截断。
+ */
+function SystemRow({ m }: { m: EditorChatState['messages'][number] }) {
+  const a = m.audit;
+  if (a?.kind === 'complete') {
+    return (
+      <div data-editor-chat-msg="system" data-message-id={m.messageId} data-editor-chat-audit="complete" style={{ alignSelf: 'stretch', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 12px', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 13, lineHeight: 1.6, color: C.text }}>
+        <div data-editor-chat-audit-title style={{ color: C.sub, marginBottom: 4, overflowWrap: 'anywhere' }}>🔍 Site Audit ({a.card.subtitle})</div>
+        {a.card.rows.map((r) => (
+          <div key={r.label} data-editor-chat-audit-row style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr) auto auto', columnGap: 8, alignItems: 'baseline' }}>
+            <span data-audit-dot>{r.dot}</span>
+            <span data-audit-label style={{ overflowWrap: 'anywhere' }}>{r.label}</span>
+            <span data-audit-score style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{r.score}</span>
+            <span data-audit-delta style={{ textAlign: 'right', color: C.faint }}>{r.delta}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (a?.kind === 'error') {
+    return (
+      <div data-editor-chat-msg="system" data-message-id={m.messageId} data-editor-chat-audit="error" style={{ alignSelf: 'stretch', background: C.err, border: '1px solid #fecdca', borderRadius: 8, padding: '10px 12px', fontSize: 13, lineHeight: 1.6, color: C.errText }}>
+        <div style={{ fontWeight: 600, marginBottom: 4 }}>⚠️ Site audit failed</div>
+        <div style={{ color: C.sub, fontSize: 12, overflowWrap: 'anywhere' }}>Reason: {a.message}</div>
+      </div>
+    );
+  }
+  if (a?.kind === 'running') {
+    return <div data-editor-chat-msg="system" data-message-id={m.messageId} data-editor-chat-audit="running" style={{ textAlign: 'center', color: C.faint, fontSize: 13, padding: '4px 0', fontStyle: 'italic' }}>⏳ Running site audit… (~30s)</div>;
+  }
+  return <div data-editor-chat-msg="system" data-message-id={m.messageId} style={{ textAlign: 'center', color: C.faint, fontSize: 13, padding: '4px 0', overflowWrap: 'anywhere' }}>{m.text}</div>;
 }
 
 function btn(primary: boolean) {

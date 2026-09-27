@@ -884,9 +884,10 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
   useEffect(() => {
     if (!trustedOrigin || window.parent === window) return;
     // #1454 —— `manualRows: 1`：这一版的聊天认得「手改记录」那种行（dashboard 据此才把它们递进来，老编辑器不认）。
+    // #1456 —— `allRows: 1`：这一版的聊天认得记录里的每一种行（system 行的审计卡片 / 居中一行、theme 行），跟 dashboard 的聊天一样。
     // #1453 —— `autosave: 1`：这一版没有 Save 按钮、自己存。dashboard 据此在关编辑器前也先问一次 `editor-leave`
     // （停手计时器里那一笔还没交出去，直接卸掉 iframe 它就没了），并认 `ai1st:editor-reload`。
-    window.parent.postMessage({ type: 'ai1st:editor-ready', page, locale, baseline: 1, manualRows: 1, autosave: 1, ...(pages ? { pages } : {}) }, trustedOrigin);
+    window.parent.postMessage({ type: 'ai1st:editor-ready', page, locale, baseline: 1, manualRows: 1, allRows: 1, autosave: 1, ...(pages ? { pages } : {}) }, trustedOrigin);
   }, [trustedOrigin, page, locale, pages]);
 
   // dashboard 发来的两种消息。🔴 只认那一个 origin。
