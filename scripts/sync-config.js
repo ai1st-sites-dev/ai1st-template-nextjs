@@ -1008,13 +1008,17 @@ console.log(`  Generated public/theme.css — ${themeCssOrigin} (${themeCssBytes
 // 🔴 **今天没有任何客户页面引用它**（设计稿 B1：客户站在 T4 之前只有 Tailwind）。唯一的读者是 dev 里的
 //    图册 `/__catalog`。它仍然每次构建都编，是因为 T4 之后它就是客户页那一份 CSS，而容器那条命令只调
 //    sync-config —— 编译链现在就在这三条路上跑，体积和耗时现在就量得到。
-// 🔴 失败就 exit 1，不吞：编不出来的时候静默跳过，图册会拿着上一次那份旧的 site.css 看起来一切正常。
+// 🔴 编不出来【不】exit 1（#1424 QA2 打回）：这份 CSS 今天没有任何客户页面读它，而容器那条命令是
+//    `sync-config && next build` —— exit 1 就是「为了一份没人读的文件，这个站从此建不出来」
+//    （实测：brand.json 主色写成 `rgb(…)` / 8 位 hex，main 上 rc=0，这里曾经 rc=1）。跟 #1161 同一个理由。
+//    但也不静默：先删掉上一次那份旧的 site.css（否则图册会拿着旧文件看起来一切正常），再喊一行。
+//    📌 T4 之后它就是客户页那一份 CSS，那时候失败方向要重新定 —— 缺了它整站没样式。
 require('./lib/site-css.js').writeSiteCss({ brand, rootDir })
   .then((r) => console.log(`  Generated public/site.css — Webpixels, $primary ${r.primary}, `
     + `purged ${r.rawBytes} → ${r.bytes} bytes (${r.ms} ms)`))
   .catch((e) => {
-    console.error(`  🔴 public/site.css: ${e && e.message}`);
-    process.exit(1);
+    fs.rmSync(path.join(publicDir, 'site.css'), { force: true });
+    console.error(`  🔴 public/site.css 没编出来，旧的那份已删掉（今天没有客户页面引用它，构建照常往下走）: ${e && e.message}`);
   });
 
 // ─── #1198 §「这个站会长成地板样」守卫 ────────────────────────────────────────────────────────
