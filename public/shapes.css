@@ -5849,47 +5849,87 @@
 }
 
 /* ══ footer-new ══════════════════════════════════════════════════════════════════════ */
-/* ── footer-new · slim-row（默认）────────────────────────────────────────────────────────────────
-   排版全在 markup 的工具类里（768 以下 `flex-column` 上下叠，768 起 `flex-md-row` 一行、
-   `justify-content-between`；reverse 是 `flex-md-row-reverse`）。这里只补一条工具类表达不了的：
-   中间那组页面链接是 flex 项，默认 `min-width: auto` —— 链接一多它不肯缩，整行被撑出页脚右边。
+/* footer-new · 旋钮派生的排版（#1464）—— 六个预设共用这一份
+
+   Section 在根上挂 `ftr-layout-<row|stacked|columns>` · `ftr-cta-<none|centered|boxed|inline>`，外加
+   `ftr-reverse`。排版本身全在 markup 的 Webpixels 工具类里；这里只放工具类表达不了的那几条。
+   🔴 为什么不在各预设的 shape.css 里写：旋钮能拧成预设表外的组合（Custom），那种组合没有文件夹；
+      而且生成器要求 shape.css 里每条规则以 `[data-shape="<该形态>"]` 开头
+      （`scripts/block-build/build-blocks.js` §assertPieceOwnsItsRules），跨形态的规则只能住这里。
+   📌 下面三条是 T2.2 各形态 shape.css 里原有的规则，按排布搬过来，内容不变。 */
+
+/* row：中间那组页面链接是 flex 项，默认 `min-width: auto` —— 链接一多它不肯缩，整行被撑出页脚右边。
    缩到 0 之后，链接在自己那一格里换行（它自己的 `ul` 带 `flex-wrap`）。 */
-[data-block="footer-new"][data-shape="slim-row"] .ftr-nav {
+[data-block="footer-new"].ftr-layout-row .ftr-nav {
   min-width: 0;
 }
 
-/* ── footer-new · centered ──────────────────────────────────────────────────────────────────────
-   排版全在 markup 的工具类里（`d-flex flex-column align-items-center text-center`，每一行自己
-   `flex-wrap` + `justify-content-center`；reverse 是各行 `flex-row-reverse`）。这里只补一条工具类没有的：
-   联系一行 / 链接里的一个**不可断的长词**（真站的邮箱、长网址）会把整行撑出页脚、整页横向滚动 ——
-   columns 形态在 390 上实测撞过（`service@northsideauto.ca` 画到 419）。演示内容在这个形态上没撞到，
-   这一条防的是真站那一份更长的。 */
-[data-block="footer-new"][data-shape="centered"] .container-lg a,
-[data-block="footer-new"][data-shape="centered"] .container-lg span {
+/* stacked：联系一行 / 链接里的一个**不可断的长词**（真站的邮箱、长网址）会把整行撑出页脚、整页横向滚动 ——
+   columns 在 390 上实测撞过（`service@northsideauto.ca` 画到 419）。 */
+[data-block="footer-new"].ftr-layout-stacked .container-lg a,
+[data-block="footer-new"].ftr-layout-stacked .container-lg span {
   overflow-wrap: anywhere;
 }
 
-/* ── footer-new · columns ───────────────────────────────────────────────────────────────────────
-   排版全在 markup 的工具类里（Bootstrap 的 `row` / `col-6 col-lg`：768 以下两列一行、992 起一行排开；
-   reverse 是 `flex-lg-row-reverse` + 品牌列 `align-items-end text-end`）。这里只补一条工具类没有的：
-   列里的一条链接 / 联系方式是**一个不可断的长词**（邮箱、长网址）时，`col-6` 在 390 上只有 ~170px，
-   它会伸出页脚、整页横向滚动（390 实测：`service@northsideauto.ca` 画到 419）。让它在任意处换行。 */
-[data-block="footer-new"][data-shape="columns"] [data-footer-col] a,
-[data-block="footer-new"][data-shape="columns"] [data-footer-col] span {
+/* columns：列里的一条链接 / 联系方式是一个不可断的长词时，`col-6` 在 390 上只有 ~170px，它会伸出页脚。 */
+[data-block="footer-new"].ftr-layout-columns [data-footer-col] a,
+[data-block="footer-new"].ftr-layout-columns [data-footer-col] span {
   overflow-wrap: anywhere;
 }
 
-/* ── footer-new · minimal ───────────────────────────────────────────────────────────────────────
-   排版全在 markup 的工具类里（768 以下 `flex-column` 上下叠，768 起 `flex-md-row` 左右两组、
-   `align-items-md-end` 底对齐；reverse 是 `flex-md-row-reverse`）。这里只补一条工具类没有的：
-   邮箱 + 营业时间那一行、底栏的地址里一个**不可断的长词**（真站的邮箱）会把整行撑出页脚 ——
-   columns 形态在 390 上实测撞过。演示内容在这个形态上没撞到，这一条防的是真站那一份更长的。
-   🔴 大字号电话（`display-6`）不在射程里：号码断在中间比溢出更难读。它是一个不在 `span` 里的 `a`，
-      所以上面两条选择器按构造够不着它。 */
-[data-block="footer-new"][data-shape="minimal"] .container-lg span > a,
-[data-block="footer-new"][data-shape="minimal"] .container-lg span {
-  overflow-wrap: anywhere;
-}
+/* ── footer-new · slim-row = 预设（layout=row · cta=none）────────────────────────────────────────
+   🔴 #1464 起这个文件夹**只是一个名字**：预设 = 两个旋钮的一组值（manifest 的 `presets`），排版全在
+      `blocks/footer-new/block.css`，按 Section 从旋钮派生的类（`ftr-layout-*` / `ftr-cta-*`）点名 ——
+      旋钮能拧成预设表外的组合（Custom），那种组合没有文件夹，几何按文件夹写就无处可落。
+   🔴 下面这条空规则是**锚点**，别删（理由同 `blocks/header-new/stacked/shape.css`）：`readShapeDir` 拒绝
+      空的 shape.css；`theme-pipeline/pool.test.js` §⑪ 要主题选择单里的名字在 `public/shapes.css` 里有一条
+      `[data-block][data-shape="<名>"]` 规则。 */
+[data-block="footer-new"][data-shape="slim-row"] {}
+
+/* ── footer-new · stacked = 预设（layout=stacked · cta=none）────────────────────────────────────────
+   🔴 #1464 起这个文件夹**只是一个名字**：预设 = 两个旋钮的一组值（manifest 的 `presets`），排版全在
+      `blocks/footer-new/block.css`，按 Section 从旋钮派生的类（`ftr-layout-*` / `ftr-cta-*`）点名 ——
+      旋钮能拧成预设表外的组合（Custom），那种组合没有文件夹，几何按文件夹写就无处可落。
+   🔴 下面这条空规则是**锚点**，别删（理由同 `blocks/header-new/stacked/shape.css`）：`readShapeDir` 拒绝
+      空的 shape.css；`theme-pipeline/pool.test.js` §⑪ 要主题选择单里的名字在 `public/shapes.css` 里有一条
+      `[data-block][data-shape="<名>"]` 规则。 */
+[data-block="footer-new"][data-shape="stacked"] {}
+
+/* ── footer-new · columns = 预设（layout=columns · cta=none）────────────────────────────────────────
+   🔴 #1464 起这个文件夹**只是一个名字**：预设 = 两个旋钮的一组值（manifest 的 `presets`），排版全在
+      `blocks/footer-new/block.css`，按 Section 从旋钮派生的类（`ftr-layout-*` / `ftr-cta-*`）点名 ——
+      旋钮能拧成预设表外的组合（Custom），那种组合没有文件夹，几何按文件夹写就无处可落。
+   🔴 下面这条空规则是**锚点**，别删（理由同 `blocks/header-new/stacked/shape.css`）：`readShapeDir` 拒绝
+      空的 shape.css；`theme-pipeline/pool.test.js` §⑪ 要主题选择单里的名字在 `public/shapes.css` 里有一条
+      `[data-block][data-shape="<名>"]` 规则。 */
+[data-block="footer-new"][data-shape="columns"] {}
+
+/* ── footer-new · cta-row = 预设（layout=row · cta=centered）────────────────────────────────────────
+   🔴 #1464 起这个文件夹**只是一个名字**：预设 = 两个旋钮的一组值（manifest 的 `presets`），排版全在
+      `blocks/footer-new/block.css`，按 Section 从旋钮派生的类（`ftr-layout-*` / `ftr-cta-*`）点名 ——
+      旋钮能拧成预设表外的组合（Custom），那种组合没有文件夹，几何按文件夹写就无处可落。
+   🔴 下面这条空规则是**锚点**，别删（理由同 `blocks/header-new/stacked/shape.css`）：`readShapeDir` 拒绝
+      空的 shape.css；`theme-pipeline/pool.test.js` §⑪ 要主题选择单里的名字在 `public/shapes.css` 里有一条
+      `[data-block][data-shape="<名>"]` 规则。 */
+[data-block="footer-new"][data-shape="cta-row"] {}
+
+/* ── footer-new · cta-stacked = 预设（layout=stacked · cta=inline）────────────────────────────────────────
+   🔴 #1464 起这个文件夹**只是一个名字**：预设 = 两个旋钮的一组值（manifest 的 `presets`），排版全在
+      `blocks/footer-new/block.css`，按 Section 从旋钮派生的类（`ftr-layout-*` / `ftr-cta-*`）点名 ——
+      旋钮能拧成预设表外的组合（Custom），那种组合没有文件夹，几何按文件夹写就无处可落。
+   🔴 下面这条空规则是**锚点**，别删（理由同 `blocks/header-new/stacked/shape.css`）：`readShapeDir` 拒绝
+      空的 shape.css；`theme-pipeline/pool.test.js` §⑪ 要主题选择单里的名字在 `public/shapes.css` 里有一条
+      `[data-block][data-shape="<名>"]` 规则。 */
+[data-block="footer-new"][data-shape="cta-stacked"] {}
+
+/* ── footer-new · cta-columns = 预设（layout=columns · cta=boxed）────────────────────────────────────────
+   🔴 #1464 起这个文件夹**只是一个名字**：预设 = 两个旋钮的一组值（manifest 的 `presets`），排版全在
+      `blocks/footer-new/block.css`，按 Section 从旋钮派生的类（`ftr-layout-*` / `ftr-cta-*`）点名 ——
+      旋钮能拧成预设表外的组合（Custom），那种组合没有文件夹，几何按文件夹写就无处可落。
+   🔴 下面这条空规则是**锚点**，别删（理由同 `blocks/header-new/stacked/shape.css`）：`readShapeDir` 拒绝
+      空的 shape.css；`theme-pipeline/pool.test.js` §⑪ 要主题选择单里的名字在 `public/shapes.css` 里有一条
+      `[data-block][data-shape="<名>"]` 规则。 */
+[data-block="footer-new"][data-shape="cta-columns"] {}
 
 /* ══ header ══════════════════════════════════════════════════════════════════════ */
 /* ══════════════════════════════════════════════════════════════════════════════════════════════

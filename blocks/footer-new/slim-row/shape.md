@@ -1,6 +1,6 @@
 ---
-order: 0
-summary: "Webpixels 6 · FlyonUI #1 · 现有 slim-row · 一行：logo · 链接 · 社交 · 底下版权 + 电话 · 电话永远露出（SEO）"
+order: 1
+summary: "Webpixels footer-6 · FlyonUI #1 · 一行：logo · 链接 · 社交 · 底栏电话 + 城市 / 版权 + 法务（默认）"
 source: webpixels/section-footer-6 · flyonui#1
 layout_intent:
   align: stretch
@@ -13,6 +13,8 @@ layout_intent:
 ---
 
 # footer-new · slim-row
+
+**旋钮：** layout=row · cta=none
 
 **长什么样：** 一行：logo · 页面链接 · 社交；底栏左电话 + 城市、右版权 + 法务（默认）
 

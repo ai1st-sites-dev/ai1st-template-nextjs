@@ -1,6 +1,6 @@
 ---
-order: 2
-summary: "Webpixels 1 / 1b / 2 / 3 · FlyonUI #2 #5 · 现有 multi-column · 品牌列 + 服务 / 服务区域 / 页面 / 联系 四种列 · 底栏版权 + 法务 · 列是固定语义、AI 从站内数据填、空列不渲染；订阅框挂品牌列下（可选）"
+order: 3
+summary: "Webpixels footer-1 / 2 · FlyonUI #2 #5 · 品牌列 + 服务 / 服务区域 / 页面 / 联系 四种列 · 底栏版权 + 法务"
 needs:
   - columns
 source: webpixels/section-footer-1 · flyonui#2
@@ -16,6 +16,8 @@ layout_intent:
 
 # footer-new · columns
 
-**长什么样：** 品牌列（logo · 一句话 · 社交）+ 最多 4 列（服务 / 服务区域 / 页面 / 联系）· 底栏版权 + 法务
+**旋钮：** layout=columns · cta=none
 
-**出处：** Webpixels footer-1 / 2 / 3 · FlyonUI #2 #5 · 旧 `footer/multi-column`
+**长什么样：** 品牌列（logo · 一句话 · 社交）+ 最多 4 列（服务 / 服务区域 / 页面 / 联系）· 底栏版权 + 法务；列是固定语义，空列不渲染
+
+**出处：** Webpixels footer-1 / 2 · FlyonUI #2 #5 · 旧 `footer/multi-column`

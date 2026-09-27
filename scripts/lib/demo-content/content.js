@@ -664,10 +664,10 @@ const DEMO_CONTENT = {
     options: { dark: false, icons: false, reverse: false },
   },
 
-  // #1455 —— Webpixels 那一版页脚（`staging: true`，只在图册里）。4 个形态吃同一份；`cta` / `newsletter`
+  // #1455 —— Webpixels 那一版页脚（`staging: true`，只在图册里）。6 个预设吃同一份；`cta` / `form`
   // 两个可选部件也填上，单格页工具栏上的勾选 / 单选才有东西可切（#1458 起开关住在 `[shape]/CellOptions.tsx`）。
   // 🔴 `nav` / `social` / `legal` 是顶层 list 槽，守卫 (c) 要各 ≥ 6 项、最长 ≥ 最短 2 倍（网址记 0 字，
-  //    `icon` 是字、要算进去）。`columns` / `contact` / `cta` / `newsletter` 是 object，底下的 list 不查。
+  //    `icon` 是字、要算进去）。`columns` / `contact` / `cta` / `form` 是 object，底下的 list 不查。
   'footer-new': {
     logo: imageUrl('logo-mark-alt'),
     brandName: SITE,
@@ -719,7 +719,6 @@ const DEMO_CONTENT = {
     ],
     copyright: `© 2026 ${SITE}. OMVIC licensed.`,
     cta: {
-      style: 'band',
       title: 'Car making a noise you do not like?',
       subtitle: 'Book a free 15-minute check. We tell you what it is and what it costs before any work starts.',
       buttons: [
@@ -727,11 +726,12 @@ const DEMO_CONTENT = {
         { label: 'Call (416) 555-0142', href: 'tel:+14165550142', style: 'outline' },
       ],
     },
-    newsletter: {
-      title: 'Seasonal reminders',
-      blurb: 'Two emails a year: when to switch tires, and what to check before winter.',
-      placeholder: 'you@example.com',
-      buttonLabel: 'Subscribe',
+    // #1464 —— 部件 `form`（跟 hero 同一个表单部件）；样式 inline / stacked 由单格页工具栏切。
+    form: {
+      style: 'inline',
+      fields: ['phone'],
+      buttonText: 'Call me back',
+      successMessage: "Thanks! We'll call you back within the hour.",
     },
     options: { dark: false, reverse: false },
   },

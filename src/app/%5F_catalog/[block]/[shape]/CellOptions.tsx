@@ -4,15 +4,17 @@
 //
 // 整页索引 board 退役之后，这几个开关是从它那两行（HeaderNewRow / FooterNewRow）搬来的：块的唯一可看面
 // 是 admin › Blocks & Themes，而那一页的卡片和「新窗口」嵌的都是这一页 —— 开关住在这里，两处都能切。
-// 🔴 开关有哪些不是写死的名单：`optionKeys` / `ctaStyles` / `hasNewsletter` / `knobs` / `presets` 由服务端
+// 🔴 开关有哪些不是写死的名单：`optionKeys` / `widgets` / `knobs` / `presets` 由服务端
 //    从 manifest 读出来（page.dev.tsx §optionMetaOf），第三个带选项的块出现时这里不用改。
 // 🔴 hydration 之前勾它，勾选框变了、页面不变 —— 一个会骗人的开关；所以 `ready` 之前全部 disabled。
 //
 // #1462 —— **预设 + 旋钮**（照定稿图册 `docs/reference/webpixels/gallery/build.py` 那条工具栏）：
-//   顺序 = 预设一排（外加 Custom）→ 排布旋钮（logo · menu · topbar）→ 修饰（reverse · dark）→ 部件（icons）。
+//   顺序 = 预设一排（外加 Custom）→ 排布旋钮（logo · menu · topbar）→ 修饰（reverse · dark）→ 部件。
 //   点预设 = 三个旋钮一次设好；拧旋钮后跟任何预设都对不上 ⟹ Custom 亮。不成立的组合当场纠正，用的是
 //   Section 渲染时同一个纯函数（`scripts/lib/header-knobs.js` §normalizeKnobs），拧了谁谁不让步。
 //   单开（「新窗口」，不带 embed）时改动 `replaceState` 回地址栏，刷新还在；被 admin 嵌着时不碰地址栏。
+// #1464 —— **部件**（`widgets`，§page.dev.tsx optionMetaOf）：每个一组单选 none + 样式，排在修饰后面（全站统一顺序
+//   排布旋钮 → 修饰 → 部件）。选 none = 这一格不带那个槽；选一种样式 = 槽照旧、`style` 换成它。
 
 import { useEffect, useState } from 'react';
 import FooterNewSection, { type FooterNewData } from '@blocks/footer-new/Section';
@@ -24,13 +26,15 @@ import { normalizeKnobs, presetOf } from '../../../../../scripts/lib/header-knob
 export interface CellOptionsInitial {
   knobs: Record<string, string>;
   opts: Record<string, boolean>;
-  cta: string;
-  newsletter: boolean;
+  /** 槽名 → 选中的样式（`none` = 不带这个部件）。 */
+  widgets: Record<string, string>;
 }
 
 interface Knob { name: string; values: string[] }
 /** manifest 顶层 `presets` 的一项（PM 19:01 冻结）：`name` 显示名 · `shape` 形态目录名 · `knobs` 旋钮值。 */
 export interface Preset { name: string; shape: string; knobs: Record<string, string> }
+/** #1464 —— 一个带样式单选的可选部件：槽名 + 它 shape 开头那个 `style` 的几种值。 */
+export interface Widget { slot: string; styles: string[] }
 
 interface Props {
   block: string;
@@ -38,8 +42,7 @@ interface Props {
   data: Record<string, unknown>;
   has: string[];
   optionKeys: string[];
-  ctaStyles: string[];
-  hasNewsletter: boolean;
+  widgets: Widget[];
   knobs: Knob[];
   presets: Preset[];
   coupling: [string, string] | null;
@@ -64,12 +67,11 @@ const presetStyle = (on: boolean, custom = false) => ({
 });
 
 export default function CellOptions({
-  block, shape, data, has, optionKeys, ctaStyles, hasNewsletter, knobs: knobDefs, presets, coupling, iconTable, initial, showBar = true,
+  block, shape, data, has, optionKeys, widgets: widgetDefs, knobs: knobDefs, presets, coupling, iconTable, initial, showBar = true,
 }: Props) {
   const [knobs, setKnobs] = useState<Record<string, string>>(initial.knobs);
   const [opts, setOpts] = useState<Record<string, boolean>>(initial.opts);
-  const [cta, setCta] = useState<string>(initial.cta);
-  const [newsletter, setNewsletter] = useState<boolean>(initial.newsletter);
+  const [widgets, setWidgets] = useState<Record<string, string>>(initial.widgets);
   const [ready, setReady] = useState(false);
   useEffect(() => { setReady(true); }, []);
 
@@ -90,23 +92,23 @@ export default function CellOptions({
     for (const k of knobDefs) u.searchParams.set(k.name, knobs[k.name]);
     const on = optionKeys.filter((k) => opts[k]);
     if (on.length) u.searchParams.set('opt', on.join(',')); else u.searchParams.delete('opt');
-    if (ctaStyles.length) { if (cta !== 'none') u.searchParams.set('cta', cta); else u.searchParams.delete('cta'); }
-    if (hasNewsletter) { if (newsletter) u.searchParams.set('newsletter', '1'); else u.searchParams.delete('newsletter'); }
+    for (const w of widgetDefs) { const v = widgets[w.slot]; if (v && v !== 'none') u.searchParams.set(w.slot, v); else u.searchParams.delete(w.slot); }
     if (u.href !== window.location.href) window.history.replaceState(window.history.state, '', u.href);
-  }, [ready, showBar, knobs, opts, cta, newsletter, knobDefs, optionKeys, ctaStyles, hasNewsletter]);
+  }, [ready, showBar, knobs, opts, widgets, knobDefs, optionKeys, widgetDefs]);
 
   // 选项两个版本都吃；两个可选部件只有数据里真有时才给（最少版按构造没有，关掉就删）。
   const out: Record<string, unknown> = {
     ...data,
     options: { ...((data.options as object) || {}), ...opts, ...knobs, ...(preset ? { preset } : {}) },
   };
-  if (hasNewsletter && !newsletter) delete out.newsletter;
-  if (ctaStyles.length) {
-    if (cta === 'none' || !out.cta) delete out.cta;
-    else out.cta = { ...(out.cta as object), style: cta };
+  for (const w of widgetDefs) {
+    const v = widgets[w.slot];
+    if (!v || v === 'none' || !out[w.slot]) delete out[w.slot];
+    else out[w.slot] = { ...(out[w.slot] as object), style: v };
   }
   // `data-has-*` 跟着真实渲染的数据走：关掉的可选部件不许还挂着「有它」。
-  const hasNow = has.filter((s) => (s === 'newsletter' ? !!out.newsletter : s === 'cta' ? !!out.cta : true));
+  const widgetSlots = new Set(widgetDefs.map((w) => w.slot));
+  const hasNow = has.filter((s) => (widgetSlots.has(s) ? !!out[s] : true));
   const cfg: BlockConfig = { type: block, shape, data: out, has: hasNow } as BlockConfig;
 
   return (
@@ -147,20 +149,18 @@ export default function CellOptions({
             <span>{k}</span>
           </label>
         ))}
-        {hasNewsletter && (
-          <label style={labelStyle}>
-            <input type="checkbox" data-catalog-option="newsletter" disabled={!ready} checked={newsletter}
-              onChange={(e) => setNewsletter(e.target.checked)} />
-            <span>newsletter</span>
-          </label>
-        )}
-        {ctaStyles.length > 0 && <span>cta:</span>}
-        {ctaStyles.length > 0 && ['none', ...ctaStyles].map((s) => (
-          <label key={s} style={labelStyle}>
-            <input type="radio" name="catalog-cta" data-catalog-cta={s} disabled={!ready} checked={cta === s}
-              onChange={() => setCta(s)} />
-            <span>{s}</span>
-          </label>
+        {widgetDefs.length > 0 && (knobDefs.length > 0 || optionKeys.length > 0) && <span style={sepStyle} />}
+        {widgetDefs.map((w) => (
+          <span key={w.slot} style={groupStyle} data-catalog-widget={w.slot}>
+            <b>{w.slot}</b>
+            {['none', ...w.styles].map((v) => (
+              <label key={v} style={labelStyle}>
+                <input type="radio" name={`catalog-widget-${w.slot}`} data-catalog-widget-value={v} disabled={!ready}
+                  checked={(widgets[w.slot] || 'none') === v} onChange={() => setWidgets((x) => ({ ...x, [w.slot]: v }))} />
+                <span>{v}</span>
+              </label>
+            ))}
+          </span>
         ))}
       </div>
       )}

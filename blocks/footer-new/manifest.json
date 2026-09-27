@@ -67,21 +67,34 @@
       "kind": "object",
       "required": false,
       "promptOptional": true,
-      "shape": "{style: \"band\" | \"bar\" | \"row\", title, subtitle?, buttons: [{label, href, style: \"solid\" | \"outline\" | \"link\"}]}"
+      "shape": "{title, subtitle?, buttons: [{label, href, style: \"solid\" | \"outline\" | \"link\"}]}"
     },
-    "newsletter": {
+    "form": {
       "kind": "object",
       "required": false,
       "promptOptional": true,
-      "shape": "{title, blurb?, placeholder, buttonLabel}"
+      "shape": "{style: \"inline\" | \"stacked\", fields: [\"name\" | \"phone\" | \"email\" | \"message\" | \"service\"], buttonText, successMessage, redirect?}",
+      "choices": { "fields": ["name", "phone", "email", "message", "service"] }
     },
     "options": {
       "kind": "object",
       "required": false,
       "promptOptional": true,
-      "shape": "{dark: bool, reverse: bool}"
+      "shape": "{preset?: string, layout, cta, reverse: bool, dark: bool}",
+      "knobs": [
+        { "name": "layout", "values": ["row", "stacked", "columns"] },
+        { "name": "cta", "values": ["none", "centered", "boxed", "inline"] }
+      ]
     }
   },
+  "presets": [
+    { "name": "slim-row", "shape": "slim-row", "knobs": { "layout": "row", "cta": "none" } },
+    { "name": "stacked", "shape": "stacked", "knobs": { "layout": "stacked", "cta": "none" } },
+    { "name": "columns", "shape": "columns", "knobs": { "layout": "columns", "cta": "none" } },
+    { "name": "cta-row", "shape": "cta-row", "knobs": { "layout": "row", "cta": "centered" } },
+    { "name": "cta-stacked", "shape": "cta-stacked", "knobs": { "layout": "stacked", "cta": "inline" } },
+    { "name": "cta-columns", "shape": "cta-columns", "knobs": { "layout": "columns", "cta": "boxed" } }
+  ],
   "industries": {
     "required": [],
     "recommended": [],
