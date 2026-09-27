@@ -54,6 +54,7 @@ next-env.d.ts
 # playwright
 test-results/
 
-# #1424 — sync-config.js 每次构建都编它（lib/site-css.js），图标字体跟着拷进来。
+# #1424 — sync-config.js 每次构建都编它（lib/site-css.js）。
 public/site.css
+# #1462 起不再生成（图标改内联 SVG）；这一行留着，挡住 #1462 之前的树里还躺着的那份旧拷贝。
 public/fonts/bootstrap-icons.woff2

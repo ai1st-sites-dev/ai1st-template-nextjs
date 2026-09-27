@@ -13,7 +13,8 @@
 //
 // ── 链 ───────────────────────────────────────────────────────────────────────────────────────────
 //   brand.json 的 colors.primary['500']  →  `$primary: <色>;`  →  `@import "@webpixels/css/all"`
-//                                         →  `@import "bootstrap-icons/font/bootstrap-icons"`
+//   📌 #1462 起不再编图标字体：图标是按名内联的 SVG（`scripts/lib/icons.js`），这份 CSS 里没有 `.bi-*`、
+//      `public/fonts/` 下也不再拷 woff2（Chris 2026-09-27 拍板「不引字体」）。
 //   🔴 `$primary` 必须在 `@import` **之前**赋值（Webpixels 的变量全带 `!default`）。这就是 sass 钉
 //      1.79.4 的理由：它对 `@import` 只打弃用警告，更新的版本会把 `@import` 删掉，而换成 `@use`
 //      是另一件事（`@use … with (…)` 的写法不同），不在 #1424。
@@ -25,15 +26,12 @@
 // import 进 app（B1：客户站在 T4 之前不许挂 Bootstrap 的 CSS），它是 `public/` 下的一份静态文件，
 // 只有图册那条 dev 路由用 `<link>` 引它。Tailwind 的 content 扫描只管 Tailwind 自己的类。
 // PurgeCSS 按「内容里出现过的词」留规则 —— 跟 Tailwind 的 content 扫描同一种判法，词法抽取、不跑代码。
-//   content = blocks/**/*.tsx + src/**/*.tsx；外加一份 safelist：数据里写着的图标名（§iconClassesIn）。
+//   content = blocks/**/*.tsx + src/**/*.tsx。
 
 const fs = require('fs');
 const path = require('path');
 
 const NEXT_DIR = path.resolve(__dirname, '..', '..');
-
-/** 图标字体：`public/` 下的落点（`site.css` 里的 `@font-face` 指着它）。 */
-const ICON_FONT_PUBLIC = '/fonts/bootstrap-icons.woff2';
 
 /** 从 brand 取主色。取不到就抛 —— 编一份「默认蓝」出来是一次静默的掉色。 */
 function primaryOf(brand) {
@@ -51,8 +49,6 @@ function siteScss(primary) {
     '// 生成的 —— scripts/lib/site-css.js（#1424）。$primary 必须在 @import 之前。',
     `$primary: ${primary};`,
     '@import "@webpixels/css/all";',
-    `$bootstrap-icons-font-src: url("${ICON_FONT_PUBLIC}") format("woff2");`,
-    '@import "bootstrap-icons/font/bootstrap-icons";',
     '',
   ].join('\n');
 }
@@ -79,24 +75,6 @@ const PURGE_CONTENT = [
 ];
 
 /**
- * 数据里写着的图标名 → 要留下的 `bi-<名>` 类。
- * 🔴 为什么不把数据文件直接当 content：组件里是 `bi-${icon}` 拼出来的，数据里只有 `house-door`，
- *    PurgeCSS 按词比对，`bi-house-door` 这个词在哪儿都没出现过 ⟹ 规则被删、图标不显示，而构建是绿的
- *    （实测：把演示内容包加进 content，purge 后 `.bi-house-door` 0 条）。所以按字段取：数据里每一个
- *    叫 `icon` 的字符串值，都是一个 Bootstrap Icons 的名字（槽位契约这么定的）。
- */
-function iconClassesIn(value, out = new Set()) {
-  if (Array.isArray(value)) { for (const v of value) iconClassesIn(v, out); return out; }
-  if (value && typeof value === 'object') {
-    for (const [k, v] of Object.entries(value)) {
-      if (k === 'icon' && typeof v === 'string' && /^[a-z0-9-]+$/.test(v)) out.add(`bi-${v}`);
-      else iconClassesIn(v, out);
-    }
-  }
-  return out;
-}
-
-/**
  * 🔴 `:root` 上那组主题色变量无条件留下，不交给 `variables: true` 去判。
  *    它们是**品牌色的对外接口**（`--x-primary` / `--x-primary-rgb` / `-bg-subtle` / `-border-subtle` /
  *    `-text-emphasis`，八个主题色各一组）：Webpixels 从 `$primary` 派生它们，而今天这个块碰巧没有一条
@@ -108,24 +86,18 @@ const THEME_COLOR_VARIABLES = [
   /^--x-(primary|secondary|success|info|warning|danger|light|dark)(-rgb|-bg-subtle|-border-subtle|-text-emphasis)?$/,
 ];
 
-/** 今天的数据来源只有图册那一份（演示内容包）。T3 接真站时把站自己的页面数据也喂进来。 */
-function demoIconClasses() {
-  const { DEMO_CONTENT } = require('./demo-content');
-  return [...iconClassesIn(DEMO_CONTENT)].sort();
-}
-
 /**
  * purge。`content` 是 glob 数组（相对 rootDir）。回 purge 之后的 CSS 字符串。
  * 🔴 `variables: true`：Webpixels 的 `:root` 里有八百多个 `--x-*` 变量，绝大多数没有规则用它；
  *    PurgeCSS 删的只是**没有任何留下来的声明 `var()` 到它**的那些，而这个块的组件里没有 inline
  *    style 读 `--x-*`（inline 读到的变量 PurgeCSS 看不见，写之前先 grep 组件）。
  */
-async function purgeSiteCss(css, { rootDir = NEXT_DIR, content = PURGE_CONTENT, safelist = demoIconClasses() } = {}) {
+async function purgeSiteCss(css, { rootDir = NEXT_DIR, content = PURGE_CONTENT } = {}) {
   const { PurgeCSS } = require('purgecss');
   const [res] = await new PurgeCSS().purge({
     content: content.map((g) => path.join(rootDir, g)),
     css: [{ raw: css }],
-    safelist: { standard: safelist, variables: THEME_COLOR_VARIABLES },
+    safelist: { variables: THEME_COLOR_VARIABLES },
     fontFace: true,
     keyframes: true,
     variables: true,
@@ -134,7 +106,7 @@ async function purgeSiteCss(css, { rootDir = NEXT_DIR, content = PURGE_CONTENT, 
 }
 
 /**
- * sync-config 调的那一个：编 + purge + 写 `public/site.css`，外加把图标字体拷进 `public/fonts/`。
+ * sync-config 调的那一个：编 + purge + 写 `public/site.css`。
  * 回 `{ bytes, rawBytes, ms }` 给日志用。
  */
 async function writeSiteCss({ brand, rootDir = NEXT_DIR }) {
@@ -144,13 +116,9 @@ async function writeSiteCss({ brand, rootDir = NEXT_DIR }) {
   const purged = await purgeSiteCss(raw, { rootDir });
   const publicDir = path.join(rootDir, 'public');
   fs.writeFileSync(path.join(publicDir, 'site.css'), purged);
-  const font = path.join(rootDir, 'node_modules', 'bootstrap-icons', 'font', 'fonts', 'bootstrap-icons.woff2');
-  fs.mkdirSync(path.join(publicDir, 'fonts'), { recursive: true });
-  fs.copyFileSync(font, path.join(publicDir, ICON_FONT_PUBLIC));
   return { primary, bytes: Buffer.byteLength(purged), rawBytes: Buffer.byteLength(raw), ms: Date.now() - t0 };
 }
 
 module.exports = {
-  primaryOf, siteScss, compileSiteCss, purgeSiteCss, writeSiteCss, iconClassesIn, demoIconClasses,
-  PURGE_CONTENT, ICON_FONT_PUBLIC, THEME_COLOR_VARIABLES,
+  primaryOf, siteScss, compileSiteCss, purgeSiteCss, writeSiteCss, PURGE_CONTENT, THEME_COLOR_VARIABLES,
 };

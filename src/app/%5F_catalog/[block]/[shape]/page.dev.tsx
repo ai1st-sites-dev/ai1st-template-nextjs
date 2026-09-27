@@ -25,12 +25,15 @@ import { notFound } from 'next/navigation';
 import Footer from '@blocks/footer/Section';
 import Header from '@blocks/header/Section';
 import CellOptions from './CellOptions';
+import type { IconTable } from '@/components/InlineIcon';
 import SectionRenderer from '@/components/SectionRenderer';
 import { defaultLocale } from '@/lib/config';
 import type { BlockConfig } from '@/lib/types/config';
 import { blockShapeCatalog } from '../../../../../scripts/lib/block-catalog.js';
 import { demoDataFor } from '../../../../../scripts/lib/demo-content/index.js';
 import { filledOptionalSlots } from '../../../../../scripts/lib/block-manifest.js';
+import { couplingOf, knobsOf, normalizeKnobs, presetKnobs, presetsOf } from '../../../../../scripts/lib/header-knobs.js';
+import { iconTableFor } from '../../../../../scripts/lib/icons.js';
 import {
   CATALOG_LOCALE,
   CATALOG_PATHS,
@@ -61,16 +64,25 @@ const one = (v: string | string[] | undefined): string | undefined => (Array.isA
  *   `slots.options.shape` 形如 `{dark: bool, icons: bool, reverse: bool}` → 每个 `: bool` 前的键是一个开关；
  *   `slots.cta.shape` 里的 `style: "band" | "bar" | "row"` → CTA 条的几种样式；
  *   有 `slots.newsletter` → 订阅框开关。
- * 三样都空 ⟹ 这个块没有开关，页面不画那条工具栏。
+ * #1462 —— 外加**旋钮**：`slots.options.shape` 里的 `logo: "left" | "center"` 这种枚举（§knobsOf），以及
+ *   顶层 `presets`（旋钮组合起的名）和 `knobCoupling`（哪两个旋钮要成对成立）。
+ * 全都空 ⟹ 这个块没有开关，页面不画那条工具栏。
  */
-function optionMetaOf(m: { slots?: Record<string, { shape?: unknown }> } | undefined) {
+function optionMetaOf(m: { slots?: Record<string, { shape?: unknown }>; presets?: unknown; knobCoupling?: unknown } | undefined) {
   const slots = (m && m.slots) || {};
   const optShape = slots.options && typeof slots.options.shape === 'string' ? slots.options.shape : '';
   const optionKeys = Array.from(optShape.matchAll(/(\w+)\s*:\s*bool/g)).map((x) => x[1]);
   const ctaShape = slots.cta && typeof slots.cta.shape === 'string' ? slots.cta.shape : '';
   const styleMatch = ctaShape.match(/style:\s*((?:"[a-z]+"\s*\|?\s*)+)/);
   const ctaStyles = styleMatch ? Array.from(styleMatch[1].matchAll(/"([a-z]+)"/g)).map((x) => x[1]) : [];
-  return { optionKeys, ctaStyles, hasNewsletter: 'newsletter' in slots };
+  return {
+    optionKeys,
+    ctaStyles,
+    hasNewsletter: 'newsletter' in slots,
+    knobs: knobsOf(m) as Array<{ name: string; values: string[] }>,
+    presets: presetsOf(m) as Array<Record<string, string>>,
+    coupling: couplingOf(m) as [string, string] | null,
+  };
 }
 
 export async function generateMetadata({ params, searchParams }: Props) {
@@ -124,13 +136,22 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
   //    覆盖（`Footer` 本来就有这个参数，`Header` 的是本票照它加的，站上没有调用点传它）。
   const isRegion = m.region === true;
   const meta = optionMetaOf(m);
-  const hasOptionBar = meta.optionKeys.length > 0 || meta.ctaStyles.length > 0 || meta.hasNewsletter;
+  const hasOptionBar = meta.optionKeys.length > 0 || meta.ctaStyles.length > 0 || meta.hasNewsletter || meta.knobs.length > 0;
   // 地址栏给的初值：认不出的键落回「关」，认不出的 cta 样式落回 none —— 跟 theme / fill 一样，看法不该让页面消失。
   const wanted = new Set((one(sp.opt) || '').split(',').map((x) => x.trim()).filter(Boolean));
   const ctaWanted = one(sp.cta) || 'none';
   // #1460 —— 被 admin 嵌着时开关在外面那条块级工具栏上，这一页自己那条不画；「新窗口」单开（不带 embed）照旧画。
   const embed = ['1', 'true'].includes(one(sp.embed) || '');
+  // #1462 —— 旋钮：初值是这个形态（= 预设）的那组值，地址栏的 `?logo=&menu=&topbar=` 盖上去（每个旋钮一个
+  //    独立参数 —— `?opt=` 是开关名的逗号表，塞不下 `键=值`，PM r2 裁定 ③），再纠正一次。认不出的值落回预设。
+  const knobBase = (presetKnobs(meta.presets, shape) || {}) as Record<string, string>;
+  const knobWanted: Record<string, string> = { ...knobBase };
+  for (const k of meta.knobs) { const v = one(sp[k.name]); if (v) knobWanted[k.name] = v; }
+  const knobs = meta.knobs.length
+    ? normalizeKnobs(knobWanted, { knobs: meta.knobs, presets: meta.presets, coupling: meta.coupling, base: knobBase }) as Record<string, string>
+    : {};
   const initial = {
+    knobs,
     opts: Object.fromEntries(meta.optionKeys.map((k) => [k, wanted.has(k)])),
     cta: meta.ctaStyles.includes(ctaWanted) ? ctaWanted : 'none',
     newsletter: meta.hasNewsletter && ['1', 'true', 'on'].includes(one(sp.newsletter) || ''),
@@ -161,7 +182,8 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
         {isRegion && block === 'footer' ? <Footer locale={locale} variant={shape} /> : null}
         {/* #1424 / #1455 —— Webpixels 那一版顶栏 / 页脚：内容来自演示内容包（槽位契约），不来自 navigation.json。
             #1458 —— 它们的选项开关（dark / icons / reverse；footer 的 CTA 条 + 订阅框）住在这一页的工具栏里
-            （§CellOptions），初值可由地址栏给：`?opt=dark,reverse&cta=band&newsletter=1`。 */}
+            （§CellOptions），初值可由地址栏给：`?opt=dark,reverse&cta=band&newsletter=1`；#1462 起旋钮各一个参数：
+            `?logo=center&menu=below&topbar=contact`。 */}
         {isRegion && hasOptionBar ? (
           <CellOptions
             block={block}
@@ -171,6 +193,10 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
             optionKeys={meta.optionKeys}
             ctaStyles={meta.ctaStyles}
             hasNewsletter={meta.hasNewsletter}
+            knobs={meta.knobs}
+            presets={meta.presets}
+            coupling={meta.coupling}
+            iconTable={iconTableFor(block, data) as IconTable}
             initial={initial}
             showBar={!embed}
           />

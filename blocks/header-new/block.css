@@ -1,0 +1,71 @@
+/* header-new · 旋钮派生的排版（#1462）—— 七个预设共用这一份
+
+   Section 在根上挂三个类：`hdr-logo-<left|center>` · `hdr-menu-<right|center|split|gathered|below>` ·
+   `hdr-topbar-<none|contact>`，外加 `hdr-reverse`。桌面那三格（`.hdr-a` / `.hdr-b` / `.hdr-c`）里各放
+   什么由 Section 按 menu 决定；这里只管三件工具类表达不了的事：网格列宽、每格落哪一栏、992 起才出现的
+   那几段（顶条 / 三格网格 / 菜单下沉那一行）。
+   🔴 为什么不在各预设的 shape.css 里写：旋钮能拧成预设表外的组合（Custom），那种组合没有文件夹；
+      而且生成器要求 shape.css 里每条规则以 `[data-shape="<该形态>"]` 开头
+      （`scripts/block-build/build-blocks.js` §assertPieceOwnsItsRules），跨形态的规则只能住这里。
+   🔴 Webpixels 的工具类全带 `!important`（票正文「通用规矩」）：这里藏 / 显的规则也带 `!important`，
+      选择器的 class 数不少于它。**藏的规则在媒体查询外面**（手机也要藏），只有「显示」进 ≥992。
+   🔴 折叠点是 992 不是 768：iPad（768–991）跟手机一样走紧凑条 + 抽屉（Chris 2026-09-27，820 宽真实
+      菜单必折行）。紧凑条和抽屉自己带 `d-lg-none`，不在这里。
+   🔴 每格同时钉 `grid-row: 1`：reverse 换栏之后网格自动摆放的光标只往前走，第一格放到第 3 栏以后，
+      第二格要放第 2 栏就会掉到下一行（做图册时实测：一反转变成三行）。两侧栏写 `minmax(0, …)`、每格
+      `min-width: 0`：网格项默认 `min-width: auto`，塞不下时不缩、直接溢出压到 logo 上。 */
+
+[data-block="header-new"] > .hdr-topbar,
+[data-block="header-new"] .navbar > .hdr-grid,
+[data-block="header-new"] .navbar > .hdr-below {
+  display: none !important;
+}
+
+@media (min-width: 992px) {
+  [data-block="header-new"] > .hdr-topbar,
+  [data-block="header-new"] .navbar > .hdr-below {
+    display: block !important;
+  }
+  [data-block="header-new"] .navbar > .hdr-grid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    column-gap: 1.5rem;
+  }
+  [data-block="header-new"] .hdr-grid > .hdr-a,
+  [data-block="header-new"] .hdr-grid > .hdr-b,
+  [data-block="header-new"] .hdr-grid > .hdr-c { grid-row: 1; min-width: 0; }
+  [data-block="header-new"] .hdr-grid > .hdr-a { grid-column: 1; justify-self: start; }
+  [data-block="header-new"] .hdr-grid > .hdr-b { grid-column: 2; justify-self: center; }
+  [data-block="header-new"] .hdr-grid > .hdr-c { grid-column: 3; justify-self: end; }
+  [data-block="header-new"].hdr-reverse .hdr-grid > .hdr-a { grid-column: 3; justify-self: end; }
+  [data-block="header-new"].hdr-reverse .hdr-grid > .hdr-c { grid-column: 1; justify-self: start; }
+  [data-block="header-new"].hdr-reverse .hdr-grid > .hdr-c { justify-content: flex-start !important; }
+
+  /* menu=right：中间那格是空的，两栏就够 —— logo 一栏 auto，菜单 + CTA 吃掉其余全部宽度（三栏 1fr auto 1fr
+     会让菜单只拿到一半，6 项真实菜单在 1440 上照样折行）。 */
+  [data-block="header-new"].hdr-menu-right .navbar > .hdr-grid { grid-template-columns: auto minmax(0, 1fr); }
+  [data-block="header-new"].hdr-menu-right .hdr-grid > .hdr-c { grid-column: 2; }
+  [data-block="header-new"].hdr-menu-right.hdr-reverse .navbar > .hdr-grid { grid-template-columns: minmax(0, 1fr) auto; }
+  [data-block="header-new"].hdr-menu-right.hdr-reverse .hdr-grid > .hdr-a { grid-column: 2; }
+  [data-block="header-new"].hdr-menu-right.hdr-reverse .hdr-grid > .hdr-c { grid-column: 1; }
+
+  /* menu=center：中间那栏是整条菜单，两侧是 logo 和 CTA —— 这两样不能缩（缩了就被菜单盖住：992 实测
+     菜单压在店名和「Book a service」上）。所以两侧最小值是 max-content，中间 `minmax(0, auto)` 让菜单在
+     自己那栏里换行；宽度够的时候两侧仍是等宽的 1fr，菜单真居中。 */
+  [data-block="header-new"].hdr-menu-center .navbar > .hdr-grid {
+    grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr);
+  }
+
+  /* menu=gathered：跟 split 同一份 DOM，三栏都是 auto、整组居中（Bootstrap 的 `.navbar > .container-lg
+     { justify-content: space-between }` 会把三栏撑到两边，这里压回 center —— 做图册时踩到的坑 2）。 */
+  [data-block="header-new"].hdr-menu-gathered .navbar > .hdr-grid {
+    grid-template-columns: auto auto auto;
+    justify-content: center !important;
+    column-gap: 2.5rem;
+  }
+  [data-block="header-new"].hdr-menu-gathered .hdr-grid > .hdr-a { justify-self: end; }
+  [data-block="header-new"].hdr-menu-gathered .hdr-grid > .hdr-c { justify-self: start; }
+  [data-block="header-new"].hdr-menu-gathered.hdr-reverse .hdr-grid > .hdr-a { justify-self: start; }
+  [data-block="header-new"].hdr-menu-gathered.hdr-reverse .hdr-grid > .hdr-c { justify-self: end; }
+}

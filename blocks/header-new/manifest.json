@@ -51,9 +51,19 @@
       "kind": "object",
       "required": false,
       "promptOptional": true,
-      "shape": "{dark: bool, icons: bool, reverse: bool}"
+      "shape": "{preset?: string, logo: \"left\" | \"center\", menu: \"right\" | \"center\" | \"split\" | \"gathered\" | \"below\", topbar: \"none\" | \"contact\", reverse: bool, dark: bool, icons: bool}"
     }
   },
+  "presets": [
+    { "name": "logo-left", "logo": "left", "menu": "right", "topbar": "none" },
+    { "name": "menu-center", "logo": "left", "menu": "center", "topbar": "none" },
+    { "name": "logo-center-split", "logo": "center", "menu": "split", "topbar": "none" },
+    { "name": "logo-center-gathered", "logo": "center", "menu": "gathered", "topbar": "none" },
+    { "name": "topbar", "logo": "left", "menu": "right", "topbar": "contact" },
+    { "name": "stacked", "logo": "center", "menu": "below", "topbar": "none" },
+    { "name": "topbar-stacked", "logo": "center", "menu": "below", "topbar": "contact" }
+  ],
+  "knobCoupling": ["logo", "menu"],
   "industries": {
     "required": [],
     "recommended": [],

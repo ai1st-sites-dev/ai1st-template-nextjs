@@ -1,6 +1,6 @@
 ---
 order: 2
-summary: "FlyonUI #12（#1 是同一份 DOM 挤到中间的版本，不另做） · 左菜单靠左 · logo 正中 · 右菜单 + CTA 靠右 · 手机：logo 回到左边 + 汉堡"
+summary: "FlyonUI #12 · 左菜单靠左 · logo 正中 · 右菜单 + CTA 靠右"
 source: flyonui#12
 layout_intent:
   align: center
@@ -13,6 +13,8 @@ layout_intent:
 ---
 
 # header-new · logo-center-split
+
+**旋钮：** logo=center · menu=split · topbar=none
 
 **长什么样：** 三栏网格：左菜单靠左 · logo 正中 · 右菜单 + CTA 靠右
 

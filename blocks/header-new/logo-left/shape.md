@@ -1,6 +1,6 @@
 ---
 order: 0
-summary: "FlyonUI #2 · Bootstrap ex 1/3 · logo 左 · 菜单 + CTA 右 · 按钮：outline + solid"
+summary: "FlyonUI #2 · Bootstrap ex 1/3 · logo 左 · 菜单 + CTA 右"
 source: flyonui#2
 layout_intent:
   align: start
@@ -13,6 +13,8 @@ layout_intent:
 ---
 
 # header-new · logo-left
+
+**旋钮：** logo=left · menu=right · topbar=none
 
 **长什么样：** logo 左 · 菜单 + CTA 右（默认）
 

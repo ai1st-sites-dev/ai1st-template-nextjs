@@ -789,6 +789,46 @@ if (!skip('⑩ 词边界匹配（a/b/c 三臂）',
   }
 }
 
+// ══ ⑪b #1462 —— header-new 的选择单写的是**预设名**，两套脚手架主题各戴一个不同的 ══════════════════
+//
+// #1462 把 header-new 的形态换成 7 个预设（旋钮组合起的名，`blocks/header-new/manifest.json` 的 `presets`）。
+// 上面 ⑪ 只问「那个名字在 shapes.css 里有没有规则」—— 而预设文件夹的 shape.css 只有一条锚点规则，
+// 任何一个文件夹名都答「有」；这一格问的是更窄的那句：**名字 ∈ 预设表**，且 ember-12 / azure-29 两套
+// 戴的不是同一个（两套一样 ⟹ 换主题时顶栏不变，脚手架期「能测换主题」那个目的就落空了，#1317）。
+// 🔴 这是一道**防漂移的守卫**，不是一个会先红后绿的交付项：2026-09-27 现读 ember-12 = menu-center、
+//    azure-29 = logo-left，#1462 动手前就成立（PM r2 注 ④）。
+// 🔴 读的是 `scripts/theme-pool.json` 原文（验收 9 点名的那份），不经 `shapesFor()`。
+{
+  const poolRaw = JSON.parse(fs.readFileSync(path.join(NEXT, 'scripts', 'theme-pool.json'), 'utf-8'));
+  const presetNames = (JSON.parse(fs.readFileSync(path.join(NEXT, 'blocks', 'header-new', 'manifest.json'), 'utf-8')).presets || [])
+    .map((p) => p.name);
+  if (presetNames.length !== 7) bad(`⑪b header-new 的 manifest 读到 ${presetNames.length} 个预设 —— 应当是 7 个（分母不对，下面那两句说明不了什么）`);
+  const themeOf = (id) => (Array.isArray(poolRaw) ? poolRaw.find((t) => t && t.id === id) : poolRaw[id]);
+  const judge9 = (entries) => {
+    const out = [];
+    for (const [id, name] of entries) if (!presetNames.includes(name)) out.push(`${id} 的 header-new = ${JSON.stringify(name)} 不是预设名（${presetNames.join(' / ')}）`);
+    if (entries.length === 2 && entries[0][1] === entries[1][1]) out.push(`${entries[0][0]} 与 ${entries[1][0]} 的 header-new 都是 ${entries[0][1]} —— 两套应当不同`);
+    return out;
+  };
+  const named = ['ember-12', 'azure-29'].map((id) => [id, themeOf(id)]);
+  if (named.some(([, t]) => !t)) {
+    skipped += 1;
+    console.log(`  ⏭  ⑪b ${named.filter(([, t]) => !t).map(([id]) => id).join(' / ')} 不在池里（池子重生成了？）`
+      + ' —— 🔴 这不是通过：换成新池里的两套再判');
+  } else {
+    const entries = named.map(([id, t]) => [id, t.shapes && t.shapes['header-new']]);
+    const problems = judge9(entries);
+    if (problems.length) problems.forEach((p) => bad(`⑪b ${p}`));
+    else ok(`⑪b theme-pool.json：${entries.map(([id, n]) => `${id}=${n}`).join(' · ')} —— 都是预设名，且两套不同`);
+    // 反向臂：同一个 judge9 喂两份编造的读数（一份写旧名 stacked-topbar，一份两套相同），各自当场被点名。
+    const a = judge9([[entries[0][0], 'stacked-topbar'], entries[1]]);
+    const b = judge9([entries[0], [entries[1][0], entries[0][1]]]);
+    if (a.length === 1 && a[0].includes('stacked-topbar') && b.length === 1 && b[0].includes('两套应当不同')) {
+      ok('⑪b 反向臂：写一个旧形态名 ⟹ 点名它；两套写成同一个 ⟹ 点名「应当不同」');
+    } else bad(`⑪b 反向臂对不上：A=${JSON.stringify(a)} B=${JSON.stringify(b)}`);
+  }
+}
+
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail}`
   + (skipped ? ` · 🔴 脚手架池跳过 ${skipped} 格（#1317，不是通过）` : '') + ' ══');
 process.exit(fail ? 1 : 0);

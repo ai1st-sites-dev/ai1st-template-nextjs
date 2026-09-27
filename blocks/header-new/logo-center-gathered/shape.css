@@ -1,23 +1,9 @@
-/* ── header-new · logo-center-gathered ───────────────────────────────────────────────────────────────────────────
-   768 起三栏网格（手机上仍是 `.navbar > .container-lg` 的 flex：logo 左、汉堡右）。工具类表达不了
-   列宽和「每格落在哪一栏」，所以这个元素的网格整段在这里，不拆一半给 `d-md-grid`（B4 的推论）。
-   🔴 每一格都同时钉 `grid-row: 1`：reverse 换栏之后，网格自动摆放的光标只往前走，第一格放到
-      第 3 栏以后，第二格要放第 2 栏就会掉到下一行（做图册时实测：一反转变成三行）。
-   🔴 两侧栏写 `minmax(0, …)`、每格 `min-width: 0`：网格项默认 `min-width: auto`，内容塞不下时
-      不缩、直接溢出压到 logo 上（820 实测：菜单压住了店名）。缩到 0 之后，菜单在自己那一栏里换行。 */
-@media (min-width: 768px) {
-  [data-block="header-new"][data-shape="logo-center-gathered"] .navbar > .hdr-grid {
-    display: grid;
-    grid-template-columns: minmax(0, max-content) auto minmax(0, max-content);
-    align-items: center;
-    column-gap: 1rem;
-    /* Bootstrap 的 `.navbar > .container-lg { justify-content: space-between }` 会把三栏撑到两边（坑 2）。 */
-    justify-content: center;
-  }
-  [data-block="header-new"][data-shape="logo-center-gathered"] .hdr-left, [data-block="header-new"][data-shape="logo-center-gathered"] .hdr-right { min-width: 0; }
-  [data-block="header-new"][data-shape="logo-center-gathered"] .hdr-left { grid-column: 1; grid-row: 1; }
-  [data-block="header-new"][data-shape="logo-center-gathered"] .hdr-logo { grid-column: 2; grid-row: 1; }
-  [data-block="header-new"][data-shape="logo-center-gathered"] .hdr-right { grid-column: 3; grid-row: 1; }
-  [data-block="header-new"][data-shape="logo-center-gathered"].hdr-reverse .hdr-left { grid-column: 3; }
-  [data-block="header-new"][data-shape="logo-center-gathered"].hdr-reverse .hdr-right { grid-column: 1; }
-}
+/* ── header-new · logo-center-gathered = 预设（logo=center · menu=gathered · topbar=none）──────────────────────
+   🔴 #1462 起这个文件夹**只是一个名字**：预设 = 三个旋钮的一组值（manifest 的 `presets`），排版全在
+      `blocks/header-new/block.css`，按 Section 从旋钮派生的类（`hdr-logo-*` / `hdr-menu-*` / `hdr-topbar-*`）
+      点名 —— 旋钮能拧成预设表外的组合（Custom），那种组合没有文件夹，几何按文件夹写就无处可落。
+   🔴 下面这条空规则是**锚点**，别删：① `readShapeDir`（`scripts/lib/block-manifest.js`）拒绝空的 shape.css；
+      ② `theme-pipeline/pool.test.js` §⑪ 要求主题选择单里写的名字在 `public/shapes.css` 里有一条
+      `[data-block][data-shape="<名>"]` 规则。两道都是在问「这个名字是不是真的」，而这里名字是真的 ——
+      戴上它 Section 就按这组旋钮值画（`Section.tsx` §resolveKnobs）。 */
+[data-block="header-new"][data-shape="logo-center-gathered"] {}

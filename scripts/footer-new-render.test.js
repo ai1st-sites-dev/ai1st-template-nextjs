@@ -68,7 +68,9 @@ try {
 if (!DEMO) die('demo-content 里没有 footer-new 那一份');
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
-const render = (shape, data, Comp = C) => renderToStaticMarkup(React.createElement(Comp, { shape, data }));
+// #1462 —— 图标是内联 SVG，表由服务端查好传进来；不给表的话一个图标都不画，下面 ④ 那条「没有空图标」就瞎了。
+const ICONS = require(path.join(NEXT, 'scripts', 'lib', 'icons.js')).iconTableFor('footer-new', DEMO);
+const render = (shape, data, Comp = C) => renderToStaticMarkup(React.createElement(Comp, { shape, data, iconTable: ICONS }));
 const count = (html, needle) => html.split(needle).length - 1;
 
 const shapes = Object.keys(SHAPES);
@@ -162,7 +164,8 @@ console.log('\n④ 联系信息');
   const noContact = clone(base); noContact.columns.contact = false;
   check(render('columns', noContact).includes(phone), 'columns + contact:false：电话仍在（挂进品牌列）');
   const empty = { ...base, contact: {} };
-  const icons = ['bi-telephone', 'bi-geo-alt', 'bi-clock', 'bi-envelope'];
+  const icons = ['telephone', 'geo-alt', 'clock', 'envelope'].map((n) => `data-icon="${n}"`);
+  check(icons.every((i) => render('columns', base).includes(i)), 'columns + 全量 contact：四个联系图标都画出来了（尺子会亮）');
   for (const s of shapes) {
     const h = render(s, empty);
     const left = icons.filter((i) => h.includes(i));
@@ -173,12 +176,12 @@ console.log('\n④ 联系信息');
   }
   // 反向对照：把「空的不渲染」拿掉（地址恒渲染），空图标那一条必须红。
   const src = fs.readFileSync(SECTION, 'utf-8');
-  const broken = src.replace("contact.address ? { key: 'address', icon: 'bi-geo-alt', text: contact.address } : null,",
-    "{ key: 'address', icon: 'bi-geo-alt', text: contact.address || '' },");
+  const broken = src.replace("contact.address ? { key: 'address', icon: 'geo-alt', text: contact.address } : null,",
+    "{ key: 'address', icon: 'geo-alt', text: contact.address || '' },");
   if (broken === src) bad('反向对照没改到源码（锚点找不到）—— 这一格什么都没证明');
   else {
     const { C: Cb } = loadSection(broken);
-    const hit = shapes.filter((s) => render(s, empty, Cb).includes('bi-geo-alt'));
+    const hit = shapes.filter((s) => render(s, empty, Cb).includes('data-icon="geo-alt"'));
     check(hit.length > 0, `反向对照：地址空也渲染 ⟹ 有形态被点名留着空图标（${hit.join(' · ')}）`);
     loadSection();
   }

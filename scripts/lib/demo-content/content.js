@@ -628,8 +628,9 @@ const DEMO_CONTENT = {
     language: 'en',
   },
 
-  // #1424 —— Webpixels 那一版顶栏（`staging: true`，只在图册里）。6 个形态吃同一份：`topbar` 只有两个
-  // stacked 形态画，`ctaSecondary` 在 iPad 那一档藏起来 —— 两样都填上，那两条断点行为图册里才看得见。
+  // #1424 —— Webpixels 那一版顶栏（`staging: true`，只在图册里）。#1462 起 7 个预设吃同一份：`topbar` 只有
+  // topbar=contact 的预设画（手机上折进抽屉），`ctaSecondary` 在那两个预设的抽屉里不出 —— 两样都填上，
+  // 那几条断点行为单格页上才看得见。`options` 里不写旋钮：旋钮的初值来自形态名（= 预设名）。
   // 🔴 `topbar` 底下那三份 list 是嵌套的，守卫 (c) 只看顶层 list 槽，所以 3 个社交链接够用（票正文）。
   'header-new': {
     logo: imageUrl('logo-mark'),

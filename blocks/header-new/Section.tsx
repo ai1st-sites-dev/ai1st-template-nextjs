@@ -1,40 +1,67 @@
 'use client';
 
 // ══════════════════════════════════════════════════════════════════════════════════════════════════
-// header-new —— 顶栏，Webpixels / Bootstrap 那一套（#1424，总纲 #1422 的 T2.1）
+// header-new —— 顶栏，Webpixels / Bootstrap 那一套（#1424 T2.1 → #1462 定稿第 2 版，总纲 #1422）
 // ══════════════════════════════════════════════════════════════════════════════════════════════════
 //
 // 🔴 **还没进正式库**（manifest `staging: true`）。客户站只有 Tailwind、没有 Bootstrap 的 CSS，这个块
 //    上了客户站就是一坨没样式的 HTML（设计稿 B1）。所以它是外壳区块（`region: true`）：不进
-//    `registry.generated.ts`、不进 Puck、不进 AI 的提示词；今天唯一渲染它的地方是图册 `/__catalog`，
-//    而图册那条路由自己加载 `/site.css`。T3 删旧库时它改名成 `header`、接回 `SiteShell`。
+//    `registry.generated.ts`、不进 Puck、不进 AI 的提示词；今天唯一渲染它的地方是单格页 `/__catalog`，
+//    而那条路由自己加载 `/site.css`。T3 删旧库时它改名成 `header`、接回 `SiteShell`。
 //
-// 🔴 **一份 markup，6 个形态 = 6 组布局类**（设计稿 B5 对「排布型块」的放宽，本票写进设计稿）。
-//    DOM 永远是三个盒子 `[左组] [logo] [右组]`，加一个手机菜单；形态名查下面那张 `SHAPES` 表，
-//    得到外层的 flex / grid 类、以及两个组里各放什么。**槽位契约 6 个形态是同一份**（B5 的不变量）。
+// 🔴 **一份 markup + 三个旋钮 + 七个预设**（#1462，Chris 2026-09-27 图册定稿第 2 版）。
+//    旋钮 `logo`（left | center）· `menu`（right | center | split | gathered | below）· `topbar`
+//    （none | contact）；预设是旋钮组合起的名，表在 manifest 的 `presets`，形态文件夹名就是预设名。
+//    形态名只决定**初值**：`options` 里写了旋钮就按旋钮画（§resolveKnobs），不成立的组合由
+//    `scripts/lib/header-knobs.js` 纠正 —— 工具栏和这里用的是同一个函数。
+//    排版由旋钮派生成根上的三个类（`hdr-logo-*` / `hdr-menu-*` / `hdr-topbar-*`），几何在
+//    `blocks/header-new/block.css`；这里只决定「每一格里放什么」。
 //
-// 🔴 **排版只走 Webpixels 的工具类**（总纲约束 3）。`shape.css` 里只有工具类表达不了的那几条：
-//    三栏网格的列宽、`reverse` 时换栏（每格同时钉 `grid-row: 1`）、`.navbar > .container` 的
-//    `space-between` 压制。同一个元素的排版不许一半在工具类、一半在 CSS（B4 的推论）。
+// 🔴 **折叠点 992**（`lg`）：iPad（768–991）跟手机一样是 logo ·（topbar=contact 时）电话图标 · 汉堡 +
+//    抽屉 —— 真实站的菜单项是「Brake repair and diagnostics」这种长度，820 宽必折行（T2.1 验收截图）。
+//
+// 🔴 **排版只走 Webpixels 的工具类**（总纲约束 3），工具类表达不了的（网格列宽、每格落哪一栏、
+//    reverse 换栏、992 起才显示的那几段）在 block.css。
 //
 // 🔴 **不用任何 `data-bs-*`**（总纲约束 2）：展开 / 收起是下面那个 `useState`，深底是工具类
 //    （`bg-dark` / `link-light` / `text-white`），不是 Bootstrap 的 `data-bs-theme`。
 //    也不用 `.navbar-collapse` / `.navbar-expand-*`：这两个一起用时 Webpixels 的
-//    `.navbar-expand-md .navbar-collapse { display: flex !important }` 会压过 `d-md-none`
-//    （做图册时踩到的坑 1）。桌面那份和手机那份是两个元素，各自用 `d-none d-md-flex` / `d-md-none`。
+//    `.navbar-expand-* .navbar-collapse { display: flex !important }` 会压过藏它的类（做图册时踩到的坑 1）。
+//    紧凑那一条和桌面那一格是两个元素，各自在自己的断点上显示。
+//
+// 🔴 **图标是内联 SVG，不是字体**（#1462，Chris 拍板）：`iconTable` 由服务端按名查好传进来
+//    （`scripts/lib/icons.js`），这里用 `InlineIcon` 画；查不到的名字不画。
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
+import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig } from '@/lib/types/config';
+import manifest from './manifest.json';
+import {
+  couplingOf, knobsOf, normalizeKnobs, presetKnobs, presetOf, presetsOf,
+} from '../../scripts/lib/header-knobs.js';
 
 type Show = 'text' | 'icon' | 'both';
 type CtaStyle = 'solid' | 'outline' | 'link';
+
+export type Logo = 'left' | 'center';
+export type Menu = 'right' | 'center' | 'split' | 'gathered' | 'below';
+export type Topbar = 'none' | 'contact';
 
 export interface NavItem { label: string; href: string; icon?: string; show?: Show }
 export interface Cta { label: string; href: string; style?: CtaStyle }
 export interface TopbarContact { icon?: string; text: string; href?: string }
 export interface TopbarLink { label: string; href: string; icon?: string }
-export interface HeaderOptions { dark?: boolean; icons?: boolean; reverse?: boolean }
+export interface HeaderOptions {
+  /** 只是标签：旋钮跟某个预设吻合就是它的名，否则 `custom`。渲染不读它。 */
+  preset?: string;
+  logo?: Logo;
+  menu?: Menu;
+  topbar?: Topbar;
+  reverse?: boolean;
+  dark?: boolean;
+  icons?: boolean;
+}
 
 export interface HeaderNewData {
   logo?: string;
@@ -46,32 +73,25 @@ export interface HeaderNewData {
   options?: HeaderOptions;
 }
 
-/** 左右两组里各放什么。`navA` / `navB` 是菜单切成的前后两半（logo 居中的两个形态）。 */
-type Part = 'nav' | 'navA' | 'navB' | 'ctas' | 'social' | 'links';
+export interface HeaderKnobs { logo: Logo; menu: Menu; topbar: Topbar }
 
-interface ShapeLayout {
-  /** 外层（`.container`）的类：flex 还是网格、网格那一族叫什么（列宽在 shape.css）。 */
-  row: string;
-  left: Part[];
-  right: Part[];
-  /** 两层的形态：`bar` = 上面一条联系信息 / 工具链接 / 社交的顶条；`nav` = 菜单单独占下面一行。 */
-  stack?: 'bar' | 'nav';
+const KNOBS = knobsOf(manifest);
+const PRESETS = presetsOf(manifest);
+const COUPLING = couplingOf(manifest);
+export const DEFAULT_PRESET = 'logo-left';
+
+/**
+ * 形态名（= 预设名）给初值，`options` 里写着的旋钮盖上去，再纠正一次。形态名不认识就落回 `logo-left`。
+ * 🔴 纠正时不知道「刚拧的是哪个」⟹ logo 为准（header-knobs.js 文件头）：logo=center + menu=right ⟹ split。
+ */
+export function resolveKnobs(shape: string | undefined, options: HeaderOptions = {}): { knobs: HeaderKnobs; preset: string; shape: string } {
+  const known = shape && presetKnobs(PRESETS, shape) ? shape : DEFAULT_PRESET;
+  const base = presetKnobs(PRESETS, known);
+  const given: Record<string, unknown> = {};
+  for (const k of KNOBS) if (options[k.name as keyof HeaderOptions] !== undefined) given[k.name] = options[k.name as keyof HeaderOptions];
+  const knobs = normalizeKnobs({ ...base, ...given }, { knobs: KNOBS, presets: PRESETS, coupling: COUPLING, base }) as unknown as HeaderKnobs;
+  return { knobs, preset: presetOf(knobs, { knobs: KNOBS, presets: PRESETS }), shape: known };
 }
-
-// ── 形态 → 布局类（本票的核心，T2.n 的排布型块照这个样子写）─────────────────────────────────────
-// 🔴 `hdr-grid` 那四个形态手机上仍是 `.navbar > .container` 的 flex（logo 回到左边、汉堡在右），
-//    768 起才变三栏网格 —— 网格的 display / 列宽 / 每格落在哪一栏整段在各形态的 shape.css 里，
-//    不拆一半给 `d-md-grid`（同一个元素的排版只许一个来源，B4 的推论）。断点规矩「居中 logo 的
-//    两个形态手机上 logo 回到左边」就是这一条说的。flex 那两个形态外层不加类。
-export const SHAPES: Record<string, ShapeLayout> = {
-  'logo-left': { row: '', left: [], right: ['nav', 'ctas'] },
-  'menu-center': { row: 'hdr-grid', left: ['nav'], right: ['ctas'] },
-  'logo-center-split': { row: 'hdr-grid', left: ['navA'], right: ['navB', 'ctas'] },
-  'logo-center-gathered': { row: 'hdr-grid', left: ['navA'], right: ['navB', 'ctas'] },
-  'stacked-topbar': { row: '', left: [], right: ['nav', 'ctas'], stack: 'bar' },
-  'stacked-centered': { row: 'hdr-grid', left: ['social'], right: ['links', 'ctas'], stack: 'nav' },
-};
-export const DEFAULT_SHAPE = 'logo-left';
 
 function ctaClass(style: CtaStyle | undefined, dark: boolean): string {
   if (style === 'link') return dark ? 'btn btn-link link-light' : 'btn btn-link';
@@ -81,34 +101,43 @@ function ctaClass(style: CtaStyle | undefined, dark: boolean): string {
 
 interface Props {
   data?: HeaderNewData;
-  /** 形态名；没给或不认识就落回 `logo-left`。今天只有图册传它（T3 接回站点时由构建期算好）。 */
+  /** 形态名 = 预设名；没给或不认识就落回 `logo-left`。今天只有单格页传它（T3 接回站点时由构建期算好）。 */
   shape?: string;
   block?: BlockConfig;
+  /** 服务端查好的图标表（`scripts/lib/icons.js` §iconTableFor）。没给 ⟹ 一个图标都不画。 */
+  iconTable?: IconTable;
 }
 
-export default function HeaderNewSection({ data = {}, shape: shapeIn, block }: Props) {
+export default function HeaderNewSection({ data = {}, shape: shapeIn, block, iconTable = {} }: Props) {
   const [open, setOpen] = useState(false);
-  const shape = shapeIn && SHAPES[shapeIn] ? shapeIn : DEFAULT_SHAPE;
-  const layout = SHAPES[shape];
-  const { dark = false, icons = false, reverse = false } = data.options || {};
+  const opts = data.options || {};
+  const { knobs, preset, shape } = resolveKnobs(shapeIn, opts);
+  const { logo, menu, topbar: bar } = knobs;
+  const { dark = false, icons = false, reverse = false } = opts;
   const nav = Array.isArray(data.nav) ? data.nav : [];
   const half = Math.ceil(nav.length / 2);
   const topbar = data.topbar || {};
   const contact = topbar.contact || [];
   const links = topbar.links || [];
   const social = topbar.social || [];
+  const hasTopbar = bar === 'contact';
+  const phone = hasTopbar ? contact.find((c) => c.href && c.href.startsWith('tel:')) : undefined;
   const ctas = [data.ctaPrimary, data.ctaSecondary].filter((c): c is Cta => !!c && !!c.label);
   const brand = data.brandName || '';
 
   const linkTone = dark ? 'link-light' : '';
+  const subTone = dark ? 'link-light' : 'link-secondary';
   const mutedTone = dark ? 'text-white-50' : 'text-body-secondary';
+  const lineTone = dark ? 'border-secondary' : '';
+  const icon = (name?: string, className?: string) => <InlineIcon name={name} icons={iconTable} className={className} />;
 
   const navItem = (item: NavItem, key: string, vertical = false) => {
-    const show: Show = icons && item.icon ? (item.show || 'both') : 'text';
+    // 图标查不到就按「只有字」画 —— 不然 `show: icon` 的那一项会变成一个看不见的链接。
+    const show: Show = icons && item.icon && iconTable[item.icon] ? (item.show || 'both') : 'text';
     return (
       <li key={key}>
         <a className={`nav-link d-inline-flex align-items-center gap-2 ${linkTone}`} href={item.href}>
-          {show !== 'text' ? <i className={`bi bi-${item.icon}`} aria-hidden="true" /> : null}
+          {show !== 'text' ? icon(item.icon) : null}
           <span className={show === 'icon' && !vertical ? 'visually-hidden' : undefined}>{item.label}</span>
         </a>
       </li>
@@ -116,79 +145,115 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block }: P
   };
 
   const navList = (items: NavItem[], key: string) => (
-    <ul className="navbar-nav flex-row flex-wrap column-gap-3 column-gap-lg-5 row-gap-1" key={key}>
+    <ul className="navbar-nav flex-row flex-wrap column-gap-4 column-gap-xl-6 row-gap-1" key={key}>
       {items.map((it, i) => navItem(it, `${key}-${i}`))}
     </ul>
   );
 
-  // 副 CTA 在 iPad（768–991）上藏起来：`d-none d-lg-inline-block`。主 CTA 三端都在。
   const ctaButtons = (key: string) => (
     <div className="d-flex align-items-center gap-2" key={key}>
       {ctas.map((c, i) => (
-        <a
-          key={i}
-          href={c.href}
-          className={`${ctaClass(c.style, dark)} text-nowrap ${i === 1 ? 'd-none d-lg-inline-block' : ''}`}
-        >
-          {c.label}
-        </a>
+        <a key={i} href={c.href} className={`${ctaClass(c.style, dark)} text-nowrap`}>{c.label}</a>
       ))}
     </div>
   );
 
-  const socialIcons = (key: string) => (
-    <div className="d-flex align-items-center gap-3" key={key}>
+  const socialIcons = (key: string, extra = '') => (social.length ? (
+    <div className={`d-flex align-items-center gap-3 ${extra}`} key={key} data-hdr-part={key}>
       {social.map((s, i) => (
-        <a key={i} href={s.href} className={`${dark ? 'link-light' : 'link-secondary'} text-nowrap`} aria-label={s.label}>
-          <i className={`bi bi-${s.icon || 'link-45deg'}`} aria-hidden="true" />
+        <a key={i} href={s.href} className={`${subTone} text-nowrap`} aria-label={s.label}>
+          {icon(s.icon && iconTable[s.icon] ? s.icon : 'link-45deg')}
         </a>
       ))}
     </div>
-  );
+  ) : null);
 
-  const toolLinks = (key: string) => (
-    <div className="d-flex align-items-center gap-4" key={key}>
+  const toolLinks = (key: string) => (links.length ? (
+    <div className="d-flex flex-wrap align-items-center column-gap-4 row-gap-1" key={key} data-hdr-part={key}>
       {links.map((l, i) => (
-        <a key={i} href={l.href} className={`${dark ? 'link-light' : 'link-secondary'} text-sm text-nowrap`}>{l.label}</a>
+        <a key={i} href={l.href} className={`${subTone} text-sm text-nowrap`}>{l.label}</a>
       ))}
     </div>
+  ) : null);
+
+  const brandLink = (extra = '') => (
+    <a className={`hdr-brand navbar-brand d-inline-flex flex-shrink-0 align-items-center gap-2 m-0 ${dark ? 'text-white' : 'text-heading'} ${extra}`} href="/">
+      {data.logo ? <img src={data.logo} alt="" className="h-rem-8 w-auto" /> : null}
+      <span className="fw-semibold text-nowrap">{brand}</span>
+    </a>
   );
 
-  const part = (p: Part) => {
-    switch (p) {
-      case 'nav': return navList(nav, 'nav');
-      case 'navA': return navList(nav.slice(0, half), 'navA');
-      case 'navB': return navList(nav.slice(half), 'navB');
-      case 'ctas': return ctaButtons('ctas');
-      case 'social': return socialIcons('social');
-      case 'links': return toolLinks('links');
-      default: return null;
-    }
-  };
+  // ── 桌面（≥992）三格：`hdr-a` · `hdr-b` · `hdr-c`。每格放什么只由 menu 决定（logo 跟着 menu 走，
+  //    纠正之后两者一定成立）；哪格落哪一栏、reverse 换栏在 block.css。
+  const cells: Record<'a' | 'b' | 'c', ReactNode> = { a: null, b: null, c: null };
+  if (menu === 'right') {
+    cells.a = brandLink();
+    cells.c = <>{navList(nav, 'nav')}{ctaButtons('ctas')}</>;
+  } else if (menu === 'center') {
+    cells.a = brandLink();
+    cells.b = navList(nav, 'nav');
+    cells.c = ctaButtons('ctas');
+  } else if (menu === 'split' || menu === 'gathered') {
+    cells.a = navList(nav.slice(0, half), 'navA');
+    cells.b = brandLink();
+    cells.c = <>{navList(nav.slice(half), 'navB')}{ctaButtons('ctas')}</>;
+  } else {
+    cells.a = socialIcons('social');
+    cells.b = brandLink();
+    cells.c = ctaButtons('ctas');
+  }
 
   const headerBlock = { ...(block || {}), type: 'header-new', shape } as BlockConfig;
   const rootClass = [
     dark ? 'bg-dark text-white' : 'bg-body',
     'border-bottom',
-    dark ? 'border-secondary' : '',
+    lineTone,
+    `hdr-logo-${logo}`,
+    `hdr-menu-${menu}`,
+    `hdr-topbar-${bar}`,
     reverse ? 'hdr-reverse' : '',
   ].filter(Boolean).join(' ');
 
+  // 抽屉里的联系信息段：电话（可拨）/ 营业时间 / 地址 → Sign in · Create account → 社交（topbar=contact 才有）。
+  const drawerContact = hasTopbar && (contact.length || links.length || social.length) ? (
+    <div className={`border-top ${lineTone} pt-4 vstack gap-3 text-sm`} data-hdr-part="drawer-contact">
+      {contact.length ? (
+        <ul className={`list-unstyled vstack gap-2 mb-0 ${mutedTone}`} data-hdr-part="drawer-info">
+          {contact.map((c, i) => (
+            <li key={i} className="d-flex align-items-center gap-2">
+              {icon(c.icon)}
+              {c.href ? <a href={c.href} className={`${subTone} text-decoration-none`}>{c.text}</a> : <span>{c.text}</span>}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {toolLinks('drawer-links')}
+      {socialIcons('drawer-social')}
+    </div>
+  ) : null;
+
   return (
-    <header {...blockAttrs('header-new', headerBlock)} className={rootClass}>
-      {layout.stack === 'bar' ? (
-        // 顶条：手机上整条不在（电话挪进菜单，变成一条 outline 按钮）。
-        <div className={`d-none d-md-block border-bottom ${dark ? 'border-secondary' : ''} py-2 text-sm`}>
+    <header
+      {...blockAttrs('header-new', headerBlock)}
+      className={rootClass}
+      data-preset={preset}
+      data-logo={logo}
+      data-menu={menu}
+      data-topbar={bar}
+    >
+      {hasTopbar ? (
+        // 顶条：只在 ≥992 出现（block.css），手机 / iPad 上它的内容折进抽屉。
+        <div className={`hdr-topbar border-bottom ${lineTone} py-2 text-sm`}>
           <div className={`container-lg d-flex align-items-center justify-content-between gap-6 ${reverse ? 'flex-row-reverse' : ''}`}>
             <div className={`d-flex align-items-center gap-5 ${mutedTone}`}>
               {contact.map((c, i) => (
                 <span key={i} className="d-inline-flex align-items-center gap-2 text-nowrap">
-                  {c.icon ? <i className={`bi bi-${c.icon}`} aria-hidden="true" /> : null}
-                  {c.href ? <a href={c.href} className={dark ? 'link-light' : 'link-secondary'}>{c.text}</a> : c.text}
+                  {icon(c.icon)}
+                  {c.href ? <a href={c.href} className={subTone}>{c.text}</a> : c.text}
                 </span>
               ))}
             </div>
-            <div className="d-flex align-items-center gap-5">
+            <div className={`d-flex align-items-center gap-5 ${reverse ? 'flex-row-reverse' : ''}`}>
               {toolLinks('bar-links')}
               {socialIcons('bar-social')}
             </div>
@@ -197,70 +262,59 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block }: P
       ) : null}
 
       <nav className="navbar py-4" aria-label="Main">
-        {/* 🔴 `container-lg` 不是 `container`：后者在 768–991 钉死 720px，6 项菜单 + logo + CTA 塞不下，
-            网格那几个形态的菜单会压到 logo 上（820 截图实测）。`container-lg` 在 992 以下是整宽。 */}
-        {/* reverse：flex 的两个形态靠 `flex-row-reverse`；网格的四个靠根上的 `hdr-reverse` 换栏（shape.css）。 */}
-        <div className={`container-lg ${layout.row} ${reverse && !layout.row ? 'flex-row-reverse' : ''}`}>
-          <div className={`hdr-left d-none ${layout.left.length ? 'd-md-flex' : ''} flex-wrap align-items-center column-gap-4 column-gap-lg-6 row-gap-2`}>
-            {layout.left.map(part)}
+        {/* < 992：logo ·（topbar=contact）电话圆图标 · 汉堡。 */}
+        <div className="hdr-compact container-lg d-flex d-lg-none align-items-center justify-content-between gap-3">
+          {brandLink()}
+          <div className="d-flex align-items-center gap-2">
+            {phone ? (
+              <a
+                href={phone.href}
+                className={`hdr-phone btn btn-sm ${dark ? 'btn-outline-light' : 'btn-outline-primary'} rounded-circle d-inline-flex align-items-center justify-content-center p-0 w-rem-10 h-rem-10`}
+                aria-label={`Call ${phone.text}`}
+              >
+                {icon('telephone')}
+              </a>
+            ) : null}
+            <button
+              type="button"
+              className={`btn ${dark ? 'text-white' : ''} fs-5 lh-1`}
+              aria-expanded={open}
+              aria-label="Toggle navigation menu"
+              onClick={() => setOpen(!open)}
+            >
+              {icon(open ? 'x-lg' : 'list')}
+            </button>
           </div>
-
-          <a className={`hdr-logo navbar-brand d-inline-flex flex-shrink-0 align-items-center gap-2 m-0 ${dark ? 'text-white' : 'text-heading'}`} href="/">
-            {data.logo ? <img src={data.logo} alt="" className="h-rem-8 w-auto" /> : null}
-            <span className="fw-semibold text-nowrap">{brand}</span>
-          </a>
-
-          <div className="hdr-right d-none d-md-flex flex-wrap align-items-center justify-content-end column-gap-4 column-gap-lg-6 row-gap-2">
-            {layout.right.map(part)}
-          </div>
-
-          <button
-            type="button"
-            className={`btn d-md-none ${dark ? 'text-white' : ''}`}
-            aria-expanded={open}
-            aria-label="Toggle navigation menu"
-            onClick={() => setOpen(!open)}
-          >
-            <i className={`bi ${open ? 'bi-x-lg' : 'bi-list'} fs-5`} aria-hidden="true" />
-          </button>
         </div>
 
-        {layout.stack === 'nav' ? (
-          <div className="container-lg d-none d-md-flex justify-content-center pt-4">
-            {navList(nav, 'nav-row')}
+        {/* ≥ 992：三格网格（block.css）。 */}
+        <div className="hdr-grid container-lg">
+          <div className="hdr-a d-flex flex-wrap align-items-center column-gap-4 column-gap-xl-6 row-gap-2">{cells.a}</div>
+          <div className="hdr-b d-flex flex-wrap align-items-center column-gap-4 row-gap-2">{cells.b}</div>
+          <div className="hdr-c d-flex flex-wrap align-items-center justify-content-end column-gap-4 column-gap-xl-6 row-gap-2">{cells.c}</div>
+        </div>
+
+        {menu === 'below' ? (
+          <div className={`hdr-below w-100 border-top ${lineTone} mt-4 pt-4`}>
+            <div className="container-lg d-flex justify-content-center">{navList(nav, 'nav-row')}</div>
           </div>
         ) : null}
       </nav>
 
-      {/* 手机菜单。只在 < 768 出现，开没开由 React 说（总纲约束 2）。副 CTA 在这里三端都在；
-          两个 stacked 形态的顶条东西（电话 / 工具链接 / 社交）也折进这里。 */}
+      {/* 抽屉：只在 < 992 出现，开没开由 React 说（总纲约束 2）。顺序 = 菜单 → 主 CTA →（topbar=contact）
+          联系信息 → 链接 → 社交。副 CTA 只在 topbar=none 时进来：有顶条时电话已经在联系信息那一行里。 */}
       {open ? (
-        <div className={`d-md-none border-top ${dark ? 'border-secondary' : ''}`}>
+        <div className={`hdr-drawer d-lg-none border-top ${lineTone}`}>
           <div className="container-lg py-4 vstack gap-4">
-            <ul className="navbar-nav">
+            <ul className="navbar-nav" data-hdr-part="drawer-nav">
               {nav.map((it, i) => navItem(it, `m-${i}`, true))}
             </ul>
-            {layout.stack === 'bar' && contact.length ? (
-              <div className="d-grid gap-2">
-                {contact.filter((c) => c.href).map((c, i) => (
-                  <a key={i} href={c.href} className={`${ctaClass('outline', dark)} text-nowrap`}>
-                    {c.icon ? <i className={`bi bi-${c.icon} me-2`} aria-hidden="true" /> : null}
-                    {c.text}
-                  </a>
-                ))}
-              </div>
-            ) : null}
-            {layout.stack === 'nav' ? (
-              <div className="d-flex flex-wrap align-items-center justify-content-between gap-4">
-                {toolLinks('m-links')}
-                {socialIcons('m-social')}
-              </div>
-            ) : null}
-            <div className="d-grid gap-2">
-              {ctas.map((c, i) => (
+            <div className="d-grid gap-2" data-hdr-part="drawer-cta">
+              {(hasTopbar ? ctas.filter((c) => c === data.ctaPrimary) : ctas).map((c, i) => (
                 <a key={i} href={c.href} className={`${ctaClass(c.style, dark)} text-nowrap`}>{c.label}</a>
               ))}
             </div>
+            {drawerContact}
           </div>
         </div>
       ) : null}

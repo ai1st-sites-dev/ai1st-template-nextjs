@@ -1,6 +1,0 @@
-/* ── header-new · stacked-topbar ────────────────────────────────────────────────────────────────
-   下层跟 logo-left 同一副排法（工具类）；顶条是它自己的一行 flex（工具类）。这里只压同一条
-   `flex-wrap: inherit`（理由见 logo-left/shape.css）。 */
-[data-block="header-new"][data-shape="stacked-topbar"] .navbar > .container-lg {
-  flex-wrap: nowrap;
-}

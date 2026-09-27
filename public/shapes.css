@@ -6234,113 +6234,144 @@
 }
 
 /* ══ header-new ══════════════════════════════════════════════════════════════════════ */
-/* ── header-new · logo-left（默认）──────────────────────────────────────────────────────────────
-   排版全在 markup 的工具类里（`.navbar > .container` 的 flex + space-between 本来就是「logo 一头、
-   其余一头」，reverse 是 `flex-row-reverse`）。这里只压一条 Bootstrap 的默认：`.navbar` 的
-   `flex-wrap: wrap` 经 `.navbar > .container-lg { flex-wrap: inherit }` 传下来，菜单一长整个右组就
-   掉到 logo 下面另起一行。钉成 nowrap 之后换行只发生在菜单自己那份 `flex-wrap` 里。 */
-[data-block="header-new"][data-shape="logo-left"] .navbar > .container-lg {
-  flex-wrap: nowrap;
+/* header-new · 旋钮派生的排版（#1462）—— 七个预设共用这一份
+
+   Section 在根上挂三个类：`hdr-logo-<left|center>` · `hdr-menu-<right|center|split|gathered|below>` ·
+   `hdr-topbar-<none|contact>`，外加 `hdr-reverse`。桌面那三格（`.hdr-a` / `.hdr-b` / `.hdr-c`）里各放
+   什么由 Section 按 menu 决定；这里只管三件工具类表达不了的事：网格列宽、每格落哪一栏、992 起才出现的
+   那几段（顶条 / 三格网格 / 菜单下沉那一行）。
+   🔴 为什么不在各预设的 shape.css 里写：旋钮能拧成预设表外的组合（Custom），那种组合没有文件夹；
+      而且生成器要求 shape.css 里每条规则以 `[data-shape="<该形态>"]` 开头
+      （`scripts/block-build/build-blocks.js` §assertPieceOwnsItsRules），跨形态的规则只能住这里。
+   🔴 Webpixels 的工具类全带 `!important`（票正文「通用规矩」）：这里藏 / 显的规则也带 `!important`，
+      选择器的 class 数不少于它。**藏的规则在媒体查询外面**（手机也要藏），只有「显示」进 ≥992。
+   🔴 折叠点是 992 不是 768：iPad（768–991）跟手机一样走紧凑条 + 抽屉（Chris 2026-09-27，820 宽真实
+      菜单必折行）。紧凑条和抽屉自己带 `d-lg-none`，不在这里。
+   🔴 每格同时钉 `grid-row: 1`：reverse 换栏之后网格自动摆放的光标只往前走，第一格放到第 3 栏以后，
+      第二格要放第 2 栏就会掉到下一行（做图册时实测：一反转变成三行）。两侧栏写 `minmax(0, …)`、每格
+      `min-width: 0`：网格项默认 `min-width: auto`，塞不下时不缩、直接溢出压到 logo 上。 */
+
+[data-block="header-new"] > .hdr-topbar,
+[data-block="header-new"] .navbar > .hdr-grid,
+[data-block="header-new"] .navbar > .hdr-below {
+  display: none !important;
 }
 
-/* ── header-new · menu-center ───────────────────────────────────────────────────────────────────────────
-   768 起三栏网格（手机上仍是 `.navbar > .container-lg` 的 flex：logo 左、汉堡右）。工具类表达不了
-   列宽和「每格落在哪一栏」，所以这个元素的网格整段在这里，不拆一半给 `d-md-grid`（B4 的推论）。
-   🔴 每一格都同时钉 `grid-row: 1`：reverse 换栏之后，网格自动摆放的光标只往前走，第一格放到
-      第 3 栏以后，第二格要放第 2 栏就会掉到下一行（做图册时实测：一反转变成三行）。
-   🔴 两侧栏写 `minmax(0, …)`、每格 `min-width: 0`：网格项默认 `min-width: auto`，内容塞不下时
-      不缩、直接溢出压到 logo 上（820 实测：菜单压住了店名）。缩到 0 之后，菜单在自己那一栏里换行。
-   📌 这个形态 768–991 用 `auto minmax(0,1fr) auto`（菜单占中间那条弹性栏、在里面居中），992 起才是
-      `1fr auto 1fr` 的真居中：iPad 那一档两侧等宽的话，菜单那一栏只剩 auto 的最小宽，照样压到两边。 */
-@media (min-width: 768px) {
-  [data-block="header-new"][data-shape="menu-center"] .navbar > .hdr-grid {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
-    column-gap: 1rem;
-  }
-  [data-block="header-new"][data-shape="menu-center"] .hdr-left, [data-block="header-new"][data-shape="menu-center"] .hdr-right { min-width: 0; }
-  [data-block="header-new"][data-shape="menu-center"] .hdr-logo { grid-column: 1; grid-row: 1; justify-self: start; }
-  [data-block="header-new"][data-shape="menu-center"] .hdr-left { grid-column: 2; grid-row: 1; justify-self: center; }
-  [data-block="header-new"][data-shape="menu-center"] .hdr-right { grid-column: 3; grid-row: 1; justify-self: end; }
-  [data-block="header-new"][data-shape="menu-center"].hdr-reverse .hdr-logo { grid-column: 3; justify-self: end; }
-  [data-block="header-new"][data-shape="menu-center"].hdr-reverse .hdr-right { grid-column: 1; justify-self: start; }
-}
 @media (min-width: 992px) {
-  [data-block="header-new"][data-shape="menu-center"] .navbar > .hdr-grid { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); column-gap: 1.5rem; }
-}
-
-/* ── header-new · logo-center-split ───────────────────────────────────────────────────────────────────────────
-   768 起三栏网格（手机上仍是 `.navbar > .container-lg` 的 flex：logo 左、汉堡右）。工具类表达不了
-   列宽和「每格落在哪一栏」，所以这个元素的网格整段在这里，不拆一半给 `d-md-grid`（B4 的推论）。
-   🔴 每一格都同时钉 `grid-row: 1`：reverse 换栏之后，网格自动摆放的光标只往前走，第一格放到
-      第 3 栏以后，第二格要放第 2 栏就会掉到下一行（做图册时实测：一反转变成三行）。
-   🔴 两侧栏写 `minmax(0, …)`、每格 `min-width: 0`：网格项默认 `min-width: auto`，内容塞不下时
-      不缩、直接溢出压到 logo 上（820 实测：菜单压住了店名）。缩到 0 之后，菜单在自己那一栏里换行。 */
-@media (min-width: 768px) {
-  [data-block="header-new"][data-shape="logo-center-split"] .navbar > .hdr-grid {
-    display: grid;
+  [data-block="header-new"] > .hdr-topbar,
+  [data-block="header-new"] .navbar > .hdr-below {
+    display: block !important;
+  }
+  [data-block="header-new"] .navbar > .hdr-grid {
+    display: grid !important;
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: center;
-    column-gap: 1rem;
+    column-gap: 1.5rem;
   }
-  [data-block="header-new"][data-shape="logo-center-split"] .hdr-left, [data-block="header-new"][data-shape="logo-center-split"] .hdr-right { min-width: 0; }
-  [data-block="header-new"][data-shape="logo-center-split"] .hdr-left { grid-column: 1; grid-row: 1; justify-self: start; }
-  [data-block="header-new"][data-shape="logo-center-split"] .hdr-logo { grid-column: 2; grid-row: 1; justify-self: center; }
-  [data-block="header-new"][data-shape="logo-center-split"] .hdr-right { grid-column: 3; grid-row: 1; justify-self: end; }
-  [data-block="header-new"][data-shape="logo-center-split"].hdr-reverse .hdr-left { grid-column: 3; justify-self: end; }
-  [data-block="header-new"][data-shape="logo-center-split"].hdr-reverse .hdr-right { grid-column: 1; justify-self: start; }
+  [data-block="header-new"] .hdr-grid > .hdr-a,
+  [data-block="header-new"] .hdr-grid > .hdr-b,
+  [data-block="header-new"] .hdr-grid > .hdr-c { grid-row: 1; min-width: 0; }
+  [data-block="header-new"] .hdr-grid > .hdr-a { grid-column: 1; justify-self: start; }
+  [data-block="header-new"] .hdr-grid > .hdr-b { grid-column: 2; justify-self: center; }
+  [data-block="header-new"] .hdr-grid > .hdr-c { grid-column: 3; justify-self: end; }
+  [data-block="header-new"].hdr-reverse .hdr-grid > .hdr-a { grid-column: 3; justify-self: end; }
+  [data-block="header-new"].hdr-reverse .hdr-grid > .hdr-c { grid-column: 1; justify-self: start; }
+  [data-block="header-new"].hdr-reverse .hdr-grid > .hdr-c { justify-content: flex-start !important; }
+
+  /* menu=right：中间那格是空的，两栏就够 —— logo 一栏 auto，菜单 + CTA 吃掉其余全部宽度（三栏 1fr auto 1fr
+     会让菜单只拿到一半，6 项真实菜单在 1440 上照样折行）。 */
+  [data-block="header-new"].hdr-menu-right .navbar > .hdr-grid { grid-template-columns: auto minmax(0, 1fr); }
+  [data-block="header-new"].hdr-menu-right .hdr-grid > .hdr-c { grid-column: 2; }
+  [data-block="header-new"].hdr-menu-right.hdr-reverse .navbar > .hdr-grid { grid-template-columns: minmax(0, 1fr) auto; }
+  [data-block="header-new"].hdr-menu-right.hdr-reverse .hdr-grid > .hdr-a { grid-column: 2; }
+  [data-block="header-new"].hdr-menu-right.hdr-reverse .hdr-grid > .hdr-c { grid-column: 1; }
+
+  /* menu=center：中间那栏是整条菜单，两侧是 logo 和 CTA —— 这两样不能缩（缩了就被菜单盖住：992 实测
+     菜单压在店名和「Book a service」上）。所以两侧最小值是 max-content，中间 `minmax(0, auto)` 让菜单在
+     自己那栏里换行；宽度够的时候两侧仍是等宽的 1fr，菜单真居中。 */
+  [data-block="header-new"].hdr-menu-center .navbar > .hdr-grid {
+    grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr);
+  }
+
+  /* menu=gathered：跟 split 同一份 DOM，三栏都是 auto、整组居中（Bootstrap 的 `.navbar > .container-lg
+     { justify-content: space-between }` 会把三栏撑到两边，这里压回 center —— 做图册时踩到的坑 2）。 */
+  [data-block="header-new"].hdr-menu-gathered .navbar > .hdr-grid {
+    grid-template-columns: auto auto auto;
+    justify-content: center !important;
+    column-gap: 2.5rem;
+  }
+  [data-block="header-new"].hdr-menu-gathered .hdr-grid > .hdr-a { justify-self: end; }
+  [data-block="header-new"].hdr-menu-gathered .hdr-grid > .hdr-c { justify-self: start; }
+  [data-block="header-new"].hdr-menu-gathered.hdr-reverse .hdr-grid > .hdr-a { justify-self: start; }
+  [data-block="header-new"].hdr-menu-gathered.hdr-reverse .hdr-grid > .hdr-c { justify-self: end; }
 }
 
-/* ── header-new · logo-center-gathered ───────────────────────────────────────────────────────────────────────────
-   768 起三栏网格（手机上仍是 `.navbar > .container-lg` 的 flex：logo 左、汉堡右）。工具类表达不了
-   列宽和「每格落在哪一栏」，所以这个元素的网格整段在这里，不拆一半给 `d-md-grid`（B4 的推论）。
-   🔴 每一格都同时钉 `grid-row: 1`：reverse 换栏之后，网格自动摆放的光标只往前走，第一格放到
-      第 3 栏以后，第二格要放第 2 栏就会掉到下一行（做图册时实测：一反转变成三行）。
-   🔴 两侧栏写 `minmax(0, …)`、每格 `min-width: 0`：网格项默认 `min-width: auto`，内容塞不下时
-      不缩、直接溢出压到 logo 上（820 实测：菜单压住了店名）。缩到 0 之后，菜单在自己那一栏里换行。 */
-@media (min-width: 768px) {
-  [data-block="header-new"][data-shape="logo-center-gathered"] .navbar > .hdr-grid {
-    display: grid;
-    grid-template-columns: minmax(0, max-content) auto minmax(0, max-content);
-    align-items: center;
-    column-gap: 1rem;
-    /* Bootstrap 的 `.navbar > .container-lg { justify-content: space-between }` 会把三栏撑到两边（坑 2）。 */
-    justify-content: center;
-  }
-  [data-block="header-new"][data-shape="logo-center-gathered"] .hdr-left, [data-block="header-new"][data-shape="logo-center-gathered"] .hdr-right { min-width: 0; }
-  [data-block="header-new"][data-shape="logo-center-gathered"] .hdr-left { grid-column: 1; grid-row: 1; }
-  [data-block="header-new"][data-shape="logo-center-gathered"] .hdr-logo { grid-column: 2; grid-row: 1; }
-  [data-block="header-new"][data-shape="logo-center-gathered"] .hdr-right { grid-column: 3; grid-row: 1; }
-  [data-block="header-new"][data-shape="logo-center-gathered"].hdr-reverse .hdr-left { grid-column: 3; }
-  [data-block="header-new"][data-shape="logo-center-gathered"].hdr-reverse .hdr-right { grid-column: 1; }
-}
+/* ── header-new · logo-left = 预设（logo=left · menu=right · topbar=none）──────────────────────
+   🔴 #1462 起这个文件夹**只是一个名字**：预设 = 三个旋钮的一组值（manifest 的 `presets`），排版全在
+      `blocks/header-new/block.css`，按 Section 从旋钮派生的类（`hdr-logo-*` / `hdr-menu-*` / `hdr-topbar-*`）
+      点名 —— 旋钮能拧成预设表外的组合（Custom），那种组合没有文件夹，几何按文件夹写就无处可落。
+   🔴 下面这条空规则是**锚点**，别删：① `readShapeDir`（`scripts/lib/block-manifest.js`）拒绝空的 shape.css；
+      ② `theme-pipeline/pool.test.js` §⑪ 要求主题选择单里写的名字在 `public/shapes.css` 里有一条
+      `[data-block][data-shape="<名>"]` 规则。两道都是在问「这个名字是不是真的」，而这里名字是真的 ——
+      戴上它 Section 就按这组旋钮值画（`Section.tsx` §resolveKnobs）。 */
+[data-block="header-new"][data-shape="logo-left"] {}
 
-/* ── header-new · stacked-topbar ────────────────────────────────────────────────────────────────
-   下层跟 logo-left 同一副排法（工具类）；顶条是它自己的一行 flex（工具类）。这里只压同一条
-   `flex-wrap: inherit`（理由见 logo-left/shape.css）。 */
-[data-block="header-new"][data-shape="stacked-topbar"] .navbar > .container-lg {
-  flex-wrap: nowrap;
-}
+/* ── header-new · menu-center = 预设（logo=left · menu=center · topbar=none）──────────────────────
+   🔴 #1462 起这个文件夹**只是一个名字**：预设 = 三个旋钮的一组值（manifest 的 `presets`），排版全在
+      `blocks/header-new/block.css`，按 Section 从旋钮派生的类（`hdr-logo-*` / `hdr-menu-*` / `hdr-topbar-*`）
+      点名 —— 旋钮能拧成预设表外的组合（Custom），那种组合没有文件夹，几何按文件夹写就无处可落。
+   🔴 下面这条空规则是**锚点**，别删：① `readShapeDir`（`scripts/lib/block-manifest.js`）拒绝空的 shape.css；
+      ② `theme-pipeline/pool.test.js` §⑪ 要求主题选择单里写的名字在 `public/shapes.css` 里有一条
+      `[data-block][data-shape="<名>"]` 规则。两道都是在问「这个名字是不是真的」，而这里名字是真的 ——
+      戴上它 Section 就按这组旋钮值画（`Section.tsx` §resolveKnobs）。 */
+[data-block="header-new"][data-shape="menu-center"] {}
 
-/* ── header-new · stacked-centered ───────────────────────────────────────────────────────────────────────────
-   768 起三栏网格（手机上仍是 `.navbar > .container-lg` 的 flex：logo 左、汉堡右）。工具类表达不了
-   列宽和「每格落在哪一栏」，所以这个元素的网格整段在这里，不拆一半给 `d-md-grid`（B4 的推论）。
-   🔴 每一格都同时钉 `grid-row: 1`：reverse 换栏之后，网格自动摆放的光标只往前走，第一格放到
-      第 3 栏以后，第二格要放第 2 栏就会掉到下一行（做图册时实测：一反转变成三行）。
-   🔴 两侧栏写 `minmax(0, …)`、每格 `min-width: 0`：网格项默认 `min-width: auto`，内容塞不下时
-      不缩、直接溢出压到 logo 上（820 实测：菜单压住了店名）。缩到 0 之后，菜单在自己那一栏里换行。 */
-@media (min-width: 768px) {
-  [data-block="header-new"][data-shape="stacked-centered"] .navbar > .hdr-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-    align-items: center;
-    column-gap: 1rem;
-  }
-  [data-block="header-new"][data-shape="stacked-centered"] .hdr-left, [data-block="header-new"][data-shape="stacked-centered"] .hdr-right { min-width: 0; }
-  [data-block="header-new"][data-shape="stacked-centered"] .hdr-left { grid-column: 1; grid-row: 1; justify-self: start; }
-  [data-block="header-new"][data-shape="stacked-centered"] .hdr-logo { grid-column: 2; grid-row: 1; justify-self: center; }
-  [data-block="header-new"][data-shape="stacked-centered"] .hdr-right { grid-column: 3; grid-row: 1; justify-self: end; }
-  [data-block="header-new"][data-shape="stacked-centered"].hdr-reverse .hdr-left { grid-column: 3; justify-self: end; }
-  [data-block="header-new"][data-shape="stacked-centered"].hdr-reverse .hdr-right { grid-column: 1; justify-self: start; }
-}
+/* ── header-new · logo-center-split = 预设（logo=center · menu=split · topbar=none）──────────────────────
+   🔴 #1462 起这个文件夹**只是一个名字**：预设 = 三个旋钮的一组值（manifest 的 `presets`），排版全在
+      `blocks/header-new/block.css`，按 Section 从旋钮派生的类（`hdr-logo-*` / `hdr-menu-*` / `hdr-topbar-*`）
+      点名 —— 旋钮能拧成预设表外的组合（Custom），那种组合没有文件夹，几何按文件夹写就无处可落。
+   🔴 下面这条空规则是**锚点**，别删：① `readShapeDir`（`scripts/lib/block-manifest.js`）拒绝空的 shape.css；
+      ② `theme-pipeline/pool.test.js` §⑪ 要求主题选择单里写的名字在 `public/shapes.css` 里有一条
+      `[data-block][data-shape="<名>"]` 规则。两道都是在问「这个名字是不是真的」，而这里名字是真的 ——
+      戴上它 Section 就按这组旋钮值画（`Section.tsx` §resolveKnobs）。 */
+[data-block="header-new"][data-shape="logo-center-split"] {}
+
+/* ── header-new · logo-center-gathered = 预设（logo=center · menu=gathered · topbar=none）──────────────────────
+   🔴 #1462 起这个文件夹**只是一个名字**：预设 = 三个旋钮的一组值（manifest 的 `presets`），排版全在
+      `blocks/header-new/block.css`，按 Section 从旋钮派生的类（`hdr-logo-*` / `hdr-menu-*` / `hdr-topbar-*`）
+      点名 —— 旋钮能拧成预设表外的组合（Custom），那种组合没有文件夹，几何按文件夹写就无处可落。
+   🔴 下面这条空规则是**锚点**，别删：① `readShapeDir`（`scripts/lib/block-manifest.js`）拒绝空的 shape.css；
+      ② `theme-pipeline/pool.test.js` §⑪ 要求主题选择单里写的名字在 `public/shapes.css` 里有一条
+      `[data-block][data-shape="<名>"]` 规则。两道都是在问「这个名字是不是真的」，而这里名字是真的 ——
+      戴上它 Section 就按这组旋钮值画（`Section.tsx` §resolveKnobs）。 */
+[data-block="header-new"][data-shape="logo-center-gathered"] {}
+
+/* ── header-new · topbar = 预设（logo=left · menu=right · topbar=contact）──────────────────────
+   🔴 #1462 起这个文件夹**只是一个名字**：预设 = 三个旋钮的一组值（manifest 的 `presets`），排版全在
+      `blocks/header-new/block.css`，按 Section 从旋钮派生的类（`hdr-logo-*` / `hdr-menu-*` / `hdr-topbar-*`）
+      点名 —— 旋钮能拧成预设表外的组合（Custom），那种组合没有文件夹，几何按文件夹写就无处可落。
+   🔴 下面这条空规则是**锚点**，别删：① `readShapeDir`（`scripts/lib/block-manifest.js`）拒绝空的 shape.css；
+      ② `theme-pipeline/pool.test.js` §⑪ 要求主题选择单里写的名字在 `public/shapes.css` 里有一条
+      `[data-block][data-shape="<名>"]` 规则。两道都是在问「这个名字是不是真的」，而这里名字是真的 ——
+      戴上它 Section 就按这组旋钮值画（`Section.tsx` §resolveKnobs）。 */
+[data-block="header-new"][data-shape="topbar"] {}
+
+/* ── header-new · stacked = 预设（logo=center · menu=below · topbar=none）──────────────────────
+   🔴 #1462 起这个文件夹**只是一个名字**：预设 = 三个旋钮的一组值（manifest 的 `presets`），排版全在
+      `blocks/header-new/block.css`，按 Section 从旋钮派生的类（`hdr-logo-*` / `hdr-menu-*` / `hdr-topbar-*`）
+      点名 —— 旋钮能拧成预设表外的组合（Custom），那种组合没有文件夹，几何按文件夹写就无处可落。
+   🔴 下面这条空规则是**锚点**，别删：① `readShapeDir`（`scripts/lib/block-manifest.js`）拒绝空的 shape.css；
+      ② `theme-pipeline/pool.test.js` §⑪ 要求主题选择单里写的名字在 `public/shapes.css` 里有一条
+      `[data-block][data-shape="<名>"]` 规则。两道都是在问「这个名字是不是真的」，而这里名字是真的 ——
+      戴上它 Section 就按这组旋钮值画（`Section.tsx` §resolveKnobs）。 */
+[data-block="header-new"][data-shape="stacked"] {}
+
+/* ── header-new · topbar-stacked = 预设（logo=center · menu=below · topbar=contact）──────────────────────
+   🔴 #1462 起这个文件夹**只是一个名字**：预设 = 三个旋钮的一组值（manifest 的 `presets`），排版全在
+      `blocks/header-new/block.css`，按 Section 从旋钮派生的类（`hdr-logo-*` / `hdr-menu-*` / `hdr-topbar-*`）
+      点名 —— 旋钮能拧成预设表外的组合（Custom），那种组合没有文件夹，几何按文件夹写就无处可落。
+   🔴 下面这条空规则是**锚点**，别删：① `readShapeDir`（`scripts/lib/block-manifest.js`）拒绝空的 shape.css；
+      ② `theme-pipeline/pool.test.js` §⑪ 要求主题选择单里写的名字在 `public/shapes.css` 里有一条
+      `[data-block][data-shape="<名>"]` 规则。两道都是在问「这个名字是不是真的」，而这里名字是真的 ——
+      戴上它 Section 就按这组旋钮值画（`Section.tsx` §resolveKnobs）。 */
+[data-block="header-new"][data-shape="topbar-stacked"] {}

@@ -1,6 +1,6 @@
 ---
 order: 1
-summary: "FlyonUI #5 · Webpixels header-1 · logo 左 · 菜单真居中 · CTA 右 · 按钮：文字链 + solid(dark)"
+summary: "FlyonUI #5 · Webpixels header-1 · logo 左 · 菜单真居中 · CTA 右"
 source: flyonui#5
 layout_intent:
   align: center
@@ -13,6 +13,8 @@ layout_intent:
 ---
 
 # header-new · menu-center
+
+**旋钮：** logo=left · menu=center · topbar=none
 
 **长什么样：** 三栏网格 1fr auto 1fr：logo 左 · 菜单正中 · CTA 右
 

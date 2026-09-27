@@ -20,6 +20,7 @@
 //    发一个 `footer-new:newsletter` 事件占位），收邮件的后端另开票。
 
 import type { FormEvent } from 'react';
+import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig } from '@/lib/types/config';
 
@@ -60,7 +61,7 @@ interface ShapeLayout {
   bar: 'split' | 'centered' | 'fine';
 }
 
-// ── 形态 → 布局（本票的核心，照 `header-new` 的 `SHAPES` 写）────────────────────────────────────────
+// ── 形态 → 布局（本票的核心，照 T2.1 `header-new` 的 `SHAPES` 写；header 在 #1462 已改成旋钮派生）────────────────────────────────────────
 export const SHAPES: Record<string, ShapeLayout> = {
   'slim-row': { body: 'row', newsletter: 'none', bar: 'split' },
   centered: { body: 'centered', newsletter: 'contact', bar: 'centered' },
@@ -93,9 +94,11 @@ interface Props {
   /** 形态名；没给或不认识就落回 `slim-row`。今天只有图册传它。 */
   shape?: string;
   block?: BlockConfig;
+  /** #1462 —— 服务端查好的图标表（`scripts/lib/icons.js` §iconTableFor）；图标画成内联 SVG，不走字体。 */
+  iconTable?: IconTable;
 }
 
-export default function FooterNewSection({ data = {}, shape: shapeIn, block }: Props) {
+export default function FooterNewSection({ data = {}, shape: shapeIn, block, iconTable = {} }: Props) {
   const shape = shapeIn && SHAPES[shapeIn] ? shapeIn : DEFAULT_SHAPE;
   const layout = SHAPES[shape];
   const { dark = false, reverse = false } = data.options || {};
@@ -141,7 +144,7 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block }: P
     <div className={`d-flex flex-shrink-0 align-items-center gap-4 ${reverse ? 'flex-row-reverse' : ''} ${extra}`}>
       {social.map((s, i) => (
         <a key={i} href={s.href} className={`${linkTone} fs-5`} aria-label={s.label}>
-          <i className={`bi ${s.icon ? `bi-${s.icon}` : 'bi-link-45deg'}`} aria-hidden="true" />
+          <InlineIcon name={s.icon && iconTable[s.icon] ? s.icon : 'link-45deg'} icons={iconTable} />
         </a>
       ))}
     </div>
@@ -149,10 +152,10 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block }: P
 
   // 联系信息：每个字段可空、空的不渲染（验收 4：没有空图标、没有空行）。
   const contactItems = [
-    contact.phone ? { key: 'phone', icon: 'bi-telephone', text: contact.phone, href: telHref(contact.phone) } : null,
-    contact.address ? { key: 'address', icon: 'bi-geo-alt', text: contact.address } : null,
-    contact.hours ? { key: 'hours', icon: 'bi-clock', text: contact.hours } : null,
-    contact.email ? { key: 'email', icon: 'bi-envelope', text: contact.email, href: `mailto:${contact.email}` } : null,
+    contact.phone ? { key: 'phone', icon: 'telephone', text: contact.phone, href: telHref(contact.phone) } : null,
+    contact.address ? { key: 'address', icon: 'geo-alt', text: contact.address } : null,
+    contact.hours ? { key: 'hours', icon: 'clock', text: contact.hours } : null,
+    contact.email ? { key: 'email', icon: 'envelope', text: contact.email, href: `mailto:${contact.email}` } : null,
   ].filter((c): c is { key: string; icon: string; text: string; href?: string } => !!c);
 
   // `stacked`：竖着一条一行（`columns` 品牌列里那份）。🔴 竖排时不叠 `flex-row-reverse` —— 它跟
@@ -165,7 +168,7 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block }: P
       <div className={`d-flex column-gap-6 row-gap-2 ${mutedTone} ${dir} ${extra}`}>
         {items.map((c) => (
           <span key={c.key} className="d-inline-flex align-items-center gap-2">
-            <i className={`bi ${c.icon}`} aria-hidden="true" />
+            <InlineIcon name={c.icon} icons={iconTable} />
             {c.href ? <a className={`${linkTone} text-decoration-none`} href={c.href}>{c.text}</a> : c.text}
           </span>
         ))}
@@ -303,7 +306,7 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block }: P
               <ul className={`list-unstyled vstack gap-2 mb-0 ${mutedTone}`}>
                 {contactItems.map((c) => (
                   <li key={c.key} className="d-flex gap-2">
-                    <i className={`bi ${c.icon}`} aria-hidden="true" />
+                    <InlineIcon name={c.icon} icons={iconTable} />
                     {c.href ? <a className={`${linkTone} text-decoration-none`} href={c.href}>{c.text}</a> : <span>{c.text}</span>}
                   </li>
                 ))}
@@ -369,10 +372,10 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block }: P
         <div className={`d-flex flex-wrap column-gap-4 row-gap-1 ${reverse ? 'flex-row-reverse' : ''}`}>
           {contact.phone ? (
             <a className={`${linkTone} text-decoration-none d-inline-flex align-items-center gap-2`} href={telHref(contact.phone)}>
-              <i className="bi bi-telephone" aria-hidden="true" />{contact.phone}
+              <InlineIcon name="telephone" icons={iconTable} />{contact.phone}
             </a>
           ) : null}
-          {city ? <span className="d-inline-flex align-items-center gap-2"><i className="bi bi-geo-alt" aria-hidden="true" />{city}</span> : null}
+          {city ? <span className="d-inline-flex align-items-center gap-2"><InlineIcon name="geo-alt" icons={iconTable} />{city}</span> : null}
         </div>
       ) : null)
       : <span>{copyright}</span>;
