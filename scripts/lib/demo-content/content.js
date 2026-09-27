@@ -628,6 +628,41 @@ const DEMO_CONTENT = {
     language: 'en',
   },
 
+  // #1424 —— Webpixels 那一版顶栏（`staging: true`，只在图册里）。6 个形态吃同一份：`topbar` 只有两个
+  // stacked 形态画，`ctaSecondary` 在 iPad 那一档藏起来 —— 两样都填上，那两条断点行为图册里才看得见。
+  // 🔴 `topbar` 底下那三份 list 是嵌套的，守卫 (c) 只看顶层 list 槽，所以 3 个社交链接够用（票正文）。
+  'header-new': {
+    logo: imageUrl('logo-mark'),
+    brandName: SITE,
+    nav: [
+      { label: 'Home', href: '/', icon: 'house-door', show: 'both' },
+      { label: 'Services', href: '/services', icon: 'tools', show: 'both' },
+      { label: 'Brake repair and diagnostics', href: '/services/brakes', icon: 'disc', show: 'both' },
+      { label: 'Pricing', href: '/pricing', icon: 'tag', show: 'both' },
+      { label: 'About the shop', href: '/about', icon: 'shop', show: 'both' },
+      { label: 'Contact', href: '/contact', icon: 'envelope', show: 'icon' },
+    ],
+    ctaPrimary: { label: 'Book a service', href: '/quote', style: 'solid' },
+    ctaSecondary: { label: 'Call us', href: 'tel:+14165550142', style: 'outline' },
+    topbar: {
+      contact: [
+        { icon: 'telephone', text: '(416) 555-0142', href: 'tel:+14165550142' },
+        { icon: 'clock', text: 'Mon–Sat 8am–6pm' },
+        { icon: 'geo-alt', text: '2150 Yonge St, Toronto' },
+      ],
+      links: [
+        { label: 'Sign in', href: '/account/sign-in' },
+        { label: 'Create account', href: '/account/new' },
+      ],
+      social: [
+        { label: 'Facebook', href: 'https://facebook.com/', icon: 'facebook' },
+        { label: 'Instagram', href: 'https://instagram.com/', icon: 'instagram' },
+        { label: 'Google reviews', href: 'https://google.com/maps', icon: 'google' },
+      ],
+    },
+    options: { dark: false, icons: false, reverse: false },
+  },
+
   footer: {
     columns: [
       {

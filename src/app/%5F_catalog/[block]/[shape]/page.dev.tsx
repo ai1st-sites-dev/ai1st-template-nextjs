@@ -25,6 +25,7 @@
 import { notFound } from 'next/navigation';
 import Footer from '@blocks/footer/Section';
 import Header from '@blocks/header/Section';
+import HeaderNewSection, { type HeaderNewData } from '@blocks/header-new/Section';
 import SectionRenderer from '@/components/SectionRenderer';
 import { defaultLocale } from '@/lib/config';
 import type { BlockConfig } from '@/lib/types/config';
@@ -36,6 +37,7 @@ import {
   CATALOG_PATHS,
   CATALOG_SERVICE_SLUG,
   OWN_THEME_OFF,
+  SITE_CSS_HREF,
   catalogThemes,
   readSheetCss,
   registerCatalogFixturePages,
@@ -108,6 +110,8 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
   return (
     <>
       <script dangerouslySetInnerHTML={{ __html: OWN_THEME_OFF }} />
+      {/* #1424 —— Webpixels 那一份 CSS，只有图册的两个页面加载（理由在 catalogShared.ts §SITE_CSS_HREF）。 */}
+      <link rel="stylesheet" href={SITE_CSS_HREF} data-catalog-site-css="" />
       {/* 皮在前、画法在后，跟 `buildThemeCss()` 自己拼出来的顺序一样（`theme-css.js`：
           @import → :root → 画法表）。两张都在 <body> 里 ⟹ 文档顺序在 <head> 那几条 <link>
           之后，同名变量、同特异度时它们赢。 */}
@@ -124,6 +128,8 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
       >
         {isRegion && block === 'header' ? <Header locale={locale} variant={shape} /> : null}
         {isRegion && block === 'footer' ? <Footer locale={locale} variant={shape} /> : null}
+        {/* #1424 —— Webpixels 那一版顶栏：内容来自演示内容包（槽位契约），不来自 navigation.json。 */}
+        {isRegion && block === 'header-new' ? <HeaderNewSection shape={shape} data={data as HeaderNewData} block={cfg} /> : null}
         {isRegion ? null : <SectionRenderer blocks={[cfg]} locale={locale} />}
       </main>
     </>

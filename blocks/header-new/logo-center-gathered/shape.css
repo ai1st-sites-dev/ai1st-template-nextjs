@@ -1,0 +1,23 @@
+/* ── header-new · logo-center-gathered ───────────────────────────────────────────────────────────────────────────
+   768 起三栏网格（手机上仍是 `.navbar > .container-lg` 的 flex：logo 左、汉堡右）。工具类表达不了
+   列宽和「每格落在哪一栏」，所以这个元素的网格整段在这里，不拆一半给 `d-md-grid`（B4 的推论）。
+   🔴 每一格都同时钉 `grid-row: 1`：reverse 换栏之后，网格自动摆放的光标只往前走，第一格放到
+      第 3 栏以后，第二格要放第 2 栏就会掉到下一行（做图册时实测：一反转变成三行）。
+   🔴 两侧栏写 `minmax(0, …)`、每格 `min-width: 0`：网格项默认 `min-width: auto`，内容塞不下时
+      不缩、直接溢出压到 logo 上（820 实测：菜单压住了店名）。缩到 0 之后，菜单在自己那一栏里换行。 */
+@media (min-width: 768px) {
+  [data-block="header-new"][data-shape="logo-center-gathered"] .navbar > .hdr-grid {
+    display: grid;
+    grid-template-columns: minmax(0, max-content) auto minmax(0, max-content);
+    align-items: center;
+    column-gap: 1rem;
+    /* Bootstrap 的 `.navbar > .container-lg { justify-content: space-between }` 会把三栏撑到两边（坑 2）。 */
+    justify-content: center;
+  }
+  [data-block="header-new"][data-shape="logo-center-gathered"] .hdr-left, [data-block="header-new"][data-shape="logo-center-gathered"] .hdr-right { min-width: 0; }
+  [data-block="header-new"][data-shape="logo-center-gathered"] .hdr-left { grid-column: 1; grid-row: 1; }
+  [data-block="header-new"][data-shape="logo-center-gathered"] .hdr-logo { grid-column: 2; grid-row: 1; }
+  [data-block="header-new"][data-shape="logo-center-gathered"] .hdr-right { grid-column: 3; grid-row: 1; }
+  [data-block="header-new"][data-shape="logo-center-gathered"].hdr-reverse .hdr-left { grid-column: 3; }
+  [data-block="header-new"][data-shape="logo-center-gathered"].hdr-reverse .hdr-right { grid-column: 1; }
+}

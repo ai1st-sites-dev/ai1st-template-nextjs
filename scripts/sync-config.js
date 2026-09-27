@@ -1003,6 +1003,20 @@ if (fs.existsSync(siteThemeCssPath)) {
 fs.writeFileSync(path.join(publicDir, 'theme.css'), themeCssBytes);
 console.log(`  Generated public/theme.css — ${themeCssOrigin} (${themeCssBytes.length} bytes)`);
 
+// ─── #1424 —— Webpixels 那一份 CSS（`public/site.css`）─────────────────────────────────────────────
+// brand.json 的主色 → Sass `$primary` → Webpixels → purge。实现与理由在 `lib/site-css.js`。
+// 🔴 **今天没有任何客户页面引用它**（设计稿 B1：客户站在 T4 之前只有 Tailwind）。唯一的读者是 dev 里的
+//    图册 `/__catalog`。它仍然每次构建都编，是因为 T4 之后它就是客户页那一份 CSS，而容器那条命令只调
+//    sync-config —— 编译链现在就在这三条路上跑，体积和耗时现在就量得到。
+// 🔴 失败就 exit 1，不吞：编不出来的时候静默跳过，图册会拿着上一次那份旧的 site.css 看起来一切正常。
+require('./lib/site-css.js').writeSiteCss({ brand, rootDir })
+  .then((r) => console.log(`  Generated public/site.css — Webpixels, $primary ${r.primary}, `
+    + `purged ${r.rawBytes} → ${r.bytes} bytes (${r.ms} ms)`))
+  .catch((e) => {
+    console.error(`  🔴 public/site.css: ${e && e.message}`);
+    process.exit(1);
+  });
+
 // ─── #1198 §「这个站会长成地板样」守卫 ────────────────────────────────────────────────────────
 //
 // 2026-08-25，生产上唯一那个真付费客户的站（`site-194f1f41` / dexin.ca）掉进了这个形状：新模板 +

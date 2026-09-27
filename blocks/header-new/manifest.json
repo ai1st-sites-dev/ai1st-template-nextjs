@@ -1,0 +1,62 @@
+{
+  "type": "header-new",
+  "displayName": "Site Header (Webpixels)",
+  "category": "region",
+  "region": true,
+  "staging": true,
+  "roleDefault": "essential",
+  "layout_intent": {
+    "items": "none",
+    "item_wrap": "allow",
+    "headline": "none",
+    "media": "none",
+    "columns": "one"
+  },
+  "slots": {
+    "logo": {
+      "kind": "image",
+      "required": false,
+      "promptOptional": true
+    },
+    "brandName": {
+      "kind": "text",
+      "required": true,
+      "promptOptional": false
+    },
+    "nav": {
+      "kind": "list",
+      "required": true,
+      "promptOptional": false,
+      "shape": "[{label, href, icon?, show: \"text\" | \"icon\" | \"both\"}]"
+    },
+    "ctaPrimary": {
+      "kind": "link",
+      "required": true,
+      "promptOptional": false,
+      "shape": "{label, href, style: \"solid\" | \"outline\" | \"link\"}"
+    },
+    "ctaSecondary": {
+      "kind": "link",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{label, href, style: \"solid\" | \"outline\" | \"link\"}"
+    },
+    "topbar": {
+      "kind": "object",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{contact: [{icon, text, href?}], links: [{label, href}], social: [{label, href, icon}]}"
+    },
+    "options": {
+      "kind": "object",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{dark: bool, icons: bool, reverse: bool}"
+    }
+  },
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  }
+}

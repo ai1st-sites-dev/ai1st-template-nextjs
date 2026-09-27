@@ -155,7 +155,10 @@ console.log('⑤ 形态下拉');
     if (got.length === 0) problems.push(`${c.type}: 下拉是空的`);
     total += got.length;
   }
-  const expectTotal = catalog.pairs.filter((p) => !['header', 'footer'].includes(p.block) && p.candidate !== true).length;
+  // #1424 —— 外壳区按 manifest 自己的 `region === true` 判，不手抄名单（手抄的 `['header', 'footer']`
+  // 在 `header-new` 进来那天就少了一个，合计差 1 而报的是「编辑器下拉错了」）。
+  const isRegion = (block) => (catalog.manifests.get(block) || {}).region === true;
+  const expectTotal = catalog.pairs.filter((p) => !isRegion(p.block) && p.candidate !== true).length;
   check(problems.length === 0, `逐块相等（合计 ${total} 项）`, problems.join(' / '));
   check(total === expectTotal, `合计 = 非 region 对数减候选（${expectTotal}）`, String(total));
   const t = compOf('testimonials').shapes.map((s) => s.name);

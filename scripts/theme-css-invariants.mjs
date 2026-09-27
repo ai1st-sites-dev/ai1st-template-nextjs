@@ -49,6 +49,7 @@ import { createRequire } from 'node:module';
 // #1332 —— 检查 ⑨ 的探针与判据。住在自己的文件里而不是这里，是为了让每一条判据都能在不起浏览器的
 // 情况下喂数跑 —— 起浏览器的那一半只负责取数。
 import { INTENT_PROBE, VOCAB as INTENT_VOCAB, judgeIntent } from './lib/layout-intent.mjs';
+import { classAuditInBrowser } from './lib/class-audit.mjs';
 
 // 🔴 LOADING THE INSTRUMENT IS ITS OWN STEP, AND IT ANSWERS 2 (#1062).
 // Left to Node, a module that will not load throws before a line of this file runs, and Node's own
@@ -2780,53 +2781,8 @@ const THEME_SHEET_PATH = '/theme.css';
 //    this check printed `hooks in the markup: 11 · not dressed by the theme: 0` and exited 0. That is
 //    measured, not feared: QA2 did it on #1019. 30 more blocks are still to move (#1007) and most of them
 //    are not home-page blocks either, so the blind spot was about to become the normal case.
-const classAuditInBrowser = ([hookClasses, themeSheetPath]) => {
-  const declared = new Set();
-  const declaredByTheme = new Set();
-  const themeSheets = [];
-  let unreadableSheets = 0;
-  const collect = (rules, into) => {
-    for (const r of rules) {
-      if (r.selectorText) {
-        for (const m of r.selectorText.matchAll(/\.((?:\\.|[-\w -￿])+)/g)) {
-          const name = m[1].replace(/\\(.)/g, '$1');
-          declared.add(name);
-          if (into) into.add(name);
-        }
-      }
-      if (r.cssRules) collect(r.cssRules, into); // @media, @supports, @layer …
-    }
-  };
-  for (const sheet of document.styleSheets) {
-    // The theme's own sheet is the one at the fixed path (#1002). base.css (#1001) and custom.css
-    // (#1006) are deliberately NOT it: the point of the second reading is that neither the floor nor
-    // the site's own overrides may stand in for a rule the theme was supposed to write.
-    let isTheme = false;
-    try {
-      isTheme = !!sheet.href && new URL(sheet.href, window.location.href).pathname === themeSheetPath;
-      if (isTheme) themeSheets.push(new URL(sheet.href, window.location.href).pathname);
-    } catch { isTheme = false; }
-    let rules;
-    try { rules = sheet.cssRules; } catch { unreadableSheets++; continue; } // cross-origin (fonts)
-    collect(rules, isTheme ? declaredByTheme : null);
-  }
-  const used = new Map();
-  for (const el of document.querySelectorAll('[class]')) {
-    for (const c of (el.getAttribute('class') || '').split(/\s+/).filter(Boolean)) {
-      if (!used.has(c)) used.set(c, el.tagName.toLowerCase());
-    }
-  }
-  return {
-    unreadableSheets,
-    sheets: document.styleSheets.length,
-    used: used.size,
-    orphans: [...used.entries()].filter(([c]) => !declared.has(c)).map(([c, tag]) => `${tag}.${c}`),
-    themeSheets,
-    // The hooks actually present in this page's markup, and which of them the theme sheet dresses.
-    hooksOnPage: hookClasses.filter((c) => used.has(c)),
-    hooksMissingFromTheme: hookClasses.filter((c) => used.has(c) && !declaredByTheme.has(c)),
-  };
-};
+// 🔴 #1424 —— 函数体搬去了 `lib/class-audit.mjs`（图册那一问要对另一页、另一组样式表问同一个问题）。
+//    这里 import 回来，调用处一个字都不改；不给第三个参数时行为逐字节不变。
 // The reading for the page every check above measured. It is REPORTED at ⑤b rather than here, together
 // with the other pages' — one hook that four pages are missing a rule for is one finding, not four, and a
 // finding that repeats itself four times is one nobody finishes reading. The reading itself has to be
@@ -4063,14 +4019,24 @@ if (PALETTE_IS_NOT_THE_SHEETS_OWN) {
 // ── ⑨ 的汇总（#1332 AC2：逐格可见 + 逐格断言数的最小值必须 > 0）────────────────────────────────
 {
   const declared = [];
-  for (const [t, m] of INTENT_MANIFESTS) for (const sh of (m.shapes || [])) declared.push(`${t}/${sh.name}`);
+  // #1424 —— `staging: true` 的块（Webpixels 那一批 `<块>-new`，T3 之前只在图册里）按构造不在演示站上：
+  // 演示站只有 Tailwind 的 CSS，它们上去就是没样式的 HTML（设计稿 B1）。所以不算进「必须量到」的分母，
+  // 并且在读数里点名跳过了谁 —— 跳过不说出来，就跟「量过了」长得一样。图册那边不跳（block-catalog.js）。
+  const staged = [];
+  for (const [t, m] of INTENT_MANIFESTS) {
+    if (m.staging === true) { staged.push(t); continue; }
+    for (const sh of (m.shapes || [])) declared.push(`${t}/${sh.name}`);
+  }
+  if (staged.length) {
+    readings.push(`  ⑨: 跳过 ${staged.length} 个 staging 块（还没进正式库、演示站按构造不渲染）：${staged.join(', ')}`);
+  }
   const missed = declared.filter((k) => !intentPairsSeen.has(k));
   const counts = intentCells.map((c) => c.checks);
   const min = counts.length ? Math.min(...counts) : 0;
   const total = counts.reduce((a, b) => a + b, 0);
   readings.push(`  ⑨ layout intent（${INTENT_ARM}）: ${intentCells.length} 格 = `
     + `${intentPairsSeen.size}/${declared.length} 个 (块,形态) 对 × 2 视口 · 共 ${total} 条断言 · `
-    + `逐格最小 ${min} 条 · 块在这个站上出现 ${intentBlocksOnPage.size}/${INTENT_MANIFESTS.size} 个`);
+    + `逐格最小 ${min} 条 · 块在这个站上出现 ${intentBlocksOnPage.size}/${INTENT_MANIFESTS.size - staged.length} 个`);
   if (intentSelfOverflow.length) {
     const uniq = [...new Set(intentSelfOverflow.map((x) => x.split(' ')[0]))];
     readings.push(`  📌 ⑨: ${intentSelfOverflow.length} 格量到块自己横向溢出，涉及 ${uniq.length} 个 (块,形态) 对`

@@ -197,7 +197,9 @@ const NON_EDITABLE_TEXT_SLOTS = [
 // 🔴 **所以它们也不进 `NON_EDITABLE_TEXT_SLOTS`**：那张名单说的是「这个槽位不是文字」，
 // 而 `footer.copyright` / `footer.description` 恰恰**是**文字。两件事分两张表，理由才不会串。
 // 📌 #1353 把外壳区接进检查器的那天，把这两个名字从这里拿掉、按普通块标 `editLabel` 即可。
-const NO_SLOT_PATH_BLOCKS = ['header', 'footer'];
+// 📌 #1424 —— `header-new`（Webpixels 那一版顶栏，`staging: true`）同一个理由进来：它是外壳区块，今天
+//    只在图册里渲染，Puck 不接它。T3 接 Puck 时把它从这里拿掉、text 槽位标上 `editLabel`。
+const NO_SLOT_PATH_BLOCKS = ['header', 'footer', 'header-new'];
 
 // ── #1352 —— 一份 manifest 上「老板能直接改的字」都在哪儿 ──────────────────────────────────────
 //
@@ -452,6 +454,14 @@ function checkManifestShape(name, m) {
   // （上面那条只校验它是非空字符串，17 个取值没有任何消费者），拿它当判据就是把一个没人守的字段
   // 悄悄变成承重件 —— 改一个 category 的人不会知道自己关掉了一道闸。同一条理由写在上面 `hooksFrom`
   // 那段里，那是本仓第一个走这条路的键。
+  // #1424 —— `staging: true` 说的是「这个块**还没进正式库**」：Webpixels 那一套新块（`<块>-new`）在
+  // T3 切换之前跟旧库并存，只在图册里渲染（客户站没有 Bootstrap 的 CSS，设计稿 B1）。
+  // 它进 `blockShapeCatalog()`、进图册；`theme-css-invariants.mjs` 的 ⑨「每个 (块,形态) 对都要在演示站
+  // 上量到」**跳过**它 —— 演示站按构造不渲染它。T3 改名时删掉这个键。
+  // 🔴 同 `region` / `hooksFrom`：必须**声明**，不靠 `-new` 这个名字后缀去推。
+  if (m.staging !== undefined && typeof m.staging !== 'boolean') {
+    bad(`staging 有的话必须是 true/false（现在是 ${JSON.stringify(m.staging)}）—— 它说的是「这个块还没进正式库，只在图册里」`);
+  }
   if (m.region !== undefined && typeof m.region !== 'boolean') {
     bad(`region 有的话必须是 true/false（现在是 ${JSON.stringify(m.region)}）—— 它说的是「这个块是外壳区，不进页面 JSON、不在 registry.ts 里」`);
   }

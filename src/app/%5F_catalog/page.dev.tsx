@@ -37,12 +37,14 @@ import { blockShapeCatalog } from '../../../scripts/lib/block-catalog.js';
 import { demoDataFor } from '../../../scripts/lib/demo-content/index.js';
 import { filledOptionalSlots } from '../../../scripts/lib/block-manifest.js';
 import CatalogBoard from './CatalogBoard';
+import HeaderNewRow from './HeaderNewRow';
 import ShapeSelect from './ShapeSelect';
 import {
   CATALOG_LOCALE,
   CATALOG_PATHS,
   CATALOG_SERVICE_SLUG,
   OWN_THEME_OFF,
+  SITE_CSS_HREF,
   catalogThemes,
   readSheetCss,
   registerCatalogFixturePages,
@@ -95,6 +97,26 @@ export default function CatalogPage() {
       minimal.serviceSlug = CATALOG_SERVICE_SLUG;
     }
     const cellLocale = isRelatedPages ? CATALOG_LOCALE : locale;
+    // #1424 —— `header-new`（Webpixels 那一版顶栏，外壳区块、`staging`）不走 `SectionRenderer`，也不走
+    // `ShapeSelect`：它的形态换的是 class 不是 `data-shape`，理由在 `HeaderNewRow.tsx` 头上。
+    if (type === 'header-new') {
+      cellCount += shapes.length;
+      return (
+        <section className="catalog-row" data-catalog-row={type} key={type}>
+          <h2 className="catalog-row__name">
+            {type} <span className="catalog-row__count">{shapes.length} 种形态</span>
+            <span className="catalog-row__warn">还没进正式库（staging）—— 只有这条路由加载 /site.css</span>
+          </h2>
+          <HeaderNewRow
+            shapes={shapes}
+            full={full}
+            minimal={minimal}
+            hasFull={filledOptionalSlots(m, full)}
+            hasMinimal={filledOptionalSlots(m, minimal)}
+          />
+        </section>
+      );
+    }
     const arms: Array<{ key: 'full' | 'minimal'; title: string; data: Record<string, unknown> }> = [
       { key: 'full', title: '全填版', data: full },
       { key: 'minimal', title: '最少版', data: minimal },
@@ -167,6 +189,10 @@ export default function CatalogPage() {
           主题设定覆盖）因此不随页顶切主题而变。
           🔴 它是一段**解析期就跑**的内联脚本，不是 effect：晚一帧关掉就会先闪一眼别人的画法。 */}
       <script dangerouslySetInnerHTML={{ __html: OWN_THEME_OFF }} />
+      {/* #1424 —— Webpixels 那一份 CSS（`sync-config.js` 编的 `public/site.css`），**只有图册这条路由**
+          加载它。🔴 代价写在明处：它带 Bootstrap 的 reboot，会改掉这一页上旧库那些块的 `p` / 标题 /
+          `body` 基础样式 —— 在图册里看旧块的长相，以客户站为准（客户站不加载它，设计稿 B1）。 */}
+      <link rel="stylesheet" href={SITE_CSS_HREF} data-catalog-site-css="" />
       {/* 图册自己的外壳样式。它跟主题层没有共用的选择器，所以两边不会互相压。 */}
       <style dangerouslySetInnerHTML={{ __html: CHROME_CSS }} />
       <CatalogBoard

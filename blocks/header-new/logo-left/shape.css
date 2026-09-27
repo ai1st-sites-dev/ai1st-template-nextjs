@@ -1,0 +1,8 @@
+/* ── header-new · logo-left（默认）──────────────────────────────────────────────────────────────
+   排版全在 markup 的工具类里（`.navbar > .container` 的 flex + space-between 本来就是「logo 一头、
+   其余一头」，reverse 是 `flex-row-reverse`）。这里只压一条 Bootstrap 的默认：`.navbar` 的
+   `flex-wrap: wrap` 经 `.navbar > .container-lg { flex-wrap: inherit }` 传下来，菜单一长整个右组就
+   掉到 logo 下面另起一行。钉成 nowrap 之后换行只发生在菜单自己那份 `flex-wrap` 里。 */
+[data-block="header-new"][data-shape="logo-left"] .navbar > .container-lg {
+  flex-wrap: nowrap;
+}

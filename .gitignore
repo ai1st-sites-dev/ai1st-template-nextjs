@@ -53,3 +53,7 @@ next-env.d.ts
 
 # playwright
 test-results/
+
+# #1424 — sync-config.js 每次构建都编它（lib/site-css.js），图标字体跟着拷进来。
+public/site.css
+public/fonts/bootstrap-icons.woff2

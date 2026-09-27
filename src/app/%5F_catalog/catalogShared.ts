@@ -119,3 +119,10 @@ export function registerCatalogFixturePages(): void {
  */
 export const OWN_THEME_OFF = "(function(){var l=document.querySelectorAll('link[rel=\"stylesheet\"]');"
   + "for(var i=0;i<l.length;i++){if((l[i].getAttribute('href')||'')==='/theme.css'){l[i].disabled=true;}}})();";
+
+/**
+ * #1424 —— Webpixels 那一份 CSS 的地址（`scripts/lib/site-css.js` 写进 `public/site.css`）。
+ * 🔴 **只有图册的两个页面 `<link>` 它**：客户站在 T4 之前不许挂 Bootstrap 的 CSS（设计稿 B1），
+ *    验收 6 拿 `grep -rl site.css out/ --include='*.html'` 为空守这一条。
+ */
+export const SITE_CSS_HREF = '/site.css';
