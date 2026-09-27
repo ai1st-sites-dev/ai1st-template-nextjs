@@ -11,7 +11,8 @@
 //
 // 🔴 **一份 markup + 三个旋钮 + 七个预设**（#1462，Chris 2026-09-27 图册定稿第 2 版）。
 //    旋钮 `logo`（left | center）· `menu`（right | center | split | gathered | below）· `topbar`
-//    （none | contact）；预设是旋钮组合起的名，表在 manifest 的 `presets`，形态文件夹名就是预设名。
+//    （none | contact），声明在 manifest 的 `slots.options.knobs`；预设是旋钮组合起的名，表在顶层 `presets`
+//    （`{ name, shape, knobs }`，header 的 name 与形态目录名 shape 相同）—— 位置是 PM 19:01 冻结的那份。
 //    形态名只决定**初值**：`options` 里写了旋钮就按旋钮画（§resolveKnobs），不成立的组合由
 //    `scripts/lib/header-knobs.js` 纠正 —— 工具栏和这里用的是同一个函数。
 //    排版由旋钮派生成根上的三个类（`hdr-logo-*` / `hdr-menu-*` / `hdr-topbar-*`），几何在
@@ -38,7 +39,7 @@ import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig } from '@/lib/types/config';
 import manifest from './manifest.json';
 import {
-  couplingOf, knobsOf, normalizeKnobs, presetKnobs, presetOf, presetsOf,
+  couplingOf, knobsOf, normalizeKnobs, presetForShape, presetOf, presetsOf,
 } from '../../scripts/lib/header-knobs.js';
 
 type Show = 'text' | 'icon' | 'both';
@@ -85,8 +86,9 @@ export const DEFAULT_PRESET = 'logo-left';
  * 🔴 纠正时不知道「刚拧的是哪个」⟹ logo 为准（header-knobs.js 文件头）：logo=center + menu=right ⟹ split。
  */
 export function resolveKnobs(shape: string | undefined, options: HeaderOptions = {}): { knobs: HeaderKnobs; preset: string; shape: string } {
-  const known = shape && presetKnobs(PRESETS, shape) ? shape : DEFAULT_PRESET;
-  const base = presetKnobs(PRESETS, known);
+  const hit = (shape && presetForShape(PRESETS, shape)) || presetForShape(PRESETS, DEFAULT_PRESET);
+  const known = hit ? hit.shape : DEFAULT_PRESET;
+  const base = hit ? { ...hit.knobs } : {};
   const given: Record<string, unknown> = {};
   for (const k of KNOBS) if (options[k.name as keyof HeaderOptions] !== undefined) given[k.name] = options[k.name as keyof HeaderOptions];
   const knobs = normalizeKnobs({ ...base, ...given }, { knobs: KNOBS, presets: PRESETS, coupling: COUPLING, base }) as unknown as HeaderKnobs;
@@ -176,10 +178,13 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
     </div>
   ) : null);
 
-  const brandLink = (extra = '') => (
-    <a className={`hdr-brand navbar-brand d-inline-flex flex-shrink-0 align-items-center gap-2 m-0 ${dark ? 'text-white' : 'text-heading'} ${extra}`} href="/">
-      {data.logo ? <img src={data.logo} alt="" className="h-rem-8 w-auto" /> : null}
-      <span className="fw-semibold text-nowrap">{brand}</span>
+  // `compact` = 手机 / iPad 那一条：店名要让位给电话图标和汉堡 —— 可以收缩、可以换成两行，不许把后两个挤到
+  // 下一行（QA2 #1462 r1：390 宽 topbar 预设整条折成两行，汉堡掉到第二行最左边；320 宽连 logo-left 也折）。
+  // 店名不截断：生意名是这一条上最要紧的字。桌面那三格里仍是一行不收缩。
+  const brandLink = (compact = false) => (
+    <a className={`hdr-brand navbar-brand d-inline-flex align-items-center gap-2 m-0 ${compact ? '' : 'flex-shrink-0'} ${dark ? 'text-white' : 'text-heading'}`} href="/">
+      {data.logo ? <img src={data.logo} alt="" className="h-rem-8 w-auto flex-shrink-0" /> : null}
+      <span className={`fw-semibold ${compact ? 'text-wrap lh-sm' : 'text-nowrap'}`}>{brand}</span>
     </a>
   );
 
@@ -263,9 +268,9 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
 
       <nav className="navbar py-4" aria-label="Main">
         {/* < 992：logo ·（topbar=contact）电话圆图标 · 汉堡。 */}
-        <div className="hdr-compact container-lg d-flex d-lg-none align-items-center justify-content-between gap-3">
-          {brandLink()}
-          <div className="d-flex align-items-center gap-2">
+        <div className="hdr-compact container-lg d-flex flex-nowrap d-lg-none align-items-center justify-content-between gap-3">
+          {brandLink(true)}
+          <div className="d-flex flex-shrink-0 align-items-center gap-2">
             {phone ? (
               <a
                 href={phone.href}
@@ -277,7 +282,7 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
             ) : null}
             <button
               type="button"
-              className={`btn ${dark ? 'text-white' : ''} fs-5 lh-1`}
+              className={`btn px-2 ${dark ? 'text-white' : ''} fs-5 lh-1`}
               aria-expanded={open}
               aria-label="Toggle navigation menu"
               onClick={() => setOpen(!open)}

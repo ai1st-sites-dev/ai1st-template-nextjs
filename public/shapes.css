@@ -6251,6 +6251,11 @@
       第二格要放第 2 栏就会掉到下一行（做图册时实测：一反转变成三行）。两侧栏写 `minmax(0, …)`、每格
       `min-width: 0`：网格项默认 `min-width: auto`，塞不下时不缩、直接溢出压到 logo 上。 */
 
+/* 紧凑条（<992）里的店名要能缩：`.navbar-brand` 是 flex 项，默认 `min-width: auto` ⟹ 店名一行多宽它就多宽，
+   再怎么 `flex-nowrap` 也只会把电话 / 汉堡挤出去。`flex-nowrap` 在 markup 上（Bootstrap 的
+   `.navbar > .container-lg { flex-wrap: inherit }` 会从 `.navbar` 继承 wrap —— 就是它把汉堡折到了第二行）。 */
+[data-block="header-new"] .hdr-compact > .hdr-brand { min-width: 0; }
+
 [data-block="header-new"] > .hdr-topbar,
 [data-block="header-new"] .navbar > .hdr-grid,
 [data-block="header-new"] .navbar > .hdr-below {

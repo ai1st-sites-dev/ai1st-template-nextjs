@@ -29,6 +29,8 @@ export interface CellOptionsInitial {
 }
 
 interface Knob { name: string; values: string[] }
+/** manifest 顶层 `presets` 的一项（PM 19:01 冻结）：`name` 显示名 · `shape` 形态目录名 · `knobs` 旋钮值。 */
+export interface Preset { name: string; shape: string; knobs: Record<string, string> }
 
 interface Props {
   block: string;
@@ -39,7 +41,7 @@ interface Props {
   ctaStyles: string[];
   hasNewsletter: boolean;
   knobs: Knob[];
-  presets: Array<Record<string, string>>;
+  presets: Preset[];
   coupling: [string, string] | null;
   iconTable: IconTable;
   initial: CellOptionsInitial;
@@ -75,9 +77,9 @@ export default function CellOptions({
   const turn = (name: string, value: string) => {
     setKnobs((k) => normalizeKnobs({ ...k, [name]: value }, { knobs: knobDefs, presets, coupling, changed: name, base: k }) as Record<string, string>);
   };
-  const pick = (p: Record<string, string>) => {
+  const pick = (p: Preset) => {
     const next: Record<string, string> = {};
-    for (const k of knobDefs) next[k.name] = p[k.name];
+    for (const k of knobDefs) next[k.name] = p.knobs[k.name];
     setKnobs(next);
   };
 

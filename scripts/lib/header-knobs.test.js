@@ -39,7 +39,16 @@ check(eq(knobs, [
 ]), '旋钮 = logo · menu · topbar，值域与定稿第 2 版相同、顺序即工具栏顺序', JSON.stringify(knobs));
 check(eq(coupling, ['logo', 'menu']), 'knobCoupling = [logo, menu]');
 check(h.knobsOf({ slots: { options: { shape: '{dark: bool, icons: bool}' } } }).length === 0, '只有布尔开关的块 ⟹ 0 个旋钮（开关不是旋钮）');
+check(h.knobsOf({ slots: { options: { shape: '{logo: "left" | "center"}' } } }).length === 0, '枚举只写在 shape 串里不算旋钮（位置冻在 slots.options.knobs）');
 check(h.couplingOf({}) === null && h.presetsOf({}).length === 0, '没声明 ⟹ 无耦合、无预设');
+check(presets.every((p) => typeof p.name === 'string' && typeof p.shape === 'string' && p.knobs && Object.keys(p.knobs).sort().join() === 'logo,menu,topbar'),
+  '每条预设是 { name, shape, knobs:{logo,menu,topbar} }（PM 19:01 冻结的形状）');
+// 写坏的项跳过、不抛；多出来的可选字段（hero 那边可能有 group）原样留着不碍事。
+check(h.presetsOf({ presets: [{ name: 'A' }, { name: 'B', shape: 'b', knobs: { x: '1' }, group: 'g' }, null] }).map((p) => p.name).join() === 'B',
+  '坏的预设项被跳过，带可选字段的照收');
+check(h.knobsOf({ slots: { options: { knobs: [{ name: 'x' }, { name: 'y', values: ['1', '2'] }] } } }).map((k) => k.name).join() === 'y', '坏的旋钮项被跳过');
+check(h.presetForShape(presets, 'topbar-stacked') && h.presetForShape(presets, 'topbar-stacked').name === 'topbar-stacked' && h.presetForShape(presets, 'nope') === null,
+  'presetForShape 按目录名找预设');
 
 console.log('\n② 纠正（工具栏：拧了谁谁不让步）');
 const turn = (from, name, value) => h.normalizeKnobs({ ...from, [name]: value }, { ...ctx, changed: name, base: from });
@@ -59,7 +68,7 @@ check(h.normalizeKnobs({ logo: 'nope', menu: 'x', topbar: 'y' }, { ...ctx, base:
     for (const changed of [undefined, 'logo', 'menu', 'topbar']) {
       const r = h.normalizeKnobs({ logo, menu, topbar }, { ...ctx, changed });
       n += 1;
-      if (!presets.some((p) => p.logo === r.logo && p.menu === r.menu)) broken.push(`${logo}/${menu}/${changed}`);
+      if (!presets.some((p) => p.knobs.logo === r.logo && p.knobs.menu === r.menu)) broken.push(`${logo}/${menu}/${changed}`);
       if (changed && changed !== 'topbar' && r[changed] !== { logo, menu, topbar }[changed]) broken.push(`${changed} 被改了`);
     }
   }
@@ -69,10 +78,10 @@ check(h.normalizeKnobs({ logo: 'nope', menu: 'x', topbar: 'y' }, { ...ctx, base:
 check(h.normalizeKnobs({ logo: 'center', menu: 'right', topbar: 'none' }, { knobs, presets, coupling: null }).menu === 'right', '反向对照：不给 knobCoupling ⟹ 不纠正');
 
 console.log('\n③ 认预设');
-for (const p of presets) check(h.presetOf(p, ctx) === p.name, `${p.name} 的旋钮值 ⟹ ${p.name}`);
+for (const p of presets) check(h.presetOf(p.knobs, ctx) === p.name, `${p.name} 的旋钮值 ⟹ ${p.name}`);
 check(h.presetOf({ logo: 'center', menu: 'split', topbar: 'contact' }, ctx) === 'custom', 'center/split/contact ⟹ custom');
 check(h.presetOf({ logo: 'left', menu: 'center', topbar: 'contact' }, ctx) === 'custom', 'left/center/contact ⟹ custom');
-check(new Set(presets.map((p) => `${p.logo}|${p.menu}|${p.topbar}`)).size === presets.length, '7 个预设的旋钮组合两两不同（否则 presetOf 认不全）');
+check(new Set(presets.map((p) => `${p.knobs.logo}|${p.knobs.menu}|${p.knobs.topbar}`)).size === presets.length, '7 个预设的旋钮组合两两不同（否则 presetOf 认不全）');
 
 console.log(`\n${fail ? '🔴' : '✅'} header-knobs: ${pass} 过 / ${fail} 不过`);
 process.exit(fail ? 1 : 0);

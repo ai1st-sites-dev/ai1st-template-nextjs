@@ -26,13 +26,14 @@ import Footer from '@blocks/footer/Section';
 import Header from '@blocks/header/Section';
 import CellOptions from './CellOptions';
 import type { IconTable } from '@/components/InlineIcon';
+import type { Preset } from './CellOptions';
 import SectionRenderer from '@/components/SectionRenderer';
 import { defaultLocale } from '@/lib/config';
 import type { BlockConfig } from '@/lib/types/config';
 import { blockShapeCatalog } from '../../../../../scripts/lib/block-catalog.js';
 import { demoDataFor } from '../../../../../scripts/lib/demo-content/index.js';
 import { filledOptionalSlots } from '../../../../../scripts/lib/block-manifest.js';
-import { couplingOf, knobsOf, normalizeKnobs, presetKnobs, presetsOf } from '../../../../../scripts/lib/header-knobs.js';
+import { couplingOf, knobsOf, normalizeKnobs, presetForShape, presetsOf } from '../../../../../scripts/lib/header-knobs.js';
 import { iconTableFor } from '../../../../../scripts/lib/icons.js';
 import {
   CATALOG_LOCALE,
@@ -64,11 +65,12 @@ const one = (v: string | string[] | undefined): string | undefined => (Array.isA
  *   `slots.options.shape` 形如 `{dark: bool, icons: bool, reverse: bool}` → 每个 `: bool` 前的键是一个开关；
  *   `slots.cta.shape` 里的 `style: "band" | "bar" | "row"` → CTA 条的几种样式；
  *   有 `slots.newsletter` → 订阅框开关。
- * #1462 —— 外加**旋钮**：`slots.options.shape` 里的 `logo: "left" | "center"` 这种枚举（§knobsOf），以及
- *   顶层 `presets`（旋钮组合起的名）和 `knobCoupling`（哪两个旋钮要成对成立）。
+ * #1462 —— 外加**旋钮**：`slots.options.knobs: [{name, values}]`（§knobsOf），以及顶层
+ *   `presets: [{name, shape, knobs}]`（旋钮组合起的名）和可选的 `knobCoupling`（哪两个旋钮要成对成立）。
+ *   位置是 PM 2026-09-27 19:01 冻结的那份（#1462 / #1463 共用）。
  * 全都空 ⟹ 这个块没有开关，页面不画那条工具栏。
  */
-function optionMetaOf(m: { slots?: Record<string, { shape?: unknown }>; presets?: unknown; knobCoupling?: unknown } | undefined) {
+function optionMetaOf(m: { slots?: Record<string, { shape?: unknown; knobs?: unknown }>; presets?: unknown; knobCoupling?: unknown } | undefined) {
   const slots = (m && m.slots) || {};
   const optShape = slots.options && typeof slots.options.shape === 'string' ? slots.options.shape : '';
   const optionKeys = Array.from(optShape.matchAll(/(\w+)\s*:\s*bool/g)).map((x) => x[1]);
@@ -80,7 +82,7 @@ function optionMetaOf(m: { slots?: Record<string, { shape?: unknown }>; presets?
     ctaStyles,
     hasNewsletter: 'newsletter' in slots,
     knobs: knobsOf(m) as Array<{ name: string; values: string[] }>,
-    presets: presetsOf(m) as Array<Record<string, string>>,
+    presets: presetsOf(m) as Preset[],
     coupling: couplingOf(m) as [string, string] | null,
   };
 }
@@ -144,7 +146,8 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
   const embed = ['1', 'true'].includes(one(sp.embed) || '');
   // #1462 —— 旋钮：初值是这个形态（= 预设）的那组值，地址栏的 `?logo=&menu=&topbar=` 盖上去（每个旋钮一个
   //    独立参数 —— `?opt=` 是开关名的逗号表，塞不下 `键=值`，PM r2 裁定 ③），再纠正一次。认不出的值落回预设。
-  const knobBase = (presetKnobs(meta.presets, shape) || {}) as Record<string, string>;
+  const own = presetForShape(meta.presets, shape);
+  const knobBase: Record<string, string> = own ? { ...own.knobs } : {};
   const knobWanted: Record<string, string> = { ...knobBase };
   for (const k of meta.knobs) { const v = one(sp[k.name]); if (v) knobWanted[k.name] = v; }
   const knobs = meta.knobs.length

@@ -97,9 +97,14 @@ console.log('① 目录集合 · manifest presets · 形态表退役');
   const want = [...NAMES].sort();
   check(JSON.stringify(dirs) === JSON.stringify(want), `blocks/header-new/ 的目录集合 == 7 个预设名`, `读到 ${dirs.join(' · ')}`);
   check(!dirs.includes('stacked-topbar') && !dirs.includes('stacked-centered'), '旧名 stacked-topbar / stacked-centered 不在');
-  const got = (MANIFEST.presets || []).map((p) => [p.name, p.logo, p.menu, p.topbar]);
+  // 形状是 PM 19:01 冻结的那份：顶层 presets = [{ name, shape, knobs }]，旋钮声明在 slots.options.knobs。
+  const got = (MANIFEST.presets || []).map((p) => [p.name, p.knobs && p.knobs.logo, p.knobs && p.knobs.menu, p.knobs && p.knobs.topbar]);
   check(JSON.stringify(got) === JSON.stringify(TABLE), 'manifest.presets 7 条与定稿表逐字相同（含顺序）', JSON.stringify(got));
-  check((MANIFEST.presets || []).every((p) => Object.keys(p).sort().join() === 'logo,menu,name,topbar'), '每条预设只有 name / logo / menu / topbar 四个键');
+  check((MANIFEST.presets || []).every((p) => Object.keys(p).sort().join() === 'knobs,name,shape' && p.shape === p.name
+    && Object.keys(p.knobs).sort().join() === 'logo,menu,topbar'), '每条预设是 { name, shape, knobs:{logo,menu,topbar} }，shape = 目录名 = name');
+  const knobDecl = ((MANIFEST.slots.options || {}).knobs || []).map((k) => `${k.name}:${k.values.join('|')}`);
+  check(JSON.stringify(knobDecl) === JSON.stringify(['logo:left|center', 'menu:right|center|split|gathered|below', 'topbar:none|contact']),
+    'slots.options.knobs 声明三个旋钮，值域与定稿第 2 版相同、顺序 = 控件顺序', JSON.stringify(knobDecl));
   // 行为判据（PM r2 裁定 ②）：Section 不导出、也不声明一张「形态名 → 布局」的表 —— 去掉注释之后没有 SHAPES。
   const code = ORIGINAL.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
   check(!/\bSHAPES\b/.test(code), 'Section.tsx 的代码里（去掉注释）没有 SHAPES');
