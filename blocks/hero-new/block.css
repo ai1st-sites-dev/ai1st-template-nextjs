@@ -157,6 +157,12 @@
   border-color: #fff !important;
   color: var(--x-primary) !important;
 }
+[data-block="hero-new"][data-tone="dark"] .btn-primary:hover,
+[data-block="hero-new"][data-tone="brand"] .btn-primary:hover {
+  background: #f1f5f9 !important;
+  border-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
 [data-block="hero-new"][data-tone="dark"] .form-control,
 [data-block="hero-new"][data-tone="brand"] .form-control,
 [data-block="hero-new"][data-tone="dark"] .form-select,
