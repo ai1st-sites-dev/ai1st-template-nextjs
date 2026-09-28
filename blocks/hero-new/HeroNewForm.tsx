@@ -7,9 +7,7 @@
 // 🔴 `source` 用既有的 `contact-form`，不新造值 —— `manager/form_channel.go` 的 `formLeadSources` 是一份
 //    封闭词表（同 `HeroLeadForm.tsx` 那段说明）。
 // 🔴 字段只能从词表里挑（`blocks/hero-new/manifest.json` 的 `slots.form.choices.fields`），每个字段对应
-//    客户记录的一列：
-//      name → 姓名 · phone → 电话 · email → 邮箱 · message → 留言 · service → 留言里的一行 `Service: …`
-//    （客户记录没有「服务」这一列，照 `quote-form` 的做法折进 message）。词表外的值由 `validateSite` 拦，
+//    客户记录的一列 —— 对照表只写在 `blocks/hero-new/lead-form/shape.md` 一处。词表外的值由 `validateSite` 拦，
 //    这里再遇到就不画。
 // 🔴 `inline` = 一行（一个字段 + 按钮），`stacked` = 姓名 / 电话并排 + 需求下拉 + 通栏提交（Webpixels hero-6）。
 //    inline 只许一个字段，`validateSite` 按 manifest 旋钮上的 `maxItems` 拦；这里多给了也只画第一个。

@@ -178,6 +178,8 @@ console.log('\n── AC4 bg');
   const css = fs.readFileSync(path.join(NEXT, 'blocks', 'hero-new', 'block.css'), 'utf-8');
   check(/\[data-tone="dark"\] \.hro-title,[\s\S]*?color: #fff !important/.test(css), 'block.css：深底时标题 color #fff !important');
   check(/\[data-tone="brand"\] \.btn-primary \{[\s\S]*?background: #fff !important/.test(css), 'block.css：主色底时主按钮白底');
+  check(/\[data-tone="dark"\] \.btn-primary,\s*\n[^{]*\[data-tone="brand"\] \.btn-primary \{[\s\S]*?background: #fff !important/.test(css),
+    'block.css：深底时主按钮也翻白底（正文「相对亮度 < 0.4 反白…按钮翻成白底」）');
   const v = (bg) => own(manifestLib.validateSite({ pages: [{ slug: 'p', blocks: [{ type: 'hero-new', data: { headline: 'H', bg } }] }] }));
   check(v('#0f172a').length === 0 && v('#0F172A').length === 0 && v('brand').length === 0, 'validateSite：#0f172a / #0F172A / brand 都放行');
   const bads = ['red', '#fff', '#12345g', 'rgb(0,0,0)', 7];

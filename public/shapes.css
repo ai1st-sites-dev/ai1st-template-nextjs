@@ -3748,6 +3748,8 @@
   --x-btn-border-color: var(--btn-outline-ink, var(--x-primary));
 }
 
+/* 深底（相对亮度 < 0.4）和 brand 底一样，主按钮翻成白底主色字（正文「字色按背景亮度自动算」那句）。 */
+[data-block="hero-new"][data-tone="dark"] .btn-primary,
 [data-block="hero-new"][data-tone="brand"] .btn-primary {
   background: #fff !important;
   border-color: #fff !important;

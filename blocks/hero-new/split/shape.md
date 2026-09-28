@@ -21,3 +21,5 @@ layout_intent:
 `data-shape` 仍是这个目录。
 
 **出处：** webpixels/section-hero-1
+
+**表单：** 把 `form` 旋钮拧到 inline / stacked 时，字段词表与 Customers 列的对应见 `../lead-form/shape.md`。
