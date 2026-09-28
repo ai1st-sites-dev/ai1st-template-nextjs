@@ -9,20 +9,22 @@
 //    `registry.generated.ts`、不进 Puck、不进 AI 的提示词；今天唯一渲染它的地方是单格页 `/__catalog`，
 //    而那条路由自己加载 `/site.css`。T3 删旧库时它改名成 `header`、接回 `SiteShell`。
 //
-// 🔴 **一份 markup + 三个旋钮 + 七个预设**（#1462，Chris 2026-09-27 图册定稿第 2 版）。
-//    旋钮 `logo`（left | center）· `menu`（right | center | split | gathered | below）· `topbar`
-//    （none | contact），声明在 manifest 的 `slots.options.knobs`；预设是旋钮组合起的名，表在顶层 `presets`
-//    （`{ name, shape, knobs }`，header 的 name 与形态目录名 shape 相同）—— 位置是 PM 19:01 冻结的那份。
-//    形态名只决定**初值**：`options` 里写了旋钮就按旋钮画（§resolveKnobs），不成立的组合由
-//    `scripts/lib/header-knobs.js` 纠正 —— 工具栏和这里用的是同一个函数。
-//    排版由旋钮派生成根上的三个类（`hdr-logo-*` / `hdr-menu-*` / `hdr-topbar-*`），几何在
-//    `blocks/header-new/block.css`；这里只决定「每一格里放什么」。
+// 🔴 **一份 markup + 两个旋钮 + 一个归预设管的开关 + 七个预设**（#1462 → #1468，Chris 2026-09-28 图册）。
+//    旋钮 `logo`（left | center | right）· `menu`（beside | center | split | gathered | below），声明在 manifest 的
+//    `slots.options.knobs`；`topbar` 是布尔开关（顶条放什么是内容，旋钮只管有没有），跟 dark / icons 并排。
+//    预设是「旋钮 + topbar」组合起的名，表在顶层 `presets`（`{ name, shape, knobs, options: { topbar } }`，header 的
+//    name 与形态目录名 shape 相同）。形态名只决定**初值**：`options` 里写了旋钮 / topbar 就按写的画
+//    （§resolveKnobs），不成立的组合由 `scripts/lib/header-knobs.js` 纠正 —— 工具栏和这里用的是同一个函数。
+//    排版由旋钮派生成根上的三个类（`hdr-logo-*` / `hdr-menu-*` / `hdr-topbar-on|off`），几何在
+//    `blocks/header-new/block.css`；这里只决定「每一格里放什么」。`logo=right` 就是 logo 在右的镜像（#1468 前
+//    是一个布尔修饰，已退役）：网格两格对调、紧凑条反向、顶条两段对调都在 block.css；markup 里只有顶条那两行
+//    挂一个 `hdr-flip`（它们不是网格格子，CSS 要一个钩子）。
 //
-// 🔴 **折叠点 992**（`lg`）：iPad（768–991）跟手机一样是 logo ·（topbar=contact 时）电话图标 · 汉堡 +
+// 🔴 **折叠点 992**（`lg`）：iPad（768–991）跟手机一样是 logo ·（topbar 开时）电话图标 · 汉堡 +
 //    抽屉 —— 真实站的菜单项是「Brake repair and diagnostics」这种长度，820 宽必折行（T2.1 验收截图）。
 //
 // 🔴 **排版只走 Webpixels 的工具类**（总纲约束 3），工具类表达不了的（网格列宽、每格落哪一栏、
-//    reverse 换栏、992 起才显示的那几段）在 block.css。
+//    logo=right 换栏、992 起才显示的那几段）在 block.css。
 //
 // 🔴 **不用任何 `data-bs-*`**（总纲约束 2）：展开 / 收起是下面那个 `useState`，深底是工具类
 //    （`bg-dark` / `link-light` / `text-white`），不是 Bootstrap 的 `data-bs-theme`。
@@ -45,9 +47,8 @@ import {
 type Show = 'text' | 'icon' | 'both';
 type CtaStyle = 'solid' | 'outline' | 'link';
 
-export type Logo = 'left' | 'center';
-export type Menu = 'right' | 'center' | 'split' | 'gathered' | 'below';
-export type Topbar = 'none' | 'contact';
+export type Logo = 'left' | 'center' | 'right';
+export type Menu = 'beside' | 'center' | 'split' | 'gathered' | 'below';
 
 export interface NavItem { label: string; href: string; icon?: string; show?: Show }
 export interface Cta { label: string; href: string; style?: CtaStyle }
@@ -58,8 +59,8 @@ export interface HeaderOptions {
   preset?: string;
   logo?: Logo;
   menu?: Menu;
-  topbar?: Topbar;
-  reverse?: boolean;
+  /** 归预设管的开关：没写就跟形态（= 预设）走。 */
+  topbar?: boolean;
   dark?: boolean;
   icons?: boolean;
 }
@@ -74,7 +75,7 @@ export interface HeaderNewData {
   options?: HeaderOptions;
 }
 
-export interface HeaderKnobs { logo: Logo; menu: Menu; topbar: Topbar }
+export interface HeaderKnobs { logo: Logo; menu: Menu }
 
 const KNOBS = knobsOf(manifest);
 const PRESETS = presetsOf(manifest);
@@ -82,17 +83,18 @@ const COUPLING = couplingOf(manifest);
 export const DEFAULT_PRESET = 'logo-left';
 
 /**
- * 形态名（= 预设名）给初值，`options` 里写着的旋钮盖上去，再纠正一次。形态名不认识就落回 `logo-left`。
- * 🔴 纠正时不知道「刚拧的是哪个」⟹ logo 为准（header-knobs.js 文件头）：logo=center + menu=right ⟹ split。
+ * 形态名（= 预设名）给初值，`options` 里写着的旋钮 / topbar 盖上去，再纠正一次。形态名不认识就落回 `logo-left`。
+ * 🔴 纠正时不知道「刚拧的是哪个」⟹ logo 为准（header-knobs.js 文件头）：logo=center + menu=beside ⟹ split。
  */
-export function resolveKnobs(shape: string | undefined, options: HeaderOptions = {}): { knobs: HeaderKnobs; preset: string; shape: string } {
+export function resolveKnobs(shape: string | undefined, options: HeaderOptions = {}): { knobs: HeaderKnobs; topbar: boolean; preset: string; shape: string } {
   const hit = (shape && presetForShape(PRESETS, shape)) || presetForShape(PRESETS, DEFAULT_PRESET);
   const known = hit ? hit.shape : DEFAULT_PRESET;
   const base = hit ? { ...hit.knobs } : {};
   const given: Record<string, unknown> = {};
   for (const k of KNOBS) if (options[k.name as keyof HeaderOptions] !== undefined) given[k.name] = options[k.name as keyof HeaderOptions];
   const knobs = normalizeKnobs({ ...base, ...given }, { knobs: KNOBS, presets: PRESETS, coupling: COUPLING, base }) as unknown as HeaderKnobs;
-  return { knobs, preset: presetOf(knobs, { knobs: KNOBS, presets: PRESETS }), shape: known };
+  const topbar = typeof options.topbar === 'boolean' ? options.topbar : !!(hit && hit.options && hit.options.topbar === true);
+  return { knobs, topbar, preset: presetOf({ ...knobs, topbar }, { knobs: KNOBS, presets: PRESETS }), shape: known };
 }
 
 function ctaClass(style: CtaStyle | undefined, dark: boolean): string {
@@ -113,16 +115,16 @@ interface Props {
 export default function HeaderNewSection({ data = {}, shape: shapeIn, block, iconTable = {} }: Props) {
   const [open, setOpen] = useState(false);
   const opts = data.options || {};
-  const { knobs, preset, shape } = resolveKnobs(shapeIn, opts);
-  const { logo, menu, topbar: bar } = knobs;
-  const { dark = false, icons = false, reverse = false } = opts;
+  const { knobs, topbar: hasTopbar, preset, shape } = resolveKnobs(shapeIn, opts);
+  const { logo, menu } = knobs;
+  const { dark = false, icons = false } = opts;
+  const right = logo === 'right';
   const nav = Array.isArray(data.nav) ? data.nav : [];
   const half = Math.ceil(nav.length / 2);
   const topbar = data.topbar || {};
   const contact = topbar.contact || [];
   const links = topbar.links || [];
   const social = topbar.social || [];
-  const hasTopbar = bar === 'contact';
   const phone = hasTopbar ? contact.find((c) => c.href && c.href.startsWith('tel:')) : undefined;
   const ctas = [data.ctaPrimary, data.ctaSecondary].filter((c): c is Cta => !!c && !!c.label);
   const brand = data.brandName || '';
@@ -189,9 +191,9 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
   );
 
   // ── 桌面（≥992）三格：`hdr-a` · `hdr-b` · `hdr-c`。每格放什么只由 menu 决定（logo 跟着 menu 走，
-  //    纠正之后两者一定成立）；哪格落哪一栏、reverse 换栏在 block.css。
+  //    纠正之后两者一定成立）；哪格落哪一栏、logo=right 换栏在 block.css。
   const cells: Record<'a' | 'b' | 'c', ReactNode> = { a: null, b: null, c: null };
-  if (menu === 'right') {
+  if (menu === 'beside') {
     cells.a = brandLink();
     cells.c = <>{navList(nav, 'nav')}{ctaButtons('ctas')}</>;
   } else if (menu === 'center') {
@@ -215,11 +217,10 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
     lineTone,
     `hdr-logo-${logo}`,
     `hdr-menu-${menu}`,
-    `hdr-topbar-${bar}`,
-    reverse ? 'hdr-reverse' : '',
+    `hdr-topbar-${hasTopbar ? 'on' : 'off'}`,
   ].filter(Boolean).join(' ');
 
-  // 抽屉里的联系信息段：电话（可拨）/ 营业时间 / 地址 → Sign in · Create account → 社交（topbar=contact 才有）。
+  // 抽屉里的联系信息段：电话（可拨）/ 营业时间 / 地址 → Sign in · Create account → 社交（topbar 开时才有）。
   const drawerContact = hasTopbar && (contact.length || links.length || social.length) ? (
     <div className={`border-top ${lineTone} pt-4 vstack gap-3 text-sm`} data-hdr-part="drawer-contact">
       {contact.length ? (
@@ -244,12 +245,12 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
       data-preset={preset}
       data-logo={logo}
       data-menu={menu}
-      data-topbar={bar}
+      data-topbar={hasTopbar ? 'on' : 'off'}
     >
       {hasTopbar ? (
         // 顶条：只在 ≥992 出现（block.css），手机 / iPad 上它的内容折进抽屉。
         <div className={`hdr-topbar border-bottom ${lineTone} py-2 text-sm`}>
-          <div className={`container-lg d-flex align-items-center justify-content-between gap-6 ${reverse ? 'flex-row-reverse' : ''}`}>
+          <div className={`container-lg d-flex align-items-center justify-content-between gap-6 ${right ? 'hdr-flip' : ''}`}>
             <div className={`d-flex align-items-center gap-5 ${mutedTone}`}>
               {contact.map((c, i) => (
                 <span key={i} className="d-inline-flex align-items-center gap-2 text-nowrap">
@@ -258,7 +259,7 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
                 </span>
               ))}
             </div>
-            <div className={`d-flex align-items-center gap-5 ${reverse ? 'flex-row-reverse' : ''}`}>
+            <div className={`d-flex align-items-center gap-5 ${right ? 'hdr-flip' : ''}`}>
               {toolLinks('bar-links')}
               {socialIcons('bar-social')}
             </div>
@@ -267,7 +268,7 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
       ) : null}
 
       <nav className="navbar py-4" aria-label="Main">
-        {/* < 992：logo ·（topbar=contact）电话圆图标 · 汉堡。 */}
+        {/* < 992：logo ·（topbar 开时）电话圆图标 · 汉堡。logo=right 时整条反过来（block.css）。 */}
         <div className="hdr-compact container-lg d-flex flex-nowrap d-lg-none align-items-center justify-content-between gap-3">
           {brandLink(true)}
           <div className="d-flex flex-shrink-0 align-items-center gap-2">
@@ -306,8 +307,8 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
         ) : null}
       </nav>
 
-      {/* 抽屉：只在 < 992 出现，开没开由 React 说（总纲约束 2）。顺序 = 菜单 → 主 CTA →（topbar=contact）
-          联系信息 → 链接 → 社交。副 CTA 只在 topbar=none 时进来：有顶条时电话已经在联系信息那一行里。 */}
+      {/* 抽屉：只在 < 992 出现，开没开由 React 说（总纲约束 2）。顺序 = 菜单 → 主 CTA →（topbar 开时）
+          联系信息 → 链接 → 社交。副 CTA 只在 topbar 关时进来：有顶条时电话已经在联系信息那一行里。 */}
       {open ? (
         <div className={`hdr-drawer d-lg-none border-top ${lineTone}`}>
           <div className="container-lg py-4 vstack gap-4">

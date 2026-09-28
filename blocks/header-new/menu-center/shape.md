@@ -14,7 +14,7 @@ layout_intent:
 
 # header-new · menu-center
 
-**旋钮：** logo=left · menu=center · topbar=none
+**旋钮：** logo=left · menu=center · topbar 关
 
 **长什么样：** 三栏网格 1fr auto 1fr：logo 左 · 菜单正中 · CTA 右
 

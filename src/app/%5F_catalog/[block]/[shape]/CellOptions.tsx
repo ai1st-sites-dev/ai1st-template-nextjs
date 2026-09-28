@@ -9,8 +9,9 @@
 // 🔴 hydration 之前勾它，勾选框变了、页面不变 —— 一个会骗人的开关；所以 `ready` 之前全部 disabled。
 //
 // #1462 —— **预设 + 旋钮**（照定稿图册 `docs/reference/webpixels/gallery/build.py` 那条工具栏）：
-//   顺序 = 预设一排（外加 Custom）→ 排布旋钮（logo · menu · topbar）→ 修饰（reverse · dark）→ 部件。
-//   点预设 = 三个旋钮一次设好；拧旋钮后跟任何预设都对不上 ⟹ Custom 亮。不成立的组合当场纠正，用的是
+//   顺序 = 预设一排（外加 Custom）→ 排布旋钮（logo · menu）→ 开关（topbar · dark · icons）→ 部件。
+//   点预设 = 旋钮 + 归预设管的开关（topbar，#1468）一次设好，dark / icons 不动；拧旋钮 / 开关后跟任何预设都对不上
+//   ⟹ Custom 亮。不成立的组合当场纠正，用的是
 //   Section 渲染时同一个纯函数（`scripts/lib/header-knobs.js` §normalizeKnobs），拧了谁谁不让步。
 //   单开（「新窗口」，不带 embed）时改动 `replaceState` 回地址栏，刷新还在；被 admin 嵌着时不碰地址栏。
 // #1464 —— **部件**（`widgets`，§page.dev.tsx optionMetaOf）：每个一组单选 none + 样式，排在修饰后面（全站统一顺序
@@ -25,7 +26,7 @@ import FooterNewSection, { type FooterNewData } from '@blocks/footer-new/Section
 import HeaderNewSection, { type HeaderNewData } from '@blocks/header-new/Section';
 import type { IconTable } from '@/components/InlineIcon';
 import type { BlockConfig } from '@/lib/types/config';
-import { normalizeKnobs, presetOf } from '../../../../../scripts/lib/header-knobs.js';
+import { normalizeKnobs, presetBooleans, presetBooleansOf, presetOf } from '../../../../../scripts/lib/header-knobs.js';
 import { GRADIENT_ANGLE, GRADIENT_SWATCHES, bgCss, normalizeBg, type BgValue } from '../../../../../scripts/lib/contrast.js';
 
 export interface CellOptionsInitial {
@@ -38,8 +39,9 @@ export interface CellOptionsInitial {
 }
 
 interface Knob { name: string; values: string[] }
-/** manifest 顶层 `presets` 的一项（PM 19:01 冻结）：`name` 显示名 · `shape` 形态目录名 · `knobs` 旋钮值。 */
-export interface Preset { name: string; shape: string; knobs: Record<string, string> }
+/** manifest 顶层 `presets` 的一项（PM 19:01 冻结）：`name` 显示名 · `shape` 形态目录名 · `knobs` 旋钮值 ·
+ *  `options` 预设带的布尔（#1468）。 */
+export interface Preset { name: string; shape: string; knobs: Record<string, string>; options?: Record<string, boolean> }
 /** #1464 —— 一个带样式单选的可选部件：槽名 + 它 shape 开头那个键（`style`；#1469 起也可以是 `mode`）的几种值。 */
 export interface Widget { slot: string; key: 'style' | 'mode'; styles: string[] }
 
@@ -98,7 +100,7 @@ export default function CellOptions({
   const [ready, setReady] = useState(false);
   useEffect(() => { setReady(true); }, []);
 
-  const preset = knobDefs.length ? presetOf(knobs, { knobs: knobDefs, presets }) : '';
+  const preset = knobDefs.length ? presetOf({ ...opts, ...knobs }, { knobs: knobDefs, presets }) : '';
   const turn = (name: string, value: string) => {
     setKnobs((k) => normalizeKnobs({ ...k, [name]: value }, { knobs: knobDefs, presets, coupling, changed: name, base: k }) as Record<string, string>);
   };
@@ -106,6 +108,7 @@ export default function CellOptions({
     const next: Record<string, string> = {};
     for (const k of knobDefs) next[k.name] = p.knobs[k.name];
     setKnobs(next);
+    setOpts((o) => ({ ...o, ...(presetBooleans(presets, p.name) || {}) }));
   };
 
   // 单开时地址栏跟着走（AC6：刷新之后还是这一组）。被嵌着时 URL 归 admin 管，不碰。
@@ -114,11 +117,17 @@ export default function CellOptions({
     const u = new URL(window.location.href);
     for (const k of knobDefs) u.searchParams.set(k.name, knobs[k.name]);
     const on = optionKeys.filter((k) => opts[k]);
-    if (on.length) u.searchParams.set('opt', on.join(',')); else u.searchParams.delete('opt');
+    // #1468 —— page.dev 见不到 `opt` 时，归预设管的开关（topbar）落回这个形态的预设。所以开着别的开关、或者归预设管的
+    //    开关跟那个预设不一样时（在 topbar 那一格关掉 topbar）就要写，空的也写；否则刷新之后它又开了。跟 admin 同一条规则
+    //    （CatalogPage §cellUrl）。
+    const owned = presetBooleansOf(presets) as string[];
+    const fallback = presetBooleans(presets, presets.find((p) => p.shape === shape)?.name ?? '') || {};
+    const differs = owned.some((b) => !!opts[b] !== !!fallback[b]);
+    if (on.some((k) => !owned.includes(k)) || differs) u.searchParams.set('opt', on.join(',')); else u.searchParams.delete('opt');
     for (const w of widgetDefs) { const v = widgets[w.slot]; if (v && v !== 'none') u.searchParams.set(w.slot, v); else u.searchParams.delete(w.slot); }
     if (colorSlot) { if (bg !== null) u.searchParams.set('bg', bgKey(bg)); else u.searchParams.delete('bg'); }
     if (u.href !== window.location.href) window.history.replaceState(window.history.state, '', u.href);
-  }, [ready, showBar, knobs, opts, widgets, bg, colorSlot, knobDefs, optionKeys, widgetDefs]);
+  }, [ready, showBar, knobs, opts, widgets, bg, colorSlot, knobDefs, optionKeys, widgetDefs, presets, shape]);
 
   // 选项两个版本都吃；两个可选部件只有数据里真有时才给（最少版按构造没有，关掉就删）。
   const out: Record<string, unknown> = {

@@ -688,8 +688,9 @@ const DEMO_CONTENT = {
   },
 
   // #1424 —— Webpixels 那一版顶栏（`staging: true`，只在图册里）。#1462 起 7 个预设吃同一份：`topbar` 只有
-  // topbar=contact 的预设画（手机上折进抽屉），`ctaSecondary` 在那两个预设的抽屉里不出 —— 两样都填上，
-  // 那几条断点行为单格页上才看得见。`options` 里不写旋钮：旋钮的初值来自形态名（= 预设名）。
+  // topbar 开的预设画（手机上折进抽屉），`ctaSecondary` 在那两个预设的抽屉里不出 —— 两样都填上，
+  // 那几条断点行为单格页上才看得见。`options` 里不写旋钮、也不写 topbar（#1468 起它归预设管）：初值来自形态名（= 预设名），
+  // 写了就会压过每个预设自己那一份。
   // 🔴 `topbar` 底下那三份 list 是嵌套的，守卫 (c) 只看顶层 list 槽，所以 3 个社交链接够用（票正文）。
   'header-new': {
     logo: imageUrl('logo-mark'),
@@ -720,7 +721,7 @@ const DEMO_CONTENT = {
         { label: 'Google reviews', href: 'https://google.com/maps', icon: 'google' },
       ],
     },
-    options: { dark: false, icons: false, reverse: false },
+    options: { dark: false, icons: false },
   },
 
   // #1455 —— Webpixels 那一版页脚（`staging: true`，只在图册里）。6 个预设吃同一份；`cta` / `form`

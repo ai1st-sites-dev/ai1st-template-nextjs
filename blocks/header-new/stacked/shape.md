@@ -16,7 +16,7 @@ layout_intent:
 
 # header-new · stacked
 
-**旋钮：** logo=center · menu=below · topbar=none
+**旋钮：** logo=center · menu=below · topbar 关
 
 **长什么样：** 两层：上层 社交 · logo 正中 · CTA · 下层菜单居中
 

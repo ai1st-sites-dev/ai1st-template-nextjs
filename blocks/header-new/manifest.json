@@ -51,22 +51,21 @@
       "kind": "object",
       "required": false,
       "promptOptional": true,
-      "shape": "{preset?: string, logo, menu, topbar, reverse: bool, dark: bool, icons: bool}",
+      "shape": "{preset?: string, logo, menu, topbar: bool, dark: bool, icons: bool}",
       "knobs": [
-        { "name": "logo", "values": ["left", "center"] },
-        { "name": "menu", "values": ["right", "center", "split", "gathered", "below"] },
-        { "name": "topbar", "values": ["none", "contact"] }
+        { "name": "logo", "values": ["left", "center", "right"] },
+        { "name": "menu", "values": ["beside", "center", "split", "gathered", "below"] }
       ]
     }
   },
   "presets": [
-    { "name": "logo-left", "shape": "logo-left", "knobs": { "logo": "left", "menu": "right", "topbar": "none" } },
-    { "name": "menu-center", "shape": "menu-center", "knobs": { "logo": "left", "menu": "center", "topbar": "none" } },
-    { "name": "logo-center-split", "shape": "logo-center-split", "knobs": { "logo": "center", "menu": "split", "topbar": "none" } },
-    { "name": "logo-center-gathered", "shape": "logo-center-gathered", "knobs": { "logo": "center", "menu": "gathered", "topbar": "none" } },
-    { "name": "topbar", "shape": "topbar", "knobs": { "logo": "left", "menu": "right", "topbar": "contact" } },
-    { "name": "stacked", "shape": "stacked", "knobs": { "logo": "center", "menu": "below", "topbar": "none" } },
-    { "name": "topbar-stacked", "shape": "topbar-stacked", "knobs": { "logo": "center", "menu": "below", "topbar": "contact" } }
+    { "name": "logo-left", "shape": "logo-left", "knobs": { "logo": "left", "menu": "beside" }, "options": { "topbar": false } },
+    { "name": "menu-center", "shape": "menu-center", "knobs": { "logo": "left", "menu": "center" }, "options": { "topbar": false } },
+    { "name": "logo-center-split", "shape": "logo-center-split", "knobs": { "logo": "center", "menu": "split" }, "options": { "topbar": false } },
+    { "name": "logo-center-gathered", "shape": "logo-center-gathered", "knobs": { "logo": "center", "menu": "gathered" }, "options": { "topbar": false } },
+    { "name": "topbar", "shape": "topbar", "knobs": { "logo": "left", "menu": "beside" }, "options": { "topbar": true } },
+    { "name": "stacked", "shape": "stacked", "knobs": { "logo": "center", "menu": "below" }, "options": { "topbar": false } },
+    { "name": "topbar-stacked", "shape": "topbar-stacked", "knobs": { "logo": "center", "menu": "below" }, "options": { "topbar": true } }
   ],
   "knobCoupling": ["logo", "menu"],
   "industries": {

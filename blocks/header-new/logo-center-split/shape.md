@@ -14,7 +14,7 @@ layout_intent:
 
 # header-new · logo-center-split
 
-**旋钮：** logo=center · menu=split · topbar=none
+**旋钮：** logo=center · menu=split · topbar 关
 
 **长什么样：** 三栏网格：左菜单靠左 · logo 正中 · 右菜单 + CTA 靠右
 

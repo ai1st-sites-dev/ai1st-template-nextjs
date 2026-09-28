@@ -14,7 +14,7 @@ layout_intent:
 
 # header-new · logo-left
 
-**旋钮：** logo=left · menu=right · topbar=none
+**旋钮：** logo=left · menu=beside · topbar 关
 
 **长什么样：** logo 左 · 菜单 + CTA 右（默认）
 

@@ -14,7 +14,7 @@ layout_intent:
 
 # header-new · logo-center-gathered
 
-**旋钮：** logo=center · menu=gathered · topbar=none
+**旋钮：** logo=center · menu=gathered · topbar 关
 
 **长什么样：** 三栏网格 auto auto auto 整组居中：左菜单 · logo · 右菜单 + CTA
 

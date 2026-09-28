@@ -34,7 +34,7 @@ import type { BlockConfig } from '@/lib/types/config';
 import { blockShapeCatalog } from '../../../../../scripts/lib/block-catalog.js';
 import { demoDataFor } from '../../../../../scripts/lib/demo-content/index.js';
 import { filledOptionalSlots } from '../../../../../scripts/lib/block-manifest.js';
-import { couplingOf, knobsOf, normalizeKnobs, presetForShape, presetsOf } from '../../../../../scripts/lib/header-knobs.js';
+import { couplingOf, knobsOf, normalizeKnobs, presetBooleans, presetForShape, presetsOf } from '../../../../../scripts/lib/header-knobs.js';
 import { iconTableFor } from '../../../../../scripts/lib/icons.js';
 // knobsOf / presetsOf 两份（header-knobs.js #1462 · block-knobs.js #1463）读的是同一份 manifest 声明、
 // 对合法声明给出同一结果；这一页用 header-knobs 那份，并掉哪一份归 T3。
@@ -67,9 +67,10 @@ const one = (v: string | string[] | undefined): string | undefined => (Array.isA
 
 /**
  * #1458 —— 这个块有哪些开关，从 manifest 读，不写名单：
- *   `slots.options.shape` 形如 `{dark: bool, icons: bool, reverse: bool}` → 每个 `: bool` 前的键是一个开关。
+ *   `slots.options.shape` 形如 `{topbar: bool, dark: bool, icons: bool}` → 每个 `: bool` 前的键是一个开关。
  * #1462 —— 外加**旋钮**：`slots.options.knobs: [{name, values}]`（§knobsOf），以及顶层
- *   `presets: [{name, shape, knobs}]`（旋钮组合起的名）和可选的 `knobCoupling`（哪两个旋钮要成对成立）。
+ *   `presets: [{name, shape, knobs, options?}]`（旋钮组合起的名；#1468 起还能带布尔，header 的 topbar）和可选的
+ *   `knobCoupling`（哪两个旋钮要成对成立）。
  *   位置是 PM 2026-09-27 19:01 冻结的那份（#1462 / #1463 共用）。
  * #1464 —— **部件**：哪个槽（`options` 以外）的 shape 以 `{style: "a" | "b" …` **开头**，它就是一个带样式单选的
  *   可选部件（none + 那几种样式），地址栏参数就是槽名（`?form=inline`）。按槽派生、不写死名字 —— 这里原来是
@@ -242,9 +243,14 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
   const knobs = meta.knobs.length
     ? normalizeKnobs(knobWanted, { knobs: meta.knobs, presets: meta.presets, coupling: meta.coupling, base: knobBase }) as Record<string, string>
     : {};
+  // #1468 —— 归预设管的开关（topbar）：地址栏没写 `?opt=` ⟹ 跟这个形态（= 预设）走；写了（哪怕是空的）就按它。
+  //    admin 与单格页工具栏只在「开着别的开关」或「topbar 跟这个形态的预设不一样」时才写 `opt`（CatalogPage §cellUrl ·
+  //    CellOptions），所以预设卡的地址不带它、落回预设；Custom 停在别的形态上时写出来。
+  const ownBooleans = own ? (presetBooleans(meta.presets, own.name) as Record<string, boolean>) : {};
+  const optGiven = one(sp.opt) !== undefined;
   const initial = {
     knobs,
-    opts: Object.fromEntries(meta.optionKeys.map((k) => [k, wanted.has(k)])),
+    opts: Object.fromEntries(meta.optionKeys.map((k) => [k, !optGiven && k in ownBooleans ? ownBooleans[k] : wanted.has(k)])),
     widgets: Object.fromEntries(meta.widgets.map((w) => {
       const v = one(sp[w.slot]);
       return [w.slot, v && w.styles.includes(v) ? v : 'none'];
@@ -277,9 +283,9 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
         {isRegion && block === 'header' ? <Header locale={locale} variant={shape} /> : null}
         {isRegion && block === 'footer' ? <Footer locale={locale} variant={shape} /> : null}
         {/* #1424 / #1455 —— Webpixels 那一版顶栏 / 页脚：内容来自演示内容包（槽位契约），不来自 navigation.json。
-            #1458 —— 它们的选项开关（dark / icons / reverse；footer 的 CTA 条 + 订阅框）住在这一页的工具栏里
-            （§CellOptions），初值可由地址栏给：`?opt=dark,reverse`；#1462 起旋钮各一个参数：
-            `?logo=center&menu=below&topbar=contact`；#1464 起部件也是槽名一个参数：`?form=inline`。 */}
+            #1458 —— 它们的选项开关（header 的 topbar / dark / icons；footer 的 CTA 条 + 订阅框）住在这一页的工具栏里
+            （§CellOptions），初值可由地址栏给：`?opt=topbar,dark`；#1462 起旋钮各一个参数：
+            `?logo=center&menu=below`；#1464 起部件也是槽名一个参数：`?form=inline`。 */}
         {isRegion && hasOptionBar ? (
           <CellOptions
             block={block}

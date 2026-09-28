@@ -16,7 +16,7 @@ layout_intent:
 
 # header-new · topbar
 
-**旋钮：** logo=left · menu=right · topbar=contact
+**旋钮：** logo=left · menu=beside · topbar 开
 
 **长什么样：** 两层：顶条（联系信息 + 工具链接 + 社交）· 下层 logo 左 · 菜单 + CTA 右
 
