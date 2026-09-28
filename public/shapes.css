@@ -6072,7 +6072,7 @@
 /* footer-new · 旋钮派生的排版（#1464）—— 六个预设共用这一份
 
    Section 在根上挂 `ftr-layout-<row|stacked|columns>` · `ftr-cta-<none|centered|boxed|inline>`，外加
-   `ftr-reverse`。排版本身全在 markup 的 Webpixels 工具类里；这里只放工具类表达不了的那几条。
+   `ftr-reverse`（#1469 起它来自旋钮 `brand=right`，原来是开关 `reverse`；类名没改，`stacked` 下不挂）。排版本身全在 markup 的 Webpixels 工具类里；这里只放工具类表达不了的那几条。
    🔴 为什么不在各预设的 shape.css 里写：旋钮能拧成预设表外的组合（Custom），那种组合没有文件夹；
       而且生成器要求 shape.css 里每条规则以 `[data-shape="<该形态>"]` 开头
       （`scripts/block-build/build-blocks.js` §assertPieceOwnsItsRules），跨形态的规则只能住这里。
@@ -6097,8 +6097,14 @@
   overflow-wrap: anywhere;
 }
 
+/* #1469 —— 深底（`bg` 填了深色 / `brand` / 深渐变）上的小字：白 .92，不是灰。Webpixels 的颜色工具类带
+   `!important`，这里也要带；它挂在元素自己身上（不靠继承），所以跟 `text-body-secondary` 同一个位置换掉。 */
+[data-block="footer-new"] .ftr-muted-on-dark {
+  color: rgba(255, 255, 255, .92) !important;
+}
+
 /* ── footer-new · slim-row = 预设（layout=row · cta=none）────────────────────────────────────────
-   🔴 #1464 起这个文件夹**只是一个名字**：预设 = 两个旋钮的一组值（manifest 的 `presets`），排版全在
+   🔴 #1464 起这个文件夹**只是一个名字**：预设 = 旋钮的一组值（manifest 的 `presets`；#1469 起三个：layout · brand · cta），排版全在
       `blocks/footer-new/block.css`，按 Section 从旋钮派生的类（`ftr-layout-*` / `ftr-cta-*`）点名 ——
       旋钮能拧成预设表外的组合（Custom），那种组合没有文件夹，几何按文件夹写就无处可落。
    🔴 下面这条空规则是**锚点**，别删（理由同 `blocks/header-new/stacked/shape.css`）：`readShapeDir` 拒绝
@@ -6107,7 +6113,7 @@
 [data-block="footer-new"][data-shape="slim-row"] {}
 
 /* ── footer-new · stacked = 预设（layout=stacked · cta=none）────────────────────────────────────────
-   🔴 #1464 起这个文件夹**只是一个名字**：预设 = 两个旋钮的一组值（manifest 的 `presets`），排版全在
+   🔴 #1464 起这个文件夹**只是一个名字**：预设 = 旋钮的一组值（manifest 的 `presets`；#1469 起三个：layout · brand · cta），排版全在
       `blocks/footer-new/block.css`，按 Section 从旋钮派生的类（`ftr-layout-*` / `ftr-cta-*`）点名 ——
       旋钮能拧成预设表外的组合（Custom），那种组合没有文件夹，几何按文件夹写就无处可落。
    🔴 下面这条空规则是**锚点**，别删（理由同 `blocks/header-new/stacked/shape.css`）：`readShapeDir` 拒绝
@@ -6116,7 +6122,7 @@
 [data-block="footer-new"][data-shape="stacked"] {}
 
 /* ── footer-new · columns = 预设（layout=columns · cta=none）────────────────────────────────────────
-   🔴 #1464 起这个文件夹**只是一个名字**：预设 = 两个旋钮的一组值（manifest 的 `presets`），排版全在
+   🔴 #1464 起这个文件夹**只是一个名字**：预设 = 旋钮的一组值（manifest 的 `presets`；#1469 起三个：layout · brand · cta），排版全在
       `blocks/footer-new/block.css`，按 Section 从旋钮派生的类（`ftr-layout-*` / `ftr-cta-*`）点名 ——
       旋钮能拧成预设表外的组合（Custom），那种组合没有文件夹，几何按文件夹写就无处可落。
    🔴 下面这条空规则是**锚点**，别删（理由同 `blocks/header-new/stacked/shape.css`）：`readShapeDir` 拒绝
@@ -6125,7 +6131,7 @@
 [data-block="footer-new"][data-shape="columns"] {}
 
 /* ── footer-new · cta-row = 预设（layout=row · cta=centered）────────────────────────────────────────
-   🔴 #1464 起这个文件夹**只是一个名字**：预设 = 两个旋钮的一组值（manifest 的 `presets`），排版全在
+   🔴 #1464 起这个文件夹**只是一个名字**：预设 = 旋钮的一组值（manifest 的 `presets`；#1469 起三个：layout · brand · cta），排版全在
       `blocks/footer-new/block.css`，按 Section 从旋钮派生的类（`ftr-layout-*` / `ftr-cta-*`）点名 ——
       旋钮能拧成预设表外的组合（Custom），那种组合没有文件夹，几何按文件夹写就无处可落。
    🔴 下面这条空规则是**锚点**，别删（理由同 `blocks/header-new/stacked/shape.css`）：`readShapeDir` 拒绝
@@ -6134,7 +6140,7 @@
 [data-block="footer-new"][data-shape="cta-row"] {}
 
 /* ── footer-new · cta-stacked = 预设（layout=stacked · cta=inline）────────────────────────────────────────
-   🔴 #1464 起这个文件夹**只是一个名字**：预设 = 两个旋钮的一组值（manifest 的 `presets`），排版全在
+   🔴 #1464 起这个文件夹**只是一个名字**：预设 = 旋钮的一组值（manifest 的 `presets`；#1469 起三个：layout · brand · cta），排版全在
       `blocks/footer-new/block.css`，按 Section 从旋钮派生的类（`ftr-layout-*` / `ftr-cta-*`）点名 ——
       旋钮能拧成预设表外的组合（Custom），那种组合没有文件夹，几何按文件夹写就无处可落。
    🔴 下面这条空规则是**锚点**，别删（理由同 `blocks/header-new/stacked/shape.css`）：`readShapeDir` 拒绝
@@ -6143,7 +6149,7 @@
 [data-block="footer-new"][data-shape="cta-stacked"] {}
 
 /* ── footer-new · cta-columns = 预设（layout=columns · cta=boxed）────────────────────────────────────────
-   🔴 #1464 起这个文件夹**只是一个名字**：预设 = 两个旋钮的一组值（manifest 的 `presets`），排版全在
+   🔴 #1464 起这个文件夹**只是一个名字**：预设 = 旋钮的一组值（manifest 的 `presets`；#1469 起三个：layout · brand · cta），排版全在
       `blocks/footer-new/block.css`，按 Section 从旋钮派生的类（`ftr-layout-*` / `ftr-cta-*`）点名 ——
       旋钮能拧成预设表外的组合（Custom），那种组合没有文件夹，几何按文件夹写就无处可落。
    🔴 下面这条空规则是**锚点**，别删（理由同 `blocks/header-new/stacked/shape.css`）：`readShapeDir` 拒绝

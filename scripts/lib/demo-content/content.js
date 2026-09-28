@@ -785,14 +785,13 @@ const DEMO_CONTENT = {
         { label: 'Call (416) 555-0142', href: 'tel:+14165550142', style: 'outline' },
       ],
     },
-    // #1464 —— 部件 `form`（跟 hero 同一个表单部件）；样式 inline / stacked 由单格页工具栏切。
-    form: {
-      style: 'inline',
-      fields: ['phone'],
-      buttonText: 'Call me back',
-      successMessage: "Thanks! We'll call you back within the hour.",
-    },
-    options: { dark: false, reverse: false },
+    // #1464 —— 部件 `form`（跟 hero 同一个表单部件）；#1469 起块只选画法 teaser / full（单格页工具栏切），
+    // 表单本身是站级资产（#1471）—— `id` 空 ⟹ Section 用它自己那份替身（内容就是原来这里那份）。
+    form: { mode: 'teaser' },
+    // #1469 —— 颜色槽：`null` = 没填（浅底 `bg-body`，跟改前 `dark=false` 逐字相同）。键得在：演示包要求每个槽都有一项
+    // （§demoDataFor 缺槽就抛）；深底 / 渐变由单格页的 `?bg=` 和色板给。
+    bg: null,
+    options: { brand: 'left' },
   },
 
   footer: {

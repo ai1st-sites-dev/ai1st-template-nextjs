@@ -39,7 +39,7 @@ import { iconTableFor } from '../../../../../scripts/lib/icons.js';
 // knobsOf / presetsOf 两份（header-knobs.js #1462 · block-knobs.js #1463）读的是同一份 manifest 声明、
 // 对合法声明给出同一结果；这一页用 header-knobs 那份，并掉哪一份归 T3。
 import { booleanOptionsOf, effectiveKnobs, presetNameFor } from '../../../../../scripts/lib/block-knobs.js';
-import { normalizeColor } from '../../../../../scripts/lib/contrast.js';
+import { bgFromParam, normalizeBg, normalizeColor } from '../../../../../scripts/lib/contrast.js';
 import {
   CATALOG_LOCALE,
   CATALOG_PATHS,
@@ -77,20 +77,27 @@ const one = (v: string | string[] | undefined): string | undefined => (Array.isA
  *   订阅框换成 `form` 之后两条一起失效（PM #1464 r1 阻断 2 / r3 点名 1）。🔴 要「开头」：`cta` 槽里还有
  *   `buttons: [{…, style: "solid" | …}]`，不锚定开头就会把按钮样式读成部件样式。
  *   Go 那侧 `manager/template_blocks.go` §manifestOptionMeta 是同一套判据（各写一份是有意的：Go / TS 共享不了）。
+ * #1469 —— 开头那个键也可以叫 `mode`（footer 的 `form` 改成 `{mode: "teaser" | "full", id?: string}`：表单是站级资产，
+ *   块只选画法）。只放宽键名、不放宽开头锚定；选中一档时写回的也是这个键（`Widget.key`）。
+ * #1469 —— 外加**颜色槽**（第一个 `kind: color` 的槽，跟 §knobOverrides 同一条判据）：外壳块的色板也住 CellOptions。
  * 全都空 ⟹ 这个块没有开关，页面不画那条工具栏。
  */
-function optionMetaOf(m: { slots?: Record<string, { shape?: unknown; knobs?: unknown }>; presets?: unknown; knobCoupling?: unknown } | undefined) {
+function optionMetaOf(m: { slots?: Record<string, { shape?: unknown; knobs?: unknown; kind?: unknown; swatches?: unknown }>; presets?: unknown; knobCoupling?: unknown } | undefined) {
   const slots = (m && m.slots) || {};
   const optShape = slots.options && typeof slots.options.shape === 'string' ? slots.options.shape : '';
   const optionKeys = Array.from(optShape.matchAll(/(\w+)\s*:\s*bool/g)).map((x) => x[1]);
   const widgets = Object.keys(slots).filter((k) => k !== 'options').sort().flatMap((slot) => {
     const shape = typeof slots[slot]?.shape === 'string' ? (slots[slot].shape as string) : '';
-    const hit = shape.match(/^\{\s*style:\s*((?:"[a-z]+"\s*\|?\s*)+)/);
-    return hit ? [{ slot, styles: Array.from(hit[1].matchAll(/"([a-z]+)"/g)).map((x) => x[1]) }] : [];
+    const hit = shape.match(/^\{\s*(style|mode):\s*((?:"[a-z]+"\s*\|?\s*)+)/);
+    return hit ? [{ slot, key: hit[1], styles: Array.from(hit[2].matchAll(/"([a-z]+)"/g)).map((x) => x[1]) }] : [];
   });
+  const colorSlot = Object.keys(slots).find((s) => slots[s] && slots[s].kind === 'color') || null;
+  const swatches = colorSlot && Array.isArray(slots[colorSlot].swatches) ? (slots[colorSlot].swatches as string[]) : [];
   return {
     optionKeys,
     widgets: widgets as Widget[],
+    colorSlot,
+    swatches,
     knobs: knobsOf(m) as Array<{ name: string; values: string[] }>,
     presets: presetsOf(m) as Preset[],
     coupling: couplingOf(m) as [string, string] | null,
@@ -221,7 +228,7 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
   //    覆盖（`Footer` 本来就有这个参数，`Header` 的是本票照它加的，站上没有调用点传它）。
   const isRegion = m.region === true;
   const meta = optionMetaOf(m);
-  const hasOptionBar = meta.optionKeys.length > 0 || meta.widgets.length > 0 || meta.knobs.length > 0;
+  const hasOptionBar = meta.optionKeys.length > 0 || meta.widgets.length > 0 || meta.knobs.length > 0 || meta.colorSlot !== null;
   // 地址栏给的初值：认不出的键落回「关」，认不出的部件样式落回 none —— 跟 theme / fill 一样，看法不该让页面消失。
   const wanted = new Set((one(sp.opt) || '').split(',').map((x) => x.trim()).filter(Boolean));
   // #1460 —— 被 admin 嵌着时开关在外面那条块级工具栏上，这一页自己那条不画；「新窗口」单开（不带 embed）照旧画。
@@ -242,6 +249,8 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
       const v = one(sp[w.slot]);
       return [w.slot, v && w.styles.includes(v) ? v : 'none'];
     })),
+    // #1469 —— `?bg=` 盖在演示内容那一份上；认不出的值落回演示内容（看法不该让页面消失）。解析跟旋钮页面块同一个函数族。
+    bg: meta.colorSlot ? (bgFromParam(one(sp.bg)) ?? normalizeBg((data as Record<string, unknown>)[meta.colorSlot])) : null,
   };
 
   return (
@@ -279,6 +288,8 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
             has={cfg.has ?? []}
             optionKeys={meta.optionKeys}
             widgets={meta.widgets}
+            colorSlot={meta.colorSlot}
+            swatches={meta.swatches}
             knobs={meta.knobs}
             presets={meta.presets}
             coupling={meta.coupling}

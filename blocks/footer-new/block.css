@@ -1,7 +1,7 @@
 /* footer-new · 旋钮派生的排版（#1464）—— 六个预设共用这一份
 
    Section 在根上挂 `ftr-layout-<row|stacked|columns>` · `ftr-cta-<none|centered|boxed|inline>`，外加
-   `ftr-reverse`。排版本身全在 markup 的 Webpixels 工具类里；这里只放工具类表达不了的那几条。
+   `ftr-reverse`（#1469 起它来自旋钮 `brand=right`，原来是开关 `reverse`；类名没改，`stacked` 下不挂）。排版本身全在 markup 的 Webpixels 工具类里；这里只放工具类表达不了的那几条。
    🔴 为什么不在各预设的 shape.css 里写：旋钮能拧成预设表外的组合（Custom），那种组合没有文件夹；
       而且生成器要求 shape.css 里每条规则以 `[data-shape="<该形态>"]` 开头
       （`scripts/block-build/build-blocks.js` §assertPieceOwnsItsRules），跨形态的规则只能住这里。
@@ -24,4 +24,10 @@
 [data-block="footer-new"].ftr-layout-columns [data-footer-col] a,
 [data-block="footer-new"].ftr-layout-columns [data-footer-col] span {
   overflow-wrap: anywhere;
+}
+
+/* #1469 —— 深底（`bg` 填了深色 / `brand` / 深渐变）上的小字：白 .92，不是灰。Webpixels 的颜色工具类带
+   `!important`，这里也要带；它挂在元素自己身上（不靠继承），所以跟 `text-body-secondary` 同一个位置换掉。 */
+[data-block="footer-new"] .ftr-muted-on-dark {
+  color: rgba(255, 255, 255, .92) !important;
 }

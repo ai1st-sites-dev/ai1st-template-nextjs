@@ -12,6 +12,8 @@
  * （单格页 `/__catalog/footer-new/<预设>`，1440 / 820 / 390，带阳性对照）。
  * 📌 #1464 起一份 markup + 旋钮 layout / cta + 6 个预设（形态目录 = 预设名）；部件 newsletter 换成 `form`
  *    （hero 那个表单部件）。
+ * 📌 #1469 起开关 `reverse` → 旋钮 `brand`（left | right），开关 `dark` → 颜色槽 `bg`（纯色 / brand / 渐变），
+ *    `form` 从 `style: inline | stacked` 改成 `mode: teaser | full`（表单是站级资产，块只选画法）。
  *
  * 🔴 每一段都带一格反向对照（同一进程、单变量），证明判据真会红：一道只在真组件上跑的检查恒绿时，
  *    「它在起作用」和「它瞎了」给出同一个读数。
@@ -83,6 +85,9 @@ const ICONS = require(path.join(NEXT, 'scripts', 'lib', 'icons.js')).iconTableFo
 const render = (shape, data, Comp = C) => renderToStaticMarkup(React.createElement(Comp, { shape, data, iconTable: ICONS }));
 const count = (html, needle) => html.split(needle).length - 1;
 const withKnobs = (d, knobs) => ({ ...d, options: { ...(d.options || {}), ...knobs } });
+// #1469 PM 19:54 口径：`brand=right` 跟任何预设都对不上 ⟹ 根上 `data-preset="custom"`（这是对的读数）；
+// 比「样子」时两边都先去掉它。只在比较这一步去，组件照样输出。
+const noPreset = (h) => h.replace(/ data-preset="[^"]*"/, '');
 
 // ══ 定稿表（票正文，Chris 2026-09-27；顺序就是这张表的顺序）══════════════════════════════════════
 const TABLE = [
@@ -102,18 +107,18 @@ const base = clone(DEMO);
 delete base.form;
 
 // ══ ① 验收 1：manifest 6 个预设 · 旋钮值与定稿表一致 · 目录 == 6 个预设名 · 6 个预设两两不同 ═══════════
-console.log('① 6 个预设：manifest · 目录 · 两两不同 · dark / reverse 各改 HTML');
+console.log('① 6 个预设：manifest · 目录 · 两两不同 · bg / brand 各改 HTML');
 {
   const presets = Array.isArray(MANIFEST.presets) ? MANIFEST.presets : [];
   check(JSON.stringify(presets.map((p) => p.name)) === JSON.stringify(PRESET_NAMES),
     `manifest presets 6 条、名字与顺序逐字等于定稿表（${presets.map((p) => p.name).join(' · ')}）`);
   const wrong = TABLE.filter(([n, l, c]) => {
     const p = presets.find((x) => x.name === n);
-    return !p || p.shape !== n || p.knobs.layout !== l || p.knobs.cta !== c || Object.keys(p.knobs).length !== 2;
+    return !p || p.shape !== n || p.knobs.layout !== l || p.knobs.brand !== 'left' || p.knobs.cta !== c || Object.keys(p.knobs).length !== 3;
   });
-  check(wrong.length === 0, '每个预设的 shape = 自己的名字、两个旋钮值与定稿表一致', `对不上：${wrong.map((r) => r[0]).join(' · ')}`);
+  check(wrong.length === 0, '每个预设的 shape = 自己的名字、三个旋钮值与定稿表一致（brand 都是 left）', `对不上：${wrong.map((r) => r[0]).join(' · ')}`);
   const knobs = (MANIFEST.slots.options.knobs || []).map((k) => `${k.name}=${k.values.join('|')}`);
-  check(knobs.join(' ; ') === 'layout=row|stacked|columns ; cta=none|centered|boxed|inline',
+  check(knobs.join(' ; ') === 'layout=row|stacked|columns ; brand=left|right ; cta=none|centered|boxed|inline',
     `旋钮顺序 = 控件顺序：${knobs.join(' ; ')}`);
   const dirs = fs.readdirSync(path.join(NEXT, 'blocks', 'footer-new'), { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort();
   check(JSON.stringify(dirs) === JSON.stringify([...PRESET_NAMES].sort()), `blocks/footer-new/ 的目录集合 == 6 个预设名（${dirs.join(' · ')}）`);
@@ -123,18 +128,28 @@ console.log('① 6 个预设：manifest · 目录 · 两两不同 · dark / reve
   check(new Set(htmls).size === 6, `同一份夹具下 6 个预设的 HTML 两两不同（${new Set(htmls).size} 种）`);
   const labels = PRESET_NAMES.filter((s, i) => !htmls[i].includes(`data-preset="${s}"`) || !htmls[i].includes(`data-shape="${s}"`));
   check(labels.length === 0, '每个预设渲染出来戴的就是自己的名字（data-shape + data-preset）', `没戴上：${labels.join(' · ')}`);
-  for (const opt of ['dark', 'reverse']) {
-    const same = PRESET_NAMES.filter((s, i) => render(s, withKnobs(base, { [opt]: true })) === htmls[i]);
-    check(same.length === 0, `勾上 ${opt}：6 个预设的 HTML 全都变了`, `没变的：${same.join(' · ')}`);
+  // bg 深色：6 个预设全变。brand=right：4 个非 stacked 预设全变、stacked 两个不变（AC3：stacked 居中，brand 不起作用）。
+  const STACKED = ['stacked', 'cta-stacked'];
+  const bgChanged = (Comp) => PRESET_NAMES.filter((s, i) => render(s, { ...base, bg: '#0f172a' }, Comp) === (Comp ? render(s, base, Comp) : htmls[i]));
+  const brandSame = (Comp) => PRESET_NAMES.filter((s, i) => noPreset(render(s, withKnobs(base, { brand: 'right' }), Comp)) === noPreset(Comp ? render(s, base, Comp) : htmls[i]));
+  {
+    const same = bgChanged();
+    check(same.length === 0, 'bg=#0f172a：6 个预设的 HTML 全都变了', `没变的：${same.join(' · ')}`);
+    const bs = brandSame();
+    check(bs.length === 2 && STACKED.every((s) => bs.includes(s)),
+      'brand=right：4 个非 stacked 预设全变、stacked / cta-stacked 两个不变（比较前去掉 data-preset）', `没变的：${bs.join(' · ') || '（无）'}`);
   }
-  // 反向对照：把 dark 那个开关从组件里拿掉（读成恒 false），上面那条必须红。
+  // 反向对照：把组件读 bg / brand 的那一行换成恒空 / 恒 left，上面两条必须被点名。锚点找不到不许静默跳过。
   const src = fs.readFileSync(SECTION, 'utf-8');
-  const broken = src.replace('const { dark = false, reverse = false } = opts;', 'const dark = false; const { reverse = false } = opts;');
-  if (broken === src) bad('反向对照没改到源码（锚点找不到）—— 这一格什么都没证明');
-  else {
+  for (const [what, from, to, want] of [
+    ['bg', 'const bg = data.bg;', 'const bg = undefined as FooterNewData[\'bg\'];', 6],
+    ['brand', 'const brandSide = knobs.brand;', "const brandSide: BrandSide = 'left';", 4],
+  ]) {
+    const broken = src.replace(from, to);
+    if (broken === src) { bad(`反向对照（${what}）没改到源码（锚点找不到）—— 这一格什么都没证明`); continue; }
     const Cb = loadSection(broken).default;
-    const same = PRESET_NAMES.filter((s) => render(s, withKnobs(base, { dark: true }), Cb) === render(s, base, Cb));
-    check(same.length === 6, `反向对照：组件不读 dark ⟹ 6 个预设都被点名「没变」（${same.length}/6）`);
+    const same = what === 'bg' ? bgChanged(Cb) : brandSame(Cb).filter((s) => !STACKED.includes(s));
+    check(same.length === want, `反向对照：组件不读 ${what} ⟹ ${want} 个预设都被点名「没变」（${same.length}/${want}）`);
     loadSection();
   }
   // 不认识的形态名落回 slim-row（跟 header 同一条规矩）。
@@ -167,37 +182,75 @@ console.log('\n② layout × cta 12 种组合');
   // cta 旋钮开着但 cta 内容空 ⟹ 也没有条（空值不渲染）。
   const noCta = clone(base); delete noCta.cta;
   check(count(render('cta-row', noCta), 'data-footer-cta') === 0, 'cta-row 但 cta 槽为空 ⟹ 没有 CTA 条');
-  // reverse：三个排布的主容器 ≥768 反向、<768 反序叠；columns 的断点是 md（T2.2 是 lg）。
+  // brand=right（原 reverse）：两个排布的主容器 ≥768 反向、<768 反序叠；columns 的断点是 md（T2.2 是 lg）。
   for (const layout of ['row', 'columns']) {
-    const h = render('slim-row', withKnobs(base, { layout, reverse: true }));
+    const h = render('slim-row', withKnobs(base, { layout, brand: 'right' }));
     const main = (h.match(/<div class="([^"]*)" data-footer-main=""/) || [])[1] || '';
     check(/\bflex-column-reverse\b/.test(main) && /\bflex-md-row-reverse\b/.test(main) && !/flex-lg-row-reverse/.test(main),
-      `${layout} + reverse：主容器 = flex-column-reverse + flex-md-row-reverse（没有 lg）`, main);
+      `${layout} + brand=right：主容器 = flex-column-reverse + flex-md-row-reverse（没有 lg）`, main);
   }
 }
 
-// ══ ③ 验收 5：form 部件的位置 · inline / stacked 各一次 · row 不出 · 空值不出 ═══════════════════════
+// ══ ③ 验收 5 / #1469 AC6：form 部件的位置 · teaser / full 各一次 · row 不出 · 空值不出 ═══════════════
 console.log('\n③ form 部件');
 {
-  for (const style of ['inline', 'stacked']) {
-    const d = { ...base, form: { ...DEMO.form, style, fields: style === 'inline' ? ['phone'] : ['name', 'phone', 'service'] } };
+  // 字段 id 集合（不算防机器人那个 `ftr-hp`）：teaser = 首要字段、full = 整张替身表单。
+  const WANT = { teaser: ['ftr-phone'], full: ['ftr-name', 'ftr-phone', 'ftr-service'] };
+  const VARIANT = { teaser: 'inline', full: 'stacked' };
+  const fieldIds = (h) => Array.from(h.matchAll(/<(?:input|select|textarea)[^>]*\bid="(ftr-[a-z]+)"/g)).map((x) => x[1]).filter((x) => x !== 'ftr-hp').sort();
+  for (const mode of ['teaser', 'full']) {
+    const d = { ...base, form: { mode } };
     const st = render('stacked', d);
     const addr = st.indexOf(DEMO.contact.address);
-    const at = st.indexOf(`data-footer-form="${style}"`);
-    check(count(st, 'data-footer-form=') === 1 && addr > 0 && at > addr, `stacked + form ${style}：恰好 1 个，在联系一行之后`);
-    check(st.includes(`data-form-variant="${style}"`), `stacked + form ${style}：画的是 ${style} 那种样式`);
+    const at = st.indexOf(`data-footer-form="${mode}"`);
+    check(count(st, 'data-footer-form=') === 1 && addr > 0 && at > addr, `stacked + form ${mode}：恰好 1 个，在联系一行之后`);
+    check(st.includes(`data-form-variant="${VARIANT[mode]}"`), `stacked + form ${mode}：画的是 ${VARIANT[mode]} 那种画法`);
+    check(JSON.stringify(fieldIds(st)) === JSON.stringify([...WANT[mode]].sort()), `stacked + form ${mode}：字段 = ${WANT[mode].join(' · ')}`, fieldIds(st).join(' · '));
+    check(count(st, '<form') === 1 && /<button[^>]*type="submit"/.test(st), `stacked + form ${mode}：一个 <form> + 提交按钮`);
     const col = render('columns', d);
     const brandStart = col.indexOf('data-footer-col="brand"');
     const brandEnd = col.indexOf('data-footer-col="services"');
-    const cat = col.indexOf(`data-footer-form="${style}"`);
-    check(count(col, 'data-footer-form=') === 1 && brandStart > 0 && cat > brandStart && cat < brandEnd, `columns + form ${style}：恰好 1 个，在品牌列里`);
-    check(count(render('slim-row', d), 'data-footer-form=') === 0, `row + form ${style}：不渲染`);
+    const cat = col.indexOf(`data-footer-form="${mode}"`);
+    check(count(col, 'data-footer-form=') === 1 && brandStart > 0 && cat > brandStart && cat < brandEnd, `columns + form ${mode}：恰好 1 个，在品牌列里`);
+    check(count(render('slim-row', d), '<form') === 0, `row + form ${mode}：不渲染`);
     // 跟 hero 同页时 id 不撞：页脚那份用 ftr- 前缀。
-    check(!/id="hro-/.test(col) && /id="ftr-phone"/.test(col), `form ${style}：id 用 ftr- 前缀（不跟 hero 的 hro- 撞）`);
+    check(!/id="hro-/.test(col) && /id="ftr-phone"/.test(col), `form ${mode}：id 用 ftr- 前缀（不跟 hero 的 hro- 撞）`);
   }
-  for (const s of PRESET_NAMES) check(count(render(s, base), 'data-footer-form=') === 0, `${s}：form 空 ⟹ 没有表单`);
-  const noStyle = { ...base, form: { fields: ['phone'], buttonText: 'x' } };
-  check(count(render('stacked', noStyle), 'data-footer-form=') === 0, 'form 没有 style ⟹ 不渲染（style 是这个部件的开关）');
+  for (const s of PRESET_NAMES) check(count(render(s, base), '<form') === 0, `${s}：form 空 ⟹ 没有 <form>`);
+  const noMode = { ...base, form: { id: 'x' } };
+  check(count(render('stacked', noMode), '<form') === 0, 'form 没有 mode ⟹ 不渲染（mode 是这个部件的开关，工具栏的 none 就是它）');
+  const oldStyle = { ...base, form: { style: 'inline', fields: ['phone'], buttonText: 'x' } };
+  check(count(render('stacked', oldStyle), '<form') === 0, '#1464 的旧形状（只有 style）⟹ 不渲染');
+}
+
+// ══ #1469 AC5：bg 颜色槽 —— 深底反白 · 浅底深字 · brand = 主色 · 渐变按色标平均亮度 ══════════════════════
+console.log('\n③b bg 颜色槽');
+{
+  const rootOf = (h) => (h.match(/<footer[^>]*>/) || [''])[0];
+  const dark = render('cta-columns', { ...base, bg: '#0f172a' });
+  check(/style="background:#0f172a"/.test(rootOf(dark)) && !/\bbg-body\b/.test(rootOf(dark)) && /\btext-white\b/.test(rootOf(dark)),
+    'bg=#0f172a：根上 background:#0f172a、没有 bg-body、字反白', rootOf(dark));
+  check(!/text-white-50|text-body-secondary/.test(dark) && dark.includes('ftr-muted-on-dark'), 'bg=#0f172a：小字不用灰（白 .92 那个类），没有 text-white-50');
+  check(/rounded-3 bg-white bg-opacity-10[^"]*" data-footer-cta="boxed"/.test(dark), 'bg=#0f172a：boxed 盒子换成浅一档（半透明白），不是 bg-dark');
+  const light = render('cta-columns', { ...base, bg: '#ffffff' });
+  check(/style="background:#ffffff"/.test(rootOf(light)) && !/\btext-white\b/.test(rootOf(light)) && light.includes('text-body-secondary') && !light.includes('ftr-muted-on-dark'),
+    'bg=#ffffff：深字（没有反白类）', rootOf(light));
+  const brand = render('slim-row', { ...base, bg: 'brand' });
+  check(/style="background:var\(--x-primary\)"/.test(rootOf(brand)) && /\btext-white\b/.test(rootOf(brand)), 'bg=brand：背景是主题主色、字反白', rootOf(brand));
+  const g = render('slim-row', { ...base, bg: { stops: ['#7d52f4', '#f7b733'], angle: 135 } });
+  check(/style="background:linear-gradient\(135deg,#7d52f4,#f7b733\)"/.test(rootOf(g)) && /\btext-white\b/.test(rootOf(g)),
+    '渐变 紫→金：linear-gradient(135deg,…)、按色标平均亮度 < 0.55 反白', rootOf(g));
+  const gl = render('slim-row', { ...base, bg: { stops: ['#ffffff', '#e0f2fe', '#f1f5f9'] } });
+  check(/linear-gradient\(135deg,#ffffff,#e0f2fe,#f1f5f9\)/.test(rootOf(gl)) && !/\btext-white\b/.test(rootOf(gl)), '浅渐变 3 色标（没写角度 = 135）：深字', rootOf(gl));
+  const junk = render('slim-row', { ...base, bg: { stops: ['#000000'] } });
+  check(junk === render('slim-row', base), '不合法的渐变（1 个色标）⟹ 当没填，逐字等于不填');
+  const { toneForBg, relativeLuminance, isColorValue } = require(path.join(NEXT, 'scripts', 'lib', 'contrast.js'));
+  // 门槛 0.55 的边界：两色标平均亮度恰好落在 0.4 与 0.55 之间 ⟹ 纯色规则会判浅，渐变规则判深（偏向反白）。
+  const mid = ['#c0c0c0', '#b8b8b8'];
+  const avg = mid.reduce((a, c) => a + relativeLuminance(c), 0) / 2;
+  check(avg > 0.4 && avg < 0.55 && toneForBg({ stops: mid }) === 'dark', `渐变门槛是 0.55 不是 0.4（平均亮度 ${avg.toFixed(3)} ⟹ dark）`);
+  check(isColorValue({ stops: ['#000000', '#ffffff'], angle: 90 }) && !isColorValue({ stops: ['#000000'] }) && !isColorValue({ stops: ['#000000', '#fff'] }),
+    'validateSite 的判据认渐变（2–3 个 #rrggbb），1 个色标 / 短写不认');
 }
 
 // ══ ④ #1455 验收 3：列规矩 ═════════════════════════════════════════════════════════════════════════════

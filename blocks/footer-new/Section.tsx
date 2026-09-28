@@ -8,8 +8,9 @@
 //    Bootstrap 的 CSS（设计稿 B1）。它是外壳区块（`region: true`）：不进注册表、不进 Puck、不进
 //    提示词；今天唯一渲染它的地方是单格页 `/__catalog`。T3 删旧库时它改名成 `footer`、接回 `SiteShell`。
 //
-// 🔴 **一份 markup + 两个旋钮 + 六个预设**（#1464，Chris 2026-09-27 图册定稿第 2 版，照 header-new 的做法）。
-//    旋钮 `layout`（row | stacked | columns）· `cta`（none | centered | boxed | inline），声明在 manifest 的
+// 🔴 **一份 markup + 三个旋钮 + 六个预设**（#1464，Chris 2026-09-27 图册定稿第 2 版，照 header-new 的做法；
+//    #1469 第 3 版加 `brand`）。
+//    旋钮 `layout`（row | stacked | columns）· `brand`（left | right）· `cta`（none | centered | boxed | inline），声明在 manifest 的
 //    `slots.options.knobs`；预设是旋钮组合起的名，表在顶层 `presets`（name 与形态目录名 shape 相同）。
 //    形态名只决定**初值**：`options` 里写了旋钮就按旋钮画（§resolveKnobs），函数跟工具栏是同一个
 //    （`scripts/lib/header-knobs.js`）。footer 没有耦合（manifest 不写 `knobCoupling`）⟹ 任意组合都成立，
@@ -17,10 +18,22 @@
 //    `blocks/footer-new/block.css`（不在各预设的 shape.css：Custom 组合没有文件夹）。
 //    部件永远是 `[CTA 条?] [主体] [底栏]`；主体按 layout 分三种排法，CTA 条按 cta 三选一或没有。
 //
-// 🔴 **reverse：桌面在左的，小屏就在上**（Chris 2026-09-27）。三个排布的主容器 ≥768 反向（首项 / 品牌列
-//    在右），<768 用 `flex-column-reverse` 放到最下。`columns` 的断点从 T2.2 的 `lg` 改成 `md`（这一版的
+// 🔴 **`brand=right`：桌面在左的，小屏就在上**（Chris 2026-09-27；#1469 起它是旋钮 `brand`，原来是开关 `reverse`，
+//    画法逐字没变 —— 根上的类名也还叫 `ftr-reverse`）。两个排布的主容器 ≥768 反向（首项 / 品牌列
+//    在右），<768 用 `flex-column-reverse` 放到最下。`columns` 的断点从 T2.2 的 `lg` 改成 `md`（#1464 的
 //    真改动）—— 品牌列在 768 起就跟其余列并排，不然「768–991 品牌列在右」无从谈起。
-//    导航行 / 社交行 / 底栏里那几处小容器用的是不带断点的 `flex-row-reverse`，任何宽度都翻，这一版不动。
+//    导航行 / 社交行 / 底栏里那几处小容器用的是不带断点的 `flex-row-reverse`，任何宽度都翻。
+//    🔴 `stacked` 是居中的，`brand` 对它**一处都不起作用**（#1469 AC3：两个值 HTML 相同）—— 原来的 reverse 在
+//    stacked 下还会翻导航 / 社交 / 联系 / CTA 行和根上的类，所以判据收在一个变量上（函数体里的 `reverse`），不在各处分别判。
+//
+// 🔴 **底色 = 颜色槽 `bg`**（#1469，原来是开关 `dark`）：任意 `#rrggbb`、`brand`（主题主色）或渐变
+//    `{ stops: [2–3 个色], angle }`，字色按背景亮度自动反白 —— 纯色跟 hero-new 同一个函数（`scripts/lib/contrast.js`
+//    §toneFor，门槛 0.4），渐变按色标平均亮度（§toneForBg，门槛 0.55），不另起一套。没填 = 改前 `dark=false`
+//    那一份，逐字相同。
+//
+// 🔴 **表单 = `form: { mode: teaser | full, id? }`**（#1469）：表单是站级资产（#1471），块只选一张、选画法。
+//    `id` 在 #1471 落地前恒空 ⟹ 用组件里那份替身（§FORM_STANDIN）。`teaser` = 首要字段 + 按钮，`full` = 整张；
+//    没写 `mode`（含槽位不在）不渲染 —— 工具栏上的 `none` 就是这个意思。
 //
 // 🔴 **排版只走 Webpixels 的工具类**（总纲约束 3）。Webpixels 的工具类全带 `!important`，要压过它们的
 //    规则也得带 `!important` 且 class 数不少于它（票正文那条通用规矩）。
@@ -35,10 +48,12 @@ import type { BlockConfig } from '@/lib/types/config';
 import BlockLeadForm, { type BlockLeadFormData } from '@/components/BlockLeadForm';
 import manifest from './manifest.json';
 import { knobsOf, normalizeKnobs, presetForShape, presetOf, presetsOf } from '../../scripts/lib/header-knobs.js';
+import { bgCss, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
 
 export type Layout = 'row' | 'stacked' | 'columns';
+export type BrandSide = 'left' | 'right';
 export type Cta = 'none' | 'centered' | 'boxed' | 'inline';
 
 export interface FooterLink { label: string; href: string; icon?: string }
@@ -46,14 +61,14 @@ export interface FooterButton { label: string; href: string; style?: BtnStyle }
 export interface FooterContact { phone?: string; address?: string; hours?: string; email?: string }
 export interface FooterColumns { services?: FooterLink[]; areas?: FooterLink[]; contact?: boolean }
 export interface FooterCta { title?: string; subtitle?: string; buttons?: FooterButton[] }
-export interface FooterForm extends BlockLeadFormData { style?: 'inline' | 'stacked' }
+/** #1469 —— 块只选一张表单、选画法；表单本身是站级资产（#1471）。 */
+export interface FooterForm { mode?: 'teaser' | 'full'; id?: string }
 export interface FooterOptions {
   /** 只是标签：旋钮跟某个预设吻合就是它的名，否则 `custom`。渲染不读它。 */
   preset?: string;
   layout?: Layout;
+  brand?: BrandSide;
   cta?: Cta;
-  dark?: boolean;
-  reverse?: boolean;
 }
 
 export interface FooterNewData {
@@ -68,10 +83,12 @@ export interface FooterNewData {
   copyright?: string;
   cta?: FooterCta;
   form?: FooterForm;
+  /** #1469 —— 底色：`#rrggbb` · `brand` · 渐变 `{ stops, angle }`；空 = 浅底（`bg-body`）。 */
+  bg?: BgValue;
   options?: FooterOptions;
 }
 
-export interface FooterKnobs { layout: Layout; cta: Cta }
+export interface FooterKnobs { layout: Layout; brand: BrandSide; cta: Cta }
 
 const KNOBS = knobsOf(manifest);
 const PRESETS = presetsOf(manifest);
@@ -88,10 +105,21 @@ export function resolveKnobs(shape: string | undefined, options: FooterOptions =
   return { knobs, preset: presetOf(knobs, { knobs: KNOBS, presets: PRESETS }), shape: known };
 }
 
+/**
+ * #1469 —— 替身表单：`form.id` 空（#1471 落地前恒空）时用它。内容取自 #1464 的演示夹具；首要字段是电话
+ * （`teaser` 只画它 + 按钮）。
+ */
+const FORM_STANDIN: BlockLeadFormData = {
+  fields: ['name', 'phone', 'service'],
+  buttonText: 'Call me back',
+  successMessage: "Thanks! We'll call you back within the hour.",
+};
+const FORM_PRIMARY_FIELD = 'phone' as const;
+
 /** 列的固定语义（`columns` 排布专用）。标题是图册的英文演示；T3 接站时跟着站的语言走。 */
 const COLUMN_TITLES = { services: 'Services', areas: 'Service areas', pages: 'Pages', contact: 'Contact' };
 
-/** `solidLight`：boxed 那个深色盒子里的实心按钮用浅色（Webpixels footer-3），别处照旧是主色。 */
+/** `solidLight`：boxed 那个深色盒子里、以及主色底（`bg=brand`）上的实心按钮用浅色（Webpixels footer-3），别处照旧是主色。 */
 function btnClass(style: BtnStyle | undefined, onDark: boolean, large = false, solidLight = false): string {
   const size = large ? ' btn-lg' : '';
   if (style === 'link') return `btn btn-link${size} ${onDark ? 'link-light' : ''}`;
@@ -122,7 +150,16 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
   const opts = data.options || {};
   const { knobs, preset, shape } = resolveKnobs(shapeIn, opts);
   const { layout, cta: ctaKind } = knobs;
-  const { dark = false, reverse = false } = opts;
+  const brandSide = knobs.brand;
+  // §文件头：`stacked` 下 brand 一处都不生效 —— 下面所有「翻不翻」都只读这一个变量。
+  const reverse = brandSide === 'right' && layout !== 'stacked';
+  const bg = data.bg;
+  const tone = toneForBg(bg);
+  const dark = tone !== 'light';
+  const bgValue = bgCss(bg);
+  const bgStyle = bgValue ? { background: bgValue } : undefined;
+  // 主色底上主色按钮看不见 ⟹ 翻成浅色（hero-new 同一条：「`brand` 时主按钮翻成白底主色字」）。
+  const onBrand = tone === 'brand';
   const list = <T,>(v: T[] | undefined): T[] => (Array.isArray(v) ? v.filter(Boolean) : []);
   const nav = list(data.nav);
   const social = list(data.social);
@@ -131,10 +168,15 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
   const brand = data.brandName || '';
   const copyright = data.copyright || `© ${new Date().getFullYear()} ${brand}`;
   const cta = ctaKind !== 'none' && data.cta && data.cta.title ? data.cta : null;
-  const form = data.form && (data.form.style === 'inline' || data.form.style === 'stacked') ? data.form : null;
+  const formMode = data.form && (data.form.mode === 'teaser' || data.form.mode === 'full') ? data.form.mode : null;
+  const form: BlockLeadFormData | null = formMode
+    ? { ...FORM_STANDIN, fields: formMode === 'teaser' ? [FORM_PRIMARY_FIELD] : FORM_STANDIN.fields }
+    : null;
 
   const linkTone = dark ? 'link-light' : 'link-secondary';
-  const mutedTone = dark ? 'text-white-50' : 'text-body-secondary';
+  // 深底上的小字（说明 / 联系 / 版权）不用灰：白 .92（`block.css` §ftr-muted-on-dark；图册 2026-09-28 实测
+  // 紫→金渐变上 .5 / .7 的灰字看不清）。
+  const mutedTone = dark ? 'ftr-muted-on-dark' : 'text-body-secondary';
   const headTone = dark ? 'text-white' : 'text-heading';
   // 深底的分隔线：`border-secondary` 在 Webpixels 里是紫色，深底上画出来是一道紫线 —— 用半透明白。
   const lineTone = dark ? 'border-white border-opacity-10' : '';
@@ -200,9 +242,10 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
   };
 
   // 表单部件：`layout=stacked` 在联系一行下、`layout=columns` 在品牌列下、`layout=row` 不渲染；空值不渲染。
-  const formPart = (extra = '') => (form ? (
-    <div className={`w-100 mw-sm ${extra}`} data-footer-form={form.style}>
-      <BlockLeadForm data={form} variant={form.style as 'inline' | 'stacked'} locale={locale} idPrefix="ftr" size="sm" />
+  //    `teaser` 沿用 #1464 `inline` 的画法（一个字段 + 按钮一行），`full` 沿用 `stacked`（整张）。
+  const formPart = (extra = '') => (form && formMode ? (
+    <div className={`w-100 mw-sm ${extra}`} data-footer-form={formMode}>
+      <BlockLeadForm data={form} variant={formMode === 'teaser' ? 'inline' : 'stacked'} locale={locale} idPrefix="ftr" size="sm" />
     </div>
   ) : null);
 
@@ -218,7 +261,8 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
   const ctaCopy = (onDark: boolean) => (
     <div>
       <h2 className={`h4 fw-bold mb-1 ${onDark ? 'text-white' : headTone}`}>{cta?.title}</h2>
-      {cta?.subtitle ? <p className={`mb-0 ${onDark ? 'text-white-50' : mutedTone}`}>{cta.subtitle}</p> : null}
+      {/* boxed 那个深盒子在浅底页脚上照旧 .5（#1464 的样子）；页脚本身是深底时跟别处小字一样白 .92。 */}
+      {cta?.subtitle ? <p className={`mb-0 ${onDark ? (dark ? 'ftr-muted-on-dark' : 'text-white-50') : mutedTone}`}>{cta.subtitle}</p> : null}
     </div>
   );
   const ctaRowDir = `d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-4 ${reverse ? 'flex-md-row-reverse' : ''}`;
@@ -230,23 +274,24 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
         <div className={`border-bottom ${lineTone} py-10 mb-16 text-center`} data-footer-cta="centered">
           <h2 className={`display-6 fw-bold mb-2 ${headTone}`}>{cta.title}</h2>
           {cta.subtitle ? <p className={`fs-5 mb-4 mx-auto mw-lg ${mutedTone}`}>{cta.subtitle}</p> : null}
-          {ctaButtons(dark, true, 'justify-content-center')}
+          {ctaButtons(dark, true, 'justify-content-center', onBrand)}
         </div>
       );
     }
     if (ctaKind === 'boxed') {
-      // 深色圆角盒子：页脚本身是深底时换主色，否则深盒子融进深底看不出来。
+      // 深色圆角盒子：页脚本身是深底（`bg` 深色 / `brand`）时换成比底色浅一档（半透明白叠在底色上 ——
+      // 任何深底、包括主色底都成立），否则深盒子融进深底看不出来。
       return (
-        <div className={`rounded-3 ${dark ? 'bg-primary' : 'bg-dark'} text-white px-6 px-md-10 py-8 mb-16 ${ctaRowDir}`} data-footer-cta="boxed">
+        <div className={`rounded-3 ${dark ? 'bg-white bg-opacity-10' : 'bg-dark'} text-white px-6 px-md-10 py-8 mb-16 ${ctaRowDir}`} data-footer-cta="boxed">
           {ctaCopy(true)}
-          {ctaButtons(true, false, 'flex-shrink-0', !dark)}
+          {ctaButtons(true, false, 'flex-shrink-0', !dark || onBrand)}
         </div>
       );
     }
     return (
       <div className={`border-bottom ${lineTone} pb-10 mb-16 ${ctaRowDir}`} data-footer-cta="inline">
         {ctaCopy(false)}
-        {ctaButtons(dark, false, 'flex-shrink-0')}
+        {ctaButtons(dark, false, 'flex-shrink-0', onBrand)}
       </div>
     );
   };
@@ -365,7 +410,8 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
 
   const footerBlock = { ...(block || {}), type: 'footer-new', shape } as BlockConfig;
   const rootClass = [
-    dark ? 'bg-dark text-white' : 'bg-body',
+    // 填了 `bg` 就不挂 `bg-body`：Webpixels 的背景工具类带 `!important`，会压过下面 style 上的底色。
+    bgStyle ? (dark ? 'text-white' : '') : 'bg-body',
     'border-top',
     lineTone,
     `ftr-layout-${layout}`,
@@ -374,7 +420,7 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
   ].filter(Boolean).join(' ');
 
   return (
-    <footer {...blockAttrs('footer-new', footerBlock)} className={rootClass} data-preset={preset}>
+    <footer {...blockAttrs('footer-new', footerBlock)} className={rootClass} data-preset={preset} style={bgStyle}>
       <div className={`container-lg ${layout === 'stacked' ? 'py-16 py-lg-20' : 'py-12'}`}>
         {ctaStrip()}
         {body}

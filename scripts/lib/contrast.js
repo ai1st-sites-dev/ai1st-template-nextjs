@@ -12,6 +12,13 @@
 //    （`src/components/editor/EditorApp.tsx`）。两边各算一遍的话，分歧那天两边都不会红。
 // 🔴 校验（这个值合不合法）也在这里：`block-manifest.js` §validateSite 调 `isColorValue`，
 //    编辑器的取色器存盘前调 `normalizeColor` —— 同一条正则。
+//
+// #1469 —— **颜色槽也可以是渐变**（Chris 2026-09-28：Webpixels 的渐变底是 CSS 变量拼的 `linear-gradient`，不是图）：
+//    值 = `#rrggbb` | `brand` | `{ stops: [2–3 个 #rrggbb], angle }`，渲染成 `linear-gradient(angle, stops)`。
+//    字色按**色标平均亮度**判，门槛 0.55（比纯色的 0.4 高 = 偏向反白：紫→金那种渐变两头一深一浅，按 0.4 会判成浅底）。
+//    渐变认得的只有 `*Bg` 这一组（`isBgValue` / `normalizeBg` / `toneForBg` / `bgCss`）；`normalizeColor` / `toneFor`
+//    原样不动 —— 编辑器取色器和 hero-new 读的是它们，那两处今天不认对象形态（hero 收到渐变 = 当没填，样子不变）。
+//    `isColorValue`（validateSite 的判据）认渐变：`SLOT_KINDS` 的 `color` 就是这一种，校验不按块分。
 
 /** 相对亮度的门槛：低于它就是「深底」，字反白。 */
 const DARK_BELOW = 0.4;
@@ -21,9 +28,33 @@ const BRAND = 'brand';
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
-/** 合法的颜色槽取值：`#rrggbb`（大小写都收）或 `brand`。 */
+/** 渐变底：色标平均亮度低于它就是「深底」（#1469）。 */
+const GRADIENT_DARK_BELOW = 0.55;
+
+/** 渐变没写角度时用它（图册的三档预设渐变都是 135deg）。 */
+const GRADIENT_ANGLE = 135;
+
+/** 编辑器色板上的三档预设渐变（图册 `build.py` 的 `g:` 那三格，原样）。 */
+const GRADIENT_SWATCHES = [
+  { stops: ['#7d52f4', '#f7b733'], angle: GRADIENT_ANGLE },
+  { stops: ['#0ea5e9', '#6366f1'], angle: GRADIENT_ANGLE },
+  { stops: ['#0f172a', '#334155'], angle: GRADIENT_ANGLE },
+];
+
+/** 归一渐变：2–3 个 `#rrggbb` 色标（小写）+ 角度（0–360 的有限数，没写 = 135）；不合法回 null。 */
+function normalizeGradient(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v) || !Array.isArray(v.stops)) return null;
+  if (v.stops.length < 2 || v.stops.length > 3) return null;
+  const stops = v.stops.map((c) => (typeof c === 'string' && HEX_RE.test(c.trim()) ? c.trim().toLowerCase() : null));
+  if (stops.includes(null)) return null;
+  const angle = v.angle === undefined ? GRADIENT_ANGLE : v.angle;
+  if (typeof angle !== 'number' || !Number.isFinite(angle) || angle < 0 || angle > 360) return null;
+  return { stops, angle };
+}
+
+/** 合法的颜色槽取值：`#rrggbb`（大小写都收）、`brand`，或渐变 `{ stops, angle }`（#1469）。 */
 function isColorValue(v) {
-  return v === BRAND || (typeof v === 'string' && HEX_RE.test(v));
+  return v === BRAND || (typeof v === 'string' && HEX_RE.test(v)) || normalizeGradient(v) !== null;
 }
 
 /** 归一成存盘的形状：十六进制一律小写；不合法回 null。 */
@@ -54,4 +85,40 @@ function toneFor(bg) {
   return l < DARK_BELOW ? 'dark' : 'light';
 }
 
-module.exports = { DARK_BELOW, BRAND, isColorValue, normalizeColor, relativeLuminance, toneFor };
+/** 颜色槽的值（纯色或渐变）归一成存盘的形状；不合法回 null。 */
+function normalizeBg(v) {
+  return typeof v === 'object' && v !== null ? normalizeGradient(v) : normalizeColor(v);
+}
+
+/** 纯色或渐变都认的字色判据：渐变按色标平均亮度 < 0.55 反白，别的交给 §toneFor。 */
+function toneForBg(bg) {
+  const g = typeof bg === 'object' && bg !== null ? normalizeGradient(bg) : null;
+  if (!g) return toneFor(bg);
+  const avg = g.stops.reduce((a, c) => a + relativeLuminance(c), 0) / g.stops.length;
+  return avg < GRADIENT_DARK_BELOW ? 'dark' : 'light';
+}
+
+/** 这块底色写成 CSS `background` 的值：`brand` → 主题主色变量、渐变 → `linear-gradient(…)`；没填 / 不合法回 null。 */
+function bgCss(bg) {
+  const v = normalizeBg(bg);
+  if (!v) return null;
+  if (v === BRAND) return 'var(--x-primary)';
+  if (typeof v === 'string') return v;
+  return `linear-gradient(${v.angle}deg,${v.stops.join(',')})`;
+}
+
+/**
+ * 地址栏 `?bg=` 的写法 → 颜色槽的值：`%230f172a` / `brand` 原样，渐变写成 JSON（`?bg={"stops":[…],"angle":135}`）。
+ * 单格页两条路（旋钮页面块 / 外壳块）都走它，不各写一份解析。
+ */
+function bgFromParam(s) {
+  if (typeof s !== 'string') return null;
+  const t = s.trim();
+  if (!t.startsWith('{')) return normalizeColor(t);
+  try { return normalizeGradient(JSON.parse(t)); } catch { return null; }
+}
+
+module.exports = {
+  DARK_BELOW, BRAND, isColorValue, normalizeColor, relativeLuminance, toneFor,
+  GRADIENT_DARK_BELOW, GRADIENT_ANGLE, GRADIENT_SWATCHES, normalizeGradient, normalizeBg, toneForBg, bgCss, bgFromParam,
+};
