@@ -707,7 +707,7 @@ const DEMO_CONTENT = {
       { label: 'Contact', href: '/contact' },
     ],
     cta: { label: 'Book a service', href: '/quote' },
-    logo: imageUrl('logo-mark'),
+    logo: imageUrl('brand-logo'),
     language: 'en',
   },
 
@@ -717,7 +717,7 @@ const DEMO_CONTENT = {
   // 写了就会压过每个预设自己那一份。
   // 🔴 `topbar` 底下那三份 list 是嵌套的，守卫 (c) 只看顶层 list 槽，所以 3 个社交链接够用（票正文）。
   'header-new': {
-    logo: imageUrl('logo-mark'),
+    logo: imageUrl('brand-logo'),
     brandName: SITE,
     nav: [
       { label: 'Home', href: '/', icon: 'house-door', show: 'both' },
@@ -753,7 +753,7 @@ const DEMO_CONTENT = {
   // 🔴 `nav` / `social` / `legal` 是顶层 list 槽，守卫 (c) 要各 ≥ 6 项、最长 ≥ 最短 2 倍（网址记 0 字，
   //    `icon` 是字、要算进去）。`columns` / `contact` / `cta` / `form` 是 object，底下的 list 不查。
   'footer-new': {
-    logo: imageUrl('logo-mark-alt'),
+    logo: imageUrl('brand-logo'),
     brandName: SITE,
     tagline: 'Independent auto repair on Yonge Street since 1998. Written estimates before we touch anything.',
     nav: [
@@ -858,7 +858,7 @@ const DEMO_CONTENT = {
     copyright: `© 2026 ${SITE}. OMVIC licensed.`,
     description: 'Independent auto repair on Yonge Street since 1998. Written estimates, two-year '
       + 'warranty, and your old parts back if you want them.',
-    logo: imageUrl('logo-mark-alt'),
+    logo: imageUrl('brand-logo'),
     social: [
       { platform: 'google', url: 'https://g.page/northside-auto-care-toronto' },
       { platform: 'yelp', url: 'https://yelp.ca/biz/northside' },
