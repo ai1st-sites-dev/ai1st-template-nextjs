@@ -2456,8 +2456,8 @@ const INTENT_ARM = SAMPLE_MINIMAL ? '最少版' : '全填版';
 // #1463 —— 皮不由主题表画的块（manifest `skin: "site-css"`，今天是 hero-new）不进 ⑨：这把尺按「块根的直接子元素 +
 // 类名后缀 `__title / __media / __body`」认零件，那是主题表上皮的 BEM 骨架；Bootstrap 的 `section > .container > .row`
 // 按构造对不上它（hero-new 根下只有一个 `.container`）。判据只住 `block-manifest.js` §isSiteCssSkin。
-// 🔴 **排除之后谁在量它，写在这里**：hero-new 的几何由 `tests/e2e/specs/1463-hero-new-knobs.spec.ts` 量（18 种旋钮组合 ×
-//    1440/820/390 不横向滚动 + 阳性对照、reverse 真的换位置、图片带列等宽）。🔴 而它 manifest 里那份 `layout_intent`
+// 🔴 **排除之后谁在量它，写在这里**：hero-new 的几何由 `tests/e2e/specs/1463-hero-new-knobs.spec.ts` 量（#1470 起 54 种旋钮组合 ×
+//    1440/820/390 不横向滚动 + 阳性对照、image 六档的图位、图片带列等宽）。🔴 而它 manifest 里那份 `layout_intent`
 //    今天**没有任何断言在读** —— ⑨ 是它唯一的消费者。T3 把每个块都换成 site-css 时，这道 ⑨ 的分母会空掉：
 //    那张票要么删掉它，要么给它接一套认得 Bootstrap 骨架的零件模型；别让 `layout_intent` 变成宣称一套、没人读的字段。
 const { isSiteCssSkin: INTENT_SITE_CSS } = createRequire(import.meta.url)('./lib/block-manifest.js');

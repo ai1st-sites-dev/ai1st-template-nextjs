@@ -109,7 +109,7 @@ type ManifestForKnobs = { slots?: Record<string, { kind?: string; required?: boo
 
 /**
  * #1463 —— 「预设 + 旋钮」那一类**页面块**（今天是 hero-new）：地址栏 → 这一格的 data。
- *   `?align=center&image=none&form=stacked`  旋钮（名字取 manifest 的 `slots.options.knobs`）
+ *   `?textAlign=center&image=top&form=full`  旋钮（名字取 manifest 的 `slots.options.knobs`）
  *   `?opt=reverse`                           布尔修饰（`options.shape` 那串里的 `: bool`，跟外壳区块同一个参数）
  *   `?bg=%230f172a` / `?bg=brand`            颜色槽
  *   `?parts=proof,stats`                     只留这几个部件（`-` = 一个都不留；不写 = 全留）

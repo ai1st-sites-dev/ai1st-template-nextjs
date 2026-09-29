@@ -6,10 +6,10 @@
  * 退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
  *
  * 管哪几条：AC1（5 个预设两两不同）· AC2 的 DOM 那一半（image=none 没有 <img>、form≠none 没有按钮有 <form>）·
- * AC3 的 DOM 那一半（reverse 的类）· AC4（字色 + 非法颜色被拒）· AC5（部件有值才画、band 张数 = 列数）·
- * AC6（表单字段词表 / inline 只许一个 / 提交走 POST /api/leads、不跳页、redirect 才跳）· AC7（eyebrow 五式）·
+ * AC3 的 DOM 那一半（#1470：image 六档的行类）· AC4（字色 + 非法颜色被拒）· AC5（部件有值才画、band 张数 = 列数）·
+ * AC6（#1470：form 槽只剩 {id?}、teaser / full 两档露的字段、提交走 POST /api/leads、不跳页）· AC7（eyebrow 五式）·
  * AC10（AI 建站能选到它：提示词菜单里有它、「一共几种块」数它；block-roles.json 有它；layout 挂 /site.css）。
- * 几何（三端横向滚动、reverse 真的换了位置、列等宽）要浏览器：`tests/e2e/specs/1463-hero-new-knobs.spec.ts`。
+ * 几何（三端横向滚动、图真的换了位置、列等宽）要浏览器：`tests/e2e/specs/1463-hero-new-knobs.spec.ts`。
  *
  * 🔴 每一段都带反向对照（同一进程、单变量），证明判据真会红。
  * 夹具定死：演示内容包里的 Northside Auto Care（`scripts/lib/demo-content`，正文做什么 7）。
@@ -107,40 +107,45 @@ console.log('── AC1 五个预设');
   const uniq = new Set(htmls);
   check(uniq.size === 5, `5 个预设渲染出 ${uniq.size} 份互不相同的 HTML`);
   // 反向对照：演示内容里写死三个旋钮 ⟹ 形态不再起作用，5 份应当塌成 1 份（这正是开发时踩过的坑）。
-  const pinned = dirs.map((d) => render(d, withOpts({ align: 'left', image: 'normal', form: 'none' })));
+  const pinned = dirs.map((d) => render(d, withOpts({ textAlign: 'left', image: 'left', form: 'none' })));
   check(new Set(pinned.map((h) => h.replace(/data-shape="[^"]*"|--hro-preset/g, ''))).size === 1,
     '反向对照：options 里写死三个旋钮 ⟹ 5 个预设（去掉 data-shape 之后）塌成同一份 —— 判据分得开');
 }
 
-// ══ AC2 的 DOM 那一半：18 种组合都渲染；image=none 没有主图；form≠none 没有按钮、有 <form> ═══════════
+// ══ AC2 的 DOM 那一半：54 种组合都渲染；image=none 没有主图；form≠none 没有按钮、有 <form> ═══════════
+// 🔴 #1470 —— 图列画不画 = image ∈ {left, right, top, bottom} 且有图（这四档是「旁边 / 上下有一张图」）。
+const SIDE_IMAGES = ['left', 'right', 'top', 'bottom'];
 console.log('\n── AC2 旋钮（DOM）');
 {
   const knobs = Object.fromEntries(M.slots.options.knobs.map((k) => [k.name, k.values]));
+  check(JSON.stringify(knobs.image) === JSON.stringify(['none', 'left', 'right', 'top', 'bottom', 'background']),
+    `image 六档、顺序逐字（${(knobs.image || []).join(' / ')}）`);
   const combos = [];
-  for (const align of knobs.align) for (const image of knobs.image) for (const form of knobs.form) combos.push({ align, image, form });
-  check(combos.length === 18, `align × image × form = ${combos.length}`);
+  for (const textAlign of knobs.textAlign) for (const image of knobs.image) for (const form of knobs.form) combos.push({ textAlign, image, form });
+  check(combos.length === 54, `textAlign × image × form = ${combos.length}`);
   const problems = [];
   for (const o of combos) {
     let html;
     try { html = render('split', withOpts(o)); } catch (e) { problems.push(`${JSON.stringify(o)} 抛了 ${e.message}`); continue; }
-    const tag = `${o.align}/${o.image}/${o.form}`;
-    if (attr(html, 'data-align') !== o.align || attr(html, 'data-image') !== o.image || attr(html, 'data-form') !== o.form) {
+    const tag = `${o.textAlign}/${o.image}/${o.form}`;
+    if (attr(html, 'data-text-align') !== o.textAlign || attr(html, 'data-image') !== o.image || attr(html, 'data-form') !== o.form) {
       problems.push(`${tag}: 根元素上的旋钮读数对不上`);
     }
+    if (attr(html, 'data-align') !== null || attr(html, 'data-reverse') !== null) problems.push(`${tag}: 根元素上还挂着退役的 data-align / data-reverse`);
     const mainImgs = count(html, 'hro-img') + count(html, 'data-part="bg"');
     if (o.image === 'none' && mainImgs) problems.push(`${tag}: image=none 却有主图`);
-    if (o.image === 'normal' && count(html, 'hro-img') !== 1) problems.push(`${tag}: image=normal 却没有一张 .hro-img`);
+    if (SIDE_IMAGES.includes(o.image) && count(html, 'hro-img') !== 1) problems.push(`${tag}: image=${o.image} 却不是恰好一张 .hro-img`);
     if (o.image === 'background' && count(html, 'data-part="bg"') !== 1) problems.push(`${tag}: image=background 却没有 [data-part="bg"]`);
     // 「DOM 里没有 <img>（band / logos / proof 里的除外）」：去掉这三个部件再数一次。
     const bare = render('split', { ...withOpts(o), band: [], logos: undefined, proof: undefined });
-    if (o.image !== 'normal' && /<img\b/.test(bare)) problems.push(`${tag}: 去掉 band/logos/proof 之后 DOM 里还有 <img>`);
+    if (!SIDE_IMAGES.includes(o.image) && /<img\b/.test(bare)) problems.push(`${tag}: 去掉 band/logos/proof 之后 DOM 里还有 <img>`);
     if (o.form !== 'none' && (count(html, 'data-part="ctas"') || !/<form\b/.test(html))) problems.push(`${tag}: 有表单时还有按钮组 / 没有 <form>`);
     if (o.form === 'none' && (!count(html, 'data-part="ctas"') || /<form\b/.test(html))) problems.push(`${tag}: 没表单时按钮组不在 / 却有 <form>`);
   }
-  check(problems.length === 0, '18 种组合逐个核：主图 / 按钮 / 表单三件事都对', problems.join(' | '));
-  // 反向对照：让 image=none 那一支照样画主图 ⟹ 同一段检查必须点名。
+  check(problems.length === 0, '54 种组合逐个核：主图 / 按钮 / 表单三件事都对', problems.join(' | '));
+  // 反向对照：让 image=none 那一支照样画主图 ⟹ 同一段检查必须点名。锚逐字是 Section.tsx 里「图列画不画」那一行。
   const src = fs.readFileSync(SECTION, 'utf-8');
-  const broken = src.replace("const side = k.image === 'normal' && !!img;", "const side = !!img;");
+  const broken = src.replace("const side = (k.image === 'left' || k.image === 'right' || k.image === 'top' || k.image === 'bottom') && !!img;", "const side = !!img;");
   if (broken === src) die('反向对照没改到源码（那一行换了写法？）');
   const C2 = loadSection(broken);
   const leaked = render('split', { ...withOpts({ image: 'none' }), band: [], logos: undefined, proof: undefined }, C2);
@@ -148,18 +153,37 @@ console.log('\n── AC2 旋钮（DOM）');
   C = loadSection();
 }
 
-// ══ AC3 的 DOM 那一半：reverse ══════════════════════════════════════════════════════════════════
-console.log('\n── AC3 reverse（类）');
+// ══ AC3 的 DOM 那一半：image 六档的行类（#1470 —— reverse 退役，它的两套类归到 left / top 名下）════════════
+console.log('\n── AC3 image 六档（行类）');
 {
-  const row = (html) => (/class="(row align-items-center[^"]*)"/.exec(html) || [])[1] || "";
-  const L = row(render('split', withOpts({ reverse: true })));
-  const Lplain = row(render('split', withOpts({ reverse: false })));
-  const Cr = row(render('centered', withOpts({ reverse: true })));
-  check(L.includes('flex-lg-row-reverse') && L.includes('flex-column-reverse'), `left + reverse：≥992 行反向、<992 列反向（${L}）`);
-  check(Cr.includes('flex-column-reverse') && !Cr.includes('flex-lg-row-reverse'), `center + reverse：各宽度都是图在上（${Cr}）`);
-  check(!/reverse/.test(Lplain), '不开 reverse ⟹ 行上没有任何 reverse 类（DOM 顺序：文字在前、图在后）');
-  const html = render('split', withOpts({}));
-  check(html.indexOf('hro-textcol') < html.indexOf('hro-side'), 'DOM 顺序：文字列在图列之前（小屏不开 reverse 时图在下）');
+  const row = (html) => (/class="(row align-items-center[^"]*)"/.exec(html) || [])[1] || '';
+  // 每一档该有 / 不该有的 reverse 类。left = 旧 normal + reverse；top = 旧 center + reverse；right / bottom 行上没有。
+  const WANT = {
+    left: ['flex-column-reverse', 'flex-lg-row-reverse'],
+    top: ['flex-column-reverse'],
+    right: [],
+    bottom: [],
+  };
+  const rowProblems = (Comp) => {
+    const out = [];
+    for (const [image, want] of Object.entries(WANT)) {
+      const html = render('split', withOpts({ textAlign: 'left', image }), Comp);
+      const cls = row(html).split(/\s+/).filter((c) => /reverse/.test(c)).sort();
+      if (JSON.stringify(cls) !== JSON.stringify([...want].sort())) out.push(`${image}: 行上 reverse 类是 [${cls.join(' ')}]，应当是 [${want.join(' ')}]`);
+      if (!(html.indexOf('hro-textcol') < html.indexOf('hro-side'))) out.push(`${image}: DOM 里文字列不在图列前面`);
+    }
+    return out;
+  };
+  const probs = rowProblems(C);
+  check(probs.length === 0, '四档有图列的：left 有 flex-column-reverse + flex-lg-row-reverse、top 只有 flex-column-reverse、right / bottom 没有；DOM 恒为文字在前', probs.join(' | '));
+  // 反向对照：把 image=left 的行类换成 image=right 的（去掉 reverse）⟹ 上面那条必须点名 left。
+  const src = fs.readFileSync(SECTION, 'utf-8');
+  const anchor = "if (image === 'left') return `${base} flex-column-reverse flex-lg-row-reverse`;";
+  const swapped = src.replace(anchor, "if (image === 'left') return base;");
+  if (swapped === src) die('AC3 反向对照没改到源码（rowClass 里 image=left 那一行换了写法？）');
+  const bad3 = rowProblems(loadSection(swapped));
+  check(bad3.length === 1 && bad3[0].startsWith('left:'), `反向对照：left 拿 right 的行类 ⟹ 恰好点名 left（${bad3.join(' | ') || '没点名'}）`);
+  C = loadSection();
 }
 
 // ══ AC4：bg ════════════════════════════════════════════════════════════════════════════════════
@@ -212,18 +236,17 @@ console.log('\n── AC6 表单（validateSite）');
   const v = (form, options = {}, shape) => own(manifestLib.validateSite({
     pages: [{ slug: 'p', blocks: [{ type: 'hero-new', ...(shape ? { shape } : {}), data: { headline: 'H', form, options } }] }],
   }));
-  check(v({ fields: ['name', 'phone', 'email', 'message', 'service'] }, { form: 'stacked' }).length === 0, '词表里的五个字段全放行');
-  const out = v({ fields: ['name', 'address'] }, { form: 'stacked' });
-  check(out.some((p) => p.includes('"address"')), '词表外的字段 "address" ⟹ 报错', JSON.stringify(out));
-  const two = v({ fields: ['name', 'phone'] }, { form: 'inline' });
-  check(two.some((p) => p.includes('只能有 1 项')), 'inline 放 2 个字段 ⟹ 报错', JSON.stringify(two));
-  check(v({ fields: ['phone'] }, { form: 'inline' }).length === 0, 'inline 放 1 个字段 ⟹ 放行');
-  // 预设给的旋钮也算：lead-form 形态本来就是 stacked，拧成 inline 时同一条规则照管。
-  check(v({ fields: ['name', 'phone'] }, {}, 'lead-form').length === 0, 'lead-form 形态（stacked）放 2 个字段 ⟹ 放行');
-  check(v({ fields: ['name', 'phone'] }, { form: 'inline' }, 'lead-form').some((p) => p.includes('只能有 1 项')),
-    'lead-form 形态但 options.form 拧成 inline ⟹ 同样按 inline 拦');
-  const bogus = v({}, { form: 'modal' });
-  check(bogus.some((p) => p.includes('options.form')), '旋钮取值不在词表（form: "modal"）⟹ 报错');
+  // 🔴 #1470 —— 表单是站级资产（#1471），`form` 槽只剩 `{id?}`；露多少只存 `options.form` 一处（block-knobs.js:13）。
+  check(v({ id: 'x' }, { form: 'full' }).length === 0, '{id: "x"} + options.form: "full" ⟹ 放行', JSON.stringify(v({ id: 'x' }, { form: 'full' })));
+  check(v({ id: 'x' }, { form: 'teaser' }).length === 0, '{id: "x"} + options.form: "teaser" ⟹ 放行');
+  const fld = v({ fields: ['name', 'phone'] }, { form: 'full' });
+  check(fld.some((p) => p.includes('"form"') && p.includes('"fields"')), 'form 槽里写 fields（#1463 的旧写法）⟹ 报错', JSON.stringify(fld));
+  const btn = v({ id: 'x', buttonText: 'Go' }, { form: 'full' });
+  check(btn.some((p) => p.includes('"form"') && p.includes('"buttonText"')), 'form 槽里写 buttonText ⟹ 报错', JSON.stringify(btn));
+  for (const old of ['inline', 'stacked', 'modal']) {
+    const r = v({ id: 'x' }, { form: old });
+    check(r.some((p) => p.includes('options.form')), `旋钮取值不在词表（form: "${old}"）⟹ 报错`, JSON.stringify(r));
+  }
 }
 
 // ══ #1463 r3（QA2 真 AI 改站抓到）：键写歪 ⟹ 当场报，不许「校验放行、页面上什么都没出来」 ═════════════
@@ -242,20 +265,23 @@ console.log('\n── r3 键写歪（validateSite）');
   const got = one(qa2);
   check(got.some((p) => p.includes('"background"') && p.includes('"bg"')) && got.some((p) => p.includes('"backgroundColor"')),
     'options 里的生词（background / backgroundColor）⟹ 报错，并指向顶层 bg', JSON.stringify(got));
-  check(got.some((p) => p.includes('"layout"') && p.includes('"button"') && p.includes('buttonText')),
-    'form 里的生词（layout / button）⟹ 报错，并列出认得的键', JSON.stringify(got));
+  check(got.some((p) => p.includes('"layout"') && p.includes('"button"') && p.includes('只认 id')),
+    'form 里的生词（layout / button / fields）⟹ 报错，并列出认得的键（#1470 起只有 id）', JSON.stringify(got));
   check(got.some((p) => p.includes('options.form 没写')), 'form 有内容、options.form 没写（默认 none）⟹ 报错', JSON.stringify(got));
   check(got.length > 0 && one(qa2, undefined, 'create').length === got.length, `建站档同样拦（${got.length} 条）`);
   const build = manifestLib.validateSite({ pages: [{ slug: 'about', blocks: [{ type: 'hero-new', data: qa2 }] }], scope: 'build' });
   check(got.length > 0 && own(build).length === 0 && build.warnings.filter((w) => w.includes('("hero-new")')).length === got.length, '构建档只警告（#999：构建期不设硬闸）');
   // 改对之后放行 —— 同一份内容，键写到该写的地方。
   const fixed = {
-    ...qa2, bg: '#0f172a', options: { align: 'left', image: 'normal', form: 'stacked' },
-    form: { fields: ['name', 'phone', 'service'], buttonText: 'Get a Free Quote' },
+    ...qa2, bg: '#0f172a', options: { textAlign: 'left', image: 'left', form: 'full' },
+    form: { id: 'quote' },
   };
-  check(one(fixed).length === 0, '同一份内容改对（bg 顶层、options.form、buttonText）⟹ 0 条', JSON.stringify(one(fixed)));
-  check(one({ headline: 'H', options: { form: 'none' }, form: { fields: ['name'] } }).length === 0, '明写 options.form: "none" ⟹ 不报（是明说不要）');
-  check(one({ headline: 'H', form: { fields: ['name', 'phone'] } }, 'lead-form').length === 0, '形态 lead-form 自带 stacked ⟹ 不写 options.form 也放行');
+  check(one(fixed).length === 0, '同一份内容改对（bg 顶层、options.form、form 只写 id）⟹ 0 条', JSON.stringify(one(fixed)));
+  check(one({ headline: 'H', options: { form: 'none' }, form: { id: 'quote' } }).length === 0, '明写 options.form: "none" ⟹ 不报（是明说不要）');
+  check(one({ headline: 'H', form: { id: 'quote' } }, 'lead-form').length === 0, '形态 lead-form 自带 full ⟹ 不写 options.form 也放行');
+  const retired = one({ headline: 'H', options: { align: 'left', reverse: true, image: 'normal' } });
+  check(retired.some((p) => p.includes('"align"')) && retired.some((p) => p.includes('"reverse"')) && retired.some((p) => p.includes('options.image') && p.includes('"normal"')),
+    '#1470 退役的写法各报一条：options.align / options.reverse / image: "normal"', JSON.stringify(retired));
   check(one({ headline: 'H', background: '#000' }).some((p) => p.includes('data 里没有 "background"')), 'data 顶层的生词 ⟹ 报错');
   check(one({ headline: 'H', stats: [{ value: '1', label: 'a', icon: 'x' }] }).some((p) => p.includes('"stats" 里没有 "icon"')), '列表槽条目里的生词 ⟹ 报错');
   check(one(clone(DEMO), 'lead-form').length === 0, '演示内容那一份（全部件、lead-form 形态）⟹ 0 条', JSON.stringify(one(clone(DEMO), 'lead-form')));
@@ -276,7 +302,7 @@ console.log('\n── AC6 表单（提交）');
 (async () => {
   let Window;
   try { ({ Window } = require('happy-dom')); } catch (e) { die(`happy-dom 载入不了（它随 @puckeditor/core 一起装）：${e.message}`); }
-  const run = async (formData) => {
+  const run = async (variant) => {
     const win = new Window({ url: 'https://site.example/quote' });
     const g = globalThis;
     const saved = {};
@@ -298,7 +324,7 @@ console.log('\n── AC6 表单（提交）');
       const host = win.document.createElement('div');
       win.document.body.appendChild(host);
       const root = createRoot(host);
-      await act(async () => { root.render(React.createElement(F, { data: formData, variant: 'stacked', services: [{ id: 'brakes', name: 'Brakes' }, { id: 'tires', name: 'Tires' }] })); });
+      await act(async () => { root.render(React.createElement(F, { variant, services: [{ id: 'brakes', name: 'Brakes' }, { id: 'tires', name: 'Tires' }] })); });
       const setVal = async (sel, val) => {
         const el = host.querySelector(sel);
         const proto = Object.getPrototypeOf(el);
@@ -306,18 +332,20 @@ console.log('\n── AC6 表单（提交）');
         desc.set.call(el, val);
         await act(async () => { el.dispatchEvent(new win.Event('input', { bubbles: true })); el.dispatchEvent(new win.Event('change', { bubbles: true })); });
       };
-      await setVal('#hro-name', 'Sam Driver');
+      const ids = [...host.querySelectorAll('input:not(#hro-hp), select, textarea')].map((el) => el.id);
+      if (host.querySelector('#hro-name')) await setVal('#hro-name', 'Sam Driver');
       await setVal('#hro-phone', '416-555-0199');
-      await setVal('#hro-service', 'Brakes');
+      if (host.querySelector('#hro-service')) await setVal('#hro-service', 'Brakes');
       await act(async () => { host.querySelector('form').dispatchEvent(new win.Event('submit', { bubbles: true, cancelable: true })); });
       await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
-      return { calls, assigned, html: host.innerHTML, url: win.location.href };
+      return { calls, assigned, ids, html: host.innerHTML, url: win.location.href };
     } finally {
       for (const [k, d] of Object.entries(saved)) { if (d) Object.defineProperty(g, k, d); else delete g[k]; }
     }
   };
   try {
-    const r = await run({ fields: ['name', 'phone', 'service'], buttonText: 'Go', successMessage: 'We got it.' });
+    const r = await run('full');
+    check(JSON.stringify(r.ids) === JSON.stringify(['hro-name', 'hro-phone', 'hro-service']), `full 露 name / phone / service（${r.ids.join(' / ')}）`);
     const body = r.calls[0] ? JSON.parse(r.calls[0].init.body) : {};
     check(r.calls.length === 1 && r.calls[0].url === 'https://lead.example/api/leads' && r.calls[0].init.method === 'POST',
       `提交 = 一次 POST ${r.calls[0] ? r.calls[0].url : '（没发）'}`);
@@ -325,9 +353,14 @@ console.log('\n── AC6 表单（提交）');
       && body.message === 'Service: Brakes' && body.source === 'contact-form' && body.hp === '',
     `请求体字段对（${JSON.stringify(body)}）`);
     check(r.assigned.length === 0 && r.url === 'https://site.example/quote', '没写 redirect ⟹ 不跳页');
-    check(/data-slot="form.successMessage"[^>]*>We got it\.</.test(r.html) && !/<form\b/.test(r.html), '成功后原地出现 successMessage，表单收起');
-    const r2 = await run({ fields: ['name', 'phone', 'service'], successMessage: 'x', redirect: '/thanks' });
-    check(r2.assigned.length === 1 && r2.assigned[0] === '/thanks', `写了 redirect ⟹ 跳到 ${r2.assigned[0] || '（没跳）'}`);
+    check(/data-part="form-success"[^>]*>Thanks! We(?:'|&#x27;|&#39;)ve got your details and will be in touch\.</.test(r.html) && !/<form\b/.test(r.html),
+      '成功后原地出现内置的成功提示（#1470：槽里没有 successMessage 了），表单收起');
+    check(!/data-slot="form\./.test(r.html), '表单上不挂 data-slot="form.…"（槽里没有可改的键）');
+    const t = await run('teaser');
+    const tb = t.calls[0] ? JSON.parse(t.calls[0].init.body) : {};
+    check(JSON.stringify(t.ids) === JSON.stringify(['hro-phone']) && t.calls.length === 1 && t.calls[0].url === 'https://lead.example/api/leads'
+      && tb.phone === '416-555-0199' && t.assigned.length === 0,
+    `teaser 只露 phone（${t.ids.join(' / ')}）+ 按钮，提交同样一次 POST /api/leads、不跳页`);
   } catch (e) {
     bad(`happy-dom 那一段抛了：${e.stack || e.message}`);
   }
@@ -382,9 +415,9 @@ console.log('\n── AC6 表单（提交）');
       const pageBlocks = [...manifestLib.loadManifests().values()].filter((m) => m.region !== true).length;
       const menuLine = real.split('\n').find((l) => l.startsWith('- "hero-new"'));
       check(!!menuLine, `建站提示词的块菜单里有它：${menuLine || '（没有）'}`);
-      check(/\n\s+data: \{ options\?: \{align: "left" \| "center", image: "normal" \| "background" \| "none", form: "none" \| "inline" \| "stacked", reverse: bool\}/.test(real),
+      check(/\n\s+data: \{ options\?: \{textAlign: "left" \| "center" \| "right", image: "none" \| "left" \| "right" \| "top" \| "bottom" \| "background", form: "none" \| "teaser" \| "full"\}/.test(real),
         '它下面那行 data 从 manifest 生成，旋钮带取值（r3：只写键名时 AI 自己编了 background: "dark"）');
-      check(/options\.form is "inline"/.test(real), '再下一行说清「表单只在 options.form = inline / stacked 时出现、bg 在顶层」');
+      check(/options\.form is "teaser"/.test(real), '再下一行说清「表单只在 options.form = teaser / full 时出现、bg 在顶层」');
       check(n(real) === pageBlocks, `「There are N section types」说 ${n(real)}，等于页面块份数 ${pageBlocks}（hero-new 算在里面）`);
       check(!dropped.split('\n').some((l) => l.startsWith('- "hero-new"')), '反向对照：拿掉 manifest 的 prompt 段 ⟹ 菜单里就没有它（判据分得开）');
       const v = own(manifestLib.validateSite({ pages: [{ slug: 'home', blocks: [{ type: 'hero-new', data: { headline: 'H' } }] }] }));
@@ -413,8 +446,8 @@ console.log('\n── AC6 表单（提交）');
     check(JSON.stringify(order.slice(0, want.length)) === JSON.stringify(want), `字段顺序：${order.join(' → ')}`);
     const opt = on.fields[0];
     check(opt.control === 'options' && opt.presets.map((p) => p.name).join() === 'Split,Centered,Cover,Lead form,Text only'
-      && opt.knobs.map((k) => k.name).join() === 'align,image,form' && opt.booleans.join() === 'reverse',
-    '第一个字段：预设 5 个 → 旋钮 align / image / form → 修饰 reverse');
+      && opt.knobs.map((k) => k.name).join() === 'textAlign,image,form' && opt.booleans.join() === '',
+    '第一个字段：预设 5 个 → 旋钮 textAlign / image / form（#1470 起没有布尔修饰）');
     const bg = on.fields[1];
     check(bg.control === 'color' && bg.swatches.join() === '#ffffff,#f1f5f9,#e0f2fe,brand,#1e293b,#0f172a', 'bg 字段是色板（6 色）+ 取色器（control: color）');
     check(on.fields.find((f) => f.slot === 'eyebrow').subs.some((x) => x.sub === 'style' && x.choices.length === 5), 'eyebrow.style 是五选一的下拉');
@@ -424,15 +457,15 @@ console.log('\n── AC6 表单（提交）');
     const same = dataFromProps(on, base, fieldProps(on, base));
     check(JSON.stringify(same) === JSON.stringify(base), '往返无损：什么都不改 ⟹ data 逐字相同（旋钮 / 底色 / 图片带 / 表单词表都原样）');
     const props = fieldProps(on, base);
-    const edited = dataFromProps(on, base, { ...props, options: { ...props.options, align: 'center', image: 'background' }, bg: '#0f172a' });
-    check(edited.options.align === 'center' && edited.options.image === 'background' && edited.options.reverse === false
+    const edited = dataFromProps(on, base, { ...props, options: { ...props.options, textAlign: 'center', image: 'background' }, bg: '#0f172a' });
+    check(edited.options.textAlign === 'center' && edited.options.image === 'background' && !('reverse' in edited.options)
       && edited.bg === '#0f172a' && JSON.stringify(edited.form) === JSON.stringify(base.form),
     `改两个旋钮 + 底色 ⟹ 只动了那几个键（${JSON.stringify(edited.options)} · bg ${edited.bg}）`);
     const cleared = dataFromProps(on, base, { ...props, bg: undefined });
     check(!('bg' in cleared), '色板点 None ⟹ bg 这个键删掉（块回到没有底色的样子）');
     const man = { slots: { options: { knobs: opt.knobs } }, presets: opt.presets };
-    check(presetNameFor(man, { align: 'left', image: 'background', form: 'none' }) === 'Cover'
-      && presetNameFor(man, { align: 'center', image: 'background', form: 'none' }) === 'custom', '点 Cover = 三个旋钮那一组；拧偏一个 ⟹ custom');
+    check(presetNameFor(man, { textAlign: 'left', image: 'background', form: 'none' }) === 'Cover'
+      && presetNameFor(man, { textAlign: 'center', image: 'background', form: 'none' }) === 'custom', '点 Cover = 三个旋钮那一组；拧偏一个 ⟹ custom');
   }
 
   console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);

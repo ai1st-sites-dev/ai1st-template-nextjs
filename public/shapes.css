@@ -3597,8 +3597,11 @@
 
 /* ══ hero-new ══════════════════════════════════════════════════════════════════════ */
 /* ── hero-new · 跨形态的规则（#1463）────────────────────────────────────────────────────────────
-   hero-new 的排版由**实际生效的旋钮**决定，写在根元素上：data-align（left / center）· data-image
-   （normal / background / none）· data-form · data-reverse · data-tone（light / dark / brand）。
+   hero-new 的排版由**实际生效的旋钮**决定，写在根元素上：data-text-align（left / center / right）· data-image
+   （none / left / right / top / bottom / background）· data-form · data-tone（light / dark / brand）。
+   🔴 #1470 —— 两个旋钮各管各的：几何（图多大、文字块多宽）跟 data-image，文字怎么对齐跟 data-text-align。
+      #1463 那几条挂在 data-align="center" 上的规则，是因为那时「居中」和「图在上下」是同一个旋钮；
+      现在按它们真正管的那一维重挂，不是把属性名替换一遍。
    五个形态目录都是预设，自己不带几何（理由在各自的 shape.css 里）。
 
    🔴 Webpixels 的工具类全带 !important（text-muted / bg-primary-subtle / text-primary …）。这里要压过
@@ -3611,38 +3614,54 @@
       整页横向滚动 4px（#1463 实测 scrollWidth 394 / 390）。也别写成 `g-10 gx-8`：Bootstrap 按尺寸逐档生成
       g / gx / gy，`.g-10` 排在 `.gx-8` 后面，会把它压回去。竖向与 ≥992 的横向照定稿不变。 */
 
-/* 图：left 时 4:3；center 时一整条 21:9、最高 460。 */
+/* 图：并排（left / right）时 4:3；上下叠（top / bottom）时一整条 21:9、最高 460 —— 跟文字怎么对齐无关。 */
 [data-block="hero-new"] .hro-img {
   aspect-ratio: 4 / 3;
 }
-[data-block="hero-new"][data-align="center"] .hro-img {
+[data-block="hero-new"][data-image="top"] .hro-img,
+[data-block="hero-new"][data-image="bottom"] .hro-img {
   aspect-ratio: 21 / 9;
   max-height: 460px;
 }
-[data-block="hero-new"][data-align="center"] .hro-side {
+[data-block="hero-new"][data-image="top"] .hro-side,
+[data-block="hero-new"][data-image="bottom"] .hro-side {
   max-width: 1100px;
   margin-left: auto;
   margin-right: auto;
 }
 
-/* 大字号标题的光学对齐：left 时让大写字母左缘跟 eyebrow / 副标题对齐。 */
-[data-block="hero-new"][data-align="left"] .hro-title {
+/* 大字号标题的光学对齐：文字靠左时让大写字母左缘跟 eyebrow / 副标题对齐。 */
+[data-block="hero-new"][data-text-align="left"] .hro-title {
   margin-left: -0.04em;
 }
 
-/* 副标题 ≤ 52ch；center 时文字块收到 64ch、居中。 */
+/* 副标题 ≤ 52ch。上下叠（top / bottom）时文字块收到 64ch，这一块放哪跟 data-text-align：
+   center 居中、right 靠右、left 靠左（col-12 本来就靠左，不用写）。 */
 [data-block="hero-new"] .hro-sub {
   max-width: 52ch;
 }
-[data-block="hero-new"][data-align="center"] .hro-textcol {
+[data-block="hero-new"][data-image="top"] .hro-textcol,
+[data-block="hero-new"][data-image="bottom"] .hro-textcol {
   max-width: 64ch;
+}
+[data-block="hero-new"][data-text-align="center"][data-image="top"] .hro-textcol,
+[data-block="hero-new"][data-text-align="center"][data-image="bottom"] .hro-textcol {
   margin-left: auto;
   margin-right: auto;
 }
-[data-block="hero-new"][data-align="center"] .hro-sub,
-[data-block="hero-new"][data-align="center"] .hro-form {
+[data-block="hero-new"][data-text-align="right"][data-image="top"] .hro-textcol,
+[data-block="hero-new"][data-text-align="right"][data-image="bottom"] .hro-textcol {
+  margin-left: auto;
+}
+/* 限了宽的副标题 / 表单跟着文字对齐走：center 居中、right 贴右。 */
+[data-block="hero-new"][data-text-align="center"] .hro-sub,
+[data-block="hero-new"][data-text-align="center"] .hro-form {
   margin-left: auto;
   margin-right: auto;
+}
+[data-block="hero-new"][data-text-align="right"] .hro-sub,
+[data-block="hero-new"][data-text-align="right"] .hro-form {
+  margin-left: auto;
 }
 
 /* 表单跟标题同宽，不超过 34rem。 */

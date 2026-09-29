@@ -128,7 +128,7 @@ const EXTRA = {
 // 一份夹具按构造只走得到一支，所以这种块渲染**几次**、每次换一组旋钮，钩子取并集。每一支都要真的渲染
 // 出东西 —— 并集只是把两次读数合起来，不是放宽判据。
 const VARIANTS = {
-  'hero-new': [{ options: { form: 'none' } }, { options: { form: 'stacked' } }],
+  'hero-new': [{ options: { form: 'none' } }, { options: { form: 'full' } }],   // #1470：form 旋钮 none | teaser | full
 };
 
 function fixtureFor(type, manifest) {
@@ -181,7 +181,6 @@ function fixtureFor(type, manifest) {
 const STATE_ONLY = {
   'contact-form.successMessage': '只在表单提交成功那一屏出现（ContactFormSection 的 useState）',
   'hero-with-form.form.successMessage': '同上，在 HeroLeadForm 里',
-  'hero-new.form.successMessage': '同上，在 blocks/hero-new/HeroNewForm.tsx 里（#1463）',
 };
 
 // ── 渲染一个块，把产物里的 data-slot 抠出来 ─────────────────────────────────────────────────────

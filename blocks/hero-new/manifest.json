@@ -15,22 +15,22 @@
   },
   "parts": ["proof", "stats", "logos", "band"],
   "presets": [
-    { "name": "Split", "shape": "split", "knobs": { "align": "left", "image": "normal", "form": "none" } },
-    { "name": "Centered", "shape": "centered", "knobs": { "align": "center", "image": "normal", "form": "none" } },
-    { "name": "Cover", "shape": "cover", "knobs": { "align": "left", "image": "background", "form": "none" } },
-    { "name": "Lead form", "shape": "lead-form", "knobs": { "align": "left", "image": "normal", "form": "stacked" } },
-    { "name": "Text only", "shape": "text-only", "knobs": { "align": "left", "image": "none", "form": "none" } }
+    { "name": "Split", "shape": "split", "knobs": { "textAlign": "left", "image": "left", "form": "none" } },
+    { "name": "Centered", "shape": "centered", "knobs": { "textAlign": "center", "image": "bottom", "form": "none" } },
+    { "name": "Cover", "shape": "cover", "knobs": { "textAlign": "left", "image": "background", "form": "none" } },
+    { "name": "Lead form", "shape": "lead-form", "knobs": { "textAlign": "left", "image": "left", "form": "full" } },
+    { "name": "Text only", "shape": "text-only", "knobs": { "textAlign": "left", "image": "none", "form": "none" } }
   ],
   "slots": {
     "options": {
       "kind": "object",
       "required": false,
       "promptOptional": true,
-      "shape": "{align, image, form, reverse: bool}",
+      "shape": "{textAlign, image, form}",
       "knobs": [
-        { "name": "align", "values": ["left", "center"] },
-        { "name": "image", "values": ["normal", "background", "none"] },
-        { "name": "form", "values": ["none", "inline", "stacked"], "maxItems": { "inline": { "form.fields": 1 } } }
+        { "name": "textAlign", "values": ["left", "center", "right"] },
+        { "name": "image", "values": ["none", "left", "right", "top", "bottom", "background"] },
+        { "name": "form", "values": ["none", "teaser", "full"] }
       ]
     },
     "bg": {
@@ -118,14 +118,7 @@
       "kind": "object",
       "required": false,
       "promptOptional": true,
-      "shape": "{fields: [\"name\" | \"phone\" | \"email\" | \"message\" | \"service\"], buttonText, successMessage, redirect?}",
-      "editLabel": {
-        "buttonText": "Form button text",
-        "successMessage": "Message after sending"
-      },
-      "choices": {
-        "fields": ["name", "phone", "email", "message", "service"]
-      }
+      "shape": "{id?}"
     }
   },
   "industries": {
@@ -141,7 +134,7 @@
     "headExtra": null,
     "lines": [
       "@data",
-      "the form only shows when options.form is \"inline\" (exactly one field) or \"stacked\" — with a form the ctas are not shown; bg is the background colour, top-level in data (not inside options)"
+      "the form only shows when options.form is \"teaser\" (one field + button) or \"full\" (the whole form) — with a form the ctas are not shown; bg is the background colour, top-level in data (not inside options)"
     ]
   }
 }

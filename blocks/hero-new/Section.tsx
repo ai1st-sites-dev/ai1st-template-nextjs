@@ -7,11 +7,14 @@
 //    从本票起给每一页都挂上它（与 Tailwind 并存到 T4）。T3 删旧库时 `hero-new` → `hero`。
 //    建站那一侧它跟 `hero` 是同一个首屏位置，首页配方的抽取池不收它（`homepage-recipe.js` §NOT_IN_POOL）。
 //
-// 🔴 **一份 markup，三个旋钮**（align / image / form），五个预设各是一个形态目录。实际生效的旋钮 =
+// 🔴 **一份 markup，三个旋钮**（textAlign / image / form），五个预设各是一个形态目录。实际生效的旋钮 =
 //    形态对应的那个预设给底，`data.options` 里写了的逐个覆盖（`scripts/lib/block-knobs.js`
 //    §effectiveKnobs —— 编辑器判 custom 用的是同一个函数）。旋钮值写在根元素上
-//    （`data-align` / `data-image` / `data-form` / `data-reverse` / `data-tone`），`block.css` 按它们排；
+//    （`data-text-align` / `data-image` / `data-form` / `data-tone`），`block.css` 按它们排；
 //    **形态目录自己不带几何**（理由写在每份 `shape.css` 里）。
+// 🔴 #1470 —— 两个旋钮互不影响：`textAlign`（left / center / right）只管文字块里的对齐，`image`
+//    （none / left / right / top / bottom / background）只管图放哪、行怎么排。`reverse` 退役了：
+//    旧的 `normal + reverse` = 今天的 `left`，旧的 `center + normal (+ reverse)` = 今天的 `bottom`（`top`）。
 //
 // 🔴 **排版尽量只走 Webpixels 的工具类**（总纲约束 3）。Webpixels 的工具类全带 `!important`，所以
 //    `block.css` 里要压过它们的规则也带 `!important`、且选择器的 class 数不少于它（票正文「通用规矩」）。
@@ -30,7 +33,7 @@ import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig } from '@/lib/types/config';
 import { getServices } from '@/lib/config';
 import Icon from '@/components/Icon';
-import HeroNewForm, { type HeroNewFormData } from './HeroNewForm';
+import HeroNewForm from './HeroNewForm';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { toneFor } from '../../scripts/lib/contrast.js';
@@ -39,7 +42,7 @@ type BtnStyle = 'solid' | 'outline' | 'link';
 
 export interface HeroNewImage { imageUrl?: string; alt?: string }
 export interface HeroNewButton { label?: string; href?: string; style?: BtnStyle; icon?: string; arrow?: boolean; size?: 'sm' | 'md' | 'lg' }
-export interface HeroNewOptions { align?: string; image?: string; form?: string; reverse?: boolean }
+export interface HeroNewOptions { textAlign?: string; image?: string; form?: string }
 export interface HeroNewData {
   options?: HeroNewOptions;
   bg?: string;
@@ -52,7 +55,9 @@ export interface HeroNewData {
   subheadline?: string;
   ctas?: HeroNewButton[];
   image?: HeroNewImage;
-  form?: HeroNewFormData;
+  // 选哪张站级表单（#1471）。那张票落地前 `id` 不读，表单用 HeroNewForm.tsx 里的内置默认值；
+  // 露多少只看 `options.form`（`block-knobs.js:13`：旋钮值只存一处）。
+  form?: { id?: string };
 }
 
 interface Props {
@@ -88,16 +93,26 @@ function btnClass(b: HeroNewButton): string {
 }
 
 /**
- * 行的类：reverse 的两条原则 —— 桌面在左的，小屏就在上；center 时图换到上面。
+ * 行的类，按 `image` 出（#1470）。DOM 顺序恒为「文字在前、图在后」，`left` / `top` 用 reverse 类把图换到前面 ——
+ * 这两套类就是 #1463 那个 `reverse` 修饰的两套（桌面在左的，小屏就在上；上下叠时图换到上面），逐字沿用。
+ * `right` / `bottom` 行上没有 reverse 类（小屏图在下）。
+ * 没有图列（`hasSide` 为假：none / background / 没给图）时，文字列的位置跟 `textAlign` 走：
+ * center 整块居中、right 整块靠右 —— 对齐类写在行上，文字列只有 2/3（或铺底时 1/2）宽。
  * 🔴 间距是 `gx-8 gy-10 gx-lg-16`，不是定稿抄来的 `g-10 gx-lg-16`：`.row` 的左右负外边距 = 横向间距的一半，
  *    `g-10` 是 20px，而 `.container` 在手机上的内距只有 16px ⟹ 390 宽下整页横向滚动 4px（实测
  *    scrollWidth 394）。横向收到 `gx-8`（16px）刚好贴住内距；竖向与 ≥992 的横向照定稿不变。
  *    也不写成 `g-10 gx-8`：Bootstrap 按尺寸逐档生成 g/gx/gy，`.g-10` 排在 `.gx-8` 后面，会把它压回去。
  */
-function rowClass(align: string, reverse: boolean): string {
+function rowClass(image: string, textAlign: string, hasSide: boolean): string {
   const base = 'row align-items-center gx-8 gy-10 gx-lg-16';
-  if (!reverse) return base;
-  return align === 'center' ? `${base} flex-column-reverse` : `${base} flex-column-reverse flex-lg-row-reverse`;
+  if (hasSide) {
+    if (image === 'left') return `${base} flex-column-reverse flex-lg-row-reverse`;
+    if (image === 'top') return `${base} flex-column-reverse`;
+    return base;
+  }
+  if (textAlign === 'center') return `${base} justify-content-center`;
+  if (textAlign === 'right') return `${base} justify-content-end`;
+  return base;
 }
 
 /** 表单「需求」下拉的选项 —— 站内服务列表（在这里读，理由见 HeroNewForm.tsx 的组件头）。 */
@@ -109,13 +124,16 @@ export default function HeroNewSection({ data, locale = 'en', block }: Props) {
   const d: HeroNewData = isObj(data) ? data : {};
   const shape = block && typeof block.shape === 'string' ? block.shape : undefined;
   const opts: HeroNewOptions = isObj(d.options) ? d.options : {};
-  const k = effectiveKnobs(manifest, shape, opts) as { align: string; image: string; form: string };
-  const reverse = opts.reverse === true;
+  const k = effectiveKnobs(manifest, shape, opts) as { textAlign: string; image: string; form: string };
   const img: HeroNewImage | null = isObj(d.image) && typeof d.image.imageUrl === 'string' && d.image.imageUrl ? d.image : null;
   const cover = k.image === 'background' && !!img;
-  const side = k.image === 'normal' && !!img;
+  // 图列画不画（#1470 做什么 2；hero-new-render.test.js 的反向对照逐字锚在这一行上）。
+  const side = (k.image === 'left' || k.image === 'right' || k.image === 'top' || k.image === 'bottom') && !!img;
+  // 上下叠：文字块、图各占一整行（文字块限宽 64ch、大图 21:9 由 block.css 按 data-image 排）。
+  const stacked = k.image === 'top' || k.image === 'bottom';
   const tone = cover ? 'dark' : toneFor(d.bg);
-  const center = k.align === 'center';
+  const center = k.textAlign === 'center';
+  const right = k.textAlign === 'right';
 
   const bgStyle = typeof d.bg === 'string'
     ? (d.bg === 'brand' ? { background: 'var(--x-primary)' } : /^#[0-9a-fA-F]{6}$/.test(d.bg) ? { background: d.bg } : undefined)
@@ -130,20 +148,19 @@ export default function HeroNewSection({ data, locale = 'en', block }: Props) {
   const logos = isObj(d.logos) ? imgs(d.logos.items).slice(0, MAX.logos) : [];
   const band = imgs(d.band).slice(0, MAX.band);
 
-  // 文字列多宽：center 占满（内容再由 block.css 收到 64ch）；left 时一半 —— 只有 `image=none`（旁边、底下都没有图）
+  // 文字列多宽：上下叠（top / bottom）占满（内容再由 block.css 收到 64ch）；并排（left / right）时一半 —— 只有 `image=none`（旁边、底下都没有图）
   // 才是 2/3（定稿原话）。图铺底时也是一半：图在整块后面，文字列不因此变宽。
-  const textCol = center ? 'col-12 hro-textcol' : (side || cover) ? 'col-12 col-lg-6 hro-textcol' : 'col-12 col-lg-8 hro-textcol';
-  const just = center ? ' justify-content-center' : '';
+  const textCol = stacked ? 'col-12 hro-textcol' : (side || cover) ? 'col-12 col-lg-6 hro-textcol' : 'col-12 col-lg-8 hro-textcol';
+  const just = center ? ' justify-content-center' : right ? ' justify-content-end' : '';
 
   return (
     <section
       {...blockAttrs('hero-new', block)}
-      data-align={k.align}
+      data-text-align={k.textAlign}
       data-image={k.image}
       data-form={k.form}
-      data-reverse={reverse ? 'true' : 'false'}
       data-tone={tone}
-      className={`position-relative py-16 py-lg-24${center ? ' text-center' : ''}`}
+      className={`position-relative py-16 py-lg-24${center ? ' text-center' : right ? ' text-end' : ''}`}
       style={bgStyle}
     >
       {cover && img ? (
@@ -155,7 +172,7 @@ export default function HeroNewSection({ data, locale = 'en', block }: Props) {
         />
       ) : null}
       <div className="container position-relative">
-        <div className={rowClass(k.align, reverse)}>
+        <div className={rowClass(k.image, k.textAlign, side)}>
           <div className={textCol}>
             <div data-part="text">
               {eyebrow && eyebrowStyle !== 'none' ? (
@@ -168,7 +185,7 @@ export default function HeroNewSection({ data, locale = 'en', block }: Props) {
               <h1 className="display-3 fw-bold lh-1 ls-tight mb-5 hro-title" data-slot="headline">{d.headline}</h1>
               {d.subheadline ? <p className="fs-5 text-muted mb-8 hro-sub" data-slot="subheadline">{d.subheadline}</p> : null}
               {showForm ? (
-                <HeroNewForm data={d.form} variant={k.form === 'inline' ? 'inline' : 'stacked'} services={servicesFor(locale)} center={center} />
+                <HeroNewForm variant={k.form === 'teaser' ? 'teaser' : 'full'} services={servicesFor(locale)} textAlign={k.textAlign} />
               ) : ctas.length ? (
                 <div className={`d-flex flex-column flex-sm-row gap-2${just}`} data-part="ctas">
                   {ctas.map((b, i) => (
@@ -230,7 +247,7 @@ export default function HeroNewSection({ data, locale = 'en', block }: Props) {
             ) : null}
           </div>
           {side && img ? (
-            <div className={center ? 'col-12 hro-side' : 'col-12 col-lg-6 hro-side'}>
+            <div className={stacked ? 'col-12 hro-side' : 'col-12 col-lg-6 hro-side'}>
               <img className="img-fluid rounded-4 w-100 object-fit-cover hro-img" src={img.imageUrl} alt={img.alt || ''} />
             </div>
           ) : null}

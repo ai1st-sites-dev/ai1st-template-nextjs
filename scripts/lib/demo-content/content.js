@@ -67,14 +67,18 @@ const DEMO_CONTENT = {
     },
   },
 
-  // #1463 —— Webpixels 那一版首屏（普通页面块，样式在全站挂的 site.css 里）。5 个预设 × 18 种旋钮组合吃的都是
+  // #1463 —— Webpixels 那一版首屏（普通页面块，样式在全站挂的 site.css 里）。5 个预设 × 54 种旋钮组合吃的都是
   // 这一份（AC1 / AC5 定死的夹具）：每个部件都填上，单格页的开关才有东西可切。
   // 🔴 `ctas` / `stats` / `band` 是顶层 list 槽，守卫 (c) 要各 ≥ 6 项、最长 ≥ 最短 2 倍 —— 所以这里各给 6 条，
   //    而组件按定稿的上限截（按钮 ≤ 2、统计 ≤ 3、图片带 ≤ 6，`Section.tsx` §MAX）。画出来的是前几条。
   'hero-new': {
-    // 🔴 这里**不写三个旋钮**：写了就会压过每个预设形态自己那组值（`block-knobs.js` §effectiveKnobs），
-    //    5 张预设卡片会全部排成同一个样子。只写布尔修饰。
-    options: { reverse: false },
+    // 🔴 `options` 里**不写旋钮**：写了就会压过每个预设形态自己那组值（`block-knobs.js` §effectiveKnobs），
+    //    5 张预设卡片会全部排成同一个样子。#1470 起 hero-new 没有布尔修饰了 ⟹ 这里是空对象。
+    // 📌 `form` 同理是空对象：#1470 起那个槽只剩 `{id?}`（选哪张站级表单，#1471，落地前不读），字段 / 按钮文字 /
+    //    成功提示是 `HeroNewForm.tsx` 的内置默认值；Lead form 预设的表单照样画得出来。
+    // 🔴 这两个键**不能整段删**：全填版要求每个槽位在包里都有一个键（守卫 (a)，`demo-content.test.js`；
+    //    运行时 `demoDataFor` 缺槽直接抛错，图册那一格就打不开）。空对象 = 键在、不带任何值。
+    options: {},
     bg: '#ffffff',
     proof: {
       avatars: [1, 2, 3, 4].map((n) => ({ imageUrl: imageUrl(`avatar-${n}`) })),
@@ -119,11 +123,7 @@ const DEMO_CONTENT = {
       { label: 'Reviews', href: '/reviews', style: 'link' },
     ],
     image: { imageUrl: imageUrl('hero-bay'), alt: 'Bay two at Northside Auto Care with a car on the hoist' },
-    form: {
-      fields: ['name', 'phone', 'service'],
-      buttonText: 'Get a free quote',
-      successMessage: 'Got it — one of our advisors will call you back shortly.',
-    },
+    form: {},
   },
 
   // ── 信任 ────────────────────────────────────────────────────────────────────────────────────

@@ -1,33 +1,30 @@
 'use client';
 
-// hero-new 的表单部件（#1463 做什么 2）。提交那一条路逐字照 `HeroLeadForm.tsx` / `quote-form` 搬：
-// POST `${leadApi}/api/leads`，蜜罐字段 `hp`，后端只要求「邮箱和电话至少有一个」；不跳页，原地显示
-// `successMessage`；`redirect` 有值才跳。
+// hero-new 的表单部件（#1463 做什么 2；#1470 改成「露多少」两档）。提交那一条路逐字照 `HeroLeadForm.tsx` /
+// `quote-form` 搬：POST `${leadApi}/api/leads`，蜜罐字段 `hp`，后端只要求「邮箱和电话至少有一个」；不跳页，
+// 原地显示成功提示。
 //
 // 🔴 `source` 用既有的 `contact-form`，不新造值 —— `manager/form_channel.go` 的 `formLeadSources` 是一份
 //    封闭词表（同 `HeroLeadForm.tsx` 那段说明）。
-// 🔴 字段只能从词表里挑（`blocks/hero-new/manifest.json` 的 `slots.form.choices.fields`），每个字段对应
-//    客户记录的一列 —— 对照表只写在 `blocks/hero-new/lead-form/shape.md` 一处。词表外的值由 `validateSite` 拦，
-//    这里再遇到就不画。
-// 🔴 `inline` = 一行（一个字段 + 按钮），`stacked` = 姓名 / 电话并排 + 需求下拉 + 通栏提交（Webpixels hero-6）。
-//    inline 只许一个字段，`validateSite` 按 manifest 旋钮上的 `maxItems` 拦；这里多给了也只画第一个。
+// 🔴 #1470 —— 表单是站级资产（#1471），块只选一张（`data.form.id`）。**那张票落地前 `id` 一律不读**，
+//    这里用内置的默认表单顶着：`teaser` = 首要字段 + 按钮（一行，露 `phone`），`full` = 整张（姓名 / 电话并排 +
+//    需求下拉 + 通栏提交，Webpixels hero-6）。露多少只存在 `options.form` 一处（`block-knobs.js:13`），
+//    槽里没有字段 / 按钮文字 / 成功提示的副本 ⟹ 这里也不挂 `data-slot="form.…"`（没有可改的键）。
+//    字段 ↔ Customers 列的对照表只写在 `blocks/hero-new/lead-form/shape.md` 一处。
 
 import { useState } from 'react';
 import { siteId, leadApi } from '@/lib/config';
 
 export type HeroNewField = 'name' | 'phone' | 'email' | 'message' | 'service';
-export interface HeroNewFormData {
-  fields?: HeroNewField[];
-  buttonText?: string;
-  successMessage?: string;
-  redirect?: string;
-}
+export type HeroNewFormVariant = 'teaser' | 'full';
 
-const VOCAB: HeroNewField[] = ['name', 'phone', 'email', 'message', 'service'];
-const DEFAULT_FIELDS: Record<'inline' | 'stacked', HeroNewField[]> = {
-  inline: ['phone'],
-  stacked: ['name', 'phone', 'service'],
+// 内置默认表单（#1471 落地前唯一的一张）。
+const DEFAULT_FIELDS: Record<HeroNewFormVariant, HeroNewField[]> = {
+  teaser: ['phone'],
+  full: ['name', 'phone', 'service'],
 };
+const BUTTON_TEXT = 'Get a free quote';
+const SUCCESS_MESSAGE = "Thanks! We've got your details and will be in touch.";
 const PLACEHOLDER: Record<HeroNewField, string> = {
   name: 'Name',
   phone: 'Phone',
@@ -41,13 +38,13 @@ type SubmitState = 'idle' | 'submitting' | 'success' | 'error';
 // 🔴 `services`（下拉的选项）由 Section.tsx 读好传进来，这里不自己读服务列表（#1463 r3）：
 //    `page-deps.js §blockTypesReadingServices` 只看注册表指向的那份 `Section.tsx`，兄弟文件里的调用
 //    会被归成「没注册、影响零页」⟹ 改服务列表时放了表单的页不报新日期（sitemap lastmod 静默少报）。
-export default function HeroNewForm({ data, variant, services = [], center }: {
-  data?: HeroNewFormData; variant: 'inline' | 'stacked'; services?: { id: string; name: string }[]; center?: boolean;
+// 🔴 `textAlign` 跟着块的文字对齐走（#1470）：center 时表单整块居中（`mx-auto`）、right 时靠右（`ms-auto`）。
+//    类名逐字写在这里（`site.css` 按源码 purge）。
+export default function HeroNewForm({ variant, services = [], textAlign }: {
+  variant: HeroNewFormVariant; services?: { id: string; name: string }[]; textAlign?: string;
 }) {
-  const asked = (Array.isArray(data?.fields) ? data!.fields : []).filter((f): f is HeroNewField => VOCAB.includes(f));
-  const fields = (asked.length ? Array.from(new Set(asked)) : DEFAULT_FIELDS[variant]).slice(0, variant === 'inline' ? 1 : VOCAB.length);
-  const buttonText = data?.buttonText || 'Get a free quote';
-  const successMessage = data?.successMessage || "Thanks! We've got your details and will be in touch.";
+  const fields = DEFAULT_FIELDS[variant];
+  const place = textAlign === 'center' ? ' mx-auto' : textAlign === 'right' ? ' ms-auto' : '';
 
   const [values, setValues] = useState<Record<string, string>>({});
   const [hp, setHp] = useState('');
@@ -76,7 +73,6 @@ export default function HeroNewForm({ data, variant, services = [], center }: {
         body: JSON.stringify({ siteId, name: (values.name || '').trim(), email, phone, message: parts.join('\n'), source: 'contact-form', hp }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      if (data?.redirect) { window.location.assign(data.redirect); return; }
       setState('success');
     } catch {
       setState('error');
@@ -85,7 +81,7 @@ export default function HeroNewForm({ data, variant, services = [], center }: {
   };
 
   if (state === 'success') {
-    return <p className="fs-5 fw-semibold mt-6" data-part="form-success" role="status" data-slot="form.successMessage">{successMessage}</p>;
+    return <p className="fs-5 fw-semibold mt-6" data-part="form-success" role="status">{SUCCESS_MESSAGE}</p>;
   }
 
   const input = (f: HeroNewField, extra = '') => {
@@ -114,14 +110,14 @@ export default function HeroNewForm({ data, variant, services = [], center }: {
   );
   const errorLine = error ? <div className="text-sm text-danger mt-2" data-part="form-error" role="alert">{error}</div> : null;
   const button = (cls: string) => (
-    <button className={cls} type="submit" disabled={state === 'submitting'} data-slot="form.buttonText">
-      {state === 'submitting' ? 'Sending…' : buttonText}
+    <button className={cls} type="submit" disabled={state === 'submitting'}>
+      {state === 'submitting' ? 'Sending…' : BUTTON_TEXT}
     </button>
   );
 
-  if (variant === 'inline') {
+  if (variant === 'teaser') {
     return (
-      <form onSubmit={handleSubmit} className={`hro-form mt-6${center ? ' mx-auto' : ''}`} data-form-variant="inline" data-role="essential">
+      <form onSubmit={handleSubmit} className={`hro-form mt-6${place}`} data-form-variant="teaser" data-role="essential">
         <div className="d-flex flex-column flex-sm-row gap-2">
           {input(fields[0])}
           {button('btn btn-primary btn-lg text-nowrap')}
@@ -135,7 +131,7 @@ export default function HeroNewForm({ data, variant, services = [], center }: {
   // 姓名 / 电话 / 邮箱各占半行（两个一排），需求下拉与留言占整行。
   const half = (f: HeroNewField) => f === 'name' || f === 'phone' || f === 'email';
   return (
-    <form onSubmit={handleSubmit} className={`hro-form mt-6 w-100${center ? ' mx-auto' : ''}`} data-form-variant="stacked" data-role="essential">
+    <form onSubmit={handleSubmit} className={`hro-form mt-6 w-100${place}`} data-form-variant="full" data-role="essential">
       <div className="row g-2">
         {fields.map((f) => <div key={f} className={half(f) ? 'col-12 col-sm-6' : 'col-12'}>{input(f)}</div>)}
         <div className="col-12">{button('btn btn-primary btn-lg w-100')}</div>

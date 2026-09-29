@@ -370,7 +370,8 @@ function checkManifestShape(name, m) {
     if (s.editItems !== undefined && (s.editItems !== true || s.kind !== 'list' || s.editLabel !== undefined)) {
       bad(`slots.${slot}.editItems 只能写 true，而且只给没有 editLabel 的 list 槽`);
     }
-    // #1463 —— `choices`：这个槽某个子字段只能从一张词表里取（`hero-new.eyebrow.style` · `hero-new.form.fields`）。
+    // #1463 —— `choices`：这个槽某个子字段只能从一张词表里取（`hero-new.eyebrow.style`；
+    //    `hero-new.form.fields` 那一处 #1470 随 form 槽改成 `{id?}` 退役了）。
     //    `validateSite` 据它拦词表外的值，编辑器据它把那一格画成下拉。形状：`{ 子字段: [取值…] }`。
     if (s.choices !== undefined) {
       if (s.choices === null || typeof s.choices !== 'object' || Array.isArray(s.choices)) {

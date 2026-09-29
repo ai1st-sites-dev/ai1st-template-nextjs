@@ -138,7 +138,13 @@ type OptionsValue = Record<string, unknown>;
 function OptionsField({ f, value, onChange, readOnly }: { f: EditorField; value: OptionsValue; onChange: (v: OptionsValue) => void; readOnly?: boolean }) {
   const v = value && typeof value === 'object' ? value : {};
   const knobs = f.knobs || [];
-  const current = Object.fromEntries(knobs.map((k) => [k.name, typeof v[k.name] === 'string' ? v[k.name] : k.values[0]]));
+  // 🔴 #1470 —— 没写的旋钮先落回 `presets[0]`（默认形态的那一组），再落回 `values[0]`：跟 `header-knobs.js`
+  //    §normalizeKnobs、admin 的 `catalogKnobs.ts` 同一条兜底链。这里以前直接落 `values[0]`，只因为 hero-new
+  //    旧的 `values[0]` 那一组恰好就是 Split 才没露馅；#1470 把 `image` 的 `none` 排到第一位之后，一块没写
+  //    `options` 的 hero-new 侧栏会说 Text only、画布却画成 Split。
+  const fallback: Record<string, unknown> = (f.presets && f.presets[0] && f.presets[0].knobs) || {};
+  const current = Object.fromEntries(knobs.map((k) => [k.name, typeof v[k.name] === 'string' ? v[k.name]
+    : k.values.includes(fallback[k.name] as string) ? fallback[k.name] : k.values[0]]));
   const name = presetNameFor({ slots: { options: { knobs } }, presets: f.presets || [] }, current);
   return (
     <div data-editor-options="">
