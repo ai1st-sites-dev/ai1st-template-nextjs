@@ -383,6 +383,11 @@ function checkManifestShape(name, m) {
     if (Number.isInteger(s.minItems) && Number.isInteger(s.maxItems) && s.minItems > s.maxItems) {
       bad(`slots.${slot}.minItems（${s.minItems}）大于 maxItems（${s.maxItems}）`);
     }
+    // #1479 —— `max`：list 槽最多几项（`cta-new.ctas` = 2）。admin 工具栏据它派生「数量」那一维（0 … max，
+    //    manager §manifestCounts · 单格页 §knobOverrides 同一条判据）。跟旋钮的 `knobs[].maxItems` 不是一回事。
+    if (s.max !== undefined && (s.kind !== 'list' || !Number.isInteger(s.max) || s.max < 1)) {
+      bad(`slots.${slot}.max 只能写正整数，而且只给 list 槽（现在是 ${JSON.stringify(s.max)}，kind ${s.kind}）`);
+    }
     // #1463 —— `choices`：这个槽某个子字段只能从一张词表里取（`hero-new.eyebrow.style`；
     //    `hero-new.form.fields` 那一处 #1470 随 form 槽改成 `{id?}` 退役了）。
     //    `validateSite` 据它拦词表外的值，编辑器据它把那一格画成下拉。形状：`{ 子字段: [取值…] }`。

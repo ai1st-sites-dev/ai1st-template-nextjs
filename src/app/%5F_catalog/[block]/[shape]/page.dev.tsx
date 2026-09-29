@@ -105,7 +105,7 @@ function optionMetaOf(m: { slots?: Record<string, { shape?: unknown; knobs?: unk
   };
 }
 
-type ManifestForKnobs = { slots?: Record<string, { kind?: string; required?: boolean; swatches?: string[]; choices?: Record<string, string[]>; shape?: string }>; parts?: string[]; presets?: unknown };
+type ManifestForKnobs = { slots?: Record<string, { kind?: string; required?: boolean; swatches?: string[]; choices?: Record<string, string[]>; shape?: string; max?: unknown }>; parts?: string[]; presets?: unknown };
 
 /**
  * #1463 —— 「预设 + 旋钮」那一类**页面块**（今天是 hero-new）：地址栏 → 这一格的 data。
@@ -114,6 +114,9 @@ type ManifestForKnobs = { slots?: Record<string, { kind?: string; required?: boo
  *   `?bg=%230f172a` / `?bg=brand`            颜色槽
  *   `?parts=proof,stats`                     只留这几个部件（`-` = 一个都不留；不写 = 全留）
  *   `?eyebrow.style=dash`                    词表子字段（manifest 的 `choices`）
+ *   `?ctas=1`                                #1479 数量：带 `max` 的 list 槽只留前 N 项（0 … max；不写 = 演示内容原样）。
+ *                                            判据跟 manager §manifestCounts 同一条（`kind: list` + 正整数 `max`）；
+ *                                            这里只认参数，不画控件（admin 那条工具栏画，PM #1479 四审 1）。
  * 认不出的值落回演示内容里那一份（跟 theme / fill 一样：看法不该让页面消失）。
  * 🔴 这一段只管非外壳块。外壳区块（header-new / footer-new）走 CellOptions，那是 #1458 / #1462 的面。
  */
@@ -144,6 +147,13 @@ function knobOverrides(m: ManifestForKnobs, shape: string, data: Record<string, 
   if (colorSlot) {
     const c = normalizeColor(one(sp.bg));
     if (c) data[colorSlot] = c;
+  }
+  for (const slot of Object.keys(slots).sort()) {
+    const max = slots[slot] && slots[slot].kind === 'list' ? slots[slot].max : undefined;
+    if (typeof max !== 'number' || !Number.isInteger(max) || max < 1) continue;
+    const v = one(sp[slot]);
+    const n = v !== undefined && /^\d+$/.test(v) ? Number(v) : NaN;
+    if (n <= max && Array.isArray(data[slot])) data[slot] = (data[slot] as unknown[]).slice(0, n);
   }
   const partsParam = one(sp.parts);
   const keep = partsParam === undefined ? parts : partsParam.split(',').map((x) => x.trim()).filter((x) => parts.includes(x));

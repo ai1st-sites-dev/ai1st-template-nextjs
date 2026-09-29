@@ -120,6 +120,28 @@ console.log('── AC1 六个预设');
   check(new Set(pinned).size === 1, '反向对照：options 里写死五个旋钮 ⟹ 6 个预设（去掉 data-shape 之后）塌成同一份 —— 判据分得开');
 }
 
+// ══ AC15：ctas 的上限 —— manifest 声明的 `max`（admin 工具栏的 0 / 1 / 2 从它派生）== 组件真截的数 ═════════════
+console.log('\n── AC15 ctas.max == MAX_CTAS');
+{
+  const src = fs.readFileSync(SECTION, 'utf-8');
+  const hit = src.match(/^const MAX_CTAS = (\d+);/m);
+  check(!!hit, 'Section.tsx 里读得到 `const MAX_CTAS = N;`');
+  const declared = M.slots.ctas && M.slots.ctas.max;
+  check(hit && declared === Number(hit[1]), `manifest.slots.ctas.max（${declared}）=== MAX_CTAS（${hit && hit[1]}）`);
+  // 行为那一半：夹具给 6 条按钮，页面上真画出来的也得是 max 条 —— 常量改了而 manifest 没跟，这里跟上面一起红。
+  const six = clone(DEMO);
+  six.ctas = Array.from({ length: 6 }, (_, i) => ({ label: `B${i}`, href: '#', style: i ? 'outline' : 'solid' }));
+  six.options = { ...M.presets[0].knobs, form: 'none' };
+  const drawn = (render(M.presets[0].shape, six).match(/data-cta="/g) || []).length;
+  check(drawn === declared, `6 条按钮的夹具渲染出 ${drawn} 个 [data-cta]，等于 max ${declared}`);
+  // 反向对照（单变量）：组件把常量改成 3、manifest 不动 ⟹ 画出 3 个，行为那条读到不相等。
+  const C3 = loadSection(src.replace(/^const MAX_CTAS = \d+;/m, 'const MAX_CTAS = 3;'));
+  try {
+    const drawn3 = (render(M.presets[0].shape, six, C3).match(/data-cta="/g) || []).length;
+    check(drawn3 === 3 && drawn3 !== declared, `反向对照：MAX_CTAS 改成 3 ⟹ 画出 ${drawn3} 个，与 max ${declared} 不等 —— 判据分得开`);
+  } finally { loadSection(); }
+}
+
 // ══ AC3：bg 涂在哪 ═══════════════════════════════════════════════════════════════════════════════
 console.log('\n── AC3 bg 涂盒子 / 整段');
 {
