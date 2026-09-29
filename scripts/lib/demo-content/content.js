@@ -745,7 +745,10 @@ const DEMO_CONTENT = {
         { label: 'Google reviews', href: 'https://google.com/maps', icon: 'google' },
       ],
     },
-    options: { dark: false, icons: false },
+    // #1476 —— 颜色槽：`null` = 没填（浅底 `bg-body`，跟改前逐字相同）。键得在：演示包要求每个槽都有一项
+    // （§demoDataFor 缺槽就抛）；深底 / 渐变由单格页的 `?bg=` 和色板给。
+    bg: null,
+    options: { icons: false },
   },
 
   // #1455 —— Webpixels 那一版页脚（`staging: true`，只在图册里）。6 个预设吃同一份；`cta` / `form`

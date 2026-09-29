@@ -11,7 +11,7 @@
 //
 // 🔴 **一份 markup + 两个旋钮 + 一个归预设管的开关 + 七个预设**（#1462 → #1468，Chris 2026-09-28 图册）。
 //    旋钮 `logo`（left | center | right）· `menu`（beside | center | split | gathered | below），声明在 manifest 的
-//    `slots.options.knobs`；`topbar` 是布尔开关（顶条放什么是内容，旋钮只管有没有），跟 dark / icons 并排。
+//    `slots.options.knobs`；`topbar` 是布尔开关（顶条放什么是内容，旋钮只管有没有），跟 icons 并排。
 //    预设是「旋钮 + topbar」组合起的名，表在顶层 `presets`（`{ name, shape, knobs, options: { topbar } }`，header 的
 //    name 与形态目录名 shape 相同）。形态名只决定**初值**：`options` 里写了旋钮 / topbar 就按写的画
 //    （§resolveKnobs），不成立的组合由 `scripts/lib/header-knobs.js` 纠正 —— 工具栏和这里用的是同一个函数。
@@ -26,8 +26,12 @@
 // 🔴 **排版只走 Webpixels 的工具类**（总纲约束 3），工具类表达不了的（网格列宽、每格落哪一栏、
 //    logo=right 换栏、992 起才显示的那几段）在 block.css。
 //
-// 🔴 **不用任何 `data-bs-*`**（总纲约束 2）：展开 / 收起是下面那个 `useState`，深底是工具类
-//    （`bg-dark` / `link-light` / `text-white`），不是 Bootstrap 的 `data-bs-theme`。
+// 🔴 **底色 = 颜色槽 `bg`**（#1476，原来是开关；同 footer-new #1469）：任意 `#rrggbb`、`brand`（主题主色）或渐变
+//    `{ stops: [2–3 个色], angle }`，字色按背景亮度自动反白 —— 判亮度、写成 CSS 都走 `scripts/lib/contrast.js`
+//    （§toneForBg / §bgCss），跟 footer-new / cta-new 同一份，这里不另算。没填 = 改前的浅底那一份，逐字相同。
+//
+// 🔴 **不用任何 `data-bs-*`**（总纲约束 2）：展开 / 收起是下面那个 `useState`，深底上的字色是工具类
+//    （`link-light` / `text-white`），不是 Bootstrap 的 `data-bs-theme`。
 //    也不用 `.navbar-collapse` / `.navbar-expand-*`：这两个一起用时 Webpixels 的
 //    `.navbar-expand-* .navbar-collapse { display: flex !important }` 会压过藏它的类（做图册时踩到的坑 1）。
 //    紧凑那一条和桌面那一格是两个元素，各自在自己的断点上显示。
@@ -40,6 +44,7 @@ import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig } from '@/lib/types/config';
 import manifest from './manifest.json';
+import { bgCss, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
 import {
   couplingOf, knobsOf, normalizeKnobs, presetForShape, presetOf, presetsOf,
 } from '../../scripts/lib/header-knobs.js';
@@ -61,7 +66,6 @@ export interface HeaderOptions {
   menu?: Menu;
   /** 归预设管的开关：没写就跟形态（= 预设）走。 */
   topbar?: boolean;
-  dark?: boolean;
   icons?: boolean;
 }
 
@@ -72,6 +76,8 @@ export interface HeaderNewData {
   ctaPrimary?: Cta;
   ctaSecondary?: Cta;
   topbar?: { contact?: TopbarContact[]; links?: TopbarLink[]; social?: TopbarLink[] };
+  /** 底色（§文件头）。没填 = 浅底。 */
+  bg?: BgValue;
   options?: HeaderOptions;
 }
 
@@ -97,10 +103,12 @@ export function resolveKnobs(shape: string | undefined, options: HeaderOptions =
   return { knobs, topbar, preset: presetOf({ ...knobs, topbar }, { knobs: KNOBS, presets: PRESETS }), shape: known };
 }
 
-function ctaClass(style: CtaStyle | undefined, dark: boolean): string {
-  if (style === 'link') return dark ? 'btn btn-link link-light' : 'btn btn-link';
-  if (style === 'outline') return dark ? 'btn btn-outline-light' : 'btn btn-outline-primary';
-  return 'btn btn-primary';
+// `onBrand`：主色底上主色按钮看不见 ⟹ 实心那种翻成白底主色字（hero-new / cta-new 同一条；样式在 block.css
+// §hdr-cta-on-brand）。
+function ctaClass(style: CtaStyle | undefined, deep: boolean, onBrand = false): string {
+  if (style === 'link') return deep ? 'btn btn-link link-light' : 'btn btn-link';
+  if (style === 'outline') return deep ? 'btn btn-outline-light' : 'btn btn-outline-primary';
+  return onBrand ? 'btn btn-primary hdr-cta-on-brand' : 'btn btn-primary';
 }
 
 interface Props {
@@ -117,7 +125,12 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
   const opts = data.options || {};
   const { knobs, topbar: hasTopbar, preset, shape } = resolveKnobs(shapeIn, opts);
   const { logo, menu } = knobs;
-  const { dark = false, icons = false } = opts;
+  const { icons = false } = opts;
+  const tone = toneForBg(data.bg);
+  const deep = tone !== 'light';
+  const bgValue = bgCss(data.bg);
+  const bgStyle = bgValue ? { background: bgValue } : undefined;
+  const onBrand = tone === 'brand';
   const right = logo === 'right';
   const nav = Array.isArray(data.nav) ? data.nav : [];
   const half = Math.ceil(nav.length / 2);
@@ -129,10 +142,11 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
   const ctas = [data.ctaPrimary, data.ctaSecondary].filter((c): c is Cta => !!c && !!c.label);
   const brand = data.brandName || '';
 
-  const linkTone = dark ? 'link-light' : '';
-  const subTone = dark ? 'link-light' : 'link-secondary';
-  const mutedTone = dark ? 'text-white-50' : 'text-body-secondary';
-  const lineTone = dark ? 'border-secondary' : '';
+  const linkTone = deep ? 'link-light' : '';
+  const subTone = deep ? 'link-light' : 'link-secondary';
+  // 深底上的弱化文字不用半透明灰：白 .92（`block.css` §hdr-muted-on-deep，照 footer-new 那条同形的规则）。
+  const mutedTone = deep ? 'hdr-muted-on-deep' : 'text-body-secondary';
+  const lineTone = deep ? 'border-secondary' : '';
   const icon = (name?: string, className?: string) => <InlineIcon name={name} icons={iconTable} className={className} />;
 
   const navItem = (item: NavItem, key: string, vertical = false) => {
@@ -157,7 +171,7 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
   const ctaButtons = (key: string) => (
     <div className="d-flex align-items-center gap-2" key={key}>
       {ctas.map((c, i) => (
-        <a key={i} href={c.href} className={`${ctaClass(c.style, dark)} text-nowrap`}>{c.label}</a>
+        <a key={i} href={c.href} className={`${ctaClass(c.style, deep, onBrand)} text-nowrap`}>{c.label}</a>
       ))}
     </div>
   );
@@ -184,7 +198,7 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
   // 下一行（QA2 #1462 r1：390 宽 topbar 预设整条折成两行，汉堡掉到第二行最左边；320 宽连 logo-left 也折）。
   // 店名不截断：生意名是这一条上最要紧的字。桌面那三格里仍是一行不收缩。
   const brandLink = (compact = false) => (
-    <a className={`hdr-brand navbar-brand d-inline-flex align-items-center gap-2 m-0 ${compact ? '' : 'flex-shrink-0'} ${dark ? 'text-white' : 'text-heading'}`} href="/">
+    <a className={`hdr-brand navbar-brand d-inline-flex align-items-center gap-2 m-0 ${compact ? '' : 'flex-shrink-0'} ${deep ? 'text-white' : 'text-heading'}`} href="/">
       {data.logo ? <img src={data.logo} alt="" className="h-rem-8 w-auto flex-shrink-0" /> : null}
       <span className={`fw-semibold ${compact ? 'text-wrap lh-sm' : 'text-nowrap'}`}>{brand}</span>
     </a>
@@ -212,7 +226,8 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
 
   const headerBlock = { ...(block || {}), type: 'header-new', shape } as BlockConfig;
   const rootClass = [
-    dark ? 'bg-dark text-white' : 'bg-body',
+    // 填了 `bg` 就不挂 `bg-body`：Webpixels 的背景工具类带 `!important`，会压过 style 上的底色（footer-new 同一条）。
+    bgStyle ? (deep ? 'text-white' : '') : 'bg-body',
     'border-bottom',
     lineTone,
     `hdr-logo-${logo}`,
@@ -246,6 +261,7 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
       data-logo={logo}
       data-menu={menu}
       data-topbar={hasTopbar ? 'on' : 'off'}
+      style={bgStyle}
     >
       {hasTopbar ? (
         // 顶条：只在 ≥992 出现（block.css），手机 / iPad 上它的内容折进抽屉。
@@ -275,7 +291,7 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
             {phone ? (
               <a
                 href={phone.href}
-                className={`hdr-phone btn btn-sm ${dark ? 'btn-outline-light' : 'btn-outline-primary'} rounded-circle d-inline-flex align-items-center justify-content-center p-0 w-rem-10 h-rem-10`}
+                className={`hdr-phone btn btn-sm ${deep ? 'btn-outline-light' : 'btn-outline-primary'} rounded-circle d-inline-flex align-items-center justify-content-center p-0 w-rem-10 h-rem-10`}
                 aria-label={`Call ${phone.text}`}
               >
                 {icon('telephone')}
@@ -283,7 +299,7 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
             ) : null}
             <button
               type="button"
-              className={`btn px-2 ${dark ? 'text-white' : ''} fs-5 lh-1`}
+              className={`btn px-2 ${deep ? 'text-white' : ''} fs-5 lh-1`}
               aria-expanded={open}
               aria-label="Toggle navigation menu"
               onClick={() => setOpen(!open)}
@@ -317,7 +333,7 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
             </ul>
             <div className="d-grid gap-2" data-hdr-part="drawer-cta">
               {(hasTopbar ? ctas.filter((c) => c === data.ctaPrimary) : ctas).map((c, i) => (
-                <a key={i} href={c.href} className={`${ctaClass(c.style, dark)} text-nowrap`}>{c.label}</a>
+                <a key={i} href={c.href} className={`${ctaClass(c.style, deep, onBrand)} text-nowrap`}>{c.label}</a>
               ))}
             </div>
             {drawerContact}

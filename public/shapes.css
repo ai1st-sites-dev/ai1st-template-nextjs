@@ -6893,6 +6893,25 @@
   [data-block="header-new"].hdr-menu-gathered .hdr-grid > .hdr-c { justify-self: start; }
 }
 
+/* #1476 —— 深底（`bg` 填了深色 / `brand` / 深渐变）上的弱化文字（顶条联系信息、抽屉里那一段）：白 .92，
+   不是半透明灰。规则照 footer-new 那条同形的（`blocks/footer-new/block.css`）；两份合成一个共用类归 #1477。
+   Webpixels 的颜色工具类带 `!important`，这里也要带。 */
+[data-block="header-new"] .hdr-muted-on-deep {
+  color: rgba(255, 255, 255, .92) !important;
+}
+
+/* #1476 —— `bg=brand`：主色底上主色按钮看不见 ⟹ 实心那种翻成白底主色字（hero-new / cta-new 同一条）。 */
+[data-block="header-new"] .btn-primary.hdr-cta-on-brand {
+  background: #fff !important;
+  border-color: #fff !important;
+  color: var(--x-primary) !important;
+}
+[data-block="header-new"] .btn-primary.hdr-cta-on-brand:hover {
+  background: #f1f5f9 !important;
+  border-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
 /* ── header-new · logo-left = 预设（logo=left · menu=beside · topbar 关）──────────────────────
    🔴 #1462 起这个文件夹**只是一个名字**：预设 = 两个旋钮 + topbar 开关的一组值（manifest 的 `presets`，#1468），排版全在
       `blocks/header-new/block.css`，按 Section 从旋钮派生的类（`hdr-logo-*` / `hdr-menu-*` / `hdr-topbar-*`）

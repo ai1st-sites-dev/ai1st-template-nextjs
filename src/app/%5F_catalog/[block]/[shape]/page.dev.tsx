@@ -67,7 +67,7 @@ const one = (v: string | string[] | undefined): string | undefined => (Array.isA
 
 /**
  * #1458 —— 这个块有哪些开关，从 manifest 读，不写名单：
- *   `slots.options.shape` 形如 `{topbar: bool, dark: bool, icons: bool}` → 每个 `: bool` 前的键是一个开关。
+ *   `slots.options.shape` 形如 `{topbar: bool, icons: bool}` → 每个 `: bool` 前的键是一个开关。
  * #1462 —— 外加**旋钮**：`slots.options.knobs: [{name, values}]`（§knobsOf），以及顶层
  *   `presets: [{name, shape, knobs, options?}]`（旋钮组合起的名；#1468 起还能带布尔，header 的 topbar）和可选的
  *   `knobCoupling`（哪两个旋钮要成对成立）。
@@ -283,8 +283,8 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
         {isRegion && block === 'header' ? <Header locale={locale} variant={shape} /> : null}
         {isRegion && block === 'footer' ? <Footer locale={locale} variant={shape} /> : null}
         {/* #1424 / #1455 —— Webpixels 那一版顶栏 / 页脚：内容来自演示内容包（槽位契约），不来自 navigation.json。
-            #1458 —— 它们的选项开关（header 的 topbar / dark / icons；footer 的 CTA 条 + 订阅框）住在这一页的工具栏里
-            （§CellOptions），初值可由地址栏给：`?opt=topbar,dark`；#1462 起旋钮各一个参数：
+            #1458 —— 它们的选项开关（header 的 topbar / icons；footer 的 CTA 条 + 订阅框）住在这一页的工具栏里
+            （§CellOptions），初值可由地址栏给：`?opt=topbar,icons`；#1462 起旋钮各一个参数：
             `?logo=center&menu=below`；#1464 起部件也是槽名一个参数：`?form=inline`。 */}
         {isRegion && hasOptionBar ? (
           <CellOptions

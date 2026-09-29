@@ -6,11 +6,11 @@
 //
 // 块自己在 manifest 里声明，这里一样都不写死。位置是 PM 2026-09-27 19:01 冻结的那份（#1462 / #1463 两张票
 // 共用同一套读者，写成别的形状就是两边分叉）：
-//   · 旋钮：`slots.options.knobs: [{ name, values: [...] }]`，**顺序 = 控件顺序**。布尔开关（dark / icons /
+//   · 旋钮：`slots.options.knobs: [{ name, values: [...] }]`，**顺序 = 控件顺序**。布尔开关（icons /
 //     topbar）不是旋钮，照旧只写在 `slots.options.shape` 那串里；
 //   · 预设：顶层 `presets: [{ name, shape, knobs: { <旋钮>: <值>, … }, options?: { <布尔>: true | false } }]`。
 //     `name` 是显示名，`shape` 是形态目录名（header 两者同名，hero 不同名）。#1468：预设 `options` 里写了的布尔
-//     「归预设管」（header 的 topbar）—— 判「是哪个预设」连它一起比；没有预设写的（dark / icons）不参与；
+//     「归预设管」（header 的 topbar）—— 判「是哪个预设」连它一起比；没有预设写的（icons）不参与；
 //   · 耦合（可选，header 有、hero 可以没有）：顶层 `knobCoupling: [甲, 乙]` —— 这两个旋钮的组合**必须在某个
 //     预设里出现过**，否则不成立。header 是 `["logo", "menu"]`：logo=center 只能配 split / gathered / below，
 //     logo=left / right 只能配 beside / center（#1468，Chris 2026-09-28）。

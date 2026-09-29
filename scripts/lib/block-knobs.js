@@ -6,8 +6,8 @@
 //
 // manifest 里的声明（位置 PM #1463 r3 冻死，#1462 的 Go 那一侧读同一份）：
 //   · `slots.options.knobs`  数组，**顺序 = 控件顺序**；每项 `{ name, values: [...] }`，`values[0]` 是默认。
-//                            布尔开关（`dark` / `icons` / `topbar`）不进 knobs，照旧写在 `slots.options.shape` 那串
-//                            `"{…, dark: bool}"` 里。
+//                            布尔开关（`icons` / `topbar`）不进 knobs，照旧写在 `slots.options.shape` 那串
+//                            `"{…, icons: bool}"` 里。
 //   · 顶层 `presets`         `[{ name, shape, knobs: { … }, options?: { <布尔>: true | false } }]`。`name` 是显示名，
 //                            `shape` 是形态目录名。#1468 起预设也能带布尔（header-new 的 `topbar`）：有预设写了的
 //                            那几个布尔「归预设管」—— 写了就每个预设都要写，判「一模一样」「是哪个预设」都连它一起比；

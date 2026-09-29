@@ -147,13 +147,13 @@ console.log('\n③ 旋钮纠正 · topbar 开关（Section 那一次）');
   check(attr(h3, 'data-preset') === 'custom' && attr(h3, 'data-topbar') === 'on', 'center/split + topbar 开 跟任何预设都对不上 ⟹ data-preset=custom');
   check(attr(render('no-such-preset', clone(DEMO)), 'data-preset') === 'logo-left', '认不出的形态名落回 logo-left');
   check(attr(render('topbar', withOpts({ logo: 'sideways' })), 'data-logo') === 'left', '值域外的旋钮值落回该预设的值');
-  // #1468：topbar 没写 ⟹ 跟形态（= 预设）走；写了布尔就按写的；预设名连它一起判，dark / icons 不参与。
+  // #1468：topbar 没写 ⟹ 跟形态（= 预设）走；写了布尔就按写的；预设名连它一起判，icons 不参与。
   const t1 = render('topbar', withOpts({ topbar: false }));
   check(attr(t1, 'data-topbar') === 'off' && attr(t1, 'data-preset') === 'logo-left' && !t1.includes('hdr-topbar border-bottom'),
     'topbar 形态 + options.topbar=false ⟹ 没有顶条、预设名 logo-left');
-  const t2 = render('logo-left', withOpts({ topbar: true, dark: true }));
+  const t2 = render('logo-left', withOpts({ topbar: true, icons: true }));
   check(attr(t2, 'data-topbar') === 'on' && attr(t2, 'data-preset') === 'topbar' && t2.includes('hdr-topbar border-bottom'),
-    'logo-left 形态 + topbar=true（+ dark）⟹ 顶条出现、预设名 topbar（dark 不影响）');
+    'logo-left 形态 + topbar=true（+ icons）⟹ 顶条出现、预设名 topbar（icons 不影响）');
   check(attr(render('logo-left', withOpts({ topbar: 'contact' })), 'data-topbar') === 'off', 'topbar 写成旧的字符串 "contact" 不算开（只认布尔）');
 }
 

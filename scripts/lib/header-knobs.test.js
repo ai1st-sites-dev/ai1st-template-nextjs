@@ -39,13 +39,13 @@ check(eq(knobs, [
 ]), '旋钮 = logo（left · center · right）· menu（beside · center · split · gathered · below），顺序即工具栏顺序', JSON.stringify(knobs));
 check(!knobs.some((k) => k.name === 'topbar'), 'topbar 不再是旋钮');
 check(eq(coupling, ['logo', 'menu']), 'knobCoupling = [logo, menu]');
-check(h.knobsOf({ slots: { options: { shape: '{dark: bool, icons: bool}' } } }).length === 0, '只有布尔开关的块 ⟹ 0 个旋钮（开关不是旋钮）');
+check(h.knobsOf({ slots: { options: { shape: '{icons: bool}' } } }).length === 0, '只有布尔开关的块 ⟹ 0 个旋钮（开关不是旋钮）');
 check(h.knobsOf({ slots: { options: { shape: '{logo: "left" | "center"}' } } }).length === 0, '枚举只写在 shape 串里不算旋钮（位置冻在 slots.options.knobs）');
 check(h.couplingOf({}) === null && h.presetsOf({}).length === 0, '没声明 ⟹ 无耦合、无预设');
 check(presets.every((p) => Object.keys(p).sort().join() === 'knobs,name,options,shape' && Object.keys(p.knobs).sort().join() === 'logo,menu'
   && Object.keys(p.options).join() === 'topbar' && typeof p.options.topbar === 'boolean'),
   '每条预设是 { name, shape, knobs:{logo,menu}, options:{topbar: bool} }');
-check(eq(h.presetBooleansOf(presets), ['topbar']), '归预设管的布尔 = [topbar]（dark / icons 没有预设写）');
+check(eq(h.presetBooleansOf(presets), ['topbar']), '归预设管的布尔 = [topbar]（icons 没有预设写）');
 check(eq(presets.filter((p) => p.options.topbar).map((p) => p.name), ['topbar', 'topbar-stacked']), 'topbar 开的预设 = topbar · topbar-stacked');
 // 写坏的项跳过、不抛；多出来的可选字段（hero 那边可能有 group）原样留着不碍事。
 check(h.presetsOf({ presets: [{ name: 'A' }, { name: 'B', shape: 'b', knobs: { x: '1' }, group: 'g' }, null] }).map((p) => p.name).join() === 'B',
@@ -96,11 +96,11 @@ check(h.normalizeKnobs({ logo: 'center', menu: 'beside' }, { knobs, presets, cou
     '反向对照：logo 的默认换成 center ⟹ logo=right + beside 被纠正走（上面 logo=right 那几格靠的是这条规则）');
 }
 
-console.log('\n③ 认预设（旋钮 + topbar 一起比，dark / icons 不看）');
+console.log('\n③ 认预设（旋钮 + topbar 一起比，icons 不看）');
 for (const p of presets) check(h.presetOf({ ...p.knobs, ...p.options }, ctx) === p.name, `${p.name} 的旋钮 + topbar ⟹ ${p.name}`);
 check(h.presetOf({ logo: 'left', menu: 'beside' }, ctx) === 'logo-left', 'topbar 没写 = 关 ⟹ logo-left');
 check(h.presetOf({ logo: 'left', menu: 'beside', topbar: true }, ctx) === 'topbar', 'logo-left 上打开 topbar ⟹ topbar（验收 5）');
-check(h.presetOf({ logo: 'left', menu: 'beside', topbar: false, dark: true, icons: true }, ctx) === 'logo-left', '打开 dark / icons ⟹ 预设名不变（验收 5）');
+check(h.presetOf({ logo: 'left', menu: 'beside', topbar: false, icons: true }, ctx) === 'logo-left', '打开 icons ⟹ 预设名不变（验收 5）');
 check(h.presetOf({ logo: 'center', menu: 'split', topbar: true }, ctx) === 'custom', 'center/split + topbar ⟹ custom');
 check(h.presetOf({ logo: 'right', menu: 'beside' }, ctx) === 'custom', 'logo=right ⟹ custom（没有预设在右）');
 check(new Set(presets.map((p) => `${p.knobs.logo}|${p.knobs.menu}|${p.options.topbar}`)).size === presets.length, '7 个预设的组合（旋钮 + topbar）两两不同');

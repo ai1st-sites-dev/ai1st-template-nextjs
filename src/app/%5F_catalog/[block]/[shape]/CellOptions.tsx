@@ -9,8 +9,8 @@
 // 🔴 hydration 之前勾它，勾选框变了、页面不变 —— 一个会骗人的开关；所以 `ready` 之前全部 disabled。
 //
 // #1462 —— **预设 + 旋钮**（照定稿图册 `docs/reference/webpixels/gallery/build.py` 那条工具栏）：
-//   顺序 = 预设一排（外加 Custom）→ 排布旋钮（logo · menu）→ 开关（topbar · dark · icons）→ 部件。
-//   点预设 = 旋钮 + 归预设管的开关（topbar，#1468）一次设好，dark / icons 不动；拧旋钮 / 开关后跟任何预设都对不上
+//   顺序 = 预设一排（外加 Custom）→ 排布旋钮（logo · menu）→ 开关（topbar · icons）→ 部件。
+//   点预设 = 旋钮 + 归预设管的开关（topbar，#1468）一次设好，icons 不动；拧旋钮 / 开关后跟任何预设都对不上
 //   ⟹ Custom 亮。不成立的组合当场纠正，用的是
 //   Section 渲染时同一个纯函数（`scripts/lib/header-knobs.js` §normalizeKnobs），拧了谁谁不让步。
 //   单开（「新窗口」，不带 embed）时改动 `replaceState` 回地址栏，刷新还在；被 admin 嵌着时不碰地址栏。
