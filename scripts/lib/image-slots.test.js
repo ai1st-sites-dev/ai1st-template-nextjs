@@ -248,6 +248,33 @@ const slotsOf = (pages) => {
     .every((s) => s.kind === 'image' || s.kind === 'list'));
   check(everyKnown, '名单里每一项都带 image / list 两种口径之一（提示词按它选取景）');
 
+  // ── ⑦ #1475 —— 列表项的图嵌一层（features-new 的 `image?: {imageUrl, alt}`）─────────────────────
+  // QA2 r1 真 AI 建站读到的：写回写成了 items[i].imageUrl（平铺），而块读的是 items[i].image.imageUrl
+  // ⟹ Photo cards / Cover cards 一张图都不显示。数据形状照那次 AI 真吐出来的（项里没有 image）。
+  console.log('── ⑦ 列表项的图嵌在对象里时，写回那一层（#1475）');
+  const fnSlots = real.get('features-new') ? imageSlotsOf(real.get('features-new')) : null;
+  check(JSON.stringify(fnSlots) === JSON.stringify([{ name: 'items', kind: 'list', imageKey: 'image' }]),
+    `features-new 的 items 槽读出 imageKey=image（现取 ${JSON.stringify(fnSlots)}）`);
+  check(imageSlotsOf(real.get('gallery')).every((x) => !x.imageKey),
+    '平铺的那一族（gallery 的 items）不带 imageKey —— 照旧写 items[i].imageUrl');
+  const aiItems = () => [
+    { icon: 'shield-check', title: 'Vehicle Diagnostics', text: 'x' },
+    { icon: 'tools', title: 'Brakes', text: 'y', image: { alt: 'Brake pads' } },
+    { icon: 'disc', title: 'Tires', text: 'z' },
+  ];
+  const fnPages = [{ slug: 'home', sections: [
+    { type: 'features-new', shape: 'photo-cards', data: { title: 'Services', items: aiItems() } },
+    { type: 'gallery', data: { headline: 'Work', items: [{ title: 'a' }] } },
+  ] }];
+  const fnRun = await fillImageSlots(fillOpts(fnPages, real));
+  const fnOut = fnPages[0].sections[0].data.items;
+  check(fnRun.failures.length === 0 && fnOut.every((it) => typeof (it.image && it.image.imageUrl) === 'string' && it.image.imageUrl.startsWith('/photos/')),
+    `fillImageSlots 之后 features-new 每一项都有 image.imageUrl（${fnOut.map((it) => it.image && it.image.imageUrl).join(' · ')}）`);
+  check(fnOut.every((it) => it.imageUrl === undefined), '没有写成平铺的 items[i].imageUrl');
+  check(fnOut[1].image.alt === 'Brake pads', `项里原来的 image.alt 留着（读到 ${JSON.stringify(fnOut[1].image)}）`);
+  const galOut = fnPages[0].sections[1].data.items[0];
+  check(typeof galOut.imageUrl === 'string' && galOut.image === undefined, `同一页的 gallery 照旧平铺（读到 ${JSON.stringify(galOut)}）`);
+
   console.log(`\n逐条断言: PASS ${pass} · FAIL ${fail}`);
   if (fail) { console.log('❌ #1386 image-slots: 有失败'); process.exit(1); }
   console.log('✅ #1386 image-slots: 全过');

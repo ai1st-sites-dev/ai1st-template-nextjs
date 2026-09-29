@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import SectionRenderer from '@/components/SectionRenderer';
 import { BreadcrumbJsonLd, ServiceJsonLd } from '@/components/JsonLd';
 import { getSeo, getServices, getPage, isValidLocale, localeUrl } from '@/lib/config';
+import { iconTablesFor } from '../../../scripts/lib/icons.js';
 
 export default function SubPage({ locale, slug }: { locale: string; slug: string }) {
   if (!isValidLocale(locale)) notFound();
@@ -61,7 +62,8 @@ export default function SubPage({ locale, slug }: { locale: string; slug: string
           serviceUrl={`${seo.domain}${localeUrl(slug, locale)}`}
         />
       )}
-      <SectionRenderer blocks={page.blocks} locale={locale} />
+      {/* #1475 —— 画内联 SVG 图标的块要一张服务端查好的图标表（§iconTablesFor；别的块不挂）。 */}
+      <SectionRenderer blocks={page.blocks} locale={locale} iconTables={iconTablesFor(page.blocks)} />
     </>
   );
 }

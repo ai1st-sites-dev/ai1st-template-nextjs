@@ -35,7 +35,7 @@ import { blockShapeCatalog } from '../../../../../scripts/lib/block-catalog.js';
 import { demoDataFor } from '../../../../../scripts/lib/demo-content/index.js';
 import { filledOptionalSlots } from '../../../../../scripts/lib/block-manifest.js';
 import { couplingOf, knobsOf, normalizeKnobs, presetBooleans, presetForShape, presetsOf } from '../../../../../scripts/lib/header-knobs.js';
-import { iconTableFor } from '../../../../../scripts/lib/icons.js';
+import { iconTableFor, iconTablesFor } from '../../../../../scripts/lib/icons.js';
 // knobsOf / presetsOf 两份（header-knobs.js #1462 · block-knobs.js #1463）读的是同一份 manifest 声明、
 // 对合法声明给出同一结果；这一页用 header-knobs 那份，并掉哪一份归 T3。
 import { booleanOptionsOf, effectiveKnobs, presetNameFor } from '../../../../../scripts/lib/block-knobs.js';
@@ -305,7 +305,8 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
           />
         ) : null}
         {knobBar && !embed ? <KnobBar {...knobBar} /> : null}
-        {isRegion ? null : <SectionRenderer blocks={[cfg]} locale={locale} />}
+        {/* #1475 —— 旋钮类页面块里画内联 SVG 图标的（features-new）也要图标表，跟真站 HomePage / SubPage 同一个函数算。 */}
+        {isRegion ? null : <SectionRenderer blocks={[cfg]} locale={locale} iconTables={iconTablesFor([cfg])} />}
       </main>
     </>
   );

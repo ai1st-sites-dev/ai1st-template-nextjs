@@ -380,6 +380,51 @@ const DEMO_CONTENT = {
     bg: null,
   },
 
+  // #1475 —— features-new：Northside Auto Care 的 6 项服务，每项都带 icon / image / link（全填版，单格页拧旋钮时
+  //    哪个都看得到）。`number` 不在这一版里：7 个预设都不是步骤式的，带了编号每张卡都会多一个 01 / 02。
+  //    带编号的那一版是下面的 FEATURES_NEW_STEPS（测试与夹具站用）。
+  //    🔴 `introEyebrow.style` 必须写：这个槽的词表 `none` 排第一（#1481 规矩 1），单格页工具栏在数据里没这个子字段时
+  //       取 values[0] 当选中的那一档（`page.dev.tsx` §knobOverrides）⟹ 不写的话工具栏亮着 none、画布上却是 pill
+  //       （组件对「只写了字」按 pill 画，同 hero-new / cta-new）。
+  'features-new': {
+    options: {},
+    introEyebrow: { text: 'What we fix', style: 'pill' },
+    // 45 个字符：1440 下 introAlign=left 时要一行放下（#1475 AC3 量的就是这一句）。
+    headline: 'Honest car care that keeps your family moving',
+    body: 'Licensed technicians, factory-grade parts and a written quote before any work starts.',
+    introCtas: [
+      { label: 'Book a service', href: '/quote', style: 'solid' },
+      { label: 'Call (416) 555-0142', href: 'tel:+14165550142', style: 'outline', icon: 'telephone' },
+      { label: 'See every service we offer and what each one costs', href: '/services', style: 'link', arrow: true },
+      { label: 'Warranty', href: '/warranty', style: 'link' },
+      { label: 'Reviews', href: '/reviews', style: 'link' },
+      { label: 'Directions', href: '/contact', style: 'link' },
+    ],
+    introImage: { imageUrl: imageUrl('about-workshop'), alt: 'The Northside Auto Care workshop with two cars on hoists' },
+    itemsImage: { imageUrl: imageUrl('hero-bay'), alt: 'A technician checking a car on the hoist' },
+    items: [
+      { icon: 'disc', image: { imageUrl: imageUrl('work-1'), alt: 'New brake rotors and pads' }, title: 'Brakes',
+        text: 'Pads, rotors and callipers — with a road test before you pick it up.',
+        link: { label: 'Brake service', href: '/services/brakes', arrow: true } },
+      { icon: 'snow', image: { imageUrl: imageUrl('work-2'), alt: 'Winter tires on a rack' }, title: 'Tires & changeovers',
+        text: 'Seasonal swaps, balancing and storage for your second set.',
+        link: { label: 'Tire service', href: '/services/tires', arrow: true } },
+      { icon: 'speedometer2', image: { imageUrl: imageUrl('work-3'), alt: 'A scan tool plugged into a dashboard' }, title: 'Diagnostics',
+        text: 'Check-engine light on? We read the codes, find the cause and explain it in plain words before quoting a single repair.',
+        link: { label: 'Diagnostics', href: '/services/diagnostics', arrow: true } },
+      { icon: 'droplet', image: { imageUrl: imageUrl('work-4'), alt: 'Fresh oil' }, title: 'Oil changes',
+        text: 'Synthetic or conventional, done in 30 minutes.',
+        link: { label: 'Oil change', href: '/services/oil', arrow: true } },
+      { icon: 'battery-charging', image: { imageUrl: imageUrl('work-5'), alt: 'A battery tester on a car battery' }, title: 'Batteries & electrical',
+        text: 'Free battery test, replacements and alternator repairs.',
+        link: { label: 'Electrical', href: '/services/electrical', arrow: true } },
+      { icon: 'shield-check', image: { imageUrl: imageUrl('work-6'), alt: 'An inspection checklist on a clipboard' }, title: 'Safety inspections',
+        text: 'Ontario safety certificates and pre-purchase checks for used cars.',
+        link: { label: 'Inspections', href: '/services/inspections', arrow: true } },
+    ],
+    bg: null,
+  },
+
   'announcement-bar': {
     message: 'Winter tire changeovers are booking two weeks out — reserve your slot now.',
     link: { label: 'Reserve a slot', href: '/quote' },
@@ -873,4 +918,14 @@ const DEMO_CONTENT = {
   },
 };
 
-module.exports = { DEMO_CONTENT, SITE };
+/**
+ * #1475 —— features-new 带编号的那一版（「步骤」式内容：每项一个 number，itemConnector 打开）。
+ * 从上面那份派生，只多 `number` 和 `options.itemConnector`，别的逐字一样 —— 两版的差别只在编号那一维。
+ */
+const FEATURES_NEW_STEPS = {
+  ...DEMO_CONTENT['features-new'],
+  options: { itemConnector: 'line' },
+  items: DEMO_CONTENT['features-new'].items.map((it, i) => ({ number: String(i + 1).padStart(2, '0'), ...it })),
+};
+
+module.exports = { DEMO_CONTENT, SITE, FEATURES_NEW_STEPS };

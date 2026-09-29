@@ -1,12 +1,19 @@
 import type { BlockConfig } from '@/lib/types/config';
+import type { IconTable } from '@/components/InlineIcon';
 import { sectionRegistry } from '@/lib/sections/registry.generated';
 
 interface SectionRendererProps {
   blocks: BlockConfig[];
   locale: string;
+  /**
+   * #1475 —— 与 `blocks` 逐项对齐的图标表（`scripts/lib/icons.js` §iconTablesFor 算的）。画内联 SVG 图标的块
+   * （`BLOCK_ICONS` 里登记过的）拿到它那一张；别的块那一格是 undefined，**不挂** `iconTable` 这个 prop。
+   * 🔴 这里自己不算：这个组件也在编辑器的客户端画布里用（EditorApp），读不了文件 —— 由服务端的调用方算好传进来。
+   */
+  iconTables?: (IconTable | undefined)[];
 }
 
-export default function SectionRenderer({ blocks, locale }: SectionRendererProps) {
+export default function SectionRenderer({ blocks, locale, iconTables }: SectionRendererProps) {
   return (
     <>
       {blocks.map((block, index) => {
@@ -26,12 +33,14 @@ export default function SectionRenderer({ blocks, locale }: SectionRendererProps
         // 差异就是这个 key）。#1132 那会儿它先读别名记下来的**老** type 名再落回 `type` —— 别名把
         // `type` 换成了通用块的名字，而**没有 `id` 的那些条目**（老站全都没有）key 就是类型名拼的。
         // #1162 别名层退役之后那个字段不存在了，这里读 `type` 就是读那个块自己写的名字。
+        const iconTable = iconTables ? iconTables[index] : undefined;
         return (
           <Component
             key={block.id || `${block.type}-${index}`}
             data={block.data || {}}
             locale={locale}
             block={block}
+            {...(iconTable ? { iconTable } : {})}
           />
         );
       })}

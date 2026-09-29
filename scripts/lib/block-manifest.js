@@ -120,7 +120,10 @@ function imageSlotsOf(m) {
     if (!spec || /^(logos?|avatars?)$/.test(name)) continue;
     if (spec.kind === 'image') { out.push({ name, kind: 'image' }); continue; }
     if (spec.kind === 'list' && typeof spec.shape === 'string' && spec.shape.includes('imageUrl')) {
-      out.push({ name, kind: 'list' });
+      // #1475 —— 列表项的图可能平铺（`[{imageUrl, alt?}]`）也可能嵌一层（features-new 的
+      // `image?: {imageUrl, alt}`）。写回那一侧要知道写到哪，判据读 shape 自己，不写块名单。
+      const nested = spec.shape.match(/(\w+)\??\s*:\s*\{[^{}]*\bimageUrl\b/);
+      out.push(nested ? { name, kind: 'list', imageKey: nested[1] } : { name, kind: 'list' });
     }
   }
   return out;
@@ -369,6 +372,16 @@ function checkManifestShape(name, m) {
     //    一个列表字段 —— 能挪、能删，每项整份原样带着。不写就跟今天一样不出字段（`hero.imageBand` 不受影响）。
     if (s.editItems !== undefined && (s.editItems !== true || s.kind !== 'list' || s.editLabel !== undefined)) {
       bad(`slots.${slot}.editItems 只能写 true，而且只给没有 editLabel 的 list 槽`);
+    }
+    // #1475 —— 槽级条数上下限（validateSite ⑨ 据它拦）：只给列表槽，非负整数，下限不大于上限。
+    //    写成字符串 `"8"` 的失败方向是静默的（`Number.isInteger` 不认 ⟹ 那道检查整个不跑），所以在这儿当场拒。
+    for (const key of ['minItems', 'maxItems']) {
+      if (s[key] === undefined) continue;
+      if (!Number.isInteger(s[key]) || s[key] < 0) bad(`slots.${slot}.${key} 是 ${JSON.stringify(s[key])} —— 必须是非负整数`);
+      if (s.kind !== 'list') bad(`slots.${slot}.${key} 只给 kind: list 的槽（现在是 ${JSON.stringify(s.kind)}）`);
+    }
+    if (Number.isInteger(s.minItems) && Number.isInteger(s.maxItems) && s.minItems > s.maxItems) {
+      bad(`slots.${slot}.minItems（${s.minItems}）大于 maxItems（${s.maxItems}）`);
     }
     // #1463 —— `choices`：这个槽某个子字段只能从一张词表里取（`hero-new.eyebrow.style`；
     //    `hero-new.form.fields` 那一处 #1470 随 form 槽改成 `{id?}` 退役了）。
@@ -1042,6 +1055,17 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
       for (const [slot, spec] of Object.entries(m.slots)) {
         const v = data[slot];
         if (v === undefined || v === null) continue;
+        // #1475 —— 列表槽自己声明的条数上下限（`slots.<槽>.minItems` / `maxItems`，features-new 的 items 1–8）。
+        //    判据从槽声明读、不写块名单；跟下面那条「某个旋钮取某值时某列表最多几项」（`knobs[].maxItems`）是两件事，
+        //    那条挂在旋钮上，这条挂在槽上、不管旋钮是什么。
+        if (Array.isArray(v)) {
+          if (Number.isInteger(spec.minItems) && v.length < spec.minItems) {
+            flag(`${where}: "${slot}" 至少要 ${spec.minItems} 项（现在 ${v.length} 项）`);
+          }
+          if (Number.isInteger(spec.maxItems) && v.length > spec.maxItems) {
+            flag(`${where}: "${slot}" 最多只能有 ${spec.maxItems} 项（现在 ${v.length} 项）`);
+          }
+        }
         if (spec.kind === 'color' && !isColorValue(v)) {
           flag(`${where}: 槽 "${slot}" 是 ${JSON.stringify(v).slice(0, 40)} —— 颜色只能写 "#rrggbb"（六位十六进制）或 "brand"`);
         }

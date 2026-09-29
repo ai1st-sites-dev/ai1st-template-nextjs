@@ -395,6 +395,11 @@ function sanitizeImageUrls(pages) {
             delete item.imageUrl;
             dropped++;
           }
+          // #1475 —— features-new 的项把图嵌在 `image: {imageUrl, alt}` 里。
+          if (item.image?.imageUrl && !isValidImageUrl(item.image.imageUrl)) {
+            delete item.image.imageUrl;
+            dropped++;
+          }
         }
       }
     }

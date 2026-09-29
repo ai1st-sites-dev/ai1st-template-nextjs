@@ -70,7 +70,28 @@ function iconNamesIn(value, out = new Set()) {
 const BLOCK_ICONS = {
   'header-new': ['list', 'x-lg', 'telephone', 'link-45deg'],
   'footer-new': ['telephone', 'geo-alt', 'clock', 'envelope', 'link-45deg'],
+  // #1475 —— 按钮的箭头（`arrow: true`）。项目的图标来自数据（`items[].icon`），由 §iconNamesIn 收，不写在这里。
+  'features-new': ['arrow-right'],
 };
+
+/**
+ * #1475 —— 这个块的组件画不画服务端查好的图标表：`BLOCK_ICONS` 里有它这一行 = 画（那一行可以是空数组 ——
+ * 组件没写死任何名字、图标全来自数据的块也要登记一行）。老块（`ServiceIcon` 那一套）不在这里，
+ * 它们数据里的 `icon` 是另一套图标的名字，拿来查 bootstrap-icons 只会刷一排「查不到」。
+ */
+function usesIconTable(block) {
+  return typeof block === 'string' && Object.prototype.hasOwnProperty.call(BLOCK_ICONS, block);
+}
+
+/**
+ * #1475 —— 一页的块 → 与之逐项对齐的图标表数组（给 `SectionRenderer` 的 `iconTables`）：用图标表的块给它那一张，
+ * 别的块给 `undefined`（不往它们身上多挂一个 prop —— 老页面的产物一个字节不变）。只在服务端调（读文件）：
+ * 真站的 HomePage / SubPage、单格页。
+ * @returns {Array<Record<string, { viewBox: string, body: string }> | undefined>}
+ */
+function iconTablesFor(blocks, opts) {
+  return (Array.isArray(blocks) ? blocks : []).map((b) => (b && usesIconTable(b.type) ? iconTableFor(b.type, b.data, opts) : undefined));
+}
 
 /** 一个块 + 它的数据 → 这次渲染要用到的整张图标表 `{ 名: { viewBox, body } }`。 */
 function iconTableFor(block, data, opts) {
@@ -83,4 +104,4 @@ function iconTableFor(block, data, opts) {
   return out;
 }
 
-module.exports = { readIcon, iconNamesIn, iconTableFor, BLOCK_ICONS, ICON_DIR };
+module.exports = { readIcon, iconNamesIn, iconTableFor, iconTablesFor, usesIconTable, BLOCK_ICONS, ICON_DIR };

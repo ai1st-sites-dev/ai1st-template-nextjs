@@ -9,6 +9,7 @@
   "cta-new": "optional",
   "faq-accordion": "essential",
   "features-grid": "optional",
+  "features-new": "essential",
   "footer": "essential",
   "gallery": "optional",
   "header": "essential",

@@ -44,7 +44,7 @@ function collectImageSlots(pages, manifests) {
           const items = Array.isArray(data[slot.name]) ? data[slot.name] : [];
           for (let j = 0; j < items.length; j++) {
             if (items[j] && typeof items[j] === 'object') {
-              out.push({ pageSlug: page.slug, secIdx: i, secType: sec.type, slotName: slot.name, kind: 'list', itemIdx: j });
+              out.push({ pageSlug: page.slug, secIdx: i, secType: sec.type, slotName: slot.name, kind: 'list', itemIdx: j, imageKey: slot.imageKey || null });
             }
           }
         } else {
@@ -129,7 +129,11 @@ ABSOLUTELY NO TEXT IN THE IMAGE. The scene must contain ZERO visible business si
   return `4:3 contextual scene of ${scene} ${where} Authentic candid moment, not posed.`;
 }
 
-/** 把求到的那张图写回页面。列表槽写进第 `itemIdx` 项的 `imageUrl`，单图槽写进槽位自己。 */
+/**
+ * 把求到的那张图写回页面。列表槽写进第 `itemIdx` 项的 `imageUrl`，单图槽写进槽位自己。
+ * #1475 —— 列表项的图嵌在一层对象里时（`slot.imageKey`，由 `imageSlotsOf` 从 shape 读出），
+ * 写进 `items[i][imageKey].imageUrl`，那个对象里已有的 `alt` 留着。
+ */
 function setSlotImageUrl(pages, slot, url) {
   const page = (pages || []).find((p) => p && p.slug === slot.pageSlug);
   if (!page) return false;
@@ -139,7 +143,13 @@ function setSlotImageUrl(pages, slot, url) {
   if (slot.kind === 'list') {
     const items = section.data[slot.slotName];
     if (!Array.isArray(items) || !items[slot.itemIdx] || typeof items[slot.itemIdx] !== 'object') return false;
-    items[slot.itemIdx].imageUrl = url;
+    const item = items[slot.itemIdx];
+    if (slot.imageKey) {
+      const prev = item[slot.imageKey];
+      item[slot.imageKey] = { ...(prev && typeof prev === 'object' ? prev : {}), imageUrl: url };
+    } else {
+      item.imageUrl = url;
+    }
     return true;
   }
   section.data[slot.slotName] = url;
