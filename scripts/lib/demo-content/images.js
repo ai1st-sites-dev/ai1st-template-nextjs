@@ -45,6 +45,14 @@ const IMAGES = {
   'logo-mark':       { url: cdn('about', 1),         fallback: solid('#1b2331') },
   'logo-mark-alt':   { url: cdn('about', 2),         fallback: solid('#1b2331') },
 
+  // #1480（Chris 2026-09-29）：hero-new 的「logos」那一排要的是真 logo，不是照片。这四个是 Webpixels 自己
+  // 示例里的客户 logo（设计图册 `docs/reference/webpixels/gallery/gen-heroes.py` §LOGOS 用的就是它们四个），
+  // 单色 SVG，深底时 `.hro-logo` 的 `filter: invert` 能反白。同样只给图册看。
+  'client-logo-1': { url: 'https://assets.webpixels.io/img/clients/full/logo-1.svg', fallback: solid('#1b2331') },
+  'client-logo-2': { url: 'https://assets.webpixels.io/img/clients/full/logo-2.svg', fallback: solid('#1b2331') },
+  'client-logo-3': { url: 'https://assets.webpixels.io/img/clients/full/logo-3.svg', fallback: solid('#1b2331') },
+  'client-logo-4': { url: 'https://assets.webpixels.io/img/clients/full/logo-4.svg', fallback: solid('#1b2331') },
+
   'avatar-1': { url: cdn('team', 1), fallback: solid('#3d4657') },
   'avatar-2': { url: cdn('team', 2), fallback: solid('#41495b') },
   'avatar-3': { url: cdn('team', 3), fallback: solid('#454e60') },

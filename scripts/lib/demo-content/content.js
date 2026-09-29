@@ -96,10 +96,10 @@ const DEMO_CONTENT = {
     logos: {
       caption: 'Certified by and rated on',
       items: [
-        { imageUrl: imageUrl('logo-mark'), alt: 'OMVIC' },
-        { imageUrl: imageUrl('logo-mark-alt'), alt: 'CAA Approved Auto Repair' },
-        { imageUrl: imageUrl('logo-mark'), alt: 'Google' },
-        { imageUrl: imageUrl('logo-mark-alt'), alt: 'Yelp' },
+        { imageUrl: imageUrl('client-logo-1'), alt: 'OMVIC' },
+        { imageUrl: imageUrl('client-logo-2'), alt: 'CAA Approved Auto Repair' },
+        { imageUrl: imageUrl('client-logo-3'), alt: 'Google' },
+        { imageUrl: imageUrl('client-logo-4'), alt: 'Yelp' },
       ],
     },
     band: [
