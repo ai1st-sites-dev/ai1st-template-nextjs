@@ -4066,6 +4066,11 @@
   border-color: #f1f5f9 !important;
   color: #0f172a !important;
 }
+[data-block="hero-new"][data-tone="dark"] .btn-primary:active, [data-block="hero-new"][data-tone="brand"] .btn-primary:active {
+  background: #e2e8f0 !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
 [data-block="hero-new"][data-tone="dark"] .form-control,
 [data-block="hero-new"][data-tone="brand"] .form-control,
 [data-block="hero-new"][data-tone="dark"] .form-select,
