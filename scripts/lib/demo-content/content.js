@@ -356,6 +356,30 @@ const DEMO_CONTENT = {
     avatars: [1, 2, 3, 4, 5, 6].map((n) => ({ imageUrl: imageUrl(`avatar-${n}`) })),
   },
 
+  // #1479 —— Webpixels 那一版 CTA（普通页面块，样式在 site.css 里）。6 个预设 × 旋钮组合吃的都是这一份：
+  // 定稿「夹具内容默认带 eyebrow（pill）和 2 个 ctas」，图 / 表单也填上，单格页的旋钮才有东西可切。
+  // 🔴 `options` 留空对象：写了旋钮就会压过每个预设形态自己那组值（`block-knobs.js` §effectiveKnobs），6 张卡会排成一样；
+  //    这个块没有布尔修饰，所以里面什么都不放（键要在：守卫 (a) 按键查每个槽都在包里）。
+  // 🔴 `ctas` 是顶层 list 槽，守卫 (c) 要 ≥ 6 项、最长 ≥ 最短 2 倍 —— 组件按定稿截到前 2 条（`Section.tsx` §MAX_CTAS）。
+  // `bg: null` = 没填（manifest 每个槽都要在演示包里有键，`demoDataFor`）。
+  'cta-new': {
+    options: {},
+    eyebrow: { text: 'Free 15-minute check', style: 'pill' },
+    headline: 'Car making a noise you do not like?',
+    body: 'Bring it in and we will tell you what it is and what it costs before any work starts.',
+    ctas: [
+      { label: 'Book a free check', href: '/quote', style: 'solid' },
+      { label: 'Call (416) 555-0142', href: 'tel:+14165550142', style: 'outline' },
+      { label: 'See what we charge for brakes, tires and diagnostics', href: '/services', style: 'link', arrow: true },
+      { label: 'Directions', href: '/contact', style: 'link' },
+      { label: 'Warranty', href: '/warranty', style: 'link' },
+      { label: 'Reviews', href: '/reviews', style: 'link' },
+    ],
+    image: { imageUrl: imageUrl('work-1'), alt: 'A technician on the hoist checking brake lines' },
+    form: {},
+    bg: null,
+  },
+
   'announcement-bar': {
     message: 'Winter tire changeovers are booking two weeks out — reserve your slot now.',
     link: { label: 'Reserve a slot', href: '/quote' },

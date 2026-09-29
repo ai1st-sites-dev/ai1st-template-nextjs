@@ -10,6 +10,7 @@ import ContactFormSection from '@blocks/contact-form/Section';
 import ContactInfoSection from '@blocks/contact-info/Section';
 import ContentSplitSection from '@blocks/content-split/Section';
 import CtaBannerSection from '@blocks/cta-banner/Section';
+import CtaNewSection from '@blocks/cta-new/Section';
 import FaqAccordionSection from '@blocks/faq-accordion/Section';
 import FeaturesGridSection from '@blocks/features-grid/Section';
 import GallerySection from '@blocks/gallery/Section';
@@ -40,6 +41,7 @@ export const sectionRegistry: Record<string, ComponentType<any>> = {
   'contact-info': ContactInfoSection,
   'content-split': ContentSplitSection,
   'cta-banner': CtaBannerSection,
+  'cta-new': CtaNewSection,
   'faq-accordion': FaqAccordionSection,
   'features-grid': FeaturesGridSection,
   'gallery': GallerySection,

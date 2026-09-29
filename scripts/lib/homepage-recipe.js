@@ -61,6 +61,9 @@ const NOT_IN_POOL = {
   'hero-new': '跟 hero 是同一个首屏位置的另一种块，同一页只放一个 —— 不参与后面的抽取',
   'announcement-bar': '只当 hero 前面那一格用，不参与后面的抽取',
   'cta-banner': '收尾用的，钉在开场会把行动召唤提到读者还没读内容的位置',
+  // #1479 —— 独立 CTA 块（Webpixels 那一版，一份 markup + 旋钮），接替 cta-banner：同一个理由。进了抽取池它可能被
+  //    抽成开场，而且池子 13 → 14 会让每个站 rotation 抽出来的配方整体漂。
+  'cta-new': '同 cta-banner：收尾用的，不当开场',
   'newsletter-signup': '同上，属于页面末尾',
   'service-related-pages': 'blocks/service-related-pages/manifest.json 自己写着 "Use ONLY on service detail pages"',
 };

@@ -6,6 +6,7 @@
   "contact-info": "essential",
   "content-split": "optional",
   "cta-banner": "optional",
+  "cta-new": "optional",
   "faq-accordion": "essential",
   "features-grid": "optional",
   "footer": "essential",

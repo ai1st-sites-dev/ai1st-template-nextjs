@@ -1,0 +1,230 @@
+/* ── cta-new · 跨形态的规则（#1479）────────────────────────────────────────────────────────────
+   cta-new 的排版由**实际生效的旋钮**决定，写在根元素上：data-layout（centered / inline）· data-frame
+   （none / boxed）· data-text-align（center / left / right）· data-image（none / left / right / background）·
+   data-form（none / teaser / full）· data-tone（light / dark / brand）。
+   六个形态目录都是预设，自己不带几何（理由在各自的 shape.css 里）。
+
+   🔴 Webpixels 的工具类全带 !important（text-muted / bg-primary-subtle / mb-* …）。这里要压过它们的规则
+      **也带 !important**，而且选择器从 [data-block="cta-new"] 起步再加属性 / 类 —— 特异度一定高过工具类的一个类。
+   🔴 藏东西这里一条都没有：部件有数据才渲染（Section.tsx），不靠 CSS 藏。
+   🔴 盒子的圆角 / 内边距是 Section.tsx 上的工具类（rounded-4 p-12 py-lg-16 px-lg-20 = 1.5rem · 3rem · lg 4rem 5rem，
+      同图册 boxed），这里只给它一个默认底色（没写 bg 时）。 */
+
+/* ── 盒子：没写 bg 时的默认底色（写了 bg 由 Section.tsx 的内联样式涂，压过这一条）。 */
+[data-block="cta-new"][data-frame="boxed"] .cta-frame {
+  background: #f1f5f9;
+}
+
+/* ── 图 + 主体：一列（<992 图在上 —— left / right 都是）；≥992 left / right 两列、图 42%。 */
+[data-block="cta-new"] .cta-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+[data-block="cta-new"] .cta-img img {
+  aspect-ratio: 4 / 3;
+}
+@media (min-width: 992px) {
+  [data-block="cta-new"][data-image="left"] .cta-row,
+  [data-block="cta-new"][data-image="right"] .cta-row {
+    flex-direction: row;
+    align-items: center;
+    gap: 4rem;
+  }
+  [data-block="cta-new"][data-image="right"] .cta-row {
+    flex-direction: row-reverse;
+  }
+  [data-block="cta-new"][data-image="left"] .cta-img,
+  [data-block="cta-new"][data-image="right"] .cta-img {
+    flex: 0 0 42%;
+    min-width: 0;
+  }
+  [data-block="cta-new"][data-image="left"] .cta-main,
+  [data-block="cta-new"][data-image="right"] .cta-main {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+}
+
+/* ── 文字块与动作区：centered = 上下（gap 2rem）；inline = ≥992 左右一行（gap 4rem），<992 上下叠。 */
+[data-block="cta-new"] .cta-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+@media (min-width: 992px) {
+  [data-block="cta-new"][data-layout="inline"] .cta-inline {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4rem;
+  }
+  [data-block="cta-new"][data-layout="inline"] .cta-text {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  [data-block="cta-new"][data-layout="inline"] .cta-action {
+    flex: 0 0 auto;
+  }
+  /* 表单在右侧：给它一个上限宽度（组件自己是 w-100 / 一行 flex，auto 宽会被压成最窄）。 */
+  [data-block="cta-new"][data-layout="inline"][data-form="teaser"] .cta-action,
+  [data-block="cta-new"][data-layout="inline"][data-form="full"] .cta-action {
+    flex: 0 1 30rem;
+    min-width: 0;
+  }
+}
+
+/* 文字块最后一个元素不带下边距（间距交给上面的 gap）；正文 ≤ 52ch。 */
+[data-block="cta-new"] .cta-text > :last-child {
+  margin-bottom: 0 !important;
+}
+[data-block="cta-new"] .cta-body {
+  max-width: 52ch;
+}
+
+/* 表单：共用组件自带 `hro-form mt-6`，这里去掉上边距（间距交给 gap）并限宽 34rem。 */
+[data-block="cta-new"] .cta-action .hro-form {
+  margin-top: 0 !important;
+  max-width: 34rem;
+}
+
+/* ── textAlign：只管文字块。centered 排布下动作区跟着对齐、主体限 64ch 并按对齐走位置；inline 下不限宽。 */
+[data-block="cta-new"][data-text-align="center"] .cta-text {
+  text-align: center;
+}
+[data-block="cta-new"][data-text-align="center"] .cta-body {
+  margin-left: auto;
+  margin-right: auto;
+}
+[data-block="cta-new"][data-text-align="right"] .cta-text {
+  text-align: right;
+}
+[data-block="cta-new"][data-text-align="right"] .cta-body {
+  margin-left: auto;
+}
+[data-block="cta-new"][data-layout="centered"] .cta-main {
+  max-width: 64ch;
+}
+[data-block="cta-new"][data-layout="centered"][data-text-align="center"] .cta-main {
+  margin-left: auto;
+  margin-right: auto;
+}
+[data-block="cta-new"][data-layout="centered"][data-text-align="right"] .cta-main {
+  margin-left: auto;
+}
+[data-block="cta-new"][data-layout="centered"][data-text-align="center"] .cta-ctas,
+[data-block="cta-new"][data-layout="centered"][data-text-align="center"] .hro-form .d-flex {
+  justify-content: center;
+}
+[data-block="cta-new"][data-layout="centered"][data-text-align="center"] .hro-form {
+  margin-left: auto;
+  margin-right: auto;
+}
+[data-block="cta-new"][data-layout="centered"][data-text-align="right"] .cta-ctas,
+[data-block="cta-new"][data-layout="centered"][data-text-align="right"] .hro-form .d-flex {
+  justify-content: flex-end;
+}
+[data-block="cta-new"][data-layout="centered"][data-text-align="right"] .hro-form {
+  margin-left: auto;
+}
+/* 图在旁边时主体占满图旁那一列（不再收 64ch、不再居中）。 */
+@media (min-width: 992px) {
+  [data-block="cta-new"][data-layout="centered"][data-image="left"] .cta-main,
+  [data-block="cta-new"][data-layout="centered"][data-image="right"] .cta-main {
+    max-width: none;
+    margin-left: 0;
+    margin-right: 0;
+  }
+}
+
+/* ── 照片铺底：遮罩在 [data-part="bg"] 上（Section.tsx 的内联渐变，55%）。 */
+[data-block="cta-new"] .cta-cover {
+  z-index: 0;
+}
+
+/* ── 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneFor）───────────────────────────────
+   dark = 深底或照片铺底：标题 / 正文 / eyebrow 反白，outline 按钮翻成白描边。
+   brand = 主题主色底：同上，另外主按钮翻成白底主色字（dark 也一样，同 hero-new）。 */
+[data-block="cta-new"][data-tone="dark"] .cta-frame,
+[data-block="cta-new"][data-tone="brand"] .cta-frame {
+  color: #fff;
+}
+[data-block="cta-new"][data-tone="dark"] .cta-title,
+[data-block="cta-new"][data-tone="brand"] .cta-title,
+[data-block="cta-new"][data-tone="dark"] .cta-eyebrow-dash,
+[data-block="cta-new"][data-tone="brand"] .cta-eyebrow-dash,
+[data-block="cta-new"][data-tone="dark"] .cta-eyebrow-plain,
+[data-block="cta-new"][data-tone="brand"] .cta-eyebrow-plain {
+  color: #fff !important;
+}
+[data-block="cta-new"][data-tone="dark"] .text-muted,
+[data-block="cta-new"][data-tone="brand"] .text-muted {
+  color: rgba(255, 255, 255, 0.72) !important;
+}
+[data-block="cta-new"][data-tone="dark"] .btn-outline-primary,
+[data-block="cta-new"][data-tone="brand"] .btn-outline-primary {
+  color: #fff !important;
+  border-color: rgba(255, 255, 255, 0.6) !important;
+}
+[data-block="cta-new"][data-tone="dark"] .btn-link,
+[data-block="cta-new"][data-tone="brand"] .btn-link {
+  color: #fff !important;
+}
+[data-block="cta-new"][data-tone="dark"] .cta-eyebrow-pill,
+[data-block="cta-new"][data-tone="brand"] .cta-eyebrow-pill {
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #fff !important;
+}
+[data-block="cta-new"][data-tone="dark"] .cta-eyebrow-outline,
+[data-block="cta-new"][data-tone="brand"] .cta-eyebrow-outline {
+  border-color: rgba(255, 255, 255, 0.7) !important;
+  color: #fff !important;
+}
+[data-block="cta-new"][data-tone="dark"] .text-danger,
+[data-block="cta-new"][data-tone="brand"] .text-danger {
+  color: #fecaca !important;
+}
+
+/* ── 按钮的底色和字色：接平台按这个站最终配色算好的那几个变量（`scripts/lib/button-ink.js`，同 hero-new）。
+   拿不到这些变量的页面落回 Webpixels 自己的值。 */
+[data-block="cta-new"] .btn-primary {
+  --x-btn-bg: var(--btn-primary-bg, var(--x-primary));
+  --x-btn-border-color: var(--btn-primary-bg, var(--x-primary));
+  --x-btn-color: var(--btn-primary-ink, #fff);
+  --x-btn-hover-bg: var(--btn-primary-hover, var(--btn-primary-bg, var(--x-primary)));
+  --x-btn-hover-border-color: var(--btn-primary-hover, var(--btn-primary-bg, var(--x-primary)));
+  --x-btn-hover-color: var(--btn-primary-ink, #fff);
+  --x-btn-active-bg: var(--btn-primary-hover, var(--btn-primary-bg, var(--x-primary)));
+  --x-btn-active-color: var(--btn-primary-ink, #fff);
+}
+[data-block="cta-new"] .btn-outline-primary {
+  --x-btn-color: var(--btn-outline-ink, var(--x-primary));
+  --x-btn-border-color: var(--btn-outline-ink, var(--x-primary));
+}
+[data-block="cta-new"][data-tone="dark"] .btn-primary,
+[data-block="cta-new"][data-tone="brand"] .btn-primary {
+  background: #fff !important;
+  border-color: #fff !important;
+  color: var(--x-primary) !important;
+}
+[data-block="cta-new"][data-tone="dark"] .btn-primary:hover,
+[data-block="cta-new"][data-tone="brand"] .btn-primary:hover {
+  background: #f1f5f9 !important;
+  border-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+[data-block="cta-new"][data-tone="dark"] .form-control,
+[data-block="cta-new"][data-tone="brand"] .form-control,
+[data-block="cta-new"][data-tone="dark"] .form-select,
+[data-block="cta-new"][data-tone="brand"] .form-select {
+  color: #0f172a !important;
+  background-color: #fff !important;
+  border-color: #fff !important;
+}
+
+/* ── 浅底盒子里的表单：输入框本身是浅灰底，跟 boxed 的默认盒底 #f1f5f9 同色会看不出框 —— 盒子里给它白底。
+   深底 / 主色底那一档上面已经是白底。 */
+[data-block="cta-new"][data-frame="boxed"][data-tone="light"] .form-control,
+[data-block="cta-new"][data-frame="boxed"][data-tone="light"] .form-select {
+  background-color: #fff !important;
+}
