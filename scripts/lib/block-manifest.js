@@ -105,7 +105,12 @@ function filledOptionalSlots(m, data) {
  *     店内细节照，被塞进 40×40 的圆框里。判据跟 `socialProof` 那条逐字同源：**顾客头像不是内容图**。
  *     🔴 名字这一层是有意的：写入闸那一侧（`image-urls.js` 的 `IMAGE_FIELDS`）必须仍然认得出
  *     `avatars[].imageUrl` 是一张图的地址（否则模型编的外链会落盘），所以字段名不能换 ——
- *     能分开这两件事的只有槽名。
+ *     能分开这两件事的只在槽这一层：槽名，或下面那条 `generateImages: false` 声明。
+ *   · 槽上写了 `generateImages: false`（#1488）—— 这个槽的图**只能是老板上传的**，建站不给它生成。
+ *     `testimonials-new.items[].photo` 是评价人的脸：槽名叫 `items`、图嵌在 `photo` 里，上面那条按槽名
+ *     的排除够不着，于是每条评价都拿到一张店内场景照当头像（QA2 真建站量到一个站 32 个图槽里 14 个是它）。
+ *     用声明不用名字：`photo` / `items` 在别的块里完全可以是内容图，按名字排除会把它们一起静默关掉。
+ *     写入闸那一侧（`image-urls.js` 的 `IMAGE_FIELDS`）不受影响 —— 老板上传的 `photo.imageUrl` 照样认得出。
  *   · `kind: "object"` —— hero 的 `socialProof` 的 shape 里**也有** `imageUrl`
  *     （`{avatars: [{imageUrl}], rating, text}`），但那是顾客头像不是内容图。这一条不是可省的
  *     小心眼：去掉它，每个站的 hero 就会多生成一批冒充真人的头像。
@@ -117,7 +122,7 @@ function filledOptionalSlots(m, data) {
 function imageSlotsOf(m) {
   const out = [];
   for (const [name, spec] of Object.entries((m && m.slots) || {})) {
-    if (!spec || /^(logos?|avatars?)$/.test(name)) continue;
+    if (!spec || /^(logos?|avatars?)$/.test(name) || spec.generateImages === false) continue;
     if (spec.kind === 'image') { out.push({ name, kind: 'image' }); continue; }
     if (spec.kind === 'list' && typeof spec.shape === 'string' && spec.shape.includes('imageUrl')) {
       // #1475 —— 列表项的图可能平铺（`[{imageUrl, alt?}]`）也可能嵌一层（features-new 的
@@ -389,6 +394,28 @@ function checkManifestShape(name, m) {
       const okShape = s.maxTrue && typeof s.maxTrue === 'object' && !Array.isArray(s.maxTrue)
         && Object.values(s.maxTrue).every((n) => Number.isInteger(n) && n >= 1);
       if (!okShape || s.kind !== 'list') bad(`slots.${slot}.maxTrue 只能写 { 子字段: 正整数 }，而且只给 list 槽（现在是 ${JSON.stringify(s.maxTrue)}，kind ${s.kind}）`);
+    }
+    // #1488 —— `ranges`：list 槽每一项里某个数字子字段的取值范围（`testimonials-new.items[].rating` 1–5）。
+    //    形状 `{ 子字段: [最小, 最大] }`，两端都是整数、含端点；validateSite ⑨ 据它拦（写了就必须是这个范围内的整数）。
+    //    跟 `minItems` / `maxItems` 同一族：管的是槽里的内容，不是旋钮。
+    if (s.ranges !== undefined) {
+      if (s.kind !== 'list' || s.ranges === null || typeof s.ranges !== 'object' || Array.isArray(s.ranges)) {
+        bad(`slots.${slot}.ranges 只给 kind: list 的槽，形状是 { 子字段: [最小, 最大] }`);
+      }
+      for (const [sub, r] of Object.entries(s.ranges)) {
+        if (!Array.isArray(r) || r.length !== 2 || !r.every(Number.isInteger) || r[0] > r[1]) {
+          bad(`slots.${slot}.ranges.${sub} 是 ${JSON.stringify(r)} —— 必须是 [最小, 最大] 两个整数、最小不大于最大`);
+        }
+      }
+    }
+    // #1488 —— `generateImages: false`：这个槽的图只能是老板上传的，建站不生成（§imageSlotsOf）。
+    //    只收字面 `false`：写成 `"false"` 或 `0` 的失败方向是静默的（`=== false` 不认 ⟹ 照样生成假头像）。
+    //    只给带图的槽（`kind: image`，或 shape 里有 `imageUrl` 的 list）—— 写在别处是没有作用的一行。
+    if (s.generateImages !== undefined) {
+      const hasImage = s.kind === 'image' || (s.kind === 'list' && typeof s.shape === 'string' && s.shape.includes('imageUrl'));
+      if (s.generateImages !== false || !hasImage) {
+        bad(`slots.${slot}.generateImages 只能写 false，而且只给带图的槽（kind: image，或 shape 里有 imageUrl 的 list）`);
+      }
     }
     // #1479 —— `max`：list 槽最多几项（`cta-new.ctas` = 2）。admin 工具栏据它派生「数量」那一维（0 … max，
     //    manager §manifestCounts · 单格页 §knobOverrides 同一条判据）。跟旋钮的 `knobs[].maxItems` 不是一回事。
@@ -1107,6 +1134,18 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
           for (const [sub, n] of Object.entries(spec.maxTrue && typeof spec.maxTrue === 'object' ? spec.maxTrue : {})) {
             const on = v.filter((it) => it && typeof it === 'object' && it[sub] === true).length;
             if (Number.isInteger(n) && on > n) flag(`${where}: "${slot}" 里 ${sub}: true 最多只能有 ${n} 项（现在 ${on} 项）`);
+          }
+          // #1488 —— 每一项里数字子字段的范围（`slots.<槽>.ranges`）：没写不管，写了就得是范围内的整数。
+          if (spec.ranges && typeof spec.ranges === 'object') {
+            for (const [sub, [lo, hi]] of Object.entries(spec.ranges)) {
+              v.forEach((it, i) => {
+                const got = it && typeof it === 'object' ? it[sub] : undefined;
+                if (got === undefined || got === null) return;
+                if (!Number.isInteger(got) || got < lo || got > hi) {
+                  flag(`${where}: "${slot}[${i}].${sub}" 是 ${JSON.stringify(got)} —— 只能是 ${lo}–${hi} 的整数`);
+                }
+              });
+            }
           }
         }
         // #1489 —— 列表槽逐项的词表 / 条件必填（`itemChoices` / `itemNeeds`，manifest 自检那一段有说明）。

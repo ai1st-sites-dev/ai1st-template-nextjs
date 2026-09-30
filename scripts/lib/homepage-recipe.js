@@ -74,6 +74,8 @@ const NOT_IN_POOL = {
   // #1483（总纲 #1422，Chris 2026-09-29）—— 同 features-grid：pricing-new 进池、pricing-table 出池。两个都在池里时配方会
   //    硬要求同一页同时放两块（改前 index 0–199 里 22 个）。pricing-new 的 prompt.order 与它同是 13 ⟹ 池子里换的是同一个位置。
   'pricing-table': '由 pricing-new 接替：同一页只放一个；T3 删掉它',
+  // #1488（同 #1485 那条规则）—— testimonials-new 进池，旧 testimonials 同时出池。
+  'testimonials': '由 testimonials-new 接替：同一页只放一个；T3 删掉它',
   'newsletter-signup': '同上，属于页面末尾',
   'service-related-pages': 'blocks/service-related-pages/manifest.json 自己写着 "Use ONLY on service detail pages"',
 };

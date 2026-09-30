@@ -7938,6 +7938,359 @@
   order: 5;
 }
 
+/* ══ testimonials-new ══════════════════════════════════════════════════════════════════════ */
+/* ── testimonials-new · 跨形态的规则（#1488）─────────────────────────────────────────────────────
+   testimonials-new 的排版由**实际生效的旋钮**决定，写在根元素上：
+     intro  data-intro-position（left / right / top / bottom）· data-intro-align（left / center / right）
+     items  data-items-layout（grid / carousel）· data-items-columns（1 / 2 / 3）
+     item   data-item-style（plain / card）· data-quote-size（md / lg）· data-item-align（left / center）
+     底色   data-tone（light / dark / brand，scripts/lib/contrast.js §toneForBg）
+   四个形态目录都是预设，自己不带几何。规则逐条照定稿图册（`docs/reference/webpixels/gallery/build.py:233-267`），
+   只把 `body.opt-*` 换成根元素上的属性。
+
+   🔴 Webpixels 的工具类全带 !important（gap-* / justify-content-* / text-muted / bg-primary-subtle …）。这里要压过它们的规则
+      **也带 !important**，而且选择器从 [data-block="testimonials-new"] 起步再加属性 / 类 —— 特异度一定高过工具类的一个类。
+   🔴 部件的有无靠渲染（Section.tsx 有数据才画；圆点 / 按钮只在 carousel 时画），不靠 CSS 藏。
+   🔴 轮播不藏任何一条：六条都在 DOM 里、都是 display 可见，只是横向排着、轨道一次露几条（overflow-x: auto）。
+   间距照 Webpixels 尺度：段 py-16 py-lg-24、块头与评价之间 2.5rem（gy-10）/ ≥992 横向 4rem（gx-lg-16）、
+   条与条 1.5rem（plain 网格行 3rem 列 2.5rem）、card 内 2rem（= p-8）。 */
+
+/* ═══ intro（块头）═══════════════════════════════════════════════════════════════════════════════
+   宽度照 T6.1（#1486）的新规则：left / right 对齐 = 100%；center 在 ≥992 最宽 80%、居中，<992 = 100%。
+   块头在侧（≥992 的 left / right）时那一列本身就窄，80% 那条取消（图册 build.py:239）。summary 跟着对齐走（它是 inline-flex）。 */
+[data-block="testimonials-new"] .tn-intro-text {
+  max-width: none;
+}
+[data-block="testimonials-new"] .tn-intro-text > :last-child {
+  margin-bottom: 0 !important;
+}
+[data-block="testimonials-new"][data-intro-align="center"] .tn-intro-text {
+  text-align: center;
+}
+[data-block="testimonials-new"][data-intro-align="right"] .tn-intro-text {
+  text-align: right;
+}
+@media (min-width: 992px) {
+  [data-block="testimonials-new"][data-intro-align="center"] .tn-intro-text {
+    max-width: 80%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+[data-block="testimonials-new"] .tn-summary {
+  background: var(--x-body-secondary-bg, #f1f5f9);
+}
+
+/* introPosition：left / right（≥992）= 块头一列 33.33%（sticky top 2rem）、评价一列 66.67%；right 行反向。
+   小屏：left / top 块头在上，right / bottom 块头在下（块头在下时与评价隔 2rem，图册 build.py:240-241）。 */
+[data-block="testimonials-new"][data-intro-position="bottom"] .tn-frame {
+  flex-direction: column-reverse;
+}
+[data-block="testimonials-new"][data-intro-position="bottom"] .tn-introcol {
+  margin-top: 2rem;
+}
+@media (max-width: 991.98px) {
+  [data-block="testimonials-new"][data-intro-position="right"] .tn-frame {
+    flex-direction: column-reverse;
+  }
+  [data-block="testimonials-new"][data-intro-position="right"] .tn-introcol {
+    margin-top: 2rem;
+  }
+}
+@media (min-width: 992px) {
+  [data-block="testimonials-new"][data-intro-position="left"] .tn-introcol,
+  [data-block="testimonials-new"][data-intro-position="right"] .tn-introcol {
+    flex: 0 0 auto;
+    width: 33.3333%;
+    position: sticky;
+    top: 2rem;
+    align-self: flex-start;
+  }
+  [data-block="testimonials-new"][data-intro-position="left"] .tn-itemscol,
+  [data-block="testimonials-new"][data-intro-position="right"] .tn-itemscol {
+    flex: 0 0 auto;
+    width: 66.6667%;
+  }
+  [data-block="testimonials-new"][data-intro-position="left"] .tn-intro-text,
+  [data-block="testimonials-new"][data-intro-position="right"] .tn-intro-text {
+    max-width: none;
+    margin: 0;
+  }
+  [data-block="testimonials-new"][data-intro-position="right"] .tn-frame {
+    flex-direction: row-reverse;
+  }
+}
+
+/* ═══ items：grid = 全部摊开；carousel = 横向轮播。手机一列 / 一屏一条，iPad 最多两条，≥992 按列数 ═══════ */
+[data-block="testimonials-new"][data-items-layout="grid"] .tn-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+@media (min-width: 768px) {
+  [data-block="testimonials-new"][data-items-layout="grid"][data-items-columns="2"] .tn-grid,
+  [data-block="testimonials-new"][data-items-layout="grid"][data-items-columns="3"] .tn-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 992px) {
+  [data-block="testimonials-new"][data-items-layout="grid"][data-items-columns="3"] .tn-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+[data-block="testimonials-new"][data-items-layout="grid"][data-item-style="plain"] .tn-grid {
+  row-gap: 3rem;
+  column-gap: 2.5rem;
+}
+
+/* 一列时照 faq（Chris 2026-09-29）：块头在上 / 下时评价那一列限 48rem，位置跟 introAlign（left 贴左 / center 居中 /
+   right 贴右）；块头在侧时占满右列（这几条只对 top / bottom 开火）。grid 与 carousel 同一条。 */
+[data-block="testimonials-new"][data-items-columns="1"][data-intro-position="top"] .tn-itemscol,
+[data-block="testimonials-new"][data-items-columns="1"][data-intro-position="bottom"] .tn-itemscol {
+  max-width: 48rem;
+}
+[data-block="testimonials-new"][data-items-columns="1"][data-intro-position="top"][data-intro-align="center"] .tn-itemscol,
+[data-block="testimonials-new"][data-items-columns="1"][data-intro-position="bottom"][data-intro-align="center"] .tn-itemscol {
+  margin-left: auto;
+  margin-right: auto;
+}
+[data-block="testimonials-new"][data-items-columns="1"][data-intro-position="top"][data-intro-align="right"] .tn-itemscol,
+[data-block="testimonials-new"][data-items-columns="1"][data-intro-position="bottom"][data-intro-align="right"] .tn-itemscol {
+  margin-left: auto;
+}
+
+/* carousel：横向滚动 + scroll-snap（每条 snap 到轨道左边）；滚动条隐藏；一屏 itemsColumns 条。
+   padding-bottom 2px：card 的下描边不被 overflow 裁掉。 */
+[data-block="testimonials-new"][data-items-layout="carousel"] .tn-grid {
+  display: flex;
+  gap: 1.5rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+[data-block="testimonials-new"][data-items-layout="carousel"] .tn-grid::-webkit-scrollbar {
+  display: none;
+}
+[data-block="testimonials-new"][data-items-layout="carousel"] .tn-item {
+  flex: 0 0 100%;
+  scroll-snap-align: start;
+  min-width: 0;
+}
+@media (min-width: 768px) {
+  [data-block="testimonials-new"][data-items-layout="carousel"][data-items-columns="2"] .tn-item,
+  [data-block="testimonials-new"][data-items-layout="carousel"][data-items-columns="3"] .tn-item {
+    flex-basis: calc((100% - 1.5rem) / 2);
+  }
+}
+@media (min-width: 992px) {
+  [data-block="testimonials-new"][data-items-layout="carousel"][data-items-columns="3"] .tn-item {
+    flex-basis: calc((100% - 3rem) / 3);
+  }
+}
+[data-block="testimonials-new"] .tn-grid:focus-visible {
+  outline: 2px solid var(--x-primary);
+  outline-offset: 4px;
+}
+
+/* 圆点（每条一个，当前那个拉长）+ 前 / 后按钮。一屏一条且 itemAlign=center 时两者居中叠在引言下面。 */
+[data-block="testimonials-new"] .tn-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  border: 0;
+  padding: 0;
+  background: #cbd5e1;
+  transition: width 0.2s;
+}
+[data-block="testimonials-new"] .tn-dot.on {
+  width: 1.5rem;
+  background: var(--x-primary);
+}
+[data-block="testimonials-new"] .tn-arrow {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  border: 1px solid var(--x-border-color, #e5e7eb);
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: inherit;
+}
+[data-block="testimonials-new"] .tn-arrow:hover {
+  border-color: var(--x-primary);
+  color: var(--x-primary);
+}
+[data-block="testimonials-new"][data-item-align="center"][data-items-columns="1"] .tn-pager {
+  justify-content: center !important;
+  flex-direction: column;
+}
+
+/* ═══ 每一条：引言 → 人 → 星级 + 来源（贴底）════════════════════════════════════════════════════ */
+[data-block="testimonials-new"] .tn-inner {
+  gap: 1.25rem;
+}
+[data-block="testimonials-new"] .tn-quote {
+  font-size: 1rem;
+  line-height: 1.65;
+}
+[data-block="testimonials-new"] .tn-quote::before {
+  content: "\201C";
+}
+[data-block="testimonials-new"] .tn-quote::after {
+  content: "\201D";
+}
+[data-block="testimonials-new"] .tn-avatar {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: 0 0 auto;
+}
+[data-block="testimonials-new"] .tn-initials {
+  font-size: 0.875rem;
+}
+[data-block="testimonials-new"] .tn-meta {
+  margin-top: auto;
+}
+[data-block="testimonials-new"] .tn-star svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* quoteSize：lg = 大字引言（字重 500），头像放大到 3.5rem。 */
+[data-block="testimonials-new"][data-quote-size="lg"] .tn-quote {
+  font-size: clamp(1.25rem, 2.4vw, 1.75rem);
+  line-height: 1.45;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+[data-block="testimonials-new"][data-quote-size="lg"] .tn-avatar {
+  width: 3.5rem;
+  height: 3.5rem;
+}
+
+/* itemStyle：card = 白底 + 1px 描边 + 1rem 圆角 + 2rem 内边距；plain 无底无线。 */
+[data-block="testimonials-new"][data-item-style="card"] .tn-inner {
+  background: #fff;
+  border: 1px solid var(--x-border-color, #e5e7eb);
+  border-radius: 1rem;
+  padding: 2rem;
+}
+
+/* itemAlign：center 时引言 / 人 / 星级都居中，头像在名字上面。 */
+[data-block="testimonials-new"][data-item-align="center"] .tn-inner {
+  text-align: center;
+  align-items: center;
+}
+[data-block="testimonials-new"][data-item-align="center"] .tn-meta {
+  justify-content: center !important;
+}
+[data-block="testimonials-new"][data-item-align="center"] .tn-author {
+  flex-direction: column;
+  gap: 0.5rem !important;
+}
+
+/* ═══ 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneForBg）══════════════════════════════
+   dark = 深底 / 深色渐变；brand = 主题主色底。两者一样：标题 / 名字 / 引言反白；身份 / 来源 / 总评分那行白 .92
+   （`.text-muted` → 全站那条 scripts/lib/site-css.js §ON_DEEP_MUTED，这里不抄一份）；card 半透明底 + 半透明白描边；
+   summary 底 .08；首字母圆半透明白；圆点半透明白（当前那个白）；前后按钮透明底 + 半透明白描边。 */
+[data-block="testimonials-new"][data-tone="dark"],
+[data-block="testimonials-new"][data-tone="brand"] {
+  color: #fff;
+}
+[data-block="testimonials-new"][data-tone="dark"] .tn-title,
+[data-block="testimonials-new"][data-tone="brand"] .tn-title,
+[data-block="testimonials-new"][data-tone="dark"] .tn-name,
+[data-block="testimonials-new"][data-tone="brand"] .tn-name,
+[data-block="testimonials-new"][data-tone="dark"] .tn-quote,
+[data-block="testimonials-new"][data-tone="brand"] .tn-quote,
+[data-block="testimonials-new"][data-tone="dark"] .tn-summary-rating,
+[data-block="testimonials-new"][data-tone="brand"] .tn-summary-rating,
+[data-block="testimonials-new"][data-tone="dark"] .tn-eyebrow-dash,
+[data-block="testimonials-new"][data-tone="brand"] .tn-eyebrow-dash,
+[data-block="testimonials-new"][data-tone="dark"] .tn-eyebrow-plain,
+[data-block="testimonials-new"][data-tone="brand"] .tn-eyebrow-plain {
+  color: #fff !important;
+}
+[data-block="testimonials-new"][data-tone="dark"][data-item-style="card"] .tn-inner,
+[data-block="testimonials-new"][data-tone="brand"][data-item-style="card"] .tn-inner {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+[data-block="testimonials-new"][data-tone="dark"] .tn-summary,
+[data-block="testimonials-new"][data-tone="brand"] .tn-summary {
+  background: rgba(255, 255, 255, 0.08);
+}
+[data-block="testimonials-new"][data-tone="dark"] .tn-initials,
+[data-block="testimonials-new"][data-tone="brand"] .tn-initials {
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #fff !important;
+}
+[data-block="testimonials-new"][data-tone="dark"] .tn-arrow,
+[data-block="testimonials-new"][data-tone="brand"] .tn-arrow {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #fff;
+}
+[data-block="testimonials-new"][data-tone="dark"] .tn-dot,
+[data-block="testimonials-new"][data-tone="brand"] .tn-dot {
+  background: rgba(255, 255, 255, 0.35);
+}
+[data-block="testimonials-new"][data-tone="dark"] .tn-dot.on,
+[data-block="testimonials-new"][data-tone="brand"] .tn-dot.on {
+  background: #fff;
+}
+[data-block="testimonials-new"][data-tone="dark"] .tn-eyebrow-pill,
+[data-block="testimonials-new"][data-tone="brand"] .tn-eyebrow-pill {
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #fff !important;
+}
+[data-block="testimonials-new"][data-tone="dark"] .tn-eyebrow-outline,
+[data-block="testimonials-new"][data-tone="brand"] .tn-eyebrow-outline {
+  border-color: rgba(255, 255, 255, 0.7) !important;
+  color: #fff !important;
+}
+
+/* ── testimonials-new · cards（预设 Cards）──────────────────────────────────────────────────────────────
+   这个形态没有自己的几何：testimonials-new 是一份 markup + 七个旋钮，排版由**实际生效的旋钮**决定
+   （根元素上的 `data-intro-*` / `data-items-*` / `data-item-*` / `data-quote-size` / `data-tone`，规则全在 `blocks/testimonials-new/block.css`）。
+   按形态写规则的话，旋钮拧偏成 custom 时这里的规则仍然按形态名命中，页面就会排成一个跟旋钮说的不一样的样子。
+   所以这份文件只有这段说明。 */
+[data-block="testimonials-new"][data-shape="cards"] {
+  --tn-preset: cards;
+}
+
+/* ── testimonials-new · side-intro（预设 Side intro）──────────────────────────────────────────────────────────────
+   这个形态没有自己的几何：testimonials-new 是一份 markup + 七个旋钮，排版由**实际生效的旋钮**决定
+   （根元素上的 `data-intro-*` / `data-items-*` / `data-item-*` / `data-quote-size` / `data-tone`，规则全在 `blocks/testimonials-new/block.css`）。
+   按形态写规则的话，旋钮拧偏成 custom 时这里的规则仍然按形态名命中，页面就会排成一个跟旋钮说的不一样的样子。
+   所以这份文件只有这段说明。 */
+[data-block="testimonials-new"][data-shape="side-intro"] {
+  --tn-preset: side-intro;
+}
+
+/* ── testimonials-new · big-quote（预设 Big quote）──────────────────────────────────────────────────────────────
+   这个形态没有自己的几何：testimonials-new 是一份 markup + 七个旋钮，排版由**实际生效的旋钮**决定
+   （根元素上的 `data-intro-*` / `data-items-*` / `data-item-*` / `data-quote-size` / `data-tone`，规则全在 `blocks/testimonials-new/block.css`）。
+   按形态写规则的话，旋钮拧偏成 custom 时这里的规则仍然按形态名命中，页面就会排成一个跟旋钮说的不一样的样子。
+   所以这份文件只有这段说明。 */
+[data-block="testimonials-new"][data-shape="big-quote"] {
+  --tn-preset: big-quote;
+}
+
+/* ── testimonials-new · quote-card（预设 Quote card）──────────────────────────────────────────────────────────────
+   这个形态没有自己的几何：testimonials-new 是一份 markup + 七个旋钮，排版由**实际生效的旋钮**决定
+   （根元素上的 `data-intro-*` / `data-items-*` / `data-item-*` / `data-quote-size` / `data-tone`，规则全在 `blocks/testimonials-new/block.css`）。
+   按形态写规则的话，旋钮拧偏成 custom 时这里的规则仍然按形态名命中，页面就会排成一个跟旋钮说的不一样的样子。
+   所以这份文件只有这段说明。 */
+[data-block="testimonials-new"][data-shape="quote-card"] {
+  --tn-preset: quote-card;
+}
+
 /* ══ text-block ══════════════════════════════════════════════════════════════════════ */
 /* text-block · stack  （ember-12 + azure-29 今天选的就是它） */
 

@@ -94,6 +94,7 @@
       "social-proof": "two-up",
       "team-grid": "two-up",
       "testimonials": "attribution-first",
+      "testimonials-new": "cards",
       "text-block": "stack",
       "trusted-brands": "row"
     }
@@ -193,6 +194,7 @@
       "social-proof": "three-up",
       "team-grid": "three-up",
       "testimonials": "two-up",
+      "testimonials-new": "side-intro",
       "text-block": "stack",
       "trusted-brands": "row"
     }

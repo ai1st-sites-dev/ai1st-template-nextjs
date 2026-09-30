@@ -78,6 +78,8 @@ const BLOCK_ICONS = {
   'contact-new': ['telephone', 'envelope', 'geo-alt', 'clock', 'link-45deg', 'geo-alt-fill'],
   // #1483 —— 功能清单每行的勾号；highlights 的图标来自数据（`highlights[].icon`），由 §iconNamesIn 收。
   'pricing-new': ['check'],
+  // #1488 —— 星级（每条 n 颗实心 + 空心补到 5 颗；总评分按 0.5 取整会用到半星）和轮播的前 / 后箭头，都是组件里写死的名字。
+  'testimonials-new': ['star-fill', 'star-half', 'star', 'chevron-left', 'chevron-right'],
 };
 
 /**

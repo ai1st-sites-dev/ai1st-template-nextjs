@@ -31,6 +31,7 @@
   "social-proof": "optional",
   "team-grid": "optional",
   "testimonials": "optional",
+  "testimonials-new": "optional",
   "text-block": "optional",
   "trusted-brands": "optional"
 }

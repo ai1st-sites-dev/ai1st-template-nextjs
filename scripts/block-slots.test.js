@@ -127,6 +127,8 @@ const EXTRA = {
   'contact-new': { _item: { kind: 'link', href: '/x' } },
   // #1483 —— 同上（logo 行只在有图时画）；月付 / 年付切换只在有套餐填了 price.yearly 时画，价格那一行（带 period）只在有价时画。
   'pricing-new': { logos: { caption: 'logos-caption', items: [{ imageUrl: '/a.png' }] }, _item: { price: { monthly: '$1', yearly: '$2' } } },
+  // #1488 —— 总评分那一行只在 `summary.rating` 是一个真数字（0–5）时画；夹具造的 `summary-rating` 画不出来。
+  'testimonials-new': { summary: { rating: '4.9', count: '312', source: 'Google' } },
 };
 
 // #1463 —— 同一个块、互斥的两支：hero-new 有表单时不画 `ctas`（提交键就是 CTA），没表单时不画表单。

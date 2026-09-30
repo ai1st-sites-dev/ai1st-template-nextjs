@@ -244,6 +244,51 @@ const DEMO_CONTENT = {
     ],
   },
 
+  // #1488 —— testimonials-new：Northside Auto Care 的六条评价（正文做什么 8：4 条带头像、2 条没有 ⟹ 首字母圆；
+  //    来源混 Google / Yelp / HomeStars；一条 4 星；带 summary）。长短不一是守卫 (c) 要的。
+  //    🔴 `introEyebrow.style` 写明 pill，理由同上面 features-new 那条（词表 `none` 排第一，工具栏不写就亮 none）。
+  'testimonials-new': {
+    options: {},
+    introEyebrow: { text: 'Reviews', style: 'pill' },
+    headline: 'Drivers who trusted us with their car',
+    body: 'Real reviews from customers across Northside. We read every one and reply to most.',
+    summary: { rating: '4.9', count: '312', source: 'Google' },
+    items: [
+      {
+        quote: 'Van died on the 401 on a Tuesday. They had it diagnosed by noon and back on the road '
+          + 'before my evening run. That is a day of work they saved me.',
+        name: 'Daniel Osei', role: 'North York · Emergency diagnostics',
+        photo: { imageUrl: imageUrl('avatar-1'), alt: 'Daniel Osei' }, rating: 5, source: 'Google',
+      },
+      {
+        quote: 'Clear quote, no upsell, and they washed it.',
+        name: 'Mei Lin Chow', role: 'Lawrence Park · Brakes',
+        photo: { imageUrl: imageUrl('avatar-2'), alt: 'Mei Lin Chow' }, rating: 5, source: 'Google',
+      },
+      {
+        quote: 'We run four delivery vans through Northside now. They text me photos before any extra work '
+          + 'and the invoice matches the quote every time. That alone is worth it.',
+        name: 'Priya Raman', role: 'Fleet manager',
+        photo: { imageUrl: imageUrl('avatar-3'), alt: 'Priya Raman' }, rating: 5, source: 'Yelp',
+      },
+      {
+        quote: 'They found the rattle two other shops missed — a loose heat shield — and did not charge me for the diagnosis.',
+        name: 'Tom Reilly', role: 'Leaside · Exhaust',
+        photo: { imageUrl: imageUrl('avatar-4'), alt: 'Tom Reilly' }, rating: 5, source: 'Google',
+      },
+      {
+        quote: 'Booked online at 7pm, confirmed in ten minutes.',
+        name: 'Sam Patel', role: 'Midtown · Oil change', rating: 5, source: 'Google',
+      },
+      {
+        quote: 'Honest advice: they told me my brakes had another season in them and only replaced the pads. '
+          + 'Took a day longer than promised, but I will be back.',
+        name: 'Ana Rodrigues', role: 'Don Mills · Brake inspection', rating: 4, source: 'HomeStars',
+      },
+    ],
+    bg: null,
+  },
+
   // ── 内容 / 排版 ─────────────────────────────────────────────────────────────────────────────
   'features-grid': {
     headline: 'Why drivers stay with us',

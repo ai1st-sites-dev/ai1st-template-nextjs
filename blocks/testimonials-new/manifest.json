@@ -1,0 +1,230 @@
+{
+  "type": "testimonials-new",
+  "displayName": "Testimonials (Webpixels)",
+  "category": "testimonial",
+  "roleDefault": "optional",
+  "skin": "site-css",
+  "layout_intent": {
+    "items": "grid",
+    "item_wrap": "allow",
+    "headline": "above",
+    "cross": "none",
+    "order": "dom",
+    "item_parts": "stack",
+    "inner": "many"
+  },
+  "presets": [
+    {
+      "name": "Cards",
+      "shape": "cards",
+      "knobs": {
+        "introPosition": "top",
+        "introAlign": "center",
+        "itemsLayout": "grid",
+        "itemsColumns": "3",
+        "itemStyle": "card",
+        "quoteSize": "md",
+        "itemAlign": "left"
+      }
+    },
+    {
+      "name": "Side intro",
+      "shape": "side-intro",
+      "knobs": {
+        "introPosition": "left",
+        "introAlign": "left",
+        "itemsLayout": "carousel",
+        "itemsColumns": "2",
+        "itemStyle": "card",
+        "quoteSize": "md",
+        "itemAlign": "left"
+      }
+    },
+    {
+      "name": "Big quote",
+      "shape": "big-quote",
+      "knobs": {
+        "introPosition": "top",
+        "introAlign": "center",
+        "itemsLayout": "carousel",
+        "itemsColumns": "1",
+        "itemStyle": "plain",
+        "quoteSize": "lg",
+        "itemAlign": "center"
+      }
+    },
+    {
+      "name": "Quote card",
+      "shape": "quote-card",
+      "knobs": {
+        "introPosition": "top",
+        "introAlign": "center",
+        "itemsLayout": "carousel",
+        "itemsColumns": "2",
+        "itemStyle": "card",
+        "quoteSize": "lg",
+        "itemAlign": "left"
+      }
+    }
+  ],
+  "parts": [
+    "summary"
+  ],
+  "slots": {
+    "options": {
+      "kind": "object",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{introPosition, introAlign, itemsLayout, itemsColumns, itemStyle, quoteSize, itemAlign}",
+      "knobs": [
+        {
+          "name": "introPosition",
+          "values": [
+            "left",
+            "right",
+            "top",
+            "bottom"
+          ]
+        },
+        {
+          "name": "introAlign",
+          "values": [
+            "left",
+            "center",
+            "right"
+          ]
+        },
+        {
+          "name": "itemsLayout",
+          "values": [
+            "grid",
+            "carousel"
+          ]
+        },
+        {
+          "name": "itemsColumns",
+          "values": [
+            "1",
+            "2",
+            "3"
+          ]
+        },
+        {
+          "name": "itemStyle",
+          "values": [
+            "plain",
+            "card"
+          ]
+        },
+        {
+          "name": "quoteSize",
+          "values": [
+            "md",
+            "lg"
+          ]
+        },
+        {
+          "name": "itemAlign",
+          "values": [
+            "left",
+            "center"
+          ]
+        }
+      ]
+    },
+    "introEyebrow": {
+      "kind": "object",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{text, style: \"none\" | \"pill\" | \"outline\" | \"dash\" | \"plain\"}",
+      "editLabel": {
+        "text": "Eyebrow"
+      },
+      "choices": {
+        "style": [
+          "none",
+          "pill",
+          "outline",
+          "dash",
+          "plain"
+        ]
+      }
+    },
+    "headline": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": false,
+      "editLabel": "Headline"
+    },
+    "body": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true,
+      "editLabel": "Text"
+    },
+    "summary": {
+      "kind": "object",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{rating, count, source}",
+      "editLabel": {
+        "rating": "Overall rating",
+        "count": "Number of reviews",
+        "source": "Review site"
+      }
+    },
+    "items": {
+      "kind": "list",
+      "required": true,
+      "promptOptional": false,
+      "minItems": 1,
+      "maxItems": 12,
+      "generateImages": false,
+      "ranges": {
+        "rating": [
+          1,
+          5
+        ]
+      },
+      "shape": "[{quote, name, role?, photo?: {imageUrl, alt}, rating?: 1–5, source?}]",
+      "editLabel": {
+        "quote": "Quote",
+        "name": "Name",
+        "role": "Role",
+        "source": "Review site"
+      }
+    },
+    "bg": {
+      "kind": "color",
+      "required": false,
+      "promptOptional": true,
+      "shape": "\"#rrggbb\" | \"brand\" | {stops: [\"#rrggbb\" (2–3 个)], angle?: number}",
+      "swatches": [
+        "#ffffff",
+        "#f1f5f9",
+        "#e0f2fe",
+        "brand",
+        "#1e293b",
+        "#0f172a"
+      ]
+    }
+  },
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "homepage",
+    "order": 11,
+    "headPrefix": "",
+    "headSuffix": "a block head (headline + text, optional overall rating) with 1–12 customer reviews, shown as a grid or a sliding carousel",
+    "headExtra": null,
+    "lines": [
+      "@data",
+      "items: 1–12 reviews, each {quote, name, role?, photo?, rating?, source?}; only real reviews taken from the site or given by the owner — never invent one; role is who they are or \"area · service\"; source is the platform the review came from (\"Google\", \"Yelp\", \"HomeStars\"); rating is a whole number 1–5",
+      "photo only when the owner uploaded one ({imageUrl, alt}); without it the block shows the person's initials",
+      "summary {rating, count, source}: copy an overall rating only if one is stated in what you were given (a \"Platform ratings\" line, the brand description, the owner's message); if none is stated, leave summary out entirely — never make one up; bg is the background colour, top-level in data (not inside options)"
+    ]
+  }
+}
