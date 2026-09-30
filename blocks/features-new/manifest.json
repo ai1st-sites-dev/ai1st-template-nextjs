@@ -132,6 +132,23 @@
         "itemImage": "background",
         "itemConnector": "none"
       }
+    },
+    {
+      "name": "Steps",
+      "shape": "steps",
+      "knobs": {
+        "introPosition": "top",
+        "introAlign": "left",
+        "introImage": "none",
+        "itemsLayout": "grid",
+        "itemsColumns": "3",
+        "itemsImage": "none",
+        "itemStyle": "plain",
+        "itemAlign": "left",
+        "itemIcon": "none",
+        "itemImage": "none",
+        "itemConnector": "line"
+      }
     }
   ],
   "slots": {

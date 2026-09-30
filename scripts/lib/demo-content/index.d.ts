@@ -19,6 +19,8 @@ export function demoContentFor(type: string): Record<string, unknown>;
 
 export const DEMO_CONTENT: Record<string, Record<string, unknown>>;
 export const SITE: Record<string, unknown>;
+/** #1475 —— features-new 带编号的那一版（每项一个 `number`，`options.itemConnector: 'line'`）。 */
+export const FEATURES_NEW_STEPS: Record<string, unknown> & { items: Array<Record<string, unknown>> };
 export const IMAGES: Record<string, { url: string; fallback: string }>;
 export function imageUrl(key: string): string;
 

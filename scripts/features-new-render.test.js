@@ -5,7 +5,7 @@
  * 跑法:  node scripts/features-new-render.test.js   （或 `npm run test:scripts`，它按文件名发现）
  * 退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
  *
- * 管哪几条：AC1（7 个预设逐字、旋钮名 / 值逐字、目录集合、两两不同）· AC6 的 DOM 一半（background 不画 icon）·
+ * 管哪几条：AC1（8 个预设逐字 —— #1490 加了 Steps、旋钮名 / 值逐字、目录集合、两两不同）· AC6 的 DOM 一半（background 不画 icon）·
  * AC7（槽位空不渲染、连线）· AC8（bg 四档 + 不自己算亮度 / 拼渐变）· AC9（validateSite）· AC10 的组件一半
  * （图标表 → <svg>，查不到的名字那一项不画）· AC11（block-roles · 首页配方池）· AC13 的编辑器 schema ·
  * AC14（旧三块、hero-new manifest 零改动）。
@@ -99,11 +99,11 @@ const CSS = fs.readFileSync(path.join(BLOCK, 'block.css'), 'utf-8');
 const SRC_TEXT = fs.readFileSync(SECTION, 'utf-8');
 const KNOB_NAMES = ['introPosition', 'introAlign', 'introImage', 'itemsLayout', 'itemsColumns', 'itemsImage', 'itemStyle', 'itemAlign', 'itemIcon', 'itemImage', 'itemConnector'];
 
-// ══ AC1：7 个预设逐字、旋钮名 / 值逐字、目录集合、两两不同 ══════════════════════════════════════════
-console.log('── AC1 七个预设');
+// ══ AC1：8 个预设逐字（#1475 七个 + #1490 Steps）、旋钮名 / 值逐字、目录集合、两两不同 ═══════════════════
+console.log('── AC1 八个预设');
 {
   // 列：名字 · 形态目录 · introPosition · introAlign · introImage · itemsLayout · itemsColumns · itemsImage · itemStyle · itemIcon · itemImage
-  // （正文预设表逐字；未列的 itemAlign / itemConnector 取默认 left / none）
+  // （#1475 正文预设表逐字；未列的 itemAlign / itemConnector 取默认 left / none —— 只有 #1490 的 Steps 是 itemConnector line）
   const WANT = [
     ['Grid', 'grid', 'top', 'left', 'none', 'grid', '3', 'none', 'plain', 'top', 'none'],
     ['Cards', 'cards', 'top', 'center', 'none', 'grid', '3', 'none', 'card', 'top', 'none'],
@@ -112,11 +112,13 @@ console.log('── AC1 七个预设');
     ['Photo list', 'photo-list', 'top', 'center', 'none', 'list', '3', 'left', 'plain', 'left', 'none'],
     ['Photo cards', 'photo-cards', 'top', 'center', 'none', 'grid', '3', 'none', 'card', 'none', 'top'],
     ['Cover cards', 'cover-cards', 'top', 'center', 'none', 'grid', '3', 'none', 'card', 'none', 'background'],
+    ['Steps', 'steps', 'top', 'left', 'none', 'grid', '3', 'none', 'plain', 'none', 'none'],
   ];
   const cols = ['introPosition', 'introAlign', 'introImage', 'itemsLayout', 'itemsColumns', 'itemsImage', 'itemStyle', 'itemIcon', 'itemImage'];
   const got = (M.presets || []).map((p) => [p.name, p.shape, ...cols.map((c) => p.knobs[c])]);
-  check(JSON.stringify(got) === JSON.stringify(WANT), 'presets 7 条与正文表逐字相同（名字 · 形态 · 九列旋钮）', JSON.stringify(got));
-  check((M.presets || []).every((p) => p.knobs.itemAlign === 'left' && p.knobs.itemConnector === 'none'), '表里没列的 itemAlign / itemConnector 七条都是默认 left / none');
+  check(JSON.stringify(got) === JSON.stringify(WANT), `presets ${WANT.length} 条与正文表逐字相同（名字 · 形态 · 九列旋钮）`, JSON.stringify(got));
+  check((M.presets || []).every((p) => p.knobs.itemAlign === 'left' && p.knobs.itemConnector === (p.name === 'Steps' ? 'line' : 'none')),
+    '表里没列的 itemAlign 全是 left；itemConnector 只有 Steps 是 line、其余七条是默认 none（#1490）');
   check((M.presets || []).every((p) => Object.keys(p.knobs).join() === KNOB_NAMES.join()), '每个预设的 knobs 键就是这十一个、同一顺序');
   const knobs = M.slots.options.knobs.map((k) => [k.name, k.values]);
   check(JSON.stringify(knobs) === JSON.stringify([
@@ -127,14 +129,14 @@ console.log('── AC1 七个预设');
     ['itemConnector', ['none', 'line']],
   ]), `slots.options.knobs 名字依次 ${knobs.map((k) => k[0]).join(' / ')}、values 与定稿表逐字（values[0] = 默认）`);
   const dirs = fs.readdirSync(BLOCK, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort();
-  check(JSON.stringify(dirs) === JSON.stringify(WANT.map((w) => w[1]).sort()), `目录集合 == 7 个预设形态（${dirs.join(' / ')}）`);
+  check(JSON.stringify(dirs) === JSON.stringify(WANT.map((w) => w[1]).sort()), `目录集合 == ${WANT.length} 个预设形态（${dirs.join(' / ')}）`);
   check(dirs.every((d) => !fs.existsSync(path.join(BLOCK, d, 'Section.tsx'))), '一份 Section.tsx（形态目录里没有第二份 markup）');
   check(M.skin === 'site-css' && M.roleDefault === 'essential', `skin=${M.skin} · roleDefault=${M.roleDefault}`);
   const htmls = dirs.map((d) => render(d, clone(DEMO)));
-  check(new Set(htmls).size === 7, `同一份夹具下 7 个预设渲染出 ${new Set(htmls).size} 份互不相同的 HTML`);
-  // 反向对照：夹具里写死十一个旋钮 ⟹ 形态不再起作用，7 份（去掉 data-shape）应当塌成 1 份。
+  check(new Set(htmls).size === WANT.length, `同一份夹具下 ${WANT.length} 个预设渲染出 ${new Set(htmls).size} 份互不相同的 HTML`);
+  // 反向对照：夹具里写死十一个旋钮 ⟹ 形态不再起作用，8 份（去掉 data-shape）应当塌成 1 份。
   const pinned = dirs.map((d) => render(d, withOpts(M.presets[0].knobs)).replace(/data-shape="[^"]*"/g, ''));
-  check(new Set(pinned).size === 1, '反向对照：options 里写死十一个旋钮 ⟹ 7 个预设（去掉 data-shape 之后）塌成同一份 —— 判据分得开');
+  check(new Set(pinned).size === 1, '反向对照：options 里写死十一个旋钮 ⟹ 8 个预设（去掉 data-shape 之后）塌成同一份 —— 判据分得开');
   // 旋钮全挂在根上（block.css 按它们排）。
   const g = render('grid', clone(DEMO));
   const want = { 'data-intro-position': 'top', 'data-intro-align': 'left', 'data-intro-image': 'none', 'data-items-layout': 'grid', 'data-items-columns': '3',
@@ -384,7 +386,7 @@ console.log('\n── AC13 编辑器 schema');
     `字段顺序 = 旋钮 → 眉标 → 块头 → 按钮 → items → bg（${order.join(' → ')}）`);
   const opt = on.fields[0];
   check(opt.control === 'options' && opt.presets.map((p) => p.name).join() === M.presets.map((p) => p.name).join()
-    && opt.knobs.map((k) => k.name).join() === KNOB_NAMES.join(), '第一个字段：预设 7 个 → 十一个旋钮（控件顺序 intro → items → item）');
+    && opt.knobs.map((k) => k.name).join() === KNOB_NAMES.join(), `第一个字段：预设 ${M.presets.length} 个 → 十一个旋钮（控件顺序 intro → items → item）`);
   const items = on.fields.find((f) => f.slot === 'items');
   check(items.control === 'list' && items.subs.map((x) => x.sub).join() === 'title,text', `items 是列表字段、每项可改 title / text（${items.control} · ${items.subs.map((x) => x.sub).join(' / ')}）`);
   const man = { slots: { options: { knobs: opt.knobs } }, presets: opt.presets };

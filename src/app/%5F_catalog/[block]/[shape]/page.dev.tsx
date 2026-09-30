@@ -32,7 +32,7 @@ import SectionRenderer from '@/components/SectionRenderer';
 import { defaultLocale } from '@/lib/config';
 import type { BlockConfig } from '@/lib/types/config';
 import { blockShapeCatalog } from '../../../../../scripts/lib/block-catalog.js';
-import { demoDataFor } from '../../../../../scripts/lib/demo-content/index.js';
+import { FEATURES_NEW_STEPS, demoDataFor } from '../../../../../scripts/lib/demo-content/index.js';
 import { filledOptionalSlots } from '../../../../../scripts/lib/block-manifest.js';
 import { couplingOf, knobsOf, normalizeKnobs, presetBooleans, presetForShape, presetsOf } from '../../../../../scripts/lib/header-knobs.js';
 import { iconTableFor, iconTablesFor } from '../../../../../scripts/lib/icons.js';
@@ -225,6 +225,13 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
 
   // #1463 —— 旋钮类页面块：地址栏先改 data，再算 `data-has-*`（关掉的部件不许还挂着「有它」）。
   const knobBar = m.region !== true && knobsOf(m).length ? knobOverrides(m, shape, data as Record<string, unknown>, sp) : null;
+  // #1490 —— features-new 按旋钮挑演示数据：组件真正拿来画的那份旋钮值（Section.tsx 同一个 effectiveKnobs，入参就是
+  //    上一行写好的 data.options）是 itemConnector=line 时，items 换成带编号的那一版（FEATURES_NEW_STEPS）。连线只在有编号时画，
+  //    而共享那份故意不带编号（content.js #1475 注释：旧预设不是步骤式的）—— 不换的话这个旋钮在图册上 none / line 逐字相同。
+  //    🔴 别改成按工具栏那份（下面的 knobs / normalizeKnobs）挑：两份分叉那天会出现「有序号没连线」。
+  if (block === 'features-new' && effectiveKnobs(m, shape, data.options).itemConnector === 'line') {
+    data.items = JSON.parse(JSON.stringify(FEATURES_NEW_STEPS.items));
+  }
 
   const cfg: BlockConfig = {
     type: block,
