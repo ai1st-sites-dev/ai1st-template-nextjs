@@ -1,5 +1,6 @@
 import type { BlockConfig } from '@/lib/types/config';
 import type { IconTable } from '@/components/InlineIcon';
+import type { ContactSiteFacts } from '../../scripts/lib/contact-facts.js';
 import { sectionRegistry } from '@/lib/sections/registry.generated';
 
 interface SectionRendererProps {
@@ -11,9 +12,15 @@ interface SectionRendererProps {
    * 🔴 这里自己不算：这个组件也在编辑器的客户端画布里用（EditorApp），读不了文件 —— 由服务端的调用方算好传进来。
    */
   iconTables?: (IconTable | undefined)[];
+  /**
+   * #1489 —— 用这一份站点数据（电话 / 邮箱 / 地址 / 营业时间 / 坐标）代替站自己的。**只有单格页传**：admin 预览用演示生意
+   * 的那一份（带坐标，地图才画得出来），地址栏还能删掉坐标 / 营业时间看空的样子。真站的调用点都不传 ⟹ 块读 `@/lib/config`。
+   * 挂到每个块上，今天只有 contact-new 读它（`scripts/lib/contact-facts.js` §siteFactsFrom 的形状）。
+   */
+  siteFacts?: ContactSiteFacts;
 }
 
-export default function SectionRenderer({ blocks, locale, iconTables }: SectionRendererProps) {
+export default function SectionRenderer({ blocks, locale, iconTables, siteFacts }: SectionRendererProps) {
   return (
     <>
       {blocks.map((block, index) => {
@@ -41,6 +48,7 @@ export default function SectionRenderer({ blocks, locale, iconTables }: SectionR
             locale={locale}
             block={block}
             {...(iconTable ? { iconTable } : {})}
+            {...(siteFacts ? { siteFacts } : {})}
           />
         );
       })}

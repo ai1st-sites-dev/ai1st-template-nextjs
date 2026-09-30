@@ -67,6 +67,10 @@ const NOT_IN_POOL = {
   // #1485（总纲 #1422，Chris 2026-09-29）—— 新块进池、旧块同时出池：features-new（#1475）进了池子，features-grid 还留着的话
   //    配方会硬要求同一页同时放这两块（改前 index 0–199 里 50 个）。
   'features-grid': '由 features-new 接替：同一页只放一个；T3 删掉它',
+  // #1489（总纲 #1422，Chris 2026-09-29 同一条规则）—— contact-new 进池、contact-info 与 map-area 同时出池：
+  //    一进两出，池子种数 −1（这一批块票里唯一改变种数的一张）。
+  'contact-info': '由 contact-new 接替：同一页只放一个；T3 删掉它',
+  'map-area': '由 contact-new 接替：同一页只放一个；T3 删掉它',
   // #1483（总纲 #1422，Chris 2026-09-29）—— 同 features-grid：pricing-new 进池、pricing-table 出池。两个都在池里时配方会
   //    硬要求同一页同时放两块（改前 index 0–199 里 22 个）。pricing-new 的 prompt.order 与它同是 13 ⟹ 池子里换的是同一个位置。
   'pricing-table': '由 pricing-new 接替：同一页只放一个；T3 删掉它',

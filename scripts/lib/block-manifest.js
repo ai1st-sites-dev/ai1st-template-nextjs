@@ -406,6 +406,32 @@ function checkManifestShape(name, m) {
         if (!strArray(vals) || !vals.length) bad(`slots.${slot}.choices.${sub} 必须是非空的字符串数组`);
       }
     }
+    // #1489 —— 列表槽**每一项**的约束（`contact-new.items`）：`itemChoices` = 某个子字段只能从词表里取（`kind` 只能是五个值）；
+    //    `itemNeeds` = 「子字段=值」时另外几个子字段必须有（`kind=link` ⟹ 要 `href`）。validateSite ⑨ 据它逐项拦。
+    //    🔴 故意不叫 `choices`：`choices` 是「对象槽的子字段」，admin 工具栏 / 单格页据它画单选（manager §manifestPartsChoices），
+    //       条目级的词表画成单选没有意义（每一项各选各的），混用那个键会让工具栏凭空多出一格。
+    if (s.itemChoices !== undefined || s.itemNeeds !== undefined) {
+      if (s.kind !== 'list') bad(`slots.${slot}.itemChoices / itemNeeds 只给 kind: list 的槽（现在是 ${JSON.stringify(s.kind)}）`);
+    }
+    if (s.itemChoices !== undefined) {
+      if (s.itemChoices === null || typeof s.itemChoices !== 'object' || Array.isArray(s.itemChoices)) {
+        bad(`slots.${slot}.itemChoices 有的话必须是对象 { 子字段: [取值…] }`);
+      } else {
+        for (const [sub, vals] of Object.entries(s.itemChoices)) {
+          if (!strArray(vals) || !vals.length) bad(`slots.${slot}.itemChoices.${sub} 必须是非空的字符串数组`);
+        }
+      }
+    }
+    if (s.itemNeeds !== undefined) {
+      if (s.itemNeeds === null || typeof s.itemNeeds !== 'object' || Array.isArray(s.itemNeeds)) {
+        bad(`slots.${slot}.itemNeeds 有的话必须是对象 { "子字段=值": [必须有的子字段…] }`);
+      } else {
+        for (const [when, subs] of Object.entries(s.itemNeeds)) {
+          if (!/^\w+=[\w-]+$/.test(when)) bad(`slots.${slot}.itemNeeds 的键 ${JSON.stringify(when)} 要写成 "子字段=值"`);
+          if (!strArray(subs) || !subs.length) bad(`slots.${slot}.itemNeeds.${when} 必须是非空的字符串数组`);
+        }
+      }
+    }
   }
   // #1331 —— 形态清单。第 0 项是默认；每项 { name, needs }。四条都是白名单式（拼错键要当场红，不许静默）：
   //   name 在 public/shapes.css 里必须有 [data-block="<块>"][data-shape="<name>"] 的规则；
@@ -1082,6 +1108,26 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
             const on = v.filter((it) => it && typeof it === 'object' && it[sub] === true).length;
             if (Number.isInteger(n) && on > n) flag(`${where}: "${slot}" 里 ${sub}: true 最多只能有 ${n} 项（现在 ${on} 项）`);
           }
+        }
+        // #1489 —— 列表槽逐项的词表 / 条件必填（`itemChoices` / `itemNeeds`，manifest 自检那一段有说明）。
+        if (Array.isArray(v) && (spec.itemChoices || spec.itemNeeds)) {
+          v.forEach((item, i) => {
+            if (!item || typeof item !== 'object' || Array.isArray(item)) return;
+            for (const [sub, allowed] of Object.entries(spec.itemChoices || {})) {
+              const got = item[sub];
+              if (got !== undefined && got !== null && !allowed.includes(got)) {
+                flag(`${where}: "${slot}[${i}].${sub}" 是 ${JSON.stringify(got)} —— 只能是 ${allowed.join(' / ')}`);
+              }
+            }
+            for (const [when, subs] of Object.entries(spec.itemNeeds || {})) {
+              const [k, val] = when.split('=');
+              if (item[k] !== val) continue;
+              const missing = subs.filter((x) => typeof item[x] !== 'string' || !item[x].trim());
+              if (missing.length) {
+                flag(`${where}: "${slot}[${i}]" 的 ${k} 是 ${JSON.stringify(val)}，必须带 ${missing.map((x) => `"${x}"`).join('、')}`);
+              }
+            }
+          });
         }
         if (spec.kind === 'color' && !isColorValue(v)) {
           flag(`${where}: 槽 "${slot}" 是 ${JSON.stringify(v).slice(0, 40)} —— 颜色只能写 "#rrggbb"（六位十六进制）、"brand"，或渐变 {"stops": [2–3 个 "#rrggbb"], "angle": 0–360（可省，默认 135）}`);

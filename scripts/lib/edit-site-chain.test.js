@@ -2075,5 +2075,111 @@ console.log('\n⑲ 逐字：每一轮模型说的话都作为 text 事件发出�
   }
 }
 
+// ══ ⑳ 脚本替 AI 再写的那一笔（查坐标写回 brand.json · 剔掉 contact-new 抄进来的值）也跟着回滚（#1489 r2）═════
+//
+// QA1 打回 r1：这一轮改了第一个地点的地址 ⟹ `refreshGeoAfterEdit` 在 AI 写成之后**又写了一次** brand.json，没更新
+// `aiWrote` ⟹ 同步失败时 §rollbackWrittenFiles 把它当成「老板存过」不退（`kept: brand.json`），老板收到一句编出来的
+// 「你在编辑器里存过」，那一笔还留在工作树上等下一次 `git add -A`。🔴 ⑬F3 / ⑬F4 用的是 about.json，看不见它。
+// 网络一律不出去：`NODE_OPTIONS --require` 挂一个假 fetch（查到 / 查不到 / 查的那几秒里老板存盘，三种各一臂）。
+{
+  const OWNER_MARK = 'OWNER-SAVED-DURING-GEOCODE-1489';
+  const fakeFetch = (mode, brandPath) => {
+    const f = path.join(temp('geo-fetch-'), 'fetch.js');
+    const hit = "({ ok: true, status: 200, json: async () => [{ lat: '43.1111', lon: '-79.2222' }] })";
+    const body = mode === 'throw' ? "throw new Error('test: network disabled');"
+      : mode === 'owner-saves' ? `const fs = require('fs'); const p = ${JSON.stringify(brandPath)}; const d = JSON.parse(fs.readFileSync(p, 'utf8')); d.tagline = ${JSON.stringify(OWNER_MARK)}; fs.writeFileSync(p, JSON.stringify(d, null, 2) + '\\n'); return ${hit};`
+        : `return ${hit};`;
+    fs.writeFileSync(f, `globalThis.fetch = async () => { ${body} };\n`);
+    return { NODE_OPTIONS: `--require ${f}` };
+  };
+  const KEPT_NOTE = /saved again somewhere else/;
+
+  function arm1489({ label, newAddress, mode, breakSync, page }) {
+    const c = makeRoot(`geo-${label}`);
+    const site = writeSite(c.work);
+    assertSyncsClean(c.work, `⑳(${label}) 夹具`);
+    c.git('git add -A && git commit -q -m base && git push -q origin main');
+    const brandPath = path.join(site, 'brand.json');
+    const homeFile = path.join(site, 'en', 'pages', 'home.json');
+    const brandBefore = fs.readFileSync(brandPath);
+    const homeBefore = fs.readFileSync(homeFile);
+    const brand = JSON.parse(brandBefore.toString('utf8'));
+    const writes = [];
+    if (newAddress !== undefined) {
+      const next = JSON.parse(brandBefore.toString('utf8'));
+      if (newAddress !== null) next.locations[0].address = newAddress;
+      next.tagline = `${typeof next.tagline === 'string' ? next.tagline : 'x'} (edited by the AI)`;
+      writes.push(writeCall('b1', 'brand.json', `${JSON.stringify(next, null, 2)}\n`));
+    }
+    if (page) {
+      const h = JSON.parse(homeBefore.toString('utf8'));
+      h.blocks.push({ id: 'home-contact-new-99', type: 'contact-new', role: 'essential', region: 'content', weight: 990,
+        data: { headline: 'Get in touch', items: page(brand) } });
+      writes.push(writeCall('h1', 'en/pages/home.json', JSON.stringify(h, null, 2)));
+    }
+    if (breakSync) writes.push(writeCall('s1', 'en/services.json', JSON.stringify({ oops: 'an object, not an array' })));
+    const res = runEdit(c, [reply([textBlock('Updating.'), ...writes], 'tool_use'), reply([textBlock('Changes applied.')], 'end_turn')],
+      {}, mode ? fakeFetch(mode, brandPath) : {});
+    const errors = ev(res, 'error');
+    const headOf = (rel) => { try { return c.git(`git show HEAD:site/${rel}`).toString(); } catch (e) { return ''; } };
+    return {
+      res, brand,
+      failed: errors.length === 1 && !ev(res, 'edit-complete').length,
+      msg: errors.length ? String(errors[0].message) : '',
+      rb: (res.stderr.match(/#1102 rollback: [^\n]*/) || [''])[0],
+      brandBack: Buffer.compare(brandBefore, fs.readFileSync(brandPath)) === 0,
+      homeBack: Buffer.compare(homeBefore, fs.readFileSync(homeFile)) === 0,
+      brandNow: JSON.parse(fs.readFileSync(brandPath, 'utf8')),
+      dirty: c.git('git status --porcelain').toString().trim(),
+      committed: res.commitsAfter > res.commitsBefore,
+      headBrand: headOf('brand.json'), headHome: headOf('en/pages/home.json'),
+    };
+  }
+  const rolledBackClean = (name, t, extra = '') => {
+    // `restored 2` 是前提：AI 那两笔（brand.json 或首页 + 坏 services）真的都写进去了，不是被门拦下之后空转绿。
+    if (t.failed && t.brandBack && !t.dirty && !KEPT_NOTE.test(t.msg) && /restored 2 .* kept 0/.test(t.rb) && (!extra || t.homeBack)) {
+      ok(`⑳ ${name}：同步失败 ⟹ 回到编辑之前、工作树干净、报文不带「别处存过」（${t.rb.replace('#1102 rollback: ', '')}）`);
+    } else {
+      bad(`🔴 ⑳ ${name}：失败=${t.failed} · brand 回去=${t.brandBack}${extra ? ` · 首页回去=${t.homeBack}` : ''} · 脏=${JSON.stringify(t.dirty)} · ${t.rb} ·「${t.msg.slice(0, 200)}」`);
+    }
+  };
+
+  console.log('\n⑳ 改地址 + 同步失败（#1489 r2，QA1 打回 r1）：查坐标写回的那一笔也跟着回滚');
+  rolledBackClean('改了地址、查到坐标（set）', arm1489({ label: 'set', newAddress: '900 Probe Avenue, Toronto, ON', mode: 'hit', breakSync: true }));
+  rolledBackClean('改了地址、查不到（cleared）', arm1489({ label: 'cleared', newAddress: '900 Probe Avenue, Toronto, ON', mode: 'throw', breakSync: true }));
+  rolledBackClean('阳性对照：写了 brand.json 但地址没变', arm1489({ label: 'same', newAddress: null, mode: 'hit', breakSync: true }));
+
+  const good = arm1489({ label: 'good', newAddress: '900 Probe Avenue, Toronto, ON', mode: 'hit' });
+  const headGeo = (() => { try { return JSON.parse(good.headBrand).locations[0].geo; } catch (e) { return null; } })();
+  if (good.committed && headGeo && headGeo.lat === 43.1111 && headGeo.lng === -79.2222 && !good.dirty) ok('⑳ 反向对照：同一条路成功时，查到的坐标真的写进 brand.json 并提交了（HEAD 里 geo = 43.1111,-79.2222）');
+  else bad(`🔴 ⑳ 成功那条路没把坐标提交上去：commit=${good.committed} · HEAD geo=${JSON.stringify(headGeo)} · 脏=${JSON.stringify(good.dirty)}`);
+
+  const race = arm1489({ label: 'race', newAddress: '900 Probe Avenue, Toronto, ON', mode: 'owner-saves' });
+  if (race.brandNow.tagline === OWNER_MARK && !(race.brandNow.locations[0].geo && race.brandNow.locations[0].geo.lat === 43.1111)) ok('⑳ 查坐标那几秒里老板存了 brand.json ⟹ 脚本不在他那份上再写一笔（他的 tagline 原样、没有叠上 geo）');
+  else bad(`🔴 ⑳ 查坐标时老板存的那份被盖掉了：tagline=${JSON.stringify(race.brandNow.tagline)} · geo=${JSON.stringify(race.brandNow.locations[0].geo)}`);
+
+  console.log('\n⑳ contact-new 的 items 里抄进来的值（#1489 r2，QA2 打回 r1）：改站同步之前剔掉，失败时照样回滚');
+  const copied = (b) => [
+    { kind: 'phone', title: 'Call Us', hint: `${b.locations[0].phone} — Mon–Fri 8 AM–6 PM`, href: `tel:${b.locations[0].phone}` },
+    { kind: 'email', title: 'Email Us', hint: b.email },
+    { kind: 'address', title: 'Visit the Shop', hint: b.locations[0].address },
+    { kind: 'hours', title: 'Business Hours', hint: 'Monday – Friday, 8:00 AM – 6:00 PM' },
+    { kind: 'link', title: 'Book online', href: 'https://example.com/book' },
+  ];
+  const ok1 = arm1489({ label: 'scrub', page: copied });
+  let block = null;
+  try { block = JSON.parse(ok1.headHome).blocks.find((x) => x.type === 'contact-new'); } catch (e) { block = null; }
+  const dataStr = block ? JSON.stringify(block.data) : '';
+  const b0 = ok1.brand;
+  const leaks = [b0.locations[0].phone, b0.email, b0.locations[0].address, '8:00 AM'].filter((v) => v && dataStr.includes(v));
+  if (ok1.committed && block && !leaks.length && block.data.items.length === 5 && block.data.items[0].title === 'Call Us'
+    && !('href' in block.data.items[0]) && block.data.items[4].href === 'https://example.com/book' && !ok1.dirty) {
+    ok('⑳ 成功那条路：HEAD 里的 contact-new 块数据不含电话 / 邮箱 / 地址 / 钟点，phone 的 href 删了，link 的 href 与各条标题照留');
+  } else {
+    bad(`🔴 ⑳ 剔值没生效：commit=${ok1.committed} · 漏的=${JSON.stringify(leaks)} · data=${dataStr.slice(0, 300)}`);
+  }
+  rolledBackClean('剔过值的页面 + 同步失败', arm1489({ label: 'scrub-fail', page: copied, breakSync: true }), 'home');
+}
+
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);

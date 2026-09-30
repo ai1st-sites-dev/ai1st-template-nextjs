@@ -49,6 +49,9 @@ const linkHref = require('./lib/link-href');
 const blockScope = require('./lib/block-scope');
 // #1410 —— 模型边写边出的字，编辑器里的聊天逐字显示（文件头说为什么攒批、为什么带轮次）。
 const { createTextRelay } = require('./lib/text-relay');
+// #1489 —— 改了地址就重查一次坐标（contact-new 的地图），理由整段在那个文件头。
+const { refreshGeoAfterEdit } = require('./lib/geocode');
+const { siteFactsFrom, scrubContactCopies } = require('./lib/contact-facts');
 
 // ─── Emit structured events to stdout ─────────────────────────────────────────
 
@@ -432,6 +435,48 @@ const TOUCHED_ELSEWHERE = '(changed elsewhere after the AI wrote it)';
  */
 function noteForeignChange(aiWrote, fullPath, nowSha) {
   if (aiWrote && aiWrote.has(fullPath) && aiWrote.get(fullPath) !== nowSha) aiWrote.set(fullPath, TOUCHED_ELSEWHERE);
+}
+
+/**
+ * #1489 r2 —— 脚本在 AI 写成之后**替它**再改一次这个文件（改了地址 ⟹ 重查坐标写回 brand.json · 剔掉 contact-new 抄进来的值）。
+ * 这一笔算在 AI 那一笔里：写完把 `aiWrote` 换成新字节的 sha。🔴 不换的话，同步 / 提交失败时 §rollbackWrittenFiles 看见
+ * 「盘上 ≠ AI 最后写的」就当成老板存过、不退（QA1 打回 r1：`kept: brand.json`，老板收到一句编出来的「你在编辑器里存过」，
+ * 那一笔还留在工作树上、下一次成功编辑的 `git add -A` 会把它带上线）。
+ * 盘上已经不是 AI 最后写的那份（别处存过 —— 查坐标要等网络，那几秒里老板可能正好存盘）⟹ **不写**、回 false：
+ * 不在老板那份上再叠一笔，也不把它的记号洗掉。
+ */
+function rewriteOnBehalfOfAi(fullPath, bytes, aiWrote) {
+  let now;
+  try { now = sha256(fs.readFileSync(fullPath)); } catch (e) { return false; }
+  noteForeignChange(aiWrote, fullPath, now);
+  if (aiWrote && aiWrote.get(fullPath) === TOUCHED_ELSEWHERE) return false;
+  fs.writeFileSync(fullPath, bytes);
+  if (aiWrote && aiWrote.has(fullPath)) aiWrote.set(fullPath, sha256(Buffer.from(bytes)));
+  return true;
+}
+
+/**
+ * #1489 r2（QA2 打回 r1）—— 这一轮写过的页面里，contact-new 的 items 抄进来的电话 / 邮箱 / 地址 / 营业时间剔掉
+ * （§scrubContactCopies，建站写盘那一刻是同一个函数）。值读**同步之前**盘上的站点数据：这一轮如果连地址一起改了，
+ * 剔的是新地址。回改了几个文件。
+ */
+function scrubContactPagesAfterEdit(siteDir, writeSnapshots, aiWrote) {
+  let brand = {};
+  try { brand = JSON.parse(fs.readFileSync(path.join(siteDir, 'brand.json'), 'utf-8')); } catch (e) { brand = {}; }
+  let files = 0;
+  for (const full of writeSnapshots.keys()) {
+    if (!/\.json$/.test(full) || path.basename(path.dirname(full)) !== 'pages') continue;
+    let doc;
+    try { doc = JSON.parse(fs.readFileSync(full, 'utf-8')); } catch (e) { continue; }
+    let seo = {};
+    try { seo = JSON.parse(fs.readFileSync(path.join(path.dirname(path.dirname(full)), 'seo.json'), 'utf-8')); } catch (e) { seo = {}; }
+    const n = scrubContactCopies(doc, siteFactsFrom(brand, seo));
+    if (n && rewriteOnBehalfOfAi(full, `${JSON.stringify(doc, null, 2)}\n`, aiWrote)) {
+      files++;
+      debug(`[contact-new] ${path.relative(siteDir, full)}: dropped ${n} copied value(s) from items`);
+    }
+  }
+  return files;
 }
 
 /**
@@ -975,7 +1020,7 @@ from a block you are editing. A page must have exactly one of the two arrays; a 
 fails the build. When you add a block to a \`blocks\` page, give it an \`id\` unique within that page and a
 \`weight\` that puts it where you want it (blocks are ordered by \`weight\`, smaller first).
 
-Available section types: hero, hero-new, hero-with-form, trusted-brands, features-grid, features-new, milestones, card-group, testimonials, cta-banner, cta-new, contact-info, text-block, page-header, services-nav, services-list, quote-form, contact-form, faq-accordion, process-steps, team-grid, pricing-table, pricing-new, gallery, content-split, social-proof, announcement-bar, newsletter-signup, map-area, blog-preview, service-related-pages
+Available section types: hero, hero-new, hero-with-form, trusted-brands, features-grid, features-new, milestones, card-group, testimonials, cta-banner, cta-new, contact-info, contact-new, text-block, page-header, services-nav, services-list, quote-form, contact-form, faq-accordion, process-steps, team-grid, pricing-table, pricing-new, gallery, content-split, social-proof, announcement-bar, newsletter-signup, map-area, blog-preview, service-related-pages
 
 Blocks with presets usually have no example on the site to copy, so here is their exact data shape — use only
 these keys (write_file refuses unknown ones):
@@ -1393,6 +1438,20 @@ async function main() {
       // 所以这个变量把两件事串起来：① 失败要说出来（下面变成一条 error 事件）② 失败就不许再保存。
       let syncError = null;
       if (filesModified) {
+        // #1489 —— 这一次改了第一个地点的地址 ⟹ 重查一次坐标写回 brand.json（contact-new 的地图要它）；
+        //    地址没变一个请求都不发。查不到就删掉旧 geo。放在同步之前：写回的那一份跟着这次一起构建、一起提交。
+        //    🔴 r2（QA1 打回 r1）：写回走 §rewriteOnBehalfOfAi —— 它把 `aiWrote` 换成新字节的 sha，同步失败时
+        //    brand.json 才会随 writeSnapshots 一起回滚。r1 这里直接写盘，回滚把它当成「老板存过」不退。
+        const brandPath = path.join(siteDir, 'brand.json');
+        if (writeSnapshots.has(brandPath)) {
+          const snap = writeSnapshots.get(brandPath);
+          const geo = await refreshGeoAfterEdit(brandPath, Buffer.isBuffer(snap) ? snap : null, {
+            log: debug,
+            write: (p, bytes) => rewriteOnBehalfOfAi(p, bytes, aiWrote),
+          });
+          debug(`Geocode after edit: ${geo}`);
+        }
+        scrubContactPagesAfterEdit(siteDir, writeSnapshots, aiWrote);
         emit('progress', { message: 'Syncing changes to preview...' });
         try {
           execSync('node scripts/sync-config.js', {

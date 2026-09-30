@@ -484,6 +484,10 @@ try {
       //    多了 header / footer 两份 manifest，而模型永远点不到它们）。拿 manifests.size 会多算 2。
       apply: (t) => t.split('There are 32 section types')
         .join(`There are ${[...manifests.keys()].filter((ty) => !isRegionManifest(BLOCKS_DIR, ty)).length} section types`),
+      // 🔴 #1487：这一条换进去的是**现算**的数，块库涨回 32 种时（#1483 pricing-new + #1487 team-new）
+      //    它按构造原样替换 ⟹ 下面判别力② 拿「套了之后字节变没变」判它会点名成死条目，而它并没死。
+      //    所以它的「活着」改问：基线里还有没有它要换的那句。
+      live: (t) => t.includes('There are 32 section types'),
     },
     {
       why: '#1372 `divider` 这个块删了 ⟹ 那条「用 divider 分段」的祈使句整行不再印',
@@ -564,9 +568,9 @@ try {
   // 🔴 判别力②：清单里不许有死条目 —— 每一条单独套在基线那份提示词上都必须真的改变它。
   //    漏这一格的后果是：改名做完之后条目留在这里，而它此刻句句是假的（同族教训 #1128）。
   {
-    const dead = PROMPT_DELTAS.filter((d) => d.apply(promptBase) === promptBase);
+    const dead = PROMPT_DELTAS.filter((d) => (d.live ? !d.live(promptBase) : d.apply(promptBase) === promptBase));
     dead.length === 0
-      ? ok(`${PROMPT_DELTAS.length} 条差异每一条都真的改变了基线那份提示词（没有死条目）`)
+      ? ok(`${PROMPT_DELTAS.length} 条差异每一条都还作用在基线那份提示词上（没有死条目）`)
       : bad(`差异清单里有 ${dead.length} 条对基线什么都没做:${dead.map((d) => d.why).join(' · ')}`);
   }
 

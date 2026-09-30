@@ -74,6 +74,8 @@ const BLOCK_ICONS = {
   'features-new': ['arrow-right'],
   // #1482 —— 同 features-new：块头按钮的箭头；stats 的图标来自数据（`stats[].icon`），由 §iconNamesIn 收。
   milestones: ['arrow-right'],
+  // #1489 —— contact items 五种 kind 的图标（同 footer-new 那五个）+ 地图地址卡上的钉子。
+  'contact-new': ['telephone', 'envelope', 'geo-alt', 'clock', 'link-45deg', 'geo-alt-fill'],
   // #1483 —— 功能清单每行的勾号；highlights 的图标来自数据（`highlights[].icon`），由 §iconNamesIn 收。
   'pricing-new': ['check'],
 };

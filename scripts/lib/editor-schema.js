@@ -117,6 +117,16 @@ function fieldsOf(manifest) {
     // 往 `editLabel` 里加 `href` 就得给守卫开豁免）。而编辑器开放了插入：新插的 hero 不填链接，按钮就是
     // `href="#"`，访客点了没反应 —— 所以这里只在编辑器自己的 schema 里补，按 kind 派生、不写块名单。
     if (kind === 'link' && !subs.some((x) => x.sub === LINK_HREF)) subs.push({ sub: LINK_HREF, label: 'Link' });
+    // #1489 —— 列表槽**每一项**的词表（`itemChoices`，`contact-new.items[].kind`）也是一格下拉；`itemNeeds` 里点名
+    //    的必填子字段（`kind=link` ⟹ `href`）补一格文字。少了它们，在编辑器里新加的一条没有 kind，组件整条不画。
+    if (kind === 'list') {
+      for (const [sub, vals] of Object.entries((spec && spec.itemChoices) || {})) {
+        if (!subs.some((x) => x.sub === sub)) subs.push({ sub, label: humanize(sub), choices: vals.slice() });
+      }
+      for (const need of Object.values((spec && spec.itemNeeds) || {}).flat()) {
+        if (!subs.some((x) => x.sub === need)) subs.push({ sub: need, label: need === LINK_HREF ? 'Link' : humanize(need) });
+      }
+    }
     fields.push({
       slot,
       kind,

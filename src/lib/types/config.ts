@@ -22,6 +22,9 @@ export interface BrandLocation {
   label: string;
   address: string;
   phone: string;
+  /** #1489 —— 这个地址的坐标：建站 / 改地址时由 `scripts/lib/geocode.js`（Nominatim）查一次写进来，页面打开时不查。
+   *  contact-new 的地图点开时拿它算 bbox / marker；没有就不画地图。 */
+  geo?: { lat: number; lng: number };
 }
 
 export interface BrandConfig {

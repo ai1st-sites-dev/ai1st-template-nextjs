@@ -98,7 +98,10 @@ console.log('② 字段两层比');
       // #1463 —— `choices` 里有的（不是数组取值的）子字段是一格下拉，也算一个子字段。
       const choiceSubs = Object.keys((slots[f.slot] || {}).choices || {})
         .filter((sub) => !new RegExp(`${sub}\\s*:\\s*\\[`).test((slots[f.slot] || {}).shape || ''));
-      const wantSub = [...new Set([...esp.filter((e) => e.slot === f.slot && e.sub !== null).map((e) => e.sub), ...choiceSubs,
+      // #1489 —— 列表槽**每一项**的词表（`itemChoices`，一格下拉）与 `itemNeeds` 点名的必填子字段（一格文字）也各算一个子字段。
+      const itemSubs = f.kind === 'list'
+        ? [...Object.keys((slots[f.slot] || {}).itemChoices || {}), ...Object.values((slots[f.slot] || {}).itemNeeds || {}).flat()] : [];
+      const wantSub = [...new Set([...esp.filter((e) => e.slot === f.slot && e.sub !== null).map((e) => e.sub), ...choiceSubs, ...itemSubs,
         ...(f.kind === 'link' ? ['href'] : [])])].sort();
       const gotSub = f.subs.map((s) => s.sub).sort();
       if (JSON.stringify(wantSub) !== JSON.stringify(gotSub)) problems.push(`${m.type}.${f.slot} 子字段 ${gotSub} ≠ ${wantSub}`);

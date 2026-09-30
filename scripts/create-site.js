@@ -70,6 +70,10 @@ const { pageWithBlocks } = require('./blocks');
 const { applyHeroLeadForm } = require('./lib/hero-lead-form');
 // #1176 —— 关键词页面包屑那个中间级的死链修法（提示词 + 生成后核对两侧，理由整段在那个文件头上）。
 const { pruneDeadBreadcrumbHrefs, alignBreadcrumbsToOwnService, serviceKey } = require('./lib/breadcrumb-links');
+// #1489 —— 建站时按地址查一次坐标写进 brand.locations[0].geo（contact-new 的地图要它；Nominatim，不要 key，§geocode.js 头注）。
+const { geocodeBrand } = require('./lib/geocode');
+// #1489 r2 —— contact-new 的 items 里抄进来的电话 / 邮箱 / 地址 / 营业时间，写盘那一刻剔掉（值只有一处）。
+const { siteFactsFrom, scrubContactCopies } = require('./lib/contact-facts');
 
 // ─── AI Model Config ─────────────────────────────────────────────────────────
 // 🔴 下面 MODEL_PRICING 不是文档,是【记账输入】:getModelPricing(model) 的结果乘 token 数写进 operation_runs.cost(manager/db.go 的 insertOperationRun),写错一行不报错、只静默虚记。改它之前去 https://platform.claude.com/docs/en/about-claude/pricing 现取一次,别凭记忆 —— #1249 修的两行原来逐字是【已退役】型号的真价钱,不是打错。
@@ -1606,7 +1610,10 @@ function writeSecondaryLocaleConfig(siteDir, secContent, secondaryLocale, primar
   }
 
   // pages → <secondaryLocale>/pages/<slug>.json（#998：同上，写盘时转成 blocks 形状）
+  const secFacts = siteFactsFrom(existingBrand, secContent.seo);
   for (const page of secContent.pages) {
+    const scrubbed = scrubContactCopies(page, secFacts);
+    if (scrubbed) debug(`[contact-new] ${secondaryLocale}/${page.slug}: dropped ${scrubbed} copied value(s) from items`);
     const pagePath = path.join(localeDir, 'pages', `${page.slug}.json`);
     fs.mkdirSync(path.dirname(pagePath), { recursive: true });
     fs.writeFileSync(pagePath, JSON.stringify(pageWithBlocks(page), null, 2) + '\n');
@@ -1687,7 +1694,10 @@ function writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks = []) {
   // pages → <locale>/pages/<slug>.json
   // #998: 磁盘上的形状是 `blocks`。转换只发生在写盘这一刻 —— 上面那些校验、参考站对照、翻译
   // 都还读 `content.pages[].sections`，形状迁移不该顺手改掉 AI 那一侧的行为。
+  const facts = siteFactsFrom(content.brand, content.seo);
   for (const page of content.pages) {
+    const scrubbed = scrubContactCopies(page, facts);
+    if (scrubbed) debug(`[contact-new] ${page.slug}: dropped ${scrubbed} copied value(s) from items`);
     const pagePath = path.join(localeDir, 'pages', `${page.slug}.json`);
     fs.mkdirSync(path.dirname(pagePath), { recursive: true });
     fs.writeFileSync(pagePath, JSON.stringify(pageWithBlocks(page), null, 2) + '\n');
@@ -1716,7 +1726,7 @@ function getDemoConfig(siteId) {
         googleFontsUrl: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
       },
       email: 'hello@demo.com',
-      locations: [{ label: 'Main Office', address: '123 Demo Street, Toronto, ON', phone: '416-555-0000' }],
+      locations: [{ label: 'Main Office', address: '123 Demo Street, Toronto, ON', phone: '416-555-0000', geo: { lat: 43.6532, lng: -79.3832 } }],
       socialLinks: {},
       googleFormUrl: '',
       googleFormEntries: { source: '', services: '', propertyType: '', urgency: '' },
@@ -2596,6 +2606,11 @@ ${ctaHrefRule ? `${ctaHrefRule}
       debug(`Social links written to brand.json: ${Object.keys(filtered).join(', ')}`);
     }
   }
+
+  // #1489 —— 地址 → 坐标，查一次存进站点数据（contact-new 的地图点开时要 bbox / marker）。页面打开时不查；
+  //    查不到 / 网络错 ⟹ 不写 geo、地图不渲染，建站照常（geocodeBrand 不抛）。只查坐标，瓦片一张都不取（OSM 瓦片条款禁预取）。
+  const geoResult = await geocodeBrand(brand, { log: debug });
+  debug(`Geocode brand.locations[0]: ${geoResult}`);
 
   // Override colors/fonts with reference site analysis when available
   if (refAnalysis && refPrefs.includes('colors-fonts') && refAnalysis.primaryColor) {

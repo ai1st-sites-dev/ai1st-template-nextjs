@@ -4,6 +4,7 @@
   "card-group": "optional",
   "contact-form": "essential",
   "contact-info": "essential",
+  "contact-new": "essential",
   "content-split": "optional",
   "cta-banner": "optional",
   "cta-new": "optional",

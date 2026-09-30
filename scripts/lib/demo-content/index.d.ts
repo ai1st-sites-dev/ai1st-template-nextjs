@@ -21,6 +21,11 @@ export const DEMO_CONTENT: Record<string, Record<string, unknown>>;
 export const SITE: Record<string, unknown>;
 /** #1475 —— features-new 带编号的那一版（每项一个 `number`，`options.itemConnector: 'line'`）。 */
 export const FEATURES_NEW_STEPS: Record<string, unknown> & { items: Array<Record<string, unknown>> };
+/** #1489 —— 演示生意的站点数据那一截（contact-new 读的电话 / 邮箱 / 地址 / 营业时间 / 坐标）。 */
+export const DEMO_SITE: {
+  brand: { email: string; locations: Array<{ label: string; address: string; phone: string; geo?: { lat: number; lng: number } }> };
+  seo: { schema: { openingHours: { days: string[]; opens: string; closes: string } } };
+};
 export const IMAGES: Record<string, { url: string; fallback: string }>;
 export function imageUrl(key: string): string;
 

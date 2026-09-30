@@ -601,6 +601,25 @@ const DEMO_CONTENT = {
     imageUrl: imageUrl('about-workshop'),
   },
 
+  // #1489 —— contact-new：Northside Auto Care 的六条 contact item。phone / email / address / hours 四条的**值不在这里**——
+  //    从站点数据读（真站读 `@/lib/config`；图册 / 单格页读下面的 DEMO_SITE），这里只有标题和提示；两条 link 自带 href。
+  //    六条而不是正文说的四条：守卫 (c) 要列表槽 ≥ 6 项（`demo-content.test.js` MIN_ITEMS），正好等于 items 的 maxItems。
+  'contact-new': {
+    options: {},
+    introEyebrow: { text: 'Contact', style: 'pill' },
+    headline: 'Talk to a technician today',
+    body: 'Call, email or send the form — a licensed technician gets back to you within the hour while the shop is open.',
+    items: [
+      { kind: 'phone', title: 'Call us', hint: 'Fastest way to book' },
+      { kind: 'email', title: 'Email us', hint: 'Photos of the problem help us quote' },
+      { kind: 'address', title: 'Visit us', hint: 'Drop-off bays on the north side of the building' },
+      { kind: 'hours', title: 'Hours', hint: 'Closed Sundays' },
+      { kind: 'link', title: 'Text us on WhatsApp', hint: 'Replies within 15 minutes', href: 'https://wa.me/14165550142' },
+      { kind: 'link', title: 'Book online', hint: 'Pick a time', href: '/contact' },
+    ],
+    form: {},
+    bg: '#ffffff',
+  },
   'contact-info': {
     headline: 'Find the shop',
     // #1382 —— 只有 `media-side-grid` 这一副把它画出来（其余三副 `shapes.css` 里默认藏起来）。
@@ -1045,4 +1064,19 @@ const FEATURES_NEW_STEPS = {
   items: DEMO_CONTENT['features-new'].items.map((it, i) => ({ number: String(i + 1).padStart(2, '0'), ...it })),
 };
 
-module.exports = { DEMO_CONTENT, SITE, FEATURES_NEW_STEPS };
+/**
+ * #1489 —— 演示生意的**站点数据**那几样（contact-new 从站点数据读电话 / 邮箱 / 地址 / 营业时间 / 坐标，块里不存副本）。
+ * 形状就是真站 `brand.json` / `seo.json` 里对应的那一截，单格页用 `scripts/lib/contact-facts.js` §siteFactsFrom 把它变成块要的值。
+ * `geo` 是 2150 Yonge St 附近的坐标（夹具，不是查出来的；真站由 `scripts/lib/geocode.js` 建站时查一次）。
+ */
+const DEMO_SITE = {
+  brand: {
+    email: 'service@northsideauto.ca',
+    locations: [{ label: 'Northside Auto Care', address: '2150 Yonge St, Toronto, ON', phone: '(416) 555-0142', geo: { lat: 43.7056, lng: -79.3983 } }],
+  },
+  seo: {
+    schema: { openingHours: { days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], opens: '08:00', closes: '18:00' } },
+  },
+};
+
+module.exports = { DEMO_CONTENT, SITE, FEATURES_NEW_STEPS, DEMO_SITE };

@@ -32,7 +32,8 @@ import SectionRenderer from '@/components/SectionRenderer';
 import { defaultLocale } from '@/lib/config';
 import type { BlockConfig } from '@/lib/types/config';
 import { blockShapeCatalog } from '../../../../../scripts/lib/block-catalog.js';
-import { FEATURES_NEW_STEPS, demoDataFor } from '../../../../../scripts/lib/demo-content/index.js';
+import { DEMO_SITE, FEATURES_NEW_STEPS, demoDataFor } from '../../../../../scripts/lib/demo-content/index.js';
+import { siteFactsFrom } from '../../../../../scripts/lib/contact-facts.js';
 import { filledOptionalSlots } from '../../../../../scripts/lib/block-manifest.js';
 import { couplingOf, knobsOf, normalizeKnobs, presetBooleans, presetForShape, presetsOf } from '../../../../../scripts/lib/header-knobs.js';
 import { iconTableFor, iconTablesFor } from '../../../../../scripts/lib/icons.js';
@@ -236,6 +237,19 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
     data.items = JSON.parse(JSON.stringify(FEATURES_NEW_STEPS.items));
   }
 
+  // #1489 —— contact-new 的电话 / 邮箱 / 地址 / 营业时间 / 坐标读站点数据，不在块数据里。这一页用演示生意那一份（DEMO_SITE，带坐标，
+  //    地图才画得出来），而不是跑这个开发服务的那个站的 —— 否则同一张卡在不同机器上长得不一样，而且多半没有坐标。
+  //    `?geo=none` / `?hours=none` 把那一样拿掉（`?items=none` 清空 contact items），看「站点数据里没有」时的样子（#1489 判据 3 / 7）。
+  let siteFacts: ReturnType<typeof siteFactsFrom> | undefined;
+  if (block === 'contact-new') {
+    const site = JSON.parse(JSON.stringify(DEMO_SITE));
+    if (one(sp.geo) === 'none') delete site.brand.locations[0].geo;
+    if (one(sp.hours) === 'none') site.seo.schema.openingHours = { days: [], opens: '', closes: '' };
+    siteFacts = siteFactsFrom(site.brand, site.seo);
+    // `?items=none` —— contact items 清空（判据 4：那一组不渲染、空列不占位）。
+    if (one(sp.items) === 'none') data.items = [];
+  }
+
   const cfg: BlockConfig = {
     type: block,
     shape,
@@ -327,7 +341,7 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
         ) : null}
         {knobBar && !embed ? <KnobBar {...knobBar} /> : null}
         {/* #1475 —— 旋钮类页面块里画内联 SVG 图标的（features-new）也要图标表，跟真站 HomePage / SubPage 同一个函数算。 */}
-        {isRegion ? null : <SectionRenderer blocks={[cfg]} locale={locale} iconTables={iconTablesFor([cfg])} />}
+        {isRegion ? null : <SectionRenderer blocks={[cfg]} locale={locale} iconTables={iconTablesFor([cfg])} siteFacts={siteFacts} />}
       </main>
     </>
   );
