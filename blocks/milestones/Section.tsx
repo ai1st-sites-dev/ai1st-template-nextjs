@@ -1,0 +1,200 @@
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+// milestones —— 块头（intro）+ 一组数字（stats），Webpixels / Bootstrap 那一套（#1482，总纲 #1422 的 T2.6）
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+//
+// 🔴 **一份 markup，三层旋钮**：块级 blockImage · intro*（introPosition / introAlign / introImage）·
+//    stats*（statsColumns / statSize / statStyle / statAlign），五个预设各是一个形态目录。实际生效的旋钮 =
+//    形态对应的那个预设给底，`data.options` 里写了的逐个覆盖（`scripts/lib/block-knobs.js` §effectiveKnobs ——
+//    编辑器判 custom 用的是同一个函数）。旋钮值写在根元素上（`data-block-image` … `data-stat-align` / `data-tone`），
+//    `block.css` 按它们排；形态目录自己不带几何。旋钮彼此独立，这里没有「拧了 A 就替你改 B」的纠正
+//    （定稿 2026-09-29 删掉了图册里「side intro 时 3 / 4 列强制 2 列」「blockImage 左右时 4 列强制 3 列」那两条）。
+//
+// 🔴 **藏东西一律是不渲染**（部件有数据、而且对应的旋钮开着才画），不靠 CSS 藏：`blockImage=none` 时 DOM 里
+//    就没有那张 `<img>`；某条 stat 没写 `icon`（或名字查不到），那一条就没有图标节点。块头只看 `headline` / `body`：
+//    两个都空 ⟹ 块头那一列整个不渲染，stats 顶到段顶。每条 stat 只有 value · label（+ icon），没有第三行。
+//
+// 🔴 **图片的键叫 `imageUrl`**（`blockImage` / `introImage` 两处）：AI 改站的写入闸只认 `IMAGE_FIELDS` 里的键
+//    （`scripts/lib/image-urls.js`）。
+//
+// 🔴 **图标是内联 SVG**（同 features-new）：`iconTable` 由服务端按数据里出现的名字查好传进来
+//    （`scripts/lib/icons.js` §iconTableFor），这里用 `InlineIcon` 画；本组件自己不写死任何图标名。
+//
+// 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg，footer-new / cta-new 同一对），
+//    纯色、brand、渐变都认；这里不自己算亮度、不自己拼渐变。`blockImage=background` 且真有图时字色按深底
+//    （图上盖 60% 深色遮罩，遮罩写在 `block.css`）。
+
+import Link from 'next/link';
+import { blockAttrs } from '@/lib/sections/blockAttrs';
+import type { BlockConfig } from '@/lib/types/config';
+import InlineIcon, { type IconTable } from '@/components/InlineIcon';
+import manifest from './manifest.json';
+import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
+import { bgCss, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+
+type BtnStyle = 'solid' | 'outline' | 'link';
+
+export interface MilestonesImage { imageUrl?: string; alt?: string }
+export interface MilestonesButton { label?: string; href?: string; style?: BtnStyle; icon?: string; arrow?: boolean; size?: 'sm' | 'md' | 'lg' }
+export interface MilestonesStat { value?: string; label?: string; icon?: string }
+export interface MilestonesOptions {
+  blockImage?: string;
+  introPosition?: string; introAlign?: string; introImage?: string;
+  statsColumns?: string; statSize?: string; statStyle?: string; statAlign?: string;
+}
+export interface MilestonesData {
+  options?: MilestonesOptions;
+  blockImage?: MilestonesImage;
+  introEyebrow?: { text?: string; style?: string };
+  headline?: string;
+  body?: string;
+  introCtas?: MilestonesButton[];
+  introImage?: MilestonesImage;
+  stats?: MilestonesStat[];
+  bg?: BgValue;
+}
+
+interface Props {
+  data: MilestonesData;
+  locale?: string;
+  block?: BlockConfig;
+  /** 服务端查好的图标表（`scripts/lib/icons.js` §iconTableFor）。没给 ⟹ 一个图标都不画。 */
+  iconTable?: IconTable;
+}
+
+// 块头按钮 0–2 条（manifest `slots.introCtas.max`）；stats 1–6 条（`slots.stats.maxItems`，validateSite 拦超出的）。
+// 演示内容包按守卫 (c) 给按钮 6 条，多出来的在这里截掉。
+const MAX_CTAS = manifest.slots.introCtas.max;
+const MAX_STATS = manifest.slots.stats.maxItems;
+
+const isObj = (v: unknown): v is object => !!v && typeof v === 'object' && !Array.isArray(v);
+const str = (v: unknown): string => (typeof v === 'string' ? v : '');
+const imgOf = (v: unknown): MilestonesImage | null => (isObj(v) && str((v as MilestonesImage).imageUrl) ? (v as MilestonesImage) : null);
+
+// 这几条类名要**逐字**写在源码里：`site.css` 是按源码 purge 的（`scripts/lib/site-css.js` §PURGE_CONTENT），
+// 拼出来的类名 purge 看不见。
+const EYEBROW_CLASS: Record<string, string> = {
+  pill: 'mi-eyebrow-pill badge rounded-pill bg-primary-subtle text-primary fw-semibold text-xs px-3 py-2',
+  outline: 'mi-eyebrow-outline badge rounded-pill border border-primary text-primary bg-transparent fw-semibold text-xs px-3 py-2',
+  dash: 'mi-eyebrow-dash text-uppercase text-xs fw-semibold ls-wider text-muted',
+  plain: 'mi-eyebrow-plain text-uppercase text-xs fw-semibold ls-wider text-muted',
+};
+
+function btnClass(b: MilestonesButton, fallback: BtnStyle): string {
+  const style = b.style || fallback;
+  const size = b.size === 'sm' ? ' btn-sm' : b.size === 'lg' ? ' btn-lg' : '';
+  if (style === 'link') return `btn btn-link px-0 d-inline-flex align-items-center text-nowrap${size}`;
+  if (style === 'outline') return `btn btn-outline-primary d-inline-flex align-items-center justify-content-center text-nowrap${size}`;
+  return `btn btn-primary d-inline-flex align-items-center justify-content-center text-nowrap${size}`;
+}
+
+export default function MilestonesSection({ data, block, iconTable = {} }: Props) {
+  const d: MilestonesData = isObj(data) ? data : {};
+  const shape = block && typeof block.shape === 'string' ? block.shape : undefined;
+  const opts: MilestonesOptions = isObj(d.options) ? d.options : {};
+  const k = effectiveKnobs(manifest, shape, opts) as Required<{ [K in keyof MilestonesOptions]: string }>;
+  const blockImg = k.blockImage !== 'none' ? imgOf(d.blockImage) : null;
+  const cover = !!blockImg && k.blockImage === 'background';
+  const tone = cover ? 'dark' : toneForBg(d.bg);
+  const bgValue = bgCss(d.bg);
+
+  const icon = (name: string | undefined, className?: string) => <InlineIcon name={name} icons={iconTable} className={className} />;
+  const hasIcon = (name: unknown) => typeof name === 'string' && !!iconTable[name];
+
+  const eyebrow = isObj(d.introEyebrow) && str(d.introEyebrow.text) ? d.introEyebrow : null;
+  // 没写 style ⟹ pill（同 hero-new / cta-new / features-new：AI 只写了字，眉标照样出来）；明写 none ⟹ 不画。
+  const eyebrowStyle = !eyebrow ? 'none' : !eyebrow.style ? 'pill' : eyebrow.style in EYEBROW_CLASS ? eyebrow.style : 'none';
+  const ctas = (Array.isArray(d.introCtas) ? d.introCtas : []).filter((b) => isObj(b) && str(b.label)).slice(0, MAX_CTAS);
+  const introImg = k.introImage !== 'none' ? imgOf(d.introImage) : null;
+  const hasIntro = !!(str(d.headline) || str(d.body));
+  const stats = (Array.isArray(d.stats) ? d.stats : []).filter((s): s is MilestonesStat => isObj(s)).slice(0, MAX_STATS);
+
+  const introText = (
+    <div className="mi-intro-text" data-part="intro-text">
+      {eyebrow && eyebrowStyle !== 'none' ? (
+        <div className="mb-4" data-part="eyebrow">
+          <span className={EYEBROW_CLASS[eyebrowStyle]} data-eyebrow={eyebrowStyle} data-slot="introEyebrow.text">
+            {eyebrowStyle === 'dash' ? '— ' : null}{eyebrow.text}
+          </span>
+        </div>
+      ) : null}
+      {d.headline ? <h2 className="display-5 fw-bold lh-1 ls-tight mb-4 mi-title" data-slot="headline">{d.headline}</h2> : null}
+      {d.body ? <p className="fs-5 text-muted mb-0 mi-body" data-slot="body">{d.body}</p> : null}
+      {ctas.length ? (
+        <div className="mi-ctas d-flex flex-wrap gap-2" data-part="ctas">
+          {ctas.map((b, i) => (
+            <Link key={i} href={b.href || '#'} className={btnClass(b, 'solid')} data-cta={b.style || 'solid'}>
+              {b.icon ? icon(b.icon, 'me-2') : null}
+              <span data-slot={`introCtas.${i}.label`}>{b.label}</span>
+              {b.arrow ? <span className="ms-2 d-inline-flex">{icon('arrow-right')}</span> : null}
+            </Link>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+
+  return (
+    <section
+      {...blockAttrs('milestones', block)}
+      data-block-image={k.blockImage}
+      data-intro-position={k.introPosition}
+      data-intro-align={k.introAlign}
+      data-intro-image={k.introImage}
+      data-stats-columns={k.statsColumns}
+      data-stat-size={k.statSize}
+      data-stat-style={k.statStyle}
+      data-stat-align={k.statAlign}
+      data-tone={tone}
+      className="position-relative py-16 py-lg-24"
+      style={bgValue ? { background: bgValue } : undefined}
+    >
+      {cover ? (
+        <div className="mi-cover" data-part="block-image">
+          <img className="w-100 h-100 object-fit-cover" src={blockImg.imageUrl} alt={blockImg.alt || ''} />
+        </div>
+      ) : null}
+      <div className="container mi-container">
+        <div className="mi-outer">
+          {blockImg && !cover ? (
+            <div className="mi-bimg" data-part="block-image">
+              <img className="img-fluid rounded-4 w-100 object-fit-cover" src={blockImg.imageUrl} alt={blockImg.alt || ''} />
+            </div>
+          ) : null}
+          <div className="mi-main">
+            <div className="row mi-frame gy-10 gx-lg-16">
+              {hasIntro ? (
+                <div className="col-12 mi-introcol" data-part="intro">
+                  <div className="mi-intro">
+                    {introImg ? (
+                      <div className="mi-intro-img" data-part="intro-image">
+                        <img className="img-fluid rounded-4 w-100 object-fit-cover" src={introImg.imageUrl} alt={introImg.alt || ''} />
+                      </div>
+                    ) : null}
+                    {introText}
+                  </div>
+                </div>
+              ) : null}
+              <div className="col-12 mi-statscol" data-part="stats">
+                <div className="mi-grid">
+                  {stats.map((s, i) => (
+                    <div key={i} className="mi-stat" data-part="stat">
+                      <div className="mi-inner h-100">
+                        {hasIcon(s.icon) ? (
+                          <div className="mi-icon d-inline-flex align-items-center justify-content-center rounded-3 bg-primary-subtle text-primary mb-4" data-part="icon">
+                            {icon(s.icon)}
+                          </div>
+                        ) : null}
+                        <div className="mi-value display-4 fw-bold lh-1 ls-tight" data-slot={`stats.${i}.value`}>{s.value}</div>
+                        {s.label ? <div className="mi-label fw-semibold mt-2" data-slot={`stats.${i}.label`}>{s.label}</div> : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}

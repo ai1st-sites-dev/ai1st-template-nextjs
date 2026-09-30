@@ -425,6 +425,35 @@ const DEMO_CONTENT = {
     bg: null,
   },
 
+  // #1482 —— milestones：Northside Auto Care 的六个数字，每条带 icon（正文做什么 9 点名的是前四条；守卫 (c) 要列表槽
+  //    ≥ 6 条、长短不一，所以补了两条）。`introCtas` 给 6 条同理，组件只画前 2 条（`slots.introCtas.max`）。
+  //    🔴 `introEyebrow.style` 写明 pill，理由同上面 features-new 那条（词表 `none` 排第一，工具栏不写就亮 none）。
+  milestones: {
+    options: {},
+    blockImage: { imageUrl: imageUrl('hero-bay'), alt: 'A technician checking a car on the hoist' },
+    introEyebrow: { text: 'By the numbers', style: 'pill' },
+    headline: 'Trusted by drivers across Northside',
+    body: 'Fifteen years of honest repairs, written quotes and a two-year warranty on every job.',
+    introCtas: [
+      { label: 'Book a service', href: '/quote', style: 'solid' },
+      { label: 'Call (416) 555-0142', href: 'tel:+14165550142', style: 'outline', icon: 'telephone' },
+      { label: 'Read what our customers say about their repairs', href: '/reviews', style: 'link', arrow: true },
+      { label: 'Warranty', href: '/warranty', style: 'link' },
+      { label: 'Services', href: '/services', style: 'link' },
+      { label: 'Directions', href: '/contact', style: 'link' },
+    ],
+    introImage: { imageUrl: imageUrl('about-workshop'), alt: 'The Northside Auto Care workshop with two cars on hoists' },
+    stats: [
+      { value: '2009', label: 'Serving Northside since', icon: 'calendar-check' },
+      { value: '14,000+', label: 'Jobs completed', icon: 'wrench-adjustable' },
+      { value: '60 min', label: 'Average arrival', icon: 'stopwatch' },
+      { value: '4.9', label: 'Google rating', icon: 'star-fill' },
+      { value: '2 yr', label: 'Warranty on parts and labour for every repair we do', icon: 'shield-check' },
+      { value: '24/7', label: 'Towing', icon: 'truck' },
+    ],
+    bg: null,
+  },
+
   'announcement-bar': {
     message: 'Winter tire changeovers are booking two weeks out — reserve your slot now.',
     link: { label: 'Reserve a slot', href: '/quote' },

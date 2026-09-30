@@ -290,15 +290,16 @@ console.log('\n── AC10 / AC11 block-roles · 首页配方');
   delete recipe.NOT_IN_POOL['cta-new'];
   let before;
   try { before = recipe.poolFor(without); } finally { recipe.NOT_IN_POOL['cta-new'] = saved0; }
-  check(JSON.stringify(pool) === JSON.stringify(before) && pool.length === 13, `poolFor 与没有 cta-new 时是同一个集合（${pool.length} 种）`);
+  check(JSON.stringify(pool) === JSON.stringify(before) && pool.length === 14, `poolFor 与没有 cta-new 时是同一个集合（${pool.length} 种）`);
   check(M.prompt && M.prompt.group === 'homepage', 'prompt.group == homepage（否则进了排除名单反而抛错）');
-  // 反向对照：从排除名单拿掉 cta-new ⟹ 它进池子、池子变 14。
+  // 反向对照：从排除名单拿掉 cta-new ⟹ 它进池子、池子变 15。
   // 📌 #1475 让池子多一种（features-new 进池），#1485 又让 features-grid 出池 —— 一进一出，回到 13 / 14。
+  // 📌 #1482 再多一种（milestones 也是首页正文块、进池）：13 → 14、14 → 15。
   const saved = recipe.NOT_IN_POOL['cta-new'];
   delete recipe.NOT_IN_POOL['cta-new'];
   try {
     const leaked = recipe.poolFor(all);
-    check(leaked.includes('cta-new') && leaked.length === 14, `反向对照：不排除它 ⟹ 进池子（${leaked.length} 种）—— 判据分得开`);
+    check(leaked.includes('cta-new') && leaked.length === 15, `反向对照：不排除它 ⟹ 进池子（${leaked.length} 种）—— 判据分得开`);
   } finally { recipe.NOT_IN_POOL['cta-new'] = saved; }
 }
 

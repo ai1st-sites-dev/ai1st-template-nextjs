@@ -1,0 +1,404 @@
+/* ── milestones · 跨形态的规则（#1482）──────────────────────────────────────────────────────────
+   milestones 的排版由**实际生效的旋钮**决定，写在根元素上：
+     块     data-block-image（none / left / right / background）
+     intro  data-intro-position（left / right / top / bottom）· data-intro-align（left / center / right）·
+            data-intro-image（none / left / right）
+     stats  data-stats-columns（auto / 1 / 2 / 3 / 4）· data-stat-size（md / xl）· data-stat-style（plain / card / divided）·
+            data-stat-align（left / center）
+     底色   data-tone（light / dark / brand，scripts/lib/contrast.js §toneForBg；blockImage=background 且有图时 Section.tsx 给 dark）
+   五个形态目录都是预设，自己不带几何（理由在各自的 shape.css 里）。旋钮彼此独立：这里没有一条规则
+   按「另一个旋钮是什么」去改这个旋钮的效果（定稿 2026-09-29 删掉了图册里那两条强制改列数）。
+
+   🔴 Webpixels 的工具类全带 !important（mb-* / text-muted / display-4 / bg-primary-subtle …）。这里要压过它们的规则
+      **也带 !important**，而且选择器从 [data-block="milestones"] 起步再加属性 / 类 —— 特异度一定高过工具类的一个类。
+   🔴 部件的有无靠渲染（Section.tsx 有数据才画），不靠 CSS 藏。
+   🔴 上下叠时的 2.5rem 用 margin 给：Bootstrap 的 g-* 只对 .row 起作用，.mi-outer / .mi-intro 写 g-* 等于没写。
+   间距照 Webpixels 尺度：段 py-16 py-lg-24、块头与 stats 之间 2.5rem（gy-10）/ ≥992 横向 4rem（gx-lg-16）、
+   stats 行距 2.5rem（card 1.5rem）、card 内 2rem（= p-8）。纵向写 gy-10、不写 g-10（g-10 的横向负边距在手机上溢出 4px，
+   #1475 量出来的）。 */
+
+/* ═══ 块级那张图（blockImage）═════════════════════════════════════════════════════════════════════ */
+
+/* left / right：≥992 图占 40%、intro + stats 在另一边，gap 4rem、垂直居中。
+   <992 上下叠：left 图在上、right 图在下（桌面在左 = 小屏在上，桌面在右 = 小屏在下），图与相邻内容隔 2.5rem。 */
+[data-block="milestones"] .mi-outer {
+  display: flex;
+  flex-direction: column;
+}
+[data-block="milestones"] .mi-main {
+  min-width: 0;
+}
+[data-block="milestones"] .mi-bimg img {
+  aspect-ratio: 4 / 5;
+}
+[data-block="milestones"][data-block-image="left"] .mi-bimg {
+  margin-bottom: 2.5rem;
+}
+[data-block="milestones"][data-block-image="right"] .mi-outer {
+  flex-direction: column-reverse;
+}
+[data-block="milestones"][data-block-image="right"] .mi-bimg {
+  margin-top: 2.5rem;
+}
+@media (min-width: 992px) {
+  [data-block="milestones"][data-block-image="left"] .mi-outer,
+  [data-block="milestones"][data-block-image="right"] .mi-outer {
+    flex-direction: row;
+    align-items: center;
+    gap: 4rem;
+  }
+  [data-block="milestones"][data-block-image="right"] .mi-outer {
+    flex-direction: row-reverse;
+  }
+  [data-block="milestones"][data-block-image="left"] .mi-bimg,
+  [data-block="milestones"][data-block-image="right"] .mi-bimg {
+    flex: 0 0 40%;
+    margin: 0;
+  }
+  [data-block="milestones"][data-block-image="left"] .mi-main,
+  [data-block="milestones"][data-block-image="right"] .mi-main {
+    flex: 1 1 0;
+  }
+}
+
+/* background：真照片铺整段 + 60% 深色遮罩；字色由 data-tone="dark" 那一组给（Section.tsx 在有图时给 dark），
+   描线 / 卡片换成铺图专用的那一档（比纯深底略亮一点，照片上才看得出）。 */
+[data-block="milestones"] .mi-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+[data-block="milestones"] .mi-cover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.6);
+}
+[data-block="milestones"] .mi-container {
+  position: relative;
+  z-index: 1;
+}
+
+/* ═══ intro（块头）═══════════════════════════════════════════════════════════════════════════════ */
+
+[data-block="milestones"] .mi-intro {
+  display: flex;
+  flex-direction: column;
+}
+[data-block="milestones"] .mi-intro-text > :last-child {
+  margin-bottom: 0 !important;
+}
+[data-block="milestones"] .mi-body {
+  max-width: 52ch;
+}
+[data-block="milestones"] .mi-ctas {
+  margin-top: 2rem;
+}
+
+/* introAlign：只管块头。left 不限宽；center / right 限 64ch 并按对齐走位置。 */
+[data-block="milestones"][data-intro-align="center"] .mi-intro-text {
+  text-align: center;
+  max-width: 64ch;
+  margin-left: auto;
+  margin-right: auto;
+}
+[data-block="milestones"][data-intro-align="center"] .mi-body {
+  margin-left: auto;
+  margin-right: auto;
+}
+[data-block="milestones"][data-intro-align="center"] .mi-ctas {
+  justify-content: center;
+}
+[data-block="milestones"][data-intro-align="right"] .mi-intro-text {
+  text-align: right;
+  max-width: 64ch;
+  margin-left: auto;
+}
+[data-block="milestones"][data-intro-align="right"] .mi-body {
+  margin-left: auto;
+}
+[data-block="milestones"][data-intro-align="right"] .mi-ctas {
+  justify-content: flex-end;
+}
+
+/* introImage：DOM 里图在文字前面。<992 图在上、下边距 2.5rem；≥992 left / right 并排、图 45%、文字自适应。 */
+[data-block="milestones"] .mi-intro-img img {
+  aspect-ratio: 4 / 3;
+}
+[data-block="milestones"] .mi-intro-img {
+  margin-bottom: 2.5rem;
+}
+@media (min-width: 992px) {
+  [data-block="milestones"][data-intro-image="left"] .mi-intro,
+  [data-block="milestones"][data-intro-image="right"] .mi-intro {
+    flex-direction: row;
+    align-items: center;
+  }
+  [data-block="milestones"][data-intro-image="right"] .mi-intro {
+    flex-direction: row-reverse;
+  }
+  [data-block="milestones"][data-intro-image="left"] .mi-intro-img,
+  [data-block="milestones"][data-intro-image="right"] .mi-intro-img {
+    flex: 0 0 45%;
+    min-width: 0;
+    margin-bottom: 0;
+  }
+  [data-block="milestones"][data-intro-image="left"] .mi-intro-img {
+    margin-right: 4rem;
+  }
+  [data-block="milestones"][data-intro-image="right"] .mi-intro-img {
+    margin-left: 4rem;
+  }
+  [data-block="milestones"][data-intro-image="left"] .mi-intro-text,
+  [data-block="milestones"][data-intro-image="right"] .mi-intro-text {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: none;
+    margin: 0;
+  }
+}
+
+/* introPosition：left / right（≥992）= 块头一列 41.67%（sticky top 2rem）、stats 一列 58.33%；right 行反向。
+   块头那一列窄，里面的图一律叠在文字上面（同 features-new）。
+   小屏：left / top 块头在上，right / bottom 块头在下。 */
+[data-block="milestones"][data-intro-position="bottom"] .mi-frame {
+  flex-direction: column-reverse;
+}
+@media (max-width: 991.98px) {
+  [data-block="milestones"][data-intro-position="right"] .mi-frame {
+    flex-direction: column-reverse;
+  }
+}
+@media (min-width: 992px) {
+  [data-block="milestones"][data-intro-position="left"] .mi-introcol,
+  [data-block="milestones"][data-intro-position="right"] .mi-introcol {
+    flex: 0 0 auto;
+    width: 41.6667%;
+    position: sticky;
+    top: 2rem;
+    align-self: flex-start;
+  }
+  [data-block="milestones"][data-intro-position="left"] .mi-statscol,
+  [data-block="milestones"][data-intro-position="right"] .mi-statscol {
+    flex: 0 0 auto;
+    width: 58.3333%;
+  }
+  [data-block="milestones"][data-intro-position="right"] .mi-frame {
+    flex-direction: row-reverse;
+  }
+  [data-block="milestones"][data-intro-position="left"] .mi-intro,
+  [data-block="milestones"][data-intro-position="right"] .mi-intro {
+    flex-direction: column !important;
+    align-items: stretch;
+  }
+  [data-block="milestones"][data-intro-position="left"] .mi-intro-img,
+  [data-block="milestones"][data-intro-position="right"] .mi-intro-img {
+    flex: none;
+    margin: 0 0 2.5rem 0;
+  }
+  [data-block="milestones"][data-intro-position="left"] .mi-intro-text,
+  [data-block="milestones"][data-intro-position="right"] .mi-intro-text {
+    max-width: none;
+    margin: 0;
+  }
+}
+
+/* ═══ stats ═══════════════════════════════════════════════════════════════════════════════════════ */
+
+/* statsColumns：手机 / iPad 一律两列（`1` 例外：一列）；≥992 auto = 一行均分，2 / 3 / 4 = 按列数折行。
+   列宽按列数和列间距算（--mi-cols / --mi-gap），不用负边距 —— card 那档原来 `margin: 0 -.75rem`，390 上溢出 4px
+   （本票 e2e AC2 那一格量出来的）。 */
+[data-block="milestones"] .mi-grid {
+  --mi-cols: 2;
+  --mi-gap: 0px;
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 2.5rem;
+  column-gap: var(--mi-gap);
+}
+[data-block="milestones"] .mi-stat {
+  flex: 0 0 auto;
+  width: calc((100% - (var(--mi-cols) - 1) * var(--mi-gap)) / var(--mi-cols));
+  min-width: 0;
+  padding: 0 1rem;
+}
+[data-block="milestones"][data-stats-columns="1"] .mi-grid {
+  --mi-cols: 1;
+}
+@media (min-width: 992px) {
+  [data-block="milestones"][data-stats-columns="auto"] .mi-stat {
+    flex: 1 1 0;
+    width: auto;
+  }
+  [data-block="milestones"][data-stats-columns="2"] .mi-grid { --mi-cols: 2; }
+  [data-block="milestones"][data-stats-columns="3"] .mi-grid { --mi-cols: 3; }
+  [data-block="milestones"][data-stats-columns="4"] .mi-grid { --mi-cols: 4; }
+}
+
+/* statSize：md = display-4 的字号（组件上的类：calc(1.475rem + 2.7vw)，≥1200 为 3.5rem）；xl = 特大等宽数字，给 Big number。
+   两档都再按**这一格的内容宽度**封顶（`.mi-inner` 是尺寸容器，21cqi ≈ 7 个粗体字符放得下）：卡片两列排在 390 上时
+   内容区只有 ~100px，`14,000+` 照 display-4 画是 ~140px，页面被撑出 4px 横向滚动（本票 e2e AC2 量出来的）。
+   超长的值再允许断开，不把页面撑宽。 */
+[data-block="milestones"] .mi-inner {
+  container-type: inline-size;
+}
+[data-block="milestones"] .mi-value {
+  font-size: min(calc(1.475rem + 2.7vw), 21cqi);
+  overflow-wrap: anywhere;
+}
+@media (min-width: 1200px) {
+  [data-block="milestones"] .mi-value {
+    font-size: min(3.5rem, 21cqi);
+  }
+}
+[data-block="milestones"][data-stat-size="xl"] .mi-value {
+  font-size: min(clamp(3.5rem, 9vw, 7rem), 21cqi) !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* statAlign：只管每条 stat 里的内容（图标跟着走，它是 inline-flex）。 */
+[data-block="milestones"][data-stat-align="center"] .mi-inner {
+  text-align: center;
+}
+
+/* 图标：2.75rem 的方块。 */
+[data-block="milestones"] .mi-icon {
+  width: 2.75rem;
+  height: 2.75rem;
+  font-size: 1.25rem;
+}
+
+/* statStyle：plain 无底无线（stat 本身不带底色，Chris 2026-09-28）；card = 白底 + 1px 描边 + 1rem 圆角 + 2rem 内边距；
+   divided = 相邻 stat 之间 1px 竖线，每一行的第一条没有（手机两列 ⟹ 奇数条；≥992 按列数；auto 一行 ⟹ 只有首条）。 */
+[data-block="milestones"][data-stat-style="card"] .mi-grid {
+  --mi-gap: 1.5rem;
+  row-gap: 1.5rem;
+}
+[data-block="milestones"][data-stat-style="card"] .mi-stat {
+  padding: 0;
+}
+[data-block="milestones"][data-stat-style="card"] .mi-inner {
+  background: #fff;
+  border: 1px solid var(--x-border-color, #e5e7eb);
+  border-radius: 1rem;
+  padding: 2rem;
+}
+[data-block="milestones"][data-stat-style="divided"] .mi-stat {
+  border-left: 1px solid var(--x-border-color, #e5e7eb);
+}
+[data-block="milestones"][data-stat-style="divided"] .mi-stat:first-child,
+[data-block="milestones"][data-stat-style="divided"][data-stats-columns="1"] .mi-stat {
+  border-left: 0;
+}
+@media (max-width: 991.98px) {
+  [data-block="milestones"][data-stat-style="divided"] .mi-grid > .mi-stat:nth-child(odd) {
+    border-left: 0;
+  }
+}
+@media (min-width: 992px) {
+  [data-block="milestones"][data-stat-style="divided"][data-stats-columns="2"] .mi-grid > .mi-stat:nth-child(2n+1),
+  [data-block="milestones"][data-stat-style="divided"][data-stats-columns="3"] .mi-grid > .mi-stat:nth-child(3n+1),
+  [data-block="milestones"][data-stat-style="divided"][data-stats-columns="4"] .mi-grid > .mi-stat:nth-child(4n+1) {
+    border-left: 0;
+  }
+}
+
+/* ═══ 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneForBg）══════════════════════════════
+   dark = 深底 / 深色渐变 / 铺图；brand = 主题主色底。两者一样：标题 / 数字 / label 反白、正文白 .92（不是灰）、
+   card 换半透明底 + 半透明白描边、竖线与图标底换半透明白；outline 按钮翻成白描边、主按钮白底主色字（同 features-new）。 */
+[data-block="milestones"][data-tone="dark"],
+[data-block="milestones"][data-tone="brand"] {
+  color: #fff;
+}
+[data-block="milestones"][data-tone="dark"] .mi-title,
+[data-block="milestones"][data-tone="brand"] .mi-title,
+[data-block="milestones"][data-tone="dark"] .mi-value,
+[data-block="milestones"][data-tone="brand"] .mi-value,
+[data-block="milestones"][data-tone="dark"] .mi-label,
+[data-block="milestones"][data-tone="brand"] .mi-label,
+[data-block="milestones"][data-tone="dark"] .mi-eyebrow-dash,
+[data-block="milestones"][data-tone="brand"] .mi-eyebrow-dash,
+[data-block="milestones"][data-tone="dark"] .mi-eyebrow-plain,
+[data-block="milestones"][data-tone="brand"] .mi-eyebrow-plain {
+  color: #fff !important;
+}
+[data-block="milestones"][data-tone="dark"] .text-muted,
+[data-block="milestones"][data-tone="brand"] .text-muted {
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+[data-block="milestones"][data-tone="dark"][data-stat-style="card"] .mi-inner,
+[data-block="milestones"][data-tone="brand"][data-stat-style="card"] .mi-inner {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+[data-block="milestones"][data-tone="dark"][data-stat-style="divided"] .mi-stat,
+[data-block="milestones"][data-tone="brand"][data-stat-style="divided"] .mi-stat {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+[data-block="milestones"][data-tone="dark"] .mi-icon,
+[data-block="milestones"][data-tone="brand"] .mi-icon {
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #fff !important;
+}
+/* 铺图那一档：卡片 .08 底 + .18 描边（不能是白卡 —— 白卡上反白的数字看不见，Chris 2026-09-29）；竖线 .25。 */
+[data-block="milestones"][data-block-image="background"][data-tone="dark"][data-stat-style="card"] .mi-inner {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+[data-block="milestones"][data-block-image="background"][data-tone="dark"][data-stat-style="divided"] .mi-stat {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+[data-block="milestones"][data-tone="dark"] .mi-eyebrow-pill,
+[data-block="milestones"][data-tone="brand"] .mi-eyebrow-pill {
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #fff !important;
+}
+[data-block="milestones"][data-tone="dark"] .mi-eyebrow-outline,
+[data-block="milestones"][data-tone="brand"] .mi-eyebrow-outline {
+  border-color: rgba(255, 255, 255, 0.7) !important;
+  color: #fff !important;
+}
+[data-block="milestones"][data-tone="dark"] .btn-outline-primary,
+[data-block="milestones"][data-tone="brand"] .btn-outline-primary {
+  color: #fff !important;
+  border-color: rgba(255, 255, 255, 0.6) !important;
+}
+[data-block="milestones"][data-tone="dark"] .btn-link,
+[data-block="milestones"][data-tone="brand"] .btn-link {
+  color: #fff !important;
+}
+
+/* ── 按钮的底色和字色：接平台按这个站最终配色算好的那几个变量（`scripts/lib/button-ink.js`，同 features-new）。
+   轮廓按钮 / 纯文字链接用 `--x-primary-text-emphasis`，理由见 features-new/block.css 同一段（浅主题色压白底读不出来）。 */
+[data-block="milestones"] .btn-primary {
+  --x-btn-bg: var(--btn-primary-bg, var(--x-primary));
+  --x-btn-border-color: var(--btn-primary-bg, var(--x-primary));
+  --x-btn-color: var(--btn-primary-ink, #fff);
+  --x-btn-hover-bg: var(--btn-primary-hover, var(--btn-primary-bg, var(--x-primary)));
+  --x-btn-hover-border-color: var(--btn-primary-hover, var(--btn-primary-bg, var(--x-primary)));
+  --x-btn-hover-color: var(--btn-primary-ink, #fff);
+  --x-btn-active-bg: var(--btn-primary-hover, var(--btn-primary-bg, var(--x-primary)));
+  --x-btn-active-color: var(--btn-primary-ink, #fff);
+}
+[data-block="milestones"] .btn-outline-primary {
+  --x-btn-color: var(--x-primary-text-emphasis, var(--x-primary));
+  --x-btn-border-color: var(--x-primary-text-emphasis, var(--x-primary));
+}
+[data-block="milestones"] .btn-link {
+  --x-btn-color: var(--x-primary-text-emphasis, var(--x-primary));
+  --x-btn-hover-color: var(--x-primary-text-emphasis, var(--x-primary));
+  --x-btn-active-color: var(--x-primary-text-emphasis, var(--x-primary));
+}
+[data-block="milestones"][data-tone="dark"] .btn-primary,
+[data-block="milestones"][data-tone="brand"] .btn-primary {
+  background: #fff !important;
+  border-color: #fff !important;
+  color: var(--x-primary) !important;
+}
+[data-block="milestones"][data-tone="dark"] .btn-primary:hover,
+[data-block="milestones"][data-tone="brand"] .btn-primary:hover {
+  background: #f1f5f9 !important;
+  border-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
