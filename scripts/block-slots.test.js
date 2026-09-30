@@ -122,6 +122,8 @@ const EXTRA = {
   'content-split': { _item: { value: 'v', label: 'l' } },
   // #1463 —— logo 行只在有图时画（一行说明字底下没有 logo 是没意义的）。
   'hero-new': { logos: { caption: 'logos-caption', items: [{ imageUrl: '/a.png' }] } },
+  // #1483 —— 同上（logo 行只在有图时画）；月付 / 年付切换只在有套餐填了 price.yearly 时画，价格那一行（带 period）只在有价时画。
+  'pricing-new': { logos: { caption: 'logos-caption', items: [{ imageUrl: '/a.png' }] }, _item: { price: { monthly: '$1', yearly: '$2' } } },
 };
 
 // #1463 —— 同一个块、互斥的两支：hero-new 有表单时不画 `ctas`（提交键就是 CTA），没表单时不画表单。

@@ -73,7 +73,7 @@ import {
   sharedReach, sharedRemovable, puckSharedChanges, sharedOwnAfter, applySharedChanges, aiBaselineStep,
   THEME_DEFAULT, canvasShape, shapeOptions, describeSave,
 } from '../../../scripts/lib/editor-convert.js';
-import { presetNameFor } from '../../../scripts/lib/block-knobs.js';
+import { presetClickProps, presetNameFor } from '../../../scripts/lib/block-knobs.js';
 import { normalizeBg, toneForBg, type BgValue } from '../../../scripts/lib/contrast.js';
 import BgPicker from '../BgPicker';
 
@@ -146,14 +146,29 @@ function OptionsField({ f, value, onChange, readOnly }: { f: EditorField; value:
   const fallback: Record<string, unknown> = (f.presets && f.presets[0] && f.presets[0].knobs) || {};
   const current = Object.fromEntries(knobs.map((k) => [k.name, typeof v[k.name] === 'string' ? v[k.name]
     : k.values.includes(fallback[k.name] as string) ? fallback[k.name] : k.values[0]]));
-  const name = presetNameFor({ slots: { options: { knobs } }, presets: f.presets || [] }, current);
+  // #1483 —— 带颜色的预设（pricing-new 的 Rainbow）：判「是哪个预设」要连这一块的颜色字段一起比，点预设要连颜色字段一起写。
+  //    颜色是这一块的另外两个字段（bg / featuredColor），这个字段的 onChange 只改得动 `options` ⟹ 从 Puck 读出选中的那一块、
+  //    按 block-knobs.js §presetClickProps 算出整块的新 props，一次 `replace` 写回。没有带颜色预设的块（colorSlots 空）
+  //    走原来的 onChange，一个字节不变。
+  const colorSlots = f.colorSlots || [];
+  const selected = usePuck((s) => (colorSlots.length ? s.selectedItem : null));
+  const dispatch = usePuck((s) => s.dispatch);
+  const selectorFor = usePuck((s) => s.getSelectorForId);
+  const colorsNow = selected ? Object.fromEntries(colorSlots.map((c) => [c, (selected.props as Record<string, unknown>)[c]])) : {};
+  const name = presetNameFor({ slots: { options: { knobs } }, presets: f.presets || [] }, { ...current, ...colorsNow });
+  const pick = (p: NonNullable<EditorField['presets']>[number]) => {
+    const sel = selected ? selectorFor(String((selected.props as Record<string, unknown>).id)) : undefined;
+    if (!selected || !sel) { onChange({ ...v, ...p.knobs }); return; }
+    const props = presetClickProps(f, { ...(selected.props as Record<string, unknown>), options: v }, p.name);
+    dispatch({ type: 'replace', destinationIndex: sel.index, destinationZone: sel.zone, data: { ...selected, props } as never });
+  };
   return (
     <div data-editor-options="">
       <div style={SUB_LABEL}>Preset</div>
       <div style={CTRL_ROW}>
         {(f.presets || []).map((p) => (
           <button key={p.name} type="button" disabled={readOnly} style={chip(name === p.name)} data-editor-preset={p.name}
-            aria-pressed={name === p.name} onClick={() => onChange({ ...v, ...p.knobs })}>
+            aria-pressed={name === p.name} onClick={() => pick(p)}>
             {p.name}
           </button>
         ))}

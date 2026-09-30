@@ -365,12 +365,14 @@ console.log('\n── AC11 block-roles · 首页配方');
   const recipe = require(path.join(NEXT, 'scripts', 'lib', 'homepage-recipe.js'));
   const all = manifestLib.loadManifests();
   const pool = recipe.poolFor(all);
-  check(pool.includes('features-new') && pool.length === 14, `poolFor 含 features-new，池子 ${pool.length} 种`);
+  // 🔴 #1483（Chris 2026-09-30 解开新块票的串行）—— 不写死种数：每落一个新块池子就变，写死 `=== N` 会让并行的姊妹票
+  //    为同一个数互相打红。判据是「含它」+ 下面那格「比块库里没有它时多 1」。
+  check(pool.includes('features-new'), `poolFor 含 features-new，池子 ${pool.length} 种`);
   // #1485 —— 新块进池、旧块同时出池：features-grid 由 features-new 接替，同一页只放一个。
   check(!pool.includes('features-grid') && 'features-grid' in recipe.NOT_IN_POOL, 'features-grid 出池（在 NOT_IN_POOL 里）');
   check(!('features-new' in recipe.NOT_IN_POOL), 'NOT_IN_POOL 里没有 features-new（它是首页正文块）');
   const without = recipe.poolFor(new Map([...all].filter(([k]) => k !== 'features-new')));
-  check(!without.includes('features-new') && without.length === 13, `对照：块库里没有它 ⟹ 池子 ${without.length} 种（#1485 features-grid 出池、#1482 milestones 进池 —— 一出一进）`);
+  check(!without.includes('features-new') && without.length === pool.length - 1, `对照：块库里没有它 ⟹ 池子 ${without.length} 种（比 ${pool.length} 少一）`);
   check(M.prompt && M.prompt.group === 'homepage' && M.prompt.order === 5, `prompt.group == homepage、order ${M.prompt && M.prompt.order}（紧挨 features-grid 的 4）`);
 }
 

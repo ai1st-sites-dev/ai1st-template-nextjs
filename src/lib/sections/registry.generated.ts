@@ -22,6 +22,7 @@ import MapAreaSection from '@blocks/map-area/Section';
 import MilestonesSection from '@blocks/milestones/Section';
 import NewsletterSignupSection from '@blocks/newsletter-signup/Section';
 import PageHeaderSection from '@blocks/page-header/Section';
+import PricingNewSection from '@blocks/pricing-new/Section';
 import PricingTableSection from '@blocks/pricing-table/Section';
 import ProcessStepsSection from '@blocks/process-steps/Section';
 import QuoteFormSection from '@blocks/quote-form/Section';
@@ -55,6 +56,7 @@ export const sectionRegistry: Record<string, ComponentType<any>> = {
   'milestones': MilestonesSection,
   'newsletter-signup': NewsletterSignupSection,
   'page-header': PageHeaderSection,
+  'pricing-new': PricingNewSection,
   'pricing-table': PricingTableSection,
   'process-steps': ProcessStepsSection,
   'quote-form': QuoteFormSection,

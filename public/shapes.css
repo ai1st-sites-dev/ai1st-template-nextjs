@@ -5743,6 +5743,612 @@
   order: 2;
 }
 
+/* ══ pricing-new ══════════════════════════════════════════════════════════════════════ */
+/* ── pricing-new · 跨形态的规则（#1483）──────────────────────────────────────────────────────────
+   pricing-new 的排版由**实际生效的旋钮**决定，写在根元素上：
+     intro  data-intro-position（left / right / top / bottom）· data-intro-align（left / center / right）
+     plans  data-plans-columns（auto / 1 / 2 / 3 / 4）· data-plan-features（inside / below）·
+            data-plan-style（card / divided / plain）· data-plan-align（left / center / right）· data-plan-cta（top / bottom）·
+            data-featured（outline / background）
+     底色   data-tone（light / dark / brand，scripts/lib/contrast.js §toneForBg 按 bg 算）
+     高亮色 data-fc-kind（solid / gradient）· data-fc-tone（light / dark / brand）+ 根上的 --pr-fc / --pr-fc-line /
+            --pr-fc-on / --pr-fc-ink / --pr-fc-muted（Section.tsx §featuredVars 按 featuredColor 算；空 = brand）
+   六个形态目录都是预设，自己不带几何（理由在各自的 shape.css 里）。
+   「盒子」是谁：planFeatures=inside 时是 .pr-inner（清单在盒子里，.pr-card 不成盒）；below 时是 .pr-card（清单在盒子下面）。
+
+   🔴 Webpixels 的工具类全带 !important（mb-* / text-muted / d-flex / bg-white / justify-content-between …）。这里要压过它们的规则
+      **也带 !important**，而且选择器从 [data-block="pricing-new"] 起步再加属性 / 类 —— 特异度一定高过工具类的一个类。
+   🔴 部件的有无靠渲染（Section.tsx 有数据才画），不靠 CSS 藏 ⟹ 这里没有一条「显示某部件」的 display 规则会被
+      另一条盖掉（图册那次：居中 highlights 的 display:flex!important 盖掉了隐藏规则，没勾也露出来）。
+   🔴 列宽按列数和列间距算（--pr-cols / --pr-gap），不用负边距 —— 负边距在 390 上溢出（#1482 量出来的同一个坑）。
+   间距照 Webpixels 尺度：段 py-16 py-lg-24、块头与套餐 2.5rem（gy-10）/ ≥992 横向 4rem（gx-lg-16）、套餐之间 1.5rem、
+   卡内 2rem（= p-8）、billing 与套餐之间 2rem。 */
+
+/* ═══ intro（块头）═══════════════════════════════════════════════════════════════════════════════ */
+
+[data-block="pricing-new"] .pr-intro {
+  display: flex;
+  flex-direction: column;
+}
+[data-block="pricing-new"] .pr-intro-text > :last-child {
+  margin-bottom: 0 !important;
+}
+[data-block="pricing-new"] .pr-body {
+  max-width: 52ch;
+}
+
+/* 部件：highlights（图标 + 标题 + 一句）· proof（头像 + 评分）· logos。各自跟上一样隔 2rem。 */
+[data-block="pricing-new"] .pr-highlights,
+[data-block="pricing-new"] .pr-proof,
+[data-block="pricing-new"] .pr-logos {
+  margin-top: 2rem;
+}
+[data-block="pricing-new"] .pr-hl {
+  margin-bottom: 1.25rem;
+}
+[data-block="pricing-new"] .pr-hl:last-child {
+  margin-bottom: 0;
+}
+[data-block="pricing-new"] .pr-hl-icon {
+  width: 3rem;
+  height: 3rem;
+  font-size: 1.25rem;
+}
+[data-block="pricing-new"] .pr-avatar + .pr-avatar {
+  margin-left: -10px;
+}
+[data-block="pricing-new"] .pr-logo {
+  height: 24px;
+  width: auto;
+  opacity: 0.75;
+}
+
+/* introAlign：left 不限宽；center / right 限 64ch 并按对齐走位置。部件跟着对齐：
+   highlights 在 center 时排成一排（≥768 四列、手机两列，图标在上、字居中），right 时镜像（图标在右、字靠右）；
+   proof / logos 跟着居中 / 靠右。 */
+[data-block="pricing-new"][data-intro-align="center"] .pr-intro-text {
+  text-align: center;
+  max-width: 64ch;
+  margin-left: auto;
+  margin-right: auto;
+}
+[data-block="pricing-new"][data-intro-align="center"] .pr-body {
+  margin-left: auto;
+  margin-right: auto;
+}
+[data-block="pricing-new"][data-intro-align="center"] .pr-proof,
+[data-block="pricing-new"][data-intro-align="center"] .pr-logo-row {
+  justify-content: center;
+}
+[data-block="pricing-new"][data-intro-align="center"] .pr-highlights {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1.5rem;
+}
+[data-block="pricing-new"][data-intro-align="center"] .pr-hl {
+  flex: 0 0 auto;
+  width: calc((100% - 1.5rem) / 2);
+  min-width: 0;
+  flex-direction: column;
+  align-items: center !important;
+  text-align: center;
+  gap: 0.75rem !important;
+  margin-bottom: 0;
+}
+@media (min-width: 768px) {
+  [data-block="pricing-new"][data-intro-align="center"] .pr-hl {
+    width: calc((100% - 4.5rem) / 4);
+  }
+}
+[data-block="pricing-new"][data-intro-align="right"] .pr-intro-text {
+  text-align: right;
+  max-width: 64ch;
+  margin-left: auto;
+}
+[data-block="pricing-new"][data-intro-align="right"] .pr-body {
+  margin-left: auto;
+}
+[data-block="pricing-new"][data-intro-align="right"] .pr-proof,
+[data-block="pricing-new"][data-intro-align="right"] .pr-logo-row {
+  justify-content: flex-end;
+}
+[data-block="pricing-new"][data-intro-align="right"] .pr-hl {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+/* introPosition：left / right（≥992）= 块头一列 41.67%（sticky top 2rem）、套餐一列 58.33%；right 行反向。
+   小屏：left / top 块头在上，right / bottom 块头在下。 */
+[data-block="pricing-new"][data-intro-position="bottom"] .pr-frame {
+  flex-direction: column-reverse;
+}
+@media (max-width: 991.98px) {
+  [data-block="pricing-new"][data-intro-position="right"] .pr-frame {
+    flex-direction: column-reverse;
+  }
+}
+@media (min-width: 992px) {
+  [data-block="pricing-new"][data-intro-position="left"] .pr-introcol,
+  [data-block="pricing-new"][data-intro-position="right"] .pr-introcol {
+    flex: 0 0 auto;
+    width: 41.6667%;
+    position: sticky;
+    top: 2rem;
+    align-self: flex-start;
+  }
+  [data-block="pricing-new"][data-intro-position="left"] .pr-planscol,
+  [data-block="pricing-new"][data-intro-position="right"] .pr-planscol {
+    flex: 0 0 auto;
+    width: 58.3333%;
+  }
+  [data-block="pricing-new"][data-intro-position="right"] .pr-frame {
+    flex-direction: row-reverse;
+  }
+  [data-block="pricing-new"][data-intro-position="left"] .pr-intro-text,
+  [data-block="pricing-new"][data-intro-position="right"] .pr-intro-text {
+    max-width: none;
+    margin: 0;
+  }
+}
+
+/* ═══ billing（月付 / 年付，住在套餐正上方）═══════════════════════════════════════════════════════
+   块头在上 / 下时跟 introAlign 对齐，块头在侧时靠左。 */
+[data-block="pricing-new"] .pr-billing-wrap {
+  margin-bottom: 2rem;
+}
+[data-block="pricing-new"][data-intro-align="center"][data-intro-position="top"] .pr-billing-wrap,
+[data-block="pricing-new"][data-intro-align="center"][data-intro-position="bottom"] .pr-billing-wrap {
+  text-align: center;
+}
+[data-block="pricing-new"][data-intro-align="right"][data-intro-position="top"] .pr-billing-wrap,
+[data-block="pricing-new"][data-intro-align="right"][data-intro-position="bottom"] .pr-billing-wrap {
+  text-align: right;
+}
+[data-block="pricing-new"] .pr-billing {
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+
+/* ═══ plans ═══════════════════════════════════════════════════════════════════════════════════════ */
+
+/* plansColumns：手机 1 列、iPad 2 列；≥992 auto = 有几个一行均分，2 / 3 / 4 = 按列数折行，1 = 单套餐宽卡。 */
+[data-block="pricing-new"] .pr-grid {
+  --pr-cols: 1;
+  --pr-gap: 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 1.5rem;
+  column-gap: var(--pr-gap);
+}
+[data-block="pricing-new"] .pr-plan {
+  flex: 0 0 auto;
+  width: calc((100% - (var(--pr-cols) - 1) * var(--pr-gap)) / var(--pr-cols));
+  min-width: 0;
+}
+@media (min-width: 768px) {
+  [data-block="pricing-new"] .pr-grid {
+    --pr-cols: 2;
+  }
+  [data-block="pricing-new"][data-plans-columns="1"] .pr-grid {
+    --pr-cols: 1;
+  }
+}
+@media (min-width: 992px) {
+  [data-block="pricing-new"][data-plans-columns="auto"] .pr-plan {
+    flex: 1 1 0;
+    width: auto;
+  }
+  [data-block="pricing-new"][data-plans-columns="3"] .pr-grid { --pr-cols: 3; }
+  [data-block="pricing-new"][data-plans-columns="4"] .pr-grid { --pr-cols: 4; }
+}
+
+/* plansColumns=1：单套餐宽卡（最大 56rem、居中），≥768 清单分两列；按钮在价格下面时不通栏、跟 planAlign 走。 */
+[data-block="pricing-new"][data-plans-columns="1"] .pr-plan {
+  width: 100%;
+  max-width: 56rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+@media (min-width: 768px) {
+  [data-block="pricing-new"][data-plans-columns="1"] .pr-features {
+    columns: 2;
+    column-gap: 3rem;
+  }
+}
+[data-block="pricing-new"][data-plans-columns="1"] .pr-features li {
+  break-inside: avoid;
+}
+[data-block="pricing-new"][data-plans-columns="1"][data-plan-cta="top"] .pr-cta {
+  width: auto !important;
+  align-self: flex-start;
+}
+[data-block="pricing-new"][data-plans-columns="1"][data-plan-cta="top"][data-plan-align="center"] .pr-cta {
+  align-self: center;
+}
+[data-block="pricing-new"][data-plans-columns="1"][data-plan-cta="top"][data-plan-align="right"] .pr-cta {
+  align-self: flex-end;
+}
+
+/* 套餐里的几行 */
+[data-block="pricing-new"] .pr-amount {
+  overflow-wrap: anywhere;
+}
+[data-block="pricing-new"] .pr-features {
+  margin-top: 1.25rem;
+  text-align: left;
+}
+[data-block="pricing-new"] .pr-check {
+  margin-top: 0.15rem;
+  color: var(--x-primary-text-emphasis, var(--x-primary));
+}
+[data-block="pricing-new"] .pr-badge {
+  background: var(--x-primary-bg-subtle, #e0e7ff);
+  color: var(--x-primary-text-emphasis, var(--x-primary));
+}
+
+/* planFeatures：inside = 清单在盒子里（.pr-card 不成盒）；below = 清单在盒子下面。 */
+[data-block="pricing-new"][data-plan-features="inside"] .pr-card {
+  display: contents;
+}
+[data-block="pricing-new"][data-plan-features="below"] .pr-card {
+  display: flex;
+  flex-direction: column;
+}
+[data-block="pricing-new"][data-plan-features="below"] .pr-features {
+  padding: 0 0.5rem;
+}
+
+/* planCta：top = 价格下面；bottom = 最底下（card 时通栏贴底）。 */
+[data-block="pricing-new"][data-plan-cta="bottom"] .pr-cta {
+  order: 9;
+  margin-top: 1.5rem;
+}
+[data-block="pricing-new"][data-plan-cta="bottom"][data-plan-style="card"] .pr-cta {
+  margin: auto -2rem -2rem;
+  width: auto !important;
+  border-radius: 0 0 1rem 1rem;
+  padding: 1rem;
+}
+[data-block="pricing-new"][data-plan-cta="bottom"][data-plan-style="card"][data-plan-features="inside"] .pr-features {
+  margin-bottom: 1.5rem !important;
+}
+[data-block="pricing-new"][data-plan-cta="bottom"][data-plan-style="card"][data-plan-features="below"] .pr-desc {
+  margin-bottom: 1.5rem !important;
+}
+
+/* planStyle：card = 白底 1px 描边 1rem 圆角 2rem 内边距；divided = 无框、相邻套餐之间 1px 竖线（小屏换成横线）；
+   plain = 无框无线。divided 的竖线要贴着套餐之间，所以列间距归零、内边距挪进 .pr-inner。 */
+[data-block="pricing-new"][data-plan-style="card"][data-plan-features="inside"] .pr-inner,
+[data-block="pricing-new"][data-plan-style="card"][data-plan-features="below"] .pr-card {
+  background: #fff;
+  border: 1px solid var(--x-border-color, #e5e7eb);
+  border-radius: 1rem;
+  padding: 2rem;
+}
+[data-block="pricing-new"][data-plan-style="divided"] .pr-inner {
+  padding: 0 1.25rem;
+}
+[data-block="pricing-new"][data-plan-style="plain"] .pr-inner {
+  padding: 0 0.5rem;
+}
+@media (max-width: 991.98px) {
+  [data-block="pricing-new"][data-plan-style="divided"] .pr-grid {
+    --pr-cols: 1;
+  }
+  [data-block="pricing-new"][data-plan-style="divided"] .pr-plan {
+    border-top: 1px solid var(--x-border-color, #e5e7eb);
+    padding-top: 1.5rem;
+  }
+  [data-block="pricing-new"][data-plan-style="divided"] .pr-plan:first-child {
+    border-top: 0;
+    padding-top: 0;
+  }
+}
+@media (min-width: 992px) {
+  [data-block="pricing-new"][data-plan-style="divided"] .pr-grid {
+    --pr-gap: 0px;
+  }
+  [data-block="pricing-new"][data-plan-style="divided"] .pr-plan {
+    border-left: 1px solid var(--x-border-color, #e5e7eb);
+  }
+  [data-block="pricing-new"][data-plan-style="divided"] .pr-plan:first-child,
+  [data-block="pricing-new"][data-plan-style="divided"][data-plans-columns="1"] .pr-plan,
+  [data-block="pricing-new"][data-plan-style="divided"][data-plans-columns="2"] .pr-grid > .pr-plan:nth-child(2n+1),
+  [data-block="pricing-new"][data-plan-style="divided"][data-plans-columns="3"] .pr-grid > .pr-plan:nth-child(3n+1),
+  [data-block="pricing-new"][data-plan-style="divided"][data-plans-columns="4"] .pr-grid > .pr-plan:nth-child(4n+1) {
+    border-left: 0;
+  }
+}
+
+/* planAlign：名字 / 价格 / 说明 / 按钮跟着走（right 时 badge 换到左边）；清单整块跟着走、每行仍左对齐（勾号排成一条竖线）。 */
+[data-block="pricing-new"][data-plan-align="center"] .pr-inner {
+  text-align: center;
+}
+[data-block="pricing-new"][data-plan-align="center"] .pr-head {
+  justify-content: center !important;
+}
+[data-block="pricing-new"][data-plan-align="center"] .pr-price {
+  justify-content: center;
+}
+[data-block="pricing-new"][data-plan-align="center"] .pr-features {
+  width: fit-content;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+[data-block="pricing-new"][data-plan-align="right"] .pr-inner {
+  text-align: right;
+}
+[data-block="pricing-new"][data-plan-align="right"] .pr-head {
+  flex-direction: row-reverse;
+}
+[data-block="pricing-new"][data-plan-align="right"] .pr-price {
+  justify-content: flex-end;
+}
+[data-block="pricing-new"][data-plan-align="right"] .pr-features {
+  width: fit-content;
+  max-width: 100%;
+  margin-left: auto;
+}
+
+/* ═══ featured：高亮那个套餐 = 样式（outline | background）× 颜色（featuredColor）═════════════════════
+   两档都用同一个色。非 card 时高亮的那个自己补一个盒子（圆角 + 2rem 内边距，不许边框贴字）。 */
+
+/* outline：2px 边框 = 这个色（纯色 / brand 直接是 border-color；渐变用 padding-box / border-box 两层背景画，内层不透明白），
+   卡保持白底深字 —— 整段 bg 深的时候也一样（图册截图里出过「白卡白字」，这一组规则守的就是它）。 */
+[data-block="pricing-new"][data-featured="outline"][data-plan-features="inside"] .pr-featured .pr-inner,
+[data-block="pricing-new"][data-featured="outline"][data-plan-features="below"] .pr-featured .pr-card {
+  border: 2px solid var(--pr-fc-line) !important;
+  background: #fff !important;
+  border-radius: 1rem;
+  padding: 2rem;
+  color: #1e293b;
+}
+[data-block="pricing-new"][data-fc-kind="gradient"][data-featured="outline"][data-plan-features="inside"] .pr-featured .pr-inner,
+[data-block="pricing-new"][data-fc-kind="gradient"][data-featured="outline"][data-plan-features="below"] .pr-featured .pr-card {
+  border-color: transparent !important;
+  background: linear-gradient(#fff, #fff) padding-box, var(--pr-fc) border-box !important;
+}
+[data-block="pricing-new"][data-featured="outline"] .pr-featured .pr-badge,
+[data-block="pricing-new"][data-featured="outline"] .pr-featured .btn-primary {
+  background: var(--pr-fc) !important;
+  border-color: transparent !important;
+  color: var(--pr-fc-on) !important;
+}
+[data-block="pricing-new"][data-featured="outline"] .pr-featured .pr-check {
+  color: var(--pr-fc-ink);
+}
+
+/* background：卡底 = 这个色，卡里的字 / 勾号按亮度反白（--pr-fc-on；反白时小字白 .92 = --pr-fc-muted），
+   主按钮和 badge 翻成反白色底 + 这个色的字。 */
+[data-block="pricing-new"][data-featured="background"][data-plan-features="inside"] .pr-featured .pr-inner,
+[data-block="pricing-new"][data-featured="background"][data-plan-features="below"] .pr-featured .pr-card {
+  background: var(--pr-fc) !important;
+  border: 1px solid transparent !important;
+  border-radius: 1rem;
+  padding: 2rem;
+  color: var(--pr-fc-on);
+}
+[data-block="pricing-new"][data-featured="background"] .pr-featured .pr-name,
+[data-block="pricing-new"][data-featured="background"] .pr-featured .pr-amount,
+[data-block="pricing-new"][data-featured="background"] .pr-featured .pr-check,
+[data-block="pricing-new"][data-featured="background"][data-plan-features="inside"] .pr-featured .pr-features {
+  color: var(--pr-fc-on) !important;
+}
+[data-block="pricing-new"][data-featured="background"] .pr-featured .pr-card .text-muted,
+[data-block="pricing-new"][data-featured="background"][data-plan-features="inside"] .pr-featured .text-muted {
+  color: var(--pr-fc-muted) !important;
+}
+[data-block="pricing-new"][data-featured="background"] .pr-featured .pr-badge,
+[data-block="pricing-new"][data-featured="background"] .pr-featured .btn-primary {
+  background: var(--pr-fc-on) !important;
+  border-color: var(--pr-fc-on) !important;
+  color: var(--pr-fc-ink) !important;
+}
+[data-block="pricing-new"][data-featured="background"] .pr-featured .pr-card .btn-outline-primary,
+[data-block="pricing-new"][data-featured="background"][data-plan-features="inside"] .pr-featured .btn-outline-primary {
+  color: var(--pr-fc-on) !important;
+  border-color: var(--pr-fc-on) !important;
+}
+
+/* ═══ 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneForBg）══════════════════════════════
+   dark = 深底 / 深色渐变；brand = 主题主色底。两者一样：标题 / 名字 / 价格反白（小字白 .92 是全站那一条，
+   site-css.js §ON_DEEP_MUTED）；card 换半透明底 + 半透明白描边、竖线换半透明白；outline 按钮翻成白描边、
+   主按钮白底主色字（同 milestones）。 */
+[data-block="pricing-new"][data-tone="dark"],
+[data-block="pricing-new"][data-tone="brand"] {
+  color: #fff;
+}
+[data-block="pricing-new"][data-tone="dark"] .pr-title,
+[data-block="pricing-new"][data-tone="brand"] .pr-title,
+[data-block="pricing-new"][data-tone="dark"] .pr-hl-title,
+[data-block="pricing-new"][data-tone="brand"] .pr-hl-title,
+[data-block="pricing-new"][data-tone="dark"] .pr-name,
+[data-block="pricing-new"][data-tone="brand"] .pr-name,
+[data-block="pricing-new"][data-tone="dark"] .pr-amount,
+[data-block="pricing-new"][data-tone="brand"] .pr-amount,
+[data-block="pricing-new"][data-tone="dark"] .pr-check,
+[data-block="pricing-new"][data-tone="brand"] .pr-check,
+[data-block="pricing-new"][data-tone="dark"] .pr-eyebrow-dash,
+[data-block="pricing-new"][data-tone="brand"] .pr-eyebrow-dash,
+[data-block="pricing-new"][data-tone="dark"] .pr-eyebrow-plain,
+[data-block="pricing-new"][data-tone="brand"] .pr-eyebrow-plain {
+  color: #fff !important;
+}
+[data-block="pricing-new"][data-tone="dark"][data-plan-style="card"] .pr-inner,
+[data-block="pricing-new"][data-tone="brand"][data-plan-style="card"] .pr-inner,
+[data-block="pricing-new"][data-tone="dark"][data-plan-style="card"] .pr-card,
+[data-block="pricing-new"][data-tone="brand"][data-plan-style="card"] .pr-card {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+[data-block="pricing-new"][data-tone="dark"][data-plan-style="card"][data-plan-features="inside"] .pr-card,
+[data-block="pricing-new"][data-tone="brand"][data-plan-style="card"][data-plan-features="inside"] .pr-card {
+  background: none;
+}
+[data-block="pricing-new"][data-tone="dark"] .pr-plan,
+[data-block="pricing-new"][data-tone="brand"] .pr-plan {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+[data-block="pricing-new"][data-tone="dark"] .pr-hl-icon,
+[data-block="pricing-new"][data-tone="brand"] .pr-hl-icon {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  color: #fff;
+}
+[data-block="pricing-new"][data-tone="dark"] .pr-logo,
+[data-block="pricing-new"][data-tone="brand"] .pr-logo {
+  filter: brightness(0) invert(1);
+  opacity: 0.9;
+}
+[data-block="pricing-new"][data-tone="dark"] .pr-badge,
+[data-block="pricing-new"][data-tone="brand"] .pr-badge,
+[data-block="pricing-new"][data-tone="dark"] .pr-eyebrow-pill,
+[data-block="pricing-new"][data-tone="brand"] .pr-eyebrow-pill {
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #fff !important;
+}
+[data-block="pricing-new"][data-tone="dark"] .pr-eyebrow-outline,
+[data-block="pricing-new"][data-tone="brand"] .pr-eyebrow-outline {
+  border-color: rgba(255, 255, 255, 0.7) !important;
+  color: #fff !important;
+}
+[data-block="pricing-new"][data-tone="dark"] .btn-outline-primary,
+[data-block="pricing-new"][data-tone="brand"] .btn-outline-primary {
+  color: #fff !important;
+  border-color: rgba(255, 255, 255, 0.6) !important;
+}
+[data-block="pricing-new"][data-tone="dark"] .pr-billing,
+[data-block="pricing-new"][data-tone="brand"] .pr-billing {
+  border-color: rgba(255, 255, 255, 0.3) !important;
+}
+[data-block="pricing-new"][data-tone="dark"] .pr-billing .btn-link,
+[data-block="pricing-new"][data-tone="brand"] .pr-billing .btn-link {
+  color: #fff !important;
+}
+[data-block="pricing-new"][data-tone="dark"] .btn-primary,
+[data-block="pricing-new"][data-tone="brand"] .btn-primary {
+  background: #fff !important;
+  border-color: #fff !important;
+  color: var(--x-primary) !important;
+}
+
+/* 深底 + outline：高亮那张是白卡 ⟹ 卡里的字回到深色，不跟整段反白（上面几条是整段的，这几条特异度更高、专管那张卡）。 */
+[data-block="pricing-new"][data-featured="outline"][data-tone] .pr-featured .pr-name,
+[data-block="pricing-new"][data-featured="outline"][data-tone] .pr-featured .pr-amount {
+  color: #0f172a !important;
+}
+[data-block="pricing-new"][data-featured="outline"][data-tone] .pr-featured .text-muted {
+  color: #64748b !important;
+}
+[data-block="pricing-new"][data-featured="outline"][data-tone] .pr-featured .pr-features {
+  color: #1e293b;
+}
+[data-block="pricing-new"][data-featured="outline"][data-tone] .pr-featured .pr-check {
+  color: var(--pr-fc-ink) !important;
+}
+[data-block="pricing-new"][data-featured="outline"][data-tone] .pr-featured .btn-outline-primary {
+  color: var(--x-primary-text-emphasis, var(--x-primary)) !important;
+  border-color: var(--x-primary-text-emphasis, var(--x-primary)) !important;
+}
+/* 深底 + background：高亮卡的字跟着 featuredColor 走（上面 featured 那一组），整段的反白规则不许盖过来。 */
+[data-block="pricing-new"][data-featured="background"][data-tone] .pr-featured .pr-name,
+[data-block="pricing-new"][data-featured="background"][data-tone] .pr-featured .pr-amount,
+[data-block="pricing-new"][data-featured="background"][data-tone] .pr-featured .pr-check {
+  color: var(--pr-fc-on) !important;
+}
+[data-block="pricing-new"][data-featured="background"][data-tone] .pr-featured .text-muted {
+  color: var(--pr-fc-muted) !important;
+}
+[data-block="pricing-new"][data-featured="outline"][data-tone] .pr-featured .pr-badge,
+[data-block="pricing-new"][data-featured="outline"][data-tone] .pr-featured .btn-primary {
+  background: var(--pr-fc) !important;
+  border-color: transparent !important;
+  color: var(--pr-fc-on) !important;
+}
+[data-block="pricing-new"][data-featured="background"][data-tone] .pr-featured .pr-badge,
+[data-block="pricing-new"][data-featured="background"][data-tone] .pr-featured .btn-primary {
+  background: var(--pr-fc-on) !important;
+  border-color: var(--pr-fc-on) !important;
+  color: var(--pr-fc-ink) !important;
+}
+
+/* ── 按钮的底色和字色：接平台按这个站最终配色算好的那几个变量（`scripts/lib/button-ink.js`，同 features-new / milestones）。 */
+[data-block="pricing-new"] .btn-primary {
+  --x-btn-bg: var(--btn-primary-bg, var(--x-primary));
+  --x-btn-border-color: var(--btn-primary-bg, var(--x-primary));
+  --x-btn-color: var(--btn-primary-ink, #fff);
+  --x-btn-hover-bg: var(--btn-primary-hover, var(--btn-primary-bg, var(--x-primary)));
+  --x-btn-hover-border-color: var(--btn-primary-hover, var(--btn-primary-bg, var(--x-primary)));
+  --x-btn-hover-color: var(--btn-primary-ink, #fff);
+  --x-btn-active-bg: var(--btn-primary-hover, var(--btn-primary-bg, var(--x-primary)));
+  --x-btn-active-color: var(--btn-primary-ink, #fff);
+}
+[data-block="pricing-new"] .btn-outline-primary {
+  --x-btn-color: var(--x-primary-text-emphasis, var(--x-primary));
+  --x-btn-border-color: var(--x-primary-text-emphasis, var(--x-primary));
+}
+[data-block="pricing-new"] .btn-link {
+  --x-btn-color: var(--x-primary-text-emphasis, var(--x-primary));
+  --x-btn-hover-color: var(--x-primary-text-emphasis, var(--x-primary));
+  --x-btn-active-color: var(--x-primary-text-emphasis, var(--x-primary));
+}
+
+/* ── pricing-new · plan-cards（预设 Plan cards）──────────────────────────────────────────────────────────────
+   这个形态没有自己的几何：pricing-new 是一份 markup + 八个旋钮，排版由**实际生效的旋钮**决定
+   （根元素上的 `data-intro-*` / `data-plan*` / `data-featured` / `data-tone` / `data-fc-*`，规则全在 `blocks/pricing-new/block.css`）。
+   按形态写规则的话，旋钮拧偏成 custom 时这里的规则仍然按形态名命中，页面就会排成一个跟旋钮说的不一样的样子。
+   所以这份文件只有这段说明。 */
+[data-block="pricing-new"][data-shape="plan-cards"] {
+  --pr-preset: plan-cards;
+}
+
+/* ── pricing-new · side-intro（预设 Side intro）──────────────────────────────────────────────────────────────
+   这个形态没有自己的几何：pricing-new 是一份 markup + 八个旋钮，排版由**实际生效的旋钮**决定
+   （根元素上的 `data-intro-*` / `data-plan*` / `data-featured` / `data-tone` / `data-fc-*`，规则全在 `blocks/pricing-new/block.css`）。
+   按形态写规则的话，旋钮拧偏成 custom 时这里的规则仍然按形态名命中，页面就会排成一个跟旋钮说的不一样的样子。
+   所以这份文件只有这段说明。 */
+[data-block="pricing-new"][data-shape="side-intro"] {
+  --pr-preset: side-intro;
+}
+
+/* ── pricing-new · open-columns（预设 Open columns）──────────────────────────────────────────────────────────────
+   这个形态没有自己的几何：pricing-new 是一份 markup + 八个旋钮，排版由**实际生效的旋钮**决定
+   （根元素上的 `data-intro-*` / `data-plan*` / `data-featured` / `data-tone` / `data-fc-*`，规则全在 `blocks/pricing-new/block.css`）。
+   按形态写规则的话，旋钮拧偏成 custom 时这里的规则仍然按形态名命中，页面就会排成一个跟旋钮说的不一样的样子。
+   所以这份文件只有这段说明。 */
+[data-block="pricing-new"][data-shape="open-columns"] {
+  --pr-preset: open-columns;
+}
+
+/* ── pricing-new · features-below（预设 Features below）──────────────────────────────────────────────────────────────
+   这个形态没有自己的几何：pricing-new 是一份 markup + 八个旋钮，排版由**实际生效的旋钮**决定
+   （根元素上的 `data-intro-*` / `data-plan*` / `data-featured` / `data-tone` / `data-fc-*`，规则全在 `blocks/pricing-new/block.css`）。
+   按形态写规则的话，旋钮拧偏成 custom 时这里的规则仍然按形态名命中，页面就会排成一个跟旋钮说的不一样的样子。
+   所以这份文件只有这段说明。 */
+[data-block="pricing-new"][data-shape="features-below"] {
+  --pr-preset: features-below;
+}
+
+/* ── pricing-new · one-plan（预设 One plan）──────────────────────────────────────────────────────────────
+   这个形态没有自己的几何：pricing-new 是一份 markup + 八个旋钮，排版由**实际生效的旋钮**决定
+   （根元素上的 `data-intro-*` / `data-plan*` / `data-featured` / `data-tone` / `data-fc-*`，规则全在 `blocks/pricing-new/block.css`）。
+   按形态写规则的话，旋钮拧偏成 custom 时这里的规则仍然按形态名命中，页面就会排成一个跟旋钮说的不一样的样子。
+   所以这份文件只有这段说明。 */
+[data-block="pricing-new"][data-shape="one-plan"] {
+  --pr-preset: one-plan;
+}
+
+/* ── pricing-new · rainbow（预设 Rainbow）──────────────────────────────────────────────────────────────
+   这个形态没有自己的几何：pricing-new 是一份 markup + 八个旋钮，排版由**实际生效的旋钮**决定
+   （根元素上的 `data-intro-*` / `data-plan*` / `data-featured` / `data-tone` / `data-fc-*`，规则全在 `blocks/pricing-new/block.css`）。
+   按形态写规则的话，旋钮拧偏成 custom 时这里的规则仍然按形态名命中，页面就会排成一个跟旋钮说的不一样的样子。
+   所以这份文件只有这段说明。 */
+[data-block="pricing-new"][data-shape="rainbow"] {
+  --pr-preset: rainbow;
+}
+
 /* ══ pricing-table ══════════════════════════════════════════════════════════════════════ */
 /* pricing-table · two-up  （ember-12 今天选的就是它） */
 

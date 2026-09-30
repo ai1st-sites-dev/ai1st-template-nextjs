@@ -35,8 +35,8 @@ export interface CellOptionsInitial {
   opts: Record<string, boolean>;
   /** 槽名 → 选中的样式（`none` = 不带这个部件）。 */
   widgets: Record<string, string>;
-  /** #1469 —— 颜色槽的初值（`?bg=` 或演示内容那一份）；null = 没填。 */
-  bg: BgValue | null;
+  /** #1469 —— 颜色槽的初值（`?bg=` 或演示内容那一份）；null = 没填。#1483 起按槽名一个一个（今天的外壳块只有 bg）。 */
+  colors: Record<string, BgValue | null>;
 }
 
 interface Knob { name: string; values: string[] }
@@ -53,9 +53,8 @@ interface Props {
   has: string[];
   optionKeys: string[];
   widgets: Widget[];
-  /** #1469 —— 颜色槽名（没有 = null）和它的纯色色板。 */
-  colorSlot: string | null;
-  swatches: string[];
+  /** #1469 —— 颜色槽和它的纯色色板；#1483 起每个颜色槽一项（按 manifest 声明顺序，参数名 = 槽名）。 */
+  colors: { slot: string; swatches: string[] }[];
   knobs: Knob[];
   presets: Preset[];
   coupling: [string, string] | null;
@@ -82,12 +81,12 @@ const presetStyle = (on: boolean, custom = false) => ({
 });
 
 export default function CellOptions({
-  block, shape, data, has, optionKeys, widgets: widgetDefs, colorSlot, swatches, knobs: knobDefs, presets, coupling, iconTable, initial, showBar = true,
+  block, shape, data, has, optionKeys, widgets: widgetDefs, colors: colorDefs, knobs: knobDefs, presets, coupling, iconTable, initial, showBar = true,
 }: Props) {
   const [knobs, setKnobs] = useState<Record<string, string>>(initial.knobs);
   const [opts, setOpts] = useState<Record<string, boolean>>(initial.opts);
   const [widgets, setWidgets] = useState<Record<string, string>>(initial.widgets);
-  const [bg, setBg] = useState<BgValue | null>(initial.bg);
+  const [colors, setColors] = useState<Record<string, BgValue | null>>(initial.colors);
   const bgKey = (v: BgValue | null) => (v === null ? '' : typeof v === 'string' ? v : JSON.stringify(v));
   const [ready, setReady] = useState(false);
   useEffect(() => { setReady(true); }, []);
@@ -117,9 +116,9 @@ export default function CellOptions({
     const differs = owned.some((b) => !!opts[b] !== !!fallback[b]);
     if (on.some((k) => !owned.includes(k)) || differs) u.searchParams.set('opt', on.join(',')); else u.searchParams.delete('opt');
     for (const w of widgetDefs) { const v = widgets[w.slot]; if (v && v !== 'none') u.searchParams.set(w.slot, v); else u.searchParams.delete(w.slot); }
-    if (colorSlot) { if (bg !== null) u.searchParams.set('bg', bgKey(bg)); else u.searchParams.delete('bg'); }
+    for (const c of colorDefs) { const v = colors[c.slot] ?? null; if (v !== null) u.searchParams.set(c.slot, bgKey(v)); else u.searchParams.delete(c.slot); }
     if (u.href !== window.location.href) window.history.replaceState(window.history.state, '', u.href);
-  }, [ready, showBar, knobs, opts, widgets, bg, colorSlot, knobDefs, optionKeys, widgetDefs, presets, shape]);
+  }, [ready, showBar, knobs, opts, widgets, colors, colorDefs, knobDefs, optionKeys, widgetDefs, presets, shape]);
 
   // 选项两个版本都吃；两个可选部件只有数据里真有时才给（最少版按构造没有，关掉就删）。
   const out: Record<string, unknown> = {
@@ -131,12 +130,12 @@ export default function CellOptions({
     if (!v || v === 'none' || !out[w.slot]) delete out[w.slot];
     else out[w.slot] = { ...(out[w.slot] as object), [w.key]: v };
   }
-  if (colorSlot) { if (bg !== null) out[colorSlot] = bg; else delete out[colorSlot]; }
+  for (const c of colorDefs) { const v = colors[c.slot] ?? null; if (v !== null) out[c.slot] = v; else delete out[c.slot]; }
   // `data-has-*` 跟着真实渲染的数据走：关掉的可选部件不许还挂着「有它」。
   //   颜色槽同理：服务端那份 `has` 按演示内容算（没有 `bg`），色板选了就得挂上。
-  const widgetSlots = new Set([...widgetDefs.map((w) => w.slot), ...(colorSlot ? [colorSlot] : [])]);
+  const widgetSlots = new Set([...widgetDefs.map((w) => w.slot), ...colorDefs.map((c) => c.slot)]);
   const hasNow = [...has.filter((s) => (widgetSlots.has(s) ? !!out[s] : true)),
-    ...(colorSlot && out[colorSlot] && !has.includes(colorSlot) ? [colorSlot] : [])];
+    ...colorDefs.map((c) => c.slot).filter((c) => out[c] && !has.includes(c))];
   const cfg: BlockConfig = { type: block, shape, data: out, has: hasNow } as BlockConfig;
 
   return (
@@ -177,14 +176,14 @@ export default function CellOptions({
             <span>{k}</span>
           </label>
         ))}
-        {colorSlot && (knobDefs.length > 0 || optionKeys.length > 0) && <span style={sepStyle} />}
-        {colorSlot && (
-          <span style={colorGroupStyle} data-catalog-color={colorSlot}>
-            <b>{colorSlot}</b>
-            <BgPicker value={bg} swatches={swatches} onChange={setBg} disabled={!ready} />
+        {colorDefs.length > 0 && (knobDefs.length > 0 || optionKeys.length > 0) && <span style={sepStyle} />}
+        {colorDefs.map((c) => (
+          <span key={c.slot} style={colorGroupStyle} data-catalog-color={c.slot}>
+            <b>{c.slot}</b>
+            <BgPicker value={colors[c.slot] ?? null} swatches={c.swatches} onChange={(v) => setColors((x) => ({ ...x, [c.slot]: v }))} disabled={!ready} />
           </span>
-        )}
-        {widgetDefs.length > 0 && (knobDefs.length > 0 || optionKeys.length > 0 || colorSlot) && <span style={sepStyle} />}
+        ))}
+        {widgetDefs.length > 0 && (knobDefs.length > 0 || optionKeys.length > 0 || colorDefs.length > 0) && <span style={sepStyle} />}
         {widgetDefs.map((w) => (
           <span key={w.slot} style={groupStyle} data-catalog-widget={w.slot}>
             <b>{w.slot}</b>

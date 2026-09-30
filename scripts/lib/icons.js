@@ -74,6 +74,8 @@ const BLOCK_ICONS = {
   'features-new': ['arrow-right'],
   // #1482 —— 同 features-new：块头按钮的箭头；stats 的图标来自数据（`stats[].icon`），由 §iconNamesIn 收。
   milestones: ['arrow-right'],
+  // #1483 —— 功能清单每行的勾号；highlights 的图标来自数据（`highlights[].icon`），由 §iconNamesIn 收。
+  'pricing-new': ['check'],
 };
 
 /**

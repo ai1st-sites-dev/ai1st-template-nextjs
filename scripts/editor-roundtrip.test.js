@@ -358,6 +358,50 @@ console.log('⑦e 颜色槽写渐变');
     `阳性对照：toProp 只收字符串 ⟹ 重开读成「没填」，往返报出差异（${firstDiff(out, lost)}）`);
 }
 
+// ══ ⑦f #1483：pricing-new 在 Puck 里 —— 能拖、能改 plans、点预设 / 拧旋钮显示 Custom、点 Rainbow 颜色跟着变 ═══════
+console.log('⑦f pricing-new 预设带颜色');
+{
+  const { presetClickProps, presetNameFor } = require('./lib/block-knobs.js');
+  const comp = compOf('pricing-new');
+  check(!!comp, 'pricing-new 在组件清单里（左栏能拖）');
+  const opt = comp.fields.find((f) => f.control === 'options');
+  const RB = { stops: ['#7d52f4', '#f7b733'], angle: 135 };
+  const man = { slots: { options: { knobs: opt.knobs } }, presets: opt.presets };
+  const nameOf = (props) => presetNameFor(man, { ...(props.options || {}), ...Object.fromEntries(opt.colorSlots.map((c) => [c, props[c]])) });
+  const raw = fixturePage(false);
+  const { initial, data } = openPage(raw);
+  const item = data.content.find((c) => c.type === 'pricing-new');
+  check(!!item && Array.isArray(item.props.plans) && item.props.plans.length > 0, `打开之后 plans 是列表字段（${item && item.props.plans && item.props.plans.length} 项）`);
+  // 点 Rainbow ⟹ options = 它的旋钮、bg / featuredColor = 那道渐变；侧栏判成 Rainbow（Plan cards 不亮）。
+  item.props = presetClickProps(opt, item.props, 'Rainbow');
+  check(JSON.stringify(item.props.bg) === JSON.stringify(RB) && JSON.stringify(item.props.featuredColor) === JSON.stringify(RB) && nameOf(item.props) === 'Rainbow',
+    `点 Rainbow ⟹ bg / featuredColor 设成渐变、侧栏亮 Rainbow（${nameOf(item.props)}）`);
+  item.props.plans[0].name = 'Renamed plan';
+  const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
+  const blk = out.blocks.find((b) => b.type === 'pricing-new');
+  check(JSON.stringify(blk.data.bg) === JSON.stringify(RB) && JSON.stringify(blk.data.featuredColor) === JSON.stringify(RB)
+    && blk.data.options.introPosition === 'top' && blk.data.plans[0].name === 'Renamed plan',
+  '存盘 ⟹ data.bg / data.featuredColor 是那道渐变、options 是 Rainbow 的旋钮、plans[0].name 改了');
+  const changed = out.blocks.filter((b, i) => JSON.stringify(b) !== JSON.stringify(raw.blocks[i])).map((b) => b.type);
+  check(JSON.stringify(changed) === JSON.stringify(['pricing-new']), '只有 pricing-new 那一块变了', changed.join(' '));
+  // 拧 featuredColor ⟹ 回落 Plan cards；拧一个旋钮 ⟹ Custom；点 Plan cards ⟹ 两个颜色都清掉。
+  check(nameOf({ ...item.props, featuredColor: '#dc2626' }) === 'Plan cards', 'featuredColor 改成 #dc2626 ⟹ 侧栏回落 Plan cards');
+  check(nameOf({ ...item.props, options: { ...item.props.options, planStyle: 'plain' } }) === 'custom', '拧 planStyle ⟹ Custom');
+  const back = presetClickProps(opt, item.props, 'Plan cards');
+  check(!('bg' in back) && !('featuredColor' in back) && nameOf(back) === 'Plan cards', '点 Plan cards ⟹ 两个颜色字段都删掉、侧栏亮 Plan cards');
+  const re = openPage(out);
+  re.data.content.find((c) => c.type === 'pricing-new').props = presetClickProps(opt, re.data.content.find((c) => c.type === 'pricing-new').props, 'Plan cards');
+  const cleared = convert.puckToPage({ raw: out, data: re.data, initial: re.initial, schema, slug: 'home' }).blocks.find((b) => b.type === 'pricing-new');
+  check(!('bg' in cleared.data) && !('featuredColor' in cleared.data), '存盘 ⟹ 页面 JSON 里 bg / featuredColor 两个键都没了（恢复成空）');
+  // 没有带颜色预设的块：点预设颜色一个都不碰（规则 2 只对 pricing-new 生效）。
+  const heroOpt = compOf('hero-new').fields.find((f) => f.control === 'options');
+  const hp = presetClickProps(heroOpt, { bg: '#0f172a', options: {} }, heroOpt.presets[1].name);
+  check(hp.bg === '#0f172a' && JSON.stringify(heroOpt.colorSlots) === '[]', `hero-new 点预设 ⟹ bg 不动（colorSlots ${JSON.stringify(heroOpt.colorSlots)}）`);
+  // 阳性对照：把 pricing-new 字段里的 colorSlots 拿掉（= 编辑器不知道哪些颜色归预设管）⟹ 点 Plan cards 渐变还留着。
+  const blind = presetClickProps({ ...opt, colorSlots: [] }, item.props, 'Plan cards');
+  check(JSON.stringify(blind.bg) === JSON.stringify(RB), '阳性对照：没有 colorSlots ⟹ 点 Plan cards 渐变还留着（上面那格的「清掉」是 colorSlots 带来的）');
+}
+
 // ══ ⑦b 按钮链接（#1404 r3）：6 个 link 槽位都有 Link 框；改了才写、不改逐字节不变 ═══════════════════
 console.log('⑦b 按钮链接');
 {

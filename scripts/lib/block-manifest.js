@@ -383,6 +383,13 @@ function checkManifestShape(name, m) {
     if (Number.isInteger(s.minItems) && Number.isInteger(s.maxItems) && s.minItems > s.maxItems) {
       bad(`slots.${slot}.minItems（${s.minItems}）大于 maxItems（${s.maxItems}）`);
     }
+    // #1483 —— `maxTrue`：list 槽里每项的某个布尔子字段最多几项为 true（`pricing-new.plans` 的 `{ featured: 1 }`：
+    //    最多一个高亮套餐）。validateSite ⑨ 据它拦；形状 `{ 子字段: 正整数 }`，只给 list 槽。
+    if (s.maxTrue !== undefined) {
+      const okShape = s.maxTrue && typeof s.maxTrue === 'object' && !Array.isArray(s.maxTrue)
+        && Object.values(s.maxTrue).every((n) => Number.isInteger(n) && n >= 1);
+      if (!okShape || s.kind !== 'list') bad(`slots.${slot}.maxTrue 只能写 { 子字段: 正整数 }，而且只给 list 槽（现在是 ${JSON.stringify(s.maxTrue)}，kind ${s.kind}）`);
+    }
     // #1479 —— `max`：list 槽最多几项（`cta-new.ctas` = 2）。admin 工具栏据它派生「数量」那一维（0 … max，
     //    manager §manifestCounts · 单格页 §knobOverrides 同一条判据）。跟旋钮的 `knobs[].maxItems` 不是一回事。
     if (s.max !== undefined && (s.kind !== 'list' || !Number.isInteger(s.max) || s.max < 1)) {
@@ -1069,6 +1076,11 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
           }
           if (Number.isInteger(spec.maxItems) && v.length > spec.maxItems) {
             flag(`${where}: "${slot}" 最多只能有 ${spec.maxItems} 项（现在 ${v.length} 项）`);
+          }
+          // #1483 —— 每项某个布尔子字段最多几项为 true（`slots.<槽>.maxTrue`，pricing-new 最多一个 featured 套餐）。
+          for (const [sub, n] of Object.entries(spec.maxTrue && typeof spec.maxTrue === 'object' ? spec.maxTrue : {})) {
+            const on = v.filter((it) => it && typeof it === 'object' && it[sub] === true).length;
+            if (Number.isInteger(n) && on > n) flag(`${where}: "${slot}" 里 ${sub}: true 最多只能有 ${n} 项（现在 ${on} 项）`);
           }
         }
         if (spec.kind === 'color' && !isColorValue(v)) {

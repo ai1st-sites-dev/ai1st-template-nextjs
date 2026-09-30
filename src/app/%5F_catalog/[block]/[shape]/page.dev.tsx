@@ -38,7 +38,7 @@ import { couplingOf, knobsOf, normalizeKnobs, presetBooleans, presetForShape, pr
 import { iconTableFor, iconTablesFor } from '../../../../../scripts/lib/icons.js';
 // knobsOf / presetsOf 两份（header-knobs.js #1462 · block-knobs.js #1463）读的是同一份 manifest 声明、
 // 对合法声明给出同一结果；这一页用 header-knobs 那份，并掉哪一份归 T3。
-import { booleanOptionsOf, effectiveKnobs, presetNameFor } from '../../../../../scripts/lib/block-knobs.js';
+import { booleanOptionsOf, colorSlotsOf, effectiveKnobs, presetColors, presetNameFor } from '../../../../../scripts/lib/block-knobs.js';
 import { bgFromParam, normalizeBg } from '../../../../../scripts/lib/contrast.js';
 import {
   CATALOG_LOCALE,
@@ -80,7 +80,7 @@ const one = (v: string | string[] | undefined): string | undefined => (Array.isA
  *   Go 那侧 `manager/template_blocks.go` §manifestOptionMeta 是同一套判据（各写一份是有意的：Go / TS 共享不了）。
  * #1469 —— 开头那个键也可以叫 `mode`（footer 的 `form` 改成 `{mode: "teaser" | "full", id?: string}`：表单是站级资产，
  *   块只选画法）。只放宽键名、不放宽开头锚定；选中一档时写回的也是这个键（`Widget.key`）。
- * #1469 —— 外加**颜色槽**（第一个 `kind: color` 的槽，跟 §knobOverrides 同一条判据）：外壳块的色板也住 CellOptions。
+ * #1469 —— 外加**颜色槽**（跟 §knobOverrides 同一条判据；#1483 起每个颜色槽一格）：外壳块的色板也住 CellOptions。
  * 全都空 ⟹ 这个块没有开关，页面不画那条工具栏。
  */
 function optionMetaOf(m: { slots?: Record<string, { shape?: unknown; knobs?: unknown; kind?: unknown; swatches?: unknown }>; presets?: unknown; knobCoupling?: unknown } | undefined) {
@@ -92,13 +92,12 @@ function optionMetaOf(m: { slots?: Record<string, { shape?: unknown; knobs?: unk
     const hit = shape.match(/^\{\s*(style|mode):\s*((?:"[a-z]+"\s*\|?\s*)+)/);
     return hit ? [{ slot, key: hit[1], styles: Array.from(hit[2].matchAll(/"([a-z]+)"/g)).map((x) => x[1]) }] : [];
   });
-  const colorSlot = Object.keys(slots).find((s) => slots[s] && slots[s].kind === 'color') || null;
-  const swatches = colorSlot && Array.isArray(slots[colorSlot].swatches) ? (slots[colorSlot].swatches as string[]) : [];
+  // #1483 —— 每个颜色槽一格（按声明顺序）；今天的外壳块都只有一个（bg）。
+  const colors = (colorSlotsOf(m) as string[]).map((c) => ({ slot: c, swatches: Array.isArray(slots[c].swatches) ? (slots[c].swatches as string[]) : [] }));
   return {
     optionKeys,
     widgets: widgets as Widget[],
-    colorSlot,
-    swatches,
+    colors,
     knobs: knobsOf(m) as Array<{ name: string; values: string[] }>,
     presets: presetsOf(m) as Preset[],
     coupling: couplingOf(m) as [string, string] | null,
@@ -124,7 +123,9 @@ function knobOverrides(m: ManifestForKnobs, shape: string, data: Record<string, 
   const knobs = knobsOf(m) as Array<{ name: string; values: string[] }>;
   const booleans = booleanOptionsOf(m);
   const slots = m.slots || {};
-  const colorSlot = Object.keys(slots).find((s) => slots[s] && slots[s].kind === 'color') || null;
+  // #1483 —— **每个**颜色槽一格（pricing-new 有 bg + featuredColor 两个），顺序 = manifest 里的声明顺序，地址参数名 = 槽名
+  //    （`?bg=` / `?featuredColor=`）。只有一个颜色槽的块（今天其余全部）跟 #1477 一字不差：一格、参数 `?bg=`。
+  const colorSlots = colorSlotsOf(m) as string[];
   const parts = Array.isArray(m.parts) ? m.parts : [];
   const choices: { key: string; values: string[] }[] = [];
   for (const [slot, spec] of Object.entries(slots)) {
@@ -144,10 +145,10 @@ function knobOverrides(m: ManifestForKnobs, shape: string, data: Record<string, 
     for (const b of booleans) opts[b] = on.has(b);
   }
   data.options = opts;
-  if (colorSlot) {
+  for (const slot of colorSlots) {
     // #1477 —— 渐变也认（`?bg={"stops":[…],"angle":135}`），跟外壳块那条路（下面 §initial.bg）同一个函数族。
-    const c = bgFromParam(one(sp.bg)) ?? normalizeBg(data[colorSlot]);
-    if (c) data[colorSlot] = c;
+    const c = bgFromParam(one(sp[slot])) ?? normalizeBg(data[slot]);
+    if (c) data[slot] = c;
   }
   for (const slot of Object.keys(slots).sort()) {
     const max = slots[slot] && slots[slot].kind === 'list' ? slots[slot].max : undefined;
@@ -168,18 +169,20 @@ function knobOverrides(m: ManifestForKnobs, shape: string, data: Record<string, 
     chosen[c.key] = obj && typeof obj[sub] === 'string' ? String(obj[sub]) : c.values[0];
   }
   const eff = effectiveKnobs(m, shape, opts);
+  const colorsNow = Object.fromEntries(colorSlots.map((c) => [c, normalizeBg(data[c])]));
   return {
     knobs: knobs.map((k) => ({ name: k.name, values: k.values })),
-    presets: (presetsOf(m) as Preset[]).map((p) => ({ name: p.name, shape: p.shape, knobs: p.knobs })),
+    // #1483 —— `colors` = 点这个预设时颜色槽各该是什么（block-knobs.js §presetColors：设上 / null = 清掉 / 空对象 = 不碰）。
+    presets: (presetsOf(m) as Preset[]).map((p) => ({ name: p.name, shape: p.shape, knobs: p.knobs, colors: presetColors(m, p.name) })),
     booleans,
-    swatches: colorSlot ? (slots[colorSlot].swatches || []) : null,
+    colors: colorSlots.map((c) => ({ slot: c, swatches: slots[c].swatches || [] })),
     parts,
     choices,
     current: {
       knobs: eff,
-      preset: presetNameFor(m, eff),
+      preset: presetNameFor(m, { ...eff, ...colorsNow }),
       booleans: Object.fromEntries(booleans.map((b) => [b, opts[b] === true])),
-      bg: colorSlot ? normalizeBg(data[colorSlot]) : null,
+      colors: colorsNow,
       parts: keep,
       choices: chosen,
     },
@@ -247,7 +250,7 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
   //    覆盖（`Footer` 本来就有这个参数，`Header` 的是本票照它加的，站上没有调用点传它）。
   const isRegion = m.region === true;
   const meta = optionMetaOf(m);
-  const hasOptionBar = meta.optionKeys.length > 0 || meta.widgets.length > 0 || meta.knobs.length > 0 || meta.colorSlot !== null;
+  const hasOptionBar = meta.optionKeys.length > 0 || meta.widgets.length > 0 || meta.knobs.length > 0 || meta.colors.length > 0;
   // 地址栏给的初值：认不出的键落回「关」，认不出的部件样式落回 none —— 跟 theme / fill 一样，看法不该让页面消失。
   const wanted = new Set((one(sp.opt) || '').split(',').map((x) => x.trim()).filter(Boolean));
   // #1460 —— 被 admin 嵌着时开关在外面那条块级工具栏上，这一页自己那条不画；「新窗口」单开（不带 embed）照旧画。
@@ -274,7 +277,8 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
       return [w.slot, v && w.styles.includes(v) ? v : 'none'];
     })),
     // #1469 —— `?bg=` 盖在演示内容那一份上；认不出的值落回演示内容（看法不该让页面消失）。解析跟旋钮页面块同一个函数族。
-    bg: meta.colorSlot ? (bgFromParam(one(sp.bg)) ?? normalizeBg((data as Record<string, unknown>)[meta.colorSlot])) : null,
+    // #1483 —— 每个颜色槽一个参数（参数名 = 槽名）。
+    colors: Object.fromEntries(meta.colors.map((c) => [c.slot, bgFromParam(one(sp[c.slot])) ?? normalizeBg((data as Record<string, unknown>)[c.slot])])),
   };
 
   return (
@@ -312,8 +316,7 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
             has={cfg.has ?? []}
             optionKeys={meta.optionKeys}
             widgets={meta.widgets}
-            colorSlot={meta.colorSlot}
-            swatches={meta.swatches}
+            colors={meta.colors}
             knobs={meta.knobs}
             presets={meta.presets}
             coupling={meta.coupling}

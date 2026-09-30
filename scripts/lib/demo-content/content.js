@@ -454,6 +454,94 @@ const DEMO_CONTENT = {
     bg: null,
   },
 
+  // #1483 —— pricing-new：Northside Auto Care 的三档保养套餐（正文做什么 10 点名的是前三档，中间那档 featured + badge、
+  //    三档都填 price.yearly；带 billing、highlights、proof）。守卫 (c) 要列表槽 ≥ 6 条、长短不一，所以 plans / highlights
+  //    各补到 6 条 —— 组件只画前 4 条（`slots.plans.maxItems` / `slots.highlights.maxItems`）。
+  //    🔴 `introEyebrow.style` 写明 pill，理由同 features-new（词表 `none` 排第一，工具栏不写就亮 none）。
+  'pricing-new': {
+    options: {},
+    introEyebrow: { text: 'Maintenance plans', style: 'pill' },
+    headline: 'Car care that pays for itself',
+    body: 'Pick a plan, skip the surprise bills. Every plan includes a written quote before we touch your car.',
+    highlights: [
+      { icon: 'shield-check', title: 'Licensed technicians', text: 'Every tech is Red Seal certified.' },
+      { icon: 'clock', title: 'Same-day service', text: 'Book before noon and drive home tonight.' },
+      { icon: 'receipt', title: 'Upfront pricing', text: 'You approve the quote before we start, and the price never moves after that.' },
+      { icon: 'award', title: 'Two-year warranty', text: 'Parts and labour.' },
+      { icon: 'truck', title: 'Free towing', text: 'Within 25 km of the shop on the Complete and Premium plans.' },
+      { icon: 'star-fill', title: '4.9 on Google', text: 'From 312 reviews.' },
+    ],
+    proof: {
+      avatars: [1, 2, 3, 4].map((n) => ({ imageUrl: imageUrl(`avatar-${n}`) })),
+      rating: '4.9',
+      text: '312 Google reviews',
+    },
+    logos: {
+      caption: 'Approved by',
+      items: [
+        { imageUrl: imageUrl('client-logo-1'), alt: 'OMVIC' },
+        { imageUrl: imageUrl('client-logo-2'), alt: 'CAA Approved Auto Repair' },
+        { imageUrl: imageUrl('client-logo-3'), alt: 'Google' },
+        { imageUrl: imageUrl('client-logo-4'), alt: 'Yelp' },
+      ],
+    },
+    billing: { monthlyLabel: 'Monthly', yearlyLabel: 'Yearly', yearlyNote: '2 months free' },
+    plans: [
+      {
+        name: 'Essential',
+        price: { monthly: '$19', yearly: '$16' },
+        period: '/ month',
+        description: 'Oil changes and a check-up, done on time.',
+        features: ['Two synthetic oil changes a year', 'Multi-point inspection', '10% off repairs'],
+        cta: { label: 'Choose Essential', href: '/quote' },
+      },
+      {
+        name: 'Complete',
+        price: { monthly: '$39', yearly: '$32' },
+        period: '/ month',
+        description: 'Everything a daily driver needs, with priority booking.',
+        features: ['Everything in Essential', 'Seasonal tire swap and storage', 'Brake inspection twice a year', 'Priority same-day booking', '15% off repairs'],
+        cta: { label: 'Choose Complete', href: '/quote' },
+        featured: true,
+        badge: 'Most popular',
+      },
+      {
+        name: 'Premium',
+        price: { monthly: '$69', yearly: '$57' },
+        period: '/ month',
+        description: 'For drivers who put on serious kilometres every year and want a loaner car while theirs is in the shop.',
+        features: ['Everything in Complete', 'Free loaner car', 'Free towing within 25 km', '20% off repairs'],
+        cta: { label: 'Choose Premium', href: '/quote' },
+      },
+      {
+        name: 'Fleet',
+        price: { monthly: '$149', yearly: '$124' },
+        period: '/ month',
+        description: 'Up to five vehicles on one plan.',
+        features: ['Complete for every vehicle', 'One monthly invoice'],
+        cta: { label: 'Talk to us', href: '/contact' },
+      },
+      {
+        name: 'Classic',
+        price: { monthly: '$29' },
+        period: '/ month',
+        description: 'Seasonal care for a car that sleeps all winter.',
+        features: ['Spring wake-up service', 'Fall storage prep'],
+        cta: { label: 'Choose Classic', href: '/quote' },
+      },
+      {
+        name: 'EV',
+        price: { monthly: '$25', yearly: '$21' },
+        period: '/ month',
+        description: 'Brakes, tires and cabin filters.',
+        features: ['Tire rotation', 'Cabin filter'],
+        cta: { label: 'Choose EV', href: '/quote' },
+      },
+    ],
+    bg: null,
+    featuredColor: null,
+  },
+
   'announcement-bar': {
     message: 'Winter tire changeovers are booking two weeks out — reserve your slot now.',
     link: { label: 'Reserve a slot', href: '/quote' },
