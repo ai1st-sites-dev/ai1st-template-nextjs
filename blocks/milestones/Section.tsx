@@ -10,7 +10,7 @@
 //    （定稿 2026-09-29 删掉了图册里「side intro 时 3 / 4 列强制 2 列」「blockImage 左右时 4 列强制 3 列」那两条）。
 //
 // 🔴 **藏东西一律是不渲染**（部件有数据、而且对应的旋钮开着才画），不靠 CSS 藏：`blockImage=none` 时 DOM 里
-//    就没有那张 `<img>`；某条 stat 没写 `icon`（或名字查不到），那一条就没有图标节点。块头只看 `headline` / `body`：
+//    就没有那张 `<img>`；`statIcon` 开关关着（默认），或某条 stat 没写 `icon`（或名字查不到），那一条就没有图标节点。块头只看 `headline` / `body`：
 //    两个都空 ⟹ 块头那一列整个不渲染，stats 顶到段顶。每条 stat 只有 value · label（+ icon），没有第三行。
 //
 // 🔴 **图片的键叫 `imageUrl`**（`blockImage` / `introImage` 两处）：AI 改站的写入闸只认 `IMAGE_FIELDS` 里的键
@@ -40,6 +40,7 @@ export interface MilestonesOptions {
   blockImage?: string;
   introPosition?: string; introAlign?: string; introImage?: string;
   statsColumns?: string; statSize?: string; statStyle?: string; statAlign?: string;
+  statIcon?: boolean;
 }
 export interface MilestonesData {
   options?: MilestonesOptions;
@@ -91,7 +92,9 @@ export default function MilestonesSection({ data, block, iconTable = {} }: Props
   const d: MilestonesData = isObj(data) ? data : {};
   const shape = block && typeof block.shape === 'string' ? block.shape : undefined;
   const opts: MilestonesOptions = isObj(d.options) ? d.options : {};
-  const k = effectiveKnobs(manifest, shape, opts) as Required<{ [K in keyof MilestonesOptions]: string }>;
+  const k = effectiveKnobs(manifest, shape, opts) as Required<{ [K in Exclude<keyof MilestonesOptions, 'statIcon'>]: string }>;
+  // 布尔开关（#1492，同 header-new 的 icons）：预设不钉它，默认关 = 照图册那个没勾的 `statIcon`。
+  const { statIcon = false } = opts;
   const blockImg = k.blockImage !== 'none' ? imgOf(d.blockImage) : null;
   const cover = !!blockImg && k.blockImage === 'background';
   const tone = cover ? 'dark' : toneForBg(d.bg);
@@ -179,7 +182,7 @@ export default function MilestonesSection({ data, block, iconTable = {} }: Props
                   {stats.map((s, i) => (
                     <div key={i} className="mi-stat" data-part="stat">
                       <div className="mi-inner h-100">
-                        {hasIcon(s.icon) ? (
+                        {statIcon && hasIcon(s.icon) ? (
                           <div className="mi-icon d-inline-flex align-items-center justify-content-center rounded-3 bg-primary-subtle text-primary mb-4" data-part="icon">
                             {icon(s.icon)}
                           </div>

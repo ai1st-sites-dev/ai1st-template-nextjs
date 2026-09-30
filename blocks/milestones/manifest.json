@@ -90,7 +90,7 @@
       "kind": "object",
       "required": false,
       "promptOptional": true,
-      "shape": "{blockImage, introPosition, introAlign, introImage, statsColumns, statSize, statStyle, statAlign}",
+      "shape": "{blockImage, introPosition, introAlign, introImage, statsColumns, statSize, statStyle, statAlign, statIcon: bool}",
       "knobs": [
         {
           "name": "blockImage",
@@ -253,7 +253,7 @@
     "lines": [
       "@data",
       "stats: 1–6 items, each {value, label, icon?}; take them from facts the site already states (year founded, jobs completed, rating, response time) — if you cannot find a real number, leave the block out rather than inventing one; icon is a Bootstrap Icons name (\"calendar-check\", \"star-fill\", \"stopwatch\")",
-      "images only show when the matching option is on: blockImage needs options.blockImage, introImage needs options.introImage; bg is the background colour, top-level in data (not inside options)"
+      "images and icons only show when the matching option is on: blockImage needs options.blockImage, introImage needs options.introImage, stats[].icon needs options.statIcon: true; bg is the background colour, top-level in data (not inside options)"
     ]
   }
 }

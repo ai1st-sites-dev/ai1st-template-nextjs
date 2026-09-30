@@ -9,6 +9,7 @@
  * （blockImage 四档的节点、background 给 dark、card / divided 的规则）· AC7（槽位空不渲染、没有第三行）·
  * AC8（bg 四档 + 不自己算亮度 / 拼渐变）· AC9（validateSite）· AC10 的组件一半（图标表 → <svg>，查不到的名字那一条不画）·
  * AC11（block-roles · 首页配方池）· AC13 的编辑器 schema · AC14（social-proof / hero-new 零改动）。
+ * #1492：statIcon 布尔开关（默认关 · 预设不钉 · 开 == 改前逐字、默认 == 改前剥掉图标节点 · validateSite 认它）。
  * 几何（16 种组合三端无横向滚动、列数、图 / 块头上下左右、计算色、真站产物里的 <svg>）要浏览器：
  * `tests/e2e/specs/1482-milestones-knobs.spec.ts`。
  *
@@ -184,7 +185,7 @@ console.log('\n── AC6 statStyle 规则');
 // ══ AC7：槽位空 → 不渲染 ═════════════════════════════════════════════════════════════════════════
 console.log('\n── AC7 槽位空不渲染');
 {
-  const on = { blockImage: 'left', introImage: 'left' };
+  const on = { blockImage: 'left', introImage: 'left', statIcon: true }; // #1492：statIcon 默认关，量图标那一格要开着
   const full = render('divided-row', withOpts(on));
   const cases = [
     ['blockImage', 'data-part="block-image"', (d) => { delete d.blockImage; }],
@@ -288,19 +289,20 @@ console.log('\n── AC9 validateSite');
 // ══ AC10（组件一半）：图标表 → <svg> ══════════════════════════════════════════════════════════════
 console.log('\n── AC10 图标');
 {
-  const h = render('divided-row', clone(DEMO));
+  const ICON_ON = { statIcon: true }; // #1492：图标要开关开着才画（默认关），这一段量的是开着时的行为
+  const h = render('divided-row', withOpts(ICON_ON));
   const per = statsOf(h).map((x) => count(x, '<svg'));
   check(per.length === DEMO.stats.length && per.every((x) => x === 1), `每条 stat 画出一个图标（<svg> 每条 ${per.join(' / ')}）`);
   const names = statsOf(h).map((x) => (/data-icon="([^"]+)"/.exec(x) || [])[1]);
   check(JSON.stringify(names) === JSON.stringify(DEMO.stats.map((s) => s.icon)), `图标名逐条对得上（${names.join(' · ')}）`);
-  const d = clone(DEMO);
+  const d = withOpts(ICON_ON);
   d.stats[1].icon = 'no-such-icon-xyz';
   const warns = [];
   const table = icons.iconTableFor('milestones', d, { warn: (m) => warns.push(m) });
   const per2 = statsOf(render('divided-row', d, C, table)).map((x) => (x.includes('data-part="icon"') ? 1 : 0));
   check(per2.join('') === '101111' && warns.some((w) => w.includes('no-such-icon-xyz')),
     `第 2 条写一个不存在的名字 ⟹ 只那一条没有图标（连底色方块也没有）、其它不受影响（${per2.join('')}）、服务端打一行日志`);
-  check(count(render('divided-row', clone(DEMO), C, {}), '<svg') === 0, '对照：不给图标表 ⟹ 一个 <svg> 都没有（图标全靠服务端那张表）');
+  check(count(render('divided-row', withOpts(ICON_ON), C, {}), '<svg') === 0, '对照：不给图标表 ⟹ 一个 <svg> 都没有（图标全靠服务端那张表）');
   check(icons.usesIconTable('milestones') && !icons.usesIconTable('social-proof'), 'usesIconTable：milestones 用、social-proof（老那一套）不用');
   const tables = icons.iconTablesFor([{ type: 'social-proof', data: { icon: 'star' } }, { type: 'milestones', data: DEMO }], { warn: () => {} });
   check(tables[0] === undefined && tables[1] && DEMO.stats.every((s) => tables[1][s.icon]), 'iconTablesFor：老块那一格 undefined、milestones 那一格含每条 stat 的图标');
@@ -344,6 +346,48 @@ console.log('\n── AC13 编辑器 schema');
   const man = { slots: { options: { knobs: opt.knobs } }, presets: opt.presets };
   check(presetNameFor(man, M.presets[3].knobs) === 'Photo side' && presetNameFor(man, { ...M.presets[3].knobs, statsColumns: '4' }) === 'custom',
     '点 Photo side = 那一组旋钮；拧偏一个（statsColumns=4）⟹ custom');
+}
+
+// ══ #1492：statIcon 布尔开关（同 header-new 的 icons）═══════════════════════════════════════════════
+console.log('\n── #1492 statIcon 开关');
+{
+  const iconsOf = (html) => statsOf(html).map((x) => count(x, 'data-part="icon"'));
+  const sum = (a) => a.reduce((n, x) => n + x, 0);
+  const withIcon = DEMO.stats.filter((s) => s.icon).length;
+  check(/\bstatIcon:\s*bool\b/.test(M.slots.options.shape) && JSON.stringify(require(path.join(NEXT, 'scripts', 'lib', 'block-knobs.js')).booleanOptionsOf(M)) === '["statIcon"]',
+    `options.shape 声明 statIcon: bool，布尔开关集合恰好是 [statIcon]（${M.slots.options.shape}）`);
+  check(M.presets.every((p) => !('statIcon' in p.knobs) && !(p.options && 'statIcon' in p.options)), '五个预设都不钉 statIcon（同 header-new 的 icons），默认走 Section 的兜底');
+  // 默认 = 关（图册 build.py 里是裸的 'statIcon'，没带 '+'）⟹ 五个预设一个图标节点都没有；开 ⟹ 每条带 icon 的 stat 一个。
+  for (const p of M.presets) {
+    const def = sum(iconsOf(render(p.shape, clone(DEMO))));
+    const off = sum(iconsOf(render(p.shape, withOpts({ statIcon: false }))));
+    const on = iconsOf(render(p.shape, withOpts({ statIcon: true })));
+    check(def === 0 && off === 0 && sum(on) === withIcon && on.every((x) => x === 1),
+      `${p.name}：默认 ${def} · 关 ${off} · 开 ${on.join('/')}（带 icon 的 stat ${withIcon} 条）`);
+  }
+  // AC4：开关以外逐字不变。「改前」= 把本票那一处判断摘掉的同一份源码（单变量），开着 ⟹ 与改前逐字相同；
+  //      默认 ⟹ 改前剥掉图标节点后逐字相同（diff 只在图标节点上）。
+  const before = SRC_TEXT.replace('{statIcon && hasIcon(s.icon) ? (', '{hasIcon(s.icon) ? (');
+  check(before !== SRC_TEXT, '反向对照的源码替换真的换到了（Section 里有 `statIcon && hasIcon(s.icon)`）');
+  const Old = loadSection(before);
+  C = loadSection();
+  const stripIcons = (h) => h.replace(/<div class="mi-icon[^"]*" data-part="icon">[\s\S]*?<\/svg><\/div>/g, '');
+  for (const p of M.presets) {
+    const old = render(p.shape, clone(DEMO), Old);
+    const on = render(p.shape, withOpts({ statIcon: true }), C);
+    const def = render(p.shape, clone(DEMO), C);
+    // 开着那一份的 data 多了 options.statIcon，不进 DOM（<section> 上没有它的属性）⟹ 可以逐字比。
+    check(on === old && stripIcons(old) === def && def !== old,
+      `${p.name}：开 == 改前逐字；默认 == 改前剥掉图标节点（剥掉 ${count(old, 'data-part="icon"')} 个）`);
+  }
+  // AC5：validateSite 认它。
+  const v = (options) => own(manifestLib.validateSite({
+    pages: [{ slug: 'p', blocks: [{ type: 'milestones', data: { headline: 'H', stats: [{ value: '1', label: 'x', icon: 'star' }], ...(options ? { options } : {}) } }] }], scope: 'edit',
+  }));
+  const yes = v({ statIcon: 'yes' });
+  check(yes.length === 1 && yes[0].includes('options.statIcon') && yes[0].includes('只能是 true / false'), 'options.statIcon: "yes" ⟹ 被拦、报「只能是 true / false」', JSON.stringify(yes));
+  check(v({ statIcon: true }).length === 0 && v({ statIcon: false }).length === 0 && v().length === 0, 'statIcon true / false / 不写 ⟹ 放行');
+  check(/options\.statIcon/.test(M.prompt.lines.join('\n')), 'prompt.lines 告诉 AI：stats[].icon 要 options.statIcon 开着才显示');
 }
 
 // ══ AC14：social-proof / hero-new 零改动 ═════════════════════════════════════════════════════════

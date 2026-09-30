@@ -10,10 +10,11 @@ const lean = (d) => { const x = clone(d); delete x.blockImage; delete x.introIma
 const DEMO = DEMO_CONTENT.milestones;
 // 正文做什么 9 点名的那四条（AC3 量的是「4 条」）。
 const four = (cols) => { const x = lean(DEMO); x.stats = x.stats.slice(0, 4); x.options = { statsColumns: cols }; return x; };
-const bad = lean(DEMO); bad.stats[1].icon = 'no-such-icon-xyz';
+// #1492：量图标的两块把 statIcon 开关打开（默认关）。
+const bad = lean(DEMO); bad.stats[1].icon = 'no-such-icon-xyz'; bad.options = { statIcon: true };
 const blocks = [
   ...['auto', '1', '2', '3', '4'].map((c) => [`ms-four-${c}`, 'divided-row', four(c)]),
-  ['ms-gradient', 'divided-row', { ...lean(DEMO), bg: { stops: ['#7d52f4', '#f7b733'], angle: 135 } }],
+  ['ms-gradient', 'divided-row', { ...lean(DEMO), options: { statIcon: true }, bg: { stops: ['#7d52f4', '#f7b733'], angle: 135 } }],
   ['ms-bad-icon', 'divided-row', bad],
 ].map(([id, shape, data], i) => ({ id, type: 'milestones', shape, role: 'optional', region: 'content', weight: i * 10, data }));
 const page = { slug: 'milestones-1482', title: 'Milestones 1482', description: 'milestones fixture', changeFrequency: 'monthly', priority: 0.1, blocks };
