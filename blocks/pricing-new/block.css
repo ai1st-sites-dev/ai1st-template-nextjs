@@ -225,7 +225,10 @@
 }
 
 /* 套餐里的几行 */
-[data-block="pricing-new"] .pr-amount {
+[data-block="pricing-new"] .pr-amount,
+[data-block="pricing-new"] .pr-period,
+[data-block="pricing-new"] .pr-hl-text,
+[data-block="pricing-new"] .pr-billing-note {
   overflow-wrap: anywhere;
 }
 [data-block="pricing-new"] .pr-features {
