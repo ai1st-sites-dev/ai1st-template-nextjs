@@ -205,7 +205,11 @@ console.log('\n── AC6 bg 字色');
   check(t('brand') === 'brand' && /style="background:var\(--x-primary\)"/.test(frameTag(render('boxed', withOpts({}, { bg: 'brand' })))), 'brand ⟹ data-tone="brand"、盒子底是 var(--x-primary)');
   check(t(undefined) === 'light', '没写 bg ⟹ light');
   check(/\[data-tone="dark"\] \.cta-title,[\s\S]*?\[data-tone="brand"\] \.cta-title,[\s\S]*?\{\s*color: #fff !important;/.test(CSS), 'block.css：dark / brand 时标题反白');
-  check(/\[data-tone="dark"\] \.text-muted,\s*\n\[data-block="cta-new"\]\[data-tone="brand"\] \.text-muted \{\s*color: rgba\(255, 255, 255, 0\.72\) !important;/.test(CSS), 'block.css：dark / brand 时正文（text-muted）反白');
+  // #1477 —— 深底 / brand 上的正文（text-muted）反白那条挪到了全站一份（scripts/lib/site-css.js §ON_DEEP_MUTED，白 .92），
+  //    块自己的 block.css 里不再有（.72 那档正是 Chris 说看不清的灰）。
+  const { ON_DEEP_MUTED } = require(path.join(NEXT, 'scripts', 'lib', 'site-css.js'));
+  check(/\[data-tone="dark"\] \.text-muted,\s*\n\[data-tone="brand"\] \.text-muted,[\s\S]*?\{\s*color: rgba\(255, 255, 255, \.92\) !important;/.test(ON_DEEP_MUTED)
+    && !/\.text-muted\s*\{[^}]*rgba\(255, 255, 255/.test(CSS), 'dark / brand 时正文（text-muted）反白：全站那条（白 .92），block.css 里没有自己那份');
   check(/\[data-tone="brand"\] \.btn-primary \{\s*background: #fff !important;\s*border-color: #fff !important;\s*color: var\(--x-primary\) !important;/.test(CSS),
     'block.css：brand 时主按钮翻成白底主色字');
   const v = (bg) => own(manifestLib.validateSite({ pages: [{ slug: 'p', blocks: [{ type: 'cta-new', data: { headline: 'H', bg } }] }], scope: 'edit' }));

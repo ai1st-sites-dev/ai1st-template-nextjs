@@ -25,7 +25,8 @@
 //    （`scripts/lib/image-urls.js`，今天是 `imageUrl` / `logoUrl`），换一个名字模型编的地址就能写进来；
 //    `image-urls.test.js` 从组件里现读 `<img src={…}>` 的叶子标识符盯着这件事。
 //
-// 🔴 **字色按背景亮度自动算**（`scripts/lib/contrast.js` §toneFor，编辑器色板预览用同一个函数）。
+// 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss 写成 CSS、§toneForBg 按亮度反白；#1477，
+//    跟 footer-new / header-new / cta-new 同一份）。`bg` 可以是纯色、`brand` 或渐变 `{stops, angle}`。
 //    图铺底（`image=background` 且有图）一律按深底处理 —— 图上面压着深色渐变遮罩。
 
 import Link from 'next/link';
@@ -36,7 +37,7 @@ import Icon from '@/components/Icon';
 import HeroNewForm from './HeroNewForm';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
-import { toneFor } from '../../scripts/lib/contrast.js';
+import { bgCss, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
 
@@ -45,7 +46,7 @@ export interface HeroNewButton { label?: string; href?: string; style?: BtnStyle
 export interface HeroNewOptions { textAlign?: string; image?: string; form?: string }
 export interface HeroNewData {
   options?: HeroNewOptions;
-  bg?: string;
+  bg?: BgValue;
   proof?: { avatars?: HeroNewImage[]; rating?: number | string; text?: string };
   stats?: { value?: string; label?: string }[];
   logos?: { caption?: string; items?: HeroNewImage[] };
@@ -131,13 +132,12 @@ export default function HeroNewSection({ data, locale = 'en', block }: Props) {
   const side = (k.image === 'left' || k.image === 'right' || k.image === 'top' || k.image === 'bottom') && !!img;
   // 上下叠：文字块、图各占一整行（文字块限宽 64ch、大图 21:9 由 block.css 按 data-image 排）。
   const stacked = k.image === 'top' || k.image === 'bottom';
-  const tone = cover ? 'dark' : toneFor(d.bg);
+  const tone = cover ? 'dark' : toneForBg(d.bg);
   const center = k.textAlign === 'center';
   const right = k.textAlign === 'right';
 
-  const bgStyle = typeof d.bg === 'string'
-    ? (d.bg === 'brand' ? { background: 'var(--x-primary)' } : /^#[0-9a-fA-F]{6}$/.test(d.bg) ? { background: d.bg } : undefined)
-    : undefined;
+  const bgValue = bgCss(d.bg);
+  const bgStyle = bgValue ? { background: bgValue } : undefined;
 
   const eyebrow: HeroNewData['eyebrow'] | null = isObj(d.eyebrow) && typeof d.eyebrow.text === 'string' && d.eyebrow.text ? d.eyebrow : null;
   const eyebrowStyle = eyebrow ? (eyebrow.style && (eyebrow.style in EYEBROW_CLASS || eyebrow.style === 'none') ? eyebrow.style : 'pill') : 'none';

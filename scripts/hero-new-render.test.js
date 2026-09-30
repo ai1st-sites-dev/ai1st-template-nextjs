@@ -212,6 +212,40 @@ console.log('\n── AC4 bg');
     `只拒了 ${rejected.length}/${bads.length}`);
 }
 
+// ══ #1477：bg 可以是渐变（hero-new 接上共用的 toneForBg / bgCss）══════════════════════════════
+console.log('\n── #1477 渐变 bg');
+{
+  const DEEP = { stops: ['#0f172a', '#1e293b'], angle: 135 };
+  const LIGHT = { stops: ['#ffffff', '#f1f5f9'] };
+  const section = (html) => (/<section[^>]*>/.exec(html) || [''])[0];
+  const deep = render('split', withOpts({}, { bg: DEEP }));
+  check(/style="background:linear-gradient\(135deg,#0f172a,#1e293b\)"/.test(section(deep)) && attr(deep, 'data-tone') === 'dark',
+    'AC1：{stops:[#0f172a,#1e293b],angle:135} ⟹ 根上 linear-gradient(135deg,…)、data-tone=dark（标题 / 正文反白）', section(deep));
+  const light = render('split', withOpts({}, { bg: LIGHT }));
+  check(/linear-gradient\(135deg,#ffffff,#f1f5f9\)/.test(section(light)) && attr(light, 'data-tone') === 'light',
+    'AC1：{stops:[#ffffff,#f1f5f9]}（没写角度 = 135）⟹ 深字（data-tone=light）', section(light));
+  // 阳性对照（正文 AC1）：把 toneForBg 那行换回 toneFor，深渐变那一格当场红（toneFor 收到对象回 light）。
+  const src = fs.readFileSync(SECTION, 'utf-8');
+  const want = "const tone = cover ? 'dark' : toneForBg(d.bg);";
+  if (!src.includes(want)) die(`阳性对照要替换的那一句不在 Section.tsx 里：${want}`);
+  const mutant = loadSection(src.replace(want, "const tone = cover ? 'dark' : toneFor(d.bg);")
+    .replace("import { bgCss, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';",
+      "import { bgCss, toneFor, type BgValue } from '../../scripts/lib/contrast.js';"));
+  check(attr(render('split', withOpts({}, { bg: DEEP }), mutant), 'data-tone') === 'light',
+    '阳性对照：换回 toneFor ⟹ 同一个深渐变读成 light（上面那格就是靠这一行才对的）');
+  loadSection();
+  // AC2：非法对象不静默 —— isColorValue 全返 false、validateSite 各报一条，报错那句写着渐变写法。
+  const { isColorValue } = require(path.join(NEXT, 'scripts', 'lib', 'contrast.js'));
+  const v = (bg) => own(manifestLib.validateSite({ pages: [{ slug: 'p', blocks: [{ type: 'hero-new', data: { headline: 'H', bg } }] }] }));
+  const badObjs = [{ stops: ['#0f172a'] }, { stops: ['#000000', '#111111', '#222222', '#333333'] }, { stops: ['red', 'blue'] },
+    { stops: ['#000000', '#ffffff'], angle: '90' }];
+  const flagged = badObjs.filter((b) => !isColorValue(b) && v(b).filter((x) => x.includes('"bg"')).length === 1);
+  check(flagged.length === badObjs.length, `AC2：四种非法渐变 isColorValue=false、validateSite 各报一条（${flagged.length}/${badObjs.length}）`);
+  const msg = v(badObjs[0]).find((x) => x.includes('"bg"')) || '';
+  check(msg.includes('stops') && msg.includes('brand'), 'AC2：报错那句写着渐变写法（含 stops）', msg);
+  check(v(DEEP).length === 0 && v(LIGHT).length === 0, '合法渐变 validateSite 放行');
+}
+
 // ══ AC5：部件 ══════════════════════════════════════════════════════════════════════════════════
 console.log('\n── AC5 部件');
 {

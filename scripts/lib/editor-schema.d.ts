@@ -12,6 +12,8 @@ export interface EditorField {
   summary?: string[];
   /** color：预设色板（`#rrggbb` / `brand`） */
   swatches?: string[];
+  /** color：三档预设渐变（#1477，`contrast.js` §GRADIENT_SWATCHES 的副本） */
+  gradients?: { stops: string[]; angle: number }[];
   /** options：旋钮（顺序 = 控件顺序）、布尔修饰、预设 */
   knobs?: { name: string; values: string[] }[];
   booleans?: string[];

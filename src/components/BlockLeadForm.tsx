@@ -20,6 +20,10 @@
 //    inline 只许一个字段；这里多给了也只画第一个。
 // 🔴 `idPrefix`：同一页上 hero 和 footer 各有一个表单时 id 不许撞（hero 用 `hro`，footer 用 `ftr`）。
 //    `size`：hero 是 `lg`，页脚画小一号 `sm`（Webpixels 页脚那几份都是 `-sm`）。
+// #1477 —— `tone`：调用方把这块底色的字色判据（`contrast.js` §toneForBg）传进来。不是 `light` 时表单根上挂
+//    `data-tone`，输入框的字 / 占位字 / 边框换成白色那一档（规则在 `scripts/lib/site-css.js` §ON_DEEP_FORM，全站一份）。
+//    只给「输入框透明、直接压在深底上」的调用方传（footer-new）；cta-new 深底时自己把输入框涂成白底（它的
+//    `block.css`），占位字原来的灰在白底上看得清，所以它不传 —— 传了就是白底白字。
 
 import { useState } from 'react';
 import { siteId, leadApi, getServices } from '@/lib/config';
@@ -47,8 +51,9 @@ const PLACEHOLDER: Record<LeadField, string> = {
 
 type SubmitState = 'idle' | 'submitting' | 'success' | 'error';
 
-export default function BlockLeadForm({ data, variant, locale, center, idPrefix = 'hro', size = 'lg' }: {
+export default function BlockLeadForm({ data, variant, locale, center, idPrefix = 'hro', size = 'lg', tone = 'light' }: {
   data?: BlockLeadFormData; variant: 'inline' | 'stacked'; locale: string; center?: boolean; idPrefix?: string; size?: 'lg' | 'sm';
+  tone?: 'light' | 'dark' | 'brand';
 }) {
   const asked = (Array.isArray(data?.fields) ? data!.fields : []).filter((f): f is LeadField => VOCAB.includes(f));
   const fields = (asked.length ? Array.from(new Set(asked)) : DEFAULT_FIELDS[variant]).slice(0, variant === 'inline' ? 1 : VOCAB.length);
@@ -125,6 +130,8 @@ export default function BlockLeadForm({ data, variant, locale, center, idPrefix 
     </div>
   );
   const errorLine = error ? <div className="text-sm text-danger mt-2" data-part="form-error" role="alert">{error}</div> : null;
+  // 浅底不挂这个属性：浅底上的 HTML 跟改前逐字相同。
+  const toneAttr = tone === 'light' ? {} : { 'data-tone': tone };
   const button = (cls: string) => (
     <button className={cls} type="submit" disabled={state === 'submitting'} data-slot="form.buttonText">
       {state === 'submitting' ? 'Sending…' : buttonText}
@@ -133,7 +140,7 @@ export default function BlockLeadForm({ data, variant, locale, center, idPrefix 
 
   if (variant === 'inline') {
     return (
-      <form onSubmit={handleSubmit} className={`hro-form mt-6${center ? ' mx-auto' : ''}`} data-form-variant="inline" data-role="essential">
+      <form onSubmit={handleSubmit} className={`hro-form mt-6${center ? ' mx-auto' : ''}`} data-form-variant="inline" data-role="essential" {...toneAttr}>
         <div className="d-flex flex-column flex-sm-row gap-2">
           {input(fields[0])}
           {button(`${sz.btn} text-nowrap`)}
@@ -147,7 +154,7 @@ export default function BlockLeadForm({ data, variant, locale, center, idPrefix 
   // 姓名 / 电话 / 邮箱各占半行（两个一排），需求下拉与留言占整行。
   const half = (f: LeadField) => f === 'name' || f === 'phone' || f === 'email';
   return (
-    <form onSubmit={handleSubmit} className={`hro-form mt-6 w-100${center ? ' mx-auto' : ''}`} data-form-variant="stacked" data-role="essential">
+    <form onSubmit={handleSubmit} className={`hro-form mt-6 w-100${center ? ' mx-auto' : ''}`} data-form-variant="stacked" data-role="essential" {...toneAttr}>
       <div className="row g-2">
         {fields.map((f) => <div key={f} className={half(f) ? 'col-12 col-sm-6' : 'col-12'}>{input(f)}</div>)}
         <div className="col-12">{button(`${sz.btn} w-100`)}</div>

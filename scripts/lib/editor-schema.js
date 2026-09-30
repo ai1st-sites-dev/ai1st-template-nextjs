@@ -40,6 +40,7 @@ const siteRegions = require('./site-regions');
 const pageLayoutLib = require('./page-layout');
 const { ROOT_FIELDS } = require('./editor-root-fields');
 const { shapesFor } = require('../themes');
+const { GRADIENT_SWATCHES } = require('./contrast');
 
 /** `kind: link` 的字段在 manifest 的 `editLabel` 之外多出来的那一个子字段（#1404 r3）。 */
 const LINK_HREF = 'href';
@@ -48,7 +49,8 @@ const LINK_HREF = 'href';
  * 一份 manifest → 字段清单（顺序照 manifest 里槽位的书写顺序）。
  *
  * #1463 —— 除了带 `editLabel` 的槽位，还有两种槽位出字段：
- *   · `kind: color`                    → 色板 + 取色器（`control: 'color'`），色板取 manifest 的 `swatches`
+ *   · `kind: color`                    → 色板 + 取色器（`control: 'color'`），色板取 manifest 的 `swatches`；
+ *                                        #1477 起另带三档预设渐变（`gradients`），值可以是渐变 `{stops, angle}`
  *   · 声明了 `knobs` 的 `options` 槽   → 「预设 + 旋钮 + Custom」（`control: 'options'`）：第一格是预设一排
  *                                        （点一个就把旋钮一次设好），下面每个旋钮一个单选，再下面是
  *                                        `options.shape` 那串里的布尔修饰（`reverse`）。是不是 custom 由
@@ -66,8 +68,10 @@ function fieldsOf(manifest) {
   const fields = [];
   for (const [slot, spec] of Object.entries((manifest && manifest.slots) || {})) {
     if (spec && spec.kind === 'color') {
+      // #1477 —— 三档预设渐变跟着纯色色板一起带下去（`contrast.js` §GRADIENT_SWATCHES，副本）。
       fields.push({ slot, kind: 'color', label: humanize(slot === 'bg' ? 'background' : slot), control: 'color', subs: [],
-        swatches: Array.isArray(spec.swatches) ? spec.swatches.slice() : [] });
+        swatches: Array.isArray(spec.swatches) ? spec.swatches.slice() : [],
+        gradients: GRADIENT_SWATCHES.map((g) => ({ stops: g.stops.slice(), angle: g.angle })) });
       continue;
     }
     if (spec && knobsOf({ slots: { [slot]: spec } }).length && slot === 'options') {

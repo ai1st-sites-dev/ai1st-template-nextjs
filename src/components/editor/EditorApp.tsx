@@ -74,7 +74,8 @@ import {
   THEME_DEFAULT, canvasShape, shapeOptions, describeSave,
 } from '../../../scripts/lib/editor-convert.js';
 import { presetNameFor } from '../../../scripts/lib/block-knobs.js';
-import { normalizeColor, toneFor } from '../../../scripts/lib/contrast.js';
+import { normalizeBg, toneForBg, type BgValue } from '../../../scripts/lib/contrast.js';
+import BgPicker from '../BgPicker';
 
 export interface EditorAppProps {
   locale: string;
@@ -181,23 +182,16 @@ function OptionsField({ f, value, onChange, readOnly }: { f: EditorField; value:
   );
 }
 
-/** 一排预设色板 + 一个任意取色器 + 「无」。存的是小写 `#rrggbb` 或 `brand`（`contrast.js` §normalizeColor）。 */
-function ColorField({ f, value, onChange, readOnly }: { f: EditorField; value: unknown; onChange: (v: string | undefined) => void; readOnly?: boolean }) {
-  const cur = typeof value === 'string' ? value : '';
-  const tone = cur ? toneFor(cur) : 'light';
+/** 颜色槽：共用色板（`src/components/BgPicker.tsx`，#1477）—— 纯色一排 + 取色器 + 三档预设渐变 + 自定义 + None。
+ *  存的是 `contrast.js` §normalizeBg 的形状：小写 `#rrggbb` / `brand` / `{stops, angle}`；None = undefined（删键）。 */
+function ColorField({ f, value, onChange, readOnly }: { f: EditorField; value: unknown; onChange: (v: BgValue | undefined) => void; readOnly?: boolean }) {
+  const cur = normalizeBg(value);
+  const tone = cur ? toneForBg(cur) : 'light';
   return (
     <div data-editor-color="" data-editor-color-tone={tone}>
       <div style={CTRL_ROW}>
-        {(f.swatches || []).map((c) => (
-          <button key={c} type="button" disabled={readOnly} title={c} data-editor-swatch={c} aria-pressed={cur === c}
-            onClick={() => onChange(normalizeColor(c) || undefined)}
-            style={{ width: 26, height: 26, borderRadius: 6, cursor: 'pointer', border: cur === c ? '2px solid #1d4ed8' : '1px solid #d0d5dd',
-              background: c === 'brand' ? 'var(--x-primary, #1d4ed8)' : c }} />
-        ))}
-        <input type="color" disabled={readOnly} aria-label="Any colour" data-editor-color-input=""
-          value={/^#[0-9a-f]{6}$/i.test(cur) ? cur.toLowerCase() : '#ffffff'}
-          onChange={(e) => onChange(normalizeColor(e.target.value) || undefined)} style={{ width: 34, height: 28, padding: 0, border: 'none' }} />
-        <button type="button" disabled={readOnly} style={chip(!cur)} data-editor-swatch="" onClick={() => onChange(undefined)}>None</button>
+        <BgPicker value={cur} swatches={f.swatches || []} gradients={f.gradients} onChange={(v) => onChange(v ?? undefined)}
+          disabled={readOnly} attrs="editor" size={26} clearLabel="None" />
       </div>
       <div style={{ fontSize: 12, color: '#667085' }}>Text colour follows the background automatically.</div>
     </div>
@@ -228,7 +222,7 @@ function puckField(f: EditorField): Field {
       return {
         type: 'custom',
         label: f.label,
-        render: ({ value, onChange, readOnly }: { value: unknown; onChange: (v: string | undefined) => void; readOnly?: boolean }) => (
+        render: ({ value, onChange, readOnly }: { value: unknown; onChange: (v: BgValue | undefined) => void; readOnly?: boolean }) => (
           <div><FieldLabel label={f.label} el="div" /><ColorField f={f} value={value} onChange={onChange} readOnly={readOnly} /></div>
         ),
       } as unknown as Field;

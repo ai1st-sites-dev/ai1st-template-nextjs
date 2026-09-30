@@ -17,9 +17,9 @@
 // #1464 —— **部件**（`widgets`，§page.dev.tsx optionMetaOf）：每个一组单选 none + 样式，排在修饰后面（全站统一顺序
 //   排布旋钮 → 修饰 → 部件）。选 none = 这一格不带那个槽；选一种样式 = 槽照旧、`style` 换成它。
 // #1469 —— 部件那个键也可以叫 `mode`（footer 的 `form`），写回哪个键跟着 shape 走（`Widget.key`）。
-//   外加**色板**（颜色槽，今天只有 footer-new 的 `bg`）：排在旋钮 / 修饰之后、部件之前（跟 `KnobBar` 同序）。
-//   纯色一排照 `KnobBar.tsx` 那段画 + 任意取色器；再加三档预设渐变（`contrast.js` §GRADIENT_SWATCHES）和一个
-//   自定义渐变（2–3 个色标）。值写进 `data[<颜色槽>]`；地址栏 `?bg=`（渐变写成 JSON，§bgFromParam 读回）。
+//   外加**色板**（颜色槽：header-new / footer-new 的 `bg`）：排在旋钮 / 修饰之后、部件之前（跟 `KnobBar` 同序）。
+//   #1477 起色板本身是共用的 `src/components/BgPicker.tsx`（四处同一份）。值写进 `data[<颜色槽>]`；
+//   地址栏 `?bg=`（渐变写成 JSON，§bgFromParam 读回）。
 
 import { useEffect, useState } from 'react';
 import FooterNewSection, { type FooterNewData } from '@blocks/footer-new/Section';
@@ -27,7 +27,8 @@ import HeaderNewSection, { type HeaderNewData } from '@blocks/header-new/Section
 import type { IconTable } from '@/components/InlineIcon';
 import type { BlockConfig } from '@/lib/types/config';
 import { normalizeKnobs, presetBooleans, presetBooleansOf, presetOf } from '../../../../../scripts/lib/header-knobs.js';
-import { GRADIENT_ANGLE, GRADIENT_SWATCHES, bgCss, normalizeBg, type BgValue } from '../../../../../scripts/lib/contrast.js';
+import type { BgValue } from '../../../../../scripts/lib/contrast.js';
+import BgPicker from '@/components/BgPicker';
 
 export interface CellOptionsInitial {
   knobs: Record<string, string>;
@@ -74,11 +75,6 @@ const groupStyle = { display: 'inline-flex', gap: 8, alignItems: 'center', borde
 const sepStyle = { width: 1, height: 18, background: '#d4d4d8' };
 /** #1469 —— 色板那组格子多（6 纯色 + 取色器 + 3 渐变 + 自定义），390 上一行放不下：让它自己换行，不撑宽整页。 */
 const colorGroupStyle = { ...groupStyle, flexWrap: 'wrap' as const, maxWidth: '100%', borderRadius: 12 };
-/** #1469 —— 色板的一格（纯色和渐变同一个样子；选中的那格描蓝边，照 `KnobBar.tsx`）。 */
-const swatchStyle = (on: boolean, background: string) => ({
-  width: 18, height: 18, borderRadius: 4, cursor: 'pointer', padding: 0,
-  border: on ? '2px solid #1d4ed8' : '1px solid #a1a1aa', background,
-});
 const presetStyle = (on: boolean, custom = false) => ({
   font: '12px system-ui, sans-serif', padding: '3px 10px', borderRadius: 6, cursor: custom ? 'default' : 'pointer',
   border: `1px ${custom && !on ? 'dashed' : 'solid'} ${on ? '#4f46e5' : '#d4d4d8'}`,
@@ -92,10 +88,6 @@ export default function CellOptions({
   const [opts, setOpts] = useState<Record<string, boolean>>(initial.opts);
   const [widgets, setWidgets] = useState<Record<string, string>>(initial.widgets);
   const [bg, setBg] = useState<BgValue | null>(initial.bg);
-  const setBgValue = (v: unknown) => { const n = normalizeBg(v); if (n) setBg(n); };
-  const grad = bg && typeof bg === 'object' ? bg : null;
-  // 自定义渐变的色标：当前是渐变就用它的，否则从第一档预设起步。
-  const customStops = grad ? grad.stops : GRADIENT_SWATCHES[0].stops;
   const bgKey = (v: BgValue | null) => (v === null ? '' : typeof v === 'string' ? v : JSON.stringify(v));
   const [ready, setReady] = useState(false);
   useEffect(() => { setReady(true); }, []);
@@ -189,33 +181,7 @@ export default function CellOptions({
         {colorSlot && (
           <span style={colorGroupStyle} data-catalog-color={colorSlot}>
             <b>{colorSlot}</b>
-            {swatches.map((c) => (
-              <button key={c} type="button" title={c} data-catalog-bg={c} disabled={!ready} onClick={() => setBgValue(c)}
-                style={swatchStyle(bgKey(bg) === c, c === 'brand' ? 'var(--x-primary)' : c)} />
-            ))}
-            <input type="color" aria-label="任意颜色" data-catalog-bg-input="" disabled={!ready}
-              value={typeof bg === 'string' && /^#[0-9a-f]{6}$/i.test(bg) ? bg.toLowerCase() : '#ffffff'}
-              onChange={(e) => setBgValue(e.target.value)} style={{ width: 26, height: 20, padding: 0, border: 'none' }} />
-            {GRADIENT_SWATCHES.map((g) => (
-              <button key={bgKey(g)} type="button" title={g.stops.join(' → ')} data-catalog-bg-gradient={g.stops.join(',')} disabled={!ready}
-                onClick={() => setBgValue(g)} style={swatchStyle(bgKey(bg) === bgKey(g), bgCss(g) || '')} />
-            ))}
-            {/* 自定义渐变：2–3 个色标，角度沿用图册的 135deg。改任何一个色标 = 当场换成这一条渐变。 */}
-            <span style={labelStyle} data-catalog-bg-custom="">
-              {customStops.map((c, i) => (
-                <input key={i} type="color" aria-label={`渐变色标 ${i + 1}`} data-catalog-bg-stop={i} disabled={!ready} value={c}
-                  onChange={(e) => { const st = customStops.slice(); st[i] = e.target.value; setBgValue({ stops: st, angle: grad ? grad.angle : GRADIENT_ANGLE }); }}
-                  style={{ width: 20, height: 20, padding: 0, border: 'none' }} />
-              ))}
-              <button type="button" disabled={!ready} data-catalog-bg-stops={customStops.length === 3 ? '3' : '2'}
-                title={customStops.length === 3 ? '去掉第 3 个色标' : '加第 3 个色标'}
-                onClick={() => setBgValue({ stops: customStops.length === 3 ? customStops.slice(0, 2) : [...customStops, '#ffffff'], angle: grad ? grad.angle : GRADIENT_ANGLE })}
-                style={{ font: '11px system-ui, sans-serif', padding: '0 4px', cursor: 'pointer' }}>
-                {customStops.length === 3 ? '−' : '+'}
-              </button>
-            </span>
-            <button type="button" data-catalog-bg-clear="" disabled={!ready || bg === null} onClick={() => setBg(null)}
-              style={{ font: '11px system-ui, sans-serif', padding: '0 6px', cursor: 'pointer' }}>无</button>
+            <BgPicker value={bg} swatches={swatches} onChange={setBg} disabled={!ready} />
           </span>
         )}
         {widgetDefs.length > 0 && (knobDefs.length > 0 || optionKeys.length > 0 || colorSlot) && <span style={sepStyle} />}

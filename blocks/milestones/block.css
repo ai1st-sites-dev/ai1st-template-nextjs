@@ -323,10 +323,6 @@
 [data-block="milestones"][data-tone="brand"] .mi-eyebrow-plain {
   color: #fff !important;
 }
-[data-block="milestones"][data-tone="dark"] .text-muted,
-[data-block="milestones"][data-tone="brand"] .text-muted {
-  color: rgba(255, 255, 255, 0.92) !important;
-}
 [data-block="milestones"][data-tone="dark"][data-stat-style="card"] .mi-inner,
 [data-block="milestones"][data-tone="brand"][data-stat-style="card"] .mi-inner {
   background: rgba(255, 255, 255, 0.06);

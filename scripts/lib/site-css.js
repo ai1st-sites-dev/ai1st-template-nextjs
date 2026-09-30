@@ -43,6 +43,47 @@ function primaryOf(brand) {
   return c.trim();
 }
 
+/**
+ * #1477 —— 深底（`bg` 填了深色 / `brand` / 深渐变）上的小字：白 .92，不是灰（Chris 2026-09-28：紫→金渐变上 .7 的灰字
+ * 看不清）。**全站只有这一条**，各块的 `block.css` 里不再各写一份。
+ * 🔴 它按各块【已有的】标记去选，不另发明一个类名：换类名就等于改了深底 / brand 那几格的 HTML，而 #1477 AC3 要那几格
+ *    跟改前逐字相同。三种标记：hero-new / cta-new 根上的 `data-tone`（小字是 `.text-muted`）、footer-new 的
+ *    `ftr-muted-on-dark`、header-new 的 `hdr-muted-on-deep`。
+ * 🔴 特异度要落在两者之间：压得过 Webpixels 的 `.text-muted`（0-1-0，带 `!important`），压不过块自己点名的
+ *    反白规则（`[data-block=…][data-tone=…] .hro-eyebrow-dash` 这类，0-3-0，要纯白）—— 所以这里是 0-2-0。
+ * 放在这份 CSS 里是因为它挂全站、在 shapes.css 之前加载（`src/app/layout.tsx`），而 shapes.css 只许装块自己的规则
+ * （`scripts/block-build/build-blocks.js` §assertPieceOwnsItsRules）。
+ */
+const ON_DEEP_MUTED = [
+  '[data-tone="dark"] .text-muted,',
+  '[data-tone="brand"] .text-muted,',
+  '[data-block] .ftr-muted-on-dark,',
+  '[data-block] .hdr-muted-on-deep {',
+  '  color: rgba(255, 255, 255, .92) !important;',
+  '}',
+  '',
+].join('\n');
+
+/**
+ * #1477 —— 深底上**透明**的输入框（`src/components/BlockLeadForm.tsx` 收到 `tone` 时根上挂 `data-tone`）：字 / 占位字 /
+ * 边框换成白色那一档。改前是 Webpixels 默认的 `rgba(82,82,82,.5)` 占位字压在 `#0f172a` 上，看不清（#1469 交接点名）。
+ * 数值在图册那条紫→金渐变（`#7d52f4 → #f7b733`）上试的：占位字白 .72、边框白 .35。
+ */
+const ON_DEEP_FORM = [
+  'form[data-tone] .form-control,',
+  'form[data-tone] .form-select {',
+  '  color: #fff;',
+  '  border-color: rgba(255, 255, 255, .35);',
+  '}',
+  'form[data-tone] .form-control::placeholder {',
+  '  color: rgba(255, 255, 255, .72);',
+  '}',
+  'form[data-tone] .form-select option {',
+  '  color: #0f172a;',
+  '}',
+  '',
+].join('\n');
+
 /** 那份 scss 的原文。只有这一处拼它。 */
 function siteScss(primary) {
   return [
@@ -54,6 +95,8 @@ function siteScss(primary) {
     '$headings-color: inherit;',
     '@import "@webpixels/css/all";',
     '',
+    ON_DEEP_MUTED,
+    ON_DEEP_FORM,
   ].join('\n');
 }
 
@@ -124,5 +167,5 @@ async function writeSiteCss({ brand, rootDir = NEXT_DIR }) {
 }
 
 module.exports = {
-  primaryOf, siteScss, compileSiteCss, purgeSiteCss, writeSiteCss, PURGE_CONTENT, THEME_COLOR_VARIABLES,
+  primaryOf, siteScss, compileSiteCss, purgeSiteCss, writeSiteCss, PURGE_CONTENT, THEME_COLOR_VARIABLES, ON_DEEP_MUTED, ON_DEEP_FORM,
 };

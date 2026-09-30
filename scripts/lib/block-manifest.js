@@ -1072,7 +1072,7 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
           }
         }
         if (spec.kind === 'color' && !isColorValue(v)) {
-          flag(`${where}: 槽 "${slot}" 是 ${JSON.stringify(v).slice(0, 40)} —— 颜色只能写 "#rrggbb"（六位十六进制）或 "brand"`);
+          flag(`${where}: 槽 "${slot}" 是 ${JSON.stringify(v).slice(0, 40)} —— 颜色只能写 "#rrggbb"（六位十六进制）、"brand"，或渐变 {"stops": [2–3 个 "#rrggbb"], "angle": 0–360（可省，默认 135）}`);
         }
         if (spec.choices && v && typeof v === 'object' && !Array.isArray(v)) {
           for (const [sub, allowed] of Object.entries(spec.choices)) {

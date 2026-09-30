@@ -245,7 +245,7 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
   //    `teaser` 沿用 #1464 `inline` 的画法（一个字段 + 按钮一行），`full` 沿用 `stacked`（整张）。
   const formPart = (extra = '') => (form && formMode ? (
     <div className={`w-100 mw-sm ${extra}`} data-footer-form={formMode}>
-      <BlockLeadForm data={form} variant={formMode === 'teaser' ? 'inline' : 'stacked'} locale={locale} idPrefix="ftr" size="sm" />
+      <BlockLeadForm data={form} variant={formMode === 'teaser' ? 'inline' : 'stacked'} locale={locale} idPrefix="ftr" size="sm" tone={tone} />
     </div>
   ) : null);
 

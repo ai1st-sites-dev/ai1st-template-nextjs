@@ -2367,7 +2367,7 @@
   z-index: 0;
 }
 
-/* ── 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneFor）───────────────────────────────
+/* ── 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneForBg）───────────────────────────────
    dark = 深底或照片铺底：标题 / 正文 / eyebrow 反白，outline 按钮翻成白描边。
    brand = 主题主色底：同上，另外主按钮翻成白底主色字（dark 也一样，同 hero-new）。 */
 [data-block="cta-new"][data-tone="dark"] .cta-frame,
@@ -2382,10 +2382,7 @@
 [data-block="cta-new"][data-tone="brand"] .cta-eyebrow-plain {
   color: #fff !important;
 }
-[data-block="cta-new"][data-tone="dark"] .text-muted,
-[data-block="cta-new"][data-tone="brand"] .text-muted {
-  color: rgba(255, 255, 255, 0.72) !important;
-}
+/* 深底 / brand 上的 `.text-muted`：白 .92，全站一条（`scripts/lib/site-css.js` §ON_DEEP_MUTED，#1477）。 */
 [data-block="cta-new"][data-tone="dark"] .btn-outline-primary,
 [data-block="cta-new"][data-tone="brand"] .btn-outline-primary {
   color: #fff !important;
@@ -3637,7 +3634,8 @@
 }
 
 /* ═══ 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneForBg）══════════════════════════════
-   dark = 深底 / 深色渐变；brand = 主题主色底。两者一样：标题与项目标题反白、正文白 .92（不是灰）、
+   dark = 深底 / 深色渐变；brand = 主题主色底。两者一样：标题与项目标题反白、正文白 .92（不是灰 —— 那条规则全站
+   只有一份，住 scripts/lib/site-css.js §ON_DEEP_MUTED，#1477；这里不再抄）、
    card 描边换半透明白、标记底换半透明白；outline 按钮翻成白描边、主按钮白底主色字（同 cta-new）。 */
 [data-block="features-new"][data-tone="dark"],
 [data-block="features-new"][data-tone="brand"] {
@@ -3652,10 +3650,6 @@
 [data-block="features-new"][data-tone="dark"] .fx-eyebrow-plain,
 [data-block="features-new"][data-tone="brand"] .fx-eyebrow-plain {
   color: #fff !important;
-}
-[data-block="features-new"][data-tone="dark"] .text-muted,
-[data-block="features-new"][data-tone="brand"] .text-muted {
-  color: rgba(255, 255, 255, 0.92) !important;
 }
 [data-block="features-new"][data-tone="dark"][data-item-style="card"] .fx-inner,
 [data-block="features-new"][data-tone="brand"][data-item-style="card"] .fx-inner {
@@ -4620,7 +4614,7 @@
   width: 100%;
 }
 
-/* ── 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneFor）───────────────────────────────
+/* ── 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneForBg）───────────────────────────────
    dark = 深底或图铺底：标题 / 副标题 / eyebrow / 统计 / logo 反白，outline 按钮翻成白描边。
    brand = 主题主色底：同上，另外主按钮翻成白底主色字。 */
 [data-block="hero-new"][data-tone="dark"],
@@ -4635,10 +4629,7 @@
 [data-block="hero-new"][data-tone="brand"] .hro-eyebrow-plain {
   color: #fff !important;
 }
-[data-block="hero-new"][data-tone="dark"] .text-muted,
-[data-block="hero-new"][data-tone="brand"] .text-muted {
-  color: rgba(255, 255, 255, 0.72) !important;
-}
+/* 深底 / brand 上的 `.text-muted`：白 .92，全站一条（`scripts/lib/site-css.js` §ON_DEEP_MUTED，#1477）。 */
 [data-block="hero-new"][data-tone="dark"] .border-top,
 [data-block="hero-new"][data-tone="brand"] .border-top {
   border-color: rgba(255, 255, 255, 0.3) !important;
@@ -5458,10 +5449,6 @@
 [data-block="milestones"][data-tone="dark"] .mi-eyebrow-plain,
 [data-block="milestones"][data-tone="brand"] .mi-eyebrow-plain {
   color: #fff !important;
-}
-[data-block="milestones"][data-tone="dark"] .text-muted,
-[data-block="milestones"][data-tone="brand"] .text-muted {
-  color: rgba(255, 255, 255, 0.92) !important;
 }
 [data-block="milestones"][data-tone="dark"][data-stat-style="card"] .mi-inner,
 [data-block="milestones"][data-tone="brand"][data-stat-style="card"] .mi-inner {
@@ -7498,11 +7485,8 @@
   overflow-wrap: anywhere;
 }
 
-/* #1469 —— 深底（`bg` 填了深色 / `brand` / 深渐变）上的小字：白 .92，不是灰。Webpixels 的颜色工具类带
-   `!important`，这里也要带；它挂在元素自己身上（不靠继承），所以跟 `text-body-secondary` 同一个位置换掉。 */
-[data-block="footer-new"] .ftr-muted-on-dark {
-  color: rgba(255, 255, 255, .92) !important;
-}
+/* #1469 —— 深底（`bg` 填了深色 / `brand` / 深渐变）上的小字挂 `ftr-muted-on-dark`（跟 `text-body-secondary` 同一个位置换掉）。
+   它的颜色（白 .92）全站只有一条：`scripts/lib/site-css.js` §ON_DEEP_MUTED（#1477）。 */
 
 /* ── footer-new · slim-row = 预设（layout=row · cta=none）────────────────────────────────────────
    🔴 #1464 起这个文件夹**只是一个名字**：预设 = 旋钮的一组值（manifest 的 `presets`；#1469 起三个：layout · brand · cta），排版全在
@@ -7984,12 +7968,8 @@
   [data-block="header-new"].hdr-menu-gathered .hdr-grid > .hdr-c { justify-self: start; }
 }
 
-/* #1476 —— 深底（`bg` 填了深色 / `brand` / 深渐变）上的弱化文字（顶条联系信息、抽屉里那一段）：白 .92，
-   不是半透明灰。规则照 footer-new 那条同形的（`blocks/footer-new/block.css`）；两份合成一个共用类归 #1477。
-   Webpixels 的颜色工具类带 `!important`，这里也要带。 */
-[data-block="header-new"] .hdr-muted-on-deep {
-  color: rgba(255, 255, 255, .92) !important;
-}
+/* #1476 —— 深底（`bg` 填了深色 / `brand` / 深渐变）上的弱化文字（顶条联系信息、抽屉里那一段）挂 `hdr-muted-on-deep`。
+   它的颜色（白 .92）全站只有一条：`scripts/lib/site-css.js` §ON_DEEP_MUTED（#1477）。 */
 
 /* #1476 —— `bg=brand`：主色底上主色按钮看不见 ⟹ 实心那种翻成白底主色字（hero-new / cta-new 同一条）。 */
 [data-block="header-new"] .btn-primary.hdr-cta-on-brand {

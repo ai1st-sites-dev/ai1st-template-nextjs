@@ -240,8 +240,11 @@ console.log('\n── AC8 bg');
   check(attr(at(undefined), 'data-tone') === 'light' && !/\sstyle=/.test(sectionTag(at(undefined))), '没写 bg ⟹ light、<section> 没有 style');
   check(count(SRC_TEXT, 'toneFor(') === 0 && count(SRC_TEXT, 'linear-gradient') === 0,
     `Section.tsx 里 toneFor( ${count(SRC_TEXT, 'toneFor(')} 处、linear-gradient ${count(SRC_TEXT, 'linear-gradient')} 处（都调 contrast.js 的共用函数）`);
-  check(/\[data-tone="dark"\] \.text-muted,\s*\n\[data-block="milestones"\]\[data-tone="brand"\] \.text-muted \{\s*color: rgba\(255, 255, 255, 0\.92\) !important;/.test(CSS),
-    'block.css：dark / brand 时正文白 .92（不是灰）');
+  // #1477 —— 深底 / brand 上的正文白 .92 全站只有一条（scripts/lib/site-css.js §ON_DEEP_MUTED，它认根上的 data-tone），
+  //    块自己的 block.css 里不再抄一份（同 features-new-render.test.js）。
+  const { ON_DEEP_MUTED } = require(path.join(NEXT, 'scripts', 'lib', 'site-css.js'));
+  check(/\[data-tone="dark"\] \.text-muted,\s*\n\[data-tone="brand"\] \.text-muted,[\s\S]*?\{\s*color: rgba\(255, 255, 255, \.92\) !important;/.test(ON_DEEP_MUTED)
+    && !/\.text-muted\s*\{[^}]*rgba\(255, 255, 255/.test(CSS), 'dark / brand 时正文白 .92（不是灰）：全站那条，block.css 里没有自己那份');
   check(/\[data-tone="dark"\] \.mi-value,[\s\S]*?\[data-tone="brand"\] \.mi-label,[\s\S]*?\{\s*color: #fff !important;/.test(CSS), 'block.css：dark / brand 时标题 / 数字 / label 反白');
   const v = (bg) => own(manifestLib.validateSite({ pages: [{ slug: 'p', blocks: [{ type: 'milestones', data: { headline: 'H', stats: [{ value: '1', label: 'x' }], bg } }] }], scope: 'edit' }));
   check(v('#0f172a').length === 0 && v('brand').length === 0 && v({ stops: ['#7d52f4', '#f7b733'], angle: 135 }).length === 0, 'validateSite：#0f172a / brand / 两色标渐变放行');
@@ -349,7 +352,12 @@ console.log('\n── AC14 旧块零改动');
   let diff = null;
   try {
     const base = execFileSync('git', ['merge-base', 'HEAD', 'origin/main'], { cwd: NEXT, encoding: 'utf8' }).trim();
-    diff = execFileSync('git', ['diff', '--name-only', base, '--', 'blocks/social-proof', 'blocks/hero-new'], { cwd: NEXT, encoding: 'utf8' }).trim();
+    // #1477 —— 这是 #1482 交付自己的「别碰」判据。milestones 已经在 merge-base 上 = #1482 落地了，之后的票
+    //    合法地改这几份（#1477 改 hero-new 的 bg 槽）不该在它们自己的分支上红（同 features-new-render.test.js AC14）。
+    let landed = true;
+    try { execFileSync('git', ['cat-file', '-e', `${base}:templates/nextjs/blocks/milestones/manifest.json`], { cwd: NEXT, stdio: 'ignore' }); } catch { landed = false; }
+    if (landed) console.log(`  ⏭  milestones 已在 merge-base ${base.slice(0, 8)} 上（#1482 已落地），这一格只管 #1482 自己的交付 —— 不算通过`);
+    else diff = execFileSync('git', ['diff', '--name-only', base, '--', 'blocks/social-proof', 'blocks/hero-new'], { cwd: NEXT, encoding: 'utf8' }).trim();
   } catch (e) { console.log(`  ⚠️  取不到 git 读数（${e.message.split('\n')[0]}），这一格跳过 —— 不算通过`); }
   if (diff !== null) check(diff === '', `social-proof / hero-new 相对 merge-base 没有改动${diff ? `：${diff}` : ''}`);
 }

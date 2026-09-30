@@ -39,7 +39,7 @@ import { iconTableFor, iconTablesFor } from '../../../../../scripts/lib/icons.js
 // knobsOf / presetsOf 两份（header-knobs.js #1462 · block-knobs.js #1463）读的是同一份 manifest 声明、
 // 对合法声明给出同一结果；这一页用 header-knobs 那份，并掉哪一份归 T3。
 import { booleanOptionsOf, effectiveKnobs, presetNameFor } from '../../../../../scripts/lib/block-knobs.js';
-import { bgFromParam, normalizeBg, normalizeColor } from '../../../../../scripts/lib/contrast.js';
+import { bgFromParam, normalizeBg } from '../../../../../scripts/lib/contrast.js';
 import {
   CATALOG_LOCALE,
   CATALOG_PATHS,
@@ -145,7 +145,8 @@ function knobOverrides(m: ManifestForKnobs, shape: string, data: Record<string, 
   }
   data.options = opts;
   if (colorSlot) {
-    const c = normalizeColor(one(sp.bg));
+    // #1477 —— 渐变也认（`?bg={"stops":[…],"angle":135}`），跟外壳块那条路（下面 §initial.bg）同一个函数族。
+    const c = bgFromParam(one(sp.bg)) ?? normalizeBg(data[colorSlot]);
     if (c) data[colorSlot] = c;
   }
   for (const slot of Object.keys(slots).sort()) {
@@ -178,7 +179,7 @@ function knobOverrides(m: ManifestForKnobs, shape: string, data: Record<string, 
       knobs: eff,
       preset: presetNameFor(m, eff),
       booleans: Object.fromEntries(booleans.map((b) => [b, opts[b] === true])),
-      bg: colorSlot && typeof data[colorSlot] === 'string' ? String(data[colorSlot]) : '',
+      bg: colorSlot ? normalizeBg(data[colorSlot]) : null,
       parts: keep,
       choices: chosen,
     },

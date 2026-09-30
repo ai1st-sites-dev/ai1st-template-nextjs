@@ -240,8 +240,11 @@ console.log('\n── AC8 bg');
   check(attr(at(undefined), 'data-tone') === 'light' && !/\sstyle=/.test(sectionTag(at(undefined))), '没写 bg ⟹ light、<section> 没有 style');
   check(count(SRC_TEXT, 'toneFor(') === 0 && count(SRC_TEXT, 'linear-gradient') === 0,
     `Section.tsx 里 toneFor( ${count(SRC_TEXT, 'toneFor(')} 处、linear-gradient ${count(SRC_TEXT, 'linear-gradient')} 处（都调 contrast.js 的共用函数）`);
-  check(/\[data-tone="dark"\] \.text-muted,\s*\n\[data-block="features-new"\]\[data-tone="brand"\] \.text-muted \{\s*color: rgba\(255, 255, 255, 0\.92\) !important;/.test(CSS),
-    'block.css：dark / brand 时正文白 .92（不是灰）');
+  // #1477 —— 深底 / brand 上的正文白 .92 全站只有一条（scripts/lib/site-css.js §ON_DEEP_MUTED，它认根上的 data-tone），
+  //    块自己的 block.css 里不再抄一份（同 cta-new-render.test.js）。
+  const { ON_DEEP_MUTED } = require(path.join(NEXT, 'scripts', 'lib', 'site-css.js'));
+  check(/\[data-tone="dark"\] \.text-muted,\s*\n\[data-tone="brand"\] \.text-muted,[\s\S]*?\{\s*color: rgba\(255, 255, 255, \.92\) !important;/.test(ON_DEEP_MUTED)
+    && !/\.text-muted\s*\{[^}]*rgba\(255, 255, 255/.test(CSS), 'dark / brand 时正文白 .92（不是灰）：全站那条，block.css 里没有自己那份');
   check(/\[data-tone="dark"\]\[data-item-style="card"\] \.fx-inner,[\s\S]*?\{\s*background: rgba\(255, 255, 255, 0\.06\);\s*border-color: rgba\(255, 255, 255, 0\.15\);/.test(CSS),
     'block.css：dark / brand 时 card 描边换半透明白');
   const v = (bg) => own(manifestLib.validateSite({ pages: [{ slug: 'p', blocks: [{ type: 'features-new', data: { headline: 'H', items: [{ title: 't', text: 'x' }], bg } }] }], scope: 'edit' }));
@@ -421,7 +424,12 @@ console.log('\n── AC14 旧块零改动');
   let diff = null;
   try {
     const base = execFileSync('git', ['merge-base', 'HEAD', 'origin/main'], { cwd: NEXT, encoding: 'utf8' }).trim();
-    diff = execFileSync('git', ['diff', '--name-only', base, '--', 'blocks/features-grid', 'blocks/card-group', 'blocks/services-list', 'blocks/hero-new/manifest.json'], { cwd: NEXT, encoding: 'utf8' }).trim();
+    // #1477 —— 这是 #1475 交付自己的「别碰」判据。features-new 已经在 merge-base 上 = #1475 落地了，之后的票
+    //    合法地改这几份（#1477 改 hero-new 的 bg 槽、#1485 让 features-grid 出池）不该在它们自己的分支上红。
+    let landed = true;
+    try { execFileSync('git', ['cat-file', '-e', `${base}:templates/nextjs/blocks/features-new/manifest.json`], { cwd: NEXT, stdio: 'ignore' }); } catch { landed = false; }
+    if (landed) console.log(`  ⏭  features-new 已在 merge-base ${base.slice(0, 8)} 上（#1475 已落地），这一格只管 #1475 自己的交付 —— 不算通过`);
+    else diff = execFileSync('git', ['diff', '--name-only', base, '--', 'blocks/features-grid', 'blocks/card-group', 'blocks/services-list', 'blocks/hero-new/manifest.json'], { cwd: NEXT, encoding: 'utf8' }).trim();
   } catch (e) { console.log(`  ⚠️  取不到 git 读数（${e.message.split('\n')[0]}），这一格跳过 —— 不算通过`); }
   if (diff !== null) check(diff === '', `features-grid / card-group / services-list / hero-new manifest 相对 merge-base 没有改动${diff ? `：${diff}` : ''}`);
 }

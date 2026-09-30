@@ -9,6 +9,8 @@
 // 🔴 被 admin 嵌着（`embed=1`）时不画 —— admin 那条块级工具条认枚举旋钮是 #1462 的活（PM #1463 r3 b）。
 
 import { useEffect, useState } from 'react';
+import type { BgValue } from '../../../../../scripts/lib/contrast.js';
+import BgPicker from '@/components/BgPicker';
 
 export interface KnobBarProps {
   knobs: { name: string; values: string[] }[];
@@ -21,7 +23,7 @@ export interface KnobBarProps {
     knobs: Record<string, string>;
     preset: string;
     booleans: Record<string, boolean>;
-    bg: string;
+    bg: BgValue | null;
     parts: string[];
     choices: Record<string, string>;
   };
@@ -88,16 +90,11 @@ export default function KnobBar({ knobs, presets, booleans, swatches, parts, cho
         </label>
       ))}
       {swatches ? (
-        <span style={lab}>
+        <span style={{ ...lab, flexWrap: 'wrap' }}>
           <b>bg</b>
-          {swatches.map((c) => (
-            <button key={c} type="button" title={c} data-catalog-bg={c} disabled={!ready} onClick={() => go((q) => q.set('bg', c))}
-              style={{ width: 18, height: 18, borderRadius: 4, cursor: 'pointer', padding: 0,
-                border: current.bg === c ? '2px solid #1d4ed8' : '1px solid #a1a1aa', background: c === 'brand' ? 'var(--x-primary)' : c }} />
-          ))}
-          <input type="color" aria-label="任意颜色" data-catalog-bg-input="" disabled={!ready}
-            value={/^#[0-9a-f]{6}$/i.test(current.bg) ? current.bg.toLowerCase() : '#ffffff'}
-            onChange={(e) => go((q) => q.set('bg', e.target.value.toLowerCase()))} style={{ width: 26, height: 20, padding: 0, border: 'none' }} />
+          {/* #1477 —— 色板是共用的 `src/components/BgPicker.tsx`（外壳块 / 编辑器 / admin 同一份）。渐变写成 JSON 进地址栏。 */}
+          <BgPicker value={current.bg} swatches={swatches} disabled={!ready}
+            onChange={(v) => go((q) => { if (v === null) q.delete('bg'); else q.set('bg', typeof v === 'string' ? v : JSON.stringify(v)); })} />
         </span>
       ) : null}
       {parts.length ? <span style={sep} /> : null}

@@ -142,7 +142,7 @@
   z-index: 0;
 }
 
-/* ── 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneFor）───────────────────────────────
+/* ── 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneForBg）───────────────────────────────
    dark = 深底或照片铺底：标题 / 正文 / eyebrow 反白，outline 按钮翻成白描边。
    brand = 主题主色底：同上，另外主按钮翻成白底主色字（dark 也一样，同 hero-new）。 */
 [data-block="cta-new"][data-tone="dark"] .cta-frame,
@@ -157,10 +157,7 @@
 [data-block="cta-new"][data-tone="brand"] .cta-eyebrow-plain {
   color: #fff !important;
 }
-[data-block="cta-new"][data-tone="dark"] .text-muted,
-[data-block="cta-new"][data-tone="brand"] .text-muted {
-  color: rgba(255, 255, 255, 0.72) !important;
-}
+/* 深底 / brand 上的 `.text-muted`：白 .92，全站一条（`scripts/lib/site-css.js` §ON_DEEP_MUTED，#1477）。 */
 [data-block="cta-new"][data-tone="dark"] .btn-outline-primary,
 [data-block="cta-new"][data-tone="brand"] .btn-outline-primary {
   color: #fff !important;

@@ -26,8 +26,5 @@
   overflow-wrap: anywhere;
 }
 
-/* #1469 —— 深底（`bg` 填了深色 / `brand` / 深渐变）上的小字：白 .92，不是灰。Webpixels 的颜色工具类带
-   `!important`，这里也要带；它挂在元素自己身上（不靠继承），所以跟 `text-body-secondary` 同一个位置换掉。 */
-[data-block="footer-new"] .ftr-muted-on-dark {
-  color: rgba(255, 255, 255, .92) !important;
-}
+/* #1469 —— 深底（`bg` 填了深色 / `brand` / 深渐变）上的小字挂 `ftr-muted-on-dark`（跟 `text-body-secondary` 同一个位置换掉）。
+   它的颜色（白 .92）全站只有一条：`scripts/lib/site-css.js` §ON_DEEP_MUTED（#1477）。 */

@@ -324,6 +324,40 @@ console.log('⑦ 改字段');
   check(out2.blocks.find((b) => b.type === 'testimonials').shape === 'three-up', '改形态 → 那一条写上 shape');
 }
 
+// ══ ⑦e #1477：颜色槽写渐变、再改回纯色 ════════════════════════════════════════════════════════
+console.log('⑦e 颜色槽写渐变');
+{
+  const { GRADIENT_SWATCHES, toneForBg } = require('./lib/contrast.js');
+  const heroF = compOf('hero-new').fields.find((f) => f.slot === 'bg');
+  check(!!heroF && JSON.stringify(heroF.gradients) === JSON.stringify(GRADIENT_SWATCHES),
+    'hero-new 的 bg 字段带着三档预设渐变（= contrast.js §GRADIENT_SWATCHES）', JSON.stringify(heroF && heroF.gradients));
+  const raw = fixturePage(false);
+  const g = heroF.gradients[2];
+  const { initial, data } = openPage(raw);
+  data.content.find((c) => c.type === 'hero-new').props.bg = JSON.parse(JSON.stringify(g));
+  const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
+  const bg = out.blocks.find((b) => b.type === 'hero-new').data.bg;
+  check(bg && typeof bg === 'object' && JSON.stringify(bg) === JSON.stringify(g) && toneForBg(bg) === 'dark',
+    `选一档预设渐变再存 ⟹ data.bg 是 {stops, angle} 对象（${JSON.stringify(bg)}）、字色判成反白`);
+  const changed = out.blocks.filter((b, i) => JSON.stringify(b) !== JSON.stringify(raw.blocks[i])).map((b) => b.type);
+  check(JSON.stringify(changed) === JSON.stringify(['hero-new']), '只有 hero-new 那一块变了', changed.join(' '));
+  // 重开：存了渐变的块打开之后字段里仍是那条渐变（不是「没填」），什么都不改再存 ⟹ 逐字不变。
+  const reopened = openPage(out);
+  check(JSON.stringify(reopened.data.content.find((c) => c.type === 'hero-new').props.bg) === JSON.stringify(g), '重开：字段里读回同一条渐变');
+  check(firstDiff(out, convert.puckToPage({ raw: out, data: reopened.data, initial: reopened.initial, schema, slug: 'home' })) === null,
+    '重开什么都不改再存 ⟹ 往返无损（渐变没被当成「无」删掉）');
+  reopened.data.content.find((c) => c.type === 'hero-new').props.bg = '#ffffff';
+  const back = convert.puckToPage({ raw: out, data: reopened.data, initial: reopened.initial, schema, slug: 'home' });
+  check(back.blocks.find((b) => b.type === 'hero-new').data.bg === '#ffffff', '再改回 #ffffff ⟹ 存的是字符串（不留 stops）');
+  // 阳性对照：toProp 回到只收字符串（#1477 之前的样子）⟹ 重开那一格读成 undefined，存盘把渐变删掉。
+  const old = mutantConverter("return typeof value === 'string' ? value : isPlainObject(value) ? clone(value) : undefined;",
+    "return typeof value === 'string' ? value : undefined;");
+  const o2 = openPage(out, {}, old);
+  const lost = old.puckToPage({ raw: out, data: o2.data, initial: o2.initial, schema, slug: 'home' });
+  check(o2.data.content.find((c) => c.type === 'hero-new').props.bg === undefined && firstDiff(out, lost) !== null,
+    `阳性对照：toProp 只收字符串 ⟹ 重开读成「没填」，往返报出差异（${firstDiff(out, lost)}）`);
+}
+
 // ══ ⑦b 按钮链接（#1404 r3）：6 个 link 槽位都有 Link 框；改了才写、不改逐字节不变 ═══════════════════
 console.log('⑦b 按钮链接');
 {

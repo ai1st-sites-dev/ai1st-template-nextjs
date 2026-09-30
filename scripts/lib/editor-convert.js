@@ -103,8 +103,10 @@ function toProp(field, value) {
     case 'text':
       return value;
     // #1463 —— 一块底色：原样一个字符串（`#rrggbb` / `brand`），没填就是 undefined。
+    // #1477 —— 也可以是渐变 `{stops, angle}`：整份对象带着（副本）。只收字符串的话，已经存了渐变的块在编辑器里
+    //    打开就显示成「没填」，而存盘那一侧（§mergeSlot 的 `color`）会把这个 undefined 当成老板点了「无」删掉它。
     case 'color':
-      return typeof value === 'string' ? value : undefined;
+      return typeof value === 'string' ? value : isPlainObject(value) ? clone(value) : undefined;
     // #1463 —— 旋钮 + 布尔修饰：整份对象带着（没有字段的键也在里面，存盘原样还回去）。
     case 'options':
       return isPlainObject(value) ? clone(value) : {};

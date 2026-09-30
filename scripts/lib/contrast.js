@@ -8,16 +8,16 @@
 // `brand`（主题主色）不是一个十六进制值 —— 渲染时它是 `var(--x-primary)`，服务端算不出它的亮度；
 // 定稿写的是「`brand` 时主按钮翻成白底主色字」，也就是按深底处理（图册 `opt-on-brand` 同时挂 `opt-on-dark`）。
 //
-// 🔴 **一处实现，两个读者**：`blocks/hero-new/Section.tsx`（渲染）和编辑器的色板预览
-//    （`src/components/editor/EditorApp.tsx`）。两边各算一遍的话，分歧那天两边都不会红。
+// 🔴 **一处实现，多个读者**：各块的 `Section.tsx`（渲染）和色板（`src/components/BgPicker.tsx`，编辑器 / 单格页 /
+//    admin 共用）。各算一遍的话，分歧那天哪边都不会红。
 // 🔴 校验（这个值合不合法）也在这里：`block-manifest.js` §validateSite 调 `isColorValue`，
 //    编辑器的取色器存盘前调 `normalizeColor` —— 同一条正则。
 //
 // #1469 —— **颜色槽也可以是渐变**（Chris 2026-09-28：Webpixels 的渐变底是 CSS 变量拼的 `linear-gradient`，不是图）：
 //    值 = `#rrggbb` | `brand` | `{ stops: [2–3 个 #rrggbb], angle }`，渲染成 `linear-gradient(angle, stops)`。
 //    字色按**色标平均亮度**判，门槛 0.55（比纯色的 0.4 高 = 偏向反白：紫→金那种渐变两头一深一浅，按 0.4 会判成浅底）。
-//    渐变认得的只有 `*Bg` 这一组（`isBgValue` / `normalizeBg` / `toneForBg` / `bgCss`）；`normalizeColor` / `toneFor`
-//    原样不动 —— 编辑器取色器和 hero-new 读的是它们，那两处今天不认对象形态（hero 收到渐变 = 当没填，样子不变）。
+//    渐变认得的只有 `*Bg` 这一组（`normalizeBg` / `toneForBg` / `bgCss` / `bgFromParam`）；`normalizeColor` / `toneFor`
+//    原样不动（纯色那一半）。#1477 起四个带 `bg` 槽的块、单格页两条工具条、编辑器、admin 读的全是 `*Bg` 这一组。
 //    `isColorValue`（validateSite 的判据）认渐变：`SLOT_KINDS` 的 `color` 就是这一种，校验不按块分。
 
 /** 相对亮度的门槛：低于它就是「深底」，字反白。 */

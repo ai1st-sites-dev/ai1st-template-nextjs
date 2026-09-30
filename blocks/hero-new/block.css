@@ -96,7 +96,7 @@
   width: 100%;
 }
 
-/* ── 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneFor）───────────────────────────────
+/* ── 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneForBg）───────────────────────────────
    dark = 深底或图铺底：标题 / 副标题 / eyebrow / 统计 / logo 反白，outline 按钮翻成白描边。
    brand = 主题主色底：同上，另外主按钮翻成白底主色字。 */
 [data-block="hero-new"][data-tone="dark"],
@@ -111,10 +111,7 @@
 [data-block="hero-new"][data-tone="brand"] .hro-eyebrow-plain {
   color: #fff !important;
 }
-[data-block="hero-new"][data-tone="dark"] .text-muted,
-[data-block="hero-new"][data-tone="brand"] .text-muted {
-  color: rgba(255, 255, 255, 0.72) !important;
-}
+/* 深底 / brand 上的 `.text-muted`：白 .92，全站一条（`scripts/lib/site-css.js` §ON_DEEP_MUTED，#1477）。 */
 [data-block="hero-new"][data-tone="dark"] .border-top,
 [data-block="hero-new"][data-tone="brand"] .border-top {
   border-color: rgba(255, 255, 255, 0.3) !important;
