@@ -19,6 +19,7 @@
 
 import Link from 'next/link';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import SiteLink from '@/components/SiteLink';
 import type { BlockConfig } from '@/lib/types/config';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
@@ -134,7 +135,7 @@ export default function LogosNewSection({ data, block }: Props) {
                 return (
                   <div key={i} data-part="item">
                     {str(it.href) ? (
-                      <a className="lo-inner d-flex align-items-center justify-content-center" href={it.href} target="_blank" rel="noopener">{img}</a>
+                      <SiteLink className="lo-inner d-flex align-items-center justify-content-center" href={it.href} target="_blank" rel="noopener">{img}</SiteLink>
                     ) : (
                       <div className="lo-inner d-flex align-items-center justify-content-center">{img}</div>
                     )}

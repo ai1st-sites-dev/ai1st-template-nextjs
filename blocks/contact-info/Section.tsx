@@ -108,12 +108,12 @@ export default function ContactInfoSection({ data, block }: ContactInfoSectionPr
         <div key={location.label} className="contact-info__location">
           <h3 className="contact-info__label">{location.label}</h3>
           <p className="contact-info__address">{location.address}</p>
-          <a href={`tel:${location.phone.replace(/\s/g, '')}`} className="contact-info__phone">
+          <a /* #1508：tel: 不受 basePath 影响，保持裸 <a> */ href={`tel:${location.phone.replace(/\s/g, '')}`} className="contact-info__phone">
             {location.phone}
           </a>
         </div>
       ))}
-      <a href={`mailto:${brand.email}`} className="contact-info__email">
+      <a /* #1508：mailto: 不受 basePath 影响，保持裸 <a> */ href={`mailto:${brand.email}`} className="contact-info__email">
         {brand.email}
       </a>
       {data.imageUrl ? (

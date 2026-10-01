@@ -31,7 +31,7 @@ export default function ServicesNavSection({ locale, block }: { locale: string; 
   return (
     <section {...blockAttrs('services-nav', block)} className="services-nav" aria-label="Service quick navigation">
       {services.map((service) => (
-        <a key={service.id} href={`#${service.id}`} className="services-nav__link">
+        <a /* #1508：页内锚点 #… 不受 basePath 影响，保持裸 <a> */ key={service.id} href={`#${service.id}`} className="services-nav__link">
           {service.name}
         </a>
       ))}

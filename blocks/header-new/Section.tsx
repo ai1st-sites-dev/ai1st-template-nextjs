@@ -41,6 +41,7 @@
 
 import { useState, type ReactNode } from 'react';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
+import SiteLink from '@/components/SiteLink';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig } from '@/lib/types/config';
 import manifest from './manifest.json';
@@ -154,10 +155,10 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
     const show: Show = icons && item.icon && iconTable[item.icon] ? (item.show || 'both') : 'text';
     return (
       <li key={key}>
-        <a className={`nav-link d-inline-flex align-items-center gap-2 ${linkTone}`} href={item.href}>
+        <SiteLink className={`nav-link d-inline-flex align-items-center gap-2 ${linkTone}`} href={item.href}>
           {show !== 'text' ? icon(item.icon) : null}
           <span className={show === 'icon' && !vertical ? 'visually-hidden' : undefined}>{item.label}</span>
-        </a>
+        </SiteLink>
       </li>
     );
   };
@@ -171,7 +172,7 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
   const ctaButtons = (key: string) => (
     <div className="d-flex align-items-center gap-2" key={key}>
       {ctas.map((c, i) => (
-        <a key={i} href={c.href} className={`${ctaClass(c.style, deep, onBrand)} text-nowrap`}>{c.label}</a>
+        <SiteLink key={i} href={c.href} className={`${ctaClass(c.style, deep, onBrand)} text-nowrap`}>{c.label}</SiteLink>
       ))}
     </div>
   );
@@ -179,9 +180,9 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
   const socialIcons = (key: string, extra = '') => (social.length ? (
     <div className={`d-flex align-items-center gap-3 ${extra}`} key={key} data-hdr-part={key}>
       {social.map((s, i) => (
-        <a key={i} href={s.href} className={`${subTone} text-nowrap`} aria-label={s.label}>
+        <SiteLink key={i} href={s.href} className={`${subTone} text-nowrap`} aria-label={s.label}>
           {icon(s.icon && iconTable[s.icon] ? s.icon : 'link-45deg')}
-        </a>
+        </SiteLink>
       ))}
     </div>
   ) : null);
@@ -189,7 +190,7 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
   const toolLinks = (key: string) => (links.length ? (
     <div className="d-flex flex-wrap align-items-center column-gap-4 row-gap-1" key={key} data-hdr-part={key}>
       {links.map((l, i) => (
-        <a key={i} href={l.href} className={`${subTone} text-sm text-nowrap`}>{l.label}</a>
+        <SiteLink key={i} href={l.href} className={`${subTone} text-sm text-nowrap`}>{l.label}</SiteLink>
       ))}
     </div>
   ) : null);
@@ -198,10 +199,10 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
   // 下一行（QA2 #1462 r1：390 宽 topbar 预设整条折成两行，汉堡掉到第二行最左边；320 宽连 logo-left 也折）。
   // 店名不截断：生意名是这一条上最要紧的字。桌面那三格里仍是一行不收缩。
   const brandLink = (compact = false) => (
-    <a className={`hdr-brand navbar-brand d-inline-flex align-items-center gap-2 m-0 ${compact ? '' : 'flex-shrink-0'} ${deep ? 'text-white' : 'text-heading'}`} href="/">
+    <SiteLink className={`hdr-brand navbar-brand d-inline-flex align-items-center gap-2 m-0 ${compact ? '' : 'flex-shrink-0'} ${deep ? 'text-white' : 'text-heading'}`} href="/">
       {data.logo ? <img src={data.logo} alt="" className="h-rem-8 w-auto flex-shrink-0" /> : null}
       <span className={`fw-semibold ${compact ? 'text-wrap lh-sm' : 'text-nowrap'}`}>{brand}</span>
-    </a>
+    </SiteLink>
   );
 
   // ── 桌面（≥992）三格：`hdr-a` · `hdr-b` · `hdr-c`。每格放什么只由 menu 决定（logo 跟着 menu 走，
@@ -243,7 +244,7 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
           {contact.map((c, i) => (
             <li key={i} className="d-flex align-items-center gap-2">
               {icon(c.icon)}
-              {c.href ? <a href={c.href} className={`${subTone} text-decoration-none`}>{c.text}</a> : <span>{c.text}</span>}
+              {c.href ? <SiteLink href={c.href} className={`${subTone} text-decoration-none`}>{c.text}</SiteLink> : <span>{c.text}</span>}
             </li>
           ))}
         </ul>
@@ -271,7 +272,7 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
               {contact.map((c, i) => (
                 <span key={i} className="d-inline-flex align-items-center gap-2 text-nowrap">
                   {icon(c.icon)}
-                  {c.href ? <a href={c.href} className={subTone}>{c.text}</a> : c.text}
+                  {c.href ? <SiteLink href={c.href} className={subTone}>{c.text}</SiteLink> : c.text}
                 </span>
               ))}
             </div>
@@ -289,7 +290,7 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
           {brandLink(true)}
           <div className="d-flex flex-shrink-0 align-items-center gap-2">
             {phone ? (
-              <a
+              <a /* #1508：phone 只取 tel: 开头的那一项（见 const phone），不受 basePath 影响，保持裸 <a> */
                 href={phone.href}
                 className={`hdr-phone btn btn-sm ${deep ? 'btn-outline-light' : 'btn-outline-primary'} rounded-circle d-inline-flex align-items-center justify-content-center p-0 w-rem-10 h-rem-10`}
                 aria-label={`Call ${phone.text}`}
@@ -333,7 +334,7 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
             </ul>
             <div className="d-grid gap-2" data-hdr-part="drawer-cta">
               {(hasTopbar ? ctas.filter((c) => c === data.ctaPrimary) : ctas).map((c, i) => (
-                <a key={i} href={c.href} className={`${ctaClass(c.style, deep, onBrand)} text-nowrap`}>{c.label}</a>
+                <SiteLink key={i} href={c.href} className={`${ctaClass(c.style, deep, onBrand)} text-nowrap`}>{c.label}</SiteLink>
               ))}
             </div>
             {drawerContact}

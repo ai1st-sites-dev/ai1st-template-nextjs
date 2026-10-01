@@ -26,6 +26,7 @@
 import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
+import SiteLink from '@/components/SiteLink';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { bgCss, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
@@ -187,7 +188,7 @@ export default function ReviewsNewSection({ data, block, iconTable = {} }: Props
                   </>
                 );
                 return p.href ? (
-                  <a key={i} className="rv-item text-reset text-decoration-none" data-part="item" data-source={p.source} href={p.href} target="_blank" rel="noopener">{inner}</a>
+                  <SiteLink /* #1508 r2：href 是 AI / 老板写的，没有协议校验 ⟹ 按值判 */ key={i} className="rv-item text-reset text-decoration-none" data-part="item" data-source={p.source} href={p.href} target="_blank" rel="noopener">{inner}</SiteLink>
                 ) : (
                   <div key={i} className="rv-item" data-part="item" data-source={p.source}>{inner}</div>
                 );

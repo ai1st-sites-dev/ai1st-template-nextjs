@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import ServiceIcon from '@/components/ServiceIcon';
+import SiteLink from '@/components/SiteLink';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig } from '@/lib/types/config';
 import { brand, defaultLocale, getNavigation, getServices, getBrandName, pagesByLocale, regions } from '@/lib/config';
@@ -127,7 +128,7 @@ export default function Footer({ locale, variant: variantOverride }: { locale: s
               {links.map(([platform, url]) => {
                 const info = socialIcons[platform];
                 return (
-                  <a
+                  <SiteLink /* #1508 r2：社交链接是老板填的，同 footer-new 按值判 */
                     key={platform}
                     href={url}
                     target="_blank"
@@ -136,7 +137,7 @@ export default function Footer({ locale, variant: variantOverride }: { locale: s
                     className="footer__social-link"
                   >
                     {info?.icon || <span className="footer__social-fallback">{platform[0]}</span>}
-                  </a>
+                  </SiteLink>
                 );
               })}
             </div>
@@ -205,7 +206,7 @@ export default function Footer({ locale, variant: variantOverride }: { locale: s
                 补一道上边距又要 `inline-block`，盒子高度从 17 变成 20。**留在原位是唯一两边都对的写法。**
                 地址那几项带自己的修饰类，好让 `slim-row` 只关掉它们、留下这一项。 */}
             <li className="footer__item footer__item--email">
-              <a href={`mailto:${brand.email}`} className="footer__email">{brand.email}</a>
+              <a /* #1508：mailto: 不受 basePath 影响，保持裸 <a> */ href={`mailto:${brand.email}`} className="footer__email">{brand.email}</a>
             </li>
           </ul>
         </div>

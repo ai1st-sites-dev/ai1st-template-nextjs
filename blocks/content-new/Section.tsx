@@ -23,6 +23,7 @@ import Link from 'next/link';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
+import SiteLink from '@/components/SiteLink';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { bgCss, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
@@ -78,7 +79,8 @@ function inline(nodes: RichInline[]): ReactNode[] {
   return nodes.map((n, i) => {
     if (n.t === 'text') return n.v;
     if (n.t === 'strong') return <strong key={i}>{inline(n.c)}</strong>;
-    return <a key={i} href={n.href}>{inline(n.c)}</a>;
+    // #1508 r2：richtext 的链接也收 `/` 开头的站内路径（richtext.js §SAFE_HREF）⟹ 按值判，站内走 next/link 才吃 basePath。
+    return <SiteLink key={i} href={n.href}>{inline(n.c)}</SiteLink>;
   });
 }
 

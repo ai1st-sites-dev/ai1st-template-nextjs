@@ -43,6 +43,7 @@
 //    提交 POST `/api/leads`、原地显示 successMessage，这里只决定它挂在哪儿。
 
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
+import SiteLink from '@/components/SiteLink';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
 import { defaultLocale, getServices } from '@/lib/config';
 import type { BlockConfig } from '@/lib/types/config';
@@ -183,10 +184,10 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
   const brandMark = (big = false) => (
     // `flex-shrink-0`：row 一行里它是 flex 项，被挤的时候盒子缩、`text-nowrap` 的店名照样画出去，
     // 压到旁边的链接上（820 实测：reverse 时一直画到页脚外面）。
-    <a className={`d-inline-flex flex-shrink-0 align-items-center gap-2 text-decoration-none ${headTone}`} href="/" data-footer-part="brand">
+    <SiteLink className={`d-inline-flex flex-shrink-0 align-items-center gap-2 text-decoration-none ${headTone}`} href="/" data-footer-part="brand">
       {data.logo ? <img src={data.logo} alt="" className="h-rem-8 w-auto" /> : null}
       <span className={`fw-semibold ${big ? 'fs-4' : 'fs-5'} text-nowrap`}>{brand}</span>
-    </a>
+    </SiteLink>
   );
 
   const tagline = (extra = '') => (data.tagline
@@ -196,7 +197,7 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
   const linkRow = (items: FooterLink[], extra = '') => (items.length ? (
     <ul className={`list-unstyled d-flex flex-wrap column-gap-6 row-gap-2 mb-0 ${reverse ? 'flex-row-reverse' : ''} ${extra}`}>
       {items.map((l, i) => (
-        <li key={i}><a className={`${linkTone} text-decoration-none`} href={l.href}>{l.label}</a></li>
+        <li key={i}><SiteLink className={`${linkTone} text-decoration-none`} href={l.href}>{l.label}</SiteLink></li>
       ))}
     </ul>
   ) : null);
@@ -204,9 +205,9 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
   const socialIcons = (extra = '') => (social.length ? (
     <div className={`d-flex flex-shrink-0 align-items-center gap-4 ${reverse ? 'flex-row-reverse' : ''} ${extra}`}>
       {social.map((s, i) => (
-        <a key={i} href={s.href} className={`${linkTone} fs-5`} aria-label={s.label}>
+        <SiteLink key={i} href={s.href} className={`${linkTone} fs-5`} aria-label={s.label}>
           <InlineIcon name={s.icon && iconTable[s.icon] ? s.icon : 'link-45deg'} icons={iconTable} />
-        </a>
+        </SiteLink>
       ))}
     </div>
   ) : null);
@@ -230,7 +231,7 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
         {items.map((c) => (
           <span key={c.key} className="d-inline-flex align-items-center gap-2">
             <InlineIcon name={c.icon} icons={iconTable} />
-            {c.href ? <a className={`${linkTone} text-decoration-none`} href={c.href}>{c.text}</a> : c.text}
+            {c.href ? <SiteLink className={`${linkTone} text-decoration-none`} href={c.href}>{c.text}</SiteLink> : c.text}
           </span>
         ))}
       </div>
@@ -250,7 +251,7 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
   const ctaButtons = (onDark: boolean, large: boolean, extra = '', solidLight = false) => (
     <div className={`d-flex flex-column flex-sm-row gap-2 ${extra}`}>
       {list(cta?.buttons).map((b, i) => (
-        <a key={i} href={b.href} className={`${btnClass(b.style, onDark, large, solidLight)} text-nowrap`}>{b.label}</a>
+        <SiteLink key={i} href={b.href} className={`${btnClass(b.style, onDark, large, solidLight)} text-nowrap`}>{b.label}</SiteLink>
       ))}
     </div>
   );
@@ -322,7 +323,7 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
       <div className={`fw-semibold mb-3 ${headTone}`}>{title}</div>
       <ul className="list-unstyled vstack gap-2 mb-0">
         {items.map((l, i) => (
-          <li key={i}><a className={`${linkTone} text-decoration-none`} href={l.href}>{l.label}</a></li>
+          <li key={i}><SiteLink className={`${linkTone} text-decoration-none`} href={l.href}>{l.label}</SiteLink></li>
         ))}
       </ul>
     </div>
@@ -351,7 +352,7 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
                 {contactItems.map((c) => (
                   <li key={c.key} className="d-flex gap-2">
                     <InlineIcon name={c.icon} icons={iconTable} />
-                    {c.href ? <a className={`${linkTone} text-decoration-none`} href={c.href}>{c.text}</a> : <span>{c.text}</span>}
+                    {c.href ? <SiteLink className={`${linkTone} text-decoration-none`} href={c.href}>{c.text}</SiteLink> : <span>{c.text}</span>}
                   </li>
                 ))}
               </ul>
@@ -378,7 +379,7 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
       ? (contact.phone || city ? (
         <div className={`d-flex flex-wrap column-gap-4 row-gap-1 ${reverse ? 'flex-row-reverse' : ''}`}>
           {contact.phone ? (
-            <a className={`${linkTone} text-decoration-none d-inline-flex align-items-center gap-2`} href={telHref(contact.phone)}>
+            <a /* #1508：tel: 不受 basePath 影响，保持裸 <a> */ className={`${linkTone} text-decoration-none d-inline-flex align-items-center gap-2`} href={telHref(contact.phone)}>
               <InlineIcon name="telephone" icons={iconTable} />{contact.phone}
             </a>
           ) : null}

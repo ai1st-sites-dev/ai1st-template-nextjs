@@ -175,7 +175,7 @@ export default function ContactFormSection({ data, block }: ContactFormSectionPr
               <>
                 <p className="contact-form__aside-label">{brand.locations[0].label}</p>
                 <p className="contact-form__aside-address">{brand.locations[0].address}</p>
-                <a
+                <a /* #1508：tel: 不受 basePath 影响，保持裸 <a> */
                   href={`tel:${brand.locations[0].phone.replace(/\s/g, '')}`}
                   className="contact-form__aside-phone"
                 >
@@ -184,7 +184,7 @@ export default function ContactFormSection({ data, block }: ContactFormSectionPr
               </>
             )}
             {brand.email && (
-              <a href={`mailto:${brand.email}`} className="contact-form__aside-email">{brand.email}</a>
+              <a /* #1508：mailto: 不受 basePath 影响，保持裸 <a> */ href={`mailto:${brand.email}`} className="contact-form__aside-email">{brand.email}</a>
             )}
           </>
         ) : null}

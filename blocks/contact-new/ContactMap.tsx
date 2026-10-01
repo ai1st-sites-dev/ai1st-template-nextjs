@@ -43,7 +43,7 @@ export default function ContactMap({ where, address, embedUrl, pin }: {
         </div>
       )}
       <span className="ct-map-credit position-absolute bottom-0 end-0 px-2 py-1 text-xs" data-part="map-credit">
-        © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors
+        © <a /* #1508：外部 https: 不受 basePath 影响，保持裸 <a> */ href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors
       </span>
     </div>
   );
