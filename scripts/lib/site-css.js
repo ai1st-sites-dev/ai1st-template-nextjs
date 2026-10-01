@@ -84,6 +84,35 @@ const ON_DEEP_FORM = [
   '',
 ].join('\n');
 
+/**
+ * #1507 —— 新块的主按钮（Webpixels 的 `btn btn-primary`）跟旧块的 `.btn-primary`（`src/app/globals.css`）走**同一把梯子**：
+ * 底 / 字 / hover 读 `--btn-primary-bg` / `--btn-primary-ink` / `--btn-primary-hover`（`scripts/lib/button-ink.js` 按这个站的
+ * 配色算出来、写进 `theme.css` 的 `:root`）。改前 Webpixels 把底写死成 `$primary` = primary-500 —— ember-12 的 500 是
+ * `#907230`，白字声明 4.54:1，14px 的 btn-sm 画出来只有 4.30:1（theme-css 实测）；同一个站的旧按钮早被梯子挪到 600 档。
+ * 变量缺席（不经 sync-config 的页面）⟹ 落回 Webpixels 自己那几个值，等于改前。
+ * 🔴 为什么收成全站一条：在这之前是各块在自己的 `block.css` 里接（hero-new / cta-new / features-new / pricing-new /
+ *    milestones 各一份），contact-new / header-new / footer-new 没接 ⟹ 每个新块都得记得抄一次，漏了就是 500 档。那五份
+ *    留着不删：变量在时值跟这里相同，特异度更高，只是不再是唯一的那一处。
+ * 特异度跟 Webpixels 的 `.btn-primary` 相同（0-1-0），排在 `@import` 之后 ⟹ 靠源码次序压过它。
+ */
+const BTN_PRIMARY_INK = [
+  '.btn-primary {',
+  '  --x-btn-color: var(--btn-primary-ink, #{color-contrast($primary)});',
+  '  --x-btn-bg: var(--btn-primary-bg, #{$primary});',
+  '  --x-btn-border-color: var(--btn-primary-bg, #{$primary});',
+  '  --x-btn-hover-color: var(--btn-primary-ink, #{color-contrast($primary)});',
+  '  --x-btn-hover-bg: var(--btn-primary-hover, #{shade-color($primary, 20%)});',
+  '  --x-btn-hover-border-color: var(--btn-primary-hover, #{shade-color($primary, 20%)});',
+  '  --x-btn-active-color: var(--btn-primary-ink, #{color-contrast($primary)});',
+  '  --x-btn-active-bg: var(--btn-primary-hover, #{shade-color($primary, 20%)});',
+  '  --x-btn-active-border-color: var(--btn-primary-hover, #{shade-color($primary, 25%)});',
+  '  --x-btn-disabled-color: var(--btn-primary-ink, #{color-contrast($primary)});',
+  '  --x-btn-disabled-bg: var(--btn-primary-bg, #{$primary});',
+  '  --x-btn-disabled-border-color: var(--btn-primary-bg, #{$primary});',
+  '}',
+  '',
+].join('\n');
+
 /** 那份 scss 的原文。只有这一处拼它。 */
 function siteScss(primary) {
   return [
@@ -97,6 +126,7 @@ function siteScss(primary) {
     '',
     ON_DEEP_MUTED,
     ON_DEEP_FORM,
+    BTN_PRIMARY_INK,
   ].join('\n');
 }
 
@@ -167,5 +197,5 @@ async function writeSiteCss({ brand, rootDir = NEXT_DIR }) {
 }
 
 module.exports = {
-  primaryOf, siteScss, compileSiteCss, purgeSiteCss, writeSiteCss, PURGE_CONTENT, THEME_COLOR_VARIABLES, ON_DEEP_MUTED, ON_DEEP_FORM,
+  primaryOf, siteScss, compileSiteCss, purgeSiteCss, writeSiteCss, PURGE_CONTENT, THEME_COLOR_VARIABLES, ON_DEEP_MUTED, ON_DEEP_FORM, BTN_PRIMARY_INK,
 };

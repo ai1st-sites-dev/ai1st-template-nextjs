@@ -183,6 +183,14 @@
   border-color: var(--x-primary);
   color: var(--x-primary);
 }
+/* 圆点多（最多 6 条）时换行、不把前后按钮挤出去；前后按钮那一组不收缩（#1507）。 */
+[data-block="testimonials-new"] .tn-dots {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+[data-block="testimonials-new"] .tn-arrows {
+  flex-shrink: 0;
+}
 [data-block="testimonials-new"][data-item-align="center"][data-items-columns="1"] .tn-pager {
   justify-content: center !important;
   flex-direction: column;
@@ -214,6 +222,21 @@
 }
 [data-block="testimonials-new"] .tn-meta {
   margin-top: auto;
+}
+/* 星级那一排不收缩；来源 / 身份 / 正文 / 总评分条数遇到长词（网址、长名字）换行，不撑破卡片（#1507）。
+   `min-w-0` 是名字 + 身份那一栏（flex 子项）：本意是 `min-width: 0`，让它在头像旁边能收窄、长字才会换行 ——
+   这套 Bootstrap 栈里没有这条工具类，规则写在这里（Tailwind 的同名类在这里不生效）。 */
+[data-block="testimonials-new"] .tn-stars {
+  flex-shrink: 0;
+}
+[data-block="testimonials-new"] .min-w-0 {
+  min-width: 0;
+}
+[data-block="testimonials-new"] .tn-body,
+[data-block="testimonials-new"] .tn-role,
+[data-block="testimonials-new"] .tn-source,
+[data-block="testimonials-new"] .tn-summary-count {
+  overflow-wrap: anywhere;
 }
 [data-block="testimonials-new"] .tn-star svg {
   width: 1rem;

@@ -19,6 +19,13 @@
 [data-block="contact-new"] .ct-intro-text > :last-child {
   margin-bottom: 0 !important;
 }
+/* 块头在顶上、下面既没有 items 也没有侧列 / 地图 ⟹ 它是最后一个，mb-10 那 2.5rem 是多出来的（#1507）。 */
+[data-block="contact-new"] .ct-top:last-child {
+  margin-bottom: 0 !important;
+}
+[data-block="contact-new"] .ct-body {
+  overflow-wrap: anywhere;
+}
 /* beside：放进 items 那一列的最上面，跟下面的 items 隔 2.5rem。 */
 [data-block="contact-new"] .ct-colintro:not(:last-child) {
   margin-bottom: 2.5rem;
@@ -93,6 +100,15 @@
 }
 [data-block="contact-new"] .ct-value[href]:hover {
   text-decoration: underline;
+}
+/* 一条 item 和它图标右边那一栏都能收窄（#1507）：`min-w-0` 本意是 `min-width: 0` —— 这套 Bootstrap 栈里没有这条
+   工具类（Tailwind 的同名类在这里不生效），没有它 flex 子项不肯比内容窄，长邮箱 / 长地址就撑出卡片、不换行。 */
+[data-block="contact-new"] .ct-ch,
+[data-block="contact-new"] .min-w-0 {
+  min-width: 0;
+}
+[data-block="contact-new"] .ct-ch-hint {
+  overflow-wrap: anywhere;
 }
 [data-block="contact-new"][data-items-layout="list"] .ct-info {
   display: flex;
@@ -195,6 +211,16 @@
 }
 [data-block="contact-new"]:not([data-tone="light"]) .ct-ch-icon {
   background: rgba(255, 255, 255, 0.14) !important;
+  color: #fff !important;
+}
+/* eyebrow 的 pill / outline 在深底上反白（同 hero-new / cta-new / features-new / testimonials-new 那两条，#1507）：
+   浅底那一档是 bg-primary-subtle + text-primary，压在 brand 色底上读不出来。 */
+[data-block="contact-new"]:not([data-tone="light"]) .ct-eyebrow-pill {
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #fff !important;
+}
+[data-block="contact-new"]:not([data-tone="light"]) .ct-eyebrow-outline {
+  border-color: rgba(255, 255, 255, 0.7) !important;
   color: #fff !important;
 }
 [data-block="contact-new"]:not([data-tone="light"])[data-form-style="card"] .ct-form {

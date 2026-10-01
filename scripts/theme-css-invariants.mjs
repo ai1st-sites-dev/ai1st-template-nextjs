@@ -1091,13 +1091,31 @@ const ESSENTIAL_TEXT_PROBE = () => {
       // instead would report an ancestor and every descendant for the same words.
       const texts = [...el.childNodes].filter((n) => n.nodeType === 3 && n.textContent.trim().length > 0);
       if (texts.length === 0) continue;
+      // 🔴 #1507 — AN `<option>` OF A DROP-DOWN `<select>` HAS NO LINE BOXES, BY CONSTRUCTION. While the
+      // list is closed the browser draws the CHOSEN option's words inside the `<select>`'s own box and
+      // the rest nowhere on the page (only in the native list it opens), so `Range.getClientRects()`
+      // over an option's text is empty for every option on every sheet — the reading said "no box of
+      // their own at all" about "What do you need?", which a visitor reads perfectly (measured on
+      // /allblocks.html: contact-new's service picker, 5 options × the two essential roots it sits in =
+      // 10 reds, on a site nobody had themed). So: the chosen option is measured on the `<select>`'s
+      // box — a sheet that hides or squeezes the picker is still named — and the others are exempt, with
+      // the reason printed like every other exemption. Both halves are read off the DOM, which a
+      // stylesheet cannot write. A `multiple` / `size > 1` select lays its options out as rows of its
+      // own and is judged like any other text.
+      const picker = el.tagName === 'OPTION' ? el.closest('select') : null;
+      const dropdown = picker && !picker.multiple && picker.size <= 1 ? picker : null;
+      const chosen = !!dropdown && dropdown.selectedIndex >= 0 && dropdown.options[dropdown.selectedIndex] === el;
       const lines = [];
-      for (const t of texts) {
-        const range = document.createRange();
-        range.selectNodeContents(t);
-        for (const r of range.getClientRects()) lines.push(docBox(r));
+      if (dropdown) {
+        if (chosen) lines.push(docBox(dropdown.getBoundingClientRect()));
+      } else {
+        for (const t of texts) {
+          const range = document.createRange();
+          range.selectNodeContents(t);
+          for (const r of range.getClientRects()) lines.push(docBox(r));
+        }
       }
-      const clippers = clippersOf(el);
+      const clippers = clippersOf(dropdown || el);
       const measured = lines.map((line) => {
         let vis = line;
         let cutBy = null;
@@ -1116,7 +1134,10 @@ const ESSENTIAL_TEXT_PROBE = () => {
         block: blockName,
         where: (el.getAttribute('class') || el.tagName).trim().split(/\s+/)[0],
         text: texts.map((t) => t.textContent.trim()).join(' ').replace(/\s+/g, ' ').slice(0, 40),
-        exempt: exemptedBy(el),
+        exempt: exemptedBy(el) || (dropdown && !chosen
+          ? `${name(el)} is an <option> of a closed drop-down <select> and not the chosen one — the browser `
+            + 'shows it only in the list that <select> opens (the chosen one is measured on the <select>\'s own box)'
+          : null),
         // 🔴 #1353 —— 「这一块可以不在」跟「它在屏幕上但读不出来」是**两个问题**，所以这一条
         // 单独记一笔。`data-role="optional"` 只答前一个：可达性那一格放过它（②d），而墨色那一格
         // （②e）照旧问它 —— 一个形态真的把 CTA 色带画出来了，那条字就必须读得出来。
@@ -1167,7 +1188,8 @@ const settlePage = async () => {
 // therefore what to write in the markup if this text really is meant to be off right now.
 const NOT_EXEMPT = 'It was not skipped: neither it nor any ancestor carries aria-hidden="true", the '
   + 'hidden attribute or data-role="optional", no aria-expanded="false" control names it through '
-  + 'aria-controls, and it is not in the closed panel of a <details> — so as far as the markup says, '
+  + 'aria-controls, it is not in the closed panel of a <details>, and it is not an unchosen <option> of a '
+  + 'drop-down <select> — so as far as the markup says, '
   + 'this text is on right now';
 
 // ── ②d where the text ended up, and what is left of it ──────────────────────────────────────────
@@ -3861,7 +3883,7 @@ readings.push(`  pages measured for check ② (essential content not hidden): `
   + 'pixels of that run were painted, photographed with and without its own words). 🔴 What ②d/②e do NOT '
   + 'answer: text a visitor has to interact with to reveal — the exemption skips anything the markup '
   + 'declares off (aria-hidden="true", the hidden attribute, an aria-expanded="false" control naming it, '
-  + 'the closed panel of a <details>), '
+  + 'the closed panel of a <details>, an <option> of a drop-down <select> other than the chosen one), '
   + 'and a theme cannot write an attribute, so what it skips is the app\'s statement, not the theme\'s'
   + `${droppedPages.length ? ` · 🔴 ${droppedPages.length} page(s) past the ${OTHER_PAGE_CAP}-page `
     + `cap were NOT measured for this check either — not for ②, and not for ②d/②e: `
