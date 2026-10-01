@@ -1,0 +1,218 @@
+{
+  "type": "logos-new",
+  "displayName": "Logos (Webpixels)",
+  "category": "gallery",
+  "roleDefault": "optional",
+  "skin": "site-css",
+  "layout_intent": {
+    "items": "grid",
+    "item_wrap": "allow",
+    "headline": "above",
+    "cross": "none",
+    "order": "dom",
+    "item_parts": "none",
+    "inner": "many"
+  },
+  "presets": [
+    {
+      "name": "Strip",
+      "shape": "strip",
+      "knobs": {
+        "introPosition": "top",
+        "introAlign": "center",
+        "introSize": "sm",
+        "itemsLayout": "row",
+        "itemsColumns": "4",
+        "itemStyle": "plain",
+        "logoColor": "mono"
+      }
+    },
+    {
+      "name": "Grid",
+      "shape": "grid",
+      "knobs": {
+        "introPosition": "top",
+        "introAlign": "center",
+        "introSize": "lg",
+        "itemsLayout": "grid",
+        "itemsColumns": "3",
+        "itemStyle": "plain",
+        "logoColor": "mono"
+      }
+    },
+    {
+      "name": "Cards",
+      "shape": "cards",
+      "knobs": {
+        "introPosition": "top",
+        "introAlign": "center",
+        "introSize": "lg",
+        "itemsLayout": "grid",
+        "itemsColumns": "3",
+        "itemStyle": "card",
+        "logoColor": "original"
+      }
+    },
+    {
+      "name": "Side intro",
+      "shape": "side-intro",
+      "knobs": {
+        "introPosition": "left",
+        "introAlign": "left",
+        "introSize": "sm",
+        "itemsLayout": "grid",
+        "itemsColumns": "3",
+        "itemStyle": "plain",
+        "logoColor": "mono"
+      }
+    }
+  ],
+  "slots": {
+    "options": {
+      "kind": "object",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{introPosition, introAlign, introSize, itemsLayout, itemsColumns, itemStyle, logoColor}",
+      "knobs": [
+        {
+          "name": "introPosition",
+          "values": [
+            "left",
+            "right",
+            "top",
+            "bottom"
+          ]
+        },
+        {
+          "name": "introAlign",
+          "values": [
+            "left",
+            "center",
+            "right"
+          ]
+        },
+        {
+          "name": "introSize",
+          "values": [
+            "sm",
+            "lg"
+          ]
+        },
+        {
+          "name": "itemsLayout",
+          "values": [
+            "row",
+            "grid"
+          ]
+        },
+        {
+          "name": "itemsColumns",
+          "values": [
+            "3",
+            "4",
+            "6"
+          ]
+        },
+        {
+          "name": "itemStyle",
+          "values": [
+            "plain",
+            "card"
+          ]
+        },
+        {
+          "name": "logoColor",
+          "values": [
+            "mono",
+            "original"
+          ]
+        }
+      ]
+    },
+    "introEyebrow": {
+      "kind": "object",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{text, style: \"none\" | \"pill\" | \"outline\" | \"dash\" | \"plain\"}",
+      "editLabel": {
+        "text": "Eyebrow"
+      },
+      "choices": {
+        "style": [
+          "none",
+          "pill",
+          "outline",
+          "dash",
+          "plain"
+        ]
+      }
+    },
+    "headline": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true,
+      "editLabel": "Headline"
+    },
+    "body": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true,
+      "editLabel": "Text"
+    },
+    "introCta": {
+      "kind": "link",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{label, href, style: \"solid\" | \"outline\" | \"link\"}",
+      "editLabel": {
+        "label": "Link text"
+      }
+    },
+    "items": {
+      "kind": "list",
+      "required": true,
+      "promptOptional": false,
+      "minItems": 3,
+      "maxItems": 12,
+      "generateImages": false,
+      "itemRequires": [
+        "imageUrl",
+        "alt"
+      ],
+      "editItems": true,
+      "shape": "[{imageUrl, alt, href?}]"
+    },
+    "bg": {
+      "kind": "color",
+      "required": false,
+      "promptOptional": true,
+      "shape": "\"#rrggbb\" | \"brand\" | {stops: [\"#rrggbb\" (2–3 个)], angle?: number}",
+      "swatches": [
+        "#ffffff",
+        "#f1f5f9",
+        "#e0f2fe",
+        "brand",
+        "#1e293b",
+        "#0f172a"
+      ]
+    }
+  },
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "homepage",
+    "order": 2,
+    "headPrefix": "",
+    "headSuffix": "a short block head (headline + text, optional link) over 3–12 logo images, with presets for a centred strip, a grid, cards and a side intro",
+    "headExtra": null,
+    "lines": [
+      "@data",
+      "items: only logo images the business uploaded (brands it installs or services, certifications it holds, platforms it is rated on) — never invent a partner; alt is the brand name; with no logo images, leave this block out",
+      "introCta is an optional text link under the head (e.g. \"See the brands we install\")",
+      "bg is the background colour, top-level in data (not inside options)"
+    ]
+  }
+}

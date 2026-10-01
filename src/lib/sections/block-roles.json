@@ -17,6 +17,7 @@
   "hero": "lead",
   "hero-new": "lead",
   "hero-with-form": "lead",
+  "logos-new": "optional",
   "map-area": "essential",
   "milestones": "optional",
   "newsletter-signup": "optional",

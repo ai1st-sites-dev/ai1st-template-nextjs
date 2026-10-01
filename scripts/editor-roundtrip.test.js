@@ -405,7 +405,8 @@ console.log('⑦f pricing-new 预设带颜色');
   check(JSON.stringify(blind.bg) === JSON.stringify(RB), '阳性对照：没有 colorSlots ⟹ 点 Plan cards 渐变还留着（上面那格的「清掉」是 colorSlots 带来的）');
 }
 
-// ══ ⑦b 按钮链接（#1404 r3）：6 个 link 槽位都有 Link 框；改了才写、不改逐字节不变 ═══════════════════
+// ══ ⑦b 按钮链接（#1404 r3）：7 个 link 槽位都有 Link 框；改了才写、不改逐字节不变 ═══════════════════
+//    （#1404 时是 6 个；#1496 的 logos-new.introCta 是第 7 个 —— 名单本身从 manifest 现算，这个数只钉「没有静默多 / 少」。）
 console.log('⑦b 按钮链接');
 {
   const links = [];
@@ -414,7 +415,7 @@ console.log('⑦b 按钮链接');
   for (const m of nonRegion) for (const [slot, sp] of Object.entries(m.slots || {})) {
     if (sp.kind === 'link' && sp.editLabel !== undefined) wantLinks.push(`${m.type}.${slot}`);
   }
-  check(JSON.stringify(links.sort()) === JSON.stringify(wantLinks.sort()) && links.length === 6, `link 字段逐个列出（${links.length}）：${links.join(' · ')}`, wantLinks.join(' · '));
+  check(JSON.stringify(links.sort()) === JSON.stringify(wantLinks.sort()) && links.length === 7, `link 字段逐个列出（${links.length}）：${links.join(' · ')}`, wantLinks.join(' · '));
   const noHref = [];
   for (const c of schema.components) for (const f of c.fields) {
     if (f.kind === 'link' && !f.subs.some((x) => x.sub === 'href' && x.label === 'Link')) noHref.push(`${c.type}.${f.slot}`);

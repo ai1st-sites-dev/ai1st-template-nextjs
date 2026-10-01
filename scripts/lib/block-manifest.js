@@ -111,6 +111,8 @@ function filledOptionalSlots(m, data) {
  *     的排除够不着，于是每条评价都拿到一张店内场景照当头像（QA2 真建站量到一个站 32 个图槽里 14 个是它）。
  *     用声明不用名字：`photo` / `items` 在别的块里完全可以是内容图，按名字排除会把它们一起静默关掉。
  *     写入闸那一侧（`image-urls.js` 的 `IMAGE_FIELDS`）不受影响 —— 老板上传的 `photo.imageUrl` 照样认得出。
+ *     `logos-new.items`（#1496）同样声明了它：装的是生意自己的商标（安装的品牌 / 认证 / 评价平台），槽名叫 `items`，
+ *     上面按槽名那条认不出，塞图库照片进去就是假商标。
  *   · `kind: "object"` —— hero 的 `socialProof` 的 shape 里**也有** `imageUrl`
  *     （`{avatars: [{imageUrl}], rating, text}`），但那是顾客头像不是内容图。这一条不是可省的
  *     小心眼：去掉它，每个站的 hero 就会多生成一批冒充真人的头像。
@@ -417,10 +419,23 @@ function checkManifestShape(name, m) {
         bad(`slots.${slot}.generateImages 只能写 false，而且只给带图的槽（kind: image，或 shape 里有 imageUrl 的 list）`);
       }
     }
+    // #1495 —— `itemRequires`：list 槽里每一项都必须有值的字段路径（`gallery-new.items` 的 `["image.imageUrl"]`：
+    //    没有图的照片项是一格空白）。validateSite ⑨ 据它拦；形状 = 非空字符串数组（点号分隔的路径），只给 list 槽。
+    if (s.itemRequires !== undefined) {
+      const okShape = Array.isArray(s.itemRequires) && s.itemRequires.length > 0 && s.itemRequires.every((x) => isStr(x) && /^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$/.test(x));
+      if (!okShape || s.kind !== 'list') bad(`slots.${slot}.itemRequires 只能写 ["字段" / "字段.子字段", …]，而且只给 list 槽（现在是 ${JSON.stringify(s.itemRequires)}，kind ${s.kind}）`);
+    }
     // #1479 —— `max`：list 槽最多几项（`cta-new.ctas` = 2）。admin 工具栏据它派生「数量」那一维（0 … max，
     //    manager §manifestCounts · 单格页 §knobOverrides 同一条判据）。跟旋钮的 `knobs[].maxItems` 不是一回事。
     if (s.max !== undefined && (s.kind !== 'list' || !Number.isInteger(s.max) || s.max < 1)) {
       bad(`slots.${slot}.max 只能写正整数，而且只给 list 槽（现在是 ${JSON.stringify(s.max)}，kind ${s.kind}）`);
+    }
+    // #1496 —— `itemRequires` 的每条路径都必须是 shape 里声明过的（`imageUrl` 对 `[{imageUrl, alt, href?}]`；`image.imageUrl`
+    //    对 `[{image: {imageUrl, alt}, …}]`）。写歪了当场红 —— 否则一个拼错的路径永远读到 undefined，每一项都被判「没有」而整页被拦。
+    //    形状对不对归上面 #1495 那一条管，这里只核「声明过没有」。
+    if (Array.isArray(s.itemRequires) && s.kind === 'list') {
+      const undeclared = s.itemRequires.filter((path) => typeof path === 'string' && !shapeHasPath(s.shape, path));
+      if (undeclared.length) bad(`slots.${slot}.itemRequires 里有 shape 没声明的键：${undeclared.join(' / ')}（shape ${s.shape}）`);
     }
     // #1463 —— `choices`：这个槽某个子字段只能从一张词表里取（`hero-new.eyebrow.style`；
     //    `hero-new.form.fields` 那一处 #1470 随 form 槽改成 `{id?}` 退役了）。
@@ -750,6 +765,28 @@ function shapeKeys(shape) {
   }
   take();
   return keys;
+}
+
+// #1496 —— itemRequires 的路径在 shape 里声明过吗：`imageUrl` 对 `[{imageUrl, alt}]` 看第一层；`image.imageUrl` 对
+// `[{image: {imageUrl, alt}}]` 往下一层找 `image:` 后面那一段再看。没有 shape / 不是 `{…}` 形状 ⟹ false（核不了就当没声明）。
+function shapeHasPath(shape, path) {
+  const [head, ...rest] = String(path).split('.');
+  if (!rest.length) return (shapeKeys(shape) || []).includes(head);
+  if (typeof shape !== 'string') return false;
+  const t = shape.trim();
+  const inner = t.startsWith('[{') && t.endsWith('}]') ? t.slice(2, -2) : t.startsWith('{') && t.endsWith('}') ? t.slice(1, -1) : null;
+  if (inner === null) return false;
+  let depth = 0;
+  let cur = '';
+  const entries = [];
+  for (const ch of inner) {
+    if ('{[('.includes(ch)) depth++;
+    else if ('}])'.includes(ch)) depth--;
+    if (ch === ',' && depth === 0) { entries.push(cur); cur = ''; } else cur += ch;
+  }
+  entries.push(cur);
+  const hit = entries.map((e) => e.trim().match(/^(\w+)\??\s*:\s*([\s\S]*)$/)).find((mm) => mm && mm[1] === head);
+  return !!hit && shapeHasPath(hit[2], rest.join('.'));
 }
 
 function dataLineFor(m) {
@@ -1146,6 +1183,16 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
                 }
               });
             }
+          }
+          // #1495 —— 每一项都必须有值的字段（`slots.<槽>.itemRequires`，gallery-new 每张照片要有 image.imageUrl）。
+          //    空串 / 空白 / 不是字符串的对象路径都算没有。
+          for (const req of Array.isArray(spec.itemRequires) ? spec.itemRequires : []) {
+            const missing = [];
+            v.forEach((it, i) => {
+              const got = String(req).split('.').reduce((o, k) => (o && typeof o === 'object' ? o[k] : undefined), it);
+              if (!(typeof got === 'string' ? got.trim() : got !== undefined && got !== null)) missing.push(i);
+            });
+            if (missing.length) flag(`${where}: "${slot}" 第 ${missing.map((i) => i + 1).join(' / ')} 项没有 ${req}（每一项都要有）`);
           }
         }
         // #1489 —— 列表槽逐项的词表 / 条件必填（`itemChoices` / `itemNeeds`，manifest 自检那一段有说明）。

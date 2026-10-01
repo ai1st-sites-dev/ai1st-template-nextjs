@@ -76,6 +76,9 @@ const NOT_IN_POOL = {
   'pricing-table': '由 pricing-new 接替：同一页只放一个；T3 删掉它',
   // #1488（同 #1485 那条规则）—— testimonials-new 进池，旧 testimonials 同时出池。
   'testimonials': '由 testimonials-new 接替：同一页只放一个；T3 删掉它',
+  // #1496（总纲 #1422，同一条规则，Chris 2026-09-29）—— logos-new 进池、trusted-brands 同时出池：两个都在池里时配方会
+  //    硬要求同一页同时放两个 logo / 品牌条。一进一出 ⟹ 池子种数不变。
+  'trusted-brands': '由 logos-new 接替：同一页只放一个；T3 删掉它',
   'newsletter-signup': '同上，属于页面末尾',
   'service-related-pages': 'blocks/service-related-pages/manifest.json 自己写着 "Use ONLY on service detail pages"',
 };

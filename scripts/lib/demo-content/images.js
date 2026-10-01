@@ -50,6 +50,10 @@ const IMAGES = {
   'client-logo-2': { url: 'https://assets.webpixels.io/img/clients/full/logo-2.svg', fallback: solid('#1b2331') },
   'client-logo-3': { url: 'https://assets.webpixels.io/img/clients/full/logo-3.svg', fallback: solid('#1b2331') },
   'client-logo-4': { url: 'https://assets.webpixels.io/img/clients/full/logo-4.svg', fallback: solid('#1b2331') },
+  // #1496 —— logos-new 的夹具要 6 个 logo；图册 logos 段用的就是上面四个 + 下面这两个（`gen-logos.py` §LOGOS 里的
+  //    哈希文件名按 `build.py` 的命名规则反查出来的），同样是 Webpixels 示例里的单色 SVG。
+  'client-logo-5': { url: 'https://assets.webpixels.io/img/logos/midnight-dark.svg', fallback: solid('#1b2331') },
+  'client-logo-6': { url: 'https://assets.webpixels.io/img/logos/clever-dark.svg', fallback: solid('#1b2331') },
   // 同一批：演示生意自己的品牌 logo（header / footer 四处共用一个，同一家店同一个 logo）。四处的演示底色都是浅色
   // （footer-new 的 `bg: null` ⟹ dark=false），所以用深色版。
   'brand-logo':    { url: 'https://assets.webpixels.io/img/logos/clever-dark.svg', fallback: solid('#1b2331') },

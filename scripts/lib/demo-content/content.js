@@ -139,6 +139,27 @@ const DEMO_CONTENT = {
     ],
   },
 
+  // #1496 —— logos-new：Northside Auto Care 被认证 / 被评价的 6 个地方，带块头链接（全填版，单格页拧旋钮时都看得到）。
+  //    🔴 `introEyebrow.style` 写明 pill，理由同 features-new 那条（词表 `none` 排第一，工具栏不写就亮 none）。
+  //    🔴 `options` 留空对象：写了旋钮就会压过每个预设形态自己那组值（`block-knobs.js` §effectiveKnobs）。
+  //    前两项带 `href`（整格是链接），后四项不带 —— 两种画法夹具里都有。
+  'logos-new': {
+    options: {},
+    introEyebrow: { text: 'Certified & rated', style: 'pill' },
+    headline: 'Certified by the people who check the checkers',
+    body: 'Licensed by OMVIC, approved by CAA and rated on every platform drivers actually read.',
+    introCta: { label: 'See our certifications →', href: '/about', style: 'link' },
+    items: [
+      { imageUrl: imageUrl('client-logo-1'), alt: 'OMVIC', href: 'https://www.omvic.ca' },
+      { imageUrl: imageUrl('client-logo-2'), alt: 'CAA Approved Auto Repair', href: 'https://www.caa.ca' },
+      { imageUrl: imageUrl('client-logo-3'), alt: 'Google' },
+      { imageUrl: imageUrl('client-logo-4'), alt: 'Yelp' },
+      { imageUrl: imageUrl('client-logo-5'), alt: 'Automotive Service Excellence' },
+      { imageUrl: imageUrl('client-logo-6'), alt: 'Better Business Bureau' },
+    ],
+    bg: null,
+  },
+
   'social-proof': {
     headline: 'What drivers say after they pick the car up',
     overallRating: '4.9',

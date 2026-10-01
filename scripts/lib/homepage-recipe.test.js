@@ -303,8 +303,13 @@ console.log('── ③ 提示词里那份候选清单:只换顺序,块集合逐
   JSON.stringify([...a].sort()) === JSON.stringify([...b].sort())
     ? ok(`块集合一样（各 ${a.length} 种）`)
     : bad(`块集合变了:只在原顺序里 ${a.filter((x) => !b.includes(x))} / 只在新顺序里 ${b.filter((x) => !a.includes(x))}`);
-  JSON.stringify(a) !== JSON.stringify(b) ? ok(`顺序确实变了（${a[0]} … → ${b[0]} …）`)
-    : bad('换了 order 之后块的顺序一模一样 —— 这一层没生效');
+  // 🔴 #1496 —— 转 `i * 步长 + 1` 格，在长度为 len 的一整圈里按构造恰好有一个 i 转回原位（len 26、步长 5 时正是 i = 5：
+  //    5 × 5 + 1 = 26）。那一格不是「这一层没生效」，所以同时问相邻的 i = 6：步长跟 len 互质 ⟹ 相邻两个站不可能都转回原位，
+  //    而这一层真没生效时两个都不变，照样红。
+  const b6 = typesIn(promptSection('homepage', undefined, { order: homepageRecipe(6, manifests, 'dental clinic').promptOrder }));
+  const moved = [[5, b], [6, b6]].filter(([, x]) => JSON.stringify(a) !== JSON.stringify(x));
+  moved.length ? ok(`顺序确实变了（index ${moved.map(([k]) => k).join(' / ')}：${a[0]} … → ${moved[0][1][0]} …）`)
+    : bad('换了 order 之后块的顺序一模一样（index 5 和 6 都是）—— 这一层没生效');
   // 🔴 index 0 也必须变。第一版按 `rotate(list, i)` 转，i=0 是恒等 —— 而 themeRotationIndex: 0
   //    是最常见的那个入参，等于第一个站白做。这一格就是那次真失败留下来的。
   const at0 = typesIn(promptSection('homepage', undefined, { order: homepageRecipe(0, manifests, 'dental clinic').promptOrder }));

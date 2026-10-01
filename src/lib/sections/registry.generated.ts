@@ -19,6 +19,7 @@ import GallerySection from '@blocks/gallery/Section';
 import HeroSection from '@blocks/hero/Section';
 import HeroNewSection from '@blocks/hero-new/Section';
 import HeroWithFormSection from '@blocks/hero-with-form/Section';
+import LogosNewSection from '@blocks/logos-new/Section';
 import MapAreaSection from '@blocks/map-area/Section';
 import MilestonesSection from '@blocks/milestones/Section';
 import NewsletterSignupSection from '@blocks/newsletter-signup/Section';
@@ -55,6 +56,7 @@ export const sectionRegistry: Record<string, ComponentType<any>> = {
   'hero': HeroSection,
   'hero-new': HeroNewSection,
   'hero-with-form': HeroWithFormSection,
+  'logos-new': LogosNewSection,
   'map-area': MapAreaSection,
   'milestones': MilestonesSection,
   'newsletter-signup': NewsletterSignupSection,
