@@ -309,8 +309,18 @@ console.log('\n── AC14 旧块 / create-site / keyword-page-options 零改动
 {
   let base = '';
   try { base = execFileSync('git', ['merge-base', 'HEAD', 'origin/main'], { cwd: REPO, encoding: 'utf-8' }).trim(); } catch (e) { /* 下面报 */ }
+  // 🔴 #1517 —— 「已落地就跳过」那一半（写法照抄 scripts/blog-new-render.test.js §AC13）：这一段三条都是
+  //    【活文件 vs merge-base】的差异，而 #1502 自己落 main 之后 merge-base 就是 HEAD 自己 ⟹ diff 恒空、
+  //    新增行列表恒是 []，这一格在它自己 ship 的那一刻必红（2026-10-01 真的红了一轮）。落地之后它已经
+  //    不再量 #1502 的交付了，所以不再判。
+  let landed = true;
+  if (base) {
+    try { execFileSync('git', ['cat-file', '-e', `${base}:templates/nextjs/blocks/page-header-new/manifest.json`], { cwd: REPO, stdio: 'ignore' }); } catch { landed = false; }
+  }
   if (!base) {
     console.log('  ⚠️  取不到 merge-base（没有 git / 没有 origin/main），这一段跳过 —— 不算通过');
+  } else if (landed) {
+    console.log(`  ⏭  page-header-new 已在 merge-base ${base.slice(0, 8)} 上（#1502 已落地），这一段只管 #1502 自己的交付 —— 不算通过`);
   } else {
     const diff = (...p) => execFileSync('git', ['diff', base, '--', ...p], { cwd: REPO, encoding: 'utf-8' });
     check(diff('templates/nextjs/blocks/page-header') === '', 'blocks/page-header/ 与 merge-base 逐字相同');
