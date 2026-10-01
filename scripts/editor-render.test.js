@@ -63,7 +63,10 @@ const STUBS = {
   // 🔴 `pagesByLocale` 一页都没有：`service-related-pages` 因此 return null —— 那正是验收第 3 条点名的
   //    唯一例外。给了子页，它就画得出来，这道检查就量不到「例外恰好是它」。
   '@/lib/config': stub('config', 'module.exports={getServices:()=>[],pagesByLocale:{en:[]},localeUrl:(s)=>"/"+s,'
-    + 'siteId:"t",leadApi:"",getBlogPosts:()=>[],brand:{locations:[],email:"a@b.c"}};\n'),
+    // #1497 —— 博客给一篇：`blog-new` 在站里一篇文章都没有时同样 return null（按设计）。给空数组的话它会成为第二个
+    //    「画出来是空的」，而这里要量的是「例外恰好只有 service-related-pages 一个」；给一篇，画布上 blog-new 真画得出来也一起量到。
+    + 'siteId:"t",leadApi:"",getBlogPosts:()=>[{slug:"p",title:"P",excerpt:"E",content:"<p>x</p>",category:"C",tags:[],author:"A",publishedAt:"2026-09-01",seo:{metaTitle:"",metaDescription:""}}],'
+    + 'brand:{locations:[],email:"a@b.c"}};\n'),
 };
 const origResolve = Module._resolveFilename;
 Module._resolveFilename = function resolve(req, ...rest) {

@@ -1033,6 +1033,17 @@ const DEMO_CONTENT = {
     ],
   },
 
+  // #1497 —— blog-new：块里只有块头与 postCount，文章来自站点博客（上面的 DEMO_BLOG_POSTS 由单格页挂进去）。
+  'blog-new': {
+    options: {},
+    introEyebrow: { text: 'From the shop', style: 'pill' },
+    headline: 'Car care tips from the crew',
+    body: 'Short, practical guides written by the technicians who do the work.',
+    introCta: { label: 'All articles', href: '/blog', style: 'outline' },
+    postCount: '3',
+    bg: null,
+  },
+
   'blog-preview': {
     headline: 'From the shop notebook',
     subheadline: 'Written by the people holding the wrench.',
@@ -1301,4 +1312,73 @@ const DEMO_SITE = {
   },
 };
 
-module.exports = { DEMO_CONTENT, SITE, FEATURES_NEW_STEPS, DEMO_SITE };
+// #1497 —— 站点博客夹具（`BlogPostConfig` 形状）。blog-new 只从站点博客读、块里不存文章，所以图册单格页和
+//    渲染单测要一份「这个站有博客」：单格页把它挂在一个没有任何路由会问的 locale 键下
+//    （`src/app/%5F_catalog/catalogShared.ts` §registerCatalogFixtureBlogPosts，同 service-related-pages 那几页夹具）。
+//    5 篇、按 publishedAt 故意打乱（块按倒序取最新 N 篇 —— 顺序由 sync-config 排，夹具这里由调用方排）：
+//    3 篇带封面 + 作者 + 头像，1 篇没封面（占位），1 篇没摘要也没作者。
+const DEMO_BLOG_POSTS = [
+  {
+    slug: 'check-engine-light',
+    title: 'What a check engine light actually means',
+    excerpt: 'A code tells you which circuit reported a problem. It does not tell you which part failed — and that difference is most of the diagnostic bill.',
+    content: '<p>' + 'A check engine light is the car telling you a sensor reported something out of range. '.repeat(40) + '</p>',
+    category: 'Diagnostics',
+    tags: ['engine', 'diagnostics'],
+    author: 'Dana Whitfield',
+    authorAvatarUrl: imageUrl('avatar-1'),
+    publishedAt: '2026-09-18',
+    coverImage: { imageUrl: imageUrl('work-1'), alt: 'A technician reading a diagnostic scanner' },
+    seo: { metaTitle: 'What a check engine light actually means', metaDescription: 'Codes, circuits and what the diagnostic bill pays for.' },
+  },
+  {
+    slug: 'winter-tires',
+    title: 'When to swap to winter tires in Toronto',
+    excerpt: 'Tread depth and the 7 °C rule, not the calendar.',
+    content: '<p>' + 'Winter tires stay soft below seven degrees, which is why the date on the calendar matters less than the forecast. '.repeat(20) + '</p>',
+    category: 'Tires',
+    tags: ['tires', 'winter'],
+    author: 'Marcus Lee',
+    authorAvatarUrl: imageUrl('avatar-2'),
+    publishedAt: '2026-09-04',
+    coverImage: { imageUrl: imageUrl('work-2'), alt: 'A stack of winter tires in the shop' },
+    seo: { metaTitle: 'When to swap to winter tires', metaDescription: 'The 7 °C rule.' },
+  },
+  {
+    slug: 'brake-noise',
+    title: 'Squeal, grind or click: what your brakes are telling you',
+    excerpt: 'Three sounds, three very different repair bills.',
+    content: '<p>' + 'A squeal is usually the wear indicator doing its job; a grind means metal on metal. '.repeat(12) + '</p>',
+    category: 'Brakes',
+    tags: ['brakes'],
+    author: 'Priya Nair',
+    authorAvatarUrl: imageUrl('avatar-3'),
+    publishedAt: '2026-08-21',
+    coverImage: { imageUrl: imageUrl('work-3'), alt: 'A brake rotor and caliper' },
+    seo: { metaTitle: 'What your brakes are telling you', metaDescription: 'Squeal, grind or click.' },
+  },
+  {
+    slug: 'oil-change-intervals',
+    title: 'How often you really need an oil change',
+    excerpt: 'The 5,000 km sticker is a habit, not a rule. Your owner’s manual and your driving decide it.',
+    content: '<p>' + 'Modern synthetic oil lasts longer than the old sticker suggests. '.repeat(15) + '</p>',
+    category: 'Maintenance',
+    tags: ['oil'],
+    author: 'Dana Whitfield',
+    publishedAt: '2026-07-30',
+    seo: { metaTitle: 'How often you need an oil change', metaDescription: 'Intervals explained.' },
+  },
+  {
+    slug: 'battery-cold-start',
+    title: 'Why batteries die on the first cold morning',
+    excerpt: '',
+    content: '<p>' + 'Cold slows the chemistry inside a battery. '.repeat(10) + '</p>',
+    category: 'Electrical',
+    tags: ['battery'],
+    author: '',
+    publishedAt: '2026-07-12',
+    seo: { metaTitle: 'Why batteries die in the cold', metaDescription: 'Cold starts.' },
+  },
+];
+
+module.exports = { DEMO_CONTENT, SITE, FEATURES_NEW_STEPS, DEMO_SITE, DEMO_BLOG_POSTS };

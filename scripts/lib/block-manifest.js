@@ -236,6 +236,9 @@ function editableSlotPaths(manifest) {
   const out = [];
   for (const [slot, s] of Object.entries((manifest && manifest.slots) || {})) {
     if (!s || s.editLabel === undefined) continue;
+    // #1497 —— 声明了 `intRange` 的槽（`blog-new.postCount`）是一个**设置**，不是页面上的一段字：没有 `data-slot` 可挂，
+    //    检查器面板也不该给它一个「改了页面上找不到对应字」的输入框。编辑器（Puck）另给它一个下拉框（editor-schema §fieldsOf）。
+    if (Array.isArray(s.intRange)) continue;
     if (typeof s.editLabel === 'string') {
       out.push({ path: slot, label: s.editLabel, slot, kind: s.kind, sub: null });
       continue;
@@ -388,6 +391,15 @@ function checkManifestShape(name, m) {
       if (s[key] === undefined) continue;
       if (!Number.isInteger(s[key]) || s[key] < 0) bad(`slots.${slot}.${key} 是 ${JSON.stringify(s[key])} —— 必须是非负整数`);
       if (s.kind !== 'list') bad(`slots.${slot}.${key} 只给 kind: list 的槽（现在是 ${JSON.stringify(s.kind)}）`);
+    }
+    // #1497 —— `intRange: [最小, 最大]`：一个 text 槽的值是这个范围里的整数（`blog-new.postCount` 2–6）。
+    //    不新增一种 kind（九种里没有数字；minItems / maxItems 只给 list 槽）—— 值仍是一格字，范围由 validateSite ⑨ 查。
+    //    写歪的失败方向是静默的（validateSite 读不出范围就不查），所以这里当场拒。
+    if (s.intRange !== undefined) {
+      const r = s.intRange;
+      if (s.kind !== 'text' || !Array.isArray(r) || r.length !== 2 || !r.every(Number.isInteger) || r[0] > r[1]) {
+        bad(`slots.${slot}.intRange 只能给 kind: text 的槽，写成 [最小, 最大] 两个整数（最小 ≤ 最大），现在是 ${JSON.stringify(r)}`);
+      }
     }
     if (Number.isInteger(s.minItems) && Number.isInteger(s.maxItems) && s.minItems > s.maxItems) {
       bad(`slots.${slot}.minItems（${s.minItems}）大于 maxItems（${s.maxItems}）`);
@@ -1245,6 +1257,14 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
               }
             }
           });
+        }
+        // #1497 —— text 槽声明了 `intRange`（`blog-new.postCount` 2–6）：值要是这个范围里的整数（数字或整数字符串都认）。
+        if (Array.isArray(spec.intRange)) {
+          const [lo, hi] = spec.intRange;
+          const n = typeof v === 'number' ? v : typeof v === 'string' && /^\s*-?\d+\s*$/.test(v) ? Number(v) : NaN;
+          if (!Number.isInteger(n) || n < lo || n > hi) {
+            flag(`${where}: "${slot}" 是 ${JSON.stringify(v)} —— 只能是 ${lo}–${hi} 的整数`);
+          }
         }
         if (spec.kind === 'color' && !isColorValue(v)) {
           flag(`${where}: 槽 "${slot}" 是 ${JSON.stringify(v).slice(0, 40)} —— 颜色只能写 "#rrggbb"（六位十六进制）、"brand"，或渐变 {"stops": [2–3 个 "#rrggbb"], "angle": 0–360（可省，默认 135）}`);

@@ -996,12 +996,18 @@ if (!blogRendersHtml || !blogIsWritable) {
   die(`博客那一面的前提读不出来（正文当 HTML 画=${blogRendersHtml} · blog/*.json 可写=${blogIsWritable}）`
       + ' —— 要么这一面真的没了（那就把这一格和闸里的 HTML 分支一起删），要么尺子指错地方了');
 }
-const blogNamedInPrompt = (sect) => /blog\//.test(sect) && /<img/.test(sect);
+// 🔴 #1497 —— 按【条】判，不按整段判：`## Images` 里每一条以 `- ` 起头，要的是「有一条同时说了 blog/ 和 <img>」。
+//    整段判的话，blog-new 那一条（它也写着 `blog/<slug>.json`，说的是封面 / 头像字段）会跟别处的 `<img` 拼成一次命中，
+//    下面那条反向臂就删不红了 —— #1497 第一次跑就是这么读到的。
+const blogNamedInPrompt = (sect) => sect.split(/\n(?=- )/).some((entry) => /blog\//.test(entry) && /<img/.test(entry));
 blogNamedInPrompt(imagesSection)
   ? ok('提示词的 ## Images 段点到了博客正文这一面（模板真的把它当 HTML 画，且那个文件可写）')
   : bad('模板把博客正文当 HTML 画、blog/*.json 又可写，而 ## Images 段里没有它 —— 老板永远换不掉文章里那张图');
 // 反向臂：把那几行从提示词里拿掉，这一格必须当场红。
-blogNamedInPrompt(imagesSection.replace(/^- \*\*a blog post\*\*[\s\S]*?(?=\n\n|\n- |$)/m, ''))
+// 🔴 #1497 —— 删除要走到这一条【结束】为止（下一条 `- ` / 空行 / 全文末尾）。原来那条正则带 `m` 标志，结尾的 `$`
+//    在多行模式下匹配的是【行尾】⟹ 只删掉了这一条的第一行，后面几行（带 `<img>` 的那几行）接到上一条的尾巴上。
+//    上一条碰巧不带 `blog/` 时它照样红；#1497 在它前面加了 blog-new 那一条（带 `blog/<slug>.json`），就露出来了。
+blogNamedInPrompt(imagesSection.replace(/^- \*\*a blog post\*\*[\s\S]*?(?=\n\n|\n- |(?![\s\S]))/m, ''))
   ? bad('把提示词里博客那几行删掉之后这一格【没】红 —— 它判的不是那几行')
   : ok('故意写坏「提示词里博客那一条」→ 那一格当场红');
 

@@ -9,8 +9,9 @@
 
 import fs from 'fs';
 import path from 'path';
-import { pagesByLocale } from '@/lib/config';
-import type { DynamicPageConfig } from '@/lib/types/config';
+import { blogPostsByLocale, pagesByLocale } from '@/lib/config';
+import type { BlogPostConfig, DynamicPageConfig } from '@/lib/types/config';
+import { DEMO_BLOG_POSTS } from '../../../scripts/lib/demo-content/index.js';
 import { buildThemeCss } from '../../../scripts/theme-css.js';
 import themePool from '../../../scripts/theme-pool.json';
 /** 一套主题在单格页眼里的样子（#1458 起从已删的 CatalogBoard 搬到这里）。 */
@@ -115,6 +116,19 @@ const CATALOG_FIXTURE_PAGES: DynamicPageConfig[] = ['First', 'Second', 'Third'].
 /** 幂等：`next dev` 里这个模块只求值一次，但重复调用也只是原样写回同一份。 */
 export function registerCatalogFixturePages(): void {
   pagesByLocale[CATALOG_LOCALE] = CATALOG_FIXTURE_PAGES;
+}
+
+// #1497 —— blog-new 只从站点博客读（`getBlogPosts(locale)`），块里不存文章；站里一篇都没有就整块不渲染。
+//    图册同样不问这个站有没有博客，自己带一份：挂在同一个 `CATALOG_LOCALE` 键下，理由同上 —— `blogPostsByLocale`
+//    全仓的读都是按键取（`config.ts` §getBlogPosts），唯二两处遍历读的是 `locales` 数组（`config.ts:154` / `:156`），
+//    这个键按构造谁都看不见。夹具只有一份（`scripts/lib/demo-content` 的 DEMO_BLOG_POSTS，渲染单测也读它），
+//    这里按 publishedAt 倒序排好 —— 真站上排序是 sync-config 做的，这张表跳过了 sync-config，所以自己排。
+const CATALOG_FIXTURE_BLOG_POSTS = ([...DEMO_BLOG_POSTS] as unknown as BlogPostConfig[])
+  .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+
+/** 幂等：同 registerCatalogFixturePages。 */
+export function registerCatalogFixtureBlogPosts(): void {
+  blogPostsByLocale[CATALOG_LOCALE] = CATALOG_FIXTURE_BLOG_POSTS;
 }
 
 /**

@@ -1,5 +1,6 @@
 {
   "announcement-bar": "optional",
+  "blog-new": "optional",
   "blog-preview": "optional",
   "card-group": "optional",
   "contact-form": "essential",

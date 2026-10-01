@@ -34,13 +34,13 @@
  *    ⟹ 调用方（`create-site.js`）传的是 `rotationIndexFromSiteId(siteId)`。本文件只要一个数，
  *      谁给的不管；但那个数必须**按站**变，而且要跟挑主题那条路互相独立。
  *
- * 📌 这份配方能有多少种，是**枚举得出来**的，别当它无限（`homepage-recipe.test.js` 的 ⑪ 现算一遍，
- *    所以下面这几个数被改坏时会当场红）:
- *      整份配方  周期 `index % 308`，308 种互不相同 ⟹ 随机两个站**整份约束一样** 0.32%
- *      只看开场  **33** 种（周期是 池子 22 × BAR_EVERY 4 = 88，但带 announcement-bar 的那 1/4
- *                只用得上开场的后两格，所以合并成 33）⟹ 开场完全相同 **3.4%**
+ * 📌 这份配方能有多少种，是**枚举得出来**的，别当它无限 —— 数由 `homepage-recipe.test.js` 的 ⑪ 现算
+ *    （开场周期 = 池子长度 × BAR_EVERY），池子一变它就变，所以这里不抄数 —— 开场周期、
+ *    有几种不同的开场，都见 ⑪ 现算的那一行。（这里写过两次具体数，「池子 22 · 308 种 · 33 种」和 #1497 r1 的
+ *    「14 → 13 · 周期 52 · 26 种」，两次都在下一个块进出池子时就过期了。）
  *    对照:基线那 6 个真实站「前 2 块相同」100%、「前 3 块」67%、「前 4 块」13%（票面 AC1）。
- *    要再稀释就得动 `STRIDES`/`OFFSETS` 的选法，那会改变每个站的配方，是另一张票的事。
+ *    📌 #1497 已经动过一次步长的选法（不互质时往上加 2，见 §drawDistinct）—— 那一次本来就跟着池子少一个块
+ *       把每个站的配方换了一遍；要再稀释，照同一个判据（⑪ / ⑭ 的读数）来。
  *
  * ── 关掉它（#1034 AC3 的反向对照）──────────────────────────────────────────────────────────────
  * payload 里 `"homepageFingerprint": false` ⟹ 整套约束不参与，提示词逐字回到改动之前。
@@ -92,10 +92,16 @@ const NOT_IN_POOL = {
   //    一进一出 ⟹ 池子种数不变。
   'social-proof': '由 reviews-new 接替：同一页只放一个；T3 删掉它',
   'newsletter-signup': '同上，属于页面末尾',
+  // #1497 —— 两个博客块都不进池：建站不写博客文章（create-site.js 里 blog 0 处），blog-new 只从博客读、没有文章就不渲染
+  //    ⟹ 进池的话今天抽到它的那三成新站（400 个站号里 127 个）首页会钉一块空块。同 service-related-pages：只在特定条件下
+  //    才该放的块，不交给随机配方。有了文章以后放不放，交给改站 AI 按 manifest 那行提示词判断。
+  'blog-new': '只在站点有博客文章时才放，建站时一篇都没有',
+  'blog-preview': '由 blog-new 接替：同一页只放一个；T3 删掉它',
   'service-related-pages': 'blocks/service-related-pages/manifest.json 自己写着 "Use ONLY on service detail pages"',
 };
 
-/** 抽取用的步长与偏移。步长都跟池子大小互质，所以连续的 index 会走遍池子而不是原地打转。 */
+/** 抽取用的步长与偏移。步长**不**保证跟池子大小互质（池子一增一减长度就变）：`drawDistinct` 每次按池子长度
+ *  现算互质的那个步长（#1497），所以连续的 index 会走遍池子而不是原地打转。 */
 const STRIDES = [1, 5, 9, 13, 17];
 
 /**
@@ -194,11 +200,21 @@ function poolFor(manifests, industry = '', disabledBlocks = []) {
     .map((m) => m.type);
 }
 
+/** 第 s 次抽用的步长：`STRIDES[s]` 跟池子长度不互质就往上加 2，直到互质（#1497）。单独成函数，测试直接问它。 */
+function strideFor(s, len) {
+  let stride = STRIDES[s % STRIDES.length];
+  while (len > 1 && gcdOf(stride, len) !== 1) stride += 2;
+  return stride;
+}
+
 /** 从池子里按种子抽 k 个**互不相同**的块。撞了就往后挪一格（池子够大，挪不出界）。 */
 function drawDistinct(pool, index, k) {
   const picked = [];
   for (let s = 0; s < k; s++) {
-    const stride = STRIDES[s % STRIDES.length];
+    // #1497 —— 步长跟池子长度不互质时，`index * stride % pool.length` 只落在池子的一部分上（池 13 撞上 13 ⟹ 恒为 0，
+    //    第 4 个抽位跟站号无关，2000 个站号里只剩 3 种、map-area 占 77%）。所以往上加 2 直到互质（同 rotationStepFor #1372）；
+    //    本来就互质的步长原值不动 ⟹ 池子长度跟五个步长都互质时（例如 14）每个站的配方逐个不变。
+    const stride = strideFor(s, pool.length);
     const offset = OFFSETS[s % OFFSETS.length];
     let at = ((index * stride + offset) % pool.length + pool.length) % pool.length;
     let tries = 0;
@@ -380,6 +396,10 @@ function afterRetry({ firstBlockProblems = 0, retryBlockProblems = 0 } = {}) {
 
 module.exports = {
   homepageRecipe,
+  drawDistinct,
+  strideFor,
+  STRIDES,
+  OFFSETS,
   tryHomepageRecipe,
   recipePromptLines,
   recipeProblems,

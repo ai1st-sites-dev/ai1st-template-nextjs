@@ -61,6 +61,7 @@
     "sheet": "ember-12",
     "shapes": {
       "announcement-bar": "stack",
+      "blog-new": "list",
       "blog-preview": "two-up",
       "card-group": "two-up",
       "contact-form": "panel-below",
@@ -166,6 +167,7 @@
     "sheet": "azure-29",
     "shapes": {
       "announcement-bar": "stack",
+      "blog-new": "cards",
       "blog-preview": "three-up",
       "card-group": "wide-rows",
       "contact-form": "panel-left",

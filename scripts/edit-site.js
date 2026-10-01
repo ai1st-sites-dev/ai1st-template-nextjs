@@ -1039,7 +1039,7 @@ from a block you are editing. A page must have exactly one of the two arrays; a 
 fails the build. When you add a block to a \`blocks\` page, give it an \`id\` unique within that page and a
 \`weight\` that puts it where you want it (blocks are ordered by \`weight\`, smaller first).
 
-Available section types: hero, hero-new, hero-with-form, trusted-brands, logos-new, features-grid, features-new, milestones, card-group, testimonials, testimonials-new, cta-banner, cta-new, contact-info, contact-new, text-block, page-header, services-nav, services-list, quote-form, contact-form, faq-accordion, faq-new, process-steps, team-grid, team-new, pricing-table, pricing-new, gallery, gallery-new, content-split, social-proof, reviews-new, announcement-bar, newsletter-signup, map-area, blog-preview, service-related-pages
+Available section types: hero, hero-new, hero-with-form, trusted-brands, logos-new, features-grid, features-new, milestones, card-group, testimonials, testimonials-new, cta-banner, cta-new, contact-info, contact-new, text-block, page-header, services-nav, services-list, quote-form, contact-form, faq-accordion, faq-new, process-steps, team-grid, team-new, pricing-table, pricing-new, gallery, gallery-new, content-split, social-proof, reviews-new, announcement-bar, newsletter-signup, map-area, blog-preview, blog-new, service-related-pages
 
 Blocks with presets usually have no example on the site to copy, so here is their exact data shape — use only
 these keys (write_file refuses unknown ones):
@@ -1090,8 +1090,10 @@ other type does not show a picture, and putting an image field on one has no eff
   photos this block can show; the row is optional — with no \`avatars\` the block draws no picture at all)
 - a **cta-new** block → \`data.image.imageUrl\` (optional — beside the text with \`options.image: "left"\` /
   \`"right"\`, or behind it with \`"background"\`; with \`options.image: "none"\` the block draws no picture)
+- a **blog-new** block → no picture of its own: it shows the site's newest blog articles, and each article's pictures
+  live in that article's \`blog/<slug>.json\` — \`coverImage.imageUrl\` (the cover) and \`authorAvatarUrl\` (the author's photo)
 - **a blog post** (\`blog/<slug>.json\`) → an \`<img src="...">\` inside its \`content\`, which is rendered as
-  HTML. This is the one place a picture is not a field of its own: to change the picture in an article, edit
+  HTML. Inside the article text a picture is not a field of its own: to change a picture in the article text, edit
   the \`src\` of that \`<img>\` tag in the article's \`content\`. Everything below about which URLs you may
   write applies here exactly the same — write_file reads the \`<img>\` tags in \`content\` too.
 

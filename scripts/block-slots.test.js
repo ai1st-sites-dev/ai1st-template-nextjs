@@ -83,7 +83,9 @@ const STUBS = {
     + 'getServices:()=>[],'
     + 'pagesByLocale:{en:[{slug:"serviceSlug-text/a",title:"A"},{slug:"serviceSlug-text/b",title:"B"}]},'
     + 'localeUrl:(s)=>"/"+s,siteId:"t",leadApi:"",'
-    + 'getBlogPosts:()=>[],brand:{locations:[],email:"a@b.c"}};\n'),
+    // #1497 —— 同一个理由：`blog-new` 在站里一篇博客都没有时**整块 return null**，给空数组就会被报成「漏挂了」。
+    + 'getBlogPosts:()=>[{slug:"p",title:"P",excerpt:"E",content:"<p>x</p>",category:"C",tags:[],author:"A",publishedAt:"2026-09-01",seo:{metaTitle:"",metaDescription:""}}],'
+    + 'brand:{locations:[],email:"a@b.c"}};\n'),
 };
 const origResolve = Module._resolveFilename;
 Module._resolveFilename = function resolve(req, ...rest) {

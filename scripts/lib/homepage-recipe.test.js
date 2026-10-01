@@ -916,7 +916,20 @@ console.log('── ⑬ #1124 行业参与结构:两两不同 · 认不出来的
   //      （88/200 个序号）· 候选池 13 块 —— 比 #1375 单独那次的 107 **低**。方向不是单调的：
   //      候选池变小既减少可排的组合、也改变每个序号挑到谁，两个效应叠起来往哪走要量，不能推。
   //      所以 `MAX_COLLIDING_PAIRS` 在 #1376 落地时保持 107（留着余量），没有按那句预测改动。
-  const MAX_COLLIDING_PAIRS = 107;  // 2026-09-17 实测（改前 59）。1200 对里的对数。
+  // 🔴 #1497 r2（2026-10-01）按同一句话把它从 107 挪到 118。读数（同一条命令，两棵树各跑一次；
+  //    拆成两个变量是拿 `tryHomepageRecipe` 直接数的，口径同下面这一格）：
+  //      改前 `origin/main 610e175e`：撞车 **84**/1200 对 · 候选池 13 块 · 写死的步长
+  //      只拿掉 blog-preview（池 12）· 仍写死步长：**134** 对  ← 涨的是池子变小这一项
+  //      改后 本票交付（池 12 · 步长按池长现算互质）：**118** 对  ← 互质步长反而压回 16 对
+  //    · 同族、同一个裁定框架：两个博客块出池是本票正文做什么 6 写明的后果（「池子少一种，每个站号
+  //      抽出来的配方会整体漂」），不是实现缺陷。
+  // 🔴 #1497 r3（2026-10-01，在 #1487 team-new 落地后的 main 上重放）**上限不挪，仍是 118**。读数（同一条命令）：
+  //      干净 `origin/main 9e3d2e787`：**99** 对（team-new 的 industries 空着，被 blog-preview 的行业标签遮住）
+  //      本票重放、team-new 的 industries 仍空着：**303** 对  ← 两个博客块出池后，法律行业的候选只剩 faq-accordion
+  //      本票交付（team-new 的 industries 逐字照抄 team-grid：dental / law / medical / salon）：**118** 对
+  //    · 补标签是 PM 在本票上的裁定（走 A：「上限不许往上挪」），不是放宽尺子 —— 303 全部来自那一行空标签。
+  //    · #1495 gallery-new 落地后在 `origin/main ec1ee5310` 上复量，三个数一个不差：99 / 303 / 118。
+  const MAX_COLLIDING_PAIRS = 118;  // 2026-10-01 实测（r2 改前 84；r3 补 team-new 标签前 303）。1200 对里的对数。
   const SPAN = 200;                 // 序号 0…199，跟上面两个数同一个口径
   const openerAt = (i, ind) => tryHomepageRecipe(i, manifests, ind).recipe.opener.join('>');
   let collidingPairs = 0; let collidingIndices = 0;
@@ -1017,6 +1030,64 @@ console.log('── ⑬ #1124 行业参与结构:两两不同 · 认不出来的
     if (!keys.length && front.length) bad(`${ind} 认不出来却有块被提前 —— 那就不是"说得出理由"`);
     else ok(`${ind} → 词表认成 [${keys.join(',')}] · 提前的块:${why.join(' · ') || '（无，顺序不动）'}`);
   }
+}
+
+// ── ⑭ 抽步长跟池子长度互质（#1497 做什么 11 / AC14）─────────────────────────────────────────────────────
+//    池子一增一减长度就变：写死的 STRIDES = [1, 5, 9, 13, 17] 在池子恰好是 13 时，第 4 抽位 `index * 13 % 13` 恒为 0，
+//    跟站号无关（2000 个站号只剩 3 种、map-area 77%）。现在每次按长度现算互质的那个（§strideFor）。
+console.log('── ⑭ 抽步长跟池子长度互质:池长 11–20 每个抽位都互质、第 4 抽位 ≥ 8 种;写死的那版在池 13 上塌');
+{
+  const { drawDistinct, strideFor, STRIDES, OFFSETS } = require('./homepage-recipe');
+  const gcd = (a, b) => (b === 0 ? a : gcd(b, a % b));
+  // 写死步长的那一版（#1497 之前的 drawDistinct 逐字）—— 反向对照用。
+  const fixedDraw = (pool, index, k) => {
+    const picked = [];
+    for (let s = 0; s < k; s++) {
+      const stride = STRIDES[s % STRIDES.length];
+      const offset = OFFSETS[s % OFFSETS.length];
+      let at = ((index * stride + offset) % pool.length + pool.length) % pool.length;
+      let tries = 0;
+      while (picked.includes(pool[at]) && tries < pool.length) { at = (at + 1) % pool.length; tries++; }
+      picked.push(pool[at]);
+    }
+    return picked;
+  };
+  const slot4Kinds = (draw, len) => {
+    const pool = Array.from({ length: len }, (_, i) => `b${i}`);
+    const seen = new Set();
+    for (let i = 0; i < 2000; i++) seen.add(draw(pool, i, 5)[3]);
+    return seen.size;
+  };
+  const rows = [];
+  let coprime = true; let enough = true;
+  for (let len = 11; len <= 20; len++) {
+    const strides = [0, 1, 2, 3, 4].map((s) => strideFor(s, len));
+    if (!strides.every((st) => gcd(st, len) === 1)) coprime = false;
+    const k = slot4Kinds(drawDistinct, len);
+    if (k < 8) enough = false;
+    rows.push(`池 ${len}: 步长 [${strides.join(',')}] · 第 4 抽位 ${k} 种（写死那版 ${slot4Kinds(fixedDraw, len)}）`);
+  }
+  for (const r of rows) console.log(`     ${r}`);
+  coprime ? ok('池长 11–20：五个抽位实际用的步长都跟池长互质') : bad('有抽位的步长跟池长不互质');
+  enough ? ok('池长 11–20：2000 个站号下第 4 抽位都 ≥ 8 种') : bad('有池长下第 4 抽位少于 8 种');
+  // 真池子（种数现算：本票 r2 落在 main 之上时是 12 种 —— #1489 / #1496 先落了地）。
+  const cnt = new Set(); let n = 0;
+  for (let i = 0; i < 2000; i++) {
+    const r = tryHomepageRecipe(i, manifests);
+    if (!r.recipe) continue;
+    const rec = r.recipe; n++;
+    cnt.add([...rec.opener.slice(rec.withBar ? 2 : 1), ...rec.mustInclude][3]);
+  }
+  const realLen = poolFor(manifests).length;
+  cnt.size >= 8 ? ok(`真池子（${realLen} 种）第 4 抽位 ${cnt.size} 种 ≥ 8（${n} 个站号）`) : bad(`真池子（${realLen} 种）第 4 抽位只有 ${cnt.size} 种`);
+  // 反向对照：写死的那版在池 13 上第 4 抽位 < 8（上面同一把尺子会红）。
+  const fixed13 = slot4Kinds(fixedDraw, 13);
+  fixed13 < 8 ? ok(`反向对照：写死的步长 ⟹ 池 13 第 4 抽位只剩 ${fixed13} 种 —— 判据分得开`) : bad(`反向对照没红：写死的步长在池 13 上也有 ${fixed13} 种`);
+  // 池长 14（五个步长都互质）：新旧两版对 0–399 逐个相同 —— 互质的步长真的没动。
+  const pool14 = Array.from({ length: 14 }, (_, i) => `b${i}`);
+  let diff14 = 0;
+  for (let i = 0; i < 400; i++) if (JSON.stringify(drawDistinct(pool14, i, 5)) !== JSON.stringify(fixedDraw(pool14, i, 5))) diff14++;
+  diff14 === 0 ? ok('池长 14：新旧两版 drawDistinct 对 i = 0–399 逐个相同（互质的步长保持原值）') : bad(`池长 14：新旧两版有 ${diff14} 个站号不同`);
 }
 
 console.log(`\n逐条断言:PASS ${pass} · FAIL ${fail}`);

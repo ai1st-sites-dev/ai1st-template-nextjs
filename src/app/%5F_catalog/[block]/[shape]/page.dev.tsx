@@ -50,6 +50,7 @@ import {
   SITE_CSS_HREF,
   catalogThemes,
   readSheetCss,
+  registerCatalogFixtureBlogPosts,
   registerCatalogFixturePages,
   resolveFill,
   resolveTheme,
@@ -223,13 +224,16 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
   const sheetCss = theme ? readSheetCss(theme.sheet) : '';
 
   registerCatalogFixturePages();
+  registerCatalogFixtureBlogPosts();
 
   const data = demoDataFor(m, { minimal: fill === 'minimal' });
   // 这个块的演示数据要指向图册自带的那几页夹具，否则它筛不到子页、整块 `return null`
   // （`ServiceRelatedPagesSection.tsx:52`）。同一处理在整页索引上也有。
   const isRelatedPages = block === 'service-related-pages';
   if (isRelatedPages) data.serviceSlug = CATALOG_SERVICE_SLUG;
-  const locale = isRelatedPages ? CATALOG_LOCALE : defaultLocale;
+  // #1497 —— blog-new 读站点博客：同一个图册夹具 locale 下挂着一份博客（catalogShared §registerCatalogFixtureBlogPosts）。
+  const usesFixtureLocale = isRelatedPages || block === 'blog-new';
+  const locale = usesFixtureLocale ? CATALOG_LOCALE : defaultLocale;
 
   // #1463 —— 旋钮类页面块：地址栏先改 data，再算 `data-has-*`（关掉的部件不许还挂着「有它」）。
   const knobBar = m.region !== true && knobsOf(m).length ? knobOverrides(m, shape, data as Record<string, unknown>, sp) : null;

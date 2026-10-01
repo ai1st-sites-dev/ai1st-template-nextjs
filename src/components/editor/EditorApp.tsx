@@ -235,6 +235,10 @@ function puckField(f: EditorField, forms: EditorFormChoice[] = []): Field {
   switch (f.control) {
     case 'text':
       return { type: 'text', label: f.label };
+    // #1497 —— 一个整数设置（blog-new 的 postCount 2–6）：一格下拉。第一项「Default」= 不写（块按自己的默认值走），
+    //    免得没写过的块在侧栏里显示成 2、看起来像是老板选过。
+    case 'int':
+      return { type: 'select', label: f.label, options: [{ label: 'Default', value: '' }, ...(f.values || []).map((v) => ({ label: v, value: v }))] } as Field;
     case 'options':
       return {
         type: 'custom',

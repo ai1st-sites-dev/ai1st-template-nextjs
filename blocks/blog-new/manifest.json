@@ -1,0 +1,216 @@
+{
+  "type": "blog-new",
+  "displayName": "Blog (Webpixels)",
+  "category": "blog",
+  "roleDefault": "optional",
+  "skin": "site-css",
+  "layout_intent": {
+    "items": "grid",
+    "item_wrap": "allow",
+    "headline": "above",
+    "cross": "none",
+    "order": "dom",
+    "item_parts": "stack",
+    "inner": "many"
+  },
+  "presets": [
+    {
+      "name": "Cards",
+      "shape": "cards",
+      "knobs": {
+        "introPosition": "top",
+        "introAlign": "center",
+        "itemsLayout": "grid",
+        "itemsColumns": "3",
+        "itemStyle": "card",
+        "itemImage": "top"
+      }
+    },
+    {
+      "name": "List",
+      "shape": "list",
+      "knobs": {
+        "introPosition": "top",
+        "introAlign": "left",
+        "itemsLayout": "list",
+        "itemsColumns": "3",
+        "itemStyle": "plain",
+        "itemImage": "left"
+      }
+    },
+    {
+      "name": "Featured",
+      "shape": "featured",
+      "knobs": {
+        "introPosition": "top",
+        "introAlign": "left",
+        "itemsLayout": "featured",
+        "itemsColumns": "3",
+        "itemStyle": "plain",
+        "itemImage": "left"
+      }
+    },
+    {
+      "name": "Side intro",
+      "shape": "side-intro",
+      "knobs": {
+        "introPosition": "left",
+        "introAlign": "left",
+        "itemsLayout": "grid",
+        "itemsColumns": "2",
+        "itemStyle": "plain",
+        "itemImage": "top"
+      }
+    },
+    {
+      "name": "Cover",
+      "shape": "cover",
+      "knobs": {
+        "introPosition": "top",
+        "introAlign": "center",
+        "itemsLayout": "grid",
+        "itemsColumns": "3",
+        "itemStyle": "card",
+        "itemImage": "background"
+      }
+    }
+  ],
+  "slots": {
+    "options": {
+      "kind": "object",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{introPosition, introAlign, itemsLayout, itemsColumns, itemStyle, itemImage}",
+      "knobs": [
+        {
+          "name": "introPosition",
+          "values": [
+            "left",
+            "right",
+            "top",
+            "bottom"
+          ]
+        },
+        {
+          "name": "introAlign",
+          "values": [
+            "left",
+            "center",
+            "right"
+          ]
+        },
+        {
+          "name": "itemsLayout",
+          "values": [
+            "grid",
+            "list",
+            "featured"
+          ]
+        },
+        {
+          "name": "itemsColumns",
+          "values": [
+            "2",
+            "3"
+          ]
+        },
+        {
+          "name": "itemStyle",
+          "values": [
+            "plain",
+            "card"
+          ]
+        },
+        {
+          "name": "itemImage",
+          "values": [
+            "top",
+            "left",
+            "background"
+          ]
+        }
+      ]
+    },
+    "introEyebrow": {
+      "kind": "object",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{text, style: \"none\" | \"pill\" | \"outline\" | \"dash\" | \"plain\"}",
+      "editLabel": {
+        "text": "Eyebrow"
+      },
+      "choices": {
+        "style": [
+          "none",
+          "pill",
+          "outline",
+          "dash",
+          "plain"
+        ]
+      }
+    },
+    "headline": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true,
+      "editLabel": "Headline"
+    },
+    "body": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true,
+      "editLabel": "Text"
+    },
+    "introCta": {
+      "kind": "link",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{label, href, style: \"solid\" | \"outline\" | \"link\"}",
+      "editLabel": {
+        "label": "Button text"
+      }
+    },
+    "postCount": {
+      "kind": "text",
+      "required": false,
+      "promptOptional": true,
+      "shape": "\"2\" … \"6\" (default \"3\")",
+      "editLabel": "Number of posts",
+      "intRange": [
+        2,
+        6
+      ]
+    },
+    "bg": {
+      "kind": "color",
+      "required": false,
+      "promptOptional": true,
+      "shape": "\"#rrggbb\" | \"brand\" | {stops: [\"#rrggbb\" (2–3 个)], angle?: number}",
+      "swatches": [
+        "#ffffff",
+        "#f1f5f9",
+        "#e0f2fe",
+        "brand",
+        "#1e293b",
+        "#0f172a"
+      ]
+    }
+  },
+  "industries": {
+    "required": [],
+    "recommended": [],
+    "discouraged": []
+  },
+  "prompt": {
+    "group": "homepage",
+    "order": 26,
+    "headPrefix": "",
+    "headSuffix": "the site's latest blog articles (block head + the newest 2–6 posts, read from the site's blog)",
+    "headExtra": null,
+    "lines": [
+      "@data",
+      "only use this block when the site already has blog articles (blog/*.json) — with none it shows nothing; the block holds only the block head and postCount, the articles come from the blog itself (never write posts into the block)",
+      "introCta links to /blog; bg is the background colour, top-level in data (not inside options)"
+    ]
+  }
+}

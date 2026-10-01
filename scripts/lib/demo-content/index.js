@@ -16,7 +16,7 @@
 //    （本仓为这个形状付过账：`theme-css-invariants-sample-pages.js` 里那条「两把尺的并集」）。
 'use strict';
 
-const { DEMO_CONTENT, SITE, FEATURES_NEW_STEPS, DEMO_SITE } = require('./content');
+const { DEMO_CONTENT, SITE, FEATURES_NEW_STEPS, DEMO_SITE, DEMO_BLOG_POSTS } = require('./content');
 const { IMAGES, imageUrl } = require('./images');
 
 /**
@@ -127,6 +127,7 @@ module.exports = {
   DEMO_CONTENT,
   FEATURES_NEW_STEPS,
   DEMO_SITE,
+  DEMO_BLOG_POSTS,
   SITE,
   IMAGES,
   imageUrl,

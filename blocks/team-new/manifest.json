@@ -228,7 +228,12 @@
   },
   "industries": {
     "required": [],
-    "recommended": [],
+    "recommended": [
+      "dental",
+      "law",
+      "medical",
+      "salon"
+    ],
     "discouraged": []
   },
   "prompt": {

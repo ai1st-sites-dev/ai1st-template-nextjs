@@ -90,6 +90,7 @@ console.log('② 字段两层比');
       if (sp.editItems === true) return 'items';
       // #1471 —— 选站级表单的槽（`form: { id? }`）：一个对象字段、子字段只有 id（编辑器画成表单下拉）。
       if (slot === 'form' && sp.kind === 'object' && /^\{\s*id\?\s*\}$/.test(String(sp.shape || ''))) return 'formRef';
+      if (Array.isArray(sp.intRange) && typeof sp.editLabel === 'string') return 'int'; // #1497 —— 整数设置（postCount）
       return null;
     };
     const wantTop = [...new Set([...esp.map((e) => e.slot), ...Object.keys(slots).filter((x) => special(x))])].sort();
@@ -109,7 +110,7 @@ console.log('② 字段两层比');
       if (JSON.stringify(wantSub) !== JSON.stringify(gotSub)) problems.push(`${m.type}.${f.slot} 子字段 ${gotSub} ≠ ${wantSub}`);
       // 控件由 kind 决定：list → array；link / object → object；绝不把对象做成 array
       const sp = special(f.slot);
-      const wantControl = sp === 'color' ? 'color' : sp === 'options' ? 'options' : sp === 'items' ? 'list' : sp === 'formRef' ? 'object'
+      const wantControl = sp === 'color' ? 'color' : sp === 'options' ? 'options' : sp === 'items' ? 'list' : sp === 'formRef' ? 'object' : sp === 'int' ? 'int'
         : f.subs.length === 0 ? (f.kind === 'list' ? 'strings' : 'text') : (f.kind === 'list' ? 'list' : 'object');
       if (f.control !== wantControl) problems.push(`${m.type}.${f.slot} 控件 ${f.control} ≠ ${wantControl}（kind ${f.kind}）`);
       paths += f.subs.length || 1;
@@ -518,8 +519,8 @@ console.log('⑦h gallery-new 增删照片 · 预设');
   check(firstDiff(out, convert.puckToPage({ raw: out, data: re.data, initial: re.initial, schema, slug: 'home' })) === null, '重开什么都不改再存 ⟹ 往返无损');
 }
 
-// ══ ⑦b 按钮链接（#1404 r3）：7 个 link 槽位都有 Link 框；改了才写、不改逐字节不变 ═══════════════════
-//    （#1404 时是 6 个；#1496 的 logos-new.introCta 是第 7 个 —— 名单本身从 manifest 现算，这个数只钉「没有静默多 / 少」。）
+// ══ ⑦b 按钮链接（#1404 r3）：8 个 link 槽位都有 Link 框；改了才写、不改逐字节不变 ═══════════════════
+//    （#1404 时是 6 个；#1496 的 logos-new.introCta 是第 7 个；#1497 的 blog-new.introCta 是第 8 个 —— 名单本身从 manifest 现算，这个数只钉「没有静默多 / 少」。）
 console.log('⑦b 按钮链接');
 {
   const links = [];
@@ -528,7 +529,7 @@ console.log('⑦b 按钮链接');
   for (const m of nonRegion) for (const [slot, sp] of Object.entries(m.slots || {})) {
     if (sp.kind === 'link' && sp.editLabel !== undefined) wantLinks.push(`${m.type}.${slot}`);
   }
-  check(JSON.stringify(links.sort()) === JSON.stringify(wantLinks.sort()) && links.length === 7, `link 字段逐个列出（${links.length}）：${links.join(' · ')}`, wantLinks.join(' · '));
+  check(JSON.stringify(links.sort()) === JSON.stringify(wantLinks.sort()) && links.length === 8, `link 字段逐个列出（${links.length}）：${links.join(' · ')}`, wantLinks.join(' · '));
   const noHref = [];
   for (const c of schema.components) for (const f of c.fields) {
     if (f.kind === 'link' && !f.subs.some((x) => x.sub === 'href' && x.label === 'Link')) noHref.push(`${c.type}.${f.slot}`);
@@ -934,6 +935,24 @@ for (const flat of [false, true]) {
     n += 1;
   }
   check(n > 0 && diffs.length === 0, `${flat ? '扁平' : '多语言'}站 ${n} 页全部往返无损`, diffs.join(' / '));
+}
+
+// ══ #1497 AC12：blog-new 的 postCount 在 Puck 里是一格下拉（2–6），改了写回、没改不写 ═════════════════════
+console.log('\n#1497 blog-new.postCount');
+{
+  const f = compOf('blog-new').fields.find((x) => x.slot === 'postCount');
+  check(!!f && f.control === 'int' && JSON.stringify(f.values) === JSON.stringify(['2', '3', '4', '5', '6']),
+    `blog-new.postCount 是 int 控件、取值 2–6（读到 ${f && f.control} / ${f && JSON.stringify(f.values)}）`);
+  check(!manifestLib.editableSlotPaths(manifests.get('blog-new')).some((e) => e.slot === 'postCount'),
+    'postCount 不在 editableSlotPaths 里（不是页面上的字 ⟹ 检查器面板不给它输入框、data-slot 守卫不要求它）');
+  const raw = { slug: 'home', title: 'T', blocks: [{ id: 'home-blog-new-0', type: 'blog-new', data: { headline: 'H' } }] };
+  const same = roundTrip(raw);
+  check(!('postCount' in same.blocks[0].data), '没改 ⟹ 不凭空写一个 postCount 键');
+  const { initial, data } = openPage(raw);
+  const c = data.content.find((x) => x.type === 'blog-new');
+  c.props.postCount = '5';
+  const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
+  check(out.blocks[0].data.postCount === '5' && out.blocks[0].data.headline === 'H', '改成 5 ⟹ 写回 "5"，headline 原样');
 }
 
 console.log(`\n${pass} 过 · ${fail} 败`);

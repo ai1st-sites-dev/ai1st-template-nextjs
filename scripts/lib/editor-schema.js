@@ -22,6 +22,7 @@
 // ── 槽位怎么变成字段：`kind` 决定控件 ────────────────────────────────────────────────────────────
 //   editLabel 是字符串  kind text/link…        → 一个 text 字段（`control: 'text'`）
 //                       kind list（`[string]`） → array，每项一个内部子字段 `value`（`control: 'strings'`）
+//   声明了 intRange     kind text              → 一格下拉，取值 = 范围里的每个整数（`control: 'int'`，#1497）
 //   editLabel 是对象    kind list              → array，子字段 = 那几个 `sub`（`control: 'list'`）
 //                       kind link / object     → object，子字段 = 那几个 `sub`（`control: 'object'`）；
 //                                                link 再多一个 `href`（显示名 Link，#1404 r3，理由在 §fieldsOf）
@@ -100,6 +101,14 @@ function fieldsOf(manifest) {
     //    旧块 `hero-with-form` 的 `form` 是另一个形状（自带字段 / 按钮文字），走下面原来那条路。
     if (slot === 'form' && spec && spec.kind === 'object' && /^\{\s*id\?\s*\}$/.test(String(spec.shape || ''))) {
       fields.push({ slot, kind: 'object', label: 'Form', control: 'object', subs: [{ sub: 'id', label: 'Form' }] });
+      continue;
+    }
+    // #1497 —— 一个整数设置（`blog-new.postCount` 2–6，manifest `intRange`）：一格下拉，取值从范围现算。
+    //    它不在 editableSlotPaths 里（不是页面上的字、没有 data-slot），所以在这里单出。
+    if (spec && Array.isArray(spec.intRange) && typeof spec.editLabel === 'string') {
+      const [lo, hi] = spec.intRange;
+      fields.push({ slot, kind: spec.kind, label: spec.editLabel, control: 'int', subs: [],
+        values: Array.from({ length: hi - lo + 1 }, (_, i) => String(lo + i)) });
       continue;
     }
     const entries = bySlot.get(slot);

@@ -161,6 +161,10 @@ export interface BlogPostConfig {
   tags: string[];
   author: string;
   publishedAt: string;
+  /** #1497 —— 封面（blog-new 画它；没有 ⟹ 主色 10% 底 + 分类名的占位）。字段名必须是 `imageUrl`（写入闸 `image-urls.js` 认它）。 */
+  coverImage?: { imageUrl: string; alt?: string };
+  /** #1497 —— 作者头像。🔴 名字必须以 `Url` 结尾：写入闸只认 `IMAGE_FIELDS` 里的键。 */
+  authorAvatarUrl?: string;
   seo: {
     metaTitle: string;
     metaDescription: string;

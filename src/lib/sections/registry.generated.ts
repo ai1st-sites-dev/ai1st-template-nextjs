@@ -4,6 +4,7 @@
 //    然后跑一次生成器。#1387（设计文档 D20）。
 import type { ComponentType } from 'react';
 import AnnouncementBarSection from '@blocks/announcement-bar/Section';
+import BlogNewSection from '@blocks/blog-new/Section';
 import BlogPreviewSection from '@blocks/blog-preview/Section';
 import CardGroupSection from '@blocks/card-group/Section';
 import ContactFormSection from '@blocks/contact-form/Section';
@@ -45,6 +46,7 @@ import TrustedBrandsSection from '@blocks/trusted-brands/Section';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const sectionRegistry: Record<string, ComponentType<any>> = {
   'announcement-bar': AnnouncementBarSection,
+  'blog-new': BlogNewSection,
   'blog-preview': BlogPreviewSection,
   'card-group': CardGroupSection,
   'contact-form': ContactFormSection,
