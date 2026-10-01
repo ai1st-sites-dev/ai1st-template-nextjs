@@ -21,6 +21,8 @@
 //    和 `mode`（旋钮 `options.form`：teaser = 首要字段 `primary` + 按钮一行；full = 整张）。字段 / 按钮文字 / 成功提示 /
 //    跳转都从站级那一张取 ⟹ 改一处，四个块处处变。`formId` 空 ⟹ 第一张；站没有表单库 ⟹ 内置 `DEFAULT_FIELDS`。
 //    提交多带 `meta: { formId }`（`manager/leads.go` 的 `leadMetaAllowedKeys` 收它，落 `leads.meta`）。
+//    #1510 —— 还带 `formName`（那张表单**此刻**的名字，表单以后改名旧线索不跟着变）和 `formMode`（teaser / full），
+//    Conversations / Customers 据此显示「来自哪张表单」，Customers 据 teaser 标「回电请求」。站没有表单库 ⟹ 照旧一个 meta 都不带。
 //    teaser ↔ 画法 `inline`、full ↔ `stacked`（`data-form-variant` 照旧写 inline / stacked，CSS 和测试都按它）。
 // 🔴 #1471 —— 服务下拉的选项由调用方的 `Section.tsx` 读好传进来（`services`），这里**不自己读服务清单**（文件里连那个函数名都别出现 —— page-deps 按字面找它）：
 //    `scripts/lib/page-deps.js §blockTypesReadingServices` 只看注册表指向的那份 Section.tsx，这里读的话
@@ -116,7 +118,7 @@ export default function BlockLeadForm({ mode, formId, forms, services = [], loca
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           siteId: config.siteId, name: (values.name || '').trim(), email, phone, message: parts.join('\n'), source: 'contact-form', hp,
-          ...(form ? { meta: { formId: form.id } } : {}),
+          ...(form ? { meta: { formId: form.id, formName: form.name, formMode: mode } } : {}),
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

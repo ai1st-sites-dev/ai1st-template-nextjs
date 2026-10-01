@@ -404,6 +404,13 @@ console.log('\n── AC6 表单（提交）');
       `表单库在 + form.id 空 ⟹ 用第一张 quote：teaser 露 phone、请求体 meta = ${JSON.stringify(qb.meta)}`);
     check(q.html.includes(forms[0].successMessage.replace(/'/g, '&#x27;')) || q.html.includes(forms[0].successMessage),
       '成功提示是站级那张表单的 successMessage');
+    // #1510 —— 提交还带那张表单此刻的名字和露法（Conversations / Customers 据此显示表单名，Customers 据 teaser 标「回电请求」）。
+    check(qb.meta && qb.meta.formName === forms[0].name && qb.meta.formMode === 'teaser',
+      `teaser 提交 meta 带 formName = 第一张的 name（${JSON.stringify(forms[0].name)}）、formMode = teaser：${JSON.stringify(qb.meta)}`);
+    const qf = await run('full', forms);
+    const qfb = qf.calls[0] ? JSON.parse(qf.calls[0].init.body) : {};
+    check(qfb.meta && qfb.meta.formId === forms[0].id && qfb.meta.formName === forms[0].name && qfb.meta.formMode === 'full',
+      `full 提交 meta.formMode = full：${JSON.stringify(qfb.meta)}`);
   } catch (e) {
     bad(`happy-dom 那一段抛了：${e.stack || e.message}`);
   }
