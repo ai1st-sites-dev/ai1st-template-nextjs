@@ -27,6 +27,7 @@ const BLOCKS_DIR = path.join(__dirname, '..', '..', 'blocks');
 const LAYOUT_INTENT_VOCAB = require('./layout-intent-vocab.json');
 const { knobsOf, booleanOptionsOf, effectiveKnobs, knobDeclarationProblems } = require('./block-knobs');
 const { isColorValue } = require('./contrast');
+const siteForms = require('./site-forms');
 const LAYOUT_INTENT_AXES = Object.keys(LAYOUT_INTENT_VOCAB.axes);
 
 /**
@@ -1002,7 +1003,7 @@ function industryMatches(industry, word) {
 }
 
 /**
- * validateSite({ pages, industry, dir, scope, siteBlocks }) → { problems, warnings }
+ * validateSite({ pages, industry, dir, scope, siteBlocks, forms }) → { problems, warnings }
  * pages: [{ slug, blocks: [{ type, data, role? }] }]（老形状的 `sections` 同样认，见 blocksOf）
  *
  * 两处跑的是同一个函数、同一套五条检查；`scope` 只决定**发现之后怎么办**：
@@ -1041,8 +1042,14 @@ function industryMatches(industry, word) {
  *        contact-info」被拒，而那件事既不是这次编辑造成的，模型也没法在 about.json 里修好它
  *        ⟹ 那个站从此改不动了。整站那条检查的家在建站那一刻和构建期，不在这里。
  */
-function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks = {}, disabledBlocks = [] } = {}) {
+function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks = {}, disabledBlocks = [], forms } = {}) {
   const manifests = loadManifests(dir);
+  // #1471 —— 站级表单库（`site/<locale>/forms.json`，`scripts/lib/site-forms.js`）。三个调用方都传：建站 / 构建 / AI 改站。
+  //    形状两种都认：一个语言的数组，或 `{ [locale]: 数组 }`（构建期一次给全部语言 ⟹ 顺带查「各语言 id / fields / primary 一致」）。
+  //    🔴 没传（`undefined`）= 调用方没有表单库这件事可说 ⟹ 下面两条都不查；传了空的（老站没有 forms.json）⟹ 块里任何非空
+  //    `form.id` 都指空，照报。
+  const formIds = forms === undefined ? null
+    : siteForms.formIds(Array.isArray(forms) ? { _: forms } : forms);
   // #1346 —— 后台「区块与主题」页关掉的那些块。只有建站那条路会传（create-site.js 的两个调用点），
   // 构建期和 AI 改站那两条路不传 ⟹ `off` 是空集合，下面两处一个字节都不改变行为。
   const off = new Set((disabledBlocks || []).filter((t) => typeof t === 'string' && t));
@@ -1052,6 +1059,11 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
   // 全部检查经这里出口 —— 别在下面直接 push，否则漏掉一条就又出现一个构建期硬闸。
   //（第 ⑤ 条是 #1152 加的，第 ⑥ 条是 #1331 加的；第 ④ 条在循环**之后**，因为它问的是整个站，不是某一个块。）
   const flag = (msg) => (scope === 'build' ? warnings : problems).push(msg);
+  // #1471 —— 表单库自己的毛病（字段词表外 / primary 不在 fields / 各语言不一致）。
+  if (forms !== undefined) {
+    const fp = Array.isArray(forms) ? siteForms.formListProblems(forms) : siteForms.formsProblems(forms);
+    for (const msg of fp) flag(msg);
+  }
 
   for (const page of pages || []) {
     for (const [i, sec] of blocksOf(page).entries()) {
@@ -1114,6 +1126,15 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
       //    是这个函数本来就有的那条路:重试一次，再不行 create-site.js §generateContent 干净失败。
       if (off.has(sec.type)) {
         flag(`${where}: 这个块已经在后台关掉了 —— 换一个（后台「区块与主题」页可以重新打开它）`);
+      }
+
+      // ⑩ #1471 —— 块选的站级表单（`form: { id? }`）。`id` 空 = 取表单库第一张，合法；非空就必须是表单库里有的那一张。
+      if (formIds && m.slots && m.slots.form && sec.data && sec.data.form && typeof sec.data.form === 'object' && !Array.isArray(sec.data.form)) {
+        const id = sec.data.form.id;
+        if (typeof id === 'string' && id && !formIds.has(id)) {
+          flag(`${where}: form.id "${id}" 在站级表单库里没有 —— 现有的是 `
+            + `${formIds.size ? [...formIds].map((x) => JSON.stringify(x)).join(' / ') : '（空：这个站没有 forms.json）'}；留空就用第一张`);
+        }
       }
 
       // ① 必填槽

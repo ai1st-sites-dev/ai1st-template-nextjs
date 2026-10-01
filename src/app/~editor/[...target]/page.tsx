@@ -27,7 +27,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import path from 'path';
 import EditorApp from '@/components/editor/EditorApp';
-import { leadApi, locales, pagesByLocale, getPage, pageLayout, regions, getNavigation, pageStartsWithHero } from '@/lib/config';
+import { leadApi, locales, pagesByLocale, getPage, pageLayout, regions, getNavigation, pageStartsWithHero, getForms } from '@/lib/config';
 import { editorSource, locateInRaw, effectiveWeights } from '../../../../scripts/lib/editor-page.js';
 import { editorSchema } from '../../../../scripts/lib/editor-schema.js';
 import { pageToPuck, rootToPuck } from '../../../../scripts/lib/editor-convert.js';
@@ -123,6 +123,7 @@ export default async function EditorPage({ params }: { params: Promise<{ target:
       refs={src.refs}
       slugs={src.slugs}
       pages={editorPages(locales, pagesByLocale)}
+      forms={getForms(locale).map((f) => ({ id: f.id, name: f.name }))}
     />
   );
 }

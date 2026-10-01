@@ -575,7 +575,24 @@ function ownBlocksOf(page, where) {
   return readPageBlocks(page, where).blocks.filter((b) => !b || typeof b.ref !== 'string');
 }
 
-function pageJsonBlockError(relPath, parsed) {
+/**
+ * #1471 —— 这个语言的站级表单库（`site/<locale>/forms.json`），给 validateSite 查「块里的 form.id 指得到吗」。
+ * 没有这个文件 = 空库（照报）；读不出来 / 不是数组 = `undefined`（那一条不查 —— 那个文件的毛病模型在这一轮里修不了，
+ * 拿它拒掉一页正当的编辑就是让站改不动；构建期会把它说出来）。没给 siteDir（单测直接调）同样不查。
+ */
+function siteFormsAt(siteDir, locale) {
+  if (!siteDir) return undefined;
+  const p = locale === '(site)' ? path.join(siteDir, 'forms.json') : path.join(siteDir, locale, 'forms.json');
+  if (!fs.existsSync(p)) return [];
+  try {
+    const v = JSON.parse(fs.readFileSync(p, 'utf-8'));
+    return Array.isArray(v) ? v : undefined;
+  } catch (e) {
+    return undefined;
+  }
+}
+
+function pageJsonBlockError(relPath, parsed, siteDir) {
   if (!PAGE_JSON.test(relPath)) return null;
 
   const locale = relPath.includes('/pages/') ? relPath.split('/pages/')[0] : '(site)';
@@ -621,6 +638,7 @@ function pageJsonBlockError(relPath, parsed) {
     ({ problems } = validateBlocks({
       pages: [{ slug: parsed.slug || path.basename(relPath, '.json'), blocks: ownBlocksOf(parsed, where) }],
       scope: 'edit',
+      forms: siteFormsAt(siteDir, locale),
     }));
   } catch (e) {
     // 校验器抛错了。两种完全不同的原因，处置也相反 —— 所以这里**先分清是哪一种**：
@@ -677,7 +695,7 @@ const NAVIGATION_JSON = /(?:^|\/)navigation\.json$/i;
  *
  * 两关,顺序是承重的:
  */
-function siteBlocksJsonError(relPath, parsed) {
+function siteBlocksJsonError(relPath, parsed, siteDir) {
   if (!SITE_BLOCKS_JSON.test(relPath)) return null;
 
   const locale = relPath.includes('/blocks/') ? relPath.split('/blocks/')[0] : '(site)';
@@ -731,6 +749,7 @@ function siteBlocksJsonError(relPath, parsed) {
     ({ problems } = validateBlocks({
       pages: Object.entries(parsed).map(([id, b]) => ({ slug: `站级块 "${id}"`, blocks: [b] })),
       scope: 'edit',
+      forms: siteFormsAt(siteDir, locale),
     }));
   } catch (e) {
     // 跟 pageJsonBlockError 同一套分辨法:问一个与这份内容无关的合规样例。样例也跑不起来 ⟹
@@ -828,7 +847,7 @@ function executeTool(toolName, toolInput, siteDir, snapshots, allowedImageUrls, 
       } catch (e) {
         return { error: `Invalid JSON: ${e.message}` };
       }
-      const blockError = pageJsonBlockError(relPath, parsed);
+      const blockError = pageJsonBlockError(relPath, parsed, siteDir);
       if (blockError) return { error: blockError };
       // #1351 —— 这一轮如果被收窄到某一个块（面板的「让 AI 改这一块」），别的块一个字节都不许动。
       // 位置跟上下这几关同一个道理：拒的时候磁盘一个字节没动，模型拿着原因在同一轮里改口。
@@ -839,7 +858,7 @@ function executeTool(toolName, toolInput, siteDir, snapshots, allowedImageUrls, 
       // #1160 —— 站级块库走的是同一条 write_file,而上面那道闸的正则钉在 `pages/**.json` 上,
       // 所以它在这里补一道。位置跟上面那条一样在 `JSON.parse` 之后、落盘之前:这两关问的都是
       // 「这份内容建得出来吗」,而拒绝时磁盘一个字节没动、模型拿着原因在同一轮里重写。
-      const siteBlocksErr = siteBlocksJsonError(relPath, parsed);
+      const siteBlocksErr = siteBlocksJsonError(relPath, parsed, siteDir);
       if (siteBlocksErr) return { error: siteBlocksErr };
       // #1195 —— 图片字段上写着的 http(s) 地址必须是**有人给过**的（附件 / 老板打的字 / 站里已有的）。
       // 位置跟上面两关同一个道理：拒的时候磁盘一个字节没动，模型拿着原因在同一轮里改口。

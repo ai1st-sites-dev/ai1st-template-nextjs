@@ -26,7 +26,7 @@
 //
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg）；这里不自己算亮度、不自己拼渐变。
 
-import { brand as siteBrand, getSeo } from '@/lib/config';
+import { brand as siteBrand, getSeo, getServices } from '@/lib/config';
 import Link from 'next/link';
 import BlockLeadForm from '@/components/BlockLeadForm';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
@@ -75,6 +75,11 @@ const KIND_ICON: Record<ContactKind, string> = {
 };
 
 const isObj = (v: unknown): v is object => !!v && typeof v === 'object' && !Array.isArray(v);
+
+/** #1471 —— 表单「需求」下拉的选项：在 Section.tsx 里读（`page-deps.js` 只看注册表指向的这份文件，理由见 BlockLeadForm 文件头）。 */
+function servicesFor(locale: string): { id: string; name: string }[] {
+  try { return (getServices(locale) || []).map((s: { id: string; name: string }) => ({ id: s.id, name: s.name })); } catch { return []; }
+}
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 
 // 这几条类名要**逐字**写在源码里：`site.css` 是按源码 purge 的（`scripts/lib/site-css.js` §PURGE_CONTENT），
@@ -228,7 +233,9 @@ export default function ContactNewSection({ data, locale, block, iconTable = {},
                 {showForm ? (
                   <div className="ct-form" data-part="form">
                     <BlockLeadForm
-                      variant={k.form === 'teaser' ? 'inline' : 'stacked'}
+                      mode={k.form === 'teaser' ? 'teaser' : 'full'}
+                      formId={isObj(d.form) && typeof d.form.id === 'string' ? d.form.id : undefined}
+                      services={servicesFor(lang)}
                       locale={lang}
                       center={k.sidePosition === 'bottom' && k.introAlign === 'center'}
                       idPrefix="ct"

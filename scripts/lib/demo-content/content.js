@@ -74,8 +74,8 @@ const DEMO_CONTENT = {
   'hero-new': {
     // 🔴 `options` 里**不写旋钮**：写了就会压过每个预设形态自己那组值（`block-knobs.js` §effectiveKnobs），
     //    5 张预设卡片会全部排成同一个样子。#1470 起 hero-new 没有布尔修饰了 ⟹ 这里是空对象。
-    // 📌 `form` 同理是空对象：#1470 起那个槽只剩 `{id?}`（选哪张站级表单，#1471，落地前不读），字段 / 按钮文字 /
-    //    成功提示是 `HeroNewForm.tsx` 的内置默认值；Lead form 预设的表单照样画得出来。
+    // 📌 `form` 同理是空对象：那个槽只有 `{id?}`（选站级表单库里哪一张，#1471；空 = 第一张）。字段 / 按钮文字 /
+    //    成功提示来自站级表单库（`BlockLeadForm`；站没有 forms.json 时用它的内置默认值）；Lead form 预设的表单照样画得出来。
     // 🔴 这两个键**不能整段删**：全填版要求每个槽位在包里都有一个键（守卫 (a)，`demo-content.test.js`；
     //    运行时 `demoDataFor` 缺槽直接抛错，图册那一格就打不开）。空对象 = 键在、不带任何值。
     options: {},
@@ -1121,13 +1121,13 @@ const DEMO_CONTENT = {
         { label: 'Call (416) 555-0142', href: 'tel:+14165550142', style: 'outline' },
       ],
     },
-    // #1464 —— 部件 `form`（跟 hero 同一个表单部件）；#1469 起块只选画法 teaser / full（单格页工具栏切），
-    // 表单本身是站级资产（#1471）—— `id` 空 ⟹ Section 用它自己那份替身（内容就是原来这里那份）。
-    form: { mode: 'teaser' },
+    // #1464 —— 部件 `form`（跟 hero 同一个表单部件）。#1471 起槽只有 `{ id? }`（选站级表单库里哪一张，空 = 第一张），
+    // 露多少是旋钮 `options.form`（下面那一行）—— #1469 的 `form: { mode }` 已迁移，不做兼容读。
+    form: {},
     // #1469 —— 颜色槽：`null` = 没填（浅底 `bg-body`，跟改前 `dark=false` 逐字相同）。键得在：演示包要求每个槽都有一项
     // （§demoDataFor 缺槽就抛）；深底 / 渐变由单格页的 `?bg=` 和色板给。
     bg: null,
-    options: { brand: 'left' },
+    options: { brand: 'left', form: 'teaser' },
   },
 
   footer: {
@@ -1197,6 +1197,26 @@ const FEATURES_NEW_STEPS = {
  * `geo` 是 2150 Yonge St 附近的坐标（夹具，不是查出来的；真站由 `scripts/lib/geocode.js` 建站时查一次）。
  */
 const DEMO_SITE = {
+  // #1471 —— 演示生意的站级表单库（`site/<locale>/forms.json` 的形状，`scripts/lib/site-forms.js`）。quote 在前：块里 `form.id`
+  //    为空时取第一张。四个块的 render 测试按 `formId` 从这里取字段。
+  forms: [
+    {
+      id: 'quote',
+      name: 'Get a free estimate',
+      fields: ['name', 'phone', 'service'],
+      primary: 'phone',
+      buttonText: 'Get my estimate',
+      successMessage: "Thanks! A technician will call you back within the hour.",
+    },
+    {
+      id: 'contact',
+      name: 'Ask the shop',
+      fields: ['name', 'email', 'message'],
+      primary: 'email',
+      buttonText: 'Send to the shop',
+      successMessage: 'Got it — we reply to every email the same business day.',
+    },
+  ],
   brand: {
     email: 'service@northsideauto.ca',
     locations: [{ label: 'Northside Auto Care', address: '2150 Yonge St, Toronto, ON', phone: '(416) 555-0142', geo: { lat: 43.7056, lng: -79.3983 } }],

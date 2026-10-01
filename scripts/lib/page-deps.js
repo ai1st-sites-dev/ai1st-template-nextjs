@@ -73,9 +73,10 @@ const ACCOUNTED = new Map([
   // #1387 —— 页脚从 `src/components/Footer.tsx` 搬成了 `blocks/footer/Section.tsx`。它仍然是站级
   // 外壳（不进页面 JSON、不进注册表），所以理由一个字没变，变的只是它住在哪儿。
   ['blocks/footer/Section.tsx', '页脚里那份服务清单 —— 站级外壳，说在明处不算'],
-  // #1464 —— 块里的表单部件（需求下拉读服务清单）。今天唯一的使用处是 `footer-new`（外壳区，跟上面那条页脚
-  // 同一个理由）。hero-new（#1463）是页面块，它引这份时要在这里改成按块归属，别让这一条替它兜着。
-  ['src/components/BlockLeadForm.tsx', 'footer-new 页脚表单的服务下拉 —— 站级外壳，说在明处不算'],
+  // #1471 —— 块里的表单部件（`src/components/BlockLeadForm.tsx`）不再自己读服务清单：需求下拉的选项由每个块自己的
+  // Section.tsx 读好传进去 ⟹ 页面块（hero-new / contact-new / cta-new）按注册表各自归属，进 `types`；原来那条
+  // 「BlockLeadForm = footer-new 站级外壳」的豁免替两个页面块兜着（少报是静默的），删了。剩下的外壳那一份在这里：
+  ['blocks/footer-new/Section.tsx', 'footer-new 页脚表单的服务下拉 —— 站级外壳（不进页面 JSON、不在注册表里），说在明处不算'],
   ['src/components/JsonLd.tsx', '每页都发的那份 LocalBusiness 结构化数据 —— 站级外壳，不算'],
   ['src/components/pages/SubPage.tsx', '服务详情页自己那份 Service 结构化数据 —— 下面 isServiceDetailPage 那条'],
 ]);

@@ -1,12 +1,11 @@
 'use client';
 
 // ══════════════════════════════════════════════════════════════════════════════════════════════════
-// BlockLeadForm —— 块里的「表单」部件（hero-new / footer-new 共用一份，总纲 #1422 的 T2.3 / T2.2A）
+// BlockLeadForm —— 块里的「表单」部件（hero-new / footer-new / contact-new / cta-new 共用一份，总纲 #1422 的 T2.3 / T2.2A）
 // ══════════════════════════════════════════════════════════════════════════════════════════════════
 //
-// 📌 出处：#1463（T2.3 hero）r2 的 `blocks/hero-new/HeroNewForm.tsx`（dev2 写的），**逐字搬来**，只加了
-//    `idPrefix` / `size` 两个参数。两张票正文都写着「谁先到谁做」：#1464（footer）先落 main，所以住处是这里
-//    （`src/components/`，不在某个块的目录里 —— 两个块共用，归哪个块都不对）；#1463 落地时改成引这一份。
+// 📌 出处：#1463（T2.3 hero）r2 的 hero-new 表单（dev2 写的），**逐字搬来**，只加了 `idPrefix` / `size` 两个参数；
+//    住在 `src/components/`（几个块共用，归哪个块都不对）。#1471 起 hero-new 也改用这一份，它自己那份删了。
 //
 // 提交那一条路照 `HeroLeadForm.tsx` / `quote-form`：POST `${leadApi}/api/leads`，蜜罐字段 `hp`，后端只要求
 // 「邮箱和电话至少有一个」；不跳页，原地显示 `successMessage`；`redirect` 有值才跳。
@@ -18,6 +17,15 @@
 //    （客户记录没有「服务」这一列，照 `quote-form` 的做法折进 message）。词表外的值这里不画。
 // 🔴 `inline` = 一行（一个字段 + 按钮），`stacked` = 姓名 / 电话并排 + 需求下拉 + 通栏提交（Webpixels hero-6）。
 //    inline 只许一个字段；这里多给了也只画第一个。
+// 🔴 #1471 —— **表单是站级资产**（`site/<locale>/forms.json`，`scripts/lib/site-forms.js`）。块只给 `formId`（槽 `form.id`）
+//    和 `mode`（旋钮 `options.form`：teaser = 首要字段 `primary` + 按钮一行；full = 整张）。字段 / 按钮文字 / 成功提示 /
+//    跳转都从站级那一张取 ⟹ 改一处，四个块处处变。`formId` 空 ⟹ 第一张；站没有表单库 ⟹ 内置 `DEFAULT_FIELDS`。
+//    提交多带 `meta: { formId }`（`manager/leads.go` 的 `leadMetaAllowedKeys` 收它，落 `leads.meta`）。
+//    teaser ↔ 画法 `inline`、full ↔ `stacked`（`data-form-variant` 照旧写 inline / stacked，CSS 和测试都按它）。
+// 🔴 #1471 —— 服务下拉的选项由调用方的 `Section.tsx` 读好传进来（`services`），这里**不自己读服务清单**（文件里连那个函数名都别出现 —— page-deps 按字面找它）：
+//    `scripts/lib/page-deps.js §blockTypesReadingServices` 只看注册表指向的那份 Section.tsx，这里读的话
+//    「改服务列表 → 哪些页面的 sitemap lastmod 要动」就只能靠一条豁免兜着（少报是静默的）。
+// 🔴 按钮文字 / 成功提示不挂 `data-slot`：它们不在块的数据里（站级表单库），编辑器没有可改的键。
 // 🔴 `idPrefix`：同一页上 hero 和 footer 各有一个表单时 id 不许撞（hero 用 `hro`，footer 用 `ftr`）。
 //    `size`：hero 是 `lg`，页脚画小一号 `sm`（Webpixels 页脚那几份都是 `-sm`）。
 // #1477 —— `tone`：调用方把这块底色的字色判据（`contrast.js` §toneForBg）传进来。不是 `light` 时表单根上挂
@@ -26,21 +34,27 @@
 //    `block.css`），占位字原来的灰在白底上看得清，所以它不传 —— 传了就是白底白字。
 
 import { useState } from 'react';
-import { siteId, leadApi, getServices } from '@/lib/config';
+import * as config from '@/lib/config';
+import type { SiteFormConfig } from '@/lib/types/config';
+import { FORM_FIELDS, pickForm } from '../../scripts/lib/site-forms.js';
 
 export type LeadField = 'name' | 'phone' | 'email' | 'message' | 'service';
-export interface BlockLeadFormData {
-  fields?: LeadField[];
-  buttonText?: string;
-  successMessage?: string;
-  redirect?: string;
-}
+export type LeadFormMode = 'teaser' | 'full';
 
-const VOCAB: LeadField[] = ['name', 'phone', 'email', 'message', 'service'];
-const DEFAULT_FIELDS: Record<'inline' | 'stacked', LeadField[]> = {
-  inline: ['phone'],
-  stacked: ['name', 'phone', 'service'],
+const VOCAB = FORM_FIELDS as LeadField[];
+// 站没有表单库（老站，没有 forms.json）时的内置默认 —— 留着，老站靠它顶（#1471 dead code 审查）。
+const DEFAULT_FIELDS: Record<LeadFormMode, LeadField[]> = {
+  teaser: ['phone'],
+  full: ['name', 'phone', 'service'],
 };
+const DEFAULT_BUTTON_TEXT = 'Get a free quote';
+const DEFAULT_SUCCESS = "Thanks! We've got your details and will be in touch.";
+
+/** 这个语言的站级表单库。`@/lib/config` 在单测里是替身，可能没有 `getForms` ⟹ 当成空库。 */
+function siteFormsFor(locale: string): SiteFormConfig[] {
+  const get = (config as { getForms?: (l: string) => SiteFormConfig[] }).getForms;
+  try { return typeof get === 'function' ? get(locale) || [] : []; } catch { return []; }
+}
 const PLACEHOLDER: Record<LeadField, string> = {
   name: 'Name',
   phone: 'Phone',
@@ -51,23 +65,37 @@ const PLACEHOLDER: Record<LeadField, string> = {
 
 type SubmitState = 'idle' | 'submitting' | 'success' | 'error';
 
-export default function BlockLeadForm({ data, variant, locale, center, idPrefix = 'hro', size = 'lg', tone = 'light' }: {
-  data?: BlockLeadFormData; variant: 'inline' | 'stacked'; locale: string; center?: boolean; idPrefix?: string; size?: 'lg' | 'sm';
+export default function BlockLeadForm({ mode, formId, forms, services = [], locale, center, align, idPrefix = 'hro', size = 'lg', tone = 'light' }: {
+  mode: LeadFormMode;
+  /** 块的 `form.id`；空 ⟹ 表单库第一张。 */
+  formId?: string;
+  /** 不传 ⟹ 读这个站自己的（`getForms(locale)`）；单格页 / 测试传演示那份。 */
+  forms?: SiteFormConfig[];
+  /** 「需求」下拉的选项，调用方的 Section.tsx 读（理由见文件头）。 */
+  services?: { id: string; name: string }[];
+  locale: string; center?: boolean;
+  /** 表单整块的水平位置（hero-new 跟 `textAlign` 走）：center ⟹ `mx-auto`，right ⟹ `ms-auto`。`center` 是它的老写法。 */
+  align?: 'left' | 'center' | 'right';
+  idPrefix?: string; size?: 'lg' | 'sm';
   tone?: 'light' | 'dark' | 'brand';
 }) {
-  const asked = (Array.isArray(data?.fields) ? data!.fields : []).filter((f): f is LeadField => VOCAB.includes(f));
-  const fields = (asked.length ? Array.from(new Set(asked)) : DEFAULT_FIELDS[variant]).slice(0, variant === 'inline' ? 1 : VOCAB.length);
-  const buttonText = data?.buttonText || 'Get a free quote';
-  const successMessage = data?.successMessage || "Thanks! We've got your details and will be in touch.";
-  let services: { id: string; name: string }[] = [];
-  try { services = (getServices(locale) || []).map((s: { id: string; name: string }) => ({ id: s.id, name: s.name })); } catch { services = []; }
+  const form = pickForm(forms ?? siteFormsFor(locale), formId) as SiteFormConfig | null;
+  const variant: 'inline' | 'stacked' = mode === 'teaser' ? 'inline' : 'stacked';
+  const asked = form
+    ? (mode === 'teaser' ? [form.primary] : form.fields).filter((f): f is LeadField => VOCAB.includes(f))
+    : [];
+  const fields = (asked.length ? Array.from(new Set(asked)) : DEFAULT_FIELDS[mode]).slice(0, variant === 'inline' ? 1 : VOCAB.length);
+  const buttonText = form?.buttonText || DEFAULT_BUTTON_TEXT;
+  const successMessage = form?.successMessage || DEFAULT_SUCCESS;
+  const redirect = form?.redirect;
+  const place = align === 'right' ? ' ms-auto' : (center || align === 'center') ? ' mx-auto' : '';
 
   const [values, setValues] = useState<Record<string, string>>({});
   const [hp, setHp] = useState('');
   const [state, setState] = useState<SubmitState>('idle');
   const [error, setError] = useState('');
   const set = (k: string) => (e: { target: { value: string } }) => setValues((v) => ({ ...v, [k]: e.target.value }));
-  const endpoint = (leadApi || '').replace(/\/$/, '') + '/api/leads';
+  const endpoint = (config.leadApi || '').replace(/\/$/, '') + '/api/leads';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,10 +114,13 @@ export default function BlockLeadForm({ data, variant, locale, center, idPrefix 
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ siteId, name: (values.name || '').trim(), email, phone, message: parts.join('\n'), source: 'contact-form', hp }),
+        body: JSON.stringify({
+          siteId: config.siteId, name: (values.name || '').trim(), email, phone, message: parts.join('\n'), source: 'contact-form', hp,
+          ...(form ? { meta: { formId: form.id } } : {}),
+        }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      if (data?.redirect) { window.location.assign(data.redirect); return; }
+      if (redirect) { window.location.assign(redirect); return; }
       setState('success');
     } catch {
       setState('error');
@@ -98,7 +129,7 @@ export default function BlockLeadForm({ data, variant, locale, center, idPrefix 
   };
 
   if (state === 'success') {
-    return <p className="fs-5 fw-semibold mt-6" data-part="form-success" role="status" data-slot="form.successMessage">{successMessage}</p>;
+    return <p className="fs-5 fw-semibold mt-6" data-part="form-success" role="status">{successMessage}</p>;
   }
 
   // 类名写全拼、不拼接：purge 按字面扫 .tsx（`scripts/lib/site-css.js`），`form-control-${size}` 它认不出来。
@@ -132,15 +163,17 @@ export default function BlockLeadForm({ data, variant, locale, center, idPrefix 
   const errorLine = error ? <div className="text-sm text-danger mt-2" data-part="form-error" role="alert">{error}</div> : null;
   // 浅底不挂这个属性：浅底上的 HTML 跟改前逐字相同。
   const toneAttr = tone === 'light' ? {} : { 'data-tone': tone };
+  // 用的是哪一张（没有表单库时不挂）—— 看页面就知道块选中了谁。
+  const formAttr = form ? { 'data-form-id': form.id } : {};
   const button = (cls: string) => (
-    <button className={cls} type="submit" disabled={state === 'submitting'} data-slot="form.buttonText">
+    <button className={cls} type="submit" disabled={state === 'submitting'}>
       {state === 'submitting' ? 'Sending…' : buttonText}
     </button>
   );
 
   if (variant === 'inline') {
     return (
-      <form onSubmit={handleSubmit} className={`hro-form mt-6${center ? ' mx-auto' : ''}`} data-form-variant="inline" data-role="essential" {...toneAttr}>
+      <form onSubmit={handleSubmit} className={`hro-form mt-6${place}`} data-form-variant="inline" data-role="essential" {...toneAttr} {...formAttr}>
         <div className="d-flex flex-column flex-sm-row gap-2">
           {input(fields[0])}
           {button(`${sz.btn} text-nowrap`)}
@@ -154,7 +187,7 @@ export default function BlockLeadForm({ data, variant, locale, center, idPrefix 
   // 姓名 / 电话 / 邮箱各占半行（两个一排），需求下拉与留言占整行。
   const half = (f: LeadField) => f === 'name' || f === 'phone' || f === 'email';
   return (
-    <form onSubmit={handleSubmit} className={`hro-form mt-6 w-100${center ? ' mx-auto' : ''}`} data-form-variant="stacked" data-role="essential" {...toneAttr}>
+    <form onSubmit={handleSubmit} className={`hro-form mt-6 w-100${place}`} data-form-variant="stacked" data-role="essential" {...toneAttr} {...formAttr}>
       <div className="row g-2">
         {fields.map((f) => <div key={f} className={half(f) ? 'col-12 col-sm-6' : 'col-12'}>{input(f)}</div>)}
         <div className="col-12">{button(`${sz.btn} w-100`)}</div>

@@ -554,6 +554,24 @@ try {
         }).join('\n');
       },
     },
+    // #1471：站级表单库 —— 建站提示词的输出结构里多了 `forms`（两张表单的文案），CRITICAL RULES 里多一句「字段固定、
+    //    只写文案；带 form 槽的块选其中一张」。两处锚点缺一处就整条不生效（原样返回）⟹ 判别力② 会把它点名成死条目。
+    {
+      why: '#1471 输出结构里加 forms + 那条规则',
+      apply: (t) => {
+        const svcEnd = '      "products": [{ "name": "<name>", "description": "<1 sentence>" }]\n    }\n  ],\n  "pages": [\n';
+        const rule = '- "services" array must contain EXACTLY the services listed above: ';
+        if (!t.includes(svcEnd) || !t.includes(rule)) return t;
+        const forms = '      "products": [{ "name": "<name>", "description": "<1 sentence>" }]\n    }\n  ],\n  "forms": [\n'
+          + '    { "id": "quote", "name": "<form name, max 60 chars>", "buttonText": "<submit button, max 40 chars>", "successMessage": "<thank-you line, max 200 chars>" },\n'
+          + '    { "id": "contact", "name": "<form name, max 60 chars>", "buttonText": "<submit button, max 40 chars>", "successMessage": "<thank-you line, max 200 chars>" }\n'
+          + '  ],\n  "pages": [\n';
+        const ruleLine = '- "forms" are the site\'s two lead forms (#1471): "quote" (asks for name, phone and which service) and "contact" '
+          + '(name, email, message). Their fields are FIXED — write only the visitor-facing words (name, buttonText, successMessage) to fit '
+          + 'this business. Any block with a "form" slot uses one of them: leave "form": {} (= the first form, "quote") or set "form": { "id": "contact" }.\n';
+        return t.split(svcEnd).join(forms).split('\n').map((l) => (l.startsWith(rule) ? `${l}\n${ruleLine.slice(0, -1)}` : l)).join('\n');
+      },
+    },
     // 📌 #1376（同样按 D19 删掉一个块）**没有在这里加条目**。r1 加过一条「32 → 31」，而 #1372 先落地
     //    了，它上面那条差异已经把那句写死的 32 换成**按 `blocks/` 现算**的数 ⟹ 链式套用时 r1 那条
     //    再也匹配不到自己那段文本，是一条在链上恒 no-op 的条目（判别力② 是拿每条**单独**套基线判的，

@@ -31,9 +31,10 @@
 //    §toneFor，门槛 0.4），渐变按色标平均亮度（§toneForBg，门槛 0.55），不另起一套。没填 = 改前 `dark=false`
 //    那一份，逐字相同。
 //
-// 🔴 **表单 = `form: { mode: teaser | full, id? }`**（#1469）：表单是站级资产（#1471），块只选一张、选画法。
-//    `id` 在 #1471 落地前恒空 ⟹ 用组件里那份替身（§FORM_STANDIN）。`teaser` = 首要字段 + 按钮，`full` = 整张；
-//    没写 `mode`（含槽位不在）不渲染 —— 工具栏上的 `none` 就是这个意思。
+// 🔴 **表单 = 槽 `form: { id? }` + 旋钮 `form`（none | teaser | full）**（#1471，跟 hero-new / contact-new / cta-new 同形）：
+//    表单是站级资产（`site/<locale>/forms.json`），槽只选一张（空 = 第一张）；露多少只存在 `data.options.form` 一处，
+//    经本文件 §resolveKnobs（同一份 manifest 的旋钮表）取实际生效值。6 个预设一律 `form: none`（形态里没给表单留位置）。
+//    🔴 #1469 的 `form.mode` 不再读、也不做兼容读：footer-new 是 `staging: true`（客户站不渲染它），旧值已迁移。
 //
 // 🔴 **排版只走 Webpixels 的工具类**（总纲约束 3）。Webpixels 的工具类全带 `!important`，要压过它们的
 //    规则也得带 `!important` 且 class 数不少于它（票正文那条通用规矩）。
@@ -43,9 +44,9 @@
 
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
-import { defaultLocale } from '@/lib/config';
+import { defaultLocale, getServices } from '@/lib/config';
 import type { BlockConfig } from '@/lib/types/config';
-import BlockLeadForm, { type BlockLeadFormData } from '@/components/BlockLeadForm';
+import BlockLeadForm from '@/components/BlockLeadForm';
 import manifest from './manifest.json';
 import { knobsOf, normalizeKnobs, presetForShape, presetOf, presetsOf } from '../../scripts/lib/header-knobs.js';
 import { bgCss, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
@@ -55,20 +56,23 @@ type BtnStyle = 'solid' | 'outline' | 'link';
 export type Layout = 'row' | 'stacked' | 'columns';
 export type BrandSide = 'left' | 'right';
 export type Cta = 'none' | 'centered' | 'boxed' | 'inline';
+export type FormMode = 'none' | 'teaser' | 'full';
 
 export interface FooterLink { label: string; href: string; icon?: string }
 export interface FooterButton { label: string; href: string; style?: BtnStyle }
 export interface FooterContact { phone?: string; address?: string; hours?: string; email?: string }
 export interface FooterColumns { services?: FooterLink[]; areas?: FooterLink[]; contact?: boolean }
 export interface FooterCta { title?: string; subtitle?: string; buttons?: FooterButton[] }
-/** #1469 —— 块只选一张表单、选画法；表单本身是站级资产（#1471）。 */
-export interface FooterForm { mode?: 'teaser' | 'full'; id?: string }
+/** #1471 —— 块只选一张站级表单（空 = 第一张）；露多少是旋钮 `options.form`。 */
+export interface FooterForm { id?: string }
 export interface FooterOptions {
   /** 只是标签：旋钮跟某个预设吻合就是它的名，否则 `custom`。渲染不读它。 */
   preset?: string;
   layout?: Layout;
   brand?: BrandSide;
   cta?: Cta;
+  /** #1471 —— 表单露多少：none（不画）· teaser（首要字段 + 按钮）· full（整张）。 */
+  form?: FormMode;
 }
 
 export interface FooterNewData {
@@ -88,7 +92,7 @@ export interface FooterNewData {
   options?: FooterOptions;
 }
 
-export interface FooterKnobs { layout: Layout; brand: BrandSide; cta: Cta }
+export interface FooterKnobs { layout: Layout; brand: BrandSide; cta: Cta; form: FormMode }
 
 const KNOBS = knobsOf(manifest);
 const PRESETS = presetsOf(manifest);
@@ -105,16 +109,10 @@ export function resolveKnobs(shape: string | undefined, options: FooterOptions =
   return { knobs, preset: presetOf(knobs, { knobs: KNOBS, presets: PRESETS }), shape: known };
 }
 
-/**
- * #1469 —— 替身表单：`form.id` 空（#1471 落地前恒空）时用它。内容取自 #1464 的演示夹具；首要字段是电话
- * （`teaser` 只画它 + 按钮）。
- */
-const FORM_STANDIN: BlockLeadFormData = {
-  fields: ['name', 'phone', 'service'],
-  buttonText: 'Call me back',
-  successMessage: "Thanks! We'll call you back within the hour.",
-};
-const FORM_PRIMARY_FIELD = 'phone' as const;
+/** #1471 —— 表单「需求」下拉的选项（BlockLeadForm 不自己读，理由见它的文件头；本块是外壳区，page-deps 的 ACCOUNTED 写明了）。 */
+function servicesFor(locale: string): { id: string; name: string }[] {
+  try { return (getServices(locale) || []).map((s: { id: string; name: string }) => ({ id: s.id, name: s.name })); } catch { return []; }
+}
 
 /** 列的固定语义（`columns` 排布专用）。标题是图册的英文演示；T3 接站时跟着站的语言走。 */
 const COLUMN_TITLES = { services: 'Services', areas: 'Service areas', pages: 'Pages', contact: 'Contact' };
@@ -168,10 +166,8 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
   const brand = data.brandName || '';
   const copyright = data.copyright || `© ${new Date().getFullYear()} ${brand}`;
   const cta = ctaKind !== 'none' && data.cta && data.cta.title ? data.cta : null;
-  const formMode = data.form && (data.form.mode === 'teaser' || data.form.mode === 'full') ? data.form.mode : null;
-  const form: BlockLeadFormData | null = formMode
-    ? { ...FORM_STANDIN, fields: formMode === 'teaser' ? [FORM_PRIMARY_FIELD] : FORM_STANDIN.fields }
-    : null;
+  const formMode = knobs.form === 'teaser' || knobs.form === 'full' ? knobs.form : null;
+  const formId = data.form && typeof data.form.id === 'string' && data.form.id ? data.form.id : undefined;
 
   const linkTone = dark ? 'link-light' : 'link-secondary';
   // 深底上的小字（说明 / 联系 / 版权）不用灰：白 .92（`block.css` §ftr-muted-on-dark；图册 2026-09-28 实测
@@ -241,11 +237,11 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
     );
   };
 
-  // 表单部件：`layout=stacked` 在联系一行下、`layout=columns` 在品牌列下、`layout=row` 不渲染；空值不渲染。
+  // 表单部件：`layout=stacked` 在联系一行下、`layout=columns` 在品牌列下、`layout=row` 不渲染；旋钮 `form=none` 不渲染。
   //    `teaser` 沿用 #1464 `inline` 的画法（一个字段 + 按钮一行），`full` 沿用 `stacked`（整张）。
-  const formPart = (extra = '') => (form && formMode ? (
+  const formPart = (extra = '') => (formMode ? (
     <div className={`w-100 mw-sm ${extra}`} data-footer-form={formMode}>
-      <BlockLeadForm data={form} variant={formMode === 'teaser' ? 'inline' : 'stacked'} locale={locale} idPrefix="ftr" size="sm" tone={tone} />
+      <BlockLeadForm mode={formMode} formId={formId} services={servicesFor(locale)} locale={locale} idPrefix="ftr" size="sm" tone={tone} />
     </div>
   ) : null);
 

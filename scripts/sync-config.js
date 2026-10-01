@@ -394,6 +394,9 @@ if (typeof brand.name === 'string') {
 
 const seoByLocale = {};
 const servicesByLocale = {};
+// #1471 —— 站级表单库，每个语言一份 `site/<locale>/forms.json`（`scripts/lib/site-forms.js`）。🔴 **可选**，不进下面那张
+//    必需文件表：老站没有它，进了表所有老站重建当场 exit 1。缺它 = 空表单库，带表单的块退回 BlockLeadForm 的内置默认字段。
+const formsByLocale = {};
 const navigationByLocale = {};
 const pagesByLocale = {};
 const blogPostsByLocale = {};
@@ -475,6 +478,26 @@ for (const locale of locales) {
   if (!Array.isArray(servicesByLocale[locale])) {
     console.error(`Locale "${locale}" services.json must be an array (current type: ${typeof servicesByLocale[locale]})`);
     process.exit(1);
+  }
+
+  // #1471 —— forms.json：有就读，没有就是空表单库。形状不对只说不拦（构建期没有救，只有毁 —— 同下面 validateSite 那段）。
+  {
+    const formsPath = path.join(localeDir, 'forms.json');
+    let forms = [];
+    if (fs.existsSync(formsPath)) {
+      try {
+        forms = JSON.parse(fs.readFileSync(formsPath, 'utf-8'));
+      } catch (e) {
+        console.log(`  [${locale}] ⚠️  forms.json 不是合法 JSON（${e.message}）—— 当成空表单库，带表单的块用内置默认字段`);
+        forms = [];
+      }
+      if (!Array.isArray(forms)) {
+        console.log(`  [${locale}] ⚠️  forms.json 必须是数组（今天是 ${forms === null ? 'null' : typeof forms}）—— 当成空表单库`);
+        forms = [];
+      }
+    }
+    formsByLocale[locale] = forms;
+    console.log(`  [${locale}] 表单库：${forms.length ? forms.map((x) => (x && x.id) || '?').join(', ') : '（没有 forms.json —— 用内置默认字段）'}`);
   }
 
   // Aggregate pages (recursive)
@@ -603,7 +626,7 @@ for (const locale of locales) {
   // 📌 `industry` 在构建期是不知道的（seo.json 里没有这个字段），所以「行业必需的块缺了」这条
   //    在这里只可能按 `"*"` 那一档说话。
   const { warnings: blockWarnings } =
-    blockManifest.validateSite({ pages: localePages, industry: '', scope: 'build' });
+    blockManifest.validateSite({ pages: localePages, industry: '', scope: 'build', forms: formsByLocale[locale] });
   for (const w of blockWarnings) console.log(`  [${locale}] ⚠️  ${w}`);
 
   // Aggregate blog posts (optional)
@@ -680,6 +703,9 @@ for (const locale of locales) {
   navigationByLocale[locale] = existingNav;
   console.log(`  [${locale}] Regenerated navigation.json`);
 }
+
+// #1471 —— 各语言 forms.json 的 id / fields / primary 必须一致（逐语言那几条上面 validateSite 已经说过）。构建期只说不拦。
+for (const w of require('./lib/site-forms').formsConsistencyProblems(formsByLocale)) console.log(`  ⚠️  ${w}`);
 
 // 📌 #1341 —— 这里原来有一段：调 `blocks.js` 的 `validateBlockLayouts()`，逐块检查页面 JSON 写的
 //    `block_layout` 落不落在那个块 manifest 声明的清单里。内容结构那一维整条退役了（设计文档 D15 ③
@@ -1376,6 +1402,7 @@ export const locales = ${JSON.stringify(locales)};
 export const brand = ${JSON.stringify(brand)};
 export const seoByLocale = ${JSON.stringify(seoByLocale)};
 export const servicesByLocale = ${JSON.stringify(servicesByLocale)};
+export const formsByLocale = ${JSON.stringify(formsByLocale)};
 export const navigationByLocale = ${JSON.stringify(navigationByLocale)};
 export const pagesByLocale = ${JSON.stringify(pagesByLocale)};
 export const blogPostsByLocale = ${JSON.stringify(blogPostsByLocale)};

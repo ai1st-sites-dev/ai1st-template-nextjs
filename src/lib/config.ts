@@ -1,4 +1,4 @@
-import type { BrandConfig, NavigationConfig, SeoConfig, ServiceConfig, BlogPostConfig, DynamicPageConfig, RegionsConfig, PageLayoutConfig } from './types/config';
+import type { BrandConfig, NavigationConfig, SeoConfig, ServiceConfig, BlogPostConfig, DynamicPageConfig, RegionsConfig, PageLayoutConfig, SiteFormConfig } from './types/config';
 
 import {
   brand as _brand,
@@ -8,6 +8,7 @@ import {
   locales as _locales,
   seoByLocale as _seoByLocale,
   servicesByLocale as _servicesByLocale,
+  formsByLocale as _formsByLocale,
   navigationByLocale as _navigationByLocale,
   pagesByLocale as _pagesByLocale,
   blogPostsByLocale as _blogPostsByLocale,
@@ -23,6 +24,8 @@ export const defaultLocale = _defaultLocale as string;
 export const locales = _locales as string[];
 export const seoByLocale = _seoByLocale as Record<string, SeoConfig>;
 export const servicesByLocale = _servicesByLocale as Record<string, ServiceConfig[]>;
+// #1471 —— 站级表单库（`site/<locale>/forms.json`，形状与校验在 `scripts/lib/site-forms.js`）。没有 forms.json 的语言是空数组。
+export const formsByLocale = _formsByLocale as Record<string, SiteFormConfig[]>;
 export const navigationByLocale = _navigationByLocale as Record<string, NavigationConfig>;
 export const pagesByLocale = _pagesByLocale as Record<string, DynamicPageConfig[]>;
 export const blogPostsByLocale = _blogPostsByLocale as Record<string, BlogPostConfig[]>;
@@ -52,6 +55,11 @@ export function getSeo(locale: string): SeoConfig {
 
 export function getServices(locale: string): ServiceConfig[] {
   return servicesByLocale[locale] ?? servicesByLocale[defaultLocale];
+}
+
+/** #1471 —— 这个语言的表单库；没有这个语言就用默认语言那份；都没有 ⟹ 空数组（块退回内置默认字段）。 */
+export function getForms(locale: string): SiteFormConfig[] {
+  return formsByLocale?.[locale] ?? formsByLocale?.[defaultLocale] ?? [];
 }
 
 export function getNavigation(locale: string): NavigationConfig {

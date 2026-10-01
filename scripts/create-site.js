@@ -48,6 +48,8 @@ const {
   BLOCKS_DIR: BLOCK_MANIFEST_DIR,
 } = require('./lib/block-manifest');
 const blockDataLine = (type) => blockDataLineFor(loadBlockManifests().get(type));
+// #1471 —— 站级表单库（`site/<locale>/forms.json`）：默认两张的骨架 + 只收 AI 的文案。
+const { siteFormsFrom } = require('./lib/site-forms');
 // #1386 —— 建站选图：哪些槽要图、提示词怎么拼、上限怎么截、求不到怎么说，都在那个文件里。
 // 名单不再写在本文件里（此前是四个块名 + 四个 case，`hero-with-form` 因此永远拿不到图）。
 const { fillImageSlots } = require('./lib/image-slots');
@@ -1034,6 +1036,8 @@ async function main() {
         seo: { ...content.seo, locale: localeMapForBcp47(secLocale) },
         services: content.services,
         navigation: content.navigation,
+        forms: content.forms,
+        formsBase: content.forms,
         pages: content.pages,
         tierDistribution: { 1: 0, 2: 0, 3: content.pages.length },
       };
@@ -1345,6 +1349,7 @@ async function generateSecondaryLocale({
       seo: primaryContent.seo,
       services: primaryContent.services,
       navigation: primaryContent.navigation,
+      forms: primaryContent.forms,
       primaryLanguageName, secondaryLanguageName, secondaryLocale,
       industry, location, companyName,
     }),
@@ -1356,6 +1361,8 @@ async function generateSecondaryLocale({
     seo: supportingFiles.seo,
     services: supportingFiles.services,
     navigation: supportingFiles.navigation,
+    forms: supportingFiles.forms,
+    formsBase: primaryContent.forms,
     pages: secondaryPages,
     tierDistribution,
   };
@@ -1434,7 +1441,7 @@ INSTRUCTIONS:
 // Batch-translate brand.tagline + seo + services + navigation in one Claude call.
 // These are smaller than pages and translation-only (no Tier reasoning needed).
 async function translateSupportingFilesWithClaude({
-  client, brand, seo, services, navigation, primaryLanguageName, secondaryLanguageName, secondaryLocale, industry, location, companyName,
+  client, brand, seo, services, navigation, forms = [], primaryLanguageName, secondaryLanguageName, secondaryLocale, industry, location, companyName,
 }) {
   const prompt = `You are translating website supporting config from ${primaryLanguageName} to ${secondaryLanguageName}.${chineseVariantHint(secondaryLanguageName)} For SEO.
 
@@ -1448,6 +1455,7 @@ ${JSON.stringify({
   brandTagline: brand.tagline,
   seo: { siteTitle: seo.siteTitle, siteDescription: seo.siteDescription, keywords: seo.keywords, schema: { offerCatalogName: seo.schema?.offerCatalogName, priceRange: seo.schema?.priceRange } },
   services: services.map(s => ({ id: s.id, name: s.name, shortDescription: s.shortDescription, fullDescription: s.fullDescription, features: s.features, products: s.products })),
+  forms: (forms || []).map(f => ({ id: f.id, name: f.name, buttonText: f.buttonText, successMessage: f.successMessage })),
   navigation: {
     header: { cta: navigation.header.cta },
     footer: {
@@ -1478,6 +1486,7 @@ INSTRUCTIONS:
   "brandTagline": "<translated>",
   "seo": { "siteTitle": "...", "siteDescription": "...", "keywords": "...", "schema": { "offerCatalogName": "...", "priceRange": "..." } },
   "services": [ { "id": "<unchanged>", "name": "...", "shortDescription": "...", "fullDescription": "...", "features": [...], "products": [...] }, ... ],
+  "forms": [ { "id": "<unchanged>", "name": "...", "buttonText": "...", "successMessage": "..." }, ... ],
   "navigation": {
     "header": { "cta": { "label": "...", "href": "<unchanged>" } },
     "footer": {
@@ -1563,6 +1572,8 @@ INSTRUCTIONS:
     seo: outSeo,
     services: outServices,
     navigation: outNavigation,
+    // #1471 —— 只取译文；结构（id / fields / primary）由写盘那一步按主语言骨架补（§writeSecondaryLocaleConfig）。
+    forms: Array.isArray(parsed.forms) ? parsed.forms : [],
   };
 }
 
@@ -1600,10 +1611,12 @@ function writeSecondaryLocaleConfig(siteDir, secContent, secondaryLocale, primar
   fs.writeFileSync(brandPath, JSON.stringify(existingBrand, null, 2) + '\n');
 
   // Per-locale config files.
+  // #1471 —— 表单库：结构跟主语言同一副骨架（各语言 id / fields / primary 按构造一致），文字用这个语言的。
   const localeFiles = {
     'navigation.json': secContent.navigation,
     'seo.json': secContent.seo,
     'services.json': secContent.services,
+    'forms.json': siteFormsFrom(secContent.forms, secContent.formsBase || undefined),
   };
   for (const [filename, data] of Object.entries(localeFiles)) {
     fs.writeFileSync(path.join(localeDir, filename), JSON.stringify(data, null, 2) + '\n');
@@ -1647,10 +1660,13 @@ function writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks = []) {
   );
 
   // per-locale config files
+  // #1471 —— 站级表单库：两张默认表单的骨架（id / fields / primary 钉死）+ AI 写的文案（`scripts/lib/site-forms.js` §siteFormsFrom）。
+  content.forms = siteFormsFrom(content.forms);
   const localeFiles = {
     'navigation.json': content.navigation,
     'seo.json': content.seo,
     'services.json': content.services,
+    'forms.json': content.forms,
   };
   for (const [filename, data] of Object.entries(localeFiles)) {
     fs.writeFileSync(
@@ -2370,6 +2386,10 @@ Generate a JSON object with this EXACT structure:
       "products": [{ "name": "<name>", "description": "<1 sentence>" }]
     }
   ],
+  "forms": [
+    { "id": "quote", "name": "<form name, max 60 chars>", "buttonText": "<submit button, max 40 chars>", "successMessage": "<thank-you line, max 200 chars>" },
+    { "id": "contact", "name": "<form name, max 60 chars>", "buttonText": "<submit button, max 40 chars>", "successMessage": "<thank-you line, max 200 chars>" }
+  ],
   "pages": [
     {
       "slug": "home",
@@ -2408,6 +2428,7 @@ Generate a JSON object with this EXACT structure:
 
 CRITICAL RULES:
 - "services" array must contain EXACTLY the services listed above: ${servicesList.join(', ')}. Do NOT add or remove any.
+- "forms" are the site's two lead forms (#1471): "quote" (asks for name, phone and which service) and "contact" (name, email, message). Their fields are FIXED — write only the visitor-facing words (name, buttonText, successMessage) to fit this business. Any block with a "form" slot uses one of them: leave "form": {} (= the first form, "quote") or set "form": { "id": "contact" }.
 - "pages" is an ARRAY of page objects, each with slug, title, description, navLabel, navOrder, changeFrequency, priority, and sections.
 - navOrder determines the order in the navigation. Home is always 0. Assign sequential numbers (1, 2, 3...) to other pages.
 - The CTA page (navigation.ctaPage) should have a higher navOrder so it appears last (but it won't be in the header nav — it becomes the CTA button).
@@ -2492,7 +2513,7 @@ ${ctaHrefRule ? `${ctaHrefRule}
   // 🔴 只重试一次。再失败就退出并把问题逐条打出来 —— 一直重试等于把「AI 今天不听话」变成一笔看不见
   // 的账单，而这些问题（缺必填槽、把 essential 降成 optional、行业必需的块没放）都是提示词里写着的。
   {
-    const first = validateBlocks({ pages: ai.pages, industry, disabledBlocks });
+    const first = validateBlocks({ pages: ai.pages, industry, disabledBlocks, forms: siteFormsFrom(ai.forms) });
     // #1013 洞 1 —— 行业是自由文本，认不出来的写法一定存在。校验器会为此产出一条 warning，
     // 而「认不出行业」跟「这个行业不需要任何特定的块」在读数上长得一模一样（两种都是零 problem）
     // ⟹ 它必须被打出来，否则日志里那句「校验通过」是关于一次没做的检查说的。
@@ -2528,7 +2549,7 @@ ${ctaHrefRule ? `${ctaHrefRule}
       });
       const before = ai;
       ai = retry.parsed;
-      issues = validateBlocks({ pages: ai.pages, industry, disabledBlocks }).problems;
+      issues = validateBlocks({ pages: ai.pages, industry, disabledBlocks, forms: siteFormsFrom(ai.forms) }).problems;
       // #1034 —— 判决写在 lib/homepage-recipe.js 的 afterRetry() 里(纯函数,能测;这条分支
       // 只有 AI 参与时才走得到)。'fatal' 逐字保持改动之前的行为;'revert' 是本票新开的口子
       // 带来的风险的解药:第一次块库干净、只因骨架撞车才重试,而重试把它改坏了 —— 那就退回第一次。

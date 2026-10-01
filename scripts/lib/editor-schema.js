@@ -95,6 +95,13 @@ function fieldsOf(manifest) {
       });
       continue;
     }
+    // #1471 —— 选站级表单的槽（`form: { id? }`，hero-new / footer-new / contact-new / cta-new）：一个对象字段、子字段只有 `id`，
+    //    EditorApp 把它画成下拉（选项 = 这个语言的表单库，`site-forms.js` §formIdOptions）。按形状认，不写块名单；
+    //    旧块 `hero-with-form` 的 `form` 是另一个形状（自带字段 / 按钮文字），走下面原来那条路。
+    if (slot === 'form' && spec && spec.kind === 'object' && /^\{\s*id\?\s*\}$/.test(String(spec.shape || ''))) {
+      fields.push({ slot, kind: 'object', label: 'Form', control: 'object', subs: [{ sub: 'id', label: 'Form' }] });
+      continue;
+    }
     const entries = bySlot.get(slot);
     if (!entries && spec && spec.editItems === true) {
       // 没有可改的字，只有「几项、什么顺序」可改（`hero-new.band`）。每项的摘要用它的 alt。

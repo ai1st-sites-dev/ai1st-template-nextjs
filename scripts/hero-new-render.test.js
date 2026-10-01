@@ -29,7 +29,8 @@ const { renderToStaticMarkup } = require('react-dom/server');
 const NEXT = path.resolve(__dirname, '..');
 const SRC = path.join(NEXT, 'src');
 const SECTION = path.join(NEXT, 'blocks', 'hero-new', 'Section.tsx');
-const FORM = path.join(NEXT, 'blocks', 'hero-new', 'HeroNewForm.tsx');
+// #1471 —— hero-new 自己那份表单删了，改用四个块共用的那一份。
+const FORM = path.join(NEXT, 'src', 'components', 'BlockLeadForm.tsx');
 
 let pass = 0;
 let fail = 0;
@@ -336,7 +337,7 @@ console.log('\n── AC6 表单（提交）');
 (async () => {
   let Window;
   try { ({ Window } = require('happy-dom')); } catch (e) { die(`happy-dom 载入不了（它随 @puckeditor/core 一起装）：${e.message}`); }
-  const run = async (variant) => {
+  const run = async (variant, forms) => {
     const win = new Window({ url: 'https://site.example/quote' });
     const g = globalThis;
     const saved = {};
@@ -358,7 +359,7 @@ console.log('\n── AC6 表单（提交）');
       const host = win.document.createElement('div');
       win.document.body.appendChild(host);
       const root = createRoot(host);
-      await act(async () => { root.render(React.createElement(F, { variant, services: [{ id: 'brakes', name: 'Brakes' }, { id: 'tires', name: 'Tires' }] })); });
+      await act(async () => { root.render(React.createElement(F, { mode: variant, locale: 'en', ...(forms ? { forms } : {}), services: [{ id: 'brakes', name: 'Brakes' }, { id: 'tires', name: 'Tires' }] })); });
       const setVal = async (sel, val) => {
         const el = host.querySelector(sel);
         const proto = Object.getPrototypeOf(el);
@@ -384,17 +385,25 @@ console.log('\n── AC6 表单（提交）');
     check(r.calls.length === 1 && r.calls[0].url === 'https://lead.example/api/leads' && r.calls[0].init.method === 'POST',
       `提交 = 一次 POST ${r.calls[0] ? r.calls[0].url : '（没发）'}`);
     check(body.siteId === 't-site' && body.name === 'Sam Driver' && body.phone === '416-555-0199'
-      && body.message === 'Service: Brakes' && body.source === 'contact-form' && body.hp === '',
-    `请求体字段对（${JSON.stringify(body)}）`);
+      && body.message === 'Service: Brakes' && body.source === 'contact-form' && body.hp === '' && !('meta' in body),
+    `请求体字段对（${JSON.stringify(body)}）；站没有表单库 ⟹ 不带 meta.formId`);
     check(r.assigned.length === 0 && r.url === 'https://site.example/quote', '没写 redirect ⟹ 不跳页');
     check(/data-part="form-success"[^>]*>Thanks! We(?:'|&#x27;|&#39;)ve got your details and will be in touch\.</.test(r.html) && !/<form\b/.test(r.html),
-      '成功后原地出现内置的成功提示（#1470：槽里没有 successMessage 了），表单收起');
+      '成功后原地出现内置的成功提示（站没有表单库时），表单收起');
     check(!/data-slot="form\./.test(r.html), '表单上不挂 data-slot="form.…"（槽里没有可改的键）');
     const t = await run('teaser');
     const tb = t.calls[0] ? JSON.parse(t.calls[0].init.body) : {};
     check(JSON.stringify(t.ids) === JSON.stringify(['hro-phone']) && t.calls.length === 1 && t.calls[0].url === 'https://lead.example/api/leads'
       && tb.phone === '416-555-0199' && t.assigned.length === 0,
     `teaser 只露 phone（${t.ids.join(' / ')}）+ 按钮，提交同样一次 POST /api/leads、不跳页`);
+    // #1471 —— 有站级表单库：teaser 露那张的 primary，提交带 meta.formId；成功提示是那张表单的。
+    const forms = require(path.join(NEXT, 'scripts', 'lib', 'demo-content')).DEMO_SITE.forms;
+    const q = await run('teaser', forms);
+    const qb = q.calls[0] ? JSON.parse(q.calls[0].init.body) : {};
+    check(JSON.stringify(q.ids) === JSON.stringify(['hro-phone']) && qb.phone === '416-555-0199' && qb.meta && qb.meta.formId === 'quote',
+      `表单库在 + form.id 空 ⟹ 用第一张 quote：teaser 露 phone、请求体 meta = ${JSON.stringify(qb.meta)}`);
+    check(q.html.includes(forms[0].successMessage.replace(/'/g, '&#x27;')) || q.html.includes(forms[0].successMessage),
+      '成功提示是站级那张表单的 successMessage');
   } catch (e) {
     bad(`happy-dom 那一段抛了：${e.stack || e.message}`);
   }

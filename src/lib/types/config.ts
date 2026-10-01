@@ -129,6 +129,18 @@ export interface ServiceProduct {
   description: string;
 }
 
+/** #1471 —— 站级表单库里的一张（`site/<locale>/forms.json`；字段词表与校验在 `scripts/lib/site-forms.js`）。 */
+export interface SiteFormConfig {
+  id: string;
+  name: string;
+  fields: Array<'name' | 'phone' | 'email' | 'message' | 'service'>;
+  /** teaser 只露这一个字段 + 按钮。 */
+  primary: 'name' | 'phone' | 'email' | 'message' | 'service';
+  buttonText?: string;
+  successMessage?: string;
+  redirect?: string;
+}
+
 export interface ServiceConfig {
   id: string;
   name: string;

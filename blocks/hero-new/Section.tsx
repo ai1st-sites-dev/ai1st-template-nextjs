@@ -34,7 +34,7 @@ import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig } from '@/lib/types/config';
 import { getServices } from '@/lib/config';
 import Icon from '@/components/Icon';
-import HeroNewForm from './HeroNewForm';
+import BlockLeadForm from '@/components/BlockLeadForm';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { bgCss, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
@@ -56,7 +56,7 @@ export interface HeroNewData {
   subheadline?: string;
   ctas?: HeroNewButton[];
   image?: HeroNewImage;
-  // 选哪张站级表单（#1471）。那张票落地前 `id` 不读，表单用 HeroNewForm.tsx 里的内置默认值；
+  // 选哪张站级表单（#1471，`site/<locale>/forms.json`）；空 = 第一张，站没有表单库 = BlockLeadForm 的内置默认字段。
   // 露多少只看 `options.form`（`block-knobs.js:13`：旋钮值只存一处）。
   form?: { id?: string };
 }
@@ -116,7 +116,7 @@ function rowClass(image: string, textAlign: string, hasSide: boolean): string {
   return base;
 }
 
-/** 表单「需求」下拉的选项 —— 站内服务列表（在这里读，理由见 HeroNewForm.tsx 的组件头）。 */
+/** 表单「需求」下拉的选项 —— 站内服务列表（在这里读、不在 BlockLeadForm 里读，理由见它的文件头：page-deps 只看这份 Section.tsx）。 */
 function servicesFor(locale: string): { id: string; name: string }[] {
   try { return (getServices(locale) || []).map((s: { id: string; name: string }) => ({ id: s.id, name: s.name })); } catch { return []; }
 }
@@ -185,7 +185,13 @@ export default function HeroNewSection({ data, locale = 'en', block }: Props) {
               <h1 className="display-3 fw-bold lh-1 ls-tight mb-5 hro-title" data-slot="headline">{d.headline}</h1>
               {d.subheadline ? <p className="fs-5 text-muted mb-8 hro-sub" data-slot="subheadline">{d.subheadline}</p> : null}
               {showForm ? (
-                <HeroNewForm variant={k.form === 'teaser' ? 'teaser' : 'full'} services={servicesFor(locale)} textAlign={k.textAlign} />
+                <BlockLeadForm
+                  mode={k.form === 'teaser' ? 'teaser' : 'full'}
+                  formId={isObj(d.form) && typeof d.form.id === 'string' ? d.form.id : undefined}
+                  services={servicesFor(locale)}
+                  locale={locale}
+                  align={k.textAlign === 'center' ? 'center' : k.textAlign === 'right' ? 'right' : 'left'}
+                />
               ) : ctas.length ? (
                 <div className={`d-flex flex-column flex-sm-row gap-2${just}`} data-part="ctas">
                   {ctas.map((b, i) => (

@@ -73,7 +73,7 @@
       "kind": "object",
       "required": false,
       "promptOptional": true,
-      "shape": "{mode: \"teaser\" | \"full\", id?: string}"
+      "shape": "{id?}"
     },
     "bg": {
       "kind": "color",
@@ -86,21 +86,22 @@
       "kind": "object",
       "required": false,
       "promptOptional": true,
-      "shape": "{preset?: string, layout, brand, cta}",
+      "shape": "{preset?: string, layout, brand, cta, form}",
       "knobs": [
         { "name": "layout", "values": ["row", "stacked", "columns"] },
         { "name": "brand", "values": ["left", "right"] },
-        { "name": "cta", "values": ["none", "centered", "boxed", "inline"] }
+        { "name": "cta", "values": ["none", "centered", "boxed", "inline"] },
+        { "name": "form", "values": ["none", "teaser", "full"] }
       ]
     }
   },
   "presets": [
-    { "name": "slim-row", "shape": "slim-row", "knobs": { "layout": "row", "brand": "left", "cta": "none" } },
-    { "name": "stacked", "shape": "stacked", "knobs": { "layout": "stacked", "brand": "left", "cta": "none" } },
-    { "name": "columns", "shape": "columns", "knobs": { "layout": "columns", "brand": "left", "cta": "none" } },
-    { "name": "cta-row", "shape": "cta-row", "knobs": { "layout": "row", "brand": "left", "cta": "centered" } },
-    { "name": "cta-stacked", "shape": "cta-stacked", "knobs": { "layout": "stacked", "brand": "left", "cta": "inline" } },
-    { "name": "cta-columns", "shape": "cta-columns", "knobs": { "layout": "columns", "brand": "left", "cta": "boxed" } }
+    { "name": "slim-row", "shape": "slim-row", "knobs": { "layout": "row", "brand": "left", "cta": "none", "form": "none" } },
+    { "name": "stacked", "shape": "stacked", "knobs": { "layout": "stacked", "brand": "left", "cta": "none", "form": "none" } },
+    { "name": "columns", "shape": "columns", "knobs": { "layout": "columns", "brand": "left", "cta": "none", "form": "none" } },
+    { "name": "cta-row", "shape": "cta-row", "knobs": { "layout": "row", "brand": "left", "cta": "centered", "form": "none" } },
+    { "name": "cta-stacked", "shape": "cta-stacked", "knobs": { "layout": "stacked", "brand": "left", "cta": "inline", "form": "none" } },
+    { "name": "cta-columns", "shape": "cta-columns", "knobs": { "layout": "columns", "brand": "left", "cta": "boxed", "form": "none" } }
   ],
   "industries": {
     "required": [],

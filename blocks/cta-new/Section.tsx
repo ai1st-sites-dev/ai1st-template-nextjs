@@ -23,7 +23,7 @@
 //    同一对），不在这里另写一份判据；照片铺底一律按深底处理。
 //
 // 🔴 **表单用共用的 `src/components/BlockLeadForm.tsx`**（hero-new / footer-new 同一份），不另造：
-//    teaser → `variant="inline"`（露 phone + 按钮），full → `variant="stacked"`（name / phone / service）。
+//    `mode` = 旋钮 form（teaser 露站级表单的 primary + 按钮，full 整张），`formId` = 槽 form.id（#1471）。
 //    `form` 槽今天只有 `{ id? }`（选哪张站级表单，#1471 落地前不读），字段 / 按钮字 / 成功提示用组件内置默认。
 
 import Link from 'next/link';
@@ -31,6 +31,7 @@ import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig } from '@/lib/types/config';
 import Icon from '@/components/Icon';
 import BlockLeadForm from '@/components/BlockLeadForm';
+import { getServices } from '@/lib/config';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { bgCss, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
@@ -61,6 +62,11 @@ interface Props {
 const MAX_CTAS = 2;
 
 const isObj = (v: unknown): v is object => !!v && typeof v === 'object' && !Array.isArray(v);
+
+/** #1471 —— 表单「需求」下拉的选项：在 Section.tsx 里读（`page-deps.js` 只看注册表指向的这份文件，理由见 BlockLeadForm 文件头）。 */
+function servicesFor(locale: string): { id: string; name: string }[] {
+  try { return (getServices(locale) || []).map((s: { id: string; name: string }) => ({ id: s.id, name: s.name })); } catch { return []; }
+}
 
 // 这几条类名要**逐字**写在源码里：`site.css` 是按源码 purge 的（`scripts/lib/site-css.js` §PURGE_CONTENT），
 // 拼出来的类名 purge 看不见。
@@ -109,7 +115,14 @@ export default function CtaNewSection({ data, locale = 'en', block }: Props) {
 
   const action = showForm ? (
     <div className="cta-action" data-part="action">
-      <BlockLeadForm variant={k.form === 'teaser' ? 'inline' : 'stacked'} locale={locale} center={centerForm} idPrefix="cta" />
+      <BlockLeadForm
+        mode={k.form === 'teaser' ? 'teaser' : 'full'}
+        formId={isObj(d.form) && typeof d.form.id === 'string' ? d.form.id : undefined}
+        services={servicesFor(locale)}
+        locale={locale}
+        center={centerForm}
+        idPrefix="cta"
+      />
     </div>
   ) : ctas.length ? (
     <div className="cta-action" data-part="action">

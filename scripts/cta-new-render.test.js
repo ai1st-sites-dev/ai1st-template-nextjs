@@ -315,9 +315,10 @@ console.log('\n── AC12 编辑器 schema');
   const on = editorSchema({}).components.find((c) => c.type === 'cta-new');
   check(!!on, 'Puck 组件里有 cta-new（能从左栏拖进页面）');
   const order = on.fields.map((f) => f.slot);
-  // image / form 两个槽不带 editLabel ⟹ 不出侧栏字段（同 hero-new）：图在画布上换，表单露多少由 form 旋钮管。
-  check(JSON.stringify(order) === JSON.stringify(['options', 'eyebrow', 'headline', 'body', 'ctas', 'bg']),
-    `字段顺序 = 旋钮 → eyebrow → 内容 → bg（${order.join(' → ')}）`);
+  // image 槽不带 editLabel ⟹ 不出侧栏字段（同 hero-new）：图在画布上换。#1471 起 form 槽（`{id?}`）出一格「选哪张站级表单」
+  // 的下拉（露多少仍由 form 旋钮管），位置照 manifest 槽位的书写顺序。
+  check(JSON.stringify(order) === JSON.stringify(['options', 'eyebrow', 'headline', 'body', 'ctas', 'form', 'bg']),
+    `字段顺序 = 旋钮 → eyebrow → 内容 → form → bg（${order.join(' → ')}）`);
   const opt = on.fields[0];
   check(opt.control === 'options' && opt.presets.map((p) => p.name).join() === M.presets.map((p) => p.name).join()
     && opt.knobs.map((k) => k.name).join() === 'layout,frame,textAlign,image,form', '第一个字段：预设 6 个 → 旋钮 layout / frame / textAlign / image / form');

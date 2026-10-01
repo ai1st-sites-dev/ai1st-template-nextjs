@@ -76,10 +76,13 @@ import {
 import { presetClickProps, presetNameFor } from '../../../scripts/lib/block-knobs.js';
 import { normalizeBg, toneForBg, type BgValue } from '../../../scripts/lib/contrast.js';
 import BgPicker from '../BgPicker';
+import { formIdOptions } from '../../../scripts/lib/site-forms.js';
 
 export interface EditorAppProps {
   locale: string;
   page: string;
+  /** #1471 —— 这个语言的站级表单库（id + 名字），给 `form.id` 那格的下拉用。没有表单库 = 空数组（下拉只有「第一张」那一项）。 */
+  forms?: EditorFormChoice[];
   /** 文件里那一份，存盘的底。见 `scripts/lib/editor-page.js` 文件头。 */
   raw: Record<string, unknown>;
   /**
@@ -223,8 +226,12 @@ function subField(s: { sub: string; label: string; choices?: string[] }): Field 
     : ({ type: 'text', label: s.label } as Field);
 }
 
-/** manifest 的一个槽位 → 一个 Puck 字段。控件由 `kind` 决定（editor-schema.js 文件头那张表）。 */
-function puckField(f: EditorField): Field {
+/** 站级表单库里一张的摘要（编辑器只要下拉要用的两样）。 */
+export interface EditorFormChoice { id: string; name: string }
+
+/** manifest 的一个槽位 → 一个 Puck 字段。控件由 `kind` 决定（editor-schema.js 文件头那张表）。
+ *  #1471 —— `form` 槽的 `id`（选站级表单库里哪一张）画成下拉：选项 = 这个语言的表单名（`site-forms.js` §formIdOptions）。 */
+function puckField(f: EditorField, forms: EditorFormChoice[] = []): Field {
   switch (f.control) {
     case 'text':
       return { type: 'text', label: f.label };
@@ -248,7 +255,9 @@ function puckField(f: EditorField): Field {
       return {
         type: 'object',
         label: f.label,
-        objectFields: Object.fromEntries(f.subs.map((s) => [s.sub, subField(s)])),
+        objectFields: Object.fromEntries(f.subs.map((s) => [s.sub, f.slot === 'form' && s.sub === 'id'
+          ? ({ type: 'select', label: 'Form', options: formIdOptions(forms) } as Field)
+          : subField(s)])),
       } as Field;
     case 'list':
       return {
@@ -370,11 +379,11 @@ function CanvasBlock({ component, props, locale }: { component: EditorComponent;
 /** 块的形态下拉叫什么（#1454 存盘记录里「改了形态」也用这个字）。 */
 const SHAPE_FIELD_LABEL = 'Layout';
 
-export function buildConfig(schema: EditorSchema, locale: string, overHero = false, removable: (id: string) => boolean = () => true): Config {
+export function buildConfig(schema: EditorSchema, locale: string, overHero = false, removable: (id: string) => boolean = () => true, forms: EditorFormChoice[] = []): Config {
   const components: Record<string, Config['components'][string]> = {};
   for (const c of schema.components) {
     const fields: Fields = {};
-    for (const f of c.fields) fields[f.slot] = puckField(f);
+    for (const f of c.fields) fields[f.slot] = puckField(f, forms);
     // #1463 —— 带预设的块（hero-new）不再给「Layout」形态下拉：预设那一排就是它，两处各选一个会互相打架。
     //    `_shape` 这个 prop 照旧在（defaultProps / 页面 JSON 里原来那个值），存盘原样带回去。
     const hasPresets = c.fields.some((f) => f.control === 'options' && (f.presets || []).length > 0);
@@ -911,7 +920,7 @@ function SaveStatus({ status, onRetry, hideError }: { status: Status; onRetry: (
   );
 }
 
-export default function EditorApp({ locale, page, raw, baseHash, schema, initialData, overHero, trustedOrigin, siteBlocks, refs, slugs, pages }: EditorAppProps) {
+export default function EditorApp({ locale, page, raw, baseHash, schema, initialData, overHero, trustedOrigin, siteBlocks, refs, slugs, pages, forms = [] }: EditorAppProps) {
   const [status, setStatus] = useState<Status>({ kind: 'idle', text: '' });
   const statusRef = useRef(status);
   statusRef.current = status;
@@ -922,7 +931,7 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
   // #1406 —— 「在 N 个页面上」那句话读的三样（context，见 SharedInfoContext）。
   const [sharedInfo, setSharedInfo] = useState<SharedInfo>({ siteBlocks: siteBlocks || {}, refs: refs || {}, slugs: slugs || [] });
   const config = useMemo(
-    () => buildConfig(schema, locale, overHero, (id) => sharedRemovable(baseRef.current.siteBlocks, id)),
+    () => buildConfig(schema, locale, overHero, (id) => sharedRemovable(baseRef.current.siteBlocks, id), forms),
     [schema, locale, overHero],
   );
   // #1406 —— 老板在画布上拖过的块（Puck id）。按 `visibility` 注进来的共用块只有拖过的才写成这一页的 `{ref}`

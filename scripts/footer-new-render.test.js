@@ -105,6 +105,8 @@ const CTAS = ['none', 'centered', 'boxed', 'inline'];
 // 夹具：演示内容（Northside Auto Care）去掉表单部件（它在第 ③ 段单独开关）；cta 内容留着，由旋钮决定出不出。
 const base = clone(DEMO);
 delete base.form;
+// #1471 —— 露多少是旋钮 `options.form`（演示内容写着 teaser）；它也一起拿掉，否则它压过每个预设的 `form: none`、6 个都读成 custom。
+if (base.options) delete base.options.form;
 
 // ══ ① 验收 1：manifest 6 个预设 · 旋钮值与定稿表一致 · 目录 == 6 个预设名 · 6 个预设两两不同 ═══════════
 console.log('① 6 个预设：manifest · 目录 · 两两不同 · bg / brand 各改 HTML');
@@ -114,11 +116,13 @@ console.log('① 6 个预设：manifest · 目录 · 两两不同 · bg / brand 
     `manifest presets 6 条、名字与顺序逐字等于定稿表（${presets.map((p) => p.name).join(' · ')}）`);
   const wrong = TABLE.filter(([n, l, c]) => {
     const p = presets.find((x) => x.name === n);
-    return !p || p.shape !== n || p.knobs.layout !== l || p.knobs.brand !== 'left' || p.knobs.cta !== c || Object.keys(p.knobs).length !== 3;
+    return !p || p.shape !== n || p.knobs.layout !== l || p.knobs.brand !== 'left' || p.knobs.cta !== c
+      || p.knobs.form !== 'none' || Object.keys(p.knobs).length !== 4;
   });
-  check(wrong.length === 0, '每个预设的 shape = 自己的名字、三个旋钮值与定稿表一致（brand 都是 left）', `对不上：${wrong.map((r) => r[0]).join(' · ')}`);
+  check(wrong.length === 0, '每个预设的 shape = 自己的名字、四个旋钮值与定稿表一致（brand 都是 left，form 都是 none —— #1471：形态里没给表单留位置）',
+    `对不上：${wrong.map((r) => r[0]).join(' · ')}`);
   const knobs = (MANIFEST.slots.options.knobs || []).map((k) => `${k.name}=${k.values.join('|')}`);
-  check(knobs.join(' ; ') === 'layout=row|stacked|columns ; brand=left|right ; cta=none|centered|boxed|inline',
+  check(knobs.join(' ; ') === 'layout=row|stacked|columns ; brand=left|right ; cta=none|centered|boxed|inline ; form=none|teaser|full',
     `旋钮顺序 = 控件顺序：${knobs.join(' ; ')}`);
   const dirs = fs.readdirSync(path.join(NEXT, 'blocks', 'footer-new'), { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort();
   check(JSON.stringify(dirs) === JSON.stringify([...PRESET_NAMES].sort()), `blocks/footer-new/ 的目录集合 == 6 个预设名（${dirs.join(' · ')}）`);
@@ -191,15 +195,15 @@ console.log('\n② layout × cta 12 种组合');
   }
 }
 
-// ══ ③ 验收 5 / #1469 AC6：form 部件的位置 · teaser / full 各一次 · row 不出 · 空值不出 ═══════════════
+// ══ ③ 验收 5 / #1471 做什么 7：form 的位置 · 旋钮 teaser / full 各一次 · row 不出 · 旋钮 none 不出 ═════════
 console.log('\n③ form 部件');
 {
-  // 字段 id 集合（不算防机器人那个 `ftr-hp`）：teaser = 首要字段、full = 整张替身表单。
+  // 字段 id 集合（不算防机器人那个 `ftr-hp`）：teaser = 首要字段、full = 整张。这里的 config 替身没有表单库 ⟹ BlockLeadForm 的内置默认。
   const WANT = { teaser: ['ftr-phone'], full: ['ftr-name', 'ftr-phone', 'ftr-service'] };
   const VARIANT = { teaser: 'inline', full: 'stacked' };
   const fieldIds = (h) => Array.from(h.matchAll(/<(?:input|select|textarea)[^>]*\bid="(ftr-[a-z]+)"/g)).map((x) => x[1]).filter((x) => x !== 'ftr-hp').sort();
   for (const mode of ['teaser', 'full']) {
-    const d = { ...base, form: { mode } };
+    const d = withKnobs({ ...base, form: {} }, { form: mode });
     const st = render('stacked', d);
     const addr = st.indexOf(DEMO.contact.address);
     const at = st.indexOf(`data-footer-form="${mode}"`);
@@ -217,8 +221,16 @@ console.log('\n③ form 部件');
     check(!/id="hro-/.test(col) && /id="ftr-phone"/.test(col), `form ${mode}：id 用 ftr- 前缀（不跟 hero 的 hro- 撞）`);
   }
   for (const s of PRESET_NAMES) check(count(render(s, base), '<form') === 0, `${s}：form 空 ⟹ 没有 <form>`);
-  const noMode = { ...base, form: { id: 'x' } };
-  check(count(render('stacked', noMode), '<form') === 0, 'form 没有 mode ⟹ 不渲染（mode 是这个部件的开关，工具栏的 none 就是它）');
+  const none = withKnobs({ ...base, form: { id: 'x' } }, { form: 'none' });
+  const noneHtml = render('stacked', none);
+  check(count(noneHtml, '<form') === 0 && !noneHtml.includes('data-footer-form'), '旋钮 form=none ⟹ 没有 <form>、也没有 data-footer-form 属性');
+  check(count(render('stacked', withKnobs({ ...base, form: { id: 'x' } }, { form: 'teaser' })), '<form') === 1,
+    '阳性对照：同一份数据把旋钮切回 teaser ⟹ <form> 出现');
+  // #1471 AC2 —— 值只从 options.form 来：槽里残留的 #1469 旧键 `mode: full` 不被读。
+  const legacy = render('stacked', withKnobs({ ...base, form: { mode: 'full' } }, { form: 'teaser' }));
+  check(JSON.stringify(fieldIds(legacy)) === JSON.stringify(['ftr-phone']) && legacy.includes('data-footer-form="teaser"'),
+    'form: { mode: "full" } + options.form: "teaser" ⟹ 渲染的是 teaser（只有 phone）', fieldIds(legacy).join(' · '));
+  check(count(render('stacked', { ...base, form: { mode: 'full' } }), '<form') === 0, 'form: { mode: "full" } 但旋钮没写（= 预设的 none）⟹ 不渲染（不做兼容读）');
   const oldStyle = { ...base, form: { style: 'inline', fields: ['phone'], buttonText: 'x' } };
   check(count(render('stacked', oldStyle), '<form') === 0, '#1464 的旧形状（只有 style）⟹ 不渲染');
 }

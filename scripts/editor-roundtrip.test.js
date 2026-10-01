@@ -88,6 +88,8 @@ console.log('② 字段两层比');
       if (sp.kind === 'color') return 'color';
       if (slot === 'options' && Array.isArray(sp.knobs) && sp.knobs.length) return 'options';
       if (sp.editItems === true) return 'items';
+      // #1471 —— 选站级表单的槽（`form: { id? }`）：一个对象字段、子字段只有 id（编辑器画成表单下拉）。
+      if (slot === 'form' && sp.kind === 'object' && /^\{\s*id\?\s*\}$/.test(String(sp.shape || ''))) return 'formRef';
       return null;
     };
     const wantTop = [...new Set([...esp.map((e) => e.slot), ...Object.keys(slots).filter((x) => special(x))])].sort();
@@ -102,12 +104,12 @@ console.log('② 字段两层比');
       const itemSubs = f.kind === 'list'
         ? [...Object.keys((slots[f.slot] || {}).itemChoices || {}), ...Object.values((slots[f.slot] || {}).itemNeeds || {}).flat()] : [];
       const wantSub = [...new Set([...esp.filter((e) => e.slot === f.slot && e.sub !== null).map((e) => e.sub), ...choiceSubs, ...itemSubs,
-        ...(f.kind === 'link' ? ['href'] : [])])].sort();
+        ...(f.kind === 'link' ? ['href'] : []), ...(special(f.slot) === 'formRef' ? ['id'] : [])])].sort();
       const gotSub = f.subs.map((s) => s.sub).sort();
       if (JSON.stringify(wantSub) !== JSON.stringify(gotSub)) problems.push(`${m.type}.${f.slot} 子字段 ${gotSub} ≠ ${wantSub}`);
       // 控件由 kind 决定：list → array；link / object → object；绝不把对象做成 array
       const sp = special(f.slot);
-      const wantControl = sp === 'color' ? 'color' : sp === 'options' ? 'options' : sp === 'items' ? 'list'
+      const wantControl = sp === 'color' ? 'color' : sp === 'options' ? 'options' : sp === 'items' ? 'list' : sp === 'formRef' ? 'object'
         : f.subs.length === 0 ? (f.kind === 'list' ? 'strings' : 'text') : (f.kind === 'list' ? 'list' : 'object');
       if (f.control !== wantControl) problems.push(`${m.type}.${f.slot} 控件 ${f.control} ≠ ${wantControl}（kind ${f.kind}）`);
       paths += f.subs.length || 1;
@@ -359,6 +361,40 @@ console.log('⑦e 颜色槽写渐变');
   const lost = old.puckToPage({ raw: out, data: o2.data, initial: o2.initial, schema, slug: 'home' });
   check(o2.data.content.find((c) => c.type === 'hero-new').props.bg === undefined && firstDiff(out, lost) !== null,
     `阳性对照：toProp 只收字符串 ⟹ 重开读成「没填」，往返报出差异（${firstDiff(out, lost)}）`);
+}
+
+// ══ ⑦g #1471：form.id 在 Puck 里是下拉（选项 = 站级表单库的名字），选一张 ⟹ 存盘 data.form.id 就是它 ═══════════════
+console.log('⑦g form.id 下拉（站级表单库）');
+{
+  const { formIdOptions } = require('./lib/site-forms.js');
+  const { DEMO_SITE } = require('./lib/demo-content');
+  const opts = formIdOptions(DEMO_SITE.forms);
+  check(opts[0].value === '' && opts.slice(1).map((o) => o.value).join(',') === 'quote,contact'
+    && opts.slice(1).map((o) => o.label).join(' | ') === DEMO_SITE.forms.map((x) => x.name).join(' | '),
+    `下拉选项 = 「第一张」+ 每张表单的名字（${opts.map((o) => `${o.label}=${o.value || '∅'}`).join(' · ')}）`);
+  check(formIdOptions([]).length === 1, '没有表单库 ⟹ 下拉只有「第一张」那一项');
+  // EditorApp 把 form 槽的 id 子字段接到这份选项上（源码里那一处）。
+  const app = fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'editor', 'EditorApp.tsx'), 'utf8');
+  check(/f\.slot === 'form' && s\.sub === 'id'[\s\S]{0,80}type: 'select'[\s\S]{0,40}formIdOptions\(forms\)/.test(app),
+    'EditorApp：form 槽的 id 画成 select、选项来自 formIdOptions(forms)（🔴 弱判据：只证源码接上了）');
+  for (const type of ['hero-new', 'footer-new', 'contact-new', 'cta-new']) {
+    const c = compOf(type);
+    if (!c) { if (type === 'footer-new') continue; bad(`${type} 不在组件清单里`); continue; }
+    const fld = c.fields.find((x) => x.slot === 'form');
+    check(!!fld && fld.control === 'object' && fld.subs.map((x) => x.sub).join(',') === 'id', `${type}：form 槽是对象字段、子字段只有 id`,
+      fld ? `${fld.control} / ${fld.subs.map((x) => x.sub).join(',')}` : '没有');
+  }
+  const raw = fixturePage(false);
+  const { initial, data } = openPage(raw);
+  const item = data.content.find((c) => c.type === 'cta-new');
+  item.props.form = { ...(item.props.form || {}), id: opts[2].value };
+  const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
+  const blk = out.blocks.find((b) => b.type === 'cta-new');
+  check(blk.data.form && blk.data.form.id === 'contact', `选「${opts[2].label}」再存 ⟹ cta-new 的 data.form.id = ${JSON.stringify(blk.data.form)}`);
+  const changed = out.blocks.filter((b, i) => JSON.stringify(b) !== JSON.stringify(raw.blocks[i])).map((b) => b.type);
+  check(JSON.stringify(changed) === JSON.stringify(['cta-new']), '只有 cta-new 那一块变了', changed.join(' '));
+  const re = openPage(out);
+  check(re.data.content.find((c) => c.type === 'cta-new').props.form.id === 'contact', '重开：下拉里读回 contact');
 }
 
 // ══ ⑦f #1483：pricing-new 在 Puck 里 —— 能拖、能改 plans、点预设 / 拧旋钮显示 Custom、点 Rainbow 颜色跟着变 ═══════
