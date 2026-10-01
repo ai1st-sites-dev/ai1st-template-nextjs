@@ -1258,7 +1258,7 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
             const missing = [];
             v.forEach((it, i) => {
               const got = String(req).split('.').reduce((o, k) => (o && typeof o === 'object' ? o[k] : undefined), it);
-              if (!(typeof got === 'string' ? got.trim() : got !== undefined && got !== null)) missing.push(i);
+              if (!(typeof got === 'string' && got.trim())) missing.push(i);
             });
             if (missing.length) flag(`${where}: "${slot}" 第 ${missing.map((i) => i + 1).join(' / ')} 项没有 ${req}（每一项都要有）`);
           }

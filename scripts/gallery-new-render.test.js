@@ -351,6 +351,14 @@ console.log('\n── AC8 validateSite（items 条数 · 每项要有 image.imag
   check(noImg.length === 1 && noImg[0].includes('items'), `某项没有 image.imageUrl ⟹ 报一条（${JSON.stringify(noImg)}）`);
   const emptyUrl = v({ items: [item(0), { image: { imageUrl: '', alt: 'x' } }] });
   check(emptyUrl.length === 1, `image.imageUrl 是空串 ⟹ 也报一条（${JSON.stringify(emptyUrl)}）`);
+  // #1512 —— 「有值」只认非空白字符串：非字符串（数字 / 布尔 / 对象 / 数组）以前一律放行，渲染端 str() 再把它滤掉 ⟹ 图静默消失。
+  //    逐型各一格；正常 URL 串那一格是反向对照（防「谓词改成恒报一条」也读绿）。
+  for (const [label, bad] of [['123', 123], ['true', true], ['{}', {}], ['[]', []], ['null', null], ['undefined', undefined], ["'  '", '  ']]) {
+    const r = v({ items: [item(0), { image: { imageUrl: bad, alt: 'x' } }] });
+    check(r.length === 1 && r[0].includes('"items" 第 2 项没有 image.imageUrl'), `image.imageUrl 是 ${label} ⟹ 报一条、点名该路径`, JSON.stringify(r));
+  }
+  const goodUrl = v({ items: [item(0), { image: { imageUrl: 'https://example.com/ok.jpg', alt: 'x' } }] });
+  check(goodUrl.length === 0, `反向对照：image.imageUrl 是正常 URL 串 ⟹ 0 条`, JSON.stringify(goodUrl));
   check(JSON.stringify(M.slots.items.itemRequires) === '["image.imageUrl"]' && M.slots.items.minItems === 2 && M.slots.items.maxItems === 24,
     'items 的三条都是槽级声明：minItems 2 · maxItems 24 · itemRequires ["image.imageUrl"]');
   // itemRequires 写坏 ⟹ 载清单时当场拒（在一份临时 blocks/ 里只放 gallery-new）。

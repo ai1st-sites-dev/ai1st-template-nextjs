@@ -236,6 +236,17 @@ console.log('\n── AC9 validateSite');
   }
   const blank = [logo(1), logo(2), { imageUrl: 'https://example.com/x.svg', alt: '  ' }];
   check(v({ items: blank }).length === 1, 'alt 只有空白 ⟹ 也算缺');
+  // #1512 —— 「有值」只认非空白字符串：非字符串以前一律放行（渲染端再滤掉 ⟹ logo 静默消失）。两条路径各跑同一组，
+  //    正常串那一格是反向对照（防「谓词改成恒报一条」也读绿）。
+  for (const key of ['imageUrl', 'alt']) {
+    for (const [label, bad] of [['123', 123], ['true', true], ['{}', {}], ['[]', []], ['null', null], ['undefined', undefined], ["'  '", '  ']]) {
+      const items = [logo(1), logo(2), { ...logo(3), [key]: bad }];
+      const r = v({ items });
+      check(r.length === 1 && r[0].includes(`"items" 第 3 项没有 ${key}`), `${key} 是 ${label} ⟹ 报一条、点名该路径`, JSON.stringify(r));
+    }
+    const good = v({ items: [logo(1), logo(2), { ...logo(3), [key]: key === 'imageUrl' ? 'https://example.com/ok.svg' : 'OK Brand' }] });
+    check(good.length === 0, `反向对照：${key} 是正常串 ⟹ 0 条`, JSON.stringify(good));
+  }
   const withHref = [logo(1), logo(2), { ...logo(3), href: 'https://example.com' }];
   check(v({ items: withHref }).length === 0, 'href 是可选的：写了放行');
   check(M.slots.items.minItems === 3 && M.slots.items.maxItems === 12 && M.slots.items.max === undefined
