@@ -790,6 +790,67 @@ const DEMO_CONTENT = {
     ],
   },
 
+  // #1487 —— team-new：Northside Auto Care 的六个人，每人带照片（演示内容已有的 avatar-1…6，不外链新图）、简介、链接，
+  //    外加一张招聘卡 `join`。正文做什么 9 写的是 4 位成员；守卫 (c) 要列表槽 ≥ 6 条、长短不一，所以给了六位（同 milestones）。
+  //    链接的字段叫 `icon`（`icons.js` §iconNamesIn 只收这个键名）。
+  //    🔴 `introEyebrow.style` 写明 pill，理由同上面 features-new 那条（词表 `none` 排第一，工具栏不写就亮 none）。
+  'team-new': {
+    options: {},
+    introEyebrow: { text: 'Our team', style: 'pill' },
+    headline: 'The people who work on your car',
+    body: 'Licensed, local and the same small crew every visit, so you always know who is looking after your car.',
+    members: [
+      {
+        name: 'Marcus Oyelaran',
+        role: 'Owner · Licensed technician',
+        photo: { imageUrl: imageUrl('avatar-1'), alt: 'Marcus Oyelaran' },
+        bio: 'Bought the shop from his old boss in 1998 and still takes the hard diagnostic jobs himself.',
+        links: [{ icon: 'linkedin', href: 'https://www.linkedin.com/' }, { icon: 'envelope', href: 'mailto:marcus@northsideauto.example' }],
+      },
+      {
+        name: 'Dana Krol',
+        role: 'Shop foreman',
+        photo: { imageUrl: imageUrl('avatar-2'), alt: 'Dana Krol' },
+        bio: 'Drivetrain and transmissions.',
+        links: [{ icon: 'linkedin', href: 'https://www.linkedin.com/' }],
+      },
+      {
+        name: 'Yusuf Rahimi',
+        role: 'Diagnostic technician',
+        photo: { imageUrl: imageUrl('avatar-3'), alt: 'Yusuf Rahimi' },
+        bio: 'Factory-trained on German makes; the one who finds the intermittent electrical faults nobody else can reproduce.',
+        links: [{ icon: 'envelope', href: 'mailto:yusuf@northsideauto.example' }],
+      },
+      {
+        name: 'Eleni Papas',
+        role: 'Service advisor',
+        photo: { imageUrl: imageUrl('avatar-4'), alt: 'Eleni Papas' },
+        bio: 'Writes the estimates you can read and texts you when the car is ready.',
+        links: [{ icon: 'telephone', href: 'tel:+14165550142' }, { icon: 'envelope', href: 'mailto:eleni@northsideauto.example' }],
+      },
+      {
+        name: 'Ray Bhatti',
+        role: 'Tire and alignment',
+        photo: { imageUrl: imageUrl('avatar-5'), alt: 'Ray Bhatti' },
+        bio: 'Road-force balancing.',
+        links: [{ icon: 'instagram', href: 'https://www.instagram.com/' }],
+      },
+      {
+        name: 'Nina Sorensen',
+        role: 'Apprentice technician',
+        photo: { imageUrl: imageUrl('avatar-6'), alt: 'Nina Sorensen' },
+        bio: 'Third-year apprentice, Centennial College, on the hoists Tuesday through Saturday.',
+        links: [{ icon: 'linkedin', href: 'https://www.linkedin.com/' }],
+      },
+    ],
+    join: {
+      title: 'Join our crew',
+      body: 'We are hiring licensed technicians and apprentices. Steady hours, paid training and a shop that fixes things properly.',
+      cta: { label: 'See open roles', href: '/contact', style: 'outline' },
+    },
+    bg: null,
+  },
+
   'pricing-table': {
     headline: 'What the regular jobs cost',
     subheadline: 'Parts and labour, before tax. A written estimate always beats this table.',

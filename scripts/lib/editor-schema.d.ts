@@ -17,9 +17,11 @@ export interface EditorField {
   /** options：旋钮（顺序 = 控件顺序）、布尔修饰、预设 */
   knobs?: { name: string; values: string[] }[];
   booleans?: string[];
-  presets?: { name: string; shape: string; knobs: Record<string, string>; colors?: Record<string, unknown> }[];
+  presets?: { name: string; shape: string; knobs: Record<string, string>; colors?: Record<string, unknown>; parts?: string[] }[];
   /** #1483 —— 归预设管的颜色槽（有预设在 `colors` 里写了的那几个）；没有带颜色预设的块是 []。 */
   colorSlots?: string[];
+  /** #1487 —— 归预设管的部件的占位内容（槽的 `demo`）；没有带部件预设的块是 {}。 */
+  partDemos?: Record<string, unknown>;
 }
 export interface EditorComponent {
   type: string;

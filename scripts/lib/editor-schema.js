@@ -34,7 +34,7 @@
 const path = require('path');
 const { blockShapeCatalog } = require('./block-catalog');
 const { editableSlotPaths, defaultShapeOf } = require('./block-manifest');
-const { knobsOf, presetsOf, booleanOptionsOf, presetColorSlotsOf } = require('./block-knobs');
+const { knobsOf, presetsOf, booleanOptionsOf, presetColorSlotsOf, presetPartDemosOf } = require('./block-knobs');
 const { shapeForBlock } = require('./block-shape');
 const siteRegions = require('./site-regions');
 const pageLayoutLib = require('./page-layout');
@@ -85,8 +85,13 @@ function fieldsOf(manifest) {
         booleans: booleanOptionsOf(manifest),
         // #1483 —— 预设带的颜色（Rainbow）+ 归预设管的颜色槽：点预设时编辑器按 block-knobs.js §presetColors 同一条规则
         //    设上 / 恢复这几个颜色字段。没有带颜色预设的块 `colorSlots` 是 []，侧栏的行为一字不变。
-        presets: presetsOf(manifest).map((p) => ({ name: p.name, shape: p.shape, knobs: { ...p.knobs }, ...(p.colors ? { colors: JSON.parse(JSON.stringify(p.colors)) } : {}) })),
+        // #1487 —— 预设带的部件（team-new 的 Hiring）+ 那些部件的占位内容：点预设时部件为空就拿 `partDemos` 填上
+        //    （block-knobs.js §presetClickProps）。没有带部件预设的块 `partDemos` 是 {}。
+        presets: presetsOf(manifest).map((p) => ({ name: p.name, shape: p.shape, knobs: { ...p.knobs },
+          ...(p.colors ? { colors: JSON.parse(JSON.stringify(p.colors)) } : {}),
+          ...(Array.isArray(p.parts) ? { parts: p.parts.slice() } : {}) })),
         colorSlots: presetColorSlotsOf(manifest),
+        partDemos: presetPartDemosOf(manifest),
       });
       continue;
     }

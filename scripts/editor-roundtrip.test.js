@@ -405,6 +405,45 @@ console.log('⑦f pricing-new 预设带颜色');
   check(JSON.stringify(blind.bg) === JSON.stringify(RB), '阳性对照：没有 colorSlots ⟹ 点 Plan cards 渐变还留着（上面那格的「清掉」是 colorSlots 带来的）');
 }
 
+// ══ ⑦g #1487：team-new 在 Puck 里 —— 能拖、能改 members、点预设 / 拧旋钮显示 Custom、点 Hiring 招聘卡出现 ═══════
+console.log('⑦g team-new 预设带部件');
+{
+  const { presetClickProps, presetNameFor } = require('./lib/block-knobs.js');
+  const comp = compOf('team-new');
+  check(!!comp, 'team-new 在组件清单里（左栏能拖）');
+  const opt = comp.fields.find((f) => f.control === 'options');
+  const man = { slots: { options: { knobs: opt.knobs } }, presets: opt.presets };
+  const nameOf = (props) => presetNameFor(man, { ...(props.options || {}), join: props.join });
+  const raw = fixturePage(false);
+  const tb = raw.blocks.find((b) => b.type === 'team-new');
+  check(!!tb, '夹具页里有 team-new');
+  // 从一块没有招聘卡的 team-new 开始（join 空）。
+  delete tb.data.join;
+  tb.data.options = { ...opt.presets.find((p) => p.name === 'Cards').knobs };
+  const { initial, data } = openPage(raw);
+  const item = data.content.find((c) => c.type === 'team-new');
+  check(!!item && Array.isArray(item.props.members) && item.props.members.length > 0, `打开之后 members 是列表字段（${item && item.props.members && item.props.members.length} 项）`);
+  check(nameOf(item.props) === 'Cards', `打开时侧栏亮 Cards（${nameOf(item.props)}）`);
+  check(nameOf({ ...item.props, options: { ...item.props.options, memberStyle: 'plain' } }) === 'custom', '拧 memberStyle ⟹ Custom');
+  item.props = presetClickProps(opt, item.props, 'Hiring');
+  check(JSON.stringify(item.props.join) === JSON.stringify(opt.partDemos.join) && nameOf(item.props) === 'Hiring',
+    `点 Hiring ⟹ join 用占位内容填上、侧栏亮 Hiring（${nameOf(item.props)}）`);
+  item.props.members[0].name = 'Renamed member';
+  const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
+  const blk = out.blocks.find((b) => b.type === 'team-new');
+  check(blk.data.join && blk.data.join.title === opt.partDemos.join.title && blk.data.options.membersColumns === '3' && blk.data.members[0].name === 'Renamed member',
+    '存盘 ⟹ data.join 是占位招聘卡、options 是 Hiring 的旋钮、members[0].name 改了');
+  const changed = out.blocks.filter((b, i) => JSON.stringify(b) !== JSON.stringify(raw.blocks[i])).map((b) => b.type);
+  check(JSON.stringify(changed) === JSON.stringify(['team-new']), '只有 team-new 那一块变了', changed.join(' '));
+  // 再点 Cards ⟹ Cards 亮、join 还在；清空 join ⟹ 不再是 Hiring。
+  const cards = presetClickProps(opt, item.props, 'Cards');
+  check(nameOf(cards) === 'Cards' && cards.join && cards.join.title === opt.partDemos.join.title, '再点 Cards ⟹ Cards 亮、招聘卡内容还在');
+  check(nameOf({ ...item.props, join: undefined }) === 'custom', '把 join 清空 ⟹ Hiring 不亮（Custom）');
+  // 阳性对照：字段里没有 partDemos（= 编辑器不知道拿什么填）⟹ 点 Hiring 招聘卡不出现、侧栏也不亮 Hiring。
+  const blind = presetClickProps({ ...opt, partDemos: {} }, { ...item.props, join: undefined }, 'Hiring');
+  check(blind.join === undefined && nameOf(blind) === 'custom', '阳性对照：没有 partDemos ⟹ 点 Hiring 招聘卡不出现（上面那格的「填上」是 partDemos 带来的）');
+}
+
 // ══ ⑦b 按钮链接（#1404 r3）：7 个 link 槽位都有 Link 框；改了才写、不改逐字节不变 ═══════════════════
 //    （#1404 时是 6 个；#1496 的 logos-new.introCta 是第 7 个 —— 名单本身从 manifest 现算，这个数只钉「没有静默多 / 少」。）
 console.log('⑦b 按钮链接');

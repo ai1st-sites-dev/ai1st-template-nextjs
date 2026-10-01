@@ -1020,7 +1020,7 @@ from a block you are editing. A page must have exactly one of the two arrays; a 
 fails the build. When you add a block to a \`blocks\` page, give it an \`id\` unique within that page and a
 \`weight\` that puts it where you want it (blocks are ordered by \`weight\`, smaller first).
 
-Available section types: hero, hero-new, hero-with-form, trusted-brands, logos-new, features-grid, features-new, milestones, card-group, testimonials, testimonials-new, cta-banner, cta-new, contact-info, contact-new, text-block, page-header, services-nav, services-list, quote-form, contact-form, faq-accordion, process-steps, team-grid, pricing-table, pricing-new, gallery, content-split, social-proof, announcement-bar, newsletter-signup, map-area, blog-preview, service-related-pages
+Available section types: hero, hero-new, hero-with-form, trusted-brands, logos-new, features-grid, features-new, milestones, card-group, testimonials, testimonials-new, cta-banner, cta-new, contact-info, contact-new, text-block, page-header, services-nav, services-list, quote-form, contact-form, faq-accordion, process-steps, team-grid, team-new, pricing-table, pricing-new, gallery, content-split, social-proof, announcement-bar, newsletter-signup, map-area, blog-preview, service-related-pages
 
 Blocks with presets usually have no example on the site to copy, so here is their exact data shape — use only
 these keys (write_file refuses unknown ones):
@@ -1058,6 +1058,8 @@ other type does not show a picture, and putting an image field on one has no eff
   \`data.items[].image.imageUrl\` (one per item; needs \`options.itemImage\`)
 - a **milestones** block → \`data.blockImage.imageUrl\` (one picture beside the whole block with \`options.blockImage: "left"\` /
   \`"right"\`, or behind it with \`"background"\`) · \`data.introImage.imageUrl\` (next to the block head; needs \`options.introImage\`)
+- a **team-new** block → \`data.members[].photo.imageUrl\` (one per team member; optional — only a photo the owner
+  gave you of that person, never a stock or made-up face; a member without \`photo\` simply has no picture)
 - a **pricing-new** block → \`data.proof.avatars[].imageUrl\` / \`data.logos.items[].imageUrl\` (the optional review line and
   logo row under its block head)
 - a **testimonials-new** block → \`data.items[].photo.imageUrl\` (the reviewer's photo; without one the block shows their initials)

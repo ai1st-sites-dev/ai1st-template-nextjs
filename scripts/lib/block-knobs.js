@@ -22,6 +22,12 @@ const { isColorValue, normalizeBg } = require('./contrast');
 //                            点一个预设（§presetColors）：写了颜色的设上，没写的把归预设管的颜色槽恢复成空。
 //                            没有预设写 `colors` 的块（hero / cta / features / milestones）一个字都不受影响。
 //
+//   · 预设的 `parts`（#1487，Chris 2026-09-29 为 team 的 Hiring 要的：这个预设的意思就是「带招聘卡」）：`["join"]`，可选，
+//                            名字必须在顶层 `parts` 里、那个槽要有 `demo`。跟 `colors` 同一个声明族：
+//                            判「是哪个预设」时写了 `parts` 的预设要那些部件**也有内容**（§partFilled）才亮，而且跟带颜色的预设
+//                            一起**先**判；点它（§presetPartFills）时部件是空的就用槽的 `demo` 填上，已有内容不动；
+//                            点别的预设**不删**部件内容（部件是内容，点预设只改排法 —— 跟颜色不同，颜色会被恢复成空）。
+//
 // 旋钮值只存一处：页面 JSON 的 `data.options.<旋钮名>`（PM r3 定：`image.mode` / `form.style` 那两份副本作废）。
 // 颜色值也只存一处：`data.<颜色槽名>`（不在 options 里）。判预设时调用方把它们按槽名并进 `values`。
 //
@@ -80,6 +86,50 @@ function colorsOfPreset(p) {
   return p && p.colors && typeof p.colors === 'object' && !Array.isArray(p.colors) ? p.colors : {};
 }
 
+/** 这个预设要的部件（没写 = 空数组）。 */
+function partsOfPreset(p) {
+  return p && Array.isArray(p.parts) ? p.parts.filter((x) => typeof x === 'string' && x) : [];
+}
+
+/**
+ * 一个部件「有内容」吗（#1487）：字符串非空；数组非空；对象里至少一个顶层字符串字段非空（`join` = title 或 body 有字，
+ * 跟 team-new 的 Section 画不画招聘卡同一条判据 —— 只剩一个按钮的招聘卡不画，也就不算有）。
+ */
+function partFilled(v) {
+  if (typeof v === 'string') return v.trim() !== '';
+  if (Array.isArray(v)) return v.length > 0;
+  if (v && typeof v === 'object') return Object.values(v).some((x) => typeof x === 'string' && x.trim() !== '');
+  return false;
+}
+
+/** 有预设在 `parts` 里写了的部件，按顶层 `parts` 的顺序（#1487）。 */
+function presetPartsOf(manifest) {
+  const written = new Set();
+  for (const p of presetsOf(manifest)) for (const x of partsOfPreset(p)) written.add(x);
+  const top = Array.isArray(manifest && manifest.parts) ? manifest.parts : [];
+  return top.filter((x) => written.has(x));
+}
+
+/** 归预设管的部件各自的占位内容（槽的 `demo`，深拷贝）：`{ join: {...} }`；没有带部件的预设 ⟹ {}。 */
+function presetPartDemosOf(manifest) {
+  const slots = (manifest && manifest.slots) || {};
+  const out = {};
+  for (const x of presetPartsOf(manifest)) {
+    if (slots[x] && slots[x].demo !== undefined) out[x] = JSON.parse(JSON.stringify(slots[x].demo));
+  }
+  return out;
+}
+
+/**
+ * 点了预设 `name` 之后要补上的部件（#1487 规则 2）：`{ <部件>: <demo> }`，只含这个预设写了的部件。调用方只在那个部件
+ * **没有内容**（§partFilled）时用它填；已有内容不动。别的预设 / 名字对不上 ⟹ {}（规则 3：点别的预设不删部件）。
+ */
+function presetPartFills(manifest, name) {
+  const p = presetsOf(manifest).find((x) => x && x.name === name);
+  const demos = presetPartDemosOf(manifest);
+  return Object.fromEntries(partsOfPreset(p).filter((x) => x in demos).map((x) => [x, demos[x]]));
+}
+
 /**
  * 点了预设 `name` 之后，归预设管的颜色槽各该是什么（#1483 规则 2）：预设写了的 → 那个值（归一化后）；
  * 没写的 → null（= 恢复成空，调用方删掉这个键）。块里没有任何预设写 `colors` ⟹ 空对象（什么都不动）。
@@ -110,6 +160,11 @@ function presetClickProps(field, props, name) {
   const man = { slots: Object.fromEntries(colorSlots.map((s) => [s, { kind: 'color' }])), presets };
   for (const [slot, v] of Object.entries(presetColors(man, name))) {
     if (v === null) delete out[slot]; else out[slot] = v;
+  }
+  // #1487 —— 这个预设要的部件：空的用 `partDemos`（editor-schema.js 带下去的槽 `demo`）填上；已有内容 / 别的预设都不动。
+  const demos = (field && field.partDemos) || {};
+  for (const x of partsOfPreset(p)) {
+    if (!partFilled(out[x]) && demos[x] !== undefined) out[x] = JSON.parse(JSON.stringify(demos[x]));
   }
   return out;
 }
@@ -151,6 +206,8 @@ function effectivePresetBooleans(manifest, shape, options) {
  * 布尔（没写 = false）；别的布尔在不在都不影响。
  * #1483 —— `values` 还可以带颜色槽的值（键 = 槽名，同 `data` 顶层）：写了 `colors` 的预设要它写的每个颜色都对上，
  * 而且先判；没写 `colors` 的预设不看颜色。调用方不带颜色 ⟹ 带颜色的预设永远对不上（回落到同排法的那个）。
+ * #1487 —— 同一条路：`values` 还可以带部件的内容（键 = 部件名，同 `data` 顶层）：写了 `parts` 的预设要那些部件都有内容
+ * （§partFilled），跟带颜色的一起先判；调用方不带部件 ⟹ 带部件的预设永远对不上。
  */
 function presetFor(manifest, values) {
   const knobs = knobsOf(manifest);
@@ -159,10 +216,11 @@ function presetFor(manifest, values) {
   const layoutMatches = (p) => knobs.every((k) => p.knobs[k.name] === v[k.name])
     && bools.every((b) => (p.options || {})[b] === (v[b] === true));
   const presets = presetsOf(manifest).filter((p) => p && p.knobs);
-  const colored = presets.filter((p) => Object.keys(colorsOfPreset(p)).length);
+  const colored = presets.filter((p) => Object.keys(colorsOfPreset(p)).length || partsOfPreset(p).length);
   for (const p of colored) {
     const c = colorsOfPreset(p);
-    if (layoutMatches(p) && Object.keys(c).every((s) => colorKey(c[s]) !== '' && colorKey(c[s]) === colorKey(v[s]))) return p;
+    if (layoutMatches(p) && Object.keys(c).every((s) => colorKey(c[s]) !== '' && colorKey(c[s]) === colorKey(v[s]))
+      && partsOfPreset(p).every((x) => partFilled(v[x]))) return p;
   }
   for (const p of presets) {
     if (!colored.includes(p) && layoutMatches(p)) return p;
@@ -185,6 +243,7 @@ function presetNameFor(manifest, values) {
  *     有预设写了某个布尔，每个预设都要写
  *   · 两个预设的组合（旋钮 + 归预设管的布尔 + 颜色，#1483）不许一样（一样的话点哪个都显示成先声明的那个）
  *   · 预设的 `colors`（#1483）：键必须是本块 `kind: color` 的槽、值要过 `contrast.js` §isColorValue
+ *   · 预设的 `parts`（#1487）：字符串数组；每个名字必须在顶层 `parts` 里，那个槽要有 `demo`（点预设时拿它填空的部件）
  */
 function knobDeclarationProblems(manifest) {
   const out = [];
@@ -239,9 +298,18 @@ function knobDeclarationProblems(manifest) {
       if (!colorSlots.includes(key)) out.push(`预设 "${p.name}" 的 colors 写了 "${key}" —— 它不是这个块 kind: color 的槽（${colorSlots.join(' / ') || '一个都没有'}）`);
       else if (!isColorValue(v)) out.push(`预设 "${p.name}" 的 colors.${key} 是 ${JSON.stringify(v)} —— 不是合法的颜色值（#rrggbb / brand / {stops, angle}）`);
     }
+    if (p.parts !== undefined && (!Array.isArray(p.parts) || p.parts.some((x) => typeof x !== 'string' || !x))) out.push(`预设 "${p.name}" 的 parts 不是一个字符串数组`);
+    const pParts = partsOfPreset(p);
+    const topParts = Array.isArray(manifest && manifest.parts) ? manifest.parts : [];
+    const slotSpecs = (manifest && manifest.slots) || {};
+    for (const x of pParts) {
+      if (!topParts.includes(x)) out.push(`预设 "${p.name}" 的 parts 写了 "${x}" —— 它不在这个块顶层的 parts 里（${topParts.join(' / ') || '一个都没有'}）`);
+      else if (!slotSpecs[x] || !partFilled(slotSpecs[x].demo)) out.push(`预设 "${p.name}" 的 parts 写了 "${x}"，但 slots.${x} 没有 demo —— 点这个预设时拿它填空的部件`);
+    }
     const combo = knobs.map((k) => (p.knobs || {})[k.name]).concat(bools.map((b) => String(pOpts[b])))
-      .concat(Object.keys(pColors).sort().map((key) => `${key}=${colorKey(pColors[key])}`)).join('|');
-    if (combos.has(combo)) out.push(`预设 "${p.name}" 跟 "${combos.get(combo)}" 的组合（旋钮${bools.length ? ' + ' + bools.join(' / ') : ''}${Object.keys(pColors).length ? ' + 颜色' : ''}）一模一样`);
+      .concat(Object.keys(pColors).sort().map((key) => `${key}=${colorKey(pColors[key])}`))
+      .concat(pParts.slice().sort().map((x) => `part=${x}`)).join('|');
+    if (combos.has(combo)) out.push(`预设 "${p.name}" 跟 "${combos.get(combo)}" 的组合（旋钮${bools.length ? ' + ' + bools.join(' / ') : ''}${Object.keys(pColors).length ? ' + 颜色' : ''}${pParts.length ? ' + 部件' : ''}）一模一样`);
     else combos.set(combo, p.name);
   }
   return out;
@@ -250,4 +318,5 @@ function knobDeclarationProblems(manifest) {
 module.exports = {
   knobsOf, presetsOf, booleanOptionsOf, presetBooleansOf, effectiveKnobs, effectivePresetBooleans, presetFor, presetNameFor,
   knobDeclarationProblems, colorSlotsOf, presetColorSlotsOf, presetColors, presetClickProps,
+  partFilled, presetPartsOf, presetPartDemosOf, presetPartFills,
 };

@@ -33,6 +33,7 @@ import ServicesListSection from '@blocks/services-list/Section';
 import ServicesNavSection from '@blocks/services-nav/Section';
 import SocialProofSection from '@blocks/social-proof/Section';
 import TeamGridSection from '@blocks/team-grid/Section';
+import TeamNewSection from '@blocks/team-new/Section';
 import TestimonialsSection from '@blocks/testimonials/Section';
 import TestimonialsNewSection from '@blocks/testimonials-new/Section';
 import TextBlockSection from '@blocks/text-block/Section';
@@ -70,6 +71,7 @@ export const sectionRegistry: Record<string, ComponentType<any>> = {
   'services-nav': ServicesNavSection,
   'social-proof': SocialProofSection,
   'team-grid': TeamGridSection,
+  'team-new': TeamNewSection,
   'testimonials': TestimonialsSection,
   'testimonials-new': TestimonialsNewSection,
   'text-block': TextBlockSection,

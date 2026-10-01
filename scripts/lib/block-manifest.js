@@ -113,6 +113,7 @@ function filledOptionalSlots(m, data) {
  *     写入闸那一侧（`image-urls.js` 的 `IMAGE_FIELDS`）不受影响 —— 老板上传的 `photo.imageUrl` 照样认得出。
  *     `logos-new.items`（#1496）同样声明了它：装的是生意自己的商标（安装的品牌 / 认证 / 评价平台），槽名叫 `items`，
  *     上面按槽名那条认不出，塞图库照片进去就是假商标。
+ *     team-new 的 `members[].photo`（#1487）同样写这条声明：那是这家店员工的脸，生成的图冒充的是真人。
  *   · `kind: "object"` —— hero 的 `socialProof` 的 shape 里**也有** `imageUrl`
  *     （`{avatars: [{imageUrl}], rating, text}`），但那是顾客头像不是内容图。这一条不是可省的
  *     小心眼：去掉它，每个站的 hero 就会多生成一批冒充真人的头像。

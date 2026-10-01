@@ -151,10 +151,13 @@ function OptionsField({ f, value, onChange, readOnly }: { f: EditorField; value:
   //    按 block-knobs.js §presetClickProps 算出整块的新 props，一次 `replace` 写回。没有带颜色预设的块（colorSlots 空）
   //    走原来的 onChange，一个字节不变。
   const colorSlots = f.colorSlots || [];
-  const selected = usePuck((s) => (colorSlots.length ? s.selectedItem : null));
+  // #1487 —— 带部件的预设（team-new 的 Hiring）同一条路：判预设要看这一块的部件字段有没有内容，点它要把空的部件用
+  //    `partDemos` 填上 ⟹ 同样要读出选中的那一块、整块 `replace`。没有带部件预设的块（partDemos 空）不受影响。
+  const partSlots = Object.keys(f.partDemos || {});
+  const selected = usePuck((s) => (colorSlots.length || partSlots.length ? s.selectedItem : null));
   const dispatch = usePuck((s) => s.dispatch);
   const selectorFor = usePuck((s) => s.getSelectorForId);
-  const colorsNow = selected ? Object.fromEntries(colorSlots.map((c) => [c, (selected.props as Record<string, unknown>)[c]])) : {};
+  const colorsNow = selected ? Object.fromEntries(colorSlots.concat(partSlots).map((c) => [c, (selected.props as Record<string, unknown>)[c]])) : {};
   const name = presetNameFor({ slots: { options: { knobs } }, presets: f.presets || [] }, { ...current, ...colorsNow });
   const pick = (p: NonNullable<EditorField['presets']>[number]) => {
     const sel = selected ? selectorFor(String((selected.props as Record<string, unknown>).id)) : undefined;

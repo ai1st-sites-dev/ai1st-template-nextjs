@@ -15,7 +15,8 @@ import BgPicker from '@/components/BgPicker';
 export interface KnobBarProps {
   knobs: { name: string; values: string[] }[];
   /** #1483 —— `colors`：点这个预设时各颜色槽该是什么（null = 清掉；空对象 = 不碰，没有带颜色预设的块全是空对象）。 */
-  presets: { name: string; shape: string; knobs: Record<string, string>; colors: Record<string, BgValue | null> }[];
+  /** #1487 —— `parts`：这个预设要的部件（Hiring 的 join）；点它时没开的就打开，已开的不动。别的预设是 []（点它们不关部件）。 */
+  presets: { name: string; shape: string; knobs: Record<string, string>; colors: Record<string, BgValue | null>; parts: string[] }[];
   booleans: string[];
   /** #1483 —— 每个颜色槽一格（顺序 = manifest 声明顺序），地址参数名 = 槽名。 */
   colors: { slot: string; swatches: string[] }[];
@@ -57,6 +58,11 @@ export default function KnobBar({ knobs, presets, booleans, colors, parts, choic
   const pickPreset = (p: KnobBarProps['presets'][number]) => go((q) => {
     for (const [k, v] of Object.entries(p.knobs)) q.set(k, v);
     for (const [slot, v] of Object.entries(p.colors || {})) { if (v === null) q.delete(slot); else q.set(slot, colorParam(v)); }
+    const missing = (p.parts || []).filter((x) => !current.parts.includes(x));
+    if (missing.length) {
+      const s = new Set([...current.parts, ...missing]);
+      if (s.size === parts.length) q.delete('parts'); else q.set('parts', Array.from(s).join(','));
+    }
   });
   const toggleBool = (b: string, on: boolean) => go((q) => {
     const s = new Set((q.get('opt') || '').split(',').filter(Boolean));

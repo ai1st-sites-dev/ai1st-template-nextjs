@@ -174,14 +174,18 @@ function knobOverrides(m: ManifestForKnobs, shape: string, data: Record<string, 
   return {
     knobs: knobs.map((k) => ({ name: k.name, values: k.values })),
     // #1483 —— `colors` = 点这个预设时颜色槽各该是什么（block-knobs.js §presetColors：设上 / null = 清掉 / 空对象 = 不碰）。
-    presets: (presetsOf(m) as Preset[]).map((p) => ({ name: p.name, shape: p.shape, knobs: p.knobs, colors: presetColors(m, p.name) })),
+    // #1487 —— `parts` = 这个预设要的部件（Hiring 的 join）：点它时把它们加回 `?parts=`（演示内容里本来就有，加回 = 用占位内容填上）。
+    presets: (presetsOf(m) as Preset[]).map((p) => ({ name: p.name, shape: p.shape, knobs: p.knobs, colors: presetColors(m, p.name),
+      parts: ((p as { parts?: unknown }).parts instanceof Array ? ((p as { parts?: unknown }).parts as unknown[]) : [])
+        .filter((x): x is string => typeof x === 'string' && parts.includes(x)) })),
     booleans,
     colors: colorSlots.map((c) => ({ slot: c, swatches: slots[c].swatches || [] })),
     parts,
     choices,
     current: {
       knobs: eff,
-      preset: presetNameFor(m, { ...eff, ...colorsNow }),
+      // #1487 —— 部件的内容也并进去：写了 `parts` 的预设（Hiring）要那个部件还在才亮。
+      preset: presetNameFor(m, { ...eff, ...colorsNow, ...Object.fromEntries(parts.map((p) => [p, data[p]])) }),
       booleans: Object.fromEntries(booleans.map((b) => [b, opts[b] === true])),
       colors: colorsNow,
       parts: keep,
