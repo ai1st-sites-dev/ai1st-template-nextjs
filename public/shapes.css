@@ -9247,7 +9247,8 @@
    🔴 Webpixels 的工具类全带 !important（gap-* / justify-content-* / text-muted / bg-primary-subtle …）。这里要压过它们的规则
       **也带 !important**，而且选择器从 [data-block="testimonials-new"] 起步再加属性 / 类 —— 特异度一定高过工具类的一个类。
    🔴 部件的有无靠渲染（Section.tsx 有数据才画；圆点 / 按钮只在 carousel 时画），不靠 CSS 藏。
-   🔴 轮播不藏任何一条：六条都在 DOM 里、都是 display 可见，只是横向排着、轨道一次露几条（overflow-x: auto）。
+   🔴 轮播（#1494 起是 Bootstrap Carousel）：每条评价都在服务端 HTML 里；不是当前那张的 slide 由 Bootstrap 自己的
+      `.carousel-item` 规则收起（它的 display 切换），这里不另写藏 / 显的规则。
    间距照 Webpixels 尺度：段 py-16 py-lg-24、块头与评价之间 2.5rem（gy-10）/ ≥992 横向 4rem（gx-lg-16）、
    条与条 1.5rem（plain 网格行 3rem 列 2.5rem）、card 内 2rem（= p-8）。 */
 
@@ -9355,54 +9356,74 @@
   margin-left: auto;
 }
 
-/* carousel：横向滚动 + scroll-snap（每条 snap 到轨道左边）；滚动条隐藏；一屏 itemsColumns 条。
-   padding-bottom 2px：card 的下描边不被 overflow 裁掉。 */
-[data-block="testimonials-new"][data-items-layout="carousel"] .tn-grid {
-  display: flex;
+/* carousel = Bootstrap Carousel（#1494）：一张 slide（.carousel-item）放 itemsColumns 条，服务端分好组；slide 里是 .tn-slide 网格 ——
+   <768 竖着叠、768–991 最多两列、≥992 按列数。轨道 / 切换 / 动画是 Bootstrap 自己的 .carousel 规则（site.css）。
+   以前那条手写轨道（横向滚动 + 自己算位置）已删。 */
+[data-block="testimonials-new"] .tn-slide {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.5rem;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  scroll-behavior: smooth;
-  scrollbar-width: none;
-  padding-bottom: 2px;
-}
-[data-block="testimonials-new"][data-items-layout="carousel"] .tn-grid::-webkit-scrollbar {
-  display: none;
-}
-[data-block="testimonials-new"][data-items-layout="carousel"] .tn-item {
-  flex: 0 0 100%;
-  scroll-snap-align: start;
-  min-width: 0;
+  padding-bottom: 2px; /* card 的下描边不被 .carousel-inner 的 overflow 裁掉 */
 }
 @media (min-width: 768px) {
-  [data-block="testimonials-new"][data-items-layout="carousel"][data-items-columns="2"] .tn-item,
-  [data-block="testimonials-new"][data-items-layout="carousel"][data-items-columns="3"] .tn-item {
-    flex-basis: calc((100% - 1.5rem) / 2);
+  [data-block="testimonials-new"][data-items-columns="2"] .tn-slide,
+  [data-block="testimonials-new"][data-items-columns="3"] .tn-slide {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (min-width: 992px) {
-  [data-block="testimonials-new"][data-items-layout="carousel"][data-items-columns="3"] .tn-item {
-    flex-basis: calc((100% - 3rem) / 3);
+  [data-block="testimonials-new"][data-items-columns="3"] .tn-slide {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
-[data-block="testimonials-new"] .tn-grid:focus-visible {
+[data-block="testimonials-new"][data-item-style="plain"] .tn-slide {
+  column-gap: 2.5rem;
+}
+/* `.slide` 是 Bootstrap 的 JS 用来判「切换时要不要动画」的开关，它自己在 CSS 里没有规则；轮播外壳本来就是定位上下文。 */
+[data-block="testimonials-new"] .tn-carousel.slide {
+  position: relative;
+}
+/* 每一条（grid 的格子 / slide 里的格子）：网格子项能收窄，长词不把一列撑宽。 */
+[data-block="testimonials-new"] .tn-item {
+  min-width: 0;
+}
+[data-block="testimonials-new"] .tn-carousel:focus-visible {
   outline: 2px solid var(--x-primary);
   outline-offset: 4px;
 }
 
-/* 圆点（每条一个，当前那个拉长）+ 前 / 后按钮。一屏一条且 itemAlign=center 时两者居中叠在引言下面。 */
-[data-block="testimonials-new"] .tn-dot {
+/* 圆点 = Bootstrap 的 .carousel-indicators（每张 slide 一个），从压在图上的那条拉回下面左边、换成图册的小圆点，
+   当前那个拉长成主色短条；前 / 后按钮在右边。一屏一条且 itemAlign=center 时两者居中叠在引言下面。
+   🔴 `.carousel-indicators` 自带 position:absolute / margin / 半透明的细条，这里逐条压回去（特异度从 [data-block] 起步，高过它）。 */
+[data-block="testimonials-new"] .tn-dots {
+  position: static;
+  margin: 0;
+  padding: 0;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-width: 0;
+}
+[data-block="testimonials-new"] .tn-dots [data-bs-target] {
+  box-sizing: border-box;
+  flex: 0 0 auto;
   width: 0.5rem;
   height: 0.5rem;
   border-radius: 999px;
   border: 0;
+  margin: 0;
   padding: 0;
   background: #cbd5e1;
+  opacity: 1;
+  text-indent: 0;
   transition: width 0.2s;
 }
-[data-block="testimonials-new"] .tn-dot.on {
+[data-block="testimonials-new"] .tn-dots .active {
   width: 1.5rem;
   background: var(--x-primary);
+}
+[data-block="testimonials-new"] .tn-arrows {
+  flex-shrink: 0;
 }
 [data-block="testimonials-new"] .tn-arrow {
   width: 2.5rem;
@@ -9431,6 +9452,9 @@
 [data-block="testimonials-new"][data-item-align="center"][data-items-columns="1"] .tn-pager {
   justify-content: center !important;
   flex-direction: column;
+}
+[data-block="testimonials-new"][data-item-align="center"][data-items-columns="1"] .tn-dots {
+  justify-content: center;
 }
 
 /* ═══ 每一条：引言 → 人 → 星级 + 来源（贴底）════════════════════════════════════════════════════ */
@@ -9555,12 +9579,12 @@
   border-color: rgba(255, 255, 255, 0.35);
   color: #fff;
 }
-[data-block="testimonials-new"][data-tone="dark"] .tn-dot,
-[data-block="testimonials-new"][data-tone="brand"] .tn-dot {
+[data-block="testimonials-new"][data-tone="dark"] .tn-dots [data-bs-target],
+[data-block="testimonials-new"][data-tone="brand"] .tn-dots [data-bs-target] {
   background: rgba(255, 255, 255, 0.35);
 }
-[data-block="testimonials-new"][data-tone="dark"] .tn-dot.on,
-[data-block="testimonials-new"][data-tone="brand"] .tn-dot.on {
+[data-block="testimonials-new"][data-tone="dark"] .tn-dots .active,
+[data-block="testimonials-new"][data-tone="brand"] .tn-dots .active {
   background: #fff;
 }
 [data-block="testimonials-new"][data-tone="dark"] .tn-eyebrow-pill,

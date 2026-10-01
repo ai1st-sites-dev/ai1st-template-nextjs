@@ -6,7 +6,7 @@
  * 退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
  *
  * 管哪几条：AC1（4 个预设逐字、旋钮名 / 值逐字、parts、目录集合、两两不同、旋钮独立）· AC3 的 DOM 一半（6 条引言全在
- * 服务端 HTML 里、没有一条 display:none、Pager 源码里没有定时器）· AC4（grid 没有圆点 / 按钮）· AC6 的 DOM 顺序 ·
+ * 服务端 HTML 里；#1494 起轮播是 Bootstrap Carousel：slide 分组、圆点、data 属性、按需 import、不自动播放）· AC4（grid 没有圆点 / 按钮）· AC6 的 DOM 顺序 ·
  * AC7（槽位空不渲染、首字母圆、星级）· AC8（bg + 不自己算亮度）· AC9（validateSite）· AC10（block-roles · 首页配方池）·
  * AC12 的编辑器 schema 一半 · AC13（旧 testimonials 零改动）· 图标表（星 / 箭头真画成 <svg>）。
  * 几何（16 种组合三端无横向滚动、轮播滚动 / 圆点、一列 48rem、星级对齐一线、计算色）要浏览器：
@@ -30,7 +30,7 @@ const NEXT = path.resolve(__dirname, '..');
 const SRC = path.join(NEXT, 'src');
 const BLOCK = path.join(NEXT, 'blocks', 'testimonials-new');
 const SECTION = path.join(BLOCK, 'Section.tsx');
-const PAGER = path.join(BLOCK, 'Pager.tsx');
+const CAROUSEL = path.join(BLOCK, 'Carousel.tsx');
 
 let pass = 0;
 let fail = 0;
@@ -83,7 +83,7 @@ const attr = (html, name) => { const m = new RegExp(`\\s${name}="([^"]*)"`).exec
 const itemsOf = (html) => html.split('data-part="item"').slice(1);
 const CSS = fs.readFileSync(path.join(BLOCK, 'block.css'), 'utf-8');
 const SRC_TEXT = fs.readFileSync(SECTION, 'utf-8');
-const PAGER_TEXT = fs.readFileSync(PAGER, 'utf-8');
+const CAROUSEL_TEXT = fs.readFileSync(CAROUSEL, 'utf-8');
 const KNOB_NAMES = ['introPosition', 'introAlign', 'itemsLayout', 'itemsColumns', 'itemStyle', 'quoteSize', 'itemAlign'];
 const dataAttr = (n) => `data-${n.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`;
 
@@ -138,20 +138,54 @@ console.log('\n── AC3 / AC4 轮播与网格');
   const grid = render('cards', clone(DEMO));
   check(count(car, '<blockquote') === DEMO.items.length && DEMO.items.length === 6, `carousel：服务端 HTML 里 <blockquote> ${count(car, '<blockquote')} 个 == 夹具 6 条`);
   check(count(car, '<figure') === 6 && count(car, '<figcaption') === 6, '每条是 <figure> + <blockquote> + <figcaption>');
-  check(!/display:\s*none/.test(car) && !/\shidden[\s>=]/.test(car), '没有任何一条被 display:none / hidden（藏的只是「横着排、一次露几条」）');
-  check(count(car, 'data-part="pager"') === 1 && count(car, 'data-dot=') === 6 && count(car, 'aria-label="Previous"') === 1 && count(car, 'aria-label="Next"') === 1,
-    `carousel：一个 pager、6 个圆点（每条一个）、前 / 后两个按钮（圆点 ${count(car, 'data-dot=')}）`);
-  check(/aria-label="Review 1"/.test(car) && /aria-label="Review 6"/.test(car) && count(car, 'class="tn-dot on"') === 1 && car.indexOf('class="tn-dot on"') < car.indexOf('data-dot="1"'),
-    '圆点 aria-label = Review N；初始亮的是第 1 个（且只有一个）');
-  check(count(car, '<div class="tn-grid" data-part="track" tabindex="0" aria-label="Customer reviews">') === 1,
-    '轨道 tabindex="0" + aria-label（键盘可滚）');
-  check(count(grid, 'data-part="pager"') === 0 && count(grid, 'data-dot=') === 0 && count(grid, 'tn-arrow') === 0 && count(grid, '<blockquote') === 6,
-    'grid：没有圆点 / 按钮节点，6 条全部摊开');
-  check(!/tabindex/.test(grid), 'grid：轨道不可聚焦（不滚，就不占 Tab 顺序）');
-  check(!/set(Timeout|Interval)|requestAnimationFrame|autoplay/i.test(PAGER_TEXT.replace(/^\s*\/\/.*$/gm, '')), 'Pager.tsx 里没有定时器（不自动播放）');
-  check(/^'use client';/.test(PAGER_TEXT) && !/^'use client'/.test(SRC_TEXT), '只有 Pager.tsx 是客户端组件，Section.tsx 不是');
-  check(/scroll-snap-type: x mandatory;/.test(CSS) && /scroll-snap-align: start;/.test(CSS) && /overflow-x: auto;/.test(CSS) && /scrollbar-width: none;/.test(CSS),
-    'block.css：原生 overflow-x auto + scroll-snap（每条 snap start）+ 滚动条隐藏 —— 真滚动在 e2e 里量');
+  // 收起非当前 slide 的只能是 Bootstrap 自己的 `.carousel-item { display: none }` 规则；服务端 HTML 里不许藏任何一条。
+  check(!/display:\s*none/.test(car) && !/\shidden[\s>=]/.test(car), 'carousel：服务端 HTML 里没有行内 display:none、没有 hidden 属性（6 条全在、一条都没在服务端藏起来）');
+  // #1494 AC1：一张 slide 放 itemsColumns 条，服务端分好组；圆点每张 slide 一个。
+  const slidesOf = (html) => html.split('data-part="slide"').slice(1).map((x) => count(x.split('data-part="pager"')[0].split('data-part="slide"')[0], 'data-part="item"'));
+  const dotsOf = (html) => count(html, 'data-bs-slide-to=');
+  const at = (cols) => render('side-intro', withOpts({ itemsColumns: cols }));
+  check(JSON.stringify(slidesOf(car)) === '[2,2,2]' && dotsOf(car) === 3 && count(car, 'class="carousel-item') === 3,
+    `itemsColumns=2 + 6 条 ⟹ 3 张 .carousel-item、每张 2 条、圆点 3 个（${JSON.stringify(slidesOf(car))} · 圆点 ${dotsOf(car)}）`);
+  check(JSON.stringify(slidesOf(at('1'))) === '[1,1,1,1,1,1]' && dotsOf(at('1')) === 6, `itemsColumns=1 ⟹ 6 张（${JSON.stringify(slidesOf(at('1')))}）`);
+  check(JSON.stringify(slidesOf(at('3'))) === '[3,3]' && dotsOf(at('3')) === 2, `itemsColumns=3 ⟹ 2 张（${JSON.stringify(slidesOf(at('3')))}）`);
+  const five = { ...withOpts({ itemsColumns: '2' }), items: clone(DEMO.items).slice(0, 5) };
+  check(JSON.stringify(slidesOf(render('side-intro', five))) === '[2,2,1]', '对照：5 条 / 2 列 ⟹ 最后一张 1 条（分组是真按列数切的）');
+  check(count(car, 'class="carousel-item active"') === 1 && car.indexOf('class="carousel-item active"') < car.indexOf('class="carousel-item"'),
+    '只有第一张 slide 带 active');
+  check(/<div id="tn-carousel-t" class="carousel slide tn-carousel" data-part="carousel" data-bs-ride="false" data-bs-interval="false" data-bs-touch="true" data-bs-keyboard="true" tabindex="0" aria-label="Customer reviews"/.test(car),
+    '.carousel 根：id 由 block.id 拼、data-bs-ride/interval="false"（不自动播放）、touch、keyboard、tabindex="0"（键盘可切）');
+  const code = (t) => t.replace(/^\s*\/\/.*$/gm, '');
+  check(!/data-bs-ride="carousel"/.test(car) && !/data-bs-ride="carousel"/.test(code(SRC_TEXT + '\n' + CAROUSEL_TEXT)), '没有 data-bs-ride="carousel"（那是自动初始化 + 自动播放的开关）');
+  const ind = /<div class="carousel-indicators tn-dots">([\s\S]*?)<\/div>/.exec(car);
+  check(!!ind && count(ind[1], 'data-bs-target="#tn-carousel-t"') === 3 && count(ind[1], 'class="active" aria-current="true" aria-label="Slide 1"') === 1 && /aria-label="Slide 3"/.test(ind[1]),
+    '圆点 = .carousel-indicators 里每张 slide 一个按钮，data-bs-target 指着本轮播；第 1 个 active + aria-current');
+  check(/data-bs-target="#tn-carousel-t" data-bs-slide="prev" aria-label="Previous"/.test(car) && /data-bs-target="#tn-carousel-t" data-bs-slide="next" aria-label="Next"/.test(car),
+    '前 / 后按钮 = 带 data-bs-target + data-bs-slide="prev|next" 的普通按钮（不用 .carousel-control-*）');
+  check(!/carousel-control-/.test(car), '没有 .carousel-control-*（压在图上的全高按钮）');
+  check(car.indexOf('carousel-indicators') > car.indexOf('class="carousel slide') && car.indexOf('data-bs-slide="next"') < car.indexOf('</section>')
+    && car.lastIndexOf('data-part="carousel"') < car.indexOf('carousel-indicators'), '圆点和按钮都在 .carousel 元素里面（Bootstrap 只更新它自己里面的 indicators）');
+  const noId = renderToStaticMarkup(React.createElement(C, { data: clone(DEMO), locale: 'en', iconTable: TABLE, block: { type: 'testimonials-new', shape: 'side-intro', data: {} } }));
+  check(/<div id="tn-carousel" class="carousel/.test(noId) && /data-bs-target="#tn-carousel"/.test(noId), '老站的块没有 id ⟹ 用 tn-carousel（重名时 Carousel.tsx 挂载后换一个）');
+  check(count(grid, 'data-part="pager"') === 0 && count(grid, 'data-bs-') === 0 && count(grid, 'tn-arrow') === 0 && count(grid, 'carousel') === 0 && count(grid, '<blockquote') === 6,
+    'grid：没有轮播、圆点、按钮节点，6 条全部摊开');
+  check(!/tabindex/.test(grid), 'grid：不可聚焦（不切换，就不占 Tab 顺序）');
+  // JS 按需：Section.tsx 里一个 bootstrap 都不引；Carousel.tsx 只在 effect 里动态 import 那一个模块。
+  check(!/bootstrap/.test(code(SRC_TEXT)), 'Section.tsx 里没有引 bootstrap（静态 import 会进每一页的路由 chunk）');
+  check(/import\('bootstrap\/js\/dist\/carousel'\)/.test(code(CAROUSEL_TEXT)) && !/^\s*import [^(]*bootstrap/m.test(code(CAROUSEL_TEXT)) && !/bootstrap\.bundle/.test(code(CAROUSEL_TEXT)),
+    "Carousel.tsx：只 import('bootstrap/js/dist/carousel')（动态、只这一个模块），没有静态 import、没有整份 bundle —— 网络请求的两臂在 e2e 里量");
+  check(/getOrCreateInstance\(el\)/.test(CAROUSEL_TEXT) && !/set(Timeout|Interval)|requestAnimationFrame|\.cycle\(/.test(code(CAROUSEL_TEXT)), 'Carousel.tsx：getOrCreateInstance、没有定时器 / cycle（不自动播放）');
+  check(/^'use client';/.test(CAROUSEL_TEXT) && !/^'use client'/.test(SRC_TEXT), '只有 Carousel.tsx 是客户端组件，Section.tsx 不是');
+  check(!fs.existsSync(path.join(BLOCK, 'Pager.tsx')), 'Pager.tsx（手写的圆点 / 前后逻辑）已删');
+  // Bootstrap 滑动中途才挂的四个类：purge 按源码字面词留规则，它们必须逐字出现在 blocks/**/*.tsx 里。
+  check(['carousel-item-next', 'carousel-item-prev', 'carousel-item-start', 'carousel-item-end'].every((c) => CAROUSEL_TEXT.includes(c)),
+    'Carousel.tsx 里逐字写着 carousel-item-next / -prev / -start / -end（site.css purge 才会留下它们的规则）');
+  check(/\.tn-slide \{\s*display: grid;/.test(CSS) && /\[data-items-columns="3"\] \.tn-slide \{\s*grid-template-columns: repeat\(3/.test(CSS), 'block.css：.tn-slide 网格（<768 一列、768–991 两列、≥992 按列数）');
+  check(/\.tn-dots \{\s*position: static;/.test(CSS) && /\.tn-dots \.active \{\s*width: 1\.5rem;\s*background: var\(--x-primary\);/.test(CSS), 'block.css：indicators 拉回下面、当前那个拉长成主色短条');
+  // 反向对照：把 Section 的分组改成「一张 slide 放全部」⟹ 上面那格会红。
+  const C2 = loadSection(SRC_TEXT.replace('const perSlide = Math.max(1, Number(k.itemsColumns) || 1);', 'const perSlide = 99;'));
+  const one = renderToStaticMarkup(React.createElement(C2, { data: clone(DEMO), locale: 'en', iconTable: TABLE, block: { id: 't', type: 'testimonials-new', shape: 'side-intro', data: {} } }));
+  loadSection();
+  check(JSON.stringify(slidesOf(one)) === '[6]', `反向对照：不按列数分组 ⟹ 读到 ${JSON.stringify(slidesOf(one))}（上面那格分得开）`);
 }
 
 // ══ AC5（规则一半）：一列照 faq ═════════════════════════════════════════════════════════════════════

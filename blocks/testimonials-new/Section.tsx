@@ -7,9 +7,11 @@
 //    `data.options` 里写了的逐个覆盖（`scripts/lib/block-knobs.js` §effectiveKnobs —— 编辑器判 custom 用的是同一个函数）。
 //    旋钮值写在根元素上（`data-intro-position` … `data-item-align` / `data-tone`），`block.css` 按它们排；形态目录自己不带几何。
 //
-// 🔴 **轮播也是服务端渲染**：六条评价全在 HTML 里（每条 `<figure>` + `<blockquote>` + `<figcaption>`），轮播只是
-//    `block.css` 把它们横着排、`overflow-x: auto` + scroll-snap 一次露几条 —— 搜索和 AI 读得到每一条，没有一条是
-//    `display: none`。圆点和前后按钮是唯一的客户端部分（`Pager.tsx`），只在 `itemsLayout=carousel` 时渲染；不自动播放。
+// 🔴 **轮播是 Bootstrap Carousel，也是服务端渲染**（#1494，Chris 2026-09-30：轮播 / 弹窗一律用 Bootstrap 自带的，不手写）：
+//    服务端按 `itemsColumns` 把评价分组，一组一张 `.carousel-item`（里面一个 `.tn-slide` 网格）；每张 slide、每条评价
+//    （`<figure>` + `<blockquote>` + `<figcaption>`）、圆点（`.carousel-indicators`，每张 slide 一个）、前 / 后按钮全在 HTML 里，
+//    搜索和 AI 读得到每一条。唯一的客户端部分是外壳 `Carousel.tsx`：挂载后按需引 Carousel 模块。不自动播放。
+//    以前那条手写轨道（横向滚动 + 自己算位置的圆点）已删。
 //
 // 🔴 **藏东西一律是不渲染**：`summary` 没写总评分 ⟹ 没有那一行；某条没 `photo` ⟹ 画名字首字母圆、没有 `<img>`；
 //    某条没 `rating` ⟹ 没有星级节点（来源照常）；块头只看 `headline` / `body`，两个都空 ⟹ 块头那一列整个不渲染。
@@ -28,7 +30,7 @@ import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import manifest from './manifest.json';
-import Pager from './Pager';
+import TestimonialsCarousel from './Carousel';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { bgCss, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
 
@@ -120,6 +122,42 @@ export default function TestimonialsNewSection({ data, block, iconTable = {} }: 
   const summary = isObj(d.summary) && summaryRating(d.summary.rating) ? d.summary : null;
   const hasIntro = !!(str(d.headline) || str(d.body));
   const items = (Array.isArray(d.items) ? d.items : []).filter((it): it is TestimonialsNewItem => isObj(it) && !!str(it.quote)).slice(0, MAX_ITEMS);
+  // carousel：一张 slide 放 itemsColumns 条（服务端分好组；<768 时 block.css 让一张里的条目竖着叠）。
+  const perSlide = Math.max(1, Number(k.itemsColumns) || 1);
+  const slides = carousel ? Array.from({ length: Math.ceil(items.length / perSlide) }, (_, s) => items.slice(s * perSlide, (s + 1) * perSlide)) : [];
+  const carId = `tn-carousel${block && typeof block.id === 'string' && block.id ? `-${block.id.replace(/[^A-Za-z0-9_-]/g, '')}` : ''}`;
+  const renderItem = (it: TestimonialsNewItem, i: number) => {
+    const photo = imgOf(it.photo);
+    const name = str(it.name);
+    const rating = itemRating(it.rating);
+    const source = str(it.source);
+    return (
+      <div key={i} className="tn-item" data-part="item">
+        <figure className="tn-inner h-100 d-flex flex-column m-0">
+          <blockquote className="tn-quote m-0"><span data-slot={`items.${i}.quote`}>{it.quote}</span></blockquote>
+          <figcaption className="tn-author d-flex align-items-center gap-3">
+            {photo ? (
+              <img className="tn-avatar" data-part="photo" src={photo.imageUrl} alt={photo.alt || ''} />
+            ) : name ? (
+              <span className="tn-avatar tn-initials d-inline-flex align-items-center justify-content-center fw-semibold bg-primary-subtle text-primary" data-part="initials" aria-hidden="true">
+                {initialsOf(name)}
+              </span>
+            ) : null}
+            <span className="d-block min-w-0">
+              {name ? <span className="d-block fw-semibold text-sm tn-name" data-slot={`items.${i}.name`}>{name}</span> : null}
+              {it.role ? <span className="d-block text-xs text-muted tn-role" data-slot={`items.${i}.role`}>{it.role}</span> : null}
+            </span>
+          </figcaption>
+          {rating || source ? (
+            <div className="tn-meta d-flex align-items-center gap-3" data-part="meta">
+              {rating ? stars(rating) : null}
+              {source ? <span className="tn-source text-xs text-muted" data-slot={`items.${i}.source`}>{source}</span> : null}
+            </div>
+          ) : null}
+        </figure>
+      </div>
+    );
+  };
 
   return (
     <section
@@ -169,45 +207,42 @@ export default function TestimonialsNewSection({ data, block, iconTable = {} }: 
             </div>
           ) : null}
           <div className="col-12 tn-itemscol" data-part="items">
-            <div
-              className="tn-grid"
-              data-part="track"
-              {...(carousel ? { tabIndex: 0, 'aria-label': 'Customer reviews' } : {})}
-            >
-              {items.map((it, i) => {
-                const photo = imgOf(it.photo);
-                const name = str(it.name);
-                const rating = itemRating(it.rating);
-                const source = str(it.source);
-                return (
-                  <div key={i} className="tn-item" data-part="item">
-                    <figure className="tn-inner h-100 d-flex flex-column m-0">
-                      <blockquote className="tn-quote m-0"><span data-slot={`items.${i}.quote`}>{it.quote}</span></blockquote>
-                      <figcaption className="tn-author d-flex align-items-center gap-3">
-                        {photo ? (
-                          <img className="tn-avatar" data-part="photo" src={photo.imageUrl} alt={photo.alt || ''} />
-                        ) : name ? (
-                          <span className="tn-avatar tn-initials d-inline-flex align-items-center justify-content-center fw-semibold bg-primary-subtle text-primary" data-part="initials" aria-hidden="true">
-                            {initialsOf(name)}
-                          </span>
-                        ) : null}
-                        <span className="d-block min-w-0">
-                          {name ? <span className="d-block fw-semibold text-sm tn-name" data-slot={`items.${i}.name`}>{name}</span> : null}
-                          {it.role ? <span className="d-block text-xs text-muted tn-role" data-slot={`items.${i}.role`}>{it.role}</span> : null}
-                        </span>
-                      </figcaption>
-                      {rating || source ? (
-                        <div className="tn-meta d-flex align-items-center gap-3" data-part="meta">
-                          {rating ? stars(rating) : null}
-                          {source ? <span className="tn-source text-xs text-muted" data-slot={`items.${i}.source`}>{source}</span> : null}
-                        </div>
-                      ) : null}
-                    </figure>
+            {carousel ? (
+              slides.length ? (
+                <TestimonialsCarousel id={carId} label="Customer reviews">
+                  <div className="carousel-inner">
+                    {slides.map((g, si) => (
+                      <div key={si} className={si === 0 ? 'carousel-item active' : 'carousel-item'} data-part="slide">
+                        <div className="tn-slide">{g.map((it) => renderItem(it, items.indexOf(it)))}</div>
+                      </div>
+                    ))}
                   </div>
-                );
-              })}
-            </div>
-            {carousel && items.length ? <Pager count={items.length} prevIcon={icon('chevron-left')} nextIcon={icon('chevron-right')} /> : null}
+                  <div className="tn-pager d-flex align-items-center justify-content-between gap-4 mt-8" data-part="pager">
+                    <div className="carousel-indicators tn-dots">
+                      {slides.map((_, si) => (
+                        <button
+                          key={si}
+                          type="button"
+                          data-bs-target={`#${carId}`}
+                          data-bs-slide-to={si}
+                          className={si === 0 ? 'active' : undefined}
+                          aria-current={si === 0 ? 'true' : undefined}
+                          aria-label={`Slide ${si + 1}`}
+                        />
+                      ))}
+                    </div>
+                    <div className="tn-arrows d-flex gap-2">
+                      <button type="button" className="tn-arrow" data-bs-target={`#${carId}`} data-bs-slide="prev" aria-label="Previous">{icon('chevron-left')}</button>
+                      <button type="button" className="tn-arrow" data-bs-target={`#${carId}`} data-bs-slide="next" aria-label="Next">{icon('chevron-right')}</button>
+                    </div>
+                  </div>
+                </TestimonialsCarousel>
+              ) : null
+            ) : (
+              <div className="tn-grid" data-part="track">
+                {items.map((it, i) => renderItem(it, i))}
+              </div>
+            )}
           </div>
         </div>
       </div>
