@@ -178,8 +178,20 @@
   min-height: 0;
   margin-top: 1.5rem;
 }
+[data-block="contact-new"] .ct-map-bottom {
+  height: 20rem;
+}
+/* 占位卡和 iframe 撑满那个盒子（#1513）：它们的 h-100 只在盒子有确定高度时才算得出来，
+   而独占侧列的那一格只有 min-height 是写死的 ⟹ 把下限也传给它们，点开前后不会矮一截。 */
+[data-block="contact-new"] .ct-map-card,
+[data-block="contact-new"] .ct-map-frame {
+  min-height: inherit;
+}
 [data-block="contact-new"] .ct-map-address {
   max-width: 24rem;
+}
+[data-block="contact-new"] .ct-map-open {
+  white-space: nowrap;
 }
 [data-block="contact-new"] .ct-pin svg {
   width: 2rem;
@@ -221,6 +233,11 @@
 }
 [data-block="contact-new"]:not([data-tone="light"]) .ct-eyebrow-outline {
   border-color: rgba(255, 255, 255, 0.7) !important;
+  color: #fff !important;
+}
+/* dash / plain 在深底上反白（同 hero-new / cta-new / features-new / testimonials-new 那一条，#1513 补齐 #1507 漏的这一半）。 */
+[data-block="contact-new"]:not([data-tone="light"]) .ct-eyebrow-dash,
+[data-block="contact-new"]:not([data-tone="light"]) .ct-eyebrow-plain {
   color: #fff !important;
 }
 [data-block="contact-new"]:not([data-tone="light"])[data-form-style="card"] .ct-form {
