@@ -9,6 +9,7 @@
   "cta-banner": "optional",
   "cta-new": "optional",
   "faq-accordion": "essential",
+  "faq-new": "essential",
   "features-grid": "optional",
   "features-new": "essential",
   "footer": "essential",

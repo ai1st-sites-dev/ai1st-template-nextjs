@@ -85,6 +85,9 @@ const NOT_IN_POOL = {
   // #1495（总纲 #1422，Chris 2026-09-29 定的「新块进池、旧块同时出池」）—— gallery-new 进了池子，旧 gallery 还留着的话
   //    配方可能同一页同时抽到这两块。一进一出 ⟹ 池子种数不变。
   gallery: '由 gallery-new 接替：同一页只放一个；T3 删掉它',
+  // #1484（总纲 #1422，Chris 2026-09-29 同一条规则）—— faq-new 进池、faq-accordion 同时出池：两个都在池里时配方会硬要求
+  //    同一页同时放两个 FAQ 块（改前 index 0–199 里 21 个）。
+  'faq-accordion': '由 faq-new 接替：同一页只放一个；T3 删掉它',
   'newsletter-signup': '同上，属于页面末尾',
   'service-related-pages': 'blocks/service-related-pages/manifest.json 自己写着 "Use ONLY on service detail pages"',
 };

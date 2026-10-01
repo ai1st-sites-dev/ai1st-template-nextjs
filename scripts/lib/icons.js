@@ -83,6 +83,8 @@ const BLOCK_ICONS = {
   'pricing-new': ['check'],
   // #1488 —— 星级（每条 n 颗实心 + 空心补到 5 颗；总评分按 0.5 取整会用到半星）和轮播的前 / 后箭头，都是组件里写死的名字。
   'testimonials-new': ['star-fill', 'star-half', 'star', 'chevron-left', 'chevron-right'],
+  // #1484 —— 问答的开合图标（itemToggle：chevron = chevron-down；plus = plus + dash，展开时换着显示）+ help 卡按钮的箭头。
+  'faq-new': ['chevron-down', 'plus', 'dash', 'arrow-right'],
 };
 
 /**

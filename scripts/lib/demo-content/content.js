@@ -694,6 +694,47 @@ const DEMO_CONTENT = {
   },
 
   // ── 数据 / 清单 ─────────────────────────────────────────────────────────────────────────────
+  // #1484 —— faq-new：Northside Auto Care 的 6 条问答（长短不一 —— 守卫 (c) 要最长 ≥ 最短的 2 倍）+ help 卡。
+  //    🔴 `introEyebrow.style` 必须写（同 features-new 那条注释：词表 none 排第一，单格页工具栏取 values[0]）。
+  'faq-new': {
+    options: {},
+    introEyebrow: { text: 'FAQ', style: 'pill' },
+    headline: 'Questions we get at the counter',
+    body: 'Straight answers about pricing, timing and warranty. Still not sure? Call us — a real person picks up.',
+    help: {
+      headline: 'Still have a question?',
+      body: 'Talk to a licensed technician, not a call centre. Free advice, no obligation.',
+      cta: { label: 'Call (416) 555-0142', href: 'tel:+14165550142', style: 'solid' },
+    },
+    items: [
+      {
+        question: 'Do you charge for estimates?',
+        answer: 'No. You get a written quote before any work starts, and nothing happens until you approve it. '
+          + 'Diagnostic time is one hour, credited back if you go ahead with the repair here.',
+      },
+      {
+        question: 'Do I need an appointment?',
+        answer: 'Not for oil changes or tire swaps — walk in. Book ahead for anything diagnostic.',
+      },
+      {
+        question: 'How long does a brake job take?',
+        answer: 'Two to three hours for a standard front or rear axle.',
+      },
+      {
+        question: 'Is the work guaranteed?',
+        answer: 'Parts and labour are guaranteed for two years on every repair, at any of our partner shops across Ontario.',
+      },
+      {
+        question: 'Which cars do you work on?',
+        answer: 'Every make, domestic and import, including hybrids. We do not service commercial trucks over one tonne.',
+      },
+      {
+        question: 'Can I wait while you work?',
+        answer: 'Yes — there is a waiting room with Wi-Fi and coffee. For longer jobs we offer a free ride within Northside.',
+      },
+    ],
+    bg: null,
+  },
   'faq-accordion': {
     headline: 'Questions we get at the counter',
     subheadline: 'If yours is not here, call and ask — we answer the phone.',

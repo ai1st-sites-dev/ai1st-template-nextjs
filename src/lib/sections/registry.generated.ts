@@ -13,6 +13,7 @@ import ContentSplitSection from '@blocks/content-split/Section';
 import CtaBannerSection from '@blocks/cta-banner/Section';
 import CtaNewSection from '@blocks/cta-new/Section';
 import FaqAccordionSection from '@blocks/faq-accordion/Section';
+import FaqNewSection from '@blocks/faq-new/Section';
 import FeaturesGridSection from '@blocks/features-grid/Section';
 import FeaturesNewSection from '@blocks/features-new/Section';
 import GallerySection from '@blocks/gallery/Section';
@@ -52,6 +53,7 @@ export const sectionRegistry: Record<string, ComponentType<any>> = {
   'cta-banner': CtaBannerSection,
   'cta-new': CtaNewSection,
   'faq-accordion': FaqAccordionSection,
+  'faq-new': FaqNewSection,
   'features-grid': FeaturesGridSection,
   'features-new': FeaturesNewSection,
   'gallery': GallerySection,

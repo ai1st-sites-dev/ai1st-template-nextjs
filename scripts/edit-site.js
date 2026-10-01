@@ -1039,7 +1039,7 @@ from a block you are editing. A page must have exactly one of the two arrays; a 
 fails the build. When you add a block to a \`blocks\` page, give it an \`id\` unique within that page and a
 \`weight\` that puts it where you want it (blocks are ordered by \`weight\`, smaller first).
 
-Available section types: hero, hero-new, hero-with-form, trusted-brands, logos-new, features-grid, features-new, milestones, card-group, testimonials, testimonials-new, cta-banner, cta-new, contact-info, contact-new, text-block, page-header, services-nav, services-list, quote-form, contact-form, faq-accordion, process-steps, team-grid, team-new, pricing-table, pricing-new, gallery, gallery-new, content-split, social-proof, announcement-bar, newsletter-signup, map-area, blog-preview, service-related-pages
+Available section types: hero, hero-new, hero-with-form, trusted-brands, logos-new, features-grid, features-new, milestones, card-group, testimonials, testimonials-new, cta-banner, cta-new, contact-info, contact-new, text-block, page-header, services-nav, services-list, quote-form, contact-form, faq-accordion, faq-new, process-steps, team-grid, team-new, pricing-table, pricing-new, gallery, gallery-new, content-split, social-proof, announcement-bar, newsletter-signup, map-area, blog-preview, service-related-pages
 
 Blocks with presets usually have no example on the site to copy, so here is their exact data shape — use only
 these keys (write_file refuses unknown ones):
