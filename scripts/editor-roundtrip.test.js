@@ -519,6 +519,46 @@ console.log('⑦h gallery-new 增删照片 · 预设');
   check(firstDiff(out, convert.puckToPage({ raw: out, data: re.data, initial: re.initial, schema, slug: 'home' })) === null, '重开什么都不改再存 ⟹ 往返无损');
 }
 
+// ══ ⑦i #1500：testimonials-new 的 summary 在 Puck 里 —— 能增删平台、改平台名、拧 summaryStyle、点 Ratings 填占位 ═══════
+console.log('⑦i testimonials-new summary 一组平台');
+{
+  const { presetClickProps, presetNameFor } = require('./lib/block-knobs.js');
+  const comp = compOf('testimonials-new');
+  const opt = comp.fields.find((f) => f.control === 'options');
+  const sf = comp.fields.find((f) => f.slot === 'summary');
+  check(!!sf && sf.control === 'list', `summary 是列表字段（${sf && sf.control}）—— Puck 里能加一个平台 / 删一个平台`);
+  const man = { slots: { options: { knobs: opt.knobs } }, presets: opt.presets };
+  const nameOf = (props) => presetNameFor(man, { ...(props.options || {}), summary: props.summary });
+  const raw = fixturePage(false);
+  const tb = raw.blocks.find((b) => b.type === 'testimonials-new');
+  check(!!tb && Array.isArray(tb.data.summary) && tb.data.summary.length > 0, `夹具页的 testimonials-new 带 summary（${tb && Array.isArray(tb.data.summary) && tb.data.summary.length} 个平台）`);
+  const { initial, data } = openPage(raw);
+  const item = data.content.find((c) => c.type === 'testimonials-new');
+  const n0 = item.props.summary.length;
+  check(Array.isArray(item.props.summary) && n0 > 0, `打开之后 summary 是数组（${n0} 项）`);
+  // 加一个平台、删掉第一个、改第一个的平台名、拧 summaryStyle=cards。
+  item.props.summary = [...item.props.summary.slice(1), { source: 'Facebook', rating: '4.6', count: '19' }];
+  item.props.summary[0].source = 'Yelp (Toronto)';
+  item.props.options = { ...(item.props.options || {}), summaryStyle: 'cards' };
+  const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
+  const blk = out.blocks.find((b) => b.type === 'testimonials-new');
+  check(blk.data.summary.length === n0 && blk.data.summary[n0 - 1].source === 'Facebook' && blk.data.summary[0].source === 'Yelp (Toronto)' && blk.data.options.summaryStyle === 'cards',
+    `存盘 ⟹ summary 删一加一（${blk.data.summary.map((x) => x.source).join(' · ')}）、第一项改名、options.summaryStyle = cards`);
+  const changed = out.blocks.filter((b, i) => JSON.stringify(b) !== JSON.stringify(raw.blocks[i])).map((b) => b.type);
+  check(JSON.stringify(changed) === JSON.stringify(['testimonials-new']), '只有 testimonials-new 那一块变了', changed.join(' '));
+  // 点 Ratings：summary 空 ⟹ 用槽上 demo 填上、Ratings 亮；再点 Cards ⟹ 内容还在、Cards 亮。
+  const empty = { ...item.props, summary: [] };
+  const r = presetClickProps(opt, empty, 'Ratings');
+  check(JSON.stringify(r.summary) === JSON.stringify(opt.partDemos.summary) && nameOf(r) === 'Ratings', `空 summary 点 Ratings ⟹ 填上占位、Ratings 亮（${nameOf(r)}）`);
+  const c = presetClickProps(opt, r, 'Cards');
+  check(nameOf(c) === 'Cards' && JSON.stringify(c.summary) === JSON.stringify(opt.partDemos.summary), '再点 Cards ⟹ Cards 亮、summary 还在');
+  item.props = r;
+  const out2 = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
+  const b2 = out2.blocks.find((b) => b.type === 'testimonials-new');
+  check(JSON.stringify(b2.data.summary) === JSON.stringify(opt.partDemos.summary) && b2.data.options.summaryStyle === 'cards',
+    '存盘 ⟹ data.summary 是占位那一个平台、options 是 Ratings 的旋钮（summaryStyle cards）');
+}
+
 // ══ ⑦b 按钮链接（#1404 r3）：8 个 link 槽位都有 Link 框；改了才写、不改逐字节不变 ═══════════════════
 //    （#1404 时是 6 个；#1496 的 logos-new.introCta 是第 7 个；#1497 的 blog-new.introCta 是第 8 个 —— 名单本身从 manifest 现算，这个数只钉「没有静默多 / 少」。）
 console.log('⑦b 按钮链接');

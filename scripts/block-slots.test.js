@@ -130,7 +130,8 @@ const EXTRA = {
   // #1483 —— 同上（logo 行只在有图时画）；月付 / 年付切换只在有套餐填了 price.yearly 时画，价格那一行（带 period）只在有价时画。
   'pricing-new': { logos: { caption: 'logos-caption', items: [{ imageUrl: '/a.png' }] }, _item: { price: { monthly: '$1', yearly: '$2' } } },
   // #1488 —— 总评分那一行只在 `summary.rating` 是一个真数字（0–5）时画；夹具造的 `summary-rating` 画不出来。
-  'testimonials-new': { summary: { rating: '4.9', count: '312', source: 'Google' } },
+  //    #1500 —— summary 改成一组平台：每个平台要 rating 0–5、count 正数才画，所以整份给（同下面 reviews-new 那条）。
+  'testimonials-new': { summary: [{ source: 'summary-0-source', rating: 4.5, count: 10 }, { source: 'summary-1-source', rating: 4, count: 3 }] },
   // #1495 —— 照片墙的每一项没有图就不画（`slots.items.itemRequires`，validateSite 也拦）。
   'gallery-new': { _item: { image: { imageUrl: '/a.png', alt: '' } } },
   // #1504 —— 平台那一格只在 rating 是 0–5 的数、count 是正数时画（夹具造的 `platforms-0-rating` 画不出来 —— 它会盖掉 `_item`，

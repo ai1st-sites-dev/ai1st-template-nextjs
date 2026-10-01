@@ -1,9 +1,10 @@
 // ══════════════════════════════════════════════════════════════════════════════════════════════════
-// testimonials-new —— 块头（intro，可带总评分 summary）+ 一组评价（items），摊开或轮播（#1488，总纲 #1422 的 T2.10）
+// testimonials-new —— 块头（intro，可带一组平台评分 summary）+ 一组评价（items），摊开或轮播（#1488，总纲 #1422 的 T2.10；
+//                     summary 改成一组平台 + summaryStyle 是 #1500 / T2.10B）
 // ══════════════════════════════════════════════════════════════════════════════════════════════════
 //
-// 🔴 **一份 markup，七个旋钮**：intro*（introPosition / introAlign）· items*（itemsLayout / itemsColumns）·
-//    item*（itemStyle / quoteSize / itemAlign），四个预设各是一个形态目录。实际生效的旋钮 = 形态对应的那个预设给底，
+// 🔴 **一份 markup，八个旋钮**：intro*（introPosition / introAlign）· summaryStyle（#1500）· items*（itemsLayout / itemsColumns）·
+//    item*（itemStyle / quoteSize / itemAlign），五个预设各是一个形态目录。实际生效的旋钮 = 形态对应的那个预设给底，
 //    `data.options` 里写了的逐个覆盖（`scripts/lib/block-knobs.js` §effectiveKnobs —— 编辑器判 custom 用的是同一个函数）。
 //    旋钮值写在根元素上（`data-intro-position` … `data-item-align` / `data-tone`），`block.css` 按它们排；形态目录自己不带几何。
 //
@@ -13,19 +14,29 @@
 //    搜索和 AI 读得到每一条。唯一的客户端部分是外壳 `Carousel.tsx`：挂载后按需引 Carousel 模块。不自动播放。
 //    以前那条手写轨道（横向滚动 + 自己算位置的圆点）已删。
 //
-// 🔴 **藏东西一律是不渲染**：`summary` 没写总评分 ⟹ 没有那一行；某条没 `photo` ⟹ 画名字首字母圆、没有 `<img>`；
+// 🔴 **summary 是一组平台（#1500）**，每个 `{source, rating, count, href?, logoUrl?}`，两处摆法按 `summaryStyle` 只出一处：
+//    `inline` = 块头正文下面一排小条；`cards` = 评价那一列最上面一排平台卡（Webpixels reviews-1）。
+//    logo 取哪一档（上传的 `logoUrl` → 内置品牌图标 → 平台名）不在这里写：`scripts/lib/review-platforms.js` §platformLogo，
+//    reviews-new 用的是同一份。
+//    🔴 字段叫 `logoUrl` 而不是 `imageUrl` 是**承重的**：`block-manifest.js` §imageSlotsOf 只把 shape 里有 `imageUrl` 的
+//    list 槽当内容图槽，所以建站不会给平台编一张 logo；改名成 `imageUrl` 的那一刻建站就开始造假 logo
+//    （`testimonials-new-render.test.js` 有一格两向守它）。
+//    旧形状（#1488 的单个对象）由 validateSite 读入时包成一项数组（`block-manifest.js` §validateSite），这里不认对象。
+//
+// 🔴 **藏东西一律是不渲染**：`summary` 一个有效平台都没有 ⟹ 两处都没有；某条没 `photo` ⟹ 画名字首字母圆、没有 `<img>`；
 //    某条没 `rating` ⟹ 没有星级节点（来源照常）；块头只看 `headline` / `body`，两个都空 ⟹ 块头那一列整个不渲染。
 //
 // 🔴 **每条的顺序（Chris 2026-09-29）**：引言 → 人（头像 + 名字 + 身份）→ 星级 + 来源在最底下（card 等高时贴卡底）。
 //
 // 🔴 **图片的键叫 `imageUrl`**（`items[].photo`）：AI 改站的写入闸只认 `IMAGE_FIELDS` 里的键（`scripts/lib/image-urls.js`）。
 //
-// 🔴 **图标是内联 SVG**：星（`star-fill` / `star-half` / `star`）和前后箭头（`chevron-left` / `chevron-right`）是本组件写死的
-//    名字，登记在 `scripts/lib/icons.js` 的 `BLOCK_ICONS['testimonials-new']`；`iconTable` 由服务端查好传进来，这里用
+// 🔴 **图标是内联 SVG**：星（`star-fill` / `star`）、前后箭头（`chevron-left` / `chevron-right`）和平台品牌图标（#1500，名字住在
+//    `review-platforms.js` 那张表里）登记在 `scripts/lib/icons.js` 的 `BLOCK_ICONS['testimonials-new']`；`iconTable` 由服务端查好传进来，这里用
 //    `InlineIcon` 画。
 //
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg），这里不自己算亮度、不自己拼渐变。
 
+import type { ReactNode } from 'react';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
@@ -33,6 +44,7 @@ import manifest from './manifest.json';
 import TestimonialsCarousel from './Carousel';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { bgCss, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import { platformLogo } from '../../scripts/lib/review-platforms.js';
 
 export interface TestimonialsNewImage { imageUrl?: string; alt?: string }
 export interface TestimonialsNewItem {
@@ -43,9 +55,9 @@ export interface TestimonialsNewItem {
   rating?: number;
   source?: string;
 }
-export interface TestimonialsNewSummary { rating?: number | string; count?: number | string; source?: string }
+export interface TestimonialsNewPlatform { source?: string; rating?: number | string; count?: number | string; href?: string; logoUrl?: string }
 export interface TestimonialsNewOptions {
-  introPosition?: string; introAlign?: string;
+  introPosition?: string; introAlign?: string; summaryStyle?: string;
   itemsLayout?: string; itemsColumns?: string;
   itemStyle?: string; quoteSize?: string; itemAlign?: string;
 }
@@ -54,7 +66,7 @@ export interface TestimonialsNewData {
   introEyebrow?: { text?: string; style?: string };
   headline?: string;
   body?: string;
-  summary?: TestimonialsNewSummary;
+  summary?: TestimonialsNewPlatform[];
   items?: TestimonialsNewItem[];
   bg?: BgValue;
 }
@@ -67,18 +79,29 @@ interface Props {
   iconTable?: IconTable;
 }
 
-// 评价 1–12 条（manifest `slots.items.maxItems`，validateSite 拦超出的）。
+// 评价 1–12 条、平台 1–4 个（manifest 的 `maxItems`，validateSite 拦超出的）。
 const MAX_ITEMS = manifest.slots.items.maxItems;
+const MAX_PLATFORMS = manifest.slots.summary.maxItems;
 
 const isObj = (v: unknown): v is object => !!v && typeof v === 'object' && !Array.isArray(v);
 const str = (v: unknown): string => (typeof v === 'string' ? v : typeof v === 'number' && Number.isFinite(v) ? String(v) : '');
 const imgOf = (v: unknown): TestimonialsNewImage | null => (isObj(v) && str((v as TestimonialsNewImage).imageUrl) ? (v as TestimonialsNewImage) : null);
-// 每条的星级：1–5 的整数才画（validateSite 拦别的值）；总评分可以是小数（4.9），按 0.5 取整画实心 / 半 / 空心。
+// 每条的星级：1–5 的整数才画（validateSite 拦别的值）。
 const itemRating = (v: unknown): number => (typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 5 ? v : 0);
-const summaryRating = (v: unknown): number => {
-  const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v) : NaN;
-  return Number.isFinite(n) && n > 0 && n <= 5 ? n : 0;
-};
+// 平台的数：编辑器（Puck）里改过的是字符串，照样认。
+const num = (v: unknown): number => (typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v) : NaN);
+
+interface Platform { index: number; source: string; rating: number; count: number; href: string; logoUrl: string }
+// 一个平台要有名字、0–5 的评分、正的条数才画；缺哪样都整项不画（不画一个「0 reviews」的空条）。
+function platformOf(v: unknown, index: number): Platform | null {
+  if (!isObj(v)) return null;
+  const p = v as TestimonialsNewPlatform;
+  const rating = num(p.rating);
+  const count = num(p.count);
+  if (!str(p.source).trim() || !Number.isFinite(rating) || rating < 0 || rating > 5 || !Number.isFinite(count) || count <= 0) return null;
+  return { index, source: str(p.source).trim(), rating, count: Math.round(count), href: str(p.href).trim(), logoUrl: str(p.logoUrl).trim() };
+}
+const fmt = (n: number): string => n.toFixed(1);
 const initialsOf = (name: string): string => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 
 // 这几条类名要**逐字**写在源码里：`site.css` 是按源码 purge 的（`scripts/lib/site-css.js` §PURGE_CONTENT），
@@ -100,26 +123,60 @@ export default function TestimonialsNewSection({ data, block, iconTable = {} }: 
   const carousel = k.itemsLayout === 'carousel';
 
   const icon = (name: string) => <InlineIcon name={name} icons={iconTable} />;
-  // 星级：n 颗 = 实心 floor(n)、有 .5 再一颗半星、剩下空心，一共 5 颗。
+  // 星级：n 颗实心、剩下空心，一共 5 颗。平台评分是小数（4.9），先四舍五入成整数颗（#1500：4.5 → 5、4.4 → 4，不画半颗）。
   const stars = (n: number, slot?: string) => {
-    const half = Math.round(n * 2) / 2;
-    const full = Math.floor(half);
-    const kinds = [...Array(full).fill('fill'), ...(half > full ? ['half'] : []), ...Array(5 - Math.ceil(half)).fill('empty')];
+    const full = Math.max(0, Math.min(5, Math.round(n)));
+    const kinds = [...Array(full).fill('fill'), ...Array(5 - full).fill('empty')];
     return (
-      <span className="tn-stars d-inline-flex gap-1 text-warning" data-part="stars" data-rating={half} aria-label={`${half} out of 5 stars`} role="img" {...(slot ? { 'data-for': slot } : {})}>
+      <span className="tn-stars d-inline-flex gap-1 text-warning" data-part="stars" data-rating={full} aria-label={`${full} out of 5 stars`} role="img" {...(slot ? { 'data-for': slot } : {})}>
         {kinds.map((s, i) => (
           <span key={i} className="tn-star d-inline-flex" data-star={s} aria-hidden="true">
-            {icon(s === 'fill' ? 'star-fill' : s === 'half' ? 'star-half' : 'star')}
+            {icon(s === 'fill' ? 'star-fill' : 'star')}
           </span>
         ))}
       </span>
     );
   };
+  // 平台 logo 三档（`review-platforms.js` §platformLogo）。`data-slot` 挂在写平台名的那个节点上（编辑器据它原地改字）：
+  // 图 / 图标两档是 visually-hidden 那一段，名字那一档是名字本身 —— 每一档 DOM 里都有文字平台名（读屏 / 搜索 / AI）。
+  const logo = (p: Platform) => {
+    const l = platformLogo(p.source, p.logoUrl);
+    const slot = `summary.${p.index}.source`;
+    const hidden = <span className="visually-hidden" data-slot={slot}>{p.source}</span>;
+    if (l.kind === 'image') {
+      return (
+        <span className="tn-logo tn-logo-img d-inline-flex align-items-center" data-part="logo" data-logo="image">
+          <img src={l.logoUrl} alt={p.source} loading="lazy" />
+          {hidden}
+        </span>
+      );
+    }
+    if (l.kind === 'icon') {
+      return (
+        <span className="tn-logo tn-logo-icon d-inline-flex align-items-center" data-part="logo" data-logo="icon" style={{ ['--tn-brand' as string]: l.color }}>
+          {icon(l.icon)}
+          {hidden}
+        </span>
+      );
+    }
+    return <span className="tn-logo tn-logo-name fw-bold" data-part="logo" data-logo="name" data-slot={slot}>{p.source}</span>;
+  };
+  // 一个平台：有 `href` ⟹ 整个小条 / 整张卡是链接（新窗口），没有就是 div。
+  const platformBox = (p: Platform, cls: string, inner: ReactNode) => (p.href ? (
+    <a key={p.index} className={`${cls} text-reset text-decoration-none`} data-part="platform" data-source={p.source} href={p.href} target="_blank" rel="noopener">{inner}</a>
+  ) : (
+    <div key={p.index} className={cls} data-part="platform" data-source={p.source}>{inner}</div>
+  ));
+  const countLine = (p: Platform, pre: string) => (
+    <span className="tn-platform-count text-xs text-muted">{pre}<span data-slot={`summary.${p.index}.count`}>{p.count}</span> reviews</span>
+  );
 
   const eyebrow = isObj(d.introEyebrow) && str(d.introEyebrow.text) ? d.introEyebrow : null;
   // 没写 style ⟹ pill（同 hero-new / features-new：AI 只写了字，眉标照样出来）；明写 none ⟹ 不画。
   const eyebrowStyle = !eyebrow ? 'none' : !eyebrow.style ? 'pill' : eyebrow.style in EYEBROW_CLASS ? eyebrow.style : 'none';
-  const summary = isObj(d.summary) && summaryRating(d.summary.rating) ? d.summary : null;
+  const platforms = (Array.isArray(d.summary) ? d.summary : []).map((v, i) => platformOf(v, i)).filter((p): p is Platform => !!p).slice(0, MAX_PLATFORMS);
+  const summaryInline = platforms.length > 0 && k.summaryStyle === 'inline';
+  const summaryCards = platforms.length > 0 && k.summaryStyle === 'cards';
   const hasIntro = !!(str(d.headline) || str(d.body));
   const items = (Array.isArray(d.items) ? d.items : []).filter((it): it is TestimonialsNewItem => isObj(it) && !!str(it.quote)).slice(0, MAX_ITEMS);
   // carousel：一张 slide 放 itemsColumns 条（服务端分好组；<768 时 block.css 让一张里的条目竖着叠）。
@@ -164,6 +221,7 @@ export default function TestimonialsNewSection({ data, block, iconTable = {} }: 
       {...blockAttrs('testimonials-new', block)}
       data-intro-position={k.introPosition}
       data-intro-align={k.introAlign}
+      data-summary-style={k.summaryStyle}
       data-items-layout={k.itemsLayout}
       data-items-columns={k.itemsColumns}
       data-item-style={k.itemStyle}
@@ -187,26 +245,36 @@ export default function TestimonialsNewSection({ data, block, iconTable = {} }: 
                 ) : null}
                 {d.headline ? <h2 className="display-5 fw-bold lh-1 ls-tight mb-4 tn-title" data-slot="headline">{d.headline}</h2> : null}
                 {d.body ? <p className="fs-5 text-muted mb-0 tn-body" data-slot="body">{d.body}</p> : null}
-                {summary ? (
-                  <div className="tn-summary d-inline-flex align-items-center gap-3 mt-6 px-4 py-3 rounded-4" data-part="summary">
-                    <span className="fs-3 fw-bold lh-1 tn-summary-rating" data-slot="summary.rating">{str(summary.rating)}</span>
-                    <span className="d-flex flex-column gap-1">
-                      {stars(summaryRating(summary.rating), 'summary')}
-                      {str(summary.count) || str(summary.source) ? (
-                        <span className="text-xs text-muted tn-summary-count">
-                          {str(summary.count) ? <span data-slot="summary.count">{str(summary.count)}</span> : null}
-                          {str(summary.count) && str(summary.source) ? ' ' : null}
-                          {str(summary.source) ? <span data-slot="summary.source">{summary.source}</span> : null}
-                          {' reviews'}
+                {summaryInline ? (
+                  <div className="tn-summary d-flex flex-wrap mt-6" data-part="summary">
+                    {platforms.map((p) => platformBox(p, 'tn-platform tn-platform-inline d-inline-flex align-items-center gap-3 px-4 py-3 rounded-4', (
+                      <>
+                        {logo(p)}
+                        <span className="fs-3 fw-bold lh-1 tn-platform-rating" data-slot={`summary.${p.index}.rating`}>{fmt(p.rating)}</span>
+                        <span className="d-flex flex-column gap-1">
+                          {stars(p.rating, 'summary')}
+                          {countLine(p, '')}
                         </span>
-                      ) : null}
-                    </span>
+                      </>
+                    )))}
                   </div>
                 ) : null}
               </div>
             </div>
           ) : null}
           <div className="col-12 tn-itemscol" data-part="items">
+            {summaryCards ? (
+              <div className="tn-summary tn-summary-cards" data-part="summary">
+                {platforms.map((p) => platformBox(p, 'tn-platform tn-platform-card rounded-4', (
+                  <>
+                    <span className="tn-pc-logo">{logo(p)}</span>
+                    <span className="tn-pc-stars">{stars(p.rating, 'summary')}</span>
+                    <span className="tn-pc-score text-sm fw-semibold"><span data-slot={`summary.${p.index}.rating`}>{fmt(p.rating)}</span> out of 5</span>
+                    <span className="tn-pc-count">{countLine(p, 'from ')}</span>
+                  </>
+                )))}
+              </div>
+            ) : null}
             {carousel ? (
               slides.length ? (
                 <TestimonialsCarousel id={carId} label="Customer reviews">

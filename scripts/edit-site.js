@@ -1094,7 +1094,7 @@ other type does not show a picture, and putting an image field on one has no eff
   gave you of that person, never a stock or made-up face; a member without \`photo\` simply has no picture)
 - a **pricing-new** block → \`data.proof.avatars[].imageUrl\` / \`data.logos.items[].imageUrl\` (the optional review line and
   logo row under its block head)
-- a **testimonials-new** block → \`data.items[].photo.imageUrl\` (the reviewer's photo; without one the block shows their initials)
+- a **testimonials-new** block → \`data.items[].photo.imageUrl\` (the reviewer's photo; without one the block shows their initials) · \`data.summary[].logoUrl\` (one per rating platform; optional — without it the block draws a built-in icon for Google / Yelp / Facebook, or the platform name)
 - a **logos-new** block → \`data.items[].imageUrl\` (one per logo, 3–12; every item needs \`alt\` too)
 - a **reviews-new** block → \`data.platforms[].logoUrl\` (optional — without it the block draws a built-in icon for Google / Yelp / Facebook, or the platform name)
 - a **content-new** block → \`data.image.imageUrl\` (optional — beside the text with \`options.image: "left"\` /

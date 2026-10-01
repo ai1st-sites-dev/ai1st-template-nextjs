@@ -268,13 +268,21 @@ const DEMO_CONTENT = {
 
   // #1488 —— testimonials-new：Northside Auto Care 的六条评价（正文做什么 8：4 条带头像、2 条没有 ⟹ 首字母圆；
   //    来源混 Google / Yelp / HomeStars；一条 4 星；带 summary）。长短不一是守卫 (c) 要的。
+  //    #1500 —— summary 是一组平台：Google 带 href（那一格是链接）；HomeStars 没有内置图标、也没有 logoUrl
+  //    ⟹ 走「写平台名」那一档（正文做什么 8）。4 个而不是 3 个：demo-content.test.js 守卫 (c) 要 min(6, maxItems) = 4 项；
+  //    四个平台逐字同 reviews-new.platforms（#1504），两块共用 review-platforms.js 的三档规则（PM 2026-10-01 裁定 A）。
   //    🔴 `introEyebrow.style` 写明 pill，理由同上面 features-new 那条（词表 `none` 排第一，工具栏不写就亮 none）。
   'testimonials-new': {
     options: {},
     introEyebrow: { text: 'Reviews', style: 'pill' },
     headline: 'Drivers who trusted us with their car',
     body: 'Real reviews from customers across Northside. We read every one and reply to most.',
-    summary: { rating: '4.9', count: '312', source: 'Google' },
+    summary: [
+      { source: 'Google', rating: 4.9, count: 312, href: 'https://www.google.com/maps' },
+      { source: 'Yelp', rating: 4.8, count: 46 },
+      { source: 'HomeStars', rating: 4.7, count: 28 },
+      { source: 'Facebook', rating: 5.0, count: 19 },
+    ],
     items: [
       {
         quote: 'Van died on the 401 on a Tuesday. They had it diagnosed by noon and back on the road '

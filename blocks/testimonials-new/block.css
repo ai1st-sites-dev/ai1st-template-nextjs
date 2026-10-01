@@ -1,10 +1,11 @@
 /* ── testimonials-new · 跨形态的规则（#1488）─────────────────────────────────────────────────────
    testimonials-new 的排版由**实际生效的旋钮**决定，写在根元素上：
      intro  data-intro-position（left / right / top / bottom）· data-intro-align（left / center / right）
+     summary data-summary-style（inline / cards，#1500）
      items  data-items-layout（grid / carousel）· data-items-columns（1 / 2 / 3）
      item   data-item-style（plain / card）· data-quote-size（md / lg）· data-item-align（left / center）
      底色   data-tone（light / dark / brand，scripts/lib/contrast.js §toneForBg）
-   四个形态目录都是预设，自己不带几何。规则逐条照定稿图册（`docs/reference/webpixels/gallery/build.py:233-267`），
+   五个形态目录都是预设，自己不带几何。规则逐条照定稿图册（`docs/reference/webpixels/gallery/build.py:233-267`），
    只把 `body.opt-*` 换成根元素上的属性。
 
    🔴 Webpixels 的工具类全带 !important（gap-* / justify-content-* / text-muted / bg-primary-subtle …）。这里要压过它们的规则
@@ -17,7 +18,7 @@
 
 /* ═══ intro（块头）═══════════════════════════════════════════════════════════════════════════════
    宽度照 T6.1（#1486）的新规则：left / right 对齐 = 100%；center 在 ≥992 最宽 80%、居中，<992 = 100%。
-   块头在侧（≥992 的 left / right）时那一列本身就窄，80% 那条取消（图册 build.py:239）。summary 跟着对齐走（它是 inline-flex）。 */
+   块头在侧（≥992 的 left / right）时那一列本身就窄，80% 那条取消（图册 build.py:239）。inline 那一排 summary 跟着对齐走（见下面 summary 一节）。 */
 [data-block="testimonials-new"] .tn-intro-text {
   max-width: none;
 }
@@ -37,8 +38,103 @@
     margin-right: auto;
   }
 }
-[data-block="testimonials-new"] .tn-summary {
+
+/* ═══ summary（一组平台评分，#1500）══════════════════════════════════════════════════════════════
+   summaryStyle 只决定出哪一处（Section.tsx 两处只渲染一处）：
+     inline = 块头正文下面一排小条，间距 .75rem、放不下换行，**跟 introAlign 对齐**；
+     cards  = 评价那一列最上面一排平台卡（Webpixels reviews-1），离评价 2.5rem，**不跟 introAlign**（条目从不跟它）。
+   logo：上传的图 / 内置品牌图标（品牌色，`--tn-brand`）/ 平台名，三档由 Section.tsx 选（review-platforms.js）。
+   有 href 的那一项是 <a>：悬停描一圈主色。 */
+[data-block="testimonials-new"] .tn-platform {
   background: var(--x-body-secondary-bg, #f1f5f9);
+}
+[data-block="testimonials-new"] a.tn-platform:hover,
+[data-block="testimonials-new"] a.tn-platform:focus-visible {
+  box-shadow: 0 0 0 1px var(--x-primary);
+}
+[data-block="testimonials-new"] .tn-logo-icon {
+  color: var(--tn-brand);
+}
+[data-block="testimonials-new"] .tn-logo img {
+  width: auto;
+  max-width: 8rem;
+  object-fit: contain;
+}
+[data-block="testimonials-new"] .tn-summary {
+  gap: 0.75rem;
+}
+[data-block="testimonials-new"][data-intro-align="center"] .tn-intro-text .tn-summary {
+  justify-content: center;
+}
+[data-block="testimonials-new"][data-intro-align="right"] .tn-intro-text .tn-summary {
+  justify-content: flex-end;
+}
+[data-block="testimonials-new"] .tn-platform-inline .tn-logo-icon svg,
+[data-block="testimonials-new"] .tn-platform-inline .tn-logo img {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+[data-block="testimonials-new"] .tn-platform-inline .tn-logo img {
+  width: auto;
+}
+[data-block="testimonials-new"] .tn-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2.5rem;
+}
+[data-block="testimonials-new"] .tn-platform-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.5rem;
+  padding: 2rem 1.5rem;
+}
+[data-block="testimonials-new"] .tn-platform-card .tn-logo-icon svg,
+[data-block="testimonials-new"] .tn-platform-card .tn-logo img {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+[data-block="testimonials-new"] .tn-platform-card .tn-logo img {
+  width: auto;
+}
+[data-block="testimonials-new"] .tn-pc-logo {
+  margin-bottom: 0.25rem;
+}
+/* <576：卡变成一条横排的矮条 —— 左上 logo、左下「4.9 out of 5」，右上星、右下条数。 */
+@media (max-width: 575.98px) {
+  [data-block="testimonials-new"] .tn-summary-cards {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+  [data-block="testimonials-new"] .tn-platform-card {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "logo stars" "score count";
+    align-items: center;
+    text-align: left;
+    gap: 0.25rem 1rem;
+    padding: 1rem 1.25rem;
+  }
+  /* logo / 星这两格做成 flex、行高 1：它们是行内元素时行盒按正文行高撑高，一张卡就超过 80px。 */
+  [data-block="testimonials-new"] .tn-pc-logo,
+  [data-block="testimonials-new"] .tn-pc-stars {
+    display: flex;
+    align-items: center;
+    line-height: 1;
+  }
+  [data-block="testimonials-new"] .tn-pc-logo { grid-area: logo; margin-bottom: 0; }
+  [data-block="testimonials-new"] .tn-pc-stars { grid-area: stars; justify-self: end; }
+  [data-block="testimonials-new"] .tn-pc-score { grid-area: score; line-height: 1.25; }
+  [data-block="testimonials-new"] .tn-pc-count { grid-area: count; justify-self: end; line-height: 1.25; }
+  [data-block="testimonials-new"] .tn-platform-card .tn-logo-icon svg,
+  [data-block="testimonials-new"] .tn-platform-card .tn-logo img {
+    height: 1.25rem;
+  }
+  [data-block="testimonials-new"] .tn-platform-card .tn-logo-icon svg {
+    width: 1.25rem;
+  }
 }
 
 /* introPosition：left / right（≥992）= 块头一列 33.33%（sticky top 2rem）、评价一列 66.67%；right 行反向。
@@ -246,7 +342,8 @@
 [data-block="testimonials-new"] .tn-body,
 [data-block="testimonials-new"] .tn-role,
 [data-block="testimonials-new"] .tn-source,
-[data-block="testimonials-new"] .tn-summary-count {
+[data-block="testimonials-new"] .tn-platform-count,
+[data-block="testimonials-new"] .tn-logo-name {
   overflow-wrap: anywhere;
 }
 [data-block="testimonials-new"] .tn-star svg {
@@ -290,7 +387,7 @@
 /* ═══ 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneForBg）══════════════════════════════
    dark = 深底 / 深色渐变；brand = 主题主色底。两者一样：标题 / 名字 / 引言反白；身份 / 来源 / 总评分那行白 .92
    （`.text-muted` → 全站那条 scripts/lib/site-css.js §ON_DEEP_MUTED，这里不抄一份）；card 半透明底 + 半透明白描边；
-   summary 底 .08；首字母圆半透明白；圆点半透明白（当前那个白）；前后按钮透明底 + 半透明白描边。 */
+   summary 每个平台的底 .08、品牌图标反白（#1500）；首字母圆半透明白；圆点半透明白（当前那个白）；前后按钮透明底 + 半透明白描边。 */
 [data-block="testimonials-new"][data-tone="dark"],
 [data-block="testimonials-new"][data-tone="brand"] {
   color: #fff;
@@ -301,8 +398,12 @@
 [data-block="testimonials-new"][data-tone="brand"] .tn-name,
 [data-block="testimonials-new"][data-tone="dark"] .tn-quote,
 [data-block="testimonials-new"][data-tone="brand"] .tn-quote,
-[data-block="testimonials-new"][data-tone="dark"] .tn-summary-rating,
-[data-block="testimonials-new"][data-tone="brand"] .tn-summary-rating,
+[data-block="testimonials-new"][data-tone="dark"] .tn-platform-rating,
+[data-block="testimonials-new"][data-tone="brand"] .tn-platform-rating,
+[data-block="testimonials-new"][data-tone="dark"] .tn-pc-score,
+[data-block="testimonials-new"][data-tone="brand"] .tn-pc-score,
+[data-block="testimonials-new"][data-tone="dark"] .tn-logo-icon,
+[data-block="testimonials-new"][data-tone="brand"] .tn-logo-icon,
 [data-block="testimonials-new"][data-tone="dark"] .tn-eyebrow-dash,
 [data-block="testimonials-new"][data-tone="brand"] .tn-eyebrow-dash,
 [data-block="testimonials-new"][data-tone="dark"] .tn-eyebrow-plain,
@@ -314,8 +415,8 @@
   background: rgba(255, 255, 255, 0.06);
   border-color: rgba(255, 255, 255, 0.15);
 }
-[data-block="testimonials-new"][data-tone="dark"] .tn-summary,
-[data-block="testimonials-new"][data-tone="brand"] .tn-summary {
+[data-block="testimonials-new"][data-tone="dark"] .tn-platform,
+[data-block="testimonials-new"][data-tone="brand"] .tn-platform {
   background: rgba(255, 255, 255, 0.08);
 }
 [data-block="testimonials-new"][data-tone="dark"] .tn-initials,

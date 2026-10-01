@@ -19,6 +19,7 @@
 const fs = require('fs');
 const path = require('path');
 const { resolveBlockTypesForCheck } = require('../blocks');
+const { LEGACY_OBJECT_TO_LIST, legacyListValue } = require('./legacy-shapes');
 
 const BLOCKS_DIR = path.join(__dirname, '..', '..', 'blocks');
 // #1332 —— 排版意图的词表。🔴 **一份定义，两处读**：这里（建站期的校验器，CommonJS）和
@@ -117,6 +118,11 @@ function filledOptionalSlots(m, data) {
  *     `logos-new.items`（#1496）同样声明了它：装的是生意自己的商标（安装的品牌 / 认证 / 评价平台），槽名叫 `items`，
  *     上面按槽名那条认不出，塞图库照片进去就是假商标。
  *     team-new 的 `members[].photo`（#1487）同样写这条声明：那是这家店员工的脸，生成的图冒充的是真人。
+ *   · 评价平台的 logo（`testimonials-new.summary[].logoUrl` #1500、`reviews-new.platforms[].logoUrl` #1504）**不在这条规则里，
+ *     靠的是字段名**：shape 写的是 `logoUrl` 不是 `imageUrl` ⟹ 上面那条 `includes('imageUrl')` 不命中 ⟹ 建站不给平台编 logo
+ *     （没上传就画内置品牌图标或平台名）。而 `generateImages: false` 在这两个槽上**写不了**（下面 §checkManifestShape 只许它给
+ *     带 `imageUrl` 的槽）。⟹ 谁把字段改名成 `imageUrl`、或往 shape 里加这个串，建站当场开始造假平台 logo ——
+ *     `testimonials-new-render.test.js` 有一格两向守它。
  *   · `kind: "object"` —— hero 的 `socialProof` 的 shape 里**也有** `imageUrl`
  *     （`{avatars: [{imageUrl}], rating, text}`），但那是顾客头像不是内容图。这一条不是可省的
  *     小心眼：去掉它，每个站的 hero 就会多生成一批冒充真人的头像。
@@ -1077,6 +1083,15 @@ function industryMatches(industry, word) {
  *        contact-info」被拒，而那件事既不是这次编辑造成的，模型也没法在 about.json 里修好它
  *        ⟹ 那个站从此改不动了。整站那条检查的家在建站那一刻和构建期，不在这里。
  */
+// #1500 —— 旧形状迁移（§legacy-shapes.js）。读入时就地改 `data`；构建 / 编辑那几条路在更早的
+// `normalizeListSlots` 里已经迁过一次，这里再过一次是给建站那一刻（直接校验原始数据）用的，幂等。
+function migrateLegacyShapes(m, data) {
+  for (const slot of LEGACY_OBJECT_TO_LIST[m && m.type] || []) {
+    const next = legacyListValue(m.type, slot, m.slots && m.slots[slot], data[slot]);
+    if (next) data[slot] = next;
+  }
+}
+
 function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks = {}, disabledBlocks = [], forms } = {}) {
   const manifests = loadManifests(dir);
   // #1471 —— 站级表单库（`site/<locale>/forms.json`，`scripts/lib/site-forms.js`）。三个调用方都传：建站 / 构建 / AI 改站。
@@ -1162,6 +1177,10 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
       if (off.has(sec.type)) {
         flag(`${where}: 这个块已经在后台关掉了 —— 换一个（后台「区块与主题」页可以重新打开它）`);
       }
+
+      // ⓪ #1500 —— 读入时把旧形状迁移一次（§migrateLegacyShapes）：要在下面所有检查之前，后面每一条看到的都是新形状。
+      //    改的是传进来的这份数据本身 —— 构建期（sync-config.js）校验完渲染的就是这一份，所以不需要第二套渲染。
+      if (sec.data && typeof sec.data === 'object') migrateLegacyShapes(m, sec.data);
 
       // ⑩ #1471 —— 块选的站级表单（`form: { id? }`）。`id` 空 = 取表单库第一张，合法；非空就必须是表单库里有的那一张。
       if (formIds && m.slots && m.slots.form && sec.data && sec.data.form && typeof sec.data.form === 'object' && !Array.isArray(sec.data.form)) {

@@ -30,6 +30,7 @@ const path = require('path');
 const BLOCK_ROLES = require('../src/lib/sections/block-roles.json');
 const BLOCK_ALIASES = require('../src/lib/sections/block-aliases.json');
 const { isSourceRef, sourcesFor } = require('./lib/item-sources');
+const { legacyListValue } = require('./lib/legacy-shapes');
 const ROLE_NAMES = ['essential', 'lead', 'optional'];
 
 // 一个块没写 `role` 时的兜底。**表只有一份**（`src/lib/sections/block-roles.json`），运行时那一侧是
@@ -145,6 +146,8 @@ function normalizeGenericItems(block) {
 // 📌 这一层是**兜底**，不是校验：建站/编辑那一刻由 `block-manifest.js` 的 `validateSite` 报出来并
 //    还能重试一次；走到这里已经是构建期，只有「滤掉」和「整个站建不出来」两条路可选。
 const LIST_SLOT_CACHE = new Map();
+// #1500 —— 列表槽自己的声明（`ranges` 之类），旧形状迁移要用（§legacy-shapes.js）。跟上面那张一起装。
+const LIST_SLOT_SPEC = new Map();
 
 function listSlotsFor(type) {
   if (LIST_SLOT_CACHE.has(type)) return LIST_SLOT_CACHE.get(type);
@@ -158,9 +161,9 @@ function listSlotsFor(type) {
       manifests = {};
     }
     for (const [t, m] of Object.entries(manifests)) {
-      LIST_SLOT_CACHE.set(t, Object.entries((m && m.slots) || {})
-        .filter(([, spec]) => spec && spec.kind === 'list')
-        .map(([slot]) => slot));
+      const lists = Object.entries((m && m.slots) || {}).filter(([, spec]) => spec && spec.kind === 'list');
+      LIST_SLOT_CACHE.set(t, lists.map(([slot]) => slot));
+      for (const [slot, spec] of lists) LIST_SLOT_SPEC.set(`${t}\u0000${slot}`, spec);
     }
     LIST_SLOT_CACHE.set('\u0000loaded', []);
   }
@@ -197,7 +200,12 @@ function normalizeListSlots(block) {
     //    源不认识的照旧换成空数组（validateSite 建站期已经报过）。
     if (isSourceRef(v) && sourcesFor(block.type, slot).includes(v.source)) continue;
     let next;
-    if (!Array.isArray(v)) {
+    // #1500 —— 换过形状的槽，旧数据在这里迁成新形状（§legacy-shapes.js）。要在下面「不是数组就换成空」之前：
+    //    这里是构建 / 编辑器 / AI 改站读页面的共同入口，晚一步旧对象就被清成 `[]` 了。
+    const migrated = legacyListValue(block.type, slot, LIST_SLOT_SPEC.get(`${block.type}\u0000${slot}`), v);
+    if (migrated) {
+      next = migrated;
+    } else if (!Array.isArray(v)) {
       next = [];               // 整个不是数组：换成空数组，组件 map 出零个条目，不炸
     } else if (v.every(drawableItem)) {
       continue;                // 一个都不用动

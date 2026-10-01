@@ -9,6 +9,9 @@
  * 服务端 HTML 里；#1494 起轮播是 Bootstrap Carousel：slide 分组、圆点、data 属性、按需 import、不自动播放）· AC4（grid 没有圆点 / 按钮）· AC6 的 DOM 顺序 ·
  * AC7（槽位空不渲染、首字母圆、星级）· AC8（bg + 不自己算亮度）· AC9（validateSite）· AC10（block-roles · 首页配方池）·
  * AC12 的编辑器 schema 一半 · AC13（旧 testimonials 零改动）· 图标表（星 / 箭头真画成 <svg>）。
+ * #1500 起另管：summary 改成一组平台之后的 AC1（5 预设 · 8 旋钮）· AC2 logo 三档的 DOM 一半 · AC3 / AC4「只出一处」·
+ * AC5 链接 · AC6 星数 · AC7 空 · AC8 旧形状 · AC9 Ratings 部件 · AC11b 改图清单 · logoUrl 不被当成内容图槽（两向）。
+ * #1500 的几何与计算色在 `tests/e2e/specs/1500-testimonials-new-summary.spec.ts`。
  * 几何（16 种组合三端无横向滚动、轮播滚动 / 圆点、一列占满整列、星级对齐一线、计算色）要浏览器：
  * `tests/e2e/specs/1488-testimonials-new-knobs.spec.ts`。
  *
@@ -84,41 +87,44 @@ const itemsOf = (html) => html.split('data-part="item"').slice(1);
 const CSS = fs.readFileSync(path.join(BLOCK, 'block.css'), 'utf-8');
 const SRC_TEXT = fs.readFileSync(SECTION, 'utf-8');
 const CAROUSEL_TEXT = fs.readFileSync(CAROUSEL, 'utf-8');
-const KNOB_NAMES = ['introPosition', 'introAlign', 'itemsLayout', 'itemsColumns', 'itemStyle', 'quoteSize', 'itemAlign'];
+const KNOB_NAMES = ['introPosition', 'introAlign', 'summaryStyle', 'itemsLayout', 'itemsColumns', 'itemStyle', 'quoteSize', 'itemAlign'];
 const dataAttr = (n) => `data-${n.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`;
 
-// ══ AC1：4 个预设逐字、旋钮名 / 值逐字、parts、目录集合、两两不同、旋钮独立 ═══════════════════════════
-console.log('── AC1 四个预设');
+// ══ AC1：5 个预设逐字、旋钮名 / 值逐字、parts、目录集合、两两不同、旋钮独立（#1500 起 5 个预设 · 8 个旋钮）═════
+console.log('── AC1 五个预设');
 {
-  // 列：名字 · 形态目录 · 七列旋钮（正文预设表逐字）
+  // 列：名字 · 形态目录 · 八列旋钮（#1500 正文预设表逐字；前 4 个只是补上 summaryStyle: inline）
   const WANT = [
-    ['Cards', 'cards', 'top', 'center', 'grid', '3', 'card', 'md', 'left'],
-    ['Side intro', 'side-intro', 'left', 'left', 'carousel', '2', 'card', 'md', 'left'],
-    ['Big quote', 'big-quote', 'top', 'center', 'carousel', '1', 'plain', 'lg', 'center'],
-    ['Quote card', 'quote-card', 'top', 'center', 'carousel', '2', 'card', 'lg', 'left'],
+    ['Cards', 'cards', 'top', 'center', 'inline', 'grid', '3', 'card', 'md', 'left'],
+    ['Side intro', 'side-intro', 'left', 'left', 'inline', 'carousel', '2', 'card', 'md', 'left'],
+    ['Big quote', 'big-quote', 'top', 'center', 'inline', 'carousel', '1', 'plain', 'lg', 'center'],
+    ['Quote card', 'quote-card', 'top', 'center', 'inline', 'carousel', '2', 'card', 'lg', 'left'],
+    ['Ratings', 'ratings', 'top', 'left', 'cards', 'grid', '3', 'card', 'md', 'left'],
   ];
   const got = (M.presets || []).map((p) => [p.name, p.shape, ...KNOB_NAMES.map((c) => p.knobs[c])]);
-  check(JSON.stringify(got) === JSON.stringify(WANT), 'presets 4 条与正文表逐字相同（名字 · 形态 · 七列旋钮）', JSON.stringify(got));
-  check((M.presets || []).every((p) => Object.keys(p.knobs).join() === KNOB_NAMES.join()), '每个预设的 knobs 键就是这七个、同一顺序');
+  check(JSON.stringify(got) === JSON.stringify(WANT), 'presets 5 条与正文表逐字相同（名字 · 形态 · 八列旋钮）', JSON.stringify(got));
+  check((M.presets || []).every((p) => Object.keys(p.knobs).join() === KNOB_NAMES.join()), '每个预设的 knobs 键就是这八个、同一顺序');
+  check(JSON.stringify((M.presets || []).map((p) => p.parts || null)) === JSON.stringify([null, null, null, null, ['summary']]),
+    `只有 Ratings 带部件 parts: ["summary"]（${JSON.stringify((M.presets || []).map((p) => p.parts || null))}）`);
   const knobs = M.slots.options.knobs.map((k) => [k.name, k.values]);
   check(JSON.stringify(knobs) === JSON.stringify([
     ['introPosition', ['left', 'right', 'top', 'bottom']], ['introAlign', ['left', 'center', 'right']],
-    ['itemsLayout', ['grid', 'carousel']], ['itemsColumns', ['1', '2', '3']],
+    ['summaryStyle', ['inline', 'cards']], ['itemsLayout', ['grid', 'carousel']], ['itemsColumns', ['1', '2', '3']],
     ['itemStyle', ['plain', 'card']], ['quoteSize', ['md', 'lg']], ['itemAlign', ['left', 'center']],
   ]), `slots.options.knobs 名字依次 ${knobs.map((k) => k[0]).join(' / ')}、values 与定稿表逐字（values[0] = 默认）`);
   check(JSON.stringify(M.parts) === '["summary"]', `parts == ["summary"]（${JSON.stringify(M.parts)}）`);
   const dirs = fs.readdirSync(BLOCK, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort();
-  check(JSON.stringify(dirs) === JSON.stringify(WANT.map((w) => w[1]).sort()), `目录集合 == 4 个预设形态（${dirs.join(' / ')}）`);
+  check(JSON.stringify(dirs) === JSON.stringify(WANT.map((w) => w[1]).sort()), `目录集合 == 5 个预设形态（${dirs.join(' / ')}）`);
   check(dirs.every((d) => !fs.existsSync(path.join(BLOCK, d, 'Section.tsx'))), '一份 Section.tsx（形态目录里没有第二份 markup）');
   check(M.skin === 'site-css' && M.roleDefault === 'optional', `skin=${M.skin} · roleDefault=${M.roleDefault}`);
   const htmls = dirs.map((d) => render(d, clone(DEMO)));
-  check(new Set(htmls).size === 4, `同一份夹具下 4 个预设渲染出 ${new Set(htmls).size} 份互不相同的 HTML`);
+  check(new Set(htmls).size === 5, `同一份夹具下 5 个预设渲染出 ${new Set(htmls).size} 份互不相同的 HTML`);
   const pinned = dirs.map((d) => render(d, withOpts(M.presets[0].knobs)).replace(/data-shape="[^"]*"/g, ''));
-  check(new Set(pinned).size === 1, '反向对照：options 里写死七个旋钮 ⟹ 4 个预设（去掉 data-shape 之后）塌成同一份 —— 判据分得开');
+  check(new Set(pinned).size === 1, '反向对照：options 里写死八个旋钮 ⟹ 5 个预设（去掉 data-shape 之后）塌成同一份 —— 判据分得开');
   const r = render('cards', clone(DEMO));
   const miss = KNOB_NAMES.filter((n) => attr(r, dataAttr(n)) !== M.presets[0].knobs[n]);
-  check(miss.length === 0, 'Cards：七个旋钮都写在 <section> 上', miss.join(' · '));
-  // 旋钮独立：拧一个，其余六个不变（组件里没有联动纠正）。
+  check(miss.length === 0, 'Cards：八个旋钮都写在 <section> 上', miss.join(' · '));
+  // 旋钮独立：拧一个，其余七个不变（组件里没有联动纠正）。
   const base = M.presets[1].knobs;
   const moved = [];
   for (const k of M.slots.options.knobs) {
@@ -128,7 +134,7 @@ console.log('── AC1 四个预设');
       if (attr(h, dataAttr(k.name)) !== v || others.some((n) => attr(h, dataAttr(n)) !== base[n])) moved.push(`${k.name}=${v}`);
     }
   }
-  check(moved.length === 0, `旋钮独立（Side intro 上逐个拧 ${M.slots.options.knobs.reduce((n, k) => n + k.values.length, 0)} 档）：拧的那个到位、其余六个不变`, moved.join(' · '));
+  check(moved.length === 0, `旋钮独立（Side intro 上逐个拧 ${M.slots.options.knobs.reduce((n, k) => n + k.values.length, 0)} 档）：拧的那个到位、其余七个不变`, moved.join(' · '));
 }
 
 // ══ AC3 / AC4（DOM 一半）：轮播全在服务端 HTML 里；grid 没有圆点 / 按钮 ═══════════════════════════════
@@ -215,8 +221,8 @@ console.log('\n── AC7 槽位');
   const full = render('cards', clone(DEMO));
   const noSum = clone(DEMO); delete noSum.summary;
   check(count(full, 'data-part="summary"') === 1 && count(render('cards', noSum), 'data-part="summary"') === 0, 'summary：有值渲染、清空不渲染');
-  const badSum = clone(DEMO); badSum.summary = { count: '312', source: 'Google' };
-  check(count(render('cards', badSum), 'data-part="summary"') === 0, 'summary 没写 rating（没有真实总评分）⟹ 那一行不画');
+  const badSum = clone(DEMO); badSum.summary = [{ count: 312, source: 'Google' }];
+  check(count(render('cards', badSum), 'data-part="summary"') === 0, 'summary 唯一那个平台没写 rating（没有真实评分）⟹ 那一排不画');
   const its = itemsOf(full);
   const photos = its.map((x) => count(x, '<img'));
   const inits = its.map((x) => count(x, 'data-part="initials"'));
@@ -231,12 +237,6 @@ console.log('\n── AC7 槽位');
   check(count(nr, 'data-part="stars"') === 0 && count(nr, 'data-slot="items.0.source"') === 1, '某条没 rating ⟹ 没有星级节点、来源照常');
   const neither = clone(DEMO); delete neither.items[0].rating; delete neither.items[0].source;
   check(count(itemsOf(render('cards', neither))[0], 'data-part="meta"') === 0, '对照：rating 和 source 都没有 ⟹ 整行不画');
-  const sumStars = /data-part="summary"[\s\S]*?<\/div>/.exec(full)[0];
-  check(count(sumStars, 'data-star="fill"') === 5, `summary 4.9 ⟹ 按 0.5 取整 = 5 颗实心（${count(sumStars, 'data-star="fill"')}）`);
-  const half = clone(DEMO); half.summary.rating = '4.4';
-  const hs = /data-part="summary"[\s\S]*?<\/div>/.exec(render('cards', half))[0];
-  check(count(hs, 'data-star="fill"') === 4 && count(hs, 'data-star="half"') === 1, 'summary 4.4 ⟹ 4 颗实心 + 1 颗半星');
-  check(/<span data-slot="summary.count">312<\/span> <span data-slot="summary.source">Google<\/span> reviews/.test(full), 'summary 那行 = 大数字 + 五星 + 「312 Google reviews」');
   const noHead = clone(DEMO); delete noHead.headline; delete noHead.body;
   const nh = render('cards', noHead);
   check(!nh.includes('data-part="intro"') && nh.includes('data-part="items"'), 'headline + body 都清空 ⟹ 块头那一列不渲染、评价照画');
@@ -245,8 +245,9 @@ console.log('\n── AC7 槽位');
 // ══ 图标：星 / 箭头真画成 <svg>（BLOCK_ICONS 那一行）════════════════════════════════════════════════
 console.log('\n── 图标');
 {
-  const want = ['star-fill', 'star-half', 'star', 'chevron-left', 'chevron-right'];
-  check(JSON.stringify(icons.BLOCK_ICONS['testimonials-new']) === JSON.stringify(want) && want.every((n) => TABLE[n]), `BLOCK_ICONS['testimonials-new'] == ${want.join(' / ')}，表里五个都查得到`);
+  // #1500 —— 半星不再用到（平台评分四舍五入成整数颗）；平台品牌图标从 review-platforms.js 那张表现取。
+  const want = ['star-fill', 'star', 'chevron-left', 'chevron-right', 'google', 'yelp', 'facebook'];
+  check(JSON.stringify(icons.BLOCK_ICONS['testimonials-new']) === JSON.stringify(want) && want.every((n) => TABLE[n]), `BLOCK_ICONS['testimonials-new'] == ${want.join(' / ')}，表里七个都查得到`);
   const car = render('side-intro', clone(DEMO));
   const svgIn = (html, sel) => { const i = html.indexOf(sel); const j = html.indexOf('</button>', i); return i >= 0 && /<svg[^>]*>[\s\S]*<path/.test(html.slice(i, j)); };
   check(svgIn(car, 'aria-label="Previous"') && svgIn(car, 'aria-label="Next"'), '前 / 后按钮里各有一个非空的内联 <svg>');
@@ -303,7 +304,7 @@ console.log('\n── AC9 validateSite');
     check(load({ rating: [1, 5] }) === '', '对照：原样 [1, 5] ⟹ 载得进');
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
   for (const p of M.presets) {
-    check(v({ ...clone(DEMO), options: p.knobs }).length === 0, `预设 ${p.name} 那组值（七个旋钮写全）+ 演示内容 ⟹ 放行`);
+    check(v({ ...clone(DEMO), options: p.knobs }).length === 0, `预设 ${p.name} 那组值（八个旋钮写全）+ 演示内容 ⟹ 放行`);
   }
 }
 
@@ -375,8 +376,9 @@ console.log('\n── AC10 block-roles · 首页配方');
   check(without.length === pool.length - 1 && !without.includes('testimonials'), `对照：块库里没有 testimonials-new ⟹ 池子 ${without.length} 种（少一，旧的也不回来）`);
   check(M.prompt.group === 'homepage' && Number.isInteger(M.prompt.order), `prompt.group == homepage、order ${M.prompt.order}`);
   const lines = M.prompt.lines.join('\n');
-  check(/never invent/.test(lines) && /source is the platform/.test(lines) && /summary .*only if one is stated.*leave summary out entirely/.test(lines) && /top-level in data \(not inside options\)/.test(lines),
-    'prompt.lines：只放真实评价不编造、source 写平台、summary 只在有真实总评分时写、bg 在 data 顶层');
+  check(/never invent/.test(lines) && /source is the platform/.test(lines) && /summary is a list of rating platforms \(at most 4\)/.test(lines)
+    && /if none is stated, leave summary out entirely, never make one up/.test(lines) && /top-level in data \(not inside options\)/.test(lines),
+    'prompt.lines：只放真实评价不编造、source 写平台、summary 是一组平台（最多 4 个）且只在有真实评分时写、bg 在 data 顶层');
 }
 
 // ══ AC12（编辑器 schema 一半；往返无损由 editor-roundtrip.test.js 对全部页面块量）═══════════════════════
@@ -391,12 +393,211 @@ console.log('\n── AC12 编辑器 schema');
     `字段顺序 = 旋钮 → 眉标 → 块头 → summary → items → bg（${order.join(' → ')}）`);
   const opt = on.fields[0];
   check(opt.control === 'options' && opt.presets.map((p) => p.name).join() === M.presets.map((p) => p.name).join()
-    && opt.knobs.map((k) => k.name).join() === KNOB_NAMES.join(), '第一个字段：预设 4 个 → 七个旋钮');
+    && opt.knobs.map((k) => k.name).join() === KNOB_NAMES.join(), '第一个字段：预设 5 个 → 八个旋钮');
   const it = on.fields.find((f) => f.slot === 'items');
   check(it.control === 'list' && it.subs.map((x) => x.sub).join() === 'quote,name,role,source', `items 是列表字段、每条可改 quote / name / role / source（${it.subs.map((x) => x.sub).join(' / ')}）`);
   const man = { slots: { options: { knobs: opt.knobs } }, presets: opt.presets };
   check(presetNameFor(man, M.presets[2].knobs) === 'Big quote' && presetNameFor(man, { ...M.presets[2].knobs, itemsColumns: '2' }) === 'custom',
     '点 Big quote = 那一组旋钮；拧偏一个（itemsColumns=2）⟹ custom');
+}
+
+// ══ #1500：summary 是一组平台 —— logo 三档 · 两种摆法只出一处 · 链接 · 星数 · 空 · 旧形状 · Ratings 部件 ═══════
+// 几何（inline 跟 introAlign 对齐、cards 一行三张 / 右列顶上 / 390 矮条、计算色、深底）要浏览器：
+// `tests/e2e/specs/1500-testimonials-new-summary.spec.ts`。
+console.log('\n── #1500 summary：一组平台');
+{
+  // summary 那一排的 HTML：inline 在块头里（到评价列开头为止），cards 在评价列顶上（到轨道开头为止）。
+  const sumOf = (html) => {
+    const i = html.indexOf('data-part="summary"');
+    if (i < 0) return '';
+    const ends = ['data-part="items"', 'data-part="track"'].map((m) => html.indexOf(m, i)).filter((j) => j > 0);
+    return html.slice(i, Math.min(...ends));
+  };
+  const platformsOf = (html) => sumOf(html).split('data-part="platform"').slice(1);
+  const inl = render('cards', clone(DEMO));
+  const crd = render('ratings', clone(DEMO));
+  // AC2 logo 三档（DOM 一半；计算色 rgb(66, 133, 244) 在 e2e 里量）
+  const ps = platformsOf(inl);
+  check(ps.length === 4 && DEMO.summary.length === 4, `夹具 4 个平台 ⟹ 4 个 platform 节点（${ps.length}）`);
+  const [g, y, h, f] = ps;
+  check(/data-logo="icon" style="--tn-brand:#4285F4"><svg[^>]*data-icon="google"/.test(g), 'Google ⟹ 内置图标 google（Bootstrap Icons 的 google.svg）、品牌色 #4285F4');
+  check(/data-logo="icon" style="--tn-brand:#d32323"><svg[^>]*data-icon="yelp"/.test(y), 'Yelp ⟹ 内置图标 yelp、品牌色 #d32323');
+  check(/data-logo="icon" style="--tn-brand:#1877F2"><svg[^>]*data-icon="facebook"/.test(f), 'Facebook ⟹ 内置图标 facebook、品牌色 #1877F2');
+  check(/data-logo="name"[^>]*>HomeStars</.test(h) && !/<svg[^>]*data-icon="(google|yelp|facebook)"/.test(h) && !/<img/.test(h), 'HomeStars ⟹ 没有图标、没有图，写平台名');
+  check(ps.every((x, i) => new RegExp(`data-slot="summary\\.${i}\\.source">${DEMO.summary[i].source}<`).test(x)), '每项的 DOM 里都有文字平台名（图标档是 visually-hidden 那段，名字档是名字本身），data-slot = summary.N.source');
+  check(/class="visually-hidden" data-slot="summary.0.source">Google</.test(g), 'Google 那项的平台名是 visually-hidden（读屏 / 搜索 / AI 读得到）');
+  const up = clone(DEMO); up.summary[2].logoUrl = 'https://uploads.example/homestars.png';
+  const hu = platformsOf(render('cards', up))[2];
+  check(/data-logo="image"><img src="https:\/\/uploads.example\/homestars.png" alt="HomeStars"/.test(hu) && !/data-logo="name"/.test(hu), '给 HomeStars 加 logoUrl ⟹ <img alt="HomeStars">、没有文字那一档');
+  const sp = clone(DEMO); sp.summary[2] = { source: ' google ', rating: 4.7, count: 28 };
+  check(/data-icon="google"/.test(platformsOf(render('cards', sp))[2]), 'source " google "（大小写 / 首尾空格）⟹ 照样命中 google 图标');
+  const upG = clone(DEMO); upG.summary[0].logoUrl = 'https://uploads.example/g.png';
+  check(/data-logo="image"/.test(platformsOf(render('cards', upG))[0]) && !/data-icon="google"/.test(platformsOf(render('cards', upG))[0]), '对照：Google 也给了 logoUrl ⟹ 上传的图优先于内置图标');
+  check(/require\('\.\/review-platforms'\)\.PLATFORM_ICONS/.test(fs.readFileSync(path.join(NEXT, 'scripts', 'lib', 'icons.js'), 'utf-8'))
+    && /from '\.\.\/\.\.\/scripts\/lib\/review-platforms\.js'/.test(SRC_TEXT) && !/#4285F4|#d32323|#1877F2/i.test(SRC_TEXT),
+    '平台表只住 review-platforms.js 一处：Section.tsx 引它、icons.js 从它现取、Section.tsx 里没有抄一份品牌色');
+  // AC3 / AC4（DOM 一半）：按 summaryStyle 只出一处
+  const where = (html) => {
+    const intro = html.slice(html.indexOf('data-part="intro"'), html.indexOf('data-part="items"'));
+    const itemsCol = html.slice(html.indexOf('data-part="items"'));
+    return { intro: count(intro, 'data-part="summary"'), items: count(itemsCol, 'data-part="summary"'), total: count(html, 'data-part="summary"') };
+  };
+  check(JSON.stringify(where(inl)) === '{"intro":1,"items":0,"total":1}' && attr(inl, 'data-summary-style') === 'inline', `inline（Cards）⟹ 只有块头里那一排（${JSON.stringify(where(inl))}）`);
+  check(JSON.stringify(where(crd)) === '{"intro":0,"items":1,"total":1}' && attr(crd, 'data-summary-style') === 'cards', `cards（Ratings）⟹ 只有评价列顶上那一排（${JSON.stringify(where(crd))}）`);
+  const itemsHtml = crd.slice(crd.indexOf('data-part="items"'));
+  check(itemsHtml.indexOf('data-part="summary"') < itemsHtml.indexOf('data-part="track"'), 'cards 那一排在评价轨道之前（评价那一列的最上面）');
+  check(/data-slot="summary.0.rating">4.9<\/span> out of 5<\/span>/.test(platformsOf(crd)[0]) && /from <span data-slot="summary.0.count">312<\/span> reviews/.test(platformsOf(crd)[0]),
+    'cards 每张：「4.9 out of 5」·「from 312 reviews」');
+  check(/data-slot="summary.0.rating">4.9<\/span>/.test(platformsOf(inl)[0]) && /<span data-slot="summary.0.count">312<\/span> reviews/.test(platformsOf(inl)[0]),
+    'inline 每条：大数字 4.9 · 五星 · 「312 reviews」');
+  const sideCards = render('side-intro', withOpts({ summaryStyle: 'cards' }));
+  check(JSON.stringify(where(sideCards)) === '{"intro":0,"items":1,"total":1}', 'introPosition=left + cards ⟹ 卡在右列（评价那一列）里');
+  // AC5 链接
+  check(/<a class="tn-platform[^"]*" data-part="platform" data-source="Google" href="https:\/\/www.google.com\/maps" target="_blank" rel="noopener">/.test(inl)
+    && /<div class="tn-platform[^"]*" data-part="platform" data-source="Yelp">/.test(inl) && /<div class="tn-platform[^"]*" data-part="platform" data-source="HomeStars">/.test(inl),
+    '有 href 的 Google 那项是 <a target="_blank" rel="noopener">；Yelp / HomeStars 没有 href ⟹ <div>');
+  check(/<a class="tn-platform tn-platform-card[^"]*"[^>]*href="https:\/\/www.google.com\/maps" target="_blank" rel="noopener">/.test(crd), 'cards 那一档同样：整张卡是链接');
+  // AC6 星数：四舍五入到整数颗实心
+  const starsAt = (r) => { const d = clone(DEMO); d.summary = [{ source: 'Google', rating: r, count: 10 }]; return count(platformsOf(render('cards', d))[0], 'data-star="fill"'); };
+  const got6 = [4.9, 4.5, 4.4, 4.7, '4.4'].map(starsAt);
+  check(JSON.stringify(got6) === '[5,5,4,5,4]', `rating 4.9 / 4.5 / 4.4 / 4.7 / "4.4"（编辑器改过的字符串）⟹ ${got6.join(' / ')} 颗实心（要 5 / 5 / 4 / 5 / 4）`);
+  check(count(inl, 'data-star="half"') === 0 && !/star-half/.test(SRC_TEXT), '不画半颗（Section.tsx 里没有 star-half）');
+  // AC7 summary 为空
+  const empties = [undefined, [], [{ source: 'Google' }], [{ rating: 4.9, count: 3 }]];
+  check(empties.every((v) => { const d = clone(DEMO); if (v === undefined) delete d.summary; else d.summary = v; return count(render('cards', d), 'data-part="summary"') === 0 && count(render('ratings', d), 'data-part="summary"') === 0; }),
+    'summary 不写 / [] / 平台缺 rating / 缺 source ⟹ 两处都没有 summary 节点');
+  const strip = (h) => h.replace(/ data-summary-style="[^"]*"/, '');
+  const e1 = clone(DEMO); delete e1.summary;
+  const a = render('cards', withOpts({ summaryStyle: 'inline' }, {}, e1));
+  const b = render('cards', withOpts({ summaryStyle: 'cards' }, {}, e1));
+  check(a !== b && strip(a) === strip(b), 'summary 为空：summaryStyle 两个值的 HTML 除 data-summary-style 外逐字相同（这个旋钮此时不起作用，写明不算缺陷）');
+  check(strip(render('cards', withOpts({ summaryStyle: 'inline' }))) !== strip(render('cards', withOpts({ summaryStyle: 'cards' }))), '对照：summary 有值 ⟹ 两个值去掉 data-summary-style 之后仍不同（上一格的「相同」是空带来的）');
+  const five = clone(DEMO); five.summary = [1, 2, 3, 4, 5].map((i) => ({ source: `P${i}`, rating: 4, count: i }));
+  check(platformsOf(render('cards', five)).length === 4, '平台超过 maxItems 4 ⟹ 只画前 4 个（validateSite 另外报错）');
+  // AC8 旧形状（#1488 的单个对象）
+  const vv = (summary) => {
+    const data = { ...clone(DEMO), summary };
+    const pages = [{ slug: 'p', blocks: [{ type: 'testimonials-new', data }] }];
+    return { problems: own(manifestLib.validateSite({ pages, scope: 'edit' })), data };
+  };
+  const old = vv({ rating: '4.9', count: '312', source: 'Google' });
+  check(old.problems.length === 0 && JSON.stringify(old.data.summary) === '[{"rating":4.9,"count":312,"source":"Google"}]',
+    `旧形状 {rating:"4.9",count:"312",source:"Google"} ⟹ validateSite 不报错、就地包成一项（${JSON.stringify(old.data.summary)}）`);
+  check(platformsOf(render('cards', old.data)).length === 1, '包过之后渲染出一项');
+  check(count(render('cards', { ...clone(DEMO), summary: { rating: '4.9', count: '312', source: 'Google' } }), 'data-part="summary"') === 0,
+    '对照：不经 validateSite 直接喂对象 ⟹ 组件不认（只有一处迁移，不写两套渲染）');
+  // 真读入路径（QA1 #1500 r2）：构建 / 编辑器 / AI 改站都先过 blocks.js §normalizeLocalePages，再 validateSite。
+  //    那一跳会把「列表槽、值不是数组」换成 `[]`；上面那格直接调 validateSite，量不到它。
+  {
+    const blocksLib = require(path.join(NEXT, 'scripts', 'blocks.js'));
+    const viaFunnel = (summary) => {
+      const pages = [{ slug: 'p', blocks: [{ type: 'testimonials-new', data: { ...clone(DEMO), summary } }] }];
+      blocksLib.normalizeLocalePages(pages, {}, 'en', {});
+      const problems = own(manifestLib.validateSite({ pages, scope: 'build' }));
+      return { problems, data: pages[0].blocks[0].data };
+    };
+    const legacy = { rating: '4.9', count: '312', source: 'Google' };
+    const f = viaFunnel(clone(legacy));
+    check(JSON.stringify(f.data.summary) === '[{"rating":4.9,"count":312,"source":"Google"}]' && f.problems.length === 0
+      && platformsOf(render('cards', f.data)).length === 1,
+      `旧形状走真读入路径（normalizeLocalePages → validateSite）⟹ 迁成一项、不报错、渲染出一项（${JSON.stringify(f.data.summary)}）`);
+    const fresh = viaFunnel([{ source: 'Google', rating: 4.9, count: 312 }]);
+    check(JSON.stringify(fresh.data.summary) === '[{"source":"Google","rating":4.9,"count":312}]' && fresh.problems.length === 0,
+      '对照：新形状走同一条路 ⟹ 原样不动');
+    const raw = { type: 'testimonials-new', data: { ...clone(DEMO), summary: clone(legacy) } };
+    check(JSON.stringify(blocksLib.normalizeListSlots(raw).data.summary) === '[{"rating":4.9,"count":312,"source":"Google"}]'
+      && JSON.stringify(raw.data.summary) === JSON.stringify(legacy),
+      'normalizeListSlots 自己迁（不在它之后才迁），而且不改传进来的那个对象');
+    check(JSON.stringify(blocksLib.normalizeListSlots({ type: 'cta-new', data: { ctas: { label: 'x' } } }).data.ctas) === '[]',
+      '对照：不在迁移名单里的列表槽写成对象 ⟹ 照旧换成 []（迁移只认点名的那一个槽）');
+  }
+  // 真跑一次构建（role-user #1500 r4 要求：回归必须走 sync-config.js 这条路，不能只调函数）：
+  //    拷一棵树 → skipAI 建站 → 页面里放一块旧形状、一块新形状 → 子进程跑 sync-config.js →
+  //    从它写出的 config-data.ts 里取回这两块 → 交给真的 Section.tsx 渲染。同 item-sources.test.js §AC2 的台子。
+  {
+    const cp = require('child_process');
+    const os = require('os');
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'tn1500-build-'));
+    try {
+      const work = path.join(tmp, 'nextjs');
+      cp.execSync(`cp -a --no-dereference "${NEXT}" "${work}"`, { stdio: 'pipe' });
+      for (const junk of ['out', '.next', '.out-backup', '.out-temp', 'site', 'node_modules']) fs.rmSync(path.join(work, junk), { recursive: true, force: true });
+      fs.symlinkSync(path.join(NEXT, 'node_modules'), path.join(work, 'node_modules'));
+      const payload = JSON.stringify({ siteId: 'tn1500ab', companyName: 'Northside Auto Care', industry: 'auto repair', location: 'Toronto', skipAI: true, language: 'en' });
+      const made = cp.spawnSync(process.execPath, [path.join(work, 'scripts', 'create-site.js')], {
+        input: payload, cwd: work, encoding: 'utf8', env: { ...process.env, ANTHROPIC_API_KEY: undefined }, timeout: 180000,
+      });
+      const homeFile = path.join(work, 'site', 'en', 'pages', 'home.json');
+      if (!fs.existsSync(homeFile)) die(`skipAI 建站没立起来（rc=${made.status}）\n${(made.stderr || '').slice(-600)}`);
+      const home = JSON.parse(fs.readFileSync(homeFile, 'utf-8'));
+      const tn = (id, summary) => ({ id, type: 'testimonials-new', shape: 'cards', data: { ...clone(DEMO), headline: id, summary } });
+      home.blocks = [...(home.blocks || []), tn('tn-legacy', { rating: '4.9', count: '312', source: 'Google' }), tn('tn-fresh', [{ source: 'Google', rating: 4.9, count: 312 }])];
+      fs.writeFileSync(homeFile, JSON.stringify(home, null, 2));
+      const built = cp.spawnSync(process.execPath, [path.join(work, 'scripts', 'sync-config.js')], { cwd: work, encoding: 'utf8', timeout: 180000 });
+      if (built.status !== 0) die(`sync-config.js rc=${built.status}\n${(built.stderr || built.stdout || '').slice(-800)}`);
+      const out = fs.readFileSync(path.join(work, 'src', 'lib', 'config-data.ts'), 'utf-8');
+      const blockById = (id) => {
+        // 产物里块的键序是 id 在前（`{"id":…,"type":…}`）；也认 type 在前的写法，免得键序一变这格就找不到块。
+        const at = out.indexOf(`"id":"${id}"`);
+        if (at < 0) return null;
+        const st = out.startsWith('{', at - 1) ? at - 1 : out.lastIndexOf('{"type":"testimonials-new"', at);
+        if (st < 0) return null;
+        let depth = 0; let j = st;
+        for (; j < out.length; j += 1) { if (out[j] === '{') depth += 1; else if (out[j] === '}') { depth -= 1; if (!depth) break; } }
+        return JSON.parse(out.slice(st, j + 1));
+      };
+      const legacyB = blockById('tn-legacy');
+      const freshB = blockById('tn-fresh');
+      const log = `${built.stdout || ''}${built.stderr || ''}`;
+      check(legacyB && JSON.stringify(legacyB.data.summary) === '[{"rating":4.9,"count":312,"source":"Google"}]' && (legacyB.has || []).includes('summary'),
+        `真跑 sync-config.js：旧形状那块在 config-data.ts 里是一项数组、has 含 summary（${legacyB && JSON.stringify(legacyB.data.summary)}）`);
+      check(legacyB && platformsOf(render('cards', legacyB.data)).length === 1, '用构建产物里那块渲染 ⟹ 画出一个平台');
+      check(!/"summary" 至少要/.test(log), '构建日志里没有「"summary" 至少要 1 项」那条（r3 时旧块被清空就会报它）');
+      check(freshB && JSON.stringify(freshB.data.summary) === '[{"source":"Google","rating":4.9,"count":312}]', '对照：新形状那块走同一次构建 ⟹ 原样不动');
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  }
+  const r5 = vv([1, 2, 3, 4, 5].map((i) => ({ source: `P${i}`, rating: 4, count: i }))).problems;
+  check(r5.length === 1 && r5[0].includes('"summary"') && r5[0].includes('最多只能有 4 项'), `summary 5 项 ⟹ 报一条、点名 summary（${r5[0] || ''}）`);
+  const rr6 = vv([{ source: 'Google', rating: 6, count: 3 }]).problems;
+  check(rr6.length === 1 && rr6[0].includes('summary[0].rating'), `rating: 6 ⟹ 报一条（${rr6[0] || ''}）`);
+  check(vv([{ source: 'Google', rating: 4.95, count: 3 }]).problems.length === 1 && vv([{ source: 'Google', rating: 4.9, count: 0 }]).problems.length === 1,
+    'rating 4.95（两位小数）/ count 0 ⟹ 各报一条');
+  check(vv(clone(DEMO.summary)).problems.length === 0 && vv({ rating: '4.9', count: '312' }).problems.length === 0, '夹具 3 个平台 / 旧形状缺 source ⟹ 放行');
+  check(JSON.stringify(M.slots.summary.ranges) === '{"rating":[0,5,1],"count":[1,null]}' && M.slots.summary.minItems === 1 && M.slots.summary.maxItems === 4 && M.slots.summary.kind === 'list',
+    `判据从 manifest 读：summary 是 list、1–4 项、ranges ${JSON.stringify(M.slots.summary.ranges)}`);
+  // AC9 Ratings 预设（编辑器侧：presetClickProps / presetNameFor，同 team-new 的 Hiring 三条）
+  const { editorSchema } = require(path.join(NEXT, 'scripts', 'lib', 'editor-schema.js'));
+  const { presetClickProps, presetNameFor } = require(path.join(NEXT, 'scripts', 'lib', 'block-knobs.js'));
+  const comp = editorSchema({}).components.find((c) => c.type === 'testimonials-new');
+  const opt = comp.fields.find((f) => f.control === 'options');
+  const man = { slots: { options: { knobs: opt.knobs } }, presets: opt.presets };
+  const nameOf = (props) => presetNameFor(man, { ...(props.options || {}), summary: props.summary });
+  check(JSON.stringify(opt.partDemos) === '{"summary":[{"source":"Google","rating":4.9,"count":120}]}', `编辑器带下去的占位 = 槽上的 demo（${JSON.stringify(opt.partDemos)}）`);
+  const start = { options: { ...M.presets[0].knobs }, summary: undefined };
+  const clicked = presetClickProps(opt, start, 'Ratings');
+  check(JSON.stringify(clicked.summary) === JSON.stringify(opt.partDemos.summary) && nameOf(clicked) === 'Ratings', `空 summary 时点 Ratings ⟹ 填上占位、Ratings 亮（${nameOf(clicked)}）`);
+  const own3 = { options: { ...M.presets[0].knobs }, summary: clone(DEMO.summary) };
+  check(JSON.stringify(presetClickProps(opt, own3, 'Ratings').summary) === JSON.stringify(DEMO.summary), '已经有 summary 时点 Ratings ⟹ 不覆盖（3 个平台还在）');
+  const back = presetClickProps(opt, clicked, 'Cards');
+  check(JSON.stringify(back.summary) === JSON.stringify(opt.partDemos.summary) && nameOf(back) === 'Cards', `再点 Cards ⟹ summary 内容还在、Cards 亮（${nameOf(back)}）`);
+  check(nameOf({ ...clicked, summary: [] }) === 'custom' && nameOf({ ...clicked, summary: undefined }) === 'custom', 'summary 清空（[] / 不写）⟹ 跟 Ratings 一样的旋钮组合显示 Custom');
+  const blind = presetClickProps({ ...opt, partDemos: {} }, start, 'Ratings');
+  check(blind.summary === undefined && nameOf(blind) === 'custom', '阳性对照：没有 partDemos ⟹ 点 Ratings 不填、不亮（上面「填上」是槽上 demo 带来的）');
+  const sf = comp.fields.find((f) => f.slot === 'summary');
+  check(sf && sf.control === 'list' && sf.subs.map((x) => x.sub).join() === 'source,rating,count', `Puck 里 summary 是列表字段（能增删平台），每项改 source / rating / count（${sf && sf.subs.map((x) => x.sub).join(' / ')}）`);
+  // PM 07:32 第 2 条：logoUrl 不被当成内容图槽（建站不编平台 logo）—— 靠字段名，两向守住
+  const all = manifestLib.loadManifests();
+  check(!manifestLib.imageSlotsOf(all.get('testimonials-new')).some((x) => x.name === 'summary'), 'imageSlotsOf(testimonials-new) 不含 summary ⟹ 建站不给平台生成 logo');
+  const renamed = clone(all.get('testimonials-new')); renamed.slots.summary.shape = renamed.slots.summary.shape.replace('logoUrl', 'imageUrl');
+  check(manifestLib.imageSlotsOf(renamed).some((x) => x.name === 'summary'), '反向对照：shape 里 logoUrl 改名成 imageUrl ⟹ 立刻被当成内容图槽（这正是要守的那件事）');
+  // AC11b 改图清单 + 提示词
+  const editSite = fs.readFileSync(path.join(NEXT, 'scripts', 'edit-site.js'), 'utf-8');
+  const imgLine = editSite.split('\n').find((l) => /^- a \*\*testimonials-new\*\* block → /.test(l)) || '';
+  check(imgLine.includes('data.items[].photo.imageUrl') && imgLine.includes('data.summary[].logoUrl'), `edit-site.js ## Images 段 testimonials-new 那一行同时有 items[].photo.imageUrl 与 summary[].logoUrl`);
+  const sumLine = (M.prompt.lines || []).find((l) => /^summary\b/.test(l)) || '';
+  check(/logoUrl only when the owner gave you that platform's logo image — without one leave it out/.test(sumLine) && /href/.test(sumLine), 'prompt.lines 的 summary 那句写了 logoUrl 与「没有就不写」、href');
 }
 
 // ══ AC13：旧 testimonials 零改动 ════════════════════════════════════════════════════════════════

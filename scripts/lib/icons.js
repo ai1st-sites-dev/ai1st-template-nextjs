@@ -81,8 +81,9 @@ const BLOCK_ICONS = {
   'contact-new': ['telephone', 'envelope', 'geo-alt', 'clock', 'link-45deg', 'geo-alt-fill'],
   // #1483 —— 功能清单每行的勾号；highlights 的图标来自数据（`highlights[].icon`），由 §iconNamesIn 收。
   'pricing-new': ['check'],
-  // #1488 —— 星级（每条 n 颗实心 + 空心补到 5 颗；总评分按 0.5 取整会用到半星）和轮播的前 / 后箭头，都是组件里写死的名字。
-  'testimonials-new': ['star-fill', 'star-half', 'star', 'chevron-left', 'chevron-right'],
+  // #1488 —— 星级（每条 n 颗实心 + 空心补到 5 颗）和轮播的前 / 后箭头，都是组件里写死的名字。
+  //    #1500 —— 平台评分改成四舍五入到整数颗，半星不再用到（`star-half` 拿掉）；summary 的平台品牌图标从 `review-platforms.js` 那张表现取。
+  'testimonials-new': ['star-fill', 'star', 'chevron-left', 'chevron-right', ...Object.values(require('./review-platforms').PLATFORM_ICONS).map((p) => p.icon)],
   // #1484 —— 问答的开合图标（itemToggle：chevron = chevron-down；plus = plus + dash，展开时换着显示）+ help 卡按钮的箭头。
   'faq-new': ['chevron-down', 'plus', 'dash', 'arrow-right'],
   // #1504 —— 星级（按分数四舍五入的实心星）+ 常见平台的品牌图标。品牌图标那几个名字只住在 `review-platforms.js` 那张表里，这里现取。
