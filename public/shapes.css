@@ -4909,11 +4909,30 @@
 [data-block="features-new"][data-items-layout="list"] .fx-item {
   position: relative;
 }
+/* list 的竖线挂在序号（标记里的第一个徽标，2.5rem）正下方，所以只在标记排在文字旁边时画（≥768 且 itemIcon
+   left / right）：标记在文字上方时（top / none，以及 <768 时 left / right 退回上方），任何连到下一项序号的竖线
+   都必然从文字中间穿过 ⟹ 不画（同 grid 手机一列不画横线，#1493）。right 时标记在行尾，序号是它的第一个徽标，
+   所以从右边量：两个徽标并排时标记宽 2.5rem × 2 + 0.75rem 间距。 */
 [data-block="features-new"][data-items-layout="list"] .fx-connector {
+  display: none;
   width: 2px;
-  left: calc(var(--x-gutter-x) * 0.5 + var(--fx-pad) + 1.25rem - 1px);
   top: calc(var(--fx-pad) + 2.5rem + 0.5rem);
   bottom: calc(0.5rem - var(--x-gutter-y) - var(--fx-pad));
+}
+@media (min-width: 768px) {
+  [data-block="features-new"][data-items-layout="list"][data-item-icon="left"] .fx-connector,
+  [data-block="features-new"][data-items-layout="list"][data-item-icon="right"] .fx-connector {
+    display: block;
+  }
+  [data-block="features-new"][data-items-layout="list"][data-item-icon="left"] .fx-connector {
+    left: calc(var(--x-gutter-x) * 0.5 + var(--fx-pad) + 1.25rem - 1px);
+  }
+  [data-block="features-new"][data-items-layout="list"][data-item-icon="right"] .fx-connector {
+    right: calc(var(--x-gutter-x) * 0.5 + var(--fx-pad) + 2.5rem - 1.25rem - 1px);
+  }
+  [data-block="features-new"][data-items-layout="list"][data-item-icon="right"] .fx-mark[data-mark="2"] .fx-connector {
+    right: calc(var(--x-gutter-x) * 0.5 + var(--fx-pad) + 5.75rem - 1.25rem - 1px);
+  }
 }
 
 /* ═══ 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneForBg）══════════════════════════════
