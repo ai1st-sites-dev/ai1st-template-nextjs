@@ -310,6 +310,23 @@ const DEMO_CONTENT = {
     bg: null,
   },
 
+  // #1504 —— reviews-new：Northside Auto Care 在四个平台上的评分（正文做什么 8）。Google 带 href（那一格是链接）；
+  //    HomeStars 没有内置图标、也没有 logoUrl ⟹ 走「写平台名」那一档。加权总分 = 1976.2 / 405 = 4.88 → 4.9。
+  //    🔴 `introEyebrow.style` 写明 pill，理由同上面 features-new 那条（词表 `none` 排第一，工具栏不写就亮 none）。
+  'reviews-new': {
+    options: {},
+    introEyebrow: { text: 'Reviews', style: 'pill' },
+    headline: 'Rated 4.9 by Northside drivers',
+    body: 'Real reviews on the sites you already trust. We reply to every one.',
+    platforms: [
+      { source: 'Google', rating: 4.9, count: 312, href: 'https://www.google.com/maps' },
+      { source: 'Yelp', rating: 4.8, count: 46 },
+      { source: 'HomeStars', rating: 4.7, count: 28 },
+      { source: 'Facebook', rating: 5.0, count: 19 },
+    ],
+    bg: null,
+  },
+
   // ── 内容 / 排版 ─────────────────────────────────────────────────────────────────────────────
   'features-grid': {
     headline: 'Why drivers stay with us',

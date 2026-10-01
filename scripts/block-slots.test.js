@@ -131,6 +131,9 @@ const EXTRA = {
   'testimonials-new': { summary: { rating: '4.9', count: '312', source: 'Google' } },
   // #1495 —— 照片墙的每一项没有图就不画（`slots.items.itemRequires`，validateSite 也拦）。
   'gallery-new': { _item: { image: { imageUrl: '/a.png', alt: '' } } },
+  // #1504 —— 平台那一格只在 rating 是 0–5 的数、count 是正数时画（夹具造的 `platforms-0-rating` 画不出来 —— 它会盖掉 `_item`，
+  //    所以整份给）。
+  'reviews-new': { platforms: [{ source: 'platforms-0-source', rating: 4.5, count: 10 }, { source: 'platforms-1-source', rating: 4, count: 3 }] },
 };
 
 // #1463 —— 同一个块、互斥的两支：hero-new 有表单时不画 `ctas`（提交键就是 CTA），没表单时不画表单。

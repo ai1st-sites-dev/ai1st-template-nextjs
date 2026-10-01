@@ -30,6 +30,7 @@ import PricingNewSection from '@blocks/pricing-new/Section';
 import PricingTableSection from '@blocks/pricing-table/Section';
 import ProcessStepsSection from '@blocks/process-steps/Section';
 import QuoteFormSection from '@blocks/quote-form/Section';
+import ReviewsNewSection from '@blocks/reviews-new/Section';
 import ServiceRelatedPagesSection from '@blocks/service-related-pages/Section';
 import ServicesListSection from '@blocks/services-list/Section';
 import ServicesNavSection from '@blocks/services-nav/Section';
@@ -70,6 +71,7 @@ export const sectionRegistry: Record<string, ComponentType<any>> = {
   'pricing-table': PricingTableSection,
   'process-steps': ProcessStepsSection,
   'quote-form': QuoteFormSection,
+  'reviews-new': ReviewsNewSection,
   'service-related-pages': ServiceRelatedPagesSection,
   'services-list': ServicesListSection,
   'services-nav': ServicesNavSection,

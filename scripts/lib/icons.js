@@ -85,6 +85,8 @@ const BLOCK_ICONS = {
   'testimonials-new': ['star-fill', 'star-half', 'star', 'chevron-left', 'chevron-right'],
   // #1484 —— 问答的开合图标（itemToggle：chevron = chevron-down；plus = plus + dash，展开时换着显示）+ help 卡按钮的箭头。
   'faq-new': ['chevron-down', 'plus', 'dash', 'arrow-right'],
+  // #1504 —— 星级（按分数四舍五入的实心星）+ 常见平台的品牌图标。品牌图标那几个名字只住在 `review-platforms.js` 那张表里，这里现取。
+  'reviews-new': ['star-fill', ...Object.values(require('./review-platforms').PLATFORM_ICONS).map((p) => p.icon)],
 };
 
 /**

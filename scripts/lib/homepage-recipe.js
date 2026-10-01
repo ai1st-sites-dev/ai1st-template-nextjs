@@ -88,6 +88,9 @@ const NOT_IN_POOL = {
   // #1484（总纲 #1422，Chris 2026-09-29 同一条规则）—— faq-new 进池、faq-accordion 同时出池：两个都在池里时配方会硬要求
   //    同一页同时放两个 FAQ 块（改前 index 0–199 里 21 个）。
   'faq-accordion': '由 faq-new 接替：同一页只放一个；T3 删掉它',
+  // #1504（同一条规则）—— reviews-new 进池、social-proof 同时出池：两个都在池里时配方会硬要求同一页放两处平台评分。
+  //    一进一出 ⟹ 池子种数不变。
+  'social-proof': '由 reviews-new 接替：同一页只放一个；T3 删掉它',
   'newsletter-signup': '同上，属于页面末尾',
   'service-related-pages': 'blocks/service-related-pages/manifest.json 自己写着 "Use ONLY on service detail pages"',
 };

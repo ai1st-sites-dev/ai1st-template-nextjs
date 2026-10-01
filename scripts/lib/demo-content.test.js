@@ -111,7 +111,10 @@ function guardC(contentOf) {
       if (!isListSlot(spec)) continue;
       const v = c[name];
       if (!Array.isArray(v)) { problems.push(`${type}/${name}: 不是数组`); continue; }
-      if (v.length < MIN_ITEMS) problems.push(`${type}/${name}: 只有 ${v.length} 项，要 ≥ ${MIN_ITEMS}`);
+      // #1504 —— 槽自己声明了 `maxItems` 比 6 小（`reviews-new.platforms` 最多 4 个）⟹ 要的是 maxItems 项：
+      //    6 项的夹具在那种槽上会被 validateSite 拦，块也只画前 maxItems 个，多出来的两项什么都量不到。
+      const need = Number.isInteger(spec.maxItems) ? Math.min(MIN_ITEMS, spec.maxItems) : MIN_ITEMS;
+      if (v.length < need) problems.push(`${type}/${name}: 只有 ${v.length} 项，要 ≥ ${need}`);
       const lens = v.map(itemTextLength);
       const max = Math.max(...lens);
       const min = Math.min(...lens);
@@ -218,6 +221,10 @@ const armCBrands = armC.filter((p) => p.startsWith('trusted-brands/brands'));
 check(armCBrands.length === 2,
   `(c) 喂今天的 sampleDataFor() ⟹ trusted-brands/brands 两个条件各踩一个：${armCBrands.join(' | ') || '（它没红）'}`);
 check(armC.length > 0, `(c) 反向臂整体红 ${armC.length} 处（正臂 0 处）`);
+// #1504 —— maxItems 那条放宽只放到 maxItems 为止：reviews-new.platforms（maxItems 4）砍到 3 项照样红、点名「要 ≥ 4」。
+const armCMax = guardC(mutated((c) => { c['reviews-new'].platforms = c['reviews-new'].platforms.slice(0, 3); }));
+check(armCMax.some((p) => p === 'reviews-new/platforms: 只有 3 项，要 ≥ 4'),
+  `(c) reviews-new 的 platforms（maxItems 4）砍到 3 项 ⟹ 红并点名「要 ≥ 4」：${armCMax.join(' | ') || '（它没红）'}`);
 
 // 🔴 反过来也要有一格：反向臂只改了一处，**别的守卫不许跟着红** —— 三道各自守着自己那一维。
 const armAOther = guardB(mutated((c) => { delete c['trusted-brands'].headline; }));

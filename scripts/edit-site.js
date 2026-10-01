@@ -1039,7 +1039,7 @@ from a block you are editing. A page must have exactly one of the two arrays; a 
 fails the build. When you add a block to a \`blocks\` page, give it an \`id\` unique within that page and a
 \`weight\` that puts it where you want it (blocks are ordered by \`weight\`, smaller first).
 
-Available section types: hero, hero-new, hero-with-form, trusted-brands, logos-new, features-grid, features-new, milestones, card-group, testimonials, testimonials-new, cta-banner, cta-new, contact-info, contact-new, text-block, page-header, services-nav, services-list, quote-form, contact-form, faq-accordion, faq-new, process-steps, team-grid, team-new, pricing-table, pricing-new, gallery, gallery-new, content-split, social-proof, announcement-bar, newsletter-signup, map-area, blog-preview, service-related-pages
+Available section types: hero, hero-new, hero-with-form, trusted-brands, logos-new, features-grid, features-new, milestones, card-group, testimonials, testimonials-new, cta-banner, cta-new, contact-info, contact-new, text-block, page-header, services-nav, services-list, quote-form, contact-form, faq-accordion, faq-new, process-steps, team-grid, team-new, pricing-table, pricing-new, gallery, gallery-new, content-split, social-proof, reviews-new, announcement-bar, newsletter-signup, map-area, blog-preview, service-related-pages
 
 Blocks with presets usually have no example on the site to copy, so here is their exact data shape — use only
 these keys (write_file refuses unknown ones):
@@ -1085,6 +1085,7 @@ other type does not show a picture, and putting an image field on one has no eff
   logo row under its block head)
 - a **testimonials-new** block → \`data.items[].photo.imageUrl\` (the reviewer's photo; without one the block shows their initials)
 - a **logos-new** block → \`data.items[].imageUrl\` (one per logo, 3–12; every item needs \`alt\` too)
+- a **reviews-new** block → \`data.platforms[].logoUrl\` (optional — without it the block draws a built-in icon for Google / Yelp / Facebook, or the platform name)
 - a **cta-banner** block → \`data.avatars[].imageUrl\` (one per face in the small row of customer
   photos this block can show; the row is optional — with no \`avatars\` the block draws no picture at all)
 - a **cta-new** block → \`data.image.imageUrl\` (optional — beside the text with \`options.image: "left"\` /

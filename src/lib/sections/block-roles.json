@@ -32,6 +32,7 @@
   "services-list": "essential",
   "services-nav": "essential",
   "social-proof": "optional",
+  "reviews-new": "optional",
   "team-grid": "optional",
   "team-new": "optional",
   "testimonials": "optional",

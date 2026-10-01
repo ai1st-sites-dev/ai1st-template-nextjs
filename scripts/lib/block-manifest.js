@@ -402,13 +402,18 @@ function checkManifestShape(name, m) {
     // #1488 —— `ranges`：list 槽每一项里某个数字子字段的取值范围（`testimonials-new.items[].rating` 1–5）。
     //    形状 `{ 子字段: [最小, 最大] }`，两端都是整数、含端点；validateSite ⑨ 据它拦（写了就必须是这个范围内的整数）。
     //    跟 `minItems` / `maxItems` 同一族：管的是槽里的内容，不是旋钮。
+    //    #1504 —— 可以多写第三个数 = 最多几位小数（`reviews-new.platforms[].rating` 是 `[0, 5, 1]`：4.9 行、4.95 不行）；
+    //    不写 = 0 = 整数，#1488 那种两个数的写法意思一字不变。`最大` 可以写 `null` = 不设上限（评论条数 `[1, null]`）。
     if (s.ranges !== undefined) {
       if (s.kind !== 'list' || s.ranges === null || typeof s.ranges !== 'object' || Array.isArray(s.ranges)) {
         bad(`slots.${slot}.ranges 只给 kind: list 的槽，形状是 { 子字段: [最小, 最大] }`);
       }
       for (const [sub, r] of Object.entries(s.ranges)) {
-        if (!Array.isArray(r) || r.length !== 2 || !r.every(Number.isInteger) || r[0] > r[1]) {
-          bad(`slots.${slot}.ranges.${sub} 是 ${JSON.stringify(r)} —— 必须是 [最小, 最大] 两个整数、最小不大于最大`);
+        const ok = Array.isArray(r) && (r.length === 2 || r.length === 3) && Number.isInteger(r[0])
+          && (r[1] === null || (Number.isInteger(r[1]) && r[0] <= r[1]))
+          && (r.length === 2 || (Number.isInteger(r[2]) && r[2] >= 0 && r[2] <= 3));
+        if (!ok) {
+          bad(`slots.${slot}.ranges.${sub} 是 ${JSON.stringify(r)} —— 必须是 [最小, 最大] 或 [最小, 最大, 小数位 0–3]：两端是整数（最大可写 null = 不设上限）、最小不大于最大`);
         }
       }
     }
@@ -1195,13 +1200,17 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
             if (Number.isInteger(n) && on > n) flag(`${where}: "${slot}" 里 ${sub}: true 最多只能有 ${n} 项（现在 ${on} 项）`);
           }
           // #1488 —— 每一项里数字子字段的范围（`slots.<槽>.ranges`）：没写不管，写了就得是范围内的整数。
+          //    #1504 —— 第三个数 = 最多几位小数（不写 = 整数）；`最大` 是 null = 不设上限。
           if (spec.ranges && typeof spec.ranges === 'object') {
-            for (const [sub, [lo, hi]] of Object.entries(spec.ranges)) {
+            for (const [sub, [lo, hi, places = 0]] of Object.entries(spec.ranges)) {
+              const scale = 10 ** places;
               v.forEach((it, i) => {
                 const got = it && typeof it === 'object' ? it[sub] : undefined;
                 if (got === undefined || got === null) return;
-                if (!Number.isInteger(got) || got < lo || got > hi) {
-                  flag(`${where}: "${slot}[${i}].${sub}" 是 ${JSON.stringify(got)} —— 只能是 ${lo}–${hi} 的整数`);
+                const okStep = typeof got === 'number' && Number.isFinite(got) && Math.abs(got * scale - Math.round(got * scale)) < 1e-9;
+                if (!okStep || got < lo || (hi !== null && got > hi)) {
+                  const span = hi === null ? `≥ ${lo}` : `${lo}–${hi}`;
+                  flag(`${where}: "${slot}[${i}].${sub}" 是 ${JSON.stringify(got)} —— 只能是 ${span} 的${places ? `数（最多 ${places} 位小数）` : '整数'}`);
                 }
               });
             }
