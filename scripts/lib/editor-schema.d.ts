@@ -5,7 +5,7 @@ export interface EditorField {
   label: string;
   /** text = 一个输入框 · object = 子字段对象 · list = 对象数组 · strings = 字符串数组
    *  · color = 色板 + 取色器（#1463）· options = 预设 + 旋钮 + 布尔修饰（#1463） */
-  control: 'text' | 'object' | 'list' | 'strings' | 'color' | 'options' | 'int';
+  control: 'text' | 'richtext' | 'object' | 'list' | 'strings' | 'color' | 'options' | 'int';
   /** #1497 —— `control: 'int'` 的取值（字符串形式的整数，从 manifest `intRange` 现算）。 */
   values?: string[];
   /** `choices` 有值的子字段是下拉（#1463，`eyebrow.style`） */

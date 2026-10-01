@@ -21,6 +21,7 @@
 //
 // ── 槽位怎么变成字段：`kind` 决定控件 ────────────────────────────────────────────────────────────
 //   editLabel 是字符串  kind text/link…        → 一个 text 字段（`control: 'text'`）
+//                       kind richtext            → 一个多行文本框 + 写法提示（`control: 'richtext'`，#1498）
 //                       kind list（`[string]`） → array，每项一个内部子字段 `value`（`control: 'strings'`）
 //   声明了 intRange     kind text              → 一格下拉，取值 = 范围里的每个整数（`control: 'int'`，#1497）
 //   editLabel 是对象    kind list              → array，子字段 = 那几个 `sub`（`control: 'list'`）
@@ -120,7 +121,8 @@ function fieldsOf(manifest) {
     if (!entries) continue;
     const kind = entries[0].kind;
     if (entries.length === 1 && entries[0].sub === null) {
-      fields.push({ slot, kind, label: entries[0].label, control: kind === 'list' ? 'strings' : 'text', subs: [] });
+      // #1498 —— `richtext`（content-new.body）是一段带段落 / 列表的正文：多行文本框，不是单行 text。
+      fields.push({ slot, kind, label: entries[0].label, control: kind === 'list' ? 'strings' : kind === 'richtext' ? 'richtext' : 'text', subs: [] });
       continue;
     }
     const choices = (spec && spec.choices) || {};

@@ -102,6 +102,7 @@ function toProp(field, value) {
   switch (field.control) {
     case 'text':
     case 'int': // #1497 —— 一个整数设置（postCount），存的就是那格字，原样进出。
+    case 'richtext': // #1498 —— 存的就是那段 markdown 子集字符串，原样进出。
       return value;
     // #1463 —— 一块底色：原样一个字符串（`#rrggbb` / `brand`），没填就是 undefined。
     // #1477 —— 也可以是渐变 `{stops, angle}`：整份对象带着（副本）。只收字符串的话，已经存了渐变的块在编辑器里
@@ -141,6 +142,7 @@ function mergeSlot(data, field, prop) {
   switch (field.control) {
     case 'text':
     case 'int':
+    case 'richtext':
       if (deepEqual(prop, before)) return;
       if (emptyish(prop) && !has(data, slot)) return;
       data[slot] = prop === undefined ? '' : prop;

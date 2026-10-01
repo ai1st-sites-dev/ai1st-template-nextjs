@@ -239,6 +239,28 @@ function puckField(f: EditorField, forms: EditorFormChoice[] = []): Field {
     //    免得没写过的块在侧栏里显示成 2、看起来像是老板选过。
     case 'int':
       return { type: 'select', label: f.label, options: [{ label: 'Default', value: '' }, ...(f.values || []).map((v) => ({ label: v, value: v }))] } as Field;
+    // #1498 —— richtext（content-new.body）：一个多行文本框，下面一行写明能用哪几种写法（scripts/lib/richtext.js 只认这几样）。
+    case 'richtext':
+      return {
+        type: 'custom',
+        label: f.label,
+        render: ({ value, onChange, readOnly }: { value: unknown; onChange: (v: string) => void; readOnly?: boolean }) => (
+          <div>
+            <FieldLabel label={f.label} el="div" />
+            <textarea
+              data-editor-richtext={f.slot}
+              value={typeof value === 'string' ? value : ''}
+              onChange={(e) => onChange(e.target.value)}
+              readOnly={readOnly}
+              rows={10}
+              style={{ width: '100%', fontFamily: 'inherit', fontSize: 14, lineHeight: 1.5, padding: 8, border: '1px solid #d0d5dd', borderRadius: 6, resize: 'vertical' }}
+            />
+            <div style={{ fontSize: 12, color: '#667085', marginTop: 4 }}>
+              Blank line = new paragraph · &quot;- &quot; = bullet list · &quot;1. &quot; = numbered list · **bold** · [text](/link)
+            </div>
+          </div>
+        ),
+      } as unknown as Field;
     case 'options':
       return {
         type: 'custom',

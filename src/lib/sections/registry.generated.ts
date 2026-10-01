@@ -10,6 +10,7 @@ import CardGroupSection from '@blocks/card-group/Section';
 import ContactFormSection from '@blocks/contact-form/Section';
 import ContactInfoSection from '@blocks/contact-info/Section';
 import ContactNewSection from '@blocks/contact-new/Section';
+import ContentNewSection from '@blocks/content-new/Section';
 import ContentSplitSection from '@blocks/content-split/Section';
 import CtaBannerSection from '@blocks/cta-banner/Section';
 import CtaNewSection from '@blocks/cta-new/Section';
@@ -52,6 +53,7 @@ export const sectionRegistry: Record<string, ComponentType<any>> = {
   'contact-form': ContactFormSection,
   'contact-info': ContactInfoSection,
   'contact-new': ContactNewSection,
+  'content-new': ContentNewSection,
   'content-split': ContentSplitSection,
   'cta-banner': CtaBannerSection,
   'cta-new': CtaNewSection,

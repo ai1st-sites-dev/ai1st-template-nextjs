@@ -1951,6 +1951,12 @@ async function generateContent(opts) {
   // 🔴 什么都没关掉时，这三行**逐字节**等于 #1346 之前写死的那三行（判据在
   // `scripts/lib/catalog-disabled.test.js` ④：两臂比同一份提示词的这一段）。整条规则里的块全被关掉
   // 时那一行整条不印 —— 印一条空的 `must include:` 就是在告诉模型「这一页什么都不用有」。
+  // #1498 —— content-new 在 manifest 里只能挂一个提示词组（它挂 homepage，接替 content-split），而它同时接替
+  //    text-block 做内页正文（text-block 在 page-specific 组）。所以在 page-specific 那一段后面补一行指向它。
+  //    🔴 content-new 被关掉时整行不印（连前面的换行一起），提示词逐字节等于没有这一行时。
+  const contentNewPageLine = blockOff.has('content-new') ? ''
+    : '\n- "content-new" (listed under HOMEPAGE SECTIONS above) is also the block for the main text of an inner page'
+      + ' — About, a service page, a policy page: use textStyle article, and write body in its markdown subset';
   const pageRuleLines = (() => {
     const lines = [];
     const services = keepBlocks(['page-header', 'services-nav', 'services-list', 'cta-banner']);
@@ -2347,7 +2353,7 @@ HOMEPAGE SECTIONS (pick 7-10 from these, in any order):
 ${blockPromptSection('homepage', undefined, { ...(homeRecipe ? { order: homeRecipe.promptOrder } : {}), omit: [...disabledBlocks, ...(hasKeywordPages ? [] : ['service-related-pages'])] })}
 
 PAGE-SPECIFIC SECTION RULES:
-${blockPromptSection('page-specific', undefined, { omit: disabledBlocks })}
+${blockPromptSection('page-specific', undefined, { omit: disabledBlocks })}${contentNewPageLine}
 ${pageRuleLines}
 
 Generate a JSON object with this EXACT structure:

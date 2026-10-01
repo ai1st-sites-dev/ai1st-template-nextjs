@@ -111,7 +111,7 @@ console.log('② 字段两层比');
       // 控件由 kind 决定：list → array；link / object → object；绝不把对象做成 array
       const sp = special(f.slot);
       const wantControl = sp === 'color' ? 'color' : sp === 'options' ? 'options' : sp === 'items' ? 'list' : sp === 'formRef' ? 'object' : sp === 'int' ? 'int'
-        : f.subs.length === 0 ? (f.kind === 'list' ? 'strings' : 'text') : (f.kind === 'list' ? 'list' : 'object');
+        : f.subs.length === 0 ? (f.kind === 'list' ? 'strings' : f.kind === 'richtext' ? 'richtext' : 'text') : (f.kind === 'list' ? 'list' : 'object');
       if (f.control !== wantControl) problems.push(`${m.type}.${f.slot} 控件 ${f.control} ≠ ${wantControl}（kind ${f.kind}）`);
       paths += f.subs.length || 1;
     }
@@ -953,6 +953,22 @@ console.log('\n#1497 blog-new.postCount');
   c.props.postCount = '5';
   const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
   check(out.blocks[0].data.postCount === '5' && out.blocks[0].data.headline === 'H', '改成 5 ⟹ 写回 "5"，headline 原样');
+}
+// ══ #1498 richtext：content-new.body 是多行文本框，那段 markdown 原样进出；改了就只改它 ═══════════════
+console.log('\n#1498 richtext 槽');
+{
+  const f = compOf('content-new').fields.find((x) => x.slot === 'body');
+  check(!!f && f.control === 'richtext' && f.kind === 'richtext', `content-new.body 是 richtext 控件（读到 ${f && f.control}）`);
+  const body = '第一段\n\n- a\n- b\n\n**粗** 和 [链接](/about)';
+  const raw = { slug: 'home', title: 'T', blocks: [{ id: 'home-content-new-0', type: 'content-new', data: { headline: 'H', body } }] };
+  const same = roundTrip(raw);
+  check(same.blocks[0].data.body === body, '没改 ⟹ body 逐字节原样存回（换行、- 、** 一个都不丢）');
+  const { initial, data } = openPage(raw);
+  const c = data.content.find((x) => x.type === 'content-new');
+  check(c.props.body === body, 'Puck 里拿到的 prop 就是那段 markdown 原文');
+  c.props.body = `${body}\n\n1. one\n2. two`;
+  const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
+  check(out.blocks[0].data.body === `${body}\n\n1. one\n2. two` && out.blocks[0].data.headline === 'H', '改了 ⟹ 写回新的那段，headline 原样');
 }
 
 console.log(`\n${pass} 过 · ${fail} 败`);

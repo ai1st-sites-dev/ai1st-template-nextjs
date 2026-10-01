@@ -6,6 +6,7 @@
   "contact-form": "essential",
   "contact-info": "essential",
   "contact-new": "essential",
+  "content-new": "optional",
   "content-split": "optional",
   "cta-banner": "optional",
   "cta-new": "optional",

@@ -91,6 +91,9 @@ const NOT_IN_POOL = {
   // #1504（同一条规则）—— reviews-new 进池、social-proof 同时出池：两个都在池里时配方会硬要求同一页放两处平台评分。
   //    一进一出 ⟹ 池子种数不变。
   'social-proof': '由 reviews-new 接替：同一页只放一个；T3 删掉它',
+  // #1498（总纲 #1422，Chris 2026-09-29 同一条规则）—— content-new 进池、content-split 同时出池：两个都在池子里的话
+  //    配方会硬要求同一页同时放这两块。一进一出 ⟹ 池子种数不变，每个站的配方不漂。
+  'content-split': '由 content-new 接替：同一页只放一个；T3 删掉它',
   'newsletter-signup': '同上，属于页面末尾',
   // #1497 —— 两个博客块都不进池：建站不写博客文章（create-site.js 里 blog 0 处），blog-new 只从博客读、没有文章就不渲染
   //    ⟹ 进池的话今天抽到它的那三成新站（400 个站号里 127 个）首页会钉一块空块。同 service-related-pages：只在特定条件下

@@ -28,6 +28,7 @@ const LAYOUT_INTENT_VOCAB = require('./layout-intent-vocab.json');
 const { knobsOf, booleanOptionsOf, effectiveKnobs, knobDeclarationProblems } = require('./block-knobs');
 const { isColorValue } = require('./contrast');
 const siteForms = require('./site-forms');
+const { richtextProblems } = require('./richtext');
 const LAYOUT_INTENT_AXES = Object.keys(LAYOUT_INTENT_VOCAB.axes);
 
 /**
@@ -167,9 +168,13 @@ const PROMPT_GROUPS = ['homepage', 'page-specific', 'page-rule'];
 // #1463 —— manifest `skin` 的合法值（§checkManifestShape 按它 fail-closed 校验，§isSiteCssSkin 读它）。
 const SKINS = ['site-css'];
 
-const SLOT_KINDS = ['text', 'list', 'link', 'links', 'image', 'object', 'flag', 'control', 'color'];
+const SLOT_KINDS = ['text', 'list', 'link', 'links', 'image', 'object', 'flag', 'control', 'color', 'richtext'];
 // 📌 #1463 —— 第九个 `color`：一块底色（`hero-new.bg`）。取值 `#rrggbb`（大小写都收）或 `brand`，
 //    判据在 `contrast.js` §isColorValue，`validateSite` 与编辑器的取色器共用那一条正则。
+// 📌 #1498 —— 第十个 `richtext`：一段带段落 / 列表 / 加粗 / 链接的正文（`content-new.body`），值是一个字符串，
+//    写法是 `scripts/lib/richtext.js` 认的那个 markdown 子集。它**不是** `text`：编辑器给多行文本框、
+//    validateSite 查「写了 HTML」「链接协议不认」两条（§validateSite ⑨），块用同一个解析器画。
+//    其余按 kind 分支的地方（block-catalog / demo-content / image-slots / editor-convert …）把它当字符串，正是对的。
 
 // 🔴 **这八个不是抄来的，是量出来的，而且有一道守卫盯着它别过期**（§slotKindVocabularyProblems，
 // 跑在 `block-manifest.test.js`）：它拿这个常量跟 `blocks/` 里**实际出现**的取值做两向差集，
@@ -194,7 +199,7 @@ const SLOT_KINDS = ['text', 'list', 'link', 'links', 'image', 'object', 'flag', 
 //                                 `"items": {"kind":"list","editLabel":{"title":"Item title"}}`
 // 值是**英文人话名**（dashboard 是英文界面），不拿 `subheadline` 这种原文当界面文字 ——
 // 跟 #1349 给块加顶层 `displayName` 同一条理由。
-const EDIT_LABEL_KINDS = ['text', 'link', 'object', 'list'];
+const EDIT_LABEL_KINDS = ['text', 'link', 'object', 'list', 'richtext'];
 
 // 🔴 **`kind: text` 但【不是】老板要改的字** —— 只有这三个，写死在这里而不是靠「谁没标就算例外」。
 // 方向是有意的：新加一个文字槽忘了标 `editLabel` ⟹ 当场红，而不是静默地不出现在面板上
@@ -1264,6 +1269,19 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
           const n = typeof v === 'number' ? v : typeof v === 'string' && /^\s*-?\d+\s*$/.test(v) ? Number(v) : NaN;
           if (!Number.isInteger(n) || n < lo || n > hi) {
             flag(`${where}: "${slot}" 是 ${JSON.stringify(v)} —— 只能是 ${lo}–${hi} 的整数`);
+          }
+        }
+        // #1498 —— richtext 槽：写了 HTML 标签（页面上会原样显示成字）、链接协议不认（页面上只剩文字）各报一条。
+        //    判据跟块画的是同一个解析器（scripts/lib/richtext.js），所以这里说「不会出链接」，页面上就真没有链接。
+        if (spec.kind === 'richtext') {
+          if (typeof v !== 'string') {
+            flag(`${where}: 槽 "${slot}" 要写一段字符串（markdown 子集），现在是 ${JSON.stringify(v).slice(0, 40)}`);
+          } else {
+            for (const p of richtextProblems(v)) {
+              flag(p.kind === 'html'
+                ? `${where}: 槽 "${slot}" 里写了 HTML 标签 ${JSON.stringify(p.sample)} —— 不认 HTML，会原样显示成字；分段用空行、列表用 "- "、加粗用 **…**`
+                : `${where}: 槽 "${slot}" 里的链接 ${JSON.stringify(p.sample)} 协议不认 —— 只认 http(s)://、/、#、mailto:、tel: 开头，其余只剩文字`);
+            }
           }
         }
         if (spec.kind === 'color' && !isColorValue(v)) {

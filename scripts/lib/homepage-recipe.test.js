@@ -572,6 +572,18 @@ try {
         return t.split(svcEnd).join(forms).split('\n').map((l) => (l.startsWith(rule) ? `${l}\n${ruleLine.slice(0, -1)}` : l)).join('\n');
       },
     },
+    // #1498：content-new 接替 text-block 做内页正文，但 manifest 只能挂一个提示词组（它挂 homepage）⟹
+    //    create-site.js 在 PAGE-SPECIFIC 那段清单后面补一行指向它（`contentNewPageLine`）。基线那棵树没有这一行。
+    //    🔴 这行字逐字写在这里：create-site 那句话改了而这里没跟 ⟹ 这一格当场红，不会静默对上。
+    {
+      why: '#1498 PAGE-SPECIFIC 段多一行：内页正文也用 content-new',
+      apply: (t) => {
+        const line = '- "content-new" (listed under HOMEPAGE SECTIONS above) is also the block for the main text of an inner page'
+          + ' — About, a service page, a policy page: use textStyle article, and write body in its markdown subset';
+        const anchor = '\n- SERVICES pages must include: ';
+        return t.includes(anchor) ? t.split(anchor).join(`\n${line}${anchor}`) : t;
+      },
+    },
     // 📌 #1376（同样按 D19 删掉一个块）**没有在这里加条目**。r1 加过一条「32 → 31」，而 #1372 先落地
     //    了，它上面那条差异已经把那句写死的 32 换成**按 `blocks/` 现算**的数 ⟹ 链式套用时 r1 那条
     //    再也匹配不到自己那段文本，是一条在链上恒 no-op 的条目（判别力② 是拿每条**单独**套基线判的，

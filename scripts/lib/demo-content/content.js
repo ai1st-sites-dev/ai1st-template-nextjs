@@ -415,6 +415,31 @@ const DEMO_CONTENT = {
     imageUrl: imageUrl('about-workshop'),
   },
 
+  // #1498 —— content-new：一段 About（两段话 + 三条列表 + 一处加粗 + 两个按钮 + 一张图）。body 是 richtext
+  //    （scripts/lib/richtext.js 认的 markdown 子集）。按钮按守卫 (c) 给满 6 条，组件按 manifest 的 max 2 截。
+  'content-new': {
+    options: {},
+    introEyebrow: { text: 'About us', style: 'pill' },
+    headline: 'Family-run since 2009',
+    body: 'Northside Auto Care started with one bay and a rule: **tell people the price before you touch the car**. '
+      + 'Fifteen years later we have six bays, and the rule has not changed.\n\n'
+      + 'Every technician on the team is licensed and on our payroll — we never hand your car to a subcontractor. '
+      + 'That is why the same faces keep showing up when you [book a service](/quote).\n\n'
+      + '- Written quotes before any work starts\n'
+      + '- Two-year warranty on parts and labour\n'
+      + '- Same-day service when you drop off before noon',
+    ctas: [
+      { label: 'Book a service', href: '/quote', style: 'solid' },
+      { label: 'Meet the team', href: '/about', style: 'outline' },
+      { label: 'Read our warranty in full before you book', href: '/warranty', style: 'link', arrow: true },
+      { label: 'Services', href: '/services', style: 'link' },
+      { label: 'Reviews', href: '/reviews', style: 'link' },
+      { label: 'Directions', href: '/contact', style: 'link' },
+    ],
+    image: { imageUrl: imageUrl('about-workshop'), alt: 'The Northside Auto Care workshop with two cars on hoists' },
+    bg: null,
+  },
+
   'page-header': {
     title: 'Brake repair in North York',
     subtitle: 'Measured, quoted and warrantied — usually finished the same afternoon.',

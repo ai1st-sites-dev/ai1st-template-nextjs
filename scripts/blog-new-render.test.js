@@ -221,11 +221,20 @@ console.log('\n── AC9 validateSite');
   }
   for (const x of [2, 6, '3']) check(v(x).length === 0, `postCount ${JSON.stringify(x)} ⟹ 放行`, JSON.stringify(v(x)));
   // SLOT_KINDS 与 merge-base 相同（没有为 postCount 新增一种 kind）。
+  // 🔴 #1498 ship 时补上「已落地就跳过」那一半（写法照抄本文件 AC13）：这一格比的是【活文件 vs merge-base】，
+  //    所以 #1497 自己落 main 之后它就不再量 #1497 的交付了，而是变成「全仓谁都不许再加 slot kind」——
+  //    下一张合法加 kind 的票（#1498 的 richtext，正文第 2 条、Chris 定）会被它判红。
   let baseKinds = null;
   try {
     const base = execFileSync('git', ['merge-base', 'HEAD', 'origin/main'], { cwd: NEXT, encoding: 'utf8' }).trim();
-    const baseSrc = execFileSync('git', ['show', `${base}:templates/nextjs/scripts/lib/block-manifest.js`], { cwd: NEXT, encoding: 'utf8', maxBuffer: 64 << 20 });
-    baseKinds = (/const SLOT_KINDS = (\[[^\]]*\]);/.exec(baseSrc) || [])[1] || null;
+    let landed = true;
+    try { execFileSync('git', ['cat-file', '-e', `${base}:templates/nextjs/blocks/blog-new/manifest.json`], { cwd: NEXT, stdio: 'ignore' }); } catch { landed = false; }
+    if (landed) {
+      console.log(`  ⏭  blog-new 已在 merge-base ${base.slice(0, 8)} 上（#1497 已落地），这一格只管 #1497 自己的交付 —— 不算通过`);
+    } else {
+      const baseSrc = execFileSync('git', ['show', `${base}:templates/nextjs/scripts/lib/block-manifest.js`], { cwd: NEXT, encoding: 'utf8', maxBuffer: 64 << 20 });
+      baseKinds = (/const SLOT_KINDS = (\[[^\]]*\]);/.exec(baseSrc) || [])[1] || null;
+    }
   } catch (e) { console.log(`  ⚠️  取不到 merge-base 的 SLOT_KINDS（${e.message.split('\n')[0]}），这一格跳过 —— 不算通过`); }
   const nowKinds = (/const SLOT_KINDS = (\[[^\]]*\]);/.exec(fs.readFileSync(path.join(NEXT, 'scripts', 'lib', 'block-manifest.js'), 'utf-8')) || [])[1];
   if (baseKinds !== null) check(baseKinds === nowKinds, `SLOT_KINDS 与 merge-base 相同（${nowKinds}）`);
