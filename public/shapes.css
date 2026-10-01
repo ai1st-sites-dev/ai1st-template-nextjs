@@ -3896,21 +3896,9 @@
   }
 }
 
-/* 1 列且块头在上 / 下：问答整体限 48rem，位置跟 introAlign（left 贴左 / center 居中 / right 贴右）。
-   块头在侧时不限（占满右 / 左那一列）。 */
-[data-block="faq-new"][data-items-columns="1"][data-intro-position="top"] .fq-grid,
-[data-block="faq-new"][data-items-columns="1"][data-intro-position="bottom"] .fq-grid {
-  max-width: 48rem;
-}
-[data-block="faq-new"][data-items-columns="1"][data-intro-position="top"][data-intro-align="center"] .fq-grid,
-[data-block="faq-new"][data-items-columns="1"][data-intro-position="bottom"][data-intro-align="center"] .fq-grid {
-  margin-left: auto;
-  margin-right: auto;
-}
-[data-block="faq-new"][data-items-columns="1"][data-intro-position="top"][data-intro-align="right"] .fq-grid,
-[data-block="faq-new"][data-items-columns="1"][data-intro-position="bottom"][data-intro-align="right"] .fq-grid {
-  margin-left: auto;
-}
+/* 问答永远占满整列、不跟 introAlign —— 块头文字和 help 卡才跟（Chris 2026-10-01，#1515）。
+   原来这里有三条规则：1 列且块头在上 / 下时限 48rem、再按 introAlign 居中或贴右。那是 2026-09-29 的老写法，
+   跟后来定的两条规矩冲突（条目从不跟 introAlign、内容占满整列，content / blog 已经这样）。 */
 
 /* itemsMode：accordion = 原生 details（点问句开合）；open = 问句 <h3> + 答案 <p> 直接写出来。行距见 itemStyle。 */
 [data-block="faq-new"] summary {

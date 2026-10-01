@@ -177,9 +177,13 @@ console.log('\n── AC4 开合图标');
 // ══ AC5 / AC6（规则一半）════════════════════════════════════════════════════════════════════════════
 console.log('\n── AC5 / AC6 限宽与 itemStyle 规则');
 {
-  check(/\[data-items-columns="1"\]\[data-intro-position="top"\] \.fq-grid,\s*\n[^{]*\[data-intro-position="bottom"\] \.fq-grid \{\s*max-width: 48rem;/.test(CSS),
-    '1 列 + 块头在上 / 下 ⟹ 问答限 48rem（块头在侧的选择器里没有 → 不限）');
-  check(/\[data-intro-position="top"\]\[data-intro-align="center"\] \.fq-grid,[\s\S]*?\{\s*margin-left: auto;\s*margin-right: auto;/.test(CSS), 'center ⟹ 左右 auto 居中');
+  // #1515（Chris 2026-10-01）：问答永远占满整列、不跟 introAlign。原来这两条钉的是相反的契约
+  // （1 列 + 块头在上 / 下时限 48rem，再按 introAlign 居中 / 贴右）——那是 2026-09-29 的老写法，
+  // 跟后来定的两条规矩冲突（条目从不跟 introAlign、内容占满整列）。现在改成钉「这几条规则不许回来」。
+  // 🔴 判据写成【集合】不写命中数：`.fq-grid` 身上一条限宽都不许有、一条读 introAlign 的都不许有。
+  const gridRules = CSS.split(/\n(?=\[|@|\/\*)/).filter((b) => /\.fq-grid\b/.test(b) && !b.trimStart().startsWith('/*'));
+  check(!gridRules.some((b) => /max-width:/.test(b)), '问答占满整列：.fq-grid 身上没有任何 max-width');
+  check(!gridRules.some((b) => /data-intro-align/.test(b)), '不跟 introAlign：.fq-grid 的规则里没有一条读 data-intro-align');
   check(/\[data-item-style="divided"\] \.fq-inner \{\s*border-bottom: 1px solid/.test(CSS)
     && /\[data-item-style="divided"\]\[data-items-columns="1"\] \.fq-item:first-child \.fq-inner \{\s*border-top: 1px solid/.test(CSS),
     'divided：每条 1px 下边线、1 列时第一条上边线');
