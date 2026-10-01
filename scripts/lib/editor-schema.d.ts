@@ -9,7 +9,8 @@ export interface EditorField {
   /** #1497 —— `control: 'int'` 的取值（字符串形式的整数，从 manifest `intRange` 现算）。 */
   values?: string[];
   /** `choices` 有值的子字段是下拉（#1463，`eyebrow.style`） */
-  subs: { sub: string; label: string; choices?: string[] }[];
+  /** `sources` 有值的子字段是链接格：手填地址，或选一个联系方式引用（#1506，`kind: link` 的 `href`） */
+  subs: { sub: string; label: string; choices?: string[]; sources?: string[] }[];
   /** list：每项摘要取哪几个键（缺省 = subs）（#1463 `band` 用 alt） */
   summary?: string[];
   /** color：预设色板（`#rrggbb` / `brand`） */

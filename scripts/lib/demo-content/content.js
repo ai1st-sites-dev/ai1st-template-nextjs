@@ -116,7 +116,8 @@ const DEMO_CONTENT = {
       + 'Most jobs are back on the road by closing.',
     ctas: [
       { label: 'Book a service', href: '/quote', style: 'solid', icon: 'calendar-check' },
-      { label: '(416) 555-0142', href: 'tel:+14165550142', style: 'outline', icon: 'telephone' },
+      // #1506 —— 电话按钮写成引用：号码不抄进块里，渲染前从站点数据（单格页是 DEMO_SITE.brand）填。
+      { label: '{phone}', href: { source: 'phone' }, style: 'outline', icon: 'telephone' },
       { label: 'See what we charge for brakes, tires and diagnostics', href: '/services', style: 'link', arrow: true },
       { label: 'Directions', href: '/contact', style: 'link' },
       { label: 'Warranty', href: '/warranty', style: 'link' },
@@ -498,7 +499,8 @@ const DEMO_CONTENT = {
     body: 'Bring it in and we will tell you what it is and what it costs before any work starts.',
     ctas: [
       { label: 'Book a free check', href: '/quote', style: 'solid' },
-      { label: 'Call (416) 555-0142', href: 'tel:+14165550142', style: 'outline' },
+      // #1506 —— 同 hero-new：电话按钮写成引用。
+      { label: 'Call {phone}', href: { source: 'phone' }, style: 'outline' },
       { label: 'See what we charge for brakes, tires and diagnostics', href: '/services', style: 'link', arrow: true },
       { label: 'Directions', href: '/contact', style: 'link' },
       { label: 'Warranty', href: '/warranty', style: 'link' },
@@ -1168,12 +1170,14 @@ const DEMO_CONTENT = {
       { label: 'Contact', href: '/contact', icon: 'envelope', show: 'icon' },
     ],
     ctaPrimary: { label: 'Book a service', href: '/quote', style: 'solid' },
-    ctaSecondary: { label: 'Call us', href: 'tel:+14165550142', style: 'outline' },
+    // #1506 —— 电话 / 地址写成引用（`scripts/lib/item-sources.js`），渲染前从站点数据（单格页是 DEMO_SITE.brand）填；
+    //    营业时间不是联系方式的源（正文「不做」），照旧手写。
+    ctaSecondary: { label: 'Call us', href: { source: 'phone' }, style: 'outline' },
     topbar: {
       contact: [
-        { icon: 'telephone', text: '(416) 555-0142', href: 'tel:+14165550142' },
+        { source: 'phone' },
         { icon: 'clock', text: 'Mon–Sat 8am–6pm' },
-        { icon: 'geo-alt', text: '2150 Yonge St, Toronto' },
+        { source: 'address' },
       ],
       links: [
         { label: 'Sign in', href: '/account/sign-in' },
@@ -1222,20 +1226,10 @@ const DEMO_CONTENT = {
       ],
       contact: true,
     },
-    contact: {
-      phone: '(416) 555-0142',
-      address: '2150 Yonge St, Toronto',
-      hours: 'Mon–Sat 8am–6pm',
-      email: 'service@northsideauto.ca',
-    },
-    social: [
-      { label: 'Google reviews', href: 'https://g.page/northside-auto-care-toronto', icon: 'google' },
-      { label: 'Yelp', href: 'https://yelp.ca/biz/northside', icon: 'yelp' },
-      { label: 'Facebook', href: 'https://facebook.com/northsideautocare', icon: 'facebook' },
-      { label: 'Instagram', href: 'https://instagram.com/northside.auto', icon: 'instagram' },
-      { label: 'LinkedIn', href: 'https://linkedin.com/company/northside-auto-care-toronto', icon: 'linkedin' },
-      { label: 'WhatsApp', href: 'https://wa.me/14165550148', icon: 'whatsapp' },
-    ],
+    // #1506 —— 联系方式与社交链接写成引用：从站点数据（单格页是 DEMO_SITE.brand）展开。`{source: "brand"}` 只带
+    //    电话 / 邮箱 / 地址三样（营业时间不是它的源）⟹ 夹具里的营业时间那一行跟着不画。
+    contact: { source: 'brand' },
+    social: { source: 'social' },
     legal: [
       { label: 'Privacy', href: '/privacy' },
       { label: 'Terms', href: '/terms' },
@@ -1250,7 +1244,7 @@ const DEMO_CONTENT = {
       subtitle: 'Book a free 15-minute check. We tell you what it is and what it costs before any work starts.',
       buttons: [
         { label: 'Book a free check', href: '/quote', style: 'solid' },
-        { label: 'Call (416) 555-0142', href: 'tel:+14165550142', style: 'outline' },
+        { label: 'Call {phone}', href: { source: 'phone' }, style: 'outline' },
       ],
     },
     // #1464 —— 部件 `form`（跟 hero 同一个表单部件）。#1471 起槽只有 `{ id? }`（选站级表单库里哪一张，空 = 第一张），
@@ -1370,6 +1364,15 @@ const DEMO_SITE = {
   brand: {
     email: 'service@northsideauto.ca',
     locations: [{ label: 'Northside Auto Care', address: '2150 Yonge St, Toronto, ON', phone: '(416) 555-0142', geo: { lat: 43.7056, lng: -79.3983 } }],
+    // #1506 —— footer-new 的 `social: {source: "social"}` 从这里展开（数组那种存法；对象那种由 contact-refs.test.js 另测）。
+    socialLinks: [
+      { platform: 'google', url: 'https://g.page/northside-auto-care-toronto' },
+      { platform: 'yelp', url: 'https://yelp.ca/biz/northside' },
+      { platform: 'facebook', url: 'https://facebook.com/northsideautocare' },
+      { platform: 'instagram', url: 'https://instagram.com/northside.auto' },
+      { platform: 'linkedin', url: 'https://linkedin.com/company/northside-auto-care-toronto' },
+      { platform: 'whatsapp', url: 'https://wa.me/14165550148' },
+    ],
   },
   seo: {
     schema: { openingHours: { days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], opens: '08:00', closes: '18:00' } },

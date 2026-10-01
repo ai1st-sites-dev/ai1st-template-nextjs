@@ -29,8 +29,20 @@ export const FEATURES_NEW_FROM_SERVICES: Record<string, unknown> & { items: { so
 export const DEMO_SITE: {
   services: Array<{ id: string; name: string; shortDescription: string; icon: string }>;
   pages: Array<{ slug: string; title: string; description: string }>;
-  brand: { email: string; locations: Array<{ label: string; address: string; phone: string; geo?: { lat: number; lng: number } }> };
+  brand: {
+    email: string;
+    locations: Array<{ label: string; address: string; phone: string; geo?: { lat: number; lng: number } }>;
+    socialLinks: Array<{ platform: string; url: string }>;
+  };
   seo: { schema: { openingHours: { days: string[]; opens: string; closes: string } } };
+};
+/** #1506 —— 演示内容里的引用展开时用的站点数据（演示生意那一份）；`extra` 盖在上面。 */
+export function demoSourceContext(extra?: Record<string, unknown>): {
+  services: typeof DEMO_SITE.services;
+  pages: typeof DEMO_SITE.pages;
+  brand: typeof DEMO_SITE.brand;
+  url: (slug: string) => string;
+  learnMore: string;
 };
 export const IMAGES: Record<string, { url: string; fallback: string }>;
 export function imageUrl(key: string): string;

@@ -32,7 +32,7 @@ import SectionRenderer from '@/components/SectionRenderer';
 import { defaultLocale } from '@/lib/config';
 import type { BlockConfig } from '@/lib/types/config';
 import { blockShapeCatalog } from '../../../../../scripts/lib/block-catalog.js';
-import { DEMO_SITE, FEATURES_NEW_FROM_SERVICES, FEATURES_NEW_STEPS, demoDataFor } from '../../../../../scripts/lib/demo-content/index.js';
+import { DEMO_SITE, FEATURES_NEW_FROM_SERVICES, FEATURES_NEW_STEPS, demoDataFor, demoSourceContext } from '../../../../../scripts/lib/demo-content/index.js';
 import { resolveItemSources } from '@/lib/sections/item-sources';
 import { siteFactsFrom } from '../../../../../scripts/lib/contact-facts.js';
 import { filledOptionalSlots } from '../../../../../scripts/lib/block-manifest.js';
@@ -275,12 +275,11 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
   };
   // #1505 —— 写成引用的列表槽（`?items=services` 那一版）先展开再查图标表，跟真站 HomePage / SubPage 同一个函数；
   //    站点数据用演示生意那一份。没有引用的块原样返回同一个数组。
-  const shown = resolveItemSources([cfg], {
-    services: DEMO_SITE.services,
-    pages: DEMO_SITE.pages,
-    url: (slug: string) => `/${slug}`,
-    learnMore: 'Learn more',
-  });
+  //    #1506 —— 按钮 / 页头顶条 / 页脚里的联系方式引用同一处展开，电话邮箱用演示生意那一份（DEMO_SITE.brand）。
+  const shown = resolveItemSources([cfg], demoSourceContext());
+  //    外壳块（header-new / footer-new）不走 SectionRenderer、走下面的 §CellOptions —— 它也要吃展开后的那一份
+  //    （顶条电话、页脚联系方式 / 社交链接在夹具里是引用），图标表按同一份算。
+  const shownData = ((shown[0] && shown[0].data) || data) as Record<string, unknown>;
 
   // 🔴 **外壳区（`header` / `footer`）走的是它们自己的组件，不走 `SectionRenderer`。** 它们有
   //    manifest、有形态、在图册上各占一行（#1353），但按构造**不在 `registry.ts` 里**（那张表是
@@ -351,7 +350,7 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
           <CellOptions
             block={block}
             shape={shape}
-            data={data as Record<string, unknown>}
+            data={shownData}
             has={cfg.has ?? []}
             optionKeys={meta.optionKeys}
             widgets={meta.widgets}
@@ -359,7 +358,7 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
             knobs={meta.knobs}
             presets={meta.presets}
             coupling={meta.coupling}
-            iconTable={iconTableFor(block, data) as IconTable}
+            iconTable={iconTableFor(block, shownData) as IconTable}
             initial={initial}
             showBar={!embed}
           />

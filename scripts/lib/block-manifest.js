@@ -29,7 +29,7 @@ const { knobsOf, booleanOptionsOf, effectiveKnobs, knobDeclarationProblems } = r
 const { isColorValue } = require('./contrast');
 const siteForms = require('./site-forms');
 const { richtextProblems } = require('./richtext');
-const { isSourceRef, sourcesFor, refProblems, promptAlternatives } = require('./item-sources');
+const { isSourceRef, sourcesFor, refProblems, contactRefProblems, promptAlternatives, BLOCK_SLOTS: SOURCE_SLOTS } = require('./item-sources');
 const LAYOUT_INTENT_AXES = Object.keys(LAYOUT_INTENT_VOCAB.axes);
 
 /**
@@ -1178,6 +1178,18 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
         if (!spec.required) continue;
         // #1331 —— 「空」的判据抽成 slotFilled，跟第 ⑥ 条、data-has-* 同一把尺；语义逐字没变。
         if (!slotFilled(data[slot])) flag(`${where}: 缺必填槽 "${slot}"（blocks/${sec.type}.json 里写着 required）`);
+      }
+
+      // ⑪ #1506 —— 写成引用的联系方式：按钮（任何块里有 label 又有 href 的对象，按形状认）的 `href` 只能是
+      //    {source: "phone" | "email"}、`label` 里只认 {phone} / {email}；页头顶条那一项、页脚的对象槽（`footer-new.contact`）
+      //    只能是登记的源。规则全在 `scripts/lib/item-sources.js`，这里只把它的问题清单报出来。
+      //    （列表槽的整槽引用 —— features-new.items / footer-new.social —— 归下面第 ⑤ 条那一支。）
+      for (const p of contactRefProblems(sec.type, data)) flag(`${where}: ${p}`);
+      for (const slot of Object.keys(SOURCE_SLOTS[sec.type] || {})) {
+        const v = data[slot];
+        if (m.slots[slot] && m.slots[slot].kind !== 'list' && v && typeof v === 'object' && !Array.isArray(v) && 'source' in v) {
+          for (const p of refProblems(sec.type, slot, v)) flag(`${where}: ${p}`);
+        }
       }
 
       // ② 角色只能加不能降（spec §4.2 / D4）。没写 role 的按 manifest 的 roleDefault 兜底 —— 兜底在

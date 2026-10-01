@@ -56,8 +56,18 @@ const { blocks, pairs, manifests } = catalogue;
 const MIN_ITEMS = 6;
 const LENGTH_SPREAD = 2;
 
-/** 内容取法：默认读包本身；反向臂传一个包了一层的取法，只改一处。 */
-const realContentOf = (type) => DEMO_CONTENT[type];
+/**
+ * 内容取法：默认读包本身；反向臂传一个包了一层的取法，只改一处。
+ * #1506 —— 包里写成引用的那几处（`footer-new.social: {source: "social"}` …）按单格页的做法先展开（站点数据 =
+ * 演示生意那一份）：单格页画的、这几道守卫要量的，都是展开之后的那一份。
+ */
+//    展开时挂上的内存标记（`_sourced`，不是槽位）去掉再量。
+const { resolveItemSources, SOURCED_KEY } = require(path.join(NEXT, 'scripts', 'lib', 'item-sources.js'));
+const realContentOf = (type) => {
+  if (!DEMO_CONTENT[type]) return DEMO_CONTENT[type];
+  const { [SOURCED_KEY]: _mark, ...data } = resolveItemSources([{ type, data: DEMO_CONTENT[type] }], demo.demoSourceContext())[0].data;
+  return data;
+};
 
 // ── 三道守卫：都吃 `contentOf`，所以反向臂能跑同一份代码 ──────────────────────────────────────
 

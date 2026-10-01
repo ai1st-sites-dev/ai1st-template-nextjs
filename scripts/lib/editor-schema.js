@@ -43,6 +43,7 @@ const pageLayoutLib = require('./page-layout');
 const { ROOT_FIELDS } = require('./editor-root-fields');
 const { shapesFor } = require('../themes');
 const { GRADIENT_SWATCHES } = require('./contrast');
+const { BUTTON_SOURCES } = require('./item-sources');
 
 /** `kind: link` 的字段在 manifest 的 `editLabel` 之外多出来的那一个子字段（#1404 r3）。 */
 const LINK_HREF = 'href';
@@ -140,6 +141,10 @@ function fieldsOf(manifest) {
     // 往 `editLabel` 里加 `href` 就得给守卫开豁免）。而编辑器开放了插入：新插的 hero 不填链接，按钮就是
     // `href="#"`，访客点了没反应 —— 所以这里只在编辑器自己的 schema 里补，按 kind 派生、不写块名单。
     if (kind === 'link' && !subs.some((x) => x.sub === LINK_HREF)) subs.push({ sub: LINK_HREF, label: 'Link' });
+    // #1506 —— 这一格 Link 除了手填地址，还能选「Business phone」「Business email」（写成 `{source: "phone"}` 引用，
+    //    构建时从 brand.json 展开，`scripts/lib/item-sources.js`）。按 kind 派生、不写块名单；EditorApp 据 `sources` 画控件。
+    //    按钮列表（`ctas` 这类 list 槽）今天没有这一格，本票不新开（#1518）。
+    if (kind === 'link') for (const x of subs) if (x.sub === LINK_HREF) x.sources = BUTTON_SOURCES.slice();
     // #1489 —— 列表槽**每一项**的词表（`itemChoices`，`contact-new.items[].kind`）也是一格下拉；`itemNeeds` 里点名
     //    的必填子字段（`kind=link` ⟹ `href`）补一格文字。少了它们，在编辑器里新加的一条没有 kind，组件整条不画。
     if (kind === 'list') {

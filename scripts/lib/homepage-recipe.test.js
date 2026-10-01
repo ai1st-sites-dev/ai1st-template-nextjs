@@ -624,6 +624,16 @@ try {
         return out.join('\n');
       },
     },
+    // #1506：建站提示词在输出结构前面多一段 BUTTONS（电话 / 邮箱按钮写成引用）。那句话只有一份，住在
+    //    `item-sources.js` §BUTTON_REF_PROMPT（改站提示词印的也是它）⟹ 这里引同一个常量，锚点是它前后的结构。
+    {
+      why: '#1506 输出结构前多一段 BUTTONS：电话 / 邮箱按钮写成引用',
+      apply: (t) => {
+        const { BUTTON_REF_PROMPT } = require('./item-sources');
+        const anchor = '\n\nGenerate a JSON object with this EXACT structure:';
+        return t.includes(anchor) ? t.split(anchor).join(`\n\nBUTTONS:\n${BUTTON_REF_PROMPT}${anchor}`) : t;
+      },
+    },
   ];
   const applyRenames = (text) => PROMPT_DELTAS.reduce((acc, d) => d.apply(acc), text);
   const promptBaseRenamed = applyRenames(promptBase);

@@ -20,6 +20,8 @@ const Anthropic = require('@anthropic-ai/sdk');
 // 跑的是**同一个函数**，不是第二份实现（#999 定的规矩，本票 AC6）。
 const { validateSite: validateBlocks, loadManifests, promptEntry } = require('./lib/block-manifest');
 const { knobsOf } = require('./lib/block-knobs');
+// #1506 —— 讲电话 / 邮箱按钮的那一句，跟建站提示词同一份（住在 item-sources.js）。
+const { BUTTON_REF_PROMPT } = require('./lib/item-sources');
 
 // #1463 r3 —— 带预设 / 旋钮的页面块（今天是 hero-new）在老站上没有样本可抄：QA2 真改站时 AI 只拿到一个块名，
 // 自己编了 `options.background` / `form.layout`，校验放行、页面上什么都没出来。所以把这类块的 data 形状
@@ -986,6 +988,10 @@ const SYSTEM_PROMPT = `You are an AI website editor. You modify static website c
 The site is defined by JSON configuration files:
 
 - **brand.json** — Company name, tagline, logoIcon, logoUrl (the logo image — see "Images" below), color palette (primary 50-900 shades, accent 50-600 shades), fonts (googleFontsUrl, families), email, phone, locations, socialLinks
+  Buttons, the header top bar and the footer that write the phone, email, address or social links as a reference
+  ({"source": "phone"} / {"source": "email"} / {"source": "address"} / {"source": "brand"} / {"source": "social"}, or {phone} /
+  {email} in a button label) follow brand.json automatically — so when the owner's phone number, email, address or social
+  links change, change brand.json and do not go and edit those pages.
 - **seo.json** — Domain, locale, meta title/description, keywords, Schema.org config
 - **services.json** — Array of services with id, name, shortDescription, fullDescription, icon, features, products
   Blocks on a page that say items: {"source": "services"} follow services.json automatically — they show
@@ -1047,6 +1053,8 @@ Available section types: hero, hero-new, hero-with-form, trusted-brands, logos-n
 Blocks with presets usually have no example on the site to copy, so here is their exact data shape — use only
 these keys (write_file refuses unknown ones):
 ${PRESET_BLOCK_SHAPES}
+
+${BUTTON_REF_PROMPT}
 
 ## Images
 

@@ -6,9 +6,11 @@
 // 🔴 `itemSourceContext` 是唯一一处替展开函数去拿站点数据的地方（`getServices` / `pagesByLocale` / `localeUrl` /
 //    「Learn more」）。`scripts/lib/page-deps.js` 的 ACCOUNTED 里登记了这个文件：它读服务目录这件事，按页面数据里
 //    有没有 `{source: "services"}` 归属（§blocksUseSource），不是算给所有页面。
+// #1506 —— 按钮 / 页头顶条 / 页脚里的联系方式引用（`{source: "phone"}` …）也在同一个 `resolveItemSources` 里展开，
+//    站点数据多带一份 `brand`（电话 / 邮箱 / 地址 / 社交链接都住在 brand.json）。
 
-import type { BlockConfig, DynamicPageConfig, ServiceConfig } from '@/lib/types/config';
-import { defaultLocale, getServices, localeUrl, pagesByLocale } from '@/lib/config';
+import type { BlockConfig, BrandConfig, DynamicPageConfig, ServiceConfig } from '@/lib/types/config';
+import { brand, defaultLocale, getServices, localeUrl, pagesByLocale } from '@/lib/config';
 import { getLabels } from '@/lib/component-labels';
 import * as impl from '../../../scripts/lib/item-sources.js';
 
@@ -19,6 +21,10 @@ export interface ItemSourceContext {
   url: (slug: string) => string;
   /** 「Learn more」那几个字（真站取 `component-labels` 的 `learnMore`）。 */
   learnMore?: string;
+  /** #1506 —— 联系方式的源读这几样（真站就是 brand.json）。 */
+  brand?: Partial<Pick<BrandConfig, 'email' | 'locations' | 'socialLinks'>>;
+  /** 引用指向的东西不存在时那一行日志往哪儿打（没给 = console.warn）。 */
+  log?: (message: string) => void;
 }
 
 export const SOURCES = impl.SOURCES;
@@ -27,6 +33,7 @@ export const SOURCED_KEY = impl.SOURCED_KEY as '_sourced';
 export const isSourceRef = impl.isSourceRef as (v: unknown) => v is { source: string; [k: string]: unknown };
 export const blocksUseSource = impl.blocksUseSource as (blocks: BlockConfig[] | undefined, source: string) => boolean;
 export const describeRef = impl.describeRef as (ref: unknown) => string;
+export const BUTTON_SOURCES = impl.BUTTON_SOURCES as string[];
 
 /** 把一页里写成引用的列表槽展开成条目（别的块原样返回）。 */
 export function resolveItemSources(blocks: BlockConfig[], ctx: ItemSourceContext): BlockConfig[] {
@@ -40,5 +47,6 @@ export function itemSourceContext(locale: string): ItemSourceContext {
     pages: pagesByLocale[locale] ?? pagesByLocale[defaultLocale] ?? [],
     url: (slug: string) => localeUrl(slug, locale),
     learnMore: getLabels(locale).learnMore,
+    brand,
   };
 }

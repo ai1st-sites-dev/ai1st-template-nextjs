@@ -78,6 +78,7 @@ import { normalizeBg, toneForBg, type BgValue } from '../../../scripts/lib/contr
 import BgPicker from '../BgPicker';
 import { formIdOptions } from '../../../scripts/lib/site-forms.js';
 import { describeRef, isSourceRef, itemSourceContext, resolveItemSources } from '@/lib/sections/item-sources';
+import { brand as siteBrand } from '@/lib/config';
 
 export interface EditorAppProps {
   locale: string;
@@ -220,11 +221,61 @@ function ColorField({ f, value, onChange, readOnly }: { f: EditorField; value: u
   );
 }
 
-/** 一个子字段：词表里有它（`choices`）就是下拉，否则是一格文字。 */
-function subField(s: { sub: string; label: string; choices?: string[] }): Field {
+/** 一个子字段：词表里有它（`choices`）就是下拉；带 `sources` 的是链接格（#1506）；否则是一格文字。 */
+function subField(s: { sub: string; label: string; choices?: string[]; sources?: string[] }): Field {
+  if (s.sources && s.sources.length) return linkHrefField(s.label, s.sources);
   return s.choices
     ? ({ type: 'select', label: s.label, options: s.choices.map((c) => ({ label: c, value: c })) } as Field)
     : ({ type: 'text', label: s.label } as Field);
+}
+
+// ── #1506 —— 链接格：手填一个地址，或选「Business phone / Business email」（写成 `{source: "phone"}` 引用） ──────────
+//    引用在构建时（和画布上）从 brand.json 展开成 `tel:` / `mailto:`（`scripts/lib/item-sources.js`）——
+//    老板以后改电话，这个按钮跟着变。多门店时再选哪一家（`location` 是下标，第一家不写）。
+const LINK_SOURCE_LABELS: Record<string, string> = { phone: 'Business phone', email: 'Business email' };
+const CUSTOM_LINK = '';
+const INPUT_STYLE = { width: '100%', padding: '6px 8px', fontSize: 14, border: '1px solid #d0d5dd', borderRadius: 6, fontFamily: 'inherit' } as const;
+
+function LinkHrefControl({ label, sources, value, onChange, readOnly }: {
+  label: string; sources: string[]; value: unknown; onChange: (v: unknown) => void; readOnly?: boolean;
+}) {
+  const ref = isSourceRef(value) && sources.includes(value.source) ? value : null;
+  const locations = Array.isArray(siteBrand.locations) ? siteBrand.locations : [];
+  const at = ref && Number.isInteger(ref.location) ? (ref.location as number) : 0;
+  const pick = (mode: string) => onChange(mode === CUSTOM_LINK ? '' : { source: mode });
+  return (
+    <div data-editor-link="" data-editor-link-source={ref ? ref.source : 'custom'}>
+      <FieldLabel label={label} el="div" readOnly={readOnly} />
+      <select data-editor-link-mode="" value={ref ? ref.source : CUSTOM_LINK} disabled={readOnly}
+        onChange={(e) => pick(e.target.value)} style={{ ...INPUT_STYLE, marginBottom: 6 }}>
+        <option value={CUSTOM_LINK}>Custom link</option>
+        {sources.map((src) => <option key={src} value={src}>{LINK_SOURCE_LABELS[src] || src}</option>)}
+      </select>
+      {ref && locations.length > 1 && (
+        <select data-editor-link-location="" value={String(at)} disabled={readOnly} style={INPUT_STYLE}
+          onChange={(e) => {
+            const i = Number(e.target.value);
+            onChange(i === 0 ? { source: ref.source } : { source: ref.source, location: i });
+          }}>
+          {locations.map((l, i) => <option key={i} value={String(i)}>{l.label || l.address || `Location ${i + 1}`}</option>)}
+        </select>
+      )}
+      {!ref && (
+        <input data-editor-link-input="" type="text" value={typeof value === 'string' ? value : ''} readOnly={readOnly}
+          onChange={(e) => onChange(e.target.value)} placeholder="/contact or https://…" style={INPUT_STYLE} />
+      )}
+    </div>
+  );
+}
+
+function linkHrefField(label: string, sources: string[]): Field {
+  return {
+    type: 'custom',
+    label,
+    render: ({ value, onChange, readOnly }: { value: unknown; onChange: (v: unknown) => void; readOnly?: boolean }) => (
+      <LinkHrefControl label={label} sources={sources} value={value} onChange={onChange} readOnly={readOnly} />
+    ),
+  } as unknown as Field;
 }
 
 /** 站级表单库里一张的摘要（编辑器只要下拉要用的两样）。 */

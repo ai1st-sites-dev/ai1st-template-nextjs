@@ -32,6 +32,8 @@ const { sheetNameForTheme } = require('./theme-sheet');
 const { keywordPageSectionOptions } = require('./lib/keyword-page-options');
 // #1120: 每站微扰派哪三个数 —— 表和判据都在那个文件里（含为什么它不能塞进 scripts/tweaks.js）。
 const { tweaksForSite } = require('./lib/site-tweaks');
+// #1506 —— 提示词里讲电话 / 邮箱按钮的那一句（改站提示词印的是同一句，住在 item-sources.js）。
+const { BUTTON_REF_PROMPT } = require('./lib/item-sources');
 // #999 — 块清单（槽 / 外观词 / 角色兜底 / 哪些行业需要它）住在 blocks/<块>/manifest.json；形态清单是
 //        blocks/<块>/ 下的子文件夹（#1387）。🔴 份数会变，别从这里抄：`ls -d templates/nextjs/blocks/*/ | wc -l`。
 // 下面提示词里那两段块清单**从它们生成**，AI 吐回来之后的校验读的也是同一份 —— 在这之前，
@@ -2355,6 +2357,9 @@ ${blockPromptSection('homepage', undefined, { ...(homeRecipe ? { order: homeReci
 PAGE-SPECIFIC SECTION RULES:
 ${blockPromptSection('page-specific', undefined, { omit: disabledBlocks })}${contentNewPageLine}
 ${pageRuleLines}
+
+BUTTONS:
+${BUTTON_REF_PROMPT}
 
 Generate a JSON object with this EXACT structure:
 

@@ -73,7 +73,11 @@ function loadSection(override) {
 let mod; let DEMO; let MANIFEST;
 try {
   mod = loadSection();
-  DEMO = require(path.join(NEXT, 'scripts', 'lib', 'demo-content')).DEMO_CONTENT['footer-new'];
+  // #1506 —— 夹具的 `contact` / `social` 写成引用（`{source: "brand"}` / `{source: "social"}`）。组件吃的是展开后的
+  //    data（单格页、以后真站都先过 `resolveItemSources`），所以这里先展开一次，站点数据用演示生意那一份。
+  const demoLib = require(path.join(NEXT, 'scripts', 'lib', 'demo-content'));
+  const { resolveItemSources } = require(path.join(NEXT, 'scripts', 'lib', 'item-sources.js'));
+  DEMO = resolveItemSources([{ type: 'footer-new', data: demoLib.DEMO_CONTENT['footer-new'] }], demoLib.demoSourceContext())[0].data;
   MANIFEST = JSON.parse(fs.readFileSync(path.join(NEXT, 'blocks', 'footer-new', 'manifest.json'), 'utf-8'));
 } catch (e) { die(`载入失败: ${e.message}`); }
 if (!DEMO) die('demo-content 里没有 footer-new 那一份');
@@ -288,7 +292,10 @@ console.log('\n⑤ 联系信息');
   check(render('columns', noContact).includes(phone), 'columns + contact:false：电话仍在（挂进品牌列）');
   const empty = { ...base, contact: {} };
   const icons = ['telephone', 'geo-alt', 'clock', 'envelope'].map((n) => `data-icon="${n}"`);
-  check(icons.every((i) => render('columns', base).includes(i)), 'columns + 全量 contact：四个联系图标都画出来了（尺子会亮）');
+  // #1506 —— 夹具的 contact 改成 `{source: "brand"}` 之后只展开出电话 / 邮箱 / 地址（营业时间不是那个源，票正文「不做」），
+  //    所以「全量」这一格自己补上 hours —— 量的是组件四样都画得出来，不是夹具有几样。
+  const full = { ...base, contact: { ...base.contact, hours: 'Mon–Sat 8am–6pm' } };
+  check(icons.every((i) => render('columns', full).includes(i)), 'columns + 全量 contact：四个联系图标都画出来了（尺子会亮）');
   for (const s of PRESET_NAMES) {
     const h = render(s, empty);
     const left = icons.filter((i) => h.includes(i));

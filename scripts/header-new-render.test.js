@@ -64,7 +64,11 @@ const mutate = (from, to) => (ORIGINAL.includes(from) ? ORIGINAL.replace(from, t
 let C; let DEMO; let MANIFEST; let ICONS;
 try {
   C = loadSection();
-  DEMO = require(path.join(NEXT, 'scripts', 'lib', 'demo-content')).DEMO_CONTENT['header-new'];
+  // #1506 —— 夹具的页头顶条电话 / 地址、次按钮写成引用（`{source: "phone"}` …）。组件吃的是展开后的 data
+  //    （单格页、以后真站都先过 `resolveItemSources`），所以这里先展开一次，站点数据用演示生意那一份。
+  const demoLib = require(path.join(NEXT, 'scripts', 'lib', 'demo-content'));
+  const { resolveItemSources } = require(path.join(NEXT, 'scripts', 'lib', 'item-sources.js'));
+  DEMO = resolveItemSources([{ type: 'header-new', data: demoLib.DEMO_CONTENT['header-new'] }], demoLib.demoSourceContext())[0].data;
   MANIFEST = JSON.parse(fs.readFileSync(path.join(BLOCK_DIR, 'manifest.json'), 'utf-8'));
   ICONS = require(path.join(NEXT, 'scripts', 'lib', 'icons.js')).iconTableFor('header-new', DEMO);
 } catch (e) { die(`载入失败: ${e.message}`); }

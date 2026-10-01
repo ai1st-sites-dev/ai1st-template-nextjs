@@ -51,6 +51,8 @@ import BlockLeadForm from '@/components/BlockLeadForm';
 import manifest from './manifest.json';
 import { knobsOf, normalizeKnobs, presetForShape, presetOf, presetsOf } from '../../scripts/lib/header-knobs.js';
 import { bgCss, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+// #1506 —— 电话 → `tel:`、邮箱 → `mailto:` 只有一份（contact-new 与引用展开 `scripts/lib/item-sources.js` 用的也是它）。
+import { mailtoHref, telHref } from '../../scripts/lib/contact-facts.js';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
 
@@ -132,8 +134,6 @@ function cityOf(address: string | undefined): string {
   const parts = address.split(',').map((s) => s.trim()).filter(Boolean);
   return parts.length ? parts[parts.length - 1] : '';
 }
-
-const telHref = (phone: string) => `tel:${phone.replace(/[^\d+]/g, '')}`;
 
 interface Props {
   data?: FooterNewData;
@@ -217,7 +217,7 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
     contact.phone ? { key: 'phone', icon: 'telephone', text: contact.phone, href: telHref(contact.phone) } : null,
     contact.address ? { key: 'address', icon: 'geo-alt', text: contact.address } : null,
     contact.hours ? { key: 'hours', icon: 'clock', text: contact.hours } : null,
-    contact.email ? { key: 'email', icon: 'envelope', text: contact.email, href: `mailto:${contact.email}` } : null,
+    contact.email ? { key: 'email', icon: 'envelope', text: contact.email, href: mailtoHref(contact.email) } : null,
   ].filter((c): c is { key: string; icon: string; text: string; href?: string } => !!c);
 
   // `stacked`：竖着一条一行（`columns` 品牌列里那份）。🔴 竖排时不叠 `flex-row-reverse` —— 它跟
