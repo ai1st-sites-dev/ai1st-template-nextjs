@@ -27,6 +27,7 @@
 //   editLabel 是对象    kind list              → array，子字段 = 那几个 `sub`（`control: 'list'`）
 //                       kind link / object     → object，子字段 = 那几个 `sub`（`control: 'object'`）；
 //                                                link 再多一个 `href`（显示名 Link，#1404 r3，理由在 §fieldsOf）
+//                       kind list 且项形状顶层必有 `href`（按钮列表 `[{label, href, …}]`）→ 每项也多一个 `href`（#1518，§itemTopKeys）
 // 🔴 「带 `sub`」≠「列表」：`link`（`{label, href}`）和 `object`（`hero-with-form.form`）也带 `sub`。
 //    把它们做成 array 字段，Puck 会把一个对象当数组编辑，存回去就坏了。
 //
@@ -154,6 +155,12 @@ function fieldsOf(manifest) {
       for (const need of Object.values((spec && spec.itemNeeds) || {}).flat()) {
         if (!subs.some((x) => x.sub === need)) subs.push({ sub: need, label: need === LINK_HREF ? 'Link' : humanize(need) });
       }
+      // #1518 —— 项形状里【必有】`href` 的列表槽（按钮列表 `ctas` / `introCtas`：`[{label, href, style, …}]`）每一项也补一格 Link，
+      //    理由同上面 `kind: link` 那条（#1404 r3）：编辑器能新加一项，不给这一格，新按钮就是 `href="#"`。
+      //    按形状派生、不写块名单；只认项的顶层键、只认必填（`href?` 那种可选链接不在本条射程）。
+      if (itemTopKeys(spec && spec.shape).includes(LINK_HREF) && !subs.some((x) => x.sub === LINK_HREF)) {
+        subs.push({ sub: LINK_HREF, label: 'Link' });
+      }
     }
     fields.push({
       slot,
@@ -165,6 +172,34 @@ function fieldsOf(manifest) {
     });
   }
   return fields;
+}
+
+/**
+ * 列表槽项形状（`[{label, href, style: "solid" | "outline", icon?, …}]`）的**顶层**必填键名。
+ * 嵌套的 `{…}` / `[…]` 和引号里的东西不算；带 `?` 的（可选）不算。形状不是**一个** `[{…}]` ⟹ []
+ * （`page-header.breadcrumbs` 那种 `[{…}, {…}]` 是两项示例、不是项形状，不认）。
+ */
+function itemTopKeys(shape) {
+  const m = /^\s*\[\s*\{([\s\S]*)\}\s*\]\s*$/.exec(typeof shape === 'string' ? shape : '');
+  if (!m) return [];
+  const keys = [];
+  let depth = 0;
+  let quote = '';
+  let cur = '';
+  for (const ch of m[1] + ',') {
+    if (quote) { if (ch === quote) quote = ''; continue; }
+    if (ch === '"' || ch === "'") { quote = ch; continue; }
+    if (ch === '{' || ch === '[') depth++;
+    else if (ch === '}' || ch === ']') { if (--depth < 0) return []; }
+    else if (ch === ',' && depth === 0) {
+      const k = /^\s*(\w+)(\??)/.exec(cur);
+      if (k && !k[2]) keys.push(k[1]);
+      cur = '';
+      continue;
+    }
+    if (depth === 0) cur += ch;
+  }
+  return keys;
 }
 
 function humanize(name) {
@@ -282,4 +317,4 @@ function slotCoverageProblems(schema, manifests) {
   return out;
 }
 
-module.exports = { editorSchema, fieldsOf, slotCoverageProblems, LINK_HREF };
+module.exports = { editorSchema, fieldsOf, slotCoverageProblems, itemTopKeys, LINK_HREF };

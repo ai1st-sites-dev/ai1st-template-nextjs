@@ -37,9 +37,9 @@ function tmpdir(label) {
   return d;
 }
 
-let editorSchema; let slotCoverageProblems; let convert; let blocksLib; let manifestLib; let catalogLib; let editorPage;
+let editorSchema; let slotCoverageProblems; let itemTopKeys; let convert; let blocksLib; let manifestLib; let catalogLib; let editorPage;
 try {
-  ({ editorSchema, slotCoverageProblems } = require('./lib/editor-schema.js'));
+  ({ editorSchema, slotCoverageProblems, itemTopKeys } = require('./lib/editor-schema.js'));
   convert = require('./lib/editor-convert.js');
   blocksLib = require('./blocks.js');
   manifestLib = require('./lib/block-manifest.js');
@@ -105,7 +105,9 @@ console.log('② 字段两层比');
       const itemSubs = f.kind === 'list'
         ? [...Object.keys((slots[f.slot] || {}).itemChoices || {}), ...Object.values((slots[f.slot] || {}).itemNeeds || {}).flat()] : [];
       const wantSub = [...new Set([...esp.filter((e) => e.slot === f.slot && e.sub !== null).map((e) => e.sub), ...choiceSubs, ...itemSubs,
-        ...(f.kind === 'link' ? ['href'] : []), ...(special(f.slot) === 'formRef' ? ['id'] : [])])].sort();
+        ...(f.kind === 'link' ? ['href'] : []), ...(special(f.slot) === 'formRef' ? ['id'] : []),
+        // #1518 —— 项形状里必有 `href` 的列表槽（按钮列表）也多一个 `href`。哪几个槽算数由下面 #1518 那一节逐个钉死。
+        ...(f.kind === 'list' && itemTopKeys((slots[f.slot] || {}).shape).includes('href') ? ['href'] : [])])].sort();
       const gotSub = f.subs.map((s) => s.sub).sort();
       if (JSON.stringify(wantSub) !== JSON.stringify(gotSub)) problems.push(`${m.type}.${f.slot} 子字段 ${gotSub} ≠ ${wantSub}`);
       // 控件由 kind 决定：list → array；link / object → object；绝不把对象做成 array
@@ -1036,6 +1038,67 @@ console.log('\n#1498 richtext 槽');
   c.props.body = `${body}\n\n1. one\n2. two`;
   const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
   check(out.blocks[0].data.body === `${body}\n\n1. one\n2. two` && out.blocks[0].data.headline === 'H', '改了 ⟹ 写回新的那段，headline 原样');
+}
+
+// ══ #1518：按钮列表（`ctas` / `introCtas`）每一项有 Link 格 —— 按项形状派生，不写块名单 ═══════════════
+console.log('\n#1518 按钮列表的 Link 格');
+{
+  const subsOf = (type, slot) => {
+    const f = compOf(type).fields.find((x) => x.slot === slot);
+    return f ? f.subs.map((x) => `${x.sub}:${x.label}`) : null;
+  };
+  // AC1：哪几个列表槽有 Link 格 —— 钉死成一张表（反向：main 上除 contact-new.items 外是 0 个）
+  const listWithLink = [];
+  for (const c of schema.components) for (const f of c.fields) {
+    if (f.kind === 'list' && f.subs.some((x) => x.sub === 'href' && x.label === 'Link')) listWithLink.push(`${c.type}.${f.slot}`);
+  }
+  const want = ['contact-new.items', 'content-new.ctas', 'cta-new.ctas', 'features-new.introCtas', 'hero-new.ctas', 'milestones.introCtas', 'page-header-new.ctas'];
+  check(JSON.stringify(listWithLink.sort()) === JSON.stringify(want), `有 Link 格的列表槽 = 六个按钮列表 + contact-new.items（${listWithLink.length}）`, listWithLink.join(' · '));
+  for (const k of want.slice(1)) {
+    const [type, slot] = k.split('.');
+    check(JSON.stringify(subsOf(type, slot)) === JSON.stringify(['label:Button text', 'href:Link']), `${k} 的子字段 = Button text + Link（顺序）`, JSON.stringify(subsOf(type, slot)));
+  }
+  // AC2：不误伤 —— 三个本来就有 Link 格的槽逐项不变（不重复、顺序不变）
+  check(JSON.stringify(subsOf('contact-new', 'items')) === JSON.stringify(['title:Title', 'hint:Hint', 'kind:Kind', 'href:Link']), 'contact-new.items 逐项不变', JSON.stringify(subsOf('contact-new', 'items')));
+  check(JSON.stringify(subsOf('blog-new', 'introCta')) === JSON.stringify(['label:Button text', 'href:Link']), 'blog-new.introCta 逐项不变', JSON.stringify(subsOf('blog-new', 'introCta')));
+  check(JSON.stringify(subsOf('logos-new', 'introCta')) === JSON.stringify(['label:Link text', 'href:Link']), 'logos-new.introCta 逐项不变', JSON.stringify(subsOf('logos-new', 'introCta')));
+  // AC3：反向对照 —— 项形状里没有【顶层必填】href 的列表槽不长 Link 格
+  //   testimonials-new.items 根本没有 href · features-new.items 的 href 在嵌套的 link? 里 · logos-new.items 是可选的 href?
+  //   page-header.breadcrumbs 是两项示例 `[{…}, {…}]`，不是项形状
+  for (const [type, slot] of [['testimonials-new', 'items'], ['features-new', 'items'], ['logos-new', 'items'], ['page-header', 'breadcrumbs']]) {
+    const got = subsOf(type, slot);
+    check(Array.isArray(got) && !got.some((x) => x.startsWith('href:')), `${type}.${slot} 没有 Link 格`, JSON.stringify(got));
+  }
+  // 解析器本身：顶层、必填、单个对象
+  const cases = [
+    ['[{label, href, style: "solid" | "outline" | "link", icon?, arrow?, size?}]', ['label', 'href', 'style']],
+    ['[{imageUrl, alt, href?}]', ['imageUrl', 'alt']],
+    ['[{title, link?: {label, href, style?: "solid"}}]', ['title']],
+    ['[{label:"Home", href:"/"}, {label:"<Page Name>"}]', []],
+    ['[string]', []],
+    [undefined, []],
+  ];
+  for (const [shape, keys] of cases) {
+    check(JSON.stringify(itemTopKeys(shape)) === JSON.stringify(keys), `itemTopKeys(${JSON.stringify(shape)}) = ${JSON.stringify(keys)}`, JSON.stringify(itemTopKeys(shape)));
+  }
+  // 往返：不动就存 deepEqual；只改链接 ⟹ label / style 逐字节不变；新插一个 hero-new 填 /contact ⟹ 落盘
+  const ctas = [{ label: 'Call', href: '/quote', style: 'solid', icon: 'telephone' }, { label: 'More', href: '/about', style: 'outline' }];
+  const raw = { slug: 'home', title: 'T', blocks: [{ id: 'home-hero-new-0', type: 'hero-new', data: { headline: 'H', ctas } }] };
+  check(convert.deepEqual(roundTrip(raw), raw), 'hero-new 带两个按钮：不动就存，deepEqual');
+  const { initial, data } = openPage(raw);
+  const c = data.content.find((x) => x.type === 'hero-new');
+  c.props.ctas[1].href = '/contact';
+  const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
+  check(JSON.stringify(out.blocks[0].data.ctas) === JSON.stringify([ctas[0], { ...ctas[1], href: '/contact' }]),
+    '只改第二个按钮的链接 ⟹ 它的 href 变、label / style 不变，第一个逐字节不变', JSON.stringify(out.blocks[0].data.ctas));
+  const { initial: i2, data: d2 } = openPage(raw);
+  const props = { id: 'puck-new-hero-new', ...convert.fieldProps(compOf('hero-new'), {}), _shape: convert.THEME_DEFAULT };
+  props.headline = 'New';
+  props.ctas = [{ label: 'Book', href: '/contact' }];
+  d2.content.push({ type: 'hero-new', props });
+  const nh = convert.puckToPage({ raw, data: d2, initial: i2, schema, slug: 'home' }).blocks.slice(-1)[0];
+  check(nh.type === 'hero-new' && Array.isArray(nh.data.ctas) && nh.data.ctas[0].href === '/contact' && nh.data.ctas[0].label === 'Book',
+    '新插的 hero-new 填了链接 → 写成 ctas[0] {label, href}', JSON.stringify(nh.data));
 }
 
 console.log(`\n${pass} 过 · ${fail} 败`);

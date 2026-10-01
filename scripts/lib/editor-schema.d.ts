@@ -60,4 +60,6 @@ export interface EditorSchema {
 export function editorSchema(opts?: { rootDir?: string; registryPath?: string; blocksDir?: string; layoutsDir?: string }): EditorSchema;
 export function fieldsOf(manifest: unknown): EditorField[];
 export function slotCoverageProblems(schema: EditorSchema, manifests: Map<string, unknown>): string[];
+/** #1518 —— 列表槽项形状 `[{…}]` 的顶层必填键名（嵌套 / 带 `?` 的不算；不是一个 `[{…}]` ⟹ []）。 */
+export function itemTopKeys(shape: unknown): string[];
 export const LINK_HREF: string;
