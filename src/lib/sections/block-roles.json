@@ -26,6 +26,7 @@
   "milestones": "optional",
   "newsletter-signup": "optional",
   "page-header": "optional",
+  "page-header-new": "optional",
   "pricing-new": "optional",
   "pricing-table": "optional",
   "process-steps": "optional",

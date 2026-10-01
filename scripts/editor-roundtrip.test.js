@@ -756,6 +756,33 @@ console.log('⑦d 钉着退役形态');
   check(firstDiff(raw, roundTrip(raw, {}, toDefault)) !== null, '反向：退役形态显示成 Theme default → 不碰就存也丢了 shape（往返有损）');
 }
 
+// ══ ⑦g #1502：page-header-new 在 Puck 里 —— 能拖、能改标题、面包屑不是字段（只显示不能改）、点预设 / 拧旋钮显示 Custom ═══
+console.log('⑦g page-header-new');
+{
+  const { presetClickProps, presetNameFor } = require('./lib/block-knobs.js');
+  const comp = compOf('page-header-new');
+  check(!!comp, 'page-header-new 在组件清单里（左栏能拖）');
+  const slots = comp.fields.map((f) => f.slot);
+  check(!slots.includes('breadcrumbs'), `侧栏字段里没有 breadcrumbs（面包屑按页面路径算，画布上只显示；字段 ${slots.join(' / ')}）`);
+  const opt = comp.fields.find((f) => f.control === 'options');
+  const man = { slots: { options: { knobs: opt.knobs } }, presets: opt.presets };
+  const nameOf = (props) => presetNameFor(man, props.options || {});
+  const raw = fixturePage(false);
+  const { initial, data } = openPage(raw);
+  const item = data.content.find((c) => c.type === 'page-header-new');
+  check(!!item && typeof item.props.headline === 'string', '打开之后 headline 是文字字段');
+  item.props = presetClickProps(opt, item.props, 'Split');
+  check(nameOf(item.props) === 'Split', `点 Split ⟹ 侧栏亮 Split（${nameOf(item.props)}）`);
+  check(nameOf({ ...item.props, options: { ...item.props.options, image: 'left' } }) === 'custom', '拧 image=left ⟹ Custom');
+  item.props.headline = 'Renamed page title';
+  const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
+  const blk = out.blocks.find((b) => b.type === 'page-header-new');
+  check(blk.data.headline === 'Renamed page title' && blk.data.options.headlinePosition === 'left' && !('breadcrumbs' in blk.data),
+    '存盘 ⟹ headline 改了、options 是 Split 的旋钮、data 里没有 breadcrumbs');
+  const changed = out.blocks.filter((b, i) => JSON.stringify(b) !== JSON.stringify(raw.blocks[i])).map((b) => b.type);
+  check(JSON.stringify(changed) === JSON.stringify(['page-header-new']), '只有 page-header-new 那一块变了', changed.join(' '));
+}
+
 // ══ ⑧ 排序 / 增删 / 复制 ══════════════════════════════════════════════════════════════════════
 console.log('⑧ 排序 / 增删 / 复制');
 function orderAfterRebuild(page, siteBlocks = {}) {

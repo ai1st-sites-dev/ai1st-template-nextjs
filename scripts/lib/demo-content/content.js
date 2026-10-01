@@ -453,6 +453,27 @@ const DEMO_CONTENT = {
     ],
   },
 
+  // #1502 —— Webpixels 那一版内页标题带：Northside Auto Care 的一个服务页（eyebrow + h1 + 副标题 + 按钮 + 图）。
+  //    🔴 **没有 breadcrumbs**：面包屑按页面路径算（`src/lib/breadcrumbs.ts`），不是块的数据；单格页给它一个夹具页的
+  //       slug（`catalogShared.ts` §CATALOG_PAGE_HEADER_SLUG，三级：Home → Brake Repair → 本页）。
+  //    🔴 `options` 留空、`ctas` 6 条、`introEyebrow.style` 写明，理由同下面 cta-new / features-new 那几条。
+  'page-header-new': {
+    options: {},
+    introEyebrow: { text: 'Brake repair', style: 'pill' },
+    headline: 'Brake repair in North York',
+    subheadline: 'Measured, quoted and warrantied — pads, rotors and callipers, usually finished the same afternoon. You see the worn parts and the written price before we start.',
+    ctas: [
+      { label: 'Book a brake check', href: '/quote', style: 'solid' },
+      { label: 'Call (416) 555-0142', href: 'tel:+14165550142', style: 'outline' },
+      { label: 'See what we charge for pads, rotors and a full brake-fluid flush', href: '/services', style: 'link', arrow: true },
+      { label: 'Directions', href: '/contact', style: 'link' },
+      { label: 'Warranty', href: '/warranty', style: 'link' },
+      { label: 'Reviews', href: '/reviews', style: 'link' },
+    ],
+    image: { imageUrl: imageUrl('work-2'), alt: 'A technician measuring a brake rotor' },
+    bg: null,
+  },
+
   // ── 号召 / 表单 ─────────────────────────────────────────────────────────────────────────────
   'cta-banner': {
     headline: 'Something not sounding right?',

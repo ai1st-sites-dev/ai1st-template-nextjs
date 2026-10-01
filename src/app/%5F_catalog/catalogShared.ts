@@ -113,9 +113,19 @@ const CATALOG_FIXTURE_PAGES: DynamicPageConfig[] = ['First', 'Second', 'Third'].
   blocks: [],
 }));
 
+// #1502 —— `page-header-new` 的面包屑按页面路径算（`src/lib/breadcrumbs.ts`），块自己不存。单格页拿下面这两页
+//    当「正在看的是哪一页」：夹具页 `brake-repair/north-york` 的中间一级查 `services/brake-repair` —— 它在，所以三级
+//    都齐（Home → Brake Repair → 本页），跟真站一个服务下的关键词页同一种形状。挂在同一个 `CATALOG_LOCALE` 下，
+//    理由同上；`service-related-pages` 只筛 `sample-service/` 开头的，这两页它看不见。
+export const CATALOG_PAGE_HEADER_SLUG = 'brake-repair/north-york';
+const CATALOG_PAGE_HEADER_PAGES: DynamicPageConfig[] = [
+  { slug: 'services/brake-repair', title: 'Brake Repair', description: 'Brake service at Northside Auto Care.', blocks: [] },
+  { slug: CATALOG_PAGE_HEADER_SLUG, title: 'Brake Repair in North York', description: 'Brake repair for North York drivers.', blocks: [] },
+];
+
 /** 幂等：`next dev` 里这个模块只求值一次，但重复调用也只是原样写回同一份。 */
 export function registerCatalogFixturePages(): void {
-  pagesByLocale[CATALOG_LOCALE] = CATALOG_FIXTURE_PAGES;
+  pagesByLocale[CATALOG_LOCALE] = [...CATALOG_FIXTURE_PAGES, ...CATALOG_PAGE_HEADER_PAGES];
 }
 
 // #1497 —— blog-new 只从站点博客读（`getBlogPosts(locale)`），块里不存文章；站里一篇都没有就整块不渲染。

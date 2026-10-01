@@ -43,6 +43,7 @@ import { booleanOptionsOf, colorSlotsOf, effectiveKnobs, presetColors, presetNam
 import { bgFromParam, normalizeBg } from '../../../../../scripts/lib/contrast.js';
 import {
   CATALOG_LOCALE,
+  CATALOG_PAGE_HEADER_SLUG,
   CATALOG_PATHS,
   CATALOG_SERVICE_SLUG,
   HEIGHT_REPORTER,
@@ -232,7 +233,9 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
   const isRelatedPages = block === 'service-related-pages';
   if (isRelatedPages) data.serviceSlug = CATALOG_SERVICE_SLUG;
   // #1497 —— blog-new 读站点博客：同一个图册夹具 locale 下挂着一份博客（catalogShared §registerCatalogFixtureBlogPosts）。
-  const usesFixtureLocale = isRelatedPages || block === 'blog-new';
+  // #1502 —— page-header-new 的面包屑按「当前页」算：单格页当自己在看夹具页 `CATALOG_PAGE_HEADER_SLUG`（catalogShared）。
+  const isPageHeader = block === 'page-header-new';
+  const usesFixtureLocale = isRelatedPages || block === 'blog-new' || isPageHeader;
   const locale = usesFixtureLocale ? CATALOG_LOCALE : defaultLocale;
 
   // #1463 —— 旋钮类页面块：地址栏先改 data，再算 `data-has-*`（关掉的部件不许还挂着「有它」）。
@@ -349,7 +352,7 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
         ) : null}
         {knobBar && !embed ? <KnobBar {...knobBar} /> : null}
         {/* #1475 —— 旋钮类页面块里画内联 SVG 图标的（features-new）也要图标表，跟真站 HomePage / SubPage 同一个函数算。 */}
-        {isRegion ? null : <SectionRenderer blocks={[cfg]} locale={locale} iconTables={iconTablesFor([cfg])} siteFacts={siteFacts} />}
+        {isRegion ? null : <SectionRenderer blocks={[cfg]} locale={locale} iconTables={iconTablesFor([cfg])} siteFacts={siteFacts} pageSlug={isPageHeader ? CATALOG_PAGE_HEADER_SLUG : undefined} />}
       </main>
     </>
   );

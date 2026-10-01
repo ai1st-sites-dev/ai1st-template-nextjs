@@ -360,7 +360,7 @@ function sharedNoteField(id: string): Field {
  * 数据的底是**归一化之后**那一块（`_src.view`，跟真页面同一份：列表已升格、`data-has-*` 已算好），
  * 老板改过的字段才换成新值 —— 用的是存盘时同一个合法（§dataFromProps），画布和落盘不会各说各的。
  */
-function CanvasBlock({ component, props, locale }: { component: EditorComponent; props: ItemProps; locale: string }) {
+function CanvasBlock({ component, props, locale, pageSlug }: { component: EditorComponent; props: ItemProps; locale: string; pageSlug?: string }) {
   const src = props._src;
   // 复制出来的条目跟原件共用一份 `_src.view`，画布上的 `data-block-id` 换成它自己的 id（存盘时它也会拿到新 id）。
   const baseView = (src?.view || { type: component.type }) as unknown as BlockConfig;
@@ -392,11 +392,11 @@ function CanvasBlock({ component, props, locale }: { component: EditorComponent;
         >
           {component.label} · Shared
         </span>
-        <SectionRenderer blocks={[block]} locale={locale} />
+        <SectionRenderer blocks={[block]} locale={locale} pageSlug={pageSlug} />
       </div>
     );
   }
-  return <SectionRenderer blocks={[block]} locale={locale} />;
+  return <SectionRenderer blocks={[block]} locale={locale} pageSlug={pageSlug} />;
 }
 
 /**
@@ -405,7 +405,7 @@ function CanvasBlock({ component, props, locale }: { component: EditorComponent;
 /** 块的形态下拉叫什么（#1454 存盘记录里「改了形态」也用这个字）。 */
 const SHAPE_FIELD_LABEL = 'Layout';
 
-export function buildConfig(schema: EditorSchema, locale: string, overHero = false, removable: (id: string) => boolean = () => true, forms: EditorFormChoice[] = []): Config {
+export function buildConfig(schema: EditorSchema, locale: string, overHero = false, removable: (id: string) => boolean = () => true, forms: EditorFormChoice[] = [], pageSlug?: string): Config {
   const components: Record<string, Config['components'][string]> = {};
   for (const c of schema.components) {
     const fields: Fields = {};
@@ -454,7 +454,7 @@ export function buildConfig(schema: EditorSchema, locale: string, overHero = fal
         if (src?.shared) return { _shared: sharedNoteField(src.shared), ...own };
         return own;
       },
-      render: (props: ItemProps) => <CanvasBlock component={c} props={props} locale={locale} />,
+      render: (props: ItemProps) => <CanvasBlock component={c} props={props} locale={locale} pageSlug={pageSlug} />,
     } as unknown as Config['components'][string];
   }
   // 页面里有、而这个站的区块库里没有的块（#1404 QA1 r1）：锁住的占位，能选中、看得见，不进左栏
@@ -956,9 +956,10 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
   const baseRef = useRef<Base>({ raw, initial: initialData, hash: baseHash, saved: raw, siteBlocks: siteBlocks || {}, sharedOwn: {} });
   // #1406 —— 「在 N 个页面上」那句话读的三样（context，见 SharedInfoContext）。
   const [sharedInfo, setSharedInfo] = useState<SharedInfo>({ siteBlocks: siteBlocks || {}, refs: refs || {}, slugs: slugs || [] });
+  // #1502 —— 画布上要按页面路径算东西的块（page-header-new 的面包屑）拿这一页的 slug；首页不传（首页没有面包屑）。
   const config = useMemo(
-    () => buildConfig(schema, locale, overHero, (id) => sharedRemovable(baseRef.current.siteBlocks, id), forms),
-    [schema, locale, overHero],
+    () => buildConfig(schema, locale, overHero, (id) => sharedRemovable(baseRef.current.siteBlocks, id), forms, page === 'home' ? undefined : page),
+    [schema, locale, overHero, page],
   );
   // #1406 —— 老板在画布上拖过的块（Puck id）。按 `visibility` 注进来的共用块只有拖过的才写成这一页的 `{ref}`
   // （`editor-convert.js` §puckToPage 的 `moved`）。换一份新画布（open / external）时清空。

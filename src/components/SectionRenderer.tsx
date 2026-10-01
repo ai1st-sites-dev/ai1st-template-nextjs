@@ -18,9 +18,15 @@ interface SectionRendererProps {
    * 挂到每个块上，今天只有 contact-new 读它（`scripts/lib/contact-facts.js` §siteFactsFrom 的形状）。
    */
   siteFacts?: ContactSiteFacts;
+  /**
+   * #1502 —— 这一页的 slug（`about` / `services/x` …）。要按页面路径算东西的块（`page-header-new` 的面包屑，
+   * `src/lib/breadcrumbs.ts`）拿它；别的块不读。内页由 `SubPage` 传真 slug，编辑器画布传正在编辑的那一页，
+   * 单格页传夹具页；首页不传。没给就**不挂**这个 prop（同 `iconTable`）。
+   */
+  pageSlug?: string;
 }
 
-export default function SectionRenderer({ blocks, locale, iconTables, siteFacts }: SectionRendererProps) {
+export default function SectionRenderer({ blocks, locale, iconTables, siteFacts, pageSlug }: SectionRendererProps) {
   return (
     <>
       {blocks.map((block, index) => {
@@ -49,6 +55,7 @@ export default function SectionRenderer({ blocks, locale, iconTables, siteFacts 
             block={block}
             {...(iconTable ? { iconTable } : {})}
             {...(siteFacts ? { siteFacts } : {})}
+            {...(pageSlug ? { pageSlug } : {})}
           />
         );
       })}

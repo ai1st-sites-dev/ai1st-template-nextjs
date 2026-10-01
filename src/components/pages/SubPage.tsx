@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import SectionRenderer from '@/components/SectionRenderer';
 import { BreadcrumbJsonLd, ServiceJsonLd } from '@/components/JsonLd';
 import { getSeo, getServices, getPage, isValidLocale, localeUrl } from '@/lib/config';
+import { breadcrumbsFor } from '@/lib/breadcrumbs';
 import { iconTablesFor } from '../../../scripts/lib/icons.js';
 
 export default function SubPage({ locale, slug }: { locale: string; slug: string }) {
@@ -19,27 +20,7 @@ export default function SubPage({ locale, slug }: { locale: string; slug: string
     ? services.find((s) => s.id === slug.replace('services/', ''))
     : null;
 
-  const slugParts = slug.split('/');
-  let breadcrumbItems: { name: string; url: string }[];
-
-  if (slugParts.length > 1) {
-    const serviceDetailSlug = `services/${slugParts[0]}`;
-    const serviceDetailPage = getPage(serviceDetailSlug, locale);
-    const middleBreadcrumb = serviceDetailPage
-      ? { name: serviceDetailPage.title, url: `${seo.domain}${localeUrl(serviceDetailSlug, locale)}` }
-      : { name: slugParts[0].replace(/-/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()), url: `${seo.domain}${localeUrl(slugParts[0], locale)}` };
-
-    breadcrumbItems = [
-      { name: 'Home', url: `${seo.domain}${localeUrl('home', locale)}` },
-      middleBreadcrumb,
-      { name: page.title, url: `${seo.domain}${localeUrl(slug, locale)}` },
-    ];
-  } else {
-    breadcrumbItems = [
-      { name: 'Home', url: `${seo.domain}${localeUrl('home', locale)}` },
-      { name: page.title, url: `${seo.domain}${localeUrl(slug, locale)}` },
-    ];
-  }
+  const breadcrumbItems = breadcrumbsFor(slug, locale).map((c) => ({ name: c.label, url: c.url }));
 
   return (
     <>
@@ -63,7 +44,7 @@ export default function SubPage({ locale, slug }: { locale: string; slug: string
         />
       )}
       {/* #1475 —— 画内联 SVG 图标的块要一张服务端查好的图标表（§iconTablesFor；别的块不挂）。 */}
-      <SectionRenderer blocks={page.blocks} locale={locale} iconTables={iconTablesFor(page.blocks)} />
+      <SectionRenderer blocks={page.blocks} locale={locale} iconTables={iconTablesFor(page.blocks)} pageSlug={slug} />
     </>
   );
 }

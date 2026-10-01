@@ -27,6 +27,7 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     subscribe: 'Subscribe',
     outOfFive: 'out of 5',
     reviews: 'reviews',
+    home: 'Home',
   },
   zh: {
     keyFeatures: '主要特色',
@@ -48,6 +49,7 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     subscribe: '订阅',
     outOfFive: '/ 5 分',
     reviews: '条评价',
+    home: '首页',
   },
   fr: {
     keyFeatures: 'Caractéristiques',
@@ -69,6 +71,7 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     subscribe: 'S\'abonner',
     outOfFive: 'sur 5',
     reviews: 'avis',
+    home: 'Accueil',
   },
   es: {
     keyFeatures: 'Características',
@@ -90,6 +93,7 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     subscribe: 'Suscribirse',
     outOfFive: 'de 5',
     reviews: 'reseñas',
+    home: 'Inicio',
   },
   ja: {
     keyFeatures: '主な特徴',
@@ -111,6 +115,7 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     subscribe: '登録する',
     outOfFive: '/ 5',
     reviews: '件のレビュー',
+    home: 'ホーム',
   },
   ko: {
     keyFeatures: '주요 기능',
@@ -132,6 +137,7 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     subscribe: '구독하기',
     outOfFive: '/ 5',
     reviews: '개 리뷰',
+    home: '홈',
   },
   de: {
     keyFeatures: 'Hauptmerkmale',
@@ -153,6 +159,7 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     subscribe: 'Abonnieren',
     outOfFive: 'von 5',
     reviews: 'Bewertungen',
+    home: 'Startseite',
   },
   it: {
     keyFeatures: 'Caratteristiche',
@@ -174,6 +181,7 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     subscribe: 'Iscriviti',
     outOfFive: 'su 5',
     reviews: 'recensioni',
+    home: 'Home',
   },
   pt: {
     keyFeatures: 'Características',
@@ -195,6 +203,7 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     subscribe: 'Inscrever-se',
     outOfFive: 'de 5',
     reviews: 'avaliações',
+    home: 'Início',
   },
   ru: {
     keyFeatures: 'Ключевые особенности',
@@ -216,6 +225,7 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     subscribe: 'Подписаться',
     outOfFive: 'из 5',
     reviews: 'отзывов',
+    home: 'Главная',
   },
   vi: {
     keyFeatures: 'Tính năng chính',
@@ -237,6 +247,7 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     subscribe: 'Đăng ký',
     outOfFive: 'trên 5',
     reviews: 'đánh giá',
+    home: 'Trang chủ',
   },
   ar: {
     keyFeatures: 'الميزات الرئيسية',
@@ -258,6 +269,7 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     subscribe: 'اشترك',
     outOfFive: 'من 5',
     reviews: 'تقييمات',
+    home: 'الرئيسية',
   },
   hi: {
     keyFeatures: 'मुख्य विशेषताएं',
@@ -279,6 +291,7 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     subscribe: 'सदस्यता लें',
     outOfFive: 'में से 5',
     reviews: 'समीक्षाएं',
+    home: 'होम',
   },
   th: {
     keyFeatures: 'คุณสมบัติหลัก',
@@ -300,6 +313,7 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     subscribe: 'สมัครสมาชิก',
     outOfFive: 'จาก 5',
     reviews: 'รีวิว',
+    home: 'หน้าแรก',
   },
 };
 

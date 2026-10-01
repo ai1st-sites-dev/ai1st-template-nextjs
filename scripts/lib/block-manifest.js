@@ -743,6 +743,15 @@ function loadManifests(dir = BLOCKS_DIR) {
         + '如果这个块真的不需要任何数据，用 slotsNote 说一句为什么（它从哪儿取内容）；'
         + '如果是漏了，把槽补上 —— 空 slots 会让提示词里那行退化成 "data: {  }"，而校验永远不会报。');
     }
+    // #1502 —— `computed`：块按页面算、不许写进 data 的键（键 → 一句为什么）。写歪当场拒：它是 validateSite ⑩ 的判据，
+    //    歪了那条就静默不报；跟槽同名更是自相矛盾（一边说「写这个」，一边说「别写」）。
+    if (m.computed !== undefined) {
+      const c = m.computed;
+      const okShape = c && typeof c === 'object' && !Array.isArray(c) && Object.values(c).every((v) => typeof v === 'string' && v);
+      if (!okShape) throw new Error(`blocks/${type}/manifest.json: computed 只能是 { 键: "为什么不写" }`);
+      const clash = Object.keys(c).filter((key) => key in (m.slots || {}));
+      if (clash.length) throw new Error(`blocks/${type}/manifest.json: computed 里的 ${clash.join(' / ')} 同时是槽 —— 二选一`);
+    }
     m.shapes = readShapes(blockDir);
     checkManifestShape(type, m);
     // #1463 —— 预设 + 旋钮的声明（`slots.options.knobs` / 顶层 `presets`）。放在这里而不是
@@ -1196,6 +1205,13 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
         }
       }
 
+      // ⑩ #1502 —— 块按页面算的东西，不许写进 data（`computed`：键 → 为什么不写，page-header-new 的 breadcrumbs
+      //    按页面路径算）。判据从 manifest 读、不写块名单；下面「data 里没有这个槽」那条跳过这些键，只报这一条。
+      const computed = m.computed && typeof m.computed === 'object' ? m.computed : {};
+      for (const key of Object.keys(data)) {
+        if (typeof computed[key] === 'string') flag(`${where}: data 里写了 "${key}" —— ${computed[key]}`);
+      }
+
       // ⑨ #1463 —— 颜色槽、词表子字段、旋钮。判据全从 manifest 读（槽的 kind / `choices` / `slots.options.knobs`），
       //    不写块名单。
       for (const [slot, spec] of Object.entries(m.slots)) {
@@ -1329,7 +1345,7 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
           }
         }
         for (const key of Object.keys(data)) {
-          if (!(key in m.slots)) {
+          if (!(key in m.slots) && !(key in computed)) {
             flag(`${where}: data 里没有 "${key}" 这个槽 —— 只认 ${Object.keys(m.slots).join(' / ')}${colorHint}`);
           }
         }
