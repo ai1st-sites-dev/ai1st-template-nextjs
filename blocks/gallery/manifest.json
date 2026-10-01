@@ -28,9 +28,7 @@
     }
   },
   "industries": {
-    "required": [
-      "photography"
-    ],
+    "required": [],
     "recommended": [
       "construction",
       "landscaping",

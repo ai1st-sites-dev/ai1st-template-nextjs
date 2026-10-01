@@ -1039,7 +1039,7 @@ from a block you are editing. A page must have exactly one of the two arrays; a 
 fails the build. When you add a block to a \`blocks\` page, give it an \`id\` unique within that page and a
 \`weight\` that puts it where you want it (blocks are ordered by \`weight\`, smaller first).
 
-Available section types: hero, hero-new, hero-with-form, trusted-brands, logos-new, features-grid, features-new, milestones, card-group, testimonials, testimonials-new, cta-banner, cta-new, contact-info, contact-new, text-block, page-header, services-nav, services-list, quote-form, contact-form, faq-accordion, process-steps, team-grid, team-new, pricing-table, pricing-new, gallery, content-split, social-proof, announcement-bar, newsletter-signup, map-area, blog-preview, service-related-pages
+Available section types: hero, hero-new, hero-with-form, trusted-brands, logos-new, features-grid, features-new, milestones, card-group, testimonials, testimonials-new, cta-banner, cta-new, contact-info, contact-new, text-block, page-header, services-nav, services-list, quote-form, contact-form, faq-accordion, process-steps, team-grid, team-new, pricing-table, pricing-new, gallery, gallery-new, content-split, social-proof, announcement-bar, newsletter-signup, map-area, blog-preview, service-related-pages
 
 Blocks with presets usually have no example on the site to copy, so here is their exact data shape — use only
 these keys (write_file refuses unknown ones):
@@ -1072,6 +1072,8 @@ other type does not show a picture, and putting an image field on one has no eff
 - a **contact-info** block → \`data.imageUrl\` (optional — only the layout that puts a picture beside the
   contact details shows it; on the others the block simply has no picture)
 - a **gallery** block → \`data.items[].imageUrl\` (one per item)
+- a **gallery-new** block → \`data.items[].image.imageUrl\` (one per photo, 2–24 of them — only photos the owner gave you of
+  their own work, job sites or shop; a visitor clicks one to see it large)
 - a **features-new** block → \`data.introImage.imageUrl\` (next to the block head; shows only when \`options.introImage\`
   is not "none") · \`data.itemsImage.imageUrl\` (one picture beside the whole set of items; needs \`options.itemsImage\`) ·
   \`data.items[].image.imageUrl\` (one per item; needs \`options.itemImage\`)

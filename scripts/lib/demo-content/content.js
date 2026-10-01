@@ -937,6 +937,23 @@ const DEMO_CONTENT = {
     ],
   },
 
+  // #1495 —— 7 张作品照，横竖方都有（瀑布流才看得出错落），都带标题 + 图注。
+  'gallery-new': {
+    options: {},
+    introEyebrow: { text: 'Our work', style: 'pill' },
+    headline: 'Recent jobs from our bays',
+    body: 'Real photos from real jobs — every one done by our own licensed technicians.',
+    items: [
+      { image: { imageUrl: imageUrl('work-wide-1'), alt: '' }, title: 'Fleet service day', caption: 'North York · 6 vans' },
+      { image: { imageUrl: imageUrl('work-tall-1'), alt: 'A technician going over the inspection sheet' }, title: 'Pre-purchase inspection', caption: 'Willowdale' },
+      { image: { imageUrl: imageUrl('work-1'), alt: 'New brake rotors and pads on the bench' }, title: 'Brake job', caption: 'Front pads & rotors' },
+      { image: { imageUrl: imageUrl('work-tall-2'), alt: 'Diagnostics running on a laptop in bay two' }, title: 'Check-engine diagnosis', caption: 'Thornhill · same day' },
+      { image: { imageUrl: imageUrl('work-wide-2'), alt: 'The front desk on a Saturday morning' }, title: 'Saturday walk-ins', caption: 'Front desk' },
+      { image: { imageUrl: imageUrl('work-2'), alt: 'Winter tires on the rack' }, title: 'Winter changeover', caption: 'Tires & storage' },
+      { image: { imageUrl: imageUrl('work-tall-3'), alt: 'Paperwork for a warranty repair' }, title: 'Warranty repair', caption: 'Don Mills' },
+    ],
+    bg: null,
+  },
   'map-area': {
     headline: 'Neighbourhoods we serve',
     subheadline: 'Free shuttle within five kilometres of the shop.',

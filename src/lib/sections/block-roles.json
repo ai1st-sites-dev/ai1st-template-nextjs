@@ -13,6 +13,7 @@
   "features-new": "essential",
   "footer": "essential",
   "gallery": "optional",
+  "gallery-new": "optional",
   "header": "essential",
   "hero": "lead",
   "hero-new": "lead",

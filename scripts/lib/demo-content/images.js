@@ -71,6 +71,13 @@ const IMAGES = {
   'work-4': { url: cdn('gallery', 5),  fallback: solid('#3f4c6c') },
   'work-5': { url: cdn('gallery', 9),  fallback: solid('#435072') },
   'work-6': { url: cdn('gallery', 10), fallback: solid('#475478') },
+  // #1495 —— gallery-new 的瀑布流（grid + original）要**横竖都有**才看得出错落：`gallery` 那一类 15 张现取全是 1000x1000，
+  //    所以横图 / 竖图从 `about` 那一类挑真照片（2026-09-30 现取尺寸，看过是实拍、不是界面插画）。
+  'work-wide-1': { url: cdn('about', 13), fallback: solid('#34405a') },  // 1440x910
+  'work-wide-2': { url: cdn('about', 2),  fallback: solid('#38445e') },  // 1176x728
+  'work-tall-1': { url: cdn('about', 14), fallback: solid('#3c4862') },  // 779x1140
+  'work-tall-2': { url: cdn('about', 15), fallback: solid('#404c66') },  // 780x1140
+  'work-tall-3': { url: cdn('about', 20), fallback: solid('#44506a') },  // 702x910
 
   // #1376 把「一排数字」那个块并进 `social-proof` 时给它加了一个可选图槽（`imageUrl`）。那个零件是
   // 钉在块最后一行的通栏图（`.social-proof__media`，`public/shapes.css` 给它 `max-width: 48rem`，

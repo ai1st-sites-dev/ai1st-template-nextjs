@@ -576,6 +576,42 @@ try {
     //    了，它上面那条差异已经把那句写死的 32 换成**按 `blocks/` 现算**的数 ⟹ 链式套用时 r1 那条
     //    再也匹配不到自己那段文本，是一条在链上恒 no-op 的条目（判别力② 是拿每条**单独**套基线判的，
     //    所以它不会被点名 —— 那正是它该被删掉而不是留着的理由）。块库再少一个，由上面那条吸收。
+    // #1495：新块取了跟它接替的旧块**同一个** `prompt.order`（gallery-new / gallery 都是 14 —— 正文要「紧挨旧块」，
+    // 而 13 / 15 都被占着、旧块又不许动）。`promptSection` 按 order 排、平局保留输入顺序，而两臂的输入顺序按不同的键排：
+    // 今天的 `loadManifests` 排的是**目录名**（`gallery` < `gallery-new`，前缀在前），基线那份排的是**文件名**
+    // `<块>.json`（`gallery-new.json` < `gallery.json`，因为 `-` 0x2d < `.` 0x2e）⟹ 平局的两块在两臂里先后相反。
+    // 两边都是确定的排序（不依赖文件系统的目录顺序），差的只是键 —— loader 的差异，不是配方的。
+    // 🔴 **不点名块**：在基线那份里，把 order 相同、连着出现的几个块改按块名排（= 今天的规则）；
+    // 下一对打平的新旧块（team-new / team-grid 都是 15，同样是前缀关系）由这一条吸收。
+    {
+      why: '#1495 prompt.order 打平的块：今天按块名排，基线按目录原序',
+      apply: (t) => {
+        const lines = t.split('\n');
+        const out = [];
+        let run = [];
+        const orderOf = (e) => { const m = manifests.get(e.type); return m && m.prompt ? m.prompt.order : null; };
+        const flush = () => {
+          if (run.length > 1 && run.every((e) => orderOf(e) !== null && orderOf(e) === orderOf(run[0]))) run.sort((x, y) => (x.type < y.type ? -1 : x.type > y.type ? 1 : 0));
+          for (const e of run) out.push(...e.lines);
+          run = [];
+        };
+        for (const l of lines) {
+          const head = l.match(/^- "([a-z0-9-]+)"/);
+          if (head) {
+            const e = { type: head[1], lines: [l] };
+            if (run.length && orderOf(run[run.length - 1]) !== orderOf(e)) flush();
+            run.push(e);
+          } else if (run.length && l.startsWith('  ')) {
+            run[run.length - 1].lines.push(l);
+          } else {
+            flush();
+            out.push(l);
+          }
+        }
+        flush();
+        return out.join('\n');
+      },
+    },
   ];
   const applyRenames = (text) => PROMPT_DELTAS.reduce((acc, d) => d.apply(acc), text);
   const promptBaseRenamed = applyRenames(promptBase);
