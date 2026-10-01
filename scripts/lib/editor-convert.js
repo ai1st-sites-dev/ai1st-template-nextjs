@@ -28,6 +28,8 @@
 //       pid      打开时的 Puck id —— 复制出来的条目 id 不同，据此认出它是一个**新**块
 
 const ITEM_ORIG = '__orig';
+// #1505 —— 列表槽的引用写法（`items: {source: "services"}`）。判据跟构建、校验同一个函数（item-sources.js §isSourceRef）。
+const { isSourceRef } = require('./item-sources');
 
 // 页面上有、而这个站的组件清单里没有的块（区块库删掉了它的类型，老页面 JSON 里还留着）。
 // 构建对它只打一行 `Unknown block type` 就跳过（`SectionRenderer`），编辑器也不许因为它打不开 ——
@@ -120,6 +122,9 @@ function toProp(field, value) {
     case 'list':
       // 每项整份带着（`id` / `rating` / `imageUrl` 这些没有字段的键也在里面），Puck 只编辑其中的 `sub`。
       // 不是对象的项（畸形数据）原样包起来，存盘时原样还原。
+      // #1505 —— 引用写法整份带着（一个对象，不是数组）：面板上那一栏换成只读提示（EditorApp §SourcedItemsField），
+      //    存盘原样还回去。换成 `[]` 的话老板一点存盘，引用就被抹成空列表。
+      if (isSourceRef(value)) return clone(value);
       return Array.isArray(value) ? value.map((it) => (isPlainObject(it) ? clone(it) : { [ITEM_ORIG]: clone(it) })) : [];
     case 'strings':
       return Array.isArray(value) ? value.map((it) => (typeof it === 'string' ? { value: it } : { [ITEM_ORIG]: clone(it) })) : [];
@@ -184,6 +189,8 @@ function mergeSlot(data, field, prop) {
       return;
     }
     case 'list':
+      // #1505 —— 还是引用（没点「改成手写」）⟹ 原样写回那个引用。
+      if (isSourceRef(prop)) { if (!deepEqual(prop, before)) data[slot] = clone(prop); return; }
       next = (Array.isArray(prop) ? prop : []).map((it) => {
         if (has(it, ITEM_ORIG)) return clone(it[ITEM_ORIG]);
         const out = {};

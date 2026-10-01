@@ -342,7 +342,8 @@ console.log('⑥ 只写改过的字段（puckRootChanges）');
   const src = fs.readFileSync(path.join(__dirname, 'lib', 'editor-convert.js'), 'utf-8');
   const needle = 'if (!deepEqual(next, norm(field, a[field]))) out[field] = next;';
   if (!src.includes(needle)) die('editor-convert.js 里找不到「跟初值比」那一句 —— 反向对照改不了，这一格什么都说明不了');
-  const m = new Module(path.join(__dirname, 'lib', 'editor-convert.mut.js'));
+  const m = new Module(path.join(__dirname, 'lib', 'editor-convert.mut.js'), module);
+  m.filename = m.id; // editor-convert.js 顶上 require('./item-sources')（#1505）：相对路径按这个文件名解析
   m._compile(src.replace(needle, 'out[field] = next;'), m.id);
   check(scenario(m.exports.puckRootChanges) !== 'Changed in the AI chat', '反向：整份写回 ⟹ 别处的改动被冲掉（这一格会红）');
 

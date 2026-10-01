@@ -93,5 +93,19 @@ if (onlyReg.length) {
   ok(`注册表 → 提示词：${regSet.size} 个键全部写在提示词那一行里`);
 }
 
+// ── #1505：讲 services.json 的那一段要告诉模型「引用了服务目录的块会自己跟着变」────────────────────
+// 不说的话，老板说「加一个服务」时模型会照旧去每一页找服务的抄本改 —— 而引用写法的块里根本没有抄本可改。
+{
+  const src = fs.readFileSync(path.join(__dirname, 'edit-site.js'), 'utf-8');
+  const at = src.indexOf('- **services.json** —');
+  if (at < 0) die('edit-site.js 里抠不到讲 services.json 的那一行（`- **services.json** —`）');
+  const para = src.slice(at, src.indexOf('\n- **', at + 5));
+  if (/items: \{"source": "services"\} follow services\.json automatically/.test(para) && /do\s+not go and edit those pages/.test(para)) {
+    ok('讲 services.json 的那段说了：items: {"source": "services"} 的块自动跟着 services.json 变，不用去改那些页面');
+  } else {
+    bad(`讲 services.json 的那段没说引用写法的块会自己跟着变（#1505 做什么 8）：${JSON.stringify(para.slice(0, 200))}`);
+  }
+}
+
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);

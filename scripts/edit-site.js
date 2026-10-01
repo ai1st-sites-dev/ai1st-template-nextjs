@@ -988,6 +988,9 @@ The site is defined by JSON configuration files:
 - **brand.json** — Company name, tagline, logoIcon, logoUrl (the logo image — see "Images" below), color palette (primary 50-900 shades, accent 50-600 shades), fonts (googleFontsUrl, families), email, phone, locations, socialLinks
 - **seo.json** — Domain, locale, meta title/description, keywords, Schema.org config
 - **services.json** — Array of services with id, name, shortDescription, fullDescription, icon, features, products
+  Blocks on a page that say items: {"source": "services"} follow services.json automatically — they show
+  every service in it — so when the owner adds, removes or renames a service, change services.json and do
+  not go and edit those pages.
 - **pages/home.json** — Homepage sections
 - **pages/{slug}.json** — Other pages (about, services, quote, menu, gallery, faq, etc.)
 - **navigation.json** — **partly yours to edit.** You MAY change the header button (header.cta — its

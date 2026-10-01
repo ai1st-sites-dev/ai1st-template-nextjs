@@ -23,8 +23,12 @@ export const SITE: Record<string, unknown>;
 /** #1497 —— 站点博客夹具（`BlogPostConfig` 形状，封面 / 头像可选）。 */
 export const DEMO_BLOG_POSTS: Array<Record<string, unknown> & { slug: string; title: string; publishedAt: string }>;
 export const FEATURES_NEW_STEPS: Record<string, unknown> & { items: Array<Record<string, unknown>> };
-/** #1489 —— 演示生意的站点数据那一截（contact-new 读的电话 / 邮箱 / 地址 / 营业时间 / 坐标）。 */
+/** #1505 —— features-new 的引用写法样例（`items: {source: "services"}`）。 */
+export const FEATURES_NEW_FROM_SERVICES: Record<string, unknown> & { items: { source: string } };
+/** #1489 —— 演示生意的站点数据那一截（contact-new 读的电话 / 邮箱 / 地址 / 营业时间 / 坐标）。#1505 起多了服务目录与几页详情页。 */
 export const DEMO_SITE: {
+  services: Array<{ id: string; name: string; shortDescription: string; icon: string }>;
+  pages: Array<{ slug: string; title: string; description: string }>;
   brand: { email: string; locations: Array<{ label: string; address: string; phone: string; geo?: { lat: number; lng: number } }> };
   seo: { schema: { openingHours: { days: string[]; opens: string; closes: string } } };
 };

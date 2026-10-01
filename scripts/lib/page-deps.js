@@ -8,8 +8,10 @@
 // ── 算进去的和不算进去的 ────────────────────────────────────────────────────────────────────────
 //
 //   算：页面自己那份 JSON（sync-config 传进来）
-//   算：`<localeDir>/services.json`，两条路各算一次 ——
+//   算：`<localeDir>/services.json`，三条路各算一次 ——
 //         · 这一页有真的把服务渲染出来的块（下面 SERVICES 那段）
+//         · 这一页有块把服务目录**引用**进来（`items: {source: "services"}`，#1505，`scripts/lib/item-sources.js`）：
+//           组件里没有 `getServices`（展开在页面那一层），所以按页面数据判，不按组件判
 //         · 这一页是**服务详情页**（`/services/<id>`）：页面外壳
 //           `src/components/pages/SubPage.tsx:16-19,56-63` 自己给它发一份该服务的 `Service` 结构化
 //           数据（serviceType / name / description 全取自 services.json），不经过任何块
@@ -52,6 +54,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { blocksUseSource } = require('./item-sources');
 
 // registry.ts 里的两样东西：
 //   import HeroSection from '@/components/sections/HeroSection';
@@ -79,6 +82,9 @@ const ACCOUNTED = new Map([
   ['blocks/footer-new/Section.tsx', 'footer-new 页脚表单的服务下拉 —— 站级外壳（不进页面 JSON、不在注册表里），说在明处不算'],
   ['src/components/JsonLd.tsx', '每页都发的那份 LocalBusiness 结构化数据 —— 站级外壳，不算'],
   ['src/components/pages/SubPage.tsx', '服务详情页自己那份 Service 结构化数据 —— 下面 isServiceDetailPage 那条'],
+  // #1505 —— 列表槽的引用写法（`items: {source: "services"}`）展开时替展开函数取服务目录的那一处。它到达哪几页
+  //    由**页面数据**决定，不由组件决定 ⟹ 按页归属：filesFor 里 `blocksUseSource(page.blocks, 'services')` 那一条。
+  ['src/lib/sections/item-sources.ts', '引用写法的展开（items: {source: "services"}）—— 下面 filesFor 按页面数据里的引用算'],
 ]);
 
 // 服务详情页（`/services/<id>` 那种页面）。这份判断本来就在 sync-config.js 里（导航要把这类页面
@@ -237,7 +243,9 @@ function createPageDeps({ localeDir, services }) {
       // 不经过任何块）· 算不出来时的多报兜底。
       const usesServices = servicesForEveryPage
         || isServiceDetailPage(page)
-        || (page.blocks || []).some((b) => services.types.has(b.type));
+        || (page.blocks || []).some((b) => services.types.has(b.type))
+        // #1505 —— 块把服务目录引用进来了（`items: {source: "services"}`），渲染前展开成每个服务一条。
+        || blocksUseSource(page.blocks, 'services');
       if (usesServices) files.push(servicesPath);
 
       const usesSiteBlocks = hasSiteBlocksFile && (siteBlockIds || []).length > 0;

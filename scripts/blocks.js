@@ -29,6 +29,7 @@ const path = require('path');
 
 const BLOCK_ROLES = require('../src/lib/sections/block-roles.json');
 const BLOCK_ALIASES = require('../src/lib/sections/block-aliases.json');
+const { isSourceRef, sourcesFor } = require('./lib/item-sources');
 const ROLE_NAMES = ['essential', 'lead', 'optional'];
 
 // 一个块没写 `role` 时的兜底。**表只有一份**（`src/lib/sections/block-roles.json`），运行时那一侧是
@@ -191,6 +192,10 @@ function normalizeListSlots(block) {
     // 没填 = 没这回事，归 validateSite 的第 ① 条管（必填才报）。这里不许无中生有塞一个空数组，
     // 那会给每个块的 data 多出一堆键，「逐字节不变」当场作废。
     if (v === undefined || v === null) continue;
+    // #1505 —— 登记过的槽可以写成引用（`items: {source: "services"}`，`scripts/lib/item-sources.js`）：它要活到渲染前
+    //    那一刻才展开，这里换成空数组就是把它静默抹掉（块整个不画，构建照样绿）。只放登记表里的（块，槽）+ 认识的源；
+    //    源不认识的照旧换成空数组（validateSite 建站期已经报过）。
+    if (isSourceRef(v) && sourcesFor(block.type, slot).includes(v.source)) continue;
     let next;
     if (!Array.isArray(v)) {
       next = [];               // 整个不是数组：换成空数组，组件 map 出零个条目，不炸

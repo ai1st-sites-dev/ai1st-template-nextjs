@@ -77,6 +77,7 @@ import { presetClickProps, presetNameFor } from '../../../scripts/lib/block-knob
 import { normalizeBg, toneForBg, type BgValue } from '../../../scripts/lib/contrast.js';
 import BgPicker from '../BgPicker';
 import { formIdOptions } from '../../../scripts/lib/site-forms.js';
+import { describeRef, isSourceRef, itemSourceContext, resolveItemSources } from '@/lib/sections/item-sources';
 
 export interface EditorAppProps {
   locale: string;
@@ -350,6 +351,38 @@ function SharedNote({ id }: { id: string }) {
   );
 }
 
+/**
+ * #1505 —— 列表槽写成引用（`items: {source: "services"}`）时，面板上那一栏：只读，一行说条目从哪来、去那里改，
+ * 再给一个「改成手写」—— 把**现在**展开出来的那几条写成条目数组（之后就是普通的手写列表，不再跟着站点数据变）。
+ * 展开用的是画布同一个函数、同一份站点数据，所以写下来的就是老板此刻在画布上看到的那几条。
+ */
+function sourcedItemsField(f: EditorField, type: string, locale: string): Field {
+  return {
+    type: 'custom',
+    label: f.label,
+    render: ({ value, onChange, readOnly }: { value: unknown; onChange: (v: unknown) => void; readOnly?: boolean }) => {
+      const toManual = () => {
+        const [b] = resolveItemSources([{ type, data: { [f.slot]: value } } as BlockConfig], itemSourceContext(locale));
+        const items = (b.data as Record<string, unknown>)[f.slot];
+        onChange(Array.isArray(items) ? JSON.parse(JSON.stringify(items)) : []);
+      };
+      return (
+        <div data-editor-sourced={f.slot} data-editor-sourced-from={isSourceRef(value) ? value.source : ''}>
+          <FieldLabel label={f.label} el="div" readOnly />
+          <p data-editor-sourced-note style={NOTE_STYLE}>
+            {describeRef(value)} Change them there.
+          </p>
+          {!readOnly && (
+            <button type="button" data-editor-sourced-manual onClick={toManual} style={{ marginTop: 8, padding: '4px 10px', fontSize: 13, borderRadius: 6, border: '1px solid #d0d5dd', background: '#fff', cursor: 'pointer' }}>
+              Write these items by hand
+            </button>
+          )}
+        </div>
+      );
+    },
+  } as unknown as Field;
+}
+
 function sharedNoteField(id: string): Field {
   return { type: 'custom', label: 'Shared section', render: () => <SharedNote id={id} /> } as Field;
 }
@@ -382,6 +415,9 @@ function CanvasBlock({ component, props, locale, pageSlug }: { component: Editor
   }
   // #1443 —— 形态按这块**当前的** data 现算（跟构建同一套，§canvasShape）：选了 Theme default 当场换回主题那一个。
   const block = { ...view, data, shape: canvasShape(component, props._shape, data) } as BlockConfig;
+  // #1505 —— 写成引用的列表槽（`items: {source: "services"}`）在画布上显示展开后的样子：跟真站同一个函数、同一份站点数据，
+  //    在这里展开一次，下面普通块和共用块两支用的都是它（只补一支的话，另一支上那块是空的、而且没人会红）。
+  const [shown] = resolveItemSources([block], itemSourceContext(locale));
   if (src?.shared) {
     // #1406 —— 共用块在画布上一眼看得出来：左上角一枚标，块名旁写「Shared」（不接鼠标，点它等于点这一块）。
     return (
@@ -392,11 +428,11 @@ function CanvasBlock({ component, props, locale, pageSlug }: { component: Editor
         >
           {component.label} · Shared
         </span>
-        <SectionRenderer blocks={[block]} locale={locale} pageSlug={pageSlug} />
+        <SectionRenderer blocks={[shown]} locale={locale} pageSlug={pageSlug} />
       </div>
     );
   }
-  return <SectionRenderer blocks={[block]} locale={locale} pageSlug={pageSlug} />;
+  return <SectionRenderer blocks={[shown]} locale={locale} pageSlug={pageSlug} />;
 }
 
 /**
@@ -449,7 +485,11 @@ export function buildConfig(schema: EditorSchema, locale: string, overHero = fal
       },
       resolveFields: (data: { props?: ItemProps }) => {
         const src = data.props?._src;
-        const own = fieldsFor(data.props?._shape);
+        let own = fieldsFor(data.props?._shape);
+        // #1505 —— 写成引用的列表槽：那一栏换成只读提示 + 「改成手写」（§sourcedItemsField）。点了之后 prop 变回数组，
+        //    下一次 resolveFields 就回到普通的列表字段。
+        const sourced = c.fields.filter((f) => f.control === 'list' && isSourceRef(data.props?.[f.slot]));
+        if (sourced.length) own = { ...own, ...Object.fromEntries(sourced.map((f) => [f.slot, sourcedItemsField(f, c.type, locale)])) };
         if (src?.locked) return { _locked: LOCKED_NOTE, ...own };
         if (src?.shared) return { _shared: sharedNoteField(src.shared), ...own };
         return own;

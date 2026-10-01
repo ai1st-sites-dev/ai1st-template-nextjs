@@ -19,6 +19,12 @@
 //    （`scripts/lib/icons.js` §iconTableFor，单格页与真站构建各自传），这里用 `InlineIcon` 画；查不到的名字那一项
 //    不画图标（连底色方块也不画）。本组件自己写死的名字只有按钮的箭头 `arrow-right`，登记在 `BLOCK_ICONS`。
 //
+// 🔴 #1505 —— **`items` 也可以写成引用**（`{source: "services"}` / `{source: "pages", under}`），由页面那一层在渲染前
+//    展开（`src/lib/sections/item-sources.ts` §resolveItemSources），到这里已经是条目数组，并带着标记
+//    `data._sourced.items = <源名>`。这个组件对标记只做三件事：不按 `maxItems` 截（引用写法有几条出几条）·
+//    展开出 0 条整块不画（同 `service-related-pages`：服务下面还没有页面时那一块看不见）· 根元素挂
+//    `data-items-source`。手写的条目（没有标记）照旧：截到 `maxItems`，0 条照样画块头（编辑器里新拖进来的块不会消失）。
+//
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg，footer-new / cta-new 同一对），
 //    纯色、brand、渐变都认；这里不自己算亮度、不自己拼渐变。
 
@@ -57,6 +63,8 @@ export interface FeaturesNewData {
   itemsImage?: FeaturesNewImage;
   items?: FeaturesNewItem[];
   bg?: BgValue;
+  /** #1505 —— 展开过的引用（只活在内存里，不写进文件）：槽名 → 源名。 */
+  _sourced?: { items?: string };
 }
 
 interface Props {
@@ -110,7 +118,10 @@ export default function FeaturesNewSection({ data, block, iconTable = {} }: Prop
   const ctas = (Array.isArray(d.introCtas) ? d.introCtas : []).filter((b) => isObj(b) && str(b.label)).slice(0, MAX_CTAS);
   const introImg = k.introImage !== 'none' ? imgOf(d.introImage) : null;
   const itemsImg = k.itemsImage !== 'none' ? imgOf(d.itemsImage) : null;
-  const items = (Array.isArray(d.items) ? d.items : []).filter((it): it is FeaturesNewItem => isObj(it)).slice(0, MAX_ITEMS);
+  const sourced = isObj(d._sourced) && typeof d._sourced.items === 'string' ? d._sourced.items : '';
+  const allItems = (Array.isArray(d.items) ? d.items : []).filter((it): it is FeaturesNewItem => isObj(it));
+  const items = sourced ? allItems : allItems.slice(0, MAX_ITEMS);
+  if (sourced && !items.length) return null;
   // 连线只连「步骤」：一项 number 都没有 ⟹ 不画（旋钮开着也不画 —— 没有编号的连线连的不是任何东西）。
   const connector = k.itemConnector === 'line' && items.some((it) => str(it.number));
   const cover = k.itemImage === 'background';
@@ -157,6 +168,7 @@ export default function FeaturesNewSection({ data, block, iconTable = {} }: Prop
       data-item-image={k.itemImage}
       data-item-connector={k.itemConnector}
       data-tone={tone}
+      data-items-source={sourced || undefined}
       className="position-relative py-16 py-lg-24"
       style={bgValue ? { background: bgValue } : undefined}
     >

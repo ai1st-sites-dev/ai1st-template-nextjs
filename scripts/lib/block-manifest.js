@@ -29,6 +29,7 @@ const { knobsOf, booleanOptionsOf, effectiveKnobs, knobDeclarationProblems } = r
 const { isColorValue } = require('./contrast');
 const siteForms = require('./site-forms');
 const { richtextProblems } = require('./richtext');
+const { isSourceRef, sourcesFor, refProblems, promptAlternatives } = require('./item-sources');
 const LAYOUT_INTENT_AXES = Object.keys(LAYOUT_INTENT_VOCAB.axes);
 
 /**
@@ -835,7 +836,10 @@ function dataLineFor(m) {
         .concat(booleanOptionsOf(m).map((b) => `${b}: bool`));
       return `${name}${opt}: {${bits.join(', ')}}`;
     }
-    return s.shape !== undefined ? `${name}${opt}: ${s.shape}` : `${name}${opt}`;
+    // #1505 —— 接源的槽在 shape 后面接上引用那几种写法（`| {source: "services"} | …`，从 item-sources.js 的登记表拼）。
+    //    🔴 不写进 manifest 的 `shape` 那串：它被 shapeKeys（多余键检查）· editor-schema（编辑器子字段）· block-catalog
+    //    （造演示数据）按 `[{…}]` 解析，串里多一个 `|` 这三处就静默失明。
+    return s.shape !== undefined ? `${name}${opt}: ${s.shape}${promptAlternatives(m.type, name)}` : `${name}${opt}`;
   });
   return `data: { ${parts.join(', ')} }`;
 }
@@ -1354,6 +1358,8 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
           const keys = shapeKeys(spec.shape);
           const v = data[slot];
           if (!keys || v === undefined || v === null) continue;
+          // #1505 —— 引用写法（`items: {source: …}`）的键不是条目的键，归上面 §refProblems 那一条管。
+          if (isSourceRef(v) && sourcesFor(sec.type, slot).length) continue;
           const objs = Array.isArray(v) ? v : [v];
           const extra = new Set();
           for (const o of objs) {
@@ -1410,6 +1416,12 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
         if (spec.kind !== 'list') continue;
         const v = data[slot];
         if (v === undefined || v === null) continue;
+        // #1505 —— 接源的槽（`scripts/lib/item-sources.js` §BLOCK_SLOTS）写成对象 = 引用写法：源认不认识、参数齐不齐、
+        //    有没有多余的键，由那边的 §refProblems 一处判，每种错一条。不是对象也不是数组（`"services"`）照旧走下面那一条。
+        if (sourcesFor(sec.type, slot).length && v && typeof v === 'object' && !Array.isArray(v)) {
+          for (const p of refProblems(sec.type, slot, v)) flag(`${where}: ${p}`);
+          continue;
+        }
         if (!Array.isArray(v)) {
           const what = typeof v === 'object' ? '一个对象' : `一个 ${typeof v}`;
           flag(`${where}: 槽 "${slot}" 不是列表 —— 是${what}（${JSON.stringify(v).slice(0, 40)}）。`

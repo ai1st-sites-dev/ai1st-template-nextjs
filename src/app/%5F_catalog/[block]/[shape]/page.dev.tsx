@@ -32,7 +32,8 @@ import SectionRenderer from '@/components/SectionRenderer';
 import { defaultLocale } from '@/lib/config';
 import type { BlockConfig } from '@/lib/types/config';
 import { blockShapeCatalog } from '../../../../../scripts/lib/block-catalog.js';
-import { DEMO_SITE, FEATURES_NEW_STEPS, demoDataFor } from '../../../../../scripts/lib/demo-content/index.js';
+import { DEMO_SITE, FEATURES_NEW_FROM_SERVICES, FEATURES_NEW_STEPS, demoDataFor } from '../../../../../scripts/lib/demo-content/index.js';
+import { resolveItemSources } from '@/lib/sections/item-sources';
 import { siteFactsFrom } from '../../../../../scripts/lib/contact-facts.js';
 import { filledOptionalSlots } from '../../../../../scripts/lib/block-manifest.js';
 import { couplingOf, knobsOf, normalizeKnobs, presetBooleans, presetForShape, presetsOf } from '../../../../../scripts/lib/header-knobs.js';
@@ -247,6 +248,11 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
   if (block === 'features-new' && effectiveKnobs(m, shape, data.options).itemConnector === 'line') {
     data.items = JSON.parse(JSON.stringify(FEATURES_NEW_STEPS.items));
   }
+  // #1505 —— `?items=services`：items 换成引用写法（FEATURES_NEW_FROM_SERVICES，指向本站服务目录），渲染前跟真站
+  //    同一个函数展开（下面 cfg 那一行），服务目录用演示生意那一份（DEMO_SITE.services），不是跑这个开发服务的那个站的。
+  if (block === 'features-new' && one(sp.items) === 'services') {
+    data.items = JSON.parse(JSON.stringify(FEATURES_NEW_FROM_SERVICES.items));
+  }
 
   // #1489 —— contact-new 的电话 / 邮箱 / 地址 / 营业时间 / 坐标读站点数据，不在块数据里。这一页用演示生意那一份（DEMO_SITE，带坐标，
   //    地图才画得出来），而不是跑这个开发服务的那个站的 —— 否则同一张卡在不同机器上长得不一样，而且多半没有坐标。
@@ -267,6 +273,14 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
     data,
     has: filledOptionalSlots(m, data),
   };
+  // #1505 —— 写成引用的列表槽（`?items=services` 那一版）先展开再查图标表，跟真站 HomePage / SubPage 同一个函数；
+  //    站点数据用演示生意那一份。没有引用的块原样返回同一个数组。
+  const shown = resolveItemSources([cfg], {
+    services: DEMO_SITE.services,
+    pages: DEMO_SITE.pages,
+    url: (slug: string) => `/${slug}`,
+    learnMore: 'Learn more',
+  });
 
   // 🔴 **外壳区（`header` / `footer`）走的是它们自己的组件，不走 `SectionRenderer`。** 它们有
   //    manifest、有形态、在图册上各占一行（#1353），但按构造**不在 `registry.ts` 里**（那张表是
@@ -352,7 +366,7 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
         ) : null}
         {knobBar && !embed ? <KnobBar {...knobBar} /> : null}
         {/* #1475 —— 旋钮类页面块里画内联 SVG 图标的（features-new）也要图标表，跟真站 HomePage / SubPage 同一个函数算。 */}
-        {isRegion ? null : <SectionRenderer blocks={[cfg]} locale={locale} iconTables={iconTablesFor([cfg])} siteFacts={siteFacts} pageSlug={isPageHeader ? CATALOG_PAGE_HEADER_SLUG : undefined} />}
+        {isRegion ? null : <SectionRenderer blocks={shown} locale={locale} iconTables={iconTablesFor(shown)} siteFacts={siteFacts} pageSlug={isPageHeader ? CATALOG_PAGE_HEADER_SLUG : undefined} />}
       </main>
     </>
   );

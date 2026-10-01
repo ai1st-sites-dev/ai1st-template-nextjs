@@ -1349,6 +1349,24 @@ const DEMO_SITE = {
       successMessage: 'Got it — we reply to every email the same business day.',
     },
   ],
+  // #1505 —— 演示生意的服务目录（形状 = 真站 `services.json` 的一条，只留 features-new 引用写法要读的那几样）。
+  //    6 个服务、其中 5 个有详情页（`pages` 里那几条 `services/<id>`，最后一个 `seasonal-storage` 没有 ⟹ 那一条不带「了解更多」）；
+  //    `icon` 是 ServiceIcon 那一套名字，`snowflake` 在 Bootstrap Icons 里叫 `snow`（item-sources.js §SERVICE_ICON_ALIASES）。
+  services: [
+    { id: 'brakes', name: 'Brake repair', shortDescription: 'Pads, rotors and calipers, with a written quote before we start.', icon: 'shield-check' },
+    { id: 'diagnostics', name: 'Diagnostics', shortDescription: 'Check-engine light, noises and warning lights traced to the actual cause.', icon: 'lightbulb' },
+    { id: 'tires', name: 'Tires and seasonal changeover', shortDescription: 'Mount, balance and swap your winter set in under an hour.', icon: 'snowflake' },
+    { id: 'safety-certificate', name: 'Safety certificates', shortDescription: 'Ontario safety standards inspection for buying, selling or registering.', icon: 'fingerprint' },
+    { id: 'ac', name: 'Air conditioning', shortDescription: 'Recharge, leak test and repair so the cabin cools again.', icon: 'thermometer' },
+    { id: 'seasonal-storage', name: 'Tire storage', shortDescription: 'Clean, bagged and stored on site until the next changeover.', icon: 'tree' },
+  ],
+  pages: [
+    { slug: 'services/brakes', title: 'Brake repair', description: '' },
+    { slug: 'services/diagnostics', title: 'Diagnostics', description: '' },
+    { slug: 'services/tires', title: 'Tires and seasonal changeover', description: '' },
+    { slug: 'services/safety-certificate', title: 'Safety certificates', description: '' },
+    { slug: 'services/ac', title: 'Air conditioning', description: '' },
+  ],
   brand: {
     email: 'service@northsideauto.ca',
     locations: [{ label: 'Northside Auto Care', address: '2150 Yonge St, Toronto, ON', phone: '(416) 555-0142', geo: { lat: 43.7056, lng: -79.3983 } }],
@@ -1427,4 +1445,14 @@ const DEMO_BLOG_POSTS = [
   },
 ];
 
-module.exports = { DEMO_CONTENT, SITE, FEATURES_NEW_STEPS, DEMO_SITE, DEMO_BLOG_POSTS };
+/**
+ * #1505 —— features-new 的**引用写法**样例：条目不写在块里，指向本站的服务目录（`items: {source: "services"}`），
+ * 渲染前由 `scripts/lib/item-sources.js` §resolveItemSources 展开（单格页用上面 DEMO_SITE 那份服务目录）。
+ * 跟手写那一版（DEMO_CONTENT['features-new']）并存，别的槽逐字一样。
+ */
+const FEATURES_NEW_FROM_SERVICES = {
+  ...DEMO_CONTENT['features-new'],
+  items: { source: 'services' },
+};
+
+module.exports = { DEMO_CONTENT, SITE, FEATURES_NEW_STEPS, FEATURES_NEW_FROM_SERVICES, DEMO_SITE, DEMO_BLOG_POSTS };

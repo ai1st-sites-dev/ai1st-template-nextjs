@@ -344,7 +344,7 @@
     "headExtra": null,
     "lines": [
       "@data",
-      "fill items from the site's own services list, 1–8 items (one per service); icon is a Bootstrap Icons name (\"tools\", \"disc\", \"snow\")",
+      "to show this website's services write items: {\"source\": \"services\"} — do not copy the services in; on a service page, to list the pages under that service write items: {\"source\": \"pages\", \"under\": \"<this service's slug>\"}; write items by hand (1–8) only for content that lives on this page alone, such as selling points or process steps; icon is a Bootstrap Icons name (\"tools\", \"disc\", \"snow\")",
       "for step-by-step content (how it works, our process) give every item a number (\"01\", \"02\" …) and set options.itemConnector to \"line\"",
       "images only show when the matching option is on: introImage needs options.introImage, itemsImage needs options.itemsImage, items[].image needs options.itemImage; bg is the background colour, top-level in data (not inside options)"
     ]
