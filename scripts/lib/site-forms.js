@@ -43,6 +43,8 @@ const DEFAULT_SITE_FORMS = [
   },
 ];
 
+const { hrefAllowed } = require('./href-allowed');
+
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 /**
@@ -70,6 +72,15 @@ function formListProblems(forms, where = 'forms.json') {
       if (!f.fields.includes(f.primary)) {
         out.push(`${me}: primary ${JSON.stringify(f.primary)} 不在 fields 里 —— teaser 只露这一个字段，它得是表单里有的那一格`);
       }
+      // #1511 —— 提交前要求「电话和邮箱至少填一个」（BlockLeadForm.tsx §submit）⟹ 两个框都没有的表单永远提交不了。
+      if (!f.fields.includes('phone') && !f.fields.includes('email')) {
+        out.push(`${me}: fields 里既没有 phone 也没有 email —— 访客提交时这两样至少要填一个，否则永远提交不了；加上其中一个`);
+      }
+    }
+    // #1511 —— 提交成功后 BlockLeadForm 直接 `window.location.assign(redirect)`：判据跟块里的按钮链接同一份（href-allowed.js）。
+    //    没写 / null / 空串 = 不跳（BlockLeadForm 只在有值时跳），不报。
+    if (f.redirect != null && (typeof f.redirect !== 'string' || !hrefAllowed(f.redirect))) {
+      out.push(`${me}: redirect ${JSON.stringify(f.redirect)} 不是能跳的地址 —— 只收 https:// / http:// / mailto: / tel: 或站内路径（/ 开头，如 /thanks）；不跳就删掉这一项`);
     }
   });
   return out;

@@ -39,19 +39,12 @@
 //    §isValidImageUrl 故意放行 `data:`，那是 `<img src>`，不是链接 —— 别合并成一个函数）。
 
 const { loadManifests } = require('./block-manifest');
+// #1511 —— 判据本身（上面「放行什么」那三条）住在 `href-allowed.js`：站级表单库的 `redirect`（`site-forms.js`）
+//    也用它，而 `site-forms.js` 被两个 'use client' 组件 import —— 从这份 require 会把 block-manifest（fs / path）
+//    拖进客户端包，还会跟 block-manifest 绕成一圈。白名单仍然只有一份。
+const { hrefAllowed } = require('./href-allowed');
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
-
-const ALLOWED_SCHEME = /^(?:https?|mailto|tel):/i;
-const SITE_PATH = /^\/(?![/\\])/;
-const CONTROL = /[\u0000-\u001f\u007f]/;
-
-/** 这个 href 能不能收。能 ⟹ `true`。空串算「没填」，也回 `true`。 */
-function hrefAllowed(href) {
-  if (typeof href !== 'string' || href === '') return true;
-  if (CONTROL.test(href) || href !== href.trim()) return false;
-  return ALLOWED_SCHEME.test(href) || SITE_PATH.test(href);
-}
 
 /** `navigation.json` 里老板的链接住在哪两个键上（对应哪个块的哪个槽位）。 */
 const NAV_LINKS = [

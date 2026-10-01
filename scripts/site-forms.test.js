@@ -12,6 +12,7 @@
  *   AC4 新建站（skipAI，真跑 create-site.js）：每个语言都有 forms.json、quote 在 contact 前；form.id 空 ⟹ quote 的按钮文字
  *   AC5 老站（删掉 forms.json）跑真的 sync-config.js ⟹ 退出码 0，带表单的块画 BlockLeadForm 的内置默认字段
  *   AC7 page-deps：hero-new / contact-new / cta-new 都在 types 里、unaccounted 为空、BlockLeadForm 那条豁免不在了
+ *   #1511 表单库补两条：fields 里 phone / email 都没有 ⟹ 报；redirect 不在 href-allowed.js 白名单 ⟹ 报（白名单只有一份）
  * 提交带 meta.formId（AC3 的前端那一半）在 hero-new-render.test.js 的 happy-dom 段；落库那一半要真 manager + 库，见票上实测。
  *
  * 🔴 每一段带反向对照（同一进程、单变量），证明判据真会红。
@@ -109,6 +110,53 @@ console.log('── AC1 validateSite');
   // build 那一档只说不拦：同一个毛病进 warnings、不进 problems。
   const b = manifestLib.validateSite({ pages: page({ id: 'nope' }), forms: F, scope: 'build' });
   check(b.problems.length === 0 && b.warnings.some((w) => /form\.id "nope"/.test(w)), "scope 'build'：同一条进 warnings、problems 为空（构建期只说不拦）");
+}
+
+// ══ #1511：表单要能联系到人 · redirect 只收安全地址 ══════════════════════════════════════════════════
+console.log('\n── #1511 formListProblems 补的两条');
+{
+  const page = [{ slug: 'home', blocks: [{ type: 'cta-new', data: { ...clone(DEMO['cta-new']), form: { id: 'quote' }, options: { form: 'teaser' } } }] }];
+  const v = (forms, scope = 'edit') => manifestLib.validateSite({ pages: page, forms, scope });
+  const mine = (r) => r.filter((p) => /phone 也没有 email|redirect/.test(p));
+  const F = clone(DEMO_SITE.forms);
+  check(mine(v(F).problems).length === 0, '对照：演示站的表单库（quote 有 phone、contact 有 email，都不带 redirect）⟹ 0 条');
+  check(siteForms.formListProblems(siteForms.DEFAULT_SITE_FORMS).length === 0, '对照：新站默认那两张 ⟹ 0 条（加这两条不会把建站打死）');
+
+  // ① 联系得到人：phone / email 都没有 ⟹ 一条；单变量加回任一个 ⟹ 0 条。
+  const noContact = clone(F); noContact[0].fields = ['name', 'message']; noContact[0].primary = 'name';
+  const nc = mine(v(noContact).problems);
+  check(nc.length === 1 && /"quote"/.test(nc[0]), 'fields ["name","message"]（没有 phone 也没有 email）⟹ 报一条，点名 quote', nc.join(' | '));
+  for (const add of ['phone', 'email']) {
+    const ok1 = clone(noContact); ok1[0].fields = ['name', 'message', add];
+    check(mine(v(ok1).problems).length === 0, `对照：同一张加上 ${add} ⟹ 0 条`);
+  }
+
+  // ② redirect：白名单跟块里的按钮链接是同一份。
+  const withRedirect = (r) => { const x = clone(F); x[0].redirect = r; return x; };
+  for (const r of ['javascript:alert(document.cookie)', '//evil.com', 'data:text/html,x', ' /thanks', 42]) {
+    const got = mine(v(withRedirect(r)).problems);
+    check(got.length === 1 && /redirect/.test(got[0]) && /"quote"/.test(got[0]), `redirect ${JSON.stringify(r)} ⟹ 报一条`, got.join(' | '));
+  }
+  for (const r of ['/thanks', 'https://example.com/thanks', 'tel:+19055550199', '', null]) {
+    check(mine(v(withRedirect(r)).problems).length === 0, `对照：redirect ${JSON.stringify(r)} ⟹ 0 条`);
+  }
+  // 构建期只说不拦（走的是 validateSite 的 flag 出口）。
+  const b = v(withRedirect('javascript:alert(1)'), 'build');
+  check(b.problems.length === 0 && mine(b.warnings).length === 1, "scope 'build'：redirect 那条进 warnings、problems 为空");
+  // 多语言那条路（formsProblems）也查得到：只在 zh 那份写了坏 redirect。
+  const ml = mine(siteForms.formsProblems({ en: F, zh: withRedirect('javascript:x') }));
+  check(ml.length === 1 && /\[zh\]/.test(ml[0]), '多语言：只有 zh 那份带坏 redirect ⟹ 报一条，点名 [zh]', ml.join(' | '));
+
+  // ③ 白名单只有一份：link-href.js 导出的就是 href-allowed.js 那个函数；href-allowed.js 一个 require 都没有
+  //    （site-forms.js 被 'use client' 组件 import，从它这儿多一个 require 就多一串代码进客户端包）。
+  const ha = require(path.join(NEXT, 'scripts', 'lib', 'href-allowed.js'));
+  const lh = require(path.join(NEXT, 'scripts', 'lib', 'link-href.js'));
+  check(lh.hrefAllowed === ha.hrefAllowed, 'link-href.js 的 hrefAllowed 就是 href-allowed.js 那一个（不是第二份）');
+  const haSrc = fs.readFileSync(path.join(NEXT, 'scripts', 'lib', 'href-allowed.js'), 'utf-8').replace(/\/\/.*$/gm, '');
+  check(!/\brequire\s*\(|\bimport\b/.test(haSrc), 'href-allowed.js 不 require / import 任何东西');
+  // 反向对照：同一把尺对着 link-href.js（它 require 了 block-manifest）读得到。
+  const lhSrc = fs.readFileSync(path.join(NEXT, 'scripts', 'lib', 'link-href.js'), 'utf-8').replace(/\/\/.*$/gm, '');
+  check(/\brequire\s*\(/.test(lhSrc), '反向对照：同一把尺在 link-href.js 上读到 require（证明这把尺会红）');
 }
 
 // ══ AC2：四个块、同一张 quote ═══════════════════════════════════════════════════════════════════
