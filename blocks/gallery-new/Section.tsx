@@ -144,7 +144,7 @@ export default function GalleryNewSection({ data, block }: Props) {
           <div className="modal-dialog modal-fullscreen">
             <div className="modal-content">
               <button type="button" className="btn-close btn-close-white gl-lb-close" data-bs-dismiss="modal" aria-label="Close" />
-              <div id={carId} className="carousel slide" data-bs-ride="false" data-bs-interval="false" data-bs-touch="true" data-bs-keyboard="true">
+              <div id={carId} className="carousel slide" tabIndex={-1} data-bs-ride="false" data-bs-interval="false" data-bs-touch="true" data-bs-keyboard="true">
                 <div className="carousel-inner">
                   {items.map((it, i) => (
                     <div key={i} className={`carousel-item${i === 0 ? ' active' : ''}`}>

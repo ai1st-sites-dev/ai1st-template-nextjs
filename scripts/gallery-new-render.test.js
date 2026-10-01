@@ -199,8 +199,14 @@ console.log('\n── AC5 大图的 markup');
     `每张照片一个 <a href="#<块id>-lb" data-bs-toggle="modal" data-gl-index="i">（${links.length} 个）`);
   check(/class="modal fade gl-modal" id="home-gallery-lb" tabindex="-1"/.test(h) && /class="modal-dialog modal-fullscreen"/.test(lb), 'Modal：.modal.fade#<id>-lb + .modal-dialog.modal-fullscreen');
   check(/class="btn-close btn-close-white gl-lb-close" data-bs-dismiss="modal"/.test(lb), '右上 .btn-close.btn-close-white（data-bs-dismiss="modal"）');
-  check(/id="home-gallery-car" class="carousel slide" data-bs-ride="false" data-bs-interval="false" data-bs-touch="true" data-bs-keyboard="true"/.test(lb),
-    'Carousel：data-bs-ride=false · interval=false · touch · keyboard');
+  // 🔴 `tabindex="-1"` 是承重的，不是装饰（Chris 2026-10-01 实测的 bug）：Bootstrap 把 keydown 挂在轮播元素
+  //    自己身上（`bootstrap/js/dist/carousel.js` 的 `§_addEventListeners`），而 keydown 从聚焦元素**向上冒泡** ⟹ 只有焦点在轮播
+  //    【里面】时才命中。Modal 打开时焦点给的是 Modal 自己（`bootstrap/js/dist/modal.js` 的 `§_initializeFocusTrap`（trapElement = .modal）→
+  //    `bootstrap/js/dist/util/focustrap.js` 的 `§activate`（trapElement.focus()）），轮播是它的**后代** ⟹ 事件往上走，永远到不了那个 handler，
+  //    表现为「不先用鼠标点一下 ▶，键盘左右键完全不工作」。没有 tabindex 则 `Lightbox.tsx` 里那句 focus() 不生效。
+  //    回归测试在 `tests/e2e/specs/1495-gallery-new-knobs.spec.ts`「回归：弹窗一打开…」那条（它一次鼠标都不点）。
+  check(/id="home-gallery-car" class="carousel slide" tabindex="-1" data-bs-ride="false" data-bs-interval="false" data-bs-touch="true" data-bs-keyboard="true"/.test(lb),
+    'Carousel：tabindex=-1（键盘能用的前提）· data-bs-ride=false · interval=false · touch · keyboard');
   const slides = lb.match(/class="carousel-item[^"]*"/g) || [];
   check(slides.length === DEMO.items.length && slides[0] === 'class="carousel-item active"' && slides.slice(1).every((s) => s === 'class="carousel-item"'), `每张一个 .carousel-item（${slides.length}），第一张 active`);
   const big = lb.match(/<img [^>]*>/g) || [];
