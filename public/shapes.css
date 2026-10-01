@@ -4898,6 +4898,18 @@
 [data-block="gallery-new"] .gl-modal .carousel-control-next {
   width: 4.5rem;
 }
+/* 🔴 轮播只为【接键盘】而可聚焦（`Section.tsx` 的 `tabIndex={-1}` + `Lightbox.tsx` 在 shown.bs.modal 里
+   focus 它）。它在 `.modal-fullscreen` 里铺满视口 ⟹ 浏览器的默认 focus ring 会沿【整个视口】画一圈
+   （Chris 2026-10-01 截图：按方向键后出现横贯全宽的蓝线）。去掉它不丢无障碍：
+   · 轮播是 `tabindex="-1"`，Tab 到不了它，只能被程序聚焦 —— 环在这儿不回答「我在哪」；
+   · 真正的控件（`.carousel-control-prev/-next`、`.carousel-indicators [data-bs-slide-to]`）各自保留
+     Bootstrap 的默认 focus 样式（本文件对它们只改宽度和位置，没动 outline）。
+   📌 跟 `testimonials-new` 的处置【故意不同】：那个轮播是页内内容块，它那条
+   `.tn-carousel:focus-visible { outline: 2px solid var(--x-primary) }` 看着像有意设计；这个铺满视口。 */
+[data-block="gallery-new"] .gl-modal .carousel:focus,
+[data-block="gallery-new"] .gl-modal .carousel:focus-visible {
+  outline: none;
+}
 [data-block="gallery-new"] .gl-modal .carousel-indicators {
   bottom: 0;
   margin-bottom: 0;
