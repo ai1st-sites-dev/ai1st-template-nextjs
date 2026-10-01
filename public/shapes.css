@@ -10585,21 +10585,8 @@
   column-gap: 2.5rem;
 }
 
-/* 一列时照 faq（Chris 2026-09-29）：块头在上 / 下时评价那一列限 48rem，位置跟 introAlign（left 贴左 / center 居中 /
-   right 贴右）；块头在侧时占满右列（这几条只对 top / bottom 开火）。grid 与 carousel 同一条。 */
-[data-block="testimonials-new"][data-items-columns="1"][data-intro-position="top"] .tn-itemscol,
-[data-block="testimonials-new"][data-items-columns="1"][data-intro-position="bottom"] .tn-itemscol {
-  max-width: 48rem;
-}
-[data-block="testimonials-new"][data-items-columns="1"][data-intro-position="top"][data-intro-align="center"] .tn-itemscol,
-[data-block="testimonials-new"][data-items-columns="1"][data-intro-position="bottom"][data-intro-align="center"] .tn-itemscol {
-  margin-left: auto;
-  margin-right: auto;
-}
-[data-block="testimonials-new"][data-items-columns="1"][data-intro-position="top"][data-intro-align="right"] .tn-itemscol,
-[data-block="testimonials-new"][data-items-columns="1"][data-intro-position="bottom"][data-intro-align="right"] .tn-itemscol {
-  margin-left: auto;
-}
+/* 一列时也占满整列、不跟 introAlign（Chris 2026-10-01，#1516）：评价那一列永远是 col-12 的整行宽，块头文字才跟 introAlign；
+   条目里的文字对齐只由 itemAlign 管。以前那三条「限 48rem + 跟对齐」已删。 */
 
 /* carousel = Bootstrap Carousel（#1494）：一张 slide（.carousel-item）放 itemsColumns 条，服务端分好组；slide 里是 .tn-slide 网格 ——
    <768 竖着叠、768–991 最多两列、≥992 按列数。轨道 / 切换 / 动画是 Bootstrap 自己的 .carousel 规则（site.css）。

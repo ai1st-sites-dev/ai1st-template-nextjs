@@ -9,7 +9,7 @@
  * 服务端 HTML 里；#1494 起轮播是 Bootstrap Carousel：slide 分组、圆点、data 属性、按需 import、不自动播放）· AC4（grid 没有圆点 / 按钮）· AC6 的 DOM 顺序 ·
  * AC7（槽位空不渲染、首字母圆、星级）· AC8（bg + 不自己算亮度）· AC9（validateSite）· AC10（block-roles · 首页配方池）·
  * AC12 的编辑器 schema 一半 · AC13（旧 testimonials 零改动）· 图标表（星 / 箭头真画成 <svg>）。
- * 几何（16 种组合三端无横向滚动、轮播滚动 / 圆点、一列 48rem、星级对齐一线、计算色）要浏览器：
+ * 几何（16 种组合三端无横向滚动、轮播滚动 / 圆点、一列占满整列、星级对齐一线、计算色）要浏览器：
  * `tests/e2e/specs/1488-testimonials-new-knobs.spec.ts`。
  *
  * 🔴 每一段都带反向对照（同一进程、单变量），证明判据真会红。
@@ -188,12 +188,16 @@ console.log('\n── AC3 / AC4 轮播与网格');
   check(JSON.stringify(slidesOf(one)) === '[6]', `反向对照：不按列数分组 ⟹ 读到 ${JSON.stringify(slidesOf(one))}（上面那格分得开）`);
 }
 
-// ══ AC5（规则一半）：一列照 faq ═════════════════════════════════════════════════════════════════════
-console.log('\n── AC5 一列照 faq（规则）');
+// ══ AC5（规则一半）：一列也占满整列、不跟 introAlign（#1516，Chris 2026-10-01；取代 #1488 那条「一列照 faq 限 48rem」）══
+console.log('\n── AC5 一列占满整列（规则）');
 {
-  check(/\[data-items-columns="1"\]\[data-intro-position="top"\] \.tn-itemscol,\s*\[data-block="testimonials-new"\]\[data-items-columns="1"\]\[data-intro-position="bottom"\] \.tn-itemscol \{\s*max-width: 48rem;/.test(CSS),
-    'block.css：一列 + 块头在上 / 下 ⟹ 评价列限 48rem（只对 top / bottom 开火，块头在侧时占满右列）');
-  check(!/\[data-intro-position="left"\][^{]*\.tn-itemscol \{\s*max-width/.test(CSS), '反向：块头在侧没有 48rem 那条');
+  // 评价列（.tn-itemscol）上不许有任何 max-width / margin 规则 —— 块头在侧时那条 width: 66.6667% 是唯一一条。
+  const itemsColRules = (css) => (css.replace(/\/\*[\s\S]*?\*\//g, '').match(/[^{}]*\.tn-itemscol\s*\{[^}]*\}/g) || []);
+  const bad = (css) => itemsColRules(css).filter((r) => /max-width|margin/.test(r.slice(r.indexOf('{'))));
+  check(bad(CSS).length === 0, `block.css：评价列没有 max-width / margin 规则（读到 ${bad(CSS).length} 条）`);
+  check(!/data-intro-align[^{]*\.tn-itemscol/.test(CSS.replace(/\/\*[\s\S]*?\*\//g, '')), 'block.css：评价列的规则不跟 introAlign');
+  const old = CSS + '\n[data-block="testimonials-new"][data-items-columns="1"][data-intro-position="top"][data-intro-align="center"] .tn-itemscol { max-width: 48rem; margin-left: auto; }';
+  check(bad(old).length === 1, `反向对照：塞回一条旧写法 ⟹ 读到 ${bad(old).length} 条（上面那格分得开）`);
 }
 
 // ══ AC6：每条的顺序 ═════════════════════════════════════════════════════════════════════════════════
