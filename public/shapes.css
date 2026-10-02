@@ -1121,12 +1121,14 @@
   }
 }
 
-/* 文字块最后一个元素不带下边距（间距交给上面的 gap）；正文 ≤ 52ch。 */
+/* 文字块最后一个元素不带下边距（间距交给上面的 gap）。正文不单独限宽（#1486）。 */
 [data-block="cta"] .cta-text > :last-child {
   margin-bottom: 0 !important;
 }
+/* 正文不单独限宽，跟标题同宽（#1486）。规则留着是因为块前缀 class 都要有一条带声明的规则
+   （scripts/block-class-rules.test.js，#1519）。 */
 [data-block="cta"] .cta-body {
-  max-width: 52ch;
+  max-width: none;
 }
 
 /* 表单：共用组件自带 `hro-form mt-6`，这里去掉上边距（间距交给 gap）并限宽 34rem。 */
@@ -1135,29 +1137,21 @@
   max-width: 34rem;
 }
 
-/* ── textAlign：只管文字块。centered 排布下动作区跟着对齐、主体限 64ch 并按对齐走位置；inline 下不限宽。 */
+/* ── textAlign：只管文字块。centered 排布下动作区跟着对齐、主体按对齐走位置；inline 下不限宽。
+   主体宽度（T6.1 / #1486，Chris 2026-09-29，照 team）：left / right = 100%；center 在 ≥992 最宽 80%、居中，<992 = 100%。 */
 [data-block="cta"][data-text-align="center"] .cta-text {
   text-align: center;
-}
-[data-block="cta"][data-text-align="center"] .cta-body {
-  margin-inline-start: auto;
-  margin-inline-end: auto;
 }
 [data-block="cta"][data-text-align="right"] .cta-text {
   text-align: end;
 }
-[data-block="cta"][data-text-align="right"] .cta-body {
-  margin-inline-start: auto;
-}
-[data-block="cta"][data-layout="centered"] .cta-main {
-  max-width: 64ch;
-}
-[data-block="cta"][data-layout="centered"][data-text-align="center"] .cta-main {
-  margin-inline-start: auto;
-  margin-inline-end: auto;
-}
-[data-block="cta"][data-layout="centered"][data-text-align="right"] .cta-main {
-  margin-inline-start: auto;
+/* width: 100% 不能省：块头住在 flex 列里，两边 margin: auto 会让它缩成内容宽，话短时就到不了 80%（#1486 实测 0.72）。 */
+@media (min-width: 992px) {
+  [data-block="cta"][data-layout="centered"][data-text-align="center"] .cta-main {
+    width: 100%;
+    max-width: 80%;
+    margin-inline: auto;
+  }
 }
 [data-block="cta"][data-layout="centered"][data-text-align="center"] .cta-ctas,
 [data-block="cta"][data-layout="centered"][data-text-align="center"] .hro-form .d-flex {
@@ -1174,7 +1168,7 @@
 [data-block="cta"][data-layout="centered"][data-text-align="right"] .hro-form {
   margin-inline-start: auto;
 }
-/* 图在旁边时主体占满图旁那一列（不再收 64ch、不再居中）。 */
+/* 图在旁边时主体占满图旁那一列（80% 那条取消、不再居中）。 */
 @media (min-width: 992px) {
   [data-block="cta"][data-layout="centered"][data-image="left"] .cta-main,
   [data-block="cta"][data-layout="centered"][data-image="right"] .cta-main {
@@ -1350,8 +1344,10 @@
 [data-block="faq"] .fq-intro-text > :last-child {
   margin-bottom: 0 !important;
 }
+/* 正文不单独限宽，跟标题同宽（#1486）。规则留着是因为块前缀 class 都要有一条带声明的规则
+   （scripts/block-class-rules.test.js，#1519）。 */
 [data-block="faq"] .fq-body {
-  max-width: 52ch;
+  max-width: none;
 }
 
 /* help 卡：挨着块头，在块头那一列最下面；最宽 28rem；跟着 introAlign 走位置（下面 introAlign 那一段）。 */
@@ -1367,30 +1363,32 @@
   margin-top: 1rem;
 }
 
-/* introAlign：块头文字对齐。left 不限宽；center / right 限 64ch 并按对齐走位置，help 卡跟着走。 */
+/* introAlign：块头文字对齐，help 卡跟着走位置。
+   块头宽度（T6.1 / #1486，Chris 2026-09-29，照 team）：left / right = 100%；center 在 ≥992 最宽 80%（相对块头那一列）、居中，<992 = 100%。正文不单独限宽。 */
 [data-block="faq"][data-intro-align="center"] .fq-intro-text {
   text-align: center;
-  max-width: 64ch;
-  margin-inline-start: auto;
-  margin-inline-end: auto;
 }
-[data-block="faq"][data-intro-align="center"] .fq-body,
+/* width: 100% 不能省：块头住在 flex 列里，两边 margin: auto 会让它缩成内容宽，话短时就到不了 80%（#1486 实测 0.72）。 */
+@media (min-width: 992px) {
+  [data-block="faq"][data-intro-align="center"] .fq-intro-text {
+    width: 100%;
+    max-width: 80%;
+    margin-inline: auto;
+  }
+}
 [data-block="faq"][data-intro-align="center"] .fq-help {
   margin-inline-start: auto;
   margin-inline-end: auto;
 }
 [data-block="faq"][data-intro-align="right"] .fq-intro-text {
   text-align: end;
-  max-width: 64ch;
-  margin-inline-start: auto;
 }
-[data-block="faq"][data-intro-align="right"] .fq-body,
 [data-block="faq"][data-intro-align="right"] .fq-help {
   margin-inline-start: auto;
 }
 
 /* introPosition：left / right（≥992）= 块头一列 41.67%（sticky top 2rem）、问答一列 58.33%；right 行反向。
-   块头在侧时块头那一列本来就窄：文字不再限 64ch、help 卡贴列的左边（同图册）。
+   块头已经是侧列，80% 那条取消，三种对齐都占满侧列；help 卡贴列的左边（同图册）。
    小屏：left / top 块头在上，right / bottom 块头在下。 */
 [data-block="faq"][data-intro-position="bottom"] .fq-frame {
   flex-direction: column-reverse;
@@ -1697,34 +1695,33 @@
 [data-block="features"] .fx-intro-text > :last-child {
   margin-bottom: 0 !important;
 }
+/* 正文不单独限宽，跟标题同宽（#1486）。规则留着是因为块前缀 class 都要有一条带声明的规则
+   （scripts/block-class-rules.test.js，#1519）。 */
 [data-block="features"] .fx-body {
-  max-width: 52ch;
+  max-width: none;
 }
 [data-block="features"] .fx-ctas {
   margin-top: 2rem;
 }
 
-/* introAlign：只管块头。left 不限宽（标题不无故折行）；center / right 限 64ch 并按对齐走位置。 */
+/* introAlign：只管块头。
+   块头宽度（T6.1 / #1486，Chris 2026-09-29，照 team）：left / right = 100%；center 在 ≥992 最宽 80%（相对块头那一列）、居中，<992 = 100%。正文不单独限宽。 */
 [data-block="features"][data-intro-align="center"] .fx-intro-text {
   text-align: center;
-  max-width: 64ch;
-  margin-inline-start: auto;
-  margin-inline-end: auto;
 }
-[data-block="features"][data-intro-align="center"] .fx-body {
-  margin-inline-start: auto;
-  margin-inline-end: auto;
+/* width: 100% 不能省：块头住在 flex 列里，两边 margin: auto 会让它缩成内容宽，话短时就到不了 80%（#1486 实测 0.72）。 */
+@media (min-width: 992px) {
+  [data-block="features"][data-intro-align="center"] .fx-intro-text {
+    width: 100%;
+    max-width: 80%;
+    margin-inline: auto;
+  }
 }
 [data-block="features"][data-intro-align="center"] .fx-ctas {
   justify-content: center;
 }
 [data-block="features"][data-intro-align="right"] .fx-intro-text {
   text-align: end;
-  max-width: 64ch;
-  margin-inline-start: auto;
-}
-[data-block="features"][data-intro-align="right"] .fx-body {
-  margin-inline-start: auto;
 }
 [data-block="features"][data-intro-align="right"] .fx-ctas {
   justify-content: flex-end;
@@ -2726,31 +2723,28 @@
   margin-inline-start: -0.04em;
 }
 
-/* 副标题 ≤ 52ch。上下叠（top / bottom）时文字块收到 64ch，这一块放哪跟 data-text-align：
-   center 居中、right 靠右、left 靠左（col-12 本来就靠左，不用写）。 */
+/* 文字块宽度（T6.1 / #1486，Chris 2026-09-29，照 team）：副标题不单独限宽，跟标题同宽。
+   上下叠（top / bottom）时文字列占满一整行，里面这一块：left / right = 100%；center 在 ≥992 最宽 80%、居中，<992 = 100%。
+   并排（left / right / 铺底）和没图时文字列本来就是 col-lg-6 / col-lg-8（Section.tsx §textCol），不再另收。 */
+/* 正文不单独限宽，跟标题同宽（#1486）。规则留着是因为块前缀 class 都要有一条带声明的规则
+   （scripts/block-class-rules.test.js，#1519）。 */
 [data-block="hero"] .hro-sub {
-  max-width: 52ch;
+  max-width: none;
 }
-[data-block="hero"][data-image="top"] .hro-textcol,
-[data-block="hero"][data-image="bottom"] .hro-textcol {
-  max-width: 64ch;
+/* width: 100% 不能省：块头住在 flex 列里，两边 margin: auto 会让它缩成内容宽，话短时就到不了 80%（#1486 实测 0.72）。 */
+@media (min-width: 992px) {
+  [data-block="hero"][data-text-align="center"][data-image="top"] .hro-textcol,
+  [data-block="hero"][data-text-align="center"][data-image="bottom"] .hro-textcol {
+    width: 100%;
+    max-width: 80%;
+    margin-inline: auto;
+  }
 }
-[data-block="hero"][data-text-align="center"][data-image="top"] .hro-textcol,
-[data-block="hero"][data-text-align="center"][data-image="bottom"] .hro-textcol {
-  margin-inline-start: auto;
-  margin-inline-end: auto;
-}
-[data-block="hero"][data-text-align="right"][data-image="top"] .hro-textcol,
-[data-block="hero"][data-text-align="right"][data-image="bottom"] .hro-textcol {
-  margin-inline-start: auto;
-}
-/* 限了宽的副标题 / 表单跟着文字对齐走：center 居中、right 贴右。 */
-[data-block="hero"][data-text-align="center"] .hro-sub,
+/* 限了宽的表单跟着文字对齐走：center 居中、right 贴右。 */
 [data-block="hero"][data-text-align="center"] .hro-form {
   margin-inline-start: auto;
   margin-inline-end: auto;
 }
-[data-block="hero"][data-text-align="right"] .hro-sub,
 [data-block="hero"][data-text-align="right"] .hro-form {
   margin-inline-start: auto;
 }
@@ -3293,34 +3287,33 @@
 [data-block="milestones"] .mi-intro-text > :last-child {
   margin-bottom: 0 !important;
 }
+/* 正文不单独限宽，跟标题同宽（#1486）。规则留着是因为块前缀 class 都要有一条带声明的规则
+   （scripts/block-class-rules.test.js，#1519）。 */
 [data-block="milestones"] .mi-body {
-  max-width: 52ch;
+  max-width: none;
 }
 [data-block="milestones"] .mi-ctas {
   margin-top: 2rem;
 }
 
-/* introAlign：只管块头。left 不限宽；center / right 限 64ch 并按对齐走位置。 */
+/* introAlign：只管块头。
+   块头宽度（T6.1 / #1486，Chris 2026-09-29，照 team）：left / right = 100%；center 在 ≥992 最宽 80%（相对块头那一列）、居中，<992 = 100%。正文不单独限宽。 */
 [data-block="milestones"][data-intro-align="center"] .mi-intro-text {
   text-align: center;
-  max-width: 64ch;
-  margin-inline-start: auto;
-  margin-inline-end: auto;
 }
-[data-block="milestones"][data-intro-align="center"] .mi-body {
-  margin-inline-start: auto;
-  margin-inline-end: auto;
+/* width: 100% 不能省：块头住在 flex 列里，两边 margin: auto 会让它缩成内容宽，话短时就到不了 80%（#1486 实测 0.72）。 */
+@media (min-width: 992px) {
+  [data-block="milestones"][data-intro-align="center"] .mi-intro-text {
+    width: 100%;
+    max-width: 80%;
+    margin-inline: auto;
+  }
 }
 [data-block="milestones"][data-intro-align="center"] .mi-ctas {
   justify-content: center;
 }
 [data-block="milestones"][data-intro-align="right"] .mi-intro-text {
   text-align: end;
-  max-width: 64ch;
-  margin-inline-start: auto;
-}
-[data-block="milestones"][data-intro-align="right"] .mi-body {
-  margin-inline-start: auto;
 }
 [data-block="milestones"][data-intro-align="right"] .mi-ctas {
   justify-content: flex-end;
@@ -3931,8 +3924,10 @@
 [data-block="pricing"] .pr-intro-text > :last-child {
   margin-bottom: 0 !important;
 }
+/* 正文不单独限宽，跟标题同宽（#1486）。规则留着是因为块前缀 class 都要有一条带声明的规则
+   （scripts/block-class-rules.test.js，#1519）。 */
 [data-block="pricing"] .pr-body {
-  max-width: 52ch;
+  max-width: none;
 }
 
 /* 部件：highlights（图标 + 标题 + 一句）· proof（头像 + 评分）· logos。各自跟上一样隔 2rem。 */
@@ -3961,18 +3956,20 @@
   opacity: 0.75;
 }
 
-/* introAlign：left 不限宽；center / right 限 64ch 并按对齐走位置。部件跟着对齐：
+/* introAlign：块头宽度（T6.1 / #1486，Chris 2026-09-29，照 team）：left / right = 100%；center 在 ≥992 最宽 80%（相对块头那一列）、居中，<992 = 100%。正文不单独限宽。
+   部件跟着对齐：
    highlights 在 center 时排成一排（≥768 四列、手机两列，图标在上、字居中），right 时镜像（图标在右、字靠右）；
    proof / logos 跟着居中 / 靠右。 */
 [data-block="pricing"][data-intro-align="center"] .pr-intro-text {
   text-align: center;
-  max-width: 64ch;
-  margin-inline-start: auto;
-  margin-inline-end: auto;
 }
-[data-block="pricing"][data-intro-align="center"] .pr-body {
-  margin-inline-start: auto;
-  margin-inline-end: auto;
+/* width: 100% 不能省：块头住在 flex 列里，两边 margin: auto 会让它缩成内容宽，话短时就到不了 80%（#1486 实测 0.72）。 */
+@media (min-width: 992px) {
+  [data-block="pricing"][data-intro-align="center"] .pr-intro-text {
+    width: 100%;
+    max-width: 80%;
+    margin-inline: auto;
+  }
 }
 [data-block="pricing"][data-intro-align="center"] .pr-proof,
 [data-block="pricing"][data-intro-align="center"] .pr-logo-row {
@@ -4001,11 +3998,6 @@
 }
 [data-block="pricing"][data-intro-align="right"] .pr-intro-text {
   text-align: end;
-  max-width: 64ch;
-  margin-inline-start: auto;
-}
-[data-block="pricing"][data-intro-align="right"] .pr-body {
-  margin-inline-start: auto;
 }
 [data-block="pricing"][data-intro-align="right"] .pr-proof,
 [data-block="pricing"][data-intro-align="right"] .pr-logo-row {

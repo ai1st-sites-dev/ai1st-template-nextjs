@@ -27,8 +27,10 @@
 [data-block="pricing"] .pr-intro-text > :last-child {
   margin-bottom: 0 !important;
 }
+/* 正文不单独限宽，跟标题同宽（#1486）。规则留着是因为块前缀 class 都要有一条带声明的规则
+   （scripts/block-class-rules.test.js，#1519）。 */
 [data-block="pricing"] .pr-body {
-  max-width: 52ch;
+  max-width: none;
 }
 
 /* 部件：highlights（图标 + 标题 + 一句）· proof（头像 + 评分）· logos。各自跟上一样隔 2rem。 */
@@ -57,18 +59,20 @@
   opacity: 0.75;
 }
 
-/* introAlign：left 不限宽；center / right 限 64ch 并按对齐走位置。部件跟着对齐：
+/* introAlign：块头宽度（T6.1 / #1486，Chris 2026-09-29，照 team）：left / right = 100%；center 在 ≥992 最宽 80%（相对块头那一列）、居中，<992 = 100%。正文不单独限宽。
+   部件跟着对齐：
    highlights 在 center 时排成一排（≥768 四列、手机两列，图标在上、字居中），right 时镜像（图标在右、字靠右）；
    proof / logos 跟着居中 / 靠右。 */
 [data-block="pricing"][data-intro-align="center"] .pr-intro-text {
   text-align: center;
-  max-width: 64ch;
-  margin-inline-start: auto;
-  margin-inline-end: auto;
 }
-[data-block="pricing"][data-intro-align="center"] .pr-body {
-  margin-inline-start: auto;
-  margin-inline-end: auto;
+/* width: 100% 不能省：块头住在 flex 列里，两边 margin: auto 会让它缩成内容宽，话短时就到不了 80%（#1486 实测 0.72）。 */
+@media (min-width: 992px) {
+  [data-block="pricing"][data-intro-align="center"] .pr-intro-text {
+    width: 100%;
+    max-width: 80%;
+    margin-inline: auto;
+  }
 }
 [data-block="pricing"][data-intro-align="center"] .pr-proof,
 [data-block="pricing"][data-intro-align="center"] .pr-logo-row {
@@ -97,11 +101,6 @@
 }
 [data-block="pricing"][data-intro-align="right"] .pr-intro-text {
   text-align: end;
-  max-width: 64ch;
-  margin-inline-start: auto;
-}
-[data-block="pricing"][data-intro-align="right"] .pr-body {
-  margin-inline-start: auto;
 }
 [data-block="pricing"][data-intro-align="right"] .pr-proof,
 [data-block="pricing"][data-intro-align="right"] .pr-logo-row {

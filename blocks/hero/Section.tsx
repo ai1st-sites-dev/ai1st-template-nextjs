@@ -130,7 +130,7 @@ export default function HeroNewSection({ data, locale = 'en', block }: Props) {
   const cover = k.image === 'background' && !!img;
   // 图列画不画（#1470 做什么 2；hero-render.test.js 的反向对照逐字锚在这一行上）。
   const side = (k.image === 'left' || k.image === 'right' || k.image === 'top' || k.image === 'bottom') && !!img;
-  // 上下叠：文字块、图各占一整行（文字块限宽 64ch、大图 21:9 由 block.css 按 data-image 排）。
+  // 上下叠：文字块、图各占一整行（文字块宽度、大图 21:9 由 block.css 按 data-image 排）。
   const stacked = k.image === 'top' || k.image === 'bottom';
   const tone = cover ? 'dark' : toneForBg(d.bg);
   const center = k.textAlign === 'center';
@@ -148,7 +148,7 @@ export default function HeroNewSection({ data, locale = 'en', block }: Props) {
   const logos = isObj(d.logos) ? imgs(d.logos.items).slice(0, MAX.logos) : [];
   const band = imgs(d.band).slice(0, MAX.band);
 
-  // 文字列多宽：上下叠（top / bottom）占满（内容再由 block.css 收到 64ch）；并排（left / right）时一半 —— 只有 `image=none`（旁边、底下都没有图）
+  // 文字列多宽：上下叠（top / bottom）占满（center 时 block.css 在 ≥992 收到 80%）；并排（left / right）时一半 —— 只有 `image=none`（旁边、底下都没有图）
   // 才是 2/3（定稿原话）。图铺底时也是一半：图在整块后面，文字列不因此变宽。
   const textCol = stacked ? 'col-12 hro-textcol' : (side || cover) ? 'col-12 col-lg-6 hro-textcol' : 'col-12 col-lg-8 hro-textcol';
   const just = center ? ' justify-content-center' : right ? ' justify-content-end' : '';

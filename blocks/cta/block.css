@@ -74,12 +74,14 @@
   }
 }
 
-/* 文字块最后一个元素不带下边距（间距交给上面的 gap）；正文 ≤ 52ch。 */
+/* 文字块最后一个元素不带下边距（间距交给上面的 gap）。正文不单独限宽（#1486）。 */
 [data-block="cta"] .cta-text > :last-child {
   margin-bottom: 0 !important;
 }
+/* 正文不单独限宽，跟标题同宽（#1486）。规则留着是因为块前缀 class 都要有一条带声明的规则
+   （scripts/block-class-rules.test.js，#1519）。 */
 [data-block="cta"] .cta-body {
-  max-width: 52ch;
+  max-width: none;
 }
 
 /* 表单：共用组件自带 `hro-form mt-6`，这里去掉上边距（间距交给 gap）并限宽 34rem。 */
@@ -88,29 +90,21 @@
   max-width: 34rem;
 }
 
-/* ── textAlign：只管文字块。centered 排布下动作区跟着对齐、主体限 64ch 并按对齐走位置；inline 下不限宽。 */
+/* ── textAlign：只管文字块。centered 排布下动作区跟着对齐、主体按对齐走位置；inline 下不限宽。
+   主体宽度（T6.1 / #1486，Chris 2026-09-29，照 team）：left / right = 100%；center 在 ≥992 最宽 80%、居中，<992 = 100%。 */
 [data-block="cta"][data-text-align="center"] .cta-text {
   text-align: center;
-}
-[data-block="cta"][data-text-align="center"] .cta-body {
-  margin-inline-start: auto;
-  margin-inline-end: auto;
 }
 [data-block="cta"][data-text-align="right"] .cta-text {
   text-align: end;
 }
-[data-block="cta"][data-text-align="right"] .cta-body {
-  margin-inline-start: auto;
-}
-[data-block="cta"][data-layout="centered"] .cta-main {
-  max-width: 64ch;
-}
-[data-block="cta"][data-layout="centered"][data-text-align="center"] .cta-main {
-  margin-inline-start: auto;
-  margin-inline-end: auto;
-}
-[data-block="cta"][data-layout="centered"][data-text-align="right"] .cta-main {
-  margin-inline-start: auto;
+/* width: 100% 不能省：块头住在 flex 列里，两边 margin: auto 会让它缩成内容宽，话短时就到不了 80%（#1486 实测 0.72）。 */
+@media (min-width: 992px) {
+  [data-block="cta"][data-layout="centered"][data-text-align="center"] .cta-main {
+    width: 100%;
+    max-width: 80%;
+    margin-inline: auto;
+  }
 }
 [data-block="cta"][data-layout="centered"][data-text-align="center"] .cta-ctas,
 [data-block="cta"][data-layout="centered"][data-text-align="center"] .hro-form .d-flex {
@@ -127,7 +121,7 @@
 [data-block="cta"][data-layout="centered"][data-text-align="right"] .hro-form {
   margin-inline-start: auto;
 }
-/* 图在旁边时主体占满图旁那一列（不再收 64ch、不再居中）。 */
+/* 图在旁边时主体占满图旁那一列（80% 那条取消、不再居中）。 */
 @media (min-width: 992px) {
   [data-block="cta"][data-layout="centered"][data-image="left"] .cta-main,
   [data-block="cta"][data-layout="centered"][data-image="right"] .cta-main {

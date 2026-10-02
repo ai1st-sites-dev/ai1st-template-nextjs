@@ -89,34 +89,33 @@
 [data-block="milestones"] .mi-intro-text > :last-child {
   margin-bottom: 0 !important;
 }
+/* 正文不单独限宽，跟标题同宽（#1486）。规则留着是因为块前缀 class 都要有一条带声明的规则
+   （scripts/block-class-rules.test.js，#1519）。 */
 [data-block="milestones"] .mi-body {
-  max-width: 52ch;
+  max-width: none;
 }
 [data-block="milestones"] .mi-ctas {
   margin-top: 2rem;
 }
 
-/* introAlign：只管块头。left 不限宽；center / right 限 64ch 并按对齐走位置。 */
+/* introAlign：只管块头。
+   块头宽度（T6.1 / #1486，Chris 2026-09-29，照 team）：left / right = 100%；center 在 ≥992 最宽 80%（相对块头那一列）、居中，<992 = 100%。正文不单独限宽。 */
 [data-block="milestones"][data-intro-align="center"] .mi-intro-text {
   text-align: center;
-  max-width: 64ch;
-  margin-inline-start: auto;
-  margin-inline-end: auto;
 }
-[data-block="milestones"][data-intro-align="center"] .mi-body {
-  margin-inline-start: auto;
-  margin-inline-end: auto;
+/* width: 100% 不能省：块头住在 flex 列里，两边 margin: auto 会让它缩成内容宽，话短时就到不了 80%（#1486 实测 0.72）。 */
+@media (min-width: 992px) {
+  [data-block="milestones"][data-intro-align="center"] .mi-intro-text {
+    width: 100%;
+    max-width: 80%;
+    margin-inline: auto;
+  }
 }
 [data-block="milestones"][data-intro-align="center"] .mi-ctas {
   justify-content: center;
 }
 [data-block="milestones"][data-intro-align="right"] .mi-intro-text {
   text-align: end;
-  max-width: 64ch;
-  margin-inline-start: auto;
-}
-[data-block="milestones"][data-intro-align="right"] .mi-body {
-  margin-inline-start: auto;
 }
 [data-block="milestones"][data-intro-align="right"] .mi-ctas {
   justify-content: flex-end;

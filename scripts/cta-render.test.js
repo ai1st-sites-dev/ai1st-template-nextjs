@@ -8,7 +8,7 @@
  * 管哪几条：AC1（6 个预设逐字、目录集合、两两不同）· AC3（bg 涂盒子还是整段）· AC4 的 DOM 那一半（照片铺底 /
  * 图在上）· AC5（表单三档、id 前缀、提交走 /api/leads）· AC6（bg 三档字色）· AC7 的 DOM / CSS 那一半 ·
  * AC8（槽位空不渲染）· AC9（validateSite）· AC10（block-roles）· AC11（首页配方池）。
- * 几何（16 种组合三端无横向滚动、64ch、图在上）要浏览器：`tests/e2e/specs/1479-cta-new-knobs.spec.ts`。
+ * 几何（16 种组合三端无横向滚动、块头宽度、图在上）要浏览器：`tests/e2e/specs/1479-cta-new-knobs.spec.ts`。
  *
  * 🔴 每一段都带反向对照（同一进程、单变量），证明判据真会红。
  * 夹具定死：演示内容包里的 Northside Auto Care（`scripts/lib/demo-content`，正文做什么 9）。
@@ -221,11 +221,12 @@ console.log('\n── AC7 textAlign');
 {
   const h = render('centered', withOpts({ textAlign: 'center', layout: 'centered' }));
   check(attr(h, 'data-layout') === 'centered' && attr(h, 'data-text-align') === 'center', '根上挂着 data-layout / data-text-align');
-  check(/\[data-layout="centered"\] \.cta-main \{\s*max-width: 64ch;/.test(CSS)
-    && /\[data-layout="centered"\]\[data-text-align="center"\] \.cta-main \{\s*margin-inline-start: auto;\s*margin-inline-end: auto;/.test(CSS),
-  'block.css：centered 排布下文字块限 64ch、center 时居中');
+  // #1486（T6.1）：宽度规则换成 left / right = 100%、center 在 ≥992 最宽 80%、居中（<992 没有这条 = 100%）。
+  check(/@media \(min-width: 992px\) \{\s*\[data-block="cta"\]\[data-layout="centered"\]\[data-text-align="center"\] \.cta-main \{\s*width: 100%;\s*max-width: 80%;\s*margin-inline: auto;/.test(CSS)
+    && !/\.cta-main \{[^}]*max-width: (?!80%|none)/.test(CSS),
+  'block.css：centered + center 时文字块在 ≥992 最宽 80%、居中；别的组合不限宽');
   check(/\[data-layout="centered"\]\[data-text-align="center"\] \.cta-ctas,/.test(CSS), 'block.css：centered + center 时按钮居中');
-  check(!/\[data-layout="inline"\][^{]*\{[^}]*max-width: 64ch/.test(CSS), 'block.css：inline 下没有 64ch 上限（像素读数见 e2e）');
+  check(!/\[data-layout="inline"\][^{]*\{[^}]*max-width/.test(CSS), 'block.css：inline 下文字块不限宽（像素读数见 e2e）');
 }
 
 // ══ AC8：槽位空 → 不渲染 ═════════════════════════════════════════════════════════════════════════
