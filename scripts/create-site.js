@@ -30,7 +30,7 @@ const { themes, poolThemes, themeStyle, pickThemeForIndustry, rotationIndexFromS
 const { sheetNameForTheme } = require('./theme-sheet');
 // #1346 —— 关键词页那一通的块清单（住在 lib 里是为了它能被测到，理由写在那个文件头上）。
 const { keywordPageSectionOptions } = require('./lib/keyword-page-options');
-// #1472 —— 站级深浅（site_meta.json 的 colorScheme）。AI 吐回来的值在这里归一，构建那一侧（sync-config）读同一份判据。
+// #1472 / #1523 —— 站级深浅（theme.json 的 colorScheme）。AI 吐回来的值在这里归一，构建那一侧（sync-config）读同一份判据。
 const { normalizeColorScheme } = require('./lib/color-scheme');
 // #1120: 每站微扰派哪三个数 —— 表和判据都在那个文件里（含为什么它不能塞进 scripts/tweaks.js）。
 const { tweaksForSite } = require('./lib/site-tweaks');
@@ -954,9 +954,11 @@ async function main() {
   // 🔴 没有同名表的主题**整个字段不写**，产出的 theme.json 与这张票之前逐字节相同 —— 今天注册表
   // 那 30 套一套都没有自己的表，所以本行今天不改变任何一个站；#1016 把 80 套（表与 id 同名）放进
   // 注册表那一刻它才开始有值。
-  // 🔴 #1120: `tweaks` 就写在这里 —— 全文件**只此一处**写 `theme.json`（两个分支只差 `css`），
+  // 🔴 #1120: `tweaks` 就写在这里 —— 全文件**只此一处**创建 `theme.json`（两个分支只差 `css`），
   // 所以「一站一次」这件事是由落点保证的，不是由纪律保证的。派生不出来（`tweaksForSite` 回 null）
   // 时**整个键不写**，产出的 theme.json 与本票之前逐字节相同。
+  // 📌 #1523 起 AI 那条路之后还有一处**补一个键**（§writeThemeColorScheme 补 `colorScheme`，AI 跑完才知道值），
+  // 别的键原样 ⟹ 上面「一站一次」那条不受影响。
   // 📌 `applied` 保持 `false`，本票一个字都不动它：微扰**不经过**那个开关 —— `sync-config.js` 读
   // tweaks 的那段是个裸块（不在任何 `if (appliedThemeId)` 里），实测 `applied:false` 的站照样产出
   // `custom.css`（PM 在本票裁定里量的，我自己也复量了，读数在交接留言）。翻它会让注册表接管调色板，
@@ -1241,7 +1243,7 @@ async function main() {
   // #1472 —— 站级深浅：AI 按行业给的默认（酒吧 / 健身房 dark，牙科 / 律所 light），老板之后可改成 auto。
   // 认不得的值落回 light（判据在 lib/color-scheme.js，构建那一侧读的是同一份）。skipAI 那条路不走这里 ⟹ 不写这个键 = light。
   const colorScheme = normalizeColorScheme(content.ai && content.ai.colorScheme);
-  writeSiteMetaColorScheme(siteDir, colorScheme);
+  writeThemeColorScheme(siteDir, colorScheme);
   debug(`[color scheme] ${colorScheme}（AI 给的是 ${JSON.stringify(content.ai && content.ai.colorScheme)}）`);
 
   // ─── TICKET-122b: Secondary locale generation ────────────────────────────────
@@ -1649,9 +1651,13 @@ function writeSecondaryLocaleConfig(siteDir, secContent, secondaryLocale, primar
 
 // #1346 —— `disabledBlocks` 传到这里，因为**这个函数自己会插块**（268b/268e 那个 Contact 页）。
 // 那一处发生在两次 `validateBlocks` **之后**，所以剔菜单、传清单进校验器这两步都管不到它。
-/** #1472 —— 把站级深浅补进 `site_meta.json`（那份文件在 AI 跑之前就写好了，这里只加一个键，别的原样）。 */
-function writeSiteMetaColorScheme(siteDir, colorScheme) {
-  const p = path.join(siteDir, 'site_meta.json');
+/**
+ * #1472 / #1523 —— 把站级深浅补进 `theme.json`（那份文件在 AI 跑之前就写好了，这里只加一个键，别的原样）。
+ * #1523 前写的是 site_meta.json；搬家的理由在 lib/color-scheme.js 文件头。`applied` 一个字不动：它管的是
+ * 「老板换过主题没有」，跟深浅不是一回事。
+ */
+function writeThemeColorScheme(siteDir, colorScheme) {
+  const p = path.join(siteDir, 'theme.json');
   const meta = JSON.parse(fs.readFileSync(p, 'utf-8'));
   meta.colorScheme = colorScheme;
   fs.writeFileSync(p, JSON.stringify(meta, null, 2) + '\n');

@@ -17,8 +17,8 @@ const pageLayoutLib = require('./lib/page-layout');
 // 理由整段写在那个文件头上:这些话会被 edit-site.js 原文推进老板的聊天窗口。
 const remediation = require('./lib/remediation.js');
 const themeTokens = require('./lib/theme-tokens');
-// #1472 —— site_meta.json 的 colorScheme：判据在 lib 那一处（create-site 写盘前归一用的是同一个文件）。
-const { DEFAULT_COLOR_SCHEME, colorSchemeFromMeta } = require('./lib/color-scheme');
+// #1472 / #1523 —— 站级深浅：判据在 lib 那一处（create-site 写盘前归一用的是同一个文件）。
+const { readSiteColorScheme } = require('./lib/color-scheme');
 // #1104 r6 —— 「这个站的 Region 解析成什么版式」搬到了这里，构建和 AI 聊天编辑器共用同一份
 // 实现（理由写在那个文件头上）。`resolveRegionLayout` 本身从此只由它调。
 const siteRegions = require('./lib/site-regions');
@@ -318,8 +318,16 @@ let isLegacySchema = false;
 // lead API base (absolute manager URL — the site is served from R2, so the form POSTs cross-origin).
 let siteId = '';
 let leadApi = '';
-// #1472 —— 站级深浅（`light | dark | auto`）。没有 site_meta.json 的老站、或 site_meta 里没这个键 ⟹ `light`。
-let colorScheme = DEFAULT_COLOR_SCHEME;
+// #1472 / #1523 —— 站级深浅（`light | dark | auto`）。`theme.json` 优先、`site_meta.json` 回落，两处都没写 ⟹ `light`。
+// 判据整个在 lib/color-scheme.js §readSiteColorScheme。放在 site_meta 那个分支外面：扁平老站没有 site_meta.json，
+// 但老板一样能在后台给它选深浅（写的是 theme.json）。
+let colorScheme;
+try {
+  colorScheme = readSiteColorScheme(siteDir);
+} catch (e) {
+  console.error(e.message);
+  process.exit(1);
+}
 
 if (!fs.existsSync(siteMetaPath)) {
   console.log('[backward-compat] site_meta.json missing, inferring legacy single-locale schema (defaultLocale=en)');
@@ -331,12 +339,6 @@ if (!fs.existsSync(siteMetaPath)) {
   ({ defaultLocale, locales } = siteMeta);
   siteId = siteMeta.siteId || '';
   leadApi = siteMeta.leadApi || '';
-  try {
-    colorScheme = colorSchemeFromMeta(siteMeta.colorScheme);
-  } catch (e) {
-    console.error(e.message);
-    process.exit(1);
-  }
 
   if (!defaultLocale || !Array.isArray(locales) || locales.length === 0) {
     console.error(`site_meta.json invalid: must contain defaultLocale (string) and locales (non-empty array)`);

@@ -415,24 +415,47 @@ console.log('⑤c 「加语言」那句话说的是实话吗（#1138）');
   if (missing.length) {
     console.log(`  ⚠️  ⑤c 第二半跳过：找不到 ${missing.join(' / ')} —— 这**不是**通过，只是这次没在仓里跑`);
   } else {
-    const countFiles = (pattern) => {
+    const listFiles = (pattern) => {
       try {
         return cp.execFileSync('grep', ['-rIlE', pattern, ...dirs], { encoding: 'utf-8' })
-          .split('\n').filter(Boolean).length;
-      } catch (e) { return 0; }        // grep 没命中时退出码 1
+          .split('\n').filter(Boolean).map((f) => path.relative(REPO, f));
+      } catch (e) { return []; }        // grep 没命中时退出码 1
     };
+    // 🔴 #1523 —— 这把尺原来数的是「提到 site_meta 的文件」，拿它代表「写 site_meta 的文件」。#1523 之后
+    //    有一个产品文件**只读**它（深浅的回落：#1472 落地后、#1523 落地前建的站，值只在那里），代理就跟
+    //    要钉的事实分开了。收窄成两条，而不是改措辞躲开它：
+    //    · 测试文件不算产品路径（它们是夹具，不是一条给老板加语言的路）；
+    //    · 只读的产品文件逐个列在下面、各写理由 —— 并且这几个文件里**不许出现写回 site_meta 的写法**
+    //      （GitHub contents 的 PUT / 本地 writeFile）。列表里的文件哪天开始写它，这一格照样红。
+    const SITE_META_READERS = {
+      'manager/theme.go': '§readSiteColorSchemeValue —— GET /theme 读 site_meta.json 的 colorScheme 当回落（#1523），只读',
+      'dashboard/src/api/themes.ts': '注释里解释 colorScheme 的回落顺序（#1523），没有代码碰这个文件',
+    };
+    const isTest = (f) => /(_test\.go|\.test\.[jt]sx?|\.spec\.[jt]sx?)$/.test(f);
     // 🔴 先校准尺子：拿同一把尺量一个**真存在**的东西。少了这一步，一个坏掉的 grep 会打出 0，
     //    而那个 0 长得跟「真的没有」一模一样。
-    const calib = countFiles('themeId');
-    const writers = countFiles('site_meta|siteMeta');
+    const calib = listFiles('themeId').length;
+    const mentions = listFiles('site_meta|siteMeta').filter((f) => !isTest(f));
+    const unlisted = mentions.filter((f) => !SITE_META_READERS[f]);
+    const listedWriters = mentions.filter((f) => SITE_META_READERS[f]).filter((f) => {
+      const src = fs.readFileSync(path.join(REPO, f), 'utf-8');
+      return src.split('\n').some((l) => /site_meta/.test(l) && /\bPUT\b|writeFile|WriteFile|method:\s*['"]PUT/.test(l));
+    });
     if (calib === 0) {
       bad('⑤c 尺子校准失败：连 themeId 都数到 0 —— 这两个 grep 的读数一个都不能信');
-    } else if (writers === 0) {
-      ok(`⑤c dashboard/src · manager · worker 里 site_meta|siteMeta 命中 0 个文件`
-        + `（同一把尺量 themeId = ${calib} 个文件 ⟹ 这个 0 是真的）⟹ 那句「没有那个界面」是实话`);
+    } else if (unlisted.length === 0 && listedWriters.length === 0) {
+      ok(`⑤c dashboard/src · manager · worker 里提到 site_meta|siteMeta 的产品文件 ${mentions.length} 个，`
+        + `全在只读名单里（${Object.keys(SITE_META_READERS).length} 条），且没有一行写回它`
+        + `（同一把尺量 themeId = ${calib} 个文件 ⟹ 读数是真的）⟹ 那句「没有那个界面」是实话`);
     } else {
-      bad(`⑤c 有 ${writers} 个文件提到 site_meta / siteMeta 了 —— 如果产品真做出了给存量站加语言的路，`
-        + 'editable-files.js 里那句「nothing in the product today adds one」就成了假话，回去改措辞');
+      if (unlisted.length) {
+        bad(`⑤c 有 ${unlisted.length} 个产品文件提到 site_meta / siteMeta 而不在只读名单里：${unlisted.join(' · ')} —— `
+          + '如果产品真做出了给存量站加语言的路，editable-files.js 里那句「nothing in the product today adds one」就成了假话，'
+          + '回去改措辞；只读的话把它加进 SITE_META_READERS 并写理由');
+      }
+      if (listedWriters.length) {
+        bad(`⑤c 只读名单里的文件出现了写回 site_meta 的写法：${listedWriters.join(' · ')}`);
+      }
     }
   }
 }

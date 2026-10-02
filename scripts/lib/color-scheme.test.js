@@ -6,7 +6,8 @@
  * 退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
  *
  * 管四件事：
- *   ① site_meta 的 `colorScheme` 怎么读（没写 = light、写错 = 停）、AI 吐回来的怎么归一（写错 = light）
+ *   ① `colorScheme` 怎么读（没写 = light、写错 = 停；#1523 起 theme.json 优先、site_meta.json 回落，拿真文件测）、
+ *      AI 吐回来的怎么归一（写错 = light）
  *   ② `auto` 站首屏前那段内联脚本：在一个假的 document / matchMedia 上真跑一次（它是字符串，单测不跑它就等于没人跑）
  *   ③ 块根上的 `data-bs-theme`（`contrast.js` §bsThemeForBg）：填了 bg / 图铺底 ⟹ light，没填 ⟹ 不挂
  *   ④ purge 之后 `[data-bs-theme=dark]` 规则和 `--scheme-*` 变量还在 —— 内容里**一个 `data-bs-theme` 都没有**时也在。
@@ -46,6 +47,48 @@ async function main() {
   eq(cs.normalizeColorScheme('auto'), 'auto', 'AI 给 auto');
   eq(cs.normalizeColorScheme('night'), 'light', 'AI 给 night');
   eq(cs.normalizeColorScheme(undefined), 'light', 'AI 没给');
+
+  console.log('①b 一个站的深浅住哪儿（#1523：theme.json 优先，site_meta.json 回落）—— 拿真文件测');
+  {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tmp-1523-scheme-'));
+    let n = 0;
+    // files: { 'theme.json': obj, 'site_meta.json': obj }，值为 undefined 的文件不写。
+    const site = (files) => {
+      const d = path.join(root, String(n++));
+      fs.mkdirSync(d);
+      for (const [f, v] of Object.entries(files)) if (v !== undefined) fs.writeFileSync(path.join(d, f), JSON.stringify(v));
+      return d;
+    };
+    const theme = { themeId: 'azure-29', applied: false };
+    const meta = { siteId: 'x', defaultLocale: 'en', locales: ['en'] };
+    try {
+      eq(cs.readSiteColorScheme(site({})), 'light', '两个文件都没有（#924 之前的扁平老站）');
+      eq(cs.readSiteColorScheme(site({ 'theme.json': theme, 'site_meta.json': meta })), 'light', '两个文件都在、都没写这个键');
+      // AC3 那一格：#1472 落地后、#1523 落地前建的站 —— 值只在老地方。
+      eq(cs.readSiteColorScheme(site({ 'theme.json': theme, 'site_meta.json': { ...meta, colorScheme: 'dark' } })), 'dark',
+        '值只在 site_meta.json（dark），theme.json 没这个键 ⟹ 回落读得出');
+      eq(cs.readSiteColorScheme(site({ 'theme.json': theme, 'site_meta.json': { ...meta, colorScheme: 'auto' } })), 'auto',
+        '值只在 site_meta.json（auto）');
+      eq(cs.readSiteColorScheme(site({ 'theme.json': { ...theme, colorScheme: 'dark' }, 'site_meta.json': meta })), 'dark', '值在 theme.json（dark）');
+      eq(cs.readSiteColorScheme(site({ 'theme.json': { ...theme, colorScheme: 'light' }, 'site_meta.json': { ...meta, colorScheme: 'dark' } })), 'light',
+        '两处都写了、说法不同 ⟹ theme.json 赢（老板把建站时的 dark 改回了 light）');
+      eq(cs.readSiteColorScheme(site({ 'theme.json': { ...theme, colorScheme: 'auto' } })), 'auto', '扁平老站（没有 site_meta.json）也读 theme.json');
+      try {
+        cs.readSiteColorScheme(site({ 'theme.json': { ...theme, colorScheme: 'night' }, 'site_meta.json': { ...meta, colorScheme: 'dark' } }));
+        bad('theme.json 写错没抛 —— 会静默回落到 site_meta 的值');
+      } catch (e) {
+        /theme\.json invalid/.test(e.message) ? ok(`theme.json 写错 ⟹ 抛，并点名文件：${e.message}`) : bad(`抛了但没点名 theme.json：${e.message}`);
+      }
+      try {
+        cs.readSiteColorScheme(site({ 'theme.json': theme, 'site_meta.json': { ...meta, colorScheme: 'Dark' } }));
+        bad('site_meta.json 写错没抛');
+      } catch (e) {
+        /site_meta\.json invalid/.test(e.message) ? ok('site_meta.json 写错 ⟹ 抛，并点名文件') : bad(`抛了但没点名 site_meta.json：${e.message}`);
+      }
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
 
   console.log('② auto 站那段内联脚本（真跑）');
   const run = (matchMedia) => {
