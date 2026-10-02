@@ -330,5 +330,38 @@ console.log('\n⑥ 选择单 → 形态解析 → 渲染（cta-columns）');
   check(!g.includes('data-footer-cta="boxed"') && !g.includes('data-footer-col="brand"'), '阳性对照：不存在的名字 ⟹ 落回默认，没有 boxed、没有列');
 }
 
+// ══ ⑦ #1530：row 底栏的「城市」读 contact.city，没有就整格不画（不再从地址串取最后一段）═══════════════════
+console.log('\n⑦ row 底栏的城市（#1530）');
+{
+  // 底栏左边那一组：电话 + 城市（城市那一格是唯一一个「geo-alt 图标 + 文字」的 span）。
+  const cityCell = (h) => { const m = h.match(/<span class="d-inline-flex align-items-center gap-2"><svg[^>]*data-icon="geo-alt"[\s\S]*?<\/svg>([^<]*)<\/span>/); return m ? m[1] : null; };
+  const addr = '2150 Yonge St, Toronto, ON';
+  const withCity = { ...base, contact: { phone: '(416) 555-0142', address: addr, city: 'Toronto' } };
+  const noCity = { ...base, contact: { phone: '(416) 555-0142', address: addr } };
+  for (const s of ['slim-row', 'cta-row']) {
+    check(cityCell(render(s, withCity)) === 'Toronto', `${s} + contact.city = Toronto ⟹ 底栏画 Toronto`, String(cityCell(render(s, withCity))));
+    const h = render(s, noCity);
+    check(cityCell(h) === null && count(h, 'data-icon="geo-alt"') === 0, `${s} + 没有 city ⟹ 城市那一格不在（没有 geo-alt 图标）`);
+    check(!/>\s*ON\s*</.test(h), `${s} + 没有 city ⟹ HTML 里没有一格只写着 ON`);
+    check(h.includes('(416) 555-0142'), `${s} + 没有 city ⟹ 电话照旧在`);
+    const emptyBoxes = (h.match(/<(div|span|ul)[^>]*><\/\1>/g) || []);
+    check(emptyBoxes.length === 0, `${s} + 没有 city ⟹ 没有空的容器`, emptyBoxes.slice(0, 3).join(' '));
+  }
+  // 电话、城市都没有 ⟹ 左边那一组整个不在（不留空 flex 容器）。
+  const none = render('slim-row', { ...base, contact: { address: addr } });
+  check(!(none.match(/<(div|span|ul)[^>]*><\/\1>/g) || []).length && cityCell(none) === null, 'slim-row + 只有地址 ⟹ 左边一组整个不画、没有空容器');
+  // 演示生意那一份（单格页 /__catalog/footer/slim-row 用的）展开后带着城市。
+  check(DEMO.contact.city === 'Toronto' && cityCell(render('slim-row', base)) === 'Toronto', `演示数据：{source: "brand"} 展开出 city = Toronto，slim-row 底栏画它（${DEMO.contact.city}）`);
+  // 反向对照：把读法换回老的「地址最后一段」，没有 city 的那一份必须画出 ON —— 证明上面「不出现 ON」那条有牙。
+  const src = fs.readFileSync(SECTION, 'utf-8');
+  const broken = src.replace("const city = contact.city || '';", "const city = (contact.address || '').split(',').map((x) => x.trim()).filter(Boolean).pop() || '';");
+  if (broken === src) bad('反向对照没改到源码（锚点找不到）—— 这一格什么都没证明');
+  else {
+    const Cb = loadSection(broken).default;
+    check(cityCell(render('slim-row', noCity, Cb)) === 'ON', `反向对照：换回取地址最后一段 ⟹ 底栏画成 ON（${cityCell(render('slim-row', noCity, Cb))}）`);
+    loadSection();
+  }
+}
+
 console.log(`\n${fail ? '🔴' : '✅'} footer-render: ${pass} 过 / ${fail} 不过`);
 process.exit(fail ? 1 : 0);

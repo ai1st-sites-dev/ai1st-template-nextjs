@@ -11,12 +11,18 @@
 // 🔴 调用点只有两处：建站（`create-site.js`，组好 brand 之后）与改站时地址变了（`edit-site.js` 写 brand.json 那一步）。
 //    「一个地址写入时查一次」不是条款禁的批量地理编码。
 // 🔴 **查不到 / 网络错 / 超时 ⟹ 返回 null，不抛**：调用方据此不写 `geo`，地图不渲染，其余照常 —— 建站不许因为地图失败。
-// 🔴 这里只查坐标。地图**瓦片**一张都不取、不存（瓦片条款第 4 节禁预取和离线用，正文「地图」②）。
+// 🔴 这里只查坐标（#1530 起同一次请求顺带带回城市，见 §cityFromHit）。地图**瓦片**一张都不取、不存（瓦片条款第 4 节禁预取和离线用，正文「地图」②）。
+//
+// #1530 —— 城市（`brand.locations[0].city`）也从这里来：页脚 `row` 底栏露「电话 + 城市」，原来是从地址串取最后一段猜的，
+//    真实地址带省 / 州（`…, Toronto, ON`）就画成 `ON`。同一个请求加 `addressdetails=1` 就带回结构化地址，不多发请求。
 
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 const USER_AGENT = 'ai1st-site-builder/1.0 (+https://www.ai1st.site)';
 const MIN_INTERVAL_MS = 1100;
 const TIMEOUT_MS = 8000;
+
+// Nominatim `address` 里城市那一格的键名不固定：大城市 `city`，小地方 `town` / `village` / `municipality`。按这个顺序取第一个有值的。
+const CITY_KEYS = ['city', 'town', 'village', 'municipality'];
 
 let lastAt = 0;
 const cache = new Map();
@@ -28,10 +34,17 @@ async function throttle({ now = Date.now, sleep = (ms) => new Promise((r) => set
   lastAt = now();
 }
 
+/** 一条结果里的城市（`addressdetails=1` 带回的 `address` 对象，§CITY_KEYS 顺序取第一个有值的）；一个都没有 ⟹ ''。 */
+function cityFromHit(hit) {
+  const a = hit && hit.address && typeof hit.address === 'object' ? hit.address : {};
+  for (const k of CITY_KEYS) if (typeof a[k] === 'string' && a[k].trim()) return a[k].trim();
+  return '';
+}
+
 /**
  * @param {string} address
  * @param {{ fetchImpl?: typeof fetch, now?: () => number, sleep?: (ms: number) => Promise<void>, log?: (m: string) => void }} [opts]
- * @returns {Promise<{ lat: number, lng: number } | null>}
+ * @returns {Promise<{ lat: number, lng: number, city?: string } | null>}  `city` 只在查到时才有
  */
 async function geocodeAddress(address, opts = {}) {
   const q = typeof address === 'string' ? address.trim() : '';
@@ -41,7 +54,7 @@ async function geocodeAddress(address, opts = {}) {
   const log = opts.log || (() => {});
   if (typeof fetchImpl !== 'function') { log('geocode: no fetch available'); return null; }
   await throttle(opts);
-  const url = `${NOMINATIM_URL}?${new URLSearchParams({ q, format: 'json', limit: '1' })}`;
+  const url = `${NOMINATIM_URL}?${new URLSearchParams({ q, format: 'json', limit: '1', addressdetails: '1' })}`;
   let result = null;
   const ac = typeof AbortController === 'function' ? new AbortController() : null;
   const timer = ac ? setTimeout(() => ac.abort(), TIMEOUT_MS) : null;
@@ -54,7 +67,10 @@ async function geocodeAddress(address, opts = {}) {
       const hit = Array.isArray(rows) ? rows[0] : null;
       const lat = hit ? Number(hit.lat) : NaN;
       const lng = hit ? Number(hit.lon) : NaN;
-      if (Number.isFinite(lat) && Number.isFinite(lng)) result = { lat, lng };
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        const city = cityFromHit(hit);
+        result = city ? { lat, lng, city } : { lat, lng };
+      }
       else log(`geocode: no result for "${q}"`);
     }
   } catch (e) {
@@ -68,13 +84,16 @@ async function geocodeAddress(address, opts = {}) {
 
 /**
  * 站点数据里第一个地点：地址有值就查一次写 `geo`，查不到就删掉 `geo`（不留一个指着别处的旧坐标）。原地改 `brand`。
+ * #1530 —— `city` 同一条规则：查到城市就写，查不到（或这次结果里没有城市那一格）就删掉旧的。
  * @returns {Promise<'set' | 'cleared' | 'skipped'>}
  */
 async function geocodeBrand(brand, opts = {}) {
   const loc = brand && Array.isArray(brand.locations) ? brand.locations[0] : null;
   if (!loc || typeof loc !== 'object') return 'skipped';
-  const geo = await geocodeAddress(loc.address, opts);
-  if (geo) { loc.geo = geo; return 'set'; }
+  const hit = await geocodeAddress(loc.address, opts);
+  if (hit && hit.city) loc.city = hit.city;
+  else delete loc.city;
+  if (hit) { loc.geo = { lat: hit.lat, lng: hit.lng }; return 'set'; }
   delete loc.geo;
   return 'cleared';
 }
@@ -109,4 +128,4 @@ async function refreshGeoAfterEdit(brandPath, before, opts = {}) {
 /** 单测用：清掉进程内的缓存与节流时间点。 */
 function _reset() { lastAt = 0; cache.clear(); }
 
-module.exports = { NOMINATIM_URL, USER_AGENT, MIN_INTERVAL_MS, geocodeAddress, geocodeBrand, refreshGeoAfterEdit, _reset };
+module.exports = { NOMINATIM_URL, USER_AGENT, MIN_INTERVAL_MS, CITY_KEYS, geocodeAddress, geocodeBrand, refreshGeoAfterEdit, _reset };

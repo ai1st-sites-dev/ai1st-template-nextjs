@@ -148,8 +148,9 @@ const SOURCES = {
     prompt: '{source: "address"}',
     fact: (ref, ctx) => contactFact('address', ref, ctx),
   },
-  // footer 的 `contact`：`{phone, email, address}`，取 `locations[location]` 和 `email`。没有的那一样不带（页脚空的不画）；
+  // footer 的 `contact`：`{phone, email, address, city}`，取 `locations[location]` 和 `email`。没有的那一样不带（页脚空的不画）；
   // 写了 `location` 而那一家不存在 ⟹ 空对象（整段联系信息不画）；没写 `location` 而一家门店都没有 ⟹ 只剩 `email`（#1520）。
+  // #1530 —— `city` 是那一家的 `city`（geocode 带回来的），`row` 底栏露它；没有就不带 —— 不从地址串猜。
   brand: {
     params: { location: INDEX },
     prompt: '{source: "brand"}',
@@ -159,6 +160,9 @@ const SOURCES = {
         const f = contactFact(k, ref, ctx);
         if (f) out[k] = f.text;
       }
+      const loc = locationOf(ref, ctx);
+      const city = loc ? trimmed(loc.city) : '';
+      if (city) out.city = city;
       return out;
     },
   },

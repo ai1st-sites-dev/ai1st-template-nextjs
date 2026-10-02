@@ -25,6 +25,9 @@ export interface BrandLocation {
   /** #1489 —— 这个地址的坐标：建站 / 改地址时由 `scripts/lib/geocode.js`（Nominatim）查一次写进来，页面打开时不查。
    *  contact 的地图点开时拿它算 bbox / marker；没有就不画地图。 */
   geo?: { lat: number; lng: number };
+  /** #1530 —— 这个地址所在的城市：跟 `geo` 同一次 Nominatim 请求带回来（`addressdetails`），查不到就没有这一格。
+   *  页脚 `row` 底栏露「电话 + 城市」读它；没有就那一格不画（不再从地址串猜）。 */
+  city?: string;
 }
 
 export interface BrandConfig {

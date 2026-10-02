@@ -748,7 +748,7 @@ const DEMO_SITE = {
   ],
   brand: {
     email: 'service@northsideauto.ca',
-    locations: [{ label: 'Northside Auto Care', address: '2150 Yonge St, Toronto, ON', phone: '(416) 555-0142', geo: { lat: 43.7056, lng: -79.3983 } }],
+    locations: [{ label: 'Northside Auto Care', address: '2150 Yonge St, Toronto, ON', phone: '(416) 555-0142', geo: { lat: 43.7056, lng: -79.3983 }, city: 'Toronto' }],
     // #1506 —— footer 的 `social: {source: "social"}` 从这里展开（数组那种存法；对象那种由 contact-refs.test.js 另测）。
     socialLinks: [
       { platform: 'google', url: 'https://g.page/northside-auto-care-toronto' },

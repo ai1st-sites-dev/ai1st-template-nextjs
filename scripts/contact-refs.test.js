@@ -199,6 +199,11 @@ console.log('\n── AC3 多门店：location 1 ⟹ 第二家');
   check(fc.phone === '+1 604-555-0199' && fc.address === '88 Queen St E, Toronto' && fc.email === BRAND.email, `页脚 contact ⟹ ${JSON.stringify(fc)}`);
   const first = resolve1('cta', { ctas: [phoneBtn()] }).ctas[0];
   check(first.href === 'tel:6045550142', `反向对照：不写 location ⟹ 第一家（${first.href}）`);
+  // #1530 —— 页脚 contact 带那一家的 `city`（geocode 写进 brand.locations[].city）；那一家没有 city ⟹ 不带这一格。
+  const withCity = { ...CTX, brand: { ...BRAND, locations: BRAND.locations.map((l, i) => (i === 1 ? { ...l, city: 'Toronto' } : l)) } };
+  const fc1 = footerData({ source: 'brand', location: 1 }, withCity).contact;
+  const fc0 = footerData({ source: 'brand' }, withCity).contact;
+  check(fc1.city === 'Toronto' && !('city' in fc0), `#1530 页脚 contact.city 跟着 location 走：第二家 ⟹ ${fc1.city}，第一家（没写 city）⟹ 不带（${JSON.stringify(fc0)}）`);
 }
 
 // ══ AC4 ══════════════════════════════════════════════════════════════════════════════════════════

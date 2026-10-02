@@ -64,7 +64,8 @@ export type FormMode = 'none' | 'teaser' | 'full';
 
 export interface FooterLink { label: string; href: string; icon?: string }
 export interface FooterButton { label: string; href: string; style?: BtnStyle }
-export interface FooterContact { phone?: string; address?: string; hours?: string; email?: string }
+/** #1530 —— `city`：`row` 底栏露「电话 + 城市」读它（`{source: "brand"}` 从 `brand.locations[].city` 展开）；没有就那一格不画，不从地址串猜。 */
+export interface FooterContact { phone?: string; address?: string; hours?: string; email?: string; city?: string }
 export interface FooterColumns { services?: FooterLink[]; areas?: FooterLink[]; contact?: boolean }
 export interface FooterCta { title?: string; subtitle?: string; buttons?: FooterButton[] }
 /** #1471 —— 块只选一张站级表单（空 = 第一张）；露多少是旋钮 `options.form`。 */
@@ -127,13 +128,6 @@ function btnClass(style: BtnStyle | undefined, onDark: boolean, large = false, s
   if (style === 'link') return `btn btn-link${size} ${onDark ? 'link-light' : ''}`;
   if (style === 'outline') return `btn${size} ${onDark ? 'btn-outline-light' : 'btn-outline-primary'}`;
   return `btn${size} ${solidLight ? 'btn-light' : 'btn-primary'}`;
-}
-
-/** 地址的最后一段当城市（`2150 Yonge St, Toronto` → `Toronto`）：`row` 底栏只露「电话 + 城市」。 */
-function cityOf(address: string | undefined): string {
-  if (!address) return '';
-  const parts = address.split(',').map((s) => s.trim()).filter(Boolean);
-  return parts.length ? parts[parts.length - 1] : '';
 }
 
 interface Props {
@@ -380,7 +374,7 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
       );
     }
     // row 左边电话 + 城市；columns 左边只有版权。右边版权 / 法务。
-    const city = cityOf(contact.address);
+    const city = contact.city || '';
     const left = layout === 'row'
       ? (contact.phone || city ? (
         <div className={`d-flex flex-wrap column-gap-4 row-gap-1 ${reverse ? 'flex-row-reverse' : ''}`}>
