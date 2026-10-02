@@ -107,6 +107,90 @@ console.log('② 块清单那一侧');
   //    单块路 #1444 删了；今天写链接的入口只剩走 `lib/page-write.js` §commitWrites 的那几个，源头帽盖得到。
 }
 
+// ══ ⑩ #1526：列表项 / 对象槽里套着的链接也在判据的射程里（纯函数，不用站）═══════════════════════════════
+// 修之前：同一个 `javascript:` 写在 hero 的 `ctaPrimary`（kind=link）里被拒、写在 hero-new 的 `ctas` 列表里放行 ——
+// §blockLinks 只走 kind=link 的槽。
+console.log('⑩ #1526：按钮列表、导航列表、对象槽里的按钮');
+{
+  const { linkRejection } = require(path.join(NEXT, 'scripts', 'lib', 'link-href.js'));
+  const { loadManifests } = require(path.join(NEXT, 'scripts', 'lib', 'block-manifest.js'));
+  const man = loadManifests();
+  const KINDS = ['page', 'any', 'site-blocks'];
+  // 三种 kind 各自要的那份文件形状：页面 `{blocks}` / 任意（同一份页面）/ 站级块库 `{<id>: 块}`
+  const docOf = (kind, blocks) => (kind === 'site-blocks'
+    ? Object.fromEntries(blocks.map((b, i) => [`b${i}`, { ...b, visibility: ['*'] }]))
+    : { blocks });
+  const rej = (kind, next, before) => linkRejection(kind, docOf(kind, next), before ? docOf(kind, before) : null);
+
+  // 票面那六个按钮列表（manifest 里 kind=list、项形状顶层必有 href）。先确认它们真在清单里，不然下面全是空跑。
+  const LISTS = [['hero-new', 'ctas'], ['content-new', 'ctas'], ['cta-new', 'ctas'], ['page-header-new', 'ctas'],
+    ['features-new', 'introCtas'], ['milestones', 'introCtas']];
+  for (const [t, s] of LISTS) {
+    const slot = man.get(t) && man.get(t).slots && man.get(t).slots[s];
+    if (!(slot && slot.kind === 'list' && /\bhref\b(?!\?)/.test(String(slot.shape)))) die(`${t}.${s} 不是项里带 href 的列表槽 —— 本格的前提变了`);
+  }
+  const btns = (t, s, ...hrefs) => [{ type: t, data: { [s]: hrefs.map((h, i) => ({ label: `Button ${i + 1}`, href: h, style: 'solid' })) } }];
+
+  // 判据 1：票面那条命令 —— 列表项和单个槽都拒，话里说得出是哪个块、第几项
+  const list = (h) => btns('hero-new', 'ctas', '/about', h);
+  const one = (h) => [{ type: 'hero', data: { ctaPrimary: { label: 'Call', href: h } } }];
+  const mL = rej('page', list('javascript:alert(1)'), list('/contact'));
+  const mO = rej('page', one('javascript:alert(1)'), one('/contact'));
+  check(typeof mL === 'string' && /"Button 2"/.test(mL) && /Hero \(Webpixels\) block/.test(mL) && /\(item 2\)/.test(mL),
+    '判据 1：列表项被拒，话里点名按钮字、块名、第 2 项', mL);
+  check(typeof mO === 'string' && /"Call"/.test(mO) && /Hero Section block/.test(mO) && !/\(item/.test(mO),
+    '判据 1：单个槽照旧被拒（不带「第几项」）', mO);
+
+  // 判据 2：引用照旧放行（六个列表 × phone / email × 三种 kind）；反向对照：同样的位置 javascript: 全拒
+  for (const [t, s] of LISTS) {
+    for (const kind of KINDS) {
+      const refs = [{ type: t, data: { [s]: [{ label: 'Call {phone}', href: { source: 'phone' } }, { label: 'Email', href: { source: 'email', location: 1 } }] } }];
+      check(rej(kind, refs, null) === null, `判据 2：${t}.${s} 里 {"source":"phone"} / {"source":"email"}，kind=${kind} → 放行`);
+      check(typeof rej(kind, btns(t, s, 'javascript:alert(1)'), null) === 'string', `判据 2 反向：${t}.${s} 里 javascript:，kind=${kind} → 拒`);
+    }
+  }
+
+  // 判据 3：老数据 —— before 里本来就有的坏链接原样留着 ⟹ 放行（挪了顺序也放行）；新加一个才拒
+  for (const kind of KINDS) {
+    const before = btns('cta-new', 'ctas', '/a', 'vbscript:legacy()');
+    check(rej(kind, btns('cta-new', 'ctas', '/a', 'vbscript:legacy()'), before) === null, `判据 3：老坏链接原样，kind=${kind} → 放行`);
+    check(rej(kind, btns('cta-new', 'ctas', 'vbscript:legacy()', '/b'), before) === null, `判据 3：老坏链接换了位置，kind=${kind} → 放行`);
+    const m = rej(kind, btns('cta-new', 'ctas', '/a', 'vbscript:legacy()', 'javascript:new()'), before);
+    check(typeof m === 'string' && /javascript:new\(\)/.test(m) && /\(item 3\)/.test(m), `判据 3：再新加一个坏的，kind=${kind} → 拒、点名第 3 项`, m);
+    check(typeof rej(kind, btns('cta-new', 'ctas', '/a', 'vbscript:legacy()', 'vbscript:legacy()'), before) === 'string',
+      `判据 3：同一个坏串多写一份（老的只放过一个），kind=${kind} → 拒`);
+  }
+
+  // 判据 4：清空 Link 格存成空串 —— 有意放行，跟单个槽同一个口径（hrefAllowed：空串 = 没填）
+  for (const kind of KINDS) {
+    check(rej(kind, btns('hero-new', 'ctas', ''), null) === null, `判据 4：列表项 href 是空串，kind=${kind} → 放行`);
+    check(rej(kind, [{ type: 'hero', data: { ctaPrimary: { label: 'Call', href: '' } } }], null) === null, `判据 4：单个槽 href 是空串，kind=${kind} → 放行（同一口径）`);
+  }
+
+  // 射程不止六个按钮列表：导航列表、对象槽里的按钮、两层列表
+  const deep = [
+    [{ type: 'footer-new', data: { legal: [{ label: 'Privacy', href: '/privacy' }, { label: 'Terms', href: 'javascript:x' }] } }, /\(item 2\)/],
+    [{ type: 'faq-new', data: { help: { headline: 'Help', cta: { label: 'Ask', href: 'javascript:x' } } } }, /"Ask"/],
+    [{ type: 'header-new', data: { topbar: { links: [{ label: 'Hours', href: 'data:text/html,x' }] } } }, /\(item 1\)/],
+    [{ type: 'team-new', data: { members: [{ name: 'A' }, { name: 'B', links: [{ icon: 'x', href: '/b' }, { icon: 'y', href: 'javascript:x' }] }] } }, /\(item 2\.2\)/],
+    [{ type: 'features-new', data: { items: [{ title: 't', text: 'x', link: { label: 'More', href: 'javascript:x' } }] } }, /"More".*\(item 1\)/],
+  ];
+  for (const [b, re] of deep) {
+    for (const kind of KINDS) {
+      const m = rej(kind, [b], null);
+      check(typeof m === 'string' && re.test(m), `射程：${b.type} 里套着的 javascript:/data:，kind=${kind} → 拒（${re}）`, m);
+    }
+  }
+  // 引用只放行按钮那两个源：页头顶条整项引用（没有 href 键）照常放行；不认识的 source 不归这里判（validateSite 报）
+  check(rej('page', [{ type: 'header-new', data: { topbar: { contact: [{ source: 'phone' }, { source: 'address' }] } } }], null) === null,
+    '页头顶条整项引用 {"source":"phone"} → 放行');
+
+  // 报文长度：按钮字 500、地址很长、套两层 —— 仍在 worker 截断线（600）以内，后半句「能填什么」完整
+  const longM = rej('page', [{ type: 'team-new', data: { members: [{ name: 'A' }, { name: 'B', links: Array.from({ length: 12 }, (_, i) => ({ label: 'x'.repeat(500), href: i === 11 ? `javascript:${'y'.repeat(900)}` : '/ok' })) }] } }], null);
+  check(typeof longM === 'string' && longM.length <= 600 && /Nothing was changed\.$/.test(longM) && /\(item 2\.12\)/.test(longM),
+    `报文长度：最长情形 ${longM && longM.length} 字 ≤ 600，结尾那句完整`, longM);
+}
+
 const work = makeSite();
 const home = path.join(work, 'site', 'en', 'pages', 'home.json');
 const nav = path.join(work, 'site', 'en', 'navigation.json');
@@ -226,6 +310,19 @@ console.log('⑨ commitWrites：顶层是数组的一份里埋一个坏链接 �
   try { pw.commitWrites([{ file, content: `${JSON.stringify(legacy, null, 2)}\n` }]); } catch (e) { err = e; }
   check(!err && read(file)[0].block.data.headline === 'Only the headline 1430', '顶层数组：老坏链接没碰 → 照写', err && err.message);
   fs.rmSync(file, { force: true });
+}
+
+// ══ ⑪ #1526：真进程 —— 编辑器存页面那两条路对按钮列表里的坏链接拒收 ═════════════════════════════════════
+// 修之前这里是 rc=0、坏链接落盘（票面那条命令的真路径版本）。
+console.log('⑪ 按钮列表里的坏链接（#1526）：write-page.js / write-editor-save.js 拒收');
+for (const href of BAD) {
+  const before = [fs.readFileSync(home, 'utf-8')];
+  const page = read(home);
+  page.blocks.push({ type: 'hero-new', data: { headline: 'List 1526', ctas: [{ label: 'Call us', href, style: 'solid' }] } });
+  const r1 = run(work, 'write-page.js', { page: 'home', locale: 'en', baseHash: sha(home) }, page);
+  expectRefused(`write-page.js hero-new.ctas ${href.split(':')[0]}:`, r1, [home], before);
+  check(/"Call us"/.test((r1.line && r1.line.message) || '') && /\(item 1\)/.test((r1.line && r1.line.message) || ''), '拒收的话点名按钮字和第几项', r1.line && r1.line.message);
+  expectRefused(`write-editor-save.js hero-new.ctas ${href.split(':')[0]}:`, run(work, 'write-editor-save.js', { page: 'home', locale: 'en', baseHash: sha(home) }, { page }), [home], before);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
