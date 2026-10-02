@@ -182,12 +182,15 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
   const mainReverse = reverse ? 'flex-column-reverse flex-md-row-reverse' : 'flex-column flex-md-row';
 
   // ── 部件 ──────────────────────────────────────────────────────────────────────────────────────
-  const brandMark = (big = false) => (
+  // `wrap`：只有 `columns` 传 true（#1524）。品牌列在 768 起是 `col-md-4`（768 宽 ~256px），`text-nowrap` 的长店名
+  // 按构造画出列外；`brand=right` 时列是 `align-items-end`，画出去的方向是屏幕右边 ⟹ 整页横向滚动（768 / 800 / 820
+  // 实测 scrollWidth 793 / 815 / 828）。放开之后只在放不下时才折行，放得下的宽度上一个像素都不变。
+  const brandMark = (big = false, wrap = false) => (
     // `flex-shrink-0`：row 一行里它是 flex 项，被挤的时候盒子缩、`text-nowrap` 的店名照样画出去，
     // 压到旁边的链接上（820 实测：reverse 时一直画到页脚外面）。
     <SiteLink className={`d-inline-flex flex-shrink-0 align-items-center gap-2 text-decoration-none ${headTone}`} href="/" data-footer-part="brand">
       {data.logo ? <img src={data.logo} alt="" className="h-rem-8 w-auto" /> : null}
-      <span className={`fw-semibold ${big ? 'fs-4' : 'fs-5'} text-nowrap`}>{brand}</span>
+      <span className={`fw-semibold ${big ? 'fs-4' : 'fs-5'} ${wrap ? '' : 'text-nowrap'}`}>{brand}</span>
     </SiteLink>
   );
 
@@ -333,7 +336,7 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
   const columnsBody = () => (
     <div className={`row gy-10 ${reverse ? mainReverse : ''}`} data-footer-main="">
       <div className={`col-12 col-md-4 d-flex flex-column gap-4 ${reverse ? 'align-items-end text-end' : 'align-items-start'}`} data-footer-col="brand">
-        {brandMark()}
+        {brandMark(false, true)}
         {tagline()}
         {/* 联系信息每个排布都在（本地 SEO 资产）：联系列不出（`columns.contact` 不是 true）时，
             电话 / 地址 / 营业时间挂到品牌列里，不让这个排布整个没有联系方式。 */}
@@ -387,7 +390,10 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
           {city ? <span className="d-inline-flex align-items-center gap-2"><InlineIcon name="geo-alt" icons={iconTable} />{city}</span> : null}
         </div>
       ) : null)
-      : <span>{copyright}</span>;
+      // columns + brand=right（#1524）：<768 竖排时法务那一行自己翻到右边（`linkRow` 不带断点的 `flex-row-reverse`），
+      // 版权是被拉满整行的块、文字照默认靠左 ⟹ 两行分家。推到右边跟法务、跟品牌列（`align-items-end`）一致；
+      // ≥768 它是一行里按内容宽的 flex 项，`text-md-start` 退回原样。
+      : <span className={reverse ? 'text-end text-md-start' : undefined}>{copyright}</span>;
     const right = layout === 'row'
       ? (
         <div className={`d-flex flex-wrap align-items-center column-gap-6 row-gap-1 ${reverse ? 'flex-row-reverse' : ''}`}>
