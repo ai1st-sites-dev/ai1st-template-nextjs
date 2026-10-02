@@ -150,11 +150,11 @@ function selftest() {
   const before = {
     slug: 'home',
     sections: [
-      { type: 'announcement-bar', data: { text: 'x' } },
       { type: 'hero', data: { headline: 'x' } },
-      { type: 'social-proof', data: {} },
-      { type: 'text-block', data: {} },
-      { type: 'cta-banner', data: {} },
+      { type: 'logos', data: {} },
+      { type: 'reviews', data: {} },
+      { type: 'content', data: {} },
+      { type: 'cta', data: {} },
     ],
   };
   const after = pageWithBlocks(JSON.parse(JSON.stringify(before)));

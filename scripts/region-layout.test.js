@@ -19,6 +19,9 @@
  *    要么该有遮罩的首屏没有。
  *    📌 这一格**不读组件**：组件那一半（`overlaid` 怎么算）由 e2e 看，这里守的是纯文本可判的那一半。
  *
+ * 📌 #1425（T3）—— 公告条那个区（topbar）随旧库退役，`REGION_BLOCK` 只剩 header / footer；新 header 没有透明浮层
+ *    形态，遮罩（`.header__scrim` / `data-over-hero`）一起删了 ⟹ 上面说的 ① ② 两格没有对象，原位删了。
+ *
  * 🔴 ④ 那格的清单**从 manifest 现取**（`shapesOf()`）——`HEADER_VARIANTS` 那三张写死的表随本票退役。
  */
 
@@ -40,87 +43,29 @@ const { resolveRegionShapes: resolve, shapesOf, REGION_BLOCK } = RL;
 
 const HEADER_SHAPES = shapesOf('header');
 const FOOTER_SHAPES = shapesOf('footer');
-const TOPBAR_SHAPES = shapesOf(REGION_BLOCK.topbar);
 const DEFAULT_HEADER = HEADER_SHAPES[0];
 const DEFAULT_FOOTER = FOOTER_SHAPES[0];
-const DEFAULT_TOPBAR = TOPBAR_SHAPES[0];
 
-// 夹具自检：这一格的整个意思建立在「透明浮层是清单里的一项、而且不是默认那一项」上面。
-if (!HEADER_SHAPES.length || !FOOTER_SHAPES.length || !TOPBAR_SHAPES.length) {
-  die(`某个区的形态清单是空的（header ${HEADER_SHAPES.length} · footer ${FOOTER_SHAPES.length} · `
-    + `topbar ${TOPBAR_SHAPES.length}）—— manifest 读不到就什么都没量成`);
+// 📌 #1425（T3）—— topbar 区退役：REGION_BLOCK 必须正好是 header / footer（多出一个区而这份测试不量它 = 静默）。
+if (JSON.stringify(Object.keys(REGION_BLOCK).sort()) !== JSON.stringify(['footer', 'header'])) {
+  die(`REGION_BLOCK 的区是 ${JSON.stringify(Object.keys(REGION_BLOCK))}，这份测试只量 header / footer —— 先把新区补进来`);
 }
-if (!HEADER_SHAPES.includes('transparent-overlay')) die('清单里没有 transparent-overlay —— 下面那几格在说别的事');
-if (DEFAULT_HEADER === 'transparent-overlay') die('默认 header 就是透明浮层 ⟹ 「两个条件」那一格分不出对错');
-
-const SHAPES_CSS = path.join(__dirname, '..', 'public', 'shapes.css');
-let css = '';
-try { css = fs.readFileSync(SHAPES_CSS, 'utf-8'); } catch (e) { die(`读不到 ${SHAPES_CSS}：${e.message}`); }
-// 注释里写着这两个属性名（讲它们为什么在一起），不剥掉的话下面那两格会把说明文字数成规则。
-const cssNoComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
-
-/** 把 CSS 切成 { 选择器, 声明块 }，@media 里的也算（这一格不关心它在哪个断点里）。 */
-function rulesOf(text) {
-  const out = [];
-  for (const m of text.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-    const sel = m[1].trim();
-    if (sel.startsWith('@')) continue;
-    out.push({ sel, body: m[2] });
-  }
-  return out;
-}
-const RULES = rulesOf(cssNoComments);
-if (RULES.length < 50) die(`从 shapes.css 只切出 ${RULES.length} 条规则 —— 尺子坏了（这份文件有上千行）`);
-
-// ── ① 开遮罩那条规则，两个条件必须【都】带 ───────────────────────────────────────────────────
-{
-  // 「开遮罩」= 选择器点名 `.header__scrim` 且声明里把它从 base.css 的 `display:none` 打开。
-  const openers = RULES.filter((r) => /\.header__scrim\b/.test(r.sel)
-    && /(^|[\s;{])display\s*:\s*(?!none)[a-z-]+/.test(r.body));
-  if (!openers.length) {
-    bad('shapes.css 里没有任何一条规则把 `.header__scrim` 打开 —— 那么透明浮层那一支【没有遮罩】，'
-      + '白字压浅底，就是 region-layout.js 文件头 ② 实测过的 1.00:1');
-  } else {
-    const missing = openers.filter((r) => !(/\[data-shape="transparent-overlay"\]/.test(r.sel)
-      && /\[data-over-hero="true"\]/.test(r.sel)));
-    if (missing.length) {
-      bad(`${missing.length} 条开遮罩的规则没有同时带两个条件：${missing.map((r) => r.sel).join(' · ')}`
-        + ' —— 只带形态那一个，about 页（第一段是 page-header）顶上也会压一条黑渐变；'
-        + '只带 data-over-hero 那一个，别的形态的首屏也会莫名其妙多一层。');
-    } else {
-      ok(`${openers.length} 条开遮罩的规则**都**同时带 [data-shape="transparent-overlay"] 与 [data-over-hero="true"]`);
-    }
-  }
+if (!HEADER_SHAPES.length || !FOOTER_SHAPES.length) {
+  die(`某个区的形态清单是空的（header ${HEADER_SHAPES.length} · footer ${FOOTER_SHAPES.length}）—— manifest 读不到就什么都没量成`);
 }
 
-// ── ② 反向：不许有任何一条只凭其中一个条件就开遮罩（否则 ① 用「一条都没有」也能满足）─────────
-{
-  const oneLegged = RULES.filter((r) => /\.header__scrim\b/.test(r.sel)
-    && /(^|[\s;{])display\s*:\s*(?!none)[a-z-]+/.test(r.body)
-    && (/\[data-shape="transparent-overlay"\]/.test(r.sel) !== /\[data-over-hero="true"\]/.test(r.sel)));
-  // 阳性对照：把两个条件之一从每条选择器里抹掉，这把尺必须当场点名 —— 否则它可能什么都没在看。
-  const rigged = rulesOf(cssNoComments.replace(/\[data-over-hero="true"\]/g, ''));
-  const caught = rigged.filter((r) => /\.header__scrim\b/.test(r.sel)
-    && /(^|[\s;{])display\s*:\s*(?!none)[a-z-]+/.test(r.body)
-    && (/\[data-shape="transparent-overlay"\]/.test(r.sel) !== /\[data-over-hero="true"\]/.test(r.sel)));
-  if (oneLegged.length) {
-    bad(`有 ${oneLegged.length} 条只凭一个条件就开遮罩：${oneLegged.map((r) => r.sel).join(' · ')}`);
-  } else if (!caught.length) {
-    bad('阳性对照失败：把 [data-over-hero="true"] 从整份 CSS 里抹掉，这把尺仍然一条都没点名 ⟹ 它没在看');
-  } else {
-    ok(`没有一条规则只凭单个条件开遮罩；阳性对照：抹掉 [data-over-hero="true"] 之后当场点名 ${caught.length} 条`);
-  }
-}
+// 📌 #1425（T3）—— 这里原来是 ① ②：`public/shapes.css` 里开 `.header__scrim` 遮罩的规则必须同时带
+//    `[data-shape="transparent-overlay"]` 与 `[data-over-hero="true"]`（含阳性对照）。透明浮层顶栏与它的遮罩
+//    随旧 header 删了（新 header 7 个预设里没有它，`SiteShell` 的 overHero 也删了）。
 
 // ── ③ 清单外的值必须落回默认，而且**返回值恒在清单里**（它会原样落进 DOM 的 data-shape）───────
 {
   const junk = ['transparent-overlay ', 'TRANSPARENT-OVERLAY', 'pill-floating; drop table', '../../etc/passwd', '{}'];
   const problems = [];
   for (const v of junk) {
-    const r = resolve({ header: v, footer: v, 'announcement-bar': v });
+    const r = resolve({ header: v, footer: v });
     if (r.header.shape !== DEFAULT_HEADER) problems.push(`header=${JSON.stringify(v)} ⟹ ${JSON.stringify(r.header.shape)}(该退回 ${DEFAULT_HEADER})`);
     if (r.footer.shape !== DEFAULT_FOOTER) problems.push(`footer=${JSON.stringify(v)} ⟹ ${JSON.stringify(r.footer.shape)}(该退回 ${DEFAULT_FOOTER})`);
-    if (r.topbar.shape !== DEFAULT_TOPBAR) problems.push(`topbar=${JSON.stringify(v)} ⟹ ${JSON.stringify(r.topbar.shape)}(该退回 ${DEFAULT_TOPBAR})`);
     if (!r.notes.some((n) => n.includes(String(v)))) problems.push(`退回了但 notes 里没说是因为 ${JSON.stringify(v)} —— 静默降级`);
   }
   if (problems.length === 0) {
@@ -133,34 +78,23 @@ if (RULES.length < 50) die(`从 shapes.css 只切出 ${RULES.length} 条规则 �
   const problems = [];
   for (const v of HEADER_SHAPES) if (resolve({ header: v }).header.shape !== v) problems.push(`header ${v}`);
   for (const v of FOOTER_SHAPES) if (resolve({ footer: v }).footer.shape !== v) problems.push(`footer ${v}`);
-  for (const v of TOPBAR_SHAPES) if (resolve({ [REGION_BLOCK.topbar]: v }).topbar.shape !== v) problems.push(`topbar ${v}`);
   if (problems.length === 0) {
-    ok(`清单里 ${HEADER_SHAPES.length}+${FOOTER_SHAPES.length}+${TOPBAR_SHAPES.length} 个形态全部原样通过(反向对照)`);
+    ok(`清单里 ${HEADER_SHAPES.length}+${FOOTER_SHAPES.length} 个形态全部原样通过(反向对照)`);
   } else bad(`这些清单内的形态没被原样通过:${problems.join(' · ')}`);
 }
 
-// ── ⑤ 两种键名都要认：选择单用块类型（announcement-bar），theme.json 用区名（topbar）─────────────
-//    #1353 —— 这两条路都活着（`site-regions.js` 把选择单和 theme.json 的 regionLayout 叠在一起传进来），
-//    只认一种的失败方向是静默的：候选图册那条路写的是区名，读不到就悄悄退回默认。
-{
-  const byBlock = resolve({ [REGION_BLOCK.topbar]: TOPBAR_SHAPES[0] }).topbar.shape;
-  const byRegion = resolve({ topbar: TOPBAR_SHAPES[0] }).topbar.shape;
-  const overrides = resolve({ [REGION_BLOCK.topbar]: TOPBAR_SHAPES[0], topbar: TOPBAR_SHAPES[0] }).topbar.shape;
-  if (byBlock === TOPBAR_SHAPES[0] && byRegion === TOPBAR_SHAPES[0] && overrides === TOPBAR_SHAPES[0]) {
-    ok(`块类型键（${REGION_BLOCK.topbar}）和区名键（topbar）都认得，两个一起给也不打架`);
-  } else {
-    bad(`两种键名没都认：按块类型 ${JSON.stringify(byBlock)} · 按区名 ${JSON.stringify(byRegion)}`);
-  }
-}
+// 📌 #1425（T3）—— 这里原来是 ⑤：「选择单用块类型键（announcement-bar）、theme.json 用区名键（topbar）两种都认」。
+//    区名与块名不同的只有公告条那一个区，它退役了 —— 今天 header / footer 两种键名逐字相同，这一格没有对象。
 
-// ── ⑥ 没换装（传 {}）⟹ 三个区都是各自 manifest 的第 0 项 ────────────────────────────────────
+// ── ⑥ 没换装（传 {}）⟹ 两个区都是各自 manifest 的第 0 项（#1425（T3）：topbar 区退役）─────────────
 {
-  const shape = (x) => JSON.stringify({ header: x.header.shape, footer: x.footer.shape, topbar: x.topbar.shape });
-  const want = JSON.stringify({ header: DEFAULT_HEADER, footer: DEFAULT_FOOTER, topbar: DEFAULT_TOPBAR });
+  const shape = (x) => JSON.stringify({ header: x.header.shape, footer: x.footer.shape, topbar: x.topbar });
+  // 🔴 #1425（T3）—— topbar 那一键必须**不在**返回值里（undefined）：退役的区又被解析出来 = 有人把它接回来了。
+  const want = JSON.stringify({ header: DEFAULT_HEADER, footer: DEFAULT_FOOTER, topbar: undefined });
   const r = resolve({});
   const r2 = resolve(undefined);
   if (shape(r) === want && shape(r2) === want && r.notes.length === 0) {
-    ok(`没换装(传 {} 或 undefined)⟹ ${DEFAULT_HEADER} / ${DEFAULT_FOOTER} / ${DEFAULT_TOPBAR}，notes 为空`);
+    ok(`没换装(传 {} 或 undefined)⟹ ${DEFAULT_HEADER} / ${DEFAULT_FOOTER}，没有 topbar 键，notes 为空`);
   } else {
     bad(`没换装时的结论变了:{} ⟹ ${shape(r)} · undefined ⟹ ${shape(r2)},期望 ${want}`);
   }
@@ -179,7 +113,7 @@ if (RULES.length < 50) die(`从 shapes.css 只切出 ${RULES.length} 条规则 �
     }
   }
   if (problems.length === 0) {
-    ok(`三个区的形态清单逐项等于它们各自 manifest 的 shapes（${Object.values(REGION_BLOCK).join(' / ')}）`);
+    ok(`两个区的形态清单逐项等于它们各自 manifest 的 shapes（${Object.values(REGION_BLOCK).join(' / ')}）`);
   } else problems.forEach(bad);
 }
 

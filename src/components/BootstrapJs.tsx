@@ -11,13 +11,13 @@
 // 惰性 chunk，**不在**页面的静态 chunk 清单里（所以「这一页有没有加载它」要看浏览器的网络请求，不看 chunk 清单，
 // PM #1495 裁定 1；量法在 `tests/e2e/specs/1494-testimonials-carousel-js.spec.ts` / `1514-bootstrap-js.spec.ts`）。
 //
-// 🔴 只引单个模块（`bootstrap/js/dist/<模块>`），不引整份 bundle、不引包根（`gallery-new-render.test.js` 全仓 grep 守着）。导入即生效：模块自己在
+// 🔴 只引单个模块（`bootstrap/js/dist/<模块>`），不引整份 bundle、不引包根（`gallery-render.test.js` 全仓 grep 守着）。导入即生效：模块自己在
 //    document 上注册 data-api（`data-bs-toggle="modal|collapse"` / `data-bs-slide` / `data-bs-dismiss` 的点击委托、
 //    Esc、焦点锁定、关掉后把焦点还给触发它的那个链接）—— 块的 markup 只写 Bootstrap 的 data 属性，不写事件处理。
-//    （Collapse 自己不管 Esc；要 Esc 关的块自己挂一个 keydown 调 `getInstance(el).hide()`，header-new 就是这么做的。）
-// 🔴 不是「只要 Bootstrap 做得了就一定换」：换了会打破一条已成立判据的（contact-new 的地图：点之前 iframe 不进 DOM
+//    （Collapse 自己不管 Esc；要 Esc 关的块自己挂一个 keydown 调 `getInstance(el).hide()`，header 就是这么做的。）
+// 🔴 不是「只要 Bootstrap 做得了就一定换」：换了会打破一条已成立判据的（contact 的地图：点之前 iframe 不进 DOM
 //    才不发站外请求，Collapse 只管 display），写清代价交 PM / Chris 拍（#1514 正文 ②）；Bootstrap 没有对应组件的
-//    （pricing-new 月付 / 年付换的是渲染出来的数字）留 React。
+//    （pricing 月付 / 年付换的是渲染出来的数字）留 React。
 // 🔴 这些类只由 Bootstrap 的 JS 在运行时加上，源码里别处一次都不出现，而 `public/site.css` 是按
 //    `blocks/**/*.tsx` + `src/**/*.tsx` 的源码 purge 的（`scripts/lib/site-css.js` §PURGE_CONTENT）——
 //    不在这里逐字列一遍，打开弹窗那一刻它们的规则已经被删掉了（弹窗不显示、背景不变暗、轮播不滑、抽屉收不起）：

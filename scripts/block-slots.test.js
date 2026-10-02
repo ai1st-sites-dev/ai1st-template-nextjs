@@ -17,6 +17,7 @@
 //    组件的 TS 类型里抠字段，而 `contact-form` / `services-list` / `services-nav` 三个 .tsx 里没有
 //    `data: {` 可解析，它给这三个写 `data: {}` —— 用它当夹具，contact-form 那四个文字槽整块看不见。
 //    （这不是推测：那两句话就写在 `gen-allblocks.js` 自己的注释里。）
+//    📌 #1425（T3）：上面点名的 blog-preview / contact-form / services-list / services-nav 都随旧库删了，留着是讲来历。
 
 const fs = require('fs');
 const path = require('path');
@@ -83,7 +84,7 @@ const STUBS = {
     + 'getServices:()=>[],'
     + 'pagesByLocale:{en:[{slug:"serviceSlug-text/a",title:"A"},{slug:"serviceSlug-text/b",title:"B"}]},'
     + 'localeUrl:(s)=>"/"+s,siteId:"t",leadApi:"",'
-    // #1497 —— 同一个理由：`blog-new` 在站里一篇博客都没有时**整块 return null**，给空数组就会被报成「漏挂了」。
+    // #1497 —— 同一个理由：`blog` 在站里一篇博客都没有时**整块 return null**，给空数组就会被报成「漏挂了」。
     + 'getBlogPosts:()=>[{slug:"p",title:"P",excerpt:"E",content:"<p>x</p>",category:"C",tags:[],author:"A",publishedAt:"2026-09-01",seo:{metaTitle:"",metaDescription:""}}],'
     + 'brand:{locations:[],email:"a@b.c"}};\n'),
 };
@@ -117,33 +118,30 @@ const LIST_ITEMS = 3;
 // 有些字段不带 `editLabel`，但**不给就画不出来**（组件读它决定画不画、或者 `.map` 它）。
 // 这里只补这一类，每一条都写清为什么 —— 补多了会让这道检查看起来比实际覆盖得宽。
 const EXTRA = {
-  'blog-preview': { fromBlog: false },        // 为真时画的是站里真实的博客文章，不是 data.posts
-  'testimonials': { _item: { id: 'x', rating: 5 } }, // rating 用来画星星（Array.from 要一个数）
-  'pricing-table': { _item: { features: ['f1', 'f2'] } }, // tier.features.map
-  'social-proof': { _item: { rating: '4.9', reviews: '100' } },
-  'content-split': { _item: { value: 'v', label: 'l' } },
+  // 📌 #1425（T3）—— 这里原来还有 blog-preview / pricing-table / social-proof / content-split 四条，以及旧 testimonials
+  //    那条（`_item: {id, rating}`，早被下面同名键盖掉）；这几个旧块随旧库删了。
   // #1463 —— logo 行只在有图时画（一行说明字底下没有 logo 是没意义的）。
-  'hero-new': { logos: { caption: 'logos-caption', items: [{ imageUrl: '/a.png' }] } },
+  'hero': { logos: { caption: 'logos-caption', items: [{ imageUrl: '/a.png' }] } },
   // #1489 —— contact items 按 kind 画：phone / email / address / hours 的值读站点数据（这里的 config 替身没有），
   //    link 自带 href、值就是标题 ⟹ 用 link 才每条都画得出来（没有 kind 的条目组件整条不画）。
-  'contact-new': { _item: { kind: 'link', href: '/x' } },
+  'contact': { _item: { kind: 'link', href: '/x' } },
   // #1483 —— 同上（logo 行只在有图时画）；月付 / 年付切换只在有套餐填了 price.yearly 时画，价格那一行（带 period）只在有价时画。
-  'pricing-new': { logos: { caption: 'logos-caption', items: [{ imageUrl: '/a.png' }] }, _item: { price: { monthly: '$1', yearly: '$2' } } },
+  'pricing': { logos: { caption: 'logos-caption', items: [{ imageUrl: '/a.png' }] }, _item: { price: { monthly: '$1', yearly: '$2' } } },
   // #1488 —— 总评分那一行只在 `summary.rating` 是一个真数字（0–5）时画；夹具造的 `summary-rating` 画不出来。
-  //    #1500 —— summary 改成一组平台：每个平台要 rating 0–5、count 正数才画，所以整份给（同下面 reviews-new 那条）。
-  'testimonials-new': { summary: [{ source: 'summary-0-source', rating: 4.5, count: 10 }, { source: 'summary-1-source', rating: 4, count: 3 }] },
+  //    #1500 —— summary 改成一组平台：每个平台要 rating 0–5、count 正数才画，所以整份给（同下面 reviews 那条）。
+  'testimonials': { summary: [{ source: 'summary-0-source', rating: 4.5, count: 10 }, { source: 'summary-1-source', rating: 4, count: 3 }] },
   // #1495 —— 照片墙的每一项没有图就不画（`slots.items.itemRequires`，validateSite 也拦）。
-  'gallery-new': { _item: { image: { imageUrl: '/a.png', alt: '' } } },
+  'gallery': { _item: { image: { imageUrl: '/a.png', alt: '' } } },
   // #1504 —— 平台那一格只在 rating 是 0–5 的数、count 是正数时画（夹具造的 `platforms-0-rating` 画不出来 —— 它会盖掉 `_item`，
   //    所以整份给）。
-  'reviews-new': { platforms: [{ source: 'platforms-0-source', rating: 4.5, count: 10 }, { source: 'platforms-1-source', rating: 4, count: 3 }] },
+  'reviews': { platforms: [{ source: 'platforms-0-source', rating: 4.5, count: 10 }, { source: 'platforms-1-source', rating: 4, count: 3 }] },
 };
 
-// #1463 —— 同一个块、互斥的两支：hero-new 有表单时不画 `ctas`（提交键就是 CTA），没表单时不画表单。
+// #1463 —— 同一个块、互斥的两支：hero 有表单时不画 `ctas`（提交键就是 CTA），没表单时不画表单。
 // 一份夹具按构造只走得到一支，所以这种块渲染**几次**、每次换一组旋钮，钩子取并集。每一支都要真的渲染
 // 出东西 —— 并集只是把两次读数合起来，不是放宽判据。
 const VARIANTS = {
-  'hero-new': [{ options: { form: 'none' } }, { options: { form: 'full' } }],   // #1470：form 旋钮 none | teaser | full
+  'hero': [{ options: { form: 'none' } }, { options: { form: 'full' } }],   // #1470：form 旋钮 none | teaser | full
 };
 
 function fixtureFor(type, manifest) {
@@ -193,10 +191,10 @@ function fixtureFor(type, manifest) {
 //
 // ⟹ 留给 QA2 的那一半：这两条要在**真浏览器**上填一次表、提交，看那一屏上有没有这个属性
 //    （AC3 / AC4 本来就要在真站上走一遍，顺带就能看）。
-const STATE_ONLY = {
-  'contact-form.successMessage': '只在表单提交成功那一屏出现（ContactFormSection 的 useState）',
-  'hero-with-form.form.successMessage': '同上，在 HeroLeadForm 里',
-};
+// 📌 #1425（T3）—— 原来这里点名两条：`contact-form.successMessage` / `hero-with-form.form.successMessage`；
+//    两个块随旧库删了。新库今天没有一条 editLabel 只在提交成功那一屏出现（现取：全部 manifest 的 editableSlotPaths 里
+//    含 `success` 的 0 条），所以这张表是空的；第 ④ 节照旧会把它的条数打出来，将来有了再往这里加。
+const STATE_ONLY = {};
 
 // ── 渲染一个块，把产物里的 data-slot 抠出来 ─────────────────────────────────────────────────────
 function slotsInOutput(type, manifest) {
@@ -229,6 +227,7 @@ try {
 console.log('\n── ① manifest 上标的 editLabel，跟产物里挂的 data-slot 两边差集都为空');
 const noSlotBlocks = [];
 const skipped = [];
+let renderedBlocks = 0;
 {
   const onlyManifest = [];
   const onlyOutput = [];
@@ -256,6 +255,7 @@ const skipped = [];
     }
     for (const p of got.paths) if (!want.has(p)) onlyOutput.push(`${type}.${p}`);
   }
+  renderedBlocks = blocks;
   if (onlyManifest.length) {
     bad(`manifest 标了 editLabel 而组件没挂 data-slot（面板会给一个改不动任何东西的输入框）：\n     `
       + onlyManifest.join('\n     '));
@@ -270,14 +270,18 @@ const skipped = [];
 
 // 🔴 防「两边都空也算相等」。一个 `data-slot` 都没有的块只许是那两个 —— 它们的 `slots` 本来就是空的
 //    （自己从 services.json 取内容）。少了这一格，一次把全部钩子删光的改动会让上面两格**全绿**。
-console.log('\n── ② 防「两边都空」：产物里一个 data-slot 都没有的块，只许是那两个');
+// 📌 #1425（T3）—— 原来「只许是那两个」指 `services-list` / `services-nav`（slots 为空、自己从 services.json 取内容）；
+//    两个块随旧库删了，新库里每个经 SectionRenderer 的块都有 editLabel ⟹ 允许名单今天是空的：**一个都不许没有钩子**。
+//    另加分母：真渲染过的块不能少于 manifest 里非外壳区的块数（少了 = 有块渲染失败或被跳过，① 的绿不作数）。
+console.log('\n── ② 防「两边都空」：产物里一个 data-slot 都没有的块，今天一个都不许有');
 {
-  const allowed = ['services-list', 'services-nav'];
+  const allowed = [];
   const unexpected = noSlotBlocks.filter((t) => !allowed.includes(t));
-  const missing = allowed.filter((t) => !noSlotBlocks.includes(t));
+  const expectRendered = [...manifests.keys()].filter((t) => !NO_SLOT_PATH_BLOCKS.includes(t)).length;
   if (unexpected.length) bad(`这些块的产物里一个 data-slot 都没有：${unexpected.join(' / ')}`);
-  else if (missing.length) bad(`${missing.join(' / ')} 竟然挂上了 data-slot —— 它们的 slots 是空的，不该有`);
-  else ok(`没有钩子的块恰好是 ${allowed.join(' 和 ')}（这两份 manifest 的 slots 本来就是空的）`);
+  else if (renderedBlocks !== expectRendered || expectRendered < 10) {
+    bad(`① 真渲染了 ${renderedBlocks} 个块，而 manifest 里非外壳区的块有 ${expectRendered} 个 —— 分母对不上，上面的绿不作数`);
+  } else ok(`① 真渲染的 ${renderedBlocks} 个块（= manifest 里非外壳区的全部）每个都挂着 data-slot`);
 }
 
 // ── ③ 证明它真会红（AC1 点名的两处，各弄坏一次）──────────────────────────────────────────────
@@ -286,14 +290,15 @@ console.log('\n── ② 防「两边都空」：产物里一个 data-slot 都�
 console.log('\n── ③ 证明这道守卫真会红：两个方向各弄坏一次');
 {
   // 方向一：组件里删掉一个 data-slot ⟹ 必须红，而且点名那一条路径。
-  const file = componentFileFor('team-grid');
+  // #1425（T3）：team-grid 随旧库删了，换成继任的 team（同样有 data-slot="headline" 和 headline 的 editLabel）。
+  const file = componentFileFor('team');
   const src = fs.readFileSync(file, 'utf-8');
   const marker = ' data-slot="headline"';
   if (!src.includes(marker)) {
-    bad(`夹具不成立：team-grid 的组件里找不到 ${marker}`);
+    bad(`夹具不成立：team 的组件里找不到 ${marker}`);
   } else {
     sourceOverride.set(file, src.replace(marker, ''));
-    const got = slotsInOutput('team-grid', manifests.get('team-grid'));
+    const got = slotsInOutput('team', manifests.get('team'));
     sourceOverride.delete(file);
     if (got.error) bad(`弄坏之后渲染抛了：${got.error}`);
     else if (got.paths.has('headline')) bad('把 data-slot="headline" 删掉之后，产物里居然还有它 —— 这把尺子读的不是产物');
@@ -301,14 +306,14 @@ console.log('\n── ③ 证明这道守卫真会红：两个方向各弄坏一
   }
 
   // 方向二：manifest 上多一个没人渲染的 editLabel ⟹ 必须红。
-  const m = manifests.get('team-grid');
+  const m = manifests.get('team');
   const before = editableSlotPaths(m).map((x) => x.path);
   const fake = JSON.parse(JSON.stringify(m));
   fake.slots.headline.editLabel = { nobodyRendersThis: 'Ghost' };
   const after = editableSlotPaths(fake).map((x) => x.path);
-  const got = slotsInOutput('team-grid', m);
+  const got = slotsInOutput('team', m);
   if (got.error) {
-    bad(`渲染 team-grid 抛了：${got.error}`);
+    bad(`渲染 team 抛了：${got.error}`);
   } else if (!after.includes('headline.nobodyRendersThis')) {
     bad(`夹具不成立：加了假 editLabel 之后路径里没有它（${after.join(' ')}）`);
   } else if (got.paths.has('headline.nobodyRendersThis')) {
@@ -329,7 +334,7 @@ console.log('\n── ④ 渲染一次够不着的那几条（只在提交成功
     // 源码里找 —— 这几条的钩子写成字面量，所以字面量查得到。
     // #1387 —— 组件搬进了 `blocks/<块>/Section.tsx`，所以扫的是那一批（外加 `src/components/sections/`
     // 里剩下的那些不是块的零件，例如 HeroLeadForm.tsx）。
-    // #1463 —— 只扫**这个块自己文件夹里**的每一份 .tsx（块可以有自己的零件文件，例如 `blocks/contact-new/ContactMap.tsx`）：
+    // #1463 —— 只扫**这个块自己文件夹里**的每一份 .tsx（块可以有自己的零件文件，例如 `blocks/contact/ContactMap.tsx`）：
     //    按字面串找，扫全部块文件夹的话 `form.successMessage` 会在别的块的文件里命中，报出一个错的出处。
     const own = path.join(NEXT, 'blocks', type);
     const files = [
@@ -369,17 +374,22 @@ console.log('\n── ⑤ 外壳区（header / footer）没漏进来：组件里
     if (hits) bad(`blocks/${f}/Section.tsx 里有 ${hits} 处 data-slot —— 外壳区本轮不在这一维里（它们渲染出来没有 data-block-id，检查器点不中）`);
     else ok(`blocks/${f}/Section.tsx：data-slot 命中 0`);
   }
-  // `footer.copyright` / `footer.description` 是 `kind: text` 却没有 `editLabel` —— 这两个槽位正是
-  // 「跳过外壳区」那条规则在挡的那一格。它们要是被人顺手标上，第 ① 节会红；这里钉的是反过来那句：
-  // 今天它们没标，而校验器（上面 loadManifests 已经跑过一遍）**没有**因此红。
-  const footer = manifests.get('footer');
-  if (!footer) bad('blocks/footer/ 读不出来');
-  else {
-    const both = ['copyright', 'description'].map((k) => [k, footer.slots && footer.slots[k]]);
-    const wrong = both.filter(([, spec]) => !spec || spec.kind !== 'text' || spec.editLabel !== undefined);
-    if (wrong.length) bad(`footer 的 ${wrong.map(([k]) => k).join(' / ')} 不是「kind: text 且没有 editLabel」了 —— 外壳区这一轮不该动`);
-    else ok('footer.copyright / footer.description 仍是 kind: text 且没有 editLabel，而校验器没红（跳过外壳区那条规则在起作用）');
+  // 外壳区 manifest 上 `kind: text` 却没有 `editLabel` 的槽位，正是「跳过外壳区」那条规则在挡的那一格。
+  // 它们要是被人顺手标上，第 ① 节会红；这里钉的是反过来那句：今天它们没标，而校验器（上面
+  // loadManifests 已经跑过一遍）**没有**因此红。
+  // 📌 #1425（T3）：原来点名 `footer.copyright` / `footer.description`（旧 footer）；新 footer 没有 description
+  //    （那份文字派生成 `tagline`），所以改成现取两个外壳块全部的 kind: text 槽，分母不许是 0。
+  const texts = [];
+  for (const f of ['header', 'footer']) {
+    const m = manifests.get(f);
+    if (!m) { bad(`blocks/${f}/ 读不出来`); continue; }
+    for (const [k, spec] of Object.entries(m.slots || {})) if (spec && spec.kind === 'text') texts.push([`${f}.${k}`, spec]);
   }
+  const labelled = texts.filter(([, spec]) => spec.editLabel !== undefined);
+  if (!texts.length) bad('header / footer 的 manifest 上一个 kind: text 槽都没数到 —— 这一格什么都没查');
+  else if (!texts.some(([k]) => k === 'footer.copyright')) bad('footer.copyright 不是 kind: text 了 —— 外壳区这一轮不该动');
+  else if (labelled.length) bad(`外壳区的 ${labelled.map(([k]) => k).join(' / ')} 标了 editLabel —— 外壳区这一轮不在这一维里`);
+  else ok(`外壳区 ${texts.length} 个 kind: text 槽（${texts.map(([k]) => k).join(' ')}）都没有 editLabel，而校验器没红（跳过外壳区那条规则在起作用）`);
 }
 
 console.log(`\n══ ${pass} 过 / ${fail} 败 ══`);

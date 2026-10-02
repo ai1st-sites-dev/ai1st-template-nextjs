@@ -77,9 +77,9 @@ const ACCOUNTED = new Map([
   // 外壳（不进页面 JSON、不进注册表），所以理由一个字没变，变的只是它住在哪儿。
   ['blocks/footer/Section.tsx', '页脚里那份服务清单 —— 站级外壳，说在明处不算'],
   // #1471 —— 块里的表单部件（`src/components/BlockLeadForm.tsx`）不再自己读服务清单：需求下拉的选项由每个块自己的
-  // Section.tsx 读好传进去 ⟹ 页面块（hero-new / contact-new / cta-new）按注册表各自归属，进 `types`；原来那条
-  // 「BlockLeadForm = footer-new 站级外壳」的豁免替两个页面块兜着（少报是静默的），删了。剩下的外壳那一份在这里：
-  ['blocks/footer-new/Section.tsx', 'footer-new 页脚表单的服务下拉 —— 站级外壳（不进页面 JSON、不在注册表里），说在明处不算'],
+  // Section.tsx 读好传进去 ⟹ 页面块（hero / contact / cta）按注册表各自归属，进 `types`；原来那条
+  // 「BlockLeadForm = footer 站级外壳」的豁免替两个页面块兜着（少报是静默的），删了。剩下的外壳那一份在这里：
+  ['blocks/footer/Section.tsx', 'footer 页脚表单的服务下拉 —— 站级外壳（不进页面 JSON、不在注册表里），说在明处不算'],
   ['src/components/JsonLd.tsx', '每页都发的那份 LocalBusiness 结构化数据 —— 站级外壳，不算'],
   ['src/components/pages/SubPage.tsx', '服务详情页自己那份 Service 结构化数据 —— 下面 isServiceDetailPage 那条'],
   // #1505 —— 列表槽的引用写法（`items: {source: "services"}`）展开时替展开函数取服务目录的那一处。它到达哪几页

@@ -47,8 +47,8 @@ function primaryOf(brand) {
  * #1477 —— 深底（`bg` 填了深色 / `brand` / 深渐变）上的小字：白 .92，不是灰（Chris 2026-09-28：紫→金渐变上 .7 的灰字
  * 看不清）。**全站只有这一条**，各块的 `block.css` 里不再各写一份。
  * 🔴 它按各块【已有的】标记去选，不另发明一个类名：换类名就等于改了深底 / brand 那几格的 HTML，而 #1477 AC3 要那几格
- *    跟改前逐字相同。三种标记：hero-new / cta-new 根上的 `data-tone`（小字是 `.text-muted`）、footer-new 的
- *    `ftr-muted-on-dark`、header-new 的 `hdr-muted-on-deep`。
+ *    跟改前逐字相同。三种标记：hero / cta 根上的 `data-tone`（小字是 `.text-muted`）、footer 的
+ *    `ftr-muted-on-dark`、header 的 `hdr-muted-on-deep`。
  * 🔴 特异度要落在两者之间：压得过 Webpixels 的 `.text-muted`（0-1-0，带 `!important`），压不过块自己点名的
  *    反白规则（`[data-block=…][data-tone=…] .hro-eyebrow-dash` 这类，0-3-0，要纯白）—— 所以这里是 0-2-0。
  * 放在这份 CSS 里是因为它挂全站、在 shapes.css 之前加载（`src/app/layout.tsx`），而 shapes.css 只许装块自己的规则
@@ -90,8 +90,8 @@ const ON_DEEP_FORM = [
  * 配色算出来、写进 `theme.css` 的 `:root`）。改前 Webpixels 把底写死成 `$primary` = primary-500 —— ember-12 的 500 是
  * `#907230`，白字声明 4.54:1，14px 的 btn-sm 画出来只有 4.30:1（theme-css 实测）；同一个站的旧按钮早被梯子挪到 600 档。
  * 变量缺席（不经 sync-config 的页面）⟹ 落回 Webpixels 自己那几个值，等于改前。
- * 🔴 为什么收成全站一条：在这之前是各块在自己的 `block.css` 里接（hero-new / cta-new / features-new / pricing-new /
- *    milestones 各一份），contact-new / header-new / footer-new 没接 ⟹ 每个新块都得记得抄一次，漏了就是 500 档。那五份
+ * 🔴 为什么收成全站一条：在这之前是各块在自己的 `block.css` 里接（hero / cta / features / pricing /
+ *    milestones 各一份），contact / header / footer 没接 ⟹ 每个新块都得记得抄一次，漏了就是 500 档。那五份
  *    留着不删：变量在时值跟这里相同，特异度更高，只是不再是唯一的那一处。
  * 特异度跟 Webpixels 的 `.btn-primary` 相同（0-1-0），排在 `@import` 之后 ⟹ 靠源码次序压过它。
  */
@@ -146,7 +146,7 @@ const SCHEME_SURFACES = [
   '  --scheme-ink-faint: var(--x-tertiary-color);',
   '  --scheme-line: var(--x-border-color);',
   // 主色写的字（不是 `.text-primary` 这类工具类、是块 CSS 自己写的 `color`）：深色站换成 `-text-emphasis`，理由同下面
-  // `.text-primary` 那一段。#1472 r3：blog-new 没封面时的分类名，ember-12 深色站上 3.71:1（QA2 量到）。
+  // `.text-primary` 那一段。#1472 r3：blog 没封面时的分类名，ember-12 深色站上 3.71:1（QA2 量到）。
   '  --scheme-primary-ink: var(--x-primary-text-emphasis);',
   // 标题色在 light 下是 `inherit`（`$headings-color: inherit`，#1463：旧块的标题靠继承上色），Webpixels 的 dark 那张表
   // 又把它写成 `#fff` ⟹ 深色站上旧块浅底里的标题变白（theme-css-invariants 实测 quote-form 的 h2 1.21:1）。dark 也让它
@@ -161,7 +161,7 @@ const SCHEME_SURFACES = [
   '}',
   // 同一个原因的另一半：Webpixels 在 light 下有三个变量的值是关键字 `inherit`（`--x-heading-color` 是 `$headings-color: inherit`
   // 那一行编出来的）。自定义属性写 `inherit` = 从父元素拿这个变量 ⟹ 嵌在深色站里的浅色块，拿到的是 dark 的 `#fff` ——
-  // 白底白标题（实测 hero-new 的 h1 1.01:1）。`initial` = 没有值，`color: var(--x-heading-color)` 失效、回到继承块里的字色，
+  // 白底白标题（实测 hero 的 h1 1.01:1）。`initial` = 没有值，`color: var(--x-heading-color)` 失效、回到继承块里的字色，
   // 跟浅色站上它的样子一致。特异度 0-2-0：要压过 Webpixels 的 `[data-bs-theme=light]`（0-1-0）。
   '[data-block][data-bs-theme=light] {',
   '  --x-heading-color: initial;',
@@ -204,6 +204,12 @@ function siteScss(primary) {
     // 全站，而旧块的主题靠**继承**给标题上色：`h1–h4 { color: var(--x-heading-color) }` 一条就把深底上的浅色
     // 标题盖成 #171717（theme-css-invariants 实测 ember-12 的 services-list 标题 1.66:1）。
     '$headings-color: inherit;',
+    // #1425 —— 灰字（`.text-muted` / `--x-secondary-color`）从正文色的 .75 提到 .9。Webpixels 的正文色本身是中灰
+    // `$gray-600` #525252，.75 压白底只有 4.12:1（声明值），Karla 这类细字体在截图像素上更淡（ember-12 实测 3.39:1），
+    // 都不到 4.5。新库 68 处灰字（hero 副标题 / page-header 副标题 / cta 正文 …）共用这一个色，所以改在这里。
+    // 深色那张表（`_variables-dark.scss:7`）同一个写法，一起改。两边都写字面色：`$gray-*` 在 @import 之前还没定义。
+    '$body-secondary-color: rgba(#525252, .9);',
+    '$body-secondary-color-dark: rgba(#d4d4d4, .9);',
     '@import "@webpixels/css/all";',
     '',
     ON_DEEP_MUTED,
@@ -259,7 +265,7 @@ async function purgeSiteCss(css, { rootDir = NEXT_DIR, content = PURGE_CONTENT }
     css: [{ raw: css }],
     // #1472 —— `greedy: [/data-bs-theme/]`：深色站那几段 `[data-bs-theme=dark]` 规则写死留下。PurgeCSS 只在内容里
     //    **同时**出现 `data-bs-theme` 和 `dark` 两个词时才留这类规则；不写死的话，留不留取决于源码里碰巧有没有这两个词
-    //    （改前就是靠 `header-new/Section.tsx` 一条注释留下的，那条注释一清，深色站整站失色、构建照样绿）。
+    //    （改前就是靠 `header/Section.tsx` 一条注释留下的，那条注释一清，深色站整站失色、构建照样绿）。
     safelist: { variables: [...THEME_COLOR_VARIABLES, ...SCHEME_VARIABLES], greedy: [/data-bs-theme/] },
     fontFace: true,
     keyframes: true,

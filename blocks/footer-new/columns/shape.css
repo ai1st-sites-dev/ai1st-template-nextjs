@@ -1,8 +1,0 @@
-/* ── footer-new · columns = 预设（layout=columns · cta=none）────────────────────────────────────────
-   🔴 #1464 起这个文件夹**只是一个名字**：预设 = 旋钮的一组值（manifest 的 `presets`；#1469 起三个：layout · brand · cta），排版全在
-      `blocks/footer-new/block.css`，按 Section 从旋钮派生的类（`ftr-layout-*` / `ftr-cta-*`）点名 ——
-      旋钮能拧成预设表外的组合（Custom），那种组合没有文件夹，几何按文件夹写就无处可落。
-   🔴 下面这条空规则是**锚点**，别删（理由同 `blocks/header-new/stacked/shape.css`）：`readShapeDir` 拒绝
-      空的 shape.css；`theme-pipeline/pool.test.js` §⑪ 要主题选择单里的名字在 `public/shapes.css` 里有一条
-      `[data-block][data-shape="<名>"]` 规则。 */
-[data-block="footer-new"][data-shape="columns"] {}

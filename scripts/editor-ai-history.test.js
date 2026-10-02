@@ -71,7 +71,8 @@ function makeTemplate() {
   if (!fs.existsSync(home)) die(`夹具立不起来（rc=${r.status}）\n${(r.stderr || '').slice(-600)}`);
   fs.mkdirSync(path.join(work, 'site', 'en', 'blocks'), { recursive: true });
   writeJSON(path.join(work, 'site', 'en', 'blocks', 'site-blocks.json'), {
-    promo: { type: 'cta-banner', data: { ...sample('cta-banner'), headline: 'Promo before AI' } },
+    // #1425（T3）：共用块原来是 cta-banner（随旧库删了），换成 cta
+    promo: { type: 'cta', data: { ...sample('cta'), headline: 'Promo before AI' } },
   });
   const page = readJSON(home);
   page.blocks.splice(1, 0, { ref: 'promo' });

@@ -22,8 +22,6 @@
 //    主题 id 不该让整页消失。落回哪一套写在根元素的 `data-catalog-theme` 上，页面自己说得出来。
 
 import { notFound } from 'next/navigation';
-import Footer from '@blocks/footer/Section';
-import Header from '@blocks/header/Section';
 import CellOptions from './CellOptions';
 import type { IconTable } from '@/components/InlineIcon';
 import type { Preset, Widget } from './CellOptions';
@@ -46,7 +44,6 @@ import {
   CATALOG_LOCALE,
   CATALOG_PAGE_HEADER_SLUG,
   CATALOG_PATHS,
-  CATALOG_SERVICE_SLUG,
   HEIGHT_REPORTER,
   OWN_THEME_OFF,
   SITE_CSS_HREF,
@@ -111,7 +108,7 @@ function optionMetaOf(m: { slots?: Record<string, { shape?: unknown; knobs?: unk
 type ManifestForKnobs = { slots?: Record<string, { kind?: string; required?: boolean; swatches?: string[]; choices?: Record<string, string[]>; shape?: string; max?: unknown }>; parts?: string[]; presets?: unknown };
 
 /**
- * #1463 —— 「预设 + 旋钮」那一类**页面块**（今天是 hero-new）：地址栏 → 这一格的 data。
+ * #1463 —— 「预设 + 旋钮」那一类**页面块**（今天是 hero）：地址栏 → 这一格的 data。
  *   `?textAlign=center&image=top&form=full`  旋钮（名字取 manifest 的 `slots.options.knobs`）
  *   `?opt=reverse`                           布尔修饰（`options.shape` 那串里的 `: bool`，跟外壳区块同一个参数）
  *   `?bg=%230f172a` / `?bg=brand`            颜色槽
@@ -121,13 +118,13 @@ type ManifestForKnobs = { slots?: Record<string, { kind?: string; required?: boo
  *                                            判据跟 manager §manifestCounts 同一条（`kind: list` + 正整数 `max`）；
  *                                            这里只认参数，不画控件（admin 那条工具栏画，PM #1479 四审 1）。
  * 认不出的值落回演示内容里那一份（跟 theme / fill 一样：看法不该让页面消失）。
- * 🔴 这一段只管非外壳块。外壳区块（header-new / footer-new）走 CellOptions，那是 #1458 / #1462 的面。
+ * 🔴 这一段只管非外壳块。外壳区块（header / footer）走 CellOptions，那是 #1458 / #1462 的面。
  */
 function knobOverrides(m: ManifestForKnobs, shape: string, data: Record<string, unknown>, sp: Search) {
   const knobs = knobsOf(m) as Array<{ name: string; values: string[] }>;
   const booleans = booleanOptionsOf(m);
   const slots = m.slots || {};
-  // #1483 —— **每个**颜色槽一格（pricing-new 有 bg + featuredColor 两个），顺序 = manifest 里的声明顺序，地址参数名 = 槽名
+  // #1483 —— **每个**颜色槽一格（pricing 有 bg + featuredColor 两个），顺序 = manifest 里的声明顺序，地址参数名 = 槽名
   //    （`?bg=` / `?featuredColor=`）。只有一个颜色槽的块（今天其余全部）跟 #1477 一字不差：一格、参数 `?bg=`。
   const colorSlots = colorSlotsOf(m) as string[];
   const parts = Array.isArray(m.parts) ? m.parts : [];
@@ -229,36 +226,32 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
   registerCatalogFixtureBlogPosts();
 
   const data = demoDataFor(m, { minimal: fill === 'minimal' });
-  // 这个块的演示数据要指向图册自带的那几页夹具，否则它筛不到子页、整块 `return null`
-  // （`ServiceRelatedPagesSection.tsx:52`）。同一处理在整页索引上也有。
-  const isRelatedPages = block === 'service-related-pages';
-  if (isRelatedPages) data.serviceSlug = CATALOG_SERVICE_SLUG;
-  // #1497 —— blog-new 读站点博客：同一个图册夹具 locale 下挂着一份博客（catalogShared §registerCatalogFixtureBlogPosts）。
-  // #1502 —— page-header-new 的面包屑按「当前页」算：单格页当自己在看夹具页 `CATALOG_PAGE_HEADER_SLUG`（catalogShared）。
-  const isPageHeader = block === 'page-header-new';
-  const usesFixtureLocale = isRelatedPages || block === 'blog-new' || isPageHeader;
+  // #1497 —— blog 读站点博客：同一个图册夹具 locale 下挂着一份博客（catalogShared §registerCatalogFixtureBlogPosts）。
+  // #1502 —— page-header 的面包屑按「当前页」算：单格页当自己在看夹具页 `CATALOG_PAGE_HEADER_SLUG`（catalogShared）。
+  const isPageHeader = block === 'page-header';
+  const usesFixtureLocale = block === 'blog' || isPageHeader;
   const locale = usesFixtureLocale ? CATALOG_LOCALE : defaultLocale;
 
   // #1463 —— 旋钮类页面块：地址栏先改 data，再算 `data-has-*`（关掉的部件不许还挂着「有它」）。
   const knobBar = m.region !== true && knobsOf(m).length ? knobOverrides(m, shape, data as Record<string, unknown>, sp) : null;
-  // #1490 —— features-new 按旋钮挑演示数据：组件真正拿来画的那份旋钮值（Section.tsx 同一个 effectiveKnobs，入参就是
+  // #1490 —— features 按旋钮挑演示数据：组件真正拿来画的那份旋钮值（Section.tsx 同一个 effectiveKnobs，入参就是
   //    上一行写好的 data.options）是 itemConnector=line 时，items 换成带编号的那一版（FEATURES_NEW_STEPS）。连线只在有编号时画，
   //    而共享那份故意不带编号（content.js #1475 注释：旧预设不是步骤式的）—— 不换的话这个旋钮在图册上 none / line 逐字相同。
   //    🔴 别改成按工具栏那份（下面的 knobs / normalizeKnobs）挑：两份分叉那天会出现「有序号没连线」。
-  if (block === 'features-new' && effectiveKnobs(m, shape, data.options).itemConnector === 'line') {
+  if (block === 'features' && effectiveKnobs(m, shape, data.options).itemConnector === 'line') {
     data.items = JSON.parse(JSON.stringify(FEATURES_NEW_STEPS.items));
   }
   // #1505 —— `?items=services`：items 换成引用写法（FEATURES_NEW_FROM_SERVICES，指向本站服务目录），渲染前跟真站
   //    同一个函数展开（下面 cfg 那一行），服务目录用演示生意那一份（DEMO_SITE.services），不是跑这个开发服务的那个站的。
-  if (block === 'features-new' && one(sp.items) === 'services') {
+  if (block === 'features' && one(sp.items) === 'services') {
     data.items = JSON.parse(JSON.stringify(FEATURES_NEW_FROM_SERVICES.items));
   }
 
-  // #1489 —— contact-new 的电话 / 邮箱 / 地址 / 营业时间 / 坐标读站点数据，不在块数据里。这一页用演示生意那一份（DEMO_SITE，带坐标，
+  // #1489 —— contact 的电话 / 邮箱 / 地址 / 营业时间 / 坐标读站点数据，不在块数据里。这一页用演示生意那一份（DEMO_SITE，带坐标，
   //    地图才画得出来），而不是跑这个开发服务的那个站的 —— 否则同一张卡在不同机器上长得不一样，而且多半没有坐标。
   //    `?geo=none` / `?hours=none` 把那一样拿掉（`?items=none` 清空 contact items），看「站点数据里没有」时的样子（#1489 判据 3 / 7）。
   let siteFacts: ReturnType<typeof siteFactsFrom> | undefined;
-  if (block === 'contact-new') {
+  if (block === 'contact') {
     const site = JSON.parse(JSON.stringify(DEMO_SITE));
     if (one(sp.geo) === 'none') delete site.brand.locations[0].geo;
     if (one(sp.hours) === 'none') site.seo.schema.openingHours = { days: [], opens: '', closes: '' };
@@ -277,15 +270,14 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
   //    站点数据用演示生意那一份。没有引用的块原样返回同一个数组。
   //    #1506 —— 按钮 / 页头顶条 / 页脚里的联系方式引用同一处展开，电话邮箱用演示生意那一份（DEMO_SITE.brand）。
   const shown = resolveItemSources([cfg], demoSourceContext());
-  //    外壳块（header-new / footer-new）不走 SectionRenderer、走下面的 §CellOptions —— 它也要吃展开后的那一份
+  //    外壳块（header / footer）不走 SectionRenderer、走下面的 §CellOptions —— 它也要吃展开后的那一份
   //    （顶条电话、页脚联系方式 / 社交链接在夹具里是引用），图标表按同一份算。
   const shownData = ((shown[0] && shown[0].data) || data) as Record<string, unknown>;
 
   // 🔴 **外壳区（`header` / `footer`）走的是它们自己的组件，不走 `SectionRenderer`。** 它们有
   //    manifest、有形态、在图册上各占一行（#1353），但按构造**不在 `registry.ts` 里**（那张表是
   //    「页面 JSON 的 type → 组件」，而外壳区不进页面 JSON）—— 交给 SectionRenderer 的结果是
-  //    `console.warn` 加一个空页面。它们的内容来自站自己的 `navigation.json`，形态由 `variant`
-  //    覆盖（`Footer` 本来就有这个参数，`Header` 的是本票照它加的，站上没有调用点传它）。
+  //    `console.warn` 加一个空页面。这一页给它们演示内容包那份 data（下面 §CellOptions），形态就是地址里那个。
   const isRegion = m.region === true;
   const meta = optionMetaOf(m);
   const hasOptionBar = meta.optionKeys.length > 0 || meta.widgets.length > 0 || meta.knobs.length > 0 || meta.colors.length > 0;
@@ -340,9 +332,8 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
         data-catalog-theme={theme ? theme.id : ''}
         data-catalog-fill={fill}
       >
-        {isRegion && block === 'header' ? <Header locale={locale} variant={shape} /> : null}
-        {isRegion && block === 'footer' ? <Footer locale={locale} variant={shape} /> : null}
-        {/* #1424 / #1455 —— Webpixels 那一版顶栏 / 页脚：内容来自演示内容包（槽位契约），不来自 navigation.json。
+        {/* #1424 / #1455 —— 顶栏 / 页脚：内容来自演示内容包（槽位契约），不来自 navigation.json（站上那一份是
+            构建期从 navigation.json 派生的，#1425 T3；图册用演示生意那一份）。
             #1458 —— 它们的选项开关（header 的 topbar / icons；footer 的 CTA 条 + 订阅框）住在这一页的工具栏里
             （§CellOptions），初值可由地址栏给：`?opt=topbar,icons`；#1462 起旋钮各一个参数：
             `?logo=center&menu=below`；#1464 起部件也是槽名一个参数：`?form=inline`。 */}
@@ -364,7 +355,7 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
           />
         ) : null}
         {knobBar && !embed ? <KnobBar {...knobBar} /> : null}
-        {/* #1475 —— 旋钮类页面块里画内联 SVG 图标的（features-new）也要图标表，跟真站 HomePage / SubPage 同一个函数算。 */}
+        {/* #1475 —— 旋钮类页面块里画内联 SVG 图标的（features）也要图标表，跟真站 HomePage / SubPage 同一个函数算。 */}
         {isRegion ? null : <SectionRenderer blocks={shown} locale={locale} iconTables={iconTablesFor(shown)} siteFacts={siteFacts} pageSlug={isPageHeader ? CATALOG_PAGE_HEADER_SLUG : undefined} />}
       </main>
     </>

@@ -18,6 +18,9 @@
  *   ② 给 `contact-info` 写 `role: 'optional'` ⟹ 第 ② 条「只能加不能降」对两臂都开火
  *      （它的 roleDefault 是 essential）。**不写 role** 才走默认、那条不开火。
  * 所以下面的夹具带一个不写 `role` 的 `contact-info`，而且最后一格专门核「两臂真的分得开」。
+ * 📌 #1425（T3）：`contact-info` 随旧库删了；新库里行业必需的块今天只有 `gallery`（photography），
+ *    `auto repair` 没有必需块 ⟹ 坑 ① 不再有东西要堵，夹具不再带陪跑块。坑 ② 照旧：探针块**不写 role**
+ *    （`features` 的 roleDefault 是 essential，写 optional 就踩坑 ②）。
  */
 
 'use strict';
@@ -31,10 +34,10 @@ const ok = (m) => { pass += 1; console.log(`  ✅ ${m}`); };
 const bad = (m) => { fail += 1; console.log(`  ❌ ${m}`); };
 const die = (m) => { console.error(`🔴 跑不起来: ${m}`); process.exit(2); };
 
-let validateSite; let loadManifests; let aliases;
+let validateSite; let loadManifests;
 try {
   ({ validateSite, loadManifests } = require(path.join(NEXT, 'scripts', 'lib', 'block-manifest.js')));
-  aliases = require(path.join(NEXT, 'src', 'lib', 'sections', 'block-aliases.json'));
+  // 📌 #1425（T3）—— 这里原来还 require `block-aliases.json`（数「归到 card-group 的词汇」）；别名层随旧库删了。
 } catch (e) {
   die(`require 失败: ${e.message}`);
 }
@@ -44,9 +47,8 @@ function pageWith(type, slot, items) {
   return {
     slug: 'probe',
     blocks: [
-      { id: 'p', type, role: 'optional', region: 'content', weight: 10, data: { headline: 'H', [slot]: items } },
-      // 🔴 不写 role（见文件头坑 ②），只为让第 ④ 条闭嘴（坑 ①）
-      { id: 'c', type: 'contact-info', region: 'content', weight: 20, data: { headline: 'Contact' } },
+      // #1425（T3）：不写 role（坑 ②）；陪跑的 contact-info 删了（坑 ① 今天没东西要堵，见文件头）
+      { id: 'p', type, region: 'content', weight: 10, data: { headline: 'H', [slot]: items } },
     ],
   };
 }
@@ -71,22 +73,19 @@ const listyBlocks = [...loadManifests().entries()]
 if (listyBlocks.length < 5) {
   bad(`带列表槽的块只数出 ${listyBlocks.length} 种（${listyBlocks.join(' ')}）—— 分母不对，下面的读数不作数`);
 } else {
-  ok(`带列表槽的块有 ${listyBlocks.length} 种（⑦ 那几格的分母）· 归到 card-group 的词汇 ${Object.keys(aliases).length} 行`);
+  ok(`带列表槽的块有 ${listyBlocks.length} 种（⑦ 那几格的分母）`);
 }
 
-// ②④ 那两格的射程：归到通用块 card-group 的 type。
-// 🔴 **这个数 #1162 从 5 掉到 1，而那是本票有意的收窄，写在这里而不是让它静默发生**：
-//    别名层退役之前它是「通用块自己 + `values-grid` / `benefits-list` / `checklist` /
-//    `service-highlights` 四个别名」= 5 个；四个老 type 名删掉之后只剩通用块自己。
-//    ⟹ ②④ 现在各测 1 个 type（原来 5 个）。**槽名不叫 items 的那一维没有跟着变窄** ——
-//    它在 ⑦，射程是 timeline(events) / process-steps(steps) / team-grid(members) / card-group(items)。
-const generics = Object.keys(aliases).filter((k) => aliases[k].type === 'card-group');
-if (generics.length === 0) bad('归到 card-group 的 type 是 0 个 —— ②④ 什么都没查');
+// ②④ 那两格的射程。
+// 📌 #1425（T3）：原来是「归到通用块 card-group 的 type」（#1162 之后只剩 card-group 自己 1 个）；别名层随旧库删了，
+//    card-group 的继任是 `features`。射程换成 features 的 items —— 跟原来一样 1 个，不放宽也不收窄；
+//    更宽的那一维（每个带列表槽的块逐个问）在 ⑦。
+const generics = [['features', 'items']];  // 槽写死成 items：slotOf(features) 取到的第一个列表槽是 introCtas
+if (!loadManifests().get('features')) die('blocks/ 里没有 features —— ②④ 什么都没查');
 
 // ── ② 带 null 的那一臂：逐个 type 都要被拒，而且报文要指名槽位和第几个 ────────────────────────
 console.log('── ② 条目里混进 null ⟹ 拒，报文指名槽位 + 第几个（#1152 AC1）');
-for (const t of generics) {
-  const slot = slotOf(t);
+for (const [t, slot] of generics) {
   const r = run(t, slot, ['甲', null, '乙']);
   const hit = r.problems.filter((p) => p.includes(`槽 "${slot}"`) && p.includes('第 2 个条目是 null'));
   if (hit.length === 1) ok(`${t}: ${hit[0]}`);
@@ -96,7 +95,7 @@ for (const t of generics) {
 // ── ③ 别的画不出来的元素也要被拒，而且要把它是什么说出来 ─────────────────────────────────────
 console.log('── ③ null 之外的几种（报文要说出它是什么，不是一句「不合法」）');
 for (const [name, el, want] of [['数字', 7, '一个 number'], ['布尔', true, '一个 boolean'], ['嵌套数组', ['x'], '一个数组']]) {
-  const r = run('card-group', 'items', ['甲', el]);
+  const r = run('features', 'items', ['甲', el]);  // #1425（T3）：card-group → features
   const hit = r.problems.filter((p) => p.includes(`第 2 个条目是 ${want}`));
   if (hit.length === 1) ok(`${name} ⟹ ${hit[0]}`);
   else bad(`${name}: 没有一条报文说它是「${want}」，实际: ${JSON.stringify(r.problems)}`);
@@ -105,10 +104,9 @@ for (const [name, el, want] of [['数字', 7, '一个 number'], ['布尔', true,
 // ── ④ 反向对照：良构那一臂必须放行 ─────────────────────────────────────────────────────────────
 // 🔴 这一格是整份文件的判别力来源。少了它，一个「无论什么都拒」的实现也能让 ② ③ 全绿。
 console.log('── ④ 反向对照：良构的两种形状都要放行');
-for (const t of generics) {
-  const slot = slotOf(t);
+for (const [t, slot] of generics) {
   const strs = run(t, slot, ['甲', '乙']);
-  const objs = run(t, slot, [{ title: 'a', description: 'b' }]);
+  const objs = run(t, slot, [{ title: 'a', text: 'b' }]);  // #1425（T3）：features 的条目是 {title, text}
   if (strs.problems.length === 0 && objs.problems.length === 0) {
     ok(`${t}: 裸字符串数组、纯对象数组 两种都放行（0 条 problem）`);
   } else {
@@ -117,22 +115,22 @@ for (const t of generics) {
 }
 
 // ── ⑤ 这条检查按【槽的 kind】走，不按块的名字 ─────────────────────────────────────────────────
-// 明天多一个带 list 槽的块，它默认就在保护里。判据：拿一个**不在别名表里**的块试一次。
+// 明天多一个带 list 槽的块，它默认就在保护里。判据：拿一个**不在 ②④ 射程里**的块试一次。
+// #1425（T3）：faq-accordion → faq；陪跑的 contact-info 删了。
 console.log('── ⑤ 射程按 kind:list，不按块名');
 {
   const other = validateSite({
     pages: [{
       slug: 'probe',
       blocks: [
-        { id: 'f', type: 'faq-accordion', region: 'content', weight: 10, data: { headline: 'H', items: ['问答', null] } },
-        { id: 'c', type: 'contact-info', region: 'content', weight: 20, data: { headline: 'Contact' } },
+        { id: 'f', type: 'faq', region: 'content', weight: 10, data: { headline: 'H', items: ['问答', null] } },
       ],
     }],
     industry: 'auto repair',
   });
   const hit = other.problems.filter((p) => p.includes('第 2 个条目是 null'));
-  if (hit.length === 1) ok(`别名表外的块（faq-accordion）也被查了: ${hit[0]}`);
-  else bad(`faq-accordion 的 list 槽没被查 —— 这条检查被写成按块名了。实际: ${JSON.stringify(other.problems)}`);
+  if (hit.length === 1) ok(`射程外的块（faq）也被查了: ${hit[0]}`);
+  else bad(`faq 的 list 槽没被查 —— 这条检查被写成按块名了。实际: ${JSON.stringify(other.problems)}`);
 }
 
 // ── ⑥ 槽的值整个不是数组 —— #1154 改了这一格的答案 ────────────────────────────────────────────
@@ -143,7 +141,7 @@ console.log('── ⑤ 射程按 kind:list，不按块名');
 //    报的是**槽级**的那句（"不是列表"），条目级那句（"条目是…"）仍然不许出现 —— 没有条目可数。
 console.log('── ⑥ 槽的值整个不是数组 ⟹ 报槽级那一句，不报条目级那一句（#1154）');
 {
-  const r = run('card-group', 'items', 'not-an-array');
+  const r = run('features', 'items', 'not-an-array');  // #1425（T3）：card-group → features
   const slotLevel = r.problems.filter((p) => p.includes('不是列表'));
   const itemLevel = r.problems.filter((p) => p.includes('条目是'));
   if (slotLevel.length === 1) ok(`items 是个字符串 ⟹ ${slotLevel[0]}`);
@@ -157,16 +155,18 @@ console.log('── ⑥ 槽的值整个不是数组 ⟹ 报槽级那一句，不
 //    `events` ⟹ 报的是「缺必填槽 events」，看起来像「这个块没问题」。槽名要从 manifest 取。
 //    📌 #1372 把 `timeline` 这个块删了，下面那几格改用 `blog-preview`/`posts` —— 同样是
 //    「槽名不叫 items」的块，这一条守的性质没变。
+//    📌 #1425（T3）：blog-preview / process-steps / team-grid / card-group 随旧库删了，换成新库里槽名不叫 items 的
+//    team(members) / pricing(plans) / milestones(stats) / reviews(platforms)，加 features(items)。
 console.log('── ⑦ 槽名不叫 items 的块，槽级那条一样开火（#1154）');
-for (const [type, slot] of [['blog-preview', 'posts'], ['process-steps', 'steps'], ['team-grid', 'members'], ['card-group', 'items']]) {
+for (const [type, slot] of [['team', 'members'], ['pricing', 'plans'], ['milestones', 'stats'], ['reviews', 'platforms'], ['features', 'items']]) {
   const r = run(type, slot, 'not-an-array');
   const hit = r.problems.filter((p) => p.includes(`槽 "${slot}" 不是列表`));
   if (hit.length === 1) ok(`${type}(${slot}): ${hit[0]}`);
   else bad(`${type}(${slot}) 没报槽级那一句: ${JSON.stringify(r.problems)}`);
 }
 // 反向对照：同一个槽换成正常数组，一条 problem 都不该有
-for (const [type, slot] of [['blog-preview', 'posts'], ['card-group', 'items']]) {
-  const r = run(type, slot, [{ title: 'a' }]);
+for (const [type, slot, item] of [['team', 'members', { name: 'a', role: 'r' }], ['features', 'items', { title: 'a', text: 'b' }]]) {
+  const r = run(type, slot, [item]);
   if (r.problems.length === 0) ok(`反向对照 ${type}(${slot}): 正常数组放行（0 条 problem）`);
   else bad(`反向对照 ${type}(${slot}) 被误伤: ${JSON.stringify(r.problems)}`);
 }
@@ -176,8 +176,8 @@ for (const [type, slot] of [['blog-preview', 'posts'], ['card-group', 'items']])
     pages: [{
       slug: 'probe',
       blocks: [
-        { id: 't', type: 'blog-preview', region: 'content', weight: 10, data: { headline: 'H', posts: [{ title: 'y' }], subheadline: 'S' } },
-        { id: 'c', type: 'contact-info', region: 'content', weight: 20, data: { headline: 'Contact' } },
+        // #1425（T3）：blog-preview → features（选填列表槽 introCtas 不写）；陪跑的 contact-info 删了
+        { id: 't', type: 'features', region: 'content', weight: 10, data: { headline: 'H', items: [{ title: 'y' }] } },
       ],
     }],
     industry: 'auto repair',
@@ -203,7 +203,7 @@ for (const [what, entry] of [['null', null], ['一个字符串', 'x'], ['一个�
     r = validateSite({
       pages: [{
         slug: 'probe',
-        blocks: [entry, { id: 'c', type: 'contact-info', region: 'content', weight: 20, data: { headline: 'Contact' } }],
+        blocks: [entry, { id: 'c', type: 'content', region: 'content', weight: 20, data: { headline: 'H', body: 'B' } }],  // #1425（T3）：contact-info → content
       }],
       industry: 'auto repair',
     });
@@ -219,8 +219,9 @@ for (const [what, entry] of [['null', null], ['一个字符串', 'x'], ['一个�
     pages: [{
       slug: 'probe',
       blocks: [
-        { id: 't', type: 'text-block', region: 'content', weight: 10, data: { headline: 'H', body: 'B' } },
-        { id: 'c', type: 'contact-info', region: 'content', weight: 20, data: { headline: 'Contact' } },
+        // #1425（T3）：text-block / contact-info → content / faq
+        { id: 't', type: 'content', region: 'content', weight: 10, data: { headline: 'H', body: 'B' } },
+        { id: 'c', type: 'faq', region: 'content', weight: 20, data: { headline: 'H', items: [{ question: 'q', answer: 'a' }] } },
       ],
     }],
     industry: 'auto repair',
@@ -243,7 +244,7 @@ for (const [what, entry] of [['null', null], ['一个字符串', 'x'], ['一个�
 //    的那个自相矛盾形状不许在建站期被放行」· `{ type: 没有的块名 }` 守这条检查本身还活着。
 console.log('── ⑨ 合法的 ref 条目不许被误报（#1155）');
 {
-  const GOOD = { id: 'c', type: 'contact-info', region: 'content', weight: 20, data: { headline: 'Contact' } };
+  const GOOD = { id: 'c', type: 'content', region: 'content', weight: 20, data: { headline: 'H', body: 'B' } };  // #1425（T3）：contact-info → content
   const noSuch = (r) => r.problems.filter((p) => p.includes('没有这种块'));
   const probe = (entry) => validateSite({
     pages: [{ slug: 'probe', blocks: [entry, GOOD] }],
@@ -282,32 +283,39 @@ console.log('── ⑨ 合法的 ref 条目不许被误报（#1155）');
 //    「站里真的没有」守这条检查还活着 ·「ref 指不到 id」守别把指不到的 ref 也算成有
 //    （构建期是 note 一句 + 跳过，页面上不会有这一块）·`{ ref: 7 }` 守「ref 必须是字符串」。
 console.log('── ⑩ 站级块提供的块，第 ④ 条也要看得见（#1156）');
+// 📌 #1425（T3）：原来问的是 `contact-info`（`industries.required: ["*"]`，每个站都要有）；它随旧库删了。
+//    新库里行业必需的块今天只有 `gallery`（`required: ["photography"]`），所以夹具换成摄影站 + gallery，
+//    性质一字不变。分母先说出来：一个行业必需的块都没有的话，下面的反向对照全都无从红起。
 {
-  const HERO = { type: 'hero', data: {
-    headline: 'h', subheadline: 's',
-    ctaPrimary: { label: 'a', href: '/a' }, ctaSecondary: { label: 'b', href: '/b' } } };
-  const LIB = { 'shared-contact': { type: 'contact-info', data: { headline: 'Contact' } } };
-  const VIS = { 'shared-contact': { type: 'contact-info', visibility: ['*'], data: { headline: 'Contact' } } };
+  const REQ_TYPE = 'gallery'; const INDUSTRY = 'photography';
+  const reqM = loadManifests().get(REQ_TYPE);
+  if (!reqM || !((reqM.industries && reqM.industries.required) || []).includes(INDUSTRY)) {
+    die(`blocks/${REQ_TYPE} 不再是 ${INDUSTRY} 的必需块 —— 这一节的夹具要换一个行业必需的块`);
+  }
+  const HERO = { type: 'hero', data: { headline: 'h' } };
+  const DATA = { headline: 'Work', items: [{ image: { imageUrl: '/a.jpg', alt: '' } }] };
+  const LIB = { 'shared-gallery': { type: REQ_TYPE, data: DATA } };
+  const VIS = { 'shared-gallery': { type: REQ_TYPE, visibility: ['*'], data: DATA } };
   const missing = (entry, siteBlocks) => validateSite({
     pages: [{ slug: 'home', blocks: entry ? [entry, HERO] : [HERO] }],
-    industry: 'auto repair',
+    industry: INDUSTRY,
     siteBlocks,
-  }).problems.filter((p) => p.includes('整个站里没有 "contact-info"'));
+  }).problems.filter((p) => p.includes(`整个站里没有 "${REQ_TYPE}"`));
 
   for (const [what, entry, lib] of [
-    ['contact-info 只由站级 ref 提供', { ref: 'shared-contact' }, LIB],
-    ['contact-info 只由站级块的 visibility:["*"] 提供', null, VIS],
+    [`${REQ_TYPE} 只由站级 ref 提供`, { ref: 'shared-gallery' }, LIB],
+    [`${REQ_TYPE} 只由站级块的 visibility:["*"] 提供`, null, VIS],
   ]) {
     const hit = missing(entry, lib);
-    if (hit.length === 0) ok(`${what} ⟹ 不再报「整个站里没有 contact-info」`);
+    if (hit.length === 0) ok(`${what} ⟹ 不再报「整个站里没有 ${REQ_TYPE}」`);
     else bad(`${what} 仍被误报: ${JSON.stringify(hit)}`);
   }
 
   for (const [what, entry, lib] of [
-    ['站里真的没有 contact-info（这条检查本身还活着）', null, {}],
+    [`站里真的没有 ${REQ_TYPE}（这条检查本身还活着）`, null, {}],
     ['ref 指向的 id 在块库里不存在', { ref: 'no-such-id' }, LIB],
     ['{ ref: 7 }（ref 不是字符串）', { ref: 7 }, LIB],
-    ['站级块的 visibility 不命中这一页', null, { x: { type: 'contact-info', visibility: ['about'] } }],
+    ['站级块的 visibility 不命中这一页', null, { x: { type: REQ_TYPE, visibility: ['about'], data: DATA } }],
   ]) {
     const hit = missing(entry, lib);
     if (hit.length === 1) ok(`反向对照 ${what} ⟹ 照旧报`);
@@ -422,7 +430,8 @@ console.log('\n── ⑫ #1352 校验器新增的三条（每条弄坏一次，
      (root) => editJson(root, 'hero', (d) => { d.slots.headline.kind = 'url'; }),
      /kind 是 "url"/],
     ['editLabel 挂在 kind: image 上',
-     (root) => editJson(root, 'hero', (d) => { d.slots.imageUrl.editLabel = 'Picture'; }),
+     // #1425（T3）：旧 hero 的 imageUrl（kind: image）没了；新库里 kind: image 的槽是外壳区的 logo
+     (root) => editJson(root, 'footer', (d) => { d.slots.logo.editLabel = 'Picture'; }),
      /不该有 editLabel/],
     ['新增一个 kind: text 的槽位，既没 editLabel 也不在例外名单',
      (root) => editJson(root, 'hero', (d) => {
@@ -439,33 +448,39 @@ console.log('\n── ⑫ #1352 校验器新增的三条（每条弄坏一次，
 
   // 🔴 例外名单里写错一个名字也要红 —— 一个拼错的例外等于把那个槽位的检查**关掉**，
   //    而它看起来跟「已经豁免过了」一模一样（AC2 最后一句）。
+  // 📌 #1425（T3）：原来拿名单里真有的一项 `features-grid.columns` 拼错；旧块删了之后名单是**空的**
+  //    （`NON_EDITABLE_TEXT_SLOTS = []`），没有真条目可拼错。换成两臂都自己造：沙箱里给 hero 加一个
+  //    没 editLabel 的 text 槽，内存里改一份名单 —— 拼对 ⟹ 放行（证明豁免这条路真的通）、拼错 ⟹ 红。
   {
     const lib = path.join(NEXTDIR, 'scripts', 'lib', 'block-manifest.js');
     const src = fs.readFileSync(lib, 'utf-8');
-    const marker = "'features-grid.columns',";
+    const marker = 'const NON_EDITABLE_TEXT_SLOTS = [];';
     if (!src.includes(marker)) {
-      bad('夹具不成立：例外名单里找不到 features-grid.columns');
+      bad(`夹具不成立：block-manifest.js 里找不到 ${marker}（名单不再是空的了？那就回到拿真条目拼错）`);
     } else {
-      // 在内存里把名单改坏，用 Module 的编译钩子换掉那一份源码再重新 require。
-      const broken = src.replace(marker, "'features-grid.colunms',");
-      // 🔴 改坏的那份要放在**原文件旁边**，不能放 /tmp：这个模块里全是相对 require（`../blocks`），
+      const root = sandbox((r) => editJson(r, 'hero', (d) => {
+        d.slots.brandNewTextSlot = { kind: 'text', required: false, promptOptional: true };
+      }));
+      // 🔴 改过的那份要放在**原文件旁边**，不能放 /tmp：这个模块里全是相对 require（`../blocks`），
       //    搬到别处它第一行就 `Cannot find module`，而那个红跟被测的那一维没有关系（试过了）。
-      const tmp = path.join(path.dirname(lib), `.block-manifest-broken-${Date.now()}.js`);
-      fs.writeFileSync(tmp, broken);
-      let err = null;
-      try {
-        delete require.cache[tmp];
-        require(tmp).loadManifests(path.join(NEXTDIR, 'blocks'));
-      } catch (e) { err = e.message; }
-      fs.rmSync(tmp, { force: true });
-      // 🔴 这一格问的是「拼错了会不会静默放过」，**不问是哪一道检查开的火**。
-      //    实测开火的是逐槽位那一条（`columns` 不再被豁免 ⟹ 它变成「kind: text 却没有 editLabel」），
-      //    而不是我为名单本身加的那条 —— 因为逐槽位那条先抛。两条都红，但要说清是哪一条，
-      //    不然下一个人会以为名单那条检查在这一格被验过了。
-      if (err && /slots\.columns 是 kind: text 但没有 editLabel/.test(err)) {
-        ok('例外名单里把 columns 拼成 colunms ⟹ 红（开火的是逐槽位那一条：columns 不再被豁免）');
-      } else if (err) {
-        bad(`拼错例外名单红了，但报的不是预期那条：${err}`);
+      const withList = (entry) => {
+        const tmp = path.join(path.dirname(lib), `.block-manifest-broken-${process.pid}-${Date.now()}.js`);
+        fs.writeFileSync(tmp, src.replace(marker, `const NON_EDITABLE_TEXT_SLOTS = ['${entry}'];`));
+        let err = null;
+        try {
+          delete require.cache[tmp];
+          require(tmp).loadManifests(path.join(root, 'blocks'));
+        } catch (e) { err = e.message; } finally { fs.rmSync(tmp, { force: true }); }
+        return err;
+      };
+      const right = withList('hero.brandNewTextSlot');
+      const wrong = withList('hero.brandNewTextSlto');
+      if (right) bad(`正臂：名单拼对了也红 —— 豁免这条路不通，下面那条红归因不到「拼错」：${right}`);
+      else ok('正臂：名单里拼对 hero.brandNewTextSlot ⟹ 放行（豁免这条路是通的）');
+      if (wrong && /slots\.brandNewTextSlot 是 kind: text 但没有 editLabel/.test(wrong)) {
+        ok('例外名单里把 brandNewTextSlot 拼错 ⟹ 红（开火的是逐槽位那一条：那个槽不再被豁免）');
+      } else if (wrong) {
+        bad(`拼错例外名单红了，但报的不是预期那条：${wrong}`);
       } else bad('把例外名单拼错了却没红 —— 那等于可以静默关掉任意一个槽位的检查');
     }
   }
@@ -520,15 +535,19 @@ console.log('\n── ⑬ #1352 kind 词表 ↔ blocks/ 实际在用的取值（
       + `（${[...counts].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(' · ')}）`);
   }
 
-  // 🔴 反臂一（AC 点名的那个）：词表里删掉 `links` ⟹ 红，并点名在用它的那三个槽位。
-  const noLinks = slotKindVocabularyProblems(all, SLOT_KINDS.filter((k) => k !== 'links'));
-  const named = ['footer.columns', 'footer.social', 'header.menu'];
-  if (noLinks.length === 1 && named.every((n) => noLinks[0].includes(n))) {
-    ok(`词表里删掉 links ⟹ 红，并点名：${noLinks[0]}`);
-  } else bad(`删掉 links 之后没点名那三个槽位：${JSON.stringify(noLinks)}`);
+  // 🔴 反臂一（AC 点名的那个）：词表里删掉一个在用的取值 ⟹ 红，并点名在用它的那几个槽位。
+  //    📌 #1425（T3）：原来删的是 `links`、点名 footer.columns / footer.social / header.menu（旧外壳区）；新外壳区不用
+  //    `links` 了。换成 `image`，今天在用它的是 footer.logo / header.logo。
+  //    两条反臂都按「比正臂**多出来**的那几条」判，免得正臂自己的红把反臂也染红（两种红要分得开）。
+  const extra = (list) => list.filter((p) => !real.includes(p));
+  const noImage = extra(slotKindVocabularyProblems(all, SLOT_KINDS.filter((k) => k !== 'image')));
+  const named = ['footer.logo', 'header.logo'];
+  if (noImage.length === 1 && named.every((n) => noImage[0].includes(n))) {
+    ok(`词表里删掉 image ⟹ 红，并点名：${noImage[0]}`);
+  } else bad(`删掉 image 之后没点名那两个槽位：${JSON.stringify(noImage)}`);
 
   // 🔴 反臂二（另一向）：词表里多写一个谁都不用的取值 ⟹ 也要红。
-  const ghost = slotKindVocabularyProblems(all, [...SLOT_KINDS, 'url']);
+  const ghost = extra(slotKindVocabularyProblems(all, [...SLOT_KINDS, 'url']));
   if (ghost.length === 1 && /"url"/.test(ghost[0])) {
     ok(`词表里多写一个没人用的取值 ⟹ 红：${ghost[0]}`);
   } else bad(`多写一个没人用的取值没被点名：${JSON.stringify(ghost)}`);

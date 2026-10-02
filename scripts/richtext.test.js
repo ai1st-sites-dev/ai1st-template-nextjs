@@ -5,7 +5,7 @@
  * 跑法:  node scripts/richtext.test.js   （或 `npm run test:scripts`，它按文件名发现）
  * 退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
  *
- * 每一格都是「输入 → 逐字的 HTML」。组件画出来的 DOM 那一半（同一棵树用 React 画）在 `content-new-render.test.js`。
+ * 每一格都是「输入 → 逐字的 HTML」。组件画出来的 DOM 那一半（同一棵树用 React 画）在 `content-render.test.js`。
  * 🔴 末尾有反向对照：把链接白名单放宽 / 不转义，对应的格子必须红。
  */
 

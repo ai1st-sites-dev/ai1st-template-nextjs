@@ -40,6 +40,22 @@ function collectImageSlots(pages, manifests) {
       if (!m) continue;
       for (const slot of imageSlotsOf(m)) {
         const data = sec.data || {};
+        if (slot.kind === 'object') {
+          // #1425 —— 对象图槽（新库的主图 `{imageUrl, alt}`）。🔴 块有一个跟这个槽**同名的旋钮**（hero / content / cta /
+          //    page-header 的 `image`，features 的 `introImage` …）时，判据是**这一块自己的 data 写没写那个旋钮、写的是不是
+          //    "none" 以外的值**：旋钮没写 = 默认 "none"，填了图也不显示，而且 `validateSite` 会判「写了 image 但
+          //    options.image 没写」⟹ AI 改站时这一页的每一次重写都被拒。所以只在块自己说要图时才求图。
+          //    不替它把旋钮写上：钉死旋钮会压过主题挑的形态，换主题时图就挪不动了。
+          //    没有同名旋钮的块：照列表槽的规矩，写了这个对象才收。
+          const knob = ((m.slots && m.slots.options && m.slots.options.knobs) || []).find((k) => k && k.name === slot.name);
+          const opts = data.options && typeof data.options === 'object' ? data.options : {};
+          const v = data[slot.name];
+          const wanted = knob
+            ? (typeof opts[slot.name] === 'string' && opts[slot.name] !== 'none')
+            : !!(v && typeof v === 'object' && !Array.isArray(v));
+          if (wanted) out.push({ pageSlug: page.slug, secIdx: i, secType: sec.type, slotName: slot.name, kind: 'object', itemIdx: null });
+          continue;
+        }
         if (slot.kind === 'list') {
           const items = Array.isArray(data[slot.name]) ? data[slot.name] : [];
           for (let j = 0; j < items.length; j++) {
@@ -150,6 +166,12 @@ function setSlotImageUrl(pages, slot, url) {
     } else {
       item.imageUrl = url;
     }
+    return true;
+  }
+  if (slot.kind === 'object') {
+    // #1425 —— `{imageUrl, alt}`：只换 imageUrl，已有的 alt 留着。
+    const prev = section.data[slot.slotName];
+    section.data[slot.slotName] = { ...(prev && typeof prev === 'object' && !Array.isArray(prev) ? prev : {}), imageUrl: url };
     return true;
   }
   section.data[slot.slotName] = url;

@@ -1,0 +1,8 @@
+/* ── content · title-left（预设 Title left）──────────────────────────────────────────────────────────────
+   这个形态没有自己的几何：content 是一份 markup + 五个旋钮，排版由**实际生效的旋钮**决定
+   （根元素上的 `data-headline-position` / `data-text-align` / `data-text-style` / `data-image` / `data-frame` / `data-tone`，
+   规则全在 `blocks/content/block.css`）。按形态写规则的话，旋钮拧偏成 custom 时这里的规则仍然按形态名命中，
+   页面就会排成一个跟旋钮说的不一样的样子。所以这份文件只有这段说明。 */
+[data-block="content"][data-shape="title-left"] {
+  --co-preset: title-left;
+}

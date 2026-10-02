@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * editor-root.test.js — #1405：编辑器外壳四样（root 字段）存回站级文件。
+ * editor-root.test.js — #1405：编辑器外壳三样（root 字段；#1425 T3 起公告条那一样退役）存回站级文件。
  *
  *   node scripts/editor-root.test.js     （由 `npm run test:scripts` 自动发现）
  *   退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
@@ -10,6 +10,10 @@
  *
  * 夹具用仓里那条 skipAI 建站路造一个三语真站（同 write-page.test.js 的理由），每一格拷一份再动。
  * 「弄坏一次它会红」在本文件里自己跑（改分派表 / 换一份被改过的比对函数），不靠人手改代码再改回去。
+ *
+ * 📌 #1425（T3）：布局库只剩 `standard`，而「布局自己钉了页脚形态」这条规则（§layoutPinsFooter / pinsFooter）
+ *    产品代码里还在。为了还能量它（和「切到另一个布局」），夹具在**拷出来的那棵模板**的 `page-layouts/` 里放一份
+ *    钉了页脚的布局 `FIXTURE_LAYOUT`（原来用的是随旧库删掉的 `tri-footer`）。库函数都显式传那棵树的 layoutsDir。
  */
 
 'use strict';
@@ -31,13 +35,12 @@ function die(msg) { console.log(`💥 ${msg}`); process.exit(2); }
 const temps = [];
 process.on('exit', () => { for (const t of temps) fs.rmSync(t, { recursive: true, force: true }); });
 
-let editorRoot; let fieldsMod; let convert; let pageLayoutLib; let navOwned; let siteShape;
+let editorRoot; let fieldsMod; let convert; let pageLayoutLib; let siteShape;
 try {
   editorRoot = require('./lib/editor-root.js');
   fieldsMod = require('./lib/editor-root-fields.js');
   convert = require('./lib/editor-convert.js');
   pageLayoutLib = require('./lib/page-layout.js');
-  navOwned = require('./lib/navigation-owned.js');
   siteShape = require('./lib/site-shape.js');
 } catch (e) {
   die(`加载不起来：${e.message}`);
@@ -61,6 +64,21 @@ function makeTemplate() {
   return work;
 }
 const TEMPLATE = makeTemplate();
+// #1425（T3）：见文件头 —— 一份钉了页脚的布局，只放在拷出来的模板里（站建完之后放，站本身跟真建出来的一样）。
+const FIXTURE_LAYOUT = 'fixture-pinned-footer';
+const LAYOUTS_DIR = path.join(TEMPLATE, 'page-layouts');
+fs.writeFileSync(path.join(LAYOUTS_DIR, `${FIXTURE_LAYOUT}.json`), `${JSON.stringify({
+  id: FIXTURE_LAYOUT,
+  description: 'Test fixture (#1425 T3): the footer is two bands with pinned styles.',
+  regions: ['header', 'content', 'footer-a', 'footer-b'],
+  repeatVariants: { 'footer-a': 'cta-row', 'footer-b': 'slim-row' },
+}, null, 2)}\n`);
+{
+  const libs = pageLayoutLib.loadLayouts(LAYOUTS_DIR);
+  if (!libs.has('standard') || !pageLayoutLib.layoutPinsFooter(libs.get(FIXTURE_LAYOUT)) || pageLayoutLib.layoutPinsFooter(libs.get('standard'))) {
+    die('夹具布局立不起来：要 standard（不钉页脚）+ 夹具（钉页脚）两份');
+  }
+}
 const PRISTINE = path.join(path.dirname(TEMPLATE), 'site.pristine');
 cp.execSync(`cp -a "${path.join(TEMPLATE, 'site')}" "${PRISTINE}"`);
 
@@ -92,14 +110,14 @@ function writeRoot(root, locale) {
   const site = path.join(TEMPLATE, 'site');
   const shape = siteShape.readSiteShape(site);
   const localeDir = shape.flat ? site : path.join(site, locale);
-  const writes = editorRoot.planRootWrite({ siteDir: site, localeDir, locale: shape.flat ? '' : locale, shape, root });
+  const writes = editorRoot.planRootWrite({ siteDir: site, localeDir, locale: shape.flat ? '' : locale, shape, root, layoutsDir: LAYOUTS_DIR });
   for (const w of writes) fs.writeFileSync(w.file, w.content);
   return writes.map((w) => path.relative(site, w.file));
 }
 function readRoot(locale) {
   const site = path.join(TEMPLATE, 'site');
   const shape = siteShape.readSiteShape(site);
-  return editorRoot.readRootValues({ siteDir: site, localeDir: shape.flat ? site : path.join(site, locale) });
+  return editorRoot.readRootValues({ siteDir: site, localeDir: shape.flat ? site : path.join(site, locale), layoutsDir: LAYOUTS_DIR });
 }
 function tryWrite(root, locale) {
   try { return { files: writeRoot(root, locale) }; } catch (e) { return { code: e.code, message: e.message }; }
@@ -117,23 +135,23 @@ function runScript(loc, input) {
 
 // 每个字段一个「跟现值不同」的值，用来走一遍往返。
 function otherValues(cur) {
-  const layouts = [...pageLayoutLib.loadLayouts().keys()];
+  const layouts = [...pageLayoutLib.loadLayouts(LAYOUTS_DIR).keys()];
   const pick = (list, not) => list.find((x) => x !== not);
   const header = require('./region-layout.js').pickableShapesOf('header');
   const footer = require('./region-layout.js').pickableShapesOf('footer');
+  // 📌 #1425（T3）：原来还有 topbarMessage / topbarLink（随公告条那个区删了），layout 也不再滤「带公告条的布局」、
+  //    headerShape 不再滤透明浮层（两样都退役了）。
   return {
-    layout: pick(layouts.filter((l) => !pageLayoutLib.needsTopbar(pageLayoutLib.loadLayouts().get(l))), cur.layout),
-    headerShape: pick(header.filter((h) => h !== 'transparent-overlay'), cur.headerShape),
+    layout: pick(layouts, cur.layout),
+    headerShape: pick(header, cur.headerShape),
     footerShape: pick(footer, cur.footerShape),
-    topbarMessage: 'Spring sale — 20% off',
-    topbarLink: { label: 'Book now', href: '/contact' },
   };
 }
 
 /** 往返：每个字段各写一次（只写它自己），读回来必须等于写进去的；回点名的问题清单。 */
 function roundTripProblems() {
   const problems = [];
-  for (const f of ['layout', 'headerShape', 'footerShape', 'topbarMessage', 'topbarLink']) {
+  for (const f of ['layout', 'headerShape', 'footerShape']) {
     freshSite();
     const before = readRoot('en');
     const want = otherValues(before)[f];
@@ -152,18 +170,18 @@ function roundTripProblems() {
 console.log('① 往返（分派表每一行）');
 {
   const problems = roundTripProblems();
-  check(problems.length === 0, '5 个 root 字段各写一次都读得回来、不碰别的字段', problems.join(' · '));
+  check(problems.length === 0, '3 个 root 字段各写一次都读得回来、不碰别的字段', problems.join(' · '));
 
-  // 反向：把分派表的 topbarLink 那一行拿掉（editor-root.js 拿的是同一个数组）。
+  // 反向：把分派表的 footerShape 那一行拿掉（editor-root.js 拿的是同一个数组）。#1425（T3）：原来拿的是 topbarLink。
   const table = fieldsMod.ROOT_FIELDS;
-  const at = table.findIndex((f) => f.field === 'topbarLink');
+  const at = table.findIndex((f) => f.field === 'footerShape');
   const [removed] = table.splice(at, 1);
   const broken = roundTripProblems();
   table.splice(at, 0, removed);
-  check(broken.length === 1 && broken[0].startsWith('topbarLink'), '反向：分派表少了 topbarLink ⟹ 守卫只点它的名', JSON.stringify(broken));
+  check(broken.length === 1 && broken[0].startsWith('footerShape'), '反向：分派表少了 footerShape ⟹ 守卫只点它的名', JSON.stringify(broken));
 }
 
-// ══ ② theme.json 只动 regionLayout；navigation.json 只动 topbar（判据用 navigation-owned.js）══════
+// ══ ② theme.json 只动 regionLayout；navigation.json 一个字节不动（#1425 T3）═══════════════════════════════
 console.log('② 只动该动的那一段');
 {
   freshSite();
@@ -175,33 +193,27 @@ console.log('② 只动该动的那一段');
   check(rest(themeBefore) === rest(themeAfter) && themeAfter.regionLayout && themeAfter.regionLayout.footer,
     'theme.json：themeId / applied / tweaks / css 原样，只多了 regionLayout', `${rest(themeBefore)} → ${rest(themeAfter)}`);
 
-  const navFile = path.join(site, 'en', 'navigation.json');
-  const navBefore = JSON.parse(fs.readFileSync(navFile, 'utf-8'));
-  const bytesBefore = fs.readFileSync(navFile, 'utf-8');
-  writeRoot({ topbarMessage: 'Open Sundays', topbarLink: { label: 'Hours', href: '/contact' } }, 'en');
-  const navAfter = JSON.parse(fs.readFileSync(navFile, 'utf-8'));
-  check(navOwned.buildOwnedChanges(navAfter, navBefore).length === 0, 'navigation.json：构建每次重写的那几处一个都没动（OWNED）');
-  const noTop = (o) => { const c = JSON.parse(JSON.stringify(o)); delete c.topbar; return c; };
-  check(navOwned.sameValue(noTop(navBefore), noTop(navAfter)), 'navigation.json：topbar 以外逐字段相等');
-  check(bytesBefore.endsWith('\n') === fs.readFileSync(navFile, 'utf-8').endsWith('\n'), '原文件末尾换行照原样（diff 里不多一行）');
-
-  // 两样都清空 = 不要公告条 ⟹ topbar 整个拿掉，文件回到没写过它的样子（逐字节）。
-  writeRoot({ topbarMessage: '', topbarLink: null }, 'en');
-  check(fs.readFileSync(navFile, 'utf-8') === bytesBefore, '公告条文字和链接都清空 ⟹ navigation.json 逐字节回到原样');
-  // 只填链接、不填文字：构建要 message 是字符串 ⟹ 补空串，文件过得了构建那道形状检查。
-  const r = tryWrite({ topbarLink: { label: 'Book', href: '/contact' } }, 'en');
-  check(!r.code && navOwned.shapeProblems(JSON.parse(fs.readFileSync(navFile, 'utf-8'))).length === 0, '只填链接 ⟹ 写得进去、形状过得了构建', JSON.stringify(r));
+  // 📌 #1425（T3）—— 这里原来还测「navigation.json 只动 topbar、清空回原样、只填链接补空串」；
+  //    公告条文字 / 链接随公告条那个区删了。改成今天成立的那一半：外壳三样一样都不碰 navigation.json。
+  const navs = ['en', 'fr', 'zh'].map((l) => path.join(site, l, 'navigation.json'));
+  const navBytes = navs.map((f) => fs.readFileSync(f, 'utf-8'));
+  const other = otherValues(readRoot('en'));
+  writeRoot({ layout: other.layout, headerShape: other.headerShape }, 'en');
+  check(navs.every((f, k) => fs.readFileSync(f, 'utf-8') === navBytes[k]), '三样都写过之后三种语言的 navigation.json 逐字节不变');
 }
 
 // ══ ③ 多语言：布局 / 形态整站一份，公告条按语言一份 ═════════════════════════════════════════════
+// 📌 #1425（T3）—— 这里原来还测「公告条按语言一份：在 fr 里改公告条文字 ⟹ 只变 fr/navigation.json」；公告条随旧库删了。
+//    今天三样都是整站一份，补一格布局（同样在 fr 里改，只变站根那一份）。
 console.log('③ 三语站');
 {
   freshSite();
   const site = path.join(TEMPLATE, 'site');
   const a = snapshot(site);
-  writeRoot({ topbarMessage: 'Soldes de printemps' }, 'fr');
-  check(JSON.stringify(changedFiles(a, snapshot(site))) === JSON.stringify(['fr/navigation.json']),
-    '在 fr 里改公告条文字 ⟹ 只变 fr/navigation.json', JSON.stringify(changedFiles(a, snapshot(site))));
+  writeRoot({ layout: otherValues(readRoot('fr')).layout }, 'fr');
+  check(JSON.stringify(changedFiles(a, snapshot(site))) === JSON.stringify(['page-layout.json']),
+    '在 fr 里改布局 ⟹ 只变站根的 page-layout.json', JSON.stringify(changedFiles(a, snapshot(site))));
+  check(readRoot('en').layout === readRoot('zh').layout && readRoot('zh').layout === readRoot('fr').layout, '三种语言读回的布局相同');
   const b = snapshot(site);
   writeRoot({ headerShape: otherValues(readRoot('fr')).headerShape }, 'fr');
   check(JSON.stringify(changedFiles(b, snapshot(site))) === JSON.stringify(['theme.json']),
@@ -215,41 +227,20 @@ console.log('④ 拒收');
 {
   freshSite();
   const site = path.join(TEMPLATE, 'site');
+  // 📌 #1425（T3）—— 这里原来测四格「with-topbar 缺语言 / with-topbar + 透明浮层顶栏（含只切布局、以及换掉顶栏的正臂）」；
+  //    公告条那个区、透明浮层顶栏都随旧库删了，那两条规则在 editor-root.js 里一起删了。
   let before = snapshot(site);
-  let r = tryWrite({ layout: 'with-topbar', topbarMessage: 'Sale' }, 'en');
-  check(r.code === editorRoot.REFUSED && /Missing: fr, zh/.test(r.message) && snapshot(site) && changedFiles(before, snapshot(site)).length === 0,
-    '三语站只填了英文就切 with-topbar ⟹ 拒、点名 fr, zh、什么都没写', r.message);
-
-  r = tryWrite({ layout: 'with-topbar', headerShape: 'transparent-overlay' }, 'en');
-  check(r.code === editorRoot.REFUSED && /transparent-overlay/.test(r.message) && changedFiles(before, snapshot(site)).length === 0,
-    'with-topbar + 透明浮层顶栏 ⟹ 拒、点名 transparent-overlay、什么都没写', r.message);
-
-  // 主题默认 / 文件里已有的覆盖就是透明浮层，这一笔没碰顶栏下拉、只切布局 ⟹ 也要拦（按「写完以后」算）。
-  freshSite((s) => {
-    const t = JSON.parse(fs.readFileSync(path.join(s, 'theme.json'), 'utf-8'));
-    t.regionLayout = { header: 'transparent-overlay' };
-    fs.writeFileSync(path.join(s, 'theme.json'), `${JSON.stringify(t, null, 2)}\n`);
-    for (const l of ['en', 'fr', 'zh']) {
-      const f = path.join(s, l, 'navigation.json');
-      const n = JSON.parse(fs.readFileSync(f, 'utf-8'));
-      n.topbar = { message: `Sale ${l}` };
-      fs.writeFileSync(f, JSON.stringify(n, null, 2));
-    }
-  });
-  before = snapshot(site);
-  r = tryWrite({ layout: 'with-topbar' }, 'en');
-  check(r.code === editorRoot.REFUSED && /transparent-overlay/.test(r.message) && changedFiles(before, snapshot(site)).length === 0,
-    '顶栏下拉没碰、theme.json 里已是透明浮层 ⟹ 只切布局也拒', r.message);
-  // 正臂：同一个站把顶栏换掉 ⟹ 过得去（证明上面拒的是透明浮层，不是别的）。
-  r = tryWrite({ layout: 'with-topbar', headerShape: 'solid-bar' }, 'en');
-  check(!r.code && r.files.includes('page-layout.json'), '正臂：同一笔把顶栏换成 solid-bar ⟹ 写得进去', JSON.stringify(r));
-
-  freshSite();
-  before = snapshot(site);
-  r = tryWrite({ layout: 'tri-footer', footerShape: 'slim-row' }, 'en');
+  let r;
+  r = tryWrite({ layout: FIXTURE_LAYOUT, footerShape: 'slim-row' }, 'en');
   check(r.code === editorRoot.REFUSED && changedFiles(before, snapshot(site)).length === 0, '布局自带页脚时改页脚形态 ⟹ 拒、什么都没写', r.message);
-  r = tryWrite({ layout: 'tri-footer' }, 'en');
-  check(!r.code && JSON.stringify(r.files) === JSON.stringify(['page-layout.json']), '正臂：只切到 tri-footer ⟹ 只写 page-layout.json', JSON.stringify(r));
+  r = tryWrite({ layout: FIXTURE_LAYOUT }, 'en');
+  check(!r.code && JSON.stringify(r.files) === JSON.stringify(['page-layout.json']), `正臂：只切到 ${FIXTURE_LAYOUT} ⟹ 只写 page-layout.json`, JSON.stringify(r));
+  // 反向臂：布局已经是钉页脚的那份，这一笔只改页脚形态（没碰布局）⟹ 也拒（按「写完以后」算）
+  before = snapshot(site);
+  r = tryWrite({ footerShape: 'stacked' }, 'en');
+  check(r.code === editorRoot.REFUSED && changedFiles(before, snapshot(site)).length === 0, '布局已钉页脚时只改页脚形态 ⟹ 也拒、什么都没写', r.message);
+  r = tryWrite({ layout: 'standard', footerShape: 'stacked' }, 'en');
+  check(!r.code && r.files.includes('theme.json'), '正臂：同一笔切回 standard ⟹ 页脚形态写得进去', JSON.stringify(r));
 
   r = tryWrite({ headerShape: 'nope' }, 'en');
   check(r.code === 5, '不是能挑的形态 ⟹ 5（不是编辑器发得出来的东西）');
@@ -268,8 +259,9 @@ console.log('⑤ write-editor-save.js');
   page.title = `${page.title || 'Home'} (edited 1405)`;
 
   let before = snapshot(site);
-  let r = runScript({ page: 'home', locale: 'en', baseHash: hash() }, { page, root: { layout: 'with-topbar' } });
-  check(r.status === editorRoot.REFUSED && r.last && r.last.ok === false && /Missing: en, fr, zh/.test(r.last.message),
+  // #1425（T3）：会被拒的 root 原来是 with-topbar（缺公告文字）；换成「钉页脚的布局 + 改页脚形态」这条今天还在的规则。
+  let r = runScript({ page: 'home', locale: 'en', baseHash: hash() }, { page, root: { layout: FIXTURE_LAYOUT, footerShape: 'stacked' } });
+  check(r.status === editorRoot.REFUSED && r.last && r.last.ok === false && /comes with its own footer styles/.test(r.last.message),
     '页面 + 会被拒的 root ⟹ exit 11，stdout 那一行是给老板的原话', `${r.status} ${r.stdout}`);
   check(changedFiles(before, snapshot(site)).length === 0, '没有一半状态：页面也一个字节没写');
 
@@ -281,8 +273,9 @@ console.log('⑤ write-editor-save.js');
   const hashAfterPage = hash();
 
   before = snapshot(site);
-  r = runScript({ page: 'home', locale: 'fr' }, { root: { topbarMessage: 'Bonjour' } });
-  check(r.status === 0 && JSON.stringify(r.last.files) === JSON.stringify(['site/fr/navigation.json']) && changedFiles(before, snapshot(site)).join() === 'fr/navigation.json',
+  // #1425（T3）：原来只写 root.topbarMessage → fr/navigation.json；今天换成 headerShape → 站根 theme.json。
+  r = runScript({ page: 'home', locale: 'fr' }, { root: { headerShape: otherValues(readRoot('fr')).headerShape } });
+  check(r.status === 0 && JSON.stringify(r.last.files) === JSON.stringify(['site/theme.json']) && changedFiles(before, snapshot(site)).join() === 'theme.json',
     '只有 root（不带页面、不带 baseHash）⟹ 只写那一份站级文件', `${r.status} ${r.stdout} ${r.stderr}`);
   // #1415 —— 只有 root 时不回 hash：页面没写，编辑器手上的 baseHash 仍然对。回一个「当前文件的 hash」会把别处
   // 对这一页的改动悄悄认成底稿。
@@ -290,7 +283,7 @@ console.log('⑤ write-editor-save.js');
 
   r = runScript({ page: 'home', locale: 'en' }, { root: {} });
   check(r.status === 5, '既没页面也没 root ⟹ 5');
-  r = runScript({ page: 'home', locale: 'en', baseHash: 'f'.repeat(64) }, { page, root: { footerShape: 'multi-column' } });
+  r = runScript({ page: 'home', locale: 'en', baseHash: 'f'.repeat(64) }, { page, root: { footerShape: otherValues(readRoot('en')).footerShape } });
   check(r.status === 10, '页面底稿过期 ⟹ 10（页面那一半的判据跟 write-page.js 是同一份）', `${r.status} ${r.stderr}`);
 }
 
@@ -326,38 +319,42 @@ console.log('⑤b 老 sections 形状的页面 + root 一起存');
 // ══ ⑥ 编辑器那一侧：只交改过的字段；别处的改动不被冲掉 ═══════════════════════════════════════════
 console.log('⑥ 只写改过的字段（puckRootChanges）');
 {
-  const schema = require('./lib/editor-schema.js').editorSchema({});
-  /** 打开编辑器 → 别处改 topbar → 编辑器只改页脚后存盘 → topbar 仍是别处那一份。回读回来的 topbar 文字。 */
+  const schema = require('./lib/editor-schema.js').editorSchema({ layoutsDir: LAYOUTS_DIR });
+  // #1425（T3）：「别处改的那个字段」原来是公告条文字（随旧库删了），换成顶栏形态。
+  /** 打开编辑器 → 别处改顶栏形态 → 编辑器只改页脚后存盘 → 顶栏形态仍是别处那一份。回读回来的顶栏形态。 */
+  let elsewhere = null;
   function scenario(changes) {
     freshSite();
     const initial = { root: { props: convert.rootToPuck(readRoot('en')) } };
-    writeRoot({ topbarMessage: 'Changed in the AI chat' }, 'en'); // 别处
+    elsewhere = otherValues(readRoot('en')).headerShape;
+    writeRoot({ headerShape: elsewhere }, 'en'); // 别处
     const now = { root: { props: { ...initial.root.props, footerShape: otherValues(readRoot('en')).footerShape } } };
     writeRoot(changes({ initial, now, schema }), 'en');
-    return readRoot('en').topbarMessage;
+    return readRoot('en').headerShape;
   }
-  check(scenario(convert.puckRootChanges) === 'Changed in the AI chat', '编辑器只改页脚 ⟹ 别处改的公告条文字还在');
+  check(scenario(convert.puckRootChanges) === elsewhere, '编辑器只改页脚 ⟹ 别处改的顶栏形态还在');
 
-  // 反向：换一份「整份写回」的比对（把「跟初值比」那一句拿掉）⟹ 那条公告条被冲回打开时的值。
+  // 反向：换一份「整份写回」的比对（把「跟初值比」那一句拿掉）⟹ 顶栏形态被冲回打开时的值。
   const src = fs.readFileSync(path.join(__dirname, 'lib', 'editor-convert.js'), 'utf-8');
-  const needle = 'if (!deepEqual(next, norm(field, a[field]))) out[field] = next;';
+  const needle = 'if (!deepEqual(next, a[field])) out[field] = next;';
   if (!src.includes(needle)) die('editor-convert.js 里找不到「跟初值比」那一句 —— 反向对照改不了，这一格什么都说明不了');
   const m = new Module(path.join(__dirname, 'lib', 'editor-convert.mut.js'), module);
   m.filename = m.id; // editor-convert.js 顶上 require('./item-sources')（#1505）：相对路径按这个文件名解析
   m._compile(src.replace(needle, 'out[field] = next;'), m.id);
-  check(scenario(m.exports.puckRootChanges) !== 'Changed in the AI chat', '反向：整份写回 ⟹ 别处的改动被冲掉（这一格会红）');
+  check(scenario(m.exports.puckRootChanges) !== elsewhere, '反向：整份写回 ⟹ 别处的改动被冲掉（这一格会红）');
 
-  const initial = { root: { props: convert.rootToPuck({ layout: 'standard', headerShape: 'solid-bar', footerShape: 'multi-column', topbarMessage: '', topbarLink: null }) } };
+  const initial = { root: { props: convert.rootToPuck({ layout: 'standard', headerShape: 'logo-left', footerShape: 'columns' }) } };
   const same = convert.puckRootChanges({ initial, now: JSON.parse(JSON.stringify(initial)), schema });
   check(Object.keys(same).length === 0, '一个字段都没改 ⟹ 空（不写任何站级文件）');
-  const pinned = convert.puckRootChanges({ initial, now: { root: { props: { ...initial.root.props, layout: 'tri-footer', footerShape: 'slim-row' } } }, schema });
-  check(JSON.stringify(pinned) === JSON.stringify({ layout: 'tri-footer' }), '布局自带页脚时不交 footerShape', JSON.stringify(pinned));
-  const cleared = convert.puckRootChanges({ initial: { root: { props: { ...initial.root.props, topbarLink: { label: 'A', href: '/a' } } } }, now: { root: { props: { ...initial.root.props, topbarLink: { label: '', href: '' } } } }, schema });
-  check(JSON.stringify(cleared) === JSON.stringify({ topbarLink: null }), '两格清空 = 不要这个链接（null）', JSON.stringify(cleared));
+  const pinned = convert.puckRootChanges({ initial, now: { root: { props: { ...initial.root.props, layout: FIXTURE_LAYOUT, footerShape: 'slim-row' } } }, schema });
+  check(JSON.stringify(pinned) === JSON.stringify({ layout: FIXTURE_LAYOUT }), '布局自带页脚时不交 footerShape', JSON.stringify(pinned));
+  const unpinned = convert.puckRootChanges({ initial, now: { root: { props: { ...initial.root.props, footerShape: 'slim-row' } } }, schema });
+  check(JSON.stringify(unpinned) === JSON.stringify({ footerShape: 'slim-row' }), '（对照）standard 下改页脚形态 ⟹ 交 footerShape', JSON.stringify(unpinned));
+  // 📌 #1425（T3）—— 这里原来还测「公告条链接两格清空 = null」；topbarLink 随公告条那个区删了。
   check(JSON.stringify(schema.root.fields.map((f) => f.field)) === JSON.stringify(fieldsMod.ROOT_FIELDS.map((f) => f.field)),
     '编辑器的 root 字段清单就是分派表那一份');
-  check(schema.root.layouts.filter((l) => l.pinsFooter).map((l) => l.id).join() === [...pageLayoutLib.loadLayouts().values()].filter((l) => l.repeatVariants && Object.keys(l.repeatVariants).some((k) => pageLayoutLib.kindOf(k) === 'footer')).map((l) => l.id).join(),
-    'pinsFooter 从布局文件算（今天是 tri-footer）');
+  check(schema.root.layouts.filter((l) => l.pinsFooter).map((l) => l.id).join() === [...pageLayoutLib.loadLayouts(LAYOUTS_DIR).values()].filter((l) => l.repeatVariants && Object.keys(l.repeatVariants).some((k) => pageLayoutLib.kindOf(k) === 'footer')).map((l) => l.id).join(),
+    `pinsFooter 从布局文件算（这里是夹具 ${FIXTURE_LAYOUT}）`);
 }
 
 // ══ ⑦ page-layout.json：本票是第一个写入者 —— 写进去构建读得到；三种坏法构建都点名 ═══════════════
@@ -367,10 +364,10 @@ console.log('⑦ page-layout.json 进构建');
     return cp.spawnSync(process.execPath, [path.join(TEMPLATE, 'scripts', 'sync-config.js')], { cwd: TEMPLATE, encoding: 'utf8', timeout: 180000 });
   }
   freshSite();
-  writeRoot({ layout: 'tri-footer' }, 'en');
+  writeRoot({ layout: FIXTURE_LAYOUT }, 'en');
   let r = sync();
   const data = fs.existsSync(path.join(TEMPLATE, 'src', 'lib', 'config-data.ts')) ? fs.readFileSync(path.join(TEMPLATE, 'src', 'lib', 'config-data.ts'), 'utf-8') : '';
-  check(r.status === 0 && /pageLayout = \{"id":"tri-footer"/.test(data), '编辑器写的 page-layout.json ⟹ 构建读到 tri-footer', `rc=${r.status} ${(r.stderr || '').slice(-300)}`);
+  check(r.status === 0 && data.includes(`pageLayout = {"id":"${FIXTURE_LAYOUT}"`), `编辑器写的 page-layout.json ⟹ 构建读到 ${FIXTURE_LAYOUT}`, `rc=${r.status} ${(r.stderr || '').slice(-300)}`);
 
   const broken = [
     ['{ not json', '不是合法 JSON'],
@@ -395,10 +392,13 @@ console.log('⑧ 扁平老站');
   });
   const site = path.join(TEMPLATE, 'site');
   const before = snapshot(site);
-  let r = tryWrite({ topbarMessage: 'Flat sale' }, 'en');
-  check(!r.code && JSON.stringify(changedFiles(before, snapshot(site))) === JSON.stringify(['navigation.json']), '扁平站：公告条写进 site/navigation.json', JSON.stringify(r));
-  r = tryWrite({ layout: 'with-topbar' }, 'en');
-  check(!r.code, '扁平站：有了公告条文字就能切 with-topbar（缺语言的检查按一种语言算）', JSON.stringify(r));
+  // 📌 #1425（T3）—— 这里原来测「扁平站：公告条写进 site/navigation.json；有了公告条文字就能切 with-topbar」；
+  //    两样都随公告条那个区删了。改成扁平站上三样各写到哪。
+  let r = tryWrite({ headerShape: otherValues(readRoot('en')).headerShape }, 'en');
+  check(!r.code && JSON.stringify(changedFiles(before, snapshot(site))) === JSON.stringify(['theme.json']), '扁平站：顶栏形态写进 site/theme.json', JSON.stringify(r));
+  const mid = snapshot(site);
+  r = tryWrite({ layout: FIXTURE_LAYOUT }, 'en');
+  check(!r.code && JSON.stringify(changedFiles(mid, snapshot(site))) === JSON.stringify(['page-layout.json']), '扁平站：布局写进 site/page-layout.json', JSON.stringify(r));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

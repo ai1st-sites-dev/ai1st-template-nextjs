@@ -16,7 +16,7 @@
  *   ① 块前缀 = 这个块**自己的** CSS（`blocks/<块>/**.css`）选择器里出现最多的那段 class 前缀
  *      （`hdr` / `ftr` / `ct` / 旧块的 `header` …）。从文件现取，不写死清单 —— 新块进来自动覆盖。
  *   ② markup 里的块前缀 class = 块目录下**全部** `*.tsx`（剥掉注释）里形如 `<前缀>-x` / `<前缀>__x` 的词。
- *      🔴 不只 `Section.tsx`：`contact-new/ContactMap.tsx` · `gallery-new/Lightbox.tsx` · `testimonials-new/Carousel.tsx`
+ *      🔴 不只 `Section.tsx`：`contact/ContactMap.tsx` · `gallery/Lightbox.tsx` · `testimonials/Carousel.tsx`
  *      也是块的 markup，#1513 那 6 个 class 里有 4 个只住在 `ContactMap.tsx` —— 只读 `Section.tsx` 的版本对它的
  *      立案案例按构造是绿的（#1519 r1 被 QA1 打回的就是这一条）。`src/components/` 下的共用组件不在范围内。
  *   ③ 每一个都要在【源】CSS 里有一条规则：它出现在某条规则的选择器里，而且那条规则**至少有一条声明**
@@ -30,7 +30,7 @@
  *      的值整段跳过，引号和 `{…}` 表达式两种写法都算（`aria-labelledby={h ? 'text-block-heading' : undefined}`）。
  *    另外两个同类，写这一格时在全仓上撞到的：
  *    · data 属性的【值】（`data-block-part="testimonials-list"`）：`data-*=` 后面那个值同样整段跳过；
- *    · 块类型名（`blockAttrs('cta-new', …)` 里的 `cta-new`）：等于 `blocks/` 下某个目录名的词不算 class。
+ *    · 块类型名（`blockAttrs('cta', …)` 里的 `cta`）：等于 `blocks/` 下某个目录名的词不算 class。
  *
  * 🔴 「源 CSS」排掉五份生成物：`public/shapes.css` / `public/base.css`（`build-blocks.js` 从 `blocks/` 拼出来，
  *    两边一致由 `build-blocks.js --check` 守），以及 `public/site.css` / `theme.css` / `custom.css`（sync-config
@@ -139,7 +139,7 @@ let checked = 0;
 for (const b of blocks) {
   const prefix = prefixOf(path.join(BLOCKS, b));
   if (!prefix) { noPrefix.push(b); continue; }
-  // 块目录下【全部】`*.tsx`，不只 `Section.tsx`：#1513 补的 6 个 class 里有 4 个住在 `contact-new/ContactMap.tsx`（#1519 r1 QA1）。
+  // 块目录下【全部】`*.tsx`，不只 `Section.tsx`：#1513 补的 6 个 class 里有 4 个住在 `contact/ContactMap.tsx`（#1519 r1 QA1）。
   const used = [...new Set(fs.readdirSync(path.join(BLOCKS, b))
     .filter((f) => f.endsWith('.tsx'))
     .flatMap((f) => markupClassesOf(fs.readFileSync(path.join(BLOCKS, b, f), 'utf8'), prefix, blockNames)))].sort();

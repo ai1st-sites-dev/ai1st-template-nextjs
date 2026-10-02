@@ -7,8 +7,8 @@
  *
  * 「每份非 region manifest 都在编辑器里出现」有两半：组件清单里有它（`editor-roundtrip.test.js` ①），
  * 以及画布上真画得出来。后一半这里量：夹具页每一块走编辑器画布的同一条路（`pageToPuck` → 画布拿
- * `_src.view` → `SectionRenderer`）渲染一次，输出为空的块只许是 `service-related-pages`（站里没有
- * 它那个服务的子页就 `return null`，本文件的配置替身里一页都没有）。多一个就红，并点名。
+ * `_src.view` → `SectionRenderer`）渲染一次，输出为空的块一个都不许有（#1425 T3 之前唯一的例外
+ * `service-related-pages` 随旧库删了）。有一个就红，并点名。
  *
  * 🔴 单独一个文件、不并进 `editor-roundtrip.test.js`：这里要往 `require.extensions` 挂 tsx 编译、
  *    把 `@/lib/config` 等换成替身，那会改掉同进程里其他 require 的行为。
@@ -60,11 +60,11 @@ const stub = (name, body) => { const p = path.join(STUB_DIR, `${name}.js`); fs.w
 const STUBS = {
   'next/link': stub('link', "const React=require('react');const L=({href,children,...r})=>React.createElement('a',{href,...r},children);module.exports=L;module.exports.default=L;\n"),
   '@/components/ServiceIcon': stub('icon', "const React=require('react');const C=()=>React.createElement('span');module.exports=C;module.exports.default=C;\n"),
-  // 🔴 `pagesByLocale` 一页都没有：`service-related-pages` 因此 return null —— 那正是验收第 3 条点名的
-  //    唯一例外。给了子页，它就画得出来，这道检查就量不到「例外恰好是它」。
+  // 📌 #1425（T3）：`pagesByLocale` 一页都没有，原来是为了让 `service-related-pages` return null（验收第 3 条点名的唯一
+  //    例外）；那个块随旧库删了，替身照旧留空。
   '@/lib/config': stub('config', 'module.exports={getServices:()=>[],pagesByLocale:{en:[]},localeUrl:(s)=>"/"+s,'
-    // #1497 —— 博客给一篇：`blog-new` 在站里一篇文章都没有时同样 return null（按设计）。给空数组的话它会成为第二个
-    //    「画出来是空的」，而这里要量的是「例外恰好只有 service-related-pages 一个」；给一篇，画布上 blog-new 真画得出来也一起量到。
+    // #1497 —— 博客给一篇：`blog` 在站里一篇文章都没有时同样 return null（按设计）。给空数组的话它会成为第二个
+    //    「画出来是空的」；给一篇，画布上 blog 真画得出来也一起量到。
     + 'siteId:"t",leadApi:"",getBlogPosts:()=>[{slug:"p",title:"P",excerpt:"E",content:"<p>x</p>",category:"C",tags:[],author:"A",publishedAt:"2026-09-01",seo:{metaTitle:"",metaDescription:""}}],'
     + 'brand:{locations:[],email:"a@b.c"}};\n'),
 };
@@ -129,17 +129,18 @@ function emptyOnCanvas() {
   return { empty: empty.sort(), errors, count: data.content.length };
 }
 
-const ALLOWED = ['service-related-pages'];
+// #1425（T3）：原来是 ['service-related-pages']（随旧库删了）；今天块库里没有任何「按设计会是空」的块。
+const ALLOWED = [];
 
-console.log('① 画布上画出来是空的块，只许是 service-related-pages');
+console.log('① 画布上画出来是空的块：一个都没有');
 {
   const r = emptyOnCanvas();
   check(r.errors.length === 0, `${r.count} 块都渲染得动（没有抛）`, r.errors.join(' / '));
   check(r.count === schema.components.length, `夹具页每个组件一块（${schema.components.length}）`, String(r.count));
   const extra = r.empty.filter((t) => !ALLOWED.includes(t));
-  const missing = ALLOWED.filter((t) => !r.empty.includes(t));
   check(extra.length === 0, '没有别的块画出来是空的', `多出：${extra.join(' / ')}`);
-  check(missing.length === 0, '例外恰好是 service-related-pages（它确实为空，这道检查量得到它）', `它竟然画出来了 —— 替身里给了子页？`);
+  // 📌 #1425（T3）—— 这里原来还有一格「例外恰好是 service-related-pages（它确实为空，这道检查量得到它）」；那个块随旧库删了。
+  //    「这道检查量得到空块」今天由 ② 的反向对照单独证。
 }
 
 console.log('② 反向：testimonials 的组件改成 return null → 被点名');
@@ -154,7 +155,7 @@ console.log('② 反向：testimonials 的组件改成 return null → 被点名
   const extra = r.empty.filter((t) => !ALLOWED.includes(t));
   check(extra.length === 1 && extra[0] === 'testimonials', '多出的那一个被点名：testimonials', `多出：${extra.join(' / ') || '（无）'}`);
   const again = emptyOnCanvas().empty.filter((t) => !ALLOWED.includes(t));
-  check(again.length === 0, '对照：换回原来的源码 → 又只剩那一个例外', again.join(' / '));
+  check(again.length === 0, '对照：换回原来的源码 → 又一个空块都没有', again.join(' / '));
 }
 
 console.log(`\n${pass} 过 · ${fail} 败`);

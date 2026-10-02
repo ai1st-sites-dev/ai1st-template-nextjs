@@ -1,118 +1,319 @@
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+// testimonials —— 块头（intro，可带一组平台评分 summary）+ 一组评价（items），摊开或轮播（#1488，总纲 #1422 的 T2.10；
+//                     summary 改成一组平台 + summaryStyle 是 #1500 / T2.10B）
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+//
+// 🔴 **一份 markup，八个旋钮**：intro*（introPosition / introAlign）· summaryStyle（#1500）· items*（itemsLayout / itemsColumns）·
+//    item*（itemStyle / quoteSize / itemAlign），五个预设各是一个形态目录。实际生效的旋钮 = 形态对应的那个预设给底，
+//    `data.options` 里写了的逐个覆盖（`scripts/lib/block-knobs.js` §effectiveKnobs —— 编辑器判 custom 用的是同一个函数）。
+//    旋钮值写在根元素上（`data-intro-position` … `data-item-align` / `data-tone`），`block.css` 按它们排；形态目录自己不带几何。
+//
+// 🔴 **轮播是 Bootstrap Carousel，也是服务端渲染**（#1494，Chris 2026-09-30：轮播 / 弹窗一律用 Bootstrap 自带的，不手写）：
+//    服务端按 `itemsColumns` 把评价分组，一组一张 `.carousel-item`（里面一个 `.tn-slide` 网格）；每张 slide、每条评价
+//    （`<figure>` + `<blockquote>` + `<figcaption>`）、圆点（`.carousel-indicators`，每张 slide 一个）、前 / 后按钮全在 HTML 里，
+//    搜索和 AI 读得到每一条。唯一的客户端部分是外壳 `Carousel.tsx`：挂载后按需引 Carousel 模块。不自动播放。
+//    以前那条手写轨道（横向滚动 + 自己算位置的圆点）已删。
+//
+// 🔴 **summary 是一组平台（#1500）**，每个 `{source, rating, count, href?, logoUrl?}`，两处摆法按 `summaryStyle` 只出一处：
+//    `inline` = 块头正文下面一排小条；`cards` = 评价那一列最上面一排平台卡（Webpixels reviews-1）。
+//    logo 取哪一档（上传的 `logoUrl` → 内置品牌图标 → 平台名）不在这里写：`scripts/lib/review-platforms.js` §platformLogo，
+//    reviews 用的是同一份。
+//    🔴 字段叫 `logoUrl` 而不是 `imageUrl` 是**承重的**：`block-manifest.js` §imageSlotsOf 只把 shape 里有 `imageUrl` 的
+//    list 槽当内容图槽，所以建站不会给平台编一张 logo；改名成 `imageUrl` 的那一刻建站就开始造假 logo
+//    （`testimonials-render.test.js` 有一格两向守它）。
+//    旧形状（#1488 的单个对象）由 validateSite 读入时包成一项数组（`block-manifest.js` §validateSite），这里不认对象。
+//
+// 🔴 **藏东西一律是不渲染**：`summary` 一个有效平台都没有 ⟹ 两处都没有；某条没 `photo` ⟹ 画名字首字母圆、没有 `<img>`；
+//    某条没 `rating` ⟹ 没有星级节点（来源照常）；块头只看 `headline` / `body`，两个都空 ⟹ 块头那一列整个不渲染。
+//
+// 🔴 **每条的顺序（Chris 2026-09-29）**：引言 → 人（头像 + 名字 + 身份）→ 星级 + 来源在最底下（card 等高时贴卡底）。
+//
+// 🔴 **图片的键叫 `imageUrl`**（`items[].photo`）：AI 改站的写入闸只认 `IMAGE_FIELDS` 里的键（`scripts/lib/image-urls.js`）。
+//
+// 🔴 **图标是内联 SVG**：星（`star-fill` / `star`）、前后箭头（`chevron-left` / `chevron-right`）和平台品牌图标（#1500，名字住在
+//    `review-platforms.js` 那张表里）登记在 `scripts/lib/icons.js` 的 `BLOCK_ICONS['testimonials']`；`iconTable` 由服务端查好传进来，这里用
+//    `InlineIcon` 画。
+//
+// 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg），这里不自己算亮度、不自己拼渐变。
+
+import type { ReactNode } from 'react';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig } from '@/lib/types/config';
+import InlineIcon, { type IconTable } from '@/components/InlineIcon';
+import manifest from './manifest.json';
+import TestimonialsCarousel from './Carousel';
+import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
+import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import { platformLogo } from '../../scripts/lib/review-platforms.js';
 
-interface Testimonial {
-  id: string;
-  name: string;
-  role: string;
-  location: string;
-  quote: string;
-  rating: number;
-  service: string;
+export interface TestimonialsNewImage { imageUrl?: string; alt?: string }
+export interface TestimonialsNewItem {
+  quote?: string;
+  name?: string;
+  role?: string;
+  photo?: TestimonialsNewImage;
+  rating?: number;
+  source?: string;
+}
+export interface TestimonialsNewPlatform { source?: string; rating?: number | string; count?: number | string; href?: string; logoUrl?: string }
+export interface TestimonialsNewOptions {
+  introPosition?: string; introAlign?: string; summaryStyle?: string;
+  itemsLayout?: string; itemsColumns?: string;
+  itemStyle?: string; quoteSize?: string; itemAlign?: string;
+}
+export interface TestimonialsNewData {
+  options?: TestimonialsNewOptions;
+  introEyebrow?: { text?: string; style?: string };
+  headline?: string;
+  body?: string;
+  summary?: TestimonialsNewPlatform[];
+  items?: TestimonialsNewItem[];
+  bg?: BgValue;
 }
 
-interface TestimonialsSectionProps {
-  data: {
-    headline: string;
-    subheadline: string;
-    items: Testimonial[];
-  };
-  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的 `data-role` / `data-shape` / `data-has-*` 从它来。
-   *  （#998 当初加它是为了第三个钩子 `data-block-layout`，#1341 把那个钩子退役了。） */
+interface Props {
+  data: TestimonialsNewData;
+  locale?: string;
   block?: BlockConfig;
+  /** 服务端查好的图标表（`scripts/lib/icons.js` §iconTableFor）。没给 ⟹ 一个图标都不画。 */
+  iconTable?: IconTable;
 }
 
-// 🔴🔴 #1036 — 一份中性 markup，别的什么都没有。阶段 2 批 G。
-//
-// 五支走了：`grid`（三列卡片，默认）、`featured`（一张大卡 + 三张小卡）、`quote-wall`（深底三列）、
-// `minimal`（一栏、分隔线）、`carousel`（一次一条 + 圆点导航）。
-//
-// 🔴 这一块跟本批别的块不一样：**五支读的字段并不相同**，而少读的那几支是在【少画数据】，不是换长相。
-// 逐支量过（删之前）：
-//   grid       quote · rating · name · role · location · service    ← 字段最全的一支
-//   featured   quote · rating · name · role · location              ← 而且只画 1 + rest.slice(0, 3)
-//   quote-wall quote · name · role · location
-//   minimal    quote · name · role
-//   carousel   quote · name · role · location                        ← 而且一次只画 1 条
-// ⟹ 中性 markup 取**并集**（= 旧 `grid` 那一支画的东西），逐条画，一条不落。这不是「多加了功能」：
-//    `service` / `rating` / `location` 本来就在每个站的数据里，是那三支自己没画。
-//
-// 🔴 搬完之后线上会多出来的内容，写在明处（PM 在 6 个站上复算过）：
-//   · `carousel` 从「一次 1 条」变成全部进 DOM —— 线上 0 个实例，所以今天没人受影响，但值得写下来
-//   · `featured` 的 `rest.slice(0, 3)` 没了：线上 4 个首页各有 6 条评价而只画 4 条，**每页静默丢 2 条、
-//     合计 8 条**，搬完全部回到页面上。对一个卖「被搜索和 AI 找到」的产品，那 8 条是白丢的
-//   · `quote-wall` / `minimal` 的每一条从此也带上评分和服务名
-//
-// 🔴 `carousel` 那一支为什么不留成一个开关：主题自己画得出来。实测契约放行 `display:flex` ·
-// `overflow:auto` · `gap` · `flex-shrink` · `min-width`，真浏览器里这五个属性就是一条能横滑的条，
-// 而**四条内容全在 DOM 里**。所以「轮播」搬完之后是主题的一种长相，不是站要选的形态。
-//
-// 🔴 #1190 —— 上面那条「哪套主题真做出一条能滑的横条、真觉得停位难看，那时带真读数开票」的触发
-//    条款**已经兑现了**，所以下面这一层 `<div data-block-part="testimonials-list">` 是它的产物：
-//   · 停位那件事今天做得到了 —— 契约 §2 收了 `scroll-snap-type` / `scroll-snap-align` /
-//     `scroll-snap-stop` / `overflow-x` 以及 `scroll-padding*` / `scroll-margin*`（枚举，不是
-//     `scroll-*` 通配；`scroll-behavior` 与 `overflow-y` 明确不收）。两臂读数（本仓样例站真建真跑，
-//     `lime-28`，六档视口 320/360/375/768/1024/1440）：`scrollLeft` 设成 100，加了 `scroll-snap-type`
-//     **六档全部静止在条目边界上**（1440 上条目吸附位 0·596·1193）、按选择器精确删掉那一条则
-//     **六档全部停在 100**。📌 票正文记的「条目步长 336」是它自己那个 5 条的独立探针，不是这里的数。
-//   · 📌 2026-08-16 那条裁定**没有被推翻**：它说的是别往 `globals.css` 加一条谁都盖不掉的死规则。
-//     这里加的仍然不是那种东西 —— `globals.css` 里只有 `display: contents`（对布局透明，实测扁平
-//     与包一层的逐元素几何逐项相同），会不会滑由**主题表**自己决定，而且今天池里 97 套只有一套
-//     （`lime-28`）真画了它。
-//   · 为什么必须有这一层、而不是让 `.testimonials` 自己当滑动容器：标题和副题就在 `.testimonials`
-//     里。实测（把这个组件改回扁平 markup、把滑条规则指到 `.testimonials` 自己身上，真建真跑）：
-//     滑到底时标题左沿相对容器左沿 **-429px**，已经不在视口内了 —— 而 `position` / `left` 都被
-//     契约拒。包一层之后标题和副题是这一层的**兄弟**，滑动轴开在这一层上就带不走它们。
-//     📌 票正文记的是 -728px，那是它自己那个 5 条的独立探针；这里这个 -429 是交付时在本仓样例站
-//     （1440px、3 条）上重量的。同一个毛病、两个夹具，别把两个数混着引。
-//   · 为什么是**属性**钩子而不是 class：class 会进 `HOOK_CLASSES`，那是池子配方逐个写规则、准入
-//     闸②逐个要规则的那份名单 —— 实测加 class 形态会让闸②点名 100/100 张表，重生成则 97 张全变。
-//     代价写在契约 §1：闸②因此**永远不会问**「有没有哪套表画了这一层」。
-//
-// 🔴 头像那个圆圈里的首字母（`name.charAt(0)`）没了。它不是数据，是 markup 现算出来的一个装饰，
-// 而名字就在它旁边。跟 #1027 values-grid 的序号是同一笔账：markup 里算出来的东西，主题表补不回来。
-//
-// 🔴 评分保留成 N 个 `<svg>`，因为**它是数据驱动的结构**（`rating` 决定几颗星），不是长相 ——
-// 主题表画不出「N 颗」。这跟 #1027 的 `services-list__icon` 是同一条界线：图形本身给一个钩子，
-// 主题管它多大什么颜色，管不了有几个。
-//
-// 📌 #1341 —— 下面这句话原来的写法是「`variant` 照旧写在页面 JSON 里、照旧被 sync-config.js 从主题的
-//    `supports` 覆盖」。那条覆盖随内容结构那一维一起退役了：构建期不再往任何块写 `data.variant`，
-//    而老站磁盘上残留的这个键在构建读页面时就被丢掉（`scripts/blocks.js` 的 `normalizeListSlots`）
-//    ⟹ 它根本到不了组件。
-// 🔴 `variant` 只剩在老站磁盘上的页面 JSON 里，没人读了
-// —— 同 hero / cta-banner 那个有意的状态（#1008 AC5 / #1018）。`'use client'` 和 `useState` 一起没了。
-//
-// 🔴 那第二个参数不是可选的 —— `blockAttrs('testimonials', block)`，不许写成 `blockAttrs('testimonials')`。
-// #1341 把第三个钩子 `data-block-layout` 退役了，但 `data-role` / `data-shape` /
-// `data-has-*` 仍然全从这个参数来；漏掉它 `tsc` 看不见（`registry.generated.ts` 把组件类型写成
-// `ComponentType<any>`），#1008 r1 因此被打回。
-export default function TestimonialsSection({ data, block }: TestimonialsSectionProps) {
-  return (
-    <section {...blockAttrs('testimonials', block)} className="testimonials" aria-labelledby="testimonials-heading">
-      <h2 id="testimonials-heading" className="testimonials__headline" data-slot="headline">
-        {data.headline}
-      </h2>
-      <p className="testimonials__sub" data-slot="subheadline">{data.subheadline}</p>
-      <div data-block-part="testimonials-list">
-        {data.items?.map((testimonial, index) => (
-          <article key={testimonial.id} className="testimonials__item">
-            <p className="testimonials__rating" aria-label={`Rated ${testimonial.rating} out of 5`}>
-              {Array.from({ length: testimonial.rating }).map((_, i) => (
-                <svg key={i} className="testimonials__star" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                </svg>
-              ))}
-            </p>
-            <blockquote className="testimonials__quote" data-slot={`items.${index}.quote`}>{testimonial.quote}</blockquote>
-            <p className="testimonials__name" data-slot={`items.${index}.name`}>{testimonial.name}</p>
-            <p className="testimonials__meta">
-              <span data-slot={`items.${index}.role`}>{testimonial.role}</span> &middot;{' '}
-              <span data-slot={`items.${index}.location`}>{testimonial.location}</span>
-            </p>
-            <p className="testimonials__service" data-slot={`items.${index}.service`}>{testimonial.service}</p>
-          </article>
+// 评价 1–12 条、平台 1–4 个（manifest 的 `maxItems`，validateSite 拦超出的）。
+const MAX_ITEMS = manifest.slots.items.maxItems;
+const MAX_PLATFORMS = manifest.slots.summary.maxItems;
+
+const isObj = (v: unknown): v is object => !!v && typeof v === 'object' && !Array.isArray(v);
+const str = (v: unknown): string => (typeof v === 'string' ? v : typeof v === 'number' && Number.isFinite(v) ? String(v) : '');
+const imgOf = (v: unknown): TestimonialsNewImage | null => (isObj(v) && str((v as TestimonialsNewImage).imageUrl) ? (v as TestimonialsNewImage) : null);
+// 每条的星级：1–5 的整数才画（validateSite 拦别的值）。
+const itemRating = (v: unknown): number => (typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 5 ? v : 0);
+// 平台的数：编辑器（Puck）里改过的是字符串，照样认。
+const num = (v: unknown): number => (typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v) : NaN);
+
+interface Platform { index: number; source: string; rating: number; count: number; href: string; logoUrl: string }
+// 一个平台要有名字、0–5 的评分、正的条数才画；缺哪样都整项不画（不画一个「0 reviews」的空条）。
+function platformOf(v: unknown, index: number): Platform | null {
+  if (!isObj(v)) return null;
+  const p = v as TestimonialsNewPlatform;
+  const rating = num(p.rating);
+  const count = num(p.count);
+  if (!str(p.source).trim() || !Number.isFinite(rating) || rating < 0 || rating > 5 || !Number.isFinite(count) || count <= 0) return null;
+  return { index, source: str(p.source).trim(), rating, count: Math.round(count), href: str(p.href).trim(), logoUrl: str(p.logoUrl).trim() };
+}
+const fmt = (n: number): string => n.toFixed(1);
+const initialsOf = (name: string): string => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+
+// 这几条类名要**逐字**写在源码里：`site.css` 是按源码 purge 的（`scripts/lib/site-css.js` §PURGE_CONTENT），
+// 拼出来的类名 purge 看不见。
+const EYEBROW_CLASS: Record<string, string> = {
+  pill: 'tn-eyebrow-pill badge rounded-pill bg-primary-subtle text-primary fw-semibold text-xs px-3 py-2',
+  outline: 'tn-eyebrow-outline badge rounded-pill border border-primary text-primary bg-transparent fw-semibold text-xs px-3 py-2',
+  dash: 'tn-eyebrow-dash text-uppercase text-xs fw-semibold ls-wider text-muted',
+  plain: 'tn-eyebrow-plain text-uppercase text-xs fw-semibold ls-wider text-muted',
+};
+
+export default function TestimonialsNewSection({ data, block, iconTable = {} }: Props) {
+  const d: TestimonialsNewData = isObj(data) ? data : {};
+  const shape = block && typeof block.shape === 'string' ? block.shape : undefined;
+  const opts: TestimonialsNewOptions = isObj(d.options) ? d.options : {};
+  const k = effectiveKnobs(manifest, shape, opts) as Required<{ [K in keyof TestimonialsNewOptions]: string }>;
+  const tone = toneForBg(d.bg);
+  const bgValue = bgCss(d.bg);
+  const carousel = k.itemsLayout === 'carousel';
+
+  const icon = (name: string) => <InlineIcon name={name} icons={iconTable} />;
+  // 星级：n 颗实心、剩下空心，一共 5 颗。平台评分是小数（4.9），先四舍五入成整数颗（#1500：4.5 → 5、4.4 → 4，不画半颗）。
+  const stars = (n: number, slot?: string) => {
+    const full = Math.max(0, Math.min(5, Math.round(n)));
+    const kinds = [...Array(full).fill('fill'), ...Array(5 - full).fill('empty')];
+    return (
+      <span className="tn-stars d-inline-flex gap-1 text-warning" data-part="stars" data-rating={full} aria-label={`${full} out of 5 stars`} role="img" {...(slot ? { 'data-for': slot } : {})}>
+        {kinds.map((s, i) => (
+          <span key={i} className="tn-star d-inline-flex" data-star={s} aria-hidden="true">
+            {icon(s === 'fill' ? 'star-fill' : 'star')}
+          </span>
         ))}
+      </span>
+    );
+  };
+  // 平台 logo 三档（`review-platforms.js` §platformLogo）。`data-slot` 挂在写平台名的那个节点上（编辑器据它原地改字）：
+  // 图 / 图标两档是 visually-hidden 那一段，名字那一档是名字本身 —— 每一档 DOM 里都有文字平台名（读屏 / 搜索 / AI）。
+  const logo = (p: Platform) => {
+    const l = platformLogo(p.source, p.logoUrl);
+    const slot = `summary.${p.index}.source`;
+    const hidden = <span className="visually-hidden" data-slot={slot}>{p.source}</span>;
+    if (l.kind === 'image') {
+      return (
+        <span className="tn-logo tn-logo-img d-inline-flex align-items-center" data-part="logo" data-logo="image">
+          <img src={l.logoUrl} alt={p.source} loading="lazy" />
+          {hidden}
+        </span>
+      );
+    }
+    if (l.kind === 'icon') {
+      return (
+        <span className="tn-logo tn-logo-icon d-inline-flex align-items-center" data-part="logo" data-logo="icon" style={{ ['--tn-brand' as string]: l.color }}>
+          {icon(l.icon)}
+          {hidden}
+        </span>
+      );
+    }
+    return <span className="tn-logo tn-logo-name fw-bold" data-part="logo" data-logo="name" data-slot={slot}>{p.source}</span>;
+  };
+  // 一个平台：有 `href` ⟹ 整个小条 / 整张卡是链接（新窗口），没有就是 div。
+  const platformBox = (p: Platform, cls: string, inner: ReactNode) => (p.href ? (
+    <a key={p.index} className={`${cls} text-reset text-decoration-none`} data-part="platform" data-source={p.source} href={p.href} target="_blank" rel="noopener">{inner}</a>
+  ) : (
+    <div key={p.index} className={cls} data-part="platform" data-source={p.source}>{inner}</div>
+  ));
+  const countLine = (p: Platform, pre: string) => (
+    <span className="tn-platform-count text-xs text-muted">{pre}<span data-slot={`summary.${p.index}.count`}>{p.count}</span> reviews</span>
+  );
+
+  const eyebrow = isObj(d.introEyebrow) && str(d.introEyebrow.text) ? d.introEyebrow : null;
+  // 没写 style ⟹ pill（同 hero / features：AI 只写了字，眉标照样出来）；明写 none ⟹ 不画。
+  const eyebrowStyle = !eyebrow ? 'none' : !eyebrow.style ? 'pill' : eyebrow.style in EYEBROW_CLASS ? eyebrow.style : 'none';
+  const platforms = (Array.isArray(d.summary) ? d.summary : []).map((v, i) => platformOf(v, i)).filter((p): p is Platform => !!p).slice(0, MAX_PLATFORMS);
+  const summaryInline = platforms.length > 0 && k.summaryStyle === 'inline';
+  const summaryCards = platforms.length > 0 && k.summaryStyle === 'cards';
+  const hasIntro = !!(str(d.headline) || str(d.body));
+  const items = (Array.isArray(d.items) ? d.items : []).filter((it): it is TestimonialsNewItem => isObj(it) && !!str(it.quote)).slice(0, MAX_ITEMS);
+  // carousel：一张 slide 放 itemsColumns 条（服务端分好组；<768 时 block.css 让一张里的条目竖着叠）。
+  const perSlide = Math.max(1, Number(k.itemsColumns) || 1);
+  const slides = carousel ? Array.from({ length: Math.ceil(items.length / perSlide) }, (_, s) => items.slice(s * perSlide, (s + 1) * perSlide)) : [];
+  const carId = `tn-carousel${block && typeof block.id === 'string' && block.id ? `-${block.id.replace(/[^A-Za-z0-9_-]/g, '')}` : ''}`;
+  const renderItem = (it: TestimonialsNewItem, i: number) => {
+    const photo = imgOf(it.photo);
+    const name = str(it.name);
+    const rating = itemRating(it.rating);
+    const source = str(it.source);
+    return (
+      <div key={i} className="tn-item" data-part="item">
+        <figure className="tn-inner h-100 d-flex flex-column m-0">
+          <blockquote className="tn-quote m-0"><span data-slot={`items.${i}.quote`}>{it.quote}</span></blockquote>
+          <figcaption className="tn-author d-flex align-items-center gap-3">
+            {photo ? (
+              <img className="tn-avatar" data-part="photo" src={photo.imageUrl} alt={photo.alt || ''} />
+            ) : name ? (
+              <span className="tn-avatar tn-initials d-inline-flex align-items-center justify-content-center fw-semibold bg-primary-subtle text-primary" data-part="initials" aria-hidden="true">
+                {initialsOf(name)}
+              </span>
+            ) : null}
+            <span className="d-block min-w-0">
+              {name ? <span className="d-block fw-semibold text-sm tn-name" data-slot={`items.${i}.name`}>{name}</span> : null}
+              {it.role ? <span className="d-block text-xs text-muted tn-role" data-slot={`items.${i}.role`}>{it.role}</span> : null}
+            </span>
+          </figcaption>
+          {rating || source ? (
+            <div className="tn-meta d-flex align-items-center gap-3" data-part="meta">
+              {rating ? stars(rating) : null}
+              {source ? <span className="tn-source text-xs text-muted" data-slot={`items.${i}.source`}>{source}</span> : null}
+            </div>
+          ) : null}
+        </figure>
+      </div>
+    );
+  };
+
+  return (
+    <section
+      {...blockAttrs('testimonials', block)}
+      data-intro-position={k.introPosition}
+      data-intro-align={k.introAlign}
+      data-summary-style={k.summaryStyle}
+      data-items-layout={k.itemsLayout}
+      data-items-columns={k.itemsColumns}
+      data-item-style={k.itemStyle}
+      data-quote-size={k.quoteSize}
+      data-item-align={k.itemAlign}
+      data-tone={tone}
+      data-bs-theme={bsThemeForBg(d.bg)}
+      className="position-relative py-16 py-lg-24"
+      style={bgValue ? { background: bgValue } : undefined}
+    >
+      <div className="container">
+        <div className="row tn-frame gy-10 gx-lg-16">
+          {hasIntro ? (
+            <div className="col-12 tn-introcol" data-part="intro">
+              <div className="tn-intro-text" data-part="intro-text">
+                {eyebrow && eyebrowStyle !== 'none' ? (
+                  <div className="mb-4" data-part="eyebrow">
+                    <span className={EYEBROW_CLASS[eyebrowStyle]} data-eyebrow={eyebrowStyle} data-slot="introEyebrow.text">
+                      {eyebrowStyle === 'dash' ? '— ' : null}{eyebrow.text}
+                    </span>
+                  </div>
+                ) : null}
+                {d.headline ? <h2 className="display-5 fw-bold lh-1 ls-tight mb-4 tn-title" data-slot="headline">{d.headline}</h2> : null}
+                {d.body ? <p className="fs-5 text-muted mb-0 tn-body" data-slot="body">{d.body}</p> : null}
+                {summaryInline ? (
+                  <div className="tn-summary d-flex flex-wrap mt-6" data-part="summary">
+                    {platforms.map((p) => platformBox(p, 'tn-platform tn-platform-inline d-inline-flex align-items-center gap-3 px-4 py-3 rounded-4', (
+                      <>
+                        {logo(p)}
+                        <span className="fs-3 fw-bold lh-1 tn-platform-rating" data-slot={`summary.${p.index}.rating`}>{fmt(p.rating)}</span>
+                        <span className="d-flex flex-column gap-1">
+                          {stars(p.rating, 'summary')}
+                          {countLine(p, '')}
+                        </span>
+                      </>
+                    )))}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+          <div className="col-12 tn-itemscol" data-part="items">
+            {summaryCards ? (
+              <div className="tn-summary tn-summary-cards" data-part="summary">
+                {platforms.map((p) => platformBox(p, 'tn-platform tn-platform-card rounded-4', (
+                  <>
+                    <span className="tn-pc-logo">{logo(p)}</span>
+                    <span className="tn-pc-stars">{stars(p.rating, 'summary')}</span>
+                    <span className="tn-pc-score text-sm fw-semibold"><span data-slot={`summary.${p.index}.rating`}>{fmt(p.rating)}</span> out of 5</span>
+                    <span className="tn-pc-count">{countLine(p, 'from ')}</span>
+                  </>
+                )))}
+              </div>
+            ) : null}
+            {carousel ? (
+              slides.length ? (
+                <TestimonialsCarousel id={carId} label="Customer reviews">
+                  <div className="carousel-inner">
+                    {slides.map((g, si) => (
+                      <div key={si} className={si === 0 ? 'carousel-item active' : 'carousel-item'} data-part="slide">
+                        <div className="tn-slide">{g.map((it) => renderItem(it, items.indexOf(it)))}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="tn-pager d-flex align-items-center justify-content-between gap-4 mt-8" data-part="pager">
+                    <div className="carousel-indicators tn-dots">
+                      {slides.map((_, si) => (
+                        <button
+                          key={si}
+                          type="button"
+                          data-bs-target={`#${carId}`}
+                          data-bs-slide-to={si}
+                          className={si === 0 ? 'active' : undefined}
+                          aria-current={si === 0 ? 'true' : undefined}
+                          aria-label={`Slide ${si + 1}`}
+                        />
+                      ))}
+                    </div>
+                    <div className="tn-arrows d-flex gap-2">
+                      <button type="button" className="tn-arrow" data-bs-target={`#${carId}`} data-bs-slide="prev" aria-label="Previous">{icon('chevron-left')}</button>
+                      <button type="button" className="tn-arrow" data-bs-target={`#${carId}`} data-bs-slide="next" aria-label="Next">{icon('chevron-right')}</button>
+                    </div>
+                  </div>
+                </TestimonialsCarousel>
+              ) : null
+            ) : (
+              <div className="tn-grid" data-part="track">
+                {items.map((it, i) => renderItem(it, i))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </section>
   );

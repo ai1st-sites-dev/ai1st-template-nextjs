@@ -16,10 +16,10 @@
 // 🔴 **图片的键叫 `imageUrl`**（`blockImage` / `introImage` 两处）：AI 改站的写入闸只认 `IMAGE_FIELDS` 里的键
 //    （`scripts/lib/image-urls.js`）。
 //
-// 🔴 **图标是内联 SVG**（同 features-new）：`iconTable` 由服务端按数据里出现的名字查好传进来
+// 🔴 **图标是内联 SVG**（同 features）：`iconTable` 由服务端按数据里出现的名字查好传进来
 //    （`scripts/lib/icons.js` §iconTableFor），这里用 `InlineIcon` 画；本组件自己不写死任何图标名。
 //
-// 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg，footer-new / cta-new 同一对），
+// 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg，footer / cta 同一对），
 //    纯色、brand、渐变都认；这里不自己算亮度、不自己拼渐变。`blockImage=background` 且真有图时字色按深底
 //    （图上盖 60% 深色遮罩，遮罩写在 `block.css`）。
 
@@ -93,7 +93,7 @@ export default function MilestonesSection({ data, block, iconTable = {} }: Props
   const shape = block && typeof block.shape === 'string' ? block.shape : undefined;
   const opts: MilestonesOptions = isObj(d.options) ? d.options : {};
   const k = effectiveKnobs(manifest, shape, opts) as Required<{ [K in Exclude<keyof MilestonesOptions, 'statIcon'>]: string }>;
-  // 布尔开关（#1492，同 header-new 的 icons）：预设不钉它，默认关 = 照图册那个没勾的 `statIcon`。
+  // 布尔开关（#1492，同 header 的 icons）：预设不钉它，默认关 = 照图册那个没勾的 `statIcon`。
   const { statIcon = false } = opts;
   const blockImg = k.blockImage !== 'none' ? imgOf(d.blockImage) : null;
   const cover = !!blockImg && k.blockImage === 'background';
@@ -104,7 +104,7 @@ export default function MilestonesSection({ data, block, iconTable = {} }: Props
   const hasIcon = (name: unknown) => typeof name === 'string' && !!iconTable[name];
 
   const eyebrow = isObj(d.introEyebrow) && str(d.introEyebrow.text) ? d.introEyebrow : null;
-  // 没写 style ⟹ pill（同 hero-new / cta-new / features-new：AI 只写了字，眉标照样出来）；明写 none ⟹ 不画。
+  // 没写 style ⟹ pill（同 hero / cta / features：AI 只写了字，眉标照样出来）；明写 none ⟹ 不画。
   const eyebrowStyle = !eyebrow ? 'none' : !eyebrow.style ? 'pill' : eyebrow.style in EYEBROW_CLASS ? eyebrow.style : 'none';
   const ctas = (Array.isArray(d.introCtas) ? d.introCtas : []).filter((b) => isObj(b) && str(b.label)).slice(0, MAX_CTAS);
   const introImg = k.introImage !== 'none' ? imgOf(d.introImage) : null;

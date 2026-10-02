@@ -15,11 +15,11 @@ interface SectionRendererProps {
   /**
    * #1489 —— 用这一份站点数据（电话 / 邮箱 / 地址 / 营业时间 / 坐标）代替站自己的。**只有单格页传**：admin 预览用演示生意
    * 的那一份（带坐标，地图才画得出来），地址栏还能删掉坐标 / 营业时间看空的样子。真站的调用点都不传 ⟹ 块读 `@/lib/config`。
-   * 挂到每个块上，今天只有 contact-new 读它（`scripts/lib/contact-facts.js` §siteFactsFrom 的形状）。
+   * 挂到每个块上，今天只有 contact 读它（`scripts/lib/contact-facts.js` §siteFactsFrom 的形状）。
    */
   siteFacts?: ContactSiteFacts;
   /**
-   * #1502 —— 这一页的 slug（`about` / `services/x` …）。要按页面路径算东西的块（`page-header-new` 的面包屑，
+   * #1502 —— 这一页的 slug（`about` / `services/x` …）。要按页面路径算东西的块（`page-header` 的面包屑，
    * `src/lib/breadcrumbs.ts`）拿它；别的块不读。内页由 `SubPage` 传真 slug，编辑器画布传正在编辑的那一页，
    * 单格页传夹具页；首页不传。没给就**不挂**这个 prop（同 `iconTable`）。
    */

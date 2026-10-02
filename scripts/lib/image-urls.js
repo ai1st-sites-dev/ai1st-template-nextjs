@@ -61,7 +61,7 @@
 
 // 会被画成 <img src> 的字段名。判据不是这份手抄清单，而是 `image-urls.test.js` 里那道
 // 两向守卫：它从 `src/components/**` 现读一遍，多一个少一个都当场红。
-// #1497 —— `authorAvatarUrl`：博客文章的作者头像（blog-new 画它，在 blog/{slug}.json 里）。封面是 `coverImage.imageUrl`，
+// #1497 —— `authorAvatarUrl`：博客文章的作者头像（blog 画它，在 blog/{slug}.json 里）。封面是 `coverImage.imageUrl`，
 //    嵌套对象本来就递归认，不用加。
 const IMAGE_FIELDS = ['imageUrl', 'logoUrl', 'authorAvatarUrl'];
 

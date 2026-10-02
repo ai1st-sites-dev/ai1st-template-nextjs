@@ -897,7 +897,21 @@ const imports = Object.fromEntries(
 );
 const regBody = reg.slice(reg.indexOf('sectionRegistry'));
 const entries = [...regBody.matchAll(/^\s*'([a-z0-9-]+)':\s*(\w+),/gm)];
-if (entries.length < 20) die(`从 registry.ts 只抠出 ${entries.length} 个块 —— 尺子坏了`);
+// 📌 #1425（T3）—— 原来是写死的下限 `< 20`（旧库 40+ 块时的数）；旧库删了、块库 = 17 个、外壳区 header/footer
+//    不进注册表 ⟹ 注册表今天 15 条。改成跟 blocks/ 目录【现读】逐个对：每个非 region 的块都必须被抠出来，
+//    少一个就是尺子坏了（不放宽：比原来的下限更紧）。
+{
+  const blocksDir = path.join(NEXT, 'blocks');
+  const want = fs.readdirSync(blocksDir).filter((d) => {
+    try { return !JSON.parse(fs.readFileSync(path.join(blocksDir, d, 'manifest.json'), 'utf-8')).region; }
+    catch { return false; }
+  });
+  const got = new Set(entries.map((m) => m[1]));
+  const missing = want.filter((k) => !got.has(k));
+  if (want.length === 0 || entries.length === 0 || missing.length) {
+    die(`从 registry.ts 抠出 ${entries.length} 个块，blocks/ 现读非 region 块 ${want.length} 个，漏了 ${missing.join(' · ') || '（无）'} —— 尺子坏了`);
+  }
+}
 
 const IMG_SRC_RE = /<img[^>]*\ssrc=\{([^}]+)\}/g;
 const leafOf = (expr) => {
@@ -920,10 +934,27 @@ for (const [, key, comp] of entries) {
 }
 // 顶栏/页脚是外壳区 —— 它们不在注册表里（上面那一圈按构造够不着），读的是 brand.logoUrl。
 // #1387 —— 它们的骨架搬进了自己的块文件夹。
+// 🔴 #1425（T3）—— 新 header / footer 是纯 props 组件，画的是 `data.logo`；那个 data 不在任何站文件里，是构建期
+//    `scripts/lib/shell-data.js` §shellDataFor 从 brand.json 派生的。所以外壳读的字段要【过一遍那条真派生】
+//    翻回它在站文件里的名字：喂一份带 logoUrl 的 brand，看哪个派生出来的键拿到了那个值 ⟹ 那个键 = brand 的那个字段。
+//    翻不回去的叶子原样进 leafFields（下面两格照样会红：提示词没写 / 写入闸没认）—— 不是放行。
+const { shellDataFor } = require(path.join(NEXT, 'scripts', 'lib', 'shell-data.js'));
+const SHELL_PROBE = 'https://uploads.ai1stsite.app/u1/shell-probe-logo.png';
+const shellWith = shellDataFor({ nav: {}, brand: { logoUrl: SHELL_PROBE }, brandName: 'X', services: [], pages: [] });
+const shellWithout = shellDataFor({ nav: {}, brand: {}, brandName: 'X', services: [], pages: [] });
+let shellLeaves = 0;
 for (const shell of ['header', 'footer']) {
   const t = fs.readFileSync(path.join(NEXT, 'blocks', shell, 'Section.tsx'), 'utf-8');
-  for (const m of t.matchAll(IMG_SRC_RE)) { const l = leafOf(m[1]); if (l) leafFields.add(l); }
+  for (const m of t.matchAll(IMG_SRC_RE)) {
+    const l = leafOf(m[1]); if (!l) continue;
+    shellLeaves++;
+    // 两臂：带 logoUrl 时那个键 = 探针值，不带时那个键不存在 ⟹ 它就是 brand.logoUrl 派生来的（不是别的来源碰巧同名）。
+    const fromBrand = shellWith[shell] && shellWith[shell][l] === SHELL_PROBE
+      && !(shellWithout[shell] && l in shellWithout[shell]);
+    leafFields.add(fromBrand ? 'logoUrl' : l);
+  }
 }
+if (shellLeaves === 0) die('外壳 header / footer 一个 <img src> 都没抠出来 —— 尺子坏了（它们本来画 logo）');
 if (blocksThatDrawImages.length === 0) die('从 blocks/ 里一个画 <img> 的块都没抠出来 —— 尺子坏了');
 if (leafFields.size === 0) die('从模板里一个 <img src> 字段都没抠出来 —— 尺子坏了');
 ok(`模板现读：画图的块 ${blocksThatDrawImages.length} 个（${blocksThatDrawImages.join(' · ')}）`
@@ -997,7 +1028,7 @@ if (!blogRendersHtml || !blogIsWritable) {
       + ' —— 要么这一面真的没了（那就把这一格和闸里的 HTML 分支一起删），要么尺子指错地方了');
 }
 // 🔴 #1497 —— 按【条】判，不按整段判：`## Images` 里每一条以 `- ` 起头，要的是「有一条同时说了 blog/ 和 <img>」。
-//    整段判的话，blog-new 那一条（它也写着 `blog/<slug>.json`，说的是封面 / 头像字段）会跟别处的 `<img` 拼成一次命中，
+//    整段判的话，blog 那一条（它也写着 `blog/<slug>.json`，说的是封面 / 头像字段）会跟别处的 `<img` 拼成一次命中，
 //    下面那条反向臂就删不红了 —— #1497 第一次跑就是这么读到的。
 const blogNamedInPrompt = (sect) => sect.split(/\n(?=- )/).some((entry) => /blog\//.test(entry) && /<img/.test(entry));
 blogNamedInPrompt(imagesSection)
@@ -1006,7 +1037,7 @@ blogNamedInPrompt(imagesSection)
 // 反向臂：把那几行从提示词里拿掉，这一格必须当场红。
 // 🔴 #1497 —— 删除要走到这一条【结束】为止（下一条 `- ` / 空行 / 全文末尾）。原来那条正则带 `m` 标志，结尾的 `$`
 //    在多行模式下匹配的是【行尾】⟹ 只删掉了这一条的第一行，后面几行（带 `<img>` 的那几行）接到上一条的尾巴上。
-//    上一条碰巧不带 `blog/` 时它照样红；#1497 在它前面加了 blog-new 那一条（带 `blog/<slug>.json`），就露出来了。
+//    上一条碰巧不带 `blog/` 时它照样红；#1497 在它前面加了 blog 那一条（带 `blog/<slug>.json`），就露出来了。
 blogNamedInPrompt(imagesSection.replace(/^- \*\*a blog post\*\*[\s\S]*?(?=\n\n|\n- |(?![\s\S]))/m, ''))
   ? bad('把提示词里博客那几行删掉之后这一格【没】红 —— 它判的不是那几行')
   : ok('故意写坏「提示词里博客那一条」→ 那一格当场红');

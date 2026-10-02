@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * item-sources.test.js — #1505：features-new 的 `items` 接受引用写法（`{source: "services"}` / `{source: "pages", under}`），
+ * item-sources.test.js — #1505：features 的 `items` 接受引用写法（`{source: "services"}` / `{source: "pages", under}`），
  * 渲染前展开（`scripts/lib/item-sources.js`）。
  *
  * 跑法:  node scripts/item-sources.test.js   （或 `npm run test:scripts`，它按文件名发现）
@@ -18,7 +18,7 @@
  *   AC8  服务页上 features 引用 services、没有 services-list ⟹ 每个服务一段 "@type":"Service"；改回手写 ⟹ 没有（§realBuild）
  *   AC9  编辑器：引用写法往返无损；条目栏只读 + 提示；「改成手写」⟹ items 变成数组、== 当时的展开结果、之后不再跟着变
  *   AC10 编辑器画布（EditorApp 的画布组件本身）：普通块 / 共用块两支各量一份；反向对照：只在一支展开 ⟹ 另一支红
- *   AC11 提示词：features-new 的说明含 {"source": "services"} 与「do not copy the services in」；改站提示词讲 services.json 那段
+ *   AC11 提示词：features 的说明含 {"source": "services"} 与「do not copy the services in」；改站提示词讲 services.json 那段
  *        含「follow services.json automatically」那句（edit-site-prompt.test.js 另有一格）
  *   + 构建兜底：scripts/blocks.js §normalizeListSlots 不再把引用换成 []（反向对照：别的块的同形对象照旧换）
  *   + page-deps：引用了 services 的页面 sitemap 依赖 services.json；没有归不了属的 getServices
@@ -101,7 +101,7 @@ try {
   convert = require('./lib/editor-convert.js');
   ({ editorSchema } = require('./lib/editor-schema.js'));
   pageDeps = require('./lib/page-deps.js');
-  Section = require(path.join(NEXT, 'blocks', 'features-new', 'Section.tsx')).default;
+  Section = require(path.join(NEXT, 'blocks', 'features', 'Section.tsx')).default;
   SectionRenderer = require(path.join(SRC, 'components', 'SectionRenderer.tsx')).default;
 } catch (e) { die(`载入失败: ${e.stack || e.message}`); }
 
@@ -124,7 +124,7 @@ const PAGES = [
 const URL = (slug) => (slug === 'home' ? '/' : `/${slug}`);
 const CTX = { services: SERVICES, pages: PAGES, url: URL, learnMore: 'Learn More' };
 const HEAD = { headline: 'What we fix', body: 'Body.' };
-const block = (items, extra = {}) => ({ id: 'fx', type: 'features-new', shape: 'grid', data: { ...HEAD, items, ...extra } });
+const block = (items, extra = {}) => ({ id: 'fx', type: 'features', shape: 'grid', data: { ...HEAD, items, ...extra } });
 const silent = { warn: () => {} };
 const render = (b) => {
   const [r] = lib.resolveItemSources([b], CTX);
@@ -226,30 +226,30 @@ console.log('\n── AC7 validateSite');
   check(v({ source: 'services' }).length === 0, '{source:"services"} 放行');
   check(v({ source: 'pages', under: 'water-heaters' }).length === 0, '{source:"pages", under:"water-heaters"} 放行');
   // 反向对照：别的块（不在登记表里）写同一个对象 ⟹ 照旧按「不是列表」拦。
-  const other = manifestLib.validateSite({ pages: [{ slug: 'p', blocks: [{ type: 'testimonials-new', data: { headline: 'H', items: { source: 'services' } } }] }], scope: 'edit' }).problems;
-  check(other.some((p) => /不是列表/.test(p)), '反向对照：没登记的块（testimonials-new）写 {source:"services"} ⟹ 照旧报「不是列表」', other.join(' | '));
+  const other = manifestLib.validateSite({ pages: [{ slug: 'p', blocks: [{ type: 'testimonials', data: { headline: 'H', items: { source: 'services' } } }] }], scope: 'edit' }).problems;
+  check(other.some((p) => /不是列表/.test(p)), '反向对照：没登记的块（testimonials）写 {source:"services"} ⟹ 照旧报「不是列表」', other.join(' | '));
 }
 
 // ══ 构建兜底：blocks.js §normalizeListSlots ═══════════════════════════════════════════════════════
 console.log('\n── 构建兜底（blocks.js）不抹掉引用');
 {
-  const pages = [{ slug: 'home', blocks: [block({ source: 'services' }), { id: 't', type: 'testimonials-new', data: { headline: 'H', items: { source: 'services' } } }] }];
+  const pages = [{ slug: 'home', blocks: [block({ source: 'services' }), { id: 't', type: 'testimonials', data: { headline: 'H', items: { source: 'services' } } }] }];
   blocksLib.normalizeLocalePages(pages, {}, 'en', () => {});
-  const fx = pages[0].blocks.find((b) => b.type === 'features-new');
-  const tm = pages[0].blocks.find((b) => b.type === 'testimonials-new');
-  check(fx && JSON.stringify(fx.data.items) === '{"source":"services"}', 'features-new 的 items 引用活到构建之后（没被换成 []）', fx && JSON.stringify(fx.data.items));
+  const fx = pages[0].blocks.find((b) => b.type === 'features');
+  const tm = pages[0].blocks.find((b) => b.type === 'testimonials');
+  check(fx && JSON.stringify(fx.data.items) === '{"source":"services"}', 'features 的 items 引用活到构建之后（没被换成 []）', fx && JSON.stringify(fx.data.items));
   check(tm && Array.isArray(tm.data.items) && tm.data.items.length === 0, '反向对照：没登记的块同一个对象照旧换成 []', tm && JSON.stringify(tm.data.items));
 }
 
 // ══ AC11 提示词 ═════════════════════════════════════════════════════════════════════════════════
 console.log('\n── AC11 提示词');
 {
-  const m = manifestLib.loadManifests().get('features-new');
+  const m = manifestLib.loadManifests().get('features');
   const entry = manifestLib.promptEntry(m);
-  check(entry.includes('{"source": "services"}') && entry.includes('do not copy the services in'), 'features-new 的说明含 {"source": "services"} 与「do not copy the services in」');
+  check(entry.includes('{"source": "services"}') && entry.includes('do not copy the services in'), 'features 的说明含 {"source": "services"} 与「do not copy the services in」');
   check(entry.includes('{"source": "pages", "under":'), '也写了 pages 那一种');
   check(/items: \[\{[^\n]*\}\] \| \{source: "services"\} \| \{source: "pages", under: "<service slug>"\}/.test(entry), 'data 行里 items 的 shape 后面接上两种引用写法（从登记表拼）', entry.split('\n').find((l) => l.includes('data:')));
-  check(manifestLib.promptEntry(manifestLib.loadManifests().get('testimonials-new')).indexOf('{source:') === -1, '反向对照：没登记的块（testimonials-new）的 data 行不带引用写法');
+  check(manifestLib.promptEntry(manifestLib.loadManifests().get('testimonials')).indexOf('{source:') === -1, '反向对照：没登记的块（testimonials）的 data 行不带引用写法');
   const editSrc = fs.readFileSync(path.join(__dirname, 'edit-site.js'), 'utf-8');
   const at = editSrc.indexOf('- **services.json** —');
   check(at > 0 && /items: \{"source": "services"\} follow services\.json automatically/.test(editSrc.slice(at, at + 600)), '改站提示词讲 services.json 那段含「items: {"source": "services"} follow services.json automatically」');
@@ -262,7 +262,7 @@ console.log('\n── page-deps：引用了服务目录的页面，sitemap 依�
   check(r.unavailable === null && r.unaccounted.length === 0 && r.unmapped.length === 0, `没有归不了属的 getServices（unaccounted ${JSON.stringify(r.unaccounted)}）`);
   const deps = pageDeps.createPageDeps({ localeDir: '/tmp/x', services: r });
   const uses = (items) => deps.filesFor({ slug: 'about', blocks: [block(items)] }, '/tmp/x/pages/about.json', []).usesServices;
-  check(uses({ source: 'services' }) === true, 'about 页上 features-new 引用 services ⟹ 依赖 services.json');
+  check(uses({ source: 'services' }) === true, 'about 页上 features 引用 services ⟹ 依赖 services.json');
   check(uses([{ title: 'a', text: 'b' }]) === false, '反向对照：同一页改成手写 ⟹ 不依赖');
   check(uses({ source: 'pages', under: 'x' }) === false, 'pages 源不读服务目录 ⟹ 不依赖 services.json');
 }
@@ -273,7 +273,7 @@ let EditorApp; let schema; let comp;
 try {
   EditorApp = require(path.join(SRC, 'components', 'editor', 'EditorApp.tsx'));
   schema = editorSchema();
-  comp = schema.components.find((c) => c.type === 'features-new');
+  comp = schema.components.find((c) => c.type === 'features');
 } catch (e) { die(`编辑器载入失败: ${e.stack || e.message}`); }
 globalThis.__SVC__ = SERVICES;
 globalThis.__PAGES__ = PAGES;
@@ -285,10 +285,10 @@ const itemsField = comp.fields.find((f) => f.slot === 'items');
   const back = convert.dataFromProps(comp, { ...HEAD, items: ref }, props);
   check(JSON.stringify(back.items) === JSON.stringify(ref), 'dataFromProps：没动它 ⟹ 存盘原样写回那个引用');
   const cfg = EditorApp.buildConfig(schema, 'en');
-  const fields = cfg.components['features-new'].resolveFields({ props: { id: 'fx', ...props } });
+  const fields = cfg.components['features'].resolveFields({ props: { id: 'fx', ...props } });
   const f = fields.items;
   check(f && f.type === 'custom', '条目那一栏换成自定义的只读栏', f && f.type);
-  check(cfg.components['features-new'].resolveFields({ props: { id: 'fx', ...convert.fieldProps(comp, { ...HEAD, items: [{ title: 'a' }] }) } }).items.type === 'array',
+  check(cfg.components['features'].resolveFields({ props: { id: 'fx', ...convert.fieldProps(comp, { ...HEAD, items: [{ title: 'a' }] }) } }).items.type === 'array',
     '反向对照：手写的块那一栏仍是普通列表');
   let changed;
   const el = f.render({ value: ref, onChange: (v) => { changed = v; }, readOnly: false });
@@ -316,11 +316,11 @@ console.log('\n── AC10 编辑器画布：普通块 / 共用块两支');
 const EDITOR_APP = path.join(SRC, 'components', 'editor', 'EditorApp.tsx');
 function canvasTitles(App) {
   const cfg = App.buildConfig(schema, 'en');
-  const view = { id: 'fx', type: 'features-new', shape: 'grid', data: { ...HEAD, items: { source: 'services' } } };
+  const view = { id: 'fx', type: 'features', shape: 'grid', data: { ...HEAD, items: { source: 'services' } } };
   const props = { id: 'fx', ...convert.fieldProps(comp, view.data), _shape: '' };
   const normal = { ...props, _src: { at: 0, entry: clone(view), locked: false, shared: null, sharedData: null, reason: '', view: clone(view), weight: null, shape0: 'grid', pid: 'fx' } };
   const shared = { ...props, _src: { at: 0, entry: null, locked: false, shared: 'fx', sharedData: clone(view.data), reason: 'shared', view: clone(view), weight: null, shape0: 'grid', pid: 'fx' } };
-  const r = (p) => titles(renderToStaticMarkup(cfg.components['features-new'].render(p)));
+  const r = (p) => titles(renderToStaticMarkup(cfg.components['features'].render(p)));
   return { normal: r(normal), shared: r(shared) };
 }
 {
@@ -365,7 +365,7 @@ console.log('\n── AC2 只改 services.json 跟着变 · AC8 服务结构化�
     ...clone(built[0]), id: `svc-${i}`, name, shortDescription: `${name} short.`,
   }));
   fs.writeFileSync(svcPath, JSON.stringify(base, null, 2));
-  const fx = (items) => ({ id: 'fx-src', type: 'features-new', shape: 'grid', role: 'essential', region: 'content', weight: 10, data: { headline: 'What we fix', items } });
+  const fx = (items) => ({ id: 'fx-src', type: 'features', shape: 'grid', role: 'essential', region: 'content', weight: 10, data: { headline: 'What we fix', items } });
   const writePage = (slug, blocks) => {
     const file = path.join(loc, 'pages', `${slug}.json`);
     const page = JSON.parse(fs.readFileSync(file, 'utf-8'));
@@ -407,7 +407,7 @@ process.stdout.write(JSON.stringify(out));
   const sha = (f) => require('crypto').createHash('sha256').update(fs.readFileSync(f)).digest('hex');
   const homeSha = sha(homeFile);
   const featuresOf = (html) => {
-    const m = html.match(/<section[^>]*data-block-type="features-new"[\s\S]*?<\/section>/) || html.match(/<section[^>]*data-items-source="services"[\s\S]*?<\/section>/);
+    const m = html.match(/<section[^>]*data-block-type="features"[\s\S]*?<\/section>/) || html.match(/<section[^>]*data-items-source="services"[\s\S]*?<\/section>/);
     return m ? titles(m[0]) : null;
   };
 

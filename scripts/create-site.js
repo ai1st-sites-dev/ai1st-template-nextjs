@@ -76,9 +76,9 @@ const { pageWithBlocks } = require('./blocks');
 const { applyHeroLeadForm } = require('./lib/hero-lead-form');
 // #1176 —— 关键词页面包屑那个中间级的死链修法（提示词 + 生成后核对两侧，理由整段在那个文件头上）。
 const { pruneDeadBreadcrumbHrefs, alignBreadcrumbsToOwnService, serviceKey } = require('./lib/breadcrumb-links');
-// #1489 —— 建站时按地址查一次坐标写进 brand.locations[0].geo（contact-new 的地图要它；Nominatim，不要 key，§geocode.js 头注）。
+// #1489 —— 建站时按地址查一次坐标写进 brand.locations[0].geo（contact 的地图要它；Nominatim，不要 key，§geocode.js 头注）。
 const { geocodeBrand } = require('./lib/geocode');
-// #1489 r2 —— contact-new 的 items 里抄进来的电话 / 邮箱 / 地址 / 营业时间，写盘那一刻剔掉（值只有一处）。
+// #1489 r2 —— contact 的 items 里抄进来的电话 / 邮箱 / 地址 / 营业时间，写盘那一刻剔掉（值只有一处）。
 const { siteFactsFrom, scrubContactCopies } = require('./lib/contact-facts');
 
 // ─── AI Model Config ─────────────────────────────────────────────────────────
@@ -405,7 +405,7 @@ function sanitizeImageUrls(pages) {
             delete item.imageUrl;
             dropped++;
           }
-          // #1475 —— features-new 的项把图嵌在 `image: {imageUrl, alt}` 里。
+          // #1475 —— features 的项把图嵌在 `image: {imageUrl, alt}` 里。
           if (item.image?.imageUrl && !isValidImageUrl(item.image.imageUrl)) {
             delete item.image.imageUrl;
             dropped++;
@@ -991,7 +991,7 @@ async function main() {
       //    （268e：POST 到 /api/leads，进老板的 Customers）。表单关掉了就整页去掉，而不是留一个
       //    只剩标题、点进去什么都没有的页。两处写的是同一句话，因为示例站这一份是 getDemoConfig
       //    自己带的，走不到那一处。
-      if (off.has('contact-form')) content.pages = content.pages.filter((pg) => pg.slug !== 'contact');
+      if (off.has('contact')) content.pages = content.pages.filter((pg) => pg.slug !== 'contact');
       content.pages = content.pages.filter((pg) => (pg.sections || []).length);
       debug(`[catalog] skipAI 示例站剔掉关掉的块：页面 ${before} → ${content.pages.length}`);
     }
@@ -1236,7 +1236,7 @@ async function main() {
   //
   // 🔴 `reason` 必须打出来：不给表单有三个完全不同的答案，而它们在产物里长得一模一样。
   const heroForm = applyHeroLeadForm({ content, industry, disabledBlocks });
-  debug(`[hero lead form] ${heroForm.applied ? '换了' : '没换'} 首页第一个 hero → hero-with-form — ${heroForm.reason}`);
+  debug(`[hero lead form] ${heroForm.applied ? '带上了' : '没带'} 首页第一个 hero 的表单（options.form） — ${heroForm.reason}`);
 
   writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks);
 
@@ -1638,7 +1638,7 @@ function writeSecondaryLocaleConfig(siteDir, secContent, secondaryLocale, primar
   const secFacts = siteFactsFrom(existingBrand, secContent.seo);
   for (const page of secContent.pages) {
     const scrubbed = scrubContactCopies(page, secFacts);
-    if (scrubbed) debug(`[contact-new] ${secondaryLocale}/${page.slug}: dropped ${scrubbed} copied value(s) from items`);
+    if (scrubbed) debug(`[contact] ${secondaryLocale}/${page.slug}: dropped ${scrubbed} copied value(s) from items`);
     const pagePath = path.join(localeDir, 'pages', `${page.slug}.json`);
     fs.mkdirSync(path.dirname(pagePath), { recursive: true });
     fs.writeFileSync(pagePath, JSON.stringify(pageWithBlocks(page), null, 2) + '\n');
@@ -1706,17 +1706,19 @@ function writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks = []) {
   // easy to miss). If the AI didn't produce a `contact` page, add one with a contact-form (→ /api/leads).
   // Idempotent — content.pages is shared across locales, so this only injects once.
   // #1346 —— 后台关掉的块这里也要让开。这两块是脚本**自己**插的，不经菜单、不经校验器；
-  // 关掉 `contact-form` 而这里照插，就等于后台那个开关对每一个新站都是假的。
+  // 关掉 `contact` 而这里照插，就等于后台那个开关对每一个新站都是假的。
+  // 📌 #1425（T3）—— 旧库的 `contact-form` 删了；表单住在新库 `contact` 块上（槽 `form: { id? }`，选站级表单库
+  //    `forms.json` 里哪一张 —— 这一页用 `contact` 那张），提交路径照旧是 /api/leads。
   const contactOff = new Set(disabledBlocks);
   const contactSections = [
-    { type: 'page-header', data: { title: 'Contact Us', subtitle: "Send us a message and we'll get back to you shortly." } },
-    { type: 'contact-form', data: { heading: 'Get in touch', intro: 'Leave your details and we will reach out soon.', buttonText: 'Send message' } },
+    { type: 'page-header', data: { headline: 'Contact Us', subheadline: "Send us a message and we'll get back to you shortly." } },
+    { type: 'contact', data: { headline: 'Get in touch', body: 'Leave your details and we will reach out soon.', form: { id: 'contact' }, options: { form: 'full' } } },
   ].filter((sec) => !contactOff.has(sec.type));
-  // 🔴 `contact-form` 被关掉时**整页不插**，不是插一个只剩标题的 Contact 页。268e 要的是
+  // 🔴 `contact` 被关掉时**整页不插**，不是插一个只剩标题的 Contact 页。268e 要的是
   //    「有一条看得见的联系路径」（那个表单 POST 到 /api/leads，进老板的 Customers），而一个
   //    导航里点得进去、进去什么都没有的页面比没有这一页更坏。`page-header` 被单独关掉时那一页
   //    照插，只是没有标题块 —— 表单还在，路径还在。
-  const contactPageWanted = !contactOff.has('contact-form') && contactSections.length > 0;
+  const contactPageWanted = !contactOff.has('contact') && contactSections.length > 0;
   if (!content.pages.some((p) => p.slug === 'contact') && contactPageWanted) {
     const maxOrder = content.pages.reduce((m, p) => Math.max(m, p.navOrder ?? 0), 0);
     content.pages.push({
@@ -1737,7 +1739,7 @@ function writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks = []) {
   const facts = siteFactsFrom(content.brand, content.seo);
   for (const page of content.pages) {
     const scrubbed = scrubContactCopies(page, facts);
-    if (scrubbed) debug(`[contact-new] ${page.slug}: dropped ${scrubbed} copied value(s) from items`);
+    if (scrubbed) debug(`[contact] ${page.slug}: dropped ${scrubbed} copied value(s) from items`);
     const pagePath = path.join(localeDir, 'pages', `${page.slug}.json`);
     fs.mkdirSync(path.dirname(pagePath), { recursive: true });
     fs.writeFileSync(pagePath, JSON.stringify(pageWithBlocks(page), null, 2) + '\n');
@@ -1806,31 +1808,32 @@ function getDemoConfig(siteId) {
       {
         slug: 'home', title: 'Home', description: 'Welcome to Demo Company', navLabel: 'Home', navOrder: 0, changeFrequency: 'weekly', priority: 1,
         sections: [
-          { type: 'hero', data: { headline: 'Welcome to Demo Company', subheadline: 'Your trusted local business partner', ctaPrimary: { label: 'Get Started', href: '/quote' }, ctaSecondary: { label: 'Learn More', href: '/about' } } },
-          { type: 'features-grid', data: { headline: 'Why Choose Us', subheadline: 'What sets us apart from the rest' } },
-          { type: 'cta-banner', data: { headline: 'Ready to get started?', description: 'Contact us today for a free consultation.', button: { label: 'Contact Us', href: '/quote' } } },
-          { type: 'contact-form', data: { heading: 'Contact us', intro: "Leave your details and we'll get back to you shortly.", buttonText: 'Send message' } }, // TICKET-268b
+          { type: 'hero', data: { headline: 'Welcome to Demo Company', subheadline: 'Your trusted local business partner', ctas: [{ label: 'Get Started', href: '/quote', style: 'solid' }, { label: 'Learn More', href: '/about', style: 'outline' }] } },
+          // #1425（T3）—— 服务那一格用引用写法（#1505）：条目来自 services.json，不抄进来。
+          { type: 'features', data: { headline: 'Why Choose Us', body: 'What sets us apart from the rest', items: { source: 'services' } } },
+          { type: 'cta', data: { headline: 'Ready to get started?', body: 'Contact us today for a free consultation.', ctas: [{ label: 'Contact Us', href: '/quote', style: 'solid' }] } },
+          { type: 'contact', data: { headline: 'Contact us', body: "Leave your details and we'll get back to you shortly.", form: { id: 'contact' }, options: { form: 'full' } } }, // TICKET-268b
         ],
       },
       {
         slug: 'about', title: 'About Us', description: 'Learn about Demo Company', navLabel: 'About', navOrder: 1, changeFrequency: 'monthly', priority: 0.8,
         sections: [
-          { type: 'page-header', data: { title: 'About Us', subtitle: 'Learn more about our company and mission' } },
-          { type: 'text-block', data: { content: '<h2>Our Story</h2><p>Demo Company was founded with a simple mission: to provide exceptional service to our community. We have been serving the Greater Toronto Area for years, building lasting relationships with our clients.</p><h2>Our Mission</h2><p>We are committed to delivering quality results with integrity and professionalism.</p>' } },
+          { type: 'page-header', data: { headline: 'About Us', subheadline: 'Learn more about our company and mission' } },
+          { type: 'content', data: { body: '## Our Story\n\nDemo Company was founded with a simple mission: to provide exceptional service to our community. We have been serving the Greater Toronto Area for years, building lasting relationships with our clients.\n\n## Our Mission\n\nWe are committed to delivering quality results with integrity and professionalism.', options: { textStyle: 'article' } } },
         ],
       },
       {
         slug: 'services', title: 'Our Services', description: 'Professional services by Demo Company', navLabel: 'Services', navOrder: 2, changeFrequency: 'monthly', priority: 0.8,
         sections: [
-          { type: 'page-header', data: { title: 'Our Services', subtitle: 'Discover what we can do for you' } },
-          { type: 'services-list', data: {} },
+          { type: 'page-header', data: { headline: 'Our Services', subheadline: 'Discover what we can do for you' } },
+          { type: 'features', data: { headline: 'What we do', items: { source: 'services' } } },
         ],
       },
       {
         slug: 'quote', title: 'Get a Quote', description: 'Request a free quote from Demo Company', navLabel: 'Get a Quote', navOrder: 3, changeFrequency: 'monthly', priority: 0.7,
         sections: [
-          { type: 'page-header', data: { title: 'Get a Free Quote', subtitle: 'Fill out the form below and we will get back to you within 24 hours' } },
-          { type: 'quote-form', data: { formIntro: 'Tell us about your project and we will get back to you within 24 hours.', propertyTypes: ['Residential', 'Commercial', 'Other'], urgencyOptions: ['Not urgent', 'Within a week', 'ASAP'], benefits: ['Free consultation', 'No obligation', 'Fast response'], redirectMessage: 'Thank you! We will be in touch soon.', buttonText: 'Submit Request' } },
+          { type: 'page-header', data: { headline: 'Get a Free Quote', subheadline: 'Fill out the form below and we will get back to you within 24 hours' } },
+          { type: 'contact', data: { headline: 'Tell us about your project', body: 'We will get back to you within 24 hours.', form: {}, options: { form: 'full' } } },
         ],
       },
       {
@@ -1838,8 +1841,8 @@ function getDemoConfig(siteId) {
         // obvious way to reach out → the form POSTs to /api/leads → the owner's Customers list.
         slug: 'contact', title: 'Contact Us', description: 'Get in touch with Demo Company', navLabel: 'Contact', navOrder: 4, changeFrequency: 'monthly', priority: 0.7,
         sections: [
-          { type: 'page-header', data: { title: 'Contact Us', subtitle: "Send us a message and we'll get back to you shortly." } },
-          { type: 'contact-form', data: { heading: 'Get in touch', intro: 'Leave your details and we will reach out soon.', buttonText: 'Send message' } },
+          { type: 'page-header', data: { headline: 'Contact Us', subheadline: "Send us a message and we'll get back to you shortly." } },
+          { type: 'contact', data: { headline: 'Get in touch', body: 'Leave your details and we will reach out soon.', form: { id: 'contact' }, options: { form: 'full' } } },
         ],
       },
     ],
@@ -1975,20 +1978,22 @@ async function generateContent(opts) {
   // 🔴 什么都没关掉时，这三行**逐字节**等于 #1346 之前写死的那三行（判据在
   // `scripts/lib/catalog-disabled.test.js` ④：两臂比同一份提示词的这一段）。整条规则里的块全被关掉
   // 时那一行整条不印 —— 印一条空的 `must include:` 就是在告诉模型「这一页什么都不用有」。
-  // #1498 —— content-new 在 manifest 里只能挂一个提示词组（它挂 homepage，接替 content-split），而它同时接替
+  // #1498 —— content 在 manifest 里只能挂一个提示词组（它挂 homepage，接替 content-split），而它同时接替
   //    text-block 做内页正文（text-block 在 page-specific 组）。所以在 page-specific 那一段后面补一行指向它。
-  //    🔴 content-new 被关掉时整行不印（连前面的换行一起），提示词逐字节等于没有这一行时。
-  const contentNewPageLine = blockOff.has('content-new') ? ''
-    : '\n- "content-new" (listed under HOMEPAGE SECTIONS above) is also the block for the main text of an inner page'
+  //    🔴 content 被关掉时整行不印（连前面的换行一起），提示词逐字节等于没有这一行时。
+  const contentNewPageLine = blockOff.has('content') ? ''
+    : '\n- "content" (listed under HOMEPAGE SECTIONS above) is also the block for the main text of an inner page'
       + ' — About, a service page, a policy page: use textStyle article, and write body in its markdown subset';
   const pageRuleLines = (() => {
     const lines = [];
-    const services = keepBlocks(['page-header', 'services-nav', 'services-list', 'cta-banner']);
+    // #1425（T3）—— 服务页原来是 services-nav + services-list（两个旧块，#1505 定不做新块）：改成 `features` +
+    //    引用写法，items 指向本站服务目录，内容只存一份（Chris 2026-09-30 #1505）。
+    const services = keepBlocks(['page-header', 'features', 'cta']);
     if (services.length) lines.push(`- SERVICES pages must include: ${quotedList(services)}`);
-    const quote = keepBlocks(['page-header', 'quote-form']);
+    if (!blockOff.has('features')) lines.push('  features on a SERVICES page: write "items": {"source": "services"} (the list comes from this website\'s services) — never type the services out');
+    // 报价页原来是 quote-form（旧块）：新库里表单住在 contact 块上（槽 `form`，站级表单库 #1471）。
+    const quote = keepBlocks(['page-header', 'contact']);
     if (quote.length) lines.push(`- QUOTE pages must include: ${quotedList(quote)}`);
-    // `quote-form` 那一行印的是它的 data 形状，关掉它之后这一行没有对象可说。
-    if (!blockOff.has('quote-form')) lines.push(`  quote-form ${blockDataLine('quote-form')}`);
     return lines.join('\n');
   })();
   // ══ #1346 r3 —— CRITICAL RULES 那一段里的块名，同样一个都不许写死 ══════════════════════════
@@ -2009,12 +2014,12 @@ async function generateContent(opts) {
   const criticalBlockRules = (() => {
     const lines = [
       // 非首页的开头 / 结尾各点名一个块，两半各自可以掉。
-      ruleIfAnyOn(['page-header', 'cta-banner'], (_on, set) => '- Non-home pages should use 3-8 sections.'
+      ruleIfAnyOn(['page-header', 'cta'], (_on, set) => '- Non-home pages should use 3-8 sections.'
         + (set.has('page-header') ? ' Always start with "page-header".' : '')
-        + (set.has('cta-banner') ? ' End with "cta-banner" when appropriate.' : ''))
+        + (set.has('cta') ? ' End with "cta" when appropriate.' : ''))
         || '- Non-home pages should use 3-8 sections.',
-      // #1419 —— 这里原来还有两条让 AI 挑外观的话（page-header / text-block 换着用，SERVICES 页的
-      // cta-banner 别用 "solid"）。AI 写的那个字段没人读，形态归取值链，所以两条都删了。
+      // #1419 —— 这里原来还有两条让 AI 挑外观的话（page-header 与正文块换着用，SERVICES 页的 CTA 别用
+      // "solid"）。AI 写的那个字段没人读，形态归取值链，所以两条都删了。
     ];
     return lines.filter(Boolean).join('\n');
   })();
@@ -2030,9 +2035,9 @@ async function generateContent(opts) {
   // 举例里点名的块同样要过滤；两个例子都没了就只留那句「把顺序变一变」。
   const varySectionOrderRule = (() => {
     const ex = [];
-    if (!blockOff.has('process-steps')) ex.push('A dental site might lead with stats + process-steps.');
-    if (!blockOff.has('features-grid') && !blockOff.has('testimonials')) {
-      ex.push('A security site might prioritize features-grid + testimonials.');
+    if (!blockOff.has('milestones') && !blockOff.has('features')) ex.push('A dental site might lead with milestones + features written as steps.');
+    if (!blockOff.has('features') && !blockOff.has('testimonials')) {
+      ex.push('A security site might prioritize features + testimonials.');
     }
     return ['- Vary the section ORDER.', ...ex].join(' ');
   })();
@@ -2046,11 +2051,13 @@ async function generateContent(opts) {
   const contentAmountsRule = (() => {
     const bound = [
       ['testimonials', '6 unique testimonials'],
-      ['faq-accordion', '4-6 FAQ items'],
-      ['process-steps', '3-4 process steps'],
-      ['pricing-table', '2-3 pricing tiers'],
+      ['faq', '4-6 FAQ items'],
+      ['features', '3-4 process steps'],
+      ['pricing', '2-3 pricing tiers'],
     ].filter(([t]) => !blockOff.has(t)).map(([, text]) => text);
-    const social = blockOff.has('social-proof') ? [] : ['3-4 social proof badges/platforms'];
+    // #1425（T3）—— 原来这里还有一格「3-4 social proof badges/platforms」（social-proof，旧块）；它的四样东西
+    //    分到了 testimonials / milestones / logos / features（#1488 / #1504），各自已在上面或菜单里。
+    const social = [];
     const parts = ['6-8 services', ...bound, '3-5 benefits', ...social];
     const body = parts.length > 1
       ? `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`
@@ -2060,24 +2067,26 @@ async function generateContent(opts) {
   })();
   // 配方关着时走的那一行「挑两个别人不会有的块」—— 举例名单同样过滤（#1346 r3）。
   const rareSectionExamplesRule = (() => {
-    const ex = keepBlocks(['content-split', 'social-proof', 'card-group', 'announcement-bar']);
+    const ex = keepBlocks(['milestones', 'logos', 'team', 'gallery']);
     return ex.length
       ? `- Include at least TWO sections that most sites wouldn't have (e.g., ${ex.join(', ')}).`
       : '- Include at least TWO sections that most sites wouldn\'t have.';
   })();
-  const ctaHrefRule = ruleIfAnyOn(['hero', 'cta-banner'], (_on, set) => '- CTA hrefs in '
-    + [set.has('hero') ? 'hero sections' : null, set.has('cta-banner') ? 'cta-banners' : null].filter(Boolean).join(' and ')
+  const ctaHrefRule = ruleIfAnyOn(['hero', 'cta'], (_on, set) => '- CTA hrefs in '
+    + [set.has('hero') ? 'hero sections' : null, set.has('cta') ? 'cta sections' : null].filter(Boolean).join(' and ')
     + ' should point to "/<ctaPage slug>".');
 
-  // 服务详情页那一行同样是写死的块名清单（#1346）。「A OR B」那一格里只剩一个时就写成那一个。
+  // 服务详情页那一行同样是写死的块名清单（#1346）。
+  // #1425（T3）—— 原来是 content-split · process-steps OR card-group · faq-accordion · service-related-pages · cta-banner。
+  //    「A OR B」那一格塌成 `features` 的两种写法（卖点 / 步骤，同 keyword-page-options.js）；关键词子页那一格
+  //    （service-related-pages，#1505 定不做新块）改成第二个 `features`，items 用引用写法指向这个服务底下的页。
   const serviceDetailSectionRule = (() => {
-    const pick = keepBlocks(['process-steps', 'card-group']);
     const parts = [
-      ...keepBlocks(['page-header', 'content-split']),
-      ...(pick.length === 2 ? ['process-steps OR card-group'] : pick),
-      ...keepBlocks(['faq-accordion']),
-      ...(hasKeywordPages ? keepBlocks(['service-related-pages']) : []),
-      ...keepBlocks(['cta-banner']),
+      ...keepBlocks(['page-header', 'content']),
+      ...(blockOff.has('features') ? [] : ['features (selling points, or steps numbered "01" "02"…)']),
+      ...keepBlocks(['faq']),
+      ...(hasKeywordPages && !blockOff.has('features') ? ['a second features listing this service\'s keyword pages'] : []),
+      ...keepBlocks(['cta']),
     ];
     return parts.join(', ');
   })();
@@ -2147,7 +2156,7 @@ REAL CUSTOMER REVIEWS — use these as testimonials instead of generating fake o
 ${reviewLines}
 
 For "testimonials" sections: use these real reviews as-is. Keep author names and review meaning intact. You may lightly edit for brevity but preserve authenticity.
-For "social-proof" sections: use real platform data —${ratingSummary || ' generate realistic numbers based on the reviews above.'}
+For "reviews" sections: use real platform data —${ratingSummary || ' generate realistic numbers based on the reviews above.'}
 Do NOT invent additional fake testimonials. Only use the real reviews provided above.`;
   }
 
@@ -2305,8 +2314,7 @@ ${servicesList.length >= 3 ? `Generate an individual service detail page for EAC
 - Set serviceDetailPage: true and parentService: "{service-id}" on each
 - navOrder: 10-19, priority: 0.8, changeFrequency: "monthly"
 - Each page needs 5-7 sections: ${serviceDetailSectionRule}
-${blockOff.has('page-header') ? '' : `- page-header breadcrumbs: [{label:"Home",href:"/"},{label:"Services",href:"/services"},{label:"{Service Name}"}]
-`}${hasKeywordPages && !blockOff.has('service-related-pages') ? `- service-related-pages data: { serviceSlug: "{service-id}", headline: "Related {Service} Topics" }` : ''}
+${hasKeywordPages && !blockOff.has('features') ? `- the keyword-pages features: { headline: "Related {Service} Topics", items: {"source": "pages", "under": "{service-id}"} } — the items come from this service's keyword pages, never type them out` : ''}
 - Vary layouts across service detail pages — don't repeat the same structure
 - Write unique, detailed SEO content for each service` : `Skip service detail pages — only ${servicesList.length} service(s), not enough to warrant individual pages.`}`;
 
@@ -2320,10 +2328,10 @@ The business owner has uploaded the following photos. Use them in sections that 
 ${imageList}
 
 IMAGE PLACEMENT RULES:
-- "hero": set imageUrl on the hero data to show the best/most general business photo
-- "content-split": set imageUrl to show a relevant photo next to the text
-- "gallery": set imageUrl on individual items to show the photos in the gallery grid
-- Match images to sections by filename context (e.g., "storefront.jpg" → hero, "team.jpg" → about page content-split, "product1.jpg" → gallery item)
+- "hero": set image.imageUrl on the hero data to show the best/most general business photo
+- "content": set image.imageUrl to show a relevant photo next to the text
+- "gallery": set image.imageUrl on individual items to show the photos in the gallery grid
+- Match images to sections by filename context (e.g., "storefront.jpg" → hero, "team.jpg" → about page content, "product1.jpg" → gallery item)
 - You may reuse the same image URL across multiple sections if it fits
 - If there are more sections than images, **OMIT the imageUrl field entirely** (do not write the key). Do NOT invent placeholder strings like "gradient-about", "tbd", "placeholder", or any descriptive name — only valid paths starting with "/" or "http(s)://" are acceptable. The template will render a gradient automatically when imageUrl is absent.`;
   }
@@ -2374,7 +2382,7 @@ AVAILABLE SECTION TYPES:
 You are a layout designer. For each page, you choose WHICH sections to include and in WHAT order. Not every page needs every section. Mix it up based on what makes sense for this industry.
 
 HOMEPAGE SECTIONS (pick 7-10 from these, in any order):
-${blockPromptSection('homepage', undefined, { ...(homeRecipe ? { order: homeRecipe.promptOrder } : {}), omit: [...disabledBlocks, ...(hasKeywordPages ? [] : ['service-related-pages'])] })}
+${blockPromptSection('homepage', undefined, { ...(homeRecipe ? { order: homeRecipe.promptOrder } : {}), omit: disabledBlocks })}
 
 PAGE-SPECIFIC SECTION RULES:
 ${blockPromptSection('page-specific', undefined, { omit: disabledBlocks })}${contentNewPageLine}
@@ -2471,7 +2479,7 @@ CRITICAL RULES:
 ${varySectionOrderRule}
 ${homeRecipe ? recipePromptLines(homeRecipe, disabledBlocks)
   // #1034 — 关着的时候这一行逐字回到改动之前。它原来那份举例名单
-  // （content-split / social-proof / card-group / announcement-bar，外加 #1372 删掉的那两个块）
+  // （#1425 之前是四个旧块，外加 #1372 删掉的那两个块）
   // 正好就是 6 个真实站实际选中的那批 —— 举例清单被当成了待办清单。
   // 🔴 #1372 之后那份名单只剩 4 个：被删的两个块的名字按那张票的验收要求不再出现在代码里。开着的时候由上面那份
   // 每站不同的硬要求取代它。
@@ -2487,8 +2495,7 @@ ${galleryItemsRule ? `${galleryItemsRule}
 - Include location names naturally in content.
 ${ctaHrefRule ? `${ctaHrefRule}
 ` : ''}- Service detail pages (slug "services/{id}") must set serviceDetailPage: true and parentService: "{service-id}".
-- Service detail pages should NOT appear in the header nav — they go in the footer only.${hasKeywordPages && !blockOff.has('service-related-pages') ? `
-- Include a "service-related-pages" section on each service detail page with serviceSlug matching the service id.` : ''}`;
+- Service detail pages should NOT appear in the header nav — they go in the footer only.`;
 
   emit('prompt', { name: 'Base Site', content: prompt });
   progress('AI is generating content and layout...', 25);
@@ -2662,7 +2669,7 @@ ${ctaHrefRule ? `${ctaHrefRule}
     }
   }
 
-  // #1489 —— 地址 → 坐标，查一次存进站点数据（contact-new 的地图点开时要 bbox / marker）。页面打开时不查；
+  // #1489 —— 地址 → 坐标，查一次存进站点数据（contact 的地图点开时要 bbox / marker）。页面打开时不查；
   //    查不到 / 网络错 ⟹ 不写 geo、地图不渲染，建站照常（geocodeBrand 不抛）。只查坐标，瓦片一张都不取（OSM 瓦片条款禁预取）。
   const geoResult = await geocodeBrand(brand, { log: debug });
   debug(`Geocode brand.locations[0]: ${geoResult}`);
@@ -2845,27 +2852,14 @@ async function generateKeywordPages(opts) {
     // 份清单里写着 REQUIRED）。缺省空数组 ⟹ 不传的调用方拿到的提示词逐字节不变。
     disabledBlocks = [],
   } = opts;
-  const keywordSectionOptions = keywordPageSectionOptions({
-    hasServiceDetailPages: Object.keys(serviceDetailMap).length > 0,
-    disabledBlocks,
-  });
+  // #1425（T3）—— `hasServiceDetailPages` 入参删了：它只决定 page-header 那行面包屑说明，而新 page-header 不读
+  //    `data.breadcrumbs`（按页面路径算）。
+  const keywordSectionOptions = keywordPageSectionOptions({ disabledBlocks });
 
   const client = new Anthropic();
 
-  // #1184 —— 提示词以前只给一张【全站】服务详情页清单 + 一句「从清单里逐字挑一个」，而这个关键词页
-  // 所属的服务可能不在清单上（服务详情页只覆盖 payload 的 services，关键词可以挂在别的服务上）。
-  // 模型于是挑了别人的：真机产物上 `{label:"Sump Pump Installation", href:"/services/water-heater-repair"}`
-  // —— 文字写着 A、点进去是 B，而那一页真的存在，所以死链那道检查读到 0。这里改成【逐页】告诉它
-  // 允许的那一个值，没有就明说 NO LINK。生成之后还有 `alignBreadcrumbsToOwnService()` 兜底。
-  const ownDetailSlugFor = (kp) => {
-    const key = serviceKey(kp.serviceSlug) || serviceKey(kp.service);
-    if (!key) return null;
-    for (const [svcId, slug] of Object.entries(serviceDetailMap)) {
-      const last = serviceKey(String(slug).split('/').pop());
-      if (serviceKey(svcId) === key || last === key) return slug;
-    }
-    return null;
-  };
+  // 📌 #1425（T3）—— 这里原来有 `ownDetailSlugFor`（#1184：逐页告诉模型面包屑中间那一级指向哪儿）。新 page-header
+  //    不读 `data.breadcrumbs`（按页面路径算），提示词不再让模型写面包屑，它随之没有调用方了。
 
   const languageInstruction = languageName !== 'English'
     ? `\nLANGUAGE: Write ALL content in ${languageName}.${chineseVariantHint(languageName)} Only JSON keys and technical values (slugs, hrefs, icon names, section type names) should remain in English.\n`
@@ -2889,17 +2883,10 @@ or localize the brand name in ANY language. Examples:
   ✗ WRONG: "Happy Paws宠物美容" (translated brand) / "McDonalds" (dropped apostrophe)
   ✓ RIGHT: "Happy Paws Pet Grooming" / "McDonald's" (verbatim regardless of locale)
 
-${Object.keys(serviceDetailMap).length > 0 ? `SERVICE DETAIL PAGES (link breadcrumbs to these when available):
-${Object.entries(serviceDetailMap).map(([svcId, slug]) => `- ${svcId}: /${slug}`).join('\n')}
-` : ''}
+
 KEYWORD PAGES TO CREATE (one page per keyword):
 ${keywordPages.map((kp, i) => {
-  const base = `${i + 1}. slug: "${kp.nestedSlug}" — keyword: "${kp.keyword}" (${kp.volume || '?'} searches/mo) — service: ${kp.service}`;
-  if (Object.keys(serviceDetailMap).length === 0) return base;
-  const own = ownDetailSlugFor(kp);
-  return `${base}\n   breadcrumb middle level for THIS page: ${own
-    ? `/${own}`
-    : `NO LINK — "${kp.service}" has no service detail page. Write {label:"${kp.service}"} with NO href field.`}`;
+  return `${i + 1}. slug: "${kp.nestedSlug}" — keyword: "${kp.keyword}" (${kp.volume || '?'} searches/mo) — service: ${kp.service}`;
 }).join('\n')}
 
 EACH PAGE MUST have 4-6 sections from these options:
@@ -2924,14 +2911,11 @@ CRITICAL RULES:
 - Each page slug MUST match the slug listed above EXACTLY (e.g. "${keywordPages[0]?.nestedSlug || 'service/keyword'}").
 - Use the target keyword naturally in: page title, meta description, h1, headings, and body content.
 - Each page MUST have 4-6 sections (NOT 3). Quality matters — write detailed, unique content.
-- text-block content should be 2-3 substantial paragraphs (400-600 words) of unique SEO copy, not just 1-2 sentences.
+- content body should be 2-3 substantial paragraphs (400-600 words) of unique SEO copy, not just 1-2 sentences.
 - FAQ answers should be 2-3 sentences each, naturally incorporating the keyword and location.
 - Make each page unique — don't use the same template for every page.
-- Vary section types across pages. Alternate between card-group and process-steps.
+- Vary section types across pages. Alternate the features section between selling points and numbered steps.
 - CTA href should point to "/quote" or the appropriate contact page, or alternate with a service detail page link (e.g. "/services/{slug}") when available.
-- Breadcrumb middle level: ${Object.keys(serviceDetailMap).length > 0
-  ? 'use EXACTLY the "breadcrumb middle level for THIS page" value given with that page above. If it says NO LINK, write the label with NO href field at all. NEVER point it at another service\'s detail page — the label says one service and the link would go to a different one (#1184).'
-  : 'omit it — this site has NO service detail pages. Breadcrumbs are exactly [Home, <Page Title>]. A made-up middle link is a 404 (#1176).'}
 - Include ${location || 'the local area'} naturally in content for local SEO.
 - navOrder should be 50+ (keyword pages sort after regular pages).`;
 

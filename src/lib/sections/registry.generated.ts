@@ -3,89 +3,37 @@
 //    要加一个块：在 `blocks/` 下新建一个文件夹（manifest.json + Section.tsx + 一个形态子文件夹），
 //    然后跑一次生成器。#1387（设计文档 D20）。
 import type { ComponentType } from 'react';
-import AnnouncementBarSection from '@blocks/announcement-bar/Section';
-import BlogNewSection from '@blocks/blog-new/Section';
-import BlogPreviewSection from '@blocks/blog-preview/Section';
-import CardGroupSection from '@blocks/card-group/Section';
-import ContactFormSection from '@blocks/contact-form/Section';
-import ContactInfoSection from '@blocks/contact-info/Section';
-import ContactNewSection from '@blocks/contact-new/Section';
-import ContentNewSection from '@blocks/content-new/Section';
-import ContentSplitSection from '@blocks/content-split/Section';
-import CtaBannerSection from '@blocks/cta-banner/Section';
-import CtaNewSection from '@blocks/cta-new/Section';
-import FaqAccordionSection from '@blocks/faq-accordion/Section';
-import FaqNewSection from '@blocks/faq-new/Section';
-import FeaturesGridSection from '@blocks/features-grid/Section';
-import FeaturesNewSection from '@blocks/features-new/Section';
+import BlogSection from '@blocks/blog/Section';
+import ContactSection from '@blocks/contact/Section';
+import ContentSection from '@blocks/content/Section';
+import CtaSection from '@blocks/cta/Section';
+import FaqSection from '@blocks/faq/Section';
+import FeaturesSection from '@blocks/features/Section';
 import GallerySection from '@blocks/gallery/Section';
-import GalleryNewSection from '@blocks/gallery-new/Section';
 import HeroSection from '@blocks/hero/Section';
-import HeroNewSection from '@blocks/hero-new/Section';
-import HeroWithFormSection from '@blocks/hero-with-form/Section';
-import LogosNewSection from '@blocks/logos-new/Section';
-import MapAreaSection from '@blocks/map-area/Section';
+import LogosSection from '@blocks/logos/Section';
 import MilestonesSection from '@blocks/milestones/Section';
-import NewsletterSignupSection from '@blocks/newsletter-signup/Section';
 import PageHeaderSection from '@blocks/page-header/Section';
-import PageHeaderNewSection from '@blocks/page-header-new/Section';
-import PricingNewSection from '@blocks/pricing-new/Section';
-import PricingTableSection from '@blocks/pricing-table/Section';
-import ProcessStepsSection from '@blocks/process-steps/Section';
-import QuoteFormSection from '@blocks/quote-form/Section';
-import ReviewsNewSection from '@blocks/reviews-new/Section';
-import ServiceRelatedPagesSection from '@blocks/service-related-pages/Section';
-import ServicesListSection from '@blocks/services-list/Section';
-import ServicesNavSection from '@blocks/services-nav/Section';
-import SocialProofSection from '@blocks/social-proof/Section';
-import TeamGridSection from '@blocks/team-grid/Section';
-import TeamNewSection from '@blocks/team-new/Section';
+import PricingSection from '@blocks/pricing/Section';
+import ReviewsSection from '@blocks/reviews/Section';
+import TeamSection from '@blocks/team/Section';
 import TestimonialsSection from '@blocks/testimonials/Section';
-import TestimonialsNewSection from '@blocks/testimonials-new/Section';
-import TextBlockSection from '@blocks/text-block/Section';
-import TrustedBrandsSection from '@blocks/trusted-brands/Section';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const sectionRegistry: Record<string, ComponentType<any>> = {
-  'announcement-bar': AnnouncementBarSection,
-  'blog-new': BlogNewSection,
-  'blog-preview': BlogPreviewSection,
-  'card-group': CardGroupSection,
-  'contact-form': ContactFormSection,
-  'contact-info': ContactInfoSection,
-  'contact-new': ContactNewSection,
-  'content-new': ContentNewSection,
-  'content-split': ContentSplitSection,
-  'cta-banner': CtaBannerSection,
-  'cta-new': CtaNewSection,
-  'faq-accordion': FaqAccordionSection,
-  'faq-new': FaqNewSection,
-  'features-grid': FeaturesGridSection,
-  'features-new': FeaturesNewSection,
+  'blog': BlogSection,
+  'contact': ContactSection,
+  'content': ContentSection,
+  'cta': CtaSection,
+  'faq': FaqSection,
+  'features': FeaturesSection,
   'gallery': GallerySection,
-  'gallery-new': GalleryNewSection,
   'hero': HeroSection,
-  'hero-new': HeroNewSection,
-  'hero-with-form': HeroWithFormSection,
-  'logos-new': LogosNewSection,
-  'map-area': MapAreaSection,
+  'logos': LogosSection,
   'milestones': MilestonesSection,
-  'newsletter-signup': NewsletterSignupSection,
   'page-header': PageHeaderSection,
-  'page-header-new': PageHeaderNewSection,
-  'pricing-new': PricingNewSection,
-  'pricing-table': PricingTableSection,
-  'process-steps': ProcessStepsSection,
-  'quote-form': QuoteFormSection,
-  'reviews-new': ReviewsNewSection,
-  'service-related-pages': ServiceRelatedPagesSection,
-  'services-list': ServicesListSection,
-  'services-nav': ServicesNavSection,
-  'social-proof': SocialProofSection,
-  'team-grid': TeamGridSection,
-  'team-new': TeamNewSection,
+  'pricing': PricingSection,
+  'reviews': ReviewsSection,
+  'team': TeamSection,
   'testimonials': TestimonialsSection,
-  'testimonials-new': TestimonialsNewSection,
-  'text-block': TextBlockSection,
-  'trusted-brands': TrustedBrandsSection,
 };

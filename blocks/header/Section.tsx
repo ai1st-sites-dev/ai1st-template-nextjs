@@ -1,149 +1,382 @@
 'use client';
 
-import Link from 'next/link';
-import { useState } from 'react';
-import ServiceIcon from '@/components/ServiceIcon';
-import LanguageSwitcher from '@/components/LanguageSwitcher';
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+// header —— 顶栏，Webpixels / Bootstrap 那一套（#1424 T2.1 → #1462 定稿第 2 版，总纲 #1422）
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+//
+// 🔴 **外壳区块**（manifest `region: true`）：不进 `registry.generated.ts`、不进 Puck、不进 AI 的提示词；站上由
+//    `SiteShell` 渲染，data 是构建期从 navigation.json + brand.json 派生的那一份（`scripts/lib/shell-data.js`，
+//    #1425 T3），形态取主题选择单 `shapes.header`。单格页 `/__catalog` 直接传 data。
+//
+// 🔴 **一份 markup + 两个旋钮 + 一个归预设管的开关 + 七个预设**（#1462 → #1468，Chris 2026-09-28 图册）。
+//    旋钮 `logo`（left | center | right）· `menu`（beside | center | split | gathered | below），声明在 manifest 的
+//    `slots.options.knobs`；`topbar` 是布尔开关（顶条放什么是内容，旋钮只管有没有），跟 icons 并排。
+//    预设是「旋钮 + topbar」组合起的名，表在顶层 `presets`（`{ name, shape, knobs, options: { topbar } }`，header 的
+//    name 与形态目录名 shape 相同）。形态名只决定**初值**：`options` 里写了旋钮 / topbar 就按写的画
+//    （§resolveKnobs），不成立的组合由 `scripts/lib/header-knobs.js` 纠正 —— 工具栏和这里用的是同一个函数。
+//    排版由旋钮派生成根上的三个类（`hdr-logo-*` / `hdr-menu-*` / `hdr-topbar-on|off`），几何在
+//    `blocks/header/block.css`；这里只决定「每一格里放什么」。`logo=right` 就是 logo 在右的镜像（#1468 前
+//    是一个布尔修饰，已退役）：网格两格对调、紧凑条反向、顶条两段对调都在 block.css；markup 里只有顶条那两行
+//    挂一个 `hdr-flip`（它们不是网格格子，CSS 要一个钩子）。
+//
+// 🔴 **折叠点 992**（`lg`）：iPad（768–991）跟手机一样是 logo ·（topbar 开时）电话图标 · 汉堡 +
+//    抽屉 —— 真实站的菜单项是「Brake repair and diagnostics」这种长度，820 宽必折行（T2.1 验收截图）。
+//
+// 🔴 **排版只走 Webpixels 的工具类**（总纲约束 3），工具类表达不了的（网格列宽、每格落哪一栏、
+//    logo=right 换栏、992 起才显示的那几段）在 block.css。
+//
+// 🔴 **底色 = 颜色槽 `bg`**（#1476，原来是开关；同 footer #1469）：任意 `#rrggbb`、`brand`（主题主色）或渐变
+//    `{ stops: [2–3 个色], angle }`，字色按背景亮度自动反白 —— 判亮度、写成 CSS 都走 `scripts/lib/contrast.js`
+//    （§toneForBg / §bgCss），跟 footer / cta 同一份，这里不另算。没填 = 改前的浅底那一份，逐字相同。
+//
+// 🔴 **抽屉的展开 / 收起是 Bootstrap Collapse**（#1514，Chris 2026-10-01：HTML 的交互归 bootstrap.js）：汉堡按钮只写
+//    `data-bs-toggle="collapse"` + `data-bs-target`，抽屉一直在 HTML 里、挂 `.collapse`，藏 / 显 / 动画 / `aria-expanded`
+//    全是 Bootstrap 的事；模块按需加载（`src/components/BootstrapJs.tsx` §loadBootstrap('collapse')）。Collapse 自己
+//    不管 Esc，所以下面挂了一个 keydown 调它的 hide —— 这是本文件里唯一一行事件处理。
+//    深底上的字色仍是工具类（`link-light` / `text-white`），不是 Bootstrap 的 `data-bs-theme`。
+// 🔴 **不挂 `.navbar-collapse`，也不给 nav 挂 `.navbar-expand-*`**：#1514 复现过 ——Webpixels 的
+//    `.navbar-expand-lg .navbar-collapse { display: flex !important }` 住在 `@media (min-width: 992px)` 里，<992 它
+//    不开火、Collapse 照常工作；≥992 它会把收起的抽屉强行撑成 flex。抽屉在 ≥992 本来就该不见（`d-lg-none`），
+//    所以只用裸的 `.collapse`，那条规则就跟它无关。做图册时真正踩到的是另外两件事（#1514 都量过）：
+//    ① 源码里没出现过 `collapse` 这个类名，`public/site.css` 把 `.collapse:not(.show){display:none}` 整条 purge 掉了
+//       （实测 0 条）—— 抽屉藏不住。类名现在在源码里（这里 + BootstrapJs.tsx 的 BOOTSTRAP_RUNTIME_CLASSES），purge 留得住。
+//    ② Tailwind 有一个同名工具类 `.collapse { visibility: collapse }`（`app/layout.css`），源码一出现 collapse 它就生成
+//       —— 抽屉打开了（display: block、高 344px）也看不见。block.css 给 `.hdr-drawer.collapse` 顶回 `visibility: visible`，
+//       T4（#1426）Tailwind 退场后那条可以删。
+//    紧凑那一条和桌面那一格仍是两个元素，各自在自己的断点上显示。
+//
+// 🔴 **图标是内联 SVG，不是字体**（#1462，Chris 拍板）：`iconTable` 由服务端按名查好传进来
+//    （`scripts/lib/icons.js`），这里用 `InlineIcon` 画；查不到的名字不画。
+
+import { useEffect, useRef, type ReactNode } from 'react';
+import InlineIcon, { type IconTable } from '@/components/InlineIcon';
+import { loadBootstrap } from '@/components/BootstrapJs';
+import SiteLink from '@/components/SiteLink';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig } from '@/lib/types/config';
-import { brand, defaultLocale, getNavigation, getBrandName, regions } from '@/lib/config';
+import manifest from './manifest.json';
+import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import {
+  couplingOf, knobsOf, normalizeKnobs, presetForShape, presetOf, presetsOf,
+} from '../../scripts/lib/header-knobs.js';
 
-// TICKET-129: defaultLocale uses root URL alias (no /<locale> prefix).
-function localizeHref(href: string, locale: string): string {
-  if (!href.startsWith('/') || href.startsWith('//')) return href;
-  if (locale === defaultLocale) return href;
-  if (href === '/') return `/${locale}`;
-  return `/${locale}${href}`;
+type Show = 'text' | 'icon' | 'both';
+type CtaStyle = 'solid' | 'outline' | 'link';
+
+export type Logo = 'left' | 'center' | 'right';
+export type Menu = 'beside' | 'center' | 'split' | 'gathered' | 'below';
+
+export interface NavItem { label: string; href: string; icon?: string; show?: Show }
+export interface Cta { label: string; href: string; style?: CtaStyle }
+export interface TopbarContact { icon?: string; text: string; href?: string }
+export interface TopbarLink { label: string; href: string; icon?: string }
+export interface HeaderOptions {
+  /** 只是标签：旋钮跟某个预设吻合就是它的名，否则 `custom`。渲染不读它。 */
+  preset?: string;
+  logo?: Logo;
+  menu?: Menu;
+  /** 归预设管的开关：没写就跟形态（= 预设）走。 */
+  topbar?: boolean;
+  icons?: boolean;
 }
 
-// 🔴🔴 #1353 — ONE MARKUP. 顶栏从「一变体一棵树」搬进形态层，规矩跟块完全一样（设计文档 D14）。
-//
-// 走了四棵树：`solid-bar`（实色横条）、`transparent-overlay`（压在首屏上的浮层）、`centered-logo`
-// （logo 居中）、`pill-floating`（圆角胶囊浮条）。它们今天是下面这同一副骨架，**排版整段住在
-// `public/shapes.css` 的 `[data-block="header"][data-shape="…"]`**，每种形态的间距和皮也在那份文件
-// 末尾那一节（**不在主题表** —— 那条明写的例外和它的射程写在 `shapes.css` 的 `#1353` 那一段）。
-// 📌 #960 把它们做成四棵树时，块那一层还没有形态层（#1008 之后才有）。D14 把顶栏页脚点成「已知例外」
-//    并写明 3.5 步清掉，这就是那一步。
-//
-// 🔴 这个文件里【一个 Tailwind 响应式类都不许有】（AC2 逐条 grep `(sm|md|lg|xl):`）。手机上汉堡出来、
-//    导航收起，这些是**几何**，归 `shapes.css` 的 `@media`；写回这里就等于把刚搬走的那一维搬回来。
-//
-// 🔴 `regionLayout` 不再从这里读（AC2 也 grep 它）。结构现在跟别的块同一条路：主题的**选择单**
-//    （`scripts/theme-pool.json` 的 `shapes.header`）→ 构建期算好 → `regions.header.shape`。
-//    `supports.header` 那条老路 #1353 退役了。
-//
-// 🔴 为什么 `overHero` 这条 JS 判断【留在组件里】而不是变成一种形态：D14 第 3 句把它点名了 ——
-//    「透明浮层那种要判『压在 hero 上』的逻辑按本条第 3 句归结构本身」。它问的是**这一页的第一段是不是
-//    hero**（about 页第一段是 page-header，浮上去就是标题被压住），页面才知道，CSS 不知道。它落成根
-//    元素上的 `data-over-hero`，`shapes.css` 拿它当第三个条件 —— 形态仍然只有四个名字。
-//
-// 🔴 遮罩（`header__scrim`）**永远在 DOM 里**，显不显示由 CSS 说。D14 第 2 句：可选零件缺席不算
-//    HTML 不同；反过来，一个只在某一支里才存在的元素就是「另一棵树」，正是本票要清的东西。
-//    它的浓度为什么是那样，写在 `scripts/region-layout.js` 的文件头（白字压纯白首屏的最坏情况）。
-// 🔴 `variant` 跟 `Footer` 那个同名参数是**同一件事**（#1383）：图册的单格页要把同一副骨架按
-//    四种形态各画一页，而形态平时来自构建期算好的 `regions.header.shape`。站上的每一个调用点都
-//    **不传**它 —— 现取 `git grep -n '<Header' src` 逐个看过 ⟹ 站的行为一个字节不变。
-type HeaderProps = { locale: string; overHero?: boolean; variant?: string };
+export interface HeaderNewData {
+  logo?: string;
+  brandName?: string;
+  nav?: NavItem[];
+  ctaPrimary?: Cta;
+  ctaSecondary?: Cta;
+  topbar?: { contact?: TopbarContact[]; links?: TopbarLink[]; social?: TopbarLink[] };
+  /** 底色（§文件头）。没填 = 浅底。 */
+  bg?: BgValue;
+  options?: HeaderOptions;
+}
 
-export default function Header({ locale, overHero = false, variant: variantOverride }: HeaderProps) {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { header } = getNavigation(locale);
-  const shape = variantOverride || regions.header.shape;
+export interface HeaderKnobs { logo: Logo; menu: Menu }
 
-  // 浮层压在首屏上时，顶栏的字是白的。这是**这一页**的事（见上面那段），所以它是一个属性，不是一种形态。
-  const overlaid = shape === 'transparent-overlay' && overHero;
+const KNOBS = knobsOf(manifest);
+const PRESETS = presetsOf(manifest);
+const COUPLING = couplingOf(manifest);
+export const DEFAULT_PRESET = 'logo-left';
 
-  // 🔴 语言开关那行字仍然**显式接线**，不靠继承 —— `LanguageSwitcher.tsx` 的头注里记着为什么：
-  // #960 r2 漏的就是它，多语言站上它在顶栏最右、压在深底上 1.08:1，而单语言站它根本不渲染，
-  // 30 张单语言截图里它从来不在场。手机抽屉里那个不传：抽屉永远是实色白底。
-  const langSwitcher = <LanguageSwitcher currentLocale={locale} onDark={overlaid} />;
+/**
+ * 形态名（= 预设名）给初值，`options` 里写着的旋钮 / topbar 盖上去，再纠正一次。形态名不认识就落回 `logo-left`。
+ * 🔴 纠正时不知道「刚拧的是哪个」⟹ logo 为准（header-knobs.js 文件头）：logo=center + menu=beside ⟹ split。
+ */
+export function resolveKnobs(shape: string | undefined, options: HeaderOptions = {}): { knobs: HeaderKnobs; topbar: boolean; preset: string; shape: string } {
+  const hit = (shape && presetForShape(PRESETS, shape)) || presetForShape(PRESETS, DEFAULT_PRESET);
+  const known = hit ? hit.shape : DEFAULT_PRESET;
+  const base = hit ? { ...hit.knobs } : {};
+  const given: Record<string, unknown> = {};
+  for (const k of KNOBS) if (options[k.name as keyof HeaderOptions] !== undefined) given[k.name] = options[k.name as keyof HeaderOptions];
+  const knobs = normalizeKnobs({ ...base, ...given }, { knobs: KNOBS, presets: PRESETS, coupling: COUPLING, base }) as unknown as HeaderKnobs;
+  const topbar = typeof options.topbar === 'boolean' ? options.topbar : !!(hit && hit.options && hit.options.topbar === true);
+  return { knobs, topbar, preset: presetOf({ ...knobs, topbar }, { knobs: KNOBS, presets: PRESETS }), shape: known };
+}
 
-  const headerBlock = { type: 'header', shape, role: 'essential' } as unknown as BlockConfig;
+// `onBrand`：主色底上主色按钮看不见 ⟹ 实心那种翻成白底主色字（hero / cta 同一条；样式在 block.css
+// §hdr-cta-on-brand）。
+function ctaClass(style: CtaStyle | undefined, deep: boolean, onBrand = false): string {
+  if (style === 'link') return deep ? 'btn btn-link link-light' : 'btn btn-link';
+  if (style === 'outline') return deep ? 'btn btn-outline-light' : 'btn btn-outline-primary';
+  return onBrand ? 'btn btn-primary hdr-cta-on-brand' : 'btn btn-primary';
+}
+
+interface Props {
+  data?: HeaderNewData;
+  /** 形态名 = 预设名；没给或不认识就落回 `logo-left`。今天只有单格页传它（T3 接回站点时由构建期算好）。 */
+  shape?: string;
+  block?: BlockConfig;
+  /** 服务端查好的图标表（`scripts/lib/icons.js` §iconTableFor）。没给 ⟹ 一个图标都不画。 */
+  iconTable?: IconTable;
+  /** #1425 —— logo 那个「回首页」链接。多语言站的副语言页上是 `/<locale>`，由外壳（`SiteShell`）算好传进来；不传 = `/`。 */
+  homeHref?: string;
+}
+
+type CollapseCtor = { getInstance(el: Element): { hide(): void } | null };
+
+export default function HeaderNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, homeHref = '/' }: Props) {
+  // 抽屉 = Bootstrap Collapse（§文件头）。按钮和抽屉靠这个 id 对上；一页只有一个顶栏，块没 id 就叫 main。
+  const drawerId = `hdr-drawer-${(block && block.id) || 'main'}`;
+  const drawerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const loaded = loadBootstrap('collapse') as Promise<{ default: CollapseCtor }>;
+    // Collapse 的 data-api 不管 Esc（Modal / Offcanvas 才管）：抽屉开着时按 Esc 关掉它，关的动作仍交给 Bootstrap。
+    const onKey = (e: KeyboardEvent) => {
+      const el = drawerRef.current;
+      if (e.key !== 'Escape' || !el || !el.classList.contains('show')) return;
+      void loaded.then((m) => m.default.getInstance(el)?.hide());
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+  const opts = data.options || {};
+  const { knobs, topbar: hasTopbar, preset, shape } = resolveKnobs(shapeIn, opts);
+  const { logo, menu } = knobs;
+  const { icons = false } = opts;
+  const tone = toneForBg(data.bg);
+  const deep = tone !== 'light';
+  const bgValue = bgCss(data.bg);
+  const bgStyle = bgValue ? { background: bgValue } : undefined;
+  const onBrand = tone === 'brand';
+  const right = logo === 'right';
+  const nav = Array.isArray(data.nav) ? data.nav : [];
+  const half = Math.ceil(nav.length / 2);
+  const topbar = data.topbar || {};
+  // #1520：`href` 不是字符串（半截的引用写法 `{icon, text, href: {source: "phone"}}`，校验会报）⟹ 按没有链接画 ——
+  // 不拿对象去调 `startsWith`（下面 `phone` 那一行），也不把它塞进 `<SiteLink href>`（画出来是 `[object Object]`）。
+  // 这一行在 `hasTopbar` 门外，所以不是数组、或数组里有 null 的坏数据也要在这里挡掉（r2，QA1）：
+  // 改前它们只在 topbar 开着时才被碰到，关着的预设照常渲染 —— 不能因为挪到门外就变成页面崩。
+  const contact = (Array.isArray(topbar.contact) ? topbar.contact : [])
+    .filter((c) => c && typeof c === 'object')
+    .map((c) => (typeof c.href === 'string' ? c : { ...c, href: undefined }));
+  const links = topbar.links || [];
+  const social = topbar.social || [];
+  const phone = hasTopbar ? contact.find((c) => c.href && c.href.startsWith('tel:')) : undefined;
+  const ctas = [data.ctaPrimary, data.ctaSecondary].filter((c): c is Cta => !!c && !!c.label);
+  const brand = data.brandName || '';
+
+  const linkTone = deep ? 'link-light' : '';
+  const subTone = deep ? 'link-light' : 'link-secondary';
+  // 深底上的弱化文字不用半透明灰：白 .92（`block.css` §hdr-muted-on-deep，照 footer 那条同形的规则）。
+  const mutedTone = deep ? 'hdr-muted-on-deep' : 'text-body-secondary';
+  const lineTone = deep ? 'border-secondary' : '';
+  const icon = (name?: string, className?: string) => <InlineIcon name={name} icons={iconTable} className={className} />;
+
+  const navItem = (item: NavItem, key: string, vertical = false) => {
+    // 图标查不到就按「只有字」画 —— 不然 `show: icon` 的那一项会变成一个看不见的链接。
+    const show: Show = icons && item.icon && iconTable[item.icon] ? (item.show || 'both') : 'text';
+    return (
+      <li key={key}>
+        <SiteLink className={`nav-link d-inline-flex align-items-center gap-2 ${linkTone}`} href={item.href}>
+          {show !== 'text' ? icon(item.icon) : null}
+          <span className={show === 'icon' && !vertical ? 'visually-hidden' : undefined}>{item.label}</span>
+        </SiteLink>
+      </li>
+    );
+  };
+
+  const navList = (items: NavItem[], key: string) => (
+    <ul className="navbar-nav flex-row flex-wrap column-gap-4 column-gap-xl-6 row-gap-1" key={key}>
+      {items.map((it, i) => navItem(it, `${key}-${i}`))}
+    </ul>
+  );
+
+  const ctaButtons = (key: string) => (
+    <div className="d-flex align-items-center gap-2" key={key}>
+      {ctas.map((c, i) => (
+        <SiteLink key={i} href={c.href} className={`${ctaClass(c.style, deep, onBrand)} text-nowrap`}>{c.label}</SiteLink>
+      ))}
+    </div>
+  );
+
+  const socialIcons = (key: string, extra = '') => (social.length ? (
+    <div className={`d-flex align-items-center gap-3 ${extra}`} key={key} data-hdr-part={key}>
+      {social.map((s, i) => (
+        <SiteLink key={i} href={s.href} className={`${subTone} text-nowrap`} aria-label={s.label}>
+          {icon(s.icon && iconTable[s.icon] ? s.icon : 'link-45deg')}
+        </SiteLink>
+      ))}
+    </div>
+  ) : null);
+
+  const toolLinks = (key: string) => (links.length ? (
+    <div className="d-flex flex-wrap align-items-center column-gap-4 row-gap-1" key={key} data-hdr-part={key}>
+      {links.map((l, i) => (
+        <SiteLink key={i} href={l.href} className={`${subTone} text-sm text-nowrap`}>{l.label}</SiteLink>
+      ))}
+    </div>
+  ) : null);
+
+  // `compact` = 手机 / iPad 那一条：店名要让位给电话图标和汉堡 —— 可以收缩、可以换成两行，不许把后两个挤到
+  // 下一行（QA2 #1462 r1：390 宽 topbar 预设整条折成两行，汉堡掉到第二行最左边；320 宽连 logo-left 也折）。
+  // 店名不截断：生意名是这一条上最要紧的字。桌面那三格里仍是一行不收缩。
+  const brandLink = (compact = false) => (
+    <SiteLink className={`hdr-brand navbar-brand d-inline-flex align-items-center gap-2 m-0 ${compact ? '' : 'flex-shrink-0'} ${deep ? 'text-white' : 'text-heading'}`} href={homeHref}>
+      {data.logo ? <img src={data.logo} alt="" className="h-rem-8 w-auto flex-shrink-0" /> : null}
+      <span className={`fw-semibold ${compact ? 'text-wrap lh-sm' : 'text-nowrap'}`}>{brand}</span>
+    </SiteLink>
+  );
+
+  // ── 桌面（≥992）三格：`hdr-a` · `hdr-b` · `hdr-c`。每格放什么只由 menu 决定（logo 跟着 menu 走，
+  //    纠正之后两者一定成立）；哪格落哪一栏、logo=right 换栏在 block.css。
+  const cells: Record<'a' | 'b' | 'c', ReactNode> = { a: null, b: null, c: null };
+  if (menu === 'beside') {
+    cells.a = brandLink();
+    cells.c = <>{navList(nav, 'nav')}{ctaButtons('ctas')}</>;
+  } else if (menu === 'center') {
+    cells.a = brandLink();
+    cells.b = navList(nav, 'nav');
+    cells.c = ctaButtons('ctas');
+  } else if (menu === 'split' || menu === 'gathered') {
+    cells.a = navList(nav.slice(0, half), 'navA');
+    cells.b = brandLink();
+    cells.c = <>{navList(nav.slice(half), 'navB')}{ctaButtons('ctas')}</>;
+  } else {
+    cells.a = socialIcons('social');
+    cells.b = brandLink();
+    cells.c = ctaButtons('ctas');
+  }
+
+  const headerBlock = { ...(block || {}), type: 'header', shape } as BlockConfig;
+  const rootClass = [
+    // 填了 `bg` 就不挂 `bg-body`：Webpixels 的背景工具类带 `!important`，会压过 style 上的底色（footer 同一条）。
+    bgStyle ? (deep ? 'text-white' : '') : 'bg-body',
+    'border-bottom',
+    lineTone,
+    `hdr-logo-${logo}`,
+    `hdr-menu-${menu}`,
+    `hdr-topbar-${hasTopbar ? 'on' : 'off'}`,
+  ].filter(Boolean).join(' ');
+
+  // 抽屉里的联系信息段：电话（可拨）/ 营业时间 / 地址 → Sign in · Create account → 社交（topbar 开时才有）。
+  const drawerContact = hasTopbar && (contact.length || links.length || social.length) ? (
+    <div className={`border-top ${lineTone} pt-4 vstack gap-3 text-sm`} data-hdr-part="drawer-contact">
+      {contact.length ? (
+        <ul className={`list-unstyled vstack gap-2 mb-0 ${mutedTone}`} data-hdr-part="drawer-info">
+          {contact.map((c, i) => (
+            <li key={i} className="d-flex align-items-center gap-2">
+              {icon(c.icon)}
+              {c.href ? <SiteLink href={c.href} className={`${subTone} text-decoration-none`}>{c.text}</SiteLink> : <span>{c.text}</span>}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {toolLinks('drawer-links')}
+      {socialIcons('drawer-social')}
+    </div>
+  ) : null;
 
   return (
     <header
       {...blockAttrs('header', headerBlock)}
-      className="header"
-      data-over-hero={overlaid ? 'true' : 'false'}
+      data-bs-theme={bsThemeForBg(data.bg)}
+      className={rootClass}
+      data-preset={preset}
+      data-logo={logo}
+      data-menu={menu}
+      data-topbar={hasTopbar ? 'on' : 'off'}
+      style={bgStyle}
     >
-      {/* 遮罩：一条从上往下的深色渐变。只有浮层压在首屏上时 CSS 才把它显出来。 */}
-      <div className="header__scrim" data-role="optional" aria-hidden="true" />
+      {hasTopbar ? (
+        // 顶条：只在 ≥992 出现（block.css），手机 / iPad 上它的内容折进抽屉。
+        <div className={`hdr-topbar border-bottom ${lineTone} py-2 text-sm`}>
+          <div className={`container-lg d-flex align-items-center justify-content-between gap-6 ${right ? 'hdr-flip' : ''}`}>
+            <div className={`d-flex align-items-center gap-5 ${mutedTone}`}>
+              {contact.map((c, i) => (
+                <span key={i} className="d-inline-flex align-items-center gap-2 text-nowrap">
+                  {icon(c.icon)}
+                  {c.href ? <SiteLink href={c.href} className={subTone}>{c.text}</SiteLink> : c.text}
+                </span>
+              ))}
+            </div>
+            <div className={`d-flex align-items-center gap-5 ${right ? 'hdr-flip' : ''}`}>
+              {toolLinks('bar-links')}
+              {socialIcons('bar-social')}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
-      <nav className="header__bar">
-        <Link
-          href={localizeHref('/', locale)}
-          className="header__logo"
-          data-role="essential"
-          aria-label={`${getBrandName(locale)} - Home`}
-        >
-          {brand.logoUrl ? (
-            <img src={brand.logoUrl} alt={getBrandName(locale)} className="header__logo-img" />
-          ) : (
-            <span className="header__logo-mark">
-              <ServiceIcon icon={brand.logoIcon} className="header__logo-icon" />
-            </span>
-          )}
-          {/* TICKET-159: icon-only logo（AI 生成、logoHasWordmark=false）或者干脆没有 logo 时，
-              旁边补一行公司名；用户自己传的 logo 认为自带字标，不重复。 */}
-          {(!brand.logoUrl || !brand.logoHasWordmark) && (
-            <span className="header__logo-name">{getBrandName(locale)}</span>
-          )}
-        </Link>
-
-        <div className="header__nav" data-role="essential">
-          {header.links.map((link) => (
-            <Link key={link.href} href={localizeHref(link.href, locale)} className="header__link">
-              {link.label}
-            </Link>
-          ))}
+      <nav className="navbar py-4" aria-label="Main">
+        {/* < 992：logo ·（topbar 开时）电话圆图标 · 汉堡。logo=right 时整条反过来（block.css）。 */}
+        <div className="hdr-compact container-lg d-flex flex-nowrap d-lg-none align-items-center justify-content-between gap-3">
+          {brandLink(true)}
+          <div className="d-flex flex-shrink-0 align-items-center gap-2">
+            {phone ? (
+              <a /* #1508：phone 只取 tel: 开头的那一项（见 const phone），不受 basePath 影响，保持裸 <a> */
+                href={phone.href}
+                className={`hdr-phone btn btn-sm ${deep ? 'btn-outline-light' : 'btn-outline-primary'} rounded-circle d-inline-flex align-items-center justify-content-center p-0 w-rem-10 h-rem-10`}
+                aria-label={`Call ${phone.text}`}
+              >
+                {icon('telephone')}
+              </a>
+            ) : null}
+            {/* 汉堡：Bootstrap Collapse 的触发器 —— 它自己翻 aria-expanded / .collapsed；两枚图标都在，哪枚露出来由
+                block.css 按 aria-expanded 定（§hdr-ic-open / hdr-ic-close）。 */}
+            <button
+              type="button"
+              className={`hdr-burger btn px-2 ${deep ? 'text-white' : ''} fs-5 lh-1`}
+              data-bs-toggle="collapse"
+              data-bs-target={`#${drawerId}`}
+              aria-controls={drawerId}
+              aria-expanded="false"
+              aria-label="Toggle navigation menu"
+            >
+              <span className="hdr-ic-open d-inline-flex">{icon('list')}</span>
+              <span className="hdr-ic-close d-inline-flex">{icon('x-lg')}</span>
+            </button>
+          </div>
         </div>
 
-        <div className="header__cta" data-role="optional">
-          <Link href={localizeHref(header.cta.href, locale)} className="btn-accent header__cta-link">
-            {header.cta.label}
-          </Link>
+        {/* ≥ 992：三格网格（block.css）。 */}
+        <div className="hdr-grid container-lg">
+          <div className="hdr-a d-flex flex-wrap align-items-center column-gap-4 column-gap-xl-6 row-gap-2">{cells.a}</div>
+          <div className="hdr-b d-flex flex-wrap align-items-center column-gap-4 row-gap-2">{cells.b}</div>
+          <div className="hdr-c d-flex flex-wrap align-items-center justify-content-end column-gap-4 column-gap-xl-6 row-gap-2">{cells.c}</div>
         </div>
 
-        <div className="header__lang" data-role="optional">{langSwitcher}</div>
-
-        <button
-          type="button"
-          className="header__burger"
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          aria-expanded={mobileMenuOpen}
-          aria-label="Toggle navigation menu"
-        >
-          {mobileMenuOpen ? (
-            <svg className="header__burger-icon" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-          ) : (
-            <svg className="header__burger-icon" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
-          )}
-        </button>
+        {menu === 'below' ? (
+          <div className={`hdr-below w-100 border-top ${lineTone} mt-4 pt-4`}>
+            <div className="container-lg d-flex justify-content-center">{navList(nav, 'nav-row')}</div>
+          </div>
+        ) : null}
       </nav>
 
-      {/* 手机抽屉。永远实色白底：浮层在小屏上展开菜单，底下是照片，谁也读不了。
-          🔴 它在 DOM 里恒存在（同上，D14 第 2 句），开没开由 `data-open` 说，显示由 CSS 说 ——
-          `mobileMenuOpen` 这个状态是**行为**，行为归块（D14 第 3 句）。 */}
-      <div className="header__menu" data-role="optional" data-open={mobileMenuOpen ? 'true' : 'false'}>
-        {header.links.map((link) => (
-          <Link
-            key={link.href}
-            href={localizeHref(link.href, locale)}
-            className="header__menu-link"
-            onClick={() => setMobileMenuOpen(false)}
-          >
-            {link.label}
-          </Link>
-        ))}
-        <Link
-          href={localizeHref(header.cta.href, locale)}
-          className="btn-accent header__menu-cta"
-          onClick={() => setMobileMenuOpen(false)}
-        >
-          {header.cta.label}
-        </Link>
-        <div className="header__menu-lang">
-          <LanguageSwitcher currentLocale={locale} />
+      {/* 抽屉：一直在 HTML 里，开没开由 Bootstrap Collapse 说（`.collapse` 藏、`.show` 显，#1514）；只在 < 992 出现
+          （`d-lg-none`）。顺序 = 菜单 → 主 CTA →（topbar 开时）联系信息 → 链接 → 社交。副 CTA 只在 topbar 关时进来：
+          有顶条时电话已经在联系信息那一行里。 */}
+      <div id={drawerId} ref={drawerRef} className={`hdr-drawer collapse d-lg-none border-top ${lineTone}`} data-hdr-part="drawer">
+        <div className="container-lg py-4 vstack gap-4">
+          <ul className="navbar-nav" data-hdr-part="drawer-nav">
+            {nav.map((it, i) => navItem(it, `m-${i}`, true))}
+          </ul>
+          <div className="d-grid gap-2" data-hdr-part="drawer-cta">
+            {(hasTopbar ? ctas.filter((c) => c === data.ctaPrimary) : ctas).map((c, i) => (
+              <SiteLink key={i} href={c.href} className={`${ctaClass(c.style, deep, onBrand)} text-nowrap`}>{c.label}</SiteLink>
+            ))}
+          </div>
+          {drawerContact}
         </div>
       </div>
     </header>

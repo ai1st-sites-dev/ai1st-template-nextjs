@@ -111,18 +111,18 @@ function filledOptionalSlots(m, data) {
  *     `avatars[].imageUrl` 是一张图的地址（否则模型编的外链会落盘），所以字段名不能换 ——
  *     能分开这两件事的只在槽这一层：槽名，或下面那条 `generateImages: false` 声明。
  *   · 槽上写了 `generateImages: false`（#1488）—— 这个槽的图**只能是老板上传的**，建站不给它生成。
- *     `testimonials-new.items[].photo` 是评价人的脸：槽名叫 `items`、图嵌在 `photo` 里，上面那条按槽名
+ *     `testimonials.items[].photo` 是评价人的脸：槽名叫 `items`、图嵌在 `photo` 里，上面那条按槽名
  *     的排除够不着，于是每条评价都拿到一张店内场景照当头像（QA2 真建站量到一个站 32 个图槽里 14 个是它）。
  *     用声明不用名字：`photo` / `items` 在别的块里完全可以是内容图，按名字排除会把它们一起静默关掉。
  *     写入闸那一侧（`image-urls.js` 的 `IMAGE_FIELDS`）不受影响 —— 老板上传的 `photo.imageUrl` 照样认得出。
- *     `logos-new.items`（#1496）同样声明了它：装的是生意自己的商标（安装的品牌 / 认证 / 评价平台），槽名叫 `items`，
+ *     `logos.items`（#1496）同样声明了它：装的是生意自己的商标（安装的品牌 / 认证 / 评价平台），槽名叫 `items`，
  *     上面按槽名那条认不出，塞图库照片进去就是假商标。
- *     team-new 的 `members[].photo`（#1487）同样写这条声明：那是这家店员工的脸，生成的图冒充的是真人。
- *   · 评价平台的 logo（`testimonials-new.summary[].logoUrl` #1500、`reviews-new.platforms[].logoUrl` #1504）**不在这条规则里，
+ *     team 的 `members[].photo`（#1487）同样写这条声明：那是这家店员工的脸，生成的图冒充的是真人。
+ *   · 评价平台的 logo（`testimonials.summary[].logoUrl` #1500、`reviews.platforms[].logoUrl` #1504）**不在这条规则里，
  *     靠的是字段名**：shape 写的是 `logoUrl` 不是 `imageUrl` ⟹ 上面那条 `includes('imageUrl')` 不命中 ⟹ 建站不给平台编 logo
  *     （没上传就画内置品牌图标或平台名）。而 `generateImages: false` 在这两个槽上**写不了**（下面 §checkManifestShape 只许它给
  *     带 `imageUrl` 的槽）。⟹ 谁把字段改名成 `imageUrl`、或往 shape 里加这个串，建站当场开始造假平台 logo ——
- *     `testimonials-new-render.test.js` 有一格两向守它。
+ *     `testimonials-render.test.js` 有一格两向守它。
  *   · `kind: "object"` —— hero 的 `socialProof` 的 shape 里**也有** `imageUrl`
  *     （`{avatars: [{imageUrl}], rating, text}`），但那是顾客头像不是内容图。这一条不是可省的
  *     小心眼：去掉它，每个站的 hero 就会多生成一批冒充真人的头像。
@@ -136,14 +136,31 @@ function imageSlotsOf(m) {
   for (const [name, spec] of Object.entries((m && m.slots) || {})) {
     if (!spec || /^(logos?|avatars?)$/.test(name) || spec.generateImages === false) continue;
     if (spec.kind === 'image') { out.push({ name, kind: 'image' }); continue; }
+    // #1425（T3）—— 新库的主图是一个对象槽 `{imageUrl, alt}`（hero / content / cta / page-header 的 `image`，milestones 的
+    //    `blockImage` …）。旧库的主图是 `kind: image` 的一格字符串，所以这一支以前用不着；换库之后不收它，AI 建站的首屏
+    //    就一张图都拿不到（只剩 hero 的 `band` 列表）。判据读 shape：**最外层**那一层自己就有 `imageUrl` 这个键
+    //    （`proof: {avatars: [{imageUrl}], …}` 这种 imageUrl 在里层的不算）。
+    //    `main`：名字就叫 `image` 的是这个块的主图（排在同一块别的图槽前面）。求不求图看这一块自己的同名旋钮写没写
+    //    （§image-slots.js collectImageSlots），别为看不见的图花钱，也别写出改站校验会拒的数据。
+    if (spec.kind === 'object' && typeof spec.shape === 'string') {
+      let top = spec.shape.trim();
+      if (top.startsWith('{') && top.endsWith('}')) {
+        top = top.slice(1, -1);
+        let prev;
+        do { prev = top; top = top.replace(/\{[^{}]*\}|\[[^\[\]]*\]/g, ''); } while (top !== prev);
+        if (/(^|,)\s*imageUrl\b/.test(top)) { out.push({ name, kind: 'object', main: name === 'image' }); continue; }
+      }
+    }
     if (spec.kind === 'list' && typeof spec.shape === 'string' && spec.shape.includes('imageUrl')) {
-      // #1475 —— 列表项的图可能平铺（`[{imageUrl, alt?}]`）也可能嵌一层（features-new 的
+      // #1475 —— 列表项的图可能平铺（`[{imageUrl, alt?}]`）也可能嵌一层（features 的
       // `image?: {imageUrl, alt}`）。写回那一侧要知道写到哪，判据读 shape 自己，不写块名单。
       const nested = spec.shape.match(/(\w+)\??\s*:\s*\{[^{}]*\bimageUrl\b/);
       out.push(nested ? { name, kind: 'list', imageKey: nested[1] } : { name, kind: 'list' });
     }
   }
-  return out;
+  // #1425 —— 主图排在同一块的别的图槽前面：建站求图有上限、按先后截（§image-slots.js capImageSlots），
+  //    首屏那张大图不该排在 hero 底下那条小图带后面被截掉。其余按书写顺序（稳定排序）。
+  return out.sort((a, b) => (b.main === true) - (a.main === true));
 }
 
 // ── manifest 自己的形状（#1013 洞 2）────────────────────────────────────────────────────────────
@@ -162,9 +179,10 @@ function imageSlotsOf(m) {
 // 失败方式是 throw：manifest 是模板自己的文件（跟 registry.ts 同一类），不是某个站的数据。改坏它
 // 的人此刻就在改模板，当场报错是他能修的；放过去则是 34 个块里某一个从此形同不存在。
 const ROLE_NAMES = ['essential', 'lead', 'optional'];
-// 提示词里的三组。`homepage` / `page-specific` 各由 `promptSection()` 印成一段清单；`page-rule` 的
-// 四个块（quote-form / services-nav / services-list / contact-form）不进清单，它们由 create-site.js
-// 里写死的页面规则点名（`create-site.js §generateContent`，data 那行仍从 manifest 来）。
+// 提示词里的三组。`homepage` / `page-specific` 各由 `promptSection()` 印成一段清单；`page-rule` 的块不进清单，
+// 由 create-site.js 里写死的页面规则点名（`create-site.js §generateContent`，data 那行仍从 manifest 来）。
+// 📌 #1425（T3）：原来挂 `page-rule` 的四个块（quote-form / services-nav / services-list / contact-form）随旧库删了，
+//    今天没有块在这一组；值留着是因为它是合法的组名，下一个只由页面规则点名的块还会用它。
 const PROMPT_GROUPS = ['homepage', 'page-specific', 'page-rule'];
 
 // ── #1352 —— 槽位的 `kind` 词表，以及「老板能直接改的字」这一维 ────────────────────────────────
@@ -175,10 +193,11 @@ const PROMPT_GROUPS = ['homepage', 'page-specific', 'page-rule'];
 // #1463 —— manifest `skin` 的合法值（§checkManifestShape 按它 fail-closed 校验，§isSiteCssSkin 读它）。
 const SKINS = ['site-css'];
 
-const SLOT_KINDS = ['text', 'list', 'link', 'links', 'image', 'object', 'flag', 'control', 'color', 'richtext'];
-// 📌 #1463 —— 第九个 `color`：一块底色（`hero-new.bg`）。取值 `#rrggbb`（大小写都收）或 `brand`，
+const SLOT_KINDS = ['text', 'list', 'link', 'image', 'object', 'color', 'richtext'];
+// 📌 #1425（T3）—— 原来还有 `links` / `flag` / `control` 三个：只有旧库的块在用，随旧库删了（词表只收今天有槽在用的 kind）。
+// 📌 #1463 —— 第九个 `color`：一块底色（`hero.bg`）。取值 `#rrggbb`（大小写都收）或 `brand`，
 //    判据在 `contrast.js` §isColorValue，`validateSite` 与编辑器的取色器共用那一条正则。
-// 📌 #1498 —— 第十个 `richtext`：一段带段落 / 列表 / 加粗 / 链接的正文（`content-new.body`），值是一个字符串，
+// 📌 #1498 —— 第十个 `richtext`：一段带段落 / 列表 / 加粗 / 链接的正文（`content.body`），值是一个字符串，
 //    写法是 `scripts/lib/richtext.js` 认的那个 markdown 子集。它**不是** `text`：编辑器给多行文本框、
 //    validateSite 查「写了 HTML」「链接协议不认」两条（§validateSite ⑨），块用同一个解析器画。
 //    其余按 kind 分支的地方（block-catalog / demo-content / image-slots / editor-convert …）把它当字符串，正是对的。
@@ -214,11 +233,9 @@ const EDIT_LABEL_KINDS = ['text', 'link', 'object', 'list', 'richtext'];
 //
 // 🔴 名单里每一项都要在 manifest 里找得到同名槽位，写错名字当场红 —— 一个拼错的例外等于把那个
 // 槽位的检查关掉，而它看起来跟「已经豁免过了」一模一样。
-const NON_EDITABLE_TEXT_SLOTS = [
-  'features-grid.columns',          // 列数，不是文字
-  'text-block.background',          // "gray" 这种取值
-  'service-related-pages.serviceSlug', // 一个 id
-];
+// 📌 #1425（T3）：原来三项（`features-grid.columns` / `text-block.background` / `service-related-pages.serviceSlug`）
+//    都是旧库的块，随旧库删了；新库今天没有这种槽。
+const NON_EDITABLE_TEXT_SLOTS = [];
 
 // 🔴 **外壳区的两个块整块不进这一维** —— 它们没有「老板能直接改的字」这条路可走，不是「这几个槽位
 // 不是文字」。`header` / `footer`（#1353）不经 `SectionRenderer` 渲染，`Header.tsx` / `Footer.tsx`
@@ -228,10 +245,10 @@ const NON_EDITABLE_TEXT_SLOTS = [
 // 🔴 **所以它们也不进 `NON_EDITABLE_TEXT_SLOTS`**：那张名单说的是「这个槽位不是文字」，
 // 而 `footer.copyright` / `footer.description` 恰恰**是**文字。两件事分两张表，理由才不会串。
 // 📌 #1353 把外壳区接进检查器的那天，把这两个名字从这里拿掉、按普通块标 `editLabel` 即可。
-// 📌 #1424 —— `header-new`（Webpixels 那一版顶栏，`staging: true`）同一个理由进来：它是外壳区块，今天
-//    只在图册里渲染，Puck 不接它。T3 接 Puck 时把它从这里拿掉、text 槽位标上 `editLabel`。
-// 📌 #1455 —— `footer-new`（Webpixels 那一版页脚）同一个理由、同一个退出条件（T3）。
-const NO_SLOT_PATH_BLOCKS = ['header', 'footer', 'header-new', 'footer-new'];
+// 📌 #1424 / #1455 —— 新库那一版顶栏 / 页脚进来时同一个理由。#1425（T3）把它们改回正名 `header` / `footer`、
+//    接回 `SiteShell` —— 但 data 是构建期从 navigation.json + brand.json 派生的（PM 2026-10-02 裁定 ①），
+//    不是页面里一块能点选、能存回的块 ⟹ 照旧不标 `editLabel`，名单里就是这两个名字。
+const NO_SLOT_PATH_BLOCKS = ['header', 'footer'];
 
 // ── #1352 —— 一份 manifest 上「老板能直接改的字」都在哪儿 ──────────────────────────────────────
 //
@@ -248,7 +265,7 @@ function editableSlotPaths(manifest) {
   const out = [];
   for (const [slot, s] of Object.entries((manifest && manifest.slots) || {})) {
     if (!s || s.editLabel === undefined) continue;
-    // #1497 —— 声明了 `intRange` 的槽（`blog-new.postCount`）是一个**设置**，不是页面上的一段字：没有 `data-slot` 可挂，
+    // #1497 —— 声明了 `intRange` 的槽（`blog.postCount`）是一个**设置**，不是页面上的一段字：没有 `data-slot` 可挂，
     //    检查器面板也不该给它一个「改了页面上找不到对应字」的输入框。编辑器（Puck）另给它一个下拉框（editor-schema §fieldsOf）。
     if (Array.isArray(s.intRange)) continue;
     if (typeof s.editLabel === 'string') {
@@ -392,7 +409,7 @@ function checkManifestShape(name, m) {
     if (typeof s.required !== 'boolean') bad(`slots.${slot}.required 必须是 true/false（现在是 ${JSON.stringify(s.required)}）`);
     if (typeof s.promptOptional !== 'boolean') bad(`slots.${slot}.promptOptional 必须是 true/false`);
     if (s.shape !== undefined && !isStr(s.shape)) bad(`slots.${slot}.shape 有的话必须是非空字符串`);
-    // #1463 —— `editItems: true`：一个没有可改文字的列表槽（纯图片的 `hero-new.band`），编辑器里照样给它
+    // #1463 —— `editItems: true`：一个没有可改文字的列表槽（纯图片的 `hero.band`），编辑器里照样给它
     //    一个列表字段 —— 能挪、能删，每项整份原样带着。不写就跟今天一样不出字段（`hero.imageBand` 不受影响）。
     if (s.editItems !== undefined && (s.editItems !== true || s.kind !== 'list' || s.editLabel !== undefined)) {
       bad(`slots.${slot}.editItems 只能写 true，而且只给没有 editLabel 的 list 槽`);
@@ -404,7 +421,7 @@ function checkManifestShape(name, m) {
       if (!Number.isInteger(s[key]) || s[key] < 0) bad(`slots.${slot}.${key} 是 ${JSON.stringify(s[key])} —— 必须是非负整数`);
       if (s.kind !== 'list') bad(`slots.${slot}.${key} 只给 kind: list 的槽（现在是 ${JSON.stringify(s.kind)}）`);
     }
-    // #1497 —— `intRange: [最小, 最大]`：一个 text 槽的值是这个范围里的整数（`blog-new.postCount` 2–6）。
+    // #1497 —— `intRange: [最小, 最大]`：一个 text 槽的值是这个范围里的整数（`blog.postCount` 2–6）。
     //    不新增一种 kind（九种里没有数字；minItems / maxItems 只给 list 槽）—— 值仍是一格字，范围由 validateSite ⑨ 查。
     //    写歪的失败方向是静默的（validateSite 读不出范围就不查），所以这里当场拒。
     if (s.intRange !== undefined) {
@@ -416,17 +433,17 @@ function checkManifestShape(name, m) {
     if (Number.isInteger(s.minItems) && Number.isInteger(s.maxItems) && s.minItems > s.maxItems) {
       bad(`slots.${slot}.minItems（${s.minItems}）大于 maxItems（${s.maxItems}）`);
     }
-    // #1483 —— `maxTrue`：list 槽里每项的某个布尔子字段最多几项为 true（`pricing-new.plans` 的 `{ featured: 1 }`：
+    // #1483 —— `maxTrue`：list 槽里每项的某个布尔子字段最多几项为 true（`pricing.plans` 的 `{ featured: 1 }`：
     //    最多一个高亮套餐）。validateSite ⑨ 据它拦；形状 `{ 子字段: 正整数 }`，只给 list 槽。
     if (s.maxTrue !== undefined) {
       const okShape = s.maxTrue && typeof s.maxTrue === 'object' && !Array.isArray(s.maxTrue)
         && Object.values(s.maxTrue).every((n) => Number.isInteger(n) && n >= 1);
       if (!okShape || s.kind !== 'list') bad(`slots.${slot}.maxTrue 只能写 { 子字段: 正整数 }，而且只给 list 槽（现在是 ${JSON.stringify(s.maxTrue)}，kind ${s.kind}）`);
     }
-    // #1488 —— `ranges`：list 槽每一项里某个数字子字段的取值范围（`testimonials-new.items[].rating` 1–5）。
+    // #1488 —— `ranges`：list 槽每一项里某个数字子字段的取值范围（`testimonials.items[].rating` 1–5）。
     //    形状 `{ 子字段: [最小, 最大] }`，两端都是整数、含端点；validateSite ⑨ 据它拦（写了就必须是这个范围内的整数）。
     //    跟 `minItems` / `maxItems` 同一族：管的是槽里的内容，不是旋钮。
-    //    #1504 —— 可以多写第三个数 = 最多几位小数（`reviews-new.platforms[].rating` 是 `[0, 5, 1]`：4.9 行、4.95 不行）；
+    //    #1504 —— 可以多写第三个数 = 最多几位小数（`reviews.platforms[].rating` 是 `[0, 5, 1]`：4.9 行、4.95 不行）；
     //    不写 = 0 = 整数，#1488 那种两个数的写法意思一字不变。`最大` 可以写 `null` = 不设上限（评论条数 `[1, null]`）。
     if (s.ranges !== undefined) {
       if (s.kind !== 'list' || s.ranges === null || typeof s.ranges !== 'object' || Array.isArray(s.ranges)) {
@@ -450,13 +467,13 @@ function checkManifestShape(name, m) {
         bad(`slots.${slot}.generateImages 只能写 false，而且只给带图的槽（kind: image，或 shape 里有 imageUrl 的 list）`);
       }
     }
-    // #1495 —— `itemRequires`：list 槽里每一项都必须有值的字段路径（`gallery-new.items` 的 `["image.imageUrl"]`：
+    // #1495 —— `itemRequires`：list 槽里每一项都必须有值的字段路径（`gallery.items` 的 `["image.imageUrl"]`：
     //    没有图的照片项是一格空白）。validateSite ⑨ 据它拦；形状 = 非空字符串数组（点号分隔的路径），只给 list 槽。
     if (s.itemRequires !== undefined) {
       const okShape = Array.isArray(s.itemRequires) && s.itemRequires.length > 0 && s.itemRequires.every((x) => isStr(x) && /^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$/.test(x));
       if (!okShape || s.kind !== 'list') bad(`slots.${slot}.itemRequires 只能写 ["字段" / "字段.子字段", …]，而且只给 list 槽（现在是 ${JSON.stringify(s.itemRequires)}，kind ${s.kind}）`);
     }
-    // #1479 —— `max`：list 槽最多几项（`cta-new.ctas` = 2）。admin 工具栏据它派生「数量」那一维（0 … max，
+    // #1479 —— `max`：list 槽最多几项（`cta.ctas` = 2）。admin 工具栏据它派生「数量」那一维（0 … max，
     //    manager §manifestCounts · 单格页 §knobOverrides 同一条判据）。跟旋钮的 `knobs[].maxItems` 不是一回事。
     if (s.max !== undefined && (s.kind !== 'list' || !Number.isInteger(s.max) || s.max < 1)) {
       bad(`slots.${slot}.max 只能写正整数，而且只给 list 槽（现在是 ${JSON.stringify(s.max)}，kind ${s.kind}）`);
@@ -468,8 +485,8 @@ function checkManifestShape(name, m) {
       const undeclared = s.itemRequires.filter((path) => typeof path === 'string' && !shapeHasPath(s.shape, path));
       if (undeclared.length) bad(`slots.${slot}.itemRequires 里有 shape 没声明的键：${undeclared.join(' / ')}（shape ${s.shape}）`);
     }
-    // #1463 —— `choices`：这个槽某个子字段只能从一张词表里取（`hero-new.eyebrow.style`；
-    //    `hero-new.form.fields` 那一处 #1470 随 form 槽改成 `{id?}` 退役了）。
+    // #1463 —— `choices`：这个槽某个子字段只能从一张词表里取（`hero.eyebrow.style`；
+    //    `hero.form.fields` 那一处 #1470 随 form 槽改成 `{id?}` 退役了）。
     //    `validateSite` 据它拦词表外的值，编辑器据它把那一格画成下拉。形状：`{ 子字段: [取值…] }`。
     if (s.choices !== undefined) {
       if (s.choices === null || typeof s.choices !== 'object' || Array.isArray(s.choices)) {
@@ -479,7 +496,7 @@ function checkManifestShape(name, m) {
         if (!strArray(vals) || !vals.length) bad(`slots.${slot}.choices.${sub} 必须是非空的字符串数组`);
       }
     }
-    // #1489 —— 列表槽**每一项**的约束（`contact-new.items`）：`itemChoices` = 某个子字段只能从词表里取（`kind` 只能是五个值）；
+    // #1489 —— 列表槽**每一项**的约束（`contact.items`）：`itemChoices` = 某个子字段只能从词表里取（`kind` 只能是五个值）；
     //    `itemNeeds` = 「子字段=值」时另外几个子字段必须有（`kind=link` ⟹ 要 `href`）。validateSite ⑨ 据它逐项拦。
     //    🔴 故意不叫 `choices`：`choices` 是「对象槽的子字段」，admin 工具栏 / 单格页据它画单选（manager §manifestPartsChoices），
     //       条目级的词表画成单选没有意义（每一项各选各的），混用那个键会让工具栏凭空多出一格。
@@ -621,7 +638,7 @@ function checkManifestShape(name, m) {
     }
   }
   // #1463 —— `skin: "site-css"` 说的是「这个块的皮和部件类名**不由主题表提供**，由编出来的 `site.css`
-  //    （Webpixels / Bootstrap）提供」。没写 = 今天的默认：主题表上皮。主题那一套守卫（floor-look ⑤、
+  //    （Webpixels / Bootstrap）提供」。没写 = 今天的默认：主题表上皮。主题那一套守卫（~~floor-look ⑤~~ #1425 删了、
   //    sheet-recipes ⑫ / ⑮、theme-css-invariants ⑨）据它把这个块排出分母（§isSiteCssSkin）。
   // 🔴 白名单、fail-closed：今天唯一合法的值是 "site-css"。写歪一个字母不许静默当成「没写」—— 那样它不会被
   //    排除、守卫会红、下一个人就去放宽守卫；也不许反过来被当成「写了」。
@@ -1200,9 +1217,9 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
       }
 
       // ⑪ #1506 —— 写成引用的联系方式：按钮（任何块里有 label 又有 href 的对象，按形状认）的 `href` 只能是
-      //    {source: "phone" | "email"}、`label` 里只认 {phone} / {email}；页头顶条那一项、页脚的对象槽（`footer-new.contact`）
+      //    {source: "phone" | "email"}、`label` 里只认 {phone} / {email}；页头顶条那一项、页脚的对象槽（`footer.contact`）
       //    只能是登记的源。规则全在 `scripts/lib/item-sources.js`，这里只把它的问题清单报出来。
-      //    （列表槽的整槽引用 —— features-new.items / footer-new.social —— 归下面第 ⑤ 条那一支。）
+      //    （列表槽的整槽引用 —— features.items / footer.social —— 归下面第 ⑤ 条那一支。）
       for (const p of contactRefProblems(sec.type, data)) flag(`${where}: ${p}`);
       for (const slot of Object.keys(SOURCE_SLOTS[sec.type] || {})) {
         const v = data[slot];
@@ -1240,7 +1257,7 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
         }
       }
 
-      // ⑩ #1502 —— 块按页面算的东西，不许写进 data（`computed`：键 → 为什么不写，page-header-new 的 breadcrumbs
+      // ⑩ #1502 —— 块按页面算的东西，不许写进 data（`computed`：键 → 为什么不写，page-header 的 breadcrumbs
       //    按页面路径算）。判据从 manifest 读、不写块名单；下面「data 里没有这个槽」那条跳过这些键，只报这一条。
       const computed = m.computed && typeof m.computed === 'object' ? m.computed : {};
       for (const key of Object.keys(data)) {
@@ -1252,7 +1269,7 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
       for (const [slot, spec] of Object.entries(m.slots)) {
         const v = data[slot];
         if (v === undefined || v === null) continue;
-        // #1475 —— 列表槽自己声明的条数上下限（`slots.<槽>.minItems` / `maxItems`，features-new 的 items 1–8）。
+        // #1475 —— 列表槽自己声明的条数上下限（`slots.<槽>.minItems` / `maxItems`，features 的 items 1–8）。
         //    判据从槽声明读、不写块名单；跟下面那条「某个旋钮取某值时某列表最多几项」（`knobs[].maxItems`）是两件事，
         //    那条挂在旋钮上，这条挂在槽上、不管旋钮是什么。
         if (Array.isArray(v)) {
@@ -1262,7 +1279,7 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
           if (Number.isInteger(spec.maxItems) && v.length > spec.maxItems) {
             flag(`${where}: "${slot}" 最多只能有 ${spec.maxItems} 项（现在 ${v.length} 项）`);
           }
-          // #1483 —— 每项某个布尔子字段最多几项为 true（`slots.<槽>.maxTrue`，pricing-new 最多一个 featured 套餐）。
+          // #1483 —— 每项某个布尔子字段最多几项为 true（`slots.<槽>.maxTrue`，pricing 最多一个 featured 套餐）。
           for (const [sub, n] of Object.entries(spec.maxTrue && typeof spec.maxTrue === 'object' ? spec.maxTrue : {})) {
             const on = v.filter((it) => it && typeof it === 'object' && it[sub] === true).length;
             if (Number.isInteger(n) && on > n) flag(`${where}: "${slot}" 里 ${sub}: true 最多只能有 ${n} 项（现在 ${on} 项）`);
@@ -1283,7 +1300,7 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
               });
             }
           }
-          // #1495 —— 每一项都必须有值的字段（`slots.<槽>.itemRequires`，gallery-new 每张照片要有 image.imageUrl）。
+          // #1495 —— 每一项都必须有值的字段（`slots.<槽>.itemRequires`，gallery 每张照片要有 image.imageUrl）。
           //    空串 / 空白 / 不是字符串的对象路径都算没有。
           for (const req of Array.isArray(spec.itemRequires) ? spec.itemRequires : []) {
             const missing = [];
@@ -1314,7 +1331,7 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
             }
           });
         }
-        // #1497 —— text 槽声明了 `intRange`（`blog-new.postCount` 2–6）：值要是这个范围里的整数（数字或整数字符串都认）。
+        // #1497 —— text 槽声明了 `intRange`（`blog.postCount` 2–6）：值要是这个范围里的整数（数字或整数字符串都认）。
         if (Array.isArray(spec.intRange)) {
           const [lo, hi] = spec.intRange;
           const n = typeof v === 'number' ? v : typeof v === 'string' && /^\s*-?\d+\s*$/.test(v) ? Number(v) : NaN;
@@ -1599,7 +1616,7 @@ function isRegionManifest(dir, type) {
 
 /**
  * #1463 —— 这个块的皮是不是由 `site.css` 提供（manifest `skin: "site-css"`），而不是主题表。
- * 🔴 判据只住这一处：主题那一套守卫（floor-look ⑤、sheet-recipes ⑫ / ⑮、theme-css-invariants ⑨）都 import 它，
+ * 🔴 判据只住这一处：主题那一套守卫（~~floor-look ⑤~~ #1425 删了、sheet-recipes ⑫ / ⑮、theme-css-invariants ⑨）都 import 它，
  *    别在各处各写一遍 `m.skin === 'site-css'`。跟 §isRegionManifest 同一个签名。
  * 📌 T3 之后每个块都是 site-css —— 那三道守卫的分母会空掉，届时按「守的那条路已不存在」删掉或重接，是那张票的活。
  */

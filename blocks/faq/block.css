@@ -1,0 +1,301 @@
+/* ── faq · 跨形态的规则（#1484）──────────────────────────────────────────────────────────────
+   faq 的排版由**实际生效的旋钮**决定，写在根元素上：
+     intro  data-intro-position（left / right / top / bottom）· data-intro-align（left / center / right）
+     items  data-items-mode（accordion / open）· data-items-columns（1 / 2 / 3）
+     item   data-item-style（divided / card / plain）· data-item-toggle（chevron / plus）
+     底色   data-tone（light / dark / brand，scripts/lib/contrast.js §toneForBg）
+   四个形态目录都是预设，自己不带几何（理由在各自的 shape.css 里）。规则照定稿图册 faq 段
+   （docs/reference/webpixels/gallery/build.py 的 faq CSS，Chris 2026-09-29）。
+
+   🔴 Webpixels 的工具类全带 !important（mb-* / text-muted / d-flex …）。这里要压过它们的规则**也带 !important**，
+      而且选择器从 [data-block="faq"] 起步再加属性 / 类 —— 特异度一定高过工具类的一个类。
+   🔴 部件的有无靠渲染（Section.tsx 有数据才画），不靠 CSS 藏：accordion / open 两种画法 DOM 里只有一种，
+      help 卡、眉标没数据就没有节点。
+   🔴 问答那一格的列宽按列数和列间距算（--fq-cols / --fq-gap），不用负边距（milestones #1482 在 390 上量出过负边距溢出 4px）。
+   间距照定稿：段 py-16 py-lg-24；块头与问答 gy-10 gx-lg-16（纵向写 gy-10、不写 g-10：g-10 的横向负边距在手机上溢出，
+   #1475 量出来的）；问句上下 1.25rem；open 模式行距 2.5rem（card 时 1.5rem）。 */
+
+/* ═══ intro（块头 + help 卡）═════════════════════════════════════════════════════════════════════ */
+
+[data-block="faq"] .fq-intro-text > :last-child {
+  margin-bottom: 0 !important;
+}
+[data-block="faq"] .fq-body {
+  max-width: 52ch;
+}
+
+/* help 卡：挨着块头，在块头那一列最下面；最宽 28rem；跟着 introAlign 走位置（下面 introAlign 那一段）。 */
+[data-block="faq"] .fq-help {
+  background: var(--scheme-surface-muted);
+  max-width: 28rem;
+  margin-top: 2rem;
+}
+[data-block="faq"] .fq-help:first-child {
+  margin-top: 0;
+}
+[data-block="faq"] .fq-help-cta {
+  margin-top: 1rem;
+}
+
+/* introAlign：块头文字对齐。left 不限宽；center / right 限 64ch 并按对齐走位置，help 卡跟着走。 */
+[data-block="faq"][data-intro-align="center"] .fq-intro-text {
+  text-align: center;
+  max-width: 64ch;
+  margin-left: auto;
+  margin-right: auto;
+}
+[data-block="faq"][data-intro-align="center"] .fq-body,
+[data-block="faq"][data-intro-align="center"] .fq-help {
+  margin-left: auto;
+  margin-right: auto;
+}
+[data-block="faq"][data-intro-align="right"] .fq-intro-text {
+  text-align: right;
+  max-width: 64ch;
+  margin-left: auto;
+}
+[data-block="faq"][data-intro-align="right"] .fq-body,
+[data-block="faq"][data-intro-align="right"] .fq-help {
+  margin-left: auto;
+}
+
+/* introPosition：left / right（≥992）= 块头一列 41.67%（sticky top 2rem）、问答一列 58.33%；right 行反向。
+   块头在侧时块头那一列本来就窄：文字不再限 64ch、help 卡贴列的左边（同图册）。
+   小屏：left / top 块头在上，right / bottom 块头在下。 */
+[data-block="faq"][data-intro-position="bottom"] .fq-frame {
+  flex-direction: column-reverse;
+}
+@media (max-width: 991.98px) {
+  [data-block="faq"][data-intro-position="right"] .fq-frame {
+    flex-direction: column-reverse;
+  }
+}
+@media (min-width: 992px) {
+  [data-block="faq"][data-intro-position="left"] .fq-introcol,
+  [data-block="faq"][data-intro-position="right"] .fq-introcol {
+    flex: 0 0 auto;
+    width: 41.6667%;
+    position: sticky;
+    top: 2rem;
+    align-self: flex-start;
+  }
+  [data-block="faq"][data-intro-position="left"] .fq-itemscol,
+  [data-block="faq"][data-intro-position="right"] .fq-itemscol {
+    flex: 0 0 auto;
+    width: 58.3333%;
+  }
+  [data-block="faq"][data-intro-position="right"] .fq-frame {
+    flex-direction: row-reverse;
+  }
+  [data-block="faq"][data-intro-position="left"] .fq-intro-text,
+  [data-block="faq"][data-intro-position="right"] .fq-intro-text {
+    max-width: none;
+    margin: 0;
+  }
+  [data-block="faq"][data-intro-position="left"] .fq-help,
+  [data-block="faq"][data-intro-position="right"] .fq-help {
+    margin-left: 0;
+  }
+}
+
+/* ═══ items ════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* itemsColumns：手机一律一列；≥768 时 2 / 3 都是两列；≥992 按列数。 */
+[data-block="faq"] .fq-grid {
+  --fq-cols: 1;
+  --fq-gap: 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--fq-gap);
+  row-gap: 0;
+}
+[data-block="faq"] .fq-item {
+  flex: 0 0 auto;
+  width: calc((100% - (var(--fq-cols) - 1) * var(--fq-gap)) / var(--fq-cols));
+  min-width: 0;
+}
+@media (min-width: 768px) {
+  [data-block="faq"][data-items-columns="2"] .fq-grid,
+  [data-block="faq"][data-items-columns="3"] .fq-grid {
+    --fq-cols: 2;
+  }
+}
+@media (min-width: 992px) {
+  [data-block="faq"][data-items-columns="3"] .fq-grid {
+    --fq-cols: 3;
+  }
+}
+
+/* 问答永远占满整列、不跟 introAlign —— 块头文字和 help 卡才跟（Chris 2026-10-01，#1515）。
+   原来这里有三条规则：1 列且块头在上 / 下时限 48rem、再按 introAlign 居中或贴右。那是 2026-09-29 的老写法，
+   跟后来定的两条规矩冲突（条目从不跟 introAlign、内容占满整列，content / blog 已经这样）。 */
+
+/* itemsMode：accordion = 原生 details（点问句开合）；open = 问句 <h3> + 答案 <p> 直接写出来。行距见 itemStyle。 */
+[data-block="faq"] summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 1.25rem 0;
+  font-size: 1.0625rem;
+}
+[data-block="faq"] summary::-webkit-details-marker {
+  display: none;
+}
+[data-block="faq"] .fq-a {
+  padding: 0 0 1.25rem;
+  font-size: 0.9375rem;
+  line-height: 1.65;
+}
+[data-block="faq"] .fq-open .fq-a {
+  padding: 0;
+}
+[data-block="faq"] .fq-open .fq-q {
+  font-size: 1.0625rem;
+}
+[data-block="faq"][data-items-mode="open"] .fq-grid {
+  row-gap: 2.5rem;
+}
+
+/* itemToggle（只管 accordion）：chevron 展开时转 180°；plus 展开时换成 minus（Section.tsx 画 plus + dash 两个，这里换着显示）。 */
+[data-block="faq"] .fq-toggle {
+  font-size: 1.125rem;
+}
+[data-block="faq"] .fq-toggle svg {
+  transition: transform 0.2s;
+}
+[data-block="faq"] details[open] .fq-chev {
+  transform: rotate(180deg);
+}
+[data-block="faq"] .fq-minus,
+[data-block="faq"] details[open] .fq-plus {
+  display: none;
+}
+[data-block="faq"] details[open] .fq-minus {
+  display: inline;
+}
+
+/* ═══ itemStyle ════════════════════════════════════════════════════════════════════════════════════
+   divided = 条与条之间 1px 横线（1 列时第一条上面也有一根）；card = 每条白底 1px 描边、1rem 圆角、条间 .75rem；
+   plain = 无线无框。 */
+[data-block="faq"][data-item-style="divided"] .fq-inner {
+  border-bottom: 1px solid var(--x-border-color, #e5e7eb);
+}
+[data-block="faq"][data-item-style="divided"][data-items-columns="1"] .fq-item:first-child .fq-inner {
+  border-top: 1px solid var(--x-border-color, #e5e7eb);
+}
+[data-block="faq"][data-item-style="divided"][data-items-mode="open"] .fq-open {
+  border-top: 1px solid var(--x-border-color, #e5e7eb);
+  padding-top: 1.25rem;
+}
+[data-block="faq"][data-item-style="card"][data-items-mode="accordion"] .fq-grid {
+  row-gap: 0.75rem;
+}
+[data-block="faq"][data-item-style="card"] .fq-inner,
+[data-block="faq"][data-item-style="card"] .fq-open {
+  background: var(--x-body-bg);
+  border: 1px solid var(--x-border-color, #e5e7eb);
+  border-radius: 1rem;
+  padding: 0 1.5rem;
+}
+[data-block="faq"][data-item-style="card"] .fq-open {
+  padding: 1.5rem;
+}
+[data-block="faq"][data-item-style="card"][data-items-mode="open"] .fq-grid {
+  row-gap: 1.5rem;
+}
+[data-block="faq"][data-item-style="plain"][data-items-mode="accordion"] .fq-grid {
+  row-gap: 0.25rem;
+}
+
+/* ═══ 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneForBg）══════════════════════════════
+   dark = 深底 / 深色渐变；brand = 主题主色底。两者一样：标题 / 问句反白、答案白 .92（不是灰 —— 那条规则全站只有一份，
+   住 scripts/lib/site-css.js §ON_DEEP_MUTED，#1477；这里不再抄）、横线和卡描边换半透明白、card 底 .06、help 卡底 .08、
+   主按钮白底（dark 深字、brand 主色字）。 */
+[data-block="faq"][data-tone="dark"],
+[data-block="faq"][data-tone="brand"] {
+  color: #fff;
+}
+[data-block="faq"][data-tone="dark"] .fq-title,
+[data-block="faq"][data-tone="brand"] .fq-title,
+[data-block="faq"][data-tone="dark"] .fq-q,
+[data-block="faq"][data-tone="brand"] .fq-q,
+[data-block="faq"][data-tone="dark"] .fq-help-title,
+[data-block="faq"][data-tone="brand"] .fq-help-title,
+[data-block="faq"][data-tone="dark"] .fq-eyebrow-dash,
+[data-block="faq"][data-tone="brand"] .fq-eyebrow-dash,
+[data-block="faq"][data-tone="dark"] .fq-eyebrow-plain,
+[data-block="faq"][data-tone="brand"] .fq-eyebrow-plain {
+  color: #fff !important;
+}
+[data-block="faq"][data-tone="dark"] .fq-inner,
+[data-block="faq"][data-tone="brand"] .fq-inner,
+[data-block="faq"][data-tone="dark"] .fq-open,
+[data-block="faq"][data-tone="brand"] .fq-open {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+[data-block="faq"][data-tone="dark"][data-item-style="card"] .fq-inner,
+[data-block="faq"][data-tone="brand"][data-item-style="card"] .fq-inner,
+[data-block="faq"][data-tone="dark"][data-item-style="card"] .fq-open,
+[data-block="faq"][data-tone="brand"][data-item-style="card"] .fq-open {
+  background: rgba(255, 255, 255, 0.06);
+}
+[data-block="faq"][data-tone="dark"] .fq-help,
+[data-block="faq"][data-tone="brand"] .fq-help {
+  background: rgba(255, 255, 255, 0.08);
+}
+[data-block="faq"][data-tone="dark"] .fq-eyebrow-pill,
+[data-block="faq"][data-tone="brand"] .fq-eyebrow-pill {
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #fff !important;
+}
+[data-block="faq"][data-tone="dark"] .fq-eyebrow-outline,
+[data-block="faq"][data-tone="brand"] .fq-eyebrow-outline {
+  border-color: rgba(255, 255, 255, 0.7) !important;
+  color: #fff !important;
+}
+[data-block="faq"][data-tone="dark"] .btn-outline-primary,
+[data-block="faq"][data-tone="brand"] .btn-outline-primary {
+  color: #fff !important;
+  border-color: rgba(255, 255, 255, 0.6) !important;
+}
+[data-block="faq"][data-tone="dark"] .btn-link,
+[data-block="faq"][data-tone="brand"] .btn-link {
+  color: #fff !important;
+}
+
+/* ── 按钮的底色和字色：接平台按这个站最终配色算好的那几个变量（`scripts/lib/button-ink.js`，同 features / milestones）。
+   轮廓按钮 / 纯文字链接用 `--x-primary-text-emphasis`，理由见 features/block.css 同一段（浅主题色压白底读不出来）。 */
+[data-block="faq"] .btn-primary {
+  --x-btn-bg: var(--btn-primary-bg, var(--x-primary));
+  --x-btn-border-color: var(--btn-primary-bg, var(--x-primary));
+  --x-btn-color: var(--btn-primary-ink, #fff);
+  --x-btn-hover-bg: var(--btn-primary-hover, var(--btn-primary-bg, var(--x-primary)));
+  --x-btn-hover-border-color: var(--btn-primary-hover, var(--btn-primary-bg, var(--x-primary)));
+  --x-btn-hover-color: var(--btn-primary-ink, #fff);
+  --x-btn-active-bg: var(--btn-primary-hover, var(--btn-primary-bg, var(--x-primary)));
+  --x-btn-active-color: var(--btn-primary-ink, #fff);
+}
+[data-block="faq"] .btn-outline-primary {
+  --x-btn-color: var(--x-primary-text-emphasis, var(--x-primary));
+  --x-btn-border-color: var(--x-primary-text-emphasis, var(--x-primary));
+}
+[data-block="faq"] .btn-link {
+  --x-btn-color: var(--x-primary-text-emphasis, var(--x-primary));
+  --x-btn-hover-color: var(--x-primary-text-emphasis, var(--x-primary));
+  --x-btn-active-color: var(--x-primary-text-emphasis, var(--x-primary));
+}
+[data-block="faq"][data-tone="dark"] .btn-primary {
+  background: #fff !important;
+  border-color: #fff !important;
+  color: #0f172a !important;
+}
+[data-block="faq"][data-tone="brand"] .btn-primary {
+  background: #fff !important;
+  border-color: #fff !important;
+  color: var(--x-primary) !important;
+}
+[data-block="faq"][data-tone="dark"] .btn-primary:hover,
+[data-block="faq"][data-tone="brand"] .btn-primary:hover {
+  background: #f1f5f9 !important;
+  border-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}

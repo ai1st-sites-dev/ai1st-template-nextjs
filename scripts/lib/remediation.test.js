@@ -21,7 +21,10 @@ const os = require('os');
 const path = require('path');
 
 const mod = require('./remediation.js');
-const { howToAddTopbar, howToChangePageLayout } = mod;
+// 📌 #1425（T3）—— `howToAddTopbar` / `themesWithoutOverlayHeader` / `topbarBullets` 随公告条那个区退役，模块只剩
+//    `howToChangePageLayout` / `navRelPath`。原来压在 `howToAddTopbar` 上的那几格承重性质（两臂 · 问不到 · 扁平站 ·
+//    接线 · 真跑 · 与真编辑器对账）改到 `howToChangePageLayout` / `navRelPath` 上量；只对 topbar 有意义的格原位删了。
+const { howToChangePageLayout, navRelPath } = mod;
 
 let pass = 0, fail = 0, skipped = 0;
 // #1317 —— 脚手架期（池子 < 10 套）按构造没有对象可问的那一条，见 scripts/lib/scaffolding-pool.js。
@@ -30,8 +33,8 @@ const ok = (m) => { pass++; console.log(`  ✅ ${m}`); };
 const bad = (m) => { fail++; console.log(`  ❌ ${m}`); };
 const die = (m) => { console.error(`🔴 跑不起来: ${m}`); process.exit(2); };
 
-if (typeof howToAddTopbar !== 'function' || typeof howToChangePageLayout !== 'function') {
-  die('remediation.js 没导出 howToAddTopbar / howToChangePageLayout');
+if (typeof howToChangePageLayout !== 'function' || typeof navRelPath !== 'function') {
+  die('remediation.js 没导出 howToChangePageLayout / navRelPath');
 }
 
 const NEXTJS = path.join(__dirname, '..', '..');            // templates/nextjs
@@ -81,27 +84,12 @@ function siteWithNav(dir, locale) {
   return site;
 }
 
-// ── ① 交付这一版的真读数:这个仓今天的白名单说什么,那句话就说什么 ──────────────────────────────
-{
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'remediation-live-'));
-  const siteDir = siteWithNav(dir, 'en');
-  const r = howToAddTopbar({ siteDir, locale: 'en' });
-  if (r.viaProduct === true || r.viaProduct === false) {
-    ok(`① 拿这个仓真实的白名单问出了一个答案（viaProduct=${r.viaProduct}）`);
-  } else {
-    bad(`① 问不到白名单（viaProduct=${r.viaProduct}）—— 那句话会退回中性说法，先修 require`);
-  }
-  // 无论哪个世界，这句话都必须给出一个**今天真能做的动作**，而不是只说"不行"。
-  if (/手改|让 AI 编辑器/.test(r.sentence)) ok('① 句子里给了一个今天真能做的动作');
-  else bad(`① 句子只说了不行、没给能做的事：${r.sentence}`);
-  // 🔴 #1087 r3 那条教训：不许把人指到一个不存在的后台去。
-  if (/设置页|settings|picker|换装弹窗/i.test(r.sentence)) {
-    bad(`① 句子把人指到了一个后台界面 —— 顶栏文案今天没有那种界面：${r.sentence}`);
-  } else ok('① 句子没有把人指到一个不存在的后台界面');
-  fs.rmSync(dir, { recursive: true, force: true });
-}
+// 📌 #1425（T3）—— 这里原来是 ①：拿真白名单问 `howToAddTopbar`（「公告条文字去哪儿补」）；它随公告条退役。
+//    `howToChangePageLayout` 的真读数在下面 ⑤。
 
 // ── ② 承重那一格:两臂对照 —— 白名单放行 vs 拒绝,同一份代码必须说【不同】的话 ────────────────
+// #1425（T3）—— 原来两臂问的是 `howToAddTopbar`；改问今天唯一还在的那句 `howToChangePageLayout`，判据不变：
+//    同一份 remediation.js，一臂配放行的白名单、一臂配拒绝的，句子必须不同。
 {
   const PERMISSIVE = "'use strict';\nmodule.exports = { writeRejection: () => null };\n";
   const STRICT = "'use strict';\nmodule.exports = { writeRejection: () => 'nope: not edited here' };\n";
@@ -111,7 +99,7 @@ function siteWithNav(dir, locale) {
     const siteDir = siteWithNav(dir, 'en');
     // eslint-disable-next-line global-require
     const copy = require(path.join(dir, 'lib', 'remediation.js'));
-    results[name] = copy.howToAddTopbar({ siteDir, locale: 'en' });
+    results[name] = copy.howToChangePageLayout({ rootDir: NEXTJS, siteDir });
     fs.rmSync(dir, { recursive: true, force: true });
   }
   if (results['放行'].viaProduct === true) ok('② 白名单放行时 viaProduct=true');
@@ -121,64 +109,44 @@ function siteWithNav(dir, locale) {
   if (results['放行'].sentence !== results['拒绝'].sentence) {
     ok('② 两臂句子不同 ⟹ 这句话真的是【算出来】的，不是写死的');
   } else {
-    bad(`② 两臂句子逐字相同 ⟹ 它是写死的，明天 #1104 落地就变成假话：${results['放行'].sentence}`);
+    bad(`② 两臂句子逐字相同 ⟹ 它是写死的，白名单一变就成假话：${results['放行'].sentence}`);
   }
   if (/让 AI 编辑器/.test(results['放行'].sentence)) ok('② 放行那臂让人去用 AI 编辑器');
   else bad(`② 放行那臂没提 AI 编辑器：${results['放行'].sentence}`);
-  if (/现在还加不了/.test(results['拒绝'].sentence)) ok('② 拒绝那臂明写「现在还加不了」');
-  else bad(`② 拒绝那臂没有明写还做不到：${results['拒绝'].sentence}`);
+  if (!/让 AI 编辑器/.test(results['拒绝'].sentence) && /手改/.test(results['拒绝'].sentence)) {
+    ok('② 拒绝那臂不提 AI 编辑器、给的是手改站仓（和页面编辑器）这条真路');
+  } else bad(`② 拒绝那臂仍让人去找 AI 编辑器，或没给能走的路：${results['拒绝'].sentence}`);
 }
 
 // ── ③ 问不到白名单时:不许替它选一个答案 ───────────────────────────────────────────────────────
+// #1425（T3）—— 改问 `howToChangePageLayout`。它的 null 支按设计跟拒绝支同一句（见 remediation.js 那段注释：
+//    两种情况下「页面编辑器 / 手改站仓」都是真路），所以原来那条「句子里说明了没问到」没有对象，删了；
+//    viaProduct=null 与「给了真能做的动作」两条照旧钉。
 {
   const dir = treeWith("throw new Error('boom');\n");
   const siteDir = siteWithNav(dir, 'en');
+  // eslint-disable-next-line global-require
   const copy = require(path.join(dir, 'lib', 'remediation.js'));
-  const r = copy.howToAddTopbar({ siteDir, locale: 'en' });
+  const r = copy.howToChangePageLayout({ rootDir: NEXTJS, siteDir });
   if (r.viaProduct === null) ok('③ 读不到那个判断模块 ⟹ viaProduct=null（"没问到"不是一个答案）');
   else bad(`③ 读不到判断模块却给了 viaProduct=${r.viaProduct} —— 那是一句没人查过的话`);
-  if (/没问出来|没问到/.test(r.sentence)) ok('③ 句子里说明了这次没问到');
-  else bad(`③ 句子没说明这次没问到：${r.sentence}`);
-  if (/手改/.test(r.sentence)) ok('③ 仍然给了一个今天真能做的动作（手改站仓）');
-  else bad(`③ 没给能做的事：${r.sentence}`);
+  if (/手改/.test(r.sentence) && !/让 AI 编辑器/.test(r.sentence)) ok('③ 仍然给了一个今天真能做的动作（手改站仓），且没替白名单说「AI 编辑器能改」');
+  else bad(`③ 没给能做的事，或替问不到的白名单说了放行：${r.sentence}`);
   fs.rmSync(dir, { recursive: true, force: true });
 }
 
-// ── ④ navigation.json 读不出来时也要说人话 ────────────────────────────────────────────────────
-{
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'remediation-nonav-'));
-  const r = howToAddTopbar({ siteDir: path.join(dir, 'site'), locale: 'en' });
-  if (/读不出来/.test(r.sentence)) ok('④ navigation.json 不在时说的是「读不出来，先补好这个文件」');
-  else bad(`④ 文件不在时那句话不对：${r.sentence}`);
-  fs.rmSync(dir, { recursive: true, force: true });
-}
+// 📌 #1425（T3）—— 这里原来是 ④：navigation.json 读不出来时 `howToAddTopbar` 说人话；它随公告条退役。
 
 // ── ④b 老的扁平站:文件在 site/navigation.json,不在 site/en/ 下面 ─────────────────────────────
-//
-// 🔴 这一格是我自己交付第一版的洞：扁平站在 `sync-config.js` 里 `locales` **仍然是 ['en']`
-//    （那段 legacy 分支），而文件住在 `site/navigation.json`。只看 locale 有没有值 ⟹ 在扁平站上
-//    算出 `en/navigation.json`，然后那句话让老板去改一个不存在的文件。夹具是 locale 站，所以没红。
+// #1425（T3）—— 原来经 `howToAddTopbar` 的句子间接量；它删了，改为直接量还导出着的 `navRelPath`（两臂）。
 {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'remediation-flat-'));
-  const siteDir = siteWithNav(dir, null);          // 扁平：site/navigation.json
-  const flat = howToAddTopbar({ siteDir, locale: 'en', flat: true });
-  if (/(^|[^/\w])navigation\.json/.test(flat.sentence) && !/en\/navigation\.json/.test(flat.sentence)) {
-    ok('④b 扁平站：句子点名 navigation.json，不含 en/navigation.json');
-  } else {
-    bad(`④b 扁平站上指错了文件：${flat.sentence}`);
-  }
-  if (!/读不出来/.test(flat.sentence)) ok('④b 而且它真的读到了那份文件（不是走「读不出来」那一支）');
-  else bad(`④b 扁平站上把存在的文件当成读不出来：${flat.sentence}`);
-
-  // 反向对照:同一棵扁平树、**不传 flat** ⟹ 必须退化成「读不出来」(证明上面那格判的是 flat 这一维)
-  const wrong = howToAddTopbar({ siteDir, locale: 'en' });
-  if (/读不出来/.test(wrong.sentence) && /en\/navigation\.json/.test(wrong.sentence)) {
-    ok('④b 反向对照：同一棵扁平树不传 flat ⟹ 它去找 en/navigation.json 并报「读不出来」'
-      + ' ⟹ 上面那格判的就是这一维');
-  } else {
-    bad(`④b 反向对照失败：不传 flat 时读数没变 ⟹ 这一格证明不了 flat 在起作用：${wrong.sentence}`);
-  }
-  fs.rmSync(dir, { recursive: true, force: true });
+  const flat = navRelPath('en', true);
+  if (flat === 'navigation.json') ok('④b 扁平站：navRelPath(en, flat) = navigation.json');
+  else bad(`④b 扁平站上指错了文件：${flat}`);
+  // 反向对照：同一个 locale、不是扁平站 ⟹ 必须带语言目录（证明上面那格判的是 flat 这一维）
+  const loc = navRelPath('en', false);
+  if (loc === 'en/navigation.json') ok('④b 反向对照：同一个 locale 不传 flat ⟹ en/navigation.json ⟹ 上面那格判的就是这一维');
+  else bad(`④b 反向对照失败：不传 flat 时读到 ${loc}`);
 }
 
 // ── ⑤ 换 page layout:那句话必须说实话,而且库的名单是【读目录】读出来的 ────────────────────────
@@ -227,110 +195,8 @@ function siteWithNav(dir, locale) {
   }
 }
 
-// ── ⑤b 「换一套顶栏不是透明浮层的主题」——那份名单必须是【构建自己的判据】算出来的 ────────────
-//
-// 🔴 这一格治的是我自己第一版交付里的假话：那句话教人按 `supports.header !== 'transparent-overlay'`
-//    去挑，而 `supports` 装的是**清单**（数组）⟹ 拿数组 `!==` 字符串恒为真，一个主题都排除不掉。
-//    实测 110 套里有 20 套解析出来仍然是透明浮层 ⟹ 照那句话挑，五分之一换完还是看不见那条横条。
-{
-  const { themesWithoutOverlayHeader } = mod;
-  if (typeof themesWithoutOverlayHeader !== 'function') die('remediation.js 没导出 themesWithoutOverlayHeader');
-  const r = themesWithoutOverlayHeader({ rootDir: path.join(NEXTJS, 'scripts') });
-
-  // 独立复算：不信它的分类，自己拿同一个权威再算一遍
-  let indep = null;
-  try {
-    // #1353 —— 这两个函数改名了（`layoutFor` → `regionShapesFor`、`resolveRegionLayout` →
-    // `resolveRegionShapes`），因为它们读的东西换了：顶栏的结构今天在**选择单**（`shapes.header`）
-    // 里，`supports` 整个退役。这一格问的性质一个字没变：拿同一个权威自己再算一遍分类。
-    const { themes, regionShapesFor } = require(path.join(NEXTJS, 'scripts', 'themes.js'));
-    const { resolveRegionShapes } = require(path.join(NEXTJS, 'scripts', 'region-layout.js'));
-    indep = { safe: [], overlay: [] };
-    for (const id of Object.keys(themes)) {
-      const h = resolveRegionShapes(regionShapesFor(id)).header.shape;
-      (h === 'transparent-overlay' ? indep.overlay : indep.safe).push(id);
-    }
-  } catch (e) { indep = null; }
-
-  if (!indep) {
-    bad('⑤b 独立复算跑不起来 —— 这一格的读数一个都不能信');
-  } else if (r.safe.length === indep.safe.length && r.overlay.length === indep.overlay.length) {
-    ok(`⑤b 独立复算对得上（顶栏安全 ${r.safe.length} 套 · 透明浮层 ${r.overlay.length} 套）`);
-  } else {
-    bad(`⑤b 独立复算对不上：它说 ${r.safe.length}/${r.overlay.length}，`
-      + `我自己算是 ${indep.safe.length}/${indep.overlay.length}`);
-  }
-
-  // 🔴 判据不许是空转的：透明浮层那一边必须真的非空，否则「排除掉了」这句话什么都没排除
-  // 🔴 #1317 —— 脚手架期池里一套 `transparent-overlay` 都没有（azure-29 是 solid-bar、
-  //    ember-12 是 pill-floating），所以这一条按构造红。它跟 `pool.test.js ⑧` 是同一个缺口、
-  //    同一个门控：判据是池子大小，池子重生成到 ≥10 套那天它自己回来。
-  //    📌 上面那条独立复算**照跑**（它比的是两份实现的读数，跟浮层有没有样本无关），下面那条
-  //    「句子点名的每一套逐个核过」也照跑 —— 只有「排除的那一边非空」这一条没有对象。
-  if (indep && indep.overlay.length > 0) {
-    ok(`⑤b 判据有区分力：确实有 ${indep.overlay.length} 套被排除掉了（不是空转）`);
-  } else if (skipOnScaffoldingPool('⑤b 透明浮层那一边非空',
-    '脚手架池里一套 transparent-overlay 都没有 ⟹ 这个判据今天没有对象可排除')) {
-    skipped += 1;
-  } else {
-    bad('⑤b 透明浮层那一边是空的 ⟹ 这个判据没排除任何东西，跟旧那句假话等价');
-  }
-
-  // 句子里点名的每一套，都必须真的不是透明浮层（旧那句假话在这里会当场露馅）
-  const named = (r.sentence.match(/例如 ([^）]*)）/) || [, ''])[1].split(' / ').filter(Boolean);
-  const wrong = indep ? named.filter((id) => indep.overlay.includes(id)) : [];
-  if (named.length && !wrong.length) ok(`⑤b 句子点名的 ${named.length} 套逐个核过，都不是透明浮层`);
-  else bad(`⑤b 句子点名了透明浮层的主题：${wrong.join(', ')}（句子：${r.sentence}）`);
-
-  // 🔴 旧那个判据不许出现在句子里 —— 它是本票要治的那个病本身
-  if (!/supports\.header/.test(r.sentence)) ok('⑤b 句子里没有 supports.header 那个恒为真的判据');
-  else bad(`⑤b 句子还在教人用 supports.header：${r.sentence}`);
-
-  // 🔴 阳性对照：换一个只有两套主题的假注册表 —— 名单必须跟着换（证明它是算出来的，不是抄的）
-  {
-    // 🔴 #1353 —— 假树的**层级**是承重的。`region-layout.js` 今天要问块 manifest（形态清单的唯一
-    //    出处），而 `lib/block-manifest.js` 按 `__dirname/../../blocks` 找那个目录。所以假树必须长成
-    //    `<base>/scripts/{themes.js,region-layout.js,lib/}` + `<base>/blocks/`，而不是把东西平铺在
-    //    一个临时目录里 —— 平铺的话它会去 `os.tmpdir()/blocks` 找，那是**共享目录**，往那儿写就是
-    //    污染别人的机器（我第一版就这么写过，当场在 /tmp 下造了一个 blocks/）。
-    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'remediation-themes-'));
-    const t = path.join(base, 'scripts');
-    fs.mkdirSync(t, { recursive: true });
-    fs.writeFileSync(path.join(t, 'themes.js'),
-      "'use strict';\nmodule.exports = {\n"
-      + "  themes: { 'fake-safe': {}, 'fake-overlay': {} },\n"
-      + "  regionShapesFor: (id) => (id === 'fake-overlay' ? { header: 'transparent-overlay' } : { header: 'solid-bar' }),\n"
-      + "};\n");
-    // 🔴 #1353 —— 这棵假树里也要有 `lib/block-manifest.js` 与 `blocks/`：`region-layout.js` 的
-    //    形态清单今天从块 manifest 现取（三张写死的表退役了）。只拷 `region-layout.js` 的话它在
-    //    `shapesOf()` 那一步拿不到清单 ⟹ 这一格 die 在一个其实正确的状态上。
-    fs.copyFileSync(path.join(NEXTJS, 'scripts', 'region-layout.js'), path.join(t, 'region-layout.js'));
-    // `region-layout.js` 今天要问形态清单，而清单的出处是 `blocks/<块>.json` —— 假树得有它。
-    // 📌 只要这一样：那个函数直接读那份 JSON，不走 `block-manifest.js` 的全量加载+校验
-    //    （理由写在 `region-layout.js` 的 `shapesOf` 上面；我先按那条重链补过 `scripts/blocks.js`、
-    //    `src/lib/sections/`、`public/shapes.css` 三样，补到第四样才发现是依赖方向错了）。
-    fs.cpSync(path.join(NEXTJS, 'blocks'), path.join(base, 'blocks'), { recursive: true });
-    const r2 = themesWithoutOverlayHeader({ rootDir: t });
-    fs.rmSync(base, { recursive: true, force: true });
-    if (r2.safe.join(',') === 'fake-safe' && r2.overlay.join(',') === 'fake-overlay') {
-      ok('⑤b 阳性对照：换一个假注册表（一套浮层 / 一套不浮层），分类跟着换 ⟹ 它是算出来的');
-    } else {
-      bad(`⑤b 阳性对照失败：换了注册表分类没跟着变 ⟹ 那份名单是写死的：`
-        + `safe=[${r2.safe}] overlay=[${r2.overlay}]`);
-    }
-  }
-  // 读不到那两个模块时：不许假装算出了一份名单
-  {
-    const t = fs.mkdtempSync(path.join(os.tmpdir(), 'remediation-nothemes-'));
-    const r3 = themesWithoutOverlayHeader({ rootDir: t });
-    fs.rmSync(t, { recursive: true, force: true });
-    if (r3.viaProduct === null && /列不出/.test(r3.sentence)) {
-      ok('⑤b 读不到 themes.js / region-layout.js 时明说「这次列不出是哪些」');
-    } else {
-      bad(`⑤b 读不到那两个模块却给了一份名单：${r3.sentence}`);
-    }
-  }
-}
+// 📌 #1425（T3）—— 这里原来是 ⑤b：「换一套顶栏不是透明浮层的主题」那份名单（`themesWithoutOverlayHeader`）。新库的 header
+//    没有透明浮层形态，「浮层 + 公告条」那条拒绝和这个函数一起删了。
 
 // ── ⑥ 「改布局去哪儿改」是一句关于仓库的断言,在仓库上钉住它（#1405 起答案是页面编辑器）──────────
 {
@@ -372,109 +238,21 @@ function siteWithNav(dir, locale) {
     }
     const calib = count('themeId');
     if (calib === 0) bad('⑥ 尺子校准失败：连 themeId 都数到 0 —— 这几个 grep 的读数一个都不能信');
-    // 🔴 反过来的那一半也要钉:透明浮层那条报错把人指到「dashboard 的换装弹窗」，
-    //    那是一句**声称某个界面存在**的话 —— 跟 #1087 r3 那个不存在的 layout picker 同一族。
-    //    有人把换装弹窗删掉/改名时，这一格必须红，否则那句话会静默变成假话。
-    const picker = count('ThemeModal');
-    if (picker > 0) {
-      ok(`⑥ 换装弹窗确实在（ThemeModal 命中 ${picker} 个文件）—— sync-config 把人指到它是真话`);
-    } else {
-      bad('⑥ 找不到换装弹窗（ThemeModal 命中 0）—— 而 sync-config 的透明浮层那条报错正把人指到它，'
-        + '那句话现在是假的，回去改措辞');
-    }
+    // 📌 #1425（T3）—— 这里原来还钉着「换装弹窗（ThemeModal）真在」：那是透明浮层那条报错把人指去的界面，
+    //    那条报错随公告条一起删了，这一半没有对象。
+    if (calib > 0) ok(`⑥ 尺子校准：themeId 命中 ${calib} 个文件`);
   }
 }
 
-// ── ⑧ 补救行的条数有上限 —— 因为这段话会被 edit-site.js 截到 2000 字符再给老板看 ─────────────
-//
-// 🔴 这一格治的是我自己引入的一个退步：改之前那版是**一行讲完所有语言**，我改成「一个语言一条」
-//    更精确，但 `edit-site.js §main` 的 `.slice(0, 2000)` 会在 10 个语言起把后面那条「或者不要
-//    topbar」整条切掉（实测约 2035 字符）。⟹ 更精确的写法在这一维上比原来差。
-{
-  const { topbarBullets, BULLET_CAP } = mod;
-  if (typeof topbarBullets !== 'function') die('remediation.js 没导出 topbarBullets');
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'remediation-cap-'));
-  // 🔴 #1127 —— 语言数从 12 提到 22，这是**夹具的标定**，不是行为改动。
-  //    为什么必须提：下面那条反向对照要求「上限拿掉之后同一夹具 > 2000 字符」，而每条 bullet 的长度
-  //    取决于 `howToAddTopbar()` 走哪一支 —— 白名单说 AI 编辑器**写不进** navigation.json 时是长句
-  //    （170 字符），说**写得进**时是短句（77 字符）。#1104 把 navigation.json 变成写得进的 ⟹ 同一个
-  //    12 语言夹具从 2461 掉到 **1345**，反向对照失去量程、这一格红（而 CI 的 template-scripts 跑
-  //    `npm run test:scripts`，所以那会让 main 红）。
-  //
-  //    ⟹ 夹具要在**两支上都有量程**，这样两张票的 ship 顺序无所谓。两支各自的实测（同一个
-  //    `siteWithNav` 夹具，只改语言数）：
-  //
-  //      语言数   长句支(170)         短句支(77)
-  //        12     2461 ✅             1345 ✗   ← 本票之前
-  //        19     3749 ✅             1982 ✗   （差 18 个字符）
-  //        20     3933 ✅             2073 ✅  ← 两支都成立的最小值
-  //        22     4301 ✅             2255 ✅  ← 取它，留 255 字符余量
-  //
-  //    取 22 而不是 20：那句话再变短一点（例如 rel 路径缩短）就又会失去量程，而失去量程的样子是
-  //    **这一格红**，不是「悄悄变弱」—— 留余量比等它红一次便宜。
-  //    📌 带上限那一半在每一格都 ≤ 2000（短句支 717–798 · 长句支 1089–1170），所以加语言不会把
-  //       「老板看得到最后那条补救办法」那一格弄红。
-  const many = ['en', 'zh', 'fr', 'es', 'de', 'it', 'pt', 'ja', 'ko', 'ru', 'ar', 'hi',
-    'nl', 'pl', 'tr', 'sv', 'da', 'fi', 'cs', 'el', 'he', 'th'];
-  for (const loc of many) siteWithNav(dir, loc);
-  const siteDir = path.join(dir, 'site');
-
-  const lines = topbarBullets({ siteDir, locales: many });
-  if (lines.length <= BULLET_CAP + 1) ok(`⑧ ${many.length} 个语言只打 ${lines.length} 行（上限 ${BULLET_CAP} + 1 行合并）`);
-  else bad(`⑧ ${many.length} 个语言打了 ${lines.length} 行 —— 没有上限`);
-  // 🔴 行为断言：topbarBullets 打出来的那句，必须就是 howToAddTopbar 对同一个语言的结论 ——
-  //    这把「接线经过它」钉成行为，而不是靠 grep 一个函数名。
-  {
-    const direct = howToAddTopbar({ siteDir, locale: 'en' }).sentence;
-    if (lines[0].includes(direct)) ok('⑧ 第一行就是 howToAddTopbar 对 en 的结论 ⟹ 这条链真的接着');
-    else bad(`⑧ 第一行跟 howToAddTopbar 的结论不一样：\n    行=${lines[0]}\n    直调=${direct}`);
-  }
-  const tail = lines[lines.length - 1];
-  // 🔴 #1127 —— 这个数**现算**，不写死。它原来写的是 `其余 8 个语言`，而 8 = 12 − BULLET_CAP(4)
-  //    是从当时的语言数算出来的 ⟹ 改语言数（本票就在改）或改 BULLET_CAP，它就是一格假红：
-  //    红的原因跟被测行为毫无关系。
-  const restCount = many.length - BULLET_CAP;
-  if (tail.includes(`其余 ${restCount} 个语言`)) ok(`⑧ 最后一行说清了其余 ${restCount} 个语言同理（${many.length} − 上限 ${BULLET_CAP} 现算，不写死）`);
-  else bad(`⑧ 合并那行不对：期望提到「其余 ${restCount} 个语言」，实际是：${tail}`);
-
-  // edit-site.js 真正的那把尺：整段 stderr 截 2000
-  const SLICE = 2000;
-  const layoutSentence = howToChangePageLayout({ rootDir: NEXTJS }).sentence;
-  const assemble = (ls) => `page layout "with-topbar" 有 topbar 区，但这些语言的 navigation.json 里没有 topbar 内容：${many.join(', ')}\n`
-    + ls.map((l) => `  · ${l}`).join('\n') + `\n  · 或者不要 topbar —— ${layoutSentence}`;
-  const withCap = assemble(lines);
-  if (withCap.length <= SLICE) {
-    ok(`⑧ ${many.length} 个语言时整段 ${withCap.length} 字符 ≤ ${SLICE} ⟹ 老板看得到最后那条补救办法`);
-  } else {
-    bad(`⑧ 整段 ${withCap.length} 字符 > ${SLICE} ⟹ 最后那条补救办法会被 edit-site.js 切掉`);
-  }
-
-  // 🔴 反向对照：把上限拿掉，同一个夹具必须超过 2000 —— 否则这一格证明不了"是上限在起作用"
-  const noCap = assemble(topbarBullets({ siteDir, locales: many, cap: 999 }));
-  if (noCap.length > SLICE) {
-    ok(`⑧ 反向对照：上限拿掉后同一夹具 ${noCap.length} 字符 > ${SLICE} ⟹ 撑住这一格的就是那个上限`);
-  } else {
-    bad(`⑧ 反向对照失败：上限拿掉也只有 ${noCap.length} 字符 ⟹ 这个夹具证明不了上限在起作用，换更多语言`);
-  }
-  // 截断真的会切掉那条办法吗（拿 edit-site 那把尺直接量，不是推理）
-  if (!noCap.slice(0, SLICE).includes('或者不要 topbar')) {
-    ok('⑧ 反向对照：无上限那版被 slice(0,2000) 之后，「或者不要 topbar」那条确实不见了');
-  } else {
-    bad('⑧ 无上限那版截断后那条还在 ⟹ 上面那个 > 2000 的读数跟这条办法没关系');
-  }
-  fs.rmSync(dir, { recursive: true, force: true });
-}
+// 📌 #1425（T3）—— 这里原来是 ⑧：topbar 补救行的条数上限（`topbarBullets` / `BULLET_CAP`）；随公告条退役。
 
 // ── ⑦ 接线:sync-config.js 真的用这几句话(否则模块再对,报错照样在说假话)──────────────────────
 {
   const src = fs.readFileSync(path.join(NEXTJS, 'scripts', 'sync-config.js'), 'utf-8');
   const bads = [];
   if (!/require\(['"]\.\/lib\/remediation(\.js)?['"]\)/.test(src)) bads.push('没 require lib/remediation');
-  // 🔴 topbar 那句话的接线现在经 `topbarBullets`（它内部调 howToAddTopbar，见 ⑧ 里那条行为断言）——
-  //    所以这里钉的是 topbarBullets 那条（下面），不是直调 howToAddTopbar。
-  if (/for \(const loc of missing\)/.test(src)) {
-    bads.push('补救行又变回裸的逐语言循环了 —— 那条路没有上限，10 个语言起被 edit-site 截断');
-  }
+  // 📌 #1425（T3）—— topbar 那几句的接线（topbarBullets / flat 传参 / themesWithoutOverlayHeader）随公告条
+  //    退役，这里删了；旧假话「不许回来」那几条反向断言照留。
   if (!/howToChangePageLayout\(/.test(src)) bads.push('没调 howToChangePageLayout');
   // 🔴 #1138 —— 每一处 howToChangePageLayout 都要把 siteDir 传进去。
   //    说在明处：**今天这个参数不改变任何答案** —— `page-layout.json` 不是按语言存的文件，形状那一维
@@ -489,8 +267,6 @@ function siteWithNav(dir, locale) {
     if (!calls.length) bads.push('数不出 howToChangePageLayout 的调用点 —— 这条读数不作数（改了写法就来改这条正则）');
     else if (noSite.length) bads.push(`${noSite.length}/${calls.length} 处 howToChangePageLayout 调用没传 siteDir：${noSite.join(' · ')}`);
   }
-  // 🔴 扁平站那一维必须真的被传进去，否则老站上那句话指着一个不存在的文件（④b 就是它的读数）
-  if (!/flat:\s*isLegacySchema/.test(src)) bads.push('调 howToAddTopbar 时没把 flat: isLegacySchema 传进去');
   // 🔴 旧那两句假话必须消失。只钉「新话在」的话，把旧话留在旁边也照样绿。
   if (/在 navigation\.json 里加 \{ "topbar"/.test(src)) {
     bads.push('还留着旧那句「在 navigation.json 里加 { "topbar"…」——它当时是走不通的那条路');
@@ -498,9 +274,6 @@ function siteWithNav(dir, locale) {
   if (/· 换一个不带 topbar 区的 page layout，或者换一套顶栏不是透明浮层的主题/.test(src)) {
     bads.push('透明浮层那条报错还留着旧措辞（它的「换 page layout」那一半走不通）');
   }
-  if (!/themesWithoutOverlayHeader\(/.test(src)) bads.push('没调 themesWithoutOverlayHeader');
-  // 🔴 补救行必须走那个带上限的函数，不能是裸的 `for (const loc of missing)` 逐语言打印
-  if (!/topbarBullets\(/.test(src)) bads.push('没调 topbarBullets（补救行会退回无上限，10 个语言起被 edit-site 截断）');
   // 🔴 AC3 扫查抓到的第三处：CSS 契约那条报错以前给裸的 `docs/reference/…`，而这个脚本的 cwd
   //    （平台仓的 templates/nextjs / 站容器的 /app/repo）底下都没有 docs/ ⟹ 那条路两处都走不通。
   if (/'  · docs\/reference\/theme-css-contract\.md says/.test(src)) {
@@ -510,7 +283,7 @@ function siteWithNav(dir, locale) {
   if (/supports\.header 不是 transparent-overlay/.test(src)) {
     bads.push('还留着「supports.header 不是 transparent-overlay 的那些」——那个判据恒为真，一套都排除不掉');
   }
-  if (bads.length === 0) ok('⑦ sync-config.js 接上了这几句话，旧那两句假话也不在了');
+  if (bads.length === 0) ok('⑦ sync-config.js 接上了换布局那句话，旧那几句假话也不在了');
   else bads.forEach((b) => bad(`⑦ ${b}`));
 }
 
@@ -530,7 +303,10 @@ function siteWithNav(dir, locale) {
 //    `site/` 了（第一版的读数逐字是 `Site config not found: <真树>/templates/nextjs/site/brand.json`
 //    —— 这棵树恰好没有 `site/` 才没造成后果，那是运气，不是判据）。`page-layouts` / `schemas` /
 //    `blocks` 是相对 `rootDir` 读的，symlink 对它们是安全的。
-console.log('── ⑦b 真跑一次 sync-config：带 topbar 区却没有 topbar 内容 ⟹ rc=1 且两条补救办法都在 stderr 上');
+// #1425（T3）—— 原来的夹具是「挑 with-topbar 布局却没写 topbar 内容」（两条补救办法：topbar 那条 + 换布局那条）。
+//    with-topbar 布局与 topbar 那条一起删了；今天还能走到 howToChangePageLayout 的那条真路是「page-layout.json
+//    选了一个库里没有的布局」（sync-config 的 layoutProblems 支）。夹具换成它，判据照旧：rc=1 + 诊断在 + 补救在。
+console.log('── ⑦b 真跑一次 sync-config：page-layout.json 选了库里没有的布局 ⟹ rc=1 且换布局那条补救办法在 stderr 上');
 {
   const t = fs.mkdtempSync(path.join(os.tmpdir(), 'remediation-live-sync-'));
   try {
@@ -554,7 +330,7 @@ console.log('── ⑦b 真跑一次 sync-config：带 topbar 区却没有 topb
     fs.mkdirSync(path.join(site, 'pages'), { recursive: true });
     const shade = (ks, v) => Object.fromEntries(ks.map((k) => [String(k), v]));
     const w = (rel, obj) => fs.writeFileSync(path.join(site, rel), JSON.stringify(obj, null, 2));
-    w('page-layout.json', { layoutId: 'with-topbar' });     // ← 这个站要 topbar 区
+    w('page-layout.json', { layoutId: 'zz-no-such-layout' });     // ← 库里没有这个布局
     w('brand.json', {
       name: 'T', tagline: 't', logoIcon: 'shield-check',
       colors: { primary: shade([50, 100, 200, 300, 400, 500, 600, 700, 800, 900], '#0ea5e9'),
@@ -564,7 +340,6 @@ console.log('── ⑦b 真跑一次 sync-config：带 topbar 区却没有 topb
     });
     w('seo.json', { domain: 't.example', locale: 'en', metaTitle: 'T', metaDescription: 't', keywords: [] });
     fs.writeFileSync(path.join(site, 'services.json'), '[]');
-    // 🔴 navigation.json 里**没有** topbar —— 这一格量的就是这个缺口
     w('navigation.json', { header: { links: [], cta: { label: 'Go', href: '/contact' } },
       footer: { columns: [], copyright: 'c' } });
     w('pages/home.json', { slug: 'home', title: 'Home', description: 'd', navLabel: 'Home', navOrder: 1,
@@ -574,16 +349,15 @@ console.log('── ⑦b 真跑一次 sync-config：带 topbar 区却没有 topb
       { cwd: t, encoding: 'utf-8', timeout: 120000 });
     const all = `${r.stdout || ''}\n${r.stderr || ''}`;
     r.status === 1
-      ? ok(`⑦b 真跑：rc=1（带 topbar 区却没内容 ⟹ 拒绝，不是静默通过）`)
+      ? ok(`⑦b 真跑：rc=1（选了库里没有的布局 ⟹ 拒绝，不是静默按 standard 走）`)
       : bad(`⑦b 真跑：rc=${r.status}，期望 1 —— 这个缺口没被拦住，或者夹具立不起来。输出末尾：`
         + `${all.trim().split('\n').slice(-3).join(' ⏎ ')}`);
     // 那句诊断
-    /有 topbar 区，但这些语言的 navigation\.json 里没有 topbar 内容/.test(all)
+    /选的 "zz-no-such-layout" 不在库里/.test(all)
       ? ok('⑦b 真跑：那句诊断在（点名是哪个缺口）')
       : bad('⑦b 真跑：那句诊断不在 —— 拒的可能是别的原因，这一格量的不是这条路');
     // 🔴 两条补救办法都要真的印出来。这才是 ⑦ 那种静态 grep 证不了的那一半。
     for (const [what, re] of [
-      ['topbar 那条', /手改这个站仓里的 site\/navigation\.json/],
       ['换布局那条', /手改这个站仓里的 site\/page-layout\.json/],
     ]) {
       re.test(all)
@@ -639,10 +413,9 @@ console.log('── ⑦b 真跑一次 sync-config：带 topbar 区却没有 topb
     return writeRejection(rel, ctx) === null;
   };
 
-  /** 一组要对账的问题：这里怎么答（viaProduct） vs 真编辑器怎么答。 */
+  /** 一组要对账的问题：这里怎么答（viaProduct） vs 真编辑器怎么答。
+   *  📌 #1425（T3）—— 原来还有 en/fr navigation.json 两条（经 `howToAddTopbar` 问），随它删了；只剩 page-layout.json。 */
   const askHere = (mod2) => [
-    ['en/navigation.json', mod2.howToAddTopbar({ siteDir, locale: 'en' }).viaProduct],
-    ['fr/navigation.json', mod2.howToAddTopbar({ siteDir, locale: 'fr' }).viaProduct],
     ['page-layout.json', mod2.howToChangePageLayout({ rootDir: NEXTJS, siteDir }).viaProduct],
   ];
 
@@ -656,39 +429,10 @@ console.log('── ⑦b 真跑一次 sync-config：带 topbar 区却没有 topb
       + ' —— 那句话在建议一个真编辑器会拒的动作（#1108 要治的那个病）'));
   }
 
-  // 🔴 这一格必须有量程：`fr` 那条得**真的**是真编辑器拒的（否则三条全 true，这一格就是空转的
-  //    恒等式，把形状那一维整个拿掉也照样绿）。
-  const frReal = rows.find((r) => r.rel === 'fr/navigation.json');
-  const enReal = rows.find((r) => r.rel === 'en/navigation.json');
-  if (frReal && enReal && frReal.real === false && enReal.real === true) {
-    ok('⑨ 这组问题有区分力：同一个站上 en/navigation.json 真编辑器放行、fr/navigation.json 真编辑器拒');
-  } else {
-    bad(`⑨ 这组问题没有区分力（en=${enReal && enReal.real} · fr=${frReal && frReal.real}）`
-      + ' ⟹ 上面那条对账是恒等式，换个夹具让两个答案分开');
-  }
-
-  // 🔴 阳性对照：把 `editorCanWrite` 里递形状那一步撤掉（改之前那个样子），上面那条对账必须**红**，
-  //    而且红在 `fr/navigation.json` 上。少了这一格，对账那条绿也可能来自「这三条本来就一致」。
-  {
-    const t = fs.mkdtempSync(path.join(os.tmpdir(), 'remediation-noshape-'));
-    require('child_process').execSync(`cp -a "${path.join(NEXTJS, 'scripts')}" "${path.join(t, 'scripts')}"`, { stdio: 'pipe' });
-    const copyPath = path.join(t, 'scripts', 'lib', 'remediation.js');
-    const src = fs.readFileSync(copyPath, 'utf-8');
-    const ANCHOR = '  const ctx = { ...(extraCtx || {}), readSiteShape: () => readSiteShape(siteDir) };\n';
-    const n = src.split(ANCHOR).length - 1;
-    if (n !== 1) die(`⑨ 阳性对照的锚点在 remediation.js 里出现 ${n} 次（要求正好 1 次）`);
-    fs.writeFileSync(copyPath, src.replace(ANCHOR, '  const ctx = { ...(extraCtx || {}) };\n'));
-    // eslint-disable-next-line global-require
-    const noShape = require(copyPath);
-    const bad2 = askHere(noShape).filter(([rel, here]) => here !== askRealEditor(rel)).map(([rel]) => rel);
-    fs.rmSync(t, { recursive: true, force: true });
-    if (bad2.join(',') === 'fr/navigation.json') {
-      ok('⑨ 阳性对照：撤掉递形状那一步，对账在 fr/navigation.json 上分歧 ⟹ 撑住上面那格的就是这一步');
-    } else {
-      bad(`⑨ 阳性对照失败：撤掉递形状那一步之后分歧的是 [${bad2.join(' · ')}]，期望正好是 fr/navigation.json`
-        + ' —— 那上面那条对账证明不了「形状真的被递进去了」');
-    }
-  }
+  // 📌 #1425（T3）—— 这里原来还有两格：「这组问题有区分力（en 放行 / fr 拒）」与阳性对照「撤掉递形状那一步 ⟹
+  //    在 fr/navigation.json 上分歧」。两格的区分力都来自按语言存的 navigation.json（经 `howToAddTopbar` 问），
+  //    而 page-layout.json 不按语言存、形状对它不说话 ⟹ 新库里找不到等价的反向臂。「放行 / 拒绝」那一维由 ② 的
+  //    两臂守着；「形状真被递进去」今天没有任何读数能区分（按构造不影响唯一剩下的那个答案）。
   fs.rmSync(dir, { recursive: true, force: true });
 }
 

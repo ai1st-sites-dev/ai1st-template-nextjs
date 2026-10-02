@@ -65,8 +65,20 @@ if (body === reg && reg.indexOf('sectionRegistry') < 0) die('registry.ts 里找�
 const regSet = new Set([...body.matchAll(/^\s*'([a-z0-9-]+)':/gm)].map((m) => m[1]));
 
 // ── 分母自检（先证尺子没坏，再判相等）─────────────────────────────────────────────────────────
-if (regSet.size < 20) die(`从 registry.ts 只抠出 ${regSet.size} 个键 —— 尺子坏了（正则跟文件形状对不上）`);
-if (promptSet.size < 20) die(`提示词那一行只解出 ${promptSet.size} 项 —— 尺子坏了（分隔符或行形状变了）`);
+// 🔴 #1425（T3）：下限原来写死 20（旧库 31 块）；今天块库 17 块、注册表只收非外壳区的那些 ⟹ 下限改成
+//    从 blocks/*/manifest.json 现算「不带 region: true 的块数」，不写死新数。抠出来少于它 = 尺子坏了。
+let floor = 0;
+try {
+  const blocksDir = path.join(NEXT, 'blocks');
+  for (const d of fs.readdirSync(blocksDir)) {
+    const mf = path.join(blocksDir, d, 'manifest.json');
+    if (!fs.existsSync(mf)) continue;
+    if (JSON.parse(fs.readFileSync(mf, 'utf-8')).region !== true) floor += 1;
+  }
+} catch (e) { die(`数 blocks/*/manifest.json 失败: ${e.message}`); }
+if (floor < 5) die(`blocks/ 下只数出 ${floor} 个页面块 —— 下限那一侧的尺子坏了`);
+if (regSet.size < floor) die(`从 registry.ts 只抠出 ${regSet.size} 个键，块库有 ${floor} 个页面块 —— 尺子坏了（正则跟文件形状对不上）`);
+if (promptSet.size < floor) die(`提示词那一行只解出 ${promptSet.size} 项，块库有 ${floor} 个页面块 —— 尺子坏了（分隔符或行形状变了）`);
 if (promptSet.size !== promptList.length) {
   bad(`提示词那一行里有重复项: ${promptList.filter((n, i) => promptList.indexOf(n) !== i).join(' · ')}`);
 } else {

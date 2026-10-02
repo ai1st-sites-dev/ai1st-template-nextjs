@@ -1,85 +1,181 @@
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+// gallery —— 块头（intro）+ 一组照片（items），点任一张打开大图（#1495，总纲 #1422 的 T2.12）
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+//
+// 🔴 **一份 markup，两层旋钮**：intro*（introPosition / introAlign）· items*（itemsLayout / itemsColumns / itemShape /
+//    itemCaption），四个预设各是一个形态目录。实际生效的旋钮 = 形态对应的那个预设给底，`data.options` 里写了的逐个
+//    覆盖（`scripts/lib/block-knobs.js` §effectiveKnobs —— 编辑器判 custom 用的是同一个函数）。旋钮值写在根元素上
+//    （`data-intro-position` … `data-item-caption` / `data-tone`），`block.css` 按它们排；形态目录自己不带几何。
+//    grid + original = 瀑布流（CSS 多列）；mosaic 必须裁图，original 在 mosaic 里按 landscape —— 这两条都住在
+//    `block.css` 的选择器里，markup 一个字不变。
+//
+// 🔴 **点照片 = 大图**，一律用 Bootstrap 自带的 Modal + Carousel（Chris 2026-09-30，不手写）：每张照片包在
+//    `<a href="#<id>-lb" data-bs-toggle="modal" data-gl-index="i">` 里（没有 JS 时链接落回页面，不坏）；Modal 与
+//    Carousel 的 markup 在这里服务端渲染，JS 由 `Lightbox.tsx` 按需加载（`src/components/BootstrapJs.tsx`），
+//    「从点的那一张开始」的那几行胶水也在那里。Modal 里的大图 `loading="lazy"`：弹窗没打开前它是 display:none，
+//    浏览器不去取。
+//
+// 🔴 **藏东西一律是不渲染**：某张照片没有 `title` / `caption` ⟹ 那一张没有图注节点；块头 `headline` / `body` 都空 ⟹
+//    块头那一列整个不渲染。没有 `image.imageUrl` 的项不画（validateSite 拦着，这里只是不让一个空 <img> 出去）。
+//
+// 🔴 **照片的键叫 `imageUrl`**（`items[].image.imageUrl`）：AI 改站的写入闸只认 `IMAGE_FIELDS` 里的键
+//    （`scripts/lib/image-urls.js`）。`alt` 空时用 `title`。
+//
+// 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg），纯色、brand、渐变都认。
+
 import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig } from '@/lib/types/config';
+import manifest from './manifest.json';
+import GalleryLightbox from './Lightbox';
+import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
+import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
 
-interface GalleryItem {
-  title: string;
-  description?: string;
-  category?: string;
-  imageUrl?: string;
+export interface GalleryImage { imageUrl?: string; alt?: string }
+export interface GalleryItem { image?: GalleryImage; title?: string; caption?: string }
+export interface GalleryOptions {
+  introPosition?: string; introAlign?: string;
+  itemsLayout?: string; itemsColumns?: string; itemShape?: string; itemCaption?: string;
+}
+export interface GalleryData {
+  options?: GalleryOptions;
+  introEyebrow?: { text?: string; style?: string };
+  headline?: string;
+  body?: string;
+  items?: GalleryItem[];
+  bg?: BgValue;
 }
 
-interface GallerySectionProps {
-  data: {
-    headline: string;
-    subheadline?: string;
-    items: GalleryItem[];
-  };
-  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的 `data-role` / `data-shape` / `data-has-*` 从它来。
-   *  （#998 当初加它是为了第三个钩子 `data-block-layout`，#1341 把那个钩子退役了。） */
+interface Props {
+  data: GalleryData;
+  locale?: string;
   block?: BlockConfig;
 }
 
-// 🔴🔴 #1036 — 一份中性 markup，别的什么都没有。阶段 2 批 G 里线上最少见的一块（1 个实例 / 1 个站）。
-//
-// 四支走了：`grid`（三列卡片，默认）、`masonry`（瀑布流，线上那 1 个实例用的就是它）、
-// `overlay`（图上压字）、`carousel`（横向滚动 + 两个箭头按钮）。四支读的字段完全相同
-// （`headline` · 可选 `subheadline` · `items[].title / .description / .category / .imageUrl`），
-// 差别是 Tailwind 类 —— 除了 carousel 那两个按钮。
-//
-// 🔴 `carousel` 那两个箭头按钮删掉了（连同 `useRef` 和 `scrollBy`）。这一块的四条内容今天本来就全在
-// DOM 里，所以这里**不涉及内容得失** —— 丢的只是两个按钮，而原生的横向滚动和触摸滑动接手同一件事。
-// 主题自己画得出那条能滑的横条：实测契约放行 `display:flex` · `overflow:auto` · `gap` · `flex-shrink` ·
-// `min-width`，五个属性合起来就是它。所以「轮播」搬完之后是主题的一种长相，不是站要选的形态。
-// 📌 不加 `scroll-snap-*`（契约本来就拒它，PM 2026-08-16 也裁定不在结构层无条件加）：线上横向滚动的
-//    实例今天是 0 个。旧 carousel 那一支自己带着 `snap-x snap-mandatory`，随那一支一起走。
-//
-// 🔴 没有图时那块占位的**渐变配色轮换**没了，主题表补不回来，写在明处。旧代码按 `index % 6` 从一张
-// 六色表里挑一个（`masonry` 还额外按 `index % 6` 轮换六个高度）—— 契约拒绝 `:nth-child()` 这类结构
-// 伪类，所以主题选不到「第 3 张」。占位现在是一个 `.gallery__placeholder`，主题给它**一种**长相。
-// 同理 `masonry` 那六个轮换高度：主题用 `aspect-ratio` 或 `min-height` 给一个统一值。
-//
-// 🔴 `overlay` / `masonry` 那两层压在图上的黑色渐变 `<div>` 也没了 —— 空的覆盖 div 不留，主题用
-// `.gallery__item::before` 画同一层（同 #1018 cta-banner 删掉 `dark` 那层覆盖 div 的理由）。
-//
-// 🔴 `<img>` 保留成 `.gallery__image`，因为它是**数据**（`item.imageUrl`），不是长相。有图就画图、
-// 没图画占位，这个二选一是内容结构，留在 markup 里。
-//
-// 📌 #1341 —— 下面这句话原来的写法是「`variant` 照旧写在页面 JSON 里、照旧被 sync-config.js 从主题的
-//    `supports` 覆盖」。那条覆盖随内容结构那一维一起退役了：构建期不再往任何块写 `data.variant`，
-//    而老站磁盘上残留的这个键在构建读页面时就被丢掉（`scripts/blocks.js` 的 `normalizeListSlots`）
-//    ⟹ 它根本到不了组件。
-// 🔴 `variant` 只剩在老站磁盘上的页面 JSON 里，没人读了
-// —— 同 hero / cta-banner 那个有意的状态（#1008 AC5 / #1018）。`'use client'` 和 `useRef` 一起没了。
-//
-// 🔴 那第二个参数不是可选的 —— `blockAttrs('gallery', block)`，不许写成 `blockAttrs('gallery')`。
-// #1341 把第三个钩子 `data-block-layout` 退役了，但 `data-role` / `data-shape` /
-// `data-has-*` 仍然全从这个参数来；漏掉它 `tsc` 看不见（`registry.generated.ts` 把组件类型写成
-// `ComponentType<any>`），#1008 r1 因此被打回。
-export default function GallerySection({ data, block }: GallerySectionProps) {
+// items 2–24 张（`slots.items.maxItems`，validateSite 拦超出的）。
+const MAX_ITEMS = manifest.slots.items.maxItems;
+
+const isObj = (v: unknown): v is object => !!v && typeof v === 'object' && !Array.isArray(v);
+const str = (v: unknown): string => (typeof v === 'string' ? v : '');
+
+// 这几条类名要**逐字**写在源码里：`site.css` 是按源码 purge 的（`scripts/lib/site-css.js` §PURGE_CONTENT），
+// 拼出来的类名 purge 看不见。
+const EYEBROW_CLASS: Record<string, string> = {
+  pill: 'gl-eyebrow-pill badge rounded-pill bg-primary-subtle text-primary fw-semibold text-xs px-3 py-2',
+  outline: 'gl-eyebrow-outline badge rounded-pill border border-primary text-primary bg-transparent fw-semibold text-xs px-3 py-2',
+  dash: 'gl-eyebrow-dash text-uppercase text-xs fw-semibold ls-wider text-muted',
+  plain: 'gl-eyebrow-plain text-uppercase text-xs fw-semibold ls-wider text-muted',
+};
+
+/** 块 id → 可以放进 `id` / `#…` 选择器的一段（同一页两块 gallery 各有各的弹窗）。 */
+const safeId = (v: unknown) => (typeof v === 'string' && v ? v : 'gallery').replace(/[^A-Za-z0-9_-]/g, '-');
+
+export default function GalleryNewSection({ data, block }: Props) {
+  const d: GalleryData = isObj(data) ? data : {};
+  const shape = block && typeof block.shape === 'string' ? block.shape : undefined;
+  const opts: GalleryOptions = isObj(d.options) ? d.options : {};
+  const k = effectiveKnobs(manifest, shape, opts) as Required<{ [K in keyof GalleryOptions]: string }>;
+  const tone = toneForBg(d.bg);
+  const bgValue = bgCss(d.bg);
+
+  const eyebrow = isObj(d.introEyebrow) && str(d.introEyebrow.text) ? d.introEyebrow : null;
+  // 没写 style ⟹ pill（同 features / milestones：AI 只写了字，眉标照样出来）；明写 none ⟹ 不画。
+  const eyebrowStyle = !eyebrow ? 'none' : !eyebrow.style ? 'pill' : eyebrow.style in EYEBROW_CLASS ? eyebrow.style : 'none';
+  const hasIntro = !!(str(d.headline) || str(d.body));
+  const items = (Array.isArray(d.items) ? d.items : [])
+    .filter((it): it is GalleryItem => isObj(it) && isObj(it.image) && !!str(it.image.imageUrl))
+    .slice(0, MAX_ITEMS);
+  const id = safeId(block && block.id);
+  const lbId = `${id}-lb`;
+  const carId = `${id}-car`;
+  const altOf = (it: GalleryItem) => str(it.image && it.image.alt) || str(it.title);
+
   return (
-    <section {...blockAttrs('gallery', block)} className="gallery" aria-labelledby="gallery-heading">
-      <h2 id="gallery-heading" className="gallery__headline" data-slot="headline">
-        {data.headline}
-      </h2>
-      {data.subheadline && (
-        <p className="gallery__sub" data-slot="subheadline">{data.subheadline}</p>
-      )}
-      {data.items?.map((item, index) => (
-        <figure key={index} className="gallery__item">
-          {item.imageUrl ? (
-            /* eslint-disable-next-line @next/next/no-img-element -- output: 'export' 没有图片优化服务，
-               全站都用裸 <img>（旧代码这四支也是）。本票不改这件事。 */
-            <img src={item.imageUrl} alt={item.title} className="gallery__image" />
-          ) : (
-            <span className="gallery__placeholder" aria-hidden="true" />
-          )}
-          <figcaption className="gallery__caption">
-            {item.category && <span className="gallery__category">{item.category}</span>}
-            <span className="gallery__title" data-slot={`items.${index}.title`}>{item.title}</span>
-            {item.description && <span className="gallery__desc" data-slot={`items.${index}.description`}>{item.description}</span>}
-          </figcaption>
-        </figure>
-      ))}
+    <section
+      {...blockAttrs('gallery', block)}
+      data-intro-position={k.introPosition}
+      data-intro-align={k.introAlign}
+      data-items-layout={k.itemsLayout}
+      data-items-columns={k.itemsColumns}
+      data-item-shape={k.itemShape}
+      data-item-caption={k.itemCaption}
+      data-tone={tone}
+      data-bs-theme={bsThemeForBg(d.bg)}
+      className="position-relative py-16 py-lg-24"
+      style={bgValue ? { background: bgValue } : undefined}
+    >
+      <div className="container">
+        <div className="row gl-frame gy-10 gx-lg-16">
+          {hasIntro ? (
+            <div className="col-12 gl-introcol" data-part="intro">
+              <div className="gl-intro-text" data-part="intro-text">
+                {eyebrow && eyebrowStyle !== 'none' ? (
+                  <div className="mb-4" data-part="eyebrow">
+                    <span className={EYEBROW_CLASS[eyebrowStyle]} data-eyebrow={eyebrowStyle} data-slot="introEyebrow.text">
+                      {eyebrowStyle === 'dash' ? '— ' : null}{eyebrow.text}
+                    </span>
+                  </div>
+                ) : null}
+                {d.headline ? <h2 className="display-5 fw-bold lh-1 ls-tight mb-4 gl-title" data-slot="headline">{d.headline}</h2> : null}
+                {d.body ? <p className="fs-5 text-muted mb-0" data-slot="body">{d.body}</p> : null}
+              </div>
+            </div>
+          ) : null}
+          <div className="col-12 gl-itemscol" data-part="items">
+            <div className="gl-grid">
+              {items.map((it, i) => (
+                <figure key={i} className="gl-item" data-part="item">
+                  <a className="gl-img d-block" href={`#${lbId}`} data-bs-toggle="modal" data-gl-index={i}
+                    aria-label={`Open photo${it.title ? `: ${it.title}` : ` ${i + 1}`}`}>
+                    <img src={it.image!.imageUrl} alt={altOf(it)} />
+                  </a>
+                  {it.title || it.caption ? (
+                    <figcaption className="gl-cap" data-part="caption">
+                      {it.title ? <span className="fw-semibold" data-slot={`items.${i}.title`}>{it.title}</span> : null}
+                      {it.caption ? <span className="gl-cap-s text-xs" data-slot={`items.${i}.caption`}>{it.caption}</span> : null}
+                    </figcaption>
+                  ) : null}
+                </figure>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+      {items.length ? (
+        <div className="modal fade gl-modal" id={lbId} tabIndex={-1} aria-label="Photo viewer" aria-hidden="true" data-part="lightbox">
+          <div className="modal-dialog modal-fullscreen">
+            <div className="modal-content">
+              <button type="button" className="btn-close btn-close-white gl-lb-close" data-bs-dismiss="modal" aria-label="Close" />
+              <div id={carId} className="carousel slide" tabIndex={-1} data-bs-ride="false" data-bs-interval="false" data-bs-touch="true" data-bs-keyboard="true">
+                <div className="carousel-inner">
+                  {items.map((it, i) => (
+                    <div key={i} className={`carousel-item${i === 0 ? ' active' : ''}`}>
+                      <img src={it.image!.imageUrl} className="d-block mx-auto" alt={altOf(it)} loading="lazy" />
+                      {it.title || it.caption ? (
+                        <div className="gl-lb-cap">{it.title}{it.caption ? <span>{it.caption}</span> : null}</div>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+                <button className="carousel-control-prev" type="button" data-bs-target={`#${carId}`} data-bs-slide="prev">
+                  <span className="carousel-control-prev-icon" aria-hidden="true" />
+                  <span className="visually-hidden">Previous</span>
+                </button>
+                <button className="carousel-control-next" type="button" data-bs-target={`#${carId}`} data-bs-slide="next">
+                  <span className="carousel-control-next-icon" aria-hidden="true" />
+                  <span className="visually-hidden">Next</span>
+                </button>
+                <div className="carousel-indicators">
+                  {items.map((_, i) => (
+                    <button key={i} type="button" data-bs-target={`#${carId}`} data-bs-slide-to={i}
+                      className={i === 0 ? 'active' : undefined} aria-current={i === 0 ? 'true' : undefined} aria-label={`Photo ${i + 1}`} />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+          <GalleryLightbox modalId={lbId} />
+        </div>
+      ) : null}
     </section>
   );
 }

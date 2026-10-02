@@ -1,0 +1,452 @@
+/* ── testimonials · 跨形态的规则（#1488）─────────────────────────────────────────────────────
+   testimonials 的排版由**实际生效的旋钮**决定，写在根元素上：
+     intro  data-intro-position（left / right / top / bottom）· data-intro-align（left / center / right）
+     summary data-summary-style（inline / cards，#1500）
+     items  data-items-layout（grid / carousel）· data-items-columns（1 / 2 / 3）
+     item   data-item-style（plain / card）· data-quote-size（md / lg）· data-item-align（left / center）
+     底色   data-tone（light / dark / brand，scripts/lib/contrast.js §toneForBg）
+   五个形态目录都是预设，自己不带几何。规则逐条照定稿图册（`docs/reference/webpixels/gallery/build.py:233-267`），
+   只把 `body.opt-*` 换成根元素上的属性。
+
+   🔴 Webpixels 的工具类全带 !important（gap-* / justify-content-* / text-muted / bg-primary-subtle …）。这里要压过它们的规则
+      **也带 !important**，而且选择器从 [data-block="testimonials"] 起步再加属性 / 类 —— 特异度一定高过工具类的一个类。
+   🔴 部件的有无靠渲染（Section.tsx 有数据才画；圆点 / 按钮只在 carousel 时画），不靠 CSS 藏。
+   🔴 轮播（#1494 起是 Bootstrap Carousel）：每条评价都在服务端 HTML 里；不是当前那张的 slide 由 Bootstrap 自己的
+      `.carousel-item` 规则收起（它的 display 切换），这里不另写藏 / 显的规则。
+   间距照 Webpixels 尺度：段 py-16 py-lg-24、块头与评价之间 2.5rem（gy-10）/ ≥992 横向 4rem（gx-lg-16）、
+   条与条 1.5rem（plain 网格行 3rem 列 2.5rem）、card 内 2rem（= p-8）。 */
+
+/* ═══ intro（块头）═══════════════════════════════════════════════════════════════════════════════
+   宽度照 T6.1（#1486）的新规则：left / right 对齐 = 100%；center 在 ≥992 最宽 80%、居中，<992 = 100%。
+   块头在侧（≥992 的 left / right）时那一列本身就窄，80% 那条取消（图册 build.py:239）。inline 那一排 summary 跟着对齐走（见下面 summary 一节）。 */
+[data-block="testimonials"] .tn-intro-text {
+  max-width: none;
+}
+[data-block="testimonials"] .tn-intro-text > :last-child {
+  margin-bottom: 0 !important;
+}
+[data-block="testimonials"][data-intro-align="center"] .tn-intro-text {
+  text-align: center;
+}
+[data-block="testimonials"][data-intro-align="right"] .tn-intro-text {
+  text-align: right;
+}
+@media (min-width: 992px) {
+  [data-block="testimonials"][data-intro-align="center"] .tn-intro-text {
+    max-width: 80%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+/* ═══ summary（一组平台评分，#1500）══════════════════════════════════════════════════════════════
+   summaryStyle 只决定出哪一处（Section.tsx 两处只渲染一处）：
+     inline = 块头正文下面一排小条，间距 .75rem、放不下换行，**跟 introAlign 对齐**；
+     cards  = 评价那一列最上面一排平台卡（Webpixels reviews-1），离评价 2.5rem，**不跟 introAlign**（条目从不跟它）。
+   logo：上传的图 / 内置品牌图标（品牌色，`--tn-brand`）/ 平台名，三档由 Section.tsx 选（review-platforms.js）。
+   有 href 的那一项是 <a>：悬停描一圈主色。 */
+[data-block="testimonials"] .tn-platform {
+  background: var(--scheme-surface-muted);
+}
+[data-block="testimonials"] a.tn-platform:hover,
+[data-block="testimonials"] a.tn-platform:focus-visible {
+  box-shadow: 0 0 0 1px var(--x-primary);
+}
+[data-block="testimonials"] .tn-logo-icon {
+  color: var(--tn-brand);
+}
+/* 图片那一档 logo（#1519：选择器原来是 `.tn-logo img`。`<img>` 只出现在挂 `tn-logo-img` 的那一档里，
+   命中的元素一个不变；改写成这一档自己的钩子，它才有一条规则）。 */
+[data-block="testimonials"] .tn-logo-img img {
+  width: auto;
+  max-width: 8rem;
+  object-fit: contain;
+}
+[data-block="testimonials"] .tn-summary {
+  gap: 0.75rem;
+}
+[data-block="testimonials"][data-intro-align="center"] .tn-intro-text .tn-summary {
+  justify-content: center;
+}
+[data-block="testimonials"][data-intro-align="right"] .tn-intro-text .tn-summary {
+  justify-content: flex-end;
+}
+[data-block="testimonials"] .tn-platform-inline .tn-logo-icon svg,
+[data-block="testimonials"] .tn-platform-inline .tn-logo img {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+[data-block="testimonials"] .tn-platform-inline .tn-logo img {
+  width: auto;
+}
+[data-block="testimonials"] .tn-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2.5rem;
+}
+[data-block="testimonials"] .tn-platform-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.5rem;
+  padding: 2rem 1.5rem;
+}
+[data-block="testimonials"] .tn-platform-card .tn-logo-icon svg,
+[data-block="testimonials"] .tn-platform-card .tn-logo img {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+[data-block="testimonials"] .tn-platform-card .tn-logo img {
+  width: auto;
+}
+[data-block="testimonials"] .tn-pc-logo {
+  margin-bottom: 0.25rem;
+}
+/* <576：卡变成一条横排的矮条 —— 左上 logo、左下「4.9 out of 5」，右上星、右下条数。 */
+@media (max-width: 575.98px) {
+  [data-block="testimonials"] .tn-summary-cards {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+  [data-block="testimonials"] .tn-platform-card {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "logo stars" "score count";
+    align-items: center;
+    text-align: left;
+    gap: 0.25rem 1rem;
+    padding: 1rem 1.25rem;
+  }
+  /* logo / 星这两格做成 flex、行高 1：它们是行内元素时行盒按正文行高撑高，一张卡就超过 80px。 */
+  [data-block="testimonials"] .tn-pc-logo,
+  [data-block="testimonials"] .tn-pc-stars {
+    display: flex;
+    align-items: center;
+    line-height: 1;
+  }
+  [data-block="testimonials"] .tn-pc-logo { grid-area: logo; margin-bottom: 0; }
+  [data-block="testimonials"] .tn-pc-stars { grid-area: stars; justify-self: end; }
+  [data-block="testimonials"] .tn-pc-score { grid-area: score; line-height: 1.25; }
+  [data-block="testimonials"] .tn-pc-count { grid-area: count; justify-self: end; line-height: 1.25; }
+  [data-block="testimonials"] .tn-platform-card .tn-logo-icon svg,
+  [data-block="testimonials"] .tn-platform-card .tn-logo img {
+    height: 1.25rem;
+  }
+  [data-block="testimonials"] .tn-platform-card .tn-logo-icon svg {
+    width: 1.25rem;
+  }
+}
+
+/* introPosition：left / right（≥992）= 块头一列 33.33%（sticky top 2rem）、评价一列 66.67%；right 行反向。
+   小屏：left / top 块头在上，right / bottom 块头在下（块头在下时与评价隔 2rem，图册 build.py:240-241）。 */
+[data-block="testimonials"][data-intro-position="bottom"] .tn-frame {
+  flex-direction: column-reverse;
+}
+[data-block="testimonials"][data-intro-position="bottom"] .tn-introcol {
+  margin-top: 2rem;
+}
+@media (max-width: 991.98px) {
+  [data-block="testimonials"][data-intro-position="right"] .tn-frame {
+    flex-direction: column-reverse;
+  }
+  [data-block="testimonials"][data-intro-position="right"] .tn-introcol {
+    margin-top: 2rem;
+  }
+}
+@media (min-width: 992px) {
+  [data-block="testimonials"][data-intro-position="left"] .tn-introcol,
+  [data-block="testimonials"][data-intro-position="right"] .tn-introcol {
+    flex: 0 0 auto;
+    width: 33.3333%;
+    position: sticky;
+    top: 2rem;
+    align-self: flex-start;
+  }
+  [data-block="testimonials"][data-intro-position="left"] .tn-itemscol,
+  [data-block="testimonials"][data-intro-position="right"] .tn-itemscol {
+    flex: 0 0 auto;
+    width: 66.6667%;
+  }
+  [data-block="testimonials"][data-intro-position="left"] .tn-intro-text,
+  [data-block="testimonials"][data-intro-position="right"] .tn-intro-text {
+    max-width: none;
+    margin: 0;
+  }
+  [data-block="testimonials"][data-intro-position="right"] .tn-frame {
+    flex-direction: row-reverse;
+  }
+}
+
+/* ═══ items：grid = 全部摊开；carousel = 横向轮播。手机一列 / 一屏一条，iPad 最多两条，≥992 按列数 ═══════ */
+[data-block="testimonials"][data-items-layout="grid"] .tn-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+@media (min-width: 768px) {
+  [data-block="testimonials"][data-items-layout="grid"][data-items-columns="2"] .tn-grid,
+  [data-block="testimonials"][data-items-layout="grid"][data-items-columns="3"] .tn-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 992px) {
+  [data-block="testimonials"][data-items-layout="grid"][data-items-columns="3"] .tn-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+[data-block="testimonials"][data-items-layout="grid"][data-item-style="plain"] .tn-grid {
+  row-gap: 3rem;
+  column-gap: 2.5rem;
+}
+
+/* 一列时也占满整列、不跟 introAlign（Chris 2026-10-01，#1516）：评价那一列永远是 col-12 的整行宽，块头文字才跟 introAlign；
+   条目里的文字对齐只由 itemAlign 管。以前那三条「限 48rem + 跟对齐」已删。 */
+
+/* carousel = Bootstrap Carousel（#1494）：一张 slide（.carousel-item）放 itemsColumns 条，服务端分好组；slide 里是 .tn-slide 网格 ——
+   <768 竖着叠、768–991 最多两列、≥992 按列数。轨道 / 切换 / 动画是 Bootstrap 自己的 .carousel 规则（site.css）。
+   以前那条手写轨道（横向滚动 + 自己算位置）已删。 */
+[data-block="testimonials"] .tn-slide {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+  padding-bottom: 2px; /* card 的下描边不被 .carousel-inner 的 overflow 裁掉 */
+}
+@media (min-width: 768px) {
+  [data-block="testimonials"][data-items-columns="2"] .tn-slide,
+  [data-block="testimonials"][data-items-columns="3"] .tn-slide {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 992px) {
+  [data-block="testimonials"][data-items-columns="3"] .tn-slide {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+[data-block="testimonials"][data-item-style="plain"] .tn-slide {
+  column-gap: 2.5rem;
+}
+/* `.slide` 是 Bootstrap 的 JS 用来判「切换时要不要动画」的开关，它自己在 CSS 里没有规则；轮播外壳本来就是定位上下文。 */
+[data-block="testimonials"] .tn-carousel.slide {
+  position: relative;
+}
+/* 每一条（grid 的格子 / slide 里的格子）：网格子项能收窄，长词不把一列撑宽。 */
+[data-block="testimonials"] .tn-item {
+  min-width: 0;
+}
+[data-block="testimonials"] .tn-carousel:focus-visible {
+  outline: 2px solid var(--x-primary);
+  outline-offset: 4px;
+}
+
+/* 圆点 = Bootstrap 的 .carousel-indicators（每张 slide 一个），从压在图上的那条拉回下面左边、换成图册的小圆点，
+   当前那个拉长成主色短条；前 / 后按钮在右边。一屏一条且 itemAlign=center 时两者居中叠在引言下面。
+   🔴 `.carousel-indicators` 自带 position:absolute / margin / 半透明的细条，这里逐条压回去（特异度从 [data-block] 起步，高过它）。 */
+[data-block="testimonials"] .tn-dots {
+  position: static;
+  margin: 0;
+  padding: 0;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-width: 0;
+}
+[data-block="testimonials"] .tn-dots [data-bs-target] {
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  background: var(--scheme-line);
+  opacity: 1;
+  text-indent: 0;
+  transition: width 0.2s;
+}
+[data-block="testimonials"] .tn-dots .active {
+  width: 1.5rem;
+  background: var(--x-primary);
+}
+[data-block="testimonials"] .tn-arrows {
+  flex-shrink: 0;
+}
+[data-block="testimonials"] .tn-arrow {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  border: 1px solid var(--x-border-color, #e5e7eb);
+  background: var(--x-body-bg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: inherit;
+}
+[data-block="testimonials"] .tn-arrow:hover {
+  border-color: var(--x-primary);
+  color: var(--scheme-primary-ink, var(--x-primary));
+}
+/* 圆点多（最多 6 条）时换行、不把前后按钮挤出去；前后按钮那一组不收缩（#1507）。 */
+[data-block="testimonials"] .tn-dots {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+[data-block="testimonials"] .tn-arrows {
+  flex-shrink: 0;
+}
+[data-block="testimonials"][data-item-align="center"][data-items-columns="1"] .tn-pager {
+  justify-content: center !important;
+  flex-direction: column;
+}
+[data-block="testimonials"][data-item-align="center"][data-items-columns="1"] .tn-dots {
+  justify-content: center;
+}
+
+/* ═══ 每一条：引言 → 人 → 星级 + 来源（贴底）════════════════════════════════════════════════════ */
+[data-block="testimonials"] .tn-inner {
+  gap: 1.25rem;
+}
+[data-block="testimonials"] .tn-quote {
+  font-size: 1rem;
+  line-height: 1.65;
+}
+[data-block="testimonials"] .tn-quote::before {
+  content: "\201C";
+}
+[data-block="testimonials"] .tn-quote::after {
+  content: "\201D";
+}
+[data-block="testimonials"] .tn-avatar {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: 0 0 auto;
+}
+[data-block="testimonials"] .tn-initials {
+  font-size: 0.875rem;
+}
+[data-block="testimonials"] .tn-meta {
+  margin-top: auto;
+}
+/* 星级那一排不收缩；来源 / 身份 / 正文 / 总评分条数遇到长词（网址、长名字）换行，不撑破卡片（#1507）。
+   `min-w-0` 是名字 + 身份那一栏（flex 子项）：本意是 `min-width: 0`，让它在头像旁边能收窄、长字才会换行 ——
+   这套 Bootstrap 栈里没有这条工具类，规则写在这里（Tailwind 的同名类在这里不生效）。 */
+[data-block="testimonials"] .tn-stars {
+  flex-shrink: 0;
+}
+[data-block="testimonials"] .min-w-0 {
+  min-width: 0;
+}
+[data-block="testimonials"] .tn-body,
+[data-block="testimonials"] .tn-role,
+[data-block="testimonials"] .tn-source,
+[data-block="testimonials"] .tn-platform-count,
+[data-block="testimonials"] .tn-logo-name {
+  overflow-wrap: anywhere;
+}
+[data-block="testimonials"] .tn-star svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* quoteSize：lg = 大字引言（字重 500），头像放大到 3.5rem。 */
+[data-block="testimonials"][data-quote-size="lg"] .tn-quote {
+  font-size: clamp(1.25rem, 2.4vw, 1.75rem);
+  line-height: 1.45;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+[data-block="testimonials"][data-quote-size="lg"] .tn-avatar {
+  width: 3.5rem;
+  height: 3.5rem;
+}
+
+/* itemStyle：card = 白底 + 1px 描边 + 1rem 圆角 + 2rem 内边距；plain 无底无线。 */
+[data-block="testimonials"][data-item-style="card"] .tn-inner {
+  background: var(--x-body-bg);
+  border: 1px solid var(--x-border-color, #e5e7eb);
+  border-radius: 1rem;
+  padding: 2rem;
+}
+
+/* itemAlign：center 时引言 / 人 / 星级都居中，头像在名字上面。 */
+[data-block="testimonials"][data-item-align="center"] .tn-inner {
+  text-align: center;
+  align-items: center;
+}
+[data-block="testimonials"][data-item-align="center"] .tn-meta {
+  justify-content: center !important;
+}
+[data-block="testimonials"][data-item-align="center"] .tn-author {
+  flex-direction: column;
+  gap: 0.5rem !important;
+}
+
+/* ═══ 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneForBg）══════════════════════════════
+   dark = 深底 / 深色渐变；brand = 主题主色底。两者一样：标题 / 名字 / 引言反白；身份 / 来源 / 总评分那行白 .92
+   （`.text-muted` → 全站那条 scripts/lib/site-css.js §ON_DEEP_MUTED，这里不抄一份）；card 半透明底 + 半透明白描边；
+   summary 每个平台的底 .08、品牌图标反白（#1500）；首字母圆半透明白；圆点半透明白（当前那个白）；前后按钮透明底 + 半透明白描边。 */
+[data-block="testimonials"][data-tone="dark"],
+[data-block="testimonials"][data-tone="brand"] {
+  color: #fff;
+}
+[data-block="testimonials"][data-tone="dark"] .tn-title,
+[data-block="testimonials"][data-tone="brand"] .tn-title,
+[data-block="testimonials"][data-tone="dark"] .tn-name,
+[data-block="testimonials"][data-tone="brand"] .tn-name,
+[data-block="testimonials"][data-tone="dark"] .tn-quote,
+[data-block="testimonials"][data-tone="brand"] .tn-quote,
+[data-block="testimonials"][data-tone="dark"] .tn-platform-rating,
+[data-block="testimonials"][data-tone="brand"] .tn-platform-rating,
+[data-block="testimonials"][data-tone="dark"] .tn-pc-score,
+[data-block="testimonials"][data-tone="brand"] .tn-pc-score,
+[data-block="testimonials"][data-tone="dark"] .tn-logo-icon,
+[data-block="testimonials"][data-tone="brand"] .tn-logo-icon,
+[data-block="testimonials"][data-tone="dark"] .tn-eyebrow-dash,
+[data-block="testimonials"][data-tone="brand"] .tn-eyebrow-dash,
+[data-block="testimonials"][data-tone="dark"] .tn-eyebrow-plain,
+[data-block="testimonials"][data-tone="brand"] .tn-eyebrow-plain {
+  color: #fff !important;
+}
+[data-block="testimonials"][data-tone="dark"][data-item-style="card"] .tn-inner,
+[data-block="testimonials"][data-tone="brand"][data-item-style="card"] .tn-inner {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+[data-block="testimonials"][data-tone="dark"] .tn-platform,
+[data-block="testimonials"][data-tone="brand"] .tn-platform {
+  background: rgba(255, 255, 255, 0.08);
+}
+[data-block="testimonials"][data-tone="dark"] .tn-initials,
+[data-block="testimonials"][data-tone="brand"] .tn-initials {
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #fff !important;
+}
+[data-block="testimonials"][data-tone="dark"] .tn-arrow,
+[data-block="testimonials"][data-tone="brand"] .tn-arrow {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #fff;
+}
+[data-block="testimonials"][data-tone="dark"] .tn-dots [data-bs-target],
+[data-block="testimonials"][data-tone="brand"] .tn-dots [data-bs-target] {
+  background: rgba(255, 255, 255, 0.35);
+}
+[data-block="testimonials"][data-tone="dark"] .tn-dots .active,
+[data-block="testimonials"][data-tone="brand"] .tn-dots .active {
+  background: #fff;
+}
+[data-block="testimonials"][data-tone="dark"] .tn-eyebrow-pill,
+[data-block="testimonials"][data-tone="brand"] .tn-eyebrow-pill {
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #fff !important;
+}
+[data-block="testimonials"][data-tone="dark"] .tn-eyebrow-outline,
+[data-block="testimonials"][data-tone="brand"] .tn-eyebrow-outline {
+  border-color: rgba(255, 255, 255, 0.7) !important;
+  color: #fff !important;
+}

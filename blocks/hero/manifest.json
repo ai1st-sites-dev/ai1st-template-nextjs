@@ -1,9 +1,92 @@
 {
   "type": "hero",
-  "displayName": "Hero Section",
+  "displayName": "Hero (Webpixels)",
   "category": "banner",
   "roleDefault": "lead",
+  "skin": "site-css",
+  "layout_intent": {
+    "items": "none",
+    "item_wrap": "allow",
+    "headline": "none",
+    "cross": "none",
+    "order": "dom",
+    "item_parts": "none",
+    "inner": "one"
+  },
+  "parts": ["proof", "stats", "logos", "band"],
+  "presets": [
+    { "name": "Split", "shape": "split", "knobs": { "textAlign": "left", "image": "left", "form": "none" } },
+    { "name": "Centered", "shape": "centered", "knobs": { "textAlign": "center", "image": "bottom", "form": "none" } },
+    { "name": "Cover", "shape": "cover", "knobs": { "textAlign": "left", "image": "background", "form": "none" } },
+    { "name": "Lead form", "shape": "lead-form", "knobs": { "textAlign": "left", "image": "left", "form": "full" } },
+    { "name": "Text only", "shape": "text-only", "knobs": { "textAlign": "left", "image": "none", "form": "none" } }
+  ],
   "slots": {
+    "options": {
+      "kind": "object",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{textAlign, image, form}",
+      "knobs": [
+        { "name": "textAlign", "values": ["left", "center", "right"] },
+        { "name": "image", "values": ["none", "left", "right", "top", "bottom", "background"] },
+        { "name": "form", "values": ["none", "teaser", "full"] }
+      ]
+    },
+    "bg": {
+      "kind": "color",
+      "required": false,
+      "promptOptional": true,
+      "shape": "\"#rrggbb\" | \"brand\" | {stops: [\"#rrggbb\" (2–3 个)], angle?: number}",
+      "swatches": ["#ffffff", "#f1f5f9", "#e0f2fe", "brand", "#1e293b", "#0f172a"]
+    },
+    "proof": {
+      "kind": "object",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{avatars: [{imageUrl}], rating, text}",
+      "editLabel": {
+        "text": "Review line"
+      }
+    },
+    "stats": {
+      "kind": "list",
+      "required": false,
+      "promptOptional": true,
+      "shape": "[{value, label}]",
+      "editLabel": {
+        "value": "Number",
+        "label": "What it counts"
+      }
+    },
+    "logos": {
+      "kind": "object",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{caption, items: [{imageUrl, alt}]}",
+      "editLabel": {
+        "caption": "Logos caption"
+      }
+    },
+    "band": {
+      "kind": "list",
+      "required": false,
+      "promptOptional": true,
+      "shape": "[{imageUrl, alt?}]",
+      "editItems": true
+    },
+    "eyebrow": {
+      "kind": "object",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{text, style: \"pill\" | \"outline\" | \"dash\" | \"plain\" | \"none\"}",
+      "editLabel": {
+        "text": "Eyebrow"
+      },
+      "choices": {
+        "style": ["pill", "outline", "dash", "plain", "none"]
+      }
+    },
     "headline": {
       "kind": "text",
       "required": true,
@@ -12,45 +95,30 @@
     },
     "subheadline": {
       "kind": "text",
-      "required": true,
-      "promptOptional": false,
+      "required": false,
+      "promptOptional": true,
       "editLabel": "Subheading"
     },
-    "ctaPrimary": {
-      "kind": "link",
-      "required": true,
-      "promptOptional": false,
-      "shape": "{label, href}",
+    "ctas": {
+      "kind": "list",
+      "required": false,
+      "promptOptional": true,
+      "shape": "[{label, href, style: \"solid\" | \"outline\" | \"link\", icon?, arrow?, size?}]",
       "editLabel": {
         "label": "Button text"
       }
     },
-    "ctaSecondary": {
-      "kind": "link",
-      "required": true,
-      "promptOptional": false,
-      "shape": "{label, href}",
-      "editLabel": {
-        "label": "Second button text"
-      }
-    },
-    "imageUrl": {
-      "kind": "image",
-      "required": false,
-      "promptOptional": true,
-      "shape": "string"
-    },
-    "imageBand": {
-      "kind": "list",
-      "required": false,
-      "promptOptional": true,
-      "shape": "[{imageUrl, alt?}]"
-    },
-    "socialProof": {
+    "image": {
       "kind": "object",
       "required": false,
       "promptOptional": true,
-      "shape": "{avatars: [{imageUrl}], rating, text}"
+      "shape": "{imageUrl, alt}"
+    },
+    "form": {
+      "kind": "object",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{id?}"
     }
   },
   "industries": {
@@ -60,12 +128,13 @@
   },
   "prompt": {
     "group": "homepage",
-    "order": 0,
+    "order": 3,
     "headPrefix": "",
-    "headSuffix": "",
+    "headSuffix": "the first-screen banner with presets (use it or hero, never both on one page)",
     "headExtra": null,
     "lines": [
-      "@data"
+      "@data",
+      "the form only shows when options.form is \"teaser\" (one field + button) or \"full\" (the whole form) — with a form the ctas are not shown; bg is the background colour, top-level in data (not inside options)"
     ]
   }
 }

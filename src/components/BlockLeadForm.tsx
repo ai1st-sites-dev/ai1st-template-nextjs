@@ -1,11 +1,11 @@
 'use client';
 
 // ══════════════════════════════════════════════════════════════════════════════════════════════════
-// BlockLeadForm —— 块里的「表单」部件（hero-new / footer-new / contact-new / cta-new 共用一份，总纲 #1422 的 T2.3 / T2.2A）
+// BlockLeadForm —— 块里的「表单」部件（hero / footer / contact / cta 共用一份，总纲 #1422 的 T2.3 / T2.2A）
 // ══════════════════════════════════════════════════════════════════════════════════════════════════
 //
-// 📌 出处：#1463（T2.3 hero）r2 的 hero-new 表单（dev2 写的），**逐字搬来**，只加了 `idPrefix` / `size` 两个参数；
-//    住在 `src/components/`（几个块共用，归哪个块都不对）。#1471 起 hero-new 也改用这一份，它自己那份删了。
+// 📌 出处：#1463（T2.3 hero）r2 的 hero 表单（dev2 写的），**逐字搬来**，只加了 `idPrefix` / `size` 两个参数；
+//    住在 `src/components/`（几个块共用，归哪个块都不对）。#1471 起 hero 也改用这一份，它自己那份删了。
 //
 // 提交那一条路照 `HeroLeadForm.tsx` / `quote-form`：POST `${leadApi}/api/leads`，蜜罐字段 `hp`，后端只要求
 // 「邮箱和电话至少有一个」；不跳页，原地显示 `successMessage`；`redirect` 有值才跳。
@@ -32,7 +32,7 @@
 //    `size`：hero 是 `lg`，页脚画小一号 `sm`（Webpixels 页脚那几份都是 `-sm`）。
 // #1477 —— `tone`：调用方把这块底色的字色判据（`contrast.js` §toneForBg）传进来。不是 `light` 时表单根上挂
 //    `data-tone`，输入框的字 / 占位字 / 边框换成白色那一档（规则在 `scripts/lib/site-css.js` §ON_DEEP_FORM，全站一份）。
-//    只给「输入框透明、直接压在深底上」的调用方传（footer-new）；cta-new 深底时自己把输入框涂成白底（它的
+//    只给「输入框透明、直接压在深底上」的调用方传（footer）；cta 深底时自己把输入框涂成白底（它的
 //    `block.css`），占位字原来的灰在白底上看得清，所以它不传 —— 传了就是白底白字。
 
 import { useState } from 'react';
@@ -76,7 +76,7 @@ export default function BlockLeadForm({ mode, formId, forms, services = [], loca
   /** 「需求」下拉的选项，调用方的 Section.tsx 读（理由见文件头）。 */
   services?: { id: string; name: string }[];
   locale: string; center?: boolean;
-  /** 表单整块的水平位置（hero-new 跟 `textAlign` 走）：center ⟹ `mx-auto`，right ⟹ `ms-auto`。`center` 是它的老写法。 */
+  /** 表单整块的水平位置（hero 跟 `textAlign` 走）：center ⟹ `mx-auto`，right ⟹ `ms-auto`。`center` 是它的老写法。 */
   align?: 'left' | 'center' | 'right';
   idPrefix?: string; size?: 'lg' | 'sm';
   tone?: 'light' | 'dark' | 'brand';

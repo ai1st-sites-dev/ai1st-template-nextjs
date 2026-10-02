@@ -1,22 +1,23 @@
 ---
-order: 2
+order: 1
+summary: "旧 page-header centered · 预设 Centered = headlinePosition top · textAlign center · image none"
+source: 旧 page-header centered
 layout_intent:
-  items: none
-  item_wrap: allow
-  headline: above
   media: none
   columns: one
   align: center
-  cross: none
   ratio: none
   media_side: none
-  order: dom
-  item_parts: none
-  inner: none
 ---
 
 # page-header · centered
 
-**什么时候用：** 一列 · 没有图 · 没有同级项 · 居中
+**预设名：** Centered（`blocks/page-header/manifest.json` 的 `presets`）
 
-**长什么样：** #1340 从生成器的 headerLook['centered'] 剪来；今天没有主题选它
+**长什么样：** 同 Simple，整块居中（面包屑、按钮行也居中）
+
+**旋钮：** headlinePosition top · textAlign center · image none。这是一个**预设**，不是一份单独的 markup：形态目录只决定「旋钮从哪一组值起」，
+`options` 里写了的旋钮逐个覆盖它（`scripts/lib/block-knobs.js` §effectiveKnobs）；拧偏了编辑器显示 custom，
+`data-shape` 仍是这个目录。
+
+**出处：** 旧 page-header centered（定稿图册 page-header 段，`docs/reference/webpixels/gallery/gen-pageheader.py` + `build.py`）

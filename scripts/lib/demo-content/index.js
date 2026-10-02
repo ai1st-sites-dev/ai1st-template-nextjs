@@ -124,7 +124,7 @@ function demoDataFor(manifest, opts) {
 }
 
 /**
- * #1506 —— 演示内容里写成引用的那几处（features-new 的 `{source: "services"}`、按钮 / 页头顶条 / 页脚里的
+ * #1506 —— 演示内容里写成引用的那几处（features 的 `{source: "services"}`、按钮 / 页头顶条 / 页脚里的
  * `{source: "phone"}` …）展开时用的站点数据：演示生意那一份（DEMO_SITE），不是跑这个服务的那个站的。
  * 单格页和各块的渲染单测都从这里取，不各拼一份。
  */

@@ -6,7 +6,7 @@
  *   退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
  *
  * schema 用这个模板**自己的**区块库现算（`editor-schema.js` §editorSchema），不手写块名 / 字段名：记录里的字
- * 必须是老板在编辑器面板上看到的那几个，而那几个只住在 manifest 里。外壳四样的字段名从 `EditorApp.tsx` 的
+ * 必须是老板在编辑器面板上看到的那几个，而那几个只住在 manifest 里。外壳三样（#1425 T3 起）的字段名从 `EditorApp.tsx` 的
  * §ROOT_FIELD_LABELS 读（面板用的就是那一份）。
  */
 
@@ -31,16 +31,17 @@ try {
   rootLabels = Object.fromEntries([...m[1].matchAll(/(\w+):\s*'([^']*)'/g)].map((x) => [x[1], x[2]]));
 } catch (e) { die(`起不来：${e.message}`); }
 if (typeof describeSave !== 'function') die('editor-convert.js 没有导出 describeSave');
-for (const f of ['layout', 'topbarMessage']) if (!rootLabels[f]) die(`ROOT_FIELD_LABELS 里没有 ${f}`);
+// #1425（T3）：公告条文字 topbarMessage 随公告条那个区退役，外壳只剩 layout / headerShape / footerShape。
+for (const f of ['layout', 'headerShape', 'footerShape']) if (!rootLabels[f]) die(`ROOT_FIELD_LABELS 里没有 ${f}`);
 
 const label = (type) => { const c = schema.components.find((x) => x.type === type); if (!c) die(`区块库里没有 ${type}`); return c; };
 const hero = label('hero');
-const bar = label('announcement-bar');
+const bar = label('cta'); // #1425（T3）：原来是 announcement-bar（随旧库删了），换成同样只有一句短字段的 cta
 const fieldLabel = (c, slot) => { const f = c.fields.find((x) => x.slot === slot); if (!f) die(`${c.type} 没有字段 ${slot}`); return f.label; };
 
 const saved = {
   blocks: [
-    { id: 'home-announcement-bar-0', type: 'announcement-bar', data: { message: 'Spring sale' } },
+    { id: 'home-cta-0', type: 'cta', data: { body: 'Spring sale' } },
     { id: 'home-hero-1', type: 'hero', data: { headline: 'Old headline', subheadline: 'Old sub' } },
   ],
 };
@@ -48,21 +49,23 @@ const edit = (fn) => { const j = JSON.parse(JSON.stringify(saved)); fn(j); retur
 const run = (a) => describeSave({ saved, json: null, root: null, shared: null, schema, rootLabels, shapeLabel: 'Layout', ...a });
 
 console.log('① 一个块一个字段');
-eq(run({ json: edit((j) => { j.blocks[0].data.message = '123🎉'; }) }), `${bar.label} · ${fieldLabel(bar, 'message')}`, '改公告条的 Message');
+eq(run({ json: edit((j) => { j.blocks[0].data.body = '123🎉'; }) }), `${bar.label} · ${fieldLabel(bar, 'body')}`, '改 CTA 的 Body');
 
 console.log('② 一个块两个字段（照 schema 的字段顺序）');
 eq(run({ json: edit((j) => { j.blocks[1].data.subheadline = 'b'; j.blocks[1].data.headline = 'a'; }) }),
   `${hero.label} · ${fieldLabel(hero, 'headline')}, ${fieldLabel(hero, 'subheadline')}`, '改 Hero 的两个字段');
 
 console.log('③ 一次 Save 改了两个块 → 两个都列');
-eq(run({ json: edit((j) => { j.blocks[0].data.message = 'x'; j.blocks[1].data.headline = 'y'; }) }),
-  `${bar.label} · ${fieldLabel(bar, 'message')}; ${hero.label} · ${fieldLabel(hero, 'headline')}`, '两个块');
+eq(run({ json: edit((j) => { j.blocks[0].data.body = 'x'; j.blocks[1].data.headline = 'y'; }) }),
+  `${bar.label} · ${fieldLabel(bar, 'body')}; ${hero.label} · ${fieldLabel(hero, 'headline')}`, '两个块');
 
-console.log('④ 外壳：Page layout 带上新值；公告条文字只说字段名');
-eq(run({ root: { layout: 'with-topbar' } }), `${rootLabels.layout} → with-topbar`, '改 Page layout');
-eq(run({ root: { topbarMessage: 'hi' } }), rootLabels.topbarMessage, '改外壳的公告条文字');
-eq(run({ json: edit((j) => { j.blocks[0].data.message = 'x'; }), root: { layout: 'standard' } }),
-  `${bar.label} · ${fieldLabel(bar, 'message')}; ${rootLabels.layout} → standard`, '页面 + 外壳同一笔');
+console.log('④ 外壳：选一项的字段带上新值');
+// 📌 #1425（T3）—— 这里原来还测「公告条文字只说字段名」（topbarMessage）；公告条那个区随旧库删了，今天外壳三样全是选一项。
+eq(run({ root: { layout: 'standard' } }), `${rootLabels.layout} → standard`, '改 Page layout');
+eq(run({ root: { headerShape: 'topbar' } }), `${rootLabels.headerShape} → topbar`, '改 Header style');
+eq(run({ root: { footerShape: '' } }), `${rootLabels.footerShape} → (default)`, '把 Footer style 改回默认');
+eq(run({ json: edit((j) => { j.blocks[0].data.body = 'x'; }), root: { layout: 'standard' } }),
+  `${bar.label} · ${fieldLabel(bar, 'body')}; ${rootLabels.layout} → standard`, '页面 + 外壳同一笔');
 
 console.log('⑤ 增 / 删 / 只挪位置 / 换形态');
 eq(run({ json: edit((j) => { j.blocks.push({ id: 'home-hero-2', type: 'hero', data: {} }); }) }), `${hero.label} (added)`, '加一块');
@@ -71,19 +74,19 @@ eq(run({ json: edit((j) => { j.blocks.reverse(); j.blocks[0].weight = 0; j.block
 eq(run({ json: edit((j) => { j.blocks[1].shape = 'split'; }) }), `${hero.label} · Layout`, '换了形态');
 
 console.log('⑥ 共用块：按块库里那一块的类型取名');
-eq(run({ shared: { 'site-bar': { data: { message: 'x' }, was: {} } }, siteBlocks: { 'site-bar': { type: 'announcement-bar', data: {} } } }),
-  `${bar.label} · ${fieldLabel(bar, 'message')}`, '改共用块的字');
-eq(run({ shared: { 'site-bar': { unlist: true } }, siteBlocks: { 'site-bar': { type: 'announcement-bar', data: {} } } }),
+eq(run({ shared: { 'site-bar': { data: { body: 'x' }, was: {} } }, siteBlocks: { 'site-bar': { type: 'cta', data: {} } } }),
+  `${bar.label} · ${fieldLabel(bar, 'body')}`, '改共用块的字');
+eq(run({ shared: { 'site-bar': { unlist: true } }, siteBlocks: { 'site-bar': { type: 'cta', data: {} } } }),
   `${bar.label} (removed from this page)`, '从这一页拿掉共用块');
 
 console.log('⑦ 反向：比的底是「上一次存下去的那份」，不是打开时那份');
-// 第一笔改了 message 并存下（saved 变成那一份），第二笔只改 headline：第二条记录不许把 message 再说一遍。
-const afterFirst = edit((j) => { j.blocks[0].data.message = 'first save'; });
+// 第一笔改了 body 并存下（saved 变成那一份），第二笔只改 headline：第二条记录不许把 body 再说一遍。
+const afterFirst = edit((j) => { j.blocks[0].data.body = 'first save'; });
 const second = JSON.parse(JSON.stringify(afterFirst)); second.blocks[1].data.headline = 'second save';
 eq(describeSave({ saved: afterFirst, json: second, root: null, shared: null, schema, rootLabels }),
   `${hero.label} · ${fieldLabel(hero, 'headline')}`, '连存两笔，第二笔只说它自己');
 eq(describeSave({ saved, json: second, root: null, shared: null, schema, rootLabels }),
-  `${bar.label} · ${fieldLabel(bar, 'message')}; ${hero.label} · ${fieldLabel(hero, 'headline')}`,
+  `${bar.label} · ${fieldLabel(bar, 'body')}; ${hero.label} · ${fieldLabel(hero, 'headline')}`,
   '（对照）拿打开时那份当底，就会把第一笔又说一遍 —— 所以调用方必须传 saved');
 
 console.log(`\n${pass} passed, ${fail} failed`);

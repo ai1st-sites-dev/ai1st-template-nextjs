@@ -40,22 +40,21 @@ const solid = (hex) => 'data:image/svg+xml;utf8,'
  */
 const IMAGES = {
   'hero-bay':        { url: cdn('hero', 10),         fallback: solid('#20293a') },
-  'hero-front-desk': { url: cdn('hero', 17),         fallback: solid('#243043') },
   'about-workshop':  { url: cdn('about', 9),         fallback: solid('#2b3546') },
 
-  // #1480（Chris 2026-09-29）：hero-new 的「logos」那一排要的是真 logo，不是照片。这四个是 Webpixels 自己
+  // #1480（Chris 2026-09-29）：hero 的「logos」那一排要的是真 logo，不是照片。这四个是 Webpixels 自己
   // 示例里的客户 logo（设计图册 `docs/reference/webpixels/gallery/gen-heroes.py` §LOGOS 用的就是它们四个），
   // 单色 SVG，深底时 `.hro-logo` 的 `filter: invert` 能反白。同样只给图册看。
   'client-logo-1': { url: 'https://assets.webpixels.io/img/clients/full/logo-1.svg', fallback: solid('#1b2331') },
   'client-logo-2': { url: 'https://assets.webpixels.io/img/clients/full/logo-2.svg', fallback: solid('#1b2331') },
   'client-logo-3': { url: 'https://assets.webpixels.io/img/clients/full/logo-3.svg', fallback: solid('#1b2331') },
   'client-logo-4': { url: 'https://assets.webpixels.io/img/clients/full/logo-4.svg', fallback: solid('#1b2331') },
-  // #1496 —— logos-new 的夹具要 6 个 logo；图册 logos 段用的就是上面四个 + 下面这两个（`gen-logos.py` §LOGOS 里的
+  // #1496 —— logos 的夹具要 6 个 logo；图册 logos 段用的就是上面四个 + 下面这两个（`gen-logos.py` §LOGOS 里的
   //    哈希文件名按 `build.py` 的命名规则反查出来的），同样是 Webpixels 示例里的单色 SVG。
   'client-logo-5': { url: 'https://assets.webpixels.io/img/logos/midnight-dark.svg', fallback: solid('#1b2331') },
   'client-logo-6': { url: 'https://assets.webpixels.io/img/logos/clever-dark.svg', fallback: solid('#1b2331') },
   // 同一批：演示生意自己的品牌 logo（header / footer 四处共用一个，同一家店同一个 logo）。四处的演示底色都是浅色
-  // （footer-new 的 `bg: null` ⟹ dark=false），所以用深色版。
+  // （footer 的 `bg: null` ⟹ dark=false），所以用深色版。
   'brand-logo':    { url: 'https://assets.webpixels.io/img/logos/clever-dark.svg', fallback: solid('#1b2331') },
 
   'avatar-1': { url: cdn('team', 1), fallback: solid('#3d4657') },
@@ -71,7 +70,7 @@ const IMAGES = {
   'work-4': { url: cdn('gallery', 5),  fallback: solid('#3f4c6c') },
   'work-5': { url: cdn('gallery', 9),  fallback: solid('#435072') },
   'work-6': { url: cdn('gallery', 10), fallback: solid('#475478') },
-  // #1495 —— gallery-new 的瀑布流（grid + original）要**横竖都有**才看得出错落：`gallery` 那一类 15 张现取全是 1000x1000，
+  // #1495 —— gallery 的瀑布流（grid + original）要**横竖都有**才看得出错落：`gallery` 那一类 15 张现取全是 1000x1000，
   //    所以横图 / 竖图从 `about` 那一类挑真照片（2026-09-30 现取尺寸，看过是实拍、不是界面插画）。
   'work-wide-1': { url: cdn('about', 13), fallback: solid('#34405a') },  // 1440x910
   'work-wide-2': { url: cdn('about', 2),  fallback: solid('#38445e') },  // 1176x728
@@ -79,24 +78,8 @@ const IMAGES = {
   'work-tall-2': { url: cdn('about', 15), fallback: solid('#404c66') },  // 780x1140
   'work-tall-3': { url: cdn('about', 20), fallback: solid('#44506a') },  // 702x910
 
-  // #1376 把「一排数字」那个块并进 `social-proof` 时给它加了一个可选图槽（`imageUrl`）。那个零件是
-  // 钉在块最后一行的通栏图（`.social-proof__media`，`public/shapes.css` 给它 `max-width: 48rem`，
-  // 实测盒子 768x480），而 `globals.css:654` 给里面的 `<img>` 写的是 `object-fit: cover`。
-  // 🔴 **所以这里要一张横图。** `testimonials` 那一类十张没有一张是横的（现取 576x947 / 461x541 /
-  // 509x509），放进 768x480 的带子里 `cover` 会把上下裁掉大半、只剩一张脸。`about-12` 是 1152x728，
-  // 跟那条带子同一个方向，裁掉的是边上一点。
-  'reviews-band': { url: cdn('about', 12), fallback: solid('#2a3448') },
-
-  // #1362 —— faq-accordion 的 `media-side` 那一侧的人物图。取 `faq` 那一类：它跟这个块是同一件事，
-  // 而复用 `about-workshop` 会让图册上这两个块看起来是同一段内容。
-  // 🔴 这张要竖一点才对：`.faq-accordion__media` 在 base.css 里是 `aspect-ratio: 4 / 3`，里面的 `<img>`
-  //    走 `object-fit: cover`（globals.css）；faq-1 现取 1176x980（约 6:5），裁掉的只是上下一点。
-  'faq-advisor': { url: cdn('faq', 1), fallback: solid('#2b3546') },
-  // #1382 —— contact-info 的 `media-side-grid` 那一侧的实景图。取 `contact` 那一类而不是复用
-  // `about-workshop`：图册上这两个块今天并排着看，同一张照片会读成「这是同一段内容」。
-  // 🔴 横图：`.contact-info__media` 在 base.css 里是 `aspect-ratio: 4 / 3`，里面的 `<img>` 走
-  //    `object-fit: cover`（globals.css）—— 竖图进这个盒子会被裁掉上下大半。contact-1 现取 1600x878（16:9 偏宽，裁的是左右一点）。
-  'contact-desk': { url: cdn('contact', 1), fallback: solid('#26323f') },
+  // 📌 #1425（T3）—— 这里原来还有四张（`hero-front-desk` · `reviews-band` · `faq-advisor` · `contact-desk`），分别给旧库的
+  //    hero-with-form / social-proof / faq-accordion / contact-info 用，随旧库删了（没人用的图会让 demo-content 的守卫红）。
 };
 
 /**

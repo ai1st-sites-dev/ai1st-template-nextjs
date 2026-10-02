@@ -158,7 +158,7 @@ async function main() {
   }
 
   // 深色站把 `--x-heading-color` 设成 `initial`（site-css.js §SCHEME_SURFACES：不让 Webpixels 的 dark 白标题套进浅底）
-  // ⟹ `var(--x-heading-color, <写死的颜色>)` 在深色站上落到那个写死的颜色（content-new 曾是 #0f172a 压 #131313 = 1.05:1）。
+  // ⟹ `var(--x-heading-color, <写死的颜色>)` 在深色站上落到那个写死的颜色（content 曾是 #0f172a 压 #131313 = 1.05:1）。
   // 兜底只许写 `--scheme-*` 变量（light 值等于原字面量，dark 下跟着换）。
   console.log('\n── 块 CSS 里 --x-heading-color 的兜底');
   {

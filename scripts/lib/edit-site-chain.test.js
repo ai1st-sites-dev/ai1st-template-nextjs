@@ -645,15 +645,22 @@ console.log('\n⑥ 反向对照：两笔同一种写法 —— ⑤ 那一格不�
 //    都听不到。QA1 r5 数过：本仓此前没有任何一格驱动这条接线。
 //
 // 两臂只差一个变量 —— **同一个站、同一次编辑，只换页脚版式**：
-//    ⑦  页脚是 `slim-row`（不画栏目标题）⟹ 回执里必须有那句实话
-//    ⑦b 页脚是 `multi-column`（真的画它）⟹ 回执里**一句都不许有**（多说就是新的假话）
-console.log('\n⑦ 页脚版式不画栏目标题时，回执里带着那句实话（真进程 + 真站）');
+//    ⑦  页脚是 `slim-row`（不画页脚简介）⟹ 回执里必须有那句实话
+//    ⑦b 页脚是 `stacked`（真的画它）⟹ 回执里**一句都不许有**（多说就是新的假话）
+//    ⑦c 栏目标题（footer.columns[].title）：今天**没有任何**页脚形态画它 ⟹ 哪怕页脚是 `columns`，回执也照实说
+// 📌 #1425（T3）：两臂原来改的是 footer.columns[].title（slim-row 不画 / multi-column 画）。新库里没有任何形态画
+//    栏目标题（`navigation-owned.js` §PAGE_READS 的 renderedBy: []），⑦b 那一臂对它不再可能；同一个「一种形态画、
+//    另一种不画」的性质换到 footer.description（派生成 footer 的 tagline：stacked / columns / cta-* 画，slim-row 不画）。
+//    栏目标题那种「谁都不画」的话术单独一格 ⑦c。
+console.log('\n⑦ 页脚版式不画页脚简介时，回执里带着那句实话（真进程 + 真站）');
 {
   /**
-   * 跑一次「把页脚第一栏的标题改掉」，返回那次 write_file 的回执。
+   * 跑一次「改页脚里的某个字段」，返回那次 write_file 的回执。
    * @param {string} footerVariant 这个站的页脚版式（写进 site/theme.json 的 regionLayout）
+   * @param {(nav: object) => void} edit  在 navigation.json 上做的那一笔
+   * @param {(nav: object) => unknown} readBack  读回那个字段
    */
-  const runTitleEdit = (label, footerVariant) => {
+  const runFooterEdit = (label, footerVariant, edit, readBack) => {
     const ctx = makeRoot(label);
     const site = writeSite(ctx.work);
 
@@ -679,28 +686,28 @@ console.log('\n⑦ 页脚版式不画栏目标题时，回执里带着那句实�
 
     const navPath = path.join(site, 'en', 'navigation.json');
     const nav = JSON.parse(fs.readFileSync(navPath, 'utf8'));
-    if (!Array.isArray(nav.footer.columns) || !nav.footer.columns[0]
-        || typeof nav.footer.columns[0].title !== 'string') {
-      die('⑦ 夹具立不起来：这个站的 navigation.json 里没有 footer.columns[0].title');
-    }
-    const titleBefore = nav.footer.columns[0].title;
-    nav.footer.columns[0].title = 'What We Do';
+    if (!nav.footer || typeof nav.footer !== 'object') die('⑦ 夹具立不起来：这个站的 navigation.json 里没有 footer');
+    const valueBefore = readBack(nav);
+    edit(nav);
 
     ctx.git('git add -A && git commit -q -m base && git push -q origin main');
     const res = runEdit(ctx, [
-      reply([textBlock('Renaming that footer column.'),
+      reply([textBlock('Updating the footer.'),
         writeCall('t1', 'en/navigation.json', JSON.stringify(nav, null, 2))], 'tool_use'),
       reply([textBlock('Done.')], 'end_turn'),
     ]);
-    const onDisk = JSON.parse(fs.readFileSync(navPath, 'utf8')).footer.columns[0].title;
-    return { res, receipt: toolResultContent(res, 1, 't1'), titleBefore, onDisk };
+    const onDisk = readBack(JSON.parse(fs.readFileSync(navPath, 'utf8')));
+    return { res, receipt: toolResultContent(res, 1, 't1'), valueBefore, onDisk };
   };
 
   const SENTENCE = 'was saved, but nothing on the';
+  const NEW_DESC = 'Family-run since 1998 (1425)';
+  const editDesc = (nav) => { nav.footer.description = NEW_DESC; };
+  const readDesc = (nav) => (nav && nav.footer ? nav.footer.description : undefined);
 
   // ── ⑦ 不画它的那一支：放行 + 说实话 ──────────────────────────────────────────────────────────
   {
-    const { receipt, titleBefore, onDisk } = runTitleEdit('nav-title-invisible', 'slim-row');
+    const { receipt, valueBefore, onDisk } = runFooterEdit('nav-desc-invisible', 'slim-row', editDesc, readDesc);
     if (receipt === null) {
       bad('⑦ 第二轮请求里找不到 t1 那条 tool_result —— 模型收到了什么问不出来');
     } else {
@@ -710,15 +717,15 @@ console.log('\n⑦ 页脚版式不画栏目标题时，回执里带着那句实�
       const allowed = !!(parsed && parsed.success === true);
       if (!allowed) {
         bad(`⑦ 门把这次编辑拒了 —— 本票要它写得进去：${receipt.slice(0, 200)}`);
-      } else if (onDisk !== 'What We Do' || titleBefore === 'What We Do') {
-        bad(`⑦ 值没有真的落盘（改前 "${titleBefore}" → 磁盘上 "${onDisk}"）`);
+      } else if (onDisk !== NEW_DESC || valueBefore === NEW_DESC) {
+        bad(`⑦ 值没有真的落盘（改前 "${valueBefore}" → 磁盘上 "${onDisk}"）`);
       } else if (!msg.includes(SENTENCE)) {
         bad(`⑦ 放行了、值也写进去了，而回执里【没有】那句实话 —— 老板会拿到「已完成」而页面不变。`
           + `回执：${receipt.slice(0, 260)}`);
-      } else if (!msg.includes('footer.columns[].title') || !msg.includes('slim-row')) {
+      } else if (!msg.includes('footer.description') || !msg.includes('slim-row')) {
         bad(`⑦ 那句话在，但没点名是哪个字段 / 这个站是什么版式：${msg.slice(0, 260)}`);
       } else {
-        ok('⑦ 页脚是 slim-row 的真站上改栏目标题：门放行、值真的落盘，而回执里带着'
+        ok('⑦ 页脚是 slim-row 的真站上改页脚简介：门放行、值真的落盘，而回执里带着'
           + '「写进去了，但你这个站的页脚不显示它」并点名了字段和版式 —— 接线是通的');
       }
     }
@@ -726,17 +733,38 @@ console.log('\n⑦ 页脚版式不画栏目标题时，回执里带着那句实�
 
   // ── ⑦b 反向对照：真的画它的那一支，一句都不许多 ─────────────────────────────────────────────
   {
-    const { receipt, onDisk } = runTitleEdit('nav-title-visible', 'multi-column');
+    const { receipt, onDisk } = runFooterEdit('nav-desc-visible', 'stacked', editDesc, readDesc);
     if (receipt === null) {
       bad('⑦b 第二轮请求里找不到 t1 那条 tool_result');
-    } else if (onDisk !== 'What We Do') {
+    } else if (onDisk !== NEW_DESC) {
       bad(`⑦b 值没有落盘（磁盘上是 "${onDisk}"）—— 这一臂什么都没证明`);
     } else if (receipt.includes(SENTENCE)) {
-      bad('⑦b 页脚是 multi-column（它真的画栏目标题），回执里却说「你这个站不显示它」'
+      bad('⑦b 页脚是 stacked（它真的画页脚简介），回执里却说「你这个站不显示它」'
         + ` —— 这是新造的一句假话：${receipt.slice(0, 260)}`);
     } else {
-      ok('⑦b 反向对照：同一个站、同一次编辑，只把页脚换成真的画它的 multi-column，那句话当场消失'
+      ok('⑦b 反向对照：同一个站、同一次编辑，只把页脚换成真的画它的 stacked，那句话当场消失'
         + ' ⟹ ⑦ 那句绿是版式那一维给的，不是「凡是改 navigation.json 就多一句」');
+    }
+  }
+
+  // ── ⑦c #1425（T3）：栏目标题今天谁都不画 ⟹ 哪个版式都说实话，而且不把它说成「换个样式就有」──────────
+  {
+    const editTitle = (nav) => {
+      if (!Array.isArray(nav.footer.columns) || !nav.footer.columns[0] || typeof nav.footer.columns[0].title !== 'string') {
+        die('⑦c 夹具立不起来：这个站的 navigation.json 里没有 footer.columns[0].title');
+      }
+      nav.footer.columns[0].title = 'What We Do';
+    };
+    const readTitle = (nav) => (nav && nav.footer && Array.isArray(nav.footer.columns) && nav.footer.columns[0] ? nav.footer.columns[0].title : undefined);
+    const { receipt, onDisk } = runFooterEdit('nav-title-nobody', 'columns', editTitle, readTitle);
+    let parsed = null;
+    try { parsed = JSON.parse(receipt || ''); } catch { /* 下面按 null 报 */ }
+    const msg = parsed && typeof parsed.message === 'string' ? parsed.message : '';
+    if (!!(parsed && parsed.success === true) && onDisk === 'What We Do'
+      && msg.includes(SENTENCE) && msg.includes('footer.columns[].title') && /no header or footer style on this website shows it/.test(msg)) {
+      ok('⑦c 页脚是 columns 的真站上改栏目标题：放行、落盘，回执照实说「今天没有哪种样式显示它」');
+    } else {
+      bad(`⑦c 页脚是 columns 的真站上改栏目标题：要放行、落盘、回执照实说今天没有样式显示它 —— 磁盘上 "${onDisk}"，回执：${(receipt || '').slice(0, 260)}`);
     }
   }
 }
@@ -896,12 +924,14 @@ console.log('\n⑩ 站级块库:六种枚举出来的畸形形状 + 真模型写
   }
   // 好的那一条。它的 id 是 `keepme`,坏的那条是 `busted` —— 两个词在被测代码的静态文案里都不出现
   // (报文是拿它们拼出来的),所以「出现/不出现」这两个断言都有判别力。
-  const keepme = { type: 'card-group', data: { headline: 'Why us', items: ['Licensed', 'Insured'] } };
+  // #1425（T3）：夹具块原来是 card-group（随旧库删了），换成 features（同样 headline + items 两个必填槽）。
+  //    items 写成对象：裸字符串 items 在新 features 里按 PM 裁定是「滤掉不渲染」，不是被拒的那一类。
+  const keepme = { type: 'features', data: { headline: 'Why us', items: [{ title: 'Licensed', text: 'Fully licensed.' }, { title: 'Insured', text: 'Fully insured.' }] } };
   const SHAPES = [
-    ['A items 里有 null', { type: 'card-group', data: { headline: 'K', items: ['a', null] } }],
-    ['B items 整个不是数组', { type: 'card-group', data: { headline: 'K', items: 'a、b' } }],
+    ['A items 里有 null', { type: 'features', data: { headline: 'K', items: [{ title: 'a', text: 'b' }, null] } }],
+    ['B items 整个不是数组', { type: 'features', data: { headline: 'K', items: 'a、b' } }],
     ['C type 是不存在的块名', { type: 'no-such-block', data: { headline: 'K' } }],
-    ['D 缺必填槽', { type: 'card-group', data: {} }],
+    ['D 缺必填槽', { type: 'features', data: {} }],
     ['E 值本身写成 ref(没自己的 type)', { ref: 'keepme', visibility: ['*'] }],
     ['F 值整格是 null', null],
   ];
@@ -965,8 +995,9 @@ console.log('\n⑩ 站级块库:六种枚举出来的畸形形状 + 真模型写
   {
     const realModelShape = {
       blocks: [{
-        id: 'shared-cta-banner', type: 'cta-banner', role: 'optional', region: 'content', weight: 90,
-        data: { headline: 'Ready to book?', description: 'Call us today.', button: { label: 'Quote', href: '/quote' } },
+        // #1425（T3）：那份真形状里的块原来是 cta-banner（随旧库删了）；换成 cta，「整个文件包在一个 blocks 数组里」这一维不变。
+        id: 'shared-cta', type: 'cta', role: 'optional', region: 'content', weight: 90,
+        data: { headline: 'Ready to book?', body: 'Call us today.', ctas: [{ label: 'Quote', href: '/quote', style: 'solid' }] },
       }],
     };
     const res = runEdit(ctx, [
@@ -1014,14 +1045,14 @@ console.log('\n⑪ 反向对照:合法站级块 + 页面里的 ref 条目 ⟹ �
   //    这一格问的另外几样（visibility / weight / role）一个字没改，读数见下面那几条断言。
   const lib = {
     'shared-cta': {
-      type: 'cta-banner',
+      type: 'cta', // #1425（T3）：原来是 cta-banner（随旧库删了）
       visibility: ['*'],
       weight: 90,
       role: 'optional',
       data: {
         headline: PROBE,
-        description: 'Tell us what you need and we will get back to you the same day.',
-        button: { label: 'Get a quote', href: '/quote' },
+        body: 'Tell us what you need and we will get back to you the same day.',
+        ctas: [{ label: 'Get a quote', href: '/quote', style: 'solid' }],
       },
     },
   };
@@ -1079,7 +1110,7 @@ console.log('\n⑫ 提示词里那个站级块的例子:构建期 rc=0,新那道
     if (example) {
       const { normalizeLocalePages } = require(path.join(NEXT, 'scripts', 'blocks.js'));
       const { validateSite } = require(path.join(NEXT, 'scripts', 'lib', 'block-manifest.js'));
-      const page = { slug: 'home', blocks: [{ type: 'text-block', data: { body: 'x' } }] };
+      const page = { slug: 'home', blocks: [{ type: 'content', data: { body: 'x' } }] }; // #1425（T3）：原来是 text-block
       let buildErr = null;
       try { normalizeLocalePages([page], JSON.parse(JSON.stringify(example)), 'en', {}); }
       catch (e) { buildErr = e.message; }
@@ -1615,8 +1646,10 @@ console.log('\n⑬ 图片取不到 ⟹ 一句人话，不是一段 JS 栈（#120
 //
 // 编辑器那两条路在 `scripts/link-href.test.js`；这一格是第三条 —— AI 聊天的 write_file。判据是同一个函数
 // （`lib/link-href.js` §linkRejection），所以把它改坏一次，那边和这边要一起红。
-// 三种文件都要问：页面 JSON、navigation.json（公告条 + 顶栏按钮）、站级块库。只拦其中一种的话，模型
+// 三种文件都要问：页面 JSON、navigation.json（顶栏按钮）、站级块库。只拦其中一种的话，模型
 // 换个文件就把同一个链接写进去了。
+// 📌 #1425（T3）：navigation.json 原来还问公告条链接（topbar.link）；公告条那个区随旧库退役，`NAV_LINKS` 里那一行删了，
+//    那几格一起删。页面按钮原来写在 hero.ctaPrimary（单槽），新 hero 的按钮是 ctas 列表。
 // 🔴 判「被拒」看两样：文件逐字节不变（站级块库那份本来不在 ⟹ 仍然不在），以及那条 tool_result
 //    自己带着这一关的话（不是别的关拒的 —— 别的关拒也会让文件不变，那样这一格就不在测本票）。
 console.log('\n⑮ 链接协议（#1416）：页面 / navigation.json / 站级块库，三种坏协议全被拒，四种好的照收');
@@ -1630,32 +1663,32 @@ console.log('\n⑮ 链接协议（#1416）：页面 / navigation.json / 站级�
   const libFile = path.join(site, 'en', 'blocks', 'site-blocks.json');
   const home = JSON.parse(fs.readFileSync(homeFile, 'utf8'));
   const hero = (home.blocks || []).find((b) => b && b.type === 'hero');
-  if (!hero || !hero.data || !hero.data.ctaPrimary) die('⑮：夹具首页没有带 ctaPrimary 的 hero');
+  if (!hero || !hero.data || !Array.isArray(hero.data.ctas) || hero.data.ctas.length < 2) die('⑮：夹具首页没有带两个 ctas 的 hero');
   const nav = JSON.parse(fs.readFileSync(navFile, 'utf8'));
 
-  const pageWith = (slot, href) => {
+  /** 首页 hero 的第 idx 个按钮改成 href（0 = 主按钮、1 = 次按钮）。 */
+  const pageWith = (idx, href) => {
     const p = JSON.parse(JSON.stringify(home));
-    p.blocks.find((b) => b && b.type === 'hero').data[slot] = { label: 'Book now', href };
+    p.blocks.find((b) => b && b.type === 'hero').data.ctas[idx] = { label: 'Book now', href, style: 'solid' };
     return JSON.stringify(p, null, 2);
   };
   const navWith = (edit) => { const n = JSON.parse(JSON.stringify(nav)); edit(n); return JSON.stringify(n, null, 2); };
   const libWith = (href) => JSON.stringify({
-    'shared-cta': { type: 'cta-banner', data: { headline: 'Ready?', description: 'Call us today.', button: { label: 'Call', href } } },
+    'shared-cta': { type: 'cta', data: { headline: 'Ready?', body: 'Call us today.', ctas: [{ label: 'Call', href, style: 'solid' }] } },
   }, null, 2);
 
   const BAD = ['javascript:alert(1)', 'vbscript:msgbox(1)', 'data:text/html,<script>alert(1)</script>'];
   const calls = [];
   BAD.forEach((href, i) => {
-    calls.push({ id: `p${i}`, what: `页面 hero 按钮 ${href.split(':')[0]}:`, call: writeCall(`p${i}`, 'en/pages/home.json', pageWith('ctaPrimary', href)) });
-    calls.push({ id: `t${i}`, what: `navigation.json 公告条 ${href.split(':')[0]}:`, call: writeCall(`t${i}`, 'en/navigation.json', navWith((n) => { n.topbar = { message: 'Open Saturday', link: { label: 'Details', href } }; })) });
+    calls.push({ id: `p${i}`, what: `页面 hero 按钮 ${href.split(':')[0]}:`, call: writeCall(`p${i}`, 'en/pages/home.json', pageWith(0, href)) });
     calls.push({ id: `h${i}`, what: `navigation.json 顶栏按钮 ${href.split(':')[0]}:`, call: writeCall(`h${i}`, 'en/navigation.json', navWith((n) => { n.header.cta = { label: 'Get a Quote', href }; })) });
-    calls.push({ id: `s${i}`, what: `站级块库 cta-banner ${href.split(':')[0]}:`, call: writeCall(`s${i}`, 'en/blocks/site-blocks.json', libWith(href)) });
+    calls.push({ id: `s${i}`, what: `站级块库 cta ${href.split(':')[0]}:`, call: writeCall(`s${i}`, 'en/blocks/site-blocks.json', libWith(href)) });
   });
   // #1416 r1 QA3 —— 路径拼写那一维：同一个文件的非规范写法（`//`、`./`）`path.join` 之后落在同一个真文件上。
   // 分类要按落盘路径判，否则这几种拼写整道检查被跳过（r1 就是这样：`en/pages//home.json` 把 vbscript 写了进去）。
   [
-    ['en/pages//home.json', () => pageWith('ctaPrimary', 'vbscript:msgbox(1)')],
-    ['en/./pages/home.json', () => pageWith('ctaPrimary', 'vbscript:msgbox(1)')],
+    ['en/pages//home.json', () => pageWith(0, 'vbscript:msgbox(1)')],
+    ['en/./pages/home.json', () => pageWith(0, 'vbscript:msgbox(1)')],
     ['en/blocks//site-blocks.json', () => libWith('vbscript:msgbox(1)')],
     ['en/blocks/./site-blocks.json', () => libWith('vbscript:msgbox(1)')],
     ['en//navigation.json', () => navWith((n) => { n.header.cta = { label: 'Get a Quote', href: 'vbscript:msgbox(1)' }; })],
@@ -1683,27 +1716,30 @@ console.log('\n⑮ 链接协议（#1416）：页面 / navigation.json / 站级�
   else bad('🔴 ⑮ 站级块库被写了');
 
   // 反向对照：同一条路、同样三种文件，合法的四种照收并逐字落盘 —— 上面不是「什么都拒」。
+  // #1425（T3）：tel: 原来写在公告条链接上（随公告条那个区删了），换成写进站级块库那一份 —— 三种文件各收一次合法的。
   const good = runEdit(ctx, [
     reply([
       textBlock('Updating the links.'),
       writeCall('g1', 'en/pages/home.json', (() => {
-        const p = JSON.parse(pageWith('ctaPrimary', 'https://example.com'));
-        p.blocks.find((b) => b && b.type === 'hero').data.ctaSecondary = { label: 'Email us', href: 'mailto:a@b.com' };
+        const p = JSON.parse(pageWith(0, 'https://example.com'));
+        p.blocks.find((b) => b && b.type === 'hero').data.ctas[1] = { label: 'Email us', href: 'mailto:a@b.com', style: 'outline' };
         return JSON.stringify(p, null, 2);
       })()),
       writeCall('g2', 'en/navigation.json', navWith((n) => {
-        n.topbar = { message: 'Open Saturday', link: { label: 'Call', href: 'tel:+15551234' } };
         n.header.cta = { label: 'Contact', href: '/contact' };
       })),
+      writeCall('g3', 'en/blocks/site-blocks.json', libWith('tel:+15551234')),
     ], 'tool_use'),
     reply([textBlock('Done.')], 'end_turn'),
   ]);
   const h = JSON.parse(fs.readFileSync(homeFile, 'utf8')).blocks.find((b) => b && b.type === 'hero').data;
   const n = JSON.parse(fs.readFileSync(navFile, 'utf8'));
-  const got = [h.ctaPrimary && h.ctaPrimary.href, h.ctaSecondary && h.ctaSecondary.href, n.topbar && n.topbar.link && n.topbar.link.href, n.header && n.header.cta && n.header.cta.href];
+  const l = fs.existsSync(libFile) ? JSON.parse(fs.readFileSync(libFile, 'utf8')) : {};
+  const libHref = l['shared-cta'] && l['shared-cta'].data && Array.isArray(l['shared-cta'].data.ctas) && l['shared-cta'].data.ctas[0] ? l['shared-cta'].data.ctas[0].href : undefined;
+  const got = [h.ctas && h.ctas[0] && h.ctas[0].href, h.ctas && h.ctas[1] && h.ctas[1].href, libHref, n.header && n.header.cta && n.header.cta.href];
   const want = ['https://example.com', 'mailto:a@b.com', 'tel:+15551234', '/contact'];
   if (JSON.stringify(got) === JSON.stringify(want)) ok(`⑮ 对照：四种合法地址照收、逐字落盘 ${JSON.stringify(got)}`);
-  else bad(`🔴 ⑮ 对照：合法地址没照收 —— 落盘 ${JSON.stringify(got)} · 回执 ${String(toolResultContent(good, 1, 'g1')).slice(0, 160)} / ${String(toolResultContent(good, 1, 'g2')).slice(0, 160)}`);
+  else bad(`🔴 ⑮ 对照：合法地址没照收 —— 落盘 ${JSON.stringify(got)} · 回执 ${String(toolResultContent(good, 1, 'g1')).slice(0, 160)} / ${String(toolResultContent(good, 1, 'g2')).slice(0, 160)} / ${String(toolResultContent(good, 1, 'g3')).slice(0, 160)}`);
 }
 
 // ══ ⑯ 块多带一个字符串 ref 键 / 顶层是数组：链接照样查（#1430）══════════════════════════════════════
@@ -1721,8 +1757,9 @@ console.log('\n⑯ 块带 ref 又带自己的 data（#1430）：坏链接被拒�
   ctx.git('git add -A && git commit -q -m base && git push -q origin main');
   const homeFile = path.join(site, 'en', 'pages', 'home.json');
   const libFile = path.join(site, 'en', 'blocks', 'site-blocks.json');
-  const refBlock = (href) => ({ type: 'cta-banner', ref: 'whatever', visibility: ['*'],
-    data: { headline: 'Ready?', description: 'Call us today.', button: { label: 'Go', href } } });
+  // #1425（T3）：原来是 cta-banner 的 button（随旧库删了），换成 cta 的 ctas 列表
+  const refBlock = (href) => ({ type: 'cta', ref: 'whatever', visibility: ['*'],
+    data: { headline: 'Ready?', body: 'Call us today.', ctas: [{ label: 'Go', href, style: 'solid' }] } });
 
   const BAD = ['javascript:alert(1)', 'vbscript:msgbox(1)', 'data:text/html,<script>alert(1)</script>'];
   const calls = [];
@@ -1761,7 +1798,7 @@ console.log('\n⑯ 块带 ref 又带自己的 data（#1430）：坏链接被拒�
   ]);
   const lib = fs.existsSync(libFile) ? JSON.parse(fs.readFileSync(libFile, 'utf8')) : {};
   const refs = (JSON.parse(fs.readFileSync(homeFile, 'utf8')).blocks || []).filter((b) => b && b.ref === 'evil');
-  const gotHref = lib.evil && lib.evil.data && lib.evil.data.button && lib.evil.data.button.href;
+  const gotHref = lib.evil && lib.evil.data && Array.isArray(lib.evil.data.ctas) && lib.evil.data.ctas[0] && lib.evil.data.ctas[0].href;
   if (gotHref === 'https://example.com/book' && refs.length === 1) ok('⑯ 对照：带 ref 的块链接合法 → 照收、逐字落盘；纯引用 {ref} 照收');
   else bad(`🔴 ⑯ 对照：合法的没照收 —— 块库 href=${JSON.stringify(gotHref)} · 首页 ref 条目 ${refs.length} · 回执 ${String(toolResultContent(good, 1, 'g1')).slice(0, 160)} / ${String(toolResultContent(good, 1, 'g2')).slice(0, 160)}`);
 }
@@ -1783,8 +1820,9 @@ console.log('\n⑰ 读完之后别处改过（#1420）：拒 → 重读 → 写�
   const arrayKey = Array.isArray(home.blocks) ? 'blocks' : null;
   if (!arrayKey) die('⑰ 前提不成立：建出来的首页没有 blocks');
   const lib = {
-    promo: { type: 'cta-banner', data: { headline: 'Promo ORIGINAL', description: 'Call us today.', button: { label: 'Call', href: '/contact' } } },
-    badge: { type: 'cta-banner', data: { headline: 'Badge ORIGINAL', description: 'Same-day service.', button: { label: 'Book', href: '/contact' } } },
+    // #1425（T3）：原来是 cta-banner（随旧库删了），换成 cta
+    promo: { type: 'cta', data: { headline: 'Promo ORIGINAL', body: 'Call us today.', ctas: [{ label: 'Call', href: '/contact', style: 'solid' }] } },
+    badge: { type: 'cta', data: { headline: 'Badge ORIGINAL', body: 'Same-day service.', ctas: [{ label: 'Book', href: '/contact', style: 'solid' }] } },
   };
   fs.mkdirSync(path.dirname(libFile), { recursive: true });
   fs.writeFileSync(libFile, JSON.stringify(lib, null, 2));
@@ -2075,7 +2113,7 @@ console.log('\n⑲ 逐字：每一轮模型说的话都作为 text 事件发出�
   }
 }
 
-// ══ ⑳ 脚本替 AI 再写的那一笔（查坐标写回 brand.json · 剔掉 contact-new 抄进来的值）也跟着回滚（#1489 r2）═════
+// ══ ⑳ 脚本替 AI 再写的那一笔（查坐标写回 brand.json · 剔掉 contact 抄进来的值）也跟着回滚（#1489 r2）═════
 //
 // QA1 打回 r1：这一轮改了第一个地点的地址 ⟹ `refreshGeoAfterEdit` 在 AI 写成之后**又写了一次** brand.json，没更新
 // `aiWrote` ⟹ 同步失败时 §rollbackWrittenFiles 把它当成「老板存过」不退（`kept: brand.json`），老板收到一句编出来的
@@ -2113,7 +2151,7 @@ console.log('\n⑲ 逐字：每一轮模型说的话都作为 text 事件发出�
     }
     if (page) {
       const h = JSON.parse(homeBefore.toString('utf8'));
-      h.blocks.push({ id: 'home-contact-new-99', type: 'contact-new', role: 'essential', region: 'content', weight: 990,
+      h.blocks.push({ id: 'home-contact-99', type: 'contact', role: 'essential', region: 'content', weight: 990,
         data: { headline: 'Get in touch', items: page(brand) } });
       writes.push(writeCall('h1', 'en/pages/home.json', JSON.stringify(h, null, 2)));
     }
@@ -2158,7 +2196,7 @@ console.log('\n⑲ 逐字：每一轮模型说的话都作为 text 事件发出�
   if (race.brandNow.tagline === OWNER_MARK && !(race.brandNow.locations[0].geo && race.brandNow.locations[0].geo.lat === 43.1111)) ok('⑳ 查坐标那几秒里老板存了 brand.json ⟹ 脚本不在他那份上再写一笔（他的 tagline 原样、没有叠上 geo）');
   else bad(`🔴 ⑳ 查坐标时老板存的那份被盖掉了：tagline=${JSON.stringify(race.brandNow.tagline)} · geo=${JSON.stringify(race.brandNow.locations[0].geo)}`);
 
-  console.log('\n⑳ contact-new 的 items 里抄进来的值（#1489 r2，QA2 打回 r1）：改站同步之前剔掉，失败时照样回滚');
+  console.log('\n⑳ contact 的 items 里抄进来的值（#1489 r2，QA2 打回 r1）：改站同步之前剔掉，失败时照样回滚');
   const copied = (b) => [
     { kind: 'phone', title: 'Call Us', hint: `${b.locations[0].phone} — Mon–Fri 8 AM–6 PM`, href: `tel:${b.locations[0].phone}` },
     { kind: 'email', title: 'Email Us', hint: b.email },
@@ -2168,13 +2206,14 @@ console.log('\n⑲ 逐字：每一轮模型说的话都作为 text 事件发出�
   ];
   const ok1 = arm1489({ label: 'scrub', page: copied });
   let block = null;
-  try { block = JSON.parse(ok1.headHome).blocks.find((x) => x.type === 'contact-new'); } catch (e) { block = null; }
+  // #1425（T3）：skipAI 首页今天自己就带一个 contact 块（旧首页没有），按类型找会找到它 —— 按这一跑加进去的那个 id 找。
+  try { block = JSON.parse(ok1.headHome).blocks.find((x) => x.id === 'home-contact-99'); } catch (e) { block = null; }
   const dataStr = block ? JSON.stringify(block.data) : '';
   const b0 = ok1.brand;
   const leaks = [b0.locations[0].phone, b0.email, b0.locations[0].address, '8:00 AM'].filter((v) => v && dataStr.includes(v));
   if (ok1.committed && block && !leaks.length && block.data.items.length === 5 && block.data.items[0].title === 'Call Us'
     && !('href' in block.data.items[0]) && block.data.items[4].href === 'https://example.com/book' && !ok1.dirty) {
-    ok('⑳ 成功那条路：HEAD 里的 contact-new 块数据不含电话 / 邮箱 / 地址 / 钟点，phone 的 href 删了，link 的 href 与各条标题照留');
+    ok('⑳ 成功那条路：HEAD 里的 contact 块数据不含电话 / 邮箱 / 地址 / 钟点，phone 的 href 删了，link 的 href 与各条标题照留');
   } else {
     bad(`🔴 ⑳ 剔值没生效：commit=${ok1.committed} · 漏的=${JSON.stringify(leaks)} · data=${dataStr.slice(0, 300)}`);
   }

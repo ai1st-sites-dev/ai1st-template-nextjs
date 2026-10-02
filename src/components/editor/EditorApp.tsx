@@ -24,7 +24,7 @@
 // #1415 —— 底稿以 dashboard 送来的为准。props 里那份是构建时烤进来的，只当首屏；dashboard 在运行时从站容器里
 // 现取一份（manager `GET /api/sites/{id}/pages`，站里 `scripts/lib/editor-page.js` §editorBaseline），
 // `postMessage(ai1st:editor-baseline)` 递进来。这个页面仍然一个请求都不发 —— 网络全在 dashboard 那一侧。
-//   reason = open      刚打开：换成这一份（跟首屏不同才换），撤销历史清零；#1452 起外壳四样（root）也换成它带来的
+//   reason = open      刚打开：换成这一份（跟首屏不同才换），撤销历史清零；#1452 起外壳三样（root）也换成它带来的
 //                      盘上现值（§openRoot）—— 存盘不重建之后，烤进来的那份 root 在发布前都是旧的
 //            saved     刚存下去的那一次成功了（在重建之前就到）：只换 baseHash，画布不动 —— 于是不刷新、
 //                      不等重建也能接着存
@@ -93,10 +93,8 @@ export interface EditorAppProps {
    */
   baseHash: string;
   schema: EditorSchema;
-  /** `root.props` 是外壳四样打开时的值（#1405）—— 存盘时逐字段比的就是它。 */
+  /** `root.props` 是外壳三样打开时的值（#1405）—— 存盘时逐字段比的就是它。 */
   initialData: PuckLikeData;
-  /** 这一页第一段是不是 hero（透明浮层顶栏只在那时浮起来，同真页面的 `SiteShell overHero`）。 */
-  overHero: boolean;
   /** 框住我们的 dashboard 的 origin。空串 = 构建时没拿到（本地模板 dev），这时不能保存。 */
   trustedOrigin: string;
   /** #1406 —— 这种语言的站级块库（文件里那一份）：共用块的字段从它取，存盘时改动跟它比。 */
@@ -145,18 +143,18 @@ function OptionsField({ f, value, onChange, readOnly }: { f: EditorField; value:
   const v = value && typeof value === 'object' ? value : {};
   const knobs = f.knobs || [];
   // 🔴 #1470 —— 没写的旋钮先落回 `presets[0]`（默认形态的那一组），再落回 `values[0]`：跟 `header-knobs.js`
-  //    §normalizeKnobs、admin 的 `catalogKnobs.ts` 同一条兜底链。这里以前直接落 `values[0]`，只因为 hero-new
+  //    §normalizeKnobs、admin 的 `catalogKnobs.ts` 同一条兜底链。这里以前直接落 `values[0]`，只因为 hero
   //    旧的 `values[0]` 那一组恰好就是 Split 才没露馅；#1470 把 `image` 的 `none` 排到第一位之后，一块没写
-  //    `options` 的 hero-new 侧栏会说 Text only、画布却画成 Split。
+  //    `options` 的 hero 侧栏会说 Text only、画布却画成 Split。
   const fallback: Record<string, unknown> = (f.presets && f.presets[0] && f.presets[0].knobs) || {};
   const current = Object.fromEntries(knobs.map((k) => [k.name, typeof v[k.name] === 'string' ? v[k.name]
     : k.values.includes(fallback[k.name] as string) ? fallback[k.name] : k.values[0]]));
-  // #1483 —— 带颜色的预设（pricing-new 的 Rainbow）：判「是哪个预设」要连这一块的颜色字段一起比，点预设要连颜色字段一起写。
+  // #1483 —— 带颜色的预设（pricing 的 Rainbow）：判「是哪个预设」要连这一块的颜色字段一起比，点预设要连颜色字段一起写。
   //    颜色是这一块的另外两个字段（bg / featuredColor），这个字段的 onChange 只改得动 `options` ⟹ 从 Puck 读出选中的那一块、
   //    按 block-knobs.js §presetClickProps 算出整块的新 props，一次 `replace` 写回。没有带颜色预设的块（colorSlots 空）
   //    走原来的 onChange，一个字节不变。
   const colorSlots = f.colorSlots || [];
-  // #1487 —— 带部件的预设（team-new 的 Hiring）同一条路：判预设要看这一块的部件字段有没有内容，点它要把空的部件用
+  // #1487 —— 带部件的预设（team 的 Hiring）同一条路：判预设要看这一块的部件字段有没有内容，点它要把空的部件用
   //    `partDemos` 填上 ⟹ 同样要读出选中的那一块、整块 `replace`。没有带部件预设的块（partDemos 空）不受影响。
   const partSlots = Object.keys(f.partDemos || {});
   const selected = usePuck((s) => (colorSlots.length || partSlots.length ? s.selectedItem : null));
@@ -287,11 +285,11 @@ function puckField(f: EditorField, forms: EditorFormChoice[] = []): Field {
   switch (f.control) {
     case 'text':
       return { type: 'text', label: f.label };
-    // #1497 —— 一个整数设置（blog-new 的 postCount 2–6）：一格下拉。第一项「Default」= 不写（块按自己的默认值走），
+    // #1497 —— 一个整数设置（blog 的 postCount 2–6）：一格下拉。第一项「Default」= 不写（块按自己的默认值走），
     //    免得没写过的块在侧栏里显示成 2、看起来像是老板选过。
     case 'int':
       return { type: 'select', label: f.label, options: [{ label: 'Default', value: '' }, ...(f.values || []).map((v) => ({ label: v, value: v }))] } as Field;
-    // #1498 —— richtext（content-new.body）：一个多行文本框，下面一行写明能用哪几种写法（scripts/lib/richtext.js 只认这几样）。
+    // #1498 —— richtext（content.body）：一个多行文本框，下面一行写明能用哪几种写法（scripts/lib/richtext.js 只认这几样）。
     case 'richtext':
       return {
         type: 'custom',
@@ -492,12 +490,12 @@ function CanvasBlock({ component, props, locale, pageSlug }: { component: Editor
 /** 块的形态下拉叫什么（#1454 存盘记录里「改了形态」也用这个字）。 */
 const SHAPE_FIELD_LABEL = 'Layout';
 
-export function buildConfig(schema: EditorSchema, locale: string, overHero = false, removable: (id: string) => boolean = () => true, forms: EditorFormChoice[] = [], pageSlug?: string): Config {
+export function buildConfig(schema: EditorSchema, locale: string, removable: (id: string) => boolean = () => true, forms: EditorFormChoice[] = [], pageSlug?: string): Config {
   const components: Record<string, Config['components'][string]> = {};
   for (const c of schema.components) {
     const fields: Fields = {};
     for (const f of c.fields) fields[f.slot] = puckField(f, forms);
-    // #1463 —— 带预设的块（hero-new）不再给「Layout」形态下拉：预设那一排就是它，两处各选一个会互相打架。
+    // #1463 —— 带预设的块（hero）不再给「Layout」形态下拉：预设那一排就是它，两处各选一个会互相打架。
     //    `_shape` 这个 prop 照旧在（defaultProps / 页面 JSON 里原来那个值），存盘原样带回去。
     const hasPresets = c.fields.some((f) => f.control === 'options' && (f.presets || []).length > 0);
     fields._shape = {
@@ -570,7 +568,7 @@ export function buildConfig(schema: EditorSchema, locale: string, overHero = fal
       unknown: { components: [UNKNOWN_TYPE], visible: false },
       other: { visible: false },
     },
-    root: rootConfig(schema, locale, overHero),
+    root: rootConfig(schema, locale),
   } as Config;
 }
 
@@ -593,13 +591,11 @@ type RootProps = {
   layout?: string;
   headerShape?: string;
   footerShape?: string;
-  topbarMessage?: string;
-  topbarLink?: { label?: string; href?: string };
   children?: ReactNode;
 };
 
 /**
- * #1405 —— 外壳四样：Puck 的 root 字段（整页一份，不在块列表里）。可选值全部来自构建时的 schema
+ * #1405 —— 外壳三样：Puck 的 root 字段（整页一份，不在块列表里）。可选值全部来自构建时的 schema
  * （形态 = 子目录去掉候选；布局 = `page-layouts/` 库），这里不写任何名单。
  *
  * 🔴 **这里不判「哪些组合构建不收」**（带公告条的布局 + 透明浮层顶栏 / 缺某种语言的公告条文字）：那条规则
@@ -608,28 +604,20 @@ type RootProps = {
  * 🔴 唯一在这里灰掉的是「布局自己钉了页脚形态」时的页脚下拉（做什么 8）—— 判据是 schema 给的 `pinsFooter`
  *    （从布局文件算出来的），不是布局名。
  */
-/** 外壳四样在面板上叫什么。#1454 —— 存盘记录（§describeSave）用同一份：老板在记录里读到的就是他点的那个字段名。 */
+/** 外壳三样在面板上叫什么。#1454 —— 存盘记录（§describeSave）用同一份：老板在记录里读到的就是他点的那个字段名。 */
 const ROOT_FIELD_LABELS: Record<string, string> = {
   layout: 'Page layout (whole website)',
   headerShape: 'Header style (whole website)',
   footerShape: 'Footer style (whole website)',
-  topbarMessage: 'Announcement bar text (this language only)',
-  topbarLink: 'Announcement bar link (this language only)',
 };
 
-function rootConfig(schema: EditorSchema, locale: string, overHero: boolean) {
+function rootConfig(schema: EditorSchema, locale: string) {
   const opts = (names: string[]) => names.map((n) => ({ value: n, label: n }));
   const fields: Fields = {
     layout: { type: 'select', label: ROOT_FIELD_LABELS.layout, options: schema.root.layouts.map((l) => ({ value: l.id, label: l.id })) },
     headerShape: { type: 'select', label: ROOT_FIELD_LABELS.headerShape, options: opts(schema.root.header) },
     footerShape: { type: 'select', label: ROOT_FIELD_LABELS.footerShape, options: opts(schema.root.footer) },
     _shapeNote: SHAPE_NOTE,
-    topbarMessage: { type: 'text', label: ROOT_FIELD_LABELS.topbarMessage },
-    topbarLink: {
-      type: 'object',
-      label: ROOT_FIELD_LABELS.topbarLink,
-      objectFields: { label: { type: 'text', label: 'Label' }, href: { type: 'text', label: 'Link' } },
-    } as Field,
   };
   const layoutOf = (id: unknown) => schema.root.layouts.find((l) => l.id === id);
   return {
@@ -654,19 +642,15 @@ function rootConfig(schema: EditorSchema, locale: string, overHero: boolean) {
         } as Field,
       };
     },
-    render: ({ children, layout, headerShape, footerShape, topbarMessage, topbarLink }: RootProps) => {
+    render: ({ children, layout, headerShape, footerShape }: RootProps) => {
       const l = layoutOf(layout) || schema.root.layouts[0];
-      const link = topbarLink && (topbarLink.label || topbarLink.href)
-        ? { label: topbarLink.label || '', href: topbarLink.href || '' } : undefined;
       return (
         <SiteShell
           locale={locale}
-          overHero={overHero}
           shell={{
             layout: { regions: l ? l.regions : ['header', 'content', 'footer'], repeatVariants: l ? l.repeatVariants : {} },
             headerShape: headerShape || '',
             footerShape: footerShape || '',
-            topbar: topbarMessage ? { message: topbarMessage, ...(link ? { link } : {}) } : null,
           }}
         >
           {children}
@@ -677,7 +661,7 @@ function rootConfig(schema: EditorSchema, locale: string, overHero: boolean) {
 }
 
 /**
- * #1452 —— 底稿送来的外壳四样现值（站里 `editor-root.js` §readRootValues，形状同 page.tsx 喂给 `rootToPuck` 的那份）
+ * #1452 —— 底稿送来的外壳三样现值（站里 `editor-root.js` §readRootValues，形状同 page.tsx 喂给 `rootToPuck` 的那份）
  * 合进构建时那份 root。🔴 当外来数据：逐个字段查类型，不对（或底稿压根没带 —— #1452 之前建的站）就留构建时的值。
  * 布局 / 形态**不**在这里按 schema 的名单筛：盘上的值不在名单里时，构建时那份也一样会是它，画布那头
  * `layoutOf(layout) || schema.root.layouts[0]` 是现成的兜底（PM 裁定第 3 条）。
@@ -686,8 +670,7 @@ function openRoot(built: PuckLikeData['root'], sent: unknown): PuckLikeData['roo
   if (!sent || typeof sent !== 'object' || Array.isArray(sent)) return built;
   const v = sent as Record<string, unknown>;
   const str = (k: string) => (typeof v[k] === 'string' ? { [k]: v[k] as string } : {});
-  const link = v.topbarLink === null || (!!v.topbarLink && typeof v.topbarLink === 'object' && !Array.isArray(v.topbarLink));
-  const got = { ...str('layout'), ...str('headerShape'), ...str('footerShape'), ...str('topbarMessage'), ...(link ? { topbarLink: v.topbarLink } : {}) };
+  const got = { ...str('layout'), ...str('headerShape'), ...str('footerShape') };
   if (!Object.keys(got).length) return built;
   return { ...built, props: rootToPuck({ ...built.props, ...got } as never) };
 }
@@ -696,7 +679,7 @@ type Status = { kind: 'idle' | 'saving' | 'saved' | 'error'; text: string };
 
 /**
  * 存盘要用的那一份底：原始 JSON + 打开时的 Puck Data（§puckToPage 要它的 content）+ 文件的 sha256 + 上一次存下去的 JSON。
- * `initial.root.props` 是外壳四样的比较基准（#1405）：打开时是构建时那份，每存成功一次就把送出去的字段合进去。
+ * `initial.root.props` 是外壳三样的比较基准（#1405）：打开时是构建时那份，每存成功一次就把送出去的字段合进去。
  */
 // #1406 —— `siteBlocks`：块库的底（共用块的改动跟它比；每存成功一次把送出去的那几处合进去）。
 // `sharedOwn`（#1406）：画布上每个共用块的字段是按哪一份 data 取的 —— 存成功过的才在里面（没有就是打开时的
@@ -1037,7 +1020,7 @@ function SaveStatus({ status, onRetry, hideError }: { status: Status; onRetry: (
   );
 }
 
-export default function EditorApp({ locale, page, raw, baseHash, schema, initialData, overHero, trustedOrigin, siteBlocks, refs, slugs, pages, forms = [] }: EditorAppProps) {
+export default function EditorApp({ locale, page, raw, baseHash, schema, initialData, trustedOrigin, siteBlocks, refs, slugs, pages, forms = [] }: EditorAppProps) {
   const [status, setStatus] = useState<Status>({ kind: 'idle', text: '' });
   const statusRef = useRef(status);
   statusRef.current = status;
@@ -1047,10 +1030,10 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
   const baseRef = useRef<Base>({ raw, initial: initialData, hash: baseHash, saved: raw, siteBlocks: siteBlocks || {}, sharedOwn: {} });
   // #1406 —— 「在 N 个页面上」那句话读的三样（context，见 SharedInfoContext）。
   const [sharedInfo, setSharedInfo] = useState<SharedInfo>({ siteBlocks: siteBlocks || {}, refs: refs || {}, slugs: slugs || [] });
-  // #1502 —— 画布上要按页面路径算东西的块（page-header-new 的面包屑）拿这一页的 slug；首页不传（首页没有面包屑）。
+  // #1502 —— 画布上要按页面路径算东西的块（page-header 的面包屑）拿这一页的 slug；首页不传（首页没有面包屑）。
   const config = useMemo(
-    () => buildConfig(schema, locale, overHero, (id) => sharedRemovable(baseRef.current.siteBlocks, id), forms, page === 'home' ? undefined : page),
-    [schema, locale, overHero, page],
+    () => buildConfig(schema, locale, (id) => sharedRemovable(baseRef.current.siteBlocks, id), forms, page === 'home' ? undefined : page),
+    [schema, locale, page],
   );
   // #1406 —— 老板在画布上拖过的块（Puck id）。按 `visibility` 注进来的共用块只有拖过的才写成这一页的 `{ref}`
   // （`editor-convert.js` §puckToPage 的 `moved`）。换一份新画布（open / external）时清空。
@@ -1262,7 +1245,7 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
       } catch {
         return; // 转不出来就留着手上这一份：存盘的 hash 没换，存的时候 write-page 会说实话。
       }
-      // #1405 —— `pageToPuck` 回的 root 是空的；外壳四样沿用手上的比较基准（打开时构建算出来
+      // #1405 —— `pageToPuck` 回的 root 是空的；外壳三样沿用手上的比较基准（打开时构建算出来
       // 的那份，存过就是存下去的那份）。不接上的话 root 字段全空，画布的顶栏页脚会变成默认、存盘的逐字段比较也全乱。
       // #1452 —— 刚打开（`open`）时换成底稿带来的**盘上现值**（§openRoot）：#1412 起存盘不重建，构建烤进来的那份
       // 在下一次发布前都是旧的 ⟹ 换页 / 关掉重开之后，存过的外壳改动在右栏和画布上都「不见」。
@@ -1362,7 +1345,7 @@ export default function EditorApp({ locale, page, raw, baseHash, schema, initial
     const shared: SharedChanges = puckSharedChanges({ data: data as never, initial: base.initial, siteBlocks: base.siteBlocks, schema, slug: page, own: base.sharedOwn });
     // 跟**上一次存下去的那份**比，不跟打开时比：存过一次之后把字改回原来那句，文件里是改过的那句，
     // 这一笔必须发出去（#1409 QA2 r1 第 2 条，那时靠重载 iframe 解决，#1415 起不再重载）。
-    // #1405 —— 外壳四样只交**改过的**那几个字段（跟 `base.initial.root` 逐字段比，做什么 7；它是打开时的值，
+    // #1405 —— 外壳三样只交**改过的**那几个字段（跟 `base.initial.root` 逐字段比，做什么 7；它是打开时的值，
     // 每存成功一次就换成刚存下去的值，道理同上）。页面块没改就不交页面：不然一次只改公告条的存盘也要带着
     // 页面底稿去比 baseHash，别处刚改过这一页时它会被无端拒掉。
     const root = puckRootChanges({ initial: base.initial, now: data as never, schema });

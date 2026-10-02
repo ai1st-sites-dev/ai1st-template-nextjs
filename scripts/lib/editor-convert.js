@@ -633,32 +633,21 @@ function applySharedChanges(siteBlocks, changes, slug) {
   return next;
 }
 
-// ── #1405 外壳四样：站级文件的现值 ⇄ Puck root ───────────────────────────────────────────────────
+// ── #1405 外壳三样：站级文件的现值 ⇄ Puck root ───────────────────────────────────────────────────
 //
 // 🔴 root 字段**不整份写回**（票正文做什么 7）：打开时记下的初值是 `initial.root.props`，存盘时逐字段比，
 //    只把改过的交出去。整份写回的话，编辑器开着的时候别处（AI 聊天 / 换装弹窗 / 另一种语言的编辑器）
-//    改过的公告条文字、顶栏形态会被打开时那一份悄悄冲掉 —— 跟 #1409 r2 在页面文件上修的是同一个病。
-
-/** 链接的规范形：两格都空 = 没有链接（`null`）。站里的写盘那一侧用同一条（`editor-root.js` §normLink）。 */
-function normRootLink(v) {
-  if (!isPlainObject(v)) return null;
-  const label = typeof v.label === 'string' ? v.label : '';
-  const href = typeof v.href === 'string' ? v.href : '';
-  return label || href ? { label, href } : null;
-}
+//    改过的顶栏形态会被打开时那一份悄悄冲掉 —— 跟 #1409 r2 在页面文件上修的是同一个病。
 
 /**
- * 站级文件的现值 → Puck root 的 props。Puck 的 object 字段要一个对象，所以没有链接时给两格空串。
- * @param {{ layout: string, headerShape: string, footerShape: string, topbarMessage: string, topbarLink: { label: string, href: string } | null }} values
+ * 站级文件的现值 → Puck root 的 props。
+ * @param {{ layout: string, headerShape: string, footerShape: string }} values
  */
 function rootToPuck(values) {
-  const link = normRootLink(values && values.topbarLink);
   return {
     layout: values.layout,
     headerShape: values.headerShape,
     footerShape: values.footerShape,
-    topbarMessage: typeof values.topbarMessage === 'string' ? values.topbarMessage : '',
-    topbarLink: link || { label: '', href: '' },
   };
 }
 
@@ -670,12 +659,11 @@ function rootToPuck(values) {
 function puckRootChanges({ initial, now, schema }) {
   const a = (initial && initial.root && initial.root.props) || {};
   const b = (now && now.root && now.root.props) || {};
-  const norm = (field, v) => (field === 'topbarLink' ? normRootLink(v) : v);
   const out = {};
   for (const { field } of schema.root.fields) {
-    const next = norm(field, b[field]);
+    const next = b[field];
     if (next === undefined) continue;
-    if (!deepEqual(next, norm(field, a[field]))) out[field] = next;
+    if (!deepEqual(next, a[field])) out[field] = next;
   }
   const layout = (schema.root.layouts || []).find((l) => l.id === (b.layout !== undefined ? b.layout : a.layout));
   if (layout && layout.pinsFooter) delete out.footerShape;

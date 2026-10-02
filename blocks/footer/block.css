@@ -1,0 +1,37 @@
+/* footer · 旋钮派生的排版（#1464）—— 六个预设共用这一份
+
+   Section 在根上挂 `ftr-layout-<row|stacked|columns>` · `ftr-cta-<none|centered|boxed|inline>`，外加
+   `ftr-reverse`（#1469 起它来自旋钮 `brand=right`，原来是开关 `reverse`；类名没改，`stacked` 下不挂）。排版本身全在 markup 的 Webpixels 工具类里；这里只放工具类表达不了的那几条。
+   🔴 为什么不在各预设的 shape.css 里写：旋钮能拧成预设表外的组合（Custom），那种组合没有文件夹；
+      而且生成器要求 shape.css 里每条规则以 `[data-shape="<该形态>"]` 开头
+      （`scripts/block-build/build-blocks.js` §assertPieceOwnsItsRules），跨形态的规则只能住这里。
+   📌 下面三条是 T2.2 各形态 shape.css 里原有的规则，按排布搬过来，内容不变。 */
+
+/* row：中间那组页面链接是 flex 项，默认 `min-width: auto` —— 链接一多它不肯缩，整行被撑出页脚右边。
+   缩到 0 之后，链接在自己那一格里换行（它自己的 `ul` 带 `flex-wrap`）。 */
+[data-block="footer"].ftr-layout-row .ftr-nav {
+  min-width: 0;
+}
+
+/* stacked：联系一行 / 链接里的一个**不可断的长词**（真站的邮箱、长网址）会把整行撑出页脚、整页横向滚动 ——
+   columns 在 390 上实测撞过（`service@northsideauto.ca` 画到 419）。 */
+[data-block="footer"].ftr-layout-stacked .container-lg a,
+[data-block="footer"].ftr-layout-stacked .container-lg span {
+  overflow-wrap: anywhere;
+}
+
+/* columns：列里的一条链接 / 联系方式是一个不可断的长词时，`col-6` 在 390 上只有 ~170px，它会伸出页脚。 */
+[data-block="footer"].ftr-layout-columns [data-footer-col] a,
+[data-block="footer"].ftr-layout-columns [data-footer-col] span {
+  overflow-wrap: anywhere;
+}
+
+/* brand=right（`ftr-reverse`，#1519）：row 在 <768 竖着排时链接 / 社交 / 底栏都靠右（`flex-row-reverse`），
+   只有店名还在左边 —— 它是被拉满整行的 flex 容器，内容从左排。推到右头，跟 columns 的品牌列（`align-items-end`）一致。
+   ≥768 它是一行里按内容宽的 flex 项，这条不改任何位置。 */
+[data-block="footer"].ftr-reverse [data-footer-main] > [data-footer-part="brand"] {
+  justify-content: flex-end;
+}
+
+/* #1469 —— 深底（`bg` 填了深色 / `brand` / 深渐变）上的小字挂 `ftr-muted-on-dark`（跟 `text-body-secondary` 同一个位置换掉）。
+   它的颜色（白 .92）全站只有一条：`scripts/lib/site-css.js` §ON_DEEP_MUTED（#1477）。 */

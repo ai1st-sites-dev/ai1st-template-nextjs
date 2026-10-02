@@ -27,7 +27,6 @@ const { checkCssContracts } = require('./css-contract-check');
 // `create-site.js` 写盘时读的是同一份实现。
 const {
   readSiteBlocks, normalizeLocalePages,
-  BLOCK_ROLES,
 } = require('./blocks');
 const tweakLib = require('./tweaks');
 // #1038 —— 站主挑的绝对值（一组配色 / 一档圆角 / 一对字体）。跟 tweaks 分两个文件的理由写在那边的文件头。
@@ -822,7 +821,7 @@ const regionSource = [
 // 而是 CSS 按 `[data-shape="transparent-overlay"][data-over-hero="true"]` 当场决定的
 // （`Header.tsx` 头注写了为什么那条判断归组件）。日志里留着它就是报一个没人算的数。
 console.log(`  Regions: header=${regions.header.shape} footer=${regions.footer.shape}`
-  + ` topbar=${regions.topbar.shape} — from ${regionSource}`);
+  + ` — from ${regionSource}`);
 
 // #1000 —— 这个站的页面由哪些区组成。库在 page-layouts/，站在 site/page-layout.json 里挑一个
 // （缺文件 ⟹ standard，也就是今天所有站的那一条路）。
@@ -855,135 +854,55 @@ const pageLayout = { id: picked.layout.id, regions: picked.layout.regions,
 console.log(`  Page layout: ${pageLayout.id} → ${pageLayout.regions.join(' · ')}`
   + (picked.explicit ? '' : '（站没挑，按默认）'));
 
-// 🔴 #1000 r2（QA1 抓的那条，作者裁定在本票修）—— 有 topbar 区 + 顶栏是透明浮层 = 那条横带
-// 渲染出来但一个像素看不见，而且没有任何东西会报错。
-//
-// 量到的形状（QA1 与我各在浏览器里读过一次，读数一致）：浮层是 `absolute inset-x-0 top-0`、
-// `z-index:50`、高 92px（当时的 `Header.tsx`；#1353 把那套几何搬进了 `public/shapes.css` 的
-// `[data-shape="transparent-overlay"]` 那一节，行号不再指得准，值没变），topbar 占 0–44px ⟹
-// **重叠 44px = topbar 整条**，`elementFromPoint(topbar 中点)` 拿到的是 header 里的 nav。
-// 而 `bold-red` 这类主题就会解析成 `transparent-overlay`（#1353 起读的是选择单 `shapes.header`）。
-//
-// 🔴 为什么在这里拒绝，而不是「渲染时躲一下」：躲要么给 header 加 top 偏移（那会打断浮层压在
-// 首屏 hero 上这件事本身，#960 那条对比度规则就是围着它写的），要么把 topbar 塞进 header 里面
-// （那它就不是一个区了）。两条都是把一个**组合不成立**的事实改写成一个看起来能跑的样子。
-// 拒绝是诚实的那条：站要么换一个不带 topbar 的布局，要么换一套顶栏不是浮层的主题。
-//
-// 🔴 用 `needsTopbar` 而不是自己再数一遍 regions：上面那道「有 topbar 区就必须有 topbar 内容」
-// 用的就是它，两道判的必须是同一件事，否则总有一天一个说有、一个说没有。
-if (pageLayoutLib.needsTopbar(picked.layout) && regions.header.shape === 'transparent-overlay') {
-  console.error(`page layout "${pageLayout.id}" 有 topbar 区，而这个站的顶栏解析成 `
-    + '"transparent-overlay"（透明浮层）—— 浮层是 absolute top-0、高 92px、z-index 50，会把 '
-    + 'topbar 那 44px 整条压在底下：横条会渲染出来，但用户一个像素都看不见。');
-  // 🔴 #1108 —— 这条以前给的两条路里,「换一个不带 topbar 区的 page layout」**走不通**
-  //    (产品里 0 个写入者)。本票点名的是下面那条 topbar 缺内容的报错,而这一条是同一个病的
-  //    另一格 —— 扫查时抓到的。换主题那一半是真的(dashboard 里有换装弹窗)。
-  console.error(`  · ${remediation.howToChangePageLayout({ rootDir, siteDir }).sentence}`);
-  // 🔴 #1108 —— 这一句以前把判据写成 `themes.js 的 supports.header !== 'transparent-overlay'`。
-  //    `supports` 装的是**清单**（数组），拿它 `!==` 一个字符串恒为真 ⟹ 那个判据一个主题都排除不掉：
-  //    照它挑出 110 个候选，其中 20 个解析出来仍然是透明浮层。现在这份名单**算出来** ——
-  //    问的是构建自己用的 `regionShapesFor` + `resolveRegionShapes`（也就是上面那个 if 的判据本身）。
-  console.error(`  · 或者${remediation.themesWithoutOverlayHeader().sentence}`);
-  process.exit(1);
-}
+// 📌 #1425（T3）—— 这里原来有两道 exit 1：「有 topbar 区 + 顶栏是透明浮层」和「有 topbar 区、但某种语言的
+//    navigation.json 没有 topbar 文字」。公告条那个区（`with-topbar` 布局）和透明浮层顶栏都随旧库退役了
+//    （PM 2026-10-02 裁定 ② / ④），两道守卫守的东西不存在了，一起删。navigation.json 里已有的 `topbar`
+//    段不删 —— 只是不再有人读它（裁定 ②：删老板写过的那句话不可逆）。
+for (const note of regions.notes) console.log(`    · ${note}`);
 
-// 选了带 topbar 的布局，就必须有 topbar 的内容 —— 否则那个区渲染出来是空的，而"少了一条横带"
-// 没有任何东西会红。逐 locale 查：内容是按语言存的。
-if (pageLayoutLib.needsTopbar(picked.layout)) {
-  const missing = locales.filter((loc) => {
-    const t = (navigationByLocale[loc] || {}).topbar;
-    return !t || !String(t.message || '').trim();
-  });
-  if (missing.length) {
-    console.error(`page layout "${pageLayout.id}" 有 topbar 区，但这些语言的 navigation.json 里没有 `
-      + `topbar 内容：${missing.join(', ')}`);
-    // 🔴 #1108 —— 以前这两句给的路一条都走不通:`navigation.json` 被 #1087 的白名单整份拒掉,
-    //    `site/page-layout.json` 产品里 0 个写入者。现在两句都**算出来**(见 lib/remediation.js):
-    //    第一句问白名单「这个站的 topbar 写得进去吗」,所以 #1104 一落地它自己就从「还加不了」
-    //    变成「让 AI 编辑器加」,不需要谁回来改这行字。
-    // 🔴 `flat` 必须传：扁平站的 locales 也是 ['en']，但文件在 site/navigation.json ——
-    //    不传就会指着一个不存在的 site/en/navigation.json（见 remediation.js 里 navRelPath 那段）。
-    // 🔴 条数有上限：这段 stderr 会被 edit-site.js 截到 2000 字符再给老板看（理由整段在那个函数上）。
-    for (const line of remediation.topbarBullets({ siteDir, locales: missing, flat: isLegacySchema })) {
-      console.error(`  · ${line}`);
-    }
-    console.error(`  · 或者不要 topbar —— ${remediation.howToChangePageLayout({ rootDir, siteDir }).sentence}`);
-    process.exit(1);
+// #1425（T3）—— 顶栏 / 页脚的 data（PM 2026-10-02 裁定 ①，方案 A）：新库的 header / footer 是纯 props 组件，
+// 不再自己读 navigation.json。这里按语言从站已有的文件派生一份，跟 `shape` 并排写进 `regions`；
+// `SiteShell` 只往下传（引用由它在渲染前展开）。按语言存是因为导航、生意名、服务目录都是按语言的。
+// 派生规则与它刻意不做的那几维整段在 `lib/shell-data.js` 文件头。
+{
+  const { shellDataFor } = require('./lib/shell-data');
+  // 图标表也在这里查好（内联 SVG，`lib/icons.js` 读 node_modules 里的文件）：`SiteShell` 同时被编辑器画布这个
+  // 客户端组件渲染，读文件的函数进不了浏览器包。名字取自**展开引用之后**的 data（社交链接的图标来自 brand.json），
+  // 跟页面块在 HomePage / SubPage 里的顺序一样：先展开、再查表。展开用的是同一个 `resolveItemSources`。
+  const { resolveItemSources } = require('./lib/item-sources');
+  const { iconTableFor } = require('./lib/icons');
+  regions.header.dataByLocale = {};
+  regions.footer.dataByLocale = {};
+  regions.header.iconTableByLocale = {};
+  regions.footer.iconTableByLocale = {};
+  for (const locale of locales) {
+    const names = brand.name || {};
+    const brandName = names[locale] ?? names[defaultLocale] ?? Object.values(names)[0] ?? '';
+    const d = shellDataFor({
+      nav: navigationByLocale[locale], brand, brandName,
+      services: servicesByLocale[locale], pages: pagesByLocale[locale], locale, defaultLocale,
+    });
+    regions.header.dataByLocale[locale] = d.header;
+    regions.footer.dataByLocale[locale] = d.footer;
+    const [h, f] = resolveItemSources([{ type: 'header', data: d.header }, { type: 'footer', data: d.footer }],
+      { brand, services: servicesByLocale[locale], pages: pagesByLocale[locale], url: (slug) => `/${slug}`, log: () => {} });
+    regions.header.iconTableByLocale[locale] = iconTableFor('header', h.data);
+    regions.footer.iconTableByLocale[locale] = iconTableFor('footer', f.data);
   }
 }
-for (const note of regions.notes) console.log(`    · ${note}`);
 // #991 — say it out loud either way. "No sheet" and "a sheet that did nothing" look identical on the
 // page, and the theme-gallery loop greps this kind of line to tell a real application from a no-op.
-// 🔴 #1008 rewrote the second line. It used to read "every block keeps its own variant markup", which
-// stopped being true the moment hero's nine variant branches were deleted: hero renders the neutral
-// markup with or without a sheet now, and with no sheet it has only base.css to lay it out. The blocks
-// that have NOT moved yet are the ones still keyed off `variant`, so name that instead of "every".
-// 🔴 #1018 — the count in the second line is the thing that goes stale, so it is spelled out from the
-// list of blocks that have moved rather than typed as a number: three moved (hero #1008, cta-banner
-// #1018, page-header #1019), 31 to go — 🔴 that pair of numbers is #1019's state, not today's; it is
-// kept as the worked example of what the line USED to print. Today's numbers come from MOVED_BLOCKS
-// below and are printed on every build; do not type them anywhere. The next migration ticket edits
-// MOVED_BLOCKS and both the sentence and the count stay true — #1019 only had to correct this
-// comment's own prose. (#1025 条 16: the same count hand-written into theme-css-contract.md went
-// 31 → 25 → 21 → 17 in one week, which is what this design avoids.)
-//
-// 📌 #1018 r3 (rebased onto #1002's ship) keeps both halves of the collision here: the variable is
-//    #1002's `themeSheet` and the wording is its "pasted into theme.css" (the sheet's bytes go INTO
-//    the fixed-path theme.css now — there is no `<link>` per theme any more), while the block list
-//    and the count come from MOVED_BLOCKS.
-// 🔴 The text up to `.css` is READ BY A MACHINE — theme-css-invariants-all-sheets.sh:193 greps
+// 🔴 The text up to `.css` is READ BY A MACHINE — theme-css-invariants-all-sheets.sh greps
 //    `Theme CSS: public/themes/<sheet>.css` to tell "this build wore the sheet under test" from "it
 //    did not", and scripts/theme-pipeline/gallery.js documents the same prefix. Reword what follows
 //    the em dash freely; do not touch what precedes it.
-const MOVED_BLOCKS = ['hero', 'cta-banner', 'page-header',
-  // #1027 batch B — six at once. `values-grid` belongs on this list even though its five looks were
-  // keyed off `data.style` rather than `data.variant`: what this list means is "this block's markup
-  // no longer decides how it looks", and that is now true of all six.
-  'contact-form', 'quote-form', 'services-list', 'services-nav',
-  'service-related-pages',
-  // #1028 batch C — 原来四个：`timeline` 随 #1372 删掉了（D19），那个「一排数字」的块按同一份 D19
-  // 并进了 `social-proof`（#1376），今天剩两个。
-  // Same meaning as above: these blocks' markup no longer decides how they look.
-  'contact-info', 'process-steps',
-  // #1029 batch D — four more. Same meaning as above: these blocks' markup no longer decides how
-  // they look. `blog-preview` keeps reading `data.fromBlog` / `data.maxPosts`, and that is not a
-  // contradiction: those two say WHICH articles the block draws, not what it looks like.
-  'team-grid', 'blog-preview',
-  // #1031 batch F — seven at once. All seven had a `data.variant` branch and nothing else: none of
-  // them is a `'use client'` component, so there was no behaviour to keep on the way out.
-  // 🔴 #1372 从这一批里删了两个块（D19），所以它今天只剩五个名字。
-  'content-split', 'text-block', 'social-proof', 'features-grid', 'newsletter-signup',
-  // #1036 batch G — the six blocks that had behaviour in at least one variant. `announcement-bar`
-  // belongs on this list even though it still reads `data.variant`: that read is the REGION path
-  // (`TopbarRegion.tsx` passes `regions.topbar.shape` through the same prop and it lands on
-  // `data-region-layout`), and regions are `scripts/region-layout.js`'s business, not phase 2's.
-  // As a BLOCK its markup no longer decides how it looks, which is what this list means.
-  'faq-accordion', 'testimonials', 'announcement-bar', 'pricing-table',
-  'gallery',
-  // #1030 batch E —— 原来四个，两个已经随 #1372 / #1375 删掉（都按 D19），今天剩下面这两个。
-  // Same meaning as above：这几个块的 markup 不再决定它们长什么样。
-  'map-area', 'trusted-brands',
-  // #1132 —— 通用块「卡片组」。这张名单的含义没变：「这个块的 markup 不再决定它长什么样」。
-  // 📌 #1162：这里原来写着「老名字 `values-grid` / `benefits-list` 一个都没删（老站还在吐老类名，
-  //    见 blocks.js 那层别名映射），通用块另外加自己的名字」—— 那层兼容 2026-08-23 整层退役了，
-  //    四个老名字（批 1 的 `values-grid` / `benefits-list`、批 2 的 `checklist` /
-  //    `service-highlights`）已从这张名单和注册表里一起删掉，名单从 35 项变成 31 项。
-  'card-group',
-  // #1333 —— 带表单的首屏拆成的那个块。含义跟上面每一行逐字相同：「这个块的 markup 不再决定它
-  // 长什么样」—— 它的排版整段住在 `public/shapes.css` 的
-  // `[data-block="hero-with-form"][data-shape="form-side"]`，皮走 `.hero__*` 那一家。
-  // 🔴 不加它的话下面那行日志会说「还有 1 个块没搬」，而那句话是假的（分母 `ALL_BLOCK_TYPES` 是
-  //    角色表的键集，本票给它加了一行）。
-  'hero-with-form'];
-// 🔴 #1132 —— 分母是**算出来的**，不是写死的 34。写死的那个数在 #1132 当天就成了假话：卡片组进了
-// MOVED_BLOCKS（35 项），`34 - 35` 会印出 `-1`。名单的权威是角色表 —— 它的键集合按
-// `tests/e2e/specs/978-theme-preview-layout.spec.ts` 恒等于注册表的键集合，也就是「一共有几种块」。
-const ALL_BLOCK_TYPES = Object.keys(BLOCK_ROLES);
-const movedList = MOVED_BLOCKS.join(' + ');
+// 📌 #1425 (T3) — this line used to list MOVED_BLOCKS, the old-library blocks whose markup had moved into
+//    the theme sheet (#1008 … #1333), and count the "unmoved" rest. Every one of those blocks was deleted
+//    with the old library; the 17 blocks left are styled by `public/shapes.css` + `site.css`, so the list
+//    and its count went with them.
 console.log(themeSheet
-  ? `  Theme CSS: public/themes/${themeSheet}.css — pasted into theme.css, ${movedList} styled by those rules (base.css underneath)`
-  : `  Theme CSS: none — ${movedList} fall back to base.css alone; `
-    + `the ${ALL_BLOCK_TYPES.length - MOVED_BLOCKS.length} unmoved blocks keep their variants`);
+  ? `  Theme CSS: public/themes/${themeSheet}.css — pasted into theme.css (base.css underneath)`
+  : '  Theme CSS: none — blocks fall back to base.css alone');
 
 // ─── #1002 §theme.css —— 皮和微调，两个固定路径 ───────────────────────────────────────────────
 //
@@ -1045,7 +964,7 @@ console.log(`  Generated public/theme.css — ${themeCssOrigin} (${themeCssBytes
 // brand.json 的主色 → Sass `$primary` → Webpixels → purge。实现与理由在 `lib/site-css.js`。
 // 🔴 **#1463 起每一页都 `<link>` 它**（`src/app/layout.tsx`，与 Tailwind 并存到 T4；Chris 2026-09-27「现在没有
 //    客户」）。在那之前唯一的读者是 dev 里的单格页 `/__catalog`（下面两段是那时写的，理由仍然成立）。
-// 🔴 编不出来【不】exit 1（#1424 QA2 打回）：这份 CSS 今天只有新块（hero-new）靠它，而容器那条命令是
+// 🔴 编不出来【不】exit 1（#1424 QA2 打回）：这份 CSS 今天只有新块（hero）靠它，而容器那条命令是
 //    `sync-config && next build` —— exit 1 就是「为了一份没人读的文件，这个站从此建不出来」
 //    （实测：brand.json 主色写成 `rgb(…)` / 8 位 hex，main 上 rc=0，这里曾经 rc=1）。跟 #1161 同一个理由。
 //    但也不静默：先删掉上一次那份旧的 site.css（否则图册会拿着旧文件看起来一切正常），再喊一行。
@@ -1055,90 +974,18 @@ require('./lib/site-css.js').writeSiteCss({ brand, rootDir })
     + `purged ${r.rawBytes} → ${r.bytes} bytes (${r.ms} ms)`))
   .catch((e) => {
     fs.rmSync(path.join(publicDir, 'site.css'), { force: true });
-    // #1463 起每一页都 <link> 它（layout.tsx）：编不出来 ⟹ 那条样式表 404，hero-new 这类新块没有样式，旧块照常。
+    // #1463 起每一页都 <link> 它（layout.tsx）：编不出来 ⟹ 那条样式表 404，hero 这类新块没有样式，旧块照常。
     //    不拦构建（构建期没有救，只有毁 —— 同 validateSite 那段理由），但要喊得够响。
-    console.error(`  🔴 public/site.css 没编出来，旧的那份已删掉 —— 每一页都挂着它（#1463），新块（hero-new）这次会没有样式；构建照常往下走: ${e && e.message}`);
+    console.error(`  🔴 public/site.css 没编出来，旧的那份已删掉 —— 每一页都挂着它（#1463），新块（hero）这次会没有样式；构建照常往下走: ${e && e.message}`);
   });
 
-// ─── #1198 §「这个站会长成地板样」守卫 ────────────────────────────────────────────────────────
-//
-// 2026-08-25，生产上唯一那个真付费客户的站（`site-194f1f41` / dexin.ca）掉进了这个形状：新模板 +
-// 一张只有 token 没有画法的 theme.css ⟹ 31 种块全部只剩 base.css 的地板样（桌面下四个数字柱纵排
-// 左对齐）。**整条链是绿的** —— 构建没报错，两行日志都在，而两行都在安抚人：
-//
-//     ℹ️  theme.json names theme "luxury-dark", which this template no longer has …
-//         The website keeps the look it already has …                ← 假的（上面那处已改）
-//     Theme CSS: none — hero + … + card-group fall back to base.css alone;
-//         the 0 unmoved blocks keep their variants                   ← 真的，但读起来像脚注
-//
-// 🔴 第二行才是本票要治的那件事，而它**一直是对的、只是没跟着重新标定**：#1018 写它的那天 34 种
-//    块里只搬走了 3 种，所以「fall back to base.css alone」说的是一小撮块；今天 `MOVED_BLOCKS` 是
-//    31、`BLOCK_ROLES` 的键也是 31 ⟹ 分子等于分母，同一句话今天的含义是「**这个站每一种块都没有
-//    版式**」，而句尾那个 `the 0 unmoved blocks` 反而把它读成了一条边角注。
-//    ⟹ 守卫要加的不是一个新读数，是**把这个读数的后果用人话说出来**。
-//
-// 🔴 量的是【产物】，不是 `themeSheet` 那个代理。两条来源都可能给出没有画法的 theme.css：
-//    ② 没有 sheet 时从 brand.json 生成（本站走的这条），以及 ① repo 里那份 `site/theme.css` 若是
-//    在没有 sheet 的年代冻下来的。问 `themeSheet` 只看得见第二条。
-//
-// 🔴 **报，不拒**（AC3 写的是「必须红或显式警告」，两者都算）。拒的代价量过：今天生产上处在这个
-//    形状的站正好是那一个，而它正是需要能重建才能被救的那一个 —— exit 1 会让老板连编辑都做不了，
-//    比地板样更坏。所以这里只负责把话说清楚，并留一个机器读得到的标记（`worker` 的升级那一跳读它）。
-const { assessFloorLook, FLOOR_LOOK_MARKER } = require('./lib/floor-look.js');
-{
-  // 这个站真的摆了哪些「版式归主题表管」的块。空站（一个 moved 块都没有）不该报 —— 那种站看不出
-  // 差别，报了就是恒响。
-  const movedOnSite = new Set();
-  for (const locale of locales) {
-    for (const page of pagesByLocale[locale]) {
-      for (const block of page.blocks) {
-        if (MOVED_BLOCKS.includes(block.type)) movedOnSite.add(block.type);
-      }
-    }
-  }
-  const themesDir = path.join(publicDir, 'themes');
-  // #1333 —— 借用别人那套部件类名的块（manifest 的 `hooksFrom`）在样式表里按构造找不到自己的名字，
-  // 照原样问会被记成「没画法」，而画它的就是被借的那个块那批规则。名单从 manifest 现取，不写死。
-  // 🔴 **它在这里买到的是哪一格，说在明处**（#1333 r2 实测；r1 的注释把这句写过头了，说成「每个用了
-  //    它的站都报一次假的『会长成地板样』」—— 那是假的）：`verdict.unstyled` 只在 `if (verdict.floor)`
-  //    里面印，而 `floor` 要求这个站用到的块**一个都没有**画法。拿 plumbing 站那三个块两臂各跑一次：
-  //      真表 ember-12   不传 → floor=false unstyled=["hero-with-form"] ｜ 传 → floor=false unstyled=[]
-  //                      两边 floor 都是 false ⟹ **印出来的字逐字相同**（一个字都不印）
-  //      纯 token 表     不传 → floor=true  三个块全在 unstyled 里     ｜ 传 → 逐字相同
-  //                      （被借的 `hero` 自己也没画法 ⟹ 借不到，两边印同样的字）
-  //    唯一会分叉的是第三种形态 ——「样式表画了被借的那个块、却没画这个站别的块」：
-  //      只有 `.hero__*` 规则的表  不传 → floor=true（**这才是那句假警报**）｜ 传 → floor=false
-  //    而那种表今天的树里造不出来（`public/themes/` 两份要么画全 31 个块，要么是纯 token）。
-  //    ⟹ 在这里传它是**为那一天备下正确读数**，不是今天在修一个正在发生的假警报。今天真买到东西的
-  //    是另外两个消费者：`lib/floor-look.test.js` ⑤（真表下 styledCount 31 → 32，不传当场红）与
-  //    `theme-pipeline/sheet-recipes.test.js` ⑫ 的分母自检 —— 它们直接问 `blockTypesStyledBy`，不经过
-  //    `floor` 那道与门。
-  const stylesFrom = {};
-  for (const [type, m] of blockManifest.loadManifests()) {
-    if (m.hooksFrom) stylesFrom[type] = m.hooksFrom;
-  }
-  const verdict = assessFloorLook({
-    themeCss: themeCssBytes.toString('utf-8'),
-    blockTypesOnSite: [...movedOnSite],
-    allBlockTypes: ALL_BLOCK_TYPES,
-    hasFloor: fs.existsSync(path.join(publicDir, 'base.css')),
-    stylesFrom,
-  });
-  if (verdict.floor) {
-    const sheetCount = fs.existsSync(themesDir)
-      ? fs.readdirSync(themesDir).filter((f) => f.endsWith('.css')).length
-      : 0;
-    console.log(`  🔴 ${FLOOR_LOOK_MARKER} —— THIS SITE WILL RENDER AS THE base.css FLOOR.`);
-    console.log(`     public/theme.css (${themeCssBytes.length} bytes, ${themeCssOrigin}) carries`
-      + ` block-layout rules for 0 of the ${movedOnSite.size} block type(s) this site uses`
-      + ` — every one of them falls back to base.css alone, so its pages stack in one column,`
-      + ` left-aligned, at every viewport width.`);
-    console.log(`     Unstyled on this site: ${verdict.unstyled.join(' + ')}`);
-    console.log(`     Fix: give the site a theme that ships its own stylesheet — site/theme.json`
-      + ` needs a "css" key naming a file in public/themes/ (public/themes has ${sheetCount}`
-      + ` sheet(s)). Applying a theme through the product writes that key for you.`);
-  }
-}
+// 📌 #1425（T3）—— 这里原来是 #1198 的「这个站会长成地板样」守卫：数这个站摆了几个 `MOVED_BLOCKS`
+//    （版式归 `public/themes/*.css` 那张主题表管的旧块），表里一条画法都没有就喊。那张名单上的块
+//    随旧库全删了；新库的 17 个块由 `public/shapes.css` + `site.css` 画，按构造不看主题表 ⟹ 守卫的
+//    分子恒为 0、永远不响。删掉它（连同只服务它的 `lib/floor-look.js` 和它的测试），而不是留一道永远绿的检查。
+//    📌 worker 那一侧读的 `__THEME_CSS_HAS_NO_BLOCK_LAYOUT__` 标记（`worker/main.go` §floorLookLines）从此不会再有人印 ——
+//       那半是 worker 的代码，本票不动，那一支只是永远走不进去
+//    （它的判法与 worker 读的那个标记不因本票改变）。
 
 const configDataPath = path.join(rootDir, 'src', 'lib', 'config-data.ts');
 // ── #1006 每站微扰（tweaks）──────────────────────────────────────────────────────────────────────

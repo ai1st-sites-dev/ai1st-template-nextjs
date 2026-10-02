@@ -81,12 +81,13 @@ function makeTemplate() {
       if (!fs.existsSync(path.join(dir, 'pages', `${s}.json`))) die(`夹具里 ${loc} 没有 ${s} 页`);
     }
     fs.mkdirSync(path.join(dir, 'blocks'), { recursive: true });
+    // #1425（T3）：夹具的块原来是 cta-banner / text-block（随旧库删了），换成新库的 cta / content
     writeJSON(path.join(dir, 'blocks', 'site-blocks.json'), {
-      promo: { type: 'cta-banner', data: { ...sample('cta-banner'), headline: `Promo ${loc}` }, visibility: ['about'] },
-      badge: { type: 'text-block', data: { ...sample('text-block'), headline: `Badge ${loc}` } },
-      onlyvis: { type: 'cta-banner', data: { ...sample('cta-banner'), headline: `Only vis ${loc}` }, visibility: ['home', 'contact'], weight: 25 },
-      everywhere: { type: 'text-block', data: { ...sample('text-block'), headline: `Everywhere ${loc}` }, visibility: ['*'], weight: 5 },
-      strvis: { type: 'text-block', data: { ...sample('text-block'), headline: `String vis ${loc}` }, visibility: 'about' },
+      promo: { type: 'cta', data: { ...sample('cta'), headline: `Promo ${loc}` }, visibility: ['about'] },
+      badge: { type: 'content', data: { ...sample('content'), headline: `Badge ${loc}` } },
+      onlyvis: { type: 'cta', data: { ...sample('cta'), headline: `Only vis ${loc}` }, visibility: ['home', 'contact'], weight: 25 },
+      everywhere: { type: 'content', data: { ...sample('content'), headline: `Everywhere ${loc}` }, visibility: ['*'], weight: 5 },
+      strvis: { type: 'content', data: { ...sample('content'), headline: `String vis ${loc}` }, visibility: 'about' },
     });
     const addRefs = (slug, refs) => {
       const p = path.join(dir, 'pages', `${slug}.json`);
@@ -419,12 +420,12 @@ console.log('⑩ 同一个标签页连存几次 · 别处的改动');
     reset();
     const head = cp.execSync('git rev-parse HEAD', { cwd: SITE, encoding: 'utf8' }).trim();
     const o = open('home');
-    if (external) extWrite((lib) => { lib.promo.data.description = 'EXT-F 1406'; });
+    if (external) extWrite((lib) => { lib.promo.data.body = 'EXT-F 1406'; });
     heroOf(o.data).props.headline = 'Hero one 1406';
     const s1 = saveAndRefresh(o);
     heroOf(o.data).props.headline = 'Hero two 1406';
     const s2 = saveAndRefresh(o);
-    const out = { s1, s2, desc: sb().promo.data.description };
+    const out = { s1, s2, desc: sb().promo.data.body };
     cp.execSync(`git reset -q --hard ${head}`, { cwd: SITE });
     return out;
   };
@@ -433,21 +434,21 @@ console.log('⑩ 同一个标签页连存几次 · 别处的改动');
   check(JSON.stringify(F.s1.files) === JSON.stringify(['en/pages/home.json']) && JSON.stringify(F.s2.files) === JSON.stringify(['en/pages/home.json']),
     'F：别处改过 promo 之后，两次只改 hero 的存盘都只写 home.json', `${F.s1.files.join(' ')} | ${F.s2.files.join(' ')}`);
   check(!F.s2.r.input.shared, 'F：第二次存盘不带 shared', JSON.stringify(F.s2.r.input.shared));
-  check(F.desc === 'EXT-F 1406', 'F：别处改的 promo.description 还在（没被抹回打开时那一份）', F.desc);
+  check(F.desc === 'EXT-F 1406', 'F：别处改的 promo.body 还在（没被抹回打开时那一份）', F.desc);
   const G = runFG(false);
   check(JSON.stringify(G.s1.files) === JSON.stringify(['en/pages/home.json']) && JSON.stringify(G.s2.files) === JSON.stringify(['en/pages/home.json']),
     'G（对照）：不做别处改动，两次都只写 home.json', `${G.s1.files.join(' ')} | ${G.s2.files.join(' ')}`);
 
-  // E：老板改了 promo 的 headline，别处刚改了它的 description → 只交 headline，description 留着别处那句
+  // E：老板改了 promo 的 headline，别处刚改了它的 body → 只交 headline，body 留着别处那句（#1425 T3：cta-banner 的 description 换成 cta 的 body）
   reset();
   const head0 = cp.execSync('git rev-parse HEAD', { cwd: SITE, encoding: 'utf8' }).trim();
   const o = open('home');
-  extWrite((lib) => { lib.promo.data.description = 'EXT-E 1406'; });
+  extWrite((lib) => { lib.promo.data.body = 'EXT-E 1406'; });
   itemOf(o.data, 'promo').props.headline = 'Promo E 1406';
   const e = saveAndRefresh(o);
   check(JSON.stringify(Object.keys((e.r.input.shared || {}).promo?.data || {})) === JSON.stringify(['headline']), 'E：shared 只带改过的那个字段', JSON.stringify(e.r.input.shared));
   const pe = sb().promo.data;
-  check(pe.headline === 'Promo E 1406' && pe.description === 'EXT-E 1406', 'E：headline 写进去，别处改的 description 还在', JSON.stringify(pe));
+  check(pe.headline === 'Promo E 1406' && pe.body === 'EXT-E 1406', 'E：headline 写进去，别处改的 body 还在', JSON.stringify(pe));
 
   // H：同一个标签页里，promo 改过一次、存过；之后别处又改了 promo.headline；老板再只改 hero 存 → 别处那句不被再交一遍盖掉
   extWrite((lib) => { lib.promo.data.headline = 'EXT-H 1406'; });
@@ -484,9 +485,9 @@ console.log('⑪ 同一个共用块字段两边都改 · notice');
     '同字段：回执带 notice、点名 headline', JSON.stringify(hit.r.last));
   check(hit.r.input.shared.promo.was && hit.r.input.shared.promo.was.headline === 'Promo en', '同字段：编辑器交出去的 was 是画布取的那个值', JSON.stringify(hit.r.input.shared));
 
-  const other = run((lib) => { lib.promo.data.description = 'EXT-desc 1420'; });
+  const other = run((lib) => { lib.promo.data.body = 'EXT-desc 1420'; });
   check(other.r.status === 0 && !('notice' in (other.r.last || {})), '对照：别处改的是另一个字段 ⟹ 没有 notice', JSON.stringify(other.r.last));
-  check(sb().promo.data.description === 'EXT-desc 1420', '对照：别处改的那个字段还在', sb().promo.data.description);
+  check(sb().promo.data.body === 'EXT-desc 1420', '对照：别处改的那个字段还在', sb().promo.data.body);
   const none = run(null);
   check(none.r.status === 0 && !('notice' in (none.r.last || {})), '对照：别处没改 ⟹ 没有 notice', JSON.stringify(none.r.last));
   const same = run((lib) => { lib.promo.data.headline = 'Promo MINE 1420'; }, 'Promo MINE 1420');
@@ -545,7 +546,7 @@ console.log('⑫ exit 9 可达性');
 
   const aboutFile = path.join(SITE, 'en', 'pages', 'about.json');
   const about = readJSON(aboutFile);
-  about.blocks.push({ ref: 'badge', type: 'text-block' });   // 别处已经写坏的一页（ref 和 type 同写）
+  about.blocks.push({ ref: 'badge', type: 'content' });   // 别处已经写坏的一页（ref 和 type 同写）
   writeJSON(aboutFile, about);
   const libFile = path.join(SITE, 'en', 'blocks', 'site-blocks.json');
   const libBefore = md5(libFile);
@@ -583,7 +584,8 @@ console.log('⑪ 共用块带 ref 键（#1430）：坏链接拒、好的收、�
   const GOOD = ['https://example.com/book', 'mailto:hi@example.com', 'tel:+14165550100', '/contact'];
   const lib = path.join(SITE, 'en', 'blocks', 'site-blocks.json');
   const withRef = () => { const l = readJSON(lib); l.promo.ref = 'whatever'; writeJSON(lib, l); };
-  const setButton = (o, href) => { itemOf(o.data, 'promo').props.button = { label: 'Go', href }; };
+  // #1425（T3）：cta-banner 的单个 button 槽换成 cta 的 ctas 按钮列表（第 1 项）
+  const setButton = (o, href) => { itemOf(o.data, 'promo').props.ctas = [{ label: 'Go', href, style: 'solid' }]; };
   const refusedMsg = (r) => (r.last && r.last.ok === false ? String(r.last.message || '') : '');
 
   for (const href of BAD) {
@@ -602,18 +604,18 @@ console.log('⑪ 共用块带 ref 键（#1430）：坏链接拒、好的收、�
     const o = open('home');
     setButton(o, href);
     const r = save('home', o);
-    const got = sb().promo.data.button;
+    const got = (sb().promo.data.ctas || [])[0];
     check(r.status === 0 && got && got.href === href && sb().promo.ref === 'whatever', `带 ref 的共用块 合法 ${href} → rc=0、落盘逐字相同、ref 键留着`, `rc=${r.status} ${JSON.stringify(got)} ${String(r.stderr).slice(0, 160)}`);
   }
   // 老数据：带 ref 的块里本来就有坏链接，只改标题 → 照存
   reset(); withRef();
-  { const l = readJSON(lib); l.promo.data.button = { label: 'Old', href: 'vbscript:legacy()' }; writeJSON(lib, l); }
+  { const l = readJSON(lib); l.promo.data.ctas = [{ label: 'Old', href: 'vbscript:legacy()', style: 'solid' }]; writeJSON(lib, l); }
   {
     const o = open('home');
     itemOf(o.data, 'promo').props.headline = 'Only the headline 1430';
     const r = save('home', o);
     const d = sb().promo.data;
-    check(r.status === 0 && d.headline === 'Only the headline 1430' && d.button.href === 'vbscript:legacy()',
+    check(r.status === 0 && d.headline === 'Only the headline 1430' && d.ctas[0].href === 'vbscript:legacy()',
       '带 ref 的共用块 老数据：只改标题 → rc=0（老坏链接原样留着）', `rc=${r.status} ${JSON.stringify(d)} ${String(r.stderr).slice(0, 160)}`);
   }
   reset();
@@ -625,7 +627,8 @@ console.log('⑩ 共用块的按钮链接：坏的拒、好的收、老数据不
   const BAD = ['javascript:alert(1)', 'vbscript:msgbox(1)', 'data:text/html,<script>alert(1)</script>'];
   const GOOD = ['https://example.com/book', 'mailto:hi@example.com', 'tel:+14165550100', '/contact'];
   const lib = path.join(SITE, 'en', 'blocks', 'site-blocks.json');
-  const setButton = (o, href) => { itemOf(o.data, 'promo').props.button = { label: 'Go', href }; };
+  // #1425（T3）：cta-banner 的单个 button 槽换成 cta 的 ctas 按钮列表（第 1 项）
+  const setButton = (o, href) => { itemOf(o.data, 'promo').props.ctas = [{ label: 'Go', href, style: 'solid' }]; };
   const refusedMsg = (r) => (r.last && r.last.ok === false ? String(r.last.message || '') : '');
 
   for (const href of BAD) {
@@ -646,30 +649,30 @@ console.log('⑩ 共用块的按钮链接：坏的拒、好的收、老数据不
     const o = open('home');
     setButton(o, href);
     const r = save('home', o);
-    const got = sb().promo.data.button;
+    const got = (sb().promo.data.ctas || [])[0];
     check(r.status === 0 && got && got.href === href && got.label === 'Go', `合法 ${href} → rc=0、落盘逐字相同`, `rc=${r.status} ${JSON.stringify(got)} ${String(r.stderr).slice(0, 160)}`);
   }
 
   // 老数据：块库里本来就有一个坏链接（模拟本票之前存进去的）。
   reset();
   const legacy = readJSON(lib);
-  legacy.promo.data.button = { label: 'Old', href: 'vbscript:legacy()' };
+  legacy.promo.data.ctas = [{ label: 'Old', href: 'vbscript:legacy()', style: 'solid' }];
   writeJSON(lib, legacy);
   {
     const o = open('home');
     itemOf(o.data, 'promo').props.headline = 'Only the headline 1427';
     const r = save('home', o);
     const d = sb().promo.data;
-    check(r.status === 0 && d.headline === 'Only the headline 1427' && d.button.href === 'vbscript:legacy()',
+    check(r.status === 0 && d.headline === 'Only the headline 1427' && d.ctas[0].href === 'vbscript:legacy()',
       '老数据：只改这个块的标题 → rc=0（老坏链接原样留着）', `rc=${r.status} ${JSON.stringify(d)} ${String(r.stderr).slice(0, 160)}`);
   }
   {
     const before = fs.readFileSync(lib, 'utf-8');
     const o = open('home');
-    itemOf(o.data, 'promo').props.button = { label: 'Old', href: 'data:text/html,x' };
+    itemOf(o.data, 'promo').props.ctas = [{ label: 'Old', href: 'data:text/html,x', style: 'solid' }];
     const r = save('home', o);
     const msg = refusedMsg(r);
-    check(r.status === 11 && /"Old"/.test(msg) && /CTA/i.test(msg) && fs.readFileSync(lib, 'utf-8') === before,
+    check(r.status === 11 && /"Old"/.test(msg) && /Call to action/.test(msg) && fs.readFileSync(lib, 'utf-8') === before,
       '老数据：把那个坏链接改成另一个坏的 → 拒，点名按钮和块，块库不变', `rc=${r.status} ${JSON.stringify(msg.slice(0, 160))}`);
   }
   reset();
@@ -677,7 +680,7 @@ console.log('⑩ 共用块的按钮链接：坏的拒、好的收、老数据不
   // 🔴 源头帽「按构造覆盖」：一种今天不存在的写入（新文件、新种类），不经任何 plan 函数、直接交给 commitWrites。
   const pw = require(path.join(TEMPLATE, 'scripts', 'lib', 'page-write.js'));
   const fifth = path.join(SITE, 'en', 'blocks', 'footer-promos-1427.json');
-  const doc = (href) => `${JSON.stringify({ spring: { type: 'cta-banner', data: { ...sample('cta-banner'), button: { label: 'Go', href } } } }, null, 2)}\n`;
+  const doc = (href) => `${JSON.stringify({ spring: { type: 'cta', data: { ...sample('cta'), ctas: [{ label: 'Go', href, style: 'solid' }] } } }, null, 2)}\n`;
   for (const href of BAD) {
     let err = null;
     try { pw.commitWrites([{ file: fifth, content: doc(href) }]); } catch (e) { err = e; }
@@ -693,7 +696,7 @@ console.log('⑩ 共用块的按钮链接：坏的拒、好的收、老数据不
     try { pw.commitWrites([{ file: home, content: `${JSON.stringify(pg, null, 2)}\n` }, { file: fifth, content: doc('vbscript:x') }]); } catch (e) { err = e; }
     check(err && err.code === pw.REFUSED && fs.readFileSync(home, 'utf-8') === hb && !fs.existsSync(fifth), '好页面 + 坏的第五种写入一起交 ⟹ 一个字节都不写', err ? err.message.slice(0, 100) : '没抛');
     pw.commitWrites([{ file: fifth, content: doc('/contact') }]);
-    check(fs.existsSync(fifth) && readJSON(fifth).spring.data.button.href === '/contact', '第五种写入合法链接 → 照写', '');
+    check(fs.existsSync(fifth) && readJSON(fifth).spring.data.ctas[0].href === '/contact', '第五种写入合法链接 → 照写', '');
   }
   reset();
 }

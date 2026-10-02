@@ -11,7 +11,7 @@ const { isColorValue, normalizeBg } = require('./contrast');
 //                            布尔开关（`icons` / `topbar`）不进 knobs，照旧写在 `slots.options.shape` 那串
 //                            `"{…, icons: bool}"` 里。
 //   · 顶层 `presets`         `[{ name, shape, knobs: { … }, options?: { <布尔>: true | false } }]`。`name` 是显示名，
-//                            `shape` 是形态目录名。#1468 起预设也能带布尔（header-new 的 `topbar`）：有预设写了的
+//                            `shape` 是形态目录名。#1468 起预设也能带布尔（header 的 `topbar`）：有预设写了的
 //                            那几个布尔「归预设管」—— 写了就每个预设都要写，判「一模一样」「是哪个预设」都连它一起比；
 //                            没有预设写的（dark / icons）不参与，点预设也不动它们。
 //
@@ -93,7 +93,7 @@ function partsOfPreset(p) {
 
 /**
  * 一个部件「有内容」吗（#1487）：字符串非空；数组非空；对象里至少一个顶层字符串字段非空（`join` = title 或 body 有字，
- * 跟 team-new 的 Section 画不画招聘卡同一条判据 —— 只剩一个按钮的招聘卡不画，也就不算有）。
+ * 跟 team 的 Section 画不画招聘卡同一条判据 —— 只剩一个按钮的招聘卡不画，也就不算有）。
  */
 function partFilled(v) {
   if (typeof v === 'string') return v.trim() !== '';

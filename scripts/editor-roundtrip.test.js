@@ -159,7 +159,8 @@ console.log('④ 清单不许手写');
   const dir = tmpdir('registry');
   const reg = path.join(dir, 'registry.generated.ts');
   const src = fs.readFileSync(catalogLib.REGISTRY_TS, 'utf-8');
-  const fake = src.replace(/^(\s*)'announcement-bar':/m, "$1'fake-block-1404': AnnouncementBarSection,\n$1'announcement-bar':");
+  // #1425（T3）：插入锚原来是 'announcement-bar'（随旧库删了），换成 'cta'
+  const fake = src.replace(/^(\s*)'cta':/m, "$1'fake-block-1404': CtaSection,\n$1'cta':");
   if (fake === src) die('没在注册表里找到插假块的位置（注册表的写法变了？）');
   fs.writeFileSync(reg, fake);
   let msg = '';
@@ -180,31 +181,35 @@ console.log('⑤ 形态下拉');
     total += got.length;
   }
   // #1424 —— 外壳区按 manifest 自己的 `region === true` 判，不手抄名单（手抄的 `['header', 'footer']`
-  // 在 `header-new` 进来那天就少了一个，合计差 1 而报的是「编辑器下拉错了」）。
+  // 在 `header` 进来那天就少了一个，合计差 1 而报的是「编辑器下拉错了」）。
   const isRegion = (block) => (catalog.manifests.get(block) || {}).region === true;
   const expectTotal = catalog.pairs.filter((p) => !isRegion(p.block) && p.candidate !== true).length;
   check(problems.length === 0, `逐块相等（合计 ${total} 项）`, problems.join(' / '));
   check(total === expectTotal, `合计 = 非 region 对数减候选（${expectTotal}）`, String(total));
+  // #1425（T3）：testimonials 改成新库那一块（原来是旧 testimonials 的 two-up · attribution-first · three-up · quote-rail）
   const t = compOf('testimonials').shapes.map((s) => s.name);
-  check(JSON.stringify(t) === JSON.stringify(['two-up', 'attribution-first', 'three-up', 'quote-rail']),
-    'testimonials = two-up · attribution-first · three-up · quote-rail', t.join(' · '));
-  check(['heading-side', 'masonry', 'quote-aside', 'single-featured'].every((x) => !t.includes(x)), 'testimonials 不含四个候选');
+  check(JSON.stringify(t) === JSON.stringify(['cards', 'side-intro', 'big-quote', 'quote-card', 'ratings']),
+    'testimonials = cards · side-intro · big-quote · quote-card · ratings', t.join(' · '));
+  // 📌 #1425（T3）—— 这里原来还有一格「testimonials 不含四个候选（heading-side / masonry / quote-aside / single-featured）」；
+  //    那四个候选随旧 testimonials 删了，新库今天一个 `candidate: true` 都没有。候选那条规则由下面的反向对照量。
   // #1419 —— manifest 里那份旧的 `variants` 词表整套删了（它跟子目录对不上，下拉从来不该读它）。
   // 这一格原来断言「hero 下拉不含那 9 个旧名字」，词表没了就改成断言这个键不再存在 —— 写回去的话这里红。
   const legacyKeyed = [...manifests.values()].filter((m) => 'variants' in m || 'variantKey' in m).map((m) => m.type);
   check(manifests.size > 0 && legacyKeyed.length === 0,
     `manifest 里没有 variants / variantKey 键（${manifests.size} 份）`, legacyKeyed.join(' · '));
-  // 反向对照：去掉 masonry 的 candidate → 它回到下拉，另外三个候选仍不在（写死名单过不了这一格）
+  // 反向对照：#1425（T3）—— 原来是「去掉 masonry 的 candidate → 它回到下拉」，新库里没有候选可去掉；换成镜像的那一臂：
+  //    给 ratings 加上 candidate → 它从下拉里消失，其余四个仍在（写死名单、或者不读 candidate 的实现都过不了这一格）。
   const dir = tmpdir('blocks-cand');
   cp.execSync(`cp -a "${path.join(NEXT, 'blocks')}/." "${dir}"`);
-  const md = path.join(dir, 'testimonials', 'masonry', 'shape.md');
+  const md = path.join(dir, 'testimonials', 'ratings', 'shape.md');
   const before = fs.readFileSync(md, 'utf-8');
-  const after = before.replace(/^candidate: true\n/m, '');
-  if (after === before) die('masonry/shape.md 里没有 `candidate: true` 这一行（区块库变了？）');
+  if (/^candidate: true$/m.test(before)) die('ratings/shape.md 已经是候选（区块库变了？）');
+  const after = before.replace(/^---\n/, '---\ncandidate: true\n');
+  if (after === before) die('ratings/shape.md 开头不是 `---` front matter（区块库变了？）');
   fs.writeFileSync(md, after);
   const t2 = editorSchema({ blocksDir: dir }).components.find((c) => c.type === 'testimonials').shapes.map((s) => s.name);
-  check(t2.includes('masonry'), '反向：去掉 masonry 的 candidate → masonry 出现在下拉', t2.join(' · '));
-  check(['heading-side', 'quote-aside', 'single-featured'].every((x) => !t2.includes(x)), '反向：另外三个候选仍不在', t2.join(' · '));
+  check(!t2.includes('ratings'), '反向：给 ratings 加上 candidate → ratings 从下拉里消失', t2.join(' · '));
+  check(['cards', 'side-intro', 'big-quote', 'quote-card'].every((x) => t2.includes(x)), '反向：其余四个仍在', t2.join(' · '));
 }
 
 // ══ 往返工具 ═══════════════════════════════════════════════════════════════════════════════════
@@ -307,62 +312,61 @@ console.log('⑦ 改字段');
   t.props.headline = 'Edited 1404';
   t.props.items[1].quote = 'New quote 1404';
   t.props.items.push({ name: 'Added', quote: 'Added quote' });
-  const h = data.content.find((c) => c.type === 'hero');
-  h.props.ctaPrimary.label = 'Book now 1404';
-  const tb = data.content.find((c) => c.type === 'trusted-brands');
-  tb.props.brands = [{ value: 'Acme' }, ...tb.props.brands];
+  // #1425（T3）：link 对象字段原来量的是 hero.ctaPrimary（新 hero 的按钮是 ctas 列表），换成 logos.introCta（kind=link）
+  const h = data.content.find((c) => c.type === 'logos');
+  h.props.introCta.label = 'Book now 1404';
+  // 📌 #1425（T3）—— 这里原来还改 trusted-brands.brands（顶层 [string] 列表）；那个块随旧库删了，新库里没有顶层 [string] 列表槽。
   const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
   const ot = out.blocks.find((b) => b.type === 'testimonials');
   const rt = raw.blocks.find((b) => b.type === 'testimonials');
   check(ot.data.headline === 'Edited 1404', 'text 字段写回');
   check(ot.data.items[1].quote === 'New quote 1404' && ot.data.items[1].rating === rt.data.items[1].rating, 'list 子字段写回，同一项里没字段的键（rating）原样');
   check(ot.data.items.length === rt.data.items.length + 1 && ot.data.items[3].name === 'Added', 'list 加一项');
-  const oh = out.blocks.find((b) => b.type === 'hero');
-  check(oh.data.ctaPrimary.label === 'Book now 1404' && oh.data.ctaPrimary.href === raw.blocks.find((b) => b.type === 'hero').data.ctaPrimary.href,
+  const oh = out.blocks.find((b) => b.type === 'logos');
+  check(oh.data.introCta.label === 'Book now 1404' && oh.data.introCta.href === raw.blocks.find((b) => b.type === 'logos').data.introCta.href,
     'link 是 object 字段：label 写回、href 原样（没被当成数组）');
-  const ob = out.blocks.find((b) => b.type === 'trusted-brands');
-  check(Array.isArray(ob.data.brands) && ob.data.brands[0] === 'Acme' && ob.data.brands.every((x) => typeof x === 'string'), '[string] 列表写回成字符串数组');
+  // 📌 #1425（T3）—— 这里原来还有「[string] 列表写回成字符串数组」（trusted-brands.brands）；理由同上。
   const changed = out.blocks.filter((b, i) => JSON.stringify(b) !== JSON.stringify(raw.blocks[i])).map((b) => b.type);
-  check(JSON.stringify(changed.sort()) === JSON.stringify(['hero', 'testimonials', 'trusted-brands']), '只有改过的三块变了', changed.join(' '));
+  check(JSON.stringify(changed.sort()) === JSON.stringify(['logos', 'testimonials']), '只有改过的两块变了', changed.join(' '));
   check(out.blocks.every((b) => b.weight === undefined), '顺序没动 → 一个 weight 都没写');
   // 形态下拉
   const { initial: initial2, data: data2 } = openPage(raw);
-  data2.content.find((c) => c.type === 'testimonials').props._shape = 'three-up';
+  data2.content.find((c) => c.type === 'testimonials').props._shape = 'side-intro'; // #1425（T3）：原来是旧 testimonials 的 three-up
   const out2 = convert.puckToPage({ raw, data: data2, initial: initial2, schema, slug: 'home' });
-  check(out2.blocks.find((b) => b.type === 'testimonials').shape === 'three-up', '改形态 → 那一条写上 shape');
+  check(out2.blocks.find((b) => b.type === 'testimonials').shape === 'side-intro', '改形态 → 那一条写上 shape');
 }
 
 // ══ ⑦e #1477：颜色槽写渐变、再改回纯色 ════════════════════════════════════════════════════════
 console.log('⑦e 颜色槽写渐变');
 {
   const { GRADIENT_SWATCHES, toneForBg } = require('./lib/contrast.js');
-  const heroF = compOf('hero-new').fields.find((f) => f.slot === 'bg');
+  const heroF = compOf('hero').fields.find((f) => f.slot === 'bg');
   check(!!heroF && JSON.stringify(heroF.gradients) === JSON.stringify(GRADIENT_SWATCHES),
-    'hero-new 的 bg 字段带着三档预设渐变（= contrast.js §GRADIENT_SWATCHES）', JSON.stringify(heroF && heroF.gradients));
+    'hero 的 bg 字段带着三档预设渐变（= contrast.js §GRADIENT_SWATCHES）', JSON.stringify(heroF && heroF.gradients));
   const raw = fixturePage(false);
   const g = heroF.gradients[2];
   const { initial, data } = openPage(raw);
-  data.content.find((c) => c.type === 'hero-new').props.bg = JSON.parse(JSON.stringify(g));
+  data.content.find((c) => c.type === 'hero').props.bg = JSON.parse(JSON.stringify(g));
   const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
-  const bg = out.blocks.find((b) => b.type === 'hero-new').data.bg;
+  const bg = out.blocks.find((b) => b.type === 'hero').data.bg;
   check(bg && typeof bg === 'object' && JSON.stringify(bg) === JSON.stringify(g) && toneForBg(bg) === 'dark',
     `选一档预设渐变再存 ⟹ data.bg 是 {stops, angle} 对象（${JSON.stringify(bg)}）、字色判成反白`);
   const changed = out.blocks.filter((b, i) => JSON.stringify(b) !== JSON.stringify(raw.blocks[i])).map((b) => b.type);
-  check(JSON.stringify(changed) === JSON.stringify(['hero-new']), '只有 hero-new 那一块变了', changed.join(' '));
+  check(JSON.stringify(changed) === JSON.stringify(['hero']), '只有 hero 那一块变了', changed.join(' '));
   // 重开：存了渐变的块打开之后字段里仍是那条渐变（不是「没填」），什么都不改再存 ⟹ 逐字不变。
   const reopened = openPage(out);
-  check(JSON.stringify(reopened.data.content.find((c) => c.type === 'hero-new').props.bg) === JSON.stringify(g), '重开：字段里读回同一条渐变');
+  check(JSON.stringify(reopened.data.content.find((c) => c.type === 'hero').props.bg) === JSON.stringify(g), '重开：字段里读回同一条渐变');
   check(firstDiff(out, convert.puckToPage({ raw: out, data: reopened.data, initial: reopened.initial, schema, slug: 'home' })) === null,
     '重开什么都不改再存 ⟹ 往返无损（渐变没被当成「无」删掉）');
-  reopened.data.content.find((c) => c.type === 'hero-new').props.bg = '#ffffff';
+  reopened.data.content.find((c) => c.type === 'hero').props.bg = '#ffffff';
   const back = convert.puckToPage({ raw: out, data: reopened.data, initial: reopened.initial, schema, slug: 'home' });
-  check(back.blocks.find((b) => b.type === 'hero-new').data.bg === '#ffffff', '再改回 #ffffff ⟹ 存的是字符串（不留 stops）');
+  check(back.blocks.find((b) => b.type === 'hero').data.bg === '#ffffff', '再改回 #ffffff ⟹ 存的是字符串（不留 stops）');
   // 阳性对照：toProp 回到只收字符串（#1477 之前的样子）⟹ 重开那一格读成 undefined，存盘把渐变删掉。
   const old = mutantConverter("return typeof value === 'string' ? value : isPlainObject(value) ? clone(value) : undefined;",
     "return typeof value === 'string' ? value : undefined;");
   const o2 = openPage(out, {}, old);
   const lost = old.puckToPage({ raw: out, data: o2.data, initial: o2.initial, schema, slug: 'home' });
-  check(o2.data.content.find((c) => c.type === 'hero-new').props.bg === undefined && firstDiff(out, lost) !== null,
+  check(o2.data.content.find((c) => c.type === 'hero').props.bg === undefined && firstDiff(out, lost) !== null,
     `阳性对照：toProp 只收字符串 ⟹ 重开读成「没填」，往返报出差异（${firstDiff(out, lost)}）`);
 }
 
@@ -380,39 +384,39 @@ console.log('⑦g form.id 下拉（站级表单库）');
   const app = fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'editor', 'EditorApp.tsx'), 'utf8');
   check(/f\.slot === 'form' && s\.sub === 'id'[\s\S]{0,80}type: 'select'[\s\S]{0,40}formIdOptions\(forms\)/.test(app),
     'EditorApp：form 槽的 id 画成 select、选项来自 formIdOptions(forms)（🔴 弱判据：只证源码接上了）');
-  for (const type of ['hero-new', 'footer-new', 'contact-new', 'cta-new']) {
+  for (const type of ['hero', 'footer', 'contact', 'cta']) {
     const c = compOf(type);
-    if (!c) { if (type === 'footer-new') continue; bad(`${type} 不在组件清单里`); continue; }
+    if (!c) { if (type === 'footer') continue; bad(`${type} 不在组件清单里`); continue; }
     const fld = c.fields.find((x) => x.slot === 'form');
     check(!!fld && fld.control === 'object' && fld.subs.map((x) => x.sub).join(',') === 'id', `${type}：form 槽是对象字段、子字段只有 id`,
       fld ? `${fld.control} / ${fld.subs.map((x) => x.sub).join(',')}` : '没有');
   }
   const raw = fixturePage(false);
   const { initial, data } = openPage(raw);
-  const item = data.content.find((c) => c.type === 'cta-new');
+  const item = data.content.find((c) => c.type === 'cta');
   item.props.form = { ...(item.props.form || {}), id: opts[2].value };
   const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
-  const blk = out.blocks.find((b) => b.type === 'cta-new');
-  check(blk.data.form && blk.data.form.id === 'contact', `选「${opts[2].label}」再存 ⟹ cta-new 的 data.form.id = ${JSON.stringify(blk.data.form)}`);
+  const blk = out.blocks.find((b) => b.type === 'cta');
+  check(blk.data.form && blk.data.form.id === 'contact', `选「${opts[2].label}」再存 ⟹ cta 的 data.form.id = ${JSON.stringify(blk.data.form)}`);
   const changed = out.blocks.filter((b, i) => JSON.stringify(b) !== JSON.stringify(raw.blocks[i])).map((b) => b.type);
-  check(JSON.stringify(changed) === JSON.stringify(['cta-new']), '只有 cta-new 那一块变了', changed.join(' '));
+  check(JSON.stringify(changed) === JSON.stringify(['cta']), '只有 cta 那一块变了', changed.join(' '));
   const re = openPage(out);
-  check(re.data.content.find((c) => c.type === 'cta-new').props.form.id === 'contact', '重开：下拉里读回 contact');
+  check(re.data.content.find((c) => c.type === 'cta').props.form.id === 'contact', '重开：下拉里读回 contact');
 }
 
-// ══ ⑦f #1483：pricing-new 在 Puck 里 —— 能拖、能改 plans、点预设 / 拧旋钮显示 Custom、点 Rainbow 颜色跟着变 ═══════
-console.log('⑦f pricing-new 预设带颜色');
+// ══ ⑦f #1483：pricing 在 Puck 里 —— 能拖、能改 plans、点预设 / 拧旋钮显示 Custom、点 Rainbow 颜色跟着变 ═══════
+console.log('⑦f pricing 预设带颜色');
 {
   const { presetClickProps, presetNameFor } = require('./lib/block-knobs.js');
-  const comp = compOf('pricing-new');
-  check(!!comp, 'pricing-new 在组件清单里（左栏能拖）');
+  const comp = compOf('pricing');
+  check(!!comp, 'pricing 在组件清单里（左栏能拖）');
   const opt = comp.fields.find((f) => f.control === 'options');
   const RB = { stops: ['#7d52f4', '#f7b733'], angle: 135 };
   const man = { slots: { options: { knobs: opt.knobs } }, presets: opt.presets };
   const nameOf = (props) => presetNameFor(man, { ...(props.options || {}), ...Object.fromEntries(opt.colorSlots.map((c) => [c, props[c]])) });
   const raw = fixturePage(false);
   const { initial, data } = openPage(raw);
-  const item = data.content.find((c) => c.type === 'pricing-new');
+  const item = data.content.find((c) => c.type === 'pricing');
   check(!!item && Array.isArray(item.props.plans) && item.props.plans.length > 0, `打开之后 plans 是列表字段（${item && item.props.plans && item.props.plans.length} 项）`);
   // 点 Rainbow ⟹ options = 它的旋钮、bg / featuredColor = 那道渐变；侧栏判成 Rainbow（Plan cards 不亮）。
   item.props = presetClickProps(opt, item.props, 'Rainbow');
@@ -420,47 +424,47 @@ console.log('⑦f pricing-new 预设带颜色');
     `点 Rainbow ⟹ bg / featuredColor 设成渐变、侧栏亮 Rainbow（${nameOf(item.props)}）`);
   item.props.plans[0].name = 'Renamed plan';
   const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
-  const blk = out.blocks.find((b) => b.type === 'pricing-new');
+  const blk = out.blocks.find((b) => b.type === 'pricing');
   check(JSON.stringify(blk.data.bg) === JSON.stringify(RB) && JSON.stringify(blk.data.featuredColor) === JSON.stringify(RB)
     && blk.data.options.introPosition === 'top' && blk.data.plans[0].name === 'Renamed plan',
   '存盘 ⟹ data.bg / data.featuredColor 是那道渐变、options 是 Rainbow 的旋钮、plans[0].name 改了');
   const changed = out.blocks.filter((b, i) => JSON.stringify(b) !== JSON.stringify(raw.blocks[i])).map((b) => b.type);
-  check(JSON.stringify(changed) === JSON.stringify(['pricing-new']), '只有 pricing-new 那一块变了', changed.join(' '));
+  check(JSON.stringify(changed) === JSON.stringify(['pricing']), '只有 pricing 那一块变了', changed.join(' '));
   // 拧 featuredColor ⟹ 回落 Plan cards；拧一个旋钮 ⟹ Custom；点 Plan cards ⟹ 两个颜色都清掉。
   check(nameOf({ ...item.props, featuredColor: '#dc2626' }) === 'Plan cards', 'featuredColor 改成 #dc2626 ⟹ 侧栏回落 Plan cards');
   check(nameOf({ ...item.props, options: { ...item.props.options, planStyle: 'plain' } }) === 'custom', '拧 planStyle ⟹ Custom');
   const back = presetClickProps(opt, item.props, 'Plan cards');
   check(!('bg' in back) && !('featuredColor' in back) && nameOf(back) === 'Plan cards', '点 Plan cards ⟹ 两个颜色字段都删掉、侧栏亮 Plan cards');
   const re = openPage(out);
-  re.data.content.find((c) => c.type === 'pricing-new').props = presetClickProps(opt, re.data.content.find((c) => c.type === 'pricing-new').props, 'Plan cards');
-  const cleared = convert.puckToPage({ raw: out, data: re.data, initial: re.initial, schema, slug: 'home' }).blocks.find((b) => b.type === 'pricing-new');
+  re.data.content.find((c) => c.type === 'pricing').props = presetClickProps(opt, re.data.content.find((c) => c.type === 'pricing').props, 'Plan cards');
+  const cleared = convert.puckToPage({ raw: out, data: re.data, initial: re.initial, schema, slug: 'home' }).blocks.find((b) => b.type === 'pricing');
   check(!('bg' in cleared.data) && !('featuredColor' in cleared.data), '存盘 ⟹ 页面 JSON 里 bg / featuredColor 两个键都没了（恢复成空）');
-  // 没有带颜色预设的块：点预设颜色一个都不碰（规则 2 只对 pricing-new 生效）。
-  const heroOpt = compOf('hero-new').fields.find((f) => f.control === 'options');
+  // 没有带颜色预设的块：点预设颜色一个都不碰（规则 2 只对 pricing 生效）。
+  const heroOpt = compOf('hero').fields.find((f) => f.control === 'options');
   const hp = presetClickProps(heroOpt, { bg: '#0f172a', options: {} }, heroOpt.presets[1].name);
-  check(hp.bg === '#0f172a' && JSON.stringify(heroOpt.colorSlots) === '[]', `hero-new 点预设 ⟹ bg 不动（colorSlots ${JSON.stringify(heroOpt.colorSlots)}）`);
-  // 阳性对照：把 pricing-new 字段里的 colorSlots 拿掉（= 编辑器不知道哪些颜色归预设管）⟹ 点 Plan cards 渐变还留着。
+  check(hp.bg === '#0f172a' && JSON.stringify(heroOpt.colorSlots) === '[]', `hero 点预设 ⟹ bg 不动（colorSlots ${JSON.stringify(heroOpt.colorSlots)}）`);
+  // 阳性对照：把 pricing 字段里的 colorSlots 拿掉（= 编辑器不知道哪些颜色归预设管）⟹ 点 Plan cards 渐变还留着。
   const blind = presetClickProps({ ...opt, colorSlots: [] }, item.props, 'Plan cards');
   check(JSON.stringify(blind.bg) === JSON.stringify(RB), '阳性对照：没有 colorSlots ⟹ 点 Plan cards 渐变还留着（上面那格的「清掉」是 colorSlots 带来的）');
 }
 
-// ══ ⑦g #1487：team-new 在 Puck 里 —— 能拖、能改 members、点预设 / 拧旋钮显示 Custom、点 Hiring 招聘卡出现 ═══════
-console.log('⑦g team-new 预设带部件');
+// ══ ⑦g #1487：team 在 Puck 里 —— 能拖、能改 members、点预设 / 拧旋钮显示 Custom、点 Hiring 招聘卡出现 ═══════
+console.log('⑦g team 预设带部件');
 {
   const { presetClickProps, presetNameFor } = require('./lib/block-knobs.js');
-  const comp = compOf('team-new');
-  check(!!comp, 'team-new 在组件清单里（左栏能拖）');
+  const comp = compOf('team');
+  check(!!comp, 'team 在组件清单里（左栏能拖）');
   const opt = comp.fields.find((f) => f.control === 'options');
   const man = { slots: { options: { knobs: opt.knobs } }, presets: opt.presets };
   const nameOf = (props) => presetNameFor(man, { ...(props.options || {}), join: props.join });
   const raw = fixturePage(false);
-  const tb = raw.blocks.find((b) => b.type === 'team-new');
-  check(!!tb, '夹具页里有 team-new');
-  // 从一块没有招聘卡的 team-new 开始（join 空）。
+  const tb = raw.blocks.find((b) => b.type === 'team');
+  check(!!tb, '夹具页里有 team');
+  // 从一块没有招聘卡的 team 开始（join 空）。
   delete tb.data.join;
   tb.data.options = { ...opt.presets.find((p) => p.name === 'Cards').knobs };
   const { initial, data } = openPage(raw);
-  const item = data.content.find((c) => c.type === 'team-new');
+  const item = data.content.find((c) => c.type === 'team');
   check(!!item && Array.isArray(item.props.members) && item.props.members.length > 0, `打开之后 members 是列表字段（${item && item.props.members && item.props.members.length} 项）`);
   check(nameOf(item.props) === 'Cards', `打开时侧栏亮 Cards（${nameOf(item.props)}）`);
   check(nameOf({ ...item.props, options: { ...item.props.options, memberStyle: 'plain' } }) === 'custom', '拧 memberStyle ⟹ Custom');
@@ -469,11 +473,11 @@ console.log('⑦g team-new 预设带部件');
     `点 Hiring ⟹ join 用占位内容填上、侧栏亮 Hiring（${nameOf(item.props)}）`);
   item.props.members[0].name = 'Renamed member';
   const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
-  const blk = out.blocks.find((b) => b.type === 'team-new');
+  const blk = out.blocks.find((b) => b.type === 'team');
   check(blk.data.join && blk.data.join.title === opt.partDemos.join.title && blk.data.options.membersColumns === '3' && blk.data.members[0].name === 'Renamed member',
     '存盘 ⟹ data.join 是占位招聘卡、options 是 Hiring 的旋钮、members[0].name 改了');
   const changed = out.blocks.filter((b, i) => JSON.stringify(b) !== JSON.stringify(raw.blocks[i])).map((b) => b.type);
-  check(JSON.stringify(changed) === JSON.stringify(['team-new']), '只有 team-new 那一块变了', changed.join(' '));
+  check(JSON.stringify(changed) === JSON.stringify(['team']), '只有 team 那一块变了', changed.join(' '));
   // 再点 Cards ⟹ Cards 亮、join 还在；清空 join ⟹ 不再是 Hiring。
   const cards = presetClickProps(opt, item.props, 'Cards');
   check(nameOf(cards) === 'Cards' && cards.join && cards.join.title === opt.partDemos.join.title, '再点 Cards ⟹ Cards 亮、招聘卡内容还在');
@@ -483,23 +487,23 @@ console.log('⑦g team-new 预设带部件');
   check(blind.join === undefined && nameOf(blind) === 'custom', '阳性对照：没有 partDemos ⟹ 点 Hiring 招聘卡不出现（上面那格的「填上」是 partDemos 带来的）');
 }
 
-// ══ ⑦h #1495：gallery-new 在 Puck 里 —— 能拖、能增删照片、点预设 / 拧旋钮显示 Custom ════════════════════════
-console.log('⑦h gallery-new 增删照片 · 预设');
+// ══ ⑦h #1495：gallery 在 Puck 里 —— 能拖、能增删照片、点预设 / 拧旋钮显示 Custom ════════════════════════
+console.log('⑦h gallery 增删照片 · 预设');
 {
   const { presetNameFor } = require('./lib/block-knobs.js');
-  const comp = compOf('gallery-new');
-  check(!!comp, 'gallery-new 在组件清单里（左栏能拖）');
+  const comp = compOf('gallery');
+  check(!!comp, 'gallery 在组件清单里（左栏能拖）');
   const opt = comp.fields.find((f) => f.control === 'options');
   const man = { slots: { options: { knobs: opt.knobs } }, presets: opt.presets };
   const nameOf = (props) => presetNameFor(man, props.options || {});
   check(JSON.stringify(opt.presets.map((p) => p.name)) === '["Grid","Masonry","Mosaic","Side intro"]', `四个预设按钮（${opt.presets.map((p) => p.name).join(' / ')}）`);
   const raw = fixturePage(false);
-  const gb = raw.blocks.find((b) => b.type === 'gallery-new');
-  check(!!gb, '夹具页里有 gallery-new');
+  const gb = raw.blocks.find((b) => b.type === 'gallery');
+  check(!!gb, '夹具页里有 gallery');
   const photo = (i) => ({ image: { imageUrl: `https://example.com/p${i}.jpg`, alt: '' }, title: `Job ${i}`, caption: `Place ${i}` });
   gb.data.items = [photo(0), photo(1), photo(2)];
   const { initial, data } = openPage(raw);
-  const item = data.content.find((c) => c.type === 'gallery-new');
+  const item = data.content.find((c) => c.type === 'gallery');
   check(Array.isArray(item.props.items) && item.props.items.length === 3, `打开之后 items 是列表字段（${item.props.items.length} 张）`);
   // 点 Masonry（整组旋钮写进 options）⟹ 侧栏亮 Masonry；拧 itemShape ⟹ Custom。
   item.props.options = { ...(item.props.options || {}), ...opt.presets.find((p) => p.name === 'Masonry').knobs };
@@ -510,32 +514,32 @@ console.log('⑦h gallery-new 增删照片 · 预设');
   item.props.items.push(photo(9));
   item.props.items[0].title = 'Renamed job';
   const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
-  const blk = out.blocks.find((b) => b.type === 'gallery-new');
+  const blk = out.blocks.find((b) => b.type === 'gallery');
   check(JSON.stringify(blk.data.items.map((x) => x.title)) === '["Renamed job","Job 2","Job 9"]'
     && blk.data.items.every((x, i) => x.image && x.image.imageUrl === `https://example.com/p${[0, 2, 9][i]}.jpg`),
   `删第 2 张、加第 9 张、改第 1 张标题 ⟹ 存盘 items = ${JSON.stringify(blk.data.items.map((x) => x.title))}，每张的 image 原样`);
   check(blk.data.options.itemShape === 'original' && blk.data.options.itemsLayout === 'grid', '存盘 options 是 Masonry 那组旋钮');
   const changed = out.blocks.filter((b, i) => JSON.stringify(b) !== JSON.stringify(raw.blocks[i])).map((b) => b.type);
-  check(JSON.stringify(changed) === JSON.stringify(['gallery-new']), '只有 gallery-new 那一块变了', changed.join(' '));
+  check(JSON.stringify(changed) === JSON.stringify(['gallery']), '只有 gallery 那一块变了', changed.join(' '));
   const re = openPage(out);
   check(firstDiff(out, convert.puckToPage({ raw: out, data: re.data, initial: re.initial, schema, slug: 'home' })) === null, '重开什么都不改再存 ⟹ 往返无损');
 }
 
-// ══ ⑦i #1500：testimonials-new 的 summary 在 Puck 里 —— 能增删平台、改平台名、拧 summaryStyle、点 Ratings 填占位 ═══════
-console.log('⑦i testimonials-new summary 一组平台');
+// ══ ⑦i #1500：testimonials 的 summary 在 Puck 里 —— 能增删平台、改平台名、拧 summaryStyle、点 Ratings 填占位 ═══════
+console.log('⑦i testimonials summary 一组平台');
 {
   const { presetClickProps, presetNameFor } = require('./lib/block-knobs.js');
-  const comp = compOf('testimonials-new');
+  const comp = compOf('testimonials');
   const opt = comp.fields.find((f) => f.control === 'options');
   const sf = comp.fields.find((f) => f.slot === 'summary');
   check(!!sf && sf.control === 'list', `summary 是列表字段（${sf && sf.control}）—— Puck 里能加一个平台 / 删一个平台`);
   const man = { slots: { options: { knobs: opt.knobs } }, presets: opt.presets };
   const nameOf = (props) => presetNameFor(man, { ...(props.options || {}), summary: props.summary });
   const raw = fixturePage(false);
-  const tb = raw.blocks.find((b) => b.type === 'testimonials-new');
-  check(!!tb && Array.isArray(tb.data.summary) && tb.data.summary.length > 0, `夹具页的 testimonials-new 带 summary（${tb && Array.isArray(tb.data.summary) && tb.data.summary.length} 个平台）`);
+  const tb = raw.blocks.find((b) => b.type === 'testimonials');
+  check(!!tb && Array.isArray(tb.data.summary) && tb.data.summary.length > 0, `夹具页的 testimonials 带 summary（${tb && Array.isArray(tb.data.summary) && tb.data.summary.length} 个平台）`);
   const { initial, data } = openPage(raw);
-  const item = data.content.find((c) => c.type === 'testimonials-new');
+  const item = data.content.find((c) => c.type === 'testimonials');
   const n0 = item.props.summary.length;
   check(Array.isArray(item.props.summary) && n0 > 0, `打开之后 summary 是数组（${n0} 项）`);
   // 加一个平台、删掉第一个、改第一个的平台名、拧 summaryStyle=cards。
@@ -543,11 +547,11 @@ console.log('⑦i testimonials-new summary 一组平台');
   item.props.summary[0].source = 'Yelp (Toronto)';
   item.props.options = { ...(item.props.options || {}), summaryStyle: 'cards' };
   const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
-  const blk = out.blocks.find((b) => b.type === 'testimonials-new');
+  const blk = out.blocks.find((b) => b.type === 'testimonials');
   check(blk.data.summary.length === n0 && blk.data.summary[n0 - 1].source === 'Facebook' && blk.data.summary[0].source === 'Yelp (Toronto)' && blk.data.options.summaryStyle === 'cards',
     `存盘 ⟹ summary 删一加一（${blk.data.summary.map((x) => x.source).join(' · ')}）、第一项改名、options.summaryStyle = cards`);
   const changed = out.blocks.filter((b, i) => JSON.stringify(b) !== JSON.stringify(raw.blocks[i])).map((b) => b.type);
-  check(JSON.stringify(changed) === JSON.stringify(['testimonials-new']), '只有 testimonials-new 那一块变了', changed.join(' '));
+  check(JSON.stringify(changed) === JSON.stringify(['testimonials']), '只有 testimonials 那一块变了', changed.join(' '));
   // 点 Ratings：summary 空 ⟹ 用槽上 demo 填上、Ratings 亮；再点 Cards ⟹ 内容还在、Cards 亮。
   const empty = { ...item.props, summary: [] };
   const r = presetClickProps(opt, empty, 'Ratings');
@@ -556,13 +560,15 @@ console.log('⑦i testimonials-new summary 一组平台');
   check(nameOf(c) === 'Cards' && JSON.stringify(c.summary) === JSON.stringify(opt.partDemos.summary), '再点 Cards ⟹ Cards 亮、summary 还在');
   item.props = r;
   const out2 = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
-  const b2 = out2.blocks.find((b) => b.type === 'testimonials-new');
+  const b2 = out2.blocks.find((b) => b.type === 'testimonials');
   check(JSON.stringify(b2.data.summary) === JSON.stringify(opt.partDemos.summary) && b2.data.options.summaryStyle === 'cards',
     '存盘 ⟹ data.summary 是占位那一个平台、options 是 Ratings 的旋钮（summaryStyle cards）');
 }
 
-// ══ ⑦b 按钮链接（#1404 r3）：8 个 link 槽位都有 Link 框；改了才写、不改逐字节不变 ═══════════════════
-//    （#1404 时是 6 个；#1496 的 logos-new.introCta 是第 7 个；#1497 的 blog-new.introCta 是第 8 个 —— 名单本身从 manifest 现算，这个数只钉「没有静默多 / 少」。）
+// ══ ⑦b 按钮链接（#1404 r3）：每个 link 槽位都有 Link 框；改了才写、不改逐字节不变 ═══════════════════
+//    （#1404 时是 6 个；#1496 / #1497 后 8 个；#1425 T3 旧库删掉后只剩 logos.introCta / blog.introCta —— 其余按钮都成了 ctas 列表。
+//     #1425（T3）：原来写死「=== 8」钉「没有静默多 / 少」；改成跟 manifest 里**全部** kind=link 槽位数（不看 editLabel）现算相等 ——
+//     哪个 link 槽丢了 editLabel、或者编辑器漏派生一个，都对不上。）
 console.log('⑦b 按钮链接');
 {
   const links = [];
@@ -571,7 +577,10 @@ console.log('⑦b 按钮链接');
   for (const m of nonRegion) for (const [slot, sp] of Object.entries(m.slots || {})) {
     if (sp.kind === 'link' && sp.editLabel !== undefined) wantLinks.push(`${m.type}.${slot}`);
   }
-  check(JSON.stringify(links.sort()) === JSON.stringify(wantLinks.sort()) && links.length === 8, `link 字段逐个列出（${links.length}）：${links.join(' · ')}`, wantLinks.join(' · '));
+  let allLinkSlots = 0;
+  for (const m of nonRegion) for (const sp of Object.values(m.slots || {})) if (sp && sp.kind === 'link') allLinkSlots += 1;
+  if (allLinkSlots === 0) die('manifest 里一个 kind=link 的槽位都没有 —— ⑦b 没有对象可量');
+  check(JSON.stringify(links.sort()) === JSON.stringify(wantLinks.sort()) && links.length === allLinkSlots, `link 字段逐个列出（${links.length} = manifest 里 kind=link 槽位数 ${allLinkSlots}）：${links.join(' · ')}`, wantLinks.join(' · '));
   const noHref = [];
   for (const c of schema.components) for (const f of c.fields) {
     if (f.kind === 'link' && !f.subs.some((x) => x.sub === 'href' && x.label === 'Link')) noHref.push(`${c.type}.${f.slot}`);
@@ -580,65 +589,67 @@ console.log('⑦b 按钮链接');
   // PM 21:58 第 1 点：href 成了可写字段之后，全填满夹具不动就存仍然 deepEqual（href 逐字节不变）
   const raw = fixturePage(false);
   const hrefs = (page) => page.blocks.flatMap((b) => Object.values(b.data || {}).filter((v) => v && typeof v === 'object' && !Array.isArray(v) && 'href' in v).map((v) => v.href));
-  check(hrefs(raw).length >= 6, `夹具里带 href 的对象 ${hrefs(raw).length} 个（量得到）`);
+  check(hrefs(raw).length >= allLinkSlots, `夹具里带 href 的对象 ${hrefs(raw).length} 个（≥ link 槽位数 ${allLinkSlots}，量得到）`); // #1425（T3）：原来写死 ≥ 6
   const back = roundTrip(raw);
   check(convert.deepEqual(back, raw), 'href 是字段之后：不动就存，全页 deepEqual');
   // 只改文字：href 不变；只改链接：label 不变
   const { initial, data } = openPage(raw);
-  const cta = data.content.find((c) => c.type === 'cta-banner');
-  const hero = data.content.find((c) => c.type === 'hero');
-  cta.props.button.href = '/contact-1404';
-  hero.props.ctaPrimary.label = 'Text only 1404';
+  // #1425（T3）：原来是 cta-banner.button（只改链接）+ hero.ctaPrimary（只改文字）；两个单槽随旧库删了，换成新库仅有的两个 link 槽
+  const cta = data.content.find((c) => c.type === 'blog');
+  const hero = data.content.find((c) => c.type === 'logos');
+  cta.props.introCta.href = '/contact-1404';
+  hero.props.introCta.label = 'Text only 1404';
   const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
-  const rc = raw.blocks.find((b) => b.type === 'cta-banner'); const oc = out.blocks.find((b) => b.type === 'cta-banner');
-  const rh = raw.blocks.find((b) => b.type === 'hero'); const oh = out.blocks.find((b) => b.type === 'hero');
-  check(oc.data.button.href === '/contact-1404' && oc.data.button.label === rc.data.button.label, '老块只改链接 → href 变、按钮文字不变');
-  check(oh.data.ctaPrimary.label === 'Text only 1404' && oh.data.ctaPrimary.href === rh.data.ctaPrimary.href, '只改文字 → href 逐字节不变');
-  // 新插一个 hero，填文字和链接 → 落盘
+  const rc = raw.blocks.find((b) => b.type === 'blog'); const oc = out.blocks.find((b) => b.type === 'blog');
+  const rh = raw.blocks.find((b) => b.type === 'logos'); const oh = out.blocks.find((b) => b.type === 'logos');
+  check(oc.data.introCta.href === '/contact-1404' && oc.data.introCta.label === rc.data.introCta.label, '只改链接 → href 变、按钮文字不变');
+  check(oh.data.introCta.label === 'Text only 1404' && oh.data.introCta.href === rh.data.introCta.href, '只改文字 → href 逐字节不变');
+  // 新插一个 hero，填文字和链接 → 落盘（#1425 T3：新 hero 的按钮是 ctas 列表，原来是 ctaPrimary 单槽）
   const { initial: i2, data: d2 } = openPage(raw);
   const heroComp = compOf('hero');
   const props = { id: 'puck-new-hero', ...convert.fieldProps(heroComp, {}), _shape: convert.THEME_DEFAULT };
-  props.ctaPrimary = { ...props.ctaPrimary, label: 'Book', href: '/contact' };
+  props.ctas = [{ label: 'Book', href: '/contact', style: 'solid' }];
   d2.content.push({ type: 'hero', props });
   const nh = convert.puckToPage({ raw, data: d2, initial: i2, schema, slug: 'home' }).blocks.slice(-1)[0];
-  check(nh.type === 'hero' && nh.data.ctaPrimary && nh.data.ctaPrimary.href === '/contact' && nh.data.ctaPrimary.label === 'Book', '新插的 hero 填了链接 → 写成 ctaPrimary {label, href}', JSON.stringify(nh.data));
+  check(nh.type === 'hero' && Array.isArray(nh.data.ctas) && nh.data.ctas[0] && nh.data.ctas[0].href === '/contact' && nh.data.ctas[0].label === 'Book', '新插的 hero 填了链接 → 写成 ctas[0] {label, href}', JSON.stringify(nh.data));
   // PM 21:58 第 2 点那一格（共用块里 link 的 href 只读）#1406 起反过来：共用块能改字，link 的两格都能改，
   // 只锁形态；字段值取自块库**文件里**那一份（改动合回的就是它）。
-  const siteBlocks = { promo: { type: 'cta-banner', data: catalogLib.sampleDataFor(manifests.get('cta-banner')), visibility: ['home'] } };
+  // #1425（T3）：共用块原来是 cta-banner（随旧库删了），换成 logos（同样带一个单个 link 槽 introCta）
+  const siteBlocks = { promo: { type: 'logos', data: { ...catalogLib.sampleDataFor(manifests.get('logos')), introCta: { label: 'Shared 1425', href: '/shared-1425' } }, visibility: ['home'] } };
   const rawS = { slug: 'home', blocks: [{ id: 'home-hero-0', type: 'hero', data: catalogLib.sampleDataFor(manifests.get('hero')) }, { ref: 'promo' }] };
   const sharedItems = toPuck(rawS, siteBlocks).content.filter((c) => c.props._src.shared);
   const si = sharedItems[0];
   check(sharedItems.length === 1 && si.props._src.locked === false && JSON.stringify(si.readOnly) === JSON.stringify({ _shape: true }),
-    '共用块不锁：只有形态只读（button.href / button.label 都能改）', JSON.stringify(si && si.readOnly));
-  check(!!si && JSON.stringify(si.props.button) === JSON.stringify(siteBlocks.promo.data.button), '共用块的字段值 = 块库文件里那一份', JSON.stringify(si && si.props.button));
+    '共用块不锁：只有形态只读（introCta.href / introCta.label 都能改）', JSON.stringify(si && si.readOnly));
+  check(!!si && JSON.stringify(si.props.introCta) === JSON.stringify(siteBlocks.promo.data.introCta), '共用块的字段值 = 块库文件里那一份', JSON.stringify(si && si.props.introCta));
 }
 
 // ══ ⑦c 单个块「恢复主题默认」（#1443）：下拉多一项 Theme default；选它存盘删 shape 键；画布按当前 data 现算 ══
 console.log('⑦c 恢复主题默认');
 {
   const hasShape = (b) => Object.prototype.hasOwnProperty.call(b, 'shape');
-  // 夹具：testimonials 钉着 three-up、faq-accordion 钉着它清单里第二个形态，其余块没有 shape 键
+  // 夹具：testimonials 钉着 side-intro、faq 钉着它清单里第二个形态，其余块没有 shape 键（#1425 T3：原来是 three-up / faq-accordion）
   const raw = fixturePage(false);
-  const faqShapes = compOf('faq-accordion').shapes.map((x) => x.name);
-  if (faqShapes.length < 2) die('faq-accordion 的下拉不到两项，夹具钉不了第二个形态');
-  raw.blocks.find((b) => b.type === 'testimonials').shape = 'three-up';
-  raw.blocks.find((b) => b.type === 'faq-accordion').shape = faqShapes[1];
+  const faqShapes = compOf('faq').shapes.map((x) => x.name);
+  if (faqShapes.length < 2) die('faq 的下拉不到两项，夹具钉不了第二个形态');
+  raw.blocks.find((b) => b.type === 'testimonials').shape = 'side-intro';
+  raw.blocks.find((b) => b.type === 'faq').shape = faqShapes[1];
   const { initial, data } = openPage(raw);
   const item = (d, t) => d.content.find((c) => c.type === t);
-  check(item(data, 'testimonials').props._shape === 'three-up' && item(data, 'faq-accordion').props._shape === faqShapes[1],
+  check(item(data, 'testimonials').props._shape === 'side-intro' && item(data, 'faq').props._shape === faqShapes[1],
     '打开：钉着形态的块，下拉显示页面 JSON 里那个值');
-  const unpinned = data.content.filter((c) => !['testimonials', 'faq-accordion'].includes(c.type));
+  const unpinned = data.content.filter((c) => !['testimonials', 'faq'].includes(c.type));
   check(unpinned.length > 0 && unpinned.every((c) => c.props._shape === convert.THEME_DEFAULT),
     `打开：没有 shape 键的块（${unpinned.length}），下拉显示 Theme default（值 = THEME_DEFAULT）`,
     unpinned.filter((c) => c.props._shape !== convert.THEME_DEFAULT).map((c) => `${c.type}=${c.props._shape}`).join(' '));
   check(firstDiff(raw, convert.puckToPage({ raw, data, initial, schema, slug: 'home' })) === null, '钉着形态的页不动 → 往返无损');
 
-  // AC1 + AC2：testimonials 选 Theme default → 存盘那一条没有 shape 键；faq-accordion 照旧钉着；其余块逐字节不变
+  // AC1 + AC2：testimonials 选 Theme default → 存盘那一条没有 shape 键；faq 照旧钉着；其余块逐字节不变
   item(data, 'testimonials').props._shape = convert.THEME_DEFAULT;
   const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
   const ot = out.blocks.find((b) => b.type === 'testimonials');
   check(!hasShape(ot), 'AC1：选 Theme default → 存盘后这一块没有 shape 键（不是空串）', JSON.stringify(ot.shape));
-  check(out.blocks.find((b) => b.type === 'faq-accordion').shape === faqShapes[1], 'AC2：没点它的块，shape 原样保留');
+  check(out.blocks.find((b) => b.type === 'faq').shape === faqShapes[1], 'AC2：没点它的块，shape 原样保留');
   const others = out.blocks.filter((b, i) => b.type !== 'testimonials' && JSON.stringify(b) !== JSON.stringify(raw.blocks[i])).map((b) => b.type);
   check(others.length === 0, 'AC2：除这一块以外，每一块逐字节不变', others.join(' '));
   const { shape: _gone, ...otRest } = raw.blocks.find((b) => b.type === 'testimonials');
@@ -666,7 +677,8 @@ console.log('⑦c 恢复主题默认');
   check(firstDiff(rawOdd, roundTrip(rawOdd)) === null && rawOdd.blocks[0].shape === '' && hasShape(roundTrip(rawOdd).blocks[0]),
     '底稿 shape 是空串（构建不认）→ 不动就原样，往返无损');
   // 共用块 / 锁住的块：下拉只读，照旧显示它戴着的那个
-  const siteBlocks = { promo: { type: 'cta-banner', data: catalogLib.sampleDataFor(manifests.get('cta-banner')), visibility: ['home'] } };
+  // #1425（T3）：共用块 cta-banner → cta，下面 faq-accordion → faq、text-block → content（旧库删了）
+  const siteBlocks = { promo: { type: 'cta', data: catalogLib.sampleDataFor(manifests.get('cta')), visibility: ['home'] } };
   const rawS = { slug: 'home', blocks: [{ id: 'home-hero-0', type: 'hero', data: catalogLib.sampleDataFor(manifests.get('hero')) }, { ref: 'promo' }] };
   const si = toPuck(rawS, siteBlocks).content.find((c) => c.props._src.shared);
   check(!!si && si.props._shape === si.props._src.shape0 && si.props._shape !== '', '共用块：下拉显示它解析后的形态（只读）', si && si.props._shape);
@@ -713,17 +725,27 @@ console.log('⑦c 恢复主题默认');
     }
   }
   check(n > 0 && problems.length === 0, `AC3：画布形态 = 构建形态（${themeIds.length} 套主题 · ${n} 格）`, problems.slice(0, 5).join(' / '));
-  // PM 裁定里点名的那一格：ember-12 / content-split，带图 → media-right-alternate，空 data → 落回
-  const sel = shapesFor('ember-12');
-  const cs = { ...compOf('content-split'), themeShape: sel['content-split'] };
-  check(sel['content-split'] === 'media-right-alternate' && convert.canvasShape(cs, '', { imageUrl: '/x.jpg' }) === 'media-right-alternate',
-    'ember-12 / content-split 带图、跟着主题 → media-right-alternate', `${sel['content-split']} → ${convert.canvasShape(cs, '', { imageUrl: '/x.jpg' })}`);
-  check(convert.canvasShape(cs, '', {}) === compOf('content-split').fallbackShape, '同一块去掉图 → 落回 manifest 默认');
-  // 反向：画布照 schema 的 defaultShape（按空 data 塌缩过的）画 → 上面那一格红
-  const collapsedShape = shapeForBlock({ type: 'content-split', data: {} }, sel, manifestsObj, quiet);
+  // PM 裁定里点名的那一格：原来是 ember-12 / content-split 带图 → media-right-alternate（content-split 随旧库删了）。
+  // #1425（T3）：新库里同一种情形 = azure-29 / hero 的主题形态 cover（needs image）：带图 → cover，空 data → 落回。
+  //    主题 / 形态名不写死，从主题选择单现取「主题点了一个带 needs 的形态」的那一对；找不到就是夹具前提没了。
+  let pickTid = null; let pickType = null;
+  for (const tid of themeIds) {
+    const s0 = shapesFor(tid);
+    const t0 = schema.components.map((c0) => c0.type).find((t) => (manifests.get(t).shapes || []).some((x) => x.name === s0[t] && (x.needs || []).includes('image')));
+    if (t0) { pickTid = tid; pickType = t0; break; }
+  }
+  if (!pickTid) die('主题池里没有一套主题给页面块点了一个 needs image 的形态 —— 这一格的前提没了');
+  const sel = shapesFor(pickTid);
+  const want0 = sel[pickType];
+  const withImg = { image: { imageUrl: '/x.jpg', alt: '' } };
+  const cs = { ...compOf(pickType), themeShape: want0 };
+  check(convert.canvasShape(cs, '', withImg) === want0,
+    `${pickTid} / ${pickType} 带图、跟着主题 → ${want0}`, `${want0} → ${convert.canvasShape(cs, '', withImg)}`);
+  check(convert.canvasShape(cs, '', {}) === compOf(pickType).fallbackShape, '同一块去掉图 → 落回 manifest 默认');
+  const collapsedShape = shapeForBlock({ type: pickType, data: {} }, sel, manifestsObj, quiet);
   const collapsed = { ...cs, themeShape: collapsedShape };
-  check(collapsedShape !== 'media-right-alternate' && convert.canvasShape(collapsed, '', { imageUrl: '/x.jpg' }) === collapsedShape,
-    `反向：拿按空 data 塌缩过的那个（${collapsedShape}）当主题形态 → 带图的 content-split 画成它、不是 media-right-alternate（判得出）`);
+  check(collapsedShape !== want0 && convert.canvasShape(collapsed, '', withImg) === collapsedShape,
+    `反向：拿按空 data 塌缩过的那个（${collapsedShape}）当主题形态 → 带图的 ${pickType} 画成它、不是 ${want0}（判得出）`);
   // 反向：needs 判定拿掉 → 对拍红
   const noNeeds = mutantConverter("if (!sh || !(sh.needs || []).every((slot) => slotFilled(d[slot])))", 'if (!sh)');
   let red = 0;
@@ -744,9 +766,36 @@ console.log('⑦c 恢复主题默认');
 // ══ ⑦d 钉着候选 / 退役形态的块（#1445）：下拉不空白、显示那个名字；不碰就存 → shape 原样 ══════════════
 console.log('⑦d 钉着退役形态');
 {
-  // 真候选对（不是编的名字）：区块库里 `candidate: true` 的每一对，逐个钉到夹具页那一块上
-  const cands = catalog.pairs.filter((p) => p.candidate === true && compOf(p.block));
-  if (cands.length === 0) die('区块库里没有一对候选形态（落在非外壳块上）—— 这一节量不到东西');
+  // 真候选对（不是编的名字）：区块库里 `candidate: true` 的每一对，逐个钉到夹具页那一块上。
+  // #1425（T3）：新库今天一个 `candidate: true` 都没有（原来那几对随旧库删了）。为了还能量「钉着一个不在下拉里的形态」，
+  //    在拷出来的块库里把真存在的一个形态（testimonials/ratings —— 子目录、CSS 都在盘上）标成候选，编辑器 schema 从那份派生
+  //    （= 真站上「这个形态还在库里、只是不再给选」的样子）。页面归一化 / 构建那一侧照旧读真块库。
+  const candDir = tmpdir('blocks-retired');
+  cp.execSync(`cp -a "${path.join(NEXT, 'blocks')}/." "${candDir}"`);
+  {
+    const md = path.join(candDir, 'testimonials', 'ratings', 'shape.md');
+    const src0 = fs.readFileSync(md, 'utf-8');
+    const marked = src0.replace(/^---\n/, '---\ncandidate: true\n');
+    if (marked === src0) die('testimonials/ratings/shape.md 开头不是 front matter（区块库变了？）');
+    fs.writeFileSync(md, marked);
+  }
+  const sch2 = editorSchema({ blocksDir: candDir });
+  const compOf2 = (t) => sch2.components.find((c) => c.type === t);
+  const openPage2 = (raw0, sb = {}, conv = convert) => {
+    const pz = toPuck(raw0, sb, conv, sch2);
+    return { initial: JSON.parse(JSON.stringify(pz)), data: JSON.parse(JSON.stringify(pz)) };
+  };
+  const roundTrip2 = (raw0, sb = {}, conv = convert) => {
+    const { initial: i0, data: d0 } = openPage2(raw0, sb, conv);
+    return conv.puckToPage({ raw: raw0, data: d0, initial: i0, schema: sch2, slug: raw0.slug });
+  };
+  // 候选对 = 真块库里有、而那份 schema 的下拉里没有的形态（现算，不写死）
+  const cands = [];
+  for (const c of schema.components) {
+    const c2 = compOf2(c.type);
+    for (const sh of c.shapes) if (c2 && !c2.shapes.some((x) => x.name === sh.name)) cands.push({ block: c.type, shape: sh.name });
+  }
+  if (cands.length === 0) die('标成候选之后下拉里一项都没少 —— 这一节量不到东西（schema 不读 candidate 了？）');
   // 下拉框显示的是哪一项：值配上的那一项；配不上时 React 受控 <select> 退到第一项（`Theme default`）——
   // Chromium 里 origin/main 实测 selectedIndex = 0，不是 -1。所以判据是「显示的那一项文字含形态名」，
   // 光看 selectedIndex ≠ -1 在改之前也成立。
@@ -756,13 +805,13 @@ console.log('⑦d 钉着退役形态');
   for (const p of cands) {
     const raw = fixturePage(false);
     raw.blocks.find((b) => b.type === p.block).shape = p.shape;
-    const { data } = openPage(raw);
+    const { data } = openPage2(raw);
     const it = data.content.find((c) => c.type === p.block);
-    const options = convert.shapeOptions(compOf(p.block), it.props._shape);
+    const options = convert.shapeOptions(compOf2(p.block), it.props._shape);
     const shown = shownLabel(options, it.props._shape);
     if (it.props._shape !== p.shape || selectedIndex(options, it.props._shape) === -1 || !shown.includes(p.shape)) blank += 1;
     else if (!/retired/.test(shown)) unlabeled += 1;
-    if (firstDiff(raw, roundTrip(raw)) !== null) lossy += 1;
+    if (firstDiff(raw, roundTrip2(raw)) !== null) lossy += 1;
   }
   check(blank === 0, `AC1：${cands.length} 对候选逐个钉上 → 下拉配得上一项（selectedIndex ≠ -1），显示的文字含形态名`, `${blank} 对显示错`);
   check(unlabeled === 0, 'AC1：那一项的文字含形态名、标着 retired', `${unlabeled} 对没标`);
@@ -770,22 +819,22 @@ console.log('⑦d 钉着退役形态');
 
   // 那一项只跟着当前值出现：清单里的形态 / Theme default 不多出任何一项；选了别的，它就不在了（不可再选）
   const p0 = cands[0];
-  const c0 = compOf(p0.block);
+  const c0 = compOf2(p0.block);
   const base = convert.shapeOptions(c0, convert.THEME_DEFAULT);
   check(base.length === c0.shapes.length + 1 && base[0].value === convert.THEME_DEFAULT, 'Theme default → 选项 = Theme default + 清单，不多一项');
   check(convert.shapeOptions(c0, c0.shapes[0].name).length === base.length, '钉着清单里的形态 → 不多一项');
   const raw = fixturePage(false);
   raw.blocks.find((b) => b.type === p0.block).shape = p0.shape;
-  const { initial, data } = openPage(raw);
+  const { initial, data } = openPage2(raw);
   const it = data.content.find((c) => c.type === p0.block);
   it.props._shape = c0.shapes[0].name;
   check(!convert.shapeOptions(c0, it.props._shape).some((o) => o.value === p0.shape), `选了别的（${c0.shapes[0].name}）→ ${p0.shape} 不再是选项`);
-  const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
+  const out = convert.puckToPage({ raw, data, initial, schema: sch2, slug: 'home' });
   check(out.blocks.find((b) => b.type === p0.block).shape === c0.shapes[0].name, '选了别的存盘 → 覆盖成新形态');
 
   // 反向 ①：下拉不补那一项（#1443 原样）→ AC1 那一格红
   const noRetired = mutantConverter("    options.push({ value: current, label: `${current} (retired)` });", '');
-  const { data: dn } = openPage(raw, {}, noRetired);
+  const { data: dn } = openPage2(raw, {}, noRetired);
   const itn = dn.content.find((c) => c.type === p0.block);
   const nOpts = noRetired.shapeOptions(c0, itn.props._shape);
   check(selectedIndex(nOpts, itn.props._shape) === -1 && shownLabel(nOpts, itn.props._shape) === 'Theme default',
@@ -795,15 +844,15 @@ console.log('⑦d 钉着退役形态');
     "const pinned = entry && typeof entry.shape === 'string' && entry.shape ? entry.shape : THEME_DEFAULT;",
     "const pinned = entry && typeof entry.shape === 'string' && entry.shape && (component.shapes || []).some((s) => s.name === entry.shape) ? entry.shape : THEME_DEFAULT;",
   );
-  check(firstDiff(raw, roundTrip(raw, {}, toDefault)) !== null, '反向：退役形态显示成 Theme default → 不碰就存也丢了 shape（往返有损）');
+  check(firstDiff(raw, roundTrip2(raw, {}, toDefault)) !== null, '反向：退役形态显示成 Theme default → 不碰就存也丢了 shape（往返有损）');
 }
 
-// ══ ⑦g #1502：page-header-new 在 Puck 里 —— 能拖、能改标题、面包屑不是字段（只显示不能改）、点预设 / 拧旋钮显示 Custom ═══
-console.log('⑦g page-header-new');
+// ══ ⑦g #1502：page-header 在 Puck 里 —— 能拖、能改标题、面包屑不是字段（只显示不能改）、点预设 / 拧旋钮显示 Custom ═══
+console.log('⑦g page-header');
 {
   const { presetClickProps, presetNameFor } = require('./lib/block-knobs.js');
-  const comp = compOf('page-header-new');
-  check(!!comp, 'page-header-new 在组件清单里（左栏能拖）');
+  const comp = compOf('page-header');
+  check(!!comp, 'page-header 在组件清单里（左栏能拖）');
   const slots = comp.fields.map((f) => f.slot);
   check(!slots.includes('breadcrumbs'), `侧栏字段里没有 breadcrumbs（面包屑按页面路径算，画布上只显示；字段 ${slots.join(' / ')}）`);
   const opt = comp.fields.find((f) => f.control === 'options');
@@ -811,18 +860,18 @@ console.log('⑦g page-header-new');
   const nameOf = (props) => presetNameFor(man, props.options || {});
   const raw = fixturePage(false);
   const { initial, data } = openPage(raw);
-  const item = data.content.find((c) => c.type === 'page-header-new');
+  const item = data.content.find((c) => c.type === 'page-header');
   check(!!item && typeof item.props.headline === 'string', '打开之后 headline 是文字字段');
   item.props = presetClickProps(opt, item.props, 'Split');
   check(nameOf(item.props) === 'Split', `点 Split ⟹ 侧栏亮 Split（${nameOf(item.props)}）`);
   check(nameOf({ ...item.props, options: { ...item.props.options, image: 'left' } }) === 'custom', '拧 image=left ⟹ Custom');
   item.props.headline = 'Renamed page title';
   const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
-  const blk = out.blocks.find((b) => b.type === 'page-header-new');
+  const blk = out.blocks.find((b) => b.type === 'page-header');
   check(blk.data.headline === 'Renamed page title' && blk.data.options.headlinePosition === 'left' && !('breadcrumbs' in blk.data),
     '存盘 ⟹ headline 改了、options 是 Split 的旋钮、data 里没有 breadcrumbs');
   const changed = out.blocks.filter((b, i) => JSON.stringify(b) !== JSON.stringify(raw.blocks[i])).map((b) => b.type);
-  check(JSON.stringify(changed) === JSON.stringify(['page-header-new']), '只有 page-header-new 那一块变了', changed.join(' '));
+  check(JSON.stringify(changed) === JSON.stringify(['page-header']), '只有 page-header 那一块变了', changed.join(' '));
 }
 
 // ══ ⑧ 排序 / 增删 / 复制 ══════════════════════════════════════════════════════════════════════
@@ -841,14 +890,14 @@ function orderAfterRebuild(page, siteBlocks = {}) {
   // 删除 + 插入 + 复制
   const { initial: i2, data: d2 } = openPage(raw);
   const removed = d2.content.splice(2, 1)[0];
-  d2.content.splice(1, 0, { type: 'faq-accordion', props: { id: 'puck-new-1', ...convert.fieldProps(compOf('faq-accordion'), {}), headline: 'New FAQ', _shape: convert.THEME_DEFAULT } });
+  d2.content.splice(1, 0, { type: 'faq', props: { id: 'puck-new-1', ...convert.fieldProps(compOf('faq'), {}), headline: 'New FAQ', _shape: convert.THEME_DEFAULT } });
   const dup = JSON.parse(JSON.stringify(d2.content[0])); dup.props.id = 'puck-dup-1';
   d2.content.splice(1, 0, dup);
   const out2 = convert.puckToPage({ raw, data: d2, initial: i2, schema, slug: 'home' });
   const ids = out2.blocks.map((b) => b.id);
   check(!ids.includes(removed.props.id), '删掉的块不在了');
   check(new Set(ids).size === ids.length, 'id 一页之内唯一（新块 / 复制品各有新 id）', ids.join(' '));
-  const added = out2.blocks.find((b) => b.type === 'faq-accordion' && b.data && b.data.headline === 'New FAQ');
+  const added = out2.blocks.find((b) => b.type === 'faq' && b.data && b.data.headline === 'New FAQ');
   check(!!added && added.shape === undefined, '插入的块落盘（没改形态就不写 shape）');
   const d5 = JSON.parse(JSON.stringify(i2));
   d5.content.push({ type: 'gallery', props: { id: 'puck-new-empty', ...convert.fieldProps(compOf('gallery'), {}), _shape: convert.THEME_DEFAULT } });
@@ -870,21 +919,21 @@ function orderAfterRebuild(page, siteBlocks = {}) {
 console.log('⑨ 共用块');
 {
   const siteBlocks = {
-    promo: { type: 'cta-banner', data: catalogLib.sampleDataFor(manifests.get('cta-banner')), visibility: ['home'], weight: 15 },
-    faq: { type: 'faq-accordion', data: catalogLib.sampleDataFor(manifests.get('faq-accordion')), visibility: [] },
+    promo: { type: 'cta', data: catalogLib.sampleDataFor(manifests.get('cta')), visibility: ['home'], weight: 15 },
+    faq: { type: 'faq', data: catalogLib.sampleDataFor(manifests.get('faq')), visibility: [] },
   };
   const raw = {
     slug: 'home',
     blocks: [
       { id: 'home-hero-0', type: 'hero', data: catalogLib.sampleDataFor(manifests.get('hero')) },
-      { id: 'home-text-block-1', type: 'text-block', data: catalogLib.sampleDataFor(manifests.get('text-block')) },
+      { id: 'home-content-1', type: 'content', data: catalogLib.sampleDataFor(manifests.get('content')) },
       { ref: 'faq' },
       { id: 'home-gallery-3', type: 'gallery', data: catalogLib.sampleDataFor(manifests.get('gallery')) },
     ],
   };
   const { initial, data } = openPage(raw, siteBlocks);
   const canvas0 = data.content.map((c) => c.props.id);
-  check(JSON.stringify(canvas0) === JSON.stringify(['home-hero-0', 'home-text-block-1', 'promo', 'faq', 'home-gallery-3']), '画布顺序 = 构建顺序（promo 按 weight 15 插在中间）', canvas0.join(' '));
+  check(JSON.stringify(canvas0) === JSON.stringify(['home-hero-0', 'home-content-1', 'promo', 'faq', 'home-gallery-3']), '画布顺序 = 构建顺序（promo 按 weight 15 插在中间）', canvas0.join(' '));
   const shared = data.content.filter((c) => c.props._src.shared).map((c) => c.props.id);
   const locked = data.content.filter((c) => c.props._src.locked).map((c) => c.props.id);
   check(JSON.stringify(shared) === JSON.stringify(['promo', 'faq']) && locked.length === 0, '两种共用块都认得是共用的，都不锁（#1406）', `shared=${shared.join(' ')} locked=${locked.join(' ')}`);
@@ -1006,34 +1055,34 @@ for (const flat of [false, true]) {
   check(n > 0 && diffs.length === 0, `${flat ? '扁平' : '多语言'}站 ${n} 页全部往返无损`, diffs.join(' / '));
 }
 
-// ══ #1497 AC12：blog-new 的 postCount 在 Puck 里是一格下拉（2–6），改了写回、没改不写 ═════════════════════
-console.log('\n#1497 blog-new.postCount');
+// ══ #1497 AC12：blog 的 postCount 在 Puck 里是一格下拉（2–6），改了写回、没改不写 ═════════════════════
+console.log('\n#1497 blog.postCount');
 {
-  const f = compOf('blog-new').fields.find((x) => x.slot === 'postCount');
+  const f = compOf('blog').fields.find((x) => x.slot === 'postCount');
   check(!!f && f.control === 'int' && JSON.stringify(f.values) === JSON.stringify(['2', '3', '4', '5', '6']),
-    `blog-new.postCount 是 int 控件、取值 2–6（读到 ${f && f.control} / ${f && JSON.stringify(f.values)}）`);
-  check(!manifestLib.editableSlotPaths(manifests.get('blog-new')).some((e) => e.slot === 'postCount'),
+    `blog.postCount 是 int 控件、取值 2–6（读到 ${f && f.control} / ${f && JSON.stringify(f.values)}）`);
+  check(!manifestLib.editableSlotPaths(manifests.get('blog')).some((e) => e.slot === 'postCount'),
     'postCount 不在 editableSlotPaths 里（不是页面上的字 ⟹ 检查器面板不给它输入框、data-slot 守卫不要求它）');
-  const raw = { slug: 'home', title: 'T', blocks: [{ id: 'home-blog-new-0', type: 'blog-new', data: { headline: 'H' } }] };
+  const raw = { slug: 'home', title: 'T', blocks: [{ id: 'home-blog-0', type: 'blog', data: { headline: 'H' } }] };
   const same = roundTrip(raw);
   check(!('postCount' in same.blocks[0].data), '没改 ⟹ 不凭空写一个 postCount 键');
   const { initial, data } = openPage(raw);
-  const c = data.content.find((x) => x.type === 'blog-new');
+  const c = data.content.find((x) => x.type === 'blog');
   c.props.postCount = '5';
   const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
   check(out.blocks[0].data.postCount === '5' && out.blocks[0].data.headline === 'H', '改成 5 ⟹ 写回 "5"，headline 原样');
 }
-// ══ #1498 richtext：content-new.body 是多行文本框，那段 markdown 原样进出；改了就只改它 ═══════════════
+// ══ #1498 richtext：content.body 是多行文本框，那段 markdown 原样进出；改了就只改它 ═══════════════
 console.log('\n#1498 richtext 槽');
 {
-  const f = compOf('content-new').fields.find((x) => x.slot === 'body');
-  check(!!f && f.control === 'richtext' && f.kind === 'richtext', `content-new.body 是 richtext 控件（读到 ${f && f.control}）`);
+  const f = compOf('content').fields.find((x) => x.slot === 'body');
+  check(!!f && f.control === 'richtext' && f.kind === 'richtext', `content.body 是 richtext 控件（读到 ${f && f.control}）`);
   const body = '第一段\n\n- a\n- b\n\n**粗** 和 [链接](/about)';
-  const raw = { slug: 'home', title: 'T', blocks: [{ id: 'home-content-new-0', type: 'content-new', data: { headline: 'H', body } }] };
+  const raw = { slug: 'home', title: 'T', blocks: [{ id: 'home-content-0', type: 'content', data: { headline: 'H', body } }] };
   const same = roundTrip(raw);
   check(same.blocks[0].data.body === body, '没改 ⟹ body 逐字节原样存回（换行、- 、** 一个都不丢）');
   const { initial, data } = openPage(raw);
-  const c = data.content.find((x) => x.type === 'content-new');
+  const c = data.content.find((x) => x.type === 'content');
   check(c.props.body === body, 'Puck 里拿到的 prop 就是那段 markdown 原文');
   c.props.body = `${body}\n\n1. one\n2. two`;
   const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
@@ -1047,25 +1096,27 @@ console.log('\n#1518 按钮列表的 Link 格');
     const f = compOf(type).fields.find((x) => x.slot === slot);
     return f ? f.subs.map((x) => `${x.sub}:${x.label}`) : null;
   };
-  // AC1：哪几个列表槽有 Link 格 —— 钉死成一张表（反向：main 上除 contact-new.items 外是 0 个）
+  // AC1：哪几个列表槽有 Link 格 —— 钉死成一张表（反向：main 上除 contact.items 外是 0 个）
   const listWithLink = [];
   for (const c of schema.components) for (const f of c.fields) {
     if (f.kind === 'list' && f.subs.some((x) => x.sub === 'href' && x.label === 'Link')) listWithLink.push(`${c.type}.${f.slot}`);
   }
-  const want = ['contact-new.items', 'content-new.ctas', 'cta-new.ctas', 'features-new.introCtas', 'hero-new.ctas', 'milestones.introCtas', 'page-header-new.ctas'];
-  check(JSON.stringify(listWithLink.sort()) === JSON.stringify(want), `有 Link 格的列表槽 = 六个按钮列表 + contact-new.items（${listWithLink.length}）`, listWithLink.join(' · '));
+  const want = ['contact.items', 'content.ctas', 'cta.ctas', 'features.introCtas', 'hero.ctas', 'milestones.introCtas', 'page-header.ctas'];
+  check(JSON.stringify(listWithLink.sort()) === JSON.stringify(want), `有 Link 格的列表槽 = 六个按钮列表 + contact.items（${listWithLink.length}）`, listWithLink.join(' · '));
   for (const k of want.slice(1)) {
     const [type, slot] = k.split('.');
     check(JSON.stringify(subsOf(type, slot)) === JSON.stringify(['label:Button text', 'href:Link']), `${k} 的子字段 = Button text + Link（顺序）`, JSON.stringify(subsOf(type, slot)));
   }
   // AC2：不误伤 —— 三个本来就有 Link 格的槽逐项不变（不重复、顺序不变）
-  check(JSON.stringify(subsOf('contact-new', 'items')) === JSON.stringify(['title:Title', 'hint:Hint', 'kind:Kind', 'href:Link']), 'contact-new.items 逐项不变', JSON.stringify(subsOf('contact-new', 'items')));
-  check(JSON.stringify(subsOf('blog-new', 'introCta')) === JSON.stringify(['label:Button text', 'href:Link']), 'blog-new.introCta 逐项不变', JSON.stringify(subsOf('blog-new', 'introCta')));
-  check(JSON.stringify(subsOf('logos-new', 'introCta')) === JSON.stringify(['label:Link text', 'href:Link']), 'logos-new.introCta 逐项不变', JSON.stringify(subsOf('logos-new', 'introCta')));
+  check(JSON.stringify(subsOf('contact', 'items')) === JSON.stringify(['title:Title', 'hint:Hint', 'kind:Kind', 'href:Link']), 'contact.items 逐项不变', JSON.stringify(subsOf('contact', 'items')));
+  check(JSON.stringify(subsOf('blog', 'introCta')) === JSON.stringify(['label:Button text', 'href:Link']), 'blog.introCta 逐项不变', JSON.stringify(subsOf('blog', 'introCta')));
+  check(JSON.stringify(subsOf('logos', 'introCta')) === JSON.stringify(['label:Link text', 'href:Link']), 'logos.introCta 逐项不变', JSON.stringify(subsOf('logos', 'introCta')));
   // AC3：反向对照 —— 项形状里没有【顶层必填】href 的列表槽不长 Link 格
-  //   testimonials-new.items 根本没有 href · features-new.items 的 href 在嵌套的 link? 里 · logos-new.items 是可选的 href?
-  //   page-header.breadcrumbs 是两项示例 `[{…}, {…}]`，不是项形状
-  for (const [type, slot] of [['testimonials-new', 'items'], ['features-new', 'items'], ['logos-new', 'items'], ['page-header', 'breadcrumbs']]) {
+  //   testimonials.items 根本没有 href · features.items 的 href 在嵌套的 link? 里 · logos.items 是可选的 href?
+  //   team.members 的 href 在项里再套一层的 links? 列表里
+  //   📌 #1425（T3）—— 原来还有一臂 page-header.breadcrumbs（两项示例 `[{…}, {…}]`，不是项形状）；新 page-header 没有
+  //      breadcrumbs 槽（面包屑按页面路径算），新库里也没有别的「示例写法」的列表槽，这一类反向臂今天没有对象。
+  for (const [type, slot] of [['testimonials', 'items'], ['features', 'items'], ['logos', 'items'], ['team', 'members']]) {
     const got = subsOf(type, slot);
     check(Array.isArray(got) && !got.some((x) => x.startsWith('href:')), `${type}.${slot} 没有 Link 格`, JSON.stringify(got));
   }
@@ -1081,24 +1132,24 @@ console.log('\n#1518 按钮列表的 Link 格');
   for (const [shape, keys] of cases) {
     check(JSON.stringify(itemTopKeys(shape)) === JSON.stringify(keys), `itemTopKeys(${JSON.stringify(shape)}) = ${JSON.stringify(keys)}`, JSON.stringify(itemTopKeys(shape)));
   }
-  // 往返：不动就存 deepEqual；只改链接 ⟹ label / style 逐字节不变；新插一个 hero-new 填 /contact ⟹ 落盘
+  // 往返：不动就存 deepEqual；只改链接 ⟹ label / style 逐字节不变；新插一个 hero 填 /contact ⟹ 落盘
   const ctas = [{ label: 'Call', href: '/quote', style: 'solid', icon: 'telephone' }, { label: 'More', href: '/about', style: 'outline' }];
-  const raw = { slug: 'home', title: 'T', blocks: [{ id: 'home-hero-new-0', type: 'hero-new', data: { headline: 'H', ctas } }] };
-  check(convert.deepEqual(roundTrip(raw), raw), 'hero-new 带两个按钮：不动就存，deepEqual');
+  const raw = { slug: 'home', title: 'T', blocks: [{ id: 'home-hero-0', type: 'hero', data: { headline: 'H', ctas } }] };
+  check(convert.deepEqual(roundTrip(raw), raw), 'hero 带两个按钮：不动就存，deepEqual');
   const { initial, data } = openPage(raw);
-  const c = data.content.find((x) => x.type === 'hero-new');
+  const c = data.content.find((x) => x.type === 'hero');
   c.props.ctas[1].href = '/contact';
   const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
   check(JSON.stringify(out.blocks[0].data.ctas) === JSON.stringify([ctas[0], { ...ctas[1], href: '/contact' }]),
     '只改第二个按钮的链接 ⟹ 它的 href 变、label / style 不变，第一个逐字节不变', JSON.stringify(out.blocks[0].data.ctas));
   const { initial: i2, data: d2 } = openPage(raw);
-  const props = { id: 'puck-new-hero-new', ...convert.fieldProps(compOf('hero-new'), {}), _shape: convert.THEME_DEFAULT };
+  const props = { id: 'puck-new-hero', ...convert.fieldProps(compOf('hero'), {}), _shape: convert.THEME_DEFAULT };
   props.headline = 'New';
   props.ctas = [{ label: 'Book', href: '/contact' }];
-  d2.content.push({ type: 'hero-new', props });
+  d2.content.push({ type: 'hero', props });
   const nh = convert.puckToPage({ raw, data: d2, initial: i2, schema, slug: 'home' }).blocks.slice(-1)[0];
-  check(nh.type === 'hero-new' && Array.isArray(nh.data.ctas) && nh.data.ctas[0].href === '/contact' && nh.data.ctas[0].label === 'Book',
-    '新插的 hero-new 填了链接 → 写成 ctas[0] {label, href}', JSON.stringify(nh.data));
+  check(nh.type === 'hero' && Array.isArray(nh.data.ctas) && nh.data.ctas[0].href === '/contact' && nh.data.ctas[0].label === 'Book',
+    '新插的 hero 填了链接 → 写成 ctas[0] {label, href}', JSON.stringify(nh.data));
 }
 
 // ══ #1521：按钮列表的 Link 格也能选「本店电话 / 本店邮箱」—— 跟 kind=link 那格同一份 BUTTON_SOURCES ═══════════
@@ -1111,20 +1162,21 @@ console.log('\n#1521 按钮列表的 Link 格带 sources');
     if (x.sub === 'href') hrefSources[`${c.type}.${f.slot}`] = x.sources || null;
   }
   const withSources = Object.keys(hrefSources).filter((k) => hrefSources[k]).sort();
-  // AC1 + AC2：带 sources 的 = 今天 8 格 kind=link + 六个按钮列表；每格都是 BUTTON_SOURCES 那份
-  const want = ['announcement-bar.link', 'blog-new.introCta', 'content-new.ctas', 'cta-banner.button', 'cta-new.ctas', 'features-new.introCtas',
-    'hero.ctaPrimary', 'hero.ctaSecondary', 'hero-new.ctas', 'hero-with-form.ctaPrimary', 'hero-with-form.ctaSecondary',
-    'logos-new.introCta', 'milestones.introCtas', 'page-header-new.ctas'].sort();
-  check(JSON.stringify(withSources) === JSON.stringify(want), `带 sources 的 href 格 = 8 格 kind=link + 6 个按钮列表（${withSources.length}）`, withSources.join(' · '));
+  // AC1 + AC2：带 sources 的 = 今天 kind=link 那几格 + 六个按钮列表；每格都是 BUTTON_SOURCES 那份
+  // #1425（T3）：kind=link 原来 8 格（announcement-bar.link / cta-banner.button / hero.ctaPrimary·ctaSecondary / hero-with-form 两格随旧库删了），
+  //    今天只剩 blog.introCta / logos.introCta。
+  const want = ['blog.introCta', 'content.ctas', 'cta.ctas', 'features.introCtas',
+    'hero.ctas', 'logos.introCta', 'milestones.introCtas', 'page-header.ctas'].sort();
+  check(JSON.stringify(withSources) === JSON.stringify(want), `带 sources 的 href 格 = 2 格 kind=link + 6 个按钮列表（${withSources.length}）`, withSources.join(' · '));
   check(withSources.every((k) => JSON.stringify(hrefSources[k]) === JSON.stringify(BUTTON_SOURCES)), '每格的 sources 都等于 BUTTON_SOURCES', JSON.stringify(hrefSources));
-  // 反向：contact-new.items 的 Link 格（itemNeeds 补的、项没有 label、不是按钮）不长 sources
-  check('contact-new.items' in hrefSources && hrefSources['contact-new.items'] === null, 'contact-new.items 有 Link 格但没有 sources', JSON.stringify(hrefSources['contact-new.items']));
+  // 反向：contact.items 的 Link 格（itemNeeds 补的、项没有 label、不是按钮）不长 sources
+  check('contact.items' in hrefSources && hrefSources['contact.items'] === null, 'contact.items 有 Link 格但没有 sources', JSON.stringify(hrefSources['contact.items']));
   // 往返：按钮写成引用 ⟹ 不动就存 deepEqual；在编辑器里把第二个按钮换成「本店电话」⟹ 存成 {source: "phone"}，其余逐字节不变
   const ctas = [{ label: 'Email us', href: { source: 'email' }, style: 'solid' }, { label: 'More', href: '/about', style: 'outline' }];
-  const raw = { slug: 'home', title: 'T', blocks: [{ id: 'home-hero-new-0', type: 'hero-new', data: { headline: 'H', ctas } }] };
-  check(convert.deepEqual(roundTrip(raw), raw), 'hero-new 带一个引用按钮：不动就存，deepEqual');
+  const raw = { slug: 'home', title: 'T', blocks: [{ id: 'home-hero-0', type: 'hero', data: { headline: 'H', ctas } }] };
+  check(convert.deepEqual(roundTrip(raw), raw), 'hero 带一个引用按钮：不动就存，deepEqual');
   const { initial, data } = openPage(raw);
-  const c = data.content.find((x) => x.type === 'hero-new');
+  const c = data.content.find((x) => x.type === 'hero');
   check(JSON.stringify(c.props.ctas[0].href) === JSON.stringify({ source: 'email' }), '打开时那一格拿到的是引用对象（下拉据它选中）', JSON.stringify(c.props.ctas[0].href));
   c.props.ctas[1].href = { source: 'phone' };
   const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
@@ -1136,7 +1188,7 @@ console.log('\n#1521 按钮列表的 Link 格带 sources');
   for (const kind of ['page', 'any']) {
     check(linkRejection(kind, out, raw) === null, `linkRejection('${kind}') 对引用按钮放行`, String(linkRejection(kind, out, raw)));
   }
-  const sb = { promo: { type: 'cta-new', data: { headline: 'x', ctas: [{ label: 'Call', href: { source: 'phone' } }] } } };
+  const sb = { promo: { type: 'cta', data: { headline: 'x', ctas: [{ label: 'Call', href: { source: 'phone' } }] } } };
   check(linkRejection('site-blocks', sb, null) === null, "linkRejection('site-blocks') 对引用按钮放行");
 }
 

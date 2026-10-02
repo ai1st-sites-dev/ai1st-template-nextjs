@@ -14,9 +14,9 @@ export default function SubPage({ locale, slug }: { locale: string; slug: string
   const seo = getSeo(locale);
   const services = getServices(locale);
 
-  // #1505 —— 服务的结构化数据：页面上有 `services-list`，或者有块把服务目录引用进来（`items: {source: "services"}`）。
-  //    T3 删掉 `services-list` 之后只剩后半句。
-  const hasServicesList = page.blocks.some((b) => b.type === 'services-list') || blocksUseSource(page.blocks, 'services');
+  // #1505 —— 服务的结构化数据：页面上有块把服务目录引用进来（`items: {source: "services"}`）。
+  //    📌 #1425（T3）：原来前半句还认旧块 `services-list`，它随旧库删了。
+  const hasServicesList = blocksUseSource(page.blocks, 'services');
   // 写成引用的列表槽先展开，再查图标表（展开出来的 `icon` 也要进表）。
   const blocks = resolveItemSources(page.blocks, itemSourceContext(locale));
 

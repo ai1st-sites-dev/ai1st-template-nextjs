@@ -1,17 +1,8 @@
-/* page-header · centered  （#1340 从生成器的 headerLook['centered'] 剪来；今天没有主题选它） */
-
+/* ── page-header · centered（预设 Centered）───────────────────────────────────────────────────────
+   这个形态没有自己的几何：page-header 是一份 markup + 三个旋钮，排版由**实际生效的旋钮**决定
+   （根元素上的 `data-headline-position` / `data-text-align` / `data-image` / `data-tone`，规则全在
+   `blocks/page-header/block.css`）。按形态写规则的话，旋钮拧偏成 custom 时这里的规则仍然按形态名命中，
+   页面就会排成一个跟旋钮说的不一样的样子。所以这份文件只有这段说明。 */
 [data-block="page-header"][data-shape="centered"] {
-  display: grid;
-  grid-template-columns: 1fr;
-  justify-items: center;
-}
-
-[data-block="page-header"][data-shape="centered"] .page-header__title {
-  grid-column: 1 / -1;
-  max-width: 48rem;
-}
-
-[data-block="page-header"][data-shape="centered"] .page-header__sub {
-  grid-column: 1 / -1;
-  max-width: 34rem;
+  --phn-preset: centered;
 }

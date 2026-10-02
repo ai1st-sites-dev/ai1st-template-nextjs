@@ -27,40 +27,8 @@ const path = require('path');
 const M = require('./site-data-migration.js');
 const NEXT = path.resolve(__dirname, '..', '..');
 
-// lastAliasTableWithLegacyRows —— 从 git 历史里取【最近一版还带老名字的】block-aliases.json（#1166 r4）。
-//
-// 为什么不读工作树那份：#1162（`9b789650`）把四个老名字从它里面删掉了，但**没有删这个文件** —— 留下
-// `card-group` 自己那一行。所以工作树上它今天是一张「真别名 0 条」的表，拿它当参照物，⑤ 那两条断言会
-// 报「values-grid 不在别名表里」，听起来像迁移表错了，其实是参照物被搬走了。
-//
-// 🔴 判据是「这一版里有没有真别名」，不是「文件在不在」，也不是某个写死的 sha。真别名 = 键跟它自己的
-// `type` 不相等的那些行（`card-group: {type:'card-group'}` 是它本人，不是别名）。往回走 40 版足够：
-// 删掉它的是 #1162，它的上一版就是 #1143（批 2，四行齐全）。
-//
-// 返回 `{ rev, table }`，取不到返回 null —— 调用方把 null 当**没量到**处理，不当通过。
-function lastAliasTableWithLegacyRows(relPath) {
-  const { execFileSync } = require('child_process');
-  // 🔴 cwd 必须是仓根，不是 templates/nextjs：`git show <rev>:<path>` 的 path 是**相对仓根**的，
-  // 而 rev-list 的 pathspec 相对 cwd —— 两个口径不一样，混着用的结果是「一版都找不到」，也就是
-  // 上面那条「没量到」会在一切正常时也响。第一版就是这么错的。
-  let root;
-  try {
-    root = execFileSync('git', ['rev-parse', '--show-toplevel'],
-      { cwd: NEXT, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-  } catch { return null; }
-  const git = (args) => execFileSync('git', args, { cwd: root, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] });
-  let revs;
-  try {
-    revs = git(['rev-list', '-n', '40', 'HEAD', '--', relPath]).split('\n').filter(Boolean);
-  } catch { return null; }
-  for (const rev of revs) {
-    let table;
-    try { table = JSON.parse(git(['show', `${rev}:${relPath}`])); } catch { continue; }
-    const legacy = Object.entries(table).filter(([k, v]) => v && v.type !== k);
-    if (legacy.length > 0) return { rev, table, __rev: rev };
-  }
-  return null;
-}
+// 📌 #1425（T3）—— 这里原来是 `lastAliasTableWithLegacyRows`（从 git 历史取最后一版带老名字的 block-aliases.json，
+//    供 ⑤ 逐条对照）。迁移表清空了（老站不迁移，Chris 2026-09-24，#1425 验收 6），⑤ 那道对照没有对象了，见 ⑤。
 
 let pass = 0; let fail = 0;
 const ok = (m) => { pass += 1; console.log(`  ✅ ${m}`); };
@@ -82,8 +50,55 @@ const read = (p) => JSON.parse(fs.readFileSync(p, 'utf-8'));
 const bytes = (p) => fs.readFileSync(p);
 const KNOWN = M.knownBlockTypes(NEXT);
 
-// ══ ① 迁移表的每一行都真的改名，而且只改 AC1 点名的三样 ════════════════════════════════════════
-console.log('① 四个老名字各迁一次：type 变、data 只动 highlights→items、role 相等就不写');
+// ── 临时注入规则 ─────────────────────────────────────────────────────────────────────────────────
+// 📌 #1425（T3）—— 两张表今天是空的（老站不迁移，Chris 2026-09-24，#1425 验收 6），原来 ①~④ 用的那几条真规则
+//    （四个老名字 → `card-group`、带表单的 hero → `hero-with-form`）连同落点一起没了。机制（planSiteMigration /
+//    applyPlan / roleToWrite）还在、下一次块改名还要用 ⟹ 这里往**导出的那两份表本身**临时塞规则（模块读的
+//    就是这两个引用），跑完原样撤掉。落点一律用今天的块（`features` = essential · `content` = optional）。
+const INJECT_TYPES = {
+  'values-grid': { to: 'content', role: 'optional', rename: {} },
+  'service-highlights': { to: 'features', role: 'essential', rename: { highlights: 'items' } },
+};
+const INJECT_SHAPE = {
+  when: (b) => b.type === 'hero' && b.block_layout === 'with-form',
+  to: 'hero', drop: ['block_layout'], data: { form: {} }, role: 'lead',
+};
+function withRules(fn, { types = INJECT_TYPES, shapes = [INJECT_SHAPE] } = {}) {
+  Object.assign(M.LEGACY_BLOCK_TYPES, types);
+  M.LEGACY_BLOCK_SHAPES.push(...shapes);
+  try { return fn(); } finally {
+    for (const k of Object.keys(types)) delete M.LEGACY_BLOCK_TYPES[k];
+    M.LEGACY_BLOCK_SHAPES.splice(M.LEGACY_BLOCK_SHAPES.length - shapes.length, shapes.length);
+  }
+}
+const EMPTY = () => Object.keys(M.LEGACY_BLOCK_TYPES).length === 0 && M.LEGACY_BLOCK_SHAPES.length === 0;
+
+// ══ ⓪ 今天的表是空的 ⟹ 没有一个块被改写（#1425（T3））═════════════════════════════════════════
+console.log('⓪ 两张迁移表今天是空的 ⟹ 带老名字的站：不改写、报 blocker、一个字节都不写');
+{
+  check(EMPTY(), `LEGACY_BLOCK_TYPES / LEGACY_BLOCK_SHAPES 都是空的（读到 ${Object.keys(M.LEGACY_BLOCK_TYPES).length} / ${M.LEGACY_BLOCK_SHAPES.length}）`);
+  const { siteDir } = makeSite({
+    'pages/a.json': { slug: 'a', blocks: [{ type: 'values-grid', data: { headline: 'H' } }, { type: 'features', data: {} }] },
+  });
+  const pa = path.join(siteDir, 'pages/a.json');
+  const before = bytes(pa);
+  const plan = M.planSiteMigration(siteDir, { rootDir: NEXT, knownTypes: KNOWN });
+  check(plan.changes.length === 0, `没有变更（读到 ${plan.changes.length}）`);
+  check(plan.blockers.length === 1 && plan.blockers[0].type === 'values-grid',
+    `老名字被当成未知类型拦下（${JSON.stringify(plan.blockers.map((x) => x.type))}）`);
+  let threw = false;
+  try { M.applyPlan(plan); } catch { threw = true; }
+  check(threw && bytes(pa).equals(before), 'applyPlan 拒绝动手，文件逐字节没变');
+  // 反向对照：同一份站、同一个调用，表里有一条规则 ⟹ 当场改写 —— 证明上面的「0 变更」是空表挣来的。
+  const { siteDir: s2 } = makeSite({ 'pages/a.json': { slug: 'a', blocks: [{ type: 'values-grid', data: { headline: 'H' } }] } });
+  const plan2 = withRules(() => M.planSiteMigration(s2, { rootDir: NEXT, knownTypes: KNOWN }));
+  check(plan2.changes.length === 1 && plan2.blockers.length === 0, `反向对照：注入一条规则 ⟹ 1 处变更 0 个 blocker（读到 ${plan2.changes.length} / ${plan2.blockers.length}）`);
+  check(EMPTY(), '注入的规则跑完已撤掉（后面每一格都从空表开始）');
+}
+
+// ══ ① 一条规则真的改名，而且只改它点名的那几样 ═══════════════════════════════════════════════════
+// 📌 #1425（T3）—— 这里原来是四个老名字各迁一次 → `card-group`；改成注入两条（一条带 data 改名）。
+console.log('\n① 注入的规则各迁一次：type 变、data 只动 rename 点名的键、role 相等就不写');
 {
   const page = (type, data, extra = {}) => ({
     slug: 'p', title: 'P', navOrder: 1,
@@ -91,83 +106,71 @@ console.log('① 四个老名字各迁一次：type 变、data 只动 highlights
   });
   const cases = [
     ['values-grid', { headline: 'H', items: [{ title: 'a' }], style: 'grid' }],
-    ['benefits-list', { headline: 'H', subheadline: 'S', items: [{ title: 'a' }], variant: 'v1' }],
-    ['checklist', { headline: 'H', items: ['甲', '乙'] }],
     ['service-highlights', { headline: 'H', highlights: [{ title: 'a' }], variant: 'v2' }],
   ];
   for (const [type, data] of cases) {
     const { siteDir } = makeSite({ [`pages/${type}.json`]: page(type, data) });
-    const plan = M.planSiteMigration(siteDir, { rootDir: NEXT, knownTypes: KNOWN });
+    const plan = withRules(() => M.planSiteMigration(siteDir, { rootDir: NEXT, knownTypes: KNOWN }));
     if (plan.blockers.length) { bad(`${type}: 不该有 blocker，却有 ${plan.blockers.length} 个`); continue; }
     M.applyPlan(plan);
     const after = read(path.join(siteDir, `pages/${type}.json`)).blocks[0];
+    const row = INJECT_TYPES[type];
     const problems = [];
-    if (after.type !== 'card-group') problems.push(`type=${after.type}`);
-    // 🔴 今天这四行「老类型的 role」都等于 `card-group` 在今天那张表里的值 ⟹ 写与不写产物一样
-    //    ⟹ 一个字节都不写（PM 在 #1166 三稿裁定里更正过；实测四个块产物 md5 补与不补相同）。
-    //    「不等就要写」那一半由 ①c 钉着，两格合起来才是 roleToWrite 的完整性质。
+    if (after.type !== row.to) problems.push(`type=${after.type}`);
+    // 注入的 role 都等于落点在今天 block-roles.json 里的值 ⟹ 写与不写产物一样 ⟹ 不写（「不等就写」由 ①c 钉着）。
     if ('role' in after) problems.push(`role 被写进了磁盘：${after.role}`);
-    // 🔴 data 的对照是【逐键比】，不是「有没有 items」：改多了和改少了都要抓得住。
+    // 🔴 data 的对照是【逐键比】：改多了和改少了都要抓得住。
     const want = { ...data };
-    if (type === 'service-highlights') { want.items = want.highlights; delete want.highlights; }
+    for (const [f, t] of Object.entries(row.rename)) { want[t] = want[f]; delete want[f]; }
     if (JSON.stringify(after.data) !== JSON.stringify(want)) {
       problems.push(`data=${JSON.stringify(after.data)} want=${JSON.stringify(want)}`);
     }
-    // 块自己的其它字段一个都不许动
-    if (after.id !== `b-${type}` || after.region !== 'content' || after.weight !== 10) {
-      problems.push('块的其它字段被动了');
-    }
-    check(problems.length === 0, `${type} → card-group${problems.length ? `：${problems.join(' · ')}` : ''}`);
+    if (after.id !== `b-${type}` || after.region !== 'content' || after.weight !== 10) problems.push('块的其它字段被动了');
+    check(problems.length === 0, `${type} → ${row.to}${problems.length ? `：${problems.join(' · ')}` : ''}`);
   }
 }
 
 // ── ①b 块自己写了 role 时不许覆盖它 ─────────────────────────────────────────────────────────────
 {
   const { siteDir } = makeSite({
-    'pages/a.json': { slug: 'a', blocks: [{ type: 'checklist', role: 'essential', data: { items: ['x'] } }] },
+    'pages/a.json': { slug: 'a', blocks: [{ type: 'values-grid', role: 'essential', data: { items: ['x'] } }] },
   });
-  const plan = M.planSiteMigration(siteDir, { rootDir: NEXT, knownTypes: KNOWN });
+  const plan = withRules(() => M.planSiteMigration(siteDir, { rootDir: NEXT, knownTypes: KNOWN }));
   M.applyPlan(plan);
   const b = read(path.join(siteDir, 'pages/a.json')).blocks[0];
   check(b.role === 'essential', `块自己写了 role 就不覆盖（读到 ${b.role}）`);
   check(plan.changes[0].roleAdded === null, '变更记录里 roleAdded 记成 null（没补）');
 }
 
-// ── ①c 补 role 这个能力还在：新类型今天那张表里的值跟老类型不一样时，必须写进去 ────────────────
-//
-// 🔴 这一格是 ① 的反向那一半。① 断言的是「今天这四行不写」，只有它的话，把 `roleToWrite` 整个
-//    改成 `return null` 也全绿 —— 而迁移表后面还要加行（映射文档 §2 的批 3~6），下一批完全可能是
-//    「老类型 essential → 新类型 optional」，那时不写就是静默改掉一个块的角色。
+// ── ①c 补 role 这个能力还在：落点今天那张表里的值跟老类型不一样时，必须写进去 ─────────────────────
+// 🔴 ① 的反向那一半。只有 ① 的话，把 `roleToWrite` 整个改成 `return null` 也全绿。
 {
   const { siteDir } = makeSite({
-    'pages/a.json': { slug: 'a', blocks: [{ type: 'checklist', data: { items: ['x'] } }] },
+    'pages/a.json': { slug: 'a', blocks: [{ type: 'values-grid', data: { items: ['x'] } }] },
   });
-  // 只动一个变量：假装今天那张表把 card-group 记成 essential（老类型仍是 optional）
-  const roles = { ...M.blockRoles(NEXT), 'card-group': 'essential' };
-  const plan = M.planSiteMigration(siteDir, { rootDir: NEXT, blockRoles: roles });
+  // 只动一个变量：假装今天那张表把 content 记成 essential（注入规则的老类型仍是 optional）
+  const roles = { ...M.blockRoles(NEXT), content: 'essential' };
+  const plan = withRules(() => M.planSiteMigration(siteDir, { rootDir: NEXT, blockRoles: roles }));
   M.applyPlan(plan);
   const b = read(path.join(siteDir, 'pages/a.json')).blocks[0];
   check(b.role === 'optional', `两边不等时把老类型那个角色写进磁盘（读到 role=${b.role}）`);
   check(plan.changes[0].roleAdded === 'optional', `变更记录里 roleAdded 记成 optional（读到 ${plan.changes[0].roleAdded}）`);
 }
 
-// ── ①d 新类型根本不在那张表里时，兜底是 essential ⟹ 也要写 ──────────────────────────────────────
+// ── ①d 落点根本不在那张表里时，兜底是 essential ⟹ 也要写 ──────────────────────────────────────────
 {
   const roles = { ...M.blockRoles(NEXT) };
-  delete roles['card-group'];
-  check(M.roleToWrite({ to: 'card-group', role: 'optional' }, roles) === 'optional',
-    '新类型不在 block-roles.json 里（兜底 essential）⟹ 要写');
-  check(M.roleToWrite({ to: 'card-group', role: 'essential' }, roles) === null,
+  delete roles.content;
+  check(M.roleToWrite({ to: 'content', role: 'optional' }, roles) === 'optional',
+    '落点不在 block-roles.json 里（兜底 essential）⟹ 要写');
+  check(M.roleToWrite({ to: 'content', role: 'essential' }, roles) === null,
     '兜底 essential 而老类型也是 essential ⟹ 不写');
 }
 
-// ══ ② 老形状（sections 数组）和站级块库也要迁 ═══════════════════════════════════════════════════
-// ══ ①e 带条件的规则：hero + block_layout=with-form → hero-with-form（#1333）════════════════════
-//
-// 🔴 这一格两向都问，而「不许碰」那一向是承重的：迁移表按 type 查，而 `hero` 这个 type 今天仍然
-//    是合法的块 —— 判据里少了 `block_layout` 那一半，**每一个 hero 都会被换成带表单的那种**，
-//    而那是给一批从来没要过表单的站的首屏加一个收客人联系方式的框。
-console.log('\n①e hero + block_layout=with-form → hero-with-form（#1333，带条件的规则）');
+// ══ ①e 带条件的规则（#1333 的机制）════════════════════════════════════════════════════════════════
+// 📌 #1425（T3）—— 原来是真规则 hero + block_layout=with-form → `hero-with-form`（落点随旧库删了）。机制改用注入的
+//    同形规则测：落点就是 `hero` 本身（去掉 block_layout、补 data.form），「不带条件的 hero 一个都不许碰」照旧承重。
+console.log('\n①e 带条件的规则：只改符合 when 的那个块，同 type 的其它块逐字不动');
 {
   const heroBlock = (extra = {}) => ({
     id: 'b-hero', type: 'hero', region: 'content', weight: 10,
@@ -175,64 +178,48 @@ console.log('\n①e hero + block_layout=with-form → hero-with-form（#1333，�
     ...extra,
   });
   const { siteDir } = makeSite({
-    'pages/home.json': {
-      slug: 'home',
-      title: 'Home',
-      blocks: [heroBlock({ block_layout: 'with-form' }), heroBlock({ id: 'b-hero-plain' })],
-    },
+    'pages/home.json': { slug: 'home', title: 'Home', blocks: [heroBlock({ block_layout: 'with-form' }), heroBlock({ id: 'b-hero-plain' })] },
   });
   const beforePlain = JSON.stringify(read(path.join(siteDir, 'pages/home.json')).blocks[1]);
-  const plan = M.planSiteMigration(siteDir, { rootDir: NEXT, knownTypes: KNOWN });
-  check(plan.blockers.length === 0, `没有 blocker（读到 ${plan.blockers.length}）`);
+  const plan = withRules(() => M.planSiteMigration(siteDir, { rootDir: NEXT, knownTypes: KNOWN }));
+  check(plan.blockers.length === 0 && plan.changes.length === 1, `没有 blocker、恰 1 处变更（读到 ${plan.blockers.length} / ${plan.changes.length}）`);
   M.applyPlan(plan);
   const after = read(path.join(siteDir, 'pages/home.json')).blocks;
-
   const problems = [];
-  if (after[0].type !== 'hero-with-form') problems.push(`type=${after[0].type}`);
+  if (after[0].type !== 'hero') problems.push(`type=${after[0].type}`);
   if ('block_layout' in after[0]) problems.push(`block_layout 还在：${after[0].block_layout}`);
-  if (JSON.stringify(after[0].data.form) !== '{}') problems.push(`data.form=${JSON.stringify(after[0].data.form)}（该是空记录）`);
-  // 🔴 除了那三样，块上别的字段一个都不许动 —— 包括 data 里原来那四个槽。
   const wantData = { ...heroBlock().data, form: {} };
-  if (JSON.stringify(after[0].data) !== JSON.stringify(wantData)) {
-    problems.push(`data=${JSON.stringify(after[0].data)} want=${JSON.stringify(wantData)}`);
-  }
+  if (JSON.stringify(after[0].data) !== JSON.stringify(wantData)) problems.push(`data=${JSON.stringify(after[0].data)} want=${JSON.stringify(wantData)}`);
   if (after[0].id !== 'b-hero' || after[0].region !== 'content' || after[0].weight !== 10) problems.push('块的其它字段被动了');
-  // hero 与 hero-with-form 在 block-roles.json 里同为 lead ⟹ roleToWrite 判「补了没区别」⟹ 不写。
   if ('role' in after[0]) problems.push(`role 被写进了磁盘：${after[0].role}`);
-  check(problems.length === 0, `带表单那个 hero 迁到 hero-with-form${problems.length ? `：${problems.join(' · ')}` : ''}`);
-
-  check(JSON.stringify(after[1]) === beforePlain,
-    `同一页里不带表单的那个 hero 逐字相同（读到 ${JSON.stringify(after[1]).slice(0, 60)}…）`);
-
-  // 🔴 反向对照：把判据砍成「只看 type」，那个不带表单的 hero 必须当场也被换掉 —— 证明上面那条绿
-  //    是 `block_layout` 那一半挣来的，不是「这份夹具里本来就没有第二个 hero」。
-  const rule = M.LEGACY_BLOCK_SHAPES.find((r) => r.to === 'hero-with-form');
-  const naive = (b) => b.type === 'hero';
-  const hit = [heroBlock({ block_layout: 'with-form' }), heroBlock()].filter(naive).length;
-  const real = [heroBlock({ block_layout: 'with-form' }), heroBlock()].filter((b) => rule.when(b)).length;
-  check(hit === 2 && real === 1,
-    `反向对照：判据砍成「只看 type」⟹ 2 个 hero 全中；真判据 ⟹ 只中 1 个（读到 ${hit} / ${real}）`);
+  check(problems.length === 0, `符合条件的那个 hero 被改写${problems.length ? `：${problems.join(' · ')}` : ''}`);
+  check(JSON.stringify(after[1]) === beforePlain, '同一页里不符合条件的那个 hero 逐字相同');
+  // 🔴 反向对照：判据砍成「只看 type」⟹ 两个 hero 全中 —— 证明上面那条绿是 when 那一半挣来的。
+  const pair = [heroBlock({ block_layout: 'with-form' }), heroBlock()];
+  const hit = pair.filter((b) => b.type === 'hero').length;
+  const real = pair.filter((b) => INJECT_SHAPE.when(b)).length;
+  check(hit === 2 && real === 1, `反向对照：只看 type ⟹ ${hit} 个全中；真判据 ⟹ 只中 ${real} 个`);
 }
 
 console.log('\n② 三种载体都迁：blocks 数组 · sections 数组（#998 之前的站）· 站级块库');
 {
   const { siteDir } = makeSite({
     'pages/legacy.json': { slug: 'l', sections: [{ type: 'values-grid', data: { headline: 'H' } }] },
-    'en/pages/new.json': { slug: 'n', blocks: [{ type: 'benefits-list', data: { headline: 'H' } }] },
+    'en/pages/new.json': { slug: 'n', blocks: [{ type: 'values-grid', data: { headline: 'H' } }] },
     'en/blocks/site-blocks.json': {
       'our-team': { type: 'service-highlights', visibility: '*', weight: 5, data: { highlights: [{ title: 't' }] } },
     },
   });
-  const plan = M.planSiteMigration(siteDir, { rootDir: NEXT, knownTypes: KNOWN });
+  const plan = withRules(() => M.planSiteMigration(siteDir, { rootDir: NEXT, knownTypes: KNOWN }));
   check(plan.changes.length === 3, `三个载体各迁到一个块（读到 ${plan.changes.length}）`);
   M.applyPlan(plan);
   const legacy = read(path.join(siteDir, 'pages/legacy.json'));
   const fresh = read(path.join(siteDir, 'en/pages/new.json'));
   const lib = read(path.join(siteDir, 'en/blocks/site-blocks.json'));
-  check(legacy.sections[0].type === 'card-group' && Array.isArray(legacy.sections) && !legacy.blocks,
+  check(legacy.sections[0].type === 'content' && Array.isArray(legacy.sections) && !legacy.blocks,
     'sections 数组就地迁移，没有被改名成 blocks（老站不许被顺手升级形状）');
-  check(fresh.blocks[0].type === 'card-group', 'blocks 数组迁了');
-  check(lib['our-team'].type === 'card-group' && lib['our-team'].data.items && !lib['our-team'].data.highlights,
+  check(fresh.blocks[0].type === 'content', 'blocks 数组迁了');
+  check(lib['our-team'].type === 'features' && lib['our-team'].data.items && !lib['our-team'].data.highlights,
     '站级块库迁了，且 highlights 改叫 items');
   check(lib['our-team'].visibility === '*' && lib['our-team'].weight === 5, '站级块自己的 visibility / weight 没动');
 }
@@ -242,10 +229,12 @@ console.log('\n③ 没有老名字的站 —— 文件逐字节不变（判据�
 {
   const { siteDir } = makeSite({
     'pages/home.json': { slug: 'home', blocks: [{ type: 'hero', data: { headline: 'H' } }] },
-    'pages/about.json': { slug: 'about', sections: [{ type: 'text-block', data: { body: 'x' } }] },
+    // 📌 #1425（T3）—— 这里原来是 `text-block`，它随旧库删了（今天会被判成未知类型 ⟹ blocker），换成新库的 `content`。
+    'pages/about.json': { slug: 'about', sections: [{ type: 'content', data: { body: 'x' } }] },
   });
   const before = { home: bytes(path.join(siteDir, 'pages/home.json')), about: bytes(path.join(siteDir, 'pages/about.json')) };
-  const plan = M.planSiteMigration(siteDir, { rootDir: NEXT, knownTypes: KNOWN });
+  // 🔴 带着注入的规则跑：空表下「0 变更」是白给的，要在「表里有规则、只是这站没碰上」时也不写。
+  const plan = withRules(() => M.planSiteMigration(siteDir, { rootDir: NEXT, knownTypes: KNOWN }));
   const written = M.applyPlan(plan);
   check(plan.changes.length === 0 && plan.blockers.length === 0, '没有变更、没有 blocker');
   check(written.length === 0, `一个文件都没写（写了 ${written.length} 个）`);
@@ -256,20 +245,19 @@ console.log('\n③ 没有老名字的站 —— 文件逐字节不变（判据�
 // ══ ④ 迁不了的一律不许升 —— 而且是在动任何文件【之前】中止 ══════════════════════════════════════
 console.log('\n④ 未知类型 ⟹ 中止，且磁盘一个字节都没被动过（AC10 反向那一半）');
 {
+  // 🔴 第一页有一个【能迁】的块（注入规则下），第二页才是那个未知类型 —— 分得出「两阶段」和「边写边发现」。
   const { siteDir } = makeSite({
-    // 🔴 第一页有一个【能迁】的块，第二页才是那个未知类型。少了第一页，这一格就分不出
-    //    「两阶段」和「边写边发现、只是恰好第一个就炸」——那正是它要守的性质。
     'pages/a.json': { slug: 'a', blocks: [{ type: 'values-grid', data: { headline: 'H' } }] },
     'pages/b.json': { slug: 'b', blocks: [{ type: 'no-such-block-type', data: { headline: 'H' } }] },
   });
   const pa = path.join(siteDir, 'pages/a.json');
   const pb = path.join(siteDir, 'pages/b.json');
   const before = { a: bytes(pa), b: bytes(pb) };
-  const plan = M.planSiteMigration(siteDir, { rootDir: NEXT, knownTypes: KNOWN });
+  const plan = withRules(() => M.planSiteMigration(siteDir, { rootDir: NEXT, knownTypes: KNOWN }));
+  check(plan.changes.length === 1, `第一页那个块确实在计划里要迁（读到 ${plan.changes.length}）—— 下面「没被写」才有意义`);
   check(plan.blockers.length === 1 && plan.blockers[0].type === 'no-such-block-type',
     `报出那个未知类型（${JSON.stringify(plan.blockers.map((b) => b.type))}）`);
-  check(plan.blockers[0].file === pb && plan.blockers[0].index === 0,
-    '报出是哪一页哪个块（file + index 都在）');
+  check(plan.blockers[0].file === pb && plan.blockers[0].index === 0, '报出是哪一页哪个块（file + index 都在）');
   let threw = false;
   try { M.applyPlan(plan); } catch { threw = true; }
   check(threw, 'applyPlan 拒绝动手（第二道，第一道在调用方）');
@@ -278,51 +266,14 @@ console.log('\n④ 未知类型 ⟹ 中止，且磁盘一个字节都没被动�
 }
 
 // ══ ⑤ 迁移表自己带一份，不 require 被删的那个别名文件 ═══════════════════════════════════════════
-console.log('\n⑤ 这张表不依赖 block-aliases.json（#1162 要删它；从它读 = 那天起静默失效）');
+console.log('\n⑤ 迁移模块不依赖 block-aliases.json（#1425 已删它；从它读 = require 当场炸）');
 {
   const src = fs.readFileSync(path.join(__dirname, 'site-data-migration.js'), 'utf-8');
   const codeOnly = src.split('\n').filter((l) => !l.trim().startsWith('//')).join('\n');
-  check(!/block-aliases/.test(codeOnly),
-    '源码（去掉注释行）里不出现 block-aliases —— 表是自己带的');
-  // 反向：这份自带的表必须跟它顶替的那层别名逐条一致 —— 不然它从出生就是错的。
-  //
-  // 🔴 权威从【工作树里的文件】改成了【git 历史里最后一版还带老名字的它】（#1166 r4）。上一版读的是
-  // 工作树那份，并且用「文件还在不在」当能不能对照的判据 —— 而 #1162（`9b789650`）**没有删掉这个
-  // 文件**，它只把四个老名字那几行删了，留下 `card-group` 自己那一行。于是判据答「文件在」、对照照跑，
-  // 拿一张空表去比，两条断言双双变红：报的是「values-grid 不在别名表里」，听起来像我的表错了，其实是
-  // 尺子的参照物被搬走了。#1162 落地当天这两格就会红，而它跟真出错长得一模一样。
-  //
-  // 🔴 换成历史之后这道对照【不会失效，也不会自愈成恒绿】：它现取「最近一次还带老名字的那一版」，
-  // 也就是 #1143（批 2）那份，四行齐全。以后每合一批（批 3~6）都是干净改名、不再建别名，所以这个
-  // 参照物就停在这里 —— 它是一份历史事实，不会腐烂。表里加新行而历史里没有对应别名时，下面
-  // 「集合相等」那条会点名，那正是要它说话的时候。
-  const aliasRelPath = 'templates/nextjs/src/lib/sections/block-aliases.json';
-  const alias = lastAliasTableWithLegacyRows(aliasRelPath);
-  if (alias) {
-    const mism = [];
-    for (const [from, row] of Object.entries(M.LEGACY_BLOCK_TYPES)) {
-      const a = alias.table[from];
-      if (!a) { mism.push(`${from} 不在别名表里`); continue; }
-      if (a.type !== row.to) mism.push(`${from}: 别名说 → ${a.type}，我说 → ${row.to}`);
-      if (a.role !== row.role) mism.push(`${from}: 别名 role=${a.role}，我 role=${row.role}`);
-      const aliasRenames = Object.entries(a.data || {})
-        .filter(([f, t]) => t && t !== f).map(([f, t]) => `${f}→${t}`).sort().join(',');
-      const mine = Object.entries(row.rename).map(([f, t]) => `${f}→${t}`).sort().join(',');
-      if (aliasRenames !== mine) mism.push(`${from}: 别名改名 [${aliasRenames}]，我 [${mine}]`);
-    }
-    check(mism.length === 0,
-      `跟【最后一版带老名字的】别名表（${alias.__rev.slice(0, 8)}）逐条一致${mism.length ? `：${mism.join(' · ')}` : ''}`);
-    // 🔴 别名表里除了这四行还有 `card-group` 自己那一行（键 == 它自己的 type），不是迁移对象。
-    const aliasLegacy = Object.entries(alias.table).filter(([k, v]) => v.type !== k).map(([k]) => k).sort();
-    check(JSON.stringify(aliasLegacy) === JSON.stringify(Object.keys(M.LEGACY_BLOCK_TYPES).sort()),
-      `覆盖面：那一版里真正的别名有 ${aliasLegacy.length} 个，我的表有 ${Object.keys(M.LEGACY_BLOCK_TYPES).length} 个，集合相等`);
-  } else {
-    // 🔴 读不到历史 ≠ 对照通过。上一版这里是一句 `console.log` 的 📌，也就是「参照物没了就静默放行」——
-    // 而这一节要挡的恰好是「表悄悄跟它顶替的那层分了叉」。仪器坏了要出声，不许算过。
-    check(false,
-      '🔴 这道对照【没能跑】：git 历史里找不到任何一版还带老名字的 block-aliases.json（试了最近 40 版）。'
-      + '不是「一致」，是没量到 —— 在非 git 的导出树里跑就会这样，去有历史的检出里再跑一次。');
-  }
+  check(!/block-aliases/.test(codeOnly), '源码（去掉注释行）里不出现 block-aliases —— 表是自己带的');
+  // 📌 #1425（T3）—— 这里原来还有一道「自带的表 == git 历史里最后一版带老名字的 block-aliases.json，逐条一致 +
+  //    集合相等」。它守的是「自带表跟它顶替的那层别名分了叉」；今天两边都没了（表按裁定清空、别名层整层删），
+  //    再比就是拿空表去对一份历史文件、恒红，删掉。
 }
 
 // ══ ⑥ 「今天认得哪些类型」这个权威跟 registry 不许分叉 ═══════════════════════════════════════════
@@ -334,10 +285,39 @@ console.log('\n⑥ block-roles.json 的键集 == registry.ts 的键集（判「�
   const roleKeys = M.knownBlockTypes(NEXT);
   const onlyReg = [...regKeys].filter((k) => !roleKeys.has(k));
   const onlyRole = [...roleKeys].filter((k) => !regKeys.has(k));
-  check(regKeys.size > 20, `registry 抠出来 ${regKeys.size} 个键（尺子没坏）`);
+  // 📌 #1425（T3）—— 原来是「> 20」（旧库 40+ 块时的尺子自检）；块库收成 17 个、页面块 15 个之后那个门槛
+  //    恒红。改成跟一个不同源的读数比：blocks/ 下 manifest 里不是外壳区（region:true）的那几个。
+  const pageManifests = [...require('./block-manifest.js').loadManifests(path.join(NEXT, 'blocks')).values()]
+    .filter((m) => m.region !== true).length;
+  check(regKeys.size > 0 && regKeys.size === pageManifests,
+    `registry 抠出来 ${regKeys.size} 个键 == blocks/ 下非外壳区 manifest ${pageManifests} 个（尺子没坏）`);
   check(onlyReg.length === 0 && onlyRole.length === 0,
     `两边键集相等（registry ${regKeys.size} · roles ${roleKeys.size}）`
     + `${onlyReg.length ? ` · 只在 registry: ${onlyReg}` : ''}${onlyRole.length ? ` · 只在 roles: ${onlyRole}` : ''}`);
+}
+
+// ══ ⑦ 迁移表的每个落点今天都认得（#1425（T3））═══════════════════════════════════════════════════
+// 🔴 迁到一个今天不存在的类型 = 文件头那句「改少了」的失败原样重演：块从页面上消失，构建 exit 0。
+//    #1425 删旧库时 `card-group` / `hero-with-form` 就是这样落空的。今天表是空的 ⟹ 真表那一臂是空集（不算数），
+//    尺子本身用注入的两臂证：指向已删块的规则必须被点名，指向现役块的必须放行。
+console.log('\n⑦ LEGACY_BLOCK_TYPES / LEGACY_BLOCK_SHAPES 的每个 to 都是今天认得的页面块');
+{
+  const deadTargets = () => [
+    ...Object.entries(M.LEGACY_BLOCK_TYPES).map(([from, r]) => [from, r.to]),
+    ...M.LEGACY_BLOCK_SHAPES.map((r) => ['(shape rule)', r.to]),
+  ].filter(([, to]) => !KNOWN.has(to)).map(([f, to]) => `${f}→${to}`);
+  const realCount = Object.keys(M.LEGACY_BLOCK_TYPES).length + M.LEGACY_BLOCK_SHAPES.length;
+  const realDead = deadTargets();
+  check(realDead.length === 0, `真表 ${realCount} 条规则，落点全在今天的块库里${realDead.length ? `：不在的 ${realDead.join(' · ')}` : ''}`);
+  const deadArm = withRules(deadTargets, {
+    types: { 'values-grid': { to: 'card-group', role: 'optional', rename: {} } },
+    shapes: [{ ...INJECT_SHAPE, to: 'hero-with-form' }],
+  });
+  check(deadArm.length === 2 && deadArm.includes('values-grid→card-group') && deadArm.includes('(shape rule)→hero-with-form'),
+    `反向臂：注入两条指向已删块的规则 ⟹ 两条都被点名（读到 ${JSON.stringify(deadArm)}）`);
+  const liveArm = withRules(() => ({ n: Object.keys(M.LEGACY_BLOCK_TYPES).length + M.LEGACY_BLOCK_SHAPES.length, dead: deadTargets() }));
+  check(liveArm.n === 3 && liveArm.dead.length === 0, `正臂：注入 ${liveArm.n} 条指向现役块的规则 ⟹ 0 条被点名（读到 ${JSON.stringify(liveArm.dead)}）`);
+  check(EMPTY(), '注入的规则跑完已撤掉');
 }
 
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);

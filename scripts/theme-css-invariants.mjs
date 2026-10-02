@@ -752,7 +752,12 @@ const measureText = async (sel, where, required, opts = {}) => {
 };
 
 // The pair that must be here, on the page every first-page check is taken on.
-for (const sel of TEXT_TARGETS) await measureText(sel, pathOf(baseUrl), true);
+// 🔴 #1425（T3）—— 这一对原来是旧 hero 的 `.hero__title` / `.hero__sub`（`theme-text-targets.js` 的 TEXT_TARGETS）。
+//    旧 hero 随旧库删了，新 hero 的标题 / 副标题是 `.hro-title` / `.hro-sub`（`blocks/hero/Section.tsx`）。
+//    首屏标题读不读得出来这件事一点没变，所以在这里换成新的那一对，**不删**。共享那张 TEXT_TARGETS 不动：
+//    主题流水线（`theme-pipeline/sheet-recipes.js` 那一族）按它从主题表字节里推配对，那一族今天没有新块可推。
+const FIRST_SCREEN_TEXT = ['.hro-title', '.hro-sub'];
+for (const sel of FIRST_SCREEN_TEXT) await measureText(sel, pathOf(baseUrl), true);
 // And the moved blocks that happen to be on this page as well (cta-banner usually is; page-header is not).
 for (const sel of MOVED_TEXT_TARGETS) await measureText(sel, pathOf(baseUrl), false);
 
@@ -1012,6 +1017,23 @@ const ESSENTIAL_TEXT_PROBE = () => {
     return { x, y, w: Math.max(0, w), h: Math.max(0, h) };
   };
   const collapsed = [...document.querySelectorAll('[aria-controls][aria-expanded="false"]')];
+  // 🔴 #1425（T3）—— 新库的块（Bootstrap / Webpixels）把同一段字按断点画两份是写法本身：header 的店名在手机条
+  // （`d-lg-none`）和桌面格里各一份，任一宽度下总有一份是 `display:none`。那不是「主题把要紧的字藏起来」——
+  // 是块**自己的 markup** 写了「这个宽度不显示我」。判据按 Bootstrap 自己的级联算：元素（或祖先）身上的
+  // `d-none` / `d-<断点>-<值>` 里，断点 ≤ 当前视口宽度的最后一条说了算，算出来是 `none` 才算。
+  // 主题样式表改不了 markup 上的类名，所以这一条不给主题开口子；只认 Bootstrap 那套名字，不认别的类。
+  const BS_BREAKPOINTS = { sm: 576, md: 768, lg: 992, xl: 1200, xxl: 1400 };
+  const bsDisplayAt = (e) => {
+    let at = -1;
+    let value = null;
+    for (const c of e.classList) {
+      const m = /^d-(?:(sm|md|lg|xl|xxl)-)?(none|inline|inline-block|block|grid|inline-grid|table|table-row|table-cell|flex|inline-flex)$/.exec(c);
+      if (!m) continue;
+      const bp = m[1] ? BS_BREAKPOINTS[m[1]] : 0;
+      if (bp <= window.innerWidth && bp >= at) { at = bp; value = m[2]; }
+    }
+    return value;
+  };
   const exemptedBy = (el) => {
     // `from` is the child this walk came up through — `null` on the first step, when `e` IS the
     // element that owns the text. It exists for the `<details>` branch below and nothing else.
@@ -1028,6 +1050,9 @@ const ESSENTIAL_TEXT_PROBE = () => {
       // whole point of that list being the same sentence in both directions.
       if (e.getAttribute('data-role') === 'optional') {
         return `${name(e)} carries data-role="optional" — the markup says this part may be absent`;
+      }
+      if (bsDisplayAt(e) === 'none') {
+        return `${name(e)}'s own Bootstrap display class hides it at ${window.innerWidth}px — the block draws this text again for the other widths`;
       }
       // A closed native `<details>` hides everything under it EXCEPT its own first `<summary>` —
       // that one is the control a visitor clicks and is on screen the whole time. So the branch is
@@ -1096,7 +1121,7 @@ const ESSENTIAL_TEXT_PROBE = () => {
       // the rest nowhere on the page (only in the native list it opens), so `Range.getClientRects()`
       // over an option's text is empty for every option on every sheet — the reading said "no box of
       // their own at all" about "What do you need?", which a visitor reads perfectly (measured on
-      // /allblocks.html: contact-new's service picker, 5 options × the two essential roots it sits in =
+      // /allblocks.html: contact's service picker, 5 options × the two essential roots it sits in =
       // 10 reds, on a site nobody had themed). So: the chosen option is measured on the `<select>`'s
       // box — a sheet that hides or squeezes the picker is still named — and the others are exempt, with
       // the reason printed like every other exemption. Both halves are read off the DOM, which a
@@ -1187,7 +1212,7 @@ const settlePage = async () => {
 // red has to be told, in the red itself, that the exemption was considered and did not apply — and
 // therefore what to write in the markup if this text really is meant to be off right now.
 const NOT_EXEMPT = 'It was not skipped: neither it nor any ancestor carries aria-hidden="true", the '
-  + 'hidden attribute or data-role="optional", no aria-expanded="false" control names it through '
+  + 'hidden attribute, data-role="optional" or a Bootstrap display class that hides it at this width, no aria-expanded="false" control names it through '
   + 'aria-controls, it is not in the closed panel of a <details>, and it is not an unchosen <option> of a '
   + 'drop-down <select> — so as far as the markup says, '
   + 'this text is on right now';
@@ -1599,18 +1624,21 @@ for (const l of leads) {
 // `font-size`, both on the contract's whitelist, without touching anything the other checks read.
 // 📌 Scope is the hero's own buttons on purpose. Every other block still renders the old markup, so
 //    measuring the whole page would be judging things no theme can style yet (phase 2 moves them).
+// 🔴 #1425（T3）—— 原来量的是旧 hero 的 `.hero__cta`；新 hero 的按钮组是 `[data-block="hero"] [data-part="ctas"]`
+//    （`blocks/hero/Section.tsx`）。量的东西不变：首屏按钮够不够一根手指按。
+const HERO_CTAS = '[data-block="hero"] [data-part="ctas"]';
 const MIN_TOUCH_PX = 44;
-const ctaCount = await page.locator('.hero__cta').count();
+const ctaCount = await page.locator(HERO_CTAS).count();
 if (ctaCount === 0) {
-  problems.push('touch target: the page has no ".hero__cta" — this check had nothing to look at, '
+  problems.push(`touch target: the page has no "${HERO_CTAS}" — this check had nothing to look at, `
     + 'which is not the same as passing');
 } else {
-  const buttons = await page.$$eval('.hero__cta a, .hero__cta button', (nodes) => nodes.map((n) => {
+  const buttons = await page.$$eval(`${HERO_CTAS} a, ${HERO_CTAS} button`, (nodes) => nodes.map((n) => {
     const r = n.getBoundingClientRect();
     return { w: r.width, h: r.height, label: (n.textContent || '').trim().slice(0, 30) || n.tagName };
   }));
   if (buttons.length === 0) {
-    problems.push('touch target: ".hero__cta" is on the page but contains no <a> or <button> — '
+    problems.push(`touch target: "${HERO_CTAS}" is on the page but contains no <a> or <button> — `
       + 'nothing was measured');
   }
   readings.push(`  hero buttons: ${buttons.map((b) => `"${b.label}" ${Math.round(b.w)}×${Math.round(b.h)}`)
@@ -2152,7 +2180,19 @@ const ROW_SHAPE = 'row';
 // ⟹ the population is the UNION: anything wearing the shape (so a third block that takes it is
 // measured with no edit here) plus these two whatever they are wearing (so the day one of them
 // stops wearing it, the geometry is still measured AND the mismatch is named).
-const ROW_ONLY_BLOCKS = ['services-nav', 'trusted-brands'];
+// 🔴 #1425（T3）—— 这两个块（`services-nav` / `trusted-brands`）随旧库删了，新库没有「只许穿 row」的块
+//    ⟹ 清单空了。按形态选（`[data-shape="row"]`）的那一半照旧：哪个块穿上 row 就量哪个。D1 那一族要是
+//    哪天又有块进库，把它的名字写回这里。
+const ROW_ONLY_BLOCKS = [];
+// 🔴 #1425（T3）—— 主题表契约这一族（⑧ 行形状 · ⑩ 吸顶偏移 · 契约钩子的覆盖）量的全是**皮由主题表画**的块。
+//    旧库删完之后块库里一个都不剩（17 个块全是 `skin: "site-css"`，皮和零件类名由编出来的 site.css 提供）。
+//    这三处「一个都没量到 = finding」的判定于是没有对象：判据只问这一句，不按块名各开口子 ——
+//    哪天又有一个主题表画的块进库，它们自动恢复判定。
+const THEME_SKINNED_BLOCKS = (() => {
+  const bm = createRequire(import.meta.url)('./lib/block-manifest.js');
+  return [...bm.loadManifests().keys()].filter((t) => !bm.isSiteCssSkin(undefined, t));
+})();
+const THEME_CONTRACT_HAS_SUBJECTS = THEME_SKINNED_BLOCKS.length > 0;
 // 🔴 Two announced widths, not derived ones, and that is a difference from check ⑦ next door: ⑦ sweeps
 // the band floors the page's own sheets declare, because a strip can be cut at any width. This check
 // asks a question about TWO STATES — "on a desktop they are side by side" and "on a phone they wrap
@@ -2475,10 +2515,10 @@ const { manifests: INTENT_MANIFESTS } = await load(
   'run `npm ci` in templates/nextjs; if the message above names blocks, make registry.ts and blocks/ agree.',
 );
 const INTENT_ARM = SAMPLE_MINIMAL ? '最少版' : '全填版';
-// #1463 —— 皮不由主题表画的块（manifest `skin: "site-css"`，今天是 hero-new）不进 ⑨：这把尺按「块根的直接子元素 +
+// #1463 —— 皮不由主题表画的块（manifest `skin: "site-css"`，今天是 hero）不进 ⑨：这把尺按「块根的直接子元素 +
 // 类名后缀 `__title / __media / __body`」认零件，那是主题表上皮的 BEM 骨架；Bootstrap 的 `section > .container > .row`
-// 按构造对不上它（hero-new 根下只有一个 `.container`）。判据只住 `block-manifest.js` §isSiteCssSkin。
-// 🔴 **排除之后谁在量它，写在这里**：hero-new 的几何由 `tests/e2e/specs/1463-hero-new-knobs.spec.ts` 量（#1470 起 54 种旋钮组合 ×
+// 按构造对不上它（hero 根下只有一个 `.container`）。判据只住 `block-manifest.js` §isSiteCssSkin。
+// 🔴 **排除之后谁在量它，写在这里**：hero 的几何由 `tests/e2e/specs/1463-hero-new-knobs.spec.ts` 量（#1470 起 54 种旋钮组合 ×
 //    1440/820/390 不横向滚动 + 阳性对照、image 六档的图位、图片带列等宽）。🔴 而它 manifest 里那份 `layout_intent`
 //    今天**没有任何断言在读** —— ⑨ 是它唯一的消费者。T3 把每个块都换成 site-css 时，这道 ⑨ 的分母会空掉：
 //    那张票要么删掉它，要么给它接一套认得 Bootstrap 骨架的零件模型；别让 `layout_intent` 变成宣称一套、没人读的字段。
@@ -2747,7 +2787,8 @@ await judgeLayoutIntent(pathOf(baseUrl));
 await judgeNavOffset(pathOf(baseUrl));
 
 // ── ④ body text is big enough ───────────────────────────────────────────────────────────────────
-for (const sel of ['body', '.hero__sub']) {
+// 📌 #1425（T3）：第二个原来是旧 hero 的 `.hero__sub`，换成新 hero 的 `.hro-sub`。
+for (const sel of ['body', '.hro-sub']) {
   const el = page.locator(sel).first();
   if ((await el.count()) === 0) {
     problems.push(`type size: "${sel}" is not on the page`);
@@ -3625,7 +3666,11 @@ readings.push(`  row shape (check ⑧): measured on ${rowWhere}, at ${ROW_DESKTO
   + 'not fit, a two-column layout and a wrapped row are the same reading to this check. (#1318 took '
   + '`grid-template-columns` away from themes, so a two-column version of these three blocks cannot '
   + 'be generated today either way.)');
-if (SAMPLE_WIDENED) {
+if (!THEME_CONTRACT_HAS_SUBJECTS) {
+  readings.push('  row shape (check ⑧): 📌 #1425 — no block in the library is skinned by the theme sheet any more '
+    + '(every manifest says skin: "site-css"), so the blocks this check was written for are gone and it judges nothing');
+}
+if (SAMPLE_WIDENED && THEME_CONTRACT_HAS_SUBJECTS) {
   // 🔴 On a site this run widened itself, "⑧ found nothing" is a finding. The three blocks that wear
   // this shape are all in the contract and all on the fixture page, so their absence means the shape
   // stopped reaching the markup — a selection list that lost the name, a build that dropped the
@@ -3780,7 +3825,11 @@ readings.push(`  services-nav offset (check ⑩): measured on `
   + 'that path is FIXED here rather than merely unchanged.');
 readings.push(`  services-nav offset (check ⑩), reached by clicking through the site rather than `
   + `opened directly: ${navOffsetSoftNav.join(' · ') || '🔴 not run — no page carried the bar'}`);
-if (SAMPLE_WIDENED && !navOffsetSoftNav.some((s) => s.includes('did NOT reload'))) {
+if (!THEME_CONTRACT_HAS_SUBJECTS) {
+  readings.push('  services-nav offset (check ⑩): 📌 #1425 — services-nav / services-list were removed with the old '
+    + 'library; nothing in the library carries a sticky services bar, so this check has no subject and judges nothing');
+}
+if (SAMPLE_WIDENED && THEME_CONTRACT_HAS_SUBJECTS && !navOffsetSoftNav.some((s) => s.includes('did NOT reload'))) {
   // 🔴 #1327 second round — THIS ARM GOING QUIET IS THE FAILURE IT EXISTS FOR. The defect it caught
   // was invisible to every reading taken on a directly opened page, so an arm that silently measured
   // nothing would put the check back where it was while still printing four green lines. On a sample
@@ -3793,7 +3842,7 @@ if (SAMPLE_WIDENED && !navOffsetSoftNav.some((s) => s.includes('did NOT reload')
     + 'every direct reading and broken for a visitor who clicked "Services" in the header. What it '
     + `reported: ${navOffsetSoftNav.join(' · ') || '(nothing)'}`);
 }
-if (SAMPLE_WIDENED && navOffsetPagesMeasured.length === 0) {
+if (SAMPLE_WIDENED && THEME_CONTRACT_HAS_SUBJECTS && navOffsetPagesMeasured.length === 0) {
   // 🔴 On a site this run widened itself, "⑩ found nothing" is a finding, not a pass. This fixture
   // carries all 31 block types by construction (scripts/block-migration/gen-allblocks.js derives the
   // page from the registry) and #1320 gave it several services, so services-nav and services-list
@@ -3839,7 +3888,7 @@ readings.push('  pages measured for check ① on the blocks phase 2 has moved, a
   + [...MOVED_TEXT_TARGETS, ...CONTROL_TARGETS]
     .map((sel) => `${sel} → ${(movedTextMeasured.get(sel) || []).join(', ') || '🔴 on no page measured'}`)
     .join(' · ')
-  + `. The two hero hooks (${TEXT_TARGETS.join(', ')}) are required on `
+  + `. The two hero hooks (${FIRST_SCREEN_TEXT.join(', ')}) are required on `
   + `${pathOf(baseUrl)} and are reported above`
   + `${droppedPages.length ? ` · 🔴 ${droppedPages.length} page(s) past the ${OTHER_PAGE_CAP}-page cap `
     + `were NOT measured for this check either: ${droppedPages.join(', ')}` : ''}`);
@@ -3888,7 +3937,32 @@ readings.push(`  pages measured for check ② (essential content not hidden): `
   + `${droppedPages.length ? ` · 🔴 ${droppedPages.length} page(s) past the ${OTHER_PAGE_CAP}-page `
     + `cap were NOT measured for this check either — not for ②, and not for ②d/②e: `
     + `${droppedPages.join(', ')}` : ''}`);
+// 🔴 #1425（T3）—— 新库的顶栏 / 页脚把**旋钮的当前值**写成根上的状态类（`hdr-logo-left` · `hdr-topbar-off` ·
+// `ftr-cta-none` …，`blocks/header/Section.tsx` / `blocks/footer/Section.tsx`）：排版只给需要特别处理的那几个值写规则，
+// 默认那一档本来就没有规则。它们不是「没穿衣服的元素」，是一句读数。豁免**按 manifest 声明算**、不写死名单：
+// 类名恰好拼成 `<前缀>-<某个块声明的旋钮名>-<那个旋钮声明的取值>`（布尔开关的取值是 on / off）才算。
+// 别的没规则的类照旧报。
+const KNOB_STATE_CLASS = (() => {
+  const { loadManifests } = createRequire(import.meta.url)('./lib/block-manifest.js');
+  const pairs = new Set();
+  for (const m of loadManifests().values()) {
+    const opts = (m.slots && m.slots.options) || {};
+    for (const k of opts.knobs || []) for (const v of k.values || []) pairs.add(`${k.name}-${v}`);
+    for (const pr of m.presets || []) {
+      for (const [name, v] of Object.entries(pr.options || {})) if (typeof v === 'boolean') { pairs.add(`${name}-on`); pairs.add(`${name}-off`); }
+    }
+  }
+  // 报告里的名字是 `<标签>.<类>`（`header.hdr-topbar-off`），取最后一段。
+  return (orphan) => {
+    const cls = String(orphan).split('.').pop();
+    const m = /^[a-z]+-(.+)$/.exec(cls);
+    return !!m && pairs.has(m[1]);
+  };
+})();
 for (const { where, audit } of audits) {
+  const stateOnly = audit.orphans.filter(KNOB_STATE_CLASS);
+  audit.orphans = audit.orphans.filter((c) => !KNOB_STATE_CLASS(c));
+  if (stateOnly.length) readings.push(`  ${where} — knob-state classes with no rule (a reading, not a finding — #1425): ${stateOnly.join(', ')}`);
   readings.push(`  ${where} — classes on the page: ${audit.used} · with no rule: ${audit.orphans.length}`
     + ` (${audit.sheets} stylesheets, ${audit.unreadableSheets} not readable from here)`
     // The second reading (#996): the same question asked of the theme's own sheet.
@@ -3980,7 +4054,12 @@ readings.push(`  contract hooks not on any page measured: ${unusedHooks.length}`
         + `${unusedUnexpected.map((h) => `.${h}`).join(', ') || '(none)'} — the full arm is what judges them`
       : `is judged: ${unusedExempt.length} of them are the after-submit form states, which `
         + 'a static export cannot reach, and any other is a finding'}`);
-if (widened && !SAMPLE_MINIMAL && unusedUnexpected.length) {
+if (!THEME_CONTRACT_HAS_SUBJECTS) {
+  readings.push(`  sample coverage: 📌 #1425 — the ${HOOK_CLASSES.length} contract hooks are the old library's class names; `
+    + 'no block in the library is skinned by the theme sheet any more (all are skin: "site-css"), so "a hook on no page" '
+    + 'is not judged — there is no block left that could carry one');
+}
+if (widened && !SAMPLE_MINIMAL && unusedUnexpected.length && THEME_CONTRACT_HAS_SUBJECTS) {
   problems.push(`sample coverage: ${unusedUnexpected.length} contract hook(s) are on no page of a `
     + `sample site this run widened to cover every block — ${unusedUnexpected.map((h) => `.${h}`).join(', ')}`
     + ' — so no reading above says anything about whether any theme dresses them. Either the block '

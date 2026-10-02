@@ -1,0 +1,236 @@
+/* ── logos · 跨形态的规则（#1496）──────────────────────────────────────────────────────────────
+   logos 的排版由**实际生效的旋钮**决定，写在根元素上：
+     intro  data-intro-position（left / right / top / bottom）· data-intro-align（left / center / right）· data-intro-size（sm / lg）
+     items  data-items-layout（row / grid）· data-items-columns（3 / 4 / 6，只管 grid）
+     item   data-item-style（plain / card）· data-logo-color（mono / original）
+     底色   data-tone（light / dark / brand，scripts/lib/contrast.js §toneForBg）
+   四个形态目录都是预设，自己不带几何（理由在各自的 shape.css 里）。规则照定稿图册 logos 段
+   （docs/reference/webpixels/gallery/build.py 的 logos CSS，Chris 2026-09-30）。
+
+   🔴 Webpixels 的工具类全带 !important（mb-* / display-5 / fs-5 / text-muted …）。这里要压过它们的规则**也带 !important**，
+      而且选择器从 [data-block="logos"] 起步再加属性 / 类 —— 特异度一定高过工具类的一个类。
+   🔴 部件的有无靠渲染（Section.tsx 有数据才画），不靠 CSS 藏：眉标、标题、正文、链接没数据就没有节点。
+   间距照定稿：段 py-12 py-lg-16；块头与 logo gy-8 gx-lg-16（纵向写 gy-8、不写 g-8：g-* 的横向负边距在手机上溢出，
+   #1475 量出来的）。 */
+
+/* ═══ intro ════════════════════════════════════════════════════════════════════════════════════════ */
+
+[data-block="logos"] .lo-intro-text > :last-child {
+  margin-bottom: 0 !important;
+}
+[data-block="logos"] .lo-cta {
+  margin-top: 1rem;
+}
+
+/* introSize：lg = 正常大标题（display-5）；sm = 标题缩成一行小字（1.125rem / 600），正文也缩小（.9375rem）——
+   正文照样显示（Chris 2026-09-30：sm 不藏内容，只缩字号）。 */
+[data-block="logos"][data-intro-size="sm"] .lo-title {
+  font-size: 1.125rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  line-height: 1.4 !important;
+  margin-bottom: 0 !important;
+}
+[data-block="logos"][data-intro-size="sm"] .lo-body {
+  font-size: 0.9375rem !important;
+  margin-top: 0.25rem;
+}
+[data-block="logos"][data-intro-size="sm"] .lo-eyebrow-wrap {
+  margin-bottom: 0.5rem !important;
+}
+
+/* introAlign：块头文字对齐。宽度照 T6.1（#1486）：left / right 100%；center 在 ≥992 最宽 80%、居中。 */
+[data-block="logos"][data-intro-align="center"] .lo-intro-text {
+  text-align: center;
+}
+[data-block="logos"][data-intro-align="right"] .lo-intro-text {
+  text-align: right;
+}
+@media (min-width: 992px) {
+  [data-block="logos"][data-intro-align="center"] .lo-intro-text {
+    max-width: 80%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+/* introPosition：left / right（≥992）= 块头一列 33.33%、logo 一列 66.67%，两列垂直居中（.lo-frame 带 align-items-center）；
+   right 行反向。块头在侧时块头那一列本来就窄：文字不再限宽。
+   小屏：left / top 块头在上，right / bottom 块头在下。 */
+[data-block="logos"][data-intro-position="bottom"] .lo-frame {
+  flex-direction: column-reverse;
+}
+@media (max-width: 991.98px) {
+  [data-block="logos"][data-intro-position="right"] .lo-frame {
+    flex-direction: column-reverse;
+  }
+}
+@media (min-width: 992px) {
+  [data-block="logos"][data-intro-position="left"] .lo-introcol,
+  [data-block="logos"][data-intro-position="right"] .lo-introcol {
+    flex: 0 0 auto;
+    width: 33.3333%;
+  }
+  [data-block="logos"][data-intro-position="left"] .lo-itemscol,
+  [data-block="logos"][data-intro-position="right"] .lo-itemscol {
+    flex: 0 0 auto;
+    width: 66.6667%;
+  }
+  [data-block="logos"][data-intro-position="right"] .lo-frame {
+    flex-direction: row-reverse;
+  }
+  [data-block="logos"][data-intro-position="left"] .lo-intro-text,
+  [data-block="logos"][data-intro-position="right"] .lo-intro-text {
+    max-width: none;
+    margin: 0;
+  }
+}
+
+/* ═══ items ════════════════════════════════════════════════════════════════════════════════════════
+   每格：plain 高 4.5rem、card 高 6rem；logo 图最高 2rem、宽按比例、不超出格子。 */
+[data-block="logos"] .lo-inner {
+  height: 4.5rem;
+  padding: 0 1rem;
+}
+[data-block="logos"] .lo-logo {
+  display: block;
+  max-height: 2rem;
+  max-width: 100%;
+  width: auto;
+  height: auto;
+}
+
+/* itemsLayout=row：每个 logo 按自己的宽度排、居中、放不下就换行；上下左右同一个间距 1rem，左右内边距 .75rem
+   （Chris 2026-09-30：行距与列距一样、比 grid 紧凑）。块头在侧时靠左排。 */
+[data-block="logos"][data-items-layout="row"] .lo-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem;
+}
+[data-block="logos"][data-items-layout="row"] .lo-inner {
+  padding: 0 0.75rem;
+}
+@media (min-width: 992px) {
+  [data-block="logos"][data-items-layout="row"][data-intro-position="left"] .lo-grid,
+  [data-block="logos"][data-items-layout="row"][data-intro-position="right"] .lo-grid {
+    justify-content: flex-start;
+  }
+}
+
+/* itemsLayout=grid：按列数等宽格子 —— 手机 2 列、iPad（≥768）3 列、≥992 按 itemsColumns。 */
+[data-block="logos"][data-items-layout="grid"] .lo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+@media (min-width: 768px) {
+  [data-block="logos"][data-items-layout="grid"] .lo-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (min-width: 992px) {
+  [data-block="logos"][data-items-layout="grid"][data-items-columns="4"] .lo-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  [data-block="logos"][data-items-layout="grid"][data-items-columns="6"] .lo-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+/* itemStyle=card：每个 logo 一张白卡（1px 描边、1rem 圆角、高 6rem）。 */
+[data-block="logos"][data-item-style="card"] .lo-inner {
+  background: var(--x-body-bg);
+  border: 1px solid var(--x-border-color, #e5e7eb);
+  border-radius: 1rem;
+  height: 6rem;
+}
+
+/* logoColor：mono = 统一灰度（grayscale + 60% 不透明）；original = 原色。深底 + mono = 反白（下面 data-tone 那一段）。 */
+[data-block="logos"][data-logo-color="mono"] .lo-logo {
+  filter: grayscale(1);
+  opacity: 0.6;
+}
+
+/* ═══ 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneForBg）══════════════════════════════
+   dark = 深底 / 深色渐变；brand = 主题主色底。两者一样：标题 / 正文反白（正文白 .92 那条规则全站只有一份，
+   住 scripts/lib/site-css.js §ON_DEEP_MUTED，#1477；这里不再抄）、card 半透明底 + 半透明白描边、mono logo 反白。 */
+[data-block="logos"][data-tone="dark"],
+[data-block="logos"][data-tone="brand"] {
+  color: #fff;
+}
+[data-block="logos"][data-tone="dark"] .lo-title,
+[data-block="logos"][data-tone="brand"] .lo-title,
+[data-block="logos"][data-tone="dark"] .lo-eyebrow-dash,
+[data-block="logos"][data-tone="brand"] .lo-eyebrow-dash,
+[data-block="logos"][data-tone="dark"] .lo-eyebrow-plain,
+[data-block="logos"][data-tone="brand"] .lo-eyebrow-plain {
+  color: #fff !important;
+}
+[data-block="logos"][data-tone="dark"][data-item-style="card"] .lo-inner,
+[data-block="logos"][data-tone="brand"][data-item-style="card"] .lo-inner {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+[data-block="logos"][data-tone="dark"][data-logo-color="mono"] .lo-logo,
+[data-block="logos"][data-tone="brand"][data-logo-color="mono"] .lo-logo {
+  filter: brightness(0) invert(1);
+  opacity: 0.75;
+}
+[data-block="logos"][data-tone="dark"] .lo-eyebrow-pill,
+[data-block="logos"][data-tone="brand"] .lo-eyebrow-pill {
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #fff !important;
+}
+[data-block="logos"][data-tone="dark"] .lo-eyebrow-outline,
+[data-block="logos"][data-tone="brand"] .lo-eyebrow-outline {
+  border-color: rgba(255, 255, 255, 0.7) !important;
+  color: #fff !important;
+}
+[data-block="logos"][data-tone="dark"] .btn-outline-primary,
+[data-block="logos"][data-tone="brand"] .btn-outline-primary {
+  color: #fff !important;
+  border-color: rgba(255, 255, 255, 0.6) !important;
+}
+[data-block="logos"][data-tone="dark"] .btn-link,
+[data-block="logos"][data-tone="brand"] .btn-link {
+  color: #fff !important;
+}
+
+/* ── 按钮的底色和字色：接平台按这个站最终配色算好的那几个变量（`scripts/lib/button-ink.js`，同 features / milestones）。
+   轮廓按钮 / 纯文字链接用 `--x-primary-text-emphasis`，理由见 features/block.css 同一段（浅主题色压白底读不出来）。 */
+[data-block="logos"] .btn-primary {
+  --x-btn-bg: var(--btn-primary-bg, var(--x-primary));
+  --x-btn-border-color: var(--btn-primary-bg, var(--x-primary));
+  --x-btn-color: var(--btn-primary-ink, #fff);
+  --x-btn-hover-bg: var(--btn-primary-hover, var(--btn-primary-bg, var(--x-primary)));
+  --x-btn-hover-border-color: var(--btn-primary-hover, var(--btn-primary-bg, var(--x-primary)));
+  --x-btn-hover-color: var(--btn-primary-ink, #fff);
+  --x-btn-active-bg: var(--btn-primary-hover, var(--btn-primary-bg, var(--x-primary)));
+  --x-btn-active-color: var(--btn-primary-ink, #fff);
+}
+[data-block="logos"] .btn-outline-primary {
+  --x-btn-color: var(--x-primary-text-emphasis, var(--x-primary));
+  --x-btn-border-color: var(--x-primary-text-emphasis, var(--x-primary));
+}
+[data-block="logos"] .btn-link {
+  --x-btn-color: var(--x-primary-text-emphasis, var(--x-primary));
+  --x-btn-hover-color: var(--x-primary-text-emphasis, var(--x-primary));
+  --x-btn-active-color: var(--x-primary-text-emphasis, var(--x-primary));
+}
+[data-block="logos"][data-tone="dark"] .btn-primary {
+  background: #fff !important;
+  border-color: #fff !important;
+  color: #0f172a !important;
+}
+[data-block="logos"][data-tone="brand"] .btn-primary {
+  background: #fff !important;
+  border-color: #fff !important;
+  color: var(--x-primary) !important;
+}
+[data-block="logos"][data-tone="dark"] .btn-primary:hover,
+[data-block="logos"][data-tone="brand"] .btn-primary:hover {
+  background: #f1f5f9 !important;
+  border-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}

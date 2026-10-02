@@ -15,6 +15,10 @@
  *
  * 🔴 #1333 —— 中间那道「这个站抽到的主题给带表单的 hero 写过造型没有」删掉了（任何主题都画得出，
  * 理由写在 `hero-lead-form.js` 上），所以下面 ③ 换了对象：它现在问的是**换出来的那个块类型真的接线了吗**。
+ *
+ * 🔴 #1425（T3）—— `hero-with-form` 随旧库删了，新库的 `hero` 自己带表单（旋钮 `options.form` + 槽 `form`）。
+ *    `applyHeroLeadForm` 不再换 type，改为写 `data.options.form = 'full'` + 空 `data.form = {}`。下面 ③ 问
+ *    「那个旋钮值 / 那个槽真的在 hero 的 manifest 里」，④⑥⑦ 的「换没换」改成「旋钮拧没拧」。
  */
 
 'use strict';
@@ -43,7 +47,10 @@ try {
 }
 
 const { SECTORS, isOnSiteIndustry } = sectors;
-const { applyHeroLeadForm, HERO_FORM_BLOCK } = heroForm;
+const { applyHeroLeadForm, HERO_BLOCK, FORM_FULL } = heroForm;
+if (!HERO_BLOCK || !FORM_FULL) die('hero-lead-form.js 没导出 HERO_BLOCK / FORM_FULL —— 下面几格的判据没有出处');
+/** #1425（T3）—— 「这个 hero 带上整张表单了吗」的唯一读法：type 仍是 hero，且旋钮 form 拧到 full。 */
+const hasFullForm = (b) => !!b && b.type === HERO_BLOCK && !!b.data && !!b.data.options && b.data.options.form === FORM_FULL;
 
 const onWords = SECTORS.filter((s) => s.onSite).flatMap((s) => s.words);
 const offWords = SECTORS.filter((s) => !s.onSite).flatMap((s) => s.words);
@@ -98,46 +105,49 @@ console.log('\n── ② 五条真实行业串');
   }
 }
 
-// ── ③ 换出来的那个块类型，三处都接上线了吗（#1333）─────────────────────────────────────────────
+// ── ③ 写下去的那个旋钮值 / 那个槽，在 hero 的 manifest 里真的有吗（#1333 → #1425（T3））──────────────
 //
-// 🔴 这一格接替的是 #1097 那道「主题声明过造型没有」的位置，治的是**同族但更严重**的失败：
-//    `applyHeroLeadForm` 写下的 type，只要有一处没接线，`SectionRenderer` 就走未知类型那一支
-//    （`console.warn` + `return null`）—— 首屏整块从页面上消失，而构建 exit 0、UI 报完成。
-//    这正是 `site-data-migration.js` 文件头记着的那个形状（prod 上真发生过 43 个块）。
-// 🔴 判据用**产出端那个常量**（`HERO_FORM_BLOCK`），不在这里重写一遍块名：写死一份就等于
-//    「产出者改了名、这一格还在验旧名」，而那是绿着坏。
-console.log('\n── ③ hero-with-form 三处接线：manifest / 角色表 / 注册表');
+// 🔴 这一格原来问的是「换出来的 `hero-with-form` 三处接线了吗」（manifest / 角色表 / 注册表）。#1425（T3）之后
+//    type 不换了，失败的形状换成：写下的 `options.form` 值不在 hero 那个旋钮的取值里（例如 manifest 把 `full`
+//    改名了）⟹ 旋钮值落不进任何一档，首屏表单静默没了，构建照样绿。所以判据换成 manifest 本身：
+//    旋钮 `form` 的 values 含产出端那个常量（`FORM_FULL`，不在这里重写），槽 `form` 在；hero 本身三处接线照旧。
+console.log('\n── ③ hero 的 manifest 认得写下去的那个值：options.form 的取值含 FORM_FULL · 有 form 槽 · 三处接线');
 {
-  const m = manifests.get(HERO_FORM_BLOCK);
-  if (!m) bad(`blocks/${HERO_FORM_BLOCK}.json 不在 loadManifests 的结果里 —— 建站期的校验器不认识它`);
-  else ok(`blocks/${HERO_FORM_BLOCK}.json 加载得到（category ${m.category} · roleDefault ${m.roleDefault}）`);
+  const m = manifests.get(HERO_BLOCK);
+  if (!m) bad(`blocks/${HERO_BLOCK}/manifest.json 不在 loadManifests 的结果里 —— 建站期的校验器不认识它`);
+  else ok(`blocks/${HERO_BLOCK}/manifest.json 加载得到（category ${m.category} · roleDefault ${m.roleDefault}）`);
 
-  if (blockRoles[HERO_FORM_BLOCK]) ok(`block-roles.json 里有它：${blockRoles[HERO_FORM_BLOCK]}`);
-  else bad(`block-roles.json 里没有 ${HERO_FORM_BLOCK} —— data-role 会落到兜底的 essential，而它该是 lead`);
+  if (blockRoles[HERO_BLOCK]) ok(`block-roles.json 里有它：${blockRoles[HERO_BLOCK]}`);
+  else bad(`block-roles.json 里没有 ${HERO_BLOCK}`);
+  // 注册表是 TypeScript —— 按文本找那一行（只问「有没有这一行」，权威仍是 block-roles.json）。
+  if (new RegExp(`'${HERO_BLOCK}':\\s*\\w`).test(registrySrc)) ok(`registry.generated.ts 里有 '${HERO_BLOCK}' 那一行`);
+  else bad(`registry.generated.ts 里没有 '${HERO_BLOCK}' ⟹ SectionRenderer 走未知类型那一支，首屏整块消失而构建照样绿`);
 
-  // 注册表是 TypeScript，node require 不动 —— 按文本找那一行（同 `site-data-migration.js` 文件头
-  // 记着的理由：正则抠 TS 是第二份实现，所以这里**只**问「有没有这一行」，权威仍是 block-roles.json）。
-  if (new RegExp(`'${HERO_FORM_BLOCK}':\\s*\\w`).test(registrySrc)) ok(`registry.ts 里有 '${HERO_FORM_BLOCK}' 那一行`);
-  else bad(`registry.ts 里没有 '${HERO_FORM_BLOCK}' ⟹ SectionRenderer 走未知类型那一支，首屏整块消失而构建照样绿`);
-
-  // 表单那组槽位：manifest 说必填，而产出者必须真的填上（不填的话每次构建多一条假警报）。
+  const knobs = (m && m.slots && m.slots.options && Array.isArray(m.slots.options.knobs)) ? m.slots.options.knobs : [];
+  const formKnob = knobs.find((k) => k && k.name === 'form');
+  if (formKnob && Array.isArray(formKnob.values) && formKnob.values.includes(FORM_FULL)) {
+    ok(`hero 的旋钮 form 取值 ${JSON.stringify(formKnob.values)} 含 ${JSON.stringify(FORM_FULL)}`);
+  } else {
+    bad(`hero 的旋钮 form 不含 ${JSON.stringify(FORM_FULL)}（读到 ${JSON.stringify(formKnob)}）—— 写下去的值落不进任何一档`);
+  }
   const formSlot = m && m.slots && m.slots.form;
-  if (formSlot && formSlot.required === true) ok('manifest 把 form 槽位标成必填（validateSite 第 ① 条按它查）');
-  else bad(`manifest 的 form 槽位不是必填（读到 ${JSON.stringify(formSlot)}）—— AC 要的是按必填查`);
+  if (formSlot && formSlot.kind === 'object') ok(`hero 有 form 槽（${JSON.stringify(formSlot.shape || formSlot.kind)}），写进去的空 {} 有地方落`);
+  else bad(`hero 没有 form 对象槽（读到 ${JSON.stringify(formSlot)}）`);
 
-  // 反向对照：拿一个不存在的块名问同样的三句话，三句都要说「没有」。
-  const ghost = 'hero-with-form-nope';
+  // 反向对照：不存在的块名 / 不存在的旋钮值，问同样的话都要说「没有」。
+  const ghost = 'hero-nope';
   const ghostSeen = [
     manifests.get(ghost) ? 'manifest' : null,
     blockRoles[ghost] ? '角色表' : null,
     new RegExp(`'${ghost}':\\s*\\w`).test(registrySrc) ? '注册表' : null,
+    formKnob && formKnob.values.includes(`${FORM_FULL}-nope`) ? '旋钮取值' : null,
   ].filter(Boolean);
-  if (!ghostSeen.length) ok(`反向对照：不存在的块名 ${ghost} 在三处都查不到 —— 上面三条不是恒真`);
-  else bad(`反向对照失效：${ghost} 居然在 ${ghostSeen.join(' / ')} 里查得到`);
+  if (!ghostSeen.length) ok(`反向对照：不存在的块名 ${ghost} / 旋钮值 ${FORM_FULL}-nope 四处都查不到 —— 上面几条不是恒真`);
+  else bad(`反向对照失效：居然在 ${ghostSeen.join(' / ')} 里查得到`);
 }
 
 // ── ④ 逻辑层两向：不给表单的站逐字不变（AC6a）───────────────────────────────────────────────────
-console.log('\n── ④ 夹具走一遍这段逻辑：restaurant 逐字不变 · plumbing 只多一个键');
+console.log('\n── ④ 夹具走一遍这段逻辑：restaurant 逐字不变 · plumbing 只多两个键');
 
 /** 递归比两份 JSON，返回 `path: 左 → 右` 的清单。用来把差异**逐条打出来**，不是打条数。 */
 function diffJson(a, b, prefix = '') {
@@ -168,7 +178,7 @@ function fixture() {
         title: 'Home',
         sections: [
           { type: 'hero', data: { headline: 'H', subheadline: 'S', variant: 'left' } },
-          { type: 'features-grid', data: { items: [] } },
+          { type: 'features', data: { items: [] } },
         ],
       },
       { slug: 'about', title: 'About', sections: [{ type: 'page-header', data: {} }] },
@@ -192,10 +202,10 @@ function fixture() {
   const after = fixture();
   const r = applyHeroLeadForm({ content: after, industry: 'plumbing' });
   const d = diffJson(before, after);
-  // 🔴 逐条对，不是数条数：AC6b 要的是「只动这两处」。`type` 换名 + `data.form` 多出来一个空记录
-  //    （`form` 是新块的必填槽，理由写在 `hero-lead-form.js` 的 `applyHeroLeadForm` 上）。
+  // 🔴 逐条对，不是数条数：AC6b 要的是「只动这两处」。#1425（T3）：`type` 不换了 ——
+  //    `data.options` 多出 `{form:"full"}` + `data.form` 多出一个空记录（理由写在 `applyHeroLeadForm` 上）。
   const want = [
-    `pages.0.sections.0.type: "hero" → "${HERO_FORM_BLOCK}"`,
+    `pages.0.sections.0.data.options: (缺) → {"form":"${FORM_FULL}"}`,
     'pages.0.sections.0.data.form: (缺) → {}',
   ];
   if (r.applied && JSON.stringify(d) === JSON.stringify(want)) {
@@ -209,6 +219,16 @@ function fixture() {
   if (!untouched.length) ok('同一页的第二个块与另一页：逐字相同（只动首页第一个 hero）');
   else bad(`动到了不该动的地方：${untouched.join(' · ')}`);
 }
+// #1425（T3）—— 新做法是「合并进已有的 options / form」，所以要钉它不冲掉别的旋钮、不冲掉已选的表单 id。
+{
+  const mk = () => ({ pages: [{ slug: 'home', sections: [{ type: 'hero', data: { options: { textAlign: 'center', form: 'none' }, form: { id: 'quote' } } }] }] });
+  const before = mk(); const after = mk();
+  const r = applyHeroLeadForm({ content: after, industry: 'plumbing' });
+  const d = diffJson(before, after);
+  const want = [`pages.0.sections.0.data.options.form: "none" → "${FORM_FULL}"`];
+  if (r.applied && JSON.stringify(d) === JSON.stringify(want)) ok(`已有 options / form：只把 form 旋钮拧到 ${FORM_FULL}，textAlign 与 form.id 原样（${d.join(' · ')}）`);
+  else bad(`已有 options / form 被冲掉或多改了：期望 ${JSON.stringify(want)} · 实际 ${JSON.stringify(d)}`);
+}
 
 // ── ⑤ 「行业算上门但落不了地」的几种形状，一律不写、也不许抛（AC5 同族）──────────────────────
 //
@@ -219,7 +239,7 @@ console.log('\n── ⑤ 落不了地的几种形状');
 {
   const cases = [
     ['没有 slug==="home" 的页面', () => ({ pages: [{ slug: 'about', sections: [{ type: 'hero', data: {} }] }] })],
-    ['首页里没有 hero 块', () => ({ pages: [{ slug: 'home', sections: [{ type: 'text-block', data: {} }] }] })],
+    ['首页里没有 hero 块', () => ({ pages: [{ slug: 'home', sections: [{ type: 'content', data: {} }] }] })],
     ['content 压根没有 pages', () => ({})],
     ['pages 不是数组', () => ({ pages: null })],
   ];
@@ -249,26 +269,30 @@ console.log('\n── ⑤ 落不了地的几种形状');
 // 🔴 「不保证」那一半（Chris 2026-08-19：「有需要就有，碰上就有，不是一定要有的」）**按 #1333 的决定
 //    退役了** —— 那句话说的是「抽到哪套主题」这份运气，而运气这一维随着主题那道判断一起没了。
 //    今天是：上门行业 ⟹ 一定有。别把这一格改回「既不是 0 也不是全部」，那是在验一个已经被拍板去掉的性质。
-console.log('\n── ⑥ 53 个上门行业词逐词：建出来的首页第一个块是 hero-with-form');
+// 📌 #1425（T3）—— 判据从「第一个块的 type 是 hero-with-form」换成 `hasFullForm`（type 仍是 hero + options.form=full）。
+console.log(`\n── ⑥ ${onWords.length} 个上门行业词逐词：建出来的首页第一个 hero 带整张表单（options.form = ${FORM_FULL}）`);
 {
-  const firstHomeType = (industry) => {
+  const firstHome = (industry) => {
     const content = fixture();
     applyHeroLeadForm({ content, industry });
-    return content.pages[0].sections[0].type;
+    return content.pages[0].sections[0];
   };
-  const missing = onWords.filter((w) => firstHomeType(w) !== HERO_FORM_BLOCK);
+  const missing = onWords.filter((w) => !hasFullForm(firstHome(w)));
   if (!missing.length) {
-    ok(`${onWords.length} 个上门行业词逐个：首页第一个块都是 ${HERO_FORM_BLOCK}`);
+    ok(`${onWords.length} 个上门行业词逐个：首页第一个块都是带整张表单的 ${HERO_BLOCK}`);
   } else {
     bad(`🔴 ${missing.length} 个上门行业词建出来的站首屏没有表单：${missing.join(' ')}`);
   }
 
-  // 🔴 反向那一半同样要守：非上门行业一个都不许被换掉，否则上面那条绿可以用「见谁都换」换来。
-  const leaked = offWords.filter((w) => firstHomeType(w) !== 'hero');
+  // 🔴 反向那一半同样要守：非上门行业一个都不许被拧，否则上面那条绿可以用「见谁都拧」换来。
+  const leaked = offWords.filter((w) => {
+    const b = firstHome(w);
+    return b.type !== HERO_BLOCK || (b.data && (b.data.options !== undefined || b.data.form !== undefined));
+  });
   if (!leaked.length) {
-    ok(`${offWords.length} 个非上门词逐个：首页第一个块仍然是 hero（没有一个被顺手换掉）`);
+    ok(`${offWords.length} 个非上门词逐个：首页第一个块仍是没碰过的 hero（没有 options / form）`);
   } else {
-    bad(`🔴 ${leaked.length} 个非上门词的首屏被换成了 ${HERO_FORM_BLOCK}：${leaked.slice(0, 8).join(' ')}`);
+    bad(`🔴 ${leaked.length} 个非上门词的首屏被拧上了表单：${leaked.slice(0, 8).join(' ')}`);
   }
 }
 
@@ -283,42 +307,44 @@ console.log('\n── ⑥ 53 个上门行业词逐词：建出来的首页第一
 //    那份文件的夹具全是 `skipAI` 真建站，而 `skipAI` 分支有它自己的 `writeSiteConfig` 并在到达
 //    `applyHeroLeadForm` 之前就 return 了 —— 按构造够不着。我在那边先写过一节，正臂当场红
 //    （读到 `hero` 而不是 `hero-with-form`），这才把它搬到这里。
-console.log('\n── ⑦ #1346 关掉 hero-with-form ⟹ 这一处让开');
+// 📌 #1425（T3）—— 被关的对象从 `hero-with-form` 换成 `hero` 本身（`HERO_BLOCK`）；「换没换」改成「拧没拧 + 字节动没动」。
+console.log(`\n── ⑦ #1346 关掉 ${HERO_BLOCK} ⟹ 这一处让开`);
 {
   const mk = () => ({ pages: [{ slug: 'home', sections: [{ type: 'hero', data: { headline: 'H' } }] }] });
-  const first = (c) => c.pages[0].sections[0].type;
+  const first = (c) => c.pages[0].sections[0];
+  const say = (c) => JSON.stringify(first(c));
 
-  // 正臂先立起来：不关的时候它**真的**换了。没有这一格，下面那格在「这段逻辑根本没跑」时也会绿。
+  // 正臂先立起来：不关的时候它**真的**拧了。没有这一格，下面那格在「这段逻辑根本没跑」时也会绿。
   const cOn = mk();
   const rOn = applyHeroLeadForm({ content: cOn, industry: 'plumbing' });
-  rOn.applied && first(cOn) === HERO_FORM_BLOCK
-    ? ok(`正臂：不关的时候 plumbing 站首屏被换成 ${HERO_FORM_BLOCK}`)
-    : bad(`正臂失败：applied=${rOn.applied} 首屏=${first(cOn)} —— 下面几格没有判别力`);
+  rOn.applied && hasFullForm(first(cOn))
+    ? ok(`正臂：不关的时候 plumbing 站首屏的 hero 拧上了 options.form = ${FORM_FULL}`)
+    : bad(`正臂失败：applied=${rOn.applied} 首屏=${say(cOn)} —— 下面几格没有判别力`);
 
   const cOff = mk();
-  const rOff = applyHeroLeadForm({ content: cOff, industry: 'plumbing', disabledBlocks: [HERO_FORM_BLOCK] });
-  !rOff.applied && first(cOff) === 'hero'
+  const rOff = applyHeroLeadForm({ content: cOff, industry: 'plumbing', disabledBlocks: [HERO_BLOCK] });
+  !rOff.applied && JSON.stringify(cOff) === JSON.stringify(mk())
     ? ok('关掉它 ⟹ 首屏原样留着 hero，一个字节没动')
-    : bad(`关掉它却还是换了：applied=${rOff.applied} 首屏=${first(cOff)}`);
+    : bad(`关掉它却还是动了：applied=${rOff.applied} 首屏=${say(cOff)}`);
   // 🔴 `reason` 要说得出是**哪一种**「没换」：这个函数有四个完全不同的答案，而它们在产物里长得
   //    一模一样（文件头那条）。读日志的人分不开的话，这个开关出问题时没人查得下去。
-  rOff.reason.includes(HERO_FORM_BLOCK) && /停用/.test(rOff.reason)
+  rOff.reason.includes(HERO_BLOCK) && /停用/.test(rOff.reason)
     ? ok(`reason 点名了是「被停用」这一种：${rOff.reason}`)
     : bad(`reason 没说清是哪一种：${rOff.reason}`);
 
   // 对照：只关**别的**块不许影响它 —— 否则「关任何一个块都退回 hero」也会让上面那格绿。
   const cOther = mk();
-  applyHeroLeadForm({ content: cOther, industry: 'plumbing', disabledBlocks: ['cta-banner'] });
-  first(cOther) === HERO_FORM_BLOCK
-    ? ok('对照：关掉别的块（cta-banner）⟹ 首屏仍是 hero-with-form')
-    : bad(`对照失败：关掉 cta-banner 之后首屏是 ${first(cOther)}`);
+  applyHeroLeadForm({ content: cOther, industry: 'plumbing', disabledBlocks: ['cta'] });
+  hasFullForm(first(cOther))
+    ? ok('对照：关掉别的块（cta）⟹ 首屏 hero 仍拧上了整张表单')
+    : bad(`对照失败：关掉 cta 之后首屏是 ${say(cOther)}`);
 
   // 老 manager 不送这个字段 ⟹ 缺席必须等于「什么都没关」，不是「全关」。
   const cAbsent = mk();
   applyHeroLeadForm({ content: cAbsent, industry: 'plumbing', disabledBlocks: undefined });
-  first(cAbsent) === HERO_FORM_BLOCK
+  hasFullForm(first(cAbsent))
     ? ok('字段缺席（老 manager）⟹ 跟不关一样')
-    : bad(`字段缺席时首屏是 ${first(cAbsent)} —— 缺席被当成了「关掉」`);
+    : bad(`字段缺席时首屏是 ${say(cAbsent)} —— 缺席被当成了「关掉」`);
 }
 
 // ── ⑧ 接线：调用点真的把清单传进去了（#1346）──────────────────────────────────────────────────

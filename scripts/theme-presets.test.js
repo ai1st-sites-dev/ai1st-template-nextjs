@@ -1390,13 +1390,13 @@ let judgeSheetForRegistrySweep = null;
   }
 }
 
-// ── #1464 验收 8：两套脚手架主题的 footer-new 选择单 ∈ 6 个预设名、且不同；按行为判 ─────────────────────
+// ── #1464 验收 8：两套脚手架主题的 footer 选择单 ∈ 6 个预设名、且不同；按行为判 ─────────────────────
 //
 // 🔴 只判「写的是哪个名字」不够：选择单的值是拿去跟形态清单（= 子目录）比的（`lib/block-shape.js`
 //    §shapeForBlock），对不上只打一行「shapes 清单里没有它，落回默认」、不报错。所以这里拿每套主题的选择单
 //    真跑一次那条解析（带齐槽位的夹具 = 演示内容），要拿到的形态 == 写的那个名字、日志里没有「落回默认」。
 //    阳性对照：同一条断言喂一个不存在的名字，要当场读到红。
-console.log('\n── #1464 验收 8：theme-pool 的 footer-new 选择单 ──');
+console.log('\n── #1464 验收 8：theme-pool 的 footer 选择单 ──');
 {
   const fs = require('fs');
   const path = require('path');
@@ -1405,18 +1405,18 @@ console.log('\n── #1464 验收 8：theme-pool 的 footer-new 选择单 ─�
   const FOOTER_PRESETS = ['slim-row', 'stacked', 'columns', 'cta-row', 'cta-stacked', 'cta-columns'];
   const pool = JSON.parse(fs.readFileSync(path.join(__dirname, 'theme-pool.json'), 'utf-8'));
   const manifests = Object.fromEntries(loadManifests());
-  const DEMO = require('./lib/demo-content').DEMO_CONTENT['footer-new'];
+  const DEMO = require('./lib/demo-content').DEMO_CONTENT['footer'];
   const resolveFooter = (name) => {
     const lines = [];
-    const got = shapeForBlock({ type: 'footer-new', data: DEMO }, { 'footer-new': name }, manifests, (l) => lines.push(l));
+    const got = shapeForBlock({ type: 'footer', data: DEMO }, { 'footer': name }, manifests, (l) => lines.push(l));
     return { got, fellBack: lines.some((l) => l.includes('落回默认')) };
   };
-  const picks = Object.entries(pool).map(([id, t]) => [id, t.shapes && t.shapes['footer-new']]);
+  const picks = Object.entries(pool).map(([id, t]) => [id, t.shapes && t.shapes['footer']]);
   const outside = picks.filter(([, v]) => !FOOTER_PRESETS.includes(v));
-  if (picks.length >= 2 && outside.length === 0) ok(`${picks.length} 套主题的 footer-new 都 ∈ 6 个预设名（${picks.map(([i, v]) => `${i}=${v}`).join(' · ')}）`);
-  else bad(`footer-new 选择单不在 6 个预设名里：${outside.map(([i, v]) => `${i}=${v}`).join(' · ') || `只有 ${picks.length} 套`}`);
-  if (new Set(picks.map(([, v]) => v)).size === picks.length) ok('两套主题选的 footer-new 预设互不相同');
-  else bad(`两套主题选了同一个 footer-new 预设：${picks.map(([i, v]) => `${i}=${v}`).join(' · ')}`);
+  if (picks.length >= 2 && outside.length === 0) ok(`${picks.length} 套主题的 footer 都 ∈ 6 个预设名（${picks.map(([i, v]) => `${i}=${v}`).join(' · ')}）`);
+  else bad(`footer 选择单不在 6 个预设名里：${outside.map(([i, v]) => `${i}=${v}`).join(' · ') || `只有 ${picks.length} 套`}`);
+  if (new Set(picks.map(([, v]) => v)).size === picks.length) ok('两套主题选的 footer 预设互不相同');
+  else bad(`两套主题选了同一个 footer 预设：${picks.map(([i, v]) => `${i}=${v}`).join(' · ')}`);
   for (const [id, v] of picks) {
     const r = resolveFooter(v);
     if (r.got === v && !r.fellBack) ok(`${id}：选择单 ${v} ⟹ 解析出 ${r.got}，没有落回默认`);

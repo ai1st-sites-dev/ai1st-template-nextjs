@@ -1,142 +1,79 @@
 #!/usr/bin/env node
 /**
- * blocks.test.js — 老块名 → 通用块的别名，那几条承重性质（#1132）。
+ * blocks.test.js — 页面块读进来那一层（`scripts/blocks.js`）的承重性质。
  *
  * 跑法:  node scripts/blocks.test.js   （或 `npm run test:scripts`，它按文件名发现）
  * 退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
  *
- * ══ 为什么这几条要有一个自动的调用方 ═════════════════════════════════════════════════════════════
- * 别名的失败方向全部是**静默**的 —— 站照样建得出来、构建照样是绿的，只是老站的产物变了：
- *   · 别名不把老词汇带过去   → 那一节的类名从 `.values-grid__title` 换成新名字，而 83 张主题表
- *                              全部 83 张都在选老名字 ⟹ **像素真的变**，没有任何一格会红
- *   · 忘了显式写 `role`      → `blockAttrs` 按新 type 名查表、查不到、落到兜底的 `essential`
- *   · 别名凭空造一个内容结构字段 → 产物上多一个属性（📌 #1341：那个字段和判它的那半条一起退役了）
- *   · `values-grid` 那条路画出副标题 → 页面上凭空多一行（它的 manifest 从来没有这个槽位）
- *   · #1143：`checklist` 的 `[string]` 没升成 `[{title}]` → 组件读 `item.title` 读到 undefined，
- *     产物里每个条目变成一行空字；`service-highlights` 的 `highlights` 没映到 `items` → 整块的条目
- *     一个都不画。两种都不会让构建变红
- * 真正的读数是「重建前后逐字节相同」那套（映射文档 §2.6，交接留言里贴了四格）。这里守的是它下面
- * 那几条**性质** —— 那套要跑两次完整构建，不可能每次改动都跑。
+ * 📌 #1425（T3）—— 这个文件原来的主体是「老块名 → 通用块的别名」（#1132 / #1143 / #1162）：
+ *    `block-aliases.json`、`GENERIC_TYPES`、`normalizeGenericItems`。别名层随旧库整层删了
+ *    （`card-group` 没了，继任是 `features`），那几格跟着删，原位各留一行 📌。今天这里守的是：
+ *    别名层不许回来（③）· 列表槽兜底真的接在构建那条路上（④，含票正文要求的两条臂）·
+ *    老 type 名不被悄悄改名（⑦）· 全部块的列表槽兜底（⑨）· #1341 残留键 · #1349 块 id · #1350 ref 上的 shape。
  */
 
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
+const Module = require('module');
 
 const NEXT = path.resolve(__dirname, '..');
+const SRC = path.join(NEXT, 'src');
 
 let pass = 0; let fail = 0;
 const ok = (m) => { pass += 1; console.log(`  ✅ ${m}`); };
 const bad = (m) => { fail += 1; console.log(`  ❌ ${m}`); };
 const die = (m) => { console.error(`🔴 跑不起来: ${m}`); process.exit(2); };
 
-let blocks; let roles; let hooks;
+let blocks;
 try {
   blocks = require(path.join(NEXT, 'scripts', 'blocks.js'));
-  roles = require(path.join(NEXT, 'src', 'lib', 'sections', 'block-roles.json'));
-  ({ HOOKS: hooks } = require(path.join(NEXT, 'scripts', 'theme-css-lint.js')));
 } catch (e) {
   die(`require 失败: ${e.message}`);
 }
 
-const { BLOCK_ALIASES, normalizeGenericItems, normalizeLocalePages } = blocks;
+const { normalizeLocalePages } = blocks;
 
-// 🔴 分母先说出来。这一格 #1162 **反过来了**：原来是「表里一条真别名都没有 ⟹ die，没东西可查」，
-//    而别名层 2026-08-23 整层退役之后，**零条真别名正是要钉的性质**。所以判据换成两条：
-//    ① 通用块自己那一行必须在（它是 CardGroupSection 每个类名的唯一出处，丢了是像素级回归）；
-//    ② 真别名必须是 0（有的话说明别名被加回来了，而下面 ③ 那格枚举的四个老名字挡不住第五个）。
-const legacy = Object.keys(BLOCK_ALIASES).filter((k) => BLOCK_ALIASES[k].type !== k);
-const generic = Object.keys(BLOCK_ALIASES).filter((k) => BLOCK_ALIASES[k].type === k);
-if (generic.length === 0) die('词汇表里连通用块自己那一行都没有 —— 没东西可查，这不是通过');
-if (legacy.length !== 0) {
-  bad(`词汇表里出现了 ${legacy.length} 条真别名（${legacy.join(' ')}）—— 别名层 #1162 已退役，`
-    + '合并从此是干净改名。要加回来的话先回去读 #1162 正文与 block-merge-mapping.md §2 的退役横幅。');
-} else {
-  ok(`词汇表：通用块 ${generic.length} 行（${generic.join(' ')}）· 真别名 0 条（#1162 退役后应有的样子）`);
-}
-if (generic.length === 0) die('别名表里没有「键 == 它自己的 type」那种通用块自己的行');
-console.log(`══ 别名表: ${legacy.length} 条老名字（${legacy.join(' ')}）· `
-  + `${generic.length} 个通用块（${generic.join(' ')}）══`);
+// 📌 #1425（T3）—— 这里原来是别名表的分母自检（通用块自己那一行在 · 真别名 0 条）；别名表随旧库删了。
+// 📌 #1425（T3）—— 这里原来是 ①「别名表每一行写齐 type/role/data/itemTag/headingId/parts」；别名表随旧库删了。
+// 📌 #1425（T3）—— 这里原来是 ②「词汇的每个部件都是 theme-css-lint 契约里的钩子（两向）」；词汇（card-group）随旧库删了。
 
-// `CardGroupSection` 里条目那三支各自的标签 —— 表里写别的值就没有对应的分支（#1143）。
-const ITEM_TAGS = ['div', 'p', 'article'];
-
-// ── ① 每一行写齐 §2.1 那四件事 ──────────────────────────────────────────────────────────────────
-for (const name of Object.keys(BLOCK_ALIASES)) {
-  const row = BLOCK_ALIASES[name];
-  // #1341 —— `block_layout` 从这份必填键清单里去掉了：那个字段整条退役，别名表那一行也删了。
-  const missing = ['type', 'role', 'data', 'itemTag', 'headingId', 'parts']
-    .filter((k) => !Object.prototype.hasOwnProperty.call(row, k));
-  if (missing.length) bad(`${name}: 别名表这一行缺 ${missing.join(' / ')}`);
-  else if (!ITEM_TAGS.includes(row.itemTag)) {
-    // #1143 —— `itemTag` 是产物 DOM 上看得见的字节（`<p>` / `<article>` / `<div>`）。写了个
-    // `CardGroupSection` 没有分支的值，那一支会画成一个未知标签而构建照样是绿的。
-    bad(`${name}: itemTag 写着 ${JSON.stringify(row.itemTag)}，而组件只有 ${ITEM_TAGS.join(' / ')} 三支`);
-  } else if (row.role !== roles[name]) {
-    bad(`${name}: 别名写的 role 是 ${JSON.stringify(row.role)}，而 block-roles.json 里是 `
-      + `${JSON.stringify(roles[name])} —— 两个不一样就等于老站的 data-role 变了`);
-  } else ok(`${name}: 四件事齐了，role 跟 block-roles.json 对得上（${row.role}）`);
-}
-
-// ── ② 每个词汇的每个部件都得是契约里的钩子 ─────────────────────────────────────────────────────
-// 反过来也要：契约里 `.<词汇>__x` 那些钩子，词汇的 parts 里都得有。少一边都是静默的 ——
-// 多了钩子而 markup 不画它，`theme-css-invariants` 那格会红在「这个钩子没有任何页面画过」；
-// 少了钩子而 markup 画了它，主题表就点不到那个部件，而页面照样打开。
-for (const name of Object.keys(BLOCK_ALIASES)) {
-  const parts = BLOCK_ALIASES[name].parts;
-  const want = new Set([`.${name}`, ...parts.map((p) => `.${name}__${p}`)]);
-  const notHooks = [...want].filter((h) => !hooks.has(h));
-  const hookOnly = [...hooks].filter((h) => h.startsWith(`.${name}`) && !want.has(h));
-  if (notHooks.length) bad(`${name}: 这些部件不在契约的钩子清单里: ${notHooks.join(' ')}`);
-  else if (hookOnly.length) bad(`${name}: 契约里有这些钩子，而这个词汇的 parts 不画它们: ${hookOnly.join(' ')}`);
-  else ok(`${name}: ${want.size} 个钩子与契约逐个对上（两向）`);
-}
-
-// ── ③ #1162：normalizeGenericItems 【不再改任何东西的名字】 ──────────────────────────────────────────────
-// 🔴 这一格是从「换名字、留老名字、补 role、不动 data」改过来的。别名层 2026-08-23 整层退役
-//    （Chris 裁定：合并从此是干净改名），所以要钉的性质**反过来**了：它不许再动 type、不许再往块上
-//    挂任何记老名字的字段。留着这一格而不是删掉，是因为「不再发生」跟「从来没发生过」需要同一道闸 ——
-//    哪天有人把别名加回来，这里会红。
+// ── ③ 别名层不许回来 ────────────────────────────────────────────────────────────────────────────
+// 🔴 #1425（T3）—— 原来这一格是「normalizeGenericItems 不再改任何东西的名字 + 四个老 type 名四处都不在」。
+//    `normalizeGenericItems` 本身删了，所以要钉的性质换成「那一整层不在了」：文件、导出、一个都不许回来。
+//    四个老名字（values-grid / benefits-list / checklist / service-highlights）加上 card-group 自己，在
+//    registry / block-roles / blocks manifest 三处逐个查（不抽样）。
 {
-  const own = normalizeGenericItems({ type: 'card-group', data: { headline: 'H', items: [{ title: 'a', description: 'b' }], style: 'icon' } });
-  if (own.type !== 'card-group') bad(`normalizeGenericItems 动了通用块的 type（变成 ${own.type}）`);
-  else if (Object.keys(own).some((k) => k.startsWith('__'))) {
-    bad(`normalizeGenericItems 往块上挂了一个内部字段: ${Object.keys(own).filter((k) => k.startsWith('__')).join(' ')} —— 别名层已经退役，不该再有这种字段`);
-  } else if (own.data.style !== 'icon') bad('「继续忽略」的字段被删掉了 —— verify-applied 会对不上账');
-  else ok('normalizeGenericItems: 通用块的 type 没动 · 没挂任何 __ 字段 · data 一个字节没动');
-
-  // 表里没有的块一个字节都不动（同一个对象引用）—— 这一条从别名时代原样保留
-  const other = { type: 'hero', data: {} };
-  if (normalizeGenericItems(other) !== other) bad('词汇表里没有的块被换掉了对象');
-  else ok('词汇表里没有的块原样返回（同一个对象引用）');
-
-  // 🔴 四个老 type 名**不许**再被任何一处认出来。逐处枚举，不抽样。
-  const OLD = ['values-grid', 'benefits-list', 'checklist', 'service-highlights'];
+  const where = [];
+  for (const f of ['src/lib/sections/block-aliases.json', 'src/lib/sections/blockAliases.ts']) {
+    if (fs.existsSync(path.join(NEXT, f))) where.push(f);
+  }
+  for (const k of ['BLOCK_ALIASES', 'GENERIC_TYPES', 'normalizeGenericItems']) {
+    if (Object.prototype.hasOwnProperty.call(blocks, k)) where.push(`blocks.js 导出 ${k}`);
+  }
+  const OLD = ['card-group', 'values-grid', 'benefits-list', 'checklist', 'service-highlights'];
   const reg = fs.readFileSync(path.join(NEXT, 'src/lib/sections/registry.generated.ts'), 'utf8');
   const regKeys = new Set([...reg.matchAll(/^ {2}'([a-z0-9-]+)':/gm)].map((m) => m[1]));
   const roleKeys = new Set(Object.keys(require(path.join(NEXT, 'src/lib/sections/block-roles.json'))));
-  const where = [];
+  // 分母自检：尺子（那条正则）在今天的 registry 上一个键都抠不出来的话，「不在」是恒真的
+  if (regKeys.size < 10) die(`从 registry.generated.ts 只抠出 ${regKeys.size} 个键 —— 尺子坏了`);
   for (const n of OLD) {
-    if (Object.prototype.hasOwnProperty.call(BLOCK_ALIASES, n)) where.push(`block-aliases.json:${n}`);
     if (regKeys.has(n)) where.push(`registry.ts:${n}`);
     if (roleKeys.has(n)) where.push(`block-roles.json:${n}`);
     if (fs.existsSync(path.join(NEXT, 'blocks', n, 'manifest.json'))) where.push(`blocks/${n}/`);
-    // 还认得它 = 别名层没真的退役
-    const round = normalizeGenericItems({ type: n, data: { headline: 'H' } });
-    if (round.type !== n) where.push(`normalizeGenericItems 仍然把 ${n} 换成了 ${round.type}`);
   }
-  if (where.length) bad(`这四个老 type 名还被认出来: ${where.join(' · ')}`);
-  else ok(`四个老 type 名在四处（词汇表 / registry / block-roles / blocks manifest）都不在，normalizeGenericItems 也不再认它们`);
+  if (where.length) bad(`别名层（或它服务的老名字）还在: ${where.join(' · ')}`);
+  else ok(`别名层不在了：两个文件 · 三个导出 · ${OLD.length} 个老名字在 registry（${regKeys.size} 键）/ block-roles / blocks 三处都不在`);
 }
 
-// ── ④ 真的接上了：走一遍 normalizeLocalePages（两种形状各一次）─────────────────────────────
-// 🔴 抽出来的函数好使 ≠ 它被接线了。这一格问的是「构建那条路上真的会经过它吗」，两种页面形状
-// （老站的 `sections` / 新站的 `blocks`）分别问一次。#1162 之后夹具写的是**现役** type 名 ——
-// 用老名字写的话，下面那条断言问的就不是「接线了吗」而是「别名还在吗」。
+// ── ④ 列表槽兜底真的接在构建那条路上（两种页面形状各一次）+ 票正文的两条臂 ────────────────────
+// 🔴 抽出来的函数好使 ≠ 它被接线了。#1425（T3）之前这一格喂的是 `card-group` 的裸串（判「升成 [{title}]」）；
+//    那一步随别名层删了，判据换成今天这条路上唯一还会动东西的一步：`normalizeListSlots` 把 `null` 滤掉。
+//    🔴 别拿 `type` 当判据 —— 两头都是 features，那样恒绿。
 for (const [shapeName, page] of [
-  ['sections（老形状）', { slug: 'about', sections: [{ type: 'card-group', data: { headline: 'H', items: ['裸串'] } }] }],
-  ['blocks（新形状）', { slug: 'about', blocks: [{ id: 'x', type: 'card-group', role: 'optional', data: { headline: 'H', items: ['裸串'] } }] }],
+  ['sections（老形状）', { slug: 'about', sections: [{ type: 'features', data: { headline: 'H', items: [{ title: '甲' }, null] } }] }],
+  ['blocks（新形状）', { slug: 'about', blocks: [{ id: 'x', type: 'features', data: { headline: 'H', items: [{ title: '甲' }, null] } }] }],
 ]) {
   let out;
   try {
@@ -146,172 +83,154 @@ for (const [shapeName, page] of [
     continue;
   }
   const b = out[0].blocks[0];
-  // 判据换成「归一化真的在这条路上发生过」：裸字符串被升成了对象。
-  // 🔴 别拿 `type` 当判据 —— 今天没有改名了，`type` 两头都是 card-group，那样这一格会恒绿。
-  if (b.type !== 'card-group') bad(`${shapeName}: type 被动过了（${b.type}）`);
-  else if (JSON.stringify(b.data.items) !== JSON.stringify([{ title: '裸串' }])) {
-    bad(`${shapeName}: 归一化没发生在这条路上（items=${JSON.stringify(b.data.items)}）⟹ 接线断了`);
-  } else ok(`${shapeName}: 归一化真的在构建那条路上发生了（裸串 → [{title}]）`);
+  if (b.type !== 'features') bad(`${shapeName}: type 被动过了（${b.type}）`);
+  else if (JSON.stringify(b.data.items) !== JSON.stringify([{ title: '甲' }])) {
+    bad(`${shapeName}: 兜底没发生在这条路上（items=${JSON.stringify(b.data.items)}）⟹ 接线断了`);
+  } else ok(`${shapeName}: 兜底真的在构建那条路上发生了（[{甲}, null] → [{甲}]）`);
+}
+
+// 🔴 #1425（T3）票正文要求的两条臂：别名层删了之后，往 `features` 喂坏 items，**站照常建出来**。
+//    走真路径：`normalizeLocalePages`（构建期读页面那一层）→ 把解出来的块交给 `blocks/features/Section.tsx`
+//    用 react-dom/server 真渲染一次。判据 =「不抛 + 块真画出来了（<section>）」，再数画出来几项。
+//    只做 ① 不算：② 是 PM 2026-10-02 裁定接受的**行为变化**，要把新行为钉住。
+console.log('\n── ④b #1425 往 features 喂坏 items ⟹ 站照常建出来');
+{
+  const ts = require('typescript');
+  const React = require('react');
+  const { renderToStaticMarkup } = require('react-dom/server');
+  const STUB_DIR = fs.mkdtempSync(path.join(NEXT, 'scripts', '.blocks-test-stubs-'));
+  process.on('exit', () => { try { fs.rmSync(STUB_DIR, { recursive: true, force: true }); } catch (e) { /* 收尾 */ } });
+  const linkStub = path.join(STUB_DIR, 'link.js');
+  fs.writeFileSync(linkStub, "const React=require('react');"
+    + "const L=({href,children,...r})=>React.createElement('a',{href,...r},children);module.exports=L;module.exports.default=L;\n");
+  for (const ext of ['.tsx', '.ts']) {
+    require.extensions[ext] = (mod, filename) => mod._compile(ts.transpileModule(fs.readFileSync(filename, 'utf-8'), {
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true, resolveJsonModule: true },
+      fileName: filename,
+    }).outputText, filename);
+  }
+  const origResolve = Module._resolveFilename;
+  Module._resolveFilename = function resolve(req, ...rest) {
+    if (req === 'next/link') return linkStub;
+    if (req.startsWith('@/')) return origResolve.call(this, path.join(SRC, req.slice(2)), ...rest);
+    return origResolve.call(this, req, ...rest);
+  };
+  let Features;
+  try { Features = require(path.join(NEXT, 'blocks', 'features', 'Section.tsx')).default; } catch (e) { die(`载入 features/Section.tsx 失败: ${e.message}`); }
+
+  // 一条臂 = 页面 JSON 进 → 构建那一层 → 真渲染。返回 { html, items(构建后), err }
+  const build = (items) => {
+    try {
+      const page = { slug: 'home', blocks: [{ id: 'f', type: 'features', data: { headline: '块头标题', items } }] };
+      const b = normalizeLocalePages([page], {}, 'en', {})[0].blocks[0];
+      const html = renderToStaticMarkup(React.createElement(Features, { data: b.data, locale: 'en', iconTable: {}, block: b }));
+      return { html, items: b.data.items, err: null };
+    } catch (e) { return { html: '', items: null, err: e }; }
+  };
+  const nItems = (html) => html.split('data-part="item"').length - 1;
+
+  // 阳性对照（尺子没坏）：良构的两项真的画出两项、文字在产物里。没有它，下面「0 项」那条判据恒真。
+  const good = build([{ title: '甲' }, { title: '乙' }]);
+  if (good.err) bad(`阳性对照: 良构 items 就抛了 ${good.err.message}`);
+  else if (nItems(good.html) !== 2 || !good.html.includes('甲')) bad(`阳性对照: 良构两项没画成两项（数到 ${nItems(good.html)}）—— 尺子坏了`);
+  else ok('阳性对照: 良构 [{甲},{乙}] ⟹ 画出 2 项、文字在产物里（data-part="item" 这把尺子量得到东西）');
+
+  // ① 含 null ⟹ 不抛、块照常画出来，null 那一项不在
+  const withNull = build([{ title: '甲' }, null, { title: '乙' }]);
+  if (withNull.err) bad(`① 含 null 的 items 让构建/渲染抛了: ${withNull.err.message}`);
+  else if (!/<section/.test(withNull.html) || !withNull.html.includes('块头标题')) bad('① 含 null：没抛，但块（或块头）没画出来');
+  else if (nItems(withNull.html) !== 2) bad(`① 含 null：应画出 2 项，数到 ${nItems(withNull.html)}`);
+  else ok(`① 含 null 的 items ⟹ 站照常建出来（不抛），null 在构建那一层就被滤掉（${JSON.stringify(withNull.items)}），画出 2 项`);
+
+  // ② 裸字符串 ⟹ 不抛、块照常画出来，那几项**不渲染**（#1425 起的新行为，PM 2026-10-02 裁定接受）。
+  //    📌 记下它落在哪一层：构建那一层（normalizeListSlots 的 drawableItem）**放行**字符串，是组件自己的
+  //    `filter(isObj)` 把它们滤掉 —— 别名层在的时候这一步是「升成 {title} 画出来」。
+  const bare = build(['甲', '乙']);
+  if (bare.err) bad(`② 裸字符串 items 让构建/渲染抛了: ${bare.err.message}`);
+  else if (!/<section/.test(bare.html) || !bare.html.includes('块头标题')) bad('② 裸字符串：没抛，但块（或块头）没画出来');
+  else if (nItems(bare.html) !== 0 || bare.html.includes('甲') || bare.html.includes('乙')) {
+    bad(`② 裸字符串：那几项应该不渲染，数到 ${nItems(bare.html)} 项（行为变了的话要回去问 PM）`);
+  } else if (JSON.stringify(bare.items) !== '["甲","乙"]') {
+    bad(`② 裸字符串：构建那一层的读数变了（${JSON.stringify(bare.items)}）—— 上面那句「落在组件那一层」不再成立`);
+  } else ok('② 裸字符串 ["甲","乙"] ⟹ 站照常建出来（不抛、块头照画），那两项不渲染；构建那一层原样放行，是组件的 filter(isObj) 滤掉的');
 }
 
 // ── ⑦ #1162：老 type 名走到底会怎样 —— 不改名、不静默接上别的槽位 ────────────────────────────
-// 🔴 这一格是 AC5 的机械版。别名退役之后，磁盘上写着老 type 名的页面**不会**被改名；它一路走到
-//    `SectionRenderer`，命中未知类型那一支（`console.warn` + `return null`），那个块在页面上不出现。
-//    这里钉住「构建那一侧不许悄悄替它做点什么」：type 原样、`highlights` 这种老槽位名不许被改成
-//    `items`（改了就等于把一块本来空着的地方接上内容，而没有人决定过这件事 —— 老 §2.5 坑三那一族）。
+// 🔴 这一格是 AC5 的机械版：磁盘上写着老 type 名的页面**不会**被改名；它一路走到 `SectionRenderer`，
+//    命中未知类型那一支，那个块在页面上不出现。这里钉住「构建那一侧不许悄悄替它做点什么」。
+//    #1425（T3）：原来问的是 `normalizeGenericItems` 这一个函数；它删了，改问构建那条真路
+//    （`normalizeLocalePages`），并且 `card-group` 自己今天也是老名字了，两个一起问。
 {
-  const legacy = normalizeGenericItems({ type: 'service-highlights', data: { headline: 'H', highlights: [{ title: 't' }] } });
-  if (legacy.type !== 'service-highlights') bad(`老 type 名被改名了（变成 ${legacy.type}）—— 别名层应该已经退役`);
-  else if (Object.prototype.hasOwnProperty.call(legacy.data, 'items')) {
-    bad('老槽位名 highlights 被改成了 items —— 那会让一块本来空着的地方凭空长出内容');
-  } else ok('老 type 名原样留着、老槽位名不被改名 ⟹ 它走 SectionRenderer 的未知类型那一支（AC5）');
-
-  const manifest = require(path.join(NEXT, 'blocks', 'card-group', 'manifest.json'));
-  const slots = Object.keys(manifest.slots || {});
-  const lists = slots.filter((k) => manifest.slots[k].kind === 'list');
-  if (slots.includes('highlights')) bad('通用块的 manifest 上还有 highlights 这个槽位（AC4）');
-  else if (lists.length !== 1) bad(`通用块的 manifest 上有 ${lists.length} 个列表槽位（${lists.join(' ')}）—— 只能有一种`);
-  else ok(`通用块 manifest 的槽位是 {${slots.join(' ')}}，列表槽位只有 ${lists[0]}（AC3/AC4）`);
-}
-
-// ── ⑥ #1143 / #1162：`[string]` 升成 `[{title}]`（今天只剩通用块自己那一条路）────────────────
-// 🔴 两条路里的一条没了：老站写 `type: "checklist"` 走别名进来那条随别名层退役。**剩下这条还在，
-//    而且没有别的东西挡它**：新站直接写 `type: "card-group"`、`items` 里塞裸字符串时，建站期
-//    `block-manifest.js` 的校验 ⑤ 只拦 `null` 和数组（**放行字符串**），`normalizeListSlots` 的
-//    `drawableItem` 也把字符串算作可画 ⟹ 少了这一步，组件读 `item.title` 得到 undefined，
-//    画出来是一个空标题。所以这一格留着。
-{
-  const direct = normalizeGenericItems({ type: 'card-group', data: { items: ['裸串'], variant: 'cards' } });
-  if (JSON.stringify(direct.data.items) !== JSON.stringify([{ title: '裸串' }])) {
-    bad(`通用块那条路上裸字符串没被规范化: ${JSON.stringify(direct.data.items)}`);
-  } else if (direct.data.variant !== 'cards') {
-    bad('normalizeGenericItems 动了 variant —— 它这一层只管条目，别的键一个都不碰');
-  } else {
-    // 🔴 #1341 —— 这句话点名的是**哪一层**。`normalizeGenericItems` 自己不碰 `variant`（这一格问的
-    //    就是它），但合成路径上它不是最后一层：`blocks.js` 写的是
-    //    `normalizeListSlots(normalizeGenericItems(x))`，而 `normalizeListSlots` 从 #1341 起会把
-    //    老站残留的 `data.variant` 丢掉。所以「variant 原样留着」只对这一层成立，对整条路不成立
-    //    —— 整条路那一半在下面 ⑨ 那一格（搜 `#1341`）。
-    ok('通用块自己那条路上，裸字符串数组被规范化成 [{title}]；normalizeGenericItems 这一层不碰 variant');
+  for (const [t, data] of [
+    ['service-highlights', { headline: 'H', highlights: [{ title: 't' }] }],
+    ['card-group', { headline: 'H', items: ['裸串'] }],
+  ]) {
+    const page = { slug: 'about', blocks: [{ id: 'x', type: t, data: JSON.parse(JSON.stringify(data)) }] };
+    const b = normalizeLocalePages([page], {}, 'en', {})[0].blocks[0];
+    if (b.type !== t) bad(`老 type 名 ${t} 被改名了（变成 ${b.type}）`);
+    else if (JSON.stringify(b.data) !== JSON.stringify(data)) bad(`老 type 名 ${t} 的 data 被动过了: ${JSON.stringify(b.data)}`);
+    else ok(`老 type 名 ${t} 原样留着、data 一个字节没动 ⟹ 它走 SectionRenderer 的未知类型那一支（AC5）`);
   }
-
-  // 反向对照：本来就是对象的，一个字节都不动（同一个数组引用）
-  const objs = [{ title: 'a', description: 'b' }];
-  const untouched = normalizeGenericItems({ type: 'card-group', data: { items: objs } });
-  if (untouched.data.items !== objs) {
-    bad('items 本来就是对象时归一化仍然换掉了那个数组 —— 「正常的站走到这里是恒等的」会被这一步弄假');
-  } else ok('反向对照: items 本来就是对象时，归一化是恒等的（同一个数组引用）');
+  // 📌 #1425（T3）—— 这里原来还查 `blocks/card-group/manifest.json` 的槽位（AC3/AC4）；card-group 随旧库删了。
 }
 
-// ── ⑤ 反向对照：把那一步归一化拿掉，上面第 ⑥ 格必须红 ──────────────────────────────────────
-// 🔴 没有这一格，前面那些 ✅ 说明不了它们**分得开**两种实现。原来这一格拿掉的是别名的
-//    「带老词汇」那一半（`__legacy…`）；那一半随别名层退役，所以对照换成拿掉「裸字符串升格」——
-//    它是这个函数今天唯一还会动东西的地方。
-{
-  const raw = { type: 'card-group', data: { items: ['裸串'] } };
-  // 不经过 normalizeGenericItems 的那一臂：组件会读 item.title，而它是 undefined
-  const skipped = raw.data.items;
-  if (typeof skipped[0] !== 'string') bad('反向对照的输入本身就不是裸字符串 —— 这一格测不到东西');
-  else if (skipped[0].title !== undefined) bad('反向对照没生效');
-  else ok(`反向对照: 不经过归一化时条目仍是字符串（item.title === undefined ⟹ 组件画出空标题）⟹ 第 ⑥ 格那一步是承重的`);
-}
+// 📌 #1425（T3）—— 这里原来是 ⑥「`[string]` 升成 `[{title}]`」+ 它的同引用反向对照；`normalizeGenericItems` 随别名层删了。
+//    裸字符串今天的下场由上面 ④b 的 ② 那条臂钉住。
+// 📌 #1425（T3）—— 这里原来是 ⑤「把升格那一步拿掉，第 ⑥ 格必须红」的反向对照；被对照的那一步随别名层删了。
+// 📌 #1425（T3）—— 这里原来是 ⑧（#1152）「normalizeGenericItems 滤掉 null / 数字 / 布尔 / 嵌套数组 + 逐个喂 GENERIC_TYPES」；
+//    那个函数和 `GENERIC_TYPES` 随别名层删了。滤画不出来的条目今天只剩 ⑨ 那一层（管全部块），四种坏元素挪到那里逐个喂。
 
-
-// ── ⑧ #1152：条目列表里混进 `null`（或别的画不出来的元素）⟹ 归一化把它滤掉 ────────────────────
-// 🔴 为什么这一格非有不可：`CardGroupSection` 三支（`:90` / `:96` / `:110`）都直接读 `item.title`，
-//    没有一处可选链。一个 `null` 穿过归一化，`next build` 在预渲染那一页当场炸
-//    `Cannot read properties of null (reading 'title')`，**整个站建不出来** —— 五个归到
-//    `card-group` 的 type 逐个实测过，改之前全是 rc=1。这条不像别名那几条是「静默变样」，
-//    它是硬失败；但**发现它的路只有真跑一次构建**，所以这里把判据钉在归一化的输出上。
-{
-  const kinds = [
-    ['null', null], ['数字', 7], ['布尔', true], ['嵌套数组', ['x']],
-  ];
-  for (const [name, el] of kinds) {
-    const out = normalizeGenericItems({ type: 'card-group', data: { headline: 'H', items: ['甲', el, '乙'] } });
-    const got = JSON.stringify(out.data.items);
-    const want = JSON.stringify([{ title: '甲' }, { title: '乙' }]);
-    if (got !== want) bad(`items 里混进 ${name} 之后没被滤掉: ${got}`);
-    else ok(`items 里混进 ${name} ⟹ 滤掉，剩下的照旧升成 ${want}`);
-  }
-
-  // 全是画不出来的元素 ⟹ 空数组。组件画一个空的组，构建不炸（这一支走的是「没有一个字符串」那条
-  // 提前返回的老路径，所以它是**另一条**分支，不许只测上面那一种）。
-  const allBad = normalizeGenericItems({ type: 'card-group', data: { headline: 'H', items: [null, null] } });
-  if (JSON.stringify(allBad.data.items) !== '[]') {
-    bad(`全是 null 时没被滤空: ${JSON.stringify(allBad.data.items)}`);
-  } else ok('items 全是 null ⟹ 变成 []（这一支不经过「有字符串」那个判断，是另一条分支）');
-
-  // 🔴 反向对照之一：良构的纯对象数组仍然是**同一个数组引用**。加过滤最容易弄丢的就是它 ——
-  //    无条件 `filter().map()` 每次都造新数组，#1143 的「老站重建逐字节不变」当场没。
-  const objs = [{ title: 'a', description: 'b' }];
-  const untouched = normalizeGenericItems({ type: 'card-group', data: { headline: 'H', items: objs } });
-  if (untouched.data.items !== objs) {
-    bad('良构的纯对象数组被过滤那一步换掉了引用 —— #1143 的逐字节不变会被这一步弄假');
-  } else ok('反向对照: 良构的纯对象数组仍是同一个数组引用（过滤没把恒等那条路弄丢）');
-
-  // 🔴 反向对照之二：**这个函数保护的每一个 type 都要逐个喂一次**，不许抽一个代表。
-  //    #1162：这一格原来的分母是「归到 card-group 的 type ≥5」（通用块自己 + 四个老名字别名）；
-  //    别名退役之后那个数按构造是 1，据它判红只会天天红一次。而这一格真正问的是
-  //    「`normalizeGenericItems` 的射程里每一个 type 都被保护吗」，它的射程就是 `GENERIC_TYPES`
-  //    （从词汇表的 `type` 值现算），所以分母换成它 —— 明天多一个通用块，这一格自己跟着变宽。
-  //    📌 分母是 1 不再是「尺子坏了」：#1154 的 `normalizeListSlots` 才是管全部块的那一层，
-  //    它自己那一格在 ⑨，两层各测各的射程（这一层只管 GENERIC_TYPES 的 `items`）。
-  const generics = [...new Set(Object.values(BLOCK_ALIASES).map((r) => r.type))];
-  if (generics.length === 0) bad('GENERIC_TYPES 是空的 —— 这一格什么都没查');
-  else {
-    const leaked = generics.filter((t) => {
-      const r = normalizeGenericItems({ type: t, data: { headline: 'H', items: ['甲', null] } });
-      return (r.data.items || []).some((x) => x === null);
-    });
-    if (leaked.length) bad(`这些 type 上 null 还是穿过去了: ${leaked.join(' ')}`);
-    else ok(`normalizeGenericItems 的射程共 ${generics.length} 个 type（${generics.join(' ')}）逐个喂 null，一个都没漏过`);
-  }
-}
-
-// ── ⑨ #1154：所有块的列表槽兜底（不只是卡片组，也不只是叫 items 的槽）────────────────────────
+// ── ⑨ #1154：所有块的列表槽兜底（不只是一个块，也不只是叫 items 的槽）────────────────────────
 //
-// 🔴 上面第 ⑧ 格守的是 `normalizeGenericItems`，它头一行就是 `GENERIC_TYPES.has(block.type)`
-//    ⟹ 按构造只管 `card-group` 一家、只看 `items` 一个槽。同一个坏数据换个块照样让构建当场死。
-//    这一格守的是 `normalizeListSlots`：判据按 manifest 的 `kind: "list"`。
+// 🔴 这一格守的是 `normalizeListSlots`：判据按 manifest 的 `kind: "list"`。
+//    #1425（T3）：通用块那一层没了，分母从「不归通用块管的」变成「全部带列表槽的块」。
 console.log('── ⑨ #1154 所有块的列表槽兜底');
 {
   const { normalizeListSlots } = blocks;
   if (typeof normalizeListSlots !== 'function') die('blocks.js 没导出 normalizeListSlots');
 
-  // 分母先说出来：本仓今天有多少个块带列表槽、其中多少个**不是**通用块。
-  // 后者是 0 的话下面每一格都是「全过」，而那什么都没查。
+  // 分母先说出来：本仓今天有多少个块带列表槽。很少的话下面每一格都是「全过」，而那什么都没查。
   const manifests = blocks.loadBlockManifests(NEXT);
   const listSlots = Object.entries(manifests)
     .map(([t, m]) => [t, Object.entries((m && m.slots) || {}).filter(([, sp]) => sp && sp.kind === 'list').map(([k]) => k)])
     .filter(([, slots]) => slots.length);
-  const nonGeneric = listSlots.filter(([t]) => !blocks.GENERIC_TYPES.has(t) && !BLOCK_ALIASES[t]);
-  console.log(`     带列表槽的块 ${listSlots.length} 个，其中不归通用块管的 ${nonGeneric.length} 个`);
-  if (nonGeneric.length < 3) {
-    bad(`不归通用块管、又带列表槽的块只数出 ${nonGeneric.length} 个 —— 分母不对，下面的读数不作数`);
+  console.log(`     带列表槽的块 ${listSlots.length} 个`);
+  if (listSlots.length < 3) {
+    bad(`带列表槽的块只数出 ${listSlots.length} 个 —— 分母不对，下面的读数不作数`);
   }
 
   // 逐个喂一个 null，一个都不许漏过去（不抽代表）
   const leaked = [];
-  for (const [t, slots] of nonGeneric) {
+  for (const [t, slots] of listSlots) {
     for (const slot of slots) {
       const out = normalizeListSlots({ type: t, data: { [slot]: [{ title: 'a' }, null] } });
       if ((out.data[slot] || []).some((x) => x === null)) leaked.push(`${t}.${slot}`);
     }
   }
   if (leaked.length) bad(`这些槽上 null 还是穿过去了: ${leaked.join(' ')}`);
-  else ok(`不归通用块管的 ${nonGeneric.length} 个块、逐个槽喂 null，一个都没漏过`);
+  else ok(`带列表槽的 ${listSlots.length} 个块、逐个槽喂 null，一个都没漏过`);
 
-  // 票里点名的那五个，逐个把报错那句对上（`npm run build` 那一张表在票上，这里守的是同一条性质）
-  // 📌 #1372：这一行原来第一个是 `timeline`/`events`，那个块删了；换成同样带列表槽的 `blog-preview`/`posts`。
-  for (const [t, slot] of [['blog-preview', 'posts'], ['testimonials', 'items'], ['process-steps', 'steps'], ['team-grid', 'members'], ['faq-accordion', 'items']]) {
+  // 📌 #1425（T3）：这五个原来是 blog-preview.posts / testimonials.items / process-steps.steps / team-grid.members /
+  //    faq-accordion.items（票上那张 `npm run build` 表）；旧块删了，换成新库里同样带列表槽的五个。
+  for (const [t, slot] of [['features', 'items'], ['testimonials', 'items'], ['gallery', 'items'], ['team', 'members'], ['faq', 'items']]) {
     const out = normalizeListSlots({ type: t, data: { [slot]: [{ x: 1 }, null] } });
     if (JSON.stringify(out.data[slot]) === '[{"x":1}]') ok(`${t}.${slot}: null 被滤掉`);
     else bad(`${t}.${slot}: ${JSON.stringify(out.data[slot])}`);
   }
 
+  // #1425（T3）：原 ⑧ 的四种坏元素（null 之外还有数字 / 布尔 / 嵌套数组）挪到这一层逐个喂；字符串被放行（见 ④b ②）。
+  for (const [name, el] of [['null', null], ['数字', 7], ['布尔', true], ['嵌套数组', ['x']]]) {
+    const out = normalizeListSlots({ type: 'features', data: { items: [{ title: '甲' }, el, '乙'] } });
+    const want = JSON.stringify([{ title: '甲' }, '乙']);
+    if (JSON.stringify(out.data.items) === want) ok(`features.items 里混进 ${name} ⟹ 滤掉，剩下 ${want}`);
+    else bad(`features.items 里混进 ${name} 之后没被滤掉: ${JSON.stringify(out.data.items)}`);
+  }
+  const allBad = normalizeListSlots({ type: 'features', data: { items: [null, null] } });
+  if (JSON.stringify(allBad.data.items) === '[]') ok('features.items 全是 null ⟹ []');
+  else bad(`全是 null 时没被滤空: ${JSON.stringify(allBad.data.items)}`);
+
   // 槽的值整个不是数组 ⟹ 换成空数组（组件 map 出零个条目，不炸）
-  for (const [t, slot, v] of [['blog-preview', 'posts', 'abc'], ['card-group', 'items', 'abc'], ['team-grid', 'members', {}]]) {
+  for (const [t, slot, v] of [['features', 'items', 'abc'], ['faq', 'items', 'abc'], ['team', 'members', {}]]) {
     const out = normalizeListSlots({ type: t, data: { [slot]: v } });
     if (JSON.stringify(out.data[slot]) === '[]') ok(`${t}.${slot} = ${JSON.stringify(v)} ⟹ []`);
     else bad(`${t}.${slot} 没被换成 []: ${JSON.stringify(out.data[slot])}`);
@@ -319,34 +238,26 @@ console.log('── ⑨ #1154 所有块的列表槽兜底');
 
   // 🔴 反向对照一：良构 ⟹ **同一个 block、同一个数组**。AC4 的「逐字节不变」立足在这上面；
   //    无条件 `filter()` 每次都造新数组，这一格当场红。
-  const objs = [{ date: '2020-01-01', title: 't' }];
-  const good = { type: 'blog-preview', data: { headline: 'H', posts: objs } };
+  const objs = [{ title: 't', description: 'd' }];
+  const good = { type: 'features', data: { introHeadline: 'H', items: objs } };
   const same = normalizeListSlots(good);
-  if (same === good && same.data.posts === objs) ok('反向对照: 良构时返回同一个 block、同一个数组（没有重建对象）');
-  else bad(`良构时对象被换掉了: same===good ${same === good} · 数组同一个 ${same.data.posts === objs}`);
+  if (same === good && same.data.items === objs) ok('反向对照: 良构时返回同一个 block、同一个数组（没有重建对象）');
+  else bad(`良构时对象被换掉了: same===good ${same === good} · 数组同一个 ${same.data.items === objs}`);
 
   // 🔴 反向对照二：没写的选填列表槽不许被无中生有塞一个 []（那会给每个块的 data 多出一堆键）
-  const bare = { type: 'blog-preview', data: { headline: 'H' } };
+  const bare = { type: 'features', data: { introHeadline: 'H' } };
   const afterBare = normalizeListSlots(bare);
-  if (afterBare === bare && !Object.prototype.hasOwnProperty.call(afterBare.data, 'posts')) {
+  if (afterBare === bare && !Object.prototype.hasOwnProperty.call(afterBare.data, 'items')) {
     ok('反向对照: 没写的列表槽不会被塞一个空数组');
   } else bad(`没写的槽被动过了: ${JSON.stringify(afterBare.data)}`);
 
   // 🔴 反向对照三：跟 validateSite 第 ⑤ 条同一条判据 —— 字符串和普通对象都留着（AC5 的 "" 和 {}）
-  const keep = normalizeListSlots({ type: 'blog-preview', data: { posts: ['', {}, { title: 'y' }] } });
-  if (JSON.stringify(keep.data.posts) === '["",{},{"title":"y"}]') ok('反向对照: "" 和 {} 是合法条目，一个都没被误杀');
-  else bad(`"" / {} 被误杀了: ${JSON.stringify(keep.data.posts)}`);
+  const keep = normalizeListSlots({ type: 'features', data: { items: ['', {}, { title: 'y' }] } });
+  if (JSON.stringify(keep.data.items) === '["",{},{"title":"y"}]') ok('反向对照: "" 和 {} 是合法条目，一个都没被误杀');
+  else bad(`"" / {} 被误杀了: ${JSON.stringify(keep.data.items)}`);
 
-  // 🔴 两步串起来还对吗（`blocks.js` 那个循环写的就是 `normalizeListSlots(normalizeGenericItems(x))`）。
-  //    #1162：这一格原来测的是「`service-highlights` 先被别名改成 `card-group` + `items`，再按新
-  //    type 查列表槽」—— 改名那一步随别名层退役，所以顺序的**理由**变了（不再是「后一步要等新 type
-  //    才查得到槽」）。今天两步各自还在做事，串起来的性质是：**裸字符串被升成对象，而画不出来的
-  //    条目被滤掉，两件事都发生**。这一格问的就是这个，不是问顺序谁先谁后（实测两种顺序等价 ——
-  //    `drawableItem` 把字符串也算可画，理由写在 `blocks.js` 那个循环上面）。
-  const chained = normalizeListSlots(normalizeGenericItems({ type: 'card-group', data: { headline: 'H', items: ['甲', null, { title: 't' }] } }));
-  if (chained.type === 'card-group' && JSON.stringify(chained.data.items) === '[{"title":"甲"},{"title":"t"}]') {
-    ok('两步串起来: 裸字符串升成 {title} · null 被滤掉 · type 没被动过');
-  } else bad(`两步串起来的结果不对: ${JSON.stringify(chained)}`);
+  // 📌 #1425（T3）—— 这里原来是「两步串起来」（`normalizeListSlots(normalizeGenericItems(x))`）；前一步随别名层删了，
+  //    今天构建那条路上只剩一步，上面 ④ 已经问过它真的接在路上。
 }
 
 // ── ⑩ #1341 老站残留的那两个键读的时候丢掉 ──────────────────────────────────────────────────────
@@ -432,8 +343,8 @@ console.log('\n── ⑩ #1341 老站残留的 block_layout / variant 读的时
     blocks: undefined,
     sections: [
       { type: 'page-header', data: { title: 'T' } },
-      { type: 'text-block', data: { body: 'B' } },
-      { type: 'contact-form', data: {} },
+      { type: 'content', data: { body: 'B' } },
+      { type: 'contact', data: {} },
     ],
   });
   const stripUndef = (p) => { const o = { ...p }; delete o.blocks; return o; };
@@ -451,7 +362,7 @@ console.log('\n── ⑩ #1341 老站残留的 block_layout / variant 读的时
 
   // 形状本身也要钉一格，否则「两边一起变成空字符串」也会让上面那格绿。
   // 斜杠换横杠是承重的：id 进的是 DOM 属性，也是 React 的 key。
-  const want = 'services-drain-repair-text-block-1';
+  const want = 'services-drain-repair-content-1';  // #1425（T3）：text-block → content
   if (viaBuild[1] === want) ok(`块 id 是三段「页-类型-序号」且斜杠换成了横杠: ${want}`);
   else bad(`块 id 形状不对: 想要 ${want}，拿到 ${viaBuild[1]}`);
 
@@ -478,7 +389,8 @@ console.log('\n── ⑩ #1341 老站残留的 block_layout / variant 读的时
 // 📌 清除那一侧（`resetShapesInSite`）本来就认识 `{ref}` 条目 ⟹ 修之前这个字段只能删、不能用。
 console.log('\n── ⑫ #1350 ref 条目上的 shape 被页面级覆盖读到');
 {
-  const LIB = { 'our-team': { type: 'team-grid', role: 'optional', region: 'content', data: { headline: '团队' } } };
+  // #1425（T3）：team-grid → team；形态名换成 team 今天真有的（cards / list）
+  const LIB = { 'our-team': { type: 'team', role: 'optional', region: 'content', data: { headline: '团队' } } };
   const runOne = (entry, lib = LIB) => {
     const report = {};
     const out = normalizeLocalePages([{ slug: 'home', blocks: [entry] }], lib, 'en', report);
@@ -487,9 +399,9 @@ console.log('\n── ⑫ #1350 ref 条目上的 shape 被页面级覆盖读到'
 
   // 正臂：这一页写了 shape ⟹ 解出来的块带着它（sync-config 的三级取值第 ① 级读的就是 block.shape）
   {
-    const { block } = runOne({ ref: 'our-team', shape: 'band-left' });
+    const { block } = runOne({ ref: 'our-team', shape: 'list' });
     if (!block) bad('正臂: ref 根本没解出来（夹具坏了）');
-    else if (block.shape === 'band-left') ok('正臂: ref 条目上的 shape 被带到解出来的块上');
+    else if (block.shape === 'list') ok('正臂: ref 条目上的 shape 被带到解出来的块上');
     else bad(`正臂: shape 没被带过来（block.shape = ${JSON.stringify(block.shape)}）—— 这正是改动前的读数`);
   }
 
@@ -505,18 +417,18 @@ console.log('\n── ⑫ #1350 ref 条目上的 shape 被页面级覆盖读到'
 
   // 🔴 反向对照二：站级块自己写了形态、这一页没说话 ⟹ 站级那个要留着（`...target` 带过来的）。
   {
-    const shapedLib = { 'our-team': { ...LIB['our-team'], shape: 'grid-3' } };
+    const shapedLib = { 'our-team': { ...LIB['our-team'], shape: 'cards' } };
     const { block } = runOne({ ref: 'our-team' }, shapedLib);
-    if (block && block.shape === 'grid-3') ok('反向对照: 站级块自己写的 shape 没被这一页抹掉');
+    if (block && block.shape === 'cards') ok('反向对照: 站级块自己写的 shape 没被这一页抹掉');
     else bad(`站级块自己的 shape 丢了: ${JSON.stringify(block && block.shape)}`);
   }
 
   // 🔴 反向对照三：两边都写了 ⟹ **这一页的赢**（「站级共用块只改本页那一份」是 #1351 定的口径，
   //    本票的写路径也照它）。少了这一格，一个「站级的永远赢」的实现也能让上面三格全绿。
   {
-    const shapedLib = { 'our-team': { ...LIB['our-team'], shape: 'grid-3' } };
-    const { block } = runOne({ ref: 'our-team', shape: 'band-left' }, shapedLib);
-    if (block && block.shape === 'band-left') ok('反向对照: 站级写 grid-3、这一页写 band-left ⟹ 这一页的赢');
+    const shapedLib = { 'our-team': { ...LIB['our-team'], shape: 'cards' } };
+    const { block } = runOne({ ref: 'our-team', shape: 'list' }, shapedLib);
+    if (block && block.shape === 'list') ok('反向对照: 站级写 cards、这一页写 list ⟹ 这一页的赢');
     else bad(`页面级覆盖没赢过站级: ${JSON.stringify(block && block.shape)}`);
   }
 
@@ -549,7 +461,7 @@ console.log('\n── ⑫ #1350 ref 条目上的 shape 被页面级覆盖读到'
   // 🔴 坏形状不许连累别的字段：构建不中断、块照样解出来。
   {
     const { block } = runOne({ ref: 'our-team', shape: 123 });
-    if (block && block.type === 'team-grid' && block.data && block.data.headline === '团队') {
+    if (block && block.type === 'team' && block.data && block.data.headline === '团队') {
       ok('坏形状只丢掉 shape 这一个字段，块本身原样解出来（构建不中断）');
     } else bad(`坏形状把别的东西也弄坏了: ${JSON.stringify(block)}`);
   }

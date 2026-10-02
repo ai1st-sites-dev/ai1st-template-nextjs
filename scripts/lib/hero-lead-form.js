@@ -7,9 +7,10 @@
 // Chris 2026-08-19 拍板：**跟着行业走**。上门服务类（水电 / 保洁 / 搬家 / 维修）第一屏要能留电话；
 // 展示类（餐厅 / 画廊 / 诊所）第一屏要照片，不给。
 //
-// 🔴 #1333 起做法换了：把首页第一个 `hero` 块**换成另一个块类型** `hero-with-form`，而不是给它写
-//    一个 `block_layout: "with-form"` 字段。带表单的首屏有自己的槽位（`data.form`）和自己的行为
-//    （POST /api/leads），按设计文档 D1 / D14 那就是另一个块，不是 hero 的一种内容结构。
+// 🔴 #1425（T3）起做法又换了一次：旧库那个单独的块类型 `hero-with-form`（#1333）随旧库删了，新库的 `hero`
+//    自己就有表单 —— 槽 `form: { id? }`（选站级表单库里哪一张，空 = 第一张）+ 旋钮 `options.form`
+//    （none | teaser | full，#1471）。所以这里不再换块类型，而是把首页第一个 hero 的 `options.form` 拧到
+//    `full`、补一个空的 `form` 槽；排版仍由主题挑的那个 hero 形态决定（旋钮盖在形态的初值上，同 Puck 里拧旋钮）。
 //
 // 🔴 为什么它是一个自己的模块，而不是写在 `create-site.js` 里：`create-site.js` 没有
 //    `module.exports`，而且文件末尾直接 `main()` —— require 它等于**跑一次建站**。所以写在那里的
@@ -34,11 +35,13 @@
 const { isOnSiteIndustry } = require('../theme-pipeline/industry-sectors');
 const { readPageBlocks } = require('../blocks');
 
-/** 带表单的首屏是这个块类型。权威是 `blocks/hero-with-form/manifest.json` 与 `src/lib/sections/registry.generated.ts`。 */
-const HERO_FORM_BLOCK = 'hero-with-form';
+/** 首屏块。带不带表单是它的旋钮 `options.form`（`blocks/hero/manifest.json`），不是另一个块类型。 */
+const HERO_BLOCK = 'hero';
+/** 「整张表单」那一档（`blocks/hero/manifest.json` 的 `slots.options.knobs` 里 `form` 的取值之一）。 */
+const FORM_FULL = 'full';
 
 /**
- * 在内存里那份 content 上，把首页第一个 hero 块换成 `hero-with-form` —— 或者什么都不做。
+ * 在内存里那份 content 上，让首页第一个 hero 带上整张表单（`options.form: "full"`）—— 或者什么都不做。
  *
  * 就地改 `content`（调用方紧接着就把它写盘），返回一句给日志用的结论：
  *   { applied: boolean, reason: string }
@@ -47,13 +50,11 @@ const HERO_FORM_BLOCK = 'hero-with-form';
  * 后台停用了」；另外三个是：行业不算上门 · 这一页没有 hero · 压根没有首页），它们在产物里长得
  * 一模一样。调用方必须把它打出来。
  *
- * 🔴 为什么要写 `data.form = {}`：`form` 是新块的**必填**槽位（`blocks/hero-with-form/manifest.json`），
- * 而 `validateSite` 第 ① 条按必填查。这条记录说的是「这个块有一个表单」；按钮文案和成功提示仍然
- * 各自可选，缺省时由 `HeroLeadForm` 自己那两句默认文案顶上 —— 也就是**渲染出来的字一个都没变**。
- * 文案本身不写在这里：库定义结构与槽，不定义内容（Chris 2026-08-13 的边界）。
+ * 📌 写一个空的 `data.form = {}`：槽是 `{ id? }`，空 = 站级表单库里的第一张（#1471）。表单的字段、按钮文案
+ * 都住在 `site/<locale>/forms.json`，不写在这里：库定义结构与槽，不定义内容（Chris 2026-08-13 的边界）。
  */
 function applyHeroLeadForm({ content, industry, disabledBlocks = [] }) {
-  // #1346 —— 后台把 `hero-with-form` 关掉了就什么都不做。
+  // #1346 —— 后台把 `hero` 关掉了就什么都不做（#1425 之前判的是单独那个 `hero-with-form` 块）。
   //
   // 🔴 **这一处不在菜单那条路上，所以剔菜单管不到它。** 它是脚本自己硬插的一块：跑在两次
   //    `validateBlocks` 之后、也不经 AI 提示词，跟 `writeSiteConfig` 里那个 `contact-form`
@@ -63,8 +64,8 @@ function applyHeroLeadForm({ content, industry, disabledBlocks = [] }) {
   //
   // 🔴 这条判断放在**最前面**：下面那三条 `reason` 各自说的是「为什么这个站首屏没有表单」，而
   //    「这个块被关了」是一个跟行业/页面结构无关的答案，混进那三条里读日志的人分不开。
-  if (Array.isArray(disabledBlocks) && disabledBlocks.includes(HERO_FORM_BLOCK)) {
-    return { applied: false, reason: `${HERO_FORM_BLOCK} 在后台被停用了 ⟹ 首页第一个 hero 原样留着` };
+  if (Array.isArray(disabledBlocks) && disabledBlocks.includes(HERO_BLOCK)) {
+    return { applied: false, reason: `${HERO_BLOCK} 在后台被停用了 ⟹ 首页没有 hero 可带表单` };
   }
   if (!isOnSiteIndustry(industry)) {
     return { applied: false, reason: `industry "${industry}" 不在上门服务那四组行业词里` };
@@ -78,9 +79,10 @@ function applyHeroLeadForm({ content, industry, disabledBlocks = [] }) {
   const hero = blocks.find((b) => b && b.type === 'hero');
   if (!hero) return { applied: false, reason: '行业算上门，但首页里没有 hero 块' };
 
-  hero.type = HERO_FORM_BLOCK;
-  hero.data = { ...(hero.data || {}), form: { ...((hero.data && hero.data.form) || {}) } };
-  return { applied: true, reason: `industry "${industry}" 算上门服务 ⟹ 首页第一个 hero 换成 ${HERO_FORM_BLOCK}` };
+  const data = hero.data || {};
+  const options = data.options && typeof data.options === 'object' && !Array.isArray(data.options) ? data.options : {};
+  hero.data = { ...data, options: { ...options, form: FORM_FULL }, form: { ...((data.form && typeof data.form === 'object') ? data.form : {}) } };
+  return { applied: true, reason: `industry "${industry}" 算上门服务 ⟹ 首页第一个 hero 的 options.form = ${FORM_FULL}` };
 }
 
-module.exports = { HERO_FORM_BLOCK, applyHeroLeadForm };
+module.exports = { HERO_BLOCK, FORM_FULL, applyHeroLeadForm };

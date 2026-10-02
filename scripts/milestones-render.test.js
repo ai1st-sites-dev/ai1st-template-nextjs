@@ -8,7 +8,7 @@
  * 管哪几条：AC1（5 个预设逐字、旋钮名 / 值逐字、目录集合、两两不同、旋钮独立）· AC4 / AC6 的 DOM 与规则一半
  * （blockImage 四档的节点、background 给 dark、card / divided 的规则）· AC7（槽位空不渲染、没有第三行）·
  * AC8（bg 四档 + 不自己算亮度 / 拼渐变）· AC9（validateSite）· AC10 的组件一半（图标表 → <svg>，查不到的名字那一条不画）·
- * AC11（block-roles · 首页配方池）· AC13 的编辑器 schema · AC14（social-proof / hero-new 零改动）。
+ * AC11（block-roles · 首页配方池）· AC13 的编辑器 schema · AC14（social-proof / hero 零改动）。
  * #1492：statIcon 布尔开关（默认关 · 预设不钉 · 开 == 改前逐字、默认 == 改前剥掉图标节点 · validateSite 认它）。
  * 几何（16 种组合三端无横向滚动、列数、图 / 块头上下左右、计算色、真站产物里的 <svg>）要浏览器：
  * `tests/e2e/specs/1482-milestones-knobs.spec.ts`。
@@ -40,7 +40,7 @@ const bad = (m) => { fail += 1; console.log(`  ❌ ${m}`); };
 const die = (m) => { console.error(`🔴 跑不起来: ${m}`); process.exit(2); };
 const check = (cond, m, detail) => (cond ? ok(m) : bad(detail ? `${m} —— ${detail}` : m));
 
-// ── 让 node 能 require 这份 .tsx；Next 自己的换成替身（同 cta-new-render.test.js）──────────────────────
+// ── 让 node 能 require 这份 .tsx；Next 自己的换成替身（同 cta-render.test.js）──────────────────────
 const STUB_DIR = path.join(NEXT, 'scripts', '.milestones-stubs');
 fs.mkdirSync(STUB_DIR, { recursive: true });
 const stub = (name, body) => { const p = path.join(STUB_DIR, `${name}.js`); fs.writeFileSync(p, body); return p; };
@@ -224,7 +224,7 @@ console.log('\n── AC7 槽位空不渲染');
   const styles = M.slots.introEyebrow.choices.style.filter((s) => s !== 'none')
     .map((s) => (/data-eyebrow="([^"]*)"/.exec(render('divided-row', { ...clone(DEMO), introEyebrow: { text: 'x', style: s } })) || [])[1]);
   check(styles.join() === 'pill,outline,dash,plain', `introEyebrow 四式都画得出来（${styles.join(' / ')}）`);
-  check(JSON.stringify(M.slots.introEyebrow.choices.style) === '["none","pill","outline","dash","plain"]', 'introEyebrow.style 词表 none 在最前（#1481 规矩 1，与 features-new 一致）');
+  check(JSON.stringify(M.slots.introEyebrow.choices.style) === '["none","pill","outline","dash","plain"]', 'introEyebrow.style 词表 none 在最前（#1481 规矩 1，与 features 一致）');
   check(M.slots.introCtas.max === 2, `introCtas.max = ${M.slots.introCtas.max}（数量维 0 / 1 / 2 从它派生）`);
 }
 
@@ -242,7 +242,7 @@ console.log('\n── AC8 bg');
   check(count(SRC_TEXT, 'toneFor(') === 0 && count(SRC_TEXT, 'linear-gradient') === 0,
     `Section.tsx 里 toneFor( ${count(SRC_TEXT, 'toneFor(')} 处、linear-gradient ${count(SRC_TEXT, 'linear-gradient')} 处（都调 contrast.js 的共用函数）`);
   // #1477 —— 深底 / brand 上的正文白 .92 全站只有一条（scripts/lib/site-css.js §ON_DEEP_MUTED，它认根上的 data-tone），
-  //    块自己的 block.css 里不再抄一份（同 features-new-render.test.js）。
+  //    块自己的 block.css 里不再抄一份（同 features-render.test.js）。
   const { ON_DEEP_MUTED } = require(path.join(NEXT, 'scripts', 'lib', 'site-css.js'));
   check(/\[data-tone="dark"\] \.text-muted,\s*\n\[data-tone="brand"\] \.text-muted,[\s\S]*?\{\s*color: rgba\(255, 255, 255, \.92\) !important;/.test(ON_DEEP_MUTED)
     && !/\.text-muted\s*\{[^}]*rgba\(255, 255, 255/.test(CSS), 'dark / brand 时正文白 .92（不是灰）：全站那条，block.css 里没有自己那份');
@@ -250,7 +250,7 @@ console.log('\n── AC8 bg');
   const v = (bg) => own(manifestLib.validateSite({ pages: [{ slug: 'p', blocks: [{ type: 'milestones', data: { headline: 'H', stats: [{ value: '1', label: 'x' }], bg } }] }], scope: 'edit' }));
   check(v('#0f172a').length === 0 && v('brand').length === 0 && v({ stops: ['#7d52f4', '#f7b733'], angle: 135 }).length === 0, 'validateSite：#0f172a / brand / 两色标渐变放行');
   check(['red', '#fff', { stops: ['#ffffff'] }].every((b) => v(b).some((p) => p.includes('"bg"'))), 'validateSite：red / #fff / 一个色标的渐变被拒');
-  check(JSON.stringify(M.slots.bg) === JSON.stringify(manifestLib.loadManifests().get('footer-new').slots.bg), 'bg 槽对象与 footer-new 的 slots.bg 逐字相同');
+  check(JSON.stringify(M.slots.bg) === JSON.stringify(manifestLib.loadManifests().get('footer').slots.bg), 'bg 槽对象与 footer 的 slots.bg 逐字相同');
 }
 
 // ══ AC9：validateSite ═══════════════════════════════════════════════════════════════════════════
@@ -321,8 +321,8 @@ console.log('\n── AC11 block-roles · 首页配方');
   const without = recipe.poolFor(new Map([...all].filter(([k]) => k !== 'milestones')));
   check(!without.includes('milestones') && without.length === pool.length - 1, `对照：块库里没有它 ⟹ 池子 ${without.length} 种（少一）`);
   const order = (t) => all.get(t).prompt.order;
-  check(M.prompt.group === 'homepage' && order('features-new') < M.prompt.order && M.prompt.order < order('testimonials'),
-    `prompt.group == homepage、order ${M.prompt.order} 在 features-new（${order('features-new')}）之后、testimonials（${order('testimonials')}）之前`);
+  check(M.prompt.group === 'homepage' && order('features') < M.prompt.order && M.prompt.order < order('testimonials'),
+    `prompt.group == homepage、order ${M.prompt.order} 在 features（${order('features')}）之后、testimonials（${order('testimonials')}）之前`);
   const lines = M.prompt.lines.join('\n');
   check(/1–6/.test(lines) && /Bootstrap Icons/.test(lines) && /top-level in data \(not inside options\)/.test(lines) && /(invent|real number)/.test(lines),
     'prompt.lines：stats 1–6 条、从站内事实取、编不出真数就别放、icon 是 Bootstrap Icons 名、bg 在 data 顶层');
@@ -348,7 +348,7 @@ console.log('\n── AC13 编辑器 schema');
     '点 Photo side = 那一组旋钮；拧偏一个（statsColumns=4）⟹ custom');
 }
 
-// ══ #1492：statIcon 布尔开关（同 header-new 的 icons）═══════════════════════════════════════════════
+// ══ #1492：statIcon 布尔开关（同 header 的 icons）═══════════════════════════════════════════════
 console.log('\n── #1492 statIcon 开关');
 {
   const iconsOf = (html) => statsOf(html).map((x) => count(x, 'data-part="icon"'));
@@ -356,7 +356,7 @@ console.log('\n── #1492 statIcon 开关');
   const withIcon = DEMO.stats.filter((s) => s.icon).length;
   check(/\bstatIcon:\s*bool\b/.test(M.slots.options.shape) && JSON.stringify(require(path.join(NEXT, 'scripts', 'lib', 'block-knobs.js')).booleanOptionsOf(M)) === '["statIcon"]',
     `options.shape 声明 statIcon: bool，布尔开关集合恰好是 [statIcon]（${M.slots.options.shape}）`);
-  check(M.presets.every((p) => !('statIcon' in p.knobs) && !(p.options && 'statIcon' in p.options)), '五个预设都不钉 statIcon（同 header-new 的 icons），默认走 Section 的兜底');
+  check(M.presets.every((p) => !('statIcon' in p.knobs) && !(p.options && 'statIcon' in p.options)), '五个预设都不钉 statIcon（同 header 的 icons），默认走 Section 的兜底');
   // 默认 = 关（图册 build.py 里是裸的 'statIcon'，没带 '+'）⟹ 五个预设一个图标节点都没有；开 ⟹ 每条带 icon 的 stat 一个。
   for (const p of M.presets) {
     const def = sum(iconsOf(render(p.shape, clone(DEMO))));
@@ -390,20 +390,20 @@ console.log('\n── #1492 statIcon 开关');
   check(/options\.statIcon/.test(M.prompt.lines.join('\n')), 'prompt.lines 告诉 AI：stats[].icon 要 options.statIcon 开着才显示');
 }
 
-// ══ AC14：social-proof / hero-new 零改动 ═════════════════════════════════════════════════════════
+// ══ AC14：social-proof / hero 零改动 ═════════════════════════════════════════════════════════
 console.log('\n── AC14 旧块零改动');
 {
   let diff = null;
   try {
     const base = execFileSync('git', ['merge-base', 'HEAD', 'origin/main'], { cwd: NEXT, encoding: 'utf8' }).trim();
     // #1477 —— 这是 #1482 交付自己的「别碰」判据。milestones 已经在 merge-base 上 = #1482 落地了，之后的票
-    //    合法地改这几份（#1477 改 hero-new 的 bg 槽）不该在它们自己的分支上红（同 features-new-render.test.js AC14）。
+    //    合法地改这几份（#1477 改 hero 的 bg 槽）不该在它们自己的分支上红（同 features-render.test.js AC14）。
     let landed = true;
     try { execFileSync('git', ['cat-file', '-e', `${base}:templates/nextjs/blocks/milestones/manifest.json`], { cwd: NEXT, stdio: 'ignore' }); } catch { landed = false; }
     if (landed) console.log(`  ⏭  milestones 已在 merge-base ${base.slice(0, 8)} 上（#1482 已落地），这一格只管 #1482 自己的交付 —— 不算通过`);
-    else diff = execFileSync('git', ['diff', '--name-only', base, '--', 'blocks/social-proof', 'blocks/hero-new'], { cwd: NEXT, encoding: 'utf8' }).trim();
+    else diff = execFileSync('git', ['diff', '--name-only', base, '--', 'blocks/social-proof', 'blocks/hero'], { cwd: NEXT, encoding: 'utf8' }).trim();
   } catch (e) { console.log(`  ⚠️  取不到 git 读数（${e.message.split('\n')[0]}），这一格跳过 —— 不算通过`); }
-  if (diff !== null) check(diff === '', `social-proof / hero-new 相对 merge-base 没有改动${diff ? `：${diff}` : ''}`);
+  if (diff !== null) check(diff === '', `social-proof / hero 相对 merge-base 没有改动${diff ? `：${diff}` : ''}`);
 }
 
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);

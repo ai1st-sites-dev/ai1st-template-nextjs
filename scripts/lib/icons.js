@@ -63,33 +63,33 @@ function iconNamesIn(value, out = new Set()) {
 }
 
 /**
- * 块组件自己点名的图标（不来自数据）：header-new 的汉堡 / 关闭 / 电话，footer-new 联系信息那几个，
+ * 块组件自己点名的图标（不来自数据）：header 的汉堡 / 关闭 / 电话，footer 联系信息那几个，
  * 以及社交链接没写图标时的兜底。改组件里的字面名要同步这里 —— 漏了的失败方向是可见的：那个图标不画，
  * 且 `icons.test.js` 会逐个核「组件里写的字面名都在这张表里」。
  */
 const BLOCK_ICONS = {
-  'header-new': ['list', 'x-lg', 'telephone', 'link-45deg'],
-  'footer-new': ['telephone', 'geo-alt', 'clock', 'envelope', 'link-45deg'],
+  'header': ['list', 'x-lg', 'telephone', 'link-45deg'],
+  'footer': ['telephone', 'geo-alt', 'clock', 'envelope', 'link-45deg'],
   // #1475 —— 按钮的箭头（`arrow: true`）。项目的图标来自数据（`items[].icon`），由 §iconNamesIn 收，不写在这里。
-  'features-new': ['arrow-right'],
-  // #1482 —— 同 features-new：块头按钮的箭头；stats 的图标来自数据（`stats[].icon`），由 §iconNamesIn 收。
+  'features': ['arrow-right'],
+  // #1482 —— 同 features：块头按钮的箭头；stats 的图标来自数据（`stats[].icon`），由 §iconNamesIn 收。
   milestones: ['arrow-right'],
   // #1487 —— 招聘卡的图标圈（person-plus）+ 它按钮的箭头（`join.cta.arrow`）。成员链接的图标来自数据（`members[].links[].icon`），
   //    由 §iconNamesIn 收 —— 所以那个字段必须叫 `icon`。
-  'team-new': ['person-plus', 'arrow-right'],
-  // #1489 —— contact items 五种 kind 的图标（同 footer-new 那五个）+ 地图地址卡上的钉子。
-  'contact-new': ['telephone', 'envelope', 'geo-alt', 'clock', 'link-45deg', 'geo-alt-fill'],
+  'team': ['person-plus', 'arrow-right'],
+  // #1489 —— contact items 五种 kind 的图标（同 footer 那五个）+ 地图地址卡上的钉子。
+  'contact': ['telephone', 'envelope', 'geo-alt', 'clock', 'link-45deg', 'geo-alt-fill'],
   // #1483 —— 功能清单每行的勾号；highlights 的图标来自数据（`highlights[].icon`），由 §iconNamesIn 收。
-  'pricing-new': ['check'],
+  'pricing': ['check'],
   // #1488 —— 星级（每条 n 颗实心 + 空心补到 5 颗）和轮播的前 / 后箭头，都是组件里写死的名字。
   //    #1500 —— 平台评分改成四舍五入到整数颗，半星不再用到（`star-half` 拿掉）；summary 的平台品牌图标从 `review-platforms.js` 那张表现取。
-  'testimonials-new': ['star-fill', 'star', 'chevron-left', 'chevron-right', ...Object.values(require('./review-platforms').PLATFORM_ICONS).map((p) => p.icon)],
+  'testimonials': ['star-fill', 'star', 'chevron-left', 'chevron-right', ...Object.values(require('./review-platforms').PLATFORM_ICONS).map((p) => p.icon)],
   // #1484 —— 问答的开合图标（itemToggle：chevron = chevron-down；plus = plus + dash，展开时换着显示）+ help 卡按钮的箭头。
-  'faq-new': ['chevron-down', 'plus', 'dash', 'arrow-right'],
+  'faq': ['chevron-down', 'plus', 'dash', 'arrow-right'],
   // #1504 —— 星级（按分数四舍五入的实心星）+ 常见平台的品牌图标。品牌图标那几个名字只住在 `review-platforms.js` 那张表里，这里现取。
-  'reviews-new': ['star-fill', ...Object.values(require('./review-platforms').PLATFORM_ICONS).map((p) => p.icon)],
+  'reviews': ['star-fill', ...Object.values(require('./review-platforms').PLATFORM_ICONS).map((p) => p.icon)],
   // #1498 —— 同 milestones：按钮的箭头；按钮图标来自数据（`ctas[].icon`），由 §iconNamesIn 收。
-  'content-new': ['arrow-right'],
+  'content': ['arrow-right'],
 };
 
 /**

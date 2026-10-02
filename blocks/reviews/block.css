@@ -1,0 +1,298 @@
+/* ── reviews · 跨形态的规则（#1504）──────────────────────────────────────────────────────────────
+   reviews 的排版由**实际生效的旋钮**决定，写在根元素上：
+     intro  data-intro-position（left / right / top / bottom）· data-intro-align（left / center / right）· data-total（none / show）
+     items  data-items-layout（grid / row）
+     item   data-item-style（plain / card）· data-item-align（left / center / right —— 不跟 introAlign）
+     底色   data-tone（light / dark / brand，scripts/lib/contrast.js §toneForBg）
+   grid 的列数按平台个数：Section.tsx 在 .rv-items 上写 --rv-n。三个形态目录都是预设，自己不带几何（理由在各自的 shape.css 里）。
+   规则照定稿图册 reviews 段（docs/reference/webpixels/gallery/build.py 的 reviews CSS，Chris 2026-09-30）。
+
+   🔴 Webpixels 的工具类全带 !important（mb-* / display-5 / fs-5 / text-muted / text-sm …）。这里要压过它们的规则**也带 !important**，
+      而且选择器从 [data-block="reviews"] 起步再加属性 / 类 —— 特异度一定高过工具类的一个类。
+   🔴 部件的有无靠渲染（Section.tsx 有数据才画），不靠 CSS 藏：眉标、标题、正文、总分没数据 / total=none 就没有节点。
+   间距照定稿：段 py-16 py-lg-24；块头与平台 gy-10 gx-lg-16（纵向写 gy-10、不写 g-10：g-* 的横向负边距在手机上溢出，
+   #1475 量出来的）；grid 格间 1.5rem（<576 .75rem）；row 小条间 .75rem 1rem。 */
+
+/* ═══ intro ════════════════════════════════════════════════════════════════════════════════════════ */
+
+[data-block="reviews"] .rv-intro-text > :last-child {
+  margin-bottom: 0 !important;
+}
+/* 🔴 markup 里每个 rv-* 类都要有一条规则：theme-css 守卫（#992「unstyled class」）点名没有规则的类（#1496 踩过）。 */
+[data-block="reviews"] .rv-eyebrow-wrap {
+  line-height: 1;
+}
+[data-block="reviews"] .rv-body {
+  text-wrap: pretty;
+}
+
+/* total=show：块头正文下面一行总分 —— 大数字（3.5rem 粗体）+ 五星（20px）+「405 reviews on 4 platforms」，跟着 introAlign 对齐。 */
+[data-block="reviews"] .rv-total {
+  margin-top: 1.5rem;
+}
+[data-block="reviews"] .rv-total-score {
+  font-size: 3.5rem;
+  letter-spacing: -0.02em;
+}
+[data-block="reviews"] .rv-total .rv-stars svg {
+  width: 20px;
+  height: 20px;
+}
+[data-block="reviews"][data-intro-align="center"] .rv-total {
+  justify-content: center;
+}
+[data-block="reviews"][data-intro-align="right"] .rv-total {
+  justify-content: flex-end;
+}
+
+/* introAlign：块头文字对齐。宽度照 T6.1（#1486）：left / right 100%；center 在 ≥992 最宽 80%、居中。 */
+[data-block="reviews"][data-intro-align="center"] .rv-intro-text {
+  text-align: center;
+}
+[data-block="reviews"][data-intro-align="right"] .rv-intro-text {
+  text-align: right;
+}
+@media (min-width: 992px) {
+  [data-block="reviews"][data-intro-align="center"] .rv-intro-text {
+    max-width: 80%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+/* introPosition：left / right（≥992）= 块头一列 33.33%（sticky）、平台一列 66.67%；right 行反向。块头在侧时文字不再限宽。
+   小屏：left / top 块头在上，right / bottom 块头在下（同 testimonials）。 */
+[data-block="reviews"][data-intro-position="bottom"] .rv-frame {
+  flex-direction: column-reverse;
+}
+@media (max-width: 991.98px) {
+  [data-block="reviews"][data-intro-position="right"] .rv-frame {
+    flex-direction: column-reverse;
+  }
+}
+@media (min-width: 992px) {
+  [data-block="reviews"][data-intro-position="left"] .rv-introcol,
+  [data-block="reviews"][data-intro-position="right"] .rv-introcol {
+    flex: 0 0 auto;
+    width: 33.3333%;
+    position: sticky;
+    top: 2rem;
+    align-self: flex-start;
+  }
+  [data-block="reviews"][data-intro-position="left"] .rv-itemscol,
+  [data-block="reviews"][data-intro-position="right"] .rv-itemscol {
+    flex: 0 0 auto;
+    width: 66.6667%;
+  }
+  [data-block="reviews"][data-intro-position="right"] .rv-frame {
+    flex-direction: row-reverse;
+  }
+  [data-block="reviews"][data-intro-position="left"] .rv-intro-text,
+  [data-block="reviews"][data-intro-position="right"] .rv-intro-text {
+    max-width: none;
+    margin: 0;
+  }
+}
+
+/* ═══ 每个平台：logo · 大分数 · 星 + 条数 ═══════════════════════════════════════════════════════════
+   logo 三档（Section.tsx §logo）：上传的图 → 内置品牌图标（品牌色，--rv-brand）→ 粗体平台名。 */
+[data-block="reviews"] .rv-item {
+  transition: box-shadow 0.15s;
+}
+[data-block="reviews"] .rv-logo {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+}
+[data-block="reviews"] .rv-icon {
+  color: var(--rv-brand);
+}
+[data-block="reviews"] .rv-logo-img img {
+  display: block;
+  height: 1em;
+  width: auto;
+  max-width: 8rem;
+}
+[data-block="reviews"] .rv-meta {
+  gap: 0.25rem;
+}
+[data-block="reviews"] .rv-score {
+  letter-spacing: -0.02em;
+}
+[data-block="reviews"] .rv-stars {
+  line-height: 1;
+}
+
+/* itemsLayout=grid：等宽格子，格里竖排。列数按平台个数 n（--rv-n）：<576 一行 1 个；576–991 一行 min(n, 2) 个；
+   ≥992 块头在上 / 下时一行 min(n, 4) 个、块头在左 / 右时仍 min(n, 2) 个 ⟹ 4 个平台不会出现 3 + 1 的孤儿格。 */
+[data-block="reviews"][data-items-layout="grid"] .rv-items {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+}
+@media (min-width: 576px) {
+  [data-block="reviews"][data-items-layout="grid"] .rv-items {
+    grid-template-columns: repeat(min(var(--rv-n), 2), minmax(0, 1fr));
+  }
+}
+@media (min-width: 992px) {
+  [data-block="reviews"][data-items-layout="grid"][data-intro-position="top"] .rv-items,
+  [data-block="reviews"][data-items-layout="grid"][data-intro-position="bottom"] .rv-items {
+    grid-template-columns: repeat(min(var(--rv-n), 4), minmax(0, 1fr));
+  }
+}
+[data-block="reviews"][data-items-layout="grid"] .rv-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+[data-block="reviews"][data-items-layout="grid"] .rv-logo {
+  font-size: 2.25rem;
+}
+[data-block="reviews"][data-items-layout="grid"] .rv-name {
+  font-size: 1.25rem;
+  min-height: 2.25rem;
+}
+[data-block="reviews"][data-items-layout="grid"] .rv-score {
+  font-size: 2.25rem;
+}
+[data-block="reviews"][data-items-layout="grid"][data-item-align="center"] .rv-item {
+  align-items: center;
+  text-align: center;
+}
+[data-block="reviews"][data-items-layout="grid"][data-item-align="center"] .rv-item .rv-meta {
+  align-items: center;
+}
+[data-block="reviews"][data-items-layout="grid"][data-item-align="right"] .rv-item {
+  align-items: flex-end;
+  text-align: right;
+}
+[data-block="reviews"][data-items-layout="grid"][data-item-align="right"] .rv-item .rv-meta {
+  align-items: flex-end;
+}
+
+/* <576：grid 的格变成横排矮条（logo · 分数 · 星 + 条数，左对齐），一行一个。 */
+@media (max-width: 575.98px) {
+  [data-block="reviews"][data-items-layout="grid"] .rv-items {
+    gap: 0.75rem;
+  }
+  [data-block="reviews"][data-items-layout="grid"] .rv-item,
+  [data-block="reviews"][data-items-layout="grid"][data-item-align] .rv-item {
+    flex-direction: row;
+    align-items: center;
+    text-align: left;
+    gap: 1rem;
+  }
+  [data-block="reviews"][data-items-layout="grid"] .rv-logo {
+    font-size: 1.75rem;
+  }
+  [data-block="reviews"][data-items-layout="grid"] .rv-name {
+    font-size: 1rem;
+    min-height: 0;
+  }
+  [data-block="reviews"][data-items-layout="grid"] .rv-score {
+    font-size: 1.75rem;
+  }
+  [data-block="reviews"][data-items-layout="grid"][data-item-align] .rv-item .rv-meta {
+    align-items: flex-start;
+  }
+}
+
+/* itemsLayout=row：一行紧凑的小条，按自己的宽度排、放不下折行；整行的对齐跟 itemAlign。 */
+[data-block="reviews"][data-items-layout="row"] .rv-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+}
+[data-block="reviews"][data-items-layout="row"][data-item-align="center"] .rv-items {
+  justify-content: center;
+}
+[data-block="reviews"][data-items-layout="row"][data-item-align="right"] .rv-items {
+  justify-content: flex-end;
+}
+[data-block="reviews"][data-items-layout="row"] .rv-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+[data-block="reviews"][data-items-layout="row"] .rv-logo {
+  font-size: 1.5rem;
+}
+[data-block="reviews"][data-items-layout="row"] .rv-name {
+  font-size: 0.9375rem;
+}
+[data-block="reviews"][data-items-layout="row"] .rv-score {
+  font-size: 1.5rem;
+}
+[data-block="reviews"][data-items-layout="row"] .rv-item .rv-count {
+  font-size: 0.75rem !important;
+}
+
+/* itemStyle=card：浅灰底、1rem 圆角（定稿图册的值），悬停描一圈 2px 主色；grid 内边距 2rem 1.5rem（<576 1rem 1.25rem）、
+   row .75rem 1.25rem。plain = 无底，row 时小条间距加大到 1rem 2.5rem。 */
+[data-block="reviews"][data-item-style="card"] .rv-item {
+  background: var(--scheme-surface-muted);
+  border-radius: 1rem;
+}
+[data-block="reviews"][data-item-style="card"] .rv-item:hover {
+  box-shadow: 0 0 0 2px var(--x-primary);
+}
+[data-block="reviews"][data-item-style="card"][data-items-layout="grid"] .rv-item {
+  padding: 2rem 1.5rem;
+}
+@media (max-width: 575.98px) {
+  [data-block="reviews"][data-item-style="card"][data-items-layout="grid"] .rv-item {
+    padding: 1rem 1.25rem;
+  }
+}
+[data-block="reviews"][data-item-style="card"][data-items-layout="row"] .rv-item {
+  padding: 0.75rem 1.25rem;
+}
+[data-block="reviews"][data-item-style="plain"][data-items-layout="row"] .rv-items {
+  gap: 1rem 2.5rem;
+}
+[data-block="reviews"][data-item-style="plain"] a.rv-item:hover .rv-count {
+  text-decoration: underline;
+}
+
+/* ═══ 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneForBg）══════════════════════════════
+   dark = 深底 / 深色渐变；brand = 主题主色底。两者一样：标题 / 分数 / 总分反白，正文 / 条数白 .92（那条规则全站只有一份，
+   住 scripts/lib/site-css.js §ON_DEEP_MUTED，#1477；这里不再抄），card 底 rgba(255,255,255,.08)，品牌图标白。 */
+[data-block="reviews"][data-tone="dark"],
+[data-block="reviews"][data-tone="brand"] {
+  color: #fff;
+}
+[data-block="reviews"][data-tone="dark"] .rv-title,
+[data-block="reviews"][data-tone="brand"] .rv-title,
+[data-block="reviews"][data-tone="dark"] .rv-score,
+[data-block="reviews"][data-tone="brand"] .rv-score,
+[data-block="reviews"][data-tone="dark"] .rv-total-score,
+[data-block="reviews"][data-tone="brand"] .rv-total-score,
+[data-block="reviews"][data-tone="dark"] .rv-name,
+[data-block="reviews"][data-tone="brand"] .rv-name,
+[data-block="reviews"][data-tone="dark"] .rv-icon,
+[data-block="reviews"][data-tone="brand"] .rv-icon,
+[data-block="reviews"][data-tone="dark"] .rv-eyebrow-dash,
+[data-block="reviews"][data-tone="brand"] .rv-eyebrow-dash,
+[data-block="reviews"][data-tone="dark"] .rv-eyebrow-plain,
+[data-block="reviews"][data-tone="brand"] .rv-eyebrow-plain {
+  color: #fff !important;
+}
+[data-block="reviews"][data-tone="dark"][data-item-style="card"] .rv-item,
+[data-block="reviews"][data-tone="brand"][data-item-style="card"] .rv-item {
+  background: rgba(255, 255, 255, 0.08);
+}
+[data-block="reviews"][data-tone="dark"][data-item-style="card"] .rv-item:hover,
+[data-block="reviews"][data-tone="brand"][data-item-style="card"] .rv-item:hover {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.7);
+}
+[data-block="reviews"][data-tone="dark"] .rv-eyebrow-pill,
+[data-block="reviews"][data-tone="brand"] .rv-eyebrow-pill {
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #fff !important;
+}
+[data-block="reviews"][data-tone="dark"] .rv-eyebrow-outline,
+[data-block="reviews"][data-tone="brand"] .rv-eyebrow-outline {
+  border-color: rgba(255, 255, 255, 0.7) !important;
+  color: #fff !important;
+}

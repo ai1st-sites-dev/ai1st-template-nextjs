@@ -760,9 +760,17 @@ function navWritesInSyncConfig(file) {
   //    多键那几格会读到 0 句 —— 而 0 句在下面 AC3 那一半正好是"通过"的样子，也就是这把尺子会
   //    在自己失明的时候打绿灯。取两边共有的那一段。
   const NEEDLE = 'navigation.json, so nothing reads';
-  // 这个站：多栏页脚 + 常规顶栏 + 没有 topbar 区 —— 挑它是为了让 ⑬ 那一路（「你这个站看不到」）
-  // 对下面每一格都**不**开口，于是这一格数出来的句子只可能是本票加的那一句。
-  const SITE = { header: ['solid-bar'], footer: ['multi-column'], topbar: [] };
+  // 这个站挑的形态让 ⑬ 那一路（「你这个站看不到」）尽量少开口；这一格只数带 NEEDLE 的那一句，
+  // 所以 ⑬ 那几句（#1425 起 `renderedBy: []` 的三格任何站上都会说）不会混进读数。
+  // 📌 #1425（T3）—— 原来是 solid-bar / multi-column / 没有 topbar 区（旧库形态）；改成新库里画得最全的那一种：
+  //    页脚取「每一格非空 renderedBy 都含它」的那个预设，顶栏取第 0 个。
+  const SITE = (() => {
+    const { PAGE_READS: PR, VARIANTS_BY_REGION: VR } = mod;
+    const footerPick = VR.footer.find((v) => PR.filter((e) => e.region === 'footer' && e.renderedBy.length)
+      .every((e) => e.renderedBy.includes(v)));
+    if (!footerPick) die('⑯ 没有一种页脚预设画全所有非空 renderedBy 的格 —— 这个夹具挑不出来');
+    return { header: [VR.header[0]], footer: [footerPick] };
+  })();
   const notesFor = (next, rel = 'en/navigation.json') => writeNotes(rel, {
     content: JSON.stringify(next),
     readCurrent: () => JSON.stringify(BASE),
@@ -1075,14 +1083,14 @@ function flattenShape(shape, at = '', out = []) {
     ...(rendered === undefined ? {} : { readRenderedRegions: () => rendered }),
   });
 
-  /** 一个「这一格看不见」的站：它那一类区取一个**不在** renderedBy 里的版式（topbar 取「没有这个区」）。 */
+  /** 一个「这一格看不见」的站：它那一类区取一个**不在** renderedBy 里的版式。
+   *  📌 #1425（T3）—— 原来的底子是旧库的 solid-bar / multi-column + 「没有 topbar 区」；topbar 区退役、形态换成新库预设。 */
   const siteWhereInvisible = (e) => {
     const others = (VARIANTS_BY_REGION[e.region] || []).filter((v) => !e.renderedBy.includes(v));
     return {
-      header: ['solid-bar'],
-      footer: ['multi-column'],
-      topbar: [],
-      [e.region]: e.region === 'topbar' ? [] : others.slice(0, 1),
+      header: [VARIANTS_BY_REGION.header[0]],
+      footer: [VARIANTS_BY_REGION.footer[0]],
+      [e.region]: others.slice(0, 1),
     };
   };
   /** 每一格各改一处它自己的值。 */
@@ -1129,12 +1137,24 @@ function flattenShape(shape, at = '', out = []) {
           if (!got[0].includes(needle)) bads.push(`⑬ AC1 \`${e.key}\` 那句话里没有 "${needle}"`);
         }
       }
-      // 反过来：在一个**看得见**它的站上，同一次编辑不许多话
-      const visible = { ...siteWhereInvisible(e), [e.region]: [e.renderedBy[0]] };
-      const quiet = notes(next, visible);
-      if (quiet.length !== 0) {
-        bads.push(`⑬ \`${e.key}\` 在一个真的画它的站（${e.renderedBy[0]}）上多说了 ${quiet.length} 句 —— `
-          + '这句话会变成「你这个站不显示它」而页面上其实显示着');
+      if (e.renderedBy.length) {
+        // 反过来：在一个**看得见**它的站上，同一次编辑不许多话
+        const visible = { ...siteWhereInvisible(e), [e.region]: [e.renderedBy[0]] };
+        const quiet = notes(next, visible);
+        if (quiet.length !== 0) {
+          bads.push(`⑬ \`${e.key}\` 在一个真的画它的站（${e.renderedBy[0]}）上多说了 ${quiet.length} 句 —— `
+            + '这句话会变成「你这个站不显示它」而页面上其实显示着');
+        }
+      } else {
+        // 🔴 #1425（T3）—— `renderedBy: []`：今天没有任何形态画它。没有「看得见的站」可当反向臂 ⟹ 改成逐个预设都要说，
+        //    而且话要说成「今天没有任何样式显示它」，不许说「换个样式就能看见」（§invisibleNote 第一支）。
+        for (const v of VARIANTS_BY_REGION[e.region]) {
+          const said = notes(next, { ...siteWhereInvisible(e), [e.region]: [v] });
+          if (said.length !== 1 || !said[0].includes('no header or footer style on this website shows it today')) {
+            bads.push(`⑬ \`${e.key}\`（renderedBy 空）在 ${e.region}="${v}" 的站上应当有 1 句「今天没有任何样式显示它」，`
+              + `实际 ${said.length} 句${said[0] ? `：「${said[0].slice(0, 80)}…」` : ''}`);
+          }
+        }
       }
       // 算不出版式那条路：也要说话，而且要点名这个字段（沉默 = 本票要治的那个病）
       const unknown = notes(next, null);
@@ -1292,527 +1312,301 @@ function flattenShape(shape, at = '', out = []) {
 }
 
 
-// ── ⑮ 一页上有三个页脚的站（`tri-footer`）不许被判成「看不见」（#1104 r6）────────────────────────
+// ── ⑮ 一页上有三个页脚的站不许被判成「看不见」（#1104 r6）────────────────────────────────────────
 //
 // 🔴 这一格钉的是 `lib/site-regions.js` 里那句承重的话：**这个站真的画出几个页脚，不是主题那一个值。**
-//    页面版式库里的 `tri-footer` 把页脚拆成三个区，每个区的版式由布局自己钉（`repeatVariants`）。
-//    只看 `regionLayout.footer` 的实现会把这种站判成「页脚是 multi-column」——碰巧对；但反过来
-//    主题给 `slim-row` 而布局里那三支含 `multi-column` 时，就会对一个**真的显示着**的栏目标题说
-//    「你这个站不显示它」= 新造一句假话。两种方向都由这一格量。
+//    布局可以把页脚拆成几个区，每个区的形态由布局自己钉（`repeatVariants`）。只看主题那一个值的实现，
+//    会对一个**真的显示着**的字段说「你这个站不显示它」= 新造一句假话。
+// 📌 #1425（T3）—— 原来用库里的 `tri-footer` / `with-topbar` 两份布局当夹具，量 `footer.columns[].title`。两份布局随
+//    公告条 / 旧页脚删了（库里只剩 standard），`footer.columns[].title` 也成了「没有任何形态画它」（renderedBy 空）。
+//    而 `repeatVariants` 这条线今天仍接着（`SiteShell.tsx` 的 footer 支）⟹ 夹具换成一份**合成**的三页脚布局，
+//    放在一个临时布局目录里（`resolveSiteLayout` 的第二个参数就是目录；这里只把 site-regions 用到的那一个入口
+//    指过去，测完原样还回去），被量的字段换成 `footer.description`（只有部分页脚预设画它，正好有两向）。
+//    「带 topbar 区」那一臂守的东西随公告条那个区删了，改成反向钉「解析结果里没有 topbar 这一类区」。
 {
   const os = require('os');
   const siteRegions = require('./site-regions.js');
-  const { PAGE_READS, notRenderedHere } = mod;
-  const title = PAGE_READS.find((e) => e.key === 'footer.columns[].title');
-  if (!title) die('⑮ PAGE_READS 里找不到 footer.columns[].title —— 这一格量的是它');
+  const pageLayoutLib = require('./page-layout.js');
+  const { PAGE_READS, notRenderedHere, VARIANTS_BY_REGION } = mod;
+  const desc = PAGE_READS.find((e) => e.key === 'footer.description');
+  if (!desc) die('⑮ PAGE_READS 里找不到 footer.description —— 这一格量的是它');
+  const FOOTERS = VARIANTS_BY_REGION.footer;
+  const DEFAULT = FOOTERS[0];
+  const unseen = FOOTERS.filter((v) => !desc.renderedBy.includes(v));
+  if (!desc.renderedBy.length || desc.renderedBy.includes(DEFAULT) || !unseen.length) {
+    die(`⑮ 夹具前提不成立：footer.description 的 renderedBy=${JSON.stringify(desc.renderedBy)}，默认页脚 ${DEFAULT} —— `
+      + '要「默认那一种不画它、另有一种画它」才分得出两向');
+  }
+  const TRI = { 'footer-a': unseen[unseen.length - 1], 'footer-b': desc.renderedBy[0], 'footer-c': DEFAULT };
 
-  // 夹具目录跑完就收 —— 留在 /tmp 里的半个站会被下一个人当成真站（本仓的 fixture 卫生那条）。
   const madeDirs = [];
+  const mk = (prefix) => { const d = fs.mkdtempSync(path.join(os.tmpdir(), prefix)); madeDirs.push(d); return d; };
+  const layoutsDir = mk('navowned-layouts-');
+  for (const f of fs.readdirSync(pageLayoutLib.LAYOUTS_DIR)) {
+    fs.copyFileSync(path.join(pageLayoutLib.LAYOUTS_DIR, f), path.join(layoutsDir, f));
+  }
+  const tri = { id: 'tri-footer-fixture', regions: ['header', 'content', ...Object.keys(TRI)], repeatVariants: TRI };
+  const triProblems = pageLayoutLib.validateLayout(tri);
+  if (triProblems.length) die(`⑮ 合成的三页脚布局本身不合法：${triProblems.join(' · ')}`);
+  fs.writeFileSync(path.join(layoutsDir, `${tri.id}.json`), JSON.stringify(tri, null, 2));
+
   /** 造一个只写了 page-layout.json 的站目录（theme.json 不写 ⟹ 主题那一维走默认值）。 */
   const siteWith = (layoutId) => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'navowned-regions-'));
-    madeDirs.push(dir);
-    const site = path.join(dir, 'site');
+    const site = path.join(mk('navowned-regions-'), 'site');
     fs.mkdirSync(site);
     if (layoutId) fs.writeFileSync(path.join(site, 'page-layout.json'), JSON.stringify({ layoutId }));
     return site;
   };
-  const seenBy = (site) => {
-    const r = siteRegions.resolveSiteRegions(site);
-    return {
-      footerVariants: r.footerVariants,
-      invisible: notRenderedHere(title, {
-        header: [r.regions.header.shape], footer: r.footerVariants, topbar: r.hasTopbarRegion ? [r.regions.topbar.shape] : [],
-      }),
-      hasTopbar: r.hasTopbarRegion,
-    };
-  };
-
+  const origResolve = pageLayoutLib.resolveSiteLayout;
+  pageLayoutLib.resolveSiteLayout = (siteDir, dir) => origResolve(siteDir, dir || layoutsDir);
   const problems = [];
-  const tri = seenBy(siteWith('tri-footer'));
-  if (tri.footerVariants.length !== 3) {
-    problems.push(`⑮ tri-footer 的站应当画 3 个页脚，量到 ${tri.footerVariants.length} 个`
-      + `（${JSON.stringify(tri.footerVariants)}）—— 只看主题那一个值就会是 1 个`);
+  let triSeen; let std;
+  try {
+    const seenBy = (site) => {
+      const r = siteRegions.resolveSiteRegions(site);
+      return {
+        footerVariants: r.footerVariants,
+        invisible: notRenderedHere(desc, { header: [r.regions.header.shape], footer: r.footerVariants }),
+        regionKinds: Object.keys(r.regions).filter((k) => k !== 'notes').sort(),
+      };
+    };
+    triSeen = seenBy(siteWith(tri.id));
+    if (JSON.stringify(triSeen.footerVariants) !== JSON.stringify(Object.values(TRI))) {
+      problems.push(`⑮ 三页脚的站应当画 ${JSON.stringify(Object.values(TRI))}，量到 ${JSON.stringify(triSeen.footerVariants)}`
+        + ' —— 只看主题那一个值就会是 1 个');
+    }
+    if (triSeen.invisible) {
+      problems.push(`⑮ 三页脚的站上有一支是 ${TRI['footer-b']}（它真的画页脚介绍），却被判成「看不见」`
+        + ' —— 这道门会对一个真会显示的字段说假话');
+    }
+    // 反向对照：默认版式（一个页脚）+ 主题默认（不画介绍的那种）⟹ 一个页脚、看不见。两向都量，否则上面那格可能只是「恒 false」。
+    std = seenBy(siteWith(null));
+    if (JSON.stringify(std.footerVariants) !== JSON.stringify([DEFAULT])) {
+      problems.push(`⑮ 默认版式应当只画 1 个 ${DEFAULT} 页脚，量到 ${JSON.stringify(std.footerVariants)}`);
+    }
+    if (!std.invisible) {
+      problems.push(`⑮ 反向对照塌了：页脚只有 ${DEFAULT} 时 footer.description 也被判成看得见 —— 上面那格的 false 是恒 false`);
+    }
+    // #1425（T3）—— 公告条那个区退役：解析结果里只许有 header / footer 两类区。
+    for (const [name, x] of [['三页脚', triSeen], ['默认', std]]) {
+      if (JSON.stringify(x.regionKinds) !== JSON.stringify(['footer', 'header'])) {
+        problems.push(`⑮ ${name}的站解析出的区是 ${JSON.stringify(x.regionKinds)}，应当只有 header / footer（topbar 区已退役）`);
+      }
+    }
+  } finally {
+    pageLayoutLib.resolveSiteLayout = origResolve;
+    for (const d of madeDirs) fs.rmSync(d, { recursive: true, force: true });
   }
-  if (tri.invisible) {
-    problems.push('⑮ tri-footer 的站上三支页脚里有 multi-column（它真的画栏目标题），却被判成「看不见」'
-      + ' —— 这道门会对一个真会显示的字段说假话');
-  }
-
-  // 反向对照：默认版式（一个页脚）+ 主题默认（multi-column）⟹ 一个页脚、看得见；
-  //           而把它换成不画标题的那种版式就该看不见。两向都量，否则上面那格可能只是「恒 false」。
-  const std = seenBy(siteWith(null));
-  if (std.footerVariants.length !== 1) {
-    problems.push(`⑮ 默认版式应当只画 1 个页脚，量到 ${std.footerVariants.length} 个`);
-  }
-  if (std.hasTopbar) problems.push('⑮ 默认版式不该有 topbar 区，量到有');
-  const topbarSite = seenBy(siteWith('with-topbar'));
-  if (!topbarSite.hasTopbar) problems.push('⑮ with-topbar 的站应当有 topbar 区，量到没有');
-  // 这一支：假设它的页脚是不画标题的那种 ⟹ 必须判成看不见（同一个函数，只换输入）
-  const invisibleArm = notRenderedHere(title, { header: ['solid-bar'], footer: ['slim-row'], topbar: [] });
-  if (!invisibleArm) {
-    problems.push('⑮ 反向对照塌了：页脚只有 slim-row 时 footer.columns[].title 也被判成看得见'
-      + ' —— 那上面那格的 false 是恒 false，什么都没量到');
-  }
-
   if (problems.length === 0) {
-    ok(`⑮ 「这个站真的画出几个页脚」量的是布局而不是主题那一个值：tri-footer → `
-      + `${JSON.stringify(tri.footerVariants)}（含 multi-column ⟹ 栏目标题看得见，不说那句话）· `
-      + '默认版式 → 1 个 · with-topbar → 有 topbar 区 · 只有 slim-row → 看不见（反向对照有量程）');
+    ok(`⑮ 「这个站真的画出几个页脚」量的是布局而不是主题那一个值：三页脚 → ${JSON.stringify(triSeen.footerVariants)}`
+      + `（含 ${TRI['footer-b']} ⟹ 页脚介绍看得见，不说那句话）· 默认版式 → [${DEFAULT}] → 看不见（反向对照有量程）· 区只有 header / footer`);
   } else problems.forEach(bad);
-  for (const d of madeDirs) fs.rmSync(d, { recursive: true, force: true });
 }
 
-// ── ⑫ `PAGE_READS` 的 `renderedBy` == 页面上【真的看得见它】的那几种形态（#1104 r6 · #1353 改判据）
+// ── ⑫ `PAGE_READS` 的 `renderedBy` == 页面上【真的看得见它】的那几种形态（#1104 r6 · #1353 · #1425 改判据）
 //
 // 🔴 为什么这一格是这批改动里最要紧的：`renderedBy` 是一张表，而这张表决定「要不要跟老板说一句
 //    你这个站看不见它」。表漂了，两个方向的后果都是新的假话：
 //      · 表里说这一种画它、其实看不见 ⟹ 老板拿到「已完成」，页面上什么都没变（本票要治的病）
 //      · 表里没写、其实看得见     ⟹ 我们对一个真会显示的字段说「你这个站不显示它」（新造一句假话）
 //
-// 🔴 #1353 —— **判据换了家，性质一个字没变。** 顶栏 / 页脚以前是「一变体一棵树」，所以「这一支画不画
-//    它」用 TypeScript 解析器按 `data-region-layout` 拆分支就能答。今天只有**一副骨架**：组件对每一种
-//    形态渲染同样的 DOM，差别整个落在 `public/shapes.css` 把哪几个零件 `display:none`。所以这一格拆成
-//    两半，两半都带阳性对照：
-//      A 组件**真的把这个字段画进 DOM 了吗** —— 仍用那把解析器（它跟着别名和回调参数走）。
-//      B 这一种形态下它**看不看得见** —— 去问 `base.css` 的地板 + `shapes.css` 那一种形态的覆盖。
-//    只留 A：所有形态读数相同，这张表的判别力整个没了（恒绿）。只留 B：渲染点被删掉时 CSS 一个字
-//    不变 ⟹ 照样全绿。两半都要。
+// 🔴 #1425（T3）—— **判据第三次换家，性质一个字没变。** 原来（#1353）拆两半：A 用 TypeScript 解析器按别名 / 回调参数
+//    追旧 `Footer.tsx` / `Header.tsx` 读了 navigation.json 的哪几处，B 去问 `base.css` + `shapes.css` 哪个零件在哪种形态下
+//    `display:none`。旧组件随旧库删了；新库的 header / footer 是纯 props 块，**不再自己读 navigation.json** —— 构建期
+//    `lib/shell-data.js` 的 `shellDataFor` 把它派生成块的 data，形态（= 预设名）决定排版。所以这一格改成直接量那条链本身：
+//      往夹具 navigation.json 的那一格种一个独有的记号 → 真派生函数（`shellDataFor`）→ 真展开引用（`resolveItemSources`，
+//      同 sync-config.js 的顺序）→ 真组件（`blocks/<区>/Section.tsx`）**逐个预设**渲染一次 → 记号出没出现在 HTML 里，
+//    再跟 `renderedBy` 两向比对。`renderedBy: []` 那三格因此被量成「每个预设都不画它」。渲染 .tsx 的办法照
+//    `scripts/contact-refs.test.js`（ts.transpileModule + require 钩子 + next/link 等替身）。
+//    📌 射程：量的是**有没有进 HTML**。CSS 层（`block.css`）把某个零件藏起来这一维这里不量 —— 新库的预设是组件里的旋钮
+//       组合，排版差异在 markup 里，不在 `display:none` 上。
 {
   const { PAGE_READS, VARIANTS_BY_REGION } = mod;
-  // 每一类区由哪个组件画。#1353 起三个都不按形态分支（一副骨架），所以 `splitByVariant:false`；
-  // 哪天有人给某个组件加回分支，下面 A 那半会读到「某一种形态不画它」而当场说话。
-  const REGION_FILES = [
-    // #1387 —— 顶栏 / 页脚这两个区是块，骨架搬进了它们自己的文件夹（`blocks/<区>/Section.tsx`）。
-    { region: 'header', file: path.join('blocks', 'header', 'Section.tsx'), splitByVariant: false },
-    { region: 'footer', file: path.join('blocks', 'footer', 'Section.tsx'), splitByVariant: false },
-    { region: 'topbar', file: path.join('src', 'components', 'TopbarRegion.tsx'), splitByVariant: false },
-  ];
-  // 页脚那些零件住在 blocks/footer/Section.tsx，`topbar` 那一格读的是 `TopbarRegion.tsx`；
-  // 顶栏读 blocks/header/Section.tsx。
-
-  /** region → { variant → Set(读到的 navigation.json 路径) }；读不出来的一律 unavailable。 */
-  const measured = {};
-  for (const r of REGION_FILES) {
-    const abs = path.join(TEMPLATE_ROOT, r.file);
-    if (!fs.existsSync(abs)) die(`⑫ 读不到 ${r.file} —— 这一格量的是它`);
-    const got = navReadsByVariant(abs, fs.readFileSync(abs, 'utf-8'), r, VARIANTS_BY_REGION[r.region]);
-    if (got.unavailable) die(`⑫ ${r.file}：${got.unavailable}`);
-    measured[r.region] = got.byVariant;
-  }
-
-  // ── B 那半要的那把尺：一个类在某一种形态下是不是 display:none ────────────────────────────────
-  //    只看两份平台 CSS（地板 + 形态层）—— 主题表按设计不碰这两个区（`public/shapes.css` 那条明写
-  //    例外里写了为什么），所以这里读全了。
-  const CSS_FILES = ['public/base.css', 'public/shapes.css']
-    .map((f) => path.join(TEMPLATE_ROOT, f));
-  for (const f of CSS_FILES) if (!fs.existsSync(f)) die(`⑫ 读不到 ${f} —— B 那半量的是它`);
-  const cssTextOf = (override) => CSS_FILES
-    .map((f) => (override && override.file === f ? override.text : fs.readFileSync(f, 'utf-8')))
-    .join('\n')
-    .replace(/\/\*[\s\S]*?\*\//g, '');
-
-  /** 这个类在这一种形态下的 display —— 形态层那条盖地板那条；都没有就回 undefined。 */
-  const displayOf = (cssText, cls, block, shape) => {
-    let base; let scoped;
-    for (const m of cssText.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-      const sel = m[1].trim();
-      if (sel.startsWith('@')) continue;
-      const hitsClass = sel.split(',').some((one) => new RegExp(`\\.${cls.replace(/[-]/g, '\\-')}(?![\\w-])`).test(one));
-      if (!hitsClass) continue;
-      const decls = [...m[2].matchAll(/(?:^|[\s;])display\s*:\s*([a-z-]+)/g)].map((d) => d[1]);
-      if (!decls.length) continue;
-      const isScoped = new RegExp(`\\[data-block="${block}"\\]\\[data-shape="${shape}"\\]`).test(sel);
-      const isOtherShape = /\[data-shape="[^"]+"\]/.test(sel) && !isScoped;
-      if (isOtherShape) continue;             // 别的形态的规则，跟这一种无关
-      if (isScoped) scoped = decls[decls.length - 1];
-      else base = decls[decls.length - 1];
-    }
-    return scoped !== undefined ? scoped : base;
-  };
-  // 🔴 #1353 —— 一项里可以是**一个名字**，也可以是**一组名字**（数组）。两者的意思不同，而这个差别
-  // 是承重的：平列的两个名字 = 「每一个都得看得见」（`footer.columns[].title` 要的就是这个：
-  // cta-band 关掉整栏、slim-row 关掉标题，任一关掉这句话就没了）；一组 = 「有一个看得见就算数」
-  // （`footer.description` 要的是这个：它有两个画它的地方，而没有哪一种形态两个都开）。
-  const groupHidden = (cssText, entry, block, shape) => (Array.isArray(entry) ? entry : [entry])
-    .every((cls) => displayOf(cssText, cls, block, shape) === 'none');
-  const hiddenIn = (cssText, e, block, shape) => (e.visibilityClasses || [])
-    .some((entry) => groupHidden(cssText, entry, block, shape));
-
-  const REGION_BLOCK = require(path.join(TEMPLATE_ROOT, 'scripts', 'region-layout.js')).REGION_BLOCK;
-
-  const problems = [];
-  let compared = 0;
-  const baseCss = cssTextOf(null);
-  for (const e of PAGE_READS) {
-    const byVariant = measured[e.region];
-    if (!byVariant) { problems.push(`⑫ \`${e.key}\` 的区 "${e.region}" 没有对应的组件文件`); continue; }
-    if (!Array.isArray(e.visibilityClasses) || !e.visibilityClasses.length) {
-      problems.push(`⑫ \`${e.key}\` 没有声明 \`visibilityClasses\` —— B 那半对它按构造失明`);
-      continue;
-    }
-    const block = REGION_BLOCK[e.region];
-    for (const v of VARIANTS_BY_REGION[e.region]) {
-      compared++;
-      const reads = byVariant[v] || new Set();
-      const reallyReads = e.renderPaths.some((p) => reads.has(p));      // A
-      const visible = reallyReads && !hiddenIn(baseCss, e, block, v);    // A ∧ B
-      const claimed = e.renderedBy.includes(v);
-      if (claimed && !visible) {
-        problems.push(`⑫ \`${e.key}\`：表里说 "${v}" 看得见它，而实测`
-          + `${reallyReads ? `形态 "${v}" 的 CSS 把 ${e.visibilityClasses.map((x) => (Array.isArray(x) ? `(${x.join(' 或 ')})` : x)).join(' / ')} 关掉了` : '组件根本没把它画进 DOM'}`
-          + ' —— 这道门现在会漏说那句话（老板会拿到「已完成」而页面没变）');
-      } else if (!claimed && visible) {
-        problems.push(`⑫ \`${e.key}\`：实测 "${v}" 下它是看得见的，而表里没写 —— `
-          + '这道门会对一个真会显示的字段说「你这个站不显示它」，是新造的一句假话');
-      }
-    }
-  }
-  if (problems.length === 0) {
-    ok(`⑫ ${PAGE_READS.length} 格 × 各自那一类区的全部形态 = ${compared} 个组合，`
-      + '「表里说看不看得见」跟【组件真的画了 ∧ 这一种形态的 CSS 没关掉它】逐个相同');
-  } else problems.forEach(bad);
-
-  // 🔴 阳性对照 —— A 半、B 半各一个，都只改一处。
-  const footerAbs = path.join(TEMPLATE_ROOT, 'blocks', 'footer', 'Section.tsx');
-  const footerSrc = fs.readFileSync(footerAbs, 'utf-8');
-  const footerCfg = REGION_FILES.find((r) => r.region === 'footer');
-  const readsOf = (src) => {
-    const got = navReadsByVariant(footerAbs, src, footerCfg, VARIANTS_BY_REGION.footer);
-    return got.unavailable ? got : got.byVariant;
-  };
-
-  // ① A 半：删掉一个渲染点 —— `<h3>` 里画栏目标题的那**一句**，**`key={column.title}` 留着**。
-  //    这个夹具的选法是承重的：把两处一起删的话，一个把 React key 也算成渲染的实现照样会红
-  //    ⟹ 对照分不出两种实现。
-  {
-    const line = (footerSrc.split('\n').find((l) => l.includes('<h3') && l.includes('{column.title}')) || '');
-    if (!line) {
-      bad('⑫ 阳性对照① 立不起来：Footer.tsx 里找不到那一行 `<h3 …>{column.title}</h3>`');
-    } else if (!/key=\{column\.title\}/.test(footerSrc)) {
-      bad('⑫ 阳性对照① 立不起来：Footer.tsx 里没有 `key={column.title}` —— 这个夹具的意义就是留着它'
-        + '，好让「把 React key 算成渲染」的实现被抓出来');
-    } else {
-      const got = readsOf(footerSrc.replace(line, line.replace('{column.title}', '{/* qa removed */}')));
-      const still = got.unavailable ? null : (got['multi-column'] || new Set()).has('footer.columns[].title');
-      if (still === false) {
-        ok('⑫ 阳性对照①（A 半）：只把 `<h3>` 里那一处 `{column.title}` 删掉（`key={column.title}` 留着），'
-          + '解析器当场说组件不再画栏目标题 ⟹ 那一半的绿是活的，而且这把尺没把 React key 当成渲染');
-      } else {
-        bad(`⑫ 阳性对照①失败：删掉那个渲染点之后解析器照样说它画（${got.unavailable || '仍然命中'}）`
-          + ' —— 这把尺子没有真的在读组件');
-      }
-    }
-  }
-
-  // ② B 半：把 `slim-row` 那条「关掉描述」的规则拿掉 ⟹ 它在 slim-row 下就该变成看得见，
-  //    而表里没写 slim-row ⟹ 上面那段必须报「新造的假话」那一条。
-  {
-    const shapesPath = path.join(TEMPLATE_ROOT, 'public', 'shapes.css');
-    const shapesSrc = fs.readFileSync(shapesPath, 'utf-8');
-    const entry = PAGE_READS.find((x) => x.key === 'footer.description');
-    const before = hiddenIn(baseCss, entry, 'footer', 'slim-row');
-    const rigged = cssTextOf({ file: shapesPath, text: shapesSrc.replace(/\.footer__desc,/, '.footer__desc-disabled,') });
-    const after = hiddenIn(rigged, entry, 'footer', 'slim-row');
-    if (before === true && after === false) {
-      ok('⑫ 阳性对照②（B 半）：把 `slim-row` 那条关掉 `.footer__desc` 的规则改个名，'
-        + '这把尺当场说它在 slim-row 下看得见 ⟹ 「CSS 关没关掉它」这一维是活的');
-    } else {
-      bad(`⑫ 阳性对照②失败：改前 hidden=${before} · 改后 hidden=${after}`
-        + ' —— B 那半没有真的在读 CSS（两边同值 = 这一维没有量程）');
-    }
-  }
-}
-
-/**
- * 一个组件里，**按版式分开**，每一支读了 `navigation.json` 的哪几处？（⑫ 用它）
- *
- * 判据不是 grep 字段名 —— 那会漏掉两种今天真实存在的写法，而漏掉的方向是「说它不画」：
- *   · **别名**：`Footer.tsx` 把版权行 hoist 成 `const copyright = <p>…{footer.copyright}</p>`，
- *     `slim-row` / `cta-band` 两支渲染的是 `{copyright}` —— 只 grep `footer.copyright` 会判成
- *     这两支不画版权行（QA2 和 PM 各自踩过一次这个坑，两人第一版的射程表都是错的）。
- *   · **回调参数**：`footer.columns.map((column) => … {column.title} …)` 里那个字段是
- *     `column.title`，源码里根本没有 `footer.columns[].title` 这个串。
- * 所以这里跟着别名走、也跟着回调参数走。
- *
- * 🔴 认不出的写法一律【说不出来】(`unavailable` → 调用方 exit 2)，不许静默当成「没读」：
- *    静默那个方向会让这一格变成恒绿，而它恰好是本票要防的那种失明。同 ③ 的纪律。
- *
- * @param {string} file 文件名（只用来报位置）
- * @param {string} src  源码文本 —— **传文本而不是只传路径，是为了阳性对照能改一处再量一次**
- * @param {{region: string, splitByVariant: boolean}} cfg
- * @param {string[]} variants 这一类区一共有哪些版式
- * @returns {{byVariant?: Object<string, Set<string>>, unavailable?: string}}
- */
-function navReadsByVariant(file, src, cfg, variants) {
-  let ts;
+  const os = require('os');
+  const Module = require('module');
+  let ts2; let React; let renderToStaticMarkup;
   try {
-    ts = require('typescript');
-  } catch (e) {
-    if (e.code !== 'MODULE_NOT_FOUND') throw e;
-    return { unavailable: "读不到 typescript 这个模块，没法解析组件（在 templates/nextjs 里跑 npm ci）" };
-  }
-  const sf = ts.createSourceFile(file, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const lineOf = (n) => sf.getLineAndCharacterOfPosition(n.getStart()).line + 1;
-  const cantTell = [];
+    ts2 = require('typescript');
+    React = require('react');
+    ({ renderToStaticMarkup } = require('react-dom/server'));
+  } catch (e) { die(`⑫ 加载不起来（在 templates/nextjs 里跑 npm ci）：${e.message}`); }
 
-  // 会把「这一段里还读了哪些更深的字段」带走的方法：只列**确定只读**的。认不出的方法名走 cantTell。
-  const ITERATORS = new Set(['map', 'flatMap', 'filter', 'find', 'findIndex', 'some', 'every', 'forEach']);
-  const SAFE_READS = new Set([
-    'slice', 'concat', 'join', 'includes', 'indexOf', 'lastIndexOf', 'at', 'reverse', 'sort',
-    'toString', 'trim', 'replace', 'replaceAll', 'split', 'startsWith', 'endsWith', 'toLowerCase',
-    'toUpperCase', 'keys', 'values', 'entries', 'reduce',
-  ]);
-
-  /** 一条 `a.b[0].c` 链 → { root, rel }；不是这种链就 null。数组下标一律归一成 `[]`。 */
-  const chain = (node) => {
-    const segs = [];
-    let cur = node;
-    for (;;) {
-      if (ts.isPropertyAccessExpression(cur)) { segs.unshift(`.${cur.name.text}`); cur = cur.expression; continue; }
-      if (ts.isElementAccessExpression(cur)) { segs.unshift('[]'); cur = cur.expression; continue; }
-      break;
-    }
-    if (!ts.isIdentifier(cur)) return null;
-    return { root: cur.text, rel: segs.join('').replace(/^\./, '') };
+  // ── 让 node 能 require .tsx；Next 自己的、站点配置换成替身（同 contact-refs.test.js）。替身放临时目录，react 按绝对路径引 ──
+  const stubDir = fs.mkdtempSync(path.join(os.tmpdir(), 'navowned-stubs-'));
+  const REACT = JSON.stringify(require.resolve('react'));
+  const stub = (name, body) => { const f = path.join(stubDir, `${name}.js`); fs.writeFileSync(f, body); return f; };
+  const STUBS = {
+    'next/link': stub('link', `const React=require(${REACT});const L=({href,children,...r})=>React.createElement('a',{href,...r},children);module.exports=L;module.exports.default=L;\n`),
+    '@/components/ServiceIcon': stub('icon', `const React=require(${REACT});const C=()=>React.createElement('span');module.exports=C;module.exports.default=C;\n`),
+    '@/lib/config': stub('config', 'module.exports={defaultLocale:"en",locales:["en"],siteId:"t",leadApi:"",'
+      + 'getServices:()=>[],get pagesByLocale(){return {en:[]};},localeUrl:(s)=>s==="home"?"/":"/"+s,getBlogPosts:()=>[],'
+      + 'get brand(){return {locations:[]};},getForms:()=>[]};\n'),
   };
-
-  /** 从这个标识符往外走到最长的那条访问链。 */
-  const outermost = (id) => {
-    let n = id;
-    while (n.parent
-           && ((ts.isPropertyAccessExpression(n.parent) && n.parent.expression === n)
-               || (ts.isElementAccessExpression(n.parent) && n.parent.expression === n))) {
-      n = n.parent;
-    }
-    return n;
-  };
-
-  const joinPath = (base, rel) => (base ? (rel ? `${base}.${rel}` : base) : rel);
-
-  // ── ① 哪些局部变量就是 navigation.json 里的东西？根是 `getNavigation(...)` 的返回值 ────────────
-  //    `const { footer } = getNavigation(locale)` → footer 对应 "footer"
-  //    `const nav = getNavigation(locale)`        → nav 对应 ""（整份）
-  const env = new Map();
-  const findRoots = (node) => {
-    if (ts.isVariableDeclaration(node) && node.initializer
-        && /\bgetNavigation\s*\(/.test(node.initializer.getText())) {
-      if (ts.isIdentifier(node.name)) env.set(node.name.text, '');
-      else if (ts.isObjectBindingPattern(node.name)) {
-        for (const el of node.name.elements) {
-          if (!ts.isIdentifier(el.name)) {
-            cantTell.push(`第 ${lineOf(el)} 行 getNavigation() 的解构里有一处不是普通名字（\`${el.getText()}\`）`);
-            continue;
-          }
-          const from = el.propertyName && ts.isIdentifier(el.propertyName) ? el.propertyName.text : el.name.text;
-          env.set(el.name.text, from);
-        }
-      } else {
-        cantTell.push(`第 ${lineOf(node)} 行 getNavigation() 的接法认不出来：\`${node.name.getText()}\``);
-      }
-    }
-    ts.forEachChild(node, findRoots);
-  };
-  findRoots(sf);
-  if (env.size === 0) return { unavailable: '找不到任何 getNavigation(...) 的接收方 —— 这个组件还读 navigation.json 吗？' };
-
-  // ── ② 把它存到别的变量里的那些（`const topbar = nav.topbar`）也算同一个东西，跑到不动为止 ──────
-  for (let round = 0; round < 8; round++) {
-    let grew = false;
-    const findAliases = (node) => {
-      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer
-          && !env.has(node.name.text)
-          && (ts.isPropertyAccessExpression(node.initializer) || ts.isElementAccessExpression(node.initializer)
-              || ts.isIdentifier(node.initializer))) {
-        const c = chain(node.initializer);
-        if (c && env.has(c.root)) { env.set(node.name.text, joinPath(env.get(c.root), c.rel)); grew = true; }
-      }
-      ts.forEachChild(node, findAliases);
-    };
-    findAliases(sf);
-    if (!grew) break;
-  }
-
-  // 值被整个交到别处去的那些位置（判在最后，那里才知道 renderPaths）。
-  const handoffs = [];
-
-  // ── ③ 一段代码里读了哪几处 + 它引用了哪些「装着 JSX 的变量」──────────────────────────────────
-  /**
-   * @param {ts.Node} root 从哪一段开始看
-   * @param {Map<string,string>} scope 名字 → navigation.json 里的位置
-   */
-  const scan = (root, scope) => {
-    const paths = new Set();
-    const refs = new Set();          // 这一段引用到的本地变量名（用来把 JSX 别名的读数并进来）
-    const walk = (node, sc) => {
-      // 🔴 `key={column.title}` / `ref={…}` 这两个属性【不进 DOM】—— React 自己吃掉它们。把它们算成
-      //    「这一支画了这个字段」，正是这道守卫要防的那件事的反面：`Footer.tsx` 里 `column.title`
-      //    出现两次（`:266` 的 key 与 `:267` 的 `<h3>`），只删掉真正渲染的那一处之后，key 还在 ⟹
-      //    解析器照样说它画，这一格全绿。**实测过：那次变异 rc=0 · 0 红。**（我自己第一版的阳性对照
-      //    没抓到它，因为那个对照用 `split/join` 把两处一起删了 —— 对照跑在一个分不出两种实现的夹具上。）
-      if (ts.isJsxAttribute(node) && ['key', 'ref'].includes(node.name.getText())) return;
-      // `X.map(cb)` 这类：把回调那个参数绑成 `X[]`，然后进回调里继续看
-      if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
-        const callee = node.expression;
-        const c = chain(callee);
-        if (c && sc.has(c.root)) {
-          const method = callee.name.text;
-          // `columns[].map` → 去掉尾巴上那个方法名，剩下的才是「被读的那一处」。
-          const relNoMethod = c.rel === method ? '' : c.rel.slice(0, c.rel.length - method.length - 1);
-          const base = joinPath(sc.get(c.root), relNoMethod);
-          if (base) paths.add(base);
-          if (ITERATORS.has(method)) {
-            const cb = node.arguments[0];
-            const inner = new Map(sc);
-            if (cb && (ts.isArrowFunction(cb) || ts.isFunctionExpression(cb))) {
-              const p0 = cb.parameters[0];
-              if (p0 && ts.isIdentifier(p0.name)) inner.set(p0.name.text, `${base}[]`);
-              else if (p0) cantTell.push(`第 ${lineOf(p0)} 行 \`${method}\` 的回调参数不是普通名字（\`${p0.getText()}\`）`);
-            } else if (cb) {
-              cantTell.push(`第 ${lineOf(cb)} 行 \`${method}\` 的第一个参数不是函数字面量 —— 里面读了什么这里看不见`);
-            }
-            node.arguments.forEach((a) => walk(a, inner));
-            return;                                            // callee 已经数过，别再走一遍
-          }
-          if (!SAFE_READS.has(method)) {
-            cantTell.push(`第 ${lineOf(callee)} 行 方法 \`${method}\` 不在「确定只读」那张白名单里 —— `
-              + `\`${callee.getText().slice(0, 60)}\``);
-          }
-          node.arguments.forEach((a) => walk(a, sc));
-          return;
-        }
-      }
-      if (ts.isIdentifier(node)) {
-        const isDeclName = (ts.isVariableDeclaration(node.parent) || ts.isParameter(node.parent))
-          && node.parent.name === node;
-        const isPropName = (ts.isPropertyAccessExpression(node.parent) && node.parent.name === node)
-          || (ts.isPropertyAssignment(node.parent) && node.parent.name === node)
-          || (ts.isJsxAttribute(node.parent) && node.parent.name === node);
-        if (!isDeclName && !isPropName) {
-          if (sc.has(node.text)) {
-            const outer = outermost(node);
-            const c = chain(outer);
-            const full = joinPath(sc.get(node.text), c ? c.rel : '');
-            if (full) paths.add(full);
-            // 🔴 值被交到别处去（当参数 / 塞进对象或数组 / 传成 JSX 的 prop）⟹ 拿走它的那一段还会
-            //    读它下面哪几个字段，这把尺子看不见。只有当它是某个 renderPath 的【真前缀】时才要紧,
-            //    所以先记下来，判在调用方（那里知道 renderPaths）。
-            const p = outer.parent;
-            const handoff = (ts.isCallExpression(p) && p.arguments.includes(outer))
-              || ts.isJsxExpression(p) && p.parent && ts.isJsxAttribute(p.parent)
-              || ts.isPropertyAssignment(p) || ts.isShorthandPropertyAssignment(p)
-              || ts.isArrayLiteralExpression(p) || ts.isSpreadElement(p) || ts.isSpreadAssignment(p);
-            if (handoff && full) handoffs.push({ line: lineOf(outer), at: full, text: outer.getText().slice(0, 60) });
-          } else {
-            refs.add(node.text);
-          }
-        }
-      }
-      ts.forEachChild(node, (c) => walk(c, sc));
-    };
-    walk(root, scope);
-    return { paths, refs };
-  };
-
-  // ── ④ 装着 JSX 的那些变量（`const copyright = <p>…</p>`）各自读了什么，跑到不动为止 ──────────
-  const jsxVars = new Map();        // 名字 → { paths:Set, refs:Set }
-  const hasJsx = (node) => {
-    let found = false;
-    const look = (n) => {
-      if (found) return;
-      if (ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n) || ts.isJsxFragment(n)) { found = true; return; }
-      ts.forEachChild(n, look);
-    };
-    look(node);
-    return found;
-  };
-  const findJsxVars = (node) => {
-    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer
-        && !env.has(node.name.text) && hasJsx(node.initializer)) {
-      jsxVars.set(node.name.text, scan(node.initializer, env));
-    }
-    ts.forEachChild(node, findJsxVars);
-  };
-  findJsxVars(sf);
-  /** 把 `{copyright}` 这类引用的读数并进来（别名引别名也跟着走）。 */
-  const closure = (seed, seen = new Set()) => {
-    const out = new Set(seed.paths);
-    for (const name of seed.refs) {
-      if (seen.has(name) || !jsxVars.has(name)) continue;
-      seen.add(name);
-      for (const p of closure(jsxVars.get(name), seen)) out.add(p);
-    }
-    return out;
-  };
-
-  // ── ⑤ 按 `data-region-layout` 把各支拆开 ──────────────────────────────────────────────────────
-  const byVariant = {};
-  if (cfg.splitByVariant) {
-    const branches = new Map();
-    const findBranches = (node) => {
-      if (ts.isJsxAttribute(node) && node.name.getText() === 'data-region-layout') {
-        const init = node.initializer;
-        if (!init || !ts.isStringLiteral(init)) {
-          cantTell.push(`第 ${lineOf(node)} 行 data-region-layout 的值不是一个字符串字面量 —— 分不出这是哪一支`);
-        } else if (!variants.includes(init.text)) {
-          cantTell.push(`第 ${lineOf(node)} 行 data-region-layout="${init.text}" 不在 ${cfg.region} 的版式清单里`);
-        } else {
-          // 属性 → JsxAttributes → 开标签；开标签再往上一层才是**带着孩子**的那个元素。
-          let el = node.parent && node.parent.parent;
-          if (el && ts.isJsxOpeningElement(el) && el.parent && ts.isJsxElement(el.parent)) el = el.parent;
-          if (!el || !(ts.isJsxElement(el) || ts.isJsxSelfClosingElement(el))) {
-            cantTell.push(`第 ${lineOf(node)} 行 找不到 data-region-layout 挂在哪个元素上`);
-          }
-          else if (branches.has(init.text)) cantTell.push(`data-region-layout="${init.text}" 出现了不止一次 —— 这一支该按哪一段算`);
-          else branches.set(init.text, el);
-        }
-      }
-      ts.forEachChild(node, findBranches);
-    };
-    findBranches(sf);
-    const missing = variants.filter((v) => !branches.has(v));
-    if (missing.length) {
-      cantTell.push(`${cfg.region} 的这些版式在组件里找不到对应的那一支：${missing.join(' / ')}`);
-    }
-    for (const [v, el] of branches) byVariant[v] = closure(scan(el, env));
-  } else {
-    // 这个组件不按版式分支 ⟹ 它读什么，每一种版式就都读什么。**「它不分支」这件事也要钉住**：
-    // 哪天有人给它加了 data-region-layout，下面这句就会红，而不是继续按「不分支」算。
-    // 🔴 判据必须是 AST 里**真的有那个属性**，不是源码里出现过这个串：`TopbarRegion.tsx` 的注释里
-    //    就写着这个词（在解释它为什么带的是区属性而不是块属性）—— 拿文本判会把一句注释当成分支，
-    //    而那正是本仓「尺子先剥注释」那条纪律说的形态。第一版就是这么假红的。
-    let branches = false;
-    const findAttr = (node) => {
-      if (ts.isJsxAttribute(node) && node.name.getText() === 'data-region-layout') branches = true;
-      if (!branches) ts.forEachChild(node, findAttr);
-    };
-    findAttr(sf);
-    if (branches) {
-      cantTell.push(`${cfg.region} 那个组件现在按 data-region-layout 分支了，而这一格还按「不分支」算 —— `
-        + 'REGION_FILES 里那一行要改成 splitByVariant:true');
-    }
-    const all = closure(scan(sf, env));
-    for (const v of variants) byVariant[v] = all;
-  }
-
-  // ── ⑥ 认不出的写法 / 看不见的交接 ⟹ 说不出来 ─────────────────────────────────────────────────
-  const blind = handoffs.filter((h) => {
-    const deeper = new Set();
-    for (const e of mod.PAGE_READS) {
-      if (e.region !== cfg.region) continue;
-      for (const p of e.renderPaths) if (p !== h.at && p.startsWith(`${h.at}.`)) deeper.add(p);
-    }
-    return deeper.size > 0;
+  const SRC_DIR = path.join(TEMPLATE_ROOT, 'src');
+  const compileOpts = (filename) => ({
+    compilerOptions: { module: ts2.ModuleKind.CommonJS, target: ts2.ScriptTarget.ES2020, jsx: ts2.JsxEmit.ReactJSX, esModuleInterop: true, resolveJsonModule: true },
+    fileName: filename,
   });
-  for (const h of blind) {
-    cantTell.push(`第 ${h.line} 行 \`${h.at}\` 被整个交到别处去了（\`${h.text}\`）—— 拿走它的那一段读了`
-      + '它下面哪几个字段，这把尺子看不见');
+  const savedExt = { '.tsx': require.extensions['.tsx'], '.ts': require.extensions['.ts'] };
+  const savedResolve = Module._resolveFilename;
+  for (const ext of ['.tsx', '.ts']) {
+    require.extensions[ext] = (m, filename) => m._compile(ts2.transpileModule(fs.readFileSync(filename, 'utf-8'), compileOpts(filename)).outputText, filename);
   }
-  if (cantTell.length) {
-    return { unavailable: `${cantTell.length} 处读不出来，所以「哪一支画了哪个字段」这个问题今天答不了：${cantTell.join('；')}` };
+  Module._resolveFilename = function resolveWithStubs(req, ...rest) {
+    if (STUBS[req]) return STUBS[req];
+    if (req.startsWith('@blocks/')) return savedResolve.call(this, path.join(TEMPLATE_ROOT, 'blocks', req.slice(8)), ...rest);
+    if (req.startsWith('@/')) return savedResolve.call(this, path.join(SRC_DIR, req.slice(2)), ...rest);
+    return savedResolve.call(this, req, ...rest);
+  };
+  /** 在内存里编译一份（可改过的）源码，filename 用真路径 ⟹ 相对 require 照样解析。不往交付树写任何文件。 */
+  const compileFrom = (file, transform, isTs) => {
+    const m = new Module(file, module);
+    m.filename = file;
+    m.paths = Module._nodeModulePaths(path.dirname(file));
+    const text = transform(fs.readFileSync(file, 'utf-8'));
+    m._compile(isTs ? ts2.transpileModule(text, compileOpts(file)).outputText : text, file);
+    return m.exports;
+  };
+
+  const HEADER_FILE = path.join(TEMPLATE_ROOT, 'blocks', 'header', 'Section.tsx');
+  const FOOTER_FILE = path.join(TEMPLATE_ROOT, 'blocks', 'footer', 'Section.tsx');
+  const SHELL_FILE = path.join(__dirname, 'shell-data.js');
+  try {
+    let real;
+    try {
+      real = {
+        Header: require(HEADER_FILE).default,
+        Footer: require(FOOTER_FILE).default,
+        shellDataFor: require(SHELL_FILE).shellDataFor,
+      };
+    } catch (e) { die(`⑫ 载入组件 / 派生函数失败: ${e.stack || e.message}`); }
+    const { resolveItemSources } = require('./item-sources.js');
+    const { iconTableFor } = require('./icons.js');
+
+    const BRAND = { email: 'hello@northside.test', locations: [{ label: 'Main', address: '2150 Yonge St, Toronto', phone: '(604) 555-0142' }], socialLinks: [] };
+    const SERVICES = [{ id: 'roof-repair', name: 'Roof Repair' }];
+    const PAGES = [{ slug: 'home' }, { slug: 'about' }, { slug: 'services' }];
+    /** 每一格种一个独有的记号（只用字母数字，HTML 转义碰不到它）。 */
+    const markOf = (e) => `Qq1425${e.key.replace(/[^A-Za-z0-9]/g, '')}`;
+    const PLANT = {
+      'header.cta': (n, m) => { n.header.cta.label = m; },
+      'footer.copyright': (n, m) => { n.footer.copyright = m; },
+      'footer.description': (n, m) => { n.footer.description = m; },
+      'footer.columns[].title': (n, m) => { n.footer.columns.forEach((c) => { c.title = m; }); },
+      'footer.columns[>0].links': (n, m) => { n.footer.columns.slice(1).forEach((c) => c.links.forEach((l) => { l.label = m; })); },
+      topbar: (n, m) => { n.topbar = { message: m, link: { label: m, href: '/contact' } }; },
+    };
+    const REGIONS = ['header', 'footer'];
+
+    /** 判据本体：拿一组（组件 + 派生函数）量一遍 → { problems, compared, seen }。做成函数是为了下面拿同一把判据量变异版。 */
+    const judge = (impl) => {
+      const problems = []; let compared = 0; const seenAll = {};
+      const comps = { header: impl.Header, footer: impl.Footer };
+      for (const e of PAGE_READS) {
+        const plant = PLANT[e.key];
+        if (!plant) { problems.push(`⑫ \`${e.key}\` 没有对应的种法 —— 这一格什么都没量到`); continue; }
+        const m = markOf(e);
+        const nav = clone(BASE); plant(nav, m);
+        if (!JSON.stringify(e.read(nav) === undefined ? null : e.read(nav)).includes(m)) {
+          problems.push(`⑫ \`${e.key}\`：记号没种进它自己的 read() 读得到的位置 —— 夹具坏了`); continue;
+        }
+        const d = impl.shellDataFor({ nav, brand: BRAND, brandName: 'Northside Roofing', services: SERVICES, pages: PAGES, year: 2026 });
+        const [h, f] = resolveItemSources([{ type: 'header', data: d.header }, { type: 'footer', data: d.footer }],
+          { brand: BRAND, services: SERVICES, pages: PAGES, url: (slug) => `/${slug}`, log: () => {} });
+        const data = { header: h.data, footer: f.data };
+        // 派生那一半：`slot` 写着它派生进哪个槽 —— 有槽 ⟹ 那个槽里有记号；没槽 ⟹ 两个区的 data 里都没有它。
+        if (e.slot) {
+          if (!JSON.stringify(data[e.region][e.slot] === undefined ? null : data[e.region][e.slot]).includes(m)) {
+            problems.push(`⑫ \`${e.key}\`：表里说它派生进 ${e.region}.${e.slot}，而 shellDataFor 的产出里那个槽没有它`);
+          }
+        } else {
+          for (const reg of REGIONS) {
+            if (JSON.stringify(data[reg]).includes(m)) problems.push(`⑫ \`${e.key}\`：表里说它没有槽，而 shellDataFor 把它派生进了 ${reg} 的 data`);
+          }
+        }
+        const seen = { header: [], footer: [] };
+        for (const reg of REGIONS) {
+          for (const v of VARIANTS_BY_REGION[reg]) {
+            compared += 1;
+            const html = renderToStaticMarkup(React.createElement(comps[reg], { shape: v, data: data[reg], iconTable: iconTableFor(reg, data[reg]) }));
+            // 分母自检：组件真的按这个预设画了（认不出的形态名会静默落回默认预设）。
+            if (!html.includes(`data-shape="${v}"`)) problems.push(`⑫ ${reg} 按 "${v}" 渲染出来的 HTML 上没有 data-shape="${v}" —— 组件不认这个预设名，读数不算`);
+            if (html.includes(m)) seen[reg].push(v);
+          }
+        }
+        seenAll[e.key] = seen;
+        for (const v of VARIANTS_BY_REGION[e.region]) {
+          const claimed = e.renderedBy.includes(v);
+          const visible = seen[e.region].includes(v);
+          if (claimed && !visible) {
+            problems.push(`⑫ \`${e.key}\`：表里说 "${v}" 画它，而真渲染出来没有 —— 这道门现在会漏说那句话（老板会拿到「已完成」而页面没变）`);
+          } else if (!claimed && visible) {
+            problems.push(`⑫ \`${e.key}\`：真渲染出来 "${v}" 画了它，而表里没写 —— 这道门会对一个真会显示的字段说「你这个站不显示它」`);
+          }
+        }
+        const other = e.region === 'header' ? 'footer' : 'header';
+        if (seen[other].length) problems.push(`⑫ \`${e.key}\`：表里说它归 ${e.region}，而 ${other} 的 ${seen[other].join(' / ')} 也画了它`);
+      }
+      return { problems, compared, seen: seenAll };
+    };
+
+    const r = judge(real);
+    const presetCount = REGIONS.map((reg) => VARIANTS_BY_REGION[reg].length);
+    if (r.compared === 0 || presetCount.some((n) => n === 0)) die(`⑫ 一个组合都没量到（预设数 ${presetCount.join(' / ')}）`);
+    if (r.problems.length === 0) {
+      const empty = PAGE_READS.filter((e) => !e.renderedBy.length).map((e) => `\`${e.key}\``);
+      ok(`⑫ ${PAGE_READS.length} 格 × 两个区全部预设（${presetCount.join(' + ')}）= ${r.compared} 次真渲染，`
+        + '「表里说哪几种画它」跟【shellDataFor → resolveItemSources → 组件】真渲染出来的逐个相同'
+        + `；renderedBy 空的 ${empty.join(' · ')} 在每个预设下都没进 HTML`);
+    } else r.problems.forEach(bad);
+
+    // 🔴 阳性对照 —— 组件一半、派生一半各一个，都只改一处，都在内存里编译。
+    // ① 组件：页脚里画介绍的那一处 `{data.tagline}` 换成 null ⟹ `footer.description` 应当在 renderedBy 那几种上全部漏掉。
+    {
+      const from = '{data.tagline}';
+      const footerSrc = fs.readFileSync(FOOTER_FILE, 'utf-8');
+      const n = footerSrc.split(from).length - 1;
+      if (n !== 1) {
+        bad(`⑫ 阳性对照①立不起来：blocks/footer/Section.tsx 里 \`${from}\` 出现 ${n} 次（要求正好 1 次）`);
+      } else {
+        const Footer2 = compileFrom(FOOTER_FILE, (t) => t.replace(from, '{null}'), true).default;
+        const r2 = judge({ ...real, Footer: Footer2 });
+        const hit = r2.problems.filter((x) => x.includes('`footer.description`') && x.includes('画它，而真渲染出来没有'));
+        hit.length === PAGE_READS.find((e) => e.key === 'footer.description').renderedBy.length
+          ? ok(`⑫ 阳性对照①（组件）：把页脚画介绍的那一处删掉，同一把判据当场在 ${hit.length} 种预设上报漏说 ⟹ 上面的绿是渲染给的`)
+          : bad(`⑫ 阳性对照①失败：删掉渲染点之后只报了 ${hit.length} 条（${r2.problems.slice(0, 2).join(' · ') || '无'}）`);
+      }
+    }
+    // ② 派生：shellDataFor 不再把 copyright 派生进去 ⟹ 页脚落回「© 年份 生意名」，`footer.copyright` 应当 6 种全漏 + 槽那条也报。
+    {
+      const from = "  if (copyright) footer.copyright = copyright.startsWith('©') ? copyright : `© ${year} ${copyright}`;\n";
+      const shellSrc = fs.readFileSync(SHELL_FILE, 'utf-8');
+      const n = shellSrc.split(from).length - 1;
+      if (n !== 1) {
+        bad(`⑫ 阳性对照②立不起来：shell-data.js 里那一行 copyright 派生出现 ${n} 次（要求正好 1 次）`);
+      } else {
+        const derive2 = compileFrom(SHELL_FILE, (t) => t.replace(from, ''), false).shellDataFor;
+        const r3 = judge({ ...real, shellDataFor: derive2 });
+        const hit = r3.problems.filter((x) => x.includes('`footer.copyright`'));
+        const slotHit = hit.some((x) => x.includes('那个槽没有它'));
+        hit.length >= VARIANTS_BY_REGION.footer.length && slotHit
+          ? ok(`⑫ 阳性对照②（派生）：把 shellDataFor 里派生版权那一行拿掉，判据当场报 ${hit.length} 条（含槽那一条）⟹ 派生那一半是活的`)
+          : bad(`⑫ 阳性对照②失败：拿掉派生之后只报了 ${hit.length} 条 · 槽那条 ${slotHit}`);
+      }
+    }
+  } finally {
+    require.extensions['.tsx'] = savedExt['.tsx'];
+    require.extensions['.ts'] = savedExt['.ts'];
+    if (!savedExt['.tsx']) delete require.extensions['.tsx'];
+    if (!savedExt['.ts']) delete require.extensions['.ts'];
+    Module._resolveFilename = savedResolve;
+    fs.rmSync(stubDir, { recursive: true, force: true });
   }
-  return { byVariant };
 }
+
+// 📌 #1425（T3）—— 这里原来是 `navReadsByVariant`（⑫ 那把 TypeScript 解析器：按别名 / 回调参数追旧 Header.tsx / Footer.tsx
+//    读了 navigation.json 的哪几处，再按 `data-region-layout` 拆分支）。旧组件随旧库删了，新组件不读 navigation.json，
+//    ⑫ 改成真渲染，它没有调用方了。
 
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);

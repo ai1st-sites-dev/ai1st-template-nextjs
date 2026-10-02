@@ -6,7 +6,7 @@
 // 🔴 **这是一个在浏览器里跑的函数**，交给 playwright 的 `page.evaluate(classAuditInBrowser, args)`。
 //    它被序列化成源码送进页面，所以函数体里**不许引用这个模块里的任何别的东西**（闭包到了页面里不存在）。
 //
-// 为什么要抽：#1424 验收 4 要问「图册里 `header-new` 那一行的每个 class，在 purge 之后的 `site.css`
+// 为什么要抽：#1424 验收 4 要问「图册里 `header` 那一行的每个 class，在 purge 之后的 `site.css`
 //    里有没有规则」—— 同一个问题，换一页（dev 的 `/__catalog`）、换一组样式表（只认 `/site.css` +
 //    `/shapes.css`）、只看页面的一部分。把它抄一份就是这个问题的第二份定义，分叉那天两边都不会红。
 //

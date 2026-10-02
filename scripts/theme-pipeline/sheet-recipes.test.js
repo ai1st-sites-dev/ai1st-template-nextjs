@@ -52,6 +52,22 @@ const path = require('path');
 const fs = require('fs');            // #1135 ⑨ 的分母自检要数池子里有几份表
 const crypto = require('crypto');
 
+// 🔴 #1425（T3）—— 这份测试的被测对象是**主题表**（`public/themes/*.css`）怎么给块上皮；它的语料（`HOOK_CLASSES` /
+//    `LOOK_FAMILIES` 的那些类名：`.hero__form`、`contact-info__*`、`cta-banner` …）全是旧库的。旧库删完之后，块库里
+//    一个「皮由主题表画」的块都不剩（17 个块全是 manifest `skin: "site-css"`，皮由编出来的 site.css 提供）⟹ 这里每一格
+//    都没有对象。判据只问这一句（同 theme-css-invariants.mjs 的 THEME_CONTRACT_HAS_SUBJECTS），不按块名开口子：
+//    哪天又有一个主题表画的块进库，它自己就回来。生成器 `sheet-recipes.js` 本身没动 —— 主题池按新框架重生成是下一份
+//    文档的事（#1425 正文「不做」）。
+{
+  const bm = require(path.join(__dirname, '..', 'lib', 'block-manifest.js'));
+  const themeSkinned = [...bm.loadManifests().keys()].filter((t) => !bm.isSiteCssSkin(undefined, t));
+  if (themeSkinned.length === 0) {
+    console.log('  ⏭  sheet-recipes.test.js —— 块库里没有主题表画的块（全是 skin: "site-css"，#1425），这份测试的每一格都没有对象，跳过');
+    console.log('     🔴 这不是通过。哪天块库里又有一个不带 skin: "site-css" 的块，这份测试自己就回来。');
+    process.exit(0);
+  }
+}
+
 const DIR = __dirname;
 let sheetFor; let scanGeometry; let voiceFor; let postcss; let paletteFor;
 let CARD_BLOCKS;

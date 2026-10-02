@@ -1,6 +1,6 @@
 'use client';
 
-// #1458 —— 单格页上的选项开关（只对声明了 `options` 槽的块出现：今天是 header-new / footer-new）。
+// #1458 —— 单格页上的选项开关（只对声明了 `options` 槽的块出现：今天是 header / footer）。
 //
 // 整页索引 board 退役之后，这几个开关是从它那两行（HeaderNewRow / FooterNewRow）搬来的：块的唯一可看面
 // 是 admin › Blocks & Themes，而那一页的卡片和「新窗口」嵌的都是这一页 —— 开关住在这里，两处都能切。
@@ -17,13 +17,13 @@
 // #1464 —— **部件**（`widgets`，§page.dev.tsx optionMetaOf）：每个一组单选 none + 样式，排在修饰后面（全站统一顺序
 //   排布旋钮 → 修饰 → 部件）。选 none = 这一格不带那个槽；选一种样式 = 槽照旧、`style` 换成它。
 // #1469 —— 部件那个键也可以叫 `mode`（footer 的 `form`），写回哪个键跟着 shape 走（`Widget.key`）。
-//   外加**色板**（颜色槽：header-new / footer-new 的 `bg`）：排在旋钮 / 修饰之后、部件之前（跟 `KnobBar` 同序）。
+//   外加**色板**（颜色槽：header / footer 的 `bg`）：排在旋钮 / 修饰之后、部件之前（跟 `KnobBar` 同序）。
 //   #1477 起色板本身是共用的 `src/components/BgPicker.tsx`（四处同一份）。值写进 `data[<颜色槽>]`；
 //   地址栏 `?bg=`（渐变写成 JSON，§bgFromParam 读回）。
 
 import { useEffect, useState } from 'react';
-import FooterNewSection, { type FooterNewData } from '@blocks/footer-new/Section';
-import HeaderNewSection, { type HeaderNewData } from '@blocks/header-new/Section';
+import FooterNewSection, { type FooterNewData } from '@blocks/footer/Section';
+import HeaderNewSection, { type HeaderNewData } from '@blocks/header/Section';
 import type { IconTable } from '@/components/InlineIcon';
 import type { BlockConfig } from '@/lib/types/config';
 import { normalizeKnobs, presetBooleans, presetBooleansOf, presetOf } from '../../../../../scripts/lib/header-knobs.js';
@@ -198,8 +198,8 @@ export default function CellOptions({
         ))}
       </div>
       )}
-      {block === 'header-new' ? <HeaderNewSection shape={shape} data={out as unknown as HeaderNewData} block={cfg} iconTable={iconTable} /> : null}
-      {block === 'footer-new' ? <FooterNewSection shape={shape} data={out as unknown as FooterNewData} block={cfg} iconTable={iconTable} /> : null}
+      {block === 'header' ? <HeaderNewSection shape={shape} data={out as unknown as HeaderNewData} block={cfg} iconTable={iconTable} /> : null}
+      {block === 'footer' ? <FooterNewSection shape={shape} data={out as unknown as FooterNewData} block={cfg} iconTable={iconTable} /> : null}
     </>
   );
 }

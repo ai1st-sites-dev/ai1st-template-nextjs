@@ -14,26 +14,13 @@
  *    `emit('prompt', …)` 打在 stdout 上（`create-site.js` §generateContent），所以拿得到读数、
  *    一分钱不花。
  *
- * 🔴 **零行为那一格的基线是钉死的一个 commit（下面的 `BASELINE`），不是 `origin/main`**（r2 改的）。
- *    r1 写的是 `origin/main`，而它**会移动**：2026-09-16 13:42 那次推送让这一格拿 main 的 scripts
- *    去配这棵树的 `blocks/`，基线那份 `loadManifests` 当场抛、整份测试 `die(2)` —— ⑤⑥ 两节根本没
- *    跑到（同一条命令 13:39 rc=0、13:42 之后 rc=2）。`homepage-recipe.test.js` 的文件头（#1034 r2）
- *    为同一件事写过明文规矩，理由逐字是「下一个改 templates 的人会收到跟他无关的红」。
- *    **维护约定**：这一格哪天真的对不上了，先问「OFF 那条路的字节为什么变了」；确实该变，就把
- *    `BASELINE` 往前挪一格**并在票上说明**，而不是把这一格删掉、也不是改回一个会动的 ref。
+ * 📌 #1425（T3）—— 零行为那一格原来拿钉死的一个 commit（`9d056fd7`）那棵树的提示词整份比、差异逐条登记。
+ *    本票按设计把提示词里的块名整批换成新库（旧库 28 块删了，16 个 `-new` 改回正名），基线那份 scripts 配今天的
+ *    `blocks/` 连提示词都吐不出来 ⟹ 换成**同一棵树里两臂互比**：「什么都没关 vs 关掉 X」两份提示词的每一处差异
+ *    都必须点名 X（或是那句现算的块数），见 ④ 最后一格。
  */
 
 'use strict';
-
-// 「改动之前」= 钉死的一个 commit。为什么是钉死的、怎么维护：见文件头最后一条。
-//
-// 🔴 #1376 **没有**挪它，留在 `9d056fd7`。r1 曾把它挪到 `4b0e53b4`，理由是「基线那份 create-site.js
-//    把块数写死成 32，本票删了一个块就必然对不上」—— 那个理由在 r1 的基线上是真的，但 #1372 先落地了，
-//    而它给这一格加的差异表第一条正是**把那句写死的 32 换成按 `blocks/` 现算**。⟹ 块库再少一个，
-//    这一格由那条差异自己吸收，不需要动基线。反过来，挪了基线才会坏：`4b0e53b4` 那版已经现算、
-//    没有 `There are 32 section types` 这段文本，#1372 那条差异当场变成死条目，判别力② 会点名它
-//    （r2 实测：挪着基线跑 `lib/catalog-disabled.test.js` 红在「差异表里有 1 条对基线什么都没做」）。
-const BASELINE = '9d056fd7';
 
 const fs = require('fs');
 const os = require('os');
@@ -46,12 +33,10 @@ const bad = (m) => { fail++; console.log(`  ❌ ${m}`); };
 const die = (m) => { console.error(`🔴 跑不起来: ${m}`); process.exit(2); };
 
 const NEXT = path.resolve(__dirname, '..', '..');
-const REPO = path.resolve(NEXT, '..', '..');
-const REL = 'templates/nextjs';
 
 const themesMod = require('../themes');
 const { pickThemeForIndustry, candidateThemesForIndustry, candidateThemesAfterDisabled, poolThemes } = themesMod;
-const { validateSite, loadManifests, isRegionManifest, BLOCKS_DIR } = require('./block-manifest');
+const { validateSite, loadManifests, isRegionManifest } = require('./block-manifest');
 const { poolFor, homepageRecipe, tryHomepageRecipe } = require('./homepage-recipe');
 
 for (const [k, v] of Object.entries({ pickThemeForIndustry, candidateThemesAfterDisabled, validateSite, poolFor, homepageRecipe, tryHomepageRecipe })) {
@@ -119,25 +104,33 @@ console.log('\n── ① pickThemeForIndustry：关掉的那套永远抽不到 
 // ── ② 校验器 ────────────────────────────────────────────────────────────────────────────────────
 console.log('\n── ② validateSite：关掉压过「行业必需」，而用了关掉的块要报出来 ──');
 const manifests = loadManifests();
-const REQ_STAR = [...manifests.values()].filter((m) => ((m.industries || {}).required || []).includes('*')).map((m) => m.type);
-if (!REQ_STAR.length) die('没有一个块写着 industries.required 含 "*" —— ② 那两格的语料没了');
+// 📌 #1425（T3）—— 原来的语料是写着 `required: ["*"]` 的块（contact-info，旧库）。新库没有一个块是「每个站都要」，
+//    但「关掉压过行业必需」这条仍在（`validateSite` 不分 "*" 与具体行业，走同一个 `if (off.has(m.type)) continue`）：
+//    语料改成任何一个写着非空 `industries.required` 的块，行业取一个它点名的、能被认出来的写法（"*" ⟹ dental clinic）。
+const REQ_BLOCKS = [...manifests.values()].filter((m) => ((m.industries || {}).required || []).length).map((m) => m.type);
+if (!REQ_BLOCKS.length) die('没有一个块写着非空的 industries.required —— ② 那两格的语料没了');
+const REQ_T = REQ_BLOCKS[0];
+const REQ_IND = (() => {
+  const req = manifests.get(REQ_T).industries.required;
+  return req.includes('*') ? 'dental clinic' : `${req[0]} studio`;
+})();
 {
-  const t = REQ_STAR[0];
+  const t = REQ_T;
   // 一个**没有**那个块的站。这正是「菜单剔掉它 ⟹ 模型不放它」之后的形状。
   const pages = [{ slug: 'home', sections: [{ type: 'hero', data: { headline: 'x', subheadline: 'y' } }] }];
-  const withList = validateSite({ pages, industry: 'dental clinic', disabledBlocks: [t] });
-  const without = validateSite({ pages, industry: 'dental clinic' });
+  const withList = validateSite({ pages, industry: REQ_IND, disabledBlocks: [t] });
+  const without = validateSite({ pages, industry: REQ_IND });
   const hits = (r) => r.problems.filter((p) => p.includes(`"${t}"`)).length;
   hits(withList) === 0
-    ? ok(`关掉 ${t}（required: "*"）⟹ 「整个站里没有它」不再报 problem`)
+    ? ok(`关掉 ${t}（industries.required 点名了 "${REQ_IND}"）⟹ 「整个站里没有它」不再报 problem`)
     : bad(`关掉 ${t}，它还在报：${withList.problems.join(' | ')}`);
   hits(without) >= 1
     ? ok(`反向臂：不传清单，同一份页面报「整个站里没有 "${t}"」⟹ 上一格不是恒真（这就是 create-site.js 那句 fatal 的来源）`)
     : bad(`反向臂失败：不传清单也不报 "${t}" —— 上一格没有判别力`);
 }
 {
-  const t = 'faq-accordion';
-  if (!manifests.has(t)) die(`blocks/${t}.json 不在了 —— 这一格的语料要换一个块`);
+  const t = 'faq';   // #1425（T3）：faq-accordion → faq（槽同形）
+  if (!manifests.has(t)) die(`blocks/${t}/manifest.json 不在了 —— 这一格的语料要换一个块`);
   const pages = [{ slug: 'home', sections: [{ type: t, data: { items: [{ question: 'q', answer: 'a' }] } }] }];
   const withList = validateSite({ pages, industry: 'dental clinic', disabledBlocks: [t] });
   const without = validateSite({ pages, industry: 'dental clinic' });
@@ -150,9 +143,9 @@ if (!REQ_STAR.length) die('没有一个块写着 industries.required 含 "*" —
 }
 {
   // 共享件的另一个消费者：构建期那条路（scope='build'）不传清单 ⟹ 行为一个字节不变。
-  const t = REQ_STAR[0];
+  const t = REQ_T;
   const pages = [{ slug: 'home', sections: [{ type: 'hero', data: { headline: 'x', subheadline: 'y' } }] }];
-  const build = validateSite({ pages, industry: 'dental clinic', scope: 'build' });
+  const build = validateSite({ pages, industry: REQ_IND, scope: 'build' });
   build.problems.length === 0 && build.warnings.some((p) => p.includes(`"${t}"`))
     ? ok("构建期（scope='build'）不传清单：照旧 0 problem，那条检查仍在 warnings 里")
     : bad(`构建期那条路变了：problems=${build.problems.length} warnings=${JSON.stringify(build.warnings)}`);
@@ -192,15 +185,8 @@ console.log('\n── ③ homepageRecipe：关掉的块不进配方（配方点�
     ? ok('关掉 hero ⟹ 这一趟不用配方（回 {recipe:null,error}，不抛）—— 不为骨架让一次建站失败')
     : bad(`关掉 hero 之后仍拿到配方: ${JSON.stringify(r.recipe)}`);
 }
-{
-  const withBarAt = [];
-  for (let i = 0; i < 24; i++) withBarAt.push(homepageRecipe(i, manifests, 'dental clinic').withBar);
-  const off = [];
-  for (let i = 0; i < 24; i++) off.push(homepageRecipe(i, manifests, 'dental clinic', ['announcement-bar']).withBar);
-  withBarAt.some(Boolean) && !off.some(Boolean)
-    ? ok('关掉 announcement-bar ⟹ 24 份配方一份都不带它（不关时带 ' + withBarAt.filter(Boolean).length + ' 份）')
-    : bad(`announcement-bar 那一格不对: 不关 ${withBarAt.filter(Boolean).length} 份带它 / 关掉 ${off.filter(Boolean).length} 份带它`);
-}
+// 📌 #1425（T3）—— 这里原来测「关掉 announcement-bar ⟹ 24 份配方一份都不带它」（配方的 `withBar`）。公告条块随旧库删了，
+//    `BAR_EVERY` / `withBar` 退役（开场恒为 hero + 三个），这一格没有对象。
 {
   // 🔴 NOT_IN_POOL 那条不变量问的是「排除名单点名的块还在不在块库里」，不是「在不在今天这一池」。
   //    关掉其中一个块之后它仍然必须不抛 —— 否则一次后台关块会静默停掉整个配方。
@@ -230,58 +216,16 @@ console.log('\n── ③ homepageRecipe：关掉的块不进配方（配方点�
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 't1346-'));
 process.on('exit', () => fs.rmSync(tmp, { recursive: true, force: true }));
 
-/** 造一棵「某个版本的 scripts/」的树；blocks / node_modules / src 软链今天这份（两臂共用数据）。 */
-function treeAt(ref) {
-  const root = path.join(tmp, ref === null ? 'work' : 'base');
+/** 造一棵今天这份 scripts/ 的副本树；blocks / node_modules / src / public 软链今天这份。
+ *  📌 #1425（T3）—— 原来还能按一个 commit 造基线那棵树（含给它摘掉不认识的 layout_intent 轴那段）；基线比较换成同树两臂，那一支删了。 */
+function treeAt() {
+  const root = path.join(tmp, 'work');
   fs.mkdirSync(root, { recursive: true });
-  if (ref === null) {
-    execFileSync('cp', ['-a', path.join(NEXT, 'scripts'), root]);
-  } else {
-    const files = execFileSync('git', ['ls-tree', '-r', '--name-only', ref, '--', `${REL}/scripts`],
-      { cwd: REPO }).toString().trim().split('\n').filter(Boolean);
-    if (!files.length) die(`${ref} 上没有 ${REL}/scripts —— ls-tree 读到 0 个文件`);
-    for (const f of files) {
-      const out = path.join(root, f.slice(REL.length + 1));
-      fs.mkdirSync(path.dirname(out), { recursive: true });
-      fs.writeFileSync(out, execFileSync('git', ['show', `${ref}:${f}`], { cwd: REPO, maxBuffer: 64 << 20 }));
-    }
-  }
+  execFileSync('cp', ['-a', path.join(NEXT, 'scripts'), root]);
   for (const link of ['blocks', 'node_modules', 'src', 'public']) {
     const target = path.join(NEXT, link);
     if (fs.existsSync(target) && !fs.existsSync(path.join(root, link))) {
       fs.symlinkSync(target, path.join(root, link));
-    }
-  }
-  // 🔴 #1381 —— 基线那棵树拿的是**今天**的 `blocks/`，而基线那份校验器对 `layout_intent` 里
-  //    **不认识的轴**是拒绝的（`block-manifest.js`：「有一根不存在的轴 "<名字>"」），不是宽容的
-  //    （文件头那句「对多出来的 manifest 键宽容」说的是顶层键，不是轴名）。#1381 往词表里加了轴，
-  //    于是基线那棵树连 `loadManifests` 都跑不到头，整份测试 `die(2)` —— ⑤⑥ 两节根本跑不到，
-  //    跟 r1 用会动的 `origin/main` 时那次是同一个形状。
-  //
-  //    处置**不是**挪 BASELINE：没有哪个更早的 commit 认识这几根新轴（加它们的就是本票），挪到
-  //    `origin/main` 也一样拒。这里给基线那棵树一份**把它自己不认识的轴摘掉**的 blocks/ 副本：
-  //    轴名从基线那份词表自己取（BASELINE 哪天往前挪，这个过滤跟着走，不用回来改）。
-  //    🔴 这么做是**byte-neutral** 的，判据是「`layout_intent` 进不进提示词」：全仓现取它只有两个
-  //    消费者 —— `block-manifest.js` 的校验器和 `theme-css-invariants.mjs` 的检查 ⑨，
-  //    `promptSection` 一个字都不读它（`grep -n 'layout_intent' scripts/lib/block-manifest.js` 的
-  //    命中全在校验那几行）。所以这一格比的仍然是同一批块、同一份内容。
-  if (ref !== null) {
-    const vocabPath = path.join(root, 'scripts', 'lib', 'layout-intent-vocab.json');
-    if (fs.existsSync(vocabPath)) {
-      const known = new Set(Object.keys(JSON.parse(fs.readFileSync(vocabPath, 'utf-8')).axes || {}));
-      const src = path.join(NEXT, 'blocks');
-      const dst = path.join(root, '.blocks-for-baseline');
-      fs.mkdirSync(dst, { recursive: true });
-      const strip = (o) => (o && typeof o === 'object'
-        ? Object.fromEntries(Object.entries(o).filter(([k]) => known.has(k))) : o);
-      for (const f of fs.readdirSync(src)) {
-        const j = JSON.parse(fs.readFileSync(path.join(src, f), 'utf-8'));
-        if (j.layout_intent) j.layout_intent = strip(j.layout_intent);
-        for (const sh of j.shapes || []) { if (sh.layout_intent) sh.layout_intent = strip(sh.layout_intent); }
-        fs.writeFileSync(path.join(dst, f), JSON.stringify(j, null, 2));
-      }
-      fs.rmSync(path.join(root, 'blocks'), { force: true });
-      fs.symlinkSync(dst, path.join(root, 'blocks'));
     }
   }
   return root;
@@ -324,7 +268,7 @@ const basePayload = (over = {}) => ({
   ...over,
 });
 
-const work = treeAt(null);
+const work = treeAt();
 
 console.log('\n── ④ 提示词：关掉的块三处都不再提它 ──');
 const pNone = promptFrom(work, basePayload());
@@ -335,7 +279,10 @@ const pNone = promptFrom(work, basePayload());
     : bad('空清单改变了提示词的字节');
 }
 {
-  const t = 'faq-accordion';
+  // #1425（T3）—— 原来是 faq-accordion。新库的块名有五个跟「页面原型」清单撞名（gallery / pricing / faq / team /
+  //    testimonials：`- "faq" — Frequently asked questions` 说的是**页面**，⑧ 的射程说明里写着为什么不该随块消失）⟹
+  //    这一格数的是整份提示词里带引号的命中，换一个不撞名的块。
+  const t = 'logos';
   const p = promptFrom(work, basePayload({ disabledBlocks: [t] }));
   const hits = (s) => (s.match(new RegExp(`"${t}"`, 'g')) || []).length;
   hits(p) === 0
@@ -346,98 +293,89 @@ const pNone = promptFrom(work, basePayload());
     : bad(`反向臂失败：不关也 0 命中 —— ${t} 本来就不在提示词里，换一个块`);
 }
 {
-  // 写死的那两行页面规则：关掉 quote-form ⟹ 它从 QUOTE 那行消失、data 那一行整条不印，
-  // 而同一行里的 page-header 仍在（钉住「只拿掉被关的那个，不是整行删了」）。
-  const p = promptFrom(work, basePayload({ disabledBlocks: ['quote-form'] }));
+  // 写死的那两行页面规则。#1425（T3）：QUOTE 页 = page-header + contact（原来是 quote-form）；原来「quote-form 那行 data
+  // 形状」的位置，今天是 SERVICES 那行底下那句「features 写引用」—— 关掉 features 它整条不印。
+  const p = promptFrom(work, basePayload({ disabledBlocks: ['contact'] }));
   const quoteLine = p.split('\n').find((l) => l.startsWith('- QUOTE pages must include:')) || '';
-  quoteLine.includes('"page-header"') && !quoteLine.includes('"quote-form"')
-    ? ok(`关掉 quote-form ⟹ QUOTE 那行只剩 page-header：${quoteLine.trim()}`)
+  const quoteOn = pNone.split('\n').find((l) => l.startsWith('- QUOTE pages must include:')) || '';
+  quoteLine.includes('"page-header"') && !quoteLine.includes('"contact"')
+    ? ok(`关掉 contact ⟹ QUOTE 那行只剩 page-header：${quoteLine.trim()}`)
     : bad(`QUOTE 那行不对：${JSON.stringify(quoteLine)}`);
-  !/^\s+quote-form data: \{/m.test(p)
-    ? ok('关掉 quote-form ⟹ 它那行 data 形状整条不印')
-    : bad('关掉 quote-form，它那行 data 形状还在');
-  /^\s+quote-form data: \{/m.test(pNone)
-    ? ok('反向臂：不关的时候那行 data 形状在 ⟹ 上一格不是恒真')
-    : bad('反向臂失败：不关也没有那行');
+  quoteOn.includes('"contact"')
+    ? ok(`反向臂：不关的时候 QUOTE 那行有 contact：${quoteOn.trim()}`)
+    : bad(`反向臂失败：不关也没有 contact：${JSON.stringify(quoteOn)}`);
+  const pf = promptFrom(work, basePayload({ disabledBlocks: ['features'] }));
+  const svc = (src) => src.split('\n').find((l) => l.startsWith('- SERVICES pages must include:')) || '';
+  const refLine = /^\s+features on a SERVICES page: /m;
+  svc(pf).includes('"page-header"') && svc(pf).includes('"cta"') && !svc(pf).includes('"features"') && !refLine.test(pf)
+    ? ok(`关掉 features ⟹ SERVICES 那行只剩 ${svc(pf).replace('- SERVICES pages must include: ', '')}，它那行「写引用」整条不印`)
+    : bad(`关掉 features 之后 SERVICES 那两行不对：${JSON.stringify(svc(pf))} · 引用那行还在? ${refLine.test(pf)}`);
+  svc(pNone).includes('"features"') && refLine.test(pNone)
+    ? ok('反向臂：不关的时候 SERVICES 那行有 features、「写引用」那行在 ⟹ 上一格不是恒真')
+    : bad('反向臂失败：不关也没有 features / 引用那行');
 }
 {
-  // 服务详情页那一行也是写死的块名清单（第三处）。关掉 faq-accordion ⟹ 那一行里没有它，
-  // 而同一行里别的块原样在（钉住「只拿掉被关的那个」）。
-  const p = promptFrom(work, basePayload({ disabledBlocks: ['faq-accordion'] }));
+  // 服务详情页那一行也是写死的块名清单（第三处）。关掉 faq ⟹ 那一行里没有它，
+  // 而同一行里别的块原样在（钉住「只拿掉被关的那个」）。#1425（T3）：faq-accordion → faq，cta-banner → cta；按词边界数。
+  const p = promptFrom(work, basePayload({ disabledBlocks: ['faq'] }));
   const ruleLine = (src) => src.split('\n').find((l) => l.startsWith('- Each page needs 5-7 sections:')) || '';
   const off = ruleLine(p); const on = ruleLine(pNone);
-  off && !off.includes('faq-accordion') && off.includes('page-header') && off.includes('cta-banner')
-    ? ok(`服务详情页那一行少了 faq-accordion，别的原样：${off.trim()}`)
+  const has = (line, t) => new RegExp(`(^|[^a-z-])${t}([^a-z-]|$)`).test(line);
+  off && !has(off, 'faq') && has(off, 'page-header') && has(off, 'cta')
+    ? ok(`服务详情页那一行少了 faq，别的原样：${off.trim()}`)
     : bad(`服务详情页那一行不对：${JSON.stringify(off)}`);
-  on.includes('faq-accordion')
+  has(on, 'faq')
     ? ok('反向臂：不关的时候那一行里有它 ⟹ 上一格不是恒真')
     : bad('反向臂失败：不关也没有它');
 }
 {
-  // 🔴 零行为的强证明：不传字段那一臂，跟**改动之前**那棵树的 scripts 逐字节相同。
-  //    上面「空数组 == 缺席」两臂跑的是同一份代码，它证明不了「跟改之前一样」。
-  //
-  // 🔴 基线是钉死的 `BASELINE`（模块顶部），**不是 `origin/main`** —— 一个会移动的 ref 会让这一格
-  //    在别人推送之后整份 `die(2)`。完整来历与维护约定在文件头最后一条。
-  //
-  // 🔴 为什么钉本票的 base：它那份 scripts 跟这棵树的 `blocks/` 是同一个时代的，配得起来；而「改动
-  //    之前」这件事本来就该拿本票开工那一刻去问。往后 rebase 到任何 main 上也不会动摇它 —— 基线那份
-  //    校验器对**多出来的** manifest 键是宽容的（只查它认识的那几个），新加的 `displayName` 不会让它抛。
-  let baseRoot = '';
-  try { baseRoot = treeAt(BASELINE); } catch (e) { baseRoot = ''; console.log(`  ⚠️  取不到基线那棵树 ${BASELINE}（${e.message}）`); }
-  if (baseRoot) {
-    // ── 🔴 #1372 改了这一格两处，两处都写清楚为什么 ──────────────────────────────────────────
-    //
-    // ① **比的那条路从「配方开着」换成「配方关掉」**（两臂都传 `homepageFingerprint: false`）。
-    //    不是为了好看：基线那棵树的 `NOT_IN_POOL` 里写着 `divider`，而本票把这个块删了 ⟹ 基线的
-    //    scripts 配上今天的 `blocks/` 时，`poolFor` 那条「名单点名的块还在不在块库里」的自检不成立、
-    //    配方**整个停用**。那时两边差的是「基线跑不动配方」，不是本票改的字节 —— 那不是读数。
-    //    配方开着那条路的字节由 `homepage-recipe.test.js` 的 ⑥⑦ 两格盯着，没有失守。
-    //
-    // ② **加一张差异表**。本票有意改了三处提示词字节（块从 32 个变成 28 个）。文件头那条维护约定
-    //    说「确实该变就把 BASELINE 往前挪一格」，而要挪到的那个 commit 就是本票自己 —— 一个 commit
-    //    的 sha 写不进它自己的树。#1162 在 `homepage-recipe.test.js` 上撞过同一件事，那里的做法是
-    //    逐条登记差异并配两格判别力，这里照抄：不套差异表必须对不上，且每一条都要真的改变基线那份。
-    const DELTAS = [
-      {
-        why: '#1372 「有多少种块」那句：基线写死 32，今天按 blocks/ 现算',
-        // 🔴 同 `create-site.js` 的口径：滤掉外壳块（header / footer 的 manifest 在 blocks/ 里，
-        //    但模型点不到它们，那句话本来就不数它们）。
-        apply: (t) => t.split('There are 32 section types')
-          .join(`There are ${[...loadManifests().keys()].filter((ty) => !isRegionManifest(BLOCKS_DIR, ty)).length} section types`),
-      },
-      {
-        why: '#1372 `divider` 这个块删了 ⟹ 那条「用 divider 分段」的祈使句整行不再印',
-        apply: (t) => t.split('\n')
-          .filter((l) => !l.startsWith('- Use "divider" between sections occasionally'))
-          .join('\n'),
-      },
-      {
-        why: '#1372 删掉的那个对比块 ⟹ 「每样各生成几条」那行里它那一格不再印',
-        apply: (t) => t.split(', 5-7 comparison features,').join(','),
-      },
-      {
-        why: '#1372 那行「大多数站不会有的块」举例名单里去掉了被删的那两个块',
-        apply: (t) => t.split('\n').map((l) => (l.startsWith('- Include at least TWO sections')
-          ? '- Include at least TWO sections that most sites wouldn\'t have (e.g., content-split, '
-            + 'social-proof, card-group, announcement-bar).'
-          : l)).join('\n'),
-      },
-    ];
-    const pBaseOff = promptFrom(baseRoot, basePayload({ homepageFingerprint: false }));
-    const pNoneOff = promptFrom(work, basePayload({ homepageFingerprint: false }));
-    const patched = DELTAS.reduce((acc, d) => d.apply(acc), pBaseOff);
-    patched === pNoneOff
-      ? ok(`不传禁用清单（配方关掉）⟹ 基线 ${BASELINE} 套上登记的那 ${DELTAS.length} 条差异之后逐字节相同（${pNoneOff.length} 字节）`)
-      : bad(`不传禁用清单，跟基线 ${BASELINE} 对不上（基线+差异 ${patched.length} vs 这棵树 ${pNoneOff.length}）`);
-    pBaseOff !== pNoneOff
-      ? ok('判别力①：一条差异都不套就对不上 ⟹ 上面那格不是恒真')
-      : bad('一条都不套也相同 ⟹ 这张差异表是死的，这一格已经退化');
-    const dead = DELTAS.filter((d) => d.apply(pBaseOff) === pBaseOff);
-    dead.length === 0
-      ? ok(`判别力②：${DELTAS.length} 条差异每一条都真的改变了基线那份提示词（没有死条目）`)
-      : bad(`差异表里有 ${dead.length} 条对基线什么都没做：${dead.map((d) => d.why).join(' · ')}`);
+  // 🔴 零行为的强证明 —— #1425（T3）换了基线：原来拿钉死的 `9d056fd7` 那棵树的提示词整份比（差异逐条登记）；
+  //    本票按设计把提示词里的块名整批换掉，那份基线配今天的 blocks/ 已经吐不出提示词。换成**同一棵树两臂互比**：
+  //    「什么都没关」vs「关掉 X」，两份提示词的每一处差异（按行 diff 切成段）都必须点名 X —— 只有那句现算的
+  //    「There are N section types」可以不点名。它守的正是原来那一格要守的「关掉一个块只动它自己那几行」。
+  //    两臂都关掉配方（`homepageFingerprint: false`）：配方的候选池随禁用清单变，轮换位会整体挪 ——
+  //    那是配方自己的性质，由 `homepage-recipe.test.js` 盯着，不是这一格的读数。
+  /** 按行 LCS diff，回连续变动段的数组（每段 = 删掉的行 + 加上的行）。 */
+  const hunks = (a, b) => {
+    const A = a.split('\n'); const B = b.split('\n');
+    const n = A.length; const m = B.length;
+    const L = Array.from({ length: n + 1 }, () => new Int32Array(m + 1));
+    for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) {
+      L[i][j] = A[i] === B[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+    }
+    const out = []; let cur = null; let i = 0; let j = 0;
+    const flush = () => { if (cur) { out.push(cur); cur = null; } };
+    while (i < n || j < m) {
+      if (i < n && j < m && A[i] === B[j]) { flush(); i++; j++; continue; }
+      cur = cur || { del: [], add: [] };
+      if (j < m && (i >= n || L[i][j + 1] >= L[i + 1][j])) cur.add.push(B[j++]);
+      else cur.del.push(A[i++]);
+    }
+    flush();
+    return out;
+  };
+  const COUNT_LINE = /There are \d+ section types/;
+  const stray = (t, hs) => hs.filter((h) => {
+    const text = [...h.del, ...h.add].join('\n');
+    // 不分大小写：「4-6 FAQ items」那一格是产品有意绑在 faq 块上的（`contentAmountsRule`），说的就是它。
+    if (new RegExp(`(^|[^a-z-])${t}([^a-z-]|$)`, 'i').test(text)) return false;
+    return ![...h.del, ...h.add].every((l) => COUNT_LINE.test(l));
+  });
+  const pOffAll = promptFrom(work, basePayload({ homepageFingerprint: false }));
+  const VICTIMS = ['faq', 'pricing', 'gallery'];
+  const hs = {};
+  for (const t of VICTIMS) {
+    hs[t] = hunks(pOffAll, promptFrom(work, basePayload({ homepageFingerprint: false, disabledBlocks: [t] })));
+    const bad1 = stray(t, hs[t]);
+    hs[t].length && !bad1.length
+      ? ok(`关掉 ${t}（配方关掉）⟹ 跟什么都没关比，${hs[t].length} 段差异每一段都点名 ${t}（或是那句块数）`)
+      : bad(`关掉 ${t} 的差异不全是它自己的（${hs[t].length} 段，${bad1.length} 段没点名它）：`
+        + `${bad1.slice(0, 2).map((h) => JSON.stringify(h).slice(0, 240)).join(' · ') || '一段差异都没有'}`);
   }
+  // 判别力：拿「关掉 pricing」的差异去问「是不是都点名 faq」，必须有段答不上 ⟹ 上面那几格不是恒真。
+  stray('faq', hs.pricing).length > 0
+    ? ok(`判别力：把关掉 pricing 的差异记到 faq 头上，${stray('faq', hs.pricing).length} 段对不上 ⟹ 这把尺分得清是谁的差异`)
+    : bad('判别力失败：关掉 pricing 的差异也全点名 faq ⟹ 这把尺什么都放过');
 }
 
 console.log('\n── ⑤ 池里全部关掉 ⟹ 干净失败，报文点名 ──');
@@ -467,7 +405,8 @@ console.log('\n── ⑤ 池里全部关掉 ⟹ 干净失败，报文点名 ─
 }
 
 // ── ⑥ 脚本自己硬插的那几块（不经菜单、不经校验器）─────────────────────────────────────────────
-console.log('\n── ⑥ 脚本自己插的 contact-form：关掉之后它也让开 ──');
+// #1425（T3）—— 旧库的 contact-form 删了，脚本硬插的那几块今天是 `contact`（`options.form: 'full'` 带表单）。
+console.log('\n── ⑥ 脚本自己插的 contact：关掉之后它也让开 ──');
 {
   // skipAI 真跑两趟，读磁盘上真写出来的页面 JSON —— 这一族的三处硬插（writeSiteConfig 那一处 +
   // getDemoConfig 两处）都只在写盘那一刻才存在，读提示词看不见它们。
@@ -481,16 +420,16 @@ console.log('\n── ⑥ 脚本自己插的 contact-form：关掉之后它也�
     return { status: r.status, pages: [...byName.keys()].sort(), types };
   };
   const on = run(basePayload({ skipAI: true }));
-  const off = run(basePayload({ skipAI: true, disabledBlocks: ['contact-form'] }));
+  const off = run(basePayload({ skipAI: true, disabledBlocks: ['contact'] }));
   on.status === 0 && off.status === 0
     ? ok('两臂都建得出来（关掉一个块不该让建站失败）')
     : bad(`退出码不对: 不关 ${on.status} / 关掉 ${off.status}`);
-  on.types.filter((t) => t === 'contact-form').length >= 1
-    ? ok(`反向臂：不关的时候示例站里有 ${on.types.filter((t) => t === 'contact-form').length} 处 contact-form`)
-    : bad('反向臂失败：不关也没有 contact-form —— 这一格没有判别力');
-  off.types.includes('contact-form')
-    ? bad(`关掉 contact-form，站里还有 ${off.types.filter((t) => t === 'contact-form').length} 处`)
-    : ok('关掉 contact-form ⟹ 写出来的页面里 0 处');
+  on.types.filter((t) => t === 'contact').length >= 1
+    ? ok(`反向臂：不关的时候示例站里有 ${on.types.filter((t) => t === 'contact').length} 处 contact`)
+    : bad('反向臂失败：不关也没有 contact —— 这一格没有判别力');
+  off.types.includes('contact')
+    ? bad(`关掉 contact，站里还有 ${off.types.filter((t) => t === 'contact').length} 处`)
+    : ok('关掉 contact ⟹ 写出来的页面里 0 处');
   on.pages.includes('contact.json') && !off.pages.includes('contact.json')
     ? ok(`Contact 那一页整页不插（不关时的页面: ${on.pages.join(' ')} / 关掉后: ${off.pages.join(' ')}）`)
     : bad(`Contact 页那一格不对: 不关 ${on.pages.join(' ')} / 关掉 ${off.pages.join(' ')}`);
@@ -541,7 +480,8 @@ console.log('\n── ⑧ 每个页面块逐个关一遍：CRITICAL RULES 段里
   const allTypes = everyManifest.filter((t) => !regionTypes.includes(t));
   // 🔴 分母的下限：上面那条排除规则要是哪天把一大半块都排掉（比如有人给所有 manifest 写了
   //    `region: true`），下面每一格都会恒绿而没人看得见。这一句让那种情况当场 die(2)。
-  if (allTypes.length < 20) {
+  // #1425（T3）—— 下限从 20 改成 12：新库 17 块、外壳 2 个 ⟹ 页面块 15 个（旧库是 28 − 2）。
+  if (allTypes.length < 12) {
     die(`页面块只剩 ${allTypes.length} 个（外壳区排掉了 ${regionTypes.length} 个：${regionTypes.join(', ') || '无'}）`
       + ' —— 分母塌了，下面那些格什么都量不到');
   }
@@ -553,7 +493,27 @@ console.log('\n── ⑧ 每个页面块逐个关一遍：CRITICAL RULES 段里
     return prompt.slice(i);
   };
   // 词边界：`process-steps` 不许被 `process-steps-foo` 匹配，也不许 `hero` 命中 `hero-with-form`。
-  const names = (section) => allTypes.filter((t) => new RegExp(`(^|[^a-z-])${t}([^a-z-]|$)`).test(section));
+  // #1425（T3）—— 新库的块名大多是普通英文词（content / contact / cta / features …），所以两处收紧：
+  //   ① 右边界也挡**大写字母**：`navigation.ctaPage` 是一个标识符，不是在点名 cta 块；
+  //   ② 一张写明理由的豁免表（下面 EXEMPT）：那几行用的是同一个英文词、但说的不是这个块。每一条都要在
+  //      「什么都没关」那份里真命中（死条目当场红），而且只豁免它点名的那一行，不豁免整个块。
+  const nameRe = (t) => new RegExp(`(^|[^a-z-])${t}([^A-Za-z-]|$)`);
+  const EXEMPT = [
+    { t: 'content', line: /^- Include location names naturally in content\.$/, why: '「把地名自然地写进内容里」—— 英文词 content，不是 content 块' },
+    { t: 'contact', line: /^- "forms" are the site's two lead forms/, why: '站级表单库（#1471）那一行：`"contact"` 是**表单的 id**（name / email / message 那张），不是 contact 块；关掉 contact 块不删那张表单（hero 也用它）' },
+  ];
+  const exempt = (t, l) => EXEMPT.some((e) => e.t === t && e.line.test(l.trim()));
+  const linesNaming = (t, section) => section.split('\n').filter((l) => nameRe(t).test(l) && !exempt(t, l));
+  const names = (section) => allTypes.filter((t) => linesNaming(t, section).length > 0);
+
+  // #1425（T3）—— 豁免表不许有死条目：每一条都得在「什么都没关」那一段里真命中它说的那一行。
+  {
+    const sec = rulesSection(pNone).split('\n');
+    const dead = EXEMPT.filter((e) => !sec.some((l) => e.line.test(l.trim()) && nameRe(e.t).test(l)));
+    dead.length === 0
+      ? ok(`豁免表 ${EXEMPT.length} 条每一条都真命中一行（${EXEMPT.map((e) => e.t).join(' / ')}）`)
+      : bad(`豁免表里有 ${dead.length} 条死条目（那一行没了或不再含这个词）：${dead.map((e) => e.why).join(' · ')}`);
+  }
 
   // 反向臂先跑：什么都没关时这一段**确实**点名了一批块 —— 否则下面逐块那些格量的是一段空气。
   const namedWhenAllOn = names(rulesSection(pNone));
@@ -564,7 +524,7 @@ console.log('\n── ⑧ 每个页面块逐个关一遍：CRITICAL RULES 段里
   const leaked = [];
   for (const t of allTypes) {
     const section = rulesSection(promptFrom(work, basePayload({ disabledBlocks: [t] })));
-    const lines = section.split('\n').filter((l) => new RegExp(`(^|[^a-z-])${t}([^a-z-]|$)`).test(l));
+    const lines = linesNaming(t, section);
     if (lines.length) leaked.push(`${t}: ${lines.length} 行 · 第一行 ${JSON.stringify(lines[0].trim().slice(0, 90))}`);
   }
   leaked.length === 0
@@ -575,7 +535,7 @@ console.log('\n── ⑧ 每个页面块逐个关一遍：CRITICAL RULES 段里
   // 它挡的是「整段被某个改动弄空了，于是 0 命中恒真」。
   const stillThere = namedWhenAllOn.filter((t) => {
     const section = rulesSection(promptFrom(work, basePayload({ disabledBlocks: [t] })));
-    return new RegExp(`(^|[^a-z-])${t}([^a-z-]|$)`).test(section);
+    return linesNaming(t, section).length > 0;
   });
   stillThere.length === 0
     ? ok(`那 ${namedWhenAllOn.length} 个本来被点名的块，逐个关掉之后逐个消失`)
@@ -591,7 +551,7 @@ console.log('\n── ⑧ 每个页面块逐个关一遍：CRITICAL RULES 段里
     return m ? Number(m[1]) : null;
   };
   const all = typeCountIn(pNone);
-  const three = ['gallery', 'testimonials', 'team-grid'];   // #1372：原来这里是 divider / gallery / timeline，前后两个块删了
+  const three = ['gallery', 'testimonials', 'team'];   // #1372：原来这里是 divider / gallery / timeline；#1425（T3）：team-grid → team
   const less = typeCountIn(promptFrom(work, basePayload({ disabledBlocks: three })));
   all === allTypes.length
     ? ok(`什么都没关 ⟹ 那句话说 ${all} 种块，等于 blocks/ 里的页面块份数（外壳区 ${regionTypes.length} 个不算）`)

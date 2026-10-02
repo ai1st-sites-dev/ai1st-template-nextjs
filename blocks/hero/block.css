@@ -1,124 +1,194 @@
-/* hero · 图片带（#1358）—— 这是一个**可选零件**，不是一种形态
+/* ── hero · 跨形态的规则（#1463）────────────────────────────────────────────────────────────
+   hero 的排版由**实际生效的旋钮**决定，写在根元素上：data-text-align（left / center / right）· data-image
+   （none / left / right / top / bottom / background）· data-form · data-tone（light / dark / brand）。
+   🔴 #1470 —— 两个旋钮各管各的：几何（图多大、文字块多宽）跟 data-image，文字怎么对齐跟 data-text-align。
+      #1463 那几条挂在 data-align="center" 上的规则，是因为那时「居中」和「图在上下」是同一个旋钮；
+      现在按它们真正管的那一维重挂，不是把属性名替换一遍。
+   五个形态目录都是预设，自己不带几何（理由在各自的 shape.css 里）。
 
-   FlyonUI hero-1 的下半截：文案之下一整条横向照片带。它跟着**内容**出现（`blocks/hero/manifest.json` 的
-   `imageBand` 槽填了才渲染，`HeroSection.tsx` 空着时一个字节都不画），所以主题**选不了**「有带 /
-   没带」—— 这一条是 PM 在 #1358 r4 裁定的代价，写在票的正文里：五根排版轴里表达不出「一张图」和
-   「一条图片带」的区别，照 hero-5 的先例它落在**已有的 `text-center`** 加这个槽上，hero 的形态数不变。
+   🔴 Webpixels 的工具类全带 !important（text-muted / bg-primary-subtle / text-primary …）。这里要压过
+      它们的规则**也带 !important**，而且选择器从 [data-block="hero"] 起步再加一个属性 —— 两个属性
+      选择器 + 一个类，特异度一定高过工具类的一个类。
+   🔴 藏东西这里一条都没有：部件有数据才渲染（Section.tsx），不靠 CSS 藏。 */
 
-   🔴 下面这几条**只落在 `.hero__band` / `.hero__band-img` 这两个新类名上**，七种已有形态自己的选择器
-   一条都没碰 —— 验收那条「已有的对不退化」靠的就是这个（改到它们的话，HTML 没变也不等于画出来没变）。
+/* 🔴 行的间距在 Section.tsx 里是 `gx-8 gy-10 gx-lg-16`，**不是**定稿抄来的 `g-10 gx-lg-16`，别「照定稿修回去」：
+      `.row` 左右负外边距 = 横向间距的一半，`g-10` 是 20px，而 `.container` 在手机上的内距只有 16px ⟹ 390 宽下
+      整页横向滚动 4px（#1463 实测 scrollWidth 394 / 390）。也别写成 `g-10 gx-8`：Bootstrap 按尺寸逐档生成
+      g / gx / gy，`.g-10` 排在 `.gx-8` 后面，会把它压回去。竖向与 ≥992 的横向照定稿不变。 */
 
-   🔴 `grid-column: 1 / -1` 是承重的，不是顺手写的。两栏的 `media-left` / `media-right` 在 ≥1024px 上是
-   `5fr 6fr` / `6fr 5fr`，这条带不跨列的话会被检查 ⑨ 算成**第三条列带**上的一个零件，那两种形态
-   `columns: "two"` 当场红（判据：`scripts/lib/layout-intent.mjs:119` 判跨列、`:343-352` 判列数）。
-   一栏的那五种上它是恒等式（只有一条列带），留着是保险。
-
-   🔴 `order: 4` 让它排在最后一位：七种形态里 `.hero__deco` / `.hero__body` / `.hero__media` 用掉的是
-   1–3（`media-cover` 那种不用 order、用 grid-row，带按自动放置落到它们下面那一行）。排最后是
-   FlyonUI hero-1 的样子，也让 `media: "below"`（图在正文之下）那条断言的两个当事人不被它隔开。
-
-   三端照 `docs/reference/flyonui/flyonui-hero-section-matrix.html` 的 hero-1：电脑端一整行（几张就是
-   几列，`grid-auto-flow: column`）· iPad 三张一行 · 手机两张并排。
-   🔴 列宽一律 `minmax(0, 1fr)`：`1fr` 的下限是 `auto`（内容的最小尺寸），照片那点最小宽度在 375px 上
-   会把这条带撑出块的内容盒 —— 而验收那条「手机端不横向滚动」数的正是检查 ⑨ 的自溢出清单
-   （开工前基线：全站 0 格）。
-   🔴 **没做上下错位**（FlyonUI 那条带的照片是交错的）：错位要按第几张来排，写法是 `:nth-child()`，
-   而错位之后那几张图的几何**没有任何机器判据**（带里的图不在检查 ⑨ 的取样面上，见 `HeroSection.tsx`
-   那段注释）。票的正文把这一格列成了本票买不到的东西，所以这里不加一个没人看得住的花样。 */
-
-[data-block="hero"] .hero__band {
-  order: 4;
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: start;
-  width: 100%;
-}
-
-[data-block="hero"] .hero__band-img {
-  width: 100%;
+/* 图：并排（left / right）时 4:3；上下叠（top / bottom）时一整条 21:9、最高 460 —— 跟文字怎么对齐无关。 */
+[data-block="hero"] .hro-img {
   aspect-ratio: 4 / 3;
-  object-fit: cover;
+}
+[data-block="hero"][data-image="top"] .hro-img,
+[data-block="hero"][data-image="bottom"] .hro-img {
+  aspect-ratio: 21 / 9;
+  max-height: 460px;
+}
+[data-block="hero"][data-image="top"] .hro-side,
+[data-block="hero"][data-image="bottom"] .hro-side {
+  max-width: 1100px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-@media (min-width: 768px) {
-  [data-block="hero"] .hero__band {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
+/* 大字号标题的光学对齐：文字靠左时让大写字母左缘跟 eyebrow / 副标题对齐。 */
+[data-block="hero"][data-text-align="left"] .hro-title {
+  margin-left: -0.04em;
 }
 
-@media (min-width: 1024px) {
-  [data-block="hero"] .hero__band {
-    grid-template-columns: none;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(0, 1fr);
-  }
+/* 副标题 ≤ 52ch。上下叠（top / bottom）时文字块收到 64ch，这一块放哪跟 data-text-align：
+   center 居中、right 靠右、left 靠左（col-12 本来就靠左，不用写）。 */
+[data-block="hero"] .hro-sub {
+  max-width: 52ch;
+}
+[data-block="hero"][data-image="top"] .hro-textcol,
+[data-block="hero"][data-image="bottom"] .hro-textcol {
+  max-width: 64ch;
+}
+[data-block="hero"][data-text-align="center"][data-image="top"] .hro-textcol,
+[data-block="hero"][data-text-align="center"][data-image="bottom"] .hro-textcol {
+  margin-left: auto;
+  margin-right: auto;
+}
+[data-block="hero"][data-text-align="right"][data-image="top"] .hro-textcol,
+[data-block="hero"][data-text-align="right"][data-image="bottom"] .hro-textcol {
+  margin-left: auto;
+}
+/* 限了宽的副标题 / 表单跟着文字对齐走：center 居中、right 贴右。 */
+[data-block="hero"][data-text-align="center"] .hro-sub,
+[data-block="hero"][data-text-align="center"] .hro-form {
+  margin-left: auto;
+  margin-right: auto;
+}
+[data-block="hero"][data-text-align="right"] .hro-sub,
+[data-block="hero"][data-text-align="right"] .hro-form {
+  margin-left: auto;
 }
 
-/* ══════════════════════════════════════════════════════════════════════════════════════════════════
-   可选槽位没填，就不画那个零件（#1337 立，#1361 起不再只管「图」；设计文档 D4 / D11 ⑥）
-   ══════════════════════════════════════════════════════════════════════════════════════════════════
+/* 表单跟标题同宽，不超过 34rem。 */
+[data-block="hero"] .hro-form {
+  max-width: 34rem;
+}
 
-   可选的图槽位没填时，组件照样把媒体容器渲染出来（`HeroSection.tsx:67` / `ContentSplitSection.tsx:86`
-   无条件渲染，只有 `<img>` 才看 `imageUrl`）—— 那是契约 §2「每个零件都在」要的：主题皮拿它当
-   `::before/::after` 的钩子。于是上面那些形态规则给这个空 `div` 一条 `aspect-ratio`、主题皮给它一块
-   底色，页面上就多出一条什么都没有的空色带（Chris 2026-09-15 在 test 站 azure-29 / ember-12 两套下
-   都看到了：1280px 下 `.hero__media` 是 1280×267、底色 `rgb(30,58,138)`、**0 个子元素**）。
+/* 头像组叠在一起；logo 一排等高。 */
+[data-block="hero"] .hro-avatar + .hro-avatar {
+  margin-left: -10px;
+}
+[data-block="hero"] .hro-logo {
+  height: 26px;
+  width: auto;
+  opacity: 0.75;
+}
 
-   判据用 `data-has-imageUrl` —— #1331 按 manifest 的 `required: false` + 这一页真填了，在块根上写
-   `data-has-<槽位>="true"`（`src/lib/sections/blockAttrs.ts`）。🔴 不用 `:has()` / `:empty`：那两个
-   问的是「DOM 里有没有子元素」，而这里要问的是「这个槽位有没有数据」—— 两者在「填了图但图 404」
-   这类情形上分岔，而且 `:empty` 对空白文本节点敏感。
+/* 图片带：竖构图 3:4。列数 = 张数（col-md 均分）；手机上两张一排。 */
+[data-block="hero"] .hro-band-img {
+  aspect-ratio: 3 / 4;
+}
 
-   🔴 **这条规则只能住在这一层，`base.css` 不是可选项。** `base.css` 有自己的检查
-   （`scripts/base-css-lint.js`）只放行单个 class 的选择器（目的是保证主题永远盖得过地板），而
-   `sync-config.js` 每次建站都调 `css-contract-check.js`（射程 = `public/base.css` + `public/themes/*.css`，
-   `shapes.css` 不在里面），一有违规就**拒绝这次构建** —— 放错地方不是报个警告，是所有站建不出来。
-   实测：原样 `base.css` rc=0；把下面这两行加到它末尾就是 `🔴 2 violation(s)`、rc=1，点名「后代选择器」。
+/* 图铺底：遮罩在 [data-part="bg"] 上（Section.tsx 的内联渐变），块本身撑高、内容竖直居中。 */
+[data-block="hero"][data-image="background"] {
+  min-height: 640px;
+  display: flex;
+  align-items: center;
+}
+[data-block="hero"][data-image="background"] > .container {
+  width: 100%;
+}
 
-   🔴 **按 `data-block` 逐个写，不写通配。** 覆盖面 = 「那个槽位是可选的」的块。图这一族现取
-   （2026-09-15，`origin/main faa39001`）：解析 32 份 manifest，`imageUrl` 且 `required: false` 的是
-   `{hero, hero-with-form, content-split}` 三个。图**必填**的块（gallery 那类）没图是数据错，
-   该由 `validateSite` 说话，不是默默藏起来。加一个可选槽位、而且它的零件是无条件渲染的块时，
-   这里补一条。
-   🔴 **#1361 加了第四条，判的槽位不叫 `imageUrl`**：`cta-banner` 的头像带（可选槽 `avatars`，
-   每一项带一个 `imageUrl`）。判据、写法、「按 `data-block` 逐条写」这三样跟上面三条逐字相同，
-   唯一的差别是槽位名 —— 所以这一族的名字从「没图就不画媒体带」改成了「可选槽位没填就不画那个零件」。
-   📌 里面装的确实是图片，但这个盒子**不是**上面那三条说的「媒体容器」：它的类名不以 `__media`
-   结尾，而那个后缀是 `layout-intent-vocab.json` 判「这个零件是这个块的图」的唯一判据，
-   `cta-banner` 五种形态也全写着 `media: none`。两件事分开：这里判的是「槽位空不空」。
-   📌 `hero-with-form` 是 #1333 落到 main 上的第三个成员（本票开工那天落的）—— 它跟 `hero` 用的是
-   **同一个** `.hero__media` 类名、不同的 `data-block`，所以两条规则各写各的，不能合并成一条按类名
-   的写法：按类名写就等于通配，把「图必填的块不许被盖到」这条边界丢掉。
-   📌 上游 #1333 已经用同一个钩子治了 `hero/text-center` 一格（`[data-has-imageUrl]` 才给
-   `aspect-ratio`，见本表 §hero · text-center）。那是**只管尺寸**的半条：容器还在版面里、高度 0。
-   本票这条更强也更统一 —— 没图就整个不在版面里，`hero-with-form/form-side`（`aspect-ratio: 24 / 5`
-   无条件给）和 `content-split` 那两条无条件比例只有这么写才盖得住。两者不冲突：那边管「有图时多大」，
-   这边管「没图时在不在」。
+/* ── 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneForBg）───────────────────────────────
+   dark = 深底或图铺底：标题 / 副标题 / eyebrow / 统计 / logo 反白，outline 按钮翻成白描边。
+   brand = 主题主色底：同上，另外主按钮翻成白底主色字。 */
+[data-block="hero"][data-tone="dark"],
+[data-block="hero"][data-tone="brand"] {
+  color: #fff;
+}
+[data-block="hero"][data-tone="dark"] .hro-title,
+[data-block="hero"][data-tone="brand"] .hro-title,
+[data-block="hero"][data-tone="dark"] .hro-eyebrow-dash,
+[data-block="hero"][data-tone="brand"] .hro-eyebrow-dash,
+[data-block="hero"][data-tone="dark"] .hro-eyebrow-plain,
+[data-block="hero"][data-tone="brand"] .hro-eyebrow-plain {
+  color: #fff !important;
+}
+/* 深底 / brand 上的 `.text-muted`：白 .92，全站一条（`scripts/lib/site-css.js` §ON_DEEP_MUTED，#1477）。 */
+[data-block="hero"][data-tone="dark"] .border-top,
+[data-block="hero"][data-tone="brand"] .border-top {
+  border-color: rgba(255, 255, 255, 0.3) !important;
+}
+[data-block="hero"][data-tone="dark"] .btn-outline-primary,
+[data-block="hero"][data-tone="brand"] .btn-outline-primary {
+  color: #fff !important;
+  border-color: rgba(255, 255, 255, 0.6) !important;
+}
+[data-block="hero"][data-tone="dark"] .btn-link,
+[data-block="hero"][data-tone="brand"] .btn-link {
+  color: #fff !important;
+}
+[data-block="hero"][data-tone="dark"] .hro-eyebrow-pill,
+[data-block="hero"][data-tone="brand"] .hro-eyebrow-pill {
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #fff !important;
+}
+[data-block="hero"][data-tone="dark"] .hro-eyebrow-outline,
+[data-block="hero"][data-tone="brand"] .hro-eyebrow-outline {
+  border-color: rgba(255, 255, 255, 0.7) !important;
+  color: #fff !important;
+}
+[data-block="hero"][data-tone="dark"] .hro-logo,
+[data-block="hero"][data-tone="brand"] .hro-logo {
+  filter: brightness(0) invert(1);
+  opacity: 0.9;
+}
+/* 图铺底时 pill 用白底深字（图册 hero 段的样子：遮罩上半透明的白太淡）。 */
+[data-block="hero"][data-image="background"] .hro-eyebrow-pill {
+  background: #fff !important;
+  color: #0f172a !important;
+}
+/* ── 按钮的底色和字色：接平台按这个站最终配色算好的那几个变量（`scripts/lib/button-ink.js`）──────────
+   Webpixels 的 `.btn-primary` 用 `$primary` 当底、按**纯色**对比度挑白 / 黑字；中间调的主色上两种字都贴着 4.5
+   （实测 ember-12 的 #907230：白字纯色 4.53、黑字 4.60，抗锯齿后 4.42 / 4.49，theme-css-invariants 判红）。
+   `button-ink.js` 解的正是这件事：底色沿梯子挑一档过线的、字色按抗锯齿后的对比度挑，写成 `--btn-primary-*`
+   （旧块的 `.btn-primary` 读的也是它们）。拿不到这些变量的页面落回 Webpixels 自己的值。
+   🔴 这是平台算的可读性变量，不是主题表的皮 —— 跟 manifest 的 `skin: "site-css"` 不冲突。 */
+[data-block="hero"] .btn-primary {
+  --x-btn-bg: var(--btn-primary-bg, var(--x-primary));
+  --x-btn-border-color: var(--btn-primary-bg, var(--x-primary));
+  --x-btn-color: var(--btn-primary-ink, #fff);
+  --x-btn-hover-bg: var(--btn-primary-hover, var(--btn-primary-bg, var(--x-primary)));
+  --x-btn-hover-border-color: var(--btn-primary-hover, var(--btn-primary-bg, var(--x-primary)));
+  --x-btn-hover-color: var(--btn-primary-ink, #fff);
+  --x-btn-active-bg: var(--btn-primary-hover, var(--btn-primary-bg, var(--x-primary)));
+  --x-btn-active-color: var(--btn-primary-ink, #fff);
+}
+[data-block="hero"] .btn-outline-primary {
+  --x-btn-color: var(--btn-outline-ink, var(--x-primary));
+  --x-btn-border-color: var(--btn-outline-ink, var(--x-primary));
+}
 
-   📌 **放在文件末尾，但今天不是它靠位置才生效的。** 这几条选择器是 (0,3,0)，跟上面每一条形态规则
-   （块属性 + 画法属性 + 一个类名）逐位相同，同特异度靠先后定胜负；而实测五份表（`base.css` /
-   本表 / 两套 `themes/*.css` / `src/app/globals.css`）里，那两个媒体容器身上**一条 `display` 声明
-   都没有**（本条之外命中 0）—— 所以今天没有对手，没有「因为排在前面所以被盖掉」这回事。写在末尾
-   是为了将来：形态层真要给某个 (块, 画法) 写 `display` 时，同特异度下它排在前面、这一条赢，空媒体
-   带不会因为加了一条画法又冒回来。
-   🔴 **#1361 那条头像带不一样，它【有】对手**：`base.css` 给 `.cta-banner__avatars` 写了
-   `display: flex`（那是没有任何表时也得成立的地板）。这一条赢不是靠排在后面，是靠特异度
-   —— (0,3,0) 对 (0,1,0)，而且 `base.css` 那条 `<link>` 本来就排在本表前面（`layout.tsx`：
-   base.css → shapes.css → theme.css → custom.css）。两个理由各自单独成立。
-   🔴 **这段注释里不许写出 `[data-block=…][data-shape=…]` 那个形状的字面串。**
-   `block-manifest.js` 的 `shapePairsFromCss` 拿正则扫**整份文件**、不剥注释（:65），注释里举个例子
-   就会凭空多出一个 (块, 画法) 对。实测：第一版这里举的例子是 hero 的 form-side，而 #1333 刚把它搬去
-   `hero-with-form` —— `lib/block-shapes.test.js` 当场红「CSS 有、manifest 没有：1 个 —— hero/form-side」，
-   而 `shapes.css` 我一行都没删。
-   🔴 主题皮那一侧不用担心：`display` 不在契约 §2 的主题可写属性表里（`theme-css-lint.js` 的
-   `PROP_EXACT` / `PROP_PREFIXES` 没有它；它在 `GEOM_EXACT` 里，`isGeometry('display')` 为真）。
-   拿 `lint()` 真跑过五臂（每臂一份单规则的表）：合法属性那一臂只报「缺 v3 头」这条共通的，
-   而 `.hero__media{display:none}` / `.content-split__media{display:none}` / `[data-block="hero"]{display:none}`
-   三臂各多出一条 `"display" is not on the contract's property whitelist` —— 部件上、块根上都写不出。
-   ⟹ 今天能藏住这些零件的只有平台层，而平台层唯一会藏它们的就是下面这四条、判据正是「槽位空着」。
-   ══════════════════════════════════════════════════════════════════════════════════════════════════ */
-
-[data-block="hero"]:not([data-has-imageUrl]) .hero__media {
-  display: none;
+/* 深底（相对亮度 < 0.4）和 brand 底一样，主按钮翻成白底主色字（正文「字色按背景亮度自动算」那句）。 */
+[data-block="hero"][data-tone="dark"] .btn-primary,
+[data-block="hero"][data-tone="brand"] .btn-primary {
+  background: #fff !important;
+  border-color: #fff !important;
+  color: var(--x-primary) !important;
+}
+[data-block="hero"][data-tone="dark"] .btn-primary:hover,
+[data-block="hero"][data-tone="brand"] .btn-primary:hover {
+  background: #f1f5f9 !important;
+  border-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+[data-block="hero"][data-tone="dark"] .btn-primary:active, [data-block="hero"][data-tone="brand"] .btn-primary:active {
+  background: #e2e8f0 !important;
+  border-color: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+[data-block="hero"][data-tone="dark"] .form-control,
+[data-block="hero"][data-tone="brand"] .form-control,
+[data-block="hero"][data-tone="dark"] .form-select,
+[data-block="hero"][data-tone="brand"] .form-select {
+  color: #0f172a !important;
+  background-color: #fff !important;
+  border-color: #fff !important;
 }

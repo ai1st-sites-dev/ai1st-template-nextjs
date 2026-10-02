@@ -23,7 +23,7 @@ export interface BrandLocation {
   address: string;
   phone: string;
   /** #1489 —— 这个地址的坐标：建站 / 改地址时由 `scripts/lib/geocode.js`（Nominatim）查一次写进来，页面打开时不查。
-   *  contact-new 的地图点开时拿它算 bbox / marker；没有就不画地图。 */
+   *  contact 的地图点开时拿它算 bbox / marker；没有就不画地图。 */
   geo?: { lat: number; lng: number };
 }
 
@@ -80,9 +80,9 @@ export interface NavigationConfig {
     columns: FooterColumn[];
     copyright: string;
   };
-  // #1000 — 顶栏那条细带的内容。可选：只有选了带 topbar 区的 page layout 的站才需要它，
-  // 而那种站缺了它构建期就被拒绝（sync-config.js）。放在这个文件里是因为 Header / Footer 的导航
-  // 内容今天就在这儿；它的**结构**（solid / bordered / …）不在这里，跟 header / footer 一样由主题定。
+  // #1000 — 顶栏那条细带（公告条）的内容。📌 #1425（T3）起**没有人读它**：公告条那个区随旧库退役，
+  // 而老板写过的这句话不删（PM 2026-10-02 裁定 ②，删数据不可逆）—— 等 header 的 topbar 补上「一句话公告」
+  // 那一格时原地接回去。
   topbar?: {
     message: string;
     link?: NavLink;
@@ -161,7 +161,7 @@ export interface BlogPostConfig {
   tags: string[];
   author: string;
   publishedAt: string;
-  /** #1497 —— 封面（blog-new 画它；没有 ⟹ 主色 10% 底 + 分类名的占位）。字段名必须是 `imageUrl`（写入闸 `image-urls.js` 认它）。 */
+  /** #1497 —— 封面（blog 画它；没有 ⟹ 主色 10% 底 + 分类名的占位）。字段名必须是 `imageUrl`（写入闸 `image-urls.js` 认它）。 */
   coverImage?: { imageUrl: string; alt?: string };
   /** #1497 —— 作者头像。🔴 名字必须以 `Url` 结尾：写入闸只认 `IMAGE_FIELDS` 里的键。 */
   authorAvatarUrl?: string;
@@ -226,27 +226,24 @@ export interface DynamicPageConfig {
   blocks: BlockConfig[];
 }
 
-// #1353 — 三个 Region（顶栏 / 页脚 / 公告条）的**形态**。
+// #1353 — 两个 Region（顶栏 / 页脚）的**形态**；#1425（T3）起再带一份按语言的 **data**。
 //
-// 🔴 这里以前是 `HeaderVariant` / `FooterVariant` 两个写死的联合类型 + `RegionLayoutConfig`，
-//    也就是「一变体一棵树」那个模型的类型面。#1353 把三个 Region 按块的规矩搬进形态层之后，
-//    形态清单的唯一权威是 **块 manifest**（`blocks/header/manifest.json` / `footer.json` /
-//    `announcement-bar.json` 的 `shapes`），跟别的 32 个块一模一样 —— 所以这里**不再重抄一份联合
-//    类型**：抄一份就是第二份清单，而两份清单漂了没有任何东西会红（联合类型漂的方向尤其静默，
-//    `tsc` 只会在「组件写死某个名字」时才说话，而搬完之后没有一处写死）。
-//
-// 🔴 `headerScrim` 也随之没了：遮罩今天恒在 DOM 里，显不显示由 `shapes.css` 按
-//    `[data-shape="transparent-overlay"][data-over-hero="true"]` 决定（`Header.tsx` 头注）。
+// 🔴 形态清单的唯一权威是 **块 manifest**（`blocks/header/` / `blocks/footer/` 的形态目录），跟别的块一模一样 ——
+//    所以这里**不重抄一份联合类型**：抄一份就是第二份清单，而两份清单漂了没有任何东西会红。
+// 📌 #1425（T3）：公告条那个区（`topbar`）随旧库退役；`dataByLocale` 是构建期从 navigation.json + brand.json
+//    派生的那一份（`scripts/lib/shell-data.js`），里面的联系方式 / 社交链接还是引用，由 `SiteShell` 渲染前展开。
 export interface RegionShape {
-  /** 这个区选中的形态名 —— 对应 `blocks/<区>.json` 的 `shapes[].name`，也是 DOM 上的 `data-shape`。 */
+  /** 这个区选中的形态名 —— 对应 `blocks/<区>/` 下的形态目录名，也是 DOM 上的 `data-shape`。 */
   shape: string;
+  /** 语言 → 这个区那个块的 data（构建期派生，不落盘到 site/）。 */
+  dataByLocale?: Record<string, Record<string, unknown>>;
+  /** 语言 → 这个区那个块的内联图标表（构建期按展开后的 data 查好，`scripts/lib/icons.js` §iconTableFor）。 */
+  iconTableByLocale?: Record<string, Record<string, { viewBox: string; body: string }>>;
 }
 
 export interface RegionsConfig {
   header: RegionShape;
   footer: RegionShape;
-  /** 公告条那条外壳带（page layout 库里的 `topbar` 区）；形态取自 `blocks/announcement-bar/manifest.json`。 */
-  topbar: RegionShape;
   /** 构建日志里那几句人话（「主题想要的形态不在清单里，退回 X」之类）。 */
   notes: string[];
 }

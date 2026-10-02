@@ -1,38 +1,8 @@
-/* gallery · mosaic  （#1368，对表 FlyonUI gallery-1：马赛克图墙）
-
-   四条列带的图墙，图自己保留各自的高度（`align-items: start`）、画幅比 two-up / three-up 更方，
-   所以同样的图排出来的墙是**密的**而不是**整齐的行**。零 JS：不做真马赛克算法，也不做滚动。 */
-
+/* ── gallery · mosaic（预设 Mosaic）──────────────────────────────────────────────────────────────
+   这个形态没有自己的几何：gallery 是一份 markup + 六个旋钮，排版由**实际生效的旋钮**决定
+   （根元素上的 `data-intro-*` / `data-items-*` / `data-item-*` / `data-tone`，规则全在 `blocks/gallery/block.css`）。
+   按形态写规则的话，旋钮拧偏成 custom 时这里的规则仍然按形态名命中，页面就会排成一个跟旋钮说的不一样的样子。
+   所以这份文件只有这段说明。 */
 [data-block="gallery"][data-shape="mosaic"] {
-  display: grid;
-  grid-template-columns: 1fr;
-  align-items: start;
-}
-
-[data-block="gallery"][data-shape="mosaic"] .gallery__headline {
-  grid-column: 1 / -1;
-}
-
-[data-block="gallery"][data-shape="mosaic"] .gallery__sub {
-  grid-column: 1 / -1;
-  max-width: 36rem;
-}
-
-[data-block="gallery"][data-shape="mosaic"] .gallery__item {
-  display: grid;
-  align-content: start;
-}
-
-[data-block="gallery"][data-shape="mosaic"] .gallery__image {
-  aspect-ratio: 1 / 1;
-}
-
-[data-block="gallery"][data-shape="mosaic"] .gallery__placeholder {
-  aspect-ratio: 1 / 1;
-}
-
-@media (min-width: 1024px) {
-  [data-block="gallery"][data-shape="mosaic"] {
-    grid-template-columns: repeat(4, 1fr);
-  }
+  --gl-preset: mosaic;
 }

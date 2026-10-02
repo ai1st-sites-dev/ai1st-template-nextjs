@@ -1,164 +1,265 @@
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+// hero —— 首屏，Webpixels / Bootstrap 那一套（#1463，总纲 #1422 的 T2.3）
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+//
+// 🔴 **普通页面块**：进 registry、进 Puck、进 AI 建站的块菜单，manifest 不带 `staging`（Chris 2026-09-27
+//    「现在没有客户」，设计稿 B1 那条 📌）。它的样式全在 Webpixels 那一份 `site.css` 里，`src/app/layout.tsx`
+//    从本票起给每一页都挂上它（与 Tailwind 并存到 T4）。T3 删旧库时 `hero` → `hero`。
+//    建站那一侧它跟 `hero` 是同一个首屏位置，首页配方的抽取池不收它（`homepage-recipe.js` §NOT_IN_POOL）。
+//
+// 🔴 **一份 markup，三个旋钮**（textAlign / image / form），五个预设各是一个形态目录。实际生效的旋钮 =
+//    形态对应的那个预设给底，`data.options` 里写了的逐个覆盖（`scripts/lib/block-knobs.js`
+//    §effectiveKnobs —— 编辑器判 custom 用的是同一个函数）。旋钮值写在根元素上
+//    （`data-text-align` / `data-image` / `data-form` / `data-tone`），`block.css` 按它们排；
+//    **形态目录自己不带几何**（理由写在每份 `shape.css` 里）。
+// 🔴 #1470 —— 两个旋钮互不影响：`textAlign`（left / center / right）只管文字块里的对齐，`image`
+//    （none / left / right / top / bottom / background）只管图放哪、行怎么排。`reverse` 退役了：
+//    旧的 `normal + reverse` = 今天的 `left`，旧的 `center + normal (+ reverse)` = 今天的 `bottom`（`top`）。
+//
+// 🔴 **排版尽量只走 Webpixels 的工具类**（总纲约束 3）。Webpixels 的工具类全带 `!important`，所以
+//    `block.css` 里要压过它们的规则也带 `!important`、且选择器的 class 数不少于它（票正文「通用规矩」）。
+//    这里「藏东西」一律是**不渲染**（部件有数据才画），不靠 CSS 藏 —— 那样 `image=none` 时 DOM 里就真的
+//    没有 `<img>`（AC2），不是一张被 `display:none` 的图。
+//
+// 🔴 **图片的键叫 `imageUrl`，不叫 `url`**：AI 改站那条路的写入闸只认 `IMAGE_FIELDS` 里的键
+//    （`scripts/lib/image-urls.js`，今天是 `imageUrl` / `logoUrl`），换一个名字模型编的地址就能写进来；
+//    `image-urls.test.js` 从组件里现读 `<img src={…}>` 的叶子标识符盯着这件事。
+//
+// 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss 写成 CSS、§toneForBg 按亮度反白；#1477，
+//    跟 footer / header / cta 同一份）。`bg` 可以是纯色、`brand` 或渐变 `{stops, angle}`。
+//    图铺底（`image=background` 且有图）一律按深底处理 —— 图上面压着深色渐变遮罩。
+
 import Link from 'next/link';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig } from '@/lib/types/config';
+import { getServices } from '@/lib/config';
+import Icon from '@/components/Icon';
+import BlockLeadForm from '@/components/BlockLeadForm';
+import manifest from './manifest.json';
+import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
+import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
 
-// 🔴 #1333 —— 表单那一支搬走了。带表单的首屏现在是自己一个块类型 `hero-with-form`
-// （`HeroWithFormSection.tsx`），`data.form` 跟着它走，这里不再有这个字段。hero 从此只剩
-// 「有图 / 没图」两种内容结构，两种都是下面这同一份 HTML，差别归 `public/shapes.css`。
-// 说明写在 interface **外面**是有意的：`scripts/block-migration/gen-allblocks.js` 按文本切这份字段表
-// （`fields()`），一条写在里面的注释会被它当成又一个字段名，写进演示站的夹具数据里 —— 实测过一次。
-//
-// 🔴 #1358 —— `imageBand` 是可选的图片带（FlyonUI hero-1 那条横向照片带）。`imageUrl` 是**一张**图，
-// 装不下一条带，所以它是自己一个列表槽（`blocks/hero/manifest.json` 的 `imageBand`，`required: false`，
-// 没有任何形态把它写进 `needs` —— 它不挑形态，七种都要应付它在与不在）。
-// 🔴 每一项是**对象**、图片那个键叫 `imageUrl`，两条理由都是量出来的，别改成 `string[]`：
-//   ① `scripts/lib/image-urls.test.js` 从 `src/components/**` 现读每个 `<img src={…}>` 的**叶子标识符**，
-//      再核它在 `scripts/lib/image-urls.js` 的 `IMAGE_FIELDS`（今天是 `imageUrl` / `logoUrl`）里 ——
-//      叶子换成 `url` / `src` 这类新名字，那道「这个图片地址是谁给的」的写入闸对这个位置按构造失明
-//      （模型编出来的地址照样写得进去），而那一格会当场红并点名。
-//   ② 同一个名字也让 `collectImagePositions` 把带里的每张图算进「这个站已经有的图」。
-// 🔴 #1374 —— 可选槽 `socialProof`：CTA 下面那条社会证明（头像组 + 评分 + 一句话），出处是 FlyonUI
-// hero-3 / hero-4 左栏 CTA 下方那一条（Chris 2026-09-16 在对表里定为「要」）。不填时整块不渲染，
-// 页面一个像素不变；形态数不变（仍是那七种），`needs` 一个都不改 —— 它是装饰，没有它每种形态照样成立。
-// 🔴 头像那一串是**对象**而不是字符串数组，字段名沿用既有的 `imageUrl` —— 这两点都是量出来的，
-// 别"简化"回去：
-//   · AI 改站那条路上有一道闸只认 `IMAGE_FIELDS` 里的键、而且**只在值是字符串时**收
-//     （`scripts/lib/image-urls.js` §collectImagePositions）。写成 `avatarImages: string[]` 的话，
-//     模型编出来的头像地址整条通道对它隐身 —— 正是 #1195 治的那个毛病（老板看见一张裂图）。
-//   · `image-urls.test.js` 那道两向守卫从**这份组件**现读 `<img src={…}>` 的叶子字段名，两边差一个
-//     就当场红：叫 `imageUrl` 就落在既有的清单与 `edit-site.js` 的 `## Images` 段里，不用新开口子。
-//   · 演示站夹具从这个接口合成（`gen-allblocks.js` 的 `synth()`），名字带 image 才会合成出一个真的
-//     图片路径 —— `imageUrl` 同样满足。
-interface HeroSectionProps {
-  data: {
-    headline: string;
-    subheadline: string;
-    ctaPrimary: { label: string; href: string };
-    ctaSecondary: { label: string; href: string };
-    imageUrl?: string;
-    imageBand?: { imageUrl: string; alt?: string }[];
-    socialProof?: {
-      avatars?: { imageUrl?: string }[];
-      rating?: string;
-      text?: string;
-    };
-  };
-  /** #998 — 这个块在页面 JSON 里的那条记录；根元素的 `data-role` / `data-shape` / `data-has-*` 从它来。
-   *  （#998 当初加它是为了第三个钩子 `data-block-layout`，#1341 把那个钩子退役了。） */
+type BtnStyle = 'solid' | 'outline' | 'link';
+
+export interface HeroNewImage { imageUrl?: string; alt?: string }
+export interface HeroNewButton { label?: string; href?: string; style?: BtnStyle; icon?: string; arrow?: boolean; size?: 'sm' | 'md' | 'lg' }
+export interface HeroNewOptions { textAlign?: string; image?: string; form?: string }
+export interface HeroNewData {
+  options?: HeroNewOptions;
+  bg?: BgValue;
+  proof?: { avatars?: HeroNewImage[]; rating?: number | string; text?: string };
+  stats?: { value?: string; label?: string }[];
+  logos?: { caption?: string; items?: HeroNewImage[] };
+  band?: HeroNewImage[];
+  eyebrow?: { text?: string; style?: string };
+  headline?: string;
+  subheadline?: string;
+  ctas?: HeroNewButton[];
+  image?: HeroNewImage;
+  // 选哪张站级表单（#1471，`site/<locale>/forms.json`）；空 = 第一张，站没有表单库 = BlockLeadForm 的内置默认字段。
+  // 露多少只看 `options.form`（`block-knobs.js:13`：旋钮值只存一处）。
+  form?: { id?: string };
+}
+
+interface Props {
+  data: HeroNewData;
+  locale?: string;
   block?: BlockConfig;
 }
 
-// 🔴🔴 #1008 — ONE MARKUP, AND NOTHING ELSE. Phase 2's first block, finishing what #991 started.
-//
-// #991 added the markup below behind a themeCss check and deleted nothing; that switch was never on in
-// production (no code writes `css` into theme.json), so every site still rendered one of nine variant
-// trees. This ticket deleted those nine and the switch with them. There is one tree now, and where its
-// parts go is a stylesheet's business.
-//
-// 🔴 WHAT THIS COST, ON PURPOSE (spec D3 + D12, Chris 2026-08-13): all 30 of the old themes name a hero
-// variant (`gradient-overlay` ×5, `light-split` ×4, `minimal` ×4, `left` ×4, `split` ×3,
-// `light-editorial` ×3, `video-style` ×3, `light-showcase` ×3, `centered` ×1) and not one of those
-// values reaches the page any more. The old pool is frozen and retired; the real pool is generated in
-// phase 3 against the final contract. Until then a site's hero is base.css's look (#1001 — plain, but
-// readable) or one of the three proof sheets in public/themes/.
-//
-// 🔴 `variant` IS NO LONGER READ HERE — that is deliberate, do not "fix" it here (AC5).
-// 📌 #1341 — it is no longer WRITTEN by us either: sync-config.js used to overwrite `data.variant`
-//    from the applied theme's layout table, and that line went with the rest of that dimension. A
-//    page JSON that already carries `data.variant` keeps carrying it and nobody reads it.
-//
-// 🔴 THE SECOND ARGUMENT IS NOT OPTIONAL — `blockAttrs('hero', block)`, never
-// `blockAttrs('hero')`. #1341 retired the third hook `data-block-layout`, but `data-role`,
-// `data-shape` and `data-has-*` all still come from that second argument, and dropping it is
-// silent in every instrument we own (`registry.generated.ts` types the components as
-// `ComponentType<any>`, so `tsc` cannot see it). #1008 r1 was bounced for exactly that.
-//
-// 🔴 WHY media AND body ARE SIBLINGS AND NOT NESTED: CSS grid only places CHILDREN. Wrapping them in
-// the usual `<div class="container">` would let a sheet stack them but never swap their order or give
-// one of them a different share of the row, which is exactly the difference the three sheets show.
-// Flat is not tidiness here, it is the whole mechanism.
-//
-// 🔴 THE ROLE MARKS ARE LOAD-BEARING, NOT DECORATION (spec §4.2). `essential` is what a theme may never
-// hide, and the invariant checker reads the computed display of exactly these attributes — with no
-// `data-role` in the tree that check passes by having nothing to look at.
-export default function HeroSection({ data, block }: HeroSectionProps) {
-  // 🔴 #1358 r2 —— 带里没有 `imageUrl` 的条目整条不渲染。裸 `<img src={img.imageUrl}>` 在静态导出
-  // 里会写成 `<img class="hero__band-img" alt="…"/>`（没有 src），浏览器里就是一个破图，而建站那道
-  // 校验放它过去（`validateSite` 对 `imageBand` 一条意见都没有）。这条不是新规矩：同一棵组件树里
-  // 另外四处写 `src={…imageUrl}` 的地方都先判了有没有图：`GallerySection` · `ContentSplitSection` ·
-  // 本文件上面那个 `hero__media` · `HeroWithFormSection`（行号会漂，自己 grep `imageUrl ?`）。
-  // 这里 filter 掉而不像 gallery 那样画占位，是因为带里的一条**只有一张图**：没有 `imageUrl` 就什么
-  // 都不剩，而 gallery 那一条还有标题和描述要显示。
-  const imageBand = (data.imageBand ?? []).filter((img) => img && img.imageUrl);
+// 上限写在这里、也写在 manifest 的槽位说明里：演示内容包按守卫 (c) 给每个列表槽 6 条，数据里多出来的
+// 在这里截掉，不画出一排八个按钮。
+const MAX = { ctas: 2, stats: 3, avatars: 4, logos: 6, band: 6 } as const;
+
+const isObj = (v: unknown): v is object => !!v && typeof v === 'object' && !Array.isArray(v);
+const imgs = (v: unknown): HeroNewImage[] =>
+  (Array.isArray(v) ? v : []).filter((x): x is HeroNewImage => isObj(x) && typeof (x as HeroNewImage).imageUrl === 'string' && !!(x as HeroNewImage).imageUrl);
+
+// 这几条类名要**逐字**写在源码里：`site.css` 是按源码 purge 的（`scripts/lib/site-css.js` §PURGE_CONTENT），
+// 拼出来的类名 purge 看不见。
+const EYEBROW_CLASS: Record<string, string> = {
+  pill: 'hro-eyebrow-pill badge rounded-pill bg-primary-subtle text-primary fw-semibold text-xs px-3 py-2',
+  outline: 'hro-eyebrow-outline badge rounded-pill border border-primary text-primary bg-transparent fw-semibold text-xs px-3 py-2',
+  dash: 'hro-eyebrow-dash text-uppercase text-xs fw-semibold ls-wider text-muted',
+  plain: 'hro-eyebrow-plain text-uppercase text-xs fw-semibold ls-wider text-muted',
+};
+
+function btnClass(b: HeroNewButton): string {
+  const size = b.size === 'sm' ? ' btn-sm' : b.size === 'md' ? '' : ' btn-lg';
+  // `d-inline-flex align-items-center justify-content-center`：图标和字在同一行（Webpixels 的 .btn 里
+  // 一个 svg 默认会自己占一行）。
+  if (b.style === 'link') return `btn btn-link d-inline-flex align-items-center justify-content-center text-nowrap${size}`;
+  if (b.style === 'outline') return `btn btn-outline-primary d-inline-flex align-items-center justify-content-center text-nowrap${size}`;
+  return `btn btn-primary d-inline-flex align-items-center justify-content-center text-nowrap${size}`;
+}
+
+/**
+ * 行的类，按 `image` 出（#1470）。DOM 顺序恒为「文字在前、图在后」，`left` / `top` 用 reverse 类把图换到前面 ——
+ * 这两套类就是 #1463 那个 `reverse` 修饰的两套（桌面在左的，小屏就在上；上下叠时图换到上面），逐字沿用。
+ * `right` / `bottom` 行上没有 reverse 类（小屏图在下）。
+ * 没有图列（`hasSide` 为假：none / background / 没给图）时，文字列的位置跟 `textAlign` 走：
+ * center 整块居中、right 整块靠右 —— 对齐类写在行上，文字列只有 2/3（或铺底时 1/2）宽。
+ * 🔴 间距是 `gx-8 gy-10 gx-lg-16`，不是定稿抄来的 `g-10 gx-lg-16`：`.row` 的左右负外边距 = 横向间距的一半，
+ *    `g-10` 是 20px，而 `.container` 在手机上的内距只有 16px ⟹ 390 宽下整页横向滚动 4px（实测
+ *    scrollWidth 394）。横向收到 `gx-8`（16px）刚好贴住内距；竖向与 ≥992 的横向照定稿不变。
+ *    也不写成 `g-10 gx-8`：Bootstrap 按尺寸逐档生成 g/gx/gy，`.g-10` 排在 `.gx-8` 后面，会把它压回去。
+ */
+function rowClass(image: string, textAlign: string, hasSide: boolean): string {
+  const base = 'row align-items-center gx-8 gy-10 gx-lg-16';
+  if (hasSide) {
+    if (image === 'left') return `${base} flex-column-reverse flex-lg-row-reverse`;
+    if (image === 'top') return `${base} flex-column-reverse`;
+    return base;
+  }
+  if (textAlign === 'center') return `${base} justify-content-center`;
+  if (textAlign === 'right') return `${base} justify-content-end`;
+  return base;
+}
+
+/** 表单「需求」下拉的选项 —— 站内服务列表（在这里读、不在 BlockLeadForm 里读，理由见它的文件头：page-deps 只看这份 Section.tsx）。 */
+function servicesFor(locale: string): { id: string; name: string }[] {
+  try { return (getServices(locale) || []).map((s: { id: string; name: string }) => ({ id: s.id, name: s.name })); } catch { return []; }
+}
+
+export default function HeroNewSection({ data, locale = 'en', block }: Props) {
+  const d: HeroNewData = isObj(data) ? data : {};
+  const shape = block && typeof block.shape === 'string' ? block.shape : undefined;
+  const opts: HeroNewOptions = isObj(d.options) ? d.options : {};
+  const k = effectiveKnobs(manifest, shape, opts) as { textAlign: string; image: string; form: string };
+  const img: HeroNewImage | null = isObj(d.image) && typeof d.image.imageUrl === 'string' && d.image.imageUrl ? d.image : null;
+  const cover = k.image === 'background' && !!img;
+  // 图列画不画（#1470 做什么 2；hero-render.test.js 的反向对照逐字锚在这一行上）。
+  const side = (k.image === 'left' || k.image === 'right' || k.image === 'top' || k.image === 'bottom') && !!img;
+  // 上下叠：文字块、图各占一整行（文字块限宽 64ch、大图 21:9 由 block.css 按 data-image 排）。
+  const stacked = k.image === 'top' || k.image === 'bottom';
+  const tone = cover ? 'dark' : toneForBg(d.bg);
+  const center = k.textAlign === 'center';
+  const right = k.textAlign === 'right';
+
+  const bgValue = bgCss(d.bg);
+  const bgStyle = bgValue ? { background: bgValue } : undefined;
+
+  const eyebrow: HeroNewData['eyebrow'] | null = isObj(d.eyebrow) && typeof d.eyebrow.text === 'string' && d.eyebrow.text ? d.eyebrow : null;
+  const eyebrowStyle = eyebrow ? (eyebrow.style && (eyebrow.style in EYEBROW_CLASS || eyebrow.style === 'none') ? eyebrow.style : 'pill') : 'none';
+  const ctas = (Array.isArray(d.ctas) ? d.ctas : []).filter((b) => isObj(b) && typeof b.label === 'string' && b.label).slice(0, MAX.ctas);
+  const showForm = k.form !== 'none';
+  const proof: HeroNewData['proof'] | null = isObj(d.proof) && (d.proof.text || imgs(d.proof.avatars).length) ? d.proof : null;
+  const stats = (Array.isArray(d.stats) ? d.stats : []).filter((s) => isObj(s) && (s.value || s.label)).slice(0, MAX.stats);
+  const logos = isObj(d.logos) ? imgs(d.logos.items).slice(0, MAX.logos) : [];
+  const band = imgs(d.band).slice(0, MAX.band);
+
+  // 文字列多宽：上下叠（top / bottom）占满（内容再由 block.css 收到 64ch）；并排（left / right）时一半 —— 只有 `image=none`（旁边、底下都没有图）
+  // 才是 2/3（定稿原话）。图铺底时也是一半：图在整块后面，文字列不因此变宽。
+  const textCol = stacked ? 'col-12 hro-textcol' : (side || cover) ? 'col-12 col-lg-6 hro-textcol' : 'col-12 col-lg-8 hro-textcol';
+  const just = center ? ' justify-content-center' : right ? ' justify-content-end' : '';
 
   return (
-    <section {...blockAttrs('hero', block)} className="hero">
-      {/* Decorative only, and empty on purpose: the contract gives sheets ::before/::after on this
-          hook to draw with. Anything a reader needs to KNOW belongs in the body below, where the
-          structured data and the translations can see it. */}
-      <div className="hero__deco" data-role="optional" aria-hidden="true" />
-      <div className="hero__media" data-role="optional">
-        {data.imageUrl ? (
-          <img className="hero__img" src={data.imageUrl} alt={data.headline} />
-        ) : null}
-      </div>
-      <div className="hero__body" data-role="essential">
-        <h1 className="hero__title" data-slot="headline">{data.headline}</h1>
-        <p className="hero__sub" data-slot="subheadline">{data.subheadline}</p>
-        <div className="hero__cta">
-          {/* 🔴 The buttons keep the SITE's button classes rather than getting hooks of their own.
-              A theme owns layout; what a primary button looks like is the brand's, and it already
-              follows the palette through CSS variables (globals.css @layer components). Giving
-              sheets a hook here would let one of the 30 themes quietly restyle every call to
-              action on the site, which is a much bigger promise than "the picture moves". */}
-          <Link href={data.ctaPrimary?.href ?? '#'} className="btn-accent text-lg" data-slot="ctaPrimary.label">
-            {data.ctaPrimary?.label}
-          </Link>
-          <Link href={data.ctaSecondary?.href ?? '#'} className="btn-secondary text-lg" data-slot="ctaSecondary.label">
-            {data.ctaSecondary?.label}
-          </Link>
-        </div>
-        {/* 🔴 #1374 —— 这个零件住在 `hero__body` 【里面】是承重的，不是随手放的。#1332 的排版探针只看
-            `<section data-block="hero">` 的**直接子元素**（`scripts/lib/layout-intent.mjs:78`），而 hero
-            七种形态全写着 `items: "none"` 与 `headline: "none"`。头像组天生是一排同类元素 —— 它或它的
-            包装层一旦成了直接子元素（带 `data-block-part` 的包装层也算候选面，`:88-92`），`items-none`
-            （`:235`）会让七格一起红；第一个 class 若以 `__title` / `__headline` / `__heading` 结尾，
-            `headline-none`（`:276`）同样七格一起红。放在 body 里面，排版意图那些轴一根都不会换读数。
-            ⟹ 改这里的人：不许上提成直接子元素、不许加 `data-block-part`、第一个 class 不许以那三个
-            后缀（以及 `__media`）结尾。 */}
-        {data.socialProof ? (
-          <div className="hero__proof">
-            {data.socialProof.avatars?.length ? (
-              <span className="hero__proof-avatars">
-                {data.socialProof.avatars.map((avatar, i) => (avatar?.imageUrl ? (
-                  <img key={`${avatar.imageUrl}-${i}`} className="hero__proof-avatar" src={avatar.imageUrl} alt="" />
-                ) : null))}
-              </span>
-            ) : null}
-            {data.socialProof.rating ? (
-              <span className="hero__proof-rating">{data.socialProof.rating}</span>
-            ) : null}
-            {data.socialProof.text ? (
-              <span className="hero__proof-text">{data.socialProof.text}</span>
+    <section
+      {...blockAttrs('hero', block)}
+      data-text-align={k.textAlign}
+      data-image={k.image}
+      data-form={k.form}
+      data-tone={tone}
+      data-bs-theme={bsThemeForBg(d.bg, cover)}
+      className={`position-relative py-16 py-lg-24${center ? ' text-center' : right ? ' text-end' : ''}`}
+      style={bgStyle}
+    >
+      {cover && img ? (
+        <div
+          className="position-absolute top-0 start-0 w-100 h-100" data-part="bg"
+          style={{ background: `linear-gradient(to top,rgba(2,6,23,.85),rgba(2,6,23,.35)),url(${JSON.stringify(img.imageUrl)}) center/cover no-repeat` }}
+          role="img"
+          aria-label={img.alt || ''}
+        />
+      ) : null}
+      <div className="container position-relative">
+        <div className={rowClass(k.image, k.textAlign, side)}>
+          <div className={textCol}>
+            <div data-part="text">
+              {eyebrow && eyebrowStyle !== 'none' ? (
+                <div className="mb-5" data-part="eyebrow">
+                  <span className={EYEBROW_CLASS[eyebrowStyle]} data-eyebrow={eyebrowStyle} data-slot="eyebrow.text">
+                    {eyebrowStyle === 'dash' ? '— ' : null}{eyebrow.text}
+                  </span>
+                </div>
+              ) : null}
+              <h1 className="display-3 fw-bold lh-1 ls-tight mb-5 hro-title" data-slot="headline">{d.headline}</h1>
+              {d.subheadline ? <p className="fs-5 text-muted mb-8 hro-sub" data-slot="subheadline">{d.subheadline}</p> : null}
+              {showForm ? (
+                <BlockLeadForm
+                  mode={k.form === 'teaser' ? 'teaser' : 'full'}
+                  formId={isObj(d.form) && typeof d.form.id === 'string' ? d.form.id : undefined}
+                  services={servicesFor(locale)}
+                  locale={locale}
+                  align={k.textAlign === 'center' ? 'center' : k.textAlign === 'right' ? 'right' : 'left'}
+                />
+              ) : ctas.length ? (
+                <div className={`d-flex flex-column flex-sm-row gap-2${just}`} data-part="ctas">
+                  {ctas.map((b, i) => (
+                    <Link key={i} href={b.href || '#'} className={btnClass(b)} data-cta={b.style || 'solid'}>
+                      {b.icon ? <Icon name={b.icon} className="me-2" /> : null}
+                      <span data-slot={`ctas.${i}.label`}>{b.label}</span>
+                      {b.arrow ? <Icon name="arrow-right" className="ms-2" /> : null}
+                    </Link>
+                  ))}
+                </div>
+              ) : null}
+              {proof ? (
+                <div className={`d-flex align-items-center gap-3 mt-8${just}`} data-part="proof">
+                  {imgs(proof.avatars).length ? (
+                    <div className="d-flex">
+                      {imgs(proof.avatars).slice(0, MAX.avatars).map((a, i) => (
+                        <img key={i} src={a.imageUrl} alt={a.alt || ''} width={36} height={36}
+                          className="rounded-circle border border-2 border-body object-fit-cover hro-avatar" />
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className="text-sm">
+                    {proof.rating !== undefined && proof.rating !== '' ? (
+                      <><span className="text-warning" aria-hidden="true">★★★★★</span> <b>{proof.rating}</b> · </>
+                    ) : null}
+                    <span data-slot="proof.text">{proof.text}</span>
+                  </div>
+                </div>
+              ) : null}
+              {stats.length ? (
+                <div className={`d-flex flex-wrap gap-6 gap-md-10 mt-10 pt-8 border-top${just}`} data-part="stats">
+                  {stats.map((s, i) => (
+                    <div key={i}>
+                      <div className="fs-3 fw-bold lh-1" data-slot={`stats.${i}.value`}>{s.value}</div>
+                      <div className="text-sm text-muted mt-1" data-slot={`stats.${i}.label`}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {logos.length ? (
+                <div className="mt-12" data-part="logos">
+                  {isObj(d.logos) && d.logos.caption ? (
+                    <div className="text-sm text-muted mb-4" data-slot="logos.caption">{d.logos.caption}</div>
+                  ) : null}
+                  <div className={`d-flex flex-wrap align-items-center gap-4 gap-md-5${just}`}>
+                    {logos.map((l, i) => <img key={i} src={l.imageUrl} alt={l.alt || ''} className="hro-logo" />)}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+            {band.length ? (
+              <div className="row g-5 mt-10 justify-content-center" data-part="band" data-band-count={band.length}>
+                {band.map((b, i) => (
+                  <div key={i} className="col-6 col-md" data-part="band-col">
+                    <img className="img-fluid rounded-4 w-100 object-fit-cover hro-band-img" src={b.imageUrl} alt={b.alt || ''} />
+                  </div>
+                ))}
+              </div>
             ) : null}
           </div>
-        ) : null}
-      </div>
-      {/* #1358 —— 图片带。空着时**一个字节都不渲染**：验收那条「槽缺席时画出来不变」要的就是这个
-          （最少版产物里这个块的 HTML 与开工前逐字相同）。
-          🔴 这个包装层上**不许**出现 `data-block-part`，它的直接子元素也不许 —— 检查 ⑨ 的同级项取样面
-          是「块的直接子元素 + 带 `data-block-part` 的包装层里一层」（`scripts/lib/layout-intent.mjs:88-92`），
-          带上它，六张照片会一起进取样面，而 hero 七种形态的排版意图写的都是 `items: "none"`
-          （判据 `:234-236`：同类的同级项少于 2 个）—— 七格当场一起红。实测两臂：带 ⟹ items=6 ❌，
-          不带 ⟹ items=1 ✅（读数在 #1358 的留言里）。今天这一层是块的第四个直接子元素、类名独一份，
-          所以直方图里它自己一组一个，`items.length` 仍然 < 2。 */}
-      {imageBand.length > 0 ? (
-        <div className="hero__band" data-role="optional">
-          {imageBand.map((img, i) => (
-            <img key={i} className="hero__band-img" src={img.imageUrl} alt={img.alt || ''} />
-          ))}
+          {side && img ? (
+            <div className={stacked ? 'col-12 hro-side' : 'col-12 col-lg-6 hro-side'}>
+              <img className="img-fluid rounded-4 w-100 object-fit-cover hro-img" src={img.imageUrl} alt={img.alt || ''} />
+            </div>
+          ) : null}
         </div>
-      ) : null}
+      </div>
     </section>
   );
 }

@@ -16,8 +16,8 @@
  *    🔴 配一格**反向对照**：让求图那步永远回空 ⟹ 这些断言必须全部翻面，否则上面的「全填上」是恒真的。
  * ④ 上限：按块在页面里的先后截断，被截掉的逐个点名进日志。
  * ⑤ 拿不到图时那行日志的格式（哪一页 · 哪个块 · 哪个槽 · 什么原因），以及一个槽失败不牵连别的槽。
- * ⑥ 今天真 manifest 上的两条回归判据：`hero-with-form.imageUrl` 在名单里（它正是本票要治的洞），
- *    `cta-banner` 一个图槽都没有；外壳区那两个 `logo` 槽不在名单里。
+ * ⑥ 今天真 manifest 上的两条回归判据：`hero` 的主图槽在名单里（#1425（T3）前是 `hero-with-form.imageUrl`，
+ *    它正是本票要治的洞），`testimonials` 一个图槽都没有（前是 `cta-banner`）；外壳区那两个 `logo` 槽不在名单里。
  *    🔴 `cta-banner` 那条 2026-09-18（#1361）起换了理由，green 的来历不一样了：它**有**一个
  *    `avatars` 列表槽、每项带 `imageUrl`，是槽名那条规则把它挡在名单外的。所以那一格现在**先**
  *    断言这个槽真的在 manifest 里 —— 否则有人把槽删了，这一格照样绿，而它什么都没守。
@@ -231,49 +231,91 @@ const slotsOf = (pages) => {
   let real;
   try { real = loadManifests(); } catch (e) { die(`loadManifests 失败: ${e.message}`); }
   const realNames = (t) => (real.get(t) ? imageSlotsOf(real.get(t)).map((s) => s.name) : null);
-  check(Array.isArray(realNames('hero-with-form')) && realNames('hero-with-form').includes('imageUrl'),
-    'hero-with-form 的 imageUrl 在名单里 —— 它就是本票立票的那个洞（它有图槽却一直拿不到图）');
-  // 🔴 先证「有东西可挡」再证「挡住了」：#1361 给 cta-banner 加了 avatars（列表 + imageUrl）之后，
-  //    这一格的绿是**槽名规则**换来的。不先量一句，删掉那个槽也是绿 —— 那时它什么都没守。
-  const ctaSlotSpec = ((real.get('cta-banner') || {}).slots || {}).avatars;
-  check(!!ctaSlotSpec && ctaSlotSpec.kind === 'list' && String(ctaSlotSpec.shape).includes('imageUrl'),
-    `cta-banner 真的有一个列表图槽 avatars（现取 ${JSON.stringify(ctaSlotSpec)}）—— 下面那一格挡的就是它`);
-  check(Array.isArray(realNames('cta-banner')) && realNames('cta-banner').length === 0,
-    'cta-banner 一个图槽都没有 ⟹ 不再为它生成图（avatars 是顾客的脸，跟 hero 的 socialProof 同一条判据）');
+  // 📌 #1425（T3）—— 这里原来点名 `hero-with-form.imageUrl`（本票立票的那个洞）与 `cta-banner.avatars`；
+  //    两个块随旧库删了。今天的等价物：带表单的首屏就是 `hero`（`options.form`），它的主图槽是 `image`；
+  //    「有图槽但该挡」那一臂换成 `testimonials.items`（每项 `photo.imageUrl` 是顾客的脸，挡它的是
+  //    `generateImages: false`；槽名 avatars 那条规则仍由 ① 的假 manifest 两臂钉着）。
+  check(Array.isArray(realNames('hero')) && realNames('hero').includes('image'),
+    `hero 的主图槽 image 在名单里 —— 建站时首屏得拿到图（现取 ${JSON.stringify(realNames('hero'))}）`);
+  check(Array.isArray(realNames('hero')) && realNames('hero').includes('band'),
+    `hero 的 band（[{imageUrl}] 列表）在名单里（现取 ${JSON.stringify(realNames('hero'))}）`);
+  // 🔴 先证「有东西可挡」再证「挡住了」：不先量一句，删掉那个槽也是绿 —— 那时它什么都没守。
+  const tSpec = ((real.get('testimonials') || {}).slots || {}).items;
+  check(!!tSpec && tSpec.kind === 'list' && String(tSpec.shape).includes('imageUrl') && tSpec.generateImages === false,
+    `testimonials 真的有一个带 imageUrl 的列表槽 items、并声明 generateImages:false（现取 ${JSON.stringify(tSpec && { kind: tSpec.kind, shape: tSpec.shape, generateImages: tSpec.generateImages })}）`);
+  check(Array.isArray(realNames('testimonials')) && realNames('testimonials').length === 0,
+    'testimonials 一个图槽都没有 ⟹ 不为顾客头像生成图库照片');
   for (const shell of ['header', 'footer']) {
     check(Array.isArray(realNames(shell)) && realNames(shell).length === 0,
       `${shell} 的 logo 槽不在名单里`);
   }
+  // 📌 #1425（T3）—— 第三种口径 `object`（新库的主图 `{imageUrl, alt}`）；提示词把它跟单图槽同样取景。
   const everyKnown = [...real.entries()].every(([, m]) => imageSlotsOf(m)
-    .every((s) => s.kind === 'image' || s.kind === 'list'));
-  check(everyKnown, '名单里每一项都带 image / list 两种口径之一（提示词按它选取景）');
+    .every((s) => s.kind === 'image' || s.kind === 'list' || s.kind === 'object'));
+  check(everyKnown, '名单里每一项都带 image / list / object 三种口径之一（提示词按它选取景）');
 
-  // ── ⑦ #1475 —— 列表项的图嵌一层（features-new 的 `image?: {imageUrl, alt}`）─────────────────────
+  // ── ⑦ #1475 —— 列表项的图嵌一层（features 的 `image?: {imageUrl, alt}`）─────────────────────
   // QA2 r1 真 AI 建站读到的：写回写成了 items[i].imageUrl（平铺），而块读的是 items[i].image.imageUrl
   // ⟹ Photo cards / Cover cards 一张图都不显示。数据形状照那次 AI 真吐出来的（项里没有 image）。
   console.log('── ⑦ 列表项的图嵌在对象里时，写回那一层（#1475）');
-  const fnSlots = real.get('features-new') ? imageSlotsOf(real.get('features-new')) : null;
+  // 📌 #1425（T3）—— features 还有两个对象图槽（introImage / itemsImage，要配旋钮才显示），这一格只看 items 那一项。
+  const fnAll = real.get('features') ? imageSlotsOf(real.get('features')) : null;
+  const fnSlots = fnAll ? fnAll.filter((x) => x.name === 'items') : null;
   check(JSON.stringify(fnSlots) === JSON.stringify([{ name: 'items', kind: 'list', imageKey: 'image' }]),
-    `features-new 的 items 槽读出 imageKey=image（现取 ${JSON.stringify(fnSlots)}）`);
-  check(imageSlotsOf(real.get('gallery')).every((x) => !x.imageKey),
-    '平铺的那一族（gallery 的 items）不带 imageKey —— 照旧写 items[i].imageUrl');
+    `features 的 items 槽读出 imageKey=image（现取 ${JSON.stringify(fnSlots)}）`);
+  // 📌 #1425（T3）—— 原来「平铺那一族」是旧 gallery 的 items；新 gallery 的项也嵌一层（`image: {imageUrl, alt}`），
+  //    今天平铺的那一族是 hero 的 band（`[{imageUrl, alt?}]`）。
+  check(JSON.stringify(imageSlotsOf(real.get('gallery'))) === JSON.stringify([{ name: 'items', kind: 'list', imageKey: 'image' }]),
+    `gallery 的 items 也读出 imageKey=image（现取 ${JSON.stringify(imageSlotsOf(real.get('gallery')))}）`);
+  const bandSlot = imageSlotsOf(real.get('hero')).find((x) => x.name === 'band');
+  check(!!bandSlot && !bandSlot.imageKey,
+    `平铺的那一族（hero 的 band）不带 imageKey —— 照旧写 band[i].imageUrl（现取 ${JSON.stringify(bandSlot)}）`);
   const aiItems = () => [
     { icon: 'shield-check', title: 'Vehicle Diagnostics', text: 'x' },
     { icon: 'tools', title: 'Brakes', text: 'y', image: { alt: 'Brake pads' } },
     { icon: 'disc', title: 'Tires', text: 'z' },
   ];
   const fnPages = [{ slug: 'home', sections: [
-    { type: 'features-new', shape: 'photo-cards', data: { title: 'Services', items: aiItems() } },
-    { type: 'gallery', data: { headline: 'Work', items: [{ title: 'a' }] } },
+    { type: 'features', shape: 'photo-cards', data: { title: 'Services', items: aiItems() } },
+    { type: 'hero', data: { headline: 'Hi', band: [{ alt: 'a' }] } },
   ] }];
   const fnRun = await fillImageSlots(fillOpts(fnPages, real));
   const fnOut = fnPages[0].sections[0].data.items;
   check(fnRun.failures.length === 0 && fnOut.every((it) => typeof (it.image && it.image.imageUrl) === 'string' && it.image.imageUrl.startsWith('/photos/')),
-    `fillImageSlots 之后 features-new 每一项都有 image.imageUrl（${fnOut.map((it) => it.image && it.image.imageUrl).join(' · ')}）`);
+    `fillImageSlots 之后 features 每一项都有 image.imageUrl（${fnOut.map((it) => it.image && it.image.imageUrl).join(' · ')}）`);
   check(fnOut.every((it) => it.imageUrl === undefined), '没有写成平铺的 items[i].imageUrl');
   check(fnOut[1].image.alt === 'Brake pads', `项里原来的 image.alt 留着（读到 ${JSON.stringify(fnOut[1].image)}）`);
-  const galOut = fnPages[0].sections[1].data.items[0];
-  check(typeof galOut.imageUrl === 'string' && galOut.image === undefined, `同一页的 gallery 照旧平铺（读到 ${JSON.stringify(galOut)}）`);
+  const galOut = fnPages[0].sections[1].data.band[0];
+  check(typeof galOut.imageUrl === 'string' && galOut.image === undefined, `同一页的 hero band 照旧平铺（读到 ${JSON.stringify(galOut)}）`);
+
+  // ── ⑧ #1425（T3）—— 新库的主图是对象槽 `{imageUrl, alt}`。求不求图看这一块自己的**同名旋钮**写没写：没写 = 默认 none，
+  //    填了也不显示、而且改站校验会拒那一页；写了非 none 才求。写回只换 imageUrl、alt 留着。
+  console.log('── ⑧ 对象图槽（#1425）');
+  const obPages = [{ slug: 'home', sections: [
+    { type: 'hero', data: { headline: 'Hi', image: { alt: 'Our shop' }, options: { image: 'left' } } },
+    { type: 'cta', data: { headline: 'Go' } },
+    { type: 'hero', data: { headline: 'No knob', image: { alt: 'x' } } },
+    { type: 'features', data: { headline: 'H', introImage: { alt: 'intro' }, items: [{ title: 't', text: 'x' }] } },
+    { type: 'features', data: { headline: 'H', options: { introImage: 'left' }, items: [{ title: 't', text: 'x' }] } },
+  ] }];
+  const obSlots = collectImageSlots(obPages, real).map((x) => `${x.secIdx}.${x.slotName}`);
+  check(obSlots.includes('0.image'), `旋钮写了 image: left 的 hero 收（读到 ${obSlots.join(' · ')}）`);
+  check(!obSlots.includes('1.image') && !obSlots.includes('2.image'),
+    '反向：旋钮没写的 cta、写了图却没写旋钮的 hero 都不收（填了也不显示，改站校验还会拒那一页）');
+  check(!obSlots.includes('3.introImage') && obSlots.includes('4.introImage'),
+    '非主图同理：features.introImage 只在 options.introImage 写了非 none 时才收（第 3 块只写了对象不收、第 4 块写了旋钮收）');
+  await fillImageSlots(fillOpts(obPages, real));
+  const heroImg = obPages[0].sections[0].data.image;
+  check(typeof heroImg.imageUrl === 'string' && heroImg.imageUrl.startsWith('/photos/') && heroImg.alt === 'Our shop',
+    `hero.image 写回成 {imageUrl, alt}、alt 留着（读到 ${JSON.stringify(heroImg)}）`);
+  const fImg = obPages[0].sections[4].data.introImage;
+  check(fImg && typeof fImg === 'object' && typeof fImg.imageUrl === 'string', `没写过 introImage 的 features 写回成对象、不是一格字符串（读到 ${JSON.stringify(fImg)}）`);
+  check(obPages[0].sections[1].data.image === undefined, '没收的 cta 一个字节没写');
+  const vs = require('../lib/block-manifest.js').validateSite({ pages: obPages.map((p) => ({ slug: p.slug, blocks: p.sections.map((b, i) => ({ id: `b${i}`, ...b })) })), scope: 'edit' });
+  const imgProbs = (vs.problems || []).filter((x) => /options\.(image|introImage) 没写/.test(x));
+  // 求过图的是第 1 块（hero）和第 5 块（features）；第 3、4 块是夹具里本来就「写了图、没写旋钮」的输入，它们被报是对的。
+  check(imgProbs.filter((x) => /第 (1|5) 个块/.test(x)).length === 0 && imgProbs.filter((x) => /第 (3|4) 个块/.test(x)).length === 2,
+    `填完之后求过图的两块改站校验不报；本来就没写旋钮的两块照报（尺子有牙）—— 读到 ${imgProbs.length} 条`);
 
   console.log(`\n逐条断言: PASS ${pass} · FAIL ${fail}`);
   if (fail) { console.log('❌ #1386 image-slots: 有失败'); process.exit(1); }

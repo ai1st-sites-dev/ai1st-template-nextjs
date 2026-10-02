@@ -1,7 +1,7 @@
 'use strict';
 /**
  * #1500 —— 槽位换了形状之后，旧数据读入时迁移一次。
- *   · `testimonials-new.summary`：#1488 是一个对象 `{rating, count, source}`，#1500 起是一组平台（list）⟹
+ *   · `testimonials.summary`：#1488 是一个对象 `{rating, count, source}`，#1500 起是一组平台（list）⟹
  *     对象包成一项的数组，键原样搬；这个槽 `ranges` 里点名的数字子字段（rating / count）写成数字字符串的
  *     （#1488 的夹具和提示词都是 `'4.9'` / `'312'`）转成数，否则新形状的范围检查会把旧站判错。
  * 📌 现在没有客户站，这一条只为 #1488 合入到 #1500 合入之间 dev / test 上建的站不渲染坏。
@@ -15,7 +15,7 @@
  *   迁移是幂等的（已经是数组就不动），两处都过一次不会包两层。
  * 放在单独一个文件里是因为 `block-manifest.js` 已经 require 了 `blocks.js`，反过来 require 会成环。
  */
-const LEGACY_OBJECT_TO_LIST = { 'testimonials-new': ['summary'] };
+const LEGACY_OBJECT_TO_LIST = { 'testimonials': ['summary'] };
 
 // 这个槽要不要迁移、迁成什么：要 ⟹ 返回新数组；不用 ⟹ 返回 null（调用方原样不动）。
 function legacyListValue(type, slot, spec, v) {

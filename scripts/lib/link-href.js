@@ -49,9 +49,10 @@ const { isSourceRef, BUTTON_SOURCES } = require('./item-sources');
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 /** `navigation.json` 里老板的链接住在哪两个键上（对应哪个块的哪个槽位）。 */
+// 📌 #1425（T3）：原来还有 `topbar.link`（公告条那个区，块 `announcement-bar`）。那个区随旧库退役，navigation.json 里的
+//    `topbar` 段没人读了（数据留着），它的链接不再画到页面上。
 const NAV_LINKS = [
-  { key: ['topbar', 'link'], block: 'announcement-bar', slot: 'link', where: 'the announcement bar' },
-  { key: ['header', 'cta'], block: 'header', slot: 'cta', where: 'the header' },
+  { key: ['header', 'cta'], block: 'header', slot: 'ctaPrimary', where: 'the header' },  // #1425：派生成 header 的 ctaPrimary（shell-data.js）
 ];
 
 let nameCache = null;
@@ -86,7 +87,7 @@ function deepBlockLinks(doc) {
  * 🔴 #1430：不按「有没有 `ref` 键」跳过。块库里的一个块多带一个字符串 `ref` 键时，渲染用的就是它自己的 `data`
  *    （`blocks.js` §normalizeLocalePages）；按 `ref` 跳过的话，它的链接一条都不查，而 `visibility: ["*"]` 就是每一页都有。
  * 🔴 #1526：走块 `data` 的**每一层**，凡是带 `href` 键的对象都算一个链接 —— 不按槽位的 kind 挑。原来只走 `kind=link`
- *    的槽，于是按钮列表（`ctas` / `introCtas`）、页头页脚的导航列表、对象槽里套着的按钮（`faq-new.help.cta` …）
+ *    的槽，于是按钮列表（`ctas` / `introCtas`）、页头页脚的导航列表、对象槽里套着的按钮（`faq.help.cta` …）
  *    整层不在遍历里：同一个 `javascript:` 写在单个按钮里被拒、写在按钮列表里放行。按名单列会在下一个新块上再漏一次。
  *    `place`（判老数据用）不带下标，理由同文件头「老数据」那段：挪一下顺序不该把没碰过的链接判成新写的；
  *    `item`（给老板看的「第几项」）带下标，从 1 数，套了几层列表就几个数。

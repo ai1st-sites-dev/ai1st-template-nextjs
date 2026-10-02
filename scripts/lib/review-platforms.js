@@ -6,8 +6,8 @@
 //
 // 🔴 这张表只收 `node_modules/bootstrap-icons/icons/` 里**真有**的图标（1.13.1 里 google / yelp / facebook 都在；
 //    tripadvisor / trustpilot / houzz 这些**没有**，它们走第 3 档写名字）。加一行之前先 `ls` 那个目录；
-//    `scripts/reviews-new-render.test.js` 逐行核图标文件在不在。
-// 📌 今天只有 reviews-new 用它。testimonials-new 的 summary 以后要画平台 logo 时引这一份，别再抄一张。
+//    `scripts/reviews-render.test.js` 逐行核图标文件在不在。
+// 📌 今天只有 reviews 用它。testimonials 的 summary 以后要画平台 logo 时引这一份，别再抄一张。
 
 const PLATFORM_ICONS = {
   google: { icon: 'google', color: '#4285F4' },

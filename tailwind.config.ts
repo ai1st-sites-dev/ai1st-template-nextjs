@@ -15,11 +15,11 @@ const config: Config = {
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
     './blocks/**/*.{js,ts,jsx,tsx,mdx}',
-    // #1424 —— 排除还没进正式库的 `-new` 块（manifest 带 `staging: true`，如 `header-new`）。
+    // #1424 —— 排除还没进正式库的 `-new` 块（manifest 带 `staging: true`，如 `header`）。
     // 它们的 markup 用 Webpixels / Bootstrap 的工具类，其中一批跟 Tailwind 同名（`flex-row` /
     // `gap-4` / `text-nowrap` …）：扫进来 Tailwind 就会为它们出规则、客户页那份 Tailwind CSS
     // 换文件名，客户页 HTML 跟着变。这些类由图册单独加载的 `site.css` 管，不归 Tailwind。
-    // T3（切换票）把 `header-new` 改名成 `header` 时，跟 `staging` 字段一起删掉这一行。
+    // T3（切换票）把 `header` 改名成 `header` 时，跟 `staging` 字段一起删掉这一行。
     '!./blocks/*-new/**',
   ],
   theme: {

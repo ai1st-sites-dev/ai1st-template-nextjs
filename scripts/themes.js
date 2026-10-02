@@ -171,7 +171,8 @@ function regionShapesFor(themeId) {
   const t = themes[themeId];
   if (!t || !t.shapes || typeof t.shapes !== 'object') return {};
   const out = {};
-  for (const key of ['header', 'footer', 'announcement-bar']) {
+  // 📌 #1425（T3）：公告条（`announcement-bar`）那个区随旧库退役，只剩顶栏 / 页脚两个键。
+  for (const key of ['header', 'footer']) {
     const v = t.shapes[key];
     if (typeof v === 'string' && v) out[key] = v;
   }

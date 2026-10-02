@@ -7,7 +7,8 @@
  *
  * 管编辑器那两条写入路径（真进程、真站）：
  *   · 块的链接槽位   → `write-page.js`，以及 `write-editor-save.js` 带页面的那一支（两者共用 `lib/page-write.js`）
- *   · 公告条链接     → `write-editor-save.js` 的 root `topbarLink`（`lib/editor-root.js` → navigation.json）
+ *   📌 #1425（T3）—— 原来还有第二条「公告条链接 → root `topbarLink`」；公告条那个区随旧库退役，编辑器外壳
+ *      今天只剩 layout / headerShape / footerShape 三个选一项的字段，没有链接。
  * 第三条路（AI 对话，`edit-site.js`）在 `lib/edit-site-chain.test.js` ⑮ —— 它要那边那套假模型钩子。
  *
  * 🔴 判「被拒」看三样：退出码 11、stdout 那一行 `{"ok":false,"message"}`（worker 从这里取给老板的话）、
@@ -98,7 +99,10 @@ console.log('② 块清单那一侧');
   const m = loadManifests();
   const linkSlots = [];
   for (const [type, man] of m) for (const [slot, s] of Object.entries(man.slots || {})) if (s && s.kind === 'link') linkSlots.push({ type, slot, s });
-  check(linkSlots.length >= 7, `块清单里 kind=link 的槽位 ${linkSlots.length} 个（票上量的是 7 个）`);
+  // #1425（T3）：原来写死「≥ 7」（旧库）；新库里单个按钮多数改成了按钮列表（kind=list，⑩ 管），kind=link 的槽位
+  //    今天只剩几个。分母自检改成：一个都没量到 = 失败，且下面 ⑩ 判据 1 用的那个单槽（logos.introCta）必须在里面。
+  check(linkSlots.length > 0 && linkSlots.some((x) => x.type === 'logos' && x.slot === 'introCta'),
+    `块清单里 kind=link 的槽位 ${linkSlots.length} 个，含 logos.introCta`, linkSlots.map((x) => `${x.type}.${x.slot}`).join(' · '));
   for (const n of NAV_LINKS) {
     const s = m.get(n.block) && m.get(n.block).slots && m.get(n.block).slots[n.slot];
     check(Boolean(s && s.kind === 'link'), `NAV_LINKS 的 ${n.key.join('.')} 对得上 blocks/${n.block} 的 link 槽位 ${n.slot}`);
@@ -108,7 +112,7 @@ console.log('② 块清单那一侧');
 }
 
 // ══ ⑩ #1526：列表项 / 对象槽里套着的链接也在判据的射程里（纯函数，不用站）═══════════════════════════════
-// 修之前：同一个 `javascript:` 写在 hero 的 `ctaPrimary`（kind=link）里被拒、写在 hero-new 的 `ctas` 列表里放行 ——
+// 修之前：同一个 `javascript:` 写在 hero 的 `ctaPrimary`（kind=link）里被拒、写在 hero 的 `ctas` 列表里放行 ——
 // §blockLinks 只走 kind=link 的槽。
 console.log('⑩ #1526：按钮列表、导航列表、对象槽里的按钮');
 {
@@ -123,8 +127,8 @@ console.log('⑩ #1526：按钮列表、导航列表、对象槽里的按钮');
   const rej = (kind, next, before) => linkRejection(kind, docOf(kind, next), before ? docOf(kind, before) : null);
 
   // 票面那六个按钮列表（manifest 里 kind=list、项形状顶层必有 href）。先确认它们真在清单里，不然下面全是空跑。
-  const LISTS = [['hero-new', 'ctas'], ['content-new', 'ctas'], ['cta-new', 'ctas'], ['page-header-new', 'ctas'],
-    ['features-new', 'introCtas'], ['milestones', 'introCtas']];
+  const LISTS = [['hero', 'ctas'], ['content', 'ctas'], ['cta', 'ctas'], ['page-header', 'ctas'],
+    ['features', 'introCtas'], ['milestones', 'introCtas']];
   for (const [t, s] of LISTS) {
     const slot = man.get(t) && man.get(t).slots && man.get(t).slots[s];
     if (!(slot && slot.kind === 'list' && /\bhref\b(?!\?)/.test(String(slot.shape)))) die(`${t}.${s} 不是项里带 href 的列表槽 —— 本格的前提变了`);
@@ -132,13 +136,14 @@ console.log('⑩ #1526：按钮列表、导航列表、对象槽里的按钮');
   const btns = (t, s, ...hrefs) => [{ type: t, data: { [s]: hrefs.map((h, i) => ({ label: `Button ${i + 1}`, href: h, style: 'solid' })) } }];
 
   // 判据 1：票面那条命令 —— 列表项和单个槽都拒，话里说得出是哪个块、第几项
-  const list = (h) => btns('hero-new', 'ctas', '/about', h);
-  const one = (h) => [{ type: 'hero', data: { ctaPrimary: { label: 'Call', href: h } } }];
+  const list = (h) => btns('hero', 'ctas', '/about', h);
+  // #1425（T3）：hero 今天没有单个按钮槽（ctaPrimary 随旧 hero 删了），单槽换成 logos.introCta（kind=link）
+  const one = (h) => [{ type: 'logos', data: { introCta: { label: 'Call', href: h } } }];
   const mL = rej('page', list('javascript:alert(1)'), list('/contact'));
   const mO = rej('page', one('javascript:alert(1)'), one('/contact'));
   check(typeof mL === 'string' && /"Button 2"/.test(mL) && /Hero \(Webpixels\) block/.test(mL) && /\(item 2\)/.test(mL),
     '判据 1：列表项被拒，话里点名按钮字、块名、第 2 项', mL);
-  check(typeof mO === 'string' && /"Call"/.test(mO) && /Hero Section block/.test(mO) && !/\(item/.test(mO),
+  check(typeof mO === 'string' && /"Call"/.test(mO) && /Logos \(Webpixels\) block/.test(mO) && !/\(item/.test(mO),
     '判据 1：单个槽照旧被拒（不带「第几项」）', mO);
 
   // 判据 2：引用照旧放行（六个列表 × phone / email × 三种 kind）；反向对照：同样的位置 javascript: 全拒
@@ -152,28 +157,28 @@ console.log('⑩ #1526：按钮列表、导航列表、对象槽里的按钮');
 
   // 判据 3：老数据 —— before 里本来就有的坏链接原样留着 ⟹ 放行（挪了顺序也放行）；新加一个才拒
   for (const kind of KINDS) {
-    const before = btns('cta-new', 'ctas', '/a', 'vbscript:legacy()');
-    check(rej(kind, btns('cta-new', 'ctas', '/a', 'vbscript:legacy()'), before) === null, `判据 3：老坏链接原样，kind=${kind} → 放行`);
-    check(rej(kind, btns('cta-new', 'ctas', 'vbscript:legacy()', '/b'), before) === null, `判据 3：老坏链接换了位置，kind=${kind} → 放行`);
-    const m = rej(kind, btns('cta-new', 'ctas', '/a', 'vbscript:legacy()', 'javascript:new()'), before);
+    const before = btns('cta', 'ctas', '/a', 'vbscript:legacy()');
+    check(rej(kind, btns('cta', 'ctas', '/a', 'vbscript:legacy()'), before) === null, `判据 3：老坏链接原样，kind=${kind} → 放行`);
+    check(rej(kind, btns('cta', 'ctas', 'vbscript:legacy()', '/b'), before) === null, `判据 3：老坏链接换了位置，kind=${kind} → 放行`);
+    const m = rej(kind, btns('cta', 'ctas', '/a', 'vbscript:legacy()', 'javascript:new()'), before);
     check(typeof m === 'string' && /javascript:new\(\)/.test(m) && /\(item 3\)/.test(m), `判据 3：再新加一个坏的，kind=${kind} → 拒、点名第 3 项`, m);
-    check(typeof rej(kind, btns('cta-new', 'ctas', '/a', 'vbscript:legacy()', 'vbscript:legacy()'), before) === 'string',
+    check(typeof rej(kind, btns('cta', 'ctas', '/a', 'vbscript:legacy()', 'vbscript:legacy()'), before) === 'string',
       `判据 3：同一个坏串多写一份（老的只放过一个），kind=${kind} → 拒`);
   }
 
   // 判据 4：清空 Link 格存成空串 —— 有意放行，跟单个槽同一个口径（hrefAllowed：空串 = 没填）
   for (const kind of KINDS) {
-    check(rej(kind, btns('hero-new', 'ctas', ''), null) === null, `判据 4：列表项 href 是空串，kind=${kind} → 放行`);
-    check(rej(kind, [{ type: 'hero', data: { ctaPrimary: { label: 'Call', href: '' } } }], null) === null, `判据 4：单个槽 href 是空串，kind=${kind} → 放行（同一口径）`);
+    check(rej(kind, btns('hero', 'ctas', ''), null) === null, `判据 4：列表项 href 是空串，kind=${kind} → 放行`);
+    check(rej(kind, [{ type: 'logos', data: { introCta: { label: 'Call', href: '' } } }], null) === null, `判据 4：单个槽 href 是空串，kind=${kind} → 放行（同一口径）`);
   }
 
   // 射程不止六个按钮列表：导航列表、对象槽里的按钮、两层列表
   const deep = [
-    [{ type: 'footer-new', data: { legal: [{ label: 'Privacy', href: '/privacy' }, { label: 'Terms', href: 'javascript:x' }] } }, /\(item 2\)/],
-    [{ type: 'faq-new', data: { help: { headline: 'Help', cta: { label: 'Ask', href: 'javascript:x' } } } }, /"Ask"/],
-    [{ type: 'header-new', data: { topbar: { links: [{ label: 'Hours', href: 'data:text/html,x' }] } } }, /\(item 1\)/],
-    [{ type: 'team-new', data: { members: [{ name: 'A' }, { name: 'B', links: [{ icon: 'x', href: '/b' }, { icon: 'y', href: 'javascript:x' }] }] } }, /\(item 2\.2\)/],
-    [{ type: 'features-new', data: { items: [{ title: 't', text: 'x', link: { label: 'More', href: 'javascript:x' } }] } }, /"More".*\(item 1\)/],
+    [{ type: 'footer', data: { legal: [{ label: 'Privacy', href: '/privacy' }, { label: 'Terms', href: 'javascript:x' }] } }, /\(item 2\)/],
+    [{ type: 'faq', data: { help: { headline: 'Help', cta: { label: 'Ask', href: 'javascript:x' } } } }, /"Ask"/],
+    [{ type: 'header', data: { topbar: { links: [{ label: 'Hours', href: 'data:text/html,x' }] } } }, /\(item 1\)/],
+    [{ type: 'team', data: { members: [{ name: 'A' }, { name: 'B', links: [{ icon: 'x', href: '/b' }, { icon: 'y', href: 'javascript:x' }] }] } }, /\(item 2\.2\)/],
+    [{ type: 'features', data: { items: [{ title: 't', text: 'x', link: { label: 'More', href: 'javascript:x' } }] } }, /"More".*\(item 1\)/],
   ];
   for (const [b, re] of deep) {
     for (const kind of KINDS) {
@@ -182,25 +187,26 @@ console.log('⑩ #1526：按钮列表、导航列表、对象槽里的按钮');
     }
   }
   // 引用只放行按钮那两个源：页头顶条整项引用（没有 href 键）照常放行；不认识的 source 不归这里判（validateSite 报）
-  check(rej('page', [{ type: 'header-new', data: { topbar: { contact: [{ source: 'phone' }, { source: 'address' }] } } }], null) === null,
+  check(rej('page', [{ type: 'header', data: { topbar: { contact: [{ source: 'phone' }, { source: 'address' }] } } }], null) === null,
     '页头顶条整项引用 {"source":"phone"} → 放行');
 
   // 报文长度：按钮字 500、地址很长、套两层 —— 仍在 worker 截断线（600）以内，后半句「能填什么」完整
-  const longM = rej('page', [{ type: 'team-new', data: { members: [{ name: 'A' }, { name: 'B', links: Array.from({ length: 12 }, (_, i) => ({ label: 'x'.repeat(500), href: i === 11 ? `javascript:${'y'.repeat(900)}` : '/ok' })) }] } }], null);
+  const longM = rej('page', [{ type: 'team', data: { members: [{ name: 'A' }, { name: 'B', links: Array.from({ length: 12 }, (_, i) => ({ label: 'x'.repeat(500), href: i === 11 ? `javascript:${'y'.repeat(900)}` : '/ok' })) }] } }], null);
   check(typeof longM === 'string' && longM.length <= 600 && /Nothing was changed\.$/.test(longM) && /\(item 2\.12\)/.test(longM),
     `报文长度：最长情形 ${longM && longM.length} 字 ≤ 600，结尾那句完整`, longM);
 }
 
 const work = makeSite();
 const home = path.join(work, 'site', 'en', 'pages', 'home.json');
-const nav = path.join(work, 'site', 'en', 'navigation.json');
 const heroOf = (page) => page.blocks.find((b) => b.type === 'hero');
-if (!heroOf(read(home)) || !heroOf(read(home)).data.ctaPrimary) die('夹具的首页没有带 ctaPrimary 的 hero，这张表没有对象可验');
+// #1425（T3）：新 hero 的按钮是 `ctas` 列表（原来是 ctaPrimary / ctaSecondary 两个单槽）—— 主按钮 = 第 1 项、次按钮 = 第 2 项。
+const heroCtas = heroOf(read(home)) && heroOf(read(home)).data.ctas;
+if (!Array.isArray(heroCtas) || heroCtas.length < 2) die('夹具的首页没有带两个 ctas 的 hero，这张表没有对象可验');
 
-/** 首页 hero 的主按钮改成 `href`，其余原样。 */
-function homeWith(href, slot = 'ctaPrimary') {
+/** 首页 hero 的第 `idx` 个按钮改成 `href`，其余原样。 */
+function homeWith(href, idx = 0) {
   const page = read(home);
-  heroOf(page).data[slot] = { label: 'Book now', href };
+  heroOf(page).data.ctas[idx] = { label: 'Book now', href, style: 'solid' };
   return page;
 }
 
@@ -212,63 +218,60 @@ for (const href of BAD) {
   expectRefused(`write-editor-save.js（带页面）${href.split(':')[0]}:`, run(work, 'write-editor-save.js', { page: 'home', locale: 'en', baseHash: sha(home) }, { page: homeWith(href) }), [home], before);
 }
 
-// ══ ④ 公告条链接：三种协议各拒一次 ════════════════════════════════════════════════════════════════
-console.log('④ 公告条链接：write-editor-save.js 的 root.topbarLink');
-for (const href of BAD) {
-  const before = [fs.readFileSync(nav, 'utf-8')];
-  expectRefused(`topbarLink ${href.split(':')[0]}:`, run(work, 'write-editor-save.js', { page: 'home', locale: 'en' },
-    { root: { topbarMessage: 'Open Saturday', topbarLink: { label: 'Details', href } } }), [nav], before);
-}
+// 📌 #1425（T3）—— 这里原来是 ④「公告条链接：root.topbarLink 三种协议各拒一次」；topbarLink 随公告条那个区删了。
 
 // ══ ⑤ 合法的照收，值逐字不变 ══════════════════════════════════════════════════════════════════════
 console.log('⑤ 合法的四种：两条路都照收、逐字落盘');
+// 📌 #1425（T3）—— 这里原来还有「公告条链接 ${href} 照收」那一臂；topbarLink 随公告条那个区删了。
+//    #1425（T3）：第二臂改成 write-editor-save.js 带页面那一支（原来只在 ③ 的拒收方向上量过它）。
 for (const href of GOOD) {
   const r = run(work, 'write-page.js', { page: 'home', locale: 'en', baseHash: sha(home) }, homeWith(href));
-  check(r.rc === 0 && heroOf(read(home)).data.ctaPrimary.href === href, `块链接 ${href} → rc=0、落盘逐字相同`, `rc=${r.rc} ${r.err.slice(0, 160)}`);
-  const t = run(work, 'write-editor-save.js', { page: 'home', locale: 'en' }, { root: { topbarMessage: 'Open Saturday', topbarLink: { label: 'Details', href } } });
-  const got = fs.existsSync(nav) && read(nav).topbar && read(nav).topbar.link;
-  check(t.rc === 0 && got && got.href === href, `公告条链接 ${href} → rc=0、落盘逐字相同`, `rc=${t.rc} ${t.err.slice(0, 160)}`);
+  check(r.rc === 0 && heroOf(read(home)).data.ctas[0].href === href, `块链接 ${href} → rc=0、落盘逐字相同`, `rc=${r.rc} ${r.err.slice(0, 160)}`);
+  const t = run(work, 'write-editor-save.js', { page: 'home', locale: 'en', baseHash: sha(home) }, { page: homeWith(href, 1) });
+  check(t.rc === 0 && heroOf(read(home)).data.ctas[1].href === href, `write-editor-save.js（带页面）${href} → rc=0、落盘逐字相同`, `rc=${t.rc} ${t.err.slice(0, 160)}`);
 }
 
 // ══ ⑥ 老数据不炸：文件里本来就有一个不合规的链接 ══════════════════════════════════════════════════
 console.log('⑥ 老数据：不碰它照常存，碰到它被拒并点名');
 {
   // 页面：直接在磁盘上放一个老的坏链接（模拟本票之前存进去的）。
-  const page = homeWith('vbscript:legacy()', 'ctaSecondary');
+  const page = homeWith('vbscript:legacy()', 1);
   fs.writeFileSync(home, `${JSON.stringify(page, null, 2)}\n`);
   const edited = read(home);
   heroOf(edited).data.headline = 'Only the headline changed 1416';
   const r1 = run(work, 'write-page.js', { page: 'home', locale: 'en', baseHash: sha(home) }, edited);
   check(r1.rc === 0 && heroOf(read(home)).data.headline === 'Only the headline changed 1416', '页面：只改标题 → rc=0（老坏链接原样留着）', `rc=${r1.rc} ${r1.err.slice(0, 160)}`);
   const before = [fs.readFileSync(home, 'utf-8')];
-  const r2 = run(work, 'write-page.js', { page: 'home', locale: 'en', baseHash: sha(home) }, homeWith('data:text/html,x', 'ctaSecondary'));
+  const r2 = run(work, 'write-page.js', { page: 'home', locale: 'en', baseHash: sha(home) }, homeWith('data:text/html,x', 1));
   expectRefused('页面：把那个坏链接改成另一个坏的', r2, [home], before);
-  check(/"Book now"/.test((r2.line && r2.line.message) || '') && /Hero Section/.test((r2.line && r2.line.message) || ''), '拒收的话点名了是哪个按钮、哪个块', r2.line && r2.line.message);
-  const r3 = run(work, 'write-page.js', { page: 'home', locale: 'en', baseHash: sha(home) }, homeWith('/contact', 'ctaSecondary'));
+  check(/"Book now"/.test((r2.line && r2.line.message) || '') && /Hero \(Webpixels\)/.test((r2.line && r2.line.message) || ''), '拒收的话点名了是哪个按钮、哪个块', r2.line && r2.line.message);
+  const r3 = run(work, 'write-page.js', { page: 'home', locale: 'en', baseHash: sha(home) }, homeWith('/contact', 1));
   check(r3.rc === 0, '页面：把它改成合法的 → rc=0', `rc=${r3.rc}`);
 
-  // 公告条：navigation.json 里本来就有一个坏链接，只改公告文字 → 照常；改链接成另一个坏的 → 拒。
-  const n = read(nav);
-  n.topbar = { message: 'Old', link: { label: 'Old link', href: 'javascript:legacy()' } };
-  fs.writeFileSync(nav, JSON.stringify(n, null, 2));
-  const t1 = run(work, 'write-editor-save.js', { page: 'home', locale: 'en' }, { root: { topbarMessage: 'New text 1416' } });
-  check(t1.rc === 0 && read(nav).topbar.message === 'New text 1416' && read(nav).topbar.link.href === 'javascript:legacy()',
-    '公告条：只改文字 → rc=0（老坏链接原样留着）', `rc=${t1.rc} ${t1.err.slice(0, 160)}`);
-  const nb = [fs.readFileSync(nav, 'utf-8')];
-  const t2 = run(work, 'write-editor-save.js', { page: 'home', locale: 'en' }, { root: { topbarLink: { label: 'Old link', href: 'vbscript:x' } } });
-  expectRefused('公告条：把那个坏链接改成另一个坏的', t2, [nav], nb);
-  check(/announcement bar/.test((t2.line && t2.line.message) || ''), '拒收的话点名了公告条', t2.line && t2.line.message);
+  // 📌 #1425（T3）—— 这里原来还测「公告条：navigation.json 里的老坏链接，只改文字照存、改成另一个坏的被拒」；
+  //    编辑器的 topbarMessage / topbarLink 随公告条那个区删了。
 }
 
 // ══ ⑦ 页面 + 外壳一起存：外壳的链接被拒 ⟹ 页面也一个字节不写（所有校验先于所有写入）═════════════
-console.log('⑦ 一次存盘里页面是好的、公告条链接是坏的 ⟹ 两份都不写');
+// #1425（T3）：原来是「页面好 + 外壳的公告条链接坏」；外壳今天没有链接字段了，两臂对调 —— 页面的链接坏、
+//    外壳是一个合法的换形态（headerShape → theme.json），断言不变：所有校验先于所有写入，两份都不写。
+console.log('⑦ 一次存盘里外壳是好的、页面链接是坏的 ⟹ 两份都不写');
 {
-  const before = [fs.readFileSync(home, 'utf-8'), fs.readFileSync(nav, 'utf-8')];
-  const page = read(home);
+  const themeFile = path.join(work, 'site', 'theme.json');
+  const themeBefore = fs.existsSync(themeFile) ? fs.readFileSync(themeFile, 'utf-8') : null;
+  const before = [fs.readFileSync(home, 'utf-8')];
+  const page = homeWith('data:text/html,x');
   heroOf(page).data.headline = 'Would be written 1416';
   const r = run(work, 'write-editor-save.js', { page: 'home', locale: 'en', baseHash: sha(home) },
-    { page, root: { topbarLink: { label: 'x', href: 'data:text/html,x' } } });
-  expectRefused('页面好 + 链接坏', r, [home, nav], before);
+    { page, root: { headerShape: 'stacked' } });
+  expectRefused('外壳好 + 页面链接坏', r, [home], before);
+  const themeAfter = fs.existsSync(themeFile) ? fs.readFileSync(themeFile, 'utf-8') : null;
+  check(themeAfter === themeBefore, '外壳那份（theme.json）也一个字节没写', `before=${themeBefore} after=${themeAfter}`);
+  // 阳性对照：同一笔外壳单独存 ⟹ theme.json 真的会变（不然上一格「没写」是空判）
+  const t = run(work, 'write-editor-save.js', { page: 'home', locale: 'en' }, { root: { headerShape: 'stacked' } });
+  const got = fs.existsSync(themeFile) ? read(themeFile) : null;
+  check(t.rc === 0 && got && got.regionLayout && got.regionLayout.header === 'stacked',
+    '（对照）同一笔外壳单独存 → rc=0、theme.json 的 regionLayout.header = stacked', `rc=${t.rc} ${t.err.slice(0, 160)} ${JSON.stringify(got)}`);
 }
 
 // ══ ⑧ #1430：块多带一个字符串 ref 键 —— 编辑器存页面那条路照样查它自己的 data ═════════════════════════
@@ -289,7 +292,8 @@ console.log('⑨ commitWrites：顶层是数组的一份里埋一个坏链接 �
   const pw = require(path.join(work, 'scripts', 'lib', 'page-write.js'));
   const file = path.join(work, 'site', 'en', 'blocks', 'promos-1430.json');
   fs.mkdirSync(path.dirname(file), { recursive: true }); // skipAI 建的站没有 blocks/ 目录
-  const doc = (href) => `${JSON.stringify([{ id: 'spring', block: { type: 'cta-banner', data: { headline: 'Spring', button: { label: 'Go', href } } } }], null, 2)}\n`;
+  // #1425（T3）：夹具块原来是 cta-banner（随旧库删了，块清单里没有它 ⟹ 判据不认），换成 cta 的 ctas 列表
+  const doc = (href) => `${JSON.stringify([{ id: 'spring', block: { type: 'cta', data: { headline: 'Spring', ctas: [{ label: 'Go', href, style: 'solid' }] } } }], null, 2)}\n`;
   for (const href of BAD) {
     let err = null;
     try { pw.commitWrites([{ file, content: doc(href) }]); } catch (e) { err = e; }
@@ -299,7 +303,7 @@ console.log('⑨ commitWrites：顶层是数组的一份里埋一个坏链接 �
   for (const href of GOOD) {
     let err = null;
     try { pw.commitWrites([{ file, content: doc(href) }]); } catch (e) { err = e; }
-    const got = fs.existsSync(file) ? read(file)[0].block.data.button.href : null;
+    const got = fs.existsSync(file) ? read(file)[0].block.data.ctas[0].href : null;
     check(!err && got === href, `顶层数组 ${href} → 照写、落盘逐字相同`, err ? String(err.message).slice(0, 100) : JSON.stringify(got));
   }
   // 老数据：数组里本来就有的坏链接，这次只改别的字 → 照写
@@ -318,11 +322,11 @@ console.log('⑪ 按钮列表里的坏链接（#1526）：write-page.js / write-
 for (const href of BAD) {
   const before = [fs.readFileSync(home, 'utf-8')];
   const page = read(home);
-  page.blocks.push({ type: 'hero-new', data: { headline: 'List 1526', ctas: [{ label: 'Call us', href, style: 'solid' }] } });
+  page.blocks.push({ type: 'hero', data: { headline: 'List 1526', ctas: [{ label: 'Call us', href, style: 'solid' }] } });
   const r1 = run(work, 'write-page.js', { page: 'home', locale: 'en', baseHash: sha(home) }, page);
-  expectRefused(`write-page.js hero-new.ctas ${href.split(':')[0]}:`, r1, [home], before);
+  expectRefused(`write-page.js hero.ctas ${href.split(':')[0]}:`, r1, [home], before);
   check(/"Call us"/.test((r1.line && r1.line.message) || '') && /\(item 1\)/.test((r1.line && r1.line.message) || ''), '拒收的话点名按钮字和第几项', r1.line && r1.line.message);
-  expectRefused(`write-editor-save.js hero-new.ctas ${href.split(':')[0]}:`, run(work, 'write-editor-save.js', { page: 'home', locale: 'en', baseHash: sha(home) }, { page }), [home], before);
+  expectRefused(`write-editor-save.js hero.ctas ${href.split(':')[0]}:`, run(work, 'write-editor-save.js', { page: 'home', locale: 'en', baseHash: sha(home) }, { page }), [home], before);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

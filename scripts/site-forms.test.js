@@ -7,13 +7,13 @@
  *
  * 管哪几条：
  *   AC1 validateSite —— form.id 指空 / fields 词表外 / primary 不在 fields / 两个语言 quote.fields 不同，各报一条
- *   AC2 同一张 quote，四个块（hero-new / footer-new / contact-new / cta-new）：full 全部字段、teaser 只 phone + 按钮；
+ *   AC2 同一张 quote，四个块（hero / footer / contact / cta）：full 全部字段、teaser 只 phone + 按钮；
  *       改 quote.buttonText 一处，四个块的 HTML 都含新文案；form=none 没有 <form>（阳性对照：切回 teaser 就有）
  *   AC4 新建站（skipAI，真跑 create-site.js）：每个语言都有 forms.json、quote 在 contact 前；form.id 空 ⟹ quote 的按钮文字
  *   AC5 老站（删掉 forms.json）跑真的 sync-config.js ⟹ 退出码 0，带表单的块画 BlockLeadForm 的内置默认字段
- *   AC7 page-deps：hero-new / contact-new / cta-new 都在 types 里、unaccounted 为空、BlockLeadForm 那条豁免不在了
+ *   AC7 page-deps：hero / contact / cta 都在 types 里、unaccounted 为空、BlockLeadForm 那条豁免不在了
  *   #1511 表单库补两条：fields 里 phone / email 都没有 ⟹ 报；redirect 不在 href-allowed.js 白名单 ⟹ 报（白名单只有一份）
- * 提交带 meta.formId（AC3 的前端那一半）在 hero-new-render.test.js 的 happy-dom 段；落库那一半要真 manager + 库，见票上实测。
+ * 提交带 meta.formId（AC3 的前端那一半）在 hero-render.test.js 的 happy-dom 段；落库那一半要真 manager + 库，见票上实测。
  *
  * 🔴 每一段带反向对照（同一进程、单变量），证明判据真会红。
  */
@@ -81,14 +81,14 @@ try {
   manifestLib = require(path.join(NEXT, 'scripts', 'lib', 'block-manifest.js'));
   siteForms = require(path.join(NEXT, 'scripts', 'lib', 'site-forms.js'));
   ({ DEMO_CONTENT: DEMO, DEMO_SITE } = require(path.join(NEXT, 'scripts', 'lib', 'demo-content')));
-  for (const b of ['hero-new', 'footer-new', 'contact-new', 'cta-new']) C[b] = require(path.join(NEXT, 'blocks', b, 'Section.tsx')).default;
+  for (const b of ['hero', 'footer', 'contact', 'cta']) C[b] = require(path.join(NEXT, 'blocks', b, 'Section.tsx')).default;
 } catch (e) { die(`载入失败: ${e.stack || e.message}`); }
 if (!Array.isArray(DEMO_SITE.forms) || DEMO_SITE.forms[0].id !== 'quote') die('演示生意的表单库（DEMO_SITE.forms）不在或第一张不是 quote');
 
 // ══ AC1：validateSite ════════════════════════════════════════════════════════════════════════════
 console.log('── AC1 validateSite');
 {
-  const page = (form) => [{ slug: 'home', blocks: [{ type: 'cta-new', data: { ...clone(DEMO['cta-new']), form, options: { form: 'teaser' } } }] }];
+  const page = (form) => [{ slug: 'home', blocks: [{ type: 'cta', data: { ...clone(DEMO['cta']), form, options: { form: 'teaser' } } }] }];
   const v = (pages, forms) => manifestLib.validateSite({ pages, forms, scope: 'edit' }).problems.filter((p) => /form\.id|forms\.json/.test(p));
   const F = clone(DEMO_SITE.forms);
   check(v(page({ id: 'quote' }), F).length === 0 && v(page({}), F).length === 0, '对照：form.id = quote / 留空 ⟹ 0 条');
@@ -115,7 +115,7 @@ console.log('── AC1 validateSite');
 // ══ #1511：表单要能联系到人 · redirect 只收安全地址 ══════════════════════════════════════════════════
 console.log('\n── #1511 formListProblems 补的两条');
 {
-  const page = [{ slug: 'home', blocks: [{ type: 'cta-new', data: { ...clone(DEMO['cta-new']), form: { id: 'quote' }, options: { form: 'teaser' } } }] }];
+  const page = [{ slug: 'home', blocks: [{ type: 'cta', data: { ...clone(DEMO['cta']), form: { id: 'quote' }, options: { form: 'teaser' } } }] }];
   const v = (forms, scope = 'edit') => manifestLib.validateSite({ pages: page, forms, scope });
   const mine = (r) => r.filter((p) => /phone 也没有 email|redirect/.test(p));
   const F = clone(DEMO_SITE.forms);
@@ -162,10 +162,10 @@ console.log('\n── #1511 formListProblems 补的两条');
 // ══ AC2：四个块、同一张 quote ═══════════════════════════════════════════════════════════════════
 console.log('\n── AC2 四个块共用站级那一张');
 const CELLS = {
-  'hero-new': { shape: 'lead-form', prefix: 'hro' },
-  'footer-new': { shape: 'stacked', prefix: 'ftr' },
-  'contact-new': { shape: 'form-beside', prefix: 'ct' },
-  'cta-new': { shape: 'lead-form', prefix: 'cta' },
+  'hero': { shape: 'lead-form', prefix: 'hro' },
+  'footer': { shape: 'stacked', prefix: 'ftr' },
+  'contact': { shape: 'form-beside', prefix: 'ct' },
+  'cta': { shape: 'lead-form', prefix: 'cta' },
 };
 const dataFor = (type, mode, formId) => {
   const d = clone(DEMO[type]);
@@ -176,7 +176,7 @@ const dataFor = (type, mode, formId) => {
 const html = (type, mode, formId) => {
   const { shape } = CELLS[type];
   const d = dataFor(type, mode, formId);
-  const props = type === 'footer-new'
+  const props = type === 'footer'
     ? { shape, data: d, iconTable: {}, locale: 'en' }
     : { data: d, locale: 'en', iconTable: {}, block: { id: 'x', type, shape, data: {} } };
   return renderToStaticMarkup(React.createElement(C[type], props));
@@ -196,8 +196,8 @@ const ids = (h, prefix) => Array.from(h.matchAll(new RegExp(`<(?:input|select|te
     check(JSON.stringify(ids(contact, prefix)) === JSON.stringify(F[1].fields) && contact.includes(F[1].buttonText),
       `${type} · form.id = contact ⟹ 换成那一张（${ids(contact, prefix).join(' / ')}，按钮「${F[1].buttonText}」）`);
     const none = html(type, 'none', 'quote');
-    check(!/<form\b/.test(none) && (type !== 'footer-new' || !none.includes('data-footer-form')),
-      `${type} · form=none：没有 <form>${type === 'footer-new' ? '、也没有 data-footer-form' : ''}`);
+    check(!/<form\b/.test(none) && (type !== 'footer' || !none.includes('data-footer-form')),
+      `${type} · form=none：没有 <form>${type === 'footer' ? '、也没有 data-footer-form' : ''}`);
     check(/<form\b/.test(html(type, 'teaser', 'quote')), `${type} · 阳性对照：同一份数据切回 teaser ⟹ <form> 出现`);
   }
   // 改 quote.buttonText 一处 ⟹ 四个块都变。
@@ -208,7 +208,7 @@ const ids = (h, prefix) => Array.from(h.matchAll(new RegExp(`<(?:input|select|te
   const missing = Object.keys(CELLS).filter((t, i) => !after[i].includes(NEW) || before[i].includes(NEW));
   check(missing.length === 0, `改 quote.buttonText 一处 ⟹ 四个块的 HTML 都含「${NEW}」`, `没变的：${missing.join(' · ')}`);
   // 反向对照：块写了 form.id = contact ⟹ 改 quote 的文字它不跟着变（证明它真按 id 取，不是恒取第一张）。
-  check(!html('cta-new', 'teaser', 'contact').includes(NEW), '反向对照：选了 contact 的块不跟着 quote 变');
+  check(!html('cta', 'teaser', 'contact').includes(NEW), '反向对照：选了 contact 的块不跟着 quote 变');
   // AC4 ②：form.id 为空 ⟹ quote 的按钮文字。
   check(Object.keys(CELLS).every((t) => html(t, 'full').includes(NEW)), 'form.id 为空 ⟹ 四个块用的都是第一张（quote）的按钮文字');
   // 没有表单库 ⟹ BlockLeadForm 的内置默认（AC5 的渲染那一半）。
@@ -225,11 +225,11 @@ console.log('\n── AC7 page-deps：服务清单按块归属');
 {
   const pd = require(path.join(NEXT, 'scripts', 'lib', 'page-deps.js'));
   const r = pd.blockTypesReadingServices(NEXT);
-  const want = ['hero-new', 'contact-new', 'cta-new'];
+  const want = ['hero', 'contact', 'cta'];
   check(want.every((t) => r.types.has(t)), `types 含 ${want.join(' / ')}（${[...r.types].sort().join(', ')}）`);
   check(r.unaccounted.length === 0 && r.unmapped.length === 0, `unaccounted / unmapped 都为空（${JSON.stringify(r.unaccounted)} / ${JSON.stringify(r.unmapped)}）`);
   const src = fs.readFileSync(path.join(NEXT, 'scripts', 'lib', 'page-deps.js'), 'utf-8');
-  check(!/\['src\/components\/BlockLeadForm\.tsx'/.test(src), 'ACCOUNTED 里不再有 BlockLeadForm.tsx 那条「footer-new 站级外壳」豁免');
+  check(!/\['src\/components\/BlockLeadForm\.tsx'/.test(src), 'ACCOUNTED 里不再有 BlockLeadForm.tsx 那条「footer 站级外壳」豁免');
   // 反向对照：在一棵临时树里让 BlockLeadForm 重新自己读服务清单 ⟹ 它归不了属、被点名。
   const root = temp('site-forms-pd-');
   for (const rel of ['src', 'blocks']) cp.execSync(`cp -a "${path.join(NEXT, rel)}" "${path.join(root, rel)}"`);

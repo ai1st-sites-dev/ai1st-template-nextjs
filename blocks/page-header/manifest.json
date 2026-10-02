@@ -1,29 +1,86 @@
 {
   "type": "page-header",
-  "displayName": "Page Header",
+  "displayName": "Page header (Webpixels)",
   "category": "banner",
   "roleDefault": "optional",
+  "skin": "site-css",
+  "layout_intent": {
+    "items": "none",
+    "item_wrap": "allow",
+    "headline": "none",
+    "cross": "none",
+    "order": "dom",
+    "item_parts": "none",
+    "inner": "one"
+  },
+  "presets": [
+    { "name": "Simple", "shape": "simple", "knobs": { "headlinePosition": "top", "textAlign": "left", "image": "none" } },
+    { "name": "Centered", "shape": "centered", "knobs": { "headlinePosition": "top", "textAlign": "center", "image": "none" } },
+    { "name": "Split", "shape": "split", "knobs": { "headlinePosition": "left", "textAlign": "left", "image": "none" } },
+    { "name": "Photo", "shape": "photo", "knobs": { "headlinePosition": "top", "textAlign": "left", "image": "right" } },
+    { "name": "Cover", "shape": "cover", "knobs": { "headlinePosition": "top", "textAlign": "center", "image": "background" } }
+  ],
+  "computed": {
+    "breadcrumbs": "the breadcrumb trail is computed from the page path (Home → parent page → this page) — do not write it"
+  },
   "slots": {
-    "title": {
+    "options": {
+      "kind": "object",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{headlinePosition, textAlign, image}",
+      "knobs": [
+        { "name": "headlinePosition", "values": ["top", "left"] },
+        { "name": "textAlign", "values": ["left", "center"] },
+        { "name": "image", "values": ["none", "left", "right", "background"] }
+      ]
+    },
+    "introEyebrow": {
+      "kind": "object",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{text, style: \"none\" | \"pill\" | \"outline\" | \"dash\" | \"plain\"}",
+      "editLabel": {
+        "text": "Eyebrow"
+      },
+      "choices": {
+        "style": ["none", "pill", "outline", "dash", "plain"]
+      }
+    },
+    "headline": {
       "kind": "text",
       "required": true,
       "promptOptional": false,
-      "editLabel": "Title"
+      "editLabel": "Page title"
     },
-    "subtitle": {
+    "subheadline": {
       "kind": "text",
       "required": false,
       "promptOptional": true,
-      "editLabel": "Subtitle"
+      "editLabel": "Subheading"
     },
-    "breadcrumbs": {
+    "ctas": {
       "kind": "list",
       "required": false,
-      "promptOptional": false,
-      "shape": "[{label:\"Home\", href:\"/\"}, {label:\"<Page Name>\"}]",
+      "promptOptional": true,
+      "max": 2,
+      "shape": "[{label, href, style: \"solid\" | \"outline\" | \"link\", icon?, arrow?, size?}]",
       "editLabel": {
-        "label": "Breadcrumb text"
+        "label": "Button text"
       }
+    },
+    "image": {
+      "kind": "object",
+      "required": false,
+      "promptOptional": true,
+      "shape": "{imageUrl, alt}"
+    },
+    "bg": {
+      "kind": "color",
+      "required": false,
+      "promptOptional": true,
+      "shape": "\"#rrggbb\" | \"brand\" | {stops: [\"#rrggbb\" (2–3 个)], angle?: number}",
+      "swatches": ["#ffffff", "#f1f5f9", "#e0f2fe", "brand", "#1e293b", "#0f172a"]
     }
   },
   "industries": {
@@ -33,12 +90,13 @@
   },
   "prompt": {
     "group": "page-specific",
-    "order": 0,
-    "headPrefix": "always the first section on non-home pages. ",
-    "headSuffix": "",
+    "order": -1,
+    "headPrefix": "always the first section on non-home pages",
+    "headSuffix": "(use it or page-header, never both on one page)",
     "headExtra": null,
     "lines": [
-      "@data"
+      "@data",
+      "do NOT write breadcrumbs — they are computed from the page path; headline is this page's title (the page's only h1); write image only when there is a fitting picture; bg is the background colour, top-level in data (not inside options)"
     ]
   }
 }

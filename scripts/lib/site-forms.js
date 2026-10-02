@@ -4,7 +4,7 @@
 // ══════════════════════════════════════════════════════════════════════════════════════════════════
 //
 // Chris 2026-09-28：**表单是站的资产，不在块里定义。** 每个语言一份 `site/<locale>/forms.json`（跟 services.json
-// 同构、同目录），`sync-config.js` 读进 `config-data.ts`。hero-new / footer-new / contact-new / cta-new 的 `form`
+// 同构、同目录），`sync-config.js` 读进 `config-data.ts`。hero / footer / contact / cta 的 `form`
 // 槽只有 `{ id? }`（选哪一张），露多少是旋钮 `data.options.form`（none | teaser | full）。
 //
 //   [ { id: "quote", name: "Get a free quote", fields: ["name","phone","service"], primary: "phone",

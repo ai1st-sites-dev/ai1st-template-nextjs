@@ -11,18 +11,23 @@
  *    🔴 两向都量：清单里**没有**它 ⟹ 落回并说话；清单里**有**它 ⟹ 原样戴上、不说那句话。
  *    只量前一半的话，一个「永远落回默认」的实现也全绿。
  * ② **AC3**：页面 JSON（第 ① 级）高于主题选择单（第 ② 级）—— 换主题后手挑的块保留。
- *    判据是同一个块喂两套选择单（azure-29 的 hero 是 media-cover，ember-12 的是 text-center），
+ *    判据是同一个块喂两套选择单（azure-29 的 hero 是 cover，ember-12 的是 centered），
  *    手挑了就两次都是手挑的那个。反向臂：把 `shape` 删掉（=「恢复主题默认」那个按钮做的事）
  *    ⟹ 两套选择单各自说了算。**这一对才是「第一级真的在第二级之上」**：只跑正臂的话，
- *    一个「永远回 media-cover」的实现也全绿。
- * ③ 缺槽位那一格（D11 ⑥）：`media-cover` 要 `imageUrl`，没填 ⟹ 落回默认并点名缺哪个槽；填上 ⟹ 戴上。
+ *    一个「永远回 cover」的实现也全绿。
+ * ③ 缺槽位那一格（D11 ⑥）：`cover` 要 `image`，没填 ⟹ 落回默认并点名缺哪个槽；填上 ⟹ 戴上。
+ *
+ * 📌 #1425（T3）：hero 换成新块（Webpixels 那一份）。旧 hero 的 text-center（默认）/ media-cover（要 imageUrl）
+ *    → 新 hero 的 split（默认，order 0）/ cover（要 image，`{imageUrl, alt}` 对象槽）；两套主题的角色不变
+ *    （今天 azure-29 选 cover、ember-12 选 centered）。centered ≠ 默认 split，所以「落回默认」那几格顺带分得开
+ *    「落回 manifest 默认」与「落回选择单」—— 旧夹具里 ember 的选择单恰好就是默认，分不开。
  * ⑦ 「全部恢复主题默认」（§resetShapesInSite）。⑧ 候选形态：构建不许戴上它。
  *
  * 📌 这里原来还有 ⑤ `shapeVerdict`、⑥ `checkShapeInSite` 两节，以及 ⑧ 里「校验那一半」的几格 —— 它们守的是
  *    检查器单块形态端点（`PUT …/blocks/{id}/shape`）的入队前校验跟构建说同一句话。那条端点和那两个函数
  *    #1444 删了（检查器 #1411 退役），那几格跟着删；构建那一半一格没少。
  *
- * 🔴 **用真 manifest，不造合成的**：`loadBlockManifests` 读盘上那 31 份。要测「形态被删掉」
+ * 🔴 **用真 manifest，不造合成的**：`loadBlockManifests` 读盘上那 17 份（#1425（T3）起）。要测「形态被删掉」
  *    就在**真 manifest 的深拷贝**上删掉那一项 —— 合成一份 manifest 会把「真 hero 到底长什么样」
  *    这一维一起抹掉，而那正是这些断言要压住的东西。
  */
@@ -58,13 +63,16 @@ if (!manifests || !manifests.hero) die('loadBlockManifests 读不到 hero 的 ma
 
 // 这些断言压着的两个事实先自己量一次 —— 变了就该在这里红，而不是在下面读成一串莫名其妙的失败。
 const heroShapes = (manifests.hero.shapes || []).map((s) => s.name);
-if (heroShapes[0] !== 'text-center') die(`hero 的默认形态不是 text-center 而是 ${heroShapes[0]} —— 本文件的断言要跟着改`);
-if (!heroShapes.includes('media-cover')) die('hero 的清单里没有 media-cover —— 本文件的断言要跟着改');
+if (heroShapes[0] !== 'split') die(`hero 的默认形态不是 split 而是 ${heroShapes[0]} —— 本文件的断言要跟着改`);
+if (!heroShapes.includes('cover')) die('hero 的清单里没有 cover —— 本文件的断言要跟着改');
+if (JSON.stringify(shapeNeedsGap(manifests.hero, 'cover', {})) !== '["image"]') {
+  die(`hero/cover 的 needs 不再恰好是 image（${JSON.stringify(shapeNeedsGap(manifests.hero, 'cover', {}))}）—— 本文件的断言要跟着改`);
+}
 
-const AZURE = shapesFor('azure-29');
 const EMBER = shapesFor('ember-12');
-if (AZURE.hero !== 'media-cover' || EMBER.hero !== 'text-center') {
-  die(`两套主题给 hero 的形态变了（azure-29=${AZURE.hero} ember-12=${EMBER.hero}）—— 本文件的断言要跟着改`);
+const AZURE = shapesFor('azure-29');
+if (AZURE.hero !== 'cover' || EMBER.hero !== 'centered') {
+  die(`两套主题给 hero 的形态变了（ember-12=${EMBER.hero} azure-29=${AZURE.hero}）—— 本文件的断言要跟着改`);
 }
 
 /** 跑一次并把日志收起来 —— 每条断言都要能说「它有没有说话、说了什么」。 */
@@ -76,59 +84,60 @@ function run(block, selection, ms = manifests) {
   return { out, lines, threw, log: lines.join('\n') };
 }
 
-const withImage = { headline: 'H', imageUrl: 'https://example.com/a.jpg' };
+const withImage = { headline: 'H', image: { imageUrl: 'https://example.com/a.jpg', alt: '' } };
 
 // ── ① AC7：手挑的形态后来被区块库删掉 ───────────────────────────────────────────────────────────
 console.log('\n① AC7 —— 手挑的形态后来被区块库删掉（两向）');
 {
-  // 真 manifest 的深拷贝，删掉 media-cover 这一项 = 区块库把这个形态下架了。
+  // 真 manifest 的深拷贝，删掉 cover 这一项 = 区块库把这个形态下架了。
+  // #1425（T3）：选择单用 ember-12（centered ≠ 默认 split），落回的是 manifest 默认而不是选择单这一点才量得出来。
   const pruned = JSON.parse(JSON.stringify(manifests));
-  pruned.hero.shapes = pruned.hero.shapes.filter((s) => s.name !== 'media-cover');
-  check(!pruned.hero.shapes.some((s) => s.name === 'media-cover'), '夹具立得起来：拷贝里的 hero 已经没有 media-cover 了');
+  pruned.hero.shapes = pruned.hero.shapes.filter((s) => s.name !== 'cover');
+  check(!pruned.hero.shapes.some((s) => s.name === 'cover'), '夹具立得起来：拷贝里的 hero 已经没有 cover 了');
 
-  const gone = run({ type: 'hero', shape: 'media-cover', data: withImage }, EMBER, pruned);
+  const gone = run({ type: 'hero', shape: 'cover', data: withImage }, EMBER, pruned);
   check(gone.threw === null, `形态被删掉 ⟹ 不抛${gone.threw ? ` —— 实际抛了: ${gone.threw.message}` : ''}`);
-  check(gone.out === 'text-center', `形态被删掉 ⟹ 落回 manifest 默认 text-center（实际 ${JSON.stringify(gone.out)}）`);
+  check(gone.out === 'split', `形态被删掉 ⟹ 落回 manifest 默认 split，不是选择单的 centered（实际 ${JSON.stringify(gone.out)}）`);
   check(gone.log.includes('清单里没有它'), `形态被删掉 ⟹ 构建日志说一行（实际: ${JSON.stringify(gone.log)}）`);
   check(gone.log.includes('页面 JSON'), '那一行点名了来源是页面 JSON（老板手挑的，不是主题给的）');
 
   // 🔴 反向臂：同一个块、同一份 data，只把「形态还在清单里」这一个变量翻回来。
-  const still = run({ type: 'hero', shape: 'media-cover', data: withImage }, EMBER);
-  check(still.out === 'media-cover', `形态还在清单里 ⟹ 原样戴上（实际 ${JSON.stringify(still.out)}）`);
+  const still = run({ type: 'hero', shape: 'cover', data: withImage }, EMBER);
+  check(still.out === 'cover', `形态还在清单里 ⟹ 原样戴上（实际 ${JSON.stringify(still.out)}）`);
   check(!still.log.includes('清单里没有它'), '形态还在清单里 ⟹ 不打那句「清单里没有它」');
 }
 
 // ── ② AC3：页面 JSON 高于主题选择单（换主题保留 / 恢复主题默认）─────────────────────────────────
 console.log('\n② AC3 —— 换主题后手挑的形态保留；删掉 shape 就落回选择单');
 {
-  const picked = { type: 'hero', shape: 'media-cover', data: withImage };
-  check(run(picked, AZURE).out === 'media-cover', '手挑 media-cover + azure-29（选择单也是 media-cover）⟹ media-cover');
-  check(run(picked, EMBER).out === 'media-cover',
-    '手挑 media-cover + 换到 ember-12（选择单是 text-center）⟹ 仍然 media-cover ← AC3 正臂');
+  const picked = { type: 'hero', shape: 'cover', data: withImage };
+  check(run(picked, AZURE).out === 'cover', '手挑 cover + azure-29（选择单也是 cover）⟹ cover');
+  check(run(picked, EMBER).out === 'cover',
+    '手挑 cover + 换到 ember-12（选择单是 centered）⟹ 仍然 cover ← AC3 正臂');
 
   // 🔴 反向臂 = 「恢复主题默认」那个按钮做的事：把 `shape` 这个键删掉。
   const cleared = { type: 'hero', data: withImage };
-  check(run(cleared, AZURE).out === 'media-cover', '删掉 shape + azure-29 ⟹ 跟着选择单回 media-cover');
-  check(run(cleared, EMBER).out === 'text-center',
-    '删掉 shape + ember-12 ⟹ 跟着选择单回 text-center ← AC3 反臂（证明第 ① 级真的压着第 ② 级）');
+  check(run(cleared, AZURE).out === 'cover', '删掉 shape + azure-29 ⟹ 跟着选择单回 cover');
+  check(run(cleared, EMBER).out === 'centered',
+    '删掉 shape + ember-12 ⟹ 跟着选择单回 centered ← AC3 反臂（证明第 ① 级真的压着第 ② 级）');
 }
 
 // ── ③ 缺槽位（D11 ⑥）──────────────────────────────────────────────────────────────────────────
-console.log('\n③ 缺槽位 —— media-cover 要 imageUrl');
+console.log('\n③ 缺槽位 —— cover 要 image');
 {
-  const noImage = run({ type: 'hero', shape: 'media-cover', data: { headline: 'H' } }, EMBER);
+  const noImage = run({ type: 'hero', shape: 'cover', data: { headline: 'H' } }, EMBER);
   check(noImage.threw === null, '缺槽位 ⟹ 不抛');
-  check(noImage.out === 'text-center', `缺槽位 ⟹ 落回默认 text-center（实际 ${JSON.stringify(noImage.out)}）`);
-  check(noImage.log.includes('缺槽位 imageUrl'), `缺槽位 ⟹ 点名缺哪个槽（实际: ${JSON.stringify(noImage.log)}）`);
-  check(run({ type: 'hero', shape: 'media-cover', data: withImage }, EMBER).out === 'media-cover',
-    '补上 imageUrl ⟹ media-cover 戴得上（反向臂）');
+  check(noImage.out === 'split', `缺槽位 ⟹ 落回默认 split（实际 ${JSON.stringify(noImage.out)}）`);
+  check(/缺槽位 image(，|$)/m.test(noImage.log), `缺槽位 ⟹ 点名缺哪个槽（实际: ${JSON.stringify(noImage.log)}）`);
+  check(run({ type: 'hero', shape: 'cover', data: withImage }, EMBER).out === 'cover',
+    '补上 image ⟹ cover 戴得上（反向臂）');
 }
 
 // ── ④ 两条边 ───────────────────────────────────────────────────────────────────────────────────
 console.log('\n④ 边界');
 {
   const none = run({ type: 'hero', data: withImage }, {});
-  check(none.out === 'text-center', `三级里前两级都没有 ⟹ manifest 默认 text-center（实际 ${JSON.stringify(none.out)}）`);
+  check(none.out === 'split', `三级里前两级都没有 ⟹ manifest 默认 split（实际 ${JSON.stringify(none.out)}）`);
   check(none.log.includes('都没给它形态'), '前两级都没有 ⟹ 也说一行（#1338）');
 
   // 没有 manifest 的块类型：原样返回、不打「落回默认 undefined」那种会带偏人的话（#1338 的 🔴）。
@@ -152,9 +161,10 @@ console.log('\n⑦ resetShapesInSite —— 页面级 / 站级一次清空');
     fs.writeFileSync(path.join(site, 'en', 'pages', 'home.json'), `${JSON.stringify({
       slug: 'home',
       blocks: [
-        { id: 'home-hero-0', type: 'hero', weight: 0, shape: 'media-cover', data: { headline: 'A' } },
-        { id: 'home-faq-1', type: 'faq-accordion', weight: 10, role: 'optional', data: { headline: 'B' } },
-        { ref: 'shared-hero', weight: 20, shape: 'text-left' },
+        // #1425（T3）：形态名 / 块名换成新库里的（media-cover → cover · faq-accordion → faq · text-left → centered）
+        { id: 'home-hero-0', type: 'hero', weight: 0, shape: 'cover', data: { headline: 'A' } },
+        { id: 'home-faq-1', type: 'faq', weight: 10, role: 'optional', data: { headline: 'B' } },
+        { ref: 'shared-hero', weight: 20, shape: 'centered' },
       ],
     }, null, 2)}\n`);
     // about：一个都没挑 —— 这一页**不许被写**
@@ -163,7 +173,7 @@ console.log('\n⑦ resetShapesInSite —— 页面级 / 站级一次清空');
     }, null, 2)}\n`);
     // 另一个语言也有一个手挑的（站级清空要扫到它）
     fs.writeFileSync(path.join(site, 'fr', 'pages', 'home.json'), `${JSON.stringify({
-      slug: 'home', blocks: [{ id: 'home-hero-0', type: 'hero', weight: 0, shape: 'media-left', data: {} }],
+      slug: 'home', blocks: [{ id: 'home-hero-0', type: 'hero', weight: 0, shape: 'lead-form', data: {} }],
     }, null, 2)}\n`);
     return root;
   };
@@ -218,7 +228,7 @@ console.log('\n⑦ resetShapesInSite —— 页面级 / 站级一次清空');
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'resetlegacy-'));
     fs.mkdirSync(path.join(root, 'site', 'pages'), { recursive: true });
     fs.writeFileSync(path.join(root, 'site', 'pages', 'home.json'), `${JSON.stringify({
-      slug: 'home', sections: [{ type: 'hero', shape: 'media-top', data: {} }, { type: 'faq-accordion', data: {} }],
+      slug: 'home', sections: [{ type: 'hero', shape: 'text-only', data: {} }, { type: 'faq', data: {} }],
     }, null, 2)}\n`);
     const r = resetShapesInSite({ rootDir: root });
     check(r.ok === true && r.cleared.length === 1 && r.cleared[0].index === 0,
@@ -238,8 +248,9 @@ console.log('\n⑧ 候选形态 —— 构建落回默认（判据是 manifest �
 {
   const clone = (o) => JSON.parse(JSON.stringify(o));
   const needsOf = (m, name) => shapeNeedsGap(m, name, { headline: 'H' }) || [];
-  const CAND_FREE = 'media-top';
-  const CAND_NEEDY = 'media-cover';   // hero 里要 imageUrl 的那个（文件顶部已 die 过它存在）
+  // #1425（T3）：media-top / media-cover → text-only / cover
+  const CAND_FREE = 'text-only';
+  const CAND_NEEDY = 'cover';   // hero 里要 image 的那个（文件顶部已 die 过它存在）
 
   const heroCand = clone(manifests.hero);
   const mark = (name) => {

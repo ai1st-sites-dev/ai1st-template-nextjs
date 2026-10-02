@@ -27,7 +27,7 @@ import SubPage from '@/components/pages/SubPage';
 import BlogIndexPage from '@/components/pages/BlogIndexPage';
 import BlogPostPage from '@/components/pages/BlogPostPage';
 import { homeMetadata, subPageMetadata, blogIndexMetadata, blogPostMetadata } from '@/lib/metadata';
-import { defaultLocale, locales, getNonHomePages, getBlogPosts, getHomePage, getPage, pageStartsWithHero } from '@/lib/config';
+import { defaultLocale, locales, getNonHomePages, getBlogPosts, getHomePage, getPage } from '@/lib/config';
 
 const RESERVED_SLUGS = ['blog', '_next'];
 
@@ -172,13 +172,11 @@ export default async function CatchAllPage({ params }: { params: Promise<{ slug:
     case 'blogPost': body = <BlogPostPage locale={r.locale} slug={r.slug} />; break;
   }
 
-  // #960: 第一段是 hero 的页面才让透明浮层顶栏浮起来。blog 那两种没有 hero,恒为 false。
-  // 判断走 pageStartsWithHero(它跳过 #962 藏起来的 block,理由写在 config.ts 那里)。
   const page =
     r.kind === 'home' ? getHomePage(r.locale)
       : r.kind === 'subpage' ? getPage(r.slug, r.locale)
         : undefined;
   // #1351 —— 把这一页的名字带到 DOM 上（`<main data-page>`），检查器靠它分清站级共用块改的是哪一页。
   //    博客那两种没有 `pages/` 里的记录 ⟹ `page` 是 undefined ⟹ 不写这个属性。
-  return <SiteShell locale={r.locale} page={page?.slug} overHero={pageStartsWithHero(page)}>{body}</SiteShell>;
+  return <SiteShell locale={r.locale} page={page?.slug}>{body}</SiteShell>;
 }

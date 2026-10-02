@@ -90,6 +90,40 @@ const DELTAS = [
       .replace(/\n {3}data: \{ headline, steps: \[\{title, description\}\](, variant)? \}/,
         '\n   process-steps data: { headline, steps: [{title, description}] }'),
   },
+  // ── #1425（T3）—— 五条全部换成新库的继任块（旧库随本票删了），逐条登记（去处见 keyword-page-options.js 文件头）。
+  //    🔴 面包屑那一维整个没了：新 page-header 不读 `data.breadcrumbs`，`hasServiceDetailPages` 入参删了 ⟹
+  //    基线的两个分支（有 / 没有服务详情页）套完差异后必须落到【同一份】字节上 —— 下面 ① 的两轮就是在量这件事。
+  {
+    why: '#1425 page-header 的 data 换成新块槽名（headline / subheadline?），面包屑那段（含两个分支）整段删',
+    apply: (t) => t.replace(/^ {3}data: \{ title, subtitle\?, breadcrumbs: [^\n]*$/m, '   data: { headline, subheadline? }'),
+  },
+  {
+    why: '#1425 text-block → content（`content` 槽改名 `body`，`items?: [string]` 新块没有）',
+    apply: (t) => t
+      .replace('"text-block" (REQUIRED, 2-3 paragraphs of unique SEO content)', '"content" (REQUIRED, 2-3 paragraphs of unique SEO content)')
+      .replace('   data: { headline?, content (2-3 paragraphs), items?: [string] }', '   data: { headline?, body (2-3 paragraphs) }'),
+  },
+  {
+    why: '#1425 card-group OR process-steps → features（同一块、页与页之间交替写卖点 / 步骤；两行 data 合成一行）',
+    apply: (t) => t.replace(
+      '"card-group" OR "process-steps" (pick one per page, alternate between pages)\n'
+      + '   card-group data: { headline, subheadline?, items: [{title, description?, features?: [string]}] }\n'
+      + '   process-steps data: { headline, steps: [{title, description}] }',
+      '"features" (REQUIRED) — alternate between pages: on one page write selling points (items without numbers), '
+      + 'on the next write the steps of how the service works (for step-by-step content give every item a number '
+      + '("01", "02" …) and set options.itemConnector to "line")\n'
+      + '   data: { headline, body?, items: [{title, text}], options? }'),
+  },
+  {
+    why: '#1425 faq-accordion → faq（槽同形）',
+    apply: (t) => t.replace('"faq-accordion" (REQUIRED, 3-4 questions)', '"faq" (REQUIRED, 3-4 questions)'),
+  },
+  {
+    why: '#1425 cta-banner → cta（description → body，button → ctas[]）',
+    apply: (t) => t
+      .replace('"cta-banner" (REQUIRED last)', '"cta" (REQUIRED last)')
+      .replace('   data: { headline, description, button: {label, href} }', '   data: { headline, body, ctas: [{label, href}] }'),
+  },
 ];
 
 console.log('\n── ① 什么都没关掉 ⟹ 跟基线那段写死的散文（套上登记的差异）逐字节相同 ──');
@@ -99,18 +133,24 @@ console.log('\n── ① 什么都没关掉 ⟹ 跟基线那段写死的散文�
     const base = baselineMenu(hasDetail);
     if (base === null) { console.log(`  ⚠️  取不到 ${BASELINE} 上的 create-site.js —— 这一格没有读数（不是通过）`); break; }
     measured++;
-    const got = keywordPageSectionOptions({ hasServiceDetailPages: hasDetail, disabledBlocks: [] });
+    // #1425（T3）—— 入参只剩 disabledBlocks：基线两个分支都跟同一份产出比。
+    const got = keywordPageSectionOptions({ disabledBlocks: [] });
     const patched = DELTAS.reduce((acc, d) => d.apply(acc), base);
     if (got === patched) {
-      ok(`hasServiceDetailPages=${hasDetail}：${got.length} 字节，套上 ${DELTAS.length} 条差异后逐字节相同`);
+      ok(`基线分支 hasServiceDetailPages=${hasDetail}：${got.length} 字节，套上 ${DELTAS.length} 条差异后逐字节相同`);
     } else {
-      bad(`hasServiceDetailPages=${hasDetail}：不一样\n--- 基线+差异 ---\n${patched}\n--- 现在 ---\n${got}`);
+      bad(`基线分支 hasServiceDetailPages=${hasDetail}：不一样\n--- 基线+差异 ---\n${patched}\n--- 现在 ---\n${got}`);
     }
     // 判别力①：一条都不套就对不上 ⟹ 上面那格不是恒真
     base !== got ? ok(`判别力①（${hasDetail}）：一条差异都不套就对不上`)
       : bad(`判别力①（${hasDetail}）：一条都不套也相同 ⟹ 差异表是死的`);
     // 判别力②：每一条单独套在基线上都真的改变它（没有死条目）
-    const dead = DELTAS.filter((d) => d.apply(base) === base);
+    // #1425（T3）—— #1425 那几条认的是 #1419 套完之后的字节（card-group 那行 data 带块名），所以「单独套」
+    //    改成「套在它前面那几条的结果上」：每一条都得让那一步的字节变一次。
+    const dead = DELTAS.filter((d, i) => {
+      const before = DELTAS.slice(0, i).reduce((acc, x) => x.apply(acc), base);
+      return d.apply(before) === before;
+    });
     dead.length === 0 ? ok(`判别力②（${hasDetail}）：${DELTAS.length} 条差异每一条都改变了基线`)
       : bad(`判别力②（${hasDetail}）：${dead.length} 条对基线什么都没做：${dead.map((d) => d.why).join(' · ')}`);
   }
@@ -118,13 +158,14 @@ console.log('\n── ① 什么都没关掉 ⟹ 跟基线那段写死的散文�
 }
 
 console.log('\n── ② 关掉一个块 ⟹ 它整条消失，编号重排 ──');
-const full = keywordPageSectionOptions({ hasServiceDetailPages: true });
+// #1425（T3）—— faq-accordion → faq；按带引号的块名数（裸 `faq` 会命中别处的字样）。
+const full = keywordPageSectionOptions({});
 {
-  const got = keywordPageSectionOptions({ hasServiceDetailPages: true, disabledBlocks: ['faq-accordion'] });
-  !got.includes('faq-accordion')
-    ? ok('关掉 faq-accordion ⟹ 清单里 0 命中')
-    : bad('关掉 faq-accordion，清单里还有它');
-  full.includes('faq-accordion')
+  const got = keywordPageSectionOptions({ disabledBlocks: ['faq'] });
+  !got.includes('"faq"')
+    ? ok('关掉 faq ⟹ 清单里 0 命中')
+    : bad('关掉 faq，清单里还有它');
+  full.includes('"faq"')
     ? ok('反向臂：不关的时候它在清单里 ⟹ 上一格不是恒真')
     : bad('反向臂失败：不关也没有它');
   const nums = [...got.matchAll(/^(\d+)\. /gm)].map((m) => Number(m[1]));
@@ -133,23 +174,25 @@ const full = keywordPageSectionOptions({ hasServiceDetailPages: true });
     : bad(`编号有空号：${nums.join(' ')} —— 留一个空号等于告诉模型「这里本来有个东西」`);
 }
 
-console.log('\n── ③ 「A OR B」那一格：只剩一个时不许再写 OR ──');
+// 📌 #1425（T3）—— 这里原来是「A OR B」那一格（card-group / process-steps 关一个剩一个、不许再写 OR）。两个旧块合成了
+//    一个 features（同一条里交替写法），OR 这种句形不存在了 ⟹ 改成：关掉 features ⟹ 那一条整条消失（连同步骤写法那句）、编号连续。
+console.log('\n── ③ 关掉 features ⟹ 那一条整条消失、编号连续 ──');
 {
-  const got = keywordPageSectionOptions({ hasServiceDetailPages: true, disabledBlocks: ['card-group'] });
-  !got.includes('card-group') && got.includes('"process-steps" (use it on every page)')
-    ? ok('关掉 card-group ⟹ 那一格写成「process-steps，每页都用」，card-group 0 命中')
-    : bad(`关掉 card-group 之后那一格不对：\n${got}`);
-  const both = keywordPageSectionOptions({ hasServiceDetailPages: true, disabledBlocks: ['card-group', 'process-steps'] });
-  !both.includes('card-group') && !both.includes('process-steps')
-    ? ok('两个都关掉 ⟹ 那一条整条消失')
-    : bad(`两个都关掉之后还留着：\n${both}`);
-  const nums = [...both.matchAll(/^(\d+)\. /gm)].map((m) => Number(m[1]));
-  nums.length === 4 && nums[nums.length - 1] === 4
+  const got = keywordPageSectionOptions({ disabledBlocks: ['features'] });
+  !got.includes('"features"') && !got.includes('itemConnector')
+    ? ok('关掉 features ⟹ 那一条整条消失（块名 0 命中，步骤写法那句也没留下）')
+    : bad(`关掉 features 之后还留着：\n${got}`);
+  const nums = [...got.matchAll(/^(\d+)\. /gm)].map((m) => Number(m[1]));
+  JSON.stringify(nums) === JSON.stringify([1, 2, 3, 4])
     ? ok('剩下 4 条，编号 1..4')
     : bad(`剩下的编号是 ${nums.join(' ')}`);
-  full.includes('"card-group" OR "process-steps"')
-    ? ok('反向臂：两个都在时那句 OR 原样还在')
-    : bad('反向臂失败：不关的时候也没有那句 OR');
+  // 其余四条一个字节不动：拿全量那份去掉 features 那条、重新编号，跟关掉之后逐字比。
+  const renum = full.split(/\n(?=\d+\. )/).filter((e) => !e.includes('"features"'))
+    .map((e, i) => e.replace(/^\d+\. /, `${i + 1}. `)).join('\n');
+  renum === got ? ok('其余四条逐字节不变（只少了 features 那一条）') : bad(`其余几条也被改了：\n--- 期望 ---\n${renum}\n--- 实际 ---\n${got}`);
+  full.includes('"features"') && full.includes('itemConnector')
+    ? ok('反向臂：不关的时候 features 那一条（含步骤写法）在')
+    : bad('反向臂失败：不关的时候也没有 features 那一条');
 }
 
 console.log(`\n${fail ? '❌' : '✅'} ${pass} 过 / ${fail} 失败`);

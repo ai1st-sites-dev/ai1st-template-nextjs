@@ -27,7 +27,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import path from 'path';
 import EditorApp from '@/components/editor/EditorApp';
-import { leadApi, locales, pagesByLocale, getPage, pageLayout, regions, getNavigation, pageStartsWithHero, getForms } from '@/lib/config';
+import { leadApi, locales, pagesByLocale, getPage, pageLayout, regions, getForms } from '@/lib/config';
 import { editorSource, locateInRaw, effectiveWeights } from '../../../../scripts/lib/editor-page.js';
 import { editorSchema } from '../../../../scripts/lib/editor-schema.js';
 import { pageToPuck, rootToPuck } from '../../../../scripts/lib/editor-convert.js';
@@ -84,11 +84,10 @@ export default async function EditorPage({ params }: { params: Promise<{ target:
     layoutsDir: path.join(root, 'page-layouts'),
   });
   const located = page.blocks.map((b) => locateInRaw(src.raw, src.siteBlocks, slug, b));
-  // #1405 —— 外壳四样的初值取的是**这次构建算出来、站上正在画的那一份**（config 里的 `pageLayout` /
+  // #1405 —— 外壳三样的初值取的是**这次构建算出来、站上正在画的那一份**（config 里的 `pageLayout` /
   // `regions` / 这种语言的 `navigation`），不是另读一遍站级文件：形态要经过主题选择单 + `regionLayout`
   // 覆盖那一层解析，而那一层在构建里已经算过了（`sync-config.js`），在这里重算一遍就是第二份实现。
   // 🔴 这份初值就是存盘时逐字段比的那个「打开时的值」（做什么 7），它必须跟底稿一起、在打开时定下来。
-  const topbar = getNavigation(locale).topbar;
   const initialData = {
     ...pageToPuck({
       raw: src.raw,
@@ -103,8 +102,6 @@ export default async function EditorPage({ params }: { params: Promise<{ target:
         layout: pageLayout.id,
         headerShape: regions.header.shape,
         footerShape: regions.footer.shape,
-        topbarMessage: topbar?.message || '',
-        topbarLink: topbar?.link || null,
       }),
     },
   };
@@ -117,7 +114,6 @@ export default async function EditorPage({ params }: { params: Promise<{ target:
       baseHash={src.baseHash}
       schema={schema}
       initialData={initialData}
-      overHero={pageStartsWithHero(page)}
       trustedOrigin={trustedOrigin()}
       siteBlocks={src.siteBlocks}
       refs={src.refs}

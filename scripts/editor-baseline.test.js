@@ -17,7 +17,7 @@
  *   ③ 站级共用块（按 visibility 注入 + `{ref}`）、子目录页面、ember-12 的老扁平 `sections` 站
  *   ④ 探针那条路：子进程里调，stdout 只有一份 JSON —— 哪怕这一页有一个会触发「落回默认」日志的块
  *   ⑤ 拒绝：没有这一页 / 没有这种语言 / 读不到 site/ / 这一页会让构建报错
- *   ⑥ #1452：外壳四样（root）存下去、没重建 ⟹ 底稿带的是盘上的现值，四样都跟构建时那份不同（跑在 ⑤ 之前：
+ *   ⑥ #1452：外壳三样（root；#1425 T3 起公告条那一样退役）存下去、没重建 ⟹ 底稿带的是盘上的现值，三样都跟构建时那份不同（跑在 ⑤ 之前：
  *     ⑤ 最后一格把这个站弄成建不出来）
  */
 
@@ -85,15 +85,12 @@ function build(work) {
 }
 let lastRoot = null;
 
-/** #1452 —— page.tsx 的 root 初值原样（`topbar?.message || ''` / `topbar?.link || null`）。 */
+/** #1452 —— page.tsx 的 root 初值原样。#1425（T3）：公告条那两样（topbarMessage / topbarLink）随公告条那个区删了。 */
 function builtRoot(locale) {
-  const topbar = (lastRoot.nav[locale] || lastRoot.nav.en || {}).topbar;
   return {
     layout: lastRoot.pageLayout.id,
     headerShape: lastRoot.regions.header.shape,
     footerShape: lastRoot.regions.footer.shape,
-    topbarMessage: (topbar && topbar.message) || '',
-    topbarLink: (topbar && topbar.link) || null,
   };
 }
 
@@ -162,8 +159,9 @@ console.log('③ 共用块、子目录页面、老扁平 sections 站（ember-12
   const en = path.join(multi, 'site', 'en');
   fs.mkdirSync(path.join(en, 'blocks'), { recursive: true });
   writeJSON(path.join(en, 'blocks', 'site-blocks.json'), {
-    'shared-cta': { type: 'cta-banner', visibility: ['home', 'about'], data: { headline: 'Shared CTA 1415', button: { label: 'Call', href: '/quote' } } },
-    'shared-faq': { type: 'faq-accordion', data: { heading: 'FAQ 1415', items: [{ question: 'Q?', answer: 'A.' }] } },
+    // #1425（T3）：原来是 cta-banner / faq-accordion（随旧库删了），换成新库的 cta / faq
+    'shared-cta': { type: 'cta', visibility: ['home', 'about'], data: { headline: 'Shared CTA 1415', ctas: [{ label: 'Call', href: '/quote', style: 'solid' }] } },
+    'shared-faq': { type: 'faq', data: { headline: 'FAQ 1415', items: [{ question: 'Q?', answer: 'A.' }] } },
   });
   const about = readJSON(path.join(en, 'pages', 'about.json'));
   about.blocks.push({ ref: 'shared-faq' });
@@ -218,43 +216,50 @@ console.log('④ 探针：子进程 stdout 只有那一份 JSON');
 }
 
 // ══ ⑥ #1452：外壳四样存了、没重建 ⟹ 底稿里是存下去的那份 ═════════════════════════════════════════
-console.log('⑥ #1452：外壳四样存盘之后（不重建），底稿带的是盘上的现值');
+console.log('⑥ #1452：外壳三样存盘之后（不重建），底稿带的是盘上的现值');
 {
   const siteDir = path.join(multi, 'site');
   const localeDir = path.join(siteDir, 'en');
   const editorRoot = require(path.join(multi, 'scripts', 'lib', 'editor-root.js'));
   const { pickableShapesOf } = require(path.join(multi, 'scripts', 'region-layout.js'));
   const { editorBaseline } = require(path.join(multi, 'scripts', 'lib', 'editor-page.js'));
+  // #1425（T3）：布局库只剩 standard，「换一个布局」原来换的是 with-topbar（随公告条那个区删了）。在这棵拷出来的模板里
+  //    放一份不钉页脚的夹具布局，让 layout 这一样也能跟构建值不同（不然下面「三样都不同」那格对 layout 是瞎的）。
+  const FIXTURE_LAYOUT = 'fixture-alt-layout';
+  writeJSON(path.join(multi, 'page-layouts', `${FIXTURE_LAYOUT}.json`), {
+    id: FIXTURE_LAYOUT, description: 'Test fixture (#1425 T3).', regions: ['header', 'content', 'footer'],
+  });
   build(multi);
   const before = builtRoot('en');
-  const other = (block, cur) => pickableShapesOf(block).find((x) => x !== cur && x !== 'transparent-overlay');
+  if (before.layout === FIXTURE_LAYOUT) die('构建值已经是夹具布局 —— 这一格量不出差别');
+  const other = (block, cur) => pickableShapesOf(block).find((x) => x !== cur);
   // 跟编辑器 Save 同一条写路（write-editor-save.js 调的就是 planRootWrite），只是不跑后面的构建。
   const change = {
-    layout: 'with-topbar',
+    layout: FIXTURE_LAYOUT,
     headerShape: other('header', before.headerShape),
     footerShape: other('footer', before.footerShape),
-    topbarMessage: 'Open Sundays 1452',
-    topbarLink: { label: 'Book', href: '/contact' },
   };
   const writes = editorRoot.planRootWrite({
     siteDir, localeDir, locale: 'en', shape: { flat: false, locales: ['en'] }, root: change,
     layoutsDir: path.join(multi, 'page-layouts'),
   });
   for (const w of writes) fs.writeFileSync(w.file, w.content);
-  check(writes.length === 3, `写了 3 份文件（page-layout.json / theme.json / navigation.json）`, writes.map((w) => path.relative(siteDir, w.file)).join(' '));
+  check(writes.length === 2, `写了 2 份文件（page-layout.json / theme.json）`, writes.map((w) => path.relative(siteDir, w.file)).join(' '));
   const got = editorBaseline({ rootDir: multi, page: 'home', locale: 'en' });
-  check(got.ok && JSON.stringify(got.root) === JSON.stringify(change), '底稿的 root 就是刚存下去的那四样', JSON.stringify(got.root));
+  check(got.ok && JSON.stringify(got.root) === JSON.stringify(change), '底稿的 root 就是刚存下去的那三样', JSON.stringify(got.root));
   // 反向：构建里（= 编辑器页烤进去的首屏）还是旧的 —— 不送 root 的话编辑器显示的就是这一份（票正文「不见了」）。
-  const stale = ['layout', 'headerShape', 'footerShape', 'topbarMessage'].filter((k) => before[k] === (got.root || {})[k]);
-  check(stale.length === 0, '四样每一样都跟构建时那份不同 ⟹ 上面那格量得出「送的是现值还是构建值」', stale.join(','));
+  const stale = ['layout', 'headerShape', 'footerShape'].filter((k) => before[k] === (got.root || {})[k]);
+  check(stale.length === 0, '三样每一样都跟构建时那份不同 ⟹ 上面那格量得出「送的是现值还是构建值」', stale.join(','));
 
   // 读不出来 ⟹ 不带 root（编辑器沿用构建时那份），底稿其余照常。
-  const nav = path.join(localeDir, 'navigation.json');
-  const keep = fs.readFileSync(nav);
-  fs.writeFileSync(nav, '{ not json');
+  // #1425（T3）：弄坏的原来是 navigation.json（公告条那一样住在那儿，今天 root 不读它了）。root 今天读的站级文件
+  //    （page-layout.json / theme.json）坏了都是落回默认、不抛；还会抛的是布局库那一侧 —— 弄坏 ⑥ 自己放的那份夹具布局。
+  const pl = path.join(multi, 'page-layouts', `${FIXTURE_LAYOUT}.json`);
+  const keep = fs.readFileSync(pl);
+  fs.writeFileSync(pl, '{ not json');
   const broken = editorBaseline({ rootDir: multi, page: 'home', locale: 'en' });
-  fs.writeFileSync(nav, keep);
-  check(broken.ok && !('root' in broken), 'navigation.json 坏了 ⟹ ok 照旧、不带 root 这个键', JSON.stringify(Object.keys(broken)));
+  fs.writeFileSync(pl, keep);
+  check(broken.ok && !('root' in broken), '布局库里一份布局坏了 ⟹ ok 照旧、不带 root 这个键', JSON.stringify(Object.keys(broken)));
   // 探针那条路也带着它（manager 原样转发）。
   const script = "const m = require(process.cwd() + '/scripts/lib/editor-page.js');"
     + 'process.stdout.write(JSON.stringify(m.editorBaseline(JSON.parse(process.argv[1]))));';

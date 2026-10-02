@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * contact-facts.test.js — #1506 AC2 的单测那一半：电话 → `tel:`、邮箱 → `mailto:` 全站只有这一份
- * （`scripts/lib/contact-facts.js` §telHref / §mailtoHref；contact-new、footer-new、引用展开 `item-sources.js` 都用它）。
+ * （`scripts/lib/contact-facts.js` §telHref / §mailtoHref；contact、footer、引用展开 `item-sources.js` 都用它）。
  * 「三处用的是同一个函数」那一半在 `scripts/contact-refs.test.js`（把这个模块换掉，三处一起变）。
  *
  * 跑法:  node scripts/lib/contact-facts.test.js   （或 `npm run test:scripts`，它按文件名发现）

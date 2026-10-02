@@ -23,7 +23,7 @@ const { knobsOf } = require('./lib/block-knobs');
 // #1506 —— 讲电话 / 邮箱按钮的那一句，跟建站提示词同一份（住在 item-sources.js）。
 const { BUTTON_REF_PROMPT } = require('./lib/item-sources');
 
-// #1463 r3 —— 带预设 / 旋钮的页面块（今天是 hero-new）在老站上没有样本可抄：QA2 真改站时 AI 只拿到一个块名，
+// #1463 r3 —— 带预设 / 旋钮的页面块（今天是 hero）在老站上没有样本可抄：QA2 真改站时 AI 只拿到一个块名，
 // 自己编了 `options.background` / `form.layout`，校验放行、页面上什么都没出来。所以把这类块的 data 形状
 // 原样印给它 —— 跟建站提示词那一行是同一个函数（§promptEntry）生成的，不另写一份。判据从 manifest 读。
 const PRESET_BLOCK_SHAPES = [...loadManifests().values()]
@@ -51,7 +51,7 @@ const linkHref = require('./lib/link-href');
 const blockScope = require('./lib/block-scope');
 // #1410 —— 模型边写边出的字，编辑器里的聊天逐字显示（文件头说为什么攒批、为什么带轮次）。
 const { createTextRelay } = require('./lib/text-relay');
-// #1489 —— 改了地址就重查一次坐标（contact-new 的地图），理由整段在那个文件头。
+// #1489 —— 改了地址就重查一次坐标（contact 的地图），理由整段在那个文件头。
 const { refreshGeoAfterEdit } = require('./lib/geocode');
 const { siteFactsFrom, scrubContactCopies } = require('./lib/contact-facts');
 
@@ -440,7 +440,7 @@ function noteForeignChange(aiWrote, fullPath, nowSha) {
 }
 
 /**
- * #1489 r2 —— 脚本在 AI 写成之后**替它**再改一次这个文件（改了地址 ⟹ 重查坐标写回 brand.json · 剔掉 contact-new 抄进来的值）。
+ * #1489 r2 —— 脚本在 AI 写成之后**替它**再改一次这个文件（改了地址 ⟹ 重查坐标写回 brand.json · 剔掉 contact 抄进来的值）。
  * 这一笔算在 AI 那一笔里：写完把 `aiWrote` 换成新字节的 sha。🔴 不换的话，同步 / 提交失败时 §rollbackWrittenFiles 看见
  * 「盘上 ≠ AI 最后写的」就当成老板存过、不退（QA1 打回 r1：`kept: brand.json`，老板收到一句编出来的「你在编辑器里存过」，
  * 那一笔还留在工作树上、下一次成功编辑的 `git add -A` 会把它带上线）。
@@ -458,7 +458,7 @@ function rewriteOnBehalfOfAi(fullPath, bytes, aiWrote) {
 }
 
 /**
- * #1489 r2（QA2 打回 r1）—— 这一轮写过的页面里，contact-new 的 items 抄进来的电话 / 邮箱 / 地址 / 营业时间剔掉
+ * #1489 r2（QA2 打回 r1）—— 这一轮写过的页面里，contact 的 items 抄进来的电话 / 邮箱 / 地址 / 营业时间剔掉
  * （§scrubContactCopies，建站写盘那一刻是同一个函数）。值读**同步之前**盘上的站点数据：这一轮如果连地址一起改了，
  * 剔的是新地址。回改了几个文件。
  */
@@ -475,7 +475,7 @@ function scrubContactPagesAfterEdit(siteDir, writeSnapshots, aiWrote) {
     const n = scrubContactCopies(doc, siteFactsFrom(brand, seo));
     if (n && rewriteOnBehalfOfAi(full, `${JSON.stringify(doc, null, 2)}\n`, aiWrote)) {
       files++;
-      debug(`[contact-new] ${path.relative(siteDir, full)}: dropped ${n} copied value(s) from items`);
+      debug(`[contact] ${path.relative(siteDir, full)}: dropped ${n} copied value(s) from items`);
     }
   }
   return files;
@@ -702,7 +702,7 @@ function siteBlocksJsonError(relPath, parsed, siteDir) {
 
   const locale = relPath.includes('/blocks/') ? relPath.split('/blocks/')[0] : '(site)';
   const shapeHelp = '\nblocks/site-blocks.json is an object that maps an id to one block: '
-    + '{"<id>": {"type": "card-group", "data": {…}}, …}. Every value must be a block that carries its '
+    + '{"<id>": {"type": "features", "data": {…}}, …}. Every value must be a block that carries its '
     + 'own "type" — a {"ref": "<id>"} entry is only allowed inside a page\'s blocks array, never as a '
     + 'value in this file.';
 
@@ -829,7 +829,6 @@ function executeTool(toolName, toolInput, siteDir, snapshots, allowedImageUrls, 
             return {
               header: [r.regions.header.shape],
               footer: r.footerVariants,
-              topbar: r.hasTopbarRegion ? [r.regions.topbar.shape] : [],
             };
           } catch (e) {
             return null;
@@ -1048,7 +1047,7 @@ from a block you are editing. A page must have exactly one of the two arrays; a 
 fails the build. When you add a block to a \`blocks\` page, give it an \`id\` unique within that page and a
 \`weight\` that puts it where you want it (blocks are ordered by \`weight\`, smaller first).
 
-Available section types: hero, hero-new, hero-with-form, trusted-brands, logos-new, features-grid, features-new, milestones, card-group, testimonials, testimonials-new, cta-banner, cta-new, contact-info, contact-new, text-block, page-header, page-header-new, services-nav, services-list, quote-form, contact-form, faq-accordion, faq-new, process-steps, team-grid, team-new, pricing-table, pricing-new, gallery, gallery-new, content-split, content-new, social-proof, reviews-new, announcement-bar, newsletter-signup, map-area, blog-preview, blog-new, service-related-pages
+Available section types: hero, logos, features, milestones, testimonials, reviews, cta, contact, content, page-header, faq, team, pricing, gallery, blog
 
 Blocks with presets usually have no example on the site to copy, so here is their exact data shape — use only
 these keys (write_file refuses unknown ones):
@@ -1064,48 +1063,30 @@ other type does not show a picture, and putting an image field on one has no eff
 - **brand.json** → \`logoUrl\` — the logo in the header and the footer. Also set \`logoHasWordmark\`: true
   when the image already contains the company name (the name is then not drawn as text next to it), false when
   it is an icon only.
-- a **hero** block → \`data.imageUrl\`
-- a **hero** block → \`data.imageBand[].imageUrl\` (one per picture in the optional photo strip under the
-  text — a list of \`{ "imageUrl": "...", "alt": "..." }\`; a hero with no strip simply has no such field,
-  and leaving it out is how you remove the strip)
-- a **hero-with-form** block → \`data.imageUrl\` (the first screen that also collects the visitor's phone
-  number — same picture field as **hero**, it is just a different block type)
-- a **hero-new** block → \`data.image.imageUrl\` (the one big picture; with \`options.image: "background"\` it
+- a **hero** block → \`data.image.imageUrl\` (the one big picture; with \`options.image: "background"\` it
   fills the whole banner) · \`data.band[].imageUrl\` (1–6 photos under the text) ·
   \`data.proof.avatars[].imageUrl\` (up to 4 customer faces) · \`data.logos.items[].imageUrl\` (up to 6 logos)
-- a **content-split** block → \`data.imageUrl\`
-- a **contact-form** block → \`data.imageUrl\` (optional — only the one layout that puts the form over a
-  picture shows it; on the other layouts the block has no picture)
-- a **social-proof** block → \`data.imageUrl\` (optional — the block shows a picture only when one is
-  set; without it the ratings, badges and figures simply have no picture beside them)
-- a **faq-accordion** block → \`data.imageUrl\` (optional — only one of its layouts puts a picture next to
-  the questions; on the others the block simply has no picture)
-- a **contact-info** block → \`data.imageUrl\` (optional — only the layout that puts a picture beside the
-  contact details shows it; on the others the block simply has no picture)
-- a **gallery** block → \`data.items[].imageUrl\` (one per item)
-- a **gallery-new** block → \`data.items[].image.imageUrl\` (one per photo, 2–24 of them — only photos the owner gave you of
+- a **gallery** block → \`data.items[].image.imageUrl\` (one per photo, 2–24 of them — only photos the owner gave you of
   their own work, job sites or shop; a visitor clicks one to see it large)
-- a **features-new** block → \`data.introImage.imageUrl\` (next to the block head; shows only when \`options.introImage\`
+- a **features** block → \`data.introImage.imageUrl\` (next to the block head; shows only when \`options.introImage\`
   is not "none") · \`data.itemsImage.imageUrl\` (one picture beside the whole set of items; needs \`options.itemsImage\`) ·
   \`data.items[].image.imageUrl\` (one per item; needs \`options.itemImage\`)
 - a **milestones** block → \`data.blockImage.imageUrl\` (one picture beside the whole block with \`options.blockImage: "left"\` /
   \`"right"\`, or behind it with \`"background"\`) · \`data.introImage.imageUrl\` (next to the block head; needs \`options.introImage\`)
-- a **team-new** block → \`data.members[].photo.imageUrl\` (one per team member; optional — only a photo the owner
+- a **team** block → \`data.members[].photo.imageUrl\` (one per team member; optional — only a photo the owner
   gave you of that person, never a stock or made-up face; a member without \`photo\` simply has no picture)
-- a **pricing-new** block → \`data.proof.avatars[].imageUrl\` / \`data.logos.items[].imageUrl\` (the optional review line and
+- a **pricing** block → \`data.proof.avatars[].imageUrl\` / \`data.logos.items[].imageUrl\` (the optional review line and
   logo row under its block head)
-- a **testimonials-new** block → \`data.items[].photo.imageUrl\` (the reviewer's photo; without one the block shows their initials) · \`data.summary[].logoUrl\` (one per rating platform; optional — without it the block draws a built-in icon for Google / Yelp / Facebook, or the platform name)
-- a **logos-new** block → \`data.items[].imageUrl\` (one per logo, 3–12; every item needs \`alt\` too)
-- a **reviews-new** block → \`data.platforms[].logoUrl\` (optional — without it the block draws a built-in icon for Google / Yelp / Facebook, or the platform name)
-- a **content-new** block → \`data.image.imageUrl\` (optional — beside the text with \`options.image: "left"\` /
+- a **testimonials** block → \`data.items[].photo.imageUrl\` (the reviewer's photo; without one the block shows their initials) · \`data.summary[].logoUrl\` (one per rating platform; optional — without it the block draws a built-in icon for Google / Yelp / Facebook, or the platform name)
+- a **logos** block → \`data.items[].imageUrl\` (one per logo, 3–12; every item needs \`alt\` too)
+- a **reviews** block → \`data.platforms[].logoUrl\` (optional — without it the block draws a built-in icon for Google / Yelp / Facebook, or the platform name)
+- a **content** block → \`data.image.imageUrl\` (optional — beside the text with \`options.image: "left"\` /
   \`"right"\`, above or below it with \`"top"\` / \`"bottom"\`; with \`options.image: "none"\` the block draws no picture)
-- a **cta-banner** block → \`data.avatars[].imageUrl\` (one per face in the small row of customer
-  photos this block can show; the row is optional — with no \`avatars\` the block draws no picture at all)
-- a **cta-new** block → \`data.image.imageUrl\` (optional — beside the text with \`options.image: "left"\` /
+- a **cta** block → \`data.image.imageUrl\` (optional — beside the text with \`options.image: "left"\` /
   \`"right"\`, or behind it with \`"background"\`; with \`options.image: "none"\` the block draws no picture)
-- a **blog-new** block → no picture of its own: it shows the site's newest blog articles, and each article's pictures
+- a **blog** block → no picture of its own: it shows the site's newest blog articles, and each article's pictures
   live in that article's \`blog/<slug>.json\` — \`coverImage.imageUrl\` (the cover) and \`authorAvatarUrl\` (the author's photo)
-- a **page-header-new** block → \`data.image.imageUrl\` (optional — beside the title with \`options.image: "left"\` /
+- a **page-header** block → \`data.image.imageUrl\` (optional — beside the title with \`options.image: "left"\` /
   \`"right"\`, or behind it with \`"background"\`; with \`options.image: "none"\` the block draws no picture)
 - **a blog post** (\`blog/<slug>.json\`) → an \`<img src="...">\` inside its \`content\`, which is rendered as
   HTML. Inside the article text a picture is not a field of its own: to change a picture in the article text, edit
@@ -1132,11 +1113,12 @@ use them all in the order listed.
 If the owner asks you to change a picture and there is no attachment and no URL in the files, say so plainly
 and ask them to attach the photo to their next message. Do not put any other address in the field.
 
-Example — swapping the picture of a content-split block in pages/about.json:
+Example — swapping the picture of a content block in pages/about.json:
 \`\`\`json
-{ "id": "about-advisor", "type": "content-split", "role": "optional", "region": "content", "weight": 20,
-  "data": { "headline": "Your private wealth advisor",
-            "imageUrl": "https://uploads.example.com/8f3c1d2ab_advisor-photo.jpg" } }
+{ "id": "about-advisor", "type": "content", "role": "optional", "region": "content", "weight": 20,
+  "data": { "headline": "Your private wealth advisor", "body": "...",
+            "image": { "imageUrl": "https://uploads.example.com/8f3c1d2ab_advisor-photo.jpg", "alt": "Our advisor" },
+            "options": { "image": "right" } } }
 \`\`\`
 
 ## Site-Wide Blocks (blocks/site-blocks.json)
@@ -1147,13 +1129,13 @@ each page. The file is a JSON **object** that maps an id to one block — not an
 \`\`\`json
 {
   "shared-cta": {
-    "type": "cta-banner",
+    "type": "cta",
     "visibility": ["*"],
     "weight": 90,
     "data": {
       "headline": "Ready to get started?",
-      "description": "Tell us what you need and we will get back to you the same day.",
-      "button": { "label": "Get a quote", "href": "/quote" }
+      "body": "Tell us what you need and we will get back to you the same day.",
+      "ctas": [{ "label": "Get a quote", "href": "/quote" }]
     }
   }
 }
@@ -1481,7 +1463,7 @@ async function main() {
       // 所以这个变量把两件事串起来：① 失败要说出来（下面变成一条 error 事件）② 失败就不许再保存。
       let syncError = null;
       if (filesModified) {
-        // #1489 —— 这一次改了第一个地点的地址 ⟹ 重查一次坐标写回 brand.json（contact-new 的地图要它）；
+        // #1489 —— 这一次改了第一个地点的地址 ⟹ 重查一次坐标写回 brand.json（contact 的地图要它）；
         //    地址没变一个请求都不发。查不到就删掉旧 geo。放在同步之前：写回的那一份跟着这次一起构建、一起提交。
         //    🔴 r2（QA1 打回 r1）：写回走 §rewriteOnBehalfOfAi —— 它把 `aiWrote` 换成新字节的 sha，同步失败时
         //    brand.json 才会随 writeSnapshots 一起回滚。r1 这里直接写盘，回滚把它当成「老板存过」不退。

@@ -13,40 +13,36 @@
 
 'use strict';
 
+// 📌 #1425（T3）—— 五条全部换成新库（旧库随本票删了）。逐条去处（票正文做什么 16）：
+//    page-header → page-header（正名；🔴 新块**不读** `data.breadcrumbs`，面包屑按页面路径算，manifest 自己写着
+//                  "do NOT write breadcrumbs" ⟹ 那行说明和 `hasServiceDetailPages` 入参一起删）
+//    text-block  → content（槽 `headline?` · `body`）
+//    card-group OR process-steps → features，**交替保留**：一页写卖点、下一页写步骤（步骤写法逐字是 features 的
+//                  manifest 自己教 AI 的那一句，`prompt.lines` 第 3 行）。`features?: [string]` 这一维新块没有槽（#1425 做什么 14 ②）。
+//    faq-accordion → faq（槽同为 `items: [{question, answer}]`）
+//    cta-banner  → cta（`button` → `ctas: [{label, href}]`，`description` → `body`）
+// 每条的 `data` 说明照继任块 manifest 的槽名写，不照抄旧块那行。
+
 /**
  * @param {object}   opts
- * @param {boolean}  opts.hasServiceDetailPages  这个站有没有服务详情页（决定面包屑那句话）
  * @param {string[]} opts.disabledBlocks         后台关掉的块
  * @returns {string} 编号好的清单，直接插进提示词
  */
-function keywordPageSectionOptions({ hasServiceDetailPages = false, disabledBlocks = [] } = {}) {
+function keywordPageSectionOptions({ disabledBlocks = [] } = {}) {
   const off = new Set((disabledBlocks || []).filter((t) => typeof t === 'string' && t));
-  const breadcrumbs = hasServiceDetailPages
-    ? '[{label:"Home", href:"/"}, {label:"<Service>", href:"<the breadcrumb middle level given for THIS page above — omit the href field entirely when it says NO LINK>"}, {label:"<Page Title>"}]'
-    : '[{label:"Home", href:"/"}, {label:"<Page Title>"}]  ← EXACTLY TWO LEVELS. This site has no service detail pages, so there is no middle level to link to. Do NOT invent one.';
-
-  // 「A OR B」那一格：两个都在就照原话；只剩一个就写成那一个 —— 留着「OR」会点名一个已经不存在的
-  // 选项，而模型照着它写出来的块正是这一步要拿掉的那个。
-  const pair = ['card-group', 'process-steps'].filter((t) => !off.has(t));
-  const pairLines = pair.length ? [
-    pair.length === 2
-      ? '"card-group" OR "process-steps" (pick one per page, alternate between pages)'
-      : `"${pair[0]}" (use it on every page)`,
-    ...(pair.includes('card-group') ? ['   card-group data: { headline, subheadline?, items: [{title, description?, features?: [string]}] }'] : []),
-    ...(pair.includes('process-steps') ? ['   process-steps data: { headline, steps: [{title, description}] }'] : []),
-  ].join('\n') : '';
 
   /** @type {[string, string][]} 每条 = [这一条讲的是哪个块, 正文（不带编号）] */
   const entries = [
     ['page-header', `"page-header" (REQUIRED first)
-   data: { title, subtitle?, breadcrumbs: ${breadcrumbs} }`],
-    ['text-block', `"text-block" (REQUIRED, 2-3 paragraphs of unique SEO content)
-   data: { headline?, content (2-3 paragraphs), items?: [string] }`],
-    [pair.length ? pair[0] : 'card-group', pairLines],
-    ['faq-accordion', `"faq-accordion" (REQUIRED, 3-4 questions)
+   data: { headline, subheadline? }`],
+    ['content', `"content" (REQUIRED, 2-3 paragraphs of unique SEO content)
+   data: { headline?, body (2-3 paragraphs) }`],
+    ['features', `"features" (REQUIRED) — alternate between pages: on one page write selling points (items without numbers), on the next write the steps of how the service works (for step-by-step content give every item a number ("01", "02" …) and set options.itemConnector to "line")
+   data: { headline, body?, items: [{title, text}], options? }`],
+    ['faq', `"faq" (REQUIRED, 3-4 questions)
    data: { headline, items: [{question, answer}] }`],
-    ['cta-banner', `"cta-banner" (REQUIRED last)
-   data: { headline, description, button: {label, href} }`],
+    ['cta', `"cta" (REQUIRED last)
+   data: { headline, body, ctas: [{label, href}] }`],
   ];
 
   return entries

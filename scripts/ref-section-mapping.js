@@ -6,123 +6,122 @@
  * when refPrefs.includes('layout') to hard-copy the reference site's
  * homepage section structure.
  *
- * 🔴 每个值必须是**注册表里真有的键** —— 值指向一个不在注册表里的名字时，
- *    `SectionRenderer` 走未知类型那一支（`console.warn` + `return null`），那一节在页面上直接
- *    不出现，而构建是绿的。#1162 就撞到过这一族：`values-grid` / `benefits-list` / `checklist` /
- *    `service-highlights` 四个老 type 名随别名层退役被删出注册表，而这张表里五个条目还指着它们；
- *    现在它们一律指 `card-group`（那四个块合并后的通用块）。
- *    📌 头一行原来写「our 32 registered section types」—— 数字会过期（今天注册表 31 个键），
- *    所以不再写数。
+ * 🔴 每个值必须是**注册表里真有的键**（= `blocks/` 下的目录名）—— 值指向一个不在注册表里的名字时，
+ *    这串名字原样进建站提示词（「必须正好是这几个」），AI 照做、校验逐条报「没有这种块」、重试仍不合规就
+ *    fatal，这个站建不出来。#1425（T3）删旧库时这张表 92 条里 81 条指着被删的块，而没有任何测试看着它
+ *    ⟹ `scripts/ref-section-mapping.test.js` 从此逐条对 `blocks/` 核。
+ * 🔴 #1425 —— 继任关系照票面「执行清单 ③」：服务 / 卖点 / 步骤 / 服务区域 / 一般卡片都收进 `features`
+ *    （同一块的几种写法），数字统计进 `milestones`，logo 墙进 `logos`，评价平台的分数条进 `reviews`。
+ *    公告条（在 header 的 topbar 里）和订阅框（在 footer 的部件里）**不是页面区块**，抓到它们跳过（null），
+ *    跟 header / footer 本身同一个处置。
+ *    📌 头一行原来写「our 32 registered section types」—— 数字会过期，所以不再写数。
  */
 
 const REF_SECTION_MAPPING = {
   // Direct matches
   'hero': 'hero',
-  'services-list': 'services-list',
-  'services': 'services-list',
+  'services-list': 'features',
+  'services': 'features',
   'gallery': 'gallery',
   'gallery-intro': 'gallery',
   'testimonials': 'testimonials',
-  'faq': 'faq-accordion',
-  'faq-accordion': 'faq-accordion',
-  'team': 'team-grid',
-  'team-grid': 'team-grid',
-  'process': 'process-steps',
-  'process-steps': 'process-steps',
-  'stats': 'social-proof',
-  'cta': 'cta-banner',
-  'cta-banner': 'cta-banner',
-  'newsletter': 'newsletter-signup',
-  'newsletter-signup': 'newsletter-signup',
-  // #1372 —— 原来收「奖项 / 认证 / 徽章」的那个块删了（D19），这几条改指 `features-grid`：
-  // 槽位一样（标题 + 副标题 + 若干项），是库里最近的替代。旧块名那个键一起删掉（那张票要求
-  // 代码里 0 命中），抓站时抓到它会落到本文件末尾的 `text-block` 兜底。
-  'awards': 'features-grid',
-  // #1375 —— logo 墙那个块删了（D19，跟 `trusted-brands` 槽位相同：标题 + 一组 logo）。
-  // 抓到 logo 墙这类名字改指 `trusted-brands`；旧块名那个键一起删掉（本票要求代码里 0 命中）。
-  'partners': 'trusted-brands',
-  'partner-logos': 'trusted-brands',
-  'features': 'features-grid',
-  'features-grid': 'features-grid',
-  'benefits': 'card-group',
-  'benefits-list': 'card-group',
-  'contact': 'contact-info',
-  'contact-info': 'contact-info',
-  'social-proof': 'social-proof',
-  // #1372 —— `timeline` 删了（D19，跟 `process-steps` 只差 events 里的日期）。
-  'timeline': 'process-steps',
-  'service-highlights': 'card-group',
-  'pricing-table': 'pricing-table',
-  // #1372 —— 「我们 vs 别人」那个对比块删了（D19）。抓到这类名字改指 `features-grid`：两者都是
-  // 「一串特性」，而 `pricing-table` 是套餐对比、槽位对不上（价格 / 套餐名都没有）。
-  // 旧块名那个键按那张票的要求不留，换成抓站里更常见的两种写法。
-  'comparison': 'features-grid',
-  'comparison-table': 'features-grid',
-  'checklist': 'card-group',
-  'blog-preview': 'blog-preview',
-  'announcement-bar': 'announcement-bar',
-  // #1372 —— `divider` 删了（D19，它只有一个 label 槽、没有内容）。抓到它时**跳过**：
-  // 落到下面那条 `text-block` 兜底会在页面上插一个空的文字块。
+  'faq': 'faq',
+  'faq-accordion': 'faq',
+  'team': 'team',
+  'team-grid': 'team',
+  'process': 'features',
+  'process-steps': 'features',
+  'stats': 'milestones',
+  'cta': 'cta',
+  'cta-banner': 'cta',
+  // 订阅框是 footer 的部件（#1455），不是页面区块。
+  'newsletter': null,
+  'newsletter-signup': null,
+  // 「奖项 / 认证 / 徽章」：有 logo 图才用 `logos`，抓站只给得出名字 ⟹ 一律 `features`（只有字的那种写法）。
+  'awards': 'features',
+  'partners': 'logos',
+  'partner-logos': 'logos',
+  'features': 'features',
+  'features-grid': 'features',
+  'benefits': 'features',
+  'benefits-list': 'features',
+  'contact': 'contact',
+  'contact-info': 'contact',
+  'social-proof': 'milestones',
+  'timeline': 'features',
+  'service-highlights': 'features',
+  'pricing-table': 'pricing',
+  // 「我们 vs 别人」：一串特性，不是套餐对比（`pricing` 的槽是价格 / 套餐名，对不上）。
+  'comparison': 'features',
+  'comparison-table': 'features',
+  'checklist': 'features',
+  'blog-preview': 'blog',
+  // 公告条是 header 的 topbar（#1425 做什么 3），不是页面区块。
+  'announcement-bar': null,
+  // 分隔线没有内容；落到兜底会在页面上插一个空的文字块。
   'divider': null,
-  'content-split': 'content-split',
-  'text-block': 'text-block',
-  'map-area': 'map-area',
-  'values-grid': 'card-group',
-  'trusted-brands': 'trusted-brands',
+  'content-split': 'content',
+  'text-block': 'content',
+  'map-area': 'features',
+  'values-grid': 'features',
+  'trusted-brands': 'logos',
 
   // Industry-specific names that map to generic types
-  'about-us': 'content-split',
-  'about': 'content-split',
-  'about-section': 'content-split',
-  'who-we-are': 'content-split',
-  'mission': 'content-split',
-  'quote-banner': 'text-block',
-  'quote': 'text-block',
-  'banner': 'text-block',
-  'tagline': 'text-block',
-  'intro': 'text-block',
-  'introduction': 'text-block',
-  'services-pricing': 'pricing-table',
-  'pricing': 'pricing-table',
-  'pricing-cards': 'pricing-table',
-  'plans': 'pricing-table',
-  'membership-options': 'pricing-table',
-  'membership-cards': 'pricing-table',
-  'memberships': 'pricing-table',
-  'packages': 'pricing-table',
-  'products-intro': 'text-block',
-  'products': 'features-grid',
-  'product-list': 'features-grid',
-  'product-grid': 'features-grid',
-  'locations': 'map-area',
-  'locations-grid': 'map-area',
-  'locations-carousel': 'map-area',
-  'location': 'map-area',
-  'find-us': 'map-area',
+  'about-us': 'content',
+  'about': 'content',
+  'about-section': 'content',
+  'who-we-are': 'content',
+  'mission': 'content',
+  'quote-banner': 'content',
+  'quote': 'content',
+  'banner': 'content',
+  'tagline': 'content',
+  'intro': 'content',
+  'introduction': 'content',
+  'services-pricing': 'pricing',
+  'pricing': 'pricing',
+  'pricing-cards': 'pricing',
+  'plans': 'pricing',
+  'membership-options': 'pricing',
+  'membership-cards': 'pricing',
+  'memberships': 'pricing',
+  'packages': 'pricing',
+  'products-intro': 'content',
+  'products': 'features',
+  'product-list': 'features',
+  'product-grid': 'features',
+  'locations': 'features',
+  'locations-grid': 'features',
+  'locations-carousel': 'features',
+  'location': 'features',
+  'find-us': 'contact',
   'reviews': 'testimonials',
   'client-reviews': 'testimonials',
   'customer-reviews': 'testimonials',
-  'how-it-works': 'process-steps',
-  'steps': 'process-steps',
-  'why-choose-us': 'features-grid',
-  'why-us': 'features-grid',
-  'why-choose': 'features-grid',
-  'staff': 'team-grid',
-  'our-team': 'team-grid',
-  'employees': 'team-grid',
-  'specialists': 'team-grid',
+  // 评价平台的分数条（「Google 4.9 · 120 条」）是 `reviews`；上面那几个 *-reviews 抓到的是一条条评价原文。
+  'ratings': 'reviews',
+  'review-platforms': 'reviews',
+  'how-it-works': 'features',
+  'steps': 'features',
+  'why-choose-us': 'features',
+  'why-us': 'features',
+  'why-choose': 'features',
+  'staff': 'team',
+  'our-team': 'team',
+  'employees': 'team',
+  'specialists': 'team',
   'gallery-grid': 'gallery',
   'portfolio': 'gallery',
   'work': 'gallery',
   'projects': 'gallery',
-  'numbers': 'social-proof',
-  'achievements': 'social-proof',
-  'metrics': 'social-proof',
-  'subscribe': 'newsletter-signup',
-  'email-signup': 'newsletter-signup',
-  'certifications': 'features-grid',
-  'badges': 'features-grid',
-  'trust-badges': 'features-grid',
+  'numbers': 'milestones',
+  'achievements': 'milestones',
+  'metrics': 'milestones',
+  'subscribe': null,
+  'email-signup': null,
+  'certifications': 'features',
+  'badges': 'features',
+  'trust-badges': 'features',
 
   // Skipped (not rendered as sections — header/footer handled by layout components)
   'footer': null,
@@ -143,13 +142,16 @@ function normalizeRefName(name) {
     .trim();
 }
 
+/** 抓到一个表里没有的名字时落到哪：一段正文。必须也是注册表里真有的块（测试一起核）。 */
+const FALLBACK_SECTION = 'content';
+
 function mapRefSection(refName) {
   const normalized = normalizeRefName(refName);
   if (!normalized) return null;
   if (Object.prototype.hasOwnProperty.call(REF_SECTION_MAPPING, normalized)) {
     return REF_SECTION_MAPPING[normalized];
   }
-  return 'text-block';
+  return FALLBACK_SECTION;
 }
 
 function parseRefSections(sectionsStr) {
@@ -199,7 +201,7 @@ const REF_NAV_MAPPING = {
   'rates': 'pricing',
   'plans': 'pricing',
 
-  // Contact variants → quote page (existing quote-form section archetype)
+  // Contact variants → quote page（页面原型的 slug，不是块名）
   'contact': 'quote',
   'contact-us': 'quote',
   'get-in-touch': 'quote',
@@ -243,6 +245,7 @@ function parseRefNavLinks(navLinks) {
 
 module.exports = {
   REF_SECTION_MAPPING,
+  FALLBACK_SECTION,
   REF_NAV_MAPPING,
   mapRefSection,
   mapRefNav,

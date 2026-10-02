@@ -240,102 +240,9 @@ console.log('\n── ⑦ 行业组表：不重不漏，位子数 == 池子大�
   }
 }
 
-// ── ⑧ 透明浮层只给深底首屏（#1016 r5）────────────────────────────────────────────────────────────
-//
-// 浮层配一层压在页面最上面 160px 的黑色渐变（`src/components/Header.tsx`），浓度是按「首屏是纯白」
-// 定的，因为浮层的字是白的。同一层遮罩压在「浅底 + 深字」的 hero 上，把标题最上面那一截压到
-// rgb(110) 左右：真机量到 azure-50 `.hero__title` 3.89:1、crimson-30 3.81:1，而 CI 那道运行时检查
-// 就是为这种事红的。规则和为什么换字色治不了，写在 `region-layout.js` 那个函数上面。
-//
-// 🔴 这一格有两半，缺哪半都不行：
-//   · 后一半问「今天这池数据成立吗」——它是会被下一次改动破坏的那个性质；
-//   · 前一半问「那个遮罩还是我以为的那个吗」——判据里的 55% 在两处出现（组件里的 class 串 +
-//     region-layout.js 的常量），而两处必然分叉。分叉的方向是**静默变绿**：有人把遮罩调浓，
-//     生成器仍按 55% 挑，池子照样"全过"，而真机上标题已经读不出来了。所以这里读组件的原文。
-console.log('\n── ⑧ 透明浮层只给深底首屏；判据里那个遮罩浓度跟组件里的一致');
-{
-  const region = require(path.join(NEXT, 'scripts', 'region-layout.js'));
-  // 🔴 #1353 —— 遮罩的**渐变搬家了**：它以前是 `Header.tsx` 里的一串 Tailwind 类
-  //    （`from-black/75 via-black/55 to-transparent`），顶栏搬进形态层之后那个元素恒在 DOM 里、
-  //    渐变写在 `public/base.css` 的 `.header__scrim`（单个类，地板）。这一格问的性质**一个字没变**
-  //    ——「判据里那个 55% 跟真遮罩是不是同一个数」—— 只是去问另一份字节。
-  //    📌 这一格不许改成「读 region-layout.js 的常量再跟它自己比」：那样两边是同一个来源，恒绿。
-  const scrimCss = path.join(NEXT, 'public', 'base.css');
-  let src = '';
-  try { src = fs.readFileSync(scrimCss, 'utf-8'); } catch { /* 下面按读不到处理 */ }
-  const scrim = /linear-gradient\(\s*to bottom\s*,\s*rgb\(0 0 0 \/ ([0-9.]+)\)\s*,\s*rgb\(0 0 0 \/ ([0-9.]+)\)\s*,\s*transparent\s*\)/.exec(src);
-  if (!src) {
-    bad('读不到 public/base.css —— 遮罩浓度那半没法核，这不是通过');
-  } else if (!scrim) {
-    bad('public/base.css 的 `.header__scrim` 里找不到 `linear-gradient(to bottom, rgb(0 0 0 / a), rgb(0 0 0 / b), transparent)` '
-      + '那条遮罩 —— 要么遮罩改写法了、要么没了，两种情况下 region-layout.js 那条规则都要重新量一次');
-  } else {
-    const mid = Number(scrim[2]);
-    if (Math.abs(mid - region.HEADER_SCRIM_MID_ALPHA) < 1e-9) {
-      ok(`base.css 的遮罩是 rgb(0 0 0 / ${scrim[1]}) → rgb(0 0 0 / ${scrim[2]}) → transparent，`
-        + `跟 region-layout.js 的 HEADER_SCRIM_MID_ALPHA=${region.HEADER_SCRIM_MID_ALPHA} 一致`);
-    } else {
-      bad(`遮罩浓度对不上：base.css 中段是 ${mid}，`
-        + `region-layout.js 按 ${region.HEADER_SCRIM_MID_ALPHA} 挑顶栏 —— 挑的时候量的不是真遮罩`);
-    }
-  }
-
-  // 🔴 只有「池里每一套浮层顶栏都配深底首屏」这半要门控 —— 上面那半（遮罩浓度跟组件一致）和下面
-  //    那条反向对照都跟池子几套无关，照跑。
-  // 🔴 **知情的代价写在这里**：脚手架期池里一套 `transparent-overlay` 都没有（azure-29 是
-  //    `solid-bar`、ember-12 是 `pill-floating`），所以「浮层顶栏 + 浅底首屏」这一维整段没有活样本。
-  //    #1317 挑这两套的判据是「三处形态全不同 + 六个 supports 维度全不同」，没管这一维。池子重生成
-  //    那天要把这一维补回来，而门控会在那天自己让开。
-  const overlaySkipped = skip('⑧ 透明浮层只给深底首屏（正向那半）',
-    '脚手架池里一套 transparent-overlay 都没有 ⟹ 正向断言没有对象；反向对照仍然照跑');
-  const overlay = overlaySkipped
-    ? []
-    // 🔴 #1353 —— 这里原来读的是 `supports.header`（一个清单，取第 0 项）。`supports` 整个退役了，
-    //    留着它这一行**恒读到空**，而空的样子跟「池里真的没有浮层主题」一模一样（这一维本来就
-    //    在脚手架期被跳过 ⟹ 池子重生成那天它会带着一个假的空集合回来）。改读选择单 `shapes.header`。
-    : poolIds.filter((id) => (poolThemes[id].shapes || {}).header === 'transparent-overlay');
-  const breaks = [];
-  for (const id of overlay) {
-    const sheetPath = path.join(NEXT, 'public', 'themes', `${poolThemes[id].sheet}.css`);
-    let css = '';
-    try { css = fs.readFileSync(sheetPath, 'utf-8'); } catch { /* 下面 verdict 会因为读不到而 ok=false */ }
-    const verdict = region.heroTitleSurvivesHeaderScrim(css, poolThemes[id].colors);
-    if (!verdict.ok) breaks.push(`${id}（${verdict.why}）`);
-  }
-  if (overlaySkipped) {
-    // 上面那行 ⏭ 已经说过了，这里什么都不打，也不记 pass / fail。
-  } else if (!overlay.length) {
-    // 一套都没有不是通过：说明这一维的花样全没了，或者 supports.header 根本没写进去。
-    bad('池里一套 transparent-overlay 都没有 —— 这一格就什么都没验，而顶栏那一维也没了花样');
-  } else if (!breaks.length) {
-    ok(`${overlay.length}/${poolIds.length} 套用透明浮层，每一套的 .hero__title 压在遮罩下都 ≥ `
-      + `${region.HEADER_SCRIM_INK_FLOOR}:1`);
-  } else {
-    bad(`${breaks.length} 套的浮层配的是浅底首屏：${breaks.slice(0, 6).join(' · ')}`);
-  }
-
-  // 反向对照：拿一套**真的**浅底表喂给挑顶栏那个函数，它必须让开。不做这一格的话，
-  // 上面那句"每一套都过"在函数恒返回 ok 时长得完全一样。
-  const paleId = poolIds.find((id) => {
-    const css = fs.readFileSync(path.join(NEXT, 'public', 'themes', `${poolThemes[id].sheet}.css`), 'utf-8');
-    return !region.heroTitleSurvivesHeaderScrim(css, poolThemes[id].colors).ok;
-  });
-  if (!paleId) {
-    bad('池里找不到一套浅底首屏的表 —— 反向对照没法做，那么上面那句"每一套都过"证明不了函数在判事');
-  } else {
-    const paleCss = fs.readFileSync(path.join(NEXT, 'public', 'themes', `${poolThemes[paleId].sheet}.css`), 'utf-8');
-    // index 取顶栏形态清单里浮层那一格，也就是"本来该轮到浮层"的那些位子。
-    // #1353 —— 清单从 `blocks/header/manifest.json` 现取（`region.shapesOf('header')`），
-    // `HEADER_VARIANTS` 那张写死的表随顶栏搬进形态层一起退役了。
-    const overlayIndex = region.shapesOf('header').indexOf('transparent-overlay');
-    const picked = region.headerVariantForPool(overlayIndex, paleCss, poolThemes[paleId].colors);
-    if (picked.variant !== 'transparent-overlay' && picked.why) {
-      ok(`反向对照：拿 ${paleId} 那份浅底表 + 本来轮到浮层的位子 ⟹ 让开成 ${picked.variant}（${picked.why}）`);
-    } else {
-      bad(`反向对照失败：${paleId} 是浅底首屏，却仍然拿到 ${picked.variant}`);
-    }
-  }
-}
+// 📌 #1425（T3）—— 这里原来是 ⑧「透明浮层只给深底首屏；判据里那个遮罩浓度跟组件里的一致」：读 `public/base.css` 的
+//    `.header__scrim` 渐变跟 `region-layout.js` 的 `HEADER_SCRIM_MID_ALPHA` 比，再拿 `heroTitleSurvivesHeaderScrim` 逐套判浮层主题
+//    （含浅底表的反向对照）。新 header 的 7 个预设里没有透明浮层，遮罩、那两个常数和那个函数随旧 header 一起删了。
 
 // 📌 ⑨ 删了（#1341）—— 这里原来是「hero 的两条轴：池里存的是内容结构，画法只在表里」（#1065）。
 //
@@ -789,9 +696,9 @@ if (!skip('⑩ 词边界匹配（a/b/c 三臂）',
   }
 }
 
-// ══ ⑪b #1462 —— header-new 的选择单写的是**预设名**，两套脚手架主题各戴一个不同的 ══════════════════
+// ══ ⑪b #1462 —— header 的选择单写的是**预设名**，两套脚手架主题各戴一个不同的 ══════════════════
 //
-// #1462 把 header-new 的形态换成 7 个预设（旋钮组合起的名，`blocks/header-new/manifest.json` 的 `presets`）。
+// #1462 把 header 的形态换成 7 个预设（旋钮组合起的名，`blocks/header/manifest.json` 的 `presets`）。
 // 上面 ⑪ 只问「那个名字在 shapes.css 里有没有规则」—— 而预设文件夹的 shape.css 只有一条锚点规则，
 // 任何一个文件夹名都答「有」；这一格问的是更窄的那句：**名字 ∈ 预设表**，且 ember-12 / azure-29 两套
 // 戴的不是同一个（两套一样 ⟹ 换主题时顶栏不变，脚手架期「能测换主题」那个目的就落空了，#1317）。
@@ -800,14 +707,14 @@ if (!skip('⑩ 词边界匹配（a/b/c 三臂）',
 // 🔴 读的是 `scripts/theme-pool.json` 原文（验收 9 点名的那份），不经 `shapesFor()`。
 {
   const poolRaw = JSON.parse(fs.readFileSync(path.join(NEXT, 'scripts', 'theme-pool.json'), 'utf-8'));
-  const presetNames = (JSON.parse(fs.readFileSync(path.join(NEXT, 'blocks', 'header-new', 'manifest.json'), 'utf-8')).presets || [])
+  const presetNames = (JSON.parse(fs.readFileSync(path.join(NEXT, 'blocks', 'header', 'manifest.json'), 'utf-8')).presets || [])
     .map((p) => p.name);
-  if (presetNames.length !== 7) bad(`⑪b header-new 的 manifest 读到 ${presetNames.length} 个预设 —— 应当是 7 个（分母不对，下面那两句说明不了什么）`);
+  if (presetNames.length !== 7) bad(`⑪b header 的 manifest 读到 ${presetNames.length} 个预设 —— 应当是 7 个（分母不对，下面那两句说明不了什么）`);
   const themeOf = (id) => (Array.isArray(poolRaw) ? poolRaw.find((t) => t && t.id === id) : poolRaw[id]);
   const judge9 = (entries) => {
     const out = [];
-    for (const [id, name] of entries) if (!presetNames.includes(name)) out.push(`${id} 的 header-new = ${JSON.stringify(name)} 不是预设名（${presetNames.join(' / ')}）`);
-    if (entries.length === 2 && entries[0][1] === entries[1][1]) out.push(`${entries[0][0]} 与 ${entries[1][0]} 的 header-new 都是 ${entries[0][1]} —— 两套应当不同`);
+    for (const [id, name] of entries) if (!presetNames.includes(name)) out.push(`${id} 的 header = ${JSON.stringify(name)} 不是预设名（${presetNames.join(' / ')}）`);
+    if (entries.length === 2 && entries[0][1] === entries[1][1]) out.push(`${entries[0][0]} 与 ${entries[1][0]} 的 header 都是 ${entries[0][1]} —— 两套应当不同`);
     return out;
   };
   const named = ['ember-12', 'azure-29'].map((id) => [id, themeOf(id)]);
@@ -816,7 +723,7 @@ if (!skip('⑩ 词边界匹配（a/b/c 三臂）',
     console.log(`  ⏭  ⑪b ${named.filter(([, t]) => !t).map(([id]) => id).join(' / ')} 不在池里（池子重生成了？）`
       + ' —— 🔴 这不是通过：换成新池里的两套再判');
   } else {
-    const entries = named.map(([id, t]) => [id, t.shapes && t.shapes['header-new']]);
+    const entries = named.map(([id, t]) => [id, t.shapes && t.shapes['header']]);
     const problems = judge9(entries);
     if (problems.length) problems.forEach((p) => bad(`⑪b ${p}`));
     else ok(`⑪b theme-pool.json：${entries.map(([id, n]) => `${id}=${n}`).join(' · ')} —— 都是预设名，且两套不同`);

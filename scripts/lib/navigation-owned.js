@@ -145,38 +145,43 @@ const SIDE_EFFECTS = [
  * 放行了、也真的写进了文件，**而这个站的页面根本不读它** —— 必须说出来。
  *
  * #1104 r6（QA2 r5 那条中等，作者把正文的判据补成了两条）。原来的判据只有一条「构建会不会重写它」，
- * 而它对「写进去就是真的生效」只是必要条件：`footer.columns[].title` 构建确实不碰，可页面上只有
- * `multi-column` 那一支页脚渲染它 —— 换句话说 110 套主题里 72 套的站，老板改了栏目标题，聊天说
- * 「已完成」，页面上一个像素都不变。那正是本票要消灭的那个病（说成功、其实没生效），只是机制从
- * 「构建覆盖它」换成了「页面从来不读它」。
+ * 而它对「写进去就是真的生效」只是必要条件：一个构建不碰的字段，页面上也可能只有某几种页脚形态画它
+ * —— 老板改了它，聊天说「已完成」，页面上一个像素都不变。那正是本票要消灭的那个病（说成功、其实没生效），
+ * 只是机制从「构建覆盖它」换成了「页面从来不读它」。
  *
- * 🔴 为什么是「照写 + 说实话」而不是「拒」：拒要动放行的边界（那 15 种正当编辑得重证一遍），还会
- *    关掉 topbar 那条已经验通的路（#1108 的路 A 靠它）；而存进去的值不是垃圾 —— 这个站换成
- *    `multi-column` 页脚那天它就显示了。
+ * 🔴 为什么是「照写 + 说实话」而不是「拒」：拒要动放行的边界（那 15 种正当编辑得重证一遍）；而存进去的值
+ *    不是垃圾 —— 换成画它的那种形态那天它就显示了。
+ *
+ * ── #1425（T3）：顶栏 / 页脚换成新库之后，这张表按「派生 + 预设」重写 ─────────────────────────────────
+ * 新库的 header / footer 不再自己读 navigation.json：构建期 `lib/shell-data.js` 把它派生成块的 data，
+ * 形态（= 预设名）决定排版。所以「这一格在这种形态下画不画」= 「这个字段派生进了哪个槽」×「这个预设的排版
+ * 画不画那个槽」：
+ *   header.cta              → header.ctaPrimary   7 个顶栏预设都画（`blocks/header/Section.tsx` 的 ctas）
+ *   footer.copyright        → footer.copyright    6 个页脚预设都画（三种 layout 的底栏都有版权行）
+ *   footer.description      → footer.tagline      只有 layout = stacked / columns 的四个预设画（row 那一种没有）
+ *   footer.columns[].title  → **没有槽**          新页脚的栏目标题是组件自己的字（Services / Pages …），不读它
+ *   footer.columns[>0].links→ **没有槽**          按服务分组的关键词页链接栏，新页脚不画（shell-data.js 文件头的能力差）
+ *   topbar                  → **没有槽**          公告条那个区随旧库退役（PM 2026-10-02 裁定 ②：数据留着、不再读）
+ * 「没有槽」的三格 `renderedBy` 是空的 ⟹ 任何站上改它们都要说那句话，而且话要说成「今天没有任何样式显示它」，
+ * 不是「换个样式就能看见」（§invisibleNote）。
  *
  * ── 每一格钉着它在组件里的渲染点 ────────────────────────────────────────────────────────────────
- * `renderedBy` 不是一张手写的字段名单 —— `navigation-owned.test.js` 的 ⑫ 用 **TypeScript 自己的
- * 解析器**把 `Footer.tsx` / `Header.tsx` 按 `data-region-layout` 拆成各支，逐支解出「这一支读了
- * navigation.json 的哪几处」（跟着 `const copyright = …` 这类别名走，也跟着 `columns.map(c => …)`
- * 的回调参数走），再跟这张表两向比对：
- *   · 表里说这一支渲染它、解析器说没有 ⟹ 渲染点没了，而这句话现在会漏说（老板拿到「已完成」）
- *   · 解析器说渲染了、表里没写 ⟹ 我们会对一个真的会显示的字段说「你这个站不显示它」= 新的假话
- * 少了那道比对，这张表就只是「另一张会漂的名单」。
+ * `renderedBy` 不是一张手写的、没人核的名单 —— `navigation-owned.test.js` 拿真组件、真派生函数，逐个预设
+ * 渲染一次，看那个字段的值出没出现在 HTML 里，再跟这张表两向比对：
+ *   · 表里说这种形态画它、渲染出来没有 ⟹ 渲染点没了，而这句话现在会漏说（老板拿到「已完成」）
+ *   · 渲染出来有、表里没写 ⟹ 我们会对一个真的会显示的字段说「你这个站不显示它」= 新的假话
  *
- * 📌 `header.cta` 和 `footer.copyright` 也在表里，而它们的 `renderedBy` 覆盖了各自那一类区的**全部**
- *    版式 ⟹ 按下面 `alwaysRendered` 那条规则，它们**永远**不会多出这句话（AC3）。这不是靠「别把
- *    它们写进表」做到的（那样就没人盯着它们的渲染点了），是靠那道比对：哪天有人从某一支页脚里删掉
- *    版权行，⑫ 当场红，而且它们同时不再是「永远看得见」的那一类。
+ * 📌 `header.cta` 和 `footer.copyright` 的 `renderedBy` 覆盖了各自那一类区的**全部**形态 ⟹ 按下面
+ *    `alwaysRendered` 那条规则，它们**永远**不会多出这句话（AC3）。
  */
 
-// 🔴 「一共有哪些版式」和「哪几类区每一页必然有」从它们各自的唯一出处取，**不在这里抄一份**。
-//    下面 `renderedBy` 是另一回事：它是一句关于「哪几支真的画了这个字段」的断言，今天有两格恰好
-//    等于全集，但它由 ⑫ 对着组件两向核对，不是抄来的。两者混成一个值，就再没有东西能红了。
+// 🔴 「一共有哪些形态」和「哪几类区每一页必然有」从它们各自的唯一出处取，**不在这里抄一份**。
+//    下面 `renderedBy` 是另一回事：它是一句关于「哪几种形态真的画了这个字段」的断言，由测试对着真组件
+//    两向核对，不是抄来的。
 const { shapesOf, REGION_BLOCK } = require('../region-layout');
 const { REQUIRED_KINDS } = require('./page-layout');
 
-/** 每一类区一共有哪些形态。#1353 起唯一出处是**块 manifest**（`blocks/<块>.json` 的 `shapes`）——
- *  `region-layout.js` 那三张写死的清单跟顶栏页脚搬进形态层一起退役了。现取，不在加载时固化。 */
+/** 每一类区一共有哪些形态。唯一出处是**块的形态目录**（`blocks/<块>/<形态>/`）。现取，不在加载时固化。 */
 const VARIANTS_BY_REGION = new Proxy({}, {
   get: (_t, region) => (typeof region === 'string' && REGION_BLOCK[region] ? shapesOf(REGION_BLOCK[region]) : undefined),
   has: (_t, region) => typeof region === 'string' && !!REGION_BLOCK[region],
@@ -188,55 +193,33 @@ const PAGE_READS = [
   {
     key: 'header.cta',
     region: 'header',
-    // 顶栏四种结构全部渲染那个按钮（三种直接用 `const cta = …` 那个别名，`cta-band` 页脚里
-    // 还另有一份）。所以它永远不会走到下面那句话 —— 本票的正文说它「读不到的站 = 0」。
-    renderedBy: ['solid-bar', 'transparent-overlay', 'centered-logo', 'pill-floating'],
-    // #1353 —— 决定它在某一种形态下看不看得见的那些类（**任何一个** display:none 就算看不见）。一副骨架之后，组件对每一种形态都渲染同样的
-    // DOM，差别整个落在 `public/shapes.css` 把哪几个零件 `display:none`。这个键**显式声明**、不推断
-    // （同 `block-manifest.js` 的 `hooksFrom` / `region`），因为它有时是零件自己、有时是它的容器：
-    // 栏目链接归 `.footer__col--nav`（`cta-band` 关掉的是整栏，不是每条链接）。
-    visibilityClasses: ['header__cta'],
-    renderPaths: ['header.cta.label', 'header.cta.href'],
+    renderedBy: ['logo-left', 'menu-center', 'logo-center-split', 'logo-center-gathered', 'topbar', 'stacked', 'topbar-stacked'],
+    // 派生到了块的哪个槽（`lib/shell-data.js`）—— 测试按它往 data 里找值。
+    slot: 'ctaPrimary',
     what: 'the button at the top of every page',
     read: (nav) => (isObj(nav) && isObj(nav.header) ? nav.header.cta : undefined),
   },
   {
     key: 'footer.copyright',
     region: 'footer',
-    // 三支都读。前两支读的是 `const copyright = …` 那个别名（`Footer.tsx` 里 hoist 出来的一个
-    // 变量），只 grep 字段名会漏掉它们 —— ⑫ 那把解析器跟着别名走，所以这一格是量出来的。
-    renderedBy: ['slim-row', 'cta-band', 'multi-column'],
-    visibilityClasses: ['footer__legal'],
-    renderPaths: ['footer.copyright'],
+    renderedBy: ['slim-row', 'stacked', 'columns', 'cta-row', 'cta-stacked', 'cta-columns'],
+    slot: 'copyright',
     what: 'the copyright line at the bottom of every page',
     read: (nav) => (isObj(nav) && isObj(nav.footer) ? nav.footer.copyright : undefined),
   },
   {
     key: 'footer.description',
     region: 'footer',
-    renderedBy: ['cta-band', 'multi-column'],
-    // 🔴 #1353 —— 这一项有**两个画它的地方**，而且没有哪一种形态两个都开：多列大脚用品牌栏里那段
-    // `.footer__desc`，CTA 色带那一种用色带里的 `.footer__cta-sub`（改造前也是这样：那一支的品牌栏
-    // 只有 logo + 社交，描述只在色带里出现一次）。所以这里写成**一组**：一组里只要还有一个看得见，
-    // 这句话就在页面上。写成两个平列的名字会得出相反的答案 —— 那是「每一个都得看得见」。
-    // 📌 组里第二个名字写的是**色带那个容器** `footer__cta`，不是色带里那行字 `footer__cta-sub`：
-    //    这把尺读的是「有没有一条规则把这个类 `display: none`」，而那行字自己从来没有这种规则 ——
-    //    管它露不露面的是容器（`base.css` 关掉、`cta-band` 打开）。写成那行字的话它对每一种形态都
-    //    读成「看得见」，这一维当场失去量程（实测：阳性对照改前改后同值）。
-    visibilityClasses: [['footer__desc', 'footer__cta']],
-    renderPaths: ['footer.description'],
+    renderedBy: ['stacked', 'columns', 'cta-stacked', 'cta-columns'],
+    slot: 'tagline',
     what: 'the short blurb in the footer',
     read: (nav) => (isObj(nav) && isObj(nav.footer) ? nav.footer.description : undefined),
   },
   {
     key: 'footer.columns[].title',
     region: 'footer',
-    renderedBy: ['multi-column'],
-    // 🔴 **两个**决定者，缺一不可：`cta-band` 关掉的是整栏（`.footer__col--nav`），
-    // `slim-row` 关掉的只是标题（`.footer__col-title`，那一栏自己是 `display: contents`）。
-    // 只写后者，`cta-band` 会被判成「栏目标题看得见」；只写前者，`slim-row` 会。
-    visibilityClasses: ['footer__col--nav', 'footer__col-title'],
-    renderPaths: ['footer.columns[].title'],
+    renderedBy: [],
+    slot: null,
     what: 'the footer column titles',
     read: (nav) => {
       if (!isObj(nav) || !isObj(nav.footer) || !Array.isArray(nav.footer.columns)) return undefined;
@@ -245,16 +228,11 @@ const PAGE_READS = [
   },
   {
     // 🔴 `read` 从**第二栏起**取，第一栏不在这里:`footer.columns[0].links` 归 `OWNED`（构建每次
-    //    重写它）⟹ 改它根本走不到这一步，是被拒的。而**渲染点**是同一处（`footer.columns[].links`），
-    //    所以 `renderPaths` 写的是不带下标那个 —— 两者管的是两件事：一个是「这次改了什么」，
-    //    一个是「页面上谁在画它」。
-    // 📌 `slim-row` 只印扁平之后的前 6 条 —— 那一维（第 7 条起看不见）**不在本票范围内**（正文
-    //    《不在本票范围内》点名了它），所以这里把 `slim-row` 算作「读它」。
+    //    重写它）⟹ 改它根本走不到这一步，是被拒的。
     key: 'footer.columns[>0].links',
     region: 'footer',
-    renderedBy: ['slim-row', 'multi-column'],
-    visibilityClasses: ['footer__col--nav'],
-    renderPaths: ['footer.columns[].links'],
+    renderedBy: [],
+    slot: null,
     what: 'the links in the footer columns after the first one',
     read: (nav) => {
       if (!isObj(nav) || !isObj(nav.footer) || !Array.isArray(nav.footer.columns)) return undefined;
@@ -262,18 +240,14 @@ const PAGE_READS = [
     },
   },
   {
-    // topbar 那一格判的不是「哪种版式」，是**这个站的页面上有没有那个区** —— 页面版式库里只有
-    // `with-topbar` 带它，默认的 `standard` 没有（`scripts/lib/page-layout.js`）。所以
-    // `renderedBy` 列的是全部 topbar 版式：区在，四种结构都画它；区不在，一种都画不到。
+    // #1425（T3）—— 公告条那个区退役了，这一格挂在 header 上（它的继任是 header 的 topbar，但那里没有「一句话
+    // 公告」这一格），`renderedBy` 空。🔴 `undefined` 在下面不能跳过：「模型给一个原来没有 topbar 的站加了一段」
+    // 正是最该说话的那一次。
     key: 'topbar',
-    region: 'topbar',
-    // #1353 —— 公告条的形态清单今天是 `blocks/announcement-bar/manifest.json` 的（一种：`stack`）。那四个
-    // 名字（solid/bordered/dismissible/floating）在 #1036 就已经没有对应的 markup 了，#1353 把它们从
-    // 清单里拿掉 —— 这一格问的仍是「这个站的页面上有没有那个区」，跟形态名无关。
-    renderedBy: ['stack'],
-    visibilityClasses: ['announcement-bar'],
-    renderPaths: ['topbar.message'],
-    what: 'the thin strip above the header',
+    region: 'header',
+    renderedBy: [],
+    slot: null,
+    what: 'the thin announcement strip above the header',
     read: (nav) => (isObj(nav) ? nav.topbar : undefined),
   },
 ];
@@ -281,7 +255,7 @@ const PAGE_READS = [
 /**
  * 这个站**真的渲染出来**的那些区，按类分。由 `lib/site-regions.js` 算（构建用的是同一份实现）。
  *
- * @typedef {{header: string[], footer: string[], topbar: string[]}} RenderedRegions
+ * @typedef {{header: string[], footer: string[]}} RenderedRegions
  */
 
 /** 这一格在这个站的页面上画得出来吗 —— 它要的那些版式，跟这个站真的渲染的那些，有没有交集。 */
@@ -295,8 +269,7 @@ function notRenderedHere(entry, rendered) {
  *
  * 两个条件都要满足，而它们各自管一种「看不见」的成因：
  *   ① 这一类区的**每一种**版式都画它 —— 否则换个版式就看不见了（`footer.columns[].title` 是这样）
- *   ② 这一类区**每一页必然有** —— 否则区自己就可能不存在（`topbar` 是这样：它 renderedBy 列了
- *      全部四种 topbar 版式，可默认页面版式根本没有这个区，所以它不是「永远看得见」的那一类）
+ *   ② 这一类区**每一页必然有** —— 否则区自己就可能不存在（#1425 之前的公告条那个区就是这样）
  *
  * 🔴 两个条件都从各自的唯一出处算，没有第三张名单。而 ① 里那个「每一种都画它」是 ⑫ 对着
  *    `Footer.tsx` / `Header.tsx` 两向核过的读数 —— 哪天有人从某一支页脚里删掉版权行，⑫ 当场红，
@@ -314,10 +287,17 @@ function alwaysRendered(entry) {
  * 🔴 主语写成「the change to …」而不是直接把字段名当主语：`what` 有单数也有复数
  * （"the footer column titles" / "the thin strip"），直接接 `was saved` 会写出 "the footer column
  * titles was saved" —— 这句话是原文交到老板手里的，不是给程序读的。
- * 🔴 最后那半句「换个什么就能看见」两种成因说法不一样：版式那一路换的是页脚样式，topbar 那一路
- * 缺的是**整个区**，换样式不会长出来 —— 说错了等于又给一个照做没用的办法。
+ * 🔴 最后那半句「换个什么就能看见」三种成因说法不一样：形态那一路换的是页脚样式；区缺了那一路换样式不会
+ * 长出来；#1425 起还有第三种 —— 今天**没有任何形态**画它（`renderedBy` 空），那就不许说「换个样式就能看见」。
+ * 说错了等于又给一个照做没用的办法。
  */
 function invisibleNote(entry, rendered) {
+  // #1425（T3）—— 今天没有任何形态画它（派生进来没有槽）：换样式也看不见，话要照实说成这样。
+  if (!entry.renderedBy.length) {
+    return `One more thing to tell the owner: the change to ${entry.what} (${entry.key}) was saved, but `
+      + 'nothing on the site will look different — no header or footer style on this website shows it today. '
+      + 'The value is kept in the file. Say this out loud instead of only reporting that it was updated.';
+  }
   const mine = (rendered && rendered[entry.region]) || [];
   const regionMissing = mine.length === 0;
   const where = regionMissing

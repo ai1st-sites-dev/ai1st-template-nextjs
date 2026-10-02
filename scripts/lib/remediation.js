@@ -90,69 +90,9 @@ function navRepoPath(locale, flat) {
   return `site/${navRelPath(locale, flat)}`;
 }
 
-/**
- * 「顶栏那段文案今天怎么加」。
- *
- * @param {{siteDir: string, locale?: string, flat?: boolean}} opts
- *        flat = 老的单语言扁平站（`site_meta.json` 不存在那种），它的文件不在 `<locale>/` 下面
- * @returns {{viaProduct: boolean|null, sentence: string}}
- *   viaProduct: true = 产品里有路（AI 编辑器写得进）· false = 没有，只能手改站仓 · null = 没问到
- */
-function howToAddTopbar(opts) {
-  const siteDir = (opts && opts.siteDir) || '';
-  const locale = (opts && opts.locale) || '';
-  const flat = !!(opts && opts.flat);
-  const rel = navRelPath(locale, flat);
-  const repoRel = navRepoPath(locale, flat);   // 人在站仓根上找它时的路径（#1134）
-  const full = path.join(siteDir, rel);
+// 📌 #1425（T3）—— 这里原来有 `howToAddTopbar`（「这个站的 navigation.json 里怎么补公告条文字」）。公告条那个区随旧库
+//    退役，sync-config / 编辑器那两道「带 topbar 区却没文字」的守卫一起删了，它没有调用方了。
 
-  // 🔴 拿这个站**真实的**那份去问，不是拿一个想象的最小 JSON:白名单（#1104 之后）判的是
-  //    「这次写入改了哪几处」，喂一份合成的会把别的字段也算成改动 ⟹ 问出来的是另一道题的答案。
-  let current = null;
-  try {
-    current = JSON.parse(fs.readFileSync(full, 'utf-8'));
-  } catch (e) {
-    current = null;
-  }
-  if (current === null) {
-    return {
-      viaProduct: false,
-      sentence: `这个站的 ${rel} 读不出来（不在，或者不是合法 JSON）——`
-        + `先把这个文件补好，再加 topbar。`,
-    };
-  }
-  const candidate = JSON.stringify({
-    ...current,
-    topbar: { message: '示例文案', link: { label: '示例', href: '/contact' } },
-  });
-  const can = editorCanWrite(rel, siteDir, {
-    content: candidate,
-    readCurrent: () => { try { return fs.readFileSync(full, 'utf-8'); } catch (e) { return null; } },
-  });
-
-  if (can === true) {
-    return {
-      viaProduct: true,
-      sentence: `在聊天里让 AI 编辑器加一段顶栏文案（例如「顶部加一条横幅，写 24 小时急修」）——`
-        + `它写得进 ${rel} 的 topbar。`,
-    };
-  }
-  if (can === false) {
-    return {
-      viaProduct: false,
-      sentence: `现在还加不了：AI 编辑器写不进 ${rel}，dashboard 里也没有改顶栏文案的界面。`
-        + `今天唯一的办法是手改这个站仓里的 ${repoRel}，加上 `
-        + `{ "topbar": { "message": "…", "link": { "label": "…", "href": "…" } } }。`,
-    };
-  }
-  // can === null:问不到。**不许替它选一个答案** —— 两个方向都会变成一句没人查过的话。
-  return {
-    viaProduct: null,
-    sentence: `手改这个站仓里的 ${repoRel}，加上 `
-      + `{ "topbar": { "message": "…", "link": { "label": "…", "href": "…" } } }。`
-      + `（这次没问出来 AI 编辑器能不能写它 —— 读不到那个判断模块。）`,
-  };
-}
 
 /**
  * 「换一个 page layout 今天怎么换」。
@@ -198,101 +138,13 @@ function howToChangePageLayout(opts) {
   };
 }
 
-/**
- * 「换一套顶栏不是透明浮层的主题」—— 哪些主题算？
- *
- * 🔴 这一格是我自己第一版交付里的假话，跟本票要治的病一模一样：那句话教人按
- *    `themes.js 的 supports.header !== 'transparent-overlay'` 去挑。而 `supports` 装的是
- *    **清单**（#1010 起就是数组），拿数组 `!==` 一个字符串**恒为真** ⟹ 那个判据一个主题都排除不掉。
- *    实测（110 个主题）：照它挑得到 110 个候选，其中 **20 个解析出来仍然是透明浮层**。
- *    ⟹ 老板照着做，五分之一的概率换完还是看不见那条横条，而报错不会再说一次。
- *
- * 真正的权威是构建自己用的那两个函数：`regionShapesFor(themeId)` 吐这套主题的选择单、
- * `resolveRegionShapes()` 定形态（`sync-config.js` 判 `regions.header.shape === 'transparent-overlay'`
- * 用的就是它）。所以这里**去问它们**。
- * 📌 #1353：这两个函数以前叫 `layoutFor` / `resolveRegionLayout`，读的是 `supports`；顶栏搬进形态层
- *    之后读的是选择单（`shapes`），`supports` 整个退役了。这一段的判据一个字没变。
- *
- * @param {{rootDir?: string}} [opts]
- * @returns {{viaProduct: boolean|null, sentence: string, safe: string[], overlay: string[]}}
- */
-function themesWithoutOverlayHeader(opts) {
-  const rootDir = (opts && opts.rootDir) || path.join(__dirname, '..');
-  let themes, regionShapesFor, resolveRegionShapes;
-  try {
-    ({ themes, regionShapesFor } = require(path.join(rootDir, 'themes.js')));
-    ({ resolveRegionShapes } = require(path.join(rootDir, 'region-layout.js')));
-  } catch (e) {
-    return {
-      viaProduct: null,
-      safe: [],
-      overlay: [],
-      sentence: '换一套顶栏不是透明浮层的主题 —— 在 dashboard 的换装弹窗里挑'
-        + '（这次列不出是哪些：读不到 themes.js / region-layout.js）。',
-    };
-  }
-  const safe = [], overlay = [];
-  for (const id of Object.keys(themes || {})) {
-    let header;
-    try {
-      header = resolveRegionShapes(regionShapesFor(id)).header.shape;
-    } catch (e) {
-      continue;   // 这一套算不出来 ⟹ 不许把它算进"安全"那边（错的方向不对称）
-    }
-    (header === 'transparent-overlay' ? overlay : safe).push(id);
-  }
-  if (!safe.length) {
-    return {
-      viaProduct: null,
-      safe,
-      overlay,
-      sentence: '换一套顶栏不是透明浮层的主题 —— 在 dashboard 的换装弹窗里挑'
-        + '（这次一套都没算出来）。',
-    };
-  }
-  return {
-    viaProduct: true,
-    safe,
-    overlay,
-    // 🔴 只报数 + 举几个例子，不把 90 个名字铺进老板的聊天窗口。
-    //    判据那句话必须说**真能用的**那个（选择单解析之后的结论），不是某张能力清单。
-    sentence: `换一套顶栏不是透明浮层的主题 —— 在 dashboard 的换装弹窗里挑，`
-      + `${safe.length} 套里挑一套（例如 ${safe.slice(0, 3).join(' / ')}）；`
-      + `另外 ${overlay.length} 套的顶栏是透明浮层，换过去还是同一个毛病。`,
-  };
-}
+// 📌 #1425（T3）—— 这里原来有 `themesWithoutOverlayHeader`（「换一套顶栏不是透明浮层的主题」）。新库的 header 没有透明浮层
+//    这个形态，「浮层 + 公告条」那条拒绝随之删了。
 
-/**
- * topbar 缺内容那条报错要打印的补救行（每个缺的语言一条），**条数有上限**。
- *
- * 🔴 为什么要有上限：`edit-site.js §main` 把这段 stderr `.slice(0, 2000)` 之后原文推进老板的聊天窗口
- *    （§main 的 `syncError` 那一支）。一条补救句 ~164 字符 ⟹ 一个语言一条时，**10 个语言起就会把后面那条「或者不要
- *    topbar」整条切掉**（实测：10 个语言约 2035 字符）。而改这条之前那版是**一行讲完所有语言**，
- *    也就是说「一个语言一条」这个更精确的写法在这一维上是个退步。上限把它按回来：
- *    最多 CAP 条，其余合成一行（把 `<locale>` 换成它自己即可）。
- *
- * @param {{siteDir: string, locales: string[], flat?: boolean, cap?: number}} opts
- * @returns {string[]} 每条都是一行的正文（调用方自己加 `  · ` 前缀）
- */
-const BULLET_CAP = 4;
-function topbarBullets(opts) {
-  const siteDir = (opts && opts.siteDir) || '';
-  const locales = (opts && opts.locales) || [];
-  const flat = !!(opts && opts.flat);
-  const cap = (opts && opts.cap) || BULLET_CAP;
-  const shown = locales.slice(0, cap);
-  const rest = locales.slice(cap);
-  const out = shown.map((loc) => {
-    const r = howToAddTopbar({ siteDir, locale: loc, flat });
-    return flat ? r.sentence : `[${loc}] ${r.sentence}`;
-  });
-  if (rest.length) {
-    out.push(`其余 ${rest.length} 个语言（${rest.join(', ')}）同理 —— `
-      + `把上面那句里的语言目录换成它自己。`);
-  }
-  return out;
-}
+
+// 📌 #1425（T3）—— 这里原来有 `topbarBullets`（topbar 缺内容那条报错的补救行，带条数上限 `BULLET_CAP`），同上随公告条退役。
+
 
 module.exports = {
-  howToAddTopbar, howToChangePageLayout, themesWithoutOverlayHeader, topbarBullets, navRelPath, BULLET_CAP,
+  howToChangePageLayout, navRelPath,
 };

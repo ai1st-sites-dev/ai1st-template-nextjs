@@ -17,10 +17,13 @@
  * 🔴 **每道守卫都自带反向对照，跑在同一进程里。** 一道在真树上恒绿的守卫有三种可能 ——
  *    它在起作用 / 它瞎了 / 它过时了 —— 正臂对这三种给出同一个读数。所以下面每道都用
  *    **单变量**把包弄坏一处，要求它当场红并且点名那一处：
- *      反臂 A  删掉 `trusted-brands` 的 `headline`
- *      反臂 B  把 `trusted-brands/brands` 砍到 5 项
- *      反臂 C  拿**今天的** `sampleDataFor()` 输出整份喂它（`trusted-brands/brands` 实发 3 项
+ *      反臂 A  删掉 `faq` 的 `headline`
+ *      反臂 B  给 `faq/items` 的 shape 注入「要 6 项」的条数声明（内存里的 manifest 副本），再把 items 砍到 5 项
+ *      反臂 C  拿**今天的** `sampleDataFor()` 输出整份喂它（`faq/items` 实发 3 项
  *              且三项等长 —— 6 项和 2 倍两个条件各踩一个）
+ *    📌 #1425（T3）：原来三条反臂都落在 `trusted-brands`（`brands` 的 shape 写着 `[6 brand name strings]`）；
+ *       它随旧库删了，换成 `faq`。新库 17 块里**没有一个 list 槽在 shape 里声明条数**（(b) 的真射程今天是 0），
+ *       所以 (b) 的分母自检改成「印出覆盖边界 + 用注入的声明证明守卫活着（正反两臂）」，不再要求真射程非空。
  *
  * 🔴 **图的 HEAD 只警告、不打红**（本票 AC 最后一条）：CI 上没有外网是常态，拿一条跟本仓代码
  *    无关的事去挡 ship 就是让人学会绕过守卫。它买的是「CDN 挂了有人吭一声」，不是一道闸。
@@ -58,7 +61,7 @@ const LENGTH_SPREAD = 2;
 
 /**
  * 内容取法：默认读包本身；反向臂传一个包了一层的取法，只改一处。
- * #1506 —— 包里写成引用的那几处（`footer-new.social: {source: "social"}` …）按单格页的做法先展开（站点数据 =
+ * #1506 —— 包里写成引用的那几处（`footer.social: {source: "social"}` …）按单格页的做法先展开（站点数据 =
  * 演示生意那一份）：单格页画的、这几道守卫要量的，都是展开之后的那一份。
  */
 //    展开时挂上的内存标记（`_sourced`，不是槽位）去掉再量。
@@ -88,11 +91,11 @@ function guardA(contentOf) {
   return problems;
 }
 
-/** (b) shape 自己声明了条数的 list 槽，实发条数 ≥ 声明。 */
-function guardB(contentOf) {
+/** (b) shape 自己声明了条数的 list 槽，实发条数 ≥ 声明。`ms` 让反向臂能喂一份注入了声明的 manifest 副本（#1425（T3））。 */
+function guardB(contentOf, ms = manifests) {
   const problems = [];
   for (const type of blocks) {
-    const slots = (manifests.get(type) || {}).slots || {};
+    const slots = (ms.get(type) || {}).slots || {};
     const c = contentOf(type) || {};
     for (const [name, spec] of Object.entries(slots)) {
       const want = declaredMinItems(spec);
@@ -121,7 +124,7 @@ function guardC(contentOf) {
       if (!isListSlot(spec)) continue;
       const v = c[name];
       if (!Array.isArray(v)) { problems.push(`${type}/${name}: 不是数组`); continue; }
-      // #1504 —— 槽自己声明了 `maxItems` 比 6 小（`reviews-new.platforms` 最多 4 个）⟹ 要的是 maxItems 项：
+      // #1504 —— 槽自己声明了 `maxItems` 比 6 小（`reviews.platforms` 最多 4 个）⟹ 要的是 maxItems 项：
       //    6 项的夹具在那种槽上会被 validateSite 拦，块也只画前 maxItems 个，多出来的两项什么都量不到。
       const need = Number.isInteger(spec.maxItems) ? Math.min(MIN_ITEMS, spec.maxItems) : MIN_ITEMS;
       if (v.length < need) problems.push(`${type}/${name}: 只有 ${v.length} 项，要 ≥ ${need}`);
@@ -160,7 +163,12 @@ console.log(`  块 ${blocks.length} · (块,形态) 对 ${pairs.length} · 槽�
   + ` · list 槽 ${listSlots.length} · 带条数声明的 list 槽 ${declaredSlots.length}`);
 console.log(`  (b) 的射程: ${declaredSlots.join(' · ')}`);
 check(blocks.length > 0 && slotCount > 0, '判据面不是空的（空的判据面会让下面每一道恒绿）');
-check(declaredSlots.length > 0, `(b) 的射程不是空集（${declaredSlots.length} 处）`);
+// 📌 #1425（T3）：这一格原来是 check(真射程 > 0)。新库里没有一个 list 槽声明条数，真射程按今天的盘就是 0 ——
+//    据它判红只会天天红。改成把覆盖边界说出来；守卫本身活不活着由 ③ 的反臂 B（注入声明，正反两臂）证明。
+if (declaredSlots.length === 0) {
+  console.log('  📌 (b) 的真射程今天是 0 处（新库没有一个 list 槽在 shape 里写条数）⟹ ② 里 (b) 的绿是「没东西可查」，'
+    + '守卫活着这件事看 ③ 的反臂 B');
+} else ok(`(b) 的射程不是空集（${declaredSlots.length} 处）`);
 check(listSlots.length > 0, `(c) 的射程不是空集（${listSlots.length} 处）`);
 
 // ══ ② 正臂：真包必须全绿 ═══════════════════════════════════════════════════════════════════
@@ -211,33 +219,40 @@ check(orphanImages.length === 0,
 // ══ ③ 反向臂：每道守卫都要真的红得出来，而且点名那一处 ══════════════════════════════════════
 console.log('\n③ 反向臂（单变量，每道一格）');
 
-const armA = guardA(mutated((c) => { delete c['trusted-brands'].headline; }));
-check(armA.some((p) => p.startsWith('trusted-brands/headline')),
-  `(a) 删掉 trusted-brands 的 headline ⟹ 红并点名：${armA.join(' | ') || '（它没红）'}`);
+// #1425（T3）：trusted-brands → faq（见文件头）
+const armA = guardA(mutated((c) => { delete c.faq.headline; }));
+check(armA.some((p) => p.startsWith('faq/headline')),
+  `(a) 删掉 faq 的 headline ⟹ 红并点名：${armA.join(' | ') || '（它没红）'}`);
 
-const armB = guardB(mutated((c) => { c['trusted-brands'].brands = c['trusted-brands'].brands.slice(0, 5); }));
-check(armB.some((p) => p === 'trusted-brands/brands: 声明 6、实发 5'),
-  `(b) brands 砍到 5 项 ⟹ 红并点名「声明 6、实发 5」：${armB.join(' | ') || '（它没红）'}`);
+// 反臂 B：manifest 副本里给 faq/items 注入「[6 …]」的条数声明 —— 正臂（真包 6 项）不红、砍到 5 项红。
+const injected = new Map([...manifests].map(([t, m]) => [t, JSON.parse(JSON.stringify(m))]));
+injected.get('faq').slots.items.shape = `[6 ${injected.get('faq').slots.items.shape}]`;
+if (declaredMinItems(injected.get('faq').slots.items) !== 6) die('反臂 B 的夹具不成立：注入的声明没被 declaredMinItems 认出来');
+const armBpos = guardB(realContentOf, injected);
+check(armBpos.length === 0, `(b) 注入「faq/items 要 6 项」+ 真包 ⟹ 不红（${armBpos.join(' | ') || '0 处'}）`);
+const armB = guardB(mutated((c) => { c.faq.items = c.faq.items.slice(0, 5); }), injected);
+check(armB.some((p) => p === 'faq/items: 声明 6、实发 5'),
+  `(b) 注入声明后 items 砍到 5 项 ⟹ 红并点名「声明 6、实发 5」：${armB.join(' | ') || '（它没红）'}`);
 
 // 反臂 C 用的是**今天真跑出来的** sampleDataFor() 输出，不是我手打的一个像它的东西。
 const sampleContentOf = (type) => {
   const m = manifests.get(type);
   return m ? sampleDataFor(m) : undefined;
 };
-const sampleBrands = sampleContentOf('trusted-brands').brands;
-console.log(`  sampleDataFor(trusted-brands).brands = ${JSON.stringify(sampleBrands)}`);
+const sampleItems = sampleContentOf('faq').items;
+console.log(`  sampleDataFor(faq).items = ${JSON.stringify(sampleItems)}`);
 const armC = guardC(sampleContentOf);
-const armCBrands = armC.filter((p) => p.startsWith('trusted-brands/brands'));
-check(armCBrands.length === 2,
-  `(c) 喂今天的 sampleDataFor() ⟹ trusted-brands/brands 两个条件各踩一个：${armCBrands.join(' | ') || '（它没红）'}`);
+const armCItems = armC.filter((p) => p.startsWith('faq/items'));
+check(armCItems.length === 2,
+  `(c) 喂今天的 sampleDataFor() ⟹ faq/items 两个条件各踩一个：${armCItems.join(' | ') || '（它没红）'}`);
 check(armC.length > 0, `(c) 反向臂整体红 ${armC.length} 处（正臂 0 处）`);
-// #1504 —— maxItems 那条放宽只放到 maxItems 为止：reviews-new.platforms（maxItems 4）砍到 3 项照样红、点名「要 ≥ 4」。
-const armCMax = guardC(mutated((c) => { c['reviews-new'].platforms = c['reviews-new'].platforms.slice(0, 3); }));
-check(armCMax.some((p) => p === 'reviews-new/platforms: 只有 3 项，要 ≥ 4'),
-  `(c) reviews-new 的 platforms（maxItems 4）砍到 3 项 ⟹ 红并点名「要 ≥ 4」：${armCMax.join(' | ') || '（它没红）'}`);
+// #1504 —— maxItems 那条放宽只放到 maxItems 为止：reviews.platforms（maxItems 4）砍到 3 项照样红、点名「要 ≥ 4」。
+const armCMax = guardC(mutated((c) => { c['reviews'].platforms = c['reviews'].platforms.slice(0, 3); }));
+check(armCMax.some((p) => p === 'reviews/platforms: 只有 3 项，要 ≥ 4'),
+  `(c) reviews 的 platforms（maxItems 4）砍到 3 项 ⟹ 红并点名「要 ≥ 4」：${armCMax.join(' | ') || '（它没红）'}`);
 
 // 🔴 反过来也要有一格：反向臂只改了一处，**别的守卫不许跟着红** —— 三道各自守着自己那一维。
-const armAOther = guardB(mutated((c) => { delete c['trusted-brands'].headline; }));
+const armAOther = guardB(mutated((c) => { delete c.faq.headline; }), injected);
 check(armAOther.length === 0, `(a) 的反向臂不会让 (b) 跟着红（${armAOther.length} 处）`);
 
 // ══ ④ 图：HEAD 一遍，读不到只警告 ═══════════════════════════════════════════════════════════

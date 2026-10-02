@@ -1,6 +1,6 @@
 'use strict';
 // ══════════════════════════════════════════════════════════════════════════════════════════════════
-// contact-facts.js —— contact-new 从站点数据里取的那几样值（#1489，总纲 #1422 的 T2.11）
+// contact-facts.js —— contact 从站点数据里取的那几样值（#1489，总纲 #1422 的 T2.11）
 // ══════════════════════════════════════════════════════════════════════════════════════════════════
 //
 // 🔴 **值只有一处**：电话 / 邮箱 / 地址 / 营业时间 / 坐标都读站点数据（`brand.locations[0]` · `brand.email` ·
@@ -135,7 +135,7 @@ function scrubContactItem(item, facts) {
 }
 
 /**
- * 一份页面 JSON（`blocks` 新形状或 `sections` 老形状）里所有 contact-new 的 items 就地剔一遍。回改了几条。
+ * 一份页面 JSON（`blocks` 新形状或 `sections` 老形状）里所有 contact 的 items 就地剔一遍。回改了几条。
  * 调用点：建站写页面那一刻（`create-site.js` §writeSiteConfig / §writeSecondaryLocaleConfig）、改站同步之前
  * （`edit-site.js`，这一轮写过的页面）。渲染那一侧（`Section.tsx` §rowOf）用同一个 `copiesSiteFact` 再挡一次 ——
  * 可视化编辑器里老板手打进去的那份不经过前两处。
@@ -146,7 +146,7 @@ function scrubContactCopies(page, facts) {
   for (const list of [page.blocks, page.sections]) {
     if (!Array.isArray(list)) continue;
     for (const b of list) {
-      if (!b || b.type !== 'contact-new' || !b.data || !Array.isArray(b.data.items)) continue;
+      if (!b || b.type !== 'contact' || !b.data || !Array.isArray(b.data.items)) continue;
       for (const it of b.data.items) if (scrubContactItem(it, facts)) n++;
     }
   }

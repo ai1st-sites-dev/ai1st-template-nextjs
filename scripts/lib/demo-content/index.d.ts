@@ -19,13 +19,13 @@ export function demoContentFor(type: string): Record<string, unknown>;
 
 export const DEMO_CONTENT: Record<string, Record<string, unknown>>;
 export const SITE: Record<string, unknown>;
-/** #1475 —— features-new 带编号的那一版（每项一个 `number`，`options.itemConnector: 'line'`）。 */
+/** #1475 —— features 带编号的那一版（每项一个 `number`，`options.itemConnector: 'line'`）。 */
 /** #1497 —— 站点博客夹具（`BlogPostConfig` 形状，封面 / 头像可选）。 */
 export const DEMO_BLOG_POSTS: Array<Record<string, unknown> & { slug: string; title: string; publishedAt: string }>;
 export const FEATURES_NEW_STEPS: Record<string, unknown> & { items: Array<Record<string, unknown>> };
-/** #1505 —— features-new 的引用写法样例（`items: {source: "services"}`）。 */
+/** #1505 —— features 的引用写法样例（`items: {source: "services"}`）。 */
 export const FEATURES_NEW_FROM_SERVICES: Record<string, unknown> & { items: { source: string } };
-/** #1489 —— 演示生意的站点数据那一截（contact-new 读的电话 / 邮箱 / 地址 / 营业时间 / 坐标）。#1505 起多了服务目录与几页详情页。 */
+/** #1489 —— 演示生意的站点数据那一截（contact 读的电话 / 邮箱 / 地址 / 营业时间 / 坐标）。#1505 起多了服务目录与几页详情页。 */
 export const DEMO_SITE: {
   services: Array<{ id: string; name: string; shortDescription: string; icon: string }>;
   pages: Array<{ slug: string; title: string; description: string }>;

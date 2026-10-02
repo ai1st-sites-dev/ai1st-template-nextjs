@@ -78,22 +78,13 @@ const path = require('path');
 //   · `drop`  顺手从块上删掉哪几个键
 //   · `data`  往 `block.data` 上补哪几个键（**只在缺的时候补**，已经有的不覆盖）
 //   · `role`  【老形状】那个角色，走跟上面同一个 `roleToWrite`（补了才有区别时才写）
-const LEGACY_BLOCK_SHAPES = [
-  {
-    when: (b) => b.type === 'hero' && b.block_layout === 'with-form',
-    to: 'hero-with-form',
-    drop: ['block_layout'],
-    data: { form: {} },
-    role: 'lead',
-  },
-];
+// 📌 #1425（T3）—— 这两张表原来各有规则（`hero` + `block_layout: "with-form"` → `hero-with-form`；`values-grid` /
+//    `benefits-list` / `checklist` / `service-highlights` → `card-group`）。两条的**目标**（`hero-with-form` · `card-group`）
+//    随旧库一起删了，而老站不迁移、走「更新网站 = 重新生成」（Chris 2026-09-24，#1425 验收 6）⟹ 没有今天的名字可改写成，
+//    规则一起清空。机制留着：下一次块改名要迁移老数据时往这里加一行。
+const LEGACY_BLOCK_SHAPES = [];
 
-const LEGACY_BLOCK_TYPES = {
-  'values-grid': { to: 'card-group', role: 'optional', rename: {} },
-  'benefits-list': { to: 'card-group', role: 'optional', rename: {} },
-  'checklist': { to: 'card-group', role: 'optional', rename: {} },
-  'service-highlights': { to: 'card-group', role: 'optional', rename: { highlights: 'items' } },
-};
+const LEGACY_BLOCK_TYPES = {};
 
 // knownBlockTypes —— 今天的模板认得哪些块类型。
 //

@@ -1,0 +1,274 @@
+/* ── team · 跨形态的规则（#1487）──────────────────────────────────────────────────────────
+   team 的排版由**实际生效的旋钮**决定，写在根元素上：
+     intro    data-intro-position（left / right / top / bottom）· data-intro-align（left / center / right）
+     members  data-members-columns（2 / 3 / 4）· data-member-photo（top / left）· data-photo-shape（square / circle）·
+              data-member-style（plain / card）· data-member-align（left / center）
+     底色     data-tone（light / dark / brand，scripts/lib/contrast.js §toneForBg）
+   五个形态目录都是预设，自己不带几何（理由在各自的 shape.css 里）。
+
+   🔴 Webpixels 的工具类全带 !important（mb-* / text-muted / bg-primary-subtle …）。这里要压过它们的规则**也带 !important**，
+      而且选择器从 [data-block="team"] 起步再加属性 / 类 —— 特异度一定高过工具类的一个类。
+   🔴 部件的有无靠渲染（Section.tsx 有数据才画），不靠 CSS 藏。
+   🔴 `memberAlign` 只在 `memberPhoto=top` 时起作用：它的每一条规则都带 [data-member-photo="top"]（左图右字本来就靠左）。
+   间距照图册（Chris 2026-09-29）：段 py-16 py-lg-24；块头与成员之间 2.5rem（gy-10）/ ≥992 横向 4rem（gx-lg-16）；
+   成员左右间距 1.5rem、行距 2.5rem（card 1.5rem）；照片与名字 / 文字 1.25rem。纵向写 gy-10、不写 g-10
+   （g-10 的横向负边距在手机上溢出，#1475 量出来的）。 */
+
+/* ═══ intro（块头）═══════════════════════════════════════════════════════════════════════════════ */
+
+[data-block="team"] .tm-intro-text > :last-child {
+  margin-bottom: 0 !important;
+}
+
+/* 块头宽度（T6.1 / #1486 定的新规则，Chris 2026-09-29）：left / right = 100%；center 在 ≥992 最宽 80%（相对块头那一列）、
+   居中，<992 = 100%。正文不再单独限宽。 */
+[data-block="team"][data-intro-align="center"] .tm-intro-text {
+  text-align: center;
+}
+[data-block="team"][data-intro-align="right"] .tm-intro-text {
+  text-align: right;
+}
+@media (min-width: 992px) {
+  [data-block="team"][data-intro-align="center"] .tm-intro-text {
+    max-width: 80%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+/* introPosition：left / right（≥992）= 块头一列 33.33%（sticky top 2rem）、成员一列 66.67%；right 行反向。
+   块头已经是侧列，80% 那条取消，三种对齐都占满侧列（图册 build.py 同一条）。
+   小屏：left / top 块头在上，right / bottom 块头在下。 */
+[data-block="team"][data-intro-position="bottom"] .tm-frame {
+  flex-direction: column-reverse;
+}
+@media (max-width: 991.98px) {
+  [data-block="team"][data-intro-position="right"] .tm-frame {
+    flex-direction: column-reverse;
+  }
+}
+@media (min-width: 992px) {
+  [data-block="team"][data-intro-position="left"] .tm-introcol,
+  [data-block="team"][data-intro-position="right"] .tm-introcol {
+    flex: 0 0 auto;
+    width: 33.3333%;
+    position: sticky;
+    top: 2rem;
+    align-self: flex-start;
+  }
+  [data-block="team"][data-intro-position="left"] .tm-memberscol,
+  [data-block="team"][data-intro-position="right"] .tm-memberscol {
+    flex: 0 0 auto;
+    width: 66.6667%;
+  }
+  [data-block="team"][data-intro-position="right"] .tm-frame {
+    flex-direction: row-reverse;
+  }
+  [data-block="team"][data-intro-position="left"] .tm-intro-text,
+  [data-block="team"][data-intro-position="right"] .tm-intro-text {
+    max-width: none;
+    margin: 0;
+  }
+}
+
+/* ═══ members ═════════════════════════════════════════════════════════════════════════════════════ */
+
+/* membersColumns：手机一律一列（Chris 2026-09-29）；iPad（768–991）两列；≥992 按列数。
+   列宽按列数和列间距算（--tm-cols / --tm-gap），不用负边距（同 milestones：负边距在 390 上溢出）。 */
+[data-block="team"] .tm-grid {
+  --tm-cols: 1;
+  --tm-gap: 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 2.5rem;
+  column-gap: var(--tm-gap);
+}
+[data-block="team"] .tm-member {
+  flex: 0 0 auto;
+  width: calc((100% - (var(--tm-cols) - 1) * var(--tm-gap)) / var(--tm-cols));
+  min-width: 0;
+}
+@media (min-width: 768px) {
+  [data-block="team"] .tm-grid { --tm-cols: 2; }
+}
+@media (min-width: 992px) {
+  [data-block="team"][data-members-columns="2"] .tm-grid { --tm-cols: 2; }
+  [data-block="team"][data-members-columns="3"] .tm-grid { --tm-cols: 3; }
+  [data-block="team"][data-members-columns="4"] .tm-grid { --tm-cols: 4; }
+}
+
+[data-block="team"] .tm-text {
+  min-width: 0;
+}
+[data-block="team"] .tm-role {
+  margin-top: 0.125rem;
+}
+[data-block="team"] .tm-bio,
+[data-block="team"] .tm-links {
+  margin-top: 0.75rem;
+}
+[data-block="team"] .tm-link {
+  display: inline-flex;
+  font-size: 1.125rem;
+  text-decoration: none;
+}
+
+/* 照片：top + square = 占满格宽的 1:1 方图、圆角 1rem；top + circle = 6rem 圆头像；left = 5rem 方图（圆角 .75rem）或圆。 */
+[data-block="team"] .tm-photo img {
+  display: block;
+  object-fit: cover;
+}
+[data-block="team"][data-member-photo="top"] .tm-photo {
+  margin-bottom: 1.25rem;
+}
+[data-block="team"][data-member-photo="top"][data-photo-shape="square"] .tm-photo img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 1rem;
+}
+[data-block="team"][data-member-photo="top"][data-photo-shape="circle"] .tm-photo img {
+  width: 6rem;
+  height: 6rem;
+  border-radius: 50%;
+}
+[data-block="team"][data-member-photo="left"] .tm-inner {
+  display: flex;
+  gap: 1.25rem;
+  align-items: flex-start;
+}
+[data-block="team"][data-member-photo="left"] .tm-photo {
+  flex: 0 0 auto;
+}
+[data-block="team"][data-member-photo="left"] .tm-photo img {
+  width: 5rem;
+  height: 5rem;
+  border-radius: 0.75rem;
+}
+[data-block="team"][data-member-photo="left"][data-photo-shape="circle"] .tm-photo img {
+  border-radius: 50%;
+}
+
+/* memberAlign：名字 / 职位 / 简介 / 链接 / 照片的对齐，只在照片在上时起作用；招聘卡跟着走。 */
+[data-block="team"][data-member-align="center"][data-member-photo="top"] .tm-inner {
+  text-align: center;
+}
+[data-block="team"][data-member-align="center"][data-member-photo="top"] .tm-photo img {
+  margin-left: auto;
+  margin-right: auto;
+}
+[data-block="team"][data-member-align="center"][data-member-photo="top"] .tm-links {
+  justify-content: center;
+}
+
+/* memberStyle：plain 无底无线、行距 2.5rem；card = 白底 1px 描边 1rem 圆角（rounded-4）2rem 内边距（p-8）、行距 1.5rem。 */
+[data-block="team"][data-member-style="card"] .tm-grid {
+  row-gap: 1.5rem;
+}
+[data-block="team"][data-member-style="card"] .tm-inner {
+  background: var(--x-body-bg);
+  border: 1px solid var(--x-border-color, #e5e7eb);
+  border-radius: 1rem;
+  padding: 2rem;
+}
+
+/* ═══ 招聘卡（join）：排在成员网格的最后一格，跟成员同宽 ══════════════════════════════════════════
+   虚线框 1.5px dashed + 1rem 圆角 + 2rem 内边距；3rem 的图标圈（给定尺寸，别被 flex 拉宽）；描边按钮。 */
+[data-block="team"] .tm-join {
+  border: 1.5px dashed var(--scheme-line);
+  border-radius: 1rem;
+  padding: 2rem;
+  min-height: 12rem;
+}
+[data-block="team"] .tm-join-icon {
+  width: 3rem;
+  height: 3rem;
+  flex: 0 0 auto;
+  align-self: flex-start;
+  font-size: 1.5rem;
+}
+[data-block="team"][data-member-align="center"][data-member-photo="top"] .tm-join {
+  align-items: center;
+  text-align: center;
+}
+[data-block="team"][data-member-align="center"][data-member-photo="top"] .tm-join-icon,
+[data-block="team"][data-member-align="center"][data-member-photo="top"] .tm-join-cta {
+  align-self: center !important;
+}
+
+/* ═══ 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneForBg）══════════════════════════════
+   dark = 深底 / 深色渐变；brand = 主题主色底。两者一样：标题 / 名字反白；职位 / 简介（.text-muted）白 .92 由全站那条给
+   （scripts/lib/site-css.js §ON_DEEP_MUTED，本块不抄一份）；card 换 .06 半透明底 + 半透明白描边；招聘卡虚线 .35 白、
+   图标圈半透明白、按钮反白。 */
+[data-block="team"][data-tone="dark"],
+[data-block="team"][data-tone="brand"] {
+  color: #fff;
+}
+[data-block="team"][data-tone="dark"] .tm-title,
+[data-block="team"][data-tone="brand"] .tm-title,
+[data-block="team"][data-tone="dark"] .tm-name,
+[data-block="team"][data-tone="brand"] .tm-name,
+[data-block="team"][data-tone="dark"] .tm-join-title,
+[data-block="team"][data-tone="brand"] .tm-join-title,
+[data-block="team"][data-tone="dark"] .tm-eyebrow-dash,
+[data-block="team"][data-tone="brand"] .tm-eyebrow-dash,
+[data-block="team"][data-tone="dark"] .tm-eyebrow-plain,
+[data-block="team"][data-tone="brand"] .tm-eyebrow-plain {
+  color: #fff !important;
+}
+[data-block="team"][data-tone="dark"][data-member-style="card"] .tm-inner,
+[data-block="team"][data-tone="brand"][data-member-style="card"] .tm-inner {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+[data-block="team"][data-tone="dark"] .tm-join,
+[data-block="team"][data-tone="brand"] .tm-join {
+  border-color: rgba(255, 255, 255, 0.35);
+}
+[data-block="team"][data-tone="dark"] .tm-join-icon,
+[data-block="team"][data-tone="brand"] .tm-join-icon,
+[data-block="team"][data-tone="dark"] .tm-eyebrow-pill,
+[data-block="team"][data-tone="brand"] .tm-eyebrow-pill {
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #fff !important;
+}
+[data-block="team"][data-tone="dark"] .tm-eyebrow-outline,
+[data-block="team"][data-tone="brand"] .tm-eyebrow-outline {
+  border-color: rgba(255, 255, 255, 0.7) !important;
+  color: #fff !important;
+}
+[data-block="team"][data-tone="dark"] .btn-outline-primary,
+[data-block="team"][data-tone="brand"] .btn-outline-primary {
+  color: #fff !important;
+  border-color: rgba(255, 255, 255, 0.6) !important;
+}
+[data-block="team"][data-tone="dark"] .btn-link,
+[data-block="team"][data-tone="brand"] .btn-link {
+  color: #fff !important;
+}
+
+/* ── 按钮的底色和字色：接平台按这个站最终配色算好的那几个变量（`scripts/lib/button-ink.js`，同 features / milestones）。 */
+[data-block="team"] .btn-primary {
+  --x-btn-bg: var(--btn-primary-bg, var(--x-primary));
+  --x-btn-border-color: var(--btn-primary-bg, var(--x-primary));
+  --x-btn-color: var(--btn-primary-ink, #fff);
+  --x-btn-hover-bg: var(--btn-primary-hover, var(--btn-primary-bg, var(--x-primary)));
+  --x-btn-hover-border-color: var(--btn-primary-hover, var(--btn-primary-bg, var(--x-primary)));
+  --x-btn-hover-color: var(--btn-primary-ink, #fff);
+  --x-btn-active-bg: var(--btn-primary-hover, var(--btn-primary-bg, var(--x-primary)));
+  --x-btn-active-color: var(--btn-primary-ink, #fff);
+}
+[data-block="team"] .btn-outline-primary {
+  --x-btn-color: var(--x-primary-text-emphasis, var(--x-primary));
+  --x-btn-border-color: var(--x-primary-text-emphasis, var(--x-primary));
+}
+[data-block="team"] .btn-link {
+  --x-btn-color: var(--x-primary-text-emphasis, var(--x-primary));
+  --x-btn-hover-color: var(--x-primary-text-emphasis, var(--x-primary));
+  --x-btn-active-color: var(--x-primary-text-emphasis, var(--x-primary));
+}
+[data-block="team"][data-tone="dark"] .btn-primary,
+[data-block="team"][data-tone="brand"] .btn-primary {
+  background: #fff !important;
+  border-color: #fff !important;
+  color: var(--x-primary) !important;
+}

@@ -1,223 +1,437 @@
-import Link from 'next/link';
-import ServiceIcon from '@/components/ServiceIcon';
+'use client';
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+// footer —— 页脚，Webpixels / Bootstrap 那一套（#1455 T2.2 → #1464 定稿第 2 版，总纲 #1422）
+// ══════════════════════════════════════════════════════════════════════════════════════════════════
+//
+// 🔴 **外壳区块**（manifest `region: true`）：不进注册表、不进 Puck、不进提示词；站上由 `SiteShell` 渲染，
+//    data 是构建期从 navigation.json + brand.json 派生的那一份（`scripts/lib/shell-data.js`，#1425 T3），
+//    形态取主题选择单 `shapes.footer`。单格页 `/__catalog` 直接传 data。
+//
+// 🔴 **一份 markup + 三个旋钮 + 六个预设**（#1464，Chris 2026-09-27 图册定稿第 2 版，照 header 的做法；
+//    #1469 第 3 版加 `brand`）。
+//    旋钮 `layout`（row | stacked | columns）· `brand`（left | right）· `cta`（none | centered | boxed | inline），声明在 manifest 的
+//    `slots.options.knobs`；预设是旋钮组合起的名，表在顶层 `presets`（name 与形态目录名 shape 相同）。
+//    形态名只决定**初值**：`options` 里写了旋钮就按旋钮画（§resolveKnobs），函数跟工具栏是同一个
+//    （`scripts/lib/header-knobs.js`）。footer 没有耦合（manifest 不写 `knobCoupling`）⟹ 任意组合都成立，
+//    对不上预设的就是 Custom。根上挂 `ftr-layout-*` / `ftr-cta-*` 两个类，工具类表达不了的几条在
+//    `blocks/footer/block.css`（不在各预设的 shape.css：Custom 组合没有文件夹）。
+//    部件永远是 `[CTA 条?] [主体] [底栏]`；主体按 layout 分三种排法，CTA 条按 cta 三选一或没有。
+//
+// 🔴 **`brand=right`：桌面在左的，小屏就在上**（Chris 2026-09-27；#1469 起它是旋钮 `brand`，原来是开关 `reverse`，
+//    画法逐字没变 —— 根上的类名也还叫 `ftr-reverse`）。两个排布的主容器 ≥768 反向（首项 / 品牌列
+//    在右），<768 用 `flex-column-reverse` 放到最下；底栏根容器用同一个 `mainReverse`（#1525 补上，原来只翻
+//    ≥768）。`columns` 的断点从 T2.2 的 `lg` 改成 `md`（#1464 的真改动）—— 品牌列在 768 起就跟其余列并排，不然「768–991 品牌列在右」无从谈起。
+//    导航行 / 社交行 / 底栏里那几处小容器用的是不带断点的 `flex-row-reverse`，任何宽度都翻。
+//    🔴 `stacked` 是居中的，`brand` 对它**一处都不起作用**（#1469 AC3：两个值 HTML 相同）—— 原来的 reverse 在
+//    stacked 下还会翻导航 / 社交 / 联系 / CTA 行和根上的类，所以判据收在一个变量上（函数体里的 `reverse`），不在各处分别判。
+//
+// 🔴 **底色 = 颜色槽 `bg`**（#1469，原来是开关 `dark`）：任意 `#rrggbb`、`brand`（主题主色）或渐变
+//    `{ stops: [2–3 个色], angle }`，字色按背景亮度自动反白 —— 纯色跟 hero 同一个函数（`scripts/lib/contrast.js`
+//    §toneFor，门槛 0.4），渐变按色标平均亮度（§toneForBg，门槛 0.55），不另起一套。没填 = 改前 `dark=false`
+//    那一份，逐字相同。
+//
+// 🔴 **表单 = 槽 `form: { id? }` + 旋钮 `form`（none | teaser | full）**（#1471，跟 hero / contact / cta 同形）：
+//    表单是站级资产（`site/<locale>/forms.json`），槽只选一张（空 = 第一张）；露多少只存在 `data.options.form` 一处，
+//    经本文件 §resolveKnobs（同一份 manifest 的旋钮表）取实际生效值。6 个预设一律 `form: none`（形态里没给表单留位置）。
+//    🔴 #1469 的 `form.mode` 不再读、也不做兼容读：旧值已迁移（#1469 当时它还没上客户站）。
+//
+// 🔴 **排版只走 Webpixels 的工具类**（总纲约束 3）。Webpixels 的工具类全带 `!important`，要压过它们的
+//    规则也得带 `!important` 且 class 数不少于它（票正文那条通用规矩）。
+//
+// 🔴 **这个块没有 HTML 交互，所以也没有 Bootstrap 的 JS**（#1514 口径：有展开 / 收起 / 滑动 / 关闭这类行为才用
+//    bootstrap.js；这里一样都没有）。表单部件跟 hero 共用一份（`src/components/BlockLeadForm.tsx`）：
+//    提交 POST `/api/leads`、原地显示 successMessage —— 那是数据往返不是 HTML 交互，这里只决定它挂在哪儿。
+
+import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import SiteLink from '@/components/SiteLink';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import { defaultLocale, getServices } from '@/lib/config';
 import type { BlockConfig } from '@/lib/types/config';
-import { brand, defaultLocale, getNavigation, getServices, getBrandName, pagesByLocale, regions } from '@/lib/config';
+import BlockLeadForm from '@/components/BlockLeadForm';
+import manifest from './manifest.json';
+import { knobsOf, normalizeKnobs, presetForShape, presetOf, presetsOf } from '../../scripts/lib/header-knobs.js';
+import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+// #1506 —— 电话 → `tel:`、邮箱 → `mailto:` 只有一份（contact 与引用展开 `scripts/lib/item-sources.js` 用的也是它）。
+import { mailtoHref, telHref } from '../../scripts/lib/contact-facts.js';
 
-const socialIcons: Record<string, { label: string; icon: React.ReactNode }> = {
-  google: { label: 'Google', icon: <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/></svg> },
-  yelp: { label: 'Yelp', icon: <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M20.16 12.594l-4.995 1.433c-.96.276-1.74-.8-1.176-1.63l2.905-4.308a1.072 1.072 0 011.596-.206 7.26 7.26 0 012.103 3.2c.247.852-.48 1.644-1.433 1.511zm-3.12 5.916a7.26 7.26 0 01-2.91 2.07c-.88.32-1.78-.37-1.56-1.28l1.14-5.08c.22-.96 1.46-1.14 1.94-.28l2.47 4.4c.38.48.08 1.2-.48 1.4zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1.2 15.36c-.2.94-1.52 1.14-1.94.28l-2.5-4.4c-.38-.68.08-1.5.88-1.64l5.06-1.14c.96-.22 1.58.94 1 1.72l-2.5 5.18zm-3.86-6.2a1.07 1.07 0 01-1.18-1.14 7.26 7.26 0 011.58-3.46c.58-.68 1.62-.52 1.86.28l1.44 5.06c.28.96-.68 1.78-1.64 1.28l-2.06-.02z"/></svg> },
-  facebook: { label: 'Facebook', icon: <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg> },
-  instagram: { label: 'Instagram', icon: <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg> },
-  linkedin: { label: 'LinkedIn', icon: <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg> },
-  tiktok: { label: 'TikTok', icon: <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg> },
-  twitter: { label: 'X', icon: <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg> },
-  whatsapp: { label: 'WhatsApp', icon: <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg> },
-};
+type BtnStyle = 'solid' | 'outline' | 'link';
 
-// TICKET-129: defaultLocale uses root URL alias (no /<locale> prefix).
-function localizeHref(href: string, locale: string): string {
-  if (!href.startsWith('/') || href.startsWith('//')) return href;
-  if (locale === defaultLocale) return href;
-  if (href === '/') return `/${locale}`;
-  return `/${locale}${href}`;
+export type Layout = 'row' | 'stacked' | 'columns';
+export type BrandSide = 'left' | 'right';
+export type Cta = 'none' | 'centered' | 'boxed' | 'inline';
+export type FormMode = 'none' | 'teaser' | 'full';
+
+export interface FooterLink { label: string; href: string; icon?: string }
+export interface FooterButton { label: string; href: string; style?: BtnStyle }
+export interface FooterContact { phone?: string; address?: string; hours?: string; email?: string }
+export interface FooterColumns { services?: FooterLink[]; areas?: FooterLink[]; contact?: boolean }
+export interface FooterCta { title?: string; subtitle?: string; buttons?: FooterButton[] }
+/** #1471 —— 块只选一张站级表单（空 = 第一张）；露多少是旋钮 `options.form`。 */
+export interface FooterForm { id?: string }
+export interface FooterOptions {
+  /** 只是标签：旋钮跟某个预设吻合就是它的名，否则 `custom`。渲染不读它。 */
+  preset?: string;
+  layout?: Layout;
+  brand?: BrandSide;
+  cta?: Cta;
+  /** #1471 —— 表单露多少：none（不画）· teaser（首要字段 + 按钮）· full（整张）。 */
+  form?: FormMode;
 }
 
-// TICKET-123: minimal i18n map for Footer-internal labels (Services / Contact Us
-// are hardcoded here; per-locale nav links / column titles already come from
-// getNavigation(locale)). Keeps the 14-lang whitelist aligned with TICKET-122a's
-// langMap so future副语言 ticket auto-covers. Unknown locales fall back to en.
-const FOOTER_LABELS: Record<string, { services: string; contact: string }> = {
-  en: { services: 'Services',  contact: 'Contact Us' },
-  zh: { services: '服务',        contact: '联系我们' },
-  fr: { services: 'Services',  contact: 'Nous contacter' },
-  es: { services: 'Servicios', contact: 'Contáctenos' },
-  ja: { services: 'サービス',     contact: 'お問い合わせ' },
-  ko: { services: '서비스',       contact: '문의하기' },
-  de: { services: 'Dienste',   contact: 'Kontakt' },
-  it: { services: 'Servizi',   contact: 'Contattaci' },
-  pt: { services: 'Serviços',  contact: 'Contato' },
-  ru: { services: 'Услуги',      contact: 'Связаться с нами' },
-  vi: { services: 'Dịch vụ',   contact: 'Liên hệ' },
-  ar: { services: 'الخدمات',       contact: 'اتصل بنا' },
-  hi: { services: 'सेवाएँ',        contact: 'संपर्क करें' },
-  th: { services: 'บริการ',        contact: 'ติดต่อเรา' },
-};
+export interface FooterNewData {
+  logo?: string;
+  brandName?: string;
+  tagline?: string;
+  nav?: FooterLink[];
+  columns?: FooterColumns;
+  contact?: FooterContact;
+  social?: FooterLink[];
+  legal?: FooterLink[];
+  copyright?: string;
+  cta?: FooterCta;
+  form?: FooterForm;
+  /** #1469 —— 底色：`#rrggbb` · `brand` · 渐变 `{ stops, angle }`；空 = 浅底（`bg-body`）。 */
+  bg?: BgValue;
+  options?: FooterOptions;
+}
 
-// 🔴🔴 #1353 — ONE MARKUP。页脚跟顶栏同一批从「一变体一棵树」搬进形态层（设计文档 D14）。
-//
-// 走了三棵树：`multi-column`（多列大脚，也是没换装时的默认）、`slim-row`（单行小脚）、
-// `cta-band`（强调色 CTA 色带 + 小脚）。今天是下面这同一副骨架，排版住在 `public/shapes.css` 的
-// `[data-block="footer"][data-shape="…"]`；默认那一支的间距在 `public/base.css`（地板），另外两种形态
-// 的间距和皮在 `shapes.css` 末尾那一节（**不在主题表**，理由见那份文件的 `#1353` 那条明写例外）。
-//
-// 🔴 这个文件里【一个 Tailwind 响应式类都不许有】（AC2 逐条 grep `(sm|md|lg|xl):`）。三支原来一共
-//    14 处，它们说的是「小屏一列、中屏两列、大屏四列」—— 那是几何，归 shapes.css 的 `@media`。
-//
-// 🔴 `regionLayout` 不再从这里读。结构走跟别的块同一条路：主题的**选择单**
-//    （`scripts/theme-pool.json` 的 `shapes.footer`）→ 构建期算好 → `regions.footer.shape`。
-//
-// 🔴 每一个零件都恒在 DOM 里，谁露面由 CSS 说（D14 第 2 句）。三支各自少画的那些东西 ——
-//    `slim-row` 不画描述和服务/联系两栏、`cta-band` 不画导航栏目 —— 今天是靠**不渲染**做的，
-//    也就是三棵不同的树。搬进形态层之后它们是同一棵树上被 `display:none` 关掉的零件。
-//    🔴 `slim-row` 那一行里的邮箱是靠 `.footer__col--contact { display: contents }` 把联系那一栏
-//    摊平、只留邮箱做到的 —— 不是把邮箱在 DOM 里挪个位置。挪位置就是 D14 第 1 句说的「另一个块」。
-//
-// 🔴 `variant` 这个 prop 的来历没变（#1000）：只在**同一个布局里出现多个页脚区**时才传
-//    （`tri-footer` 的 footer-a/b/c），主题每类区只给一个值、分不出第几个。它今天传的是**形态名**，
-//    跟选择单同一套名字（`page-layouts/*.json` 的 `repeatVariants`，构建期对着 manifest 的形态清单校验）。
-export default function Footer({ locale, variant: variantOverride }: { locale: string; variant?: string }) {
-  const { footer } = getNavigation(locale);
-  const services = getServices(locale);
-  const localePages = pagesByLocale[locale] ?? [];
-  const labels = FOOTER_LABELS[locale] ?? FOOTER_LABELS.en;
-  const currentYear = new Date().getFullYear();
-  const links = brand.socialLinks
-    ? (Array.isArray(brand.socialLinks)
-        ? brand.socialLinks.map(l => [l.platform, l.url] as [string, string])
-        : Object.entries(brand.socialLinks)
-      ).filter(([, url]) => url)
-    : [];
-  const serviceDetailSlugs = new Set(
-    localePages.filter(p => p.slug.startsWith('services/') && p.slug !== 'services').map(p => p.slug.replace('services/', ''))
+export interface FooterKnobs { layout: Layout; brand: BrandSide; cta: Cta; form: FormMode }
+
+const KNOBS = knobsOf(manifest);
+const PRESETS = presetsOf(manifest);
+export const DEFAULT_PRESET = 'slim-row';
+
+/** 形态名（= 预设名）给初值，`options` 里写着的旋钮盖上去，认不出的值落回预设。形态名不认识就落回 `slim-row`。 */
+export function resolveKnobs(shape: string | undefined, options: FooterOptions = {}): { knobs: FooterKnobs; preset: string; shape: string } {
+  const hit = (shape && presetForShape(PRESETS, shape)) || presetForShape(PRESETS, DEFAULT_PRESET);
+  const known = hit ? hit.shape : DEFAULT_PRESET;
+  const base = hit ? { ...hit.knobs } : {};
+  const given: Record<string, unknown> = {};
+  for (const k of KNOBS) if (options[k.name as keyof FooterOptions] !== undefined) given[k.name] = options[k.name as keyof FooterOptions];
+  const knobs = normalizeKnobs({ ...base, ...given }, { knobs: KNOBS, presets: PRESETS, coupling: null, base }) as unknown as FooterKnobs;
+  return { knobs, preset: presetOf(knobs, { knobs: KNOBS, presets: PRESETS }), shape: known };
+}
+
+/** #1471 —— 表单「需求」下拉的选项（BlockLeadForm 不自己读，理由见它的文件头；本块是外壳区，page-deps 的 ACCOUNTED 写明了）。 */
+function servicesFor(locale: string): { id: string; name: string }[] {
+  try { return (getServices(locale) || []).map((s: { id: string; name: string }) => ({ id: s.id, name: s.name })); } catch { return []; }
+}
+
+/** 列的固定语义（`columns` 排布专用）。标题是图册的英文演示；T3 接站时跟着站的语言走。 */
+const COLUMN_TITLES = { services: 'Services', areas: 'Service areas', pages: 'Pages', contact: 'Contact' };
+
+/** `solidLight`：boxed 那个深色盒子里、以及主色底（`bg=brand`）上的实心按钮用浅色（Webpixels footer-3），别处照旧是主色。 */
+function btnClass(style: BtnStyle | undefined, onDark: boolean, large = false, solidLight = false): string {
+  const size = large ? ' btn-lg' : '';
+  if (style === 'link') return `btn btn-link${size} ${onDark ? 'link-light' : ''}`;
+  if (style === 'outline') return `btn${size} ${onDark ? 'btn-outline-light' : 'btn-outline-primary'}`;
+  return `btn${size} ${solidLight ? 'btn-light' : 'btn-primary'}`;
+}
+
+/** 地址的最后一段当城市（`2150 Yonge St, Toronto` → `Toronto`）：`row` 底栏只露「电话 + 城市」。 */
+function cityOf(address: string | undefined): string {
+  if (!address) return '';
+  const parts = address.split(',').map((s) => s.trim()).filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : '';
+}
+
+interface Props {
+  data?: FooterNewData;
+  /** 形态名 = 预设名；没给或不认识就落回 `slim-row`。今天只有单格页传它。 */
+  shape?: string;
+  block?: BlockConfig;
+  /** #1462 —— 服务端查好的图标表（`scripts/lib/icons.js` §iconTableFor）；图标画成内联 SVG，不走字体。 */
+  iconTable?: IconTable;
+  locale?: string;
+  /** #1425 —— logo 那个「回首页」链接（同 header 的 `homeHref`）；不传 = `/`。 */
+  homeHref?: string;
+}
+
+export default function FooterNewSection({ data = {}, shape: shapeIn, block, iconTable = {}, locale = defaultLocale, homeHref = '/' }: Props) {
+  const opts = data.options || {};
+  const { knobs, preset, shape } = resolveKnobs(shapeIn, opts);
+  const { layout, cta: ctaKind } = knobs;
+  const brandSide = knobs.brand;
+  // §文件头：`stacked` 下 brand 一处都不生效 —— 下面所有「翻不翻」都只读这一个变量。
+  const reverse = brandSide === 'right' && layout !== 'stacked';
+  const bg = data.bg;
+  const tone = toneForBg(bg);
+  const dark = tone !== 'light';
+  const bgValue = bgCss(bg);
+  const bgStyle = bgValue ? { background: bgValue } : undefined;
+  // 主色底上主色按钮看不见 ⟹ 翻成浅色（hero 同一条：「`brand` 时主按钮翻成白底主色字」）。
+  const onBrand = tone === 'brand';
+  const list = <T,>(v: T[] | undefined): T[] => (Array.isArray(v) ? v.filter(Boolean) : []);
+  const nav = list(data.nav);
+  const social = list(data.social);
+  const legal = list(data.legal);
+  const contact = data.contact || {};
+  const brand = data.brandName || '';
+  const copyright = data.copyright || `© ${new Date().getFullYear()} ${brand}`;
+  const cta = ctaKind !== 'none' && data.cta && data.cta.title ? data.cta : null;
+  const formMode = knobs.form === 'teaser' || knobs.form === 'full' ? knobs.form : null;
+  const formId = data.form && typeof data.form.id === 'string' && data.form.id ? data.form.id : undefined;
+
+  const linkTone = dark ? 'link-light' : 'link-secondary';
+  // 深底上的小字（说明 / 联系 / 版权）不用灰：白 .92（`block.css` §ftr-muted-on-dark；图册 2026-09-28 实测
+  // 紫→金渐变上 .5 / .7 的灰字看不清）。
+  const mutedTone = dark ? 'ftr-muted-on-dark' : 'text-body-secondary';
+  const headTone = dark ? 'text-white' : 'text-heading';
+  // 深底的分隔线：`border-secondary` 在 Webpixels 里是紫色，深底上画出来是一道紫线 —— 用半透明白。
+  const lineTone = dark ? 'border-white border-opacity-10' : '';
+  // 主容器的 reverse（§文件头）：≥768 反向，<768 反序叠 —— 首项 / 品牌列在最下。
+  const mainReverse = reverse ? 'flex-column-reverse flex-md-row-reverse' : 'flex-column flex-md-row';
+
+  // ── 部件 ──────────────────────────────────────────────────────────────────────────────────────
+  // `wrap`：只有 `columns` 传 true（#1524）。品牌列在 768 起是 `col-md-4`（768 宽 ~256px），`text-nowrap` 的长店名
+  // 按构造画出列外；`brand=right` 时列是 `align-items-end`，画出去的方向是屏幕右边 ⟹ 整页横向滚动（768 / 800 / 820
+  // 实测 scrollWidth 793 / 815 / 828）。放开之后只在放不下时才折行，放得下的宽度上一个像素都不变。
+  const brandMark = (big = false, wrap = false) => (
+    // `flex-shrink-0`：row 一行里它是 flex 项，被挤的时候盒子缩、`text-nowrap` 的店名照样画出去，
+    // 压到旁边的链接上（820 实测：reverse 时一直画到页脚外面）。
+    <SiteLink className={`d-inline-flex flex-shrink-0 align-items-center gap-2 text-decoration-none ${headTone}`} href={homeHref} data-footer-part="brand">
+      {data.logo ? <img src={data.logo} alt="" className="h-rem-8 w-auto" /> : null}
+      <span className={`fw-semibold ${big ? 'fs-4' : 'fs-5'} ${wrap ? '' : 'text-nowrap'}`}>{brand}</span>
+    </SiteLink>
   );
 
-  const shape = variantOverride || regions.footer.shape;
-  const footerBlock = { type: 'footer', shape, role: 'essential' } as unknown as BlockConfig;
+  const tagline = (extra = '') => (data.tagline
+    ? <p className={`${mutedTone} mb-0 mw-sm ${extra}`}>{data.tagline}</p>
+    : null);
 
-  const serviceHref = (id: string) =>
-    localizeHref(serviceDetailSlugs.has(id) ? `/services/${id}` : `/services#${id}`, locale);
+  const linkRow = (items: FooterLink[], extra = '') => (items.length ? (
+    <ul className={`list-unstyled d-flex flex-wrap column-gap-6 row-gap-2 mb-0 ${reverse ? 'flex-row-reverse' : ''} ${extra}`}>
+      {items.map((l, i) => (
+        <li key={i}><SiteLink className={`${linkTone} text-decoration-none`} href={l.href}>{l.label}</SiteLink></li>
+      ))}
+    </ul>
+  ) : null);
+
+  const socialIcons = (extra = '') => (social.length ? (
+    <div className={`d-flex flex-shrink-0 align-items-center gap-4 ${reverse ? 'flex-row-reverse' : ''} ${extra}`}>
+      {social.map((s, i) => (
+        <SiteLink key={i} href={s.href} className={`${linkTone} fs-5`} aria-label={s.label}>
+          <InlineIcon name={s.icon && iconTable[s.icon] ? s.icon : 'link-45deg'} icons={iconTable} />
+        </SiteLink>
+      ))}
+    </div>
+  ) : null);
+
+  // 联系信息：每个字段可空、空的不渲染（没有空图标、没有空行）。
+  const contactItems = [
+    contact.phone ? { key: 'phone', icon: 'telephone', text: contact.phone, href: telHref(contact.phone) } : null,
+    contact.address ? { key: 'address', icon: 'geo-alt', text: contact.address } : null,
+    contact.hours ? { key: 'hours', icon: 'clock', text: contact.hours } : null,
+    contact.email ? { key: 'email', icon: 'envelope', text: contact.email, href: mailtoHref(contact.email) } : null,
+  ].filter((c): c is { key: string; icon: string; text: string; href?: string } => !!c);
+
+  // `stacked`：竖着一条一行（`columns` 品牌列里那份）。🔴 竖排时不叠 `flex-row-reverse` —— 它跟
+  // `flex-column` 都是带 `!important` 的同级工具类，谁赢看样式表里的先后，不看 markup。
+  const contactLine = (keys: string[], extra = '', stacked = false) => {
+    const items = contactItems.filter((c) => keys.includes(c.key));
+    if (!items.length) return null;
+    const dir = stacked ? `flex-column ${reverse ? 'align-items-end' : ''}` : `flex-wrap ${reverse ? 'flex-row-reverse' : ''}`;
+    return (
+      <div className={`d-flex column-gap-6 row-gap-2 ${mutedTone} ${dir} ${extra}`} data-footer-part="contact">
+        {items.map((c) => (
+          <span key={c.key} className="d-inline-flex align-items-center gap-2">
+            <InlineIcon name={c.icon} icons={iconTable} />
+            {c.href ? <SiteLink className={`${linkTone} text-decoration-none`} href={c.href}>{c.text}</SiteLink> : c.text}
+          </span>
+        ))}
+      </div>
+    );
+  };
+
+  // 表单部件：`layout=stacked` 在联系一行下、`layout=columns` 在品牌列下、`layout=row` 不渲染；旋钮 `form=none` 不渲染。
+  //    `teaser` 沿用 #1464 `inline` 的画法（一个字段 + 按钮一行），`full` 沿用 `stacked`（整张）。
+  const formPart = (extra = '') => (formMode ? (
+    <div className={`w-100 mw-sm ${extra}`} data-footer-form={formMode}>
+      <BlockLeadForm mode={formMode} formId={formId} services={servicesFor(locale)} locale={locale} idPrefix="ftr" size="sm" tone={tone} />
+    </div>
+  ) : null);
+
+  // ── CTA 条（旋钮 `cta`，顶上，三选一或没有）──────────────────────────────────────────────────────
+  //    三种与下面内容之间都是 `mb-16`（间距照 Webpixels footer-4 的尺度，票正文）。
+  const ctaButtons = (onDark: boolean, large: boolean, extra = '', solidLight = false) => (
+    <div className={`d-flex flex-column flex-sm-row gap-2 ${extra}`}>
+      {list(cta?.buttons).map((b, i) => (
+        <SiteLink key={i} href={b.href} className={`${btnClass(b.style, onDark, large, solidLight)} text-nowrap`}>{b.label}</SiteLink>
+      ))}
+    </div>
+  );
+  const ctaCopy = (onDark: boolean) => (
+    <div>
+      <h2 className={`h4 fw-bold mb-1 ${onDark ? 'text-white' : headTone}`}>{cta?.title}</h2>
+      {/* boxed 那个深盒子在浅底页脚上照旧 .5（#1464 的样子）；页脚本身是深底时跟别处小字一样白 .92。 */}
+      {cta?.subtitle ? <p className={`mb-0 ${onDark ? (dark ? 'ftr-muted-on-dark' : 'text-white-50') : mutedTone}`}>{cta.subtitle}</p> : null}
+    </div>
+  );
+  const ctaRowDir = `d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-4 ${reverse ? 'flex-md-row-reverse' : ''}`;
+
+  const ctaStrip = () => {
+    if (!cta) return null;
+    if (ctaKind === 'centered') {
+      return (
+        <div className={`border-bottom ${lineTone} py-10 mb-16 text-center`} data-footer-cta="centered">
+          <h2 className={`display-6 fw-bold mb-2 ${headTone}`}>{cta.title}</h2>
+          {cta.subtitle ? <p className={`fs-5 mb-4 mx-auto mw-lg ${mutedTone}`}>{cta.subtitle}</p> : null}
+          {ctaButtons(dark, true, 'justify-content-center', onBrand)}
+        </div>
+      );
+    }
+    if (ctaKind === 'boxed') {
+      // 深色圆角盒子：页脚本身是深底（`bg` 深色 / `brand`）时换成比底色浅一档（半透明白叠在底色上 ——
+      // 任何深底、包括主色底都成立），否则深盒子融进深底看不出来。
+      return (
+        <div className={`rounded-3 ${dark ? 'bg-white bg-opacity-10' : 'bg-dark'} text-white px-6 px-md-10 py-8 mb-16 ${ctaRowDir}`} data-footer-cta="boxed">
+          {ctaCopy(true)}
+          {ctaButtons(true, false, 'flex-shrink-0', !dark || onBrand)}
+        </div>
+      );
+    }
+    return (
+      <div className={`border-bottom ${lineTone} pb-10 mb-16 ${ctaRowDir}`} data-footer-cta="inline">
+        {ctaCopy(false)}
+        {ctaButtons(dark, false, 'flex-shrink-0', onBrand)}
+      </div>
+    );
+  };
+
+  // ── 主体（按 layout）───────────────────────────────────────────────────────────────────────────
+  const rowBody = () => (
+    <div className={`d-flex ${mainReverse} align-items-md-center justify-content-between gap-6`} data-footer-main="">
+      {brandMark()}
+      <nav className="ftr-nav" aria-label="Footer">{linkRow(nav)}</nav>
+      {socialIcons()}
+    </div>
+  );
+
+  // T2.2 的 centered + minimal 合成这一个（Chris 2026-09-27，只留居中一种）。间距照 Webpixels footer-4：
+  // 各段 `mb-8`，菜单 `fs-5`，版权 `text-sm text-muted`。竖排、居中 ⟹ reverse 没有意义，不翻主容器。
+  const stackedBody = () => (
+    <div className="d-flex flex-column align-items-center text-center" data-footer-main="">
+      <div className="mb-6">{brandMark(true)}</div>
+      {tagline('mx-auto mb-8')}
+      {nav.length ? <nav className="mb-8" aria-label="Footer">{linkRow(nav, 'justify-content-center fs-5')}</nav> : null}
+      {socialIcons('justify-content-center mb-8')}
+      {contactLine(['phone', 'address', 'hours'], 'justify-content-center text-sm mb-8')}
+      {formPart('mx-auto mb-8 text-start')}
+    </div>
+  );
+
+  const services = list(data.columns?.services);
+  const areas = list(data.columns?.areas);
+  const showContactCol = data.columns?.contact === true && contactItems.length > 0;
+  const linkCol = (key: string, title: string, items: FooterLink[]) => (
+    <div className="col-6 col-lg" key={key} data-footer-col={key}>
+      <div className={`fw-semibold mb-3 ${headTone}`}>{title}</div>
+      <ul className="list-unstyled vstack gap-2 mb-0">
+        {items.map((l, i) => (
+          <li key={i}><SiteLink className={`${linkTone} text-decoration-none`} href={l.href}>{l.label}</SiteLink></li>
+        ))}
+      </ul>
+    </div>
+  );
+  // `.row` 上的方向工具类同样带 `!important`，所以反向直接用工具类（§mainReverse），不另写规则。
+  const columnsBody = () => (
+    <div className={`row gy-10 ${reverse ? mainReverse : ''}`} data-footer-main="">
+      <div className={`col-12 col-md-4 d-flex flex-column gap-4 ${reverse ? 'align-items-end text-end' : 'align-items-start'}`} data-footer-col="brand">
+        {brandMark(false, true)}
+        {tagline()}
+        {/* 联系信息每个排布都在（本地 SEO 资产）：联系列不出（`columns.contact` 不是 true）时，
+            电话 / 地址 / 营业时间挂到品牌列里，不让这个排布整个没有联系方式。 */}
+        {showContactCol ? null : contactLine(['phone', 'address', 'hours'], '', true)}
+        {socialIcons()}
+        {formPart('text-start')}
+      </div>
+      <div className="col-12 col-md-8">
+        <div className="row gy-8">
+          {services.length ? linkCol('services', COLUMN_TITLES.services, services) : null}
+          {areas.length ? linkCol('areas', COLUMN_TITLES.areas, areas) : null}
+          {nav.length ? linkCol('pages', COLUMN_TITLES.pages, nav) : null}
+          {showContactCol ? (
+            <div className="col-6 col-lg" data-footer-col="contact">
+              <div className={`fw-semibold mb-3 ${headTone}`}>{COLUMN_TITLES.contact}</div>
+              <ul className={`list-unstyled vstack gap-2 mb-0 ${mutedTone}`}>
+                {contactItems.map((c) => (
+                  <li key={c.key} className="d-flex gap-2">
+                    <InlineIcon name={c.icon} icons={iconTable} />
+                    {c.href ? <SiteLink className={`${linkTone} text-decoration-none`} href={c.href}>{c.text}</SiteLink> : <span>{c.text}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+
+  // ── 底栏 ──────────────────────────────────────────────────────────────────────────────────────
+  const bottomBar = () => {
+    if (layout === 'stacked') {
+      return (
+        <div className={`d-flex flex-column flex-md-row justify-content-center align-items-center gap-2 column-gap-md-6 text-sm ${mutedTone}`}>
+          <span>{copyright}</span>
+          {linkRow(legal, 'justify-content-center')}
+        </div>
+      );
+    }
+    // row 左边电话 + 城市；columns 左边只有版权。右边版权 / 法务。
+    const city = cityOf(contact.address);
+    const left = layout === 'row'
+      ? (contact.phone || city ? (
+        <div className={`d-flex flex-wrap column-gap-4 row-gap-1 ${reverse ? 'flex-row-reverse' : ''}`}>
+          {contact.phone ? (
+            <a /* #1508：tel: 不受 basePath 影响，保持裸 <a> */ className={`${linkTone} text-decoration-none d-inline-flex align-items-center gap-2`} href={telHref(contact.phone)}>
+              <InlineIcon name="telephone" icons={iconTable} />{contact.phone}
+            </a>
+          ) : null}
+          {city ? <span className="d-inline-flex align-items-center gap-2"><InlineIcon name="geo-alt" icons={iconTable} />{city}</span> : null}
+        </div>
+      ) : null)
+      // columns + brand=right（#1524）：<768 竖排时法务那一行自己翻到右边（`linkRow` 不带断点的 `flex-row-reverse`），
+      // 版权是被拉满整行的块、文字照默认靠左 ⟹ 两行分家。推到右边跟法务、跟品牌列（`align-items-end`）一致；
+      // ≥768 它是一行里按内容宽的 flex 项，`text-md-start` 退回原样。
+      : <span className={reverse ? 'text-end text-md-start' : undefined}>{copyright}</span>;
+    const right = layout === 'row'
+      ? (
+        <div className={`d-flex flex-wrap align-items-center column-gap-6 row-gap-1 ${reverse ? 'flex-row-reverse' : ''}`}>
+          <span>{copyright}</span>
+          {linkRow(legal)}
+        </div>
+      )
+      : linkRow(legal);
+    // 根容器跟主容器同一条规矩（§文件头）：≥768 反向，<768 反序叠 —— 桌面在左的那个，小屏在上（#1525）。
+    return (
+      <div className={`border-top ${lineTone} mt-10 pt-6 d-flex ${mainReverse} justify-content-between gap-3 text-sm ${mutedTone}`} data-footer-bottom="">
+        {left}
+        {right}
+      </div>
+    );
+  };
+
+  const body = layout === 'stacked' ? stackedBody() : layout === 'columns' ? columnsBody() : rowBody();
+
+  const footerBlock = { ...(block || {}), type: 'footer', shape } as BlockConfig;
+  const rootClass = [
+    // 填了 `bg` 就不挂 `bg-body`：Webpixels 的背景工具类带 `!important`，会压过下面 style 上的底色。
+    bgStyle ? (dark ? 'text-white' : '') : 'bg-body',
+    'border-top',
+    lineTone,
+    `ftr-layout-${layout}`,
+    `ftr-cta-${ctaKind}`,
+    reverse ? 'ftr-reverse' : '',
+  ].filter(Boolean).join(' ');
 
   return (
-    <footer {...blockAttrs('footer', footerBlock)} className="footer">
-      {/* 强调色 CTA 色带。`cta-band` 之外的形态把它关掉。 */}
-      <div className="footer__cta" data-role="optional">
-        <div>
-          <p className="footer__cta-title">{getBrandName(locale)}</p>
-          <p className="footer__cta-sub">{footer.description}</p>
-        </div>
-        <Link href={localizeHref(getNavigation(locale).header.cta.href, locale)} className="footer__cta-link">
-          {getNavigation(locale).header.cta.label}
-        </Link>
-      </div>
-
-      <div className="footer__body">
-        <div className="footer__brand" data-role="optional">
-          <div className="footer__brand-id">
-            {brand.logoUrl ? (
-              // TICKET-192: 白底药丸把 logo 托起来 —— 深色页脚上，logo 自己的颜色和透明通道都不可靠。
-              // 修之前那套 brightness+invert 滤镜假定 logo 背景透明，而 AI 生成的 PNG（提示词强制
-              // "pure white background"）和用户上传的 JPG 都不是，整个包围盒被刷成纯白。
-              <span className="footer__logo-pill">
-                <img src={brand.logoUrl} alt={getBrandName(locale)} className="footer__logo-img" />
-              </span>
-            ) : (
-              <span className="footer__logo-mark">
-                <ServiceIcon icon={brand.logoIcon} className="footer__logo-icon" />
-              </span>
-            )}
-            {/* TICKET-159: icon-only logo 或干脆没有 logo 时补一行公司名；用户自传的认为自带字标。 */}
-            {(!brand.logoUrl || !brand.logoHasWordmark) && (
-              <span className="footer__logo-name">{getBrandName(locale)}</span>
-            )}
-          </div>
-          <p className="footer__desc">{footer.description}</p>
-          {links.length > 0 && (
-            <div className="footer__social">
-              {links.map(([platform, url]) => {
-                const info = socialIcons[platform];
-                return (
-                  <SiteLink /* #1508 r2：社交链接是老板填的，同 footer-new 按值判 */
-                    key={platform}
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={info?.label || platform}
-                    className="footer__social-link"
-                  >
-                    {info?.icon || <span className="footer__social-fallback">{platform[0]}</span>}
-                  </SiteLink>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* 🔴 三栏都是 `data-role="optional"`，而且这不是为了让哪把尺闭嘴：**哪几栏上场由形态说了算**，
-            改造前就是这样 —— `cta-band` 那一支不画导航栏目、`slim-row` 那一支不画栏目标题也不画地址。
-            搬成一副骨架之后它们改成「在 DOM 里、由 `shapes.css` 关掉」，而访客看到的一模一样
-            （AC1 的包围盒逐项对比证的就是这件事）。这个属性是 markup 自己说「这一块可以不在」的地方
-            （`blockAttrs.ts`，#1331），`theme-css-invariants.mjs` 的 §3 读它。 */}
-        {/* 🔴 这一栏是 `<nav>`，不是 `<div>`（#1353 r5，QA3 第 1 条 / PM 判在射程内）：改造之前
-            `slim-row` 那一支把这些链接包在一个 `<nav>` 里，而搬成一副骨架时它变成了 `div` ——
-            于是**页脚的 navigation 地标整个没了**，而池里 azure-29 正穿着 slim-row。
-            🔴 换标签不动几何，这一条是量出来的不是推的：`public/shapes.css` 与 `globals.css` 里
-            **按标签名选 `div` / `nav` 的规则是 0 条**（现取），页脚这一层全按类名选；两者的 UA
-            默认样式又都是 `display: block`。AC1 那两把尺（包围盒 + 逐像素）的读数贴在交接留言里。
-            🔴 **只换标签，不给它 `aria-label={column.title}`** —— 试过，两处都不行，理由是量出来的：
-            ① 那会让 `column.title` 在组件里有**两个**渲染点，而 `navigation-owned.test.js` 的 ⑫ 阳性
-               对照①正是「只删掉 `<h3>` 里那一处，解析器就得说组件不再画它」—— 加了之后那一格当场红，
-               而红得对：组件确实还在画它。
-            ② 更要紧的是语义：`slim-row` 把 `.footer__col-title` 关掉了，而 `PAGE_READS` 里
-               `footer.columns[].title` 那一格据此告诉老板「你这个站不显示栏目标题」。给 `<nav>` 起个
-               用标题当名字的名，等于让它在那一种形态下又被读屏念出来 —— 那句话就变成半真的。
-            📌 代价写在明处：多栏页脚会出现几个**没有名字**的 navigation 地标。改造之前是 0 个
-            （只有 slim-row 有一个，同样没有名字），所以这不是回归；要给它们起名是另一件事，
-            得先想清楚名字从哪来（不能是这个字段）。 */}
-        {footer.columns.map((column) => (
-          <nav key={column.title} className="footer__col--nav" data-role="optional">
-            <h3 className="footer__col-title">{column.title}</h3>
-            <ul className="footer__list">
-              {column.links.map((link) => (
-                <li key={link.href} className="footer__item">
-                  <Link href={localizeHref(link.href, locale)} className="footer__link">{link.label}</Link>
-                </li>
-              ))}
-            </ul>
-          </nav>
-        ))}
-
-        <div className="footer__col--services" data-role="optional">
-          <h3 className="footer__col-title">{labels.services}</h3>
-          <ul className="footer__list">
-            {services.slice(0, 6).map((service) => (
-              <li key={service.id} className="footer__item">
-                <Link href={serviceHref(service.id)} className="footer__link">{service.name}</Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="footer__col--contact" data-role="optional">
-          <h3 className="footer__col-title">{labels.contact}</h3>
-          <ul className="footer__list footer__list--contact">
-            {brand.locations.map((location) => (
-              <li key={location.label} className="footer__item footer__item--location">
-                <strong className="footer__loc-label">{location.label}</strong>
-                <br />{location.address}
-                <br />{location.phone}
-              </li>
-            ))}
-            {/* 🔴 邮箱是这张表的**最后一项**，改造前也是（`<li>` 在同一个 `space-y-3` 的 `<ul>` 里）。
-                第一版把它挪成了那张表的兄弟，理由是 `slim-row` 要把它摆进那一行而 `display: contents`
-                只摊平直接子元素 —— 那个理由不成立：`contents` 可以一层一层往下摊（栏 → 表 → 项），
-                而挪出去的代价是量得出来的：它不再吃那张表的 0.75rem 行距，多列大脚里整整上移 9px，
-                补一道上边距又要 `inline-block`，盒子高度从 17 变成 20。**留在原位是唯一两边都对的写法。**
-                地址那几项带自己的修饰类，好让 `slim-row` 只关掉它们、留下这一项。 */}
-            <li className="footer__item footer__item--email">
-              <a /* #1508：mailto: 不受 basePath 影响，保持裸 <a> */ href={`mailto:${brand.email}`} className="footer__email">{brand.email}</a>
-            </li>
-          </ul>
-        </div>
-      </div>
-
-      {/* 🔴 那条分隔线画在**里面**这个 `<p>` 上，不在 `.footer__legal` 上（#1353 r3）：改造前它是
-          容器里的一个 `border-t` 的 div，线的宽度 = 容器内容宽（1280 宽下 1216px）。`.footer__legal`
-          今天是整幅宽、左右留白靠自己的 `padding`，线画在它身上就会顶到屏幕两边 —— QA2 在真机上量到
-          的正是这一处（两端各多出 32px）。`<p>` 填满内容盒，线因此回到 1216px。 */}
-      <div className="footer__legal" data-role="essential">
-        <p className="footer__copyright">&copy; {currentYear} {footer.copyright}</p>
+    <footer {...blockAttrs('footer', footerBlock)} data-bs-theme={bsThemeForBg(bg)} className={rootClass} data-preset={preset} style={bgStyle}>
+      <div className={`container-lg ${layout === 'stacked' ? 'py-16 py-lg-20' : 'py-12'}`}>
+        {ctaStrip()}
+        {body}
+        {bottomBar()}
       </div>
     </footer>
   );

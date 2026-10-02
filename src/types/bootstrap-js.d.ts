@@ -1,6 +1,6 @@
 // #1495 / #1514 —— Bootstrap 5 的单个 JS 模块（`bootstrap/js/dist/<名>.js`）没有自带类型。这里只声明本仓用到的最小面：
-// `src/components/BootstrapJs.tsx` 只按需 `import()` 它们（导入即注册 data-api），偶尔要拿实例（gallery-new 的 Lightbox 调
-// Carousel.to，header-new 的 Esc 调 Collapse.hide）。dropdown / offcanvas / tooltip 今天只是开了口子，没有块拿实例。
+// `src/components/BootstrapJs.tsx` 只按需 `import()` 它们（导入即注册 data-api），偶尔要拿实例（gallery 的 Lightbox 调
+// Carousel.to，header 的 Esc 调 Collapse.hide）。dropdown / offcanvas / tooltip 今天只是开了口子，没有块拿实例。
 declare module 'bootstrap/js/dist/modal' {
   const Modal: { getInstance(el: Element): { hide(): void } | null; getOrCreateInstance(el: Element): { show(relatedTarget?: Element): void; hide(): void } };
   export default Modal;

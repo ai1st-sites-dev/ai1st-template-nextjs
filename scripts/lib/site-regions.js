@@ -7,7 +7,6 @@
  *   const r = resolveSiteRegions(siteDir);
  *   r.regions.footer.shape  // 主题给的页脚形态（#1353 起是形态名，跟别的 32 个块同一套词）
  *   r.footerVariants        // 这个站【真的渲染出来】的那几个页脚，按区的顺序
- *   r.hasTopbarRegion       // 这个站的页面上有没有那条顶部横带
  *
  * ── 为什么单开一个文件 ──────────────────────────────────────────────────────────────────────────
  * 这一问原来只有构建自己在答（`sync-config.js` 里那两个读 `theme.json` 的函数）。#1104 之后
@@ -171,18 +170,11 @@ function footerVariantsFor(siteDir) {
     .map((r) => variants[r] || siteRegions.footer.shape);
 }
 
-/** 这个站的页面上有没有那条顶部横带（`with-topbar` 那种布局才有）。 */
-function hasTopbarRegion(siteDir) {
-  const picked = pageLayoutLib.resolveSiteLayout(siteDir);
-  return pageLayoutLib.needsTopbar(picked.layout);
-}
-
 /** 门那一侧要的两句话（`edit-site.js` 递给 `writeNotes`）。 */
 function resolveSiteRegions(siteDir) {
   return {
     ...resolveSiteRegionLayout(siteDir),
     footerVariants: footerVariantsFor(siteDir),
-    hasTopbarRegion: hasTopbarRegion(siteDir),
   };
 }
 
@@ -191,6 +183,5 @@ module.exports = {
   readStructureThemeId,
   resolveSiteRegionLayout,
   footerVariantsFor,
-  hasTopbarRegion,
   resolveSiteRegions,
 };

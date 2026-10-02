@@ -6,7 +6,7 @@
  * 退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
  *
  * 验收 3「编辑器那一次」就是这里：工具栏拧旋钮时调的是 `normalizeKnobs(…, { changed })`，跟 Section 渲染时
- * 同一个函数（Section 那一次在 `scripts/header-new-render.test.js` ③）。数据全从真 manifest 读。
+ * 同一个函数（Section 那一次在 `scripts/header-render.test.js` ③）。数据全从真 manifest 读。
  * #1468：logo 三档、menu 的 right 改叫 beside、topbar 从旋钮变成归预设管的布尔（验收 2 / 6 在这里）。
  */
 
@@ -24,12 +24,12 @@ const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 let h; let m;
 try {
   h = require('./header-knobs.js');
-  m = require(path.join(__dirname, '..', '..', 'blocks', 'header-new', 'manifest.json'));
+  m = require(path.join(__dirname, '..', '..', 'blocks', 'header', 'manifest.json'));
 } catch (e) { die(e.message); }
 const knobs = h.knobsOf(m);
 const presets = h.presetsOf(m);
 const coupling = h.couplingOf(m);
-if (!knobs.length || !presets.length) die('header-new 的 manifest 里读不到旋钮或预设 —— 分母塌了');
+if (!knobs.length || !presets.length) die('header 的 manifest 里读不到旋钮或预设 —— 分母塌了');
 const ctx = { knobs, presets, coupling };
 
 console.log('① 从 manifest 读出来的东西');
@@ -115,7 +115,7 @@ console.log('\n④ manifest 声明校验（block-knobs.js §knobDeclarationProbl
 {
   const fs = require('fs');
   const bk = require('./block-knobs.js');
-  const dir = path.join(__dirname, '..', '..', 'blocks', 'header-new');
+  const dir = path.join(__dirname, '..', '..', 'blocks', 'header');
   const withShapes = (mm) => ({ ...mm, shapes: fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => ({ name: e.name })) });
   const clone = (v) => JSON.parse(JSON.stringify(v));
   check(eq(bk.knobDeclarationProblems(withShapes(m)), []), '真 manifest ⟹ 空数组');

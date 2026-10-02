@@ -11,21 +11,21 @@
 // 🔴 **两张表都住在这个文件顶上，别处不许再写一份**：
 //    · `SOURCES`     有哪些源、每个源带什么参数、展开成什么（「每一条怎么对应」只写在这里，跟着源走、不跟着块走：
 //                    以后别的块接同一个源，拿到的是同一套说法）。
-//    · `BLOCK_SLOTS` 哪个块的哪个槽接哪几个源。今天只有 `features-new.items`；别的块要接，在这里登记一行。
+//    · `BLOCK_SLOTS` 哪个块的哪个槽接哪几个源。今天只有 `features.items`；别的块要接，在这里登记一行。
 //    校验（`block-manifest.js` §validateSite）、构建兜底（`scripts/blocks.js` §normalizeListSlots）、提示词
 //    （§dataLineFor）、编辑器（`editor-convert.js`）、sitemap 依赖（`page-deps.js`）读的都是这两张表。
 //    #1506 加了 phone / email / address / brand / social 五个源（联系方式：值住在 `brand.json`，`ctx.brand` 带进来），
 //    和另外两类位置 —— 表也住在这个文件顶上：
-//    · `ITEM_SLOTS`    哪个块的哪份列表里**每一项**可以整项写成引用（`header-new.topbar.contact[]`）。
+//    · `ITEM_SLOTS`    哪个块的哪份列表里**每一项**可以整项写成引用（`header.topbar.contact[]`）。
 //    · 按钮            **不登记**：任何块里「有 `label` 又有 `href` 的对象」都认（§resolveButtons，按形状认、不按块名），
 //                      `href` 接 `BUTTON_SOURCES`，`label` 里认 `LABEL_PLACEHOLDERS`。新块不用登记就能用。
-//    `footer-new.contact` / `footer-new.social` 是整槽换值，跟 `features-new.items` 同一回事，所以登记在 `BLOCK_SLOTS`。
-//    🔴 电话 → `tel:`、邮箱 → `mailto:` 只用 `contact-facts.js` 那两个函数（contact-new / footer-new 也用它们）。
+//    `footer.contact` / `footer.social` 是整槽换值，跟 `features.items` 同一回事，所以登记在 `BLOCK_SLOTS`。
+//    🔴 电话 → `tel:`、邮箱 → `mailto:` 只用 `contact-facts.js` 那两个函数（contact / footer 也用它们）。
 //
 // 🔴 **纯函数**：不读文件、不读 `@/lib/config`。站点数据和「slug → 链接」由调用方传进来（`ctx`）——
 //    真站的调用方是 `src/lib/sections/item-sources.ts` §itemSourceContext，单格页传演示生意那一份，测试传夹具。
 //
-// 🔴 **展开过的块带一个标记**：`data._sourced = { <槽>: <源名> }`。`features-new/Section.tsx` 据它
+// 🔴 **展开过的块带一个标记**：`data._sourced = { <槽>: <源名> }`。`features/Section.tsx` 据它
 //    ① 不按 `maxItems` 截（引用写法有几条出几条，`maxItems` 只管 AI 手写的那种）② 展开出 0 条时整块不画
 //    ③ 根元素挂 `data-items-source`。标记只活在内存里，不写进任何文件（编辑器「改成手写」写回的是条目数组）。
 
@@ -78,7 +78,7 @@ function contactFact(kind, ref, ctx) {
 
 // 社交平台名 → 显示名（无障碍标签用）。不在表里的按首字母大写。图标按平台名取 Bootstrap Icons 同名的那一个
 // （`facebook` / `instagram` / `google` / `yelp` / `linkedin` / `whatsapp` / `tiktok` / `youtube` 都在 1.13.1 里）；
-// 查不到的由 footer-new 自己落回 `link-45deg`（它今天的兜底，`icons.js` §BLOCK_ICONS 带着这个名字）。
+// 查不到的由 footer 自己落回 `link-45deg`（它今天的兜底，`icons.js` §BLOCK_ICONS 带着这个名字）。
 const SOCIAL_LABELS = { linkedin: 'LinkedIn', tiktok: 'TikTok', youtube: 'YouTube', whatsapp: 'WhatsApp', twitter: 'X', x: 'X' };
 
 /** `brand.socialLinks` 的两种存法（数组 `[{platform, url}]` / 对象 `{platform: url}`，config.ts）→ `[[platform, url]]`。 */
@@ -148,7 +148,7 @@ const SOURCES = {
     prompt: '{source: "address"}',
     fact: (ref, ctx) => contactFact('address', ref, ctx),
   },
-  // footer-new 的 `contact`：`{phone, email, address}`，取 `locations[location]` 和 `email`。没有的那一样不带（页脚空的不画）；
+  // footer 的 `contact`：`{phone, email, address}`，取 `locations[location]` 和 `email`。没有的那一样不带（页脚空的不画）；
   // 写了 `location` 而那一家不存在 ⟹ 空对象（整段联系信息不画）；没写 `location` 而一家门店都没有 ⟹ 只剩 `email`（#1520）。
   brand: {
     params: { location: INDEX },
@@ -162,7 +162,7 @@ const SOURCES = {
       return out;
     },
   },
-  // footer-new 的 `social`：`brand.socialLinks` → `[{label, href, icon}]`，顺序同存的那一份；没有网址的那一条不带。
+  // footer 的 `social`：`brand.socialLinks` → `[{label, href, icon}]`，顺序同存的那一份；没有网址的那一条不带。
   social: {
     params: {},
     prompt: '{source: "social"}',
@@ -179,13 +179,13 @@ const SOURCES = {
 
 /** 哪个块的哪个槽接哪几个源（整槽写成引用，展开后整槽换掉）。 */
 const BLOCK_SLOTS = {
-  'features-new': { items: ['services', 'pages'] },
-  'footer-new': { contact: ['brand'], social: ['social'] },
+  'features': { items: ['services', 'pages'] },
+  'footer': { contact: ['brand'], social: ['social'] },
 };
 
 /** #1506 —— 哪个块的哪份列表里**每一项**可以整项写成引用（路径用 `.` 分层）。展开成 `{icon, text, href?}`；值不存在的那一项去掉。 */
 const ITEM_SLOTS = {
-  'header-new': { 'topbar.contact': ['phone', 'email', 'address'] },
+  'header': { 'topbar.contact': ['phone', 'email', 'address'] },
 };
 
 /** #1506 —— 按钮（任何块里有 `label` 又有 `href` 的对象）的 `href` 能写成哪几个源；`label` 里认哪几个占位。 */
@@ -204,13 +204,13 @@ const BUTTON_REF_PROMPT = 'Phone and email buttons: never write the phone number
   + 'is built, so they stay right when the number changes. Do not write phone numbers in body text either.';
 
 /**
- * #1506 —— 页头顶条 / 页脚里那三个位置怎么写引用（`header-new` / `footer-new` 还没进提示词：它们是 staging 外壳块，
+ * #1506 —— 页头顶条 / 页脚里那三个位置怎么写引用（`header` / `footer` 还没进提示词：它们是 staging 外壳块，
  * 加 `prompt` 就进了建站菜单）。T3（#1425）接线、它们进提示词时印这几句。
  */
 const REGION_REF_PROMPTS = {
-  'header-new': 'topbar.contact: each item may be {"source": "phone"} / {"source": "email"} / {"source": "address"} '
+  'header': 'topbar.contact: each item may be {"source": "phone"} / {"source": "email"} / {"source": "address"} '
     + '(optional "location") instead of {icon, text, href} — it is filled in from brand.json.',
-  'footer-new': 'contact may be {"source": "brand"} (optional "location") and social may be {"source": "social"} '
+  'footer': 'contact may be {"source": "brand"} (optional "location") and social may be {"source": "social"} '
     + 'instead of writing them out — they are filled in from brand.json.',
 };
 

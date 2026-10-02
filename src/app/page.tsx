@@ -5,7 +5,7 @@ import type { Metadata } from 'next';
 import SiteShell from '@/components/SiteShell';
 import HomePage from '@/components/pages/HomePage';
 import { homeMetadata } from '@/lib/metadata';
-import { defaultLocale, getHomePage, pageStartsWithHero } from '@/lib/config';
+import { defaultLocale, getHomePage } from '@/lib/config';
 
 export async function generateMetadata(): Promise<Metadata> {
   return homeMetadata(defaultLocale);
@@ -13,9 +13,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function RootHomePage() {
   return (
-    // #960: 首页第一段是 hero 时,透明浮层顶栏压在它上面(其余顶栏结构不看这个参数)。
-    // 判断走 pageStartsWithHero —— 它跳过 #962 藏起来的 block,理由写在 config.ts 那里。
-    <SiteShell locale={defaultLocale} page={getHomePage(defaultLocale)?.slug} overHero={pageStartsWithHero(getHomePage(defaultLocale))}>
+    <SiteShell locale={defaultLocale} page={getHomePage(defaultLocale)?.slug}>
       <HomePage locale={defaultLocale} />
     </SiteShell>
   );

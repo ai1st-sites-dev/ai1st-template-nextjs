@@ -23,8 +23,9 @@ const { shapesOf, candidateShapeNames, REGION_BLOCK } = require('../region-layou
 const LAYOUTS_DIR = path.join(__dirname, '..', '..', 'page-layouts');
 const DEFAULT_LAYOUT_ID = 'standard';
 
-/** 区的四种「类」。区名是类本身（`footer`），或者类加后缀（`footer-a`）——后缀只用来区分同类的第几个。 */
-const REGION_KINDS = ['topbar', 'header', 'content', 'footer'];
+/** 区的三种「类」。区名是类本身（`footer`），或者类加后缀（`footer-a`）——后缀只用来区分同类的第几个。
+ *  📌 #1425（T3）：`topbar`（公告条那条外壳带）随旧库退役，它的继任是 header 的 `options.topbar`，不是一个区。 */
+const REGION_KINDS = ['header', 'content', 'footer'];
 /** 缺了它们，页面就不是一个页面：header/footer 是 D11，content 是页面自己的块。 */
 const REQUIRED_KINDS = ['header', 'content', 'footer'];
 
@@ -41,10 +42,10 @@ function variantsForKind(kind) {
  * 哪些区可以在一个布局里出现多次。
  *
  * 🔴 这张表说的不是「哪些区重复起来有意义」，而是**渲染器真的接了线的那些**（#1014）：
- * `SiteShell.tsx` 只给 footer 区传了 `variant`，header / topbar 重复几次都只会按主题那一个值画。
+ * `SiteShell.tsx` 只给 footer 区传了 `variant`，header 重复几次都只会按主题那一个值画。
  * 以前 schema 收下 `{"regions":["header-a","header-b",…]}` 并要求它们各自声明结构，而渲染出来两个
  * 一模一样 —— schema 答应的事没人兑现，且构建全绿。
- * 🔴 要让 header / topbar 也能重复，得先在 `SiteShell.tsx` 把 `variant` 传给它们，**再**把它加到这里。
+ * 🔴 要让 header 也能重复，得先在 `SiteShell.tsx` 把 `variant` 传给它们，**再**把它加到这里。
  * 只加这里等于把 #1014 那一格重新打开。
  */
 const REPEATABLE_KINDS = ['footer'];
@@ -83,7 +84,7 @@ function validateLayout(layout) {
   for (const r of regions) {
     const kind = kindOf(r);
     if (!kind) {
-      problems.push(`${where}: 区 "${r}" 不是这四类里的任何一类（${REGION_KINDS.join(' / ')}），`
+      problems.push(`${where}: 区 "${r}" 不是这几类里的任何一类（${REGION_KINDS.join(' / ')}），`
         + '渲染器不知道该拿什么画它');
       continue;
     }
@@ -201,11 +202,6 @@ function resolveSiteLayout(siteDir, dir) {
   return { layout, layoutId, explicit, problems };
 }
 
-/** 这个布局需要 navigation.json 里有 topbar 内容吗？—— 需要而没有，构建期拒绝（AC5 后半）。 */
-function needsTopbar(layout) {
-  return ((layout && layout.regions) || []).some((r) => kindOf(r) === 'topbar');
-}
-
 /**
  * #1405 —— 这个布局自己钉了页脚形态吗（`repeatVariants` 里有没有 footer 类的区）。
  *
@@ -228,7 +224,7 @@ function layoutPinsFooter(layout) {
  *    `SiteShell.tsx` 直传 `Footer` 渲染出来。
  *
  * 🔴 **落回的是「这个站那一类区已经解析出来的那个形态」，不是 manifest 的第 0 项。** 传进来的
- *    `regions` 是 `resolveRegionShapes` 的产物（`{header:{shape},footer:{shape},topbar:{shape}}`），
+ *    `regions` 是 `resolveRegionShapes` 的产物（`{header:{shape},footer:{shape}}`），
  *    它自己已经把候选挡掉了（`region-layout.js` §resolveRegionShapes），所以落回值按构造不是候选。
  *    取 manifest 第 0 项的话，一个把页脚设成 `cta-band` 的站会在这条路上突然掉回 `multi-column` ——
  *    那是一个没人要求过的、看得见的改动。
@@ -276,6 +272,5 @@ module.exports = {
   validateLayout,
   resolveSiteLayout,
   resolveRepeatVariants,
-  needsTopbar,
   layoutPinsFooter,
 };

@@ -113,7 +113,7 @@ const CATALOG_FIXTURE_PAGES: DynamicPageConfig[] = ['First', 'Second', 'Third'].
   blocks: [],
 }));
 
-// #1502 —— `page-header-new` 的面包屑按页面路径算（`src/lib/breadcrumbs.ts`），块自己不存。单格页拿下面这两页
+// #1502 —— `page-header` 的面包屑按页面路径算（`src/lib/breadcrumbs.ts`），块自己不存。单格页拿下面这两页
 //    当「正在看的是哪一页」：夹具页 `brake-repair/north-york` 的中间一级查 `services/brake-repair` —— 它在，所以三级
 //    都齐（Home → Brake Repair → 本页），跟真站一个服务下的关键词页同一种形状。挂在同一个 `CATALOG_LOCALE` 下，
 //    理由同上；`service-related-pages` 只筛 `sample-service/` 开头的，这两页它看不见。
@@ -128,7 +128,7 @@ export function registerCatalogFixturePages(): void {
   pagesByLocale[CATALOG_LOCALE] = [...CATALOG_FIXTURE_PAGES, ...CATALOG_PAGE_HEADER_PAGES];
 }
 
-// #1497 —— blog-new 只从站点博客读（`getBlogPosts(locale)`），块里不存文章；站里一篇都没有就整块不渲染。
+// #1497 —— blog 只从站点博客读（`getBlogPosts(locale)`），块里不存文章；站里一篇都没有就整块不渲染。
 //    图册同样不问这个站有没有博客，自己带一份：挂在同一个 `CATALOG_LOCALE` 键下，理由同上 —— `blogPostsByLocale`
 //    全仓的读都是按键取（`config.ts` §getBlogPosts），唯二两处遍历读的是 `locales` 数组（`config.ts:154` / `:156`），
 //    这个键按构造谁都看不见。夹具只有一份（`scripts/lib/demo-content` 的 DEMO_BLOG_POSTS，渲染单测也读它），

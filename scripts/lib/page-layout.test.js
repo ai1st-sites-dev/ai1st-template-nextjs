@@ -57,6 +57,8 @@ function mkTree(mutate) {
   for (const f of fs.readdirSync(path.join(NEXT, 'page-layouts'))) {
     fs.copyFileSync(path.join(NEXT, 'page-layouts', f), path.join(root, 'page-layouts', f));
   }
+  // #1425（T3）—— 合成布局也落进副本的布局库，跟当年 tri-footer 在库里的处境一致（validateLayout 不读盘，这只为同形）。
+  fs.writeFileSync(path.join(root, 'page-layouts', `${triFooter.id}.json`), JSON.stringify(triFooter, null, 2));
   if (mutate) mutate(root);
   // 🔴 只 disable `global-require` 这一条 —— `import/no-dynamic-require` 需要 eslint-plugin-import，
   //    而 `scripts/.eslintrc.json` 没装它 ⟹ 写在 disable 注释里会让 `npm run lint:scripts` 当场红。
@@ -72,21 +74,36 @@ const markCandidate = (root, block, names) => {
   }
 };
 
-// 盘上的真读数，夹具的前提都从这儿来（不写死，manifest / 布局改了这一格要跟着说话）。
-const triFooter = JSON.parse(fs.readFileSync(path.join(NEXT, 'page-layouts', 'tri-footer.json'), 'utf-8'));
 // #1387 —— 形态清单 = blocks/footer/ 下的子文件夹，顺序由 region-layout 自己那份读法定。
 const FOOTER_SHAPES = require(path.join(NEXT, 'scripts', 'region-layout.js')).shapesOf('footer');
+// 📌 #1425（T3）—— 原来读盘上的 `page-layouts/tri-footer.json`；它随公告条 / 旧页脚一起删了（布局库只剩
+//    `standard`）。而 `repeatVariants` 这条线今天仍接着（`SiteShell.tsx` 的 footer 支、`sync-config.js`
+//    §resolveRepeatVariants），所以改用一份**同形的合成布局**：三个 footer 区，各钉一种【今天】footer
+//    manifest 里真有的形态（不写死名字，从 FOOTER_SHAPES 取）。被测的落回性质一个字不变。
+const pickShape = (pref) => (FOOTER_SHAPES.includes(pref) ? pref : null);
+const triFooter = {
+  id: 'tri-footer-fixture',
+  description: '#1425（T3）合成：三支页脚，测 repeatVariants 的候选落回',
+  regions: ['header', 'content', 'footer-a', 'footer-b', 'footer-c'],
+  repeatVariants: {
+    'footer-a': pickShape('cta-row') || FOOTER_SHAPES[FOOTER_SHAPES.length - 1],
+    'footer-b': pickShape('columns') || FOOTER_SHAPES[1],
+    'footer-c': pickShape('slim-row') || FOOTER_SHAPES[0],
+  },
+};
+if (new Set(Object.values(triFooter.repeatVariants)).size !== 3) die(`合成布局的三个页脚形态有重复（${JSON.stringify(triFooter.repeatVariants)}）—— footer 形态不够三个`);
 const DECLARED = triFooter.repeatVariants || {};
 const VICTIM_REGION = 'footer-c';
 const VICTIM_SHAPE = DECLARED[VICTIM_REGION];
-if (!VICTIM_SHAPE) die(`page-layouts/tri-footer.json 的 repeatVariants 里没有 ${VICTIM_REGION} —— 这一格没有对象`);
+if (!VICTIM_SHAPE) die(`合成布局 ${triFooter.id} 的 repeatVariants 里没有 ${VICTIM_REGION} —— 这一格没有对象`);
 if (!FOOTER_SHAPES.includes(VICTIM_SHAPE)) die(`blocks/footer/ 里没有 "${VICTIM_SHAPE}" —— 夹具前提不成立`);
 // 落回值要跟布局钉的那个**不同**，否则 ②③ 两格分不出「落回了」和「没落回」。
 const RESOLVED_FOOTER = FOOTER_SHAPES.find((n) => n !== VICTIM_SHAPE);
 if (!RESOLVED_FOOTER) die('blocks/footer/ 只有一个形态 —— 这一格量不出落回');
 
+// #1425（T3）—— topbar 区退役，regions 只剩 header / footer 两类。
 const regionsWith = (footerShape) => ({
-  header: { shape: 'x' }, footer: { shape: footerShape }, topbar: { shape: 'y' },
+  header: { shape: 'x' }, footer: { shape: footerShape },
 });
 
 console.log('── ① 正向臂：未改动的副本，repeatVariants 原样通过 ──');
@@ -175,7 +192,11 @@ console.log('── ⑥ 两个消费者读的是同一张表 ──');
   //    字符串字面量。
   const stripComments = (t) => t.split('\n').filter((l) => !l.trim().startsWith('//') && !l.trim().startsWith('*')).join('\n');
   const src = stripComments(fs.readFileSync(path.join(NEXT, 'scripts', 'lib', 'site-regions.js'), 'utf-8'));
-  const body = src.slice(src.indexOf('function footerVariantsFor'), src.indexOf('function hasTopbarRegion'));
+  // #1425（T3）—— 原来切到 `function hasTopbarRegion` 为止；那个函数删了，改为切到下一个顶层 `function`。
+  const start = src.indexOf('function footerVariantsFor');
+  if (start < 0) die('site-regions.js 里找不到 function footerVariantsFor —— ⑥ 没有对象');
+  const nextFn = src.indexOf('\nfunction ', start + 1);
+  const body = src.slice(start, nextFn < 0 ? undefined : nextFn);
   if (body.includes('resolveRepeatVariants')) {
     ok('footerVariantsFor 调的是 pageLayoutLib.resolveRepeatVariants（不是自己读 layout.repeatVariants）');
   } else {

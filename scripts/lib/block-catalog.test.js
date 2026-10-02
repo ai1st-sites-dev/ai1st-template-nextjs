@@ -223,18 +223,32 @@ console.log('③ 示例数据（图册那两列）');
   check(missing.length === 0, `全填版覆盖每一个槽位（漏 ${missing.length} 个 ${JSON.stringify(missing.slice(0, 5))}）`);
   check(requiredMissing.length === 0, `最少版恰好是必填槽（不符 ${requiredMissing.length} 处 ${JSON.stringify(requiredMissing.slice(0, 5))}）`);
 
-  // 形状提示的三种形态各取一次读数（都是盘上真有的写法）
-  const cg = sampleDataFor(real.manifests.get('card-group'));
-  check(Array.isArray(cg.items) && cg.items.length === 3 && typeof cg.items[0].title === 'string',
-    `"[{title, description?, …}]" 这种**规格**造出三项：${JSON.stringify(cg.items[0]).slice(0, 80)}`);
-  const qf = sampleDataFor(real.manifests.get('quote-form'));
-  check(Array.isArray(qf.urgencyOptions) && qf.urgencyOptions[0] === 'ASAP',
-    `写死的一串**例子**原样保留：${JSON.stringify(qf.urgencyOptions)}`);
-  const ph = sampleDataFor(real.manifests.get('page-header'));
-  check(Array.isArray(ph.breadcrumbs) && ph.breadcrumbs.length === 2 && ph.breadcrumbs[0].href === '/',
-    `多格的例子不按规格重造（${JSON.stringify(ph.breadcrumbs)}）`);
-  const hero = sampleDataFor(real.manifests.get('hero'));
-  check(hero.imageUrl === cat.PLACEHOLDER_IMAGE, `图走占位图：${hero.imageUrl}`);
+  // 形状提示的三种形态各取一次读数。
+  // 📌 #1425（T3）：原来三种都取盘上真有的写法（card-group.items 的规格 · quote-form.urgencyOptions 的一串例子 ·
+  //    page-header.breadcrumbs 的多格例子 · hero.imageUrl 的图）。旧库删了之后，新库 17 块里「多格例子」这种写法
+  //    一处都没有了（现取：所有 slot 的 shape 里形如 `["…", …]` / `[{…}, {…}]` 的 0 处），所以「规格」和「图」那两臂
+  //    换到新块上取真读数，「例子」那两臂改喂一份**内存里造的** manifest —— `sampleDataFor` 那条分支今天仍在，
+  //    只是盘上没有调用方能触发它。
+  const fq = sampleDataFor(real.manifests.get('faq'));
+  check(Array.isArray(fq.items) && fq.items.length === 3 && typeof fq.items[0].question === 'string'
+    && fq.items[0].question !== fq.items[1].question,
+    `"[{question, answer}]" 这种**规格**造出三项（faq.items）：${JSON.stringify(fq.items && fq.items[0]).slice(0, 80)}`);
+  const synthetic = { slots: {
+    urgencyOptions: { kind: 'list', required: true, shape: '["ASAP", "Within 1 week", "Flexible"]' },
+    breadcrumbs: { kind: 'list', required: true, shape: '[{label: "Home", href: "/"}, {label: "<Page Name>"}]' },
+  } };
+  const ex = sampleDataFor(synthetic);
+  check(Array.isArray(ex.urgencyOptions) && ex.urgencyOptions.length === 3 && ex.urgencyOptions[0] === 'ASAP',
+    `写死的一串**例子**原样保留（造的 manifest）：${JSON.stringify(ex.urgencyOptions)}`);
+  check(Array.isArray(ex.breadcrumbs) && ex.breadcrumbs.length === 2 && ex.breadcrumbs[0].href === '/',
+    `多格的例子不按规格重造（造的 manifest）：${JSON.stringify(ex.breadcrumbs)}`);
+  // 反向对照：同样的东西写成**一格**规格就该造三项 —— 证明上面「2 项」读的是多格分支，不是碰巧
+  const one = sampleDataFor({ slots: { breadcrumbs: { kind: 'list', required: true, shape: '[{label, href}]' } } });
+  check(Array.isArray(one.breadcrumbs) && one.breadcrumbs.length === 3,
+    `反向对照：一格规格 [{label, href}] 造三项（读到 ${one.breadcrumbs && one.breadcrumbs.length}）`);
+  // 图：kind:image 且没写 shape 的槽走占位图（新库里是外壳区的 logo；原来是旧 hero 的 imageUrl）
+  const ft = sampleDataFor(real.manifests.get('footer'));
+  check(ft.logo === cat.PLACEHOLDER_IMAGE, `图走占位图（footer.logo）：${ft.logo}`);
 }
 
 console.log(`\n${fail === 0 ? '✅' : '❌'} block-catalog: ${pass} 过 / ${fail} 不过`);

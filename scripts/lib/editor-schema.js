@@ -61,7 +61,7 @@ const LINK_HREF = 'href';
  *                                        `options.shape` 那串里的布尔修饰（`reverse`）。是不是 custom 由
  *                                        `block-knobs.js` §presetNameFor 判，Section 用同一个函数。
  * 对象槽的子字段在 manifest 的 `choices` 里有词表的（`eyebrow.style`），那一格是下拉（`choices`）。
- * 🔴 字段顺序就是 manifest 槽位的书写顺序 —— hero-new 的槽位按「排布 → 修饰 → 部件 → 细节 → 内容」写，
+ * 🔴 字段顺序就是 manifest 槽位的书写顺序 —— hero 的槽位按「排布 → 修饰 → 部件 → 细节 → 内容」写，
  *    Puck 侧栏的顺序（AC8）靠的就是这一条，不在这里另排一遍。
  */
 function fieldsOf(manifest) {
@@ -90,7 +90,7 @@ function fieldsOf(manifest) {
         booleans: booleanOptionsOf(manifest),
         // #1483 —— 预设带的颜色（Rainbow）+ 归预设管的颜色槽：点预设时编辑器按 block-knobs.js §presetColors 同一条规则
         //    设上 / 恢复这几个颜色字段。没有带颜色预设的块 `colorSlots` 是 []，侧栏的行为一字不变。
-        // #1487 —— 预设带的部件（team-new 的 Hiring）+ 那些部件的占位内容：点预设时部件为空就拿 `partDemos` 填上
+        // #1487 —— 预设带的部件（team 的 Hiring）+ 那些部件的占位内容：点预设时部件为空就拿 `partDemos` 填上
         //    （block-knobs.js §presetClickProps）。没有带部件预设的块 `partDemos` 是 {}。
         presets: presetsOf(manifest).map((p) => ({ name: p.name, shape: p.shape, knobs: { ...p.knobs },
           ...(p.colors ? { colors: JSON.parse(JSON.stringify(p.colors)) } : {}),
@@ -100,14 +100,14 @@ function fieldsOf(manifest) {
       });
       continue;
     }
-    // #1471 —— 选站级表单的槽（`form: { id? }`，hero-new / footer-new / contact-new / cta-new）：一个对象字段、子字段只有 `id`，
+    // #1471 —— 选站级表单的槽（`form: { id? }`，hero / footer / contact / cta）：一个对象字段、子字段只有 `id`，
     //    EditorApp 把它画成下拉（选项 = 这个语言的表单库，`site-forms.js` §formIdOptions）。按形状认，不写块名单；
     //    旧块 `hero-with-form` 的 `form` 是另一个形状（自带字段 / 按钮文字），走下面原来那条路。
     if (slot === 'form' && spec && spec.kind === 'object' && /^\{\s*id\?\s*\}$/.test(String(spec.shape || ''))) {
       fields.push({ slot, kind: 'object', label: 'Form', control: 'object', subs: [{ sub: 'id', label: 'Form' }] });
       continue;
     }
-    // #1497 —— 一个整数设置（`blog-new.postCount` 2–6，manifest `intRange`）：一格下拉，取值从范围现算。
+    // #1497 —— 一个整数设置（`blog.postCount` 2–6，manifest `intRange`）：一格下拉，取值从范围现算。
     //    它不在 editableSlotPaths 里（不是页面上的字、没有 data-slot），所以在这里单出。
     if (spec && Array.isArray(spec.intRange) && typeof spec.editLabel === 'string') {
       const [lo, hi] = spec.intRange;
@@ -117,14 +117,14 @@ function fieldsOf(manifest) {
     }
     const entries = bySlot.get(slot);
     if (!entries && spec && spec.editItems === true) {
-      // 没有可改的字，只有「几项、什么顺序」可改（`hero-new.band`）。每项的摘要用它的 alt。
+      // 没有可改的字，只有「几项、什么顺序」可改（`hero.band`）。每项的摘要用它的 alt。
       fields.push({ slot, kind: spec.kind, label: humanize(slot), control: 'list', subs: [], summary: ['alt'] });
       continue;
     }
     if (!entries) continue;
     const kind = entries[0].kind;
     if (entries.length === 1 && entries[0].sub === null) {
-      // #1498 —— `richtext`（content-new.body）是一段带段落 / 列表的正文：多行文本框，不是单行 text。
+      // #1498 —— `richtext`（content.body）是一段带段落 / 列表的正文：多行文本框，不是单行 text。
       fields.push({ slot, kind, label: entries[0].label, control: kind === 'list' ? 'strings' : kind === 'richtext' ? 'richtext' : 'text', subs: [] });
       continue;
     }
@@ -147,7 +147,7 @@ function fieldsOf(manifest) {
     //    构建时从 brand.json 展开，`scripts/lib/item-sources.js`）。按 kind 派生、不写块名单；EditorApp 据 `sources` 画控件。
     //    按钮列表（`ctas` / `introCtas`）每一项的 Link 格也有这份选项，在下面 `kind === 'list'` 那段（#1518 补格、#1521 补选项）。
     if (kind === 'link') for (const x of subs) if (x.sub === LINK_HREF) x.sources = BUTTON_SOURCES.slice();
-    // #1489 —— 列表槽**每一项**的词表（`itemChoices`，`contact-new.items[].kind`）也是一格下拉；`itemNeeds` 里点名
+    // #1489 —— 列表槽**每一项**的词表（`itemChoices`，`contact.items[].kind`）也是一格下拉；`itemNeeds` 里点名
     //    的必填子字段（`kind=link` ⟹ `href`）补一格文字。少了它们，在编辑器里新加的一条没有 kind，组件整条不画。
     if (kind === 'list') {
       for (const [sub, vals] of Object.entries((spec && spec.itemChoices) || {})) {
@@ -161,7 +161,7 @@ function fieldsOf(manifest) {
       //    按形状派生、不写块名单；只认项的顶层键、只认必填（`href?` 那种可选链接不在本条射程）。
       // #1521 —— 这一格也能选「Business phone」「Business email」，跟上面 `kind: link` 那格同一份 `BUTTON_SOURCES`：
       //    构建侧把任何「有 `label` 又有 `href`」的对象当按钮展开（`item-sources.js` §resolveButtons），这几项正是这个形状。
-      //    🔴 `itemNeeds` 补出来的 Link（`contact-new.items`，项是 `{kind, title, hint?, href?}`、没有 `label`）不给：
+      //    🔴 `itemNeeds` 补出来的 Link（`contact.items`，项是 `{kind, title, hint?, href?}`、没有 `label`）不给：
       //       它不是按钮，引用不会被展开，写进去那一行就不画了；电话 / 邮箱它另有 `kind=phone` / `kind=email` 两种项。
       if (itemTopKeys(spec && spec.shape).includes(LINK_HREF) && !subs.some((x) => x.sub === LINK_HREF)) {
         subs.push({ sub: LINK_HREF, label: 'Link', sources: BUTTON_SOURCES.slice() });

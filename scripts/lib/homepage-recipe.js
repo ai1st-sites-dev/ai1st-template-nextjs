@@ -55,52 +55,15 @@
  *    静默地把它放回池子里是最坏的失败方向（例如 service-related-pages 跑到首页上）。
  */
 const NOT_IN_POOL = {
-  'hero': '它自己就是开场的主角，位置由配方另外钉（第 1 或第 2 块）',
-  // #1463 —— 同一个首屏位置的另一种块（Webpixels 那一版，一份 markup + 旋钮）。进了抽取池，它会跟配方钉住的
-  //    `hero` 一起出现在同一页的开头；而且池子一变长，每个站的 rotation 抽出来的配方都跟着漂。
-  'hero-new': '跟 hero 是同一个首屏位置的另一种块，同一页只放一个 —— 不参与后面的抽取',
-  'announcement-bar': '只当 hero 前面那一格用，不参与后面的抽取',
-  'cta-banner': '收尾用的，钉在开场会把行动召唤提到读者还没读内容的位置',
-  // #1479 —— 独立 CTA 块（Webpixels 那一版，一份 markup + 旋钮），接替 cta-banner：同一个理由。进了抽取池它可能被
-  //    抽成开场，而且池子 13 → 14 会让每个站 rotation 抽出来的配方整体漂。
-  'cta-new': '同 cta-banner：收尾用的，不当开场',
-  // #1485（总纲 #1422，Chris 2026-09-29）—— 新块进池、旧块同时出池：features-new（#1475）进了池子，features-grid 还留着的话
-  //    配方会硬要求同一页同时放这两块（改前 index 0–199 里 50 个）。
-  'features-grid': '由 features-new 接替：同一页只放一个；T3 删掉它',
-  // #1489（总纲 #1422，Chris 2026-09-29 同一条规则）—— contact-new 进池、contact-info 与 map-area 同时出池：
-  //    一进两出，池子种数 −1（这一批块票里唯一改变种数的一张）。
-  'contact-info': '由 contact-new 接替：同一页只放一个；T3 删掉它',
-  'map-area': '由 contact-new 接替：同一页只放一个；T3 删掉它',
-  // #1483（总纲 #1422，Chris 2026-09-29）—— 同 features-grid：pricing-new 进池、pricing-table 出池。两个都在池里时配方会
-  //    硬要求同一页同时放两块（改前 index 0–199 里 22 个）。pricing-new 的 prompt.order 与它同是 13 ⟹ 池子里换的是同一个位置。
-  'pricing-table': '由 pricing-new 接替：同一页只放一个；T3 删掉它',
-  // #1487（总纲 #1422，Chris 2026-09-29 定的「新块进池、旧块同时出池」）—— team-new 进了池子，team-grid 还留着的话
-  //    配方可能同一页同时抽到这两块。一进一出 ⟹ 池子种数不变。
-  'team-grid': '由 team-new 接替：同一页只放一个；T3 删掉它',
-  // #1488（同 #1485 那条规则）—— testimonials-new 进池，旧 testimonials 同时出池。
-  'testimonials': '由 testimonials-new 接替：同一页只放一个；T3 删掉它',
-  // #1496（总纲 #1422，同一条规则，Chris 2026-09-29）—— logos-new 进池、trusted-brands 同时出池：两个都在池里时配方会
-  //    硬要求同一页同时放两个 logo / 品牌条。一进一出 ⟹ 池子种数不变。
-  'trusted-brands': '由 logos-new 接替：同一页只放一个；T3 删掉它',
-  // #1495（总纲 #1422，Chris 2026-09-29 定的「新块进池、旧块同时出池」）—— gallery-new 进了池子，旧 gallery 还留着的话
-  //    配方可能同一页同时抽到这两块。一进一出 ⟹ 池子种数不变。
-  gallery: '由 gallery-new 接替：同一页只放一个；T3 删掉它',
-  // #1484（总纲 #1422，Chris 2026-09-29 同一条规则）—— faq-new 进池、faq-accordion 同时出池：两个都在池里时配方会硬要求
-  //    同一页同时放两个 FAQ 块（改前 index 0–199 里 21 个）。
-  'faq-accordion': '由 faq-new 接替：同一页只放一个；T3 删掉它',
-  // #1504（同一条规则）—— reviews-new 进池、social-proof 同时出池：两个都在池里时配方会硬要求同一页放两处平台评分。
-  //    一进一出 ⟹ 池子种数不变。
-  'social-proof': '由 reviews-new 接替：同一页只放一个；T3 删掉它',
-  // #1498（总纲 #1422，Chris 2026-09-29 同一条规则）—— content-new 进池、content-split 同时出池：两个都在池子里的话
-  //    配方会硬要求同一页同时放这两块。一进一出 ⟹ 池子种数不变，每个站的配方不漂。
-  'content-split': '由 content-new 接替：同一页只放一个；T3 删掉它',
-  'newsletter-signup': '同上，属于页面末尾',
-  // #1497 —— 两个博客块都不进池：建站不写博客文章（create-site.js 里 blog 0 处），blog-new 只从博客读、没有文章就不渲染
-  //    ⟹ 进池的话今天抽到它的那三成新站（400 个站号里 127 个）首页会钉一块空块。同 service-related-pages：只在特定条件下
-  //    才该放的块，不交给随机配方。有了文章以后放不放，交给改站 AI 按 manifest 那行提示词判断。
-  'blog-new': '只在站点有博客文章时才放，建站时一篇都没有',
-  'blog-preview': '由 blog-new 接替：同一页只放一个；T3 删掉它',
-  'service-related-pages': 'blocks/service-related-pages/manifest.json 自己写着 "Use ONLY on service detail pages"',
+  'hero': '它自己就是开场的主角，位置由配方另外钉（第 1 块）',
+  // #1479 —— 收尾用的块：进了抽取池它可能被抽成开场。
+  'cta': '收尾用的，钉在开场会把行动召唤提到读者还没读内容的位置',
+  // #1497 —— 建站不写博客文章（create-site.js 里 blog 0 处），blog 只从博客读、没有文章就不渲染
+  //    ⟹ 进池的话抽到它的那些新站首页会钉一块空块。有了文章以后放不放，交给改站 AI 按 manifest 那行提示词判断。
+  'blog': '只在站点有博客文章时才放，建站时一篇都没有',
+  // 📌 #1425（T3）—— 这张表原来有 20 个键。17 个是旧库的块（`announcement-bar` · `cta-banner` · `features-grid` …）
+  //    或 `-new` 时代的旧名，随旧库删除 / 改名一起退场；其中 `gallery` / `testimonials` 两个**不能留**：改名后
+  //    这两个名字被继任块占了，留着就是把新的 gallery / testimonials 静默挡在池子外（不会 throw）。
 };
 
 /** 抽取用的步长与偏移。步长**不**保证跟池子大小互质（池子一增一减长度就变）：`drawDistinct` 每次按池子长度
@@ -117,8 +80,9 @@ function rotationStepFor(len) {
 }
 const OFFSETS = [0, 3, 7, 12, 18];
 
-/** 多少个站里有一个带 announcement-bar。今天是 6/6 全带 —— 那本身就是雷同的一部分。 */
-const BAR_EVERY = 4;
+// 📌 #1425（T3）—— 这里原来有 `BAR_EVERY = 4`：每 4 个站有 1 个首页以 announcement-bar 开场。公告条的继任
+//    不是块，是 header 的 topbar（带不带由主题挑哪套 header 形态决定），它住在顶栏里、不在页面区块序列里 ⟹
+//    开场第 1 格没有任何块能顶上，这个节奏整条退役，开场固定为 [hero, x, y, z]。
 
 /**
  * 一个块跟这个行业的相关度 —— 数越小越靠前。#1124。
@@ -248,22 +212,18 @@ function homepageRecipe(index, manifests, industry = '', disabledBlocks = []) {
   if (off.has('hero')) {
     throw new Error('homepage-recipe: "hero" 被后台关掉了 —— 开场配方以它为第一块，这一趟不用配方');
   }
-  const withBar = i % BAR_EVERY === BAR_EVERY - 1 && !off.has('announcement-bar');
-
-  // 开场:带 bar 的是 [bar, hero, x, y];不带的是 [hero, x, y, z]。两种都钉住 4 个位置 ——
-  // 只钉 3 个的话「前 4 块相同」那个数还留着一半由 AI 决定，而它是本票的防回退条款。
+  // 开场是 [hero, x, y, z]，钉住 4 个位置 —— 只钉 3 个的话「前 4 块相同」那个数还留着一半由 AI 决定，
+  // 而它是本票的防回退条款。（#1425 之前还有一种 [bar, hero, x, y]，见上面 BAR_EVERY 那段。）
   // #1346 —— 池子被关小之后可能不够抽。`drawDistinct` 抽不满时会重复往里塞同一个块（它的 while
   // 只挪 pool.length 次就放弃），而重复的 opener 是一份坏配方 ⟹ 宁可这一趟不用配方。
-  const want = withBar ? 4 : 5;
+  const want = 5;
   if (pool.length < want) {
     throw new Error(`homepage-recipe: 首页候选池只剩 ${pool.length} 个块（关掉了 ${off.size} 个），`
       + `抽不出 ${want} 个互不相同的 —— 这一趟不用配方`);
   }
   const picks = drawDistinct(pool, i, want);
-  const opener = withBar
-    ? ['announcement-bar', 'hero', picks[0], picks[1]]
-    : ['hero', picks[0], picks[1], picks[2]];
-  const mustInclude = withBar ? [picks[2], picks[3]] : [picks[3], picks[4]];
+  const opener = ['hero', picks[0], picks[1], picks[2]];
+  const mustInclude = [picks[3], picks[4]];
 
   // 提示词里候选清单的顺序也每站不同。今天它恒按 prompt.order 印（block-manifest.js:197-201），
   // 而实测被选中的那批几乎就是清单靠前 + 正文点过名的那批 —— 清单顺序本身在参与选择。
@@ -278,7 +238,7 @@ function homepageRecipe(index, manifests, industry = '', disabledBlocks = []) {
   const promptList = allHomepageTypes(manifests).filter((t) => !off.has(t));
   const promptOrder = rotate(promptList, i * rotationStepFor(promptList.length) + 1);
 
-  return { opener, mustInclude, promptOrder, withBar, index: i, poolSize: pool.length };
+  return { opener, mustInclude, promptOrder, index: i, poolSize: pool.length };
 }
 
 /**
@@ -339,7 +299,7 @@ function recipePromptLines(recipe, disabledBlocks = []) {
     // 两个尾巴各自可以掉；都掉了就只剩前半句（「自己再挑 4-6 个」本身跟块名无关）。
     `- After the opening, pick 4-6 more sections yourself (the two required ones above count toward `
       + `that) and order them however suits this industry.`
-      + (off.has('cta-banner') ? '' : ` End with "cta-banner".`),
+      + (off.has('cta') ? '' : ` End with "cta".`),
   ].join('\n');
 }
 
@@ -412,5 +372,4 @@ module.exports = {
   industryRank,
   rotate,
   NOT_IN_POOL,
-  BAR_EVERY,
 };

@@ -8,6 +8,6 @@ export default function HomePage({ locale }: { locale: string }) {
   if (!isValidLocale(locale)) notFound();
   // #1505 —— 写成引用的列表槽（`items: {source: "services"}`）先展开，再查图标表：展开出来的 `icon` 也要进表。
   const blocks = resolveItemSources(getHomePage(locale).blocks, itemSourceContext(locale));
-  // #1475 —— 画内联 SVG 图标的块（features-new …）要一张服务端查好的图标表（§iconTablesFor；别的块不挂）。
+  // #1475 —— 画内联 SVG 图标的块（features …）要一张服务端查好的图标表（§iconTablesFor；别的块不挂）。
   return <SectionRenderer blocks={blocks} locale={locale} iconTables={iconTablesFor(blocks)} />;
 }
