@@ -40,7 +40,7 @@ import crypto from 'node:crypto';
 import { PLAYWRIGHT_MODULE, NEXT_DIR } from './theme-gallery/paths.mjs';
 
 const require = createRequire(import.meta.url);
-const { MEASURED_TARGETS } = require('./theme-text-targets.js');
+const { SHEET_HOOK_TARGETS } = require('./theme-text-targets.js');
 
 const [baseUrl, sheet] = process.argv.slice(2);
 const write = process.argv.includes('--write');
@@ -156,7 +156,7 @@ const seenOn = new Map();
 for (const p of await pagesOf()) {
   const at = await open(p);
   if (!at) { console.error(`⚠️  打不开 ${p} —— 这一页没被量到`); continue; }
-  for (const r of await page.evaluate(IN_PAGE, MEASURED_TARGETS)) {
+  for (const r of await page.evaluate(IN_PAGE, SHEET_HOOK_TARGETS)) {
     const prev = found.get(r.selector);
     // 同一个选择器在多页出现时取**并集** —— 哪一页更宽就按哪一页算
     found.set(r.selector, prev

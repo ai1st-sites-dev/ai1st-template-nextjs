@@ -752,14 +752,14 @@ const PINNED_MEASURED_TARGETS = [
 ];
 const PINNED_RESOLVED_PER_SHEET = 8;
 {
-  const { MEASURED_TARGETS } = require('./theme-text-targets.js');
-  const extra = MEASURED_TARGETS.filter((t) => !PINNED_MEASURED_TARGETS.includes(t));
-  const gone = PINNED_MEASURED_TARGETS.filter((t) => !MEASURED_TARGETS.includes(t));
-  if (!extra.length && !gone.length && MEASURED_TARGETS.length === PINNED_MEASURED_TARGETS.length) {
+  const { SHEET_HOOK_TARGETS } = require('./theme-text-targets.js');
+  const extra = SHEET_HOOK_TARGETS.filter((t) => !PINNED_MEASURED_TARGETS.includes(t));
+  const gone = PINNED_MEASURED_TARGETS.filter((t) => !SHEET_HOOK_TARGETS.includes(t));
+  if (!extra.length && !gone.length && SHEET_HOOK_TARGETS.length === PINNED_MEASURED_TARGETS.length) {
     ok(`被量的那份单子跟这里钉住的 ${PINNED_MEASURED_TARGETS.length} 个逐个对得上`
       + '（单子在 scripts/theme-text-targets.js，钉子在本节）');
   } else {
-    bad(`被量的那份单子跟这里钉住的对不上：单子 ${MEASURED_TARGETS.length} 个 / 钉住 `
+    bad(`被量的那份单子跟这里钉住的对不上：单子 ${SHEET_HOOK_TARGETS.length} 个 / 钉住 `
       + `${PINNED_MEASURED_TARGETS.length} 个 · 单子里多出来 ${extra.length} 个`
       + `（${extra.join(' · ') || '无'}）· 单子里少掉 ${gone.length} 个（${gone.join(' · ') || '无'}）`
       + ' —— 要改单子就连本节的 PINNED_MEASURED_TARGETS 一起改。「该量到多少」不许从单子自己算出来。'
@@ -796,7 +796,7 @@ let judgeSheetForRegistrySweep = null;
   const fs = require('fs');
   const path = require('path');
   const contrast = require('./theme-contrast.js');
-  const { MEASURED_TARGETS } = require('./theme-text-targets.js');
+  const { SHEET_HOOK_TARGETS } = require('./theme-text-targets.js');
 
   const themeDir = path.join(__dirname, '..', 'public', 'themes');
   // #1318 —— 三份手写表 2026-09-15 搬到了 `scripts/handwritten-sheets/`（理由整段在那个目录的
@@ -843,8 +843,8 @@ let judgeSheetForRegistrySweep = null;
    * @returns {{problems: string[], worst: object|null}}
    */
   // 🔴 #1072 加了第四个参数 `targets`：第 ⑩ 节要用**同一个判据**只判 CTA 那两行（理由写在那一节）。
-  //    默认仍是 MEASURED_TARGETS，所以第 ⑨ 节一个字节都没变。
-  const judgeSheet = (sheetFile, colors, hues, targets = MEASURED_TARGETS) => {
+  //    默认仍是 SHEET_HOOK_TARGETS，所以第 ⑨ 节一个字节都没变。
+  const judgeSheet = (sheetFile, colors, hues, targets = SHEET_HOOK_TARGETS) => {
     const name = sheetFile.replace(/\.css$/, '');
     const css = fs.readFileSync(sheetPath(sheetFile), 'utf8');
     const pairs = contrast.textPairs(css, targets);
@@ -985,19 +985,42 @@ let judgeSheetForRegistrySweep = null;
   {
     const rows = sheets.map((f) => ({
       name: f.replace(/\.css$/, ''),
-      n: contrast.textPairs(fs.readFileSync(sheetPath(f), 'utf8'), MEASURED_TARGETS).length,
+      n: contrast.textPairs(fs.readFileSync(sheetPath(f), 'utf8'), SHEET_HOOK_TARGETS).length,
     }));
     const off = rows.filter((r) => r.n !== PINNED_RESOLVED_PER_SHEET);
     const shown = rows.map((r) => `${r.name}=${r.n}`).join(' · ');
     if (!off.length) {
       ok(`从 ${sheets.length} 张主题表里解出被量的配对，每张都是钉住的 ${PINNED_RESOLVED_PER_SHEET} 对：`
-        + `${shown}（被量的选择器共 ${MEASURED_TARGETS.length} 个，单子在 scripts/theme-text-targets.js，`
+        + `${shown}（被量的选择器共 ${SHEET_HOOK_TARGETS.length} 个，单子在 scripts/theme-text-targets.js，`
         + '这两个数由 ⑨a 钉住）');
     } else {
       bad(`${rows.length} 张主题表里有 ${off.length} 张解出的配对数不是钉住的 `
         + `${PINNED_RESOLVED_PER_SHEET} 对：${off.slice(0, 6).map((r) => `${r.name}=${r.n}`).join(' · ')}`
         + `${off.length > 6 ? ` …共 ${off.length} 张` : ''} —— 要么单子被改了（连 ⑨a 的`
         + ' PINNED_RESOLVED_PER_SHEET 一起改），要么某个选择器名写错了、或某张表真的少写了一条规则');
+    }
+  }
+
+  // 🔴 #1531 —— 这张单子什么时候该换。`SHEET_HOOK_TARGETS` 是旧钩子，因为主题表的字节里今天只有旧钩子
+  // （块的 markup 早已换成新库，浏览器那侧量的是 `RENDERED_*`，见 `theme-text-targets.js` 文件头）。
+  // 哪天有一张表按新框架重生成、写进了新库的文字钩子，这张旧名单就作废了 —— 而作废的那一刻上面那条
+  // 分母自检**不会红**（旧钩子照样解得出 8 对，或者表整张换了、它红在一个看不出原因的数上）。
+  // 所以把「该换了」单独判一次，并且说清楚该干什么。
+  {
+    const { renderedHooksInSheet } = require('./theme-text-targets.js');
+    const rows = sheets.map((f) => ({
+      name: f.replace(/\.css$/, ''),
+      n: renderedHooksInSheet(fs.readFileSync(sheetPath(f), 'utf8')),
+    }));
+    const carrying = rows.filter((r) => r.n > 0);
+    if (!carrying.length) {
+      ok(`${sheets.length} 张主题表里新库的文字钩子都是 0 行（${rows.map((r) => `${r.name}=${r.n}`).join(' · ')}）`
+        + ' —— SHEET_HOOK_TARGETS 还该是旧钩子');
+    } else {
+      bad(`${carrying.length} 张主题表里已经写了新库的文字钩子：`
+        + `${carrying.map((r) => `${r.name}=${r.n} 行`).join(' · ')} —— 主题表开始按新框架重生成了，`
+        + 'scripts/theme-text-targets.js 的 SHEET_HOOK_TARGETS 该换成新名字（连 ⑨a 的'
+        + ' PINNED_MEASURED_TARGETS / PINNED_RESOLVED_PER_SHEET 一起改，按新表现量，别往下调）');
     }
   }
 
@@ -1172,7 +1195,7 @@ let judgeSheetForRegistrySweep = null;
 //        `.page-header__sub` 1 处 · `.services-nav__link` 1 处（都是 golden-yellow/hero-media-right 4.27:1）
 //     改后：**0 处**
 //
-// 🔴🔴 **这一节判的是 `MEASURED_TARGETS` 那 10 个，而三张表一共给 441 个元素写了 `color:`。**
+// 🔴🔴 **这一节判的是 `SHEET_HOOK_TARGETS` 那 10 个，而三张表一共给 441 个元素写了 `color:`。**
 // 「一处不漏」不能按这一节的射程算，所以 #1072 r3 另外量了两圈（读数是 2026-08-18 的，命令写在
 // 本票的交接留言里，两圈都是「从表里现解出选择器」，不喂任何单子）：
 //     · **超集** 441 个元素 × 110 套 = 48510 对 ⟹ 改前 5827 处破线（187 条声明），改后 5450 处（151 条）。
@@ -1227,9 +1250,10 @@ let judgeSheetForRegistrySweep = null;
 // 配色上量的，报告里的是当天现算的。
 {
   const { themes } = require('./themes.js');
-  // 判被量的每一个选择器。单子只有 `theme-text-targets.js` 一处定义，真浏览器那侧读的是同一份 ——
-  // 这里再抄一份就会出现「扩了一边、另一边悄悄还是老的」，而失败方向是变绿（#1038 r3 的理由）。
-  const { MEASURED_TARGETS: JUDGED_TARGETS } = require('./theme-text-targets.js');
+  // 判被量的每一个选择器。单子只有 `theme-text-targets.js` 一处定义 —— 这里再抄一份就会出现「扩了一边、
+  // 另一边悄悄还是老的」，而失败方向是变绿（#1038 r3 的理由）。📌 #1531 起真浏览器那侧读的是同一份文件里
+  // 的另一套（`RENDERED_*`，新库类名）：两边问的是两个产物，这一节问的是表的字节。
+  const { SHEET_HOOK_TARGETS: JUDGED_TARGETS } = require('./theme-text-targets.js');
   const contrastHere = require('./theme-contrast.js');
   const fsHere = require('fs');
   const pathHere = require('path');

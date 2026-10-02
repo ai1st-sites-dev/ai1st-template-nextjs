@@ -78,11 +78,11 @@
  *
  * 📌 AC4 那一格（拿实证那几套主题在每个 tweak 的两端各建一次样例站、跑一遍不变量检查）仍然要跑，
  * 但它证明的是「这几套皮在两端没坏」，**不是**「整个区间都安全」—— 后者靠的是上面那条性质。
- * 🔴 也要知道那份检查今天量的是什么：`theme-css-invariants.mjs` 量三张单子 —— `TEXT_TARGETS`
- * （`.hero__title` / `.hero__sub`，首页必须有）、#1046 条 9 补的 `MOVED_TEXT_TARGETS`（cta-banner 和
- * page-header 的标题/副标题，在哪一页出现就在那一页量）、以及 **#1038 补的 `CONTROL_TARGETS`**
- * （`.btn-primary` / `.btn-accent` / `.announcement-bar__link` / `.services-nav__link`，同样是在哪出现
- * 就在哪量，一个都没量到算 finding）。
+ * 🔴 也要知道那份检查今天量的是什么：`theme-css-invariants.mjs` 量 `theme-text-targets.js` 里浏览器
+ * 那一侧的三张单子 —— `RENDERED_FIRST_SCREEN_TEXT`（新 hero 的 `.hro-title` / `.hro-sub`，首页必须有）、
+ * `RENDERED_MOVED_TEXT`（新 cta 与 page-header 的标题/正文，在哪一页出现就在那一页量）、以及
+ * `RENDERED_CONTROLS`（#1038 补的按钮；#1531 起只剩 `.btn-primary`，同样是在哪出现就在哪量，一个都
+ * 没量到算 finding）。单子的取值别从这里抄，去那份文件读。
  * 📌 这里原来写着「按钮上的字不在里面」—— **那句话在 #1038 之前是对的**，QA1 在 #1006 抓到的就是它。
  * 留着这段是因为它解释了上面那段为什么要费劲把亮度拉回去：当时那个盲区是真的。
  *

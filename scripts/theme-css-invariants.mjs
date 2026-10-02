@@ -136,7 +136,14 @@ const { HOOK_CLASSES } = await load(
 // `scripts/theme-presets.test.js` 在纯值层上判「一组配色要对哪些字负责」。两边各留一份的失败方向
 // 是变绿（少量几个选择器，报告照样 ✅），所以这张表只留一处定义。三张单子各自的理由跟着搬过去了。
 // 🔴 #1062 —— 它也走 `load`：这一份加载不起来，这个文件同样一个读数都取不到，那是机器的事不是主题的事。
-const { TEXT_TARGETS, MOVED_TEXT_TARGETS, CONTROL_TARGETS, HOVER_TARGETS } = await load(
+// 🔴 #1531 —— 只取浏览器那一侧（`RENDERED_*` + `HOVER_TARGETS`）。那份文件里另一套 `SHEET_HOOK_*` 是
+//    主题表字节那一侧的，名字是旧钩子，拿到页面上一个都找不到 —— 本文件不许读它。
+const {
+  RENDERED_FIRST_SCREEN_TEXT: FIRST_SCREEN_TEXT,
+  RENDERED_MOVED_TEXT: MOVED_TEXT_TARGETS,
+  RENDERED_CONTROLS: CONTROL_TARGETS,
+  HOVER_TARGETS,
+} = await load(
   'scripts/theme-text-targets.js would not load',
   () => createRequire(import.meta.url)('./theme-text-targets.js'),
   'run `npm ci` in templates/nextjs.',
@@ -772,19 +779,16 @@ const measureText = async (sel, where, required, opts = {}) => {
 };
 
 // The pair that must be here, on the page every first-page check is taken on.
-// 🔴 #1425（T3）—— 这一对原来是旧 hero 的 `.hero__title` / `.hero__sub`（`theme-text-targets.js` 的 TEXT_TARGETS）。
-//    旧 hero 随旧库删了，新 hero 的标题 / 副标题是 `.hro-title` / `.hro-sub`（`blocks/hero/Section.tsx`）。
-//    首屏标题读不读得出来这件事一点没变，所以在这里换成新的那一对，**不删**。共享那张 TEXT_TARGETS 不动：
-//    主题流水线（`theme-pipeline/sheet-recipes.js` 那一族）按它从主题表字节里推配对，那一族今天没有新块可推。
-const FIRST_SCREEN_TEXT = ['.hro-title', '.hro-sub'];
+// 🔴 #1425（T3）把这一对换成新 hero 的 `.hro-title` / `.hro-sub`，当时是在本文件里另起一份；#1531 把它搬回
+//    `theme-text-targets.js`（`RENDERED_FIRST_SCREEN_TEXT`），上面那条 `load` 里绑成 `FIRST_SCREEN_TEXT`。
 for (const sel of FIRST_SCREEN_TEXT) await measureText(sel, pathOf(baseUrl), true);
-// And the moved blocks that happen to be on this page as well (cta-banner usually is; page-header is not).
+// And the moved blocks that happen to be on this page as well (cta usually is; page-header is not).
 for (const sel of MOVED_TEXT_TARGETS) await measureText(sel, pathOf(baseUrl), false);
 
 // #1038 — the buttons and the links, on whichever of them this page actually renders.
 //
 // 🔴 AND A FLOOR UNDER THE LENIENCY. Measuring "whichever are present" is how a check quietly stops
-// checking: a rename of `.btn-accent` in globals.css would leave every one of these absent and this
+// checking: a rename of `.btn-primary` in globals.css would leave every one of these absent and this
 // section would print nothing and pass. So the number measured is REPORTED (a reader can see it went
 // from two to zero) and zero is a finding.
 {
@@ -795,7 +799,7 @@ for (const sel of MOVED_TEXT_TARGETS) await measureText(sel, pathOf(baseUrl), fa
   if (measured.length === 0) {
     problems.push('contrast: none of the buttons or links this checks is on the page '
       + `(looked for ${CONTROL_TARGETS.join(', ')}) — so nothing was measured about what a visitor `
-      + 'clicks. A home page with a hero and no `.btn-accent` is the first thing to look at.');
+      + 'clicks. A home page with a hero and no `.btn-primary` is the first thing to look at.');
   } else {
     // 🔴 #1055 条 10 — this number is about the FIRST PAGE only, and it now says so. Left
     // unqualified, `1/4` read as "this check looked at one of the four", when the truth was "one of
@@ -835,7 +839,7 @@ for (const sel of MOVED_TEXT_TARGETS) await measureText(sel, pathOf(baseUrl), fa
     problems.push('contrast: none of the buttons this checks the HOVER state of is on the page '
       + `(looked for ${HOVER_TARGETS.join(', ')}) — so nothing was measured about what a visitor sees `
       + 'with the pointer on a button, which is the whole of #1100. A home page with a hero and no '
-      + '`.btn-accent` / `.btn-secondary` is the first thing to look at.');
+      + '`.btn-primary` is the first thing to look at.');
   } else {
     readings.push(`  buttons hovered on ${pathOf(baseUrl)}: ${measured.length}/${HOVER_TARGETS.length}`
       + ` — ${measured.join(', ')} · same caveat as the line above: THIS page only, coverage is counted`
