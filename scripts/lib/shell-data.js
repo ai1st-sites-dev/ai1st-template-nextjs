@@ -14,10 +14,14 @@
 // 🔴 联系方式 / 社交链接写成引用，不抄值（Chris 2026-09-30 #1506）：`topbar.contact` 每项是
 //    `{source: …}`，页脚的 `contact` / `social` 是整槽引用 —— 渲染前由 `resolveItemSources` 展开
 //    （`src/lib/sections/item-sources.ts`，跟页面块同一个入口）。
-// 🔴 派生不到的维度不造数据（PM 裁定）：`legal` · `footer.cta` · `columns.areas` · `form` · `ctaSecondary`
-//    · `topbar.links` / `topbar.social` 一律不写，块按预设默认画或留空。不许编内容填进去。
+// 🔴 派生不到的维度不造数据（PM 裁定）：`columns.areas` · `form` · `topbar.links` / `topbar.social` 一律不写，
+//    块按预设默认画或留空。不许编内容填进去（三处的理由在 #1529 正文「不做」）。
 //    navigation.json 里**本来就有**的两格照搬：`footer.description` → `tagline`、`footer.copyright` →
 //    `copyright`（旧页脚画的是 `© 年份 {copyright}`，这里拼成同一句）。
+// 📌 #1529：老板能写进 navigation.json 的三格（AI 改站那条路，`navigation-owned.js` 把门），**写了才派生，没写就不进 data**：
+//    `header.ctaSecondary {label, href}` → 顶栏副按钮（补 `style: 'outline'`，跟主按钮补 `solid` 对称）·
+//    `footer.legal [{label, href}]` → 页脚底栏那排链接 · `footer.cta {title, subtitle?, buttons?}` → 页脚 CTA 条。
+//    站内链接都跟 `localizeHref` 走。
 // 📌 已知能力差（写进 #1425 交付说明）：
 //    · `footer.columns[1..]`（构建按服务分组的关键词页链接栏）在新页脚里没有槽 ⟹ 不再画；
 //    · `footer.columns[].title`（栏目标题）同理。
@@ -46,6 +50,39 @@ function links(list, loc) {
   return (Array.isArray(list) ? list : [])
     .filter((l) => isObj(l) && str(l.label) && str(l.href))
     .map((l) => ({ label: str(l.label), href: loc(str(l.href)) }));
+}
+
+const BUTTON_STYLES = new Set(['solid', 'outline', 'link']);
+
+/**
+ * #1529 的三格用的链接判据：label / href 都是非空字符串，**且** href 过写盘那一关的白名单（`href-allowed.js`）。
+ * 🔴 这三格在 #1529 之前不在写盘检查里（navigation.json 的陌生键照写），那时写进去的 `javascript:` 不许因为
+ *    本票开始画它而上页面 ⟹ 不过白名单的那一项当没写。
+ */
+const usableLink = (l) => isObj(l) && !!str(l.label) && !!str(l.href) && hrefAllowed(l.href);
+
+/**
+ * `footer.cta`（`{title, subtitle?, buttons?: [{label, href, style?}]}`）→ 页脚块的 `cta` 槽。`title` 是必需的（块没标题
+ * 就不画这一条）⟹ 没有就 `undefined`。按钮 label / href 缺一就去掉那一个；`style` 不在 solid | outline | link 里就
+ * 丢掉这一格（按钮照画、用块的默认样式），并往 `notes` 里记一行 —— 静默丢跟「老板没写」长得一样（PM #1529 裁定）。
+ */
+function footerCta(cta, loc, notes) {
+  if (!isObj(cta) || !str(cta.title)) return undefined;
+  const out = { title: str(cta.title) };
+  if (str(cta.subtitle)) out.subtitle = str(cta.subtitle);
+  const buttons = (Array.isArray(cta.buttons) ? cta.buttons : [])
+    .map((b, i) => [b, i])
+    .filter(([b]) => usableLink(b))
+    .map(([b, i]) => {
+      const one = { label: str(b.label), href: loc(str(b.href)) };
+      if (b.style !== undefined) {
+        if (BUTTON_STYLES.has(b.style)) one.style = b.style;
+        else notes.push(`navigation.json footer.cta.buttons[${i}].style = ${JSON.stringify(b.style)} 不是 solid | outline | link —— 这一格丢掉，按钮用默认样式`);
+      }
+      return one;
+    });
+  if (buttons.length) out.buttons = buttons;
+  return out;
 }
 
 /**
@@ -79,7 +116,7 @@ function topbarMessage(tb, loc) {
  * @param {string} [o.locale]        这一份是哪种语言的（不传 = 不加前缀）
  * @param {string} [o.defaultLocale] 站的默认语言（它走根路径，不加前缀）
  * @param {number} [o.year]     版权行的年份（默认今年；测试钉一个数）
- * @returns {{ header: object, footer: object }}
+ * @returns {{ header: object, footer: object, notes: string[] }}  `notes` = 构建该说一声的事（sync-config 打出来）
  */
 function shellDataFor({ nav, brand, brandName, services, pages, locale, defaultLocale, year = new Date().getFullYear() }) {
   const loc = (href) => localizeHref(href, locale, defaultLocale);
@@ -88,6 +125,7 @@ function shellDataFor({ nav, brand, brandName, services, pages, locale, defaultL
   const f = isObj(n.footer) ? n.footer : {};
   const logo = isObj(brand) ? str(brand.logoUrl) : '';
   const name = str(brandName);
+  const notes = [];
 
   const header = {};
   if (logo) header.logo = logo;
@@ -95,6 +133,9 @@ function shellDataFor({ nav, brand, brandName, services, pages, locale, defaultL
   header.nav = links(h.links, loc);
   if (isObj(h.cta) && str(h.cta.label) && str(h.cta.href)) {
     header.ctaPrimary = { label: str(h.cta.label), href: loc(str(h.cta.href)), style: 'solid' };
+  }
+  if (usableLink(h.ctaSecondary)) {
+    header.ctaSecondary = { label: str(h.ctaSecondary.label), href: loc(str(h.ctaSecondary.href)), style: 'outline' };
   }
   // 只有带 topbar 的预设才画这一条；值不存在的那一项展开时自己去掉（item-sources.js §ITEM_SLOTS）。
   header.topbar = { contact: [{ source: 'phone' }, { source: 'email' }] };
@@ -120,7 +161,11 @@ function shellDataFor({ nav, brand, brandName, services, pages, locale, defaultL
   // skipAI 示例站那一份自己已经带着 ©，就照原样（旧页脚在那上面会印出两遍 ©）。
   const copyright = str(f.copyright);
   if (copyright) footer.copyright = copyright.startsWith('©') ? copyright : `© ${year} ${copyright}`;
-  return { header, footer };
+  const legal = links((Array.isArray(f.legal) ? f.legal : []).filter(usableLink), loc);
+  if (legal.length) footer.legal = legal;
+  const cta = footerCta(f.cta, loc, notes);
+  if (cta) footer.cta = cta;
+  return { header, footer, notes };
 }
 
 module.exports = { shellDataFor, localizeHref };

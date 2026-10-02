@@ -106,10 +106,12 @@ console.log('② 块清单那一侧');
   for (const n of NAV_LINKS) {
     const s = m.get(n.block) && m.get(n.block).slots && m.get(n.block).slots[n.slot];
     // #1528：`field` 写着 ⟹ 链接住在对象槽里的那一格（header 的 topbar.message），判据是 shape 里那一格带 href。
+    // #1529：`list` 写着 ⟹ 一串链接 / 对象槽里的按钮列表 —— 槽在，且它的 shape 里那一层带 href。
     const hit = n.field
       ? Boolean(s && s.kind === 'object' && typeof s.shape === 'string' && new RegExp(`\\b${n.field}\\??: \\{[^}]*\\bhref\\b`).test(s.shape))
+      : n.list ? Boolean(s && (s.kind === 'list' || s.kind === 'object') && typeof s.shape === 'string' && /\bhref\b/.test(s.shape))
       : Boolean(s && s.kind === 'link');
-    check(hit, `NAV_LINKS 的 ${n.key.join('.')} 对得上 blocks/${n.block} 的槽位 ${n.slot}${n.field ? `.${n.field}（带 href）` : '（kind=link）'}`);
+    check(hit, `NAV_LINKS 的 ${n.key.join('.')} 对得上 blocks/${n.block} 的槽位 ${n.slot}${n.field ? `.${n.field}（带 href）` : n.list ? '（一串链接，shape 带 href）' : '（kind=link）'}`);
   }
   check(NAV_LINKS.some((n) => n.key.join('.') === 'topbar.link'), 'NAV_LINKS 里有 topbar.link（#1528：公告的链接又画到页面上了）');
   // 📌 这里原来还有一格「检查器那个入口的哨兵」（`patch-block.js` 能不能写到 href）。那个脚本随检查器那条

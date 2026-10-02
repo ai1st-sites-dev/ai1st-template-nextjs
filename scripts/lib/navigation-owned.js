@@ -227,6 +227,33 @@ const PAGE_READS = [
     },
   },
   {
+    // #1529 —— 下面三格是老板能写进 navigation.json、构建派生进外壳 data 的（`lib/shell-data.js`）。
+    //    `renderedBy` 由 ⑫ 拿真组件逐个预设渲染出来两向核过：顶栏副按钮 7 个预设的桌面那格都画（topbar 两个预设只是
+    //    手机抽屉里不放它，`blocks/header/Section.tsx` 的 drawer-cta）；CTA 条只在旋钮 cta ≠ none 的三个页脚预设画。
+    key: 'header.ctaSecondary',
+    region: 'header',
+    renderedBy: ['logo-left', 'menu-center', 'logo-center-split', 'logo-center-gathered', 'topbar', 'stacked', 'topbar-stacked'],
+    slot: 'ctaSecondary',
+    what: 'the second button at the top of the page',
+    read: (nav) => (isObj(nav) && isObj(nav.header) ? nav.header.ctaSecondary : undefined),
+  },
+  {
+    key: 'footer.legal',
+    region: 'footer',
+    renderedBy: ['slim-row', 'stacked', 'columns', 'cta-row', 'cta-stacked', 'cta-columns'],
+    slot: 'legal',
+    what: 'the legal links at the bottom of the footer (privacy, terms …)',
+    read: (nav) => (isObj(nav) && isObj(nav.footer) ? nav.footer.legal : undefined),
+  },
+  {
+    key: 'footer.cta',
+    region: 'footer',
+    renderedBy: ['cta-row', 'cta-stacked', 'cta-columns'],
+    slot: 'cta',
+    what: 'the call-to-action band in the footer',
+    read: (nav) => (isObj(nav) && isObj(nav.footer) ? nav.footer.cta : undefined),
+  },
+  {
     // 🔴 `read` 从**第二栏起**取，第一栏不在这里:`footer.columns[0].links` 归 `OWNED`（构建每次
     //    重写它）⟹ 改它根本走不到这一步，是被拒的。
     key: 'footer.columns[>0].links',
@@ -549,12 +576,30 @@ const FOOTER_COLUMN = {
   kind: 'object',
   fields: { title: { kind: 'string' }, links: { kind: 'array', of: NAV_LINK } },
 };
+// #1529 —— 三格可选的（`NavigationConfig` 里都是 `?:`）。
+const NAV_BUTTON = {
+  kind: 'object',
+  fields: { label: { kind: 'string' }, href: { kind: 'string' }, style: { kind: 'string', optional: true } },
+};
+const FOOTER_CTA = {
+  kind: 'object',
+  optional: true,
+  fields: {
+    title: { kind: 'string' },
+    subtitle: { kind: 'string', optional: true },
+    buttons: { kind: 'array', optional: true, of: NAV_BUTTON },
+  },
+};
 const NAV_SHAPE = {
   kind: 'object',
   fields: {
     header: {
       kind: 'object',
-      fields: { links: { kind: 'array', of: NAV_LINK }, cta: NAV_LINK },
+      fields: {
+        links: { kind: 'array', of: NAV_LINK },
+        cta: NAV_LINK,
+        ctaSecondary: { kind: 'object', optional: true, fields: NAV_LINK.fields },
+      },
     },
     footer: {
       kind: 'object',
@@ -562,6 +607,8 @@ const NAV_SHAPE = {
         description: { kind: 'string' },
         columns: { kind: 'array', of: FOOTER_COLUMN },
         copyright: { kind: 'string' },
+        legal: { kind: 'array', optional: true, of: NAV_LINK },
+        cta: FOOTER_CTA,
       },
     },
     topbar: {
@@ -646,9 +693,11 @@ function shapeProblems(nav) {
 
 /** 这里能改的是哪些 —— 拒绝理由里要带上，否则模型只知道不许改什么、不知道许改什么。 */
 const NAVIGATION_EDITABLE_SUMMARY =
-  'In navigation.json you may change: the header button (header.cta — its label and href), the footer '
-  + 'copyright, the footer description, the footer column titles, and the topbar. Write the complete '
-  + 'file with everything else exactly as you read it.';
+  'In navigation.json you may change: the header button (header.cta — its label and href), the second '
+  + 'header button (header.ctaSecondary — {label, href}), the footer copyright, the footer description, the '
+  + 'footer column titles, the footer legal links (footer.legal — a list of {label, href}), the footer '
+  + 'call-to-action band (footer.cta — {title, subtitle?, buttons?: [{label, href, style?}]}), and the topbar. '
+  + 'Write the complete file with everything else exactly as you read it.';
 
 /**
  * 这次对 navigation.json 的写入放不放行？

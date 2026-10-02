@@ -884,6 +884,7 @@ for (const note of regions.notes) console.log(`    · ${note}`);
     });
     regions.header.dataByLocale[locale] = d.header;
     regions.footer.dataByLocale[locale] = d.footer;
+    for (const n of d.notes) console.log(`  [${locale}] ⚠️  ${n}`);
     const [h, f] = resolveItemSources([{ type: 'header', data: d.header }, { type: 'footer', data: d.footer }],
       { brand, services: servicesByLocale[locale], pages: pagesByLocale[locale], url: (slug) => `/${slug}`, log: () => {} });
     regions.header.iconTableByLocale[locale] = iconTableFor('header', h.data);
