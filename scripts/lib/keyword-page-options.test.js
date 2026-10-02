@@ -123,6 +123,12 @@ const DELTAS = [
     apply: (t) => t
       .replace('"cta-banner" (REQUIRED last)', '"cta" (REQUIRED last)')
       .replace('   data: { headline, description, button: {label, href} }', '   data: { headline, body, ctas: [{label, href}] }'),
+  },  // ── #1527 —— features 的 manifest 补了 `items[].bullets?: [string]`（旧 card-group 那一维 `features?: [string]` 的继任），
+  //    这一行照 #1425 自己那条规矩（「每条的 data 说明照继任块 manifest 的槽名写」）跟着走。不动块、顺序、交替写法。
+  {
+    why: '#1527 features 的 data 补上 items[].bullets?: [string]（manifest 新加的那一维）',
+    apply: (t) => t.replace('   data: { headline, body?, items: [{title, text}], options? }',
+      '   data: { headline, body?, items: [{title, text, bullets?: [string]}], options? }'),
   },
 ];
 

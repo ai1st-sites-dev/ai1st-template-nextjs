@@ -18,7 +18,7 @@
 //                  "do NOT write breadcrumbs" ⟹ 那行说明和 `hasServiceDetailPages` 入参一起删）
 //    text-block  → content（槽 `headline?` · `body`）
 //    card-group OR process-steps → features，**交替保留**：一页写卖点、下一页写步骤（步骤写法逐字是 features 的
-//                  manifest 自己教 AI 的那一句，`prompt.lines` 第 3 行）。`features?: [string]` 这一维新块没有槽（#1425 做什么 14 ②）。
+//                  manifest 自己教 AI 的那一句，`prompt.lines` 第 3 行）。`features?: [string]` 这一维 #1527 已补，名字是 `bullets`（`items[].bullets?: [string]`）。
 //    faq-accordion → faq（槽同为 `items: [{question, answer}]`）
 //    cta-banner  → cta（`button` → `ctas: [{label, href}]`，`description` → `body`）
 // 每条的 `data` 说明照继任块 manifest 的槽名写，不照抄旧块那行。
@@ -38,7 +38,7 @@ function keywordPageSectionOptions({ disabledBlocks = [] } = {}) {
     ['content', `"content" (REQUIRED, 2-3 paragraphs of unique SEO content)
    data: { headline?, body (2-3 paragraphs) }`],
     ['features', `"features" (REQUIRED) — alternate between pages: on one page write selling points (items without numbers), on the next write the steps of how the service works (for step-by-step content give every item a number ("01", "02" …) and set options.itemConnector to "line")
-   data: { headline, body?, items: [{title, text}], options? }`],
+   data: { headline, body?, items: [{title, text, bullets?: [string]}], options? }`],
     ['faq', `"faq" (REQUIRED, 3-4 questions)
    data: { headline, items: [{question, answer}] }`],
     ['cta', `"cta" (REQUIRED last)
