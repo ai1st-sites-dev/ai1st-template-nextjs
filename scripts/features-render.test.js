@@ -8,6 +8,7 @@
  * 管哪几条：AC1（8 个预设逐字 —— #1490 加了 Steps、旋钮名 / 值逐字、目录集合、两两不同）· AC6 的 DOM 一半（background 不画 icon）·
  * AC7（槽位空不渲染、连线）· AC8（bg 四档 + 不自己算亮度 / 拼渐变）· AC9（validateSite）· AC10 的组件一半
  * （图标表 → <svg>，查不到的名字那一项不画）· AC11（block-roles · 首页配方池）· AC13 的编辑器 schema。
+ * #1527 —— items[].bullets：不写逐字节不变、写了 0 / 1 / 多各一组、validateSite 认这一维。
  * 几何（20 种组合三端无横向滚动、标题不折行、64ch、块头位置、list 宽度 / 对齐、图在上、连线横竖、真站产物里的 <svg>）
  * 要浏览器：`tests/e2e/specs/1475-features-new-knobs.spec.ts`。
  *
@@ -331,8 +332,9 @@ console.log('\n── AC10 图标');
 {
   const h = render('grid', clone(DEMO));
   const per = itemsOf(h).map((x) => count(x, '<svg'));
-  // 每项：图标 1 个 + link 的箭头 1 个。
-  check(per.length === DEMO.items.length && per.every((x) => x === 2), `每项都画出图标 + 箭头（<svg> 每项 ${per.join(' / ')}）`);
+  // 每项：图标 1 个 + link 的箭头 1 个（#1527 起再加小清单每行一个勾号）。
+  const wantSvg = DEMO.items.map((it) => 2 + (it.bullets || []).length);
+  check(per.length === DEMO.items.length && per.join() === wantSvg.join(), `每项都画出图标 + 箭头 + 每行小清单一个勾号（<svg> 每项 ${per.join(' / ')}）`);
   const names = itemsOf(h).map((x) => (/data-part="icon"[^]*?data-icon="([^"]+)"/.exec(x) || [])[1]);
   check(JSON.stringify(names) === JSON.stringify(DEMO.items.map((it) => it.icon)), `图标名逐项对得上（${names.join(' · ')}）`);
   const d = clone(DEMO);
@@ -349,7 +351,7 @@ console.log('\n── AC10 图标');
   check(icons.usesIconTable('features') && !icons.usesIconTable('gallery') && !icons.usesIconTable('blog'),
     'usesIconTable：features 用、gallery / blog（不画图标的块）不用');
   const tables = icons.iconTablesFor([{ type: 'gallery', data: { icon: 'wrench' } }, { type: 'features', data: DEMO }], { warn: () => {} });
-  check(tables[0] === undefined && tables[1] && Object.keys(tables[1]).length === new Set([...DEMO.items.map((it) => it.icon), 'arrow-right', 'telephone']).size,
+  check(tables[0] === undefined && tables[1] && Object.keys(tables[1]).length === new Set([...DEMO.items.map((it) => it.icon), 'arrow-right', 'check', 'telephone']).size,
     `iconTablesFor：gallery 那一格 undefined、features 那一格 ${tables[1] ? Object.keys(tables[1]).length : 0} 个名字`);
   // 真站与单格页两条路都传了（SectionRenderer 的调用点）。
   const callers = ['src/components/pages/HomePage.tsx', 'src/components/pages/SubPage.tsx', 'src/app/%5F_catalog/[block]/[shape]/page.dev.tsx']
@@ -422,6 +424,56 @@ console.log('\n── 建站配图写回 → 渲染');
 }
 
 // 📌 #1425（T3）—— 这里原来测 AC14「features-grid / card-group / services-list / hero manifest 相对 merge-base 零改动」；三个旧块和旧 hero 都随旧库删了（今天的 hero 是改回正名的新块）。
+
+// ══ #1527：条目的小清单 items[].bullets ═══════════════════════════════════════════════════════════
+console.log('\n── #1527 items[].bullets');
+{
+  const BULLETS_LINE = /^[ \t]*\{bullets\.length \? \([\s\S]*?data-part="bullets"[\s\S]*?\) : null\}\n/m;
+  check(BULLETS_LINE.test(SRC_TEXT), 'Section.tsx 里有画 bullets 的那一段（下面的反向对照要整段拿掉它）');
+  const shapes = M.presets.map((p) => p.shape);
+  const strip = (d) => ({ ...clone(d), items: clone(d.items).map(({ bullets, ...rest }) => rest) });
+  // 判据 1：不写这一维 ⟹ 产物逐字节等于「组件里根本没有这一行」那一版。
+  const C0 = loadSection(SRC_TEXT.replace(BULLETS_LINE, ''));
+  loadSection();
+  const same = shapes.filter((sh) => render(sh, strip(DEMO)) === render(sh, strip(DEMO), C0)
+    && render(sh, strip(STEPS)) === render(sh, strip(STEPS), C0));
+  check(same.length === shapes.length, `不带 bullets 的 items：${shapes.length} 个形态（手写 + 带编号两版）产物与拿掉那一段的组件逐字节相同（${same.length}/${shapes.length}）`);
+  check(shapes.every((sh) => render(sh, clone(DEMO)) !== render(sh, clone(DEMO), C0)), '反向对照：带 bullets 的演示内容在两版组件下不同 —— 判据分得开');
+  // 判据 2：写了就画、0 / 1 / 多各一组。
+  const want = DEMO.items.map((it) => (it.bullets || []).length);
+  check(want.filter((n) => n === 0).length === 4 && want.filter((n) => n === 1).length === 1 && want.filter((n) => n > 1).length === 1,
+    `演示内容 6 条里 4 条不带、1 条 1 项、1 条多项（读到 ${want.join(' / ')}）`);
+  for (const sh of shapes) {
+    const got = itemsOf(render(sh, clone(DEMO))).map((h) => {
+      const ul = /<ul class="fx-bullets[^"]*" data-part="bullets">([\s\S]*?)<\/ul>/.exec(h);
+      return ul ? ul[1].split('<li ').length - 1 : 0;
+    });
+    check(JSON.stringify(got) === JSON.stringify(want), `${sh}：每项的 bullets 条数 ${got.join(' / ')}`, `要 ${want.join(' / ')}`);
+  }
+  const g = render('grid', clone(DEMO));
+  check(DEMO.items.flatMap((it) => it.bullets || []).every((b) => g.includes(`<span>${b.replace(/&/g, '&amp;')}</span></li>`)), '每一条的文字原样出现在 <li> 里');
+  // 勾号走服务端图标表（BLOCK_ICONS 的 features 那一行登记了 check）：每行一个 <svg>；表里没有 check ⟹ 行照画、只是没勾号。
+  const lis = g.split('data-part="bullets"').slice(1).map((h) => h.split('</ul>')[0]);
+  check(lis.length === 2 && lis.every((h) => count(h, '<li ') === count(h, '<svg')), `每行一个勾号 <svg>（${lis.map((h) => `${count(h, '<svg')}/${count(h, '<li ')}`).join(' · ')}）`);
+  const { check: _c, ...noCheck } = TABLE;
+  const gn = render('grid', clone(DEMO), C, noCheck);
+  check(count(gn, '<li ') === 4 && count(gn.split('data-part="bullets"').slice(1).join(''), 'fx-check') === 0, '对照：图标表里没有 check ⟹ 4 行照画、0 个勾号');
+  const junk = withOpts({}, { items: [{ title: 'a', text: 'x', bullets: [] }, { title: 'b', text: 'y', bullets: ['', 3, null] }, { title: 'c', text: 'z', bullets: 'not a list' }] });
+  check(count(render('grid', junk), 'data-part="bullets"') === 0, '空数组 / 全是空串和非字符串 / 不是数组 ⟹ 不画');
+  // 字色走正文那个类 ⟹ 深底与背景图上的反白规则直接沿用（block.css 里 background 那条点的是 .text-muted）。
+  check(/<ul class="fx-bullets list-unstyled text-muted /.test(g) && /\[data-item-image="background"\] \.fx-content \.text-muted/.test(CSS), 'bullets 带 text-muted，背景图那条反白规则管得到它');
+  // shape 写了这一维、可选 ⟹ validateSite 放行；把这一维从 shape 里拿掉 ⟹ 报「items 里没有 "bullets"」。
+  check(/bullets\?: \[string\]/.test(M.slots.items.shape), `items.shape 里有 bullets?: [string]（${M.slots.items.shape}）`);
+  const v = () => own(manifestLib.validateSite({ pages: [{ slug: 'p', blocks: [{ type: 'features', data: { headline: 'H', items: [{ title: 't', text: 'x', bullets: ['a', 'b'] }, { title: 'u', text: 'y' }] } }] }], scope: 'edit' }));
+  check(v().length === 0, 'validateSite：一条带 bullets、一条不带 ⟹ 放行', JSON.stringify(v()));
+  // 改的是 validateSite 此刻读的那一份（loadManifests 的缓存），不是文件头取的 M —— AC9 那段 `loadManifests(d2)` 换过 dir，缓存已经不是同一个对象。
+  const live = manifestLib.loadManifests().get('features');
+  const keep = live.slots.items.shape;
+  live.slots.items.shape = keep.replace(' bullets?: [string],', '');
+  const r = v();
+  live.slots.items.shape = keep;
+  check(r.length === 1 && r[0].includes('"bullets"'), '反向对照：shape 里没有这一维 ⟹ validateSite 报 items 里没有 "bullets"（建站 AI 写了也会被拦）', JSON.stringify(r));
+}
 
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);

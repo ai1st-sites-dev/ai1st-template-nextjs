@@ -17,7 +17,7 @@
 //
 // 🔴 **图标是内联 SVG**（#1462 那条路，同 header / footer）：`iconTable` 由服务端按数据里出现的名字查好传进来
 //    （`scripts/lib/icons.js` §iconTableFor，单格页与真站构建各自传），这里用 `InlineIcon` 画；查不到的名字那一项
-//    不画图标（连底色方块也不画）。本组件自己写死的名字只有按钮的箭头 `arrow-right`，登记在 `BLOCK_ICONS`。
+//    不画图标（连底色方块也不画）。本组件自己写死的名字只有按钮的箭头 `arrow-right` 和小清单的勾号 `check`（#1527），登记在 `BLOCK_ICONS`。
 //
 // 🔴 #1505 —— **`items` 也可以写成引用**（`{source: "services"}` / `{source: "pages", under}`），由页面那一层在渲染前
 //    展开（`src/lib/sections/item-sources.ts` §resolveItemSources），到这里已经是条目数组，并带着标记
@@ -46,6 +46,8 @@ export interface FeaturesNewItem {
   image?: FeaturesNewImage;
   title?: string;
   text?: string;
+  /** #1527 —— 条目自己的短清单（旧 card-group 的 `features?: [string]` 那一维）。没写 / 空 ⟹ 不画。 */
+  bullets?: string[];
   link?: FeaturesNewButton;
 }
 export interface FeaturesNewOptions {
@@ -199,6 +201,7 @@ export default function FeaturesNewSection({ data, block, iconTable = {} }: Prop
                     const num = str(it.number);
                     const showIcon = k.itemIcon !== 'none' && !cover && hasIcon(it.icon);
                     const link = isObj(it.link) && str(it.link.label) ? it.link : null;
+                    const bullets = Array.isArray(it.bullets) ? it.bullets.filter((b): b is string => !!str(b)) : [];
                     return (
                       <div key={i} className="fx-item" data-part="item">
                         <div className="fx-inner h-100">
@@ -218,6 +221,11 @@ export default function FeaturesNewSection({ data, block, iconTable = {} }: Prop
                             <div className="fx-text">
                               <h3 className="h5 fw-bold mb-2 fx-item-title" data-slot={`items.${i}.title`}>{it.title}</h3>
                               {it.text ? <p className="text-muted mb-0" data-slot={`items.${i}.text`}>{it.text}</p> : null}
+                              {bullets.length ? (
+                                <ul className="fx-bullets list-unstyled text-muted mt-3 mb-0" data-part="bullets">
+                                  {bullets.map((b, j) => <li key={j} className="d-flex align-items-start gap-2">{icon('check', 'fx-check flex-shrink-0')}<span>{b}</span></li>)}
+                                </ul>
+                              ) : null}
                               {link ? <div className="mt-3" data-part="link">{button(link, 0, 'link', `items.${i}.link.label`)}</div> : null}
                             </div>
                           </div>

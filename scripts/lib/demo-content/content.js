@@ -282,15 +282,19 @@ const DEMO_CONTENT = {
     ],
     introImage: { imageUrl: imageUrl('about-workshop'), alt: 'The Northside Auto Care workshop with two cars on hoists' },
     itemsImage: { imageUrl: imageUrl('hero-bay'), alt: 'A technician checking a car on the hoist' },
+    // #1527 —— 6 条里只有两条带 bullets（第 2 条 1 项、第 3 条 3 项），其余四条不带 ⟹ 0 / 1 / 多三种情况一页齐。
+    //    3 项那份挂在最长的 Diagnostics 上：守卫 (c) 要最长 ≥ 最短 2 倍，挂在短条目上会把最短那条抬上去。
     items: [
       { icon: 'disc', image: { imageUrl: imageUrl('work-1'), alt: 'New brake rotors and pads' }, title: 'Brakes',
         text: 'Pads, rotors and callipers — with a road test before you pick it up.',
         link: { label: 'Brake service', href: '/services/brakes', arrow: true } },
       { icon: 'snow', image: { imageUrl: imageUrl('work-2'), alt: 'Winter tires on a rack' }, title: 'Tires & changeovers',
         text: 'Seasonal swaps, balancing and storage for your second set.',
+        bullets: ['Changeovers in under an hour'],
         link: { label: 'Tire service', href: '/services/tires', arrow: true } },
       { icon: 'speedometer2', image: { imageUrl: imageUrl('work-3'), alt: 'A scan tool plugged into a dashboard' }, title: 'Diagnostics',
         text: 'Check-engine light on? We read the codes, find the cause and explain it in plain words before quoting a single repair.',
+        bullets: ['Free code read with any repair', 'Photos of the worn parts', 'Same-day results'],
         link: { label: 'Diagnostics', href: '/services/diagnostics', arrow: true } },
       { icon: 'droplet', image: { imageUrl: imageUrl('work-4'), alt: 'Fresh oil' }, title: 'Oil changes',
         text: 'Synthetic or conventional, done in 30 minutes.',

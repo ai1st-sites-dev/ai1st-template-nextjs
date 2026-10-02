@@ -1939,6 +1939,22 @@
   align-items: flex-end;
 }
 
+/* 条目的小清单（items[].bullets，#1527）：每行一个勾号 + 文字，同 pricing 的功能清单。字色跟正文同一个类（text-muted）⟹
+   深底 / 背景图上的反白直接沿用那两条规则；勾号自己的主色在那两种底上也翻白（下面 data-tone 段 + background 段）。
+   center / right 时 .fx-content 的 align-items 把整个清单推过去，行内仍然是勾号在前。 */
+[data-block="features"] .fx-bullets > li + li {
+  margin-top: 0.5rem;
+}
+[data-block="features"] .fx-check {
+  margin-top: 0.2rem;
+  color: var(--x-primary-text-emphasis, var(--x-primary));
+}
+[data-block="features"][data-item-image="background"] .fx-check,
+[data-block="features"][data-tone="dark"] .fx-check,
+[data-block="features"][data-tone="brand"] .fx-check {
+  color: #fff;
+}
+
 /* 标记（number / icon）：3rem 的方块；两个都有时并排。 */
 [data-block="features"] .fx-mark {
   display: flex;

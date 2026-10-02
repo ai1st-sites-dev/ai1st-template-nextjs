@@ -71,7 +71,8 @@ const BLOCK_ICONS = {
   'header': ['list', 'x-lg', 'telephone', 'link-45deg'],
   'footer': ['telephone', 'geo-alt', 'clock', 'envelope', 'link-45deg'],
   // #1475 —— 按钮的箭头（`arrow: true`）。项目的图标来自数据（`items[].icon`），由 §iconNamesIn 收，不写在这里。
-  'features': ['arrow-right'],
+  //    #1527 —— 条目小清单（`items[].bullets`）每行的勾号，同 pricing。
+  'features': ['arrow-right', 'check'],
   // #1482 —— 同 features：块头按钮的箭头；stats 的图标来自数据（`stats[].icon`），由 §iconNamesIn 收。
   milestones: ['arrow-right'],
   // #1487 —— 招聘卡的图标圈（person-plus）+ 它按钮的箭头（`join.cta.arrow`）。成员链接的图标来自数据（`members[].links[].icon`），
