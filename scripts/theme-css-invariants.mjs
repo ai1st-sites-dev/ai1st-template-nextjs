@@ -46,6 +46,8 @@
 // readable". Taking only the modal colour would pass a gradient that runs into the text colour at
 // one end — which is #966's failure with an extra step.
 import { createRequire } from 'node:module';
+import fs from 'node:fs';
+import path from 'node:path';
 // #1332 —— 检查 ⑨ 的探针与判据。住在自己的文件里而不是这里，是为了让每一条判据都能在不起浏览器的
 // 情况下喂数跑 —— 起浏览器的那一半只负责取数。
 import { INTENT_PROBE, VOCAB as INTENT_VOCAB, judgeIntent } from './lib/layout-intent.mjs';
@@ -418,31 +420,49 @@ await page.evaluate(INSTALL_EFFECTIVE);
 // second picture is exactly "this box, minus the letters".
 async function withoutWords(el, shoot) {
   await el.evaluate((n) => n.setAttribute('data-inv-probe', ''));
-  const style = await page.addStyleTag({
-    // 🔴 TRANSITIONS ARE TURNED OFF IN THE SAME RULE THAT BLANKS THE WORDS, AND THAT IS LOAD-BEARING
-    // (#1049). Taking the colour away STARTS A TRANSITION on anything that has one, and the second
-    // picture is then taken while the words are still most of the way to being painted — so the two
-    // pictures come back the same and the reading is "these words are not on the screen" about text
-    // a person can read perfectly. Measured on this repo's sample site with the `hero-media-right`
-    // sheet: `.btn-accent` carries `transition-property: all; transition-duration: .15s` from
-    // globals.css, and "Get Started" — dark on a green button, plainly legible in the screenshot —
-    // came back as 0 painted pixels. The same cause makes `getComputedStyle(el).color` answer with
-    // the OLD colour while the transition runs, which is why even an inline `!important` looks
-    // inert when you go asking why. Check ① never met this because the two elements it measures
-    // (`.hero__title`, `.hero__sub`) have no transition; ②e photographs whatever a block contains.
-    content: '*, *::before, *::after { transition: none !important; animation: none !important }'
-      + ' [data-inv-probe], [data-inv-probe] * { color: transparent !important;'
+  // 🔴 TRANSITIONS ARE TURNED OFF WHILE THE WORDS ARE BLANKED, AND THAT IS LOAD-BEARING (#1049).
+  // Taking the colour away STARTS A TRANSITION on anything that has one, and the second picture is
+  // then taken while the words are still most of the way to being painted — so the two pictures come
+  // back the same and the reading is "these words are not on the screen" about text a person can read
+  // perfectly. Measured on this repo's sample site with the `hero-media-right` sheet: `.btn-accent`
+  // carries `transition-property: all; transition-duration: .15s` from globals.css, and "Get Started"
+  // — dark on a green button, plainly legible in the screenshot — came back as 0 painted pixels. The
+  // same cause makes `getComputedStyle(el).color` answer with the OLD colour while the transition
+  // runs, which is why even an inline `!important` looks inert when you go asking why. Check ① never
+  // met this because the two elements it measures (`.hero__title`, `.hero__sub`) have no transition;
+  // ②e photographs whatever a block contains.
+  // 🔴 #1425 —— AND THEY STAY OFF UNTIL THE WORDS ARE BACK. Until #1425 both rules lived in ONE style
+  //    tag and were removed together, so the colour came back WITH the transitions switched on again:
+  //    every word in `el` faded in from transparent over the next .15s. Whatever was photographed next
+  //    inside `el` was caught part-way. That is ②e's own order — a block nested in a block, e.g. the
+  //    `hro-form` (essential) inside the contact / footer block (essential), photographed straight after
+  //    its container went through here. Measured on the CI sample site, same button ("Get a free quote",
+  //    white on the primary-600 button, Webpixels `.btn` = `transition: color .15s`): read 4.68 as part
+  //    of its container, then 3.47 / 2.79 / 4.11 locally and 2.03 / 1.44 on the runner as `hro-form` —
+  //    how far into the fade the camera opened, i.e. how fast the machine is. With a 1s wait added after
+  //    the restore (diagnostic only, not kept) every one of them read 4.68.
+  //    ⟹ two tags, undone in this order: the blank first (transitions still off, so the words snap
+  //    back), one frame for that to land, then the transitions (nothing changes colour then, so
+  //    nothing starts).
+  const frozen = await page.addStyleTag({
+    content: '*, *::before, *::after { transition: none !important; animation: none !important }',
+  });
+  const blank = await page.addStyleTag({
+    content: '[data-inv-probe], [data-inv-probe] * { color: transparent !important;'
       + ' -webkit-text-fill-color: transparent !important }',
   });
+  const twoFrames = () => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   // One frame for the style recalculation to land before the camera opens.
-  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  await twoFrames();
   try {
     return await shoot();
   } finally {
-    // Both undone before anything else is measured: the rule would otherwise sit in
+    // All undone before anything else is measured: the rules would otherwise sit in
     // `document.styleSheets`, which check ⑤ reads, and the attribute in the markup that ⑤ walks.
-    await style.evaluate((n) => n.remove());
+    await blank.evaluate((n) => n.remove());
     await el.evaluate((n) => n.removeAttribute('data-inv-probe'));
+    await twoFrames();
+    await frozen.evaluate((n) => n.remove());
   }
 }
 
@@ -1326,7 +1346,7 @@ function inkContrast(img, bare, mask, rects, origin) {
   for (let i = 0; i < width * height; i += 1) {
     if (inRects[i] && mask[i]) { ink[i] = 1; painted += 1; }
   }
-  if (painted === 0) return { painted: 0, area, ratio: null, textRgb: null, groundRgb: null };
+  if (painted === 0) return { painted: 0, area, ratio: null, textRgb: null, groundRgb: null, inRects, ink };
   // Grounds come from the picture WITHOUT the words, so the text is never mistaken for its own
   // background — check ①'s reason, unchanged. The 5% cut is against the rectangles' area rather
   // than the block's: a colour covering 5% of one line is a ground, 5% of the whole block is not.
@@ -1335,7 +1355,8 @@ function inkContrast(img, bare, mask, rects, origin) {
   // Antialiased edges are on their way to the background and judging by them fails pages that read
   // perfectly. Under 2% of the ink is left out so one stray pixel cannot stand for the words.
   const all = coloursOf(img, ink);
-  const strokes = all.filter((c) => c.n >= Math.max(4, painted * 0.02));
+  const strokeCut = Math.max(4, painted * 0.02);
+  const strokes = all.filter((c) => c.n >= strokeCut);
   const textRgb = (strokes.length ? strokes : all)
     .reduce((a, b) => (contrast(b.rgb, grounds[0].rgb) > contrast(a.rgb, grounds[0].rgb) ? b : a))
     .rgb;
@@ -1345,13 +1366,68 @@ function inkContrast(img, bare, mask, rects, origin) {
     const r = contrast(textRgb, cand.rgb);
     if (r < ratio) { ratio = r; groundRgb = cand.rgb; }
   }
-  return { painted, area, ratio, textRgb, groundRgb };
+  // #1425 —— everything the verdict was taken from, so a red can be read off the evidence rather than
+  // guessed at from one number in a log (§saveInkEvidence).
+  return { painted, area, ratio, textRgb, groundRgb, strokeCut, groups: all, grounds, inRects, ink };
 }
 
-async function judgeEssentialPaint(reading, where) {
+// ── #1425: what ②e saw, kept when it says no ─────────────────────────────────────────────────────
+// Until #1425 a ②e red left one line behind — two colours and a ratio. Runner 1.44, this box 2.79, on
+// the same button of the same commit, and nobody could say why, because the pictures it was taken from
+// were gone the moment the run ended. So when `THEME_CSS_EVIDENCE_DIR` is set (CI sets it and uploads
+// the directory on failure), every ②e red writes the two pictures, the mask, and the colour groups the
+// verdict picked from — with the 2% cut it actually used — under
+// `<dir>/<THEME_CSS_EVIDENCE_TAG>/<page>-<block>-<run>-<n>/`. Unset ⟹ nothing is written, and the
+// finding line says so, so a local run costs nothing.
+const EVIDENCE_DIR = process.env.THEME_CSS_EVIDENCE_DIR || '';
+const EVIDENCE_TAG = (process.env.THEME_CSS_EVIDENCE_TAG || 'run').replace(/[^A-Za-z0-9._-]+/g, '_');
+let evidenceSeq = 0;
+async function saveInkEvidence(where, r, img, bare, ink, box) {
+  if (!EVIDENCE_DIR) return '(no evidence kept — THEME_CSS_EVIDENCE_DIR is not set)';
+  evidenceSeq += 1;
+  const slug = `${where ? where.replace(/^ on \//, '') : 'first-page'}-${r.block}-${r.where}-${evidenceSeq}`
+    .replace(/[^A-Za-z0-9._-]+/g, '_');
+  const dir = path.join(EVIDENCE_DIR, EVIDENCE_TAG, slug);
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    await img.writeAsync(path.join(dir, 'with-words.png'));
+    await bare.writeAsync(path.join(dir, 'without-words.png'));
+    // White = a pixel counted as ink (inside the run's rectangles AND changed when its words went);
+    // dark grey = inside the rectangles but not ink; black = outside the rectangles.
+    const { width, height } = img.bitmap;
+    const m = await Jimp.create(width, height, 0x000000ff);
+    for (let i = 0; i < width * height; i += 1) {
+      const v = ink.ink && ink.ink[i] ? 255 : (ink.inRects && ink.inRects[i] ? 60 : 0);
+      m.bitmap.data[i * 4] = v; m.bitmap.data[i * 4 + 1] = v; m.bitmap.data[i * 4 + 2] = v;
+    }
+    await m.writeAsync(path.join(dir, 'ink-mask.png'));
+    const ground = ink.groundRgb;
+    fs.writeFileSync(path.join(dir, 'reading.json'), `${JSON.stringify({
+      where: where || 'first page', block: r.block, run: r.where, text: r.text,
+      box, visRects: r.visRects, painted: ink.painted, area: ink.area,
+      ratio: ink.ratio, textRgb: ink.textRgb, groundRgb: ground, floor: MIN_ESSENTIAL_INK_CONTRAST,
+      strokeCut: ink.strokeCut,
+      grounds: ink.grounds,
+      // every ink colour group, commonest first: whether it cleared the 2% cut, and how far it is from
+      // the ground — the verdict picked the furthest group that cleared the cut.
+      groups: (ink.groups || []).map((c) => ({
+        n: c.n, rgb: c.rgb, clearsCut: c.n >= ink.strokeCut,
+        vsGround: ground ? Number(contrast(c.rgb, ground).toFixed(2)) : null,
+      })),
+    }, null, 2)}\n`);
+    return `evidence: ${path.join(EVIDENCE_TAG, slug)}`;
+  } catch (e) {
+    return `(evidence could not be written to ${dir}: ${e.message.split('\n')[0]})`;
+  }
+}
+
+async function judgeEssentialPaint(reading, where, opts = {}) {
   const found = [];
   const blocks = await page.$$('[data-role="essential"]');
   for (let i = 0; i < reading.length; i += 1) {
+    // #1425 —— the ink control (§judgeInkControl) re-asks one block with the page deliberately broken;
+    // the index is the same one `blocks[i]` below pairs the reading with, so it is skipped, not sliced.
+    if (opts.onlyIndex !== undefined && i !== opts.onlyIndex) continue;
     const b = reading[i];
     // `exemptOptional` 的那些照量：它们被放过的只有「不在屏幕上算不算错」那一问，而这里问的是
     // 「在屏幕上的这几行字读不读得出来」—— `r.alive > 0` 本来就要求它真的在屏幕上。
@@ -1439,14 +1515,16 @@ async function judgeEssentialPaint(reading, where) {
       }
       // #1050 — kept on the run so the reading line below can print the corpus. The day someone
       // wants to move MIN_ESSENTIAL_INK_CONTRAST, every number that decides it is already on screen.
-      r.ink = ink;
+      // (Not from the control's deliberately broken page: that reading is about the instrument.)
+      if (!opts.control) r.ink = ink;
+      const evidence = async () => (opts.control ? '' : ` ${await saveInkEvidence(where, r, img, bare, ink, box)}.`);
       if (ink.painted === 0) {
         found.push(`visibility${where}: the text in "${r.where}" inside the essential block "${r.block}" `
           + `("${r.text}") is laid out where a customer could see it — ${r.alive} of ${r.lines} line(s), `
           + `${r.visArea}px² — but not one pixel of it is painted: photographing the block with and `
           + 'without its own words changes 0 pixels inside that text. That is what opacity: 0.0001, '
           + `filter: opacity(0), clip-path: inset(100%) and color: transparent all look like. `
-          + `Contract §3. ${NOT_EXEMPT}.`);
+          + `Contract §3. ${NOT_EXEMPT}.${await evidence()}`);
         continue;
       }
       // #1050 — the ink IS on the screen; the question this half asks is whether any of it came out
@@ -1460,10 +1538,129 @@ async function judgeEssentialPaint(reading, where) {
           + `under ${MIN_ESSENTIAL_INK_CONTRAST}:1 (${ink.painted} of ${ink.area}px² changed when its own `
           + 'words were taken away). That is what filter: blur(20px), a colour that matches the '
           + 'background, and a gradient painted over the words all look like — the words are still '
-          + `there, spread or washed out until no letter is left. Contract §3. ${NOT_EXEMPT}.`);
+          + `there, spread or washed out until no letter is left. Contract §3. ${NOT_EXEMPT}.${await evidence()}`);
       }
     }
   }
+  return found;
+}
+
+// ── #1425: the ink control — ②e has to go red on a page that is broken on purpose ─────────────────
+// PM's condition for the #1425 fix, and the reason it is a permanent part of the run rather than a
+// one-off experiment: a change that makes ②e stop reddening a correct page could just as well make it
+// stop reddening anything, and "CI went green" cannot tell those two apart. So once per run, on the
+// first page that has one, a `.btn` inside an essential block whose ②e reading just PASSED is broken
+// three ways in turn — the three this check's own finding line names as what it exists to catch — and
+// that block is judged again each time. Each must come back as a ②e red on that block; one that does
+// not is a red of its own (the instrument is blind), and a run where no target was found says so too.
+// 🔴 It prefers `hro-form`, the lead form, because that is the shape #1425 broke on: an essential block
+//    NESTED in another essential block (contact / footer), photographed straight after its container.
+// The control's own pictures are not kept and its readings are not printed as the page's ink readings.
+const INK_CONTROL = {
+  taken: null, // the reading line once taken
+  // first page where a target was found but the control could not be taken: kept for the end-of-run line
+  blocked: null,
+};
+async function judgeInkControl(reading, where) {
+  if (INK_CONTROL.taken) return [];
+  const passedRun = (b) => b.runs.find((r) => r.where === 'btn' && r.ink && r.ink.ratio !== null
+    && r.ink.ratio >= MIN_ESSENTIAL_INK_CONTRAST && r.visRects.length > 0);
+  const order = [...reading.keys()].filter((i) => passedRun(reading[i]))
+    .sort((a, b) => (reading[b].block === 'hro-form') - (reading[a].block === 'hro-form'));
+  if (!order.length) return [];
+  const bi = order[0];
+  const block = reading[bi].block;
+  const run = passedRun(reading[bi]);
+  const el = (await page.$$('[data-role="essential"]'))[bi];
+  // 🔴 THE BUTTON THAT IS BROKEN IS FOUND BY WHERE THE MEASURED WORDS ARE, NOT AS "THE FIRST .btn". A block
+  //    in this library draws the same button twice per breakpoint (header: the phone bar's copy is
+  //    `display: none` at desktop width), and breaking the hidden copy changes nothing ②e measures —
+  //    four "not red" about a check that is fine. That is how the first version of this control read on
+  //    the runner, on the one arm where `hro-form` itself was red and the control fell back to `header`.
+  //    So: the `.btn` in this block whose box contains the centre of the run's first visible rectangle.
+  const [vr] = run.visRects;
+  const cx = vr.x + vr.w / 2;
+  const cy = vr.y + vr.h / 2;
+  const marked = el ? await el.evaluate((n, [x, y]) => {
+    for (const b of n.querySelectorAll('.btn')) {
+      const r = b.getBoundingClientRect();
+      const left = r.left + window.scrollX;
+      const top = r.top + window.scrollY;
+      if (r.width > 0 && x >= left && x <= left + r.width && y >= top && y <= top + r.height) {
+        b.setAttribute('data-inv-control', '');
+        return true;
+      }
+    }
+    return false;
+  }, [cx, cy]) : false;
+  if (!marked) {
+    INK_CONTROL.blocked = INK_CONTROL.blocked
+      || `${where || 'first page'}: no .btn in "${block}" sits where its measured run "${run.text}" is`;
+    return [];
+  }
+  const btn = await el.$('[data-inv-control]');
+  const bgRaw = await btn.evaluate((n) => getComputedStyle(n).backgroundColor);
+  const bg = parseRgb(bgRaw);
+  const found = [];
+  const results = [];
+  try {
+    if (!bg) {
+      found.push(`visibility${where}: the ink control could not be taken — the button in "${block}" has no `
+        + `background colour it can be broken against (${bgRaw}), so nothing proves check ②e can still see`);
+      return found;
+    }
+    const solid = `rgb(${bg.join(',')})`;
+    const veil = `rgba(${bg.join(',')},.9)`;
+    // 🔴 Two of the ways to be unreadable land in two different halves of ②e, and both halves have to be
+    //    shown alive: blur(20px) / the ground colour / the veil all leave NO pixel that changes when the
+    //    words go ("not one pixel painted"), while blur(5px) leaves ink that is there but is no letter
+    //    ("painted, but … under 2.5:1") — the half #1425 actually went wrong in. Measured on the CI sample
+    //    site, both sheets: blur(5px) 1.77:1 · blur(3px) 1.95 · blur(2px) 2.39–2.40 (too close to the floor
+    //    to be a control) — so blur(5px) is the one kept.
+    const BREAKS = [
+      ['filter: blur(5px)', '[data-inv-control] { filter: blur(5px) !important }'],
+      ['filter: blur(20px)', '[data-inv-control] { filter: blur(20px) !important }'],
+      ['the words in the button\'s own background colour',
+        `[data-inv-control] { color: ${solid} !important; -webkit-text-fill-color: ${solid} !important }`],
+      ['a gradient painted over the words', '[data-inv-control] { position: relative !important }'
+        + ` [data-inv-control]::after { content: "" !important; position: absolute !important; inset: 0 !important;`
+        + ` background: linear-gradient(${solid}, ${veil}) !important; pointer-events: none !important }`],
+    ];
+    let lowContrastHalfSeen = false;
+    for (const [name, css] of BREAKS) {
+      const tag = await page.addStyleTag({ content: css });
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+      let got;
+      try {
+        got = await judgeEssentialPaint(reading, where, { onlyIndex: bi, control: true });
+      } finally {
+        await tag.evaluate((n) => n.remove());
+        await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+      }
+      const red = got.find((f) => f.includes(`essential block "${block}"`) && f.includes(`the text in "btn"`)
+        && f.includes(`("${run.text}")`)
+        && (f.includes('is painted, but not as anything') || f.includes('not one pixel of it is painted')));
+      const ratio = red ? (red.match(/= ([0-9.]+):1/) || [null, '0 painted'])[1] : null;
+      if (red && red.includes('is painted, but not as anything')) lowContrastHalfSeen = true;
+      results.push(`${name} → ${red ? `red (${ratio})` : 'NOT red'}`);
+      if (!red) {
+        found.push(`visibility${where}: the ink control did not go red — with ${name} applied to the button in `
+          + `the essential block "${block}", check ②e still passed it${got.length ? ` (it said: ${got[0].slice(0, 200)})` : ''}. `
+          + 'A check that passes words a customer cannot read is blind, and every green it gave on this run '
+          + 'means nothing (#1425).');
+      }
+    }
+    if (!lowContrastHalfSeen) {
+      found.push(`visibility${where}: the ink control never reached ②e's low-contrast half — none of the breaks `
+        + `applied to the button in "${block}" came back as "painted, but … under ${MIN_ESSENTIAL_INK_CONTRAST}:1" `
+        + `(${results.join(' · ')}). That half is where #1425 went wrong; without a red from it nothing on this `
+        + 'run shows it can still tell a smeared word from a letter.');
+    }
+  } finally {
+    await btn.evaluate((n) => n.removeAttribute('data-inv-control'));
+  }
+  INK_CONTROL.taken = `  ink control (check ②e, #1425) on ${where ? where.replace(/^ on /, '') : 'the first page'}, `
+    + `the button "${run.text}" in "${block}": ${results.join(' · ')}`;
   return found;
 }
 
@@ -1575,6 +1772,7 @@ const textReadingHome = await page.evaluate(() => window.__essentialText());
 problems.push(...judgeEssentialText(textReadingHome, ''));
 problems.push(...await judgeEssentialPaint(textReadingHome, ''));
 readings.push(textReading(textReadingHome, pathOf(baseUrl)));
+problems.push(...await judgeInkControl(textReadingHome, ''));
 // Which pages this check actually covered — printed at the bottom next to check ⑤'s page list, so
 // "essential content is not hidden" states its own reach instead of leaving it to be assumed.
 const essentialPagesMeasured = [pathOf(baseUrl)];
@@ -3559,6 +3757,7 @@ for (const p of otherPaths.slice(0, OTHER_PAGE_CAP)) {
   problems.push(...judgeEssentialText(otherText, ` on ${opened.at}`));
   problems.push(...await judgeEssentialPaint(otherText, ` on ${opened.at}`));
   readings.push(textReading(otherText, opened.at));
+  problems.push(...await judgeInkControl(otherText, ` on ${opened.at}`));
   // 🔴 #1046 条 9 — AND THE MOVED BLOCKS' WORDS, HERE, because here is where they are.
   // `.page-header__title` is the heading of every sub-page and is on no home page, so measuring it
   // only on the first page would have been measuring it never. Costs two screenshots per hook that
@@ -3925,6 +4124,14 @@ readings.push(`  sideways strips (check ⑦), measured on ${[pathOf(baseUrl), ..
       + '`overflow-x: auto`/`scroll` and has more content than fits. So ⑦\'s two rules SAID NOTHING '
       + 'about this sheet: they were not measured, which is not the same as passing')
   + (stripWidthsNote.length ? ` · ${[...new Set(stripWidthsNote)].join(' · ')}` : ''));
+// #1425 —— the ink control's verdict, or why there is none. Not taken is a red, not a silence: without it
+// nothing on this run shows that check ②e could still tell a readable button from an unreadable one.
+if (INK_CONTROL.taken) readings.push(INK_CONTROL.taken);
+else {
+  problems.push('visibility: the ink control (check ②e, #1425) was not taken — '
+    + (INK_CONTROL.blocked || 'no page measured has a .btn inside an essential block whose ②e reading passed')
+    + ', so nothing on this run proves ②e can still see a button a customer cannot read.');
+}
 readings.push(`  pages measured for check ② (essential content not hidden): `
   + `${essentialPagesMeasured.join(', ')} — roots AND the parts with content inside them, and on each of `
   + 'them ②d (where every run of text ended up, and what survives the clipping ancestors and the edge of '

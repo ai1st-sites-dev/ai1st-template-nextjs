@@ -601,7 +601,9 @@ for sheet in "${SHEETS[@]}"; do
     continue
   fi
 
-  node "$NEXT/scripts/theme-css-invariants.mjs" "http://127.0.0.1:$port"
+  # #1425 —— which sheet and which arm, so ②e's evidence (written when THEME_CSS_EVIDENCE_DIR is set) lands
+  # in a directory that says what it is a picture of.
+  THEME_CSS_EVIDENCE_TAG="$sheet-$arm" node "$NEXT/scripts/theme-css-invariants.mjs" "http://127.0.0.1:$port"
   rc=$?
   kill "$SRV_PID" 2>/dev/null; wait "$SRV_PID" 2>/dev/null; SRV_PID=""
   # 🔴 #1016 r5 — the per-sheet line carries the reach of its own verdict. `✅ hero-media-top` and
