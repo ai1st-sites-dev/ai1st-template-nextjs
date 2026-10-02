@@ -20,6 +20,18 @@
    `.navbar > .container-lg { flex-wrap: inherit }` 会从 `.navbar` 继承 wrap —— 就是它把汉堡折到了第二行）。 */
 [data-block="header-new"] .hdr-compact > .hdr-brand { min-width: 0; }
 
+/* 紧凑条右边那个电话圆图标（#1519）：它是 flex 项，`w-rem-10` 只钉了宽度，默认 `flex-shrink: 1` 下被挤时会缩成椭圆
+   （team-new 的 `.tm-join-icon` 同一条）。今天它的父容器带 `flex-shrink-0` 挡着，这条让它自己也不缩。 */
+[data-block="header-new"] .hdr-phone { flex: 0 0 auto; }
+
+/* 抽屉（#1519）：联系信息 / 链接里的一个不可断的长词（真站的邮箱、长网址）会把整页撑宽 ——
+   320 宽实测 `appointments@northsidecollisionandautobody.com` 画到 369，整页跟着撑到 369、横向滚动（footer-new
+   stacked / columns 同一条）。 */
+[data-block="header-new"] .hdr-drawer a,
+[data-block="header-new"] .hdr-drawer span {
+  overflow-wrap: anywhere;
+}
+
 /* logo=right（#1468）：紧凑条两头对调 —— logo 到右头，汉堡到最左（电话图标在汉堡和 logo 之间）；顶条那两段
    （Section 上挂 `hdr-flip` 的两个 flex 容器，各两个子项）也对调。抽屉内容顺序不动。
    用 `order` 把第一个子项挪到最后：这几处都只有两个子项（电话图标不在时紧凑条右边那组只剩汉堡），效果跟整条

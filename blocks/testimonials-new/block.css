@@ -55,7 +55,9 @@
 [data-block="testimonials-new"] .tn-logo-icon {
   color: var(--tn-brand);
 }
-[data-block="testimonials-new"] .tn-logo img {
+/* 图片那一档 logo（#1519：选择器原来是 `.tn-logo img`。`<img>` 只出现在挂 `tn-logo-img` 的那一档里，
+   命中的元素一个不变；改写成这一档自己的钩子，它才有一条规则）。 */
+[data-block="testimonials-new"] .tn-logo-img img {
   width: auto;
   max-width: 8rem;
   object-fit: contain;

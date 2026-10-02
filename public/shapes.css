@@ -10573,7 +10573,9 @@
 [data-block="testimonials-new"] .tn-logo-icon {
   color: var(--tn-brand);
 }
-[data-block="testimonials-new"] .tn-logo img {
+/* 图片那一档 logo（#1519：选择器原来是 `.tn-logo img`。`<img>` 只出现在挂 `tn-logo-img` 的那一档里，
+   命中的元素一个不变；改写成这一档自己的钩子，它才有一条规则）。 */
+[data-block="testimonials-new"] .tn-logo-img img {
   width: auto;
   max-width: 8rem;
   object-fit: contain;
@@ -11429,6 +11431,13 @@
   overflow-wrap: anywhere;
 }
 
+/* brand=right（`ftr-reverse`，#1519）：row 在 <768 竖着排时链接 / 社交 / 底栏都靠右（`flex-row-reverse`），
+   只有店名还在左边 —— 它是被拉满整行的 flex 容器，内容从左排。推到右头，跟 columns 的品牌列（`align-items-end`）一致。
+   ≥768 它是一行里按内容宽的 flex 项，这条不改任何位置。 */
+[data-block="footer-new"].ftr-reverse [data-footer-main] > [data-footer-part="brand"] {
+  justify-content: flex-end;
+}
+
 /* #1469 —— 深底（`bg` 填了深色 / `brand` / 深渐变）上的小字挂 `ftr-muted-on-dark`（跟 `text-body-secondary` 同一个位置换掉）。
    它的颜色（白 .92）全站只有一条：`scripts/lib/site-css.js` §ON_DEEP_MUTED（#1477）。 */
 
@@ -11850,6 +11859,18 @@
    再怎么 `flex-nowrap` 也只会把电话 / 汉堡挤出去。`flex-nowrap` 在 markup 上（Bootstrap 的
    `.navbar > .container-lg { flex-wrap: inherit }` 会从 `.navbar` 继承 wrap —— 就是它把汉堡折到了第二行）。 */
 [data-block="header-new"] .hdr-compact > .hdr-brand { min-width: 0; }
+
+/* 紧凑条右边那个电话圆图标（#1519）：它是 flex 项，`w-rem-10` 只钉了宽度，默认 `flex-shrink: 1` 下被挤时会缩成椭圆
+   （team-new 的 `.tm-join-icon` 同一条）。今天它的父容器带 `flex-shrink-0` 挡着，这条让它自己也不缩。 */
+[data-block="header-new"] .hdr-phone { flex: 0 0 auto; }
+
+/* 抽屉（#1519）：联系信息 / 链接里的一个不可断的长词（真站的邮箱、长网址）会把整页撑宽 ——
+   320 宽实测 `appointments@northsidecollisionandautobody.com` 画到 369，整页跟着撑到 369、横向滚动（footer-new
+   stacked / columns 同一条）。 */
+[data-block="header-new"] .hdr-drawer a,
+[data-block="header-new"] .hdr-drawer span {
+  overflow-wrap: anywhere;
+}
 
 /* logo=right（#1468）：紧凑条两头对调 —— logo 到右头，汉堡到最左（电话图标在汉堡和 logo 之间）；顶条那两段
    （Section 上挂 `hdr-flip` 的两个 flex 容器，各两个子项）也对调。抽屉内容顺序不动。
