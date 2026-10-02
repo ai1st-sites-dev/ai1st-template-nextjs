@@ -20,8 +20,8 @@
 //
 // 🔴 **`brand=right`：桌面在左的，小屏就在上**（Chris 2026-09-27；#1469 起它是旋钮 `brand`，原来是开关 `reverse`，
 //    画法逐字没变 —— 根上的类名也还叫 `ftr-reverse`）。两个排布的主容器 ≥768 反向（首项 / 品牌列
-//    在右），<768 用 `flex-column-reverse` 放到最下。`columns` 的断点从 T2.2 的 `lg` 改成 `md`（#1464 的
-//    真改动）—— 品牌列在 768 起就跟其余列并排，不然「768–991 品牌列在右」无从谈起。
+//    在右），<768 用 `flex-column-reverse` 放到最下；底栏根容器用同一个 `mainReverse`（#1525 补上，原来只翻
+//    ≥768）。`columns` 的断点从 T2.2 的 `lg` 改成 `md`（#1464 的真改动）—— 品牌列在 768 起就跟其余列并排，不然「768–991 品牌列在右」无从谈起。
 //    导航行 / 社交行 / 底栏里那几处小容器用的是不带断点的 `flex-row-reverse`，任何宽度都翻。
 //    🔴 `stacked` 是居中的，`brand` 对它**一处都不起作用**（#1469 AC3：两个值 HTML 相同）—— 原来的 reverse 在
 //    stacked 下还会翻导航 / 社交 / 联系 / CTA 行和根上的类，所以判据收在一个变量上（函数体里的 `reverse`），不在各处分别判。
@@ -402,8 +402,9 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
         </div>
       )
       : linkRow(legal);
+    // 根容器跟主容器同一条规矩（§文件头）：≥768 反向，<768 反序叠 —— 桌面在左的那个，小屏在上（#1525）。
     return (
-      <div className={`border-top ${lineTone} mt-10 pt-6 d-flex flex-column flex-md-row justify-content-between gap-3 text-sm ${mutedTone} ${reverse ? 'flex-md-row-reverse' : ''}`}>
+      <div className={`border-top ${lineTone} mt-10 pt-6 d-flex ${mainReverse} justify-content-between gap-3 text-sm ${mutedTone}`} data-footer-bottom="">
         {left}
         {right}
       </div>
