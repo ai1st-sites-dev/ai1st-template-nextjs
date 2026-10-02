@@ -608,6 +608,8 @@ const DEMO_CONTENT = {
     //    营业时间不是联系方式的源（正文「不做」），照旧手写。
     ctaSecondary: { label: 'Call us', href: { source: 'phone' }, style: 'outline' },
     topbar: {
+      // #1528 —— 一句话公告（带链接文字的那种写法，老公告条的形状派生过来就是这样）。
+      message: { text: 'Free brake inspection with every oil change this month.', href: '/quote', label: 'Book now' },
       contact: [
         { source: 'phone' },
         { icon: 'clock', text: 'Mon–Sat 8am–6pm' },

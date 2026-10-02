@@ -26,9 +26,9 @@
 //   块里的：块 `data` 任意深度上带 `href` 键的对象（#1526 —— 原来只认 `kind === "link"` 的槽位，按钮列表等
 //   整层看不见，理由在 §blockLinks）。块类型要在块清单里（`blocks/<块>/manifest.json`）。
 //   新加一个链接槽、一个按钮列表都不用改这里。
-//   `navigation.json` 里的：`topbar.link`（公告条，= announcement-bar.link）与 `header.cta`（顶栏按钮，
-//   = header.cta）。这两个外壳块的字不住在页面里，住在 navigation.json —— 那两个位置写在 §NAV_LINKS，
-//   `link-href.test.js` 盯着它跟两份 manifest 对得上。
+//   `navigation.json` 里的：`topbar.link`（一句话公告的链接，= header 的 topbar.message）与 `header.cta`（顶栏按钮，
+//   = header 的 ctaPrimary）。这两处的字不住在页面里，住在 navigation.json —— 那两个位置写在 §NAV_LINKS，
+//   `link-href.test.js` 盯着它跟 header 的 manifest 对得上。
 //
 // ── 老数据：只拦「这一次新写进去的」────────────────────────────────────────────────────────────
 //   站文件里本来就有一个不合规的链接时，不碰它的存盘（改别的字段）照常成功；这一次把它改成另一个
@@ -49,9 +49,10 @@ const { isSourceRef, BUTTON_SOURCES } = require('./item-sources');
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
 /** `navigation.json` 里老板的链接住在哪两个键上（对应哪个块的哪个槽位）。 */
-// 📌 #1425（T3）：原来还有 `topbar.link`（公告条那个区，块 `announcement-bar`）。那个区随旧库退役，navigation.json 里的
-//    `topbar` 段没人读了（数据留着），它的链接不再画到页面上。
+// 📌 #1425（T3）删过 `topbar.link`（公告条那个区随旧库退役，链接不再画）；#1528 它又画到页面上了（派生成 header 的
+//    `topbar.message.href`，shell-data.js §topbarMessage）⟹ 加回来。`slot` 是个对象槽，`field` 是它 shape 里那一格。
 const NAV_LINKS = [
+  { key: ['topbar', 'link'], block: 'header', slot: 'topbar', field: 'message', where: 'the announcement at the top of the header' },
   { key: ['header', 'cta'], block: 'header', slot: 'ctaPrimary', where: 'the header' },  // #1425：派生成 header 的 ctaPrimary（shell-data.js）
 ];
 

@@ -20,8 +20,11 @@
 //    `copyright`（旧页脚画的是 `© 年份 {copyright}`，这里拼成同一句）。
 // 📌 已知能力差（写进 #1425 交付说明）：
 //    · `footer.columns[1..]`（构建按服务分组的关键词页链接栏）在新页脚里没有槽 ⟹ 不再画；
-//    · `footer.columns[].title`（栏目标题）同理；
-//    · navigation.json 的 `topbar`（一句话公告）随公告条那个区退役，**数据不删、只是不再读**。
+//    · `footer.columns[].title`（栏目标题）同理。
+// 📌 navigation.json 的 `topbar`（一句话公告）#1425 随公告条那个区退役时数据没删；#1528 起接回 header 的
+//    `topbar.message`（§topbarMessage），老站一个字节不改就能重新看见它 —— 只在带 topbar 的两个预设上画。
+
+const { hrefAllowed } = require('./href-allowed');
 
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 const str = (v) => (typeof v === 'string' ? v.trim() : '');
@@ -43,6 +46,26 @@ function links(list, loc) {
   return (Array.isArray(list) ? list : [])
     .filter((l) => isObj(l) && str(l.label) && str(l.href))
     .map((l) => ({ label: str(l.label), href: loc(str(l.href)) }));
+}
+
+/**
+ * navigation.json 的 `topbar`（老公告条的形状：`{message: string, link?: {label, href}}`）→ header 的
+ * `topbar.message`（`{text, href?, label?}`）。#1528：老站的数据原样接回，不要求改文件。
+ * 只填了链接、没填文字（老编辑器允许这么存）⟹ 链接文字当那句话、整句是链接。两样都没有 ⟹ `undefined`（不写这一格）。
+ * 🔴 地址不在白名单里（`href-allowed.js`，写盘那一关同一个函数）⟹ 当没有链接、只画字：#1425 到 #1528 之间
+ *    `topbar.link` 不在写盘检查里（那时它不画），那段时间写进去的 `javascript:` 不许因为本票重新画到页面上。
+ */
+function topbarMessage(tb, loc) {
+  if (!isObj(tb)) return undefined;
+  const link = isObj(tb.link) ? tb.link : {};
+  const href = str(link.href) && hrefAllowed(link.href) ? loc(str(link.href)) : '';
+  const label = str(link.label);
+  const text = str(tb.message) || (href ? label : '');
+  if (!text) return undefined;
+  const m = { text };
+  if (href) m.href = href;
+  if (href && label && text !== label) m.label = label;
+  return m;
 }
 
 /**
@@ -75,6 +98,8 @@ function shellDataFor({ nav, brand, brandName, services, pages, locale, defaultL
   }
   // 只有带 topbar 的预设才画这一条；值不存在的那一项展开时自己去掉（item-sources.js §ITEM_SLOTS）。
   header.topbar = { contact: [{ source: 'phone' }, { source: 'email' }] };
+  const message = topbarMessage(n.topbar, loc);
+  if (message) header.topbar = { message, ...header.topbar };
 
   const columns = Array.isArray(f.columns) ? f.columns : [];
   const hasPage = new Set((Array.isArray(pages) ? pages : []).map((p) => p && p.slug));

@@ -176,8 +176,8 @@ console.log('\n④ 紧凑条与抽屉');
     const parts = [...drawer.matchAll(/data-hdr-part="(drawer-[a-z]+)"/g)].map((m) => m[1]);
     const ctaBox = drawer.slice(drawer.indexOf('drawer-cta'), drawer.indexOf('drawer-contact') > 0 ? drawer.indexOf('drawer-contact') : undefined);
     if (topbar === 'on') {
-      check(JSON.stringify(parts) === JSON.stringify(['drawer-nav', 'drawer-cta', 'drawer-contact', 'drawer-info', 'drawer-links', 'drawer-social']),
-        `${n}：抽屉顺序 = 菜单 → 主 CTA → 联系信息 → 链接 → 社交`, parts.join(' → '));
+      check(JSON.stringify(parts) === JSON.stringify(['drawer-nav', 'drawer-cta', 'drawer-contact', 'drawer-message', 'drawer-info', 'drawer-links', 'drawer-social']),
+        `${n}：抽屉顺序 = 菜单 → 主 CTA → 联系信息（公告 → 电话等）→ 链接 → 社交`, parts.join(' → '));
       check(ctaBox.includes(first) && !ctaBox.includes(second), `${n}：抽屉里只有主 CTA，没有副 CTA`);
       check(drawer.includes(`href="${phoneHref}"`), `${n}：抽屉里的电话可拨`);
     } else {
@@ -263,6 +263,58 @@ console.log('\n⑥ logo=right');
     check((rr.match(/\bhdr-flip\b/g) || []).length === 1, '反向对照：拿掉一处 hdr-flip ⟹ 只剩 1 个（上面那格红得起来）');
     C = loadSection();
   }
+}
+
+// ══ ⑦ #1528：topbar 的一句话公告 —— 带 topbar 的两个预设画（顶条 + 抽屉），别的预设不画也不留壳；不写它 = 改前 ══════
+console.log('\n⑦ 一句话公告（topbar.message）');
+{
+  const MSG = 'Spring tire swap special';
+  const noMsg = () => { const d = clone(DEMO); delete d.topbar.message; return d; };
+  const withMsg = (m) => { const d = noMsg(); d.topbar.message = m; return d; };
+  // 公告自己的那两段（顶条 / 抽屉）从 HTML 里抠掉之后，剩下的必须跟「没写公告」那一份逐字相同 —— 它只加自己，不动别处。
+  const strip = (h) => h.replace(/<span data-hdr-part="(?:bar|drawer)-message">[\s\S]*?<\/span>/g, '');
+  for (const [n, , , topbar] of TABLE) {
+    const without = render(n, noMsg());
+    const plain = render(n, withMsg({ text: MSG }));
+    if (topbar === 'on') {
+      check((plain.match(/data-hdr-part="bar-message"/g) || []).length === 1 && (plain.match(/data-hdr-part="drawer-message"/g) || []).length === 1,
+        `${n}：顶条里一句、抽屉里一句`);
+      check(strip(plain) === without, `${n}：抠掉公告那两段 == 没写公告的那一份（别处一个字节不动）`);
+    } else {
+      check(plain === without, `${n}（不带 topbar）：写了公告也逐字等于没写 —— 不画、不留空壳`);
+    }
+  }
+  const bar = (h) => { const m = h.match(/<span data-hdr-part="bar-message">([\s\S]*?)<\/span>/); return m ? m[1] : null; };
+  const txt = bar(render('topbar', withMsg({ text: MSG })));
+  check(txt === MSG, `只有 text ⟹ 纯文字（读到 ${txt}）`);
+  const whole = bar(render('topbar', withMsg({ text: MSG, href: '/tires' })));
+  check(whole === `<a class="link-secondary" href="/tires">${MSG}</a>`, `text + href ⟹ 整句是链接（读到 ${whole}）`);
+  const labeled = bar(render('topbar', withMsg({ text: MSG, href: '/tires', label: 'Book now' })));
+  check(labeled === `${MSG} <a class="link-secondary fw-semibold text-nowrap" href="/tires">Book now</a>`, `text + href + label ⟹ 句子后面跟链接（读到 ${labeled}）`);
+  const orphan = bar(render('topbar', withMsg({ text: MSG, label: 'Book now' })));
+  check(orphan === MSG, `有 label 没 href ⟹ 纯文字，label 不画（读到 ${orphan}）`);
+  for (const [name, m] of [['空串', { text: '' }], ['只有空白', { text: '   ' }], ['text 不是字符串', { text: 42 }], ['整格是字符串', 'hi'], ['null', null]]) {
+    check(render('topbar', withMsg(m)) === render('topbar', noMsg()), `${name} ⟹ 当没写（逐字等于没写那一份）`);
+  }
+  // 深底：链接跟顶条其他链接一样翻 link-light。
+  const deepBar = bar(render('topbar', { ...withMsg({ text: MSG, href: '/tires' }), bg: '#0f172a' }));
+  check(deepBar && deepBar.includes('link-light'), `深底上公告链接是 link-light（读到 ${deepBar}）`);
+  // 反向对照 ①：没写公告时也留一个空壳 span ⟹「不带 topbar 也逐字等于」「当没写」那几格读得出差别。
+  const s1 = mutate("  ) : null);\n\n  // 抽屉里的联系信息段", "  ) : <span data-hdr-part={key} />);\n\n  // 抽屉里的联系信息段");
+  if (!s1) bad('反向对照没改到源码（锚点找不到）');
+  else {
+    const M = loadSection(s1);
+    check(render('topbar', noMsg(), M) !== render('topbar', noMsg()), '反向对照①：没写公告也留空壳 ⟹ 跟「没写」那一份不再相等（上面那几格红得起来）');
+  }
+  // 反向对照 ②：drawer 那段的门不看 message ⟹ 只有公告、没有别的联系项时抽屉里就没有它。
+  const s2 = mutate('hasTopbar && (message || contact.length', 'hasTopbar && (contact.length');
+  if (!s2) bad('反向对照没改到源码（锚点找不到）');
+  else {
+    const only = withMsg({ text: MSG }); only.topbar.contact = []; only.topbar.links = []; only.topbar.social = [];
+    check(render('topbar', only).includes('data-hdr-part="drawer-message"'), '只有公告时抽屉里照样有它');
+    check(!render('topbar', only, loadSection(s2)).includes('data-hdr-part="drawer-message"'), '反向对照②：抽屉的门不看 message ⟹ 那一格读得出差别');
+  }
+  C = loadSection();
 }
 
 console.log(`\n${fail ? '🔴' : '✅'} header-render: ${pass} 过 / ${fail} 不过`);

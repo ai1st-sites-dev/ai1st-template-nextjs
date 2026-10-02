@@ -83,9 +83,9 @@ export interface NavigationConfig {
     columns: FooterColumn[];
     copyright: string;
   };
-  // #1000 — 顶栏那条细带（公告条）的内容。📌 #1425（T3）起**没有人读它**：公告条那个区随旧库退役，
-  // 而老板写过的这句话不删（PM 2026-10-02 裁定 ②，删数据不可逆）—— 等 header 的 topbar 补上「一句话公告」
-  // 那一格时原地接回去。
+  // #1000 — 顶栏那条细带（公告条）的内容。#1425（T3）公告条那个区随旧库退役时数据留着（PM 2026-10-02 裁定 ②）；
+  // #1528 起构建把它派生进 header 的 `topbar.message`（`scripts/lib/shell-data.js` §topbarMessage），
+  // 带 topbar 的两个顶栏预设画它。
   topbar?: {
     message: string;
     link?: NavLink;

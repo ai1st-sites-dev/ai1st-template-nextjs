@@ -161,8 +161,8 @@ const SIDE_EFFECTS = [
  *   footer.description      → footer.tagline      只有 layout = stacked / columns 的四个预设画（row 那一种没有）
  *   footer.columns[].title  → **没有槽**          新页脚的栏目标题是组件自己的字（Services / Pages …），不读它
  *   footer.columns[>0].links→ **没有槽**          按服务分组的关键词页链接栏，新页脚不画（shell-data.js 文件头的能力差）
- *   topbar                  → **没有槽**          公告条那个区随旧库退役（PM 2026-10-02 裁定 ②：数据留着、不再读）
- * 「没有槽」的三格 `renderedBy` 是空的 ⟹ 任何站上改它们都要说那句话，而且话要说成「今天没有任何样式显示它」，
+ *   topbar                  → header.topbar.message   只有 topbar / topbar-stacked 两个预设画（#1528 接回；#1425 时没有槽）
+ * 「没有槽」的两格 `renderedBy` 是空的 ⟹ 任何站上改它们都要说那句话，而且话要说成「今天没有任何样式显示它」，
  * 不是「换个样式就能看见」（§invisibleNote）。
  *
  * ── 每一格钉着它在组件里的渲染点 ────────────────────────────────────────────────────────────────
@@ -240,13 +240,13 @@ const PAGE_READS = [
     },
   },
   {
-    // #1425（T3）—— 公告条那个区退役了，这一格挂在 header 上（它的继任是 header 的 topbar，但那里没有「一句话
-    // 公告」这一格），`renderedBy` 空。🔴 `undefined` 在下面不能跳过：「模型给一个原来没有 topbar 的站加了一段」
-    // 正是最该说话的那一次。
+    // #1425（T3）—— 公告条那个区退役了，这一格挂在 header 上。#1528 起它派生进 header 的 `topbar.message`
+    // （`lib/shell-data.js` §topbarMessage），只有带 topbar 的两个预设画。🔴 `undefined` 在下面不能跳过：
+    // 「模型给一个原来没有 topbar 的站加了一段」正是最该说话的那一次。
     key: 'topbar',
     region: 'header',
-    renderedBy: [],
-    slot: null,
+    renderedBy: ['topbar', 'topbar-stacked'],
+    slot: 'topbar',
     what: 'the thin announcement strip above the header',
     read: (nav) => (isObj(nav) ? nav.topbar : undefined),
   },

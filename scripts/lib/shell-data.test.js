@@ -7,6 +7,7 @@
 //   · 映射 header.links → nav · header.cta → ctaPrimary · footer.columns[0].links → nav · brand.logoUrl → logo · 生意名 → brandName；
 //   · 联系方式 / 社交写成引用，不抄值；
 //   · 派生不到的维度（legal · footer.cta · columns.areas · form · ctaSecondary）不造数据。
+//   · #1528：navigation.json 的 `topbar`（老公告条那句话）接回 header 的 `topbar.message`。
 // 还有一条反向：派生出来的每个键都必须是块 manifest 声明过的槽（写错一个键名，块就静默不画它）。
 'use strict';
 
@@ -60,8 +61,37 @@ console.log('── ③ 派生不到的不造（PM 裁定 ①）');
 for (const k of ['legal', 'cta', 'form', 'bg', 'options']) check(!(k in d.footer), `footer 没有 ${k}`);
 check(!('areas' in d.footer.columns), 'footer.columns 没有 areas');
 for (const k of ['ctaSecondary', 'bg', 'options']) check(!(k in d.header), `header 没有 ${k}`);
-check(!('links' in d.header.topbar) && !('social' in d.header.topbar), 'header.topbar 只有 contact（没有 links / social）');
-check(!flat.includes('Spring sale'), 'navigation.json 的 topbar（公告条那句话）不进任何一个区（公告条退役，数据留着不读）');
+check(!('links' in d.header.topbar) && !('social' in d.header.topbar), 'header.topbar 没有 links / social');
+
+console.log('── ③b 老公告条那句话接回 header.topbar.message（#1528；输入是 #1425 之前就存在的形状 {message, link?: {label, href}}）');
+{
+  const msgOf = (topbar, extra = {}) => {
+    const nav = { ...NAV };
+    if (topbar === undefined) delete nav.topbar; else nav.topbar = topbar;
+    return shellDataFor({ nav, brand: BRAND, brandName: 'x', services: [], pages: [], year: 2026, ...extra }).header.topbar;
+  };
+  check(JSON.stringify(d.header.topbar.message) === JSON.stringify({ text: 'Spring sale' }), `只有 message ⟹ {text}（纯文字，读到 ${JSON.stringify(d.header.topbar.message)}）`);
+  check(JSON.stringify(d.footer).indexOf('Spring sale') < 0, '页脚里没有它');
+  const full = msgOf({ message: '24/7 emergency service', link: { label: 'Call now', href: '/contact' } }).message;
+  check(JSON.stringify(full) === JSON.stringify({ text: '24/7 emergency service', href: '/contact', label: 'Call now' }), `message + link ⟹ {text, href, label}（读到 ${JSON.stringify(full)}）`);
+  const onlyLink = msgOf({ message: '', link: { label: 'Book now', href: '/quote' } }).message;
+  check(JSON.stringify(onlyLink) === JSON.stringify({ text: 'Book now', href: '/quote' }), `只填了链接（老编辑器允许）⟹ 链接文字当那句话、整句是链接（读到 ${JSON.stringify(onlyLink)}）`);
+  const noLabel = msgOf({ message: 'Open Sunday', link: { label: '', href: '/hours' } }).message;
+  check(JSON.stringify(noLabel) === JSON.stringify({ text: 'Open Sunday', href: '/hours' }), `链接没写文字 ⟹ 整句是链接（读到 ${JSON.stringify(noLabel)}）`);
+  const noHref = msgOf({ message: 'Open Sunday', link: { label: 'More', href: '' } }).message;
+  check(JSON.stringify(noHref) === JSON.stringify({ text: 'Open Sunday' }), `链接没写地址 ⟹ 纯文字，label 不留（读到 ${JSON.stringify(noHref)}）`);
+  for (const bad of ['javascript:alert(1)', 'vbscript:msgbox(1)', 'data:text/html,x', 'java\tscript:alert(1)']) {
+    const m = msgOf({ message: 'Open Sunday', link: { label: 'Go', href: bad } }).message;
+    check(JSON.stringify(m) === JSON.stringify({ text: 'Open Sunday' }), `链接地址是 ${JSON.stringify(bad)}（写盘那一关会拒的）⟹ 只画字，不带链接（读到 ${JSON.stringify(m)}）`);
+  }
+  const zh = msgOf({ message: '周日营业', link: { label: '看看', href: '/hours' } }, { locale: 'zh', defaultLocale: 'en' }).message;
+  check(zh && zh.href === '/zh/hours', `副语言那一份链接加 /zh 前缀（读到 ${zh && zh.href}）`);
+  for (const [name, tb] of [['没有 topbar', undefined], ['topbar 是字符串', 'hello'], ['message / link 都空', { message: '  ', link: { label: '', href: '' } }], ['只有 label 没有地址', { message: '', link: { label: 'x', href: '' } }]]) {
+    const t = msgOf(tb);
+    check(!('message' in t) && JSON.stringify(t) === JSON.stringify({ contact: [{ source: 'phone' }, { source: 'email' }] }),
+      `${name} ⟹ 不写这一格，topbar 跟改前逐字相同（读到 ${JSON.stringify(t)}）`);
+  }
+}
 
 console.log('── ④ 版权行');
 check(d.footer.copyright === '© 2026 Northside Auto Care. All rights reserved.', `不带 © 的补上「© 年份」（读到 ${d.footer.copyright}）`);

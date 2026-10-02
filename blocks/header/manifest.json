@@ -45,7 +45,7 @@
       "kind": "object",
       "required": false,
       "promptOptional": true,
-      "shape": "{contact: [{icon, text, href?}], links: [{label, href}], social: [{label, href, icon}]}"
+      "shape": "{message?: {text, href?, label?}, contact: [{icon, text, href?}], links: [{label, href}], social: [{label, href, icon}]}"
     },
     "bg": {
       "kind": "color",

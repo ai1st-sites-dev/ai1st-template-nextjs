@@ -1682,6 +1682,8 @@ console.log('\n⑮ 链接协议（#1416）：页面 / navigation.json / 站级�
   BAD.forEach((href, i) => {
     calls.push({ id: `p${i}`, what: `页面 hero 按钮 ${href.split(':')[0]}:`, call: writeCall(`p${i}`, 'en/pages/home.json', pageWith(0, href)) });
     calls.push({ id: `h${i}`, what: `navigation.json 顶栏按钮 ${href.split(':')[0]}:`, call: writeCall(`h${i}`, 'en/navigation.json', navWith((n) => { n.header.cta = { label: 'Get a Quote', href }; })) });
+    // #1528：一句话公告的链接（topbar.link）又画到页面上了（header 的 topbar.message）⟹ 这一臂加回来。
+    calls.push({ id: `t${i}`, what: `navigation.json 公告链接 ${href.split(':')[0]}:`, call: writeCall(`t${i}`, 'en/navigation.json', navWith((n) => { n.topbar = { message: 'Open Saturday', link: { label: 'Details', href } }; })) });
     calls.push({ id: `s${i}`, what: `站级块库 cta ${href.split(':')[0]}:`, call: writeCall(`s${i}`, 'en/blocks/site-blocks.json', libWith(href)) });
   });
   // #1416 r1 QA3 —— 路径拼写那一维：同一个文件的非规范写法（`//`、`./`）`path.join` 之后落在同一个真文件上。

@@ -70,6 +70,9 @@ export interface NavItem { label: string; href: string; icon?: string; show?: Sh
 export interface Cta { label: string; href: string; style?: CtaStyle }
 export interface TopbarContact { icon?: string; text: string; href?: string }
 export interface TopbarLink { label: string; href: string; icon?: string }
+/** 一句话公告（#1528）。`href` 写了就是链接：带 `label` ⟹ 句子照常、后面跟一个写着 label 的链接（老公告条的画法）；
+ *  不带 ⟹ 整句是链接。没写 `href` 就是纯文字。 */
+export interface TopbarMessage { text: string; href?: string; label?: string }
 export interface HeaderOptions {
   /** 只是标签：旋钮跟某个预设吻合就是它的名，否则 `custom`。渲染不读它。 */
   preset?: string;
@@ -86,7 +89,7 @@ export interface HeaderNewData {
   nav?: NavItem[];
   ctaPrimary?: Cta;
   ctaSecondary?: Cta;
-  topbar?: { contact?: TopbarContact[]; links?: TopbarLink[]; social?: TopbarLink[] };
+  topbar?: { message?: TopbarMessage; contact?: TopbarContact[]; links?: TopbarLink[]; social?: TopbarLink[] };
   /** 底色（§文件头）。没填 = 浅底。 */
   bg?: BgValue;
   options?: HeaderOptions;
@@ -171,6 +174,15 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
     .filter((c) => c && typeof c === 'object')
     .map((c) => (typeof c.href === 'string' ? c : { ...c, href: undefined }));
   const links = topbar.links || [];
+  // #1528 —— 一句话公告：`text` 不是非空字符串就当没写（不画、也不留空壳）；`href` / `label` 同理，不是字符串就当没有。
+  const rawMessage = topbar.message;
+  const message = rawMessage && typeof rawMessage === 'object' && typeof rawMessage.text === 'string' && rawMessage.text.trim()
+    ? {
+      text: rawMessage.text,
+      href: typeof rawMessage.href === 'string' && rawMessage.href ? rawMessage.href : undefined,
+      label: typeof rawMessage.label === 'string' && rawMessage.label ? rawMessage.label : undefined,
+    }
+    : null;
   const social = topbar.social || [];
   const phone = hasTopbar ? contact.find((c) => c.href && c.href.startsWith('tel:')) : undefined;
   const ctas = [data.ctaPrimary, data.ctaSecondary].filter((c): c is Cta => !!c && !!c.label);
@@ -269,9 +281,18 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
     `hdr-topbar-${hasTopbar ? 'on' : 'off'}`,
   ].filter(Boolean).join(' ');
 
-  // 抽屉里的联系信息段：电话（可拨）/ 营业时间 / 地址 → Sign in · Create account → 社交（topbar 开时才有）。
-  const drawerContact = hasTopbar && (contact.length || links.length || social.length) ? (
+  // 公告那一句（顶条和抽屉各画一次，同一份 markup）。
+  const messageLine = (key: string) => (message ? (
+    <span key={key} data-hdr-part={key}>
+      {message.href && !message.label ? <SiteLink href={message.href} className={subTone}>{message.text}</SiteLink> : message.text}
+      {message.href && message.label ? <>{' '}<SiteLink href={message.href} className={`${subTone} fw-semibold text-nowrap`}>{message.label}</SiteLink></> : null}
+    </span>
+  ) : null);
+
+  // 抽屉里的联系信息段：公告 → 电话（可拨）/ 营业时间 / 地址 → Sign in · Create account → 社交（topbar 开时才有）。
+  const drawerContact = hasTopbar && (message || contact.length || links.length || social.length) ? (
     <div className={`border-top ${lineTone} pt-4 vstack gap-3 text-sm`} data-hdr-part="drawer-contact">
+      {messageLine('drawer-message')}
       {contact.length ? (
         <ul className={`list-unstyled vstack gap-2 mb-0 ${mutedTone}`} data-hdr-part="drawer-info">
           {contact.map((c, i) => (
@@ -303,6 +324,7 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
         <div className={`hdr-topbar border-bottom ${lineTone} py-2 text-sm`}>
           <div className={`container-lg d-flex align-items-center justify-content-between gap-6 ${right ? 'hdr-flip' : ''}`}>
             <div className={`d-flex align-items-center gap-5 ${mutedTone}`}>
+              {messageLine('bar-message')}
               {contact.map((c, i) => (
                 <span key={i} className="d-inline-flex align-items-center gap-2 text-nowrap">
                   {icon(c.icon)}

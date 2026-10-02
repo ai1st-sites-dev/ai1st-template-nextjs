@@ -105,8 +105,13 @@ console.log('② 块清单那一侧');
     `块清单里 kind=link 的槽位 ${linkSlots.length} 个，含 logos.introCta`, linkSlots.map((x) => `${x.type}.${x.slot}`).join(' · '));
   for (const n of NAV_LINKS) {
     const s = m.get(n.block) && m.get(n.block).slots && m.get(n.block).slots[n.slot];
-    check(Boolean(s && s.kind === 'link'), `NAV_LINKS 的 ${n.key.join('.')} 对得上 blocks/${n.block} 的 link 槽位 ${n.slot}`);
+    // #1528：`field` 写着 ⟹ 链接住在对象槽里的那一格（header 的 topbar.message），判据是 shape 里那一格带 href。
+    const hit = n.field
+      ? Boolean(s && s.kind === 'object' && typeof s.shape === 'string' && new RegExp(`\\b${n.field}\\??: \\{[^}]*\\bhref\\b`).test(s.shape))
+      : Boolean(s && s.kind === 'link');
+    check(hit, `NAV_LINKS 的 ${n.key.join('.')} 对得上 blocks/${n.block} 的槽位 ${n.slot}${n.field ? `.${n.field}（带 href）` : '（kind=link）'}`);
   }
+  check(NAV_LINKS.some((n) => n.key.join('.') === 'topbar.link'), 'NAV_LINKS 里有 topbar.link（#1528：公告的链接又画到页面上了）');
   // 📌 这里原来还有一格「检查器那个入口的哨兵」（`patch-block.js` 能不能写到 href）。那个脚本随检查器那条
   //    单块路 #1444 删了；今天写链接的入口只剩走 `lib/page-write.js` §commitWrites 的那几个，源头帽盖得到。
 }
