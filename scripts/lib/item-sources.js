@@ -55,17 +55,22 @@ function locationOf(ref, ctx) {
 
 const trimmed = (v) => str(v).trim();
 
-/** 一个联系方式 → `{ icon, text, href? }`（页头顶条那一项的形状；按钮只取 `href`）。没有这个值 ⟹ null。 */
+/**
+ * 一个联系方式 → `{ icon, text, href? }`（页头顶条那一项的形状；按钮只取 `href`）。没有这个值 ⟹ null。
+ * 邮箱不分门店（`brand.email` 一份）：没写 `location` 时不要求有门店（#1520，同 `contact-facts.js` §siteFactsFrom
+ * 那一侧）；写了 `location` 才要求那一家在。
+ */
 function contactFact(kind, ref, ctx) {
+  if (kind === 'email') {
+    if (ref.location !== undefined && !locationOf(ref, ctx)) return null;
+    const email = trimmed(isObj(ctx.brand) ? ctx.brand.email : '');
+    return email ? { icon: 'envelope', text: email, href: mailtoHref(email) } : null;
+  }
   const loc = locationOf(ref, ctx);
   if (!loc) return null;
   if (kind === 'phone') {
     const phone = trimmed(loc.phone);
     return phone ? { icon: 'telephone', text: phone, href: telHref(phone) } : null;
-  }
-  if (kind === 'email') {
-    const email = trimmed(isObj(ctx.brand) ? ctx.brand.email : '');
-    return email ? { icon: 'envelope', text: email, href: mailtoHref(email) } : null;
   }
   const address = trimmed(loc.address);
   return address ? { icon: 'geo-alt', text: address } : null;
@@ -144,7 +149,7 @@ const SOURCES = {
     fact: (ref, ctx) => contactFact('address', ref, ctx),
   },
   // footer-new 的 `contact`：`{phone, email, address}`，取 `locations[location]` 和 `email`。没有的那一样不带（页脚空的不画）；
-  // 那一家不存在 ⟹ 空对象（整段联系信息不画）。
+  // 写了 `location` 而那一家不存在 ⟹ 空对象（整段联系信息不画）；没写 `location` 而一家门店都没有 ⟹ 只剩 `email`（#1520）。
   brand: {
     params: { location: INDEX },
     prompt: '{source: "brand"}',
@@ -266,9 +271,11 @@ function isButton(v) {
 }
 
 /**
- * #1506 —— 一个块的 data 里写成引用的联系方式问题清单（`validateSite` 调；空 = 合法）。三处：
+ * #1506 —— 一个块的 data 里写成引用的联系方式问题清单（`validateSite` 调；空 = 合法）。下面几处：
  *   · 按钮：`href` 是对象 ⟹ 只能是 `BUTTON_SOURCES` 的引用；`label` 里的 `{…}` 只认 `LABEL_PLACEHOLDERS`
  *   · `ITEM_SLOTS`：那份列表里是对象且带 `source` 的那一项 ⟹ 只能是登记的那几个源
+ *   · 半截形状（#1520）：不是按钮、`href` 却是对象（`{icon, text, href: {source: "phone"}}`）⟹ 报一条。
+ *     展开那一侧（§resolveItemSlots 认整项、§resolveButtons 认按钮）两条路都认不出它，对象会原样留到渲染端。
  *   （`BLOCK_SLOTS` 的整槽引用由调用方按槽调 §refProblems —— 列表槽和对象槽都走那一条。）
  */
 function contactRefProblems(type, data) {
@@ -283,6 +290,10 @@ function contactRefProblems(type, data) {
           out.push(`"${at}.label" 里的 {${name}} 不认识 —— 按钮文字里只认 ${LABEL_PLACEHOLDERS.map((x) => `{${x}}`).join(' / ')}`);
         }
       }
+    } else if (at && isObj(v.href)) {
+      const why = 'label' in v ? 'label 不是字符串' : '没有 label';
+      out.push(`"${at}.href" 是对象，但这一项不是按钮（${why}）—— 引用 {"source": …} 只能写在按钮 {label, href} 的 href 里，`
+        + '或者整项写成引用（页头顶条那一项：{"source": "phone"}）；不然 href 写成字符串');
     }
     for (const [k, x] of Object.entries(v)) if (k !== 'href') walk(x, at ? `${at}.${k}` : k);
   };

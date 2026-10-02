@@ -26,6 +26,9 @@
  *   AC10 旧块（contact-form / contact-info / hero / cta-banner / header / footer）零改动（对 origin/main 比）
  *   + socialLinks 两种存法（数组 / 对象）都认；不认识的平台名图标落回 footer-new 的兜底
  *   + 没有引用的块原样返回同一个对象（良构的块一个字节不变）
+ *   #1520 ① 页头顶条「字面项 + 引用 href」：校验报一条、渲染不崩 ② 阳性对照：整项引用 / 完整字面项照旧
+ *         ③ 有邮箱、零门店：email 引用照常画 ④ 写了 location 而那一家不在：email 仍不画
+ *         ⑤ 顶条 contact 本身是坏形状：7 个预设都不崩（r2）⑥ 报文分「没有 label」/「label 不是字符串」（r2）
  *
  * 🔴 每一段带反向对照（同一进程、单变量），证明判据真会红。
  */
@@ -129,6 +132,25 @@ const renderFooter = (data) => renderToStaticMarkup(React.createElement(Footer, 
 const renderHeader = (data) => renderToStaticMarkup(React.createElement(Header, { shape: 'topbar', data, iconTable: icons.iconTableFor('header-new', data) }));
 const headerData = (contact, ctx = CTX) => resolve1('header-new', { ...clone(demo.DEMO_CONTENT['header-new']), topbar: { ...clone(demo.DEMO_CONTENT['header-new'].topbar), contact } }, ctx);
 const footerData = (contact, ctx = CTX) => resolve1('footer-new', { ...clone(demo.DEMO_CONTENT['footer-new']), contact, social: { source: 'social' } }, ctx);
+// #1520：Section.tsx 里取 `contact` 的那一段（逐字）。反向对照拿它做文本替换、同一进程编译一份变体（不写盘）；
+// 找不到这一段 ⟹ 返回 null，调用方报红（不是静默跳过）。
+const CONTACT_FIX = [
+  '  const contact = (Array.isArray(topbar.contact) ? topbar.contact : [])',
+  "    .filter((c) => c && typeof c === 'object')",
+  "    .map((c) => (typeof c.href === 'string' ? c : { ...c, href: undefined }));",
+].join('\n');
+const headerVariant = (from, to) => {
+  const src = fs.readFileSync(HEADER, 'utf-8');
+  if (!src.includes(from)) return null;
+  const m = new Module(HEADER, module);
+  m.filename = HEADER;
+  m.paths = Module._nodeModulePaths(path.dirname(HEADER));
+  m._compile(ts.transpileModule(src.replace(from, to), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true, resolveJsonModule: true },
+    fileName: HEADER,
+  }).outputText, HEADER);
+  return m.exports.default;
+};
 
 // ══ AC2 ══════════════════════════════════════════════════════════════════════════════════════════
 console.log('── AC2 tel:：期望值 + 三处用同一个函数');
@@ -269,6 +291,130 @@ console.log('\n── AC6 validateSite');
   const wrongPlace = v([{ id: 'hd', type: 'header-new', data: { topbar: { contact: [{ source: 'social' }] } } },
     { id: 'ft', type: 'footer-new', data: { contact: { source: 'phone' } } }]);
   check(wrongPlace.length === 2, `反向对照：源放错位置（顶条写 social、页脚 contact 写 phone）⟹ 各报一条（${wrongPlace.length}）`, wrongPlace.join(' | '));
+}
+
+// ══ #1520 两个边角 ══════════════════════════════════════════════════════════════════════════════
+console.log('\n── #1520 ① 页头顶条「字面项 + 引用 href」：校验报一条、渲染不崩');
+{
+  // 票面第一段命令的那一份：一家门店、一个邮箱，顶条那一项是字面的 {icon, text}，只有 href 写成了引用。
+  const B1 = { locations: [{ label: 'M', address: '12 King', phone: '(604) 555-0142' }], email: 'a@b.c' };
+  const C1 = { ...CTX, brand: B1, log: () => {} };
+  const mixed = { icon: 'telephone', text: 'Call us', href: { source: 'phone' } };
+  const probs = lib.contactRefProblems('header-new', { topbar: { contact: [mixed] } });
+  check(probs.length === 1 && probs[0].includes('topbar.contact[0]'), `校验：报一条、点名 topbar.contact[0]（${probs.length} 条：${probs.join(' | ')}）`);
+  const viaSite = manifestLib.validateSite({ pages: [{ slug: 'p', blocks: [{ id: 'hd', type: 'header-new', data: { topbar: { contact: [mixed] } } }] }], scope: 'edit' })
+    .problems.filter((p) => p.includes('topbar.contact[0]'));
+  check(viaSite.length === 1, `validateSite 也报这一条（真调用方，${viaSite.length} 条）`);
+  // 同一份展开产物：对象 href 原样留到了渲染端（两条展开路都认不出它）—— 先证明它真是会让 :142 那个表达式炸的那一份。
+  const data = headerData([mixed], C1);
+  const raw = data.topbar.contact[0];
+  let rawThrew = null;
+  try { [raw].find((c) => c.href && c.href.startsWith('tel:')); } catch (e) { rawThrew = e; }
+  check(rawThrew instanceof TypeError, `阳性对照：展开产物里 href 仍是对象，裸跑 :142 的表达式抛 TypeError（${rawThrew && rawThrew.message}）`);
+  let html = ''; let threw = null;
+  try { html = renderHeader(data); } catch (e) { threw = e; }
+  check(!threw && html.includes('Call us') && !html.includes('[object Object]'), '渲染 header-new（topbar 开）：不抛、那一项按没有链接画（没有 [object Object]）', threw && threw.message);
+  // 反向对照：把 Section.tsx 里那一段换回 #1506 的写法（同一进程编译一份，不写盘）⟹ 同一份数据当场抛错。
+  const Old = headerVariant(CONTACT_FIX, 'const contact = topbar.contact || [];');
+  if (!Old) bad('反向对照没命中：Section.tsx 里找不到 #1520 那一段（这一格没量）');
+  else {
+    let mThrew = null;
+    try { renderToStaticMarkup(React.createElement(Old, { shape: 'topbar', data, iconTable: icons.iconTableFor('header-new', data) })); } catch (e) { mThrew = e; }
+    check(mThrew instanceof TypeError && /startsWith/.test(mThrew.message), `反向对照：换回旧那一行 ⟹ 渲染抛 TypeError（${mThrew && mThrew.message}）`);
+  }
+}
+
+console.log('\n── #1520 ② 阳性对照：整项引用、完整的字面项都照旧');
+{
+  const whole = headerData([{ source: 'phone' }]).topbar.contact;
+  check(whole.length === 1 && whole[0].icon === 'telephone' && whole[0].text === '(604) 555-0142' && whole[0].href === 'tel:6045550142',
+    `整项引用 {source:"phone"} ⟹ ${JSON.stringify(whole[0])}`);
+  const lit = { icon: 'telephone', text: 'Call', href: 'tel:123' };
+  const out = headerData([lit]).topbar.contact;
+  check(JSON.stringify(out) === JSON.stringify([lit]), `完整的字面项原样通过（${JSON.stringify(out)}）`);
+  const p = lib.contactRefProblems('header-new', { topbar: { contact: [lit, { source: 'phone' }] } });
+  check(p.length === 0, '完整的字面项、整项引用：校验 0 条', p.join(' | '));
+  const html = renderHeader(headerData([lit]));
+  check(html.includes('href="tel:123"'), '完整的字面项：页头照常链到 tel:123');
+}
+
+console.log('\n── #1520 ③ 有邮箱、一家门店都没有：email 引用照常画');
+{
+  const B3 = { locations: [], email: 'hello@x.example' };
+  const C3 = { ...CTX, brand: B3 };
+  logs.length = 0;
+  const ctas = resolve1('cta-new', { ctas: [{ label: 'Email', href: { source: 'email' } }] }, C3).ctas;
+  check(ctas.length === 1 && ctas[0].href === 'mailto:hello@x.example' && logs.length === 0,
+    `cta-new 的 {source:"email"} 按钮 ⟹ ${JSON.stringify(ctas)}（${logs.length} 行日志）`);
+  const lbl = resolve1('hero-new', { ctas: [{ label: 'Write to {email}', href: '/contact' }] }, C3).ctas;
+  check(lbl.length === 1 && lbl[0].label === 'Write to hello@x.example', `按钮文字里的 {email} ⟹ 「${lbl[0] && lbl[0].label}」`);
+  const top = headerData([{ source: 'email' }], C3).topbar.contact;
+  check(top.length === 1 && top[0].href === 'mailto:hello@x.example', `页头顶条 {source:"email"} ⟹ ${JSON.stringify(top)}`);
+  const fc = footerData({ source: 'brand' }, C3).contact;
+  check(JSON.stringify(fc) === '{"email":"hello@x.example"}', `页脚 contact {source:"brand"} ⟹ ${JSON.stringify(fc)}（没有门店，只剩邮箱）`);
+  // 反向对照：电话 / 地址仍然要门店 —— 没有门店 ⟹ 不画 + 一行日志。
+  logs.length = 0;
+  const phone = resolve1('cta-new', { ctas: [{ label: 'Call', href: { source: 'phone' } }] }, C3).ctas;
+  check(phone.length === 0 && logs.length === 1, `反向对照：同一份 brand 上 {source:"phone"} 仍不画、一行日志（${phone.length} 个，${logs.length} 行）`);
+}
+
+console.log('\n── #1520 ④ 写了 location 而那一家不在：email 仍不画');
+{
+  const B4 = { locations: [{ label: 'M', address: '12 King', phone: '(604) 555-0142' }], email: 'hello@x.example' };
+  logs.length = 0;
+  const far = resolve1('cta-new', { ctas: [{ label: 'Email', href: { source: 'email', location: 5 } }] }, { ...CTX, brand: B4 }).ctas;
+  check(far.length === 0 && logs.length === 1 && /email/.test(logs[0]), `{source:"email", location:5}、只有一家 ⟹ 不画 + 一行日志（${far.length} 个，${logs.length} 行：${logs[0] || ''}）`);
+  logs.length = 0;
+  const near = resolve1('cta-new', { ctas: [{ label: 'Email', href: { source: 'email', location: 0 } }] }, { ...CTX, brand: B4 }).ctas;
+  check(near.length === 1 && near[0].href === 'mailto:hello@x.example' && logs.length === 0, `反向对照：location 0（那一家在）⟹ 画（${JSON.stringify(near)}）`);
+}
+
+console.log('\n── #1520 ⑤ 顶条 contact 本身是坏形状（不是数组 / 数组里有 null）：7 个预设都不崩（r2，QA1）');
+{
+  // 改前（#1506）`contact` 只在 topbar 开着时才被碰到；#1520 r1 把取值挪到了门外，关着的 5 个预设也开始碰它。
+  // 这几种形状 validateSite 不报，所以渲染端自己得挡住。
+  const SHAPES = ['logo-left', 'menu-center', 'logo-center-split', 'logo-center-gathered', 'stacked', 'topbar', 'topbar-stacked'];
+  const BAD = {
+    '对象': { icon: 'telephone', text: 'Call us', href: 'tel:1' },
+    '字符串': 'Call us',
+    '数组里有 null': [null, { icon: 'telephone', text: 'Call us', href: 'tel:1' }],
+    '数组里有 undefined': [undefined],
+  };
+  const base = clone(demo.DEMO_CONTENT['header-new']);
+  const dataOf = (contact) => ({ ...base, topbar: { ...clone(base.topbar), contact } });
+  const renderWith = (Comp, shape, data) => renderToStaticMarkup(React.createElement(Comp, { shape, data, iconTable: icons.iconTableFor('header-new', data) }));
+  const crashes = (Comp) => {
+    const out = [];
+    for (const [name, contact] of Object.entries(BAD)) {
+      for (const shape of SHAPES) {
+        try { renderWith(Comp, shape, dataOf(contact)); } catch (e) { out.push(`${name}@${shape}: ${e.message}`); }
+      }
+    }
+    return out;
+  };
+  const now = crashes(Header);
+  check(now.length === 0, `${Object.keys(BAD).length} 种坏形状 × ${SHAPES.length} 个预设 = ${Object.keys(BAD).length * SHAPES.length} 格，渲染都不抛`, now.slice(0, 3).join(' | '));
+  const html = renderWith(Header, 'topbar', dataOf(BAD['数组里有 null']));
+  check(html.includes('Call us') && html.includes('href="tel:1"'), '数组里有 null 时，其余那一项照常画、照常带链接');
+  // 反向对照：拿掉 Array.isArray ⟹ 不是数组那两种当场崩；拿掉 null 过滤 ⟹ 数组里有 null 那两种当场崩。
+  const noArray = headerVariant(CONTACT_FIX, CONTACT_FIX.replace('(Array.isArray(topbar.contact) ? topbar.contact : [])', '(topbar.contact || [])'));
+  const noFilter = headerVariant(CONTACT_FIX, CONTACT_FIX.replace("\n    .filter((c) => c && typeof c === 'object')", ''));
+  if (!noArray || !noFilter) bad('反向对照没命中：Section.tsx 里找不到 #1520 那一段（这一格没量）');
+  else {
+    const a = crashes(noArray); const f = crashes(noFilter);
+    check(a.some((x) => x.startsWith('对象@logo-left')) && a.some((x) => x.startsWith('字符串@logo-left')),
+      `反向对照：拿掉 Array.isArray ⟹ topbar 关着的预设上也崩（${a.length} 格，例：${a[0]}）`);
+    check(f.some((x) => x.startsWith('数组里有 null@logo-left')) && f.some((x) => x.startsWith('数组里有 undefined@logo-left')),
+      `反向对照：拿掉 null 过滤 ⟹ topbar 关着的预设上也崩（${f.length} 格，例：${f[0]}）`);
+  }
+}
+
+console.log('\n── #1520 ⑥ 校验报文：label 是别的类型时说「label 不是字符串」，没有 label 时说「没有 label」');
+{
+  const p1 = lib.contactRefProblems('header-new', { topbar: { contact: [{ label: 123, href: { source: 'phone' } }] } });
+  check(p1.length === 1 && p1[0].includes('label 不是字符串'), `label: 123 ⟹ 「label 不是字符串」（${p1.join(' | ')}）`);
+  const p2 = lib.contactRefProblems('header-new', { topbar: { contact: [{ text: 'x', href: { source: 'phone' } }] } });
+  check(p2.length === 1 && p2[0].includes('没有 label'), `没有 label ⟹ 「没有 label」（${p2.join(' | ')}）`);
 }
 
 // ══ AC7 编辑器 ════════════════════════════════════════════════════════════════════════════════════

@@ -162,7 +162,13 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
   const nav = Array.isArray(data.nav) ? data.nav : [];
   const half = Math.ceil(nav.length / 2);
   const topbar = data.topbar || {};
-  const contact = topbar.contact || [];
+  // #1520：`href` 不是字符串（半截的引用写法 `{icon, text, href: {source: "phone"}}`，校验会报）⟹ 按没有链接画 ——
+  // 不拿对象去调 `startsWith`（下面 `phone` 那一行），也不把它塞进 `<SiteLink href>`（画出来是 `[object Object]`）。
+  // 这一行在 `hasTopbar` 门外，所以不是数组、或数组里有 null 的坏数据也要在这里挡掉（r2，QA1）：
+  // 改前它们只在 topbar 开着时才被碰到，关着的预设照常渲染 —— 不能因为挪到门外就变成页面崩。
+  const contact = (Array.isArray(topbar.contact) ? topbar.contact : [])
+    .filter((c) => c && typeof c === 'object')
+    .map((c) => (typeof c.href === 'string' ? c : { ...c, href: undefined }));
   const links = topbar.links || [];
   const social = topbar.social || [];
   const phone = hasTopbar ? contact.find((c) => c.href && c.href.startsWith('tel:')) : undefined;
