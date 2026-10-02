@@ -1101,5 +1101,44 @@ console.log('\n#1518 按钮列表的 Link 格');
     '新插的 hero-new 填了链接 → 写成 ctas[0] {label, href}', JSON.stringify(nh.data));
 }
 
+// ══ #1521：按钮列表的 Link 格也能选「本店电话 / 本店邮箱」—— 跟 kind=link 那格同一份 BUTTON_SOURCES ═══════════
+console.log('\n#1521 按钮列表的 Link 格带 sources');
+{
+  const { BUTTON_SOURCES } = require('./lib/item-sources.js');
+  const { linkRejection } = require('./lib/link-href.js');
+  const hrefSources = {};
+  for (const c of schema.components) for (const f of c.fields) for (const x of f.subs || []) {
+    if (x.sub === 'href') hrefSources[`${c.type}.${f.slot}`] = x.sources || null;
+  }
+  const withSources = Object.keys(hrefSources).filter((k) => hrefSources[k]).sort();
+  // AC1 + AC2：带 sources 的 = 今天 8 格 kind=link + 六个按钮列表；每格都是 BUTTON_SOURCES 那份
+  const want = ['announcement-bar.link', 'blog-new.introCta', 'content-new.ctas', 'cta-banner.button', 'cta-new.ctas', 'features-new.introCtas',
+    'hero.ctaPrimary', 'hero.ctaSecondary', 'hero-new.ctas', 'hero-with-form.ctaPrimary', 'hero-with-form.ctaSecondary',
+    'logos-new.introCta', 'milestones.introCtas', 'page-header-new.ctas'].sort();
+  check(JSON.stringify(withSources) === JSON.stringify(want), `带 sources 的 href 格 = 8 格 kind=link + 6 个按钮列表（${withSources.length}）`, withSources.join(' · '));
+  check(withSources.every((k) => JSON.stringify(hrefSources[k]) === JSON.stringify(BUTTON_SOURCES)), '每格的 sources 都等于 BUTTON_SOURCES', JSON.stringify(hrefSources));
+  // 反向：contact-new.items 的 Link 格（itemNeeds 补的、项没有 label、不是按钮）不长 sources
+  check('contact-new.items' in hrefSources && hrefSources['contact-new.items'] === null, 'contact-new.items 有 Link 格但没有 sources', JSON.stringify(hrefSources['contact-new.items']));
+  // 往返：按钮写成引用 ⟹ 不动就存 deepEqual；在编辑器里把第二个按钮换成「本店电话」⟹ 存成 {source: "phone"}，其余逐字节不变
+  const ctas = [{ label: 'Email us', href: { source: 'email' }, style: 'solid' }, { label: 'More', href: '/about', style: 'outline' }];
+  const raw = { slug: 'home', title: 'T', blocks: [{ id: 'home-hero-new-0', type: 'hero-new', data: { headline: 'H', ctas } }] };
+  check(convert.deepEqual(roundTrip(raw), raw), 'hero-new 带一个引用按钮：不动就存，deepEqual');
+  const { initial, data } = openPage(raw);
+  const c = data.content.find((x) => x.type === 'hero-new');
+  check(JSON.stringify(c.props.ctas[0].href) === JSON.stringify({ source: 'email' }), '打开时那一格拿到的是引用对象（下拉据它选中）', JSON.stringify(c.props.ctas[0].href));
+  c.props.ctas[1].href = { source: 'phone' };
+  const out = convert.puckToPage({ raw, data, initial, schema, slug: 'home' });
+  check(JSON.stringify(out.blocks[0].data.ctas) === JSON.stringify([ctas[0], { ...ctas[1], href: { source: 'phone' } }]),
+    '选「本店电话」⟹ 存成 {source:"phone"}，label / style 不变，第一个逐字节不变', JSON.stringify(out.blocks[0].data.ctas));
+  // 存盘那道链接判据（lib/link-href.js）对这种形状照旧放行 —— 三种写入种类都问一遍。
+  // 📌 放行的原因要说实话：它今天只读 `kind: link` 槽的字符串 `href`，列表项的 `href` 根本不在它射程里（#1521 交接里报给了 PM）。
+  //    这几条钉的是「存盘不被拒」这个结果，不是「判据认过这个形状」。
+  for (const kind of ['page', 'any']) {
+    check(linkRejection(kind, out, raw) === null, `linkRejection('${kind}') 对引用按钮放行`, String(linkRejection(kind, out, raw)));
+  }
+  const sb = { promo: { type: 'cta-new', data: { headline: 'x', ctas: [{ label: 'Call', href: { source: 'phone' } }] } } };
+  check(linkRejection('site-blocks', sb, null) === null, "linkRejection('site-blocks') 对引用按钮放行");
+}
+
 console.log(`\n${pass} 过 · ${fail} 败`);
 process.exit(fail > 0 ? 1 : 0);

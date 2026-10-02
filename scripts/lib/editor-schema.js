@@ -27,7 +27,8 @@
 //   editLabel 是对象    kind list              → array，子字段 = 那几个 `sub`（`control: 'list'`）
 //                       kind link / object     → object，子字段 = 那几个 `sub`（`control: 'object'`）；
 //                                                link 再多一个 `href`（显示名 Link，#1404 r3，理由在 §fieldsOf）
-//                       kind list 且项形状顶层必有 `href`（按钮列表 `[{label, href, …}]`）→ 每项也多一个 `href`（#1518，§itemTopKeys）
+//                       kind list 且项形状顶层必有 `href`（按钮列表 `[{label, href, …}]`）→ 每项也多一个 `href`（#1518，§itemTopKeys），
+//                                                它跟 link 那格一样带 `sources`（本店电话 / 邮箱，#1521）
 // 🔴 「带 `sub`」≠「列表」：`link`（`{label, href}`）和 `object`（`hero-with-form.form`）也带 `sub`。
 //    把它们做成 array 字段，Puck 会把一个对象当数组编辑，存回去就坏了。
 //
@@ -144,7 +145,7 @@ function fieldsOf(manifest) {
     if (kind === 'link' && !subs.some((x) => x.sub === LINK_HREF)) subs.push({ sub: LINK_HREF, label: 'Link' });
     // #1506 —— 这一格 Link 除了手填地址，还能选「Business phone」「Business email」（写成 `{source: "phone"}` 引用，
     //    构建时从 brand.json 展开，`scripts/lib/item-sources.js`）。按 kind 派生、不写块名单；EditorApp 据 `sources` 画控件。
-    //    按钮列表（`ctas` 这类 list 槽）今天没有这一格，本票不新开（#1518）。
+    //    按钮列表（`ctas` / `introCtas`）每一项的 Link 格也有这份选项，在下面 `kind === 'list'` 那段（#1518 补格、#1521 补选项）。
     if (kind === 'link') for (const x of subs) if (x.sub === LINK_HREF) x.sources = BUTTON_SOURCES.slice();
     // #1489 —— 列表槽**每一项**的词表（`itemChoices`，`contact-new.items[].kind`）也是一格下拉；`itemNeeds` 里点名
     //    的必填子字段（`kind=link` ⟹ `href`）补一格文字。少了它们，在编辑器里新加的一条没有 kind，组件整条不画。
@@ -158,8 +159,12 @@ function fieldsOf(manifest) {
       // #1518 —— 项形状里【必有】`href` 的列表槽（按钮列表 `ctas` / `introCtas`：`[{label, href, style, …}]`）每一项也补一格 Link，
       //    理由同上面 `kind: link` 那条（#1404 r3）：编辑器能新加一项，不给这一格，新按钮就是 `href="#"`。
       //    按形状派生、不写块名单；只认项的顶层键、只认必填（`href?` 那种可选链接不在本条射程）。
+      // #1521 —— 这一格也能选「Business phone」「Business email」，跟上面 `kind: link` 那格同一份 `BUTTON_SOURCES`：
+      //    构建侧把任何「有 `label` 又有 `href`」的对象当按钮展开（`item-sources.js` §resolveButtons），这几项正是这个形状。
+      //    🔴 `itemNeeds` 补出来的 Link（`contact-new.items`，项是 `{kind, title, hint?, href?}`、没有 `label`）不给：
+      //       它不是按钮，引用不会被展开，写进去那一行就不画了；电话 / 邮箱它另有 `kind=phone` / `kind=email` 两种项。
       if (itemTopKeys(spec && spec.shape).includes(LINK_HREF) && !subs.some((x) => x.sub === LINK_HREF)) {
-        subs.push({ sub: LINK_HREF, label: 'Link' });
+        subs.push({ sub: LINK_HREF, label: 'Link', sources: BUTTON_SOURCES.slice() });
       }
     }
     fields.push({
