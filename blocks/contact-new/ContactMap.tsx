@@ -11,6 +11,8 @@
 //    这是条款允许的「真人在看」的正常浏览。地址（`embedUrl`）由服务端按站点数据里的坐标算好传进来（contact-facts.js §osmEmbedUrl）。
 // 🔴 **署名一直在**：点之前、点之后都是同一个角标「© OpenStreetMap contributors」。
 // 🔴 占位卡和 iframe 住在同一个盒子里、盒子的高度由 block.css 定 ⟹ 点开前后不跳动。
+// 🔴 这个 `useState` 管的是**延迟加载**（点之前 iframe 不进 DOM ⟹ 不发站外请求），不是显隐 —— 所以 #1514「HTML 的交互归
+//    bootstrap.js」没有把它换成 Collapse：Collapse 只管 display，元素得先在 DOM 里，换了 #1489 验收 7 当场红。换不换等 Chris 拍。
 
 import { useState, type ReactNode } from 'react';
 

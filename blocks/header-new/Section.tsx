@@ -30,17 +30,28 @@
 //    `{ stops: [2–3 个色], angle }`，字色按背景亮度自动反白 —— 判亮度、写成 CSS 都走 `scripts/lib/contrast.js`
 //    （§toneForBg / §bgCss），跟 footer-new / cta-new 同一份，这里不另算。没填 = 改前的浅底那一份，逐字相同。
 //
-// 🔴 **不用任何 `data-bs-*`**（总纲约束 2）：展开 / 收起是下面那个 `useState`，深底上的字色是工具类
-//    （`link-light` / `text-white`），不是 Bootstrap 的 `data-bs-theme`。
-//    也不用 `.navbar-collapse` / `.navbar-expand-*`：这两个一起用时 Webpixels 的
-//    `.navbar-expand-* .navbar-collapse { display: flex !important }` 会压过藏它的类（做图册时踩到的坑 1）。
-//    紧凑那一条和桌面那一格是两个元素，各自在自己的断点上显示。
+// 🔴 **抽屉的展开 / 收起是 Bootstrap Collapse**（#1514，Chris 2026-10-01：HTML 的交互归 bootstrap.js）：汉堡按钮只写
+//    `data-bs-toggle="collapse"` + `data-bs-target`，抽屉一直在 HTML 里、挂 `.collapse`，藏 / 显 / 动画 / `aria-expanded`
+//    全是 Bootstrap 的事；模块按需加载（`src/components/BootstrapJs.tsx` §loadBootstrap('collapse')）。Collapse 自己
+//    不管 Esc，所以下面挂了一个 keydown 调它的 hide —— 这是本文件里唯一一行事件处理。
+//    深底上的字色仍是工具类（`link-light` / `text-white`），不是 Bootstrap 的 `data-bs-theme`。
+// 🔴 **不挂 `.navbar-collapse`，也不给 nav 挂 `.navbar-expand-*`**：#1514 复现过 ——Webpixels 的
+//    `.navbar-expand-lg .navbar-collapse { display: flex !important }` 住在 `@media (min-width: 992px)` 里，<992 它
+//    不开火、Collapse 照常工作；≥992 它会把收起的抽屉强行撑成 flex。抽屉在 ≥992 本来就该不见（`d-lg-none`），
+//    所以只用裸的 `.collapse`，那条规则就跟它无关。做图册时真正踩到的是另外两件事（#1514 都量过）：
+//    ① 源码里没出现过 `collapse` 这个类名，`public/site.css` 把 `.collapse:not(.show){display:none}` 整条 purge 掉了
+//       （实测 0 条）—— 抽屉藏不住。类名现在在源码里（这里 + BootstrapJs.tsx 的 BOOTSTRAP_RUNTIME_CLASSES），purge 留得住。
+//    ② Tailwind 有一个同名工具类 `.collapse { visibility: collapse }`（`app/layout.css`），源码一出现 collapse 它就生成
+//       —— 抽屉打开了（display: block、高 344px）也看不见。block.css 给 `.hdr-drawer.collapse` 顶回 `visibility: visible`，
+//       T4（#1426）Tailwind 退场后那条可以删。
+//    紧凑那一条和桌面那一格仍是两个元素，各自在自己的断点上显示。
 //
 // 🔴 **图标是内联 SVG，不是字体**（#1462，Chris 拍板）：`iconTable` 由服务端按名查好传进来
 //    （`scripts/lib/icons.js`），这里用 `InlineIcon` 画；查不到的名字不画。
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
+import { loadBootstrap } from '@/components/BootstrapJs';
 import SiteLink from '@/components/SiteLink';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig } from '@/lib/types/config';
@@ -121,8 +132,23 @@ interface Props {
   iconTable?: IconTable;
 }
 
+type CollapseCtor = { getInstance(el: Element): { hide(): void } | null };
+
 export default function HeaderNewSection({ data = {}, shape: shapeIn, block, iconTable = {} }: Props) {
-  const [open, setOpen] = useState(false);
+  // 抽屉 = Bootstrap Collapse（§文件头）。按钮和抽屉靠这个 id 对上；一页只有一个顶栏，块没 id 就叫 main。
+  const drawerId = `hdr-drawer-${(block && block.id) || 'main'}`;
+  const drawerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const loaded = loadBootstrap('collapse') as Promise<{ default: CollapseCtor }>;
+    // Collapse 的 data-api 不管 Esc（Modal / Offcanvas 才管）：抽屉开着时按 Esc 关掉它，关的动作仍交给 Bootstrap。
+    const onKey = (e: KeyboardEvent) => {
+      const el = drawerRef.current;
+      if (e.key !== 'Escape' || !el || !el.classList.contains('show')) return;
+      void loaded.then((m) => m.default.getInstance(el)?.hide());
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
   const opts = data.options || {};
   const { knobs, topbar: hasTopbar, preset, shape } = resolveKnobs(shapeIn, opts);
   const { logo, menu } = knobs;
@@ -298,14 +324,19 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
                 {icon('telephone')}
               </a>
             ) : null}
+            {/* 汉堡：Bootstrap Collapse 的触发器 —— 它自己翻 aria-expanded / .collapsed；两枚图标都在，哪枚露出来由
+                block.css 按 aria-expanded 定（§hdr-ic-open / hdr-ic-close）。 */}
             <button
               type="button"
-              className={`btn px-2 ${deep ? 'text-white' : ''} fs-5 lh-1`}
-              aria-expanded={open}
+              className={`hdr-burger btn px-2 ${deep ? 'text-white' : ''} fs-5 lh-1`}
+              data-bs-toggle="collapse"
+              data-bs-target={`#${drawerId}`}
+              aria-controls={drawerId}
+              aria-expanded="false"
               aria-label="Toggle navigation menu"
-              onClick={() => setOpen(!open)}
             >
-              {icon(open ? 'x-lg' : 'list')}
+              <span className="hdr-ic-open d-inline-flex">{icon('list')}</span>
+              <span className="hdr-ic-close d-inline-flex">{icon('x-lg')}</span>
             </button>
           </div>
         </div>
@@ -324,23 +355,22 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
         ) : null}
       </nav>
 
-      {/* 抽屉：只在 < 992 出现，开没开由 React 说（总纲约束 2）。顺序 = 菜单 → 主 CTA →（topbar 开时）
-          联系信息 → 链接 → 社交。副 CTA 只在 topbar 关时进来：有顶条时电话已经在联系信息那一行里。 */}
-      {open ? (
-        <div className={`hdr-drawer d-lg-none border-top ${lineTone}`}>
-          <div className="container-lg py-4 vstack gap-4">
-            <ul className="navbar-nav" data-hdr-part="drawer-nav">
-              {nav.map((it, i) => navItem(it, `m-${i}`, true))}
-            </ul>
-            <div className="d-grid gap-2" data-hdr-part="drawer-cta">
-              {(hasTopbar ? ctas.filter((c) => c === data.ctaPrimary) : ctas).map((c, i) => (
-                <SiteLink key={i} href={c.href} className={`${ctaClass(c.style, deep, onBrand)} text-nowrap`}>{c.label}</SiteLink>
-              ))}
-            </div>
-            {drawerContact}
+      {/* 抽屉：一直在 HTML 里，开没开由 Bootstrap Collapse 说（`.collapse` 藏、`.show` 显，#1514）；只在 < 992 出现
+          （`d-lg-none`）。顺序 = 菜单 → 主 CTA →（topbar 开时）联系信息 → 链接 → 社交。副 CTA 只在 topbar 关时进来：
+          有顶条时电话已经在联系信息那一行里。 */}
+      <div id={drawerId} ref={drawerRef} className={`hdr-drawer collapse d-lg-none border-top ${lineTone}`} data-hdr-part="drawer">
+        <div className="container-lg py-4 vstack gap-4">
+          <ul className="navbar-nav" data-hdr-part="drawer-nav">
+            {nav.map((it, i) => navItem(it, `m-${i}`, true))}
+          </ul>
+          <div className="d-grid gap-2" data-hdr-part="drawer-cta">
+            {(hasTopbar ? ctas.filter((c) => c === data.ctaPrimary) : ctas).map((c, i) => (
+              <SiteLink key={i} href={c.href} className={`${ctaClass(c.style, deep, onBrand)} text-nowrap`}>{c.label}</SiteLink>
+            ))}
           </div>
+          {drawerContact}
         </div>
-      ) : null}
+      </div>
     </header>
   );
 }

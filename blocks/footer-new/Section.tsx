@@ -39,8 +39,9 @@
 // 🔴 **排版只走 Webpixels 的工具类**（总纲约束 3）。Webpixels 的工具类全带 `!important`，要压过它们的
 //    规则也得带 `!important` 且 class 数不少于它（票正文那条通用规矩）。
 //
-// 🔴 **不用任何 `data-bs-*`**（总纲约束 2）。表单部件跟 hero 共用一份（`src/components/BlockLeadForm.tsx`）：
-//    提交 POST `/api/leads`、原地显示 successMessage，这里只决定它挂在哪儿。
+// 🔴 **这个块没有 HTML 交互，所以也没有 Bootstrap 的 JS**（#1514 口径：有展开 / 收起 / 滑动 / 关闭这类行为才用
+//    bootstrap.js；这里一样都没有）。表单部件跟 hero 共用一份（`src/components/BlockLeadForm.tsx`）：
+//    提交 POST `/api/leads`、原地显示 successMessage —— 那是数据往返不是 HTML 交互，这里只决定它挂在哪儿。
 
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import SiteLink from '@/components/SiteLink';

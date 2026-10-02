@@ -20,6 +20,10 @@
 // 🔴 **地图（Chris 2026-09-29 定，正文「地图」）**：点之前是一张**地址卡**（钉子 + 地址 + Open map + OSM 署名），
 //    **不放任何地图图片**、页面打开时不向第三方发请求；点「Open map」才换成 OSM 官方嵌入（`ContactMap.tsx`，块里唯一的客户端交互）。
 //    站点数据里没有坐标 ⟹ 地图那一格不画、其余照常。
+//    🔴 那个「点了才换」**是延迟加载，不是显隐**：iframe 一进 DOM 就会向 openstreetmap.org 发请求，所以点之前它根本不渲染
+//    （#1489 验收 7：map=none 与 map=beside 两页的站外主机集合相同）。Bootstrap 的 Collapse / Modal 只管 display，元素得先在 DOM 里
+//    ⟹ 直接换过去会打破那条判据；这里留 React 不是沿用已作废的「不用 data-bs-*」，而是这一条。要不要改成「点击时才把 iframe
+//    插进 DOM、再交 Bootstrap 管展示」等 Chris 拍（#1514 正文 ②，2026-10-01 挂起）。
 //
 // 🔴 **表单用共用的 `src/components/BlockLeadForm.tsx`**（同 hero-new / footer-new / cta-new），`idPrefix="ct"`，提交走 `/api/leads`。
 //    `form` 槽今天只有 `{ id? }`（选哪张站级表单，#1471 落地前不读）。

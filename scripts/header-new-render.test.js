@@ -7,7 +7,7 @@
  * 退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
  *
  * 做法照 `footer-new-render.test.js`：`ts.transpileModule` + `renderToStaticMarkup`，源码可以在内存里替换
- * （反向对照用）。抽屉是 `useState(false)` 关着的 ⟹ 量抽屉那几条时把初值换成 true 再渲染。
+ * （反向对照用）。抽屉自 #1514 起是 Bootstrap Collapse：服务端 HTML 里一直有它，直接量（藏 / 显是 `.collapse` 的事）。
  * 几何（820 / 390 上是汉堡、1440 上整条菜单、`document.fonts`）要浏览器，不在这里 —— 交接报告里那份
  * playwright 读数归它。
  *
@@ -78,9 +78,8 @@ const clone = (v) => JSON.parse(JSON.stringify(v));
 const withOpts = (o) => ({ ...clone(DEMO), options: { ...DEMO.options, ...o } });
 const render = (shape, data, Comp = C) => renderToStaticMarkup(React.createElement(Comp, { shape, data, iconTable: ICONS }));
 const attr = (html, name) => { const m = html.match(new RegExp(`<header[^>]*\\s${name}="([^"]*)"`)); return m ? m[1] : null; };
-const OpenC = (() => { const s = mutate('useState(false)', 'useState(true)'); return s ? loadSection(s) : null; })();
+// #1514：抽屉改成 Bootstrap Collapse，服务端 HTML 里一直有它（藏是 `.collapse` 的事）⟹ 量抽屉不再需要改初值重载。
 C = loadSection();
-if (!OpenC) die('抽屉初值的锚点 `useState(false)` 找不到 —— 抽屉那几格量不了');
 
 // 定稿表（#1462 票正文「七个预设」那张；#1468 起 menu 的 right 叫 beside、topbar 是布尔 —— 这里写成根上读到的 on / off）。
 const TABLE = [
@@ -172,7 +171,7 @@ console.log('\n④ 紧凑条与抽屉');
     const compact = closed.slice(closed.indexOf('hdr-compact'), closed.indexOf('hdr-grid'));
     const hasPhone = compact.includes(`href="${phoneHref}"`) && compact.includes('data-icon="telephone"');
     check(hasPhone === (topbar === 'on'), `${n}：紧凑条上${topbar === 'on' ? '有' : '没有'} a[href^=tel:] 电话图标`);
-    const open = render(n, clone(DEMO), OpenC);
+    const open = closed; // 抽屉一直在 HTML 里（#1514）
     const drawer = open.slice(open.indexOf('hdr-drawer'));
     const parts = [...drawer.matchAll(/data-hdr-part="(drawer-[a-z]+)"/g)].map((m) => m[1]);
     const ctaBox = drawer.slice(drawer.indexOf('drawer-cta'), drawer.indexOf('drawer-contact') > 0 ? drawer.indexOf('drawer-contact') : undefined);
@@ -188,12 +187,43 @@ console.log('\n④ 紧凑条与抽屉');
   }
   // 反向对照：副 CTA 不看 topbar ⟹ topbar 那一格「只有主 CTA」必须红。
   const s = mutate('(hasTopbar ? ctas.filter((c) => c === data.ctaPrimary) : ctas)', 'ctas');
-  const so = s && s.replace('useState(false)', 'useState(true)');
+  const so = s;
   if (!so) bad('反向对照没改到源码（锚点找不到）');
   else {
     const h = render('topbar', clone(DEMO), loadSection(so));
     const d = h.slice(h.indexOf('drawer-cta'), h.indexOf('drawer-contact'));
     check(d.includes(second), '反向对照：副 CTA 不看 topbar ⟹ topbar 的抽屉里冒出副 CTA（上面那格红得起来）');
+    C = loadSection();
+  }
+}
+
+// ══ ④b #1514：抽屉是 Bootstrap Collapse —— 按钮 data-bs-toggle / data-bs-target 与抽屉 id 对上，不再是 React 状态 ════
+console.log('\n④b 抽屉 = Bootstrap Collapse（#1514）');
+{
+  const h = render('logo-left', clone(DEMO));
+  const at = h.indexOf('aria-label="Toggle navigation menu"');
+  const btnStart = h.lastIndexOf('<button', at);
+  const btn = h.slice(btnStart, h.indexOf('>', at) + 1);
+  const inner = h.slice(btnStart, h.indexOf('</button>', btnStart));
+  const target = (btn.match(/data-bs-target="#([^"]+)"/) || [])[1];
+  const drawerId = (h.match(/<div id="([^"]+)" class="hdr-drawer collapse /) || [])[1];
+  check(/data-bs-toggle="collapse"/.test(btn) && !!target, '汉堡按钮：data-bs-toggle="collapse" + data-bs-target');
+  check(!!drawerId && target === drawerId && btn.includes(`aria-controls="${drawerId}"`), `data-bs-target / aria-controls 指向抽屉自己的 id（${target} / ${drawerId}）`);
+  check(/aria-expanded="false"/.test(btn), '服务端 HTML 里 aria-expanded="false"（之后由 Bootstrap 翻）');
+  check(inner.includes('data-icon="list"') && inner.includes('data-icon="x-lg"'), '汉堡里两枚图标都在（露哪枚由 block.css 按 aria-expanded 定）');
+  check(!/useState|onClick/.test(ORIGINAL), 'Section.tsx 里没有 useState / onClick（展开 / 收起不再是 React 状态）');
+  // 注释里会提到那两个类名（文件头讲为什么不用它们）⟹ 只看 markup：className 里不许出现。
+  check(/loadBootstrap\('collapse'\)/.test(ORIGINAL) && !/className=[^\n]*navbar-(collapse|expand)/.test(ORIGINAL), '按模块加载 collapse；markup 不挂 .navbar-collapse / .navbar-expand-*（§文件头复现过的那条 !important）');
+  const css = fs.readFileSync(path.join(BLOCK_DIR, 'block.css'), 'utf-8');
+  check(/\.hdr-burger\[aria-expanded="true"\] \.hdr-ic-open,\s*[^{]*\.hdr-burger:not\(\[aria-expanded="true"\]\) \.hdr-ic-close\s*\{\s*display: none !important;/.test(css),
+    'block.css：开着藏 list、收着藏 x-lg（按 aria-expanded）');
+  // 反向对照：把 data-bs-target 的 id 改掉 ⟹ 上面那格「对得上」必须红。
+  const s = mutate('data-bs-target={`#${drawerId}`}', 'data-bs-target="#nope"');
+  if (!s) bad('反向对照没改到源码（锚点找不到）');
+  else {
+    const h2 = render('logo-left', clone(DEMO), loadSection(s));
+    const t2 = (h2.match(/data-bs-target="#([^"]+)"/) || [])[1];
+    check(t2 === 'nope' && t2 !== drawerId, '反向对照：改掉 data-bs-target ⟹ 对不上（上面那格红得起来）');
     C = loadSection();
   }
 }

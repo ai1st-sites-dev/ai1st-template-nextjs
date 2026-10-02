@@ -128,6 +128,8 @@ export default function PricingNewSection({ data, block, iconTable = {} }: Props
   const tone = toneForBg(d.bg);
   const bgValue = bgCss(d.bg);
   const fc = featuredVars(normalizeBg(d.featuredColor));
+  // 月付 / 年付：这是**数据切换**不是 HTML 交互 —— 换的是渲染出来的价格数字，不是哪个元素显不显，Bootstrap 没有对应组件，
+  // 所以留 React（#1514 正文的分类表，Chris 2026-10-01 口径「HTML 的交互归 bootstrap.js」管不到它）。
   const [yearly, setYearly] = useState(false);
 
   const icon = (name: string | undefined, className?: string) => <InlineIcon name={name} icons={iconTable} className={className} />;
