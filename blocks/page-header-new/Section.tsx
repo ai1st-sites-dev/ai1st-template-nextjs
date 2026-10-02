@@ -30,7 +30,7 @@ import { breadcrumbsFor } from '@/lib/breadcrumbs';
 import { getLabels } from '@/lib/component-labels';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
-import { bgCss, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
 
@@ -103,6 +103,7 @@ export default function PageHeaderNewSection({ data, locale = 'en', block, pageS
       data-text-align={k.textAlign}
       data-image={k.image}
       data-tone={tone}
+      data-bs-theme={bsThemeForBg(d.bg, cover)}
       className="phn position-relative"
       style={bgValue ? { background: bgValue } : undefined}
     >

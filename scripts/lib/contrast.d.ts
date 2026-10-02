@@ -16,3 +16,5 @@ export function normalizeBg(v: unknown): BgValue | null;
 export function toneForBg(bg: unknown): 'light' | 'dark' | 'brand';
 export function bgCss(bg: unknown): string | null;
 export function bgFromParam(s: unknown): BgValue | null;
+/** #1472 —— 块根上的 `data-bs-theme`：填了 `bg` / 图铺底 ⟹ 'light'，没填 ⟹ undefined（跟站走）。 */
+export function bsThemeForBg(bg: unknown, cover?: boolean): 'light' | undefined;

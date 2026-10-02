@@ -279,7 +279,7 @@
   padding: 0;
 }
 [data-block="milestones"][data-stat-style="card"] .mi-inner {
-  background: #fff;
+  background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
   border-radius: 1rem;
   padding: 2rem;

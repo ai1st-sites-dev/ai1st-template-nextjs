@@ -113,6 +113,88 @@ const BTN_PRIMARY_INK = [
   '',
 ].join('\n');
 
+/**
+ * #1472 —— 站级深浅（`<html data-bs-theme="light|dark">`）下，块里那几处**不是 Webpixels 变量**的浅色。
+ * 块没填 `bg` 时跟站走：`block.css` 里原来写死的浅色字面量改读这几个变量，`[data-bs-theme=dark]` 下由浏览器换色，
+ * `auto` 站构建时不用知道深浅。只有白（= `--x-body-bg` 的 light 值）是白送的，其余跟 Webpixels 的 neutral 系一个都
+ * 不相等 ⟹ light 一侧写原来的字面量（light 站逐像素不变），dark 一侧取 Webpixels **同角色**变量（PM 裁定 2）。
+ * 🔴 选择器是 `:root,[data-bs-theme=light]` 而不只是 `:root`：填了 `bg` 的块根上挂 `data-bs-theme="light"`
+ *    （`contrast.js` §bsThemeForBg），嵌在深色站里也要把这几个值拉回浅色。
+ * 🔴 这几个变量只被 `public/shapes.css`（块的 CSS）读，这份 CSS 里没有一条规则 `var()` 它们 ⟹ purge 的
+ *    `variables: true` 会把它们当没人用删光 —— 所以它们在本文件（site-css.js §purgeSiteCss）的 `variables` safelist 里（§SCHEME_VARIABLES）。
+ */
+const SCHEME_SURFACES = [
+  ':root,',
+  '[data-bs-theme=light] {',
+  '  --scheme-surface-muted: #f1f5f9;',
+  '  --scheme-surface-sunken: #e2e8f0;',
+  '  --scheme-surface-map: #eef2f7;',
+  '  --scheme-ink-strong: #0f172a;',
+  '  --scheme-ink: #1e293b;',
+  '  --scheme-ink-muted: #64748b;',
+  '  --scheme-ink-faint: #94a3b8;',
+  '  --scheme-line: #cbd5e1;',
+  '  --scheme-primary-ink: var(--x-primary);',
+  '}',
+  '[data-bs-theme=dark] {',
+  '  --scheme-surface-muted: var(--x-secondary-bg);',
+  '  --scheme-surface-sunken: var(--x-tertiary-bg);',
+  '  --scheme-surface-map: var(--x-secondary-bg);',
+  '  --scheme-ink-strong: var(--x-emphasis-color);',
+  '  --scheme-ink: var(--x-emphasis-color);',
+  '  --scheme-ink-muted: var(--x-secondary-color);',
+  '  --scheme-ink-faint: var(--x-tertiary-color);',
+  '  --scheme-line: var(--x-border-color);',
+  // 主色写的字（不是 `.text-primary` 这类工具类、是块 CSS 自己写的 `color`）：深色站换成 `-text-emphasis`，理由同下面
+  // `.text-primary` 那一段。#1472 r3：blog-new 没封面时的分类名，ember-12 深色站上 3.71:1（QA2 量到）。
+  '  --scheme-primary-ink: var(--x-primary-text-emphasis);',
+  // 标题色在 light 下是 `inherit`（`$headings-color: inherit`，#1463：旧块的标题靠继承上色），Webpixels 的 dark 那张表
+  // 又把它写成 `#fff` ⟹ 深色站上旧块浅底里的标题变白（theme-css-invariants 实测 quote-form 的 h2 1.21:1）。dark 也让它
+  // 失效、回到继承，跟 light 一个规矩。
+  '  --x-heading-color: initial;',
+  '}',
+  // 填了 `bg` 的块被拉回 light 之后，块里**继承来**的字色还是 body 在深色站上算出来的浅字（`color` 继承的是算好的值，
+  // 不会因为变量换了而重算）⟹ 白底浅字。块根上自己声明一次 `color`，从 light 的变量重算。
+  // `:where()` 把特异度压到 0：块自己写的任何 `color`（深底那几档的反白）都赢它，它只赢「继承」。
+  ':where([data-block][data-bs-theme=light]) {',
+  '  color: var(--x-body-color);',
+  '}',
+  // 同一个原因的另一半：Webpixels 在 light 下有三个变量的值是关键字 `inherit`（`--x-heading-color` 是 `$headings-color: inherit`
+  // 那一行编出来的）。自定义属性写 `inherit` = 从父元素拿这个变量 ⟹ 嵌在深色站里的浅色块，拿到的是 dark 的 `#fff` ——
+  // 白底白标题（实测 hero-new 的 h1 1.01:1）。`initial` = 没有值，`color: var(--x-heading-color)` 失效、回到继承块里的字色，
+  // 跟浅色站上它的样子一致。特异度 0-2-0：要压过 Webpixels 的 `[data-bs-theme=light]`（0-1-0）。
+  '[data-block][data-bs-theme=light] {',
+  '  --x-heading-color: initial;',
+  '  --x-alert-color: initial;',
+  '  --x-article-mark-color: initial;',
+  '}',
+  // 深色站上主色 / secondary 写的字：Webpixels 的 `.text-primary` / `.link-primary` / `.link-secondary` 在 dark 下仍然读原色
+  // （Bootstrap 的做法是让作者改用 `-emphasis` 那组），主色深的站上就是深字压深底（ember-12 的 #907230 压 #131313 = 4.10:1，
+  // secondary 是靛蓝 = 2.96:1）。深色站里换成 Webpixels 给 dark 算好的 `-text-emphasis`（主色往白调 40%）。
+  // 🔴 `:not([data-bs-theme=light] *)`：填了 bg 的块被拉回 light，它里面照旧用原色（跟浅色站一样）。
+  '[data-bs-theme=dark] .text-primary:not([data-bs-theme=light] *),',
+  '[data-bs-theme=dark] .link-primary:not([data-bs-theme=light] *) {',
+  '  color: var(--x-primary-text-emphasis) !important;',
+  '}',
+  // 博客正文的链接同理：Webpixels 的 `.prose a` 写死成主色（特异度 0-1-1，比 Tailwind 的 `prose-a:` 高），深色站上
+  // ember-12 是 4.10:1（#1472 r2，QA2 量到）。
+  '[data-bs-theme=dark] .prose a:not([data-bs-theme=light] *) {',
+  '  color: var(--x-primary-text-emphasis);',
+  '}',
+  '[data-bs-theme=dark] .link-secondary:not([data-bs-theme=light] *) {',
+  '  color: var(--x-secondary-text-emphasis) !important;',
+  '}',
+  // 轮廓主按钮同理（字 / 描边是主色；块自己接的 `--btn-outline-ink` 是按浅底算的那一档）。hover 照旧铺主色底、白字。
+  '[data-bs-theme=dark] .btn-outline-primary:not([data-bs-theme=light] *) {',
+  '  --x-btn-color: var(--x-primary-text-emphasis);',
+  '  --x-btn-border-color: var(--x-primary-text-emphasis);',
+  '}',
+  '',
+].join('\n');
+
+/** purge 时无条件留下的 §SCHEME_SURFACES 变量（理由见那一段）。 */
+const SCHEME_VARIABLES = [/^--scheme-/];
+
 /** 那份 scss 的原文。只有这一处拼它。 */
 function siteScss(primary) {
   return [
@@ -127,6 +209,7 @@ function siteScss(primary) {
     ON_DEEP_MUTED,
     ON_DEEP_FORM,
     BTN_PRIMARY_INK,
+    SCHEME_SURFACES,
   ].join('\n');
 }
 
@@ -174,7 +257,10 @@ async function purgeSiteCss(css, { rootDir = NEXT_DIR, content = PURGE_CONTENT }
   const [res] = await new PurgeCSS().purge({
     content: content.map((g) => path.join(rootDir, g)),
     css: [{ raw: css }],
-    safelist: { variables: THEME_COLOR_VARIABLES },
+    // #1472 —— `greedy: [/data-bs-theme/]`：深色站那几段 `[data-bs-theme=dark]` 规则写死留下。PurgeCSS 只在内容里
+    //    **同时**出现 `data-bs-theme` 和 `dark` 两个词时才留这类规则；不写死的话，留不留取决于源码里碰巧有没有这两个词
+    //    （改前就是靠 `header-new/Section.tsx` 一条注释留下的，那条注释一清，深色站整站失色、构建照样绿）。
+    safelist: { variables: [...THEME_COLOR_VARIABLES, ...SCHEME_VARIABLES], greedy: [/data-bs-theme/] },
     fontFace: true,
     keyframes: true,
     variables: true,
@@ -197,5 +283,5 @@ async function writeSiteCss({ brand, rootDir = NEXT_DIR }) {
 }
 
 module.exports = {
-  primaryOf, siteScss, compileSiteCss, purgeSiteCss, writeSiteCss, PURGE_CONTENT, THEME_COLOR_VARIABLES, ON_DEEP_MUTED, ON_DEEP_FORM, BTN_PRIMARY_INK,
+  primaryOf, siteScss, compileSiteCss, purgeSiteCss, writeSiteCss, PURGE_CONTENT, THEME_COLOR_VARIABLES, ON_DEEP_MUTED, ON_DEEP_FORM, BTN_PRIMARY_INK, SCHEME_SURFACES, SCHEME_VARIABLES,
 };

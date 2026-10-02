@@ -26,7 +26,7 @@ import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import SiteLink from '@/components/SiteLink';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
-import { bgCss, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
 import { parseRichtext, type RichInline } from '../../scripts/lib/richtext.js';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
@@ -111,6 +111,7 @@ export default function ContentNewSection({ data, block, iconTable = {} }: Props
       data-image={k.image}
       data-frame={k.frame}
       data-tone={tone}
+      data-bs-theme={bsThemeForBg(d.bg)}
       className="position-relative py-16 py-lg-24"
       style={bgValue ? { background: bgValue } : undefined}
     >

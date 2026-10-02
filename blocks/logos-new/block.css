@@ -140,7 +140,7 @@
 
 /* itemStyle=card：每个 logo 一张白卡（1px 描边、1rem 圆角、高 6rem）。 */
 [data-block="logos-new"][data-item-style="card"] .lo-inner {
-  background: #fff;
+  background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
   border-radius: 1rem;
   height: 6rem;

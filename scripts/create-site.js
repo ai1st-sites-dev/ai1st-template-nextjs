@@ -30,6 +30,8 @@ const { themes, poolThemes, themeStyle, pickThemeForIndustry, rotationIndexFromS
 const { sheetNameForTheme } = require('./theme-sheet');
 // #1346 —— 关键词页那一通的块清单（住在 lib 里是为了它能被测到，理由写在那个文件头上）。
 const { keywordPageSectionOptions } = require('./lib/keyword-page-options');
+// #1472 —— 站级深浅（site_meta.json 的 colorScheme）。AI 吐回来的值在这里归一，构建那一侧（sync-config）读同一份判据。
+const { normalizeColorScheme } = require('./lib/color-scheme');
 // #1120: 每站微扰派哪三个数 —— 表和判据都在那个文件里（含为什么它不能塞进 scripts/tweaks.js）。
 const { tweaksForSite } = require('./lib/site-tweaks');
 // #1506 —— 提示词里讲电话 / 邮箱按钮的那一句（改站提示词印的是同一句，住在 item-sources.js）。
@@ -1236,6 +1238,12 @@ async function main() {
 
   writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks);
 
+  // #1472 —— 站级深浅：AI 按行业给的默认（酒吧 / 健身房 dark，牙科 / 律所 light），老板之后可改成 auto。
+  // 认不得的值落回 light（判据在 lib/color-scheme.js，构建那一侧读的是同一份）。skipAI 那条路不走这里 ⟹ 不写这个键 = light。
+  const colorScheme = normalizeColorScheme(content.ai && content.ai.colorScheme);
+  writeSiteMetaColorScheme(siteDir, colorScheme);
+  debug(`[color scheme] ${colorScheme}（AI 给的是 ${JSON.stringify(content.ai && content.ai.colorScheme)}）`);
+
   // ─── TICKET-122b: Secondary locale generation ────────────────────────────────
   // After primary locale ships, generate secondary locales sequentially. Each
   // locale runs independently — failure of one doesn't abort the others or the
@@ -1641,6 +1649,14 @@ function writeSecondaryLocaleConfig(siteDir, secContent, secondaryLocale, primar
 
 // #1346 —— `disabledBlocks` 传到这里，因为**这个函数自己会插块**（268b/268e 那个 Contact 页）。
 // 那一处发生在两次 `validateBlocks` **之后**，所以剔菜单、传清单进校验器这两步都管不到它。
+/** #1472 —— 把站级深浅补进 `site_meta.json`（那份文件在 AI 跑之前就写好了，这里只加一个键，别的原样）。 */
+function writeSiteMetaColorScheme(siteDir, colorScheme) {
+  const p = path.join(siteDir, 'site_meta.json');
+  const meta = JSON.parse(fs.readFileSync(p, 'utf-8'));
+  meta.colorScheme = colorScheme;
+  fs.writeFileSync(p, JSON.stringify(meta, null, 2) + '\n');
+}
+
 function writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks = []) {
   // TICKET-122a: multi-locale schema (layout B — locale top-level subtree).
   //   brand.json:           cross-locale shared (kept at site/ root); brand.tagline wrapped to { [defaultLocale]: string } here
@@ -2364,6 +2380,7 @@ ${BUTTON_REF_PROMPT}
 Generate a JSON object with this EXACT structure:
 
 {
+  "colorScheme": "<light or dark — the whole site's colour scheme, picked from the industry: dark for businesses whose look is naturally dark and moody (bar, nightclub, gym, tattoo studio, barbershop, cocktail lounge); light for everything else (dentist, law firm, clinic, home services, accounting, most shops)>",
   "brand": {
     "tagline": "<catchy tagline, max 60 chars>",
     "logoIcon": "<icon from list>",

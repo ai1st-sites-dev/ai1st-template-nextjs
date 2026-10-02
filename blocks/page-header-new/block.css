@@ -40,7 +40,7 @@
 
 /* ── 面包屑：Bootstrap 的 .breadcrumb；分隔符 #94a3b8，链接正文色、悬停主色，当前页 #64748b。 */
 [data-block="page-header-new"] .breadcrumb {
-  --x-breadcrumb-divider-color: #94a3b8;
+  --x-breadcrumb-divider-color: var(--scheme-ink-faint);
   flex-wrap: wrap;
 }
 [data-block="page-header-new"] .breadcrumb a {
@@ -48,10 +48,10 @@
   text-decoration: none;
 }
 [data-block="page-header-new"] .breadcrumb a:hover {
-  color: var(--x-primary);
+  color: var(--scheme-primary-ink, var(--x-primary));
 }
 [data-block="page-header-new"] .breadcrumb .active {
-  color: #64748b;
+  color: var(--scheme-ink-muted);
 }
 
 /* ── 标题块离副标题 1.25rem；按钮离副标题 2rem。副标题不限宽（Chris 2026-09-30），占满文字那一列。 */

@@ -315,7 +315,7 @@ console.log('\n── 判据 9 bg');
   const { ON_DEEP_MUTED } = require(path.join(NEXT, 'scripts', 'lib', 'site-css.js'));
   check(/\[data-tone="dark"\] \.text-muted,\s*\n\[data-tone="brand"\] \.text-muted,[\s\S]*?\{\s*color: rgba\(255, 255, 255, \.92\) !important;/.test(ON_DEEP_MUTED)
     && !/\.ct-(?:intro-text|info) \.text-muted\s*\{[^}]*rgba\(255, 255, 255/.test(CSS), '深底提示白 .92：全站那条，block.css 里没有自己那份');
-  check(/:not\(\[data-tone="light"\]\)\[data-form-style="card"\] \.ct-form \{\s*color: #1e293b;/.test(CSS) && /\[data-form-style="card"\] \.ct-form \{\s*background: #fff;/.test(CSS),
+  check(/:not\(\[data-tone="light"\]\)\[data-form-style="card"\] \.ct-form \{\s*color: #1e293b;/.test(CSS) && /\[data-form-style="card"\] \.ct-form \{\s*background: var\(--x-body-bg\);/.test(CSS),
     'block.css：表单卡保持白底、卡里字回到深色');
   const dark = at('#0f172a');
   const formTag = (h) => (/<form[^>]*>/.exec(h) || [''])[0];

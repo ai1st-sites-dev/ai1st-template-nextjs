@@ -46,7 +46,7 @@
    logo：上传的图 / 内置品牌图标（品牌色，`--tn-brand`）/ 平台名，三档由 Section.tsx 选（review-platforms.js）。
    有 href 的那一项是 <a>：悬停描一圈主色。 */
 [data-block="testimonials-new"] .tn-platform {
-  background: var(--x-body-secondary-bg, #f1f5f9);
+  background: var(--scheme-surface-muted);
 }
 [data-block="testimonials-new"] a.tn-platform:hover,
 [data-block="testimonials-new"] a.tn-platform:focus-visible {
@@ -261,7 +261,7 @@
   border: 0;
   margin: 0;
   padding: 0;
-  background: #cbd5e1;
+  background: var(--scheme-line);
   opacity: 1;
   text-indent: 0;
   transition: width 0.2s;
@@ -278,7 +278,7 @@
   height: 2.5rem;
   border-radius: 50%;
   border: 1px solid var(--x-border-color, #e5e7eb);
-  background: #fff;
+  background: var(--x-body-bg);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -287,7 +287,7 @@
 }
 [data-block="testimonials-new"] .tn-arrow:hover {
   border-color: var(--x-primary);
-  color: var(--x-primary);
+  color: var(--scheme-primary-ink, var(--x-primary));
 }
 /* 圆点多（最多 6 条）时换行、不把前后按钮挤出去；前后按钮那一组不收缩（#1507）。 */
 [data-block="testimonials-new"] .tn-dots {
@@ -367,7 +367,7 @@
 
 /* itemStyle：card = 白底 + 1px 描边 + 1rem 圆角 + 2rem 内边距；plain 无底无线。 */
 [data-block="testimonials-new"][data-item-style="card"] .tn-inner {
-  background: #fff;
+  background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
   border-radius: 1rem;
   padding: 2rem;

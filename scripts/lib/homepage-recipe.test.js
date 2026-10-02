@@ -584,6 +584,18 @@ try {
         return t.includes(anchor) ? t.split(anchor).join(`\n${line}${anchor}`) : t;
       },
     },
+    // #1472：站级深浅 —— 输出结构最前面多一行 `colorScheme`（AI 按行业给 light / dark）。基线那棵树没有这一行。
+    //    🔴 这行字逐字写在这里：create-site 那句话改了而这里没跟 ⟹ 这一格当场红，不会静默对上。
+    {
+      why: '#1472 输出结构里加 colorScheme',
+      apply: (t) => {
+        const anchor = '{\n  "brand": {\n    "tagline": ';
+        const line = '  "colorScheme": "<light or dark — the whole site\'s colour scheme, picked from the industry: '
+          + 'dark for businesses whose look is naturally dark and moody (bar, nightclub, gym, tattoo studio, barbershop, cocktail lounge); '
+          + 'light for everything else (dentist, law firm, clinic, home services, accounting, most shops)>",';
+        return t.includes(anchor) ? t.split(anchor).join(`{\n${line}\n  "brand": {\n    "tagline": `) : t;
+      },
+    },
     // 📌 #1376（同样按 D19 删掉一个块）**没有在这里加条目**。r1 加过一条「32 → 31」，而 #1372 先落地
     //    了，它上面那条差异已经把那句写死的 32 换成**按 `blocks/` 现算**的数 ⟹ 链式套用时 r1 那条
     //    再也匹配不到自己那段文本，是一条在链上恒 no-op 的条目（判别力② 是拿每条**单独**套基线判的，

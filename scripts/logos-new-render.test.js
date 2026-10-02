@@ -169,7 +169,7 @@ console.log('\n── AC4 / AC5 / AC6 row · grid · logoColor 规则');
   check(/\[data-logo-color="mono"\] \.lo-logo \{\s*filter: grayscale\(1\);\s*opacity: 0\.6;/.test(CSS), '浅底 mono：grayscale(1) + 60% 不透明');
   check(/\[data-tone="dark"\]\[data-logo-color="mono"\] \.lo-logo,[\s\S]*?\{\s*filter: brightness\(0\) invert\(1\);/.test(CSS), '深底 mono：brightness(0) invert(1)');
   check(!/\[data-logo-color="original"\]/.test(CSS), 'original：没有任何规则给它加滤镜');
-  check(/\[data-item-style="card"\] \.lo-inner \{\s*background: #fff;\s*border: 1px solid[^;]*;\s*border-radius: 1rem;\s*height: 6rem;/.test(CSS)
+  check(/\[data-item-style="card"\] \.lo-inner \{\s*background: var\(--x-body-bg\);\s*border: 1px solid[^;]*;\s*border-radius: 1rem;\s*height: 6rem;/.test(CSS)
     && /\.lo-inner \{\s*height: 4\.5rem;/.test(CSS), 'card：白底 1px 描边 1rem 圆角 高 6rem；plain 高 4.5rem');
   check(/\.lo-logo \{\s*display: block;\s*max-height: 2rem;\s*max-width: 100%;/.test(CSS), 'logo 图最高 2rem、不超出格子');
   const imgs = (r = render('strip', clone(DEMO))) => (r.match(/<img [^>]*>/g) || []);

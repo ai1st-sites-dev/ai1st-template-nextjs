@@ -34,7 +34,7 @@ import BlockLeadForm from '@/components/BlockLeadForm';
 import { getServices } from '@/lib/config';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
-import { bgCss, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
 
@@ -147,6 +147,7 @@ export default function CtaNewSection({ data, locale = 'en', block }: Props) {
       data-image={k.image}
       data-form={k.form}
       data-tone={tone}
+      data-bs-theme={bsThemeForBg(d.bg, cover)}
       className="position-relative py-16 py-lg-24"
       style={boxed ? undefined : bgStyle}
     >

@@ -81,7 +81,7 @@
   display: block;
   overflow: hidden;
   border-radius: 1rem;
-  background: #e2e8f0;
+  background: var(--scheme-surface-sunken);
 }
 [data-block="blog-new"] .bl-img img {
   display: block;
@@ -94,8 +94,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: color-mix(in srgb, var(--x-primary, #3b82f6) 10%, #fff);
-  color: var(--x-primary, #3b82f6);
+  background: color-mix(in srgb, var(--x-primary, #3b82f6) 10%, var(--x-body-bg));
+  color: var(--scheme-primary-ink, var(--x-primary, #3b82f6));
   text-decoration: none;
 }
 [data-block="blog-new"] .bl-author img {
@@ -105,7 +105,7 @@
   object-fit: cover;
 }
 [data-block="blog-new"] .bl-title a:hover {
-  color: var(--x-primary) !important;
+  color: var(--scheme-primary-ink, var(--x-primary)) !important;
 }
 [data-block="blog-new"] .bl-text {
   min-width: 0;
@@ -140,7 +140,7 @@
 
 /* itemStyle card：白底 1px 描边 rounded-4；封面在上时封面贴卡顶。 */
 [data-block="blog-new"][data-item-style="card"] .bl-inner {
-  background: #fff;
+  background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
   border-radius: 1rem;
   overflow: hidden;

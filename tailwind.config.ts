@@ -1,6 +1,10 @@
 import type { Config } from 'tailwindcss';
 
 const config: Config = {
+  // #1472 —— `dark:` 变体跟站级深浅走同一个属性（`<html data-bs-theme="dark">`，`auto` 站由首屏脚本写），
+  // 不跟 Tailwind 默认的 `prefers-color-scheme`：后者在 `light` 站上也会按访客系统变暗。改前全仓没有一处 `dark:`，
+  // 这一行只对后来加的 `dark:` 类生效（今天只有 `src/components/pages/Blog*Page.tsx` 两份）。
+  darkMode: ['selector', '[data-bs-theme="dark"]'],
   // 🔴 #1387 —— `./blocks/**` 这一行是承重的，不是顺手加的。块组件从 `src/components/sections/`
   // 搬进了 `blocks/<块>/Section.tsx`（设计文档 D20），而 Tailwind 只给**扫到的文件**里出现过的
   // 类名出 CSS。少了这一行，只在块组件里用到的那些工具类**整批不进产物** —— 页面照样建得出来、

@@ -12,7 +12,7 @@
 
 /* ── 盒子：没写 bg 时的默认底色（写了 bg 由 Section.tsx 的内联样式涂，压过这一条）。 */
 [data-block="cta-new"][data-frame="boxed"] .cta-frame {
-  background: #f1f5f9;
+  background: var(--scheme-surface-muted);
 }
 
 /* ── 图 + 主体：一列（<992 图在上 —— left / right 都是）；≥992 left / right 两列、图 42%。 */
@@ -223,5 +223,5 @@
    深底 / 主色底那一档上面已经是白底。 */
 [data-block="cta-new"][data-frame="boxed"][data-tone="light"] .form-control,
 [data-block="cta-new"][data-frame="boxed"][data-tone="light"] .form-select {
-  background-color: #fff !important;
+  background-color: var(--x-body-bg) !important;
 }

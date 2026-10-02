@@ -77,7 +77,7 @@
 [data-block="gallery-new"] .gl-img {
   overflow: hidden;
   border-radius: 1rem;
-  background: #e2e8f0;
+  background: var(--scheme-surface-sunken);
   cursor: zoom-in;
 }
 [data-block="gallery-new"] .gl-img img {
@@ -175,7 +175,7 @@
   gap: 0.125rem;
 }
 [data-block="gallery-new"] .gl-cap-s {
-  color: #64748b;
+  color: var(--scheme-ink-muted);
 }
 [data-block="gallery-new"][data-item-caption="below"] .gl-cap {
   margin-top: 0.75rem;

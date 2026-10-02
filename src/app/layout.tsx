@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { brand, getSeo, getBrandName, defaultLocale, siteId, leadApi } from '@/lib/config';
+import { brand, getSeo, getBrandName, defaultLocale, siteId, leadApi, colorScheme } from '@/lib/config';
+// #1472 —— `auto` 站首屏前那段脚本（判据和文案都在 lib 那一处）。
+import { AUTO_SCHEME_SCRIPT } from '../../scripts/lib/color-scheme.js';
 import { RADIUS, SHADOW, DENSITY, BUTTON_SHAPE } from '@/lib/themeSettings';
 
 const seo = getSeo(defaultLocale);
@@ -750,8 +752,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang={seo.locale.split('_')[0]}>
+    // #1472 —— 站级深浅。`light` / `dark` 构建时写死；`auto` 构建时不知道访客的系统是深是浅 ⟹ 不写，由 <head> 第一段
+    // 内联脚本在 body 画第一帧之前按 `prefers-color-scheme` 写上（并跟着系统切换改写）。属性是脚本写的，React 水合时
+    // 会对不上 ⟹ `suppressHydrationWarning`（它只管这一个元素自己的属性，不往下传）。
+    <html lang={seo.locale.split('_')[0]}
+      {...(colorScheme === 'auto' ? {} : { 'data-bs-theme': colorScheme })}
+      suppressHydrationWarning>
       <head>
+        {colorScheme === 'auto' ? <script dangerouslySetInnerHTML={{ __html: AUTO_SCHEME_SCRIPT }} /> : null}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         {/* #1001 — the floor, and it is UNCONDITIONAL on purpose. The arm base.css exists for is

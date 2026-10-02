@@ -149,7 +149,7 @@ console.log('\n── AC3 bg 涂盒子 / 整段');
   const flat = render('centered', withOpts({}, { bg: '#1e293b' }));
   check(/style="background:#1e293b"/.test(frameTag(boxed)) && !/style=/.test(sectionTag(boxed)), 'frame=boxed ⟹ 底色在盒子上，<section> 没有 style（段背景不变）');
   check(/style="background:#1e293b"/.test(sectionTag(flat)) && !/style=/.test(frameTag(flat)), 'frame=none ⟹ 底色在 <section> 上，盒子没有 style');
-  check(/\[data-frame="boxed"\] \.cta-frame \{\s*background: #f1f5f9;/.test(CSS), 'boxed 没写 bg 时盒子有默认浅底（block.css）');
+  check(/\[data-frame="boxed"\] \.cta-frame \{\s*background: var\(--scheme-surface-muted\);/.test(CSS), 'boxed 没写 bg 时盒子有默认浅底（block.css；#1472 起读 --scheme-surface-muted，light 值仍是 #f1f5f9）');
   check(/rounded-4 p-12 py-lg-16 px-lg-20/.test(frameTag(boxed)), `boxed 的盒子：rounded-4 p-12 py-lg-16 px-lg-20（${frameTag(boxed)}）`);
   // 反向对照：把 frame 判断拿掉（永远涂整段）⟹ 第一条要红。
   const src = fs.readFileSync(SECTION, 'utf-8');

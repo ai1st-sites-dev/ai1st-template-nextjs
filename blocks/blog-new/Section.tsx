@@ -25,7 +25,7 @@ import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig, BlogPostConfig } from '@/lib/types/config';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
-import { bgCss, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
 
@@ -121,6 +121,7 @@ export default function BlogNewSection({ data, locale, block }: Props) {
       data-item-style={k.itemStyle}
       data-item-image={k.itemImage}
       data-tone={tone}
+      data-bs-theme={bsThemeForBg(d.bg)}
       className="position-relative py-16 py-lg-24"
       style={bgValue ? { background: bgValue } : undefined}
     >

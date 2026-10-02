@@ -184,7 +184,7 @@
   display: block;
   overflow: hidden;
   border-radius: 1rem;
-  background: #e2e8f0;
+  background: var(--scheme-surface-sunken);
 }
 [data-block="blog-new"] .bl-img img {
   display: block;
@@ -197,8 +197,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: color-mix(in srgb, var(--x-primary, #3b82f6) 10%, #fff);
-  color: var(--x-primary, #3b82f6);
+  background: color-mix(in srgb, var(--x-primary, #3b82f6) 10%, var(--x-body-bg));
+  color: var(--scheme-primary-ink, var(--x-primary, #3b82f6));
   text-decoration: none;
 }
 [data-block="blog-new"] .bl-author img {
@@ -208,7 +208,7 @@
   object-fit: cover;
 }
 [data-block="blog-new"] .bl-title a:hover {
-  color: var(--x-primary) !important;
+  color: var(--scheme-primary-ink, var(--x-primary)) !important;
 }
 [data-block="blog-new"] .bl-text {
   min-width: 0;
@@ -243,7 +243,7 @@
 
 /* itemStyle card：白底 1px 描边 rounded-4；封面在上时封面贴卡顶。 */
 [data-block="blog-new"][data-item-style="card"] .bl-inner {
-  background: #fff;
+  background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
   border-radius: 1rem;
   overflow: hidden;
@@ -1827,7 +1827,7 @@
   flex-direction: column !important;
 }
 [data-block="contact-new"][data-item-style="card"] .ct-ch-inner {
-  background: #fff;
+  background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
   border-radius: 1rem;
   padding: 1.5rem;
@@ -1840,7 +1840,7 @@
 /* ═══ 表单 ═════════════════════════════════════════════════════════════════════════════════════════ */
 
 [data-block="contact-new"][data-form-style="card"] .ct-form {
-  background: #fff;
+  background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
   border-radius: 1rem;
   padding: 2rem;
@@ -1851,8 +1851,8 @@
    侧列：独占侧列时至少 24rem、撑满那一列；在表单下面时 20rem、离表单 1.5rem。最底下那一条 20rem。 */
 [data-block="contact-new"] .ct-map {
   height: 20rem;
-  background: #eef2f7;
-  color: #1e293b;
+  background: var(--scheme-surface-map);
+  color: var(--scheme-ink);
 }
 [data-block="contact-new"] .ct-map-side {
   min-height: 24rem;
@@ -2030,7 +2030,7 @@
   margin-bottom: 0;
 }
 [data-block="content-new"] .co-body strong {
-  color: var(--x-heading-color, #0f172a);
+  color: var(--x-heading-color, var(--scheme-ink-strong));
 }
 [data-block="content-new"] .co-ctas {
   margin-top: 2rem;
@@ -2068,7 +2068,7 @@
   line-height: 1.45;
   font-weight: 500;
   letter-spacing: -0.01em;
-  color: var(--x-heading-color, #0f172a);
+  color: var(--x-heading-color, var(--scheme-ink-strong));
 }
 [data-block="content-new"][data-text-style="statement"] .co-body strong {
   font-weight: 700;
@@ -2136,7 +2136,7 @@
 /* ═══ 卡（frame）══════════════════════════════════════════════════════════════════════════════════
    card = 整段文字放进一张白卡（有图时卡只包文字，图在卡外 —— 图是 .co-frame 的兄弟，不在它里面）。 */
 [data-block="content-new"][data-frame="card"] .co-frame {
-  background: #fff;
+  background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
   border-radius: 1.5rem;
   padding: 2rem;
@@ -3198,7 +3198,7 @@
 
 /* ── 盒子：没写 bg 时的默认底色（写了 bg 由 Section.tsx 的内联样式涂，压过这一条）。 */
 [data-block="cta-new"][data-frame="boxed"] .cta-frame {
-  background: #f1f5f9;
+  background: var(--scheme-surface-muted);
 }
 
 /* ── 图 + 主体：一列（<992 图在上 —— left / right 都是）；≥992 left / right 两列、图 42%。 */
@@ -3409,7 +3409,7 @@
    深底 / 主色底那一档上面已经是白底。 */
 [data-block="cta-new"][data-frame="boxed"][data-tone="light"] .form-control,
 [data-block="cta-new"][data-frame="boxed"][data-tone="light"] .form-select {
-  background-color: #fff !important;
+  background-color: var(--x-body-bg) !important;
 }
 
 /* ── cta-new · centered（预设 Centered）──────────────────────────────────────────────────────────────
@@ -3813,7 +3813,7 @@
 
 /* help 卡：挨着块头，在块头那一列最下面；最宽 28rem；跟着 introAlign 走位置（下面 introAlign 那一段）。 */
 [data-block="faq-new"] .fq-help {
-  background: var(--x-body-secondary-bg, #f1f5f9);
+  background: var(--scheme-surface-muted);
   max-width: 28rem;
   margin-top: 2rem;
 }
@@ -3978,7 +3978,7 @@
 }
 [data-block="faq-new"][data-item-style="card"] .fq-inner,
 [data-block="faq-new"][data-item-style="card"] .fq-open {
-  background: #fff;
+  background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
   border-radius: 1rem;
   padding: 0 1.5rem;
@@ -4705,7 +4705,7 @@
   --fx-pad: calc(2rem + 1px);
 }
 [data-block="features-new"][data-item-style="card"] .fx-inner {
-  background: #fff;
+  background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
   border-radius: 1rem;
 }
@@ -5435,7 +5435,7 @@
 [data-block="gallery-new"] .gl-img {
   overflow: hidden;
   border-radius: 1rem;
-  background: #e2e8f0;
+  background: var(--scheme-surface-sunken);
   cursor: zoom-in;
 }
 [data-block="gallery-new"] .gl-img img {
@@ -5533,7 +5533,7 @@
   gap: 0.125rem;
 }
 [data-block="gallery-new"] .gl-cap-s {
-  color: #64748b;
+  color: var(--scheme-ink-muted);
 }
 [data-block="gallery-new"][data-item-caption="below"] .gl-cap {
   margin-top: 0.75rem;
@@ -6876,7 +6876,7 @@
 
 /* itemStyle=card：每个 logo 一张白卡（1px 描边、1rem 圆角、高 6rem）。 */
 [data-block="logos-new"][data-item-style="card"] .lo-inner {
-  background: #fff;
+  background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
   border-radius: 1rem;
   height: 6rem;
@@ -7344,7 +7344,7 @@
   padding: 0;
 }
 [data-block="milestones"][data-stat-style="card"] .mi-inner {
-  background: #fff;
+  background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
   border-radius: 1rem;
   padding: 2rem;
@@ -7715,7 +7715,7 @@
 
 /* ── 面包屑：Bootstrap 的 .breadcrumb；分隔符 #94a3b8，链接正文色、悬停主色，当前页 #64748b。 */
 [data-block="page-header-new"] .breadcrumb {
-  --x-breadcrumb-divider-color: #94a3b8;
+  --x-breadcrumb-divider-color: var(--scheme-ink-faint);
   flex-wrap: wrap;
 }
 [data-block="page-header-new"] .breadcrumb a {
@@ -7723,10 +7723,10 @@
   text-decoration: none;
 }
 [data-block="page-header-new"] .breadcrumb a:hover {
-  color: var(--x-primary);
+  color: var(--scheme-primary-ink, var(--x-primary));
 }
 [data-block="page-header-new"] .breadcrumb .active {
-  color: #64748b;
+  color: var(--scheme-ink-muted);
 }
 
 /* ── 标题块离副标题 1.25rem；按钮离副标题 2rem。副标题不限宽（Chris 2026-09-30），占满文字那一列。 */
@@ -8205,7 +8205,7 @@
    plain = 无框无线。divided 的竖线要贴着套餐之间，所以列间距归零、内边距挪进 .pr-inner。 */
 [data-block="pricing-new"][data-plan-style="card"][data-plan-features="inside"] .pr-inner,
 [data-block="pricing-new"][data-plan-style="card"][data-plan-features="below"] .pr-card {
-  background: #fff;
+  background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
   border-radius: 1rem;
   padding: 2rem;
@@ -8284,15 +8284,15 @@
 [data-block="pricing-new"][data-featured="outline"][data-plan-features="inside"] .pr-featured .pr-inner,
 [data-block="pricing-new"][data-featured="outline"][data-plan-features="below"] .pr-featured .pr-card {
   border: 2px solid var(--pr-fc-line) !important;
-  background: #fff !important;
+  background: var(--x-body-bg) !important;
   border-radius: 1rem;
   padding: 2rem;
-  color: #1e293b;
+  color: var(--scheme-ink);
 }
 [data-block="pricing-new"][data-fc-kind="gradient"][data-featured="outline"][data-plan-features="inside"] .pr-featured .pr-inner,
 [data-block="pricing-new"][data-fc-kind="gradient"][data-featured="outline"][data-plan-features="below"] .pr-featured .pr-card {
   border-color: transparent !important;
-  background: linear-gradient(#fff, #fff) padding-box, var(--pr-fc) border-box !important;
+  background: linear-gradient(var(--x-body-bg), var(--x-body-bg)) padding-box, var(--pr-fc) border-box !important;
 }
 [data-block="pricing-new"][data-featured="outline"] .pr-featured .pr-badge,
 [data-block="pricing-new"][data-featured="outline"] .pr-featured .btn-primary {
@@ -8421,13 +8421,13 @@
 /* 深底 + outline：高亮那张是白卡 ⟹ 卡里的字回到深色，不跟整段反白（上面几条是整段的，这几条特异度更高、专管那张卡）。 */
 [data-block="pricing-new"][data-featured="outline"][data-tone] .pr-featured .pr-name,
 [data-block="pricing-new"][data-featured="outline"][data-tone] .pr-featured .pr-amount {
-  color: #0f172a !important;
+  color: var(--scheme-ink-strong) !important;
 }
 [data-block="pricing-new"][data-featured="outline"][data-tone] .pr-featured .text-muted {
-  color: #64748b !important;
+  color: var(--scheme-ink-muted) !important;
 }
 [data-block="pricing-new"][data-featured="outline"][data-tone] .pr-featured .pr-features {
-  color: #1e293b;
+  color: var(--scheme-ink);
 }
 [data-block="pricing-new"][data-featured="outline"][data-tone] .pr-featured .pr-check {
   color: var(--pr-fc-ink) !important;
@@ -9184,7 +9184,7 @@
 /* itemStyle=card：浅灰底、1rem 圆角（定稿图册的值），悬停描一圈 2px 主色；grid 内边距 2rem 1.5rem（<576 1rem 1.25rem）、
    row .75rem 1.25rem。plain = 无底，row 时小条间距加大到 1rem 2.5rem。 */
 [data-block="reviews-new"][data-item-style="card"] .rv-item {
-  background: var(--x-body-secondary-bg, #f1f5f9);
+  background: var(--scheme-surface-muted);
   border-radius: 1rem;
 }
 [data-block="reviews-new"][data-item-style="card"] .rv-item:hover {
@@ -9970,7 +9970,7 @@
   row-gap: 1.5rem;
 }
 [data-block="team-new"][data-member-style="card"] .tm-inner {
-  background: #fff;
+  background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
   border-radius: 1rem;
   padding: 2rem;
@@ -9979,7 +9979,7 @@
 /* ═══ 招聘卡（join）：排在成员网格的最后一格，跟成员同宽 ══════════════════════════════════════════
    虚线框 1.5px dashed + 1rem 圆角 + 2rem 内边距；3rem 的图标圈（给定尺寸，别被 flex 拉宽）；描边按钮。 */
 [data-block="team-new"] .tm-join {
-  border: 1.5px dashed #cbd5e1;
+  border: 1.5px dashed var(--scheme-line);
   border-radius: 1rem;
   padding: 2rem;
   min-height: 12rem;
@@ -10564,7 +10564,7 @@
    logo：上传的图 / 内置品牌图标（品牌色，`--tn-brand`）/ 平台名，三档由 Section.tsx 选（review-platforms.js）。
    有 href 的那一项是 <a>：悬停描一圈主色。 */
 [data-block="testimonials-new"] .tn-platform {
-  background: var(--x-body-secondary-bg, #f1f5f9);
+  background: var(--scheme-surface-muted);
 }
 [data-block="testimonials-new"] a.tn-platform:hover,
 [data-block="testimonials-new"] a.tn-platform:focus-visible {
@@ -10779,7 +10779,7 @@
   border: 0;
   margin: 0;
   padding: 0;
-  background: #cbd5e1;
+  background: var(--scheme-line);
   opacity: 1;
   text-indent: 0;
   transition: width 0.2s;
@@ -10796,7 +10796,7 @@
   height: 2.5rem;
   border-radius: 50%;
   border: 1px solid var(--x-border-color, #e5e7eb);
-  background: #fff;
+  background: var(--x-body-bg);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -10805,7 +10805,7 @@
 }
 [data-block="testimonials-new"] .tn-arrow:hover {
   border-color: var(--x-primary);
-  color: var(--x-primary);
+  color: var(--scheme-primary-ink, var(--x-primary));
 }
 /* 圆点多（最多 6 条）时换行、不把前后按钮挤出去；前后按钮那一组不收缩（#1507）。 */
 [data-block="testimonials-new"] .tn-dots {
@@ -10885,7 +10885,7 @@
 
 /* itemStyle：card = 白底 + 1px 描边 + 1rem 圆角 + 2rem 内边距；plain 无底无线。 */
 [data-block="testimonials-new"][data-item-style="card"] .tn-inner {
-  background: #fff;
+  background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
   border-radius: 1rem;
   padding: 2rem;

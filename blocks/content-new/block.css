@@ -50,7 +50,7 @@
   margin-bottom: 0;
 }
 [data-block="content-new"] .co-body strong {
-  color: var(--x-heading-color, #0f172a);
+  color: var(--x-heading-color, var(--scheme-ink-strong));
 }
 [data-block="content-new"] .co-ctas {
   margin-top: 2rem;
@@ -88,7 +88,7 @@
   line-height: 1.45;
   font-weight: 500;
   letter-spacing: -0.01em;
-  color: var(--x-heading-color, #0f172a);
+  color: var(--x-heading-color, var(--scheme-ink-strong));
 }
 [data-block="content-new"][data-text-style="statement"] .co-body strong {
   font-weight: 700;
@@ -156,7 +156,7 @@
 /* ═══ 卡（frame）══════════════════════════════════════════════════════════════════════════════════
    card = 整段文字放进一张白卡（有图时卡只包文字，图在卡外 —— 图是 .co-frame 的兄弟，不在它里面）。 */
 [data-block="content-new"][data-frame="card"] .co-frame {
-  background: #fff;
+  background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
   border-radius: 1.5rem;
   padding: 2rem;

@@ -142,7 +142,7 @@
   flex-direction: column !important;
 }
 [data-block="contact-new"][data-item-style="card"] .ct-ch-inner {
-  background: #fff;
+  background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
   border-radius: 1rem;
   padding: 1.5rem;
@@ -155,7 +155,7 @@
 /* ═══ 表单 ═════════════════════════════════════════════════════════════════════════════════════════ */
 
 [data-block="contact-new"][data-form-style="card"] .ct-form {
-  background: #fff;
+  background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
   border-radius: 1rem;
   padding: 2rem;
@@ -166,8 +166,8 @@
    侧列：独占侧列时至少 24rem、撑满那一列；在表单下面时 20rem、离表单 1.5rem。最底下那一条 20rem。 */
 [data-block="contact-new"] .ct-map {
   height: 20rem;
-  background: #eef2f7;
-  color: #1e293b;
+  background: var(--scheme-surface-map);
+  color: var(--scheme-ink);
 }
 [data-block="contact-new"] .ct-map-side {
   min-height: 24rem;

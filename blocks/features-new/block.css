@@ -249,7 +249,7 @@
   --fx-pad: calc(2rem + 1px);
 }
 [data-block="features-new"][data-item-style="card"] .fx-inner {
-  background: #fff;
+  background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
   border-radius: 1rem;
 }

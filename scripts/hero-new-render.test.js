@@ -230,8 +230,8 @@ console.log('\n── #1477 渐变 bg');
   const want = "const tone = cover ? 'dark' : toneForBg(d.bg);";
   if (!src.includes(want)) die(`阳性对照要替换的那一句不在 Section.tsx 里：${want}`);
   const mutant = loadSection(src.replace(want, "const tone = cover ? 'dark' : toneFor(d.bg);")
-    .replace("import { bgCss, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';",
-      "import { bgCss, toneFor, type BgValue } from '../../scripts/lib/contrast.js';"));
+    .replace("import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';",
+      "import { bgCss, bsThemeForBg, toneFor, type BgValue } from '../../scripts/lib/contrast.js';"));
   check(attr(render('split', withOpts({}, { bg: DEEP }), mutant), 'data-tone') === 'light',
     '阳性对照：换回 toneFor ⟹ 同一个深渐变读成 light（上面那格就是靠这一行才对的）');
   loadSection();

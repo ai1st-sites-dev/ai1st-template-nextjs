@@ -175,7 +175,7 @@ console.log('\n── AC4 blockImage 四档');
 
 console.log('\n── AC6 statStyle 规则');
 {
-  check(/\[data-stat-style="card"\] \.mi-inner \{\s*background: #fff;\s*border: 1px solid[^;]*;\s*border-radius: 1rem;\s*padding: 2rem;/.test(CSS), 'card：白底 + 1px 描边 + 1rem 圆角 + 2rem 内边距');
+  check(/\[data-stat-style="card"\] \.mi-inner \{\s*background: var\(--x-body-bg\);\s*border: 1px solid[^;]*;\s*border-radius: 1rem;\s*padding: 2rem;/.test(CSS), 'card：白底 + 1px 描边 + 1rem 圆角 + 2rem 内边距');
   check(/\[data-stat-style="divided"\] \.mi-stat \{\s*border-left: 1px solid/.test(CSS) && /\[data-stat-style="divided"\] \.mi-stat:first-child,/.test(CSS), 'divided：相邻之间 1px 竖线、首条没有');
   check(/\[data-tone="dark"\]\[data-stat-style="card"\] \.mi-inner,[\s\S]*?\{\s*background: rgba\(255, 255, 255, 0\.06\);/.test(CSS), '深 bg + card ⟹ .06 半透明底');
   check(!/\[data-stat-style="plain"\]/.test(CSS) && !/\.mi-stat \{[^}]*background/.test(CSS) && !/\[data-tone="dark"\][^{]*\.mi-inner \{[^}]*background/.test(CSS.replace(/\[data-stat-style="card"\] \.mi-inner/g, '')),

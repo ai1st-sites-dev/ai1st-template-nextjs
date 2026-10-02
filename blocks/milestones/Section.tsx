@@ -29,7 +29,7 @@ import type { BlockConfig } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
-import { bgCss, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
 
@@ -148,6 +148,7 @@ export default function MilestonesSection({ data, block, iconTable = {} }: Props
       data-stat-style={k.statStyle}
       data-stat-align={k.statAlign}
       data-tone={tone}
+      data-bs-theme={bsThemeForBg(d.bg, cover)}
       className="position-relative py-16 py-lg-24"
       style={bgValue ? { background: bgValue } : undefined}
     >

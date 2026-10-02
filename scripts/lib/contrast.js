@@ -108,6 +108,18 @@ function bgCss(bg) {
 }
 
 /**
+ * #1472 —— 块根上的 `data-bs-theme`：站级深浅（`<html data-bs-theme>`）跟块的 `bg` 正交。
+ *   填了 `bg`（纯色 / brand / 渐变，合法的）或者图铺底（`cover`）⟹ `'light'`：块按自己的底色画，把里面的 Webpixels 变量拉回
+ *     light —— 跟改前（站只有浅色）逐字相同。深底 / brand 那几档也拉回：它们的 `data-tone` 规则是照着 light 变量写的
+ *     （例 contact-new 深底上「表单卡保持白底、字回深色」，卡底读 `--x-body-bg`），放进深色变量里就白底变黑底、深字压黑。
+ *   没填 ⟹ `undefined`（不挂）：块跟站走，深浅由浏览器按 `<html>` 上那一个属性换。
+ * 🔴 17 个用 `toneForBg` 的块都调它，不各写一份（正文做什么 4）。
+ */
+function bsThemeForBg(bg, cover = false) {
+  return cover || normalizeBg(bg) !== null ? 'light' : undefined;
+}
+
+/**
  * 地址栏 `?bg=` 的写法 → 颜色槽的值：`%230f172a` / `brand` 原样，渐变写成 JSON（`?bg={"stops":[…],"angle":135}`）。
  * 单格页两条路（旋钮页面块 / 外壳块）都走它，不各写一份解析。
  */
@@ -120,5 +132,5 @@ function bgFromParam(s) {
 
 module.exports = {
   DARK_BELOW, BRAND, isColorValue, normalizeColor, relativeLuminance, toneFor,
-  GRADIENT_DARK_BELOW, GRADIENT_ANGLE, GRADIENT_SWATCHES, normalizeGradient, normalizeBg, toneForBg, bgCss, bgFromParam,
+  GRADIENT_DARK_BELOW, GRADIENT_ANGLE, GRADIENT_SWATCHES, normalizeGradient, normalizeBg, toneForBg, bgCss, bgFromParam, bsThemeForBg,
 };

@@ -23,7 +23,7 @@ import SiteLink from '@/components/SiteLink';
 import type { BlockConfig } from '@/lib/types/config';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
-import { bgCss, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
 
@@ -101,6 +101,7 @@ export default function LogosNewSection({ data, block }: Props) {
       data-item-style={k.itemStyle}
       data-logo-color={k.logoColor}
       data-tone={tone}
+      data-bs-theme={bsThemeForBg(d.bg)}
       className="position-relative py-12 py-lg-16"
       style={bgValue ? { background: bgValue } : undefined}
     >

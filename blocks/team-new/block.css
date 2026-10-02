@@ -165,7 +165,7 @@
   row-gap: 1.5rem;
 }
 [data-block="team-new"][data-member-style="card"] .tm-inner {
-  background: #fff;
+  background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
   border-radius: 1rem;
   padding: 2rem;
@@ -174,7 +174,7 @@
 /* ═══ 招聘卡（join）：排在成员网格的最后一格，跟成员同宽 ══════════════════════════════════════════
    虚线框 1.5px dashed + 1rem 圆角 + 2rem 内边距；3rem 的图标圈（给定尺寸，别被 flex 拉宽）；描边按钮。 */
 [data-block="team-new"] .tm-join {
-  border: 1.5px dashed #cbd5e1;
+  border: 1.5px dashed var(--scheme-line);
   border-radius: 1rem;
   padding: 2rem;
   min-height: 12rem;

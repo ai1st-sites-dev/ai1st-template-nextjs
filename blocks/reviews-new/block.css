@@ -231,7 +231,7 @@
 /* itemStyle=card：浅灰底、1rem 圆角（定稿图册的值），悬停描一圈 2px 主色；grid 内边距 2rem 1.5rem（<576 1rem 1.25rem）、
    row .75rem 1.25rem。plain = 无底，row 时小条间距加大到 1rem 2.5rem。 */
 [data-block="reviews-new"][data-item-style="card"] .rv-item {
-  background: var(--x-body-secondary-bg, #f1f5f9);
+  background: var(--scheme-surface-muted);
   border-radius: 1rem;
 }
 [data-block="reviews-new"][data-item-style="card"] .rv-item:hover {

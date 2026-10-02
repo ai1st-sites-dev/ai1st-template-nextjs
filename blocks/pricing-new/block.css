@@ -278,7 +278,7 @@
    plain = 无框无线。divided 的竖线要贴着套餐之间，所以列间距归零、内边距挪进 .pr-inner。 */
 [data-block="pricing-new"][data-plan-style="card"][data-plan-features="inside"] .pr-inner,
 [data-block="pricing-new"][data-plan-style="card"][data-plan-features="below"] .pr-card {
-  background: #fff;
+  background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
   border-radius: 1rem;
   padding: 2rem;
@@ -357,15 +357,15 @@
 [data-block="pricing-new"][data-featured="outline"][data-plan-features="inside"] .pr-featured .pr-inner,
 [data-block="pricing-new"][data-featured="outline"][data-plan-features="below"] .pr-featured .pr-card {
   border: 2px solid var(--pr-fc-line) !important;
-  background: #fff !important;
+  background: var(--x-body-bg) !important;
   border-radius: 1rem;
   padding: 2rem;
-  color: #1e293b;
+  color: var(--scheme-ink);
 }
 [data-block="pricing-new"][data-fc-kind="gradient"][data-featured="outline"][data-plan-features="inside"] .pr-featured .pr-inner,
 [data-block="pricing-new"][data-fc-kind="gradient"][data-featured="outline"][data-plan-features="below"] .pr-featured .pr-card {
   border-color: transparent !important;
-  background: linear-gradient(#fff, #fff) padding-box, var(--pr-fc) border-box !important;
+  background: linear-gradient(var(--x-body-bg), var(--x-body-bg)) padding-box, var(--pr-fc) border-box !important;
 }
 [data-block="pricing-new"][data-featured="outline"] .pr-featured .pr-badge,
 [data-block="pricing-new"][data-featured="outline"] .pr-featured .btn-primary {
@@ -494,13 +494,13 @@
 /* 深底 + outline：高亮那张是白卡 ⟹ 卡里的字回到深色，不跟整段反白（上面几条是整段的，这几条特异度更高、专管那张卡）。 */
 [data-block="pricing-new"][data-featured="outline"][data-tone] .pr-featured .pr-name,
 [data-block="pricing-new"][data-featured="outline"][data-tone] .pr-featured .pr-amount {
-  color: #0f172a !important;
+  color: var(--scheme-ink-strong) !important;
 }
 [data-block="pricing-new"][data-featured="outline"][data-tone] .pr-featured .text-muted {
-  color: #64748b !important;
+  color: var(--scheme-ink-muted) !important;
 }
 [data-block="pricing-new"][data-featured="outline"][data-tone] .pr-featured .pr-features {
-  color: #1e293b;
+  color: var(--scheme-ink);
 }
 [data-block="pricing-new"][data-featured="outline"][data-tone] .pr-featured .pr-check {
   color: var(--pr-fc-ink) !important;

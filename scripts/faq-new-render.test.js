@@ -187,7 +187,7 @@ console.log('\n── AC5 / AC6 限宽与 itemStyle 规则');
   check(/\[data-item-style="divided"\] \.fq-inner \{\s*border-bottom: 1px solid/.test(CSS)
     && /\[data-item-style="divided"\]\[data-items-columns="1"\] \.fq-item:first-child \.fq-inner \{\s*border-top: 1px solid/.test(CSS),
     'divided：每条 1px 下边线、1 列时第一条上边线');
-  check(/\[data-item-style="card"\] \.fq-inner,\s*\n[^{]*\.fq-open \{\s*background: #fff;\s*border: 1px solid[^;]*;\s*border-radius: 1rem;/.test(CSS), 'card：白底 + 1px 描边 + 1rem 圆角');
+  check(/\[data-item-style="card"\] \.fq-inner,\s*\n[^{]*\.fq-open \{\s*background: var\(--x-body-bg\);\s*border: 1px solid[^;]*;\s*border-radius: 1rem;/.test(CSS), 'card：白底 + 1px 描边 + 1rem 圆角');
   check(!/\[data-item-style="plain"\][^{]*\{[^}]*border/.test(CSS), 'plain：没有任何规则给它加线或框');
   const cls = (h) => (/<details class="([^"]+)"/.exec(h) || [])[1];
   check(cls(render('accordion', clone(DEMO))) === cls(render('cards', clone(DEMO))), '三种 itemStyle 同一份 markup（区别全在根上的 data-item-style）');

@@ -43,7 +43,7 @@ import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import manifest from './manifest.json';
 import TestimonialsCarousel from './Carousel';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
-import { bgCss, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
 import { platformLogo } from '../../scripts/lib/review-platforms.js';
 
 export interface TestimonialsNewImage { imageUrl?: string; alt?: string }
@@ -228,6 +228,7 @@ export default function TestimonialsNewSection({ data, block, iconTable = {} }: 
       data-quote-size={k.quoteSize}
       data-item-align={k.itemAlign}
       data-tone={tone}
+      data-bs-theme={bsThemeForBg(d.bg)}
       className="position-relative py-16 py-lg-24"
       style={bgValue ? { background: bgValue } : undefined}
     >

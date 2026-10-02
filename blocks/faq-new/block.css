@@ -26,7 +26,7 @@
 
 /* help 卡：挨着块头，在块头那一列最下面；最宽 28rem；跟着 introAlign 走位置（下面 introAlign 那一段）。 */
 [data-block="faq-new"] .fq-help {
-  background: var(--x-body-secondary-bg, #f1f5f9);
+  background: var(--scheme-surface-muted);
   max-width: 28rem;
   margin-top: 2rem;
 }
@@ -191,7 +191,7 @@
 }
 [data-block="faq-new"][data-item-style="card"] .fq-inner,
 [data-block="faq-new"][data-item-style="card"] .fq-open {
-  background: #fff;
+  background: var(--x-body-bg);
   border: 1px solid var(--x-border-color, #e5e7eb);
   border-radius: 1rem;
   padding: 0 1.5rem;

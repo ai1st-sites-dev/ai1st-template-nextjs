@@ -51,7 +51,7 @@ import type { BlockConfig } from '@/lib/types/config';
 import BlockLeadForm from '@/components/BlockLeadForm';
 import manifest from './manifest.json';
 import { knobsOf, normalizeKnobs, presetForShape, presetOf, presetsOf } from '../../scripts/lib/header-knobs.js';
-import { bgCss, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
 // #1506 —— 电话 → `tel:`、邮箱 → `mailto:` 只有一份（contact-new 与引用展开 `scripts/lib/item-sources.js` 用的也是它）。
 import { mailtoHref, telHref } from '../../scripts/lib/contact-facts.js';
 
@@ -418,7 +418,7 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
   ].filter(Boolean).join(' ');
 
   return (
-    <footer {...blockAttrs('footer-new', footerBlock)} className={rootClass} data-preset={preset} style={bgStyle}>
+    <footer {...blockAttrs('footer-new', footerBlock)} data-bs-theme={bsThemeForBg(bg)} className={rootClass} data-preset={preset} style={bgStyle}>
       <div className={`container-lg ${layout === 'stacked' ? 'py-16 py-lg-20' : 'py-12'}`}>
         {ctaStrip()}
         {body}

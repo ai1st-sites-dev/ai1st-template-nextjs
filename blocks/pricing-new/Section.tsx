@@ -33,7 +33,7 @@ import type { BlockConfig } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
-import { bgCss, normalizeBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import { bgCss, bsThemeForBg, normalizeBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
 
 export interface PricingNewImage { imageUrl?: string; alt?: string }
 export interface PricingNewButton { label?: string; href?: string; style?: 'solid' | 'outline' }
@@ -165,7 +165,7 @@ export default function PricingNewSection({ data, block, iconTable = {} }: Props
               {highlights.map((h, i) => (
                 <li key={i} className="pr-hl d-flex align-items-start gap-4" data-part="highlight">
                   {hasIcon(h.icon) ? (
-                    <span className="pr-hl-icon d-inline-flex align-items-center justify-content-center rounded-3 border bg-white flex-shrink-0" data-part="icon">
+                    <span className="pr-hl-icon d-inline-flex align-items-center justify-content-center rounded-3 border bg-body flex-shrink-0" data-part="icon">
                       {icon(h.icon)}
                     </span>
                   ) : null}
@@ -183,7 +183,7 @@ export default function PricingNewSection({ data, block, iconTable = {} }: Props
                 <div className="d-flex">
                   {imgs(proof.avatars).slice(0, MAX_AVATARS).map((a, i) => (
                     <img key={i} src={a.imageUrl} alt={a.alt || ''} width={36} height={36}
-                      className="rounded-circle border border-2 border-white object-fit-cover pr-avatar" />
+                      className="rounded-circle border border-2 border-body object-fit-cover pr-avatar" />
                   ))}
                 </div>
               ) : null}
@@ -222,6 +222,7 @@ export default function PricingNewSection({ data, block, iconTable = {} }: Props
       data-plan-cta={k.planCta}
       data-featured={k.featured}
       data-tone={tone}
+      data-bs-theme={bsThemeForBg(d.bg)}
       data-fc-kind={fc.kind}
       data-fc-tone={fc.tone}
       className="position-relative py-16 py-lg-24"

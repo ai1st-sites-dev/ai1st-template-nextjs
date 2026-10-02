@@ -28,7 +28,7 @@ export default function BlogPostPage({ locale, slug }: { locale: string; slug: s
           <div className="mx-auto max-w-3xl">
             <Link
               href={localeUrl('', locale, 'blogIndex')}
-              className="inline-flex items-center text-sm text-primary-600 hover:text-primary-700"
+              className="inline-flex items-center text-sm text-primary-600 dark:text-primary-300 hover:text-primary-700 dark:hover:text-primary-200"
             >
               &larr; {labels.backToBlog}
             </Link>
@@ -38,30 +38,30 @@ export default function BlogPostPage({ locale, slug }: { locale: string; slug: s
                 <span className="rounded-full bg-primary-50 px-3 py-1 text-xs font-medium text-primary-700">
                   {post.category}
                 </span>
-                <time className="text-sm text-gray-500" dateTime={post.publishedAt}>
+                <time className="text-sm text-gray-500 dark:text-gray-400" dateTime={post.publishedAt}>
                   {post.publishedAt}
                 </time>
               </div>
-              <h1 className="mt-4 text-3xl font-bold text-gray-900 sm:text-4xl">
+              <h1 className="mt-4 text-3xl font-bold text-gray-900 dark:text-gray-100 sm:text-4xl">
                 {post.title}
               </h1>
-              <p className="mt-4 text-lg text-gray-600">{post.excerpt}</p>
-              <div className="mt-4 text-sm text-gray-500">
+              <p className="mt-4 text-lg text-gray-600 dark:text-gray-300">{post.excerpt}</p>
+              <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">
                 By {post.author}
               </div>
             </header>
 
             <div
-              className="prose prose-lg prose-gray mt-10 max-w-none prose-headings:text-gray-900 prose-a:text-primary-600"
+              className="prose prose-lg prose-gray dark:prose-invert mt-10 max-w-none prose-headings:text-gray-900 dark:prose-headings:text-gray-100 prose-a:text-primary-600"
               dangerouslySetInnerHTML={{ __html: post.content }}
             />
 
             {post.tags.length > 0 && (
-              <div className="mt-10 flex flex-wrap gap-2 border-t border-gray-200 pt-6">
+              <div className="mt-10 flex flex-wrap gap-2 border-t border-gray-200 dark:border-gray-700 pt-6">
                 {post.tags.map((tag) => (
                   <span
                     key={tag}
-                    className="rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600"
+                    className="rounded-full bg-gray-100 dark:bg-gray-800 px-3 py-1 text-xs text-gray-600 dark:text-gray-300"
                   >
                     {tag}
                   </span>

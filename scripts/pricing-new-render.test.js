@@ -205,7 +205,7 @@ console.log('\n── AC4 / AC5 featured × featuredColor');
     'block.css：高亮卡自己补一个 2rem 内边距的盒子（divided / plain 时也不贴字）');
   // AC5：深底 + outline ⟹ 普通卡半透明、高亮卡白卡深字
   check(/\[data-tone="dark"\]\[data-plan-style="card"\] \.pr-inner,[^{]*\{[^}]*rgba\(255, 255, 255, 0\.06\)/.test(CSS), 'block.css：深底上普通卡 rgba(255,255,255,.06)');
-  check(/\[data-featured="outline"\]\[data-tone\] \.pr-featured \.pr-name,[^{]*\{[^}]*#0f172a !important/.test(CSS), 'block.css：outline 高亮卡的名字 / 价格在任何底色上都是深色');
+  check(/\[data-featured="outline"\]\[data-tone\] \.pr-featured \.pr-name,[^{]*\{[^}]*var\(--scheme-ink-strong\) !important/.test(CSS), 'block.css：outline 高亮卡的名字 / 价格在任何底色上都是深色（#1472 起读 --scheme-ink-strong：light 值仍是 #0f172a，深色站没填 bg 时跟着变浅）');
   // 🔴 高亮色不叫 data-tone：全站那条「深底小字白 .92」挂在 [data-tone="dark"] 上（site-css.js §ON_DEEP_MUTED）。
   check(!/data-tone="[^"]*"[^>]*data-part="plan"/.test(render('plan-cards', withOpts({ featured: 'background' }, { featuredColor: '#0f172a' })).split('<section')[1].split('>').slice(1).join('>')),
     '高亮卡自己不挂 data-tone（否则全站那条深底小字规则会跟着套进卡里）');

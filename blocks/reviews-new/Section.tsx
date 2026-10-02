@@ -29,7 +29,7 @@ import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import SiteLink from '@/components/SiteLink';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
-import { bgCss, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
 import { platformLogo } from '../../scripts/lib/review-platforms.js';
 
 export interface ReviewsNewPlatform { source?: string; rating?: number | string; count?: number | string; href?: string; logoUrl?: string }
@@ -145,6 +145,7 @@ export default function ReviewsNewSection({ data, block, iconTable = {} }: Props
       data-item-style={k.itemStyle}
       data-item-align={k.itemAlign}
       data-tone={tone}
+      data-bs-theme={bsThemeForBg(d.bg)}
       className="position-relative py-16 py-lg-24"
       style={bgValue ? { background: bgValue } : undefined}
     >

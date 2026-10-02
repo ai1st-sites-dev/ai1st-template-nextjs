@@ -39,7 +39,7 @@ import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import ContactMap from './ContactMap';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
-import { bgCss, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
 import { copiesSiteFact, mailtoHref, osmEmbedUrl, siteFactsFrom, telHref, type ContactSiteFacts } from '../../scripts/lib/contact-facts.js';
 
 export type ContactKind = 'phone' | 'email' | 'address' | 'hours' | 'link';
@@ -194,6 +194,7 @@ export default function ContactNewSection({ data, locale, block, iconTable = {},
       data-map={k.map}
       data-split={split}
       data-tone={tone}
+      data-bs-theme={bsThemeForBg(d.bg)}
       className="position-relative py-16 py-lg-24"
       style={bgValue ? { background: bgValue } : undefined}
     >

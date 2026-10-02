@@ -56,7 +56,7 @@ import SiteLink from '@/components/SiteLink';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig } from '@/lib/types/config';
 import manifest from './manifest.json';
-import { bgCss, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
 import {
   couplingOf, knobsOf, normalizeKnobs, presetForShape, presetOf, presetsOf,
 } from '../../scripts/lib/header-knobs.js';
@@ -289,6 +289,7 @@ export default function HeaderNewSection({ data = {}, shape: shapeIn, block, ico
   return (
     <header
       {...blockAttrs('header-new', headerBlock)}
+      data-bs-theme={bsThemeForBg(data.bg)}
       className={rootClass}
       data-preset={preset}
       data-logo={logo}

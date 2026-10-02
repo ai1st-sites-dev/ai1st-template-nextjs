@@ -37,7 +37,7 @@ import Icon from '@/components/Icon';
 import BlockLeadForm from '@/components/BlockLeadForm';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
-import { bgCss, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
 
@@ -160,6 +160,7 @@ export default function HeroNewSection({ data, locale = 'en', block }: Props) {
       data-image={k.image}
       data-form={k.form}
       data-tone={tone}
+      data-bs-theme={bsThemeForBg(d.bg, cover)}
       className={`position-relative py-16 py-lg-24${center ? ' text-center' : right ? ' text-end' : ''}`}
       style={bgStyle}
     >
@@ -209,7 +210,7 @@ export default function HeroNewSection({ data, locale = 'en', block }: Props) {
                     <div className="d-flex">
                       {imgs(proof.avatars).slice(0, MAX.avatars).map((a, i) => (
                         <img key={i} src={a.imageUrl} alt={a.alt || ''} width={36} height={36}
-                          className="rounded-circle border border-2 border-white object-fit-cover hro-avatar" />
+                          className="rounded-circle border border-2 border-body object-fit-cover hro-avatar" />
                       ))}
                     </div>
                   ) : null}
