@@ -58,7 +58,7 @@ function primaryOf(brand) {
  *    跟改前逐字相同。三种标记：hero / cta 根上的 `data-tone`（小字是 `.text-muted`）、footer 的
  *    `ftr-muted-on-dark`、header 的 `hdr-muted-on-deep`。
  * 🔴 特异度要落在两者之间：压得过 Webpixels 的 `.text-muted`（0-1-0，带 `!important`），压不过块自己点名的
- *    反白规则（`[data-block=…][data-tone=…] .hro-eyebrow-dash` 这类，0-3-0，要纯白）—— 所以这里是 0-2-0。
+ *    反白规则（本文件 §DEEP_COMMON 的 `[data-block][data-tone=…] [data-eyebrow="dash"]` 这类，0-3-0，要纯白）—— 所以这里是 0-2-0。
  * 放在这份 CSS 里是因为它挂全站、在 shapes.css 之前加载（`src/app/layout.tsx`），而 shapes.css 只许装块自己的规则
  * （`scripts/block-build/build-blocks.js` §assertPieceOwnsItsRules）。
  */
@@ -200,6 +200,84 @@ const SCHEME_SURFACES = [
   '',
 ].join('\n');
 
+/**
+ * #1533（T6c-1）—— 深底（`data-tone="dark"`）/ 主色底（`brand`）上**各块共有**的那几条反白：根上字色 · 标题 · eyebrow 四种 ·
+ * 主按钮翻白底 · 主按钮 hover · 描边按钮反白 · link 按钮反白。在这之前 14 个块的 `block.css` 各抄一份（198 条里约一半），
+ * 现在**值只写这一处**，块的 `block.css` 里不许再写（`scripts/block-deep-common.test.js`）。
+ *
+ * 🔴 **谁吃这条规则是点名的，不是「谁带 data-tone 谁中招」**（#1533 五审定的原则）。理由是实测出来的：
+ *    `BlockLeadForm` 收到 tone 时在**表单自己**身上挂 `data-tone`，而 contact / footer 今天没有深底按钮规则 ——
+ *    一条裸 `[data-tone="dark"] .btn-primary` 会把它们深底上的提交键也翻白。所以：
+ *    · eyebrow：`[data-block][data-tone=…] [data-eyebrow=…]` —— 只有 `src/components/Eyebrow.tsx` 吐 `data-eyebrow`，
+ *      用了这个组件的块今天**全部**有这几条（15 / 15），组件本身就是 opt-in 的标记；`[data-block]` 把表单排除在外。
+ *    · 其余各项：按 `blockAttrs` 吐的 `data-block="<块>"` 点名，名单 = 今天块里**有**这条规则的块（缺席的块不加，
+ *      加了就是一次有意的外观改动，归 #1536）。按块点名而不是按按钮组件吐的类名：今天各块的规则管到块里**所有**
+ *      `.btn-primary`，包括不走 Button 组件的（cta / hero 的表单提交键、pricing 的月 / 年切换），换成按组件就会漏掉它们。
+ * 🔴 **值不一样的块不在块里写覆盖，而是这张表里单独一行**（faq / logos 深底主按钮字 `#0f172a` · page-header 描边 .7、
+ *    dash / plain .85 · content dash / plain .92）—— 分歧看得见、要统一就删那一行。它们为什么不一样，见各行注释。
+ * 🔴 特异度跟搬走之前**逐条相同**（0-3-0：`[data-block=…][data-tone=…] .x`），只是从 shapes.css 挪到了这一份。
+ *    块里要压过这里的特有规则，**特异度必须更高**，别靠加载次序：真站上 site.css 在 shapes.css 之前，单格页（admin 预览）
+ *    却把 site.css 的 <link> 放在 body 里、排在 shapes.css 之后 —— 同特异度时两边赢家相反（hero 铺图 pill 那条就是
+ *    这么输的，现在写成 0-4-0）。
+ * 🔴 「同一块里有、但这块没画这个元素」的不用管：多一条规则不改任何像素。
+ */
+const DEEP_TONES = ['dark', 'brand'];
+const DEEP_COMMON = [
+  // 根上字色（cta 原来写在 `.cta-frame` 上：段里除了遮罩层就只有那个盒子，挪到根上画出来一样）
+  { item: 'ink', tail: '', decl: 'color: #fff;',
+    blocks: ['blog', 'contact', 'content', 'cta', 'faq', 'features', 'gallery', 'hero', 'logos', 'milestones', 'page-header', 'pricing', 'reviews', 'team', 'testimonials'] },
+  // 标题：各块的标题类名不一样（它们同时是主题对比度检查 `theme-text-targets.js` 和 e2e 的钩子，不改名）
+  { item: 'title', decl: 'color: #fff !important;',
+    tailOf: { blog: '.bl-title-h', contact: '.ct-title', content: '.co-title', cta: '.cta-title', faq: '.fq-title', features: '.fx-title',
+      gallery: '.gl-title', hero: '.hro-title', logos: '.lo-title', milestones: '.mi-title', 'page-header': '.phn-title',
+      pricing: '.pr-title', reviews: '.rv-title', team: '.tm-title', testimonials: '.tn-title' } },
+  // eyebrow：用 Eyebrow 组件的块全吃（见上）
+  { item: 'eyebrow-pill', blocks: '*', tail: '[data-eyebrow="pill"]', decl: 'background: rgba(255, 255, 255, 0.14) !important;\n  color: #fff !important;' },
+  { item: 'eyebrow-outline', blocks: '*', tail: '[data-eyebrow="outline"]', decl: 'border-color: rgba(255, 255, 255, 0.7) !important;\n  color: #fff !important;' },
+  { item: 'eyebrow-text', blocks: '*', tail: ['[data-eyebrow="dash"]', '[data-eyebrow="plain"]'], decl: 'color: #fff !important;' },
+  // page-header 的 dash / plain 是白 .85（铺图的页头上压一档，#1489 定的样子），不是纯白
+  { item: 'eyebrow-text', blocks: ['page-header'], tail: ['[data-eyebrow="dash"]', '[data-eyebrow="plain"]'], decl: 'color: rgba(255, 255, 255, 0.85) !important;' },
+  // content 的 dash / plain 今天画出来是白 .92，不是纯白：它的 block.css 里那条 `.text-muted`（.92）排在 eyebrow 那条之后、
+  // 同特异度赢了（blog 同一个坑 QA2 修过，content 没修）。#1533 只收不改样子，所以照画出来的值登记；要统一成纯白就删这一行
+  // （那是一次外观改动，归 #1536）。实测：#1533 计算样式探针，content article 预设 × 三种深底 × dash / plain 6 格。
+  { item: 'eyebrow-text', blocks: ['content'], tail: ['[data-eyebrow="dash"]', '[data-eyebrow="plain"]'], decl: 'color: rgba(255, 255, 255, 0.92) !important;' },
+  // 主按钮翻成白底主色字
+  { item: 'btn-primary', tail: '.btn-primary', decl: 'background: #fff !important;\n  border-color: #fff !important;\n  color: var(--x-primary) !important;',
+    blocks: ['cta', 'features', 'hero', 'milestones', 'pricing', 'team'] },
+  // faq / logos：深底上主按钮字是 #0f172a（主色底上照常主色字，那一半在下一行）—— 两条分开写，像按对比度调过（#1533 四审）
+  { item: 'btn-primary', tones: ['dark'], tail: '.btn-primary', decl: 'background: #fff !important;\n  border-color: #fff !important;\n  color: #0f172a !important;',
+    blocks: ['faq', 'logos'] },
+  { item: 'btn-primary', tones: ['brand'], tail: '.btn-primary', decl: 'background: #fff !important;\n  border-color: #fff !important;\n  color: var(--x-primary) !important;',
+    blocks: ['faq', 'logos'] },
+  { item: 'btn-primary:hover', tail: '.btn-primary:hover', decl: 'background: #f1f5f9 !important;\n  border-color: #f1f5f9 !important;\n  color: #0f172a !important;',
+    blocks: ['cta', 'faq', 'features', 'hero', 'logos', 'milestones'] },
+  // 描边按钮反白（blog / content 原来不带 !important：块里没有别的规则跟它抢这两个属性，带不带画出来一样）
+  { item: 'btn-outline-primary', tail: '.btn-outline-primary', decl: 'color: #fff !important;\n  border-color: rgba(255, 255, 255, 0.6) !important;',
+    blocks: ['blog', 'content', 'cta', 'faq', 'features', 'hero', 'logos', 'milestones', 'pricing', 'team'] },
+  // page-header 的描边是白 .7（同上，页头那一档）
+  { item: 'btn-outline-primary', tail: '.btn-outline-primary', decl: 'color: #fff !important;\n  border-color: rgba(255, 255, 255, 0.7) !important;',
+    blocks: ['page-header'] },
+  { item: 'btn-link', tail: '.btn-link', decl: 'color: #fff !important;',
+    blocks: ['cta', 'faq', 'features', 'hero', 'logos', 'milestones', 'page-header', 'team'] },
+];
+
+/** 一行登记 → 一条 CSS 规则。 */
+function deepRule(row) {
+  const tones = row.tones || DEEP_TONES;
+  const sels = [];
+  const roots = (b) => tones.map((t) => (b === '*' ? `[data-block][data-tone="${t}"]` : `[data-block="${b}"][data-tone="${t}"]`));
+  if (row.tailOf) {
+    for (const [b, tail] of Object.entries(row.tailOf)) for (const r of roots(b)) sels.push(`${r} ${tail}`);
+  } else {
+    const tails = Array.isArray(row.tail) ? row.tail : [row.tail];
+    for (const b of row.blocks === '*' ? ['*'] : row.blocks) {
+      for (const r of roots(b)) for (const t of tails) sels.push(t ? `${r} ${t}` : r);
+    }
+  }
+  return `${sels.join(',\n')} {\n  ${row.decl}\n}\n`;
+}
+const DEEP_COMMON_CSS = DEEP_COMMON.map(deepRule).join('');
+
 /** purge 时无条件留下的 §SCHEME_SURFACES 变量（理由见那一段）。 */
 const SCHEME_VARIABLES = [/^--scheme-/];
 
@@ -250,6 +328,7 @@ function siteScss(primary) {
     ON_DEEP_FORM,
     BTN_PRIMARY_INK,
     SCHEME_SURFACES,
+    DEEP_COMMON_CSS,
   ].join('\n');
 }
 
@@ -330,4 +409,5 @@ async function writeSiteCss({ brand, rootDir = NEXT_DIR, dir = 'ltr' }) {
 
 module.exports = {
   primaryOf, siteScss, compileSiteCss, mirrorSiteCss, purgeSiteCss, writeSiteCss, PURGE_CONTENT, THEME_COLOR_VARIABLES, ON_DEEP_MUTED, ON_DEEP_FORM, BTN_PRIMARY_INK, SCHEME_SURFACES, SCHEME_VARIABLES, SHADOW_TOKENS,
+  DEEP_COMMON, DEEP_COMMON_CSS, DEEP_TONES,
 };

@@ -26,6 +26,9 @@ const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
 
 const NEXT = path.resolve(__dirname, '..');
+// #1533 —— 各块共有的深底反白（标题 · eyebrow · 主按钮 / 描边 / link）收进了全站一份（site-css.js §DEEP_COMMON，按块点名），
+//    块的 block.css 里不再有；这里断言本块在那张登记表里、值没变。
+const DEEP = require(path.join(NEXT, 'scripts', 'lib', 'site-css.js')).DEEP_COMMON_CSS;
 const SRC = path.join(NEXT, 'src');
 const BLOCK = path.join(NEXT, 'blocks', 'contact');
 const SECTION = path.join(BLOCK, 'Section.tsx');
@@ -310,7 +313,8 @@ console.log('\n── 判据 9 bg');
   check(/style="background:linear-gradient\(135deg,#7d52f4,#f7b733\)"/.test(sectionTag(g)) && attr(g, 'data-tone') === 'dark', '渐变 ⟹ linear-gradient + 按 toneForBg 给 tone');
   check(count(SRC_TEXT, 'toneFor(') === 0 && count(SRC_TEXT, 'linear-gradient') === 0 && /toneForBg\(d\.bg\)/.test(SRC_TEXT),
     `Section.tsx 里 toneFor( ${count(SRC_TEXT, 'toneFor(')} 处、linear-gradient ${count(SRC_TEXT, 'linear-gradient')} 处（走 contrast.js）`);
-  check(/:not\(\[data-tone="light"\]\) \.ct-title,[\s\S]*?\.ct-value \{\s*color: #fff !important;/.test(CSS), 'block.css：深底标题 / item 标题 / 值反白');
+  check(/:not\(\[data-tone="light"\]\) \.ct-ch-title,[\s\S]*?\.ct-value \{\s*color: #fff !important;/.test(CSS)
+    && /\[data-block="contact"\]\[data-tone="dark"\] \.ct-title,[\s\S]*?\{\s*color: #fff !important;/.test(DEEP), 'block.css：深底 item 标题 / 值反白；标题反白在 site-css §DEEP_COMMON');
   // #1477 —— 深底提示白 .92 全站只有一条（site-css.js §ON_DEEP_MUTED，认根上的 data-tone），block.css 里不抄一份（同 milestones / features）。
   const { ON_DEEP_MUTED } = require(path.join(NEXT, 'scripts', 'lib', 'site-css.js'));
   check(/\[data-tone="dark"\] \.text-muted,\s*\n\[data-tone="brand"\] \.text-muted,[\s\S]*?\{\s*color: rgba\(255, 255, 255, \.92\) !important;/.test(ON_DEEP_MUTED)

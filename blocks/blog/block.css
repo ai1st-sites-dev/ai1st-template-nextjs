@@ -284,51 +284,19 @@
 }
 
 /* ═══ 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneForBg）══════════════════════════════
-   深底 / 品牌底：标题反白，分类 / 日期 / 摘要白 .92，card 半透明底 + 半透明白描边，描边按钮反白。 */
-[data-block="blog"][data-tone="dark"],
-[data-block="blog"][data-tone="brand"] {
-  color: #fff;
-}
-[data-block="blog"][data-tone="dark"] h2,
-[data-block="blog"][data-tone="brand"] h2,
-[data-block="blog"][data-tone="dark"] .bl-title-h,
-[data-block="blog"][data-tone="brand"] .bl-title-h,
+   深底 / 品牌底：标题反白，分类 / 日期 / 摘要白 .92，card 半透明底 + 半透明白描边，描边按钮反白。
+   🔴 各块共有的那几条（根上字色 · 标题 · eyebrow · 主按钮 / 描边 / link 按钮反白）住 `scripts/lib/site-css.js`
+      §DEEP_COMMON，全站一份（#1533）；这里只留本块特有的，别再抄回来（`scripts/block-deep-common.test.js`）。 */
+
 [data-block="blog"][data-tone="dark"] h3,
 [data-block="blog"][data-tone="brand"] h3,
 [data-block="blog"][data-tone="dark"] .bl-cat,
 [data-block="blog"][data-tone="brand"] .bl-cat {
   color: #fff !important;
 }
-[data-block="blog"][data-tone="dark"] .text-muted,
-[data-block="blog"][data-tone="brand"] .text-muted,
 [data-block="blog"][data-tone="dark"] .bl-body,
 [data-block="blog"][data-tone="brand"] .bl-body {
   color: rgba(255, 255, 255, 0.92) !important;
-}
-/* dash / plain 两档 eyebrow 的 class 里带着 text-muted —— 白字这条必须排在上面那条 .text-muted 之后
-   （同特异度，后者赢），否则深底上读出来是 .92 而不是姊妹块那样的白（QA2 r2 第 3 条）。 */
-[data-block="blog"][data-tone="dark"] .bl-eyebrow-dash,
-[data-block="blog"][data-tone="brand"] .bl-eyebrow-dash,
-[data-block="blog"][data-tone="dark"] .bl-eyebrow-plain,
-[data-block="blog"][data-tone="brand"] .bl-eyebrow-plain {
-  color: #fff !important;
-}
-/* eyebrow 四档在深底上（同 features / testimonials）：dash / plain 白字（上面那条）；
-   pill 半透明白底白字；outline 半透明白描边白字。 */
-[data-block="blog"][data-tone="dark"] .bl-eyebrow-pill,
-[data-block="blog"][data-tone="brand"] .bl-eyebrow-pill {
-  background: rgba(255, 255, 255, 0.14) !important;
-  color: #fff !important;
-}
-[data-block="blog"][data-tone="dark"] .bl-eyebrow-outline,
-[data-block="blog"][data-tone="brand"] .bl-eyebrow-outline {
-  border-color: rgba(255, 255, 255, 0.7) !important;
-  color: #fff !important;
-}
-[data-block="blog"][data-tone="dark"] .btn-outline-primary,
-[data-block="blog"][data-tone="brand"] .btn-outline-primary {
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.6);
 }
 [data-block="blog"][data-tone="dark"][data-item-style="card"] .bl-post:not([data-image="background"]) .bl-inner,
 [data-block="blog"][data-tone="brand"][data-item-style="card"] .bl-post:not([data-image="background"]) .bl-inner {

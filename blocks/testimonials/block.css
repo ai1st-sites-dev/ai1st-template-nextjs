@@ -367,13 +367,10 @@
 /* ═══ 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneForBg）══════════════════════════════
    dark = 深底 / 深色渐变；brand = 主题主色底。两者一样：标题 / 名字 / 引言反白；身份 / 来源 / 总评分那行白 .92
    （`.text-muted` → 全站那条 scripts/lib/site-css.js §ON_DEEP_MUTED，这里不抄一份）；card 半透明底 + 半透明白描边；
-   summary 每个平台的底 .08、品牌图标反白（#1500）；首字母圆半透明白；圆点半透明白（当前那个白）；前后按钮透明底 + 半透明白描边。 */
-[data-block="testimonials"][data-tone="dark"],
-[data-block="testimonials"][data-tone="brand"] {
-  color: #fff;
-}
-[data-block="testimonials"][data-tone="dark"] .tn-title,
-[data-block="testimonials"][data-tone="brand"] .tn-title,
+   summary 每个平台的底 .08、品牌图标反白（#1500）；首字母圆半透明白；圆点半透明白（当前那个白）；前后按钮透明底 + 半透明白描边。
+   🔴 各块共有的那几条（根上字色 · 标题 · eyebrow · 主按钮 / 描边 / link 按钮反白）住 `scripts/lib/site-css.js`
+      §DEEP_COMMON，全站一份（#1533）；这里只留本块特有的，别再抄回来（`scripts/block-deep-common.test.js`）。 */
+
 [data-block="testimonials"][data-tone="dark"] .tn-name,
 [data-block="testimonials"][data-tone="brand"] .tn-name,
 [data-block="testimonials"][data-tone="dark"] .tn-quote,
@@ -383,11 +380,7 @@
 [data-block="testimonials"][data-tone="dark"] .tn-pc-score,
 [data-block="testimonials"][data-tone="brand"] .tn-pc-score,
 [data-block="testimonials"][data-tone="dark"] .tn-logo-icon,
-[data-block="testimonials"][data-tone="brand"] .tn-logo-icon,
-[data-block="testimonials"][data-tone="dark"] .tn-eyebrow-dash,
-[data-block="testimonials"][data-tone="brand"] .tn-eyebrow-dash,
-[data-block="testimonials"][data-tone="dark"] .tn-eyebrow-plain,
-[data-block="testimonials"][data-tone="brand"] .tn-eyebrow-plain {
+[data-block="testimonials"][data-tone="brand"] .tn-logo-icon {
   color: #fff !important;
 }
 [data-block="testimonials"][data-tone="dark"][data-item-style="card"] .tn-inner,
@@ -417,14 +410,4 @@
 [data-block="testimonials"][data-tone="dark"] .tn-dots .active,
 [data-block="testimonials"][data-tone="brand"] .tn-dots .active {
   background: #fff;
-}
-[data-block="testimonials"][data-tone="dark"] .tn-eyebrow-pill,
-[data-block="testimonials"][data-tone="brand"] .tn-eyebrow-pill {
-  background: rgba(255, 255, 255, 0.14) !important;
-  color: #fff !important;
-}
-[data-block="testimonials"][data-tone="dark"] .tn-eyebrow-outline,
-[data-block="testimonials"][data-tone="brand"] .tn-eyebrow-outline {
-  border-color: rgba(255, 255, 255, 0.7) !important;
-  color: #fff !important;
 }

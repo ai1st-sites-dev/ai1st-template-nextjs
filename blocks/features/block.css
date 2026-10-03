@@ -497,19 +497,12 @@
 /* ═══ 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneForBg）══════════════════════════════
    dark = 深底 / 深色渐变；brand = 主题主色底。两者一样：标题与项目标题反白、正文白 .92（不是灰 —— 那条规则全站
    只有一份，住 scripts/lib/site-css.js §ON_DEEP_MUTED，#1477；这里不再抄）、
-   card 描边换半透明白、标记底换半透明白；outline 按钮翻成白描边、主按钮白底主色字（同 cta）。 */
-[data-block="features"][data-tone="dark"],
-[data-block="features"][data-tone="brand"] {
-  color: #fff;
-}
-[data-block="features"][data-tone="dark"] .fx-title,
-[data-block="features"][data-tone="brand"] .fx-title,
+   card 描边换半透明白、标记底换半透明白；outline 按钮翻成白描边、主按钮白底主色字（同 cta）。
+   🔴 各块共有的那几条（根上字色 · 标题 · eyebrow · 主按钮 / 描边 / link 按钮反白）住 `scripts/lib/site-css.js`
+      §DEEP_COMMON，全站一份（#1533）；这里只留本块特有的，别再抄回来（`scripts/block-deep-common.test.js`）。 */
+
 [data-block="features"][data-tone="dark"] .fx-item-title,
-[data-block="features"][data-tone="brand"] .fx-item-title,
-[data-block="features"][data-tone="dark"] .fx-eyebrow-dash,
-[data-block="features"][data-tone="brand"] .fx-eyebrow-dash,
-[data-block="features"][data-tone="dark"] .fx-eyebrow-plain,
-[data-block="features"][data-tone="brand"] .fx-eyebrow-plain {
+[data-block="features"][data-tone="brand"] .fx-item-title {
   color: #fff !important;
 }
 [data-block="features"][data-tone="dark"][data-item-style="card"] .fx-inner,
@@ -527,25 +520,6 @@
 [data-block="features"][data-tone="dark"] .fx-connector,
 [data-block="features"][data-tone="brand"] .fx-connector {
   background: rgba(255, 255, 255, 0.3);
-}
-[data-block="features"][data-tone="dark"] .fx-eyebrow-pill,
-[data-block="features"][data-tone="brand"] .fx-eyebrow-pill {
-  background: rgba(255, 255, 255, 0.14) !important;
-  color: #fff !important;
-}
-[data-block="features"][data-tone="dark"] .fx-eyebrow-outline,
-[data-block="features"][data-tone="brand"] .fx-eyebrow-outline {
-  border-color: rgba(255, 255, 255, 0.7) !important;
-  color: #fff !important;
-}
-[data-block="features"][data-tone="dark"] .btn-outline-primary,
-[data-block="features"][data-tone="brand"] .btn-outline-primary {
-  color: #fff !important;
-  border-color: rgba(255, 255, 255, 0.6) !important;
-}
-[data-block="features"][data-tone="dark"] .btn-link,
-[data-block="features"][data-tone="brand"] .btn-link {
-  color: #fff !important;
 }
 
 /* ── 按钮的底色和字色：接平台按这个站最终配色算好的那几个变量（`scripts/lib/button-ink.js`，同 cta）。 */
@@ -574,16 +548,4 @@
   --x-btn-color: var(--x-primary-text-emphasis, var(--x-primary));
   --x-btn-hover-color: var(--x-primary-text-emphasis, var(--x-primary));
   --x-btn-active-color: var(--x-primary-text-emphasis, var(--x-primary));
-}
-[data-block="features"][data-tone="dark"] .btn-primary,
-[data-block="features"][data-tone="brand"] .btn-primary {
-  background: #fff !important;
-  border-color: #fff !important;
-  color: var(--x-primary) !important;
-}
-[data-block="features"][data-tone="dark"] .btn-primary:hover,
-[data-block="features"][data-tone="brand"] .btn-primary:hover {
-  background: #f1f5f9 !important;
-  border-color: #f1f5f9 !important;
-  color: #0f172a !important;
 }

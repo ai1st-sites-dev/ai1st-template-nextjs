@@ -26,6 +26,9 @@ const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
 
 const NEXT = path.resolve(__dirname, '..');
+// #1533 —— 各块共有的深底反白（标题 · eyebrow · 主按钮 / 描边 / link）收进了全站一份（site-css.js §DEEP_COMMON，按块点名），
+//    块的 block.css 里不再有；这里断言本块在那张登记表里、值没变。
+const DEEP = require(path.join(NEXT, 'scripts', 'lib', 'site-css.js')).DEEP_COMMON_CSS;
 const SRC = path.join(NEXT, 'src');
 const BLOCK = path.join(NEXT, 'blocks', 'team');
 const SECTION = path.join(BLOCK, 'Section.tsx');
@@ -257,11 +260,12 @@ console.log('\n── AC9 bg');
   const { ON_DEEP_MUTED } = require(path.join(NEXT, 'scripts', 'lib', 'site-css.js'));
   check(/\[data-tone="dark"\] \.text-muted,/.test(ON_DEEP_MUTED) && !/\.text-muted\s*\{[^}]*rgba\(255, 255, 255/.test(CSS) && /class="tm-bio text-sm text-muted/.test(at('#0f172a')),
     '简介是 .text-muted ⟹ 深底白 .92 由全站那条给（block.css 里没有自己那份）');
-  check(/\[data-tone="dark"\] \.tm-title,[\s\S]*?\[data-tone="brand"\] \.tm-name,[\s\S]*?\{\s*color: #fff !important;/.test(CSS), 'block.css：dark / brand 时标题 / 名字反白');
+  check(/\[data-tone="dark"\] \.tm-name,[\s\S]*?\[data-tone="brand"\] \.tm-name,[\s\S]*?\{\s*color: #fff !important;/.test(CSS)
+    && /\[data-block="team"\]\[data-tone="dark"\] \.tm-title,[\s\S]*?\{\s*color: #fff !important;/.test(DEEP), 'dark / brand 时名字反白（block.css）、标题反白（site-css §DEEP_COMMON）');
   check(/\[data-tone="dark"\]\[data-member-style="card"\] \.tm-inner,[\s\S]*?\{\s*background: rgba\(255, 255, 255, 0\.06\);/.test(CSS)
     && /\[data-tone="dark"\] \.tm-join,[\s\S]*?\{\s*border-color: rgba\(255, 255, 255, 0\.35\);/.test(CSS)
-    && /\[data-tone="dark"\] \.btn-outline-primary,[\s\S]*?\{\s*color: #fff !important;/.test(CSS),
-    'block.css：card .06 底、招聘卡虚线 .35 白、描边按钮反白');
+    && /\[data-block="team"\]\[data-tone="dark"\] \.btn-outline-primary,[\s\S]*?\{\s*color: #fff !important;/.test(DEEP),
+    'block.css：card .06 底、招聘卡虚线 .35 白；描边按钮反白在 site-css §DEEP_COMMON');
   check(JSON.stringify(M.slots.bg) === JSON.stringify(manifestLib.loadManifests().get('footer').slots.bg), 'bg 槽对象与 footer 的 slots.bg 逐字相同');
 }
 

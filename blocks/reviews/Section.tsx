@@ -27,6 +27,7 @@ import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import SiteLink from '@/components/SiteLink';
+import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
@@ -71,15 +72,6 @@ function platformOf(v: unknown, index: number): Platform | null {
   return { index, source: str(p.source), rating, count: Math.round(count), href: str(p.href), logoUrl: str(p.logoUrl) };
 }
 
-// 这几条类名要**逐字**写在源码里：`site.css` 是按源码 purge 的（`scripts/lib/site-css.js` §PURGE_CONTENT），
-// 拼出来的类名 purge 看不见。
-const EYEBROW_CLASS: Record<string, string> = {
-  pill: 'rv-eyebrow-pill badge rounded-pill bg-primary-subtle text-primary fw-semibold text-xs px-3 py-2',
-  outline: 'rv-eyebrow-outline badge rounded-pill border border-primary text-primary bg-transparent fw-semibold text-xs px-3 py-2',
-  dash: 'rv-eyebrow-dash text-uppercase text-xs fw-semibold ls-wider text-muted',
-  plain: 'rv-eyebrow-plain text-uppercase text-xs fw-semibold ls-wider text-muted',
-};
-
 const fmt = (n: number): string => n.toFixed(1);
 
 export default function ReviewsNewSection({ data, block, iconTable = {} }: Props) {
@@ -102,7 +94,7 @@ export default function ReviewsNewSection({ data, block, iconTable = {} }: Props
 
   const eyebrow = isObj(d.introEyebrow) && str(d.introEyebrow.text) ? d.introEyebrow : null;
   // 没写 style ⟹ pill（同 hero / features：AI 只写了字，眉标照样出来）；明写 none ⟹ 不画。
-  const eyebrowStyle = !eyebrow ? 'none' : !eyebrow.style ? 'pill' : eyebrow.style in EYEBROW_CLASS ? eyebrow.style : 'none';
+  const eyebrowStyle: EyebrowStyle | 'none' = !eyebrow ? 'none' : !eyebrow.style ? 'pill' : isEyebrowStyle(eyebrow.style) ? eyebrow.style : 'none';
   const platforms = (Array.isArray(d.platforms) ? d.platforms : []).map((v, i) => platformOf(v, i)).filter((p): p is Platform => !!p).slice(0, MAX_ITEMS);
 
   // 总分：按条数加权，一位小数。
@@ -156,9 +148,7 @@ export default function ReviewsNewSection({ data, block, iconTable = {} }: Props
               <div className="rv-intro-text" data-part="intro-text">
                 {eyebrow && eyebrowStyle !== 'none' ? (
                   <div className="rv-eyebrow-wrap mb-4" data-part="eyebrow">
-                    <span className={EYEBROW_CLASS[eyebrowStyle]} data-eyebrow={eyebrowStyle} data-slot="introEyebrow.text">
-                      {eyebrowStyle === 'dash' ? '— ' : null}{eyebrow.text}
-                    </span>
+                    <Eyebrow style={eyebrowStyle} text={eyebrow.text} slot="introEyebrow.text" />
                   </div>
                 ) : null}
                 {d.headline ? <h2 className="display-5 fw-bold lh-1 ls-tight mb-4 rv-title" data-slot="headline">{d.headline}</h2> : null}

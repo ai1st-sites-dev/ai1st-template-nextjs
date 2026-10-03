@@ -138,39 +138,9 @@
 
 /* ── 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneForBg）───────────────────────────────
    dark = 深底或照片铺底：标题 / 正文 / eyebrow 反白，outline 按钮翻成白描边。
-   brand = 主题主色底：同上，另外主按钮翻成白底主色字（dark 也一样，同 hero）。 */
-[data-block="cta"][data-tone="dark"] .cta-frame,
-[data-block="cta"][data-tone="brand"] .cta-frame {
-  color: #fff;
-}
-[data-block="cta"][data-tone="dark"] .cta-title,
-[data-block="cta"][data-tone="brand"] .cta-title,
-[data-block="cta"][data-tone="dark"] .cta-eyebrow-dash,
-[data-block="cta"][data-tone="brand"] .cta-eyebrow-dash,
-[data-block="cta"][data-tone="dark"] .cta-eyebrow-plain,
-[data-block="cta"][data-tone="brand"] .cta-eyebrow-plain {
-  color: #fff !important;
-}
-/* 深底 / brand 上的 `.text-muted`：白 .92，全站一条（`scripts/lib/site-css.js` §ON_DEEP_MUTED，#1477）。 */
-[data-block="cta"][data-tone="dark"] .btn-outline-primary,
-[data-block="cta"][data-tone="brand"] .btn-outline-primary {
-  color: #fff !important;
-  border-color: rgba(255, 255, 255, 0.6) !important;
-}
-[data-block="cta"][data-tone="dark"] .btn-link,
-[data-block="cta"][data-tone="brand"] .btn-link {
-  color: #fff !important;
-}
-[data-block="cta"][data-tone="dark"] .cta-eyebrow-pill,
-[data-block="cta"][data-tone="brand"] .cta-eyebrow-pill {
-  background: rgba(255, 255, 255, 0.14) !important;
-  color: #fff !important;
-}
-[data-block="cta"][data-tone="dark"] .cta-eyebrow-outline,
-[data-block="cta"][data-tone="brand"] .cta-eyebrow-outline {
-  border-color: rgba(255, 255, 255, 0.7) !important;
-  color: #fff !important;
-}
+   brand = 主题主色底：同上，另外主按钮翻成白底主色字（dark 也一样，同 hero）。
+   🔴 各块共有的那几条（根上字色 · 标题 · eyebrow · 主按钮 / 描边 / link 按钮反白）住 `scripts/lib/site-css.js`
+      §DEEP_COMMON，全站一份（#1533）；这里只留本块特有的，别再抄回来（`scripts/block-deep-common.test.js`）。 */
 [data-block="cta"][data-tone="dark"] .text-danger,
 [data-block="cta"][data-tone="brand"] .text-danger {
   color: #fecaca !important;
@@ -191,18 +161,6 @@
 [data-block="cta"] .btn-outline-primary {
   --x-btn-color: var(--btn-outline-ink, var(--x-primary));
   --x-btn-border-color: var(--btn-outline-ink, var(--x-primary));
-}
-[data-block="cta"][data-tone="dark"] .btn-primary,
-[data-block="cta"][data-tone="brand"] .btn-primary {
-  background: #fff !important;
-  border-color: #fff !important;
-  color: var(--x-primary) !important;
-}
-[data-block="cta"][data-tone="dark"] .btn-primary:hover,
-[data-block="cta"][data-tone="brand"] .btn-primary:hover {
-  background: #f1f5f9 !important;
-  border-color: #f1f5f9 !important;
-  color: #0f172a !important;
 }
 [data-block="cta"][data-tone="dark"] .form-control,
 [data-block="cta"][data-tone="brand"] .form-control,

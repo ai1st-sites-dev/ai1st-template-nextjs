@@ -257,13 +257,10 @@
 
 /* ═══ 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneForBg）══════════════════════════════
    dark = 深底 / 深色渐变；brand = 主题主色底。两者一样：标题 / 分数 / 总分反白，正文 / 条数白 .92（那条规则全站只有一份，
-   住 scripts/lib/site-css.js §ON_DEEP_MUTED，#1477；这里不再抄），card 底 rgba(255,255,255,.08)，品牌图标白。 */
-[data-block="reviews"][data-tone="dark"],
-[data-block="reviews"][data-tone="brand"] {
-  color: #fff;
-}
-[data-block="reviews"][data-tone="dark"] .rv-title,
-[data-block="reviews"][data-tone="brand"] .rv-title,
+   住 scripts/lib/site-css.js §ON_DEEP_MUTED，#1477；这里不再抄），card 底 rgba(255,255,255,.08)，品牌图标白。
+   🔴 各块共有的那几条（根上字色 · 标题 · eyebrow · 主按钮 / 描边 / link 按钮反白）住 `scripts/lib/site-css.js`
+      §DEEP_COMMON，全站一份（#1533）；这里只留本块特有的，别再抄回来（`scripts/block-deep-common.test.js`）。 */
+
 [data-block="reviews"][data-tone="dark"] .rv-score,
 [data-block="reviews"][data-tone="brand"] .rv-score,
 [data-block="reviews"][data-tone="dark"] .rv-total-score,
@@ -271,11 +268,7 @@
 [data-block="reviews"][data-tone="dark"] .rv-name,
 [data-block="reviews"][data-tone="brand"] .rv-name,
 [data-block="reviews"][data-tone="dark"] .rv-icon,
-[data-block="reviews"][data-tone="brand"] .rv-icon,
-[data-block="reviews"][data-tone="dark"] .rv-eyebrow-dash,
-[data-block="reviews"][data-tone="brand"] .rv-eyebrow-dash,
-[data-block="reviews"][data-tone="dark"] .rv-eyebrow-plain,
-[data-block="reviews"][data-tone="brand"] .rv-eyebrow-plain {
+[data-block="reviews"][data-tone="brand"] .rv-icon {
   color: #fff !important;
 }
 [data-block="reviews"][data-tone="dark"][data-item-style="card"] .rv-item,
@@ -285,14 +278,4 @@
 [data-block="reviews"][data-tone="dark"][data-item-style="card"] .rv-item:hover,
 [data-block="reviews"][data-tone="brand"][data-item-style="card"] .rv-item:hover {
   box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.7);
-}
-[data-block="reviews"][data-tone="dark"] .rv-eyebrow-pill,
-[data-block="reviews"][data-tone="brand"] .rv-eyebrow-pill {
-  background: rgba(255, 255, 255, 0.14) !important;
-  color: #fff !important;
-}
-[data-block="reviews"][data-tone="dark"] .rv-eyebrow-outline,
-[data-block="reviews"][data-tone="brand"] .rv-eyebrow-outline {
-  border-color: rgba(255, 255, 255, 0.7) !important;
-  color: #fff !important;
 }

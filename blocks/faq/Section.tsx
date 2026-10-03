@@ -22,10 +22,11 @@
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg），纯色、brand、渐变都认；
 //    这里不自己算亮度、不自己拼渐变。
 
-import Link from 'next/link';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
+import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
+import Button from '@/components/Button';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
@@ -64,24 +65,6 @@ const MAX_ITEMS = manifest.slots.items.maxItems;
 const isObj = (v: unknown): v is object => !!v && typeof v === 'object' && !Array.isArray(v);
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 
-// 这几条类名要**逐字**写在源码里：`site.css` 是按源码 purge 的（`scripts/lib/site-css.js` §PURGE_CONTENT），
-// 拼出来的类名 purge 看不见。
-const EYEBROW_CLASS: Record<string, string> = {
-  pill: 'fq-eyebrow-pill badge rounded-pill bg-primary-subtle text-primary fw-semibold text-xs px-3 py-2',
-  outline: 'fq-eyebrow-outline badge rounded-pill border border-primary text-primary bg-transparent fw-semibold text-xs px-3 py-2',
-  dash: 'fq-eyebrow-dash text-uppercase text-xs fw-semibold ls-wider text-muted',
-  plain: 'fq-eyebrow-plain text-uppercase text-xs fw-semibold ls-wider text-muted',
-};
-
-// help 卡的按钮没写 size ⟹ sm（图册那张卡就是 btn-sm）。
-function btnClass(b: FaqNewButton, fallback: BtnStyle): string {
-  const style = b.style || fallback;
-  const size = b.size === 'md' ? '' : b.size === 'lg' ? ' btn-lg' : ' btn-sm';
-  if (style === 'link') return `btn btn-link px-0 d-inline-flex align-items-center text-nowrap${size}`;
-  if (style === 'outline') return `btn btn-outline-primary d-inline-flex align-items-center justify-content-center text-nowrap${size}`;
-  return `btn btn-primary d-inline-flex align-items-center justify-content-center text-nowrap${size}`;
-}
-
 export default function FaqNewSection({ data, block, iconTable = {} }: Props) {
   const d: FaqNewData = isObj(data) ? data : {};
   const shape = block && typeof block.shape === 'string' ? block.shape : undefined;
@@ -94,7 +77,7 @@ export default function FaqNewSection({ data, block, iconTable = {} }: Props) {
 
   const eyebrow = isObj(d.introEyebrow) && str(d.introEyebrow.text) ? d.introEyebrow : null;
   // 没写 style ⟹ pill（同 hero / cta / features / milestones：AI 只写了字，眉标照样出来）；明写 none ⟹ 不画。
-  const eyebrowStyle = !eyebrow ? 'none' : !eyebrow.style ? 'pill' : eyebrow.style in EYEBROW_CLASS ? eyebrow.style : 'none';
+  const eyebrowStyle: EyebrowStyle | 'none' = !eyebrow ? 'none' : !eyebrow.style ? 'pill' : isEyebrowStyle(eyebrow.style) ? eyebrow.style : 'none';
   const help = isObj(d.help) ? d.help : null;
   const helpCta = help && isObj(help.cta) && str(help.cta.label) ? help.cta : null;
   const hasHelp = !!help && !!(str(help.headline) || str(help.body) || helpCta);
@@ -130,9 +113,7 @@ export default function FaqNewSection({ data, block, iconTable = {} }: Props) {
               <div className="fq-intro-text" data-part="intro-text">
                 {eyebrow && eyebrowStyle !== 'none' ? (
                   <div className="mb-4" data-part="eyebrow">
-                    <span className={EYEBROW_CLASS[eyebrowStyle]} data-eyebrow={eyebrowStyle} data-slot="introEyebrow.text">
-                      {eyebrowStyle === 'dash' ? '— ' : null}{eyebrow.text}
-                    </span>
+                    <Eyebrow style={eyebrowStyle} text={eyebrow.text} slot="introEyebrow.text" />
                   </div>
                 ) : null}
                 {d.headline ? <h2 className="display-5 fw-bold lh-1 ls-tight mb-4 fq-title" data-slot="headline">{d.headline}</h2> : null}
@@ -143,11 +124,12 @@ export default function FaqNewSection({ data, block, iconTable = {} }: Props) {
                     {help.body ? <p className="text-muted text-sm mb-0" data-slot="help.body">{help.body}</p> : null}
                     {helpCta ? (
                       <div className="fq-help-cta" data-part="help-cta">
-                        <Link href={helpCta.href || '#'} className={btnClass(helpCta, 'solid')} data-cta={helpCta.style || 'solid'}>
+                        {/* help 卡的按钮没写 size ⟹ sm（图册那张卡就是 btn-sm）。 */}
+                        <Button href={helpCta.href || '#'} style={helpCta.style} fallback="solid" size={helpCta.size} defaultSize="sm" flush>
                           {helpCta.icon ? icon(helpCta.icon, 'me-2') : null}
                           <span data-slot="help.cta.label">{helpCta.label}</span>
                           {helpCta.arrow ? <span className="ms-2 d-inline-flex">{icon('arrow-right')}</span> : null}
-                        </Link>
+                        </Button>
                       </div>
                     ) : null}
                   </div>

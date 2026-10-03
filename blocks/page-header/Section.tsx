@@ -28,6 +28,8 @@ import type { BlockConfig } from '@/lib/types/config';
 import Icon from '@/components/Icon';
 import { breadcrumbsFor } from '@/lib/breadcrumbs';
 import { getLabels } from '@/lib/component-labels';
+import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
+import Button from '@/components/Button';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
@@ -60,22 +62,6 @@ const MAX_CTAS = 2;
 const isObj = (v: unknown): v is object => !!v && typeof v === 'object' && !Array.isArray(v);
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 
-// 这几条类名要**逐字**写在源码里：`site.css` 是按源码 purge 的（`scripts/lib/site-css.js` §PURGE_CONTENT），
-// 拼出来的类名 purge 看不见。
-const EYEBROW_CLASS: Record<string, string> = {
-  pill: 'phn-eyebrow-pill badge rounded-pill bg-primary-subtle text-primary fw-semibold text-xs px-3 py-2',
-  outline: 'phn-eyebrow-outline badge rounded-pill border border-primary text-primary bg-transparent fw-semibold text-xs px-3 py-2',
-  dash: 'phn-eyebrow-dash text-uppercase text-xs fw-semibold ls-wider text-muted',
-  plain: 'phn-eyebrow-plain text-uppercase text-xs fw-semibold ls-wider text-muted',
-};
-
-function btnClass(b: PageHeaderNewButton): string {
-  const size = b.size === 'sm' ? ' btn-sm' : b.size === 'lg' ? ' btn-lg' : '';
-  if (b.style === 'link') return `btn btn-link px-0 d-inline-flex align-items-center text-nowrap${size}`;
-  if (b.style === 'outline') return `btn btn-outline-primary d-inline-flex align-items-center justify-content-center text-nowrap${size}`;
-  return `btn btn-primary d-inline-flex align-items-center justify-content-center text-nowrap${size}`;
-}
-
 export default function PageHeaderNewSection({ data, locale = 'en', block, pageSlug }: Props) {
   const d: PageHeaderNewData = isObj(data) ? data : {};
   const shape = block && typeof block.shape === 'string' ? block.shape : undefined;
@@ -92,7 +78,7 @@ export default function PageHeaderNewSection({ data, locale = 'en', block, pageS
 
   const eyebrow = isObj(d.introEyebrow) && str(d.introEyebrow.text) ? d.introEyebrow : null;
   // 没写 style ⟹ pill（同 milestones / cta：AI 只写了字，眉标照样出来）；明写 none ⟹ 不画。
-  const eyebrowStyle = !eyebrow ? 'none' : !eyebrow.style ? 'pill' : eyebrow.style in EYEBROW_CLASS ? eyebrow.style : 'none';
+  const eyebrowStyle: EyebrowStyle | 'none' = !eyebrow ? 'none' : !eyebrow.style ? 'pill' : isEyebrowStyle(eyebrow.style) ? eyebrow.style : 'none';
   const ctas = (Array.isArray(d.ctas) ? d.ctas : []).filter((b) => isObj(b) && str(b.label)).slice(0, MAX_CTAS);
   const sub = str(d.subheadline);
 
@@ -134,9 +120,7 @@ export default function PageHeaderNewSection({ data, locale = 'en', block, pageS
               <div className="phn-head">
                 {eyebrow && eyebrowStyle !== 'none' ? (
                   <div className="mb-4" data-part="eyebrow">
-                    <span className={EYEBROW_CLASS[eyebrowStyle]} data-eyebrow={eyebrowStyle} data-slot="introEyebrow.text">
-                      {eyebrowStyle === 'dash' ? '— ' : null}{eyebrow.text}
-                    </span>
+                    <Eyebrow style={eyebrowStyle} text={eyebrow.text} slot="introEyebrow.text" />
                   </div>
                 ) : null}
                 <h1 className="phn-title display-4 fw-bold lh-1 ls-tight mb-0" data-slot="headline">{d.headline}</h1>
@@ -147,11 +131,11 @@ export default function PageHeaderNewSection({ data, locale = 'en', block, pageS
                   {ctas.length ? (
                     <div className="phn-ctas d-flex flex-wrap gap-2" data-part="ctas">
                       {ctas.map((b, i) => (
-                        <Link key={i} href={b.href || '#'} className={btnClass(b)} data-cta={b.style || 'solid'}>
+                        <Button key={i} href={b.href || '#'} style={b.style} fallback="solid" size={b.size} defaultSize="md" flush>
                           {b.icon ? <Icon name={b.icon} className="me-2" /> : null}
                           <span data-slot={`ctas.${i}.label`}>{b.label}</span>
                           {b.arrow ? <Icon name="arrow-right" className="ms-2" /> : null}
-                        </Link>
+                        </Button>
                       ))}
                     </div>
                   ) : null}

@@ -45,6 +45,7 @@
 
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import SiteLink from '@/components/SiteLink';
+import { buttonClass, resolveButtonStyle } from '@/components/Button';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
 import { defaultLocale, getServices } from '@/lib/config';
 import type { BlockConfig } from '@/lib/types/config';
@@ -121,14 +122,6 @@ function servicesFor(locale: string): { id: string; name: string }[] {
 
 /** 列的固定语义（`columns` 排布专用）。标题是图册的英文演示；T3 接站时跟着站的语言走。 */
 const COLUMN_TITLES = { services: 'Services', areas: 'Service areas', pages: 'Pages', contact: 'Contact' };
-
-/** `solidLight`：boxed 那个深色盒子里、以及主色底（`bg=brand`）上的实心按钮用浅色（Webpixels footer-3），别处照旧是主色。 */
-function btnClass(style: BtnStyle | undefined, onDark: boolean, large = false, solidLight = false): string {
-  const size = large ? ' btn-lg' : '';
-  if (style === 'link') return `btn btn-link${size} ${onDark ? 'link-light' : ''}`;
-  if (style === 'outline') return `btn${size} ${onDark ? 'btn-outline-light' : 'btn-outline-primary'}`;
-  return `btn${size} ${solidLight ? 'btn-light' : 'btn-primary'}`;
-}
 
 interface Props {
   data?: FooterNewData;
@@ -248,10 +241,11 @@ export default function FooterNewSection({ data = {}, shape: shapeIn, block, ico
 
   // ── CTA 条（旋钮 `cta`，顶上，三选一或没有）──────────────────────────────────────────────────────
   //    三种与下面内容之间都是 `mb-16`（间距照 Webpixels footer-4 的尺度，票正文）。
+  // `solidLight`：boxed 那个深色盒子里、以及主色底（`bg=brand`）上的实心按钮用浅色（Webpixels footer-3），别处照旧是主色。
   const ctaButtons = (onDark: boolean, large: boolean, extra = '', solidLight = false) => (
     <div className={`d-flex flex-column flex-sm-row gap-2 ${extra}`}>
       {list(cta?.buttons).map((b, i) => (
-        <SiteLink key={i} href={b.href} className={`${btnClass(b.style, onDark, large, solidLight)} text-nowrap`}>{b.label}</SiteLink>
+        <SiteLink key={i} href={b.href} className={`${buttonClass(resolveButtonStyle(b.style, 'solid'), { bare: true, size: large ? 'lg' : 'md', onDark, solidLight })} text-nowrap`}>{b.label}</SiteLink>
       ))}
     </div>
   );

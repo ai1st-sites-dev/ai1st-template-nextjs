@@ -95,50 +95,25 @@
 
 /* ── 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneForBg）───────────────────────────────
    dark = 深底或图铺底：标题 / 副标题 / eyebrow / 统计 / logo 反白，outline 按钮翻成白描边。
-   brand = 主题主色底：同上，另外主按钮翻成白底主色字。 */
-[data-block="hero"][data-tone="dark"],
-[data-block="hero"][data-tone="brand"] {
-  color: #fff;
-}
-[data-block="hero"][data-tone="dark"] .hro-title,
-[data-block="hero"][data-tone="brand"] .hro-title,
-[data-block="hero"][data-tone="dark"] .hro-eyebrow-dash,
-[data-block="hero"][data-tone="brand"] .hro-eyebrow-dash,
-[data-block="hero"][data-tone="dark"] .hro-eyebrow-plain,
-[data-block="hero"][data-tone="brand"] .hro-eyebrow-plain {
-  color: #fff !important;
-}
+   brand = 主题主色底：同上，另外主按钮翻成白底主色字。
+   🔴 各块共有的那几条（根上字色 · 标题 · eyebrow · 主按钮 / 描边 / link 按钮反白）住 `scripts/lib/site-css.js`
+      §DEEP_COMMON，全站一份（#1533）；这里只留本块特有的，别再抄回来（`scripts/block-deep-common.test.js`）。 */
+
 /* 深底 / brand 上的 `.text-muted`：白 .92，全站一条（`scripts/lib/site-css.js` §ON_DEEP_MUTED，#1477）。 */
 [data-block="hero"][data-tone="dark"] .border-top,
 [data-block="hero"][data-tone="brand"] .border-top {
   border-color: rgba(255, 255, 255, 0.3) !important;
-}
-[data-block="hero"][data-tone="dark"] .btn-outline-primary,
-[data-block="hero"][data-tone="brand"] .btn-outline-primary {
-  color: #fff !important;
-  border-color: rgba(255, 255, 255, 0.6) !important;
-}
-[data-block="hero"][data-tone="dark"] .btn-link,
-[data-block="hero"][data-tone="brand"] .btn-link {
-  color: #fff !important;
-}
-[data-block="hero"][data-tone="dark"] .hro-eyebrow-pill,
-[data-block="hero"][data-tone="brand"] .hro-eyebrow-pill {
-  background: rgba(255, 255, 255, 0.14) !important;
-  color: #fff !important;
-}
-[data-block="hero"][data-tone="dark"] .hro-eyebrow-outline,
-[data-block="hero"][data-tone="brand"] .hro-eyebrow-outline {
-  border-color: rgba(255, 255, 255, 0.7) !important;
-  color: #fff !important;
 }
 [data-block="hero"][data-tone="dark"] .hro-logo,
 [data-block="hero"][data-tone="brand"] .hro-logo {
   filter: brightness(0) invert(1);
   opacity: 0.9;
 }
-/* 图铺底时 pill 用白底深字（图册 hero 段的样子：遮罩上半透明的白太淡）。 */
-[data-block="hero"][data-image="background"] .hro-eyebrow-pill {
+/* 图铺底时 pill 用白底深字（图册 hero 段的样子：遮罩上半透明的白太淡）。
+   🔴 `[data-tone]` 不是多余的：它把特异度抬到 0-4-0，压过 site.css §DEEP_COMMON 那条深底 pill（0-3-0）。
+      不能靠「shapes.css 后加载」赢 —— 单格页（admin 预览）把 site.css 的 <link> 放在 body 里、排在 shapes.css
+      之后，同特异度时那边是 site.css 赢（#1533 截图比对实测：hero cover 三种底的 pill 都变成了半透明白）。 */
+[data-block="hero"][data-image="background"][data-tone] [data-eyebrow="pill"] {
   background: #fff !important;
   color: #0f172a !important;
 }
@@ -163,19 +138,6 @@
   --x-btn-border-color: var(--btn-outline-ink, var(--x-primary));
 }
 
-/* 深底（相对亮度 < 0.4）和 brand 底一样，主按钮翻成白底主色字（正文「字色按背景亮度自动算」那句）。 */
-[data-block="hero"][data-tone="dark"] .btn-primary,
-[data-block="hero"][data-tone="brand"] .btn-primary {
-  background: #fff !important;
-  border-color: #fff !important;
-  color: var(--x-primary) !important;
-}
-[data-block="hero"][data-tone="dark"] .btn-primary:hover,
-[data-block="hero"][data-tone="brand"] .btn-primary:hover {
-  background: #f1f5f9 !important;
-  border-color: #f1f5f9 !important;
-  color: #0f172a !important;
-}
 [data-block="hero"][data-tone="dark"] .btn-primary:active, [data-block="hero"][data-tone="brand"] .btn-primary:active {
   background: #e2e8f0 !important;
   border-color: #e2e8f0 !important;

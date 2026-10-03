@@ -24,6 +24,9 @@ const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
 
 const NEXT = path.resolve(__dirname, '..');
+// #1533 —— 各块共有的深底反白（标题 · eyebrow · 主按钮 / 描边 / link）收进了全站一份（site-css.js §DEEP_COMMON，按块点名），
+//    块的 block.css 里不再有；这里断言本块在那张登记表里、值没变。
+const DEEP = require(path.join(NEXT, 'scripts', 'lib', 'site-css.js')).DEEP_COMMON_CSS;
 const SRC = path.join(NEXT, 'src');
 const BLOCK = path.join(NEXT, 'blocks', 'cta');
 const SECTION = path.join(BLOCK, 'Section.tsx');
@@ -169,8 +172,8 @@ console.log('\n── AC4 image');
   check(frameTag(cover) && cover.indexOf('data-part="bg"') > cover.indexOf('data-part="frame"'), 'boxed + background ⟹ 照片铺在盒子里');
   const coverFlat = render('centered', withOpts({ image: 'background' }));
   check(coverFlat.indexOf('data-part="bg"') < coverFlat.indexOf('data-part="frame"'), 'none + background ⟹ 照片铺整段（在盒子外）');
-  check(/\[data-tone="dark"\] \.btn-outline-primary,[\s\S]*?\{\s*color: #fff !important;\s*border-color: rgba\(255, 255, 255, 0\.6\) !important;/.test(CSS),
-    'block.css：深底时 outline 按钮反白描边');
+  check(/\[data-block="cta"\]\[data-tone="dark"\] \.btn-outline-primary,[\s\S]*?\{\s*color: #fff !important;\s*border-color: rgba\(255, 255, 255, 0\.6\) !important;/.test(DEEP),
+    'site-css §DEEP_COMMON：深底时 outline 按钮反白描边');
   for (const side of ['left', 'right']) {
     const h = render('boxed', withOpts({ image: side }));
     check(count(h, 'data-part="image"') === 1 && h.indexOf('data-part="image"') < h.indexOf('class="cta-main"'),
@@ -204,14 +207,14 @@ console.log('\n── AC6 bg 字色');
   check(t('#ffffff') === 'light' && t('#f1f5f9') === 'light' && t('#e0f2fe') === 'light', '#ffffff / #f1f5f9 / #e0f2fe ⟹ light（深字）');
   check(t('brand') === 'brand' && /style="background:var\(--x-primary\)"/.test(frameTag(render('boxed', withOpts({}, { bg: 'brand' })))), 'brand ⟹ data-tone="brand"、盒子底是 var(--x-primary)');
   check(t(undefined) === 'light', '没写 bg ⟹ light');
-  check(/\[data-tone="dark"\] \.cta-title,[\s\S]*?\[data-tone="brand"\] \.cta-title,[\s\S]*?\{\s*color: #fff !important;/.test(CSS), 'block.css：dark / brand 时标题反白');
+  check(/\[data-block="cta"\]\[data-tone="dark"\] \.cta-title,\n\[data-block="cta"\]\[data-tone="brand"\] \.cta-title,[\s\S]*?\{\s*color: #fff !important;/.test(DEEP), 'site-css §DEEP_COMMON：dark / brand 时标题反白');
   // #1477 —— 深底 / brand 上的正文（text-muted）反白那条挪到了全站一份（scripts/lib/site-css.js §ON_DEEP_MUTED，白 .92），
   //    块自己的 block.css 里不再有（.72 那档正是 Chris 说看不清的灰）。
   const { ON_DEEP_MUTED } = require(path.join(NEXT, 'scripts', 'lib', 'site-css.js'));
   check(/\[data-tone="dark"\] \.text-muted,\s*\n\[data-tone="brand"\] \.text-muted,[\s\S]*?\{\s*color: rgba\(255, 255, 255, \.92\) !important;/.test(ON_DEEP_MUTED)
     && !/\.text-muted\s*\{[^}]*rgba\(255, 255, 255/.test(CSS), 'dark / brand 时正文（text-muted）反白：全站那条（白 .92），block.css 里没有自己那份');
-  check(/\[data-tone="brand"\] \.btn-primary \{\s*background: #fff !important;\s*border-color: #fff !important;\s*color: var\(--x-primary\) !important;/.test(CSS),
-    'block.css：brand 时主按钮翻成白底主色字');
+  check(/\[data-block="cta"\]\[data-tone="brand"\] \.btn-primary,[\s\S]*?\{\s*background: #fff !important;\s*border-color: #fff !important;\s*color: var\(--x-primary\) !important;/.test(DEEP),
+    'site-css §DEEP_COMMON：brand 时主按钮翻成白底主色字');
   const v = (bg) => own(manifestLib.validateSite({ pages: [{ slug: 'p', blocks: [{ type: 'cta', data: { headline: 'H', bg } }] }], scope: 'edit' }));
   check(v('#1e293b').length === 0 && v('brand').length === 0, 'validateSite：#1e293b / brand 放行');
   check(['red', '#fff', 'rgb(0,0,0)'].every((b) => v(b).some((p) => p.includes('"bg"'))), 'validateSite：red / #fff / rgb() 被拒');

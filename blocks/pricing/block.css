@@ -389,13 +389,10 @@
 /* ═══ 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneForBg）══════════════════════════════
    dark = 深底 / 深色渐变；brand = 主题主色底。两者一样：标题 / 名字 / 价格反白（小字白 .92 是全站那一条，
    site-css.js §ON_DEEP_MUTED）；card 换半透明底 + 半透明白描边、竖线换半透明白；outline 按钮翻成白描边、
-   主按钮白底主色字（同 milestones）。 */
-[data-block="pricing"][data-tone="dark"],
-[data-block="pricing"][data-tone="brand"] {
-  color: #fff;
-}
-[data-block="pricing"][data-tone="dark"] .pr-title,
-[data-block="pricing"][data-tone="brand"] .pr-title,
+   主按钮白底主色字（同 milestones）。
+   🔴 各块共有的那几条（根上字色 · 标题 · eyebrow · 主按钮 / 描边 / link 按钮反白）住 `scripts/lib/site-css.js`
+      §DEEP_COMMON，全站一份（#1533）；这里只留本块特有的，别再抄回来（`scripts/block-deep-common.test.js`）。 */
+
 [data-block="pricing"][data-tone="dark"] .pr-hl-title,
 [data-block="pricing"][data-tone="brand"] .pr-hl-title,
 [data-block="pricing"][data-tone="dark"] .pr-name,
@@ -403,11 +400,7 @@
 [data-block="pricing"][data-tone="dark"] .pr-amount,
 [data-block="pricing"][data-tone="brand"] .pr-amount,
 [data-block="pricing"][data-tone="dark"] .pr-check,
-[data-block="pricing"][data-tone="brand"] .pr-check,
-[data-block="pricing"][data-tone="dark"] .pr-eyebrow-dash,
-[data-block="pricing"][data-tone="brand"] .pr-eyebrow-dash,
-[data-block="pricing"][data-tone="dark"] .pr-eyebrow-plain,
-[data-block="pricing"][data-tone="brand"] .pr-eyebrow-plain {
+[data-block="pricing"][data-tone="brand"] .pr-check {
   color: #fff !important;
 }
 [data-block="pricing"][data-tone="dark"][data-plan-style="card"] .pr-inner,
@@ -437,21 +430,9 @@
   opacity: 0.9;
 }
 [data-block="pricing"][data-tone="dark"] .pr-badge,
-[data-block="pricing"][data-tone="brand"] .pr-badge,
-[data-block="pricing"][data-tone="dark"] .pr-eyebrow-pill,
-[data-block="pricing"][data-tone="brand"] .pr-eyebrow-pill {
+[data-block="pricing"][data-tone="brand"] .pr-badge {
   background: rgba(255, 255, 255, 0.14) !important;
   color: #fff !important;
-}
-[data-block="pricing"][data-tone="dark"] .pr-eyebrow-outline,
-[data-block="pricing"][data-tone="brand"] .pr-eyebrow-outline {
-  border-color: rgba(255, 255, 255, 0.7) !important;
-  color: #fff !important;
-}
-[data-block="pricing"][data-tone="dark"] .btn-outline-primary,
-[data-block="pricing"][data-tone="brand"] .btn-outline-primary {
-  color: #fff !important;
-  border-color: rgba(255, 255, 255, 0.6) !important;
 }
 [data-block="pricing"][data-tone="dark"] .pr-billing,
 [data-block="pricing"][data-tone="brand"] .pr-billing {
@@ -460,12 +441,6 @@
 [data-block="pricing"][data-tone="dark"] .pr-billing .btn-link,
 [data-block="pricing"][data-tone="brand"] .pr-billing .btn-link {
   color: #fff !important;
-}
-[data-block="pricing"][data-tone="dark"] .btn-primary,
-[data-block="pricing"][data-tone="brand"] .btn-primary {
-  background: #fff !important;
-  border-color: #fff !important;
-  color: var(--x-primary) !important;
 }
 
 /* 深底 + outline：高亮那张是白卡 ⟹ 卡里的字回到深色，不跟整段反白（上面几条是整段的，这几条特异度更高、专管那张卡）。 */

@@ -168,13 +168,10 @@
 }
 
 /* ═══ 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneForBg）══════════════════════════════
-   深底 / 品牌底：标题 / 正文 / 加粗反白，小字白 .92，描边按钮反白，卡半透明底 + 半透明白描边。 */
-[data-block="content"][data-tone="dark"],
-[data-block="content"][data-tone="brand"] {
-  color: #fff;
-}
-[data-block="content"][data-tone="dark"] .co-title,
-[data-block="content"][data-tone="brand"] .co-title,
+   深底 / 品牌底：标题 / 正文 / 加粗反白，小字白 .92，描边按钮反白，卡半透明底 + 半透明白描边。
+   🔴 各块共有的那几条（根上字色 · 标题 · eyebrow · 主按钮 / 描边 / link 按钮反白）住 `scripts/lib/site-css.js`
+      §DEEP_COMMON，全站一份（#1533）；这里只留本块特有的，别再抄回来（`scripts/block-deep-common.test.js`）。 */
+
 [data-block="content"][data-tone="dark"] .co-body,
 [data-block="content"][data-tone="brand"] .co-body,
 [data-block="content"][data-tone="dark"] .co-body strong,
@@ -182,32 +179,6 @@
 [data-block="content"][data-tone="dark"] .co-body a,
 [data-block="content"][data-tone="brand"] .co-body a {
   color: #fff !important;
-}
-/* eyebrow 在深底 / 品牌底上（同 cta）：dash / plain 反白，pill 半透明白底，outline 白描边。 */
-[data-block="content"][data-tone="dark"] .co-eyebrow-dash,
-[data-block="content"][data-tone="brand"] .co-eyebrow-dash,
-[data-block="content"][data-tone="dark"] .co-eyebrow-plain,
-[data-block="content"][data-tone="brand"] .co-eyebrow-plain {
-  color: #fff !important;
-}
-[data-block="content"][data-tone="dark"] .co-eyebrow-pill,
-[data-block="content"][data-tone="brand"] .co-eyebrow-pill {
-  background: rgba(255, 255, 255, 0.14) !important;
-  color: #fff !important;
-}
-[data-block="content"][data-tone="dark"] .co-eyebrow-outline,
-[data-block="content"][data-tone="brand"] .co-eyebrow-outline {
-  border-color: rgba(255, 255, 255, 0.7) !important;
-  color: #fff !important;
-}
-[data-block="content"][data-tone="dark"] .text-muted,
-[data-block="content"][data-tone="brand"] .text-muted {
-  color: rgba(255, 255, 255, 0.92) !important;
-}
-[data-block="content"][data-tone="dark"] .btn-outline-primary,
-[data-block="content"][data-tone="brand"] .btn-outline-primary {
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.6);
 }
 [data-block="content"][data-tone="dark"][data-frame="card"] .co-frame,
 [data-block="content"][data-tone="brand"][data-frame="card"] .co-frame {

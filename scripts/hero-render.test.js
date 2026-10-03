@@ -27,6 +27,9 @@ const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
 
 const NEXT = path.resolve(__dirname, '..');
+// #1533 —— 各块共有的深底反白（标题 · eyebrow · 主按钮 / 描边 / link）收进了全站一份（site-css.js §DEEP_COMMON，按块点名），
+//    块的 block.css 里不再有；这里断言本块在那张登记表里、值没变。
+const DEEP = require(path.join(NEXT, 'scripts', 'lib', 'site-css.js')).DEEP_COMMON_CSS;
 const SRC = path.join(NEXT, 'src');
 const SECTION = path.join(NEXT, 'blocks', 'hero', 'Section.tsx');
 // #1471 —— hero 自己那份表单删了，改用四个块共用的那一份。
@@ -201,10 +204,11 @@ console.log('\n── AC4 bg');
   check(t('#808080') === (relativeLuminance('#808080') < 0.4 ? 'dark' : 'light') && toneFor('#808080') === 'dark',
     `门槛是相对亮度 0.4：#808080 的亮度 ${relativeLuminance('#808080').toFixed(3)} ⟹ dark`);
   const css = fs.readFileSync(path.join(NEXT, 'blocks', 'hero', 'block.css'), 'utf-8');
-  check(/\[data-tone="dark"\] \.hro-title,[\s\S]*?color: #fff !important/.test(css), 'block.css：深底时标题 color #fff !important');
-  check(/\[data-tone="brand"\] \.btn-primary \{[\s\S]*?background: #fff !important/.test(css), 'block.css：主色底时主按钮白底');
-  check(/\[data-tone="dark"\] \.btn-primary,\s*\n[^{]*\[data-tone="brand"\] \.btn-primary \{[\s\S]*?background: #fff !important/.test(css),
-    'block.css：深底时主按钮也翻白底（正文「相对亮度 < 0.4 反白…按钮翻成白底」）');
+  check(/\[data-block="hero"\]\[data-tone="dark"\] \.hro-title,[\s\S]*?color: #fff !important/.test(DEEP), 'site-css §DEEP_COMMON：深底时标题 color #fff !important');
+  check(/\[data-block="hero"\]\[data-tone="brand"\] \.btn-primary,[\s\S]*?\{\s*background: #fff !important/.test(DEEP), 'site-css §DEEP_COMMON：主色底时主按钮白底');
+  check(/\[data-block="hero"\]\[data-tone="dark"\] \.btn-primary,\n\[data-block="hero"\]\[data-tone="brand"\] \.btn-primary,[\s\S]*?\{\s*background: #fff !important/.test(DEEP),
+    'site-css §DEEP_COMMON：深底时主按钮也翻白底（正文「相对亮度 < 0.4 反白…按钮翻成白底」）');
+  check(!/data-tone="(dark|brand)"\] \.(hro-title|btn-primary) \{/.test(css), 'block.css：这两条不再自己抄一份');
   const v = (bg) => own(manifestLib.validateSite({ pages: [{ slug: 'p', blocks: [{ type: 'hero', data: { headline: 'H', bg } }] }] }));
   check(v('#0f172a').length === 0 && v('#0F172A').length === 0 && v('brand').length === 0, 'validateSite：#0f172a / #0F172A / brand 都放行');
   const bads = ['red', '#fff', '#12345g', 'rgb(0,0,0)', 7];

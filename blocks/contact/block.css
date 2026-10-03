@@ -208,11 +208,10 @@
 /* ═══ 深底（bg 深色 / brand / 深渐变）═══════════════════════════════════════════════════════════════
    标题 / item 标题 / 值反白，item 卡半透明底 + 半透明白描边，图标底半透明白；提示白 .92 用全站那一条
    （scripts/lib/site-css.js §ON_DEEP_MUTED，认根上的 data-tone），这里不再抄一份（#1477 的规矩）；
-   表单卡保持白底、卡里字回到深色（同 pricing 的 outline 卡）；地图那一格保持浅底深字。 */
-[data-block="contact"]:not([data-tone="light"]) {
-  color: #fff;
-}
-[data-block="contact"]:not([data-tone="light"]) .ct-title,
+   表单卡保持白底、卡里字回到深色（同 pricing 的 outline 卡）；地图那一格保持浅底深字。
+   🔴 各块共有的那几条（根上字色 · 标题 · eyebrow · 主按钮 / 描边 / link 按钮反白）住 `scripts/lib/site-css.js`
+      §DEEP_COMMON，全站一份（#1533）；这里只留本块特有的，别再抄回来（`scripts/block-deep-common.test.js`）。 */
+
 [data-block="contact"]:not([data-tone="light"]) .ct-ch-title,
 [data-block="contact"]:not([data-tone="light"]) .ct-value {
   color: #fff !important;
@@ -223,21 +222,6 @@
 }
 [data-block="contact"]:not([data-tone="light"]) .ct-ch-icon {
   background: rgba(255, 255, 255, 0.14) !important;
-  color: #fff !important;
-}
-/* eyebrow 的 pill / outline 在深底上反白（同 hero / cta / features / testimonials 那两条，#1507）：
-   浅底那一档是 bg-primary-subtle + text-primary，压在 brand 色底上读不出来。 */
-[data-block="contact"]:not([data-tone="light"]) .ct-eyebrow-pill {
-  background: rgba(255, 255, 255, 0.14) !important;
-  color: #fff !important;
-}
-[data-block="contact"]:not([data-tone="light"]) .ct-eyebrow-outline {
-  border-color: rgba(255, 255, 255, 0.7) !important;
-  color: #fff !important;
-}
-/* dash / plain 在深底上反白（同 hero / cta / features / testimonials 那一条，#1513 补齐 #1507 漏的这一半）。 */
-[data-block="contact"]:not([data-tone="light"]) .ct-eyebrow-dash,
-[data-block="contact"]:not([data-tone="light"]) .ct-eyebrow-plain {
   color: #fff !important;
 }
 [data-block="contact"]:not([data-tone="light"])[data-form-style="card"] .ct-form {

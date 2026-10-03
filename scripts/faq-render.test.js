@@ -27,6 +27,9 @@ const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
 
 const NEXT = path.resolve(__dirname, '..');
+// #1533 —— 各块共有的深底反白（标题 · eyebrow · 主按钮 / 描边 / link）收进了全站一份（site-css.js §DEEP_COMMON，按块点名），
+//    块的 block.css 里不再有；这里断言本块在那张登记表里、值没变。
+const DEEP = require(path.join(NEXT, 'scripts', 'lib', 'site-css.js')).DEEP_COMMON_CSS;
 const SRC = path.join(NEXT, 'src');
 const BLOCK = path.join(NEXT, 'blocks', 'faq');
 const SECTION = path.join(BLOCK, 'Section.tsx');
@@ -236,7 +239,7 @@ console.log('\n── AC8 bg');
   check(/\[data-tone="dark"\] \.text-muted,/.test(ON_DEEP_MUTED) && !/\.text-muted\s*\{[^}]*rgba\(255, 255, 255/.test(CSS),
     'dark / brand 时答案白 .92：全站那条（site-css.js §ON_DEEP_MUTED），block.css 里没有自己那份');
   check(/\[data-tone="dark"\] \.fq-q,[\s\S]*?\{\s*color: #fff !important;/.test(CSS), 'block.css：dark / brand 时标题 / 问句反白');
-  check(/\[data-tone="dark"\] \.btn-primary \{\s*background: #fff !important;/.test(CSS), 'block.css：深底时 help 卡主按钮白底');
+  check(/\[data-block="faq"\]\[data-tone="dark"\] \.btn-primary,[\s\S]*?\{\s*background: #fff !important;\s*border-color: #fff !important;\s*color: #0f172a !important;/.test(DEEP), 'site-css §DEEP_COMMON：深底时 help 卡主按钮白底（深底那一档是深字）');
   check(JSON.stringify(M.slots.bg) === JSON.stringify(manifestLib.loadManifests().get('footer').slots.bg), 'bg 槽对象与 footer 的 slots.bg 逐字相同');
 }
 

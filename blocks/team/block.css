@@ -185,21 +185,14 @@
 /* ═══ 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneForBg）══════════════════════════════
    dark = 深底 / 深色渐变；brand = 主题主色底。两者一样：标题 / 名字反白；职位 / 简介（.text-muted）白 .92 由全站那条给
    （scripts/lib/site-css.js §ON_DEEP_MUTED，本块不抄一份）；card 换 .06 半透明底 + 半透明白描边；招聘卡虚线 .35 白、
-   图标圈半透明白、按钮反白。 */
-[data-block="team"][data-tone="dark"],
-[data-block="team"][data-tone="brand"] {
-  color: #fff;
-}
-[data-block="team"][data-tone="dark"] .tm-title,
-[data-block="team"][data-tone="brand"] .tm-title,
+   图标圈半透明白、按钮反白。
+   🔴 各块共有的那几条（根上字色 · 标题 · eyebrow · 主按钮 / 描边 / link 按钮反白）住 `scripts/lib/site-css.js`
+      §DEEP_COMMON，全站一份（#1533）；这里只留本块特有的，别再抄回来（`scripts/block-deep-common.test.js`）。 */
+
 [data-block="team"][data-tone="dark"] .tm-name,
 [data-block="team"][data-tone="brand"] .tm-name,
 [data-block="team"][data-tone="dark"] .tm-join-title,
-[data-block="team"][data-tone="brand"] .tm-join-title,
-[data-block="team"][data-tone="dark"] .tm-eyebrow-dash,
-[data-block="team"][data-tone="brand"] .tm-eyebrow-dash,
-[data-block="team"][data-tone="dark"] .tm-eyebrow-plain,
-[data-block="team"][data-tone="brand"] .tm-eyebrow-plain {
+[data-block="team"][data-tone="brand"] .tm-join-title {
   color: #fff !important;
 }
 [data-block="team"][data-tone="dark"][data-member-style="card"] .tm-inner,
@@ -212,24 +205,8 @@
   border-color: rgba(255, 255, 255, 0.35);
 }
 [data-block="team"][data-tone="dark"] .tm-join-icon,
-[data-block="team"][data-tone="brand"] .tm-join-icon,
-[data-block="team"][data-tone="dark"] .tm-eyebrow-pill,
-[data-block="team"][data-tone="brand"] .tm-eyebrow-pill {
+[data-block="team"][data-tone="brand"] .tm-join-icon {
   background: rgba(255, 255, 255, 0.14) !important;
-  color: #fff !important;
-}
-[data-block="team"][data-tone="dark"] .tm-eyebrow-outline,
-[data-block="team"][data-tone="brand"] .tm-eyebrow-outline {
-  border-color: rgba(255, 255, 255, 0.7) !important;
-  color: #fff !important;
-}
-[data-block="team"][data-tone="dark"] .btn-outline-primary,
-[data-block="team"][data-tone="brand"] .btn-outline-primary {
-  color: #fff !important;
-  border-color: rgba(255, 255, 255, 0.6) !important;
-}
-[data-block="team"][data-tone="dark"] .btn-link,
-[data-block="team"][data-tone="brand"] .btn-link {
   color: #fff !important;
 }
 
@@ -252,10 +229,4 @@
   --x-btn-color: var(--x-primary-text-emphasis, var(--x-primary));
   --x-btn-hover-color: var(--x-primary-text-emphasis, var(--x-primary));
   --x-btn-active-color: var(--x-primary-text-emphasis, var(--x-primary));
-}
-[data-block="team"][data-tone="dark"] .btn-primary,
-[data-block="team"][data-tone="brand"] .btn-primary {
-  background: #fff !important;
-  border-color: #fff !important;
-  color: var(--x-primary) !important;
 }

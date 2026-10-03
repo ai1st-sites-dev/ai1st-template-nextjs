@@ -23,6 +23,8 @@ import Link from 'next/link';
 import { getBlogPosts, localeUrl } from '@/lib/config';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig, BlogPostConfig } from '@/lib/types/config';
+import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
+import Button from '@/components/Button';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
 import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
@@ -59,21 +61,6 @@ const WORDS_PER_MINUTE = 220;
 const isObj = (v: unknown): v is object => !!v && typeof v === 'object' && !Array.isArray(v);
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 
-// 这几条类名要**逐字**写在源码里：`site.css` 是按源码 purge 的（`scripts/lib/site-css.js` §PURGE_CONTENT）。
-const EYEBROW_CLASS: Record<string, string> = {
-  pill: 'bl-eyebrow-pill badge rounded-pill bg-primary-subtle text-primary fw-semibold text-xs px-3 py-2',
-  outline: 'bl-eyebrow-outline badge rounded-pill border border-primary text-primary bg-transparent fw-semibold text-xs px-3 py-2',
-  dash: 'bl-eyebrow-dash text-uppercase text-xs fw-semibold ls-wider text-muted',
-  plain: 'bl-eyebrow-plain text-uppercase text-xs fw-semibold ls-wider text-muted',
-};
-
-function btnClass(b: BlogNewButton): string {
-  const style = b.style || 'outline';
-  if (style === 'link') return 'btn btn-link btn-sm px-0 d-inline-flex align-items-center text-nowrap';
-  if (style === 'solid') return 'btn btn-primary btn-sm d-inline-flex align-items-center justify-content-center text-nowrap';
-  return 'btn btn-outline-primary btn-sm d-inline-flex align-items-center justify-content-center text-nowrap';
-}
-
 export function postCountOf(v: unknown): number {
   const n = typeof v === 'number' ? v : typeof v === 'string' && /^\s*\d+\s*$/.test(v) ? Number(v) : NaN;
   return Number.isInteger(n) ? Math.min(MAX_POSTS, Math.max(MIN_POSTS, n)) : DEFAULT_POSTS;
@@ -106,7 +93,7 @@ export default function BlogNewSection({ data, locale, block }: Props) {
 
   const eyebrow = isObj(d.introEyebrow) && str(d.introEyebrow.text) ? d.introEyebrow : null;
   // 没写 style ⟹ pill（同 milestones / features：AI 只写了字，眉标照样出来）；明写 none ⟹ 不画。
-  const eyebrowStyle = !eyebrow ? 'none' : !eyebrow.style ? 'pill' : eyebrow.style in EYEBROW_CLASS ? eyebrow.style : 'none';
+  const eyebrowStyle: EyebrowStyle | 'none' = !eyebrow ? 'none' : !eyebrow.style ? 'pill' : isEyebrowStyle(eyebrow.style) ? eyebrow.style : 'none';
   const showEyebrow = !!eyebrow && eyebrowStyle !== 'none';
   const cta = isObj(d.introCta) && str(d.introCta.label) ? d.introCta : null;
   const hasIntro = showEyebrow || !!str(d.headline) || !!str(d.body) || !!cta;
@@ -132,18 +119,16 @@ export default function BlogNewSection({ data, locale, block }: Props) {
               <div className="bl-intro-text" data-part="intro-text">
                 {showEyebrow ? (
                   <div className="mb-4" data-part="eyebrow">
-                    <span className={EYEBROW_CLASS[eyebrowStyle]} data-eyebrow={eyebrowStyle} data-slot="introEyebrow.text">
-                      {eyebrowStyle === 'dash' ? '— ' : null}{eyebrow!.text}
-                    </span>
+                    <Eyebrow style={eyebrowStyle} text={eyebrow!.text} slot="introEyebrow.text" />
                   </div>
                 ) : null}
                 {d.headline ? <h2 className="bl-title-h display-5 fw-bold lh-1 ls-tight mb-4" data-slot="headline">{d.headline}</h2> : null}
                 {d.body ? <p className="fs-5 text-muted mb-0 bl-body" data-slot="body">{d.body}</p> : null}
                 {cta ? (
                   <div className="bl-cta-row" data-part="cta">
-                    <Link href={cta.href || '/blog'} className={btnClass(cta)} data-cta={cta.style || 'outline'}>
+                    <Button href={cta.href || '/blog'} style={cta.style} fallback="outline" defaultSize="sm" flush>
                       <span data-slot="introCta.label">{cta.label}</span>
-                    </Link>
+                    </Button>
                   </div>
                 ) : null}
               </div>

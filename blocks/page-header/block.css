@@ -145,13 +145,10 @@
 
 /* ── 深底（bg 深色 / brand / 铺图）：标题反白（副标题白 .92 是全站一条 `.text-muted` 规则，
    `scripts/lib/site-css.js` §ON_DEEP_MUTED，#1477），面包屑白 .85、分隔符白 .6，描边按钮反白，
-   dash / plain 两种 eyebrow 白 .85。 */
-[data-block="page-header"][data-tone="dark"],
-[data-block="page-header"][data-tone="brand"],
-[data-block="page-header"][data-tone="dark"] .phn-title,
-[data-block="page-header"][data-tone="brand"] .phn-title {
-  color: #fff !important;
-}
+   dash / plain 两种 eyebrow 白 .85。
+   🔴 各块共有的那几条（根上字色 · 标题 · eyebrow · 主按钮 / 描边 / link 按钮反白）住 `scripts/lib/site-css.js`
+      §DEEP_COMMON，全站一份（#1533）；这里只留本块特有的，别再抄回来（`scripts/block-deep-common.test.js`）。 */
+
 [data-block="page-header"][data-tone="dark"] .breadcrumb,
 [data-block="page-header"][data-tone="brand"] .breadcrumb {
   --x-breadcrumb-divider-color: rgba(255, 255, 255, 0.6);
@@ -161,31 +158,6 @@
 [data-block="page-header"][data-tone="dark"] .breadcrumb .active,
 [data-block="page-header"][data-tone="brand"] .breadcrumb .active {
   color: rgba(255, 255, 255, 0.85);
-}
-[data-block="page-header"][data-tone="dark"] .btn-outline-primary,
-[data-block="page-header"][data-tone="brand"] .btn-outline-primary {
-  color: #fff !important;
-  border-color: rgba(255, 255, 255, 0.7) !important;
-}
-[data-block="page-header"][data-tone="dark"] .btn-link,
-[data-block="page-header"][data-tone="brand"] .btn-link {
-  color: #fff !important;
-}
-[data-block="page-header"][data-tone="dark"] .phn-eyebrow-dash,
-[data-block="page-header"][data-tone="brand"] .phn-eyebrow-dash,
-[data-block="page-header"][data-tone="dark"] .phn-eyebrow-plain,
-[data-block="page-header"][data-tone="brand"] .phn-eyebrow-plain {
-  color: rgba(255, 255, 255, 0.85) !important;
-}
-[data-block="page-header"][data-tone="dark"] .phn-eyebrow-pill,
-[data-block="page-header"][data-tone="brand"] .phn-eyebrow-pill {
-  background: rgba(255, 255, 255, 0.14) !important;
-  color: #fff !important;
-}
-[data-block="page-header"][data-tone="dark"] .phn-eyebrow-outline,
-[data-block="page-header"][data-tone="brand"] .phn-eyebrow-outline {
-  border-color: rgba(255, 255, 255, 0.7) !important;
-  color: #fff !important;
 }
 
 /* ── 按钮的底色和字色：接平台按这个站最终配色算好的那几个变量（`scripts/lib/button-ink.js`，同 cta）。 */

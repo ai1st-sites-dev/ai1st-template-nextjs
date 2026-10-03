@@ -26,6 +26,9 @@ const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
 
 const NEXT = path.resolve(__dirname, '..');
+// #1533 —— 各块共有的深底反白（标题 · eyebrow · 主按钮 / 描边 / link）收进了全站一份（site-css.js §DEEP_COMMON，按块点名），
+//    块的 block.css 里不再有；这里断言本块在那张登记表里、值没变。
+const DEEP = require(path.join(NEXT, 'scripts', 'lib', 'site-css.js')).DEEP_COMMON_CSS;
 const SRC = path.join(NEXT, 'src');
 const BLOCK = path.join(NEXT, 'blocks', 'logos');
 const SECTION = path.join(BLOCK, 'Section.tsx');
@@ -211,7 +214,7 @@ console.log('\n── AC8 bg');
   const { ON_DEEP_MUTED } = require(path.join(NEXT, 'scripts', 'lib', 'site-css.js'));
   check(/\[data-tone="dark"\] \.text-muted,/.test(ON_DEEP_MUTED) && !/\.text-muted\s*\{[^}]*rgba\(255, 255, 255/.test(CSS),
     'dark / brand 时正文白 .92：全站那条（site-css.js §ON_DEEP_MUTED），block.css 里没有自己那份');
-  check(/\[data-tone="dark"\] \.lo-title,[\s\S]*?\{\s*color: #fff !important;/.test(CSS), 'block.css：dark / brand 时标题反白');
+  check(/\[data-block="logos"\]\[data-tone="dark"\] \.lo-title,[\s\S]*?\{\s*color: #fff !important;/.test(DEEP), 'site-css §DEEP_COMMON：dark / brand 时标题反白');
   check(/\[data-tone="dark"\]\[data-item-style="card"\] \.lo-inner,[\s\S]*?\{\s*background: rgba\(255, 255, 255, 0\.06\);\s*border-color: rgba\(255, 255, 255, 0\.15\);/.test(CSS),
     'block.css：深底 card 半透明底 + 半透明白描边');
   check(JSON.stringify(M.slots.bg) === JSON.stringify(manifestLib.loadManifests().get('footer').slots.bg), 'bg 槽对象与 footer 的 slots.bg 逐字相同');

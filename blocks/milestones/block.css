@@ -289,21 +289,14 @@
 
 /* ═══ 字色按背景亮度（data-tone，scripts/lib/contrast.js §toneForBg）══════════════════════════════
    dark = 深底 / 深色渐变 / 铺图；brand = 主题主色底。两者一样：标题 / 数字 / label 反白、正文白 .92（不是灰）、
-   card 换半透明底 + 半透明白描边、竖线与图标底换半透明白；outline 按钮翻成白描边、主按钮白底主色字（同 features）。 */
-[data-block="milestones"][data-tone="dark"],
-[data-block="milestones"][data-tone="brand"] {
-  color: #fff;
-}
-[data-block="milestones"][data-tone="dark"] .mi-title,
-[data-block="milestones"][data-tone="brand"] .mi-title,
+   card 换半透明底 + 半透明白描边、竖线与图标底换半透明白；outline 按钮翻成白描边、主按钮白底主色字（同 features）。
+   🔴 各块共有的那几条（根上字色 · 标题 · eyebrow · 主按钮 / 描边 / link 按钮反白）住 `scripts/lib/site-css.js`
+      §DEEP_COMMON，全站一份（#1533）；这里只留本块特有的，别再抄回来（`scripts/block-deep-common.test.js`）。 */
+
 [data-block="milestones"][data-tone="dark"] .mi-value,
 [data-block="milestones"][data-tone="brand"] .mi-value,
 [data-block="milestones"][data-tone="dark"] .mi-label,
-[data-block="milestones"][data-tone="brand"] .mi-label,
-[data-block="milestones"][data-tone="dark"] .mi-eyebrow-dash,
-[data-block="milestones"][data-tone="brand"] .mi-eyebrow-dash,
-[data-block="milestones"][data-tone="dark"] .mi-eyebrow-plain,
-[data-block="milestones"][data-tone="brand"] .mi-eyebrow-plain {
+[data-block="milestones"][data-tone="brand"] .mi-label {
   color: #fff !important;
 }
 [data-block="milestones"][data-tone="dark"][data-stat-style="card"] .mi-inner,
@@ -328,25 +321,6 @@
 [data-block="milestones"][data-block-image="background"][data-tone="dark"][data-stat-style="divided"] .mi-stat {
   border-color: rgba(255, 255, 255, 0.25);
 }
-[data-block="milestones"][data-tone="dark"] .mi-eyebrow-pill,
-[data-block="milestones"][data-tone="brand"] .mi-eyebrow-pill {
-  background: rgba(255, 255, 255, 0.14) !important;
-  color: #fff !important;
-}
-[data-block="milestones"][data-tone="dark"] .mi-eyebrow-outline,
-[data-block="milestones"][data-tone="brand"] .mi-eyebrow-outline {
-  border-color: rgba(255, 255, 255, 0.7) !important;
-  color: #fff !important;
-}
-[data-block="milestones"][data-tone="dark"] .btn-outline-primary,
-[data-block="milestones"][data-tone="brand"] .btn-outline-primary {
-  color: #fff !important;
-  border-color: rgba(255, 255, 255, 0.6) !important;
-}
-[data-block="milestones"][data-tone="dark"] .btn-link,
-[data-block="milestones"][data-tone="brand"] .btn-link {
-  color: #fff !important;
-}
 
 /* ── 按钮的底色和字色：接平台按这个站最终配色算好的那几个变量（`scripts/lib/button-ink.js`，同 features）。
    轮廓按钮 / 纯文字链接用 `--x-primary-text-emphasis`，理由见 features/block.css 同一段（浅主题色压白底读不出来）。 */
@@ -368,16 +342,4 @@
   --x-btn-color: var(--x-primary-text-emphasis, var(--x-primary));
   --x-btn-hover-color: var(--x-primary-text-emphasis, var(--x-primary));
   --x-btn-active-color: var(--x-primary-text-emphasis, var(--x-primary));
-}
-[data-block="milestones"][data-tone="dark"] .btn-primary,
-[data-block="milestones"][data-tone="brand"] .btn-primary {
-  background: #fff !important;
-  border-color: #fff !important;
-  color: var(--x-primary) !important;
-}
-[data-block="milestones"][data-tone="dark"] .btn-primary:hover,
-[data-block="milestones"][data-tone="brand"] .btn-primary:hover {
-  background: #f1f5f9 !important;
-  border-color: #f1f5f9 !important;
-  color: #0f172a !important;
 }

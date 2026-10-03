@@ -25,6 +25,7 @@
 
 import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig } from '@/lib/types/config';
+import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
 import manifest from './manifest.json';
 import GalleryLightbox from './Lightbox';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
@@ -57,15 +58,6 @@ const MAX_ITEMS = manifest.slots.items.maxItems;
 const isObj = (v: unknown): v is object => !!v && typeof v === 'object' && !Array.isArray(v);
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 
-// 这几条类名要**逐字**写在源码里：`site.css` 是按源码 purge 的（`scripts/lib/site-css.js` §PURGE_CONTENT），
-// 拼出来的类名 purge 看不见。
-const EYEBROW_CLASS: Record<string, string> = {
-  pill: 'gl-eyebrow-pill badge rounded-pill bg-primary-subtle text-primary fw-semibold text-xs px-3 py-2',
-  outline: 'gl-eyebrow-outline badge rounded-pill border border-primary text-primary bg-transparent fw-semibold text-xs px-3 py-2',
-  dash: 'gl-eyebrow-dash text-uppercase text-xs fw-semibold ls-wider text-muted',
-  plain: 'gl-eyebrow-plain text-uppercase text-xs fw-semibold ls-wider text-muted',
-};
-
 /** 块 id → 可以放进 `id` / `#…` 选择器的一段（同一页两块 gallery 各有各的弹窗）。 */
 const safeId = (v: unknown) => (typeof v === 'string' && v ? v : 'gallery').replace(/[^A-Za-z0-9_-]/g, '-');
 
@@ -79,7 +71,7 @@ export default function GalleryNewSection({ data, block }: Props) {
 
   const eyebrow = isObj(d.introEyebrow) && str(d.introEyebrow.text) ? d.introEyebrow : null;
   // 没写 style ⟹ pill（同 features / milestones：AI 只写了字，眉标照样出来）；明写 none ⟹ 不画。
-  const eyebrowStyle = !eyebrow ? 'none' : !eyebrow.style ? 'pill' : eyebrow.style in EYEBROW_CLASS ? eyebrow.style : 'none';
+  const eyebrowStyle: EyebrowStyle | 'none' = !eyebrow ? 'none' : !eyebrow.style ? 'pill' : isEyebrowStyle(eyebrow.style) ? eyebrow.style : 'none';
   const hasIntro = !!(str(d.headline) || str(d.body));
   const items = (Array.isArray(d.items) ? d.items : [])
     .filter((it): it is GalleryItem => isObj(it) && isObj(it.image) && !!str(it.image.imageUrl))
@@ -110,9 +102,7 @@ export default function GalleryNewSection({ data, block }: Props) {
               <div className="gl-intro-text" data-part="intro-text">
                 {eyebrow && eyebrowStyle !== 'none' ? (
                   <div className="mb-4" data-part="eyebrow">
-                    <span className={EYEBROW_CLASS[eyebrowStyle]} data-eyebrow={eyebrowStyle} data-slot="introEyebrow.text">
-                      {eyebrowStyle === 'dash' ? '— ' : null}{eyebrow.text}
-                    </span>
+                    <Eyebrow style={eyebrowStyle} text={eyebrow.text} slot="introEyebrow.text" />
                   </div>
                 ) : null}
                 {d.headline ? <h2 className="display-5 fw-bold lh-1 ls-tight mb-4 gl-title" data-slot="headline">{d.headline}</h2> : null}

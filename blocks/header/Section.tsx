@@ -52,6 +52,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import { loadBootstrap } from '@/components/BootstrapJs';
 import SiteLink from '@/components/SiteLink';
+import { buttonClass, resolveButtonStyle } from '@/components/Button';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
 import type { BlockConfig } from '@/lib/types/config';
 import manifest from './manifest.json';
@@ -117,12 +118,13 @@ export function resolveKnobs(shape: string | undefined, options: HeaderOptions =
   return { knobs, topbar, preset: presetOf({ ...knobs, topbar }, { knobs: KNOBS, presets: PRESETS }), shape: known };
 }
 
+// style → 类名是全站那一份（`src/components/Button.tsx` §buttonClass，#1533）；这里只多一件事 ——
 // `onBrand`：主色底上主色按钮看不见 ⟹ 实心那种翻成白底主色字（hero / cta 同一条；样式在 block.css
 // §hdr-cta-on-brand）。
 function ctaClass(style: CtaStyle | undefined, deep: boolean, onBrand = false): string {
-  if (style === 'link') return deep ? 'btn btn-link link-light' : 'btn btn-link';
-  if (style === 'outline') return deep ? 'btn btn-outline-light' : 'btn btn-outline-primary';
-  return onBrand ? 'btn btn-primary hdr-cta-on-brand' : 'btn btn-primary';
+  const s = resolveButtonStyle(style, 'solid');
+  const cls = buttonClass(s, { bare: true, onDark: deep });
+  return s === 'solid' && onBrand ? `${cls} hdr-cta-on-brand` : cls;
 }
 
 interface Props {

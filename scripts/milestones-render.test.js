@@ -29,6 +29,9 @@ const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
 
 const NEXT = path.resolve(__dirname, '..');
+// #1533 —— 各块共有的深底反白（标题 · eyebrow · 主按钮 / 描边 / link）收进了全站一份（site-css.js §DEEP_COMMON，按块点名），
+//    块的 block.css 里不再有；这里断言本块在那张登记表里、值没变。
+const DEEP = require(path.join(NEXT, 'scripts', 'lib', 'site-css.js')).DEEP_COMMON_CSS;
 const SRC = path.join(NEXT, 'src');
 const BLOCK = path.join(NEXT, 'blocks', 'milestones');
 const SECTION = path.join(BLOCK, 'Section.tsx');
@@ -246,7 +249,8 @@ console.log('\n── AC8 bg');
   const { ON_DEEP_MUTED } = require(path.join(NEXT, 'scripts', 'lib', 'site-css.js'));
   check(/\[data-tone="dark"\] \.text-muted,\s*\n\[data-tone="brand"\] \.text-muted,[\s\S]*?\{\s*color: rgba\(255, 255, 255, \.92\) !important;/.test(ON_DEEP_MUTED)
     && !/\.text-muted\s*\{[^}]*rgba\(255, 255, 255/.test(CSS), 'dark / brand 时正文白 .92（不是灰）：全站那条，block.css 里没有自己那份');
-  check(/\[data-tone="dark"\] \.mi-value,[\s\S]*?\[data-tone="brand"\] \.mi-label,[\s\S]*?\{\s*color: #fff !important;/.test(CSS), 'block.css：dark / brand 时标题 / 数字 / label 反白');
+  check(/\[data-tone="dark"\] \.mi-value,[\s\S]*?\[data-tone="brand"\] \.mi-label[,\s][\s\S]*?\{\s*color: #fff !important;/.test(CSS)
+    && /\[data-block="milestones"\]\[data-tone="dark"\] \.mi-title,[\s\S]*?\{\s*color: #fff !important;/.test(DEEP), 'dark / brand 时数字 / label 反白（block.css）、标题反白（site-css §DEEP_COMMON）');
   const v = (bg) => own(manifestLib.validateSite({ pages: [{ slug: 'p', blocks: [{ type: 'milestones', data: { headline: 'H', stats: [{ value: '1', label: 'x' }], bg } }] }], scope: 'edit' }));
   check(v('#0f172a').length === 0 && v('brand').length === 0 && v({ stops: ['#7d52f4', '#f7b733'], angle: 135 }).length === 0, 'validateSite：#0f172a / brand / 两色标渐变放行');
   check(['red', '#fff', { stops: ['#ffffff'] }].every((b) => v(b).some((p) => p.includes('"bg"'))), 'validateSite：red / #fff / 一个色标的渐变被拒');
