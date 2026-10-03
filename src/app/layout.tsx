@@ -692,7 +692,6 @@ export const metadata: Metadata = {
     template: `%s | ${defaultBrandName}`,
   },
   description: seo.siteDescription,
-  keywords: seo.keywords,
   metadataBase: new URL(seo.domain),
   alternates: {
     canonical: '/',

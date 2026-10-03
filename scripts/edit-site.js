@@ -991,7 +991,7 @@ The site is defined by JSON configuration files:
   ({"source": "phone"} / {"source": "email"} / {"source": "address"} / {"source": "brand"} / {"source": "social"}, or {phone} /
   {email} in a button label) follow brand.json automatically — so when the owner's phone number, email, address or social
   links change, change brand.json and do not go and edit those pages.
-- **seo.json** — Domain, locale, meta title/description, keywords, Schema.org config
+- **seo.json** — Domain, locale, meta title/description, targetKeywords (the keywords the owner chose in keyword research — do not invent or rewrite them), Schema.org config
 - **services.json** — Array of services with id, name, shortDescription, fullDescription, icon, features, products
   Blocks on a page that say items: {"source": "services"} follow services.json automatically — they show
   every service in it — so when the owner adds, removes or renames a service, change services.json and do

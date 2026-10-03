@@ -117,12 +117,24 @@ export interface SeoPage {
   priority: number;
 }
 
+export interface TargetKeyword {
+  keyword: string;
+  volume: number | null;
+  goldIndex: number | null;
+}
+
 export interface SeoConfig {
   domain: string;
   locale: string;
   siteTitle: string;
   siteDescription: string;
-  keywords: string;
+  /** #1548 —— 挖出来的关键词（`sites.payload.keywords` 的拷贝，建站时写、重新生成时重写）。只有主语言的 seo.json 有；
+   *  老站没有。取代了 AI 编的那串 `keywords`（已删）。 */
+  targetKeywords?: {
+    primary: TargetKeyword | null;
+    /** 键是服务 id；对不上服务的组用 payload 的服务名做键（判据：键不在 services.json 的 id 集合里）。 */
+    byService: Record<string, (TargetKeyword & { selected: boolean; isPrimary: boolean })[]>;
+  };
   verification?: {
     google?: string;
   };
@@ -244,6 +256,8 @@ export interface DynamicPageConfig {
   lastModified?: string;
   serviceDetailPage?: boolean;
   parentService?: string;
+  /** #1548 —— 这一页为哪个搜索词而生。只有首页 / 服务详情页 / 关键词页有；第二语言的是翻译来的（translated: true）。 */
+  seo?: { targetKeyword: string; translated?: boolean };
   blocks: BlockConfig[];
 }
 

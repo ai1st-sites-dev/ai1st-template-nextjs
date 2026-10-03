@@ -467,8 +467,11 @@ try {
       'a second features listing this service\'s keyword pages',
       '- the keyword-pages features: { headline: ',
     ];
-    const withKw = promptFrom(workRoot, basePayload());                       // 夹具自带关键词
-    const noKw = promptFrom(workRoot, basePayload({ keywords: {} }));
+    // 📌 #1548 —— 「SEO TARGET KEYWORDS」那一段（站主词 / 每服务主词 / 关键词页清单）按构造随关键词变，两臂比之前先从
+    //    两份里摘掉，这一格才仍然只量关键词页那一格。那一段自己的判据在 `lib/target-keywords.test.js` ④。
+    const dropBrief = (p) => p.replace(/\n\nSEO TARGET KEYWORDS[^]*?(?=\n\n)/, '');
+    const withKw = dropBrief(promptFrom(workRoot, basePayload()));            // 夹具自带关键词
+    const noKw = dropBrief(promptFrom(workRoot, basePayload({ keywords: {} })));
     const inWith = NEEDLES.filter((n) => withKw.includes(n));
     const inNo = NEEDLES.filter((n) => noKw.includes(n));
     inWith.length === NEEDLES.length

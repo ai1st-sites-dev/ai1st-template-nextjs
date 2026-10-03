@@ -29,6 +29,7 @@ const LAYOUT_INTENT_VOCAB = require('./layout-intent-vocab.json');
 const { knobsOf, booleanOptionsOf, effectiveKnobs, knobDeclarationProblems } = require('./block-knobs');
 const { isColorValue } = require('./contrast');
 const siteForms = require('./site-forms');
+const { targetKeywordProblems } = require('./target-keywords');
 const { richtextProblems } = require('./richtext');
 const { isSourceRef, sourcesFor, refProblems, contactRefProblems, promptAlternatives, BLOCK_SLOTS: SOURCE_SLOTS } = require('./item-sources');
 const LAYOUT_INTENT_AXES = Object.keys(LAYOUT_INTENT_VOCAB.axes);
@@ -1074,7 +1075,7 @@ function industryMatches(industry, word) {
 }
 
 /**
- * validateSite({ pages, industry, dir, scope, siteBlocks, forms }) → { problems, warnings }
+ * validateSite({ pages, industry, dir, scope, siteBlocks, forms, targetKeywords }) → { problems, warnings }
  * pages: [{ slug, blocks: [{ type, data, role? }] }]（老形状的 `sections` 同样认，见 blocksOf）
  *
  * 两处跑的是同一个函数、同一套五条检查；`scope` 只决定**发现之后怎么办**：
@@ -1122,7 +1123,7 @@ function migrateLegacyShapes(m, data) {
   }
 }
 
-function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks = {}, disabledBlocks = [], forms } = {}) {
+function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks = {}, disabledBlocks = [], forms, targetKeywords } = {}) {
   const manifests = loadManifests(dir);
   // #1471 —— 站级表单库（`site/<locale>/forms.json`，`scripts/lib/site-forms.js`）。三个调用方都传：建站 / 构建 / AI 改站。
   //    形状两种都认：一个语言的数组，或 `{ [locale]: 数组 }`（构建期一次给全部语言 ⟹ 顺带查「各语言 id / fields / primary 一致」）。
@@ -1143,6 +1144,15 @@ function validateSite({ pages, industry = '', dir, scope = 'create', siteBlocks 
   if (forms !== undefined) {
     const fp = Array.isArray(forms) ? siteForms.formListProblems(forms) : siteForms.formsProblems(forms);
     for (const msg of fp) flag(msg);
+  }
+  // #1548 —— 关键词清单（`<locale>/seo.json` 的 `targetKeywords`）× 每页 `seo.targetKeyword` 两条：词必须在清单里；
+  //    非主词每个最多一页。没分到页的词进 warnings（它不是这个站写错了什么，是「关键词页 N/M」的差）。
+  //    🔴 按 `forms` 的先例：没传（`undefined`）= 老站 / 调用方没这件事可说 ⟹ 不查；传了空的照查（新站一个词都没选也要查）。
+  //    规则本身在 `scripts/lib/target-keywords.js`，建站脚本发 keyword-assignment 事件用的是同一份。
+  if (targetKeywords !== undefined) {
+    const tk = targetKeywordProblems({ pages, targetKeywords });
+    for (const msg of tk.problems) flag(msg);
+    if (tk.unassigned.length) warnings.push(`没分到页的词（选中、非主词、没有任何页拿它当 targetKeyword）：${tk.unassigned.map((k) => JSON.stringify(k)).join(' / ')}`);
   }
 
   for (const page of pages || []) {

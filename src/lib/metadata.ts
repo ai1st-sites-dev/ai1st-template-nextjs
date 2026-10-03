@@ -18,7 +18,6 @@ export function homeMetadata(locale: string): Metadata {
       template: `%s | ${getBrandName(locale)}`,
     },
     description: seo.siteDescription,
-    keywords: seo.keywords,
     alternates: {
       canonical,
       ...(Object.keys(altLanguages).length > 0 ? {

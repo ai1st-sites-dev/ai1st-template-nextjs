@@ -54,6 +54,8 @@ const {
 const blockDataLine = (type) => blockDataLineFor(loadBlockManifests().get(type));
 // #1471 —— 站级表单库（`site/<locale>/forms.json`）：默认两张的骨架 + 只收 AI 的文案。
 const { siteFormsFrom } = require('./lib/site-forms');
+// #1548 —— 挖出来的关键词落盘（seo.json 的 targetKeywords + 每页 seo.targetKeyword）。真 AI 与 skipAI 两条路共用这一份。
+const targetKw = require('./lib/target-keywords');
 // #1386 —— 建站选图：哪些槽要图、提示词怎么拼、上限怎么截、求不到怎么说，都在那个文件里。
 // 名单不再写在本文件里（此前是四个块名 + 四个 case，`hero-with-form` 因此永远拿不到图）。
 const { fillImageSlots } = require('./lib/image-slots');
@@ -121,6 +123,23 @@ function progress(message, percent) {
 function fatal(message) {
   emit('error', { message });
   process.exit(1);
+}
+
+// #1548 —— 关键词分配的结果：词进 seo.json、页挂上 seo.targetKeyword，再把「对不上 / 没分到页」按词报出来。
+// 🔴 只报不拦：skipAI 站只有一个 demo 服务，payload 给几组都对不上 ⟹ 全组 unmatched 是那条路的正常态（PM 21:07 第 2 条）。
+// 持久的那一份就是站文件本身：差集任何时候都能用 validateSite 从 seo.json + pages/*.json 重算。
+function applyTargetKeywords(content, assignment) {
+  content.seo.targetKeywords = assignment.targetKeywords;
+  const n = targetKw.applyPageKeywords(content.pages, assignment.pageKeywords);
+  emit('keyword-assignment', {
+    primary: assignment.targetKeywords.primary ? assignment.targetKeywords.primary.keyword : null,
+    pages: n,
+    unmatched: assignment.unmatched,
+    unassigned: assignment.unassigned,
+    reordered: assignment.reordered,
+  });
+  debug(`[keywords] ${n} 页挂上了 targetKeyword；对不上服务的组的主词 ${assignment.unmatched.length} 个`
+    + `、没分到页的词 ${assignment.unassigned.length} 个、按名字纠正了位置的组 ${assignment.reordered.length} 个`);
 }
 
 // Suppress all console.log/warn/error to avoid polluting stdout JSON lines
@@ -717,6 +736,11 @@ async function main() {
     uploadedImages = [],
     logoUrl = '',
     geminiApiKey = '',
+    // #1548 —— Lead 站传的三个字段（CreatePage.tsx §proceedToLeadBuild）。`keyword` = 站的主词（首页的目标词），
+    //    `additionalContext` = 老板在 Lead 表格里写的补充说明，进每一次 AI 调用；`siteType` 判「这是不是 Lead 站」。
+    keyword: leadKeyword = '',
+    siteType = '',
+    additionalContext = '',
   } = input;
 
   // Override AI model/tokens from Admin Settings (passed through by Manager)
@@ -1037,6 +1061,12 @@ async function main() {
       produce: async () => PLACEHOLDER_IMAGE_URL,
       log: (line) => debug(line),
     });
+    // #1548 —— 同一个纯函数（`lib/target-keywords.js`）。demo 只有 5 页、一个服务、没有关键词页 ⟹ 这里能挂上词的只有首页，
+    //    payload 的组全部对不上 demo-service（正常态，不失败）。
+    applyTargetKeywords(content, targetKw.assignTargetKeywords({
+      keywords, services, contentServices: content.services, pages: content.pages,
+      keywordPagesList: keywordPagesFrom(keywords).keywordPagesList, siteType, keyword: leadKeyword,
+    }));
     writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks);
     debug(`Demo site config written to site/`);
     // TICKET-122b: in skipAI mode, secondary locales get a verbatim copy of the
@@ -1044,14 +1074,16 @@ async function main() {
     // the BCP-47 marker reflects the secondary locale. Lets schema/build pipeline
     // round-trip multi-locale layouts without burning tokens.
     for (const secLocale of normalizedSecondaryLocales) {
+      // #1548 —— 第二语言不带关键词清单（清单是主语言挖的词）；页上的目标词标成翻译来的（这里是逐字拷贝，代替翻译）。
+      const { targetKeywords: _primaryOnly, ...secSeo } = content.seo;
       const secContent = {
         brand: { tagline: content.brand.tagline },
-        seo: { ...content.seo, locale: localeMapForBcp47(secLocale) },
+        seo: { ...secSeo, locale: localeMapForBcp47(secLocale) },
         services: content.services,
         navigation: content.navigation,
         forms: content.forms,
         formsBase: content.forms,
-        pages: content.pages,
+        pages: content.pages.map((pg) => (pg.seo && pg.seo.targetKeyword ? { ...pg, seo: { ...pg.seo, translated: true } } : pg)),
         tierDistribution: { 1: 0, 2: 0, 3: content.pages.length },
       };
       writeSecondaryLocaleConfig(siteDir, secContent, secLocale, content.brand);
@@ -1106,6 +1138,14 @@ async function main() {
   // of falling back to 'English'. Symmetric to defaultLocale derivation.
   const languageName = langMap[defaultLocale] || 'English';
 
+  // #1548 做什么 5 —— (a) 站的主词 (b) 每服务主词 (c) 关键词页清单，从 payload 算一次，Call 1 / Call 2 用同一段。
+  const kwGroups = targetKw.keywordGroups(keywords, services);
+  const keywordBrief = targetKw.keywordBrief({
+    sitePrimary: targetKw.sitePrimaryOf(kwGroups, { siteType, keyword: leadKeyword }),
+    groups: kwGroups,
+    keywordPagesList: keywordPagesFrom(keywords).keywordPagesList,
+  });
+
   // ── Call 1: Generate base site (brand + seo + services + regular pages) ──
   const content = await generateContent({
     companyName, industry, location, address, phone, email,
@@ -1128,6 +1168,8 @@ async function main() {
     // #1346: 后台关掉的块。提示词里那份菜单、两行写死的页面规则、以及 AI 吐回来之后那道校验，
     // 三处用的是同一份清单 —— 少一处就换一种坏法（票面做什么 #4）。
     disabledBlocks,
+    // #1548 —— 关键词那一段 + Lead 站的补充说明。
+    keywordBrief, additionalContext,
   });
 
   // TICKET-119: Layout hard-copy compliance check
@@ -1191,6 +1233,7 @@ async function main() {
       serviceDetailMap,
       // #1346 —— Call 2 有它自己那份写死的块清单，所以同一份禁用清单也要传到这儿。
       disabledBlocks,
+      keywordBrief, additionalContext,
     });
 
     // #1176 —— 面包屑里的 href 只许指向真的会被生成出来的页面。判据和整段理由（含「为什么提示词
@@ -1229,6 +1272,12 @@ async function main() {
       }
     }
   }
+
+  // #1548 —— 三类页挂上目标词、清单进 seo.json。放在 Call 2 之后：关键词页这时才在 content.pages 里。
+  applyTargetKeywords(content, targetKw.assignTargetKeywords({
+    keywords, services, contentServices: content.services, pages: content.pages,
+    keywordPagesList, siteType, keyword: leadKeyword,
+  }));
 
   progress('Writing configuration files...', 70);
 
@@ -1274,7 +1323,7 @@ async function main() {
           secondaryLocale: secLocale,
           secondaryLanguageName: secLanguageName,
           secondaryKeywordsByPage: secondaryLocaleKeywords[secLocale] || {},
-          industry, location, companyName,
+          industry, location, companyName, additionalContext,
         });
         writeSecondaryLocaleConfig(siteDir, secContent, secLocale, content.brand);
         debug(`Secondary locale "${secLocale}" generated (${secContent.pages.length} pages, tier dist: ${JSON.stringify(secContent.tierDistribution)})`);
@@ -1338,6 +1387,7 @@ async function generateSecondaryLocale({
   industry,
   location,
   companyName,
+  additionalContext = '',
 }) {
   const client = new Anthropic();
 
@@ -1353,7 +1403,7 @@ async function generateSecondaryLocale({
       () => translatePageWithClaude({
         client, page, tier, keywords: pageKeywords,
         primaryLanguageName, secondaryLanguageName, secondaryLocale,
-        industry, location, companyName,
+        industry, location, companyName, additionalContext,
       }),
       { retries: 3, backoff: [5000, 15000, 45000], label: `translate page ${page.slug} → ${secondaryLocale}` }
     );
@@ -1370,7 +1420,7 @@ async function generateSecondaryLocale({
       navigation: primaryContent.navigation,
       forms: primaryContent.forms,
       primaryLanguageName, secondaryLanguageName, secondaryLocale,
-      industry, location, companyName,
+      industry, location, companyName, additionalContext,
     }),
     { retries: 3, backoff: [5000, 15000, 45000], label: `translate supporting files → ${secondaryLocale}` }
   );
@@ -1393,6 +1443,7 @@ async function generateSecondaryLocale({
 // keywords + supplement with translation. Tier 3: pure translation, AI judgment.
 async function translatePageWithClaude({
   client, page, tier, keywords, primaryLanguageName, secondaryLanguageName, secondaryLocale, industry, location, companyName,
+  additionalContext = '',
 }) {
   const tierInstruction =
     tier === 1
@@ -1409,7 +1460,7 @@ async function translatePageWithClaude({
 
 INDUSTRY: ${industry}
 LOCATION: ${location}
-COMPANY: ${companyName}
+COMPANY: ${companyName}${additionalContext ? `\nADDITIONAL CONTEXT FROM THE OWNER: ${additionalContext}` : ''}
 
 PRIMARY LOCALE PAGE (reference for content/brand/structure):
 \`\`\`json
@@ -1426,7 +1477,8 @@ INSTRUCTIONS:
 - ${tierInstruction}
 - Translate ALL user-visible string fields to ${secondaryLanguageName}: title, description, navLabel, every section's headline/subheadline/title/text/items/labels/etc.
 - DO NOT translate: page.slug (kept ASCII), page.changeFrequency, page.priority, page.navOrder, section.type, section.data field names (keys), URLs/hrefs (kept as-is).
-- DO NOT add new sections or fields. Schema must round-trip identically.
+- DO NOT add new sections or fields. Schema must round-trip identically.${page.seo && page.seo.targetKeyword ? `
+- page.seo.targetKeyword is the search phrase this page targets: replace it with the phrase a ${secondaryLanguageName} speaker would actually search for (a translation, not a new topic).` : ''}
 - Output: a JSON object matching the input page schema exactly, with content translated.
 - Return ONLY the JSON object, no preamble, no \`\`\`json fence.`;
 
@@ -1447,6 +1499,11 @@ INSTRUCTIONS:
   translated.changeFrequency = page.changeFrequency;
   translated.priority = page.priority;
   translated.navOrder = page.navOrder;
+  // #1548 —— 第二语言页的目标词是翻译来的，不是挖的 ⟹ 标 translated: true（validateSite 第 ① 条跳过它）。译文丢了就留原词。
+  if (page.seo && typeof page.seo.targetKeyword === 'string') {
+    const got = translated.seo && typeof translated.seo.targetKeyword === 'string' && translated.seo.targetKeyword.trim();
+    translated.seo = { ...page.seo, targetKeyword: got || page.seo.targetKeyword, translated: true };
+  }
   if (Array.isArray(translated.sections) && Array.isArray(page.sections)) {
     for (let i = 0; i < translated.sections.length && i < page.sections.length; i++) {
       if (translated.sections[i] && page.sections[i]) {
@@ -1461,18 +1518,19 @@ INSTRUCTIONS:
 // These are smaller than pages and translation-only (no Tier reasoning needed).
 async function translateSupportingFilesWithClaude({
   client, brand, seo, services, navigation, forms = [], primaryLanguageName, secondaryLanguageName, secondaryLocale, industry, location, companyName,
+  additionalContext = '',
 }) {
   const prompt = `You are translating website supporting config from ${primaryLanguageName} to ${secondaryLanguageName}.${chineseVariantHint(secondaryLanguageName)} For SEO.
 
 INDUSTRY: ${industry}
 LOCATION: ${location}
-COMPANY: ${companyName}
+COMPANY: ${companyName}${additionalContext ? `\nADDITIONAL CONTEXT FROM THE OWNER: ${additionalContext}` : ''}
 
 PRIMARY LOCALE INPUTS:
 \`\`\`json
 ${JSON.stringify({
   brandTagline: brand.tagline,
-  seo: { siteTitle: seo.siteTitle, siteDescription: seo.siteDescription, keywords: seo.keywords, schema: { offerCatalogName: seo.schema?.offerCatalogName, priceRange: seo.schema?.priceRange } },
+  seo: { siteTitle: seo.siteTitle, siteDescription: seo.siteDescription, schema: { offerCatalogName: seo.schema?.offerCatalogName, priceRange: seo.schema?.priceRange } },
   services: services.map(s => ({ id: s.id, name: s.name, shortDescription: s.shortDescription, fullDescription: s.fullDescription, features: s.features, products: s.products })),
   forms: (forms || []).map(f => ({ id: f.id, name: f.name, buttonText: f.buttonText, successMessage: f.successMessage })),
   navigation: {
@@ -1498,12 +1556,11 @@ INSTRUCTIONS:
 - Translate ALL user-visible string fields to ${secondaryLanguageName}, preserving brand voice and SEO intent.
 - DO NOT translate: service.id (kept ASCII slug), navigation.header.cta.href (URL), navigation.footer.columns[*].links[*].href (URL).
 - TICKET-135: navigation.footer.columns[*].title and links[*].label MUST be translated too (e.g. "Quick Links" → native locale word, "Home" → "首页" etc).
-- For seo.keywords: produce a SEO-friendly comma-separated keyword string in ${secondaryLanguageName} (you may add 1-2 high-volume locale-native keywords if natural).
 - Output JSON shape:
 \`\`\`json
 {
   "brandTagline": "<translated>",
-  "seo": { "siteTitle": "...", "siteDescription": "...", "keywords": "...", "schema": { "offerCatalogName": "...", "priceRange": "..." } },
+  "seo": { "siteTitle": "...", "siteDescription": "...", "schema": { "offerCatalogName": "...", "priceRange": "..." } },
   "services": [ { "id": "<unchanged>", "name": "...", "shortDescription": "...", "fullDescription": "...", "features": [...], "products": [...] }, ... ],
   "forms": [ { "id": "<unchanged>", "name": "...", "buttonText": "...", "successMessage": "..." }, ... ],
   "navigation": {
@@ -1543,11 +1600,12 @@ INSTRUCTIONS:
       products: Array.isArray(aiSvc.products) ? aiSvc.products : origSvc.products,
     };
   });
+  // #1548 —— 关键词清单是主语言挖的词，不带进第二语言的 seo.json。
+  const { targetKeywords: _primaryOnly, ...seoBase } = seo;
   const outSeo = {
-    ...seo,
+    ...seoBase,
     siteTitle: parsed.seo?.siteTitle || seo.siteTitle,
     siteDescription: parsed.seo?.siteDescription || seo.siteDescription,
-    keywords: parsed.seo?.keywords || seo.keywords,
     schema: {
       ...seo.schema,
       offerCatalogName: parsed.seo?.schema?.offerCatalogName || seo.schema?.offerCatalogName,
@@ -1804,7 +1862,6 @@ function getDemoConfig(siteId) {
       locale: 'en_CA',
       siteTitle: 'Demo Company — Professional Services',
       siteDescription: 'Demo Company provides professional services in the Greater Toronto Area.',
-      keywords: 'demo, services, toronto',
       verification: {},
       schema: { areaServed: [{ type: 'City', name: 'Toronto, ON' }], addresses: [{ locality: 'Toronto', region: 'ON', country: 'CA' }], openingHours: { days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], opens: '09:00', closes: '17:00' }, priceRange: '$$', offerCatalogName: 'Demo Services' },
     },
@@ -1947,6 +2004,11 @@ function keywordPagesFrom(keywords) {
   return { servicesWithKeywords, keywordPagesList };
 }
 
+// #1548 做什么 6（Chris 2026-10-03）—— 事实只许来自建站表格。产出里有没有编造由 T5 #1549 查；这里只负责「告诉它」。
+// 🔴 跟它下面那行「For stats, use realistic numbers (e.g. "15+")」是打架的（「15+ 年」就是编的年份）—— 那一行本票不动、
+//    交给 T5 #1549；这一句写明它优先。
+const FACTS_ONLY_FROM_FORM_RULE = '- FACTS ONLY FROM THE FORM: years in business, licenses / insurance / certifications, prices, review counts and service areas may be stated ONLY when the business details above give them — if they are not given, do not write them. This rule wins over every other line here, including the stats example below.';
+
 async function generateContent(opts) {
   const {
     companyName, industry, location, address, phone, email,
@@ -1974,6 +2036,9 @@ async function generateContent(opts) {
     hasKeywordPages = true,
     // #1346 —— 后台关掉的块。缺省空数组 ⟹ 不传这个字段的调用方拿到的提示词跟改之前逐字节相同。
     disabledBlocks = [],
+    // #1548 —— 关键词那一段（`lib/target-keywords.js` §keywordBrief，没有词时是空串）与 Lead 站的补充说明。
+    keywordBrief = '',
+    additionalContext = '',
   } = opts;
 
   // #1346 —— 一个块被关掉之后，提示词里**三个地方**都不能再提它：菜单（下面那两处
@@ -2138,6 +2203,7 @@ ${servicesList.map((s, i) => `${i + 1}. ${s}`).join('\n')}`;
   if (brandDescription) businessContext += `\nBRAND DESCRIPTION: ${brandDescription}`;
   if (hours) businessContext += `\nHOURS OF OPERATION: ${hours}`;
   if (priceRange) businessContext += `\nPRICE RANGE: ${priceRange}`;
+  if (additionalContext) businessContext += `\nADDITIONAL CONTEXT FROM THE OWNER: ${additionalContext}`;
 
   // Build real reviews instruction (from online presence scraping)
   // Filter out negative reviews (below 4 stars) — only show positive ones on the website
@@ -2352,7 +2418,7 @@ BUSINESS DETAILS:
 - Industry: ${industry}
 ${location ? `- Primary Location: ${location}` : ''}
 ${languageInstruction}
-${servicesInstruction}
+${servicesInstruction}${keywordBrief ? `\n\n${keywordBrief}` : ''}
 ${contactInstruction}
 ${businessContext}
 ${reviewsInstruction}
@@ -2417,7 +2483,6 @@ Generate a JSON object with this EXACT structure:
     "domain": "https://<realistic domain>",
     "siteTitle": "<max 60 chars>",
     "siteDescription": "<max 155 chars, location + services + CTA>",
-    "keywords": "<12-15 comma-separated keywords>",
     "areaServed": [{"type":"City","name":"<city>"}],
     "addresses": [{"locality":"<city>","region":"<province code>","country":"<country code>"}],
     "openingHours": { "days": ["Monday","Tuesday","Wednesday","Thursday","Friday"], "opens": "09:00", "closes": "17:00" },
@@ -2495,6 +2560,7 @@ ${homeRecipe ? recipePromptLines(homeRecipe, disabledBlocks)
   : rareSectionExamplesRule}
 ${criticalBlockRules}
 ${contentAmountsRule}
+${FACTS_ONLY_FROM_FORM_RULE}
 - For stats, use realistic numbers (e.g., "500+", "15+", "98%", "24/7").
 ${galleryItemsRule ? `${galleryItemsRule}
 ` : ''}- All meta titles under 60 characters, all meta descriptions under 155 characters.
@@ -2834,7 +2900,6 @@ ${ctaHrefRule ? `${ctaHrefRule}
     locale,
     siteTitle: ai.seo.siteTitle,
     siteDescription: ai.seo.siteDescription,
-    keywords: ai.seo.keywords,
     verification: { google: "YOUR_GOOGLE_VERIFICATION_CODE" },
     schema: {
       areaServed: ai.seo.areaServed,
@@ -2854,6 +2919,8 @@ async function generateKeywordPages(opts) {
   const {
     keywordPages, brand, seo, companyName, industry, location, languageName,
     serviceDetailMap = {},
+    keywordBrief = '',
+    additionalContext = '',
     // #1346 —— 后台关掉的块。这一通（Call 2，关键词页）有它**自己**那份写死的块清单，跟 Call 1 的
     // 菜单是两处；只改 Call 1 的话，关掉的块照样会出现在关键词页上（实测过：`faq-accordion` 在这
     // 份清单里写着 REQUIRED）。缺省空数组 ⟹ 不传的调用方拿到的提示词逐字节不变。
@@ -2879,8 +2946,8 @@ BUSINESS CONTEXT:
 - Industry: ${industry}
 ${location ? `- Location: ${location}` : ''}
 - Brand tagline: ${brand.tagline}
-- Site description: ${seo.siteDescription}
-${languageInstruction}
+- Site description: ${seo.siteDescription}${additionalContext ? `\n- Additional context from the owner: ${additionalContext}` : ''}
+${languageInstruction}${keywordBrief ? `\n${keywordBrief}\n` : ''}
 
 CRITICAL BRAND NAME RULE (TICKET-137):
 The brand name "${companyName}" is canonical and MUST appear LITERALLY VERBATIM in all
