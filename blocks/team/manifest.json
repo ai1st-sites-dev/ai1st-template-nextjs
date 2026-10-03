@@ -248,5 +248,11 @@
       "photo only when the owner uploaded a photo of that person — otherwise leave photo out (never a stock or generated face); links[].icon is a Bootstrap Icons name (\"linkedin\", \"envelope\", \"telephone\") and href is that person's real link",
       "join {title, body, cta} only when the site says it is hiring; bg is the background colour, top-level in data (not inside options)"
     ]
-  }
+  },
+  "toolbarGroups": [
+    ["introPosition", "introAlign", "choice:introEyebrow.style", "part:join"],
+    ["membersColumns"],
+    ["memberPhoto", "photoShape", "memberStyle", "memberAlign"],
+    ["color:bg"]
+  ]
 }

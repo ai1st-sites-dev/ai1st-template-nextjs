@@ -25,3 +25,9 @@ export function presetPartsOf(manifest: ManifestLike): string[];
 export function presetPartDemosOf(manifest: ManifestLike): Record<string, unknown>;
 /** #1487 —— 点这个预设时、部件为空要填的内容（只含它写了的部件）。 */
 export function presetPartFills(manifest: ManifestLike, name: string): Record<string, unknown>;
+/** #1532 —— 工具条上全部控件的 token（e2e `barSequence()` 写法），按没有分组声明时的次序；预设不在内。 */
+export function toolbarControlsOf(manifest: ManifestLike): string[];
+/** #1532 —— manifest 顶层 `toolbarGroups`；没写 / 写坏 ⟹ []。 */
+export function toolbarGroupsOf(manifest: ManifestLike): string[][];
+/** #1532 —— 按声明分组：只留 `present` 里有的、空组去掉、没被声明的接在最后一组。 */
+export function arrangeToolbar(present: string[], groups: string[][]): string[][];

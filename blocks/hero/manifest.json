@@ -136,5 +136,11 @@
       "@data",
       "the form only shows when options.form is \"teaser\" (one field + button) or \"full\" (the whole form) — with a form the ctas are not shown; bg is the background colour, top-level in data (not inside options)"
     ]
-  }
+  },
+  "toolbarGroups": [
+    ["textAlign", "image", "form"],
+    ["color:bg"],
+    ["part:proof", "part:stats", "part:logos", "part:band"],
+    ["choice:eyebrow.style"]
+  ]
 }

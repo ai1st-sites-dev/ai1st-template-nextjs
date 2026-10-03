@@ -105,5 +105,10 @@
       "on the homepage put one Boxed after the features; on inner pages put one Inline at the end",
       "the form only shows when options.form is \"teaser\" (phone + button) or \"full\" — with a form the ctas are not shown; bg is the background colour, top-level in data (not inside options)"
     ]
-  }
+  },
+  "toolbarGroups": [
+    ["layout", "frame", "textAlign", "image", "form"],
+    ["choice:eyebrow.style", "count:ctas"],
+    ["color:bg"]
+  ]
 }

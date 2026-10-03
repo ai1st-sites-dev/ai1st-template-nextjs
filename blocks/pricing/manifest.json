@@ -327,5 +327,11 @@
       "highlights: 1–4 items {icon, title, text} under the block head; icon is a Bootstrap Icons name (\"shield-check\", \"clock\", \"award\")",
       "bg is the section background, featuredColor the colour of the highlighted plan; both are top-level in data (not inside options)"
     ]
-  }
+  },
+  "toolbarGroups": [
+    ["introPosition", "introAlign", "choice:introEyebrow.style", "part:highlights", "part:proof", "part:logos", "part:billing"],
+    ["plansColumns", "planFeatures"],
+    ["planStyle", "planAlign", "planCta", "featured", "color:featuredColor"],
+    ["color:bg"]
+  ]
 }

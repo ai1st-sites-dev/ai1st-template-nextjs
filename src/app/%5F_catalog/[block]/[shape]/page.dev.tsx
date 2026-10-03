@@ -38,7 +38,7 @@ import { couplingOf, knobsOf, normalizeKnobs, presetBooleans, presetForShape, pr
 import { iconTableFor, iconTablesFor } from '../../../../../scripts/lib/icons.js';
 // knobsOf / presetsOf 两份（header-knobs.js #1462 · block-knobs.js #1463）读的是同一份 manifest 声明、
 // 对合法声明给出同一结果；这一页用 header-knobs 那份，并掉哪一份归 T3。
-import { booleanOptionsOf, colorSlotsOf, effectiveKnobs, presetColors, presetNameFor } from '../../../../../scripts/lib/block-knobs.js';
+import { booleanOptionsOf, colorSlotsOf, effectiveKnobs, presetColors, presetNameFor, toolbarGroupsOf } from '../../../../../scripts/lib/block-knobs.js';
 import { bgFromParam, normalizeBg } from '../../../../../scripts/lib/contrast.js';
 import {
   CATALOG_LOCALE,
@@ -102,6 +102,8 @@ function optionMetaOf(m: { slots?: Record<string, { shape?: unknown; knobs?: unk
     knobs: knobsOf(m) as Array<{ name: string; values: string[] }>,
     presets: presetsOf(m) as Preset[],
     coupling: couplingOf(m) as [string, string] | null,
+    // #1532 —— 工具条分组（manifest 顶层 `toolbarGroups`）。
+    groups: toolbarGroupsOf(m) as string[][],
   };
 }
 
@@ -182,6 +184,9 @@ function knobOverrides(m: ManifestForKnobs, shape: string, data: Record<string, 
     colors: colorSlots.map((c) => ({ slot: c, swatches: slots[c].swatches || [] })),
     parts,
     choices,
+    // #1532 —— 工具条分组（manifest 顶层 `toolbarGroups`）。这条工具条不画数量控件（#1479 四审 1），`count:*` 由
+    //    §arrangeToolbar 按「这条工具条上没有」跳过；组被跳空就整组去掉（page-header 的单格页因此比 admin 少一条分界）。
+    groups: toolbarGroupsOf(m) as string[][],
     current: {
       knobs: eff,
       // #1487 —— 部件的内容也并进去：写了 `parts` 的预设（Hiring）要那个部件还在才亮。
@@ -349,6 +354,7 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
             knobs={meta.knobs}
             presets={meta.presets}
             coupling={meta.coupling}
+            groups={meta.groups}
             iconTable={iconTableFor(block, shownData) as IconTable}
             initial={initial}
             showBar={!embed}

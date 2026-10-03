@@ -214,5 +214,11 @@
       "introCta is an optional text link under the head (e.g. \"See the brands we install\")",
       "bg is the background colour, top-level in data (not inside options)"
     ]
-  }
+  },
+  "toolbarGroups": [
+    ["introPosition", "introAlign", "choice:introEyebrow.style", "introSize"],
+    ["itemsLayout", "itemsColumns"],
+    ["itemStyle", "logoColor"],
+    ["color:bg"]
+  ]
 }

@@ -21,7 +21,7 @@
 //   #1477 起色板本身是共用的 `src/components/BgPicker.tsx`（四处同一份）。值写进 `data[<颜色槽>]`；
 //   地址栏 `?bg=`（渐变写成 JSON，§bgFromParam 读回）。
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import FooterNewSection, { type FooterNewData } from '@blocks/footer/Section';
 import HeaderNewSection, { type HeaderNewData } from '@blocks/header/Section';
 import type { IconTable } from '@/components/InlineIcon';
@@ -29,6 +29,7 @@ import type { BlockConfig } from '@/lib/types/config';
 import { normalizeKnobs, presetBooleans, presetBooleansOf, presetOf } from '../../../../../scripts/lib/header-knobs.js';
 import type { BgValue } from '../../../../../scripts/lib/contrast.js';
 import BgPicker from '@/components/BgPicker';
+import { arrangeToolbar } from '../../../../../scripts/lib/block-knobs.js';
 
 export interface CellOptionsInitial {
   knobs: Record<string, string>;
@@ -58,6 +59,8 @@ interface Props {
   knobs: Knob[];
   presets: Preset[];
   coupling: [string, string] | null;
+  /** #1532 —— manifest 顶层 `toolbarGroups`（block-knobs.js §toolbarGroupsOf）。[] ⟹ 不分组。 */
+  groups: string[][];
   iconTable: IconTable;
   initial: CellOptionsInitial;
   /** #1460 —— false = 被 admin 嵌着，开关条由外面那条块级工具栏代劳，这里不画（数据照旧按 initial 渲染）。 */
@@ -81,7 +84,7 @@ const presetStyle = (on: boolean, custom = false) => ({
 });
 
 export default function CellOptions({
-  block, shape, data, has, optionKeys, widgets: widgetDefs, colors: colorDefs, knobs: knobDefs, presets, coupling, iconTable, initial, showBar = true,
+  block, shape, data, has, optionKeys, widgets: widgetDefs, colors: colorDefs, knobs: knobDefs, presets, coupling, groups, iconTable, initial, showBar = true,
 }: Props) {
   const [knobs, setKnobs] = useState<Record<string, string>>(initial.knobs);
   const [opts, setOpts] = useState<Record<string, boolean>>(initial.opts);
@@ -138,6 +141,16 @@ export default function CellOptions({
     ...colorDefs.map((c) => c.slot).filter((c) => out[c] && !has.includes(c))];
   const cfg: BlockConfig = { type: block, shape, data: out, has: hasNow } as BlockConfig;
 
+  // #1532 —— 一个控件 = 它的 token + 它画什么；分组后组间插一条竖线（`data-catalog-sep` = 组序号）。
+  const tok = (token: string, node: ReactNode) => ({ token, node });
+  const grouped = (controls: { token: string; node: ReactNode }[]) => {
+    const byToken = new Map(controls.map((c) => [c.token, c.node]));
+    return (arrangeToolbar(controls.map((c) => c.token), groups) as string[][]).flatMap((g, i) => [
+      ...(i > 0 ? [<span key={`sep-${i}`} style={sepStyle} data-catalog-sep={i} aria-hidden="true" />] : []),
+      ...g.map((t) => byToken.get(t)),
+    ]);
+  };
+
   return (
     <>
       {showBar && (
@@ -156,7 +169,10 @@ export default function CellOptions({
             </button>
           </div>
         )}
-        {knobDefs.map((k) => (
+        {/* #1532 —— 控件按 manifest 的 `toolbarGroups` 分组（block-knobs.js §arrangeToolbar），组间一条标了 `data-catalog-sep` 的
+            竖线；原来那三条「按控件种类」的竖线由它取代。预设那一排照旧自成一行。 */}
+        {grouped([
+        ...knobDefs.map((k) => tok(k.name, (
           <span key={k.name} style={groupStyle} data-catalog-knob={k.name}>
             <b>{k.name}</b>
             {k.values.map((v) => (
@@ -167,24 +183,21 @@ export default function CellOptions({
               </label>
             ))}
           </span>
-        ))}
-        {knobDefs.length > 0 && optionKeys.length > 0 && <span style={sepStyle} />}
-        {optionKeys.map((k) => (
+        ))),
+        ...optionKeys.map((k) => tok(`bool:${k}`, (
           <label key={k} style={labelStyle}>
             <input type="checkbox" data-catalog-option={k} disabled={!ready} checked={!!opts[k]}
               onChange={(e) => setOpts({ ...opts, [k]: e.target.checked })} />
             <span>{k}</span>
           </label>
-        ))}
-        {colorDefs.length > 0 && (knobDefs.length > 0 || optionKeys.length > 0) && <span style={sepStyle} />}
-        {colorDefs.map((c) => (
+        ))),
+        ...colorDefs.map((c) => tok(`color:${c.slot}`, (
           <span key={c.slot} style={colorGroupStyle} data-catalog-color={c.slot}>
             <b>{c.slot}</b>
             <BgPicker value={colors[c.slot] ?? null} swatches={c.swatches} onChange={(v) => setColors((x) => ({ ...x, [c.slot]: v }))} disabled={!ready} />
           </span>
-        ))}
-        {widgetDefs.length > 0 && (knobDefs.length > 0 || optionKeys.length > 0 || colorDefs.length > 0) && <span style={sepStyle} />}
-        {widgetDefs.map((w) => (
+        ))),
+        ...widgetDefs.map((w) => tok(`widget:${w.slot}`, (
           <span key={w.slot} style={groupStyle} data-catalog-widget={w.slot}>
             <b>{w.slot}</b>
             {['none', ...w.styles].map((v) => (
@@ -195,7 +208,8 @@ export default function CellOptions({
               </label>
             ))}
           </span>
-        ))}
+        ))),
+        ])}
       </div>
       )}
       {block === 'header' ? <HeaderNewSection shape={shape} data={out as unknown as HeaderNewData} block={cfg} iconTable={iconTable} /> : null}

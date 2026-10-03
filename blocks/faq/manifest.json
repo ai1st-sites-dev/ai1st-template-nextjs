@@ -211,5 +211,11 @@
       "help is the \"still have a question?\" card next to the block head: point its cta at the phone number (tel:) or the contact page",
       "bg is the background colour, top-level in data (not inside options)"
     ]
-  }
+  },
+  "toolbarGroups": [
+    ["introPosition", "introAlign", "choice:introEyebrow.style", "part:help"],
+    ["itemsMode", "itemsColumns"],
+    ["itemStyle", "itemToggle"],
+    ["color:bg"]
+  ]
 }

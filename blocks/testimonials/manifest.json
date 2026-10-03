@@ -274,5 +274,12 @@
       "photo only when the owner uploaded one ({imageUrl, alt}); without it the block shows the person's initials",
       "summary is a list of rating platforms (at most 4), each {source, rating, count, href?, logoUrl?}: source is the platform name (\"Google\", \"Yelp\", \"HomeStars\"), rating its overall score 0–5 with at most one decimal, count how many reviews it has; write href only when you have the link to the business's own page on that platform; write logoUrl only when the owner gave you that platform's logo image — without one leave it out (Google / Yelp / Facebook get a built-in icon automatically, any other platform shows its name); copy the numbers only from what you were given or what the site states (a \"Platform ratings\" line, the brand description, the owner's message) — if none is stated, leave summary out entirely, never make one up; with only one platform write only one; bg is the background colour, top-level in data (not inside options)"
     ]
-  }
+  },
+  "toolbarGroups": [
+    ["introPosition", "introAlign", "choice:introEyebrow.style"],
+    ["part:summary", "summaryStyle"],
+    ["itemsLayout", "itemsColumns"],
+    ["itemStyle", "quoteSize", "itemAlign"],
+    ["color:bg"]
+  ]
 }

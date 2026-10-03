@@ -193,5 +193,10 @@
       "only real numbers the owner gave or the site states — if you cannot find them, leave this block out; never write the overall score, the block works it out from the platforms",
       "review quotes go in testimonials (its summary can show a platform rating too) — put platform ratings in only one place on a page; bg is the background colour, top-level in data (not inside options)"
     ]
-  }
+  },
+  "toolbarGroups": [
+    ["introPosition", "introAlign", "total", "choice:introEyebrow.style"],
+    ["itemsLayout", "itemStyle", "itemAlign"],
+    ["color:bg"]
+  ]
 }

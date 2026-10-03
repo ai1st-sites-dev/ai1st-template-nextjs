@@ -8,9 +8,10 @@
 //    按构造是同一个东西 —— 没有第二份「开关在客户端怎么拼数据」的实现（CellOptions.tsx 那一套是外壳区块的）。
 // 🔴 被 admin 嵌着（`embed=1`）时不画 —— admin 那条块级工具条认枚举旋钮是 #1462 的活（PM #1463 r3 b）。
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import type { BgValue } from '../../../../../scripts/lib/contrast.js';
 import BgPicker from '@/components/BgPicker';
+import { arrangeToolbar } from '../../../../../scripts/lib/block-knobs.js';
 
 export interface KnobBarProps {
   knobs: { name: string; values: string[] }[];
@@ -22,6 +23,8 @@ export interface KnobBarProps {
   colors: { slot: string; swatches: string[] }[];
   parts: string[];
   choices: { key: string; values: string[] }[];
+  /** #1532 —— manifest 顶层 `toolbarGroups`（block-knobs.js §toolbarGroupsOf）。[] ⟹ 不分组。 */
+  groups: string[][];
   current: {
     knobs: Record<string, string>;
     preset: string;
@@ -39,7 +42,7 @@ const bar = {
 const sep = { width: 1, alignSelf: 'stretch', background: '#d4d4d8' };
 const lab = { display: 'inline-flex', gap: 4, alignItems: 'center' };
 
-export default function KnobBar({ knobs, presets, booleans, colors, parts, choices, current }: KnobBarProps) {
+export default function KnobBar({ knobs, presets, booleans, colors, parts, choices, groups, current }: KnobBarProps) {
   const [ready, setReady] = useState(false);
   useEffect(() => { setReady(true); }, []);
 
@@ -75,6 +78,16 @@ export default function KnobBar({ knobs, presets, booleans, colors, parts, choic
     q.set('parts', Array.from(s).join(',') || '-');
   });
 
+  // #1532 —— 一个控件 = 它的 token + 它画什么；分组后组间插一条竖线（`data-catalog-sep` = 组序号，序列按 Set 读也不会把分界合并掉）。
+  const tok = (token: string, node: ReactNode) => ({ token, node });
+  const grouped = (controls: { token: string; node: ReactNode }[]) => {
+    const byToken = new Map(controls.map((c) => [c.token, c.node]));
+    return (arrangeToolbar(controls.map((c) => c.token), groups) as string[][]).flatMap((g, i) => [
+      ...(i > 0 ? [<span key={`sep-${i}`} style={sep} data-catalog-sep={i} aria-hidden="true" />] : []),
+      ...g.map((t) => byToken.get(t)),
+    ]);
+  };
+
   return (
     <div style={bar} data-catalog-knobs="">
       <span>preset:</span>
@@ -87,7 +100,11 @@ export default function KnobBar({ knobs, presets, booleans, colors, parts, choic
       ))}
       <span data-catalog-custom={current.preset === 'custom' ? 'true' : 'false'} style={{ fontWeight: current.preset === 'custom' ? 700 : 400 }}>custom</span>
       <span style={sep} />
-      {knobs.map((k) => (
+      {/* #1532 —— 控件按 manifest 的 `toolbarGroups` 分组（block-knobs.js §arrangeToolbar），组间一条标了 `data-catalog-sep`
+          的竖线。每个控件配它的 token（e2e `barSequence()` 那一套），按原次序收齐再按声明重排。原来那几条「按控件种类」的
+          竖线由组间分界取代；预设后面那条照旧（预设恒自成一组）。 */}
+      {grouped([
+      ...knobs.map((k) => tok(k.name, (
         <span key={k.name} style={lab}>
           <b>{k.name}</b>
           {k.values.map((v) => (
@@ -98,16 +115,15 @@ export default function KnobBar({ knobs, presets, booleans, colors, parts, choic
             </label>
           ))}
         </span>
-      ))}
-      <span style={sep} />
-      {booleans.map((b) => (
+      ))),
+      ...booleans.map((b) => tok(`bool:${b}`, (
         <label key={b} style={lab}>
           <input type="checkbox" data-catalog-option={b} disabled={!ready} checked={!!current.booleans[b]}
             onChange={(e) => toggleBool(b, e.target.checked)} />
           <span>{b}</span>
         </label>
-      ))}
-      {colors.map((c) => (
+      ))),
+      ...colors.map((c) => tok(`color:${c.slot}`, (
         <span key={c.slot} style={{ ...lab, flexWrap: 'wrap' }} data-catalog-color={c.slot}>
           <b>{c.slot}</b>
           {/* #1477 —— 色板是共用的 `src/components/BgPicker.tsx`（外壳块 / 编辑器 / admin 同一份）。渐变写成 JSON 进地址栏。
@@ -115,17 +131,15 @@ export default function KnobBar({ knobs, presets, booleans, colors, parts, choic
           <BgPicker value={current.colors[c.slot] ?? null} swatches={c.swatches} disabled={!ready}
             onChange={(v) => go((q) => { if (v === null) q.delete(c.slot); else q.set(c.slot, colorParam(v)); })} />
         </span>
-      ))}
-      {parts.length ? <span style={sep} /> : null}
-      {parts.map((p) => (
+      ))),
+      ...parts.map((p) => tok(`part:${p}`, (
         <label key={p} style={lab}>
           <input type="checkbox" data-catalog-part={p} disabled={!ready} checked={current.parts.includes(p)}
             onChange={(e) => togglePart(p, e.target.checked)} />
           <span>{p}</span>
         </label>
-      ))}
-      {choices.length ? <span style={sep} /> : null}
-      {choices.map((c) => (
+      ))),
+      ...choices.map((c) => tok(`choice:${c.key}`, (
         <span key={c.key} style={lab}>
           <b>{c.key.split('.')[0]}</b>
           {c.values.map((v) => (
@@ -136,7 +150,8 @@ export default function KnobBar({ knobs, presets, booleans, colors, parts, choic
             </label>
           ))}
         </span>
-      ))}
+      ))),
+      ])}
     </div>
   );
 }

@@ -184,5 +184,12 @@
       "use textStyle article for the text of a service page or the About page; use statement for a one- or two-sentence promise, and then the body is only those one or two sentences",
       "numbers and statistics go in a milestones block, not here; image only shows when options.image is not \"none\"; bg is the background colour, top-level in data (not inside options)"
     ]
-  }
+  },
+  "toolbarGroups": [
+    ["headlinePosition", "textAlign", "choice:introEyebrow.style"],
+    ["textStyle", "count:ctas"],
+    ["image"],
+    ["frame"],
+    ["color:bg"]
+  ]
 }

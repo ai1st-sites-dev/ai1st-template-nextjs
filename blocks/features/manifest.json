@@ -349,5 +349,11 @@
       "for step-by-step content (how it works, our process) give every item a number (\"01\", \"02\" …) and set options.itemConnector to \"line\"",
       "images only show when the matching option is on: introImage needs options.introImage, itemsImage needs options.itemsImage, items[].image needs options.itemImage; bg is the background colour, top-level in data (not inside options)"
     ]
-  }
+  },
+  "toolbarGroups": [
+    ["introPosition", "introAlign", "choice:introEyebrow.style", "count:introCtas", "introImage"],
+    ["itemsLayout", "itemsColumns", "itemsImage"],
+    ["itemStyle", "itemAlign", "itemIcon", "itemImage", "itemConnector"],
+    ["color:bg"]
+  ]
 }

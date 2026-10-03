@@ -212,5 +212,11 @@
       "only use this block when the site already has blog articles (blog/*.json) — with none it shows nothing; the block holds only the block head and postCount, the articles come from the blog itself (never write posts into the block)",
       "introCta links to /blog; bg is the background colour, top-level in data (not inside options)"
     ]
-  }
+  },
+  "toolbarGroups": [
+    ["introPosition", "introAlign", "choice:introEyebrow.style"],
+    ["itemsLayout", "itemsColumns"],
+    ["itemStyle", "itemImage"],
+    ["color:bg"]
+  ]
 }

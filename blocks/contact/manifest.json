@@ -278,5 +278,12 @@
       "form picks the site's lead form (leave id empty for the default form); how much of it shows is the form knob",
       "bg is the background colour, top-level in data (not inside options)"
     ]
-  }
+  },
+  "toolbarGroups": [
+    ["introPosition", "introAlign", "choice:introEyebrow.style"],
+    ["sidePosition", "form", "formStyle"],
+    ["itemsLayout", "itemStyle", "itemAlign", "itemIcon"],
+    ["map"],
+    ["color:bg"]
+  ]
 }

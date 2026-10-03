@@ -312,6 +312,80 @@ function knobDeclarationProblems(manifest) {
     if (combos.has(combo)) out.push(`预设 "${p.name}" 跟 "${combos.get(combo)}" 的组合（旋钮${bools.length ? ' + ' + bools.join(' / ') : ''}${Object.keys(pColors).length ? ' + 颜色' : ''}${pParts.length ? ' + 部件' : ''}）一模一样`);
     else combos.set(combo, p.name);
   }
+  // #1532 —— 工具条分组声明：每个 token 必须是这个块真有的控件，同一个控件不许出现两次。
+  const tg = manifest && manifest.toolbarGroups;
+  if (tg !== undefined) {
+    if (!Array.isArray(tg) || !tg.every((x) => Array.isArray(x) && x.every((t) => typeof t === 'string'))) out.push('toolbarGroups 不是「字符串数组的数组」');
+    else {
+      const all = new Set(toolbarControlsOf(manifest));
+      const seen = new Set();
+      for (const [i, g] of tg.entries()) {
+        if (!g.length) out.push(`toolbarGroups[${i}] 是空组`);
+        for (const t of g) {
+          if (!all.has(t)) out.push(`toolbarGroups[${i}] 写了 "${t}" —— 这个块的工具条上没有这个控件（有的是：${[...all].join(' ')}）`);
+          if (seen.has(t)) out.push(`toolbarGroups 里 "${t}" 出现了两次`);
+          seen.add(t);
+        }
+      }
+    }
+  }
+  return out;
+}
+
+// ── 工具条分组（#1532）───────────────────────────────────────────────────────────────────────────────
+// 工具条上的控件按语义分组、组间有分界。分组写在 manifest 顶层 `toolbarGroups`：组的数组，每组按顺序列控件。
+// 控件的写法 = e2e `barSequence()` 那一套 token —— 旋钮写名字，其余带前缀：`bool:<开关>` `widget:<槽>` `part:<部件>`
+// `choice:<槽>.<子字段>` `count:<槽>` `color:<槽>`。预设恒为第一组、不写进声明。
+// 🔴 按【控件】声明，不按来源：header 的两个勾选框要分进两组、pricing 的两个颜色槽要分进两组，按来源整块挂做不到。
+// 🔴 不按名字前缀猜：header 的 logo / menu 没有共同前缀。
+// 没被任何一组列到的控件落进最后一组（今天的次序）⟹ 不写声明 = 退回单排，不报错。
+// 三个前端各按这里排：单格页两条（KnobBar / CellOptions，直接 require 这一份）；admin 那条是另一个构建、读不到模板文件，
+// `dashboard/src/pages/admin/catalogKnobs.ts` §arrangeToolbar 是它的一份拷贝 —— 改算法两处一起改。
+
+/** 这个块工具条上全部控件的 token，按没有分组声明时的次序（旋钮 → 勾选框 → 部件样式 → 部件 → 词表 → 数量 → 颜色）。
+ *  判据跟 manager `template_blocks.go` 那五个来源同一条（manifestKnobs / manifestOptionMeta / manifestPartsChoices /
+ *  manifestCounts / manifestColorSlots）。 */
+function toolbarControlsOf(manifest) {
+  const slots = (manifest && manifest.slots) || {};
+  const out = knobsOf(manifest).map((k) => k.name);
+  for (const b of booleanOptionsOf(manifest)) out.push(`bool:${b}`);
+  for (const slot of Object.keys(slots).filter((k) => k !== 'options').sort()) {
+    const shape = slots[slot] && typeof slots[slot].shape === 'string' ? slots[slot].shape : '';
+    if (/^\{\s*(style|mode):\s*"/.test(shape)) out.push(`widget:${slot}`);
+  }
+  for (const p of Array.isArray(manifest && manifest.parts) ? manifest.parts : []) out.push(`part:${p}`);
+  for (const [slot, spec] of Object.entries(slots)) {
+    for (const sub of Object.keys((spec && spec.choices) || {})) {
+      if (new RegExp(`${sub}\\s*:\\s*\\[`).test((spec && spec.shape) || '')) continue;   // 数组取值的子字段不做成单选
+      out.push(`choice:${slot}.${sub}`);
+    }
+  }
+  for (const [slot, spec] of Object.entries(slots)) {
+    if (spec && spec.kind === 'list' && Number.isInteger(spec.max) && spec.max > 0) out.push(`count:${slot}`);
+  }
+  for (const c of colorSlotsOf(manifest)) out.push(`color:${c}`);
+  return out;
+}
+
+/** manifest 顶层 `toolbarGroups`：不是「字符串数组的数组」就当没写（[]）—— 写坏了由 §knobDeclarationProblems 报。 */
+function toolbarGroupsOf(manifest) {
+  const g = manifest && manifest.toolbarGroups;
+  return Array.isArray(g) && g.every((x) => Array.isArray(x) && x.every((t) => typeof t === 'string')) ? g : [];
+}
+
+/** 按声明把这条工具条上的控件分组：只留 `present` 里有的（某条工具条不画的控件，比如单格页没有数量），空组去掉，
+ *  没被声明的接在最后一组。回 `string[][]`；没有声明 ⟹ 一组，就是 `present` 原序。 */
+function arrangeToolbar(present, groups) {
+  const have = new Set(present);
+  const used = new Set();
+  const out = [];
+  for (const g of groups || []) {
+    const row = [];
+    for (const t of g) if (have.has(t) && !used.has(t)) { used.add(t); row.push(t); }
+    if (row.length) out.push(row);
+  }
+  const rest = present.filter((t) => !used.has(t));
+  if (rest.length) out.push(rest);
   return out;
 }
 
@@ -319,4 +393,5 @@ module.exports = {
   knobsOf, presetsOf, booleanOptionsOf, presetBooleansOf, effectiveKnobs, effectivePresetBooleans, presetFor, presetNameFor,
   knobDeclarationProblems, colorSlotsOf, presetColorSlotsOf, presetColors, presetClickProps,
   partFilled, presetPartsOf, presetPartDemosOf, presetPartFills,
+  toolbarControlsOf, toolbarGroupsOf, arrangeToolbar,
 };

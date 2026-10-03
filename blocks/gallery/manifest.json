@@ -203,5 +203,11 @@
       "items: 2–24 photos, each {image: {imageUrl, alt}, title?, caption?}; only photos the owner uploaded (their work, the job site, the shop) — if there are none, leave this block out rather than using stock pictures",
       "title says which job it was (\"Kitchen repipe\"), caption is the place or one short line (\"Burnaby · 2 days\"); bg is the background colour, top-level in data (not inside options)"
     ]
-  }
+  },
+  "toolbarGroups": [
+    ["introPosition", "introAlign", "choice:introEyebrow.style"],
+    ["itemsLayout", "itemsColumns"],
+    ["itemShape", "itemCaption"],
+    ["color:bg"]
+  ]
 }

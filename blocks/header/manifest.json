@@ -79,5 +79,10 @@
     "required": [],
     "recommended": [],
     "discouraged": []
-  }
+  },
+  "toolbarGroups": [
+    ["logo", "menu", "bool:topbar"],
+    ["color:bg"],
+    ["bool:icons"]
+  ]
 }
