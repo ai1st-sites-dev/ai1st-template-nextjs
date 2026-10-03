@@ -183,36 +183,16 @@
   }
 }
 
-/* grid：手机 1 列、iPad 2 列、≥992 按 itemsColumns。--fx-cols 给连线算长度用（见下）。 */
+/* grid：列数与断点（手机 1 列、iPad 2 列、≥992 按 itemsColumns）归 manifest 的 itemsGrid，由 scripts/block-build/items-grid.js
+   生成（#1537；画法照旧：.fx-grid 是 Bootstrap 的 `.row g-6`，条目按百分比宽，列距由 row 自己的内边距给）。
+   列数在 --items-cols 里，连线按它算长度（见下）。 */
 [data-block="features"] .fx-grid {
-  --fx-cols: 1;
   container-type: inline-size;
-}
-[data-block="features"] .fx-item {
-  flex: 0 0 auto;
-  width: 100%;
-}
-@media (min-width: 768px) {
-  [data-block="features"] .fx-grid {
-    --fx-cols: 2;
-  }
-  [data-block="features"] .fx-item {
-    width: 50%;
-  }
-}
-@media (min-width: 992px) {
-  [data-block="features"][data-items-columns="2"] .fx-grid { --fx-cols: 2; }
-  [data-block="features"][data-items-columns="3"] .fx-grid { --fx-cols: 3; }
-  [data-block="features"][data-items-columns="4"] .fx-grid { --fx-cols: 4; }
-  [data-block="features"][data-items-columns="2"] .fx-item { width: 50%; }
-  [data-block="features"][data-items-columns="3"] .fx-item { width: 33.3333%; }
-  [data-block="features"][data-items-columns="4"] .fx-item { width: 25%; }
 }
 
 /* list：一项一行整宽（itemsColumns 不管它）；项目没有图时限 52rem、有图时占全宽；
    位置只听 itemAlign（跟 introAlign 无关）。 */
 [data-block="features"][data-items-layout="list"] .fx-grid {
-  --fx-cols: 1 !important;
   --x-gutter-y: 2.5rem;
 }
 [data-block="features"][data-items-layout="list"] .fx-grid > .fx-item {
@@ -463,7 +443,7 @@
   top: calc(50% - 1px);
   height: 2px;
   inset-inline-start: calc(100% + 0.75rem);
-  width: calc(100cqw / var(--fx-cols) - var(--fx-mark-w) - 1.5rem);
+  width: calc(100cqw / var(--items-cols) - var(--fx-mark-w) - 1.5rem);
 }
 [data-block="features"][data-items-layout="grid"] .fx-connector {
   display: none;

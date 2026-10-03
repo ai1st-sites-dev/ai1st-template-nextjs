@@ -255,5 +255,13 @@
     ["membersColumns"],
     ["memberPhoto", "photoShape", "memberStyle", "memberAlign"],
     ["color:bg"]
-  ]
+  ],
+  "itemsGrid": {
+    "knob": "membersColumns",
+    "phone": 1,
+    "tablet": 2,
+    "grids": [
+      {"container": ".tm-grid", "render": "flex", "item": ".tm-member", "gapVar": "--tm-gap"}
+    ]
+  }
 }

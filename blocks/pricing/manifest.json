@@ -333,5 +333,16 @@
     ["plansColumns", "planFeatures"],
     ["planStyle", "planAlign", "planCta", "featured", "color:featuredColor"],
     ["color:bg"]
-  ]
+  ],
+  "itemsGrid": {
+    "knob": "plansColumns",
+    "phone": 1,
+    "tablet": 2,
+    "grids": [
+      {"container": ".pr-grid", "render": "flex", "item": ".pr-plan", "gapVar": "--pr-gap"}
+    ],
+    "capWhen": [
+      {"when": "[data-plan-style=\"divided\"]", "below": 992, "cols": 1}
+    ]
+  }
 }

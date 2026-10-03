@@ -262,5 +262,13 @@
     ["statsColumns", "statSize"],
     ["statStyle", "statAlign", "bool:statIcon"],
     ["color:bg"]
-  ]
+  ],
+  "itemsGrid": {
+    "knob": "statsColumns",
+    "phone": 2,
+    "tablet": 2,
+    "grids": [
+      {"container": ".mi-grid", "render": "flex", "item": ".mi-stat", "gapVar": "--mi-gap"}
+    ]
+  }
 }

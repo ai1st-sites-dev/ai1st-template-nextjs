@@ -219,5 +219,13 @@
     ["itemsLayout", "itemsColumns"],
     ["itemStyle", "itemImage"],
     ["color:bg"]
-  ]
+  ],
+  "itemsGrid": {
+    "knob": "itemsColumns",
+    "phone": 1,
+    "tablet": 2,
+    "grids": [
+      {"container": ".bl-grid", "item": ".bl-post", "when": "[data-items-layout=\"grid\"]"}
+    ]
+  }
 }

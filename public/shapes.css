@@ -84,6 +84,26 @@
    ══════════════════════════════════════════════════════════════════════════════════════════════════ */
 
 /* ══ blog ══════════════════════════════════════════════════════════════════════ */
+/* 条目网格（itemsColumns：手机 ≤1 · iPad ≤2 · ≥992 按旋钮）—— 由 scripts/block-build/items-grid.js 生成，别在 block.css 里写 */
+[data-block="blog"][data-items-layout="grid"] .bl-grid {
+  --items-cols: 1;
+  display: grid;
+  grid-template-columns: repeat(var(--items-cols), minmax(0, 1fr));
+}
+@media (min-width: 768px) {
+  [data-block="blog"][data-items-layout="grid"][data-items-columns="2"] .bl-grid {
+    --items-cols: 2;
+  }
+  [data-block="blog"][data-items-layout="grid"][data-items-columns="3"] .bl-grid {
+    --items-cols: 2;
+  }
+}
+@media (min-width: 992px) {
+  [data-block="blog"][data-items-layout="grid"][data-items-columns="3"] .bl-grid {
+    --items-cols: 3;
+  }
+}
+
 /* ── blog · 跨形态的规则（#1497）──────────────────────────────────────────────────────────────
    blog 的排版由**实际生效的旋钮**决定，写在根元素上：
      intro  data-intro-position（left / right / top / bottom）· data-intro-align（left / center / right）
@@ -303,21 +323,10 @@
 
 /* ═══ 排法（itemsLayout）══════════════════════════════════════════════════════════════════════════ */
 
-/* grid：手机 1 列、iPad 2 列、≥992 按列数。行距 2rem、列距 1.5rem。 */
+/* grid：列数与断点（手机 1 列、iPad 2 列、≥992 按列数）归 manifest 的 itemsGrid，由 scripts/block-build/items-grid.js 生成（#1537）。
+   这里只管行距 2rem、列距 1.5rem。 */
 [data-block="blog"][data-items-layout="grid"] .bl-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
   gap: 2rem 1.5rem;
-}
-@media (min-width: 768px) {
-  [data-block="blog"][data-items-layout="grid"] .bl-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-@media (min-width: 992px) {
-  [data-block="blog"][data-items-layout="grid"][data-items-columns="3"] .bl-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
 }
 
 /* list：一篇一行、占满整列（Chris 2026-09-30：不限宽），位置不跟 introAlign 走。行距 2rem。 */
@@ -1322,6 +1331,30 @@
 }
 
 /* ══ faq ══════════════════════════════════════════════════════════════════════ */
+/* 条目网格（itemsColumns：手机 ≤1 · iPad ≤2 · ≥992 按旋钮）—— 由 scripts/block-build/items-grid.js 生成，别在 block.css 里写 */
+[data-block="faq"] .fq-grid {
+  --items-cols: 1;
+  display: flex;
+  flex-wrap: wrap;
+}
+[data-block="faq"] .fq-item {
+  flex: 0 0 auto;
+  width: calc((100% - (var(--items-cols) - 1) * var(--fq-gap)) / var(--items-cols));
+}
+@media (min-width: 768px) {
+  [data-block="faq"][data-items-columns="2"] .fq-grid {
+    --items-cols: 2;
+  }
+  [data-block="faq"][data-items-columns="3"] .fq-grid {
+    --items-cols: 2;
+  }
+}
+@media (min-width: 992px) {
+  [data-block="faq"][data-items-columns="3"] .fq-grid {
+    --items-cols: 3;
+  }
+}
+
 /* ── faq · 跨形态的规则（#1484）──────────────────────────────────────────────────────────────
    faq 的排版由**实际生效的旋钮**决定，写在根元素上：
      intro  data-intro-position（left / right / top / bottom）· data-intro-align（left / center / right）
@@ -1335,7 +1368,7 @@
       而且选择器从 [data-block="faq"] 起步再加属性 / 类 —— 特异度一定高过工具类的一个类。
    🔴 部件的有无靠渲染（Section.tsx 有数据才画），不靠 CSS 藏：accordion / open 两种画法 DOM 里只有一种，
       help 卡、眉标没数据就没有节点。
-   🔴 问答那一格的列宽按列数和列间距算（--fq-cols / --fq-gap），不用负边距（milestones #1482 在 390 上量出过负边距溢出 4px）。
+   🔴 问答的列数由 itemsGrid 生成（#1537，flex + calc，列距读 --fq-gap），不用负边距（milestones #1482 在 390 上量出过负边距溢出 4px）。
    间距照定稿：段 py-16 py-lg-24；块头与问答 gy-10 gx-lg-16（纵向写 gy-10、不写 g-10：g-10 的横向负边距在手机上溢出，
    #1475 量出来的）；问句上下 1.25rem；open 模式行距 2.5rem（card 时 1.5rem）。 */
 
@@ -1428,30 +1461,15 @@
 
 /* ═══ items ════════════════════════════════════════════════════════════════════════════════════════ */
 
-/* itemsColumns：手机一律一列；≥768 时 2 / 3 都是两列；≥992 按列数。 */
+/* itemsColumns 的列数与断点（手机一列；≥768 时 2 / 3 都是两列；≥992 按列数）归 manifest 的 itemsGrid，
+   由 scripts/block-build/items-grid.js 生成（#1537）。这里只管列距 / 行距。 */
 [data-block="faq"] .fq-grid {
-  --fq-cols: 1;
   --fq-gap: 1.5rem;
-  display: flex;
-  flex-wrap: wrap;
   column-gap: var(--fq-gap);
   row-gap: 0;
 }
 [data-block="faq"] .fq-item {
-  flex: 0 0 auto;
-  width: calc((100% - (var(--fq-cols) - 1) * var(--fq-gap)) / var(--fq-cols));
   min-width: 0;
-}
-@media (min-width: 768px) {
-  [data-block="faq"][data-items-columns="2"] .fq-grid,
-  [data-block="faq"][data-items-columns="3"] .fq-grid {
-    --fq-cols: 2;
-  }
-}
-@media (min-width: 992px) {
-  [data-block="faq"][data-items-columns="3"] .fq-grid {
-    --fq-cols: 3;
-  }
 }
 
 /* 问答永远占满整列、不跟 introAlign —— 块头文字和 help 卡才跟（Chris 2026-10-01，#1515）。
@@ -1665,6 +1683,49 @@
 }
 
 /* ══ features ══════════════════════════════════════════════════════════════════════ */
+/* 条目网格（itemsColumns：手机 ≤1 · iPad ≤2 · ≥992 按旋钮）—— 由 scripts/block-build/items-grid.js 生成，别在 block.css 里写 */
+[data-block="features"] .fx-grid {
+  --items-cols: 1;
+}
+[data-block="features"] .fx-item {
+  flex: 0 0 auto;
+  width: 100%;
+}
+@media (min-width: 768px) {
+  [data-block="features"][data-items-columns="2"] .fx-grid {
+    --items-cols: 2;
+  }
+  [data-block="features"][data-items-columns="2"] .fx-item {
+    width: 50%;
+  }
+  [data-block="features"][data-items-columns="3"] .fx-grid {
+    --items-cols: 2;
+  }
+  [data-block="features"][data-items-columns="3"] .fx-item {
+    width: 50%;
+  }
+  [data-block="features"][data-items-columns="4"] .fx-grid {
+    --items-cols: 2;
+  }
+  [data-block="features"][data-items-columns="4"] .fx-item {
+    width: 50%;
+  }
+}
+@media (min-width: 992px) {
+  [data-block="features"][data-items-columns="3"] .fx-grid {
+    --items-cols: 3;
+  }
+  [data-block="features"][data-items-columns="3"] .fx-item {
+    width: 33.3333%;
+  }
+  [data-block="features"][data-items-columns="4"] .fx-grid {
+    --items-cols: 4;
+  }
+  [data-block="features"][data-items-columns="4"] .fx-item {
+    width: 25%;
+  }
+}
+
 /* ── features · 跨形态的规则（#1475）──────────────────────────────────────────────────────────
    features 的排版由**实际生效的旋钮**决定，写在根元素上：
      intro  data-intro-position（left / right / top / bottom）· data-intro-align（left / center / right）·
@@ -1850,36 +1911,16 @@
   }
 }
 
-/* grid：手机 1 列、iPad 2 列、≥992 按 itemsColumns。--fx-cols 给连线算长度用（见下）。 */
+/* grid：列数与断点（手机 1 列、iPad 2 列、≥992 按 itemsColumns）归 manifest 的 itemsGrid，由 scripts/block-build/items-grid.js
+   生成（#1537；画法照旧：.fx-grid 是 Bootstrap 的 `.row g-6`，条目按百分比宽，列距由 row 自己的内边距给）。
+   列数在 --items-cols 里，连线按它算长度（见下）。 */
 [data-block="features"] .fx-grid {
-  --fx-cols: 1;
   container-type: inline-size;
-}
-[data-block="features"] .fx-item {
-  flex: 0 0 auto;
-  width: 100%;
-}
-@media (min-width: 768px) {
-  [data-block="features"] .fx-grid {
-    --fx-cols: 2;
-  }
-  [data-block="features"] .fx-item {
-    width: 50%;
-  }
-}
-@media (min-width: 992px) {
-  [data-block="features"][data-items-columns="2"] .fx-grid { --fx-cols: 2; }
-  [data-block="features"][data-items-columns="3"] .fx-grid { --fx-cols: 3; }
-  [data-block="features"][data-items-columns="4"] .fx-grid { --fx-cols: 4; }
-  [data-block="features"][data-items-columns="2"] .fx-item { width: 50%; }
-  [data-block="features"][data-items-columns="3"] .fx-item { width: 33.3333%; }
-  [data-block="features"][data-items-columns="4"] .fx-item { width: 25%; }
 }
 
 /* list：一项一行整宽（itemsColumns 不管它）；项目没有图时限 52rem、有图时占全宽；
    位置只听 itemAlign（跟 introAlign 无关）。 */
 [data-block="features"][data-items-layout="list"] .fx-grid {
-  --fx-cols: 1 !important;
   --x-gutter-y: 2.5rem;
 }
 [data-block="features"][data-items-layout="list"] .fx-grid > .fx-item {
@@ -2130,7 +2171,7 @@
   top: calc(50% - 1px);
   height: 2px;
   inset-inline-start: calc(100% + 0.75rem);
-  width: calc(100cqw / var(--fx-cols) - var(--fx-mark-w) - 1.5rem);
+  width: calc(100cqw / var(--items-cols) - var(--fx-mark-w) - 1.5rem);
 }
 [data-block="features"][data-items-layout="grid"] .fx-connector {
   display: none;
@@ -2348,6 +2389,46 @@
 }
 
 /* ══ gallery ══════════════════════════════════════════════════════════════════════ */
+/* 条目网格（itemsColumns：手机 ≤2 · iPad ≤2 · ≥992 按旋钮）—— 由 scripts/block-build/items-grid.js 生成，别在 block.css 里写 */
+[data-block="gallery"][data-items-layout="grid"]:not([data-item-shape="original"]) .gl-grid {
+  --items-cols: 2;
+  display: grid;
+  grid-template-columns: repeat(var(--items-cols), minmax(0, 1fr));
+}
+@media (min-width: 992px) {
+  [data-block="gallery"][data-items-layout="grid"]:not([data-item-shape="original"])[data-items-columns="3"] .gl-grid {
+    --items-cols: 3;
+  }
+  [data-block="gallery"][data-items-layout="grid"]:not([data-item-shape="original"])[data-items-columns="4"] .gl-grid {
+    --items-cols: 4;
+  }
+}
+[data-block="gallery"][data-items-layout="mosaic"] .gl-grid {
+  --items-cols: 2;
+  display: grid;
+  grid-template-columns: repeat(var(--items-cols), minmax(0, 1fr));
+}
+@media (min-width: 992px) {
+  [data-block="gallery"][data-items-layout="mosaic"][data-items-columns="3"] .gl-grid {
+    --items-cols: 3;
+  }
+  [data-block="gallery"][data-items-layout="mosaic"][data-items-columns="4"] .gl-grid {
+    --items-cols: 4;
+  }
+}
+[data-block="gallery"][data-items-layout="grid"][data-item-shape="original"] .gl-grid {
+  --items-cols: 2;
+  column-count: var(--items-cols);
+}
+@media (min-width: 992px) {
+  [data-block="gallery"][data-items-layout="grid"][data-item-shape="original"][data-items-columns="3"] .gl-grid {
+    --items-cols: 3;
+  }
+  [data-block="gallery"][data-items-layout="grid"][data-item-shape="original"][data-items-columns="4"] .gl-grid {
+    --items-cols: 4;
+  }
+}
+
 /* ── gallery · 跨形态的规则（#1495）──────────────────────────────────────────────────────────
    gallery 的排版由**实际生效的旋钮**决定，写在根元素上：
      intro   data-intro-position（left / right / top / bottom）· data-intro-align（left / center / right）
@@ -2448,12 +2529,12 @@
   aspect-ratio: 3 / 4;
 }
 
-/* itemsColumns：手机、iPad 一律 2 列（Chris 2026-09-30）；≥992 按数。 */
+/* itemsColumns 的列数与断点（手机、iPad 一律 2 列，Chris 2026-09-30；≥992 按数）归 manifest 的 itemsGrid，
+   由 scripts/block-build/items-grid.js 生成（#1537）—— grid / mosaic 是 CSS grid，grid + original 是 CSS 多列（同一条规矩）。
+   这里只管间距。 */
 /* grid（裁图）：每张同样大。 */
 [data-block="gallery"][data-items-layout="grid"]:not([data-item-shape="original"]) .gl-grid,
 [data-block="gallery"][data-items-layout="mosaic"] .gl-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
 }
 @media (min-width: 992px) {
@@ -2461,19 +2542,9 @@
   [data-block="gallery"][data-items-layout="mosaic"] .gl-grid {
     gap: 1.5rem;
   }
-  [data-block="gallery"][data-items-layout="grid"][data-items-columns="3"]:not([data-item-shape="original"]) .gl-grid,
-  [data-block="gallery"][data-items-layout="mosaic"][data-items-columns="3"] .gl-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-  [data-block="gallery"][data-items-layout="grid"][data-items-columns="4"]:not([data-item-shape="original"]) .gl-grid,
-  [data-block="gallery"][data-items-layout="mosaic"][data-items-columns="4"] .gl-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
 }
-
 /* grid + original = 瀑布流：按原图比例，CSS 多列错落排。 */
 [data-block="gallery"][data-items-layout="grid"][data-item-shape="original"] .gl-grid {
-  column-count: 2;
   column-gap: 1rem;
 }
 [data-block="gallery"][data-items-layout="grid"][data-item-shape="original"] .gl-item {
@@ -2486,12 +2557,6 @@
 @media (min-width: 992px) {
   [data-block="gallery"][data-items-layout="grid"][data-item-shape="original"] .gl-grid {
     column-gap: 1.5rem;
-  }
-  [data-block="gallery"][data-items-layout="grid"][data-items-columns="3"][data-item-shape="original"] .gl-grid {
-    column-count: 3;
-  }
-  [data-block="gallery"][data-items-layout="grid"][data-items-columns="4"][data-item-shape="original"] .gl-grid {
-    column-count: 4;
   }
   [data-block="gallery"][data-items-layout="grid"][data-item-shape="original"] .gl-item {
     margin-bottom: 1.5rem;
@@ -2922,6 +2987,32 @@
 }
 
 /* ══ logos ══════════════════════════════════════════════════════════════════════ */
+/* 条目网格（itemsColumns：手机 ≤2 · iPad ≤3 · ≥992 按旋钮）—— 由 scripts/block-build/items-grid.js 生成，别在 block.css 里写 */
+[data-block="logos"][data-items-layout="grid"] .lo-grid {
+  --items-cols: 2;
+  display: grid;
+  grid-template-columns: repeat(var(--items-cols), minmax(0, 1fr));
+}
+@media (min-width: 768px) {
+  [data-block="logos"][data-items-layout="grid"][data-items-columns="3"] .lo-grid {
+    --items-cols: 3;
+  }
+  [data-block="logos"][data-items-layout="grid"][data-items-columns="4"] .lo-grid {
+    --items-cols: 3;
+  }
+  [data-block="logos"][data-items-layout="grid"][data-items-columns="6"] .lo-grid {
+    --items-cols: 3;
+  }
+}
+@media (min-width: 992px) {
+  [data-block="logos"][data-items-layout="grid"][data-items-columns="4"] .lo-grid {
+    --items-cols: 4;
+  }
+  [data-block="logos"][data-items-layout="grid"][data-items-columns="6"] .lo-grid {
+    --items-cols: 6;
+  }
+}
+
 /* ── logos · 跨形态的规则（#1496）──────────────────────────────────────────────────────────────
    logos 的排版由**实际生效的旋钮**决定，写在根元素上：
      intro  data-intro-position（left / right / top / bottom）· data-intro-align（left / center / right）· data-intro-size（sm / lg）
@@ -3042,24 +3133,10 @@
   }
 }
 
-/* itemsLayout=grid：按列数等宽格子 —— 手机 2 列、iPad（≥768）3 列、≥992 按 itemsColumns。 */
+/* itemsLayout=grid：按列数等宽格子 —— 列数与断点（手机 2 列、iPad（≥768）3 列、≥992 按 itemsColumns）归 manifest 的 itemsGrid，
+   由 scripts/block-build/items-grid.js 生成（#1537）。这里只管间距。 */
 [data-block="logos"][data-items-layout="grid"] .lo-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
-}
-@media (min-width: 768px) {
-  [data-block="logos"][data-items-layout="grid"] .lo-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-@media (min-width: 992px) {
-  [data-block="logos"][data-items-layout="grid"][data-items-columns="4"] .lo-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-  [data-block="logos"][data-items-layout="grid"][data-items-columns="6"] .lo-grid {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
 }
 
 /* itemStyle=card：每个 logo 一张白卡（1px 描边、1rem 圆角、高 6rem）。 */
@@ -3196,6 +3273,32 @@
 }
 
 /* ══ milestones ══════════════════════════════════════════════════════════════════════ */
+/* 条目网格（statsColumns：手机 ≤2 · iPad ≤2 · ≥992 按旋钮）—— 由 scripts/block-build/items-grid.js 生成，别在 block.css 里写 */
+[data-block="milestones"] .mi-grid {
+  --items-cols: 2;
+  display: flex;
+  flex-wrap: wrap;
+}
+[data-block="milestones"] .mi-stat {
+  flex: 0 0 auto;
+  width: calc((100% - (var(--items-cols) - 1) * var(--mi-gap)) / var(--items-cols));
+}
+[data-block="milestones"][data-stats-columns="1"] .mi-grid {
+  --items-cols: 1;
+}
+@media (min-width: 992px) {
+  [data-block="milestones"][data-stats-columns="auto"] .mi-stat {
+    flex: 1 1 0;
+    width: auto;
+  }
+  [data-block="milestones"][data-stats-columns="3"] .mi-grid {
+    --items-cols: 3;
+  }
+  [data-block="milestones"][data-stats-columns="4"] .mi-grid {
+    --items-cols: 4;
+  }
+}
+
 /* ── milestones · 跨形态的规则（#1482）──────────────────────────────────────────────────────────
    milestones 的排版由**实际生效的旋钮**决定，写在根元素上：
      块     data-block-image（none / left / right / background）
@@ -3404,34 +3507,17 @@
 
 /* ═══ stats ═══════════════════════════════════════════════════════════════════════════════════════ */
 
-/* statsColumns：手机 / iPad 一律两列（`1` 例外：一列）；≥992 auto = 一行均分，2 / 3 / 4 = 按列数折行。
-   列宽按列数和列间距算（--mi-cols / --mi-gap），不用负边距 —— card 那档原来 `margin: 0 -.75rem`，390 上溢出 4px
-   （本票 e2e AC2 那一格量出来的）。 */
+/* statsColumns 的列数与断点（手机 / iPad 一律两列，`1` 例外一列；≥992 auto = 一行均分，2 / 3 / 4 按列数折行）归 manifest 的
+   itemsGrid，由 scripts/block-build/items-grid.js 生成（#1537，画法照旧 flex + calc）。不用负边距 —— card 那档原来 `margin: 0 -.75rem`，
+   390 上溢出 4px（#1482 e2e AC2 那一格量出来的）。这里只管列距 / 行距。 */
 [data-block="milestones"] .mi-grid {
-  --mi-cols: 2;
   --mi-gap: 0px;
-  display: flex;
-  flex-wrap: wrap;
   row-gap: 2.5rem;
   column-gap: var(--mi-gap);
 }
 [data-block="milestones"] .mi-stat {
-  flex: 0 0 auto;
-  width: calc((100% - (var(--mi-cols) - 1) * var(--mi-gap)) / var(--mi-cols));
   min-width: 0;
   padding: 0 1rem;
-}
-[data-block="milestones"][data-stats-columns="1"] .mi-grid {
-  --mi-cols: 1;
-}
-@media (min-width: 992px) {
-  [data-block="milestones"][data-stats-columns="auto"] .mi-stat {
-    flex: 1 1 0;
-    width: auto;
-  }
-  [data-block="milestones"][data-stats-columns="2"] .mi-grid { --mi-cols: 2; }
-  [data-block="milestones"][data-stats-columns="3"] .mi-grid { --mi-cols: 3; }
-  [data-block="milestones"][data-stats-columns="4"] .mi-grid { --mi-cols: 4; }
 }
 
 /* statSize：md = display-4 的字号（组件上的类：calc(1.475rem + 2.7vw)，≥1200 为 3.5rem）；xl = 特大等宽数字，给 Big number。
@@ -3895,6 +3981,48 @@
 }
 
 /* ══ pricing ══════════════════════════════════════════════════════════════════════ */
+/* 条目网格（plansColumns：手机 ≤1 · iPad ≤2 · ≥992 按旋钮）—— 由 scripts/block-build/items-grid.js 生成，别在 block.css 里写 */
+[data-block="pricing"] .pr-grid {
+  --items-cols: 1;
+  display: flex;
+  flex-wrap: wrap;
+}
+[data-block="pricing"] .pr-plan {
+  flex: 0 0 auto;
+  width: calc((100% - (var(--items-cols) - 1) * var(--pr-gap)) / var(--items-cols));
+}
+@media (min-width: 768px) {
+  [data-block="pricing"][data-plans-columns="auto"] .pr-grid {
+    --items-cols: 2;
+  }
+  [data-block="pricing"][data-plans-columns="2"] .pr-grid {
+    --items-cols: 2;
+  }
+  [data-block="pricing"][data-plans-columns="3"] .pr-grid {
+    --items-cols: 2;
+  }
+  [data-block="pricing"][data-plans-columns="4"] .pr-grid {
+    --items-cols: 2;
+  }
+}
+@media (min-width: 992px) {
+  [data-block="pricing"][data-plans-columns="auto"] .pr-plan {
+    flex: 1 1 0;
+    width: auto;
+  }
+  [data-block="pricing"][data-plans-columns="3"] .pr-grid {
+    --items-cols: 3;
+  }
+  [data-block="pricing"][data-plans-columns="4"] .pr-grid {
+    --items-cols: 4;
+  }
+}
+@media (max-width: 991.98px) {
+  [data-block="pricing"][data-plan-style="divided"] .pr-grid {
+    --items-cols: 1;
+  }
+}
+
 /* ── pricing · 跨形态的规则（#1483）──────────────────────────────────────────────────────────
    pricing 的排版由**实际生效的旋钮**决定，写在根元素上：
      intro  data-intro-position（left / right / top / bottom）· data-intro-align（left / center / right）
@@ -3911,7 +4039,7 @@
       **也带 !important**，而且选择器从 [data-block="pricing"] 起步再加属性 / 类 —— 特异度一定高过工具类的一个类。
    🔴 部件的有无靠渲染（Section.tsx 有数据才画），不靠 CSS 藏 ⟹ 这里没有一条「显示某部件」的 display 规则会被
       另一条盖掉（图册那次：居中 highlights 的 display:flex!important 盖掉了隐藏规则，没勾也露出来）。
-   🔴 列宽按列数和列间距算（--pr-cols / --pr-gap），不用负边距 —— 负边距在 390 上溢出（#1482 量出来的同一个坑）。
+   🔴 列数由 itemsGrid 生成（#1537，flex + calc，列距读 --pr-gap），不用负边距 —— 负边距在 390 上溢出（#1482 量出来的同一个坑）。
    间距照 Webpixels 尺度：段 py-16 py-lg-24、块头与套餐 2.5rem（gy-10）/ ≥992 横向 4rem（gx-lg-16）、套餐之间 1.5rem、
    卡内 2rem（= p-8）、billing 与套餐之间 2rem。 */
 
@@ -4062,35 +4190,16 @@
 
 /* ═══ plans ═══════════════════════════════════════════════════════════════════════════════════════ */
 
-/* plansColumns：手机 1 列、iPad 2 列；≥992 auto = 有几个一行均分，2 / 3 / 4 = 按列数折行，1 = 单套餐宽卡。 */
+/* plansColumns 的列数与断点（手机 1 列、iPad 2 列（`1` 仍 1 列）；≥992 auto = 一行均分，2 / 3 / 4 按列数折行，1 = 单套餐宽卡；
+   divided 在 <992 一律 1 列）归 manifest 的 itemsGrid，由 scripts/block-build/items-grid.js 生成（#1537，画法照旧 flex + calc，不用负边距）。
+   这里只管列距 / 行距。 */
 [data-block="pricing"] .pr-grid {
-  --pr-cols: 1;
   --pr-gap: 1.5rem;
-  display: flex;
-  flex-wrap: wrap;
   row-gap: 1.5rem;
   column-gap: var(--pr-gap);
 }
 [data-block="pricing"] .pr-plan {
-  flex: 0 0 auto;
-  width: calc((100% - (var(--pr-cols) - 1) * var(--pr-gap)) / var(--pr-cols));
   min-width: 0;
-}
-@media (min-width: 768px) {
-  [data-block="pricing"] .pr-grid {
-    --pr-cols: 2;
-  }
-  [data-block="pricing"][data-plans-columns="1"] .pr-grid {
-    --pr-cols: 1;
-  }
-}
-@media (min-width: 992px) {
-  [data-block="pricing"][data-plans-columns="auto"] .pr-plan {
-    flex: 1 1 0;
-    width: auto;
-  }
-  [data-block="pricing"][data-plans-columns="3"] .pr-grid { --pr-cols: 3; }
-  [data-block="pricing"][data-plans-columns="4"] .pr-grid { --pr-cols: 4; }
 }
 
 /* plansColumns=1：单套餐宽卡（最大 56rem、居中），≥768 清单分两列；按钮在价格下面时不通栏、跟 planAlign 走。 */
@@ -4186,9 +4295,6 @@
   padding: 0 0.5rem;
 }
 @media (max-width: 991.98px) {
-  [data-block="pricing"][data-plan-style="divided"] .pr-grid {
-    --pr-cols: 1;
-  }
   [data-block="pricing"][data-plan-style="divided"] .pr-plan {
     border-top: 1px solid var(--x-border-color, #e5e7eb);
     padding-top: 1.5rem;
@@ -4830,6 +4936,36 @@
 }
 
 /* ══ team ══════════════════════════════════════════════════════════════════════ */
+/* 条目网格（membersColumns：手机 ≤1 · iPad ≤2 · ≥992 按旋钮）—— 由 scripts/block-build/items-grid.js 生成，别在 block.css 里写 */
+[data-block="team"] .tm-grid {
+  --items-cols: 1;
+  display: flex;
+  flex-wrap: wrap;
+}
+[data-block="team"] .tm-member {
+  flex: 0 0 auto;
+  width: calc((100% - (var(--items-cols) - 1) * var(--tm-gap)) / var(--items-cols));
+}
+@media (min-width: 768px) {
+  [data-block="team"][data-members-columns="2"] .tm-grid {
+    --items-cols: 2;
+  }
+  [data-block="team"][data-members-columns="3"] .tm-grid {
+    --items-cols: 2;
+  }
+  [data-block="team"][data-members-columns="4"] .tm-grid {
+    --items-cols: 2;
+  }
+}
+@media (min-width: 992px) {
+  [data-block="team"][data-members-columns="3"] .tm-grid {
+    --items-cols: 3;
+  }
+  [data-block="team"][data-members-columns="4"] .tm-grid {
+    --items-cols: 4;
+  }
+}
+
 /* ── team · 跨形态的规则（#1487）──────────────────────────────────────────────────────────
    team 的排版由**实际生效的旋钮**决定，写在根元素上：
      intro    data-intro-position（left / right / top / bottom）· data-intro-align（left / center / right）
@@ -4905,28 +5041,15 @@
 
 /* ═══ members ═════════════════════════════════════════════════════════════════════════════════════ */
 
-/* membersColumns：手机一律一列（Chris 2026-09-29）；iPad（768–991）两列；≥992 按列数。
-   列宽按列数和列间距算（--tm-cols / --tm-gap），不用负边距（同 milestones：负边距在 390 上溢出）。 */
+/* membersColumns 的列数与断点（手机一列，Chris 2026-09-29；iPad 两列；≥992 按列数）归 manifest 的 itemsGrid，
+   由 scripts/block-build/items-grid.js 生成（#1537，画法照旧 flex + calc，不用负边距）。这里只管列距 / 行距。 */
 [data-block="team"] .tm-grid {
-  --tm-cols: 1;
   --tm-gap: 1.5rem;
-  display: flex;
-  flex-wrap: wrap;
   row-gap: 2.5rem;
   column-gap: var(--tm-gap);
 }
 [data-block="team"] .tm-member {
-  flex: 0 0 auto;
-  width: calc((100% - (var(--tm-cols) - 1) * var(--tm-gap)) / var(--tm-cols));
   min-width: 0;
-}
-@media (min-width: 768px) {
-  [data-block="team"] .tm-grid { --tm-cols: 2; }
-}
-@media (min-width: 992px) {
-  [data-block="team"][data-members-columns="2"] .tm-grid { --tm-cols: 2; }
-  [data-block="team"][data-members-columns="3"] .tm-grid { --tm-cols: 3; }
-  [data-block="team"][data-members-columns="4"] .tm-grid { --tm-cols: 4; }
 }
 
 [data-block="team"] .tm-text {
@@ -5151,6 +5274,44 @@
 }
 
 /* ══ testimonials ══════════════════════════════════════════════════════════════════════ */
+/* 条目网格（itemsColumns：手机 ≤1 · iPad ≤2 · ≥992 按旋钮）—— 由 scripts/block-build/items-grid.js 生成，别在 block.css 里写 */
+[data-block="testimonials"][data-items-layout="grid"] .tn-grid {
+  --items-cols: 1;
+  display: grid;
+  grid-template-columns: repeat(var(--items-cols), minmax(0, 1fr));
+}
+@media (min-width: 768px) {
+  [data-block="testimonials"][data-items-layout="grid"][data-items-columns="2"] .tn-grid {
+    --items-cols: 2;
+  }
+  [data-block="testimonials"][data-items-layout="grid"][data-items-columns="3"] .tn-grid {
+    --items-cols: 2;
+  }
+}
+@media (min-width: 992px) {
+  [data-block="testimonials"][data-items-layout="grid"][data-items-columns="3"] .tn-grid {
+    --items-cols: 3;
+  }
+}
+[data-block="testimonials"] .tn-slide {
+  --items-cols: 1;
+  display: grid;
+  grid-template-columns: repeat(var(--items-cols), minmax(0, 1fr));
+}
+@media (min-width: 768px) {
+  [data-block="testimonials"][data-items-columns="2"] .tn-slide {
+    --items-cols: 2;
+  }
+  [data-block="testimonials"][data-items-columns="3"] .tn-slide {
+    --items-cols: 2;
+  }
+}
+@media (min-width: 992px) {
+  [data-block="testimonials"][data-items-columns="3"] .tn-slide {
+    --items-cols: 3;
+  }
+}
+
 /* ── testimonials · 跨形态的规则（#1488）─────────────────────────────────────────────────────
    testimonials 的排版由**实际生效的旋钮**决定，写在根元素上：
      intro  data-intro-position（left / right / top / bottom）· data-intro-align（left / center / right）
@@ -5333,21 +5494,9 @@
 }
 
 /* ═══ items：grid = 全部摊开；carousel = 横向轮播。手机一列 / 一屏一条，iPad 最多两条，≥992 按列数 ═══════ */
+/* 列数与断点（手机一列、iPad 最多两条、≥992 按列数）归 manifest 的 itemsGrid，由 scripts/block-build/items-grid.js 生成（#1537）。 */
 [data-block="testimonials"][data-items-layout="grid"] .tn-grid {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.5rem;
-}
-@media (min-width: 768px) {
-  [data-block="testimonials"][data-items-layout="grid"][data-items-columns="2"] .tn-grid,
-  [data-block="testimonials"][data-items-layout="grid"][data-items-columns="3"] .tn-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-@media (min-width: 992px) {
-  [data-block="testimonials"][data-items-layout="grid"][data-items-columns="3"] .tn-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
 }
 [data-block="testimonials"][data-items-layout="grid"][data-item-style="plain"] .tn-grid {
   row-gap: 3rem;
@@ -5361,21 +5510,8 @@
    <768 竖着叠、768–991 最多两列、≥992 按列数。轨道 / 切换 / 动画是 Bootstrap 自己的 .carousel 规则（site.css）。
    以前那条手写轨道（横向滚动 + 自己算位置）已删。 */
 [data-block="testimonials"] .tn-slide {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
   gap: 1.5rem;
   padding-bottom: 2px; /* card 的下描边不被 .carousel-inner 的 overflow 裁掉 */
-}
-@media (min-width: 768px) {
-  [data-block="testimonials"][data-items-columns="2"] .tn-slide,
-  [data-block="testimonials"][data-items-columns="3"] .tn-slide {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-@media (min-width: 992px) {
-  [data-block="testimonials"][data-items-columns="3"] .tn-slide {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
 }
 [data-block="testimonials"][data-item-style="plain"] .tn-slide {
   column-gap: 2.5rem;

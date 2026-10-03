@@ -221,5 +221,13 @@
     ["itemsLayout", "itemsColumns"],
     ["itemStyle", "logoColor"],
     ["color:bg"]
-  ]
+  ],
+  "itemsGrid": {
+    "knob": "itemsColumns",
+    "phone": 2,
+    "tablet": 3,
+    "grids": [
+      {"container": ".lo-grid", "when": "[data-items-layout=\"grid\"]"}
+    ]
+  }
 }

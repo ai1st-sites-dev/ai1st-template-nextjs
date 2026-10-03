@@ -281,5 +281,14 @@
     ["itemsLayout", "itemsColumns"],
     ["itemStyle", "quoteSize", "itemAlign"],
     ["color:bg"]
-  ]
+  ],
+  "itemsGrid": {
+    "knob": "itemsColumns",
+    "phone": 1,
+    "tablet": 2,
+    "grids": [
+      {"container": ".tn-grid", "item": ".tn-item", "when": "[data-items-layout=\"grid\"]"},
+      {"container": ".tn-slide", "item": ".tn-item"}
+    ]
+  }
 }

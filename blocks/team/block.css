@@ -73,28 +73,15 @@
 
 /* ═══ members ═════════════════════════════════════════════════════════════════════════════════════ */
 
-/* membersColumns：手机一律一列（Chris 2026-09-29）；iPad（768–991）两列；≥992 按列数。
-   列宽按列数和列间距算（--tm-cols / --tm-gap），不用负边距（同 milestones：负边距在 390 上溢出）。 */
+/* membersColumns 的列数与断点（手机一列，Chris 2026-09-29；iPad 两列；≥992 按列数）归 manifest 的 itemsGrid，
+   由 scripts/block-build/items-grid.js 生成（#1537，画法照旧 flex + calc，不用负边距）。这里只管列距 / 行距。 */
 [data-block="team"] .tm-grid {
-  --tm-cols: 1;
   --tm-gap: 1.5rem;
-  display: flex;
-  flex-wrap: wrap;
   row-gap: 2.5rem;
   column-gap: var(--tm-gap);
 }
 [data-block="team"] .tm-member {
-  flex: 0 0 auto;
-  width: calc((100% - (var(--tm-cols) - 1) * var(--tm-gap)) / var(--tm-cols));
   min-width: 0;
-}
-@media (min-width: 768px) {
-  [data-block="team"] .tm-grid { --tm-cols: 2; }
-}
-@media (min-width: 992px) {
-  [data-block="team"][data-members-columns="2"] .tm-grid { --tm-cols: 2; }
-  [data-block="team"][data-members-columns="3"] .tm-grid { --tm-cols: 3; }
-  [data-block="team"][data-members-columns="4"] .tm-grid { --tm-cols: 4; }
 }
 
 [data-block="team"] .tm-text {

@@ -14,7 +14,7 @@
       **也带 !important**，而且选择器从 [data-block="pricing"] 起步再加属性 / 类 —— 特异度一定高过工具类的一个类。
    🔴 部件的有无靠渲染（Section.tsx 有数据才画），不靠 CSS 藏 ⟹ 这里没有一条「显示某部件」的 display 规则会被
       另一条盖掉（图册那次：居中 highlights 的 display:flex!important 盖掉了隐藏规则，没勾也露出来）。
-   🔴 列宽按列数和列间距算（--pr-cols / --pr-gap），不用负边距 —— 负边距在 390 上溢出（#1482 量出来的同一个坑）。
+   🔴 列数由 itemsGrid 生成（#1537，flex + calc，列距读 --pr-gap），不用负边距 —— 负边距在 390 上溢出（#1482 量出来的同一个坑）。
    间距照 Webpixels 尺度：段 py-16 py-lg-24、块头与套餐 2.5rem（gy-10）/ ≥992 横向 4rem（gx-lg-16）、套餐之间 1.5rem、
    卡内 2rem（= p-8）、billing 与套餐之间 2rem。 */
 
@@ -165,35 +165,16 @@
 
 /* ═══ plans ═══════════════════════════════════════════════════════════════════════════════════════ */
 
-/* plansColumns：手机 1 列、iPad 2 列；≥992 auto = 有几个一行均分，2 / 3 / 4 = 按列数折行，1 = 单套餐宽卡。 */
+/* plansColumns 的列数与断点（手机 1 列、iPad 2 列（`1` 仍 1 列）；≥992 auto = 一行均分，2 / 3 / 4 按列数折行，1 = 单套餐宽卡；
+   divided 在 <992 一律 1 列）归 manifest 的 itemsGrid，由 scripts/block-build/items-grid.js 生成（#1537，画法照旧 flex + calc，不用负边距）。
+   这里只管列距 / 行距。 */
 [data-block="pricing"] .pr-grid {
-  --pr-cols: 1;
   --pr-gap: 1.5rem;
-  display: flex;
-  flex-wrap: wrap;
   row-gap: 1.5rem;
   column-gap: var(--pr-gap);
 }
 [data-block="pricing"] .pr-plan {
-  flex: 0 0 auto;
-  width: calc((100% - (var(--pr-cols) - 1) * var(--pr-gap)) / var(--pr-cols));
   min-width: 0;
-}
-@media (min-width: 768px) {
-  [data-block="pricing"] .pr-grid {
-    --pr-cols: 2;
-  }
-  [data-block="pricing"][data-plans-columns="1"] .pr-grid {
-    --pr-cols: 1;
-  }
-}
-@media (min-width: 992px) {
-  [data-block="pricing"][data-plans-columns="auto"] .pr-plan {
-    flex: 1 1 0;
-    width: auto;
-  }
-  [data-block="pricing"][data-plans-columns="3"] .pr-grid { --pr-cols: 3; }
-  [data-block="pricing"][data-plans-columns="4"] .pr-grid { --pr-cols: 4; }
 }
 
 /* plansColumns=1：单套餐宽卡（最大 56rem、居中），≥768 清单分两列；按钮在价格下面时不通栏、跟 planAlign 走。 */
@@ -289,9 +270,6 @@
   padding: 0 0.5rem;
 }
 @media (max-width: 991.98px) {
-  [data-block="pricing"][data-plan-style="divided"] .pr-grid {
-    --pr-cols: 1;
-  }
   [data-block="pricing"][data-plan-style="divided"] .pr-plan {
     border-top: 1px solid var(--x-border-color, #e5e7eb);
     padding-top: 1.5rem;

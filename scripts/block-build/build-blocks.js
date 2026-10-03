@@ -35,6 +35,7 @@ const BLOCKS = path.join(NEXT, 'blocks');
 const HERE = __dirname;
 
 const { parseFrontmatter, formatFrontmatter } = require('./frontmatter.js');
+const { itemsGridCss } = require('./items-grid.js');
 
 function readBlock(type) {
   const dir = path.join(BLOCKS, type);
@@ -77,6 +78,10 @@ function buildShapesCss(blocks) {
   const parts = [read(path.join(HERE, 'shapes-head.css'))];
   for (const b of blocks) {
     const chunks = [];
+    // #1537 —— 条目网格（`*Columns` 的列数与断点）由 manifest 的 `itemsGrid` 生成，放在这个块的段首：
+    //    block.css 里的列距 / 行距和各种布局条件写在它后面，照旧能盖它（items-grid.js 文件头）。
+    const gridCss = itemsGridCss(b.manifest, b.type);
+    if (gridCss) chunks.push(gridCss);
     const blockCss = read(path.join(b.dir, 'block.css'));
     if (blockCss) chunks.push(blockCss);
     for (const s of b.shapes) {
@@ -180,6 +185,9 @@ function main() {
       const p = path.join(b.dir, f);
       if (fs.existsSync(p)) assertPieceOwnsItsRules(p, read(p), { block: b.type });
     }
+    // #1537 —— 生成出来的条目网格也要过同一道归属检查（每条以本块开头）。
+    const grid = itemsGridCss(b.manifest, b.type);
+    if (grid) assertPieceOwnsItsRules(`blocks/${b.type}/manifest.json → itemsGrid`, grid, { block: b.type });
     for (const sh of b.shapes) {
       const p = path.join(sh.dir, 'shape.css');
       if (fs.existsSync(p)) assertPieceOwnsItsRules(p, read(p), { block: b.type, shape: sh.name });

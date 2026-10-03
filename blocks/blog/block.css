@@ -217,21 +217,10 @@
 
 /* ═══ 排法（itemsLayout）══════════════════════════════════════════════════════════════════════════ */
 
-/* grid：手机 1 列、iPad 2 列、≥992 按列数。行距 2rem、列距 1.5rem。 */
+/* grid：列数与断点（手机 1 列、iPad 2 列、≥992 按列数）归 manifest 的 itemsGrid，由 scripts/block-build/items-grid.js 生成（#1537）。
+   这里只管行距 2rem、列距 1.5rem。 */
 [data-block="blog"][data-items-layout="grid"] .bl-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
   gap: 2rem 1.5rem;
-}
-@media (min-width: 768px) {
-  [data-block="blog"][data-items-layout="grid"] .bl-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-@media (min-width: 992px) {
-  [data-block="blog"][data-items-layout="grid"][data-items-columns="3"] .bl-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
 }
 
 /* list：一篇一行、占满整列（Chris 2026-09-30：不限宽），位置不跟 introAlign 走。行距 2rem。 */

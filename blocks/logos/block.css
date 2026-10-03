@@ -118,24 +118,10 @@
   }
 }
 
-/* itemsLayout=grid：按列数等宽格子 —— 手机 2 列、iPad（≥768）3 列、≥992 按 itemsColumns。 */
+/* itemsLayout=grid：按列数等宽格子 —— 列数与断点（手机 2 列、iPad（≥768）3 列、≥992 按 itemsColumns）归 manifest 的 itemsGrid，
+   由 scripts/block-build/items-grid.js 生成（#1537）。这里只管间距。 */
 [data-block="logos"][data-items-layout="grid"] .lo-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
-}
-@media (min-width: 768px) {
-  [data-block="logos"][data-items-layout="grid"] .lo-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-@media (min-width: 992px) {
-  [data-block="logos"][data-items-layout="grid"][data-items-columns="4"] .lo-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-  [data-block="logos"][data-items-layout="grid"][data-items-columns="6"] .lo-grid {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
 }
 
 /* itemStyle=card：每个 logo 一张白卡（1px 描边、1rem 圆角、高 6rem）。 */

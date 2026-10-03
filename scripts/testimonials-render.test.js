@@ -83,7 +83,10 @@ const own = (r) => r.problems.filter((p) => p.includes('("testimonials")'));
 const sectionTag = (html) => (/<section[^>]*>/.exec(html) || [''])[0];
 const attr = (html, name) => { const m = new RegExp(`\\s${name}="([^"]*)"`).exec(sectionTag(html)); return m ? m[1] : null; };
 const itemsOf = (html) => html.split('data-part="item"').slice(1);
-const CSS = fs.readFileSync(path.join(BLOCK, 'block.css'), 'utf-8');
+// #1537 —— 条目网格的列数 / 断点由 manifest 的 itemsGrid 生成（scripts/block-build/items-grid.js），拼在 block.css 前面；
+//    这里读的是两份拼起来的那一段（= public/shapes.css 里这个块的那一段）。
+const CSS = require('./block-build/items-grid').itemsGridCss(JSON.parse(fs.readFileSync(path.join(BLOCK, 'manifest.json'), 'utf-8')), 'testimonials')
+  + '\n' + fs.readFileSync(path.join(BLOCK, 'block.css'), 'utf-8');
 const SRC_TEXT = fs.readFileSync(SECTION, 'utf-8');
 const CAROUSEL_TEXT = fs.readFileSync(CAROUSEL, 'utf-8');
 const KNOB_NAMES = ['introPosition', 'introAlign', 'summaryStyle', 'itemsLayout', 'itemsColumns', 'itemStyle', 'quoteSize', 'itemAlign'];
@@ -184,7 +187,7 @@ console.log('\n── AC3 / AC4 轮播与网格');
   // Bootstrap 滑动中途才挂的四个类：purge 按源码字面词留规则，它们必须逐字出现在 blocks/**/*.tsx 里。
   check(['carousel-item-next', 'carousel-item-prev', 'carousel-item-start', 'carousel-item-end'].every((c) => CAROUSEL_TEXT.includes(c)),
     'Carousel.tsx 里逐字写着 carousel-item-next / -prev / -start / -end（site.css purge 才会留下它们的规则）');
-  check(/\.tn-slide \{\s*display: grid;/.test(CSS) && /\[data-items-columns="3"\] \.tn-slide \{\s*grid-template-columns: repeat\(3/.test(CSS), 'block.css：.tn-slide 网格（<768 一列、768–991 两列、≥992 按列数）');
+  check(/\.tn-slide \{\s*--items-cols: 1;\s*display: grid;/.test(CSS) && /min-width: 992px\) \{[^@]*\[data-items-columns="3"\] \.tn-slide \{\s*--items-cols: 3;/.test(CSS), 'block.css：.tn-slide 网格（<768 一列、768–991 两列、≥992 按列数）');
   check(/\.tn-dots \{\s*position: static;/.test(CSS) && /\.tn-dots \.active \{\s*width: 1\.5rem;\s*background: var\(--x-primary\);/.test(CSS), 'block.css：indicators 拉回下面、当前那个拉长成主色短条');
   // 反向对照：把 Section 的分组改成「一张 slide 放全部」⟹ 上面那格会红。
   const C2 = loadSection(SRC_TEXT.replace('const perSlide = Math.max(1, Number(k.itemsColumns) || 1);', 'const perSlide = 99;'));

@@ -209,5 +209,15 @@
     ["itemsLayout", "itemsColumns"],
     ["itemShape", "itemCaption"],
     ["color:bg"]
-  ]
+  ],
+  "itemsGrid": {
+    "knob": "itemsColumns",
+    "phone": 2,
+    "tablet": 2,
+    "grids": [
+      {"container": ".gl-grid", "item": ".gl-item", "when": "[data-items-layout=\"grid\"]:not([data-item-shape=\"original\"])"},
+      {"container": ".gl-grid", "item": ".gl-item", "when": "[data-items-layout=\"mosaic\"]"},
+      {"container": ".gl-grid", "item": ".gl-item", "when": "[data-items-layout=\"grid\"][data-item-shape=\"original\"]", "render": "columns"}
+    ]
+  }
 }

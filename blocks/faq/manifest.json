@@ -218,5 +218,13 @@
     ["itemsMode", "itemsColumns"],
     ["itemStyle", "itemToggle"],
     ["color:bg"]
-  ]
+  ],
+  "itemsGrid": {
+    "knob": "itemsColumns",
+    "phone": 1,
+    "tablet": 2,
+    "grids": [
+      {"container": ".fq-grid", "render": "flex", "item": ".fq-item", "gapVar": "--fq-gap"}
+    ]
+  }
 }

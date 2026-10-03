@@ -356,5 +356,13 @@
     ["itemsLayout", "itemsColumns", "itemsImage"],
     ["itemStyle", "itemAlign", "itemIcon", "itemImage", "itemConnector"],
     ["color:bg"]
-  ]
+  ],
+  "itemsGrid": {
+    "knob": "itemsColumns",
+    "phone": 1,
+    "tablet": 2,
+    "grids": [
+      {"container": ".fx-grid", "render": "percent", "item": ".fx-item"}
+    ]
+  }
 }

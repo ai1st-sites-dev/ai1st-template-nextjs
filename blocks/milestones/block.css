@@ -206,34 +206,17 @@
 
 /* ═══ stats ═══════════════════════════════════════════════════════════════════════════════════════ */
 
-/* statsColumns：手机 / iPad 一律两列（`1` 例外：一列）；≥992 auto = 一行均分，2 / 3 / 4 = 按列数折行。
-   列宽按列数和列间距算（--mi-cols / --mi-gap），不用负边距 —— card 那档原来 `margin: 0 -.75rem`，390 上溢出 4px
-   （本票 e2e AC2 那一格量出来的）。 */
+/* statsColumns 的列数与断点（手机 / iPad 一律两列，`1` 例外一列；≥992 auto = 一行均分，2 / 3 / 4 按列数折行）归 manifest 的
+   itemsGrid，由 scripts/block-build/items-grid.js 生成（#1537，画法照旧 flex + calc）。不用负边距 —— card 那档原来 `margin: 0 -.75rem`，
+   390 上溢出 4px（#1482 e2e AC2 那一格量出来的）。这里只管列距 / 行距。 */
 [data-block="milestones"] .mi-grid {
-  --mi-cols: 2;
   --mi-gap: 0px;
-  display: flex;
-  flex-wrap: wrap;
   row-gap: 2.5rem;
   column-gap: var(--mi-gap);
 }
 [data-block="milestones"] .mi-stat {
-  flex: 0 0 auto;
-  width: calc((100% - (var(--mi-cols) - 1) * var(--mi-gap)) / var(--mi-cols));
   min-width: 0;
   padding: 0 1rem;
-}
-[data-block="milestones"][data-stats-columns="1"] .mi-grid {
-  --mi-cols: 1;
-}
-@media (min-width: 992px) {
-  [data-block="milestones"][data-stats-columns="auto"] .mi-stat {
-    flex: 1 1 0;
-    width: auto;
-  }
-  [data-block="milestones"][data-stats-columns="2"] .mi-grid { --mi-cols: 2; }
-  [data-block="milestones"][data-stats-columns="3"] .mi-grid { --mi-cols: 3; }
-  [data-block="milestones"][data-stats-columns="4"] .mi-grid { --mi-cols: 4; }
 }
 
 /* statSize：md = display-4 的字号（组件上的类：calc(1.475rem + 2.7vw)，≥1200 为 3.5rem）；xl = 特大等宽数字，给 Big number。

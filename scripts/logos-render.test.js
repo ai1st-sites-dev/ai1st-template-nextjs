@@ -82,7 +82,10 @@ const sectionTag = (html) => (/<section[^>]*>/.exec(html) || [''])[0];
 const attr = (html, name) => { const m = new RegExp(`\\s${name}="([^"]*)"`).exec(sectionTag(html)); return m ? m[1] : null; };
 const itemsOf = (html) => html.split('data-part="item"').slice(1);
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
-const CSS = fs.readFileSync(path.join(BLOCK, 'block.css'), 'utf-8');
+// #1537 —— 条目网格的列数 / 断点由 manifest 的 itemsGrid 生成（scripts/block-build/items-grid.js），拼在 block.css 前面；
+//    这里读的是两份拼起来的那一段（= public/shapes.css 里这个块的那一段）。
+const CSS = require('./block-build/items-grid').itemsGridCss(JSON.parse(fs.readFileSync(path.join(BLOCK, 'manifest.json'), 'utf-8')), 'logos')
+  + '\n' + fs.readFileSync(path.join(BLOCK, 'block.css'), 'utf-8');
 const SRC_TEXT = fs.readFileSync(SECTION, 'utf-8');
 const KNOB_NAMES = ['introPosition', 'introAlign', 'introSize', 'itemsLayout', 'itemsColumns', 'itemStyle', 'logoColor'];
 const dataAttr = (n) => `data-${n.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`;
@@ -156,9 +159,9 @@ console.log('\n── AC4 / AC5 / AC6 row · grid · logoColor 规则');
   check(/\[data-items-layout="row"\] \.lo-grid \{\s*display: flex;\s*flex-wrap: wrap;\s*justify-content: center;\s*gap: 1rem;/.test(CSS),
     'row：flex 换行、居中、gap 1rem（上下左右同一个间距）');
   check(/\[data-items-layout="row"\] \.lo-inner \{\s*padding: 0 0\.75rem;/.test(CSS), 'row：logo 左右内边距 .75rem');
-  check(/\[data-items-layout="grid"\] \.lo-grid \{\s*display: grid;\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/.test(CSS)
-    && /min-width: 768px\) \{\s*\[data-block="logos"\]\[data-items-layout="grid"\] \.lo-grid \{\s*grid-template-columns: repeat\(3,/.test(CSS)
-    && /\[data-items-layout="grid"\]\[data-items-columns="6"\] \.lo-grid \{\s*grid-template-columns: repeat\(6,/.test(CSS),
+  check(/\[data-items-layout="grid"\] \.lo-grid \{\s*--items-cols: 2;\s*display: grid;\s*grid-template-columns: repeat\(var\(--items-cols\), minmax\(0, 1fr\)\);/.test(CSS)
+    && /min-width: 768px\) \{[^@]*\[data-items-layout="grid"\]\[data-items-columns="6"\] \.lo-grid \{\s*--items-cols: 3;/.test(CSS)
+    && /min-width: 992px\) \{[^@]*\[data-items-layout="grid"\]\[data-items-columns="6"\] \.lo-grid \{\s*--items-cols: 6;/.test(CSS),
     'grid：手机 2 列 · ≥768 3 列 · ≥992 按 itemsColumns（4 / 6）');
   check(!/\[data-items-layout="row"\][^{]*\[data-items-columns=/.test(CSS) && !/\[data-items-columns="[^"]+"\](?!\s*\.lo-grid)/.test(CSS.replace(/\[data-items-layout="grid"\]\[data-items-columns="[46]"\] \.lo-grid/g, '')),
     'itemsColumns 只出现在 grid 的选择器里（row 下没有规则认它）');

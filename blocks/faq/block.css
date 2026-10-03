@@ -11,7 +11,7 @@
       而且选择器从 [data-block="faq"] 起步再加属性 / 类 —— 特异度一定高过工具类的一个类。
    🔴 部件的有无靠渲染（Section.tsx 有数据才画），不靠 CSS 藏：accordion / open 两种画法 DOM 里只有一种，
       help 卡、眉标没数据就没有节点。
-   🔴 问答那一格的列宽按列数和列间距算（--fq-cols / --fq-gap），不用负边距（milestones #1482 在 390 上量出过负边距溢出 4px）。
+   🔴 问答的列数由 itemsGrid 生成（#1537，flex + calc，列距读 --fq-gap），不用负边距（milestones #1482 在 390 上量出过负边距溢出 4px）。
    间距照定稿：段 py-16 py-lg-24；块头与问答 gy-10 gx-lg-16（纵向写 gy-10、不写 g-10：g-10 的横向负边距在手机上溢出，
    #1475 量出来的）；问句上下 1.25rem；open 模式行距 2.5rem（card 时 1.5rem）。 */
 
@@ -104,30 +104,15 @@
 
 /* ═══ items ════════════════════════════════════════════════════════════════════════════════════════ */
 
-/* itemsColumns：手机一律一列；≥768 时 2 / 3 都是两列；≥992 按列数。 */
+/* itemsColumns 的列数与断点（手机一列；≥768 时 2 / 3 都是两列；≥992 按列数）归 manifest 的 itemsGrid，
+   由 scripts/block-build/items-grid.js 生成（#1537）。这里只管列距 / 行距。 */
 [data-block="faq"] .fq-grid {
-  --fq-cols: 1;
   --fq-gap: 1.5rem;
-  display: flex;
-  flex-wrap: wrap;
   column-gap: var(--fq-gap);
   row-gap: 0;
 }
 [data-block="faq"] .fq-item {
-  flex: 0 0 auto;
-  width: calc((100% - (var(--fq-cols) - 1) * var(--fq-gap)) / var(--fq-cols));
   min-width: 0;
-}
-@media (min-width: 768px) {
-  [data-block="faq"][data-items-columns="2"] .fq-grid,
-  [data-block="faq"][data-items-columns="3"] .fq-grid {
-    --fq-cols: 2;
-  }
-}
-@media (min-width: 992px) {
-  [data-block="faq"][data-items-columns="3"] .fq-grid {
-    --fq-cols: 3;
-  }
 }
 
 /* 问答永远占满整列、不跟 introAlign —— 块头文字和 help 卡才跟（Chris 2026-10-01，#1515）。

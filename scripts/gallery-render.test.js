@@ -82,7 +82,10 @@ const attr = (html, name) => { const m = new RegExp(`\\s${name}="([^"]*)"`).exec
 const itemsOf = (html) => html.split('data-part="item"').slice(1).map((x) => x.split('</figure>')[0]);
 const gridOf = (html) => html.split('data-part="lightbox"')[0];
 const lightboxOf = (html) => html.split('data-part="lightbox"')[1] || '';
-const CSS = fs.readFileSync(path.join(BLOCK, 'block.css'), 'utf-8');
+// #1537 —— 条目网格的列数 / 断点由 manifest 的 itemsGrid 生成（scripts/block-build/items-grid.js），拼在 block.css 前面；
+//    这里读的是两份拼起来的那一段（= public/shapes.css 里这个块的那一段）。
+const CSS = require('./block-build/items-grid').itemsGridCss(JSON.parse(fs.readFileSync(path.join(BLOCK, 'manifest.json'), 'utf-8')), 'gallery')
+  + '\n' + fs.readFileSync(path.join(BLOCK, 'block.css'), 'utf-8');
 const SRC_TEXT = fs.readFileSync(SECTION, 'utf-8');
 const LB_TEXT = fs.readFileSync(path.join(BLOCK, 'Lightbox.tsx'), 'utf-8');
 const BS_PATH = path.join(SRC, 'components', 'BootstrapJs.tsx');
@@ -145,9 +148,9 @@ console.log('\n── AC3 形状（block.css）');
   has(/\[data-item-shape="landscape"\] \.gl-img \{\s*aspect-ratio: 4 \/ 3;/, 'landscape = 4:3');
   has(/\[data-item-shape="portrait"\] \.gl-img \{\s*aspect-ratio: 3 \/ 4;/, 'portrait = 3:4');
   has(/\.gl-img img \{\s*display: block;\s*width: 100%;\s*height: 100%;\s*object-fit: cover;/, '裁图用 object-fit: cover');
-  has(/\[data-items-layout="grid"\]\[data-item-shape="original"\] \.gl-grid \{\s*column-count: 2;/, 'grid + original = 多列（手机 / iPad 2 列）');
-  has(/\[data-items-layout="grid"\]\[data-items-columns="3"\]\[data-item-shape="original"\] \.gl-grid \{\s*column-count: 3;/, '≥992 按 itemsColumns（3）');
-  has(/\[data-items-layout="grid"\]\[data-items-columns="4"\]\[data-item-shape="original"\] \.gl-grid \{\s*column-count: 4;/, '≥992 按 itemsColumns（4）');
+  has(/\[data-items-layout="grid"\]\[data-item-shape="original"\] \.gl-grid \{\s*--items-cols: 2;\s*column-count: var\(--items-cols\);/, 'grid + original = 多列（手机 / iPad 2 列）');
+  has(/min-width: 992px\) \{[^@]*\[data-items-layout="grid"\]\[data-item-shape="original"\]\[data-items-columns="3"\] \.gl-grid \{\s*--items-cols: 3;/, '≥992 按 itemsColumns（3）');
+  has(/min-width: 992px\) \{[^@]*\[data-items-layout="grid"\]\[data-item-shape="original"\]\[data-items-columns="4"\] \.gl-grid \{\s*--items-cols: 4;/, '≥992 按 itemsColumns（4）');
   has(/\[data-item-shape="original"\] \.gl-item \{\s*break-inside: avoid;/, '瀑布流每张 break-inside: avoid');
   has(/\[data-items-layout="grid"\]\[data-item-shape="original"\] \.gl-img img \{\s*height: auto;/, '瀑布流按原图比例（height: auto）');
   has(/\[data-items-layout="mosaic"\]\[data-item-shape="original"\] \.gl-img \{\s*aspect-ratio: 4 \/ 3;/, 'mosaic + original 按 landscape（4:3）');

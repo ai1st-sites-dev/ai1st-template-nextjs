@@ -180,21 +180,9 @@
 }
 
 /* ═══ items：grid = 全部摊开；carousel = 横向轮播。手机一列 / 一屏一条，iPad 最多两条，≥992 按列数 ═══════ */
+/* 列数与断点（手机一列、iPad 最多两条、≥992 按列数）归 manifest 的 itemsGrid，由 scripts/block-build/items-grid.js 生成（#1537）。 */
 [data-block="testimonials"][data-items-layout="grid"] .tn-grid {
-  display: grid;
-  grid-template-columns: 1fr;
   gap: 1.5rem;
-}
-@media (min-width: 768px) {
-  [data-block="testimonials"][data-items-layout="grid"][data-items-columns="2"] .tn-grid,
-  [data-block="testimonials"][data-items-layout="grid"][data-items-columns="3"] .tn-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-@media (min-width: 992px) {
-  [data-block="testimonials"][data-items-layout="grid"][data-items-columns="3"] .tn-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
 }
 [data-block="testimonials"][data-items-layout="grid"][data-item-style="plain"] .tn-grid {
   row-gap: 3rem;
@@ -208,21 +196,8 @@
    <768 竖着叠、768–991 最多两列、≥992 按列数。轨道 / 切换 / 动画是 Bootstrap 自己的 .carousel 规则（site.css）。
    以前那条手写轨道（横向滚动 + 自己算位置）已删。 */
 [data-block="testimonials"] .tn-slide {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
   gap: 1.5rem;
   padding-bottom: 2px; /* card 的下描边不被 .carousel-inner 的 overflow 裁掉 */
-}
-@media (min-width: 768px) {
-  [data-block="testimonials"][data-items-columns="2"] .tn-slide,
-  [data-block="testimonials"][data-items-columns="3"] .tn-slide {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-@media (min-width: 992px) {
-  [data-block="testimonials"][data-items-columns="3"] .tn-slide {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
 }
 [data-block="testimonials"][data-item-style="plain"] .tn-slide {
   column-gap: 2.5rem;
