@@ -28,13 +28,13 @@
 [data-block="hero"][data-image="top"] .hro-side,
 [data-block="hero"][data-image="bottom"] .hro-side {
   max-width: 1100px;
-  margin-left: auto;
-  margin-right: auto;
+  margin-inline-start: auto;
+  margin-inline-end: auto;
 }
 
 /* 大字号标题的光学对齐：文字靠左时让大写字母左缘跟 eyebrow / 副标题对齐。 */
 [data-block="hero"][data-text-align="left"] .hro-title {
-  margin-left: -0.04em;
+  margin-inline-start: -0.04em;
 }
 
 /* 副标题 ≤ 52ch。上下叠（top / bottom）时文字块收到 64ch，这一块放哪跟 data-text-align：
@@ -48,22 +48,22 @@
 }
 [data-block="hero"][data-text-align="center"][data-image="top"] .hro-textcol,
 [data-block="hero"][data-text-align="center"][data-image="bottom"] .hro-textcol {
-  margin-left: auto;
-  margin-right: auto;
+  margin-inline-start: auto;
+  margin-inline-end: auto;
 }
 [data-block="hero"][data-text-align="right"][data-image="top"] .hro-textcol,
 [data-block="hero"][data-text-align="right"][data-image="bottom"] .hro-textcol {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 /* 限了宽的副标题 / 表单跟着文字对齐走：center 居中、right 贴右。 */
 [data-block="hero"][data-text-align="center"] .hro-sub,
 [data-block="hero"][data-text-align="center"] .hro-form {
-  margin-left: auto;
-  margin-right: auto;
+  margin-inline-start: auto;
+  margin-inline-end: auto;
 }
 [data-block="hero"][data-text-align="right"] .hro-sub,
 [data-block="hero"][data-text-align="right"] .hro-form {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 /* 表单跟标题同宽，不超过 34rem。 */
@@ -73,7 +73,7 @@
 
 /* 头像组叠在一起；logo 一排等高。 */
 [data-block="hero"] .hro-avatar + .hro-avatar {
-  margin-left: -10px;
+  margin-inline-start: -10px;
 }
 [data-block="hero"] .hro-logo {
   height: 26px;

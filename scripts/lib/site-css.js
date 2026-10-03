@@ -27,9 +27,17 @@
 // 只有图册那条 dev 路由用 `<link>` 引它。Tailwind 的 content 扫描只管 Tailwind 自己的类。
 // PurgeCSS 按「内容里出现过的词」留规则 —— 跟 Tailwind 的 content 扫描同一种判法，词法抽取、不跑代码。
 //   content = blocks/**/*.tsx + src/**/*.tsx。
+//
+// ── RTL（#1473）────────────────────────────────────────────────────────────────────────────────────
+// `dir=rtl` 的站（`text-dir.js` §dirForLocale，由 `defaultLocale` 推）：sass → **RTLCSS** → purge → 追加图标翻转。
+// 这是 Bootstrap 官方 `bootstrap.rtl.css` 的生成法：`ms-*` / `me-*` / `text-start` / `float-start` 这些起末端工具类
+// 整份镜像。LTR 站一步不多（字节与改前相同）。块的 CSS（`public/shapes.css`）不过 RTLCSS —— 它在这份之后单独加载，
+// 靠只写逻辑属性在 RTL 下自己成立（`scripts/block-css-logical.test.js`）。
 
 const fs = require('fs');
 const path = require('path');
+
+const { RTL_ICON_FLIP } = require('./text-dir.js');
 
 const NEXT_DIR = path.resolve(__dirname, '..', '..');
 
@@ -234,6 +242,11 @@ function compileSiteCss(primary, { rootDir = NEXT_DIR } = {}) {
   return out.css;
 }
 
+/** #1473 —— RTL 站：整份过 RTLCSS（左右镜像）。放在 purge 之前，跟 Bootstrap 生成 `bootstrap.rtl.css` 同一个次序。 */
+function mirrorSiteCss(css) {
+  return require('rtlcss').process(css);
+}
+
 /** purge 的 content 清单（glob），相对模板根。 */
 const PURGE_CONTENT = [
   'blocks/**/*.tsx',
@@ -278,16 +291,17 @@ async function purgeSiteCss(css, { rootDir = NEXT_DIR, content = PURGE_CONTENT }
  * sync-config 调的那一个：编 + purge + 写 `public/site.css`。
  * 回 `{ bytes, rawBytes, ms }` 给日志用。
  */
-async function writeSiteCss({ brand, rootDir = NEXT_DIR }) {
+async function writeSiteCss({ brand, rootDir = NEXT_DIR, dir = 'ltr' }) {
   const t0 = Date.now();
   const primary = primaryOf(brand);
   const raw = compileSiteCss(primary, { rootDir });
-  const purged = await purgeSiteCss(raw, { rootDir });
+  const css = await purgeSiteCss(dir === 'rtl' ? mirrorSiteCss(raw) : raw, { rootDir })
+    + (dir === 'rtl' ? `\n${RTL_ICON_FLIP}` : '');
   const publicDir = path.join(rootDir, 'public');
-  fs.writeFileSync(path.join(publicDir, 'site.css'), purged);
-  return { primary, bytes: Buffer.byteLength(purged), rawBytes: Buffer.byteLength(raw), ms: Date.now() - t0 };
+  fs.writeFileSync(path.join(publicDir, 'site.css'), css);
+  return { primary, dir, bytes: Buffer.byteLength(css), rawBytes: Buffer.byteLength(raw), ms: Date.now() - t0 };
 }
 
 module.exports = {
-  primaryOf, siteScss, compileSiteCss, purgeSiteCss, writeSiteCss, PURGE_CONTENT, THEME_COLOR_VARIABLES, ON_DEEP_MUTED, ON_DEEP_FORM, BTN_PRIMARY_INK, SCHEME_SURFACES, SCHEME_VARIABLES,
+  primaryOf, siteScss, compileSiteCss, mirrorSiteCss, purgeSiteCss, writeSiteCss, PURGE_CONTENT, THEME_COLOR_VARIABLES, ON_DEEP_MUTED, ON_DEEP_FORM, BTN_PRIMARY_INK, SCHEME_SURFACES, SCHEME_VARIABLES,
 };

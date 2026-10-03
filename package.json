@@ -39,6 +39,7 @@
     "postcss": "^8.5.6",
     "postcss-value-parser": "^4.2.0",
     "purgecss": "7.0.2",
+    "rtlcss": "4.3.0",
     "sass": "1.79.4",
     "tailwindcss": "^3.4.19",
     "typescript": "^5.9.3"

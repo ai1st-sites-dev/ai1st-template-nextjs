@@ -41,22 +41,22 @@
 [data-block="faq"][data-intro-align="center"] .fq-intro-text {
   text-align: center;
   max-width: 64ch;
-  margin-left: auto;
-  margin-right: auto;
+  margin-inline-start: auto;
+  margin-inline-end: auto;
 }
 [data-block="faq"][data-intro-align="center"] .fq-body,
 [data-block="faq"][data-intro-align="center"] .fq-help {
-  margin-left: auto;
-  margin-right: auto;
+  margin-inline-start: auto;
+  margin-inline-end: auto;
 }
 [data-block="faq"][data-intro-align="right"] .fq-intro-text {
-  text-align: right;
+  text-align: end;
   max-width: 64ch;
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 [data-block="faq"][data-intro-align="right"] .fq-body,
 [data-block="faq"][data-intro-align="right"] .fq-help {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 /* introPosition：left / right（≥992）= 块头一列 41.67%（sticky top 2rem）、问答一列 58.33%；right 行反向。
@@ -94,7 +94,7 @@
   }
   [data-block="faq"][data-intro-position="left"] .fq-help,
   [data-block="faq"][data-intro-position="right"] .fq-help {
-    margin-left: 0;
+    margin-inline-start: 0;
   }
 }
 

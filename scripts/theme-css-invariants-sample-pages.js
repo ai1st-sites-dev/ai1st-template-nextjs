@@ -95,6 +95,7 @@
 //    📌 #1321 在那个文件里只**删**了一个字段（`opt` —— 组件 TS 类型里的那个 `?`，全文只被写不被读，
 //    而且对三个没有 `data: {` 的块给不出读数）。这一段说的「别把这道检查的需要塞进去」没有破：
 //    最少版的削减整个做在**这里**，做法照旧是「先请它生成，再在产物上动」。
+//    📌 #1473 给它加了一个可选参数（写到哪儿），也没有破这一条：那是「产物放哪个 locale 目录」，不是数据。
 //
 // ══ 两版（#1321）═══════════════════════════════════════════════════════════════════════════════
 //   node scripts/theme-css-invariants-sample-pages.js [<站目录>]            全填版（默认，行为一字未改）
@@ -156,9 +157,10 @@ if (!fs.existsSync(pagesDir)) die(`no ${path.relative(NEXT, pagesDir)}`);
 
 // ── ① 一页含全部块 ────────────────────────────────────────────────────────────────────────────
 if (!fs.existsSync(GEN)) die(`no ${path.relative(NEXT, GEN)}`);
-const gen = cp.spawnSync(process.execPath, [GEN], { cwd: NEXT, encoding: 'utf8' });
-if (gen.status !== 0) die(`gen-allblocks.js exited ${gen.status}\n${(gen.stderr || '').trim()}`);
 const allblocks = path.join(pagesDir, 'allblocks.json');
+// #1473 —— 写到本站 defaultLocale 的内容目录。不传时 gen-allblocks.js 写死 site/en/，`ar` 样例站就铺不开。
+const gen = cp.spawnSync(process.execPath, [GEN, allblocks], { cwd: NEXT, encoding: 'utf8' });
+if (gen.status !== 0) die(`gen-allblocks.js exited ${gen.status}\n${(gen.stderr || '').trim()}`);
 if (!fs.existsSync(allblocks)) die(`gen-allblocks.js did not write ${path.relative(NEXT, allblocks)}`);
 console.log(`  sample site: ${String(gen.stdout || '').trim()}`);
 

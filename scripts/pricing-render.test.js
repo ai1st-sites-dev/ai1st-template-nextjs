@@ -214,8 +214,8 @@ console.log('\n── AC4 / AC5 featured × featuredColor');
 console.log('\n── AC6 对齐');
 {
   check(/\[data-plan-align="right"\] \.pr-head \{[^}]*row-reverse/.test(CSS), 'planAlign=right ⟹ .pr-head 行反向（badge 换到名字左边）');
-  check(/\.pr-features \{[^}]*text-align: left/.test(CSS) && /\[data-plan-align="center"\] \.pr-features \{[^}]*fit-content/.test(CSS),
-    '清单每行左对齐（text-align:left），整块跟着 planAlign 走（fit-content + auto 边距）');
+  check(/\.pr-features \{[^}]*text-align: start/.test(CSS) && /\[data-plan-align="center"\] \.pr-features \{[^}]*fit-content/.test(CSS),
+    '清单每行起端对齐（text-align: start —— LTR 左、RTL 右，#1473），整块跟着 planAlign 走（fit-content + auto 边距）');
   check(/\[data-plans-columns="1"\]\[data-plan-cta="top"\]\[data-plan-align="center"\] \.pr-cta \{[^}]*align-self: center/.test(CSS)
     && /\[data-plans-columns="1"\]\[data-plan-cta="top"\]\[data-plan-align="right"\] \.pr-cta \{[^}]*align-self: flex-end/.test(CSS),
   'plansColumns=1 + planCta=top：按钮不通栏、跟 planAlign（center 居中 / right 靠右）');

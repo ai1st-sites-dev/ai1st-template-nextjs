@@ -29,13 +29,13 @@
   text-align: center;
 }
 [data-block="testimonials"][data-intro-align="right"] .tn-intro-text {
-  text-align: right;
+  text-align: end;
 }
 @media (min-width: 992px) {
   [data-block="testimonials"][data-intro-align="center"] .tn-intro-text {
     max-width: 80%;
-    margin-left: auto;
-    margin-right: auto;
+    margin-inline-start: auto;
+    margin-inline-end: auto;
   }
 }
 
@@ -115,7 +115,7 @@
     grid-template-columns: 1fr auto;
     grid-template-areas: "logo stars" "score count";
     align-items: center;
-    text-align: left;
+    text-align: start;
     gap: 0.25rem 1rem;
     padding: 1rem 1.25rem;
   }

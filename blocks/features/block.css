@@ -39,23 +39,23 @@
 [data-block="features"][data-intro-align="center"] .fx-intro-text {
   text-align: center;
   max-width: 64ch;
-  margin-left: auto;
-  margin-right: auto;
+  margin-inline-start: auto;
+  margin-inline-end: auto;
 }
 [data-block="features"][data-intro-align="center"] .fx-body {
-  margin-left: auto;
-  margin-right: auto;
+  margin-inline-start: auto;
+  margin-inline-end: auto;
 }
 [data-block="features"][data-intro-align="center"] .fx-ctas {
   justify-content: center;
 }
 [data-block="features"][data-intro-align="right"] .fx-intro-text {
-  text-align: right;
+  text-align: end;
   max-width: 64ch;
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 [data-block="features"][data-intro-align="right"] .fx-body {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 [data-block="features"][data-intro-align="right"] .fx-ctas {
   justify-content: flex-end;
@@ -81,8 +81,8 @@
 [data-block="features"][data-intro-image="bottom"] .fx-intro-img {
   width: 100%;
   max-width: 64rem;
-  margin-left: auto;
-  margin-right: auto;
+  margin-inline-start: auto;
+  margin-inline-end: auto;
 }
 @media (min-width: 992px) {
   [data-block="features"][data-intro-image="left"] .fx-intro,
@@ -100,10 +100,10 @@
     margin-bottom: 0;
   }
   [data-block="features"][data-intro-image="left"] .fx-intro-img {
-    margin-right: 4rem;
+    margin-inline-end: 4rem;
   }
   [data-block="features"][data-intro-image="right"] .fx-intro-img {
-    margin-left: 4rem;
+    margin-inline-start: 4rem;
   }
   [data-block="features"][data-intro-image="left"] .fx-intro-text,
   [data-block="features"][data-intro-image="right"] .fx-intro-text {
@@ -149,7 +149,8 @@
   [data-block="features"][data-intro-position="left"] .fx-intro-img,
   [data-block="features"][data-intro-position="right"] .fx-intro-img {
     flex: none;
-    margin: 0 0 2.5rem 0;
+    margin-block: 0 2.5rem;
+    margin-inline: 0;
   }
   [data-block="features"][data-intro-position="left"] .fx-intro-text,
   [data-block="features"][data-intro-position="right"] .fx-intro-text {
@@ -266,7 +267,7 @@
   align-items: center;
 }
 [data-block="features"][data-item-align="right"] .fx-content {
-  text-align: right;
+  text-align: end;
   align-items: flex-end;
 }
 
@@ -324,7 +325,7 @@
     flex-direction: row-reverse;
   }
   [data-block="features"][data-item-icon="right"] .fx-text {
-    text-align: right;
+    text-align: end;
   }
   [data-block="features"][data-item-icon="left"] .fx-text,
   [data-block="features"][data-item-icon="right"] .fx-text {
@@ -397,10 +398,12 @@
     min-width: 0;
   }
   [data-block="features"][data-item-style="plain"][data-item-image="left"] .fx-img {
-    margin: 0 1.25rem 0 0;
+    margin-block: 0;
+    margin-inline: 0 1.25rem;
   }
   [data-block="features"][data-item-style="plain"][data-item-image="right"] .fx-img {
-    margin: 0 0 0 1.25rem;
+    margin-block: 0;
+    margin-inline: 1.25rem 0;
   }
   [data-block="features"][data-item-style="card"][data-item-image="left"] .fx-content,
   [data-block="features"][data-item-style="card"][data-item-image="right"] .fx-content {
@@ -460,7 +463,7 @@
 [data-block="features"][data-items-layout="grid"] .fx-connector {
   top: calc(50% - 1px);
   height: 2px;
-  left: calc(100% + 0.75rem);
+  inset-inline-start: calc(100% + 0.75rem);
   width: calc(100cqw / var(--fx-cols) - var(--fx-mark-w) - 1.5rem);
 }
 [data-block="features"][data-items-layout="grid"] .fx-connector {
@@ -502,13 +505,13 @@
     display: block;
   }
   [data-block="features"][data-items-layout="list"][data-item-icon="left"] .fx-connector {
-    left: calc(var(--x-gutter-x) * 0.5 + var(--fx-pad) + 1.25rem - 1px);
+    inset-inline-start: calc(var(--x-gutter-x) * 0.5 + var(--fx-pad) + 1.25rem - 1px);
   }
   [data-block="features"][data-items-layout="list"][data-item-icon="right"] .fx-connector {
-    right: calc(var(--x-gutter-x) * 0.5 + var(--fx-pad) + 2.5rem - 1.25rem - 1px);
+    inset-inline-end: calc(var(--x-gutter-x) * 0.5 + var(--fx-pad) + 2.5rem - 1.25rem - 1px);
   }
   [data-block="features"][data-items-layout="list"][data-item-icon="right"] .fx-mark[data-mark="2"] .fx-connector {
-    right: calc(var(--x-gutter-x) * 0.5 + var(--fx-pad) + 5.75rem - 1.25rem - 1px);
+    inset-inline-end: calc(var(--x-gutter-x) * 0.5 + var(--fx-pad) + 5.75rem - 1.25rem - 1px);
   }
 }
 

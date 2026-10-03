@@ -100,23 +100,23 @@
 [data-block="milestones"][data-intro-align="center"] .mi-intro-text {
   text-align: center;
   max-width: 64ch;
-  margin-left: auto;
-  margin-right: auto;
+  margin-inline-start: auto;
+  margin-inline-end: auto;
 }
 [data-block="milestones"][data-intro-align="center"] .mi-body {
-  margin-left: auto;
-  margin-right: auto;
+  margin-inline-start: auto;
+  margin-inline-end: auto;
 }
 [data-block="milestones"][data-intro-align="center"] .mi-ctas {
   justify-content: center;
 }
 [data-block="milestones"][data-intro-align="right"] .mi-intro-text {
-  text-align: right;
+  text-align: end;
   max-width: 64ch;
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 [data-block="milestones"][data-intro-align="right"] .mi-body {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 [data-block="milestones"][data-intro-align="right"] .mi-ctas {
   justify-content: flex-end;
@@ -145,10 +145,10 @@
     margin-bottom: 0;
   }
   [data-block="milestones"][data-intro-image="left"] .mi-intro-img {
-    margin-right: 4rem;
+    margin-inline-end: 4rem;
   }
   [data-block="milestones"][data-intro-image="right"] .mi-intro-img {
-    margin-left: 4rem;
+    margin-inline-start: 4rem;
   }
   [data-block="milestones"][data-intro-image="left"] .mi-intro-text,
   [data-block="milestones"][data-intro-image="right"] .mi-intro-text {
@@ -195,7 +195,8 @@
   [data-block="milestones"][data-intro-position="left"] .mi-intro-img,
   [data-block="milestones"][data-intro-position="right"] .mi-intro-img {
     flex: none;
-    margin: 0 0 2.5rem 0;
+    margin-block: 0 2.5rem;
+    margin-inline: 0;
   }
   [data-block="milestones"][data-intro-position="left"] .mi-intro-text,
   [data-block="milestones"][data-intro-position="right"] .mi-intro-text {
@@ -285,22 +286,22 @@
   padding: 2rem;
 }
 [data-block="milestones"][data-stat-style="divided"] .mi-stat {
-  border-left: 1px solid var(--x-border-color, #e5e7eb);
+  border-inline-start: 1px solid var(--x-border-color, #e5e7eb);
 }
 [data-block="milestones"][data-stat-style="divided"] .mi-stat:first-child,
 [data-block="milestones"][data-stat-style="divided"][data-stats-columns="1"] .mi-stat {
-  border-left: 0;
+  border-inline-start: 0;
 }
 @media (max-width: 991.98px) {
   [data-block="milestones"][data-stat-style="divided"] .mi-grid > .mi-stat:nth-child(odd) {
-    border-left: 0;
+    border-inline-start: 0;
   }
 }
 @media (min-width: 992px) {
   [data-block="milestones"][data-stat-style="divided"][data-stats-columns="2"] .mi-grid > .mi-stat:nth-child(2n+1),
   [data-block="milestones"][data-stat-style="divided"][data-stats-columns="3"] .mi-grid > .mi-stat:nth-child(3n+1),
   [data-block="milestones"][data-stat-style="divided"][data-stats-columns="4"] .mi-grid > .mi-stat:nth-child(4n+1) {
-    border-left: 0;
+    border-inline-start: 0;
   }
 }
 

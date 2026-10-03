@@ -156,8 +156,10 @@ export default function BlockLeadForm({ mode, formId, forms, services = [], loca
   };
 
   // 蜜罐：屏幕外，真人填不到。内联样式是有意的 —— 它不是外观，主题不许把它打开（同 HeroLeadForm）。
+  // #1473 —— 往【起端】推（inset-inline-start），不写 left：RTL 站的起端在右，`left: -9999px` 在那里是可以滚过去的一侧，
+  //    整页多出 9999px 横向滚动（实测 scrollWidth 11279 / 视口 1280）。起端外侧在 LTR / RTL 下都滚不到。
   const honeypot = (
-    <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, overflow: 'hidden' }}>
+    <div aria-hidden="true" style={{ position: 'absolute', insetInlineStart: '-9999px', width: 1, height: 1, overflow: 'hidden' }}>
       <label htmlFor={`${idPrefix}-hp`}>Leave this field empty</label>
       <input id={`${idPrefix}-hp`} type="text" tabIndex={-1} autoComplete="off" value={hp} onChange={(e) => setHp(e.target.value)} />
     </div>

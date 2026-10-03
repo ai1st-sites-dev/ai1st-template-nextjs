@@ -5,6 +5,7 @@ import {
   siteId as _siteId,
   leadApi as _leadApi,
   colorScheme as _colorScheme,
+  dir as _dir,
   defaultLocale as _defaultLocale,
   locales as _locales,
   seoByLocale as _seoByLocale,
@@ -23,6 +24,8 @@ export const siteId = _siteId as string;
 export const leadApi = _leadApi as string;
 // #1472 —— 站级深浅（`site_meta.json` 的 colorScheme，判据在 `scripts/lib/color-scheme.js`）。`layout.tsx` 读它写 `<html data-bs-theme>`。
 export const colorScheme = _colorScheme as 'light' | 'dark' | 'auto';
+// #1473 —— 站级文字方向（主语言推出来的，判据在 `scripts/lib/text-dir.js`）。`layout.tsx` 读它写 `<html dir>`。
+export const dir = _dir as 'ltr' | 'rtl';
 export const defaultLocale = _defaultLocale as string;
 export const locales = _locales as string[];
 export const seoByLocale = _seoByLocale as Record<string, SeoConfig>;

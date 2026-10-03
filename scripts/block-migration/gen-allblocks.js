@@ -87,6 +87,8 @@ for (const t of types){
   const d={}; for (const f of fields(body)) d[f.name]=synth(f.name,f.type,0,defs);
   page.sections.push({type:t,data:d});
 }
-fs.writeFileSync('site/en/pages/allblocks.json', JSON.stringify(page,null,2)+'\n');
+// #1473 —— 写到哪儿可以由第一个参数指定（`theme-css-invariants-sample-pages.js` 按样例站的 defaultLocale 传，
+//    `ar` 样例站的内容目录是 site/ar/）。不传就是原来那一处，手工跑法不变。
+fs.writeFileSync(process.argv[2] || 'site/en/pages/allblocks.json', JSON.stringify(page,null,2)+'\n');
 console.log('block 种类:', types.length, '· 写进页面:', page.sections.length);
 if (skipped.length) console.log('跳过:', skipped.join(' | '));

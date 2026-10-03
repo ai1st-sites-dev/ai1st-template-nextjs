@@ -93,47 +93,47 @@
   text-align: center;
 }
 [data-block="cta"][data-text-align="center"] .cta-body {
-  margin-left: auto;
-  margin-right: auto;
+  margin-inline-start: auto;
+  margin-inline-end: auto;
 }
 [data-block="cta"][data-text-align="right"] .cta-text {
-  text-align: right;
+  text-align: end;
 }
 [data-block="cta"][data-text-align="right"] .cta-body {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 [data-block="cta"][data-layout="centered"] .cta-main {
   max-width: 64ch;
 }
 [data-block="cta"][data-layout="centered"][data-text-align="center"] .cta-main {
-  margin-left: auto;
-  margin-right: auto;
+  margin-inline-start: auto;
+  margin-inline-end: auto;
 }
 [data-block="cta"][data-layout="centered"][data-text-align="right"] .cta-main {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 [data-block="cta"][data-layout="centered"][data-text-align="center"] .cta-ctas,
 [data-block="cta"][data-layout="centered"][data-text-align="center"] .hro-form .d-flex {
   justify-content: center;
 }
 [data-block="cta"][data-layout="centered"][data-text-align="center"] .hro-form {
-  margin-left: auto;
-  margin-right: auto;
+  margin-inline-start: auto;
+  margin-inline-end: auto;
 }
 [data-block="cta"][data-layout="centered"][data-text-align="right"] .cta-ctas,
 [data-block="cta"][data-layout="centered"][data-text-align="right"] .hro-form .d-flex {
   justify-content: flex-end;
 }
 [data-block="cta"][data-layout="centered"][data-text-align="right"] .hro-form {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 /* 图在旁边时主体占满图旁那一列（不再收 64ch、不再居中）。 */
 @media (min-width: 992px) {
   [data-block="cta"][data-layout="centered"][data-image="left"] .cta-main,
   [data-block="cta"][data-layout="centered"][data-image="right"] .cta-main {
     max-width: none;
-    margin-left: 0;
-    margin-right: 0;
+    margin-inline-start: 0;
+    margin-inline-end: 0;
   }
 }
 

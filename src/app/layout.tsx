@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import { brand, getSeo, getBrandName, defaultLocale, siteId, leadApi, colorScheme } from '@/lib/config';
+import { brand, getSeo, getBrandName, defaultLocale, siteId, leadApi, colorScheme, dir } from '@/lib/config';
 // #1472 —— `auto` 站首屏前那段脚本（判据和文案都在 lib 那一处）。
 import { AUTO_SCHEME_SCRIPT } from '../../scripts/lib/color-scheme.js';
 import { RADIUS, SHADOW, DENSITY, BUTTON_SHAPE } from '@/lib/themeSettings';
@@ -755,7 +755,8 @@ export default function RootLayout({
     // #1472 —— 站级深浅。`light` / `dark` 构建时写死；`auto` 构建时不知道访客的系统是深是浅 ⟹ 不写，由 <head> 第一段
     // 内联脚本在 body 画第一帧之前按 `prefers-color-scheme` 写上（并跟着系统切换改写）。属性是脚本写的，React 水合时
     // 会对不上 ⟹ `suppressHydrationWarning`（它只管这一个元素自己的属性，不往下传）。
-    <html lang={seo.locale.split('_')[0]}
+    // #1473 —— `dir` 由主语言推（`scripts/lib/text-dir.js`）；rtl 站的 site.css 是 RTLCSS 镜像过的那份。
+    <html lang={seo.locale.split('_')[0]} dir={dir}
       {...(colorScheme === 'auto' ? {} : { 'data-bs-theme': colorScheme })}
       suppressHydrationWarning>
       <head>

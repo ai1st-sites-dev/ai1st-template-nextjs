@@ -50,13 +50,13 @@
   text-align: center;
 }
 [data-block="reviews"][data-intro-align="right"] .rv-intro-text {
-  text-align: right;
+  text-align: end;
 }
 @media (min-width: 992px) {
   [data-block="reviews"][data-intro-align="center"] .rv-intro-text {
     max-width: 80%;
-    margin-left: auto;
-    margin-right: auto;
+    margin-inline-start: auto;
+    margin-inline-end: auto;
   }
 }
 
@@ -165,7 +165,7 @@
 }
 [data-block="reviews"][data-items-layout="grid"][data-item-align="right"] .rv-item {
   align-items: flex-end;
-  text-align: right;
+  text-align: end;
 }
 [data-block="reviews"][data-items-layout="grid"][data-item-align="right"] .rv-item .rv-meta {
   align-items: flex-end;
@@ -180,7 +180,7 @@
   [data-block="reviews"][data-items-layout="grid"][data-item-align] .rv-item {
     flex-direction: row;
     align-items: center;
-    text-align: left;
+    text-align: start;
     gap: 1rem;
   }
   [data-block="reviews"][data-items-layout="grid"] .rv-logo {

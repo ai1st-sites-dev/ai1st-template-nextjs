@@ -3,7 +3,8 @@
 # runtime reading on each (#1009). This is the automatic caller for scripts/theme-css-invariants.mjs.
 #
 #   bash scripts/theme-css-invariants-all-sheets.sh [--make-sample-site] [--shard i/N]
-#                                                    [--no-minimal-arm] [sheet-name …]
+#                                                    [--no-minimal-arm] [--sample-language xx]
+#                                                    [sheet-name …]
 #
 #   --make-sample-site   create a demo site in templates/nextjs/site first, but ONLY if there is none.
 #                        It never replaces a site you put there yourself (same rule as
@@ -12,6 +13,11 @@
 #                        create-site.js's skipAI path returns before the ANTHROPIC_API_KEY check.
 #   --shard i/N          take only the i-th of N slices of the sheet list (1-based). See §SHARDING.
 #   --no-minimal-arm     take the reading on the FULL fixture only. See §TWO ARMS below.
+#   --sample-language xx the language of the sample site --make-sample-site builds (default en —
+#                        the CI call does not pass it). `ar` builds a right-to-left site (#1473): its
+#                        site.css is the RTLCSS-mirrored one and its <html> carries dir="rtl". Only
+#                        means something together with --make-sample-site; a site you put in site/
+#                        yourself keeps its own language.
 #   sheet-name …         which sheets in public/themes/ to check; default is all of them.
 #
 # Exit 0 = every sheet's page holds every invariant.
@@ -118,6 +124,7 @@ THEMES_DIR="$NEXT/public/themes"
 # kernel, see free_port).
 MAKE_SITE=0
 MINIMAL_ARM=1
+SAMPLE_LANG=en
 SHARD_I=0
 SHARD_N=0
 SHEETS=()
@@ -125,6 +132,13 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --make-sample-site) MAKE_SITE=1 ;;
     --no-minimal-arm) MINIMAL_ARM=0 ;;
+    --sample-language)
+      shift
+      # Goes into a JSON string and into create-site's own language check — letters and one `-` only.
+      if ! [[ "${1:-}" =~ ^[a-zA-Z]{2,}(-[a-zA-Z]{2,4})?$ ]]; then
+        echo "🔴 --sample-language wants a language code like en / ar / zh-tw (got '${1:-}')" >&2; exit 2
+      fi
+      SAMPLE_LANG="$1" ;;
     --shard)
       shift
       # 🔴 A REGEX, NOT A GLOB (#1073 r1, QA1). The first cut matched `[1-9]*/[1-9]*`, and a shell glob's
@@ -208,9 +222,9 @@ if [ ! -f "$NEXT/site/brand.json" ]; then
     echo "🔴 no sample site at $NEXT/site — pass --make-sample-site, or put one there." >&2
     exit 2
   fi
-  echo "── making a demo sample site (skipAI, no AI calls)"
+  echo "── making a demo sample site (skipAI, no AI calls, language $SAMPLE_LANG)"
   if ! echo '{"siteId":"themecss1","companyName":"Northside Auto Care","industry":"auto repair",
-               "location":"Toronto","skipAI":true,"language":"en"}' \
+               "location":"Toronto","skipAI":true,"language":"'"$SAMPLE_LANG"'"}' \
        | ( cd "$NEXT" && env -u ANTHROPIC_API_KEY node scripts/create-site.js ) >/dev/null; then
     echo "🔴 cannot take the reading: create-site.js (skipAI) failed" >&2
     exit 2

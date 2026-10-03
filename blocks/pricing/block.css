@@ -49,7 +49,7 @@
   font-size: 1.25rem;
 }
 [data-block="pricing"] .pr-avatar + .pr-avatar {
-  margin-left: -10px;
+  margin-inline-start: -10px;
 }
 [data-block="pricing"] .pr-logo {
   height: 24px;
@@ -63,12 +63,12 @@
 [data-block="pricing"][data-intro-align="center"] .pr-intro-text {
   text-align: center;
   max-width: 64ch;
-  margin-left: auto;
-  margin-right: auto;
+  margin-inline-start: auto;
+  margin-inline-end: auto;
 }
 [data-block="pricing"][data-intro-align="center"] .pr-body {
-  margin-left: auto;
-  margin-right: auto;
+  margin-inline-start: auto;
+  margin-inline-end: auto;
 }
 [data-block="pricing"][data-intro-align="center"] .pr-proof,
 [data-block="pricing"][data-intro-align="center"] .pr-logo-row {
@@ -96,12 +96,12 @@
   }
 }
 [data-block="pricing"][data-intro-align="right"] .pr-intro-text {
-  text-align: right;
+  text-align: end;
   max-width: 64ch;
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 [data-block="pricing"][data-intro-align="right"] .pr-body {
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 [data-block="pricing"][data-intro-align="right"] .pr-proof,
 [data-block="pricing"][data-intro-align="right"] .pr-logo-row {
@@ -109,7 +109,7 @@
 }
 [data-block="pricing"][data-intro-align="right"] .pr-hl {
   flex-direction: row-reverse;
-  text-align: right;
+  text-align: end;
 }
 
 /* introPosition：left / right（≥992）= 块头一列 41.67%（sticky top 2rem）、套餐一列 58.33%；right 行反向。
@@ -157,7 +157,7 @@
 }
 [data-block="pricing"][data-intro-align="right"][data-intro-position="top"] .pr-billing-wrap,
 [data-block="pricing"][data-intro-align="right"][data-intro-position="bottom"] .pr-billing-wrap {
-  text-align: right;
+  text-align: end;
 }
 [data-block="pricing"] .pr-billing {
   flex-wrap: wrap;
@@ -201,8 +201,8 @@
 [data-block="pricing"][data-plans-columns="1"] .pr-plan {
   width: 100%;
   max-width: 56rem;
-  margin-left: auto;
-  margin-right: auto;
+  margin-inline-start: auto;
+  margin-inline-end: auto;
 }
 @media (min-width: 768px) {
   [data-block="pricing"][data-plans-columns="1"] .pr-features {
@@ -233,7 +233,7 @@
 }
 [data-block="pricing"] .pr-features {
   margin-top: 1.25rem;
-  text-align: left;
+  text-align: start;
 }
 [data-block="pricing"] .pr-check {
   margin-top: 0.15rem;
@@ -307,14 +307,14 @@
     --pr-gap: 0px;
   }
   [data-block="pricing"][data-plan-style="divided"] .pr-plan {
-    border-left: 1px solid var(--x-border-color, #e5e7eb);
+    border-inline-start: 1px solid var(--x-border-color, #e5e7eb);
   }
   [data-block="pricing"][data-plan-style="divided"] .pr-plan:first-child,
   [data-block="pricing"][data-plan-style="divided"][data-plans-columns="1"] .pr-plan,
   [data-block="pricing"][data-plan-style="divided"][data-plans-columns="2"] .pr-grid > .pr-plan:nth-child(2n+1),
   [data-block="pricing"][data-plan-style="divided"][data-plans-columns="3"] .pr-grid > .pr-plan:nth-child(3n+1),
   [data-block="pricing"][data-plan-style="divided"][data-plans-columns="4"] .pr-grid > .pr-plan:nth-child(4n+1) {
-    border-left: 0;
+    border-inline-start: 0;
   }
 }
 
@@ -331,11 +331,11 @@
 [data-block="pricing"][data-plan-align="center"] .pr-features {
   width: fit-content;
   max-width: 100%;
-  margin-left: auto;
-  margin-right: auto;
+  margin-inline-start: auto;
+  margin-inline-end: auto;
 }
 [data-block="pricing"][data-plan-align="right"] .pr-inner {
-  text-align: right;
+  text-align: end;
 }
 [data-block="pricing"][data-plan-align="right"] .pr-head {
   flex-direction: row-reverse;
@@ -346,7 +346,7 @@
 [data-block="pricing"][data-plan-align="right"] .pr-features {
   width: fit-content;
   max-width: 100%;
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 /* ═══ featured：高亮那个套餐 = 样式（outline | background）× 颜色（featuredColor）═════════════════════

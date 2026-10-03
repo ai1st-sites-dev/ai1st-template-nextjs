@@ -980,6 +980,13 @@ async function main() {
   if (input.skipAI) {
     progress('Setting up demo site (no AI)...', 10);
     const content = getDemoConfig(siteId);
+    // #1473 —— 主语言写进 seo.locale（`<html lang>` 读它）。改前这里恒为 getDemoConfig 写死的 en_CA ⟹ `language:"ar"`
+    //    的示例站会是 `lang="en" dir="rtl"`。`en` 仍映射到 en_CA，英文示例站逐字不变；次语言那一支（下面）本来就这么写。
+    content.seo.locale = localeMapForBcp47(defaultLocale);
+    // #1473 做什么 6 —— `ar` 示例站换上阿拉伯文那一份（机器翻，只为渲染一个 RTL 站，`lib/demo-content/ar.js`）。
+    if (defaultLocale === 'ar') {
+      debug(`[demo ar] 替换了 ${require('./lib/demo-content/ar.js').localizeStrings(content)} 处演示文案`);
+    }
     // #1346 —— skipAI 这条路**不经 AI、也不经 validateBlocks**，所以关掉的块只能在这里剔。
     // 漏掉它的话「关掉一个块」对示例站（夹具、演示、QA 的 4 个站）完全不说话，而那正是最常被拿去
     // 取读数的一条路。整页被剔空就连页一起去掉：一个只剩标题的页面不是一个页面。

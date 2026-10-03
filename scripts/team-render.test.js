@@ -164,7 +164,7 @@ console.log('\n── AC4 照片');
 console.log('\n── AC5 块头宽度（源码）');
 {
   check(count(SRC_TEXT + CSS, '64ch') === 0 && count(SRC_TEXT + CSS, '52ch') === 0, `组件与 block.css 里 64ch / 52ch 各 ${count(SRC_TEXT + CSS, '64ch')} / ${count(SRC_TEXT + CSS, '52ch')} 处`);
-  check(/@media \(min-width: 992px\) \{\s*\[data-block="team"\]\[data-intro-align="center"\] \.tm-intro-text \{\s*max-width: 80%;\s*margin-left: auto;\s*margin-right: auto;/.test(CSS),
+  check(/@media \(min-width: 992px\) \{\s*\[data-block="team"\]\[data-intro-align="center"\] \.tm-intro-text \{\s*max-width: 80%;\s*margin-inline-start: auto;\s*margin-inline-end: auto;/.test(CSS),
     'center 在 ≥992 最宽 80%、居中（<992 没有这条 = 100%）');
   check(/\[data-intro-position="left"\] \.tm-intro-text,\s*\[data-block="team"\]\[data-intro-position="right"\] \.tm-intro-text \{\s*max-width: none;\s*margin: 0;/.test(CSS),
     'introPosition left / right（≥992）⟹ 80% 那条取消、占满侧列');

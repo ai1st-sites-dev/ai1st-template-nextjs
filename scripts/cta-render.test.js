@@ -222,7 +222,7 @@ console.log('\n── AC7 textAlign');
   const h = render('centered', withOpts({ textAlign: 'center', layout: 'centered' }));
   check(attr(h, 'data-layout') === 'centered' && attr(h, 'data-text-align') === 'center', '根上挂着 data-layout / data-text-align');
   check(/\[data-layout="centered"\] \.cta-main \{\s*max-width: 64ch;/.test(CSS)
-    && /\[data-layout="centered"\]\[data-text-align="center"\] \.cta-main \{\s*margin-left: auto;\s*margin-right: auto;/.test(CSS),
+    && /\[data-layout="centered"\]\[data-text-align="center"\] \.cta-main \{\s*margin-inline-start: auto;\s*margin-inline-end: auto;/.test(CSS),
   'block.css：centered 排布下文字块限 64ch、center 时居中');
   check(/\[data-layout="centered"\]\[data-text-align="center"\] \.cta-ctas,/.test(CSS), 'block.css：centered + center 时按钮居中');
   check(!/\[data-layout="inline"\][^{]*\{[^}]*max-width: 64ch/.test(CSS), 'block.css：inline 下没有 64ch 上限（像素读数见 e2e）');
