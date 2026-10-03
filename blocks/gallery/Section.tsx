@@ -24,6 +24,7 @@
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg），纯色、brand、渐变都认。
 
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import { slotImg } from '@/lib/sections/blockMedia';
 import type { BlockConfig } from '@/lib/types/config';
 import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
 import manifest from './manifest.json';
@@ -116,7 +117,7 @@ export default function GalleryNewSection({ data, block }: Props) {
                 <figure key={i} className="gl-item" data-part="item">
                   <a className="gl-img d-block" href={`#${lbId}`} data-bs-toggle="modal" data-gl-index={i}
                     aria-label={`Open photo${it.title ? `: ${it.title}` : ` ${i + 1}`}`}>
-                    <img src={it.image!.imageUrl} alt={altOf(it)} />
+                    {slotImg(it.image!, { alt: altOf(it) })}
                   </a>
                   {it.title || it.caption ? (
                     <figcaption className="gl-cap" data-part="caption">
@@ -139,7 +140,7 @@ export default function GalleryNewSection({ data, block }: Props) {
                 <div className="carousel-inner">
                   {items.map((it, i) => (
                     <div key={i} className={`carousel-item${i === 0 ? ' active' : ''}`}>
-                      <img src={it.image!.imageUrl} className="d-block mx-auto" alt={altOf(it)} loading="lazy" />
+                      {slotImg(it.image!, { between: { className: 'd-block mx-auto' }, alt: altOf(it), after: { loading: 'lazy' } })}
                       {it.title || it.caption ? (
                         <div className="gl-lb-cap">{it.title}{it.caption ? <span>{it.caption}</span> : null}</div>
                       ) : null}

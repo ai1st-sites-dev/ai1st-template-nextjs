@@ -24,6 +24,7 @@
 
 import Link from 'next/link';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import { slotImg } from '@/lib/sections/blockMedia';
 import type { BlockConfig } from '@/lib/types/config';
 import Icon from '@/components/Icon';
 import { breadcrumbsFor } from '@/lib/breadcrumbs';
@@ -95,7 +96,7 @@ export default function PageHeaderNewSection({ data, locale = 'en', block, pageS
     >
       {cover && img ? (
         <div className="phn-bgimg" data-part="bg" aria-hidden="true">
-          <img src={img.imageUrl} alt="" />
+          {slotImg(img, { alt: '' })}
         </div>
       ) : null}
       <div className="container position-relative">
@@ -145,7 +146,7 @@ export default function PageHeaderNewSection({ data, locale = 'en', block, pageS
           </div>
           {side && img ? (
             <div className="phn-img" data-part="image">
-              <img className="w-100 rounded-4 object-fit-cover" src={img.imageUrl} alt={img.alt || ''} />
+              {slotImg(img, { before: { className: 'w-100 rounded-4 object-fit-cover' } })}
             </div>
           ) : null}
         </div>

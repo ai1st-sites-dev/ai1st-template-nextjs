@@ -19,6 +19,7 @@
 
 import Link from 'next/link';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import { slotImg } from '@/lib/sections/blockMedia';
 import SiteLink from '@/components/SiteLink';
 import type { BlockConfig } from '@/lib/types/config';
 import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
@@ -124,7 +125,7 @@ export default function LogosNewSection({ data, block }: Props) {
           <div className="col-12 lo-itemscol" data-part="items">
             <div className="lo-grid">
               {items.map((it, i) => {
-                const img = <img className="lo-logo" src={it.imageUrl} alt={it.alt || ''} loading="lazy" />;
+                const img = slotImg(it, { before: { className: 'lo-logo' }, after: { loading: 'lazy' } });
                 return (
                   <div key={i} data-part="item">
                     {str(it.href) ? (

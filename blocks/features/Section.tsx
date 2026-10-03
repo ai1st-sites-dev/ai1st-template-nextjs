@@ -29,6 +29,7 @@
 //    纯色、brand、渐变都认；这里不自己算亮度、不自己拼渐变。
 
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import { slotImg } from '@/lib/sections/blockMedia';
 import type { BlockConfig } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
@@ -163,7 +164,7 @@ export default function FeaturesNewSection({ data, block, iconTable = {} }: Prop
             <div className="fx-intro">
               {introImg ? (
                 <div className="fx-intro-img" data-part="intro-image">
-                  <img className="img-fluid rounded-4 w-100 object-fit-cover" src={introImg.imageUrl} alt={introImg.alt || ''} />
+                  {slotImg(introImg, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' } })}
                 </div>
               ) : null}
               {introText}
@@ -173,7 +174,7 @@ export default function FeaturesNewSection({ data, block, iconTable = {} }: Prop
             <div className="row fx-itemsrow gy-10 gx-lg-16">
               {itemsImg ? (
                 <div className="col-12 fx-itemsimg" data-part="items-image">
-                  <img className="img-fluid rounded-4 w-100 object-fit-cover" src={itemsImg.imageUrl} alt={itemsImg.alt || ''} />
+                  {slotImg(itemsImg, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' } })}
                 </div>
               ) : null}
               <div className="col-12 fx-itemsgrid">
@@ -189,7 +190,7 @@ export default function FeaturesNewSection({ data, block, iconTable = {} }: Prop
                         <div className="fx-inner h-100">
                           {img ? (
                             <div className="fx-img" data-part="item-image">
-                              <img className="w-100 h-100 object-fit-cover" src={img.imageUrl} alt={img.alt || ''} />
+                              {slotImg(img, { before: { className: 'w-100 h-100 object-fit-cover' } })}
                             </div>
                           ) : null}
                           <div className="fx-content">

@@ -24,6 +24,7 @@
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg），这里不自己算亮度、不自己拼渐变。
 
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import { ratingStars } from '@/lib/sections/blockMedia';
 import type { BlockConfig } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import SiteLink from '@/components/SiteLink';
@@ -83,14 +84,9 @@ export default function ReviewsNewSection({ data, block, iconTable = {} }: Props
   const bgValue = bgCss(d.bg);
 
   // 星：按分数四舍五入到整数颗实心星（4.5 → 5、4.4 → 4），不画半颗、不补空星（照定稿图册）。
-  const stars = (rating: number, part: string) => {
-    const n = Math.max(0, Math.min(5, Math.round(rating)));
-    return (
-      <span className="rv-stars d-inline-flex gap-1 text-warning" data-part={part} data-stars={n} role="img" aria-label={`${n} out of 5 stars`}>
-        {Array.from({ length: n }, (_, i) => <InlineIcon name="star-fill" key={i} icons={iconTable} />)}
-      </span>
-    );
-  };
+  const stars = (rating: number, part: string) => ratingStars(rating, iconTable, {
+    root: (n, label) => ({ className: 'rv-stars d-inline-flex gap-1 text-warning', 'data-part': part, 'data-stars': n, role: 'img', 'aria-label': label }),
+  });
 
   const eyebrow = isObj(d.introEyebrow) && str(d.introEyebrow.text) ? d.introEyebrow : null;
   // 没写 style ⟹ pill（同 hero / features：AI 只写了字，眉标照样出来）；明写 none ⟹ 不画。

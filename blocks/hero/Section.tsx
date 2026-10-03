@@ -23,13 +23,14 @@
 //
 // 🔴 **图片的键叫 `imageUrl`，不叫 `url`**：AI 改站那条路的写入闸只认 `IMAGE_FIELDS` 里的键
 //    （`scripts/lib/image-urls.js`，今天是 `imageUrl` / `logoUrl`），换一个名字模型编的地址就能写进来；
-//    `image-urls.test.js` 从组件里现读 `<img src={…}>` 的叶子标识符盯着这件事。
+//    `image-urls.test.js` 现读 `<img src={…}>` 的叶子标识符盯着这件事（#1538 起图槽的 `<img>` 在 `slotImg` 里，它认调用）。
 //
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss 写成 CSS、§toneForBg 按亮度反白；#1477，
 //    跟 footer / header / cta 同一份）。`bg` 可以是纯色、`brand` 或渐变 `{stops, angle}`。
 //    图铺底（`image=background` 且有图）一律按深底处理 —— 图上面压着深色渐变遮罩。
 
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import { slotImg } from '@/lib/sections/blockMedia';
 import type { BlockConfig } from '@/lib/types/config';
 import { getServices } from '@/lib/config';
 import Icon from '@/components/Icon';
@@ -190,8 +191,7 @@ export default function HeroNewSection({ data, locale = 'en', block }: Props) {
                   {imgs(proof.avatars).length ? (
                     <div className="d-flex">
                       {imgs(proof.avatars).slice(0, MAX.avatars).map((a, i) => (
-                        <img key={i} src={a.imageUrl} alt={a.alt || ''} width={36} height={36}
-                          className="rounded-circle border border-2 border-body object-fit-cover hro-avatar" />
+                        slotImg(a, { key: i, after: { width: 36, height: 36, className: 'rounded-circle border border-2 border-body object-fit-cover hro-avatar' } })
                       ))}
                     </div>
                   ) : null}
@@ -219,7 +219,7 @@ export default function HeroNewSection({ data, locale = 'en', block }: Props) {
                     <div className="text-sm text-muted mb-4" data-slot="logos.caption">{d.logos.caption}</div>
                   ) : null}
                   <div className={`d-flex flex-wrap align-items-center gap-4 gap-md-5${just}`}>
-                    {logos.map((l, i) => <img key={i} src={l.imageUrl} alt={l.alt || ''} className="hro-logo" />)}
+                    {logos.map((l, i) => slotImg(l, { key: i, after: { className: 'hro-logo' } }))}
                   </div>
                 </div>
               ) : null}
@@ -228,7 +228,7 @@ export default function HeroNewSection({ data, locale = 'en', block }: Props) {
               <div className="row g-5 mt-10 justify-content-center" data-part="band" data-band-count={band.length}>
                 {band.map((b, i) => (
                   <div key={i} className="col-6 col-md" data-part="band-col">
-                    <img className="img-fluid rounded-4 w-100 object-fit-cover hro-band-img" src={b.imageUrl} alt={b.alt || ''} />
+                    {slotImg(b, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover hro-band-img' } })}
                   </div>
                 ))}
               </div>
@@ -236,7 +236,7 @@ export default function HeroNewSection({ data, locale = 'en', block }: Props) {
           </div>
           {side && img ? (
             <div className={stacked ? 'col-12 hro-side' : 'col-12 col-lg-6 hro-side'}>
-              <img className="img-fluid rounded-4 w-100 object-fit-cover hro-img" src={img.imageUrl} alt={img.alt || ''} />
+              {slotImg(img, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover hro-img' } })}
             </div>
           ) : null}
         </div>

@@ -29,6 +29,7 @@
 import { useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import { slotImg } from '@/lib/sections/blockMedia';
 import type { BlockConfig } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
@@ -172,8 +173,7 @@ export default function PricingNewSection({ data, block, iconTable = {} }: Props
               {imgs(proof.avatars).length ? (
                 <div className="d-flex">
                   {imgs(proof.avatars).slice(0, MAX_AVATARS).map((a, i) => (
-                    <img key={i} src={a.imageUrl} alt={a.alt || ''} width={36} height={36}
-                      className="rounded-circle border border-2 border-body object-fit-cover pr-avatar" />
+                    slotImg(a, { key: i, after: { width: 36, height: 36, className: 'rounded-circle border border-2 border-body object-fit-cover pr-avatar' } })
                   ))}
                 </div>
               ) : null}
@@ -191,7 +191,7 @@ export default function PricingNewSection({ data, block, iconTable = {} }: Props
                 <div className="text-sm text-muted mb-3" data-slot="logos.caption">{d.logos.caption}</div>
               ) : null}
               <div className="pr-logo-row d-flex flex-wrap align-items-center gap-4">
-                {logos.map((l, i) => <img key={i} src={l.imageUrl} alt={l.alt || ''} className="pr-logo" />)}
+                {logos.map((l, i) => slotImg(l, { key: i, after: { className: 'pr-logo' } }))}
               </div>
             </div>
           ) : null}

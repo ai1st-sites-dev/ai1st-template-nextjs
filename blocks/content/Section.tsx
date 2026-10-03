@@ -20,6 +20,7 @@
 
 import type { ReactNode } from 'react';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import { slotImg } from '@/lib/sections/blockMedia';
 import type { BlockConfig } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import SiteLink from '@/components/SiteLink';
@@ -104,7 +105,7 @@ export default function ContentNewSection({ data, block, iconTable = {} }: Props
         <div className="co-outer">
           {img ? (
             <div className="co-img" data-part="image">
-              <img className="w-100 rounded-4 object-fit-cover" src={img.imageUrl} alt={img.alt || ''} />
+              {slotImg(img, { before: { className: 'w-100 rounded-4 object-fit-cover' } })}
             </div>
           ) : null}
           <div className="co-frame" data-part="frame">

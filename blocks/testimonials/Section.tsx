@@ -38,6 +38,7 @@
 
 import type { ReactNode } from 'react';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import { slotImg, ratingStars } from '@/lib/sections/blockMedia';
 import type { BlockConfig } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
@@ -116,19 +117,11 @@ export default function TestimonialsNewSection({ data, block, iconTable = {} }: 
 
   const icon = (name: string) => <InlineIcon name={name} icons={iconTable} />;
   // 星级：n 颗实心、剩下空心，一共 5 颗。平台评分是小数（4.9），先四舍五入成整数颗（#1500：4.5 → 5、4.4 → 4，不画半颗）。
-  const stars = (n: number, slot?: string) => {
-    const full = Math.max(0, Math.min(5, Math.round(n)));
-    const kinds = [...Array(full).fill('fill'), ...Array(5 - full).fill('empty')];
-    return (
-      <span className="tn-stars d-inline-flex gap-1 text-warning" data-part="stars" data-rating={full} aria-label={`${full} out of 5 stars`} role="img" {...(slot ? { 'data-for': slot } : {})}>
-        {kinds.map((s, i) => (
-          <span key={i} className="tn-star d-inline-flex" data-star={s} aria-hidden="true">
-            {icon(s === 'fill' ? 'star-fill' : 'star')}
-          </span>
-        ))}
-      </span>
-    );
-  };
+  const stars = (n: number, slot?: string) => ratingStars(n, iconTable, {
+    root: (full, label) => ({ className: 'tn-stars d-inline-flex gap-1 text-warning', 'data-part': 'stars', 'data-rating': full, 'aria-label': label, role: 'img', ...(slot ? { 'data-for': slot } : {}) }),
+    fillEmpty: true,
+    wrap: (s) => ({ className: 'tn-star d-inline-flex', 'data-star': s, 'aria-hidden': 'true' }),
+  });
   // 平台 logo 三档（`review-platforms.js` §platformLogo）。`data-slot` 挂在写平台名的那个节点上（编辑器据它原地改字）：
   // 图 / 图标两档是 visually-hidden 那一段，名字那一档是名字本身 —— 每一档 DOM 里都有文字平台名（读屏 / 搜索 / AI）。
   const logo = (p: Platform) => {
@@ -186,7 +179,7 @@ export default function TestimonialsNewSection({ data, block, iconTable = {} }: 
           <blockquote className="tn-quote m-0"><span data-slot={`items.${i}.quote`}>{it.quote}</span></blockquote>
           <figcaption className="tn-author d-flex align-items-center gap-3">
             {photo ? (
-              <img className="tn-avatar" data-part="photo" src={photo.imageUrl} alt={photo.alt || ''} />
+              slotImg(photo, { before: { className: 'tn-avatar', 'data-part': 'photo' } })
             ) : name ? (
               <span className="tn-avatar tn-initials d-inline-flex align-items-center justify-content-center fw-semibold bg-primary-subtle text-primary" data-part="initials" aria-hidden="true">
                 {initialsOf(name)}

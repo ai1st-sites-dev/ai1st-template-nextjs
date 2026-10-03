@@ -24,6 +24,7 @@
 //    （图上盖 60% 深色遮罩，遮罩写在 `block.css`）。
 
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import { slotImg } from '@/lib/sections/blockMedia';
 import type { BlockConfig } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
@@ -136,14 +137,14 @@ export default function MilestonesSection({ data, block, iconTable = {} }: Props
     >
       {cover ? (
         <div className="mi-cover" data-part="block-image">
-          <img className="w-100 h-100 object-fit-cover" src={blockImg.imageUrl} alt={blockImg.alt || ''} />
+          {slotImg(blockImg, { before: { className: 'w-100 h-100 object-fit-cover' } })}
         </div>
       ) : null}
       <div className="container mi-container">
         <div className="mi-outer">
           {blockImg && !cover ? (
             <div className="mi-bimg" data-part="block-image">
-              <img className="img-fluid rounded-4 w-100 object-fit-cover" src={blockImg.imageUrl} alt={blockImg.alt || ''} />
+              {slotImg(blockImg, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' } })}
             </div>
           ) : null}
           <div className="mi-main">
@@ -153,7 +154,7 @@ export default function MilestonesSection({ data, block, iconTable = {} }: Props
                   <div className="mi-intro">
                     {introImg ? (
                       <div className="mi-intro-img" data-part="intro-image">
-                        <img className="img-fluid rounded-4 w-100 object-fit-cover" src={introImg.imageUrl} alt={introImg.alt || ''} />
+                        {slotImg(introImg, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' } })}
                       </div>
                     ) : null}
                     {introText}

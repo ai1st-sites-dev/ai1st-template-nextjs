@@ -53,6 +53,8 @@ console.log('\n② 表：数据里的名字 + 块自己点名的名字');
       ...[...src.matchAll(/<InlineIcon name="([a-z0-9-]+)"/g)].map((m) => m[1]),
       ...[...src.matchAll(/icon: '([a-z0-9-]+)'/g)].map((m) => m[1]),
       ...[...src.matchAll(/: '(link-45deg)'/g)].map((m) => m[1]),
+      // #1538 —— 星级收进了 `src/lib/sections/blockMedia.tsx` §ratingStars：调它 = 点名 star-fill，`fillEmpty: true` 再加 star。
+      ...(/\bratingStars\(/.test(src) ? ['star-fill', ...(/fillEmpty:\s*true/.test(src) ? ['star'] : [])] : []),
     ]);
     const missing = [...lit].filter((n) => !icons.BLOCK_ICONS[block].includes(n));
     check(lit.size > 0 && missing.length === 0, `${block}：组件里写死的 ${lit.size} 个图标名都在 BLOCK_ICONS 里`, `漏了 ${missing.join(' · ')}`);

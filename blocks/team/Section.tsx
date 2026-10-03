@@ -27,6 +27,7 @@
 
 import Link from 'next/link';
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import { slotImg } from '@/lib/sections/blockMedia';
 import type { BlockConfig } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
@@ -130,7 +131,7 @@ export default function TeamNewSection({ data, block, iconTable = {} }: Props) {
                     <div className="tm-inner h-100">
                       {photo ? (
                         <div className="tm-photo" data-part="photo">
-                          <img src={photo.imageUrl} alt={photo.alt || m.name || ''} />
+                          {slotImg(photo, { alt: photo.alt || m.name || '' })}
                         </div>
                       ) : null}
                       <div className="tm-text">

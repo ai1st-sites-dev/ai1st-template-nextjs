@@ -921,15 +921,24 @@ const leafOf = (expr) => {
 
 const blocksThatDrawImages = [];   // 注册表里那些真的画 <img> 的块
 const leafFields = new Set();      // 那些 <img src> 读的字段名（叶子）
+// #1538 —— 图槽的 <img> 收进了共用的 `src/lib/sections/blockMedia.tsx` §slotImg：块里调它 = 块画图，读的字段是 slotImg 里那张
+//    <img src> 的叶子。不认它的话，11 个块从这把尺子里静默消失（只剩 blog 的封面还在替 imageUrl 作证）。
+const SLOT_IMG_FILE = path.join(SRC, 'lib', 'sections', 'blockMedia.tsx');
+let slotImgLeaves;
+try { slotImgLeaves = [...fs.readFileSync(SLOT_IMG_FILE, 'utf-8').matchAll(IMG_SRC_RE)].map((m) => leafOf(m[1])).filter(Boolean); }
+catch (e) { die(`读不到 ${SLOT_IMG_FILE}: ${e.message}`); }
+if (!slotImgLeaves.length) die(`${SLOT_IMG_FILE} 里一个 <img src> 都没抠出来 —— 尺子坏了`);
 for (const [, key, comp] of entries) {
   // #1387 —— 组件住在 blocks/<块>/Section.tsx，注册表 import 的路径就是它。
   const file = path.join(NEXT, 'blocks', key, 'Section.tsx');
   let t;
   try { t = fs.readFileSync(file, 'utf-8'); } catch (e) { die(`读不到块 ${key} 的组件 ${file}: ${e.message}`); }
   const hits = [...t.matchAll(IMG_SRC_RE)].map((m) => m[1]);
-  if (hits.length) {
+  const viaSlotImg = /\bslotImg\(/.test(t);
+  if (hits.length || viaSlotImg) {
     blocksThatDrawImages.push(key);
     for (const h of hits) { const l = leafOf(h); if (l) leafFields.add(l); }
+    if (viaSlotImg) for (const l of slotImgLeaves) leafFields.add(l);
   }
 }
 // 顶栏/页脚是外壳区 —— 它们不在注册表里（上面那一圈按构造够不着），读的是 brand.logoUrl。

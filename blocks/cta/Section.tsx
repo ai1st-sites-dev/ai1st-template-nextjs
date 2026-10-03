@@ -27,6 +27,7 @@
 //    `form` 槽今天只有 `{ id? }`（选哪张站级表单，#1471 落地前不读），字段 / 按钮字 / 成功提示用组件内置默认。
 
 import { blockAttrs } from '@/lib/sections/blockAttrs';
+import { slotImg } from '@/lib/sections/blockMedia';
 import type { BlockConfig } from '@/lib/types/config';
 import Icon from '@/components/Icon';
 import BlockLeadForm from '@/components/BlockLeadForm';
@@ -147,7 +148,7 @@ export default function CtaNewSection({ data, locale = 'en', block }: Props) {
           <div className="cta-row position-relative">
             {side && img ? (
               <div className="cta-img" data-part="image">
-                <img className="img-fluid rounded-4 w-100 object-fit-cover" src={img.imageUrl} alt={img.alt || ''} />
+                {slotImg(img, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' } })}
               </div>
             ) : null}
             <div className="cta-main">
