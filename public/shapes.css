@@ -5418,6 +5418,9 @@
   opacity: 1;
   text-indent: 0;
   transition: width 0.2s;
+  /* #1426 —— 字色跟随块，不吃浏览器给 <button> 的默认色（原来由 Tailwind preflight 的 `button { color: inherit }` 给；
+     圆点没有文字，今天看不出差别）。前 / 后按钮 .tn-arrow 自己已经写了 color: inherit。 */
+  color: inherit;
 }
 [data-block="testimonials"] .tn-dots .active {
   width: 1.5rem;

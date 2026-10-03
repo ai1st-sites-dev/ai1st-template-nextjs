@@ -817,7 +817,9 @@ export default function RootLayout({
           <link rel="icon" type="image/svg+xml" href={buildFaviconSvg()} />
         )}
       </head>
-      <body className="flex min-h-screen flex-col font-sans">
+      {/* #1426 —— 原来是 Tailwind 的 `flex min-h-screen flex-col font-sans`。`site-body` 管正文字体（globals.css）：它是一个类，
+          压得过 site.css 里 reboot 的 `body { font-family }`，跟原来 `.font-sans` 同一个特异度。 */}
+      <body className="d-flex flex-column min-vh-100 site-body">
         {/* TICKET-131: when this page is embedded in an iframe (dashboard
             PreviewPanel), notify the parent on every navigation so the URL bar
             stays in sync. Standalone production users (window.parent === window)

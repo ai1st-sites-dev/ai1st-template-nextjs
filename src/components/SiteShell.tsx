@@ -105,7 +105,7 @@ export default function SiteShell({ locale, page, shell, children }: { locale: s
             //    只说页面仍然分不清是哪一份。值取的是**站自己的语言目录名**（`site/<locale>/`），不是
             //    `<html lang>` —— 后者是 `seo.locale` 切出来的展示用语言码，两者不保证相等，而不相等时
             //    的错法是静默的（改到另一种语言的那一份）。
-            return <main key={region} className="flex-1" {...(page ? { 'data-page': page, 'data-locale': locale } : {})}>{children}</main>;
+            return <main key={region} className="flex-grow-1" {...(page ? { 'data-page': page, 'data-locale': locale } : {})}>{children}</main>;
           case 'footer':
             // 🔴 #1014 — footer 是唯一接了 `repeatVariants` 线的区。header 那一支不接，所以布局
             // 里写 `repeatVariants` 给它是不生效的 —— 那件事现在由 schema 直接拒绝

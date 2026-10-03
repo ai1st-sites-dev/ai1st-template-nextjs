@@ -849,4 +849,29 @@ const FEATURES_NEW_FROM_SERVICES = {
   items: { source: 'services' },
 };
 
-module.exports = { DEMO_CONTENT, SITE, FEATURES_NEW_STEPS, FEATURES_NEW_FROM_SERVICES, DEMO_SITE, DEMO_BLOG_POSTS };
+// #1426（T4）—— 一篇正文带全套裸标签的文章（h2 / h3 / ul / ol / blockquote / 行内 code / pre / 站内链接）。
+// 博客正文是 AI 写的裸 HTML，Tailwind 的 `prose` 退场后由 Bootstrap reboot + Webpixels `.article` 排版 —— 只有 <p> 的
+// 演示文章量不出「标题有阶梯、列表有符号」。单独导出而不并进 DEMO_BLOG_POSTS：那份的篇数是 blog 块渲染单测钉住的 5。
+// 用的人：`theme-css-invariants-sample-pages.js`（把它和上面 5 篇一起写进样例站的 blog/，CI 的 theme-css 就会量到 /blog 两页）。
+const DEMO_BLOG_POST_RICH = {
+  slug: 'what-a-brake-inspection-covers',
+  title: 'What a brake inspection covers',
+  excerpt: 'Pads, rotors, fluid — what we measure, in the order we measure it.',
+  content: '<p>Brakes wear a little every day. Here is what we check, in order.</p>'
+    + '<h2>Pads and rotors</h2><p>We measure pad thickness and look at the rotor surface. <a href="/services">See our brake service</a>.</p>'
+    + '<ul><li>Pad thickness in millimetres</li><li>Rotor runout and scoring</li><li>Caliper slide pins</li></ul>'
+    + '<h3>Fluid</h3><ol><li>Check the level</li><li>Test the moisture content</li></ol>'
+    + '<blockquote><p>Brake fluid absorbs water from the air, so it gets worse even if you never drive.</p></blockquote>'
+    + '<p>The test strip reads <code>DOT 4</code> moisture; above 3% we flush it.</p>'
+    + '<pre><code>moisture &gt; 3%  =&gt;  flush and refill</code></pre>'
+    + '<p>That is the whole inspection.</p>',
+  category: 'Brakes',
+  tags: ['brakes', 'safety'],
+  author: 'Priya Nair',
+  authorAvatarUrl: imageUrl('avatar-3'),
+  publishedAt: '2026-07-30',
+  coverImage: { imageUrl: imageUrl('work-3'), alt: 'A technician measuring a brake pad' },
+  seo: { metaTitle: 'What a brake inspection covers', metaDescription: 'Pads, rotors and fluid.' },
+};
+
+module.exports = { DEMO_CONTENT, SITE, FEATURES_NEW_STEPS, FEATURES_NEW_FROM_SERVICES, DEMO_SITE, DEMO_BLOG_POSTS, DEMO_BLOG_POST_RICH };

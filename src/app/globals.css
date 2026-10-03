@@ -1,25 +1,38 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* #1426（T4）—— Tailwind 退场。这份文件原来以三行 `@tailwind base / components / utilities` 开头，
+   规则包在 Tailwind 的 `@layer base` / `@layer components` 里，五处 `@apply`。现在：
+   · `@tailwind` 三行删掉（preflight 与工具类不再产出）；
+   · 🔴 两层 `@layer` 一并拆掉，规则原位留着。那两个 `@layer` 是 Tailwind 的指令、编译时会被拆掉 —— 留着它们，
+     浏览器会把它们当原生 cascade layer，层里的规则就输给所有不在层里的规则（site.css 全是），按钮长相会变；
+   · `@apply` 照 Tailwind 当时编出来的产物逐条展开成显式 CSS，`--tw-*` 变量代换成定值
+     （焦点环 = `0 0 0 2px #fff, 0 0 0 4px <环色>`，即 ring-2 + ring-offset-2）。
+   这份文件仍由 `layout.tsx` 的 import 进 Next 打包的那份 CSS、排在 `/site.css` 之前 —— 位置没变，跟 Bootstrap
+   冲突的属性仍是 Bootstrap 赢，不冲突的仍由这里决定。 */
 
-@layer base {
-  html {
-    scroll-behavior: smooth;
-  }
+html {
+  scroll-behavior: smooth;
+}
 
-  body {
-    @apply text-gray-800 antialiased;
-  }
+body {
+  color: rgb(31 41 55);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
 
-  /* #951: the theme's heading typeface. One rule instead of a `font-heading` class on every
-     heading in 32 section components — no heading in src carries a font-family class today, so
-     nothing overrides this. The fallback covers a site whose brand.json carries `fonts.heading: []` — an
-     empty list, not a missing field: a config missing the field cannot be built at all (#953 item 10). */
-  h1,
-  h2,
-  h3 {
-    font-family: var(--font-heading, var(--font-sans));
-  }
+/* #951: the theme's heading typeface. One rule instead of a `font-heading` class on every
+   heading in 32 section components — no heading in src carries a font-family class today, so
+   nothing overrides this. The fallback covers a site whose brand.json carries `fonts.heading: []` — an
+   empty list, not a missing field: a config missing the field cannot be built at all (#953 item 10). */
+h1,
+h2,
+h3 {
+  font-family: var(--font-heading, var(--font-sans));
+}
+
+/* #1426 —— 正文字体（`layout.tsx` 的 <body className="… site-body">）。原来是 Tailwind 的 `.font-sans`，
+   同一条声明、同一个特异度：一个类 (0,1,0) 压过 site.css 里 reboot 的 `body { font-family: var(--x-body-font-family) }`。
+   写成 `body { … }` 会输 —— 这份文件排在 site.css 之前，同特异度后者赢。 */
+.site-body {
+  font-family: var(--font-sans);
 }
 
 /* #961 — 风格设定的默认值。没有应用 theme 的站不产生任何覆盖，就落在这里，
@@ -59,8 +72,7 @@
   --section-block-gap: 0.25rem;
 }
 
-@layer components {
-  /* #961 — 按钮的圆角走自己的变量，不跟全局圆角共用一个。
+/* #961 — 按钮的圆角走自己的变量，不跟全局圆角共用一个。
      🔴 必须独立：`buttonShape` 的「胶囊」档如果借用全局圆角，每一张卡片也会变成胶囊。 */
   /* #1084 — 按钮上的字色跟着底色走。三个变量算在 `scripts/lib/button-ink.js`（那里写着每一个判断的
      读数：为什么深字是纯黑、为什么 hover 的底色反向走、为什么轮廓按钮是沿调色板下挪一档），由
@@ -74,10 +86,25 @@
      页面与改动前逐字相同。
      🔴 `focus:ring-primary-500` 没跟着动：它是焦点环，不是字压的那块底，不在本票射程里。 */
   .btn-primary {
-    @apply inline-flex items-center justify-center px-6 py-3 text-base font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    line-height: 1.5rem;
+    font-weight: 600;
+    transition-property: all;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
     border-radius: var(--radius-button);
     background-color: var(--btn-primary-bg, var(--color-primary-500));
     color: var(--btn-primary-ink, #fff);
+  }
+
+  .btn-primary:focus {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--color-primary-500);
   }
 
   .btn-primary:hover {
@@ -106,10 +133,26 @@
      🔴 `border-color` 本票**不动**：hover 时它仍是 hero 的 `currentColor`。边框不是字，4.5:1 那条契约
      不管它；深底上深边框只是看不见边框，不是读不出字。 */
   .btn-secondary {
-    @apply inline-flex items-center justify-center border-2 px-6 py-3 text-base font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-width: 2px;
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    line-height: 1.5rem;
+    font-weight: 600;
+    transition-property: all;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
     border-radius: var(--radius-button);
     color: var(--btn-outline-ink, var(--color-primary-500));
     border-color: var(--btn-outline-ink, var(--color-primary-500));
+  }
+
+  .btn-secondary:focus {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--color-primary-500);
   }
 
   /* 🔴 #1100 — 这个按钮 hover 时**就是主按钮的静止态**：同一档底、同一个字色，两个变量都直接用
@@ -129,8 +172,25 @@
   }
 
   .btn-accent {
-    @apply inline-flex items-center justify-center bg-accent-400 px-6 py-3 text-base font-semibold text-gray-900 transition-all focus:outline-none focus:ring-2 focus:ring-accent-400 focus:ring-offset-2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    line-height: 1.5rem;
+    font-weight: 600;
+    background-color: var(--color-accent-400);
+    color: rgb(17 24 39);
+    transition-property: all;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
     border-radius: var(--radius-button);
+  }
+
+  .btn-accent:focus {
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--color-accent-400);
   }
 
   /* 🔴 #1100 — hover 的底色从写死的 `hover:bg-accent-500` 换成算出来的那一档
@@ -176,8 +236,58 @@
   }
 
   .container-width {
-    @apply mx-auto max-w-7xl;
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 80rem;
   }
+
+/* ── #1426 博客两页（`src/components/pages/BlogIndexPage.tsx` / `BlogPostPage.tsx`）────────────────────────────
+   原来全是 Tailwind 工具类，现在是 Webpixels / Bootstrap 的类。这里只写那些类给不了的：主题色（`--color-primary-*`，
+   主题表那一层的 token）、封面的高度与悬停、两行截断。
+   🔴 跟 Bootstrap 抢同一个属性的选择器都写成两个类：这份文件排在 site.css 之前，同特异度会输（`.badge` 定字色、
+      Webpixels 的 `.article a` 定链接色）。 */
+.badge.blog-tag {
+  background-color: var(--color-primary-50);
+  color: var(--color-primary-700);
+}
+.blog-accent,
+.article.blog-body a,
+.blog-card:hover .blog-card-title {
+  color: var(--color-primary-600);
+}
+[data-bs-theme="dark"] .blog-accent,
+[data-bs-theme="dark"] .article.blog-body a,
+[data-bs-theme="dark"] .blog-card:hover .blog-card-title {
+  color: var(--color-primary-300);
+}
+.blog-card.card {
+  transition: box-shadow 0.15s;
+}
+.blog-card.card:hover {
+  box-shadow: var(--x-box-shadow) !important;
+}
+.blog-card-cover {
+  height: 12rem;
+  transition: transform 0.15s;
+}
+.blog-card:hover .blog-card-cover {
+  transform: scale(1.05);
+}
+.blog-card-excerpt {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+/* 正文里的代码块折行，不横向滚动：Webpixels 的 `.article pre` 是一条可横滑的条，手机上一打开就切掉半行
+   （theme-css 检查 ⑦ sideways strip 在 320–368px 判红过）。小商家博客里的代码多半是一两行说明，折行比横滑好读。 */
+.article.blog-body pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* Webpixels 给里面的 <code> 写了 `min-width: max-content`（把那一块撑到整行宽），不放开它外层折了也没用。 */
+.article.blog-body pre > code {
+  min-width: 0;
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════════

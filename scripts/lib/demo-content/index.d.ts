@@ -22,6 +22,7 @@ export const SITE: Record<string, unknown>;
 /** #1475 —— features 带编号的那一版（每项一个 `number`，`options.itemConnector: 'line'`）。 */
 /** #1497 —— 站点博客夹具（`BlogPostConfig` 形状，封面 / 头像可选）。 */
 export const DEMO_BLOG_POSTS: Array<Record<string, unknown> & { slug: string; title: string; publishedAt: string }>;
+export const DEMO_BLOG_POST_RICH: Record<string, unknown> & { slug: string; title: string; publishedAt: string };
 export const FEATURES_NEW_STEPS: Record<string, unknown> & { items: Array<Record<string, unknown>> };
 /** #1505 —— features 的引用写法样例（`items: {source: "services"}`）。 */
 export const FEATURES_NEW_FROM_SERVICES: Record<string, unknown> & { items: { source: string } };

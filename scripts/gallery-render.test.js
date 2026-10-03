@@ -236,12 +236,29 @@ console.log('\n── AC6 按需加载（源码）· 运行时类不被 purge');
 {
   check(/^'use client';/.test(BS_TEXT) && /^'use client';/.test(LB_TEXT) && !/^'use client'/.test(SRC_TEXT), 'BootstrapJs / Lightbox 是客户端组件，Section 是服务端组件');
   check(/import\('bootstrap\/js\/dist\/modal'\)/.test(BS_TEXT) && /import\('bootstrap\/js\/dist\/carousel'\)/.test(BS_TEXT), 'BootstrapJs：modal / carousel 各一条字面的 import()（单个模块）');
-  let whole = '';
-  try {
-    whole = execFileSync('grep', ['-rlE', "from 'bootstrap'|import\\('bootstrap'\\)|bootstrap/dist/js", 'src', 'blocks'],
-      { cwd: NEXT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-  } catch (e) { whole = e.status === 1 ? '' : `grep 出错 ${e.status}`; }
+  // #1426（T4 验收 7）—— 补两支：`require('bootstrap')` 与双引号的 `from "bootstrap"`，原来那条正则两样都看不见。
+  //   允许的只有深引单模块 `import('bootstrap/js/dist/<模块>')`（BootstrapJs.tsx）。
+  const WHOLE_BUNDLE = `from ['"]bootstrap['"]|import\\(['"]bootstrap['"]\\)|require\\(['"]bootstrap['"]\\)|bootstrap/dist/js`;
+  const grepWhole = (cwd, dirs) => {
+    try {
+      return execFileSync('grep', ['-rlE', WHOLE_BUNDLE, ...dirs], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    } catch (e) { return e.status === 1 ? '' : `grep 出错 ${e.status}`; }
+  };
+  const whole = grepWhole(NEXT, ['src', 'blocks']);
   check(whole === '', `全仓 src / blocks 里没有引整份 bootstrap bundle${whole ? `：${whole}` : ''}`);
+  {
+    // 阳性对照：同一条正则在今天的 main 上读空，不喂它会红的样本，它是不是真有牙看不出来。
+    const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'tmp-bs-whole-'));
+    const SAMPLES = {
+      'a.ts': "import('bootstrap');", 'b.ts': "import 'bootstrap/dist/js/bootstrap.bundle.min.js';", 'c.ts': "import x from 'bootstrap';",
+      'd.ts': "const b = require('bootstrap');", 'e.ts': 'import x from "bootstrap";', 'f.ts': "import('bootstrap/js/dist/modal');",
+    };
+    try {
+      for (const [f, t] of Object.entries(SAMPLES)) fs.writeFileSync(path.join(tmp, f), `${t}\n`);
+      const got = grepWhole(tmp, ['.']).split('\n').filter(Boolean).map((f) => path.basename(f)).sort().join(' ');
+      check(got === 'a.ts b.ts c.ts d.ts e.ts', `整包守卫的阳性对照：五种整包写法都红、深引单模块放行（读到 ${got || '空'}）`);
+    } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+  }
   check(/import GalleryLightbox from '\.\/Lightbox'/.test(SRC_TEXT) && /loadBootstrap\('carousel'\)/.test(LB_TEXT) && /loadBootstrap\('modal'\)/.test(LB_TEXT),
     'Section 挂 Lightbox，Lightbox 挂载时才 loadBootstrap(modal / carousel)（没有这个块的页面不挂它）');
   // AC6 的网络请求那一臂按 Bootstrap 模块自己的 DATA_KEY / EVENT_KEY 认 chunk（带引号、可带一个前导点：源码 'bs.modal'，
