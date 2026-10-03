@@ -203,6 +203,21 @@ const SCHEME_SURFACES = [
 /** purge 时无条件留下的 §SCHEME_SURFACES 变量（理由见那一段）。 */
 const SCHEME_VARIABLES = [/^--scheme-/];
 
+/**
+ * #1540 —— `--x-box-shadow-xs`：Webpixels 的按钮读它（`$btn-box-shadow: var(--x-box-shadow-xs)`，`_variables.scss:408`），
+ * 而整套 CSS 里没有一处定义它 ⟹ `.btn` 的 box-shadow 失效，`.btn:focus-visible` 那条
+ * `box-shadow: var(--x-btn-box-shadow), var(--x-btn-focus-box-shadow)` 也跟着整条失效 —— 而它同时写了 `outline: 0`，
+ * 键盘聚焦的按钮看不出任何变化（无障碍）。
+ * 值是「透明、零尺寸」：按钮静止态今天就是没有阴影（失效 = none），这里只把焦点环救回来，不给全站按钮添一层新阴影。
+ * 放在 `:root` 上、purge 会留下它：`.btn` 的 `--x-btn-box-shadow` 引用着它（`variables: true` 按引用判）。
+ */
+const SHADOW_TOKENS = [
+  ':root {',
+  '  --x-box-shadow-xs: 0 0 0 0 transparent;',
+  '}',
+  '',
+].join('\n');
+
 /** 那份 scss 的原文。只有这一处拼它。 */
 function siteScss(primary) {
   return [
@@ -218,8 +233,19 @@ function siteScss(primary) {
     // 深色那张表（`_variables-dark.scss:7`）同一个写法，一起改。两边都写字面色：`$gray-*` 在 @import 之前还没定义。
     '$body-secondary-color: rgba(#525252, .9);',
     '$body-secondary-color-dark: rgba(#d4d4d4, .9);',
+    // #1540 —— 阴影：Webpixels 3.0.5 自己的 `_variables.scss:182-184` 把这三个写成 `box-shadow-1` / `-2` / `-3`（少了 `$`），
+    // 编出来是 `--x-box-shadow: box-shadow-2` 这种字面串 ⟹ `.shadow` / `.shadow-sm` / 博客卡片悬停全都画不出阴影。
+    // 上游 dist 里也是这样，不是我们编译链丢的。值逐字取它本意指的 `$box-shadow-1/2/3`（同一份文件 :162-164）；
+    // 写字面量的理由同上面两行：那几个变量在 @import 之前还没定义。
+    '$box-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);',
+    '$box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);',
+    '$box-shadow-lg: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);',
+    // 下拉选择框（`BlockLeadForm` 的 `.form-select`）读一个没人定义的 `var(--x-shadow-sm)`（`_variables.scss:479`）⟹ 静止态
+    // 和聚焦态的 box-shadow 整条失效 —— 聚焦时 `outline: 0`，只剩边框换色。跟旁边的输入框（`$input-box-shadow`，:447）取同一个值。
+    '$form-select-box-shadow: 0px 1px 2px rgba(50, 50, 71, 0.08);',
     '@import "@webpixels/css/all";',
     '',
+    SHADOW_TOKENS,
     ON_DEEP_MUTED,
     ON_DEEP_FORM,
     BTN_PRIMARY_INK,
@@ -303,5 +329,5 @@ async function writeSiteCss({ brand, rootDir = NEXT_DIR, dir = 'ltr' }) {
 }
 
 module.exports = {
-  primaryOf, siteScss, compileSiteCss, mirrorSiteCss, purgeSiteCss, writeSiteCss, PURGE_CONTENT, THEME_COLOR_VARIABLES, ON_DEEP_MUTED, ON_DEEP_FORM, BTN_PRIMARY_INK, SCHEME_SURFACES, SCHEME_VARIABLES,
+  primaryOf, siteScss, compileSiteCss, mirrorSiteCss, purgeSiteCss, writeSiteCss, PURGE_CONTENT, THEME_COLOR_VARIABLES, ON_DEEP_MUTED, ON_DEEP_FORM, BTN_PRIMARY_INK, SCHEME_SURFACES, SCHEME_VARIABLES, SHADOW_TOKENS,
 };
