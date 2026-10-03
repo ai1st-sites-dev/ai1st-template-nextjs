@@ -20,56 +20,8 @@
   margin-bottom: 0 !important;
 }
 
-/* 块头宽度（T6.1 / #1486 定的新规则，Chris 2026-09-29）：left / right = 100%；center 在 ≥992 最宽 80%（相对块头那一列）、
-   居中，<992 = 100%。正文不再单独限宽。 */
-[data-block="team"][data-intro-align="center"] .tm-intro-text {
-  text-align: center;
-}
-[data-block="team"][data-intro-align="right"] .tm-intro-text {
-  text-align: end;
-}
-@media (min-width: 992px) {
-  [data-block="team"][data-intro-align="center"] .tm-intro-text {
-    max-width: 80%;
-    margin-inline-start: auto;
-    margin-inline-end: auto;
-  }
-}
-
-/* introPosition：left / right（≥992）= 块头一列 33.33%（sticky top 2rem）、成员一列 66.67%；right 行反向。
-   块头已经是侧列，80% 那条取消，三种对齐都占满侧列（图册 build.py 同一条）。
-   小屏：left / top 块头在上，right / bottom 块头在下。 */
-[data-block="team"][data-intro-position="bottom"] .tm-frame {
-  flex-direction: column-reverse;
-}
-@media (max-width: 991.98px) {
-  [data-block="team"][data-intro-position="right"] .tm-frame {
-    flex-direction: column-reverse;
-  }
-}
-@media (min-width: 992px) {
-  [data-block="team"][data-intro-position="left"] .tm-introcol,
-  [data-block="team"][data-intro-position="right"] .tm-introcol {
-    flex: 0 0 auto;
-    width: 33.3333%;
-    position: sticky;
-    top: 2rem;
-    align-self: flex-start;
-  }
-  [data-block="team"][data-intro-position="left"] .tm-memberscol,
-  [data-block="team"][data-intro-position="right"] .tm-memberscol {
-    flex: 0 0 auto;
-    width: 66.6667%;
-  }
-  [data-block="team"][data-intro-position="right"] .tm-frame {
-    flex-direction: row-reverse;
-  }
-  [data-block="team"][data-intro-position="left"] .tm-intro-text,
-  [data-block="team"][data-intro-position="right"] .tm-intro-text {
-    max-width: none;
-    margin: 0;
-  }
-}
+/* 块头排版（introAlign / introPosition：对齐、≥992 center 最宽 80%、左右两列、上下反向）由 manifest 的 introLayout 生成
+   （scripts/block-build/intro-layout.js，#1535），这里不写。 */
 
 /* ═══ members ═════════════════════════════════════════════════════════════════════════════════════ */
 

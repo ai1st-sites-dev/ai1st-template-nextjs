@@ -38,61 +38,10 @@
   width: 20px;
   height: 20px;
 }
-[data-block="reviews"][data-intro-align="center"] .rv-total {
-  justify-content: center;
-}
-[data-block="reviews"][data-intro-align="right"] .rv-total {
-  justify-content: flex-end;
-}
 
-/* introAlign：块头文字对齐。宽度照 T6.1（#1486）：left / right 100%；center 在 ≥992 最宽 80%、居中。 */
-[data-block="reviews"][data-intro-align="center"] .rv-intro-text {
-  text-align: center;
-}
-[data-block="reviews"][data-intro-align="right"] .rv-intro-text {
-  text-align: end;
-}
-@media (min-width: 992px) {
-  [data-block="reviews"][data-intro-align="center"] .rv-intro-text {
-    max-width: 80%;
-    margin-inline-start: auto;
-    margin-inline-end: auto;
-  }
-}
-
-/* introPosition：left / right（≥992）= 块头一列 33.33%（sticky）、平台一列 66.67%；right 行反向。块头在侧时文字不再限宽。
-   小屏：left / top 块头在上，right / bottom 块头在下（同 testimonials）。 */
-[data-block="reviews"][data-intro-position="bottom"] .rv-frame {
-  flex-direction: column-reverse;
-}
-@media (max-width: 991.98px) {
-  [data-block="reviews"][data-intro-position="right"] .rv-frame {
-    flex-direction: column-reverse;
-  }
-}
-@media (min-width: 992px) {
-  [data-block="reviews"][data-intro-position="left"] .rv-introcol,
-  [data-block="reviews"][data-intro-position="right"] .rv-introcol {
-    flex: 0 0 auto;
-    width: 33.3333%;
-    position: sticky;
-    top: 2rem;
-    align-self: flex-start;
-  }
-  [data-block="reviews"][data-intro-position="left"] .rv-itemscol,
-  [data-block="reviews"][data-intro-position="right"] .rv-itemscol {
-    flex: 0 0 auto;
-    width: 66.6667%;
-  }
-  [data-block="reviews"][data-intro-position="right"] .rv-frame {
-    flex-direction: row-reverse;
-  }
-  [data-block="reviews"][data-intro-position="left"] .rv-intro-text,
-  [data-block="reviews"][data-intro-position="right"] .rv-intro-text {
-    max-width: none;
-    margin: 0;
-  }
-}
+/* 块头排版（introAlign / introPosition：对齐、≥992 center 最宽 80%、左右两列、上下反向）由 manifest 的 introLayout 生成
+   （scripts/block-build/intro-layout.js，#1535），这里不写。
+   总分条跟着 introAlign 走（introLayout.follow）。 */
 
 /* ═══ 每个平台：logo · 大分数 · 星 + 条数 ═══════════════════════════════════════════════════════════
    logo 三档（Section.tsx §logo）：上传的图 → 内置品牌图标（品牌色，--rv-brand）→ 粗体平台名。 */

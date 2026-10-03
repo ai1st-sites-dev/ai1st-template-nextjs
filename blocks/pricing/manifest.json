@@ -344,5 +344,17 @@
     "capWhen": [
       {"when": "[data-plan-style=\"divided\"]", "below": 992, "cols": 1}
     ]
+  },
+  "introLayout": {
+    "text": ".pr-intro-text",
+    "frame": ".pr-frame",
+    "introCol": ".pr-introcol",
+    "mainCol": ".pr-planscol",
+    "side": "41.6667%",
+    "follow": [
+      {"target": ".pr-proof", "by": "justify"},
+      {"target": ".pr-logo-row", "by": "justify"},
+      {"target": ".pr-billing-wrap", "by": "text", "positions": ["top", "bottom"]}
+    ]
   }
 }

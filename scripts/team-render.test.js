@@ -85,7 +85,10 @@ const own = (r) => r.problems.filter((p) => p.includes('("team")'));
 const sectionTag = (html) => (/<section[^>]*>/.exec(html) || [''])[0];
 const attr = (html, name) => { const m = new RegExp(`\\s${name}="([^"]*)"`).exec(sectionTag(html)); return m ? m[1] : null; };
 const membersOf = (html) => html.split('data-part="member"').slice(1).map((x) => x.split('data-part="join"')[0]);
-const CSS = fs.readFileSync(path.join(BLOCK, 'block.css'), 'utf-8');
+// #1535 —— 块头排版由 manifest 的 introLayout 生成（scripts/block-build/intro-layout.js），拼在 block.css 前面；
+//    这里读的是两份拼起来的那一段（= public/shapes.css 里这个块的那一段）。
+const CSS = require('./block-build/intro-layout').introLayoutCss(JSON.parse(fs.readFileSync(path.join(BLOCK, 'manifest.json'), 'utf-8')), 'team')
+  + '\n' + fs.readFileSync(path.join(BLOCK, 'block.css'), 'utf-8');
 const SRC_TEXT = fs.readFileSync(SECTION, 'utf-8');
 const KNOB_NAMES = ['introPosition', 'introAlign', 'membersColumns', 'memberPhoto', 'photoShape', 'memberStyle', 'memberAlign'];
 const dataAttr = (n) => `data-${n.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`;
@@ -168,7 +171,7 @@ console.log('\n── AC4 照片');
 console.log('\n── AC5 块头宽度（源码）');
 {
   check(count(SRC_TEXT + CSS, '64ch') === 0 && count(SRC_TEXT + CSS, '52ch') === 0, `组件与 block.css 里 64ch / 52ch 各 ${count(SRC_TEXT + CSS, '64ch')} / ${count(SRC_TEXT + CSS, '52ch')} 处`);
-  check(/@media \(min-width: 992px\) \{\s*\[data-block="team"\]\[data-intro-align="center"\] \.tm-intro-text \{\s*max-width: 80%;\s*margin-inline-start: auto;\s*margin-inline-end: auto;/.test(CSS),
+  check(/@media \(min-width: 992px\) \{\s*\[data-block="team"\]\[data-intro-align="center"\] \.tm-intro-text \{\s*width: 100%;\s*max-width: 80%;\s*margin-inline: auto;/.test(CSS),
     'center 在 ≥992 最宽 80%、居中（<992 没有这条 = 100%）');
   check(/\[data-intro-position="left"\] \.tm-intro-text,\s*\[data-block="team"\]\[data-intro-position="right"\] \.tm-intro-text \{\s*max-width: none;\s*margin: 0;/.test(CSS),
     'introPosition left / right（≥992）⟹ 80% 那条取消、占满侧列');

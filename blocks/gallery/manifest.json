@@ -219,5 +219,12 @@
       {"container": ".gl-grid", "item": ".gl-item", "when": "[data-items-layout=\"mosaic\"]"},
       {"container": ".gl-grid", "item": ".gl-item", "when": "[data-items-layout=\"grid\"][data-item-shape=\"original\"]", "render": "columns"}
     ]
+  },
+  "introLayout": {
+    "text": ".gl-intro-text",
+    "frame": ".gl-frame",
+    "introCol": ".gl-introcol",
+    "mainCol": ".gl-itemscol",
+    "side": "33.3333%"
   }
 }

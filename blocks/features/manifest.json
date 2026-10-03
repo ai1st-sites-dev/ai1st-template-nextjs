@@ -364,5 +364,15 @@
     "grids": [
       {"container": ".fx-grid", "render": "percent", "item": ".fx-item"}
     ]
+  },
+  "introLayout": {
+    "text": ".fx-intro-text",
+    "frame": ".fx-frame",
+    "introCol": ".fx-introcol",
+    "mainCol": ".fx-itemscol",
+    "side": "33.3333%",
+    "follow": [
+      {"target": ".fx-ctas", "by": "justify"}
+    ]
   }
 }

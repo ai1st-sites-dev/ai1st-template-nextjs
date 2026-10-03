@@ -290,5 +290,16 @@
       {"container": ".tn-grid", "item": ".tn-item", "when": "[data-items-layout=\"grid\"]"},
       {"container": ".tn-slide", "item": ".tn-item"}
     ]
+  },
+  "introLayout": {
+    "text": ".tn-intro-text",
+    "frame": ".tn-frame",
+    "introCol": ".tn-introcol",
+    "mainCol": ".tn-itemscol",
+    "side": "33.3333%",
+    "stackGap": "2rem",
+    "follow": [
+      {"target": ".tn-intro-text .tn-summary", "by": "justify"}
+    ]
   }
 }

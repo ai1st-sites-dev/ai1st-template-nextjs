@@ -39,52 +39,9 @@
   margin-bottom: 0.5rem !important;
 }
 
-/* introAlign：块头文字对齐。宽度照 T6.1（#1486）：left / right 100%；center 在 ≥992 最宽 80%、居中。 */
-[data-block="logos"][data-intro-align="center"] .lo-intro-text {
-  text-align: center;
-}
-[data-block="logos"][data-intro-align="right"] .lo-intro-text {
-  text-align: end;
-}
-@media (min-width: 992px) {
-  [data-block="logos"][data-intro-align="center"] .lo-intro-text {
-    max-width: 80%;
-    margin-inline-start: auto;
-    margin-inline-end: auto;
-  }
-}
-
-/* introPosition：left / right（≥992）= 块头一列 33.33%、logo 一列 66.67%，两列垂直居中（.lo-frame 带 align-items-center）；
-   right 行反向。块头在侧时块头那一列本来就窄：文字不再限宽。
-   小屏：left / top 块头在上，right / bottom 块头在下。 */
-[data-block="logos"][data-intro-position="bottom"] .lo-frame {
-  flex-direction: column-reverse;
-}
-@media (max-width: 991.98px) {
-  [data-block="logos"][data-intro-position="right"] .lo-frame {
-    flex-direction: column-reverse;
-  }
-}
-@media (min-width: 992px) {
-  [data-block="logos"][data-intro-position="left"] .lo-introcol,
-  [data-block="logos"][data-intro-position="right"] .lo-introcol {
-    flex: 0 0 auto;
-    width: 33.3333%;
-  }
-  [data-block="logos"][data-intro-position="left"] .lo-itemscol,
-  [data-block="logos"][data-intro-position="right"] .lo-itemscol {
-    flex: 0 0 auto;
-    width: 66.6667%;
-  }
-  [data-block="logos"][data-intro-position="right"] .lo-frame {
-    flex-direction: row-reverse;
-  }
-  [data-block="logos"][data-intro-position="left"] .lo-intro-text,
-  [data-block="logos"][data-intro-position="right"] .lo-intro-text {
-    max-width: none;
-    margin: 0;
-  }
-}
+/* 块头排版（introAlign / introPosition：对齐、≥992 center 最宽 80%、左右两列、上下反向）由 manifest 的 introLayout 生成
+   （scripts/block-build/intro-layout.js，#1535），这里不写。
+   logos 的块头列不 sticky：两列垂直居中（.lo-frame 带 align-items-center）。 */
 
 /* ═══ items ════════════════════════════════════════════════════════════════════════════════════════
    每格：plain 高 4.5rem、card 高 6rem；logo 图最高 2rem、宽按比例、不超出格子。 */

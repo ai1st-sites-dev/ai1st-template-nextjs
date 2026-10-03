@@ -226,5 +226,15 @@
     "grids": [
       {"container": ".fq-grid", "render": "flex", "item": ".fq-item", "gapVar": "--fq-gap"}
     ]
+  },
+  "introLayout": {
+    "text": ".fq-intro-text",
+    "frame": ".fq-frame",
+    "introCol": ".fq-introcol",
+    "mainCol": ".fq-itemscol",
+    "side": "41.6667%",
+    "follow": [
+      {"target": ".fq-help", "by": "margin"}
+    ]
   }
 }

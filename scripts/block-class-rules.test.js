@@ -33,7 +33,7 @@
  *    · 块类型名（`blockAttrs('cta', …)` 里的 `cta`）：等于 `blocks/` 下某个目录名的词不算 class。
  *
  * 🔴 「源 CSS」排掉五份生成物：`public/shapes.css` / `public/base.css`（`build-blocks.js` 从 `blocks/` 拼出来，
- *    两边一致由 `build-blocks.js --check` 守），以及 `public/site.css` / `theme.css` / `custom.css`（sync-config
+ *    两边一致由 `build-blocks.js --check` 守；块 manifest 声明出来的那部分（#1535 `introLayout`）直接从声明生成、算源），以及 `public/site.css` / `theme.css` / `custom.css`（sync-config
  *    按站生成、gitignore 的 —— CI 上不存在，留着它们本地读数就跟着手上那个站变）。
  *    不排的话，「只从 block.css 删掉一条规则」这个实验会被还没重新生成的 shapes.css 挡成绿 ——
  *    这一格就量不到它要量的那件事。
@@ -95,6 +95,15 @@ if (!fs.existsSync(SITE_CSS_JS)) die(`没有 ${SITE_CSS_JS}`);
 const cssFiles = walkCss(ROOT);
 if (cssFiles.length === 0) die('一份源 CSS 都没找到');
 const allRules = cssFiles.flatMap((f) => rulesOf(fs.readFileSync(f, 'utf8')));
+// #1535 —— manifest 声明出来的规则也是源（块头排版：`introLayout` → scripts/block-build/intro-layout.js）。
+//    它们不在任何一份 .css 里，却是 `*-frame` / `*-introcol` / 主列这几个 class 唯一的规则。
+{
+  const { introLayoutCss } = require('./block-build/intro-layout');
+  for (const d of fs.readdirSync(BLOCKS, { withFileTypes: true }).filter((e) => e.isDirectory())) {
+    const mf = path.join(BLOCKS, d.name, 'manifest.json');
+    if (fs.existsSync(mf)) allRules.push(...rulesOf(introLayoutCss(JSON.parse(fs.readFileSync(mf, 'utf8')), d.name)));
+  }
+}
 const realRules = allRules.filter((r) => /[\w-]\s*:/.test(r.body));        // 至少一条声明
 const siteCssJs = stripTsxComments(fs.readFileSync(SITE_CSS_JS, 'utf8'));
 if (rulesOf('.a{x:1} @media (min-width:1px){.b{y:2}} .c{}').map((r) => r.selector).join(',') !== '.a,.b,.c') {

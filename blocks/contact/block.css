@@ -30,20 +30,8 @@
 [data-block="contact"] .ct-colintro:not(:last-child) {
   margin-bottom: 2.5rem;
 }
-/* introAlign：宽度照 T6.1（#1486）—— left / right 100%，center 在 ≥992 最宽 80%。 */
-[data-block="contact"][data-intro-align="center"] .ct-intro-text {
-  text-align: center;
-}
-[data-block="contact"][data-intro-align="right"] .ct-intro-text {
-  text-align: end;
-}
-@media (min-width: 992px) {
-  [data-block="contact"][data-intro-align="center"] .ct-intro-text {
-    max-width: 80%;
-    margin-inline-start: auto;
-    margin-inline-end: auto;
-  }
-}
+/* 块头排版（introAlign：对齐、≥992 center 最宽 80%）由 manifest 的 introLayout 生成（scripts/block-build/intro-layout.js，#1535），这里不写。
+   bottom 时表单跟着 introAlign 摆（introLayout.follow）。 */
 
 /* ═══ 两列（§split）════════════════════════════════════════════════════════════════════════════════
    sidePosition left / right（≥992）= 两列：items 5/12、侧列 7/12；侧列只有地图时各半；只剩一列时占满。
@@ -77,13 +65,6 @@
 }
 [data-block="contact"][data-side-position="bottom"] .ct-sidecol .ct-form {
   max-width: 40rem;
-}
-[data-block="contact"][data-side-position="bottom"][data-intro-align="center"] .ct-sidecol .ct-form {
-  margin-inline-start: auto;
-  margin-inline-end: auto;
-}
-[data-block="contact"][data-side-position="bottom"][data-intro-align="right"] .ct-sidecol .ct-form {
-  margin-inline-start: auto;
 }
 
 /* ═══ contact items ════════════════════════════════════════════════════════════════════════════════

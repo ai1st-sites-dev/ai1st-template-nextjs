@@ -19,54 +19,8 @@
   margin-bottom: 0 !important;
 }
 
-/* 块头宽度（T6.1 / #1486）：left / right = 100%；center 在 ≥992 最宽 80%（相对块头那一列）、居中，<992 = 100%。 */
-[data-block="gallery"][data-intro-align="center"] .gl-intro-text {
-  text-align: center;
-}
-[data-block="gallery"][data-intro-align="right"] .gl-intro-text {
-  text-align: end;
-}
-@media (min-width: 992px) {
-  [data-block="gallery"][data-intro-align="center"] .gl-intro-text {
-    max-width: 80%;
-    margin-inline-start: auto;
-    margin-inline-end: auto;
-  }
-}
-
-/* introPosition：left / right（≥992）= 块头一列 33.33%（sticky top 2rem）、照片一列 66.67%；right 行反向。
-   块头已经是侧列，80% 那条取消（图册 build.py 同一条）。小屏：left / top 块头在上，right / bottom 块头在下。 */
-[data-block="gallery"][data-intro-position="bottom"] .gl-frame {
-  flex-direction: column-reverse;
-}
-@media (max-width: 991.98px) {
-  [data-block="gallery"][data-intro-position="right"] .gl-frame {
-    flex-direction: column-reverse;
-  }
-}
-@media (min-width: 992px) {
-  [data-block="gallery"][data-intro-position="left"] .gl-introcol,
-  [data-block="gallery"][data-intro-position="right"] .gl-introcol {
-    flex: 0 0 auto;
-    width: 33.3333%;
-    position: sticky;
-    top: 2rem;
-    align-self: flex-start;
-  }
-  [data-block="gallery"][data-intro-position="left"] .gl-itemscol,
-  [data-block="gallery"][data-intro-position="right"] .gl-itemscol {
-    flex: 0 0 auto;
-    width: 66.6667%;
-  }
-  [data-block="gallery"][data-intro-position="right"] .gl-frame {
-    flex-direction: row-reverse;
-  }
-  [data-block="gallery"][data-intro-position="left"] .gl-intro-text,
-  [data-block="gallery"][data-intro-position="right"] .gl-intro-text {
-    max-width: none;
-    margin: 0;
-  }
-}
+/* 块头排版（introAlign / introPosition：对齐、≥992 center 最宽 80%、左右两列、上下反向）由 manifest 的 introLayout 生成
+   （scripts/block-build/intro-layout.js，#1535），这里不写。 */
 
 /* ═══ items（照片）═══════════════════════════════════════════════════════════════════════════════ */
 

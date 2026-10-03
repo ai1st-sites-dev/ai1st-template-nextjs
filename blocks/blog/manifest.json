@@ -227,5 +227,12 @@
     "grids": [
       {"container": ".bl-grid", "item": ".bl-post", "when": "[data-items-layout=\"grid\"]"}
     ]
+  },
+  "introLayout": {
+    "text": ".bl-intro-text",
+    "frame": ".bl-frame",
+    "introCol": ".bl-introcol",
+    "mainCol": ".bl-itemscol",
+    "side": "33.3333%"
   }
 }

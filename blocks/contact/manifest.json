@@ -286,5 +286,11 @@
     ["itemsLayout", "itemStyle", "itemAlign", "itemIcon"],
     ["map"],
     ["color:bg"]
-  ]
+  ],
+  "introLayout": {
+    "text": ".ct-intro-text",
+    "follow": [
+      {"target": ".ct-sidecol .ct-form", "by": "margin", "when": "[data-side-position=\"bottom\"]"}
+    ]
+  }
 }

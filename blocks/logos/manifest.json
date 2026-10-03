@@ -229,5 +229,13 @@
     "grids": [
       {"container": ".lo-grid", "when": "[data-items-layout=\"grid\"]"}
     ]
+  },
+  "introLayout": {
+    "text": ".lo-intro-text",
+    "frame": ".lo-frame",
+    "introCol": ".lo-introcol",
+    "mainCol": ".lo-itemscol",
+    "side": "33.3333%",
+    "sticky": false
   }
 }

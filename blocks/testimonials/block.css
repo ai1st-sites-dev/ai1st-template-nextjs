@@ -25,19 +25,10 @@
 [data-block="testimonials"] .tn-intro-text > :last-child {
   margin-bottom: 0 !important;
 }
-[data-block="testimonials"][data-intro-align="center"] .tn-intro-text {
-  text-align: center;
-}
-[data-block="testimonials"][data-intro-align="right"] .tn-intro-text {
-  text-align: end;
-}
-@media (min-width: 992px) {
-  [data-block="testimonials"][data-intro-align="center"] .tn-intro-text {
-    max-width: 80%;
-    margin-inline-start: auto;
-    margin-inline-end: auto;
-  }
-}
+
+/* 块头排版（introAlign / introPosition：对齐、≥992 center 最宽 80%、左右两列、上下反向）由 manifest 的 introLayout 生成
+   （scripts/block-build/intro-layout.js，#1535），这里不写。块头叠在评价下面时隔 2rem（图册 build.py:240-241）= introLayout.stackGap；
+   inline 那排评分条跟着 introAlign 走 = introLayout.follow。 */
 
 /* ═══ summary（一组平台评分，#1500）══════════════════════════════════════════════════════════════
    summaryStyle 只决定出哪一处（Section.tsx 两处只渲染一处）：
@@ -64,12 +55,6 @@
 }
 [data-block="testimonials"] .tn-summary {
   gap: 0.75rem;
-}
-[data-block="testimonials"][data-intro-align="center"] .tn-intro-text .tn-summary {
-  justify-content: center;
-}
-[data-block="testimonials"][data-intro-align="right"] .tn-intro-text .tn-summary {
-  justify-content: flex-end;
 }
 [data-block="testimonials"] .tn-platform-inline .tn-logo-icon svg,
 [data-block="testimonials"] .tn-platform-inline .tn-logo img {
@@ -136,46 +121,6 @@
   }
   [data-block="testimonials"] .tn-platform-card .tn-logo-icon svg {
     width: 1.25rem;
-  }
-}
-
-/* introPosition：left / right（≥992）= 块头一列 33.33%（sticky top 2rem）、评价一列 66.67%；right 行反向。
-   小屏：left / top 块头在上，right / bottom 块头在下（块头在下时与评价隔 2rem，图册 build.py:240-241）。 */
-[data-block="testimonials"][data-intro-position="bottom"] .tn-frame {
-  flex-direction: column-reverse;
-}
-[data-block="testimonials"][data-intro-position="bottom"] .tn-introcol {
-  margin-top: 2rem;
-}
-@media (max-width: 991.98px) {
-  [data-block="testimonials"][data-intro-position="right"] .tn-frame {
-    flex-direction: column-reverse;
-  }
-  [data-block="testimonials"][data-intro-position="right"] .tn-introcol {
-    margin-top: 2rem;
-  }
-}
-@media (min-width: 992px) {
-  [data-block="testimonials"][data-intro-position="left"] .tn-introcol,
-  [data-block="testimonials"][data-intro-position="right"] .tn-introcol {
-    flex: 0 0 auto;
-    width: 33.3333%;
-    position: sticky;
-    top: 2rem;
-    align-self: flex-start;
-  }
-  [data-block="testimonials"][data-intro-position="left"] .tn-itemscol,
-  [data-block="testimonials"][data-intro-position="right"] .tn-itemscol {
-    flex: 0 0 auto;
-    width: 66.6667%;
-  }
-  [data-block="testimonials"][data-intro-position="left"] .tn-intro-text,
-  [data-block="testimonials"][data-intro-position="right"] .tn-intro-text {
-    max-width: none;
-    margin: 0;
-  }
-  [data-block="testimonials"][data-intro-position="right"] .tn-frame {
-    flex-direction: row-reverse;
   }
 }
 

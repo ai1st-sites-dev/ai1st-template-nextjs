@@ -37,28 +37,9 @@
   margin-top: 2rem;
 }
 
-/* introAlign：只管块头。
-   块头宽度（T6.1 / #1486，Chris 2026-09-29，照 team）：left / right = 100%；center 在 ≥992 最宽 80%（相对块头那一列）、居中，<992 = 100%。正文不单独限宽。 */
-[data-block="features"][data-intro-align="center"] .fx-intro-text {
-  text-align: center;
-}
-/* width: 100% 不能省：块头住在 flex 列里，两边 margin: auto 会让它缩成内容宽，话短时就到不了 80%（#1486 实测 0.72）。 */
-@media (min-width: 992px) {
-  [data-block="features"][data-intro-align="center"] .fx-intro-text {
-    width: 100%;
-    max-width: 80%;
-    margin-inline: auto;
-  }
-}
-[data-block="features"][data-intro-align="center"] .fx-ctas {
-  justify-content: center;
-}
-[data-block="features"][data-intro-align="right"] .fx-intro-text {
-  text-align: end;
-}
-[data-block="features"][data-intro-align="right"] .fx-ctas {
-  justify-content: flex-end;
-}
+/* 块头排版（introAlign / introPosition：对齐、≥992 center 最宽 80%、左右两列、上下反向）由 manifest 的 introLayout 生成
+   （scripts/block-build/intro-layout.js，#1535），这里不写。
+   按钮行跟着 introAlign 走（introLayout.follow）。 */
 
 /* introImage：DOM 里图在文字前面。上下叠（top · left / right 在 <992）⟹ 图在上、下边距 2.5rem；
    bottom ⟹ 列反向、图在下。top / bottom 的图限 64rem 居中（同图册）。 */
@@ -112,34 +93,8 @@
   }
 }
 
-/* introPosition：left / right（≥992）= 块头一列 33%（sticky）、items 一列 67%；right 行反向。
-   块头那一列窄，里面的图一律叠在文字上面（同图册）。
-   小屏：left / top 块头在上，right / bottom 块头在下（桌面在左 = 小屏在上，桌面在右 = 小屏在下）。 */
-[data-block="features"][data-intro-position="bottom"] .fx-frame {
-  flex-direction: column-reverse;
-}
-@media (max-width: 991.98px) {
-  [data-block="features"][data-intro-position="right"] .fx-frame {
-    flex-direction: column-reverse;
-  }
-}
+/* introPosition left / right（≥992）：块头那一列窄，里面的图一律叠在文字上面（同图册）。两列本身见上面那句。 */
 @media (min-width: 992px) {
-  [data-block="features"][data-intro-position="left"] .fx-introcol,
-  [data-block="features"][data-intro-position="right"] .fx-introcol {
-    flex: 0 0 auto;
-    width: 33.3333%;
-    position: sticky;
-    top: 2rem;
-    align-self: flex-start;
-  }
-  [data-block="features"][data-intro-position="left"] .fx-itemscol,
-  [data-block="features"][data-intro-position="right"] .fx-itemscol {
-    flex: 0 0 auto;
-    width: 66.6667%;
-  }
-  [data-block="features"][data-intro-position="right"] .fx-frame {
-    flex-direction: row-reverse;
-  }
   [data-block="features"][data-intro-position="left"] .fx-intro,
   [data-block="features"][data-intro-position="right"] .fx-intro {
     flex-direction: column !important;
@@ -150,11 +105,6 @@
     flex: none;
     margin-block: 0 2.5rem;
     margin-inline: 0;
-  }
-  [data-block="features"][data-intro-position="left"] .fx-intro-text,
-  [data-block="features"][data-intro-position="right"] .fx-intro-text {
-    max-width: none;
-    margin: 0;
   }
 }
 

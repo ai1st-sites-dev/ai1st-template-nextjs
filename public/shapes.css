@@ -104,35 +104,7 @@
   }
 }
 
-/* ── blog · 跨形态的规则（#1497）──────────────────────────────────────────────────────────────
-   blog 的排版由**实际生效的旋钮**决定，写在根元素上：
-     intro  data-intro-position（left / right / top / bottom）· data-intro-align（left / center / right）
-     posts  data-items-layout（grid / list / featured）· data-items-columns（2 / 3，只管 grid）
-     post   data-item-style（plain / card）· data-item-image（top / left / background）
-            🔴 封面放哪按**每篇文章自己的** `data-image` 命中（Section.tsx 算：featured 的第一篇恒为 top，其余 = itemImage）。
-               按根元素的 data-item-image 写的话，background 那几条（带 !important）会把 featured 的大篇也铺满 ——
-               正文与 AC4 要的是「大篇封面固定在上，小篇跟 itemImage 走」（#1497 第一版就这么错过一次，e2e 量出来的）。
-     底色   data-tone（light / dark / brand，scripts/lib/contrast.js §toneForBg）
-   五个形态目录都是预设，自己不带几何（理由在各自的 shape.css 里）。规则逐条照定稿图册
-   （docs/reference/webpixels/gallery/build.py 的 `.bl` 那几行），`body.opt-<旋钮>-<值>` 换成根元素的 `data-*`。
-
-   🔴 Webpixels 的工具类全带 !important（mb-* / text-muted …）。这里要压过它们的规则**也带 !important**，
-      而且选择器从 [data-block="blog"] 起步再加属性 / 类 —— 特异度一定高过工具类的一个类。
-   🔴 部件的有无靠渲染（Section.tsx 有数据才画），不靠 CSS 藏。唯一「藏」的是 featured 里小篇的摘要（图册如此：
-      右边一列的小篇只留标题）。
-   🔴 纵向写 gy-10、不写 g-10（g-10 的横向负边距在手机上溢出 4px，#1475 量出来的；图册 g-10 同款）。 */
-
-/* ═══ intro（块头）═══════════════════════════════════════════════════════════════════════════════ */
-
-[data-block="blog"] .bl-intro-text > :last-child {
-  margin-bottom: 0 !important;
-}
-[data-block="blog"] .bl-cta-row {
-  margin-top: 1.5rem;
-}
-
-/* introAlign：只管块头的字（T6.1 #1486：left / right 100%，center 在 ≥992 最宽 80%、<992 100%）。
-   文章的位置不跟它走（Chris 2026-09-30：list 时文章跟着居中是 bug）。 */
+/* 块头排版（introAlign / introPosition）—— 由 scripts/block-build/intro-layout.js 生成，别在 block.css 里写 */
 [data-block="blog"][data-intro-align="center"] .bl-intro-text {
   text-align: center;
 }
@@ -141,14 +113,11 @@
 }
 @media (min-width: 992px) {
   [data-block="blog"][data-intro-align="center"] .bl-intro-text {
+    width: 100%;
     max-width: 80%;
-    margin-inline-start: auto;
-    margin-inline-end: auto;
+    margin-inline: auto;
   }
 }
-
-/* introPosition：left / right（≥992）= 块头一列 33.33%（sticky）、文章一列 66.67%；right 行反向。
-   小屏：left / top 块头在上，right / bottom 块头在下。 */
 [data-block="blog"][data-intro-position="bottom"] .bl-frame {
   flex-direction: column-reverse;
 }
@@ -180,6 +149,37 @@
     flex-direction: row-reverse;
   }
 }
+
+/* ── blog · 跨形态的规则（#1497）──────────────────────────────────────────────────────────────
+   blog 的排版由**实际生效的旋钮**决定，写在根元素上：
+     intro  data-intro-position（left / right / top / bottom）· data-intro-align（left / center / right）
+     posts  data-items-layout（grid / list / featured）· data-items-columns（2 / 3，只管 grid）
+     post   data-item-style（plain / card）· data-item-image（top / left / background）
+            🔴 封面放哪按**每篇文章自己的** `data-image` 命中（Section.tsx 算：featured 的第一篇恒为 top，其余 = itemImage）。
+               按根元素的 data-item-image 写的话，background 那几条（带 !important）会把 featured 的大篇也铺满 ——
+               正文与 AC4 要的是「大篇封面固定在上，小篇跟 itemImage 走」（#1497 第一版就这么错过一次，e2e 量出来的）。
+     底色   data-tone（light / dark / brand，scripts/lib/contrast.js §toneForBg）
+   五个形态目录都是预设，自己不带几何（理由在各自的 shape.css 里）。规则逐条照定稿图册
+   （docs/reference/webpixels/gallery/build.py 的 `.bl` 那几行），`body.opt-<旋钮>-<值>` 换成根元素的 `data-*`。
+
+   🔴 Webpixels 的工具类全带 !important（mb-* / text-muted …）。这里要压过它们的规则**也带 !important**，
+      而且选择器从 [data-block="blog"] 起步再加属性 / 类 —— 特异度一定高过工具类的一个类。
+   🔴 部件的有无靠渲染（Section.tsx 有数据才画），不靠 CSS 藏。唯一「藏」的是 featured 里小篇的摘要（图册如此：
+      右边一列的小篇只留标题）。
+   🔴 纵向写 gy-10、不写 g-10（g-10 的横向负边距在手机上溢出 4px，#1475 量出来的；图册 g-10 同款）。 */
+
+/* ═══ intro（块头）═══════════════════════════════════════════════════════════════════════════════ */
+
+[data-block="blog"] .bl-intro-text > :last-child {
+  margin-bottom: 0 !important;
+}
+[data-block="blog"] .bl-cta-row {
+  margin-top: 1.5rem;
+}
+
+/* 块头排版（introAlign / introPosition：对齐、≥992 center 最宽 80%、左右两列、上下反向）由 manifest 的 introLayout 生成
+   （scripts/block-build/intro-layout.js，#1535），这里不写。
+   文章的位置不跟 introAlign 走（Chris 2026-09-30：list 时文章跟着居中是 bug）。 */
 
 /* ═══ 每篇文章 ═══════════════════════════════════════════════════════════════════════════════════ */
 
@@ -456,6 +456,28 @@
 }
 
 /* ══ contact ══════════════════════════════════════════════════════════════════════ */
+/* 块头排版（introAlign）—— 由 scripts/block-build/intro-layout.js 生成，别在 block.css 里写 */
+[data-block="contact"][data-intro-align="center"] .ct-intro-text {
+  text-align: center;
+}
+[data-block="contact"][data-intro-align="right"] .ct-intro-text {
+  text-align: end;
+}
+[data-block="contact"][data-side-position="bottom"][data-intro-align="center"] .ct-sidecol .ct-form {
+  margin-inline-start: auto;
+  margin-inline-end: auto;
+}
+[data-block="contact"][data-side-position="bottom"][data-intro-align="right"] .ct-sidecol .ct-form {
+  margin-inline-start: auto;
+}
+@media (min-width: 992px) {
+  [data-block="contact"][data-intro-align="center"] .ct-intro-text {
+    width: 100%;
+    max-width: 80%;
+    margin-inline: auto;
+  }
+}
+
 /* ── contact · 跨形态的规则（#1489）──────────────────────────────────────────────────────────────
    contact 的排版由**实际生效的旋钮**决定，写在根元素上：
      块头    data-intro-position（top / beside）· data-intro-align（left / center / right）
@@ -488,20 +510,8 @@
 [data-block="contact"] .ct-colintro:not(:last-child) {
   margin-bottom: 2.5rem;
 }
-/* introAlign：宽度照 T6.1（#1486）—— left / right 100%，center 在 ≥992 最宽 80%。 */
-[data-block="contact"][data-intro-align="center"] .ct-intro-text {
-  text-align: center;
-}
-[data-block="contact"][data-intro-align="right"] .ct-intro-text {
-  text-align: end;
-}
-@media (min-width: 992px) {
-  [data-block="contact"][data-intro-align="center"] .ct-intro-text {
-    max-width: 80%;
-    margin-inline-start: auto;
-    margin-inline-end: auto;
-  }
-}
+/* 块头排版（introAlign：对齐、≥992 center 最宽 80%）由 manifest 的 introLayout 生成（scripts/block-build/intro-layout.js，#1535），这里不写。
+   bottom 时表单跟着 introAlign 摆（introLayout.follow）。 */
 
 /* ═══ 两列（§split）════════════════════════════════════════════════════════════════════════════════
    sidePosition left / right（≥992）= 两列：items 5/12、侧列 7/12；侧列只有地图时各半；只剩一列时占满。
@@ -535,13 +545,6 @@
 }
 [data-block="contact"][data-side-position="bottom"] .ct-sidecol .ct-form {
   max-width: 40rem;
-}
-[data-block="contact"][data-side-position="bottom"][data-intro-align="center"] .ct-sidecol .ct-form {
-  margin-inline-start: auto;
-  margin-inline-end: auto;
-}
-[data-block="contact"][data-side-position="bottom"][data-intro-align="right"] .ct-sidecol .ct-form {
-  margin-inline-start: auto;
 }
 
 /* ═══ contact items ════════════════════════════════════════════════════════════════════════════════
@@ -1236,6 +1239,59 @@
   }
 }
 
+/* 块头排版（introAlign / introPosition）—— 由 scripts/block-build/intro-layout.js 生成，别在 block.css 里写 */
+[data-block="faq"][data-intro-align="center"] .fq-intro-text {
+  text-align: center;
+}
+[data-block="faq"][data-intro-align="right"] .fq-intro-text {
+  text-align: end;
+}
+[data-block="faq"][data-intro-align="center"] .fq-help {
+  margin-inline-start: auto;
+  margin-inline-end: auto;
+}
+[data-block="faq"][data-intro-align="right"] .fq-help {
+  margin-inline-start: auto;
+}
+@media (min-width: 992px) {
+  [data-block="faq"][data-intro-align="center"] .fq-intro-text {
+    width: 100%;
+    max-width: 80%;
+    margin-inline: auto;
+  }
+}
+[data-block="faq"][data-intro-position="bottom"] .fq-frame {
+  flex-direction: column-reverse;
+}
+@media (max-width: 991.98px) {
+  [data-block="faq"][data-intro-position="right"] .fq-frame {
+    flex-direction: column-reverse;
+  }
+}
+@media (min-width: 992px) {
+  [data-block="faq"][data-intro-position="left"] .fq-introcol,
+  [data-block="faq"][data-intro-position="right"] .fq-introcol {
+    flex: 0 0 auto;
+    width: 41.6667%;
+    position: sticky;
+    top: 2rem;
+    align-self: flex-start;
+  }
+  [data-block="faq"][data-intro-position="left"] .fq-itemscol,
+  [data-block="faq"][data-intro-position="right"] .fq-itemscol {
+    flex: 0 0 auto;
+    width: 58.3333%;
+  }
+  [data-block="faq"][data-intro-position="left"] .fq-intro-text,
+  [data-block="faq"][data-intro-position="right"] .fq-intro-text {
+    max-width: none;
+    margin: 0;
+  }
+  [data-block="faq"][data-intro-position="right"] .fq-frame {
+    flex-direction: row-reverse;
+  }
+}
+
 /* ── faq · 跨形态的规则（#1484）──────────────────────────────────────────────────────────────
    faq 的排版由**实际生效的旋钮**决定，写在根元素上：
      intro  data-intro-position（left / right / top / bottom）· data-intro-align（left / center / right）
@@ -1277,63 +1333,10 @@
   margin-top: 1rem;
 }
 
-/* introAlign：块头文字对齐，help 卡跟着走位置。
-   块头宽度（T6.1 / #1486，Chris 2026-09-29，照 team）：left / right = 100%；center 在 ≥992 最宽 80%（相对块头那一列）、居中，<992 = 100%。正文不单独限宽。 */
-[data-block="faq"][data-intro-align="center"] .fq-intro-text {
-  text-align: center;
-}
-/* width: 100% 不能省：块头住在 flex 列里，两边 margin: auto 会让它缩成内容宽，话短时就到不了 80%（#1486 实测 0.72）。 */
+/* 块头排版（introAlign / introPosition：对齐、≥992 center 最宽 80%、左右两列、上下反向）由 manifest 的 introLayout 生成
+   （scripts/block-build/intro-layout.js，#1535），这里不写。
+   help 卡跟着 introAlign 走位置（introLayout.follow）；块头在侧列时 help 卡贴列的左边（同图册）—— 下面这条是 faq 自己的。 */
 @media (min-width: 992px) {
-  [data-block="faq"][data-intro-align="center"] .fq-intro-text {
-    width: 100%;
-    max-width: 80%;
-    margin-inline: auto;
-  }
-}
-[data-block="faq"][data-intro-align="center"] .fq-help {
-  margin-inline-start: auto;
-  margin-inline-end: auto;
-}
-[data-block="faq"][data-intro-align="right"] .fq-intro-text {
-  text-align: end;
-}
-[data-block="faq"][data-intro-align="right"] .fq-help {
-  margin-inline-start: auto;
-}
-
-/* introPosition：left / right（≥992）= 块头一列 41.67%（sticky top 2rem）、问答一列 58.33%；right 行反向。
-   块头已经是侧列，80% 那条取消，三种对齐都占满侧列；help 卡贴列的左边（同图册）。
-   小屏：left / top 块头在上，right / bottom 块头在下。 */
-[data-block="faq"][data-intro-position="bottom"] .fq-frame {
-  flex-direction: column-reverse;
-}
-@media (max-width: 991.98px) {
-  [data-block="faq"][data-intro-position="right"] .fq-frame {
-    flex-direction: column-reverse;
-  }
-}
-@media (min-width: 992px) {
-  [data-block="faq"][data-intro-position="left"] .fq-introcol,
-  [data-block="faq"][data-intro-position="right"] .fq-introcol {
-    flex: 0 0 auto;
-    width: 41.6667%;
-    position: sticky;
-    top: 2rem;
-    align-self: flex-start;
-  }
-  [data-block="faq"][data-intro-position="left"] .fq-itemscol,
-  [data-block="faq"][data-intro-position="right"] .fq-itemscol {
-    flex: 0 0 auto;
-    width: 58.3333%;
-  }
-  [data-block="faq"][data-intro-position="right"] .fq-frame {
-    flex-direction: row-reverse;
-  }
-  [data-block="faq"][data-intro-position="left"] .fq-intro-text,
-  [data-block="faq"][data-intro-position="right"] .fq-intro-text {
-    max-width: none;
-    margin: 0;
-  }
   [data-block="faq"][data-intro-position="left"] .fq-help,
   [data-block="faq"][data-intro-position="right"] .fq-help {
     margin-inline-start: 0;
@@ -1565,6 +1568,58 @@
   }
 }
 
+/* 块头排版（introAlign / introPosition）—— 由 scripts/block-build/intro-layout.js 生成，别在 block.css 里写 */
+[data-block="features"][data-intro-align="center"] .fx-intro-text {
+  text-align: center;
+}
+[data-block="features"][data-intro-align="right"] .fx-intro-text {
+  text-align: end;
+}
+[data-block="features"][data-intro-align="center"] .fx-ctas {
+  justify-content: center;
+}
+[data-block="features"][data-intro-align="right"] .fx-ctas {
+  justify-content: flex-end;
+}
+@media (min-width: 992px) {
+  [data-block="features"][data-intro-align="center"] .fx-intro-text {
+    width: 100%;
+    max-width: 80%;
+    margin-inline: auto;
+  }
+}
+[data-block="features"][data-intro-position="bottom"] .fx-frame {
+  flex-direction: column-reverse;
+}
+@media (max-width: 991.98px) {
+  [data-block="features"][data-intro-position="right"] .fx-frame {
+    flex-direction: column-reverse;
+  }
+}
+@media (min-width: 992px) {
+  [data-block="features"][data-intro-position="left"] .fx-introcol,
+  [data-block="features"][data-intro-position="right"] .fx-introcol {
+    flex: 0 0 auto;
+    width: 33.3333%;
+    position: sticky;
+    top: 2rem;
+    align-self: flex-start;
+  }
+  [data-block="features"][data-intro-position="left"] .fx-itemscol,
+  [data-block="features"][data-intro-position="right"] .fx-itemscol {
+    flex: 0 0 auto;
+    width: 66.6667%;
+  }
+  [data-block="features"][data-intro-position="left"] .fx-intro-text,
+  [data-block="features"][data-intro-position="right"] .fx-intro-text {
+    max-width: none;
+    margin: 0;
+  }
+  [data-block="features"][data-intro-position="right"] .fx-frame {
+    flex-direction: row-reverse;
+  }
+}
+
 /* ── features · 跨形态的规则（#1475）──────────────────────────────────────────────────────────
    features 的排版由**实际生效的旋钮**决定，写在根元素上：
      intro  data-intro-position（left / right / top / bottom）· data-intro-align（left / center / right）·
@@ -1604,28 +1659,9 @@
   margin-top: 2rem;
 }
 
-/* introAlign：只管块头。
-   块头宽度（T6.1 / #1486，Chris 2026-09-29，照 team）：left / right = 100%；center 在 ≥992 最宽 80%（相对块头那一列）、居中，<992 = 100%。正文不单独限宽。 */
-[data-block="features"][data-intro-align="center"] .fx-intro-text {
-  text-align: center;
-}
-/* width: 100% 不能省：块头住在 flex 列里，两边 margin: auto 会让它缩成内容宽，话短时就到不了 80%（#1486 实测 0.72）。 */
-@media (min-width: 992px) {
-  [data-block="features"][data-intro-align="center"] .fx-intro-text {
-    width: 100%;
-    max-width: 80%;
-    margin-inline: auto;
-  }
-}
-[data-block="features"][data-intro-align="center"] .fx-ctas {
-  justify-content: center;
-}
-[data-block="features"][data-intro-align="right"] .fx-intro-text {
-  text-align: end;
-}
-[data-block="features"][data-intro-align="right"] .fx-ctas {
-  justify-content: flex-end;
-}
+/* 块头排版（introAlign / introPosition：对齐、≥992 center 最宽 80%、左右两列、上下反向）由 manifest 的 introLayout 生成
+   （scripts/block-build/intro-layout.js，#1535），这里不写。
+   按钮行跟着 introAlign 走（introLayout.follow）。 */
 
 /* introImage：DOM 里图在文字前面。上下叠（top · left / right 在 <992）⟹ 图在上、下边距 2.5rem；
    bottom ⟹ 列反向、图在下。top / bottom 的图限 64rem 居中（同图册）。 */
@@ -1679,34 +1715,8 @@
   }
 }
 
-/* introPosition：left / right（≥992）= 块头一列 33%（sticky）、items 一列 67%；right 行反向。
-   块头那一列窄，里面的图一律叠在文字上面（同图册）。
-   小屏：left / top 块头在上，right / bottom 块头在下（桌面在左 = 小屏在上，桌面在右 = 小屏在下）。 */
-[data-block="features"][data-intro-position="bottom"] .fx-frame {
-  flex-direction: column-reverse;
-}
-@media (max-width: 991.98px) {
-  [data-block="features"][data-intro-position="right"] .fx-frame {
-    flex-direction: column-reverse;
-  }
-}
+/* introPosition left / right（≥992）：块头那一列窄，里面的图一律叠在文字上面（同图册）。两列本身见上面那句。 */
 @media (min-width: 992px) {
-  [data-block="features"][data-intro-position="left"] .fx-introcol,
-  [data-block="features"][data-intro-position="right"] .fx-introcol {
-    flex: 0 0 auto;
-    width: 33.3333%;
-    position: sticky;
-    top: 2rem;
-    align-self: flex-start;
-  }
-  [data-block="features"][data-intro-position="left"] .fx-itemscol,
-  [data-block="features"][data-intro-position="right"] .fx-itemscol {
-    flex: 0 0 auto;
-    width: 66.6667%;
-  }
-  [data-block="features"][data-intro-position="right"] .fx-frame {
-    flex-direction: row-reverse;
-  }
   [data-block="features"][data-intro-position="left"] .fx-intro,
   [data-block="features"][data-intro-position="right"] .fx-intro {
     flex-direction: column !important;
@@ -1717,11 +1727,6 @@
     flex: none;
     margin-block: 0 2.5rem;
     margin-inline: 0;
-  }
-  [data-block="features"][data-intro-position="left"] .fx-intro-text,
-  [data-block="features"][data-intro-position="right"] .fx-intro-text {
-    max-width: none;
-    margin: 0;
   }
 }
 
@@ -2230,28 +2235,7 @@
   }
 }
 
-/* ── gallery · 跨形态的规则（#1495）──────────────────────────────────────────────────────────
-   gallery 的排版由**实际生效的旋钮**决定，写在根元素上：
-     intro   data-intro-position（left / right / top / bottom）· data-intro-align（left / center / right）
-     items   data-items-layout（grid / mosaic）· data-items-columns（2 / 3 / 4）·
-             data-item-shape（original / square / landscape / portrait）· data-item-caption（below / overlay）
-     底色    data-tone（light / dark / brand，scripts/lib/contrast.js §toneForBg）
-   四个形态目录都是预设，自己不带几何（理由在各自的 shape.css 里）。数值照图册 `docs/reference/webpixels/gallery/build.py`
-   的 gallery 段（Chris 2026-09-30 定稿）。
-
-   🔴 Webpixels 的工具类全带 !important（mb-* / text-muted / bg-primary-subtle …）。这里要压过它们的规则**也带 !important**，
-      而且选择器从 [data-block="gallery"] 起步再加属性 / 类 —— 特异度一定高过工具类的一个类。
-   🔴 部件的有无靠渲染（Section.tsx 有数据才画），不靠 CSS 藏：没有 title / caption 的那一张就没有 .gl-cap。
-   间距：段 py-16 py-lg-24；块头与照片之间 2.5rem（gy-10）/ ≥992 横向 4rem（gx-lg-16）；照片之间 1rem（≥992 1.5rem）；
-   圆角 1rem；图注在下时离图 .75rem。纵向写 gy-10、不写 g-10（g-10 的横向负边距在手机上溢出，#1475 量出来的）。 */
-
-/* ═══ intro（块头）═══════════════════════════════════════════════════════════════════════════════ */
-
-[data-block="gallery"] .gl-intro-text > :last-child {
-  margin-bottom: 0 !important;
-}
-
-/* 块头宽度（T6.1 / #1486）：left / right = 100%；center 在 ≥992 最宽 80%（相对块头那一列）、居中，<992 = 100%。 */
+/* 块头排版（introAlign / introPosition）—— 由 scripts/block-build/intro-layout.js 生成，别在 block.css 里写 */
 [data-block="gallery"][data-intro-align="center"] .gl-intro-text {
   text-align: center;
 }
@@ -2260,14 +2244,11 @@
 }
 @media (min-width: 992px) {
   [data-block="gallery"][data-intro-align="center"] .gl-intro-text {
+    width: 100%;
     max-width: 80%;
-    margin-inline-start: auto;
-    margin-inline-end: auto;
+    margin-inline: auto;
   }
 }
-
-/* introPosition：left / right（≥992）= 块头一列 33.33%（sticky top 2rem）、照片一列 66.67%；right 行反向。
-   块头已经是侧列，80% 那条取消（图册 build.py 同一条）。小屏：left / top 块头在上，right / bottom 块头在下。 */
 [data-block="gallery"][data-intro-position="bottom"] .gl-frame {
   flex-direction: column-reverse;
 }
@@ -2290,15 +2271,39 @@
     flex: 0 0 auto;
     width: 66.6667%;
   }
-  [data-block="gallery"][data-intro-position="right"] .gl-frame {
-    flex-direction: row-reverse;
-  }
   [data-block="gallery"][data-intro-position="left"] .gl-intro-text,
   [data-block="gallery"][data-intro-position="right"] .gl-intro-text {
     max-width: none;
     margin: 0;
   }
+  [data-block="gallery"][data-intro-position="right"] .gl-frame {
+    flex-direction: row-reverse;
+  }
 }
+
+/* ── gallery · 跨形态的规则（#1495）──────────────────────────────────────────────────────────
+   gallery 的排版由**实际生效的旋钮**决定，写在根元素上：
+     intro   data-intro-position（left / right / top / bottom）· data-intro-align（left / center / right）
+     items   data-items-layout（grid / mosaic）· data-items-columns（2 / 3 / 4）·
+             data-item-shape（original / square / landscape / portrait）· data-item-caption（below / overlay）
+     底色    data-tone（light / dark / brand，scripts/lib/contrast.js §toneForBg）
+   四个形态目录都是预设，自己不带几何（理由在各自的 shape.css 里）。数值照图册 `docs/reference/webpixels/gallery/build.py`
+   的 gallery 段（Chris 2026-09-30 定稿）。
+
+   🔴 Webpixels 的工具类全带 !important（mb-* / text-muted / bg-primary-subtle …）。这里要压过它们的规则**也带 !important**，
+      而且选择器从 [data-block="gallery"] 起步再加属性 / 类 —— 特异度一定高过工具类的一个类。
+   🔴 部件的有无靠渲染（Section.tsx 有数据才画），不靠 CSS 藏：没有 title / caption 的那一张就没有 .gl-cap。
+   间距：段 py-16 py-lg-24；块头与照片之间 2.5rem（gy-10）/ ≥992 横向 4rem（gx-lg-16）；照片之间 1rem（≥992 1.5rem）；
+   圆角 1rem；图注在下时离图 .75rem。纵向写 gy-10、不写 g-10（g-10 的横向负边距在手机上溢出，#1475 量出来的）。 */
+
+/* ═══ intro（块头）═══════════════════════════════════════════════════════════════════════════════ */
+
+[data-block="gallery"] .gl-intro-text > :last-child {
+  margin-bottom: 0 !important;
+}
+
+/* 块头排版（introAlign / introPosition：对齐、≥992 center 最宽 80%、左右两列、上下反向）由 manifest 的 introLayout 生成
+   （scripts/block-build/intro-layout.js，#1535），这里不写。 */
 
 /* ═══ items（照片）═══════════════════════════════════════════════════════════════════════════════ */
 
@@ -2757,6 +2762,49 @@
   }
 }
 
+/* 块头排版（introAlign / introPosition）—— 由 scripts/block-build/intro-layout.js 生成，别在 block.css 里写 */
+[data-block="logos"][data-intro-align="center"] .lo-intro-text {
+  text-align: center;
+}
+[data-block="logos"][data-intro-align="right"] .lo-intro-text {
+  text-align: end;
+}
+@media (min-width: 992px) {
+  [data-block="logos"][data-intro-align="center"] .lo-intro-text {
+    width: 100%;
+    max-width: 80%;
+    margin-inline: auto;
+  }
+}
+[data-block="logos"][data-intro-position="bottom"] .lo-frame {
+  flex-direction: column-reverse;
+}
+@media (max-width: 991.98px) {
+  [data-block="logos"][data-intro-position="right"] .lo-frame {
+    flex-direction: column-reverse;
+  }
+}
+@media (min-width: 992px) {
+  [data-block="logos"][data-intro-position="left"] .lo-introcol,
+  [data-block="logos"][data-intro-position="right"] .lo-introcol {
+    flex: 0 0 auto;
+    width: 33.3333%;
+  }
+  [data-block="logos"][data-intro-position="left"] .lo-itemscol,
+  [data-block="logos"][data-intro-position="right"] .lo-itemscol {
+    flex: 0 0 auto;
+    width: 66.6667%;
+  }
+  [data-block="logos"][data-intro-position="left"] .lo-intro-text,
+  [data-block="logos"][data-intro-position="right"] .lo-intro-text {
+    max-width: none;
+    margin: 0;
+  }
+  [data-block="logos"][data-intro-position="right"] .lo-frame {
+    flex-direction: row-reverse;
+  }
+}
+
 /* ── logos · 跨形态的规则（#1496）──────────────────────────────────────────────────────────────
    logos 的排版由**实际生效的旋钮**决定，写在根元素上：
      intro  data-intro-position（left / right / top / bottom）· data-intro-align（left / center / right）· data-intro-size（sm / lg）
@@ -2798,52 +2846,9 @@
   margin-bottom: 0.5rem !important;
 }
 
-/* introAlign：块头文字对齐。宽度照 T6.1（#1486）：left / right 100%；center 在 ≥992 最宽 80%、居中。 */
-[data-block="logos"][data-intro-align="center"] .lo-intro-text {
-  text-align: center;
-}
-[data-block="logos"][data-intro-align="right"] .lo-intro-text {
-  text-align: end;
-}
-@media (min-width: 992px) {
-  [data-block="logos"][data-intro-align="center"] .lo-intro-text {
-    max-width: 80%;
-    margin-inline-start: auto;
-    margin-inline-end: auto;
-  }
-}
-
-/* introPosition：left / right（≥992）= 块头一列 33.33%、logo 一列 66.67%，两列垂直居中（.lo-frame 带 align-items-center）；
-   right 行反向。块头在侧时块头那一列本来就窄：文字不再限宽。
-   小屏：left / top 块头在上，right / bottom 块头在下。 */
-[data-block="logos"][data-intro-position="bottom"] .lo-frame {
-  flex-direction: column-reverse;
-}
-@media (max-width: 991.98px) {
-  [data-block="logos"][data-intro-position="right"] .lo-frame {
-    flex-direction: column-reverse;
-  }
-}
-@media (min-width: 992px) {
-  [data-block="logos"][data-intro-position="left"] .lo-introcol,
-  [data-block="logos"][data-intro-position="right"] .lo-introcol {
-    flex: 0 0 auto;
-    width: 33.3333%;
-  }
-  [data-block="logos"][data-intro-position="left"] .lo-itemscol,
-  [data-block="logos"][data-intro-position="right"] .lo-itemscol {
-    flex: 0 0 auto;
-    width: 66.6667%;
-  }
-  [data-block="logos"][data-intro-position="right"] .lo-frame {
-    flex-direction: row-reverse;
-  }
-  [data-block="logos"][data-intro-position="left"] .lo-intro-text,
-  [data-block="logos"][data-intro-position="right"] .lo-intro-text {
-    max-width: none;
-    margin: 0;
-  }
-}
+/* 块头排版（introAlign / introPosition：对齐、≥992 center 最宽 80%、左右两列、上下反向）由 manifest 的 introLayout 生成
+   （scripts/block-build/intro-layout.js，#1535），这里不写。
+   logos 的块头列不 sticky：两列垂直居中（.lo-frame 带 align-items-center）。 */
 
 /* ═══ items ════════════════════════════════════════════════════════════════════════════════════════
    每格：plain 高 4.5rem、card 高 6rem；logo 图最高 2rem、宽按比例、不超出格子。 */
@@ -2999,6 +3004,58 @@
   }
 }
 
+/* 块头排版（introAlign / introPosition）—— 由 scripts/block-build/intro-layout.js 生成，别在 block.css 里写 */
+[data-block="milestones"][data-intro-align="center"] .mi-intro-text {
+  text-align: center;
+}
+[data-block="milestones"][data-intro-align="right"] .mi-intro-text {
+  text-align: end;
+}
+[data-block="milestones"][data-intro-align="center"] .mi-ctas {
+  justify-content: center;
+}
+[data-block="milestones"][data-intro-align="right"] .mi-ctas {
+  justify-content: flex-end;
+}
+@media (min-width: 992px) {
+  [data-block="milestones"][data-intro-align="center"] .mi-intro-text {
+    width: 100%;
+    max-width: 80%;
+    margin-inline: auto;
+  }
+}
+[data-block="milestones"][data-intro-position="bottom"] .mi-frame {
+  flex-direction: column-reverse;
+}
+@media (max-width: 991.98px) {
+  [data-block="milestones"][data-intro-position="right"] .mi-frame {
+    flex-direction: column-reverse;
+  }
+}
+@media (min-width: 992px) {
+  [data-block="milestones"][data-intro-position="left"] .mi-introcol,
+  [data-block="milestones"][data-intro-position="right"] .mi-introcol {
+    flex: 0 0 auto;
+    width: 41.6667%;
+    position: sticky;
+    top: 2rem;
+    align-self: flex-start;
+  }
+  [data-block="milestones"][data-intro-position="left"] .mi-statscol,
+  [data-block="milestones"][data-intro-position="right"] .mi-statscol {
+    flex: 0 0 auto;
+    width: 58.3333%;
+  }
+  [data-block="milestones"][data-intro-position="left"] .mi-intro-text,
+  [data-block="milestones"][data-intro-position="right"] .mi-intro-text {
+    max-width: none;
+    margin: 0;
+  }
+  [data-block="milestones"][data-intro-position="right"] .mi-frame {
+    flex-direction: row-reverse;
+  }
+}
+
 /* ── milestones · 跨形态的规则（#1482）──────────────────────────────────────────────────────────
    milestones 的排版由**实际生效的旋钮**决定，写在根元素上：
      块     data-block-image（none / left / right / background）
@@ -3099,28 +3156,9 @@
   margin-top: 2rem;
 }
 
-/* introAlign：只管块头。
-   块头宽度（T6.1 / #1486，Chris 2026-09-29，照 team）：left / right = 100%；center 在 ≥992 最宽 80%（相对块头那一列）、居中，<992 = 100%。正文不单独限宽。 */
-[data-block="milestones"][data-intro-align="center"] .mi-intro-text {
-  text-align: center;
-}
-/* width: 100% 不能省：块头住在 flex 列里，两边 margin: auto 会让它缩成内容宽，话短时就到不了 80%（#1486 实测 0.72）。 */
-@media (min-width: 992px) {
-  [data-block="milestones"][data-intro-align="center"] .mi-intro-text {
-    width: 100%;
-    max-width: 80%;
-    margin-inline: auto;
-  }
-}
-[data-block="milestones"][data-intro-align="center"] .mi-ctas {
-  justify-content: center;
-}
-[data-block="milestones"][data-intro-align="right"] .mi-intro-text {
-  text-align: end;
-}
-[data-block="milestones"][data-intro-align="right"] .mi-ctas {
-  justify-content: flex-end;
-}
+/* 块头排版（introAlign / introPosition：对齐、≥992 center 最宽 80%、左右两列、上下反向）由 manifest 的 introLayout 生成
+   （scripts/block-build/intro-layout.js，#1535），这里不写。
+   按钮行跟着 introAlign 走（introLayout.follow）。 */
 
 /* introImage：DOM 里图在文字前面。<992 图在上、下边距 2.5rem；≥992 left / right 并排、图 45%、文字自适应。 */
 [data-block="milestones"] .mi-intro-img img {
@@ -3159,34 +3197,8 @@
   }
 }
 
-/* introPosition：left / right（≥992）= 块头一列 41.67%（sticky top 2rem）、stats 一列 58.33%；right 行反向。
-   块头那一列窄，里面的图一律叠在文字上面（同 features）。
-   小屏：left / top 块头在上，right / bottom 块头在下。 */
-[data-block="milestones"][data-intro-position="bottom"] .mi-frame {
-  flex-direction: column-reverse;
-}
-@media (max-width: 991.98px) {
-  [data-block="milestones"][data-intro-position="right"] .mi-frame {
-    flex-direction: column-reverse;
-  }
-}
+/* introPosition left / right（≥992）：块头那一列窄，里面的图一律叠在文字上面（同 features）。两列本身见上面那句。 */
 @media (min-width: 992px) {
-  [data-block="milestones"][data-intro-position="left"] .mi-introcol,
-  [data-block="milestones"][data-intro-position="right"] .mi-introcol {
-    flex: 0 0 auto;
-    width: 41.6667%;
-    position: sticky;
-    top: 2rem;
-    align-self: flex-start;
-  }
-  [data-block="milestones"][data-intro-position="left"] .mi-statscol,
-  [data-block="milestones"][data-intro-position="right"] .mi-statscol {
-    flex: 0 0 auto;
-    width: 58.3333%;
-  }
-  [data-block="milestones"][data-intro-position="right"] .mi-frame {
-    flex-direction: row-reverse;
-  }
   [data-block="milestones"][data-intro-position="left"] .mi-intro,
   [data-block="milestones"][data-intro-position="right"] .mi-intro {
     flex-direction: column !important;
@@ -3197,11 +3209,6 @@
     flex: none;
     margin-block: 0 2.5rem;
     margin-inline: 0;
-  }
-  [data-block="milestones"][data-intro-position="left"] .mi-intro-text,
-  [data-block="milestones"][data-intro-position="right"] .mi-intro-text {
-    max-width: none;
-    margin: 0;
   }
 }
 
@@ -3657,6 +3664,72 @@
   }
 }
 
+/* 块头排版（introAlign / introPosition）—— 由 scripts/block-build/intro-layout.js 生成，别在 block.css 里写 */
+[data-block="pricing"][data-intro-align="center"] .pr-intro-text {
+  text-align: center;
+}
+[data-block="pricing"][data-intro-align="right"] .pr-intro-text {
+  text-align: end;
+}
+[data-block="pricing"][data-intro-align="center"] .pr-proof {
+  justify-content: center;
+}
+[data-block="pricing"][data-intro-align="center"] .pr-logo-row {
+  justify-content: center;
+}
+[data-block="pricing"][data-intro-align="center"][data-intro-position="top"] .pr-billing-wrap,
+[data-block="pricing"][data-intro-align="center"][data-intro-position="bottom"] .pr-billing-wrap {
+  text-align: center;
+}
+[data-block="pricing"][data-intro-align="right"] .pr-proof {
+  justify-content: flex-end;
+}
+[data-block="pricing"][data-intro-align="right"] .pr-logo-row {
+  justify-content: flex-end;
+}
+[data-block="pricing"][data-intro-align="right"][data-intro-position="top"] .pr-billing-wrap,
+[data-block="pricing"][data-intro-align="right"][data-intro-position="bottom"] .pr-billing-wrap {
+  text-align: end;
+}
+@media (min-width: 992px) {
+  [data-block="pricing"][data-intro-align="center"] .pr-intro-text {
+    width: 100%;
+    max-width: 80%;
+    margin-inline: auto;
+  }
+}
+[data-block="pricing"][data-intro-position="bottom"] .pr-frame {
+  flex-direction: column-reverse;
+}
+@media (max-width: 991.98px) {
+  [data-block="pricing"][data-intro-position="right"] .pr-frame {
+    flex-direction: column-reverse;
+  }
+}
+@media (min-width: 992px) {
+  [data-block="pricing"][data-intro-position="left"] .pr-introcol,
+  [data-block="pricing"][data-intro-position="right"] .pr-introcol {
+    flex: 0 0 auto;
+    width: 41.6667%;
+    position: sticky;
+    top: 2rem;
+    align-self: flex-start;
+  }
+  [data-block="pricing"][data-intro-position="left"] .pr-planscol,
+  [data-block="pricing"][data-intro-position="right"] .pr-planscol {
+    flex: 0 0 auto;
+    width: 58.3333%;
+  }
+  [data-block="pricing"][data-intro-position="left"] .pr-intro-text,
+  [data-block="pricing"][data-intro-position="right"] .pr-intro-text {
+    max-width: none;
+    margin: 0;
+  }
+  [data-block="pricing"][data-intro-position="right"] .pr-frame {
+    flex-direction: row-reverse;
+  }
+}
+
 /* ── pricing · 跨形态的规则（#1483）──────────────────────────────────────────────────────────
    pricing 的排版由**实际生效的旋钮**决定，写在根元素上：
      intro  data-intro-position（left / right / top / bottom）· data-intro-align（left / center / right）
@@ -3718,25 +3791,10 @@
   opacity: 0.75;
 }
 
-/* introAlign：块头宽度（T6.1 / #1486，Chris 2026-09-29，照 team）：left / right = 100%；center 在 ≥992 最宽 80%（相对块头那一列）、居中，<992 = 100%。正文不单独限宽。
-   部件跟着对齐：
-   highlights 在 center 时排成一排（≥768 四列、手机两列，图标在上、字居中），right 时镜像（图标在右、字靠右）；
-   proof / logos 跟着居中 / 靠右。 */
-[data-block="pricing"][data-intro-align="center"] .pr-intro-text {
-  text-align: center;
-}
-/* width: 100% 不能省：块头住在 flex 列里，两边 margin: auto 会让它缩成内容宽，话短时就到不了 80%（#1486 实测 0.72）。 */
-@media (min-width: 992px) {
-  [data-block="pricing"][data-intro-align="center"] .pr-intro-text {
-    width: 100%;
-    max-width: 80%;
-    margin-inline: auto;
-  }
-}
-[data-block="pricing"][data-intro-align="center"] .pr-proof,
-[data-block="pricing"][data-intro-align="center"] .pr-logo-row {
-  justify-content: center;
-}
+/* 块头排版（introAlign / introPosition：对齐、≥992 center 最宽 80%、左右两列、上下反向）由 manifest 的 introLayout 生成
+   （scripts/block-build/intro-layout.js，#1535），这里不写。
+   proof / logos 跟着居中 / 靠右、billing 在块头上下时跟着对齐（introLayout.follow）。
+   下面是 pricing 自己的：highlights 在 center 时排成一排（≥768 四列、手机两列，图标在上、字居中），right 时镜像（图标在右、字靠右）。 */
 [data-block="pricing"][data-intro-align="center"] .pr-highlights {
   display: flex;
   flex-wrap: wrap;
@@ -3758,64 +3816,15 @@
     width: calc((100% - 4.5rem) / 4);
   }
 }
-[data-block="pricing"][data-intro-align="right"] .pr-intro-text {
-  text-align: end;
-}
-[data-block="pricing"][data-intro-align="right"] .pr-proof,
-[data-block="pricing"][data-intro-align="right"] .pr-logo-row {
-  justify-content: flex-end;
-}
 [data-block="pricing"][data-intro-align="right"] .pr-hl {
   flex-direction: row-reverse;
   text-align: end;
-}
-
-/* introPosition：left / right（≥992）= 块头一列 41.67%（sticky top 2rem）、套餐一列 58.33%；right 行反向。
-   小屏：left / top 块头在上，right / bottom 块头在下。 */
-[data-block="pricing"][data-intro-position="bottom"] .pr-frame {
-  flex-direction: column-reverse;
-}
-@media (max-width: 991.98px) {
-  [data-block="pricing"][data-intro-position="right"] .pr-frame {
-    flex-direction: column-reverse;
-  }
-}
-@media (min-width: 992px) {
-  [data-block="pricing"][data-intro-position="left"] .pr-introcol,
-  [data-block="pricing"][data-intro-position="right"] .pr-introcol {
-    flex: 0 0 auto;
-    width: 41.6667%;
-    position: sticky;
-    top: 2rem;
-    align-self: flex-start;
-  }
-  [data-block="pricing"][data-intro-position="left"] .pr-planscol,
-  [data-block="pricing"][data-intro-position="right"] .pr-planscol {
-    flex: 0 0 auto;
-    width: 58.3333%;
-  }
-  [data-block="pricing"][data-intro-position="right"] .pr-frame {
-    flex-direction: row-reverse;
-  }
-  [data-block="pricing"][data-intro-position="left"] .pr-intro-text,
-  [data-block="pricing"][data-intro-position="right"] .pr-intro-text {
-    max-width: none;
-    margin: 0;
-  }
 }
 
 /* ═══ billing（月付 / 年付，住在套餐正上方）═══════════════════════════════════════════════════════
    块头在上 / 下时跟 introAlign 对齐，块头在侧时靠左。 */
 [data-block="pricing"] .pr-billing-wrap {
   margin-bottom: 2rem;
-}
-[data-block="pricing"][data-intro-align="center"][data-intro-position="top"] .pr-billing-wrap,
-[data-block="pricing"][data-intro-align="center"][data-intro-position="bottom"] .pr-billing-wrap {
-  text-align: center;
-}
-[data-block="pricing"][data-intro-align="right"][data-intro-position="top"] .pr-billing-wrap,
-[data-block="pricing"][data-intro-align="right"][data-intro-position="bottom"] .pr-billing-wrap {
-  text-align: end;
 }
 [data-block="pricing"] .pr-billing {
   flex-wrap: wrap;
@@ -4218,6 +4227,58 @@
 }
 
 /* ══ reviews ══════════════════════════════════════════════════════════════════════ */
+/* 块头排版（introAlign / introPosition）—— 由 scripts/block-build/intro-layout.js 生成，别在 block.css 里写 */
+[data-block="reviews"][data-intro-align="center"] .rv-intro-text {
+  text-align: center;
+}
+[data-block="reviews"][data-intro-align="right"] .rv-intro-text {
+  text-align: end;
+}
+[data-block="reviews"][data-intro-align="center"] .rv-total {
+  justify-content: center;
+}
+[data-block="reviews"][data-intro-align="right"] .rv-total {
+  justify-content: flex-end;
+}
+@media (min-width: 992px) {
+  [data-block="reviews"][data-intro-align="center"] .rv-intro-text {
+    width: 100%;
+    max-width: 80%;
+    margin-inline: auto;
+  }
+}
+[data-block="reviews"][data-intro-position="bottom"] .rv-frame {
+  flex-direction: column-reverse;
+}
+@media (max-width: 991.98px) {
+  [data-block="reviews"][data-intro-position="right"] .rv-frame {
+    flex-direction: column-reverse;
+  }
+}
+@media (min-width: 992px) {
+  [data-block="reviews"][data-intro-position="left"] .rv-introcol,
+  [data-block="reviews"][data-intro-position="right"] .rv-introcol {
+    flex: 0 0 auto;
+    width: 33.3333%;
+    position: sticky;
+    top: 2rem;
+    align-self: flex-start;
+  }
+  [data-block="reviews"][data-intro-position="left"] .rv-itemscol,
+  [data-block="reviews"][data-intro-position="right"] .rv-itemscol {
+    flex: 0 0 auto;
+    width: 66.6667%;
+  }
+  [data-block="reviews"][data-intro-position="left"] .rv-intro-text,
+  [data-block="reviews"][data-intro-position="right"] .rv-intro-text {
+    max-width: none;
+    margin: 0;
+  }
+  [data-block="reviews"][data-intro-position="right"] .rv-frame {
+    flex-direction: row-reverse;
+  }
+}
+
 /* ── reviews · 跨形态的规则（#1504）──────────────────────────────────────────────────────────────
    reviews 的排版由**实际生效的旋钮**决定，写在根元素上：
      intro  data-intro-position（left / right / top / bottom）· data-intro-align（left / center / right）· data-total（none / show）
@@ -4258,61 +4319,10 @@
   width: 20px;
   height: 20px;
 }
-[data-block="reviews"][data-intro-align="center"] .rv-total {
-  justify-content: center;
-}
-[data-block="reviews"][data-intro-align="right"] .rv-total {
-  justify-content: flex-end;
-}
 
-/* introAlign：块头文字对齐。宽度照 T6.1（#1486）：left / right 100%；center 在 ≥992 最宽 80%、居中。 */
-[data-block="reviews"][data-intro-align="center"] .rv-intro-text {
-  text-align: center;
-}
-[data-block="reviews"][data-intro-align="right"] .rv-intro-text {
-  text-align: end;
-}
-@media (min-width: 992px) {
-  [data-block="reviews"][data-intro-align="center"] .rv-intro-text {
-    max-width: 80%;
-    margin-inline-start: auto;
-    margin-inline-end: auto;
-  }
-}
-
-/* introPosition：left / right（≥992）= 块头一列 33.33%（sticky）、平台一列 66.67%；right 行反向。块头在侧时文字不再限宽。
-   小屏：left / top 块头在上，right / bottom 块头在下（同 testimonials）。 */
-[data-block="reviews"][data-intro-position="bottom"] .rv-frame {
-  flex-direction: column-reverse;
-}
-@media (max-width: 991.98px) {
-  [data-block="reviews"][data-intro-position="right"] .rv-frame {
-    flex-direction: column-reverse;
-  }
-}
-@media (min-width: 992px) {
-  [data-block="reviews"][data-intro-position="left"] .rv-introcol,
-  [data-block="reviews"][data-intro-position="right"] .rv-introcol {
-    flex: 0 0 auto;
-    width: 33.3333%;
-    position: sticky;
-    top: 2rem;
-    align-self: flex-start;
-  }
-  [data-block="reviews"][data-intro-position="left"] .rv-itemscol,
-  [data-block="reviews"][data-intro-position="right"] .rv-itemscol {
-    flex: 0 0 auto;
-    width: 66.6667%;
-  }
-  [data-block="reviews"][data-intro-position="right"] .rv-frame {
-    flex-direction: row-reverse;
-  }
-  [data-block="reviews"][data-intro-position="left"] .rv-intro-text,
-  [data-block="reviews"][data-intro-position="right"] .rv-intro-text {
-    max-width: none;
-    margin: 0;
-  }
-}
+/* 块头排版（introAlign / introPosition：对齐、≥992 center 最宽 80%、左右两列、上下反向）由 manifest 的 introLayout 生成
+   （scripts/block-build/intro-layout.js，#1535），这里不写。
+   总分条跟着 introAlign 走（introLayout.follow）。 */
 
 /* ═══ 每个平台：logo · 大分数 · 星 + 条数 ═══════════════════════════════════════════════════════════
    logo 三档（Section.tsx §logo）：上传的图 → 内置品牌图标（品牌色，--rv-brand）→ 粗体平台名。 */
@@ -4558,30 +4568,7 @@
   }
 }
 
-/* ── team · 跨形态的规则（#1487）──────────────────────────────────────────────────────────
-   team 的排版由**实际生效的旋钮**决定，写在根元素上：
-     intro    data-intro-position（left / right / top / bottom）· data-intro-align（left / center / right）
-     members  data-members-columns（2 / 3 / 4）· data-member-photo（top / left）· data-photo-shape（square / circle）·
-              data-member-style（plain / card）· data-member-align（left / center）
-     底色     data-tone（light / dark / brand，scripts/lib/contrast.js §toneForBg）
-   五个形态目录都是预设，自己不带几何（理由在各自的 shape.css 里）。
-
-   🔴 Webpixels 的工具类全带 !important（mb-* / text-muted / bg-primary-subtle …）。这里要压过它们的规则**也带 !important**，
-      而且选择器从 [data-block="team"] 起步再加属性 / 类 —— 特异度一定高过工具类的一个类。
-   🔴 部件的有无靠渲染（Section.tsx 有数据才画），不靠 CSS 藏。
-   🔴 `memberAlign` 只在 `memberPhoto=top` 时起作用：它的每一条规则都带 [data-member-photo="top"]（左图右字本来就靠左）。
-   间距照图册（Chris 2026-09-29）：段 py-16 py-lg-24；块头与成员之间 2.5rem（gy-10）/ ≥992 横向 4rem（gx-lg-16）；
-   成员左右间距 1.5rem、行距 2.5rem（card 1.5rem）；照片与名字 / 文字 1.25rem。纵向写 gy-10、不写 g-10
-   （g-10 的横向负边距在手机上溢出，#1475 量出来的）。 */
-
-/* ═══ intro（块头）═══════════════════════════════════════════════════════════════════════════════ */
-
-[data-block="team"] .tm-intro-text > :last-child {
-  margin-bottom: 0 !important;
-}
-
-/* 块头宽度（T6.1 / #1486 定的新规则，Chris 2026-09-29）：left / right = 100%；center 在 ≥992 最宽 80%（相对块头那一列）、
-   居中，<992 = 100%。正文不再单独限宽。 */
+/* 块头排版（introAlign / introPosition）—— 由 scripts/block-build/intro-layout.js 生成，别在 block.css 里写 */
 [data-block="team"][data-intro-align="center"] .tm-intro-text {
   text-align: center;
 }
@@ -4590,15 +4577,11 @@
 }
 @media (min-width: 992px) {
   [data-block="team"][data-intro-align="center"] .tm-intro-text {
+    width: 100%;
     max-width: 80%;
-    margin-inline-start: auto;
-    margin-inline-end: auto;
+    margin-inline: auto;
   }
 }
-
-/* introPosition：left / right（≥992）= 块头一列 33.33%（sticky top 2rem）、成员一列 66.67%；right 行反向。
-   块头已经是侧列，80% 那条取消，三种对齐都占满侧列（图册 build.py 同一条）。
-   小屏：left / top 块头在上，right / bottom 块头在下。 */
 [data-block="team"][data-intro-position="bottom"] .tm-frame {
   flex-direction: column-reverse;
 }
@@ -4621,15 +4604,40 @@
     flex: 0 0 auto;
     width: 66.6667%;
   }
-  [data-block="team"][data-intro-position="right"] .tm-frame {
-    flex-direction: row-reverse;
-  }
   [data-block="team"][data-intro-position="left"] .tm-intro-text,
   [data-block="team"][data-intro-position="right"] .tm-intro-text {
     max-width: none;
     margin: 0;
   }
+  [data-block="team"][data-intro-position="right"] .tm-frame {
+    flex-direction: row-reverse;
+  }
 }
+
+/* ── team · 跨形态的规则（#1487）──────────────────────────────────────────────────────────
+   team 的排版由**实际生效的旋钮**决定，写在根元素上：
+     intro    data-intro-position（left / right / top / bottom）· data-intro-align（left / center / right）
+     members  data-members-columns（2 / 3 / 4）· data-member-photo（top / left）· data-photo-shape（square / circle）·
+              data-member-style（plain / card）· data-member-align（left / center）
+     底色     data-tone（light / dark / brand，scripts/lib/contrast.js §toneForBg）
+   五个形态目录都是预设，自己不带几何（理由在各自的 shape.css 里）。
+
+   🔴 Webpixels 的工具类全带 !important（mb-* / text-muted / bg-primary-subtle …）。这里要压过它们的规则**也带 !important**，
+      而且选择器从 [data-block="team"] 起步再加属性 / 类 —— 特异度一定高过工具类的一个类。
+   🔴 部件的有无靠渲染（Section.tsx 有数据才画），不靠 CSS 藏。
+   🔴 `memberAlign` 只在 `memberPhoto=top` 时起作用：它的每一条规则都带 [data-member-photo="top"]（左图右字本来就靠左）。
+   间距照图册（Chris 2026-09-29）：段 py-16 py-lg-24；块头与成员之间 2.5rem（gy-10）/ ≥992 横向 4rem（gx-lg-16）；
+   成员左右间距 1.5rem、行距 2.5rem（card 1.5rem）；照片与名字 / 文字 1.25rem。纵向写 gy-10、不写 g-10
+   （g-10 的横向负边距在手机上溢出，#1475 量出来的）。 */
+
+/* ═══ intro（块头）═══════════════════════════════════════════════════════════════════════════════ */
+
+[data-block="team"] .tm-intro-text > :last-child {
+  margin-bottom: 0 !important;
+}
+
+/* 块头排版（introAlign / introPosition：对齐、≥992 center 最宽 80%、左右两列、上下反向）由 manifest 的 introLayout 生成
+   （scripts/block-build/intro-layout.js，#1535），这里不写。 */
 
 /* ═══ members ═════════════════════════════════════════════════════════════════════════════════════ */
 
@@ -4875,6 +4883,64 @@
   }
 }
 
+/* 块头排版（introAlign / introPosition）—— 由 scripts/block-build/intro-layout.js 生成，别在 block.css 里写 */
+[data-block="testimonials"][data-intro-align="center"] .tn-intro-text {
+  text-align: center;
+}
+[data-block="testimonials"][data-intro-align="right"] .tn-intro-text {
+  text-align: end;
+}
+[data-block="testimonials"][data-intro-align="center"] .tn-intro-text .tn-summary {
+  justify-content: center;
+}
+[data-block="testimonials"][data-intro-align="right"] .tn-intro-text .tn-summary {
+  justify-content: flex-end;
+}
+@media (min-width: 992px) {
+  [data-block="testimonials"][data-intro-align="center"] .tn-intro-text {
+    width: 100%;
+    max-width: 80%;
+    margin-inline: auto;
+  }
+}
+[data-block="testimonials"][data-intro-position="bottom"] .tn-frame {
+  flex-direction: column-reverse;
+}
+[data-block="testimonials"][data-intro-position="bottom"] .tn-introcol {
+  margin-top: 2rem;
+}
+@media (max-width: 991.98px) {
+  [data-block="testimonials"][data-intro-position="right"] .tn-frame {
+    flex-direction: column-reverse;
+  }
+  [data-block="testimonials"][data-intro-position="right"] .tn-introcol {
+    margin-top: 2rem;
+  }
+}
+@media (min-width: 992px) {
+  [data-block="testimonials"][data-intro-position="left"] .tn-introcol,
+  [data-block="testimonials"][data-intro-position="right"] .tn-introcol {
+    flex: 0 0 auto;
+    width: 33.3333%;
+    position: sticky;
+    top: 2rem;
+    align-self: flex-start;
+  }
+  [data-block="testimonials"][data-intro-position="left"] .tn-itemscol,
+  [data-block="testimonials"][data-intro-position="right"] .tn-itemscol {
+    flex: 0 0 auto;
+    width: 66.6667%;
+  }
+  [data-block="testimonials"][data-intro-position="left"] .tn-intro-text,
+  [data-block="testimonials"][data-intro-position="right"] .tn-intro-text {
+    max-width: none;
+    margin: 0;
+  }
+  [data-block="testimonials"][data-intro-position="right"] .tn-frame {
+    flex-direction: row-reverse;
+  }
+}
+
 /* ── testimonials · 跨形态的规则（#1488）─────────────────────────────────────────────────────
    testimonials 的排版由**实际生效的旋钮**决定，写在根元素上：
      intro  data-intro-position（left / right / top / bottom）· data-intro-align（left / center / right）
@@ -4902,19 +4968,10 @@
 [data-block="testimonials"] .tn-intro-text > :last-child {
   margin-bottom: 0 !important;
 }
-[data-block="testimonials"][data-intro-align="center"] .tn-intro-text {
-  text-align: center;
-}
-[data-block="testimonials"][data-intro-align="right"] .tn-intro-text {
-  text-align: end;
-}
-@media (min-width: 992px) {
-  [data-block="testimonials"][data-intro-align="center"] .tn-intro-text {
-    max-width: 80%;
-    margin-inline-start: auto;
-    margin-inline-end: auto;
-  }
-}
+
+/* 块头排版（introAlign / introPosition：对齐、≥992 center 最宽 80%、左右两列、上下反向）由 manifest 的 introLayout 生成
+   （scripts/block-build/intro-layout.js，#1535），这里不写。块头叠在评价下面时隔 2rem（图册 build.py:240-241）= introLayout.stackGap；
+   inline 那排评分条跟着 introAlign 走 = introLayout.follow。 */
 
 /* ═══ summary（一组平台评分，#1500）══════════════════════════════════════════════════════════════
    summaryStyle 只决定出哪一处（Section.tsx 两处只渲染一处）：
@@ -4941,12 +4998,6 @@
 }
 [data-block="testimonials"] .tn-summary {
   gap: 0.75rem;
-}
-[data-block="testimonials"][data-intro-align="center"] .tn-intro-text .tn-summary {
-  justify-content: center;
-}
-[data-block="testimonials"][data-intro-align="right"] .tn-intro-text .tn-summary {
-  justify-content: flex-end;
 }
 [data-block="testimonials"] .tn-platform-inline .tn-logo-icon svg,
 [data-block="testimonials"] .tn-platform-inline .tn-logo img {
@@ -5013,46 +5064,6 @@
   }
   [data-block="testimonials"] .tn-platform-card .tn-logo-icon svg {
     width: 1.25rem;
-  }
-}
-
-/* introPosition：left / right（≥992）= 块头一列 33.33%（sticky top 2rem）、评价一列 66.67%；right 行反向。
-   小屏：left / top 块头在上，right / bottom 块头在下（块头在下时与评价隔 2rem，图册 build.py:240-241）。 */
-[data-block="testimonials"][data-intro-position="bottom"] .tn-frame {
-  flex-direction: column-reverse;
-}
-[data-block="testimonials"][data-intro-position="bottom"] .tn-introcol {
-  margin-top: 2rem;
-}
-@media (max-width: 991.98px) {
-  [data-block="testimonials"][data-intro-position="right"] .tn-frame {
-    flex-direction: column-reverse;
-  }
-  [data-block="testimonials"][data-intro-position="right"] .tn-introcol {
-    margin-top: 2rem;
-  }
-}
-@media (min-width: 992px) {
-  [data-block="testimonials"][data-intro-position="left"] .tn-introcol,
-  [data-block="testimonials"][data-intro-position="right"] .tn-introcol {
-    flex: 0 0 auto;
-    width: 33.3333%;
-    position: sticky;
-    top: 2rem;
-    align-self: flex-start;
-  }
-  [data-block="testimonials"][data-intro-position="left"] .tn-itemscol,
-  [data-block="testimonials"][data-intro-position="right"] .tn-itemscol {
-    flex: 0 0 auto;
-    width: 66.6667%;
-  }
-  [data-block="testimonials"][data-intro-position="left"] .tn-intro-text,
-  [data-block="testimonials"][data-intro-position="right"] .tn-intro-text {
-    max-width: none;
-    margin: 0;
-  }
-  [data-block="testimonials"][data-intro-position="right"] .tn-frame {
-    flex-direction: row-reverse;
   }
 }
 

@@ -98,28 +98,9 @@
   margin-top: 2rem;
 }
 
-/* introAlign：只管块头。
-   块头宽度（T6.1 / #1486，Chris 2026-09-29，照 team）：left / right = 100%；center 在 ≥992 最宽 80%（相对块头那一列）、居中，<992 = 100%。正文不单独限宽。 */
-[data-block="milestones"][data-intro-align="center"] .mi-intro-text {
-  text-align: center;
-}
-/* width: 100% 不能省：块头住在 flex 列里，两边 margin: auto 会让它缩成内容宽，话短时就到不了 80%（#1486 实测 0.72）。 */
-@media (min-width: 992px) {
-  [data-block="milestones"][data-intro-align="center"] .mi-intro-text {
-    width: 100%;
-    max-width: 80%;
-    margin-inline: auto;
-  }
-}
-[data-block="milestones"][data-intro-align="center"] .mi-ctas {
-  justify-content: center;
-}
-[data-block="milestones"][data-intro-align="right"] .mi-intro-text {
-  text-align: end;
-}
-[data-block="milestones"][data-intro-align="right"] .mi-ctas {
-  justify-content: flex-end;
-}
+/* 块头排版（introAlign / introPosition：对齐、≥992 center 最宽 80%、左右两列、上下反向）由 manifest 的 introLayout 生成
+   （scripts/block-build/intro-layout.js，#1535），这里不写。
+   按钮行跟着 introAlign 走（introLayout.follow）。 */
 
 /* introImage：DOM 里图在文字前面。<992 图在上、下边距 2.5rem；≥992 left / right 并排、图 45%、文字自适应。 */
 [data-block="milestones"] .mi-intro-img img {
@@ -158,34 +139,8 @@
   }
 }
 
-/* introPosition：left / right（≥992）= 块头一列 41.67%（sticky top 2rem）、stats 一列 58.33%；right 行反向。
-   块头那一列窄，里面的图一律叠在文字上面（同 features）。
-   小屏：left / top 块头在上，right / bottom 块头在下。 */
-[data-block="milestones"][data-intro-position="bottom"] .mi-frame {
-  flex-direction: column-reverse;
-}
-@media (max-width: 991.98px) {
-  [data-block="milestones"][data-intro-position="right"] .mi-frame {
-    flex-direction: column-reverse;
-  }
-}
+/* introPosition left / right（≥992）：块头那一列窄，里面的图一律叠在文字上面（同 features）。两列本身见上面那句。 */
 @media (min-width: 992px) {
-  [data-block="milestones"][data-intro-position="left"] .mi-introcol,
-  [data-block="milestones"][data-intro-position="right"] .mi-introcol {
-    flex: 0 0 auto;
-    width: 41.6667%;
-    position: sticky;
-    top: 2rem;
-    align-self: flex-start;
-  }
-  [data-block="milestones"][data-intro-position="left"] .mi-statscol,
-  [data-block="milestones"][data-intro-position="right"] .mi-statscol {
-    flex: 0 0 auto;
-    width: 58.3333%;
-  }
-  [data-block="milestones"][data-intro-position="right"] .mi-frame {
-    flex-direction: row-reverse;
-  }
   [data-block="milestones"][data-intro-position="left"] .mi-intro,
   [data-block="milestones"][data-intro-position="right"] .mi-intro {
     flex-direction: column !important;
@@ -196,11 +151,6 @@
     flex: none;
     margin-block: 0 2.5rem;
     margin-inline: 0;
-  }
-  [data-block="milestones"][data-intro-position="left"] .mi-intro-text,
-  [data-block="milestones"][data-intro-position="right"] .mi-intro-text {
-    max-width: none;
-    margin: 0;
   }
 }
 

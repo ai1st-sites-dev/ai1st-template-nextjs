@@ -270,5 +270,15 @@
     "grids": [
       {"container": ".mi-grid", "render": "flex", "item": ".mi-stat", "gapVar": "--mi-gap"}
     ]
+  },
+  "introLayout": {
+    "text": ".mi-intro-text",
+    "frame": ".mi-frame",
+    "introCol": ".mi-introcol",
+    "mainCol": ".mi-statscol",
+    "side": "41.6667%",
+    "follow": [
+      {"target": ".mi-ctas", "by": "justify"}
+    ]
   }
 }

@@ -36,6 +36,7 @@ const HERE = __dirname;
 
 const { parseFrontmatter, formatFrontmatter } = require('./frontmatter.js');
 const { itemsGridCss } = require('./items-grid.js');
+const { introLayoutCss } = require('./intro-layout.js');
 
 function readBlock(type) {
   const dir = path.join(BLOCKS, type);
@@ -82,6 +83,10 @@ function buildShapesCss(blocks) {
     //    block.css 里的列距 / 行距和各种布局条件写在它后面，照旧能盖它（items-grid.js 文件头）。
     const gridCss = itemsGridCss(b.manifest, b.type);
     if (gridCss) chunks.push(gridCss);
+    // #1535 —— 块头排版（introAlign / introPosition）由 manifest 的 `introLayout` 生成，排在条目网格之后、block.css 之前
+    //    （两段生成物不碰同一个元素的同一个属性，谁先谁后不影响结果）。block.css 里块自己的部件跟着块头换布局的那几条写在它后面，照旧能盖它（intro-layout.js 文件头）。
+    const introCss = introLayoutCss(b.manifest, b.type);
+    if (introCss) chunks.push(introCss);
     const blockCss = read(path.join(b.dir, 'block.css'));
     if (blockCss) chunks.push(blockCss);
     for (const s of b.shapes) {
@@ -188,6 +193,9 @@ function main() {
     // #1537 —— 生成出来的条目网格也要过同一道归属检查（每条以本块开头）。
     const grid = itemsGridCss(b.manifest, b.type);
     if (grid) assertPieceOwnsItsRules(`blocks/${b.type}/manifest.json → itemsGrid`, grid, { block: b.type });
+    // #1535 —— 生成出来的块头排版也要过同一道归属检查（每条以本块开头）。
+    const intro = introLayoutCss(b.manifest, b.type);
+    if (intro) assertPieceOwnsItsRules(`blocks/${b.type}/manifest.json → introLayout`, intro, { block: b.type });
     for (const sh of b.shapes) {
       const p = path.join(sh.dir, 'shape.css');
       if (fs.existsSync(p)) assertPieceOwnsItsRules(p, read(p), { block: b.type, shape: sh.name });

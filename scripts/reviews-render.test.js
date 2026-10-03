@@ -80,7 +80,10 @@ const attr = (html, name) => { const m = new RegExp(`\\s${name}="([^"]*)"`).exec
 const itemsOf = (html) => html.split('data-part="item"').slice(1);
 const itemsRegion = (html) => html.slice(html.indexOf('data-part="items"'));
 const totalOf = (html) => { const i = html.indexOf('data-part="total"'); return i < 0 ? '' : html.slice(i, html.indexOf('data-part="items"')); };
-const CSS = fs.readFileSync(path.join(BLOCK, 'block.css'), 'utf-8');
+// #1535 —— 块头排版由 manifest 的 introLayout 生成（scripts/block-build/intro-layout.js），拼在 block.css 前面；
+//    这里读的是两份拼起来的那一段，负向断言（「没有一条按 data-intro-align …」）才看得见生成物（#1535 QA1 F1）。
+const CSS = require('./block-build/intro-layout').introLayoutCss(JSON.parse(fs.readFileSync(path.join(BLOCK, 'manifest.json'), 'utf-8')), 'reviews')
+  + '\n' + fs.readFileSync(path.join(BLOCK, 'block.css'), 'utf-8');
 const SRC_TEXT = fs.readFileSync(SECTION, 'utf-8');
 const KNOB_NAMES = ['introPosition', 'introAlign', 'total', 'itemsLayout', 'itemStyle', 'itemAlign'];
 const dataAttr = (n) => `data-${n.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`;

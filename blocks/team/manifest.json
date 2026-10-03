@@ -263,5 +263,12 @@
     "grids": [
       {"container": ".tm-grid", "render": "flex", "item": ".tm-member", "gapVar": "--tm-gap"}
     ]
+  },
+  "introLayout": {
+    "text": ".tm-intro-text",
+    "frame": ".tm-frame",
+    "introCol": ".tm-introcol",
+    "mainCol": ".tm-memberscol",
+    "side": "33.3333%"
   }
 }

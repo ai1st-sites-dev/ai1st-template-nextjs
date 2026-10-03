@@ -85,7 +85,10 @@ const sectionTag = (html) => (/<section[^>]*>/.exec(html) || [''])[0];
 const attr = (html, name) => { const m = new RegExp(`\\s${name}="([^"]*)"`).exec(sectionTag(html)); return m ? m[1] : null; };
 const styleVar = (html, v) => { const s = attr(html, 'style') || ''; const m = new RegExp(`${v}:([^;]*)`).exec(s); return m ? m[1].trim() : null; };
 const plansOf = (html) => html.split('class="pr-plan').slice(1);
-const CSS = fs.readFileSync(path.join(BLOCK, 'block.css'), 'utf-8');
+// #1535 —— 块头排版由 manifest 的 introLayout 生成（scripts/block-build/intro-layout.js），拼在 block.css 前面；
+//    这里读的是两份拼起来的那一段（= public/shapes.css 里这个块的那一段）。
+const CSS = require('./block-build/intro-layout').introLayoutCss(JSON.parse(fs.readFileSync(path.join(BLOCK, 'manifest.json'), 'utf-8')), 'pricing')
+  + '\n' + fs.readFileSync(path.join(BLOCK, 'block.css'), 'utf-8');
 const KNOB_NAMES = ['introPosition', 'introAlign', 'plansColumns', 'planFeatures', 'planStyle', 'planAlign', 'planCta', 'featured'];
 const RAINBOW = { stops: ['#7d52f4', '#f7b733'], angle: 135 };
 

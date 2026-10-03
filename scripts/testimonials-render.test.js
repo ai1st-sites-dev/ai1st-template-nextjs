@@ -84,8 +84,10 @@ const sectionTag = (html) => (/<section[^>]*>/.exec(html) || [''])[0];
 const attr = (html, name) => { const m = new RegExp(`\\s${name}="([^"]*)"`).exec(sectionTag(html)); return m ? m[1] : null; };
 const itemsOf = (html) => html.split('data-part="item"').slice(1);
 // #1537 —— 条目网格的列数 / 断点由 manifest 的 itemsGrid 生成（scripts/block-build/items-grid.js），拼在 block.css 前面；
-//    这里读的是两份拼起来的那一段（= public/shapes.css 里这个块的那一段）。
+// #1535 —— 块头排版（introLayout，scripts/block-build/intro-layout.js）同样拼进来，跟 shapes.css 里的顺序一致（#1535 QA1 F1）；
+//    这里读的是拼起来的那一段（= public/shapes.css 里这个块的那一段）。
 const CSS = require('./block-build/items-grid').itemsGridCss(JSON.parse(fs.readFileSync(path.join(BLOCK, 'manifest.json'), 'utf-8')), 'testimonials')
+  + '\n' + require('./block-build/intro-layout').introLayoutCss(JSON.parse(fs.readFileSync(path.join(BLOCK, 'manifest.json'), 'utf-8')), 'testimonials')
   + '\n' + fs.readFileSync(path.join(BLOCK, 'block.css'), 'utf-8');
 const SRC_TEXT = fs.readFileSync(SECTION, 'utf-8');
 const CAROUSEL_TEXT = fs.readFileSync(CAROUSEL, 'utf-8');

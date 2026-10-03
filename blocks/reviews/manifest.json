@@ -198,5 +198,15 @@
     ["introPosition", "introAlign", "total", "choice:introEyebrow.style"],
     ["itemsLayout", "itemStyle", "itemAlign"],
     ["color:bg"]
-  ]
+  ],
+  "introLayout": {
+    "text": ".rv-intro-text",
+    "frame": ".rv-frame",
+    "introCol": ".rv-introcol",
+    "mainCol": ".rv-itemscol",
+    "side": "33.3333%",
+    "follow": [
+      {"target": ".rv-total", "by": "justify"}
+    ]
+  }
 }
