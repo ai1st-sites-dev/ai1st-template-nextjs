@@ -106,10 +106,11 @@ console.log('── AC1 五个预设');
   const knobs = M.slots.options.knobs.map((k) => [k.name, k.values]);
   check(JSON.stringify(knobs) === JSON.stringify([
     ['introPosition', ['left', 'right', 'top', 'bottom']], ['introAlign', ['left', 'center', 'right']],
-    ['membersColumns', ['2', '3', '4']], ['memberPhoto', ['top', 'left']], ['photoShape', ['square', 'circle']],
+    ['membersColumns', ['2', '3', '4']], ['memberPhoto', ['left', 'top']], ['photoShape', ['square', 'circle']],
     ['memberStyle', ['plain', 'card']], ['memberAlign', ['left', 'center']],
-  ]), `slots.options.knobs 名字依次 ${knobs.map((k) => k[0]).join(' / ')}、values 与旋钮表逐字（values[0] = 默认）`);
-  check(M.slots.options.knobs.every((k) => !('default' in k)), '旋钮没有显式 default（归 #1481）');
+  ]), `slots.options.knobs 名字依次 ${knobs.map((k) => k[0]).join(' / ')}、values 与旋钮表逐字（#1481 起顺序只管展示，默认看 default ?? values[0]）`);
+  check(require('./lib/block-knobs').knobDefault(M.slots.options.knobs.find((k) => k.name === 'memberPhoto')) === 'top', '#1481：memberPhoto 排成 left · top 之后，没写值时仍是 top（显式 default 钉住，顺序只管展示）');
+  check(M.slots.options.knobs.filter((k) => 'default' in k).map((k) => k.name).join() === 'memberPhoto', '显式 default 只在 memberPhoto 上（#1481：排序挪了第一项的只有它）');
   check(JSON.stringify(M.parts) === '["join"]', `顶层 parts == ["join"]（${JSON.stringify(M.parts)}）`);
   const dirs = fs.readdirSync(BLOCK, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort();
   check(JSON.stringify(dirs) === JSON.stringify(WANT.map((w) => w[1]).sort()), `目录集合 == 5 个预设形态（${dirs.join(' / ')}）`);

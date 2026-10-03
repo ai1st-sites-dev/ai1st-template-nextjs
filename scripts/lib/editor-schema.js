@@ -38,7 +38,7 @@
 const path = require('path');
 const { blockShapeCatalog } = require('./block-catalog');
 const { editableSlotPaths, defaultShapeOf } = require('./block-manifest');
-const { knobsOf, presetsOf, booleanOptionsOf, presetColorSlotsOf, presetPartDemosOf } = require('./block-knobs');
+const { knobsOf, knobDefault, choiceDefault, presetsOf, booleanOptionsOf, presetColorSlotsOf, presetPartDemosOf } = require('./block-knobs');
 const { shapeForBlock } = require('./block-shape');
 const siteRegions = require('./site-regions');
 const pageLayoutLib = require('./page-layout');
@@ -86,7 +86,8 @@ function fieldsOf(manifest) {
         label: 'Layout options',
         control: 'options',
         subs: [],
-        knobs: knobsOf(manifest).map((k) => ({ name: k.name, values: k.values.slice() })),
+        // #1481 —— 带上 `default`：顺序只管展示，没写值时侧栏亮哪一格看它（block-knobs.js §knobDefault）。
+        knobs: knobsOf(manifest).map((k) => ({ name: k.name, values: k.values.slice(), default: knobDefault(k) })),
         booleans: booleanOptionsOf(manifest),
         // #1483 —— 预设带的颜色（Rainbow）+ 归预设管的颜色槽：点预设时编辑器按 block-knobs.js §presetColors 同一条规则
         //    设上 / 恢复这几个颜色字段。没有带颜色预设的块 `colorSlots` 是 []，侧栏的行为一字不变。
@@ -136,7 +137,7 @@ function fieldsOf(manifest) {
       if (subs.some((x) => x.sub === sub)) continue;
       const shape = typeof spec.shape === 'string' ? spec.shape : '';
       if (new RegExp(`${sub}\\s*:\\s*\\[`).test(shape)) continue;
-      subs.push({ sub, label: humanize(sub), choices: vals.slice() });
+      subs.push({ sub, label: humanize(sub), choices: vals.slice(), choiceDefault: choiceDefault(spec, sub) });
     }
     // #1404 r3 —— `kind: link` 再补一个 `href`（显示名 Link）。按钮链接不是一段看得见的字，所以它不在
     // `editableSlotPaths()` 里（那个函数说的是「带 `data-slot` 的字」，检查器面板和 `data-slot` 守卫也吃它，

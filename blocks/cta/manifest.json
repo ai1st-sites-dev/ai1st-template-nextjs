@@ -30,7 +30,7 @@
       "knobs": [
         { "name": "layout", "values": ["centered", "inline"] },
         { "name": "frame", "values": ["none", "boxed"] },
-        { "name": "textAlign", "values": ["center", "left", "right"] },
+        { "name": "textAlign", "values": ["left", "center", "right"], "default": "center" },
         { "name": "image", "values": ["none", "left", "right", "background"] },
         { "name": "form", "values": ["none", "teaser", "full"] }
       ]
@@ -44,7 +44,10 @@
         "text": "Eyebrow"
       },
       "choices": {
-        "style": ["pill", "outline", "dash", "plain", "none"]
+        "style": ["none", "pill", "outline", "dash", "plain"]
+      },
+      "choiceDefaults": {
+        "style": "pill"
       }
     },
     "headline": {

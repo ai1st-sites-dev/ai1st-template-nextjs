@@ -101,9 +101,10 @@
         {
           "name": "itemsLayout",
           "values": [
-            "row",
-            "grid"
-          ]
+            "grid",
+            "row"
+          ],
+          "default": "row"
         },
         {
           "name": "itemsColumns",

@@ -124,10 +124,11 @@
         {
           "name": "itemImage",
           "values": [
-            "top",
             "left",
+            "top",
             "background"
-          ]
+          ],
+          "default": "top"
         }
       ]
     },

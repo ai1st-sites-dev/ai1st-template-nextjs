@@ -30,7 +30,7 @@
       "promptOptional": true,
       "shape": "{headlinePosition, textAlign, image}",
       "knobs": [
-        { "name": "headlinePosition", "values": ["top", "left"] },
+        { "name": "headlinePosition", "values": ["left", "top"], "default": "top" },
         { "name": "textAlign", "values": ["left", "center"] },
         { "name": "image", "values": ["none", "left", "right", "background"] }
       ]

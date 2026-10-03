@@ -122,10 +122,11 @@ console.log('── 判据 1 五个预设');
   check(JSON.stringify(knobs) === JSON.stringify([
     ['introPosition', ['top', 'beside']], ['introAlign', ['left', 'center', 'right']],
     ['sidePosition', ['left', 'right', 'bottom']], ['form', ['none', 'teaser', 'full']], ['formStyle', ['plain', 'card']],
-    ['itemsLayout', ['list', 'grid']], ['itemStyle', ['plain', 'card']], ['itemAlign', ['left', 'center']], ['itemIcon', ['left', 'top']],
+    ['itemsLayout', ['grid', 'list']], ['itemStyle', ['plain', 'card']], ['itemAlign', ['left', 'center']], ['itemIcon', ['left', 'top']],
     ['map', ['none', 'beside', 'bottom']],
-  ]), `slots.options.knobs 名字依次 ${knobs.map((k) => k[0]).join(' / ')}、values 与旋钮表逐字（values[0] = 默认）`);
-  check(M.slots.options.knobs.every((k) => !('default' in k)), '旋钮上没有显式 default（归 #1481）');
+  ]), `slots.options.knobs 名字依次 ${knobs.map((k) => k[0]).join(' / ')}、values 与旋钮表逐字（#1481 起顺序只管展示，默认看 default ?? values[0]）`);
+  check(require('./lib/block-knobs').knobDefault(M.slots.options.knobs.find((k) => k.name === 'itemsLayout')) === 'list', '#1481：itemsLayout 排成 grid · list 之后，没写值时仍是 list（显式 default 钉住，顺序只管展示）');
+  check(M.slots.options.knobs.filter((k) => 'default' in k).map((k) => k.name).join() === 'itemsLayout', '显式 default 只在 itemsLayout 上（#1481：排序挪了第一项的只有它）');
   const dirs = fs.readdirSync(BLOCK, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort();
   check(JSON.stringify(dirs) === JSON.stringify(WANT.map((w) => w[1]).sort()), `目录集合 == 5 个预设形态（${dirs.join(' / ')}）`);
   check(dirs.every((d) => !fs.existsSync(path.join(BLOCK, d, 'Section.tsx')) && fs.existsSync(path.join(BLOCK, d, 'shape.md'))),

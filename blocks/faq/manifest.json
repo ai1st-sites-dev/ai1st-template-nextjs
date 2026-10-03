@@ -108,10 +108,11 @@
         {
           "name": "itemStyle",
           "values": [
-            "divided",
+            "plain",
             "card",
-            "plain"
-          ]
+            "divided"
+          ],
+          "default": "divided"
         },
         {
           "name": "itemToggle",

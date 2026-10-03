@@ -105,9 +105,10 @@ console.log('── AC1 六个预设');
   check((M.presets || []).every((p) => Object.keys(p.knobs).join() === 'layout,frame,textAlign,image,form'), '每个预设的 knobs 键就是这五个、同一顺序');
   const knobs = M.slots.options.knobs.map((k) => [k.name, k.values]);
   check(JSON.stringify(knobs) === JSON.stringify([
-    ['layout', ['centered', 'inline']], ['frame', ['none', 'boxed']], ['textAlign', ['center', 'left', 'right']],
+    ['layout', ['centered', 'inline']], ['frame', ['none', 'boxed']], ['textAlign', ['left', 'center', 'right']],
     ['image', ['none', 'left', 'right', 'background']], ['form', ['none', 'teaser', 'full']],
   ]), `slots.options.knobs 名字依次 layout / frame / textAlign / image / form、values 逐字（${knobs.map((k) => k[0]).join(' / ')}）`);
+  check(require('./lib/block-knobs').knobDefault(M.slots.options.knobs.find((k) => k.name === 'textAlign')) === 'center', '#1481：textAlign 排成 left · center · right 之后，没写值时仍是 center（显式 default 钉住，顺序只管展示）');
   const dirs = fs.readdirSync(BLOCK, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort();
   check(JSON.stringify(dirs) === JSON.stringify(WANT.map((w) => w[1]).sort()), `目录集合 == 6 个预设形态（${dirs.join(' / ')}）`);
   check(dirs.every((d) => !fs.existsSync(path.join(BLOCK, d, 'Section.tsx'))), '一份 Section.tsx（形态目录里没有第二份 markup）');
@@ -248,6 +249,9 @@ console.log('\n── AC8 槽位空不渲染');
   const styles = M.slots.eyebrow.choices.style.filter((s) => s !== 'none')
     .map((s) => (/data-eyebrow="([^"]*)"/.exec(render('photo', { ...clone(DEMO), eyebrow: { text: 'x', style: s } })) || [])[1]);
   check(styles.join() === 'pill,outline,dash,plain', `eyebrow 四式都画得出来（${styles.join(' / ')}）`);
+  check(M.slots.eyebrow.choices.style[0] === 'none' && require('./lib/block-knobs').choiceDefault(M.slots.eyebrow, 'style') === 'pill',
+    '#1481：词表 none 排第一之后，没写 style 时仍是 pill（choiceDefaults 钉住）');
+  check((/data-eyebrow="([^"]*)"/.exec(render('photo', { ...clone(DEMO), eyebrow: { text: 'x' } })) || [])[1] === 'pill', '没写 style 的 eyebrow 渲染成 pill（Section 那一侧的兜底，与 choiceDefaults 一致）');
 }
 
 // ══ AC9：validateSite ═══════════════════════════════════════════════════════════════════════════

@@ -106,9 +106,10 @@ console.log('── AC1 四个预设');
   check(JSON.stringify(got) === JSON.stringify(WANT), 'presets 4 条与正文表逐字相同（名字 · 形态 · 五列旋钮）', JSON.stringify(got));
   const knobs = M.slots.options.knobs.map((k) => [k.name, k.values]);
   check(JSON.stringify(knobs) === JSON.stringify([
-    ['headlinePosition', ['top', 'left']], ['textAlign', ['left', 'center']], ['textStyle', ['article', 'statement']],
+    ['headlinePosition', ['left', 'top']], ['textAlign', ['left', 'center']], ['textStyle', ['article', 'statement']],
     ['image', ['none', 'left', 'right', 'top', 'bottom']], ['frame', ['none', 'card']],
-  ]), `slots.options.knobs 名字依次 ${knobs.map((k) => k[0]).join(' / ')}、values 与定稿表逐字（values[0] = 默认）`);
+  ]), `slots.options.knobs 名字依次 ${knobs.map((k) => k[0]).join(' / ')}、values 与定稿表逐字（#1481 起顺序只管展示，默认看 default ?? values[0]）`);
+  check(require('./lib/block-knobs').knobDefault(M.slots.options.knobs.find((k) => k.name === 'headlinePosition')) === 'top', '#1481：headlinePosition 排成 left · top 之后，没写值时仍是 top（显式 default 钉住，顺序只管展示）');
   const dirs = fs.readdirSync(BLOCK, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort();
   check(JSON.stringify(dirs) === JSON.stringify(WANT.map((w) => w[1]).sort()), `目录集合 == 4 个预设形态（${dirs.join(' / ')}）`);
   check(dirs.every((d) => !fs.existsSync(path.join(BLOCK, d, 'Section.tsx'))), '一份 Section.tsx（形态目录里没有第二份 markup）');

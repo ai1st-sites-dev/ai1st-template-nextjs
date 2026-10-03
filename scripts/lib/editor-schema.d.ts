@@ -10,7 +10,7 @@ export interface EditorField {
   values?: string[];
   /** `choices` 有值的子字段是下拉（#1463，`eyebrow.style`） */
   /** `sources` 有值的子字段是链接格：手填地址，或选一个联系方式引用（#1506，`kind: link` 的 `href`；#1521 起按钮列表每一项的 `href` 也是） */
-  subs: { sub: string; label: string; choices?: string[]; sources?: string[] }[];
+  subs: { sub: string; label: string; choices?: string[]; choiceDefault?: string; sources?: string[] }[];
   /** list：每项摘要取哪几个键（缺省 = subs）（#1463 `band` 用 alt） */
   summary?: string[];
   /** color：预设色板（`#rrggbb` / `brand`） */
@@ -18,7 +18,7 @@ export interface EditorField {
   /** color：三档预设渐变（#1477，`contrast.js` §GRADIENT_SWATCHES 的副本） */
   gradients?: { stops: string[]; angle: number }[];
   /** options：旋钮（顺序 = 控件顺序）、布尔修饰、预设 */
-  knobs?: { name: string; values: string[] }[];
+  knobs?: { name: string; values: string[]; default?: string }[];
   booleans?: string[];
   presets?: { name: string; shape: string; knobs: Record<string, string>; colors?: Record<string, unknown>; parts?: string[] }[];
   /** #1483 —— 归预设管的颜色槽（有预设在 `colors` 里写了的那几个）；没有带颜色预设的块是 []。 */

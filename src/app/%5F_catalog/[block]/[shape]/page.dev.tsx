@@ -38,7 +38,7 @@ import { couplingOf, knobsOf, normalizeKnobs, presetBooleans, presetForShape, pr
 import { iconTableFor, iconTablesFor } from '../../../../../scripts/lib/icons.js';
 // knobsOf / presetsOf 两份（header-knobs.js #1462 · block-knobs.js #1463）读的是同一份 manifest 声明、
 // 对合法声明给出同一结果；这一页用 header-knobs 那份，并掉哪一份归 T3。
-import { booleanOptionsOf, colorSlotsOf, effectiveKnobs, presetColors, presetNameFor, toolbarGroupsOf } from '../../../../../scripts/lib/block-knobs.js';
+import { booleanOptionsOf, choiceDefault, colorSlotsOf, effectiveKnobs, presetColors, presetNameFor, toolbarGroupsOf } from '../../../../../scripts/lib/block-knobs.js';
 import { bgFromParam, normalizeBg } from '../../../../../scripts/lib/contrast.js';
 import {
   CATALOG_LOCALE,
@@ -107,7 +107,7 @@ function optionMetaOf(m: { slots?: Record<string, { shape?: unknown; knobs?: unk
   };
 }
 
-type ManifestForKnobs = { slots?: Record<string, { kind?: string; required?: boolean; swatches?: string[]; choices?: Record<string, string[]>; shape?: string; max?: unknown }>; parts?: string[]; presets?: unknown };
+type ManifestForKnobs = { slots?: Record<string, { kind?: string; required?: boolean; swatches?: string[]; choices?: Record<string, string[]>; choiceDefaults?: Record<string, string>; shape?: string; max?: unknown }>; parts?: string[]; presets?: unknown };
 
 /**
  * #1463 —— 「预设 + 旋钮」那一类**页面块**（今天是 hero）：地址栏 → 这一格的 data。
@@ -130,12 +130,13 @@ function knobOverrides(m: ManifestForKnobs, shape: string, data: Record<string, 
   //    （`?bg=` / `?featuredColor=`）。只有一个颜色槽的块（今天其余全部）跟 #1477 一字不差：一格、参数 `?bg=`。
   const colorSlots = colorSlotsOf(m) as string[];
   const parts = Array.isArray(m.parts) ? m.parts : [];
-  const choices: { key: string; values: string[] }[] = [];
+  const choices: { key: string; values: string[]; default: string }[] = [];
   for (const [slot, spec] of Object.entries(slots)) {
     for (const [sub, values] of Object.entries((spec && spec.choices) || {})) {
       // 数组取值的子字段（`form.fields`）不做成单选。
       if (new RegExp(`${sub}\\s*:\\s*\\[`).test(spec.shape || '')) continue;
-      choices.push({ key: `${slot}.${sub}`, values });
+      // #1481 —— 没写值时选中哪一档：槽的 `choiceDefaults`，没写就是第一项（block-knobs.js §choiceDefault）。
+      choices.push({ key: `${slot}.${sub}`, values, default: choiceDefault(spec, sub) ?? values[0] });
     }
   }
   const opts = { ...((data.options as Record<string, unknown>) || {}) };
@@ -169,7 +170,7 @@ function knobOverrides(m: ManifestForKnobs, shape: string, data: Record<string, 
     const v = one(sp[c.key]);
     const obj = (data[slot] && typeof data[slot] === 'object' ? { ...(data[slot] as Record<string, unknown>) } : null);
     if (obj && v && c.values.includes(v)) { obj[sub] = v; data[slot] = obj; }
-    chosen[c.key] = obj && typeof obj[sub] === 'string' ? String(obj[sub]) : c.values[0];
+    chosen[c.key] = obj && typeof obj[sub] === 'string' ? String(obj[sub]) : c.default;
   }
   const eff = effectiveKnobs(m, shape, opts);
   const colorsNow = Object.fromEntries(colorSlots.map((c) => [c, normalizeBg(data[c])]));

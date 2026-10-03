@@ -121,9 +121,10 @@
         {
           "name": "memberPhoto",
           "values": [
-            "top",
-            "left"
-          ]
+            "left",
+            "top"
+          ],
+          "default": "top"
         },
         {
           "name": "photoShape",

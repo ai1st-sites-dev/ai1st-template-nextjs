@@ -226,11 +226,12 @@
         {
           "name": "itemIcon",
           "values": [
-            "top",
+            "none",
             "left",
             "right",
-            "none"
-          ]
+            "top"
+          ],
+          "default": "top"
         },
         {
           "name": "itemImage",

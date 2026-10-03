@@ -69,9 +69,10 @@
         {
           "name": "headlinePosition",
           "values": [
-            "top",
-            "left"
-          ]
+            "left",
+            "top"
+          ],
+          "default": "top"
         },
         {
           "name": "textAlign",

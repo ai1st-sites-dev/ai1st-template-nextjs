@@ -124,9 +124,10 @@ console.log('── AC1 八个预设');
     ['introPosition', ['left', 'right', 'top', 'bottom']], ['introAlign', ['left', 'center', 'right']],
     ['introImage', ['none', 'left', 'right', 'top', 'bottom']], ['itemsLayout', ['grid', 'list']], ['itemsColumns', ['2', '3', '4']],
     ['itemsImage', ['none', 'left', 'right']], ['itemStyle', ['plain', 'card']], ['itemAlign', ['left', 'center', 'right']],
-    ['itemIcon', ['top', 'left', 'right', 'none']], ['itemImage', ['none', 'left', 'right', 'top', 'bottom', 'background']],
+    ['itemIcon', ['none', 'left', 'right', 'top']], ['itemImage', ['none', 'left', 'right', 'top', 'bottom', 'background']],
     ['itemConnector', ['none', 'line']],
-  ]), `slots.options.knobs 名字依次 ${knobs.map((k) => k[0]).join(' / ')}、values 与定稿表逐字（values[0] = 默认）`);
+  ]), `slots.options.knobs 名字依次 ${knobs.map((k) => k[0]).join(' / ')}、values 与定稿表逐字（#1481 起顺序只管展示，默认看 default ?? values[0]）`);
+  check(require('./lib/block-knobs').knobDefault(M.slots.options.knobs.find((k) => k.name === 'itemIcon')) === 'top', '#1481：itemIcon 排成 none · left · right · top 之后，没写值时仍是 top（显式 default 钉住，顺序只管展示）');
   const dirs = fs.readdirSync(BLOCK, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort();
   check(JSON.stringify(dirs) === JSON.stringify(WANT.map((w) => w[1]).sort()), `目录集合 == ${WANT.length} 个预设形态（${dirs.join(' / ')}）`);
   check(dirs.every((d) => !fs.existsSync(path.join(BLOCK, d, 'Section.tsx'))), '一份 Section.tsx（形态目录里没有第二份 markup）');

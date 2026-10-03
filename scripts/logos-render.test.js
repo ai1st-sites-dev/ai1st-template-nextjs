@@ -103,9 +103,10 @@ console.log('── AC1 四个预设');
   const knobs = M.slots.options.knobs.map((k) => [k.name, k.values]);
   check(JSON.stringify(knobs) === JSON.stringify([
     ['introPosition', ['left', 'right', 'top', 'bottom']], ['introAlign', ['left', 'center', 'right']], ['introSize', ['sm', 'lg']],
-    ['itemsLayout', ['row', 'grid']], ['itemsColumns', ['3', '4', '6']],
+    ['itemsLayout', ['grid', 'row']], ['itemsColumns', ['3', '4', '6']],
     ['itemStyle', ['plain', 'card']], ['logoColor', ['mono', 'original']],
-  ]), `slots.options.knobs 名字依次 ${knobs.map((k) => k[0]).join(' / ')}、values 与旋钮表逐字（values[0] = 默认）`);
+  ]), `slots.options.knobs 名字依次 ${knobs.map((k) => k[0]).join(' / ')}、values 与旋钮表逐字（#1481 起顺序只管展示，默认看 default ?? values[0]）`);
+  check(require('./lib/block-knobs').knobDefault(M.slots.options.knobs.find((k) => k.name === 'itemsLayout')) === 'row', '#1481：itemsLayout 排成 grid · row 之后，没写值时仍是 row（显式 default 钉住，顺序只管展示）');
   check(M.parts === undefined, `没有部件（parts 不写；${JSON.stringify(M.parts)}）`);
   const dirs = fs.readdirSync(BLOCK, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort();
   check(JSON.stringify(dirs) === JSON.stringify(WANT.map((w) => w[1]).sort()), `目录集合 == 4 个预设形态（${dirs.join(' / ')}）`);

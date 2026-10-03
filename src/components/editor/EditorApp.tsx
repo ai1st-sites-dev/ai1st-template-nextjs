@@ -73,7 +73,7 @@ import {
   sharedReach, sharedRemovable, puckSharedChanges, sharedOwnAfter, applySharedChanges, aiBaselineStep,
   THEME_DEFAULT, canvasShape, shapeOptions, describeSave,
 } from '../../../scripts/lib/editor-convert.js';
-import { presetClickProps, presetNameFor } from '../../../scripts/lib/block-knobs.js';
+import { knobDefault, presetClickProps, presetNameFor } from '../../../scripts/lib/block-knobs.js';
 import { normalizeBg, toneForBg, type BgValue } from '../../../scripts/lib/contrast.js';
 import BgPicker from '../BgPicker';
 import { formIdOptions } from '../../../scripts/lib/site-forms.js';
@@ -148,7 +148,7 @@ function OptionsField({ f, value, onChange, readOnly }: { f: EditorField; value:
   //    `options` 的 hero 侧栏会说 Text only、画布却画成 Split。
   const fallback: Record<string, unknown> = (f.presets && f.presets[0] && f.presets[0].knobs) || {};
   const current = Object.fromEntries(knobs.map((k) => [k.name, typeof v[k.name] === 'string' ? v[k.name]
-    : k.values.includes(fallback[k.name] as string) ? fallback[k.name] : k.values[0]]));
+    : k.values.includes(fallback[k.name] as string) ? fallback[k.name] : knobDefault(k)]));
   // #1483 —— 带颜色的预设（pricing 的 Rainbow）：判「是哪个预设」要连这一块的颜色字段一起比，点预设要连颜色字段一起写。
   //    颜色是这一块的另外两个字段（bg / featuredColor），这个字段的 onChange 只改得动 `options` ⟹ 从 Puck 读出选中的那一块、
   //    按 block-knobs.js §presetClickProps 算出整块的新 props，一次 `replace` 写回。没有带颜色预设的块（colorSlots 空）
@@ -220,11 +220,30 @@ function ColorField({ f, value, onChange, readOnly }: { f: EditorField; value: u
 }
 
 /** 一个子字段：词表里有它（`choices`）就是下拉；带 `sources` 的是链接格（#1506）；否则是一格文字。 */
-function subField(s: { sub: string; label: string; choices?: string[]; sources?: string[] }): Field {
+function subField(s: { sub: string; label: string; choices?: string[]; choiceDefault?: string; sources?: string[] }): Field {
   if (s.sources && s.sources.length) return linkHrefField(s.label, s.sources);
+  if (s.choices && s.choiceDefault && s.choiceDefault !== s.choices[0]) return choiceField(s.label, s.choices, s.choiceDefault);
   return s.choices
     ? ({ type: 'select', label: s.label, options: s.choices.map((c) => ({ label: c, value: c })) } as Field)
     : ({ type: 'text', label: s.label } as Field);
+}
+
+// #1481 —— 词表的默认值不是第一项（hero / cta 的 `eyebrow.style`：词表 none 排第一、没写时画 pill）：Puck 自带的
+//    select 没写值时浏览器亮第一项，侧栏就会说 none、画布却是 pill。这一格自己画：没写值时亮 `choiceDefault`。
+function choiceField(label: string, choices: string[], fallback: string): Field {
+  return {
+    type: 'custom',
+    label,
+    render: ({ value, onChange, readOnly }: { value: unknown; onChange: (v: unknown) => void; readOnly?: boolean }) => (
+      <div data-editor-choice={label}>
+        <FieldLabel label={label} el="div" readOnly={readOnly} />
+        <select value={typeof value === 'string' && choices.includes(value) ? value : fallback} disabled={readOnly}
+          onChange={(e) => onChange(e.target.value)} style={INPUT_STYLE}>
+          {choices.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
+    ),
+  } as unknown as Field;
 }
 
 // ── #1506 —— 链接格：手填一个地址，或选「Business phone / Business email」（写成 `{source: "phone"}` 引用） ──────────

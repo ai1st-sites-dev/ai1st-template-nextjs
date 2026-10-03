@@ -7,7 +7,11 @@ const { isColorValue, normalizeBg } = require('./contrast');
 // ══════════════════════════════════════════════════════════════════════════════════════════════════
 //
 // manifest 里的声明（位置 PM #1463 r3 冻死，#1462 的 Go 那一侧读同一份）：
-//   · `slots.options.knobs`  数组，**顺序 = 控件顺序**；每项 `{ name, values: [...] }`，`values[0]` 是默认。
+//   · `slots.options.knobs`  数组，**顺序 = 控件顺序**；每项 `{ name, values: [...], default? }`。默认值 = `default`，
+//                            没写就是 `values[0]`（§knobDefault）。#1481 起顺序只管展示（`none` 第一、位置按左右上下背景、
+//                            数量从小到大 —— scripts/knob-order.test.js 守），排序挪动了第一项的旋钮靠 `default` 钉住原来的默认。
+//   · `slots.<槽>.choices`    词表 `{ 子字段: [取值…] }`；它的默认值写在同一个槽的 `choiceDefaults: { 子字段: 值 }`，
+//                            没写就是第一项（§choiceDefault，#1481）。
 //                            布尔开关（`icons` / `topbar`）不进 knobs，照旧写在 `slots.options.shape` 那串
 //                            `"{…, icons: bool}"` 里。
 //   · 顶层 `presets`         `[{ name, shape, knobs: { … }, options?: { <布尔>: true | false } }]`。`name` 是显示名，
@@ -38,6 +42,18 @@ const { isColorValue, normalizeBg } = require('./contrast');
 function knobsOf(manifest) {
   const k = manifest && manifest.slots && manifest.slots.options && manifest.slots.options.knobs;
   return Array.isArray(k) ? k.filter((x) => x && typeof x.name === 'string' && Array.isArray(x.values)) : [];
+}
+
+/** 一个旋钮没写值时取哪一个：`default`（在取值里才算），否则 `values[0]`（#1481：顺序与默认解耦）。 */
+function knobDefault(k) {
+  return k && typeof k.default === 'string' && Array.isArray(k.values) && k.values.includes(k.default) ? k.default : k && Array.isArray(k.values) ? k.values[0] : undefined;
+}
+
+/** 词表子字段没写值时取哪一个：槽的 `choiceDefaults[子字段]`（在词表里才算），否则词表第一项（#1481）。 */
+function choiceDefault(spec, sub) {
+  const vals = spec && spec.choices && Array.isArray(spec.choices[sub]) ? spec.choices[sub] : [];
+  const d = spec && spec.choiceDefaults && typeof spec.choiceDefaults === 'object' ? spec.choiceDefaults[sub] : undefined;
+  return typeof d === 'string' && vals.includes(d) ? d : vals[0];
 }
 
 /** manifest 声明的预设（没有就是空数组）。 */
@@ -171,7 +187,7 @@ function presetClickProps(field, props, name) {
 
 /**
  * 实际生效的旋钮：形态对应的那个预设给底，`options` 里写了、而且取值合法的逐个覆盖。
- * 形态不是任何预设的目录 ⟹ 每个旋钮从 `values[0]` 起。取值不合法 ⟹ 当没写（落回底）。
+ * 形态不是任何预设的目录 ⟹ 每个旋钮从默认值（§knobDefault）起。取值不合法 ⟹ 当没写（落回底）。
  */
 function effectiveKnobs(manifest, shape, options) {
   const knobs = knobsOf(manifest);
@@ -179,7 +195,7 @@ function effectiveKnobs(manifest, shape, options) {
   const out = {};
   for (const k of knobs) {
     const fromPreset = preset && preset.knobs ? preset.knobs[k.name] : undefined;
-    out[k.name] = k.values.includes(fromPreset) ? fromPreset : k.values[0];
+    out[k.name] = k.values.includes(fromPreset) ? fromPreset : knobDefault(k);
     const v = options && typeof options === 'object' ? options[k.name] : undefined;
     if (k.values.includes(v)) out[k.name] = v;
   }
@@ -256,6 +272,7 @@ function knobDeclarationProblems(manifest) {
     names.add(k.name);
     if (k.values.length < 2) out.push(`旋钮 "${k.name}" 只有 ${k.values.length} 个取值 —— 至少要两个`);
     if (new Set(k.values).size !== k.values.length) out.push(`旋钮 "${k.name}" 的取值有重复`);
+    if (k.default !== undefined && !k.values.includes(k.default)) out.push(`旋钮 "${k.name}" 的 default 是 ${JSON.stringify(k.default)} —— 只能是 ${k.values.join(' / ')}`);
   }
   if (presets.length && !knobs.length) out.push('写了 presets 却没有 slots.options.knobs —— 预设设的就是旋钮');
   const pNames = new Set();
@@ -390,7 +407,7 @@ function arrangeToolbar(present, groups) {
 }
 
 module.exports = {
-  knobsOf, presetsOf, booleanOptionsOf, presetBooleansOf, effectiveKnobs, effectivePresetBooleans, presetFor, presetNameFor,
+  knobsOf, knobDefault, choiceDefault, presetsOf, booleanOptionsOf, presetBooleansOf, effectiveKnobs, effectivePresetBooleans, presetFor, presetNameFor,
   knobDeclarationProblems, colorSlotsOf, presetColorSlotsOf, presetColors, presetClickProps,
   partFilled, presetPartsOf, presetPartDemosOf, presetPartFills,
   toolbarControlsOf, toolbarGroupsOf, arrangeToolbar,

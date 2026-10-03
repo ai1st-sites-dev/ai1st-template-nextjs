@@ -496,6 +496,19 @@ function checkManifestShape(name, m) {
         if (!strArray(vals) || !vals.length) bad(`slots.${slot}.choices.${sub} 必须是非空的字符串数组`);
       }
     }
+    // #1481 —— `choiceDefaults`：词表子字段没写值时取哪一个（`hero.eyebrow.style` = pill）。没写就是词表第一项；
+    //    词表的顺序只管展示（`none` 第一），挪了第一项的词表靠它钉住原来的默认（block-knobs.js §choiceDefault）。
+    if (s.choiceDefaults !== undefined) {
+      const ch = s.choices && typeof s.choices === 'object' && !Array.isArray(s.choices) ? s.choices : {};
+      if (s.choiceDefaults === null || typeof s.choiceDefaults !== 'object' || Array.isArray(s.choiceDefaults)) {
+        bad(`slots.${slot}.choiceDefaults 有的话必须是对象 { 子字段: 取值 }`);
+      } else {
+        for (const [sub, v] of Object.entries(s.choiceDefaults)) {
+          if (!strArray(ch[sub])) bad(`slots.${slot}.choiceDefaults.${sub} —— choices 里没有这个子字段`);
+          else if (!ch[sub].includes(v)) bad(`slots.${slot}.choiceDefaults.${sub} 是 ${JSON.stringify(v)} —— 只能是 ${ch[sub].join(' / ')}`);
+        }
+      }
+    }
     // #1489 —— 列表槽**每一项**的约束（`contact.items`）：`itemChoices` = 某个子字段只能从词表里取（`kind` 只能是五个值）；
     //    `itemNeeds` = 「子字段=值」时另外几个子字段必须有（`kind=link` ⟹ 要 `href`）。validateSite ⑨ 据它逐项拦。
     //    🔴 故意不叫 `choices`：`choices` 是「对象槽的子字段」，admin 工具栏 / 单格页据它画单选（manager §manifestPartsChoices），

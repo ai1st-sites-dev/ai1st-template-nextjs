@@ -84,7 +84,10 @@
         "text": "Eyebrow"
       },
       "choices": {
-        "style": ["pill", "outline", "dash", "plain", "none"]
+        "style": ["none", "pill", "outline", "dash", "plain"]
+      },
+      "choiceDefaults": {
+        "style": "pill"
       }
     },
     "headline": {

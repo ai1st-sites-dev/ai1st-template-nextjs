@@ -119,8 +119,9 @@ console.log('── AC1 五个预设');
   check(JSON.stringify(knobs) === JSON.stringify([
     ['introPosition', ['left', 'right', 'top', 'bottom']], ['introAlign', ['left', 'center', 'right']],
     ['itemsLayout', ['grid', 'list', 'featured']], ['itemsColumns', ['2', '3']],
-    ['itemStyle', ['plain', 'card']], ['itemImage', ['top', 'left', 'background']],
-  ]), `slots.options.knobs 名字依次 ${knobs.map((k) => k[0]).join(' / ')}、values 与定稿表逐字（values[0] = 默认）`);
+    ['itemStyle', ['plain', 'card']], ['itemImage', ['left', 'top', 'background']],
+  ]), `slots.options.knobs 名字依次 ${knobs.map((k) => k[0]).join(' / ')}、values 与定稿表逐字（#1481 起顺序只管展示，默认看 default ?? values[0]）`);
+  check(require('./lib/block-knobs').knobDefault(M.slots.options.knobs.find((k) => k.name === 'itemImage')) === 'top', '#1481：itemImage 排成 left · top · background 之后，没写值时仍是 top（显式 default 钉住，顺序只管展示）');
   const dirs = fs.readdirSync(BLOCK, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name).sort();
   check(JSON.stringify(dirs) === JSON.stringify(WANT.map((w) => w[1]).sort()), `目录集合 == 5 个预设形态（${dirs.join(' / ')}）`);
   check(M.skin === 'site-css' && M.roleDefault === 'optional', `skin=${M.skin} · roleDefault=${M.roleDefault}`);
