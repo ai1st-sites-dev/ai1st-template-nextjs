@@ -54,7 +54,7 @@ if (presets.PRESET_KEYS.length === 3 && Object.values(presets.presetOptions()).e
 
 // ── ① 策展判据：每一组配色，三个按钮的字压底色都要 ≥ 4.5:1 ────────────────────────────────────
 //
-// 三处是从 globals.css 的 `@layer components` 里**现解出来的**：
+// 三处是从 globals.css 里**现解出来的**（#1426 前在 `@layer components` 里，Tailwind 退场后拆掉了那层包装）：
 //   `.btn-primary`   **算出来的字色**压**算出来的那一档底色**（hover 走**算出来的那一档**，一起判）
 //   `.btn-secondary` **算出来的那一档**的字压白底（hover 是算出来的字色压 `--color-primary-500`）
 //   `.btn-accent`    `gray-900`(#111827) 的字压 `--color-accent-400`（hover 走 `-500`，一起判）
@@ -83,7 +83,9 @@ const GRAY900 = '#111827';
  * 从 `src/app/globals.css` 的 `@layer components` 里解出按钮的「字压底」配对。
  *
  * 读的是 Tailwind 的 `@apply` 那一行（`bg-primary-500` / `hover:bg-primary-600` / `text-white` /
- * `text-gray-900`）。没写 `bg-*` 的按钮（`.btn-secondary`）压的是页面本身的白底 —— 那不是猜的，
+ * `text-gray-900`）。📌 #1426 起 Tailwind 退场、globals.css 里已经没有 `@apply`：同一组颜色展开成了声明
+ * （`background-color: var(--color-accent-400)` / `color: rgb(17 24 39)`），由下面 §specOfDecl 读；`@apply` 那条路留着，
+ * 读不到词就是空的，不影响。没写 `bg-*` 的按钮（`.btn-secondary`）压的是页面本身的白底 —— 那不是猜的，
  * 是 globals.css 自己在 `.hero__cta .btn-secondary` 那段注释里写的：它「written for a white page」，
  * 深色底上由 `currentColor` 接管，而 `currentColor` 取的是主题表给的颜色，属于下面 ⑨ 的地盘。
  *
@@ -180,9 +182,19 @@ function buttonPairsFromGlobals() {
     // #1100 —— `.btn-accent` 的 hover 底色：accent 那一组上算出来的那一档。
     '--btn-accent-hover': { computed: 'accentHoverShade', label: '算出来的 accent hover 底色' },
   };
-  /** `color: var(--btn-primary-ink, #fff)` → 那条 spec；`var(--color-primary-500)` → {group,shade}。 */
+  /** `#111827` / `#fff` / `rgb(17 24 39)` / `rgb(17, 24, 39)` → 小写 `#rrggbb`；别的形状 → null。 */
+  const literalHex = (v) => {
+    const h = v.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+    if (h) return `#${(h[1].length === 3 ? h[1].replace(/./g, (c) => c + c) : h[1]).toLowerCase()}`;
+    const r = v.match(/^rgb\(\s*(\d{1,3})[\s,]+(\d{1,3})[\s,]+(\d{1,3})\s*\)$/i);
+    return r ? `#${r.slice(1).map((n) => Number(n).toString(16).padStart(2, '0')).join('')}` : null;
+  };
+  /** `color: var(--btn-primary-ink, #fff)` → 那条 spec；`var(--color-primary-500)` → {group,shade}；
+   *  #1426 —— 字面色（`color: rgb(17 24 39)`，Tailwind 退场后 `@apply text-gray-900` 展开成的）→ {hex}，照字面判。 */
   const specOfDecl = (value) => {
     const v = String(value).trim();
+    const lit = literalHex(v);
+    if (lit) return { hex: lit, label: Object.keys(LITERAL).find((k) => LITERAL[k] === lit) || v };
     const varName = (v.match(/^var\(\s*(--[a-z0-9-]+)/) || [])[1];
     if (!varName) return null;
     if (COMPUTED_VARS[varName]) return COMPUTED_VARS[varName];

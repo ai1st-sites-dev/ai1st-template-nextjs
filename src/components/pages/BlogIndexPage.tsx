@@ -1,16 +1,20 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { BreadcrumbJsonLd } from '@/components/JsonLd';
-import { brand, getSeo, getBlogPosts, getBrandName, isValidLocale, localeUrl } from '@/lib/config';
+import { getSeo, getBlogPosts, getBrandName, isValidLocale, localeUrl } from '@/lib/config';
 import { getLabels } from '@/lib/component-labels';
 
-const colors = [
-  'from-primary-100 to-primary-200',
-  'from-accent-100 to-accent-200',
-  'from-primary-50 to-accent-100',
-  'from-gray-100 to-gray-200',
-  'from-accent-50 to-primary-100',
-  'from-primary-200 to-primary-100',
+// #1426（T4）—— Tailwind 退场，按 Webpixels 的 `section-blog-1`（`docs/reference/webpixels/components.json`）重写：
+// 块头 + 一行三列的卡片。颜色只走两条路：跟着深浅换的 Bootstrap 类（`text-heading` / `text-body-secondary` / `card`），
+// 和主题那一层的 `--color-primary-*` / `--color-accent-*`（博客专用的几条规则在 globals.css §博客两页）。
+// 封面没有图，是一块渐变：六种配色轮着用，每一种就是原来那两档 token（原来写成 Tailwind 的 `from-*-N to-*-N`）。
+const COVERS: Array<[string, string]> = [
+  ['var(--color-primary-100)', 'var(--color-primary-200)'],
+  ['var(--color-accent-100)', 'var(--color-accent-200)'],
+  ['var(--color-primary-50)', 'var(--color-accent-100)'],
+  ['#f3f4f6', '#e5e7eb'],
+  ['var(--color-accent-50)', 'var(--color-primary-100)'],
+  ['var(--color-primary-200)', 'var(--color-primary-100)'],
 ];
 
 export default function BlogIndexPage({ locale }: { locale: string }) {
@@ -27,49 +31,41 @@ export default function BlogIndexPage({ locale }: { locale: string }) {
           { name: labels.blog, url: `${seo.domain}${localeUrl('', locale, 'blogIndex')}` },
         ]}
       />
-      <section className="section-padding">
-        <div className="container-width">
-          <div className="text-center">
-            <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-100 sm:text-5xl">{labels.blog}</h1>
-            <p className="mx-auto mt-4 max-w-2xl text-lg text-gray-600 dark:text-gray-300">
+      <section className="py-16 py-lg-24">
+        <div className="container">
+          <div className="text-center mb-12">
+            <h1 className="display-5 ls-tight fw-bolder text-heading">{labels.blog}</h1>
+            <p className="lead text-body-secondary mt-4 mb-0 mx-auto mw-read">
               {labels.latestArticlesFrom} {getBrandName(locale)}
             </p>
           </div>
 
           {blogPosts.length === 0 ? (
-            <p className="mt-12 text-center text-gray-500 dark:text-gray-400">{labels.noArticlesYet}</p>
+            <p className="text-center text-body-secondary">{labels.noArticlesYet}</p>
           ) : (
-            <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-              {/* #1472 —— 卡片白底写成 `bg-[#fff]` 而不是 `bg-white`：Bootstrap 也有一个 `.bg-white`，而且带 `!important`，
-                  深色站上 `dark:bg-gray-800` 压不过它（白卡片 + 浅字 = 1.1:1）。同一个白色，浅色站逐像素不变。 */}
-              {blogPosts.map((post, index) => (
-                <Link
-                  key={post.slug}
-                  href={localeUrl(post.slug, locale, 'blogPost')}
-                  className="group overflow-hidden rounded-xl bg-[#fff] dark:bg-gray-800 shadow-sm transition-shadow hover:shadow-md"
-                >
-                  <div className={`bg-gradient-to-br ${colors[index % colors.length]} h-48 transition-transform group-hover:scale-105`} />
-                  <div className="p-6">
-                    <div className="flex items-center gap-3">
-                      {post.category && (
-                        <span className="rounded-full bg-primary-50 px-3 py-1 text-xs font-medium text-primary-700">
-                          {post.category}
-                        </span>
-                      )}
-                      <span className="text-xs text-gray-400 dark:text-gray-300">{post.publishedAt}</span>
-                    </div>
-                    <h2 className="mt-3 text-lg font-semibold text-gray-900 dark:text-gray-100 group-hover:text-primary-600 dark:group-hover:text-primary-300">
-                      {post.title}
-                    </h2>
-                    <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-gray-600 dark:text-gray-300">
-                      {post.excerpt}
-                    </p>
-                    <div className="mt-4 text-sm font-medium text-primary-600 dark:text-primary-300">
-                      {labels.readMore} &rarr;
-                    </div>
+            <div className="row g-8">
+              {blogPosts.map((post, index) => {
+                const [from, to] = COVERS[index % COVERS.length];
+                return (
+                  <div key={post.slug} className="col-12 col-md-6 col-lg-4 d-flex">
+                    <Link
+                      href={localeUrl(post.slug, locale, 'blogPost')}
+                      className="blog-card card w-100 border-0 shadow-sm overflow-hidden text-reset text-decoration-none"
+                    >
+                      <div className="blog-card-cover" style={{ background: `linear-gradient(to bottom right, ${from}, ${to})` }} />
+                      <div className="card-body p-6">
+                        <div className="d-flex align-items-center gap-3">
+                          {post.category && <span className="badge rounded-pill fw-medium blog-tag">{post.category}</span>}
+                          <span className="text-xs text-body-secondary">{post.publishedAt}</span>
+                        </div>
+                        <h2 className="h5 fw-semibold mt-3 mb-2 blog-card-title">{post.title}</h2>
+                        <p className="text-sm text-body-secondary mb-0 blog-card-excerpt">{post.excerpt}</p>
+                        <div className="text-sm fw-semibold mt-4 blog-accent">{labels.readMore} &rarr;</div>
+                      </div>
+                    </Link>
                   </div>
-                </Link>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

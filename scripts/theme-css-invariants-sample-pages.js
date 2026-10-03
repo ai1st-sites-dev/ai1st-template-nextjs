@@ -288,6 +288,17 @@ if (MINIMAL) {
 patched.push('allblocks navLabel is empty → 它不进任何一页的导航（#1061）');
 writeJson(allblocks, page);
 
+// ── ⑤ 博客文章（#1426）──────────────────────────────────────────────────────────────────────────────
+// 演示站（create-site skipAI）一篇文章都没有 ⟹ /blog 与 /blog/<slug> 两页不存在、不进 sitemap，这道检查从来没量过它们；
+// blog 块也因为「站里没文章就整块不渲染」在 allblocks 页上是空的。写进 5 篇演示文章 + 1 篇正文带全套裸标签的
+// （`DEMO_BLOG_POST_RICH`）。两版都写：文章是站的形状，不是块的数据，最少版削的是块的槽。
+const { DEMO_BLOG_POSTS, DEMO_BLOG_POST_RICH } = require('./lib/demo-content');
+const BLOG_POSTS = [...DEMO_BLOG_POSTS, DEMO_BLOG_POST_RICH];
+const blogDir = path.join(contentDir, 'blog');
+fs.mkdirSync(blogDir, { recursive: true });
+for (const post of BLOG_POSTS) writeJson(path.join(blogDir, `${post.slug}.json`), post);
+patched.push(`blog/: ${BLOG_POSTS.length} 篇文章（/blog 与 /blog/<slug> 进 sitemap，blog 块有文章可画）`);
+
 // ── 读回 —— 每一处都从盘上读回来再验一次 ─────────────────────────────────────────────────────
 {
   const back = readJson(allblocks);
@@ -319,6 +330,10 @@ writeJson(allblocks, page);
         }
       }
     }
+  }
+  for (const post of BLOG_POSTS) {
+    const f = path.join(blogDir, `${post.slug}.json`);
+    if (!fs.existsSync(f) || readJson(f).slug !== post.slug) bad.push(`blog post ${post.slug} did not land in ${path.relative(NEXT, blogDir)}`);
   }
   if (bad.length) die(`read-back failed: ${bad.join(' · ')}`);
   patched.push(`读回：注册表里 ${registered.length} 个页面块全在这一页上`);

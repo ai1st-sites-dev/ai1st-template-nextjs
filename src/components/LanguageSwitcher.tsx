@@ -44,11 +44,11 @@ export default function LanguageSwitcher({ currentLocale }: { currentLocale: str
       : pathname || '/';
 
   return (
-    <details className="relative inline-block">
-      <summary className="cursor-pointer text-sm font-medium list-none text-body-secondary">
+    <details className="position-relative d-inline-block">
+      <summary className="cursor-pointer text-sm fw-medium list-unstyled text-body-secondary">
         {renderLocale(currentLocale)}
       </summary>
-      <ul className="absolute right-0 top-full mt-2 bg-body text-body shadow rounded p-2 min-w-[140px] z-10 list-unstyled mb-0">
+      <ul className="position-absolute end-0 top-100 mt-2 bg-body text-body shadow rounded p-2 list-unstyled mb-0" style={{ minWidth: 140, zIndex: 10 }}>
         {locales.filter((l) => l !== currentLocale).map((l) => {
           // TICKET-129: switching to defaultLocale uses root URL (no prefix);
           // other locales keep /<locale>/* prefix.
@@ -60,7 +60,7 @@ export default function LanguageSwitcher({ currentLocale }: { currentLocale: str
             <li key={l}>
               <Link
                 href={href}
-                className="block px-2 py-1 text-sm link-body-emphasis text-decoration-none whitespace-nowrap"
+                className="d-block px-2 py-1 text-sm link-body-emphasis text-decoration-none text-nowrap"
               >
                 {renderLocale(l)}
               </Link>
