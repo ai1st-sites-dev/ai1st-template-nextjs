@@ -85,6 +85,8 @@ const { applyHeroLeadForm } = require('./lib/hero-lead-form');
 //    文件本身留着：`package.json` 的 `lint:scripts` 清单点了它的名，而本票要求 package.json 一字不动。
 const kwPages = require('./lib/keyword-pages');
 const { mostSimilarPages } = require('./lib/similarity');
+// #1549 回修 —— description 超长由代码裁到 155，不叫 AI 重写、不让整站失败（§description-fit.js 头注）。
+const { fitPageDescriptions } = require('./lib/description-fit');
 // #1489 —— 建站时按地址查一次坐标写进 brand.locations[0].geo（contact 的地图要它；Nominatim，不要 key，§geocode.js 头注）。
 const { geocodeBrand } = require('./lib/geocode');
 // #1551 —— LocalBusiness 里「从老板给的料来」的几项：营业时间的转写核对、真实评分（§local-business-facts.js 头注）。
@@ -3212,6 +3214,10 @@ async function rewritePageForSeo(args) {
  */
 async function seoPass({ content, payload, locale, industry, location, companyName, disabledBlocks = [], keywordPagesPlanned = [] }) {
   const ctx = { content, payload, locale, industry, location, companyName };
+  // 长度这种代码一刀能裁的先裁掉，再查；留给 AI 重写的只剩代码改不了的（关键词不在 / 编造事实 / H1 H2 …）。
+  for (const c of fitPageDescriptions({ pages: content.pages, seo: content.seo })) {
+    debug(`[seo] 裁 description ${c.slug}：${c.before} → ${c.after} 字（代码裁，不叫 AI）`);
+  }
   const failing = [];
   for (const page of content.pages) {
     const problems = seoCheckPage({ page, ...ctx });
@@ -3261,6 +3267,9 @@ async function seoPass({ content, payload, locale, industry, location, companyNa
         cur = next;
         rewritten += 1;
       }
+    }
+    for (const c of fitPageDescriptions({ pages: [cur], seo: content.seo })) {
+      debug(`[seo] 重写后裁 description ${c.slug}：${c.before} → ${c.after} 字`);
     }
     const after = seoCheckPage({ page: cur, ...ctx, tag: '重写一次后' });
     if (!after.length) continue;
