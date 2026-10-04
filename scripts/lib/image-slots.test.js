@@ -317,6 +317,49 @@ const slotsOf = (pages) => {
   check(imgProbs.filter((x) => /第 (1|5) 个块/.test(x)).length === 0 && imgProbs.filter((x) => /第 (3|4) 个块/.test(x)).length === 2,
     `填完之后求过图的两块改站校验不报；本来就没写旋钮的两块照报（尺子有牙）—— 读到 ${imgProbs.length} 条`);
 
+  // ── ⑨ #1549 —— 填完图写 alt：每张内容图非空，每页第一张含这一页的目标词 ───────────────────────
+  console.log('\n── ⑨ #1549 生图流程写 alt（生产侧）');
+  {
+    const { seoProblems } = require('./seo-problems');
+    const KW = 'drain cleaning Markham';
+    const altPages = () => [{
+      slug: 'services/drains', title: 'Drains',
+      sections: [
+        { type: 'page-header', data: { headline: 'Drains', options: { image: 'left' }, image: {} } },
+        { type: 'content', data: { headline: 'Why drains clog', options: { image: 'right' }, image: { alt: 'Roots inside an old clay pipe' } } },
+        { type: 'gallery', data: { headline: 'Our work', items: [{ title: 'Kitchen sink', image: {} }, { image: {} }] } },
+      ],
+    }, { slug: 'about', title: 'About us', sections: [{ type: 'content', data: { headline: 'Our story', options: { image: 'left' }, image: {} } }] }];
+    let n = 0;
+    const produce = async () => `/photos/p${(n += 1)}.jpg`;
+    const pages = altPages();
+    await fillImageSlots({ pages, manifests: real, industry: 'plumbing', primaryColor: '#123456', themeWord: 'x', produce,
+      targetKeywordOf: (p) => (p.slug === 'services/drains' ? KW : '') });
+    const { contentImagesOf } = require('./seo-problems');
+    const imgs = contentImagesOf(pages[0], real);
+    check(imgs.length === 4 && imgs.every((x) => typeof x.img.imageUrl === 'string' && x.img.imageUrl.startsWith('/photos/')),
+      `夹具第一页 4 张内容图都求到了图（读到 ${imgs.length} 张）`);
+    check(imgs.every((x) => typeof x.img.alt === 'string' && x.img.alt.trim()), `每一张 alt 非空（读到 ${JSON.stringify(imgs.map((x) => x.img.alt))}）`);
+    check(imgs[0].img.alt.includes(KW) && imgs.slice(1).every((x) => !x.img.alt.includes(KW)),
+      `第一张内容图（page-header）的 alt 含目标词，其余不硬塞（读到「${imgs[0].img.alt}」）`);
+    check(imgs[1].img.alt === 'Roots inside an old clay pipe', 'AI 自己写的 alt 留着');
+    check(imgs[2].img.alt === 'Kitchen sink', '没写 alt 的 gallery 项用自己的标题');
+    const about = contentImagesOf(pages[1], real);
+    check(about.length === 1 && about[0].img.alt === 'Our story', '没有目标词的页：只保证非空（读到 ' + JSON.stringify(about.map((x) => x.img.alt)) + '）');
+    const p6 = (page, kw) => seoProblems({ page, pages, targetKeyword: kw, brand: { name: { en: 'Acme' } }, payload: {}, locale: 'en', seo: {} })
+      .filter((x) => x.startsWith('[6 '));
+    check(p6(pages[0], KW).length === 0 && p6(pages[1], '').length === 0, '生产侧写完，seoProblems 第 6 条两页都不报（两侧用的同一份判据）');
+    // 反向对照：不给目标词 ⟹ 第一张不含它，检查侧第 6 条必须开火
+    const bare = altPages();
+    await fillImageSlots({ pages: bare, manifests: real, industry: 'plumbing', primaryColor: '#123456', themeWord: 'x', produce });
+    check(p6(bare[0], KW).some((x) => x.includes('没有一张含目标词')), '　反向对照：生产侧不拿目标词 ⟹ 第 6 条报「没有一张含目标词」');
+    // 反向对照：求不到图 ⟹ 没有 imageUrl，不写 alt（没图的槽不出 <img>）
+    const none = altPages();
+    await fillImageSlots({ pages: none, manifests: real, industry: 'plumbing', primaryColor: '#123456', themeWord: 'x', produce: async () => null,
+      targetKeywordOf: () => KW });
+    check(contentImagesOf(none[0], real).length === 0 && none[0].sections[0].data.image.alt === undefined, '　反向对照：求不到图的槽不算内容图，也不写 alt');
+  }
+
   console.log(`\n逐条断言: PASS ${pass} · FAIL ${fail}`);
   if (fail) { console.log('❌ #1386 image-slots: 有失败'); process.exit(1); }
   console.log('✅ #1386 image-slots: 全过');

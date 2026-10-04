@@ -17,6 +17,8 @@
 //    建站那条路拿它去调 Nano Banana 并把字节写盘，skipAI 那条路拿它回一张本地占位图。
 //    这样这份逻辑能在 `test:scripts` 里被完整跑一遍，不需要任何外部凭证。
 const { imageSlotsOf, blocksOf } = require('./block-manifest');
+// #1549 —— 「哪些图算内容图」「alt 含不含目标词」跟 seoProblems 第 6 条用同一份判据（两份实现会让生产侧和检查侧各挑一张）。
+const { contentImagesOf, hasPhrase } = require('./seo-problems');
 
 /**
  * 页面里每一个内容图槽，按「页面 → 块 → 槽 → 列表项」的书写顺序。
@@ -188,7 +190,7 @@ function setSlotImageUrl(pages, slot, url) {
  * 回 { totalSlots, attempted, success, dropped, failures } —— `dropped` 是被上限截掉的那些。
  * 🔴 单个槽失败不许影响别的槽（一次 5xx 不该让整个建站倒），所以 try/catch 在循环里面。
  */
-async function fillImageSlots({ pages, manifests, industry, primaryColor, themeWord, cap = Infinity, produce, log }) {
+async function fillImageSlots({ pages, manifests, industry, primaryColor, themeWord, cap = Infinity, produce, log, targetKeywordOf }) {
   const say = typeof log === 'function' ? log : () => {};
   const all = collectImageSlots(pages, manifests);
   const { kept, dropped } = capImageSlots(all, cap);
@@ -211,7 +213,60 @@ async function fillImageSlots({ pages, manifests, industry, primaryColor, themeW
       say(logMissed(slot, err.message));
     }
   }
-  return { totalSlots: all.length, attempted: kept.length, success, dropped, failures };
+  // #1549 —— 填完图写 alt：每张内容图非空，每页第一张含这一页的目标词（seoProblems 第 6 条查的就是这两样）。
+  const alts = writeImageAlts({ pages, manifests, industry, targetKeywordOf });
+  if (alts.written || alts.keyworded) say(`[photo-slot] alt：补了 ${alts.written} 张 · ${alts.keyworded} 页的第一张内容图带上了目标词`);
+  return { totalSlots: all.length, attempted: kept.length, success, dropped, failures, alts };
+}
+
+// ── alt（#1549 做什么 5）────────────────────────────────────────────────────────────────────────
+//
+// 🔴 「内容图」= seoProblems 第 6 条那份（`seo-problems.js §contentImagesOf`，真渲染出 <img> 的场景图），不是上面
+//    `collectImageSlots` 那份「要不要去求图」的名单 —— 后者多收了不出 <img> 的槽（比如 hero 的 image=background），
+//    按它挑「第一张」会挑到一张访客看不见的图。
+//
+// alt 从哪来：
+//   ① AI 在 Call 1 / Call 2 里自己写了（提示词要它给每张图一句话描述）⟹ 留着；
+//   ② 没写 ⟹ 按这张图所在的地方补一句：条目自己的标题（gallery / features 的项）→ 块标题 → 页面标题 → 行业。
+//      组件那一侧对空 alt 只会回退成空串（`blockMedia.tsx §slotImg`），所以这里不补，访客就读到一张没有描述的图。
+//   ③ 每页**第一张**内容图要含这一页的目标词（正文定死「第一张」，PM 2026-10-04）：已经含就不动，不含就把目标词
+//      放在前面（「drain cleaning Markham: Plumber clearing a kitchen sink」）。
+// 只写**有 imageUrl** 的图（没图的槽不出 <img>，写 alt 没有意义）。
+
+const strOf = (v) => (typeof v === 'string' && v.trim() ? v.trim() : '');
+
+function fallbackAlt(page, image, industry) {
+  const sec = blocksOf(page)[image.secIdx] || {};
+  const d = sec.data && typeof sec.data === 'object' ? sec.data : {};
+  const items = Array.isArray(d[image.slot]) ? d[image.slot] : [];
+  const item = image.itemIdx !== null && image.itemIdx !== undefined ? items[image.itemIdx] : null;
+  return strOf(item && item.title) || strOf(d.headline) || strOf(page && page.title) || (strOf(industry) ? `${strOf(industry)} photo` : 'Photo');
+}
+
+/**
+ * 给页面里的内容图写 alt（就地改页面对象）。回 `{ written, keyworded }`：补了几张 alt、几页的第一张带上了目标词。
+ * `targetKeywordOf(page)` → 这一页的目标词或空；不传就只保证非空。
+ */
+function writeImageAlts({ pages, manifests, industry, targetKeywordOf } = {}) {
+  let written = 0;
+  let keyworded = 0;
+  for (const page of pages || []) {
+    if (!page) continue;
+    const imgs = contentImagesOf(page, manifests);
+    for (const x of imgs) {
+      // 写进数据里那个 `alt` 键（组件的回退 —— gallery 拿条目标题顶上 —— 也照写进去，不靠渲染那一侧兜）
+      if (strOf(x.img.alt)) continue;
+      x.img.alt = strOf(x.alt) || fallbackAlt(page, x, industry);
+      x.alt = x.img.alt;
+      written += 1;
+    }
+    const kw = typeof targetKeywordOf === 'function' ? strOf(targetKeywordOf(page)) : '';
+    if (kw && imgs.length && !hasPhrase(imgs[0].alt, kw)) {
+      imgs[0].img.alt = `${kw}: ${strOf(imgs[0].alt)}`;
+      keyworded += 1;
+    }
+  }
+  return { written, keyworded };
 }
 
 module.exports = {
@@ -220,6 +275,7 @@ module.exports = {
   buildSlotPrompt,
   setSlotImageUrl,
   fillImageSlots,
+  writeImageAlts,
   slotKey,
   slotWhere,
   logFilled,

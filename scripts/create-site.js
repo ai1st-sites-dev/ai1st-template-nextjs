@@ -56,9 +56,11 @@ const blockDataLine = (type) => blockDataLineFor(loadBlockManifests().get(type))
 const { siteFormsFrom } = require('./lib/site-forms');
 // #1548 —— 挖出来的关键词落盘（seo.json 的 targetKeywords + 每页 seo.targetKeyword）。真 AI 与 skipAI 两条路共用这一份。
 const targetKw = require('./lib/target-keywords');
+// #1549 —— 每页生成后的 SEO 检查（八条，设计文档 S2）。检查本身是纯函数，重写 / 丢页 / 失败的处置在本文件 §seoPass。
+const { seoProblems, rulesFor: seoRulesFor, pageTitleBudget, MIN_PAGE_TITLE_BUDGET } = require('./lib/seo-problems');
 // #1386 —— 建站选图：哪些槽要图、提示词怎么拼、上限怎么截、求不到怎么说，都在那个文件里。
 // 名单不再写在本文件里（此前是四个块名 + 四个 case，`hero-with-form` 因此永远拿不到图）。
-const { fillImageSlots } = require('./lib/image-slots');
+const { fillImageSlots, writeImageAlts } = require('./lib/image-slots');
 // skipAI 那条路给图槽填的那张图 —— 模板自己带的资源，不调外部图库（#1386）。
 const PLACEHOLDER_IMAGE_URL = '/images/grid-pattern.svg';
 // #1034 — 每个站一份首页开场配方（开头四块 + 两个必须出现的块 + 候选清单的印刷顺序）。
@@ -648,6 +650,28 @@ const LANG_NAME_TO_ISO = {
   'taiwanese': 'zh-tw',
 };
 
+// TICKET-136: brand.name 是按语言的表 —— 主语言是 companyName，表单里按语言单独填过的覆盖它。
+// #1549 —— 抽成函数：提示词里的 title 预算要在 Call 1 之前就知道主语言的品牌名（`metadata.ts` 拼在子页 <title>
+//    后面的就是它），跟写进 brand.json 的那份必须是同一份。
+function brandNameRecord(companyName, brandNameByLocale, defaultLocale) {
+  const brandName = { [defaultLocale]: companyName };
+  for (const [loc, name] of Object.entries(brandNameByLocale || {})) {
+    const norm = normalizeLocale(loc);
+    if (norm && typeof name === 'string' && name.trim()) {
+      brandName[norm] = name.trim();
+    }
+  }
+  return brandName;
+}
+
+// #1549 做什么 4 —— 子页 `page.title` 的长度要求，提示词和 seoProblems 第 1 条用同一个数（60 − 3 − 品牌名字数）。
+// 预算 < 20（品牌名 ≥ 38 字）时检查那一侧不判长度，提示词这一侧也不给一个做不到的数。
+function pageTitleSpec(brandName) {
+  const budget = pageTitleBudget(brandName);
+  const tail = `" | ${brandName}" is appended automatically — do not add it yourself`;
+  return budget >= MIN_PAGE_TITLE_BUDGET ? `max ${budget} chars; ${tail}` : `as short as possible; ${tail}`;
+}
+
 function normalizeLocale(input) {
   if (!input || typeof input !== 'string') return null;
   // TICKET-169: allow BCP-47 simple form `lang-REGION` (e.g. zh-TW). Pattern:
@@ -1233,6 +1257,7 @@ async function main() {
       serviceDetailMap,
       // #1346 —— Call 2 有它自己那份写死的块清单，所以同一份禁用清单也要传到这儿。
       disabledBlocks,
+      titleSpec: pageTitleSpec(content.brand.name[defaultLocale]),
       keywordBrief, additionalContext,
     });
 
@@ -1278,6 +1303,20 @@ async function main() {
     keywords, services, contentServices: content.services, pages: content.pages,
     keywordPagesList, siteType, keyword: leadKeyword,
   }));
+
+  // #1549 —— 目标词这时才挂到页上 ⟹ 每页第一张内容图的 alt 在这里带上它（填图那一刻还不知道是哪个词）。
+  //    用户自己上传照片的那条路不经填图，alt 也在这里补齐。
+  {
+    const alts = writeImageAlts({ pages: content.pages, manifests: loadBlockManifests(), industry, targetKeywordOf: seoTargetOf });
+    debug(`[seo] alt：补了 ${alts.written} 张 · ${alts.keyworded} 页的第一张内容图带上了目标词`);
+  }
+
+  // #1549 —— 主语言每一页跑 seoProblems；有问题重写那一页一次；仍有问题：关键词页丢掉，其余页建站失败（§seoPass）。
+  progress('Checking every page for SEO...', 68);
+  await seoPass({
+    content, payload: input, locale: defaultLocale, industry, location, companyName, disabledBlocks,
+    keywordPagesPlanned: keywordPagesList,
+  });
 
   progress('Writing configuration files...', 70);
 
@@ -2005,8 +2044,8 @@ function keywordPagesFrom(keywords) {
 }
 
 // #1548 做什么 6（Chris 2026-10-03）—— 事实只许来自建站表格。产出里有没有编造由 T5 #1549 查；这里只负责「告诉它」。
-// 🔴 跟它下面那行「For stats, use realistic numbers (e.g. "15+")」是打架的（「15+ 年」就是编的年份）—— 那一行本票不动、
-//    交给 T5 #1549；这一句写明它优先。
+// 📌 它下面原来那行「For stats, use realistic numbers (e.g. "15+")」跟它打架（「15+ 年」就是编的年份），#1548 交给 T5 —— #1549
+//    已把那一行改成「只用表单给的数字」，两句不再冲突；这一句里「wins over … the stats example」留着，是给将来再加例子的人看的。
 const FACTS_ONLY_FROM_FORM_RULE = '- FACTS ONLY FROM THE FORM: years in business, licenses / insurance / certifications, prices, review counts and service areas may be stated ONLY when the business details above give them — if they are not given, do not write them. This rule wins over every other line here, including the stats example below.';
 
 async function generateContent(opts) {
@@ -2046,6 +2085,8 @@ async function generateContent(opts) {
   // 漏掉任何一处的形态都一样：菜单里没有、正文却要求，模型两条要求对不上。
   const blockOff = new Set(disabledBlocks);
   const keepBlocks = (types) => types.filter((t) => !blockOff.has(t));
+  // #1549 做什么 4 —— 子页 title 的预算按主语言的品牌名算（跟 seoProblems 第 1 条同一个数）。
+  const titleSpec = pageTitleSpec(brandNameRecord(companyName, brandNameByLocale, defaultLocale)[defaultLocale]);
   const quotedList = (types) => types.map((t) => `"${t}"`).join(', ');
   // 🔴 什么都没关掉时，这三行**逐字节**等于 #1346 之前写死的那三行（判据在
   // `scripts/lib/catalog-disabled.test.js` ④：两臂比同一份提示词的这一段）。整条规则里的块全被关掉
@@ -2482,7 +2523,7 @@ Generate a JSON object with this EXACT structure:
   "seo": {
     "domain": "https://<realistic domain>",
     "siteTitle": "<max 60 chars>",
-    "siteDescription": "<max 155 chars, location + services + CTA>",
+    "siteDescription": "<70–155 chars, location + services + CTA>",
     "areaServed": [{"type":"City","name":"<city>"}],
     "addresses": [{"locality":"<city>","region":"<province code>","country":"<country code>"}],
     "openingHours": { "days": ["Monday","Tuesday","Wednesday","Thursday","Friday"], "opens": "09:00", "closes": "17:00" },
@@ -2517,8 +2558,8 @@ Generate a JSON object with this EXACT structure:
     },
     {
       "slug": "<page-slug>",
-      "title": "<Page Title, max 60 chars>",
-      "description": "<Page meta description, max 155 chars>",
+      "title": "<Page Title, ${titleSpec}>",
+      "description": "<Page meta description, 70–155 chars>",
       "navLabel": "<Short nav label>",
       "navOrder": 1,
       "changeFrequency": "weekly|monthly",
@@ -2527,7 +2568,7 @@ Generate a JSON object with this EXACT structure:
     },
     {
       "slug": "services/<service-id>",
-      "title": "<Service Name> | <Company>",
+      "title": "<Service Name>",
       "description": "<meta description for this service>",
       "navLabel": "<Service Name>",
       "navOrder": 10,
@@ -2561,9 +2602,10 @@ ${homeRecipe ? recipePromptLines(homeRecipe, disabledBlocks)
 ${criticalBlockRules}
 ${contentAmountsRule}
 ${FACTS_ONLY_FROM_FORM_RULE}
-- For stats, use realistic numbers (e.g., "500+", "15+", "98%", "24/7").
+- For stats, use ONLY numbers the business details above give (years, counts, prices, ratings). When they give none, use values without an invented number (e.g. "24/7", "Same-day", "Local") — never make one up.
 ${galleryItemsRule ? `${galleryItemsRule}
-` : ''}- All meta titles under 60 characters, all meta descriptions under 155 characters.
+` : ''}- Page titles (pages[].title): ${titleSpec}. The home page's <title> is seo.siteTitle, used as-is: max 60 chars. Every meta description (seo.siteDescription and pages[].description): 70–155 chars.
+- Every image object you write ({"imageUrl", "alt"}) gets an "alt": one plain sentence saying what the photo shows (no "image of").
 - Use specific language, not generic fluff. Testimonials should mention the company name.
 - Include location names naturally in content.
 ${ctaHrefRule ? `${ctaHrefRule}
@@ -2699,13 +2741,7 @@ ${ctaHrefRule ? `${ctaHrefRule}
   // TICKET-136: brand.name is per-locale. Default to companyName for the
   // primary locale; merge in any explicit per-locale overrides from the
   // dashboard form (e.g. {"zh":"耐克"} for a Nike site).
-  const brandName = { [defaultLocale]: companyName };
-  for (const [loc, name] of Object.entries(brandNameByLocale)) {
-    const norm = normalizeLocale(loc);
-    if (norm && typeof name === 'string' && name.trim()) {
-      brandName[norm] = name.trim();
-    }
-  }
+  const brandName = brandNameRecord(companyName, brandNameByLocale, defaultLocale);
   const brand = {
     name: brandName,
     tagline: ai.brand.tagline,
@@ -2919,6 +2955,8 @@ async function generateKeywordPages(opts) {
   const {
     keywordPages, brand, seo, companyName, industry, location, languageName,
     serviceDetailMap = {},
+    // #1549 —— 子页 title 的预算说法（§pageTitleSpec，主语言品牌名算出来的），跟 Call 1 同一句。
+    titleSpec = 'max 60 chars',
     keywordBrief = '',
     additionalContext = '',
     // #1346 —— 后台关掉的块。这一通（Call 2，关键词页）有它**自己**那份写死的块清单，跟 Call 1 的
@@ -2970,8 +3008,8 @@ Return a JSON ARRAY of page objects:
 [
   {
     "slug": "${keywordPages[0]?.nestedSlug || 'service/keyword'}",
-    "title": "<Page Title with keyword, max 60 chars>",
-    "description": "<Meta description with keyword + location, max 155 chars>",
+    "title": "<Page Title with keyword, ${titleSpec}>",
+    "description": "<Meta description with keyword + location, 70–155 chars>",
     "navLabel": "<Short label for footer nav>",
     "navOrder": 50,
     "changeFrequency": "monthly",
@@ -2991,6 +3029,8 @@ CRITICAL RULES:
 - Vary section types across pages. Alternate the features section between selling points and numbered steps.
 - CTA href should point to "/quote" or the appropriate contact page, or alternate with a service detail page link (e.g. "/services/{slug}") when available.
 - Include ${location || 'the local area'} naturally in content for local SEO.
+${FACTS_ONLY_FROM_FORM_RULE.replace(', including the stats example below', '')}
+- Every image object you write ({"imageUrl", "alt"}) gets an "alt": one plain sentence saying what the photo shows (no "image of").
 - navOrder should be 50+ (keyword pages sort after regular pages).`;
 
   emit('prompt', { name: 'Keyword Pages', content: prompt });
@@ -3040,6 +3080,173 @@ CRITICAL RULES:
 
   debug(`Generated ${pages.length} keyword page(s)`);
   return pages;
+}
+
+// ─── #1549: 每页生成后的 SEO 检查 ─────────────────────────────────────────────────────────────
+//
+// 设计文档 S2 / 正文做什么 3：
+//   · 主语言的**每一页**跑一次 `seoProblems`（lib/seo-problems.js），日志每页一行 —— 全过的页在产物里跟没跑过一模一样，
+//     所以「跑过」的证据只能是日志（验收 4）。次语言的页不在这里（它们是主语言页的翻译，在这之后才生成）。
+//   · 有问题 ⟹ 带着问题**只重写那一页一次**（一页一次调用，几页并发）。重写回来的页再过一次块校验：它若新增了块库
+//     问题，这次重写作废、用原来那页（宁可按原来那页的 SEO 问题处置，也不把块库改坏的页写进站）。
+//   · 仍有问题 ⟹ 关键词页丢掉（日志「丢掉 <slug>：…」+「关键词页 N/M」，页脚里指向它的链接一起删）；
+//     首页 / 服务页 / 没有目标词的页 ⟹ 建站失败，信息写明哪页哪条。没有目标词的页不丢：它们在导航里，丢了就是站内死链。
+//   · 「关键词页 N/M」本票只进日志和 `seo-check` 事件；建站页显示它归 T6 #1550（建站页只认四种事件）。
+
+/** 一页的目标词（T4 #1548 挂在 `page.seo.targetKeyword`）。 */
+function seoTargetOf(page) {
+  return page && page.seo && typeof page.seo.targetKeyword === 'string' ? page.seo.targetKeyword : '';
+}
+
+/** 一页的 seoProblems + 日志一行（验收 4 读的就是这一行：`[seo] 检查 <slug> · …`）。 */
+function seoCheckPage({ page, content, payload, locale, tag = '检查' }) {
+  const kw = seoTargetOf(page);
+  const problems = seoProblems({ page, pages: content.pages, targetKeyword: kw, brand: content.brand, payload, locale, seo: content.seo });
+  debug(`[seo] ${tag} ${page.slug} · 目标词 ${kw ? `「${kw}」` : '（无）'} · 跑了第 ${seoRulesFor(kw).join('/')} 条 · `
+    + (problems.length ? `${problems.length} 条问题：\n    ${problems.join('\n    ')}` : '0 条问题'));
+  return problems;
+}
+
+/** 重写一页的提示词（单测读它：预算数字、目标词、问题清单都要在里面）。 */
+function seoRewritePrompt({ page, problems, content, payload, locale, industry, location, companyName }) {
+  const kw = seoTargetOf(page);
+  const isHome = page.slug === 'home';
+  const envelope = isHome
+    ? { siteTitle: content.seo.siteTitle, siteDescription: content.seo.siteDescription, page }
+    : { page };
+  const p = payload && typeof payload === 'object' ? payload : {};
+  const facts = [
+    ['USP', p.usp], ['Description', p.brandDescription], ['Address', p.address], ['Phone', p.phone], ['Hours', p.hours],
+    ['Price range', p.priceRange],
+    ['Customer reviews', Array.isArray(p.reviews) && p.reviews.length ? JSON.stringify(p.reviews) : ''],
+  ].filter(([, v]) => typeof v === 'string' && v.trim()).map(([k, v]) => `- ${k}: ${v}`);
+  return `You wrote one page of the website for "${companyName}" (${industry}${location ? `, ${location}` : ''}). An automatic SEO check found the problems below. Rewrite the page to fix ONLY these problems. Respond with the COMPLETE JSON object in exactly the same shape as the one you are given — no markdown fences, no explanation.
+
+${JSON.stringify(envelope, null, 2)}
+
+PROBLEMS TO FIX:
+${problems.map((x) => `- ${x}`).join('\n')}
+
+RULES:
+- ${kw ? `This page's target keyword is "${kw}" — use that exact phrase where the problems ask for it.` : 'This page has no target keyword.'}
+- Keep "slug", every section's "type" and "options", and every "imageUrl" exactly as they are. Add or remove a section only when a problem asks for it (the page's single H1 is the "headline" of its one "hero" or "page-header" section; H2s are the "headline" of the other sections).
+- ${isHome ? 'siteTitle is the home page\'s <title>, used as-is: max 60 chars.' : `page.title: ${pageTitleSpec(content.brand.name[locale])}.`} Meta description (${isHome ? 'siteDescription' : 'page.description'}): 70–155 chars${kw ? `, containing "${kw}"` : ''}.
+- Every image object ({"imageUrl", "alt"}) gets an "alt": one plain sentence saying what the photo shows.
+${FACTS_ONLY_FROM_FORM_RULE.replace(', including the stats example below', '').replace('the business details above', 'the business details below')}
+BUSINESS DETAILS (the only source of facts):
+${facts.length ? facts.join('\n') : '- (none given)'}`;
+}
+
+/** 调 AI 重写一页一次。回 `{ page, siteTitle?, siteDescription? }`；调不通 / 吐不回对象就抛。 */
+async function rewritePageForSeo(args) {
+  const prompt = seoRewritePrompt(args);
+  emit('prompt', { name: `SEO rewrite ${args.page.slug}`, content: prompt });
+  const client = new Anthropic();
+  const result = await callAIWithRetry({
+    client,
+    baseOptions: { model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] },
+    costContext: { operation: 'create-site', detail: `SEO rewrite ${args.page.slug}`, pricing, durationStart: Date.now() },
+    label: `SEO rewrite ${args.page.slug}`,
+  });
+  const parsed = result.parsed;
+  const page = parsed && typeof parsed === 'object' && parsed.page && typeof parsed.page === 'object' ? parsed.page : parsed;
+  if (!page || typeof page !== 'object' || Array.isArray(page)) throw new Error('重写回来的不是一个页面对象');
+  return { page, siteTitle: parsed.siteTitle, siteDescription: parsed.siteDescription };
+}
+
+/**
+ * 主语言每一页：检查 → 有问题重写一次 → 再查 → 处置。就地改 `content`（页、seo、页脚）。建站失败时 fatal()。
+ * 回 `{ checked, rewritten, dropped, fatalPages }`（单测读它）。
+ */
+async function seoPass({ content, payload, locale, industry, location, companyName, disabledBlocks = [], keywordPagesPlanned = [] }) {
+  const ctx = { content, payload, locale, industry, location, companyName };
+  const failing = [];
+  for (const page of content.pages) {
+    const problems = seoCheckPage({ page, ...ctx });
+    if (problems.length) failing.push({ page, problems });
+  }
+
+  // 表单跟 Call 1 那道块校验用同一份（AI 写的文案 + 默认骨架，`siteFormsFrom`）；只比这一页重写前后的差集。
+  const forms = siteFormsFrom((content.ai && content.ai.forms) || content.forms);
+  const blockProblemsOf = (pages, slug) => validateBlocks({ pages, industry, disabledBlocks, forms })
+    .problems.filter((x) => x.startsWith(`${slug} `));
+
+  const rewrites = await Promise.all(failing.map(async ({ page, problems }) => {
+    try {
+      return { page, problems, out: await rewritePageForSeo({ page, problems, ...ctx }) };
+    } catch (e) {
+      debug(`[seo] 重写 ${page.slug} 没成：${e.message} —— 按原来那页处置`);
+      return { page, problems, out: null };
+    }
+  }));
+
+  const dropped = [];
+  const fatalPages = [];
+  let rewritten = 0;
+  for (const { page, out } of rewrites) {
+    let cur = page;
+    if (out) {
+      // 身份字段照原来那页：slug 由代码生成、关键词页 / 服务页的标记和目标词不归重写管
+      const next = { ...out.page, slug: page.slug };
+      for (const k of ['keywordPage', 'serviceDetailPage', 'parentService', 'navOrder', 'seo']) {
+        if (page[k] !== undefined) next[k] = page[k]; else delete next[k];
+      }
+      sanitizeImageUrls([next]);
+      applyBlockRoleDefaults([next]);
+      writeImageAlts({ pages: [next], manifests: loadBlockManifests(), industry, targetKeywordOf: seoTargetOf });
+      const idx = content.pages.indexOf(page);
+      const trial = content.pages.slice(); trial[idx] = next;
+      const before = new Set(blockProblemsOf(content.pages, page.slug));
+      const added = blockProblemsOf(trial, page.slug).filter((x) => !before.has(x));
+      if (added.length) {
+        debug(`[seo] 重写一次 ${page.slug}：回来的页把块库改坏了 ${added.length} 处，作废、用原来那页：\n    ${added.join('\n    ')}`);
+      } else {
+        content.pages[idx] = next;
+        if (page.slug === 'home') {
+          if (typeof out.siteTitle === 'string' && out.siteTitle.trim()) content.seo.siteTitle = out.siteTitle.trim();
+          if (typeof out.siteDescription === 'string' && out.siteDescription.trim()) content.seo.siteDescription = out.siteDescription.trim();
+        }
+        cur = next;
+        rewritten += 1;
+      }
+    }
+    const after = seoCheckPage({ page: cur, ...ctx, tag: '重写一次后' });
+    if (!after.length) continue;
+    if (cur.keywordPage === true) {
+      dropped.push({ slug: cur.slug, keyword: seoTargetOf(cur), problems: after });
+      debug(`[seo] 丢掉 ${cur.slug}：${after.join(' · ')}`);
+    } else {
+      fatalPages.push({ slug: cur.slug, problems: after });
+    }
+  }
+
+  if (dropped.length) {
+    const gone = new Set(dropped.map((d) => d.slug));
+    content.pages = content.pages.filter((p) => !gone.has(p.slug));
+    const footer = content.navigation && content.navigation.footer;
+    if (footer && Array.isArray(footer.columns)) {
+      for (const col of footer.columns) if (Array.isArray(col.links)) col.links = col.links.filter((l) => !gone.has(String(l.href || '').replace(/^\//, '')));
+      footer.columns = footer.columns.filter((col) => !Array.isArray(col.links) || col.links.length);
+    }
+  }
+
+  const planned = Array.isArray(keywordPagesPlanned) ? keywordPagesPlanned.length : 0;
+  const kept = content.pages.filter((p) => p.keywordPage === true).length;
+  if (planned) {
+    const missing = keywordPagesPlanned.filter((kp) => !content.pages.some((p) => p.keywordPage === true && p.slug === kp.nestedSlug));
+    debug(`[seo] 关键词页 ${kept}/${planned}${missing.length ? ` —— 没成的词：${missing.map((kp) => `「${kp.keyword}」`).join('、')}` : ''}`);
+  }
+  emit('seo-check', {
+    pages: content.pages.length + dropped.length,
+    rewritten,
+    dropped: dropped.map((d) => ({ slug: d.slug, keyword: d.keyword, problems: d.problems })),
+    keywordPages: { ok: kept, total: planned },
+  });
+
+  if (fatalPages.length) {
+    fatal(`SEO check failed after one rewrite (#1549) —\n${fatalPages.map((f) => `  ${f.slug}:\n    ${f.problems.join('\n    ')}`).join('\n')}`);
+  }
+  return { checked: content.pages.length + dropped.length, rewritten, dropped, fatalPages };
 }
 
 // ─── Run ──────────────────────────────────────────────────────────────────────
