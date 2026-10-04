@@ -291,5 +291,83 @@ check('标签：认不得的语言退英语；zh-TW 这类按语言主码退', (
   assert.strictEqual(K.labelsFor('fr-CA').related, 'Pages associées');
 });
 
+// ── #1565：AI 写的服务 id 收进上限 ─────────────────────────────────────────────────────────────────
+console.log('── #1565 capServiceIds：AI 写的服务 id 收进跟关键词页 slug 同一个上限');
+const { SLUG_MAX_BYTES } = require('./keyword-slug');
+const LONG = (tail) => `${'drain-cleaning-'.repeat(20)}${tail}`;   // 300 字节起，只在第 300 个字符之后才不同
+check('没超上限的 id 一个字不动，页面也不碰', () => {
+  const services = [{ id: 'drain-cleaning', name: 'Drain Cleaning' }];
+  const pages = [{ slug: 'services/drain-cleaning', parentService: 'drain-cleaning' }];
+  assert.deepStrictEqual(K.capServiceIds({ services, pages }), []);
+  assert.strictEqual(services[0].id, 'drain-cleaning');
+  assert.strictEqual(pages[0].slug, 'services/drain-cleaning');
+});
+check('300 字节的 id ⟹ 截在上限里（在连字符处），服务名不动', () => {
+  const id = LONG('x');
+  assert.strictEqual(Buffer.byteLength(id), 301, '阳性对照：喂进去的真的超了');
+  const services = [{ id, name: 'N'.repeat(300) }];
+  const [r] = K.capServiceIds({ services, pages: [] });
+  assert.strictEqual(r.from, id);
+  assert.ok(Buffer.byteLength(services[0].id) <= SLUG_MAX_BYTES, `${Buffer.byteLength(services[0].id)}`);
+  assert.ok(id.startsWith(`${services[0].id}-`), services[0].id);
+  assert.strictEqual(services[0].name, 'N'.repeat(300));
+});
+check('页面里指着旧 id 的地方一起改：详情页 slug / parentService / /services/<id> 链接 / under / 子路径；别的服务不碰', () => {
+  const id = LONG('x');
+  const services = [{ id, name: 'Long' }, { id: 'water-heaters', name: 'Water Heaters' }];
+  const pages = [
+    { slug: `services/${id}`, parentService: id, serviceDetailPage: true, sections: [
+      { type: 'cta', data: { ctas: [{ label: 'Go', href: `/services/${id}` }, { label: 'Q', href: `/services/${id}?a=1#b` }] } },
+      { type: 'features', data: { items: { source: 'pages', under: `services/${id}` } } }] },
+    { slug: `services/${id}/sub`, sections: [{ type: 'cta', data: { ctas: [{ label: 'W', href: '/services/water-heaters' }] } }] },
+    { slug: 'services/water-heaters', parentService: 'water-heaters' },
+  ];
+  const navigation = { ctaPage: `services/${id}` };
+  K.capServiceIds({ services, pages, navigation });
+  const nu = services[0].id;
+  assert.strictEqual(pages[0].slug, `services/${nu}`);
+  assert.strictEqual(pages[0].parentService, nu);
+  assert.deepStrictEqual(pages[0].sections[0].data.ctas.map((c) => c.href), [`/services/${nu}`, `/services/${nu}?a=1#b`]);
+  assert.strictEqual(pages[0].sections[1].data.items.under, `services/${nu}`);
+  assert.strictEqual(pages[1].slug, `services/${nu}/sub`);
+  assert.strictEqual(pages[1].sections[0].data.ctas[0].href, '/services/water-heaters');
+  assert.strictEqual(pages[2].slug, 'services/water-heaters');
+  assert.strictEqual(services[1].id, 'water-heaters');
+  assert.strictEqual(navigation.ctaPage, `services/${nu}`);
+  assert.ok(!JSON.stringify(pages).includes(id), '旧 id 一处不剩');
+});
+check('AC5：两个只在第 300 个字符之后才不同的 id ⟹ 两个不同，且都在上限里（含带去重后缀那一个）', () => {
+  const services = [{ id: LONG('aaa'), name: 'A' }, { id: LONG('bbb'), name: 'B' }];
+  const r = K.capServiceIds({ services, pages: [] });
+  assert.strictEqual(r.length, 2);
+  const [a, b] = services.map((s) => s.id);
+  assert.notStrictEqual(a, b);
+  assert.ok(b.endsWith('-2'), b);
+  for (const x of [a, b]) assert.ok(Buffer.byteLength(x) <= SLUG_MAX_BYTES, `${x.length}`);
+});
+check('截出来的 id 跟一个本来就没超的服务撞了 ⟹ 截的那个让路（加 -2），没超的那个不动', () => {
+  const short = K.capServiceIds({ services: [{ id: LONG('x'), name: 'L' }], pages: [] });
+  const services = [{ id: LONG('x'), name: 'L' }, { id: short[0].to, name: 'Short' }];
+  K.capServiceIds({ services, pages: [] });
+  assert.strictEqual(services[1].id, short[0].to);
+  assert.ok(services[0].id.endsWith('-2') && services[0].id !== services[1].id, services[0].id);
+  assert.ok(Buffer.byteLength(services[0].id) <= SLUG_MAX_BYTES, `${services[0].id.length}`);
+});
+check('超长且转写不了（假名）⟹ 退服务名的 slug；服务名也转不了 ⟹ service-<序号>', () => {
+  const s1 = [{ id: 'す'.repeat(100), name: 'Drain Cleaning' }];
+  K.capServiceIds({ services: s1, pages: [] });
+  assert.strictEqual(s1[0].id, 'drain-cleaning');
+  const s2 = [{ id: 'ok', name: 'x' }, { id: 'す'.repeat(100), name: 'すいどう' }];
+  K.capServiceIds({ services: s2, pages: [] });
+  assert.strictEqual(s2[1].id, 'service-2');
+});
+check('超长的多字节 id（按字节判，不按字符数）⟹ 也收进上限', () => {
+  const id = 'é'.repeat(200);   // 200 个字符、400 字节
+  const services = [{ id, name: 'E' }];
+  K.capServiceIds({ services, pages: [] });
+  assert.ok(Buffer.byteLength(services[0].id) <= SLUG_MAX_BYTES, services[0].id);
+  assert.ok(/^e+$/.test(services[0].id), services[0].id);
+});
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

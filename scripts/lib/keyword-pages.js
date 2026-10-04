@@ -14,7 +14,7 @@
 'use strict';
 
 const { keywordGroups, matchGroupsToServices } = require('./target-keywords');
-const { keywordSlug, assignKeywordSlugs, withDedupSuffix } = require('./keyword-slug');
+const { keywordSlug, assignKeywordSlugs, withDedupSuffix, SLUG_MAX_BYTES } = require('./keyword-slug');
 
 // ── 多语言标签（建站时写进页面数据 / 导航，渲染期不再翻）──────────────────────────────────────────
 //    语言集合同 `src/lib/component-labels.ts`（14 种 + zh-tw）。缺的语言退英语。
@@ -66,6 +66,47 @@ function newServiceId(name, taken, n) {
   for (let k = 2; taken.has(id); k += 1) id = withDedupSuffix(stem, k);
   taken.add(id);
   return id;
+}
+
+/**
+ * #1565 —— AI（Call 1）写的服务 id 收进上限：它原样落成 `pages/services/<id>.json` 和 `services/<id>/`，跟关键词页 slug 同一个上限。
+ * 提示词只说 kebab-case，喂给它的服务名又不限长 ⟹ 超长 id 写盘抛 ENAMETOOLONG、整站建站失败。
+ * 没超的 id 一个字不动；超了的走 keywordSlug()（截在连字符处，转不了退服务名，再不行 `service-<序号>`），
+ * 跟别的服务 id 撞了走 withDedupSuffix()。服务名不动 —— 被截的只有网址。
+ * 🔴 页面里指着旧 id 的地方一起改（详情页 slug / parentService / `/services/<id>` 链接 / under），否则详情页跟服务对不上。
+ * 就地改 services / pages / navigation，回改了的那几个 `{ from, to }`。
+ */
+function capServiceIds({ services, pages, navigation } = {}) {
+  const svcs = (Array.isArray(services) ? services : []).filter((s) => isObj(s) && typeof s.id === 'string');
+  const tooLong = (id) => Buffer.byteLength(id) > SLUG_MAX_BYTES;
+  const taken = new Set(svcs.filter((s) => !tooLong(s.id)).map((s) => s.id));
+  const renames = [];
+  svcs.forEach((s, i) => {
+    if (!tooLong(s.id)) return;
+    const stem = keywordSlug(s.id) || keywordSlug(s.name) || `service-${i + 1}`;
+    let id = stem;
+    for (let k = 2; taken.has(id); k += 1) id = withDedupSuffix(stem, k);
+    taken.add(id);
+    renames.push({ from: s.id, to: id });
+    s.id = id;
+  });
+  if (!renames.length) return renames;
+  const to = new Map(renames.map((r) => [r.from, r.to]));
+  // 整串等于旧 id（parentService），或 `[/]services/<旧 id>` 后面跟着结尾 / `/` / `?` / `#`（slug、under、链接）。
+  const remap = (v) => {
+    if (to.has(v)) return to.get(v);
+    const m = v.match(/^(\/?services\/)([^/?#]+)(.*)$/);
+    return m && to.has(m[2]) ? `${m[1]}${to.get(m[2])}${m[3]}` : v;
+  };
+  const walk = (v) => {
+    if (typeof v === 'string') return remap(v);
+    if (Array.isArray(v)) { for (let i = 0; i < v.length; i += 1) v[i] = walk(v[i]); return v; }
+    if (isObj(v)) { for (const k of Object.keys(v)) v[k] = walk(v[k]); return v; }
+    return v;
+  };
+  if (Array.isArray(pages)) walk(pages);
+  if (isObj(navigation)) walk(navigation);
+  return renames;
 }
 
 /**
@@ -405,6 +446,7 @@ function keywordFooterColumns(kwPages, services, locale) {
 
 module.exports = {
   FOOTER_MAX,
+  capServiceIds,
   labelsFor,
   keywordPageCandidates,
   planKeywordPages,

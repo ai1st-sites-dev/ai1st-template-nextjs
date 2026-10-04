@@ -23,6 +23,7 @@ const os = require('os');
 const path = require('path');
 
 const NEXT = path.resolve(__dirname, '..');
+const { SLUG_MAX_BYTES: SLUG_MAX_BYTES_E2E } = require('./lib/keyword-slug');
 const TEMP = [];
 process.on('exit', () => {
   if (process.env.KW_E2E_KEEP === '1') { if (TEMP.length) console.log(`📌 KW_E2E_KEEP=1 ⟹ 留着 ${TEMP[0]} 等 ${TEMP.length} 个`); return; }
@@ -626,6 +627,59 @@ check('AC1 ②：Lead 主词那条 —— 组对不上服务 ⟹ 补出来的服
   assert.ok(LL.pageFiles.includes(`services/${id}/plumbing-markham`));
   assert.ok(nameBytesOk(LL.pageFiles));
   assert.strictEqual(LL.report.addedServices[0].name, ZHUANG36, '服务名还是用户打的全文');
+});
+
+// ── #1565：AI 写的服务 id 太长 ⟹ 收进上限，不许整站失败 ───────────────────────────────────────────────
+// 向导的服务名框（改前）只限条数不限长度；AI 按提示词把服务名转成 kebab-case 的 id，代码据此落 `pages/services/<id>.json`。
+// 桩回一个 300 字节的 id（真 AI 读数拿不到：#1499 不许 agent 调真 AI），Call 1 自己给一个详情页、正文里链回它，
+// 外加一个关键词页 ⟹ `services/<id>.json` 和 `services/<id>/` 两样都要写。
+console.log('── #1565：AI 写的服务 id 300 字节');
+const LONG_NAME = `${'Drain Cleaning '.repeat(20)}`.trim();                       // 299 个字符的服务名
+const LONG_ID = `${LONG_NAME.toLowerCase().replace(/ /g, '-')}s`;                   // AI 照全文转的 kebab-case（+1 字节凑整），300 字节
+const LONG_SVC = { id: LONG_ID, name: LONG_NAME };
+const longDetail = {
+  slug: `services/${LONG_ID}`, title: 'Drain cleaning', description: 'Drain cleaning in Toronto by Bright Pipes. Fast local help and a clear written price before we start.',
+  navLabel: 'Drain cleaning', navOrder: 10, changeFrequency: 'monthly', priority: 0.8, serviceDetailPage: true, parentService: LONG_ID,
+  sections: [
+    { type: 'page-header', data: { headline: 'Drain cleaning' } },
+    { type: 'content', data: { headline: 'Drain cleaning: what we do', body: 'Drain cleaning across Toronto.' } },
+    { type: 'cta', data: { headline: 'Drain cleaning: book now', body: 'Call today.', ctas: [{ label: 'This service', href: `/services/${LONG_ID}` }] } },
+  ],
+};
+const LS = run('longsvc', {
+  companyName: 'Bright Pipes', services: [LONG_NAME],
+  keywords: { [LONG_NAME]: [primary('drain cleaning'), kw('drain cleaning markham')] },
+}, { call1: call1([LONG_SVC], [longDetail]) }, { soft: true });
+check('AC2：AI 回 300 字节的服务 id —— 建站 rc=0，详情页和关键词页都写出来，全部页面文件名都写得下', () => {
+  assert.strictEqual(Buffer.byteLength(LONG_ID), 300, '阳性对照：喂进去的 id 真是 300 字节');
+  assert.ok(!LS.failed, LS.failed);
+  const svc = LS.readJson('en/services.json')[0];
+  assert.ok(Buffer.byteLength(svc.id) <= SLUG_MAX_BYTES_E2E, `${Buffer.byteLength(svc.id)}`);
+  assert.ok(LS.pageFiles.includes(`services/${svc.id}`), LS.pageFiles.join(' '));
+  assert.ok(LS.pageFiles.includes(`services/${svc.id}/drain-cleaning-markham`), LS.pageFiles.join(' '));
+  assert.ok(nameBytesOk(LS.pageFiles));
+});
+check('AC2：被截的只有网址 —— 服务名还是全文；AI 给的详情页挂到新 id 上，parentService 和正文链接跟着改', () => {
+  assert.ok(!LS.failed, LS.failed);
+  const svc = LS.readJson('en/services.json')[0];
+  assert.strictEqual(svc.name, LONG_NAME);
+  const d = LS.page(`services/${svc.id}`);
+  assert.strictEqual(d.parentService, svc.id);
+  assert.ok(JSON.stringify(d).includes(`"/services/${svc.id}"`), '正文里那条链接指着新 id');
+  assert.ok(!LS.pageFiles.some((f) => f.includes(LONG_ID)), '旧 id 不在任何页面路径里');
+});
+
+// 顶格：一整个没有连字符的词只能硬截 ⟹ id 正好落在上限上（AC3 拿这棵树真跑 next build：最长单段文件名 = id + `.segments` = 255）。
+const TOP_ID = 'd'.repeat(300);
+const LT = run('longtop', {
+  companyName: 'Bright Pipes', services: [LONG_NAME],
+  keywords: { [LONG_NAME]: [primary('drain cleaning'), kw('drain cleaning markham')] },
+}, { call1: JSON.parse(JSON.stringify(call1([LONG_SVC], [longDetail])).split(LONG_ID).join(TOP_ID)) }, { soft: true });
+check('AC2：300 字节、没有连字符的 id ⟹ 硬截到正好上限（顶格），建站 rc=0', () => {
+  assert.ok(!LT.failed, LT.failed);
+  const svc = LT.readJson('en/services.json')[0];
+  assert.strictEqual(svc.id, 'd'.repeat(SLUG_MAX_BYTES_E2E));
+  assert.ok(LT.pageFiles.includes(`services/${svc.id}`) && LT.pageFiles.includes(`services/${svc.id}/drain-cleaning-markham`), LT.pageFiles.join(' '));
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

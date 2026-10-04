@@ -2731,6 +2731,12 @@ ${ctaHrefRule ? `${ctaHrefRule}
     debug(`[blocks] 校验通过;按 roleDefault 补了 ${filled} 个 role`);
   }
 
+  // #1565 —— 服务 id 是 AI 写的，会原样变成文件名（pages/services/<id>.json）：收进跟关键词页 slug 同一个上限。
+  //    放在块库校验（含重试）之后：重试会整个换掉 ai。
+  for (const r of kwPages.capServiceIds({ services: ai.services, pages: ai.pages, navigation: ai.navigation })) {
+    debug(`[services] AI 写的服务 id 有 ${Buffer.byteLength(r.from)} 字节，超过文件名能放的上限，网址改用 ${r.to}（${Buffer.byteLength(r.to)} 字节）`);
+  }
+
   progress('Parsing AI response...', 42);
 
   progress('Assembling configuration...', 45);
