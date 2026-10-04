@@ -1,0 +1,9 @@
+{
+  "bg": {
+    "kind": "color",
+    "required": false,
+    "promptOptional": true,
+    "shape": "\"#rrggbb\" | \"brand\" | {stops: [\"#rrggbb\" (2–3 个)], angle?: number}",
+    "swatches": ["#ffffff", "#f1f5f9", "#e0f2fe", "brand", "#1e293b", "#0f172a"]
+  }
+}

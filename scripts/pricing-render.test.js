@@ -121,7 +121,8 @@ console.log('── AC1 六个预设');
   check(JSON.stringify(M.parts) === JSON.stringify(['highlights', 'proof', 'logos', 'billing']), `parts == [highlights, proof, logos, billing]（${M.parts}）`);
   const colorSlots = Object.keys(M.slots).filter((s) => M.slots[s].kind === 'color');
   check(colorSlots.join() === 'bg,featuredColor', `两个颜色槽、声明顺序 bg → featuredColor（${colorSlots.join(' → ')}）`);
-  const footerBg = JSON.parse(fs.readFileSync(path.join(NEXT, 'blocks', 'footer', 'manifest.json'), 'utf-8')).slots.bg;
+  // #1534 —— 盘上的 slots.bg 现在是 { ref: 'bg' }，比的是读入口展开后的那一份（两边都经 loadManifests）。
+  const footerBg = manifestLib.loadManifests().get('footer').slots.bg;
   check(JSON.stringify(M.slots.bg) === JSON.stringify(footerBg), 'slots.bg 整个对象与 footer 的 slots.bg 逐字相同');
   // 正文的六格 = 四个纯色 + 两道渐变。`swatches` 只装纯色（Go 那侧按 []string 读、BgPicker 按字符串画），两道渐变是
   // 共用色板那一排预设渐变（contrast.js §GRADIENT_SWATCHES）里的前两档 —— 色板上六格一格不少。

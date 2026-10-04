@@ -544,6 +544,7 @@ const MANIFEST_DIR = 'blocks';
 
 // eslint-disable-next-line global-require
 const { parseFrontmatter } = require('./block-build/frontmatter.js');
+const { expandSharedSlots } = require('./lib/shared-slots');
 
 /** 一个块文件夹下的形态清单，按 shape.md 的 `order` 排（没写的落到名字序、排在后面）。 */
 function shapesFromDirs(blockDir) {
@@ -581,6 +582,7 @@ function loadBlockManifests(rootDir) {
     } catch (err) {
       throw new Error(`${p} 不是合法 JSON：${err.message}`);
     }
+    expandSharedSlots(m, p);  // #1534 —— 共用槽（`bg` 是 `{ ref }`）展开成完整定义
     const type = typeof m.type === 'string' && m.type ? m.type : e.name;
     out[type] = { ...m, shapes: shapesFromDirs(path.join(dir, e.name)) };
   }

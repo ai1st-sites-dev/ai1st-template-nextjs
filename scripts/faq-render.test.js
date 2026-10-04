@@ -233,8 +233,8 @@ console.log('\n── AC8 bg');
   // 「不管什么底都判 dark」的实现会在这里红（上一版的 `toneFor(` 计数在接对 / 没接两种实现上都读 0，测不到东西）。
   check(attr(at({ stops: ['#0f172a', '#334155'] }), 'data-tone') === 'dark', "深色渐变 {stops:['#0f172a','#334155']} ⟹ data-tone=\"dark\"");
   check(attr(at({ stops: ['#ffffff', '#f1f5f9'] }), 'data-tone') === 'light', "反向对照：浅色渐变 {stops:['#ffffff','#f1f5f9']} ⟹ data-tone=\"light\"（不是永远 dark）");
-  check(/toneForBg\(d\.bg\)/.test(SRC_TEXT) && /bgCss\(d\.bg\)/.test(SRC_TEXT) && count(SRC_TEXT, 'linear-gradient') === 0,
-    `Section.tsx 调 contrast.js 的 toneForBg(d.bg) / bgCss(d.bg)，自己不拼 linear-gradient（${count(SRC_TEXT, 'linear-gradient')} 处）`);
+  check(count(SRC_TEXT, 'toneFor(') === 0 && count(SRC_TEXT, 'linear-gradient') === 0 && /<BlockSection[\s\S]*?\bbg=\{d\.bg\}/.test(SRC_TEXT),
+    `Section.tsx 把 bg 交给 <BlockSection>（深浅 / 底色由它调 contrast.js 的 toneForBg / bgCss，#1534）；自己 toneFor( ${count(SRC_TEXT, 'toneFor(')} 处、linear-gradient ${count(SRC_TEXT, 'linear-gradient')} 处`);
   const { ON_DEEP_MUTED } = require(path.join(NEXT, 'scripts', 'lib', 'site-css.js'));
   check(/\[data-tone="dark"\] \.text-muted,/.test(ON_DEEP_MUTED) && !/\.text-muted\s*\{[^}]*rgba\(255, 255, 255/.test(CSS),
     'dark / brand 时答案白 .92：全站那条（site-css.js §ON_DEEP_MUTED），block.css 里没有自己那份');

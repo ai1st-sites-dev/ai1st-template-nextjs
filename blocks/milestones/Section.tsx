@@ -22,16 +22,16 @@
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg，footer / cta 同一对），
 //    纯色、brand、渐变都认；这里不自己算亮度、不自己拼渐变。`blockImage=background` 且真有图时字色按深底
 //    （图上盖 60% 深色遮罩，遮罩写在 `block.css`）。
-
-import { blockAttrs } from '@/lib/sections/blockAttrs';
 import { slotImg } from '@/lib/sections/blockMedia';
+
+import BlockSection from '@/components/BlockSection';
 import type { BlockConfig } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
 import Button from '@/components/Button';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
-import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import { type BgValue } from '../../scripts/lib/contrast.js';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
 
@@ -82,8 +82,6 @@ export default function MilestonesSection({ data, block, iconTable = {} }: Props
   const { statIcon = false } = opts;
   const blockImg = k.blockImage !== 'none' ? imgOf(d.blockImage) : null;
   const cover = !!blockImg && k.blockImage === 'background';
-  const tone = cover ? 'dark' : toneForBg(d.bg);
-  const bgValue = bgCss(d.bg);
 
   const icon = (name: string | undefined, className?: string) => <InlineIcon name={name} icons={iconTable} className={className} />;
   const hasIcon = (name: unknown) => typeof name === 'string' && !!iconTable[name];
@@ -120,68 +118,68 @@ export default function MilestonesSection({ data, block, iconTable = {} }: Props
   );
 
   return (
-    <section
-      {...blockAttrs('milestones', block)}
-      data-block-image={k.blockImage}
-      data-intro-position={k.introPosition}
-      data-intro-align={k.introAlign}
-      data-intro-image={k.introImage}
-      data-stats-columns={k.statsColumns}
-      data-stat-size={k.statSize}
-      data-stat-style={k.statStyle}
-      data-stat-align={k.statAlign}
-      data-tone={tone}
-      data-bs-theme={bsThemeForBg(d.bg, cover)}
-      className="position-relative py-16 py-lg-24"
-      style={bgValue ? { background: bgValue } : undefined}
-    >
-      {cover ? (
+    <BlockSection
+      type="milestones"
+      block={block}
+      attrs={{
+        'data-block-image': k.blockImage,
+        'data-intro-position': k.introPosition,
+        'data-intro-align': k.introAlign,
+        'data-intro-image': k.introImage,
+        'data-stats-columns': k.statsColumns,
+        'data-stat-size': k.statSize,
+        'data-stat-style': k.statStyle,
+        'data-stat-align': k.statAlign,
+      }}
+      bg={d.bg}
+      cover={cover}
+      containerClassName="container mi-container"
+      layer={cover ? (
         <div className="mi-cover" data-part="block-image">
           {slotImg(blockImg, { before: { className: 'w-100 h-100 object-fit-cover' } })}
         </div>
       ) : null}
-      <div className="container mi-container">
-        <div className="mi-outer">
-          {blockImg && !cover ? (
-            <div className="mi-bimg" data-part="block-image">
-              {slotImg(blockImg, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' } })}
-            </div>
-          ) : null}
-          <div className="mi-main">
-            <div className="row mi-frame gy-10 gx-lg-16">
-              {hasIntro ? (
-                <div className="col-12 mi-introcol" data-part="intro">
-                  <div className="mi-intro">
-                    {introImg ? (
-                      <div className="mi-intro-img" data-part="intro-image">
-                        {slotImg(introImg, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' } })}
-                      </div>
-                    ) : null}
-                    {introText}
-                  </div>
-                </div>
-              ) : null}
-              <div className="col-12 mi-statscol" data-part="stats">
-                <div className="mi-grid">
-                  {stats.map((s, i) => (
-                    <div key={i} className="mi-stat" data-part="stat">
-                      <div className="mi-inner h-100">
-                        {statIcon && hasIcon(s.icon) ? (
-                          <div className="mi-icon d-inline-flex align-items-center justify-content-center rounded-3 bg-primary-subtle text-primary mb-4" data-part="icon">
-                            {icon(s.icon)}
-                          </div>
-                        ) : null}
-                        <div className="mi-value display-4 fw-bold lh-1 ls-tight" data-slot={`stats.${i}.value`}>{s.value}</div>
-                        {s.label ? <div className="mi-label fw-semibold mt-2" data-slot={`stats.${i}.label`}>{s.label}</div> : null}
-                      </div>
+    >
+      <div className="mi-outer">
+        {blockImg && !cover ? (
+          <div className="mi-bimg" data-part="block-image">
+            {slotImg(blockImg, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' } })}
+          </div>
+        ) : null}
+        <div className="mi-main">
+          <div className="row mi-frame gy-10 gx-lg-16">
+            {hasIntro ? (
+              <div className="col-12 mi-introcol" data-part="intro">
+                <div className="mi-intro">
+                  {introImg ? (
+                    <div className="mi-intro-img" data-part="intro-image">
+                      {slotImg(introImg, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' } })}
                     </div>
-                  ))}
+                  ) : null}
+                  {introText}
                 </div>
+              </div>
+            ) : null}
+            <div className="col-12 mi-statscol" data-part="stats">
+              <div className="mi-grid">
+                {stats.map((s, i) => (
+                  <div key={i} className="mi-stat" data-part="stat">
+                    <div className="mi-inner h-100">
+                      {statIcon && hasIcon(s.icon) ? (
+                        <div className="mi-icon d-inline-flex align-items-center justify-content-center rounded-3 bg-primary-subtle text-primary mb-4" data-part="icon">
+                          {icon(s.icon)}
+                        </div>
+                      ) : null}
+                      <div className="mi-value display-4 fw-bold lh-1 ls-tight" data-slot={`stats.${i}.value`}>{s.value}</div>
+                      {s.label ? <div className="mi-label fw-semibold mt-2" data-slot={`stats.${i}.label`}>{s.label}</div> : null}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
         </div>
       </div>
-    </section>
+    </BlockSection>
   );
 }

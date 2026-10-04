@@ -224,7 +224,8 @@ console.log('\n── AC9 bg');
   const style = (/style="([^"]*)"/.exec(sectionTag(render('simple', { ...clone(DEMO), bg: { stops: ['#0f172a', '#334155'] } }))) || [])[1] || '';
   check(/linear-gradient/.test(style), `渐变写成 section 的 background（${style.slice(0, 60)}…）`);
   const srcTxt = fs.readFileSync(SECTION, 'utf-8');
-  check(/toneForBg\(/.test(srcTxt) && !/\btoneFor\(/.test(srcTxt), 'Section.tsx 走 toneForBg、不自己算亮度');
+  check(!/\btoneFor\(/.test(srcTxt) && !/linear-gradient/.test(srcTxt) && /<BlockSection[\s\S]*?\bbg=\{d\.bg\}/.test(srcTxt),
+    'Section.tsx 把 bg 交给 <BlockSection>（深浅 / 底色由它调 contrast.js 的 toneForBg / bgCss，#1534），自己不算亮度、不拼渐变');
 }
 
 // ══ image：藏东西是不渲染 ══════════════════════════════════════════════════════════════════════════

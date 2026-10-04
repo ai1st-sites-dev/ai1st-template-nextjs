@@ -24,7 +24,8 @@ const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 let h; let m;
 try {
   h = require('./header-knobs.js');
-  m = require(path.join(__dirname, '..', '..', 'blocks', 'header', 'manifest.json'));
+  // #1534 —— 盘上的 slots.bg 是 { ref: 'bg' }，走读入口展开（直接 require 原文件，toolbarGroups 里的 color:bg 就对不上控件）。
+  m = require('./shared-slots').readManifest(path.join(__dirname, '..', '..', 'blocks', 'header', 'manifest.json'));
 } catch (e) { die(e.message); }
 const knobs = h.knobsOf(m);
 const presets = h.presetsOf(m);

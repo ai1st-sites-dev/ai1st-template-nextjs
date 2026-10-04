@@ -25,9 +25,9 @@
 // 🔴 **表单用共用的 `src/components/BlockLeadForm.tsx`**（hero / footer 同一份），不另造：
 //    `mode` = 旋钮 form（teaser 露站级表单的 primary + 按钮，full 整张），`formId` = 槽 form.id（#1471）。
 //    `form` 槽今天只有 `{ id? }`（选哪张站级表单，#1471 落地前不读），字段 / 按钮字 / 成功提示用组件内置默认。
-
-import { blockAttrs } from '@/lib/sections/blockAttrs';
 import { slotImg } from '@/lib/sections/blockMedia';
+
+import BlockSection from '@/components/BlockSection';
 import type { BlockConfig } from '@/lib/types/config';
 import Icon from '@/components/Icon';
 import BlockLeadForm from '@/components/BlockLeadForm';
@@ -36,7 +36,7 @@ import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow
 import Button from '@/components/Button';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
-import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import { bgCss, type BgValue } from '../../scripts/lib/contrast.js';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
 
@@ -79,7 +79,6 @@ export default function CtaNewSection({ data, locale = 'en', block }: Props) {
   const img: CtaNewImage | null = isObj(d.image) && typeof d.image.imageUrl === 'string' && d.image.imageUrl ? d.image : null;
   const cover = k.image === 'background' && !!img;
   const side = (k.image === 'left' || k.image === 'right') && !!img;
-  const tone = cover ? 'dark' : toneForBg(d.bg);
   const bgValue = bgCss(d.bg);
   const bgStyle = bgValue ? { background: bgValue } : undefined;
 
@@ -125,49 +124,50 @@ export default function CtaNewSection({ data, locale = 'en', block }: Props) {
   ) : null;
 
   return (
-    <section
-      {...blockAttrs('cta', block)}
-      data-layout={k.layout}
-      data-frame={k.frame}
-      data-text-align={k.textAlign}
-      data-image={k.image}
-      data-form={k.form}
-      data-tone={tone}
-      data-bs-theme={bsThemeForBg(d.bg, cover)}
-      className="position-relative py-16 py-lg-24"
-      style={boxed ? undefined : bgStyle}
+    <BlockSection
+      type="cta"
+      block={block}
+      attrs={{
+        'data-layout': k.layout,
+        'data-frame': k.frame,
+        'data-text-align': k.textAlign,
+        'data-image': k.image,
+        'data-form': k.form,
+      }}
+      bg={d.bg}
+      cover={cover}
+      containerClassName="container position-relative"
+      paint={!boxed}
+      layer={boxed ? null : coverLayer}
     >
-      {boxed ? null : coverLayer}
-      <div className="container position-relative">
-        <div
-          className={boxed ? 'cta-frame position-relative overflow-hidden rounded-4 p-12 py-lg-16 px-lg-20' : 'cta-frame position-relative'}
-          data-part="frame"
-          style={boxed ? bgStyle : undefined}
-        >
-          {boxed ? coverLayer : null}
-          <div className="cta-row position-relative">
-            {side && img ? (
-              <div className="cta-img" data-part="image">
-                {slotImg(img, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' } })}
+      <div
+        className={boxed ? 'cta-frame position-relative overflow-hidden rounded-4 p-12 py-lg-16 px-lg-20' : 'cta-frame position-relative'}
+        data-part="frame"
+        style={boxed ? bgStyle : undefined}
+      >
+        {boxed ? coverLayer : null}
+        <div className="cta-row position-relative">
+          {side && img ? (
+            <div className="cta-img" data-part="image">
+              {slotImg(img, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' } })}
+            </div>
+          ) : null}
+          <div className="cta-main">
+            <div className="cta-inline">
+              <div className="cta-text" data-part="text">
+                {eyebrow && eyebrowStyle !== 'none' ? (
+                  <div className="mb-4" data-part="eyebrow">
+                    <Eyebrow style={eyebrowStyle} text={eyebrow.text} slot="eyebrow.text" />
+                  </div>
+                ) : null}
+                <h2 className="display-5 fw-bold lh-1 ls-tight mb-4 cta-title" data-slot="headline">{d.headline}</h2>
+                {d.body ? <p className="fs-5 text-muted cta-body" data-slot="body">{d.body}</p> : null}
               </div>
-            ) : null}
-            <div className="cta-main">
-              <div className="cta-inline">
-                <div className="cta-text" data-part="text">
-                  {eyebrow && eyebrowStyle !== 'none' ? (
-                    <div className="mb-4" data-part="eyebrow">
-                      <Eyebrow style={eyebrowStyle} text={eyebrow.text} slot="eyebrow.text" />
-                    </div>
-                  ) : null}
-                  <h2 className="display-5 fw-bold lh-1 ls-tight mb-4 cta-title" data-slot="headline">{d.headline}</h2>
-                  {d.body ? <p className="fs-5 text-muted cta-body" data-slot="body">{d.body}</p> : null}
-                </div>
-                {action}
-              </div>
+              {action}
             </div>
           </div>
         </div>
       </div>
-    </section>
+    </BlockSection>
   );
 }

@@ -219,7 +219,8 @@ console.log('\n── AC10 bg（计算色在 e2e 里量）');
   check(attr(at({ stops: ['#0f172a', '#334155'] }), 'data-tone') === 'dark', '深色渐变 [#0f172a, #334155] ⟹ dark');
   check(attr(at({ stops: ['#ffffff', '#f1f5f9'] }), 'data-tone') === 'light', '对照：浅色渐变 [#ffffff, #f1f5f9] ⟹ light');
   check(attr(at('brand'), 'data-tone') === 'brand' && attr(at(undefined), 'data-tone') === 'light' && !/\sstyle=/.test(sectionTag(at(undefined))), 'brand ⟹ brand；没写 bg ⟹ light、没有 style');
-  check(count(SRC_TEXT, 'toneForBg(') === 1 && count(SRC_TEXT, 'linear-gradient') === 0, 'Section.tsx 调 contrast.js 的 toneForBg、不自己拼渐变');
+  check(count(SRC_TEXT, 'toneFor(') === 0 && count(SRC_TEXT, 'linear-gradient') === 0 && /<BlockSection[\s\S]*?\bbg=\{d\.bg\}/.test(SRC_TEXT),
+    `Section.tsx 把 bg 交给 <BlockSection>（深浅 / 底色由它调 contrast.js 的 toneForBg / bgCss，#1534）；自己 toneFor( ${count(SRC_TEXT, 'toneFor(')} 处、linear-gradient ${count(SRC_TEXT, 'linear-gradient')} 处`);
   check(/\[data-tone="dark"\] \.rv-icon,[\s\S]*?\{\s*color: #fff !important;/.test(CSS) && /\[data-tone="dark"\]\[data-item-style="card"\] \.rv-item,[\s\S]*?\{\s*background: rgba\(255, 255, 255, 0\.08\);/.test(CSS),
     'block.css：深底品牌图标 / 分数反白；card 底 rgba(255,255,255,.08)');
   check(!/\.text-muted\s*\{[^}]*rgba\(255, 255, 255/.test(CSS), '条数白 .92 走全站那条（site-css.js §ON_DEEP_MUTED），block.css 里没有自己那份');

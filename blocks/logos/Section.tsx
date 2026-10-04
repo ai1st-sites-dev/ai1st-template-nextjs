@@ -18,14 +18,14 @@
 //    这里不自己算亮度、不自己拼渐变。深底 + mono 的 logo 反白写在 `block.css`（按 `data-tone`）。
 
 import Link from 'next/link';
-import { blockAttrs } from '@/lib/sections/blockAttrs';
 import { slotImg } from '@/lib/sections/blockMedia';
+import BlockSection from '@/components/BlockSection';
 import SiteLink from '@/components/SiteLink';
 import type { BlockConfig } from '@/lib/types/config';
 import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
-import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import { type BgValue } from '../../scripts/lib/contrast.js';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
 
@@ -72,8 +72,6 @@ export default function LogosNewSection({ data, block }: Props) {
   const shape = block && typeof block.shape === 'string' ? block.shape : undefined;
   const opts: LogosNewOptions = isObj(d.options) ? d.options : {};
   const k = effectiveKnobs(manifest, shape, opts) as Required<{ [K in keyof LogosNewOptions]: string }>;
-  const tone = toneForBg(d.bg);
-  const bgValue = bgCss(d.bg);
 
   const eyebrow = isObj(d.introEyebrow) && str(d.introEyebrow.text) ? d.introEyebrow : null;
   // 没写 style ⟹ pill（同 hero / cta / features / milestones：AI 只写了字，眉标照样出来）；明写 none ⟹ 不画。
@@ -86,60 +84,59 @@ export default function LogosNewSection({ data, block }: Props) {
     .slice(0, MAX_ITEMS);
 
   return (
-    <section
-      {...blockAttrs('logos', block)}
-      data-intro-position={k.introPosition}
-      data-intro-align={k.introAlign}
-      data-intro-size={k.introSize}
-      data-items-layout={k.itemsLayout}
-      data-items-columns={k.itemsColumns}
-      data-item-style={k.itemStyle}
-      data-logo-color={k.logoColor}
-      data-tone={tone}
-      data-bs-theme={bsThemeForBg(d.bg)}
+    <BlockSection
+      type="logos"
+      block={block}
+      attrs={{
+        'data-intro-position': k.introPosition,
+        'data-intro-align': k.introAlign,
+        'data-intro-size': k.introSize,
+        'data-items-layout': k.itemsLayout,
+        'data-items-columns': k.itemsColumns,
+        'data-item-style': k.itemStyle,
+        'data-logo-color': k.logoColor,
+      }}
+      bg={d.bg}
       className="position-relative py-12 py-lg-16"
-      style={bgValue ? { background: bgValue } : undefined}
     >
-      <div className="container">
-        <div className="row lo-frame gy-8 gx-lg-16 align-items-center">
-          {hasIntro ? (
-            <div className="col-12 lo-introcol" data-part="intro">
-              <div className="lo-intro-text" data-part="intro-text">
-                {eyebrow && eyebrowStyle !== 'none' ? (
-                  <div className="lo-eyebrow-wrap mb-4" data-part="eyebrow">
-                    <Eyebrow style={eyebrowStyle} text={eyebrow.text} slot="introEyebrow.text" />
-                  </div>
-                ) : null}
-                {d.headline ? <h2 className="display-5 fw-bold lh-1 ls-tight mb-4 lo-title" data-slot="headline">{d.headline}</h2> : null}
-                {d.body ? <p className="fs-5 text-muted mb-0 lo-body" data-slot="body">{d.body}</p> : null}
-                {cta ? (
-                  <div className="lo-cta" data-part="cta">
-                    <Link href={cta.href || '#'} className={ctaClass(ctaStyle)} data-cta={ctaStyle}>
-                      <span data-slot="introCta.label">{cta.label}</span>
-                    </Link>
-                  </div>
-                ) : null}
-              </div>
+      <div className="row lo-frame gy-8 gx-lg-16 align-items-center">
+        {hasIntro ? (
+          <div className="col-12 lo-introcol" data-part="intro">
+            <div className="lo-intro-text" data-part="intro-text">
+              {eyebrow && eyebrowStyle !== 'none' ? (
+                <div className="lo-eyebrow-wrap mb-4" data-part="eyebrow">
+                  <Eyebrow style={eyebrowStyle} text={eyebrow.text} slot="introEyebrow.text" />
+                </div>
+              ) : null}
+              {d.headline ? <h2 className="display-5 fw-bold lh-1 ls-tight mb-4 lo-title" data-slot="headline">{d.headline}</h2> : null}
+              {d.body ? <p className="fs-5 text-muted mb-0 lo-body" data-slot="body">{d.body}</p> : null}
+              {cta ? (
+                <div className="lo-cta" data-part="cta">
+                  <Link href={cta.href || '#'} className={ctaClass(ctaStyle)} data-cta={ctaStyle}>
+                    <span data-slot="introCta.label">{cta.label}</span>
+                  </Link>
+                </div>
+              ) : null}
             </div>
-          ) : null}
-          <div className="col-12 lo-itemscol" data-part="items">
-            <div className="lo-grid">
-              {items.map((it, i) => {
-                const img = slotImg(it, { before: { className: 'lo-logo' }, after: { loading: 'lazy' } });
-                return (
-                  <div key={i} data-part="item">
-                    {str(it.href) ? (
-                      <SiteLink className="lo-inner d-flex align-items-center justify-content-center" href={it.href} target="_blank" rel="noopener">{img}</SiteLink>
-                    ) : (
-                      <div className="lo-inner d-flex align-items-center justify-content-center">{img}</div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+          </div>
+        ) : null}
+        <div className="col-12 lo-itemscol" data-part="items">
+          <div className="lo-grid">
+            {items.map((it, i) => {
+              const img = slotImg(it, { before: { className: 'lo-logo' }, after: { loading: 'lazy' } });
+              return (
+                <div key={i} data-part="item">
+                  {str(it.href) ? (
+                    <SiteLink className="lo-inner d-flex align-items-center justify-content-center" href={it.href} target="_blank" rel="noopener">{img}</SiteLink>
+                  ) : (
+                    <div className="lo-inner d-flex align-items-center justify-content-center">{img}</div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
-    </section>
+    </BlockSection>
   );
 }

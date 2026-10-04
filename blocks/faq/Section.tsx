@@ -22,14 +22,14 @@
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg），纯色、brand、渐变都认；
 //    这里不自己算亮度、不自己拼渐变。
 
-import { blockAttrs } from '@/lib/sections/blockAttrs';
+import BlockSection from '@/components/BlockSection';
 import type { BlockConfig } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
 import Button from '@/components/Button';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
-import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import { type BgValue } from '../../scripts/lib/contrast.js';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
 
@@ -70,8 +70,6 @@ export default function FaqNewSection({ data, block, iconTable = {} }: Props) {
   const shape = block && typeof block.shape === 'string' ? block.shape : undefined;
   const opts: FaqNewOptions = isObj(d.options) ? d.options : {};
   const k = effectiveKnobs(manifest, shape, opts) as Required<{ [K in keyof FaqNewOptions]: string }>;
-  const tone = toneForBg(d.bg);
-  const bgValue = bgCss(d.bg);
 
   const icon = (name: string | undefined, className?: string) => <InlineIcon name={name} icons={iconTable} className={className} />;
 
@@ -93,74 +91,72 @@ export default function FaqNewSection({ data, block, iconTable = {} }: Props) {
     : icon('chevron-down', 'fq-chev');
 
   return (
-    <section
-      {...blockAttrs('faq', block)}
-      data-intro-position={k.introPosition}
-      data-intro-align={k.introAlign}
-      data-items-mode={k.itemsMode}
-      data-items-columns={k.itemsColumns}
-      data-item-style={k.itemStyle}
-      data-item-toggle={k.itemToggle}
-      data-tone={tone}
-      data-bs-theme={bsThemeForBg(d.bg)}
-      className="position-relative py-16 py-lg-24"
-      style={bgValue ? { background: bgValue } : undefined}
+    <BlockSection
+      type="faq"
+      block={block}
+      attrs={{
+        'data-intro-position': k.introPosition,
+        'data-intro-align': k.introAlign,
+        'data-items-mode': k.itemsMode,
+        'data-items-columns': k.itemsColumns,
+        'data-item-style': k.itemStyle,
+        'data-item-toggle': k.itemToggle,
+      }}
+      bg={d.bg}
     >
-      <div className="container">
-        <div className="row fq-frame gy-10 gx-lg-16">
-          {hasIntro ? (
-            <div className="col-12 fq-introcol" data-part="intro">
-              <div className="fq-intro-text" data-part="intro-text">
-                {eyebrow && eyebrowStyle !== 'none' ? (
-                  <div className="mb-4" data-part="eyebrow">
-                    <Eyebrow style={eyebrowStyle} text={eyebrow.text} slot="introEyebrow.text" />
-                  </div>
-                ) : null}
-                {d.headline ? <h2 className="display-5 fw-bold lh-1 ls-tight mb-4 fq-title" data-slot="headline">{d.headline}</h2> : null}
-                {d.body ? <p className="fs-5 text-muted mb-0 fq-body" data-slot="body">{d.body}</p> : null}
-                {hasHelp ? (
-                  <div className="fq-help rounded-4 p-6" data-part="help">
-                    {help.headline ? <div className="fw-semibold fs-5 mb-1 fq-help-title" data-slot="help.headline">{help.headline}</div> : null}
-                    {help.body ? <p className="text-muted text-sm mb-0" data-slot="help.body">{help.body}</p> : null}
-                    {helpCta ? (
-                      <div className="fq-help-cta" data-part="help-cta">
-                        {/* help 卡的按钮没写 size ⟹ sm（图册那张卡就是 btn-sm）。 */}
-                        <Button href={helpCta.href || '#'} style={helpCta.style} fallback="solid" size={helpCta.size} defaultSize="sm" flush>
-                          {helpCta.icon ? icon(helpCta.icon, 'me-2') : null}
-                          <span data-slot="help.cta.label">{helpCta.label}</span>
-                          {helpCta.arrow ? <span className="ms-2 d-inline-flex">{icon('arrow-right')}</span> : null}
-                        </Button>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
-          <div className="col-12 fq-itemscol" data-part="items">
-            <div className="fq-grid">
-              {items.map((it, i) => (
-                <div key={i} className="fq-item" data-part="item">
-                  {accordion ? (
-                    <details className="fq-inner">
-                      <summary className="fq-q d-flex align-items-center justify-content-between gap-4 fw-semibold">
-                        <span data-slot={`items.${i}.question`}>{it.question}</span>
-                        <span className="fq-toggle d-inline-flex flex-shrink-0" data-part="toggle" aria-hidden="true">{toggle}</span>
-                      </summary>
-                      {it.answer ? <div className="fq-a text-muted" data-slot={`items.${i}.answer`}>{it.answer}</div> : null}
-                    </details>
-                  ) : (
-                    <div className="fq-open">
-                      <h3 className="fq-q fw-semibold mb-2" data-slot={`items.${i}.question`}>{it.question}</h3>
-                      {it.answer ? <p className="fq-a text-muted mb-0" data-slot={`items.${i}.answer`}>{it.answer}</p> : null}
-                    </div>
-                  )}
+      <div className="row fq-frame gy-10 gx-lg-16">
+        {hasIntro ? (
+          <div className="col-12 fq-introcol" data-part="intro">
+            <div className="fq-intro-text" data-part="intro-text">
+              {eyebrow && eyebrowStyle !== 'none' ? (
+                <div className="mb-4" data-part="eyebrow">
+                  <Eyebrow style={eyebrowStyle} text={eyebrow.text} slot="introEyebrow.text" />
                 </div>
-              ))}
+              ) : null}
+              {d.headline ? <h2 className="display-5 fw-bold lh-1 ls-tight mb-4 fq-title" data-slot="headline">{d.headline}</h2> : null}
+              {d.body ? <p className="fs-5 text-muted mb-0 fq-body" data-slot="body">{d.body}</p> : null}
+              {hasHelp ? (
+                <div className="fq-help rounded-4 p-6" data-part="help">
+                  {help.headline ? <div className="fw-semibold fs-5 mb-1 fq-help-title" data-slot="help.headline">{help.headline}</div> : null}
+                  {help.body ? <p className="text-muted text-sm mb-0" data-slot="help.body">{help.body}</p> : null}
+                  {helpCta ? (
+                    <div className="fq-help-cta" data-part="help-cta">
+                      {/* help 卡的按钮没写 size ⟹ sm（图册那张卡就是 btn-sm）。 */}
+                      <Button href={helpCta.href || '#'} style={helpCta.style} fallback="solid" size={helpCta.size} defaultSize="sm" flush>
+                        {helpCta.icon ? icon(helpCta.icon, 'me-2') : null}
+                        <span data-slot="help.cta.label">{helpCta.label}</span>
+                        {helpCta.arrow ? <span className="ms-2 d-inline-flex">{icon('arrow-right')}</span> : null}
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
+          </div>
+        ) : null}
+        <div className="col-12 fq-itemscol" data-part="items">
+          <div className="fq-grid">
+            {items.map((it, i) => (
+              <div key={i} className="fq-item" data-part="item">
+                {accordion ? (
+                  <details className="fq-inner">
+                    <summary className="fq-q d-flex align-items-center justify-content-between gap-4 fw-semibold">
+                      <span data-slot={`items.${i}.question`}>{it.question}</span>
+                      <span className="fq-toggle d-inline-flex flex-shrink-0" data-part="toggle" aria-hidden="true">{toggle}</span>
+                    </summary>
+                    {it.answer ? <div className="fq-a text-muted" data-slot={`items.${i}.answer`}>{it.answer}</div> : null}
+                  </details>
+                ) : (
+                  <div className="fq-open">
+                    <h3 className="fq-q fw-semibold mb-2" data-slot={`items.${i}.question`}>{it.question}</h3>
+                    {it.answer ? <p className="fq-a text-muted mb-0" data-slot={`items.${i}.answer`}>{it.answer}</p> : null}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       </div>
-    </section>
+    </BlockSection>
   );
 }

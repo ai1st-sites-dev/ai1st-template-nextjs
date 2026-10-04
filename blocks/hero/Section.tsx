@@ -28,9 +28,9 @@
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss 写成 CSS、§toneForBg 按亮度反白；#1477，
 //    跟 footer / header / cta 同一份）。`bg` 可以是纯色、`brand` 或渐变 `{stops, angle}`。
 //    图铺底（`image=background` 且有图）一律按深底处理 —— 图上面压着深色渐变遮罩。
-
-import { blockAttrs } from '@/lib/sections/blockAttrs';
 import { slotImg } from '@/lib/sections/blockMedia';
+
+import BlockSection from '@/components/BlockSection';
 import type { BlockConfig } from '@/lib/types/config';
 import { getServices } from '@/lib/config';
 import Icon from '@/components/Icon';
@@ -39,7 +39,7 @@ import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow
 import Button from '@/components/Button';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
-import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import type { BgValue } from '../../scripts/lib/contrast.js';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
 
@@ -116,12 +116,9 @@ export default function HeroNewSection({ data, locale = 'en', block }: Props) {
   const side = (k.image === 'left' || k.image === 'right' || k.image === 'top' || k.image === 'bottom') && !!img;
   // 上下叠：文字块、图各占一整行（文字块宽度、大图 21:9 由 block.css 按 data-image 排）。
   const stacked = k.image === 'top' || k.image === 'bottom';
-  const tone = cover ? 'dark' : toneForBg(d.bg);
   const center = k.textAlign === 'center';
   const right = k.textAlign === 'right';
 
-  const bgValue = bgCss(d.bg);
-  const bgStyle = bgValue ? { background: bgValue } : undefined;
 
   const eyebrow: HeroNewData['eyebrow'] | null = isObj(d.eyebrow) && typeof d.eyebrow.text === 'string' && d.eyebrow.text ? d.eyebrow : null;
   const eyebrowStyle: EyebrowStyle | 'none' = eyebrow ? (eyebrow.style === 'none' ? 'none' : isEyebrowStyle(eyebrow.style) ? eyebrow.style : 'pill') : 'none';
@@ -138,17 +135,19 @@ export default function HeroNewSection({ data, locale = 'en', block }: Props) {
   const just = center ? ' justify-content-center' : right ? ' justify-content-end' : '';
 
   return (
-    <section
-      {...blockAttrs('hero', block)}
-      data-text-align={k.textAlign}
-      data-image={k.image}
-      data-form={k.form}
-      data-tone={tone}
-      data-bs-theme={bsThemeForBg(d.bg, cover)}
+    <BlockSection
+      type="hero"
+      block={block}
+      attrs={{
+        'data-text-align': k.textAlign,
+        'data-image': k.image,
+        'data-form': k.form,
+      }}
+      bg={d.bg}
+      cover={cover}
       className={`position-relative py-16 py-lg-24${center ? ' text-center' : right ? ' text-end' : ''}`}
-      style={bgStyle}
-    >
-      {cover && img ? (
+      containerClassName="container position-relative"
+      layer={cover && img ? (
         <div
           className="position-absolute top-0 start-0 w-100 h-100" data-part="bg"
           style={{ background: `linear-gradient(to top,rgba(2,6,23,.85),rgba(2,6,23,.35)),url(${JSON.stringify(img.imageUrl)}) center/cover no-repeat` }}
@@ -156,91 +155,90 @@ export default function HeroNewSection({ data, locale = 'en', block }: Props) {
           aria-label={img.alt || ''}
         />
       ) : null}
-      <div className="container position-relative">
-        <div className={rowClass(k.image, k.textAlign, side)}>
-          <div className={textCol}>
-            <div data-part="text">
-              {eyebrow && eyebrowStyle !== 'none' ? (
-                <div className="mb-5" data-part="eyebrow">
-                  <Eyebrow style={eyebrowStyle} text={eyebrow.text} slot="eyebrow.text" />
-                </div>
-              ) : null}
-              <h1 className="display-3 fw-bold lh-1 ls-tight mb-5 hro-title" data-slot="headline">{d.headline}</h1>
-              {d.subheadline ? <p className="fs-5 text-muted mb-8 hro-sub" data-slot="subheadline">{d.subheadline}</p> : null}
-              {showForm ? (
-                <BlockLeadForm
-                  mode={k.form === 'teaser' ? 'teaser' : 'full'}
-                  formId={isObj(d.form) && typeof d.form.id === 'string' ? d.form.id : undefined}
-                  services={servicesFor(locale)}
-                  locale={locale}
-                  align={k.textAlign === 'center' ? 'center' : k.textAlign === 'right' ? 'right' : 'left'}
-                />
-              ) : ctas.length ? (
-                <div className={`d-flex flex-column flex-sm-row gap-2${just}`} data-part="ctas">
-                  {ctas.map((b, i) => (
-                    <Button key={i} href={b.href || '#'} style={b.style} fallback="solid" size={b.size} defaultSize="lg">
-                      {b.icon ? <Icon name={b.icon} className="me-2" /> : null}
-                      <span data-slot={`ctas.${i}.label`}>{b.label}</span>
-                      {b.arrow ? <Icon name="arrow-right" className="ms-2" /> : null}
-                    </Button>
-                  ))}
-                </div>
-              ) : null}
-              {proof ? (
-                <div className={`d-flex align-items-center gap-3 mt-8${just}`} data-part="proof">
-                  {imgs(proof.avatars).length ? (
-                    <div className="d-flex">
-                      {imgs(proof.avatars).slice(0, MAX.avatars).map((a, i) => (
-                        slotImg(a, { key: i, after: { width: 36, height: 36, className: 'rounded-circle border border-2 border-body object-fit-cover hro-avatar' } })
-                      ))}
-                    </div>
-                  ) : null}
-                  <div className="text-sm">
-                    {proof.rating !== undefined && proof.rating !== '' ? (
-                      <><span className="text-warning" aria-hidden="true">★★★★★</span> <b>{proof.rating}</b> · </>
-                    ) : null}
-                    <span data-slot="proof.text">{proof.text}</span>
+    >
+      <div className={rowClass(k.image, k.textAlign, side)}>
+        <div className={textCol}>
+          <div data-part="text">
+            {eyebrow && eyebrowStyle !== 'none' ? (
+              <div className="mb-5" data-part="eyebrow">
+                <Eyebrow style={eyebrowStyle} text={eyebrow.text} slot="eyebrow.text" />
+              </div>
+            ) : null}
+            <h1 className="display-3 fw-bold lh-1 ls-tight mb-5 hro-title" data-slot="headline">{d.headline}</h1>
+            {d.subheadline ? <p className="fs-5 text-muted mb-8 hro-sub" data-slot="subheadline">{d.subheadline}</p> : null}
+            {showForm ? (
+              <BlockLeadForm
+                mode={k.form === 'teaser' ? 'teaser' : 'full'}
+                formId={isObj(d.form) && typeof d.form.id === 'string' ? d.form.id : undefined}
+                services={servicesFor(locale)}
+                locale={locale}
+                align={k.textAlign === 'center' ? 'center' : k.textAlign === 'right' ? 'right' : 'left'}
+              />
+            ) : ctas.length ? (
+              <div className={`d-flex flex-column flex-sm-row gap-2${just}`} data-part="ctas">
+                {ctas.map((b, i) => (
+                  <Button key={i} href={b.href || '#'} style={b.style} fallback="solid" size={b.size} defaultSize="lg">
+                    {b.icon ? <Icon name={b.icon} className="me-2" /> : null}
+                    <span data-slot={`ctas.${i}.label`}>{b.label}</span>
+                    {b.arrow ? <Icon name="arrow-right" className="ms-2" /> : null}
+                  </Button>
+                ))}
+              </div>
+            ) : null}
+            {proof ? (
+              <div className={`d-flex align-items-center gap-3 mt-8${just}`} data-part="proof">
+                {imgs(proof.avatars).length ? (
+                  <div className="d-flex">
+                    {imgs(proof.avatars).slice(0, MAX.avatars).map((a, i) => (
+                      slotImg(a, { key: i, after: { width: 36, height: 36, className: 'rounded-circle border border-2 border-body object-fit-cover hro-avatar' } })
+                    ))}
                   </div>
-                </div>
-              ) : null}
-              {stats.length ? (
-                <div className={`d-flex flex-wrap gap-6 gap-md-10 mt-10 pt-8 border-top${just}`} data-part="stats">
-                  {stats.map((s, i) => (
-                    <div key={i}>
-                      <div className="fs-3 fw-bold lh-1" data-slot={`stats.${i}.value`}>{s.value}</div>
-                      <div className="text-sm text-muted mt-1" data-slot={`stats.${i}.label`}>{s.label}</div>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-              {logos.length ? (
-                <div className="mt-12" data-part="logos">
-                  {isObj(d.logos) && d.logos.caption ? (
-                    <div className="text-sm text-muted mb-4" data-slot="logos.caption">{d.logos.caption}</div>
+                ) : null}
+                <div className="text-sm">
+                  {proof.rating !== undefined && proof.rating !== '' ? (
+                    <><span className="text-warning" aria-hidden="true">★★★★★</span> <b>{proof.rating}</b> · </>
                   ) : null}
-                  <div className={`d-flex flex-wrap align-items-center gap-4 gap-md-5${just}`}>
-                    {logos.map((l, i) => slotImg(l, { key: i, after: { className: 'hro-logo' } }))}
-                  </div>
+                  <span data-slot="proof.text">{proof.text}</span>
                 </div>
-              ) : null}
-            </div>
-            {band.length ? (
-              <div className="row g-5 mt-10 justify-content-center" data-part="band" data-band-count={band.length}>
-                {band.map((b, i) => (
-                  <div key={i} className="col-6 col-md" data-part="band-col">
-                    {slotImg(b, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover hro-band-img' } })}
+              </div>
+            ) : null}
+            {stats.length ? (
+              <div className={`d-flex flex-wrap gap-6 gap-md-10 mt-10 pt-8 border-top${just}`} data-part="stats">
+                {stats.map((s, i) => (
+                  <div key={i}>
+                    <div className="fs-3 fw-bold lh-1" data-slot={`stats.${i}.value`}>{s.value}</div>
+                    <div className="text-sm text-muted mt-1" data-slot={`stats.${i}.label`}>{s.label}</div>
                   </div>
                 ))}
               </div>
             ) : null}
+            {logos.length ? (
+              <div className="mt-12" data-part="logos">
+                {isObj(d.logos) && d.logos.caption ? (
+                  <div className="text-sm text-muted mb-4" data-slot="logos.caption">{d.logos.caption}</div>
+                ) : null}
+                <div className={`d-flex flex-wrap align-items-center gap-4 gap-md-5${just}`}>
+                  {logos.map((l, i) => slotImg(l, { key: i, after: { className: 'hro-logo' } }))}
+                </div>
+              </div>
+            ) : null}
           </div>
-          {side && img ? (
-            <div className={stacked ? 'col-12 hro-side' : 'col-12 col-lg-6 hro-side'}>
-              {slotImg(img, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover hro-img' } })}
+          {band.length ? (
+            <div className="row g-5 mt-10 justify-content-center" data-part="band" data-band-count={band.length}>
+              {band.map((b, i) => (
+                <div key={i} className="col-6 col-md" data-part="band-col">
+                  {slotImg(b, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover hro-band-img' } })}
+                </div>
+              ))}
             </div>
           ) : null}
         </div>
+        {side && img ? (
+          <div className={stacked ? 'col-12 hro-side' : 'col-12 col-lg-6 hro-side'}>
+            {slotImg(img, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover hro-img' } })}
+          </div>
+        ) : null}
       </div>
-    </section>
+    </BlockSection>
   );
 }

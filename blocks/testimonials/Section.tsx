@@ -37,15 +37,15 @@
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg），这里不自己算亮度、不自己拼渐变。
 
 import type { ReactNode } from 'react';
-import { blockAttrs } from '@/lib/sections/blockAttrs';
 import { slotImg, ratingStars } from '@/lib/sections/blockMedia';
+import BlockSection from '@/components/BlockSection';
 import type { BlockConfig } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
 import manifest from './manifest.json';
 import TestimonialsCarousel from './Carousel';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
-import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import { type BgValue } from '../../scripts/lib/contrast.js';
 import { platformLogo } from '../../scripts/lib/review-platforms.js';
 
 export interface TestimonialsNewImage { imageUrl?: string; alt?: string }
@@ -111,8 +111,6 @@ export default function TestimonialsNewSection({ data, block, iconTable = {} }: 
   const shape = block && typeof block.shape === 'string' ? block.shape : undefined;
   const opts: TestimonialsNewOptions = isObj(d.options) ? d.options : {};
   const k = effectiveKnobs(manifest, shape, opts) as Required<{ [K in keyof TestimonialsNewOptions]: string }>;
-  const tone = toneForBg(d.bg);
-  const bgValue = bgCss(d.bg);
   const carousel = k.itemsLayout === 'carousel';
 
   const icon = (name: string) => <InlineIcon name={name} icons={iconTable} />;
@@ -202,102 +200,100 @@ export default function TestimonialsNewSection({ data, block, iconTable = {} }: 
   };
 
   return (
-    <section
-      {...blockAttrs('testimonials', block)}
-      data-intro-position={k.introPosition}
-      data-intro-align={k.introAlign}
-      data-summary-style={k.summaryStyle}
-      data-items-layout={k.itemsLayout}
-      data-items-columns={k.itemsColumns}
-      data-item-style={k.itemStyle}
-      data-quote-size={k.quoteSize}
-      data-item-align={k.itemAlign}
-      data-tone={tone}
-      data-bs-theme={bsThemeForBg(d.bg)}
-      className="position-relative py-16 py-lg-24"
-      style={bgValue ? { background: bgValue } : undefined}
+    <BlockSection
+      type="testimonials"
+      block={block}
+      attrs={{
+        'data-intro-position': k.introPosition,
+        'data-intro-align': k.introAlign,
+        'data-summary-style': k.summaryStyle,
+        'data-items-layout': k.itemsLayout,
+        'data-items-columns': k.itemsColumns,
+        'data-item-style': k.itemStyle,
+        'data-quote-size': k.quoteSize,
+        'data-item-align': k.itemAlign,
+      }}
+      bg={d.bg}
     >
-      <div className="container">
-        <div className="row tn-frame gy-10 gx-lg-16">
-          {hasIntro ? (
-            <div className="col-12 tn-introcol" data-part="intro">
-              <div className="tn-intro-text" data-part="intro-text">
-                {eyebrow && eyebrowStyle !== 'none' ? (
-                  <div className="mb-4" data-part="eyebrow">
-                    <Eyebrow style={eyebrowStyle} text={eyebrow.text} slot="introEyebrow.text" />
-                  </div>
-                ) : null}
-                {d.headline ? <h2 className="display-5 fw-bold lh-1 ls-tight mb-4 tn-title" data-slot="headline">{d.headline}</h2> : null}
-                {d.body ? <p className="fs-5 text-muted mb-0 tn-body" data-slot="body">{d.body}</p> : null}
-                {summaryInline ? (
-                  <div className="tn-summary d-flex flex-wrap mt-6" data-part="summary">
-                    {platforms.map((p) => platformBox(p, 'tn-platform tn-platform-inline d-inline-flex align-items-center gap-3 px-4 py-3 rounded-4', (
-                      <>
-                        {logo(p)}
-                        <span className="fs-3 fw-bold lh-1 tn-platform-rating" data-slot={`summary.${p.index}.rating`}>{fmt(p.rating)}</span>
-                        <span className="d-flex flex-column gap-1">
-                          {stars(p.rating, 'summary')}
-                          {countLine(p, '')}
-                        </span>
-                      </>
-                    )))}
-                  </div>
-                ) : null}
-              </div>
+      <div className="row tn-frame gy-10 gx-lg-16">
+        {hasIntro ? (
+          <div className="col-12 tn-introcol" data-part="intro">
+            <div className="tn-intro-text" data-part="intro-text">
+              {eyebrow && eyebrowStyle !== 'none' ? (
+                <div className="mb-4" data-part="eyebrow">
+                  <Eyebrow style={eyebrowStyle} text={eyebrow.text} slot="introEyebrow.text" />
+                </div>
+              ) : null}
+              {d.headline ? <h2 className="display-5 fw-bold lh-1 ls-tight mb-4 tn-title" data-slot="headline">{d.headline}</h2> : null}
+              {d.body ? <p className="fs-5 text-muted mb-0 tn-body" data-slot="body">{d.body}</p> : null}
+              {summaryInline ? (
+                <div className="tn-summary d-flex flex-wrap mt-6" data-part="summary">
+                  {platforms.map((p) => platformBox(p, 'tn-platform tn-platform-inline d-inline-flex align-items-center gap-3 px-4 py-3 rounded-4', (
+                    <>
+                      {logo(p)}
+                      <span className="fs-3 fw-bold lh-1 tn-platform-rating" data-slot={`summary.${p.index}.rating`}>{fmt(p.rating)}</span>
+                      <span className="d-flex flex-column gap-1">
+                        {stars(p.rating, 'summary')}
+                        {countLine(p, '')}
+                      </span>
+                    </>
+                  )))}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+        <div className="col-12 tn-itemscol" data-part="items">
+          {summaryCards ? (
+            <div className="tn-summary tn-summary-cards" data-part="summary">
+              {platforms.map((p) => platformBox(p, 'tn-platform tn-platform-card rounded-4', (
+                <>
+                  <span className="tn-pc-logo">{logo(p)}</span>
+                  <span className="tn-pc-stars">{stars(p.rating, 'summary')}</span>
+                  <span className="tn-pc-score text-sm fw-semibold"><span data-slot={`summary.${p.index}.rating`}>{fmt(p.rating)}</span> out of 5</span>
+                  <span className="tn-pc-count">{countLine(p, 'from ')}</span>
+                </>
+              )))}
             </div>
           ) : null}
-          <div className="col-12 tn-itemscol" data-part="items">
-            {summaryCards ? (
-              <div className="tn-summary tn-summary-cards" data-part="summary">
-                {platforms.map((p) => platformBox(p, 'tn-platform tn-platform-card rounded-4', (
-                  <>
-                    <span className="tn-pc-logo">{logo(p)}</span>
-                    <span className="tn-pc-stars">{stars(p.rating, 'summary')}</span>
-                    <span className="tn-pc-score text-sm fw-semibold"><span data-slot={`summary.${p.index}.rating`}>{fmt(p.rating)}</span> out of 5</span>
-                    <span className="tn-pc-count">{countLine(p, 'from ')}</span>
-                  </>
-                )))}
-              </div>
-            ) : null}
-            {carousel ? (
-              slides.length ? (
-                <TestimonialsCarousel id={carId} label="Customer reviews">
-                  <div className="carousel-inner">
-                    {slides.map((g, si) => (
-                      <div key={si} className={si === 0 ? 'carousel-item active' : 'carousel-item'} data-part="slide">
-                        <div className="tn-slide">{g.map((it) => renderItem(it, items.indexOf(it)))}</div>
-                      </div>
+          {carousel ? (
+            slides.length ? (
+              <TestimonialsCarousel id={carId} label="Customer reviews">
+                <div className="carousel-inner">
+                  {slides.map((g, si) => (
+                    <div key={si} className={si === 0 ? 'carousel-item active' : 'carousel-item'} data-part="slide">
+                      <div className="tn-slide">{g.map((it) => renderItem(it, items.indexOf(it)))}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="tn-pager d-flex align-items-center justify-content-between gap-4 mt-8" data-part="pager">
+                  <div className="carousel-indicators tn-dots">
+                    {slides.map((_, si) => (
+                      <button
+                        key={si}
+                        type="button"
+                        data-bs-target={`#${carId}`}
+                        data-bs-slide-to={si}
+                        className={si === 0 ? 'active' : undefined}
+                        aria-current={si === 0 ? 'true' : undefined}
+                        aria-label={`Slide ${si + 1}`}
+                      />
                     ))}
                   </div>
-                  <div className="tn-pager d-flex align-items-center justify-content-between gap-4 mt-8" data-part="pager">
-                    <div className="carousel-indicators tn-dots">
-                      {slides.map((_, si) => (
-                        <button
-                          key={si}
-                          type="button"
-                          data-bs-target={`#${carId}`}
-                          data-bs-slide-to={si}
-                          className={si === 0 ? 'active' : undefined}
-                          aria-current={si === 0 ? 'true' : undefined}
-                          aria-label={`Slide ${si + 1}`}
-                        />
-                      ))}
-                    </div>
-                    <div className="tn-arrows d-flex gap-2">
-                      <button type="button" className="tn-arrow" data-bs-target={`#${carId}`} data-bs-slide="prev" aria-label="Previous">{icon('chevron-left')}</button>
-                      <button type="button" className="tn-arrow" data-bs-target={`#${carId}`} data-bs-slide="next" aria-label="Next">{icon('chevron-right')}</button>
-                    </div>
+                  <div className="tn-arrows d-flex gap-2">
+                    <button type="button" className="tn-arrow" data-bs-target={`#${carId}`} data-bs-slide="prev" aria-label="Previous">{icon('chevron-left')}</button>
+                    <button type="button" className="tn-arrow" data-bs-target={`#${carId}`} data-bs-slide="next" aria-label="Next">{icon('chevron-right')}</button>
                   </div>
-                </TestimonialsCarousel>
-              ) : null
-            ) : (
-              <div className="tn-grid" data-part="track">
-                {items.map((it, i) => renderItem(it, i))}
-              </div>
-            )}
-          </div>
+                </div>
+              </TestimonialsCarousel>
+            ) : null
+          ) : (
+            <div className="tn-grid" data-part="track">
+              {items.map((it, i) => renderItem(it, i))}
+            </div>
+          )}
         </div>
       </div>
-    </section>
+    </BlockSection>
   );
 }

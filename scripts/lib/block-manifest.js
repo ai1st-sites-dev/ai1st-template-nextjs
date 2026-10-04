@@ -751,6 +751,9 @@ function readShapes(blockDir) {
   return shapes.map(({ order, ...rest }) => rest);
 }
 
+// #1534 —— 共用槽（`bg` 是 `{ ref }`）在读入口展开，规矩见 ./shared-slots.js。
+const { readManifest, expandSharedSlots, isSlotRef, SHARED_SLOTS_FILE } = require('./shared-slots');
+
 let cache = null;
 function loadManifests(dir = BLOCKS_DIR) {
   if (cache && cache.dir === dir) return cache.byType;
@@ -761,7 +764,7 @@ function loadManifests(dir = BLOCKS_DIR) {
     const blockDir = path.join(dir, type);
     const file = path.join(blockDir, 'manifest.json');
     if (!fs.existsSync(file)) throw new Error(`blocks/${type}: 少了 manifest.json`);
-    const m = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    const m = readManifest(file);
     if (m.type !== type) {
       throw new Error(`blocks/${type}/manifest.json: type 是 "${m.type}"，跟文件夹名对不上`);
     }
@@ -1703,6 +1706,10 @@ function applyRoleDefaults(pages, dir) {
 }
 
 module.exports = {
+  readManifest,
+  expandSharedSlots,
+  isSlotRef,
+  SHARED_SLOTS_FILE,
   BLOCKS_DIR,
   blocksOf,
   INDUSTRY_VOCABULARY,

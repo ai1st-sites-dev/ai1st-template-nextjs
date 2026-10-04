@@ -19,8 +19,8 @@
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg，同 milestones / cta）。
 
 import type { ReactNode } from 'react';
-import { blockAttrs } from '@/lib/sections/blockAttrs';
 import { slotImg } from '@/lib/sections/blockMedia';
+import BlockSection from '@/components/BlockSection';
 import type { BlockConfig } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import SiteLink from '@/components/SiteLink';
@@ -28,7 +28,7 @@ import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow
 import Button from '@/components/Button';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
-import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import { type BgValue } from '../../scripts/lib/contrast.js';
 import { parseRichtext, type RichInline } from '../../scripts/lib/richtext.js';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
@@ -75,8 +75,6 @@ export default function ContentNewSection({ data, block, iconTable = {} }: Props
   const shape = block && typeof block.shape === 'string' ? block.shape : undefined;
   const opts: ContentOptions = isObj(d.options) ? d.options : {};
   const k = effectiveKnobs(manifest, shape, opts) as Required<ContentOptions>;
-  const tone = toneForBg(d.bg);
-  const bgValue = bgCss(d.bg);
   const icon = (name: string | undefined, className?: string) => <InlineIcon name={name} icons={iconTable} className={className} />;
 
   const eyebrow = isObj(d.introEyebrow) && str(d.introEyebrow.text) ? d.introEyebrow : null;
@@ -89,63 +87,61 @@ export default function ContentNewSection({ data, block, iconTable = {} }: Props
   const img = k.image !== 'none' ? imgOf(d.image) : null;
 
   return (
-    <section
-      {...blockAttrs('content', block)}
-      data-headline-position={k.headlinePosition}
-      data-text-align={k.textAlign}
-      data-text-style={k.textStyle}
-      data-image={k.image}
-      data-frame={k.frame}
-      data-tone={tone}
-      data-bs-theme={bsThemeForBg(d.bg)}
-      className="position-relative py-16 py-lg-24"
-      style={bgValue ? { background: bgValue } : undefined}
+    <BlockSection
+      type="content"
+      block={block}
+      attrs={{
+        'data-headline-position': k.headlinePosition,
+        'data-text-align': k.textAlign,
+        'data-text-style': k.textStyle,
+        'data-image': k.image,
+        'data-frame': k.frame,
+      }}
+      bg={d.bg}
     >
-      <div className="container">
-        <div className="co-outer">
-          {img ? (
-            <div className="co-img" data-part="image">
-              {slotImg(img, { before: { className: 'w-100 rounded-4 object-fit-cover' } })}
-            </div>
-          ) : null}
-          <div className="co-frame" data-part="frame">
-            <div className="co-inner">
-              {showEyebrow || headline ? (
-                <div className="co-head" data-part="head">
-                  {showEyebrow ? (
-                    <div className="co-eyebrow" data-part="eyebrow">
-                      <Eyebrow style={eyebrowStyle} text={eyebrow!.text} slot="introEyebrow.text" />
-                    </div>
-                  ) : null}
-                  {headline ? <h2 className="co-title display-5 fw-bold lh-1 ls-tight mb-0" data-slot="headline">{headline}</h2> : null}
+      <div className="co-outer">
+        {img ? (
+          <div className="co-img" data-part="image">
+            {slotImg(img, { before: { className: 'w-100 rounded-4 object-fit-cover' } })}
+          </div>
+        ) : null}
+        <div className="co-frame" data-part="frame">
+          <div className="co-inner">
+            {showEyebrow || headline ? (
+              <div className="co-head" data-part="head">
+                {showEyebrow ? (
+                  <div className="co-eyebrow" data-part="eyebrow">
+                    <Eyebrow style={eyebrowStyle} text={eyebrow!.text} slot="introEyebrow.text" />
+                  </div>
+                ) : null}
+                {headline ? <h2 className="co-title display-5 fw-bold lh-1 ls-tight mb-0" data-slot="headline">{headline}</h2> : null}
+              </div>
+            ) : null}
+            <div className="co-main">
+              {body.length ? (
+                <div className="co-body" data-slot="body">
+                  {body.map((b, i) => (b.t === 'p'
+                    ? <p key={i}>{inline(b.c)}</p>
+                    : b.t === 'ul'
+                      ? <ul key={i}>{b.items.map((it, j) => <li key={j}>{inline(it)}</li>)}</ul>
+                      : <ol key={i}>{b.items.map((it, j) => <li key={j}>{inline(it)}</li>)}</ol>))}
                 </div>
               ) : null}
-              <div className="co-main">
-                {body.length ? (
-                  <div className="co-body" data-slot="body">
-                    {body.map((b, i) => (b.t === 'p'
-                      ? <p key={i}>{inline(b.c)}</p>
-                      : b.t === 'ul'
-                        ? <ul key={i}>{b.items.map((it, j) => <li key={j}>{inline(it)}</li>)}</ul>
-                        : <ol key={i}>{b.items.map((it, j) => <li key={j}>{inline(it)}</li>)}</ol>))}
-                  </div>
-                ) : null}
-                {ctas.length ? (
-                  <div className="co-ctas d-flex flex-wrap gap-2" data-part="ctas">
-                    {ctas.map((b, i) => (
-                      <Button key={i} href={b.href || '#'} style={b.style} fallback={i === 0 ? 'solid' : 'outline'} size={b.size} defaultSize="md" flush>
-                        {b.icon ? icon(b.icon, 'me-2') : null}
-                        <span data-slot={`ctas.${i}.label`}>{b.label}</span>
-                        {b.arrow ? <span className="ms-2 d-inline-flex">{icon('arrow-right')}</span> : null}
-                      </Button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
+              {ctas.length ? (
+                <div className="co-ctas d-flex flex-wrap gap-2" data-part="ctas">
+                  {ctas.map((b, i) => (
+                    <Button key={i} href={b.href || '#'} style={b.style} fallback={i === 0 ? 'solid' : 'outline'} size={b.size} defaultSize="md" flush>
+                      {b.icon ? icon(b.icon, 'me-2') : null}
+                      <span data-slot={`ctas.${i}.label`}>{b.label}</span>
+                      {b.arrow ? <span className="ms-2 d-inline-flex">{icon('arrow-right')}</span> : null}
+                    </Button>
+                  ))}
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
       </div>
-    </section>
+    </BlockSection>
   );
 }

@@ -129,7 +129,8 @@ console.log('── AC1 四个预设');
   check(moved.length === 0, `旋钮独立（Image right 上逐个拧 ${M.slots.options.knobs.reduce((n, k) => n + k.values.length, 0)} 档）：拧的那个到位、其余四个不变`, moved.join(' · '));
   check(M.slots.body.kind === 'richtext' && M.slots.body.required === true, `body 是 kind richtext、必填（${M.slots.body.kind} / ${M.slots.body.required}）`);
   check(M.slots.ctas.max === 2 && M.slots.image.shape === '{imageUrl, alt}', `ctas.max = ${M.slots.ctas.max}（admin 的 count:ctas 从它派生）· image = ${M.slots.image.shape}`);
-  const fbg = JSON.parse(fs.readFileSync(path.join(NEXT, 'blocks', 'footer', 'manifest.json'), 'utf-8')).slots.bg;
+  // #1534 —— 盘上的 slots.bg 现在是 { ref: 'bg' }，比的是读入口展开后的那一份（两边都经 loadManifests）。
+  const fbg = manifestLib.loadManifests().get('footer').slots.bg;
   check(JSON.stringify(M.slots.bg) === JSON.stringify(fbg), 'bg 槽整份照抄 footer（逐字节相同）');
   check(JSON.stringify(M.slots.introEyebrow.choices) === JSON.stringify({ style: ['none', 'pill', 'outline', 'dash', 'plain'] }), 'introEyebrow.style 词表 none · pill · outline · dash · plain');
 }
@@ -206,7 +207,8 @@ console.log('\n── AC8 bg');
   const g = render('article', { ...clone(DEMO), bg: { stops: ['#0f172a', '#334155'], angle: 135 } });
   check(attr(g, 'data-tone') === 'dark' && /linear-gradient/.test(sectionTag(g)), '渐变 ⟹ toneForBg 给 dark、背景是 linear-gradient');
   const src = fs.readFileSync(SECTION, 'utf-8');
-  check(count(src, 'toneFor(') === 0 && src.includes('toneForBg(d.bg)'), `Section.tsx 里 toneFor( 出现 ${count(src, 'toneFor(')} 次、走 toneForBg`);
+  check(count(src, 'toneFor(') === 0 && count(src, 'linear-gradient') === 0 && /<BlockSection[\s\S]*?\bbg=\{d\.bg\}/.test(src),
+    `Section.tsx 把 bg 交给 <BlockSection>（深浅 / 底色由它调 contrast.js 的 toneForBg / bgCss，#1534）；自己 toneFor( ${count(src, 'toneFor(')} 处、linear-gradient ${count(src, 'linear-gradient')} 处`);
 }
 
 // ══ AC9：block-roles · 首页配方池 · 内页提示词 ═══════════════════════════════════════════════════════

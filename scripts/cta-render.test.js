@@ -156,7 +156,8 @@ console.log('\n── AC3 bg 涂盒子 / 整段');
   check(/rounded-4 p-12 py-lg-16 px-lg-20/.test(frameTag(boxed)), `boxed 的盒子：rounded-4 p-12 py-lg-16 px-lg-20（${frameTag(boxed)}）`);
   // 反向对照：把 frame 判断拿掉（永远涂整段）⟹ 第一条要红。
   const src = fs.readFileSync(SECTION, 'utf-8');
-  const broken = src.replace('style={boxed ? undefined : bgStyle}', 'style={bgStyle}');
+  // #1534 —— 外壳收进了 BlockSection：「底色涂不涂在 <section> 上」是 paint={!boxed}；变异 = 永远涂。
+  const broken = src.replace('paint={!boxed}', 'paint={true}');
   if (broken === src) die('AC3 反向对照没改到源码');
   const b2 = render('boxed', withOpts({}, { bg: '#1e293b' }), loadSection(broken));
   check(/style=/.test(sectionTag(b2)), '反向对照：boxed 也涂整段的组件 ⟹ <section> 上读得到 style');

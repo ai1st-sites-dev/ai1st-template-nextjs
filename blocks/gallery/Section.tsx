@@ -22,15 +22,15 @@
 //    （`scripts/lib/image-urls.js`）。`alt` 空时用 `title`。
 //
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg），纯色、brand、渐变都认。
-
-import { blockAttrs } from '@/lib/sections/blockAttrs';
 import { slotImg } from '@/lib/sections/blockMedia';
+
+import BlockSection from '@/components/BlockSection';
 import type { BlockConfig } from '@/lib/types/config';
 import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
 import manifest from './manifest.json';
 import GalleryLightbox from './Lightbox';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
-import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import { type BgValue } from '../../scripts/lib/contrast.js';
 
 export interface GalleryImage { imageUrl?: string; alt?: string }
 export interface GalleryItem { image?: GalleryImage; title?: string; caption?: string }
@@ -67,8 +67,6 @@ export default function GalleryNewSection({ data, block }: Props) {
   const shape = block && typeof block.shape === 'string' ? block.shape : undefined;
   const opts: GalleryOptions = isObj(d.options) ? d.options : {};
   const k = effectiveKnobs(manifest, shape, opts) as Required<{ [K in keyof GalleryOptions]: string }>;
-  const tone = toneForBg(d.bg);
-  const bgValue = bgCss(d.bg);
 
   const eyebrow = isObj(d.introEyebrow) && str(d.introEyebrow.text) ? d.introEyebrow : null;
   // 没写 style ⟹ pill（同 features / milestones：AI 只写了字，眉标照样出来）；明写 none ⟹ 不画。
@@ -83,55 +81,19 @@ export default function GalleryNewSection({ data, block }: Props) {
   const altOf = (it: GalleryItem) => str(it.image && it.image.alt) || str(it.title);
 
   return (
-    <section
-      {...blockAttrs('gallery', block)}
-      data-intro-position={k.introPosition}
-      data-intro-align={k.introAlign}
-      data-items-layout={k.itemsLayout}
-      data-items-columns={k.itemsColumns}
-      data-item-shape={k.itemShape}
-      data-item-caption={k.itemCaption}
-      data-tone={tone}
-      data-bs-theme={bsThemeForBg(d.bg)}
-      className="position-relative py-16 py-lg-24"
-      style={bgValue ? { background: bgValue } : undefined}
-    >
-      <div className="container">
-        <div className="row gl-frame gy-10 gx-lg-16">
-          {hasIntro ? (
-            <div className="col-12 gl-introcol" data-part="intro">
-              <div className="gl-intro-text" data-part="intro-text">
-                {eyebrow && eyebrowStyle !== 'none' ? (
-                  <div className="mb-4" data-part="eyebrow">
-                    <Eyebrow style={eyebrowStyle} text={eyebrow.text} slot="introEyebrow.text" />
-                  </div>
-                ) : null}
-                {d.headline ? <h2 className="display-5 fw-bold lh-1 ls-tight mb-4 gl-title" data-slot="headline">{d.headline}</h2> : null}
-                {d.body ? <p className="fs-5 text-muted mb-0" data-slot="body">{d.body}</p> : null}
-              </div>
-            </div>
-          ) : null}
-          <div className="col-12 gl-itemscol" data-part="items">
-            <div className="gl-grid">
-              {items.map((it, i) => (
-                <figure key={i} className="gl-item" data-part="item">
-                  <a className="gl-img d-block" href={`#${lbId}`} data-bs-toggle="modal" data-gl-index={i}
-                    aria-label={`Open photo${it.title ? `: ${it.title}` : ` ${i + 1}`}`}>
-                    {slotImg(it.image!, { alt: altOf(it) })}
-                  </a>
-                  {it.title || it.caption ? (
-                    <figcaption className="gl-cap" data-part="caption">
-                      {it.title ? <span className="fw-semibold" data-slot={`items.${i}.title`}>{it.title}</span> : null}
-                      {it.caption ? <span className="gl-cap-s text-xs" data-slot={`items.${i}.caption`}>{it.caption}</span> : null}
-                    </figcaption>
-                  ) : null}
-                </figure>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-      {items.length ? (
+    <BlockSection
+      type="gallery"
+      block={block}
+      attrs={{
+        'data-intro-position': k.introPosition,
+        'data-intro-align': k.introAlign,
+        'data-items-layout': k.itemsLayout,
+        'data-items-columns': k.itemsColumns,
+        'data-item-shape': k.itemShape,
+        'data-item-caption': k.itemCaption,
+      }}
+      bg={d.bg}
+      after={items.length ? (
         <div className="modal fade gl-modal" id={lbId} tabIndex={-1} aria-label="Photo viewer" aria-hidden="true" data-part="lightbox">
           <div className="modal-dialog modal-fullscreen">
             <div className="modal-content">
@@ -167,6 +129,40 @@ export default function GalleryNewSection({ data, block }: Props) {
           <GalleryLightbox modalId={lbId} />
         </div>
       ) : null}
-    </section>
+    >
+      <div className="row gl-frame gy-10 gx-lg-16">
+        {hasIntro ? (
+          <div className="col-12 gl-introcol" data-part="intro">
+            <div className="gl-intro-text" data-part="intro-text">
+              {eyebrow && eyebrowStyle !== 'none' ? (
+                <div className="mb-4" data-part="eyebrow">
+                  <Eyebrow style={eyebrowStyle} text={eyebrow.text} slot="introEyebrow.text" />
+                </div>
+              ) : null}
+              {d.headline ? <h2 className="display-5 fw-bold lh-1 ls-tight mb-4 gl-title" data-slot="headline">{d.headline}</h2> : null}
+              {d.body ? <p className="fs-5 text-muted mb-0" data-slot="body">{d.body}</p> : null}
+            </div>
+          </div>
+        ) : null}
+        <div className="col-12 gl-itemscol" data-part="items">
+          <div className="gl-grid">
+            {items.map((it, i) => (
+              <figure key={i} className="gl-item" data-part="item">
+                <a className="gl-img d-block" href={`#${lbId}`} data-bs-toggle="modal" data-gl-index={i}
+                  aria-label={`Open photo${it.title ? `: ${it.title}` : ` ${i + 1}`}`}>
+                  {slotImg(it.image!, { alt: altOf(it) })}
+                </a>
+                {it.title || it.caption ? (
+                  <figcaption className="gl-cap" data-part="caption">
+                    {it.title ? <span className="fw-semibold" data-slot={`items.${i}.title`}>{it.title}</span> : null}
+                    {it.caption ? <span className="gl-cap-s text-xs" data-slot={`items.${i}.caption`}>{it.caption}</span> : null}
+                  </figcaption>
+                ) : null}
+              </figure>
+            ))}
+          </div>
+        </div>
+      </div>
+    </BlockSection>
   );
 }

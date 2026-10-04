@@ -33,14 +33,14 @@
 import { brand as siteBrand, getSeo, getServices } from '@/lib/config';
 import Link from 'next/link';
 import BlockLeadForm from '@/components/BlockLeadForm';
-import { blockAttrs } from '@/lib/sections/blockAttrs';
+import BlockSection, { blockTone } from '@/components/BlockSection';
 import type { BlockConfig } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
 import ContactMap from './ContactMap';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
-import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import { type BgValue } from '../../scripts/lib/contrast.js';
 import { copiesSiteFact, mailtoHref, osmEmbedUrl, siteFactsFrom, telHref, type ContactSiteFacts } from '../../scripts/lib/contact-facts.js';
 
 export type ContactKind = 'phone' | 'email' | 'address' | 'hours' | 'link';
@@ -113,8 +113,7 @@ export default function ContactNewSection({ data, locale, block, iconTable = {},
   const shape = block && typeof block.shape === 'string' ? block.shape : undefined;
   const opts: ContactNewOptions = isObj(d.options) ? d.options : {};
   const k = effectiveKnobs(manifest, shape, opts) as Required<{ [K in keyof ContactNewOptions]: string }>;
-  const tone = toneForBg(d.bg);
-  const bgValue = bgCss(d.bg);
+  const tone = blockTone(d.bg);
   const lang = locale || '';
   let facts: ContactSiteFacts;
   if (siteFacts) facts = siteFacts;
@@ -170,82 +169,80 @@ export default function ContactNewSection({ data, locale, block, iconTable = {},
   );
 
   return (
-    <section
-      {...blockAttrs('contact', block)}
-      data-intro-position={k.introPosition}
-      data-intro-align={k.introAlign}
-      data-side-position={k.sidePosition}
-      data-form={k.form}
-      data-form-style={k.formStyle}
-      data-items-layout={k.itemsLayout}
-      data-item-style={k.itemStyle}
-      data-item-align={k.itemAlign}
-      data-item-icon={k.itemIcon}
-      data-map={k.map}
-      data-split={split}
-      data-tone={tone}
-      data-bs-theme={bsThemeForBg(d.bg)}
-      className="position-relative py-16 py-lg-24"
-      style={bgValue ? { background: bgValue } : undefined}
+    <BlockSection
+      type="contact"
+      block={block}
+      attrs={{
+        'data-intro-position': k.introPosition,
+        'data-intro-align': k.introAlign,
+        'data-side-position': k.sidePosition,
+        'data-form': k.form,
+        'data-form-style': k.formStyle,
+        'data-items-layout': k.itemsLayout,
+        'data-item-style': k.itemStyle,
+        'data-item-align': k.itemAlign,
+        'data-item-icon': k.itemIcon,
+        'data-map': k.map,
+        'data-split': split,
+      }}
+      bg={d.bg}
     >
-      <div className="container">
-        {introTop ? <div className="ct-top mb-10" data-part="intro">{intro}</div> : null}
-        {textCol || sideCol ? (
-          <div className="row ct-frame gy-10 gx-lg-16">
-            {textCol ? (
-              <div className="col-12 ct-textcol" data-part="textcol">
-                {introBeside ? <div className="ct-colintro" data-part="intro">{intro}</div> : null}
-                {hasItems ? (
-                  <div className="ct-info" data-part="items">
-                    {rows.map((r) => (
-                      <div key={r.index} className="ct-ch" data-part="item" data-kind={r.kind}>
-                        <div className="ct-ch-inner h-100 d-flex gap-3">
-                          <span className="ct-ch-icon d-inline-flex align-items-center justify-content-center rounded-3 bg-primary-subtle text-primary flex-shrink-0" data-part="item-icon">
-                            {icon(KIND_ICON[r.kind])}
-                          </span>
-                          <div className="min-w-0">
-                            {/* link 那一条的标题就是值（下面那个链接），不另画一行标题。 */}
-                            {r.kind !== 'link' && r.title ? <div className="ct-ch-title fw-semibold" data-slot={`items.${r.index}.title`}>{r.title}</div> : null}
-                            {r.hint ? <div className="ct-ch-hint text-xs text-muted mb-1" data-slot={`items.${r.index}.hint`}>{r.hint}</div> : null}
-                            {/* 🔴 #1508 —— 站内路径（`/…`）必须走 `next/link`：展示站跑在 basePath 下，裸 `<a>` 不吃前缀，
-                                那条根绝对路径会让 build-showcase-from-main.sh 的根路径闸拒绝切换（实测冻了 7.4 小时）。
-                                `tel:` / `mailto:` / `http(s):` 不是站内链接，保持裸 `<a>`。判据就是 href 以 `/` 开头。 */}
-                            {r.href
-                              ? (r.href.startsWith('/')
-                                  ? <Link className="ct-value fw-semibold text-body" href={r.href} data-value={r.kind} {...(r.kind === 'link' ? { 'data-slot': `items.${r.index}.title` } : {})}>{r.value}</Link>
-                                  : <a className="ct-value fw-semibold text-body" href={r.href} data-value={r.kind} {...(r.kind === 'link' ? { 'data-slot': `items.${r.index}.title` } : {})}>{r.value}</a>)
-                              : <span className="ct-value fw-semibold" data-value={r.kind}>{r.value}</span>}
-                          </div>
+      {introTop ? <div className="ct-top mb-10" data-part="intro">{intro}</div> : null}
+      {textCol || sideCol ? (
+        <div className="row ct-frame gy-10 gx-lg-16">
+          {textCol ? (
+            <div className="col-12 ct-textcol" data-part="textcol">
+              {introBeside ? <div className="ct-colintro" data-part="intro">{intro}</div> : null}
+              {hasItems ? (
+                <div className="ct-info" data-part="items">
+                  {rows.map((r) => (
+                    <div key={r.index} className="ct-ch" data-part="item" data-kind={r.kind}>
+                      <div className="ct-ch-inner h-100 d-flex gap-3">
+                        <span className="ct-ch-icon d-inline-flex align-items-center justify-content-center rounded-3 bg-primary-subtle text-primary flex-shrink-0" data-part="item-icon">
+                          {icon(KIND_ICON[r.kind])}
+                        </span>
+                        <div className="min-w-0">
+                          {/* link 那一条的标题就是值（下面那个链接），不另画一行标题。 */}
+                          {r.kind !== 'link' && r.title ? <div className="ct-ch-title fw-semibold" data-slot={`items.${r.index}.title`}>{r.title}</div> : null}
+                          {r.hint ? <div className="ct-ch-hint text-xs text-muted mb-1" data-slot={`items.${r.index}.hint`}>{r.hint}</div> : null}
+                          {/* 🔴 #1508 —— 站内路径（`/…`）必须走 `next/link`：展示站跑在 basePath 下，裸 `<a>` 不吃前缀，
+                              那条根绝对路径会让 build-showcase-from-main.sh 的根路径闸拒绝切换（实测冻了 7.4 小时）。
+                              `tel:` / `mailto:` / `http(s):` 不是站内链接，保持裸 `<a>`。判据就是 href 以 `/` 开头。 */}
+                          {r.href
+                            ? (r.href.startsWith('/')
+                                ? <Link className="ct-value fw-semibold text-body" href={r.href} data-value={r.kind} {...(r.kind === 'link' ? { 'data-slot': `items.${r.index}.title` } : {})}>{r.value}</Link>
+                                : <a className="ct-value fw-semibold text-body" href={r.href} data-value={r.kind} {...(r.kind === 'link' ? { 'data-slot': `items.${r.index}.title` } : {})}>{r.value}</a>)
+                            : <span className="ct-value fw-semibold" data-value={r.kind}>{r.value}</span>}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-            {sideCol ? (
-              <div className="col-12 ct-sidecol" data-part="side">
-                {showForm ? (
-                  <div className="ct-form" data-part="form">
-                    <BlockLeadForm
-                      mode={k.form === 'teaser' ? 'teaser' : 'full'}
-                      formId={isObj(d.form) && typeof d.form.id === 'string' ? d.form.id : undefined}
-                      services={servicesFor(lang)}
-                      locale={lang}
-                      center={k.sidePosition === 'bottom' && k.introAlign === 'center'}
-                      idPrefix="ct"
-                      size="sm"
-                      tone={k.formStyle === 'card' ? 'light' : tone}
-                    />
-                  </div>
-                ) : null}
-                {mapBeside ? map('side') : null}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-        {mapBottom ? map('bottom') : null}
-      </div>
-    </section>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          {sideCol ? (
+            <div className="col-12 ct-sidecol" data-part="side">
+              {showForm ? (
+                <div className="ct-form" data-part="form">
+                  <BlockLeadForm
+                    mode={k.form === 'teaser' ? 'teaser' : 'full'}
+                    formId={isObj(d.form) && typeof d.form.id === 'string' ? d.form.id : undefined}
+                    services={servicesFor(lang)}
+                    locale={lang}
+                    center={k.sidePosition === 'bottom' && k.introAlign === 'center'}
+                    idPrefix="ct"
+                    size="sm"
+                    tone={k.formStyle === 'card' ? 'light' : tone}
+                  />
+                </div>
+              ) : null}
+              {mapBeside ? map('side') : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+      {mapBottom ? map('bottom') : null}
+    </BlockSection>
   );
 }

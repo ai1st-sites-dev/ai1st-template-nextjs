@@ -28,14 +28,14 @@
 
 import { useState, type CSSProperties } from 'react';
 import Link from 'next/link';
-import { blockAttrs } from '@/lib/sections/blockAttrs';
 import { slotImg } from '@/lib/sections/blockMedia';
+import BlockSection from '@/components/BlockSection';
 import type { BlockConfig } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
-import { bgCss, bsThemeForBg, normalizeBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import { bgCss, normalizeBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
 
 export interface PricingNewImage { imageUrl?: string; alt?: string }
 export interface PricingNewButton { label?: string; href?: string; style?: 'solid' | 'outline' }
@@ -118,8 +118,6 @@ export default function PricingNewSection({ data, block, iconTable = {} }: Props
   const shape = block && typeof block.shape === 'string' ? block.shape : undefined;
   const opts: PricingNewOptions = isObj(d.options) ? d.options : {};
   const k = effectiveKnobs(manifest, shape, opts) as Required<{ [K in keyof PricingNewOptions]: string }>;
-  const tone = toneForBg(d.bg);
-  const bgValue = bgCss(d.bg);
   const fc = featuredVars(normalizeBg(d.featuredColor));
   // 月付 / 年付：这是**数据切换**不是 HTML 交互 —— 换的是渲染出来的价格数字，不是哪个元素显不显，Bootstrap 没有对应组件，
   // 所以留 React（#1514 正文的分类表，Chris 2026-10-01 口径「HTML 的交互归 bootstrap.js」管不到它）。
@@ -201,93 +199,94 @@ export default function PricingNewSection({ data, block, iconTable = {} }: Props
   ) : null;
 
   return (
-    <section
-      {...blockAttrs('pricing', block)}
-      data-intro-position={k.introPosition}
-      data-intro-align={k.introAlign}
-      data-plans-columns={k.plansColumns}
-      data-plan-features={k.planFeatures}
-      data-plan-style={k.planStyle}
-      data-plan-align={k.planAlign}
-      data-plan-cta={k.planCta}
-      data-featured={k.featured}
-      data-tone={tone}
-      data-bs-theme={bsThemeForBg(d.bg)}
-      data-fc-kind={fc.kind}
-      data-fc-tone={fc.tone}
-      className="position-relative py-16 py-lg-24"
-      style={{ ...(bgValue ? { background: bgValue } : {}), ...fc.vars } as CSSProperties}
+    <BlockSection
+      type="pricing"
+      block={block}
+      attrs={{
+        'data-intro-position': k.introPosition,
+        'data-intro-align': k.introAlign,
+        'data-plans-columns': k.plansColumns,
+        'data-plan-features': k.planFeatures,
+        'data-plan-style': k.planStyle,
+        'data-plan-align': k.planAlign,
+        'data-plan-cta': k.planCta,
+        'data-featured': k.featured,
+      }}
+      bg={d.bg}
+      extraAttrs={{
+        'data-fc-kind': fc.kind,
+        'data-fc-tone': fc.tone,
+      }}
+      style={fc.vars as CSSProperties}
     >
-      <div className="container">
-        <div className="row pr-frame gy-10 gx-lg-16">
-          {intro}
-          <div className="col-12 pr-planscol" data-part="plans">
-            {billing ? (
-              <div className="pr-billing-wrap" data-part="billing" data-billing={yearly ? 'yearly' : 'monthly'}>
-                <div className="pr-billing d-inline-flex align-items-center gap-1 p-1 rounded-pill border" role="group">
-                  <button type="button" data-billing-option="monthly" aria-pressed={!yearly} onClick={() => setYearly(false)}
-                    className={`btn btn-sm rounded-pill px-4 ${yearly ? 'btn-link text-body text-decoration-none' : 'btn-primary'}`}>
-                    <span data-slot="billing.monthlyLabel">{billing.monthlyLabel || 'Monthly'}</span>
-                  </button>
-                  <button type="button" data-billing-option="yearly" aria-pressed={yearly} onClick={() => setYearly(true)}
-                    className={`btn btn-sm rounded-pill px-4 ${yearly ? 'btn-primary' : 'btn-link text-body text-decoration-none'}`}>
-                    <span data-slot="billing.yearlyLabel">{billing.yearlyLabel || 'Yearly'}</span>
-                    {billing.yearlyNote ? (
-                      <span className="pr-billing-note badge rounded-pill bg-success-subtle text-success ms-1" data-slot="billing.yearlyNote">{billing.yearlyNote}</span>
-                    ) : null}
-                  </button>
-                </div>
+      <div className="row pr-frame gy-10 gx-lg-16">
+        {intro}
+        <div className="col-12 pr-planscol" data-part="plans">
+          {billing ? (
+            <div className="pr-billing-wrap" data-part="billing" data-billing={yearly ? 'yearly' : 'monthly'}>
+              <div className="pr-billing d-inline-flex align-items-center gap-1 p-1 rounded-pill border" role="group">
+                <button type="button" data-billing-option="monthly" aria-pressed={!yearly} onClick={() => setYearly(false)}
+                  className={`btn btn-sm rounded-pill px-4 ${yearly ? 'btn-link text-body text-decoration-none' : 'btn-primary'}`}>
+                  <span data-slot="billing.monthlyLabel">{billing.monthlyLabel || 'Monthly'}</span>
+                </button>
+                <button type="button" data-billing-option="yearly" aria-pressed={yearly} onClick={() => setYearly(true)}
+                  className={`btn btn-sm rounded-pill px-4 ${yearly ? 'btn-primary' : 'btn-link text-body text-decoration-none'}`}>
+                  <span data-slot="billing.yearlyLabel">{billing.yearlyLabel || 'Yearly'}</span>
+                  {billing.yearlyNote ? (
+                    <span className="pr-billing-note badge rounded-pill bg-success-subtle text-success ms-1" data-slot="billing.yearlyNote">{billing.yearlyNote}</span>
+                  ) : null}
+                </button>
               </div>
-            ) : null}
-            <div className="pr-grid" data-plan-count={plans.length}>
-              {plans.map((p, i) => {
-                const featured = i === featuredAt;
-                const price = isObj(p.price) ? p.price : {};
-                const shown = yearly && str(price.yearly) ? str(price.yearly) : str(price.monthly);
-                const features = (Array.isArray(p.features) ? p.features : []).filter((f) => str(f));
-                const cta = isObj(p.cta) && str(p.cta.label) ? p.cta : null;
-                const ctaStyle = cta && cta.style ? cta.style : featured ? 'solid' : 'outline';
-                return (
-                  <div key={i} className={`pr-plan${featured ? ' pr-featured' : ''}`} data-part="plan" data-plan-featured={featured ? 'true' : undefined}>
-                    <div className="pr-inner h-100 d-flex flex-column">
-                      <div className="pr-card">
-                        <div className="pr-head d-flex align-items-center justify-content-between gap-3 mb-3">
-                          {p.name ? <div className="pr-name fw-bold fs-5" data-slot={`plans.${i}.name`}>{p.name}</div> : null}
-                          {p.badge ? (
-                            <span className="pr-badge badge rounded-pill text-xs px-3 py-2" data-part="badge" data-slot={`plans.${i}.badge`}>{p.badge}</span>
-                          ) : null}
-                        </div>
-                        {shown ? (
-                          <div className="pr-price d-flex flex-wrap align-items-baseline gap-1 mb-2" data-part="price">
-                            <span className="pr-amount display-5 fw-bold lh-1 ls-tight" data-price={yearly && str(price.yearly) ? 'yearly' : 'monthly'}>{shown}</span>
-                            {p.period ? <span className="pr-period text-muted text-sm" data-slot={`plans.${i}.period`}>{p.period}</span> : null}
-                          </div>
-                        ) : null}
-                        {p.description ? <p className="pr-desc text-muted text-sm mb-4" data-slot={`plans.${i}.description`}>{p.description}</p> : null}
-                        {cta ? (
-                          <Link href={cta.href || '#'} className={`pr-cta btn ${ctaStyle === 'solid' ? 'btn-primary' : 'btn-outline-primary'} w-100`} data-cta={ctaStyle}>
-                            {cta.label}
-                          </Link>
+            </div>
+          ) : null}
+          <div className="pr-grid" data-plan-count={plans.length}>
+            {plans.map((p, i) => {
+              const featured = i === featuredAt;
+              const price = isObj(p.price) ? p.price : {};
+              const shown = yearly && str(price.yearly) ? str(price.yearly) : str(price.monthly);
+              const features = (Array.isArray(p.features) ? p.features : []).filter((f) => str(f));
+              const cta = isObj(p.cta) && str(p.cta.label) ? p.cta : null;
+              const ctaStyle = cta && cta.style ? cta.style : featured ? 'solid' : 'outline';
+              return (
+                <div key={i} className={`pr-plan${featured ? ' pr-featured' : ''}`} data-part="plan" data-plan-featured={featured ? 'true' : undefined}>
+                  <div className="pr-inner h-100 d-flex flex-column">
+                    <div className="pr-card">
+                      <div className="pr-head d-flex align-items-center justify-content-between gap-3 mb-3">
+                        {p.name ? <div className="pr-name fw-bold fs-5" data-slot={`plans.${i}.name`}>{p.name}</div> : null}
+                        {p.badge ? (
+                          <span className="pr-badge badge rounded-pill text-xs px-3 py-2" data-part="badge" data-slot={`plans.${i}.badge`}>{p.badge}</span>
                         ) : null}
                       </div>
-                      {features.length ? (
-                        <ul className="pr-features list-unstyled mb-0" data-part="features">
-                          {features.map((f, j) => (
-                            <li key={j} className="d-flex align-items-start text-sm mb-3">
-                              <InlineIcon name="check" icons={iconTable} className="pr-check flex-shrink-0 me-3" />
-                              <span>{f}</span>
-                            </li>
-                          ))}
-                        </ul>
+                      {shown ? (
+                        <div className="pr-price d-flex flex-wrap align-items-baseline gap-1 mb-2" data-part="price">
+                          <span className="pr-amount display-5 fw-bold lh-1 ls-tight" data-price={yearly && str(price.yearly) ? 'yearly' : 'monthly'}>{shown}</span>
+                          {p.period ? <span className="pr-period text-muted text-sm" data-slot={`plans.${i}.period`}>{p.period}</span> : null}
+                        </div>
+                      ) : null}
+                      {p.description ? <p className="pr-desc text-muted text-sm mb-4" data-slot={`plans.${i}.description`}>{p.description}</p> : null}
+                      {cta ? (
+                        <Link href={cta.href || '#'} className={`pr-cta btn ${ctaStyle === 'solid' ? 'btn-primary' : 'btn-outline-primary'} w-100`} data-cta={ctaStyle}>
+                          {cta.label}
+                        </Link>
                       ) : null}
                     </div>
+                    {features.length ? (
+                      <ul className="pr-features list-unstyled mb-0" data-part="features">
+                        {features.map((f, j) => (
+                          <li key={j} className="d-flex align-items-start text-sm mb-3">
+                            <InlineIcon name="check" icons={iconTable} className="pr-check flex-shrink-0 me-3" />
+                            <span>{f}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
-    </section>
+    </BlockSection>
   );
 }

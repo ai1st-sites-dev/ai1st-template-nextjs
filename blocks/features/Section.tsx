@@ -27,16 +27,16 @@
 //
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg，footer / cta 同一对），
 //    纯色、brand、渐变都认；这里不自己算亮度、不自己拼渐变。
-
-import { blockAttrs } from '@/lib/sections/blockAttrs';
 import { slotImg } from '@/lib/sections/blockMedia';
+
+import BlockSection from '@/components/BlockSection';
 import type { BlockConfig } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
 import Button from '@/components/Button';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
-import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import { type BgValue } from '../../scripts/lib/contrast.js';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
 
@@ -93,8 +93,6 @@ export default function FeaturesNewSection({ data, block, iconTable = {} }: Prop
   const shape = block && typeof block.shape === 'string' ? block.shape : undefined;
   const opts: FeaturesNewOptions = isObj(d.options) ? d.options : {};
   const k = effectiveKnobs(manifest, shape, opts) as Required<{ [K in keyof FeaturesNewOptions]: string }>;
-  const tone = toneForBg(d.bg);
-  const bgValue = bgCss(d.bg);
 
   const icon = (name: string | undefined, className?: string) => <InlineIcon name={name} icons={iconTable} className={className} />;
   const hasIcon = (name: unknown) => typeof name === 'string' && !!iconTable[name];
@@ -139,89 +137,89 @@ export default function FeaturesNewSection({ data, block, iconTable = {} }: Prop
   );
 
   return (
-    <section
-      {...blockAttrs('features', block)}
-      data-intro-position={k.introPosition}
-      data-intro-align={k.introAlign}
-      data-intro-image={k.introImage}
-      data-items-layout={k.itemsLayout}
-      data-items-columns={k.itemsColumns}
-      data-items-image={k.itemsImage}
-      data-item-style={k.itemStyle}
-      data-item-align={k.itemAlign}
-      data-item-icon={k.itemIcon}
-      data-item-image={k.itemImage}
-      data-item-connector={k.itemConnector}
-      data-tone={tone}
-      data-bs-theme={bsThemeForBg(d.bg)}
-      data-items-source={sourced || undefined}
-      className="position-relative py-16 py-lg-24"
-      style={bgValue ? { background: bgValue } : undefined}
+    <BlockSection
+      type="features"
+      block={block}
+      attrs={{
+        'data-intro-position': k.introPosition,
+        'data-intro-align': k.introAlign,
+        'data-intro-image': k.introImage,
+        'data-items-layout': k.itemsLayout,
+        'data-items-columns': k.itemsColumns,
+        'data-items-image': k.itemsImage,
+        'data-item-style': k.itemStyle,
+        'data-item-align': k.itemAlign,
+        'data-item-icon': k.itemIcon,
+        'data-item-image': k.itemImage,
+        'data-item-connector': k.itemConnector,
+      }}
+      bg={d.bg}
+      extraAttrs={{
+        'data-items-source': sourced || undefined,
+      }}
     >
-      <div className="container">
-        <div className="row fx-frame gy-10 gx-lg-16">
-          <div className="col-12 fx-introcol" data-part="intro">
-            <div className="fx-intro">
-              {introImg ? (
-                <div className="fx-intro-img" data-part="intro-image">
-                  {slotImg(introImg, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' } })}
-                </div>
-              ) : null}
-              {introText}
-            </div>
+      <div className="row fx-frame gy-10 gx-lg-16">
+        <div className="col-12 fx-introcol" data-part="intro">
+          <div className="fx-intro">
+            {introImg ? (
+              <div className="fx-intro-img" data-part="intro-image">
+                {slotImg(introImg, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' } })}
+              </div>
+            ) : null}
+            {introText}
           </div>
-          <div className="col-12 fx-itemscol" data-part="items">
-            <div className="row fx-itemsrow gy-10 gx-lg-16">
-              {itemsImg ? (
-                <div className="col-12 fx-itemsimg" data-part="items-image">
-                  {slotImg(itemsImg, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' } })}
-                </div>
-              ) : null}
-              <div className="col-12 fx-itemsgrid">
-                <div className="row fx-grid g-6">
-                  {items.map((it, i) => {
-                    const img = k.itemImage !== 'none' ? imgOf(it.image) : null;
-                    const num = str(it.number);
-                    const showIcon = k.itemIcon !== 'none' && !cover && hasIcon(it.icon);
-                    const link = isObj(it.link) && str(it.link.label) ? it.link : null;
-                    const bullets = Array.isArray(it.bullets) ? it.bullets.filter((b): b is string => !!str(b)) : [];
-                    return (
-                      <div key={i} className="fx-item" data-part="item">
-                        <div className="fx-inner h-100">
-                          {img ? (
-                            <div className="fx-img" data-part="item-image">
-                              {slotImg(img, { before: { className: 'w-100 h-100 object-fit-cover' } })}
+        </div>
+        <div className="col-12 fx-itemscol" data-part="items">
+          <div className="row fx-itemsrow gy-10 gx-lg-16">
+            {itemsImg ? (
+              <div className="col-12 fx-itemsimg" data-part="items-image">
+                {slotImg(itemsImg, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' } })}
+              </div>
+            ) : null}
+            <div className="col-12 fx-itemsgrid">
+              <div className="row fx-grid g-6">
+                {items.map((it, i) => {
+                  const img = k.itemImage !== 'none' ? imgOf(it.image) : null;
+                  const num = str(it.number);
+                  const showIcon = k.itemIcon !== 'none' && !cover && hasIcon(it.icon);
+                  const link = isObj(it.link) && str(it.link.label) ? it.link : null;
+                  const bullets = Array.isArray(it.bullets) ? it.bullets.filter((b): b is string => !!str(b)) : [];
+                  return (
+                    <div key={i} className="fx-item" data-part="item">
+                      <div className="fx-inner h-100">
+                        {img ? (
+                          <div className="fx-img" data-part="item-image">
+                            {slotImg(img, { before: { className: 'w-100 h-100 object-fit-cover' } })}
+                          </div>
+                        ) : null}
+                        <div className="fx-content">
+                          {num || showIcon ? (
+                            <div className="fx-mark" data-part="mark" data-mark={num && showIcon ? '2' : '1'}>
+                              {num ? <span className="fx-number d-inline-flex align-items-center justify-content-center rounded-3 bg-primary-subtle text-primary fw-bold" data-part="number" data-slot={`items.${i}.number`}>{num}</span> : null}
+                              {showIcon ? <span className="fx-icon d-inline-flex align-items-center justify-content-center rounded-3 bg-primary-subtle text-primary" data-part="icon">{icon(it.icon)}</span> : null}
+                              {connector && i < items.length - 1 ? <span className="fx-connector" data-part="connector" aria-hidden="true" /> : null}
                             </div>
                           ) : null}
-                          <div className="fx-content">
-                            {num || showIcon ? (
-                              <div className="fx-mark" data-part="mark" data-mark={num && showIcon ? '2' : '1'}>
-                                {num ? <span className="fx-number d-inline-flex align-items-center justify-content-center rounded-3 bg-primary-subtle text-primary fw-bold" data-part="number" data-slot={`items.${i}.number`}>{num}</span> : null}
-                                {showIcon ? <span className="fx-icon d-inline-flex align-items-center justify-content-center rounded-3 bg-primary-subtle text-primary" data-part="icon">{icon(it.icon)}</span> : null}
-                                {connector && i < items.length - 1 ? <span className="fx-connector" data-part="connector" aria-hidden="true" /> : null}
-                              </div>
+                          <div className="fx-text">
+                            <h3 className="h5 fw-bold mb-2 fx-item-title" data-slot={`items.${i}.title`}>{it.title}</h3>
+                            {it.text ? <p className="text-muted mb-0" data-slot={`items.${i}.text`}>{it.text}</p> : null}
+                            {bullets.length ? (
+                              <ul className="fx-bullets list-unstyled text-muted mt-3 mb-0" data-part="bullets">
+                                {bullets.map((b, j) => <li key={j} className="d-flex align-items-start gap-2">{icon('check', 'fx-check flex-shrink-0')}<span>{b}</span></li>)}
+                              </ul>
                             ) : null}
-                            <div className="fx-text">
-                              <h3 className="h5 fw-bold mb-2 fx-item-title" data-slot={`items.${i}.title`}>{it.title}</h3>
-                              {it.text ? <p className="text-muted mb-0" data-slot={`items.${i}.text`}>{it.text}</p> : null}
-                              {bullets.length ? (
-                                <ul className="fx-bullets list-unstyled text-muted mt-3 mb-0" data-part="bullets">
-                                  {bullets.map((b, j) => <li key={j} className="d-flex align-items-start gap-2">{icon('check', 'fx-check flex-shrink-0')}<span>{b}</span></li>)}
-                                </ul>
-                              ) : null}
-                              {link ? <div className="mt-3" data-part="link">{button(link, 0, 'link', `items.${i}.link.label`)}</div> : null}
-                            </div>
+                            {link ? <div className="mt-3" data-part="link">{button(link, 0, 'link', `items.${i}.link.label`)}</div> : null}
                           </div>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
         </div>
       </div>
-    </section>
+    </BlockSection>
   );
 }

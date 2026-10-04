@@ -26,15 +26,15 @@
 //    这里不自己算亮度、不自己拼渐变。
 
 import Link from 'next/link';
-import { blockAttrs } from '@/lib/sections/blockAttrs';
 import { slotImg } from '@/lib/sections/blockMedia';
+import BlockSection from '@/components/BlockSection';
 import type { BlockConfig } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
 import Button from '@/components/Button';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
-import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import { type BgValue } from '../../scripts/lib/contrast.js';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
 
@@ -77,8 +77,6 @@ export default function TeamNewSection({ data, block, iconTable = {} }: Props) {
   const shape = block && typeof block.shape === 'string' ? block.shape : undefined;
   const opts: TeamOptions = isObj(d.options) ? d.options : {};
   const k = effectiveKnobs(manifest, shape, opts) as Required<{ [K in keyof TeamOptions]: string }>;
-  const tone = toneForBg(d.bg);
-  const bgValue = bgCss(d.bg);
 
   const icon = (name: string | undefined, className?: string) => <InlineIcon name={name} icons={iconTable} className={className} />;
   const hasIcon = (name: unknown) => typeof name === 'string' && !!iconTable[name];
@@ -92,89 +90,87 @@ export default function TeamNewSection({ data, block, iconTable = {} }: Props) {
   const joinCta = join && isObj(join.cta) && str(join.cta.label) ? join.cta : null;
 
   return (
-    <section
-      {...blockAttrs('team', block)}
-      data-intro-position={k.introPosition}
-      data-intro-align={k.introAlign}
-      data-members-columns={k.membersColumns}
-      data-member-photo={k.memberPhoto}
-      data-photo-shape={k.photoShape}
-      data-member-style={k.memberStyle}
-      data-member-align={k.memberAlign}
-      data-tone={tone}
-      data-bs-theme={bsThemeForBg(d.bg)}
-      className="position-relative py-16 py-lg-24"
-      style={bgValue ? { background: bgValue } : undefined}
+    <BlockSection
+      type="team"
+      block={block}
+      attrs={{
+        'data-intro-position': k.introPosition,
+        'data-intro-align': k.introAlign,
+        'data-members-columns': k.membersColumns,
+        'data-member-photo': k.memberPhoto,
+        'data-photo-shape': k.photoShape,
+        'data-member-style': k.memberStyle,
+        'data-member-align': k.memberAlign,
+      }}
+      bg={d.bg}
     >
-      <div className="container">
-        <div className="row tm-frame gy-10 gx-lg-16">
-          {hasIntro ? (
-            <div className="col-12 tm-introcol" data-part="intro">
-              <div className="tm-intro-text" data-part="intro-text">
-                {eyebrow && eyebrowStyle !== 'none' ? (
-                  <div className="mb-4" data-part="eyebrow">
-                    <Eyebrow style={eyebrowStyle} text={eyebrow.text} slot="introEyebrow.text" />
-                  </div>
-                ) : null}
-                {d.headline ? <h2 className="display-5 fw-bold lh-1 ls-tight mb-4 tm-title" data-slot="headline">{d.headline}</h2> : null}
-                {d.body ? <p className="fs-5 text-muted mb-0" data-slot="body">{d.body}</p> : null}
-              </div>
-            </div>
-          ) : null}
-          <div className="col-12 tm-memberscol" data-part="members">
-            <div className="tm-grid">
-              {members.map((m, i) => {
-                const photo = imgOf(m.photo);
-                const links = (Array.isArray(m.links) ? m.links : []).filter((l): l is TeamLink => isObj(l) && hasIcon(l.icon) && !!str(l.href));
-                return (
-                  <div key={i} className="tm-member" data-part="member">
-                    <div className="tm-inner h-100">
-                      {photo ? (
-                        <div className="tm-photo" data-part="photo">
-                          {slotImg(photo, { alt: photo.alt || m.name || '' })}
-                        </div>
-                      ) : null}
-                      <div className="tm-text">
-                        {m.name ? <div className="tm-name fw-semibold fs-5" data-slot={`members.${i}.name`}>{m.name}</div> : null}
-                        {m.role ? <div className="tm-role text-sm text-muted" data-slot={`members.${i}.role`}>{m.role}</div> : null}
-                        {m.bio ? <p className="tm-bio text-sm text-muted mb-0" data-part="bio" data-slot={`members.${i}.bio`}>{m.bio}</p> : null}
-                        {links.length ? (
-                          <div className="tm-links d-flex gap-3" data-part="links">
-                            {/* 🔴 #1508 那条规则：站内路径（`/…`）走 `next/link`（展示站跑在 basePath 下，裸 `<a>` 不吃前缀、根路径闸拒绝切换）；
-                                `mailto:` / `tel:` / `http(s):` 保持裸 `<a>`。 */}
-                            {links.map((l, j) => (String(l.href).startsWith('/')
-                              ? <Link key={j} className="tm-link text-muted" href={String(l.href)} aria-label={l.icon} data-part="link">{icon(l.icon)}</Link>
-                              : <a key={j} className="tm-link text-muted" href={l.href} aria-label={l.icon} data-part="link">{icon(l.icon)}</a>
-                            ))}
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-              {join ? (
-                <div className="tm-member" data-part="join">
-                  <div className="tm-join h-100 d-flex flex-column justify-content-center">
-                    <div className="tm-join-icon d-inline-flex align-items-center justify-content-center rounded-circle bg-primary-subtle text-primary mb-4">
-                      {icon('person-plus')}
-                    </div>
-                    {join.title ? <div className="tm-join-title fw-semibold fs-5 mb-1" data-slot="join.title">{join.title}</div> : null}
-                    {join.body ? <p className="text-sm text-muted mb-4" data-slot="join.body">{join.body}</p> : null}
-                    {joinCta ? (
-                      <Button href={joinCta.href || '#'} style={joinCta.style} fallback="outline" defaultSize="sm" flush className="align-self-start tm-join-cta">
-                        {joinCta.icon ? icon(joinCta.icon, 'me-2') : null}
-                        <span>{joinCta.label}</span>
-                        {joinCta.arrow ? <span className="ms-2 d-inline-flex">{icon('arrow-right')}</span> : null}
-                      </Button>
-                    ) : null}
-                  </div>
+      <div className="row tm-frame gy-10 gx-lg-16">
+        {hasIntro ? (
+          <div className="col-12 tm-introcol" data-part="intro">
+            <div className="tm-intro-text" data-part="intro-text">
+              {eyebrow && eyebrowStyle !== 'none' ? (
+                <div className="mb-4" data-part="eyebrow">
+                  <Eyebrow style={eyebrowStyle} text={eyebrow.text} slot="introEyebrow.text" />
                 </div>
               ) : null}
+              {d.headline ? <h2 className="display-5 fw-bold lh-1 ls-tight mb-4 tm-title" data-slot="headline">{d.headline}</h2> : null}
+              {d.body ? <p className="fs-5 text-muted mb-0" data-slot="body">{d.body}</p> : null}
             </div>
+          </div>
+        ) : null}
+        <div className="col-12 tm-memberscol" data-part="members">
+          <div className="tm-grid">
+            {members.map((m, i) => {
+              const photo = imgOf(m.photo);
+              const links = (Array.isArray(m.links) ? m.links : []).filter((l): l is TeamLink => isObj(l) && hasIcon(l.icon) && !!str(l.href));
+              return (
+                <div key={i} className="tm-member" data-part="member">
+                  <div className="tm-inner h-100">
+                    {photo ? (
+                      <div className="tm-photo" data-part="photo">
+                        {slotImg(photo, { alt: photo.alt || m.name || '' })}
+                      </div>
+                    ) : null}
+                    <div className="tm-text">
+                      {m.name ? <div className="tm-name fw-semibold fs-5" data-slot={`members.${i}.name`}>{m.name}</div> : null}
+                      {m.role ? <div className="tm-role text-sm text-muted" data-slot={`members.${i}.role`}>{m.role}</div> : null}
+                      {m.bio ? <p className="tm-bio text-sm text-muted mb-0" data-part="bio" data-slot={`members.${i}.bio`}>{m.bio}</p> : null}
+                      {links.length ? (
+                        <div className="tm-links d-flex gap-3" data-part="links">
+                          {/* 🔴 #1508 那条规则：站内路径（`/…`）走 `next/link`（展示站跑在 basePath 下，裸 `<a>` 不吃前缀、根路径闸拒绝切换）；
+                              `mailto:` / `tel:` / `http(s):` 保持裸 `<a>`。 */}
+                          {links.map((l, j) => (String(l.href).startsWith('/')
+                            ? <Link key={j} className="tm-link text-muted" href={String(l.href)} aria-label={l.icon} data-part="link">{icon(l.icon)}</Link>
+                            : <a key={j} className="tm-link text-muted" href={l.href} aria-label={l.icon} data-part="link">{icon(l.icon)}</a>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {join ? (
+              <div className="tm-member" data-part="join">
+                <div className="tm-join h-100 d-flex flex-column justify-content-center">
+                  <div className="tm-join-icon d-inline-flex align-items-center justify-content-center rounded-circle bg-primary-subtle text-primary mb-4">
+                    {icon('person-plus')}
+                  </div>
+                  {join.title ? <div className="tm-join-title fw-semibold fs-5 mb-1" data-slot="join.title">{join.title}</div> : null}
+                  {join.body ? <p className="text-sm text-muted mb-4" data-slot="join.body">{join.body}</p> : null}
+                  {joinCta ? (
+                    <Button href={joinCta.href || '#'} style={joinCta.style} fallback="outline" defaultSize="sm" flush className="align-self-start tm-join-cta">
+                      {joinCta.icon ? icon(joinCta.icon, 'me-2') : null}
+                      <span>{joinCta.label}</span>
+                      {joinCta.arrow ? <span className="ms-2 d-inline-flex">{icon('arrow-right')}</span> : null}
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
-    </section>
+    </BlockSection>
   );
 }

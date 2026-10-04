@@ -315,9 +315,9 @@ console.log('\n── AC7 bg');
   check(attr(at('brand'), 'data-tone') === 'brand', 'brand ⟹ data-tone="brand"');
   const g = at({ stops: ['#7d52f4', '#f7b733'], angle: 135 });
   check(/style="background:linear-gradient\(135deg,#7d52f4,#f7b733\)"/.test(sectionTag(g)) && attr(g, 'data-tone') === 'dark', '渐变 ⟹ linear-gradient(135deg,…) + data-tone="dark"（toneForBg）');
-  check(count(SRC_TEXT, 'toneFor(') === 0 && count(SRC_TEXT, 'linear-gradient') === 0 && count(SRC_TEXT, 'toneForBg(') === 1,
-    `Section.tsx 里 toneFor( ${count(SRC_TEXT, 'toneFor(')} 处、linear-gradient ${count(SRC_TEXT, 'linear-gradient')} 处、toneForBg( ${count(SRC_TEXT, 'toneForBg(')} 处`);
-  check(/\[data-block="gallery"\]\[data-tone="dark"\] \.gl-title,[\s\S]*?\{\s*color: #fff !important;/.test(DEEP), 'site-css §DEEP_COMMON：dark / brand 时标题反白');
+  check(count(SRC_TEXT, 'toneFor(') === 0 && count(SRC_TEXT, 'linear-gradient') === 0 && /<BlockSection[\s\S]*?\bbg=\{d\.bg\}/.test(SRC_TEXT),
+    `Section.tsx 把 bg 交给 <BlockSection>（深浅 / 底色由它调 contrast.js 的 toneForBg / bgCss，#1534）；自己 toneFor( ${count(SRC_TEXT, 'toneFor(')} 处、linear-gradient ${count(SRC_TEXT, 'linear-gradient')} 处`);
+  check(/\[data-block="gallery"\]\[data-tone="dark"\] \.gl-title,[\s\S]*?\{\s*color: #fff !important;/.test(DEEP), 'site-css §DEEP_COMMON（#1533）：dark / brand 时标题反白');
   check(/\[data-tone="dark"\] \.gl-cap-s,\s*\[data-block="gallery"\]\[data-tone="brand"\] \.gl-cap-s \{\s*color: rgba\(255, 255, 255, 0\.92\);/.test(CSS), 'block.css：dark / brand 时图注小字白 .92');
   check(JSON.stringify(M.slots.bg) === JSON.stringify(manifestLib.loadManifests().get('footer').slots.bg), 'bg 槽对象与 footer 的 slots.bg 逐字相同');
 }
@@ -410,7 +410,8 @@ console.log('\n── AC8 validateSite（items 条数 · 每项要有 image.imag
     };
     let err = loadVariant(broken);
     check(/itemRequires/.test(err), `itemRequires 写成字符串 ⟹ 载清单时报错（${err.slice(0, 90)}）`);
-    broken.slots.bg.itemRequires = ['x']; broken.slots.items.itemRequires = ['image.imageUrl'];
+    // #1534 —— 盘上的 bg 是 { ref }，多一个键就不再是引用；先展开成完整定义，再往这个非 list 槽上写 itemRequires。
+    broken.slots.bg = { ...manifestLib.loadManifests().get('gallery').slots.bg, itemRequires: ['x'] }; broken.slots.items.itemRequires = ['image.imageUrl'];
     err = loadVariant(broken);
     check(/slots\.bg\.itemRequires/.test(err), `itemRequires 写在非 list 槽上 ⟹ 报错（${err.slice(0, 90)}）`);
   } finally { fs.rmSync(tmpBlocks, { recursive: true, force: true }); manifestLib.loadManifests(); }

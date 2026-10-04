@@ -36,7 +36,9 @@ const { arrangeToolbar, toolbarControlsOf, toolbarGroupsOf, knobDeclarationProbl
 if (typeof arrangeToolbar !== 'function' || typeof toolbarControlsOf !== 'function' || typeof toolbarGroupsOf !== 'function') die('block-knobs.js 没导出 arrangeToolbar / toolbarControlsOf / toolbarGroupsOf');
 
 const BLOCKS = path.resolve(__dirname, '..', '..', 'blocks');
-const manifestOf = (b) => JSON.parse(fs.readFileSync(path.join(BLOCKS, b, 'manifest.json'), 'utf8'));
+// #1534 —— 盘上的 slots.bg 是 { ref: 'bg' }，走读入口展开（直接 JSON.parse 认不出 bg 是颜色槽，color:bg 那一组就对不上）。
+const { readManifest } = require('./shared-slots');
+const manifestOf = (b) => readManifest(path.join(BLOCKS, b, 'manifest.json'));
 const seq = (groups) => ['presets', ...groups.flatMap((g, i) => (i === 0 ? ['|', ...g] : ['|', ...g]))].join(' ');
 
 // ── ① ────────────────────────────────────────────────────────────────────────────────────────────

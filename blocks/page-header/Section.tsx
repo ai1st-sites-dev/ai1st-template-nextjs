@@ -23,8 +23,8 @@
 //    `image=background` 一律按深底处理（照片 + 深色遮罩）。
 
 import Link from 'next/link';
-import { blockAttrs } from '@/lib/sections/blockAttrs';
 import { slotImg } from '@/lib/sections/blockMedia';
+import BlockSection from '@/components/BlockSection';
 import type { BlockConfig } from '@/lib/types/config';
 import Icon from '@/components/Icon';
 import { breadcrumbsFor } from '@/lib/breadcrumbs';
@@ -33,7 +33,7 @@ import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow
 import Button from '@/components/Button';
 import manifest from './manifest.json';
 import { effectiveKnobs } from '../../scripts/lib/block-knobs.js';
-import { bgCss, bsThemeForBg, toneForBg, type BgValue } from '../../scripts/lib/contrast.js';
+import { type BgValue } from '../../scripts/lib/contrast.js';
 
 type BtnStyle = 'solid' | 'outline' | 'link';
 
@@ -71,8 +71,6 @@ export default function PageHeaderNewSection({ data, locale = 'en', block, pageS
   const img: PageHeaderNewImage | null = k.image !== 'none' && isObj(d.image) && str(d.image.imageUrl) ? d.image : null;
   const cover = k.image === 'background' && !!img;
   const side = (k.image === 'left' || k.image === 'right') && !!img;
-  const tone = cover ? 'dark' : toneForBg(d.bg);
-  const bgValue = bgCss(d.bg);
 
   const crumbs = pageSlug && pageSlug !== 'home' ? breadcrumbsFor(pageSlug, locale) : [];
   const homeLabel = getLabels(locale).home;
@@ -84,73 +82,74 @@ export default function PageHeaderNewSection({ data, locale = 'en', block, pageS
   const sub = str(d.subheadline);
 
   return (
-    <section
-      {...blockAttrs('page-header', block)}
-      data-headline-position={k.headlinePosition}
-      data-text-align={k.textAlign}
-      data-image={k.image}
-      data-tone={tone}
-      data-bs-theme={bsThemeForBg(d.bg, cover)}
+    <BlockSection
+      type="page-header"
+      block={block}
+      attrs={{
+        'data-headline-position': k.headlinePosition,
+        'data-text-align': k.textAlign,
+        'data-image': k.image,
+      }}
+      bg={d.bg}
+      cover={cover}
       className="phn position-relative"
-      style={bgValue ? { background: bgValue } : undefined}
-    >
-      {cover && img ? (
+      containerClassName="container position-relative"
+      layer={cover && img ? (
         <div className="phn-bgimg" data-part="bg" aria-hidden="true">
           {slotImg(img, { alt: '' })}
         </div>
       ) : null}
-      <div className="container position-relative">
-        <div className="phn-outer">
-          <div className="phn-text" data-part="text">
-            {crumbs.length ? (
-              <nav className="phn-crumbs" aria-label="Breadcrumb" data-part="breadcrumbs">
-                <ol className="breadcrumb text-sm mb-6">
-                  {crumbs.map((c, i) => {
-                    const last = i === crumbs.length - 1;
-                    const label = i === 0 ? homeLabel : c.label;
-                    return last ? (
-                      <li key={i} className="breadcrumb-item active" aria-current="page">{label}</li>
-                    ) : (
-                      <li key={i} className="breadcrumb-item">{c.href ? <Link href={c.href}>{label}</Link> : label}</li>
-                    );
-                  })}
-                </ol>
-              </nav>
-            ) : null}
-            <div className="phn-inner">
-              <div className="phn-head">
-                {eyebrow && eyebrowStyle !== 'none' ? (
-                  <div className="mb-4" data-part="eyebrow">
-                    <Eyebrow style={eyebrowStyle} text={eyebrow.text} slot="introEyebrow.text" />
-                  </div>
-                ) : null}
-                <h1 className="phn-title display-4 fw-bold lh-1 ls-tight mb-0" data-slot="headline">{d.headline}</h1>
-              </div>
-              {sub || ctas.length ? (
-                <div className="phn-main">
-                  {sub ? <p className="phn-sub fs-5 text-muted mb-0" data-slot="subheadline">{sub}</p> : null}
-                  {ctas.length ? (
-                    <div className="phn-ctas d-flex flex-wrap gap-2" data-part="ctas">
-                      {ctas.map((b, i) => (
-                        <Button key={i} href={b.href || '#'} style={b.style} fallback="solid" size={b.size} defaultSize="md" flush>
-                          {b.icon ? <Icon name={b.icon} className="me-2" /> : null}
-                          <span data-slot={`ctas.${i}.label`}>{b.label}</span>
-                          {b.arrow ? <Icon name="arrow-right" className="ms-2" /> : null}
-                        </Button>
-                      ))}
-                    </div>
-                  ) : null}
+    >
+      <div className="phn-outer">
+        <div className="phn-text" data-part="text">
+          {crumbs.length ? (
+            <nav className="phn-crumbs" aria-label="Breadcrumb" data-part="breadcrumbs">
+              <ol className="breadcrumb text-sm mb-6">
+                {crumbs.map((c, i) => {
+                  const last = i === crumbs.length - 1;
+                  const label = i === 0 ? homeLabel : c.label;
+                  return last ? (
+                    <li key={i} className="breadcrumb-item active" aria-current="page">{label}</li>
+                  ) : (
+                    <li key={i} className="breadcrumb-item">{c.href ? <Link href={c.href}>{label}</Link> : label}</li>
+                  );
+                })}
+              </ol>
+            </nav>
+          ) : null}
+          <div className="phn-inner">
+            <div className="phn-head">
+              {eyebrow && eyebrowStyle !== 'none' ? (
+                <div className="mb-4" data-part="eyebrow">
+                  <Eyebrow style={eyebrowStyle} text={eyebrow.text} slot="introEyebrow.text" />
                 </div>
               ) : null}
+              <h1 className="phn-title display-4 fw-bold lh-1 ls-tight mb-0" data-slot="headline">{d.headline}</h1>
             </div>
+            {sub || ctas.length ? (
+              <div className="phn-main">
+                {sub ? <p className="phn-sub fs-5 text-muted mb-0" data-slot="subheadline">{sub}</p> : null}
+                {ctas.length ? (
+                  <div className="phn-ctas d-flex flex-wrap gap-2" data-part="ctas">
+                    {ctas.map((b, i) => (
+                      <Button key={i} href={b.href || '#'} style={b.style} fallback="solid" size={b.size} defaultSize="md" flush>
+                        {b.icon ? <Icon name={b.icon} className="me-2" /> : null}
+                        <span data-slot={`ctas.${i}.label`}>{b.label}</span>
+                        {b.arrow ? <Icon name="arrow-right" className="ms-2" /> : null}
+                      </Button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
-          {side && img ? (
-            <div className="phn-img" data-part="image">
-              {slotImg(img, { before: { className: 'w-100 rounded-4 object-fit-cover' } })}
-            </div>
-          ) : null}
         </div>
+        {side && img ? (
+          <div className="phn-img" data-part="image">
+            {slotImg(img, { before: { className: 'w-100 rounded-4 object-fit-cover' } })}
+          </div>
+        ) : null}
       </div>
-    </section>
+    </BlockSection>
   );
 }

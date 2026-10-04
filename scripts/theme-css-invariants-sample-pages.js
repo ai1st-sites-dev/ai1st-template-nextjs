@@ -198,7 +198,7 @@ const pruned = [];
 // 🔴 换完之后每个键都来自 manifest 的 `slots` ⟹ 下面最少版那段的「manifest 里没有的键」按构造
 //    是空的。那段代码不动：它是对**输入**的断言，不是对这一次替换的断言。
 const { demoDataFor } = require('./lib/demo-content');
-const { loadManifests: loadDemoManifests } = require('./lib/block-manifest');
+const { loadManifests: loadDemoManifests, readManifest } = require('./lib/block-manifest');
 const DEMO_MANIFESTS = loadDemoManifests(path.join(NEXT, 'blocks'));
 for (const sec of sections) {
   const m = DEMO_MANIFESTS.get(sec.type);
@@ -233,7 +233,7 @@ if (MINIMAL) {
     if (!fs.existsSync(mf)) {
       die(`no blocks/${sec.type}/manifest.json — 最少版的判据只有 manifest 一个来源，没有它就说不出这个块该削成什么样`);
     }
-    const slots = readJson(mf).slots || {};
+    const slots = readManifest(mf).slots || {};  // #1534 —— 展开共用槽（bg 是 { ref }）
     const data = sec.data || {};
     for (const [k, v] of Object.entries(data)) {
       if (Array.isArray(v) && slots[k] && !isListSlot(slots[k])) judgeMissed.push(`${sec.type}.${k}`);
@@ -317,7 +317,7 @@ patched.push(`blog/: ${BLOG_POSTS.length} 篇文章（/blog 与 /blog/<slug> 进
     for (const sec of bs) {
       const mf = path.join(BLOCKS_DIR, sec.type, 'manifest.json');  // #1387 —— 一个块一个文件夹
       if (!fs.existsSync(mf)) continue;
-      const slots = readJson(mf).slots || {};
+      const slots = readManifest(mf).slots || {};  // #1534 —— 展开共用槽（bg 是 { ref }）
       const d = sec.data || {};
       for (const [name, spec] of Object.entries(slots)) {
         if (!spec.required) {

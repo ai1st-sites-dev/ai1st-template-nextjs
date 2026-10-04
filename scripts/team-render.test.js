@@ -258,8 +258,8 @@ console.log('\n── AC9 bg');
   check(attr(at('brand'), 'data-tone') === 'brand', 'brand ⟹ data-tone="brand"');
   const g = at({ stops: ['#7d52f4', '#f7b733'], angle: 135 });
   check(/style="background:linear-gradient\(135deg,#7d52f4,#f7b733\)"/.test(sectionTag(g)) && attr(g, 'data-tone') === 'dark', '渐变 ⟹ linear-gradient(135deg,…) + data-tone="dark"（toneForBg）');
-  check(count(SRC_TEXT, 'toneFor(') === 0 && count(SRC_TEXT, 'linear-gradient') === 0 && count(SRC_TEXT, 'toneForBg(') === 1,
-    `Section.tsx 里 toneFor( ${count(SRC_TEXT, 'toneFor(')} 处、linear-gradient ${count(SRC_TEXT, 'linear-gradient')} 处、toneForBg( ${count(SRC_TEXT, 'toneForBg(')} 处`);
+  check(count(SRC_TEXT, 'toneFor(') === 0 && count(SRC_TEXT, 'linear-gradient') === 0 && /<BlockSection[\s\S]*?\bbg=\{d\.bg\}/.test(SRC_TEXT),
+    `Section.tsx 把 bg 交给 <BlockSection>（深浅 / 底色由它调 contrast.js 的 toneForBg / bgCss，#1534）；自己 toneFor( ${count(SRC_TEXT, 'toneFor(')} 处、linear-gradient ${count(SRC_TEXT, 'linear-gradient')} 处`);
   const { ON_DEEP_MUTED } = require(path.join(NEXT, 'scripts', 'lib', 'site-css.js'));
   check(/\[data-tone="dark"\] \.text-muted,/.test(ON_DEEP_MUTED) && !/\.text-muted\s*\{[^}]*rgba\(255, 255, 255/.test(CSS) && /class="tm-bio text-sm text-muted/.test(at('#0f172a')),
     '简介是 .text-muted ⟹ 深底白 .92 由全站那条给（block.css 里没有自己那份）');
