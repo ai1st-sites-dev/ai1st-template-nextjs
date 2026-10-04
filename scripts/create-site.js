@@ -79,7 +79,12 @@ const { pageWithBlocks } = require('./blocks');
 // hero）都住在那个文件里，这里只在写盘前叫它一次。
 const { applyHeroLeadForm } = require('./lib/hero-lead-form');
 // #1176 —— 关键词页面包屑那个中间级的死链修法（提示词 + 生成后核对两侧，理由整段在那个文件头上）。
-const { pruneDeadBreadcrumbHrefs, alignBreadcrumbsToOwnService, serviceKey } = require('./lib/breadcrumb-links');
+// #1550 —— 关键词页：规划 / 素材 / 单页提示词 / 合格判据 / 详情页兜底 / 互链 / 页脚（纯函数都在 lib 里，能单测）。
+//    📌 原来这里引的 `breadcrumb-links.js`（#1176 / #1184 剥死链、对齐服务级）改的是页面数据里的 `data.breadcrumbs`，
+//    而 #1502 之后新 page-header 不读它（面包屑按页面路径算，`src/lib/breadcrumbs.ts`）—— 那两步已经是空操作，本票不再调。
+//    文件本身留着：`package.json` 的 `lint:scripts` 清单点了它的名，而本票要求 package.json 一字不动。
+const kwPages = require('./lib/keyword-pages');
+const { mostSimilarPages } = require('./lib/similarity');
 // #1489 —— 建站时按地址查一次坐标写进 brand.locations[0].geo（contact 的地图要它；Nominatim，不要 key，§geocode.js 头注）。
 const { geocodeBrand } = require('./lib/geocode');
 // #1551 —— LocalBusiness 里「从老板给的料来」的几项：营业时间的转写核对、真实评分（§local-business-facts.js 头注）。
@@ -1100,7 +1105,7 @@ async function main() {
     //    payload 的组全部对不上 demo-service（正常态，不失败）。
     applyTargetKeywords(content, targetKw.assignTargetKeywords({
       keywords, services, contentServices: content.services, pages: content.pages,
-      keywordPagesList: keywordPagesFrom(keywords).keywordPagesList, siteType, keyword: leadKeyword,
+      keywordPagesList: [], siteType, keyword: leadKeyword,
     }));
     writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks);
     debug(`Demo site config written to site/`);
@@ -1178,7 +1183,7 @@ async function main() {
   const keywordBrief = targetKw.keywordBrief({
     sitePrimary: targetKw.sitePrimaryOf(kwGroups, { siteType, keyword: leadKeyword }),
     groups: kwGroups,
-    keywordPagesList: keywordPagesFrom(keywords).keywordPagesList,
+    keywordPagesList: keywordPagesFrom(keywords, services).keywordPagesList,
   });
 
   // ── Call 1: Generate base site (brand + seo + services + regular pages) ──
@@ -1189,7 +1194,7 @@ async function main() {
     reviews, onlinePresence, hours, priceRange, uploadedImages, logoUrl,
     // #1134（来源 #1139）—— 这个站会不会有服务子页。判据跟 Call 2 真去生成那些页时用的是
     // 同一个函数,不是第二份实现。
-    hasKeywordPages: keywordPagesFrom(keywords).keywordPagesList.length > 0,
+    hasKeywordPages: keywordPagesFrom(keywords, services).keywordPagesList.length > 0,
     // TICKET-140: pass per-locale brand-name inputs through so generateContent
     // can assemble brand.name as a Record<locale, string> (136 regression fix).
     defaultLocale, brandNameByLocale,
@@ -1246,74 +1251,63 @@ async function main() {
 
   progress('Writing base configuration files...', 50);
 
-  // ── Call 2: Generate keyword pages (if any keywords selected) ──
-  const { servicesWithKeywords, keywordPagesList } = keywordPagesFrom(keywords);
-
-  if (keywordPagesList.length > 0) {
+  // ── Call 2（#1550）：关键词页，一页一次调用 ──────────────────────────────────────────────────────────
+  //
+  // 🔴 失败、重试、计数**都按单页算**（正文做什么 1）：一页没拿到合格结果只重试这一页，别的页不重新生成；最终仍失败的
+  //    按词列进建站结果（`keyword-pages` 事件，建站页据它不显示「成功」），建站照常往下走 —— 以前这里一次调用生成全部页，
+  //    失败就静默 `return []`，整站没有关键词页却显示成功。
+  // 🔴 一页一次（不是 ≤3 页一批）：素材是**这一页**的（带本地名的评价、本服务组的问题），批在一起就会把 Markham 那条评价
+  //    送进 Toronto 那页的提示词。
+  const kwPlan = kwPages.planKeywordPages({ keywords, services, contentServices: content.services });
+  const kwReport = { total: kwPlan.pages.length, ok: 0, failed: [], fallbackSlugs: kwPlan.fallbacks, similarity: [], addedServices: [] };
+  const kwOk = [];
+  if (kwPlan.pages.length > 0) {
     progress('AI is writing keyword pages...', 55);
-
-    // Build service detail page map for keyword page breadcrumbs
-    const serviceDetailMap = {};
-    for (const p of content.pages.filter(p => p.serviceDetailPage)) {
-      serviceDetailMap[p.parentService] = p.slug;
-    }
-
-    const kwPages = await generateKeywordPages({
-      keywordPages: keywordPagesList,
+    for (const f of kwPlan.fallbacks) debug(`[keyword-pages] 「${f.keyword}」里有转写表没有的文字 ⟹ slug 退成 ${f.slug}`);
+    const results = await generateKeywordPages({
+      plan: kwPlan.pages,
+      payload: input,
       brand: content.brand,
       seo: content.seo,
       companyName,
       industry,
       location,
       languageName,
-      serviceDetailMap,
-      // #1346 —— Call 2 有它自己那份写死的块清单，所以同一份禁用清单也要传到这儿。
       disabledBlocks,
       titleSpec: pageTitleSpec(content.brand.name[defaultLocale]),
-      keywordBrief, additionalContext,
+      forms: siteFormsFrom(content.ai && content.ai.forms),
+      additionalContext,
+      sitePrimaryKeyword: (targetKw.sitePrimaryOf(kwGroups, { siteType, keyword: leadKeyword }) || {}).keyword || '',
     });
+    for (const r of results) {
+      if (r.ok) kwOk.push(r);
+      else kwReport.failed.push({ keyword: r.entry.keyword, slug: r.entry.path, problems: r.problems });
+    }
+    kwReport.ok = kwOk.length;
 
-    // #1176 —— 面包屑里的 href 只许指向真的会被生成出来的页面。判据和整段理由（含「为什么提示词
-    // 那一侧不够」）住在 scripts/lib/breadcrumb-links.js —— 那里也是它的体检所在。
-    // 提示词那一侧也改了（空 map 时不再给它一个假的 `/<service-slug>` 例子去照抄），见下面
-    // generateKeywordPages 的提示词。这里是生成之后的那道核对。
-    const knownSlugs = new Set([
-      ...content.pages.map(p => p.slug),
-      ...kwPages.map(p => p.slug),
-    ].filter(Boolean));
-    const droppedCrumbs = pruneDeadBreadcrumbHrefs(kwPages, knownSlugs);
-    if (droppedCrumbs.length > 0) {
-      debug(`#1176: dropped ${droppedCrumbs.length} breadcrumb href(s) pointing at pages that will not exist: ${droppedCrumbs.join(', ')}`);
+    // PM 02:08 裁定 ①(b) —— 对不上服务的组由代码补一个服务；🔴 只给**真有关键词页落地**的组补（一页都没成就不补）。
+    const okServiceIds = new Set(kwOk.map((r) => r.entry.serviceId));
+    for (const a of kwPlan.addedServices) {
+      if (!okServiceIds.has(a.id)) continue;
+      content.services.push(kwPages.serviceEntryFor(a, content.services));
+      kwReport.addedServices.push({ id: a.id, name: a.name });
+      debug(`[keyword-pages] 关键词组「${a.group}」对不上本站任何服务 ⟹ 补了服务 ${a.id}（「${a.name}」），它的关键词页挂在 /services/${a.id}/ 下`);
     }
 
-    // #1184 —— 上面那道只问「那一页存不存在」，所以它对**活着但指错服务**失明（文字写着 A、点进去是 B）。
-    // 这一道按「指对没有」再核一次。放在剥死链【之后】是有意的：剥掉一个死的中间级之后，如果这个
-    // 服务其实有自己的详情页，下面那一步会把对的那条补回去。判据与理由住在 lib 那个文件的文件头。
-    const alignedCrumbs = alignBreadcrumbsToOwnService(kwPages, content.pages, keywordPagesList);
-    if (alignedCrumbs.length > 0) {
-      debug(`#1184: re-pointed ${alignedCrumbs.length} breadcrumb service level(s) at their own service: ${alignedCrumbs.join(', ')}`);
-    }
-
-    // Add keyword pages to content.pages
-    content.pages.push(...kwPages);
-
-    // Add keyword pages to footer navigation — one column per service
-    for (const s of servicesWithKeywords) {
-      const serviceSlug = s.service.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-      const serviceKwPages = kwPages.filter(p => p.slug.startsWith(serviceSlug + '/'));
-      if (serviceKwPages.length > 0) {
-        content.navigation.footer.columns.push({
-          title: s.service,
-          links: serviceKwPages.slice(0, 6).map(p => ({ label: p.title, href: `/${p.slug}` })),
-        });
-      }
-    }
+    const newPages = kwOk.map((r) => r.page);
+    // navOrder 由代码写（50 + 它在挖词清单里的位置，Gold 高的在前）：页脚按它排，sync-config 重建页脚时读的也是它。
+    kwOk.forEach((r) => { r.page.navOrder = 50 + kwPlan.pages.indexOf(r.entry); });
+    content.pages.push(...newPages);
+    // 🔴 服务详情页、相似度、兄弟页、页脚栏、`keyword-pages` 事件都挪到 seoPass（#1549）**之后**（§finishKeywordPages）：
+    //    seoPass 会重写页、再丢掉仍不合格的关键词页 —— 在它之前定下来的 N/M、相似度、页脚就会把已经不在站里的页算进去
+    //    （QA2 r1：「报 6/6、站里只有 5 页」）；而在它之前补的详情页，会让一个下面一页都没留下的服务因为这张多余的页建站失败。
   }
 
   // #1548 —— 三类页挂上目标词、清单进 seo.json。放在 Call 2 之后：关键词页这时才在 content.pages 里。
+  //    #1550 —— 关键词页 ↔ 词的对照表 = 真落地的那些页（URL 是 `services/<id>/<slug>`）。
   applyTargetKeywords(content, targetKw.assignTargetKeywords({
     keywords, services, contentServices: content.services, pages: content.pages,
-    keywordPagesList, siteType, keyword: leadKeyword,
+    keywordPagesList: kwOk.map((r) => ({ nestedSlug: r.entry.path, keyword: r.entry.keyword })), siteType, keyword: leadKeyword,
   }));
 
   // #1549 —— 目标词这时才挂到页上 ⟹ 每页第一张内容图的 alt 在这里带上它（填图那一刻还不知道是哪个词）。
@@ -1325,10 +1319,24 @@ async function main() {
 
   // #1549 —— 主语言每一页跑 seoProblems；有问题重写那一页一次；仍有问题：关键词页丢掉，其余页建站失败（§seoPass）。
   progress('Checking every page for SEO...', 68);
-  await seoPass({
+  const seoResult = await seoPass({
     content, payload: input, locale: defaultLocale, industry, location, companyName, disabledBlocks,
-    keywordPagesPlanned: keywordPagesList,
+    // #1550 —— 计划建的 = 全部选中词（含 Call 2 就没建成的），seoPass 据它打「关键词页 N/M」那行日志和 seo-check 事件。
+    keywordPagesPlanned: kwPlan.pages.map((e) => ({ nestedSlug: e.path, keyword: e.keyword })),
   });
+
+  // ── 关键词页收尾（#1550）：seoPass 之后才定的那几样 ─────────────────────────────────────────────────────
+  if (kwPlan.pages.length > 0) {
+    await finishKeywordPages({
+      content, kwPlan, kwReport, kwOk, dropped: seoResult.dropped, locale: defaultLocale, disabledBlocks,
+      industry, location, companyName, payload: input,
+      // 服务目录变了（补的服务撤掉 / 补了详情页）之后重算目标词：seo.targetKeywords 按服务 id 记词组，详情页的目标词 = 它服务的主词。
+      assign: () => targetKw.assignTargetKeywords({
+        keywords, services, contentServices: content.services, pages: content.pages,
+        keywordPagesList: kwOk.map((r) => ({ nestedSlug: r.entry.path, keyword: r.entry.keyword })), siteType, keyword: leadKeyword,
+      }),
+    });
+  }
 
   progress('Writing configuration files...', 70);
 
@@ -2020,37 +2028,16 @@ async function fetchRefSite(url) {
 
 // ─── AI Content Generation ───────────────────────────────────────────────────
 
-// ── #1139 / #1134 —— 「这个站会不会有服务子页」只有一个算法 ──────────────────────────────────────
+// ── #1139 / #1134 —— 「这个站会不会有关键词页」只有一个算法 ──────────────────────────────────────
 //
-// 子页面**只**由关键词矩阵产生(`nestedSlug = <服务>/<关键词>`),所以「有没有子页」== 「选中的
-// 非主关键词有没有」。两个地方要问这件事:① Call 2 真去生成那些页;② Call 1 的提示词要不要让 AI 给
-// 服务详情页加 `service-related-pages` 块(#1139:那个块只在真有子页时才渲染,否则 `return null`)。
-// 🔴 **抽成一个函数是承重的,不是整理**:两份实现必然漂,而漂的方向是「提示词说这个站有子页、
-//    生成那边说没有」——那正是 #1139 量到的形状(66 个互异站里 221 个实例只有 14 个渲染出卡片)。
-function keywordPagesFrom(keywords) {
-  const servicesWithKeywords = [];
-  for (const [serviceName, kwList] of Object.entries(keywords || {})) {
-    const selected = Array.isArray(kwList) ? kwList.filter(k => k.selected && !k.isPrimary) : [];
-    if (selected.length > 0) {
-      servicesWithKeywords.push({ service: serviceName, keywords: selected });
-    }
-  }
-  const keywordPagesList = [];
-  for (const s of servicesWithKeywords) {
-    const serviceSlug = s.service.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    for (const kw of s.keywords) {
-      const keywordSlug = kw.keyword.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-      keywordPagesList.push({
-        service: s.service,
-        serviceSlug,
-        keyword: kw.keyword,
-        keywordSlug,
-        nestedSlug: `${serviceSlug}/${keywordSlug}`,
-        volume: kw.volume,
-      });
-    }
-  }
-  return { servicesWithKeywords, keywordPagesList };
+// 关键词页**只**由关键词矩阵产生，所以「有没有关键词页」== 「选中的非主关键词有没有」。两个地方要问这件事：
+// ① 关键词页真去生成（§main 的 Call 2）；② Call 1 的提示词（`hasKeywordPages`）。
+// 🔴 **抽成一个函数是承重的，不是整理**：两份实现必然漂，而漂的方向是「提示词说这个站有子页、生成那边说没有」
+//    —— 那正是 #1139 量到的形状（66 个互异站里 221 个实例只有 14 个渲染出卡片）。
+// #1550 —— 这一步只回「哪些词要建页」（Call 1 之前，服务 id 还没有）；URL（`services/<id>/<slug>`）在 Call 1 之后由
+//    `lib/keyword-pages.js §planKeywordPages` 定，不再在这里从服务名推 `<服务>/<词>`。
+function keywordPagesFrom(keywords, services) {
+  return { keywordPagesList: kwPages.keywordPageCandidates(keywords, services) };
 }
 
 // #1548 做什么 6（Chris 2026-10-03）—— 事实只许来自建站表格。产出里有没有编造由 T5 #1549 查；这里只负责「告诉它」。
@@ -2209,7 +2196,8 @@ async function generateContent(opts) {
       ...keepBlocks(['page-header', 'content']),
       ...(blockOff.has('features') ? [] : ['features (selling points, or steps numbered "01" "02"…)']),
       ...keepBlocks(['faq']),
-      ...(hasKeywordPages && !blockOff.has('features') ? ['a second features listing this service\'s keyword pages'] : []),
+      // #1550 —— 「第二个 features 列出这个服务下的关键词页」不再让 AI 写：under 必须是 `services/<id>`，由代码加
+      //    （`lib/keyword-pages.js §ensureServiceDetailPages`），AI 写的那份 under 常常指错。
       ...keepBlocks(['cta']),
     ];
     return parts.join(', ');
@@ -2441,7 +2429,6 @@ ${servicesList.length >= 3 ? `Generate an individual service detail page for EAC
 - Set serviceDetailPage: true and parentService: "{service-id}" on each
 - navOrder: 10-19, priority: 0.8, changeFrequency: "monthly"
 - Each page needs 5-7 sections: ${serviceDetailSectionRule}
-${hasKeywordPages && !blockOff.has('features') ? `- the keyword-pages features: { headline: "Related {Service} Topics", items: {"source": "pages", "under": "{service-id}"} } — the items come from this service's keyword pages, never type them out` : ''}
 - Vary layouts across service detail pages — don't repeat the same structure
 - Write unique, detailed SEO content for each service` : `Skip service detail pages — only ${servicesList.length} service(s), not enough to warrant individual pages.`}`;
 
@@ -2969,135 +2956,175 @@ ${ctaHrefRule ? `${ctaHrefRule}
 
 // ─── AI Keyword Page Generation (Call 2) ─────────────────────────────────────
 
+// #1550 —— 同时在飞的关键词页调用数。一页一次调用，提示词只带这一页的素材；并发只为省时间，不影响结果。
+const KEYWORD_PAGE_CONCURRENCY = 3;
+
+/**
+ * 一页一次调用（#1550 正文做什么 1）。回每一页的结果，顺序同 `plan`：
+ *   { entry, ok: true, page } | { entry, ok: false, problems: string[] }
+ * 一页的判据：`lib/keyword-pages.js §keywordPageProblems`（slug 对不对、有没有 title / sections）+ `validateBlocks`
+ * （参数形状同 Call 1 那两次；`scope: 'edit'` = 只查这一页自己，全站级那条「整个站里没有 X」不算到单页头上）。
+ * 不合格就把问题原样退给它、**只重试这一页一次**；还不合格就是失败，别的页不受影响。
+ */
 async function generateKeywordPages(opts) {
   const {
-    keywordPages, brand, seo, companyName, industry, location, languageName,
-    serviceDetailMap = {},
-    // #1549 —— 子页 title 的预算说法（§pageTitleSpec，主语言品牌名算出来的），跟 Call 1 同一句。
+    plan, payload, brand, seo, companyName, industry, location, languageName,
+    additionalContext = '', sitePrimaryKeyword = '', forms,
+    // #1549 —— 子页 title 的预算说法（§pageTitleSpec，主语言品牌名算出来的），跟 Call 1、seoProblems 第 1 条同一个数。
     titleSpec = 'max 60 chars',
-    keywordBrief = '',
-    additionalContext = '',
-    // #1346 —— 后台关掉的块。这一通（Call 2，关键词页）有它**自己**那份写死的块清单，跟 Call 1 的
-    // 菜单是两处；只改 Call 1 的话，关掉的块照样会出现在关键词页上（实测过：`faq-accordion` 在这
-    // 份清单里写着 REQUIRED）。缺省空数组 ⟹ 不传的调用方拿到的提示词逐字节不变。
+    // #1346 —— 后台关掉的块。关键词页有它**自己**那份写死的块清单（`keyword-page-options.js`），关掉的块要从那里剔掉。
     disabledBlocks = [],
   } = opts;
-  // #1425（T3）—— `hasServiceDetailPages` 入参删了：它只决定 page-header 那行面包屑说明，而新 page-header 不读
-  //    `data.breadcrumbs`（按页面路径算）。
-  const keywordSectionOptions = keywordPageSectionOptions({ disabledBlocks });
-
+  const sectionOptions = keywordPageSectionOptions({ disabledBlocks });
   const client = new Anthropic();
-
-  // 📌 #1425（T3）—— 这里原来有 `ownDetailSlugFor`（#1184：逐页告诉模型面包屑中间那一级指向哪儿）。新 page-header
-  //    不读 `data.breadcrumbs`（按页面路径算），提示词不再让模型写面包屑，它随之没有调用方了。
-
   const languageInstruction = languageName !== 'English'
     ? `\nLANGUAGE: Write ALL content in ${languageName}.${chineseVariantHint(languageName)} Only JSON keys and technical values (slugs, hrefs, icon names, section type names) should remain in English.\n`
     : '';
+  const validate = (pg) => validateBlocks({ pages: [pg], industry, disabledBlocks, forms, scope: 'edit' }).problems;
 
-  const prompt = `You are an expert SEO copywriter. Generate keyword-optimized landing pages for a local service business. Return ONLY a valid JSON array, no markdown fences, no explanation.
-
-BUSINESS CONTEXT:
-- Company: ${companyName}
-- Industry: ${industry}
-${location ? `- Location: ${location}` : ''}
-- Brand tagline: ${brand.tagline}
-- Site description: ${seo.siteDescription}${additionalContext ? `\n- Additional context from the owner: ${additionalContext}` : ''}
-${languageInstruction}${keywordBrief ? `\n${keywordBrief}\n` : ''}
-
-CRITICAL BRAND NAME RULE (TICKET-137):
-The brand name "${companyName}" is canonical and MUST appear LITERALLY VERBATIM in all
-generated content — page titles, descriptions, breadcrumbs, CTA labels, hero subtitles,
-and ANY user-visible string that references the brand. DO NOT translate, transliterate,
-or localize the brand name in ANY language. Examples:
-  ✗ WRONG: "Happy Paws宠物美容" (translated brand) / "McDonalds" (dropped apostrophe)
-  ✓ RIGHT: "Happy Paws Pet Grooming" / "McDonald's" (verbatim regardless of locale)
-
-
-KEYWORD PAGES TO CREATE (one page per keyword):
-${keywordPages.map((kp, i) => {
-  return `${i + 1}. slug: "${kp.nestedSlug}" — keyword: "${kp.keyword}" (${kp.volume || '?'} searches/mo) — service: ${kp.service}`;
-}).join('\n')}
-
-EACH PAGE MUST have 4-6 sections from these options:
-${keywordSectionOptions}
-
-Return a JSON ARRAY of page objects:
-[
-  {
-    "slug": "${keywordPages[0]?.nestedSlug || 'service/keyword'}",
-    "title": "<Page Title with keyword, ${titleSpec}>",
-    "description": "<Meta description with keyword + location, 70–155 chars>",
-    "navLabel": "<Short label for footer nav>",
-    "navOrder": 50,
-    "changeFrequency": "monthly",
-    "priority": 0.6,
-    "sections": [ ... ]
-  }
-]
-
-CRITICAL RULES:
-- Create EXACTLY ${keywordPages.length} pages — one per keyword listed above.
-- Each page slug MUST match the slug listed above EXACTLY (e.g. "${keywordPages[0]?.nestedSlug || 'service/keyword'}").
-- Use the target keyword naturally in: page title, meta description, h1, headings, and body content.
-- Each page MUST have 4-6 sections (NOT 3). Quality matters — write detailed, unique content.
-- content body should be 2-3 substantial paragraphs (400-600 words) of unique SEO copy, not just 1-2 sentences.
-- FAQ answers should be 2-3 sentences each, naturally incorporating the keyword and location.
-- Make each page unique — don't use the same template for every page.
-- Vary section types across pages. Alternate the features section between selling points and numbered steps.
-- CTA href should point to "/quote" or the appropriate contact page, or alternate with a service detail page link (e.g. "/services/{slug}") when available.
-- Include ${location || 'the local area'} naturally in content for local SEO.
-${FACTS_ONLY_FROM_FORM_RULE.replace(', including the stats example below', '')}
-- Every image object you write ({"imageUrl", "alt"}) gets an "alt": one plain sentence saying what the photo shows (no "image of").
-- navOrder should be 50+ (keyword pages sort after regular pages).`;
-
-  emit('prompt', { name: 'Keyword Pages', content: prompt });
-  progress('AI is generating keyword page content...', 60);
-
-  // TICKET-132: callAIWithRetry retries on JSON.parse failures (≤3 attempts);
-  // max_tokens hit also throws (caught below). Keyword pages are non-critical
-  // so any final failure returns [] rather than failing the build.
-  const call2Start = Date.now();
-  let pages, response;
-  try {
-    const result = await callAIWithRetry({
-      client,
-      baseOptions: { model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] },
-      costContext: {
-        operation: 'create-site',
-        detail: 'Keyword pages',
-        pricing,
-        durationStart: call2Start,
-      },
-      label: 'Call 2 keyword pages',
+  const one = async (entry) => {
+    const prompt = kwPages.keywordPagePrompt({
+      page: entry,
+      material: kwPages.keywordPageMaterial(entry, payload),
+      companyName, industry, location, languageInstruction,
+      tagline: brand && brand.tagline, siteDescription: seo && seo.siteDescription,
+      additionalContext, sectionOptions, sitePrimaryKeyword, titleSpec,
     });
-    pages = result.parsed;
-    response = result.response;
-  } catch (e) {
-    debug('Failed to generate keyword pages (after retries):', e.message);
-    if (e.lastText) debug('Raw response (first 500 chars):', e.lastText.substring(0, 500));
-    // Return empty — don't fail the whole build for keyword pages.
-    return [];
+    emit('prompt', { name: `Keyword page: ${entry.keyword}`, content: prompt });
+    const call = async (messages, detail) => (await callAIWithRetry({
+      client,
+      baseOptions: { model, max_tokens: maxTokens, messages },
+      costContext: { operation: 'create-site', detail, pricing, durationStart: Date.now() },
+      label: `Call 2 ${entry.path}`,
+    })).parsed;
+
+    let got;
+    try {
+      got = await call([{ role: 'user', content: prompt }], `Keyword page ${entry.path}`);
+    } catch (e) {
+      return { entry, ok: false, problems: [`AI 调用失败：${e.message}`] };
+    }
+    let problems = kwPages.keywordPageProblems(got, entry, validate);
+    if (problems.length) {
+      debug(`[keyword-pages] ${entry.path} 第一次不合格（${problems.length} 处），只重试这一页：\n  ${problems.join('\n  ')}`);
+      try {
+        got = await call([
+          { role: 'user', content: prompt },
+          { role: 'assistant', content: JSON.stringify(got) },
+          { role: 'user', content: kwPages.keywordPageRetryMessage(problems) },
+        ], `Keyword page ${entry.path} (re-check)`);
+      } catch (e) {
+        return { entry, ok: false, problems: [`重试时 AI 调用失败：${e.message}`] };
+      }
+      problems = kwPages.keywordPageProblems(got, entry, validate);
+      if (problems.length) return { entry, ok: false, problems };
+    }
+    got.keywordPage = true;
+    applyBlockRoleDefaults([got]);
+    return { entry, ok: true, page: got };
+  };
+
+  const results = new Array(plan.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < plan.length) {
+      const i = next++;
+      results[i] = await one(plan[i]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(KEYWORD_PAGE_CONCURRENCY, plan.length) }, worker));
+  progress('Keyword pages done', 65);
+  return results;
+}
+
+/**
+ * #1550 —— 关键词页在 seoPass（#1549）之后的收尾。就地改 `content` 和 `kwReport`，最后发 `keyword-pages` 事件。
+ *
+ *   ① seoPass 丢掉的关键词页算进 `failed`（problems 是它的 SEO 问题），N/M 按**留下来的**页算。
+ *   ② 一个服务下的关键词页一页都没留下：代码补的服务（PM ①(b)）撤掉、重算 seo.targetKeywords；AI 自己写的详情页留着，
+ *      拿掉它上面指向这个服务的空列表。（PM 02:08 约束 1：组里没有页就没有父路径要立。）
+ *   ③ 有关键词页留下来的服务，`/services/<id>` 必须存在并列出它下面的全部关键词页 —— 由代码保证，不靠提示词（正文做什么 4）。
+ *      代码补出来的详情页**单独再过一次 seoPass**（同样的八条、重写一次、仍不合格建站失败 —— 跟 AI 写的服务页同一个待遇）。
+ *      放在主 seoPass 之后补，是为了不让「下面一页都没留下」的服务因为一张本该撤掉的页建站失败。
+ *   ④ 再跑一次 §ensureServiceDetailPages 只为把列表那一组指回 `under = services/<id>`：seoPass 重写过的详情页，回来的那一份里
+ *      这一组不一定还对。这一次不该再补出页来（详情页是非关键词页，seoPass 不丢它），补出来了就是逻辑出错，建站失败。
+ *   ⑤ 兄弟页那一组、相似度、页脚栏都按留下来的页算。兄弟页加在 seoPass 之后：多一个 H2 不碰八条里任何一条。
+ */
+async function finishKeywordPages({
+  content, kwPlan, kwReport, kwOk, dropped = [], locale, disabledBlocks = [], industry, location, companyName, payload, assign,
+}) {
+  // ①
+  const goneSlugs = new Set((dropped || []).map((d) => d.slug));
+  for (const d of dropped || []) {
+    const r = kwOk.find((x) => x.entry.path === d.slug);
+    if (r) kwReport.failed.push({ keyword: r.entry.keyword, slug: d.slug, problems: d.problems });
   }
-  const usage2 = response.usage || {};
-  const cost2 = ((usage2.input_tokens || 0) * pricing.input + (usage2.output_tokens || 0) * pricing.output) / 1_000_000;
-  const call2Duration = ((Date.now() - call2Start) / 1000).toFixed(1);
-  debug(`Call 2 cost: $${cost2.toFixed(4)} (${usage2.input_tokens} in / ${usage2.output_tokens} out)`);
+  // 🔴 按 slug 认、并把 `r.page` 换成站里**当前**那个对象（QA2 r2）：seoPass 重写成功的页是**另一个对象**
+  //    （`content.pages[idx] = next`），按对象身份判就会把「被重写救回来」的页当成没留下 —— N/M 少算、页脚 / 兄弟页 / 相似度都没有它。
+  //    后面 §addRelatedBlocks 就地改 `r.page`，所以光改判据不够，引用本身也得换。
+  const current = new Map(content.pages.map((p) => [p.slug, p]));
+  for (const r of kwOk) if (current.has(r.entry.path)) r.page = current.get(r.entry.path);
+  const kept = kwOk.filter((r) => !goneSlugs.has(r.entry.path) && current.has(r.entry.path));
+  kwReport.ok = kept.length;
+  const keptServiceIds = [...new Set(kept.map((r) => r.entry.serviceId))];
 
-  progress('Parsing keyword pages...', 65);
-
-  if (!Array.isArray(pages)) {
-    debug('Keyword pages response is not an array, wrapping');
-    pages = pages.pages || [pages];
+  // ②
+  for (const id of [...new Set(kwOk.map((r) => r.entry.serviceId))].filter((x) => !keptServiceIds.includes(x))) {
+    if (kwReport.addedServices.some((a) => a.id === id)) {
+      content.services = content.services.filter((x) => x.id !== id);
+      kwReport.addedServices = kwReport.addedServices.filter((a) => a.id !== id);
+      debug(`[keyword-pages] 服务 ${id} 是代码补的、下面一页都没留下 ⟹ 撤掉这个服务`);
+    }
+    const n = kwPages.removePagesListBlocks(content.pages.find((p) => p.slug === `services/${id}`), id);
+    if (n) debug(`[keyword-pages] 服务 ${id} 下的关键词页一页都没留下 ⟹ 拿掉它详情页上那组空列表（${n} 块）`);
   }
 
-  // Mark each page as keyword page for nav filtering
-  for (const p of pages) {
-    p.keywordPage = true;
+  // ③
+  const detail = kwPages.ensureServiceDetailPages({ pages: content.pages, services: content.services, serviceIds: keptServiceIds, locale, disabledBlocks });
+  if (detail.failed.length) {
+    fatal(`关键词页的父页面补不出来：服务 ${detail.failed.join(', ')} 在服务目录里没有（或没有名字），/services/<id> 会是 404`);
+  }
+  if (detail.patched.length) debug(`[keyword-pages] 详情页上「下面的关键词页」那组由代码填（under = services/<id>）：${detail.patched.join(', ')}`);
+  const assignment = assign();
+  content.seo.targetKeywords = assignment.targetKeywords;
+  if (detail.added.length) {
+    debug(`[keyword-pages] AI 没给这些服务生成详情页，代码补上了：${detail.added.map((id) => `/services/${id}`).join(', ')}`);
+    const addedSlugs = new Set(detail.added.map((id) => `services/${id}`));
+    const fresh = content.pages.filter((p) => addedSlugs.has(p.slug));
+    const issues = validateBlocks({ pages: fresh, industry, disabledBlocks, forms: siteFormsFrom(content.ai && content.ai.forms), scope: 'edit' }).problems;
+    if (issues.length) fatal(`代码补出来的服务详情页过不了块库检查：\n  ${issues.join('\n  ')}`);
+    targetKw.applyPageKeywords(fresh, assignment.pageKeywords);
+    writeImageAlts({ pages: fresh, manifests: loadBlockManifests(), industry, targetKeywordOf: seoTargetOf });
+    // 只把这几页交给 seoPass（第 5 条「站内唯一」用的整站页表在这里就是这几页：代码只在 slug 空着时才补，不会撞）。
+    const sub = { ...content, pages: fresh };
+    await seoPass({ content: sub, payload, locale, industry, location, companyName, disabledBlocks });
+    for (const pg of sub.pages) {
+      const i = content.pages.findIndex((p) => p.slug === pg.slug);
+      if (i >= 0) content.pages[i] = pg;
+    }
   }
 
-  debug(`Generated ${pages.length} keyword page(s)`);
-  return pages;
+  // ④
+  const again = kwPages.ensureServiceDetailPages({ pages: content.pages, services: content.services, serviceIds: keptServiceIds, locale, disabledBlocks });
+  if (again.added.length || again.failed.length) {
+    fatal(`seoPass 之后服务详情页不见了：${[...again.added, ...again.failed].map((id) => `/services/${id}`).join(', ')}`);
+  }
+  if (again.patched.length) debug(`[keyword-pages] seoPass 重写过的详情页，列表那一组重新指回 under = services/<id>：${again.patched.join(', ')}`);
+
+  // ⑤
+  const keptPages = kept.map((r) => r.page);
+  const related = kwPages.addRelatedBlocks(keptPages, locale, disabledBlocks);
+  debug(`[keyword-pages] ${related} 个关键词页页尾加了同服务兄弟页那一组`);
+  // 相似度只记录（正文做什么 3）：每个留下来的新页对同站已有页（含别的关键词页；丢掉的页已不在 content.pages 里）取最像的那一页。
+  kwReport.similarity = mostSimilarPages(keptPages, content.pages);
+  for (const x of kwReport.similarity) debug(`[keyword-pages] 相似度 ${x.slug} 最像 ${x.mostSimilar || '（无）'}：${x.score}`);
+  // 页脚每服务一栏（≤10 条 + 「全部 N 页 →」，N = 留下来的页数）。seoPass 删链接那段那时还没东西可删：栏是在这里才加的。
+  content.navigation.footer.columns.push(...kwPages.keywordFooterColumns(keptPages, content.services, locale));
+
+  debug(`[keyword-pages] 关键词页 ${kwReport.ok}/${kwReport.total} 成功`);
+  for (const f of kwReport.failed) debug(`[keyword-pages] ❌ 没成功：「${f.keyword}」（${f.slug}）—— ${f.problems.join('；')}`);
+  emit('keyword-pages', kwReport);
+  return kwReport;
 }
 
 // ─── #1549: 每页生成后的 SEO 检查 ─────────────────────────────────────────────────────────────
@@ -3109,7 +3136,8 @@ ${FACTS_ONLY_FROM_FORM_RULE.replace(', including the stats example below', '')}
 //     问题，这次重写作废、用原来那页（宁可按原来那页的 SEO 问题处置，也不把块库改坏的页写进站）。
 //   · 仍有问题 ⟹ 关键词页丢掉（日志「丢掉 <slug>：…」+「关键词页 N/M」，页脚里指向它的链接一起删）；
 //     首页 / 服务页 / 没有目标词的页 ⟹ 建站失败，信息写明哪页哪条。没有目标词的页不丢：它们在导航里，丢了就是站内死链。
-//   · 「关键词页 N/M」本票只进日志和 `seo-check` 事件；建站页显示它归 T6 #1550（建站页只认四种事件）。
+//   · 「关键词页 N/M」本票只进日志和 `seo-check` 事件。建站页显示的是 #1550 的 `keyword-pages` 事件（§finishKeywordPages，
+//     在这里之后才算，所以这里丢掉的页也算进它的 N/M）。
 
 /** 一页的目标词（T4 #1548 挂在 `page.seo.targetKeyword`）。 */
 function seoTargetOf(page) {

@@ -121,14 +121,17 @@ const SOURCES = {
   },
   // slug 以 `<under>/` 开头、且不等于 `<under>` 的页面（同 `service-related-pages/Section.tsx` 那一行筛法），
   // 顺序同 pagesByLocale。不带图标。
+  // #1550 —— 关键词页挂在 `services/<id>/<词>` 下，`under` 就是 `services/<id>`（服务详情页列它下面的全部关键词页，
+  //    关键词页页尾列同服务的兄弟页）。正在画的这一页（`ctx.pageSlug`）不列自己。
   pages: {
     params: { under: true },
-    prompt: '{source: "pages", under: "<service slug>"}',
+    prompt: '{source: "pages", under: "services/<service id>"}',
     expand(ref, ctx) {
       const under = str(ref.under);
       if (!under) return [];
       return (Array.isArray(ctx.pages) ? ctx.pages : [])
         .filter((p) => isObj(p) && typeof p.slug === 'string' && p.slug.startsWith(`${under}/`) && p.slug !== under)
+        .filter((p) => p.slug !== ctx.pageSlug)
         .map((p) => ({ title: str(p.title), text: str(p.description), link: learnMoreLink(ctx, p.slug) }));
     },
   },
@@ -320,7 +323,7 @@ function expandRef(ref, ctx) {
 /**
  * 一页的块 → 引用都展开过的块（数组逐项对齐）。没有要展开的块原样返回**同一个对象**；一个都没有就返回同一个数组。
  * @param {Array} blocks
- * @param {{ services?: object[], pages?: object[], url: (slug: string) => string, learnMore?: string }} ctx
+ * @param {{ services?: object[], pages?: object[], url: (slug: string) => string, learnMore?: string, pageSlug?: string }} ctx
  */
 function resolveItemSources(blocks, ctx) {
   if (!Array.isArray(blocks)) return blocks;

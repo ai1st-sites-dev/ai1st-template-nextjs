@@ -456,39 +456,40 @@ try {
     ? ok('refPrefs 里有 layout ⟹ 提示词里没有配方那条硬要求（用户点名的那个赢）')
     : bad('照抄参照站布局时配方还在，两条硬要求会打架');
 
-  // ── ⑧b #1134（来源 #1139）—— 关键词页那一格只在会有子页的站上发 ────────────────────────────────
+  // ── ⑧b #1134（来源 #1139）—— 关键词页那一格 ────────────────────────────────────────────────────────
   //
-  // 📌 #1425（T3）—— 原来盯的是 `service-related-pages` 那个块（散文三句 + 它在清单里那一条）：它只在那个服务底下真有
-  //    关键词子页时才渲染，没有就恒 `return null`。那个块随旧库删了（#1505 定不做新块），它的位置由服务详情页那行
-  //    「第二个 features 列这个服务的关键词页」接替（items 写引用 `{"source":"pages","under":…}`），同样只在有关键词页
-  //    的站上发（`create-site.js` 的 `hasKeywordPages`）。性质不变：两向都判，除了那两处之外两份提示词不许有别的差别。
-  console.log('── ⑧b 关键词页那一格（第二个 features）：有关键词页才发，没有就不发');
+  // 📌 #1425（T3）—— 原来盯的是 `service-related-pages` 那个块；它随旧库删了，由服务详情页那行「第二个 features 列这个服务的
+  //    关键词页」接替（items 写引用 `{"source":"pages","under":…}`），只在有关键词页的站上发。
+  // 📌 #1550 —— 那一行连同 `under` 那句一起从提示词里拿掉了：under 必须是 `services/<id>`，改由代码加
+  //    （`lib/keyword-pages.js §ensureServiceDetailPages`），AI 写的那份常常指错。所以这一格的性质换成：
+  //    ① 两臂都**不**让 AI 写关键词页列表；② 除了「SEO TARGET KEYWORDS」那一段，有没有关键词页两份提示词逐行相同 ——
+  //    以前这里允许的那两处差别现在应该是零处，多出任何一行都说明有人把「让 AI 写」加回来了。
+  console.log('── ⑧b 关键词页那一格：AI 不写关键词页列表（代码加），有没有关键词页提示词只差关键词那一段');
   {
     const NEEDLES = [
       'a second features listing this service\'s keyword pages',
       '- the keyword-pages features: { headline: ',
+      '"under": "{service-id}"',
     ];
     // 📌 #1548 —— 「SEO TARGET KEYWORDS」那一段（站主词 / 每服务主词 / 关键词页清单）按构造随关键词变，两臂比之前先从
     //    两份里摘掉，这一格才仍然只量关键词页那一格。那一段自己的判据在 `lib/target-keywords.test.js` ④。
     const dropBrief = (p) => p.replace(/\n\nSEO TARGET KEYWORDS[^]*?(?=\n\n)/, '');
-    const withKw = dropBrief(promptFrom(workRoot, basePayload()));            // 夹具自带关键词
+    const rawWithKw = promptFrom(workRoot, basePayload());                    // 夹具自带关键词
+    const withKw = dropBrief(rawWithKw);
     const noKw = dropBrief(promptFrom(workRoot, basePayload({ keywords: {} })));
-    const inWith = NEEDLES.filter((n) => withKw.includes(n));
-    const inNo = NEEDLES.filter((n) => noKw.includes(n));
-    inWith.length === NEEDLES.length
-      ? ok(`有关键词页的站：那 ${NEEDLES.length} 处都在（阳性对照 —— 少了它「不发」那格就成了空绿）`)
-      : bad(`有关键词页的站却少了这几处：${NEEDLES.filter((n) => !withKw.includes(n)).join(' | ')}`);
-    inNo.length === 0
-      ? ok('没有关键词页的站：一处都不发 ⟹ AI 不会被要求写一个注定没有条目的关键词页列表')
-      : bad(`没有关键词页的站仍然被要求写关键词页列表：${inNo.join(' | ')}`);
-    // 除了那两处自己的行，两份提示词不该有别的差别（空行不算：那行 data 不发时留下的是一个空行）
+    rawWithKw.includes('SEO TARGET KEYWORDS') && rawWithKw.includes('Keyword pages (one page per keyword')
+      ? ok('阳性对照：夹具真的带关键词页（提示词里有关键词页清单）—— 少了它下面两格就是空绿')
+      : bad('夹具的提示词里没有关键词页清单 ⟹ 这一格量不到「有关键词页」那一臂');
+    const hit = NEEDLES.filter((n) => withKw.includes(n) || noKw.includes(n));
+    hit.length === 0
+      ? ok('两臂都不让 AI 写关键词页列表（under 由代码填）')
+      : bad(`提示词又在让 AI 写关键词页列表：${hit.join(' | ')}`);
     const noLines = noKw.split('\n');
-    const diffLines = withKw.split('\n').filter((l) => !noLines.includes(l));
-    const foreign = diffLines.filter((l) => !NEEDLES.some((n) => l.includes(n)));
-    const extraNo = noLines.filter((l) => l.trim() && !withKw.split('\n').includes(l) && !/^- Each page needs 5-7 sections: /.test(l));
-    diffLines.length > 0 && foreign.length === 0 && extraNo.length === 0
-      ? ok(`两份提示词的差别只在那两处自己的行（${diffLines.length} 行）`)
-      : bad(`两份提示词还有别的差别，这一格量的不只是关键词页那一格：${[...foreign, ...extraNo].slice(0, 3).join(' ⏎ ')}`);
+    const withLines = withKw.split('\n');
+    const diff = [...withLines.filter((l) => !noLines.includes(l)), ...noLines.filter((l) => !withLines.includes(l))].filter((l) => l.trim());
+    diff.length === 0
+      ? ok('除了 SEO 关键词那一段，有没有关键词页两份提示词逐行相同')
+      : bad(`两份提示词还有别的差别：${diff.slice(0, 3).join(' ⏎ ')}`);
   }
 } finally {
   try { fs.rmSync(tmp, { recursive: true, force: true }); } catch {}

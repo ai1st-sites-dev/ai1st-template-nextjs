@@ -59,7 +59,13 @@ const scenario = JSON.parse(fs.readFileSync(process.env.SEO_STUB, 'utf-8'));
 const fenced = (p) => { const m = p.match(/\\x60\\x60\\x60json\\n([\\s\\S]*?)\\n\\x60\\x60\\x60/); return m ? JSON.parse(m[1]) : null; };
 function answer(prompt) {
   if (prompt.includes('Generate a JSON object with this EXACT structure')) return scenario.call1;
-  if (prompt.includes('Generate keyword-optimized landing pages')) return scenario.call2;
+  // #1550 —— 关键词页一页一次调用：按提示词里那一页的 slug 回场景里写好的那一页。
+  if (prompt.includes('Write ONE keyword landing page')) {
+    const slug = (prompt.match(/- slug: "([^"]+)"/) || [])[1];
+    const pg = (scenario.call2 || []).find((x) => x.slug === slug);
+    if (!pg) throw new Error('场景里没有这一页：' + slug);
+    return pg;
+  }
   if (prompt.includes('An automatic SEO check found the problems')) {
     const m = prompt.match(/\\n\\n(\\{[\\s\\S]*?\\n\\})\\n\\nPROBLEMS TO FIX/);
     const env = JSON.parse(m[1]);
@@ -151,7 +157,8 @@ function call1({ aboutBody = 'We started small and grew by word of mouth.', abou
     ],
   };
 }
-const KW_SLUGS = ['drain-cleaning/drain-cleaning-markham', 'drain-cleaning/clogged-drain-repair', 'water-heaters/tankless-water-heater'];
+// #1550 起关键词页挂在 `services/<服务 id>/<词>` 下（URL 由代码定，AI 照抄）。
+const KW_SLUGS = ['services/drain-cleaning/drain-cleaning-markham', 'services/drain-cleaning/clogged-drain-repair', 'services/water-heaters/tankless-water-heater'];
 function call2() {
   return [
     kwPage(KW_SLUGS[0], 'drain cleaning Markham'),
@@ -238,11 +245,11 @@ const A = run('A', {
   check(!lines.some((l) => /\bzh\b|\/zh\//.test(l)) && checked.length === primaryPages.length, '次语言的页不出现在任何 [seo] 行里（检查行数 = 主语言页数）');
   // 提示词里的 title 预算
   const c1 = A.prompts.find((p) => p.includes('Generate a JSON object with this EXACT structure')) || '';
-  const c2 = A.prompts.find((p) => p.includes('Generate keyword-optimized landing pages')) || '';
+  const c2s = A.prompts.filter((p) => p.includes('Write ONE keyword landing page'));
   const spec = `max 46 chars; " | ${BRAND}" is appended automatically`;
   check(c1.includes(`"title": "<Page Title, ${spec}`) && c1.includes(`Page titles (pages[].title): ${spec}`), `Call 1 提示词：子页 title 预算 46（60 − 3 − ${BRAND.length}），不是 60`);
   check(!c1.includes('All meta titles under 60') && !c1.includes('| <Company>'), 'Call 1 提示词：那句「All meta titles under 60」和 `| <Company>` 都没了');
-  check(c2.includes(`"title": "<Page Title with keyword, ${spec}`), 'Call 2 提示词：同一个预算');
+  check(c2s.length === 3 && c2s.every((c2) => c2.includes(`"title": "<Page Title with the keyword, ${spec}`)), `Call 2（一页一次，${c2s.length} 通）提示词：同一个预算`);
   const rw = A.prompts.find((p) => p.includes('An automatic SEO check found the problems') && p.includes('"slug": "about"')) || '';
   check(rw.includes('[8 事实出处]') && rw.includes(`page.title: ${spec}`), '重写提示词带着问题清单和同一个预算');
 }

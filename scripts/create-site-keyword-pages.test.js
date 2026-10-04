@@ -1,0 +1,585 @@
+#!/usr/bin/env node
+// #1550 —— 真 AI 那条建站路（不是 skipAI）上的关键词页，用桩替掉 Anthropic SDK 跑通整条 create-site.js。
+//
+// 🔴 不调真 AI（#1499）：`--require <桩>` 拦住 `@anthropic-ai/sdk`，按提示词认出这一通是 Call 1 还是哪一个关键词页，
+//    回放写好的回答；`fetch`（地理编码 / 生图）一律当离线 —— 那几处本来就按「查不到就不写」降级。
+// 🔴 Call 1 的回答不手搓：先在同一棵树上跑一次 skipAI 建站，拿示例站那几页（它们过块库校验）当 Call 1 的页面。
+//
+// 量的是正文验收里这几条（逐条标在格子名上）：
+//   AC2  2 服务 × 3 个选中词 → 6 页全在 /services/<id>/<slug>、两个详情页由代码补出并列出各自 3 页、兄弟页互链、页脚 6 页、报 6/6 + 6 行相似度
+//   AC3  同一个站跑 sync-config 之后导航不变
+//   AC4  一个服务 12 个选中词 → 页脚那栏 10 条，第 10 条「All 12 pages →」链到详情页；详情页列出全部 12 页（引用）
+//   AC5  其中一页拿不到合格结果 → 只有它被重试，别的页只请求一次；报 5/6、列出失败的词
+//   AC7  中文服务名 + 中文关键词 → URL 是拼音，挂在它自己的 /services/<id> 下
+//   AC9  Call 1 不给任何详情页（对抗式）→ 每个有关键词页的服务的详情页都在
+//   AC11 素材进了这一页那次调用的提示词（字段名 = dashboard 送的 keywordMaterial）
+//   PM ① 挂 Brand 的 Lead（组名对不上服务）→ 补一个服务；那组一页都没成 → 不补
+'use strict';
+
+const assert = require('assert');
+const cp = require('child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+
+const NEXT = path.resolve(__dirname, '..');
+const TEMP = [];
+process.on('exit', () => {
+  if (process.env.KW_E2E_KEEP === '1') { if (TEMP.length) console.log(`📌 KW_E2E_KEEP=1 ⟹ 留着 ${TEMP[0]} 等 ${TEMP.length} 个`); return; }
+  for (const d of TEMP) { try { fs.rmSync(d, { recursive: true, force: true }); } catch (e) { /* 打扫不成不改结论 */ } }
+});
+function die(msg) { console.log(`💥 ${msg}`); process.exit(2); }
+
+let pass = 0;
+let fail = 0;
+function check(name, fn) {
+  try { fn(); pass += 1; console.log(`  ✅ ${name}`); } catch (e) { fail += 1; console.log(`  ❌ ${name}\n     ${e.message}`); }
+}
+
+// ── 桩 ────────────────────────────────────────────────────────────────────────────────────────────
+// 桩写成一个真函数、序列化进 --require 的文件：写成模板字符串的话，里面的反引号、${} 和正则的反斜杠都要再转义一层。
+function stubMain() {
+'use strict';
+const Module = require('module');
+const fs = require('fs');
+const cfg = JSON.parse(fs.readFileSync(process.env.KW_STUB_CFG, 'utf8'));
+const seen = {};
+globalThis.fetch = async () => { throw new Error('offline (test stub)'); };
+const PARAS = ['Older homes in the area often hide corroded galvanized lines behind finished walls.',
+  'We bring a fully stocked van, explain the problem in plain words and give a written price first.',
+  'Most jobs are finished the same day, and we clean up before we leave.',
+  'Ask about our maintenance plan if your building is more than thirty years old.'];
+function kwPage(slug, keyword, n) {
+  const body = [`Looking for ${keyword}? This page is only about ${keyword}.`, ...PARAS.slice(n % 2, n % 2 + 3), `Call us about ${keyword} today.`].join('\n\n');
+  return { slug, title: keyword.charAt(0).toUpperCase() + keyword.slice(1), description: `${keyword} — fast, local service.`,
+    navLabel: keyword, navOrder: 50, changeFrequency: 'monthly', priority: 0.6,
+    sections: [
+      { type: 'page-header', data: { headline: keyword } },
+      { type: 'content', data: { headline: 'About ' + keyword, body } },
+      { type: 'features', data: { headline: 'Why choose us', items: [{ title: 'Fast', text: 'Same day.' }, { title: 'Clear', text: 'Written price.' }, { title: 'Tidy', text: 'We clean up.' }] } },
+      { type: 'faq', data: { headline: 'FAQ', items: [{ question: 'How fast?', answer: 'Same day in most cases.' }, { question: 'Price?', answer: 'Written quote first.' }, { question: 'Area?', answer: 'Across the city.' }] } },
+      { type: 'cta', data: { headline: 'Book now', body: 'Call today.', ctas: [{ label: 'Get a quote', href: '/quote' }] } },
+    ] };
+}
+// #1549 之后每页生成完还要过 seoProblems 八条（create-site §seoPass），不合格的页带着问题重写一次。桩替 AI 做那一次重写：
+//    把页改成八条都过（标题 / 描述 / H1 / 两个 H2 含目标词、描述含地点、去掉表格里没有的年份 / 金额 / 声明词）。
+//    cfg.seoBad 里的 slug：关键词页第一次就交一份 SEO 不合格的、重写时原样退回 ⟹ seoPass 丢掉它（过得了块库、过不了 SEO）。
+//    cfg.seoLate 里的 slug：第一次同样不合格，重写时修好 ⟹ seoPass 换成**另一个对象**留下它。
+const cap = (x) => String(x).charAt(0).toUpperCase() + String(x).slice(1);
+const H1_TYPES = new Set(['hero', 'page-header']);
+function scrub(v, key) {
+  if (typeof v === 'string') {
+    if (/^(href|imageUrl|url|phone|email|icon|link)$/.test(key || '')) return v;
+    return v.replace(/(?<!\d)(?:19|20)\d{2}(?!\d)/g, 'recent').replace(/[$€£¥]\s?\d[\d,]*(?:\.\d+)?/g, 'a fair price')
+      .replace(/\d+\+?\s*(?:years?|yrs?)\b/gi, 'many years').replace(/\b(?:licensed|insured|certified|award-winning|awarded|awards?)\b/gi, 'trusted')
+      .replace(/持牌|有执照|持证|已投保|全额投保|认证|获奖|荣获/g, '可靠');
+  }
+  if (Array.isArray(v)) return v.map((x) => scrub(x, key));
+  if (v && typeof v === 'object') { const o = {}; for (const [k, x] of Object.entries(v)) o[k] = scrub(x, k); return o; }
+  return v;
+}
+function seoFix(page, { kw, place, budget, brand }) {
+  const pg = scrub(page);
+  const secs = Array.isArray(pg.sections) ? pg.sections : (pg.sections = []);
+  const head = kw ? cap(kw) : String(pg.title || 'Page');
+  pg.title = budget ? head.slice(0, budget) : head;
+  const lead = kw ? `${cap(kw)} in ${place || 'town'} by ${brand || 'our team'}` : `${head} — ${brand || 'our team'}${place ? ` in ${place}` : ''}`;
+  pg.description = `${lead}. Fast local help, a clear written price before we start, and tidy work every single time.`.slice(0, 150);
+  let h1 = 0;
+  for (let i = 0; i < secs.length; i += 1) {
+    const b = secs[i];
+    if (!b || !H1_TYPES.has(b.type)) continue;
+    h1 += 1;
+    if (h1 === 1) { b.data = { ...(b.data || {}), headline: kw ? cap(kw) : (b.data && b.data.headline) || head }; }
+    else { secs.splice(i, 1); i -= 1; }
+  }
+  if (!h1) secs.unshift({ type: 'page-header', data: { headline: head } });
+  if (kw) {
+    let h2 = 0;
+    for (const b of secs) {
+      if (h2 >= 2 || !b || H1_TYPES.has(b.type) || !b.data || typeof b.data.headline !== 'string') continue;
+      b.data.headline = `${cap(kw)}: ${b.data.headline}`; h2 += 1;
+    }
+    while (h2 < 2) { secs.splice(1, 0, { type: 'content', data: { headline: `${cap(kw)} explained`, body: `What ${kw} involves and how we handle it.` } }); h2 += 1; }
+  }
+  return pg;
+}
+function answer(req) {
+  const first = req.messages[0].content;
+  const kind = first.includes('Generate a JSON object with this EXACT structure') ? 'call1'
+    : first.includes('Write ONE keyword landing page') ? 'keyword-page'
+      : first.includes('An automatic SEO check found the problems') ? 'seo-rewrite' : 'other';
+  fs.appendFileSync(process.env.KW_STUB_CALLS, JSON.stringify({ kind, first, turns: req.messages.length }) + '\n');
+  if (kind === 'call1') return cfg.call1;
+  if (kind === 'keyword-page') {
+    const slug = (first.match(/- slug: "([^"]+)"/) || [])[1];
+    const keyword = (first.match(/- target keyword: "([^"]+)"/) || [])[1];
+    seen[slug] = (seen[slug] || 0) + 1;
+    let page = kwPage(slug, keyword, Object.keys(seen).length);
+    // cfg.seoLate 里的页：第一次也交 SEO 不合格的，但重写时修好（真 AI 下最常走的那条路，QA2 r2）。
+    if (![...(cfg.seoBad || []), ...(cfg.seoLate || [])].includes(slug)) {
+      page = seoFix(page, {
+        kw: keyword, place: ((first.match(/- Location: ([^\n]+)/) || [])[1] || '').split(',')[0].trim(),
+        budget: Number((first.match(/with the keyword, max (\d+) chars/) || [])[1]) || 0, brand: (first.match(/- Company: ([^\n]+)/) || [])[1],
+      });
+    }
+    if ((cfg.badAlways || []).includes(slug) || ((cfg.badFirst || []).includes(slug) && seen[slug] === 1)) page.slug = 'wrong/' + slug;
+    return page;
+  }
+  if (kind === 'seo-rewrite') {
+    const env = JSON.parse((first.match(/\n\n(\{[\s\S]*?\n\})\n\nPROBLEMS TO FIX/) || [])[1]);
+    if ((cfg.seoBad || []).includes(env.page.slug)) return env;
+    const ctx = {
+      kw: (first.match(/This page's target keyword is "([^"]+)"/) || [])[1] || '',
+      place: ((first.match(/^You wrote one page of the website for "[^"]*" \([^,]*, ([^)]*)\)/) || [])[1] || '').split(',')[0].trim(),
+      budget: Number((first.match(/page\.title: max (\d+) chars/) || [])[1]) || 0,
+      brand: (first.match(/^You wrote one page of the website for "([^"]*)"/) || [])[1],
+    };
+    const page = seoFix(env.page, ctx);
+    // cfg.dropRefOnRewrite：重写回来的详情页把「下面的关键词页」那组写成了死列表（引用丢了）—— create-site 要在 seoPass 之后把它指回去。
+    if (cfg.dropRefOnRewrite && /^services\/[^/]+$/.test(page.slug)) {
+      for (const b of page.sections || []) if (b && b.type === 'features' && b.data && b.data.items && b.data.items.source === 'pages') b.data.items = [{ title: 'Stale', text: 'A list the rewrite wrote out.' }];
+    }
+    if (env.page.slug !== 'home') return { page };
+    return { page, siteTitle: `${cap(ctx.kw || ctx.brand)} | ${ctx.brand}`.slice(0, 60), siteDescription: page.description };
+  }
+  throw new Error('桩不认识这一通调用：' + first.slice(0, 120));
+}
+class FakeAnthropic {
+  constructor() {
+    this.messages = {
+      stream: (req) => ({ finalMessage: async () => ({ content: [{ type: 'text', text: JSON.stringify(answer(req)) }], usage: { input_tokens: 1, output_tokens: 1 }, stop_reason: 'end_turn' }) }),
+      create: async (req) => ({ content: [{ type: 'text', text: JSON.stringify(answer(req)) }], usage: { input_tokens: 1, output_tokens: 1 }, stop_reason: 'end_turn' }),
+    };
+  }
+}
+FakeAnthropic.default = FakeAnthropic;
+FakeAnthropic.Anthropic = FakeAnthropic;
+const orig = Module._load;
+Module._load = function (request, parent, isMain) {
+  if (request === '@anthropic-ai/sdk') return FakeAnthropic;
+  return orig.apply(this, arguments);
+};}
+const STUB = `(${stubMain.toString()})();\n`;
+
+// ── 一棵只属于这一跑的树（拷模板，node_modules 借软链）────────────────────────────────────────────
+function makeTree(label) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), `kw-e2e-${label}-`));
+  TEMP.push(root);
+  const work = path.join(root, 'nextjs');
+  cp.execSync(`tar --exclude=./node_modules --exclude=./out --exclude=./.next --exclude=./site --exclude=./public/photos -cf - . | (mkdir -p "${work}" && tar -xf - -C "${work}")`, { cwd: NEXT, stdio: 'pipe' });
+  fs.symlinkSync(path.join(NEXT, 'node_modules'), path.join(work, 'node_modules'));
+  return work;
+}
+
+/** skipAI 示例站的页面（过块库校验）→ Call 1 回答里那几页。只取一次。 */
+let demoPagesCache = null;
+function demoPages() {
+  if (demoPagesCache) return demoPagesCache;
+  const work = makeTree('demo');
+  const r = cp.spawnSync(process.execPath, [path.join(work, 'scripts', 'create-site.js')], {
+    input: JSON.stringify({ siteId: 'kwdemo01', siteUrl: 'https://brightpipes.test', skipAI: true, companyName: 'Bright Pipes', industry: 'plumbing', location: 'Toronto, ON', language: 'en' }),
+    cwd: work, encoding: 'utf8', env: { ...process.env, ANTHROPIC_API_KEY: undefined }, timeout: 180000,
+  });
+  const dir = path.join(work, 'site', 'en', 'pages');
+  if (!fs.existsSync(dir)) die(`示例站没建出来：\n${(r.stderr || '').slice(-600)}`);
+  demoPagesCache = fs.readdirSync(dir).filter((f) => f.endsWith('.json')).map((f) => {
+    const { blocks, ...rest } = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+    return { ...rest, sections: blocks };
+  });
+  return demoPagesCache;
+}
+
+function call1(services, extraPages = []) {
+  return {
+    colorScheme: 'light',
+    brand: { tagline: 'Pipes done right', logoIcon: 'droplet', email: 'hi@brightpipes.test', locations: [{ label: 'Main', address: '2150 Yonge Street, Toronto', phone: '(416) 555-0199' }] },
+    navigation: { ctaLabel: 'Get a quote', ctaPage: 'quote', footerDescription: 'Plumbing in Toronto' },
+    seo: { domain: 'https://brightpipes.test', siteTitle: 'Bright Pipes', siteDescription: 'Plumbing in Toronto', areaServed: [{ type: 'City', name: 'Toronto' }], addresses: [], openingHours: { days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], opens: '09:00', closes: '17:00' }, priceRange: '$$', offerCatalogName: 'Services' },
+    services: services.map((s) => ({ id: s.id, name: s.name, shortDescription: `${s.name} done right`, fullDescription: `${s.name} across Toronto.`, icon: 'droplet', features: ['a'], products: [] })),
+    forms: [{ id: 'quote', name: 'Get a quote', buttonText: 'Send', successMessage: 'Thanks' }, { id: 'contact', name: 'Contact', buttonText: 'Send', successMessage: 'Thanks' }],
+    pages: [...demoPages(), ...extraPages],
+  };
+}
+
+const kw = (keyword, extra = {}) => ({ keyword, volume: 100, goldIndex: 10, selected: true, ...extra });
+const primary = (keyword) => kw(keyword, { isPrimary: true });
+
+/** 跑一次建站（桩），回 { events, calls, rc, stderr, site } */
+function run(label, payload, stubCfg) {
+  const work = makeTree(label);
+  const dir = path.dirname(work);
+  const stub = path.join(dir, 'stub.js');
+  const cfgFile = path.join(dir, 'cfg.json');
+  const calls = path.join(dir, 'calls.jsonl');
+  fs.writeFileSync(stub, STUB);
+  fs.writeFileSync(cfgFile, JSON.stringify(stubCfg));
+  fs.writeFileSync(calls, '');
+  const r = cp.spawnSync(process.execPath, ['--require', stub, path.join(work, 'scripts', 'create-site.js')], {
+    input: JSON.stringify({ siteId: `kw${label}`.slice(0, 12), siteUrl: 'https://brightpipes.test', industry: 'plumbing', location: 'Toronto, ON', language: 'en', homepageFingerprint: false, ...payload }),
+    cwd: work, encoding: 'utf8', maxBuffer: 64 << 20, timeout: 300000,
+    env: { ...process.env, ANTHROPIC_API_KEY: 'stub-not-used', KW_STUB_CFG: cfgFile, KW_STUB_CALLS: calls },
+  });
+  const events = (r.stdout || '').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch (e) { return { event: '(非 JSON)', raw: l }; } });
+  const err = events.find((e) => e.event === 'error');
+  if (err) die(`${label}：建站报错 ${err.message}\n${(r.stderr || '').slice(-800)}`);
+  if (r.status !== 0) die(`${label}：rc=${r.status}\n${(r.stderr || '').slice(-800)}`);
+  const callList = fs.readFileSync(calls, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  const site = path.join(work, 'site');
+  const readJson = (p) => JSON.parse(fs.readFileSync(path.join(site, p), 'utf8'));
+  const loc = payload.language || 'en';
+  const pagesDir = path.join(site, loc, 'pages');
+  const pageFiles = [];
+  (function walk(d, pre) {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      if (e.isDirectory()) walk(path.join(d, e.name), `${pre}${e.name}/`);
+      else if (e.name.endsWith('.json')) pageFiles.push(`${pre}${e.name.replace(/\.json$/, '')}`);
+    }
+  })(pagesDir, '');
+  const page = (slug) => readJson(`${loc}/pages/${slug}.json`);
+  return { work, events, calls: callList, stderr: r.stderr || '', pageFiles, page, readJson, report: events.find((e) => e.event === 'keyword-pages') };
+}
+const kwCalls = (calls) => calls.filter((c) => c.kind === 'keyword-page');
+const slugOf = (c) => (c.first.match(/- slug: "([^"]+)"/) || [])[1];
+const blocksOf = (p) => p.blocks || p.sections || [];
+const pagesRefOf = (p) => blocksOf(p).filter((b) => b.type === 'features' && b.data && b.data.items && b.data.items.source === 'pages').map((b) => b.data.items);
+
+console.log('══ #1550 关键词页：真 AI 路（打桩）══');
+
+// ── AC2 / AC3 / AC9：2 服务 × 3 个选中词，Call 1 不给详情页 ──────────────────────────────────────────
+console.log('── AC2 / AC3 / AC9：2 服务，每服务主词外 3 个选中词，Call 1 一个详情页都不给');
+const SVC2 = [{ id: 'drain-cleaning', name: 'Drain Cleaning' }, { id: 'water-heaters', name: 'Water Heaters' }];
+const A = run('two', {
+  companyName: 'Bright Pipes', services: SVC2.map((s) => s.name),
+  keywords: {
+    'Drain Cleaning': [primary('drain cleaning'), kw('drain cleaning markham'), kw('clogged drain repair'), kw('sewer line cleaning')],
+    'Water Heaters': [primary('water heater repair'), kw('tankless water heater'), kw('hot water tank install'), kw('water heater leaking')],
+  },
+}, { call1: call1(SVC2) });
+const A_KW = A.pageFiles.filter((s) => /^services\/[^/]+\/[^/]+$/.test(s));
+check('AC2：6 个关键词页全在 /services/<id>/<slug>', () => {
+  assert.deepStrictEqual(A_KW.sort(), [
+    'services/drain-cleaning/clogged-drain-repair', 'services/drain-cleaning/drain-cleaning-markham', 'services/drain-cleaning/sewer-line-cleaning',
+    'services/water-heaters/hot-water-tank-install', 'services/water-heaters/tankless-water-heater', 'services/water-heaters/water-heater-leaking',
+  ]);
+});
+check('AC2 / AC9：Call 1 没给详情页 ⟹ 两个详情页由代码补出，各自列出 under = services/<id>', () => {
+  assert.ok(!demoPages().some((p) => /^services\//.test(p.slug)), '阳性对照：桩的 Call 1 真的没给详情页');
+  for (const s of SVC2) {
+    const d = A.page(`services/${s.id}`);
+    assert.strictEqual(d.serviceDetailPage, true);
+    assert.deepStrictEqual(pagesRefOf(d), [{ source: 'pages', under: `services/${s.id}` }]);
+  }
+});
+check('AC2：每个关键词页页尾有同服务兄弟页那一组（under = 本服务）', () => {
+  for (const slug of A_KW) {
+    const id = slug.split('/')[1];
+    assert.deepStrictEqual(pagesRefOf(A.page(slug)), [{ source: 'pages', under: `services/${id}` }], slug);
+  }
+});
+check('AC2：页脚含全部 6 页，每服务一栏、栏名是服务名', () => {
+  const nav = A.readJson('en/navigation.json');
+  const cols = nav.footer.columns.slice(1);
+  assert.deepStrictEqual(cols.map((c) => c.title), ['Drain Cleaning', 'Water Heaters']);
+  assert.deepStrictEqual(cols.flatMap((c) => c.links.map((l) => l.href.slice(1))).sort(), [...A_KW].sort());
+});
+check('AC2：建站结果报 6/6、6 行相似度、没有失败', () => {
+  assert.strictEqual(A.report.total, 6);
+  assert.strictEqual(A.report.ok, 6);
+  assert.deepStrictEqual(A.report.failed, []);
+  assert.strictEqual(A.report.similarity.length, 6);
+  assert.ok(A.report.similarity.every((x) => typeof x.score === 'number' && x.mostSimilar), JSON.stringify(A.report.similarity[0]));
+});
+check('AC2：一页一次调用（6 通），Call 1 一通', () => {
+  assert.strictEqual(kwCalls(A.calls).length, 6);
+  assert.strictEqual(A.calls.filter((c) => c.kind === 'call1').length, 1);
+  assert.strictEqual(A.calls.filter((c) => c.kind === 'other').length, 0);
+});
+check('关键词页挂上了自己的目标词（T4 的 seo.targetKeyword）', () => {
+  assert.strictEqual(A.page('services/drain-cleaning/drain-cleaning-markham').seo.targetKeyword, 'drain cleaning markham');
+  assert.strictEqual(A.page('services/drain-cleaning/drain-cleaning-markham').keywordPage, true);
+});
+check('AC3：同一个站跑 sync-config 之后，页脚导航不变', () => {
+  const before = JSON.stringify(A.readJson('en/navigation.json').footer);
+  const r = cp.spawnSync(process.execPath, [path.join(A.work, 'scripts', 'sync-config.js')], { cwd: A.work, encoding: 'utf8', timeout: 180000 });
+  assert.strictEqual(r.status, 0, (r.stderr || r.stdout || '').slice(-600));
+  assert.strictEqual(JSON.stringify(A.readJson('en/navigation.json').footer), before);
+});
+check('AC3：页脚那几栏删掉再让 sync-config 重建 ⟹ 跟建站时一模一样（两处是同一个函数）', () => {
+  const nav = A.readJson('en/navigation.json');
+  const before = JSON.stringify(nav.footer.columns);
+  nav.footer.columns = nav.footer.columns.slice(0, 1);
+  fs.writeFileSync(path.join(A.work, 'site', 'en', 'navigation.json'), JSON.stringify(nav, null, 2));
+  const r = cp.spawnSync(process.execPath, [path.join(A.work, 'scripts', 'sync-config.js')], { cwd: A.work, encoding: 'utf8', timeout: 180000 });
+  assert.strictEqual(r.status, 0, (r.stderr || '').slice(-600));
+  assert.strictEqual(JSON.stringify(A.readJson('en/navigation.json').footer.columns), before);
+});
+
+// ── AC11：素材进了这一页那次调用的提示词 ────────────────────────────────────────────────────────────
+console.log('── AC11：素材（字段名 = dashboard 送的 keywordMaterial）');
+const SVC_P = [{ id: 'plumbing', name: 'Plumbing' }, { id: 'water-heaters', name: 'Water Heaters' }];
+const M = run('mat', {
+  companyName: 'Bright Pipes', services: SVC_P.map((s) => s.name),
+  address: '2150 Yonge Street, Toronto', phone: '(416) 555-0199',
+  reviews: [
+    { author: 'Ann', rating: 5, text: 'They fixed our basement leak in Markham the same afternoon.' },
+    { author: 'Bob', rating: 5, text: 'Great work, very tidy and on time.' },
+  ],
+  keywords: {
+    Plumbing: [primary('plumbing'), kw('plumbing Markham'), kw('plumbing Toronto')],
+    'Water Heaters': [primary('water heater repair'), kw('tankless water heater')],
+  },
+  keywordMaterial: {
+    Plumbing: { questions: ['How much does a plumber cost in Ontario?'], unselected: ['plumber near me'] },
+    'Water Heaters': { questions: ['How long do water heaters last?'], unselected: ['hot water tank rental'] },
+  },
+}, { call1: call1(SVC_P) });
+const promptFor = (slug) => (kwCalls(M.calls).find((c) => slugOf(c) === slug) || { first: '' }).first;
+const MARK = promptFor('services/plumbing/plumbing-markham');
+const TOR = promptFor('services/plumbing/plumbing-toronto');
+check('Markham 页的提示词：含 address、phone 原文', () => { assert.ok(MARK.includes('2150 Yonge Street, Toronto')); assert.ok(MARK.includes('(416) 555-0199')); });
+check('Markham 页：含带 Markham 那条评价原文，不含不带地名那条', () => {
+  assert.ok(MARK.includes('They fixed our basement leak in Markham the same afternoon.'));
+  assert.ok(!MARK.includes('Great work, very tidy and on time.'));
+});
+check('Markham 页：含本服务组的问题 / 没勾的词，不含另一组的任何一条', () => {
+  assert.ok(MARK.includes('How much does a plumber cost in Ontario?'));
+  assert.ok(MARK.includes('plumber near me'));
+  assert.ok(!MARK.includes('How long do water heaters last?'));
+  assert.ok(!MARK.includes('hot water tank rental'));
+});
+check('Markham 页：含「服务介绍只写一句 + 链到服务页」', () => assert.ok(MARK.includes('describe Plumbing itself in ONE sentence only and link to its service page (/services/plumbing)')));
+check('Toronto 页的提示词不含 Markham 那条评价', () => { assert.ok(TOR.length > 0, '没找到 Toronto 那一通'); assert.ok(!TOR.includes('They fixed our basement leak in Markham')); });
+
+// ── AC5：一页拿不到合格结果 ─────────────────────────────────────────────────────────────────────────
+console.log('── AC5：一页两次都不合格');
+const BAD = 'services/drain-cleaning/clogged-drain-repair';
+const F = run('fail', {
+  companyName: 'Bright Pipes', services: SVC2.map((s) => s.name),
+  keywords: {
+    'Drain Cleaning': [primary('drain cleaning'), kw('drain cleaning markham'), kw('clogged drain repair'), kw('sewer line cleaning')],
+    'Water Heaters': [primary('water heater repair'), kw('tankless water heater'), kw('hot water tank install'), kw('water heater leaking')],
+  },
+}, { call1: call1(SVC2), badAlways: [BAD] });
+check('只有这一页被重试（2 通），别的 5 页各 1 通', () => {
+  const counts = {};
+  for (const c of kwCalls(F.calls)) counts[slugOf(c)] = (counts[slugOf(c)] || 0) + 1;
+  assert.strictEqual(counts[BAD], 2);
+  assert.deepStrictEqual(Object.entries(counts).filter(([s]) => s !== BAD).map(([, n]) => n), [1, 1, 1, 1, 1]);
+  assert.ok(kwCalls(F.calls).some((c) => slugOf(c) === BAD && c.turns === 3), '重试那一通把问题退回给了它（3 轮对话）');
+});
+check('结果报 5/6，列出失败的词；那一页不在产物里', () => {
+  assert.strictEqual(F.report.ok, 5);
+  assert.strictEqual(F.report.total, 6);
+  assert.deepStrictEqual(F.report.failed.map((x) => x.keyword), ['clogged drain repair']);
+  assert.ok(!F.pageFiles.includes(BAD));
+});
+check('第一次不合格、重试合格 ⟹ 6/6（重试那一通的结果被收下）', () => {
+  const G = run('retry', {
+    companyName: 'Bright Pipes', services: ['Drain Cleaning'],
+    keywords: { 'Drain Cleaning': [primary('drain cleaning'), kw('drain cleaning markham'), kw('sewer line cleaning')] },
+  }, { call1: call1([SVC2[0]]), badFirst: ['services/drain-cleaning/sewer-line-cleaning'] });
+  assert.strictEqual(G.report.ok, 2);
+  assert.ok(G.pageFiles.includes('services/drain-cleaning/sewer-line-cleaning'));
+});
+
+// ── QA2 r1：seoPass（#1549）丢掉的关键词页 ⟹ 事件 / 相似度 / 页脚 / 详情页都按留下来的页算 ─────────────────────────
+console.log('── QA2 r1：一页过得了块库、过不了 SEO（seoPass 丢掉它）');
+const SEO_BAD = 'services/drain-cleaning/sewer-line-cleaning';
+const D = run('seodrop', {
+  companyName: 'Bright Pipes', services: SVC2.map((s) => s.name),
+  keywords: {
+    'Drain Cleaning': [primary('drain cleaning'), kw('drain cleaning markham'), kw('clogged drain repair'), kw('sewer line cleaning')],
+    'Water Heaters': [primary('water heater repair'), kw('tankless water heater'), kw('hot water tank install'), kw('water heater leaking')],
+  },
+}, { call1: call1(SVC2), seoBad: [SEO_BAD] });
+check('阳性对照：那一页只调了一次生成（过了块库），seoPass 带着问题重写过它一次', () => {
+  assert.strictEqual(kwCalls(D.calls).filter((c) => slugOf(c) === SEO_BAD).length, 1);
+  assert.ok(D.calls.some((c) => c.kind === 'seo-rewrite' && c.first.includes(`"slug": "${SEO_BAD}"`)));
+  assert.ok(D.stderr.includes(`[seo] 丢掉 ${SEO_BAD}：`), D.stderr.split('\n').filter((l) => l.startsWith('[seo]')).slice(-5).join('\n'));
+});
+check('事件报 5/6，失败清单里有它、带着它的 SEO 问题', () => {
+  assert.strictEqual(D.report.total, 6);
+  assert.strictEqual(D.report.ok, 5);
+  assert.deepStrictEqual(D.report.failed.map((f) => f.slug), [SEO_BAD]);
+  assert.ok(D.report.failed[0].problems.some((x) => /^\[\d /.test(x)), JSON.stringify(D.report.failed[0].problems));
+});
+check('seo-check 事件与 keyword-pages 事件说同一个数（5/6）', () => {
+  const ev = D.events.filter((e) => e.event === 'seo-check' && e.keywordPages && e.keywordPages.total);
+  assert.deepStrictEqual(ev.map((e) => [e.keywordPages.ok, e.keywordPages.total]), [[5, 6]]);
+});
+check('那页不在站里；相似度 5 行，没有一行是它、也没有一行说「最像它」', () => {
+  assert.ok(!D.pageFiles.includes(SEO_BAD));
+  assert.strictEqual(D.report.similarity.length, 5);
+  assert.ok(D.report.similarity.every((x) => x.slug !== SEO_BAD && x.mostSimilar !== SEO_BAD), JSON.stringify(D.report.similarity));
+});
+check('页脚：Drain Cleaning 那栏 2 条、不含它；合计 5 条', () => {
+  const cols = D.readJson('en/navigation.json').footer.columns.slice(1);
+  const dc = cols.find((c) => c.title === 'Drain Cleaning');
+  assert.deepStrictEqual(dc.links.map((l) => l.href).sort(), ['/services/drain-cleaning/clogged-drain-repair', '/services/drain-cleaning/drain-cleaning-markham']);
+  assert.strictEqual(cols.flatMap((c) => c.links).length, 5);
+});
+
+// ── QA2 r2：关键词页生成时不合格、seoPass 重写后合格 ⟹ 它留下来了，五处都要算它 ───────────────────────────────
+console.log('── QA2 r2：两页被 SEO 重写救回来、一页被丢掉');
+const LATE = ['services/drain-cleaning/drain-cleaning-markham', 'services/water-heaters/tankless-water-heater'];
+const G = run('seolate', {
+  companyName: 'Bright Pipes', services: SVC2.map((s) => s.name),
+  keywords: {
+    'Drain Cleaning': [primary('drain cleaning'), kw('drain cleaning markham'), kw('clogged drain repair'), kw('sewer line cleaning')],
+    'Water Heaters': [primary('water heater repair'), kw('tankless water heater'), kw('hot water tank install'), kw('water heater leaking')],
+  },
+}, { call1: call1(SVC2), seoLate: LATE, seoBad: [SEO_BAD] });
+const G_KEPT = ['services/drain-cleaning/clogged-drain-repair', 'services/drain-cleaning/drain-cleaning-markham',
+  'services/water-heaters/hot-water-tank-install', 'services/water-heaters/tankless-water-heater', 'services/water-heaters/water-heater-leaking'];
+check('阳性对照：那两页确实被重写过、重写后 0 条问题；那一页被丢掉', () => {
+  const lines = G.stderr.split('\n');
+  for (const slug of LATE) {
+    assert.ok(G.calls.some((c) => c.kind === 'seo-rewrite' && c.first.includes(`"slug": "${slug}"`)), slug);
+    assert.ok(lines.some((l) => l.startsWith(`[seo] 重写一次后 ${slug} `) && l.endsWith('0 条问题')), slug);
+  }
+  assert.ok(lines.some((l) => l.startsWith(`[seo] 丢掉 ${SEO_BAD}：`)));
+});
+check('① 事件 5/6，失败清单只有被丢的那一页', () => {
+  assert.deepStrictEqual([G.report.ok, G.report.total], [5, 6]);
+  assert.deepStrictEqual(G.report.failed.map((f) => f.slug), [SEO_BAD]);
+});
+check('② 相似度 5 行 = 留下来的 5 页（含被救回的两页）', () => {
+  assert.deepStrictEqual(G.report.similarity.map((x) => x.slug).sort(), G_KEPT);
+});
+check('③ 页脚：两栏合计 = 留下来的 5 页', () => {
+  const links = G.readJson('en/navigation.json').footer.columns.slice(1).flatMap((c) => c.links.map((l) => l.href.slice(1)));
+  assert.deepStrictEqual(links.sort(), G_KEPT);
+});
+check('④ 盘上 5 页每页都有兄弟页那一组（含被救回的两页，以及「唯一兄弟被救回」的那页）', () => {
+  const onDisk = G.pageFiles.filter((x) => /^services\/[^/]+\/[^/]+$/.test(x)).sort();
+  assert.deepStrictEqual(onDisk, G_KEPT);
+  for (const slug of G_KEPT) assert.deepStrictEqual(pagesRefOf(G.page(slug)), [{ source: 'pages', under: `services/${slug.split('/')[1]}` }], slug);
+});
+check('⑤ seo-check 与 keyword-pages 两个事件说同一个数', () => {
+  const ev = G.events.filter((e) => e.event === 'seo-check' && e.keywordPages && e.keywordPages.total);
+  assert.deepStrictEqual(ev.map((e) => [e.keywordPages.ok, e.keywordPages.total]), [[G.report.ok, G.report.total]]);
+});
+
+console.log('── 一个服务下的关键词页全被 seoPass 丢掉');
+const E = run('seoempty', {
+  companyName: 'Bright Pipes', services: SVC2.map((s) => s.name),
+  keywords: {
+    'Drain Cleaning': [primary('drain cleaning'), kw('drain cleaning markham'), kw('clogged drain repair')],
+    'Water Heaters': [primary('water heater repair'), kw('tankless water heater'), kw('water heater leaking')],
+  },
+}, { call1: call1(SVC2), seoBad: ['services/water-heaters/tankless-water-heater', 'services/water-heaters/water-heater-leaking'] });
+check('那个服务（Call 1 没给详情页）不补详情页、页脚没有它那一栏；另一个服务照常', () => {
+  assert.ok(!E.pageFiles.includes('services/water-heaters'), E.pageFiles.join(' '));
+  assert.ok(E.pageFiles.includes('services/drain-cleaning'));
+  assert.deepStrictEqual(E.readJson('en/navigation.json').footer.columns.slice(1).map((c) => c.title), ['Drain Cleaning']);
+  assert.strictEqual(E.report.ok, 2);
+  assert.strictEqual(E.report.total, 4);
+});
+check('没被补的那张详情页不进 seoPass（日志里没有它的「检查」行）', () => {
+  assert.ok(!E.stderr.split('\n').some((l) => l.startsWith('[seo] 检查 services/water-heaters ')), '它不该被检查');
+  assert.ok(E.stderr.split('\n').some((l) => l.startsWith('[seo] 检查 services/drain-cleaning ')), '阳性对照：补出来的那张被检查了');
+});
+
+console.log('── 挂 Brand 的 Lead：补的那个服务下的关键词页全被 seoPass 丢掉');
+const BRAND3x = [{ id: 'drain-cleaning', name: 'Drain Cleaning' }, { id: 'water-heaters', name: 'Water Heaters' }, { id: 'leak-repair', name: 'Leak Repair' }];
+const LE = run('leadempty', {
+  companyName: 'Bright Pipes', siteType: 'lead', keyword: 'plumbing', services: BRAND3x.map((s) => s.name),
+  keywords: { plumbing: [primary('plumbing'), kw('plumbing markham'), kw('plumbing toronto')] },
+}, { call1: call1(BRAND3x), seoBad: ['services/plumbing/plumbing-markham', 'services/plumbing/plumbing-toronto'] });
+// 📌 seo.json 的 targetKeywords.byService 里照样有 `plumbing` 这个键：对不上服务的组按**组名**记（T4 #1548 的既有规矩），
+//    跟有没有补出服务无关，所以这里不量它。
+check('PM ① 约束 1：补的服务撤掉（服务目录、详情页、建站结果都没有 plumbing）', () => {
+  assert.ok(!LE.readJson('en/services.json').some((x) => x.id === 'plumbing'), JSON.stringify(LE.readJson('en/services.json').map((x) => x.id)));
+  assert.ok(!LE.pageFiles.some((x) => x.startsWith('services/plumbing')), LE.pageFiles.join(' '));
+  assert.deepStrictEqual(LE.report.addedServices, []);
+  assert.strictEqual(LE.report.ok, 0);
+  assert.strictEqual(LE.report.total, 2);
+});
+
+console.log('── seoPass 重写详情页时把列表写成了死列表');
+const RF = run('refdrop', {
+  companyName: 'Bright Pipes', services: SVC2.map((s) => s.name),
+  keywords: { 'Drain Cleaning': [primary('drain cleaning'), kw('drain cleaning markham'), kw('clogged drain repair')] },
+}, { call1: call1(SVC2), dropRefOnRewrite: true });
+check('阳性对照：详情页确实被重写过', () => {
+  assert.ok(RF.calls.some((c) => c.kind === 'seo-rewrite' && c.first.includes('"slug": "services/drain-cleaning"')));
+});
+check('收尾把「下面的关键词页」那组指回 under = services/drain-cleaning', () => {
+  assert.deepStrictEqual(pagesRefOf(RF.page('services/drain-cleaning')), [{ source: 'pages', under: 'services/drain-cleaning' }]);
+});
+
+// ── AC4：一个服务 12 个选中词 ─────────────────────────────────────────────────────────────────────
+console.log('── AC4：一个服务主词外 12 个选中词');
+const TWELVE = Array.from({ length: 12 }, (_, i) => kw(`drain cleaning area ${i + 1}`));
+const T = run('twelve', {
+  companyName: 'Bright Pipes', services: ['Drain Cleaning'],
+  keywords: { 'Drain Cleaning': [primary('drain cleaning'), ...TWELVE] },
+}, { call1: call1([SVC2[0]]) });
+check('页脚那一栏 10 条，第 10 条是「All 12 pages →」链到服务详情页', () => {
+  const col = T.readJson('en/navigation.json').footer.columns[1];
+  assert.strictEqual(col.links.length, 10);
+  assert.deepStrictEqual(col.links[9], { label: 'All 12 pages →', href: '/services/drain-cleaning' });
+});
+check('详情页列出它下面的全部关键词页（引用写法，构建时展开；12 页都在 services/drain-cleaning/ 下）', () => {
+  assert.deepStrictEqual(pagesRefOf(T.page('services/drain-cleaning')), [{ source: 'pages', under: 'services/drain-cleaning' }]);
+  assert.strictEqual(T.pageFiles.filter((s) => s.startsWith('services/drain-cleaning/')).length, 12);
+});
+
+// ── AC7：中文服务名 + 中文关键词 ───────────────────────────────────────────────────────────────────
+console.log('── AC7：中文服务名 + 中文关键词');
+const Z = run('zh', {
+  companyName: '明亮水管', services: ['疏通下水道'], language: 'zh',
+  keywords: { '疏通下水道': [primary('疏通下水道'), kw('万锦 疏通下水道'), kw('厨房 堵塞')] },
+}, { call1: call1([{ id: 'drain-unclog', name: '疏通下水道' }]) });
+check('URL 是拼音，挂在它自己的 /services/<id> 下；详情页在', () => {
+  assert.ok(Z.pageFiles.includes('services/drain-unclog/wan-jin-shu-tong-xia-shui-dao'), Z.pageFiles.join(' '));
+  assert.ok(Z.pageFiles.includes('services/drain-unclog/chu-fang-du-sai'));
+  assert.ok(Z.pageFiles.includes('services/drain-unclog'));
+});
+// 兄弟页那一组加在 seoPass 之后，标签原样；详情页上那组是 seoPass 之前补的，重写可能把关键词加进这个 H2（第 7 条），只要求还带着标签。
+check('中文站的「相关页面」标签', () => {
+  const kwSlug = Z.pageFiles.find((x) => x.startsWith('services/drain-unclog/'));
+  assert.strictEqual(Z.page(kwSlug).blocks.find((b) => b.type === 'features' && b.data.items.source === 'pages').data.headline, '相关页面');
+  assert.match(Z.page('services/drain-unclog').blocks.find((b) => b.type === 'features' && b.data.items.source === 'pages').data.headline, /相关页面/);
+});
+
+// ── PM ①：挂 Brand 的 Lead ─────────────────────────────────────────────────────────────────────────
+console.log('── PM ①(b)：挂 Brand 的 Lead（Brand 3 个服务，组名是 Lead 主词）');
+const BRAND3 = [{ id: 'drain-cleaning', name: 'Drain Cleaning' }, { id: 'water-heaters', name: 'Water Heaters' }, { id: 'leak-repair', name: 'Leak Repair' }];
+const L = run('lead', {
+  companyName: 'Bright Pipes', siteType: 'lead', keyword: 'plumbing', services: BRAND3.map((s) => s.name),
+  keywords: { plumbing: [primary('plumbing'), kw('plumbing markham'), kw('plumbing toronto')] },
+}, { call1: call1(BRAND3) });
+check('补了一个服务 {id: plumbing, name: plumbing}；关键词页挂在 /services/plumbing/ 下；详情页在', () => {
+  const svcs = L.readJson('en/services.json');
+  const added = svcs.find((s) => s.id === 'plumbing');
+  assert.ok(added, svcs.map((s) => s.id).join(' '));
+  assert.strictEqual(added.name, 'plumbing');
+  assert.ok(L.pageFiles.includes('services/plumbing/plumbing-markham'));
+  assert.ok(L.pageFiles.includes('services/plumbing'));
+  assert.deepStrictEqual(L.report.addedServices, [{ id: 'plumbing', name: 'plumbing' }]);
+});
+check('PM ① 约束 1：那组的关键词页一页都没成 ⟹ 不补服务、不补详情页', () => {
+  const L2 = run('lead0', {
+    companyName: 'Bright Pipes', siteType: 'lead', keyword: 'plumbing', services: BRAND3.map((s) => s.name),
+    keywords: { plumbing: [primary('plumbing'), kw('plumbing markham')] },
+  }, { call1: call1(BRAND3), badAlways: ['services/plumbing/plumbing-markham'] });
+  assert.ok(!L2.readJson('en/services.json').some((s) => s.id === 'plumbing'));
+  assert.ok(!L2.pageFiles.includes('services/plumbing'));
+  assert.strictEqual(L2.report.ok, 0);
+});
+
+// ── 转写不了的词 ─────────────────────────────────────────────────────────────────────────────────
+console.log('── 转写表里没有的文字');
+check('日文假名词 ⟹ kw-<序号>，列在建站结果里', () => {
+  const J = run('kana', {
+    companyName: 'Bright Pipes', services: ['Drain Cleaning'],
+    keywords: { 'Drain Cleaning': [primary('drain cleaning'), kw('drain cleaning markham'), kw('すいどう しゅうり')] },
+  }, { call1: call1([SVC2[0]]) });
+  assert.deepStrictEqual(J.report.fallbackSlugs, [{ keyword: 'すいどう しゅうり', slug: 'services/drain-cleaning/kw-2' }]);
+  assert.ok(J.pageFiles.includes('services/drain-cleaning/kw-2'));
+});
+
+console.log(`\n${pass} passed, ${fail} failed`);
+process.exit(fail ? 1 : 0);

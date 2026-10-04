@@ -38,6 +38,7 @@ const { createLastModifiedResolver } = require('./lib/page-lastmod');
 // 哪一页读了哪些文件由这个文件算，边界（算什么、不算什么）写在它的文件头上。
 const { blockTypesReadingServices, createPageDeps, isServiceDetailPage } = require('./lib/page-deps');
 const { isKeywordPage } = require('./lib/keyword-service');
+const { keywordFooterColumns } = require('./lib/keyword-pages');
 
 const rootDir = path.resolve(__dirname, '..');
 const siteDir = path.join(rootDir, 'site');
@@ -700,18 +701,10 @@ for (const locale of locales) {
   // after translateSupportingFiles localizes column 0's title.
   const hasKeywordColumns = existingNav.footer.columns.length > 1;
   if (keywordPages.length > 0 && !hasKeywordColumns) {
-    const groups = {};
-    for (const p of keywordPages) {
-      const serviceSlug = p.slug.split('/')[0];
-      if (!groups[serviceSlug]) groups[serviceSlug] = [];
-      groups[serviceSlug].push(p);
-    }
-    for (const [serviceSlug, pages] of Object.entries(groups)) {
-      existingNav.footer.columns.push({
-        title: serviceSlug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
-        links: pages.slice(0, 6).map(p => ({ label: p.title, href: `/${p.slug}` })),
-      });
-    }
+    // #1550 —— 分组 / 栏名 / 每栏上限（10 条，超过时最后一条是「全部 N 页 →」）跟建站时是同一个函数
+    //    （`lib/keyword-pages.js §keywordFooterColumns`）：新形状 `services/<id>/<词>` 按服务 id 分组、栏名取服务目录；
+    //    老形状 `<服务slug>/<词>` 照旧按第一段分组。
+    existingNav.footer.columns.push(...keywordFooterColumns(keywordPages, servicesByLocale[locale] || [], locale));
   }
 
   fs.writeFileSync(navPath, JSON.stringify(existingNav, null, 2));

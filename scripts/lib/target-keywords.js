@@ -94,7 +94,8 @@ function sitePrimaryOf(groups, { siteType, keyword } = {}) {
 /** 服务详情页说的是哪个服务 id：slug `services/<id>` 的末段，退而求其次读 parentService。 */
 function serviceIdOfPage(page) {
   if (!page || page.serviceDetailPage !== true) return null;
-  if (typeof page.slug === 'string' && page.slug.startsWith('services/')) return page.slug.slice('services/'.length);
+  // #1550 —— 只认恰好一段 `services/<id>`（关键词页挂在 `services/<id>/<词>` 下，不是详情页）。
+  if (typeof page.slug === 'string' && /^services\/[^/]+$/.test(page.slug)) return page.slug.slice('services/'.length);
   return typeof page.parentService === 'string' ? page.parentService : null;
 }
 
@@ -241,7 +242,10 @@ function keywordBrief({ sitePrimary, groups = [], keywordPagesList = [] }) {
   }
   if (keywordPagesList.length) {
     lines.push('- Keyword pages (one page per keyword, each targets its own keyword):');
-    for (const kp of keywordPagesList) lines.push(`  - /${kp.nestedSlug} → "${kp.keyword}"`);
+    // #1550 —— Call 1 那一刻服务 id 还没有，关键词页的 URL（`services/<id>/<slug>`）定不下来：没有路径时写它属于哪个服务。
+    for (const kp of keywordPagesList) {
+      lines.push(kp.nestedSlug ? `  - /${kp.nestedSlug} → "${kp.keyword}"` : `  - "${kp.keyword}" (a page of its own under the ${kp.group} service)`);
+    }
   }
   return lines.join('\n');
 }

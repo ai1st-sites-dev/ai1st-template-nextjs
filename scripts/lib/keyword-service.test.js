@@ -66,6 +66,11 @@ check(K.keywordServiceFor({ slug: 'services/drain-cleaning', serviceDetailPage: 
 check(K.keywordServiceFor({ slug: 'about', seo: { targetKeyword: 'x' } }, site) === null, '普通页（不在子目录、没打 keywordPage）⟹ 不出');
 check(K.keywordServiceFor({ slug: 'drain-cleaning/plumber-toronto', seo: { targetKeyword: 'plumber toronto' } }, site) !== null,
   '嵌在子目录里、没打 keywordPage 的页 ⟹ 也算关键词页（跟导航 / sitemap 同一个判断）');
+// #1550 —— 关键词页挂到 `services/<id>/<词>` 下之后，它们不能被判成服务详情页（service-detail-page.js 只认恰好一段），
+//    否则 isKeywordPage 为假、这一页一条 Service 都不出。
+const sNested = K.keywordServiceFor(kwPage('services/drain-cleaning/clogged-drain-toronto', 'clogged drain toronto'), site);
+check(sNested && sNested.name === 'Clogged drain toronto' && names(sNested) === '["Toronto, ON"]',
+  `services/<id>/<词> 的关键词页 ⟹ 出 Service（${sNested && sNested.name} · ${sNested && names(sNested)}）`);
 
 console.log('\n── isKeywordPage 就是 sync-config 原来那一行（逐字搬过来的）');
 const legacy = (p) => (p.keywordPage === true || p.slug.includes('/')) && !require('./service-detail-page').isServiceDetailPage(p);

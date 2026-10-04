@@ -19,9 +19,10 @@ export default function SubPage({ locale, slug }: { locale: string; slug: string
   //    📌 #1425（T3）：原来前半句还认旧块 `services-list`，它随旧库删了。
   const hasServicesList = blocksUseSource(page.blocks, 'services');
   // 写成引用的列表槽先展开，再查图标表（展开出来的 `icon` 也要进表）。
-  const blocks = resolveItemSources(page.blocks, itemSourceContext(locale));
+  const blocks = resolveItemSources(page.blocks, itemSourceContext(locale, slug));
 
-  const isServiceDetail = slug.startsWith('services/') && slug !== 'services';
+  // #1550 —— 恰好一段 `services/<id>` 才是服务详情页；`services/<id>/<词>` 是挂在它下面的关键词页。
+  const isServiceDetail = /^services\/[^/]+$/.test(slug);
   const matchedService = isServiceDetail
     ? services.find((s) => s.id === slug.replace('services/', ''))
     : null;

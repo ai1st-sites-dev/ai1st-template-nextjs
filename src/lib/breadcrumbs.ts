@@ -9,7 +9,7 @@
 //   · `url`   —— 绝对地址（`seo.domain` + 本地化路径），结构化数据用。行为跟抽出来之前逐字相同。
 //   · `href`  —— 页面上的链接，**只在那一页真的存在时才有**（跟 `keyword-page-options.js` 让 AI 写「NO LINK」同一个
 //                意思）；最后一级（当前页）永远没有。结构化数据不读它。
-import { getPage, getSeo, localeUrl } from '@/lib/config';
+import { getPage, getSeo, getServices, localeUrl } from '@/lib/config';
 import { getLabels } from '@/lib/component-labels';
 
 export interface Crumb {
@@ -31,6 +31,20 @@ export function breadcrumbsFor(slug: string, locale: string): Crumb[] {
 
   const slugParts = slug.split('/');
   if (slugParts.length <= 1) return [home, current];
+
+  // #1550 —— 关键词页的新形状 `services/<id>/<词>`：中间一级就是它的服务详情页 `services/<id>`，文字是服务名
+  //    （服务目录里的那个名字；详情页的 title 往往是一句 SEO 标题）。详情页不在时只出文字、不出链接。
+  //    下面那段按「第一段 = 服务」认的是老形状 `<服务slug>/<词>`，老站照旧走它。
+  if (slugParts.length === 3 && slugParts[0] === 'services') {
+    const parentSlug = `services/${slugParts[1]}`;
+    const parent = getPage(parentSlug, locale);
+    const svc = (getServices(locale) || []).find((s) => s.id === slugParts[1]);
+    const label = svc?.name || parent?.title || titleFromSlug(slugParts[1]);
+    const middle: Crumb = parent
+      ? { label, url: abs(parentSlug), href: localeUrl(parentSlug, locale) }
+      : { label, url: abs(parentSlug) };
+    return [home, middle, current];
+  }
 
   const serviceDetailSlug = `services/${slugParts[0]}`;
   const serviceDetailPage = getPage(serviceDetailSlug, locale);

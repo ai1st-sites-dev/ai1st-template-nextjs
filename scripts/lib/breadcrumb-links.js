@@ -2,6 +2,10 @@
 /**
  * breadcrumb-links.js — #1176：关键词页的面包屑里那个中间级，只许指向真的会被写出来的页面。
  *
+ * 📌 #1550 起**没有调用方了**：这里改的是页面数据里的 `data.breadcrumbs`，而 #1502 之后新 page-header 不读它（面包屑按
+ *    页面路径算，`src/lib/breadcrumbs.ts`），关键词页的父级也由代码保证存在（`lib/keyword-pages.js §ensureServiceDetailPages`）。
+ *    文件留着只因为 `package.json` 的 `lint:scripts` 清单点了它的名（#1550 要求 package.json 一字不动）。下面的话是它当年的设计记录。
+ *
  * ── 治的是什么 ────────────────────────────────────────────────────────────────────────────────
  * 关键词页的面包屑中间那一级指的是**服务详情页**，而服务详情页只在服务数 >= 3 时才被要求生成
  * （`create-site.js` Call 1 的提示词那句 `servicesList.length >= 3`）。没有服务详情页时

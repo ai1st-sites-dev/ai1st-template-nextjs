@@ -11,11 +11,14 @@
 //    某个服务的 id，对不上就不发那份结构化数据。这里**故意不加**那个条件：加了之后「新添一个服务，
 //    让一张已经存在的 services/<id> 页面第一次匹配上」这种改法会少报，而少报是静默的。不加的代价是
 //    services/<不存在的 id> 这种页面会跟着 services.json 动 —— 多报，看得见。
+// 🔴 #1550 —— slug 那一支只认**恰好一段** `services/<id>`：关键词页挂在 `services/<id>/<词>` 下，
+//    以前那句 `startsWith('services/')` 会把它们全当成服务详情页（进不了页脚、按服务 id 找不到服务、
+//    keyword-service.js 的 isKeywordPage 为假 ⟹ 一条 Service 结构化数据都不出）。
 function isServiceDetailPage(page) {
   if (!page) return false;
   const slug = page.slug;
   return page.serviceDetailPage === true
-    || (typeof slug === 'string' && slug.startsWith('services/') && slug !== 'services');
+    || (typeof slug === 'string' && /^services\/[^/]+$/.test(slug));
 }
 
 module.exports = { isServiceDetailPage };

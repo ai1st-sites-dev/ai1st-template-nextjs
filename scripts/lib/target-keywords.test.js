@@ -186,6 +186,11 @@ console.log('④ keywordBrief');
   const s = tk.keywordBrief({ sitePrimary: tk.sitePrimaryOf(groups), groups, keywordPagesList: KP });
   same(['"teeth cleaning" — the HOME page', 'Implants → "implants"', `/${KP[0].nestedSlug} → "${KP[0].keyword}"`].every((x) => s.includes(x)), true,
     '(a) 站主词 (b) 每服务主词 (c) 关键词页 三样都在');
+  // #1550 —— Call 1 那一刻服务 id 还没有，关键词页的 URL 定不下来（`create-site.js §keywordPagesFrom` 只给词和组名）：
+  //    清单写成「某服务下单独一页」，不编一个 `/<服务>/<词>` 出来（那正是本票要换掉的旧形状）。
+  const c = tk.keywordBrief({ sitePrimary: null, groups, keywordPagesList: [{ group: 'Implants', keyword: 'implants cost' }] });
+  same(c.includes('"implants cost" (a page of its own under the Implants service)') && !/ \/[a-z]/.test(c.split('Keyword pages')[1]), true,
+    '(c) 没有路径时：写它属于哪个服务，不出现任何 /路径');
 }
 
 console.log(failed ? `\n❌ ${failed} 格没过` : '\n✅ 全过');

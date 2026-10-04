@@ -161,6 +161,9 @@ console.log('\n── AC3 pages 源');
   check(items.map((x) => x.link.href).join(',') === '/water-heaters/burnaby,/water-heaters/coquitlam', 'href 指向那两页');
   check(!items.some((x) => x.title === 'Water heaters'), 'water-heaters 这一页本身不在里面');
   check(items.every((x) => !('icon' in x)), '不带 icon');
+  // #1550 —— 关键词页页尾那组兄弟页：正在画的那一页（ctx.pageSlug）不列它自己。
+  const sib = lib.expandRef({ source: 'pages', under: 'water-heaters' }, { ...CTX, pageSlug: 'water-heaters/burnaby' });
+  check(sib.map((x) => x.link.href).join(',') === '/water-heaters/coquitlam', `ctx.pageSlug = 自己 ⟹ 只剩兄弟页（${sib.map((x) => x.link.href).join(',')}）`);
   const empty = render(block({ source: 'pages', under: 'no-such-service' }));
   check(empty === '', 'under 下面没有页面 ⟹ 整块不渲染（HTML 里没有这个 section）', empty.slice(0, 80));
   check(/<section\b/.test(render(block({ source: 'pages', under: 'water-heaters' }))), '阳性对照：同一个块 under water-heaters ⟹ 有 section');
@@ -248,7 +251,7 @@ console.log('\n── AC11 提示词');
   const entry = manifestLib.promptEntry(m);
   check(entry.includes('{"source": "services"}') && entry.includes('do not copy the services in'), 'features 的说明含 {"source": "services"} 与「do not copy the services in」');
   check(entry.includes('{"source": "pages", "under":'), '也写了 pages 那一种');
-  check(/items: \[\{[^\n]*\}\] \| \{source: "services"\} \| \{source: "pages", under: "<service slug>"\}/.test(entry), 'data 行里 items 的 shape 后面接上两种引用写法（从登记表拼）', entry.split('\n').find((l) => l.includes('data:')));
+  check(/items: \[\{[^\n]*\}\] \| \{source: "services"\} \| \{source: "pages", under: "services\/<service id>"\}/.test(entry), 'data 行里 items 的 shape 后面接上两种引用写法（从登记表拼）', entry.split('\n').find((l) => l.includes('data:')));
   check(manifestLib.promptEntry(manifestLib.loadManifests().get('testimonials')).indexOf('{source:') === -1, '反向对照：没登记的块（testimonials）的 data 行不带引用写法');
   const editSrc = fs.readFileSync(path.join(__dirname, 'edit-site.js'), 'utf-8');
   const at = editSrc.indexOf('- **services.json** —');
@@ -265,6 +268,13 @@ console.log('\n── page-deps：引用了服务目录的页面，sitemap 依�
   check(uses({ source: 'services' }) === true, 'about 页上 features 引用 services ⟹ 依赖 services.json');
   check(uses([{ title: 'a', text: 'b' }]) === false, '反向对照：同一页改成手写 ⟹ 不依赖');
   check(uses({ source: 'pages', under: 'x' }) === false, 'pages 源不读服务目录 ⟹ 不依赖 services.json');
+  // #1550 —— 关键词页挂在 `services/<id>/<词>` 下：面包屑中间级写的是服务名 ⟹ 依赖 services.json；
+  //    它也不是服务详情页（以前 `startsWith('services/')` 会把它当成详情页）。
+  const kwDeps = (slug) => deps.filesFor({ slug, blocks: [] }, `/tmp/x/pages/${slug}.json`, []).usesServices;
+  check(kwDeps('services/drain/clogged') === true, '关键词页 services/<id>/<词> ⟹ 依赖 services.json（面包屑里的服务名）');
+  check(kwDeps('drain/clogged') === false, '反向对照：老形状 <服务slug>/<词> 的面包屑不读服务目录 ⟹ 不依赖');
+  check(pageDeps.isServiceDetailPage({ slug: 'services/drain' }) === true, 'services/<id> 是服务详情页');
+  check(pageDeps.isServiceDetailPage({ slug: 'services/drain/clogged' }) === false, 'services/<id>/<词> 不是服务详情页（是挂在它下面的关键词页）');
 }
 
 // ══ AC9 / AC10 编辑器 ═════════════════════════════════════════════════════════════════════════════

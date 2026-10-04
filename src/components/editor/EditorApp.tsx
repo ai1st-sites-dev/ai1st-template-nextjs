@@ -485,7 +485,7 @@ function CanvasBlock({ component, props, locale, pageSlug }: { component: Editor
   const block = { ...view, data, shape: canvasShape(component, props._shape, data) } as BlockConfig;
   // #1505 —— 写成引用的列表槽（`items: {source: "services"}`）在画布上显示展开后的样子：跟真站同一个函数、同一份站点数据，
   //    在这里展开一次，下面普通块和共用块两支用的都是它（只补一支的话，另一支上那块是空的、而且没人会红）。
-  const [shown] = resolveItemSources([block], itemSourceContext(locale));
+  const [shown] = resolveItemSources([block], itemSourceContext(locale, pageSlug));
   if (src?.shared) {
     // #1406 —— 共用块在画布上一眼看得出来：左上角一枚标，块名旁写「Shared」（不接鼠标，点它等于点这一块）。
     return (

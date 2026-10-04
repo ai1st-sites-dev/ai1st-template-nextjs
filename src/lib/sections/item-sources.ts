@@ -25,6 +25,8 @@ export interface ItemSourceContext {
   brand?: Partial<Pick<BrandConfig, 'email' | 'locations' | 'socialLinks'>>;
   /** 引用指向的东西不存在时那一行日志往哪儿打（没给 = console.warn）。 */
   log?: (message: string) => void;
+  /** #1550 —— 正在画的这一页。`{source: "pages"}` 不列它自己（关键词页页尾那组兄弟页）。 */
+  pageSlug?: string;
 }
 
 export const SOURCES = impl.SOURCES;
@@ -40,9 +42,10 @@ export function resolveItemSources(blocks: BlockConfig[], ctx: ItemSourceContext
   return impl.resolveItemSources(blocks, ctx) as BlockConfig[];
 }
 
-/** 这个站、这个语言的展开上下文。 */
-export function itemSourceContext(locale: string): ItemSourceContext {
+/** 这个站、这个语言的展开上下文。`pageSlug` = 正在画哪一页（#1550：兄弟页清单不列自己）。 */
+export function itemSourceContext(locale: string, pageSlug?: string): ItemSourceContext {
   return {
+    ...(pageSlug ? { pageSlug } : {}),
     services: getServices(locale) || [],
     pages: pagesByLocale[locale] ?? pagesByLocale[defaultLocale] ?? [],
     url: (slug: string) => localeUrl(slug, locale),
