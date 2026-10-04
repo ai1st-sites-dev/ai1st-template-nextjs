@@ -205,8 +205,10 @@ function call1(services, extraPages = []) {
 const kw = (keyword, extra = {}) => ({ keyword, volume: 100, goldIndex: 10, selected: true, ...extra });
 const primary = (keyword) => kw(keyword, { isPrimary: true });
 
-/** 跑一次建站（桩），回 { events, calls, rc, stderr, site } */
-function run(label, payload, stubCfg) {
+/** 跑一次建站（桩），回 { events, calls, rc, stderr, site }。
+ *  opts.soft：建站失败时不整跑退出，回 { failed: '<原因>' } —— 给「这条路不许让建站失败」那类格子用，
+ *  失败落成一个 ❌ 格，后面的格子照跑（#1563 AC6 要两条臂各自变红，硬退出的话第二条臂根本跑不到）。 */
+function run(label, payload, stubCfg, opts = {}) {
   const work = makeTree(label);
   const dir = path.dirname(work);
   const stub = path.join(dir, 'stub.js');
@@ -222,8 +224,9 @@ function run(label, payload, stubCfg) {
   });
   const events = (r.stdout || '').split('\n').filter(Boolean).map((l) => { try { return JSON.parse(l); } catch (e) { return { event: '(非 JSON)', raw: l }; } });
   const err = events.find((e) => e.event === 'error');
-  if (err) die(`${label}：建站报错 ${err.message}\n${(r.stderr || '').slice(-800)}`);
-  if (r.status !== 0) die(`${label}：rc=${r.status}\n${(r.stderr || '').slice(-800)}`);
+  const bad = err ? `建站报错 ${err.message}` : r.status !== 0 ? `rc=${r.status}` : null;
+  if (bad && opts.soft) return { failed: `${bad}\n${(r.stderr || '').slice(-400)}` };
+  if (bad) die(`${label}：${bad}\n${(r.stderr || '').slice(-800)}`);
   const callList = fs.readFileSync(calls, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
   const site = path.join(work, 'site');
   const readJson = (p) => JSON.parse(fs.readFileSync(path.join(site, p), 'utf8'));
@@ -579,6 +582,50 @@ check('日文假名词 ⟹ kw-<序号>，列在建站结果里', () => {
   }, { call1: call1([SVC2[0]]) });
   assert.deepStrictEqual(J.report.fallbackSlugs, [{ keyword: 'すいどう しゅうり', slug: 'services/drain-cleaning/kw-2' }]);
   assert.ok(J.pageFiles.includes('services/drain-cleaning/kw-2'));
+});
+
+// ── #1563：关键词太长 ⟹ 换短 slug，不许整站失败 ────────────────────────────────────────────────────────
+// 例子词 `装` × 36：一个字转成 `zhuang-`（7 字节，转写表里每个字的上界），36 个字 ⟹ 251 字节的 slug，`<slug>.json` 越过
+// 单个文件名 255 字节的上限；而 36 个字又放得进标题（#1549 第 1 条：标题含目标词且 ≤ 60 字），这一页真的走到写盘。
+// 🔴 品牌名要 ≤ 21 个字（子页标题预算 = 60 − 3 − 品牌名），否则那一页先被 #1549 丢掉，读到一个跟文件名无关的 rc=0。
+// 两条路都喂得进来：① 加词框 → 关键词页的 slug   ② Lead 主词框 → 组名对不上服务 ⟹ 补出来的服务 id（`services/<id>.json`）。
+// 更长的词（63 个汉字 / 251 个拉丁字符）放不进标题、到不了写盘，留在 lib/keyword-slug.test.js（AC1b）。
+console.log('── #1563 AC1：超长关键词（`装` × 36 = 251 字节的 slug）');
+const ZHUANG36 = '装'.repeat(36);
+const nameBytesOk = (files) => files.every((f) => f.split('/').every((seg) => Buffer.byteLength(`${seg}.json`) <= 255));
+const LK = run('longkw', {
+  companyName: 'Bright Pipes', services: ['Drain Cleaning'],
+  keywords: { 'Drain Cleaning': [primary('drain cleaning'), kw(ZHUANG36), kw('drain cleaning markham')] },
+}, { call1: call1([SVC2[0]]) }, { soft: true });
+check('AC1 ①：加词框那条 —— 建站 rc=0，那个长词有一张关键词页，所有页面文件名都写得下', () => {
+  assert.ok(!LK.failed, LK.failed);
+  const kwFiles = LK.pageFiles.filter((f) => f.startsWith('services/drain-cleaning/'));
+  assert.strictEqual(kwFiles.length, 2, JSON.stringify(LK.report.failed).slice(0, 800));
+  assert.ok(nameBytesOk(LK.pageFiles), kwFiles.map((f) => Buffer.byteLength(f)).join(' '));
+  assert.strictEqual(LK.report.ok, 2);
+  assert.ok(LK.pageFiles.includes('services/drain-cleaning'), '详情页在');
+});
+check('AC1 ①：被截断的只有网址 —— 那一页的标题和目标词还是用户打的全文', () => {
+  assert.ok(!LK.failed, LK.failed);
+  const f = LK.pageFiles.find((x) => x.startsWith('services/drain-cleaning/zhuang-'));
+  assert.ok(f, LK.pageFiles.join(' '));
+  assert.ok(Buffer.byteLength(f.split('/').pop()) < Buffer.byteLength('zhuang-'.repeat(36)) - 1, '阳性对照：网址真的被截了');
+  assert.strictEqual(LK.page(f).seo.targetKeyword, ZHUANG36);
+  assert.ok(LK.page(f).title.includes(ZHUANG36), LK.page(f).title);
+});
+const LL = run('longlead', {
+  companyName: 'Bright Pipes', siteType: 'lead', keyword: ZHUANG36, services: BRAND3.map((s) => s.name),
+  keywords: { [ZHUANG36]: [primary(ZHUANG36), kw('plumbing markham')] },
+}, { call1: call1(BRAND3) }, { soft: true });
+check('AC1 ②：Lead 主词那条 —— 组对不上服务 ⟹ 补出来的服务 id 收在上限里，建站 rc=0、详情页和关键词页都在', () => {
+  assert.ok(!LL.failed, LL.failed);
+  assert.strictEqual(LL.report.addedServices.length, 1, JSON.stringify(LL.report));
+  const id = LL.report.addedServices[0].id;
+  assert.ok(Buffer.byteLength(`${id}.json`) <= 255, `${Buffer.byteLength(id)}`);
+  assert.ok(LL.pageFiles.includes(`services/${id}`), LL.pageFiles.join(' '));
+  assert.ok(LL.pageFiles.includes(`services/${id}/plumbing-markham`));
+  assert.ok(nameBytesOk(LL.pageFiles));
+  assert.strictEqual(LL.report.addedServices[0].name, ZHUANG36, '服务名还是用户打的全文');
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

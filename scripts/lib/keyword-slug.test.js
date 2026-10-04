@@ -2,7 +2,10 @@
 'use strict';
 
 const assert = require('assert');
-const { keywordSlug, assignKeywordSlugs, transliterate } = require('./keyword-slug');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { keywordSlug, assignKeywordSlugs, transliterate, SLUG_MAX_BYTES, PAGE_FILE_SUFFIXES } = require('./keyword-slug');
 
 let pass = 0;
 let fail = 0;
@@ -48,6 +51,60 @@ check('kw-<序号> 跟真 slug 撞了也去重', () => {
   assert.deepStrictEqual(r.map((x) => x.slug), ['kw-1', 'kw-2']);
   const r2 = assignKeywordSlugs(['ソウル', 'kw 1']);
   assert.deepStrictEqual(r2.map((x) => x.slug), ['kw-1', 'kw-1-2']);
+});
+
+// ── #1563 长度上限 ──────────────────────────────────────────────────────────────────────────────────
+console.log('── #1563 长度上限');
+const HAN63 = '剪头发'.repeat(21);
+const LATIN251 = 'drain cleaning '.repeat(17).slice(0, 251);
+const bytes = (x) => Buffer.byteLength(x);
+check('AC1b：63 个汉字 / 251 个拉丁字符 → slug 不超过上限，而且是在词边界截的（不留半个拼音）', () => {
+  const zh = keywordSlug(HAN63);
+  assert.ok(bytes(zh) <= SLUG_MAX_BYTES, `${bytes(zh)}`);
+  assert.ok('jian-tou-fa-'.repeat(21).startsWith(`${zh}-`), zh.slice(-20));
+  const la = keywordSlug(LATIN251);
+  assert.ok(bytes(la) <= SLUG_MAX_BYTES, `${bytes(la)}`);
+  assert.match(la, /(^|-)(drain|cleaning)$/);
+});
+check('短词一个字节都不变（上限只碰超长的）', () => {
+  assert.strictEqual(keywordSlug('emergency plumber near me toronto ontario'), 'emergency-plumber-near-me-toronto-ontario');
+});
+check('整段只有一个超长的词 ⟹ 硬截到上限', () => assert.strictEqual(keywordSlug('a'.repeat(1000)), 'a'.repeat(SLUG_MAX_BYTES)));
+check('AC2：两个只在第 300 个字符之后才不同的词 ⟹ 两个 slug 不同，且都不超过上限（含 -2 那个）', () => {
+  const stem = 'drain cleaning '.repeat(20);
+  assert.ok(stem.length >= 300);
+  const r = assignKeywordSlugs([`${stem}markham`, `${stem}toronto`]);
+  assert.notStrictEqual(r[0].slug, r[1].slug);
+  assert.match(r[1].slug, /-2$/);
+  for (const x of r) assert.ok(bytes(x.slug) <= SLUG_MAX_BYTES, `${x.slug.length}`);
+});
+check('AC2：一个只有一个超长词的 stem 撞到第 12 个 ⟹ -12 也收在上限里', () => {
+  const r = assignKeywordSlugs(Array.from({ length: 12 }, (_, i) => `${'b'.repeat(400)} ${i}`));
+  assert.strictEqual(new Set(r.map((x) => x.slug)).size, 12);
+  for (const x of r) assert.ok(bytes(x.slug) <= SLUG_MAX_BYTES, `${x.slug.length}`);
+  assert.strictEqual(r[11].slug, `${'b'.repeat(SLUG_MAX_BYTES - 3)}-12`);
+});
+check('AC3：本票能生成的最长 slug 真写一次盘 —— <slug>.json / .html / .txt / .rsc / .meta 和 <slug>/、<slug>.segments/ 目录都不抛', () => {
+  const inputs = ['x'.repeat(2000), HAN63.repeat(3), LATIN251.repeat(3), ...Array.from({ length: 12 }, () => 'y'.repeat(600))];
+  const longest = assignKeywordSlugs(inputs).map((x) => x.slug).sort((a, b) => bytes(b) - bytes(a))[0];
+  assert.strictEqual(bytes(longest), SLUG_MAX_BYTES, '阳性对照：最长那个确实顶到上限');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kw-slug-1563-'));
+  try {
+    // 一页按页名落盘的全部形态（真建过的站上现读，见 keyword-slug.js 文件头）：文件 5 种、目录 2 种。
+    for (const suffix of ['.json', '.html', '.txt', '.rsc', '.meta']) fs.writeFileSync(path.join(dir, `${longest}${suffix}`), '{}');
+    fs.mkdirSync(path.join(dir, longest));
+    fs.mkdirSync(path.join(dir, `${longest}.segments`));
+    // 对照：多 1 个字节就写不下 —— 证明这把尺子量得到上限，而不是这个文件系统允许任意长。
+    //    最紧的是最长那种后缀（`.segments` 目录）：再多 1 个字节就建不出来。
+    assert.throws(() => fs.mkdirSync(path.join(dir, `${longest}x.segments`)), /ENAMETOOLONG/);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+check('next build 按页名取名的那三种后缀（从 Next 自己的常量现取）都在清单里 —— 升级 Next 后它们变了就红', () => {
+  const c = require('next/dist/lib/constants');
+  for (const k of ['RSC_SUFFIX', 'NEXT_META_SUFFIX', 'RSC_SEGMENTS_DIR_SUFFIX']) {
+    assert.strictEqual(typeof c[k], 'string', `next/dist/lib/constants 里没有 ${k} 了 —— 去 export/routes/app-page.js 重读一页落成哪些名字`);
+    assert.ok(PAGE_FILE_SUFFIXES.includes(c[k]), `${k} = ${JSON.stringify(c[k])} 不在 PAGE_FILE_SUFFIXES 里`);
+  }
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

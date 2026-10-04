@@ -250,7 +250,9 @@ function contentImagesOf(page, manifests) {
 
 // ── title 预算 ────────────────────────────────────────────────────────────────────────────────
 
-const TITLE_MAX = 60;
+// #1563 —— 这个数住在 seo-limits.json：dashboard 的 Lead 主词框从同一份文件取它当上限（Lead 主词就是首页的目标词，
+//    首页 title 必须含它且 ≤ TITLE_MAX ⟹ 超过它的主词必然让整站建不出来）。JSON 不带依赖，浏览器能直接 import。
+const { titleMax: TITLE_MAX } = require('./seo-limits.json');
 const SUFFIX = ' | ';
 const MIN_PAGE_TITLE_BUDGET = 20; // 正文做什么 4：子页 page.title 的预算 < 20 ⟹ 长度那一半不判（品牌名是用户填的）
 

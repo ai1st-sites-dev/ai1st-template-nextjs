@@ -46,6 +46,37 @@ const GREEK = {
 
 const HAN = /\p{Script=Han}/u;
 
+// ── 长度上限（#1563）─────────────────────────────────────────────────────────────────────────────────
+// slug 会原样变成文件名的一段。一页落盘时按页名取名的全部东西（Next 16.2.2 真建过的站上现读）：
+//   · 站配置              `site/<locale>/pages/<slug>.json`
+//   · 导出 out/           `<slug>.html` · `<slug>.txt` · 裸的 `<slug>/` 目录
+//   · next build 的 .next/server/app/（导出之前、构建中途就建）：`<slug>.html` · `<slug>.rsc` · `<slug>.meta` ·
+//     `<slug>.segments/` 目录 —— 后缀出自 next/dist/export/routes/app-page.js 的 RSC_SUFFIX / NEXT_META_SUFFIX /
+//     RSC_SEGMENTS_DIR_SUFFIX。`.segments/` 里面的文件名是固定的（`_full.segment.rsc`、`$c$slug/__PAGE__.segment.rsc`），不带 slug。
+// 服务 id 走同一个函数，落成 `services/<id>.json` 和 `services/<id>/`。哪一个超过单个文件名上限，写盘就抛 ENAMETOOLONG，
+// 整站建站失败 —— 63 个汉字转出来就有 251 字节。
+// 🔴 上限是推出来的：这里只写「单个文件名能有多长」和后缀清单，SLUG_MAX_BYTES 由它们算。
+//    r1 只看了 out/，漏了 `.segments`（9 字节）⟹ 上限算成 250，247~250 字节的 slug 在 next build 那一步照样崩（QA2 实测）。
+//    `keyword-slug.test.js` 从 Next 自己的常量取这三种后缀，对不上清单就红；重新现读：
+//      find .next out -name '<某个页名>*' | awk -F/ '{n=$NF; sub(/^<某个页名>/,"",n); print n}' | sort -u
+const FILENAME_MAX_BYTES = 255;   // ext4 / xfs / btrfs 的 NAME_MAX
+const PAGE_FILE_SUFFIXES = ['.json', '.html', '.txt', '.rsc', '.meta', '.segments', ''];
+const SLUG_MAX_BYTES = FILENAME_MAX_BYTES - Math.max(...PAGE_FILE_SUFFIXES.map((x) => Buffer.byteLength(x)));
+
+/** 收到 max 字节以内：在连字符处截（不切半个词 / 半个拼音），整段只有一个词时才硬截。slug 只含 a-z0-9-，字符数 = 字节数。 */
+function fitSlug(slug, max = SLUG_MAX_BYTES) {
+  if (slug.length <= max) return slug;
+  const cut = slug.slice(0, max);
+  const atWord = slug[max] === '-' ? cut : (cut.slice(0, Math.max(cut.lastIndexOf('-'), 0)) || cut);
+  return atWord.replace(/-+$/, '');
+}
+
+/** 站内去重的第 n 个（-2、-3 …）：后缀算在上限里，先给它让出位置再接上。 */
+function withDedupSuffix(stem, n) {
+  const tail = `-${n}`;
+  return `${fitSlug(stem, SLUG_MAX_BYTES - tail.length)}${tail}`;
+}
+
 /**
  * 一段文字 → 只含 a-z0-9 的转写串（词与词之间是空格，调用方再收成连字符）。
  * 有一个字母转写不了 ⟹ 回 null（整段不要，交给 `kw-<序号>`）。
@@ -86,18 +117,18 @@ function transliterate(text) {
   return out;
 }
 
-/** 目标词 → slug；转写不了或转出来是空串 ⟹ null。 */
+/** 目标词 → slug（不超过 SLUG_MAX_BYTES）；转写不了或转出来是空串 ⟹ null。 */
 function keywordSlug(keyword) {
   const t = transliterate(keyword);
   if (t === null) return null;
   const slug = t.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-  return slug || null;
+  return slug ? fitSlug(slug) : null;
 }
 
 /**
  * 一个站的全部关键词 → 各自的 slug，按给的顺序。
  *   · 转写不了的 ⟹ `kw-<序号>`（序号 = 它在这份清单里的位置，从 1 起），`fallback: true`
- *   · 站内重复（不分服务）⟹ 第二个起依次加 `-2`、`-3`
+ *   · 站内重复（不分服务）⟹ 第二个起依次加 `-2`、`-3`（截断之后才去重，带后缀的那个也不超过上限）
  * @param {string[]} keywords
  * @returns {{ keyword: string, slug: string, fallback: boolean }[]}
  */
@@ -108,10 +139,10 @@ function assignKeywordSlugs(keywords) {
     const fallback = base === null;
     const stem = fallback ? `kw-${i + 1}` : base;
     let slug = stem;
-    for (let n = 2; taken.has(slug); n += 1) slug = `${stem}-${n}`;
+    for (let n = 2; taken.has(slug); n += 1) slug = withDedupSuffix(stem, n);
     taken.add(slug);
     return { keyword, slug, fallback };
   });
 }
 
-module.exports = { transliterate, keywordSlug, assignKeywordSlugs };
+module.exports = { transliterate, keywordSlug, assignKeywordSlugs, withDedupSuffix, SLUG_MAX_BYTES, PAGE_FILE_SUFFIXES };

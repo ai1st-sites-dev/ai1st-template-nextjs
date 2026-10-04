@@ -14,7 +14,7 @@
 'use strict';
 
 const { keywordGroups, matchGroupsToServices } = require('./target-keywords');
-const { keywordSlug, assignKeywordSlugs } = require('./keyword-slug');
+const { keywordSlug, assignKeywordSlugs, withDedupSuffix } = require('./keyword-slug');
 
 // ── 多语言标签（建站时写进页面数据 / 导航，渲染期不再翻）──────────────────────────────────────────
 //    语言集合同 `src/lib/component-labels.ts`（14 种 + zh-tw）。缺的语言退英语。
@@ -63,7 +63,7 @@ function keywordPageCandidates(keywords, services = []) {
 function newServiceId(name, taken, n) {
   const stem = keywordSlug(name) || `service-${n}`;
   let id = stem;
-  for (let k = 2; taken.has(id); k += 1) id = `${stem}-${k}`;
+  for (let k = 2; taken.has(id); k += 1) id = withDedupSuffix(stem, k);
   taken.add(id);
   return id;
 }
