@@ -89,17 +89,19 @@ const PAGE_TAG_LEN = 10;
 /**
  * 这个槽的唯一键 —— 图片文件名用它，日志也用它。
  *
- * 放得下（≤ SLOT_KEY_MAX_BYTES）⟹ 跟以前逐字相同，今天正常长度的站一个字节都不变。
+ * 放得下（≤ SLOT_KEY_MAX_BYTES）且 pageSlug 全是 ASCII ⟹ 跟以前逐字相同，今天的站一个字节都不变。
  * 放不下 ⟹ 只截 pageSlug 那一截，后面接 `-<pageSlug 的哈希>`，坐标那一截原样保留：
  *   同一页的槽 pageSlug 截法相同、坐标各不相同 ⟹ 页内唯一；不同页 pageSlug 不同 ⟹ 哈希不同 ⟹ 跨页唯一
  *   （只截不加哈希的话，`services/<顶格 id>` 和它去重出来的 `services/<id 截短>-2` 截完会是同一个前缀）。
+ * pageSlug 里有非 ASCII（#1573）⟹ 放得下也接同一段哈希：safe() 把每个非 ASCII 字符换成一个 `_`，
+ *   `services/水管维修` 和 `services/电路安装` 换完是同一个串，不接哈希后一张图就盖掉前一张。
  */
 function slotKey(slot) {
   const coords = [`s${slot.secIdx}`, slot.secType, slot.slotName];
   if (slot.itemIdx !== null && slot.itemIdx !== undefined) coords.push(`i${slot.itemIdx}`);
   const safe = (s) => s.replace(/[^a-zA-Z0-9-]/g, '_');   // 结果只有 ASCII ⟹ 字符数 = 字节数
   const full = safe([slot.pageSlug, ...coords].join('-'));
-  if (full.length <= SLOT_KEY_MAX_BYTES) return full;
+  if (full.length <= SLOT_KEY_MAX_BYTES && !/[^\x00-\x7F]/.test(String(slot.pageSlug))) return full;
   const tag = crypto.createHash('sha1').update(String(slot.pageSlug)).digest('hex').slice(0, PAGE_TAG_LEN);
   const tail = `-${tag}-${safe(coords.join('-'))}`;
   // 坐标那一截来自块库的块名 / 槽名，长度是几十字节；最外层那次 slice 只防它本身就超长这种到不了的情形。

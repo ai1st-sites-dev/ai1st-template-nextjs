@@ -427,6 +427,54 @@ const slotsOf = (pages) => {
     check(B(over) <= SLOT_KEY_MAX_BYTES && /-[0-9a-f]{10}-s0-hero-image$/.test(over), `key ${SLOT_KEY_MAX_BYTES + 1} 字节 ⟹ 截到 ${B(over)}、接上哈希`);
   }
 
+  // ⑪ #1573 —— 非 ASCII 的 pageSlug 不撞名：safe() 把每个非 ASCII 字符换成一个 `_`，等长的两个中文 slug 以前拼出同一个 key。
+  console.log('\n── ⑪ #1573 非 ASCII pageSlug 的图片文件名不撞');
+  {
+    const fs = require('fs');
+    const os = require('os');
+    const { SLUG_MAX_BYTES, FILENAME_MAX_BYTES } = require('./keyword-slug');
+    const { SLOT_KEY_MAX_BYTES, IMAGE_FILE_SUFFIX } = ims;
+    const B = (x) => Buffer.byteLength(x);
+    const hero = (pageSlug) => ({ pageSlug, secIdx: 0, secType: 'hero', slotName: 'image', itemIdx: null });
+    // 改前那一版的写法（只做 safe()，不看是不是 ASCII）—— 阳性对照：同一组输入在它下面确实撞
+    const before = (sl) => [sl.pageSlug, `s${sl.secIdx}`, sl.secType, sl.slotName].join('-').replace(/[^a-zA-Z0-9-]/g, '_');
+    const pairs = [
+      ['两个等长中文服务 id', 'services/水管维修', 'services/电路安装'],
+      ['两个等长 emoji slug', 'services/🚰🔧', 'services/🔌💡'],
+      ['中文 slug 与同长度全 `_` 的 ASCII slug', 'services/水管维修', 'services/____'],
+    ];
+    for (const [label, x, y] of pairs) {
+      check(before(hero(x)) === before(hero(y)), `　阳性对照（改前）：${label} 拼出同一个 key（读到 ${before(hero(x))}）`);
+      const kx = slotKey(hero(x));
+      const ky = slotKey(hero(y));
+      check(kx !== ky, `${label} ⟹ key 不同（读到 ${kx} · ${ky}）`);
+      // 真写盘：两个文件都在、内容不互相覆盖（AC1）
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slotkey-1573-'));
+      try {
+        fs.writeFileSync(path.join(dir, `${kx}${IMAGE_FILE_SUFFIX}`), 'img-x');
+        fs.writeFileSync(path.join(dir, `${ky}${IMAGE_FILE_SUFFIX}`), 'img-y');
+        const back = [kx, ky].map((k) => fs.readFileSync(path.join(dir, `${k}${IMAGE_FILE_SUFFIX}`), 'utf8'));
+        check(back.join(',') === 'img-x,img-y' && fs.readdirSync(dir).length === 2, `　写盘：${fs.readdirSync(dir).length} 个文件都在，各是各的内容（读到 ${back.join(',')}）`);
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    }
+    // 纯 ASCII 的那一侧一个字节不变（含 `_` 和 `/` 这类会被 safe() 换掉的 ASCII 字符）
+    check(slotKey(hero('services/____')) === 'services_____-s0-hero-image', `纯 ASCII slug 的 key 跟以前逐字相同（读到 ${slotKey(hero('services/____'))}）`);
+    check(slotKey(hero('services/drain-cleaning')) === before(hero('services/drain-cleaning')), '　services/drain-cleaning 跟改前那一版逐字相同');
+    // 同一页里两个只在尾部不同的槽（#1566 AC4 那一条）：中文 slug 下仍各不相同
+    const z9 = slotKey({ pageSlug: 'services/水管维修', secIdx: 3, secType: 'features', slotName: 'items', itemIdx: 9 });
+    const z10 = slotKey({ pageSlug: 'services/水管维修', secIdx: 3, secType: 'features', slotName: 'items', itemIdx: 10 });
+    check(z9 !== z10 && /-s3-features-items-i9$/.test(z9) && /-s3-features-items-i10$/.test(z10), `中文 slug 同一页第 9 / 第 10 项 ⟹ key 不同、坐标原样（读到 …${z9.slice(-24)} · …${z10.slice(-25)}）`);
+    // 顶格的中文 slug（字节顶到 SLUG_MAX_BYTES）：文件名仍放得下（AC4）
+    const zhTop = '水'.repeat(Math.floor(SLUG_MAX_BYTES / B('水')));
+    for (const pageSlug of [`services/${zhTop}`, `services/drain-cleaning/${zhTop}`]) {
+      const names = [hero(pageSlug), { pageSlug, secIdx: 12, secType: 'features', slotName: 'items', itemIdx: 12 }].map((sl) => `${slotKey(sl)}${IMAGE_FILE_SUFFIX}`);
+      check(names.every((n) => B(n) <= FILENAME_MAX_BYTES && B(n) - B(IMAGE_FILE_SUFFIX) <= SLOT_KEY_MAX_BYTES) && names[0] !== names[1],
+        `顶格中文 slug（${B(zhTop)} 字节）${pageSlug.slice(0, 24)}…：文件名 ${names.map(B).join(' / ')} ≤ ${FILENAME_MAX_BYTES}、互不相同`);
+    }
+  }
+
   console.log(`\n逐条断言: PASS ${pass} · FAIL ${fail}`);
   if (fail) { console.log('❌ #1386 image-slots: 有失败'); process.exit(1); }
   console.log('✅ #1386 image-slots: 全过');
