@@ -28,6 +28,10 @@ export interface BrandLocation {
   /** #1530 —— 这个地址所在的城市：跟 `geo` 同一次 Nominatim 请求带回来（`addressdetails`），查不到就没有这一格。
    *  页脚 `row` 底栏露「电话 + 城市」读它；没有就那一格不画（不再从地址串猜）。 */
   city?: string;
+  /** #1551 —— 门牌号 + 街道、邮编：跟 `geo` / `city` 同一次 Nominatim 请求带回来（`addressdetails`），查不到就没有这一格。
+   *  LocalBusiness 的 `address.streetAddress` / `postalCode` 读它；不从地址串里猜。 */
+  streetAddress?: string;
+  postalCode?: string;
 }
 
 export interface BrandConfig {
@@ -123,6 +127,12 @@ export interface TargetKeyword {
   goldIndex: number | null;
 }
 
+export interface OpeningHoursSegment {
+  days: string[];
+  opens: string;
+  closes: string;
+}
+
 export interface SeoConfig {
   domain: string;
   /** #1547 — sync-config 按 manager 给的 SITE_INDEXABLE 写入；`false` = 预览构建（noindex + robots Disallow）。缺省按可收录。 */
@@ -147,11 +157,12 @@ export interface SeoConfig {
       region: string;
       country: string;
     }[];
-    openingHours: {
-      days: string[];
-      opens: string;
-      closes: string;
-    };
+    /** #1551 —— 老板在建站表格里写的营业时间，AI 转写、`scripts/lib/local-business-facts.js` §verifyTranscription 核过的那份。
+     *  没写 / 核不过 ⟹ 没有这一项（JSON-LD 不出 `openingHoursSpecification`，contact 那一行不画）。
+     *  可以是**多段**（一组）；老站是单个对象，读的地方一律经 §hoursSegments 规范化。 */
+    openingHours?: OpeningHoursSegment | OpeningHoursSegment[];
+    /** #1551 —— 抓到的真实平台评分（`onlinePresence.platformRatings`，§ratingFrom）。没有就没有这一项，不编。 */
+    aggregateRating?: { ratingValue: number; reviewCount: number };
     priceRange: string;
     offerCatalogName: string;
   };
@@ -258,6 +269,8 @@ export interface DynamicPageConfig {
   lastModified?: string;
   serviceDetailPage?: boolean;
   parentService?: string;
+  /** 建站脚本给关键词页打的标记（Call 2 生成的那些页）。 */
+  keywordPage?: boolean;
   /** #1548 —— 这一页为哪个搜索词而生。只有首页 / 服务详情页 / 关键词页有；第二语言的是翻译来的（translated: true）。 */
   seo?: { targetKeyword: string; translated?: boolean };
   blocks: BlockConfig[];

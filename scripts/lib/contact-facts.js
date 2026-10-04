@@ -4,11 +4,13 @@
 // ══════════════════════════════════════════════════════════════════════════════════════════════════
 //
 // 🔴 **值只有一处**：电话 / 邮箱 / 地址 / 营业时间 / 坐标都读站点数据（`brand.locations[0]` · `brand.email` ·
-//    `seo.schema.openingHours`），块数据里只存 kind + 标题 + 提示。全站只有一处电话地址，老板改一次处处跟着变。
-// 🔴 **「没填」就不画那一条**：`openingHours` 在类型里是必填的（`src/lib/types/config.ts`），删不掉 ——
-//    `days` 是空数组、或 `opens` / `closes` 是空串，当作没填（PM #1489 09-29 裁定）。
+//    `seo.schema.openingHours`，#1551 起可以是多段），块数据里只存 kind + 标题 + 提示。全站只有一处电话地址，老板改一次处处跟着变。
+// 🔴 **「没填」就不画那一条**：`openingHours` 没有这一项（#1551 起没写营业时间的站就是这样），或 `days` 是空数组、
+//    `opens` / `closes` 是空串（老站的空壳），都当作没填（PM #1489 09-29 裁定）。
 // 🔴 **坐标只从站点数据来**（`brand.locations[0].geo`，建站 / 改地址时由 `scripts/lib/geocode.js` 查一次写进去）；
 //    这里不发任何请求。没有 geo ⟹ 地图那一格不渲染。
+
+const { hoursSegments } = require('./local-business-facts');
 
 const WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -41,12 +43,15 @@ function formatDays(days) {
   return runs.map(([a, b]) => (a === b ? WEEK[a] : b === a + 1 ? `${WEEK[a]}, ${WEEK[b]}` : `${WEEK[a]}–${WEEK[b]}`)).join(', ');
 }
 
-/** 营业时间一行（「Mon–Sat · 7am – 7pm」）；没填（days 空 / opens、closes 空串）或认不出一天 → ''。 */
+/**
+ * 营业时间一行（「Mon–Sat · 7am – 7pm」）；没填（days 空 / opens、closes 空串）或认不出一天 → ''。
+ * #1551 —— `openingHours` 可以是**多段**（一组 `{days, opens, closes}`，老站的单个对象照旧认，`local-business-facts.js`
+ *    §hoursSegments）：每段一截，用 `; ` 连起来（「Mon–Fri · 9am – 6pm; Sat · 10am – 4pm」）。只有一段时跟以前逐字相同。
+ */
 function formatHours(h) {
-  if (!h || typeof h !== 'object') return '';
-  const days = formatDays(h.days);
-  if (!days || !str(h.opens) || !str(h.closes)) return '';
-  return `${days} · ${formatTime(h.opens)} – ${formatTime(h.closes)}`;
+  return hoursSegments(h)
+    .map((seg) => `${formatDays(seg.days)} · ${formatTime(seg.opens)} – ${formatTime(seg.closes)}`)
+    .join('; ');
 }
 
 /** 坐标能不能用：两个有限数、在经纬度范围里。 */

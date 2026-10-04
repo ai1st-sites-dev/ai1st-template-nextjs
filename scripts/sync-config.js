@@ -37,6 +37,7 @@ const { createLastModifiedResolver } = require('./lib/page-lastmod');
 // #1033 — 一页读的不只是它自己那份 JSON：跨页共享的 services.json / 站级块库也是它的内容。
 // 哪一页读了哪些文件由这个文件算，边界（算什么、不算什么）写在它的文件头上。
 const { blockTypesReadingServices, createPageDeps, isServiceDetailPage } = require('./lib/page-deps');
+const { isKeywordPage } = require('./lib/keyword-service');
 
 const rootDir = path.resolve(__dirname, '..');
 const siteDir = path.join(rootDir, 'site');
@@ -662,7 +663,7 @@ for (const locale of locales) {
 
   const nonHomePages = localePages.filter(p => p.slug !== 'home');
   // #1033 r2 —— 这个判断搬去了 lib/page-deps.js（那边算 <lastmod> 也要问同一件事），逐字未改。
-  const isKeywordPage = p => (p.keywordPage === true || p.slug.includes('/')) && !isServiceDetailPage(p);
+  // #1551 —— 关键词页的判断搬去了 lib/keyword-service.js（关键词页的 Service 结构化数据也要问同一件事），逐字未改。
   const regularPages = nonHomePages.filter(p => !isKeywordPage(p) && !isServiceDetailPage(p));
   const keywordPages = nonHomePages.filter(p => isKeywordPage(p));
 

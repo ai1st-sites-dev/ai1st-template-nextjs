@@ -34,6 +34,21 @@ async function throttle({ now = Date.now, sleep = (ms) => new Promise((r) => set
   lastAt = now();
 }
 
+/**
+ * #1551 —— 同一条结果里的街道地址（门牌号 + 街道名）和邮编，给 LocalBusiness 的 `streetAddress` / `postalCode`。
+ * 没有街道名就不出街道（只有门牌号不成一个地址）；不从地址串里猜。
+ */
+function streetFromHit(hit) {
+  const a = hit && hit.address && typeof hit.address === 'object' ? hit.address : {};
+  const road = typeof a.road === 'string' ? a.road.trim() : '';
+  const num = typeof a.house_number === 'string' ? a.house_number.trim() : '';
+  return road ? (num ? `${num} ${road}` : road) : '';
+}
+function postcodeFromHit(hit) {
+  const a = hit && hit.address && typeof hit.address === 'object' ? hit.address : {};
+  return typeof a.postcode === 'string' ? a.postcode.trim() : '';
+}
+
 /** 一条结果里的城市（`addressdetails=1` 带回的 `address` 对象，§CITY_KEYS 顺序取第一个有值的）；一个都没有 ⟹ ''。 */
 function cityFromHit(hit) {
   const a = hit && hit.address && typeof hit.address === 'object' ? hit.address : {};
@@ -44,7 +59,7 @@ function cityFromHit(hit) {
 /**
  * @param {string} address
  * @param {{ fetchImpl?: typeof fetch, now?: () => number, sleep?: (ms: number) => Promise<void>, log?: (m: string) => void }} [opts]
- * @returns {Promise<{ lat: number, lng: number, city?: string } | null>}  `city` 只在查到时才有
+ * @returns {Promise<{ lat: number, lng: number, city?: string, street?: string, postcode?: string } | null>}  后三项只在查到时才有
  */
 async function geocodeAddress(address, opts = {}) {
   const q = typeof address === 'string' ? address.trim() : '';
@@ -69,7 +84,9 @@ async function geocodeAddress(address, opts = {}) {
       const lng = hit ? Number(hit.lon) : NaN;
       if (Number.isFinite(lat) && Number.isFinite(lng)) {
         const city = cityFromHit(hit);
-        result = city ? { lat, lng, city } : { lat, lng };
+        const street = streetFromHit(hit);
+        const postcode = postcodeFromHit(hit);
+        result = { lat, lng, ...(city ? { city } : {}), ...(street ? { street } : {}), ...(postcode ? { postcode } : {}) };
       }
       else log(`geocode: no result for "${q}"`);
     }
@@ -85,6 +102,7 @@ async function geocodeAddress(address, opts = {}) {
 /**
  * 站点数据里第一个地点：地址有值就查一次写 `geo`，查不到就删掉 `geo`（不留一个指着别处的旧坐标）。原地改 `brand`。
  * #1530 —— `city` 同一条规则：查到城市就写，查不到（或这次结果里没有城市那一格）就删掉旧的。
+ * #1551 —— `streetAddress` / `postalCode` 也是这一条规则（LocalBusiness 结构化数据读它们）。
  * @returns {Promise<'set' | 'cleared' | 'skipped'>}
  */
 async function geocodeBrand(brand, opts = {}) {
@@ -93,6 +111,10 @@ async function geocodeBrand(brand, opts = {}) {
   const hit = await geocodeAddress(loc.address, opts);
   if (hit && hit.city) loc.city = hit.city;
   else delete loc.city;
+  if (hit && hit.street) loc.streetAddress = hit.street;
+  else delete loc.streetAddress;
+  if (hit && hit.postcode) loc.postalCode = hit.postcode;
+  else delete loc.postalCode;
   if (hit) { loc.geo = { lat: hit.lat, lng: hit.lng }; return 'set'; }
   delete loc.geo;
   return 'cleared';

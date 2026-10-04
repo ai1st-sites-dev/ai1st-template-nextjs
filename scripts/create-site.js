@@ -82,6 +82,8 @@ const { applyHeroLeadForm } = require('./lib/hero-lead-form');
 const { pruneDeadBreadcrumbHrefs, alignBreadcrumbsToOwnService, serviceKey } = require('./lib/breadcrumb-links');
 // #1489 —— 建站时按地址查一次坐标写进 brand.locations[0].geo（contact 的地图要它；Nominatim，不要 key，§geocode.js 头注）。
 const { geocodeBrand } = require('./lib/geocode');
+// #1551 —— LocalBusiness 里「从老板给的料来」的几项：营业时间的转写核对、真实评分（§local-business-facts.js 头注）。
+const { verifyTranscription, ratingFrom } = require('./lib/local-business-facts');
 // #1489 r2 —— contact 的 items 里抄进来的电话 / 邮箱 / 地址 / 营业时间，写盘那一刻剔掉（值只有一处）。
 const { siteFactsFrom, scrubContactCopies } = require('./lib/contact-facts');
 
@@ -2251,7 +2253,9 @@ ${servicesList.map((s, i) => `${i + 1}. ${s}`).join('\n')}`;
   if (usp) businessContext += `\nUNIQUE SELLING POINTS: ${usp}`;
   if (targetCustomers) businessContext += `\nTARGET CUSTOMERS: ${targetCustomers}`;
   if (brandDescription) businessContext += `\nBRAND DESCRIPTION: ${brandDescription}`;
-  if (hours) businessContext += `\nHOURS OF OPERATION: ${hours}`;
+  // #1551 —— 营业时间：老板写了才问 AI，而且只让它**转写**这一句（下面 JSON 结构里 openingHours 那一行也只在这时出现）；
+  //    转写回来由 §verifyTranscription 再核一遍。没写 ⟹ 提示词里一个字都不提，不给样例（写死的样例会被原样抄回来）。
+  if (hours) businessContext += `\nHOURS OF OPERATION: ${hours}\n(For seo.openingHours: transcribe ONLY these hours — English day names, 24-hour HH:MM, one entry per distinct time range, leave closed days out. Never add a day or a time that is not in this text.)`;
   if (priceRange) businessContext += `\nPRICE RANGE: ${priceRange}`;
   if (additionalContext) businessContext += `\nADDITIONAL CONTEXT FROM THE OWNER: ${additionalContext}`;
 
@@ -2534,8 +2538,7 @@ Generate a JSON object with this EXACT structure:
     "siteDescription": "<70–155 chars, location + services + CTA>",
     "areaServed": [{"type":"City","name":"<city>"}],
     "addresses": [{"locality":"<city>","region":"<province code>","country":"<country code>"}],
-    "openingHours": { "days": ["Monday","Tuesday","Wednesday","Thursday","Friday"], "opens": "09:00", "closes": "17:00" },
-    "priceRange": "$$",
+${hours ? '    "openingHours": [{ "days": ["<English day name>", "..."], "opens": "<HH:MM>", "closes": "<HH:MM>" }],\n' : ''}    "priceRange": "$$",
     "offerCatalogName": "<catalog name>"
   },
   "services": [
@@ -2939,6 +2942,10 @@ ${ctaHrefRule ? `${ctaHrefRule}
   };
 
   const locale = localeMap[languageName] || 'en_CA';
+  const hoursCheck = verifyTranscription(hours, ai.seo && ai.seo.openingHours);
+  if (hoursCheck.reason) debug(`[hours] 营业时间不出：${hoursCheck.reason}`);
+  else if (hoursCheck.segments.length) debug(`[hours] 营业时间 ${hoursCheck.segments.length} 段，逐个小时数都在原文里`);
+  const rating = ratingFrom(onlinePresence);
   const seo = {
     domain: siteUrl, // #1547：manager 给的地址，不再由 AI 编
     locale,
@@ -2948,7 +2955,10 @@ ${ctaHrefRule ? `${ctaHrefRule}
     schema: {
       areaServed: ai.seo.areaServed,
       addresses: ai.seo.addresses,
-      openingHours: ai.seo.openingHours,
+      // #1551 —— 营业时间只出核过的那几段；没写 / 核不过 ⟹ 没有这一项（JSON-LD 不出空壳，contact 那一行不画）。
+      ...(hoursCheck.segments.length ? { openingHours: hoursCheck.segments } : {}),
+      // #1551 —— 评分只在抓到真实平台评分时才有（§ratingFrom），不让 AI 编。
+      ...(rating ? { aggregateRating: rating } : {}),
       priceRange: ai.seo.priceRange,
       offerCatalogName: ai.seo.offerCatalogName
     }

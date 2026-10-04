@@ -3,7 +3,7 @@ export interface ContactSiteFacts { phone: string; email: string; address: strin
 export const WEEK: string[];
 export function formatTime(t: string): string;
 export function formatDays(days: string[]): string;
-export function formatHours(h: { days?: string[]; opens?: string; closes?: string } | null | undefined): string;
+export function formatHours(h: { days?: string[]; opens?: string; closes?: string } | { days?: string[]; opens?: string; closes?: string }[] | null | undefined): string;
 export function validGeo(g: unknown): g is Geo;
 export function siteFactsFrom(brand: unknown, seo: unknown): ContactSiteFacts;
 export function telHref(phone: string): string;

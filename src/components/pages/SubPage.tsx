@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import SectionRenderer from '@/components/SectionRenderer';
-import { BreadcrumbJsonLd, ServiceJsonLd } from '@/components/JsonLd';
+import { BreadcrumbJsonLd, FaqPageJsonLd, KeywordServiceJsonLd, ServiceJsonLd } from '@/components/JsonLd';
 import { getSeo, getServices, getPage, isValidLocale, localeUrl } from '@/lib/config';
 import { breadcrumbJsonLdItems } from '@/lib/breadcrumbs';
 import { iconTablesFor } from '../../../scripts/lib/icons.js';
@@ -31,6 +31,8 @@ export default function SubPage({ locale, slug }: { locale: string; slug: string
   return (
     <>
       <BreadcrumbJsonLd items={breadcrumbItems} />
+      {/* #1551 —— 这一页的 faq 块 → FAQPage（没有问答就什么都不出）。 */}
+      <FaqPageJsonLd blocks={blocks} />
       {hasServicesList &&
         services.map((service) => (
           <ServiceJsonLd
@@ -49,6 +51,8 @@ export default function SubPage({ locale, slug }: { locale: string; slug: string
           serviceUrl={`${seo.domain}${localeUrl(slug, locale)}`}
         />
       )}
+      {/* #1551 —— 关键词页的 Service（这一页有目标词才出，§KeywordServiceJsonLd）。 */}
+      <KeywordServiceJsonLd locale={locale} page={page} pageUrl={`${seo.domain}${localeUrl(slug, locale)}`} />
       {/* #1475 —— 画内联 SVG 图标的块要一张服务端查好的图标表（§iconTablesFor；别的块不挂）。 */}
       <SectionRenderer blocks={blocks} locale={locale} iconTables={iconTablesFor(blocks)} pageSlug={slug} />
     </>

@@ -65,6 +65,17 @@ const MAX_ITEMS = manifest.slots.items.maxItems;
 const isObj = (v: unknown): v is object => !!v && typeof v === 'object' && !Array.isArray(v);
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
 
+/**
+ * #1551 —— 这一块真画出来的问答（问题非空、最多 MAX_ITEMS 条），块自己和 FAQPage 结构化数据（`src/components/JsonLd.tsx`
+ * §FaqPageJsonLd）共用这一份过滤 ⟹ `mainEntity` 的条数按构造等于页面上的条数。
+ */
+export function faqItems(data: unknown): FaqNewItem[] {
+  const d: FaqNewData = isObj(data) ? (data as FaqNewData) : {};
+  return (Array.isArray(d.items) ? d.items : [])
+    .filter((it): it is FaqNewItem => isObj(it) && !!str(it.question))
+    .slice(0, MAX_ITEMS);
+}
+
 export default function FaqNewSection({ data, block, iconTable = {} }: Props) {
   const d: FaqNewData = isObj(data) ? data : {};
   const shape = block && typeof block.shape === 'string' ? block.shape : undefined;
@@ -80,9 +91,7 @@ export default function FaqNewSection({ data, block, iconTable = {} }: Props) {
   const helpCta = help && isObj(help.cta) && str(help.cta.label) ? help.cta : null;
   const hasHelp = !!help && !!(str(help.headline) || str(help.body) || helpCta);
   const hasIntro = !!(str(d.headline) || str(d.body) || hasHelp);
-  const items = (Array.isArray(d.items) ? d.items : [])
-    .filter((it): it is FaqNewItem => isObj(it) && !!str(it.question))
-    .slice(0, MAX_ITEMS);
+  const items = faqItems(d);
   const accordion = k.itemsMode !== 'open';
 
   // chevron：一个向下的箭头，展开时转 180°；plus：plus + dash 两个，展开时 plus 藏、dash 显（block.css §itemToggle）。

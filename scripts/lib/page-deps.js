@@ -55,6 +55,7 @@
 const fs = require('fs');
 const path = require('path');
 const { blocksUseSource } = require('./item-sources');
+const { isServiceDetailPage } = require('./service-detail-page');
 
 // registry.ts 里的两样东西：
 //   import HeroSection from '@/components/sections/HeroSection';
@@ -89,19 +90,8 @@ const ACCOUNTED = new Map([
   ['src/lib/llms-txt.ts', '站根 /llms.txt 里那份服务清单 —— 不是页面、不进 sitemap，不算'],
 ]);
 
-// 服务详情页（`/services/<id>` 那种页面）。这份判断本来就在 sync-config.js 里（导航要把这类页面
-// 排除在外），#1033 r2 搬到这里让两处共用一个定义 —— 两份拷贝里的一份改了另一份没改，正是本文件
-// 头上说的那种「过期了跟没过期长得一模一样」。
-// 🔴 渲染那一侧（`src/components/pages/SubPage.tsx:16-19`）还多一个条件：slug 去掉前缀之后要对得上
-//    某个服务的 id，对不上就不发那份结构化数据。这里**故意不加**那个条件：加了之后「新添一个服务，
-//    让一张已经存在的 services/<id> 页面第一次匹配上」这种改法会少报，而少报是静默的。不加的代价是
-//    services/<不存在的 id> 这种页面会跟着 services.json 动 —— 多报，看得见。
-function isServiceDetailPage(page) {
-  if (!page) return false;
-  const slug = page.slug;
-  return page.serviceDetailPage === true
-    || (typeof slug === 'string' && slug.startsWith('services/') && slug !== 'services');
-}
+// 服务详情页的判断 —— #1551 搬去了 ./service-detail-page.js（逐字未改；那份不碰 fs，关键词页的 Service 结构化数据
+// 在前端也要问它，而 JsonLd 会被编辑器的客户端包带进去）。
 
 // src/ 里所有 .ts / .tsx，用来找出 getServices 的全部使用处。
 function walkSources(dir, out) {

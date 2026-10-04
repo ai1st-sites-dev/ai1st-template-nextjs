@@ -62,10 +62,13 @@ export function subPageMetadata(locale: string, slug: string): Metadata {
         languages: { ...altLanguages, 'x-default': getXDefaultHref(page.slug, seo.domain) },
       } : {}),
     },
+    // #1551 —— 子页的 openGraph 会整份替掉根布局那份（Next 不逐键合并），所以 siteName / type 要在这里再写一遍。
     openGraph: {
       title: `${page.title} | ${getBrandName(locale)}`,
       description: page.description,
       url: canonicalPath,
+      siteName: getBrandName(locale),
+      type: 'website',
       ...ogImageFields(), // #1552：页面级 openGraph 整份替掉根布局那份，图要每个构造器都给
     },
   };
@@ -89,6 +92,8 @@ export function blogIndexMetadata(locale: string): Metadata {
       title: `Blog | ${getBrandName(locale)}`,
       description: `Read the latest articles and insights from ${getBrandName(locale)}.`,
       url: canonicalPath,
+      siteName: getBrandName(locale),
+      type: 'website',
       ...ogImageFields(), // #1552：页面级 openGraph 整份替掉根布局那份，图要每个构造器都给
     },
   };
@@ -115,6 +120,7 @@ export function blogPostMetadata(locale: string, slug: string): Metadata {
       title: post.seo.metaTitle,
       description: post.seo.metaDescription,
       url: canonicalPath,
+      siteName: getBrandName(locale),
       ...ogImageFields(), // #1552：页面级 openGraph 整份替掉根布局那份，图要每个构造器都给
       type: 'article',
       publishedTime: post.publishedAt,

@@ -133,6 +133,20 @@ const noSleep = { sleep: async () => {} };
     const b3 = { locations: [{ label: 'x', address: 'Nowhere', phone: '1', city: 'Toronto', geo: { lat: 1, lng: 2 } }] };
     await G.geocodeBrand(b3, { fetchImpl: fakeFetch([]), ...noSleep });
     check(!('city' in b3.locations[0]) && !('geo' in b3.locations[0]), '查不到 ⟹ 旧 city、旧 geo 一起删');
+
+    // #1551 —— 街道（门牌号 + 街道名）与邮编：同一份录下来的响应里取，给 LocalBusiness 的 streetAddress / postalCode。
+    check(a && a.street === '2150 Yonge Street' && a.postcode === 'M4S 2A7', `REC_CITY ⟹ street = "2150 Yonge Street"、postcode = "M4S 2A7"（${JSON.stringify(a)}）`);
+    check(b && !('street' in b) && !('postcode' in b), `只有 town、没有 road / postcode ⟹ 两格都不带（${JSON.stringify(b)}）`);
+    check(b1.locations[0].streetAddress === '2150 Yonge Street' && b1.locations[0].postalCode === 'M4S 2A7',
+      `geocodeBrand ⟹ locations[0].streetAddress / postalCode 写进去（${JSON.stringify(b1.locations[0])}）`);
+    G._reset();
+    const b4 = { locations: [{ label: 'x', address: 'Collingwood, Ontario', phone: '1', streetAddress: '1 Old St', postalCode: 'A1A 1A1' }] };
+    await G.geocodeBrand(b4, { fetchImpl: fakeFetch(REC_TOWN), ...noSleep });
+    check(!('streetAddress' in b4.locations[0]) && !('postalCode' in b4.locations[0]) && b4.locations[0].city === 'Collingwood',
+      `地址改了、新结果没有街道 / 邮编 ⟹ 旧的两格删掉（不留一个指着老地方的街道）（${JSON.stringify(b4.locations[0])}）`);
+    G._reset();
+    const onlyNum = await G.geocodeAddress('x', { fetchImpl: fakeFetch([{ lat: '1', lon: '2', address: { house_number: '7' } }]), ...noSleep });
+    check(onlyNum && !('street' in onlyNum), '只有门牌号、没有街道名 ⟹ 不出街道');
   }
 
   console.log('\n── refreshGeoAfterEdit：只有地址变了才重查');
