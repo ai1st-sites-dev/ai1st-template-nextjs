@@ -21,7 +21,6 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const Module = require('module');
-const { spawnSync } = require('child_process');
 const ts = require('typescript');
 const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
@@ -458,15 +457,10 @@ console.log('\n── AC6 表单（提交）');
       } else fs.symlinkSync(path.join(NEXT, 'blocks'), path.join(root, 'blocks'));
       return root;
     };
+    // 📌 #1568 —— 块菜单住在每页那几份提示词里（站级那一通回来才发得出）⟹ 用 `call1-prompts.testkit.js` 的桩拿全部几份。
     const prompt = (root) => {
-      const r = spawnSync('node', [path.join(root, 'scripts', 'create-site.js')], {
-        input: JSON.stringify({ siteId: 't1463', siteUrl: 'https://t1463.example.com', companyName: 'Northside Auto Care', industry: 'auto repair', location: 'Toronto', language: 'en', themeRotationIndex: 0 }),
-        env: { ...process.env, ANTHROPIC_API_KEY: 'sk-ant-invalid-for-test' }, encoding: 'utf8', maxBuffer: 64 << 20, timeout: 180000,
-      });
-      for (const line of (r.stdout || '').split('\n')) {
-        try { const e = JSON.parse(line); if (e.event === 'prompt' && e.name === 'Base Site') return e.content; } catch { /* 非事件行 */ }
-      }
-      return null;
+      const { site, pages, all } = require('./lib/call1-prompts.testkit').call1Prompts(root, { siteId: 't1463', siteUrl: 'https://t1463.example.com', companyName: 'Northside Auto Care', industry: 'auto repair', location: 'Toronto', language: 'en', themeRotationIndex: 0 });
+      return site && pages.length ? all : null;
     };
     try {
       const real = prompt(tree('real', false));

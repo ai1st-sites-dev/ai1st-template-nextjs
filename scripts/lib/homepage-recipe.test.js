@@ -62,6 +62,8 @@ const typesIn = (s) => {
 // ── 造一棵今天这份 scripts/ 的副本树；blocks/ node_modules/ src/ 软链今天这份 ────────────────────────────
 // 📌 #1425（T3）—— 原来还能按一个 commit 造基线那棵树，外加一个把基线 manifest 键补回去的适配层（#1341 / #1387 / #1419）。
 //    ⑥ 换成同树两臂之后那两段没有调用方，删了。
+const { call1Prompts } = require('./call1-prompts.testkit');
+
 function treeAt(tmp) {
   const root = path.join(tmp, 'work');
   fs.mkdirSync(root, { recursive: true });
@@ -75,21 +77,13 @@ function treeAt(tmp) {
   return root;
 }
 
-/** 在某棵树上跑一次 create-site,拿回它打出来的那份提示词。用无效 key ⟹ 不花钱。 */
+/** 在某棵树上跑一次 create-site,拿回 Call 1 的全部提示词(站级 + 每页,发射顺序)。
+ *  📌 #1568 —— Call 1 拆成站级一次 + 每页一次之后，块菜单与首页配方住在每页那几份里(首页那份排在最前),
+ *     而它们要等站级那一通回来才发得出 ⟹ 原来那把无效 key 只拿得到站级那一份。改用 `call1-prompts.testkit.js` 的桩(不联网、不花钱)。 */
 function promptFrom(root, payload) {
-  const r = spawnSync('node', [path.join(root, 'scripts', 'create-site.js')], {
-    input: JSON.stringify(payload),
-    env: { ...process.env, ANTHROPIC_API_KEY: 'sk-ant-invalid-for-test' },
-    encoding: 'utf8',
-    maxBuffer: 64 << 20,
-    timeout: 120000,
-  });
-  for (const line of (r.stdout || '').split('\n')) {
-    if (!line.trim()) continue;
-    let ev; try { ev = JSON.parse(line); } catch { continue; }
-    if (ev.event === 'prompt' && ev.name === 'Base Site') return ev.content;
-  }
-  die(`没拿到提示词(这棵树: ${root})。stderr 尾巴:\n${(r.stderr || '').slice(-600)}`);
+  const { site, pages, all, stderr } = call1Prompts(root, payload, { timeout: 120000 });
+  if (site && pages.length) return all;
+  die(`没拿到提示词(这棵树: ${root})。stderr 尾巴:\n${(stderr || '').slice(-600)}`);
   return '';
 }
 
@@ -473,7 +467,8 @@ try {
     ];
     // 📌 #1548 —— 「SEO TARGET KEYWORDS」那一段（站主词 / 每服务主词 / 关键词页清单）按构造随关键词变，两臂比之前先从
     //    两份里摘掉，这一格才仍然只量关键词页那一格。那一段自己的判据在 `lib/target-keywords.test.js` ④。
-    const dropBrief = (p) => p.replace(/\n\nSEO TARGET KEYWORDS[^]*?(?=\n\n)/, '');
+    // 📌 #1568 —— 每页那几份提示词里还有「这一页的目标词」那一行（首页 / 服务详情页），同样随关键词变，一起摘。
+    const dropBrief = (p) => p.replace(/\n\nSEO TARGET KEYWORDS[^]*?(?=\n\n)/, '').replace(/^- target keyword: "[^\n]*\n/gm, '');
     const rawWithKw = promptFrom(workRoot, basePayload());                    // 夹具自带关键词
     const withKw = dropBrief(rawWithKw);
     const noKw = dropBrief(promptFrom(workRoot, basePayload({ keywords: {} })));
@@ -516,11 +511,12 @@ console.log('── ⑨ 重试跑完块库仍有问题时的判决（afterRetry�
 console.log('── ⑩ 接线：create-site.js 用的就是 afterRetry 的判决（静态，只读源码）');
 {
   const src = fs.readFileSync(path.join(NEXT, 'scripts/create-site.js'), 'utf8');
-  const FATAL = 'The generated layout still breaks the block library after a retry';
+  // 📌 #1568 —— Call 1 按页拆之后，afterRetry 判的是**一页**的两次（首页骨架只在首页那一通里），那句 fatal 也换成点名那一页的。
+  const FATAL = "this page's layout still breaks the block library after a retry";
   const fatalCount = src.split(FATAL).length - 1;
   fatalCount === 1 ? ok('那句 fatal 全文只有一处') : bad(`那句 fatal 出现 ${fatalCount} 次，接线判据失效`);
-  /switch \(afterRetry\(\{ firstBlockProblems: first\.problems\.length, retryBlockProblems: issues\.length \}\)\)/.test(src)
-    ? ok('判决的两个入参就是 first.problems.length 与重试后的 issues.length')
+  /switch \(afterRetry\(\{ firstBlockProblems: p1\.block\.length, retryBlockProblems: p2\.block\.length \}\)\)/.test(src)
+    ? ok('判决的两个入参就是这一页第一次的块库问题数 p1.block.length 与重试后的 p2.block.length')
     : bad('create-site.js 没有把这两个数喂给 afterRetry —— 判决可能拿错了数');
   // 那句 fatal 必须落在 case 'fatal' 之后、下一个 case 之前。
   const seg = src.slice(src.indexOf("case 'fatal':"), src.indexOf("case 'revert':"));

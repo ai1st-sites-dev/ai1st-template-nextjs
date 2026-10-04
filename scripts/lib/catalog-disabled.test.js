@@ -231,6 +231,8 @@ function treeAt() {
   return root;
 }
 
+const { call1Prompts } = require('./call1-prompts.testkit');
+
 function runCreate(root, payload) {
   return spawnSync('node', [path.join(root, 'scripts', 'create-site.js')], {
     input: JSON.stringify(payload),
@@ -250,10 +252,13 @@ function eventsOf(r) {
   return out;
 }
 
+/** Call 1 的全部提示词（站级 + 每页，发射顺序）。
+ *  📌 #1568 —— 块菜单 / 页面规则 / 首页规则住在每页那几份里，要等站级那一通回来才发得出 ⟹ 改用 `call1-prompts.testkit.js` 的桩。
+ *     「整份提示词里有没有 X」读的是全部几份接起来的那一份。 */
 function promptFrom(root, payload) {
-  const ev = eventsOf(runCreate(root, payload)).find((e) => e.event === 'prompt' && e.name === 'Base Site');
-  if (!ev) die(`没拿到提示词（这棵树: ${root}）`);
-  return ev.content;
+  const { site, pages, all } = call1Prompts(root, payload);
+  if (!site || !pages.length) die(`没拿到提示词（这棵树: ${root}）`);
+  return all;
 }
 
 const basePayload = (over = {}) => ({
@@ -488,10 +493,13 @@ console.log('\n── ⑧ 每个页面块逐个关一遍：CRITICAL RULES 段里
   }
   console.log(`  📌 分母：${allTypes.length} 个页面块；外壳区排除 ${regionTypes.length} 个`
     + `（${regionTypes.join(', ') || '无'}，判据是 manifest 里的 region:true）`);
+  // 📌 #1568 —— Call 1 拆成站级一次 + 每页一次：站级那份的 `CRITICAL RULES:` 一节 + 每页那份的 `RULES:` 一节（各到那份结尾）。
+  //    `promptFrom` 回的是几份接起来的，按每份的开头那句切开再各取一节。
   const rulesSection = (prompt) => {
-    const i = prompt.indexOf('\nCRITICAL RULES:');
-    if (i < 0) die('提示词里找不到 CRITICAL RULES: —— 这一节什么都没量到');
-    return prompt.slice(i);
+    const parts = prompt.split(/^(?=You are an expert SEO copywriter AND )/m);
+    const secs = parts.map((p) => { const m = p.match(/\n(?:CRITICAL )?RULES:\n/); return m ? p.slice(m.index) : null; }).filter(Boolean);
+    if (secs.length < 2) die(`提示词里只切出 ${secs.length} 节 RULES —— 站级 + 每页至少两节，这一格什么都没量到`);
+    return secs.join('\n');
   };
   // 词边界：`process-steps` 不许被 `process-steps-foo` 匹配，也不许 `hero` 命中 `hero-with-form`。
   // #1425（T3）—— 新库的块名大多是普通英文词（content / contact / cta / features …），所以两处收紧：
@@ -502,6 +510,7 @@ console.log('\n── ⑧ 每个页面块逐个关一遍：CRITICAL RULES 段里
   const EXEMPT = [
     { t: 'content', line: /^- Include location names naturally in content\.$/, why: '「把地名自然地写进内容里」—— 英文词 content，不是 content 块' },
     { t: 'contact', line: /^- "forms" are the site's two lead forms/, why: '站级表单库（#1471）那一行：`"contact"` 是**表单的 id**（name / email / message 那张），不是 contact 块；关掉 contact 块不删那张表单（hero 也用它）' },
+    { t: 'contact', line: /^- Any block with a "form" slot uses one of the site's two forms/, why: '#1568 每页那份里的表单那一行（原来是上一行的后半句）：`"contact"` 同样是**表单的 id**，不是 contact 块' },
   ];
   const exempt = (t, l) => EXEMPT.some((e) => e.t === t && e.line.test(l.trim()));
   const linesNaming = (t, section) => section.split('\n').filter((l) => nameRe(t).test(l) && !exempt(t, l));

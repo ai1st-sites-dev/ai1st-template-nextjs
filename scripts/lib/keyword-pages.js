@@ -90,7 +90,17 @@ function capServiceIds({ services, pages, navigation } = {}) {
     renames.push({ from: s.id, to: id });
     s.id = id;
   });
-  if (!renames.length) return renames;
+  renameServiceIds(renames, { pages, navigation });
+  return renames;
+}
+
+/**
+ * 把 §capServiceIds 回的那几个 `{ from, to }` 套到页面 / 导航上（就地改）。
+ * #1568 —— Call 1 按页拆之后，id 在站级那一通回来时就收了，而每页的 sections 是之后才写的：那几通若仍写了旧 id 的链接，
+ * 由调用方拿同一份 renames 再套一次（不靠模型照抄新 id）。renames 为空时一个字节不动。
+ */
+function renameServiceIds(renames, { pages, navigation } = {}) {
+  if (!Array.isArray(renames) || !renames.length) return;
   const to = new Map(renames.map((r) => [r.from, r.to]));
   // 整串等于旧 id（parentService），或 `[/]services/<旧 id>` 后面跟着结尾 / `/` / `?` / `#`（slug、under、链接）。
   const remap = (v) => {
@@ -106,7 +116,6 @@ function capServiceIds({ services, pages, navigation } = {}) {
   };
   if (Array.isArray(pages)) walk(pages);
   if (isObj(navigation)) walk(navigation);
-  return renames;
 }
 
 /**
@@ -447,6 +456,7 @@ function keywordFooterColumns(kwPages, services, locale) {
 module.exports = {
   FOOTER_MAX,
   capServiceIds,
+  renameServiceIds,
   labelsFor,
   keywordPageCandidates,
   planKeywordPages,

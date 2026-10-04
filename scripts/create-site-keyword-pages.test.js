@@ -113,10 +113,20 @@ function seoFix(page, { kw, place, budget, brand }) {
 function answer(req) {
   const first = req.messages[0].content;
   const kind = first.includes('Generate a JSON object with this EXACT structure') ? 'call1'
+    : first.includes('Write the sections of ONE page') ? 'call1-page'
     : first.includes('Write ONE keyword landing page') ? 'keyword-page'
       : first.includes('An automatic SEO check found the problems') ? 'seo-rewrite' : 'other';
   fs.appendFileSync(process.env.KW_STUB_CALLS, JSON.stringify({ kind, first, turns: req.messages.length }) + '\n');
   if (kind === 'call1') return cfg.call1;
+  // #1568 —— Call 1 每页一次：回 cfg.call1 里那一页的 sections（站级那一通回的 sections 会被丢掉）。
+  if (kind === 'call1-page') {
+    const slug = (first.match(/- slug: "([^"]+)"/) || [])[1];
+    // 服务 id 被 #1565 收短之后 slug 变了（站级那一通回来就收）⟹ 按 title 那一行认（夹具里每页 title 各不相同）。
+    const title = (first.match(/^- title: (.*)$/m) || [])[1];
+    const pg = (cfg.call1.pages || []).find((x) => x.slug === slug) || (cfg.call1.pages || []).find((x) => x.title === title);
+    if (!pg) throw new Error('cfg.call1 里没有这一页：' + slug);
+    return { sections: pg.sections };
+  }
   if (kind === 'keyword-page') {
     const slug = (first.match(/- slug: "([^"]+)"/) || [])[1];
     const keyword = (first.match(/- target keyword: "([^"]+)"/) || [])[1];

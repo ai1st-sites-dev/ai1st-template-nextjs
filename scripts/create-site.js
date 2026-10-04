@@ -97,7 +97,15 @@ const { siteFactsFrom, scrubContactCopies } = require('./lib/contact-facts');
 // ─── AI Model Config ─────────────────────────────────────────────────────────
 // 🔴 下面 MODEL_PRICING 不是文档,是【记账输入】:getModelPricing(model) 的结果乘 token 数写进 operation_runs.cost(manager/db.go 的 insertOperationRun),写错一行不报错、只静默虚记。改它之前去 https://platform.claude.com/docs/en/about-claude/pricing 现取一次,别凭记忆 —— #1249 修的两行原来逐字是【已退役】型号的真价钱,不是打错。
 let model = 'claude-sonnet-4-6';
-let maxTokens = 32000;
+let maxTokens = 128000;
+// #1568 —— 各模型一次回包的输出上限（Models API `GET /v1/models/{id}` 的 max_tokens；manager/admin.go 白名单那段注释记着同一组读数）。
+// 后台存的上限是一个数（默认 128000），而白名单里 haiku-4.5 只到 64000 —— 原样发出去，每一次调用都会被 API 拒。按前缀查；
+// 查不到的模型不截（让 API 自己说）。
+const MODEL_OUTPUT_CAPS = [['claude-haiku-4-5', 64000], ['claude-sonnet-4-6', 128000], ['claude-opus-4-6', 128000]];
+function modelOutputCap(modelId) {
+  const hit = MODEL_OUTPUT_CAPS.find(([prefix]) => String(modelId || '').startsWith(prefix));
+  return hit ? hit[1] : null;
+}
 // 🔴 查表是 startsWith 前缀匹配,两处盲区:① 'claude-opus-4' 同时罩 opus 4/4.1($15/$75,已在一方 API 退役 ⟹ 调不通、不会产生 cost 行)与 4.5~4.8($5/$25),按【可达的那一种】取值;② 不以这三个前缀开头的 id(claude-opus-5 / claude-sonnet-5 / claude-fable-5 …)静默落到下面的 return {input:3,output:15},也就是按 sonnet 4.6 记账 —— 而 sonnet-5 官方 $2/$10 ⟹ 那个方向是【多记 50%】,多扣客人钱。
 const MODEL_PRICING = {
   'claude-opus-4':   { input: 5,  output: 25 },   // #1249: 原 {15,75} 是已退役的 Opus 4 / 4.1 的价钱;这个前缀今天够得着的是 4.5~4.8,都是 $5/$25
@@ -780,6 +788,15 @@ async function main() {
   // Override AI model/tokens from Admin Settings (passed through by Manager)
   if (input.model) { model = input.model; pricing = getModelPricing(model); }
   if (input.maxTokens) maxTokens = parseInt(input.maxTokens, 10) || maxTokens;
+  // #1568 —— 截到这个模型的输出上限（后台模型选 haiku-4.5、上限存 128000 时，发给 API 的是 64000，不是被拒）。
+  {
+    const cap = modelOutputCap(model);
+    if (cap && maxTokens > cap) {
+      debug(`[ai] max_tokens ${maxTokens} 超过 ${model} 的输出上限 ⟹ 截到 ${cap}`);
+      maxTokens = cap;
+    }
+    debug(`[ai] model ${model} · max_tokens ${maxTokens}`);
+  }
   // TICKET-166: admin override for AI image hard cap (default 100).
   if (input.maxImagesPerSite) photoHardCap = parseInt(input.maxImagesPerSite, 10) || photoHardCap;
 
@@ -1214,6 +1231,10 @@ async function main() {
     siteUrl,
     // #1548 —— 关键词那一段 + Lead 站的补充说明。
     keywordBrief, additionalContext,
+    // #1568 —— 每页提示词里的目标词：跟 Call 2 之后那次分配同一个函数，只是这一刻还没有关键词页。
+    pageTargetKeywords: (plan) => targetKw.assignTargetKeywords({
+      keywords, services, contentServices: plan.services, pages: plan.pages, keywordPagesList: [], siteType, keyword: leadKeyword,
+    }).pageKeywords,
   });
 
   // TICKET-119: Layout hard-copy compliance check
@@ -2079,6 +2100,8 @@ async function generateContent(opts) {
     // #1548 —— 关键词那一段（`lib/target-keywords.js` §keywordBrief，没有词时是空串）与 Lead 站的补充说明。
     keywordBrief = '',
     additionalContext = '',
+    // #1568 —— 站级那一通回来之后算每页的目标词（slug → 词）：首页 / 服务详情页按 T4 的分配。纯函数，由 main 传（它手上有 keywords）。
+    pageTargetKeywords = () => ({}),
   } = opts;
 
   // #1346 —— 一个块被关掉之后，提示词里**三个地方**都不能再提它：菜单（下面那两处
@@ -2455,23 +2478,14 @@ IMAGE PLACEMENT RULES:
 
   progress('AI is writing content...', 15);
 
-  const prompt = `You are an expert SEO copywriter AND web layout designer. Generate complete website content AND page layouts for a local service business. Return ONLY valid JSON, no markdown fences, no explanation.
-
-BUSINESS DETAILS:
-- Company Name: ${companyName}
-- Industry: ${industry}
-${location ? `- Primary Location: ${location}` : ''}
-${languageInstruction}
-${servicesInstruction}${keywordBrief ? `\n\n${keywordBrief}` : ''}
-${contactInstruction}
-${businessContext}
-${reviewsInstruction}
-${socialLinksInstruction}
-${refSiteInstruction}
-${imagesInstruction}
-${pagesInstruction}
-
-CRITICAL BRAND NAME RULE (TICKET-137):
+  // ══ #1568 —— Call 1 按页拆：站级一次 + 每页一次 ═══════════════════════════════════════════════════════
+  //
+  // 以前这里是**一次**调用、一个回包写全站（品牌 / SEO / 服务 / 每一页的 sections）。7 个服务的中文站那一个回包撞上输出上限
+  // （Chris 2026-10-04 site-7f87c5c3：等了 424 秒、花了 $0.51，`truncated`，整站失败）。现在照 Call 2（#1550）的形状拆成两步：
+  //   ① 站级一次（prompt 名 `Base Site`）：品牌 / 导航 / SEO / 服务 / 表单 + 页面清单，每页带一句 `brief`（这一页承载什么），不写 sections；
+  //   ② 每页一次（prompt 名 `Page: <slug>`）：只写这一页的 sections。提示词只带站级结构 + 这一页的目标词 + 表格里的事实 + 块菜单。
+  // 一页不合格 / 调不通只重试这一页一次；仍不行 ⟹ 建站失败并写明是哪一页（T5 #1549 对首页 / 服务详情页 / 其它页的处置）。
+  const brandNameRule = `CRITICAL BRAND NAME RULE (TICKET-137):
 The brand name "${companyName}" is canonical and MUST appear LITERALLY VERBATIM in all
 generated content — hero headlines, subtitles, page descriptions, footer description,
 copyright, breadcrumbs, CTA text, and ANY user-visible string that references the brand.
@@ -2490,23 +2504,27 @@ Examples — WRONG (DO NOT generate):
 Examples — RIGHT:
   ✓ "Happy Paws Pet Grooming 是您的最佳选择" (English brand verbatim in zh sentence)
   ✓ "McDonald's has been serving" (verbatim, exact apostrophe)
-  ✓ "Welcome to Happy Paws Pet Grooming"
+  ✓ "Welcome to Happy Paws Pet Grooming"`;
+  const iconsBlock = `AVAILABLE ICONS (pick the most relevant for each service):
+${availableIcons.join(', ')}`;
 
-AVAILABLE ICONS (pick the most relevant for each service):
-${availableIcons.join(', ')}
+  const sitePrompt = `You are an expert SEO copywriter AND website planner. Generate the site-wide content AND the page plan for a local service business. Each page's sections are written afterwards, one page at a time, from the plan you give here — so do NOT write any sections. Return ONLY valid JSON, no markdown fences, no explanation.
 
-AVAILABLE SECTION TYPES:
-You are a layout designer. For each page, you choose WHICH sections to include and in WHAT order. Not every page needs every section. Mix it up based on what makes sense for this industry.
+BUSINESS DETAILS:
+- Company Name: ${companyName}
+- Industry: ${industry}
+${location ? `- Primary Location: ${location}` : ''}
+${languageInstruction}
+${servicesInstruction}${keywordBrief ? `\n\n${keywordBrief}` : ''}
+${contactInstruction}
+${businessContext}
+${socialLinksInstruction}
+${refSiteInstruction}
+${pagesInstruction}
 
-HOMEPAGE SECTIONS (pick 7-10 from these, in any order):
-${blockPromptSection('homepage', undefined, { ...(homeRecipe ? { order: homeRecipe.promptOrder } : {}), omit: disabledBlocks })}
+${brandNameRule}
 
-PAGE-SPECIFIC SECTION RULES:
-${blockPromptSection('page-specific', undefined, { omit: disabledBlocks })}${contentNewPageLine}
-${pageRuleLines}
-
-BUTTONS:
-${BUTTON_REF_PROMPT}
+${iconsBlock}
 
 Generate a JSON object with this EXACT structure:
 
@@ -2555,7 +2573,7 @@ ${hours ? '    "openingHours": [{ "days": ["<English day name>", "..."], "opens"
       "navOrder": 0,
       "changeFrequency": "weekly",
       "priority": 1,
-      "sections": [ ... ]
+      "brief": "<what this page must cover>"
     },
     {
       "slug": "<page-slug>",
@@ -2565,7 +2583,7 @@ ${hours ? '    "openingHours": [{ "days": ["<English day name>", "..."], "opens"
       "navOrder": 1,
       "changeFrequency": "weekly|monthly",
       "priority": 0.9,
-      "sections": [ ... ]
+      "brief": "<what this page must cover>"
     },
     {
       "slug": "services/<service-id>",
@@ -2577,46 +2595,27 @@ ${hours ? '    "openingHours": [{ "days": ["<English day name>", "..."], "opens"
       "priority": 0.8,
       "serviceDetailPage": true,
       "parentService": "<service-id>",
-      "sections": [ ... ]
+      "brief": "<what this page must cover>"
     }
   ]
 }
 
 CRITICAL RULES:
 - "services" array must contain EXACTLY the services listed above: ${servicesList.join(', ')}. Do NOT add or remove any.
-- "forms" are the site's two lead forms (#1471): "quote" (asks for name, phone and which service) and "contact" (name, email, message). Their fields are FIXED — write only the visitor-facing words (name, buttonText, successMessage) to fit this business. Any block with a "form" slot uses one of them: leave "form": {} (= the first form, "quote") or set "form": { "id": "contact" }.
-- "pages" is an ARRAY of page objects, each with slug, title, description, navLabel, navOrder, changeFrequency, priority, and sections.
+- "forms" are the site's two lead forms (#1471): "quote" (asks for name, phone and which service) and "contact" (name, email, message). Their fields are FIXED — write only the visitor-facing words (name, buttonText, successMessage) to fit this business.
+- "pages" is an ARRAY of page objects, each with slug, title, description, navLabel, navOrder, changeFrequency, priority, and brief.
+- Every page's "brief": 2-3 sentences, in the site's language, saying what that page must cover — its main points, specific to this business. The page's sections are written later from it: do NOT write "sections".
 - navOrder determines the order in the navigation. Home is always 0. Assign sequential numbers (1, 2, 3...) to other pages.
 - The CTA page (navigation.ctaPage) should have a higher navOrder so it appears last (but it won't be in the header nav — it becomes the CTA button).
-- The HOMEPAGE must feel unique. Choose 7-10 sections. Do NOT use all sections — pick what fits the industry.
-- There are ${offeredTypeCount} section types. USE THIS VARIETY. Each site should feel different.
-${varySectionOrderRule}
-${homeRecipe ? recipePromptLines(homeRecipe, disabledBlocks)
-  // #1034 — 关着的时候这一行逐字回到改动之前。它原来那份举例名单
-  // （#1425 之前是四个旧块，外加 #1372 删掉的那两个块）
-  // 正好就是 6 个真实站实际选中的那批 —— 举例清单被当成了待办清单。
-  // 🔴 #1372 之后那份名单只剩 4 个：被删的两个块的名字按那张票的验收要求不再出现在代码里。开着的时候由上面那份
-  // 每站不同的硬要求取代它。
-  // 🔴 #1346 r3 —— 那份举例名单里的块名同样要按清单过滤（配方关着的时候走的就是这一支）。
-  //    一个都不剩时整行不印：举例清单为空的 "e.g., ()" 比不给例子更糟。
-  : rareSectionExamplesRule}
-${criticalBlockRules}
-${contentAmountsRule}
 ${FACTS_ONLY_FROM_FORM_RULE}
-- For stats, use ONLY numbers the business details above give (years, counts, prices, ratings). When they give none, use values without an invented number (e.g. "24/7", "Same-day", "Local") — never make one up.
-${galleryItemsRule ? `${galleryItemsRule}
-` : ''}- Page titles (pages[].title): ${titleSpec}. The home page's <title> is seo.siteTitle, used as-is: max 60 chars. Every meta description (seo.siteDescription and pages[].description): 70–155 chars.
-- Every image object you write ({"imageUrl", "alt"}) gets an "alt": one plain sentence saying what the photo shows (no "image of").
-- Use specific language, not generic fluff. Testimonials should mention the company name.
+- Page titles (pages[].title): ${titleSpec}. The home page's <title> is seo.siteTitle, used as-is: max 60 chars. Every meta description (seo.siteDescription and pages[].description): 70–155 chars.
+- Use specific language, not generic fluff.
 - Include location names naturally in content.
-${ctaHrefRule ? `${ctaHrefRule}
-` : ''}- Service detail pages (slug "services/{id}") must set serviceDetailPage: true and parentService: "{service-id}".
+- Service detail pages (slug "services/{id}") must set serviceDetailPage: true and parentService: "{service-id}".
 - Service detail pages should NOT appear in the header nav — they go in the footer only.`;
 
-  emit('prompt', { name: 'Base Site', content: prompt });
-  progress('AI is generating content and layout...', 25);
-
-  progress('Waiting for AI response...', 35);
+  emit('prompt', { name: 'Base Site', content: sitePrompt });
+  progress('AI is planning the site...', 20);
 
   // TICKET-132: callAIWithRetry retries up to 3 times on JSON.parse failures
   // (AI hallucinating malformed JSON). max_tokens still throws immediately
@@ -2626,7 +2625,7 @@ ${ctaHrefRule ? `${ctaHrefRule}
   try {
     const result = await callAIWithRetry({
       client,
-      baseOptions: { model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] },
+      baseOptions: { model, max_tokens: maxTokens, messages: [{ role: 'user', content: sitePrompt }] },
       costContext: {
         operation: 'create-site',
         detail: 'Base site',
@@ -2647,7 +2646,7 @@ ${ctaHrefRule ? `${ctaHrefRule}
     // TICKET-148: classify outer fatal by error type to avoid the "Failed to
     // parse AI response as JSON" misnomer for Anthropic API overload errors.
     if (/max_tokens hit/.test(e.message || '')) {
-      fatal('AI response was truncated (hit token limit). Try fewer services.');
+      fatal('AI response was truncated (hit token limit) while planning the site.');
     } else if (e.constructor?.name === 'APIError' || isRetryableApiError(e) || (e.status && e.status >= 400)) {
       fatal(`AI service error: ${e.message}`);
     } else if (e.lastText) {
@@ -2659,85 +2658,256 @@ ${ctaHrefRule ? `${ctaHrefRule}
   const usage1 = response.usage || {};
   const cost1 = ((usage1.input_tokens || 0) * pricing.input + (usage1.output_tokens || 0) * pricing.output) / 1_000_000;
   const call1Duration = ((Date.now() - call1Start) / 1000).toFixed(1);
-  debug(`Call 1 cost: $${cost1.toFixed(4)} (${usage1.input_tokens} in / ${usage1.output_tokens} out)`);
+  debug(`Call 1 site plan cost: $${cost1.toFixed(4)} (${usage1.input_tokens} in / ${usage1.output_tokens} out, ${call1Duration}s)`);
 
-  // ── #999 块 manifest 校验：AI 吐回来立刻校，不合格就把问题原样退给它重来一次 ─────────────────
-  //
-  // 为什么在这里而不是只在构建期：这一刻还能重试，构建期只能整个站建不出来。两处跑的是同一个函数
-  // （`scripts/lib/block-manifest.js`）—— 两处各写一遍必然分叉，而分叉的方向永远是「建站放过、
-  // 构建期才炸」。构建期那一处是兜底，防的是有人手改 site/pages/*.json。
-  //
-  // 🔴 只重试一次。再失败就退出并把问题逐条打出来 —— 一直重试等于把「AI 今天不听话」变成一笔看不见
-  // 的账单，而这些问题（缺必填槽、把 essential 降成 optional、行业必需的块没放）都是提示词里写着的。
+  // 站级回包里的页面清单：每页要有 slug（文件名就是它）。sections 不归这一通管 —— 写回来了也丢掉，由下面每页那一通写。
+  ai.pages = (Array.isArray(ai && ai.pages) ? ai.pages : []).filter((p) => p && typeof p === 'object' && typeof p.slug === 'string' && p.slug.trim());
+  if (!ai.pages.length) fatal('The site plan from the AI has no pages (#1568: Call 1 site-level answer without a usable "pages" list).');
+  for (const p of ai.pages) delete p.sections;
+
+  // #1565 —— 服务 id 是 AI 写的，会原样变成文件名（pages/services/<id>.json）：收进跟关键词页 slug 同一个上限。
+  //    #1568 —— 放在站级那一通之后、每页那几通之前：每页的提示词里给的就是收过的 id（链接按它写）。
+  const idRenames = kwPages.capServiceIds({ services: ai.services, pages: ai.pages, navigation: ai.navigation });
+  for (const r of idRenames) {
+    debug(`[services] AI 写的服务 id 有 ${Buffer.byteLength(r.from)} 字节，超过文件名能放的上限，网址改用 ${r.to}（${Buffer.byteLength(r.to)} 字节）`);
+  }
+
+  // ── ② 每页一次 ──────────────────────────────────────────────────────────────────────────────────
+  const forms = siteFormsFrom(ai.forms);
+  const pageKeywords = (() => {
+    try { return pageTargetKeywords(ai) || {}; } catch (e) { debug(`[pages] 目标词算不出来（${e.message}），每页提示词不带目标词`); return {}; }
+  })();
+  // 每页提示词里的「事实」：营业时间那句只对站级那一通的 seo.openingHours 有意义，页里只留原文。
+  const pageBusinessContext = businessContext.replace(/\n\(For seo\.openingHours:[^\n]*\)/, '');
+  const svcById = new Map((Array.isArray(ai.services) ? ai.services : []).filter((s) => s && s.id).map((s) => [s.id, s]));
+  const hrefOf = (slug) => (slug === 'home' ? '/' : `/${slug}`);
+  const siteLines = [
+    ai.brand && ai.brand.tagline ? `- Tagline: ${ai.brand.tagline}` : null,
+    '- Services (id → name: short description):',
+    ...[...svcById.values()].map((s) => `  - ${s.id} → ${s.name}${s.shortDescription ? `: ${s.shortDescription}` : ''}`),
+    '- Pages of this website (link to them with these hrefs):',
+    ...ai.pages.map((p) => `  - "${hrefOf(p.slug)}" — ${p.navLabel || p.title || p.slug}`),
+    ai.navigation && ai.navigation.ctaPage ? `- Call-to-action page: "/${ai.navigation.ctaPage}"${ai.navigation.ctaLabel ? ` (button text "${ai.navigation.ctaLabel}")` : ''}` : null,
+    `- Forms: ${forms.map((f) => `"${f.id}"${f.name ? ` (${f.name})` : ''}`).join(', ')}`,
+  ].filter((l) => l !== null).join('\n');
+
+  const pagePromptFor = (page) => {
+    const isHome = page.slug === 'home';
+    const svc = page.serviceDetailPage === true ? svcById.get(page.parentService) || svcById.get(page.slug.replace(/^services\//, '')) : null;
+    const kw = typeof pageKeywords[page.slug] === 'string' ? pageKeywords[page.slug] : '';
+    const thisPage = [
+      `- slug: "${page.slug}"`,
+      page.title ? `- title: ${page.title}` : null,
+      page.description ? `- meta description: ${page.description}` : null,
+      page.brief ? `- what it must cover: ${page.brief}` : null,
+      kw ? `- target keyword: "${kw}" — use that exact phrase in the page's single H1 (the "headline" of its one "hero" or "page-header" section), within its first 100 words, and in at least two H2s (the "headline" of other sections).` : null,
+      isHome ? '- This is the HOME page. Choose 7-10 sections — the homepage must feel unique: do NOT use all sections, pick what fits the industry.'
+        : svc ? `- This is the detail page of the service "${svc.name}" (id ${svc.id}). It needs 5-7 sections: ${serviceDetailSectionRule}. Write unique, detailed SEO content for this service.`
+          : null,
+    ].filter((l) => l !== null).join('\n');
+    const rules = [
+      '- Return {"sections": [ ... ]}: this page\'s sections in order, each { "type": "<section type>", "data": { ... } } as described under AVAILABLE SECTION TYPES.',
+      '- Any block with a "form" slot uses one of the site\'s two forms: leave "form": {} (= the first form, "quote") or set "form": { "id": "contact" }.',
+      ...(isHome ? [
+        `- There are ${offeredTypeCount} section types. USE THIS VARIETY. Each site should feel different.`,
+        varySectionOrderRule,
+        homeRecipe ? recipePromptLines(homeRecipe, disabledBlocks) : rareSectionExamplesRule,
+      ] : [criticalBlockRules]),
+      contentAmountsRule,
+      FACTS_ONLY_FROM_FORM_RULE,
+      '- For stats, use ONLY numbers the business details above give (years, counts, prices, ratings). When they give none, use values without an invented number (e.g. "24/7", "Same-day", "Local") — never make one up.',
+      galleryItemsRule,
+      '- Every image object you write ({"imageUrl", "alt"}) gets an "alt": one plain sentence saying what the photo shows (no "image of").',
+      '- Use specific language, not generic fluff. Testimonials should mention the company name.',
+      '- Include location names naturally in content.',
+      ctaHrefRule,
+    ].filter(Boolean).join('\n');
+    return `You are an expert SEO copywriter AND web layout designer. Write the sections of ONE page of a local service business website — its copy AND its layout. The site-wide content and the page plan are already decided (below): follow them, do not change them. Return ONLY valid JSON, no markdown fences, no explanation.
+
+BUSINESS DETAILS:
+- Company Name: ${companyName}
+- Industry: ${industry}
+${location ? `- Primary Location: ${location}` : ''}
+${languageInstruction}
+${contactInstruction}
+${pageBusinessContext}
+${reviewsInstruction}
+${socialLinksInstruction}
+${refSiteInstruction}
+${imagesInstruction}
+
+THE SITE (already decided):
+${siteLines}
+
+THIS PAGE:
+${thisPage}
+
+${brandNameRule}
+
+${iconsBlock}
+
+AVAILABLE SECTION TYPES:
+You are a layout designer. For this page, you choose WHICH sections to include and in WHAT order. Not every page needs every section. Mix it up based on what makes sense for this industry.
+
+HOMEPAGE SECTIONS (pick 7-10 from these, in any order):
+${blockPromptSection('homepage', undefined, { ...(isHome && homeRecipe ? { order: homeRecipe.promptOrder } : {}), omit: disabledBlocks })}
+
+PAGE-SPECIFIC SECTION RULES:
+${blockPromptSection('page-specific', undefined, { omit: disabledBlocks })}${contentNewPageLine}
+${pageRuleLines}
+
+BUTTONS:
+${BUTTON_REF_PROMPT}
+
+RULES:
+${rules}`;
+  };
+
+  // 回包取 sections：要的是 {"sections": [...]}；直接回数组、或包在 {page: {...}} 里的也认（模型偶尔这么回）。
+  const sectionsOf = (got) => {
+    if (Array.isArray(got)) return got;
+    if (got && Array.isArray(got.sections)) return got.sections;
+    if (got && got.page && Array.isArray(got.page.sections)) return got.page.sections;
+    return null;
+  };
+  const N = ai.pages.length;
+  // 提示词**先全部算好、全部发出去**，再开始调用：发射顺序 = 页面清单的顺序（日志可读、可比），
+  // 而且任何一页建站失败（fatal 当场退出）都不会让后面那几页的提示词从日志里消失。
+  const prompts = ai.pages.map((p) => pagePromptFor(p));
+  ai.pages.forEach((p, i) => emit('prompt', { name: `Page: ${p.slug}`, content: prompts[i] }));
+  debug(`[pages] 站级那一通给了 ${N} 页：${ai.pages.map((p) => p.slug).join(' · ')}；每页一次调用，≤${PAGE_CONCURRENCY} 页同时在飞`);
+
+  const pageFatal = (i, why) => fatal(`Page ${i + 1}/${N} "${ai.pages[i].slug}" could not be generated after one retry (#1568): ${why}`);
+  let pagesDone = 0;
+  const onePage = async (i) => {
+    const page = ai.pages[i];
+    const isHome = page.slug === 'home';
+    const where = `第 ${i + 1}/${N} 页（${page.slug}）`;
+    const call = async (messages, detail) => sectionsOf((await callAIWithRetry({
+      client,
+      baseOptions: { model, max_tokens: maxTokens, messages },
+      costContext: { operation: 'create-site', detail, pricing, durationStart: Date.now() },
+      label: `Call 1 page ${page.slug}`,
+    })).parsed);
+    // 一页的判据：块库逐块那几条（scope 'edit' = 只查这一页自己；「整个站里没有 X」那一条等全部页回来再查）+ 首页骨架配方。
+    const problemsOf = (sections) => {
+      if (!sections) return { block: ['回包里没有 sections 数组'], skin: [] };
+      const trial = { ...page, sections };
+      return {
+        block: validateBlocks({ pages: [trial], industry, disabledBlocks, forms, scope: 'edit' }).problems,
+        skin: isHome && homeRecipe ? recipeProblems([trial], homeRecipe) : [],
+      };
+    };
+    const finish = (sections) => {
+      pagesDone += 1;
+      progress(`Page ${pagesDone}/${N} written: ${page.slug}`, 25 + Math.round((15 * pagesDone) / N));
+      return sections;
+    };
+
+    let first;
+    try {
+      first = await call([{ role: 'user', content: prompts[i] }], `Page ${page.slug}`);
+    } catch (e) {
+      // 调不通（截断 / API 错 / 解析不了）⟹ 重来一次这一页，别的页不动。
+      debug(`[pages] ${where} 调用失败：${e.message} —— 重试第 ${i + 1} 页`);
+      let again;
+      try { again = await call([{ role: 'user', content: prompts[i] }], `Page ${page.slug} (retry)`); } catch (e2) { return pageFatal(i, `AI call failed twice: ${e2.message}`); }
+      const p = problemsOf(again);
+      if (p.block.length) return pageFatal(i, `the retry still breaks the block library:\n  ${p.block.join('\n  ')}`);
+      if (p.skin.length) debug(`[fingerprint] ⚠️  ${where} 首页开场仍跟配方对不上,放行:\n  ${p.skin.join('\n  ')}`);
+      return finish(again);
+    }
+    const p1 = problemsOf(first);
+    if (!p1.block.length && !p1.skin.length) return finish(first);
+
+    // 不合格 ⟹ 把问题原样退给它、只重试这一页一次（#999 的「只重试一次」，#1034 的骨架问题跟它进同一次重试）。
+    const all = [...p1.block, ...p1.skin];
+    debug(`[pages] ${where} 第一次有 ${all.length} 处不合规(块库 ${p1.block.length} · 首页骨架 ${p1.skin.length}) —— 重试第 ${i + 1} 页:\n  ${all.join('\n  ')}`);
+    let second;
+    try {
+      second = await call([
+        { role: 'user', content: prompts[i] },
+        { role: 'assistant', content: JSON.stringify({ sections: first }) },
+        { role: 'user', content: `Your sections for the page "${page.slug}" break the block library rules below. Fix ONLY these and `
+          + `respond AGAIN with the COMPLETE JSON for this page ({"sections": [ ... ]}, no markdown fences):\n`
+          + all.map((x) => `- ${x}`).join('\n') },
+      ], `Page ${page.slug} (re-check)`);
+    } catch (e) {
+      // 只差首页骨架时第一次那份本来就能用（骨架问题不让建站失败，见下面 afterRetry 那一段）。
+      if (!p1.block.length) { debug(`[fingerprint] ⚠️  ${where} 为骨架发起的重试调不通（${e.message}），用第一次那份`); return finish(first); }
+      return pageFatal(i, `AI call failed on the retry: ${e.message}`);
+    }
+    const p2 = problemsOf(second);
+    // #1034 —— 判决写在 lib/homepage-recipe.js 的 afterRetry() 里:'fatal' = 块库两次都不合格;
+    // 'revert' = 第一次块库干净、只因骨架撞车才重试，而重试把块库改坏了 ⟹ 退回第一次。
+    switch (afterRetry({ firstBlockProblems: p1.block.length, retryBlockProblems: p2.block.length })) {
+      case 'fatal':
+        return pageFatal(i, `this page's layout still breaks the block library after a retry:\n  ${p2.block.join('\n  ')}`);
+      case 'revert':
+        debug(`[fingerprint] ⚠️  ${where} 重试(只为首页骨架发起的)把块库改坏了 ${p2.block.length} 处,退回第一次那份:\n  ${p2.block.join('\n  ')}`);
+        return finish(first);
+      default:
+        if (p2.skin.length) debug(`[fingerprint] ⚠️  ${where} 重试之后首页开场仍跟配方对不上,放行(不因为这个建不出站):\n  ${p2.skin.join('\n  ')}`);
+        debug(`[pages] ${where} 重试之后块库检查通过`);
+        return finish(second);
+    }
+  };
+  const pageSections = await runPool(N, PAGE_CONCURRENCY, onePage);
+  ai.pages.forEach((p, i) => { p.sections = pageSections[i]; delete p.brief; });
+  // 每页那几通若仍写了收之前的长 id（链接 / under），套同一份 renames（#1565 的「页面里指着旧 id 的地方一起改」）。
+  kwPages.renameServiceIds(idRenames, { pages: ai.pages });
+
+  // ── 全站那一条（#999 第 ④ 条「整个站里没有 X」）：只有全部页都回来才问得了 ──────────────────────────────
+  //    每页自己的毛病上面已经一页一页清掉了，这里剩下的只会是全站那一条。它交给首页那一通补一次（行业必需的块放首页最自然）；
+  //    补完仍缺 ⟹ 建站失败（同 #999：再重试等于把「AI 今天不听话」变成看不见的账单）。
   {
-    const first = validateBlocks({ pages: ai.pages, industry, disabledBlocks, forms: siteFormsFrom(ai.forms) });
-    // #1013 洞 1 —— 行业是自由文本，认不出来的写法一定存在。校验器会为此产出一条 warning，
-    // 而「认不出行业」跟「这个行业不需要任何特定的块」在读数上长得一模一样（两种都是零 problem）
-    // ⟹ 它必须被打出来，否则日志里那句「校验通过」是关于一次没做的检查说的。
-    for (const w of first.warnings) debug(`[blocks] ⚠️  ${w}`);
-    debug(`[blocks] 行业 "${industry}" 认出来是: ${first.industryKeys.join(' / ') || '（一个都没认出来）'}`);
-    let issues = first.problems;
-    // #1034 —— 首页开场配方是**另一类**问题,跟块库的问题一起进同一次重试,但**最后不 fatal**。
-    //
-    // 🔴 为什么两类不能同罪:块库那些(缺必填槽 / 把 essential 降级 / 行业必需的块一个都没有)
-    //    说的是「这个站建出来是坏的」;而「开场跟配方对不上」说的是「这个站跟别的站有点像」。
-    //    照 #999 写在 block-manifest.js 函数头上的那条理由:硬失败把「有一块地方不理想」换成
-    //    「整个站没了」。为了骨架撞车而让一次建站失败,方向反了。所以它只买一次重试。
-    let skinIssues = homeRecipe ? recipeProblems(ai.pages, homeRecipe) : [];
-    if (issues.length || skinIssues.length) {
-      const all = [...issues, ...skinIssues];
-      debug(`[blocks] 第一次输出有 ${all.length} 处不合规(块库 ${issues.length} · 首页骨架 ${skinIssues.length}),重试一次:\n  ${all.join('\n  ')}`);
+    const whole = validateBlocks({ pages: ai.pages, industry, disabledBlocks, forms });
+    // #1013 洞 1 —— 行业是自由文本，认不出来的写法一定存在；认不出来时这条检查的射程要说出来。
+    for (const w of whole.warnings) debug(`[blocks] ⚠️  ${w}`);
+    debug(`[blocks] 行业 "${industry}" 认出来是: ${whole.industryKeys.join(' / ') || '（一个都没认出来）'}`);
+    if (whole.problems.length) {
+      const hi = ai.pages.findIndex((p) => p.slug === 'home');
+      const fixAt = hi >= 0 ? hi : 0;
+      const target = ai.pages[fixAt];
+      debug(`[blocks] 全部页回来之后整站还有 ${whole.problems.length} 处不合规，让第 ${fixAt + 1} 页（${target.slug}）补一次:\n  ${whole.problems.join('\n  ')}`);
       progress('Checking the layout against the block library...', 40);
-      const retry = await callAIWithRetry({
-        client,
-        baseOptions: {
-          model,
-          max_tokens: maxTokens,
-          messages: [
-            { role: 'user', content: prompt },
-            { role: 'assistant', content: JSON.stringify(ai) },
-            { role: 'user', content: `Your JSON breaks the block library rules below. Fix ONLY these and `
-              + `respond AGAIN with the COMPLETE JSON (same structure, no markdown fences):\n`
-              + all.map((p) => `- ${p}`).join('\n') },
-          ],
-        },
-        costContext: { operation: 'create-site', detail: 'Base site (block re-check)', pricing, durationStart: Date.now() },
-        label: 'Call 1b block re-check',
-      });
-      const before = ai;
-      ai = retry.parsed;
-      issues = validateBlocks({ pages: ai.pages, industry, disabledBlocks, forms: siteFormsFrom(ai.forms) }).problems;
-      // #1034 —— 判决写在 lib/homepage-recipe.js 的 afterRetry() 里(纯函数,能测;这条分支
-      // 只有 AI 参与时才走得到)。'fatal' 逐字保持改动之前的行为;'revert' 是本票新开的口子
-      // 带来的风险的解药:第一次块库干净、只因骨架撞车才重试,而重试把它改坏了 —— 那就退回第一次。
-      switch (afterRetry({ firstBlockProblems: first.problems.length, retryBlockProblems: issues.length })) {
-        case 'fatal':
-          fatal(`The generated layout still breaks the block library after a retry:\n  ${issues.join('\n  ')}`);
-          break;
-        case 'revert':
-          debug(`[fingerprint] ⚠️  重试(只为首页骨架发起的)把块库改坏了 ${issues.length} 处,退回第一次那份输出:\n  ${issues.join('\n  ')}`);
-          ai = before;
-          issues = [];
-          break;
-        default:
-          break;
+      let fixed = null;
+      try {
+        const retry = await callAIWithRetry({
+          client,
+          baseOptions: {
+            model,
+            max_tokens: maxTokens,
+            messages: [
+              { role: 'user', content: prompts[fixAt] },
+              { role: 'assistant', content: JSON.stringify({ sections: target.sections }) },
+              { role: 'user', content: `The website as a whole breaks the block library rules below. Add what is missing to THIS page and `
+                + `respond AGAIN with the COMPLETE JSON for this page ({"sections": [ ... ]}, no markdown fences):\n`
+                + whole.problems.map((x) => `- ${x}`).join('\n') },
+            ],
+          },
+          costContext: { operation: 'create-site', detail: `Page ${target.slug} (site re-check)`, pricing, durationStart: Date.now() },
+          label: `Call 1 page ${target.slug} site re-check`,
+        });
+        fixed = sectionsOf(retry.parsed);
+      } catch (e) {
+        debug(`[blocks] 补的那一通调不通：${e.message}`);
       }
-      skinIssues = homeRecipe ? recipeProblems(ai.pages, homeRecipe) : [];
-      if (skinIssues.length) {
-        // 说出来,不拦。日志里看得见,才知道配方今天有多少次没被听进去。
-        debug(`[fingerprint] ⚠️  重试之后首页开场仍跟配方对不上,放行(不因为这个建不出站):\n  ${skinIssues.join('\n  ')}`);
+      const trial = ai.pages.map((p, i) => (i === fixAt && fixed ? { ...p, sections: fixed } : p));
+      const after = validateBlocks({ pages: trial, industry, disabledBlocks, forms }).problems;
+      if (!fixed || after.length) {
+        fatal(`The generated layout still breaks the block library after a retry:\n  ${(after.length ? after : whole.problems).join('\n  ')}`);
       }
-      debug('[blocks] 重试之后块库检查全部通过');
+      target.sections = fixed;
+      if (target.slug === 'home' && homeRecipe) {
+        const skin = recipeProblems(ai.pages, homeRecipe);
+        if (skin.length) debug(`[fingerprint] ⚠️  补过之后首页开场跟配方对不上,放行:\n  ${skin.join('\n  ')}`);
+      }
+      debug('[blocks] 补过之后块库检查全部通过');
     }
     // 没写 role 的块按 manifest 的 roleDefault 补上（D4 的兜底那一半;上面那条只拦"写了但降级"）。
     const filled = applyBlockRoleDefaults(ai.pages);
     debug(`[blocks] 校验通过;按 roleDefault 补了 ${filled} 个 role`);
-  }
-
-  // #1565 —— 服务 id 是 AI 写的，会原样变成文件名（pages/services/<id>.json）：收进跟关键词页 slug 同一个上限。
-  //    放在块库校验（含重试）之后：重试会整个换掉 ai。
-  for (const r of kwPages.capServiceIds({ services: ai.services, pages: ai.pages, navigation: ai.navigation })) {
-    debug(`[services] AI 写的服务 id 有 ${Buffer.byteLength(r.from)} 字节，超过文件名能放的上限，网址改用 ${r.to}（${Buffer.byteLength(r.to)} 字节）`);
   }
 
   progress('Parsing AI response...', 42);
@@ -2966,7 +3136,23 @@ ${ctaHrefRule ? `${ctaHrefRule}
 // ─── AI Keyword Page Generation (Call 2) ─────────────────────────────────────
 
 // #1550 —— 同时在飞的关键词页调用数。一页一次调用，提示词只带这一页的素材；并发只为省时间，不影响结果。
-const KEYWORD_PAGE_CONCURRENCY = 3;
+// #1568 —— Call 1 的每一页用同一个数、同一个调度（§runPool）。
+const PAGE_CONCURRENCY = 3;
+const KEYWORD_PAGE_CONCURRENCY = PAGE_CONCURRENCY;
+
+/** n 个任务（下标 0…n-1），最多 limit 个同时在飞；回结果数组，顺序同下标。Call 1 的每一页（#1568）与关键词页（#1550）共用。 */
+async function runPool(n, limit, fn) {
+  const results = new Array(n);
+  let next = 0;
+  const worker = async () => {
+    while (next < n) {
+      const i = next++;
+      results[i] = await fn(i);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, n) }, worker));
+  return results;
+}
 
 /**
  * 一页一次调用（#1550 正文做什么 1）。回每一页的结果，顺序同 `plan`：
@@ -3033,15 +3219,7 @@ async function generateKeywordPages(opts) {
     return { entry, ok: true, page: got };
   };
 
-  const results = new Array(plan.length);
-  let next = 0;
-  const worker = async () => {
-    while (next < plan.length) {
-      const i = next++;
-      results[i] = await one(plan[i]);
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(KEYWORD_PAGE_CONCURRENCY, plan.length) }, worker));
+  const results = await runPool(plan.length, KEYWORD_PAGE_CONCURRENCY, (i) => one(plan[i]));
   progress('Keyword pages done', 65);
   return results;
 }

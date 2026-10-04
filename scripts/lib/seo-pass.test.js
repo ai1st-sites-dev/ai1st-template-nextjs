@@ -59,6 +59,13 @@ const scenario = JSON.parse(fs.readFileSync(process.env.SEO_STUB, 'utf-8'));
 const fenced = (p) => { const m = p.match(/\\x60\\x60\\x60json\\n([\\s\\S]*?)\\n\\x60\\x60\\x60/); return m ? JSON.parse(m[1]) : null; };
 function answer(prompt) {
   if (prompt.includes('Generate a JSON object with this EXACT structure')) return scenario.call1;
+  // #1568 —— Call 1 每页一次：按提示词里那一页的 slug 回场景 call1 里那一页的 sections（站级那一通回的 sections 会被丢掉）。
+  if (prompt.includes('Write the sections of ONE page')) {
+    const slug = (prompt.match(/- slug: "([^"]+)"/) || [])[1];
+    const pg = (scenario.call1.pages || []).find((x) => x.slug === slug);
+    if (!pg) throw new Error('场景 call1 里没有这一页：' + slug);
+    return { sections: pg.sections };
+  }
   // #1550 —— 关键词页一页一次调用：按提示词里那一页的 slug 回场景里写好的那一页。
   if (prompt.includes('Write ONE keyword landing page')) {
     const slug = (prompt.match(/- slug: "([^"]+)"/) || [])[1];
