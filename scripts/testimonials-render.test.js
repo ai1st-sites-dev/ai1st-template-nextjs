@@ -528,7 +528,7 @@ console.log('\n── #1500 summary：一组平台');
       cp.execSync(`cp -a --no-dereference "${NEXT}" "${work}"`, { stdio: 'pipe' });
       for (const junk of ['out', '.next', '.out-backup', '.out-temp', 'site', 'node_modules']) fs.rmSync(path.join(work, junk), { recursive: true, force: true });
       fs.symlinkSync(path.join(NEXT, 'node_modules'), path.join(work, 'node_modules'));
-      const payload = JSON.stringify({ siteId: 'tn1500ab', companyName: 'Northside Auto Care', industry: 'auto repair', location: 'Toronto', skipAI: true, language: 'en' });
+      const payload = JSON.stringify({ siteId: 'tn1500ab', siteUrl: 'https://tn1500ab.example.com', companyName: 'Northside Auto Care', industry: 'auto repair', location: 'Toronto', skipAI: true, language: 'en' });
       const made = cp.spawnSync(process.execPath, [path.join(work, 'scripts', 'create-site.js')], {
         input: payload, cwd: work, encoding: 'utf8', env: { ...process.env, ANTHROPIC_API_KEY: undefined }, timeout: 180000,
       });

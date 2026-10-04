@@ -247,7 +247,7 @@ console.log('\n── AC4 新建站 · AC5 老站兼容（真跑 create-site.js 
   for (const junk of ['out', '.next', '.out-backup', '.out-temp', 'site', 'node_modules']) fs.rmSync(path.join(work, junk), { recursive: true, force: true });
   fs.symlinkSync(path.join(NEXT, 'node_modules'), path.join(work, 'node_modules'));
   const payload = JSON.stringify({
-    siteId: 'formstest', companyName: 'Northside Auto Care', industry: 'auto repair',
+    siteId: 'formstest', siteUrl: 'https://formstest.example.com', companyName: 'Northside Auto Care', industry: 'auto repair',
     location: 'Toronto', skipAI: true, language: 'en', secondaryLocales: ['fr'],
   });
   const r = cp.spawnSync(process.execPath, [path.join(work, 'scripts', 'create-site.js')], {

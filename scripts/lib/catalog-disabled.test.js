@@ -258,6 +258,7 @@ function promptFrom(root, payload) {
 
 const basePayload = (over = {}) => ({
   siteId: 'tsite134',
+  siteUrl: 'https://example.com', // #1547：manager 给的这次构建的地址，create-site 没它就退出
   companyName: 'Bright Smile Dental',
   industry: 'dental clinic',
   location: 'Toronto, ON',

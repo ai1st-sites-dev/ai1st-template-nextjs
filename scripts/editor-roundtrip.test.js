@@ -1009,7 +1009,7 @@ function makeSite(label, flat) {
   }
   fs.symlinkSync(path.join(NEXT, 'node_modules'), path.join(work, 'node_modules'));
   const r = cp.spawnSync(process.execPath, [path.join(work, 'scripts', 'create-site.js')], {
-    input: JSON.stringify({ siteId: 'rttest01', companyName: 'Northside Auto Care', industry: 'auto repair', location: 'Toronto', skipAI: true, language: 'en' }),
+    input: JSON.stringify({ siteId: 'rttest01', siteUrl: 'https://rttest01.example.com', companyName: 'Northside Auto Care', industry: 'auto repair', location: 'Toronto', skipAI: true, language: 'en' }),
     cwd: work, encoding: 'utf8', env: { ...process.env, ANTHROPIC_API_KEY: undefined }, timeout: 180000,
   });
   const site = path.join(work, 'site');

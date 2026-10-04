@@ -89,7 +89,7 @@ function makeTree(label) {
 /** 用仓里那条 skipAI 建站路造一份**真的**站（不调 AI、不花钱）。返回 site 目录。 */
 function makeLocaleSite(work) {
   const payload = JSON.stringify({
-    siteId: 'shapetest', companyName: 'Northside Auto Care', industry: 'auto repair',
+    siteId: 'shapetest', siteUrl: 'https://shapetest.example.com', companyName: 'Northside Auto Care', industry: 'auto repair',
     location: 'Toronto', skipAI: true, language: 'en',
   });
   const r = cp.spawnSync(process.execPath, [path.join(work, 'scripts', 'create-site.js')], {

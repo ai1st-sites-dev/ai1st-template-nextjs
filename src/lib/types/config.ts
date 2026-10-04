@@ -125,6 +125,8 @@ export interface TargetKeyword {
 
 export interface SeoConfig {
   domain: string;
+  /** #1547 — sync-config 按 manager 给的 SITE_INDEXABLE 写入；`false` = 预览构建（noindex + robots Disallow）。缺省按可收录。 */
+  indexable?: boolean;
   locale: string;
   siteTitle: string;
   siteDescription: string;

@@ -790,6 +790,15 @@ async function main() {
   }
 
   if (!siteId) fatal('siteId is required');
+  // #1547 —— 这个站这次构建要发布到的地址，由 manager 给（预览地址 / 上线地址），写进 seo.domain。
+  // 🔴 不推断、不回落：没给就停。AI 不再编域名；skipAI 也用它。
+  let siteUrl;
+  if (!input.siteUrl) fatal('siteUrl is required — the manager sends the address this build publishes to (#1547)');
+  try {
+    siteUrl = require('./lib/build-target.js').readBuildTarget({ SITE_URL: input.siteUrl }).siteUrl;
+  } catch (e) {
+    fatal(`siteUrl is invalid: ${e.message}`);
+  }
   if (!companyName) fatal('companyName is required');
   if (!industry) fatal('industry is required');
 
@@ -1027,7 +1036,7 @@ async function main() {
   // ── Skip AI mode: use demo config ──
   if (input.skipAI) {
     progress('Setting up demo site (no AI)...', 10);
-    const content = getDemoConfig(siteId);
+    const content = getDemoConfig(siteId, siteUrl);
     // #1473 —— 主语言写进 seo.locale（`<html lang>` 读它）。改前这里恒为 getDemoConfig 写死的 en_CA ⟹ `language:"ar"`
     //    的示例站会是 `lang="en" dir="rtl"`。`en` 仍映射到 en_CA，英文示例站逐字不变；次语言那一支（下面）本来就这么写。
     content.seo.locale = localeMapForBcp47(defaultLocale);
@@ -1192,6 +1201,7 @@ async function main() {
     // #1346: 后台关掉的块。提示词里那份菜单、两行写死的页面规则、以及 AI 吐回来之后那道校验，
     // 三处用的是同一份清单 —— 少一处就换一种坏法（票面做什么 #4）。
     disabledBlocks,
+    siteUrl,
     // #1548 —— 关键词那一段 + Lead 站的补充说明。
     keywordBrief, additionalContext,
   });
@@ -1855,7 +1865,7 @@ function writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks = []) {
 
 // ─── Demo Config (No AI) ────────────────────────────────────────────────────
 
-function getDemoConfig(siteId) {
+function getDemoConfig(siteId, siteUrl) {
   return {
     brand: {
       name: 'Demo Company',
@@ -1895,9 +1905,7 @@ function getDemoConfig(siteId) {
       },
     },
     seo: {
-      // PREVIEW_DOMAIN env var injected by worker/entrypoint.sh; manager populates
-      // it from cfg.PreviewDomain (ai1stsite.io for prod / ai1stsite.dev for dev)
-      domain: `https://${siteId}.${process.env.PREVIEW_DOMAIN || 'ai1stsite.io'}`,
+      domain: siteUrl, // #1547：manager 给的这次构建的地址
       locale: 'en_CA',
       siteTitle: 'Demo Company — Professional Services',
       siteDescription: 'Demo Company provides professional services in the Greater Toronto Area.',
@@ -2060,6 +2068,7 @@ async function generateContent(opts) {
     // default is needed; brandNameByLocale = {} guards against the dashboard
     // omitting the field entirely.
     defaultLocale, brandNameByLocale = {},
+    siteUrl, // #1547
     // TICKET-159 / TICKET-160: Nano Banana logo gen key — forwarded from main
     // scope (stdin payload). Empty string when not configured →
     // generateLogoViaNanoBanana throws + caller falls back to text logo.
@@ -2521,7 +2530,6 @@ Generate a JSON object with this EXACT structure:
     "footerDescription": "<1 sentence with location + primary keyword>"
   },
   "seo": {
-    "domain": "https://<realistic domain>",
     "siteTitle": "<max 60 chars>",
     "siteDescription": "<70–155 chars, location + services + CTA>",
     "areaServed": [{"type":"City","name":"<city>"}],
@@ -2932,7 +2940,7 @@ ${ctaHrefRule ? `${ctaHrefRule}
 
   const locale = localeMap[languageName] || 'en_CA';
   const seo = {
-    domain: ai.seo.domain.startsWith('https://') ? ai.seo.domain : `https://${ai.seo.domain}`,
+    domain: siteUrl, // #1547：manager 给的地址，不再由 AI 编
     locale,
     siteTitle: ai.seo.siteTitle,
     siteDescription: ai.seo.siteDescription,

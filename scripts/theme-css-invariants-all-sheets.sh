@@ -223,7 +223,7 @@ if [ ! -f "$NEXT/site/brand.json" ]; then
     exit 2
   fi
   echo "── making a demo sample site (skipAI, no AI calls, language $SAMPLE_LANG)"
-  if ! echo '{"siteId":"themecss1","companyName":"Northside Auto Care","industry":"auto repair",
+  if ! echo '{"siteId":"themecss1","siteUrl":"https://example.com","companyName":"Northside Auto Care","industry":"auto repair",
                "location":"Toronto","skipAI":true,"language":"'"$SAMPLE_LANG"'"}' \
        | ( cd "$NEXT" && env -u ANTHROPIC_API_KEY node scripts/create-site.js ) >/dev/null; then
     echo "🔴 cannot take the reading: create-site.js (skipAI) failed" >&2

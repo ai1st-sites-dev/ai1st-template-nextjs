@@ -459,7 +459,7 @@ console.log('\n── AC6 表单（提交）');
     };
     const prompt = (root) => {
       const r = spawnSync('node', [path.join(root, 'scripts', 'create-site.js')], {
-        input: JSON.stringify({ siteId: 't1463', companyName: 'Northside Auto Care', industry: 'auto repair', location: 'Toronto', language: 'en', themeRotationIndex: 0 }),
+        input: JSON.stringify({ siteId: 't1463', siteUrl: 'https://t1463.example.com', companyName: 'Northside Auto Care', industry: 'auto repair', location: 'Toronto', language: 'en', themeRotationIndex: 0 }),
         env: { ...process.env, ANTHROPIC_API_KEY: 'sk-ant-invalid-for-test' }, encoding: 'utf8', maxBuffer: 64 << 20, timeout: 180000,
       });
       for (const line of (r.stdout || '').split('\n')) {

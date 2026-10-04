@@ -16,7 +16,7 @@
 #                      12px word — which is why #960 r2's defect (the switcher was the one header child the
 #                      overlay never re-coloured, 1.08:1 on a dark hero) survived a human review of 30
 #                      full-page shots. A multi-locale sample site is made the same way as any other:
-#                        echo '{"siteId":"gallery-ml","companyName":"Northside Auto Care",
+#                        echo '{"siteId":"gallery-ml","siteUrl":"https://example.com","companyName":"Northside Auto Care",
 #                               "industry":"auto repair","location":"Toronto","skipAI":true,"language":"en",
 #                               "secondaryLocales":["zh"],"brandNameByLocale":{"zh":"北岸汽车养护"}}' \
 #                          | node scripts/create-site.js

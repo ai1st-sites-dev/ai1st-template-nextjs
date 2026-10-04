@@ -350,7 +350,7 @@ console.log('\n── AC2 只改 services.json 跟着变 · AC8 服务结构化�
   for (const junk of ['out', '.next', '.out-backup', '.out-temp', 'site', 'node_modules']) fs.rmSync(path.join(work, junk), { recursive: true, force: true });
   for (const d of fs.readdirSync(path.join(work, 'scripts'))) if (d.startsWith('.') && d.includes('stubs')) fs.rmSync(path.join(work, 'scripts', d), { recursive: true, force: true });
   fs.symlinkSync(path.join(NEXT, 'node_modules'), path.join(work, 'node_modules'));
-  const payload = JSON.stringify({ siteId: 'itemsrc1', companyName: 'Northside Auto Care', industry: 'auto repair', location: 'Toronto', skipAI: true, language: 'en' });
+  const payload = JSON.stringify({ siteId: 'itemsrc1', siteUrl: 'https://itemsrc1.example.com', companyName: 'Northside Auto Care', industry: 'auto repair', location: 'Toronto', skipAI: true, language: 'en' });
   const r = cp.spawnSync(process.execPath, [path.join(work, 'scripts', 'create-site.js')], {
     input: payload, cwd: work, encoding: 'utf8', env: { ...process.env, ANTHROPIC_API_KEY: undefined }, timeout: 180000,
   });

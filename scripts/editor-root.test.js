@@ -57,7 +57,7 @@ function makeTemplate() {
   }
   fs.symlinkSync(path.join(NEXT, 'node_modules'), path.join(work, 'node_modules'));
   const r = cp.spawnSync(process.execPath, [path.join(work, 'scripts', 'create-site.js')], {
-    input: JSON.stringify({ siteId: 'ertest01', companyName: 'Northside Auto Care', industry: 'auto repair', location: 'Toronto', skipAI: true, language: 'en', secondaryLocales: ['fr', 'zh'] }),
+    input: JSON.stringify({ siteId: 'ertest01', siteUrl: 'https://ertest01.example.com', companyName: 'Northside Auto Care', industry: 'auto repair', location: 'Toronto', skipAI: true, language: 'en', secondaryLocales: ['fr', 'zh'] }),
     cwd: work, encoding: 'utf8', env: { ...process.env, ANTHROPIC_API_KEY: undefined }, timeout: 180000,
   });
   if (!fs.existsSync(path.join(work, 'site', 'zh', 'navigation.json'))) die(`夹具立不起来（rc=${r.status}）\n${(r.stderr || '').slice(-600)}`);

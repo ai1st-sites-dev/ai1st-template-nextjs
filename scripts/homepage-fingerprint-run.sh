@@ -62,7 +62,7 @@ one_site() {
     const s = process.env.SERVICES.split(",");
     // 🔴 themeRotationIndex 恒 0 = 「每个站主的第一个站」,不是 r1 那个 `Number(IDX)`。
     //    差异只能从 siteId 来 —— 那正是本轮要证的性质。
-    const p = { siteId: process.env.SITE_ID, companyName: process.env.NAME, industry: "dental clinic",
+    const p = { siteId: process.env.SITE_ID, siteUrl: `https://${process.env.SITE_ID}.example.com`, companyName: process.env.NAME, industry: "dental clinic",
       location: "Toronto, ON", services: s, language: "en",
       themeRotationIndex: 0 };
     if (process.env.ARM === "off") p.homepageFingerprint = false;

@@ -711,7 +711,8 @@ export const metadata: Metadata = {
     title: seo.siteTitle,
     description: seo.siteDescription,
   },
-  robots: {
+  // #1547 — 预览构建（manager 给 indexable=false）整站 noindex；canonical 照常指自己。
+  robots: seo.indexable === false ? { index: false, follow: false } : {
     index: true,
     follow: true,
     googleBot: {

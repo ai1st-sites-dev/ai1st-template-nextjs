@@ -255,7 +255,7 @@ function makeRoot(label) {
  */
 function writeSite(work) {
   const payload = JSON.stringify({
-    siteId: 'edittest', companyName: 'Northside Auto Care', industry: 'auto repair',
+    siteId: 'edittest', siteUrl: 'https://edittest.example.com', companyName: 'Northside Auto Care', industry: 'auto repair',
     location: 'Toronto', skipAI: true, language: 'en',
   });
   const r = cp.spawnSync(process.execPath, [path.join(work, 'scripts', 'create-site.js')], {

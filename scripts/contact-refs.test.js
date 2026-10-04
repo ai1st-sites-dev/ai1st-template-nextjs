@@ -513,7 +513,7 @@ console.log('\n── AC1 只改 brand.json 跟着变（真跑 create-site.js sk
   for (const junk of ['out', '.next', '.out-backup', '.out-temp', 'site', 'node_modules']) fs.rmSync(path.join(work, junk), { recursive: true, force: true });
   for (const d of fs.readdirSync(path.join(work, 'scripts'))) if (d.startsWith('.') && d.includes('stubs')) fs.rmSync(path.join(work, 'scripts', d), { recursive: true, force: true });
   fs.symlinkSync(path.join(NEXT, 'node_modules'), path.join(work, 'node_modules'));
-  const payload = JSON.stringify({ siteId: 'contactref1', companyName: 'Northside Auto Care', industry: 'auto repair', location: 'Toronto', skipAI: true, language: 'en' });
+  const payload = JSON.stringify({ siteId: 'contactref1', siteUrl: 'https://contactref1.example.com', companyName: 'Northside Auto Care', industry: 'auto repair', location: 'Toronto', skipAI: true, language: 'en' });
   const r = cp.spawnSync(process.execPath, [path.join(work, 'scripts', 'create-site.js')], {
     input: payload, cwd: work, encoding: 'utf8', env: { ...process.env, ANTHROPIC_API_KEY: undefined }, timeout: 180000,
   });
