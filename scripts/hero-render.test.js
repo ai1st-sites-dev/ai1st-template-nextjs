@@ -6,7 +6,7 @@
  * 退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
  *
  * 管哪几条：AC1（5 个预设两两不同）· AC2 的 DOM 那一半（image=none 没有 <img>、form≠none 没有按钮有 <form>）·
- * AC3 的 DOM 那一半（#1470：image 六档的行类）· AC4（字色 + 非法颜色被拒）· AC5（部件有值才画、band 张数 = 列数）·
+ * AC3 的 DOM 那一半（#1470 定方向；#1536 起行只有 hro-row、方向在 mediaLayout）· AC4（字色 + 非法颜色被拒）· AC5（部件有值才画、band 张数 = 列数）·
  * AC6（#1470：form 槽只剩 {id?}、teaser / full 两档露的字段、提交走 POST /api/leads、不跳页）· AC7（eyebrow 五式）·
  * AC10（AI 建站能选到它：提示词菜单里有它、「一共几种块」数它；block-roles.json 有它；layout 挂 /site.css）。
  * 几何（三端横向滚动、图真的换了位置、列等宽）要浏览器：`tests/e2e/specs/1463-hero-new-knobs.spec.ts`。
@@ -157,36 +157,37 @@ console.log('\n── AC2 旋钮（DOM）');
   C = loadSection();
 }
 
-// ══ AC3 的 DOM 那一半：image 六档的行类（#1470 —— reverse 退役，它的两套类归到 left / top 名下）════════════
-console.log('\n── AC3 image 六档（行类）');
+// ══ AC3 的 DOM 那一半：image 四档有图列时的行（#1470 定方向；#1536 起不走 Bootstrap 栅格）═══════════════
+// 图在哪一边、两栏多宽由 manifest 的 mediaLayout 生成（scripts/block-build/media-layout.js），行上只有 `hro-row`，
+// 文字列 / 图列都不带 col 类；DOM 恒为文字在前。方向（left / top 列反向、left 在 ≥992 行反向）在生成的 CSS 里。
+console.log('\n── AC3 image 四档（行与方向）');
 {
-  const row = (html) => (/class="(row align-items-center[^"]*)"/.exec(html) || [])[1] || '';
-  // 每一档该有 / 不该有的 reverse 类。left = 旧 normal + reverse；top = 旧 center + reverse；right / bottom 行上没有。
-  const WANT = {
-    left: ['flex-column-reverse', 'flex-lg-row-reverse'],
-    top: ['flex-column-reverse'],
-    right: [],
-    bottom: [],
-  };
+  const rowCls = (html) => (/<div class="([^"]*)"><div class="[^"]*hro-textcol/.exec(html) || [])[1] || '';
+  const colsOf = (html, cls) => (new RegExp(`class="([^"]*\\b${cls}\\b[^"]*)"`).exec(html) || [])[1] || '';
   const rowProblems = (Comp) => {
     const out = [];
-    for (const [image, want] of Object.entries(WANT)) {
+    for (const image of ['left', 'right', 'top', 'bottom']) {
       const html = render('split', withOpts({ textAlign: 'left', image }), Comp);
-      const cls = row(html).split(/\s+/).filter((c) => /reverse/.test(c)).sort();
-      if (JSON.stringify(cls) !== JSON.stringify([...want].sort())) out.push(`${image}: 行上 reverse 类是 [${cls.join(' ')}]，应当是 [${want.join(' ')}]`);
+      if (rowCls(html) !== 'hro-row') out.push(`${image}: 行上是「${rowCls(html)}」，应当只有 hro-row`);
+      if (colsOf(html, 'hro-textcol') !== 'hro-textcol' || colsOf(html, 'hro-side') !== 'hro-side') out.push(`${image}: 文字列 / 图列带着别的类`);
       if (!(html.indexOf('hro-textcol') < html.indexOf('hro-side'))) out.push(`${image}: DOM 里文字列不在图列前面`);
     }
     return out;
   };
   const probs = rowProblems(C);
-  check(probs.length === 0, '四档有图列的：left 有 flex-column-reverse + flex-lg-row-reverse、top 只有 flex-column-reverse、right / bottom 没有；DOM 恒为文字在前', probs.join(' | '));
-  // 反向对照：把 image=left 的行类换成 image=right 的（去掉 reverse）⟹ 上面那条必须点名 left。
+  check(probs.length === 0, '四档有图列的：行只有 hro-row、两列不带 col 类、DOM 恒为文字在前', probs.join(' | '));
+  const MEDIA = require(path.join(NEXT, 'scripts', 'block-build', 'media-layout.js')).mediaLayoutCss(M, 'hero');
+  const rev = (re) => re.test(MEDIA);
+  check(rev(/\[data-image="left"\] \.hro-row,\n\[data-block="hero"\]\[data-image="top"\] \.hro-row \{\n  flex-direction: column-reverse;/)
+    && rev(/\[data-image="left"\] \.hro-row \{\n    flex-direction: row-reverse;/),
+    'mediaLayout：left / top 列反向（小屏图在上）、left 在 ≥992 行反向（图在左）；right / bottom 不反向');
+  // 反向对照：有图列时还走 Bootstrap 的行 ⟹ 四档全被点名。
   const src = fs.readFileSync(SECTION, 'utf-8');
-  const anchor = "if (image === 'left') return `${base} flex-column-reverse flex-lg-row-reverse`;";
-  const swapped = src.replace(anchor, "if (image === 'left') return base;");
-  if (swapped === src) die('AC3 反向对照没改到源码（rowClass 里 image=left 那一行换了写法？）');
+  const anchor = "if (hasSide) return 'hro-row';";
+  const swapped = src.replace(anchor, "if (hasSide) return 'row align-items-center gx-8 gy-10 gx-lg-16';");
+  if (swapped === src) die('AC3 反向对照没改到源码（rowClass 里 hasSide 那一行换了写法？）');
   const bad3 = rowProblems(loadSection(swapped));
-  check(bad3.length === 1 && bad3[0].startsWith('left:'), `反向对照：left 拿 right 的行类 ⟹ 恰好点名 left（${bad3.join(' | ') || '没点名'}）`);
+  check(bad3.length === 4, `反向对照：有图列时行换回 Bootstrap 的 row ⟹ 四档都被点名（${bad3.length}）`);
   C = loadSection();
 }
 

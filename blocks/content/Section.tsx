@@ -100,11 +100,6 @@ export default function ContentNewSection({ data, block, iconTable = {} }: Props
       bg={d.bg}
     >
       <div className="co-outer">
-        {img ? (
-          <div className="co-img" data-part="image">
-            {slotImg(img, { before: { className: 'w-100 rounded-4 object-fit-cover' } })}
-          </div>
-        ) : null}
         <div className="co-frame" data-part="frame">
           <div className="co-inner">
             {showEyebrow || headline ? (
@@ -141,6 +136,11 @@ export default function ContentNewSection({ data, block, iconTable = {} }: Props
             </div>
           </div>
         </div>
+        {img ? (
+          <div className="co-img" data-part="image">
+            {slotImg(img, { before: { className: 'w-100 rounded-4 object-fit-cover' } })}
+          </div>
+        ) : null}
       </div>
     </BlockSection>
   );

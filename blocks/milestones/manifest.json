@@ -267,5 +267,9 @@
     "follow": [
       {"target": ".mi-ctas", "by": "justify"}
     ]
-  }
+  },
+  "mediaLayout": [
+    {"knob": "blockImage", "row": ".mi-outer", "text": ".mi-main", "media": ".mi-bimg"},
+    {"knob": "introImage", "row": ".mi-intro", "text": ".mi-intro-text", "media": ".mi-intro-img"}
+  ]
 }

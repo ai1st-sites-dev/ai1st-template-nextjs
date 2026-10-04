@@ -27,6 +27,7 @@
 
 import Link from 'next/link';
 import { slotImg } from '@/lib/sections/blockMedia';
+import { emptyListHidesBlock, sourcedOf } from '@/lib/sections/emptyList';
 import BlockSection from '@/components/BlockSection';
 import type { BlockConfig } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
@@ -86,6 +87,8 @@ export default function TeamNewSection({ data, block, iconTable = {} }: Props) {
   const eyebrowStyle: EyebrowStyle | 'none' = !eyebrow ? 'none' : !eyebrow.style ? 'pill' : isEyebrowStyle(eyebrow.style) ? eyebrow.style : 'none';
   const hasIntro = !!(str(d.headline) || str(d.body));
   const members = (Array.isArray(d.members) ? d.members : []).filter((m): m is TeamMember => isObj(m)).slice(0, MAX_MEMBERS);
+  // 写了条目却一条都不合格 ⟹ 整块不画；手写 0 条照画块头（#1536，判据在 src/lib/sections/emptyList.ts）。
+  if (emptyListHidesBlock(d.members, members.length, sourcedOf(d, 'members'))) return null;
   const join = isObj(d.join) && (str(d.join.title) || str(d.join.body)) ? d.join : null;
   const joinCta = join && isObj(join.cta) && str(join.cta.label) ? join.cta : null;
 

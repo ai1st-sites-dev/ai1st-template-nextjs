@@ -102,9 +102,8 @@
 
 /* ═══ 图（image）══════════════════════════════════════════════════════════════════════════════════ */
 
-/* left / right：≥992 两栏（图 45%，文字自适应，垂直居中），gap 4rem。
-   <992 上下叠：left 图在上、right 图在下，图与文字隔 2.5rem。
-   top / bottom：上下叠，图 21:9，同样隔 2.5rem。 */
+/* 图在哪一边、两栏多宽、上下叠隔多少：manifest 的 `mediaLayout` 生成（scripts/block-build/media-layout.js，#1536），
+   这里只剩图自己的比例 —— 并排 4:3，top / bottom 一整条 21:9。 */
 [data-block="content"] .co-outer {
   display: flex;
   flex-direction: column;
@@ -116,41 +115,9 @@
   display: block;
   aspect-ratio: 4 / 3;
 }
-[data-block="content"][data-image="left"] .co-img,
-[data-block="content"][data-image="top"] .co-img {
-  margin-bottom: 2.5rem;
-}
-[data-block="content"][data-image="right"] .co-outer,
-[data-block="content"][data-image="bottom"] .co-outer {
-  flex-direction: column-reverse;
-}
-[data-block="content"][data-image="right"] .co-img,
-[data-block="content"][data-image="bottom"] .co-img {
-  margin-top: 2.5rem;
-}
 [data-block="content"][data-image="top"] .co-img img,
 [data-block="content"][data-image="bottom"] .co-img img {
   aspect-ratio: 21 / 9;
-}
-@media (min-width: 992px) {
-  [data-block="content"][data-image="left"] .co-outer,
-  [data-block="content"][data-image="right"] .co-outer {
-    flex-direction: row;
-    align-items: center;
-    gap: 4rem;
-  }
-  [data-block="content"][data-image="right"] .co-outer {
-    flex-direction: row-reverse;
-  }
-  [data-block="content"][data-image="left"] .co-img,
-  [data-block="content"][data-image="right"] .co-img {
-    flex: 0 0 45%;
-    margin: 0;
-  }
-  [data-block="content"][data-image="left"] .co-frame,
-  [data-block="content"][data-image="right"] .co-frame {
-    flex: 1 1 0;
-  }
 }
 
 /* ═══ 卡（frame）══════════════════════════════════════════════════════════════════════════════════

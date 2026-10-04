@@ -38,6 +38,7 @@
 
 import type { ReactNode } from 'react';
 import { slotImg, ratingStars } from '@/lib/sections/blockMedia';
+import { emptyListHidesBlock, sourcedOf } from '@/lib/sections/emptyList';
 import BlockSection from '@/components/BlockSection';
 import type { BlockConfig } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
@@ -162,6 +163,8 @@ export default function TestimonialsNewSection({ data, block, iconTable = {} }: 
   const summaryCards = platforms.length > 0 && k.summaryStyle === 'cards';
   const hasIntro = !!(str(d.headline) || str(d.body));
   const items = (Array.isArray(d.items) ? d.items : []).filter((it): it is TestimonialsNewItem => isObj(it) && !!str(it.quote)).slice(0, MAX_ITEMS);
+  // 写了条目却一条都不合格 ⟹ 整块不画；手写 0 条照画块头（#1536，判据在 src/lib/sections/emptyList.ts）。
+  if (emptyListHidesBlock(d.items, items.length, sourcedOf(d, 'items'))) return null;
   // carousel：一张 slide 放 itemsColumns 条（服务端分好组；<768 时 block.css 让一张里的条目竖着叠）。
   const perSlide = Math.max(1, Number(k.itemsColumns) || 1);
   const slides = carousel ? Array.from({ length: Math.ceil(items.length / perSlide) }, (_, s) => items.slice(s * perSlide, (s + 1) * perSlide)) : [];

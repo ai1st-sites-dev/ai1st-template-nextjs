@@ -28,6 +28,7 @@
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg，footer / cta 同一对），
 //    纯色、brand、渐变都认；这里不自己算亮度、不自己拼渐变。
 import { slotImg } from '@/lib/sections/blockMedia';
+import { emptyListHidesBlock, sourcedOf } from '@/lib/sections/emptyList';
 
 import BlockSection from '@/components/BlockSection';
 import type { BlockConfig } from '@/lib/types/config';
@@ -103,10 +104,11 @@ export default function FeaturesNewSection({ data, block, iconTable = {} }: Prop
   const ctas = (Array.isArray(d.introCtas) ? d.introCtas : []).filter((b) => isObj(b) && str(b.label)).slice(0, MAX_CTAS);
   const introImg = k.introImage !== 'none' ? imgOf(d.introImage) : null;
   const itemsImg = k.itemsImage !== 'none' ? imgOf(d.itemsImage) : null;
-  const sourced = isObj(d._sourced) && typeof d._sourced.items === 'string' ? d._sourced.items : '';
+  const sourced = sourcedOf(d, 'items');
   const allItems = (Array.isArray(d.items) ? d.items : []).filter((it): it is FeaturesNewItem => isObj(it));
   const items = sourced ? allItems : allItems.slice(0, MAX_ITEMS);
-  if (sourced && !items.length) return null;
+  // 引用展开出 0 条 / 写了条目却一条都不合格 ⟹ 整块不画；手写 0 条照画块头（#1505 / #1536，判据在 emptyList.ts）。
+  if (emptyListHidesBlock(d.items, items.length, sourced)) return null;
   // 连线只连「步骤」：一项 number 都没有 ⟹ 不画（旋钮开着也不画 —— 没有编号的连线连的不是任何东西）。
   const connector = k.itemConnector === 'line' && items.some((it) => str(it.number));
   const cover = k.itemImage === 'background';
@@ -161,22 +163,17 @@ export default function FeaturesNewSection({ data, block, iconTable = {} }: Prop
       <div className="row fx-frame gy-10 gx-lg-16">
         <div className="col-12 fx-introcol" data-part="intro">
           <div className="fx-intro">
+            {introText}
             {introImg ? (
               <div className="fx-intro-img" data-part="intro-image">
                 {slotImg(introImg, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' } })}
               </div>
             ) : null}
-            {introText}
           </div>
         </div>
         <div className="col-12 fx-itemscol" data-part="items">
-          <div className="row fx-itemsrow gy-10 gx-lg-16">
-            {itemsImg ? (
-              <div className="col-12 fx-itemsimg" data-part="items-image">
-                {slotImg(itemsImg, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' } })}
-              </div>
-            ) : null}
-            <div className="col-12 fx-itemsgrid">
+          <div className="fx-itemsrow">
+            <div className="fx-itemsgrid">
               <div className="row fx-grid g-6">
                 {items.map((it, i) => {
                   const img = k.itemImage !== 'none' ? imgOf(it.image) : null;
@@ -217,6 +214,11 @@ export default function FeaturesNewSection({ data, block, iconTable = {} }: Prop
                 })}
               </div>
             </div>
+            {itemsImg ? (
+              <div className="fx-itemsimg" data-part="items-image">
+                {slotImg(itemsImg, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' } })}
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

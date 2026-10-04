@@ -78,9 +78,10 @@ const imgs = (v: unknown): HeroNewImage[] =>
   (Array.isArray(v) ? v : []).filter((x): x is HeroNewImage => isObj(x) && typeof (x as HeroNewImage).imageUrl === 'string' && !!(x as HeroNewImage).imageUrl);
 
 /**
- * 行的类，按 `image` 出（#1470）。DOM 顺序恒为「文字在前、图在后」，`left` / `top` 用 reverse 类把图换到前面 ——
- * 这两套类就是 #1463 那个 `reverse` 修饰的两套（桌面在左的，小屏就在上；上下叠时图换到上面），逐字沿用。
- * `right` / `bottom` 行上没有 reverse 类（小屏图在下）。
+ * 行的类，按 `image` 出（#1470）。DOM 顺序恒为「文字在前、图在后」。
+ * 🔴 #1536 —— 有图列（left / right / top / bottom 且给了图）时**不走 Bootstrap 栅格**：行只有 `hro-row`，图在哪一边、
+ *    两栏多宽、上下叠隔多少，全由 manifest 的 `mediaLayout` 生成（`scripts/block-build/media-layout.js`，6 个块共用一份）。
+ *    几何跟原来的 `col-lg-6` + `gx-lg-16` 一个像素不差（1440 下图 612 / 文字 612，那是 Chris 拍板的 (A)）。
  * 没有图列（`hasSide` 为假：none / background / 没给图）时，文字列的位置跟 `textAlign` 走：
  * center 整块居中、right 整块靠右 —— 对齐类写在行上，文字列只有 2/3（或铺底时 1/2）宽。
  * 🔴 间距是 `gx-8 gy-10 gx-lg-16`，不是定稿抄来的 `g-10 gx-lg-16`：`.row` 的左右负外边距 = 横向间距的一半，
@@ -88,13 +89,9 @@ const imgs = (v: unknown): HeroNewImage[] =>
  *    scrollWidth 394）。横向收到 `gx-8`（16px）刚好贴住内距；竖向与 ≥992 的横向照定稿不变。
  *    也不写成 `g-10 gx-8`：Bootstrap 按尺寸逐档生成 g/gx/gy，`.g-10` 排在 `.gx-8` 后面，会把它压回去。
  */
-function rowClass(image: string, textAlign: string, hasSide: boolean): string {
+function rowClass(textAlign: string, hasSide: boolean): string {
+  if (hasSide) return 'hro-row';
   const base = 'row align-items-center gx-8 gy-10 gx-lg-16';
-  if (hasSide) {
-    if (image === 'left') return `${base} flex-column-reverse flex-lg-row-reverse`;
-    if (image === 'top') return `${base} flex-column-reverse`;
-    return base;
-  }
   if (textAlign === 'center') return `${base} justify-content-center`;
   if (textAlign === 'right') return `${base} justify-content-end`;
   return base;
@@ -131,7 +128,8 @@ export default function HeroNewSection({ data, locale = 'en', block }: Props) {
 
   // 文字列多宽：上下叠（top / bottom）占满（center 时 block.css 在 ≥992 收到 80%）；并排（left / right）时一半 —— 只有 `image=none`（旁边、底下都没有图）
   // 才是 2/3（定稿原话）。图铺底时也是一半：图在整块后面，文字列不因此变宽。
-  const textCol = stacked ? 'col-12 hro-textcol' : (side || cover) ? 'col-12 col-lg-6 hro-textcol' : 'col-12 col-lg-8 hro-textcol';
+  // 有图列时文字列、图列都不带 Bootstrap 栅格类（两栏 / 上下叠由 mediaLayout 生成，见 §rowClass）。
+  const textCol = side ? 'hro-textcol' : stacked ? 'col-12 hro-textcol' : cover ? 'col-12 col-lg-6 hro-textcol' : 'col-12 col-lg-8 hro-textcol';
   const just = center ? ' justify-content-center' : right ? ' justify-content-end' : '';
 
   return (
@@ -156,7 +154,7 @@ export default function HeroNewSection({ data, locale = 'en', block }: Props) {
         />
       ) : null}
     >
-      <div className={rowClass(k.image, k.textAlign, side)}>
+      <div className={rowClass(k.textAlign, side)}>
         <div className={textCol}>
           <div data-part="text">
             {eyebrow && eyebrowStyle !== 'none' ? (
@@ -234,7 +232,7 @@ export default function HeroNewSection({ data, locale = 'en', block }: Props) {
           ) : null}
         </div>
         {side && img ? (
-          <div className={stacked ? 'col-12 hro-side' : 'col-12 col-lg-6 hro-side'}>
+          <div className="hro-side">
             {slotImg(img, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover hro-img' } })}
           </div>
         ) : null}

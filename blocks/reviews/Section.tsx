@@ -23,6 +23,7 @@
 //
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg），这里不自己算亮度、不自己拼渐变。
 import { ratingStars } from '@/lib/sections/blockMedia';
+import { emptyListHidesBlock, sourcedOf } from '@/lib/sections/emptyList';
 
 import BlockSection from '@/components/BlockSection';
 import type { BlockConfig } from '@/lib/types/config';
@@ -90,6 +91,8 @@ export default function ReviewsNewSection({ data, block, iconTable = {} }: Props
   // 没写 style ⟹ pill（同 hero / features：AI 只写了字，眉标照样出来）；明写 none ⟹ 不画。
   const eyebrowStyle: EyebrowStyle | 'none' = !eyebrow ? 'none' : !eyebrow.style ? 'pill' : isEyebrowStyle(eyebrow.style) ? eyebrow.style : 'none';
   const platforms = (Array.isArray(d.platforms) ? d.platforms : []).map((v, i) => platformOf(v, i)).filter((p): p is Platform => !!p).slice(0, MAX_ITEMS);
+  // 写了条目却一条都不合格 ⟹ 整块不画；手写 0 条照画块头（#1536，判据在 src/lib/sections/emptyList.ts）。
+  if (emptyListHidesBlock(d.platforms, platforms.length, sourcedOf(d, 'platforms'))) return null;
 
   // 总分：按条数加权，一位小数。
   const totalCount = platforms.reduce((s, p) => s + p.count, 0);

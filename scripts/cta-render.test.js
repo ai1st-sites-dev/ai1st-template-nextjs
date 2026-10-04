@@ -177,10 +177,13 @@ console.log('\n── AC4 image');
     'site-css §DEEP_COMMON：深底时 outline 按钮反白描边');
   for (const side of ['left', 'right']) {
     const h = render('boxed', withOpts({ image: side }));
-    check(count(h, 'data-part="image"') === 1 && h.indexOf('data-part="image"') < h.indexOf('class="cta-main"'),
-      `image=${side} ⟹ 一张图、DOM 里在文字之前（<992 一列时图在上；≥992 right 由 row-reverse 换边）`);
+    check(count(h, 'data-part="image"') === 1 && h.indexOf('data-part="image"') > h.indexOf('class="cta-main"'),
+      `image=${side} ⟹ 一张图、DOM 里在文字之后（#1536：图在哪一边由 mediaLayout 生成的方向规则摆）`);
   }
-  check(/\[data-image="right"\] \.cta-row \{\s*flex-direction: row-reverse;/.test(CSS), 'block.css：≥992 image=right 行反向');
+  // #1536 —— 图的位置不再写在 block.css，由 manifest 的 mediaLayout 生成（scripts/block-build/media-layout.js）。
+  const MEDIA = require(path.join(NEXT, 'scripts', 'block-build', 'media-layout.js')).mediaLayoutCss(M, 'cta');
+  check(/\[data-image="left"\] \.cta-row \{\s*flex-direction: row-reverse;/.test(MEDIA) && !/\[data-image="right"\] \.cta-row \{\s*flex-direction: row-reverse;/.test(MEDIA),
+    'mediaLayout：≥992 image=left 行反向（DOM 里图在后，要摆到左边）、right 不反向');
   const none = render('boxed', withOpts({ image: 'none' }));
   check(!/<img\b/.test(none) && !none.includes('data-part="bg"'), 'image=none ⟹ DOM 里没有图');
 }

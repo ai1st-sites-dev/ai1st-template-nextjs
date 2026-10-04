@@ -23,6 +23,7 @@
 //
 // 🔴 **底色与字色走 `scripts/lib/contrast.js` 那两个共用函数**（§bgCss / §toneForBg），纯色、brand、渐变都认。
 import { slotImg } from '@/lib/sections/blockMedia';
+import { emptyListHidesBlock, sourcedOf } from '@/lib/sections/emptyList';
 
 import BlockSection from '@/components/BlockSection';
 import type { BlockConfig } from '@/lib/types/config';
@@ -75,6 +76,8 @@ export default function GalleryNewSection({ data, block }: Props) {
   const items = (Array.isArray(d.items) ? d.items : [])
     .filter((it): it is GalleryItem => isObj(it) && isObj(it.image) && !!str(it.image.imageUrl))
     .slice(0, MAX_ITEMS);
+  // 写了条目却一条都不合格 ⟹ 整块不画；手写 0 条照画块头（#1536，判据在 src/lib/sections/emptyList.ts）。
+  if (emptyListHidesBlock(d.items, items.length, sourcedOf(d, 'items'))) return null;
   const id = safeId(block && block.id);
   const lbId = `${id}-lb`;
   const carId = `${id}-car`;

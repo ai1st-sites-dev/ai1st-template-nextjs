@@ -107,5 +107,8 @@
     ["layout", "frame", "textAlign", "image", "form"],
     ["choice:eyebrow.style", "count:ctas"],
     ["color:bg"]
+  ],
+  "mediaLayout": [
+    {"knob": "image", "row": ".cta-row", "text": ".cta-main", "media": ".cta-img"}
   ]
 }

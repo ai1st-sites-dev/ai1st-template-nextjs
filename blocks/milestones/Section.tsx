@@ -23,6 +23,7 @@
 //    纯色、brand、渐变都认；这里不自己算亮度、不自己拼渐变。`blockImage=background` 且真有图时字色按深底
 //    （图上盖 60% 深色遮罩，遮罩写在 `block.css`）。
 import { slotImg } from '@/lib/sections/blockMedia';
+import { emptyListHidesBlock, sourcedOf } from '@/lib/sections/emptyList';
 
 import BlockSection from '@/components/BlockSection';
 import type { BlockConfig } from '@/lib/types/config';
@@ -93,6 +94,8 @@ export default function MilestonesSection({ data, block, iconTable = {} }: Props
   const introImg = k.introImage !== 'none' ? imgOf(d.introImage) : null;
   const hasIntro = !!(str(d.headline) || str(d.body));
   const stats = (Array.isArray(d.stats) ? d.stats : []).filter((s): s is MilestonesStat => isObj(s)).slice(0, MAX_STATS);
+  // 写了条目却一条都不合格 ⟹ 整块不画；手写 0 条照画块头（#1536，判据在 src/lib/sections/emptyList.ts）。
+  if (emptyListHidesBlock(d.stats, stats.length, sourcedOf(d, 'stats'))) return null;
 
   const introText = (
     <div className="mi-intro-text" data-part="intro-text">
@@ -141,22 +144,17 @@ export default function MilestonesSection({ data, block, iconTable = {} }: Props
       ) : null}
     >
       <div className="mi-outer">
-        {blockImg && !cover ? (
-          <div className="mi-bimg" data-part="block-image">
-            {slotImg(blockImg, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' } })}
-          </div>
-        ) : null}
         <div className="mi-main">
           <div className="row mi-frame gy-10 gx-lg-16">
             {hasIntro ? (
               <div className="col-12 mi-introcol" data-part="intro">
                 <div className="mi-intro">
+                  {introText}
                   {introImg ? (
                     <div className="mi-intro-img" data-part="intro-image">
                       {slotImg(introImg, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' } })}
                     </div>
                   ) : null}
-                  {introText}
                 </div>
               </div>
             ) : null}
@@ -179,6 +177,11 @@ export default function MilestonesSection({ data, block, iconTable = {} }: Props
             </div>
           </div>
         </div>
+        {blockImg && !cover ? (
+          <div className="mi-bimg" data-part="block-image">
+            {slotImg(blockImg, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' } })}
+          </div>
+        ) : null}
       </div>
     </BlockSection>
   );

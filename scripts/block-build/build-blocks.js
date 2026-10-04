@@ -36,6 +36,7 @@ const HERE = __dirname;
 
 const { parseFrontmatter, formatFrontmatter } = require('./frontmatter.js');
 const { itemsGridCss } = require('./items-grid.js');
+const { mediaLayoutCss } = require('./media-layout.js');
 const { introLayoutCss } = require('./intro-layout.js');
 
 function readBlock(type) {
@@ -83,6 +84,10 @@ function buildShapesCss(blocks) {
     //    block.css 里的列距 / 行距和各种布局条件写在它后面，照旧能盖它（items-grid.js 文件头）。
     const gridCss = itemsGridCss(b.manifest, b.type);
     if (gridCss) chunks.push(gridCss);
+    // #1536 —— 图的位置（块级 / 块头那张图）由 manifest 的 `mediaLayout` 生成，放在这个块的段首：
+    //    block.css 里块自己的部件跟着别的旋钮换样子的那几条写在它后面，照旧能盖它（media-layout.js 文件头）。
+    const mediaCss = mediaLayoutCss(b.manifest, b.type);
+    if (mediaCss) chunks.push(mediaCss);
     // #1535 —— 块头排版（introAlign / introPosition）由 manifest 的 `introLayout` 生成，排在条目网格之后、block.css 之前
     //    （两段生成物不碰同一个元素的同一个属性，谁先谁后不影响结果）。block.css 里块自己的部件跟着块头换布局的那几条写在它后面，照旧能盖它（intro-layout.js 文件头）。
     const introCss = introLayoutCss(b.manifest, b.type);
@@ -200,6 +205,9 @@ function main() {
       const p = path.join(sh.dir, 'shape.css');
       if (fs.existsSync(p)) assertPieceOwnsItsRules(p, read(p), { block: b.type, shape: sh.name });
     }
+    // #1536 —— 生成出来的图位规则也要过同一道归属检查（每条以本块开头）。
+    const media = mediaLayoutCss(b.manifest, b.type);
+    if (media) assertPieceOwnsItsRules(`blocks/${b.type}/manifest.json → mediaLayout`, media, { block: b.type });
   }
   const shapesCss = buildShapesCss(blocks);
   const baseCss = buildBaseCss(blocks);

@@ -738,6 +738,49 @@
 }
 
 /* ══ content ══════════════════════════════════════════════════════════════════════ */
+/* 图的位置（image）—— 由 scripts/block-build/media-layout.js 生成，别在 block.css 里写 */
+[data-block="content"][data-image="left"] .co-outer,
+[data-block="content"][data-image="right"] .co-outer,
+[data-block="content"][data-image="top"] .co-outer,
+[data-block="content"][data-image="bottom"] .co-outer {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+[data-block="content"][data-image="left"] .co-outer,
+[data-block="content"][data-image="top"] .co-outer {
+  flex-direction: column-reverse;
+}
+[data-block="content"][data-image="left"] .co-frame,
+[data-block="content"][data-image="right"] .co-frame,
+[data-block="content"][data-image="top"] .co-frame,
+[data-block="content"][data-image="bottom"] .co-frame,
+[data-block="content"][data-image="left"] .co-img,
+[data-block="content"][data-image="right"] .co-img,
+[data-block="content"][data-image="top"] .co-img,
+[data-block="content"][data-image="bottom"] .co-img {
+  min-width: 0;
+}
+@media (min-width: 992px) {
+  [data-block="content"][data-image="left"] .co-outer,
+  [data-block="content"][data-image="right"] .co-outer {
+    flex-direction: row;
+    align-items: center;
+    gap: 4rem;
+  }
+  [data-block="content"][data-image="left"] .co-outer {
+    flex-direction: row-reverse;
+  }
+  [data-block="content"][data-image="left"] .co-img,
+  [data-block="content"][data-image="right"] .co-img {
+    flex: 0 0 calc((100% - 4rem) * 0.5);
+  }
+  [data-block="content"][data-image="left"] .co-frame,
+  [data-block="content"][data-image="right"] .co-frame {
+    flex: 1 1 0;
+  }
+}
+
 /* ── content · 跨形态的规则（#1498）──────────────────────────────────────────────────────────
    content 的排版由**实际生效的旋钮**决定，写在根元素上：
      data-headline-position（top / left）· data-text-align（left / center）· data-text-style（article / statement）·
@@ -842,9 +885,8 @@
 
 /* ═══ 图（image）══════════════════════════════════════════════════════════════════════════════════ */
 
-/* left / right：≥992 两栏（图 45%，文字自适应，垂直居中），gap 4rem。
-   <992 上下叠：left 图在上、right 图在下，图与文字隔 2.5rem。
-   top / bottom：上下叠，图 21:9，同样隔 2.5rem。 */
+/* 图在哪一边、两栏多宽、上下叠隔多少：manifest 的 `mediaLayout` 生成（scripts/block-build/media-layout.js，#1536），
+   这里只剩图自己的比例 —— 并排 4:3，top / bottom 一整条 21:9。 */
 [data-block="content"] .co-outer {
   display: flex;
   flex-direction: column;
@@ -856,41 +898,9 @@
   display: block;
   aspect-ratio: 4 / 3;
 }
-[data-block="content"][data-image="left"] .co-img,
-[data-block="content"][data-image="top"] .co-img {
-  margin-bottom: 2.5rem;
-}
-[data-block="content"][data-image="right"] .co-outer,
-[data-block="content"][data-image="bottom"] .co-outer {
-  flex-direction: column-reverse;
-}
-[data-block="content"][data-image="right"] .co-img,
-[data-block="content"][data-image="bottom"] .co-img {
-  margin-top: 2.5rem;
-}
 [data-block="content"][data-image="top"] .co-img img,
 [data-block="content"][data-image="bottom"] .co-img img {
   aspect-ratio: 21 / 9;
-}
-@media (min-width: 992px) {
-  [data-block="content"][data-image="left"] .co-outer,
-  [data-block="content"][data-image="right"] .co-outer {
-    flex-direction: row;
-    align-items: center;
-    gap: 4rem;
-  }
-  [data-block="content"][data-image="right"] .co-outer {
-    flex-direction: row-reverse;
-  }
-  [data-block="content"][data-image="left"] .co-img,
-  [data-block="content"][data-image="right"] .co-img {
-    flex: 0 0 45%;
-    margin: 0;
-  }
-  [data-block="content"][data-image="left"] .co-frame,
-  [data-block="content"][data-image="right"] .co-frame {
-    flex: 1 1 0;
-  }
 }
 
 /* ═══ 卡（frame）══════════════════════════════════════════════════════════════════════════════════
@@ -980,6 +990,42 @@
 }
 
 /* ══ cta ══════════════════════════════════════════════════════════════════════ */
+/* 图的位置（image）—— 由 scripts/block-build/media-layout.js 生成，别在 block.css 里写 */
+[data-block="cta"][data-image="left"] .cta-row,
+[data-block="cta"][data-image="right"] .cta-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+[data-block="cta"][data-image="left"] .cta-row {
+  flex-direction: column-reverse;
+}
+[data-block="cta"][data-image="left"] .cta-main,
+[data-block="cta"][data-image="right"] .cta-main,
+[data-block="cta"][data-image="left"] .cta-img,
+[data-block="cta"][data-image="right"] .cta-img {
+  min-width: 0;
+}
+@media (min-width: 992px) {
+  [data-block="cta"][data-image="left"] .cta-row,
+  [data-block="cta"][data-image="right"] .cta-row {
+    flex-direction: row;
+    align-items: center;
+    gap: 4rem;
+  }
+  [data-block="cta"][data-image="left"] .cta-row {
+    flex-direction: row-reverse;
+  }
+  [data-block="cta"][data-image="left"] .cta-img,
+  [data-block="cta"][data-image="right"] .cta-img {
+    flex: 0 0 calc((100% - 4rem) * 0.5);
+  }
+  [data-block="cta"][data-image="left"] .cta-main,
+  [data-block="cta"][data-image="right"] .cta-main {
+    flex: 1 1 0;
+  }
+}
+
 /* ── cta · 跨形态的规则（#1479）────────────────────────────────────────────────────────────
    cta 的排版由**实际生效的旋钮**决定，写在根元素上：data-layout（centered / inline）· data-frame
    （none / boxed）· data-text-align（center / left / right）· data-image（none / left / right / background）·
@@ -997,35 +1043,14 @@
   background: var(--scheme-surface-muted);
 }
 
-/* ── 图 + 主体：一列（<992 图在上 —— left / right 都是）；≥992 left / right 两列、图 42%。 */
+/* ── 图 + 主体：图在哪一边、两栏多宽、上下叠隔多少由 manifest 的 `mediaLayout` 生成（scripts/block-build/media-layout.js，#1536）。
+   没有图（none / background）时这一行只有主体一个孩子。 */
 [data-block="cta"] .cta-row {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
 }
 [data-block="cta"] .cta-img img {
   aspect-ratio: 4 / 3;
-}
-@media (min-width: 992px) {
-  [data-block="cta"][data-image="left"] .cta-row,
-  [data-block="cta"][data-image="right"] .cta-row {
-    flex-direction: row;
-    align-items: center;
-    gap: 4rem;
-  }
-  [data-block="cta"][data-image="right"] .cta-row {
-    flex-direction: row-reverse;
-  }
-  [data-block="cta"][data-image="left"] .cta-img,
-  [data-block="cta"][data-image="right"] .cta-img {
-    flex: 0 0 42%;
-    min-width: 0;
-  }
-  [data-block="cta"][data-image="left"] .cta-main,
-  [data-block="cta"][data-image="right"] .cta-main {
-    flex: 1 1 0;
-    min-width: 0;
-  }
 }
 
 /* ── 文字块与动作区：centered = 上下（gap 2rem）；inline = ≥992 左右一行（gap 4rem），<992 上下叠。 */
@@ -1568,6 +1593,83 @@
   }
 }
 
+/* 图的位置（introImage / itemsImage）—— 由 scripts/block-build/media-layout.js 生成，别在 block.css 里写 */
+[data-block="features"][data-intro-image="left"] .fx-intro,
+[data-block="features"][data-intro-image="right"] .fx-intro,
+[data-block="features"][data-intro-image="top"] .fx-intro,
+[data-block="features"][data-intro-image="bottom"] .fx-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+[data-block="features"][data-intro-image="left"] .fx-intro,
+[data-block="features"][data-intro-image="top"] .fx-intro {
+  flex-direction: column-reverse;
+}
+[data-block="features"][data-intro-image="left"] .fx-intro-text,
+[data-block="features"][data-intro-image="right"] .fx-intro-text,
+[data-block="features"][data-intro-image="top"] .fx-intro-text,
+[data-block="features"][data-intro-image="bottom"] .fx-intro-text,
+[data-block="features"][data-intro-image="left"] .fx-intro-img,
+[data-block="features"][data-intro-image="right"] .fx-intro-img,
+[data-block="features"][data-intro-image="top"] .fx-intro-img,
+[data-block="features"][data-intro-image="bottom"] .fx-intro-img {
+  min-width: 0;
+}
+@media (min-width: 992px) {
+  [data-block="features"][data-intro-image="left"] .fx-intro,
+  [data-block="features"][data-intro-image="right"] .fx-intro {
+    flex-direction: row;
+    align-items: center;
+    gap: 4rem;
+  }
+  [data-block="features"][data-intro-image="left"] .fx-intro {
+    flex-direction: row-reverse;
+  }
+  [data-block="features"][data-intro-image="left"] .fx-intro-img,
+  [data-block="features"][data-intro-image="right"] .fx-intro-img {
+    flex: 0 0 calc((100% - 4rem) * 0.5);
+  }
+  [data-block="features"][data-intro-image="left"] .fx-intro-text,
+  [data-block="features"][data-intro-image="right"] .fx-intro-text {
+    flex: 1 1 0;
+  }
+}
+[data-block="features"][data-items-image="left"] .fx-itemsrow,
+[data-block="features"][data-items-image="right"] .fx-itemsrow {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+[data-block="features"][data-items-image="left"] .fx-itemsrow {
+  flex-direction: column-reverse;
+}
+[data-block="features"][data-items-image="left"] .fx-itemsgrid,
+[data-block="features"][data-items-image="right"] .fx-itemsgrid,
+[data-block="features"][data-items-image="left"] .fx-itemsimg,
+[data-block="features"][data-items-image="right"] .fx-itemsimg {
+  min-width: 0;
+}
+@media (min-width: 992px) {
+  [data-block="features"][data-items-image="left"] .fx-itemsrow,
+  [data-block="features"][data-items-image="right"] .fx-itemsrow {
+    flex-direction: row;
+    align-items: center;
+    gap: 4rem;
+  }
+  [data-block="features"][data-items-image="left"] .fx-itemsrow {
+    flex-direction: row-reverse;
+  }
+  [data-block="features"][data-items-image="left"] .fx-itemsimg,
+  [data-block="features"][data-items-image="right"] .fx-itemsimg {
+    flex: 0 0 calc((100% - 4rem) * 0.5);
+  }
+  [data-block="features"][data-items-image="left"] .fx-itemsgrid,
+  [data-block="features"][data-items-image="right"] .fx-itemsgrid {
+    flex: 1 1 0;
+  }
+}
+
 /* 块头排版（introAlign / introPosition）—— 由 scripts/block-build/intro-layout.js 生成，别在 block.css 里写 */
 [data-block="features"][data-intro-align="center"] .fx-intro-text {
   text-align: center;
@@ -1635,8 +1737,9 @@
       **也带 !important**，而且选择器从 [data-block="features"] 起步再加属性 / 类 —— 特异度一定高过工具类的一个类。
    🔴 部件的有无靠渲染（Section.tsx 有数据才画），不靠 CSS 藏。这里唯一「藏」的是连线在一行最后一项上的那一截
       （它按构造没有下一项可连）。
-   🔴 图与下方内容上下叠时的 2.5rem 用 margin 给，不用 gap：Bootstrap 的 g-* 只对 .row 起作用，
-      .fx-intro / .fx-inner 是普通 flex，写 g-* 等于没写（图册里那几处上下叠时就是贴在一起的）。
+   🔴 条目里图与内容上下叠时的 2.5rem 用 margin 给，不用 g-*：Bootstrap 的 g-* 只对 .row 起作用，
+      .fx-inner 是普通 flex，写 g-* 等于没写（图册里那几处上下叠时就是贴在一起的）。块头图 / items 旁那张图
+      的间距不归这里，由 manifest 的 `mediaLayout` 生成（#1536）。
    间距照 Webpixels 尺度：段 py-16 py-lg-24、块头与 items 之间 2.5rem（gy-10）/ ≥992 横向 4rem（gx-lg-16）、items g-6、
    card 内 2rem（= p-8）。🔴 纵向写 gy-10、不写 g-10：g-10 连横向也设成 2.5rem，.row 的负边距 −1.25rem 比容器内边距 1rem 大，
    手机上每边溢出 4px（390 宽读到 scrollWidth 394，#1475 e2e 阳性对照那一格量出来的；图册 g-10 同款）。 */
@@ -1663,21 +1766,12 @@
    （scripts/block-build/intro-layout.js，#1535），这里不写。
    按钮行跟着 introAlign 走（introLayout.follow）。 */
 
-/* introImage：DOM 里图在文字前面。上下叠（top · left / right 在 <992）⟹ 图在上、下边距 2.5rem；
-   bottom ⟹ 列反向、图在下。top / bottom 的图限 64rem 居中（同图册）。 */
+/* introImage / itemsImage：图在哪一边、两栏多宽、上下叠隔多少由 manifest 的 `mediaLayout` 生成
+   （scripts/block-build/media-layout.js，#1536）。这里只剩图自己的样子：4:3；块头图 top / bottom 时限 64rem 居中（同图册）；
+   并排时块头的字不吃 introAlign 的 80% 限宽（那一栏本来就只有一半宽）。 */
 [data-block="features"] .fx-intro-img img,
 [data-block="features"] .fx-itemsimg img {
   aspect-ratio: 4 / 3;
-}
-[data-block="features"] .fx-intro-img {
-  margin-bottom: 2.5rem;
-}
-[data-block="features"][data-intro-image="bottom"] .fx-intro {
-  flex-direction: column-reverse;
-}
-[data-block="features"][data-intro-image="bottom"] .fx-intro-img {
-  margin-bottom: 0;
-  margin-top: 2.5rem;
 }
 [data-block="features"][data-intro-image="top"] .fx-intro-img,
 [data-block="features"][data-intro-image="bottom"] .fx-intro-img {
@@ -1687,30 +1781,8 @@
   margin-inline-end: auto;
 }
 @media (min-width: 992px) {
-  [data-block="features"][data-intro-image="left"] .fx-intro,
-  [data-block="features"][data-intro-image="right"] .fx-intro {
-    flex-direction: row;
-    align-items: center;
-  }
-  [data-block="features"][data-intro-image="right"] .fx-intro {
-    flex-direction: row-reverse;
-  }
-  [data-block="features"][data-intro-image="left"] .fx-intro-img,
-  [data-block="features"][data-intro-image="right"] .fx-intro-img {
-    flex: 0 0 50%;
-    min-width: 0;
-    margin-bottom: 0;
-  }
-  [data-block="features"][data-intro-image="left"] .fx-intro-img {
-    margin-inline-end: 4rem;
-  }
-  [data-block="features"][data-intro-image="right"] .fx-intro-img {
-    margin-inline-start: 4rem;
-  }
   [data-block="features"][data-intro-image="left"] .fx-intro-text,
   [data-block="features"][data-intro-image="right"] .fx-intro-text {
-    flex: 1 1 0;
-    min-width: 0;
     max-width: none;
   }
 }
@@ -1719,41 +1791,18 @@
 @media (min-width: 992px) {
   [data-block="features"][data-intro-position="left"] .fx-intro,
   [data-block="features"][data-intro-position="right"] .fx-intro {
-    flex-direction: column !important;
+    flex-direction: column-reverse !important;
     align-items: stretch;
+    gap: 2.5rem;
   }
   [data-block="features"][data-intro-position="left"] .fx-intro-img,
   [data-block="features"][data-intro-position="right"] .fx-intro-img {
     flex: none;
-    margin-block: 0 2.5rem;
     margin-inline: 0;
   }
 }
 
 /* ═══ items（整组）═══════════════════════════════════════════════════════════════════════════════ */
-
-/* itemsImage：items 旁那张图。<992 图在上（.row g-10 的上边距 = 2.5rem）；≥992 left / right 并排、图 45%。 */
-@media (min-width: 992px) {
-  [data-block="features"][data-items-image="left"] .fx-itemsrow,
-  [data-block="features"][data-items-image="right"] .fx-itemsrow {
-    flex-wrap: nowrap;
-    align-items: center;
-  }
-  [data-block="features"][data-items-image="right"] .fx-itemsrow {
-    flex-direction: row-reverse;
-  }
-  [data-block="features"][data-items-image="left"] .fx-itemsimg,
-  [data-block="features"][data-items-image="right"] .fx-itemsimg {
-    flex: 0 0 auto;
-    width: 45%;
-  }
-  [data-block="features"][data-items-image="left"] .fx-itemsgrid,
-  [data-block="features"][data-items-image="right"] .fx-itemsgrid {
-    flex: 1 1 0;
-    width: auto;
-    min-width: 0;
-  }
-}
 
 /* grid：列数与断点（手机 1 列、iPad 2 列、≥992 按 itemsColumns）归 manifest 的 itemsGrid，由 scripts/block-build/items-grid.js
    生成（#1537；画法照旧：.fx-grid 是 Bootstrap 的 `.row g-6`，条目按百分比宽，列距由 row 自己的内边距给）。
@@ -2536,6 +2585,49 @@
 }
 
 /* ══ hero ══════════════════════════════════════════════════════════════════════ */
+/* 图的位置（image）—— 由 scripts/block-build/media-layout.js 生成，别在 block.css 里写 */
+[data-block="hero"][data-image="left"] .hro-row,
+[data-block="hero"][data-image="right"] .hro-row,
+[data-block="hero"][data-image="top"] .hro-row,
+[data-block="hero"][data-image="bottom"] .hro-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+[data-block="hero"][data-image="left"] .hro-row,
+[data-block="hero"][data-image="top"] .hro-row {
+  flex-direction: column-reverse;
+}
+[data-block="hero"][data-image="left"] .hro-textcol,
+[data-block="hero"][data-image="right"] .hro-textcol,
+[data-block="hero"][data-image="top"] .hro-textcol,
+[data-block="hero"][data-image="bottom"] .hro-textcol,
+[data-block="hero"][data-image="left"] .hro-side,
+[data-block="hero"][data-image="right"] .hro-side,
+[data-block="hero"][data-image="top"] .hro-side,
+[data-block="hero"][data-image="bottom"] .hro-side {
+  min-width: 0;
+}
+@media (min-width: 992px) {
+  [data-block="hero"][data-image="left"] .hro-row,
+  [data-block="hero"][data-image="right"] .hro-row {
+    flex-direction: row;
+    align-items: center;
+    gap: 4rem;
+  }
+  [data-block="hero"][data-image="left"] .hro-row {
+    flex-direction: row-reverse;
+  }
+  [data-block="hero"][data-image="left"] .hro-side,
+  [data-block="hero"][data-image="right"] .hro-side {
+    flex: 0 0 calc((100% - 4rem) * 0.5);
+  }
+  [data-block="hero"][data-image="left"] .hro-textcol,
+  [data-block="hero"][data-image="right"] .hro-textcol {
+    flex: 1 1 0;
+  }
+}
+
 /* ── hero · 跨形态的规则（#1463）────────────────────────────────────────────────────────────
    hero 的排版由**实际生效的旋钮**决定，写在根元素上：data-text-align（left / center / right）· data-image
    （none / left / right / top / bottom / background）· data-form · data-tone（light / dark / brand）。
@@ -2563,9 +2655,14 @@
   aspect-ratio: 21 / 9;
   max-height: 460px;
 }
+/* 🔴 1100 − 4rem，不是 1100：#1536 之前图列是 Bootstrap 的 col-12，≥992 时两边各 2rem 内距，1100 量在带内距的盒子上
+      ⟹ 图本身最宽 1036。现在图列没有内距（两栏 / 上下叠由 mediaLayout 生成），照抄 1100 图会宽出 64px。
+   🔴 width: 100% 不能省（#1536 r2，QA2 实测）：col-12 自带它；现在图列是纵向 flex 列里的子项，两边 margin: auto 会让它
+      不再横向拉伸、缩成图片原始宽度 —— 原图比 1036 窄时（用户上传的图常常是），图就不再拉满（640 宽的图 1440 下只剩 640）。 */
 [data-block="hero"][data-image="top"] .hro-side,
 [data-block="hero"][data-image="bottom"] .hro-side {
-  max-width: 1100px;
+  width: 100%;
+  max-width: calc(1100px - 4rem);
   margin-inline-start: auto;
   margin-inline-end: auto;
 }
@@ -2590,6 +2687,14 @@
     width: 100%;
     max-width: 80%;
     margin-inline: auto;
+  }
+  /* 🔴 有图时是 80% − 0.8rem（#1536）：那时文字列原来是 Bootstrap 的 col-12，两边各 2rem 内距、行两边各 −2rem 外距，
+        80% 量在带内距的盒子上 ⟹ 字宽 = 80% ×（内容宽 + 4rem）− 4rem = 80% − 0.8rem。现在有图时文字列没有内距
+        （上下叠由 mediaLayout 生成，行是 .hro-row），照抄 80% 字会宽出 12.8px、折行变了（1440 下 hero centered 高 3px）。
+        没图时（top / bottom 但没给图）文字列仍是 col-12，上面那条 80% 照旧对。 */
+  [data-block="hero"][data-text-align="center"][data-image="top"] .hro-row > .hro-textcol,
+  [data-block="hero"][data-text-align="center"][data-image="bottom"] .hro-row > .hro-textcol {
+    max-width: calc(80% - 0.8rem);
   }
 }
 /* 限了宽的表单跟着文字对齐走：center 居中、right 贴右。 */
@@ -3004,6 +3109,76 @@
   }
 }
 
+/* 图的位置（blockImage / introImage）—— 由 scripts/block-build/media-layout.js 生成，别在 block.css 里写 */
+[data-block="milestones"][data-block-image="left"] .mi-outer,
+[data-block="milestones"][data-block-image="right"] .mi-outer {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+[data-block="milestones"][data-block-image="left"] .mi-outer {
+  flex-direction: column-reverse;
+}
+[data-block="milestones"][data-block-image="left"] .mi-main,
+[data-block="milestones"][data-block-image="right"] .mi-main,
+[data-block="milestones"][data-block-image="left"] .mi-bimg,
+[data-block="milestones"][data-block-image="right"] .mi-bimg {
+  min-width: 0;
+}
+@media (min-width: 992px) {
+  [data-block="milestones"][data-block-image="left"] .mi-outer,
+  [data-block="milestones"][data-block-image="right"] .mi-outer {
+    flex-direction: row;
+    align-items: center;
+    gap: 4rem;
+  }
+  [data-block="milestones"][data-block-image="left"] .mi-outer {
+    flex-direction: row-reverse;
+  }
+  [data-block="milestones"][data-block-image="left"] .mi-bimg,
+  [data-block="milestones"][data-block-image="right"] .mi-bimg {
+    flex: 0 0 calc((100% - 4rem) * 0.5);
+  }
+  [data-block="milestones"][data-block-image="left"] .mi-main,
+  [data-block="milestones"][data-block-image="right"] .mi-main {
+    flex: 1 1 0;
+  }
+}
+[data-block="milestones"][data-intro-image="left"] .mi-intro,
+[data-block="milestones"][data-intro-image="right"] .mi-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+[data-block="milestones"][data-intro-image="left"] .mi-intro {
+  flex-direction: column-reverse;
+}
+[data-block="milestones"][data-intro-image="left"] .mi-intro-text,
+[data-block="milestones"][data-intro-image="right"] .mi-intro-text,
+[data-block="milestones"][data-intro-image="left"] .mi-intro-img,
+[data-block="milestones"][data-intro-image="right"] .mi-intro-img {
+  min-width: 0;
+}
+@media (min-width: 992px) {
+  [data-block="milestones"][data-intro-image="left"] .mi-intro,
+  [data-block="milestones"][data-intro-image="right"] .mi-intro {
+    flex-direction: row;
+    align-items: center;
+    gap: 4rem;
+  }
+  [data-block="milestones"][data-intro-image="left"] .mi-intro {
+    flex-direction: row-reverse;
+  }
+  [data-block="milestones"][data-intro-image="left"] .mi-intro-img,
+  [data-block="milestones"][data-intro-image="right"] .mi-intro-img {
+    flex: 0 0 calc((100% - 4rem) * 0.5);
+  }
+  [data-block="milestones"][data-intro-image="left"] .mi-intro-text,
+  [data-block="milestones"][data-intro-image="right"] .mi-intro-text {
+    flex: 1 1 0;
+  }
+}
+
 /* 块头排版（introAlign / introPosition）—— 由 scripts/block-build/intro-layout.js 生成，别在 block.css 里写 */
 [data-block="milestones"][data-intro-align="center"] .mi-intro-text {
   text-align: center;
@@ -3077,8 +3252,8 @@
 
 /* ═══ 块级那张图（blockImage）═════════════════════════════════════════════════════════════════════ */
 
-/* left / right：≥992 图占 40%、intro + stats 在另一边，gap 4rem、垂直居中。
-   <992 上下叠：left 图在上、right 图在下（桌面在左 = 小屏在上，桌面在右 = 小屏在下），图与相邻内容隔 2.5rem。 */
+/* left / right：图在哪一边、两栏多宽、上下叠隔多少由 manifest 的 `mediaLayout` 生成（scripts/block-build/media-layout.js，#1536）。
+   这里只剩图自己的比例。 */
 [data-block="milestones"] .mi-outer {
   display: flex;
   flex-direction: column;
@@ -3088,35 +3263,6 @@
 }
 [data-block="milestones"] .mi-bimg img {
   aspect-ratio: 4 / 5;
-}
-[data-block="milestones"][data-block-image="left"] .mi-bimg {
-  margin-bottom: 2.5rem;
-}
-[data-block="milestones"][data-block-image="right"] .mi-outer {
-  flex-direction: column-reverse;
-}
-[data-block="milestones"][data-block-image="right"] .mi-bimg {
-  margin-top: 2.5rem;
-}
-@media (min-width: 992px) {
-  [data-block="milestones"][data-block-image="left"] .mi-outer,
-  [data-block="milestones"][data-block-image="right"] .mi-outer {
-    flex-direction: row;
-    align-items: center;
-    gap: 4rem;
-  }
-  [data-block="milestones"][data-block-image="right"] .mi-outer {
-    flex-direction: row-reverse;
-  }
-  [data-block="milestones"][data-block-image="left"] .mi-bimg,
-  [data-block="milestones"][data-block-image="right"] .mi-bimg {
-    flex: 0 0 40%;
-    margin: 0;
-  }
-  [data-block="milestones"][data-block-image="left"] .mi-main,
-  [data-block="milestones"][data-block-image="right"] .mi-main {
-    flex: 1 1 0;
-  }
 }
 
 /* background：真照片铺整段 + 60% 深色遮罩；字色由 data-tone="dark" 那一组给（Section.tsx 在有图时给 dark），
@@ -3160,38 +3306,14 @@
    （scripts/block-build/intro-layout.js，#1535），这里不写。
    按钮行跟着 introAlign 走（introLayout.follow）。 */
 
-/* introImage：DOM 里图在文字前面。<992 图在上、下边距 2.5rem；≥992 left / right 并排、图 45%、文字自适应。 */
+/* introImage：图在哪一边、两栏多宽、上下叠隔多少由 manifest 的 `mediaLayout` 生成（#1536）。
+   并排时块头的字不吃 introAlign 的 80% 限宽（那一栏本来就只有一半宽）。 */
 [data-block="milestones"] .mi-intro-img img {
   aspect-ratio: 4 / 3;
 }
-[data-block="milestones"] .mi-intro-img {
-  margin-bottom: 2.5rem;
-}
 @media (min-width: 992px) {
-  [data-block="milestones"][data-intro-image="left"] .mi-intro,
-  [data-block="milestones"][data-intro-image="right"] .mi-intro {
-    flex-direction: row;
-    align-items: center;
-  }
-  [data-block="milestones"][data-intro-image="right"] .mi-intro {
-    flex-direction: row-reverse;
-  }
-  [data-block="milestones"][data-intro-image="left"] .mi-intro-img,
-  [data-block="milestones"][data-intro-image="right"] .mi-intro-img {
-    flex: 0 0 45%;
-    min-width: 0;
-    margin-bottom: 0;
-  }
-  [data-block="milestones"][data-intro-image="left"] .mi-intro-img {
-    margin-inline-end: 4rem;
-  }
-  [data-block="milestones"][data-intro-image="right"] .mi-intro-img {
-    margin-inline-start: 4rem;
-  }
   [data-block="milestones"][data-intro-image="left"] .mi-intro-text,
   [data-block="milestones"][data-intro-image="right"] .mi-intro-text {
-    flex: 1 1 0;
-    min-width: 0;
     max-width: none;
     margin: 0;
   }
@@ -3201,14 +3323,13 @@
 @media (min-width: 992px) {
   [data-block="milestones"][data-intro-position="left"] .mi-intro,
   [data-block="milestones"][data-intro-position="right"] .mi-intro {
-    flex-direction: column !important;
+    flex-direction: column-reverse !important;
     align-items: stretch;
+    gap: 2.5rem;
   }
   [data-block="milestones"][data-intro-position="left"] .mi-intro-img,
   [data-block="milestones"][data-intro-position="right"] .mi-intro-img {
     flex: none;
-    margin-block: 0 2.5rem;
-    margin-inline: 0;
   }
 }
 
@@ -3398,6 +3519,42 @@
 }
 
 /* ══ page-header ══════════════════════════════════════════════════════════════════════ */
+/* 图的位置（image）—— 由 scripts/block-build/media-layout.js 生成，别在 block.css 里写 */
+[data-block="page-header"][data-image="left"] .phn-outer,
+[data-block="page-header"][data-image="right"] .phn-outer {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+[data-block="page-header"][data-image="left"] .phn-outer {
+  flex-direction: column-reverse;
+}
+[data-block="page-header"][data-image="left"] .phn-text,
+[data-block="page-header"][data-image="right"] .phn-text,
+[data-block="page-header"][data-image="left"] .phn-img,
+[data-block="page-header"][data-image="right"] .phn-img {
+  min-width: 0;
+}
+@media (min-width: 992px) {
+  [data-block="page-header"][data-image="left"] .phn-outer,
+  [data-block="page-header"][data-image="right"] .phn-outer {
+    flex-direction: row;
+    align-items: center;
+    gap: 4rem;
+  }
+  [data-block="page-header"][data-image="left"] .phn-outer {
+    flex-direction: row-reverse;
+  }
+  [data-block="page-header"][data-image="left"] .phn-img,
+  [data-block="page-header"][data-image="right"] .phn-img {
+    flex: 0 0 calc((100% - 4rem) * 0.5);
+  }
+  [data-block="page-header"][data-image="left"] .phn-text,
+  [data-block="page-header"][data-image="right"] .phn-text {
+    flex: 1 1 0;
+  }
+}
+
 /* ── page-header · 跨形态的规则（#1502）─────────────────────────────────────────────────────
    排版由**实际生效的旋钮**决定，写在根元素上：data-headline-position（top / left）· data-text-align
    （left / center）· data-image（none / left / right / background）· data-tone（light / dark / brand）。
@@ -3488,42 +3645,10 @@
   }
 }
 
-/* ── image=left / right：两栏（图 40%、4:3、rounded-4，文字自适应，垂直居中，间距 4rem）；小屏 left 图在上、
-   right 图在下，间距 2.5rem。DOM 里图在文字后面 ⟹ left 用 row-reverse / column-reverse 摆过去。 */
+/* ── image=left / right：图 4:3。图在哪一边、两栏多宽、上下叠隔多少由 manifest 的 `mediaLayout` 生成
+   （scripts/block-build/media-layout.js，#1536）。 */
 [data-block="page-header"] .phn-img img {
   aspect-ratio: 4 / 3;
-}
-[data-block="page-header"][data-image="left"] .phn-outer {
-  display: flex;
-  flex-direction: column-reverse;
-}
-[data-block="page-header"][data-image="left"] .phn-img {
-  margin-bottom: 2.5rem;
-}
-[data-block="page-header"][data-image="right"] .phn-img {
-  margin-top: 2.5rem;
-}
-@media (min-width: 992px) {
-  [data-block="page-header"][data-image="left"] .phn-outer,
-  [data-block="page-header"][data-image="right"] .phn-outer {
-    display: flex;
-    gap: 4rem;
-    align-items: center;
-  }
-  [data-block="page-header"][data-image="left"] .phn-outer {
-    flex-direction: row-reverse;
-  }
-  [data-block="page-header"][data-image="left"] .phn-img,
-  [data-block="page-header"][data-image="right"] .phn-img {
-    flex: 0 0 40%;
-    min-width: 0;
-    margin: 0;
-  }
-  [data-block="page-header"][data-image="left"] .phn-text,
-  [data-block="page-header"][data-image="right"] .phn-text {
-    flex: 1 1 auto;
-    min-width: 0;
-  }
 }
 
 /* ── image=background：整条铺图（object-fit: cover）+ 深色遮罩；字色按深底（Section.tsx 给 data-tone=dark）。 */

@@ -98,5 +98,8 @@
     ["count:ctas"],
     ["image"],
     ["color:bg"]
+  ],
+  "mediaLayout": [
+    {"knob": "image", "row": ".phn-outer", "text": ".phn-text", "media": ".phn-img"}
   ]
 }

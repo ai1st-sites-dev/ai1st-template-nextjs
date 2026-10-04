@@ -179,5 +179,8 @@
     ["image"],
     ["frame"],
     ["color:bg"]
+  ],
+  "mediaLayout": [
+    {"knob": "image", "row": ".co-outer", "text": ".co-frame", "media": ".co-img"}
   ]
 }

@@ -251,6 +251,7 @@ function fixture(type) {
         else if (shape.includes('imageUrl')) { it.imageUrl = url(`-${i}`); it.alt = `${slot}-${i}-alt`; }
         if ('href' in it) it.href = '/x';
         if ('rating' in it) it.rating = 5;
+        if ('count' in it) it.count = 12; // reviews.platforms：platformOf 要有限正数，字符串会让三条全被丢、整块不画（#1536 做什么 2 ③）
         if ('price' in it) it.price = { monthly: '$1' };
         if ('kind' in it) it.kind = 'link';
         if ('style' in it) it.style = 'solid';

@@ -23,6 +23,7 @@
 //    这里不自己算亮度、不自己拼渐变。
 
 import BlockSection from '@/components/BlockSection';
+import { emptyListHidesBlock, sourcedOf } from '@/lib/sections/emptyList';
 import type { BlockConfig } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
 import Eyebrow, { isEyebrowStyle, type EyebrowStyle } from '@/components/Eyebrow';
@@ -92,6 +93,8 @@ export default function FaqNewSection({ data, block, iconTable = {} }: Props) {
   const hasHelp = !!help && !!(str(help.headline) || str(help.body) || helpCta);
   const hasIntro = !!(str(d.headline) || str(d.body) || hasHelp);
   const items = faqItems(d);
+  // 写了条目却一条都不合格 ⟹ 整块不画；手写 0 条照画块头（#1536，判据在 src/lib/sections/emptyList.ts）。
+  if (emptyListHidesBlock(d.items, items.length, sourcedOf(d, 'items'))) return null;
   const accordion = k.itemsMode !== 'open';
 
   // chevron：一个向下的箭头，展开时转 180°；plus：plus + dash 两个，展开时 plus 藏、dash 显（block.css §itemToggle）。

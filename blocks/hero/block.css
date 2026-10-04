@@ -25,9 +25,14 @@
   aspect-ratio: 21 / 9;
   max-height: 460px;
 }
+/* 🔴 1100 − 4rem，不是 1100：#1536 之前图列是 Bootstrap 的 col-12，≥992 时两边各 2rem 内距，1100 量在带内距的盒子上
+      ⟹ 图本身最宽 1036。现在图列没有内距（两栏 / 上下叠由 mediaLayout 生成），照抄 1100 图会宽出 64px。
+   🔴 width: 100% 不能省（#1536 r2，QA2 实测）：col-12 自带它；现在图列是纵向 flex 列里的子项，两边 margin: auto 会让它
+      不再横向拉伸、缩成图片原始宽度 —— 原图比 1036 窄时（用户上传的图常常是），图就不再拉满（640 宽的图 1440 下只剩 640）。 */
 [data-block="hero"][data-image="top"] .hro-side,
 [data-block="hero"][data-image="bottom"] .hro-side {
-  max-width: 1100px;
+  width: 100%;
+  max-width: calc(1100px - 4rem);
   margin-inline-start: auto;
   margin-inline-end: auto;
 }
@@ -52,6 +57,14 @@
     width: 100%;
     max-width: 80%;
     margin-inline: auto;
+  }
+  /* 🔴 有图时是 80% − 0.8rem（#1536）：那时文字列原来是 Bootstrap 的 col-12，两边各 2rem 内距、行两边各 −2rem 外距，
+        80% 量在带内距的盒子上 ⟹ 字宽 = 80% ×（内容宽 + 4rem）− 4rem = 80% − 0.8rem。现在有图时文字列没有内距
+        （上下叠由 mediaLayout 生成，行是 .hro-row），照抄 80% 字会宽出 12.8px、折行变了（1440 下 hero centered 高 3px）。
+        没图时（top / bottom 但没给图）文字列仍是 col-12，上面那条 80% 照旧对。 */
+  [data-block="hero"][data-text-align="center"][data-image="top"] .hro-row > .hro-textcol,
+  [data-block="hero"][data-text-align="center"][data-image="bottom"] .hro-row > .hro-textcol {
+    max-width: calc(80% - 0.8rem);
   }
 }
 /* 限了宽的表单跟着文字对齐走：center 居中、right 贴右。 */

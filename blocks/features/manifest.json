@@ -361,5 +361,9 @@
     "follow": [
       {"target": ".fx-ctas", "by": "justify"}
     ]
-  }
+  },
+  "mediaLayout": [
+    {"knob": "introImage", "row": ".fx-intro", "text": ".fx-intro-text", "media": ".fx-intro-img"},
+    {"knob": "itemsImage", "row": ".fx-itemsrow", "text": ".fx-itemsgrid", "media": ".fx-itemsimg"}
+  ]
 }

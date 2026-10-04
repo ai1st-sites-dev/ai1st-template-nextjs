@@ -139,5 +139,8 @@
     ["color:bg"],
     ["part:proof", "part:stats", "part:logos", "part:band"],
     ["choice:eyebrow.style"]
+  ],
+  "mediaLayout": [
+    {"knob": "image", "row": ".hro-row", "text": ".hro-textcol", "media": ".hro-side"}
   ]
 }

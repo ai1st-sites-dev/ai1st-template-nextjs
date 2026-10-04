@@ -88,42 +88,10 @@
   }
 }
 
-/* ── image=left / right：两栏（图 40%、4:3、rounded-4，文字自适应，垂直居中，间距 4rem）；小屏 left 图在上、
-   right 图在下，间距 2.5rem。DOM 里图在文字后面 ⟹ left 用 row-reverse / column-reverse 摆过去。 */
+/* ── image=left / right：图 4:3。图在哪一边、两栏多宽、上下叠隔多少由 manifest 的 `mediaLayout` 生成
+   （scripts/block-build/media-layout.js，#1536）。 */
 [data-block="page-header"] .phn-img img {
   aspect-ratio: 4 / 3;
-}
-[data-block="page-header"][data-image="left"] .phn-outer {
-  display: flex;
-  flex-direction: column-reverse;
-}
-[data-block="page-header"][data-image="left"] .phn-img {
-  margin-bottom: 2.5rem;
-}
-[data-block="page-header"][data-image="right"] .phn-img {
-  margin-top: 2.5rem;
-}
-@media (min-width: 992px) {
-  [data-block="page-header"][data-image="left"] .phn-outer,
-  [data-block="page-header"][data-image="right"] .phn-outer {
-    display: flex;
-    gap: 4rem;
-    align-items: center;
-  }
-  [data-block="page-header"][data-image="left"] .phn-outer {
-    flex-direction: row-reverse;
-  }
-  [data-block="page-header"][data-image="left"] .phn-img,
-  [data-block="page-header"][data-image="right"] .phn-img {
-    flex: 0 0 40%;
-    min-width: 0;
-    margin: 0;
-  }
-  [data-block="page-header"][data-image="left"] .phn-text,
-  [data-block="page-header"][data-image="right"] .phn-text {
-    flex: 1 1 auto;
-    min-width: 0;
-  }
 }
 
 /* ── image=background：整条铺图（object-fit: cover）+ 深色遮罩；字色按深底（Section.tsx 给 data-tone=dark）。 */

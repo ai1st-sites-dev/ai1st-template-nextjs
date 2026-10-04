@@ -29,6 +29,7 @@
 import { useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { slotImg } from '@/lib/sections/blockMedia';
+import { emptyListHidesBlock, sourcedOf } from '@/lib/sections/emptyList';
 import BlockSection from '@/components/BlockSection';
 import type { BlockConfig } from '@/lib/types/config';
 import InlineIcon, { type IconTable } from '@/components/InlineIcon';
@@ -133,6 +134,8 @@ export default function PricingNewSection({ data, block, iconTable = {} }: Props
   const proof = isObj(d.proof) && (str(d.proof.text) || imgs(d.proof.avatars).length) ? d.proof : null;
   const logos = isObj(d.logos) ? imgs(d.logos.items).slice(0, MAX_LOGOS) : [];
   const plans = (Array.isArray(d.plans) ? d.plans : []).filter((p): p is PricingNewPlan => isObj(p)).slice(0, MAX_PLANS);
+  // 写了条目却一条都不合格 ⟹ 整块不画；手写 0 条照画块头（#1536，判据在 src/lib/sections/emptyList.ts）。
+  if (emptyListHidesBlock(d.plans, plans.length, sourcedOf(d, 'plans'))) return null;
   // 「最多一个 featured」由 validateSite 拦；这里再兜一次：只认第一个，页面上不会同时亮两张。
   const featuredAt = plans.findIndex((p) => p.featured === true);
   const billing = isObj(d.billing) && plans.some((p) => isObj(p.price) && str(p.price.yearly)) ? d.billing : null;

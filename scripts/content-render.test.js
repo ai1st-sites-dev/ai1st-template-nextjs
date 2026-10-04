@@ -188,8 +188,10 @@ console.log('\n── AC5 / AC6 / AC7 DOM');
   check(!/<img/.test(art) && attr(art, 'data-image') === 'none', 'Article（image=none）⟹ DOM 里没有 <img>（演示内容里有图也不画）');
   for (const pos of ['left', 'right', 'top', 'bottom']) {
     const h = render('article', withOpts({ image: pos }));
-    const frame = (/<div class="co-frame"[\s\S]*$/.exec(h) || [''])[0];
-    check(count(h, '<img') === 1 && !frame.includes('<img'), `image=${pos} ⟹ 一张 <img>，在 .co-frame（卡）外面`);
+    // #1536 —— DOM 里文字在前、图在后：图是 .co-frame 后面的兄弟（.co-img），卡里一张都没有。
+    const frame = (/<div class="co-frame"[\s\S]*?(?=<div class="co-img")/.exec(h) || [h])[0];
+    check(count(h, '<img') === 1 && !frame.includes('<img') && h.indexOf('class="co-frame"') < h.indexOf('class="co-img"'),
+      `image=${pos} ⟹ 一张 <img>，在 .co-frame（卡）外面、排在它后面`);
   }
   check(count(render('article', withOpts({ image: 'right' }, { image: undefined })), '<img') === 0, 'image=right 但没有图 ⟹ 不画 <img>');
   const card = render('statement', clone(DEMO));

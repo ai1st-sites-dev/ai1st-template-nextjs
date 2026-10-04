@@ -147,11 +147,6 @@ export default function CtaNewSection({ data, locale = 'en', block }: Props) {
       >
         {boxed ? coverLayer : null}
         <div className="cta-row position-relative">
-          {side && img ? (
-            <div className="cta-img" data-part="image">
-              {slotImg(img, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' } })}
-            </div>
-          ) : null}
           <div className="cta-main">
             <div className="cta-inline">
               <div className="cta-text" data-part="text">
@@ -166,6 +161,11 @@ export default function CtaNewSection({ data, locale = 'en', block }: Props) {
               {action}
             </div>
           </div>
+          {side && img ? (
+            <div className="cta-img" data-part="image">
+              {slotImg(img, { before: { className: 'img-fluid rounded-4 w-100 object-fit-cover' } })}
+            </div>
+          ) : null}
         </div>
       </div>
     </BlockSection>

@@ -15,35 +15,14 @@
   background: var(--scheme-surface-muted);
 }
 
-/* ── 图 + 主体：一列（<992 图在上 —— left / right 都是）；≥992 left / right 两列、图 42%。 */
+/* ── 图 + 主体：图在哪一边、两栏多宽、上下叠隔多少由 manifest 的 `mediaLayout` 生成（scripts/block-build/media-layout.js，#1536）。
+   没有图（none / background）时这一行只有主体一个孩子。 */
 [data-block="cta"] .cta-row {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
 }
 [data-block="cta"] .cta-img img {
   aspect-ratio: 4 / 3;
-}
-@media (min-width: 992px) {
-  [data-block="cta"][data-image="left"] .cta-row,
-  [data-block="cta"][data-image="right"] .cta-row {
-    flex-direction: row;
-    align-items: center;
-    gap: 4rem;
-  }
-  [data-block="cta"][data-image="right"] .cta-row {
-    flex-direction: row-reverse;
-  }
-  [data-block="cta"][data-image="left"] .cta-img,
-  [data-block="cta"][data-image="right"] .cta-img {
-    flex: 0 0 42%;
-    min-width: 0;
-  }
-  [data-block="cta"][data-image="left"] .cta-main,
-  [data-block="cta"][data-image="right"] .cta-main {
-    flex: 1 1 0;
-    min-width: 0;
-  }
 }
 
 /* ── 文字块与动作区：centered = 上下（gap 2rem）；inline = ≥992 左右一行（gap 4rem），<992 上下叠。 */

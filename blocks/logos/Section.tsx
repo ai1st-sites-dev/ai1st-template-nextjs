@@ -19,6 +19,7 @@
 
 import Link from 'next/link';
 import { slotImg } from '@/lib/sections/blockMedia';
+import { emptyListHidesBlock, sourcedOf } from '@/lib/sections/emptyList';
 import BlockSection from '@/components/BlockSection';
 import SiteLink from '@/components/SiteLink';
 import type { BlockConfig } from '@/lib/types/config';
@@ -82,6 +83,8 @@ export default function LogosNewSection({ data, block }: Props) {
   const items = (Array.isArray(d.items) ? d.items : [])
     .filter((it): it is LogosNewItem => isObj(it) && !!str(it.imageUrl))
     .slice(0, MAX_ITEMS);
+  // 写了条目却一条都不合格 ⟹ 整块不画；手写 0 条照画块头（#1536，判据在 src/lib/sections/emptyList.ts）。
+  if (emptyListHidesBlock(d.items, items.length, sourcedOf(d, 'items'))) return null;
 
   return (
     <BlockSection

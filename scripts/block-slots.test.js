@@ -132,6 +132,9 @@ const EXTRA = {
   'testimonials': { summary: [{ source: 'summary-0-source', rating: 4.5, count: 10 }, { source: 'summary-1-source', rating: 4, count: 3 }] },
   // #1495 —— 照片墙的每一项没有图就不画（`slots.items.itemRequires`，validateSite 也拦）。
   'gallery': { _item: { image: { imageUrl: '/a.png', alt: '' } } },
+  // #1536 —— logo 条目没有 `imageUrl` 就丢掉；一条都不剩时整块不画（做什么 2 ③）。items 槽不带 editLabel，
+  //    夹具会造成裸字符串（`_item` 用不上）⟹ 整份给。
+  'logos': { items: [{ imageUrl: '/a.png', alt: '' }] },
   // #1504 —— 平台那一格只在 rating 是 0–5 的数、count 是正数时画（夹具造的 `platforms-0-rating` 画不出来 —— 它会盖掉 `_item`，
   //    所以整份给）。
   'reviews': { platforms: [{ source: 'platforms-0-source', rating: 4.5, count: 10 }, { source: 'platforms-1-source', rating: 4, count: 3 }] },

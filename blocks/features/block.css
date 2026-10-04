@@ -13,8 +13,9 @@
       **也带 !important**，而且选择器从 [data-block="features"] 起步再加属性 / 类 —— 特异度一定高过工具类的一个类。
    🔴 部件的有无靠渲染（Section.tsx 有数据才画），不靠 CSS 藏。这里唯一「藏」的是连线在一行最后一项上的那一截
       （它按构造没有下一项可连）。
-   🔴 图与下方内容上下叠时的 2.5rem 用 margin 给，不用 gap：Bootstrap 的 g-* 只对 .row 起作用，
-      .fx-intro / .fx-inner 是普通 flex，写 g-* 等于没写（图册里那几处上下叠时就是贴在一起的）。
+   🔴 条目里图与内容上下叠时的 2.5rem 用 margin 给，不用 g-*：Bootstrap 的 g-* 只对 .row 起作用，
+      .fx-inner 是普通 flex，写 g-* 等于没写（图册里那几处上下叠时就是贴在一起的）。块头图 / items 旁那张图
+      的间距不归这里，由 manifest 的 `mediaLayout` 生成（#1536）。
    间距照 Webpixels 尺度：段 py-16 py-lg-24、块头与 items 之间 2.5rem（gy-10）/ ≥992 横向 4rem（gx-lg-16）、items g-6、
    card 内 2rem（= p-8）。🔴 纵向写 gy-10、不写 g-10：g-10 连横向也设成 2.5rem，.row 的负边距 −1.25rem 比容器内边距 1rem 大，
    手机上每边溢出 4px（390 宽读到 scrollWidth 394，#1475 e2e 阳性对照那一格量出来的；图册 g-10 同款）。 */
@@ -41,21 +42,12 @@
    （scripts/block-build/intro-layout.js，#1535），这里不写。
    按钮行跟着 introAlign 走（introLayout.follow）。 */
 
-/* introImage：DOM 里图在文字前面。上下叠（top · left / right 在 <992）⟹ 图在上、下边距 2.5rem；
-   bottom ⟹ 列反向、图在下。top / bottom 的图限 64rem 居中（同图册）。 */
+/* introImage / itemsImage：图在哪一边、两栏多宽、上下叠隔多少由 manifest 的 `mediaLayout` 生成
+   （scripts/block-build/media-layout.js，#1536）。这里只剩图自己的样子：4:3；块头图 top / bottom 时限 64rem 居中（同图册）；
+   并排时块头的字不吃 introAlign 的 80% 限宽（那一栏本来就只有一半宽）。 */
 [data-block="features"] .fx-intro-img img,
 [data-block="features"] .fx-itemsimg img {
   aspect-ratio: 4 / 3;
-}
-[data-block="features"] .fx-intro-img {
-  margin-bottom: 2.5rem;
-}
-[data-block="features"][data-intro-image="bottom"] .fx-intro {
-  flex-direction: column-reverse;
-}
-[data-block="features"][data-intro-image="bottom"] .fx-intro-img {
-  margin-bottom: 0;
-  margin-top: 2.5rem;
 }
 [data-block="features"][data-intro-image="top"] .fx-intro-img,
 [data-block="features"][data-intro-image="bottom"] .fx-intro-img {
@@ -65,30 +57,8 @@
   margin-inline-end: auto;
 }
 @media (min-width: 992px) {
-  [data-block="features"][data-intro-image="left"] .fx-intro,
-  [data-block="features"][data-intro-image="right"] .fx-intro {
-    flex-direction: row;
-    align-items: center;
-  }
-  [data-block="features"][data-intro-image="right"] .fx-intro {
-    flex-direction: row-reverse;
-  }
-  [data-block="features"][data-intro-image="left"] .fx-intro-img,
-  [data-block="features"][data-intro-image="right"] .fx-intro-img {
-    flex: 0 0 50%;
-    min-width: 0;
-    margin-bottom: 0;
-  }
-  [data-block="features"][data-intro-image="left"] .fx-intro-img {
-    margin-inline-end: 4rem;
-  }
-  [data-block="features"][data-intro-image="right"] .fx-intro-img {
-    margin-inline-start: 4rem;
-  }
   [data-block="features"][data-intro-image="left"] .fx-intro-text,
   [data-block="features"][data-intro-image="right"] .fx-intro-text {
-    flex: 1 1 0;
-    min-width: 0;
     max-width: none;
   }
 }
@@ -97,41 +67,18 @@
 @media (min-width: 992px) {
   [data-block="features"][data-intro-position="left"] .fx-intro,
   [data-block="features"][data-intro-position="right"] .fx-intro {
-    flex-direction: column !important;
+    flex-direction: column-reverse !important;
     align-items: stretch;
+    gap: 2.5rem;
   }
   [data-block="features"][data-intro-position="left"] .fx-intro-img,
   [data-block="features"][data-intro-position="right"] .fx-intro-img {
     flex: none;
-    margin-block: 0 2.5rem;
     margin-inline: 0;
   }
 }
 
 /* ═══ items（整组）═══════════════════════════════════════════════════════════════════════════════ */
-
-/* itemsImage：items 旁那张图。<992 图在上（.row g-10 的上边距 = 2.5rem）；≥992 left / right 并排、图 45%。 */
-@media (min-width: 992px) {
-  [data-block="features"][data-items-image="left"] .fx-itemsrow,
-  [data-block="features"][data-items-image="right"] .fx-itemsrow {
-    flex-wrap: nowrap;
-    align-items: center;
-  }
-  [data-block="features"][data-items-image="right"] .fx-itemsrow {
-    flex-direction: row-reverse;
-  }
-  [data-block="features"][data-items-image="left"] .fx-itemsimg,
-  [data-block="features"][data-items-image="right"] .fx-itemsimg {
-    flex: 0 0 auto;
-    width: 45%;
-  }
-  [data-block="features"][data-items-image="left"] .fx-itemsgrid,
-  [data-block="features"][data-items-image="right"] .fx-itemsgrid {
-    flex: 1 1 0;
-    width: auto;
-    min-width: 0;
-  }
-}
 
 /* grid：列数与断点（手机 1 列、iPad 2 列、≥992 按 itemsColumns）归 manifest 的 itemsGrid，由 scripts/block-build/items-grid.js
    生成（#1537；画法照旧：.fx-grid 是 Bootstrap 的 `.row g-6`，条目按百分比宽，列距由 row 自己的内边距给）。

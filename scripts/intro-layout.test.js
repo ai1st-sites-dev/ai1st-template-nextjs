@@ -65,9 +65,9 @@ const ROLE_FAMILY = { text: 'text', frame: 'frame', introCol: 'col', mainCol: 'c
 const KEEP = [
   { block: 'contact', target: '.ct-textcol', knobs: ['position'], props: ['align-self'], why: 'beside + data-split=even 时文字列垂直居中' },
   { block: 'faq', target: '.fq-help', knobs: ['position'], props: ['margin-inline-start'], why: '块头在侧列时 help 卡贴列的左边（按 introAlign 跟随那两条归生成器）' },
-  { block: 'features', target: '.fx-intro', knobs: ['position'], props: ['flex-direction', 'align-items'], why: '块头在侧列时块头图改竖排' },
+  { block: 'features', target: '.fx-intro', knobs: ['position'], props: ['flex-direction', 'align-items', 'gap'], why: '块头在侧列时块头图改竖排（gap = 竖排时图文间距，#1536 起图文间距由容器的 gap 给、不再写在图的外边距上）' },
   { block: 'features', target: '.fx-intro-img', knobs: ['position'], props: ['flex', 'margin-block', 'margin-inline'], why: '同上，图的尺寸与间距' },
-  { block: 'milestones', target: '.mi-intro', knobs: ['position'], props: ['flex-direction', 'align-items'], why: '同 features' },
+  { block: 'milestones', target: '.mi-intro', knobs: ['position'], props: ['flex-direction', 'align-items', 'gap'], why: '同 features' },
   { block: 'milestones', target: '.mi-intro-img', knobs: ['position'], props: ['flex', 'margin-block', 'margin-inline'], why: '同 features' },
   { block: 'logos', target: '.lo-grid', knobs: ['position'], props: ['justify-content'], why: 'row 排法在块头侧列时靠左' },
   { block: 'pricing', target: '.pr-highlights', knobs: ['align'], props: ['display', 'flex-wrap', 'justify-content', 'gap'], why: 'center 时亮点排成一排' },

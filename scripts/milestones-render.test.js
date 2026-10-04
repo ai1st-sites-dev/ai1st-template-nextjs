@@ -97,7 +97,8 @@ const count = (html, needle) => html.split(needle).length - 1;
 const own = (r) => r.problems.filter((p) => p.includes('("milestones")'));
 const sectionTag = (html) => (/<section[^>]*>/.exec(html) || [''])[0];
 const attr = (html, name) => { const m = new RegExp(`\\s${name}="([^"]*)"`).exec(sectionTag(html)); return m ? m[1] : null; };
-const statsOf = (html) => html.split('data-part="stat"').slice(1);
+// #1536 —— 块级那张图在 DOM 里排到了 stats 后面（文字在前、图在后），切最后一条 stat 前先把它截掉。
+const statsOf = (html) => html.split('data-part="block-image"')[0].split('data-part="stat"').slice(1);
 const CSS = fs.readFileSync(path.join(BLOCK, 'block.css'), 'utf-8');
 const SRC_TEXT = fs.readFileSync(SECTION, 'utf-8');
 const KNOB_NAMES = ['blockImage', 'introPosition', 'introAlign', 'introImage', 'statsColumns', 'statSize', 'statStyle', 'statAlign'];
@@ -168,10 +169,12 @@ console.log('\n── AC4 blockImage 四档');
   const bgNoImg = render('divided-row', withOpts({ blockImage: 'background' }, {}, noImg));
   check(!bgNoImg.includes('mi-cover') && attr(bgNoImg, 'data-tone') === 'light', '对照：background 但没有图 ⟹ 不画遮罩、字色回到按 bg 算（light）');
   check(/\.mi-cover::after \{[^}]*background: rgba\(2, 6, 23, 0\.6\);/.test(CSS), 'block.css：铺底图 60% 深色遮罩 rgba(2,6,23,.6)');
-  check(/\[data-block-image="right"\] \.mi-outer \{\s*flex-direction: column-reverse;/.test(CSS)
-    && /\[data-block-image="right"\] \.mi-bimg \{\s*margin-top: 2\.5rem;/.test(CSS)
-    && /\[data-block-image="left"\] \.mi-bimg \{\s*margin-bottom: 2\.5rem;/.test(CSS),
-    'block.css：小屏 right 图在下（column-reverse + 上边距 2.5rem）、left 图在上（下边距 2.5rem）—— 真位置在 e2e 里量');
+  // #1536 —— 图的位置改由 manifest 的 mediaLayout 生成（scripts/block-build/media-layout.js）；DOM 里图在后。
+  const MEDIA = require(path.join(NEXT, 'scripts', 'block-build', 'media-layout.js')).mediaLayoutCss(M, 'milestones');
+  check(/\[data-block-image="left"\] \.mi-outer \{\s*flex-direction: column-reverse;/.test(MEDIA)
+    && !/\[data-block-image="right"\] \.mi-outer \{\s*flex-direction: column-reverse;/.test(MEDIA)
+    && /\[data-block-image="right"\] \.mi-outer \{\s*display: flex;\s*flex-direction: column;\s*gap: 2\.5rem;/.test(MEDIA),
+    'mediaLayout：小屏 left 图在上（列反向）、right 图在下，图文隔 2.5rem —— 真位置在交付实测里量');
   check(/\[data-block-image="background"\]\[data-tone="dark"\]\[data-stat-style="card"\] \.mi-inner \{\s*background: rgba\(255, 255, 255, 0\.08\);\s*border-color: rgba\(255, 255, 255, 0\.18\);/.test(CSS),
     'block.css：background + card ⟹ 卡片 .08 底 + .18 描边（不是白卡）');
 }

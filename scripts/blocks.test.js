@@ -142,17 +142,18 @@ console.log('\n── ④b #1425 往 features 喂坏 items ⟹ 站照常建出�
   else if (nItems(withNull.html) !== 2) bad(`① 含 null：应画出 2 项，数到 ${nItems(withNull.html)}`);
   else ok(`① 含 null 的 items ⟹ 站照常建出来（不抛），null 在构建那一层就被滤掉（${JSON.stringify(withNull.items)}），画出 2 项`);
 
-  // ② 裸字符串 ⟹ 不抛、块照常画出来，那几项**不渲染**（#1425 起的新行为，PM 2026-10-02 裁定接受）。
+  // ② 裸字符串 ⟹ 不抛；两项都不是对象、全被组件的 `filter(isObj)` 丢掉 ⟹ **整块不画**。
+  //    #1425 时这里是「块头照画、那几项不渲染」（PM 2026-10-02 裁定）；#1536 做什么 2 ③ 改成「写了 N 条、
+  //    过滤后剩 0 条 ⟹ 整块不画」，正文「丢条目的条件」表里 features 那一行就是「条目不是对象」（判据在 emptyList.ts）。
   //    📌 记下它落在哪一层：构建那一层（normalizeListSlots 的 drawableItem）**放行**字符串，是组件自己的
   //    `filter(isObj)` 把它们滤掉 —— 别名层在的时候这一步是「升成 {title} 画出来」。
   const bare = build(['甲', '乙']);
   if (bare.err) bad(`② 裸字符串 items 让构建/渲染抛了: ${bare.err.message}`);
-  else if (!/<section/.test(bare.html) || !bare.html.includes('块头标题')) bad('② 裸字符串：没抛，但块（或块头）没画出来');
-  else if (nItems(bare.html) !== 0 || bare.html.includes('甲') || bare.html.includes('乙')) {
-    bad(`② 裸字符串：那几项应该不渲染，数到 ${nItems(bare.html)} 项（行为变了的话要回去问 PM）`);
+  else if (/<section/.test(bare.html) || bare.html.includes('块头标题')) {
+    bad(`② 裸字符串：两项都会被丢掉，整块应该不画，却画出了 ${bare.html.length} 字节（行为变了的话要回去问 PM）`);
   } else if (JSON.stringify(bare.items) !== '["甲","乙"]') {
     bad(`② 裸字符串：构建那一层的读数变了（${JSON.stringify(bare.items)}）—— 上面那句「落在组件那一层」不再成立`);
-  } else ok('② 裸字符串 ["甲","乙"] ⟹ 站照常建出来（不抛、块头照画），那两项不渲染；构建那一层原样放行，是组件的 filter(isObj) 滤掉的');
+  } else ok('② 裸字符串 ["甲","乙"] ⟹ 站照常建出来（不抛），两项全被丢掉 ⟹ 整块不画（#1536 ③）；构建那一层原样放行，是组件的 filter(isObj) 滤掉的');
 }
 
 // ── ⑦ #1162：老 type 名走到底会怎样 —— 不改名、不静默接上别的槽位 ────────────────────────────
