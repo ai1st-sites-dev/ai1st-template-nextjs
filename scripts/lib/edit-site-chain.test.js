@@ -2327,5 +2327,176 @@ console.log('\n㉑ 名字太长（#1567）：拒、同轮改口、磁盘不动�
   }
 }
 
+// ══ ㉒ slug 太长 / 整条路径太长（#1574）：#1567 那道按段判 255 的闸够不着的两处 ════════════════════════════
+//
+// A：构建产物的名字取自 slug（顶层页 = 内容里的 `slug` 字段；子目录页 = 路径拼出来的），每一段 > SLUG_MAX_BYTES
+//    时写盘照常成功、要到 Publish 的 next build 才 ENAMETOOLONG。改后：写盘那一刻就拒，模型同轮改口。
+// B：每一段都 ≤255、整条绝对路径 ≥ PATH_MAX（4096，含结尾 NUL）⟹ mkdir / writeFile 抛 ENAMETOOLONG，会话死。
+// 🔴 开火点全部从 `SLUG_MAX_BYTES` 现算，不写 246 —— 把 FILENAME_MAX_BYTES 改一格（AC5），这一节跟着挪、照样绿。
+console.log('\n㉒ slug / 整条路径太长（#1574）：拒、同轮改口、磁盘不动；开火点正好在上限');
+{
+  const { FILENAME_MAX_BYTES, SLUG_MAX_BYTES } = require('./keyword-slug');
+  const crypto = require('crypto');
+  const md5s = (s) => crypto.createHash('md5').update(s).digest('hex');
+  const md5 = (f) => md5s(fs.readFileSync(f));
+  const B = (x) => Buffer.byteLength(x);
+  const listing = (dir) => {
+    const out = {};
+    (function walk(d, pre) {
+      for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+        if (e.isDirectory()) walk(path.join(d, e.name), `${pre}${e.name}/`);
+        else out[`${pre}${e.name}`] = md5(path.join(d, e.name));
+      }
+    })(dir, '');
+    return out;
+  };
+  const diffListing = (before, after) => ({
+    added: Object.keys(after).filter((f) => !(f in before)),
+    changed: Object.keys(before).filter((f) => after[f] !== before[f]),
+  });
+  const stackIn = (res) => /\n\s+at .+\(.*:\d+:\d+\)/.test(`${res.stderr}\n${res.events.map((e) => e.message || '').join('\n')}`);
+  const enameIn = (res) => /ENAMETOOLONG/.test(`${res.stderr}\n${JSON.stringify(res.events)}`);
+  // 回执是 `JSON.stringify(result)` —— 引号被转义过，拿 error 那句原文比
+  const errOf = (receipt) => { try { return String(JSON.parse(receipt).error || ''); } catch (e) { return ''; } };
+  function fresh(label) {
+    const ctx = makeRoot(label);
+    writeSite(ctx.work);
+    ctx.git('git add -A && git commit -q -m base && git push -q origin main');
+    const about = JSON.parse(fs.readFileSync(path.join(ctx.work, 'site', 'en', 'pages', 'about.json'), 'utf8'));
+    return { ctx, about };
+  }
+  const siteDirOf = (ctx) => path.join(ctx.work, 'site');
+  const withSlug = (page, slug) => JSON.stringify({ ...page, slug }, null, 2);
+  const slugOf = (n) => 's'.repeat(n);   // ASCII：字符数 = 字节数（构建那端的读数见交接留言 AC3）
+  // 一次写一笔、读回结果：'written' / 'rejected' / '?'
+  function oneWrite(label, rel, contentOf) {
+    const { ctx, about } = fresh(label);
+    const res = runEdit(ctx, [
+      reply([textBlock('Adding a page.'), writeCall('w1', rel, contentOf(about))], 'tool_use'),
+      reply([textBlock('Done.')], 'end_turn'),
+    ]);
+    const receipt = toolResultContent(res, 1, 'w1') || '';
+    const exists = fs.existsSync(path.join(siteDirOf(ctx), rel));
+    const got = exists && /"success":true/.test(receipt) ? 'written' : (!exists && /too long/i.test(receipt) ? 'rejected' : `?（exists=${exists}）`);
+    return { res, receipt, got };
+  }
+  const expectArm = (tag, desc, r, want) => {
+    console.log(`     ${desc} ⟹ ${r.got} · rc=${r.res.rc} · 回执「${r.receipt.slice(0, 110)}…」`);
+    if (r.got === want && r.res.rc === 0 && !enameIn(r.res) && !stackIn(r.res)) ok(`${tag}：${desc} ⟹ ${want === 'written' ? '照常写出来' : '被拒'}`);
+    else bad(`🔴 ${tag}：${desc} 想要 ${want}，读到 ${r.got} · rc=${r.res.rc}\n${r.res.stderr.slice(-300)}`);
+  };
+
+  // AC1：顶层页（文件名固定 t.json）按内容里的 slug 判 —— SLUG_MAX_BYTES 写得出，+1 被拒；回执点名上限
+  for (const [n, want] of [[SLUG_MAX_BYTES, 'written'], [SLUG_MAX_BYTES + 1, 'rejected']]) {
+    const r = oneWrite(`slug${n}`, 'en/pages/t.json', (about) => withSlug(about, slugOf(n)));
+    expectArm('AC1', `顶层页 t.json、slug ${n} 字节`, r, want);
+    if (want === 'rejected') {
+      const e = errOf(r.receipt);
+      if (e.includes(`at most ${SLUG_MAX_BYTES} bytes`) && e.includes(`is ${n} bytes`) && e.includes('its "slug" field')) ok(`AC1：回执说上限 ${SLUG_MAX_BYTES}、点名 ${n} 字节、指向 "slug" 字段`);
+      else bad(`🔴 AC1：回执不对「${r.receipt}」`);
+    }
+  }
+
+  // AC2：子目录页按路径拼出的 slug 判【每一段】—— services/<SLUG_MAX_BYTES>.json 整体超过 SLUG_MAX_BYTES 也必须过
+  for (const [n, want] of [[SLUG_MAX_BYTES, 'written'], [SLUG_MAX_BYTES + 1, 'rejected']]) {
+    const base = 'b'.repeat(n);
+    const r = oneWrite(`sub${n}`, `en/pages/services/${base}.json`, (about) => withSlug(about, 'ignored-by-build'));
+    expectArm('AC2', `services/<${n} 字节>.json（slug 整体 ${B(`services/${base}`)} 字节）`, r, want);
+    if (want === 'rejected') {
+      const e = errOf(r.receipt);
+      if (e.includes(`at most ${SLUG_MAX_BYTES} bytes`) && e.includes(`is ${n} bytes`) && e.includes('its folder and file name')) ok(`AC2：回执说上限 ${SLUG_MAX_BYTES}、指向文件夹与文件名`);
+      else bad(`🔴 AC2：回执不对「${r.receipt}」`);
+    }
+  }
+
+  // AC8：#1567 那道闸原样 —— 顶层页、slug=about：文件名 FILENAME_MAX_BYTES 放行，+1 被拒
+  for (const [n, want] of [[FILENAME_MAX_BYTES, 'written'], [FILENAME_MAX_BYTES + 1, 'rejected']]) {
+    const nm = `${'n'.repeat(n - B('.json'))}.json`;
+    const r = oneWrite(`fn${n}`, `en/pages/${nm}`, (about) => withSlug(about, 'about'));
+    expectArm('AC8', `顶层页 slug=about、文件名 ${B(nm)} 字节`, r, want);
+    if (want === 'rejected') {
+      const e = errOf(r.receipt);
+      if (e.includes(`at most ${FILENAME_MAX_BYTES} bytes`) && e.includes(`at most ${SLUG_MAX_BYTES} bytes without ".json"`)) ok(`AC8：#1567 的回执仍说 ${FILENAME_MAX_BYTES}，并补了页面文件名 ${SLUG_MAX_BYTES}`);
+      else bad(`🔴 AC8：回执不对「${r.receipt}」`);
+    }
+  }
+
+  // B 的开火点：整条绝对路径 PATH_MAX−1 字节写得出，PATH_MAX 字节被拒（每段 200 字节，都在两道按段判的闸之下）
+  const deepRel = (siteDir, total) => {
+    const segs = [];
+    const len = () => B(path.join(siteDir, 'en', 'pages', ...segs, 'x.json'));
+    while (len() + 201 <= total) segs.push('d'.repeat(200));
+    const pad = total - len() - 1;   // 再补一层，凑到正好 total 字节
+    if (pad > 0) segs.push('e'.repeat(pad));
+    return ['en', 'pages', ...segs, 'x.json'].join('/');
+  };
+  for (const [total, want] of [[4095, 'written'], [4096, 'rejected']]) {
+    const { ctx, about } = fresh(`deep${total}`);
+    const rel = deepRel(siteDirOf(ctx), total);
+    const full = path.join(siteDirOf(ctx), rel);
+    if (B(full) !== total || rel.split('/').some((s) => B(s) > 200)) { bad(`🔴 B 开火点：夹具没凑准（${B(full)} 字节）`); continue; }
+    const res = runEdit(ctx, [
+      reply([textBlock('Adding a page.'), writeCall('w1', rel, withSlug(about, 'x'))], 'tool_use'),
+      reply([textBlock('Done.')], 'end_turn'),
+    ]);
+    const receipt = toolResultContent(res, 1, 'w1') || '';
+    const exists = fs.existsSync(full);
+    const got = exists && /"success":true/.test(receipt) ? 'written' : (!exists && /path too long/i.test(receipt) ? 'rejected' : `?（exists=${exists}）`);
+    expectArm('B 开火点', `整条绝对路径 ${total} 字节`, { res, receipt, got }, want);
+  }
+
+  // AC1 + AC7：同一轮先写一个正常的新页，再写 slug 超长的 t.json ⟹ 后者被拒，前者原样在、没有半截文件
+  // AC4 + AC7：同一轮先写一个正常的新页，再写整条路径 > 4096 字节的深页 ⟹ 后者被拒，rc=0、没有 ENAMETOOLONG / 栈
+  {
+    const { ctx, about } = fresh('reject-disk');
+    const pages = path.join(siteDirOf(ctx), 'en', 'pages');
+    const before = listing(pages);
+    const okPage = withSlug(about, 'page-a');
+    const deep = deepRel(siteDirOf(ctx), 4300);
+    const res = runEdit(ctx, [
+      reply([textBlock('Adding pages.'),
+        writeCall('a1', 'en/pages/page-a.json', okPage),
+        writeCall('l1', 'en/pages/t.json', withSlug(about, slugOf(SLUG_MAX_BYTES + 1))),
+        writeCall('d1', deep, withSlug(about, 'x'))], 'tool_use'),
+      reply([textBlock('Done.')], 'end_turn'),
+    ]);
+    const rSlug = toolResultContent(res, 1, 'l1') || '';
+    const rDeep = toolResultContent(res, 1, 'd1') || '';
+    const after = listing(pages);
+    const { added, changed } = diffListing(before, after);
+    const deepTop = path.join(pages, deep.split('/')[2]);
+    console.log(`     深路径 ${B(path.join(siteDirOf(ctx), deep))} 字节：rc=${res.rc} · ENAMETOOLONG ${enameIn(res) ? '有' : '无'} · 栈 ${stackIn(res) ? '有' : '无'} · 回执「${rDeep.slice(0, 90)}…」`);
+    console.log(`     pages/ 拒绝前后：新增 ${JSON.stringify(added)} · 改动 ${JSON.stringify(changed)} · page-a md5 ${after['page-a.json']}（写进去的内容 ${md5s(okPage)}）· 深路径第一层目录 ${fs.existsSync(deepTop) ? '在' : '不在'}`);
+    if (res.rc === 0 && !enameIn(res) && !stackIn(res)) ok('AC4：整条路径超长 ⟹ rc=0、输出里没有 ENAMETOOLONG、没有栈');
+    else bad(`🔴 AC4：rc=${res.rc} · ENAMETOOLONG=${enameIn(res)} · 栈=${stackIn(res)}\n${res.stderr.slice(-400)}`);
+    if (/path too long/i.test(rDeep) && rDeep.includes('at most 4095 bytes')) ok('AC4：模型收到的回执说路径太长、上限多少');
+    else bad(`🔴 AC4：回执不对「${rDeep}」`);
+    if (/too long/i.test(rSlug) && !fs.existsSync(path.join(pages, 't.json'))) ok('AC1：slug 超长的 t.json 被拒、盘上没有');
+    else bad(`🔴 AC1：t.json 回执「${rSlug}」· 在盘上=${fs.existsSync(path.join(pages, 't.json'))}`);
+    if (added.length === 1 && added[0] === 'page-a.json' && !changed.length && after['page-a.json'] === md5s(okPage) && !fs.existsSync(deepTop)) ok('AC7：拒之前写的 page-a 原样在（md5 = 写进去的内容），别的文件一个没动，没有半截文件 / 目录');
+    else bad(`🔴 AC7：新增 ${JSON.stringify(added)} · 改动 ${JSON.stringify(changed)} · 深目录在=${fs.existsSync(deepTop)}`);
+  }
+
+  // AC6：被拒之后模型第二轮换个短 slug ⟹ 结果跟一开始就用短 slug 那一跑逐字相同
+  {
+    const A = fresh('slug-retry');
+    const res = runEdit(A.ctx, [
+      reply([textBlock('Adding a page.'), writeCall('l1', 'en/pages/t.json', withSlug(A.about, slugOf(SLUG_MAX_BYTES + 1)))], 'tool_use'),
+      reply([textBlock('That address was too long; using a short one.'), writeCall('s1', 'en/pages/t.json', withSlug(A.about, 'short-page'))], 'tool_use'),
+      reply([textBlock('Done.')], 'end_turn'),
+    ]);
+    const C = fresh('slug-control');
+    const ctl = runEdit(C.ctx, [
+      reply([textBlock('Adding a page.'), writeCall('s1', 'en/pages/t.json', withSlug(C.about, 'short-page'))], 'tool_use'),
+      reply([textBlock('Done.')], 'end_turn'),
+    ]);
+    const tree = (ctx) => ctx.git('git ls-tree -r HEAD site').toString();
+    const done = (r) => ev(r, 'edit-complete').length === 1 && !ev(r, 'error').length && r.rc === 0;
+    console.log(`     改口那一跑：rc=${res.rc} · edit-complete ${ev(res, 'edit-complete').length} · commit +${res.commitsAfter - res.commitsBefore}　对照（一开始就短 slug）：rc=${ctl.rc} · edit-complete ${ev(ctl, 'edit-complete').length} · commit +${ctl.commitsAfter - ctl.commitsBefore}`);
+    if (done(res) && done(ctl) && res.commitsAfter - res.commitsBefore === 1 && tree(A.ctx) === tree(C.ctx)) ok('AC6：改口之后正常收尾（edit-complete、一个 commit），提交进去的 site/ 跟对照那一跑逐字相同');
+    else bad(`🔴 AC6：done=${done(res)}/${done(ctl)} · 树相同=${tree(A.ctx) === tree(C.ctx)}\n${res.stderr.slice(-300)}`);
+  }
+}
+
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);

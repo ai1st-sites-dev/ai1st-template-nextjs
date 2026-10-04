@@ -37,7 +37,8 @@ const { readPageBlocks, normalizeLocalePages } = require('./blocks');
 // 整段写在那个文件里。
 const { writeRejection, writeNotes } = require('./lib/editable-files');
 // #1567 —— 单个文件名的上限，跟建站那两条（#1563 / #1565）同一个数。
-const { FILENAME_MAX_BYTES } = require('./lib/keyword-slug');
+// #1574 —— slug 每一段的上限（= 单个文件名上限 − 构建给它接的最长后缀），同一份来源。
+const { FILENAME_MAX_BYTES, SLUG_MAX_BYTES } = require('./lib/keyword-slug');
 // #1104 r6 —— 这个站的页面真的画出哪些区（构建和这条路共用同一份实现，理由在那个文件头上）。
 const siteRegions = require('./lib/site-regions');
 // #1109 —— 这个站的内容住在 `site/<语言>/` 还是直接在 `site/`。白名单拿它判「这条路径在这个站上
@@ -558,8 +559,56 @@ function pathSegmentTooLong(relPath) {
     const bytes = Buffer.byteLength(seg);
     if (bytes > FILENAME_MAX_BYTES) {
       return `Name too long: "${seg.slice(0, 40)}…" is ${bytes} bytes, but each folder or file name in a path can be at most `
-        + `${FILENAME_MAX_BYTES} bytes (UTF-8, extension included; a Chinese character is 3 bytes). `
+        + `${FILENAME_MAX_BYTES} bytes (UTF-8, extension included; a Chinese character is 3 bytes)`
+        // #1574 —— 页面文件名还要再短一截：只说 255 的话，听话的模型取 250 正好落进 pageSlugTooLong 的死区。
+        + `, and a page's file name at most ${SLUG_MAX_BYTES} bytes without ".json". `
         + 'Nothing was written. Pick a shorter name (a few words in kebab-case) and write the file again.';
+    }
+  }
+  return null;
+}
+
+// ─── #1574：整条路径放不放得下 ────────────────────────────────────────────────────────────────
+//
+// #1567 只判每一段 ≤ 255；段段都合格、层数一多，整条绝对路径照样超过 PATH_MAX，`mkdirSync` /
+// `writeFileSync` 抛 ENAMETOOLONG ⟹ 同一个症状（会话死、栈进聊天窗）。拒法跟 #1567 一样。
+// 🔴 PATH_MAX 把结尾的 NUL 算在里面：本机实测 Node 写文件，总长 4095 字节 ok、4096 字节 ENAMETOOLONG
+//    ⟹ 判 `>=`，不是 `>`。Node 不导出这个数，4096 = Linux 的 PATH_MAX（`getconf PATH_MAX /`）。
+const PATH_MAX_BYTES = 4096;
+function absolutePathTooLong(fullPath) {
+  const bytes = Buffer.byteLength(fullPath);
+  if (bytes < PATH_MAX_BYTES) return null;
+  return `Path too long: this file's full path on disk would be ${bytes} bytes, but it can be at most `
+    + `${PATH_MAX_BYTES - 1} bytes. Nothing was written. Use fewer, shorter folder names and write the file again.`;
+}
+
+// ─── #1574：这一页构建出来的 slug 放不放得下 ──────────────────────────────────────────────────
+//
+// 构建产物的名字取自 slug，不取自文件名：子目录页的 slug 是 `<pages/ 底下那几层>/<文件名去掉 .json>`，
+// 顶层页的 slug 是内容里的 `slug` 字段（`lib/page-files.js`，构建读的就是那一份；这里照它算，不另立规则）。
+// `next build` 给 slug 的每一段建 `<段>.segments/` 之类的名字 ⟹ 某一段 > SLUG_MAX_BYTES 时整站
+// 构建 ENAMETOOLONG —— 而写盘那一刻一切正常，要到 Publish 才挂。所以在这里拒，模型同一轮改口。
+// 🔴 判 slug 按 `/` 切开的【每一段】，不判整体：`services/<正好 SLUG_MAX_BYTES 字节>` 整体超过上限，构建照样不会挂。
+// 📌 顶层页没有字符串 `slug` 时不判 —— 构建那一端它就是 undefined，那是另一件事。
+// `landedRel` = 落盘那个文件相对 siteDir 的路径（已经过 path.join 归一化），由调用点给。
+function pageSlugTooLong(landedRel, parsed) {
+  if (!PAGE_JSON.test(landedRel)) return null;
+  const segs = landedRel.split('/');
+  const under = segs.slice(segs.findIndex((x) => /^pages$/i.test(x)) + 1);
+  let slug;
+  if (under.length > 1) slug = [...under.slice(0, -1), under[under.length - 1].replace(/\.json$/i, '')].join('/');
+  else if (parsed && typeof parsed.slug === 'string') slug = parsed.slug;
+  else return null;
+  for (const seg of slug.split('/')) {
+    const bytes = Buffer.byteLength(seg);
+    if (bytes > SLUG_MAX_BYTES) {
+      return `Page address too long: "${seg.slice(0, 40)}…" is ${bytes} bytes, but each part of a page's address `
+        + `(between "/") can be at most ${SLUG_MAX_BYTES} bytes (UTF-8; a Chinese character is 3 bytes) — `
+        + 'the build turns it into file names and fails otherwise. '
+        + (under.length > 1
+          ? 'This page\'s address comes from its folder and file name (without ".json"). '
+          : 'This page\'s address comes from its "slug" field. ')
+        + 'Nothing was written. Make it shorter (a few words in kebab-case) and write the file again.';
     }
   }
   return null;
@@ -824,6 +873,9 @@ function executeTool(toolName, toolInput, siteDir, snapshots, allowedImageUrls, 
       // #1567 —— 最先判：后面几关会拿这个路径去 existsSync / 读磁盘，名字太长时问它们没有意义。
       const tooLong = pathSegmentTooLong(relPath);
       if (tooLong) return { error: tooLong };
+      // #1574 —— 段段都放得下、整条路径放不下：同一个理由，也排在最前面。
+      const pathTooLong = absolutePathTooLong(path.join(siteDir, relPath));
+      if (pathTooLong) return { error: pathTooLong };
       // #1087 —— 这条路只写【站的内容】。别的通道拥有的开关（theme.json 归换装弹窗）和构建自己
       // 生成的产物（custom.css）一律拒，判据与理由整段写在 lib/editable-files.js。
       // 🔴 排在 JSON.parse 【前面】：拒绝的理由要说的是「这个文件不由这条路改」，不是「你的 JSON 写错了」
@@ -873,6 +925,10 @@ function executeTool(toolName, toolInput, siteDir, snapshots, allowedImageUrls, 
       } catch (e) {
         return { error: `Invalid JSON: ${e.message}` };
       }
+      // #1574 —— 这一页构建出来的 slug 每一段放不放得下。要内容（顶层页的 slug 在 JSON 里）⟹ 排在解析之后；
+      // 问的是「这一页建得出来吗」，跟下面块校验同一类，排在它前面。按落盘那个路径分类（同 #1416 的理由）。
+      const slugTooLong = pageSlugTooLong(path.relative(siteDir, path.join(siteDir, relPath)).split(path.sep).join('/'), parsed);
+      if (slugTooLong) return { error: slugTooLong };
       const blockError = pageJsonBlockError(relPath, parsed, siteDir);
       if (blockError) return { error: blockError };
       // #1351 —— 这一轮如果被收窄到某一个块（面板的「让 AI 改这一块」），别的块一个字节都不许动。
