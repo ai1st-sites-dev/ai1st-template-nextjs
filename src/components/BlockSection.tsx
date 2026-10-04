@@ -37,7 +37,8 @@ interface Props {
   paint?: boolean;
   /** 跟底色合在一起的 style（pricing 的 `--pr-fc*` 变量）。给了它，`style` 就总是一个对象。 */
   style?: CSSProperties;
-  /** `<section>` 的 class。默认 `position-relative py-16 py-lg-24`。 */
+  /** `<section>` 的 class。默认 `position-relative section-padding`。
+   *  `section-padding` 是上下留白，主题设置的 density 从这里进页面（`src/app/globals.css`，#1541）—— 自己传 class 的块要带上它。 */
   className?: string;
   /** 容器的 class。默认 `container`。 */
   containerClassName?: string;
@@ -49,7 +50,7 @@ interface Props {
 }
 
 export default function BlockSection({
-  type, block, attrs, extraAttrs, bg, cover = false, paint = true, style, className = 'position-relative py-16 py-lg-24',
+  type, block, attrs, extraAttrs, bg, cover = false, paint = true, style, className = 'position-relative section-padding',
   containerClassName = 'container', layer, after, children,
 }: Props) {
   const bgValue = paint ? bgCss(bg) : null;

@@ -35,9 +35,9 @@
 //                  BlogIndexPage 1 · `globals.css` 1）照旧。
 //   densityScale   **活的**（同上）。同样 80/83 套用 `var(--section-block-pad)` / `var(--section-block-gap)`。
 //                  真浏览器实测（amber-20，0.9↔1.15）：**11 个不同块**的 padding 拉开 16.0–22.4px、
-//                  gap 拉开 8.0–12.0px（#1078 AC1，QA2 独立复现）。`.section-padding` 照旧 —— 它管的是
-//                  主题表没接管的那几块（本次实测 `src/` 下 7 处：`globals.css` 里 4 行 = 定义 1 +
-//                  @media 3，另有 Footer / BlogIndexPage / BlogPostPage 各用它一次）。
+//                  gap 拉开 8.0–12.0px（#1078 AC1，QA2 独立复现）。`.section-padding` 也吃 `--section-*` ——
+//                  #1541 起它是段落外壳 `BlockSection` 的上下留白（每个页面块都经它），所以这个滑块
+//                  也动段落上下留白（`--section-y` / `--section-yMd`；横向三个变量 #1541 删了）。
 //
 // 三个基准变量（`--radius-block` / `--section-block-pad` / `--section-block-gap`）的默认值住在
 // `src/app/globals.css` 的 `:root`，本文件的 `BLOCK_SHAPE_BASE` 与它逐字相同 —— 名字不在那份基准里

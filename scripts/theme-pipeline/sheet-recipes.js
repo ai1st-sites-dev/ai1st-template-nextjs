@@ -636,8 +636,8 @@ const RHYTHMS = [
 //
 // 为什么：微调引擎（#1006）缩放的是 `--radius-*` / `--section-*` 这两组变量，而阶段 2 把 34 个块的
 // 外观搬进这些表时用的是字面值 ⟹ 那两个滑块拖了页面几乎不动（Chris 2026-08-17 在 appdev 上看出来的：
-// `Corner roundness` 全程只有 6.4px ↔ 10px，`Spacing` 只有 Footer 会动，因为它是唯一还吃
-// `.section-padding` 的部件）。名字里带 `--radius-` / `--section-` 前缀的变量会被 `tweaks.js` 的
+// `Corner roundness` 全程只有 6.4px ↔ 10px，`Spacing` 只有 Footer 会动，因为它是当时唯一还吃
+// `.section-padding` 的部件；#1541 起那条规则是段落外壳 `BlockSection` 的上下留白）。名字里带 `--radius-` / `--section-` 前缀的变量会被 `tweaks.js` 的
 // `tweakFor()` 自动归队，所以只要规则改成引用它们，滑块就真的能动整张表。
 //
 // 🔴 为什么是「一个基准 token × 一个整数倍」，不是「四个 token 名」，也不是「所有表都写同一个 token」：

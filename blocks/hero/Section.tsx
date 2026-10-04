@@ -145,7 +145,7 @@ export default function HeroNewSection({ data, locale = 'en', block }: Props) {
       }}
       bg={d.bg}
       cover={cover}
-      className={`position-relative py-16 py-lg-24${center ? ' text-center' : right ? ' text-end' : ''}`}
+      className={`position-relative section-padding${center ? ' text-center' : right ? ' text-end' : ''}`}
       containerClassName="container position-relative"
       layer={cover && img ? (
         <div

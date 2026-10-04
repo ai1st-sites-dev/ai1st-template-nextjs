@@ -46,13 +46,42 @@ const SHADOW = {
 };
 
 // 留白 —— 只落在 globals.css 的 `.section-padding` 一条上（#961 正文写死的收窄口径：
-// 不动 tailwind 全局的 spacing scale，那会牵动 972 次使用 / 102 个类名）。
-// 四个键对应它今天那四档：base / sm(640) / md(768) / lg(1024)。
+// 不动全局的 spacing scale）。那一条是段落外壳 `BlockSection` 的上下留白（#1541）。
+// 两个键 = 它的两档：base / lg(992)。🔴 只有纵向：左右边距归 Bootstrap 的 `.container`，
+// 横向那三个键（x / xSm / xLg）#1541 删掉了（PM 2026-10-04 裁定）。
 const DENSITY = {
-  standard: { y: '4rem', x: '1rem', xSm: '1.5rem', yMd: '6rem', xLg: '2rem' },
-  compact: { y: '3rem', x: '1rem', xSm: '1.25rem', yMd: '4rem', xLg: '1.5rem' },
-  airy: { y: '6rem', x: '1.5rem', xSm: '2rem', yMd: '9rem', xLg: '3rem' },
+  standard: { y: '4rem', yMd: '6rem' },
+  compact: { y: '3rem', yMd: '4rem' },
+  airy: { y: '6rem', yMd: '9rem' },
 };
+
+// ── 存量站兼容：横向那三个只发给站，不进新模板（#1541 r2，PM 2026-10-04 裁定）──────────────────
+//
+// 🔴 新模板**不消费**它们（左右归 `.container`），但它们**有消费者 = 存量站**：在野的每一个站
+//    都烤着 #1541 之前那份 layout.tsx，它从自己那张 5 键 DENSITY 表派生出风格设定变量名集合
+//    `SETN`（15 个），再用**计数**判「平台发全了吗」：`setFull=(scN>=SETN_N)`。少发这三个
+//    ⟹ 12 < 15 ⟹ 试穿时 `dropSheet()` + 'settings incomplete'，画法静默不换（#1123 要治的那句话）。
+//    而那段代码住在站自己的仓里，不会自己升级 ⟹ 发往站的名字集合【只许增不许减】。
+//
+// 🔴 为什么不放回上面那张 DENSITY 表：新站的 `SETN` 就是从那张表派生的。放回去 ⟹ 此后新建的站
+//    也是 15，下面那条摘除判据永远不会成立。放在这里 ⟹ 新站派生出 12、生成的 theme.css /
+//    custom.css 不含这三个名字，只有 `settingsToSiteCssVars()`（dashboard 试穿发给站的那一跳）带上它们。
+//
+// 🔴 值是**真值**，逐字照搬 #1541 之前 DENSITY 表里那三列 / 数值形状那三个系数：老站真的拿它们
+//    画左右留白（它自己 globals.css 里的 `.section-padding`），发占位值会把老站试穿时的左右边距画错。
+//
+// 📌 摘除判据（不是「过一阵子」）：**在野的站没有一个的 `SETN` 还含 `--section-x` / `--section-xSm`
+//    / `--section-xLg`** —— 也就是每个站仓 `scripts/theme-settings.js` 的 DENSITY 都已不含这三个键
+//    （两个模板仓 + 所有已建成的站仓逐个量，不是只看模板仓）。到那天删这张表、删下面两处 `forSite`
+//    分支、`settingsToSiteCssVars` 退回成 `settingsToCssVars` 的别名，并把守卫
+//    `scripts/site-settings-contract.test.js` 里那份冻结名单同步收窄。
+const SITE_LEGACY_DENSITY_X = {
+  standard: { x: '1rem', xSm: '1.5rem', xLg: '2rem' },
+  compact: { x: '1rem', xSm: '1.25rem', xLg: '1.5rem' },
+  airy: { x: '1.5rem', xSm: '2rem', xLg: '3rem' },
+};
+// 数值形状的同一组系数（相对 standard 那一档，跟上面 standard 那一行同比例）。
+const SITE_LEGACY_DENSITY_X_MULT = { x: 1, xSm: 1.5, xLg: 2 };
 
 // 按钮形状 —— 独立于全局圆角的一个值。
 // 🔴 必须独立：否则「胶囊」会把每一张卡片也变成胶囊（#961 正文点名的那个后果）。
@@ -87,9 +116,25 @@ function own(table, token) {
  * 混写，schema 拦着（`schemas/theme-tokens.schema.json`）。判据只有一个：`radius` 是不是数字。
  */
 function settingsToCssVars(s) {
+  return translate(s, false);
+}
+
+/**
+ * 同一份翻译，外加「存量站兼容」那条尾巴 —— **只给 dashboard 试穿发往站的那一跳用**
+ * （`ThemeModal` 的 `settingsCss`）。
+ *
+ * 跟 `settingsToCssVars()` 是同一个函数、同一条形状分支、同一个 `rem()`，多出来的只有
+ * `SITE_LEGACY_DENSITY_X` 那三个名字（为什么、什么时候删，写在那张表上面）。
+ * 🔴 生成 theme.css / custom.css 的那几个调用方**不许**改用它：那是新模板自己的 CSS，那三个名字在那里没有消费者。
+ */
+function settingsToSiteCssVars(s) {
+  return translate(s, true);
+}
+
+function translate(s, forSite) {
   if (!s) return [];
-  if (typeof s.radius === 'number') return numericSettingsToCssVars(s);
-  return enumSettingsToCssVars(s);
+  if (typeof s.radius === 'number') return numericSettingsToCssVars(s, forSite);
+  return enumSettingsToCssVars(s, forSite);
 }
 
 /**
@@ -102,7 +147,7 @@ function settingsToCssVars(s) {
  * 0.5/0.75/1 rem = 1 : 1.5 : 2 : 3 : 4）。这样 `radius: 4`（px）算出来的五档与 `subtle` 逐字相同，
  * 也就是说数值形状能表达枚举形状的每一个档位,而不是另起一套手感。
  */
-function numericSettingsToCssVars(s) {
+function numericSettingsToCssVars(s, forSite) {
   const out = [];
   const px = (n) => `${Math.round(n * 1000) / 1000}px`;
   if (typeof s.radius === 'number' && Number.isFinite(s.radius)) {
@@ -124,15 +169,17 @@ function numericSettingsToCssVars(s) {
     const d = s.density;
     const rem = (n) => `${Math.round(n * d * 1000) / 1000}rem`;
     // 基准是 DENSITY.standard 那一档（也就是 globals.css :root 的默认值）。
-    out.push(`--section-y: ${rem(4)};`, `--section-x: ${rem(1)};`, `--section-xSm: ${rem(1.5)};`,
-      `--section-yMd: ${rem(6)};`, `--section-xLg: ${rem(2)};`);
+    out.push(`--section-y: ${rem(4)};`, `--section-yMd: ${rem(6)};`);
+    if (forSite) {
+      for (const [k, mult] of Object.entries(SITE_LEGACY_DENSITY_X_MULT)) out.push(`--section-${k}: ${rem(mult)};`);
+    }
   }
   const button = own(BUTTON_SHAPE, s.buttonShape);
   if (button) out.push(`--radius-button: ${button};`);
   return out;
 }
 
-function enumSettingsToCssVars(s) {
+function enumSettingsToCssVars(s, forSite) {
   const out = [];
   const radius = own(RADIUS, s.radius);
   if (radius) for (const [k, v] of Object.entries(radius)) out.push(`--radius-${k}: ${v};`);
@@ -140,9 +187,13 @@ function enumSettingsToCssVars(s) {
   if (shadow) for (const [k, v] of Object.entries(shadow)) out.push(`--shadow-${k}: ${v};`);
   const density = own(DENSITY, s.density);
   if (density) for (const [k, v] of Object.entries(density)) out.push(`--section-${k}: ${v};`);
+  const legacyX = forSite ? own(SITE_LEGACY_DENSITY_X, s.density) : undefined;
+  if (legacyX) for (const [k, v] of Object.entries(legacyX)) out.push(`--section-${k}: ${v};`);
   const button = own(BUTTON_SHAPE, s.buttonShape);
   if (button) out.push(`--radius-button: ${button};`);
   return out;
 }
 
-module.exports = { RADIUS, SHADOW, DENSITY, BUTTON_SHAPE, settingsToCssVars };
+module.exports = {
+  RADIUS, SHADOW, DENSITY, BUTTON_SHAPE, SITE_LEGACY_DENSITY_X, settingsToCssVars, settingsToSiteCssVars,
+};

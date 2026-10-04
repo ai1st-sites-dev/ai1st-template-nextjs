@@ -50,12 +50,12 @@ h3 {
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-  /* 区块留白的四档 = 今天 `px-4 py-16 sm:px-6 md:py-24 lg:px-8` 解析出来的值 */
+  /* 区块上下留白的两档 = 段落外壳原来的 `py-16 py-lg-24`（#1541；左右三档已删，归 `.container`）。
+     📌 `--section-x` / `--section-xSm` / `--section-xLg` 在新模板里【没有】消费者，所以这里不定义；
+     它们的消费者是 #1541 之前建的**存量站**（它们自己的 globals.css），只由 dashboard 试穿时发给站
+     —— 见 `scripts/theme-settings.js` 的 `SITE_LEGACY_DENSITY_X`（为什么、什么时候删）。 */
   --section-y: 4rem;
-  --section-x: 1rem;
-  --section-xSm: 1.5rem;
   --section-yMd: 6rem;
-  --section-xLg: 2rem;
 
   /* #1078 —— 主题表（`public/themes/<id>.css`）里块的圆角与留白的**基准**。
      三个值分别是 `sheet-recipes.js` 那三档阶梯的最大公约数，规则里写整数倍
@@ -208,30 +208,22 @@ h3 {
     background-color: var(--btn-accent-hover, var(--color-accent-500));
   }
 
-  /* #961 — 区块留白是 density 这一维【唯一】的落点（正文写死的收窄口径：不动 tailwind 全局
-     的 spacing scale）。这四档就是它原来那四个断点，值改从变量取。 */
+  /* #961 — 区块留白是 density 这一维【唯一】的落点（正文写死的收窄口径：不动全局的 spacing scale）。
+     #1541 —— 消费者是段落外壳 `src/components/BlockSection.tsx` 的默认 class（加上 hero 自己那一串，
+     `blocks/hero/Section.tsx`）。T4（#1426）之后原来那两处博客页不再用它，三档一度产出一样的页面。
+     · 只管上下：左右边距归 Bootstrap 的 `.container`（PM 2026-10-04 裁定，新模板不再消费 density 的横向
+       三个值；它们只为存量站留在试穿载荷里，见 `scripts/theme-settings.js` 的 `SITE_LEGACY_DENSITY_X`）。
+     · 它替换的是 `py-16 py-lg-24` ⟹ 断点是 Bootstrap 的 lg（992px），`!important` 也照那两个工具类：
+       standard 档（4rem / 6rem）与它们在每个宽度下逐像素相同，块 CSS 里压不过工具类的规则照样压不过它。 */
   .section-padding {
-    padding: var(--section-y) var(--section-x);
+    padding-top: var(--section-y) !important;
+    padding-bottom: var(--section-y) !important;
   }
 
-  @media (min-width: 640px) {
+  @media (min-width: 992px) {
     .section-padding {
-      padding-left: var(--section-xSm);
-      padding-right: var(--section-xSm);
-    }
-  }
-
-  @media (min-width: 768px) {
-    .section-padding {
-      padding-top: var(--section-yMd);
-      padding-bottom: var(--section-yMd);
-    }
-  }
-
-  @media (min-width: 1024px) {
-    .section-padding {
-      padding-left: var(--section-xLg);
-      padding-right: var(--section-xLg);
+      padding-top: var(--section-yMd) !important;
+      padding-bottom: var(--section-yMd) !important;
     }
   }
 
