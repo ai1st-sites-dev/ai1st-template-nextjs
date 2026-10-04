@@ -23,7 +23,7 @@ const os = require('os');
 const path = require('path');
 
 const NEXT = path.resolve(__dirname, '..');
-const { SLUG_MAX_BYTES: SLUG_MAX_BYTES_E2E } = require('./lib/keyword-slug');
+const { SLUG_MAX_BYTES: SLUG_MAX_BYTES_E2E, FILENAME_MAX_BYTES } = require('./lib/keyword-slug');
 const TEMP = [];
 process.on('exit', () => {
   if (process.env.KW_E2E_KEEP === '1') { if (TEMP.length) console.log(`📌 KW_E2E_KEEP=1 ⟹ 留着 ${TEMP[0]} 等 ${TEMP.length} 个`); return; }
@@ -45,7 +45,12 @@ const Module = require('module');
 const fs = require('fs');
 const cfg = JSON.parse(fs.readFileSync(process.env.KW_STUB_CFG, 'utf8'));
 const seen = {};
-globalThis.fetch = async () => { throw new Error('offline (test stub)'); };
+// cfg.images（#1566）：生图那一通回一张假图（几个字节，不调真 AI）；别的请求照旧离线。
+const FAKE_IMAGE = { candidates: [{ content: { parts: [{ inlineData: { data: Buffer.from('fake-jpeg-bytes').toString('base64') } }] } }] };
+globalThis.fetch = async (url) => {
+  if (cfg.images && String(url).includes('generativelanguage.googleapis.com')) return { ok: true, status: 200, json: async () => FAKE_IMAGE, text: async () => '' };
+  throw new Error('offline (test stub)');
+};
 const PARAS = ['Older homes in the area often hide corroded galvanized lines behind finished walls.',
   'We bring a fully stocked van, explain the problem in plain words and give a written price first.',
   'Most jobs are finished the same day, and we clean up before we leave.',
@@ -681,6 +686,44 @@ check('AC2：300 字节、没有连字符的 id ⟹ 硬截到正好上限（顶�
   assert.strictEqual(svc.id, 'd'.repeat(SLUG_MAX_BYTES_E2E));
   assert.ok(LT.pageFiles.includes(`services/${svc.id}`) && LT.pageFiles.includes(`services/${svc.id}/drain-cleaning-markham`), LT.pageFiles.join(' '));
 });
+
+// ── #1566：顶格 slug 拼出来的图片文件名放不下 ⟹ 收进上限，那一页的图一张不掉 ──────────────────────────
+// 生图那一通打桩回假图（cfg.images）。读数取 create-site 自己打的逐槽日志（`[photo-slot] 填上 / 没拿到图 —— 页面 <slug>`）
+// 和盘上的 public/photos/。改前（2cac58e30）同一份输入：这一页 success 0、每条原因 ENAMETOOLONG。
+console.log('── #1566：顶格 slug 的那一页，图片文件名放得下');
+const IMG_FEATURES = { type: 'features', data: { headline: 'Drain cleaning: why us', items: [{ title: 'Fast', text: 'Same day.' }, { title: 'Clear', text: 'Written price.' }, { title: 'Tidy', text: 'We clean up.' }] } };
+function photoReport(R, slug) {
+  const lines = R.stderr.split('\n');
+  const mine = (tag) => lines.filter((l) => l.startsWith(`[photo-slot] ${tag} —— 页面 ${slug} · `));
+  const filled = mine('填上');
+  const missed = mine('没拿到图');
+  const reasons = missed.map((l) => (l.match(/原因: (.*)$/) || [])[1] || '?');
+  const dir = path.join(R.work, 'public', 'photos');
+  const files = fs.existsSync(dir) ? fs.readdirSync(dir) : [];
+  return { attempted: filled.length + missed.length, success: filled.length, reasons, files, longest: Math.max(0, ...files.map((f) => Buffer.byteLength(f))) };
+}
+const reasonsLine = (r) => `attempted ${r.attempted} · success ${r.success} · 原因 ${JSON.stringify([...new Set(r.reasons.map((x) => x.split(':')[0]))])}`;
+
+const IMG_TOP = 'd'.repeat(SLUG_MAX_BYTES_E2E);
+const imgDetail = { ...longDetail, sections: [...longDetail.sections.slice(0, 2), IMG_FEATURES, longDetail.sections[2]] };
+const IT = run('imgtop', {
+  companyName: 'Bright Pipes', services: [LONG_NAME], geminiApiKey: 'stub-not-used',
+  keywords: { [LONG_NAME]: [primary('drain cleaning'), kw('drain cleaning markham')] },
+}, { images: true, call1: JSON.parse(JSON.stringify(call1([LONG_SVC], [imgDetail])).split(LONG_ID).join(TOP_ID)) }, { soft: true });
+check('#1566 AC1：服务 id 顶格 ⟹ 详情页每个图槽都填上、盘上每个文件名放得下（≤ FILENAME_MAX_BYTES）', () => {
+  assert.ok(!IT.failed, IT.failed);
+  const svc = IT.readJson('en/services.json')[0];
+  assert.strictEqual(svc.id, IMG_TOP, '阳性对照：id 真顶到了上限');
+  const r = photoReport(IT, `services/${IMG_TOP}`);
+  console.log(`     详情页 services/<顶格 id>：${reasonsLine(r)} · photos/ 里最长文件名 ${r.longest} 字节`);
+  assert.ok(r.attempted >= 3, `这一页至少 3 个图槽（读到 ${r.attempted}）`);
+  assert.strictEqual(r.success, r.attempted, reasonsLine(r));
+  assert.ok(r.longest > 0 && r.longest <= FILENAME_MAX_BYTES, `${r.longest}`);
+});
+
+// 📌 关键词页那种 pageSlug 形状（`services/<短 id>/<顶格词 slug>`）不在这里跑整站：关键词页今天不求图（`fillImageSlots`
+//    只在 Call 1 的 generateSlotPhotos 与 skipAI 里调），整站跑那一页按构造读 `attempted 0`。它在
+//    lib/image-slots.test.js ⑩ 直接驱动 slotKey 验（#1566 r2 AC2，PM 裁定）。
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

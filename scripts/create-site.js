@@ -60,7 +60,7 @@ const targetKw = require('./lib/target-keywords');
 const { seoProblems, rulesFor: seoRulesFor, pageTitleBudget, MIN_PAGE_TITLE_BUDGET } = require('./lib/seo-problems');
 // #1386 —— 建站选图：哪些槽要图、提示词怎么拼、上限怎么截、求不到怎么说，都在那个文件里。
 // 名单不再写在本文件里（此前是四个块名 + 四个 case，`hero-with-form` 因此永远拿不到图）。
-const { fillImageSlots, writeImageAlts } = require('./lib/image-slots');
+const { fillImageSlots, writeImageAlts, IMAGE_FILE_SUFFIX } = require('./lib/image-slots');
 // skipAI 那条路给图槽填的那张图 —— 模板自己带的资源，不调外部图库（#1386）。
 const PLACEHOLDER_IMAGE_URL = '/images/grid-pattern.svg';
 // #1034 — 每个站一份首页开场配方（开头四块 + 两个必须出现的块 + 候选清单的印刷顺序）。
@@ -467,7 +467,8 @@ async function generateSlotPhotos({ pages, manifests, industry, primaryColor, th
     produce: async ({ prompt, key }) => {
       const startMs = Date.now();
       const imageBytes = await callNanoBanana({ prompt, apiKey });
-      fs.writeFileSync(path.join(outputDir, `${key}.jpg`), imageBytes);
+      // #1566 —— key 已收进 SLOT_KEY_MAX_BYTES（按这个后缀推的），这里换别的后缀要回 image-slots.js 改那一处。
+      fs.writeFileSync(path.join(outputDir, `${key}${IMAGE_FILE_SUFFIX}`), imageBytes);
       if (emitFn) emitFn('cost', {
         operation: 'nano-banana-photo',
         provider: 'Google',
@@ -476,7 +477,7 @@ async function generateSlotPhotos({ pages, manifests, industry, primaryColor, th
         duration: Date.now() - startMs,
         detail: key,
       });
-      return `/photos/${key}.jpg`;
+      return `/photos/${key}${IMAGE_FILE_SUFFIX}`;
     },
   });
 

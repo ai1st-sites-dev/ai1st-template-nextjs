@@ -145,4 +145,4 @@ function assignKeywordSlugs(keywords) {
   });
 }
 
-module.exports = { transliterate, keywordSlug, assignKeywordSlugs, withDedupSuffix, SLUG_MAX_BYTES, PAGE_FILE_SUFFIXES };
+module.exports = { transliterate, keywordSlug, assignKeywordSlugs, withDedupSuffix, SLUG_MAX_BYTES, PAGE_FILE_SUFFIXES, FILENAME_MAX_BYTES };

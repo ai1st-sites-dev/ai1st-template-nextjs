@@ -19,6 +19,8 @@
 const { imageSlotsOf, blocksOf } = require('./block-manifest');
 // #1549 —— 「哪些图算内容图」「alt 含不含目标词」跟 seoProblems 第 6 条用同一份判据（两份实现会让生产侧和检查侧各挑一张）。
 const { contentImagesOf, hasPhrase } = require('./seo-problems');
+const crypto = require('crypto');
+const { FILENAME_MAX_BYTES } = require('./keyword-slug');
 
 /**
  * 页面里每一个内容图槽，按「页面 → 块 → 槽 → 列表项」的书写顺序。
@@ -74,11 +76,34 @@ function collectImageSlots(pages, manifests) {
   return out;
 }
 
-/** 这个槽的唯一键 —— 图片文件名用它，日志也用它。 */
+// ── 图片文件名的长度上限（#1566）──────────────────────────────────────────────────────────────────
+// 图片落盘是 `public/photos/<slotKey>.jpg`，slotKey 拿整条 pageSlug 当前缀。SLUG_MAX_BYTES 只按【页面文件】的后缀推过，
+// 图片是另一个 sink：前缀之后还要接 `-s<i>-<块>-<槽>[-i<j>]` 和 `.jpg` ⟹ 顶格的 slug 拼出来的文件名放不下，写盘抛
+// ENAMETOOLONG，那一页的图一张都不剩（图已经求到、钱已经花了）。
+// 🔴 上限是推出来的：单个文件名上限取 keyword-slug.js 那一份，减掉这里声明的后缀；create-site 写盘也用这个后缀。
+const IMAGE_FILE_SUFFIX = '.jpg';
+const SLOT_KEY_MAX_BYTES = FILENAME_MAX_BYTES - Buffer.byteLength(IMAGE_FILE_SUFFIX);
+// 截过的 key 里接的那段 pageSlug 哈希（十六进制位数）。
+const PAGE_TAG_LEN = 10;
+
+/**
+ * 这个槽的唯一键 —— 图片文件名用它，日志也用它。
+ *
+ * 放得下（≤ SLOT_KEY_MAX_BYTES）⟹ 跟以前逐字相同，今天正常长度的站一个字节都不变。
+ * 放不下 ⟹ 只截 pageSlug 那一截，后面接 `-<pageSlug 的哈希>`，坐标那一截原样保留：
+ *   同一页的槽 pageSlug 截法相同、坐标各不相同 ⟹ 页内唯一；不同页 pageSlug 不同 ⟹ 哈希不同 ⟹ 跨页唯一
+ *   （只截不加哈希的话，`services/<顶格 id>` 和它去重出来的 `services/<id 截短>-2` 截完会是同一个前缀）。
+ */
 function slotKey(slot) {
-  const parts = [slot.pageSlug, `s${slot.secIdx}`, slot.secType, slot.slotName];
-  if (slot.itemIdx !== null && slot.itemIdx !== undefined) parts.push(`i${slot.itemIdx}`);
-  return parts.join('-').replace(/[^a-zA-Z0-9-]/g, '_');
+  const coords = [`s${slot.secIdx}`, slot.secType, slot.slotName];
+  if (slot.itemIdx !== null && slot.itemIdx !== undefined) coords.push(`i${slot.itemIdx}`);
+  const safe = (s) => s.replace(/[^a-zA-Z0-9-]/g, '_');   // 结果只有 ASCII ⟹ 字符数 = 字节数
+  const full = safe([slot.pageSlug, ...coords].join('-'));
+  if (full.length <= SLOT_KEY_MAX_BYTES) return full;
+  const tag = crypto.createHash('sha1').update(String(slot.pageSlug)).digest('hex').slice(0, PAGE_TAG_LEN);
+  const tail = `-${tag}-${safe(coords.join('-'))}`;
+  // 坐标那一截来自块库的块名 / 槽名，长度是几十字节；最外层那次 slice 只防它本身就超长这种到不了的情形。
+  return `${safe(String(slot.pageSlug)).slice(0, Math.max(0, SLOT_KEY_MAX_BYTES - tail.length))}${tail}`.slice(0, SLOT_KEY_MAX_BYTES);
 }
 
 /** 人话版的槽位坐标：哪一页、哪个块、哪个槽（列表槽带第几项）。三条日志共用它。 */
@@ -277,6 +302,8 @@ module.exports = {
   fillImageSlots,
   writeImageAlts,
   slotKey,
+  IMAGE_FILE_SUFFIX,
+  SLOT_KEY_MAX_BYTES,
   slotWhere,
   logFilled,
   logMissed,

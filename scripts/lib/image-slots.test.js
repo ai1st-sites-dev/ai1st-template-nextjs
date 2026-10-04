@@ -360,6 +360,73 @@ const slotsOf = (pages) => {
     check(contentImagesOf(none[0], real).length === 0 && none[0].sections[0].data.image.alt === undefined, '　反向对照：求不到图的槽不算内容图，也不写 alt');
   }
 
+  // ⑩ #1566 —— 图片文件名放得下：顶格 slug 拼出来的 key 收进上限，截了也唯一，短 slug 一个字节都不动。
+  console.log('\n── ⑩ #1566 图片文件名的长度上限');
+  {
+    const fs = require('fs');
+    const os = require('os');
+    const { SLUG_MAX_BYTES, FILENAME_MAX_BYTES } = require('./keyword-slug');
+    const { SLOT_KEY_MAX_BYTES, IMAGE_FILE_SUFFIX } = ims;
+    const fileName = (sl) => `${slotKey(sl)}${IMAGE_FILE_SUFFIX}`;
+    const B = (x) => Buffer.byteLength(x);
+    check(SLOT_KEY_MAX_BYTES === FILENAME_MAX_BYTES - B(IMAGE_FILE_SUFFIX),
+      `上限 = 单个文件名上限 ${FILENAME_MAX_BYTES} − 后缀「${IMAGE_FILE_SUFFIX}」（读到 ${SLOT_KEY_MAX_BYTES}）`);
+    // 短 slug 逐字不变（AC5 的单元版；真站那份对照在交接里贴）
+    const short = { pageSlug: 'services/drain-cleaning', secIdx: 2, secType: 'features', slotName: 'items', itemIdx: 1 };
+    check(slotKey(short) === 'services_drain-cleaning-s2-features-items-i1', `短 slug 的 key 跟以前逐字相同（读到 ${slotKey(short)}）`);
+    // 顶格：两条路的 pageSlug 都顶到 SLUG_MAX_BYTES
+    const top = 'd'.repeat(SLUG_MAX_BYTES);
+    const tops = [`services/${top}`, `services/drain-cleaning/${top}`];
+    const shapes = [
+      { secIdx: 0, secType: 'hero', slotName: 'image', itemIdx: null },
+      { secIdx: 3, secType: 'features', slotName: 'items', itemIdx: 9 },
+      { secIdx: 3, secType: 'features', slotName: 'items', itemIdx: 10 },
+    ];
+    for (const pageSlug of tops) {
+      const raw = `${pageSlug}-s0-hero-image`.replace(/[^a-zA-Z0-9-]/g, '_');
+      check(B(raw) + B(IMAGE_FILE_SUFFIX) > FILENAME_MAX_BYTES, `　阳性对照：不截的话 ${pageSlug.slice(0, 26)}… 的文件名是 ${B(raw) + B(IMAGE_FILE_SUFFIX)} 字节，放不下`);
+      const names = shapes.map((sh) => fileName({ pageSlug, ...sh }));
+      check(names.every((n) => B(n) <= FILENAME_MAX_BYTES), `顶格 ${pageSlug.slice(0, 26)}…：每个文件名 ≤ ${FILENAME_MAX_BYTES}（读到 ${names.map(B).join(' / ')}）`);
+      check(new Set(names).size === names.length, '　同一页三个槽（含只在尾部不同的第 9 / 第 10 项）文件名各不相同');
+      const tails = ['-s0-hero-image.jpg', '-s3-features-items-i9.jpg', '-s3-features-items-i10.jpg'];
+      check(names.every((n, i) => new RegExp(`-[0-9a-f]{10}${tails[i].replace(/\./g, '\\.')}$`).test(n)),
+        `　坐标那一截原样保留（读到 …${names.map((n) => n.slice(-28)).join(' · …')}）`);
+      // 真写盘：两个文件都在、内容不互相覆盖（AC4）
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slotkey-'));
+      try {
+        names.forEach((n, i) => fs.writeFileSync(path.join(dir, n), `img-${i}`));
+        const back = names.map((n) => fs.readFileSync(path.join(dir, n), 'utf8'));
+        check(back.join(',') === 'img-0,img-1,img-2' && fs.readdirSync(dir).length === 3, `　写盘：${fs.readdirSync(dir).length} 个文件都在，各是各的内容（读到 ${back.join(',')}）`);
+      } catch (e) {
+        bad(`　写盘抛了：${e.code || e.message}`);
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    }
+    // 全部块库的图槽（不是挑出来的三种形状）：每个块 × 每个图槽，块序号 / 项序号取两位数，两条路顶格 ⟹ 都放得下、页内互不相同。
+    // 📌 头像（hero / pricing 的 proof.avatars）不在这份清单里 —— imageSlotsOf 不收它们，建站不为它们求图。
+    {
+      const bm = require('./block-manifest');
+      const all = [];
+      for (const [type, m] of bm.loadManifests()) for (const sl of bm.imageSlotsOf(m) || []) all.push({ secIdx: 12, secType: type, slotName: sl.name, itemIdx: sl.kind === 'list' ? 12 : null });
+      for (const pageSlug of tops) {
+        const names = all.map((sh) => fileName({ pageSlug, ...sh }));
+        const longest = Math.max(...names.map(B));
+        check(all.length >= 8 && longest <= FILENAME_MAX_BYTES && new Set(names).size === names.length,
+          `全部 ${all.length} 个图槽 × 顶格 ${pageSlug.slice(0, 26)}…：最长文件名 ${longest} ≤ ${FILENAME_MAX_BYTES}、互不相同`);
+      }
+    }
+    // 跨页：顶格 id 和它去重出来的 `<截短>-2` 截完前缀相同 ⟹ 靠哈希分开
+    const a = { pageSlug: `services/${top}`, secIdx: 0, secType: 'hero', slotName: 'image', itemIdx: null };
+    const b2 = { ...a, pageSlug: `services/${top.slice(0, SLUG_MAX_BYTES - 2)}-2` };
+    check(slotKey(a) !== slotKey(b2) && B(slotKey(b2)) <= SLOT_KEY_MAX_BYTES, '两页 pageSlug 只在尾部不同（顶格 id 与它的 -2）⟹ 截完 key 仍不同');
+    // 恰好顶到上限的那一个不截、上限 +1 的那一个截（边界两侧）
+    const fit = (n) => ({ pageSlug: 'x'.repeat(n - '-s0-hero-image'.length), secIdx: 0, secType: 'hero', slotName: 'image', itemIdx: null });
+    check(slotKey(fit(SLOT_KEY_MAX_BYTES)) === `${'x'.repeat(SLOT_KEY_MAX_BYTES - 14)}-s0-hero-image`, `key 恰好 ${SLOT_KEY_MAX_BYTES} 字节 ⟹ 原样不截`);
+    const over = slotKey(fit(SLOT_KEY_MAX_BYTES + 1));
+    check(B(over) <= SLOT_KEY_MAX_BYTES && /-[0-9a-f]{10}-s0-hero-image$/.test(over), `key ${SLOT_KEY_MAX_BYTES + 1} 字节 ⟹ 截到 ${B(over)}、接上哈希`);
+  }
+
   console.log(`\n逐条断言: PASS ${pass} · FAIL ${fail}`);
   if (fail) { console.log('❌ #1386 image-slots: 有失败'); process.exit(1); }
   console.log('✅ #1386 image-slots: 全过');
