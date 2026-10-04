@@ -93,7 +93,10 @@ export default function BlogNewSection({ data, locale, block }: Props) {
   // 没写 style ⟹ pill（同 milestones / features：AI 只写了字，眉标照样出来）；明写 none ⟹ 不画。
   const eyebrowStyle: EyebrowStyle | 'none' = !eyebrow ? 'none' : !eyebrow.style ? 'pill' : isEyebrowStyle(eyebrow.style) ? eyebrow.style : 'none';
   const showEyebrow = !!eyebrow && eyebrowStyle !== 'none';
-  const cta = isObj(d.introCta) && str(d.introCta.label) ? d.introCta : null;
+  // #1553：按钮要 label 和 href 都有才渲染（内容有值才渲染）。原来 href 空时落回 '/blog'，站里没有 /blog 页就是一条死链，
+  // 而发布前的死链检查现在会拦发布。
+  const ctaHref = isObj(d.introCta) ? str(d.introCta.href) : '';
+  const cta = isObj(d.introCta) && str(d.introCta.label) && ctaHref ? d.introCta : null;
   const hasIntro = showEyebrow || !!str(d.headline) || !!str(d.body) || !!cta;
 
   return (
@@ -123,7 +126,7 @@ export default function BlogNewSection({ data, locale, block }: Props) {
               {d.body ? <p className="fs-5 text-muted mb-0 bl-body" data-slot="body">{d.body}</p> : null}
               {cta ? (
                 <div className="bl-cta-row" data-part="cta">
-                  <Button href={cta.href || '/blog'} style={cta.style} fallback="outline" defaultSize="sm" flush>
+                  <Button href={ctaHref} style={cta.style} fallback="outline" defaultSize="sm" flush>
                     <span data-slot="introCta.label">{cta.label}</span>
                   </Button>
                 </div>

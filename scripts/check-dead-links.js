@@ -7,15 +7,15 @@
  * the build did not produce. Generated sites were shipping dead links and nothing in the repo was
  * looking (the only link check we had, manager/ticket722_test.go, covers ONBOARDING.md).
  *
- * 🔴 IT REPORTS, IT DOES NOT BLOCK. Callers (worker/entrypoint.sh on create, worker/main.go's
- * rebuildPreviewAfterEdit on edit) must deliver the site anyway. The reason is measured, not stylistic:
- * one of the producers of dead links is a fallback written into our own template —
- * src/components/sections/PricingTableSection.tsx:58 `const ctaHref = data.ctaHref || '/quote'` — so a
- * site that uses the pricing-table block, gives no ctaHref and has no /quote page grows a dead link
- * with no help from the model. A check that failed the build would turn that line into a reason a real
- * customer cannot get a website. A dead link costs SEO; a hard failure costs the whole site.
- * This script therefore keeps its own teeth (non-zero exit + names every offender) and leaves the
- * decision to the caller.
+ * 🔴 THE SCRIPT ONLY REPORTS; EACH CALLER DECIDES WHETHER TO BLOCK (#1553).
+ *   · preview (worker/entrypoint.sh on create, worker/main.go's reportDeadLinks on edit) — reports, never
+ *     blocks: a site with a dead link still gets its preview.
+ *   · publish (worker/main.go's deployLinkGate) — blocks: rc 1, rc 2, or this script missing all stop the
+ *     publish, and the owner is told which link on which page. It runs on the directory being uploaded,
+ *     passed as the argument below.
+ * (#1176 first made every caller report-only because a template fallback, PricingTableSection's
+ * `|| '/quote'`, produced dead links on its own; that block is gone since #1425, and #1553 removed the last
+ * one of that shape, blog's `|| '/blog'`.)
  *
  * 🔴 THE POSITIVE CONTROL IS PART OF THE OUTPUT, not a nicety. "No dead links" and "no links were
  * examined" are the same output otherwise — manager/ticket722_test.go:58 says exactly this about the

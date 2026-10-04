@@ -202,6 +202,19 @@ console.log('\n── AC7 缺字段');
   check(/data-part="author"/.test(noAvatar) && !/<img/.test(noAvatar), '有作者、没头像 ⟹ 作者行在、没有头像 <img>');
 }
 
+// ══ #1553：introCta 没 href ⟹ 不渲染按钮（不再落回 '/blog' 造死链）════════════════════════════════
+console.log('\n── #1553 introCta 没 href');
+{
+  const cta = (v) => render('cards', { ...clone(DEMO), introCta: v });
+  const has = cta({ label: 'All articles', href: '/articles', style: 'outline' });
+  check(/data-part="cta"/.test(has) && /href="\/articles"/.test(has), '对照：label + href 都有 ⟹ 按钮在、链到自己的 href');
+  for (const [name, v] of [['href 缺', { label: 'All articles', style: 'outline' }], ['href 空串', { label: 'All articles', href: '', style: 'outline' }]]) {
+    const html = cta(v);
+    check(!/data-part="cta"/.test(html) && !/introCta\.label/.test(html), `${name} ⟹ 没有按钮`);
+    check(!/href="\/blog"/.test(html), `${name} ⟹ HTML 里没有 href="/blog"`);
+  }
+}
+
 // ══ AC8：bg ══════════════════════════════════════════════════════════════════════════════════════
 console.log('\n── AC8 bg');
 {
