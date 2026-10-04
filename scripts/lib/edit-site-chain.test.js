@@ -2226,5 +2226,106 @@ console.log('\n⑲ 逐字：每一轮模型说的话都作为 text 事件发出�
   rolledBackClean('剔过值的页面 + 同步失败', arm1489({ label: 'scrub-fail', page: copied, breakSync: true }), 'home');
 }
 
+// ══ ㉑ 名字太长（#1567）：拒 → 模型同轮改口 → 正常收尾；磁盘一个字节不动；开火点正好在上限 ══════════════
+//
+// 改前：`write_file` 对路径长度零校验，某一段超过单个文件名上限 ⟹ `writeFileSync` 抛 ENAMETOOLONG，调用点外面
+// 没有 try/catch ⟹ `main().catch` → `fatal(err.stack)`：rc≠0、栈进聊天窗。改后：回一条 `{error}`，磁盘不动。
+// 名字用汉字凑：真场景是老板粘一段中文标题、模型照着转成文件名（一个汉字 3 字节）。
+console.log('\n㉑ 名字太长（#1567）：拒、同轮改口、磁盘不动；255 写得出 / 256 被拒');
+{
+  const { FILENAME_MAX_BYTES } = require('./keyword-slug');
+  const md5 = (f) => require('crypto').createHash('md5').update(fs.readFileSync(f)).digest('hex');
+  const B = (x) => Buffer.byteLength(x);
+  // 最后一段正好 n 字节的页面文件名（`<汉字…><补齐的 a>.json`）
+  const nameOf = (n) => {
+    const room = n - B('.json');
+    return `${'页'.repeat(Math.floor(room / 3))}${'a'.repeat(room % 3)}.json`;
+  };
+  const listing = (dir) => {
+    const out = {};
+    (function walk(d, pre) {
+      for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+        if (e.isDirectory()) walk(path.join(d, e.name), `${pre}${e.name}/`);
+        else out[`${pre}${e.name}`] = md5(path.join(d, e.name));
+      }
+    })(dir, '');
+    return out;
+  };
+  const stackIn = (res) => /\n\s+at .+\(.*:\d+:\d+\)/.test(`${res.stderr}\n${res.events.map((e) => e.message || '').join('\n')}`);
+  const enameIn = (res) => /ENAMETOOLONG/.test(`${res.stderr}\n${JSON.stringify(res.events)}`);
+  function fresh(label) {
+    const ctx = makeRoot(label);
+    writeSite(ctx.work);
+    ctx.git('git add -A && git commit -q -m base && git push -q origin main');
+    const about = fs.readFileSync(path.join(ctx.work, 'site', 'en', 'pages', 'about.json'), 'utf8');
+    return { ctx, about };
+  }
+  const pagesDir = (ctx) => path.join(ctx.work, 'site', 'en', 'pages');
+
+  // AC2 + AC4：同一轮先写一个正常的新页 A，再写一个最后一段 300 字节的页 ⟹ 后者被拒，A 原样在、长名字不在、没有半截文件
+  {
+    const { ctx, about } = fresh('longname');
+    const before = listing(pagesDir(ctx));
+    const long = nameOf(300);
+    const res = runEdit(ctx, [
+      reply([textBlock('Adding two pages.'), writeCall('a1', 'en/pages/page-a.json', about), writeCall('l1', `en/pages/${long}`, about)], 'tool_use'),
+      reply([textBlock('Done.')], 'end_turn'),
+    ]);
+    const receipt = toolResultContent(res, 1, 'l1') || '';
+    const after = listing(pagesDir(ctx));
+    const added = Object.keys(after).filter((f) => !(f in before));
+    const changed = Object.keys(before).filter((f) => after[f] !== before[f]);
+    console.log(`     最后一段 ${B(long)} 字节：rc=${res.rc} · ENAMETOOLONG ${enameIn(res) ? '有' : '无'} · 栈 ${stackIn(res) ? '有' : '无'} · 回执「${receipt.slice(0, 90)}…」`);
+    console.log(`     pages/ 拒绝前后：新增 ${JSON.stringify(added)} · 改动 ${JSON.stringify(changed)} · page-a md5 ${after['page-a.json']} （写进去的内容 md5 ${require('crypto').createHash('md5').update(about).digest('hex')}）`);
+    if (res.rc === 0 && !enameIn(res) && !stackIn(res)) ok(`AC2：300 字节那一段 ⟹ rc=0、输出里没有 ENAMETOOLONG、没有栈`);
+    else bad(`🔴 AC2：rc=${res.rc} · ENAMETOOLONG=${enameIn(res)} · 栈=${stackIn(res)}\n${res.stderr.slice(-400)}`);
+    if (/too long/i.test(receipt) && receipt.includes(String(FILENAME_MAX_BYTES)) && receipt.includes(String(B(long)))) ok('AC2：模型收到的回执说「太长」、点名多少字节、上限多少');
+    else bad(`🔴 AC2：回执不对「${receipt}」`);
+    if (!fs.existsSync(path.join(pagesDir(ctx), long))) ok('AC2：磁盘上没有这个长名字的文件');
+    else bad('🔴 AC2：长名字的文件落盘了');
+    if (added.length === 1 && added[0] === 'page-a.json' && !changed.length
+      && after['page-a.json'] === require('crypto').createHash('md5').update(about).digest('hex')) ok('AC4：拒之前写的 page-a 原样在（md5 = 写进去的内容），别的文件一个没动，没有半截文件');
+    else bad(`🔴 AC4：新增 ${JSON.stringify(added)} · 改动 ${JSON.stringify(changed)}`);
+  }
+
+  // AC3：被拒之后模型第二轮换个短名字写 ⟹ 结果跟一开始就用短名字那一跑逐字相同
+  {
+    const A = fresh('longname-retry');
+    const res = runEdit(A.ctx, [
+      reply([textBlock('Adding two pages.'), writeCall('a1', 'en/pages/page-a.json', A.about), writeCall('l1', `en/pages/${nameOf(300)}`, A.about)], 'tool_use'),
+      reply([textBlock('That name was too long; using a short one.'), writeCall('s1', 'en/pages/page-b.json', A.about)], 'tool_use'),
+      reply([textBlock('Done.')], 'end_turn'),
+    ]);
+    const C = fresh('longname-control');
+    const ctl = runEdit(C.ctx, [
+      reply([textBlock('Adding two pages.'), writeCall('a1', 'en/pages/page-a.json', C.about), writeCall('s1', 'en/pages/page-b.json', C.about)], 'tool_use'),
+      reply([textBlock('Done.')], 'end_turn'),
+    ]);
+    const tree = (ctx) => ctx.git('git ls-tree -r HEAD site').toString();
+    const done = (r) => ev(r, 'edit-complete').length === 1 && !ev(r, 'error').length && r.rc === 0;
+    console.log(`     改口那一跑：rc=${res.rc} · edit-complete ${ev(res, 'edit-complete').length} · commit +${res.commitsAfter - res.commitsBefore}　对照（一开始就短名字）：rc=${ctl.rc} · edit-complete ${ev(ctl, 'edit-complete').length} · commit +${ctl.commitsAfter - ctl.commitsBefore}`);
+    if (done(res) && done(ctl) && res.commitsAfter - res.commitsBefore === 1 && tree(A.ctx) === tree(C.ctx)) ok('AC3：改口之后正常收尾（edit-complete、一个 commit），提交进去的 site/ 跟对照那一跑逐字相同');
+    else bad(`🔴 AC3：done=${done(res)}/${done(ctl)} · 树相同=${tree(A.ctx) === tree(C.ctx)}\n${res.stderr.slice(-300)}`);
+  }
+
+  // AC5：开火点正好在上限 —— 最后一段 FILENAME_MAX_BYTES 字节写得出，+1 被拒
+  {
+    for (const [n, want] of [[FILENAME_MAX_BYTES, 'written'], [FILENAME_MAX_BYTES + 1, 'rejected']]) {
+      const { ctx, about } = fresh(`edge${n}`);
+      const nm = nameOf(n);
+      const res = runEdit(ctx, [
+        reply([textBlock('Adding a page.'), writeCall('e1', `en/pages/${nm}`, about)], 'tool_use'),
+        reply([textBlock('Done.')], 'end_turn'),
+      ]);
+      const receipt = toolResultContent(res, 1, 'e1') || '';
+      const exists = fs.existsSync(path.join(pagesDir(ctx), nm));
+      const got = exists && /"success":true/.test(receipt) ? 'written' : (!exists && /too long/i.test(receipt) ? 'rejected' : `?（exists=${exists}）`);
+      console.log(`     最后一段 ${B(nm)} 字节 ⟹ ${got} · rc=${res.rc} · 回执「${receipt.slice(0, 70)}…」`);
+      if (got === want && res.rc === 0 && !enameIn(res)) ok(`AC5：${B(nm)} 字节 ⟹ ${want === 'written' ? '照常写出来' : '被拒'}`);
+      else bad(`🔴 AC5：${B(nm)} 字节 想要 ${want}，读到 ${got} · rc=${res.rc}\n${res.stderr.slice(-300)}`);
+    }
+  }
+}
+
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);
 process.exit(fail ? 1 : 0);

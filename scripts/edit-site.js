@@ -36,6 +36,8 @@ const { readPageBlocks, normalizeLocalePages } = require('./blocks');
 // #1087 —— site/ 底下哪些文件由这条路改。谓词、逐条理由、以及为什么是白名单而不是黑名单，
 // 整段写在那个文件里。
 const { writeRejection, writeNotes } = require('./lib/editable-files');
+// #1567 —— 单个文件名的上限，跟建站那两条（#1563 / #1565）同一个数。
+const { FILENAME_MAX_BYTES } = require('./lib/keyword-slug');
 // #1104 r6 —— 这个站的页面真的画出哪些区（构建和这条路共用同一份实现，理由在那个文件头上）。
 const siteRegions = require('./lib/site-regions');
 // #1109 —— 这个站的内容住在 `site/<语言>/` 还是直接在 `site/`。白名单拿它判「这条路径在这个站上
@@ -543,6 +545,26 @@ function validatePath(relPath) {
   return true;
 }
 
+// ─── #1567：路径里每一段（文件夹名 / 文件名）放不放得下 ─────────────────────────────────────────
+//
+// 模型自己取新文件名（新建页面是明路），提示词对长度一个字没说。某一段超过单个文件名上限时，下面的
+// `writeFileSync` 抛 ENAMETOOLONG，而 `executeTool` 的调用点外面没有 try/catch ⟹ 一路抛到
+// `main().catch` → `fatal(err.stack)`：会话死、栈进聊天窗。
+// 🔴 拒的办法跟 #1013 那几道闸一样：回 `{error}`，模型在同一轮里换个短名字重写，磁盘一个字节不动。
+// 🔴 上限跟建站那两条同源（`lib/keyword-slug.js` 的 FILENAME_MAX_BYTES），这里不另写数。
+// 按 UTF-8 字节数算：上限是文件系统按字节量的，一个汉字是 3 字节。
+function pathSegmentTooLong(relPath) {
+  for (const seg of relPath.split('/')) {
+    const bytes = Buffer.byteLength(seg);
+    if (bytes > FILENAME_MAX_BYTES) {
+      return `Name too long: "${seg.slice(0, 40)}…" is ${bytes} bytes, but each folder or file name in a path can be at most `
+        + `${FILENAME_MAX_BYTES} bytes (UTF-8, extension included; a Chinese character is 3 bytes). `
+        + 'Nothing was written. Pick a shorter name (a few words in kebab-case) and write the file again.';
+    }
+  }
+  return null;
+}
+
 // ─── #1013 洞 4：页面 JSON 落盘之前过一遍块校验 ────────────────────────────────────────────────
 //
 // 之前这条路只校验「是合法 JSON」，于是模型可以把 `items` 写成 `plans`、把当年 `benefits-list` 的
@@ -799,6 +821,9 @@ function executeTool(toolName, toolInput, siteDir, snapshots, allowedImageUrls, 
     case 'write_file': {
       const relPath = toolInput.path;
       if (!validatePath(relPath)) return { error: 'Invalid path: must be relative, no ".."' };
+      // #1567 —— 最先判：后面几关会拿这个路径去 existsSync / 读磁盘，名字太长时问它们没有意义。
+      const tooLong = pathSegmentTooLong(relPath);
+      if (tooLong) return { error: tooLong };
       // #1087 —— 这条路只写【站的内容】。别的通道拥有的开关（theme.json 归换装弹窗）和构建自己
       // 生成的产物（custom.css）一律拒，判据与理由整段写在 lib/editable-files.js。
       // 🔴 排在 JSON.parse 【前面】：拒绝的理由要说的是「这个文件不由这条路改」，不是「你的 JSON 写错了」
