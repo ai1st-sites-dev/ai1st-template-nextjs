@@ -1,15 +1,16 @@
-import { notFound, redirect } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import SectionRenderer from '@/components/SectionRenderer';
 import { BreadcrumbJsonLd, ServiceJsonLd } from '@/components/JsonLd';
 import { getSeo, getServices, getPage, isValidLocale, localeUrl } from '@/lib/config';
-import { breadcrumbsFor } from '@/lib/breadcrumbs';
+import { breadcrumbJsonLdItems } from '@/lib/breadcrumbs';
 import { iconTablesFor } from '../../../scripts/lib/icons.js';
 import { blocksUseSource, itemSourceContext, resolveItemSources } from '@/lib/sections/item-sources';
 
 export default function SubPage({ locale, slug }: { locale: string; slug: string }) {
   if (!isValidLocale(locale)) notFound();
   const page = getPage(slug, locale);
-  if (!page) redirect(localeUrl('home', locale));
+  // #1552 —— 不存在的页是真 404（`app/not-found.tsx`），不再跳回首页（Google 把那种跳转当 soft-404）。
+  if (!page) notFound();
 
   const seo = getSeo(locale);
   const services = getServices(locale);
@@ -25,7 +26,7 @@ export default function SubPage({ locale, slug }: { locale: string; slug: string
     ? services.find((s) => s.id === slug.replace('services/', ''))
     : null;
 
-  const breadcrumbItems = breadcrumbsFor(slug, locale).map((c) => ({ name: c.label, url: c.url }));
+  const breadcrumbItems = breadcrumbJsonLdItems(slug, locale);
 
   return (
     <>

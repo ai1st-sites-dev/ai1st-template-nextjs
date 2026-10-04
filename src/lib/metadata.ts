@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { getSeo, getPage, getBlogPosts, getAlternateLanguages, getXDefaultHref, getBrandName, isValidLocale, localeUrl } from '@/lib/config';
+import { ogImageFields, twitterCard } from '@/lib/og-image';
 
 // Shared metadata builders. Used by route files (app/page.tsx, app/[...slug]/page.tsx,
 // app/blog/page.tsx, app/blog/[slug]/page.tsx) so each entry point produces canonical /
@@ -28,12 +29,13 @@ export function homeMetadata(locale: string): Metadata {
       title: seo.siteTitle,
       description: seo.siteDescription,
       url: ogUrl,
+      ...ogImageFields(), // #1552：页面级 openGraph 整份替掉根布局那份，图要每个构造器都给
       siteName: getBrandName(locale),
       locale: seo.locale,
       type: 'website',
     },
     twitter: {
-      card: 'summary_large_image',
+      card: twitterCard(), // #1552：有图才声明大图卡
       title: seo.siteTitle,
       description: seo.siteDescription,
     },
@@ -65,6 +67,7 @@ export function subPageMetadata(locale: string, slug: string): Metadata {
       title: `${page.title} | ${getBrandName(locale)}`,
       description: page.description,
       url: canonicalPath,
+      ...ogImageFields(), // #1552：页面级 openGraph 整份替掉根布局那份，图要每个构造器都给
     },
   };
 }
@@ -87,6 +90,7 @@ export function blogIndexMetadata(locale: string): Metadata {
       title: `Blog | ${getBrandName(locale)}`,
       description: `Read the latest articles and insights from ${getBrandName(locale)}.`,
       url: canonicalPath,
+      ...ogImageFields(), // #1552：页面级 openGraph 整份替掉根布局那份，图要每个构造器都给
     },
   };
 }
@@ -112,6 +116,7 @@ export function blogPostMetadata(locale: string, slug: string): Metadata {
       title: post.seo.metaTitle,
       description: post.seo.metaDescription,
       url: canonicalPath,
+      ...ogImageFields(), // #1552：页面级 openGraph 整份替掉根布局那份，图要每个构造器都给
       type: 'article',
       publishedTime: post.publishedAt,
       authors: [post.author],

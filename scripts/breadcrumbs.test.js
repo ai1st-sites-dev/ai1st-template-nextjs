@@ -7,8 +7,9 @@
  *
  * 管三件事：
  *   ① 四种 slug（一层 / 两层 services/x / 关键词页 x/y 中间页在与不在）逐项断言 label / href / url；
- *   ② 跟抽出来之前 `SubPage.tsx` 那段算法（原样抄在下面 §legacy）逐项对拍 `{name, url}` —— 结构化数据逐字不变；
- *   ③ 阳性对照：把「中间一级那一页在不在」那一判改掉（同一进程、单变量），上面至少一格红。
+ *   ② 跟抽出来之前 `SubPage.tsx` 那段算法（原样抄在下面 §legacy）逐项对拍 `{name, url}` —— `breadcrumbsFor` 的层级与名字逐字不变（#1552 起结构化数据另走 `breadcrumbJsonLdItems`，见 ④）；
+ *   ③ 阳性对照：把「中间一级那一页在不在」那一判改掉（同一进程、单变量），上面至少一格红；
+ *   ④ #1552：`breadcrumbJsonLdItems`（喂 BreadcrumbList 那一份）首项按语言取词、中间层只在那一页存在时带 url，配一格阳性对照。
  * 载的是**真的** `breadcrumbs.ts` + **真的** `config.ts`（localeUrl / getPage / getSeo 都是真的），只把 `config-data`
  * （sync-config 生成的站点数据，这棵树里不一定有）换成替身。
  */
@@ -170,7 +171,7 @@ console.log('── ① 四种 slug 逐项断言');
   if (J(none) === '[]') ok('页面不在 ⟹ 空数组（块就不画那一行）'); else bad(`页面不在读到 ${J(none)}`);
 }
 
-console.log('── ② 跟抽出来之前 SubPage 那段逐项对拍 {name, url}（结构化数据逐字不变）');
+console.log('── ② 跟抽出来之前 SubPage 那段逐项对拍 {name, url}（breadcrumbsFor 逐字不变；结构化数据另走 ④）');
 {
   const deps = { getPage: config.getPage, seo: null, localeUrl: config.localeUrl };
   let n = 0; const diffs = [];
@@ -196,6 +197,45 @@ console.log('── ③ 阳性对照：把「中间一级那一页在不在」�
     if (failed.length) ok(`改掉之后 ${failed.length} 格红（${failed.map((f) => f.what.split('·')[0].trim()).join(' / ')}）—— 判据分得开`);
     else bad('改掉「中间页在不在」之后 ① 仍全绿 —— 这把尺分不出');
     load();
+  }
+}
+
+console.log('── ④ #1552 结构化数据那一份（breadcrumbJsonLdItems）：首项按语言取词；中间层只在那一页存在时带 url');
+{
+  const items = (site, slug, locale) => {
+    setSite(site);
+    delete require.cache[LIB];
+    sourceOverride.delete(LIB);
+    return require(LIB).breadcrumbJsonLdItems(slug, locale);
+  };
+  const cases = [
+    { what: 'fr 一层页 · 首项 Accueil', site: SITE_FULL, slug: 'about', locale: 'fr',
+      want: [{ name: 'Accueil', url: `${D}/fr` }, { name: 'À propos', url: `${D}/fr/about` }] },
+    { what: 'en 关键词页 · 有服务详情页 ⟹ 中间层带 url', site: SITE_FULL, slug: 'water-heaters/burnaby', locale: 'en',
+      want: [{ name: 'Home', url: `${D}/` }, { name: 'Water Heater Repair', url: `${D}/services/water-heaters` },
+        { name: 'Water Heaters in Burnaby', url: `${D}/water-heaters/burnaby` }] },
+    { what: 'en 关键词页 · 没有服务详情页、也没有 /water-heaters ⟹ 中间层只有名字', site: withoutMiddle(), slug: 'water-heaters/burnaby', locale: 'en',
+      want: [{ name: 'Home', url: `${D}/` }, { name: 'Water Heaters' }, { name: 'Water Heaters in Burnaby', url: `${D}/water-heaters/burnaby` }] },
+    { what: 'en 关键词页 · 没有服务详情页、但 /water-heaters 这一页在 ⟹ 中间层带 url',
+      site: { ...withoutMiddle(), en: [...withoutMiddle().en, page('water-heaters', 'Water Heaters')] }, slug: 'water-heaters/burnaby', locale: 'en',
+      want: [{ name: 'Home', url: `${D}/` }, { name: 'Water Heaters', url: `${D}/water-heaters` }, { name: 'Water Heaters in Burnaby', url: `${D}/water-heaters/burnaby` }] },
+  ];
+  for (const c of cases) {
+    const got = items(c.site, c.slug, c.locale);
+    if (J(got) === J(c.want)) ok(c.what); else bad(`${c.what}：期望 ${J(c.want)}，实得 ${J(got)}`);
+  }
+  // 阳性对照（单变量）：把「中间层只在那一页存在时带 url」去掉 ⟹ 第 3 格必须红。
+  const src = fs.readFileSync(LIB, 'utf-8');
+  const needle = 'return i === 0 || last || c.href ? { name, url: c.url } : { name };';
+  if (!src.includes(needle)) bad(`breadcrumbs.ts 里找不到「${needle}」—— 对照改不下去`);
+  else {
+    setSite(withoutMiddle());
+    delete require.cache[LIB];
+    sourceOverride.set(LIB, src.replace(needle, 'return { name, url: c.url };'));
+    const got = require(LIB).breadcrumbJsonLdItems('water-heaters/burnaby', 'en');
+    if (got[1] && got[1].url) ok(`去掉存在判断之后中间层又指向 ${got[1].url} —— 第 3 格分得开`);
+    else bad('去掉存在判断之后中间层仍没有 url —— 这把尺分不出');
+    sourceOverride.delete(LIB); delete require.cache[LIB]; setSite(SITE_FULL);
   }
 }
 

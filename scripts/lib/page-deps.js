@@ -85,6 +85,8 @@ const ACCOUNTED = new Map([
   // #1505 —— 列表槽的引用写法（`items: {source: "services"}`）展开时替展开函数取服务目录的那一处。它到达哪几页
   //    由**页面数据**决定，不由组件决定 ⟹ 按页归属：filesFor 里 `blocksUseSource(page.blocks, 'services')` 那一条。
   ['src/lib/sections/item-sources.ts', '引用写法的展开（items: {source: "services"}）—— 下面 filesFor 按页面数据里的引用算'],
+  // #1552 —— 站根 `/llms.txt`（`src/app/llms.txt/route.ts` 调它）。它不是页面、不进 sitemap，没有哪一页的 <lastmod> 跟它走。
+  ['src/lib/llms-txt.ts', '站根 /llms.txt 里那份服务清单 —— 不是页面、不进 sitemap，不算'],
 ]);
 
 // 服务详情页（`/services/<id>` 那种页面）。这份判断本来就在 sync-config.js 里（导航要把这类页面

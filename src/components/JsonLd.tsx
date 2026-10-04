@@ -105,7 +105,8 @@ export function ServiceJsonLd({ locale, serviceName, serviceDescription, service
   );
 }
 
-export function BreadcrumbJsonLd({ items }: { items: { name: string; url: string }[] }) {
+// #1552 —— `url` 可缺：不存在的那一层（没有服务详情页时的中间层）只出名字、不出 `item`，不指向一个 404。
+export function BreadcrumbJsonLd({ items }: { items: { name: string; url?: string }[] }) {
   const schema = {
     '@context': 'https://schema.org',
     '@type': 'BreadcrumbList',
@@ -113,7 +114,7 @@ export function BreadcrumbJsonLd({ items }: { items: { name: string; url: string
       '@type': 'ListItem',
       position: index + 1,
       name: item.name,
-      item: item.url,
+      ...(item.url ? { item: item.url } : {}),
     })),
   };
 

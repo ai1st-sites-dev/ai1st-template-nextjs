@@ -27,7 +27,7 @@ export default function BlogIndexPage({ locale }: { locale: string }) {
     <>
       <BreadcrumbJsonLd
         items={[
-          { name: 'Home', url: `${seo.domain}${localeUrl('home', locale)}` },
+          { name: labels.home, url: `${seo.domain}${localeUrl('home', locale)}` }, // #1552：首项按语言取词
           { name: labels.blog, url: `${seo.domain}${localeUrl('', locale, 'blogIndex')}` },
         ]}
       />

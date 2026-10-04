@@ -10,6 +10,7 @@
 //   · `href`  —— 页面上的链接，**只在那一页真的存在时才有**（跟 `keyword-page-options.js` 让 AI 写「NO LINK」同一个
 //                意思）；最后一级（当前页）永远没有。结构化数据不读它。
 import { getPage, getSeo, localeUrl } from '@/lib/config';
+import { getLabels } from '@/lib/component-labels';
 
 export interface Crumb {
   label: string;
@@ -38,4 +39,21 @@ export function breadcrumbsFor(slug: string, locale: string): Crumb[] {
     : { label: titleFromSlug(slugParts[0]), url: abs(slugParts[0]) };
   if (!serviceDetailPage && getPage(slugParts[0], locale)) middle.href = localeUrl(slugParts[0], locale);
   return [home, middle, current];
+}
+
+/**
+ * #1552 —— 喂 `BreadcrumbList` 结构化数据的那一份（`SubPage.tsx` 用）。跟 `breadcrumbsFor` 同一套层级，两处不同：
+ *   · 首项 `name` 按语言取词（`component-labels` 的 `home`，跟页头那一行同一张表）—— `breadcrumbsFor` 的第一级
+ *     固定是 `'Home'`，页头那一行自己换词，结构化数据原来没换，法语站的 JSON-LD 里就是英文；
+ *   · 中间层只在那一页**存在**时带 `url`（它存在 ⟺ `breadcrumbsFor` 给了它 `href`）。原来没有服务详情页时，中间层
+ *     指向一个不存在的 `/<服务slug>`。首项和当前页永远存在。
+ */
+export function breadcrumbJsonLdItems(slug: string, locale: string): { name: string; url?: string }[] {
+  const crumbs = breadcrumbsFor(slug, locale);
+  const homeLabel = getLabels(locale).home;
+  return crumbs.map((c, i) => {
+    const last = i === crumbs.length - 1;
+    const name = i === 0 ? homeLabel : c.label;
+    return i === 0 || last || c.href ? { name, url: c.url } : { name };
+  });
 }

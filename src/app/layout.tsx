@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { brand, getSeo, getBrandName, defaultLocale, siteId, leadApi, colorScheme, dir } from '@/lib/config';
+import { ogImageFields, twitterCard } from '@/lib/og-image';
 // #1472 —— `auto` 站首屏前那段脚本（判据和文案都在 lib 那一处）。
 import { AUTO_SCHEME_SCRIPT } from '../../scripts/lib/color-scheme.js';
 import { RADIUS, SHADOW, DENSITY, BUTTON_SHAPE } from '@/lib/themeSettings';
@@ -703,9 +704,11 @@ export const metadata: Metadata = {
     siteName: defaultBrandName,
     locale: seo.locale,
     type: 'website',
+    ...ogImageFields(),
   },
   twitter: {
-    card: 'summary_large_image',
+    // #1552 —— 有分享图才声明大图卡；没图降成 summary（§siteOgImage 三档）。
+    card: twitterCard(),
     title: seo.siteTitle,
     description: seo.siteDescription,
   },

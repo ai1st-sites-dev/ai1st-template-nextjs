@@ -28,6 +28,10 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     outOfFive: 'out of 5',
     reviews: 'reviews',
     home: 'Home',
+    // #1552 —— 404 页（app/not-found.tsx）。
+    pageNotFound: 'Page not found',
+    pageNotFoundBody: 'The page you are looking for doesn\'t exist or has moved.',
+    backToHome: 'Back to home',
   },
   zh: {
     keyFeatures: '主要特色',
@@ -50,6 +54,9 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     outOfFive: '/ 5 分',
     reviews: '条评价',
     home: '首页',
+    pageNotFound: '页面不存在',
+    pageNotFoundBody: '你要找的页面不存在，或者已经移走了。',
+    backToHome: '返回首页',
   },
   fr: {
     keyFeatures: 'Caractéristiques',
@@ -72,6 +79,9 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     outOfFive: 'sur 5',
     reviews: 'avis',
     home: 'Accueil',
+    pageNotFound: 'Page introuvable',
+    pageNotFoundBody: 'La page que vous cherchez n\'existe pas ou a été déplacée.',
+    backToHome: 'Retour à l\'accueil',
   },
   es: {
     keyFeatures: 'Características',
@@ -94,6 +104,9 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     outOfFive: 'de 5',
     reviews: 'reseñas',
     home: 'Inicio',
+    pageNotFound: 'Página no encontrada',
+    pageNotFoundBody: 'La página que buscas no existe o se ha movido.',
+    backToHome: 'Volver al inicio',
   },
   ja: {
     keyFeatures: '主な特徴',
@@ -116,6 +129,9 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     outOfFive: '/ 5',
     reviews: '件のレビュー',
     home: 'ホーム',
+    pageNotFound: 'ページが見つかりません',
+    pageNotFoundBody: 'お探しのページは存在しないか、移動しました。',
+    backToHome: 'ホームに戻る',
   },
   ko: {
     keyFeatures: '주요 기능',
@@ -138,6 +154,9 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     outOfFive: '/ 5',
     reviews: '개 리뷰',
     home: '홈',
+    pageNotFound: '페이지를 찾을 수 없습니다',
+    pageNotFoundBody: '찾으시는 페이지가 없거나 이동되었습니다.',
+    backToHome: '홈으로 돌아가기',
   },
   de: {
     keyFeatures: 'Hauptmerkmale',
@@ -160,6 +179,9 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     outOfFive: 'von 5',
     reviews: 'Bewertungen',
     home: 'Startseite',
+    pageNotFound: 'Seite nicht gefunden',
+    pageNotFoundBody: 'Die gesuchte Seite existiert nicht oder wurde verschoben.',
+    backToHome: 'Zur Startseite',
   },
   it: {
     keyFeatures: 'Caratteristiche',
@@ -182,6 +204,9 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     outOfFive: 'su 5',
     reviews: 'recensioni',
     home: 'Home',
+    pageNotFound: 'Pagina non trovata',
+    pageNotFoundBody: 'La pagina che cerchi non esiste o è stata spostata.',
+    backToHome: 'Torna alla home',
   },
   pt: {
     keyFeatures: 'Características',
@@ -204,6 +229,9 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     outOfFive: 'de 5',
     reviews: 'avaliações',
     home: 'Início',
+    pageNotFound: 'Página não encontrada',
+    pageNotFoundBody: 'A página que você procura não existe ou foi movida.',
+    backToHome: 'Voltar ao início',
   },
   ru: {
     keyFeatures: 'Ключевые особенности',
@@ -226,6 +254,9 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     outOfFive: 'из 5',
     reviews: 'отзывов',
     home: 'Главная',
+    pageNotFound: 'Страница не найдена',
+    pageNotFoundBody: 'Страница, которую вы ищете, не существует или была перемещена.',
+    backToHome: 'На главную',
   },
   vi: {
     keyFeatures: 'Tính năng chính',
@@ -248,6 +279,9 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     outOfFive: 'trên 5',
     reviews: 'đánh giá',
     home: 'Trang chủ',
+    pageNotFound: 'Không tìm thấy trang',
+    pageNotFoundBody: 'Trang bạn tìm không tồn tại hoặc đã được chuyển đi.',
+    backToHome: 'Về trang chủ',
   },
   ar: {
     keyFeatures: 'الميزات الرئيسية',
@@ -270,6 +304,9 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     outOfFive: 'من 5',
     reviews: 'تقييمات',
     home: 'الرئيسية',
+    pageNotFound: 'الصفحة غير موجودة',
+    pageNotFoundBody: 'الصفحة التي تبحث عنها غير موجودة أو تم نقلها.',
+    backToHome: 'العودة إلى الرئيسية',
   },
   hi: {
     keyFeatures: 'मुख्य विशेषताएं',
@@ -292,6 +329,9 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     outOfFive: 'में से 5',
     reviews: 'समीक्षाएं',
     home: 'होम',
+    pageNotFound: 'पेज नहीं मिला',
+    pageNotFoundBody: 'आप जो पेज ढूँढ रहे हैं वह मौजूद नहीं है या हटा दिया गया है।',
+    backToHome: 'होम पर वापस जाएँ',
   },
   th: {
     keyFeatures: 'คุณสมบัติหลัก',
@@ -314,6 +354,9 @@ export const COMPONENT_LABELS: Record<string, Partial<Record<string, string>>> =
     outOfFive: 'จาก 5',
     reviews: 'รีวิว',
     home: 'หน้าแรก',
+    pageNotFound: 'ไม่พบหน้านี้',
+    pageNotFoundBody: 'ไม่มีหน้าที่คุณกำลังหา หรือหน้านั้นถูกย้ายไปแล้ว',
+    backToHome: 'กลับหน้าแรก',
   },
 };
 
