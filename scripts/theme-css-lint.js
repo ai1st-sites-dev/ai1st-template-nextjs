@@ -108,7 +108,16 @@ const CONTRACT_VERSION = 'v3';
 
 // ── §1 hooks ────────────────────────────────────────────────────────────────────────────────────
 // Exact strings. A prefix rule (`starts with .hero__`) would admit the next typo as a new part.
+// 📌 #1582（2026-10-05，PM 裁定「留着 + 写明判据」）—— 这张白名单今天绝大部分点着旧库。#1425（T3）删了旧块，
+//    新块发的是 `hro-*` / `phn-*` / `tn-*` / `gl-*` 这类类名；而在用的两张主题表（`public/themes/*.css`）和三张
+//    对比度样本（`scripts/handwritten-sheets/*.css`）都是按旧库生成的，仍在给下面这些选择器写规则。
+//    这是白名单：现在拿掉，那五张表一律变成非法表（`css-contract-check.js` exit 1），`SERVICE_ITEM_HOOK` 那条
+//    断言（本文件 §PART_HOOKS 附近）还会让整个检查 rc=2。所以每组都留着，每组前一行写「为什么还在 · 什么时候删」。
+//    🔴 删的时机只有一个：主题池整池重生成那一次（#1317）—— 今天没有票在做它，所以不写票号。那一次按新块的
+//    类名重写这张表、重生成那几张表，旧组整组删。🔴 不进 `RETIRED_HOOKS`：那张表记的是「曾经是契约、已经退役」，
+//    而这些今天还在被五张表用着。「今天块发不发」的口径与读数在 #1582 正文。
 const HOOKS = new Set([
+  // 📌 #1582 留着：块名 `hero` 还在，但今天的块只发 `[data-block="hero"]`、零件类是 `hro-*`，下面这些 `.hero…` 不再发；五张表都还在写它 → 主题池整池重生成那一次（#1317）换成 `hro-*` 那套（`[data-block="hero"]` 留）。
   '.hero', '.hero__media', '.hero__body', '.hero__title', '.hero__sub', '.hero__cta', '.hero__deco',
   // #1065 — the eighth part. `with-form` had been in hero's content-shape value table since the
   // 2026-08-12 spec (§208) while nothing rendered it; HeroSection then rendered `.hero__form` when the
@@ -138,17 +147,20 @@ const HOOKS = new Set([
   '[data-block="hero"]',
   // #1018 — cta-banner, phase 2's first paid-in-full move. One class per part, no part for the
   // button itself: the box around it is a theme's business, the button's own look is the brand's.
+  // 📌 #1582 留着：`cta-banner` 块已随旧库删（#1425 T3），今天没有块发这组；五张表都还在写它 → 主题池整池重生成那一次（#1317）整组删。
   '.cta-banner', '.cta-banner__headline', '.cta-banner__desc', '.cta-banner__action',
   '[data-block="cta-banner"]',
   // #1019 — page-header, phase 2's third block and the widest one on a site (7 instances per site,
   // #1007). Three parts: the crumb trail, the heading, the subtitle. The hook is on the <nav>
   // rather than the <ol> inside it, because only a direct child of the block can be given `order`.
+  // 📌 #1582 留着：块名 `page-header` 还在，但今天的块只发 `[data-block="page-header"]`、零件类是 `phn-*`，下面这些 `.page-header…` 不再发；五张表都还在写它 → 主题池整池重生成那一次（#1317）换成 `phn-*` 那套（`[data-block="page-header"]` 留）。
   '.page-header', '.page-header__crumbs', '.page-header__title', '.page-header__sub',
   '[data-block="page-header"]',
   // #1027 — batch B, six blocks at once, four of them `essential`. None of them had a `variant`
   // branch to delete (values-grid's five looks were keyed off `data.style`, which its manifest
   // declares as `kind: "variant"`), so this batch is the other half of a migration: the Tailwind
   // classes that decided a look left the markup and these hooks arrived in its place.
+  // 📌 #1582 留着：`contact-form` 块已随旧库删（#1425 T3），今天没有块发这组；五张表都还在写它 → 主题池整池重生成那一次（#1317）整组删。
   '.contact-form', '.contact-form__heading', '.contact-form__intro', '.contact-form__form',
   '.contact-form__error', '.contact-form__note', '.contact-form__success',
   // #1370 —— 两个按形态出的零件（`form-over-media` 的图、`info-side` 的联系方式卡）。进清单的判据
@@ -156,16 +168,20 @@ const HOOKS = new Set([
   // `.quote-form__aside`）。不进的话主题画不了它们，而这个块是 essential、这两个零件都带内容。
   '.contact-form__media', '.contact-form__aside',
   '[data-block="contact-form"]',
+  // 📌 #1582 留着：`quote-form` 块已随旧库删（#1425 T3），今天没有块发这组；五张表都还在写它 → 主题池整池重生成那一次（#1317）整组删。
   '.quote-form', '.quote-form__form', '.quote-form__intro', '.quote-form__main',
   '.quote-form__aside', '.quote-form__step', '.quote-form__error', '.quote-form__action',
   '.quote-form__success',
   '[data-block="quote-form"]',
+  // 📌 #1582 留着：`services-list` 块已随旧库删（#1425 T3），今天没有块发这组；五张表都还在写它 → 主题池整池重生成那一次（#1317）整组删。
   '.services-list', '.services-list__item', '.services-list__icon', '.services-list__title',
   '.services-list__desc', '.services-list__actions', '.services-list__features',
   '.services-list__products',
   '[data-block="services-list"]',
+  // 📌 #1582 留着：`services-nav` 块已随旧库删（#1425 T3），今天没有块发这组；五张表都还在写它 → 主题池整池重生成那一次（#1317）整组删。
   '.services-nav', '.services-nav__link',
   '[data-block="services-nav"]',
+  // 📌 #1582 留着：`service-related-pages` 块已随旧库删（#1425 T3），今天没有块发这组；五张表都还在写它 → 主题池整池重生成那一次（#1317）整组删。
   '.service-related-pages', '.service-related-pages__headline', '.service-related-pages__sub',
   '.service-related-pages__card',
   '[data-block="service-related-pages"]',
@@ -175,6 +191,7 @@ const HOOKS = new Set([
   // (`contact-info`) is `essential`, and its hooks are the ones a sheet needs to lay out a phone
   // number and an address without the markup deciding: `__location` is the child grid/flex places,
   // `__phone` and `__email` are the two links a customer actually uses.
+  // 📌 #1582 留着：`contact-info` 块已随旧库删（#1425 T3），今天没有块发这组；五张表都还在写它 → 主题池整池重生成那一次（#1317）整组删。
   '.contact-info', '.contact-info__headline', '.contact-info__location', '.contact-info__label',
   '.contact-info__address', '.contact-info__phone', '.contact-info__email',
   // #1382 —— 这个块从此有一个可选图槽（对表 contact-us-1 的 `media-side-grid`）。它进这张表的判据是
@@ -184,6 +201,7 @@ const HOOKS = new Set([
   //   grep -n 'hero__media\|content-split__media' public/themes/*.css
   '.contact-info__media',
   '[data-block="contact-info"]',
+  // 📌 #1582 留着：`process-steps` 块已随旧库删（#1425 T3），今天没有块发这组；五张表都还在写它 → 主题池整池重生成那一次（#1317）整组删。
   '.process-steps', '.process-steps__headline', '.process-steps__sub', '.process-steps__step',
   '.process-steps__num', '.process-steps__title', '.process-steps__desc',
   '[data-block="process-steps"]',
@@ -196,9 +214,11 @@ const HOOKS = new Set([
   //   · no per-post colour on `.blog-preview__post`. The old cards rotated four gradients by index;
   //     `::before` cannot select "the third one" (§1 refuses `nth-child`), so the rotation is gone
   //     and one colour for all of them is what a sheet can say.
+  // 📌 #1582 留着：`team-grid` 块已随旧库删（#1425 T3），今天没有块发这组；五张表都还在写它 → 主题池整池重生成那一次（#1317）整组删。
   '.team-grid', '.team-grid__headline', '.team-grid__sub', '.team-grid__member', '.team-grid__name',
   '.team-grid__role', '.team-grid__bio',
   '[data-block="team-grid"]',
+  // 📌 #1582 留着：`blog-preview` 块已随旧库删（#1425 T3），今天没有块发这组；五张表都还在写它 → 主题池整池重生成那一次（#1317）整组删。
   '.blog-preview', '.blog-preview__headline', '.blog-preview__sub', '.blog-preview__post',
   '.blog-preview__category', '.blog-preview__date', '.blog-preview__title', '.blog-preview__excerpt',
   '[data-block="blog-preview"]',
@@ -209,25 +229,30 @@ const HOOKS = new Set([
   // with-stats / with-bullets) and social-proof (default / with-platforms / with-badges /
   // with-quote). The other four kept one value.
   // 📌 #1341 — that whole dimension is retired; no block has a content-shape list any more.
+  // 📌 #1582 留着：`content-split` 块已随旧库删（#1425 T3），今天没有块发这组；五张表都还在写它 → 主题池整池重生成那一次（#1317）整组删。
   '.content-split', '.content-split__media', '.content-split__headline', '.content-split__body',
   '.content-split__bullets', '.content-split__stats', '.content-split__stat',
   '.content-split__stat-value', '.content-split__stat-label',
   '[data-block="content-split"]',
+  // 📌 #1582 留着：`text-block` 块已随旧库删（#1425 T3），今天没有块发这组；五张表都还在写它 → 主题池整池重生成那一次（#1317）整组删。
   '.text-block', '.text-block__headline', '.text-block__body', '.text-block__attribution',
   '.text-block__list',
   '[data-block="text-block"]',
+  // 📌 #1582 留着：`social-proof` 块已随旧库删（#1425 T3），今天没有块发这组；五张表都还在写它 → 主题池整池重生成那一次（#1317）整组删。
   '.social-proof', '.social-proof__headline', '.social-proof__rating', '.social-proof__reviews',
   '.social-proof__platform', '.social-proof__badge', '.social-proof__quote',
   '.social-proof__quote-author',
   // #1367 —— #1376 把那个「一排数字」的块并进来时带进了四个零件，它们当时只有 base.css 的地板。
-  // 同名零件在 `content-split` 上本来就是钩子（上面 :202-204），一组数字在一个块里被主题画、在另一个
+  // 同名零件在 `content-split` 上本来就是钩子（上面 `content-split` 那组；原来钉的行号 :202-204 早已漂走，#1582 改成按名字找），一组数字在一个块里被主题画、在另一个
   // 块里画不了，等于同一页上两种长相。加钩子是只增不减，不动 CONTRACT_VERSION（见下面那段的理由）。
   '.social-proof__stat', '.social-proof__stat-value', '.social-proof__stat-label',
   '.social-proof__media',
   '[data-block="social-proof"]',
+  // 📌 #1582 留着：`features-grid` 块已随旧库删（#1425 T3），今天没有块发这组；五张表都还在写它 → 主题池整池重生成那一次（#1317）整组删。
   '.features-grid', '.features-grid__headline', '.features-grid__sub', '.features-grid__item',
   '.features-grid__icon', '.features-grid__title', '.features-grid__desc',
   '[data-block="features-grid"]',
+  // 📌 #1582 留着：`newsletter-signup` 块已随旧库删（#1425 T3），今天没有块发这组；五张表都还在写它 → 主题池整池重生成那一次（#1317）整组删。
   '.newsletter-signup', '.newsletter-signup__headline', '.newsletter-signup__desc',
   '.newsletter-signup__form',
   '[data-block="newsletter-signup"]',
@@ -245,9 +270,11 @@ const HOOKS = new Set([
   //     only select a class, so the boolean has to arrive as one.
   //   · `.testimonials__star` — the rating is N stars, and N comes from the data. A sheet decides
   //     how big and what colour a star is; it cannot decide how many there are.
+  // 📌 #1582 留着：`faq-accordion` 块已随旧库删（#1425 T3），今天没有块发这组；五张表都还在写它 → 主题池整池重生成那一次（#1317）整组删。
   '.faq-accordion', '.faq-accordion__headline', '.faq-accordion__sub', '.faq-accordion__item',
   '.faq-accordion__question', '.faq-accordion__answer',
   '[data-block="faq-accordion"]',
+  // 📌 #1582 留着：块名 `testimonials` 还在，但今天的块只发 `[data-block="testimonials"]`、零件类是 `tn-*`，下面这些 `.testimonials…` 不再发；五张表都还在写它 → 主题池整池重生成那一次（#1317）换成 `tn-*` 那套（`[data-block="testimonials"]` 留）。
   '.testimonials', '.testimonials__headline', '.testimonials__sub', '.testimonials__item',
   '.testimonials__rating', '.testimonials__star', '.testimonials__quote', '.testimonials__name',
   '.testimonials__meta', '.testimonials__service',
@@ -281,14 +308,18 @@ const HOOKS = new Set([
   // makes `.testimonials` a grid or flex container, so the items are its grid children today and an
   // opaque wrapper would collapse them into one child). Measured element by element, flat vs
   // wrapped-in-`display:contents`: identical geometry for the headline, the sub and every item.
+  // 📌 #1582 留着：今天没有块发这个属性，五张表也都没写它（门 ② 本来就不要求它，见上一段）→ 主题池整池重生成那一次（#1317）跟 testimonials 那组一起删。
   '[data-block-part="testimonials-list"]',
+  // 📌 #1582 留着：`announcement-bar` 块已随旧库删（#1425 T3），今天没有块发这组；五张表都还在写它 → 主题池整池重生成那一次（#1317）整组删。
   '.announcement-bar', '.announcement-bar__message', '.announcement-bar__link',
   '[data-block="announcement-bar"]',
+  // 📌 #1582 留着：`pricing-table` 块已随旧库删（#1425 T3），今天没有块发这组；五张表都还在写它 → 主题池整池重生成那一次（#1317）整组删。
   '.pricing-table', '.pricing-table__headline', '.pricing-table__sub', '.pricing-table__item',
   '.pricing-table__item--featured', '.pricing-table__badge', '.pricing-table__name',
   '.pricing-table__price', '.pricing-table__desc', '.pricing-table__features',
   '.pricing-table__action',
   '[data-block="pricing-table"]',
+  // 📌 #1582 留着：块名 `gallery` 还在，但今天的块只发 `[data-block="gallery"]`、零件类是 `gl-*`，下面这些 `.gallery…` 不再发；五张表都还在写它 → 主题池整池重生成那一次（#1317）换成 `gl-*` 那套（`[data-block="gallery"]` 留）。
   '.gallery', '.gallery__headline', '.gallery__sub', '.gallery__item', '.gallery__image',
   '.gallery__placeholder', '.gallery__caption', '.gallery__category', '.gallery__title',
   '.gallery__desc',
@@ -309,9 +340,11 @@ const HOOKS = new Set([
   // blocks this batch has lost since — the comparison table (#1372) and the logo wall (#1375), both
   // per D19 — took their own unreachable defaults with them (a `<table>`'s semantics, and a marquee:
   // `animation` and `@keyframes` are not in §2 either way).
+  // 📌 #1582 留着：`map-area` 块已随旧库删（#1425 T3），今天没有块发这组；五张表都还在写它 → 主题池整池重生成那一次（#1317）整组删。
   '.map-area', '.map-area__headline', '.map-area__sub', '.map-area__area', '.map-area__name',
   '.map-area__desc',
   '[data-block="map-area"]',
+  // 📌 #1582 留着：`trusted-brands` 块已随旧库删（#1425 T3），今天没有块发这组；五张表都还在写它 → 主题池整池重生成那一次（#1317）整组删。
   '.trusted-brands', '.trusted-brands__headline', '.trusted-brands__brand',
   '[data-block="trusted-brands"]',
   // #1132 — the first GENERIC block: `values-grid` and `benefits-list` merged into one type
@@ -338,10 +371,12 @@ const HOOKS = new Set([
   // features — a part of the ITEM, not a second list slot (mapping doc §1.3). Adding a PART to a
   // block that is already last does not move any block in the walk above, so no sheet's surface
   // rotation changes; it only adds rules. The old names stay, all 22 of them now.
+  // 📌 #1582 留着：`card-group` 块已随旧库删（#1425 T3），今天没有块发这组；五张表都还在写它 → 主题池整池重生成那一次（#1317）整组删。
   '.card-group', '.card-group__headline', '.card-group__sub', '.card-group__item',
   '.card-group__title', '.card-group__desc', '.card-group__features',
   '[data-block="card-group"]',
   '[data-role="essential"]', '[data-role="lead"]', '[data-role="optional"]',
+  // 📌 #1582：上一行三个 `[data-role]` 今天还在发（`src/lib/sections/blockAttrs.ts` §blockAttrs），`body` 也在；`[data-region-layout]` 今天没有代码发、五张表也都没写它 → 留着，主题池整池重生成那一次（#1317）删。
   'body', '[data-region-layout]',
 ]);
 

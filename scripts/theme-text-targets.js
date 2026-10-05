@@ -180,6 +180,9 @@ const HOVER_TARGETS = [
  *   for f in templates/nextjs/public/themes/*.css templates/nextjs/scripts/handwritten-sheets/*.css; do
  *     echo "$f $(grep -cE '\.(hro-title|hro-sub|cta-title|cta-body|phn-title|phn-sub)([^a-zA-Z0-9_-]|$)' "$f")"; done
  *   （每行都是 0 = 还不该换）
+ * 📌 #1582 —— 这 10 项里除 `.btn-primary` 外的 9 个（今天的块都不发）跟 `theme-css-lint.js` `HOOKS` 里那 27 组旧库
+ *    钩子是同一批：留着的理由相同（五张表都还按旧库写），删 / 换的时机也相同 —— 主题池整池重生成那一次（#1317）。
+ *    上面那条判据就是那一次会翻过来的读数，所以不另立第二条。
  *
  * 🔴 `.btn-primary` / `.btn-accent` 的颜色住在 `globals.css`，**不在主题表里** —— 所以从主题表推出来的
  * 配对里没有它们，纯值层那侧另有一节专门 judge 它们（`judgeButtons`）。这里把它们一起列出来，是为了
