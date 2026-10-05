@@ -19,6 +19,64 @@
 // 「第 i 组」的顺序取 payload.services 的顺序，不取 keywords 对象的键序：dashboard 的 keywords 对象是按挖词
 // **完成先后**插入的（CreatePage.tsx §searchBrandKeywords 的 Promise.all），跟提示词里列服务的顺序不是一回事。
 
+const { collapseCjkSpaces } = require('./cjk-spaces');
+
+// ── 主语言非英语：服务主词换成翻译种子（#1569 r3）────────────────────────────────────────────────
+//
+// 向导在主语言非英语时把服务名翻成主语言当挖词种子（`source: 'translated-seed'`），但每组的主词（isPrimary）
+// 仍是用户填的英文服务名（#1545 的规矩：向导里兜底主词永远是原文）。建站时服务详情页 / 首页拿的是主词
+// ⟹ 中文页的 description / H2 被 T5 第 2、7 条逼着塞英文词（Chris 2026-10-05 site-ea408218）。
+// 所以建站这一侧在**一处**把 payload.keywords 换掉，下游（分配、关键词页候选、提示词那段、seo.json）全读换过的那份：
+//   · 有翻译种子的组：翻译种子当主词（isPrimary），原来那条英文主词降成非主词且不选（不给它建英文关键词页）
+//   · 没有翻译种子（翻译失败 / 跟原文一样，向导就不存）⟹ 这组原样，主词仍是服务名
+//   · 英文站：不换主词
+//   · 每条词（不分站的语言）去掉汉字 / 假名之间的空格（§cjk-spaces.js；老 payload 里已经存着「剪 发」的站重建也能好），去完撞重的并成一条
+// Lead 站的站主词是 payload.keyword（老板在 Lead 表格里填的）：它若正是某组被换掉的那个英文主词，跟着换。
+
+const isEnglish = (locale) => String(locale || 'en').split('-')[0].toLowerCase() === 'en';
+
+function collapseGroup(arr) {
+  const out = [];
+  const at = new Map();
+  for (const k of arr) {
+    if (!k || typeof k !== 'object' || typeof k.keyword !== 'string') { out.push(k); continue; }
+    const kw = collapseCjkSpaces(k.keyword);
+    const key = kw.trim().toLowerCase();
+    if (!at.has(key)) { at.set(key, out.length); out.push(kw === k.keyword ? k : { ...k, keyword: kw }); continue; }
+    const i = at.get(key);
+    const prev = out[i];
+    out[i] = {
+      ...prev,
+      isPrimary: prev.isPrimary === true || k.isPrimary === true,
+      selected: prev.selected !== false || k.selected !== false,
+      ...(k.source === 'translated-seed' ? { source: 'translated-seed' } : {}),
+    };
+  }
+  return out;
+}
+
+/**
+ * @returns {{ keywords: object, leadKeyword: string, swapped: { group: string, from: string, to: string }[] }}
+ */
+function localizeKeywords(keywords, locale, leadKeyword = '') {
+  const src = keywords && typeof keywords === 'object' && !Array.isArray(keywords) ? keywords : {};
+  const out = {};
+  const swapped = [];
+  for (const [name, raw] of Object.entries(src)) {
+    if (!Array.isArray(raw)) { out[name] = raw; continue; }
+    const arr = collapseGroup(raw);
+    const isKw = (k) => k && typeof k === 'object' && typeof k.keyword === 'string' && k.keyword.trim();
+    const t = isEnglish(locale) ? null : arr.find((k) => isKw(k) && k.source === 'translated-seed');
+    const p = arr.find((k) => isKw(k) && k.isPrimary === true);
+    if (!t || !p || t === p) { out[name] = arr; continue; }
+    out[name] = arr.map((k) => (k === t ? { ...k, isPrimary: true } : k === p ? { ...k, isPrimary: false, selected: false } : k));
+    swapped.push({ group: name, from: p.keyword.trim(), to: t.keyword.trim() });
+  }
+  const lead = typeof leadKeyword === 'string' ? collapseCjkSpaces(leadKeyword) : '';
+  const hit = swapped.find((x) => x.from.toLowerCase() === lead.trim().toLowerCase());
+  return { keywords: out, leadKeyword: hit ? hit.to : lead, swapped };
+}
+
 /** payload 里的一条词 → 落盘的形状。只认带非空 keyword 的对象。 */
 function entryOf(k) {
   if (!k || typeof k !== 'object' || typeof k.keyword !== 'string' || !k.keyword.trim()) return null;
@@ -253,6 +311,7 @@ function keywordBrief({ sitePrimary, groups = [], keywordPagesList = [] }) {
 }
 
 module.exports = {
+  localizeKeywords,
   keywordGroups,
   matchGroupsToServices,
   sitePrimaryOf,

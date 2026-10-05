@@ -597,7 +597,8 @@ check('日文假名词 ⟹ kw-<序号>，列在建站结果里', () => {
     companyName: 'Bright Pipes', services: ['Drain Cleaning'],
     keywords: { 'Drain Cleaning': [primary('drain cleaning'), kw('drain cleaning markham'), kw('すいどう しゅうり')] },
   }, { call1: call1([SVC2[0]]) });
-  assert.deepStrictEqual(J.report.fallbackSlugs, [{ keyword: 'すいどう しゅうり', slug: 'services/drain-cleaning/kw-2' }]);
+  // #1569 r3：假名之间的空格在建站入口被去掉（§lib/cjk-spaces.js，不分站的语言）⟹ 落盘的词是并过的那份
+  assert.deepStrictEqual(J.report.fallbackSlugs, [{ keyword: 'すいどうしゅうり', slug: 'services/drain-cleaning/kw-2' }]);
   assert.ok(J.pageFiles.includes('services/drain-cleaning/kw-2'));
 });
 
@@ -754,6 +755,28 @@ const ZB = run('zhaddr2', { companyName: 'Bright Pipes', language: 'zh', service
 check('#1569 r2：填了 Address 时照旧用它', () => {
   const first = (ZB.calls.find((c) => c.kind === 'call1') || { first: '' }).first;
   assert.ok(first.includes('"address": "2150 Yonge Street, Toronto"'), (first.match(/"address": "[^"]*"/) || ['(无)'])[0]);
+});
+
+// ── #1569 r3：中文站、英文服务名 + 翻译种子 ⟹ 服务详情页的目标词是翻译种子，词里汉字之间没有空格 ─────────────
+// Chris 2026-10-05 site-ea408218：向导存下的组是「英文服务名(主词) + 剪 发(translated-seed) + 剪 发 店」，服务页的目标词仍是英文
+// ⟹ T5 第 2 / 7 条逼 AI 往中文描述和 H2 里塞英文词；「剪 发」原样进了标题。这一格走真建站进程，验 main 里那一处替换真的接上了。
+console.log('── #1569 r3：中文站的服务主词换成翻译种子、去汉字间空格');
+const ZT = run('zhseed', {
+  companyName: 'Bright Pipes', language: 'zh', services: ['Drain Cleaning'], ...ZH_LOC,
+  keywords: { 'Drain Cleaning': [primary('drain cleaning'), kw('疏通 下水道', { source: 'translated-seed' }), kw('疏通 下水道 公司', { source: 'autocomplete' })] },
+}, { call1: call1([{ id: 'drain-cleaning', name: 'Drain Cleaning' }]) });
+check('#1569 r3：服务详情页的目标词 = 翻译种子（去了空格）', () => {
+  assert.strictEqual(ZT.page('services/drain-cleaning').seo.targetKeyword, '疏通下水道');
+});
+check('#1569 r3：被换下的英文主词不建关键词页；联想词那页的词也去了空格', () => {
+  const kwPages = ZT.pageFiles.filter((f) => f.startsWith('services/drain-cleaning/'));
+  assert.deepStrictEqual(kwPages.map((f) => ZT.page(f).seo.targetKeyword), ['疏通下水道公司'], kwPages.join(' '));
+});
+check('#1569 r3：seo.json 里这组的主词是翻译种子，英文那条降为非主词', () => {
+  const g = ZT.readJson('zh/seo.json').targetKeywords.byService['Drain Cleaning'] || ZT.readJson('zh/seo.json').targetKeywords.byService['drain-cleaning'];
+  assert.ok(g, JSON.stringify(ZT.readJson('zh/seo.json').targetKeywords));
+  assert.deepStrictEqual(g.filter((k) => k.isPrimary).map((k) => k.keyword), ['疏通下水道'], JSON.stringify(g));
+  assert.ok(g.every((k) => !/[\u4e00-\u9fff]\s+[\u4e00-\u9fff]/.test(k.keyword)), JSON.stringify(g));
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -11,6 +11,7 @@
  *   ② unmatchedServiceKeys：「键不在 services.json 的 id 集合里」那条谓词
  *   ③ validateSite 两条新规则：命中 / 不命中各一 · 主词同在首页和服务页不报 · 没有 targetKeywords 的老站不查（含阳性对照）
  *   ④ keywordBrief：没词 = 空串；有词时三样都在
+ *   ⑤ localizeKeywords（#1569 r3）：主语言非英语时有翻译种子的组主词换成它、翻译失败回退、英文站不变、汉字间空格去掉
  */
 'use strict';
 
@@ -193,6 +194,52 @@ console.log('④ keywordBrief');
     '(c) 没有路径时：写它属于哪个服务，不出现任何 /路径');
   // #1568 r2 —— 这一段只给站级那一通当上下文：关键词页由 Call 2 建，提示词要明说别写进 pages。
   same(s.includes('do NOT add them to "pages"') && c.includes('do NOT add them to "pages"'), true, '(c) 关键词页那段写明「不许放进 pages」');
+}
+
+console.log('\n── ⑤ localizeKeywords（#1569 r3）：主语言非英语时服务主词换成翻译种子 · 汉字间空格去掉');
+{
+  const { localizeKeywords, assignTargetKeywords, sitePrimaryOf, keywordGroups } = tk;
+  const kp = require('./keyword-pages.js');
+  // site-ea408218 那一份的形状：Haircut 组有翻译种子（带空格）+ 中文联想词；Perming 组翻译失败、只有英文主词
+  const ZH = {
+    Haircut: [
+      { keyword: 'haircut', isPrimary: true, selected: true, source: 'service', goldIndex: 10 },
+      { keyword: '剪 发', source: 'translated-seed', selected: false, goldIndex: 40 },
+      { keyword: '剪 发 店', source: 'autocomplete', selected: true, goldIndex: 30 },
+    ],
+    Perming: [{ keyword: 'perming', isPrimary: true, selected: true, source: 'service', goldIndex: 50 }],
+  };
+  const svcs = ['Haircut', 'Perming'];
+  const contentServices = [{ id: 'haircut', name: 'Haircut' }, { id: 'perming', name: 'Perming' }];
+  const pages = [{ slug: 'home' }, { slug: 'services/haircut', serviceDetailPage: true }, { slug: 'services/perming', serviceDetailPage: true }];
+
+  const zh = localizeKeywords(ZH, 'zh');
+  same(zh.swapped, [{ group: 'Haircut', from: 'haircut', to: '剪发' }], 'zh：Haircut 组主词 haircut → 翻译种子「剪发」（空格已去）');
+  const a = assignTargetKeywords({ keywords: zh.keywords, services: svcs, contentServices, pages });
+  same(a.pageKeywords['services/haircut'], '剪发', 'zh：Haircut 服务页的目标词 = 翻译种子');
+  same(a.pageKeywords['services/perming'], 'perming', 'zh：Perming 组没有翻译种子（翻译失败）⟹ 回退原服务名');
+  same(a.pageKeywords.home, 'perming', 'zh：Brand 站主词仍按各组主词的 Gold 取（perming 50 > 剪发 40）');
+  const zhHome = localizeKeywords({ ...ZH, Perming: [{ ...ZH.Perming[0], goldIndex: 5 }] }, 'zh');
+  same(sitePrimaryOf(keywordGroups(zhHome.keywords, svcs), {}).keyword, '剪发', 'zh：站主词同理 —— Gold 最高的那组主词是翻译种子时首页拿中文');
+  same(kp.keywordPageCandidates(zh.keywords, svcs).map((c) => c.keyword), ['剪发店'],
+    'zh：关键词页候选不含被换下的英文主词、也不含已当主词的翻译种子；联想词「剪发店」空格已去');
+  same(a.targetKeywords.byService.haircut.map((e) => `${e.keyword}:${e.isPrimary}`), ['haircut:false', '剪发:true', '剪发店:false'], 'zh：seo.json 的 byService 里主词标记跟着换');
+  same(localizeKeywords(ZH, 'zh', 'Haircut').leadKeyword, '剪发', 'zh：Lead 站主词正是被换掉的英文主词 ⟹ 跟着换');
+  same(localizeKeywords(ZH, 'zh', 'hair salon toronto').leadKeyword, 'hair salon toronto', 'zh：Lead 站主词不是被换掉的那个 ⟹ 原样');
+
+  // 英文站：主词不换；去空格只碰汉字之间（英文词原样）
+  const en = localizeKeywords(ZH, 'en');
+  same(en.swapped, [], 'en：不换主词');
+  same(assignTargetKeywords({ keywords: en.keywords, services: svcs, contentServices, pages }).pageKeywords['services/haircut'], 'haircut', 'en：Haircut 服务页仍是 haircut');
+  const plain = { Haircut: [{ keyword: 'haircut', isPrimary: true, selected: true }, { keyword: 'haircut near me', selected: true }] };
+  same(localizeKeywords(plain, 'en').keywords, plain, 'en：没有汉字的 payload 逐字节不变');
+  same(localizeKeywords(plain, 'zh-TW').swapped, [], 'zh-TW：没有翻译种子的组不动');
+
+  // 反向对照：不经 localizeKeywords，同一份 payload 的服务页拿的是英文（这正是 Chris 撞上的那个）
+  same(assignTargetKeywords({ keywords: ZH, services: svcs, contentServices, pages }).pageKeywords['services/haircut'], 'haircut', '反向对照：没换之前 Haircut 服务页 = haircut');
+  // 去空格后撞重：同组里「剪 发」和「剪发」并成一条，标记取并集
+  const dup = localizeKeywords({ X: [{ keyword: 'x', isPrimary: true }, { keyword: '剪发', selected: false, source: 'autocomplete' }, { keyword: '剪 发', source: 'translated-seed', selected: true }] }, 'zh');
+  same(dup.keywords.X.map((e) => [e.keyword, e.isPrimary === true, e.source]), [['x', false, undefined], ['剪发', true, 'translated-seed']], '去空格后撞重 ⟹ 并成一条（带上 translated-seed），再当主词');
 }
 
 console.log(failed ? `\n❌ ${failed} 格没过` : '\n✅ 全过');

@@ -757,7 +757,7 @@ async function main() {
     phone,
     email,
     services = [],
-    keywords = {},
+    keywords: rawKeywords = {},
     usp,
     targetCustomers,
     brandDescription,
@@ -785,7 +785,7 @@ async function main() {
     geminiApiKey = '',
     // #1548 —— Lead 站传的三个字段（CreatePage.tsx §proceedToLeadBuild）。`keyword` = 站的主词（首页的目标词），
     //    `additionalContext` = 老板在 Lead 表格里写的补充说明，进每一次 AI 调用；`siteType` 判「这是不是 Lead 站」。
-    keyword: leadKeyword = '',
+    keyword: rawLeadKeyword = '',
     siteType = '',
     additionalContext = '',
   } = input;
@@ -847,6 +847,14 @@ async function main() {
     fatal(`Invalid language "${language}". Must be ISO 639-1 code (e.g. en, zh, fr) or natural-language name (e.g. English, Chinese).`);
   }
   const defaultLocale = normalizeLocale(language) || 'en';
+
+  // #1569 r3 —— 主语言非英语：有翻译种子的服务组，主词换成翻译种子（服务详情页 / 首页的目标词跟着换）；
+  //    每条词去掉汉字之间的空格（§lib/target-keywords.js localizeKeywords）。下游一律读换过的这份，
+  //    payload.keywords 也换掉（关键词页素材 §keywordPageMaterial 读的是它）。英文站不换主词；去空格不分站的语言，
+  //    只碰两侧都是汉字 / 假名的那几个空格（英文站里没有这种词就一个字节不变）。
+  const { keywords, leadKeyword, swapped: kwSwapped } = targetKw.localizeKeywords(rawKeywords, defaultLocale, rawLeadKeyword);
+  input.keywords = keywords;
+  for (const x of kwSwapped) debug(`[keywords] ${x.group}：主词「${x.from}」→ 翻译种子「${x.to}」（主语言 ${defaultLocale}）`);
 
   // TICKET-122b: validate + normalize secondary locales (same regex + dedup vs primary)
   if (!Array.isArray(secondaryLocales)) {
