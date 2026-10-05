@@ -4040,6 +4040,16 @@
   border-radius: 0 0 1rem 1rem;
   padding: 1rem;
 }
+/* 通栏贴底的按钮跟卡片共边（#1587，Chris 2026-10-05：按钮边框色要跟套餐卡一样）：非主推卡的 outline 按钮只画顶上一条分隔线、
+   颜色用卡片的描边色；左右和底边由卡片自己的描边画，不然卡片 1px 灰边里侧再贴一圈 1px 主色边，两道边两个色。
+   主推卡（data-featured="background"）的按钮走下面 :3xx 自己的规则，不在此列。图册 build.py 同一条（选择器换名后逐字相同）。 */
+[data-block="pricing"][data-plan-cta="bottom"][data-plan-style="card"] .pr-plan:not(.pr-featured) .pr-cta.btn-outline-primary {
+  border-color: var(--x-border-color, #e5e7eb);
+  border-width: 1px 0 0;
+}
+[data-block="pricing"][data-plan-cta="bottom"][data-plan-style="card"] .pr-plan:not(.pr-featured) .pr-cta.btn-outline-primary:hover {
+  border-color: var(--x-primary);
+}
 [data-block="pricing"][data-plan-cta="bottom"][data-plan-style="card"][data-plan-features="inside"] .pr-features {
   margin-bottom: 1.5rem !important;
 }
