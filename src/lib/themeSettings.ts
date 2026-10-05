@@ -16,7 +16,8 @@
 //    不在本票射程内；今天它 import 这个文件，拿到的仍然是同一份实现。
 //
 // 🔴 `rounded-full` 不在这里（PM 在 #961 裁定）：那 61 处里是 `h-2.5 w-2.5` 的圆点和 `h-9 w-9`
-//    的图标圆底，跟着「直角」变成方块是坏掉，不是风格。它在 tailwind.config.ts 里保持 9999px。
+//    的图标圆底，跟着「直角」变成方块是坏掉，不是风格。它当时在 Tailwind 配置文件里保持 9999px；
+//    #1426 Tailwind 退场后模板里已没有 `rounded-full`（#1575 现取：除这段注释外 0 处）。
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 import tables from '../../scripts/theme-settings.js';

@@ -2714,7 +2714,7 @@ async function judgeRowShapes(where) {
 const { manifests: INTENT_MANIFESTS } = await load(
   'scripts/lib/block-catalog.js would not load, or the registry and blocks/ do not line up',
   () => createRequire(import.meta.url)('./lib/block-catalog.js').blockShapeCatalog(),
-  'run `npm ci` in templates/nextjs; if the message above names blocks, make registry.ts and blocks/ agree.',
+  'run `npm ci` in templates/nextjs; if the message above names blocks, make registry.generated.ts and blocks/ agree.',
 );
 const INTENT_ARM = SAMPLE_MINIMAL ? '最少版' : '全填版';
 // #1463 —— 皮不由主题表画的块（manifest `skin: "site-css"`，今天是 hero）不进 ⑨：这把尺按「块根的直接子元素 +

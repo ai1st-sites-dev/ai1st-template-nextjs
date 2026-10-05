@@ -813,8 +813,8 @@
 [data-block="content"] .co-body p {
   margin-bottom: 1.25rem;
 }
-/* 列表符号要写明：Tailwind 的 preflight 把 `menu, ol, ul` 一律 `list-style: none`（图册用的 Webpixels 没有这一层，
-   所以图册里看得见圆点、站上看不见 —— 真站截图量出来的）。 */
+/* 列表符号要写明：当时（#1426 之前）站上还带 Tailwind，它的 preflight 把 `menu, ol, ul` 一律 `list-style: none`（图册用的
+   Webpixels 没有这一层，所以图册里看得见圆点、站上看不见 —— 真站截图量出来的）。Tailwind 退场后那个成因不在了。 */
 [data-block="content"] .co-body ul,
 [data-block="content"] .co-body ol {
   padding-inline-start: 1.25rem;
@@ -5688,14 +5688,6 @@
 [data-block="header"] .hdr-burger[aria-expanded="true"] .hdr-ic-open,
 [data-block="header"] .hdr-burger:not([aria-expanded="true"]) .hdr-ic-close {
   display: none !important;
-}
-
-/* ═══ 抽屉挂 Bootstrap 的 .collapse，而 Tailwind 有一个同名工具类 `.collapse { visibility: collapse }`（T4 之前模板还带着
-   Tailwind，源码里一出现 collapse 它就生成）⟹ 抽屉打开（.collapse.show，display: block）了也看不见。#1514 实测：
-   Playwright 读到 class="… collapse show" · display=block · 高 344px · visibility=collapse。这里把它顶回去；
-   T4（#1426）Tailwind 退场后这条变成空操作，可以删。 ═══ */
-[data-block="header"] .hdr-drawer.collapse {
-  visibility: visible;
 }
 
 /* ── header · logo-left = 预设（logo=left · menu=beside · topbar 关）──────────────────────

@@ -909,7 +909,7 @@ const entries = [...regBody.matchAll(/^\s*'([a-z0-9-]+)':\s*(\w+),/gm)];
   const got = new Set(entries.map((m) => m[1]));
   const missing = want.filter((k) => !got.has(k));
   if (want.length === 0 || entries.length === 0 || missing.length) {
-    die(`从 registry.ts 抠出 ${entries.length} 个块，blocks/ 现读非 region 块 ${want.length} 个，漏了 ${missing.join(' · ') || '（无）'} —— 尺子坏了`);
+    die(`从 registry.generated.ts 抠出 ${entries.length} 个块，blocks/ 现读非 region 块 ${want.length} 个，漏了 ${missing.join(' · ') || '（无）'} —— 尺子坏了`);
   }
 }
 

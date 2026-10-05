@@ -134,7 +134,7 @@ function readFileOrNull(p) {
  * 谁会读 services.json：哪些块类型，以及 src/ 里还有没有归不了属的使用处。
  * @returns {{ types: Set<string>, unavailable: string|null, unmapped: string[], unaccounted: string[] }}
  *   unavailable 非空 = 什么都没量到，调用方按「所有页面都算」处理并把这句话打出来。
- *   unmapped = `src/components/sections/` 里用了 getServices 却没在注册表映射里的组件文件名（点名用）。
+ *   unmapped = `blocks/` 里用了 getServices 却没在注册表映射里的组件文件（相对 `blocks/`，如 `faq/Section.tsx`；点名用）。
  *   unaccounted = 用了 getServices、既不是注册表里的块组件、也不在 ACCOUNTED 那张归属表里的文件
  *                 （#1033 r2）。非空 = 有一条到达页面的路我算不出来，调用方也按「所有页面都算」处理。
  */

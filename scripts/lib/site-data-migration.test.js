@@ -277,7 +277,7 @@ console.log('\n⑤ 迁移模块不依赖 block-aliases.json（#1425 已删它；
 }
 
 // ══ ⑥ 「今天认得哪些类型」这个权威跟 registry 不许分叉 ═══════════════════════════════════════════
-console.log('\n⑥ block-roles.json 的键集 == registry.ts 的键集（判「未知类型」用前者）');
+console.log('\n⑥ block-roles.json 的键集 == registry.generated.ts 的键集（判「未知类型」用前者）');
 {
   const reg = fs.readFileSync(path.join(NEXT, 'src', 'lib', 'sections', 'registry.generated.ts'), 'utf-8');
   const body = reg.slice(reg.indexOf('sectionRegistry'));

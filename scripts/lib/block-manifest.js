@@ -662,7 +662,7 @@ function checkManifestShape(name, m) {
       + '（不写 = 主题表上皮；"site-css" = 皮和部件类名由编出来的 site.css 提供，主题表不画它）');
   }
   if (m.region !== undefined && typeof m.region !== 'boolean') {
-    bad(`region 有的话必须是 true/false（现在是 ${JSON.stringify(m.region)}）—— 它说的是「这个块是外壳区，不进页面 JSON、不在 registry.ts 里」`);
+    bad(`region 有的话必须是 true/false（现在是 ${JSON.stringify(m.region)}）—— 它说的是「这个块是外壳区，不进页面 JSON、不在 registry.generated.ts 里」`);
   }
 
   const ind = m.industries;

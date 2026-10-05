@@ -113,11 +113,3 @@
 [data-block="header"] .hdr-burger:not([aria-expanded="true"]) .hdr-ic-close {
   display: none !important;
 }
-
-/* ═══ 抽屉挂 Bootstrap 的 .collapse，而 Tailwind 有一个同名工具类 `.collapse { visibility: collapse }`（T4 之前模板还带着
-   Tailwind，源码里一出现 collapse 它就生成）⟹ 抽屉打开（.collapse.show，display: block）了也看不见。#1514 实测：
-   Playwright 读到 class="… collapse show" · display=block · 高 344px · visibility=collapse。这里把它顶回去；
-   T4（#1426）Tailwind 退场后这条变成空操作，可以删。 ═══ */
-[data-block="header"] .hdr-drawer.collapse {
-  visibility: visible;
-}

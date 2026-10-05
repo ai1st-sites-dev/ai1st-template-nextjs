@@ -30,8 +30,8 @@
 [data-block="content"] .co-body p {
   margin-bottom: 1.25rem;
 }
-/* 列表符号要写明：Tailwind 的 preflight 把 `menu, ol, ul` 一律 `list-style: none`（图册用的 Webpixels 没有这一层，
-   所以图册里看得见圆点、站上看不见 —— 真站截图量出来的）。 */
+/* 列表符号要写明：当时（#1426 之前）站上还带 Tailwind，它的 preflight 把 `menu, ol, ul` 一律 `list-style: none`（图册用的
+   Webpixels 没有这一层，所以图册里看得见圆点、站上看不见 —— 真站截图量出来的）。Tailwind 退场后那个成因不在了。 */
 [data-block="content"] .co-body ul,
 [data-block="content"] .co-body ol {
   padding-inline-start: 1.25rem;

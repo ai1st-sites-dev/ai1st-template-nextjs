@@ -16,7 +16,7 @@
 //
 // 🔴 IT USES POSTCSS, NOT A REGULAR EXPRESSION. `content: "}"` and a comment containing a brace both
 // defeat brace counting, and the second one is not hypothetical — every sheet in public/themes/
-// opens with a comment. postcss is already a devDependency here (tailwind's own).
+// opens with a comment. postcss is a devDependency here (`package.json`; it was tailwind's before #1426).
 //
 // ══ EVERY JUDGEMENT IN THIS FILE, AND WHICH SHAPE IT IS (#1011 r10) ══════════════════════════════
 //

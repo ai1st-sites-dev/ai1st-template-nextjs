@@ -24,7 +24,8 @@
 // ── purge：用 PurgeCSS 的 JS API ──────────────────────────────────────────────────────────────────
 // 选它而不是 Next 自己那条路：Next 的 CSS 管线只处理被 import 进 app 的样式表，而这一份按设计**不**
 // import 进 app（B1：客户站在 T4 之前不许挂 Bootstrap 的 CSS），它是 `public/` 下的一份静态文件，
-// 只有图册那条 dev 路由用 `<link>` 引它。Tailwind 的 content 扫描只管 Tailwind 自己的类。
+// 当时只有图册那条 dev 路由用 `<link>` 引它（#1463 起 `layout.tsx` 每一页都 `<link>` 它）。当时并存的 Tailwind
+// 的 content 扫描只管 Tailwind 自己的类（#1426 Tailwind 已退场）。
 // PurgeCSS 按「内容里出现过的词」留规则 —— 跟 Tailwind 的 content 扫描同一种判法，词法抽取、不跑代码。
 //   content = blocks/**/*.tsx + src/**/*.tsx。
 //

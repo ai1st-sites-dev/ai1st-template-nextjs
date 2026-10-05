@@ -136,8 +136,8 @@ function lint(file) {
   root.walkAtRules((rule) => {
     if (rule.name === 'media') return;
     if (rule.name === 'layer') {
-      at(rule, '@layer — an unlayered rule beats every layered one, and Tailwind\'s preflight is '
-        + 'unlayered. Inside a layer this file loses to `h1 { margin: 0 }` precisely when no theme '
+      at(rule, '@layer — an unlayered rule beats every layered one, and the site\'s reset (Bootstrap reboot '
+        + 'in site.css) is unlayered. Inside a layer this file loses to `h1 { margin-top: 0 }` precisely when no theme '
         + 'sheet is loaded, which is the case it exists for (spec §4.8)');
       return;
     }

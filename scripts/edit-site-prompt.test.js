@@ -61,7 +61,7 @@ const regPath = path.join(NEXT, 'src', 'lib', 'sections', 'registry.generated.ts
 let reg;
 try { reg = fs.readFileSync(regPath, 'utf-8'); } catch (e) { die(`读不到 ${regPath}: ${e.message}`); }
 const body = reg.slice(reg.indexOf('sectionRegistry'));
-if (body === reg && reg.indexOf('sectionRegistry') < 0) die('registry.ts 里找不到 sectionRegistry —— 抠不出键集合');
+if (body === reg && reg.indexOf('sectionRegistry') < 0) die('registry.generated.ts 里找不到 sectionRegistry —— 抠不出键集合');
 const regSet = new Set([...body.matchAll(/^\s*'([a-z0-9-]+)':/gm)].map((m) => m[1]));
 
 // ── 分母自检（先证尺子没坏，再判相等）─────────────────────────────────────────────────────────
@@ -77,12 +77,12 @@ try {
   }
 } catch (e) { die(`数 blocks/*/manifest.json 失败: ${e.message}`); }
 if (floor < 5) die(`blocks/ 下只数出 ${floor} 个页面块 —— 下限那一侧的尺子坏了`);
-if (regSet.size < floor) die(`从 registry.ts 只抠出 ${regSet.size} 个键，块库有 ${floor} 个页面块 —— 尺子坏了（正则跟文件形状对不上）`);
+if (regSet.size < floor) die(`从 registry.generated.ts 只抠出 ${regSet.size} 个键，块库有 ${floor} 个页面块 —— 尺子坏了（正则跟文件形状对不上）`);
 if (promptSet.size < floor) die(`提示词那一行只解出 ${promptSet.size} 项，块库有 ${floor} 个页面块 —— 尺子坏了（分隔符或行形状变了）`);
 if (promptSet.size !== promptList.length) {
   bad(`提示词那一行里有重复项: ${promptList.filter((n, i) => promptList.indexOf(n) !== i).join(' · ')}`);
 } else {
-  ok(`提示词那一行解出 ${promptList.length} 项，无重复；registry.ts 抠出 ${regSet.size} 个键`);
+  ok(`提示词那一行解出 ${promptList.length} 项，无重复；registry.generated.ts 抠出 ${regSet.size} 个键`);
 }
 
 // ── 判据：两个方向 ──────────────────────────────────────────────────────────────────────────────
@@ -94,11 +94,11 @@ if (onlyPrompt.length) {
     + '     ⟹ 模型会照着写出这些块，而 SectionRenderer 对未知类型是 console.warn + return null：\n'
     + '        块在页面上不出现，构建照样 exit 0。改 scripts/edit-site.js 那一行，或把类型加进注册表。');
 } else {
-  ok(`提示词 → 注册表：${promptSet.size} 项全部在 registry.ts 里`);
+  ok(`提示词 → 注册表：${promptSet.size} 项全部在 registry.generated.ts 里`);
 }
 
 if (onlyReg.length) {
-  bad(`registry.ts 里有 ${onlyReg.length} 个块类型没写进提示词: ${onlyReg.join(' · ')}\n`
+  bad(`registry.generated.ts 里有 ${onlyReg.length} 个块类型没写进提示词: ${onlyReg.join(' · ')}\n`
     + '     ⟹ 模型不知道它们存在，永远不会用上它们，而这件事没有任何别的仪器会报。\n'
     + '        把它们补进 scripts/edit-site.js 的 "Available section types:" 那一行。');
 } else {

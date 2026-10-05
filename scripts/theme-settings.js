@@ -140,8 +140,10 @@ function translate(s, forSite) {
 /**
  * 数值形状 → 同一批 CSS 变量。
  *
- * 🔴 变量名与档位数量跟枚举形状**逐个相同** —— 消费它们的是 tailwind.config.ts 里那些
+ * 🔴 变量名与档位数量跟枚举形状**逐个相同** —— 消费它们的原来是 Tailwind 配置文件里那些
  * `var(--radius-*)` / `var(--shadow-*)`（#961/#986 接的），下游不该知道这套主题用的是哪种形状。
+ * 📌 那份配置 #1426 随 Tailwind 退场删了；今天模板里没有任何 CSS 读 `--radius-{DEFAULT,md,lg,xl,2xl}` /
+ *    `--shadow-*`（读 `--radius-*` 的只剩 `--radius-button` / `--radius-block`，#1575 现取）。
  *
  * 🔴 每一档的算法都写成「相对 DEFAULT 的比例」，比例取自枚举表里 `subtle` 那一档（0.25/0.375/
  * 0.5/0.75/1 rem = 1 : 1.5 : 2 : 3 : 4）。这样 `radius: 4`（px）算出来的五档与 `subtle` 逐字相同，

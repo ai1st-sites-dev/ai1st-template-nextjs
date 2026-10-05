@@ -67,7 +67,7 @@ const types=blockShapeCatalog().blocks, page={slug:'allblocks',title:'All Blocks
   changeFrequency:'monthly',priority:0.1,sections:[]};
 const skipped=[];
 for (const t of types){
-  if (!map[t]) { skipped.push(t+' (registry.ts 里这一项的组件名读不出来)'); continue; }
+  if (!map[t]) { skipped.push(t+' (registry.generated.ts 里这一项的组件名读不出来)'); continue; }
   const rel=(imports[map[t]]||'').replace(/^@blocks\//,'blocks/').replace(/^@\//,'src/');
   const file=rel?rel+'.tsx':path.join(SEC,map[t]+'.tsx');
   if (!fs.existsSync(file)) { skipped.push(t+' (找不到 '+file+')'); continue; }

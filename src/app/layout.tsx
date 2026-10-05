@@ -804,7 +804,7 @@ export default function RootLayout({
               微调还在」是结构上自动成立的，不需要任何把微调套回去的逻辑。它排在最后，所以它赢。
             🔴 两份都排在 globals.css 打包出来的那个 <link> 之后（Next 把自己的样式表放在 <head>
             最前面），主题层因此不用 `!important` 就能压过它 —— 契约禁止 !important，这是它能禁的原因。
-            🔴 它们生成在 public/ 而不是 src/：Tailwind 的 content glob 扫 src/，样式表落进去不会被
+            🔴 它们生成在 public/ 而不是 src/：当时（#1426 之前）Tailwind 的 content glob 扫 src/，样式表落进去不会被
             编译、只会被**扫**，里面每个词都会变成候选 class 名。 */}
         <link rel="stylesheet" href="/theme.css" />
         <link rel="stylesheet" href="/custom.css" />

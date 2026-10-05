@@ -30,7 +30,7 @@
 //                  该主题的圆角 = **1.8 / 5.4 / 9.0 / 12.6px**（真浏览器实测，#1078 AC1）。
 //                  **最小那一族（4px，20 套）全程只有 1.8px，比改造前按钮那 3.6px 还小** —— 要让它
 //                  也肉眼可辨得动 `TWEAK_BOUNDS`，而 #1078 正文写明不许碰它，所以那一格留给 PM 裁。
-//                  `--radius-button`（`globals.css` 三个按钮类）和 `tailwind.config.ts` 映射出来的
+//                  `--radius-button`（`globals.css` 三个按钮类）和当时 Tailwind 配置文件（#1426 随 Tailwind 退场删除）映射出来的
 //                  `rounded-md/lg/xl/2xl`（`src/` 下共 11 处，本次实测：Footer 5 · Header 4 ·
 //                  BlogIndexPage 1 · `globals.css` 1）照旧。
 //   densityScale   **活的**（同上）。同样 80/83 套用 `var(--section-block-pad)` / `var(--section-block-gap)`。
@@ -86,7 +86,7 @@
  * 📌 这里原来写着「按钮上的字不在里面」—— **那句话在 #1038 之前是对的**，QA1 在 #1006 抓到的就是它。
  * 留着这段是因为它解释了上面那段为什么要费劲把亮度拉回去：当时那个盲区是真的。
  *
- * 📌 `fontScale` 不在这里：全仓没有任何字号变量可以缩放（字号今天走 Tailwind 的 text-* 工具类），
+ * 📌 `fontScale` 不在这里：全仓没有任何字号变量可以缩放（字号今天走 Bootstrap / Webpixels 的工具类：`display-*` · `fs-*` · `text-sm` · `h1`–`h6`），
  * 所以它阻塞在「没有字号 token」上，等排版 token 立项时另开票补（作者 2026-08-14 定，走 B）。
  */
 const TWEAK_BOUNDS = {

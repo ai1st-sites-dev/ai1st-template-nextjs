@@ -59,7 +59,7 @@ const { normalizeLocalePages } = blocks;
   // 分母自检：尺子（那条正则）在今天的 registry 上一个键都抠不出来的话，「不在」是恒真的
   if (regKeys.size < 10) die(`从 registry.generated.ts 只抠出 ${regKeys.size} 个键 —— 尺子坏了`);
   for (const n of OLD) {
-    if (regKeys.has(n)) where.push(`registry.ts:${n}`);
+    if (regKeys.has(n)) where.push(`registry.generated.ts:${n}`);
     if (roleKeys.has(n)) where.push(`block-roles.json:${n}`);
     if (fs.existsSync(path.join(NEXT, 'blocks', n, 'manifest.json'))) where.push(`blocks/${n}/`);
   }

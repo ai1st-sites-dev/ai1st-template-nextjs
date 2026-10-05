@@ -40,9 +40,9 @@
 //    所以只用裸的 `.collapse`，那条规则就跟它无关。做图册时真正踩到的是另外两件事（#1514 都量过）：
 //    ① 源码里没出现过 `collapse` 这个类名，`public/site.css` 把 `.collapse:not(.show){display:none}` 整条 purge 掉了
 //       （实测 0 条）—— 抽屉藏不住。类名现在在源码里（这里 + BootstrapJs.tsx 的 BOOTSTRAP_RUNTIME_CLASSES），purge 留得住。
-//    ② Tailwind 有一个同名工具类 `.collapse { visibility: collapse }`（`app/layout.css`），源码一出现 collapse 它就生成
-//       —— 抽屉打开了（display: block、高 344px）也看不见。block.css 给 `.hdr-drawer.collapse` 顶回 `visibility: visible`，
-//       T4（#1426）Tailwind 退场后那条可以删。
+//    ② 当时（#1426 之前）Tailwind 有一个同名工具类 `.collapse { visibility: collapse }`，源码一出现 collapse 它就生成
+//       —— 抽屉打开了（display: block、高 344px）也看不见。block.css 曾给 `.hdr-drawer.collapse` 顶回 `visibility: visible`；
+//       T4 Tailwind 退场后那条成了空操作，#1575 删掉了。
 //    紧凑那一条和桌面那一格仍是两个元素，各自在自己的断点上显示。
 //
 // 🔴 **图标是内联 SVG，不是字体**（#1462，Chris 拍板）：`iconTable` 由服务端按名查好传进来

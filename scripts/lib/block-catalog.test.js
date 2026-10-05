@@ -37,7 +37,7 @@ const { blockShapeCatalog, sampleDataFor } = cat;
 console.log('① 真树上的读数（都现算，不写死任何数）');
 const real = blockShapeCatalog();
 const regNames = bm.registryNames(path.join(NEXT, 'src', 'lib', 'sections', 'registry.generated.ts'));
-if (regNames === null) die('读不出 registry.ts（typescript 模块不在？）—— 这不是关于注册表的读数');
+if (regNames === null) die('读不出 registry.generated.ts（typescript 模块不在？）—— 这不是关于注册表的读数');
 // #1353 —— 这一格原来写的是 `real.blocks` **逐项等于** `registryNames()`。那条断言今天会假红：
 // 外壳区（`header` / `footer`）是块、有 manifest、有形态、在选择单上各占一行，但按构造**不在
 // registry.ts 里**（那张表是「页面 JSON 的 type → 组件」，而外壳区不进页面 JSON）。

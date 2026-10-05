@@ -452,7 +452,7 @@ if (servicesReaders.unavailable) {
   console.log(`  sitemap <lastmod>：读 services.json 的块类型 ${servicesReaders.types.size} 种`
     + `（${[...servicesReaders.types].sort().join(', ') || '一种都没有'}）`);
   for (const f of servicesReaders.unmapped) {
-    console.log(`  ⚠️  src/components/sections/${f} 用了 getServices，但它不在 registry.ts 的映射里`
+    console.log(`  ⚠️  blocks/${f} 用了 getServices，但它不在 registry.generated.ts 的映射里`
       + ' —— 用它的页面不会因为 services.json 改了而报新日期');
   }
   // #1033 r2 —— 块不是唯一的读法：服务详情页那份 Service 结构化数据是页面外壳自己发的。所以每一处
@@ -619,7 +619,7 @@ for (const locale of locales) {
     //    「拿不到解析器」根本不是关于注册表的读数 —— 但它也不能安静地过去，否则日志里那行
     //    「对得上」会变成一句没人查过的话。
     if (cov.unavailable) {
-      console.log(`  ⚠️  blocks/ 与 registry.ts 没有对照：${cov.unavailable}`);
+      console.log(`  ⚠️  blocks/ 与 registry.generated.ts 没有对照：${cov.unavailable}`);
     } else if (cov.missingManifest.length || cov.unknownBlock.length) {
       console.error('blocks/ 与 src/lib/sections/registry.generated.ts 对不上：');
       if (cov.missingManifest.length) console.error(`  registry 有、blocks/ 没有: ${cov.missingManifest.join(' ')}`);
@@ -921,9 +921,10 @@ console.log(themeSheet
 //      而那两支本来就走同一段代码（上面 §theme 先把注册表那套写进了内存里的 brand），撤掉那处
 //      覆盖之后，brand.json 就是唯一的来源，两支说的是同一件事。
 //      内容逐字就是这张票之前 layout.tsx 里那段 inline <style>（`buildCssVariables()`）的产出，
-//      所以搬家不改变任何一个 computed style。🔴 这一支不能省：tailwind.config.ts 把
-//      primary-50…900 映射成 var(--color-primary-*) 且**没写兜底值**，globals.css 的 :root 里
-//      一个颜色变量都没有 —— 不给这些站生成 theme.css，它们不是落回默认配色，是整站掉色。
+//      所以搬家不改变任何一个 computed style。🔴 这一支不能省：`globals.css` 的按钮规则最后一层读
+//      `var(--color-primary-*)` 且**没写兜底值**，globals.css 的 :root 里一个颜色变量都没有 ——
+//      不给这些站生成 theme.css，它们不是落回默认配色，是掉色。（#1426 之前把 primary-50…900
+//      映射成 var(--color-primary-*) 的是 Tailwind 配置文件，同样没兜底；那份文件随 Tailwind 退场删了。）
 const publicDir = path.join(rootDir, 'public');
 const siteThemeCssPath = path.join(siteDir, 'theme.css');
 let themeCssBytes;
@@ -1241,8 +1242,9 @@ console.log(`  Generated public/custom.css — ${customCssOrigin} (${customCssBy
   } else {
     // 🔴 报出来，不静默：这条路意味着两份 CSS 里没有一个**能算的** primary-500 —— 或者一条都没
     // 解析到，或者解析到的是带 alpha 的形状（#1105：`#b54a81ff` 会被 `hexToRgb` 静默丢掉 alpha，
-    // 于是"白字还是深字"这个结论是关于另一个颜色的）。而 `tailwind.config.ts` 没给颜色写兜底值
-    // ⟹ 第一种情况下这样的站是整站掉色，不是「按钮回落白字」。
+    // 于是"白字还是深字"这个结论是关于另一个颜色的）。而颜色变量没有兜底值（`globals.css` 的按钮
+    // 规则最后一层读 `var(--color-primary-*)`，:root 里没有颜色变量）⟹ 第一种情况下这样的站是掉色，
+    // 不是「按钮回落白字」。
     console.log('  Button ink: 跳过 —— theme.css + custom.css 里没有一个【能算的】'
       + ` --color-primary-500（解析到的是 ${JSON.stringify(finalPrimary['500'])}；`
       + '认的是 #rgb / #rrggbb，带 alpha 的 #rgba / #rrggbbaa 不认 —— 见 button-ink.js 的 isColourLiteral）');
