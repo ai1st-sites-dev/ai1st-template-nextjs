@@ -123,6 +123,28 @@ const BTN_PRIMARY_INK = [
 ].join('\n');
 
 /**
+ * #1590 —— 描边主按钮（`btn btn-outline-primary`）的 hover / 按下态接到主按钮**静止态**那一对：底 / 边框 =
+ * `--btn-primary-bg`，字 = `--btn-primary-ink`（`button-ink.js` 按这个站的配色挑出来、让字过线的那一档）。
+ * 改前 Webpixels 把这两态写死成白字压 `$primary` = primary-500 —— ember-12 的 500 是 `#907230`，白字 blended 4.23:1，
+ * 浏览器实测 4.37:1（#1581 的 theme-css），而同一站的主按钮早被 #1507 挪到 600 档。理由同上一条：收成全站一条，
+ * 不在 10 份 `block.css` 里各抄一份。变量缺席 ⟹ 落回 Bootstrap `button-outline-variant` 的默认值，等于改前。
+ * 特异度同 Webpixels 的 `.btn-outline-primary`（0-1-0），排在 `@import` 之后 ⟹ 靠源码次序压过它。静止态（字 / 描边）
+ * 不在这里 —— 那是 #1588 的事；深色站那条（§SCHEME_SURFACES）也只管静止态。
+ * 🔒 `scripts/lib/outline-hover-ink.test.js` 从这条规则里读出 hover 底 / 字指向哪两个变量，再对全部配色算对比度。
+ */
+const BTN_OUTLINE_HOVER_INK = [
+  '.btn-outline-primary {',
+  '  --x-btn-hover-color: var(--btn-primary-ink, #{color-contrast($primary)});',
+  '  --x-btn-hover-bg: var(--btn-primary-bg, #{$primary});',
+  '  --x-btn-hover-border-color: var(--btn-primary-bg, #{$primary});',
+  '  --x-btn-active-color: var(--btn-primary-ink, #{color-contrast($primary)});',
+  '  --x-btn-active-bg: var(--btn-primary-bg, #{$primary});',
+  '  --x-btn-active-border-color: var(--btn-primary-bg, #{$primary});',
+  '}',
+  '',
+].join('\n');
+
+/**
  * #1472 —— 站级深浅（`<html data-bs-theme="light|dark">`）下，块里那几处**不是 Webpixels 变量**的浅色。
  * 块没填 `bg` 时跟站走：`block.css` 里原来写死的浅色字面量改读这几个变量，`[data-bs-theme=dark]` 下由浏览器换色，
  * `auto` 站构建时不用知道深浅。只有白（= `--x-body-bg` 的 light 值）是白送的，其余跟 Webpixels 的 neutral 系一个都
@@ -328,6 +350,7 @@ function siteScss(primary) {
     ON_DEEP_MUTED,
     ON_DEEP_FORM,
     BTN_PRIMARY_INK,
+    BTN_OUTLINE_HOVER_INK,
     SCHEME_SURFACES,
     DEEP_COMMON_CSS,
   ].join('\n');
@@ -409,6 +432,6 @@ async function writeSiteCss({ brand, rootDir = NEXT_DIR, dir = 'ltr' }) {
 }
 
 module.exports = {
-  primaryOf, siteScss, compileSiteCss, mirrorSiteCss, purgeSiteCss, writeSiteCss, PURGE_CONTENT, THEME_COLOR_VARIABLES, ON_DEEP_MUTED, ON_DEEP_FORM, BTN_PRIMARY_INK, SCHEME_SURFACES, SCHEME_VARIABLES, SHADOW_TOKENS,
+  primaryOf, siteScss, compileSiteCss, mirrorSiteCss, purgeSiteCss, writeSiteCss, PURGE_CONTENT, THEME_COLOR_VARIABLES, ON_DEEP_MUTED, ON_DEEP_FORM, BTN_PRIMARY_INK, BTN_OUTLINE_HOVER_INK, SCHEME_SURFACES, SCHEME_VARIABLES, SHADOW_TOKENS,
   DEEP_COMMON, DEEP_COMMON_CSS, DEEP_TONES,
 };
