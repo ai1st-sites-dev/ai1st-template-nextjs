@@ -16,9 +16,9 @@
  * 🔴 **为什么提示词那一侧不够，这里还要再核一遍。** 提示词是请求，不是保证 —— 两个方向都量到过：
  *    ① 空 map 时告诉它「省掉中间级」，它仍可能写一个；
  *    ② **非空 map 时它也不一定照抄清单**。这两件事都只能在生成之后按「这个 slug 到底会不会被写出来」
- *    核，核不过就把那一级的 `href` 去掉、只留文字。`PageHeaderSection` 的 `href` 本来就是可选的
- *    （`src/components/sections/PageHeaderSection.tsx:69-73` 那个三元），没有 `href` 时渲染成
- *    `<span>`，面包屑照样读得通。**去掉一个链接和留一个 404 之间，前者对读的人和对 SEO 都更便宜。**
+ *    核，核不过就把那一级的 `href` 去掉、只留文字。`page-header` 块的 `href` 本来就是可选的
+ *    （`blocks/page-header/Section.tsx` 里 `c.href ? <Link …> : label` 那个三元），没有 `href` 时
+ *    只渲染文字，面包屑照样读得通。**去掉一个链接和留一个 404 之间，前者对读的人和对 SEO 都更便宜。**
  *
  * 🔴 **只判站内的 href。** 判据要跟 `scripts/check-dead-links.js` 判的那一类对齐：外链
  *    （`https://…` / `mailto:` / `tel:`）和纯锚点不在那道检查的射程里，把它们一起删掉是拿一个没量过

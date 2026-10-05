@@ -591,9 +591,11 @@ function checkManifestShape(name, m) {
   }
   // #1333 —— `hooksFrom` 说的是「这个块的 HTML 用的是**另一个块**那套部件类名」。
   //
-  // 今天只有一个：`hero-with-form` 渲染的是 `.hero` / `.hero__body` / `.hero__form` 这一家
-  // （`src/components/sections/HeroWithFormSection.tsx` 上写了为什么 —— 皮那一层按类名写，两个块
-  // 本来就是同一副骨架、同一块底，真正的差别是「有没有那个表单」，而那由块类型说，不由类名说）。
+  // 它是为 `hero-with-form` 加的：那个块渲染的是 `.hero` / `.hero__body` / `.hero__form` 这一家
+  // （当时 HeroWithFormSection.tsx 上写了为什么 —— 皮那一层按类名写，两个块本来就是同一副骨架、
+  // 同一块底，真正的差别是「有没有那个表单」，而那由块类型说，不由类名说）。那个块和它的组件随 #1425
+  // 一起删了，**今天没有一个块声明它**（`git grep -n hooksFrom -- 'blocks/*/manifest.json'` = 0）；
+  // 校验留着，是给下一个借用别人类名的块用的。
   //
   // 🔴 它必须被**声明**，不能靠读组件源码猜：`theme-pipeline/sheet-recipes.test.js` ⑫ 的分母自检
   // 拿「block-roles.json 的块」跟「钩子清单里的块」对差集，而一个借用别人类名的块在后者里按构造

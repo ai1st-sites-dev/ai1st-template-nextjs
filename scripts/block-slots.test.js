@@ -335,8 +335,8 @@ console.log('\n── ④ 渲染一次够不着的那几条（只在提交成功
     const [type, ...rest] = ref.split('.');
     const slotPath = rest.join('.');
     // 源码里找 —— 这几条的钩子写成字面量，所以字面量查得到。
-    // #1387 —— 组件搬进了 `blocks/<块>/Section.tsx`，所以扫的是那一批（外加 `src/components/sections/`
-    // 里剩下的那些不是块的零件，例如 HeroLeadForm.tsx）。
+    // #1387 —— 组件搬进了 `blocks/<块>/Section.tsx`，所以扫的是那一批。当时还外加 `SECTIONS` 目录里剩下的
+    // 那些不是块的零件（例如 HeroLeadForm.tsx）；那个目录随 #1425 删了，下面那条 `existsSync` 让它读空。
     // #1463 —— 只扫**这个块自己文件夹里**的每一份 .tsx（块可以有自己的零件文件，例如 `blocks/contact/ContactMap.tsx`）：
     //    按字面串找，扫全部块文件夹的话 `form.successMessage` 会在别的块的文件里命中，报出一个错的出处。
     const own = path.join(NEXT, 'blocks', type);

@@ -857,10 +857,11 @@ for (const sel of MOVED_TEXT_TARGETS) await measureText(sel, pathOf(baseUrl), fa
 // 🔴 #1043 — AND IT LOOKS INSIDE THE BLOCK, NOT ONLY AT ITS ROOT. `$$eval('[data-role="essential"]')`
 // returns the elements that carry the attribute.
 // 🔴 #1134 — the sentence here used to read «`data-role` is written once, by `blockAttrs`, onto that
-// element», stated as an invariant. IT IS NOT ONE: `src/components/sections/HeroLeadForm.tsx` writes it
-// by hand on two elements that are NOT a block root — the `<form>` and the success-state `<p>`
-// (`grep -n data-role src/components/sections/HeroLeadForm.tsx`), neither of which goes through
-// `blockAttrs`. So a selector on `[data-role="essential"]` can return an element with NO `data-block`.
+// element», stated as an invariant. IT IS NOT ONE: `src/components/BlockLeadForm.tsx` writes it by
+// hand on elements that are NOT a block root — the `<form>` of each of its two variants, inline and
+// stacked (`grep -n data-role src/components/BlockLeadForm.tsx`), neither of which goes through
+// `blockAttrs`. (#1134 found it in HeroLeadForm.tsx, which #1425 replaced with this file; back then the
+// second element was the success-state `<p>`.) So a selector on `[data-role="essential"]` can return an element with NO `data-block`.
 // 📌 Nothing here breaks and no finding is faked, which is why this is wording and not a defect: every
 // consumer of the name falls back — measured, all of them:
 //     `block.getAttribute('data-block') || block.className || 'essential block'`

@@ -975,8 +975,8 @@ function surfaceFor(kind, palette) {
 //    `color`。药丸的圆角在一个 178×134 的盒子上被夹成 67px，四个角被啃掉一大块，于是标题和按钮
 //    的字有一部分落在药丸【外面】、压在表单自己的深底上。实测（单变量，只把这一条 9999px 换成
 //    0.5rem）：`/quote.html` 上那几行的可读性读数从 **1.02–1.05:1 跳到 8.55–8.97:1**。
-//    判据不是"看着像"：`role` 里写的每个改写，去 `src/components/sections/<块>.tsx` 里数一眼那个
-//    部件有没有元素子节点。有 ⟹ 只能给容器类角色（`card` / `row-card` / `panel` / `column`）。
+//    判据不是"看着像"：`role` 里写的每个改写，去 `blocks/<块>/` 里那个块的 `.tsx`（`Section.tsx` 和它
+//    自己的零件文件）里数一眼那个部件有没有元素子节点。有 ⟹ 只能给容器类角色（`card` / `row-card` / `panel` / `column`）。
 const SHAPES = {
   // #1150 —— `form-error` 走 `error`，跟 `contact-form` / `quote-form` 那两条同一个角色：三处的
   // 错误框因此是**同一段代码**画出来的（`ROLES.error`），不是照抄三遍。`form` 本身不写在这里，

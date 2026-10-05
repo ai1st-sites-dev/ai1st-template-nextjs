@@ -5,8 +5,9 @@ const fs=require('fs'), path=require('path');
 // 另一半活：type → 组件名。🔴 注册表里有而正则没配到的块会落进 `skipped` 并印出来 —— 不再静默消失。
 const { blockShapeCatalog } = require('../lib/block-catalog');
 // #1387 —— 块组件搬进了块自己的文件夹，注册表 import 的是 `@blocks/<块>/Section`。
-// `@/` 还留着（`src/`），因为块的零件仍住在 src/components/sections/。
-const SEC='src/components/sections';
+// `@/`（→ `src/`）那一支留着，免得哪天有块从 `src/` 引组件时这里静默认不出；今天注册表的 import 全是 `@blocks/…`。
+// 🔴 #1591 —— 以前这里还有一条兜底：import 读不出来就去 `src/components/sections/<组件名>.tsx` 找。
+// 那个目录随 #1425 删了，兜底去掉；读不出来的块进 `skipped` 并说清原因，不去猜一个路径。
 const reg=fs.readFileSync('src/lib/sections/registry.generated.ts','utf8');
 // type → 组件文件名
 const map={};
@@ -69,7 +70,8 @@ const skipped=[];
 for (const t of types){
   if (!map[t]) { skipped.push(t+' (registry.generated.ts 里这一项的组件名读不出来)'); continue; }
   const rel=(imports[map[t]]||'').replace(/^@blocks\//,'blocks/').replace(/^@\//,'src/');
-  const file=rel?rel+'.tsx':path.join(SEC,map[t]+'.tsx');
+  if (!rel) { skipped.push(t+' (registry.generated.ts 里没有组件 '+map[t]+' 的 import)'); continue; }
+  const file=rel+'.tsx';
   if (!fs.existsSync(file)) { skipped.push(t+' (找不到 '+file+')'); continue; }
   const src=fs.readFileSync(file,'utf8');
   const m=src.match(/data:\s*\{/);

@@ -49,8 +49,8 @@
 //
 // 🔴 「读不出来」不是「没有块读 services」。解析失败时这里返回 unavailable，调用方把 services.json
 //    算给**所有**页面并把话说出来：错的方向要选多报（多报 = 退回 #1026 之前的样子，少报是静默的）。
-// 🔴 还有一条反向检查：`src/components/sections/` 里有 `getServices` 却没出现在注册表映射里的组件
-//    要点名。它抓的是「解析把某个块漏掉了」——那种漏法本身是静默的。
+// 🔴 还有一条反向检查：`blocks/` 里有 `getServices` 却没出现在注册表映射里的组件要点名
+//    （#1387 之前看的是 `src/components/sections/`，见下面 §反向检查）。它抓的是「解析把某个块漏掉了」——那种漏法本身是静默的。
 
 const fs = require('fs');
 const path = require('path');
