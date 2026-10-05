@@ -13,7 +13,7 @@
 //
 //   条            有目标词                                    没有目标词
 //   1 title       含目标词；连品牌后缀 ≤ 60                   只判长度
-//   2 description 含目标词 + 地点；70–155                     只判长度
+//   2 description 含目标词 + 地点；70–155（中 / 日 / 韩主语言 50–80）       只判长度
 //   3 H1          恰好一个；含目标词的每个词干                只判恰好一个
 //   4 前 100 词   出现目标词                                  不判
 //   5 slug        每段非空 + 站内唯一                         同左（转写对不对归 T6 #1550）
@@ -28,6 +28,7 @@
 
 const { blocksOf, loadManifests } = require('./block-manifest');
 const { effectiveKnobs } = require('./block-knobs');
+const { descriptionRange } = require('./description-fit');
 
 // ── 字与词 ─────────────────────────────────────────────────────────────────────────────────────
 
@@ -315,6 +316,31 @@ function promptLocation(payload) {
   return localized && str(raw) && localized !== str(raw) ? `${localized} (${str(raw)})` : raw;
 }
 
+/** 第 2 条要求 description 含的地点：站的地点第一个逗号前那一段（正文做什么 1「地点怎么取」）；没有就空。 */
+function sitePlace(payload) {
+  return str(siteLocation(payload).split(/[,，、]/)[0]);
+}
+
+/**
+ * 重写之后这一页还缺哪些**原样出现**的硬要求（#1549 重开：重写提示词把它们单列成 MUST 行，补地点也按它判）。
+ * 跟第 1、2 条同一个谓词（hasPhrase）。只在有目标词时有（没有目标词的页这两条的含词那一半不判）。
+ * @returns {{ field: 'title' | 'description', phrase: string, what: 'keyword' | 'place' }[]}
+ */
+function missingPhrases({ page, targetKeyword, payload, seo } = {}) {
+  const kw = str(targetKeyword);
+  if (!kw || !page || typeof page !== 'object') return [];
+  const s = seo && typeof seo === 'object' ? seo : {};
+  const isHome = page.slug === 'home';
+  const title = isHome ? str(s.siteTitle) : str(page.title);
+  const desc = isHome ? str(s.siteDescription) : str(page.description);
+  const out = [];
+  if (!hasPhrase(title, kw)) out.push({ field: 'title', phrase: kw, what: 'keyword' });
+  if (!hasPhrase(desc, kw)) out.push({ field: 'description', phrase: kw, what: 'keyword' });
+  const place = sitePlace(payload);
+  if (place && !hasPhrase(desc, place)) out.push({ field: 'description', phrase: place, what: 'place' });
+  return out;
+}
+
 const digitsOf = (s) => String(s).replace(/[,\s]/g, '');
 
 // 声明词：页面上出现 ⟹ 表格里要有同一族的词。中文对应词只收不会撞上普通用法的（「保险」单独是 insurance，不收）。
@@ -405,10 +431,12 @@ function seoProblems({ page, pages = [], targetKeyword, brand, payload, locale, 
   {
     const desc = isHome ? str(s.siteDescription) : str(page.description);
     const n = charLen(desc);
-    if (n < 70 || n > 155) problems.push(`[2 description] description ${n} 字，要 70–155 字`);
+    // #1549 重开 —— 区间按主语言取（中 / 日 / 韩 50–80，其余 70–155），跟提示词同一个函数（§description-fit.js descriptionRange）。
+    const { min, max } = descriptionRange(locale);
+    if (n < min || n > max) problems.push(`[2 description] description ${n} 字，要 ${min}–${max} 字`);
     if (kw) {
       if (!hasPhrase(desc, kw)) problems.push(`[2 description] description 不含目标词「${kw}」`);
-      const place = str(siteLocation(payload).split(/[,，、]/)[0]);
+      const place = sitePlace(payload);
       if (place && !hasPhrase(desc, place)) problems.push(`[2 description] description 不含地点「${place}」`);
     }
   }
@@ -479,6 +507,8 @@ module.exports = {
   pageText,
   sourceText,
   siteLocation,
+  sitePlace,
+  missingPhrases,
   promptLocation,
   H1_BLOCKS,
   H2_BLOCKS,

@@ -57,7 +57,7 @@ const { siteFormsFrom } = require('./lib/site-forms');
 // #1548 —— 挖出来的关键词落盘（seo.json 的 targetKeywords + 每页 seo.targetKeyword）。真 AI 与 skipAI 两条路共用这一份。
 const targetKw = require('./lib/target-keywords');
 // #1549 —— 每页生成后的 SEO 检查（八条，设计文档 S2）。检查本身是纯函数，重写 / 丢页 / 失败的处置在本文件 §seoPass。
-const { seoProblems, rulesFor: seoRulesFor, pageTitleBudget, MIN_PAGE_TITLE_BUDGET, promptLocation } = require('./lib/seo-problems');
+const { seoProblems, rulesFor: seoRulesFor, pageTitleBudget, MIN_PAGE_TITLE_BUDGET, promptLocation, missingPhrases, sitePlace } = require('./lib/seo-problems');
 // #1386 —— 建站选图：哪些槽要图、提示词怎么拼、上限怎么截、求不到怎么说，都在那个文件里。
 // 名单不再写在本文件里（此前是四个块名 + 四个 case，`hero-with-form` 因此永远拿不到图）。
 const { fillImageSlots, writeImageAlts, IMAGE_FILE_SUFFIX } = require('./lib/image-slots');
@@ -86,7 +86,8 @@ const { applyHeroLeadForm } = require('./lib/hero-lead-form');
 const kwPages = require('./lib/keyword-pages');
 const { mostSimilarPages } = require('./lib/similarity');
 // #1549 回修 —— description 超长由代码裁到 155，不叫 AI 重写、不让整站失败（§description-fit.js 头注）。
-const { fitPageDescriptions } = require('./lib/description-fit');
+// #1549 重开 —— description 的长度区间按主语言取（中 / 日 / 韩 50–80，其余 70–155），提示词与检查同一个函数；重写后仍缺地点由代码补。
+const { fitPageDescriptions, appendPlace, descriptionSpec } = require('./lib/description-fit');
 // #1489 —— 建站时按地址查一次坐标写进 brand.locations[0].geo（contact 的地图要它；Nominatim，不要 key，§geocode.js 头注）。
 const { geocodeBrand } = require('./lib/geocode');
 // #1551 —— LocalBusiness 里「从老板给的料来」的几项：营业时间的转写核对、真实评分（§local-business-facts.js 头注）。
@@ -1310,6 +1311,7 @@ async function main() {
       languageName,
       disabledBlocks,
       titleSpec: pageTitleSpec(content.brand.name[defaultLocale]),
+      descriptionSpec: descriptionSpec(defaultLocale),
       forms: siteFormsFrom(content.ai && content.ai.forms),
       additionalContext,
       sitePrimaryKeyword: (targetKw.sitePrimaryOf(kwGroups, { siteType, keyword: leadKeyword }) || {}).keyword || '',
@@ -2124,6 +2126,8 @@ async function generateContent(opts) {
   const keepBlocks = (types) => types.filter((t) => !blockOff.has(t));
   // #1549 做什么 4 —— 子页 title 的预算按主语言的品牌名算（跟 seoProblems 第 1 条同一个数）。
   const titleSpec = pageTitleSpec(brandNameRecord(companyName, brandNameByLocale, defaultLocale)[defaultLocale]);
+  // #1549 重开 —— meta description 的长度按主语言（§description-fit.js descriptionSpec），跟 seoProblems 第 2 条同一个数。
+  const descSpec = descriptionSpec(defaultLocale);
   const quotedList = (types) => types.map((t) => `"${t}"`).join(', ');
   // 🔴 什么都没关掉时，这三行**逐字节**等于 #1346 之前写死的那三行（判据在
   // `scripts/lib/catalog-disabled.test.js` ④：两臂比同一份提示词的这一段）。整条规则里的块全被关掉
@@ -2556,7 +2560,7 @@ Generate a JSON object with this EXACT structure:
   },
   "seo": {
     "siteTitle": "<max 60 chars>",
-    "siteDescription": "<70–155 chars, location + services + CTA>",
+    "siteDescription": "<${descSpec}, location + services + CTA>",
     "areaServed": [{"type":"City","name":"<city>"}],
     "addresses": [{"locality":"<city>","region":"<province code>","country":"<country code>"}],
 ${hours ? '    "openingHours": [{ "days": ["<English day name>", "..."], "opens": "<HH:MM>", "closes": "<HH:MM>" }],\n' : ''}    "priceRange": "$$",
@@ -2591,7 +2595,7 @@ ${hours ? '    "openingHours": [{ "days": ["<English day name>", "..."], "opens"
     {
       "slug": "<page-slug>",
       "title": "<Page Title, ${titleSpec}>",
-      "description": "<Page meta description, 70–155 chars>",
+      "description": "<Page meta description, ${descSpec}>",
       "navLabel": "<Short nav label>",
       "navOrder": 1,
       "changeFrequency": "weekly|monthly",
@@ -2621,7 +2625,7 @@ CRITICAL RULES:
 - navOrder determines the order in the navigation. Home is always 0. Assign sequential numbers (1, 2, 3...) to other pages.
 - The CTA page (navigation.ctaPage) should have a higher navOrder so it appears last (but it won't be in the header nav — it becomes the CTA button).
 ${FACTS_ONLY_FROM_FORM_RULE}
-- Page titles (pages[].title): ${titleSpec}. The home page's <title> is seo.siteTitle, used as-is: max 60 chars. Every meta description (seo.siteDescription and pages[].description): 70–155 chars.
+- Page titles (pages[].title): ${titleSpec}. The home page's <title> is seo.siteTitle, used as-is: max 60 chars. Every meta description (seo.siteDescription and pages[].description): ${descSpec}.
 - Use specific language, not generic fluff.
 - Include location names naturally in content.
 - Service detail pages (slug "services/{id}") must set serviceDetailPage: true and parentService: "{service-id}".
@@ -3192,6 +3196,8 @@ async function generateKeywordPages(opts) {
     additionalContext = '', sitePrimaryKeyword = '', forms,
     // #1549 —— 子页 title 的预算说法（§pageTitleSpec，主语言品牌名算出来的），跟 Call 1、seoProblems 第 1 条同一个数。
     titleSpec = 'max 60 chars',
+    // #1549 重开 —— meta description 的长度说法（§description-fit.js descriptionSpec，按主语言）。
+    descriptionSpec: descSpec = '70–155 chars',
     // #1346 —— 后台关掉的块。关键词页有它**自己**那份写死的块清单（`keyword-page-options.js`），关掉的块要从那里剔掉。
     disabledBlocks = [],
   } = opts;
@@ -3208,7 +3214,7 @@ async function generateKeywordPages(opts) {
       material: kwPages.keywordPageMaterial(entry, payload),
       companyName, industry, location, languageInstruction,
       tagline: brand && brand.tagline, siteDescription: seo && seo.siteDescription,
-      additionalContext, sectionOptions, sitePrimaryKeyword, titleSpec,
+      additionalContext, sectionOptions, sitePrimaryKeyword, titleSpec, descriptionSpec: descSpec,
     });
     emit('prompt', { name: `Keyword page: ${entry.keyword}`, content: prompt });
     const call = async (messages, detail) => (await callAIWithRetry({
@@ -3378,17 +3384,28 @@ function seoRewritePrompt({ page, problems, content, payload, locale, industry, 
     ['Price range', p.priceRange],
     ['Customer reviews', Array.isArray(p.reviews) && p.reviews.length ? JSON.stringify(p.reviews) : ''],
   ].filter(([, v]) => typeof v === 'string' && v.trim()).map(([k, v]) => `- ${k}: ${v}`);
+  // #1549 重开 —— 要「原样出现」的词（目标词、地点）单列成 MUST 行，不混在问题清单里（Chris 2026-10-05 site-db08942a：
+  // 重写后只剩「description 不含地点『多伦多』」一条，整站失败）。跟第 1、2 条同一个谓词（§seo-problems.js missingPhrases）。
+  const descField = isHome ? 'siteDescription' : 'page.description';
+  const titleField = isHome ? 'siteTitle' : 'page.title';
+  const musts = missingPhrases({ page, targetKeyword: kw, payload, seo: content.seo }).map((m) => (m.field === 'title'
+    ? `- MUST: ${titleField} contains "${m.phrase}" exactly as written.`
+    : `- MUST: ${descField} contains "${m.phrase}" exactly as written${m.what === 'place' ? ' (the place name, in this spelling)' : ''}.`));
+  const descSpec = descriptionSpec(locale);
   return `You wrote one page of the website for "${companyName}" (${industry}${location ? `, ${location}` : ''}). An automatic SEO check found the problems below. Rewrite the page to fix ONLY these problems. Respond with the COMPLETE JSON object in exactly the same shape as the one you are given — no markdown fences, no explanation.
 
 ${JSON.stringify(envelope, null, 2)}
 
 PROBLEMS TO FIX:
 ${problems.map((x) => `- ${x}`).join('\n')}
-
+${musts.length ? `
+HARD REQUIREMENTS (the check runs again on exactly these; a page that misses one fails):
+${musts.join('\n')}
+` : ''}
 RULES:
 - ${kw ? `This page's target keyword is "${kw}" — use that exact phrase where the problems ask for it.` : 'This page has no target keyword.'}
 - Keep "slug", every section's "type" and "options", and every "imageUrl" exactly as they are. Add or remove a section only when a problem asks for it (the page's single H1 is the "headline" of its one "hero" or "page-header" section; H2s are the "headline" of the other sections).
-- ${isHome ? 'siteTitle is the home page\'s <title>, used as-is: max 60 chars.' : `page.title: ${pageTitleSpec(content.brand.name[locale])}.`} Meta description (${isHome ? 'siteDescription' : 'page.description'}): 70–155 chars${kw ? `, containing "${kw}"` : ''}.
+- ${isHome ? 'siteTitle is the home page\'s <title>, used as-is: max 60 chars.' : `page.title: ${pageTitleSpec(content.brand.name[locale])}.`} Meta description (${descField}): ${descSpec}${kw ? `, containing "${kw}"` : ''}.
 - Every image object ({"imageUrl", "alt"}) gets an "alt": one plain sentence saying what the photo shows.
 ${FACTS_ONLY_FROM_FORM_RULE.replace(', including the stats example below', '').replace('the business details above', 'the business details below')}
 BUSINESS DETAILS (the only source of facts):
@@ -3419,7 +3436,7 @@ async function rewritePageForSeo(args) {
 async function seoPass({ content, payload, locale, industry, location, companyName, disabledBlocks = [], keywordPagesPlanned = [] }) {
   const ctx = { content, payload, locale, industry, location, companyName };
   // 长度这种代码一刀能裁的先裁掉，再查；留给 AI 重写的只剩代码改不了的（关键词不在 / 编造事实 / H1 H2 …）。
-  for (const c of fitPageDescriptions({ pages: content.pages, seo: content.seo })) {
+  for (const c of fitPageDescriptions({ pages: content.pages, seo: content.seo, locale })) {
     debug(`[seo] 裁 description ${c.slug}：${c.before} → ${c.after} 字（代码裁，不叫 AI）`);
   }
   const failing = [];
@@ -3472,8 +3489,16 @@ async function seoPass({ content, payload, locale, industry, location, companyNa
         rewritten += 1;
       }
     }
-    for (const c of fitPageDescriptions({ pages: [cur], seo: content.seo })) {
+    for (const c of fitPageDescriptions({ pages: [cur], seo: content.seo, locale })) {
       debug(`[seo] 重写后裁 description ${c.slug}：${c.before} → ${c.after} 字`);
+    }
+    // #1549 重开 —— 重写一次后仍缺地点 ⟹ 代码补在 description 末尾（跟长度一样是代码能补的），再查。
+    if (missingPhrases({ page: cur, targetKeyword: seoTargetOf(cur), payload, seo: content.seo }).some((m) => m.what === 'place')) {
+      const place = sitePlace(payload);
+      const isHome = cur.slug === 'home';
+      const next = appendPlace(isHome ? content.seo.siteDescription : cur.description, place, locale);
+      if (isHome) content.seo.siteDescription = next; else cur.description = next;
+      debug(`[seo] 补地点 ${cur.slug}：「${place}」→ ${[...next].length} 字（代码补，不叫 AI）`);
     }
     const after = seoCheckPage({ page: cur, ...ctx, tag: '重写一次后' });
     if (!after.length) continue;

@@ -288,6 +288,8 @@ function keywordPagePrompt({
   additionalContext = '', sectionOptions, factsRule = FACTS_RULE, sitePrimaryKeyword = '', detailPageExists = true,
   // #1549 —— 子页 title 的长度说法（create-site §pageTitleSpec：60 − 3 − 主语言品牌名），跟 seoProblems 第 1 条同一个数。
   titleSpec = 'max 60 chars',
+  // #1549 重开 —— meta description 的长度说法（description-fit.js §descriptionSpec：CJK 主语言 50–80，其余 70–155）。
+  descriptionSpec = '70–155 chars',
 }) {
   const m = material;
   const facts = [];
@@ -330,7 +332,7 @@ function keywordPagePrompt({
     '{',
     `  "slug": "${page.path}",`,
     `  "title": "<Page Title with the keyword, ${titleSpec}>",`,
-    '  "description": "<Meta description with the keyword + location, 70–155 chars>",',
+    `  "description": "<Meta description with the keyword + location, ${descriptionSpec}>",`,
     '  "navLabel": "<Short label for the footer>",',
     '  "navOrder": 50,',
     '  "changeFrequency": "monthly",',

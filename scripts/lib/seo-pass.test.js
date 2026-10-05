@@ -18,6 +18,11 @@
  *   A' 反向对照：同一份夹具，about 的重写不修 ⟹ 建站失败 —— 证明 A 里 about 能过是因为那次重写
  *   B  about 页两次都出两个 H1 ⟹ 建站失败，信息写明 about 与「恰好一个 H1」；about 没被丢掉
  *   C  首页的目标词换成页面里不可能出现的词 ⟹ 日志里有首页的「重写一次」，仍不合格 ⟹ 建站失败、信息写明 home 和哪条
+ *   D  （#1549 重开）主语言 zh：发给 AI 的四处 description 长度都是 50–80；服务页 description（中文）缺地点、重写原样回来
+ *      ⟹ 重写提示词里有单列的 MUST 行、代码补上地点（「｜Markham」）、建站成功（改前这一跑是 fatal）
+ *   E  （#1549 重开 r3，QA1 / QA2 2026-10-05 的阻断）主语言 zh、服务页 description 是中英混排且拉丁字母过半、太短：
+ *      第一遍报的区间、重写提示词里的区间都是 50–80；重写替身「照提示词写、取区间中点」⟹ 建站成功。
+ *      r2 下这一跑 rc=1：检查按文字判成 70–155、提示词说 50–80，AI 守规矩也过不了
  */
 
 'use strict';
@@ -77,6 +82,14 @@ function answer(prompt) {
     const m = prompt.match(/\\n\\n(\\{[\\s\\S]*?\\n\\})\\n\\nPROBLEMS TO FIX/);
     const env = JSON.parse(m[1]);
     const r = (scenario.rewrites || {})[env.page.slug];
+    // 「照提示词写」：description 取重写提示词 RULES 里那个区间的中点长度（AI 守规矩）
+    if (r && r.midDescription) {
+      const m = prompt.match(/Meta description \\([^)]*\\): (\\d+)–(\\d+) chars/);
+      if (!m) throw new Error('重写提示词里没有 description 区间');
+      const mid = Math.round((Number(m[1]) + Number(m[2])) / 2);
+      env.page.description = [...r.midDescription.repeat(5)].slice(0, mid).join('');
+      return env;
+    }
     return r && r !== 'echo' ? r : env;
   }
   if (prompt.includes('You are translating a website page')) return fenced(prompt);
@@ -125,7 +138,7 @@ function kwPage(slug, kw, { title } = {}) {
   };
 }
 
-function call1({ aboutBody = 'We started small and grew by word of mouth.', aboutTwoH1 = false } = {}) {
+function call1({ aboutBody = 'We started small and grew by word of mouth.', aboutTwoH1 = false, drainDesc } = {}) {
   return {
     colorScheme: 'light',
     brand: { tagline: 'Clear drains, same day', logoIcon: 'wrench', email: 'hi@acme.test', locations: [{ label: 'Main', address: '1 Main St, Markham', phone: '905-555-0142' }] },
@@ -157,7 +170,7 @@ function call1({ aboutBody = 'We started small and grew by word of mouth.', abou
       { slug: 'quote', title: 'Get a Quote', description: 'Tell us about your plumbing problem and we will call you back the same day with an honest price.',
         navLabel: 'Quote', navOrder: 2, changeFrequency: 'monthly', priority: 0.8,
         sections: [header('Get a quote'), sec('contact', { headline: 'Request a quote', body: 'We reply the same day.', form: {}, options: { form: 'full' } })] },
-      { slug: 'services/drain-cleaning', title: 'Drain Cleaning', description: desc('Drain cleaning for kitchens, baths and main lines'),
+      { slug: 'services/drain-cleaning', title: 'Drain Cleaning', description: drainDesc || desc('Drain cleaning for kitchens, baths and main lines'),
         navLabel: 'Drain Cleaning', navOrder: 10, changeFrequency: 'monthly', priority: 0.8, serviceDetailPage: true, parentService: 'drain-cleaning',
         sections: [header('Drain cleaning in Markham', 'Drain cleaning, same day.'), sec('content', { headline: 'How drain cleaning works', body: 'We camera-inspect, then clear.' }),
           sec('faq', { headline: 'Drain cleaning FAQ', items: [{ question: 'Is it messy?', answer: 'No.' }] })] },
@@ -286,6 +299,61 @@ if (!ONLY) {
   check(lines.some((l) => l.startsWith('[seo] 重写一次后 home ')), '日志里有首页「重写一次后」那一行');
   const msg = errorOf(C);
   check(C.rc !== 0 && msg.includes('home:') && msg.includes('[1 title]'), `建站失败，信息写明 home 和哪条（rc=${C.rc}）`, msg.slice(0, 400));
+}
+
+console.log('\n── D 主语言 zh：description 长度按 CJK 那一档发给 AI；重写后仍缺地点 ⟹ 代码补，不让整站失败');
+if (!ONLY || ONLY === 'D') {
+  const NO_PLACE = '持牌技师为厨房、浴室和主管道提供 drain cleaning 疏通服务，当天上门，价格透明，不加收任何上门费，欢迎随时预约。';
+  const D = run('D', {
+    call1: call1({ drainDesc: NO_PLACE }), call2: call2(),
+    rewrites: { 'services/drain-cleaning': 'echo', [KW_SLUGS[2]]: 'echo' },
+  }, PAYLOAD({ language: 'zh' }));
+  const lines = seoLines(D.stderr);
+  check(D.rc === 0, `建站成功（rc=${D.rc}）`, `${errorOf(D)}\n${D.stderr.slice(-1200)}`);
+  const first = D.stderr.slice(D.stderr.indexOf('[seo] 检查 services/drain-cleaning '));
+  check(/^\[seo\] 检查 services\/drain-cleaning [^\n]*1 条问题：\n\s+\[2 description\] description 不含地点「Markham」/.test(first),
+    '第一遍：服务页只报一条「不含地点 Markham」', first.slice(0, 300));
+  const rw = D.prompts.find((p) => p.includes('An automatic SEO check found the problems') && p.includes('"slug": "services/drain-cleaning"')) || '';
+  check(/HARD REQUIREMENTS[^\n]*\n- MUST: page\.description contains "Markham" exactly as written/.test(rw), '重写提示词把「必须含 Markham」单列成 MUST 行', rw.slice(rw.indexOf('PROBLEMS TO FIX'), rw.indexOf('PROBLEMS TO FIX') + 500));
+  check(lines.some((l) => l.startsWith('[seo] 补地点 services/drain-cleaning：「Markham」')), '重写原样回来 ⟹ 日志「补地点」（代码补）', lines.filter((l) => l.includes('补地点')).join(' | '));
+  check(lines.some((l) => /^\[seo\] 重写一次后 services\/drain-cleaning · .* · 0 条问题$/.test(l)), '补完再查：0 条问题');
+  const pg = JSON.parse(fs.readFileSync(path.join(D.site, 'zh', 'pages', 'services', 'drain-cleaning.json'), 'utf-8'));
+  check(pg.description === `${NO_PLACE.replace(/。$/, '')}｜Markham` && [...pg.description].length <= 80, '落盘的 description 末尾补上了「｜Markham」（主语言 zh 用全角竖线），≤ 80 字', JSON.stringify(pg.description));
+  const c1 = D.prompts.find((p) => p.includes('Generate a JSON object with this EXACT structure')) || '';
+  const c2s = D.prompts.filter((p) => p.includes('Write ONE keyword landing page'));
+  check(c1.includes('"siteDescription": "<50–80 chars,') && c1.includes('"description": "<Page meta description, 50–80 chars>"')
+    && c1.includes('Every meta description (seo.siteDescription and pages[].description): 50–80 chars.') && !c1.includes('70–155'),
+  'Call 1 提示词三处都是 50–80（主语言 zh），没有 70–155');
+  check(c2s.length === 3 && c2s.every((c2) => c2.includes('keyword + location, 50–80 chars>') && !c2.includes('70–155')), `Call 2（${c2s.length} 通）提示词：50–80`);
+  check(rw.includes('Meta description (page.description): 50–80 chars') && !rw.includes('70–155'), '重写提示词：50–80');
+  // 反向对照：英文站（A）的三处仍是 70–155
+  const a1 = A.prompts.find((p) => p.includes('Generate a JSON object with this EXACT structure')) || '';
+  check(a1.includes('"siteDescription": "<70–155 chars,') && !a1.includes('50–80'), '对照：英文站 Call 1 仍是 70–155');
+}
+
+console.log('\n── E 主语言 zh、中英混排且拉丁字母过半的 description：检查与提示词同一个区间，AI 照提示词写就过');
+if (!ONLY || ONLY === 'E') {
+  // QA2 2026-10-05 照 Chris 两个中文真站造的形状（英文品牌 + 英文目标词）；先给一段太短的，逼出一次重写
+  const MIX = 'Acme Drains 在 Markham 提供 drain cleaning 疏通服务，厨房浴室主管道，持牌技师当天上门。';
+  const SHORT = 'Acme Drains 在 Markham 提供 drain cleaning 疏通。';
+  const E = run('E', {
+    call1: call1({ drainDesc: SHORT }), call2: call2(),
+    rewrites: { 'services/drain-cleaning': { midDescription: MIX }, [KW_SLUGS[2]]: 'echo' },
+  }, PAYLOAD({ language: 'zh' }));
+  const lines = seoLines(E.stderr);
+  const first = E.stderr.slice(E.stderr.indexOf('[seo] 检查 services/drain-cleaning '));
+  check(new RegExp(`^\\[seo\\] 检查 services/drain-cleaning [^\\n]*1 条问题：\\n\\s+\\[2 description\\] description ${[...SHORT].length} 字，要 50–80 字`).test(first),
+    `第一遍：服务页报「${[...SHORT].length} 字，要 50–80 字」（不是 70–155）`, first.slice(0, 300));
+  const rw = E.prompts.find((p) => p.includes('An automatic SEO check found the problems') && p.includes('"slug": "services/drain-cleaning"')) || '';
+  check(rw.includes('要 50–80 字') && rw.includes('Meta description (page.description): 50–80 chars') && !rw.includes('70–155'),
+    '重写提示词：问题清单和 RULES 说的是同一个区间 50–80，整封信里没有 70–155（r2 两句并排矛盾）');
+  check(E.rc === 0, `建站成功（rc=${E.rc}）`, `${errorOf(E)}\n${E.stderr.slice(-1200)}`);
+  check(lines.some((l) => /^\[seo\] 重写一次后 services\/drain-cleaning · .* · 0 条问题$/.test(l)), '照提示词写（中点 65 字）之后 0 条问题', lines.filter((l) => l.includes('drain-cleaning ')).join(' | '));
+  if (E.rc === 0) {
+    const pg = JSON.parse(fs.readFileSync(path.join(E.site, 'zh', 'pages', 'services', 'drain-cleaning.json'), 'utf-8'));
+    const n = [...pg.description].length;
+    check(n >= 50 && n <= 80, `落盘的 description ${n} 字，在 50–80 里`, JSON.stringify(pg.description));
+  }
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);
