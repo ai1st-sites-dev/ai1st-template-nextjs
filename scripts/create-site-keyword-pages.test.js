@@ -14,6 +14,7 @@
 //   AC9  Call 1 不给任何详情页（对抗式）→ 每个有关键词页的服务的详情页都在
 //   AC11 素材进了这一页那次调用的提示词（字段名 = dashboard 送的 keywordMaterial）
 //   PM ① 挂 Brand 的 Lead（组名对不上服务）→ 补一个服务；那组一页都没成 → 不补
+//   #1569 r2 中文站不填 Address → Call 1 地址那一格是原样地点（不是给 AI 当背景的双语串）
 'use strict';
 
 const assert = require('assert');
@@ -734,6 +735,26 @@ check('#1566 AC1：服务 id 顶格 ⟹ 详情页每个图槽都填上、盘上�
 // 📌 关键词页那种 pageSlug 形状（`services/<短 id>/<顶格词 slug>`）不在这里跑整站：关键词页今天不求图（`fillImageSlots`
 //    只在 Call 1 的 generateSlotPhotos 与 skipAI 里调），整站跑那一页按构造读 `attempted 0`。它在
 //    lib/image-slots.test.js ⑩ 直接驱动 slotKey 验（#1566 r2 AC2，PM 裁定）。
+
+// ── #1569 r2：中文站、老板没填 Address ⟹ 地址那一格是原样的地点，不是双语串 ──────────────────────────────
+// 地址不填时 Call 1 让 AI 把地点抄进 brand.locations[0].address，那一格之后要拿去查坐标（OSM 查双语串 0 条 ⟹ 地图 / 页脚城市 /
+// 结构化数据的街道邮编全没了，PM r1 验收实测）。给 AI 当背景的那几行（Primary Location / 重写提示词）仍是双语。
+console.log('── #1569 r2：中文站不填 Address，地址兜底用原样地点');
+const ZH_LOC = { location: 'Toronto, Ontario, Canada', locationLocalized: '多伦多, 安大略省, 加拿大' };
+const ZA = run('zhaddr', { companyName: 'Bright Pipes', language: 'zh', services: ['Plumbing'], ...ZH_LOC }, { call1: call1([{ id: 'plumbing', name: 'Plumbing' }]) });
+const zaCall1 = (ZA.calls.find((c) => c.kind === 'call1') || { first: '' }).first;
+check('#1569 r2：Call 1 地址那一格 = 原样地点（Toronto, Ontario, Canada）', () => {
+  assert.ok(zaCall1, '没抓到 Call 1');
+  assert.ok(zaCall1.includes('"address": "Toronto, Ontario, Canada"'), (zaCall1.match(/"address": "[^"]*"/) || ['(无 address 行)'])[0]);
+});
+check('#1569 r2：给 AI 的背景仍是双语（Primary Location）', () => {
+  assert.ok(zaCall1.includes('- Primary Location: 多伦多, 安大略省, 加拿大 (Toronto, Ontario, Canada)'), (zaCall1.match(/- Primary Location: [^\n]*/) || ['(无)'])[0]);
+});
+const ZB = run('zhaddr2', { companyName: 'Bright Pipes', language: 'zh', services: ['Plumbing'], address: '2150 Yonge Street, Toronto', ...ZH_LOC }, { call1: call1([{ id: 'plumbing', name: 'Plumbing' }]) });
+check('#1569 r2：填了 Address 时照旧用它', () => {
+  const first = (ZB.calls.find((c) => c.kind === 'call1') || { first: '' }).first;
+  assert.ok(first.includes('"address": "2150 Yonge Street, Toronto"'), (first.match(/"address": "[^"]*"/) || ['(无)'])[0]);
+});
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

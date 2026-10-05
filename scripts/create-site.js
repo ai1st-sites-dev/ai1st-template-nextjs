@@ -57,7 +57,7 @@ const { siteFormsFrom } = require('./lib/site-forms');
 // #1548 —— 挖出来的关键词落盘（seo.json 的 targetKeywords + 每页 seo.targetKeyword）。真 AI 与 skipAI 两条路共用这一份。
 const targetKw = require('./lib/target-keywords');
 // #1549 —— 每页生成后的 SEO 检查（八条，设计文档 S2）。检查本身是纯函数，重写 / 丢页 / 失败的处置在本文件 §seoPass。
-const { seoProblems, rulesFor: seoRulesFor, pageTitleBudget, MIN_PAGE_TITLE_BUDGET } = require('./lib/seo-problems');
+const { seoProblems, rulesFor: seoRulesFor, pageTitleBudget, MIN_PAGE_TITLE_BUDGET, promptLocation } = require('./lib/seo-problems');
 // #1386 —— 建站选图：哪些槽要图、提示词怎么拼、上限怎么截、求不到怎么说，都在那个文件里。
 // 名单不再写在本文件里（此前是四个块名 + 四个 case，`hero-with-form` 因此永远拿不到图）。
 const { fillImageSlots, writeImageAlts, IMAGE_FILE_SUFFIX } = require('./lib/image-slots');
@@ -747,7 +747,6 @@ async function main() {
     siteId,
     companyName,
     industry,
-    location,
     address,
     phone,
     email,
@@ -784,6 +783,9 @@ async function main() {
     siteType = '',
     additionalContext = '',
   } = input;
+
+  // #1569 —— 主语言非英语的站，向导多存一份按主语言翻好的地点（`locationLocalized`）：提示词里两份都给（§lib/seo-problems.js promptLocation）。
+  const location = promptLocation(input);
 
   // Override AI model/tokens from Admin Settings (passed through by Manager)
   if (input.model) { model = input.model; pricing = getModelPricing(model); }
@@ -1209,6 +1211,8 @@ async function main() {
   // ── Call 1: Generate base site (brand + seo + services + regular pages) ──
   const content = await generateContent({
     companyName, industry, location, address, phone, email,
+    // #1569 r2 —— 地址那一格要的是原样的地点（Google Ads 那份），不是上面给 AI 当背景的双语串（§generateContent 地址那行）。
+    rawLocation: input.location,
     services, usp, targetCustomers, brandDescription,
     theme, languageName, refSite, refPrefs, refAnalysis,
     reviews, onlinePresence, hours, priceRange, uploadedImages, logoUrl,
@@ -2071,7 +2075,7 @@ const FACTS_ONLY_FROM_FORM_RULE = '- FACTS ONLY FROM THE FORM: years in business
 
 async function generateContent(opts) {
   const {
-    companyName, industry, location, address, phone, email,
+    companyName, industry, location, rawLocation, address, phone, email,
     services, usp, targetCustomers, brandDescription,
     theme, languageName, refSite, refPrefs = [], refAnalysis = null,
     reviews = [], onlinePresence = {}, hours, priceRange, uploadedImages = [],
@@ -2534,7 +2538,7 @@ Generate a JSON object with this EXACT structure:
     "tagline": "<catchy tagline, max 60 chars>",
     "logoIcon": "<icon from list>",
     "email": "${email || '<realistic email>'}",
-    "locations": [{ "label": "<name>", "address": "${address || location || '<City, Province, Country>'}", "phone": "${phone || '<phone>'}" }]
+    "locations": [{ "label": "<name>", "address": "${address || rawLocation || '<City, Province, Country>'}", "phone": "${phone || '<phone>'}" }]
   },
   "navigation": {
     "ctaLabel": "<CTA button text, max 25 chars>",

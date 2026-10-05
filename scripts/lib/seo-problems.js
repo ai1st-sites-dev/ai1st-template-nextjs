@@ -278,7 +278,7 @@ function pageTitleBudget(brandName) {
 
 const SOURCE_FIELDS = ['companyName', 'industry', 'location', 'address', 'phone', 'email', 'services', 'usp',
   'targetCustomers', 'brandDescription', 'reviews', 'onlinePresence', 'hours', 'priceRange', 'keyword',
-  'additionalContext', 'brandNameByLocale'];
+  'additionalContext', 'brandNameByLocale', 'locationLocalized'];
 
 function sourceText(payload) {
   const p = payload && typeof payload === 'object' ? payload : {};
@@ -291,6 +291,28 @@ function sourceText(payload) {
   };
   for (const f of SOURCE_FIELDS) walk(p[f]);
   return out.join('\n');
+}
+
+/**
+ * 站的地点（规则 2 判「description 含地点」用的那一份）。#1569 —— 主语言非英语时，向导按主语言把 Google Ads 的地点名
+ * 逐段翻好多存一份 `locationLocalized`（「多伦多, 安大略省, 加拿大」）；有它就用它，英文站没有这个字段 ⟹ 照旧是 `location`。
+ * 本函数只服务主语言（`seoProblems` 只跑主语言），所以不看 locale。
+ */
+function siteLocation(payload) {
+  const p = payload && typeof payload === 'object' ? payload : {};
+  return str(p.locationLocalized) || str(p.location);
+}
+
+/**
+ * 给 AI 的地点（create-site 每一次提示词里那行 LOCATION）。#1569 —— 有 `locationLocalized` 时两份都给：
+ * 「多伦多, 安大略省, 加拿大 (Toronto, Ontario, Canada)」—— 主语言的页写「多伦多」（第 2 条按它判），第二语言的页照样写得出 Toronto。
+ * 没有它（英文站）⟹ 原样是 `location`，一个字节不变。
+ */
+function promptLocation(payload) {
+  const p = payload && typeof payload === 'object' ? payload : {};
+  const raw = typeof p.location === 'string' ? p.location : '';
+  const localized = str(p.locationLocalized);
+  return localized && str(raw) && localized !== str(raw) ? `${localized} (${str(raw)})` : raw;
 }
 
 const digitsOf = (s) => String(s).replace(/[,\s]/g, '');
@@ -386,7 +408,7 @@ function seoProblems({ page, pages = [], targetKeyword, brand, payload, locale, 
     if (n < 70 || n > 155) problems.push(`[2 description] description ${n} 字，要 70–155 字`);
     if (kw) {
       if (!hasPhrase(desc, kw)) problems.push(`[2 description] description 不含目标词「${kw}」`);
-      const place = str(String((payload && payload.location) || '').split(',')[0]);
+      const place = str(siteLocation(payload).split(/[,，、]/)[0]);
       if (place && !hasPhrase(desc, place)) problems.push(`[2 description] description 不含地点「${place}」`);
     }
   }
@@ -456,6 +478,8 @@ module.exports = {
   hasStem,
   pageText,
   sourceText,
+  siteLocation,
+  promptLocation,
   H1_BLOCKS,
   H2_BLOCKS,
   IMG_SLOTS,

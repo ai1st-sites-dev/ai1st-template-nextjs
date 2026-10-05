@@ -108,6 +108,33 @@ console.log('\n── ① 有目标词：八条各一正一反');
     const noLoc = seoProblems({ ...args(p), targetKeyword: kw2, payload: { ...PAYLOAD, location: '' } });
     check(!noLoc.some((x) => x.includes('不含地点')), '　location 为空时地点那一半不判', JSON.stringify(noLoc));
   }
+  // #1569 —— 主语言非英语的站：地点按向导翻好的 `locationLocalized` 判（中文描述里要的是「多伦多」，不是 Toronto）。
+  {
+    const kw = '剪头发';
+    const zhPayload = { ...PAYLOAD, location: 'Toronto, Ontario, Canada', locationLocalized: '多伦多, 安大略省, 加拿大' };
+    const loc = (desc, payload) => {
+      const p = goodPage();
+      p.description = desc;
+      return seoProblems({ ...args(p), targetKeyword: kw, payload }).filter((x) => x.includes('不含地点'));
+    };
+    check(loc('我们在多伦多提供专业剪头发服务，当天预约当天剪。', zhPayload).length === 0,
+      '#1569 中文站：description 含「多伦多」⟹ 地点那一半不报');
+    const miss = loc('我们在 Toronto 提供专业剪头发服务，当天预约当天剪。', zhPayload);
+    check(miss.length === 1 && miss[0] === '[2 description] description 不含地点「多伦多」',
+      '#1569 　反向对照：只有英文 Toronto ⟹ 报「不含地点「多伦多」」', JSON.stringify(miss));
+    check(loc('我们在多伦多提供专业剪头发服务。', { ...zhPayload, locationLocalized: '多伦多，安大略省，加拿大' }).length === 0,
+      '#1569 　翻译回来用的是全角逗号也取得到第一段「多伦多」');
+    const en = loc('We offer 剪头发 in Toronto, same day.', { ...PAYLOAD, location: 'Toronto, Ontario, Canada' });
+    check(en.length === 0, '#1569 　英文站（没有 locationLocalized）照旧按 location 判 Toronto', JSON.stringify(en));
+    check(S.sourceText(zhPayload).includes('多伦多'), '#1569 　事实出处（规则 8）也认 locationLocalized');
+    // 给 AI 的那行 LOCATION（create-site 每一次提示词）：中文站两份都给；英文站原样
+    check(S.promptLocation(zhPayload) === '多伦多, 安大略省, 加拿大 (Toronto, Ontario, Canada)',
+      '#1569 　提示词里的地点：主语言那份 + 括号里原文', S.promptLocation(zhPayload));
+    check(S.promptLocation({ location: 'Toronto, Ontario, Canada' }) === 'Toronto, Ontario, Canada'
+      && S.promptLocation({ location: 'Toronto, Ontario, Canada', locationLocalized: '  ' }) === 'Toronto, Ontario, Canada'
+      && S.promptLocation({}) === '',
+      '#1569 　英文站 / 空的 locationLocalized / 没有地点：原样，不加括号');
+  }
   // 5 slug 站内重复
   {
     const a = goodPage(); const b = goodPage();
