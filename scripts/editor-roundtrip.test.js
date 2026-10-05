@@ -168,13 +168,25 @@ console.log('④ 清单不许手写');
   check(msg.includes('fake-block-1404'), '注册表多一个没有 manifest 的块 → schema 抛并点名 fake-block-1404', msg || '没抛');
 }
 
-// ══ ⑤ 形态下拉 = 子目录去掉候选 ════════════════════════════════════════════════════════════════
+// 在拷出来的块库 `dir` 里删掉一个形态：子目录 + manifest 里点名它的预设（每个形态都有预设，而 loadManifests
+// 不许预设点名一个不存在的形态目录）。⑤ 的反向对照与 ⑦d 共用。
+function dropShape(dir, block, shape) {
+  const shapeDir = path.join(dir, block, shape);
+  if (!fs.existsSync(path.join(shapeDir, 'shape.md'))) die(`${block}/${shape}/shape.md 不在（区块库变了？）`);
+  fs.rmSync(shapeDir, { recursive: true });
+  const mf = path.join(dir, block, 'manifest.json');
+  const m = JSON.parse(fs.readFileSync(mf, 'utf-8'));
+  if (Array.isArray(m.presets)) m.presets = m.presets.filter((pr) => pr.shape !== shape);
+  fs.writeFileSync(mf, JSON.stringify(m, null, 2));
+}
+
+// ══ ⑤ 形态下拉 = 形态子目录 ══════════════════════════════════════════════════════════════════════
 console.log('⑤ 形态下拉');
 {
   const problems = [];
   let total = 0;
   for (const c of schema.components) {
-    const want = catalog.pairs.filter((p) => p.block === c.type && p.candidate !== true).map((p) => p.shape).sort();
+    const want = catalog.pairs.filter((p) => p.block === c.type).map((p) => p.shape).sort();
     const got = c.shapes.map((s) => s.name).sort();
     if (JSON.stringify(want) !== JSON.stringify(got)) problems.push(`${c.type}: ${got} ≠ ${want}`);
     if (got.length === 0) problems.push(`${c.type}: 下拉是空的`);
@@ -183,32 +195,25 @@ console.log('⑤ 形态下拉');
   // #1424 —— 外壳区按 manifest 自己的 `region === true` 判，不手抄名单（手抄的 `['header', 'footer']`
   // 在 `header` 进来那天就少了一个，合计差 1 而报的是「编辑器下拉错了」）。
   const isRegion = (block) => (catalog.manifests.get(block) || {}).region === true;
-  const expectTotal = catalog.pairs.filter((p) => !isRegion(p.block) && p.candidate !== true).length;
+  const expectTotal = catalog.pairs.filter((p) => !isRegion(p.block)).length;
   check(problems.length === 0, `逐块相等（合计 ${total} 项）`, problems.join(' / '));
-  check(total === expectTotal, `合计 = 非 region 对数减候选（${expectTotal}）`, String(total));
+  check(total === expectTotal, `合计 = 非 region 对数（${expectTotal}）`, String(total));
   // #1425（T3）：testimonials 改成新库那一块（原来是旧 testimonials 的 two-up · attribution-first · three-up · quote-rail）
   const t = compOf('testimonials').shapes.map((s) => s.name);
   check(JSON.stringify(t) === JSON.stringify(['cards', 'side-intro', 'big-quote', 'quote-card', 'ratings']),
     'testimonials = cards · side-intro · big-quote · quote-card · ratings', t.join(' · '));
-  // 📌 #1425（T3）—— 这里原来还有一格「testimonials 不含四个候选（heading-side / masonry / quote-aside / single-featured）」；
-  //    那四个候选随旧 testimonials 删了，新库今天一个 `candidate: true` 都没有。候选那条规则由下面的反向对照量。
   // #1419 —— manifest 里那份旧的 `variants` 词表整套删了（它跟子目录对不上，下拉从来不该读它）。
   // 这一格原来断言「hero 下拉不含那 9 个旧名字」，词表没了就改成断言这个键不再存在 —— 写回去的话这里红。
   const legacyKeyed = [...manifests.values()].filter((m) => 'variants' in m || 'variantKey' in m).map((m) => m.type);
   check(manifests.size > 0 && legacyKeyed.length === 0,
     `manifest 里没有 variants / variantKey 键（${manifests.size} 份）`, legacyKeyed.join(' · '));
-  // 反向对照：#1425（T3）—— 原来是「去掉 masonry 的 candidate → 它回到下拉」，新库里没有候选可去掉；换成镜像的那一臂：
-  //    给 ratings 加上 candidate → 它从下拉里消失，其余四个仍在（写死名单、或者不读 candidate 的实现都过不了这一格）。
-  const dir = tmpdir('blocks-cand');
+  // 反向对照：下拉读的是形态子目录 —— 拷出来的块库里删掉 testimonials/ratings 子目录 → 它从下拉里消失，其余四个仍在
+  //    （写死名单的实现过不了这一格）。#1579 之前这一臂是「给 ratings 标成候选」，候选形态那条线删了。
+  const dir = tmpdir('blocks-drop');
   cp.execSync(`cp -a "${path.join(NEXT, 'blocks')}/." "${dir}"`);
-  const md = path.join(dir, 'testimonials', 'ratings', 'shape.md');
-  const before = fs.readFileSync(md, 'utf-8');
-  if (/^candidate: true$/m.test(before)) die('ratings/shape.md 已经是候选（区块库变了？）');
-  const after = before.replace(/^---\n/, '---\ncandidate: true\n');
-  if (after === before) die('ratings/shape.md 开头不是 `---` front matter（区块库变了？）');
-  fs.writeFileSync(md, after);
+  dropShape(dir, 'testimonials', 'ratings');
   const t2 = editorSchema({ blocksDir: dir }).components.find((c) => c.type === 'testimonials').shapes.map((s) => s.name);
-  check(!t2.includes('ratings'), '反向：给 ratings 加上 candidate → ratings 从下拉里消失', t2.join(' · '));
+  check(!t2.includes('ratings'), '反向：删掉 ratings 子目录 → ratings 从下拉里消失', t2.join(' · '));
   check(['cards', 'side-intro', 'big-quote', 'quote-card'].every((x) => t2.includes(x)), '反向：其余四个仍在', t2.join(' · '));
 }
 
@@ -763,22 +768,15 @@ console.log('⑦c 恢复主题默认');
   check(schema.components.every((c) => c.themeShape === null), '没给 rootDir 的 schema：themeShape 全是 null（不猜主题）');
 }
 
-// ══ ⑦d 钉着候选 / 退役形态的块（#1445）：下拉不空白、显示那个名字；不碰就存 → shape 原样 ══════════════
+// ══ ⑦d 钉着退役形态的块（#1445）：下拉不空白、显示那个名字；不碰就存 → shape 原样 ══════════════════════
 console.log('⑦d 钉着退役形态');
 {
-  // 真候选对（不是编的名字）：区块库里 `candidate: true` 的每一对，逐个钉到夹具页那一块上。
-  // #1425（T3）：新库今天一个 `candidate: true` 都没有（原来那几对随旧库删了）。为了还能量「钉着一个不在下拉里的形态」，
-  //    在拷出来的块库里把真存在的一个形态（testimonials/ratings —— 子目录、CSS 都在盘上）标成候选，编辑器 schema 从那份派生
-  //    （= 真站上「这个形态还在库里、只是不再给选」的样子）。页面归一化 / 构建那一侧照旧读真块库。
+  // 「钉着一个不在下拉里的形态」：在拷出来的块库里删掉真存在的一个形态子目录（testimonials/ratings），编辑器 schema
+  //    从那份派生（= 页面还钉着它、库里已经没有它的样子）；页面归一化 / 构建那一侧照旧读真块库。
+  //    #1579 之前这里是「把它标成候选」，候选形态那条线删了。
   const candDir = tmpdir('blocks-retired');
   cp.execSync(`cp -a "${path.join(NEXT, 'blocks')}/." "${candDir}"`);
-  {
-    const md = path.join(candDir, 'testimonials', 'ratings', 'shape.md');
-    const src0 = fs.readFileSync(md, 'utf-8');
-    const marked = src0.replace(/^---\n/, '---\ncandidate: true\n');
-    if (marked === src0) die('testimonials/ratings/shape.md 开头不是 front matter（区块库变了？）');
-    fs.writeFileSync(md, marked);
-  }
+  dropShape(candDir, 'testimonials', 'ratings');
   const sch2 = editorSchema({ blocksDir: candDir });
   const compOf2 = (t) => sch2.components.find((c) => c.type === t);
   const openPage2 = (raw0, sb = {}, conv = convert) => {
@@ -789,13 +787,13 @@ console.log('⑦d 钉着退役形态');
     const { initial: i0, data: d0 } = openPage2(raw0, sb, conv);
     return conv.puckToPage({ raw: raw0, data: d0, initial: i0, schema: sch2, slug: raw0.slug });
   };
-  // 候选对 = 真块库里有、而那份 schema 的下拉里没有的形态（现算，不写死）
+  // 退役对 = 真块库里有、而那份 schema 的下拉里没有的形态（现算，不写死）
   const cands = [];
   for (const c of schema.components) {
     const c2 = compOf2(c.type);
     for (const sh of c.shapes) if (c2 && !c2.shapes.some((x) => x.name === sh.name)) cands.push({ block: c.type, shape: sh.name });
   }
-  if (cands.length === 0) die('标成候选之后下拉里一项都没少 —— 这一节量不到东西（schema 不读 candidate 了？）');
+  if (cands.length === 0) die('删掉子目录之后下拉里一项都没少 —— 这一节量不到东西（schema 不读子目录了？）');
   // 下拉框显示的是哪一项：值配上的那一项；配不上时 React 受控 <select> 退到第一项（`Theme default`）——
   // Chromium 里 origin/main 实测 selectedIndex = 0，不是 -1。所以判据是「显示的那一项文字含形态名」，
   // 光看 selectedIndex ≠ -1 在改之前也成立。
@@ -813,7 +811,7 @@ console.log('⑦d 钉着退役形态');
     else if (!/retired/.test(shown)) unlabeled += 1;
     if (firstDiff(raw, roundTrip2(raw)) !== null) lossy += 1;
   }
-  check(blank === 0, `AC1：${cands.length} 对候选逐个钉上 → 下拉配得上一项（selectedIndex ≠ -1），显示的文字含形态名`, `${blank} 对显示错`);
+  check(blank === 0, `AC1：${cands.length} 对退役形态逐个钉上 → 下拉配得上一项（selectedIndex ≠ -1），显示的文字含形态名`, `${blank} 对显示错`);
   check(unlabeled === 0, 'AC1：那一项的文字含形态名、标着 retired', `${unlabeled} 对没标`);
   check(lossy === 0, `AC2：${cands.length} 对都不碰直接存 → 整页逐字节无损（shape 原样）`, `${lossy} 对有损`);
 

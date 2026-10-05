@@ -21,7 +21,8 @@
  *    → 新 hero 的 split（默认，order 0）/ cover（要 image，`{imageUrl, alt}` 对象槽）；两套主题的角色不变
  *    （今天 azure-29 选 cover、ember-12 选 centered）。centered ≠ 默认 split，所以「落回默认」那几格顺带分得开
  *    「落回 manifest 默认」与「落回选择单」—— 旧夹具里 ember 的选择单恰好就是默认，分不开。
- * ⑦ 「全部恢复主题默认」（§resetShapesInSite）。⑧ 候选形态：构建不许戴上它。
+ * ⑦ 「全部恢复主题默认」（§resetShapesInSite）。
+ *    📌 原来还有 ⑧「候选形态构建不许戴上」—— #1579 删掉了候选形态那条线，那一节跟着删。
  *
  * 📌 这里原来还有 ⑤ `shapeVerdict`、⑥ `checkShapeInSite` 两节，以及 ⑧ 里「校验那一半」的几格 —— 它们守的是
  *    检查器单块形态端点（`PUT …/blocks/{id}/shape`）的入队前校验跟构建说同一句话。那条端点和那两个函数
@@ -234,88 +235,6 @@ console.log('\n⑦ resetShapesInSite —— 页面级 / 站级一次清空');
     check(r.ok === true && r.cleared.length === 1 && r.cleared[0].index === 0,
       `老 sections 形状也清得掉，并按下标点名（实际 ${JSON.stringify(r.cleared)}）`);
     fs.rmSync(root, { recursive: true, force: true });
-  }
-}
-
-// ── ⑧ 候选形态（#1384）——构建不许戴上它 ─────────────────────────────────────────────────────────
-//
-// 🔴 **照本文件头那条纪律，用【真 manifest 的深拷贝】改一个字段，不造合成 manifest。** 这样「真 hero
-//    到底长什么样」这一维还在，而且这几格**不依赖今天盘上有没有候选** —— 候选是会进也会出的（Chris
-//    签了字，对表票就把那个标摘掉），而断言不该跟着那件事一红一绿。
-// 🔴 **顺序也要量**：一个形态同时是候选又缺槽位时，构建说的是「候选」那一句，不是「先填上 X」——
-//    后者会让人去填那个槽，填完还是戴不上。
-console.log('\n⑧ 候选形态 —— 构建落回默认（判据是 manifest 那个字段、顺序在缺槽位之前）');
-{
-  const clone = (o) => JSON.parse(JSON.stringify(o));
-  const needsOf = (m, name) => shapeNeedsGap(m, name, { headline: 'H' }) || [];
-  // #1425（T3）：media-top / media-cover → text-only / cover
-  const CAND_FREE = 'text-only';
-  const CAND_NEEDY = 'cover';   // hero 里要 image 的那个（文件顶部已 die 过它存在）
-
-  const heroCand = clone(manifests.hero);
-  const mark = (name) => {
-    const sh = (heroCand.shapes || []).find((x) => x && x.name === name);
-    if (!sh) die(`hero 的清单里没有 ${name} —— 本节的断言要跟着改`);
-    sh.candidate = true;
-  };
-  mark(CAND_FREE);
-  mark(CAND_NEEDY);
-  const msCand = { ...manifests, hero: heroCand };
-  check(needsOf(manifests.hero, CAND_NEEDY).length > 0,
-    `夹具前提：${CAND_NEEDY} 在没填图的块上确实缺槽位（这样下面那格才分得开两种原因）`);
-
-  // ① 候选 ⟹ 落回默认并说一行
-  const built = run({ type: 'hero', shape: CAND_FREE, data: withImage }, {}, msCand);
-  check(built.out === manifests.hero.shapes[0].name && !built.threw,
-    `构建落回默认 ${manifests.hero.shapes[0].name}（实际 ${JSON.stringify(built.out)}），不抛`);
-  check(built.log.includes('候选'), `构建说了那一行（实际 ${JSON.stringify(built.log)}）`);
-
-  // ② 🔴 候选压过缺槽位
-  const builtNeedy = run({ type: 'hero', shape: CAND_NEEDY, data: { headline: 'H' } }, {}, msCand);
-  check(builtNeedy.log.includes('候选') && !builtNeedy.log.includes('缺槽位'),
-    `同时是候选又缺槽位 ⟹ 说候选那一句、不说缺槽位（实际 ${JSON.stringify(builtNeedy.log)}）`);
-
-  // ③ 🔴 反向臂 —— 专防「按形态名写死一份候选名单」：把标摘掉，同一个形态就该回来；
-  //    同一份里另一个仍标着的形态**仍然**落回（单变量：两个形态只差那个字段）。
-  {
-    const heroMixed = clone(heroCand);
-    delete (heroMixed.shapes || []).find((x) => x && x.name === CAND_FREE).candidate;
-    const msMixed = { ...manifests, hero: heroMixed };
-    const data = needsOf(heroMixed, CAND_FREE).length ? withImage : { headline: 'H' };
-    check(run({ type: 'hero', shape: CAND_FREE, data }, {}, msMixed).out === CAND_FREE,
-      '摘掉 candidate ⟹ 构建真戴上它');
-    check(run({ type: 'hero', shape: CAND_NEEDY, data: withImage }, {}, msMixed).out !== CAND_NEEDY,
-      '同一份 manifest 里留着标的另一个 ⟹ 仍然落回（判据是字段，不是名单）');
-  }
-
-  // ④ `candidate: false` 与「压根没写」都不是候选（别把「有这个键」当成判据）
-  {
-    const heroFalse = clone(manifests.hero);
-    (heroFalse.shapes || []).find((x) => x && x.name === CAND_FREE).candidate = false;
-    const data = needsOf(heroFalse, CAND_FREE).length ? withImage : { headline: 'H' };
-    check(run({ type: 'hero', shape: CAND_FREE, data }, {}, { ...manifests, hero: heroFalse }).out === CAND_FREE,
-      '`candidate: false` 不是候选');
-    if ('candidate' in (manifests.hero.shapes.find((x) => x.name === CAND_FREE) || {})) {
-      die(`盘上的 hero/${CAND_FREE} 自己写着 candidate —— 「压根没写」那一格要换一个形态`);
-    }
-    check(run({ type: 'hero', shape: CAND_FREE, data }, {}, manifests).out === CAND_FREE,
-      '压根没写 candidate 的不是候选');
-  }
-
-  // ⑤ 盘上**今天真有的**候选，逐个过构建（这一格的分母会变 —— 它是报读数，上面那几格才是不变量）
-  {
-    const real = [];
-    for (const [type, m] of Object.entries(manifests)) {
-      for (const sh of (m.shapes || [])) {
-        if (sh && sh.candidate === true && sh.name) real.push({ type, name: sh.name });
-      }
-    }
-    console.log(`  📌 盘上今天有 ${real.length} 个候选形态${real.length ? `：${real.map((r) => `${r.type}/${r.name}`).join('、')}` : '（一个都没有 —— 上面那几格不依赖它）'}`);
-    const worn = real.filter((r) => run({ type: r.type, shape: r.name, data: {} }, {}, manifests).out === r.name);
-    if (real.length) {
-      check(worn.length === 0,
-        `盘上那 ${real.length} 个候选逐个：构建不戴上` + (worn.length ? ` —— 戴上了: ${worn.map((r) => `${r.type}/${r.name}`).join(' | ')}` : ''));
-    }
   }
 }
 

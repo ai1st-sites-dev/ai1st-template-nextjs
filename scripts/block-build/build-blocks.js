@@ -51,7 +51,6 @@ function readBlock(type) {
       name: e.name,
       order: typeof fm.order === 'number' ? fm.order : null,
       needs: Array.isArray(fm.needs) ? fm.needs : [],
-      candidate: fm.candidate === true,
       source: typeof fm.source === 'string' ? fm.source : undefined,
       layout_intent: fm.layout_intent && typeof fm.layout_intent === 'object' ? fm.layout_intent : undefined,
       dir: path.join(dir, e.name),

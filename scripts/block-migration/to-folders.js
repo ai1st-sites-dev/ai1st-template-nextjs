@@ -253,7 +253,6 @@ function main() {
       write(path.join(dir, sh.name, 'shape.css'), tidy(css));
       const fm = { order: i };
       if (sh.needs && sh.needs.length) fm.needs = sh.needs;
-      if (sh.candidate) fm.candidate = true;
       const src = sources[k] ? sources[k].map((x) => `FlyonUI ${x}`).join(', ') : '';
       if (src) fm.source = src;
       if (sh.layout_intent) fm.layout_intent = sh.layout_intent;

@@ -13,11 +13,9 @@
 // · 有哪些块    → `block-catalog.js` §blockShapeCatalog（从注册表派生；图册、几何守卫共用这一份）。
 //                 注册表里有而没有 manifest 的块，它当场抛并点名 —— 不回一份残缺的清单。
 // · 有哪些字段  → `block-manifest.js` §editableSlotPaths（#1352，检查器面板和 `data-slot` 守卫也用它）。
-// · 形态下拉    → catalog 的 `pairs`（出处是形态**子目录**），去掉 `candidate === true`。
+// · 形态下拉    → catalog 的 `pairs`（出处是形态**子目录**）。
 //                 🔴 不是 manifest 里的 `variants` —— 那是 #1008 之前的旧画法名单，照它生成会接上
 //                    一份废弃数据而不报错（hero 那份 9 条，跟 7 个形态目录 0 撞名）。
-//                 🔴 候选必须去掉：构建遇到候选静默落回默认（`block-shape.js` §shapeForBlock），
-//                    列出来就是「选了、保存成功、页面却是另一个形态」（#1350 r6）。
 //
 // ── 槽位怎么变成字段：`kind` 决定控件 ────────────────────────────────────────────────────────────
 //   editLabel 是字符串  kind text/link…        → 一个 text 字段（`control: 'text'`）
@@ -221,7 +219,7 @@ function humanize(name) {
  * @param {string} [opts.layoutsDir]    `page-layouts/`（#1405 的 root 字段用）；不给按 page-layout.js 的默认
  * @returns {{ components: Array<{ type, label, fields, carried, shapes, defaultShape, themeShape, fallbackShape }> }}
  *   · `carried`       没有字段、由转换器原样携带的槽位名（守卫拿它证明「每个槽位都有归属」）
- *   · `shapes`        下拉选项 `[{ name, needs }]`，已去掉候选，顺序照形态清单
+ *   · `shapes`        下拉选项 `[{ name, needs }]`，顺序照形态清单
  *   · `defaultShape`  按**空 data** 跑一次构建同一个函数（§shapeForBlock）得到的形态（主题选择单给的，缺槽位就
  *                     落回 manifest 默认）。#1445：今天唯一的消费者是 `editor-convert.js` §pageToPuck 的 `shape0`
  *                     兜底（归一化后的块没带 `shape` 时，共用块 / 锁住的块只读下拉显示它）。🔴 它**不是**新插块
@@ -245,7 +243,7 @@ function editorSchema(opts = {}) {
     const fields = fieldsOf(m);
     const fieldSlots = new Set(fields.map((f) => f.slot));
     const shapes = catalog.pairs
-      .filter((p) => p.block === type && p.candidate !== true)
+      .filter((p) => p.block === type)
       .map((p) => ({ name: p.shape, needs: p.needs }));
     components.push({
       type,
@@ -267,8 +265,7 @@ function editorSchema(opts = {}) {
 /**
  * #1405 —— 外壳四样（布局 / 顶栏形态 / 页脚形态 / 公告条文字）在 Puck 里是 **root 字段**，这里给出
  * 它们的可选值。跟块一样不手写：
- *   · 顶栏 / 页脚形态 → catalog 的 `pairs`（出处是 `blocks/header/*` 与 `blocks/footer/*` 两个子目录），
- *     去掉候选（候选构建静默落回，列出来就是「选了、存了、页面没变」，同上面块的形态下拉）。
+ *   · 顶栏 / 页脚形态 → catalog 的 `pairs`（出处是 `blocks/header/*` 与 `blocks/footer/*` 两个子目录）。
  *   · 布局 → `page-layouts/` 库（`lib/page-layout.js` §loadLayouts）。每一份带上它的区与 `repeatVariants`，
  *     画布照它排区；`pinsFooter` 由 §layoutPinsFooter 算（布局自己钉了页脚形态 ⟹ 页脚下拉灰掉）。
  * 🔴 **没有「哪些组合构建不收」**（带 topbar 区 + 透明浮层 / 缺某种语言的 topbar 文字）：那条规则只住在
@@ -278,7 +275,7 @@ function editorSchema(opts = {}) {
  */
 function rootSchema(catalog, opts) {
   const pickable = (block) => catalog.pairs
-    .filter((p) => p.block === block && p.candidate !== true)
+    .filter((p) => p.block === block)
     .map((p) => p.shape);
   const layouts = [...pageLayoutLib.loadLayouts(opts.layoutsDir).values()].map((l) => ({
     id: l.id,

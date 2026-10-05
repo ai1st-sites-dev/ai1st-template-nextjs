@@ -53,21 +53,18 @@ const path = require('path');
  */
 const _shapesCache = new Map();
 
-// #1387 —— 形态住在 `blocks/<块>/<形态>/`：名字是子文件夹名，`order` 与 `candidate` 在
+// #1387 —— 形态住在 `blocks/<块>/<形态>/`：名字是子文件夹名，`order` 在
 // `shape.md` 的 frontmatter 里。
 //
-// 🔴 **这里只认那两个键，而且是自己读的，不 require `block-build/build-blocks.js` 的解析器。**
+// 🔴 **这里只认这一个键，而且是自己读的，不 require `block-build/build-blocks.js` 的解析器。**
 //    理由跟上面那条「不走 loadManifests」逐字同一条：本文件有一批调用方跑在**只有部分模板**的临时树里
 //    （`region-layout.test.js` / `lib/remediation.test.js` / `lib/site-shape.test.js` 造的那几棵），
 //    它们今天只拷 `scripts/region-layout.js` 这一个文件。多 require 一个模块，那几棵树全部要跟着补
-//    ——「读一张清单」不该拖着别的模块走。这两个键都是顶层、零缩进的标量，写它的是同一个子集
-//    （`block-build/frontmatter.js` 的 formatFrontmatter），所以这两条正则是够的。
+//    ——「读一张清单」不该拖着别的模块走。这个键是顶层、零缩进的标量，写它的是同一个子集
+//    （`block-build/frontmatter.js` 的 formatFrontmatter），所以一条正则是够的。
 function shapeMetaFrom(md) {
   const order = md.match(/^order:\s*(-?\d+)\s*$/m);
-  return {
-    order: order ? Number(order[1]) : null,
-    candidate: /^candidate:\s*true\s*$/m.test(md),
-  };
+  return { order: order ? Number(order[1]) : null };
 }
 
 function readShapeDirs(blockType) {
@@ -81,7 +78,7 @@ function readShapeDirs(blockType) {
         let md = '';
         try { md = fs.readFileSync(path.join(dir, e.name, 'shape.md'), 'utf-8'); } catch { md = ''; }
         const meta = shapeMetaFrom(md);
-        return { name: e.name, order: meta.order, candidate: meta.candidate };
+        return { name: e.name, order: meta.order };
       })
       .sort((a, b) => {
         if (a.order !== null && b.order !== null && a.order !== b.order) return a.order - b.order;
@@ -99,36 +96,11 @@ function shapesOf(blockType) {
 }
 
 /**
- * 同一份清单，**去掉候选**（#1384）—— 「这个区可以被挑中哪几个形态」。
- *
- * 🔴 `shapesOf` 自己**不过滤**，是有意的：它回答的是「这个块有哪些形态」，`region-layout.test.js` ⑦
- *    正拿它跟 manifest 逐项对账，`lib/page-layout.js` / `lib/navigation-owned.js` 也按那个语义读它。
- *    过滤掉候选就是把一个「清单」悄悄变成一份「可选项」，两个语义住在一个函数名下是它们分叉的方式。
- *
- * 🔴 **为什么这条也要有**：Region（顶栏 / 页脚 / 公告条）的形态**不走** `theme-pipeline/shape-sheet.js`
- *    的 `shapeSheetFor`，也**不走** `sync-config.js` 的 `shapeForBlock` —— 它们由 `regionsForPool`
- *    （生成池成员时）与 `resolveRegionShapes`（构建时）各自挑。#1384 正文点名的两处堵法按构造
- *    对这三个区一个字都不说，而它们跟别的 30 个块共用 manifest、共用形态层 ⟹ 一个标了候选的顶栏形态
- *    会被轮换直接挑中，戴到每一个穿这套主题的真站上。两处各堵一处，同一条规矩。
- *
- * 🔴 空清单当场抛，不悄悄回一个候选或者空串：按构造走不到（`checkManifestShape` 不许 `shapes[0]`
- *    是候选 ⟹ 每个块至少剩一个非候选），真响那天说明那条校验被人放宽了。
- *    读不出 manifest（`shapesOf` 回 []）时照旧回 [] —— 那是「读不到」，由调用方自己的 notes 处置。
+ * 「这个区可以被挑中哪几个形态」。#1579 删掉候选形态之后它跟 `shapesOf` 是同一份清单 —— 名字留着，
+ * 是因为调用方（`lib/editor-root.js`、`headerVariantForPool` / `regionsForPool`）问的就是这个问题。
  */
 function pickableShapesOf(blockType) {
-  const all = shapesOf(blockType);
-  if (!all.length) return all;
-  const pickable = all.filter((name) => !candidateShapeNames(blockType).has(name));
-  if (!pickable.length) {
-    throw new Error(`blocks/${blockType}/ 的形态全是 candidate —— 这个区没得挑。`
-      + '默认形态（shapes[0]）按 checkManifestShape 就不许是候选，走到这里说明那条校验被放宽了');
-  }
-  return pickable;
-}
-
-/** 这个块里标了 `candidate: true` 的形态名（#1384）。跟 `shapesOf` 同一个读法、同一份缓存。 */
-function candidateShapeNames(blockType) {
-  return new Set(readShapeDirs(blockType).filter((sh) => sh.candidate).map((sh) => sh.name));
+  return shapesOf(blockType);
 }
 
 /** 两个区各自的块类型。#1425（T3）：公告条那个区（`topbar` → `announcement-bar`）随旧库退役 ——
@@ -161,12 +133,7 @@ function resolveRegionShapes(chosen) {
     const asked = wanted[blockType] !== undefined ? wanted[blockType] : wanted[region];
     let shape = fallback;
     if (asked) {
-      // #1384 —— 候选点名了也退回默认。跟 `sync-config.js` §shapeForBlock 那条同一条规矩，只是这三个区
-      // 不走那个函数（它只走页面 JSON 里的块），所以判据在这里再说一次。**分开报**：「是候选」跟
-      // 「不在清单里」是两件事，合成一句会让读日志的人以为 manifest 写漏了一个名字。
-      if (candidateShapeNames(blockType).has(asked)) {
-        notes.push(`theme 给 ${region} 选的形态 "${asked}" 是候选(还没签字进库),退回 ${fallback}`);
-      } else if (list.includes(asked)) shape = asked;
+      if (list.includes(asked)) shape = asked;
       else notes.push(`theme 给 ${region} 选的形态 "${asked}" 不在 blocks/${blockType}/ 的清单里(${list.join(' / ')}),退回 ${fallback}`);
     }
     out[region] = { shape };
@@ -176,7 +143,7 @@ function resolveRegionShapes(chosen) {
 }
 
 /**
- * 生成池成员时,这套主题的顶栏用哪种结构 —— 纯轮换(`index`),跳过候选。
+ * 生成池成员时,这套主题的顶栏用哪种结构 —— 纯轮换(`index`)。
  *
  * 📌 #1425（T3）:以前这里还有一条「浅底首屏不许配透明浮层」的让开规则(连同 `heroTitleSurvivesHeaderScrim`
  *    和遮罩浓度那两个常数)。新 header 的 7 个预设里没有透明浮层 ⟹ 那条规则守的形态不存在了,整段删掉。
@@ -184,7 +151,6 @@ function resolveRegionShapes(chosen) {
  * @returns {{variant: string, wanted: string, why: null}}
  */
 function headerVariantForPool(index) {
-  // #1384 —— 挑的时候跳过候选（`pickableShapesOf`，理由在它上面）。
   const HEADER_SHAPES = pickableShapesOf('header');
   const wanted = HEADER_SHAPES[index % HEADER_SHAPES.length];
   return { variant: wanted, wanted, why: null };
@@ -228,7 +194,6 @@ module.exports = {
   REGION_BLOCK,
   shapesOf,
   pickableShapesOf,
-  candidateShapeNames,
   resolveRegionShapes,
   headerVariantForPool,
   regionsForPool,

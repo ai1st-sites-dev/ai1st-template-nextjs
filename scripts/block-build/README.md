@@ -10,7 +10,7 @@ blocks/hero/
   block.css               这个块跨形态的几何（可选；今天 9 个块有）
   media-cover/
     shape.css             这一种形态的几何
-    shape.md              说明；frontmatter 里是 order / needs / candidate / source / layout_intent
+    shape.md              说明；frontmatter 里是 order / needs / source / layout_intent
 ```
 
 三份生成物由 `build-blocks.js` 从这些文件夹拼出来，**都进 git**：

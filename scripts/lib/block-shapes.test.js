@@ -16,7 +16,7 @@
  * ② `validateSite` 第 ⑥ 条：页面 JSON 点名的形态缺它 `needs` 的槽位 ⟹ 报一条；填上 ⟹ 不报。两臂都量。
  * ③ `checkManifestShape` 对 `shapes` 的白名单校验：逐种写错各自被拒（拼错键静默失效是 #1013 那次的失败方向）。
  *    🔴 **别在这句话里写个数** —— 这一格的清单是 `cases` 那个数组，加一条就改一次数，而那个数在这儿
- *    没有任何消费者。#1384 往里加了两条（candidate 的两种写错）+ 两个正向臂。
+ *    没有任何消费者。（#1384 加过的两条候选形态校验 + 两个正向臂，#1579 随候选形态线一起删了。）
  *    🔴 负向臂跑在一个临时目录上，**先拿未改动的副本证明这套夹具本身立得起来**，否则五次「被拒」可能全是
  *    夹具坏了（一组对照全读到同一个值 = 尺子坏了）。
  * ④ 三个谓词（slotFilled / shapeNeedsGap / filledOptionalSlots）的读数表 + AC2 钉的两个事实
@@ -166,15 +166,6 @@ console.log('── ③ checkManifestShape 白名单');
     ['默认形态带 needs',
       ({ readMd, writeMd }) => { const fm = readMd('split'); fm.needs = ['image']; writeMd('split', fm); },
       'shapes[0] ("split") 是默认形态，needs 必须为空'],
-    // #1384 —— candidate 那两条。
-    // 🔴 第二条是本票整条堵法的地基：候选不上真站是靠「落回 manifest 默认」实现的，默认自己是候选
-    //    的话那个落点就是个候选 ⟹ 两条堵法（选择单、页面 JSON）从落回那一端一起漏掉。
-    ['candidate 不是布尔',
-      ({ readMd, writeMd }) => { const fm = readMd('cover'); fm.candidate = 'yes'; writeMd('cover', fm); },
-      '.candidate 有的话必须是 true/false'],
-    ['默认形态标了 candidate',
-      ({ readMd, writeMd }) => { const fm = readMd('split'); fm.candidate = true; writeMd('split', fm); },
-      'shapes[0] ("split") 是默认形态，不许标 candidate'],
     ['排版意图少一根轴',
       ({ readMd, writeMd }) => { const fm = readMd('cover'); delete fm.layout_intent.columns; writeMd('cover', fm); },
       '排版意图不完整'],
@@ -186,12 +177,6 @@ console.log('── ③ checkManifestShape 白名单');
     const msg = withHero(mutate);
     check(msg !== null && msg.includes(marker), `${label} ⟹ 被拒且报文含「${marker}」${msg === null ? '（没拒）' : (msg.includes(marker) ? '' : ` —— 实际: ${msg}`)}`);
   }
-  // 🔴 #1384 —— candidate 那两条各自的**正向臂**。少了它，「`candidate` 这个键一律被拒」会把上面
-  //    两格打绿，而那是本票的反面（候选必须装得进清单、进 shapes.css、过每一道检查）。
-  const okNonDefault = withHero(({ readMd, writeMd }) => { const fm = readMd('cover'); fm.candidate = true; writeMd('cover', fm); });
-  check(okNonDefault === null, `非默认形态标 candidate: true ⟹ 照常装得起来（${okNonDefault === null ? '是' : `抛了: ${okNonDefault}`}）`);
-  const okFalse = withHero(({ readMd, writeMd }) => { const fm = readMd('split'); fm.candidate = false; writeMd('split', fm); });
-  check(okFalse === null, `默认形态写 candidate: false ⟹ 照常装得起来（${okFalse === null ? '是' : `抛了: ${okFalse}`}）`);
   // 🔴 #1387 —— 新形态「丢进来就在」的那一半，在这一层的读数：新建一个子文件夹（两个文件），
   //    不改任何清单，`loadManifests` 就多认一个形态。
   let dropped = null;

@@ -554,7 +554,6 @@ function shapesFromDirs(blockDir) {
     let fm = {};
     try { fm = parseFrontmatter(fs.readFileSync(path.join(blockDir, e.name, 'shape.md'), 'utf-8')); } catch { fm = {}; }
     const one = { name: e.name, needs: Array.isArray(fm.needs) ? fm.needs : [] };
-    if (fm.candidate !== undefined) one.candidate = fm.candidate;
     if (fm.source !== undefined) one.source = fm.source;
     if (fm.layout_intent !== undefined) one.layout_intent = fm.layout_intent;
     out.push({ one, order: typeof fm.order === 'number' ? fm.order : null, name: e.name });
