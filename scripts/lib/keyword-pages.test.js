@@ -369,5 +369,45 @@ check('超长的多字节 id（按字节判，不按字符数）⟹ 也收进上
   assert.ok(/^e+$/.test(services[0].id), services[0].id);
 });
 
+console.log('── #1568 r2 dropKeywordPagesFromPlan：站级回包里混进来的关键词页丢掉');
+{
+  const slugsOf = (r) => r.pages.map((p) => p.slug);
+  const KW = ['剪发', '剪发店', '男士理发'];   // 候选词（选中的非主词）：jian-fa / jian-fa-dian / nan-shi-li-fa
+  check('Chris 10-05 那两次的形状全丢：顶层 jian-fa / jian-fa-dian、旧形状 haircut/nan-shi-li-fa、T6 形状 services/haircut/jian-fa', () => {
+    const r = K.dropKeywordPagesFromPlan({
+      pages: ['home', 'services', 'about', 'quote', 'services/haircut', 'jian-fa', 'jian-fa-dian', 'haircut/nan-shi-li-fa', 'services/haircut/jian-fa'].map((slug) => ({ slug })),
+      keywords: KW, serviceIds: ['haircut'], keep: ['quote'],
+    });
+    assert.deepStrictEqual(slugsOf(r), ['home', 'services', 'about', 'quote', 'services/haircut']);
+    assert.deepStrictEqual(r.dropped.map((d) => d.slug), ['jian-fa', 'jian-fa-dian', 'haircut/nan-shi-li-fa', 'services/haircut/jian-fa']);
+    assert.ok(r.dropped.every((d) => d.why), '每一页都写了为什么');
+  });
+  check('末段就是词本身（AI 没转写）⟹ 也算重合', () => {
+    const r = K.dropKeywordPagesFromPlan({ pages: [{ slug: 'home' }, { slug: '剪发店' }], keywords: KW, serviceIds: [] });
+    assert.deepStrictEqual(slugsOf(r), ['home']);
+  });
+  check('不误伤：服务 id 恰好是词的拼音（服务「剪发」id jian-fa）⟹ 它的详情页 services/jian-fa 留着', () => {
+    const r = K.dropKeywordPagesFromPlan({ pages: [{ slug: 'services/jian-fa' }], keywords: KW, serviceIds: ['jian-fa'] });
+    assert.deepStrictEqual(slugsOf(r), ['services/jian-fa']);
+  });
+  check('不误伤：home 和 CTA 页撞上词也留着；不认识的服务 id 的两段页照旧留（r1 起就照常生成）', () => {
+    const r = K.dropKeywordPagesFromPlan({
+      pages: [{ slug: 'home' }, { slug: 'quote' }, { slug: 'services/other' }],
+      keywords: ['home', 'quote'], serviceIds: ['cut'], keep: ['quote'],
+    });
+    assert.deepStrictEqual(slugsOf(r), ['home', 'quote', 'services/other']);
+  });
+  check('阳性对照：同一个 quote 不在 keep 里 ⟹ 按重合丢（上一格的「留着」是 keep 起的作用）', () => {
+    const r = K.dropKeywordPagesFromPlan({ pages: [{ slug: 'quote' }], keywords: ['quote'], serviceIds: [] });
+    assert.deepStrictEqual(slugsOf(r), []);
+  });
+  check('没有候选词：一段的正常页一个不动；两段非 services 的照样按形状丢', () => {
+    const pages = ['home', 'services', 'about', 'services/cut', 'cut/x'].map((slug) => ({ slug }));
+    const r = K.dropKeywordPagesFromPlan({ pages, keywords: [], serviceIds: ['cut'] });
+    assert.deepStrictEqual(slugsOf(r), ['home', 'services', 'about', 'services/cut']);
+    assert.strictEqual(r.pages[0], pages[0], '留下的是原对象');
+  });
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

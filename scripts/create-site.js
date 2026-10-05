@@ -124,6 +124,11 @@ let pricing = getModelPricing(model);
 
 // ─── Emit structured events to stdout ─────────────────────────────────────────
 
+// #1568 r2 —— stdout 是管道（worker / 测试读它）时 Node 的写是异步的：`fatal()` 里的 `process.exit(1)` 会把还没冲出去的
+//    事件丢掉 —— 包括最后那条 `error`。按页拆之后建站前段一口气发 10 来份 ~26 KB 的提示词事件，第一页失败就 exit ⟹
+//    实测 6 次里 2 次尾巴上 2-3 份提示词没到读者手里。改成阻塞写：每次 write 返回时数据已进管道。
+if (process.stdout._handle && typeof process.stdout._handle.setBlocking === 'function') process.stdout._handle.setBlocking(true);
+
 const startTime = Date.now();
 
 function elapsed() {
@@ -1235,6 +1240,8 @@ async function main() {
     siteUrl,
     // #1548 —— 关键词那一段 + Lead 站的补充说明。
     keywordBrief, additionalContext,
+    // #1568 r2 —— 站级回包里撞上这些词的页丢掉（关键词页只由 Call 2 建）。
+    keywordPageKeywords: keywordPagesFrom(keywords, services).keywordPagesList.map((k) => k.keyword),
     // #1568 —— 每页提示词里的目标词：跟 Call 2 之后那次分配同一个函数，只是这一刻还没有关键词页。
     pageTargetKeywords: (plan) => targetKw.assignTargetKeywords({
       keywords, services, contentServices: plan.services, pages: plan.pages, keywordPagesList: [], siteType, keyword: leadKeyword,
@@ -2106,6 +2113,8 @@ async function generateContent(opts) {
     additionalContext = '',
     // #1568 —— 站级那一通回来之后算每页的目标词（slug → 词）：首页 / 服务详情页按 T4 的分配。纯函数，由 main 传（它手上有 keywords）。
     pageTargetKeywords = () => ({}),
+    // #1568 r2 —— 要建关键词页的那些词（`keywordPagesFrom` 的候选）：站级回包的页面清单里撞上它们的页丢掉（关键词页由 Call 2 建）。
+    keywordPageKeywords = [],
   } = opts;
 
   // #1346 —— 一个块被关掉之后，提示词里**三个地方**都不能再提它：菜单（下面那两处
@@ -2666,8 +2675,20 @@ ${FACTS_ONLY_FROM_FORM_RULE}
 
   // 站级回包里的页面清单：每页要有 slug（文件名就是它）。sections 不归这一通管 —— 写回来了也丢掉，由下面每页那一通写。
   ai.pages = (Array.isArray(ai && ai.pages) ? ai.pages : []).filter((p) => p && typeof p === 'object' && typeof p.slug === 'string' && p.slug.trim());
-  if (!ai.pages.length) fatal('The site plan from the AI has no pages (#1568: Call 1 site-level answer without a usable "pages" list).');
   for (const p of ai.pages) delete p.sections;
+  // #1568 r2 —— 关键词页不归这一通：它写进页面清单的关键词页丢掉（Call 2 按 T6 的计划建，否则同一个词两张页、两份调用费）。
+  //    放在收服务 id 之前：判「是不是服务详情页」用的是这一通回来的原样 id。
+  {
+    const { pages: kept, dropped } = kwPages.dropKeywordPagesFromPlan({
+      pages: ai.pages,
+      keywords: keywordPageKeywords,
+      serviceIds: (Array.isArray(ai.services) ? ai.services : []).map((s) => s && s.id),
+      keep: ai.navigation && typeof ai.navigation.ctaPage === 'string' ? [ai.navigation.ctaPage] : [],
+    });
+    for (const d of dropped) debug(`[pages] 站级回包里的「${d.slug}」${d.why} ⟹ 丢掉，关键词页由代码按计划建（#1568）`);
+    ai.pages = kept;
+  }
+  if (!ai.pages.length) fatal('The site plan from the AI has no pages (#1568: Call 1 site-level answer without a usable "pages" list).');
 
   // #1565 —— 服务 id 是 AI 写的，会原样变成文件名（pages/services/<id>.json）：收进跟关键词页 slug 同一个上限。
   //    #1568 —— 放在站级那一通之后、每页那几通之前：每页的提示词里给的就是收过的 id（链接按它写）。

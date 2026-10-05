@@ -189,8 +189,10 @@ console.log('④ keywordBrief');
   // #1550 —— Call 1 那一刻服务 id 还没有，关键词页的 URL 定不下来（`create-site.js §keywordPagesFrom` 只给词和组名）：
   //    清单写成「某服务下单独一页」，不编一个 `/<服务>/<词>` 出来（那正是本票要换掉的旧形状）。
   const c = tk.keywordBrief({ sitePrimary: null, groups, keywordPagesList: [{ group: 'Implants', keyword: 'implants cost' }] });
-  same(c.includes('"implants cost" (a page of its own under the Implants service)') && !/ \/[a-z]/.test(c.split('Keyword pages')[1]), true,
+  same(c.includes('"implants cost" (its own page, under the Implants service)') && !/ \/[a-z]/.test(c.split('Keyword pages')[1]), true,
     '(c) 没有路径时：写它属于哪个服务，不出现任何 /路径');
+  // #1568 r2 —— 这一段只给站级那一通当上下文：关键词页由 Call 2 建，提示词要明说别写进 pages。
+  same(s.includes('do NOT add them to "pages"') && c.includes('do NOT add them to "pages"'), true, '(c) 关键词页那段写明「不许放进 pages」');
 }
 
 console.log(failed ? `\n❌ ${failed} 格没过` : '\n✅ 全过');

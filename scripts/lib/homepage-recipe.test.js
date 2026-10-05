@@ -472,7 +472,7 @@ try {
     const rawWithKw = promptFrom(workRoot, basePayload());                    // 夹具自带关键词
     const withKw = dropBrief(rawWithKw);
     const noKw = dropBrief(promptFrom(workRoot, basePayload({ keywords: {} })));
-    rawWithKw.includes('SEO TARGET KEYWORDS') && rawWithKw.includes('Keyword pages (one page per keyword')
+    rawWithKw.includes('SEO TARGET KEYWORDS') && rawWithKw.includes('Keyword pages — built separately by the system')
       ? ok('阳性对照：夹具真的带关键词页（提示词里有关键词页清单）—— 少了它下面两格就是空绿')
       : bad('夹具的提示词里没有关键词页清单 ⟹ 这一格量不到「有关键词页」那一臂');
     const hit = NEEDLES.filter((n) => withKw.includes(n) || noKw.includes(n));

@@ -241,10 +241,12 @@ function keywordBrief({ sitePrimary, groups = [], keywordPagesList = [] }) {
     for (const x of svc) lines.push(`  - ${x.name} → "${x.p.keyword}"`);
   }
   if (keywordPagesList.length) {
-    lines.push('- Keyword pages (one page per keyword, each targets its own keyword):');
+    // #1568 r2 —— 这些页由系统之后单独建（Call 2）；这里只让 AI 知道哪些词已经各有一页。写成「one page per keyword」时
+    //    站级那一通会把它们当成要它规划的页写进 pages（Chris 2026-10-05 真 AI 建站：`jian-fa` / `haircut/nan-shi-li-fa`）。
+    lines.push('- Keyword pages — built separately by the system after this step, one per keyword. Listed only so you know these keywords each get their own page; do NOT add them to "pages":');
     // #1550 —— Call 1 那一刻服务 id 还没有，关键词页的 URL（`services/<id>/<slug>`）定不下来：没有路径时写它属于哪个服务。
     for (const kp of keywordPagesList) {
-      lines.push(kp.nestedSlug ? `  - /${kp.nestedSlug} → "${kp.keyword}"` : `  - "${kp.keyword}" (a page of its own under the ${kp.group} service)`);
+      lines.push(kp.nestedSlug ? `  - /${kp.nestedSlug} → "${kp.keyword}"` : `  - "${kp.keyword}" (its own page, under the ${kp.group} service)`);
     }
   }
   return lines.join('\n');

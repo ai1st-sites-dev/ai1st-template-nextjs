@@ -13,6 +13,7 @@
 //   AC haiku    模型 haiku-4.5、上限 128000 ⟹ 发给 API 的上限 64000（不是被拒）；sonnet 那一臂照发 128000（阳性对照）
 //   做什么 2    每页提示词只带那一页：自己的 slug / brief / 目标词，没有别页的 brief；站级那一份不带块菜单
 //   块库        一页第一次块库不合格 ⟹ 只重试这一页；整站缺「行业必需的块」⟹ 首页那一通补一次，补不上建站失败
+//   r2 关键词页 站级回包的页面清单混进关键词页（顶层 / `<服务>/<词>` / `services/<id>/<词>`）⟹ 丢掉、不生成、各一行日志，Call 2 照常建
 'use strict';
 
 const assert = require('assert');
@@ -43,6 +44,7 @@ const fs = require('fs');
 const cfg = JSON.parse(fs.readFileSync(process.env.C1_STUB_CFG, 'utf8'));
 const seen = {};
 globalThis.fetch = async () => { throw new Error('offline (test stub)'); };
+const DESC_KW = (kw) => `${kw}就在 Toronto：Silky Hair Salon 在多伦多为每一位顾客提供细致的${kw}服务，预约简单，到店即享专业建议，环境舒适安心，欢迎随时来店体验焕然一新的造型。`;
 const BODY = '我们在多伦多为每一位顾客提供细致的护理与造型服务，预约简单，到店即享专业建议，环境舒适安心，欢迎随时来店体验我们团队带来的放松时光与焕然一新的造型。';
 function sectionsFor(slug, title) {
   const tail = [
@@ -64,8 +66,9 @@ function answer(req) {
   const last = req.messages[turns - 1].content;
   const kind = first.includes('Generate a JSON object with this EXACT structure') ? 'site'
     : first.includes('Write the sections of ONE page') ? 'page'
-      : first.includes('An automatic SEO check found the problems') ? 'seo-rewrite' : 'other';
-  const slug = kind === 'page' ? (first.match(/- slug: "([^"]+)"/) || [])[1] : null;
+      : first.includes('Write ONE keyword landing page') ? 'keyword'
+        : first.includes('An automatic SEO check found the problems') ? 'seo-rewrite' : 'other';
+  const slug = kind === 'page' || kind === 'keyword' ? (first.match(/- slug: "([^"]+)"/) || [])[1] : null;
   if (slug) seen[slug] = (seen[slug] || 0) + 1;
   fs.appendFileSync(process.env.C1_STUB_CALLS, JSON.stringify({ kind, slug, turns, max_tokens: req.max_tokens, first, last }) + '\n');
   if (kind === 'site') return { json: cfg.plan, out: cfg.siteOut || 4000 };
@@ -81,6 +84,17 @@ function answer(req) {
       sections = [...sections, { type: 'gallery', data: { headline: '作品集', items: [1, 2].map((n) => ({ image: { imageUrl: '/images/grid-pattern.svg', alt: '店里完成的一次造型' }, title: `作品 ${'甲乙'[n - 1]}`, caption: '一次造型。' })) } }];
     }
     return { json: { sections }, out: cfg.pageOut || 3000 };
+  }
+  if (kind === 'keyword') {
+    // Call 2（#1550）一页一通：按提示词里的 slug 回一张合格的关键词页
+    const kw = (first.match(/- target keyword: "([^"]+)"/) || [])[1];
+    const sections = [
+      { type: 'page-header', data: { headline: `${kw}｜多伦多` } },
+      { type: 'content', data: { headline: `${kw}怎么做`, body: `${kw}：${BODY}` } },
+      { type: 'faq', data: { headline: `${kw}常见问题`, items: [{ question: `${kw}需要预约吗？`, answer: '建议提前预约，也欢迎直接到店。' }] } },
+      { type: 'cta', data: { headline: '现在预约', body: '告诉我们您想要的造型。', ctas: [{ label: '预约', href: '/quote', style: 'solid' }] } },
+    ];
+    return { json: { slug, title: `${kw}｜多伦多`, description: DESC_KW(kw), navLabel: kw, navOrder: 50, changeFrequency: 'monthly', priority: 0.6, sections }, out: 2000 };
   }
   if (kind === 'seo-rewrite') {
     const env = JSON.parse((first.match(/\n\n(\{[\s\S]*?\n\})\n\nPROBLEMS TO FIX/) || [])[1]);
@@ -255,6 +269,11 @@ check(`AC 重试：两次都失败 ⟹ 建站失败，信息写明是哪一页�
   assert.notStrictEqual(C.rc, 0);
   assert.ok(C.error.includes(`"${FAIL_SLUG}"`) && C.error.includes(`Page ${FAIL_I}/${N}`), C.error);
 });
+check('r2：建站失败退出时 stdout 没丢尾巴 —— 全部 1 + N 份 Call 1 提示词都到了，最后一条事件就是 error', () => {
+  // 失败前一口气发了 1 + N 份大提示词事件；stdout 不是阻塞写时 process.exit 会丢掉还没冲出去的尾巴（含 error 那条）。
+  assert.strictEqual(call1Prompts(C.events).length, 1 + N, call1Prompts(C.events).map((p) => p.name).join(' · '));
+  assert.strictEqual(C.events[C.events.length - 1].event, 'error');
+});
 check('反向对照：失败的那一页之外没有页被重试（每页各一次、它两次）', () => {
   assert.strictEqual(C.calls.filter((c) => c.kind === 'page' && c.slug === FAIL_SLUG).length, 2);
   assert.ok(C.calls.filter((c) => c.kind === 'page' && c.slug !== FAIL_SLUG).every((c) => c.turns === 1));
@@ -283,6 +302,52 @@ const F = run('sitefix-no', PAYLOAD({ industry: 'photography' }), {});
 check('反向对照：首页那一通补不上 ⟹ 建站失败（同 #999「只重试一次」）', () => {
   assert.notStrictEqual(F.rc, 0);
   assert.ok(F.error.includes('still breaks the block library') && F.error.includes('gallery'), F.error);
+});
+
+// ── r2：站级回包混进关键词页 ─────────────────────────────────────────────────────────────────────────
+// Chris 2026-10-05 两次真 AI 建站：站级那一通把关键词当成页面写进 pages（`jian-fa-dian` 顶层页、`haircut/nan-shi-li-fa` 旧形状），
+// 每页那几通照样生成了它们，Call 2 又按 T6 建了 `services/<id>/<词>` ⟹ 同一个词两张页、两份调用费。
+console.log('── r2：站级回包的页面清单里混进关键词页（三种形状）');
+// 不给主词：首页 / 服务详情页就没有目标词，桩写的文案过得了 T5 的检查（这一格量的是页面清单，不是 SEO）。
+const KW_PAYLOAD = PAYLOAD({
+  keywords: { '剪发': [
+    { keyword: '剪发店', selected: true, volume: 300 },
+    { keyword: '男士理发', selected: true, volume: 200 },
+  ] },
+});
+const STRAY = ['jian-fa-dian', 'cut/nan-shi-li-fa', 'services/cut/jian-fa-dian'];
+const strayPlan = (() => {
+  const p = plan();
+  for (const slug of STRAY) p.pages.push({ slug, title: slug, description: DESC(slug), navLabel: slug, navOrder: 20, changeFrequency: 'monthly', priority: 0.6, brief: `BRIEF<${slug}>` });
+  return p;
+})();
+const K = run('stray-kw', KW_PAYLOAD, { plan: strayPlan });
+check('建站成功', () => {
+  assert.strictEqual(K.rc, 0, `${K.error}\n${K.stderr.slice(-800)}`);
+});
+check(`混进来的 ${STRAY.length} 页一页都没生成：Call 1 的 prompt 只有 Base Site + 原来的 ${N} 页，桩也没收到它们的每页调用`, () => {
+  assert.deepStrictEqual(call1Prompts(K.events).map((p) => p.name), ['Base Site', ...plan().pages.map((p) => `Page: ${p.slug}`)]);
+  assert.deepStrictEqual(K.calls.filter((c) => c.kind === 'page' && STRAY.includes(c.slug)).map((c) => c.slug), []);
+  const lines = K.events.filter((e) => e.event === 'progress' && /^Page \d+\/\d+ written: /.test(e.message));
+  assert.strictEqual(lines.length, N, lines.map((e) => e.message).join(' | '));
+});
+check('每丢一页日志一行，点名它', () => {
+  const log = K.stderr.split('\n').filter((l) => l.startsWith('[pages] 站级回包里的'));
+  assert.deepStrictEqual(log.map((l) => (l.match(/「([^」]+)」/) || [])[1]), STRAY, log.join('\n'));
+});
+check('Call 2 照常建关键词页（services/cut/<词>），站级那份没落盘', () => {
+  const kwNames = K.events.filter((e) => e.event === 'prompt' && /^Keyword page: /.test(e.name)).map((e) => e.name).sort();
+  assert.deepStrictEqual(kwNames, ['Keyword page: 剪发店', 'Keyword page: 男士理发']);
+  const dir = path.join(K.work, 'site', 'zh', 'pages');
+  assert.ok(fs.existsSync(path.join(dir, 'services', 'cut', 'jian-fa-dian.json')), 'Call 2 的关键词页没落盘');
+  assert.ok(fs.existsSync(path.join(dir, 'services', 'cut', 'nan-shi-li-fa.json')), 'Call 2 的关键词页没落盘');
+  assert.ok(!fs.existsSync(path.join(dir, 'jian-fa-dian.json')), '顶层 jian-fa-dian.json 还在');
+  assert.ok(!fs.existsSync(path.join(dir, 'cut')), '旧形状目录 cut/ 还在');
+});
+check('站级提示词的关键词那一段写明关键词页不进 pages（有候选词时）；没有候选词的 A 跑不带这一句', () => {
+  const site = call1Prompts(K.events)[0].content;
+  assert.ok(site.includes('Keyword pages — built separately by the system') && site.includes('do NOT add them to "pages"'), site.slice(0, 1500));
+  assert.ok(!call1Prompts(A.events)[0].content.includes('do NOT add them to "pages"'), 'A 跑（无关键词）也带了');
 });
 
 // ── 上限按模型截 ───────────────────────────────────────────────────────────────────────────────────

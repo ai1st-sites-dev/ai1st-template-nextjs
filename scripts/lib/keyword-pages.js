@@ -119,6 +119,49 @@ function renameServiceIds(renames, { pages, navigation } = {}) {
 }
 
 /**
+ * #1568 r2 —— 站级那一通（Call 1）的页面清单里混进来的关键词页，丢掉。关键词页只由代码按 T6 的计划建（Call 2，
+ * `services/<id>/<slug>`）；站级回包再写一份 ⟹ 同一个词两张页、两份调用费（Chris 2026-10-05 真 AI 建站实测：
+ * `jian-fa` / `jian-fa-dian` 两张顶层页，另一次 `haircut/nan-shi-li-fa`）。
+ * 判据两条，任一成立就丢：
+ *   ① 形状：三段及以上（T6 的 `services/<id>/<词>`），或两段而头一段不是 `services`（旧形状 `<服务名>/<词>`）——
+ *      今天正常页只有一段（archetype）和 `services/<id>` 两种；`services/<不认识的 id>` 不按形状丢（r1 起就照常生成）；
+ *   ② 重合：末段等于某个候选关键词的 slug（`keywordSlug`），或就是那个词本身。
+ *      `home`、CTA 页、`services/<已有服务 id>` 不按 ② 丢：服务 id 可能恰好是那个词的拼音（服务「剪发」id `jian-fa`）。
+ * @param {{ pages: object[], keywords: string[], serviceIds: string[], keep?: string[] }} p
+ * @returns {{ pages: object[], dropped: { slug: string, why: string }[] }}
+ */
+function dropKeywordPagesFromPlan({ pages, keywords = [], serviceIds = [], keep = [] } = {}) {
+  const ids = new Set(serviceIds.filter((v) => typeof v === 'string' && v));
+  const kwBySeg = new Map();
+  for (const k of keywords) {
+    const raw = str(k);
+    if (!raw) continue;
+    const slug = keywordSlug(raw);
+    if (slug) kwBySeg.set(slug, raw);
+    kwBySeg.set(raw.toLowerCase(), raw);
+  }
+  const exempt = new Set(['home', ...keep.filter((v) => typeof v === 'string' && v)]);
+  const out = [];
+  const dropped = [];
+  for (const p of Array.isArray(pages) ? pages : []) {
+    const slug = str(p && p.slug).replace(/^\/+|\/+$/g, '');
+    const segs = slug.split('/').filter(Boolean);
+    const isServiceDetail = segs.length === 2 && segs[0] === 'services' && ids.has(segs[1]);
+    if (segs.length > 2 || (segs.length === 2 && segs[0] !== 'services')) {
+      dropped.push({ slug, why: '形状是关键词页（正常页只有一段或 services/<服务 id>）' });
+      continue;
+    }
+    const last = (segs[segs.length - 1] || '').toLowerCase();
+    if (!isServiceDetail && !exempt.has(slug) && kwBySeg.has(last)) {
+      dropped.push({ slug, why: `跟关键词「${kwBySeg.get(last)}」的关键词页重合` });
+      continue;
+    }
+    out.push(p);
+  }
+  return { pages: out, dropped };
+}
+
+/**
  * 关键词页清单（Call 1 之后：服务 id 这时才有）。
  * @param {{ keywords: object, services?: string[], contentServices: object[] }} p
  * @returns {{
@@ -457,6 +500,7 @@ module.exports = {
   FOOTER_MAX,
   capServiceIds,
   renameServiceIds,
+  dropKeywordPagesFromPlan,
   labelsFor,
   keywordPageCandidates,
   planKeywordPages,
