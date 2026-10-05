@@ -66,9 +66,9 @@ const PROD = {
 /**
  * 一套调色板按【本票之前那三个写死的字面值】会得到的四格 —— 「改动前」的定义本身，不是替身。
  *
- * 🔴 `ground` = 轮廓按钮**真正被画在上面的那块底**。默认白只对未套主题的站成立；套了主题的站
- * 必须由调用方解出来传进来（见 §⑤）。改动前那一格也要用同一块底 —— 拿白底算「改动前」、拿真底算
- * 「改动后」，比出来的差是两块底的差，不是这次改动的差（本轮被退回的读数正是这么来的）。
+ * 🔴 `ground` = 轮廓按钮**真正被画在上面的那块底**。#1588 起构建侧恒传白（`button-ink.js` ③d）。
+ * 改动前那一格也要用同一块底 —— 拿一块底算「改动前」、拿另一块算「改动后」，比出来的差是两块底的差，
+ * 不是这次改动的差（#1084 r3 被退回的读数正是这么来的）。
  */
 function before(p, ground = ink.WHITE) {
   return {
@@ -81,18 +81,6 @@ function before(p, ground = ink.WHITE) {
       'btn-secondary hover': ink.ratio(ink.WHITE, p['500']),
     },
   };
-}
-
-/**
- * 一套池主题的轮廓按钮坐在哪块底上 —— 从**它自己那张已经生成好的表**里解，用的是生产同一个函数。
- * 🔴 表读不到 / 解不出来一律 `die`，不是落回白底：那正是本轮被退回的那种「拿白底替深底答」。
- */
-function groundOfTheme(id) {
-  const file = path.join(__dirname, '..', '..', 'public', 'themes', `${id}.css`);
-  let css;
-  try { css = fs.readFileSync(file, 'utf8'); } catch { return { err: `读不到 ${file}` }; }
-  const g = ink.outlineGroundFromCss(css, poolThemes[id].colors);
-  return g || { err: `${id}.css 里 .services-list / .services-list__item 的底色解不出来` };
 }
 
 console.log('① 生产那 6 个站的真 brand.json：两个按钮 × 两种态，四格全部 ≥ 4.5（票正文 AC1）');
@@ -257,24 +245,8 @@ console.log('④ 两份算术不许分叉：把 layout.tsx 里内联进产物的
     bad('在 layout.tsx 里找不到那段浏览器侧算术的起止锚点 —— 它被改写过了，这一格【不是】通过');
   } else {
     const snippet = src.slice(i, j);
-    // 🔴 #1084 r3 —— 那段现在会**从真 DOM 量轮廓按钮坐着的那块底**，所以在 node 里跑它要给一个
-    // `document` / `getComputedStyle`。这个桩不是为了让它跑得起来，它自己就是被判的东西：喂进去的
-    // 那块底就是这一轮要对答案的第二个维度。桩只回答「这个选择器在不在、它的 computed 底色是什么」，
-    // 与真浏览器同形（`.services-list__item` 常常是 `rgba(0,0,0,0)` —— QA2 在真机上量到的）。
-    const domStub = (bgCss) => {
-      const el = {};
-      return {
-        document: { querySelector: (sel) => (bgCss[sel] !== undefined ? el : null) },
-        getComputedStyle: () => ({ backgroundColor: bgCss.__value }),
-      };
-    };
     // eslint-disable-next-line no-new-func
-    const mk = (dom) => new Function('t', 'document', 'getComputedStyle',
-      `var out=[];${snippet}return out;`).bind(null);
-    const runWith = (dom) => (t) => mk(dom)(t, dom.document, dom.getComputedStyle);
-    /** 页面上没有 services-list ⟹ 白底（未套主题的站，也是构建时那一侧的默认）。 */
-    const NO_LIST = { document: { querySelector: () => null }, getComputedStyle: () => ({ backgroundColor: '' }) };
-    const run = runWith(NO_LIST);
+    const run = new Function('t', `var out=[];${snippet}return out;`);
     const mismatch = [];
     // 🔴 #1100 —— accent 那一组也要喂进去。喂之前这一格对 accent 那半**按构造是盲的**：两边都拿不到
     // accent ⟹ 两边都不产出 `--btn-accent-hover` ⟹ 逐字相同，而那是一次空绿（反向对照 D 在下面）。
@@ -290,62 +262,32 @@ console.log('④ 两份算术不许分叉：把 layout.tsx 里内联进产物的
         mismatch.push(`${id}: 正本 ${JSON.stringify(mine)} vs 浏览器侧 ${JSON.stringify(theirs)}`);
       }
     }
-    if (mismatch.length) bad(`${mismatch.length} 套对不上（白底那一档）：${mismatch.slice(0, 3).join(' | ')}`);
+    if (mismatch.length) bad(`${mismatch.length} 套对不上：${mismatch.slice(0, 3).join(' | ')}`);
     else if (!withAccent) bad('没有一套夹具带 accent ⟹ 这一格对 `--btn-accent-hover` 那半是空绿');
-    else ok(`${rows.length} 套配色两份实现产出的变量逐字相同（页面上没有 services-list ⟹ 白底）`
+    else ok(`${rows.length} 套配色两份实现产出的变量逐字相同（两侧轮廓按钮都按白底挑档）`
       + ` · 其中 ${withAccent} 套带 accent，所以 --btn-accent-hover 那一条也在这一格里`);
 
-    // 🔴 #1084 r3 —— 第二个维度：**页面上真的有一块深底时两份还对不对得上**。上一版两份都写死白底，
-    // 所以「白底那一档全绿」对本轮改的这件事按构造是盲的。逐套拿这套主题自己那张表解出来的底喂两边。
+    // 🔴 反向对照 C（#1588）：这一格必须看得见「两侧挑轮廓档用的不是同一块底」。#1588 之前浏览器侧
+    // 从 DOM 量 `.services-list`、构建侧从主题表解它，两块底不一样，而这一格只喂白底 ⟹ 对那件事是盲的。
+    // 把浏览器侧那个常量换成一块深底（ember-12 表里 `.services-list` 画的 primary-900 那种深色），
+    // 与正本按白底算的答案必须出现分歧 —— 否则上面那一格分不出「两侧同一块底」和「两侧各量各的」。
     {
-      const off = [];
-      let dark = 0;
-      for (const id of Object.keys(poolThemes)) {
-        const p = poolThemes[id].colors.primary;
-        const g = groundOfTheme(id);
-        if (g.err) { off.push(g.err); continue; }
-        if (g.hex.toLowerCase() !== ink.WHITE) dark += 1;
-        const dom = {
-          document: { querySelector: (sel) => (sel === '.services-list__item' ? null : {}) },
-          getComputedStyle: () => ({ backgroundColor: `rgb(${[1, 3, 5].map((k) => parseInt(g.hex.substr(k, 2), 16)).join(', ')})` }),
-        };
-        const mine = ink.buttonInkVars(p, g.hex, poolThemes[id].colors.accent).map((d) => d.replace(/\s+/g, ''));
-        const theirs = runWith(dom)({ colors: { primary: p, accent: poolThemes[id].colors.accent } })
-          .map((d) => d.replace(/\s+/g, ''));
-        if (JSON.stringify(mine) !== JSON.stringify(theirs)) {
-          off.push(`${id}: 正本 ${JSON.stringify(mine)} vs 浏览器侧 ${JSON.stringify(theirs)}`);
-        }
-      }
-      if (off.length) bad(`底不是白的时候 ${off.length} 套对不上：${off.slice(0, 3).join(' | ')}`);
-      else ok(`${Object.keys(poolThemes).length} 套池主题各自那块真底（其中 ${dark} 套不是白的）两份实现逐字相同`);
-    }
-
-    // 🔴 反向对照 C：这一格必须能看出「浏览器侧还在按白底挑档」。把那段里的 `gnd` 钉死成白，
-    // 与正本按真底算的答案必须出现分歧 —— 否则上面那一格是空过的。
-    {
-      const pinnedWhite = snippet.replace(/CR\(pk\[OL\[q\]\],gnd\)/, "CR(pk[OL[q]],'#ffffff')");
-      if (pinnedWhite === snippet) {
-        bad('在抠出来的那段里找不到 `CR(pk[OL[q]],gnd)` —— 浏览器侧可能已经不是按真底挑档了');
+      const GND = "var gnd='#ffffff';";
+      const hits = snippet.split(GND).length - 1;
+      if (hits !== 1) {
+        bad(`在抠出来的那段里 \`${GND}\` 出现 ${hits} 次（要 1 次）—— 浏览器侧挑轮廓档的那块底可能已经不是这个常量了`);
       } else {
         // eslint-disable-next-line no-new-func
-        const runPinned = new Function('t', 'document', 'getComputedStyle', `var out=[];${pinnedWhite}return out;`);
+        const runDark = new Function('t', `var out=[];${snippet.replace(GND, "var gnd='#1e1b2e';")}return out;`);
+        const norm = (a) => JSON.stringify(a.map((d) => d.replace(/\s+/g, '')));
         let diff = 0;
-        for (const id of Object.keys(poolThemes)) {
-          const g = groundOfTheme(id);
-          if (g.err) continue;
-          const dom = {
-            document: { querySelector: (sel) => (sel === '.services-list__item' ? null : {}) },
-            getComputedStyle: () => ({ backgroundColor: `rgb(${[1, 3, 5].map((k) => parseInt(g.hex.substr(k, 2), 16)).join(', ')})` }),
-          };
-          // 🔴 两边都要去掉空白再比：正本产出 `--btn-primary-ink: #ffffff;`（冒号后有空格），内联那份
-          // 没有空格。忘了这一步的话**每一套都"分歧"**，这个对照就变成恒绿 —— 我第一版正是这样，
-          // 它报 80/80 分歧，而 `fern-02` 两边真的同档（600），本该是 79。
-          const norm = (a) => JSON.stringify(a.map((d) => d.replace(/\s+/g, '')));
-          const mine = norm(ink.buttonInkVars(poolThemes[id].colors.primary, g.hex));
-          if (mine !== norm(runPinned({ colors: { primary: poolThemes[id].colors.primary } }, dom.document, dom.getComputedStyle))) diff += 1;
+        for (const [, p, a] of rows) {
+          if (!p) continue;
+          const t = { colors: { primary: p, accent: a || undefined } };
+          if (norm(ink.buttonInkVars(p, ink.WHITE, a)) !== norm(runDark(t))) diff += 1;
         }
-        if (!diff) bad('把浏览器侧的底钉死成白之后两份仍然逐套相同 —— 上面那一格分不出「按真底」和「按白底」');
-        else ok(`把浏览器侧的底钉死成白 ⟹ ${diff} 套当场分歧，上面那一格确实在判「按真底挑档」`);
+        if (!diff) bad('把浏览器侧那块底换成深底之后两份仍然逐套相同 —— 上面那一格分不出两侧是不是同一块底');
+        else ok(`把浏览器侧那块底换成深底 #1e1b2e ⟹ ${diff} 套当场分歧，上面那一格确实在判「两侧同一块底」`);
       }
     }
 
@@ -358,13 +300,13 @@ console.log('④ 两份算术不许分叉：把 layout.tsx 里内联进产物的
         bad('在抠出来的那段里找不到那条亮度判据 —— 浏览器侧可能已经不是按亮度判 hover 方向了');
       } else {
         // eslint-disable-next-line no-new-func
-        const runEq = new Function('t', 'document', 'getComputedStyle', `var out=[];${pinnedEq}return out;`);
+        const runEq = new Function('t', `var out=[];${pinnedEq}return out;`);
         let diff = 0;
         let sawAccentVar = 0;
         for (const id of Object.keys(poolThemes)) {
           const t = { colors: { primary: poolThemes[id].colors.primary, accent: poolThemes[id].colors.accent } };
           const norm = (a) => JSON.stringify(a.map((d) => d.replace(/\s+/g, '')));
-          const theirs = runEq(t, NO_LIST.document, NO_LIST.getComputedStyle);
+          const theirs = runEq(t);
           if (theirs.some((d) => d.includes('--btn-accent-hover'))) sawAccentVar += 1;
           if (norm(ink.buttonInkVars(t.colors.primary, ink.WHITE, t.colors.accent)) !== norm(theirs)) diff += 1;
         }
@@ -423,26 +365,22 @@ console.log(`⑤ Chris 策展的那 ${Object.keys(poolThemes).length} 套池主�
   // 🔴 **轮廓按钮那一格量的是「字压它真正坐着的那块底」，不是压白底**（票正文 2026-08-19 第三次改的
   // 口径，出处 QA2 r2 真机 + PM 全量复算）。上一版这里拿白底判，于是这一格对「档位在深底上朝反方向
   // 走」完全看不见：80 套里 37 套的读数被改差（最大 Δ −0.75），而这一格全绿。
-  // 底从**每套主题自己那张表**里解（`.services-list__item` 优先，其次 `.services-list`）——
-  // 逐套解出来是 primary-50 27 套 · primary-100 16 套 · primary-800 16 套 · primary-900 21 套，**白底 0 套**。
+  // 🔴 #1588 —— 那块底今天是白底：当年那块底取自 `.services-list`，那个块随 #1425 删了；今天读这个变量
+  // 的块只在浅底（`data-tone="light"`）上用得到它，深底上它被 `site-css.js` 刷成白字（`button-ink.js` ③d）。
   const ids = Object.keys(poolThemes);
   const unjustified = [];
   const inkFlips = []; const baseMoves = []; const hoverMoves = []; const outlineMoves = []; const kept = [];
   const baseUnder = [];
-  const grounds = {};
   let outlineUnder = [];
   for (const id of ids) {
     const p = (poolThemes[id].colors || {}).primary;
     if (!p) { unjustified.push(`${id} 没有 primary 调色板 —— 夹具坏了`); continue; }
-    const g = groundOfTheme(id);
-    if (g.err) { unjustified.push(g.err); continue; }
-    grounds[g.from.split('→')[1] ? g.from.split('→')[1].trim() : g.from] = (grounds[g.from.split('→')[1] ? g.from.split('→')[1].trim() : g.from] || 0) + 1;
-    const b4 = before(p, g.hex); const r = ink.buttonInkReport(p, g.hex);
+    const b4 = before(p, ink.WHITE); const r = ink.buttonInkReport(p, ink.WHITE);
     if (!r) { unjustified.push(`${id} 算不出`); continue; }
     // 🔴 AC4 的正文字面：「凡是【换得过去】的都必须过线」。轮廓这一格**每一套都换得过去**
     // （梯子两个方向都能挑，实测 80/80），所以这里的判据不是「不许退步」而是「必须过线」。
     if (r.cells['btn-secondary 静止'] < MIN) {
-      outlineUnder.push(`${id} ${r.cells['btn-secondary 静止'].toFixed(3)}（底 ${g.from}，选了 ${r.outlineShade} 档）`);
+      outlineUnder.push(`${id} ${r.cells['btn-secondary 静止'].toFixed(3)}（白底，选了 ${r.outlineShade} 档）`);
     }
     // 🔴 反向的那一半也要判：不许把一格改得比改动前更差。上一版正是这么坏的（37 套）。
     if (r.cells['btn-secondary 静止'] < b4.cells['btn-secondary 静止'] - 1e-9) {
@@ -564,35 +502,14 @@ console.log(`⑤ Chris 策展的那 ${Object.keys(poolThemes).length} 套池主�
   } else {
     ok(`主按钮静止态：${ids.length} 套【算出来的字色压算出来的那一档底】全部 ≥ ${MIN}（挪过档的 ${baseMoves.length} 套）`);
   }
-  const groundLine = Object.entries(grounds).sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n} 套`).join(' · ');
-  if (Object.keys(grounds).some((k) => /白/.test(k))) {
-    bad(`有主题被解成白底（${groundLine}）—— 池里 0 套是白底，解出白底说明解析器没认出那条规则`);
-  } else if (outlineUnder.length) {
-    bad(`轮廓按钮静止态压它真正坐着的那块底，${outlineUnder.length} 套不过线：${outlineUnder.slice(0, 6).join(' · ')}`);
+  if (outlineUnder.length) {
+    bad(`轮廓按钮静止态压白底，${outlineUnder.length} 套不过线：${outlineUnder.slice(0, 6).join(' · ')}`);
   } else {
-    ok(`轮廓按钮静止态：${ids.length} 套压【它真正坐着的那块底】全部 ≥ ${MIN}（底的分布：${groundLine}）`);
+    ok(`轮廓按钮静止态：${ids.length} 套压白底全部 ≥ ${MIN}`);
   }
   if (process.argv.includes('--list')) {
     console.log(`     保持白字的 ${kept.length} 套：${kept.join(' ')}`);
     console.log(`     轮廓挪档的 ${outlineMoves.length} 套：${outlineMoves.join(' ')}`);
-  }
-  // 🔴 反向对照：这一格必须能被「按白底挑档」这个**上一版的实现**弄红 —— 否则它只是换了个说法的空断言。
-  // 把档位改成按白底挑（其余一律不动），再拿真底去量，看它是不是真的报红。
-  {
-    const wrong = [];
-    for (const id of ids) {
-      const p = poolThemes[id].colors.primary;
-      const g = groundOfTheme(id);
-      if (g.err) continue;
-      const shade = ink.outlineShadeFor(p, ink.WHITE);   // ← 上一版：按白底挑
-      if (ink.ratio(p[shade], g.hex) < MIN) wrong.push(id);
-    }
-    if (!wrong.length) {
-      bad('反向对照：按白底挑档（上一版的实现）在真底上一套都没红 —— 这一格证明不了它在判事');
-    } else {
-      ok(`反向对照：把档位换回「按白底挑」（上一版），拿真底一量 ${wrong.length} 套不过线`
-        + `（例：${wrong.slice(0, 4).join(' · ')}）—— 这一格红得起来`);
-    }
   }
   // 阳性对照：这一格必须能红。往池里塞一套「白字不合格而纯黑能救」的配色，它应当被算进改动面。
   const probe = ink.buttonInkReport({ ...poolThemes[ids[0]].colors.primary, 500: '#b2a172' });
@@ -628,236 +545,39 @@ console.log('⑥ 「换过去过线才换」这条约束本身：两种字色都
 
 console.log('⑦ 算不出来的输入必须【说出来】，不许混到「合格」那一侧（#1105）');
 {
-  // 🔴 夹具是**真表外科改一处**，不是手写的合成 CSS：被判的对象是 `.services-list {…}` 那个块里
-  // 那一条 `background-color: var(--color-primary-NNN);`。同一句在整份表里还出现十几次（别的块），
-  // 所以变异先按块收窄再换那一条。（第一版探针拿 `String.replace` 换"第一处"，换到的是别的块，
-  // 于是给出"改了也没变"的假读数 —— 所以下面每一次变异都先断言它真的改到了。）
-  //
-  // 🔴 #1317 —— 表和色阶都**从今天的池子现挑**，不再写死 `magenta-01` / `primary-800`：那套主题
-  // 跟另外 94 套一起下架了，它那份表已经不在 `public/themes/` 里，写死的那版当场 ENOENT 整份崩掉。
-  // 这一格问的是 `outlineGroundFromCss` 会不会瞎猜，跟具体哪一套主题无关 —— 需要的只是「一份真表，
-  // 它的 .services-list 块里真有一条 var() 底色」。所以判据写成「挑第一套满足这个形状的」，池子换了
-  // 多少次它都还在。
-  const BLOCK = /(\n\.services-list \{)([^}]*)(\})/;
-  const DECL_RE = / *background-color: var\(--color-primary-\d+\);\n/;
-  // 🔴 挑法有两条，第二条是承重的：`.services-list` 那个块必须就是 `outlineGroundFromCss` **实际
-  //    解出来的那一条**。这份表里还有 `.services-list__item`，而那个选择器优先级更高 —— 挑到一份
-  //    由 `__item` 定胜负的表（ember-12 就是），下面每一次变异都改不动答案，六条断言会齐红，
-  //    而红的理由跟真正的实现坏掉长得一样。
-  const FIXTURE = Object.keys(poolThemes).map((id) => {
-    const file = path.join(__dirname, '..', '..', 'public', 'themes', `${poolThemes[id].sheet || id}.css`);
-    if (!fs.existsSync(file)) return null;
-    const text = fs.readFileSync(file, 'utf8');
-    const block = BLOCK.exec(text);
-    if (!block || !DECL_RE.test(block[2])) return null;
-    const g = ink.outlineGroundFromCss(text, poolThemes[id].colors);
-    if (!g || !String(g.from).startsWith('.services-list →')) return null;
-    return { id, file, raw: text };
-  }).find(Boolean);
-  if (!FIXTURE) {
-    // 🔴 一套都挑不出来【不是】跳过，是这一整格没有夹具 —— 而它守的是「读不出来就别猜」，
-    //    跟池子大小无关（2 套里两套都有）。所以它是真红。
-    bad('池里没有一套主题是「.services-list 那个块自己定胜负」的形状 —— ⑦ 这一整格没有夹具可用，不是通过');
-  }
-  const raw = FIXTURE ? FIXTURE.raw : '';
-  const PRIM = FIXTURE ? poolThemes[FIXTURE.id].colors.primary : {};
-  const PAL = FIXTURE ? poolThemes[FIXTURE.id].colors : {};
-  const DECL = DECL_RE;
-  const mutate = (decl) => raw.replace(BLOCK, (_, a, body, c) => a + body.replace(DECL, decl) + c);
+  // 📌 #1588 —— 这一格原来还判「从主题表里解 `.services-list` 那块底」的那个函数（`outlineGroundFromCss`）
+  //    遇到读不出来的 CSS 会不会瞎猜（简写 / 带 alpha 的 hex / 渐变 / 缺分号 / 块内注释，连同改真源码的
+  //    阳性对照）。那个函数随 #1588 删了（那个块随 #1425 删了，构建侧改成恒传白底），那几条跟着删。
+  //    留下的是 `buttonInkReport` 自己的合同：调用方说「底不知道」（传 `null`）时那一格不许报出读数。
+  const PRIM = (poolThemes[Object.keys(poolThemes)[0]] || { colors: {} }).colors.primary || {};
+  if (!Object.keys(PRIM).length) bad('池里第一套主题没有 primary 调色板 —— ⑦ 这一整格没有夹具可用，不是通过');
   const CELL = 'btn-secondary 静止';
 
-  // 阳性对照：没动过的真表必须解得出来、四格全部有数。没有这一格，下面的"全部 null"说明不了任何事。
+  // 底不知道（`null`）⟹ 轮廓那一格没有读数、落进 unresolved、不落进 under（#1105）。
   {
-    const g = ink.outlineGroundFromCss(raw, PAL);
-    const r = g && ink.buttonInkReport(PRIM, g.hex);
-    if (!FIXTURE) { /* 上面已经报过了 */ }
-    else if (!g) bad(`阳性对照：没动过的 ${FIXTURE.id}.css 都解不出那块底 —— 这一整格的夹具是坏的`);
-    else if (!r) bad(`阳性对照：${FIXTURE.id} 的调色板算不出报告`);
-    else if (r.unresolved.length) bad(`阳性对照：没动过的真表上却有 ${r.unresolved.length} 格算不出来：${r.unresolved.join(' · ')}`);
-    else ok(`阳性对照：没动过的真表 ⟹ 底 = ${g.hex}（${g.from}）· 四格全部有数 · 算不出来的 0 格`);
-  }
-
-  // 六种「读不出来」的输入。前两种是 #1105 点名的（QA2 ① / QA3 1），第三、四种是同一个形状的另两半，
-  // 最后两种是 #1126：**前一条忘写分号**。
-  //
-  // 🔴 #1126 那两条为什么也该是 `null`，而不是「后面那条赢」：真浏览器里两条**一起作废**。
-  //    实测（chromium，一次只差一个分号）：缺分号 ⟹ computed background-color = `rgba(0, 0, 0, 0)`；
-  //    分号补齐 ⟹ `rgb(255, 255, 255)`；哪一条写在前面都一样。`postcss` 直接 `Missed semicolon` 拒绝解析。
-  //    ⟹ 没有一个真话可以报，所以走 `null` + 调用方那条 🔴。改之前它报的是**前面**那条（primary-800），
-  //    也就是一句关于另一块底的假话，而且一条警告都不打。
-  const SHAPES = [
-    ['background 简写', '  background: var(--color-primary-800);\n'],
-    ['4 位带 alpha 的 hex', '  background-color: #abcd;\n'],
-    ['8 位带 alpha 的 hex', '  background-color: #5e264380;\n'],
-    ['渐变（本票之前就会 null 的那条，作对照）', '  background-color: linear-gradient(#000,#fff);\n'],
-    ['#1126 前一条缺分号（var 在前）', '  background-color: var(--color-primary-800)\n  background-color: #ffffff;\n'],
-    ['#1126 前一条缺分号（字面量在前）', '  background-color: #ffffff\n  background-color: var(--color-primary-800);\n'],
-  ];
-  const wrong = [];
-  for (const [what, decl] of SHAPES) {
-    const css = mutate(decl);
-    if (css === raw) { wrong.push(`${what}：变异没改到那个块 —— 这一条在空过`); continue; }
-    const g = ink.outlineGroundFromCss(css, PAL);
-    if (g) { wrong.push(`${what}：解出了 ${JSON.stringify(g)}，应当是 null（读不出来就别猜）`); continue; }
-    // 调用方（`sync-config.js`）此时传的是 `null`，不是白 —— 「不知道」和「是白的」是两个读数。
     const r = ink.buttonInkReport(PRIM, null);
-    if (!r) { wrong.push(`${what}：报告整份是 null，而只有那一格该算不出来`); continue; }
-    if (Number.isFinite(r.cells[CELL])) wrong.push(`${what}：底不知道，${CELL} 却报出了 ${r.cells[CELL]}`);
-    if (!r.unresolved.some((u) => u.startsWith(CELL))) wrong.push(`${what}：${CELL} 没进 unresolved —— 报不出来就等于没这一条`);
-    if (r.under.some((u) => u.startsWith(CELL))) wrong.push(`${what}：${CELL} 进了 under —— 那是"量出来低于线"，不是"算不出来"`);
-    if (r.outlineGround !== null) wrong.push(`${what}：report.outlineGround = ${JSON.stringify(r.outlineGround)}，应当是 null`);
-  }
-  if (wrong.length) bad(`${wrong.length} 处：${wrong.join(' · ')}`);
-  else ok(`${SHAPES.length} 种读不出来的底（简写 / 4 位 hex / 8 位 hex / 渐变 / 缺分号 ×2）⟹ 全部 null，`
-    + `且 ${CELL} 落进 unresolved、没落进 under`);
-
-  // ── #1126 —— 缺分号那一条的三个配套读数 ────────────────────────────────────────────────────
-  //
-  // 上面那张表只问「是不是 null」。这里问另外三件，少了任何一件那一格都能靠「一律返回 null」蒙过去：
-  //   (a) 阳性对照：改坏修法那一行 ⟹ 它当场回到报**输的那条**（primary-800），也就是本票要治的那句假话
-  //   (b) 合法的「块里最后一条不带分号」**仍然解得出来** —— 修法不许把这种正常写法也判成读不出来
-  //   (c) 一条好的在前、一条坏的在后 ⟹ 取好的那条（浏览器就是这么算的：坏的那条被丢掉）
-  // 变异体加载器 —— 两格共用（#1126 缺分号那格 + r2 块内注释那格）。
-  // 🔴 读的是**真源码**再删掉被测那一行，不是照抄一份重新实现（QA1 #1126 r1 非阻断 1）。
-  const Module = require('module');
-  const SRC = path.join(__dirname, 'button-ink.js');
-  const srcText = fs.readFileSync(SRC, 'utf8');
-  const loadMutant = (find, replacement, label) => {
-    const hits = srcText.split(find).length - 1;
-    if (hits !== 1) return { err: `变异目标在源码里出现 ${hits} 次（要 1 次）：${label}` };
-    const mod = new Module(SRC, module);
-    mod.filename = SRC;
-    mod.paths = Module._nodeModulePaths(path.dirname(SRC));
-    try { mod._compile(srcText.replace(find, replacement), SRC); } catch (e) {
-      return { err: `变异体编译不过：${label} —— ${e.message}` };
-    }
-    return { mod: mod.exports };
-  };
-
-  {
-    const problems = [];
-
-    // (a) 阳性对照 —— **改真源码那一行,不是照抄一份再实现**（QA1 在 #1126 r1 点的：手抄那份
-    //     不会跟着真谓词漂移，真那一行以后被重写它照样绿 ⟹ 那一格就不再控任何东西）。
-    //     做法：把 `button-ink.js` 的源码读进来、删掉被测的那一行、用**它自己的文件名**编译一份
-    //     （文件名对了，里面 `require('../theme-contrast.js')` 才解析得到），然后问这份变异体。
-    //     每一次变异都先断言"真的改到了"，否则这一格是空的。
-
-    // M1：删掉「前一条没终止 ⟹ 整条作废」那一句 continue ⟹ 必须回到报**输的那条**（本票要治的假话）
-    const FIX_LINE = "        if (d[1] === 'background-color' && /[-a-zA-Z]+\\s*:/.test(value)) continue;  // 前一条没终止 ⟹ 整条作废\n";
-    const m1 = loadMutant(FIX_LINE, '', 'M1 缺分号那句 continue');
-    const fixtureA = mutate('  background-color: var(--color-primary-800)\n  background-color: #ffffff;\n');
-    const realSaid = ink.outlineGroundFromCss(fixtureA, PAL);
-    if (m1.err) problems.push(m1.err);
+    const wrong = [];
+    if (!r) wrong.push('报告整份是 null，而只有那一格该算不出来');
     else {
-      const said = m1.mod.outlineGroundFromCss(fixtureA, PAL);
-      if (!said || said.from !== '.services-list → primary-800') {
-        problems.push(`M1 阳性对照立不起来：删掉那一句 continue 之后应当报「.services-list → primary-800」，`
-          + `实际是 ${JSON.stringify(said)} —— 这一格分不出改前改后，上面的绿不算`);
-      } else if (realSaid !== null) {
-        problems.push(`修法那一版没有回 null，而是 ${JSON.stringify(realSaid)}`);
-      }
+      if (Number.isFinite(r.cells[CELL])) wrong.push(`底不知道，${CELL} 却报出了 ${r.cells[CELL]}`);
+      if (!r.unresolved.some((u) => u.startsWith(CELL))) wrong.push(`${CELL} 没进 unresolved —— 报不出来就等于没这一条`);
+      if (r.under.some((u) => u.startsWith(CELL))) wrong.push(`${CELL} 进了 under —— 那是"量出来低于线"，不是"算不出来"`);
+      if (r.outlineGround !== null) wrong.push(`report.outlineGround = ${JSON.stringify(r.outlineGround)}，应当是 null`);
     }
-
-
-    // (b) 合法的「最后一条不带分号」不许被误伤。用合成块，因为真表那一条后面还有 `color:`。
-    const LEGAL = '\n.services-list {\n  display: grid;\n  background-color: #ffffff\n}\n';
-    const legal = ink.outlineGroundFromCss(LEGAL, PAL);
-    if (!legal || legal.hex !== '#ffffff') {
-      problems.push(`合法的「块里最后一条不带分号」被判成读不出来了：${JSON.stringify(legal)}`
-        + ' —— 那是正常 CSS，修法不许误伤它');
-    }
-
-    // (c) 好的在前、坏的在后 ⟹ 取好的那条（浏览器丢掉坏的那条，前面那条照样生效）。
-    const MIXED = '\n.services-list {\n  background-color: #ffffff;\n  background-color: var(--color-primary-800)\n  color: red;\n}\n';
-    const mixed = ink.outlineGroundFromCss(MIXED, PAL);
-    if (!mixed || mixed.hex !== '#ffffff') {
-      problems.push(`「好的在前、坏的在后」应当取前面那条 #ffffff，实际是 ${JSON.stringify(mixed)}`);
-    }
-
-    if (problems.length) bad(`#1126 缺分号：${problems.length} 处 —— ${problems.join(' · ')}`);
-    else {
-      ok('#1126 缺分号：M1 阳性对照改真源码（删掉那句 continue ⟹ 报 .services-list → primary-800）· 修法回 null'
-        + ' · 合法的「最后一条不带分号」仍解得出 #ffffff · 「好的在前坏的在后」取前面那条'
-        + ' · 详见下一格 #1126 r2');
-    }
+    if (wrong.length) bad(`${wrong.length} 处：${wrong.join(' · ')}`);
+    else ok(`底传 null ⟹ ${CELL} 落进 unresolved、没落进 under、报告里的底是 null`);
   }
 
-  // ── #1126 r2 —— 声明前面有一行注释（合法 CSS）不许被当成「一条画底的都没有」 ─────────────────
-  // 自己一格，因为它钉的是**另一个**失败形态：r1 的修法在这个输入上不是「读不出来」，而是印出一句
-  // **关于这个站的正面断言**（「没有任何一条画底 ⟹ 页面白」），0 条警告，而档位比不改还差。
-  {
-    const p2 = [];
-    // ── #1126 r2 —— 声明**前面有一行注释**（合法 CSS）不许被当成「一条画底的都没有」 ────────────
-    //   这是 r1 的修法开的口子，QA1 实测过：真表只加一行注释，真管道 rc=0、印出「页面白」那句假话，
-    //   档位从 primary-200（真底上 6.679）掉到 primary-600（真底上 1.779，线 4.5）——**比不改还差**，
-    //   而且 0 条警告。失败方向是那句**关于这个站的正面断言**，正是 #1105 与本票存在的理由。
-    const fixtureC = mutate('  /* #1072 那种块内注释——合法 CSS */\n  background-color: var(--color-primary-800);\n');
-    const withComment = ink.outlineGroundFromCss(fixtureC, PAL);
-    if (!withComment || withComment.from !== '.services-list → primary-800') {
-      p2.push(`声明前面一行注释（合法 CSS）⟹ 应当照样报「.services-list → primary-800」，`
-        + `实际是 ${JSON.stringify(withComment)}`);
-    }
-    // 这一格由**两道**互相独立的防线守着，所以要两个阳性对照，各钉一条真源码行：
-    //   剥注释那一句 → 决定「能不能读出【真】的那块底」
-    //   宽判据那一句 → 决定「读不出来时会不会掉到那句关于这个站的假话」
-    // 只删前者仍然是 null（诚实的读不出来 + 一条 🔴）；两条都删才回到 r1 那个 0 警告的假话。
-    const STRIP = ".replace(/\\/\\*[\\s\\S]*?\\*\\//g, '')";
-    const LOOSE = "        if (/(?:^|[\\s;{])background(?:-color)?\\s*:/.test(seg)) sawPaint = true;\n";
-
-    const m2 = loadMutant(STRIP, '', 'M2 函数开头那句剥注释');
-    if (m2.err) p2.push(m2.err);
-    else {
-      const said = m2.mod.outlineGroundFromCss(fixtureC, PAL);
-      if (said !== null) {
-        p2.push(`M2 阳性对照立不起来：只删掉剥注释那一句时应当是 null（读不出来，由调用方打 🔴），`
-          + `实际是 ${JSON.stringify(said)} —— 那说明真读数不是剥注释挣来的`);
-      }
-    }
-
-    // M4：两条都删 = r1 那一版 ⟹ 必须回到「没有任何一条画底」那句 0 警告的假话
-    const m4 = (() => {
-      const hitsA = srcText.split(STRIP).length - 1;
-      const hitsB = srcText.split(LOOSE).length - 1;
-      if (hitsA !== 1 || hitsB !== 1) return { err: `M4 变异目标不唯一（剥注释 ${hitsA} 次 · 宽判据 ${hitsB} 次）` };
-      const mod = new Module(SRC, module);
-      mod.filename = SRC;
-      mod.paths = Module._nodeModulePaths(path.dirname(SRC));
-      try { mod._compile(srcText.replace(STRIP, '').replace(LOOSE, ''), SRC); } catch (e) {
-        return { err: `M4 变异体编译不过：${e.message}` };
-      }
-      return { mod: mod.exports };
-    })();
-    if (m4.err) p2.push(m4.err);
-    else {
-      const said = m4.mod.outlineGroundFromCss(fixtureC, PAL);
-      if (!said || !/没有任何一条画底/.test(said.from || '')) {
-        p2.push(`M4 阳性对照立不起来：两条都删（= r1 那一版）时应当掉回「没有任何一条画底」那句假话，`
-          + `实际是 ${JSON.stringify(said)} —— 这一格分不出 r1 与 r2`);
-      }
-    }
-    if (p2.length) bad(`#1126 r2 块内注释：${p2.length} 处 —— ${p2.join(' · ')}`);
-    else {
-      ok('#1126 r2：声明前一行注释（合法 CSS）照样解得出 .services-list → primary-800'
-        + ' · 两道防线各一个阳性对照，都改真源码 —— 只删剥注释 ⟹ null（诚实的读不出来）；'
-        + '剥注释与宽判据两条都删（= r1 那一版）⟹ 掉回「没有任何一条画底」那句假话');
-    }
-  }
-
-  // 🔴 反向对照 A：这一格必须分得出「本票之前那版」。之前调用方把解不出来的底换成白 ——
-  //    那一格于是报出一个**过线的**数（白底上 500 档往往合格），正好把这条盖住。
+  // 🔴 反向对照 A：同一份调色板换成白底（一个能算的颜色）⟹ 那一格必须有数、且不进 unresolved。
+  //    否则上面那条「落进 unresolved」可能是「这一格永远算不出来」，不是「底不知道才算不出来」。
   {
     const r = ink.buttonInkReport(PRIM, ink.WHITE);
-    if (!Number.isFinite(r.cells[CELL]) || r.cells[CELL] < MIN) {
-      bad(`反向对照 A：拿白底替它答时 ${CELL} 并没有报成合格（${r.cells[CELL]}）—— 这一格分不出改前改后`);
+    if (!r || !Number.isFinite(r.cells[CELL])) {
+      bad(`反向对照 A：白底上 ${CELL} 也没有读数（${r && r.cells[CELL]}）—— 上面那条分不出「底不知道」和「这一格坏了」`);
     } else if (r.unresolved.length) {
       bad('反向对照 A：白底是一个能算的颜色，不该有算不出来的格子');
     } else {
-      // 🔴 两个数必须是**同一档**在两块底上的读数，否则比的是两件事。
-      const shade = ink.outlineShadeFor(PRIM, ink.WHITE);
-      ok(`反向对照 A：拿白底替它答 ⟹ 选到 primary-${shade}、${CELL} = ${r.cells[CELL].toFixed(3)} ≥ ${MIN}`
-        + `（合格）；同一档压它真正坐的那块底 #5e2643 是 ${ink.ratio(PRIM[shade], '#5e2643').toFixed(3)}`
-        + ' ⟹ 改前那版确实会把它报成过线');
+      ok(`反向对照 A：白底 ⟹ 选到 primary-${r.outlineShade}、${CELL} = ${r.cells[CELL].toFixed(3)}，算不出来的 0 格`);
     }
   }
 
@@ -1037,17 +757,15 @@ console.log('⑧ `underNote()` 印出来的那句话本身：它印的每个数�
     return lies;
   }
 
-  // ── 夹具：注册表那几套（池主题用它自己那张表解出来的真底）+ 生产 6 套 + 几套人造的
+  // ── 夹具：注册表那几套 + 生产 6 套 + 几套人造的（轮廓那一格一律压白底 —— 构建侧今天就这么算，#1588）
   //    📌 这里原来写的是「注册表 110 套」，那是 #1161 之前退役 30 套还并在 `themes` 里的数。
   //       今天注册表就是池子（#1161 拆走退役那批），而池子大小会随重生成而变 —— 所以不写数。
   const fixtures = [];
   for (const [id, t] of Object.entries(themes)) {
     const p = t.colors && t.colors.primary; if (!p) continue;
-    const g = (id in poolThemes) ? groundOfTheme(id) : null;
-    if (g && g.err) { bad(`§⑧ 夹具立不起来：${g.err}`); continue; }
     // #1100 —— accent 也喂进去：`under` 现在可以含 accent 那两格，而这一节判的是「这句话印的数支持
     // 它自己的断言吗」⟹ 不喂的话它对新加的那两格按构造是盲的。
-    fixtures.push({ id, palette: p, ground: g ? g.hex : ink.WHITE, accent: t.colors && t.colors.accent });
+    fixtures.push({ id, palette: p, ground: ink.WHITE, accent: t.colors && t.colors.accent });
   }
   for (const [id, p] of Object.entries(PROD)) fixtures.push({ id: `prod/${id}`, palette: p, ground: ink.WHITE });
   // 灰阶 114…119 = ①a 那 6 个色阶宽的段，`inkUnreachable` 那一支唯一能到达的形状（注册表上 0 套）。

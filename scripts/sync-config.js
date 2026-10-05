@@ -1178,21 +1178,11 @@ console.log(`  Generated public/custom.css — ${customCssOrigin} (${customCssBy
   for (const m of cascade.matchAll(/--color-accent-(\d{2,3})\s*:\s*(#[0-9a-fA-F]{3,8})\s*(?:;|})/g)) {
     finalAccent[m[1]] = m[2];
   }
-  // 🔴 #1084 r3 —— 轮廓按钮的档位要按**它真正被画在上面的那块底**选，而那块底不是页面的白
-  // （票正文 2026-08-19 第三次改的口径；上一版按白底挑，在 37 套深底主题上比不改还差）。
-  // 那块底就在同一份字节里：主题表的内容是**粘进 `public/theme.css`** 的（见上面 §theme.css 那段
-  // 「pasted into theme.css」），所以这里复用同一条 `cascade`，判据也同一条 —— 浏览器最后会用哪个值。
-  // 解不出来时（渐变 / color-mix / 变量套变量 / `background` 简写 / 带 alpha 的 hex）
-  // `outlineGroundFromCss` 回 `null`，**不猜**；那一步把这件事打出来，因为「解不出来」和「真的是
-  // 白底」是两个读数。**选档**仍然按白底走（那是今天的行为），但那一格的**读数**不落回白底。
-  // 🔴 #1105 —— 解不出来时往下传的是 `null`，不是白。选档仍按白底走（那是今天的行为），但那一格的
-  // **读数**不许按白底报成合格：`buttonInkReport` 收到 null 就把它放进 `unresolved`。
-  // 传白进去的后果实测过：`magenta-01` 的 `background:` 简写让轮廓那格报 5.683（合格），
-  // 而它真正坐的那块底上是 6.268 —— 报的是另一块底上的数。
-  const ground = inkLib.outlineGroundFromCss(cascade, finalPrimary);
-  // 🔴 r2 —— `null`（不是 `inkLib.WHITE`）是 #1105 的修法，本票**不许**把它改回去：解不出轮廓按钮
-  // 坐的那块底时传白，等于拿一块想象出来的底去算并把结果当合格报出来。本票的 diff 只是路过这一行。
-  const outlineGround = ground ? ground.hex : null;
+  // 🔴 #1588 —— 轮廓按钮那一档按**白底**挑，与 `layout.tsx` 预览脚本里那个常量是同一个值。
+  // #1084 r3 那版从这条 `cascade` 里解 `.services-list` 的底色，而那个块随 #1425 删了：两张在用的主题表
+  // 还画着它，页面上却没有任何元素发那个类 ⟹ 构建按一块不在页面上的底挑档（穿 ember-12 的站是深底），
+  // 预览按白底挑，同一个按钮两种字色。为什么白底是对的那块底，见 `button-ink.js` ③d。
+  const outlineGround = inkLib.WHITE;
   const inkVars = inkLib.buttonInkVars(finalPrimary, outlineGround, finalAccent);
   const report = inkLib.buttonInkReport(finalPrimary, outlineGround, finalAccent);
   if (inkVars.length) {
@@ -1214,16 +1204,6 @@ console.log(`  Generated public/custom.css — ${customCssOrigin} (${customCssBy
         : '🔴 解不出 accent 那一组 ⟹ 不产出这个变量，页面落回兜底的 accent-500'}`
       + ` (primary ${Object.keys(finalPrimary).length} 档 / accent ${Object.keys(finalAccent).length} 档`
       + ' 从 theme.css + custom.css 解析出来)');
-    // 🔴 这一行不能用 `outlineGround` 拼：#1105 起解不出来时它是 `null`，印出来就是「那块底 = null」。
-    console.log(`  Button ink: 轮廓按钮坐的那块底 = ${ground ? ground.hex : '解不出来'} —— `
-      + (ground ? ground.from
-        // #1126 —— 清单里补上「前一条声明没写分号」那个形状。不补的话人读到的是一句**不含真因**的
-        // 警告：那个形状下浏览器把粘在一起的两条一起判废（实测 chromium computed = rgba(0,0,0,0)），
-        // 而它不在上面任何一类里。r2 起这一类不只是 `background-color` 前面那条 —— 任何属性没终止都
-        // 会把后面那条粘进去，判据是「画底那条声明没顶在 `;` 段开头」（见 button-ink.js 的宽/严两把判据）。
-        : '🔴 没认出那个形状（`background` 简写 / 渐变 / color-mix() / 变量套变量 / 带 alpha 的 hex'
-          + ' / 前一条声明忘写分号 ⟹ 它和粘在后面那条一起作废）'
-          + ' —— 这【不是】"底是白的"⟹ 按白底选档，这一档可能是错的，而轮廓那一格没有读数'));
     // 🔴 #1105 —— 「算不出来的格子」是**第三种**结果，跟「合格」「不合格」并列，所以它自己一条话。
     // 它既不能混进 `under`（那是「量出来了、低于线」），也不能不说 —— 不说的话，一个没有读数的格子
     // 跟一个合格的格子在日志里长得一模一样，而本票要治的正是这个。

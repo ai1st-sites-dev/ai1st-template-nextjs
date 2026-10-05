@@ -107,6 +107,15 @@
 // 与 ①b「白字够就保持白字」是同一条理由。次序 `500 → 600 → 400 → 700 → 300 → 800 → 200 → 900 → 100 → 50`：
 // 先深后浅只是同距时的定序，不代表偏好深的一头。
 //
+// 🔴 ③d **#1588 —— 构建侧那块底回到白底，上面 ③a/③b 讲的 `.services-list` 那块底已经不存在了。**
+// ③a 写的那一处消费者 `ServicesListSection.tsx` 随 #1425 删掉了；今天读 `--btn-outline-ink` 的是
+// cta / content / hero / page-header 四个块（各自 `block.css`）和 `globals.css` 的旧 `.btn-outline-*`。
+// 这些块的底由块自己的 `bg` 槽给，`data-tone` 按亮度从它推出来（`contrast.js` §toneForBg）；深底和主色底
+// 上 `site-css.js` 用 `!important` 把描边按钮刷成白字白框，这个变量到不了 ⟹ 它只在 `light` 那一档上
+// 起作用，而 `light` 按构造就是亮底。所以构建侧传 `WHITE`，跟 `layout.tsx` 预览脚本里那个常量逐字同一个。
+// 原来那个从主题表字节里解 `.services-list` 底色的函数（`outlineGroundFromCss`）一起删了：它解的那块底
+// 两张在用的主题表里还画着，但没有任何页面元素发那个类 ⟹ 它让构建侧按一块不在页面上的底挑档。
+//
 // 📌 「Chris 策展的 80 套看起来不变」这个初衷在这一处**守不住，而且不该守**（作者 2026-08-19 拍的）：
 // 那 37 套今天的轮廓按钮就是读不出来的（最差 1.7–2.4），本票要治的正是这件事。hero 里那个按钮不受
 // 影响（`currentColor`）。
@@ -305,145 +314,13 @@ function accentHoverShadeFor(accent) {
  * 轮廓按钮的字/边框该取哪一档：沿 `OUTLINE_LADDER` 就近找第一个压 `ground` 合格的；
  * 一档都不合格就保持今天的 500。见 ③ / ③a / ③b / ③c。
  *
- * 🔴 `ground` 是**它真正被画在上面的那块底**，不是「页面的白」。默认值 `WHITE` 只对**未套主题的站**
- * 成立（`globals.css` 的 services-list 骨架不画底色）；套了主题的站必须由调用方把那块底解出来传进来
- * —— `outlineGroundFromCss` 就是干这个的。**默认值不是兜底，是一种站的形态**：拿白底去替深底主题
- * 答，答出来的档位在那 37 套上比不改还差（③b 那张表的中间一行）。
+ * 🔴 `ground` 是**它真正被画在上面的那块底**。构建时（`sync-config.js`）传的是 `WHITE`，理由见 ③d；
+ * 参数留着是因为梯子本身两个方向都能走，调用方有别的底时照样能问（`theme-presets.test.js` 就这么问）。
  */
 function outlineShadeFor(palette, ground = WHITE) {
   const found = OUTLINE_LADDER.filter((sh) => typeof palette[sh] === 'string')
     .find((sh) => passes(palette[sh], ground));
   return found || TODAY.outline;
-}
-
-/**
- * 从**已经写出去的 CSS 字节**里解出「轮廓按钮坐着的那块底」。
- *
- * 🔴 判据与 `sync-config.js` 解调色板那一处同一条：**浏览器最后会用哪个值** = 这段字节里最后一条
- * 生效的声明。层叠里 `.services-list__item` 盖在 `.services-list` 上（前者是后者的子元素，按钮在
- * 它里面），所以先问 `__item`、再问 `.services-list`；同一个选择器出现多次时取**最后**一条。
- *
- * 🔴 两个都没写底色 ⟹ 白底，而这是一个**读数不是兜底**：`globals.css` 的 services-list 骨架里
- * `background` 零命中 ⟹ 未套主题的站那一处真的就是页面白。
- *
- * 🔴 解不出来的形状（渐变、`color-mix()`、别的变量套变量、`background` 简写、带 alpha 的 hex）
- * **不猜**：回 `null`，由调用方决定怎么办。猜一个会静默产出一个关于另一块底的档位，而那正是
- * #1084 被退回的那种错。
- *
- * 🔴 **「读不出来」和「这里真的没画底」必须分开（#1105）：** 只要那个块里有一条画底的声明，
- * 读不出来就回 `null`；**绝不许**掉到最后那句 `{ hex: WHITE, from: '没有任何一条画底…' }` ——
- * 那句是一个**关于这个站的断言**（"它是未套主题的站"），而不是"我不知道"。#1105 之前
- * `background:` 简写走的正是这条路：把一个深底主题报成页面白，档位按白底挑（`magenta-01`
- * 实测 6.268 → 1.719，比不改还差），而构建**一行警告都不打**。
- *
- * 🔴 `background` 简写**认得出、但不解析**：它一条里可以装图片、渐变、多层背景，解析一半等于猜。
- * 所以有它 ⟹ `null` + 调用方报警。我们自己的生成器写的一律是 `background-color`
- * （2026-08-19 实测：83 张表那两处选择器共 110 条声明，简写 0 条）。
- *
- * @param {string} cssText 主题表（或 theme.css + custom.css 的层叠）的原文
- * @param {object} palette `{primary:{50..900}, accent:{…}}` 或扁平的 `{50..900}`——用来把
- *                         `var(--color-primary-800)` 解成十六进制
- * @returns {{hex:string, from:string}|null}
- */
-function outlineGroundFromCss(cssText, palette) {
-  // 🔴 **先剥掉 `/* … */`,再谈"哪一条声明"** —— 注释按 CSS 语义不在记号流里,而下面按 `;` 切段、
-  // 按段首认属性名的做法**看不见**"声明前面有一行注释"这种合法写法:那条声明整段不匹配 ⟹ 这个块
-  // 被当成"一条画底的都没有" ⟹ 掉到函数最后那句关于这个站的断言。QA1 在 #1126 r1 实测过这个洞:
-  // 往真表 `.services-list` 里只加一行注释(分号一个没动),真管道 `rc=0` 构建成功、印出那句假话,
-  // 档位从 `primary-200`(真底上 6.679)掉到 `primary-600`(真底上 1.779,线是 4.5)——**比不改还差**,
-  // 而且 0 条警告。
-  // 🔴 #1134 更正（#1126 QA3 终审证明的）—— 这里原来接着一句「本票要治的缺分号形状反而被上游
-  //    CSS 闸 `rc=1` 拒掉、**够不到这个函数**」。**够得到。** 那道闸只扫 `public/base.css` +
-  //    `public/themes/*.css`（`css-contract-check.js` 自己的头注就这么写），而 `sync-config.js`
-  //    对站仓里**冻结的 `site/theme.css` 是逐字节拷贝、不重新生成也不经任何检查**就进 cascade
-  //    （那段注释在 sync-config.js §theme.css，`themeCssOrigin = 'site/theme.css (committed by a
-  //    theme change)'` 那一支）⟹ **那条来源没有闸**。QA3 把缺分号夹具放进冻结文件走真管道：
-  //    改前 `rc=0` + 印出假话「底 = #5e2643」+ 零警告，交付则回 null + 🔴 端到端上屏。
-  //    可复算的判据是把两处并排读：
-  //      grep -n "public/themes" scripts/css-contract-check.js        ← 闸的扫描集
-  //      sed -n '920,950p' scripts/sync-config.js                     ← 第 ① 种 cascade 来源
-  //    ⟹ 今天的到达向量只剩**手改站仓**（`theme.css` 不在聊天编辑器白名单 —— 实测
-  //      `writeRejection('theme.css', …)` 直接拒；机器写入恒合法），所以风险低；
-  //      但**低不是因为闸挡住了它** —— 闸不是这条 cascade 的守卫，别把它当保险。
-  // 剥法与 `theme-contrast.js:90` 的 `parseSheet` 同一条,不另造一把。
-  const css = String(cssText || '').replace(/\/\*[\s\S]*?\*\//g, '');
-  const shadeOf = (group, shade) => {
-    const g = palette && (palette[group] || (group === 'primary' ? palette : null));
-    return g && typeof g[shade] === 'string' ? g[shade] : null;
-  };
-  for (const sel of ['.services-list__item', '.services-list']) {
-    // 选择器必须**独占一条规则的开头**，同 `theme-presets.test.js` 里那把索引的理由：
-    // 松了会把 `.foo .services-list { … }` 这种后代选择器也算进来。
-    const re = new RegExp('(?:^|\\n)[ \\t]*\\' + sel + '[ \\t]*\\{([^}]*)\\}', 'g');
-    let decl = null;
-    let sawPaint = false;   // 这个块里**试图**画底的声明有没有出现过(合不合法都算)——见下面那条 🔴
-    let m;
-    while ((m = re.exec(css)) !== null) {
-      // 一条声明的边界是分号。块里**最后**一条可以不带分号,所以按 `;` 切完之后最后那一段也算一条。
-      // 同选择器出现多次、同块里写了多条时,取**最后一条读得出来的**;`background` 与
-      // `background-color` 一起数,因为后写的那条才是赢家。
-      //
-      // 🔴 **「读得出来」是什么意思,以及它凭什么等于「层叠赢的那条」——两句都写下来,因为原来那句
-      //    (「取最后一条合法的 = 层叠赢的那条」)是**假**的,QA1 在 #1126 r1 用一行注释就证伪了它。**
-      //    注释已经在函数开头剥掉了,所以"读得出来"= 它顶在 `;` 段的开头,也就是前面没粘着一条
-      //    **没终止**的声明(粘住的那种走下面那条 `continue` ⟹ 整个块回 `null`)。
-      //    而"最后一条 = 赢的那条"只在**没有 `!important`** 时成立,本文件不认它:
-      //    2026-08-20 实测 83 张表这两个选择器共 **249 个块 / 110 条画底声明,带 `!important` 的 0 条**,
-      //    所以今天这个等号成立。哪天有人写了 `!important`,这句话就要跟着改。
-      //
-      // 🔴 #1126 —— 前一条**忘写分号**时,不许把它当成「赢的那条」报出去。原来这里是一条
-      // `matchAll(/…:\s*([^;}]+)/g)`:值那一段贪到下一个 `;` 为止,于是
-      //     background-color: var(--color-primary-800)      ← 缺分号
-      //     background-color: #ffffff;
-      // 会被读成**一条**声明,值是 `var(--color-primary-800)\n  background-color: #ffffff`,
-      // 而开头那个 `var()` 匹配上了 ⟹ 报出 primary-800,**一条警告都不打**。
-      //
-      // 🔴 那种形状下正确答案**不是**「后面那条赢」——两条一起废。实测(chromium,一次只差一个分号):
-      //     缺分号 + 后面还有一条   ⟹ computed background-color = rgba(0, 0, 0, 0)
-      //     同样两条、分号补齐      ⟹ rgb(255, 255, 255)
-      //     哪一条在前面都一样(把 `#ffffff` 放前面缺分号,仍然是 rgba(0,0,0,0))
-      //   CSSOM 里那条规则只剩**一条**声明,值是那一整串没断开的文本,它在计算值那一步整条作废;
-      //   `postcss` 更直接:`CssSyntaxError: Missed semicolon`,根本不解析。
-      // ⟹ 我们没有一个真话可以报 ⟹ 走 `null`(下面 `sawPaint` 那一支),让调用方打那条 🔴。
-      //
-      // 判据:合法的一条 `background-color` 声明,值里**不会再出现 `某某:`**。
-      // (`background` 简写的值里可以有 `url(http://…)`,但简写本来就走 `null`,所以这里先认属性名。)
-      for (const seg of m[1].split(';')) {
-        // 🔴 **两个问题,两把判据,因为答错的方向不同。**
-        //   「这个块**试过**画底吗」(`sawPaint`)——答错会掉到最后那句关于这个站的断言,所以用**宽**的:
-        //      声明在段里哪个位置都算。前一条没终止时,后面那条就**不在**段首。
-        //   「哪一条**赢**」(`decl`)——答错会报出一块别的底,所以用**严**的:必须顶在段首,
-        //      否则说明它前面还粘着一条没终止的声明,那种形状下没有真话可报(见下面那段 🔴)。
-        if (/(?:^|[\s;{])background(?:-color)?\s*:/.test(seg)) sawPaint = true;
-        const d = seg.match(/^\s*(background(?:-color)?)\s*:\s*([\s\S]*)$/);
-        if (!d) continue;
-        const value = d[2].trim();
-        if (d[1] === 'background-color' && /[-a-zA-Z]+\s*:/.test(value)) continue;  // 前一条没终止 ⟹ 整条作废
-        decl = { prop: d[1], value };
-      }
-    }
-    // 🔴 #1105 立的那条规矩在这里也管用:块里**有**画底的声明、只是解不出来 ⟹ 回 `null`,
-    // 绝不许掉到函数最后那句「没有任何一条画底 ⟹ 页面白(未套主题的站)」——那是一句关于这个站的断言。
-    if (!decl) {
-      // 这个选择器**试过**画底、只是没有一条读得出来 ⟹ 不猜,也不去问下一个选择器:
-      // 说在明处的代价 —— 浏览器在这种形状下确实会让父元素那块底透出来,所以"往下问 .services-list"
-      // 有时会更准。这里选保守的一边,理由是 #1105 那条规矩(有画底的声明就不许给出关于底的断言)
-      // 加上失败方向:回 `null` 的后果是一条 🔴 + 那一格没有读数,人看得见;猜错的后果是一个
-      // 关于另一块底的档位,没人看得见。
-      if (sawPaint) return null;
-      continue;   // 这个选择器**真的**没画底 ⟹ 问下一个
-    }
-    if (decl.prop !== 'background-color') return null;   // 简写：认得出，不解析（见上面那条 🔴）
-    const { value } = decl;
-    const tok = value.match(/^var\(\s*--color-([a-z]+)-(\d{2,3})/);
-    if (tok) {
-      const hex = shadeOf(tok[1], tok[2]);
-      return isColourLiteral(hex) ? { hex, from: sel + ' → ' + tok[1] + '-' + tok[2] } : null;
-    }
-    if (isColourLiteral(value)) return { hex: value, from: sel + ' → ' + value };
-    return null;                                   // 认得出选择器、解不出颜色 ⟹ 不猜
-  }
-  return { hex: WHITE, from: '没有任何一条画底 ⟹ 页面白（未套主题的站）' };
 }
 
 /**
@@ -473,7 +350,7 @@ function buttonInkReport(palette, outlineGround = WHITE, accent = null) {
   // 用 `outlineGround`：一次选档、一次量读数。只在其中一处用，选出来的档与报出来的数就是两块不同
   // 的底上的答案 —— 而且报的那个会是绿的（白底上 500 档往往过线），正好把这条盖住。
   //
-  // 🔴 `outlineGround` 传 `null` = **「那块底解不出来」**（`outlineGroundFromCss` 回了 null），
+  // 🔴 `outlineGround` 传 `null` = **「那块底解不出来」**（#1588 之前 `outlineGroundFromCss` 会回 null；构建侧今天传 `WHITE`），
   // 跟「那块底是白的」是两个读数（#1105）。选档仍然按白底走 —— 那是今天的行为，改它不在本票射程 ——
   // 但这一格的**读数不许假装知道**：底不知道，压在它上面的对比度就没有答案，于是它落进
   // `unresolved` 而不是落进「合格」那一侧。#1105 之前它按白底算出 5.683 并显示成合格。
@@ -640,5 +517,5 @@ function buttonInkVars(palette, outlineGround = WHITE, accent = null) {
 module.exports = {
   WHITE, BLACK, TODAY, OUTLINE_LADDER, BASE_LADDER, ACCENT_INK, ACCENT_BASE, INK_DARK_BELOW,
   ratio, rawRatio, isColourLiteral, inkDecision, inkFor, inkIsDark, baseShadeFor, hoverShadeFor,
-  accentHoverShadeFor, outlineShadeFor, outlineGroundFromCss, buttonInkReport, buttonInkVars, underNote,
+  accentHoverShadeFor, outlineShadeFor, buttonInkReport, buttonInkVars, underNote,
 };
