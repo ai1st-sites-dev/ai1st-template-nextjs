@@ -21,29 +21,9 @@
 // 🔴 每一组的第一个档位必须与 globals.css `:root` 里的默认值逐字相同，那是「没写风格设定的老站
 //    一个像素都不许变」的实现方式：老站不产生任何覆盖，就落在 :root 的默认值上。
 
-// 圆角 —— 对应 tailwind 的 borderRadius 档位（DEFAULT/md/lg/xl/2xl；full 不在内）
-const RADIUS = {
-  subtle: { DEFAULT: '0.25rem', md: '0.375rem', lg: '0.5rem', xl: '0.75rem', '2xl': '1rem' },
-  sharp: { DEFAULT: '0px', md: '0px', lg: '0px', xl: '0px', '2xl': '0px' },
-  round: { DEFAULT: '0.5rem', md: '0.75rem', lg: '1rem', xl: '1.5rem', '2xl': '2rem' },
-};
-
-// 阴影 —— 对应 boxShadow 档位（DEFAULT/sm/md/lg）
-const SHADOW = {
-  soft: {
-    DEFAULT: '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
-    sm: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
-    md: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
-    lg: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
-  },
-  none: { DEFAULT: 'none', sm: 'none', md: 'none', lg: 'none' },
-  strong: {
-    DEFAULT: '0 4px 8px -1px rgb(0 0 0 / 0.18), 0 2px 4px -2px rgb(0 0 0 / 0.12)',
-    sm: '0 2px 4px 0 rgb(0 0 0 / 0.1)',
-    md: '0 10px 18px -3px rgb(0 0 0 / 0.2), 0 4px 8px -4px rgb(0 0 0 / 0.14)',
-    lg: '0 20px 32px -6px rgb(0 0 0 / 0.26), 0 8px 14px -8px rgb(0 0 0 / 0.18)',
-  },
-};
+// 圆角五档 / 阴影四个 —— #1586 起【只发给存量站】，表挪到下面「存量站兼容」那一段（SITE_LEGACY_RADIUS / SITE_LEGACY_SHADOW）。
+//    新模板里没有一处 CSS 读 `--radius-{DEFAULT,md,lg,xl,2xl}` / `--shadow-*`（它们的读者是 #1426 随 Tailwind 退场删掉的
+//    那份配置），所以新站自己不再定义它们；圆角里唯一活着的是按钮那一个（`--radius-button`，见 BUTTON_SHAPE）。
 
 // 留白 —— 只落在 globals.css 的 `.section-padding` 一条上（#961 正文写死的收窄口径：
 // 不动全局的 spacing scale）。那一条是段落外壳 `BlockSection` 的上下留白（#1541）。
@@ -83,8 +63,40 @@ const SITE_LEGACY_DENSITY_X = {
 // 数值形状的同一组系数（相对 standard 那一档，跟上面 standard 那一行同比例）。
 const SITE_LEGACY_DENSITY_X_MULT = { x: 1, xSm: 1.5, xLg: 2 };
 
-// 按钮形状 —— 独立于全局圆角的一个值。
-// 🔴 必须独立：否则「胶囊」会把每一张卡片也变成胶囊（#961 正文点名的那个后果）。
+// ── 存量站兼容 ②：圆角五档 + 阴影四个，同样只发给站，不进新模板（#1586，PM 2026-10-05 裁定）──────────
+//
+// 🔴 跟上面横向三个**同一个理由、同一条路**：#1586 之前建的站，`layout.tsx` 的 `SETN` 是从它自己那张表里的
+//    RADIUS（5 键）+ SHADOW（4 键）+ DENSITY 派生的，试穿时按**个数**判发全了没有。平台少发这 9 个 ⟹ 每个存量站
+//    `settings incomplete`。新站 `SETN` 不再含它们（layout.tsx 那张 S 表里没有这两组），新站的 theme.css / custom.css
+//    也不再写它们 —— 只有 `settingsToSiteCssVars()` 带上。
+//
+// 🔴 值：圆角是**真值**（枚举那三档逐字是 #1586 之前的 RADIUS 表；数值形状按同一组比例从 `radius` 算），存量站
+//    Apply 时用它自己仓里那份翻译器算的也是这几个数。阴影**只能是常量**：#1586 把主题池的 `shadowStrength` 拿掉了，
+//    平台这一侧已经没有「这套主题的阴影多深」可发。取 #1586 之前 globals.css `:root` 的默认值（= 原 SHADOW.soft）——
+//    那正是存量站拿到一份不带 `shadowStrength` 的设定时自己会落回的值。
+//    📌 剩下的差别说在明处：存量站 Apply 时读的是**它自己仓里**的主题池（还带 `shadowStrength`），所以在 #1426 之前建、
+//    页面上真有 `shadow-*` 类的站上，试穿与 Apply 的阴影深浅可以不同（今天这种元素两个：语言切换下拉、博客列表卡片）。
+//
+// 📌 摘除判据（同上一段的写法）：**在野的站没有一个的 `SETN` 还含 `--radius-{DEFAULT,md,lg,xl,2xl}` / `--shadow-*`**
+//    —— 也就是每个站仓 `src/app/layout.tsx` 那张 S 表里都已没有 radius / shadow 两组（两个模板仓 + 所有已建成的站仓
+//    逐个量）。到那天删这三张表、删下面的 `forSite` 分支，并把 `scripts/site-settings-contract.test.js` 的冻结名单同步收窄。
+const SITE_LEGACY_RADIUS = {
+  subtle: { DEFAULT: '0.25rem', md: '0.375rem', lg: '0.5rem', xl: '0.75rem', '2xl': '1rem' },
+  sharp: { DEFAULT: '0px', md: '0px', lg: '0px', xl: '0px', '2xl': '0px' },
+  round: { DEFAULT: '0.5rem', md: '0.75rem', lg: '1rem', xl: '1.5rem', '2xl': '2rem' },
+};
+// 数值形状：五档相对 DEFAULT 的比例，取自上面 `subtle` 那一档（1 : 1.5 : 2 : 3 : 4）⟹ `radius: 4`（px）与 `subtle` 逐字相同。
+const SITE_LEGACY_RADIUS_MULT = { DEFAULT: 1, md: 1.5, lg: 2, xl: 3, '2xl': 4 };
+const SITE_LEGACY_SHADOW = {
+  DEFAULT: '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
+  sm: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
+  md: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+  lg: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
+};
+
+// 按钮形状 —— 新模板里圆角唯一活着的那一个值：`.btn`（`scripts/lib/site-css.js` §BTN_RADIUS）和旧块的
+// `.btn-primary` 一族（globals.css）都读它。客户的「Corner style」（`theme-presets.js` 的 CORNERS）也只管它（#1586）。
+// 🔴 必须独立于卡片 / 图片：否则「胶囊」会把每一张卡片也变成胶囊（#961 正文点名的那个后果）。
 const BUTTON_SHAPE = {
   rounded: '0.5rem',
   square: '0px',
@@ -106,7 +118,8 @@ function own(table, token) {
 }
 
 /**
- * 把一份风格设定翻成 CSS 变量声明（`--radius-lg:0.5rem;` 这种）。
+ * 把一份风格设定翻成 CSS 变量声明（`--section-y: 4rem;` 这种）。新模板自己的 CSS 用这一份：
+ * 产出的只有 `--section-y` / `--section-yMd` / `--radius-button`（#1586 之后圆角五档和阴影不在这里，见 SITE_LEGACY_RADIUS）。
  *
  * 认不出来的档位【整组跳过】，不是塞个瞎猜的值：跳过意味着那一组落回 globals.css `:root` 的
  * 默认值，也就是老站今天的样子 —— 失败方向是「没变」，不是「变成别的」。
@@ -123,9 +136,9 @@ function settingsToCssVars(s) {
  * 同一份翻译，外加「存量站兼容」那条尾巴 —— **只给 dashboard 试穿发往站的那一跳用**
  * （`ThemeModal` 的 `settingsCss`）。
  *
- * 跟 `settingsToCssVars()` 是同一个函数、同一条形状分支、同一个 `rem()`，多出来的只有
- * `SITE_LEGACY_DENSITY_X` 那三个名字（为什么、什么时候删，写在那张表上面）。
- * 🔴 生成 theme.css / custom.css 的那几个调用方**不许**改用它：那是新模板自己的 CSS，那三个名字在那里没有消费者。
+ * 跟 `settingsToCssVars()` 是同一个函数、同一条形状分支、同一个 `rem()`，多出来的只有存量站还在数的那 12 个名字：
+ * `SITE_LEGACY_DENSITY_X` 横向三个 + `SITE_LEGACY_RADIUS` 五个 + `SITE_LEGACY_SHADOW` 四个（为什么、什么时候删，写在那几张表上面）。
+ * 🔴 生成 theme.css / custom.css 的那几个调用方**不许**改用它：那是新模板自己的 CSS，那 12 个名字在那里没有消费者。
  */
 function settingsToSiteCssVars(s) {
   return translate(s, true);
@@ -140,33 +153,17 @@ function translate(s, forSite) {
 /**
  * 数值形状 → 同一批 CSS 变量。
  *
- * 🔴 变量名与档位数量跟枚举形状**逐个相同** —— 消费它们的原来是 Tailwind 配置文件里那些
- * `var(--radius-*)` / `var(--shadow-*)`（#961/#986 接的），下游不该知道这套主题用的是哪种形状。
- * 📌 那份配置 #1426 随 Tailwind 退场删了；今天模板里没有任何 CSS 读 `--radius-{DEFAULT,md,lg,xl,2xl}` /
- *    `--shadow-*`（读 `--radius-*` 的只剩 `--radius-button` / `--radius-block`，#1575 现取）。
- *
- * 🔴 每一档的算法都写成「相对 DEFAULT 的比例」，比例取自枚举表里 `subtle` 那一档（0.25/0.375/
- * 0.5/0.75/1 rem = 1 : 1.5 : 2 : 3 : 4）。这样 `radius: 4`（px）算出来的五档与 `subtle` 逐字相同，
- * 也就是说数值形状能表达枚举形状的每一个档位,而不是另起一套手感。
+ * 🔴 变量名与档位数量跟枚举形状**逐个相同**，下游不该知道这套主题用的是哪种形状。
+ * 📌 `radius` 这个数今天只喂存量站那条尾巴（`forSite`）：新模板里没有任何 CSS 读 `--radius-{DEFAULT,md,lg,xl,2xl}`
+ *    （读它们的那份 Tailwind 配置 #1426 删了），#1586 起新站不再定义它们。
  */
 function numericSettingsToCssVars(s, forSite) {
   const out = [];
   const px = (n) => `${Math.round(n * 1000) / 1000}px`;
-  if (typeof s.radius === 'number' && Number.isFinite(s.radius)) {
-    const r = s.radius;
-    for (const [k, mult] of Object.entries({ DEFAULT: 1, md: 1.5, lg: 2, xl: 3, '2xl': 4 })) {
-      out.push(`--radius-${k}: ${px(r * mult)};`);
-    }
+  if (forSite && typeof s.radius === 'number' && Number.isFinite(s.radius)) {
+    for (const [k, mult] of Object.entries(SITE_LEGACY_RADIUS_MULT)) out.push(`--radius-${k}: ${px(s.radius * mult)};`);
   }
-  if (typeof s.shadowStrength === 'number' && Number.isFinite(s.shadowStrength)) {
-    const a = s.shadowStrength;
-    const a2 = Math.round(a * 100) / 100;
-    const soft = Math.round(a * 50) / 100;   // 第二段阴影一向比第一段淡一半（照 SHADOW.soft 的比例）
-    out.push(`--shadow-DEFAULT: 0 1px 3px 0 rgb(0 0 0 / ${a2}), 0 1px 2px -1px rgb(0 0 0 / ${a2});`);
-    out.push(`--shadow-sm: 0 1px 2px 0 rgb(0 0 0 / ${soft});`);
-    out.push(`--shadow-md: 0 4px 6px -1px rgb(0 0 0 / ${a2}), 0 2px 4px -2px rgb(0 0 0 / ${a2});`);
-    out.push(`--shadow-lg: 0 10px 15px -3px rgb(0 0 0 / ${a2}), 0 4px 6px -4px rgb(0 0 0 / ${a2});`);
-  }
+  if (forSite) for (const [k, v] of Object.entries(SITE_LEGACY_SHADOW)) out.push(`--shadow-${k}: ${v};`);
   if (typeof s.density === 'number' && Number.isFinite(s.density)) {
     const d = s.density;
     const rem = (n) => `${Math.round(n * d * 1000) / 1000}rem`;
@@ -183,10 +180,9 @@ function numericSettingsToCssVars(s, forSite) {
 
 function enumSettingsToCssVars(s, forSite) {
   const out = [];
-  const radius = own(RADIUS, s.radius);
+  const radius = forSite ? own(SITE_LEGACY_RADIUS, s.radius) : undefined;
   if (radius) for (const [k, v] of Object.entries(radius)) out.push(`--radius-${k}: ${v};`);
-  const shadow = own(SHADOW, s.shadow);
-  if (shadow) for (const [k, v] of Object.entries(shadow)) out.push(`--shadow-${k}: ${v};`);
+  if (forSite) for (const [k, v] of Object.entries(SITE_LEGACY_SHADOW)) out.push(`--shadow-${k}: ${v};`);
   const density = own(DENSITY, s.density);
   if (density) for (const [k, v] of Object.entries(density)) out.push(`--section-${k}: ${v};`);
   const legacyX = forSite ? own(SITE_LEGACY_DENSITY_X, s.density) : undefined;
@@ -197,5 +193,5 @@ function enumSettingsToCssVars(s, forSite) {
 }
 
 module.exports = {
-  RADIUS, SHADOW, DENSITY, BUTTON_SHAPE, SITE_LEGACY_DENSITY_X, settingsToCssVars, settingsToSiteCssVars,
+  DENSITY, BUTTON_SHAPE, SITE_LEGACY_DENSITY_X, SITE_LEGACY_RADIUS, SITE_LEGACY_SHADOW, settingsToCssVars, settingsToSiteCssVars,
 };

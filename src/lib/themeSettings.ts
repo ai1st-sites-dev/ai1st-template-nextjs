@@ -36,29 +36,27 @@ export interface ThemeSettings {
 
 // #1003 — 第二种形状：数值。生成的主题用它，因为**每站微扰（#1006）是整套缩放**，缩放一个枚举词
 // 没有意义。两种形状二选一、同一套主题不许混写（schema 在 schemas/theme-tokens.schema.json 里定死，
-// 边界也在那儿：radius 0–24px · density 0.6–1.6 · shadowStrength 0–0.4）。
+// 边界也在那儿：radius 0–24px · density 0.6–1.6）。
+// 📌 #1586 拿掉了 `shadowStrength`（阴影在新模板里没有读者）；存量站 brand.json 里还躺着的那一项照收、不翻译。
 export interface NumericThemeSettings {
-  radius: number;          // DEFAULT 档的圆角,px
+  radius: number;          // DEFAULT 档的圆角,px —— #1586 起只喂存量站试穿那条尾巴（新模板里没有读者）
   density: number;         // 竖向留白相对 standard 的倍数
-  shadowStrength: number;  // 阴影颜色的 alpha
   buttonShape: ButtonShapeToken;
 }
 
-export const RADIUS: Record<RadiusToken, Record<string, string>> = tables.RADIUS;
-export const SHADOW: Record<ShadowToken, Record<string, string>> = tables.SHADOW;
 export const DENSITY: Record<DensityToken, Record<string, string>> = tables.DENSITY;
 export const BUTTON_SHAPE: Record<ButtonShapeToken, string> = tables.BUTTON_SHAPE;
 
 // 每组的允许集合。themes.js 里那 30 套的值必须逐个落在这里面（#961 AC4）。
 export const ALLOWED = {
-  radius: Object.keys(RADIUS) as RadiusToken[],
+  radius: Object.keys(tables.SITE_LEGACY_RADIUS) as RadiusToken[],
   density: Object.keys(DENSITY) as DensityToken[],
-  shadow: Object.keys(SHADOW) as ShadowToken[],
+  shadow: ['soft', 'none', 'strong'] as ShadowToken[],
   buttonShape: Object.keys(BUTTON_SHAPE) as ButtonShapeToken[],
 };
 
 /**
- * 把一份风格设定翻成 CSS 变量声明（`--radius-lg:0.5rem;` 这种）。两种形状都吃（#1003）：
+ * 把一份风格设定翻成 CSS 变量声明（`--section-y: 4rem;` 这种）。两种形状都吃（#1003）：
  * 档位词的走查表，数值的走缩放，判据是 `radius` 是不是数字。实现在
  * `scripts/theme-settings.js` —— 这里只是转口 + 打上类型。
  *

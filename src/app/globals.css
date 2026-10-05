@@ -40,16 +40,10 @@ h3 {
    写了风格设定的站由 layout.tsx 在 `:root` 上覆盖同名变量（表在 src/lib/themeSettings.ts）。
    🔴 改这里任何一个数，等于改掉全部存量站的样子 —— 这不是"调个默认值"。 */
 :root {
-  --radius-DEFAULT: 0.25rem;
-  --radius-md: 0.375rem;
-  --radius-lg: 0.5rem;
-  --radius-xl: 0.75rem;
-  --radius-2xl: 1rem;
-  --radius-button: 0.5rem; /* = 今天三个按钮类写死的 rounded-lg */
-  --shadow-DEFAULT: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --radius-button: 0.5rem; /* = 今天三个按钮类写死的 rounded-lg；#1586 起 Webpixels 的 `.btn` 也读它（site-css.js §BTN_RADIUS） */
+  /* 📌 #1586 —— 圆角五档 `--radius-{DEFAULT,md,lg,xl,2xl}` 和阴影 `--shadow-{DEFAULT,sm,md,lg}` 在新模板里【没有】读者
+     （读它们的 Tailwind 配置 #1426 删了），所以这里不再定义；它们只由 dashboard 试穿时发给存量站 ——
+     见 `scripts/theme-settings.js` 的 `SITE_LEGACY_RADIUS` / `SITE_LEGACY_SHADOW`（为什么、什么时候删）。 */
   /* 区块上下留白的两档 = 段落外壳原来的 `py-16 py-lg-24`（#1541；左右三档已删，归 `.container`）。
      📌 `--section-x` / `--section-xSm` / `--section-xLg` 在新模板里【没有】消费者，所以这里不定义；
      它们的消费者是 #1541 之前建的**存量站**（它们自己的 globals.css），只由 dashboard 试穿时发给站

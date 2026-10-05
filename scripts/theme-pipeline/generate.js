@@ -89,11 +89,12 @@ function generateCandidates(n = 3, { seed = 7, outDir } = {}) {
       // r3 为了按钮可读性压了一点色阶的亮度范围（见上面 §rampFor），colour 从 0.89 抬到 0.90，
       // 那五对当场全部越线（被拦 10/80）。把 density 换成 4 档、shadowStrength 换成 6 档之后，
       // 45 距离上这两项都不同（45%4=1 · 45%6=3），settings 相似度掉下来，最像的一对回到 0.85 以下。
-      // 取值范围仍在 schema 里（density 0.6–1.6 · shadowStrength 0–0.4，见 schemas/theme-tokens.schema.json）。
+      // 📌 #1586 拿掉了 shadowStrength（阴影在新模板里没有读者）—— settings 相似度今天由翻译出来的 CSS 变量算
+      //    （gates.js §settings），而新站那一侧只剩 --section-y / --section-yMd / --radius-button；重生成整池时这一段要重新量。
+      // 取值范围仍在 schema 里（density 0.6–1.6，见 schemas/theme-tokens.schema.json）。
       settings: {
         radius: [4, 10, 16, 22][i % 4],
         density: [0.85, 0.95, 1.05, 1.2][i % 4],
-        shadowStrength: [0.06, 0.1, 0.14, 0.18, 0.22, 0.26][i % 6],
         buttonShape: ['rounded', 'pill', 'square'][i % 3],
       },
     };

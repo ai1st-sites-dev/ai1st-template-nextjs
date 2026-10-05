@@ -33,7 +33,7 @@
 // 🔴 值在这里是**冻住的**，不是从主题注册表现读的。下面几组配色/字体的初值确实抄自 `themes.js`
 // 里那几套（它们已经被主题流水线量过），但抄完就断开：改一套主题不该改掉一个站主选过的配色。
 
-const { RADIUS, BUTTON_SHAPE } = require('./theme-settings');
+const { BUTTON_SHAPE } = require('./theme-settings');
 
 /**
  * 配色组。每组给满 `--color-primary-50…900` + `--color-accent-50…600`，跟主题给的是同一批变量，
@@ -138,16 +138,17 @@ const PALETTES = {
 };
 
 /**
- * 圆角档。三档，**直接用 `theme-settings.js` 里那两张现成的表** —— 整个注册表今天用的就是它们
- * （#1038 正文点名要用现成这三档，不另发明数值）。
+ * 圆角档 —— **只管按钮**（#1586，Chris 2026-10-05 定）。三档的值直接用 `theme-settings.js` 那张现成的
+ * BUTTON_SHAPE 表（#1038 正文点名要用现成这三档，不另发明数值），写进 `--radius-button`，`.btn`
+ * （`scripts/lib/site-css.js` §BTN_RADIUS）和旧块的 `.btn-primary` 一族（globals.css）都读它。
  *
- * 每一档同时定全局圆角（`--radius-*`）和按钮圆角（`--radius-button`）：这两个在 #961 起就是
- * 独立的两个变量，只给前者会让「胶囊按钮」这一档根本表达不出来。
+ * 📌 #1586 之前每一档还写全局圆角 `--radius-{DEFAULT,md,lg,xl,2xl}`，而新模板里没有一处读它们 ——
+ *    卡片 / 图片的圆角是块自己写死的（`block.css` 的字面值、Webpixels 带 `!important` 的 `rounded-*`），不跟这里走。
  */
 const CORNERS = {
-  sharp: { label: 'Sharp — square corners everywhere', radius: RADIUS.sharp, button: BUTTON_SHAPE.square },
-  subtle: { label: 'Subtle — slightly rounded (the default)', radius: RADIUS.subtle, button: BUTTON_SHAPE.rounded },
-  round: { label: 'Round — generous corners, pill buttons', radius: RADIUS.round, button: BUTTON_SHAPE.pill },
+  sharp: { label: 'Sharp — square buttons', button: BUTTON_SHAPE.square },
+  subtle: { label: 'Subtle — slightly rounded buttons (the default)', button: BUTTON_SHAPE.rounded },
+  round: { label: 'Round — pill-shaped buttons', button: BUTTON_SHAPE.pill },
 };
 
 /**
@@ -290,11 +291,7 @@ function presetVars(presets) {
     for (const [shade, value] of Object.entries(colors.primary)) vars.push([`--color-primary-${shade}`, value]);
     for (const [shade, value] of Object.entries(colors.accent)) vars.push([`--color-accent-${shade}`, value]);
   }
-  if (chose.corners) {
-    const c = CORNERS[chose.corners];
-    for (const [k, v] of Object.entries(c.radius)) vars.push([`--radius-${k}`, v]);
-    vars.push(['--radius-button', c.button]);
-  }
+  if (chose.corners) vars.push(['--radius-button', CORNERS[chose.corners].button]);
   let fontImport = null;
   if (chose.fonts) {
     const f = FONT_PAIRS[chose.fonts];

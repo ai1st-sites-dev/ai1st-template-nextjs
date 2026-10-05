@@ -777,8 +777,8 @@ function checkSelector(sel, report) {
 // `box-shadow` 里以四种语法进来（#rrggbb · 颜色名 · rgb() · hsl()），所以这里查的是**每一条声明的值**。
 //
 // 🔴 一个例外，写进契约 §3：`box-shadow` 里的**纯黑 / 纯白 + alpha**。理由是阴影本来就是中性色，
-// 而它的强度在 tokens 里有自己的字段（`shadowStrength`）；把 `rgb(0 0 0 / .55)` 也禁掉，等于逼每份表
-// 用 `var(--shadow-*)` 那四档现成阴影，而那四档是给卡片用的、不是给一张 60px 模糊的大投影用的。
+// 而黑白阴影不带主题色；把 `rgb(0 0 0 / .55)` 也禁掉，等于逼每份表去找一档现成阴影，而新模板里没有给
+// 大投影用的那一档（#1586 之前的 `var(--shadow-*)` 四档是给卡片用的，#1586 起新站不再定义它们）。
 // 例外**只认这两个颜色**：任何带色相的阴影仍然被拦。
 const CSS_NAMED_COLOURS = new Set(['aliceblue', 'antiquewhite', 'aqua', 'aquamarine', 'azure', 'beige',
   'bisque', 'black', 'blanchedalmond', 'blue', 'blueviolet', 'brown', 'burlywood', 'cadetblue',

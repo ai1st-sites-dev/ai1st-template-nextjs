@@ -64,13 +64,13 @@ function colourWord(hex) {
   return 'slate';
 }
 
-/** 手感形容词，从 settings 那三个数读出来 —— 进 label 和 style。 */
+/** 手感形容词，从 settings 那两个数读出来 —— 进 label 和 style。
+ *  📌 #1586 去掉了第三维 `weight`（flat / shadowed）：它读的 `shadowStrength` 在客户站上不产生任何可见差别，已从主题池拿掉。 */
 function feelOf(settings = {}) {
   const r = Number(settings.radius);
   const shape = r < 8 ? 'angular' : r < 14 ? 'softly rounded' : 'rounded';
   const air = Number(settings.density) < 1 ? 'compact' : 'airy';
-  const weight = Number(settings.shadowStrength) < 0.12 ? 'flat' : 'shadowed';
-  return { shape, air, weight };
+  return { shape, air };
 }
 
 /**
@@ -128,7 +128,7 @@ function toPoolEntry(candidate, slot) {
       colors: tokens.colors,
       fonts: tokens.fonts,
       settings: tokens.settings,
-      style: `${feel.shape} ${feel.weight} ${word} and ${accentWord}`,
+      style: `${feel.shape} ${word} and ${accentWord}`,
       industries: slot.industries.slice(),
       // 这套皮自己那张表，`public/themes/<sheet>.css`。#1016 之前池成员没有这个键（旧 30 套一张表
       // 都没有，它们的样子全在 colors/fonts/settings 里）；阶段 2 之后一套主题的样子**主要在表里**，

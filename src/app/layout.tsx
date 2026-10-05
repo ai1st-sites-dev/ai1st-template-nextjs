@@ -4,7 +4,7 @@ import { brand, getSeo, getBrandName, defaultLocale, siteId, leadApi, colorSchem
 import { ogImageFields, twitterCard } from '@/lib/og-image';
 // #1472 —— `auto` 站首屏前那段脚本（判据和文案都在 lib 那一处）。
 import { AUTO_SCHEME_SCRIPT } from '../../scripts/lib/color-scheme.js';
-import { RADIUS, SHADOW, DENSITY, BUTTON_SHAPE } from '@/lib/themeSettings';
+import { DENSITY, BUTTON_SHAPE } from '@/lib/themeSettings';
 
 const seo = getSeo(defaultLocale);
 // TICKET-136: layout.tsx is a server component with no locale prop — use the
@@ -218,7 +218,7 @@ var T=${JSON.stringify(trustedOrigin)};
 var s=null,f=null,c=null,ow=null,owq=false,h=null,hSeq=0;
 // #1318 —— 试穿期间每个块根原来的 data-shape（没有就记 null），Cancel 按它还原。
 var shapeWas=null;
-// #1123 r2 —— 上一次 paint() 有没有把【风格设定那 12 个变量】全都补齐。paintSheet 停用
+// #1123 r2 —— 上一次 paint() 有没有把【风格设定那几个变量】全都补齐。paintSheet 停用
 // /theme.css 的前置条件就是它（理由写在 sheetEl 上面那段和 paint 里）。默认 false：
 // 没 paint 过就来一条只带 sheet 的消息时，失败方向是「画法不换」，不是「页面掉一半变量」。
 var setFull=false;
@@ -249,18 +249,18 @@ function ownCssOff(off){var l=ownCss();if(l){l.disabled=!!off;}}
 // 不属于任何一套主题。而本票的 AC2 要的正是「试穿所见 = Apply 所得」。
 //
 // 🔴 所以 /theme.css 那条 <link> 在试穿期间被 disabled，画法由这一份顶上。而停用它是有代价的：
-// theme.css 的 「:root」 里除了配色和两个字体变量，还有**风格设定那 12 个**（--radius-* 5 个 ·
-// --shadow-* 4 个 · --section-* 2 个 · --radius-button；#1541 之前是 15 个，density 删了横向三个）。停掉之后这些得有人补，否则它们落回
+// theme.css 的 「:root」 里除了配色和两个字体变量，还有**风格设定那 3 个**（--section-* 2 个 · --radius-button；
+// #1541 之前是 15 个，density 删了横向三个；#1586 又删了没有读者的 --radius-* 5 个、--shadow-* 4 个）。停掉之后这些得有人补，否则它们落回
 // globals.css 的平台默认值 —— 那是一个**不属于任何一套主题**的样子。
 //
 // 🔴 r1 这里写的是「paint() 产出的是完整的一组…所以停掉也没事」。**那句话是假的，QA1 量出来了**：
 // paint() 的档位分支只认字符串档位名，而池里 80 套主题的 settings 是数值 ⟹ 当时那 15 个里只出得来
 // --radius-button 一个，页头 logo 的圆角因此变成 globals.css 的 8px（试穿那套是 44px、站自己那套
 // 是 20px）。r2 的修法有两半：① paint() 改成吃平台用 settingsToCssVars 算好的那份（见那边）；
-// ② **这里不再靠一句注释，而是靠一个前置条件**：paint() 把「12 个补齐了吗」记在 setFull 上，
+// ② **这里不再靠一句注释，而是靠一个前置条件**：paint() 把「补齐了吗」记在 setFull 上，
 // 下面 paintSheet 只有在它为 true 时才 disabled /theme.css。
 //
-// ⟹ 两条失败路径都指向同一个方向：**取不到表**或**补不齐那 12 个变量**，都不停用 /theme.css，
+// ⟹ 两条失败路径都指向同一个方向：**取不到表**或**补不齐那几个变量**，都不停用 /theme.css，
 // 结果是「画法没换」，不是「页面掉一半变量」。字体表由那个 <link id=ai1st-theme-preview-font> 顶上。
 //
 // 🔴 插在 /custom.css 【之前】，不是 head 末尾：Apply 之后真实的层序是
@@ -299,7 +299,7 @@ function paintSheet(id){
     // 该是后点那张 —— 先到先贴的话最终样子由网络快慢决定，那正是这种缺陷最难复现的形态。
     if(seq!==hSeq)return;
     if(!text){dropSheet();tell(seq,name,false,'empty');return;}
-    // 🔴 #1123 r2 —— 停用 /theme.css 的前置条件：paint() 这一轮把风格设定那 12 个变量补齐了。
+    // 🔴 #1123 r2 —— 停用 /theme.css 的前置条件：paint() 这一轮把风格设定那几个变量补齐了。
     // 补不齐就【不停用】，也不贴表 —— 贴了表而不停用 /theme.css 会得到 A ∪ B（sheetEl 上面那段
     // 量过 83 份表：并集 1835、83/83 份都小于它），那个东西不属于任何一套主题，比不换更错。
     if(!setFull){dropSheet();tell(seq,name,false,'settings incomplete');return;}
@@ -419,13 +419,16 @@ function paint(t){
   // 只认 S 这张表里的档位名 / 只认 S 派生出来的变量名，值要么来自表本身、要么过一道字符白名单
   // ⟹ 拼进 <style> 的字符永远在我们自己的字符集里。
   // S 是构建时从 src/lib/themeSettings.ts 原样塞进来的同一张表，所以预览和构建不会对不上。
-  var S=${JSON.stringify({ radius: RADIUS, shadow: SHADOW, density: DENSITY, buttonShape: BUTTON_SHAPE })};
-  var grp=[['radius','--radius-'],['shadow','--shadow-'],['density','--section-']];
-  // ── #1123 r2 —— 这 12 个变量名是【派生】出来的，不是手打的清单 ────────────────────────────
+  // 📌 #1586 —— 圆角五档和阴影两组不在这张表里了：新模板里没有它们的读者。存量站自己那份 layout.tsx 还带着这两组
+  //    （它们的 SETN 是 15），平台照发（scripts/theme-settings.js 的 SITE_LEGACY_RADIUS / SITE_LEGACY_SHADOW）。
+  var S=${JSON.stringify({ density: DENSITY, buttonShape: BUTTON_SHAPE })};
+  var grp=[['density','--section-']];
+  // ── #1123 r2 —— 这批变量名是【派生】出来的，不是手打的清单 ────────────────────────────
   // 数值形状与档位形状产出的变量名逐个相同（scripts/theme-settings.js 的头注写着这条契约，
   // #1123 时实测 110 套主题产出的 15 个名字与这里派生出来的集合完全一致）。派生 ⟹ 表里加一档时这里跟着走。
   // 📌 #1541 —— 派生自【这个站构建时】那张表：#1541 之前建的站这里是 15（DENSITY 还有横向三个键），
-  // 之后建的是 12。平台发的是两者的并集（dashboard 用 settingsToSiteCssVars），不认识的名字下面按名跳过。
+  // 之后建的是 12，#1586 之后建的是 3（圆角五档、阴影四个不再在表里）。平台发的是它们的并集
+  // （dashboard 用 settingsToSiteCssVars），不认识的名字下面按名跳过。
   var SETN={},t0,vs0;
   for(i=0;i<grp.length;i++){
     var tb0=S[grp[i][0]];
@@ -437,9 +440,8 @@ function paint(t){
   }
   SETN['--radius-button']=1;
   var SETN_N=0;for(k in SETN){if(Object.prototype.hasOwnProperty.call(SETN,k)){SETN_N++;}}
-  // 值的字符白名单。数值形状产出的最复杂的一条是
-  //   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.14), 0 4px 6px -4px rgb(0 0 0 / 0.14);
-  // 这个集合放得下它，也放得下档位表里的 rem/px/9999px；分号、花括号、尖括号、引号、反斜杠一个都不收。
+  // 值的字符白名单。放得下档位表里的 rem/px/9999px（#1586 之前还要放得下 --shadow-* 那种带 rgb() 和逗号的值，
+  // 集合没收窄：多收几个字符不放进任何危险字符）；分号、花括号、尖括号、引号、反斜杠一个都不收。
   var SETV=/^[a-zA-Z0-9 .,%#()\/-]+$/;
   // ── #1123 r2 —— 风格设定由【平台算好发过来】，站这边只校验、不重算 ──────────────────────────
   //
