@@ -779,5 +779,50 @@ check('#1569 r3：seo.json 里这组的主词是翻译种子，英文那条降�
   assert.ok(g.every((k) => !/[\u4e00-\u9fff]\s+[\u4e00-\u9fff]/.test(k.keyword)), JSON.stringify(g));
 });
 
+// ── #1600 建站报告：真 AI 路（打桩）上 seo / repair / keywordPages 三格是真数，并且与同一次建站的事件逐项一致 ──────────
+// 用上面 G 那一跑（两页被 SEO 重写救回、一页被丢掉）：三种结局（pass / fixed / dropped）都在同一份报告里。
+console.log('── #1600 建站报告（G：两页重写救回、一页丢掉）');
+const BR_KEYS = require('./lib/build-report').REPORT_KEYS;
+const brOf = (R) => JSON.parse(fs.readFileSync(path.join(R.work, 'site', 'build-report.json'), 'utf8'));
+const GR = brOf(G);
+check('#1600：site/build-report.json 九个键都在；path=ai；死链（entrypoint 才并进来）与没有生产者的四格是 null', () => {
+  assert.deepStrictEqual(BR_KEYS.filter((k) => !(k in GR)), []);
+  assert.strictEqual(GR.path, 'ai');
+  for (const k of ['deadLinks', 'lighthouse', 'stages', 'images', 'degraded', 'archive']) assert.strictEqual(GR[k], null, k);
+  assert.ok(Number.isInteger(GR.durationSec) && GR.durationSec >= 0, String(GR.durationSec));
+});
+check('#1600：keywordPages 与 keyword-pages 事件逐项相同（5/6，失败的就是被丢的那一页）', () => {
+  assert.deepStrictEqual([GR.keywordPages.ok, GR.keywordPages.total], [G.report.ok, G.report.total]);
+  assert.deepStrictEqual(GR.keywordPages.failed.map((f) => [f.keyword, f.slug]), G.report.failed.map((f) => [f.keyword, f.slug]));
+});
+check('#1600：repair = 全部 seo-check 事件的 rewritten / pages 之和（seoPass 可能跑两次）', () => {
+  const ev = G.events.filter((e) => e.event === 'seo-check');
+  assert.ok(ev.length >= 1);
+  assert.deepStrictEqual([GR.repair.rewritten, GR.repair.pages],
+    [ev.reduce((a, e) => a + e.rewritten, 0), ev.reduce((a, e) => a + e.pages, 0)]);
+  assert.ok(GR.repair.rewritten >= LATE.length, JSON.stringify(GR.repair));
+});
+check('#1600：被丢的那页 outcome=dropped、最后没过的条目是 fail；救回的两页 outcome=fixed、没有一条 fail', () => {
+  const by = new Map(GR.seo.pages.map((p) => [p.slug, p]));
+  const bad = by.get(SEO_BAD);
+  assert.ok(bad, '报告里没有被丢的那一页');
+  assert.strictEqual(bad.outcome, 'dropped');
+  const failedRules = Object.keys(bad.checks).filter((n) => bad.checks[n] === 'fail');
+  const fromProblems = [...new Set(bad.problems.map((x) => (x.match(/^\[(\d)/) || [])[1]))].sort();
+  assert.ok(failedRules.length > 0);
+  assert.deepStrictEqual(failedRules.sort(), fromProblems);
+  for (const slug of LATE) {
+    const p = by.get(slug);
+    assert.strictEqual(p.outcome, 'fixed', slug);
+    assert.strictEqual(p.rewritten, true, slug);
+    assert.ok(Object.values(p.checks).includes('fixed') && !Object.values(p.checks).includes('fail'), JSON.stringify(p.checks));
+  }
+});
+check('#1600 阳性对照：一页没出过问题的页八条里没有 fixed / fail', () => {
+  const clean = GR.seo.pages.find((p) => p.outcome === 'pass');
+  assert.ok(clean, '没有一页是 pass —— 夹具变了');
+  assert.ok(Object.values(clean.checks).every((c) => c === 'pass' || c === 'n/a'), JSON.stringify(clean.checks));
+});
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

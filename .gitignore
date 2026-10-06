@@ -58,3 +58,6 @@ test-results/
 public/site.css
 # #1462 起不再生成（图标改内联 SVG）；这一行留着，挡住 #1462 之前的树里还躺着的那份旧拷贝。
 public/fonts/bootstrap-icons.woff2
+# #1600 —— 建站报告：建站时写、entrypoint 在 next build 之后再并进死链。权威那份在数据库（site_build_reports），
+# 不进站仓：否则下一次编辑的 `git add -A` 会把它（以及 entrypoint 改过的那一版）提交进去。
+site/build-report.json
