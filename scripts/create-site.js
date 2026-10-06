@@ -57,7 +57,7 @@ const { siteFormsFrom } = require('./lib/site-forms');
 // #1548 —— 挖出来的关键词落盘（seo.json 的 targetKeywords + 每页 seo.targetKeyword）。真 AI 与 skipAI 两条路共用这一份。
 const targetKw = require('./lib/target-keywords');
 // #1549 —— 每页生成后的 SEO 检查（八条，设计文档 S2）。检查本身是纯函数，重写 / 丢页 / 失败的处置在本文件 §seoPass。
-const { seoProblems, rulesFor: seoRulesFor, pageTitleBudget, MIN_PAGE_TITLE_BUDGET, promptLocation, missingPhrases, sitePlace } = require('./lib/seo-problems');
+const { seoProblems, rulesFor: seoRulesFor, pageTitleBudget, MIN_PAGE_TITLE_BUDGET, promptLocation, missingPhrases, sitePlace, hasPhrase } = require('./lib/seo-problems');
 // #1386 —— 建站选图：哪些槽要图、提示词怎么拼、上限怎么截、求不到怎么说，都在那个文件里。
 // 名单不再写在本文件里（此前是四个块名 + 四个 case，`hero-with-form` 因此永远拿不到图）。
 const { fillImageSlots, writeImageAlts, IMAGE_FILE_SUFFIX } = require('./lib/image-slots');
@@ -87,7 +87,7 @@ const kwPages = require('./lib/keyword-pages');
 const { mostSimilarPages } = require('./lib/similarity');
 // #1549 回修 —— description 超长由代码裁到 155，不叫 AI 重写、不让整站失败（§description-fit.js 头注）。
 // #1549 重开 —— description 的长度区间按主语言取（中 / 日 / 韩 50–80，其余 70–155），提示词与检查同一个函数；重写后仍缺地点由代码补。
-const { fitPageDescriptions, appendPlace, descriptionSpec } = require('./lib/description-fit');
+const { fitPageDescriptions, appendPlace, placeFits, descriptionRange, descriptionSpec } = require('./lib/description-fit');
 // #1489 —— 建站时按地址查一次坐标写进 brand.locations[0].geo（contact 的地图要它；Nominatim，不要 key，§geocode.js 头注）。
 const { geocodeBrand } = require('./lib/geocode');
 // #1551 —— LocalBusiness 里「从老板给的料来」的几项：营业时间的转写核对、真实评分（§local-business-facts.js 头注）。
@@ -3376,6 +3376,12 @@ function seoCheckPage({ page, content, payload, locale, tag = '检查' }) {
   const problems = seoProblems({ page, pages: content.pages, targetKeyword: kw, brand: content.brand, payload, locale, seo: content.seo });
   debug(`[seo] ${tag} ${page.slug} · 目标词 ${kw ? `「${kw}」` : '（无）'} · 跑了第 ${seoRulesFor(kw).join('/')} 条 · `
     + (problems.length ? `${problems.length} 条问题：\n    ${problems.join('\n    ')}` : '0 条问题'));
+  // #1603 —— 地点那一半不判时要响：每页只在第一遍检查时说一次（seoProblems 是纯函数，不打日志）。
+  const place = sitePlace(payload);
+  if (tag === '检查' && kw && place && !placeFits(place, kw, locale)) {
+    debug(`[seo] 不补地点 ${page.slug}：目标词「${kw}」${[...kw].length} 字 + 分隔符 + 地点「${place}」${[...place].length} 字 `
+      + `已超过 description 上限 ${descriptionRange(locale).max} 字 ⟹ 第 2 条「含地点」那一半不判、建站不拦`);
+  }
   return problems;
 }
 
@@ -3396,7 +3402,7 @@ function seoRewritePrompt({ page, problems, content, payload, locale, industry, 
   // 重写后只剩「description 不含地点『多伦多』」一条，整站失败）。跟第 1、2 条同一个谓词（§seo-problems.js missingPhrases）。
   const descField = isHome ? 'siteDescription' : 'page.description';
   const titleField = isHome ? 'siteTitle' : 'page.title';
-  const musts = missingPhrases({ page, targetKeyword: kw, payload, seo: content.seo }).map((m) => (m.field === 'title'
+  const musts = missingPhrases({ page, targetKeyword: kw, payload, seo: content.seo, locale }).map((m) => (m.field === 'title'
     ? `- MUST: ${titleField} contains "${m.phrase}" exactly as written.`
     : `- MUST: ${descField} contains "${m.phrase}" exactly as written${m.what === 'place' ? ' (the place name, in this spelling)' : ''}.`));
   const descSpec = descriptionSpec(locale);
@@ -3501,10 +3507,12 @@ async function seoPass({ content, payload, locale, industry, location, companyNa
       debug(`[seo] 重写后裁 description ${c.slug}：${c.before} → ${c.after} 字`);
     }
     // #1549 重开 —— 重写一次后仍缺地点 ⟹ 代码补在 description 末尾（跟长度一样是代码能补的），再查。
-    if (missingPhrases({ page: cur, targetKeyword: seoTargetOf(cur), payload, seo: content.seo }).some((m) => m.what === 'place')) {
+    if (missingPhrases({ page: cur, targetKeyword: seoTargetOf(cur), payload, seo: content.seo, locale }).some((m) => m.what === 'place')) {
       const place = sitePlace(payload);
       const isHome = cur.slug === 'home';
-      const next = appendPlace(isHome ? content.seo.siteDescription : cur.description, place, locale);
+      // #1603 —— 腾位置时不许把目标词裁掉（判定用跟第 2 条同一个 hasPhrase）。
+      const kw = seoTargetOf(cur);
+      const next = appendPlace(isHome ? content.seo.siteDescription : cur.description, place, locale, { keep: (s) => hasPhrase(s, kw) });
       if (isHome) content.seo.siteDescription = next; else cur.description = next;
       debug(`[seo] 补地点 ${cur.slug}：「${place}」→ ${[...next].length} 字（代码补，不叫 AI）`);
     }

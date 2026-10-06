@@ -28,7 +28,7 @@
 
 const { blocksOf, loadManifests } = require('./block-manifest');
 const { effectiveKnobs } = require('./block-knobs');
-const { descriptionRange } = require('./description-fit');
+const { descriptionRange, placeFits } = require('./description-fit');
 
 // ── 字与词 ─────────────────────────────────────────────────────────────────────────────────────
 
@@ -324,9 +324,10 @@ function sitePlace(payload) {
 /**
  * 重写之后这一页还缺哪些**原样出现**的硬要求（#1549 重开：重写提示词把它们单列成 MUST 行，补地点也按它判）。
  * 跟第 1、2 条同一个谓词（hasPhrase）。只在有目标词时有（没有目标词的页这两条的含词那一半不判）。
+ * 地点跟第 2 条一样：「目标词 + 分隔符 + 地点」塞不进主语言上限时不要求（§description-fit.js placeFits，#1603）⟹ 要传 locale。
  * @returns {{ field: 'title' | 'description', phrase: string, what: 'keyword' | 'place' }[]}
  */
-function missingPhrases({ page, targetKeyword, payload, seo } = {}) {
+function missingPhrases({ page, targetKeyword, payload, seo, locale } = {}) {
   const kw = str(targetKeyword);
   if (!kw || !page || typeof page !== 'object') return [];
   const s = seo && typeof seo === 'object' ? seo : {};
@@ -337,7 +338,7 @@ function missingPhrases({ page, targetKeyword, payload, seo } = {}) {
   if (!hasPhrase(title, kw)) out.push({ field: 'title', phrase: kw, what: 'keyword' });
   if (!hasPhrase(desc, kw)) out.push({ field: 'description', phrase: kw, what: 'keyword' });
   const place = sitePlace(payload);
-  if (place && !hasPhrase(desc, place)) out.push({ field: 'description', phrase: place, what: 'place' });
+  if (place && placeFits(place, kw, locale) && !hasPhrase(desc, place)) out.push({ field: 'description', phrase: place, what: 'place' });
   return out;
 }
 
@@ -436,8 +437,9 @@ function seoProblems({ page, pages = [], targetKeyword, brand, payload, locale, 
     if (n < min || n > max) problems.push(`[2 description] description ${n} 字，要 ${min}–${max} 字`);
     if (kw) {
       if (!hasPhrase(desc, kw)) problems.push(`[2 description] description 不含目标词「${kw}」`);
+      // #1603 —— 「目标词 + 分隔符 + 地点」本身就超上限 ⟹ 地点那一半不判（§description-fit.js placeFits；create-site 打一行日志）。
       const place = sitePlace(payload);
-      if (place && !hasPhrase(desc, place)) problems.push(`[2 description] description 不含地点「${place}」`);
+      if (place && placeFits(place, kw, locale) && !hasPhrase(desc, place)) problems.push(`[2 description] description 不含地点「${place}」`);
     }
   }
 

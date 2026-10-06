@@ -23,6 +23,10 @@
  *   E  （#1549 重开 r3，QA1 / QA2 2026-10-05 的阻断）主语言 zh、服务页 description 是中英混排且拉丁字母过半、太短：
  *      第一遍报的区间、重写提示词里的区间都是 50–80；重写替身「照提示词写、取区间中点」⟹ 建站成功。
  *      r2 下这一跑 rc=1：检查按文字判成 70–155、提示词说 50–80，AI 守规矩也过不了
+ *   F  （#1603）主语言 zh、服务页 description 79 字、以目标词「drain cleaning」结尾、缺地点、重写原样回来 ⟹ 代码补地点时
+ *      裁的是目标词前面的正文，补完仍含目标词 ⟹ 建站成功。b902d5ca 上同一份夹具 fatal（从尾部裁，把目标词裁掉了）
+ *   G  （#1603）主语言 zh、地点是 90 字无逗号的一串（QA3 在 #1549 量的那个角）⟹ 「目标词 + ｜ + 地点」本身超 80 ⟹
+ *      日志一行「不补地点 … 不判」、第 2 条不报缺地点、建站成功。b902d5ca 上同一份夹具 fatal
  */
 
 'use strict';
@@ -354,6 +358,49 @@ if (!ONLY || ONLY === 'E') {
     const n = [...pg.description].length;
     check(n >= 50 && n <= 80, `落盘的 description ${n} 字，在 50–80 里`, JSON.stringify(pg.description));
   }
+}
+
+console.log('\n── F 主语言 zh：description 79 字、以目标词结尾、缺地点 ⟹ 代码补地点不裁掉目标词，建站成功');
+if (!ONLY || ONLY === 'F') {
+  const KW = 'drain cleaning';
+  const filler = '持牌技师为厨房、浴室和主管道提供疏通服务，当天上门，价格透明，不加收任何上门费，欢迎随时预约我们专业的';
+  const F_DESC = `${[...filler.repeat(2)].slice(0, 79 - KW.length - 1).join('')} ${KW}`;
+  check([...F_DESC].length === 79 && F_DESC.endsWith(KW) && !F_DESC.includes('Markham'), `夹具：${[...F_DESC].length} 字、以「${KW}」结尾、不含 Markham`);
+  const F = run('F', {
+    call1: call1({ drainDesc: F_DESC }), call2: call2(),
+    rewrites: { 'services/drain-cleaning': 'echo', [KW_SLUGS[2]]: 'echo' },
+  }, PAYLOAD({ language: 'zh' }));
+  const lines = seoLines(F.stderr);
+  console.log(`  · rc=${F.rc}${F.rc ? ` · ${errorOf(F).split('\n').slice(0, 4).join(' / ')}` : ''}`);
+  const first = F.stderr.slice(F.stderr.indexOf('[seo] 检查 services/drain-cleaning '));
+  check(/^\[seo\] 检查 services\/drain-cleaning [^\n]*1 条问题：\n\s+\[2 description\] description 不含地点「Markham」/.test(first),
+    '第一遍：服务页只报一条「不含地点 Markham」', first.slice(0, 300));
+  check(lines.some((l) => l.startsWith('[seo] 补地点 services/drain-cleaning：「Markham」')), '重写原样回来 ⟹ 日志「补地点」（代码补）');
+  check(F.rc === 0, `建站成功（rc=${F.rc}）`, `${errorOf(F)}`.slice(0, 600));
+  check(lines.some((l) => /^\[seo\] 重写一次后 services\/drain-cleaning · .* · 0 条问题$/.test(l)), '补完再查：0 条问题',
+    lines.filter((l) => l.includes('drain-cleaning ')).join(' | '));
+  if (F.rc === 0) {
+    const pg = JSON.parse(fs.readFileSync(path.join(F.site, 'zh', 'pages', 'services', 'drain-cleaning.json'), 'utf-8'));
+    const n = [...pg.description].length;
+    check(pg.description.endsWith(`，${KW}｜Markham`) && n >= 50 && n <= 80, `落盘的 description（${n} 字）以「，${KW}｜Markham」结尾`, JSON.stringify(pg.description));
+  }
+}
+
+console.log('\n── G 主语言 zh、地点 90 字无逗号：塞不进 80 ⟹ 第 2 条地点那一半不判、打一行日志、建站成功');
+if (!ONLY || ONLY === 'G') {
+  const ADDR = [...'安大略省万锦市第七大道与肯尼迪路交叉口东北角商业广场二楼二零八室旁边的停车场入口处向北步行约五分钟即到我们的门店'.repeat(2)].slice(0, 90).join('');
+  const NO_PLACE = '持牌技师为厨房、浴室和主管道提供 drain cleaning 疏通服务，当天上门，价格透明，不加收任何上门费，欢迎随时预约。';
+  const G = run('G', {
+    call1: call1({ drainDesc: NO_PLACE }), call2: call2(),
+    rewrites: { 'services/drain-cleaning': 'echo', [KW_SLUGS[2]]: 'echo' },
+  }, PAYLOAD({ language: 'zh', location: ADDR, address: ADDR }));
+  const lines = seoLines(G.stderr);
+  console.log(`  · rc=${G.rc}${G.rc ? ` · ${errorOf(G).split('\n').slice(0, 4).join(' / ')}` : ''}`);
+  check([...ADDR].length === 90 && !/[,，、]/.test(ADDR), '夹具：地点 90 字、没有逗号');
+  const skip = lines.filter((l) => l.startsWith('[seo] 不补地点 services/drain-cleaning：'));
+  check(skip.length === 1 && skip[0].includes('上限 80 字') && skip[0].includes('不判'), '日志恰好一行「不补地点 services/drain-cleaning：… 上限 80 字 ⟹ … 不判」', skip.join(' | ') || lines.slice(0, 5).join(' | '));
+  check(!G.stderr.includes('不含地点'), '没有任何一页报「不含地点」');
+  check(G.rc === 0, `建站成功（rc=${G.rc}）`, `${errorOf(G)}`.slice(0, 600));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

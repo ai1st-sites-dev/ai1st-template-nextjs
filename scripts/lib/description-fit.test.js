@@ -14,6 +14,10 @@
  * ⑦ （#1549 重开 r3）区间只按主语言取：同一段文字（中文 / 英文 / 混排）在 zh 站和 en 站上各得各的区间、跟文字本身无关；
  *    提示词的说法与检查的区间是同一个数（r2 两者分叉过：检查按文字判、提示词按主语言给）
  * ⑧ （#1549 重开）appendPlace：末尾补地点、补完超上限先裁正文、地点永远不被裁掉；补完不会换档（r3，QA1 那个 50 字例）
+ * ⑨ （#1603）补地点不许裁掉句末的目标词：正文长度扫遍整个区间（zh 50–80 · en 70–155），每档都以目标词结尾、缺地点，
+ *    补完每一档都仍含目标词（判定 = 第 2 条同一个 hasPhrase）、长度仍在区间里、地点在末尾。
+ *    同一把尺在 b902d5ca（改前）上读红 zh 4 档（77–80）· en 10 档（146–155）—— 读 0 说明夹具没对准，不是修好了。
+ * ⑩ （#1603）placeFits：「目标词 + 分隔符 + 地点」超上限（90 字无逗号地址）⟹ false；边界恰好等于上限 ⟹ true
  */
 
 'use strict';
@@ -140,6 +144,54 @@ const word = (n) => Array.from({ length: n }, (_, i) => `w${i}`).join(' ');
   const q1 = '我们为多伦多及周边社区提供专业下水道疏通与管道维修 Fast reliable drain clea';
   const q1o = appendPlace(q1, 'Toronto', 'zh');
   check(`⑧ QA1 那例：${cp(q1)} 字补完 ${cp(q1o)} 字，仍在 50–80`, cp(q1) === 50 && cp(q1o) >= 50 && cp(q1o) <= 80, q1o);
+}
+
+// ⑨ 补地点不裁目标词
+{
+  const { hasPhrase } = require('./seo-problems');
+  // 正文 n 字、以目标词结尾、不含地点。英文在目标词前留一个空格（不然目标词跟前一个词粘成一个词，夹具自己就不含它）。
+  const body = (n, kw, filler) => {
+    const sp = /^[\x00-\x7f]/.test(kw) ? ' ' : '';
+    const f = [];
+    while (f.length < n - cp(kw) - sp.length) f.push(...filler);
+    f.length = n - cp(kw) - sp.length;
+    if (f[f.length - 1] === ' ') f[f.length - 1] = 'a';
+    return f.join('') + sp + kw;
+  };
+  for (const [name, locale, kw, place, filler] of [
+    ['zh', 'zh', '烫发设计', '多伦多', '我们的发型师团队经验丰富，用心为每位顾客打造适合自己的'],
+    ['en', 'en', 'hair salon', 'Toronto', 'Our experienced stylists craft looks that fit you, with care and attention at every visit to our '],
+  ]) {
+    const { min, max } = descriptionRange(locale);
+    const lost = []; const off = []; let fixtureBad = 0;
+    for (let n = min; n <= max; n++) {
+      const t = body(n, kw, filler);
+      if (cp(t) !== n || !hasPhrase(t, kw) || hasPhrase(t, place)) fixtureBad += 1;
+      const out = appendPlace(t, place, locale, { keep: (x) => hasPhrase(x, kw) });
+      if (!hasPhrase(out, kw)) lost.push(n);
+      if (cp(out) < min || cp(out) > max || !out.endsWith(place)) off.push(`${n}→${cp(out)}`);
+    }
+    check(`⑨ ${name} 夹具：${min}–${max} 每档长度对、以「${kw}」结尾、不含地点`, fixtureBad === 0, String(fixtureBad));
+    check(`⑨ ${name}：补完每一档都仍含目标词（丢掉的档：${lost.length ? lost.join('/') : '无'}）`, lost.length === 0);
+    check(`⑨ ${name}：补完每一档都在 ${min}–${max}、地点在末尾`, off.length === 0, off.join(' '));
+  }
+  // 补出来长什么样：裁的是目标词前面那段，用逗号接回去
+  const z = appendPlace(body(79, '烫发设计', '我们的发型师团队经验丰富，用心为每位顾客打造适合自己的'), '多伦多', 'zh', { keep: (x) => hasPhrase(x, '烫发设计') });
+  check(`⑨ zh 79 字那档：${z}`, z.endsWith('，烫发设计｜多伦多') && cp(z) <= 80, z);
+  // 目标词在句中、尾部裁不碰它 ⟹ 跟没传 keep 时一模一样（只在会丢词时才换裁法）
+  const mid = '烫发设计' + '我们的发型师团队经验丰富，用心为每位顾客打造适合自己的造型'.repeat(3);
+  check('⑨ 目标词在句首 ⟹ 跟不传 keep 时逐字相同', appendPlace(mid.slice(0, 79), '多伦多', 'zh', { keep: (x) => hasPhrase(x, '烫发设计') }) === appendPlace(mid.slice(0, 79), '多伦多', 'zh'));
+}
+// ⑩ placeFits
+{
+  const { placeFits } = DF;
+  const addr = '多'.repeat(90); // QA3 在 #1549 量的那个角：90 字无逗号地址
+  check('⑩ 90 字无逗号地址 ⟹ 塞不进 80', placeFits(addr, '烫发', 'zh') === false);
+  check('⑩ 「烫发」+「｜多伦多」⟹ 塞得进', placeFits('多伦多', '烫发', 'zh') === true);
+  check('⑩ 边界：目标词 + 「｜」+ 地点恰好 80 ⟹ true，81 ⟹ false',
+    placeFits('多'.repeat(40), '发'.repeat(39), 'zh') === true && placeFits('多'.repeat(40), '发'.repeat(40), 'zh') === false);
+  check('⑩ 英文按 155、分隔符「 | 」3 字', placeFits('T'.repeat(100), 'k'.repeat(52), 'en') === true && placeFits('T'.repeat(100), 'k'.repeat(53), 'en') === false);
+  check('⑩ 没有地点 ⟹ true', placeFits('', '烫发', 'zh') === true);
 }
 
 console.log(`\n${pass} 过 · ${fail} 败`);

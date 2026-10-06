@@ -101,20 +101,61 @@ function fitPageDescriptions({ pages, seo, locale }) {
  * description 末尾补上地点（#1549 重开：重写一次后仍缺地点时由代码补，跟长度一样是代码能补的）。
  * 中 / 日 / 韩主语言用「｜」，其余用「 | 」；正文结尾的句末标点先去掉。补完会超上限 ⟹ 先把正文裁短再补，地点永远不被裁掉。
  * 区间按主语言取（§descriptionRange，跟检查同一个）。已含地点由调用方判（它手上有跟检查同一把尺的 hasPhrase）。
+ * 🔴 #1603：从尾部裁会把句末的目标词一起裁掉（中文把目标词放句末很自然；补地点前 fitPageDescriptions 刚把长度裁到贴着上限），
+ *    补完第 2 条「含目标词」那一半就开火 ⟹ 首页 / 服务页整站 fatal。传 `keep`（这段文字还含不含目标词，调用方用跟检查同一个
+ *    hasPhrase 造）⟹ 尾部裁会丢掉它时改成裁它**前面**的正文（§keepPhrase）。判定由调用方传进来，是因为 seo-problems.js 已经
+ *    require 了本文件，反过来 require 会成环。
  */
-function appendPlace(text, place, locale) {
+function appendPlace(text, place, locale, { keep } = {}) {
   const p = String(place || '').trim();
   const body = String(text || '').replace(/\s+/g, ' ').trim();
   if (!p) return body;
-  const sep = isCjkLocale(locale) ? '｜' : ' | ';
+  const sep = placeSeparator(locale);
   const tail = `${sep}${p}`;
-  const strip = (s) => s.replace(/[.!?。！？]+$/u, '').replace(TRAILING_JUNK, '');
   let head = strip(body);
   if (!head) return p;
   const { max, min } = descriptionRange(locale);
   const room = max - codePoints(tail).length;
-  if (codePoints(head).length > room) head = strip(fitDescription(head, { max: Math.max(room, 1), min: Math.max(min - codePoints(tail).length, 0) }));
+  if (codePoints(head).length > room) {
+    const lo = Math.max(min - codePoints(tail).length, 0);
+    const cut = strip(fitDescription(head, { max: Math.max(room, 1), min: lo }));
+    head = keep && keep(head) && !keep(cut) ? (keepPhrase(head, keep, room, lo, locale) ?? cut) : cut;
+  }
   return head ? `${head}${tail}` : p;
 }
 
-module.exports = { fitDescription, fitPageDescriptions, appendPlace, descriptionRange, descriptionSpec };
+const placeSeparator = (locale) => (isCjkLocale(locale) ? '｜' : ' | ');
+const strip = (s) => s.replace(/[.!?。！？]+$/u, '').replace(TRAILING_JUNK, '');
+
+/**
+ * 留下目标词（`keep` 为真的最短那一段，到它为止），裁它前面的正文，用逗号接回去：「…经验丰富，烫发设计」。目标词之后的字丢掉
+ * —— 走到这里说明目标词就在正文尾部，后面本来没几个字。目标词自己都塞不进 `room` ⟹ null（调用方照旧从尾部裁；
+ * 那种页第 2 条地点那一半本来就不判，§placeFits）。
+ */
+function keepPhrase(head, keep, room, min, locale) {
+  const cps = codePoints(head);
+  let i = cps.length - 1;
+  while (i > 0 && !keep(cps.slice(i).join(''))) i -= 1;
+  let j = i + 1;
+  while (j < cps.length && !keep(cps.slice(i, j).join(''))) j += 1;
+  const phrase = cps.slice(i, j).join('').trim();
+  if (codePoints(phrase).length > room) return null;
+  const joiner = isCjkLocale(locale) ? '，' : ', ';
+  const budget = room - codePoints(phrase).length - codePoints(joiner).length;
+  const before = budget > 0 ? strip(fitDescription(cps.slice(0, i).join(''), {
+    max: budget, min: Math.max(min - codePoints(phrase).length - codePoints(joiner).length, 0) })) : '';
+  return before ? `${before}${joiner}${phrase}` : phrase;
+}
+
+/**
+ * 「目标词 + 分隔符 + 地点」塞得进主语言的上限吗（#1603）。塞不进（地点是一长串没逗号的地址、或目标词本身很长）⟹ 第 2 条
+ * 「含地点」那一半不判、建站不拦，create-site 打一行日志说明 —— 跟子页 title 预算 < 20 时长度那一半不判同一个处置
+ * （§seo-problems.js MIN_PAGE_TITLE_BUDGET）：输入是用户填的，AI 和代码都做不到的要求不该让整站失败。
+ */
+function placeFits(place, keyword, locale) {
+  const p = String(place || '').trim();
+  if (!p) return true;
+  return codePoints(String(keyword || '').trim()).length + codePoints(`${placeSeparator(locale)}${p}`).length <= descriptionRange(locale).max;
+}
+
+module.exports = { fitDescription, fitPageDescriptions, appendPlace, placeFits, descriptionRange, descriptionSpec };

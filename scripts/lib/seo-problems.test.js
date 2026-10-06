@@ -255,6 +255,15 @@ console.log('\n── ④b（#1549 重开）description 长度按主语言：zh 
   check(JSON.stringify(mp('多伦多专业服务。', '发型').map((m) => `${m.field}:${m.what}`)) === '["title:keyword","description:keyword"]', 'missingPhrases：title / description 缺目标词各一条');
   check(S.missingPhrases({ page: goodPage(), targetKeyword: '', payload: zhPayload }).length === 0, 'missingPhrases：没有目标词的页 ⟹ 空（含词那一半不判）');
   check(S.sitePlace(zhPayload) === '多伦多' && S.sitePlace(PAYLOAD) === 'Markham' && S.sitePlace({}) === '', 'sitePlace：localized 优先、第一段、没有就空');
+  // #1603：「目标词 + 分隔符 + 地点」塞不进主语言上限（QA3 在 #1549 量的 90 字无逗号地址）⟹ 地点那一半不判，第 2 条与 missingPhrases 同一个判断
+  const longAddr = { ...PAYLOAD, location: '多'.repeat(90), locationLocalized: undefined };
+  const desc = '专业烫发服务，韩国发型师当天可约，价格实惠，环境安静舒适，欢迎到店体验我们的烫发染发护理和造型设计服务，周末照常营业。'; // 60 字，长度那一半不报
+  const page = { ...goodPage(), slug: 'services/perming', title: '烫发', description: desc };
+  const d2Of = (payload, locale) => S.seoProblems({ page, pages: [page], targetKeyword: '烫发', brand: BRAND, payload, locale, seo: {} }).filter((x) => x.startsWith('[2 '));
+  check(d2Of(longAddr, 'zh').length === 0, '#1603 主语言 zh、地点 90 字无逗号：第 2 条不报缺地点', JSON.stringify(d2Of(longAddr, 'zh')));
+  check(S.missingPhrases({ page, targetKeyword: '烫发', payload: longAddr, seo: {}, locale: 'zh' }).length === 0, '#1603 同一页 missingPhrases 也不要地点（不叫代码去补一个补不进的）');
+  check(d2Of(longAddr, 'en').some((x) => x.includes('不含地点')), '#1603 对照：同一个 90 字地点、主语言 en（上限 155 塞得进）⟹ 照报缺地点', JSON.stringify(d2Of(longAddr, 'en')));
+  check(d2Of(zhPayload, 'zh').some((x) => x.includes('不含地点「多伦多」')), '#1603 对照：正常地点「多伦多」、主语言 zh ⟹ 照报缺地点', JSON.stringify(d2Of(zhPayload, 'zh')));
 }
 
 // ── ⑤⑥ 渲染对账：让 node 能 require 块组件 ─────────────────────────────────────────────────────
