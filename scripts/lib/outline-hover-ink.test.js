@@ -47,11 +47,14 @@ const PAIRS = [
 /** 编出来的 CSS 里，选择器恰好是 `.btn-outline-primary` 的顶层规则，最后一条声明了 prop 的那个值。 */
 function winningValue(css, prop) {
   let val = null;
-  const re = /(^|\})\s*([^{}@]+?)\s*\{([^{}]*)\}/g;
+  // 🔴 前一条规则的 `}` 用后行断言看、不吃掉（#1586）：原来写成 `(^|\})` 会把它**消费**掉，于是相邻两条规则里只有隔一条的
+  //    那条匹配得上 —— 读到哪条取决于前面有几条规则的奇偶。#1586 在 §BTN_PRIMARY_INK 前面加了一条 `.btn`，
+  //    `.btn-outline-primary` 就恰好落到了被跳过的那一格上（① 读出 0/4，规则其实一个字没动）。
+  const re = /(?:^|(?<=\}))\s*([^{}@]+?)\s*\{([^{}]*)\}/g;
   let m;
   while ((m = re.exec(css))) {
-    if (m[2].trim() !== '.btn-outline-primary') continue;
-    for (const d of m[3].split(';')) {
+    if (m[1].trim() !== '.btn-outline-primary') continue;
+    for (const d of m[2].split(';')) {
       const i = d.indexOf(':');
       if (i > 0 && d.slice(0, i).trim() === prop) val = d.slice(i + 1).trim();
     }

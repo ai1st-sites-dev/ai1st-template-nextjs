@@ -26,7 +26,7 @@
 
 const presets = require('./theme-presets.js');
 const tweaks = require('./tweaks.js');
-const { RADIUS, BUTTON_SHAPE } = require('./theme-settings.js');
+const { BUTTON_SHAPE } = require('./theme-settings.js');
 
 let pass = 0; let fail = 0; let skipped = 0;
 // #1317 —— 脚手架期（池子 < 10 套）按构造没有对象可问的那两条，见 scripts/lib/scaffolding-pool.js。
@@ -480,12 +480,12 @@ for (const [name, p] of Object.entries(presets.PALETTES)) {
   }
 }
 
-// ── ② 圆角档用的是 theme-settings.js 现成那两张表，不是另抄一份数 ───────────────────────────────
+// ── ② 圆角档用的是 theme-settings.js 现成那张表，不是另抄一份数（#1586 起只管按钮：只剩 BUTTON_SHAPE）──────────
 {
   const wrong = Object.entries(presets.CORNERS)
-    .filter(([, c]) => !Object.values(RADIUS).includes(c.radius) || !Object.values(BUTTON_SHAPE).includes(c.button));
+    .filter(([, c]) => !Object.values(BUTTON_SHAPE).includes(c.button) || c.radius !== undefined);
   if (!wrong.length) {
-    ok(`三档圆角的值全部是 theme-settings.js 里 RADIUS / BUTTON_SHAPE 的对象本身（同一份数，不是副本）`);
+    ok(`三档圆角的值全部是 theme-settings.js 里 BUTTON_SHAPE 的值本身（同一份数，不是副本），且不再带全局圆角`);
   } else {
     bad(`圆角档 ${wrong.map(([k]) => k).join(', ')} 用了自己抄的数 —— 同一张表两份拷贝正是 #961/#1002 一路在堵的东西`);
   }
@@ -595,10 +595,14 @@ const BASE = [
     bad(`两层没有真的叠起来：配色+色相=${line(both)} · 只有配色=${line(flat)} · 只有色相=${line(onlyTweak)}`);
   }
 
-  // 圆角档给的是绝对值，radiusScale 乘在它上面。
-  const corners = tweaks.buildCustomCss(BASE, { radiusScale: 1.25 }, presets.presetVars({ corners: 'round' }));
-  if (/--radius-lg: 1\.25rem;/.test(corners)) ok('圆角档 round（--radius-lg: 1rem）× radiusScale 1.25 ⟹ 1.25rem');
+  // 圆角档给的是绝对值，radiusScale 乘在它上面（#1586 起圆角档只写 --radius-button：subtle = 0.5rem）。
+  const corners = tweaks.buildCustomCss(BASE, { radiusScale: 1.25 }, presets.presetVars({ corners: 'subtle' }));
+  if (/--radius-button: 0\.625rem;/.test(corners)) ok('圆角档 subtle（--radius-button: 0.5rem）× radiusScale 1.25 ⟹ 0.625rem');
   else bad(`圆角档和 radiusScale 没有叠对：\n${corners}`);
+  // #1586 —— 圆角档不再写全局圆角：选了它，custom.css 里也不该冒出 --radius-lg（基准里那一行除外：它不受圆角档影响）。
+  const onlyCorners = tweaks.buildCustomCss(BASE, undefined, presets.presetVars({ corners: 'round' }));
+  if (!/--radius-(DEFAULT|md|lg|xl|2xl):/.test(onlyCorners)) ok('圆角档 round ⟹ custom.css 里没有 --radius-{DEFAULT,md,lg,xl,2xl}（只管按钮）');
+  else bad(`圆角档还在写全局圆角：\n${onlyCorners}`);
 
   // `--radius-button` 在基准里根本不存在（没写风格设定的站），预设仍然要把它写出来 ——
   // 少了它，「胶囊按钮」这一档表达不出来。

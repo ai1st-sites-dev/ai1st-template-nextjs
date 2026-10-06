@@ -52,7 +52,7 @@ const COLORS = {
 // `retiredThemes` 里。🔴 **「那 30 套 == retiredThemes」这句话 #1317 之后不成立了**：那份名单
 // 30 → 125（#1317 又下架了池子里的 95 套），所以枚举形状的仍然只有最早那 30 条，另外 95 条是数值
 // 形状的池主题。要按形状分就读 `settings.radius` 的类型，别按「在哪个导出里」分。
-const NUMERIC_SETTINGS = { radius: 16, density: 1.05, shadowStrength: 0.22, buttonShape: 'pill' };
+const NUMERIC_SETTINGS = { radius: 16, density: 1.05, buttonShape: 'pill' };
 
 const names = (base) => base.vars.map(([n]) => n);
 const valueOf = (base, name) => (base.vars.find(([n]) => n === name) || [])[1];
@@ -98,19 +98,17 @@ const valueOf = (base, name) => (base.vars.find(([n]) => n === name) || [])[1];
   } else {
     ok(`写了风格设定 ⟹ fromSettings=true，shapeCount=${base.shapeCount}`);
   }
-  // 🔴 承重的一格：`--radius-DEFAULT` 必须是这个站自己算出来的（radius:16 ⟹ 16px），
-  // 不是 globals.css 的 0.25rem。两个值长得完全不一样，所以这一格分得开。
-  const mine = valueOf(base, '--radius-DEFAULT');
-  const theirs = (tweaks.rootShapeDefaults(globalsCss).find(([n]) => n === '--radius-DEFAULT') || [])[1];
-  if (mine && mine !== theirs) ok(`--radius-DEFAULT = ${mine}（这个站自己的），不是 globals.css 的 ${theirs}`);
-  else bad(`--radius-DEFAULT = ${mine}，而 globals.css 那份是 ${theirs} —— 默认值掺进来了`);
-  // 阴影不在微扰会碰的范围里（`baseVarsFrom` 只收 --radius-* / --section-*），设定里有它也不该出现。
+  // 🔴 承重的一格：`--radius-button` 必须是这个站自己算出来的（buttonShape:pill ⟹ 9999px），
+  // 不是 globals.css 的 0.5rem。两个值长得完全不一样，所以这一格分得开。
+  // 📌 #1586 之前这一格看的是 `--radius-DEFAULT`（radius:16 ⟹ 16px）；那五档从新模板里拿掉了，globals.css 不再定义它们。
+  const mine = valueOf(base, '--radius-button');
+  const theirs = (tweaks.rootShapeDefaults(globalsCss).find(([n]) => n === '--radius-button') || [])[1];
+  if (mine && theirs && mine !== theirs) ok(`--radius-button = ${mine}（这个站自己的），不是 globals.css 的 ${theirs}`);
+  else bad(`--radius-button = ${mine}，而 globals.css 那份是 ${theirs} —— 默认值掺进来了（或 globals.css 没有它，这一格分不开）`);
+  // 阴影不在微扰会碰的范围里（`baseVarsFrom` 只收 --radius-* / --section-*）；#1586 起新站的风格设定里本来也没有它。
   const shadows = names(base).filter((n) => n.startsWith('--shadow-'));
-  if (decls.some((d) => d.startsWith('--shadow-')) && shadows.length === 0) {
-    ok('风格设定里有 --shadow-*，基准里没有（微扰不碰阴影，收窄口径没被搬坏）');
-  } else if (shadows.length) {
-    bad(`基准里出现了 ${shadows.length} 个 --shadow-* —— 微扰会去缩放阴影`);
-  }
+  if (shadows.length) bad(`基准里出现了 ${shadows.length} 个 --shadow-* —— 微扰会去缩放阴影`);
+  else ok('基准里没有 --shadow-*（微扰不碰阴影）');
   // 名字不许重复：重复会让 buildCustomCss 为同一个名字写两行。
   const dup = names(base).filter((n, i, a) => a.indexOf(n) !== i);
   if (dup.length === 0) ok(`基准里 ${base.vars.length} 个名字互不重复`);

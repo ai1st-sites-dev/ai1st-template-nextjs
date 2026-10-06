@@ -16,7 +16,8 @@
  *    来历：按 layout.tsx 的 SETN 派生式在 `6f59364ad`（#1541 之前）上算出来的 15 个；2026-10-04 PM 用
  *    `gh api` 现取 `ai1st-sites/ai1st-template-nextjs` 与 `ai1st-sites-test/ai1st-template-nextjs`
  *    两个模板仓，DENSITY 都还是 5 个键 ⟹ 同一批 15 个。
- *    什么时候能收窄它：见 `theme-settings.js` 的 `SITE_LEGACY_DENSITY_X` 上面那段摘除判据。
+ *    什么时候能收窄它：见 `theme-settings.js` 的 `SITE_LEGACY_DENSITY_X` / `SITE_LEGACY_RADIUS` 上面那两段摘除判据。
+ *    📌 #1586 —— 圆角五个、阴影四个也从新模板里拿掉了（新站不再定义），名字**留在这张名单里**：存量站还在数它们。
  *
  * 🔴 每一格都带反向对照（同一进程、单变量）：从载荷里拿掉任一个冻结名字 ⟹ 当场红。
  */
@@ -45,6 +46,38 @@ const LEGACY_ENUM_VALUES = {
   airy: { '--section-x': '1.5rem', '--section-xSm': '2rem', '--section-xLg': '3rem' },
 };
 const LEGACY_NUMERIC_MULT = { '--section-x': 1, '--section-xSm': 1.5, '--section-xLg': 2 };
+// #1586 —— 圆角五个 + 阴影四个：同样只有存量站认。真值逐字取 #1586 之前那张 RADIUS 表 / globals.css `:root` 的阴影默认值
+// （字面量，**不从 theme-settings.js 读** —— 从它读就成了自己跟自己比）。
+const LEGACY_SHAPE = [
+  '--radius-DEFAULT', '--radius-md', '--radius-lg', '--radius-xl', '--radius-2xl',
+  '--shadow-DEFAULT', '--shadow-sm', '--shadow-md', '--shadow-lg',
+];
+const LEGACY_RADIUS_ENUM_VALUES = {
+  subtle: { '--radius-DEFAULT': '0.25rem', '--radius-md': '0.375rem', '--radius-lg': '0.5rem', '--radius-xl': '0.75rem', '--radius-2xl': '1rem' },
+  sharp: { '--radius-DEFAULT': '0px', '--radius-md': '0px', '--radius-lg': '0px', '--radius-xl': '0px', '--radius-2xl': '0px' },
+  round: { '--radius-DEFAULT': '0.5rem', '--radius-md': '0.75rem', '--radius-lg': '1rem', '--radius-xl': '1.5rem', '--radius-2xl': '2rem' },
+};
+const LEGACY_RADIUS_NUMERIC_MULT = { '--radius-DEFAULT': 1, '--radius-md': 1.5, '--radius-lg': 2, '--radius-xl': 3, '--radius-2xl': 4 };
+const LEGACY_SHADOW_VALUES = {
+  '--shadow-DEFAULT': '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
+  '--shadow-sm': '0 1px 2px 0 rgb(0 0 0 / 0.05)',
+  '--shadow-md': '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+  '--shadow-lg': '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
+};
+// 档位形状的另两档（#1586 r2：存量站 brand.json 里的 `shadow: 'none' | 'strong'` 照档位翻，跟它自己 Apply 时一致）。
+// 逐字取 #1586 之前那张 SHADOW 表。
+const LEGACY_SHADOW_ENUM_VALUES = {
+  soft: LEGACY_SHADOW_VALUES,
+  none: { '--shadow-DEFAULT': 'none', '--shadow-sm': 'none', '--shadow-md': 'none', '--shadow-lg': 'none' },
+  strong: {
+    '--shadow-DEFAULT': '0 4px 8px -1px rgb(0 0 0 / 0.18), 0 2px 4px -2px rgb(0 0 0 / 0.12)',
+    '--shadow-sm': '0 2px 4px 0 rgb(0 0 0 / 0.1)',
+    '--shadow-md': '0 10px 18px -3px rgb(0 0 0 / 0.2), 0 4px 8px -4px rgb(0 0 0 / 0.14)',
+    '--shadow-lg': '0 20px 32px -6px rgb(0 0 0 / 0.26), 0 8px 14px -8px rgb(0 0 0 / 0.18)',
+  },
+};
+// 新模板里不该出现的全部 12 个（④ 那一格用）。
+const NOT_IN_NEW_SITE = [...LEGACY, ...LEGACY_SHAPE];
 
 // 两种形状各一份**完整的**风格设定（四组都写）—— 少写一组的话缺名字是设定本身缺，不是契约破。
 const ENUM_CASES = ['standard', 'compact', 'airy'].map((d) => ({
@@ -53,7 +86,7 @@ const ENUM_CASES = ['standard', 'compact', 'airy'].map((d) => ({
 }));
 const NUMERIC_CASES = [0.85, 1, 1.2].map((d) => ({
   name: `数值形状 density=${d}`, density: d,
-  settings: { radius: 6, shadowStrength: 0.1, density: d, buttonShape: 'rounded' },
+  settings: { radius: 6, density: d, buttonShape: 'rounded' },
 }));
 
 let pass = 0;
@@ -76,10 +109,11 @@ function decls(list) {
 /** 冻结名单里哪些不在这份载荷里。 */
 const missingFrozen = (payload) => FROZEN.filter((n) => !decls(payload).has(n));
 
-/** 新模板的站自己派生出的 SETN —— 与 layout.tsx 那段派生式同算法（三张表的键 + --radius-button）。 */
+/** 新模板的站自己派生出的 SETN —— 与 layout.tsx 那段派生式同算法（S 表里每组的键 + --radius-button）。
+ *  #1586 起 layout.tsx 的 S 表只剩 density 一组（圆角五档、阴影四个拿掉了）。 */
 function newSiteSetn(T) {
   const out = new Set();
-  for (const [table, prefix] of [[T.RADIUS, '--radius-'], [T.SHADOW, '--shadow-'], [T.DENSITY, '--section-']]) {
+  for (const [table, prefix] of [[T.DENSITY, '--section-']]) {
     for (const tier of Object.values(table)) for (const k of Object.keys(tier)) out.add(prefix + k);
   }
   out.add('--radius-button');
@@ -134,6 +168,50 @@ try {
     else problems.forEach((p) => bad(p));
   }
 
+  console.log('②b 圆角五个 / 阴影四个发的是真值（#1586）：圆角按这套主题算，阴影是 #1586 之前 globals.css 的默认值');
+  {
+    const problems = [];
+    for (const radius of Object.keys(LEGACY_RADIUS_ENUM_VALUES)) {
+      const got = decls(T.settingsToSiteCssVars({ radius, density: 'standard', buttonShape: 'pill' }));
+      for (const [n, want] of Object.entries(LEGACY_RADIUS_ENUM_VALUES[radius])) {
+        if (got.get(n) !== want) problems.push(`枚举 radius=${radius} ${n}=${got.get(n)}，应为 ${want}`);
+      }
+    }
+    for (const r of [0, 4, 22]) {
+      const got = decls(T.settingsToSiteCssVars({ radius: r, density: 1, buttonShape: 'pill' }));
+      for (const [n, mult] of Object.entries(LEGACY_RADIUS_NUMERIC_MULT)) {
+        const want = `${Math.round(r * mult * 1000) / 1000}px`;
+        if (got.get(n) !== want) problems.push(`数值 radius=${r} ${n}=${got.get(n)}，应为 ${want}`);
+      }
+    }
+    for (const c of [...ENUM_CASES, ...NUMERIC_CASES]) {
+      const got = decls(T.settingsToSiteCssVars(c.settings));
+      for (const [n, want] of Object.entries(LEGACY_SHADOW_VALUES)) {
+        if (got.get(n) !== want) problems.push(`${c.name} ${n}=${got.get(n)}，应为 ${want}`);
+      }
+    }
+    if (!problems.length) ok('3 档枚举 + 3 个数值的圆角五个、6 份设定的阴影四个，都等于 #1586 之前的值');
+    else problems.forEach((p) => bad(p));
+  }
+
+  console.log('②c 档位形状的阴影照档位词发（#1586 r2）：none / strong 不许被抹成 soft；没写或认不出 ⟹ soft（= 存量站 Apply 时落回的 :root 默认值），且照样发全');
+  {
+    const problems = [];
+    const cases = [
+      ...Object.keys(LEGACY_SHADOW_ENUM_VALUES).map((tier) => ({ shadow: tier, want: LEGACY_SHADOW_ENUM_VALUES[tier] })),
+      { shadow: undefined, want: LEGACY_SHADOW_VALUES },
+      { shadow: 'constructor', want: LEGACY_SHADOW_VALUES },
+    ];
+    for (const c of cases) {
+      const got = decls(T.settingsToSiteCssVars({ radius: 'round', shadow: c.shadow, density: 'standard', buttonShape: 'pill' }));
+      for (const [n, want] of Object.entries(c.want)) {
+        if (got.get(n) !== want) problems.push(`枚举 shadow=${c.shadow} ${n}=${got.get(n)}，应为 ${want}`);
+      }
+    }
+    if (!problems.length) ok(`${cases.length} 种 shadow 取值（3 档 + 没写 + 原型链词）的阴影四个都对`);
+    else problems.forEach((p) => bad(p));
+  }
+
   console.log('③ 新模板自己的站也补得齐（它派生出的 SETN ⊆ 发出去的名字）');
   {
     const setn = newSiteSetn(T);
@@ -147,19 +225,29 @@ try {
     else problems.forEach((p) => bad(`${p} —— 新站会判 settings incomplete`));
   }
 
-  console.log('④ 反方向：横向三个不进新模板自己的 CSS（它们在那里没有消费者）');
+  console.log(`④ 反方向：这 ${NOT_IN_NEW_SITE.length} 个（横向三个 + #1586 的圆角五个、阴影四个）不进新模板自己的 CSS（它们在那里没有消费者）`);
   {
     const leaked = [];
     for (const c of [...ENUM_CASES, ...NUMERIC_CASES]) {
       const got = decls(T.settingsToCssVars(c.settings));
-      const hit = LEGACY.filter((n) => got.has(n));
+      const hit = NOT_IN_NEW_SITE.filter((n) => got.has(n));
       if (hit.length) leaked.push(`${c.name}: ${hit.join(' ')}`);
     }
-    if (!leaked.length) ok('settingsToCssVars()（theme.css / sync-config / Customize 用的那份）不含横向三个');
-    else leaked.forEach((x) => bad(`settingsToCssVars 写出了 ${x} —— 新站的 theme.css 会多三条没人用的变量`));
+    if (!leaked.length) ok(`settingsToCssVars()（theme.css / sync-config / Customize 用的那份）不含这 ${NOT_IN_NEW_SITE.length} 个`);
+    else leaked.forEach((x) => bad(`settingsToCssVars 写出了 ${x} —— 新站的 theme.css 会多几条没人用的变量`));
+    // custom.css 那一侧：客户的 Corner style（三档全选一遍）。
+    const P = require('./theme-presets.js');
+    const presetLeaks = [];
+    for (const corners of Object.keys(P.CORNERS)) {
+      const names = P.presetVars({ corners }).vars.map(([n]) => n);
+      const hit = NOT_IN_NEW_SITE.filter((n) => names.includes(n));
+      if (hit.length) presetLeaks.push(`corners=${corners}: ${hit.join(' ')}`);
+    }
+    if (!presetLeaks.length) ok(`Corner style 三档写进 custom.css 的变量里不含这 ${NOT_IN_NEW_SITE.length} 个`);
+    else presetLeaks.forEach((x) => bad(`presetVars 写出了 ${x} —— 新站的 custom.css 会多几条没人用的变量`));
     const css = fs.readFileSync(GLOBALS, 'utf8');
-    const inGlobals = LEGACY.filter((n) => new RegExp(`${n}\\s*:`).test(css) || new RegExp(`var\\(${n}\\)`).test(css));
-    if (!inGlobals.length) ok('globals.css 里横向三个 0 处定义、0 处使用');
+    const inGlobals = NOT_IN_NEW_SITE.filter((n) => new RegExp(`${n}\\s*:`).test(css) || new RegExp(`var\\(${n}[,)]`).test(css));
+    if (!inGlobals.length) ok(`globals.css 里这 ${NOT_IN_NEW_SITE.length} 个 0 处定义、0 处使用`);
     else bad(`globals.css 里还有 ${inGlobals.join(' ')} —— 新模板不消费它们`);
   }
 

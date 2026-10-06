@@ -54,7 +54,7 @@
         {
           "title": "numeric shape (#1003)",
           "type": "object",
-          "required": ["radius", "density", "shadowStrength", "buttonShape"],
+          "required": ["radius", "density", "buttonShape"],
           "properties": {
             "radius": {
               "description": "Corner radius of the DEFAULT step, in px. 0 = square corners; 24 is as round as a card gets before it reads as a pill.",
@@ -63,10 +63,6 @@
             "density": {
               "description": "Vertical rhythm multiplier over the standard section padding. 0.6 = tight, 1.6 = airy.",
               "type": "number", "minimum": 0.6, "maximum": 1.6
-            },
-            "shadowStrength": {
-              "description": "Alpha of the shadow colour. 0 = no shadow at all, 0.4 is heavier than any hand-made theme.",
-              "type": "number", "minimum": 0, "maximum": 0.4
             },
             "buttonShape": { "enum": ["rounded", "square", "pill"] }
           },

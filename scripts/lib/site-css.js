@@ -123,6 +123,23 @@ const BTN_PRIMARY_INK = [
 ].join('\n');
 
 /**
+ * #1586 —— 按钮的圆角跟 `--radius-button` 走（客户的「Corner style」三档、主题的 `buttonShape` 都写它）。
+ * 改前 Webpixels 的 `.btn` 自己定 `border-radius: var(--x-btn-border-radius)`，默认取 `--x-border-radius` = .75rem ⟹ 每个
+ * `btn btn-*` 都是 12px；globals.css 的 `.btn-primary` 一族虽然读 `--radius-button`，但 `/site.css` 排在它后面、特异度相同，
+ * 后来的赢。所以这一条必须写在 `/site.css` 这一侧（跟 §BTN_PRIMARY_INK 同一个理由）。
+ * 写的是 Webpixels 自己那个变量，不是 `border-radius` 本身：`.btn-sm` / `.btn-lg` 也是改它，排在 `@import` 之后的这一条把三种尺寸
+ * 一起收住。变量缺席（不经 globals.css 的页面）⟹ 落回 Webpixels 自己的值，等于改前。
+ * 📌 只到按钮为止（Chris 2026-10-05 定）：卡片、图片的圆角是块自己写死的；按钮自己再挂 `rounded-pill` / `rounded-circle` 的
+ *    （电话圆钮、月付 / 年付切换）带 `!important`，照旧压过这一条。
+ */
+const BTN_RADIUS = [
+  '.btn {',
+  '  --x-btn-border-radius: var(--radius-button, var(--x-border-radius));',
+  '}',
+  '',
+].join('\n');
+
+/**
  * #1590 —— 描边主按钮（`btn btn-outline-primary`）的 hover / 按下态接到主按钮**静止态**那一对：底 / 边框 =
  * `--btn-primary-bg`，字 = `--btn-primary-ink`（`button-ink.js` 按这个站的配色挑出来、让字过线的那一档）。
  * 改前 Webpixels 把这两态写死成白字压 `$primary` = primary-500 —— ember-12 的 500 是 `#907230`，白字 blended 4.23:1，
@@ -349,6 +366,7 @@ function siteScss(primary) {
     SHADOW_TOKENS,
     ON_DEEP_MUTED,
     ON_DEEP_FORM,
+    BTN_RADIUS,
     BTN_PRIMARY_INK,
     BTN_OUTLINE_HOVER_INK,
     SCHEME_SURFACES,
@@ -432,6 +450,6 @@ async function writeSiteCss({ brand, rootDir = NEXT_DIR, dir = 'ltr' }) {
 }
 
 module.exports = {
-  primaryOf, siteScss, compileSiteCss, mirrorSiteCss, purgeSiteCss, writeSiteCss, PURGE_CONTENT, THEME_COLOR_VARIABLES, ON_DEEP_MUTED, ON_DEEP_FORM, BTN_PRIMARY_INK, BTN_OUTLINE_HOVER_INK, SCHEME_SURFACES, SCHEME_VARIABLES, SHADOW_TOKENS,
+  primaryOf, siteScss, compileSiteCss, mirrorSiteCss, purgeSiteCss, writeSiteCss, PURGE_CONTENT, THEME_COLOR_VARIABLES, ON_DEEP_MUTED, ON_DEEP_FORM, BTN_RADIUS, BTN_PRIMARY_INK, BTN_OUTLINE_HOVER_INK, SCHEME_SURFACES, SCHEME_VARIABLES, SHADOW_TOKENS,
   DEEP_COMMON, DEEP_COMMON_CSS, DEEP_TONES,
 };
