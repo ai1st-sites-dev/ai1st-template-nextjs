@@ -12,6 +12,8 @@
  * ④ seoPass 跑两次（整站 + 代码补的详情页）⟹ 按 slug 合并、修补数累加
  * ⑤ scripts/finish-build-report.js：并进死链 + 耗时、打一行 build-report 事件；没有报告文件 ⟹ 什么都不打、rc 0
  * ⑥ 降级清单（#1596）：degradedSteps 原样进 degraded 那一格（三个字段）；一条都没有是 []（数过了）不是 null；不是数组 ⟹ 不动
+ * ⑦ #1608 推送是否归档：recordArchive 正反两格；finish-build-report.js 从环境变量 BUILD_ARCHIVED / BUILD_ARCHIVE_REASON
+ *    读 entrypoint 的 git push 结果（1 / 0 写进去，没设 ⟹ 仍是 null）
  */
 
 'use strict';
@@ -211,6 +213,47 @@ check('没有报告文件（preview 模式 / 老站仓的 create-site）⟹ stdo
     assert.strictEqual(r.stdout, '');
     assert.ok(r.stderr.includes('#1600'), r.stderr);
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+console.log('── ⑦ #1608 推送是否归档');
+check('recordArchive 推成功 ⟹ { archived: true }，不写 reason', () => {
+  const r = br.createReport();
+  br.recordArchive(r, { archived: true, reason: 'ignored' });
+  assert.deepStrictEqual(r.archive, { archived: true });
+});
+check('recordArchive 推失败 ⟹ { archived: false, reason }', () => {
+  const r = br.createReport();
+  br.recordArchive(r, { archived: false, reason: 'fatal: unable to access' });
+  assert.deepStrictEqual(r.archive, { archived: false, reason: 'fatal: unable to access' });
+});
+check('recordArchive 不是布尔（没有结果）⟹ 那格不动，仍是 null', () => {
+  const r = br.createReport();
+  br.recordArchive(r, {});
+  br.recordArchive(r, { archived: '1' });
+  assert.strictEqual(r.archive, null);
+});
+function runFinish(env) {
+  const root = finishTree();
+  try {
+    br.writeReport(path.join(root, 'site'), br.createReport());
+    const base = { ...process.env };
+    delete base.BUILD_ARCHIVED; delete base.BUILD_ARCHIVE_REASON;
+    const r = cp.spawnSync(process.execPath, [path.join(root, 'scripts', 'finish-build-report.js')], { encoding: 'utf8', env: { ...base, ...env } });
+    assert.strictEqual(r.status, 0, r.stderr);
+    const ev = JSON.parse(r.stdout.trim());
+    assert.deepStrictEqual(JSON.parse(fs.readFileSync(path.join(root, 'site', br.REPORT_FILE), 'utf8')).archive, ev.report.archive);
+    return ev.report.archive;
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+}
+check('finish-build-report.js：BUILD_ARCHIVED=1 ⟹ 事件与文件里都是 { archived: true }', () => {
+  assert.deepStrictEqual(runFinish({ BUILD_ARCHIVED: '1', BUILD_ARCHIVE_REASON: '' }), { archived: true });
+});
+check('finish-build-report.js：BUILD_ARCHIVED=0 + 原因 ⟹ { archived: false, reason }', () => {
+  assert.deepStrictEqual(runFinish({ BUILD_ARCHIVED: '0', BUILD_ARCHIVE_REASON: 'git push exited with code 124' }),
+    { archived: false, reason: 'git push exited with code 124' });
+});
+check('finish-build-report.js：没设 BUILD_ARCHIVED（今天的行为）⟹ 仍是 null', () => {
+  assert.strictEqual(runFinish({}), null);
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

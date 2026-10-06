@@ -12,6 +12,10 @@
  * Usage:  node scripts/finish-build-report.js [deadLinksFile] [startEpochSec]
  *   deadLinksFile   check-dead-links.js 打出来的那一行（存成文件）；没有 / 读不到 / 不是 dead-links 事件 ⟹ 死链那格留 null
  *   startEpochSec   entrypoint 起跑时的 `date +%s`；不给 ⟹ 耗时保留 create-site 记的那一段
+ *   env BUILD_ARCHIVED        #1608 —— entrypoint 的 `git push` 结果：`1` 推上去了 · `0` 没推上去；别的值 / 没设 ⟹ 归档那格不动（null）
+ *   env BUILD_ARCHIVE_REASON  没推上去时的原因（entrypoint 已脱敏、截到 300 字）
+ *     🔴 走环境变量不走位置参数：entrypoint 有两个调用点，其中 TICKET-321 后台重建那一处在单引号的 `sh -c '…'` 里，
+ *        只看得见 export 过的变量（跟 BUILD_START / BUILD_REPORT_PENDING 同一个走法）。
  *   stdout: ONE JSON line — {"event":"build-report","report":{…}}
  *   exit:   0 恒为 0 —— 报告是旁观者，任何一步不成都不许让建站 / 预览失败（跟 report_dead_links 同一个立场）
  *
@@ -40,6 +44,10 @@ function main() {
     } catch (e) {
       process.stderr.write(`#1600: dead-links summary ${deadFile} unreadable (${e.message}) — dead-link cell stays null\n`);
     }
+  }
+  const archived = process.env.BUILD_ARCHIVED;
+  if (archived === '1' || archived === '0') {
+    br.recordArchive(report, { archived: archived === '1', reason: process.env.BUILD_ARCHIVE_REASON });
   }
   const start = Number(startArg);
   if (Number.isFinite(start) && start > 0) {
