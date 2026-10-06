@@ -2041,8 +2041,9 @@ function lint(file) {
   // 208px at 1280 on an eight-service fixture (the skipAI demo site
   // theme-css-invariants-all-sheets.sh builds, siteId `themecss1`, measured 2026-09-15), and
   // 208px → 110px at 1280 from swapping only what a sheet may write. 🔴 Those pixel counts move with
-  // whichever sheet the rotation hands that fixture — which IS the argument, not a wobble in it, and
-  // check ⑩ in theme-css-invariants.mjs is where a current one comes from.
+  // whichever sheet the rotation hands that fixture — which IS the argument, not a wobble in it. (The
+  // browser check that measured a current one, ⑩ in theme-css-invariants.mjs, was retired by #1581
+  // along with the services-nav block it measured.)
   // So globals.css stopped writing a constant and writes
   // `var(--services-nav-scroll-margin, 6rem)`, filled in from the browser.
   //

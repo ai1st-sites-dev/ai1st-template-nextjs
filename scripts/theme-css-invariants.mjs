@@ -827,8 +827,8 @@ for (const sel of MOVED_TEXT_TARGETS) await measureText(sel, pathOf(baseUrl), fa
 // reason (everything after it — ②, ⑤, the ⑤b loop's own resting readings — is measured with no hover).
 //
 // 🔴 Zero measured is a finding here too, and the floor is not the same sentence as the one above:
-// `.btn-secondary` is in this list and not in that one, so "none of them is here" can be true of one
-// list and false of the other on the same page.
+// `.btn-outline-primary` and two more are in this list and not in that one (#1581), so "none of them
+// is here" can be true of one list and false of the other on the same page.
 {
   const measured = [];
   for (const sel of HOVER_TARGETS) {
@@ -2387,9 +2387,9 @@ const ROW_SHAPE = 'row';
 //    ⟹ 清单空了。按形态选（`[data-shape="row"]`）的那一半照旧：哪个块穿上 row 就量哪个。D1 那一族要是
 //    哪天又有块进库，把它的名字写回这里。
 const ROW_ONLY_BLOCKS = [];
-// 🔴 #1425（T3）—— 主题表契约这一族（⑧ 行形状 · ⑩ 吸顶偏移 · 契约钩子的覆盖）量的全是**皮由主题表画**的块。
+// 🔴 #1425（T3）—— 主题表契约这一族（⑧ 行形状 · 契约钩子的覆盖；原来还有 ⑩ 吸顶偏移，#1581 随 services-nav 一起退役）量的全是**皮由主题表画**的块。
 //    旧库删完之后块库里一个都不剩（17 个块全是 `skin: "site-css"`，皮和零件类名由编出来的 site.css 提供）。
-//    这三处「一个都没量到 = finding」的判定于是没有对象：判据只问这一句，不按块名各开口子 ——
+//    这两处「一个都没量到 = finding」的判定于是没有对象：判据只问这一句，不按块名各开口子 ——
 //    哪天又有一个主题表画的块进库，它们自动恢复判定。
 const THEME_SKINNED_BLOCKS = (() => {
   const bm = createRequire(import.meta.url)('./lib/block-manifest.js');
@@ -2808,186 +2808,9 @@ async function judgeLayoutIntent(where) {
   return cells;
 }
 
-// ── ⑩ a service the visitor clicked in the sticky bar is not UNDER that bar (#1327) ─────────────
-//
-// `services-nav` is `position: sticky` and it WRAPS, so it stands between the top of the window and
-// whatever the page scrolled to. `.services-list__item { scroll-margin-top }` is the distance that
-// keeps the two apart, and #1327 measured what happens when that distance is a constant: with the
-// old `6rem`, on an eight-service fixture, `h2.services-list__title` was covered 25px out of its own
-// 25px — the WHOLE heading — at 375 AND at 1280. So the value is now measured by the browser into
-// `--services-nav-scroll-margin` (`buildServicesNavOffsetScript()` in src/app/layout.tsx), and this
-// is the check that says whether it arrived.
-//
-// 🔴 IT HAS TO BE MEASURED IN A BROWSER, AND NOTHING STATIC CAN STAND IN FOR IT. The number depends
-// on how many services the business has, how wide the window is, and what the theme sheet writes on
-// `.services-nav` / `.services-nav__link` (both §1 hooks; `padding` and `font-` are on §2's list —
-// measured 2026-09-15: the same eight services at 1280 go from a 208px bar to a 110px one on those
-// declarations alone). A file that reads CSS cannot know any of the three. `theme-css-lint.js` now
-// refuses a sheet that writes this offset back to a constant; THIS is what says the offset the app
-// computes is the right one.
-//
-// 🔴 TWO RULERS, BOTH REPORTED, AND THE HEADING IS THE ONE THAT CARRIES THE POINT. The item's box
-// starts with an icon and is 550–650px tall, so "covered 275px" reads like a scratch on it; the
-// heading is 25px tall, so the same state covers 100% of the thing the visitor was looking for. Both
-// are asserted to be 0, and both are printed with the height of the box they were measured against —
-// a bare "25px" is the reading #1327 nearly mistook for a small one.
-//
-// 🔴 THE CLICK IS THE USER'S PATH, NOT `scrollIntoView()`, and the scroll ANIMATES: `globals.css:7`
-// is `html { scroll-behavior: smooth }`, so reading the boxes when the click returns reads them
-// where they were BEFORE the jump — `covered = 0` on a visibly broken page, a vacuous green. #1327's
-// first probe did exactly that and printed 0 for all sixteen rows. So: wait for `scrollY` to stop
-// moving, and then ask whether the scroll LANDED where it was asked to. A page that ran out of room
-// underneath stopped short for its own reason, and that is not a reading about this offset.
-//
-// 🔴 ONE LINK, SAID OUT LOUD. `scroll-margin-top` is one declaration on one selector, so every item
-// on the page reads the same number: clicking the other seven asks the same question again rather
-// than a new one. What that does NOT cover is any width between 375 and 1280, and any page whose
-// services-nav and services-list are not both present — both are in the readings line below.
-const NAV_BAR_SEL = '.services-nav';
-const NAV_ITEM_SEL = '.services-list__item';
-const navOffsetPagesMeasured = [];
-const navOffsetSkipped = [];
-
-/** Does the page that is open carry the pair this check needs (a bar with links, and a list)? */
-async function navOffsetPresent() {
-  const present = await page.evaluate(([bar, item]) => ({
-    bar: document.querySelectorAll(bar).length,
-    links: document.querySelectorAll(`${bar}__link`).length,
-    items: document.querySelectorAll(item).length,
-  }), [NAV_BAR_SEL, NAV_ITEM_SEL]);
-  return !!(present.bar && present.links && present.items);
-}
-
-/** ⑩ on the page that is open, at both widths, handing the page back the way it was found. */
-async function measureNavOffset(where) {
-  const before = page.viewportSize();
-  const beforeScroll = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }));
-  const frames = () => page.evaluate(() => new Promise((done) => {
-    requestAnimationFrame(() => requestAnimationFrame(done));
-  }));
-  // Wait for the animated scroll to stop, rather than for a duration.
-  const scrollSettled = () => page.evaluate(() => new Promise((done) => {
-    let last = -1; let same = 0;
-    const tick = () => {
-      const y = window.scrollY;
-      same = y === last ? same + 1 : 0;
-      last = y;
-      if (same >= 6) done(y); else requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  }));
-
-  for (const w of [ROW_DESKTOP_W, ROW_PHONE_W]) {
-    await page.setViewportSize({ width: w, height: before.height });
-    await frames();
-    await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
-    await scrollSettled();
-    const href = await page.evaluate((bar) => {
-      const a = document.querySelector(`${bar}__link`);
-      return a ? a.getAttribute('href') : null;
-    }, NAV_BAR_SEL);
-    if (!href || !href.startsWith('#')) {
-      problems.push(`⑩ on ${where} at ${w}px: the first ${NAV_BAR_SEL}__link points at `
-        + `"${href}" rather than at an id on this page, so the one thing this check measures cannot `
-        + 'be driven. That link is how a visitor reaches a service (blockAttrs.ts:38)');
-      continue;
-    }
-    const id = href.slice(1);
-    await page.click(`${NAV_BAR_SEL}__link[href="${href}"]`);
-    await scrollSettled();
-    const r = await page.evaluate(([anchorId, bar]) => {
-      const item = document.getElementById(anchorId);
-      const strip = document.querySelector(bar);
-      if (!item || !strip) return null;
-      const b = strip.getBoundingClientRect();
-      const t = item.getBoundingClientRect();
-      const h = item.querySelector('.services-list__title');
-      const hb = h ? h.getBoundingClientRect() : null;
-      const overlap = (x, y) => Math.max(0, Math.min(x.bottom, y.bottom) - Math.max(x.top, y.top));
-      const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-      return {
-        barH: Math.round(b.height),
-        offset: getComputedStyle(item).scrollMarginTop,
-        variable: getComputedStyle(document.documentElement)
-          .getPropertyValue('--services-nav-scroll-margin').trim() || '(unset)',
-        itemH: Math.round(t.height),
-        coveredItem: Math.round(overlap(b, t)),
-        titleH: hb ? Math.round(hb.height) : null,
-        coveredTitle: hb ? Math.round(overlap(b, hb)) : null,
-        landed: Math.abs(window.scrollY - maxScroll) > 1,
-      };
-    }, [id, NAV_BAR_SEL]);
-    if (!r) {
-      problems.push(`⑩ on ${where} at ${w}px: "${href}" is a link in the services bar and there is `
-        + 'no element with that id on the page — the bar and the list have come apart (they are one '
-        + 'feature: ServicesNavSection links at the ids ServicesListSection writes)');
-      continue;
-    }
-    readings.push(`  services-nav offset (check ⑩) on ${where} at ${w}px — clicked "${href}": bar `
-      + `${r.barH}px tall, scroll-margin-top ${r.offset} (--services-nav-scroll-margin `
-      + `${r.variable}), covered: item ${r.coveredItem}/${r.itemH}px, `
-      + `heading ${r.coveredTitle}/${r.titleH}px, landed ${r.landed ? 'yes' : 'no (page end)'}`);
-    if (!r.landed) {
-      navOffsetSkipped.push(`${where} at ${w}px (the page ran out of room below "${href}")`);
-      continue;
-    }
-    if (r.titleH === null) {
-      problems.push(`⑩ on ${where} at ${w}px: the item "${href}" has no .services-list__title, so `
-        + 'the ruler that carries this check (how much of the HEADING is covered) has nothing to '
-        + 'measure. That is not a pass — it is no reading');
-      continue;
-    }
-    if (r.coveredTitle > 0 || r.coveredItem > 0) {
-      problems.push(`⑩ on ${where} at ${w}px wide: a visitor who clicks "${href}" in the sticky `
-        + `services bar lands with ${r.coveredTitle}px of that service's ${r.titleH}px heading `
-        + `(${Math.round((r.coveredTitle / r.titleH) * 100)}%) and ${r.coveredItem}px of its `
-        + `${r.itemH}px box UNDER the bar. The bar is ${r.barH}px tall here and the item's `
-        + `scroll-margin-top is ${r.offset} (--services-nav-scroll-margin is ${r.variable}) — it has `
-        + 'to be at least the bar\'s sticky `top` plus the bar\'s own height, which is why '
-        + 'src/app/layout.tsx measures it rather than globals.css writing a constant (#1327). A '
-        + '`(unset)` variable means that script did not run or found no bar');
-    }
-  }
-
-  await page.setViewportSize(before);
-  await frames();
-  // 🔴 AND PARK THE POINTER OFF-PAGE. `page.click()` leaves the real mouse sitting where it clicked,
-  // and on this page the very next thing measured is #1091's buttons — first at rest, then hovered.
-  // A resting reading taken with the pointer parked on a button IS the hover reading, so the two come
-  // out equal and #1100 reports "hover changed nothing", naming a sheet that is fine. Measured on
-  // ember-12, the minimal fixture arm, shard 2/2: without this line
-  // `.btn-primary:hover on /allblocks.html — hover 之后…一个字节都没变`; with it, rc=0. The #1100 block
-  // parks the pointer for exactly this reason after its own hovering; a check that clicks owes the
-  // same. "Handing the page back the way it was found" includes where the pointer is.
-  await page.mouse.move(0, 0);
-  // The click left a hash in the URL; take it off before anything else is measured on this page, and
-  // put the scroll back. `behavior: 'instant'` for the reason ⑧ records one screen up — the page
-  // animates otherwise and the read-back is taken mid-flight.
-  await page.evaluate(({ x, y }) => {
-    try { window.history.replaceState(null, '', window.location.pathname + window.location.search); } catch (e) { /* file:// */ }
-    window.scrollTo({ left: x, top: y, behavior: 'instant' });
-  }, beforeScroll);
-  await frames();
-  const afterScroll = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }));
-  if (Math.abs(afterScroll.y - beforeScroll.y) > 1 || Math.abs(afterScroll.x - beforeScroll.x) > 1) {
-    problems.push(`⑩ on ${where}: the page could not be put back where it was `
-      + `(${beforeScroll.x},${beforeScroll.y} → ${afterScroll.x},${afterScroll.y}) — whatever is `
-      + 'measured next sees a different part of the page than it would have');
-  }
-  return 1;
-}
-
-/** ⑩ on a page opened directly — the arm every other check in this file arrives by. */
-async function judgeNavOffset(where) {
-  if (!await navOffsetPresent()) return 0;
-  navOffsetPagesMeasured.push(where);
-  return measureNavOffset(where);
-}
-
 await judgeStrips(pathOf(baseUrl));
 await judgeRowShapes(pathOf(baseUrl));
 await judgeLayoutIntent(pathOf(baseUrl));
-await judgeNavOffset(pathOf(baseUrl));
 
 // ── ④ body text is big enough ───────────────────────────────────────────────────────────────────
 // 📌 #1425（T3）：第二个原来是旧 hero 的 `.hero__sub`，换成新 hero 的 `.hro-sub`。
@@ -3775,11 +3598,6 @@ for (const p of otherPaths.slice(0, OTHER_PAGE_CAP)) {
   await judgeRowShapes(opened.at);
   // 🔴 #1332 ⑨ —— 同一条理由：31 个块里绝大多数在首页上没有，夹具把它们全放在 /allblocks.html。
   await judgeLayoutIntent(opened.at);
-  // 🔴 #1327 ⑩ — AND THE SERVICES BAR'S SCROLL OFFSET, HERE, for the same reason ⑧ is here: the pair
-  // this check needs (a services-nav AND a services-list on one page) is on no home page of this
-  // sample site — it is /services.html and /allblocks.html — so measuring ⑩ on the first page only
-  // would have been measuring it never.
-  await judgeNavOffset(opened.at);
   // 🔴 #1091 — AND THE BUTTONS AND LINKS, HERE, on every page this loop opens. This line was held
   // closed from #1055 to #1091 and the reason is spent: what blocked it was `.btn-primary`, white on
   // `--color-primary-500`, unreadable on 52 of the 80 pool sheets (104 violations, 2 per red sheet,
@@ -3827,7 +3645,7 @@ for (const p of otherPaths.slice(0, OTHER_PAGE_CAP)) {
   // state has to be driven before it can be photographed. Whether it should join this list is #1100.
   // #1091 measured it with a one-off probe instead and reported the readings on the ticket.
   for (const sel of CONTROL_TARGETS) await measureText(sel, opened.at, false);
-  // 🔴 #1100 —— hover 那三个也在这一圈里，理由跟上面 `CONTROL_TARGETS` 进这一圈的理由逐字同源：
+  // 🔴 #1100 —— hover 那张单子（`HOVER_TARGETS`）也在这一圈里，理由跟上面 `CONTROL_TARGETS` 进这一圈的理由逐字同源：
   // 这个样例站的首页上 `.btn-primary` 一个都没有（它只从 `services-list` / `pricing-table` 进来），
   // 只在首页量 = 那个钩子的 hover 永远不被量。**顺序同样是承重的**：先量静止态，再 hover，最后把
   // 指针停回页外 —— 这一圈后面还有别的检查，它们都假定没有 hover。
@@ -3928,133 +3746,6 @@ if (SAMPLE_WIDENED && THEME_CONTRACT_HAS_SUBJECTS) {
   }
 }
 
-// ── ⑩ again, on the OTHER way a visitor gets to that page (#1327 second round) ──────────────────
-//
-// 🔴 EVERY READING ABOVE WAS TAKEN ON A PAGE OPENED DIRECTLY, and the first fix for #1327 was green
-// on all of them while being broken on the path most visitors actually take. The offset is measured
-// by a script in the layout, the layout survives a click on the site's own header, and a script in
-// it does not run twice — so arriving at /services by clicking "Services" left the variable never
-// written and the old `6rem` in force: the whole 25px heading under the bar again, at 375 and at
-// 1280. Coming back to the page a second time had a third shape, where the observer was still
-// watching the bar from the previous visit and the variable froze at the old width's number.
-//
-// So this arm goes to the home page, clicks a link to a page that carries the bar, and asks the same
-// two questions there. It is deliberately one click from a REAL link in the markup rather than a
-// router call: what has to hold is "the visitor got here without the document reloading", and the
-// readings below say whether that is what happened — a mark is written on the home page and the
-// measurement only counts if the mark is still there afterwards.
-//
-// 🔴 And because the widths are swept AFTER arriving that way, this is also the second shape: the
-// desktop reading is taken on arrival, the phone reading after the window changes size on a page the
-// visitor navigated to. A bar measured once on the way in cannot pass both.
-const navOffsetSoftNav = [];
-
-async function judgeNavOffsetAfterSoftNav() {
-  if (navOffsetPagesMeasured.length === 0) return;
-  const target = navOffsetPagesMeasured[0];
-  const size = page.viewportSize();
-  await page.setViewportSize({ width: ROW_DESKTOP_W, height: size.height });
-  const opened = await openPage(homePath);
-  if (opened.error) {
-    navOffsetSoftNav.push(`🔴 the home page (${homePath}) would not open, so the click-through arm `
-      + `was not run: ${opened.error}`);
-    await page.setViewportSize(size);
-    return;
-  }
-  await page.evaluate(() => { window.__navOffsetSameDocument = 1; });
-  const href = await page.evaluate((want) => {
-    const norm = (u) => u.pathname.replace(/index\.html$/, '').replace(/\.html$/, '').replace(/\/+$/, '');
-    const wanted = norm(new URL(want, window.location.href));
-    for (const a of Array.from(document.querySelectorAll('a[href]'))) {
-      let u;
-      try { u = new URL(a.getAttribute('href'), window.location.href); } catch (e) { continue; }
-      if (u.origin !== window.location.origin || u.hash) continue;
-      if (norm(u) !== wanted) continue;
-      a.setAttribute('data-nav-offset-probe', '1');
-      return a.getAttribute('href');
-    }
-    return null;
-  }, target);
-  if (!href) {
-    navOffsetSoftNav.push(`🔴 no link on ${homePath} points at ${target}, so there is no way to `
-      + 'reach the services bar by clicking through this site and this arm measured nothing');
-    await page.setViewportSize(size);
-    return;
-  }
-  await page.click('a[data-nav-offset-probe="1"]');
-  const arrived = await page.waitForSelector(NAV_BAR_SEL, { timeout: 15_000 }).then(() => true, () => false);
-  const sameDocument = await page.evaluate(() => window.__navOffsetSameDocument === 1);
-  if (!arrived || !await navOffsetPresent()) {
-    navOffsetSoftNav.push(`🔴 clicking "${href}" on ${homePath} did not land on a page carrying `
-      + `${NAV_BAR_SEL} and ${NAV_ITEM_SEL} — nothing was measured on this path`);
-    await page.setViewportSize(size);
-    return;
-  }
-  const how = sameDocument
-    ? 'the document did NOT reload (the mark written before the click survived it), so this is the '
-      + 'client-side navigation the first fix for #1327 was blind to'
-    : '🔴 the document RELOADED on that click (the mark written before it is gone), so this arm read '
-      + 'the same thing as opening the page directly and says nothing about client-side navigation';
-  navOffsetSoftNav.push(`${target} reached by clicking "${href}" on ${homePath} — ${how}`);
-  await measureNavOffset(`${target} (reached by clicking "${href}" on ${homePath})`);
-  await page.setViewportSize(size);
-}
-await judgeNavOffsetAfterSoftNav();
-
-// ── the report for ⑩, and the thing only the whole run can say about it (#1327) ─────────────────
-readings.push(`  services-nav offset (check ⑩): measured on `
-  + `${navOffsetPagesMeasured.join(', ') || `🔴 no page — no page carried both ${NAV_BAR_SEL} and `
-    + `${NAV_ITEM_SEL}`}, at ${ROW_DESKTOP_W}px and ${ROW_PHONE_W}px, by clicking the FIRST link in `
-  + 'the bar and asking how much of the service it points at ends up under the bar — the item\'s box '
-  + 'and, the ruler that carries it, that service\'s own heading.'
-  + `${navOffsetSkipped.length ? ` · 🔴 not judged, the scroll stopped short at the end of the page: `
-    + `${navOffsetSkipped.join(' · ')}` : ''}`
-  + ' What it does NOT cover: any width between the two, the OTHER links in the bar (they all read '
-  + 'the same one declaration, so clicking them asks the same question again), and a visitor with '
-  + 'JavaScript off — there nothing measures the bar, the `6rem` fallback is what applies, and a '
-  + 'service reached by a #hash lands with its whole heading under the bar (measured by hand in '
-  + '#1327 round 4 on an eight-service fixture whose bar was 320px tall at 375px: 313px of the 558px '
-  + 'item, 25px of the 25px heading — every bar height quoted in this file is the one that fixture '
-  + 'happened to read on the day, since which sheet it wears is picked by rotation, and that a '
-  + 'bar\'s height is not a property of "eight services" is the whole point). That is the behaviour '
-  + 'this page had before #1327, not a new one.'
-  + ' 🔴 The third way in — a #hash URL opened DIRECTLY, which this check does not walk either — was '
-  + 'measured by hand in #1327 round 4 and is NOT a gap: the browser does jump during load, before '
-  + 'this script has written the property, but the app then re-applies the hash after hydration and '
-  + 'the measured offset is what lands — 0/558 and 0/25 at 375px, 0/485 and 0/25 at 1280px on the '
-  + 'delivered bytes, against 313/558 and 25/25 at 375px on the same fixture built from main, so '
-  + 'that path is FIXED here rather than merely unchanged.');
-readings.push(`  services-nav offset (check ⑩), reached by clicking through the site rather than `
-  + `opened directly: ${navOffsetSoftNav.join(' · ') || '🔴 not run — no page carried the bar'}`);
-if (!THEME_CONTRACT_HAS_SUBJECTS) {
-  readings.push('  services-nav offset (check ⑩): 📌 #1425 — services-nav / services-list were removed with the old '
-    + 'library; nothing in the library carries a sticky services bar, so this check has no subject and judges nothing');
-}
-if (SAMPLE_WIDENED && THEME_CONTRACT_HAS_SUBJECTS && !navOffsetSoftNav.some((s) => s.includes('did NOT reload'))) {
-  // 🔴 #1327 second round — THIS ARM GOING QUIET IS THE FAILURE IT EXISTS FOR. The defect it caught
-  // was invisible to every reading taken on a directly opened page, so an arm that silently measured
-  // nothing would put the check back where it was while still printing four green lines. On a sample
-  // site this run widened, the home page has a header linking at every page of the site and the app
-  // ships a client-side router, so "no link" or "the document reloaded" is a change in the app, not
-  // a small fixture.
-  problems.push('services-nav offset: the arm that reaches the services bar by CLICKING a link on '
-    + 'the home page did not get there without a document reload this run, so check ⑩ measured only '
-    + 'pages opened directly — exactly the blind spot that let #1327 ship a fix which was green on '
-    + 'every direct reading and broken for a visitor who clicked "Services" in the header. What it '
-    + `reported: ${navOffsetSoftNav.join(' · ') || '(nothing)'}`);
-}
-if (SAMPLE_WIDENED && THEME_CONTRACT_HAS_SUBJECTS && navOffsetPagesMeasured.length === 0) {
-  // 🔴 On a site this run widened itself, "⑩ found nothing" is a finding, not a pass. This fixture
-  // carries all 31 block types by construction (scripts/block-migration/gen-allblocks.js derives the
-  // page from the registry) and #1320 gave it several services, so services-nav and services-list
-  // are both on /allblocks.html by construction. Their absence means one of them stopped rendering —
-  // and with no page measured, every sentence ⑩ prints would still read like a pass.
-  problems.push(`services-nav offset: no page of a sample site this run widened to cover every block `
-    + `carried both ${NAV_BAR_SEL} and ${NAV_ITEM_SEL}, so check ⑩ judged nothing this run. Those two `
-    + 'blocks are one feature (the bar links at the ids the list writes) and the fixture carries all '
-    + '31 block types by construction, so this is a block that stopped rendering, not a small sample');
-}
-
 // ── the report for ⑤ and ⑤b together ────────────────────────────────────────────────────────────
 readings.push(`  pages measured for check ⑤: ${audits.map((a) => a.where).join(', ')} — the first is the `
   + `page every other check above was measured on, the rest come from ${discovery}`
@@ -4089,6 +3780,12 @@ readings.push('  pages measured for check ① on the blocks phase 2 has moved, a
   + [...MOVED_TEXT_TARGETS, ...CONTROL_TARGETS]
     .map((sel) => `${sel} → ${(movedTextMeasured.get(sel) || []).join(', ') || '🔴 on no page measured'}`)
     .join(' · ')
+  // 🔴 #1581 —— the hover labels too. `measureText` has always filed them under `<sel>:hover` in
+  // `movedTextMeasured`, but this line only printed the resting list, so a hover target that was on
+  // no page (two of the three, every run, before #1581) left no trace here at all.
+  + ` · hover: ${HOVER_TARGETS.map((t) => `${t}:hover`)
+    .map((sel) => `${sel} → ${(movedTextMeasured.get(sel) || []).join(', ') || '🔴 on no page measured'}`)
+    .join(' · ')}`
   + `. The two hero hooks (${FIRST_SCREEN_TEXT.join(', ')}) are required on `
   + `${pathOf(baseUrl)} and are reported above`
   + `${droppedPages.length ? ` · 🔴 ${droppedPages.length} page(s) past the ${OTHER_PAGE_CAP}-page cap `

@@ -132,10 +132,11 @@ const RENDERED_CONTROLS = [
 
 // ── #1100 — AND WHAT THEY LOOK LIKE WITH THE POINTER ON THEM ─────────────────────────────────────
 //
-// 📌 #1531 —— 这张单子跟上面那张同属浏览器那一侧（它只被 hover 着量，没有主题表那一侧的消费者），
-//    本票没动它的取值。`.btn-secondary` / `.btn-accent` 今天在新库 markup 里同样是 0 处，所以真正
-//    被 hover 着量到的只有 `.btn-primary`（每页那行 `buttons hovered on …: 1/3` 读得到）；它该不该
-//    跟着收窄是另一件事，不在 #1531 射程里。
+// 📌 #1531 —— 这张单子跟上面那张同属浏览器那一侧（它只被 hover 着量，没有主题表那一侧的消费者）。
+// 🔴 #1581 —— 它原来是旧库那三个（`.btn-primary` / `.btn-secondary` / `.btn-accent`），后两个今天任何块、
+//    任何共用组件都不发，于是每一轮只有 `.btn-primary` 被 hover 着量到（`buttons hovered on /: 1/3`），
+//    描边按钮的 hover —— 正是「hover 换了底色」的那一种 —— 没有任何尺子在量。现在这张单子按
+//    `src/components/Button.tsx` §buttonClass 真发的类重列，逐项理由写在单子里。
 // 🔴 WHY A SEPARATE LIST AND NOT FOUR MORE STRINGS IN THE ONE ABOVE. A `:hover` selector cannot be
 // measured the way the list above is measured: `locator('.btn-primary:hover')` matches **nothing**
 // while nobody is hovering (count = 0), and the loop that consumes `RENDERED_CONTROLS` passes
@@ -146,23 +147,37 @@ const RENDERED_CONTROLS = [
 // input to that (different) loop. The selectors here are the RESTING ones; the consumer hovers them
 // and labels the reading `<sel>:hover`.
 //
-// 🔴 WHY `.btn-secondary` IS HERE WHILE IT IS DELIBERATELY ABSENT FROM `RENDERED_CONTROLS`. The reason
-// it is excluded above is a reading about its RESTING state and only about that: it is transparent,
-// so "the colour behind its words" is the hero's own background and three runs of the same bytes gave
-// 9.68 / 2.47 / 4.39. On hover its background is a solid `--btn-primary-bg` — one colour, stable,
-// and owned by the palette. The exclusion's own justification therefore does not reach this state.
-// (The same split appears one file over: `globals.css`'s `.hero__cta .btn-secondary { color:
-// currentColor }` is right for the resting state and wrong for hover, which is why #1100 added a
-// `:hover` rule beside it.)
-//
-// 🔴 The two link hooks are NOT here: `globals.css` gives neither `.announcement-bar__link` nor
-// `.services-nav__link` a `:hover` rule (grep: zero), and a theme sheet may not write one (§2 of the
-// CSS contract). Hovering them would photograph the resting colours a second time and report it as a
-// hover reading — a pairing no visitor ever sees, dressed up as one they do.
+// 🔴 #1581 —— WHAT IS ON THIS LIST, ONE REASON EACH, AND WHAT IS NOT. Every class is one
+// `buttonClass()` emits (`src/components/Button.tsx`); a list of names no block renders measures nothing
+// while printing a coverage line that looks like it did (the `1/3` this list read before #1581).
+//   `.btn-primary`          the solid button, every block's `fallback="solid"`.
+//   `.btn-outline-primary`  the outline button on a light ground. Hover FILLS it (transparent → the
+//                           primary colour) and changes its ink, so this is the state where a sheet
+//                           can make the words vanish (#966's shape) while the resting state is fine.
+//   `.btn-light`            the solid button on a dark ground (`solidLight` — the footer CTA's boxed /
+//                           brand-ground variants, `blocks/footer/Section.tsx`).
+//   `.btn-outline-light`    the outline button on a dark ground (`onDark` — a deep header's CTA, the
+//                           footer CTA on a dark ground).
+//   The last two are on no page of this repo's sample site today (no deep header, no footer CTA on a
+//   dark ground — `grep -c` over its built HTML reads 0 for both). They are on this list because real
+//   sites render them, and the run's "pages measured for check ①" line prints `🔴 on no page measured`
+//   for each hover label it never reached — so their absence is a reading on every run, not a silent gap.
+//   NOT here: `.btn-link`, although blocks do emit it — its hover changes neither its background
+//   nor its colour (measured on the sample site's /allblocks.html: `rgba(0, 0, 0, 0)|rgb(30, 44, 72)`
+//   before and after), so there is no second state to judge: hovering it photographs the resting
+//   pairing again, and the consumer rightly refuses that as "not a contrast reading" — which made the
+//   run red on an instrument line, not on a colour. If a sheet or globals.css ever gives it a hover
+//   colour, it belongs back here.
+//   Also not here: `.btn-secondary` / `.btn-accent` (still defined in `globals.css`, emitted by nothing —
+//   `git grep -nE 'btn-(secondary|accent)' -- templates/nextjs/blocks templates/nextjs/src/components`
+//   finds no class that renders them) and `link-light` (a modifier on `.btn-link`, not a button of its
+//   own — the `.btn-link` locator reaches it). `HOVER_TARGETS.length` is the only count anything reads,
+//   so adding or removing a line here needs no other edit.
 const HOVER_TARGETS = [
   '.btn-primary',
-  '.btn-secondary',
-  '.btn-accent',
+  '.btn-outline-primary',
+  '.btn-light',
+  '.btn-outline-light',
 ];
 
 // ══ 主题表那一侧：读【表的字节】，名字跟着主题表走 ══════════════════════════════════════════════
