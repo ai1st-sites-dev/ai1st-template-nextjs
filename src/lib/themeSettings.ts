@@ -51,7 +51,7 @@ export const BUTTON_SHAPE: Record<ButtonShapeToken, string> = tables.BUTTON_SHAP
 export const ALLOWED = {
   radius: Object.keys(tables.SITE_LEGACY_RADIUS) as RadiusToken[],
   density: Object.keys(DENSITY) as DensityToken[],
-  shadow: ['soft', 'none', 'strong'] as ShadowToken[],
+  shadow: Object.keys(tables.SITE_LEGACY_SHADOW) as ShadowToken[],
   buttonShape: Object.keys(BUTTON_SHAPE) as ButtonShapeToken[],
 };
 

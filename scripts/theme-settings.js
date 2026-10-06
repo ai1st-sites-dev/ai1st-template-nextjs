@@ -71,9 +71,9 @@ const SITE_LEGACY_DENSITY_X_MULT = { x: 1, xSm: 1.5, xLg: 2 };
 //    也不再写它们 —— 只有 `settingsToSiteCssVars()` 带上。
 //
 // 🔴 值：圆角是**真值**（枚举那三档逐字是 #1586 之前的 RADIUS 表；数值形状按同一组比例从 `radius` 算），存量站
-//    Apply 时用它自己仓里那份翻译器算的也是这几个数。阴影**只能是常量**：#1586 把主题池的 `shadowStrength` 拿掉了，
-//    平台这一侧已经没有「这套主题的阴影多深」可发。取 #1586 之前 globals.css `:root` 的默认值（= 原 SHADOW.soft）——
-//    那正是存量站拿到一份不带 `shadowStrength` 的设定时自己会落回的值。
+//    Apply 时用它自己仓里那份翻译器算的也是这几个数。数值形状的阴影**只能是常量**：#1586 把主题池的 `shadowStrength` 拿掉了，
+//    平台这一侧已经没有「这套主题的阴影多深」可发。数值形状取 #1586 之前 globals.css `:root` 的默认值（= 原 SHADOW.soft）——
+//    那正是存量站拿到一份不带 `shadowStrength` 的设定时自己会落回的值；档位形状照档位词查（#1586 r2，见表上那句）。
 //    📌 剩下的差别说在明处：存量站 Apply 时读的是**它自己仓里**的主题池（还带 `shadowStrength`），所以在 #1426 之前建、
 //    页面上真有 `shadow-*` 类的站上，试穿与 Apply 的阴影深浅可以不同（今天这种元素两个：语言切换下拉、博客列表卡片）。
 //
@@ -87,11 +87,23 @@ const SITE_LEGACY_RADIUS = {
 };
 // 数值形状：五档相对 DEFAULT 的比例，取自上面 `subtle` 那一档（1 : 1.5 : 2 : 3 : 4）⟹ `radius: 4`（px）与 `subtle` 逐字相同。
 const SITE_LEGACY_RADIUS_MULT = { DEFAULT: 1, md: 1.5, lg: 2, xl: 3, '2xl': 4 };
+// 阴影按档位存（跟 SITE_LEGACY_DENSITY_X 同一个形状）：存量站 brand.json 里的档位词（`shadow: 'none'`）照原样翻，
+// 档位名必须与 themes.js 的 THEME_SETTING_VALUES.shadow 逐个相同（`tests/e2e/specs/961-theme-settings.spec.ts`
+// 「两张表不许漂」盯着）。数值形状没有档位可查（`shadowStrength` 已拿掉）⟹ 取 `soft`（= #1586 之前 globals.css 的默认值）。
 const SITE_LEGACY_SHADOW = {
-  DEFAULT: '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
-  sm: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
-  md: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
-  lg: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
+  soft: {
+    DEFAULT: '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)',
+    sm: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
+    md: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+    lg: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
+  },
+  none: { DEFAULT: 'none', sm: 'none', md: 'none', lg: 'none' },
+  strong: {
+    DEFAULT: '0 4px 8px -1px rgb(0 0 0 / 0.18), 0 2px 4px -2px rgb(0 0 0 / 0.12)',
+    sm: '0 2px 4px 0 rgb(0 0 0 / 0.1)',
+    md: '0 10px 18px -3px rgb(0 0 0 / 0.2), 0 4px 8px -4px rgb(0 0 0 / 0.14)',
+    lg: '0 20px 32px -6px rgb(0 0 0 / 0.26), 0 8px 14px -8px rgb(0 0 0 / 0.18)',
+  },
 };
 
 // 按钮形状 —— 新模板里圆角唯一活着的那一个值：`.btn`（`scripts/lib/site-css.js` §BTN_RADIUS）和旧块的
@@ -163,7 +175,7 @@ function numericSettingsToCssVars(s, forSite) {
   if (forSite && typeof s.radius === 'number' && Number.isFinite(s.radius)) {
     for (const [k, mult] of Object.entries(SITE_LEGACY_RADIUS_MULT)) out.push(`--radius-${k}: ${px(s.radius * mult)};`);
   }
-  if (forSite) for (const [k, v] of Object.entries(SITE_LEGACY_SHADOW)) out.push(`--shadow-${k}: ${v};`);
+  if (forSite) for (const [k, v] of Object.entries(SITE_LEGACY_SHADOW.soft)) out.push(`--shadow-${k}: ${v};`);
   if (typeof s.density === 'number' && Number.isFinite(s.density)) {
     const d = s.density;
     const rem = (n) => `${Math.round(n * d * 1000) / 1000}rem`;
@@ -182,7 +194,10 @@ function enumSettingsToCssVars(s, forSite) {
   const out = [];
   const radius = forSite ? own(SITE_LEGACY_RADIUS, s.radius) : undefined;
   if (radius) for (const [k, v] of Object.entries(radius)) out.push(`--radius-${k}: ${v};`);
-  if (forSite) for (const [k, v] of Object.entries(SITE_LEGACY_SHADOW)) out.push(`--shadow-${k}: ${v};`);
+  // 认不出档位（或没写 shadow）⟹ 取 soft，不是整组跳过：存量站自己 Apply 时那一组落回它 globals.css `:root` 的默认值，
+  // 那个值就是 soft；而整组跳过会让存量站数不够、整次试穿作废（layout.tsx 的 setFull）。
+  const shadow = forSite ? (own(SITE_LEGACY_SHADOW, s.shadow) || SITE_LEGACY_SHADOW.soft) : undefined;
+  if (shadow) for (const [k, v] of Object.entries(shadow)) out.push(`--shadow-${k}: ${v};`);
   const density = own(DENSITY, s.density);
   if (density) for (const [k, v] of Object.entries(density)) out.push(`--section-${k}: ${v};`);
   const legacyX = forSite ? own(SITE_LEGACY_DENSITY_X, s.density) : undefined;

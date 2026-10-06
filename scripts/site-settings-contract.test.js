@@ -64,6 +64,18 @@ const LEGACY_SHADOW_VALUES = {
   '--shadow-md': '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
   '--shadow-lg': '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)',
 };
+// 档位形状的另两档（#1586 r2：存量站 brand.json 里的 `shadow: 'none' | 'strong'` 照档位翻，跟它自己 Apply 时一致）。
+// 逐字取 #1586 之前那张 SHADOW 表。
+const LEGACY_SHADOW_ENUM_VALUES = {
+  soft: LEGACY_SHADOW_VALUES,
+  none: { '--shadow-DEFAULT': 'none', '--shadow-sm': 'none', '--shadow-md': 'none', '--shadow-lg': 'none' },
+  strong: {
+    '--shadow-DEFAULT': '0 4px 8px -1px rgb(0 0 0 / 0.18), 0 2px 4px -2px rgb(0 0 0 / 0.12)',
+    '--shadow-sm': '0 2px 4px 0 rgb(0 0 0 / 0.1)',
+    '--shadow-md': '0 10px 18px -3px rgb(0 0 0 / 0.2), 0 4px 8px -4px rgb(0 0 0 / 0.14)',
+    '--shadow-lg': '0 20px 32px -6px rgb(0 0 0 / 0.26), 0 8px 14px -8px rgb(0 0 0 / 0.18)',
+  },
+};
 // 新模板里不该出现的全部 12 个（④ 那一格用）。
 const NOT_IN_NEW_SITE = [...LEGACY, ...LEGACY_SHAPE];
 
@@ -179,6 +191,24 @@ try {
       }
     }
     if (!problems.length) ok('3 档枚举 + 3 个数值的圆角五个、6 份设定的阴影四个，都等于 #1586 之前的值');
+    else problems.forEach((p) => bad(p));
+  }
+
+  console.log('②c 档位形状的阴影照档位词发（#1586 r2）：none / strong 不许被抹成 soft；没写或认不出 ⟹ soft（= 存量站 Apply 时落回的 :root 默认值），且照样发全');
+  {
+    const problems = [];
+    const cases = [
+      ...Object.keys(LEGACY_SHADOW_ENUM_VALUES).map((tier) => ({ shadow: tier, want: LEGACY_SHADOW_ENUM_VALUES[tier] })),
+      { shadow: undefined, want: LEGACY_SHADOW_VALUES },
+      { shadow: 'constructor', want: LEGACY_SHADOW_VALUES },
+    ];
+    for (const c of cases) {
+      const got = decls(T.settingsToSiteCssVars({ radius: 'round', shadow: c.shadow, density: 'standard', buttonShape: 'pill' }));
+      for (const [n, want] of Object.entries(c.want)) {
+        if (got.get(n) !== want) problems.push(`枚举 shadow=${c.shadow} ${n}=${got.get(n)}，应为 ${want}`);
+      }
+    }
+    if (!problems.length) ok(`${cases.length} 种 shadow 取值（3 档 + 没写 + 原型链词）的阴影四个都对`);
     else problems.forEach((p) => bad(p));
   }
 
