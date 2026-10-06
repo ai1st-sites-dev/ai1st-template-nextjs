@@ -57,10 +57,11 @@ const { siteFormsFrom } = require('./lib/site-forms');
 // #1548 —— 挖出来的关键词落盘（seo.json 的 targetKeywords + 每页 seo.targetKeyword）。真 AI 与 skipAI 两条路共用这一份。
 const targetKw = require('./lib/target-keywords');
 // #1549 —— 每页生成后的 SEO 检查（八条，设计文档 S2）。检查本身是纯函数，重写 / 丢页 / 失败的处置在本文件 §seoPass。
-const { seoProblems, rulesFor: seoRulesFor, pageTitleBudget, MIN_PAGE_TITLE_BUDGET, promptLocation, missingPhrases, sitePlace, hasPhrase } = require('./lib/seo-problems');
+const { seoProblems, rulesFor: seoRulesFor, pageTitleBudget, MIN_PAGE_TITLE_BUDGET, promptLocation, missingPhrases, sitePlace, hasPhrase,
+  contentImagesOf, words: seoWords, NOT_TEXT: SEO_NOT_TEXT, H1_BLOCKS: SEO_H1_BLOCKS, H2_BLOCKS: SEO_H2_BLOCKS } = require('./lib/seo-problems');
 // #1600 —— 建站报告（`site/build-report.json`）：各阶段往里记，结束时写盘；死链由 entrypoint 在 next build 之后并进来。
 const buildReportLib = require('./lib/build-report');
-// 这一次建站的那份报告（main 里建；seoPass 有两个调用点，都往这一份里记）。
+// 这一次建站的那份报告（main 里建；seoPass 有两个**主语言**调用点，都往这一份里记；第二语言那一次不记，见 §seoPass 头注）。
 let buildReport = null;
 // #1386 —— 建站选图：哪些槽要图、提示词怎么拼、上限怎么截、求不到怎么说，都在那个文件里。
 // 名单不再写在本文件里（此前是四个块名 + 四个 case，`hero-with-form` 因此永远拿不到图）。
@@ -98,6 +99,9 @@ const { geocodeBrand } = require('./lib/geocode');
 const { verifyTranscription, ratingFrom } = require('./lib/local-business-facts');
 // #1489 r2 —— contact 的 items 里抄进来的电话 / 邮箱 / 地址 / 营业时间，写盘那一刻剔掉（值只有一处）。
 const { siteFactsFrom, scrubContactCopies } = require('./lib/contact-facts');
+// #1593 —— 一次调用产出全部语言（第二语言按主语言骨架拼）+ 建站的四个数（耗时 / 费用 / 修补页数 / 页数）。
+const localesLib = require('./lib/all-locales');
+const { createBuildStats } = require('./lib/build-stats');
 
 // ─── AI Model Config ─────────────────────────────────────────────────────────
 // 🔴 下面 MODEL_PRICING 不是文档,是【记账输入】:getModelPricing(model) 的结果乘 token 数写进 operation_runs.cost(manager/db.go 的 insertOperationRun),写错一行不报错、只静默虚记。改它之前去 https://platform.claude.com/docs/en/about-claude/pricing 现取一次,别凭记忆 —— #1249 修的两行原来逐字是【已退役】型号的真价钱,不是打错。
@@ -135,12 +139,15 @@ let pricing = getModelPricing(model);
 if (process.stdout._handle && typeof process.stdout._handle.setBlocking === 'function') process.stdout._handle.setBlocking(true);
 
 const startTime = Date.now();
+// #1593 —— 本进程所有 cost 事件之和 + 耗时（§lib/build-stats.js；口径跟 operation_runs 不同，见那个文件头）。
+const buildStats = createBuildStats(startTime);
 
 function elapsed() {
   return ((Date.now() - startTime) / 1000).toFixed(1) + 's';
 }
 
 function emit(event, data = {}) {
+  if (event === 'cost') buildStats.addCost(data.cost);
   const line = JSON.stringify({ event, elapsed: elapsed(), ...data });
   process.stdout.write(line + '\n');
 }
@@ -533,24 +540,6 @@ function computeTier(kwArray) {
   return 2;
 }
 
-// Generic per-call retry with exponential backoff (5s / 15s / 45s by default).
-// Throws the final error if all attempts fail.
-async function retryWithBackoff(fn, { retries = 3, backoff = [5000, 15000, 45000], label = 'op' } = {}) {
-  let lastErr;
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      return await fn();
-    } catch (err) {
-      lastErr = err;
-      if (attempt === retries) break;
-      const delay = backoff[attempt] !== undefined ? backoff[attempt] : backoff[backoff.length - 1];
-      debug(`[retry] ${label} attempt ${attempt + 1}/${retries + 1} failed: ${err.message}. Retrying in ${delay}ms...`);
-      await new Promise(r => setTimeout(r, delay));
-    }
-  }
-  throw lastErr;
-}
-
 // TICKET-148: Classify an Anthropic SDK error as retryable (overloaded/rate-limit/5xx)
 // vs terminal (bad request/auth/etc). 3-way fallback to absorb SDK or server format
 // drift: status code first, then err.error.type, then regex on message. Mirrored
@@ -575,9 +564,6 @@ function isRetryableApiError(err) {
 // Each attempt re-streams the call. On API error: retry the same prompt. On JSON
 // parse failure: augment `messages` with a short assistant excerpt + explicit
 // "respond AGAIN with ONLY valid JSON" user instruction.
-//
-// Outer `retryWithBackoff` (L322) still wraps secondary-locale translate paths
-// (L919 / L1005) so they get an additional retry tier — accepted layered cost.
 //
 // `costContext` shape: { operation, detail, pricing, durationStart? } —
 // detail gets ` [retry N]` appended on attempt 2+ for dashboard transparency.
@@ -626,7 +612,7 @@ async function callAIWithRetry({ client, baseOptions, costContext, label, maxAtt
     });
 
     // max_tokens is a prompt-size problem — retrying the same prompt would
-    // hit the same wall. Throw so caller (or outer retryWithBackoff) reacts.
+    // hit the same wall. Throw so the caller reacts.
     if (response.stop_reason === 'max_tokens') {
       throw new Error(`${label}: response was truncated (max_tokens hit) — try reducing prompt size`);
     }
@@ -698,6 +684,21 @@ function pageTitleSpec(brandName) {
   const budget = pageTitleBudget(brandName);
   const tail = `" | ${brandName}" is appended automatically — do not add it yourself`;
   return budget >= MIN_PAGE_TITLE_BUDGET ? `max ${budget} chars; ${tail}` : `as short as possible; ${tail}`;
+}
+
+// #1593 —— 第二语言 SEO 检查用的品牌名：表单里按语言填过的就用它，否则退回主语言那个（渲染时 getBrandName 也是这么退的）。
+function brandNameOfLocale(brand, locale, defaultLocale) {
+  const n = brand && brand.name;
+  if (typeof n === 'string') return n;
+  return (n && (n[locale] || n[defaultLocale])) || '';
+}
+
+// #1593 —— 第二语言 SEO 检查看的地点（第 2 条「含地点」）。建站表格里 `location` 是 Google Ads 的英文地名，`locationLocalized`
+// 是主语言的译名（#1569）：英文第二语言 ⟹ 用 `location`；别的第二语言手上没有它那种语言的地名 ⟹ 「含地点」那一半不判
+// （不让代码把英文地名补进一句中文 description 的末尾）。
+function secondarySeoPayload(payload, locale) {
+  if (/^en\b/i.test(locale)) return { ...payload, locationLocalized: '' };
+  return { ...payload, location: '', locationLocalized: '' };
 }
 
 function normalizeLocale(input) {
@@ -1230,7 +1231,15 @@ async function main() {
   });
 
   // ── Call 1: Generate base site (brand + seo + services + regular pages) ──
+  // #1593 —— 第二语言一次写完：每页回包里第二语言那一份记在这本账上，写盘前按主语言最终那一版拼（§lib/all-locales.js）。
+  const localeBook = new localesLib.LocaleBook(normalizedSecondaryLocales);
+  const localesInfo = {
+    primary: { code: defaultLocale, name: languageName },
+    others: normalizedSecondaryLocales.map((code) => ({ code, name: langMap[code] || code, hint: chineseVariantHint(langMap[code] || code) })),
+  };
+
   const content = await generateContent({
+    locales: localesInfo, book: localeBook, secondaryKeywords: secondaryLocaleKeywords,
     companyName, industry, location, address, phone, email,
     // #1569 r2 —— 地址那一格要的是原样的地点（Google Ads 那份），不是上面给 AI 当背景的双语串（§generateContent 地址那行）。
     rawLocation: input.location,
@@ -1316,6 +1325,7 @@ async function main() {
     progress('AI is writing keyword pages...', 55);
     for (const f of kwPlan.fallbacks) debug(`[keyword-pages] 「${f.keyword}」里有转写表没有的文字 ⟹ slug 退成 ${f.slug}`);
     const results = await generateKeywordPages({
+      locales: localesInfo, book: localeBook,
       plan: kwPlan.pages,
       payload: input,
       brand: content.brand,
@@ -1417,43 +1427,48 @@ async function main() {
   writeThemeColorScheme(siteDir, colorScheme);
   debug(`[color scheme] ${colorScheme}（AI 给的是 ${JSON.stringify(content.ai && content.ai.colorScheme)}）`);
 
-  // ─── TICKET-122b: Secondary locale generation ────────────────────────────────
-  // After primary locale ships, generate secondary locales sequentially. Each
-  // locale runs independently — failure of one doesn't abort the others or the
-  // primary. retryWithBackoff handles transient errors; final failure for a
-  // locale emits a `secondary-locale-failed` event that Manager surfaces to
-  // dashboard so the user sees a retry button (122b2 scope).
+  // ─── TICKET-122b / #1593: Secondary locales ──────────────────────────────────
+  // 第二语言的字已经跟主语言在同一次调用里写回来了（每页 / 关键词页 / 站级），这里按主语言最终那一版拼出来、过一遍 SEO、写盘。
+  // 一个第二语言坏了（某一页它那一份重试后仍对不上、站级缺它那一份、拼的时候出错）只放弃那一个语言：发
+  // `secondary-locale-failed`，不写 site/<locale>/，主语言照常发布（TICKET-122b 起就是这个处置）。
   const secondaryFailures = [];
   if (normalizedSecondaryLocales.length > 0) {
-    progress('Generating secondary locales...', 72);
-    for (let i = 0; i < normalizedSecondaryLocales.length; i++) {
-      const secLocale = normalizedSecondaryLocales[i];
-      const secLanguageName = langMap[secLocale] || secLocale;
-      const pct = 72 + Math.round(((i + 1) / normalizedSecondaryLocales.length) * 8); // 72→80
-      progress(`Generating secondary locale: ${secLanguageName}...`, pct);
+    progress('Writing secondary locales...', 72);
+    for (const secLocale of normalizedSecondaryLocales) {
       try {
-        const secContent = await generateSecondaryLocale({
-          primaryContent: content,
-          primaryLanguageName: languageName,
-          secondaryLocale: secLocale,
-          secondaryLanguageName: secLanguageName,
+        if (localeBook.failed.has(secLocale)) throw new Error(localeBook.failed.get(secLocale));
+        const secContent = buildSecondaryContent({
+          content, locale: secLocale, book: localeBook, industry, disabledBlocks,
           secondaryKeywordsByPage: secondaryLocaleKeywords[secLocale] || {},
-          industry, location, companyName, additionalContext,
+        });
+        // #1593 —— 第二语言也过 SEO 检查（按它自己的 locale：区间、品牌名、地点），修补一次仍不合格只记日志、照常发布。
+        const brandView = { ...content.brand, name: { ...content.brand.name, [secLocale]: brandNameOfLocale(content.brand, secLocale, defaultLocale) } };
+        await seoPass({
+          content: { ...secContent, brand: brandView, ai: content.ai },
+          payload: secondarySeoPayload(input, secLocale), locale: secLocale, industry, location, companyName, disabledBlocks, secondary: true,
         });
         writeSecondaryLocaleConfig(siteDir, secContent, secLocale, content.brand);
-        debug(`Secondary locale "${secLocale}" generated (${secContent.pages.length} pages, tier dist: ${JSON.stringify(secContent.tierDistribution)})`);
+        debug(`Secondary locale "${secLocale}" written (${secContent.pages.length} pages, tier dist: ${JSON.stringify(secContent.tierDistribution)})`);
         emit('secondary-locale-success', {
           locale: secLocale,
           pageCount: secContent.pages.length,
           tierDistribution: secContent.tierDistribution,
         });
       } catch (err) {
-        debug(`Secondary locale "${secLocale}" failed after retries: ${err.message}`);
+        debug(`Secondary locale "${secLocale}" failed: ${err.message}`);
         secondaryFailures.push({ locale: secLocale, error: err.message });
         emit('secondary-locale-failed', { locale: secLocale, error: err.message });
       }
     }
   }
+
+  // #1593 —— 建站的四个数（只算 create-site.js 这个进程，口径见 lib/build-stats.js 文件头），交给 T8 #1600 的建站报告：
+  //   seoFixed / pages → 报告的 repair 格（seoPass 回值经 recordSeo 累加，两个主语言调用点）；durationSec → finishBuildReport；
+  //   costUsd → 报告顶层 `costUsd`（九格里没有费用那一格；manager 按 `cost` 前缀把它从给客户的那份剥掉）。
+  //   skipAI 那条路不经这里 ⟹ 它的 costUsd 留空（null），不是 0。
+  const stats = buildStats.summary({ pages: content.pages.length });
+  debug(`[build-stats] ${JSON.stringify(stats)}`);
+  if (buildReport) buildReport.costUsd = stats.costUsd;
 
   // ─── Git Commit (push is handled async by entrypoint.sh once the preview answers) ─
   const { repoUrl } = input;
@@ -1496,289 +1511,121 @@ function finishBuildReport(siteDir) {
   }
 }
 
-// ─── TICKET-122b: Secondary Locale Generation ────────────────────────────────
+// ─── TICKET-122b / #1593: Secondary Locale ───────────────────────────────────
 
-// Generates a complete secondary locale version of the primary content via Claude.
-// Per-page translation is wrapped in retryWithBackoff (3 attempts, 5s/15s/45s).
-// brand.tagline + seo + services + navigation are batched in a single Claude call
-// to keep round-trips proportional to pages, not page+4. tierDistribution is
-// returned for observability (122b2 will wire into operation_runs metadata).
-//
-// On total failure (any retried call still throws), this throws upward; caller
-// in main() catches per-locale and emits secondary-locale-failed event.
-async function generateSecondaryLocale({
-  primaryContent,
-  primaryLanguageName,
-  secondaryLocale,
-  secondaryLanguageName,
-  secondaryKeywordsByPage,
-  industry,
-  location,
-  companyName,
-  additionalContext = '',
-}) {
-  const client = new Anthropic();
-
-  // Step 1: per-page translation (each retried independently).
-  const tierDistribution = { 1: 0, 2: 0, 3: 0 };
-  const secondaryPages = [];
-  for (const page of primaryContent.pages) {
-    const pageKeywords = (secondaryKeywordsByPage && secondaryKeywordsByPage[page.slug]) || [];
-    const tier = computeTier(pageKeywords);
-    tierDistribution[tier]++;
-
-    const translated = await retryWithBackoff(
-      () => translatePageWithClaude({
-        client, page, tier, keywords: pageKeywords,
-        primaryLanguageName, secondaryLanguageName, secondaryLocale,
-        industry, location, companyName, additionalContext,
-      }),
-      { retries: 3, backoff: [5000, 15000, 45000], label: `translate page ${page.slug} → ${secondaryLocale}` }
-    );
-    secondaryPages.push(translated);
-  }
-
-  // Step 2: brand.tagline + seo + services + navigation batch translation.
-  const supportingFiles = await retryWithBackoff(
-    () => translateSupportingFilesWithClaude({
-      client,
-      brand: primaryContent.brand,
-      seo: primaryContent.seo,
-      services: primaryContent.services,
-      navigation: primaryContent.navigation,
-      forms: primaryContent.forms,
-      primaryLanguageName, secondaryLanguageName, secondaryLocale,
-      industry, location, companyName, additionalContext,
-    }),
-    { retries: 3, backoff: [5000, 15000, 45000], label: `translate supporting files → ${secondaryLocale}` }
-  );
-
-  return {
-    brand: { tagline: supportingFiles.brandTagline },
-    seo: supportingFiles.seo,
-    services: supportingFiles.services,
-    navigation: supportingFiles.navigation,
-    forms: supportingFiles.forms,
-    formsBase: primaryContent.forms,
-    pages: secondaryPages,
-    tierDistribution,
+// #1593 —— 第二语言不再翻译：站级那一通、每页那一通、关键词页那一通已经把它的字一起写回来了（§lib/all-locales.js）。
+// 这里只**拼**：主语言最终那一版是骨架（页面集合、块、图、链接、表单都取主语言的），文字取第二语言那一份。
+//   · 主语言里由代码补的东西（服务详情页、「相关页面」列表、页脚的关键词栏）没有第二语言的字 ⟹ 对第二语言用它的服务目录
+//     和文案表再拼一次同一个代码步骤，不调 AI；
+//   · 站级的字缺哪一格，那一格退回主语言（跟改之前翻译丢字段时一样）。
+// tierDistribution 只做观测（secondary-locale-success 事件带着它）：每页按 payload 的 secondaryLocaleKeywords 算 Tier。
+// 写盘那一步（§writeSiteConfig，TICKET-268e）由代码插的 Contact 页不经 AI ⟹ 它的第二语言用站级那一通给的那几个词拼；
+// 站级没给 ⟹ 照主语言那一页原样（跟改之前翻译失败时一样，宁可一页英文也不缺页）。
+function contactPageIn(page, words) {
+  const w = words && typeof words === 'object' ? words : {};
+  const byType = {
+    'page-header': { data: { headline: w.headline, subheadline: w.subheadline } },
+    contact: { data: { headline: w.formHeadline, body: w.formBody } },
   };
+  const out = JSON.parse(JSON.stringify(page));
+  for (const f of ['title', 'description', 'navLabel']) if (typeof w[f] === 'string' && w[f].trim()) out[f] = w[f];
+  out.sections = (page.sections || []).map((s) => localesLib.mergeLocale(s, byType[s && s.type]));
+  return out;
 }
 
-// Single Claude call to translate one page. Schema preserved verbatim (slug,
-// section.type, section.data shape) — only user-visible content fields translated.
-// Tier 1: real keywords MUST appear in 5 SEO touchpoints. Tier 2: use available
-// keywords + supplement with translation. Tier 3: pure translation, AI judgment.
-async function translatePageWithClaude({
-  client, page, tier, keywords, primaryLanguageName, secondaryLanguageName, secondaryLocale, industry, location, companyName,
-  additionalContext = '',
-}) {
-  const tierInstruction =
-    tier === 1
-      ? `Tier 1 (rich keyword data): USE the provided keywords below in at least one SEO touchpoint each — meta title/description (page.title/page.description), section headlines (sections[].data.headline / .subheadline / .title), alt text where applicable, anchor text for internal links. Aim for natural integration, not stuffing.`
-      : tier === 2
-      ? `Tier 2 (sparse keyword data): USE the provided keywords below where natural; supplement with SEO-friendly translation when keywords don't cover all touchpoints.`
-      : `Tier 3 (no keyword data): pure SEO-friendly translation using your judgment for the ${secondaryLanguageName} market. Prefer natural ${secondaryLanguageName} phrasing over literal translation; preserve brand voice.`;
+function buildSecondaryContent({ content, locale, book, industry, disabledBlocks = [], secondaryKeywordsByPage = {} }) {
+  const filled = (v) => typeof v === 'string' && v.trim() !== '';
+  const t = (content.ai && content.ai.locales && typeof content.ai.locales[locale] === 'object' && content.ai.locales[locale]) || {};
+  const tSvc = Array.isArray(t.services) ? t.services : [];
 
-  const keywordList = keywords.length > 0
-    ? keywords.map(k => `- ${k.keyword}${typeof k.volume === 'number' ? ` (${k.volume}/mo)` : ''}`).join('\n')
-    : '(none)';
-
-  const prompt = `You are translating a website page from ${primaryLanguageName} to ${secondaryLanguageName}.${chineseVariantHint(secondaryLanguageName)} For SEO.
-
-INDUSTRY: ${industry}
-LOCATION: ${location}
-COMPANY: ${companyName}${additionalContext ? `\nADDITIONAL CONTEXT FROM THE OWNER: ${additionalContext}` : ''}
-
-PRIMARY LOCALE PAGE (reference for content/brand/structure):
-\`\`\`json
-${JSON.stringify(page, null, 2)}
-\`\`\`
-
-SECONDARY LOCALE KEYWORDS (Tier ${tier}):
-${keywordList}
-
-INSTRUCTIONS:
-- CRITICAL BRAND NAME RULE (TICKET-137): The brand name "${companyName}" MUST appear LITERALLY VERBATIM in all translated content. DO NOT translate, transliterate, or localize the brand name even when generating ${secondaryLanguageName} text. The exact characters of "${companyName}" (including apostrophes / capitalization / special chars) must be preserved. Examples:
-    ✗ WRONG: "Happy Paws宠物美容" (translated brand to zh) / "McDonalds" (dropped ') / "麦当劳 has been serving"
-    ✓ RIGHT: "Happy Paws Pet Grooming 是您的最佳选择" (English brand verbatim in zh sentence) / "McDonald's"
-- ${tierInstruction}
-- Translate ALL user-visible string fields to ${secondaryLanguageName}: title, description, navLabel, every section's headline/subheadline/title/text/items/labels/etc.
-- DO NOT translate: page.slug (kept ASCII), page.changeFrequency, page.priority, page.navOrder, section.type, section.data field names (keys), URLs/hrefs (kept as-is).
-- DO NOT add new sections or fields. Schema must round-trip identically.${page.seo && page.seo.targetKeyword ? `
-- page.seo.targetKeyword is the search phrase this page targets: replace it with the phrase a ${secondaryLanguageName} speaker would actually search for (a translation, not a new topic).` : ''}
-- Output: a JSON object matching the input page schema exactly, with content translated.
-- Return ONLY the JSON object, no preamble, no \`\`\`json fence.`;
-
-  // TICKET-132: callAIWithRetry handles JSON.parse failures (≤3 attempts);
-  // max_tokens and other errors throw, escaping to the outer retryWithBackoff.
-  const { parsed: translated } = await callAIWithRetry({
-    client,
-    baseOptions: { model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] },
-    costContext: {
-      operation: 'translate-secondary-locale',
-      detail: `${page.slug} → ${secondaryLocale} (Tier ${tier})`,
-      pricing,
-    },
-    label: `translate page ${page.slug}`,
-  });
-  // Defensive: preserve immutable fields (slug, type, etc.) even if Claude misbehaves.
-  translated.slug = page.slug;
-  translated.changeFrequency = page.changeFrequency;
-  translated.priority = page.priority;
-  translated.navOrder = page.navOrder;
-  // #1548 —— 第二语言页的目标词是翻译来的，不是挖的 ⟹ 标 translated: true（validateSite 第 ① 条跳过它）。译文丢了就留原词。
-  if (page.seo && typeof page.seo.targetKeyword === 'string') {
-    const got = translated.seo && typeof translated.seo.targetKeyword === 'string' && translated.seo.targetKeyword.trim();
-    translated.seo = { ...page.seo, targetKeyword: got || page.seo.targetKeyword, translated: true };
-  }
-  if (Array.isArray(translated.sections) && Array.isArray(page.sections)) {
-    for (let i = 0; i < translated.sections.length && i < page.sections.length; i++) {
-      if (translated.sections[i] && page.sections[i]) {
-        translated.sections[i].type = page.sections[i].type;
-      }
-    }
-  }
-  return translated;
-}
-
-// Batch-translate brand.tagline + seo + services + navigation in one Claude call.
-// These are smaller than pages and translation-only (no Tier reasoning needed).
-async function translateSupportingFilesWithClaude({
-  client, brand, seo, services, navigation, forms = [], primaryLanguageName, secondaryLanguageName, secondaryLocale, industry, location, companyName,
-  additionalContext = '',
-}) {
-  const prompt = `You are translating website supporting config from ${primaryLanguageName} to ${secondaryLanguageName}.${chineseVariantHint(secondaryLanguageName)} For SEO.
-
-INDUSTRY: ${industry}
-LOCATION: ${location}
-COMPANY: ${companyName}${additionalContext ? `\nADDITIONAL CONTEXT FROM THE OWNER: ${additionalContext}` : ''}
-
-PRIMARY LOCALE INPUTS:
-\`\`\`json
-${JSON.stringify({
-  brandTagline: brand.tagline,
-  seo: { siteTitle: seo.siteTitle, siteDescription: seo.siteDescription, schema: { offerCatalogName: seo.schema?.offerCatalogName, priceRange: seo.schema?.priceRange } },
-  services: services.map(s => ({ id: s.id, name: s.name, shortDescription: s.shortDescription, fullDescription: s.fullDescription, features: s.features, products: s.products })),
-  forms: (forms || []).map(f => ({ id: f.id, name: f.name, buttonText: f.buttonText, successMessage: f.successMessage })),
-  navigation: {
-    header: { cta: navigation.header.cta },
-    footer: {
-      description: navigation.footer.description,
-      copyright: navigation.footer.copyright,
-      // TICKET-135: include columns so AI can translate column.title (e.g.
-      // "Quick Links" → "快速链接") and links[*].label.
-      columns: (navigation.footer.columns || []).map(c => ({
-        title: c.title,
-        links: (c.links || []).map(l => ({ label: l.label, href: l.href })),
-      })),
-    },
-  },
-}, null, 2)}
-\`\`\`
-
-INSTRUCTIONS:
-- CRITICAL BRAND NAME RULE (TICKET-137): The brand name "${companyName}" MUST appear LITERALLY VERBATIM in any translated string that references the brand (footer description, copyright, seo.siteTitle/siteDescription, navigation.header.cta.label, etc). DO NOT translate, transliterate, or localize the brand name in ${secondaryLanguageName}. Examples:
-    ✗ WRONG: "Happy Paws宠物美容" / "麦当劳" / "McDonalds" (dropped apostrophe)
-    ✓ RIGHT: "Happy Paws Pet Grooming" / "McDonald's" (verbatim regardless of locale)
-- Translate ALL user-visible string fields to ${secondaryLanguageName}, preserving brand voice and SEO intent.
-- DO NOT translate: service.id (kept ASCII slug), navigation.header.cta.href (URL), navigation.footer.columns[*].links[*].href (URL).
-- TICKET-135: navigation.footer.columns[*].title and links[*].label MUST be translated too (e.g. "Quick Links" → native locale word, "Home" → "首页" etc).
-- Output JSON shape:
-\`\`\`json
-{
-  "brandTagline": "<translated>",
-  "seo": { "siteTitle": "...", "siteDescription": "...", "schema": { "offerCatalogName": "...", "priceRange": "..." } },
-  "services": [ { "id": "<unchanged>", "name": "...", "shortDescription": "...", "fullDescription": "...", "features": [...], "products": [...] }, ... ],
-  "forms": [ { "id": "<unchanged>", "name": "...", "buttonText": "...", "successMessage": "..." }, ... ],
-  "navigation": {
-    "header": { "cta": { "label": "...", "href": "<unchanged>" } },
-    "footer": {
-      "description": "...",
-      "copyright": "...",
-      "columns": [ { "title": "...", "links": [ { "label": "...", "href": "<unchanged>" }, ... ] }, ... ]
-    }
-  }
-}
-\`\`\`
-- Return ONLY the JSON object, no preamble, no \`\`\`json fence.`;
-
-  // TICKET-132: callAIWithRetry handles JSON.parse failures; max_tokens and
-  // other errors throw to the outer retryWithBackoff wrapping the caller.
-  const { parsed } = await callAIWithRetry({
-    client,
-    baseOptions: { model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] },
-    costContext: {
-      operation: 'translate-secondary-locale',
-      detail: `supporting files → ${secondaryLocale}`,
-      pricing,
-    },
-    label: 'translate supporting files',
-  });
-
-  // Build output, defensively preserving immutable fields.
-  const outServices = services.map((origSvc, i) => {
-    const aiSvc = (parsed.services && parsed.services[i]) || {};
+  // 服务目录：按 id 认，认不出按位置（服务 id 太长被收短过的，§capServiceIds）；代码补的服务（排在 AI 那几个之后）没有译名，留主语言。
+  const services = content.services.map((svc, i) => {
+    const x = tSvc.find((s) => s && s.id === svc.id) || (i < tSvc.length && tSvc[i] && !content.services.some((o) => o.id === tSvc[i].id) ? tSvc[i] : {});
     return {
-      ...origSvc,
-      name: aiSvc.name || origSvc.name,
-      shortDescription: aiSvc.shortDescription || origSvc.shortDescription,
-      fullDescription: aiSvc.fullDescription || origSvc.fullDescription,
-      features: Array.isArray(aiSvc.features) ? aiSvc.features : origSvc.features,
-      products: Array.isArray(aiSvc.products) ? aiSvc.products : origSvc.products,
+      ...svc,
+      name: filled(x.name) ? x.name : svc.name,
+      shortDescription: filled(x.shortDescription) ? x.shortDescription : svc.shortDescription,
+      fullDescription: filled(x.fullDescription) ? x.fullDescription : svc.fullDescription,
+      features: Array.isArray(x.features) && x.features.length ? x.features : svc.features,
+      products: Array.isArray(x.products) ? x.products : svc.products,
     };
   });
-  // #1548 —— 关键词清单是主语言挖的词，不带进第二语言的 seo.json。
-  const { targetKeywords: _primaryOnly, ...seoBase } = seo;
-  const outSeo = {
-    ...seoBase,
-    siteTitle: parsed.seo?.siteTitle || seo.siteTitle,
-    siteDescription: parsed.seo?.siteDescription || seo.siteDescription,
-    schema: {
-      ...seo.schema,
-      offerCatalogName: parsed.seo?.schema?.offerCatalogName || seo.schema?.offerCatalogName,
-    },
-    locale: localeMapForBcp47(secondaryLocale),
-  };
-  const outNavigation = {
-    ...navigation,
+
+  // 页：AI 写的页按主语言骨架拼；代码补的页 / 块对第二语言再补一次。
+  const pages = [];
+  for (const p of content.pages) {
+    const b = book.build(p, locale) || (p.slug === 'contact' ? contactPageIn(p, t.contactPage) : null);
+    if (b) pages.push(b);
+  }
+  const keptServiceIds = [...new Set(content.pages.filter((p) => p.keywordPage === true).map((p) => kwPages.serviceIdOfKeywordPath(p.slug)).filter(Boolean))];
+  const detail = kwPages.ensureServiceDetailPages({ pages, services, serviceIds: keptServiceIds, locale, disabledBlocks });
+  for (const id of detail.added) {
+    const pg = pages.find((x) => x.slug === `services/${id}`);
+    const prim = content.pages.find((x) => x.slug === `services/${id}`);
+    if (pg && prim) {
+      pg.navOrder = prim.navOrder;
+      if (prim.seo) pg.seo = { ...prim.seo, ...(typeof prim.seo.targetKeyword === 'string' ? { translated: true } : {}) };
+      ensureH2Slots(pg, services.find((x) => x.id === id), disabledBlocks);
+    }
+  }
+  if (detail.failed.length) throw new Error(`service detail pages for ${detail.failed.join(', ')} cannot be built in ${locale}`);
+  const secKwPages = pages.filter((p) => p.keywordPage === true);
+  kwPages.addRelatedBlocks(secKwPages, locale, disabledBlocks);
+  // #1593 r3 —— alt 是回包之后代码写的（主语言那一侧 §writeImageAlts）；第二语言缺的那几张 §mergeLocale 留了空串，这里按第二语言
+  // 这一页自己的标题、翻译过的目标词再写一遍 —— 跟主语言同一份代码。不写的话英文页上是中文 alt（QA2 r2 打回）。
+  const alts = writeImageAlts({ pages, manifests: loadBlockManifests(), industry, targetKeywordOf: seoTargetOf });
+  debug(`[${locale}] alt：补了 ${alts.written} 张 · ${alts.keyworded} 页的第一张内容图带上了目标词`);
+  // 主语言的页集合 = 第二语言的页集合（按构造）；对不上就是逻辑出错，别静默写出一个缺页的站。
+  const missing = content.pages.filter((p) => !pages.some((x) => x.slug === p.slug)).map((p) => p.slug);
+  if (missing.length) throw new Error(`pages missing in ${locale}: ${missing.join(', ')}`);
+
+  // 导航：链接跟主语言一模一样，文字换成第二语言的页名。
+  const nav = content.navigation;
+  const labelOf = new Map(pages.map((p) => [p.slug === 'home' ? '/' : `/${p.slug}`, p.navLabel]));
+  const relabel = (l) => ({ ...l, label: l.href === '/' ? (filled(t.homeLabel) ? t.homeLabel : l.label) : (labelOf.get(l.href) || l.label) });
+  const col0 = (nav.footer.columns || [])[0];
+  const navigation = {
+    ...nav,
     header: {
-      ...navigation.header,
-      cta: {
-        ...navigation.header.cta,
-        label: parsed.navigation?.header?.cta?.label || navigation.header.cta.label,
-      },
+      ...nav.header,
+      links: (nav.header.links || []).map(relabel),
+      cta: { ...nav.header.cta, label: filled(t.ctaLabel) ? t.ctaLabel : nav.header.cta.label },
     },
     footer: {
-      ...navigation.footer,
-      description: parsed.navigation?.footer?.description || navigation.footer.description,
-      copyright: parsed.navigation?.footer?.copyright || navigation.footer.copyright,
-      // TICKET-135: merge translated footer columns (title + links[].label).
-      // Defensive: keep original column shape (icons, slug-keyed identity) and
-      // only swap in translated text fields. href is never translated.
-      columns: (navigation.footer.columns || []).map((col, i) => {
-        const aiCol = parsed.navigation?.footer?.columns?.[i];
-        return {
-          ...col,
-          title: aiCol?.title || col.title,
-          links: Array.isArray(col.links)
-            ? col.links.map((link, j) => ({
-                ...link,
-                label: aiCol?.links?.[j]?.label || link.label,
-              }))
-            : col.links,
-        };
-      }),
+      ...nav.footer,
+      description: filled(t.footerDescription) ? t.footerDescription : nav.footer.description,
+      copyright: filled(t.copyright) ? t.copyright : nav.footer.copyright,
+      columns: [
+        ...(col0 ? [{ ...col0, title: filled(t.quickLinksTitle) ? t.quickLinksTitle : col0.title, links: (col0.links || []).map(relabel) }] : []),
+        ...(secKwPages.length ? kwPages.keywordFooterColumns(secKwPages, services, locale) : []),
+      ],
     },
   };
 
+  // #1548 —— 关键词清单是主语言挖的词，不带进第二语言的 seo.json。
+  const { targetKeywords: _primaryOnly, ...seoBase } = content.seo;
+  const ts = t.seo && typeof t.seo === 'object' ? t.seo : {};
+  const seo = {
+    ...seoBase,
+    siteTitle: filled(ts.siteTitle) ? ts.siteTitle : content.seo.siteTitle,
+    siteDescription: filled(ts.siteDescription) ? ts.siteDescription : content.seo.siteDescription,
+    schema: { ...content.seo.schema, offerCatalogName: filled(ts.offerCatalogName) ? ts.offerCatalogName : (content.seo.schema || {}).offerCatalogName },
+    locale: localeMapForBcp47(locale),
+  };
+
+  const tierDistribution = { 1: 0, 2: 0, 3: 0 };
+  for (const p of pages) tierDistribution[computeTier((secondaryKeywordsByPage || {})[p.slug] || [])]++;
+
   return {
-    brandTagline: parsed.brandTagline || (typeof brand.tagline === 'string' ? brand.tagline : ''),
-    seo: outSeo,
-    services: outServices,
-    navigation: outNavigation,
-    // #1471 —— 只取译文；结构（id / fields / primary）由写盘那一步按主语言骨架补（§writeSecondaryLocaleConfig）。
-    forms: Array.isArray(parsed.forms) ? parsed.forms : [],
+    brand: { tagline: filled(t.tagline) ? t.tagline : (typeof content.brand.tagline === 'string' ? content.brand.tagline : '') },
+    seo,
+    services,
+    navigation,
+    // #1471 —— 只取第二语言的字；结构（id / fields / primary）由写盘那一步按主语言骨架补（§writeSecondaryLocaleConfig）。
+    forms: Array.isArray(t.forms) ? t.forms : [],
+    formsBase: content.forms,
+    pages,
+    tierDistribution,
   };
 }
 
@@ -2149,7 +1996,15 @@ async function generateContent(opts) {
     pageTargetKeywords = () => ({}),
     // #1568 r2 —— 要建关键词页的那些词（`keywordPagesFrom` 的候选）：站级回包的页面清单里撞上它们的页丢掉（关键词页由 Call 2 建）。
     keywordPageKeywords = [],
+    // #1593 —— 第二语言一次写完：`locales` = { primary: {code,name}, others: [{code,name}] }（没有第二语言时 others 为空，
+    //    提示词和回包形状跟改之前逐字相同）；`book` 收每页回包里第二语言那一份（§lib/all-locales.js LocaleBook）；
+    //    `secondaryKeywords` = payload 的 secondaryLocaleKeywords（{ [locale]: { [slug]: [{keyword, volume}] } }）。
+    locales = { primary: { code: defaultLocale, name: languageName }, others: [] },
+    book = null,
+    secondaryKeywords = {},
   } = opts;
+  const others = (locales.others || []).filter((o) => book && !book.failed.has(o.code));
+  const otherCodes = others.map((o) => o.code);
 
   // #1346 —— 一个块被关掉之后，提示词里**三个地方**都不能再提它：菜单（下面那两处
   // `blockPromptSection`）、写死的页面规则那两行、以及 Call 2 的服务子页提示词（它不点名块）。
@@ -2661,7 +2516,7 @@ ${FACTS_ONLY_FROM_FORM_RULE}
 - Use specific language, not generic fluff.
 - Include location names naturally in content.
 - Service detail pages (slug "services/{id}") must set serviceDetailPage: true and parentService: "{service-id}".
-- Service detail pages should NOT appear in the header nav — they go in the footer only.`;
+- Service detail pages should NOT appear in the header nav — they go in the footer only.${others.length ? `\n\n${localesLib.languagesPrompt({ primary: locales.primary, others, kind: 'site' })}` : ''}`;
 
   emit('prompt', { name: 'Base Site', content: sitePrompt });
   progress('AI is planning the site...', 20);
@@ -2709,6 +2564,16 @@ ${FACTS_ONLY_FROM_FORM_RULE}
   const call1Duration = ((Date.now() - call1Start) / 1000).toFixed(1);
   debug(`Call 1 site plan cost: $${cost1.toFixed(4)} (${usage1.input_tokens} in / ${usage1.output_tokens} out, ${call1Duration}s)`);
 
+  // #1593 —— 站级那一份第二语言的字（品牌标语 / 导航 / SEO / 服务 / 表单）。整份缺 ⟹ 这个第二语言放弃（主语言照常）；
+  //    缺个别字段 ⟹ 写盘时那一格退回主语言（§buildSecondaryContent）。
+  for (const o of others) {
+    const g = ai && ai.locales && typeof ai.locales === 'object' ? ai.locales[o.code] : null;
+    if (!g || typeof g !== 'object' || Array.isArray(g)) {
+      book.fail(o.code, `the site-level answer has no "${o.code}" texts`);
+      debug(`[locales] 站级回包里没有 ${o.code} 那一份 ⟹ 放弃第二语言 ${o.code}，主语言照常`);
+    }
+  }
+
   // 站级回包里的页面清单：每页要有 slug（文件名就是它）。sections 不归这一通管 —— 写回来了也丢掉，由下面每页那一通写。
   ai.pages = (Array.isArray(ai && ai.pages) ? ai.pages : []).filter((p) => p && typeof p === 'object' && typeof p.slug === 'string' && p.slug.trim());
   for (const p of ai.pages) delete p.sections;
@@ -2752,6 +2617,9 @@ ${FACTS_ONLY_FROM_FORM_RULE}
     `- Forms: ${forms.map((f) => `"${f.id}"${f.name ? ` (${f.name})` : ''}`).join(', ')}`,
   ].filter((l) => l !== null).join('\n');
 
+  // 第二语言这一页的搜索词（payload 的 secondaryLocaleKeywords；manager 今天不送 ⟹ 恒空，提示词里那一行不出现）。
+  const secondaryKeywordsOf = (code, slug) => ((secondaryKeywords[code] || {})[slug] || [])
+    .map((k) => (k && typeof k.keyword === 'string' ? k.keyword : '')).filter(Boolean);
   const pagePromptFor = (page) => {
     const isHome = page.slug === 'home';
     const svc = page.serviceDetailPage === true ? svcById.get(page.parentService) || svcById.get(page.slug.replace(/^services\//, '')) : null;
@@ -2821,7 +2689,10 @@ BUTTONS:
 ${BUTTON_REF_PROMPT}
 
 RULES:
-${rules}`;
+${rules}${others.length ? `\n\n${localesLib.languagesPrompt({
+    primary: locales.primary, others, kind: 'page', hasKeyword: !!kw,
+    keywordsByLocale: Object.fromEntries(others.map((o) => [o.code, secondaryKeywordsOf(o.code, page.slug)])),
+  })}` : ''}`;
   };
 
   // 回包取 sections：要的是 {"sections": [...]}；直接回数组、或包在 {page: {...}} 里的也认（模型偶尔这么回）。
@@ -2844,12 +2715,19 @@ ${rules}`;
     const page = ai.pages[i];
     const isHome = page.slug === 'home';
     const where = `第 ${i + 1}/${N} 页（${page.slug}）`;
-    const call = async (messages, detail) => sectionsOf((await callAIWithRetry({
-      client,
-      baseOptions: { model, max_tokens: maxTokens, messages },
-      costContext: { operation: 'create-site', detail, pricing, durationStart: Date.now() },
-      label: `Call 1 page ${page.slug}`,
-    })).parsed);
+    const kw = typeof pageKeywords[page.slug] === 'string' ? pageKeywords[page.slug] : '';
+    // #1593 —— 回包按语言拆开：主语言那一份照旧取 sections；第二语言那几份留着，等主语言这一页定下来再挂进 book。
+    //    没有第二语言 ⟹ `others` 为空，回包就是 {"sections": [...]}（跟改之前一样）。
+    const call = async (messages, detail) => {
+      const raw = (await callAIWithRetry({
+        client,
+        baseOptions: { model, max_tokens: maxTokens, messages },
+        costContext: { operation: 'create-site', detail, pricing, durationStart: Date.now() },
+        label: `Call 1 page ${page.slug}`,
+      })).parsed;
+      const split = localesLib.splitLocaleReply(raw, locales.primary.code, otherCodes);
+      return { raw, sections: sectionsOf(split.primary), others: split.others };
+    };
     // 一页的判据：块库逐块那几条（scope 'edit' = 只查这一页自己；「整个站里没有 X」那一条等全部页回来再查）+ 首页骨架配方。
     const problemsOf = (sections) => {
       if (!sections) return { block: ['回包里没有 sections 数组'], skin: [] };
@@ -2859,11 +2737,42 @@ ${rules}`;
         skin: isHome && homeRecipe ? recipeProblems([trial], homeRecipe) : [],
       };
     };
-    const finish = (sections) => {
+    // #1593 —— 第二语言那几份对不对得上主语言这一组块（还没被放弃的语言才查）。{ [locale]: problems[] }，空对象 = 都能用。
+    const secondaryOf = (sections, got) => {
+      const out = {};
+      for (const loc of otherCodes) {
+        if (book.failed.has(loc) || !sections) continue;
+        const p = localesLib.secondaryPageProblems({ page, sections, group: got.others[loc], needKeyword: !!kw });
+        if (p.length) out[loc] = p;
+      }
+      return out;
+    };
+    const secondaryLines = (bad) => Object.entries(bad).map(([loc, p]) => `the "${loc}" part does not match the "${locales.primary.code}" part: ${p.join('; ')}`);
+    // 主语言这一页定下来了（`sections`）：第二语言从候选回包里按顺序取第一份对得上的挂进 book；一份都对不上 ⟹ 放弃这个语言。
+    const finish = (sections, candidates = []) => {
+      for (const loc of otherCodes) {
+        if (book.failed.has(loc)) continue;
+        let why = 'missing';
+        const hit = candidates.find((c) => {
+          const p = localesLib.secondaryPageProblems({ page, sections, group: c.others[loc], needKeyword: !!kw });
+          if (p.length) why = p.join('; ');
+          return !p.length;
+        });
+        if (hit) book.link(page, sections, loc, hit.others[loc]);
+        else {
+          book.fail(loc, `page "${page.slug}": ${why}`);
+          debug(`[locales] ${where} 的 ${loc} 那一份重试后仍对不上主语言（${why}）⟹ 放弃整个第二语言 ${loc}，主语言照常`);
+        }
+      }
       pagesDone += 1;
       progress(`Page ${pagesDone}/${N} written: ${page.slug}`, 25 + Math.round((15 * pagesDone) / N));
       return sections;
     };
+    const again = (problems) => `Your sections for the page "${page.slug}" break the block library rules below. Fix ONLY these and `
+      + (otherCodes.length
+        ? `respond AGAIN with the COMPLETE JSON for this page (the same object keyed by language code, no markdown fences):\n`
+        : `respond AGAIN with the COMPLETE JSON for this page ({"sections": [ ... ]}, no markdown fences):\n`)
+      + problems.map((x) => `- ${x}`).join('\n');
 
     let first;
     try {
@@ -2871,46 +2780,45 @@ ${rules}`;
     } catch (e) {
       // 调不通（截断 / API 错 / 解析不了）⟹ 重来一次这一页，别的页不动。
       debug(`[pages] ${where} 调用失败：${e.message} —— 重试第 ${i + 1} 页`);
-      let again;
-      try { again = await call([{ role: 'user', content: prompts[i] }], `Page ${page.slug} (retry)`); } catch (e2) { return pageFatal(i, `AI call failed twice: ${e2.message}`); }
-      const p = problemsOf(again);
+      let retried;
+      try { retried = await call([{ role: 'user', content: prompts[i] }], `Page ${page.slug} (retry)`); } catch (e2) { return pageFatal(i, `AI call failed twice: ${e2.message}`); }
+      const p = problemsOf(retried.sections);
       if (p.block.length) return pageFatal(i, `the retry still breaks the block library:\n  ${p.block.join('\n  ')}`);
       if (p.skin.length) debug(`[fingerprint] ⚠️  ${where} 首页开场仍跟配方对不上,放行:\n  ${p.skin.join('\n  ')}`);
-      return finish(again);
+      return finish(retried.sections, [retried]);
     }
-    const p1 = problemsOf(first);
-    if (!p1.block.length && !p1.skin.length) return finish(first);
+    const p1 = problemsOf(first.sections);
+    const s1 = secondaryOf(first.sections, first);
+    if (!p1.block.length && !p1.skin.length && !Object.keys(s1).length) return finish(first.sections, [first]);
 
-    // 不合格 ⟹ 把问题原样退给它、只重试这一页一次（#999 的「只重试一次」，#1034 的骨架问题跟它进同一次重试）。
-    const all = [...p1.block, ...p1.skin];
-    debug(`[pages] ${where} 第一次有 ${all.length} 处不合规(块库 ${p1.block.length} · 首页骨架 ${p1.skin.length}) —— 重试第 ${i + 1} 页:\n  ${all.join('\n  ')}`);
+    // 不合格 ⟹ 把问题原样退给它、只重试这一页一次（#999 的「只重试一次」，#1034 的骨架问题、#1593 第二语言对不上都进同一次重试）。
+    const all = [...p1.block, ...p1.skin, ...secondaryLines(s1)];
+    debug(`[pages] ${where} 第一次有 ${all.length} 处不合规(块库 ${p1.block.length} · 首页骨架 ${p1.skin.length} · 第二语言 ${Object.keys(s1).length}) —— 重试第 ${i + 1} 页:\n  ${all.join('\n  ')}`);
     let second;
     try {
       second = await call([
         { role: 'user', content: prompts[i] },
-        { role: 'assistant', content: JSON.stringify({ sections: first }) },
-        { role: 'user', content: `Your sections for the page "${page.slug}" break the block library rules below. Fix ONLY these and `
-          + `respond AGAIN with the COMPLETE JSON for this page ({"sections": [ ... ]}, no markdown fences):\n`
-          + all.map((x) => `- ${x}`).join('\n') },
+        { role: 'assistant', content: JSON.stringify(otherCodes.length ? first.raw : { sections: first.sections }) },
+        { role: 'user', content: again(all) },
       ], `Page ${page.slug} (re-check)`);
     } catch (e) {
-      // 只差首页骨架时第一次那份本来就能用（骨架问题不让建站失败，见下面 afterRetry 那一段）。
-      if (!p1.block.length) { debug(`[fingerprint] ⚠️  ${where} 为骨架发起的重试调不通（${e.message}），用第一次那份`); return finish(first); }
+      // 块库干净时第一次那份本来就能用（骨架问题不让建站失败，见下面 afterRetry 那一段；第二语言对不上只放弃那个语言）。
+      if (!p1.block.length) { debug(`[pages] ⚠️  ${where} 为骨架 / 第二语言发起的重试调不通（${e.message}），用第一次那份`); return finish(first.sections, [first]); }
       return pageFatal(i, `AI call failed on the retry: ${e.message}`);
     }
-    const p2 = problemsOf(second);
+    const p2 = problemsOf(second.sections);
     // #1034 —— 判决写在 lib/homepage-recipe.js 的 afterRetry() 里:'fatal' = 块库两次都不合格;
-    // 'revert' = 第一次块库干净、只因骨架撞车才重试，而重试把块库改坏了 ⟹ 退回第一次。
+    // 'revert' = 第一次块库干净、只因骨架撞车（或第二语言对不上）才重试，而重试把块库改坏了 ⟹ 退回第一次。
     switch (afterRetry({ firstBlockProblems: p1.block.length, retryBlockProblems: p2.block.length })) {
       case 'fatal':
         return pageFatal(i, `this page's layout still breaks the block library after a retry:\n  ${p2.block.join('\n  ')}`);
       case 'revert':
-        debug(`[fingerprint] ⚠️  ${where} 重试(只为首页骨架发起的)把块库改坏了 ${p2.block.length} 处,退回第一次那份:\n  ${p2.block.join('\n  ')}`);
-        return finish(first);
+        debug(`[fingerprint] ⚠️  ${where} 重试(块库本来干净)把块库改坏了 ${p2.block.length} 处,退回第一次那份:\n  ${p2.block.join('\n  ')}`);
+        return finish(first.sections, [second, first]);
       default:
         if (p2.skin.length) debug(`[fingerprint] ⚠️  ${where} 重试之后首页开场仍跟配方对不上,放行(不因为这个建不出站):\n  ${p2.skin.join('\n  ')}`);
         debug(`[pages] ${where} 重试之后块库检查通过`);
-        return finish(second);
+        return finish(second.sections, [second, first]);
     }
   };
   const pageSections = await runPool(N, PAGE_CONCURRENCY, onePage);
@@ -2933,7 +2841,15 @@ ${rules}`;
       debug(`[blocks] 全部页回来之后整站还有 ${whole.problems.length} 处不合规，让第 ${fixAt + 1} 页（${target.slug}）补一次:\n  ${whole.problems.join('\n  ')}`);
       progress('Checking the layout against the block library...', 40);
       let fixed = null;
+      let fixedOthers = {};
       try {
+        // #1593 —— 有第二语言时这一页的回包是按语言分组的（提示词 prompts[fixAt] 里写着），重查这一通照样要全部语言回来。
+        const echo = otherCodes.length
+          ? { [locales.primary.code]: { sections: target.sections }, ...Object.fromEntries(otherCodes.map((loc) => {
+            const b = book.build(target, loc) || {};
+            return [loc, { title: b.title, description: b.description, navLabel: b.navLabel, ...(b.seo && b.seo.targetKeyword ? { targetKeyword: b.seo.targetKeyword } : {}), sections: b.sections }];
+          })) }
+          : { sections: target.sections };
         const retry = await callAIWithRetry({
           client,
           baseOptions: {
@@ -2941,16 +2857,20 @@ ${rules}`;
             max_tokens: maxTokens,
             messages: [
               { role: 'user', content: prompts[fixAt] },
-              { role: 'assistant', content: JSON.stringify({ sections: target.sections }) },
+              { role: 'assistant', content: JSON.stringify(echo) },
               { role: 'user', content: `The website as a whole breaks the block library rules below. Add what is missing to THIS page and `
-                + `respond AGAIN with the COMPLETE JSON for this page ({"sections": [ ... ]}, no markdown fences):\n`
+                + (otherCodes.length
+                  ? `respond AGAIN with the COMPLETE JSON for this page (the same object keyed by language code, no markdown fences):\n`
+                  : `respond AGAIN with the COMPLETE JSON for this page ({"sections": [ ... ]}, no markdown fences):\n`)
                 + whole.problems.map((x) => `- ${x}`).join('\n') },
             ],
           },
           costContext: { operation: 'create-site', detail: `Page ${target.slug} (site re-check)`, pricing, durationStart: Date.now() },
           label: `Call 1 page ${target.slug} site re-check`,
         });
-        fixed = sectionsOf(retry.parsed);
+        const split = localesLib.splitLocaleReply(retry.parsed, locales.primary.code, otherCodes);
+        fixed = sectionsOf(split.primary);
+        fixedOthers = split.others;
       } catch (e) {
         debug(`[blocks] 补的那一通调不通：${e.message}`);
       }
@@ -2960,6 +2880,18 @@ ${rules}`;
         fatal(`The generated layout still breaks the block library after a retry:\n  ${(after.length ? after : whole.problems).join('\n  ')}`);
       }
       target.sections = fixed;
+      // #1593 —— 这一页换了一组新块：第二语言那几份按新块重新挂；对不上 ⟹ 放弃那个第二语言（这一页没有可用的第二语言版本）。
+      for (const loc of otherCodes) {
+        if (book.failed.has(loc)) continue;
+        const kw = typeof pageKeywords[target.slug] === 'string' ? pageKeywords[target.slug] : '';
+        const p = localesLib.secondaryPageProblems({ page: target, sections: fixed, group: fixedOthers[loc], needKeyword: !!kw });
+        if (p.length) {
+          book.fail(loc, `page "${target.slug}" (site re-check): ${p.join('; ')}`);
+          debug(`[locales] 整站补块那一通的 ${loc} 那一份对不上主语言（${p.join('; ')}）⟹ 放弃整个第二语言 ${loc}，主语言照常`);
+        } else {
+          book.link(target, fixed, loc, fixedOthers[loc]);
+        }
+      }
       if (target.slug === 'home' && homeRecipe) {
         const skin = recipeProblems(ai.pages, homeRecipe);
         if (skin.length) debug(`[fingerprint] ⚠️  补过之后首页开场跟配方对不上,放行:\n  ${skin.join('\n  ')}`);
@@ -3198,7 +3130,8 @@ ${rules}`;
 
 // #1550 —— 同时在飞的关键词页调用数。一页一次调用，提示词只带这一页的素材；并发只为省时间，不影响结果。
 // #1568 —— Call 1 的每一页用同一个数、同一个调度（§runPool）。
-const PAGE_CONCURRENCY = 3;
+// #1593 —— 3 → 5（19 页排队 6.5 分钟）。撞上 Anthropic 速率限制时由 callAIWithRetry 按 429 退避，不另做节流。
+const PAGE_CONCURRENCY = 5;
 const KEYWORD_PAGE_CONCURRENCY = PAGE_CONCURRENCY;
 
 /** n 个任务（下标 0…n-1），最多 limit 个同时在飞；回结果数组，顺序同下标。Call 1 的每一页（#1568）与关键词页（#1550）共用。 */
@@ -3232,7 +3165,12 @@ async function generateKeywordPages(opts) {
     descriptionSpec: descSpec = '70–155 chars',
     // #1346 —— 后台关掉的块。关键词页有它**自己**那份写死的块清单（`keyword-page-options.js`），关掉的块要从那里剔掉。
     disabledBlocks = [],
+    // #1593 —— 第二语言一次写完（同 generateContent 那两个参数）。没传 / 没有第二语言 ⟹ 提示词与回包跟改之前一样。
+    locales = { primary: { code: 'en', name: languageName }, others: [] },
+    book = null,
   } = opts;
+  const others = (locales.others || []).filter((o) => book && !book.failed.has(o.code));
+  const otherCodes = others.map((o) => o.code);
   const sectionOptions = keywordPageSectionOptions({ disabledBlocks });
   const client = new Anthropic();
   const languageInstruction = languageName !== 'English'
@@ -3247,14 +3185,30 @@ async function generateKeywordPages(opts) {
       companyName, industry, location, languageInstruction,
       tagline: brand && brand.tagline, siteDescription: seo && seo.siteDescription,
       additionalContext, sectionOptions, sitePrimaryKeyword, titleSpec, descriptionSpec: descSpec,
-    });
+    }) + (others.length ? `\n\n${localesLib.languagesPrompt({ primary: locales.primary, others, kind: 'keyword', hasKeyword: true })}` : '');
     emit('prompt', { name: `Keyword page: ${entry.keyword}`, content: prompt });
-    const call = async (messages, detail) => (await callAIWithRetry({
-      client,
-      baseOptions: { model, max_tokens: maxTokens, messages },
-      costContext: { operation: 'create-site', detail, pricing, durationStart: Date.now() },
-      label: `Call 2 ${entry.path}`,
-    })).parsed;
+    // #1593 —— 有第二语言时回包按语言分组：主语言那一份是整页对象（跟改之前一样判），第二语言那几份等主语言定下来再挂进 book。
+    const call = async (messages, detail) => {
+      const raw = (await callAIWithRetry({
+        client,
+        baseOptions: { model, max_tokens: maxTokens, messages },
+        costContext: { operation: 'create-site', detail, pricing, durationStart: Date.now() },
+        label: `Call 2 ${entry.path}`,
+      })).parsed;
+      const split = localesLib.splitLocaleReply(raw, locales.primary.code, otherCodes);
+      return { raw, page: split.primary, others: split.others };
+    };
+    const secondaryOf = (got) => {
+      const out = {};
+      if (!got.page || typeof got.page !== 'object') return out;
+      for (const loc of otherCodes) {
+        if (book.failed.has(loc)) continue;
+        const p = localesLib.secondaryPageProblems({ page: got.page, sections: got.page.sections, group: got.others[loc], needKeyword: true });
+        if (p.length) out[loc] = p;
+      }
+      return out;
+    };
+    const secondaryLines = (bad) => Object.entries(bad).map(([loc, p]) => `the "${loc}" part does not match the "${locales.primary.code}" part: ${p.join('; ')}`);
 
     let got;
     try {
@@ -3262,24 +3216,46 @@ async function generateKeywordPages(opts) {
     } catch (e) {
       return { entry, ok: false, problems: [`AI 调用失败：${e.message}`] };
     }
-    let problems = kwPages.keywordPageProblems(got, entry, validate);
-    if (problems.length) {
-      debug(`[keyword-pages] ${entry.path} 第一次不合格（${problems.length} 处），只重试这一页：\n  ${problems.join('\n  ')}`);
+    const problems = kwPages.keywordPageProblems(got.page, entry, validate);
+    const bad = problems.length ? {} : secondaryOf(got);
+    const candidates = [got];
+    if (problems.length || Object.keys(bad).length) {
+      const all = [...problems, ...secondaryLines(bad)];
+      debug(`[keyword-pages] ${entry.path} 第一次不合格（${all.length} 处），只重试这一页：\n  ${all.join('\n  ')}`);
+      let retried;
       try {
-        got = await call([
+        retried = await call([
           { role: 'user', content: prompt },
-          { role: 'assistant', content: JSON.stringify(got) },
-          { role: 'user', content: kwPages.keywordPageRetryMessage(problems) },
+          { role: 'assistant', content: JSON.stringify(got.raw) },
+          { role: 'user', content: kwPages.keywordPageRetryMessage(all) },
         ], `Keyword page ${entry.path} (re-check)`);
       } catch (e) {
-        return { entry, ok: false, problems: [`重试时 AI 调用失败：${e.message}`] };
+        if (problems.length) return { entry, ok: false, problems: [`重试时 AI 调用失败：${e.message}`] };
+        retried = null; // 主语言第一次就合格、只为第二语言重试 ⟹ 用第一次那份主语言
       }
-      problems = kwPages.keywordPageProblems(got, entry, validate);
-      if (problems.length) return { entry, ok: false, problems };
+      if (retried) {
+        const again = kwPages.keywordPageProblems(retried.page, entry, validate);
+        if (!again.length) { got = retried; candidates.unshift(retried); } else if (problems.length) return { entry, ok: false, problems: again };
+      }
     }
-    got.keywordPage = true;
-    applyBlockRoleDefaults([got]);
-    return { entry, ok: true, page: got };
+    const page = got.page;
+    page.keywordPage = true;
+    applyBlockRoleDefaults([page]);
+    for (const loc of otherCodes) {
+      if (book.failed.has(loc)) continue;
+      let why = 'missing';
+      const hit = candidates.find((c) => {
+        const p = localesLib.secondaryPageProblems({ page, sections: page.sections, group: c.others[loc], needKeyword: true });
+        if (p.length) why = p.join('; ');
+        return !p.length;
+      });
+      if (hit) book.link(page, page.sections, loc, hit.others[loc]);
+      else {
+        book.fail(loc, `keyword page "${entry.path}": ${why}`);
+        debug(`[locales] 关键词页 ${entry.path} 的 ${loc} 那一份重试后仍对不上主语言（${why}）⟹ 放弃整个第二语言 ${loc}，主语言照常`);
+      }
+    }
+    return { entry, ok: true, page };
   };
 
   const results = await runPool(plan.length, KEYWORD_PAGE_CONCURRENCY, (i) => one(plan[i]));
@@ -3344,6 +3320,9 @@ async function finishKeywordPages({
     const issues = validateBlocks({ pages: fresh, industry, disabledBlocks, forms: siteFormsFrom(content.ai && content.ai.forms), scope: 'edit' }).problems;
     if (issues.length) fatal(`代码补出来的服务详情页过不了块库检查：\n  ${issues.join('\n  ')}`);
     targetKw.applyPageKeywords(fresh, assignment.pageKeywords);
+    for (const pg of fresh) {
+      if (ensureH2Slots(pg, content.services.find((x) => x.id === pg.parentService), disabledBlocks)) debug(`[keyword-pages] ${pg.slug} 只有 1 个 H2 槽 ⟹ 补一个 content 块给 SEO 修补写标题（#1593）`);
+    }
     writeImageAlts({ pages: fresh, manifests: loadBlockManifests(), industry, targetKeywordOf: seoTargetOf });
     // 只把这几页交给 seoPass（第 5 条「站内唯一」用的整站页表在这里就是这几页：代码只在 slug 空着时才补，不会撞）。
     const sub = { ...content, pages: fresh };
@@ -3378,106 +3357,244 @@ async function finishKeywordPages({
   return kwReport;
 }
 
-// ─── #1549: 每页生成后的 SEO 检查 ─────────────────────────────────────────────────────────────
+// ─── #1549 / #1593: 每页生成后的 SEO 检查 + 字段级修补 ─────────────────────────────────────────────────────
 //
-// 设计文档 S2 / 正文做什么 3：
+// 设计文档 S2 / #1549 正文做什么 3，#1593 做什么 2 改了「有问题怎么办」：
 //   · 主语言的**每一页**跑一次 `seoProblems`（lib/seo-problems.js），日志每页一行 —— 全过的页在产物里跟没跑过一模一样，
-//     所以「跑过」的证据只能是日志（验收 4）。次语言的页不在这里（它们是主语言页的翻译，在这之后才生成）。
-//   · 有问题 ⟹ 带着问题**只重写那一页一次**（一页一次调用，几页并发）。重写回来的页再过一次块校验：它若新增了块库
-//     问题，这次重写作废、用原来那页（宁可按原来那页的 SEO 问题处置，也不把块库改坏的页写进站）。
-//   · 仍有问题 ⟹ 关键词页丢掉（日志「丢掉 <slug>：…」+「关键词页 N/M」，页脚里指向它的链接一起删）；
-//     首页 / 服务页 / 没有目标词的页 ⟹ 建站失败，信息写明哪页哪条。没有目标词的页不丢：它们在导航里，丢了就是站内死链。
-//   · 「关键词页 N/M」本票只进日志和 `seo-check` 事件。建站页显示的是 #1550 的 `keyword-pages` 事件（§finishKeywordPages，
-//     在这里之后才算，所以这里丢掉的页也算进它的 N/M）。
+//     所以「跑过」的证据只能是日志。第二语言（#1593）在写盘前按它自己的 locale 也跑一次（§main 第二语言那一段）。
+//   · 代码能补的先由代码补，再查：长度（§fitPageDescriptions 裁）、缺地点（§appendPlace 补，#1549 做的，#1593 把它挪到检查之前）。
+//   · 仍有问题 ⟹ **字段级修补**一次：一次小调用只带出问题的那几个字段和它们的约束（不带整页），只回那几个字段，代码写回页面。
+//     以前是整页重写（一条「description 缺目标词」要把 3–4k token 的整页重生成一次，$0.08；现在 ~300 token，$0.01）。
+//     没有字段可改的问题（第 3 条 H1 个数、第 5 条 slug）不发修补调用，直接按「修补后仍不合格」处置。
+//     修补回来的字若让这一页新增块库问题（比如超了某个块的字数上限），这次修补作废、用原来的字。
+//   · 主语言修补一次仍不合格 ⟹ 关键词页丢掉（日志「丢掉 <slug>：…」+「关键词页 N/M」，页脚里指向它的链接一起删）；
+//     首页 / 服务页 / 没有目标词的页 ⟹ 建站失败，信息写明哪页哪条（T2 #1596 落地后改成降级，那张票改这里）。
+//   · 第二语言修补一次仍不合格 ⟹ 记日志、照常发布，不丢页、不让建站失败（第二语言从不拦主语言）。
+//   · 「关键词页 N/M」只进日志和 `seo-check` 事件（只有主语言发）。建站页显示的是 #1550 的 `keyword-pages` 事件。
 
 /** 一页的目标词（T4 #1548 挂在 `page.seo.targetKeyword`）。 */
 function seoTargetOf(page) {
   return page && page.seo && typeof page.seo.targetKeyword === 'string' ? page.seo.targetKeyword : '';
 }
 
-/** 一页的 seoProblems + 日志一行（验收 4 读的就是这一行：`[seo] 检查 <slug> · …`）。 */
-function seoCheckPage({ page, content, payload, locale, tag = '检查' }) {
+/**
+ * #1593 —— 代码补出来的服务详情页（§kwPages.ensureServiceDetailPages）有目标词时，第 7 条要 2 个 H2；服务没写全文（代码补的服务
+ * 就是这样）的话它只有「相关页面」那一个 H2 槽，字段级修补无字可改（以前整页重写会顺手加块）。补一个 content 块（标题 = 服务名、
+ * 正文 = 服务简介，没有就是服务名）给修补留出槽，由修补把目标词写进去。第二语言拼同一页时也跑它 ⟹ 两种语言的块一样。
+ */
+function ensureH2Slots(page, svc, disabledBlocks = []) {
+  if (!page || !svc || !seoTargetOf(page) || new Set(disabledBlocks).has('content')) return false;
+  const sections = Array.isArray(page.sections) ? page.sections : (page.sections = []);
+  if (sections.filter((x) => x && SEO_H2_BLOCKS.has(x.type)).length >= 2) return false;
+  const name = typeof svc.name === 'string' ? svc.name.trim() : '';
+  const body = [svc.fullDescription, svc.shortDescription, name].find((x) => typeof x === 'string' && x.trim());
+  if (!name || !body) return false;
+  const h1 = sections.findIndex((x) => x && SEO_H1_BLOCKS.has(x.type));
+  sections.splice(h1 + 1, 0, { type: 'content', data: { headline: name, body: body.trim() } });
+  return true;
+}
+
+/** 一页的 seoProblems + 日志一行（`[seo] 检查 <slug> · …`）。 */
+function seoCheckPage({ page, content, payload, locale, tag = '检查', who = '[seo]' }) {
   const kw = seoTargetOf(page);
   const problems = seoProblems({ page, pages: content.pages, targetKeyword: kw, brand: content.brand, payload, locale, seo: content.seo });
-  debug(`[seo] ${tag} ${page.slug} · 目标词 ${kw ? `「${kw}」` : '（无）'} · 跑了第 ${seoRulesFor(kw).join('/')} 条 · `
+  debug(`${who} ${tag} ${page.slug} · 目标词 ${kw ? `「${kw}」` : '（无）'} · 跑了第 ${seoRulesFor(kw).join('/')} 条 · `
     + (problems.length ? `${problems.length} 条问题：\n    ${problems.join('\n    ')}` : '0 条问题'));
   // #1603 —— 地点那一半不判时要响：每页只在第一遍检查时说一次（seoProblems 是纯函数，不打日志）。
   const place = sitePlace(payload);
   if (tag === '检查' && kw && place && !placeFits(place, kw, locale)) {
-    debug(`[seo] 不补地点 ${page.slug}：目标词「${kw}」${[...kw].length} 字 + 分隔符 + 地点「${place}」${[...place].length} 字 `
+    debug(`${who} 不补地点 ${page.slug}：目标词「${kw}」${[...kw].length} 字 + 分隔符 + 地点「${place}」${[...place].length} 字 `
       + `已超过 description 上限 ${descriptionRange(locale).max} 字 ⟹ 第 2 条「含地点」那一半不判、建站不拦`);
   }
   return problems;
 }
 
-/** 重写一页的提示词（单测读它：预算数字、目标词、问题清单都要在里面）。 */
-function seoRewritePrompt({ page, problems, content, payload, locale, industry, location, companyName }) {
+/** 缺地点由代码补在 description 末尾（#1549 重开；#1603 补的时候不裁掉目标词）。补了回 true。 */
+function seoAppendPlace({ page, content, payload, locale, when = '', who = '[seo]' }) {
+  const kw = seoTargetOf(page);
+  if (!missingPhrases({ page, targetKeyword: kw, payload, seo: content.seo, locale }).some((m) => m.what === 'place')) return false;
+  const place = sitePlace(payload);
+  const isHome = page.slug === 'home';
+  const next = appendPlace(isHome ? content.seo.siteDescription : page.description, place, locale, { keep: (s) => hasPhrase(s, kw) });
+  if (isHome) content.seo.siteDescription = next; else page.description = next;
+  debug(`${who} ${when}补地点 ${page.slug}：「${place}」→ ${[...next].length} 字（代码补，不叫 AI）`);
+  return true;
+}
+
+/**
+ * 一页里给访客读的字段，按 seoProblems 的 pageText 同一个顺序（每块先 headline 再其余）：{ id, sec, get(), set(v) }。
+ * 非文字字段（旋钮、链接、图址、图标 …）跳过，同 seo-problems.js 的 NOT_TEXT。
+ */
+function seoTextFields(page) {
+  const out = [];
+  const walk = (holder, key, id, sec) => {
+    const v = holder[key];
+    if (typeof v === 'string') { if (v.trim()) out.push({ id, sec, get: () => holder[key], set: (x) => { holder[key] = x; } }); return; }
+    if (Array.isArray(v)) { v.forEach((_, i) => walk(v, i, `${id}[${i}]`, sec)); return; }
+    if (v && typeof v === 'object') for (const k of Object.keys(v)) if (!SEO_NOT_TEXT.has(k)) walk(v, k, `${id}.${k}`, sec);
+  };
+  (Array.isArray(page.sections) ? page.sections : []).forEach((s, i) => {
+    if (!s || !s.data || typeof s.data !== 'object') return;
+    if (typeof s.data.headline === 'string') walk(s.data, 'headline', `sections[${i}].${s.type}.headline`, i);
+    for (const k of Object.keys(s.data)) if (k !== 'headline' && !SEO_NOT_TEXT.has(k)) walk(s.data, k, `sections[${i}].${s.type}.${k}`, i);
+  });
+  return out;
+}
+
+/**
+ * 这一页要修补的字段（#1593）。按问题的规则号认（问题文案恒以 `[N 名字]` 开头）：
+ *   1 → title（首页是 seo.siteTitle）· 2 → description（首页是 seo.siteDescription）· 3 H1 缺目标词 → H1 那一句 ·
+ *   4 → 页面前 100 词落在的那几个字段 · 6 → 内容图的 alt · 7 → 各块的 H2 · 8 → 写着那个编造事实的字段。
+ *   第 3 条 H1 个数、第 5 条 slug：没有字段可改 ⟹ 不进来。
+ * @returns {{ name: string, get: Function, set: Function, rules: string[] }[]}
+ */
+function seoFixFields({ page, problems, content }) {
+  const isHome = page.slug === 'home';
+  const byId = new Map();
+  const add = (id, name, get, set, rule) => {
+    if (!byId.has(id)) byId.set(id, { name, get, set, rules: [] });
+    const f = byId.get(id);
+    if (!f.rules.includes(rule)) f.rules.push(rule);
+  };
+  const titleField = (rule = 'title') => (isHome
+    ? add('seo.siteTitle', 'siteTitle', () => content.seo.siteTitle, (v) => { content.seo.siteTitle = v; }, rule)
+    : add('title', 'title', () => page.title, (v) => { page.title = v; }, rule));
+  const descField = (rule = 'description') => (isHome
+    ? add('seo.siteDescription', 'siteDescription', () => content.seo.siteDescription, (v) => { content.seo.siteDescription = v; }, rule)
+    : add('description', 'description', () => page.description, (v) => { page.description = v; }, rule));
+  const text = seoTextFields(page);
+  const sections = Array.isArray(page.sections) ? page.sections : [];
+  // 一块的标题那一格：有字的取 seoTextFields 那一项；**空着的也算一格**（content 块没写 headline 时不出 H2，填上就出）——
+  // 往空格里写字不改页面结构，所以「H2 只有 1 个」（代码补出来的服务详情页就是这样：content 块只有正文）也能字段级修。
+  const sectionHeadline = (i, sec) => text.find((f) => f.sec === i && f.id === `sections[${i}].${sec.type}.headline`)
+    || (sec && sec.data && typeof sec.data === 'object'
+      ? { id: `sections[${i}].${sec.type}.headline`, sec: i, get: () => sec.data.headline || '', set: (v) => { sec.data.headline = v; } }
+      : null);
+  for (const p of problems) {
+    const rule = Number((/^\[(\d)/.exec(p) || [])[1]);
+    if (rule === 1) titleField();
+    else if (rule === 2) descField();
+    else if (rule === 3) {
+      // 缺目标词 ⟹ 改那一句；一个 H1 都没有、而恰好有一个 hero / page-header 的标题空着 ⟹ 填它。两个以上 H1 没有字段可改。
+      const h1Blocks = sections.map((s, i) => [s, i]).filter(([s]) => s && SEO_H1_BLOCKS.has(s.type));
+      const withText = h1Blocks.filter(([s]) => s.data && typeof s.data.headline === 'string' && s.data.headline.trim());
+      const target = /恰好一个 H1/.test(p) ? (withText.length === 0 && h1Blocks.length === 1 ? h1Blocks[0] : null) : withText[0];
+      const f = target && sectionHeadline(target[1], target[0]);
+      if (f) add(f.id, 'h1', f.get, f.set, 'h1');
+    } else if (rule === 4) {
+      let n = 0;
+      for (const f of text) {
+        if (n >= 100) break;
+        add(f.id, f.id, f.get, f.set, 'intro');
+        n += seoWords(f.get()).length;
+      }
+    } else if (rule === 6) {
+      for (const x of contentImagesOf(page)) add(`alt:${x.secIdx}:${x.slot}:${x.itemIdx}`, `${x.type} image alt (block ${x.secIdx + 1}${x.itemIdx === null ? '' : `, item ${x.itemIdx + 1}`})`,
+        () => x.img.alt || '', (v) => { x.img.alt = v; }, /alt 为空/.test(p) && !x.alt ? 'alt-empty' : 'alt');
+    } else if (rule === 7) {
+      sections.forEach((s, i) => {
+        if (!s || !SEO_H2_BLOCKS.has(s.type)) return;
+        const f = sectionHeadline(i, s);
+        if (f) add(f.id, f.id, f.get, f.set, 'h2');
+      });
+    } else if (rule === 8) {
+      const what = (/编造的事实：「([^」]+)」/.exec(p) || [])[1];
+      if (!what) continue;
+      if (String((isHome ? content.seo.siteTitle : page.title) || '').includes(what)) titleField('fact');
+      if (String((isHome ? content.seo.siteDescription : page.description) || '').includes(what)) descField('fact');
+      for (const f of text) if (f.get().includes(what)) add(f.id, f.id, f.get, f.set, 'fact');
+    }
+  }
+  // 名字要唯一（回包按名字写回）：撞名时补序号。
+  const seen = new Map();
+  return [...byId.values()].map((f) => {
+    const k = seen.get(f.name) || 0;
+    seen.set(f.name, k + 1);
+    return k ? { ...f, name: `${f.name} #${k + 1}` } : f;
+  });
+}
+
+/** 修补那一次的提示词（单测读它：只带出问题的字段、它们的约束、问题清单；不带这一页别的字）。 */
+function seoFixPrompt({ page, problems, fields, content, payload, locale, industry, location, companyName }) {
   const kw = seoTargetOf(page);
   const isHome = page.slug === 'home';
-  const envelope = isHome
-    ? { siteTitle: content.seo.siteTitle, siteDescription: content.seo.siteDescription, page }
-    : { page };
+  const musts = missingPhrases({ page, targetKeyword: kw, payload, seo: content.seo, locale })
+    .map((m) => ({ ...m, name: m.field === 'title' ? (isHome ? 'siteTitle' : 'title') : (isHome ? 'siteDescription' : 'description') }))
+    .filter((m) => fields.some((f) => f.name === m.name))
+    .map((m) => `- MUST: "${m.name}" contains "${m.phrase}" exactly as written${m.what === 'place' ? ' (the place name, in this spelling)' : ''}.`);
+  const rules = [];
+  const has = (r) => fields.filter((f) => f.rules.includes(r)).map((f) => `"${f.name}"`);
+  if (has('title').length) rules.push(`- ${has('title').join(', ')}: ${isHome ? 'the home page\'s <title>, used as-is: max 60 chars' : pageTitleSpec(content.brand.name[locale])}${kw ? `, containing "${kw}"` : ''}.`);
+  if (has('description').length) rules.push(`- ${has('description').join(', ')}: meta description, ${descriptionSpec(locale)}${kw ? `, containing "${kw}"` : ''}.`);
+  if (has('h1').length) rules.push(`- ${has('h1').join(', ')}: the page's single H1 — it contains "${kw}".`);
+  if (has('intro').length) rules.push(`- The page's first 100 words are these texts, in this order: ${has('intro').join(', ')} — "${kw}" must appear in them.`);
+  if (has('h2').length) rules.push(`- ${has('h2').join(', ')}: the headings of the page's sections (H2s; an empty one is a heading not written yet — write it) — at least 2 of them contain "${kw}" (or its words).`);
+  if (has('alt').length || has('alt-empty').length) rules.push(`- ${[...has('alt'), ...has('alt-empty')].join(', ')}: image alt texts — one plain sentence each saying what the photo shows (no "image of")${kw ? `; at least one contains "${kw}"` : ''}.`);
+  if (has('fact').length) rules.push(`- ${has('fact').join(', ')}: remove the invented fact — keep only what the business details below say.`);
   const p = payload && typeof payload === 'object' ? payload : {};
-  const facts = [
+  const facts = has('fact').length ? [
     ['USP', p.usp], ['Description', p.brandDescription], ['Address', p.address], ['Phone', p.phone], ['Hours', p.hours],
     ['Price range', p.priceRange],
     ['Customer reviews', Array.isArray(p.reviews) && p.reviews.length ? JSON.stringify(p.reviews) : ''],
-  ].filter(([, v]) => typeof v === 'string' && v.trim()).map(([k, v]) => `- ${k}: ${v}`);
-  // #1549 重开 —— 要「原样出现」的词（目标词、地点）单列成 MUST 行，不混在问题清单里（Chris 2026-10-05 site-db08942a：
-  // 重写后只剩「description 不含地点『多伦多』」一条，整站失败）。跟第 1、2 条同一个谓词（§seo-problems.js missingPhrases）。
-  const descField = isHome ? 'siteDescription' : 'page.description';
-  const titleField = isHome ? 'siteTitle' : 'page.title';
-  const musts = missingPhrases({ page, targetKeyword: kw, payload, seo: content.seo, locale }).map((m) => (m.field === 'title'
-    ? `- MUST: ${titleField} contains "${m.phrase}" exactly as written.`
-    : `- MUST: ${descField} contains "${m.phrase}" exactly as written${m.what === 'place' ? ' (the place name, in this spelling)' : ''}.`));
-  const descSpec = descriptionSpec(locale);
-  return `You wrote one page of the website for "${companyName}" (${industry}${location ? `, ${location}` : ''}). An automatic SEO check found the problems below. Rewrite the page to fix ONLY these problems. Respond with the COMPLETE JSON object in exactly the same shape as the one you are given — no markdown fences, no explanation.
+  ].filter(([, v]) => typeof v === 'string' && v.trim()).map(([k, v]) => `- ${k}: ${v}`) : [];
+  const current = Object.fromEntries(fields.map((f) => [f.name, f.get()]));
+  return `You wrote texts on one page of the website for "${companyName}" (${industry}${location ? `, ${location}` : ''}). An automatic SEO check found the problems below. Rewrite ONLY the texts given here so the problems go away; keep each text in its current language and keep the brand name "${companyName}" verbatim. Respond with ONE JSON object {"fields": {"<name>": "<new text>", ...}} using exactly the names below — no markdown fences, no explanation.
 
-${JSON.stringify(envelope, null, 2)}
+PAGE: ${page.slug}${kw ? `\nThis page's target keyword is "${kw}".` : ''}
+
+TEXTS TO FIX:
+${JSON.stringify(current, null, 2)}
 
 PROBLEMS TO FIX:
 ${problems.map((x) => `- ${x}`).join('\n')}
 ${musts.length ? `
-HARD REQUIREMENTS (the check runs again on exactly these; a page that misses one fails):
+HARD REQUIREMENTS (the check runs again on exactly these; a text that misses one fails):
 ${musts.join('\n')}
 ` : ''}
 RULES:
-- ${kw ? `This page's target keyword is "${kw}" — use that exact phrase where the problems ask for it.` : 'This page has no target keyword.'}
-- Keep "slug", every section's "type" and "options", and every "imageUrl" exactly as they are. Add or remove a section only when a problem asks for it (the page's single H1 is the "headline" of its one "hero" or "page-header" section; H2s are the "headline" of the other sections).
-- ${isHome ? 'siteTitle is the home page\'s <title>, used as-is: max 60 chars.' : `page.title: ${pageTitleSpec(content.brand.name[locale])}.`} Meta description (${descField}): ${descSpec}${kw ? `, containing "${kw}"` : ''}.
-- Every image object ({"imageUrl", "alt"}) gets an "alt": one plain sentence saying what the photo shows.
-${FACTS_ONLY_FROM_FORM_RULE.replace(', including the stats example below', '').replace('the business details above', 'the business details below')}
+${rules.join('\n')}
+${facts.length ? `
 BUSINESS DETAILS (the only source of facts):
-${facts.length ? facts.join('\n') : '- (none given)'}`;
+${facts.join('\n')}
+` : ''}`;
 }
 
-/** 调 AI 重写一页一次。回 `{ page, siteTitle?, siteDescription? }`；调不通 / 吐不回对象就抛。 */
-async function rewritePageForSeo(args) {
-  const prompt = seoRewritePrompt(args);
-  emit('prompt', { name: `SEO rewrite ${args.page.slug}`, content: prompt });
+/** 调 AI 修补一页一次。回 `{ name: 新的字 }`（只含送出去的名字、且是非空字符串的）；调不通 / 吐不回对象就抛。 */
+async function fixPageFieldsForSeo(args) {
+  const prompt = seoFixPrompt(args);
+  const tag = args.locale && args.secondary ? ` (${args.locale})` : '';
+  emit('prompt', { name: `SEO fix ${args.page.slug}${tag}`, content: prompt });
   const client = new Anthropic();
   const result = await callAIWithRetry({
     client,
     baseOptions: { model, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] },
-    costContext: { operation: 'create-site', detail: `SEO rewrite ${args.page.slug}`, pricing, durationStart: Date.now() },
-    label: `SEO rewrite ${args.page.slug}`,
+    costContext: { operation: 'create-site', detail: `SEO fix ${args.page.slug}${tag}`, pricing, durationStart: Date.now() },
+    label: `SEO fix ${args.page.slug}${tag}`,
   });
   const parsed = result.parsed;
-  const page = parsed && typeof parsed === 'object' && parsed.page && typeof parsed.page === 'object' ? parsed.page : parsed;
-  if (!page || typeof page !== 'object' || Array.isArray(page)) throw new Error('重写回来的不是一个页面对象');
-  return { page, siteTitle: parsed.siteTitle, siteDescription: parsed.siteDescription };
+  const got = parsed && typeof parsed === 'object' && parsed.fields && typeof parsed.fields === 'object' ? parsed.fields : parsed;
+  if (!got || typeof got !== 'object' || Array.isArray(got)) throw new Error('修补回来的不是一个对象');
+  const out = {};
+  for (const f of args.fields) if (typeof got[f.name] === 'string' && got[f.name].trim()) out[f.name] = got[f.name].trim();
+  return out;
 }
 
 /**
- * 主语言每一页：检查 → 有问题重写一次 → 再查 → 处置。就地改 `content`（页、seo、页脚）。建站失败时 fatal()。
+ * 每一页：代码补（长度 / 地点）→ 检查 → 有问题字段级修补一次 → 再补、再查 → 处置。就地改 `content`（页、seo、页脚）。
+ * 主语言建站失败时 fatal()；`secondary: true`（第二语言）只记日志、不丢页、不失败、不发 seo-check 事件。
  * 回 `{ checked, rewritten, dropped, fatalPages, pages }`（单测读它）；`pages` 是逐页的首查 / 复查结果（#1600 建站报告读它）。
+ * 🔴 `rewritten` 这个键名是 T8 #1600 的建站报告「修补页数 / 总页数」取数的地方（§lib/build-report.js recordSeo），#1593 起含义是
+ *    「做了字段级修补的页数」，不再是「整页重写过的页数」；`pages[].rewritten` 同一个意思（这一页的字段被修补写回了）。
+ *    第二语言那一次（`secondary: true`）的结果**不**记进报告：它的页跟主语言同 slug，recordSeo 按 slug 合并会盖掉主语言那几行。
  */
-async function seoPass({ content, payload, locale, industry, location, companyName, disabledBlocks = [], keywordPagesPlanned = [] }) {
-  const ctx = { content, payload, locale, industry, location, companyName };
-  // 长度这种代码一刀能裁的先裁掉，再查；留给 AI 重写的只剩代码改不了的（关键词不在 / 编造事实 / H1 H2 …）。
+async function seoPass({ content, payload, locale, industry, location, companyName, disabledBlocks = [], keywordPagesPlanned = [], secondary = false }) {
+  const who = secondary ? `[seo ${locale}]` : '[seo]';
+  const ctx = { content, payload, locale, industry, location, companyName, who };
+  // 代码一刀能裁 / 能补的先做掉，再查；留给 AI 的只剩代码改不了的（关键词不在 / 编造事实 / H1 H2 …）。
   for (const c of fitPageDescriptions({ pages: content.pages, seo: content.seo, locale })) {
-    debug(`[seo] 裁 description ${c.slug}：${c.before} → ${c.after} 字（代码裁，不叫 AI）`);
+    debug(`${who} 裁 description ${c.slug}：${c.before} → ${c.after} 字（代码裁，不叫 AI）`);
   }
+  for (const page of content.pages) seoAppendPlace({ page, ...ctx });
   const failing = [];
   // #1600 —— 逐页结果（首查 / 复查）给建站报告：只记录，不参与下面任何判断。
   const perPage = new Map();
@@ -3491,75 +3608,70 @@ async function seoPass({ content, payload, locale, industry, location, companyNa
     if (problems.length) failing.push({ page, problems });
   }
 
-  // 表单跟 Call 1 那道块校验用同一份（AI 写的文案 + 默认骨架，`siteFormsFrom`）；只比这一页重写前后的差集。
+  // 表单跟 Call 1 那道块校验用同一份（AI 写的文案 + 默认骨架，`siteFormsFrom`）；只比这一页修补前后的差集。
   const forms = siteFormsFrom((content.ai && content.ai.forms) || content.forms);
   const blockProblemsOf = (pages, slug) => validateBlocks({ pages, industry, disabledBlocks, forms })
     .problems.filter((x) => x.startsWith(`${slug} `));
 
-  const rewrites = await Promise.all(failing.map(async ({ page, problems }) => {
+  const fixes = await Promise.all(failing.map(async ({ page, problems }) => {
+    const fields = seoFixFields({ page, problems, content });
+    if (!fields.length) {
+      debug(`${who} 不修补 ${page.slug}：这几条问题没有字段可改（${problems.map((x) => (/^\[[^\]]+\]/.exec(x) || [x])[0]).join(' ')}）`);
+      return { page, fields, out: null };
+    }
     try {
-      return { page, problems, out: await rewritePageForSeo({ page, problems, ...ctx }) };
+      return { page, fields, out: await fixPageFieldsForSeo({ page, problems, fields, ...ctx, secondary }) };
     } catch (e) {
-      debug(`[seo] 重写 ${page.slug} 没成：${e.message} —— 按原来那页处置`);
-      return { page, problems, out: null };
+      debug(`${who} 修补 ${page.slug} 没成：${e.message} —— 按原来那页处置`);
+      return { page, fields, out: null };
     }
   }));
 
   const dropped = [];
   const fatalPages = [];
+  const unresolved = [];
   let rewritten = 0;
-  for (const { page, out } of rewrites) {
-    let cur = page;
-    if (out) {
-      // 身份字段照原来那页：slug 由代码生成、关键词页 / 服务页的标记和目标词不归重写管
-      const next = { ...out.page, slug: page.slug };
-      for (const k of ['keywordPage', 'serviceDetailPage', 'parentService', 'navOrder', 'seo']) {
-        if (page[k] !== undefined) next[k] = page[k]; else delete next[k];
-      }
-      sanitizeImageUrls([next]);
-      applyBlockRoleDefaults([next]);
-      writeImageAlts({ pages: [next], manifests: loadBlockManifests(), industry, targetKeywordOf: seoTargetOf });
-      const idx = content.pages.indexOf(page);
-      const trial = content.pages.slice(); trial[idx] = next;
+  for (const { page, fields, out } of fixes) {
+    let fixedThis = false;
+    const written = fields.filter((f) => out && Object.prototype.hasOwnProperty.call(out, f.name));
+    if (written.length) {
       const before = new Set(blockProblemsOf(content.pages, page.slug));
-      const added = blockProblemsOf(trial, page.slug).filter((x) => !before.has(x));
+      const old = written.map((f) => f.get());
+      written.forEach((f) => f.set(out[f.name]));
+      const added = blockProblemsOf(content.pages, page.slug).filter((x) => !before.has(x));
       if (added.length) {
-        debug(`[seo] 重写一次 ${page.slug}：回来的页把块库改坏了 ${added.length} 处，作废、用原来那页：\n    ${added.join('\n    ')}`);
+        written.forEach((f, i) => f.set(old[i]));
+        debug(`${who} 修补 ${page.slug}：回来的字把块库改坏了 ${added.length} 处，作废、用原来的字：\n    ${added.join('\n    ')}`);
       } else {
-        content.pages[idx] = next;
-        if (page.slug === 'home') {
-          if (typeof out.siteTitle === 'string' && out.siteTitle.trim()) content.seo.siteTitle = out.siteTitle.trim();
-          if (typeof out.siteDescription === 'string' && out.siteDescription.trim()) content.seo.siteDescription = out.siteDescription.trim();
-        }
-        cur = next;
         rewritten += 1;
+        fixedThis = true;
+        debug(`${who} 修补 ${page.slug}：改了 ${written.map((f) => f.name).join(' · ')}（字段级，${written.length}/${fields.length}）`);
       }
     }
-    for (const c of fitPageDescriptions({ pages: [cur], seo: content.seo, locale })) {
-      debug(`[seo] 重写后裁 description ${c.slug}：${c.before} → ${c.after} 字`);
+    for (const c of fitPageDescriptions({ pages: [page], seo: content.seo, locale })) {
+      debug(`${who} 修补后裁 description ${c.slug}：${c.before} → ${c.after} 字`);
     }
-    // #1549 重开 —— 重写一次后仍缺地点 ⟹ 代码补在 description 末尾（跟长度一样是代码能补的），再查。
-    if (missingPhrases({ page: cur, targetKeyword: seoTargetOf(cur), payload, seo: content.seo, locale }).some((m) => m.what === 'place')) {
-      const place = sitePlace(payload);
-      const isHome = cur.slug === 'home';
-      // #1603 —— 腾位置时不许把目标词裁掉（判定用跟第 2 条同一个 hasPhrase）。
-      const kw = seoTargetOf(cur);
-      const next = appendPlace(isHome ? content.seo.siteDescription : cur.description, place, locale, { keep: (s) => hasPhrase(s, kw) });
-      if (isHome) content.seo.siteDescription = next; else cur.description = next;
-      debug(`[seo] 补地点 ${cur.slug}：「${place}」→ ${[...next].length} 字（代码补，不叫 AI）`);
-    }
-    const after = seoCheckPage({ page: cur, ...ctx, tag: '重写一次后' });
+    seoAppendPlace({ page, ...ctx, when: '修补后' });
+    const after = seoCheckPage({ page, ...ctx, tag: '修补一次后' });
     const entry = perPage.get(page.slug);
-    if (entry) { entry.final = after; entry.rewritten = cur !== page; }
+    if (entry) { entry.final = after; entry.rewritten = fixedThis; }
     if (!after.length) continue;
-    if (entry) entry.outcome = cur.keywordPage === true ? 'dropped' : 'fatal';
-    if (cur.keywordPage === true) {
-      dropped.push({ slug: cur.slug, keyword: seoTargetOf(cur), problems: after });
-      debug(`[seo] 丢掉 ${cur.slug}：${after.join(' · ')}`);
+    if (entry) entry.outcome = secondary ? 'unresolved' : page.keywordPage === true ? 'dropped' : 'fatal';
+    if (secondary) {
+      unresolved.push({ slug: page.slug, problems: after });
+      debug(`${who} 修补一次后仍不合格，照常发布（第二语言不拦建站）${page.slug}：${after.join(' · ')}`);
+    } else if (page.keywordPage === true) {
+      dropped.push({ slug: page.slug, keyword: seoTargetOf(page), problems: after });
+      debug(`[seo] 丢掉 ${page.slug}：${after.join(' · ')}`);
     } else {
-      fatalPages.push({ slug: cur.slug, problems: after });
+      fatalPages.push({ slug: page.slug, problems: after });
     }
   }
+  if (secondary) {
+    debug(`${who} ${content.pages.length} 页 · 字段级修补 ${rewritten} 页 · 修补后仍不合格 ${unresolved.length} 页（照常发布）`);
+    return { checked: content.pages.length, rewritten, dropped, fatalPages, unresolved, pages: [...perPage.values()] };
+  }
+  buildStats.addSeoFixed(rewritten);
 
   if (dropped.length) {
     const gone = new Set(dropped.map((d) => d.slug));

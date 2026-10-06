@@ -111,12 +111,29 @@ function seoFix(page, { kw, place, budget, brand }) {
   }
   return pg;
 }
+// #1593 —— 字段级修补那一次的替身：跟 seoFix 同一套改法，只是按字段名改、只回送来的那几个字段（不碰页面结构）。
+function fixFields(fields, { kw, place, budget, brand }) {
+  const out = {};
+  const head = kw ? cap(kw) : 'Page';
+  for (const [name, v] of Object.entries(fields)) {
+    if (name === 'title') out[name] = budget ? head.slice(0, budget) : head;
+    else if (name === 'siteTitle') out[name] = `${cap(kw || brand)} | ${brand}`.slice(0, 60);
+    else if (name === 'description' || name === 'siteDescription') {
+      const lead = kw ? `${cap(kw)} in ${place || 'town'} by ${brand || 'our team'}` : `${brand || 'our team'}${place ? ` in ${place}` : ''}`;
+      out[name] = `${lead}. Fast local help, a clear written price before we start, and tidy work every single time.`.slice(0, 150);
+    } else if (name === 'h1') out[name] = kw ? cap(kw) : scrub(v);
+    else if (/image alt/.test(name)) out[name] = kw ? `${cap(kw)} work in ${place || 'town'}` : 'Our team at work';
+    else if (/\.headline$/.test(name)) out[name] = kw && !String(v).toLowerCase().includes(kw.toLowerCase()) ? `${cap(kw)}: ${scrub(v)}` : scrub(v);
+    else out[name] = kw && !String(v).toLowerCase().includes(kw.toLowerCase()) ? `${cap(kw)} — ${scrub(v)}` : scrub(v);
+  }
+  return out;
+}
 function answer(req) {
   const first = req.messages[0].content;
   const kind = first.includes('Generate a JSON object with this EXACT structure') ? 'call1'
     : first.includes('Write the sections of ONE page') ? 'call1-page'
     : first.includes('Write ONE keyword landing page') ? 'keyword-page'
-      : first.includes('An automatic SEO check found the problems') ? 'seo-rewrite' : 'other';
+      : first.includes('An automatic SEO check found the problems') ? 'seo-fix' : 'other';
   fs.appendFileSync(process.env.KW_STUB_CALLS, JSON.stringify({ kind, first, turns: req.messages.length }) + '\n');
   if (kind === 'call1') return cfg.call1;
   // #1568 —— Call 1 每页一次：回 cfg.call1 里那一页的 sections（站级那一通回的 sections 会被丢掉）。
@@ -143,22 +160,18 @@ function answer(req) {
     if ((cfg.badAlways || []).includes(slug) || ((cfg.badFirst || []).includes(slug) && seen[slug] === 1)) page.slug = 'wrong/' + slug;
     return page;
   }
-  if (kind === 'seo-rewrite') {
-    const env = JSON.parse((first.match(/\n\n(\{[\s\S]*?\n\})\n\nPROBLEMS TO FIX/) || [])[1]);
-    if ((cfg.seoBad || []).includes(env.page.slug)) return env;
+  if (kind === 'seo-fix') {
+    // #1593 —— 字段级修补：提示词只带出问题的那几个字段（TEXTS TO FIX），桩按字段名替 AI 改字、只回这几个字段。
+    const fields = JSON.parse((first.match(/TEXTS TO FIX:\n(\{[\s\S]*?\n\})\n\nPROBLEMS TO FIX/) || [])[1]);
+    const slug = (first.match(/^PAGE: (.+)$/m) || [])[1];
+    if ((cfg.seoBad || []).includes(slug)) return { fields };
     const ctx = {
       kw: (first.match(/This page's target keyword is "([^"]+)"/) || [])[1] || '',
-      place: ((first.match(/^You wrote one page of the website for "[^"]*" \([^,]*, ([^)]*)\)/) || [])[1] || '').split(',')[0].trim(),
-      budget: Number((first.match(/page\.title: max (\d+) chars/) || [])[1]) || 0,
-      brand: (first.match(/^You wrote one page of the website for "([^"]*)"/) || [])[1],
+      place: ((first.match(/^You wrote texts on one page of the website for "[^"]*" \([^,]*, ([^)]*)\)/) || [])[1] || '').split(',')[0].trim(),
+      budget: Number((first.match(/"title": max (\d+) chars/) || [])[1]) || 0,
+      brand: (first.match(/^You wrote texts on one page of the website for "([^"]*)"/) || [])[1],
     };
-    const page = seoFix(env.page, ctx);
-    // cfg.dropRefOnRewrite：重写回来的详情页把「下面的关键词页」那组写成了死列表（引用丢了）—— create-site 要在 seoPass 之后把它指回去。
-    if (cfg.dropRefOnRewrite && /^services\/[^/]+$/.test(page.slug)) {
-      for (const b of page.sections || []) if (b && b.type === 'features' && b.data && b.data.items && b.data.items.source === 'pages') b.data.items = [{ title: 'Stale', text: 'A list the rewrite wrote out.' }];
-    }
-    if (env.page.slug !== 'home') return { page };
-    return { page, siteTitle: `${cap(ctx.kw || ctx.brand)} | ${ctx.brand}`.slice(0, 60), siteDescription: page.description };
+    return { fields: fixFields(fields, ctx) };
   }
   throw new Error('桩不认识这一通调用：' + first.slice(0, 120));
 }
@@ -413,9 +426,9 @@ const D = run('seodrop', {
     'Water Heaters': [primary('water heater repair'), kw('tankless water heater'), kw('hot water tank install'), kw('water heater leaking')],
   },
 }, { call1: call1(SVC2), seoBad: [SEO_BAD] });
-check('阳性对照：那一页只调了一次生成（过了块库），seoPass 带着问题重写过它一次', () => {
+check('阳性对照：那一页只调了一次生成（过了块库），seoPass 带着问题修补过它一次（#1593 字段级）', () => {
   assert.strictEqual(kwCalls(D.calls).filter((c) => slugOf(c) === SEO_BAD).length, 1);
-  assert.ok(D.calls.some((c) => c.kind === 'seo-rewrite' && c.first.includes(`"slug": "${SEO_BAD}"`)));
+  assert.ok(D.calls.some((c) => c.kind === 'seo-fix' && c.first.includes(`\nPAGE: ${SEO_BAD}\n`)));
   assert.ok(D.stderr.includes(`[seo] 丢掉 ${SEO_BAD}：`), D.stderr.split('\n').filter((l) => l.startsWith('[seo]')).slice(-5).join('\n'));
 });
 check('事件报 5/6，失败清单里有它、带着它的 SEO 问题', () => {
@@ -452,11 +465,11 @@ const G = run('seolate', {
 }, { call1: call1(SVC2), seoLate: LATE, seoBad: [SEO_BAD] });
 const G_KEPT = ['services/drain-cleaning/clogged-drain-repair', 'services/drain-cleaning/drain-cleaning-markham',
   'services/water-heaters/hot-water-tank-install', 'services/water-heaters/tankless-water-heater', 'services/water-heaters/water-heater-leaking'];
-check('阳性对照：那两页确实被重写过、重写后 0 条问题；那一页被丢掉', () => {
+check('阳性对照：那两页确实被修补过、修补后 0 条问题；那一页被丢掉', () => {
   const lines = G.stderr.split('\n');
   for (const slug of LATE) {
-    assert.ok(G.calls.some((c) => c.kind === 'seo-rewrite' && c.first.includes(`"slug": "${slug}"`)), slug);
-    assert.ok(lines.some((l) => l.startsWith(`[seo] 重写一次后 ${slug} `) && l.endsWith('0 条问题')), slug);
+    assert.ok(G.calls.some((c) => c.kind === 'seo-fix' && c.first.includes(`\nPAGE: ${slug}\n`)), slug);
+    assert.ok(lines.some((l) => l.startsWith(`[seo] 修补一次后 ${slug} `) && l.endsWith('0 条问题')), slug);
   }
   assert.ok(lines.some((l) => l.startsWith(`[seo] 丢掉 ${SEO_BAD}：`)));
 });
@@ -517,13 +530,17 @@ check('PM ① 约束 1：补的服务撤掉（服务目录、详情页、建站�
   assert.strictEqual(LE.report.total, 2);
 });
 
-console.log('── seoPass 重写详情页时把列表写成了死列表');
+// 📌 #1593 起 SEO 修补是字段级的：列表那一组（items 引用）不是文字，按构造不进修补提示词、修补也写不坏它。
+//    这一跑留着当回归：详情页修补过之后，那一组仍指着 under = services/<id>。
+console.log('── seoPass 修补过的详情页，「下面的关键词页」那组仍是引用');
 const RF = run('refdrop', {
   companyName: 'Bright Pipes', services: SVC2.map((s) => s.name),
   keywords: { 'Drain Cleaning': [primary('drain cleaning'), kw('drain cleaning markham'), kw('clogged drain repair')] },
-}, { call1: call1(SVC2), dropRefOnRewrite: true });
-check('阳性对照：详情页确实被重写过', () => {
-  assert.ok(RF.calls.some((c) => c.kind === 'seo-rewrite' && c.first.includes('"slug": "services/drain-cleaning"')));
+}, { call1: call1(SVC2) });
+check('阳性对照：详情页确实被修补过，修补提示词里没有列表那一组的引用', () => {
+  const fix = RF.calls.find((c) => c.kind === 'seo-fix' && c.first.includes('\nPAGE: services/drain-cleaning\n'));
+  assert.ok(fix);
+  assert.ok(!fix.first.includes('"under"') && !fix.first.includes('"source"'), fix.first.slice(0, 600));
 });
 check('收尾把「下面的关键词页」那组指回 under = services/drain-cleaning', () => {
   assert.deepStrictEqual(pagesRefOf(RF.page('services/drain-cleaning')), [{ source: 'pages', under: 'services/drain-cleaning' }]);

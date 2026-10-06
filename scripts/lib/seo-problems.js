@@ -515,6 +515,8 @@ module.exports = {
   H1_BLOCKS,
   H2_BLOCKS,
   IMG_SLOTS,
+  NOT_TEXT,
+  words,
   TITLE_MAX,
   MIN_PAGE_TITLE_BUDGET,
 };
