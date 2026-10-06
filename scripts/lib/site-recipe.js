@@ -13,6 +13,8 @@
 // `items: {source: "services"}`，展开时每一项带上链到那张服务页的「了解更多」（lib/item-sources.js）。
 //
 // 块的预设只选不靠图片撑场的那几个（图片槽由后面的生图那一步补，补不上时这一页仍要站得住）。
+// 例外是服务页的页头（#1627）：它用带图的预设，一张服务页一张主图（Chris 2026-10-06：「服务页有张主图才像一家店」）。
+// 补不上时 page-header 照样站得住 —— 没有 imageUrl 就不画 <img>（blocks/page-header/Section.tsx）。
 
 const { SECTORS, sectorIndexForIndustry } = require('../theme-pipeline/industry-sectors');
 const { presetsOf, presetKnobs } = require('./header-knobs');
@@ -38,7 +40,8 @@ const SERVICES_NOTE = 'write "items": {"source": "services"} — the list comes 
 /**
  * 一组的配方。`opt` 是这一组的取舍；块序与预设都从这几个参数派生，16 组之间只差这几处。
  *   about / faq   开不开这两页
- *   look          这一组的预设：{ header, features, faq, cta, contact }
+ *   look          这一组的预设：{ header, serviceHeader, features, faq, cta, contact }
+ *                 serviceHeader 只给服务页（#1627，带图）；其余页的页头用 header（不带图）
  *   steps         服务页的卖点那一块写成步骤（"01" "02"…），给按流程干活的行当
  */
 function recipe({ about, faq, look, steps = false, why }) {
@@ -55,7 +58,7 @@ function recipe({ about, faq, look, steps = false, why }) {
     pages,
     // 服务页：每个服务一张，块序相同（文案各写各的）。
     service: [
-      header,
+      b('page-header', look.serviceHeader),
       b('content', 'Article', 'what this service is and who it is for'),
       b('features', steps ? 'Steps' : look.features, steps ? 'how the job is done, as steps numbered "01" "02"…' : 'the selling points of this service'),
       b('faq', look.faq, '3-5 questions about this service'),
@@ -67,10 +70,10 @@ function recipe({ about, faq, look, steps = false, why }) {
   };
 }
 
-const QUIET = { header: 'Simple', features: 'Side intro', faq: 'Side intro', cta: 'Boxed', contact: 'Details beside' };
-const SOFT = { header: 'Centered', features: 'Cards', faq: 'Accordion', cta: 'Centered', contact: 'Form beside' };
-const BOLD = { header: 'Simple', features: 'Grid', faq: 'Cards', cta: 'Inline', contact: 'Form beside' };
-const WARM = { header: 'Centered', features: 'Grid', faq: 'Accordion', cta: 'Boxed', contact: 'Stacked' };
+const QUIET = { header: 'Simple', serviceHeader: 'Photo', features: 'Side intro', faq: 'Side intro', cta: 'Boxed', contact: 'Details beside' };
+const SOFT = { header: 'Centered', serviceHeader: 'Photo', features: 'Cards', faq: 'Accordion', cta: 'Centered', contact: 'Form beside' };
+const BOLD = { header: 'Simple', serviceHeader: 'Photo', features: 'Grid', faq: 'Cards', cta: 'Inline', contact: 'Form beside' };
+const WARM = { header: 'Centered', serviceHeader: 'Photo', features: 'Grid', faq: 'Accordion', cta: 'Boxed', contact: 'Stacked' };
 
 // 16 组。每组一行理由：为什么开 / 不开 about、faq（给下一个读它的人，和图册那条线）。
 const SITE_RECIPES = {
