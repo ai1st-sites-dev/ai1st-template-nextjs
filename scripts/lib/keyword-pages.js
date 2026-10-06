@@ -15,6 +15,8 @@
 
 const { keywordGroups, matchGroupsToServices } = require('./target-keywords');
 const { keywordSlug, assignKeywordSlugs, withDedupSuffix, SLUG_MAX_BYTES } = require('./keyword-slug');
+const { keywordMentions } = require('./keyword-service');
+const { collapseCjkSpaces } = require('./cjk-spaces');
 
 // ── 多语言标签（建站时写进页面数据 / 导航，渲染期不再翻）──────────────────────────────────────────
 //    语言集合同 `src/lib/component-labels.ts`（14 种 + zh-tw）。缺的语言退英语。
@@ -217,16 +219,19 @@ const words = (s) => String(s || '').toLowerCase().normalize('NFKC').split(/[^\p
 
 /**
  * 词里的地名候选：去掉服务词（按前 5 个字母的词干比，plumber ≈ plumbing）和常见修饰词之后剩下的、3 个字母以上的词。
- * 中日韩：按空格分段，跟服务词一个字都不共用的那一段。
- * 🔴 这是启发式，不是地名词典 —— 失败的方向只有「这一页少给了一条本地评价」或「多给了一条」，都只是提示词素材。
+ * 中日韩（#1605）：只认【站点数据自己写着的地名】（`placeNames`，见 §sitePlaceNames），在词里按子串认 ——
+ *   跟 `keyword-service.js` 文件头那条是同一条规矩：没有地名词典，站点数据里没写的城市按「没有地名」处理。
+ *   🔴 不再「按空格分段、跟服务词不共用字的那一段」：生产里中文站的服务词是老板填的英文（Haircut），汉字服务字集合恒空，
+ *   那条判据把每个词片（「剪 发 店」→ 剪 / 发 / 店）或整个词（「剪发店」）当成地名写进提示词。认不出 ⟹ 不出。
+ * 🔴 拉丁字母那半是启发式，不是地名词典 —— 失败的方向只有「这一页少给了一条本地评价」或「多给了一条」，都只是提示词素材。
  */
-function placeTokens(keyword, serviceWords) {
+function placeTokens(keyword, serviceWords, placeNames = []) {
   const svcStems = new Set(words(serviceWords.join(' ')).map(stem));
-  const svcChars = new Set([...serviceWords.join('')].filter((c) => CJK.test(c)));
   const out = [];
+  let cjkAt = -1;
   for (const seg of String(keyword || '').split(/\s+/).filter(Boolean)) {
     if (CJK.test(seg)) {
-      if (![...seg].some((c) => svcChars.has(c))) out.push(seg);
+      if (cjkAt < 0) cjkAt = out.length;
       continue;
     }
     for (const w of words(seg)) {
@@ -234,7 +239,27 @@ function placeTokens(keyword, serviceWords) {
       out.push(w);
     }
   }
+  if (cjkAt >= 0) {
+    // 词里汉字之间的空格先并掉（老 payload 里的「多伦多 理发 店」/「多 伦多」）；被另一个认得上的地名包住的那个不重复出。
+    const kw = collapseCjkSpaces(String(keyword || ''));
+    const hits = [...new Set(placeNames.filter((n) => CJK.test(n) && keywordMentions(kw, n)))];
+    const kept = hits.filter((n) => !hits.some((o) => o !== n && o.includes(n)));
+    kept.sort((a, b) => kw.indexOf(a) - kw.indexOf(b));
+    out.splice(cjkAt, 0, ...kept);
+  }
   return out;
+}
+
+/**
+ * 站点数据自己写着的地名（#1605）：建站 payload 的 `location` 与 `locationLocalized`（#1569：「多伦多, 安大略省, 加拿大」）
+ * 按逗号切开的那几段。只有这两处 —— 没有别的来源兜底（去掉 `locationLocalized` 的中文站就是一个中文地名都没有）。
+ */
+function sitePlaceNames(payload = {}) {
+  const parts = [payload.location, payload.locationLocalized]
+    .flatMap((v) => (typeof v === 'string' ? v.split(/[,，、]/) : []))
+    .map((s) => collapseCjkSpaces(s.trim()))
+    .filter(Boolean);
+  return [...new Set(parts)];
 }
 
 /** 评价里有没有提到这个地名：拉丁字母要求它在评价里是大写开头的整词（专有名词）；中日韩按子串。 */
@@ -255,7 +280,7 @@ function mentionsPlace(text, token) {
 function keywordPageMaterial(page, payload = {}) {
   const groupPrimary = ((keywordGroups(payload.keywords || {}, payload.services || []).find((g) => g.name === page.group) || { entries: [] })
     .entries.find((e) => e.isPrimary) || {}).keyword || '';
-  const places = placeTokens(page.keyword, [page.serviceName, page.group, groupPrimary].filter(Boolean));
+  const places = placeTokens(page.keyword, [page.serviceName, page.group, groupPrimary].filter(Boolean), sitePlaceNames(payload));
   const reviews = (Array.isArray(payload.reviews) ? payload.reviews : [])
     .filter((r) => isObj(r) && str(r.text) && (r.rating === undefined || r.rating === null || Number(r.rating) >= 4))
     .filter((r) => places.some((p) => mentionsPlace(r.text, p)));
@@ -508,6 +533,7 @@ module.exports = {
   planKeywordPages,
   serviceEntryFor,
   placeTokens,
+  sitePlaceNames,
   mentionsPlace,
   keywordPageMaterial,
   keywordPagePrompt,

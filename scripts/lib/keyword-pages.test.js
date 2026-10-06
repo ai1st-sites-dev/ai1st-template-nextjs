@@ -130,7 +130,24 @@ const toronto = PLAN.pages.find((p) => p.keyword === 'plumbing Toronto');
 check('地名候选：去掉服务词（按词干）和修饰词', () => {
   assert.deepStrictEqual(K.placeTokens('emergency plumber Markham', ['Plumbing', 'plumbing']), ['markham']);
   assert.deepStrictEqual(K.placeTokens('drain cleaning north york', ['Drain Cleaning']), ['north', 'york']);
-  assert.deepStrictEqual(K.placeTokens('万锦 剪头发', ['理发']), ['万锦']);
+});
+// #1605 —— 中文地名只认站点数据写着的（`location` / `locationLocalized` 按逗号切），按子串认。夹具一律是生产形状：
+//    中文站的服务词是老板填的英文（Haircut），汉字服务字集合是空的 —— 原来那格 `placeTokens('万锦 剪头发', ['理发'])`
+//    用的中文服务词 + 带空格的词两样都不是生产形状，那条路在它上面按构造看不见。
+const ZH_LOC = { location: 'Toronto, Ontario, Canada', locationLocalized: '多伦多, 安大略省, 加拿大' };
+const ZH_SVC = ['Haircut', 'haircut'];
+check('#1605 中文地名：只认站点数据写着的，认不出就不出（不把整个词 / 词片当地名）', () => {
+  const names = K.sitePlaceNames(ZH_LOC);
+  assert.deepStrictEqual(names, ['Toronto', 'Ontario', 'Canada', '多伦多', '安大略省', '加拿大']);
+  assert.deepStrictEqual(K.placeTokens('多伦多理发店', ZH_SVC, names), ['多伦多']);
+  assert.deepStrictEqual(K.placeTokens('万锦剪头发', ZH_SVC, names), [], '万锦不在站点数据里 ⟹ 宁可少给一条评价，不给错');
+  assert.deepStrictEqual(K.placeTokens('剪发店', ZH_SVC, names), []);
+  assert.deepStrictEqual(K.placeTokens('多伦多 理发 店', ZH_SVC, names), ['多伦多'], '老形态（带空格）');
+  assert.deepStrictEqual(K.placeTokens('haircut toronto', ZH_SVC, names), ['toronto'], '英文那条启发式不动');
+});
+check('#1605 反向对照：没有 locationLocalized（只有英文 location）⟹ 中文词里一个地名都不认，不拿别的来源兜底', () => {
+  assert.deepStrictEqual(K.placeTokens('多伦多理发店', ZH_SVC, K.sitePlaceNames({ location: ZH_LOC.location })), []);
+  assert.deepStrictEqual(K.placeTokens('多伦多理发店', ZH_SVC), []);
 });
 check('带地名的评价：只认大写开头的整词（评价里普通单词不算）', () => {
   assert.strictEqual(K.mentionsPlace('fixed it in Markham today', 'markham'), true);
@@ -172,6 +189,26 @@ check('不含：不带地名的评价、另一服务组的问题 / 联想词', (
 });
 check('Toronto 那页的提示词不含 Markham 那条评价', () => assert.ok(!promptOf(toronto).includes(PAYLOAD.reviews[0].text)));
 check('事实只许来自表格那一条在', () => assert.ok(promptOf(markham).includes('FACTS ONLY FROM')));
+// #1605 —— 中文关键词页的提示词（经 keywordPageMaterial 真路径）：评价按认出的地名筛，「This page is about」写地名不写整个词。
+const zhPromptOf = (keyword) => {
+  const reviews = [
+    { author: '甲', rating: 4, text: '在多伦多找了很久，终于找到满意的发型师。' },
+    { author: '乙', rating: 4, text: '这家理发店服务很好，价格也公道。' },
+  ];
+  const payload = { ...ZH_LOC, language: 'zh', services: ['Haircut'], reviews,
+    keywords: { Haircut: [primary('Haircut'), kw(keyword)] } };
+  const page = { keyword, group: 'Haircut', serviceName: 'Haircut', serviceId: 'haircut', path: 'services/haircut/x' };
+  return { reviews, prompt: K.keywordPagePrompt({ page, material: K.keywordPageMaterial(page, payload), companyName: '发艺', industry: 'hair salon', location: ZH_LOC.location }) };
+};
+check('#1605 「多伦多理发店」：含提到多伦多那条评价、不含只说理发店那条；This page is about 多伦多', () => {
+  const { reviews, prompt } = zhPromptOf('多伦多理发店');
+  assert.ok(prompt.includes(reviews[0].text), '少了提到多伦多的那条评价');
+  assert.ok(!prompt.includes(reviews[1].text), '多了只说理发店、不提地名的那条评价');
+  assert.ok(prompt.includes('This page is about 多伦多: '), '那一行写的不是「多伦多」');
+});
+check('#1605 「剪发店」：认不出地名 ⟹ 没有 This page is about 那一行', () => {
+  assert.ok(!zhPromptOf('剪发店').prompt.includes('This page is about'));
+});
 check('#1549：title 用调用方给的预算说法（缺省 max 60）、description 70–155、每张图写 alt', () => {
   const spec = 'max 45 chars; " | Bright Pipes" is appended automatically — do not add it yourself';
   const p = K.keywordPagePrompt({ page: markham, material: K.keywordPageMaterial(markham, PAYLOAD), companyName: 'Bright Pipes', industry: 'plumbing',
