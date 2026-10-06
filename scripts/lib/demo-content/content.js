@@ -6,7 +6,9 @@
 // （`deploy/cloud-dev/build-showcase-from-main.sh` 的 create-site 载荷里 `companyName` 就是它），
 // 所以图册里那一格和展示站别的页面读起来是同一门生意。
 //
-// 🔴 **这一份只喂图册和夹具页，不进客户站。** 唯一的读者是 `scripts/lib/demo-content/index.js`。
+// 🔴 **这一份喂图册、夹具页和 skipAI 示例站，不进真客户的站。** 读者是 `scripts/lib/demo-content/index.js`；
+//    #1620 起 skipAI 示例站（`scripts/lib/demo-site.js`）也从这里取每一页的块 —— 那是演示 / 测试用的站，
+//    真 AI 建站那条路一个字都不读这里（`lib/fallback-site.js` 文件头写着它为什么不能读：这里是一家汽修店的真事实）。
 //
 // 🔴 **每个槽位都要有值，包括可选槽** —— 图册的「全填版」那一列问的就是「这个块塞满了排得怎么样」，
 //    少一个槽位那一列就画不出那个零件，而页面照样打开（静默）。守卫 (a) 按 manifest 现算的槽位集合

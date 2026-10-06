@@ -9,7 +9,7 @@
 // 🔴 只用中性句式，事实只从 payload / 站级计划取（判据是 create-site.js 提示词里那条 FACTS_ONLY_FROM_FORM_RULE：
 //    它管的是年份、执照认证、价格、评价数、服务区域这类**事实**，不管句式）。
 //    · 不取 `lib/demo-content` 的 DEMO_CONTENT —— 那是一家多伦多汽修店的真事实（OMVIC / CAA、4.9 分 612 条评价、员工名、价格），
-//      文件头写着「不进客户站」；而骨架页跳过 seoPass，没有别的检查会拦它。
+//      文件头写着「不进真客户的站」（#1620 起只有 skipAI 示例站用它）；而骨架页跳过 seoPass，没有别的检查会拦它。
 //    · `getDemoConfig` 里编出来的几项（Toronto 的 areaServed / addresses、营业时间、`$$`、hello@demo.com、123 Demo Street、
 //      416-555-0000、「Greater Toronto Area」那两句）一项都不抄：payload 有就用 payload 的，没有就不写。
 //    · 通用句式是英文 ⟹ 中文站的骨架页是英文占位（正文接受：这种情况以前是整站失败）。

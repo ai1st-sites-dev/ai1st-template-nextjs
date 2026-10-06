@@ -70,6 +70,9 @@ let buildReport = null;
 // #1386 —— 建站选图：哪些槽要图、提示词怎么拼、上限怎么截、求不到怎么说，都在那个文件里。
 // 名单不再写在本文件里（此前是四个块名 + 四个 case，`hero-with-form` 因此永远拿不到图）。
 const { fillImageSlots, writeImageAlts, IMAGE_FILE_SUFFIX } = require('./lib/image-slots');
+// #1620 —— skipAI 示例站的页面块与图（`lib/demo-site.js` 排页，`lib/demo-content/images.js` 定图的地址前缀）。
+const demoSite = require('./lib/demo-site');
+const { normalizeDemoImageBase, rebaseDemoImages } = require('./lib/demo-content/images');
 // skipAI 那条路给图槽填的那张图 —— 模板自己带的资源，不调外部图库（#1386）。
 const PLACEHOLDER_IMAGE_URL = '/images/grid-pattern.svg';
 // #1034 — 每个站一份首页开场配方（开头四块 + 两个必须出现的块 + 候选清单的印刷顺序）。
@@ -1099,7 +1102,7 @@ async function main() {
   //
   // 🔴 三种情况不参与:
   //   · payload 写了 homepageFingerprint: false —— AC3 的反向对照走这条
-  //   · skipAI —— 那条路根本不问 AI，首页是 getDemoConfig 写死的四块（`:1551-1556`）
+  //   · skipAI —— 那条路根本不问 AI，首页的块由 `lib/demo-site.js` 从演示内容包排（#1620）
   //   · 用户点名要照抄参照站的布局（refPrefs 里有 layout）—— 那是他明确要的东西，
   //     提示词里那段自己就写着 "This OVERRIDES the general Choose 7-10 sections rule"。
   //     两条硬要求同时在场只会让 AI 二选一，而这一次该赢的是用户点名的那个。
@@ -1123,7 +1126,7 @@ async function main() {
     debug(`[fingerprint] 🔴 这一趟不用配方，因为块库跟排除名单对不上: ${recipeAttempt.error.message}`);
   } else {
     debug(`[fingerprint] 关着 —— ${!fingerprintEnabled(input) ? 'payload 里 homepageFingerprint: false'
-      : input.skipAI ? 'skipAI(首页是写死的四块)' : '用户点名照抄参照站布局'}`);
+      : input.skipAI ? 'skipAI(首页是演示内容包排好的那几块)' : '用户点名照抄参照站布局'}`);
   }
 
   // ── §每站微扰（#1120）────────────────────────────────────────────────────────────────────────
@@ -1207,6 +1210,11 @@ async function main() {
   if (input.skipAI) {
     progress('Setting up demo site (no AI)...', 10);
     const content = getDemoConfig(siteId, siteUrl);
+    // #1620 —— 每一页的块换成演示内容包那一份（`lib/demo-site.js`）：块库里每个页面块都出现，站的骨架仍是 getDemoConfig 的。
+    {
+      const placed = demoSite.demoSitePages(content.pages, loadBlockManifests());
+      debug(`[demo] 页面块来自 lib/demo-content：按计划放 ${placed.placed.length} 种${placed.appended.length ? `，追加到首页 ${placed.appended.join(' / ')}` : ''}`);
+    }
     // #1473 —— 主语言写进 seo.locale（`<html lang>` 读它）。改前这里恒为 getDemoConfig 写死的 en_CA ⟹ `language:"ar"`
     //    的示例站会是 `lang="en" dir="rtl"`。`en` 仍映射到 en_CA，英文示例站逐字不变；次语言那一支（下面）本来就这么写。
     content.seo.locale = localeMapForBcp47(defaultLocale);
@@ -1250,21 +1258,39 @@ async function main() {
         content.brand.name[norm] = name.trim();
       }
     }
-    // #1386 —— skipAI 这条路也填图，但**不调任何外部图库**：每个内容图槽填同一张本地占位图，
-    // 逐槽打一行读数。此前这条路在上面那个 `if (input.skipAI)` 就 return 了，根本走不到选图 ⟹
-    // 示例站（夹具 / 演示 / QA 取读数最常用的那几个站）的 hero 永远没有图，「块有图时长什么样」
-    // 在这条路上一次都量不到。占位图用仓库自带的 `public/images/grid-pattern.svg`（模板自己的
-    // 资源，不是外部链接）。
-    const demoImages = await fillImageSlots({
-      pages: content.pages,
-      manifests: loadBlockManifests(),
-      industry,
-      primaryColor: content.brand.colors.primary['500'],
-      themeWord: themeName,
-      produce: async () => PLACEHOLDER_IMAGE_URL,
-      log: (line) => debug(line),
-    });
-    recordImageCounts(demoImages);
+    // #1620 —— 演示内容里那家演示生意的名字换成这个站的名字；指向示例站没有的页的站内链接改指到有的页上。
+    const demoPosts = demoSite.demoBlogPosts();
+    debug(`[demo] 演示文案里的生意名换成「${skipAiPrimaryName}」${demoSite.renameDemoBusiness([content.pages, demoPosts], skipAiPrimaryName)} 处；`
+      + `站内死链改指 ${demoSite.retargetDeadLinks(content.pages, content.pages.map((p) => p.slug), demoPosts.length && !disabledBlocks.includes('blog') ? ['/blog'] : [])} 处`);
+    // #1620 —— 图：演示内容里的地址都是 `lib/demo-content/images.js` 的默认前缀。manager 在载荷里给了本环境的
+    // `demoImageBase`（`https://<domain.uploads>/demo/`）⟹ 换到那个前缀上，图是浏览器打开页面时才去存储上取，
+    // 建站本身不发任何网络请求（#1386 的规矩）。载荷没带（本地 rig、离线 e2e）⟹ 每一处都换成占位图，
+    // 然后照 #1386 那样逐槽填占位图、打读数 —— 跟改之前的示例站一样。
+    const demoImageBase = normalizeDemoImageBase(input.demoImageBase);
+    const rebased = rebaseDemoImages({ pages: content.pages, posts: demoPosts },
+      demoImageBase ? (file) => `${demoImageBase}${file}` : () => PLACEHOLDER_IMAGE_URL);
+    content.pages = rebased.value.pages;
+    demoPosts.splice(0, demoPosts.length, ...rebased.value.posts);
+    debug(`[demo] 图片地址 ${rebased.replaced} 处 → ${demoImageBase || `占位图 ${PLACEHOLDER_IMAGE_URL}（载荷里没有 demoImageBase）`}`);
+    if (demoImageBase) {
+      // 每个图槽都已经是演示图 —— 不再逐槽求图（fillImageSlots 会把每个槽都重写一遍），只补 alt。
+      writeImageAlts({ pages: content.pages, manifests: loadBlockManifests(), industry });
+      // #1594 的建站报告 `images` 一格：这一支一张都没向生图要（图早就在存储上），如实记 0。
+      recordImageCounts({ images: { requested: 0, generated: 0, reused: 0 } });
+    } else {
+      // #1386 —— skipAI 这条路也填图，但**不调任何外部图库**：每个内容图槽填同一张本地占位图，
+      // 逐槽打一行读数。占位图用仓库自带的 `public/images/grid-pattern.svg`（模板自己的资源，不是外部链接）。
+      const demoImages = await fillImageSlots({
+        pages: content.pages,
+        manifests: loadBlockManifests(),
+        industry,
+        primaryColor: content.brand.colors.primary['500'],
+        themeWord: themeName,
+        produce: async () => PLACEHOLDER_IMAGE_URL,
+        log: (line) => debug(line),
+      });
+      recordImageCounts(demoImages);
+    }
     // #1548 —— 同一个纯函数（`lib/target-keywords.js`）。demo 只有 5 页、一个服务、没有关键词页 ⟹ 这里能挂上词的只有首页，
     //    payload 的组全部对不上 demo-service（正常态，不失败）。
     applyTargetKeywords(content, targetKw.assignTargetKeywords({
@@ -1272,6 +1298,13 @@ async function main() {
       keywordPagesList: [], siteType, keyword: leadKeyword,
     }));
     writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks);
+    // #1620 —— 博客文章（blog 块只从站点博客读，站里没文章它整块不画）。关掉 blog 块时不写：没有块指向它们。
+    if (!disabledBlocks.includes('blog')) {
+      const blogDir = path.join(siteDir, defaultLocale, 'blog');
+      fs.mkdirSync(blogDir, { recursive: true });
+      for (const post of demoPosts) fs.writeFileSync(path.join(blogDir, `${post.slug}.json`), JSON.stringify(post, null, 2) + '\n');
+      debug(`[demo] 博客文章 ${demoPosts.length} 篇 → site/${defaultLocale}/blog/`);
+    }
     debug(`Demo site config written to site/`);
     // TICKET-122b: in skipAI mode, secondary locales get a verbatim copy of the
     // primary demo content (no real translation), with seo.locale rewritten so

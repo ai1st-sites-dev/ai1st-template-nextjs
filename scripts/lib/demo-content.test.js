@@ -258,6 +258,10 @@ check(armAOther.length === 0, `(a) 的反向臂不会让 (b) 跟着红（${armAO
 // ══ ④ 图：HEAD 一遍，读不到只警告 ═══════════════════════════════════════════════════════════
 console.log('\n④ 图（HEAD 一遍，读不到只警告、不打红）');
 const urls = [...new Set(Object.values(IMAGES).map((e) => e.url))].filter((u) => /^https:/.test(u));
+// #1620 —— 分母自检：每张图都要进下面那次 HEAD。前缀若变成运行时才拼的相对路径 / 空串，`https:` 过滤会把分母
+//    压到 0，那一段照样只打一行「0 张图全部 200」—— 量了 0 张却是绿的（PM 在 #1620 裁定第 3 条点的就是它）。
+check(urls.length === Object.keys(IMAGES).length,
+  `HEAD 的分母 = IMAGES 的键数（${urls.length} / ${Object.keys(IMAGES).length}）—— 每张图都是一个 https 地址、互不重复`);
 const missingFallback = Object.entries(IMAGES).filter(([, e]) => !e.fallback).map(([k]) => k);
 check(missingFallback.length === 0, `每张图都写了 fallback${missingFallback.length ? ` —— 缺 ${missingFallback.join(' / ')}` : ''}`);
 

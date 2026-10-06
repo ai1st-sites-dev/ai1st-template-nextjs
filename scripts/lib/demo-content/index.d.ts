@@ -45,8 +45,12 @@ export function demoSourceContext(extra?: Record<string, unknown>): {
   url: (slug: string) => string;
   learnMore: string;
 };
-export const IMAGES: Record<string, { url: string; fallback: string }>;
+export const IMAGES: Record<string, { file: string; url: string; fallback: string }>;
 export function imageUrl(key: string): string;
+/** #1620 —— 演示图的地址前缀（进程环境变量 `DEMO_IMAGE_BASE`，没给就是 dev 环境那个）。 */
+export const DEMO_IMAGE_BASE: string;
+/** #1620 —— 把内容里以 DEMO_IMAGE_BASE 开头的地址逐个换成 `toUrl(文件名)`（深拷贝）。 */
+export function rebaseDemoImages<T>(value: T, toUrl: (file: string) => string): { value: T; replaced: number };
 
 /** 这个槽是不是一份列表（`kind === 'list'` 与 `shape` 以 `[` 开头的并集）。 */
 export function isListSlot(spec: unknown): boolean;
