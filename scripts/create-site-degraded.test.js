@@ -697,7 +697,8 @@ console.log('── AC9 旁证（PM 07:03 注记 2）：AI 那条路的三种输
 
 // ── AC10 description 不触发 SEO 修补 ───────────────────────────────────────────────────────────────
 const { descriptionRange } = require('./lib/description-fit');
-const DESC_LEN = /\[2 description\] description \d+ 字，要 \d+–\d+ 字/;
+// #1549 r4：第 2 条长度报文改成只说底线（「至少 N 字」/「最多 N 字」）—— 旧的「要 N–M 字」这条正则会读 0、让下面两格白绿
+const DESC_LEN = /\[2 description\] description \d+ 字，(至少|最多) \d+ 字/;
 for (const lang of ['en', 'zh']) {
   console.log(`── AC10 站级计划那条路，主语言 ${lang}`);
   const R = run(`ac10-${lang}`, CALGARY({ language: lang }), { site: 'other', place: 'Calgary' });
@@ -719,10 +720,11 @@ for (const lang of ['en', 'zh']) {
   });
 }
 {
-  // 阳性对照（这条谓词不瞎）：把站级计划里首页那句换回改之前那种短句 ⟹ 首页那条 seo 降级的 reason 命中 DESC_LEN
+  // 阳性对照（这条谓词不瞎）：把站级计划里首页那句换成低于底线（英文 40）的短句 ⟹ 首页那条 seo 降级的 reason 命中 DESC_LEN
+  //    #1549 r4：改之前那句「<公司> provides professional services in <城市>.」约 50 字，在新底线之上、不再报 ⟹ 换成只有公司名（补完地点也 < 40）
   const short = ['      siteDescription: fittedDescription(`${companyName} provides professional services${loc ? ` in ${loc}` : \'\'}. Learn what we offer and how we work, then get in touch with our team today.`, locale),\n',
-    '      siteDescription: `${companyName} provides professional services${loc ? ` in ${loc}` : \'\'}.`,\n'];
-  check('阳性对照：首页 description 换回改之前那种短句 ⟹ 读到一条 reason 命中 DESC_LEN 的 seo 降级（en）', () => {
+    '      siteDescription: `${companyName}.`,\n'];
+  check('阳性对照：首页 description 换成低于底线的短句 ⟹ 读到一条 reason 命中 DESC_LEN 的 seo 降级（en）', () => {
     const X = run('ac10-ctl', CALGARY({ language: 'en' }), { site: 'other', place: 'Calgary', mutate: [[short[0], short[1], 'lib/fallback-site.js']] });
     assertOk(X);
     const hits = degradedOf(X, 'seo').filter((d) => DESC_LEN.test(d.reason));
