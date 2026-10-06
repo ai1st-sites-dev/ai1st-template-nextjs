@@ -100,7 +100,8 @@ const { mostSimilarPages } = require('./lib/similarity');
 // 修不好才算一次重试，并把原始回包存到 /tmp/ai-raw（§ai-json.js 头注）。
 const { validateAiJson, saveRawResponse } = require('./lib/ai-json');
 // #1549 回修 —— description 超长由代码裁到 155，不叫 AI 重写、不让整站失败（§description-fit.js 头注）。
-// #1549 重开 —— description 的长度区间按主语言取（中 / 日 / 韩 50–80，其余 70–155），提示词与检查同一个函数；重写后仍缺地点由代码补。
+// #1549 重开 —— description 的长度区间按主语言取；r4 拆成两个区间（都只在 description-fit.js 定义）：提示词给目标区间（中 / 日 / 韩 50–80，其余 70–155），
+//    检查只拦底线区间（20–200 / 40–300），超过底线上限由代码裁到目标上限；重写后仍缺地点由代码补。
 const { fitPageDescriptions, appendPlace, placeFits, descriptionAccept, descriptionSpec } = require('./lib/description-fit');
 // #1489 —— 建站时按地址查一次坐标写进 brand.locations[0].geo（contact 的地图要它；Nominatim，不要 key，§geocode.js 头注）。
 const { geocodeBrand } = require('./lib/geocode');
@@ -3491,8 +3492,8 @@ async function generateKeywordPages(opts) {
     additionalContext = '', sitePrimaryKeyword = '', forms,
     // #1549 —— 子页 title 的预算说法（§pageTitleSpec，主语言品牌名算出来的），跟 Call 1、seoProblems 第 1 条同一个数。
     titleSpec = 'max 60 chars',
-    // #1549 重开 —— meta description 的长度说法（§description-fit.js descriptionSpec，按主语言）。
-    descriptionSpec: descSpec = '70–155 chars',
+    // #1549 重开 —— meta description 的长度说法（§description-fit.js descriptionSpec，按主语言）。默认值也从那里取，不另写数字。
+    descriptionSpec: descSpec = descriptionSpec('en'),
     // #1601 —— 站的行动按钮落点（navigation.header.cta.href），关键词页的 CTA 指它（§keywordPagePrompt）。
     ctaHref = '',
     // #1346 —— 后台关掉的块。关键词页有它**自己**那份写死的块清单（`keyword-page-options.js`），关掉的块要从那里剔掉。

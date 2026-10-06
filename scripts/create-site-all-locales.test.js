@@ -15,6 +15,7 @@
 //   AC4 字段级修补              description 缺目标词 ⟹ 一次修补、detail 以 SEO fix 开头、提示词无别的块文案、回包只有 description、页面除 description 外不变；
 //                               只缺地点 ⟹ 零次修补；中文站提示词里是 50–80 chars
 //   AC5 并行 5                  单页调用挂起：同时在飞最多 5、且到过 5
+//   #1549 做什么 6           第二语言的 meta description 按它自己的目标区间说：① 读 AC1 真发出去的提示词（主 zh 次 en）② 直接拼 languagesPrompt（主 en 次 zh）
 //   AC6 四个数                  两次调用各 $0.03 / $0.05、一页字段级修补 ⟹ costUsd 0.08 · seoFixed 1 · pages = 主语言页数 · durationSec > 0
 'use strict';
 
@@ -543,6 +544,27 @@ check('#1600 报告：services/color 记的是主语言那一页（pass，没被
   assert.strictEqual(rep.repair.rewritten, 0, JSON.stringify(rep.repair));
   // repair.pages 是过了 SEO 检查的主语言页数（#1600 的口径 = seo-check 事件 pages 之和）；写盘时代码插的 Contact 页不经检查。
   assert.strictEqual(rep.repair.pages, C.events.filter((e) => e.event === 'seo-check').reduce((a, e) => a + e.pages, 0), JSON.stringify(rep.repair));
+});
+
+// ── #1549 做什么 6：第二语言的 meta description 按它自己的目标区间说（`lib/all-locales.js` §languagesPrompt 末行）──
+// 正文验收「读实际发给 AI 的提示词，单测拼两个方向」：① 读 AC1 那一跑真发出去的单页提示词（主 zh、次 en）；
+// ② 主 en、次 zh 这份夹具造不出（页面内容是给中文站写的），直接拼 languagesPrompt。
+// 只改 descriptionSpec、不改 all-locales 那一行的实现 ⟹ ① 红（英文那份又是 `same length limits`）；把第二语言写死成英文数字 ⟹ ② 红。
+console.log('── #1549 做什么 6：第二语言的 description 长度按各自语言说');
+check('① 主 zh、次 en：每一通单页提示词里英文那份写 70–155 characters，不是沿用主语言的 50–80', () => {
+  const pages = A.calls.filter((c) => c.kind === 'page');
+  assert.ok(pages.length > 0, '一通单页调用都没有 ⟹ 这一格是空的');
+  for (const c of pages) {
+    assert.ok(c.first.includes('\n- "en" meta description: 70–155 characters.'), c.slug);
+    // 改之前那一行是 `… in that language (same length limits).` —— description 也跟着主语言的数走
+    assert.ok(!c.first.includes('in that language (same length limits)'), c.slug);
+  }
+});
+check('② 主 en、次 zh：中文那份写 50–80 个汉字；title / navLabel 那半句不动', () => {
+  const p = AL.languagesPrompt({ primary: { code: 'en', name: 'English' }, others: [{ code: 'zh', name: 'Chinese' }], kind: 'page' });
+  assert.ok(p.includes('\n- "zh" meta description: 50–80 个汉字 (Chinese characters).'), p.slice(-400));
+  assert.ok(!p.includes('"zh" meta description: 70–155'), p.slice(-400));
+  assert.ok(p.includes('(title and nav label: same length limits)'), p.slice(-400));
 });
 
 // ── AC4 ─────────────────────────────────────────────────────────────────────────────────────────
