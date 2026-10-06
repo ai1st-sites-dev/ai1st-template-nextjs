@@ -323,8 +323,14 @@ const pNone = promptFrom(work, basePayload());
 {
   // 服务详情页那一行也是写死的块名清单（第三处）。关掉 faq ⟹ 那一行里没有它，
   // 而同一行里别的块原样在（钉住「只拿掉被关的那个」）。#1425（T3）：faq-accordion → faq，cta-banner → cta；按词边界数。
+  // #1601 —— 服务页的块清单从站级那份的「Each page needs 5-7 sections:」搬到了每页那一份的「sections are FIXED」那一行
+  //    （整站配方给的块序）；判据不变：关掉 faq ⟹ 它从那一行里消失，别的原样在。
   const p = promptFrom(work, basePayload({ disabledBlocks: ['faq'] }));
-  const ruleLine = (src) => src.split('\n').find((l) => l.startsWith('- Each page needs 5-7 sections:')) || '';
+  const ruleLine = (src) => {
+    const lines = src.split('\n');
+    const at = lines.findIndex((l) => l.startsWith('- This is the detail page of the service '));
+    return (at >= 0 && lines.slice(at + 1).find((l) => l.startsWith("- This page's sections are FIXED:"))) || '';
+  };
   const off = ruleLine(p); const on = ruleLine(pNone);
   const has = (line, t) => new RegExp(`(^|[^a-z-])${t}([^a-z-]|$)`).test(line);
   off && !has(off, 'faq') && has(off, 'page-header') && has(off, 'cta')
