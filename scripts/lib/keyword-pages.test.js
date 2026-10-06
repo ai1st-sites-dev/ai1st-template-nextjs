@@ -209,6 +209,32 @@ check('#1605 「多伦多理发店」：含提到多伦多那条评价、不含�
 check('#1605 「剪发店」：认不出地名 ⟹ 没有 This page is about 那一行', () => {
   assert.ok(!zhPromptOf('剪发店').prompt.includes('This page is about'));
 });
+// #1607 —— 读那一侧：老站重建时 payload 原样进来，素材（questions / unselected）还是「剪 发 店」这种形态（形状照 dev 库 site-ea408218）。
+const OLD_ZH = (keywords) => ({ ...ZH_LOC, language: 'zh', services: ['Haircut'], keywords,
+  keywordMaterial: { Haircut: { questions: ['剪 发 要 多久', '如何剪长发?'], unselected: ['剪 发 店', '剪 发 吉日', '剪 发 near me', '剪发 吉日'] } } });
+const zhPage = { keyword: '剪发店', group: 'Haircut', serviceName: 'Haircut', serviceId: 'haircut', path: 'services/haircut/jian-fa-dian' };
+const zhOld = (keywords) => {
+  const material = K.keywordPageMaterial(zhPage, OLD_ZH(keywords));
+  return { material, prompt: K.keywordPagePrompt({ page: zhPage, material, companyName: '发艺', industry: 'hair salon', location: ZH_LOC.location }) };
+};
+check('#1607 存量素材：问题 / 联想词去掉汉字之间的空格，中英混排那个空格留着；去完撞重的并成一条', () => {
+  const { material, prompt } = zhOld({ Haircut: [primary('haircut'), kw('剪发'), kw('剪发店')] });
+  assert.deepStrictEqual(material.questions, ['剪发要多久', '如何剪长发?']);
+  assert.deepStrictEqual(material.relatedSearches, ['剪发吉日', '剪发 near me']);
+  assert.ok(!/[\p{Script=Han}] +[\p{Script=Han}]/u.test(prompt), '提示词里还有汉字之间的空格');
+});
+check('#1607 自己的目标词不出现在自己的相关搜索里 —— 已选的词是收紧过的（真路径）或没收紧的（直接调用）都一样', () => {
+  for (const chosen of ['剪发店', '剪 发 店']) {
+    const { material, prompt } = zhOld({ Haircut: [primary('haircut'), kw(chosen)] });
+    assert.ok(!material.relatedSearches.includes('剪发店'), `已选「${chosen}」时没滤掉`);
+    assert.ok(!/Related searches[^]*剪 ?发 ?店/.test(prompt.split('The page MUST')[0]), `已选「${chosen}」时提示词里还有`);
+  }
+});
+check('#1607 英文素材原样（大小写、去重、条数上限都不变）', () => {
+  const m = K.keywordPageMaterial(markham, { ...PAYLOAD, keywordMaterial: { Plumbing: { questions: ['How much  does it cost?', 'how much  does it cost?'], unselected: ['Plumber Near Me', 'PLUMBING markham'] } } });
+  assert.deepStrictEqual(m.questions, ['How much  does it cost?', 'how much  does it cost?']);
+  assert.deepStrictEqual(m.relatedSearches, ['Plumber Near Me']);
+});
 check('#1549：title 用调用方给的预算说法（缺省 max 60）、description 70–155、每张图写 alt', () => {
   const spec = 'max 45 chars; " | Bright Pipes" is appended automatically — do not add it yourself';
   const p = K.keywordPagePrompt({ page: markham, material: K.keywordPageMaterial(markham, PAYLOAD), companyName: 'Bright Pipes', industry: 'plumbing',

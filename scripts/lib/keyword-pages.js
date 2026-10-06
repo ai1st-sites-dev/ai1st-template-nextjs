@@ -285,16 +285,19 @@ function keywordPageMaterial(page, payload = {}) {
     .filter((r) => isObj(r) && str(r.text) && (r.rating === undefined || r.rating === null || Number(r.rating) >= 4))
     .filter((r) => places.some((p) => mentionsPlace(r.text, p)));
   const mat = isObj(payload.keywordMaterial) && isObj(payload.keywordMaterial[page.group]) ? payload.keywordMaterial[page.group] : {};
-  const list = (v, n) => [...new Set((Array.isArray(v) ? v : []).map(str).filter(Boolean))].slice(0, n);
+  // #1607 —— 素材也去汉字之间的空格：老站重建时 payload 原样进来（「剪 发 店」），写入那一侧的收紧（#1569 / #1605）走不到。
+  const list = (v, n) => [...new Set((Array.isArray(v) ? v : []).map((x) => collapseCjkSpaces(str(x))).filter(Boolean))].slice(0, n);
+  // 「已选的词」跟素材用同一个键比（§target-keywords.js collapseGroup 那个键），否则「剪 发 店」滤不掉「剪发店」。
+  const key = (s) => collapseCjkSpaces(str(s)).trim().toLowerCase();
   const chosen = new Set(Object.values(isObj(payload.keywords) ? payload.keywords : {})
-    .flatMap((a) => (Array.isArray(a) ? a : [])).map((k) => str(k && k.keyword).toLowerCase()));
+    .flatMap((a) => (Array.isArray(a) ? a : [])).map((k) => key(k && k.keyword)));
   return {
     address: str(payload.address),
     phone: str(payload.phone),
     places,
     reviews,
     questions: list(mat.questions, 8),
-    relatedSearches: list(mat.unselected, 10).filter((k) => !chosen.has(k.toLowerCase())),
+    relatedSearches: list(mat.unselected, 10).filter((k) => !chosen.has(key(k))),
   };
 }
 
