@@ -11,7 +11,8 @@
 //      lighthouse                   恒 null：preview-started 之后才跑，进不了这份文件；admin 卡从 site_quality 取
 //      degraded                     create-site.js 真 AI 路的 degradedSteps（#1596：那 11 处降级各一条）；真 AI 路没降级是 []，
 //                                   skipAI 走不到那 11 步 ⟹ null
-//      stages / images / archive    T7 #1599 / T5 #1594 / T1 #1592 接上之前是 null
+//      archive                      worker/entrypoint.sh 的 git push 结果（#1592 算的），经 finish-build-report.js 并进来（#1608）
+//      stages / images              T7 #1599 / T5 #1594 接上之前是 null
 //
 // 📌 这份文件不进站仓（.gitignore），数据库 `site_build_reports` 那一行才是权威（manager 收 `build-report` 事件落库）。
 
@@ -133,6 +134,16 @@ function recordDegraded(report, list) {
   return report;
 }
 
+/**
+ * 推送是否归档（#1608）：entrypoint 在 `git push` 之后算好的那个结果（#1592）。
+ * 形状 `{ archived: true }` / `{ archived: false, reason }` —— 推成功时不写 reason。
+ */
+function recordArchive(report, { archived, reason } = {}) {
+  if (!report || typeof archived !== 'boolean') return report;
+  report.archive = archived ? { archived: true } : { archived: false, reason: reason ? String(reason) : null };
+  return report;
+}
+
 /** 补齐九个键（读回来的旧文件 / 手改过的文件也照样九个键都在）。 */
 function normalize(report) {
   const r = report && typeof report === 'object' ? report : createReport();
@@ -162,5 +173,5 @@ function readReport(siteDir) {
 
 module.exports = {
   REPORT_VERSION, REPORT_KEYS, SEO_RULES, REPORT_FILE, DEAD_LIST_MAX,
-  createReport, ruleOf, pageChecks, recordSeo, recordKeywordPages, recordDeadLinks, recordDegraded, normalize, reportPath, writeReport, readReport,
+  createReport, ruleOf, pageChecks, recordSeo, recordKeywordPages, recordDeadLinks, recordDegraded, recordArchive, normalize, reportPath, writeReport, readReport,
 };
