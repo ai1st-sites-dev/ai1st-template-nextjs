@@ -266,7 +266,7 @@ const slotsOf = (pages) => {
   // 📌 #1425（T3）—— features 还有两个对象图槽（introImage / itemsImage，要配旋钮才显示），这一格只看 items 那一项。
   const fnAll = real.get('features') ? imageSlotsOf(real.get('features')) : null;
   const fnSlots = fnAll ? fnAll.filter((x) => x.name === 'items') : null;
-  check(JSON.stringify(fnSlots) === JSON.stringify([{ name: 'items', kind: 'list', imageKey: 'image' }]),
+  check(JSON.stringify(fnSlots) === JSON.stringify([{ name: 'items', kind: 'list', imageKey: 'image', imageKnob: 'itemImage' }]),
     `features 的 items 槽读出 imageKey=image（现取 ${JSON.stringify(fnSlots)}）`);
   // 📌 #1425（T3）—— 原来「平铺那一族」是旧 gallery 的 items；新 gallery 的项也嵌一层（`image: {imageUrl, alt}`），
   //    今天平铺的那一族是 hero 的 band（`[{imageUrl, alt?}]`）。
@@ -501,9 +501,11 @@ const slotsOf = (pages) => {
     const header = (i = 0) => blk('page-header', { headline: 'Service', image: { alt: '' }, options: { image: 'right' } }, i);
     const content = (i = 0) => blk('content', { headline: 'About', image: { alt: '' }, options: { image: 'left' } }, i);
     const cta = (i = 0) => blk('cta', { headline: 'Book', image: { alt: '' }, options: { image: 'left' } }, i);
-    const feats = (n, i = 0, intro = false) => blk('features', {
+    // 条目图要 `options.itemImage` 打开才显示、才算槽（#1594 imageKnob）—— 默认打开，传 'none' 看关掉那一臂。
+    const feats = (n, i = 0, intro = false, itemImage = 'top') => blk('features', {
       headline: 'What we do',
-      ...(intro ? { introImage: { alt: '' }, options: { introImage: 'left' } } : {}),
+      ...(intro ? { introImage: { alt: '' } } : {}),
+      options: { ...(intro ? { introImage: 'left' } : {}), itemImage },
       items: Array.from({ length: n }, (_, j) => ({ title: `F${j}`, text: 'x', image: { alt: '' } })),
     }, i);
     const gallery = (k, i = 0) => blk('gallery', { items: Array.from({ length: k }, (_, j) => ({ image: { imageUrl: '', alt: '' }, title: `G${j}`, caption: `cap ${j}` })) }, i);
@@ -526,6 +528,41 @@ const slotsOf = (pages) => {
       check(JSON.stringify([...got].sort()) === JSON.stringify([...want].sort()), `今天的 11 个槽落在正文那张表的位置（读到 ${got.sort().join(' · ')}）`);
     }
 
+    // A2. 列表槽看管它的旋钮（manifest 的 imageKnob）
+    {
+      check(imageSlotsOf(real.get('features')).find((x) => x.name === 'items').imageKnob === 'itemImage', 'A2 imageSlotsOf 把 features.items 的 imageKnob（itemImage）带出来了');
+      const n = (blocks) => collectImageSlots([{ slug: 'p', blocks }], real).length;
+      check(n([feats(4, 0, false, 'none')]) === 0, `A2① features 4 个条目、options.itemImage "none" ⟹ 0 个条目槽（读到 ${n([feats(4, 0, false, 'none')])}）`);
+      check(n([feats(4, 0, false, 'top')]) === 4, `A2② 同一块 options.itemImage "top" ⟹ 4 个（读到 ${n([feats(4, 0, false, 'top')])}）`);
+      const noKnob = blk('features', { headline: 'x', items: [{ title: 'a', text: 'x', image: { alt: '' } }] }, 0);
+      check(n([noKnob]) === 0, 'A2③ options 里没写 itemImage ⟹ 0 个（跟对象槽一样：没写 = none）');
+      const photoCards = { ...noKnob, shape: 'photo-cards' };
+      check(n([photoCards]) === 1, `A2③b 写了 shape: photo-cards、options 里没写 itemImage ⟹ 1 个（预设给的 itemImage 是 top，渲染那一侧照样显示；读到 ${n([photoCards])}）`);
+      const heroBand = blk('hero', { headline: 'Hi', band: [{ imageUrl: '', alt: '' }, { imageUrl: '', alt: '' }] }, 0);
+      check(n([heroBand]) === 2, `A2④ hero 带 band 2 项、不写任何图旋钮 ⟹ 照旧 2 个（读到 ${n([heroBand])}）`);
+      check(n([gallery(3)]) === 3, `A2⑤ gallery 3 项、不写任何图旋钮 ⟹ 照旧 3 个（读到 ${n([gallery(3)])}）`);
+      // manifest 自检：imageKnob 写歪 ⟹ 载清单时当场拒（loadManifests 按目录缓存 ⟹ 每个变体一个新目录）。
+      const fs = require('fs'); const os = require('os'); const { execFileSync } = require('child_process');
+      const BLOCKS = path.join(NEXT, 'blocks');
+      const loadVariant = (mutate) => {
+        const d = fs.mkdtempSync(path.join(os.tmpdir(), 'imgknob-blocks-'));
+        try {
+          execFileSync('cp', ['-a', BLOCKS + '/.', d]);
+          const mf = path.join(d, 'features', 'manifest.json');
+          const man = JSON.parse(fs.readFileSync(mf, 'utf-8'));
+          mutate(man);
+          fs.writeFileSync(mf, JSON.stringify(man));
+          try { bm.loadManifests(d); return ''; } catch (e) { return e.message; }
+        } finally { fs.rmSync(d, { recursive: true, force: true }); }
+      };
+      check(loadVariant(() => {}) === '', 'A2 自检反向对照：原样拷一份 ⟹ 载得进来');
+      let err = loadVariant((man) => { man.slots.items.imageKnob = 'noSuchKnob'; });
+      check(/slots\.items\.imageKnob/.test(err), `A2 自检：imageKnob 写成不存在的旋钮名 ⟹ 报错（${err.slice(0, 90)}）`);
+      err = loadVariant((man) => { delete man.slots.items.imageKnob; man.slots.introImage.imageKnob = 'introImage'; });
+      check(/slots\.introImage\.imageKnob/.test(err), `A2 自检：imageKnob 放到对象槽上 ⟹ 报错（${err.slice(0, 90)}）`);
+      bm.loadManifests();
+    }
+
     // B. 每页 ≤ 3 + 优先级
     {
       const pages = [{ slug: 'home', blocks: [feats(4, 0, true), hero(1)] }];
@@ -534,6 +571,15 @@ const slotsOf = (pages) => {
       const f = pages[0].blocks[0].data; const h = pages[0].blocks[1].data;
       const filled = [urlOf(h.image) && 'hero.image', urlOf(f.introImage) && 'features.introImage', ...f.items.map((it, j) => urlOf(it.image) && `items[${j}]`)].filter(Boolean);
       check(filled.join(',') === 'hero.image,features.introImage,items[0]', `B1 填上的恰好是 hero.image、features.introImage、items[0]（读到 ${filled.join(',')}）`);
+      // B1b 同一份夹具，每个槽预先带一个 AI 会写的值 ⟹ 没被选中的槽那个值被清掉（「其余槽留空」；QA1 r1：这一步原来没有守卫）
+      const pb = [{ slug: 'home', blocks: [feats(4, 0, true), hero(1)] }];
+      pb[0].blocks[0].data.introImage.imageUrl = 'gradient-about';
+      pb[0].blocks[0].data.items.forEach((it, j) => { it.image.imageUrl = `tbd-${j}`; });
+      pb[0].blocks[1].data.image.imageUrl = 'hero-placeholder';
+      await fillImageSlots(opts(pb, { produce: stub().produce }));
+      const leftover = pb[0].blocks[0].data.items.map((it) => urlOf(it.image)).filter((u) => /^tbd-/.test(u));
+      const fb = pb[0].blocks[0].data.items.map((it, j) => (urlOf(it.image) ? j : null)).filter((x) => x !== null);
+      check(leftover.length === 0 && fb.join(',') === '0', `B1b 没被选中的 items[1..3] 里 AI 自填的 imageUrl 被清掉（还留着 ${leftover.length} 个；有值的条目 ${fb.join(',')}）`);
 
       const p2 = [{ slug: 'about', blocks: [feats(6)] }];
       check(collectImageSlots(p2, real).length === 6, 'B2 夹具：只有 features、6 个条目图槽');
@@ -583,43 +629,94 @@ const slotsOf = (pages) => {
       check(pages[0].blocks[0].data.items.every((it, j) => it.title === `G${j}` && it.caption === `cap ${j}`), 'gallery 项的 title / caption 原样');
     }
 
-    // E. gallery 的项数跟着可复用的图走（K 项、R 个服务详情页）
+    // E. gallery 不删 AI 写的项：复用不到的新生成；只有生成失败 / 站上限截到时才删，且不少于 minItems
     const galleryProblems = (pages) => {
       const vs = bm.validateSite({ pages: pages.map((p) => ({ slug: p.slug, blocks: p.blocks })), scope: 'edit' });
       return (vs.problems || []).filter((x) => /imageUrl|至少要/.test(x));
     };
-    for (const [K, R, wantKeep, wantReuse, label] of [[8, 7, 7, 7, '①'], [4, 1, 2, 1, '②'], [5, 0, 2, 0, '③ R=0']]) {
-      const pages = svcSite(R, K);
+    const titlesOk = (items, keep) => items.length === keep.length && items.every((it, j) => it.title === `G${keep[j]}` && it.caption === `cap ${keep[j]}`);
+    // ① gallery 6 项、服务详情页 0 个（首页还有 hero）⟹ 仍 6 项、6 张全是新生成、reused 0；hero 照常填（gallery 不占这一页的 3 张）
+    {
+      const pages = svcSite(0, 6, [hero(0)]);
+      check(collectImageSlots(pages, real).length === 8, `E① 夹具：hero 1 + gallery 6 + 关键词页 page-header 1 = 8 个槽（读到 ${collectImageSlots(pages, real).length}）`);
+      const st = stub();
+      const r = await fillImageSlots(opts(pages, { produce: st.produce }));
+      const items = pages[0].blocks[1].data.items;
+      const galNew = st.calls.filter((sl) => sl.secType === 'gallery').length;
+      check(items.length === 6 && items.every((it) => urlOf(it.image)) && galNew === 6 && (r.images || {}).reused === 0,
+        `E① 仍 ${items.length} 项、全有图、gallery 新生成 ${galNew} 张、reused ${(r.images || {}).reused}`);
+      check(titlesOk(items, [0, 1, 2, 3, 4, 5]), 'E① 每项 title / caption 跟填之前逐字相同');
+      check(!!urlOf(pages[0].blocks[0].data.image), 'E① 同一页的 hero 照常填（gallery 的图不占这一页的 3 张）');
+      const probs = galleryProblems(pages);
+      check(probs.length === 0, `E① 填完过 validateSite（gallery 相关问题 ${probs.length} 条${probs.length ? '：' + probs.join(' / ') : ''}）`);
+    }
+    // ② gallery 8 项、服务详情页 7 个 ⟹ 仍 8 项（7 张复用 + 1 张新生成）
+    {
+      const pages = svcSite(7, 8);
       const st = stub();
       const r = await fillImageSlots(opts(pages, { produce: st.produce }));
       const items = pages[0].blocks[0].data.items;
-      const svcUrls = new Set(pages.slice(1, 1 + R).map((p) => urlOf(p.blocks[0].data.image)));
-      const reusedN = items.filter((it) => svcUrls.has(urlOf(it.image))).length;
-      const homeNew = st.calls.filter((sl) => sl.pageSlug === 'home').length;
-      check(items.length === wantKeep && items.every((it) => urlOf(it.image)) && reusedN === wantReuse,
-        `E${label} gallery ${K} 项、服务详情页 ${R} 个 ⟹ 留 ${items.length} 项（要 ${wantKeep}）、全有图、${reusedN} 张复用`);
-      check(items.every((it, j) => it.title === `G${j}` && it.caption === `cap ${j}`), `E${label} 留下的是前 ${wantKeep} 项、title / caption 原样（读到 ${items.map((it) => it.title).join(',')}）`);
-      check(homeNew <= 3, `E${label} 这一页新生成 ${homeNew} 张 ≤ 3`);
+      const svcUrls = pages.slice(1, 8).map((p) => urlOf(p.blocks[0].data.image));
+      const reusedN = items.filter((it, j) => j < 7 && urlOf(it.image) === svcUrls[j]).length;
+      const galNew = st.calls.filter((sl) => sl.secType === 'gallery').length;
+      check(items.length === 8 && items.every((it) => urlOf(it.image)) && reusedN === 7 && galNew === 1 && (r.images || {}).reused === 7,
+        `E② 仍 ${items.length} 项：${reusedN} 张复用 + ${galNew} 张新生成（images ${JSON.stringify(r.images)}）`);
+      check(titlesOk(items, [0, 1, 2, 3, 4, 5, 6, 7]), 'E② 每项 title / caption 跟填之前逐字相同');
       const probs = galleryProblems(pages);
-      check(probs.length === 0, `E${label} 填完过 validateSite（gallery 相关问题 ${probs.length} 条${probs.length ? '：' + probs.join(' / ') : ''}）`);
-      check(!!r.images && r.images.reused === wantReuse, `E${label} images.reused = ${r.images && r.images.reused}`);
+      check(probs.length === 0, `E② 填完过 validateSite（gallery 相关问题 ${probs.length} 条）`);
     }
-    // E④ R=0 而且这一页第 1 档已经占满 3 张预算 ⟹ gallery 的 2 张地板照样生成（不被 ≤ 3 截），并打一行日志
+    // ③ 同 ①，桩让第 3 项（G2）抛错 ⟹ 剩 5 项、删掉的就是那一项
     {
-      const pages = svcSite(0, 5, [hero(0), content(1), cta(2)]);
-      check(collectImageSlots(pages, real).length === 9, 'E④ 夹具：首页 hero / content / cta 三张主图 + gallery 5 项 + 关键词页 page-header 1 个 = 9 个槽');
-      const st = stub(); const lines = [];
-      const r = await fillImageSlots(opts(pages, { produce: st.produce, log: (l) => lines.push(l) }));
-      const g = pages[0].blocks[3].data.items;
-      const tier1 = [0, 1, 2].filter((b) => urlOf(pages[0].blocks[b].data.image)).length;
-      check(tier1 === 3 && g.length === 2 && g.every((it) => urlOf(it.image)) && g[0].title === 'G0' && g[1].title === 'G1',
-        `E④ 第 1 档 ${tier1} 张照填 + gallery 留 ${g.length} 项、两张都新生成、原 title 还在`);
-      const homeCalls = st.calls.filter((sl) => sl.pageSlug === 'home').length;
-      check(homeCalls === 5 && r.images.generated === 6 && r.images.requested === 6,
-        `E④ 地板那 2 张计入读数（首页桩 ${homeCalls} 次 = 3 + 2；全站 ${JSON.stringify(r.images)} 含关键词页那 1 张）`);
-      check(lines.some((l) => /超出每页上限 3：页面 home 为了块 gallery 的 minItems 2 多生成 2 张/.test(l)), 'E④ 日志写明哪一页、为了哪个块的 minItems 多生成了几张');
+      const pages = svcSite(0, 6, [hero(0)]);
+      let n = 0; const lines = [];
+      const r = await fillImageSlots(opts(pages, {
+        log: (l) => lines.push(l),
+        produce: async ({ slot, key }) => {
+          n += 1;
+          if (slot.secType === 'gallery' && slot.itemIdx === 2) throw new Error('Nano Banana 503');
+          return `/photos/${key}-n${n}.jpg`;
+        },
+      }));
+      const items = pages[0].blocks[1].data.items;
+      check(items.length === 5 && items.every((it) => urlOf(it.image)) && titlesOk(items, [0, 1, 3, 4, 5]),
+        `E③ 剩 ${items.length} 项、删掉的是 G2（留下 ${items.map((it) => it.title).join(',')}）`);
+      check(r.failures.length === 1 && lines.some((l) => /删掉 1 个图生成失败的项/.test(l)), `E③ failures ${r.failures.length} 条、日志写了删掉 1 个生成失败的项`);
       const probs = galleryProblems(pages);
-      check(probs.length === 0, `E④ 过 validateSite（gallery 相关问题 ${probs.length} 条）`);
+      check(probs.length === 0, `E③ 填完过 validateSite（gallery 相关问题 ${probs.length} 条）`);
+    }
+    // ④ 同 ①，cap 3 ⟹ hero 1 张 + gallery 留 2 项（minItems），一共恰好 3 张；日志说明截了几项
+    {
+      const pages = svcSite(0, 6, [hero(0)]);
+      const st = stub(); const lines = [];
+      const r = await fillImageSlots(opts(pages, { cap: 3, produce: st.produce, log: (l) => lines.push(l) }));
+      const items = pages[0].blocks[1].data.items;
+      check(items.length === 2 && items.every((it) => urlOf(it.image)) && titlesOk(items, [0, 1]),
+        `E④ gallery 留 ${items.length} 项（要 2 = minItems）、都有图、是前两项（${items.map((it) => it.title).join(',')}）`);
+      check(st.n === 3 && (r.images || {}).generated === 3 && !!urlOf(pages[0].blocks[0].data.image), `E④ 一共生成 ${st.n} 张 = cap 3，hero 那张在里面`);
+      check(lines.some((l) => /超出上限 3：页面 home 块 gallery 截掉 4 项（留 2 项/.test(l)), 'E④ 日志写明截掉 4 项、留 2 项');
+    }
+    // ④b 两个 gallery、cap 紧 ⟹ 每个都至少留 minItems 项（先保每块的地板，再分剩下的；不让排在前面的那块吃光名额）
+    {
+      const pages = [{ slug: 'home', blocks: [gallery(6)] }, { slug: 'work', blocks: [gallery(6)] }];
+      const st = stub();
+      await fillImageSlots(opts(pages, { cap: 4, produce: st.produce }));
+      const n = pages.map((p) => p.blocks[0].data.items.length);
+      check(n[0] === 2 && n[1] === 2 && st.n === 4, `E④b 两块 gallery 各 6 项、cap 4 ⟹ 各留 ${n.join(' / ')} 项（要 2 / 2）、生成 ${st.n} 张`);
+      const probs = galleryProblems(pages);
+      check(probs.length === 0, `E④b 两块都过 validateSite（gallery 相关问题 ${probs.length} 条）`);
+    }
+    // ⑤ 站上限是硬上限（QA1 r1 的探针：r1 按预估的 R 给 gallery 预留，服务页的图随后被截 ⟹ cap 3 生成了 4 张）
+    {
+      const pages = [
+        { slug: 'home', blocks: [gallery(5)] },
+        ...['p1', 'p2', 'p3'].map((slug) => ({ slug, blocks: [hero(0)] })),
+        { slug: 'services/s1', blocks: [header(0)] },
+      ];
+      const st = stub();
+      const r = await fillImageSlots(opts(pages, { cap: 3, produce: st.produce }));
+      const items = pages[0].blocks[0].data.items;
+      check(st.n <= 3 && items.length >= 2 && items.every((it) => urlOf(it.image)),
+        `E⑤ cap 3 ⟹ 桩被调 ${st.n} 次（≤ 3）、gallery ${items.length} 项全有图（images ${JSON.stringify(r.images)}）`);
     }
 
     // F. 4 路并行

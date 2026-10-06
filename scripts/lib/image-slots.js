@@ -17,6 +17,7 @@
 //    建站那条路拿它去调 Nano Banana 并把字节写盘，skipAI 那条路拿它回一张本地占位图。
 //    这样这份逻辑能在 `test:scripts` 里被完整跑一遍，不需要任何外部凭证。
 const { imageSlotsOf, blocksOf } = require('./block-manifest');
+const { effectiveKnobs } = require('./block-knobs');
 // #1549 —— 「哪些图算内容图」「alt 含不含目标词」跟 seoProblems 第 6 条用同一份判据（两份实现会让生产侧和检查侧各挑一张）。
 const { contentImagesOf, hasPhrase } = require('./seo-problems');
 const crypto = require('crypto');
@@ -61,6 +62,12 @@ function collectImageSlots(pages, manifests) {
           continue;
         }
         if (slot.kind === 'list') {
+          // #1594 —— 列表槽有管它的旋钮（manifest 的 `imageKnob`，features.items 归 `itemImage`）⟹ 跟上面对象槽同一条规矩：
+          //    这一块自己的 options 里那个旋钮写的是 "none" 以外的值才收。#1601 的配方预设把服务页 features 的 `itemImage`
+          //    全写成 "none"，不看这一条的话每页 3 张的名额全花在页面上不显示的条目图上（QA2 实测 24 张里看得见 3 张）。
+          //    🔴 判据用渲染那一侧同一个函数（`effectiveKnobs`，features/Section.tsx 就是拿它算 `k.itemImage`）：只看 options
+          //    会漏掉「写了 shape: photo-cards、options 里没写 itemImage」这种 —— 预设给的值是 top，条目图照样显示。
+          if (slot.imageKnob && effectiveKnobs(m, sec.shape, data.options)[slot.imageKnob] === 'none') continue;
           const items = Array.isArray(data[slot.name]) ? data[slot.name] : [];
           for (let j = 0; j < items.length; j++) {
             if (items[j] && typeof items[j] === 'object') {
@@ -210,7 +217,7 @@ function setSlotImageUrl(pages, slot, url) {
 // ── 每页 / 每站的预算、跨页复用、并行（#1594）─────────────────────────────────────────────────────
 //
 // 三次真 AI 建站读数：4 服务英文站和 7 服务中文站都是 99 张图 —— 按槽数求、跟站的大小无关，生图一段 9–10 分钟。
-// 现在：每页【新生成】≤ PER_PAGE_NEW_IMAGES 张（由下面的档位定，不问 AI）· 每站 ≤ cap · gallery 用服务详情页的图 · 4 路并行。
+// 现在：每页【新生成】≤ PER_PAGE_NEW_IMAGES 张（由下面的档位定，不问 AI）· 每站 ≤ cap · gallery 先用服务详情页的图 · 4 路并行。
 
 const PER_PAGE_NEW_IMAGES = 3;
 const IMAGE_CONCURRENCY = 4;
@@ -220,7 +227,7 @@ const manifestOf = (manifests, type) => (manifests instanceof Map ? manifests.ge
 /**
  * 这个槽的「每一项都必须有图」声明：列表槽在 manifest 里写了 `itemRequires: ["<imageKey>.imageUrl"]`（平铺的写 `imageUrl`）。
  * 有 ⟹ 回 { minItems }；没有 ⟹ null。今天只有 `gallery.items` 是这一种。
- * 🔴 判据读 manifest，不写块名：这一对声明（每项必须有图 + 至少 N 项）正是「图不够就得删项 / 补图」的来源。
+ * 🔴 判据读 manifest，不写块名：这一对声明（每项必须有图 + 至少 N 项）就是「这种槽的图不受每页预算管、被截时不少于 N 项」的来源。
  */
 function requiredImageList(slot, manifests) {
   if (slot.kind !== 'list') return null;
@@ -236,7 +243,7 @@ function requiredImageList(slot, manifests) {
  *   1  `main: true` 的对象槽（hero / page-header / content / cta 的 `image`）；旧口径的单图槽（`kind: image`）也算这一档
  *   2  非 main 的对象槽（features 的 introImage / itemsImage、milestones 的 blockImage / introImage）
  *   3  列表槽，按项依次（features.items · hero.band）
- *   'reuse'  每项都必须有图的列表槽（gallery.items）—— 不在每页预算里求新图，走做什么 3 的复用
+ *   'reuse'  每项都必须有图的列表槽（gallery.items）—— 不在每页预算里排，先复用、不够的新生成（做什么 3）
  */
 function slotTier(slot, manifests) {
   if (slot.kind === 'list') return requiredImageList(slot, manifests) ? 'reuse' : 3;
@@ -309,13 +316,13 @@ function clearSlotImageUrl(pages, slot) {
  *   log(line)                                      每条读数一行；不传就不打
  *
  * 顺序（#1594）：
- *   ① 每页挑前 3 个可自由支配的槽（§pickPerPage）；gallery 这种「每项必须有图」的列表槽不在这里挑。
- *   ② 每站上限 `cap`：先给 gallery 的地板图预留名额，可自由支配的按页面顺序截（排在最后几页的先被截）。
+ *   ① 每页挑前 3 个可自由支配的槽（§pickPerPage）；gallery 这种「每项必须有图」的列表槽不在这里挑、不占这 3 张。
+ *   ② 每站上限 `cap`：先给每个 gallery 预留 minItems 张（按「一张都复用不到」算 ⟹ 预留够用，cap 是硬上限），
+ *      可自由支配的按页面顺序截（排在最后几页的先被截）。
  *   ③ 并行（最多 4 张同时在求）生成 ①② 留下的槽。
- *   ④ gallery：R = 填上了第 1 档图的服务详情页数（按页面顺序）· K = 这块的项数 · M = minItems
- *      留 Keep = min(K, max(R, M)) 项（按原顺序，title / caption 原样）：前 R 项复用服务页的图，其余新生成，
- *      Keep 之后的项删掉。为了 M 新生成的那几张是**地板**：不被每页 ≤ 3 截（超了打一行日志），
- *      照样计入 requested / generated。生成失败的项也删掉（不留没图的项：`itemRequires` 会让下一次改站被拒）。
+ *   ④ gallery：前 R 项复用服务详情页（页面顺序）上填上了的第 1 档图，其余项新生成 —— 不删 AI 写的项、文字原样。
+ *      只有两种情况删项：那一项的图生成失败；站上限剩下的名额不够（这时每个 gallery 至少留 minItems 项）。
+ *      没图的项不能留：`itemRequires` 会让下一次改站被拒。
  *
  * 回 { totalSlots, attempted, success, dropped, skipped, failures, alts, images: { requested, generated, reused } }
  *   `dropped` 是被每站上限截掉的，`skipped` 是被每页上限留空的。requested = 要填的槽数（生成 + 复用）·
@@ -347,15 +354,9 @@ async function fillImageSlots({ pages, manifests, industry, primaryColor, themeW
     g.slots.push(s);
   }
 
-  // ② 每站上限：先给地板预留（按 ① 选中的第 1 档服务页图估 R；真 R 在 ③ 之后才知道，见 ④）
-  const serviceTier1 = (list) => {
-    const seen = new Set();
-    for (const s of list) if (isServiceDetailSlug(s.pageSlug) && slotTier(s, manifests) === 1) seen.add(s.pageSlug);
-    return seen.size;
-  };
-  const plannedR = serviceTier1(chosen);
-  const floorOf = (g, r) => Math.max(0, Math.min(g.slots.length, Math.max(r, g.minItems)) - Math.min(r, g.slots.length));
-  const reserve = galleries.reduce((n, g) => n + floorOf(g, plannedR), 0);
+  // ② 每站上限：先给每个 gallery 预留它的 minItems（按 R = 0 算 —— 真 R 要等 ③ 生成完才知道，按预估留会不够，
+  //    QA1 r1 实测 cap=3 生成了 4 张）。可自由支配的拿剩下的，按页面顺序截。
+  const reserve = galleries.reduce((n, g) => n + Math.min(g.slots.length, g.minItems), 0);
   const freeCap = Number.isFinite(cap) ? Math.max(0, cap - reserve) : cap;
   const { kept, dropped } = capImageSlots(chosen, freeCap);
   if (dropped.length) say(logCapped(cap, all.length, dropped));
@@ -395,40 +396,47 @@ async function fillImageSlots({ pages, manifests, industry, primaryColor, themeW
     if (hit) serviceImages.push(filled.get(hit));
   }
   const R = serviceImages.length;
-  const floorJobs = [];
-  for (const g of galleries) {
-    const K = g.slots.length;
-    const keep = Math.min(K, Math.max(R, g.minItems));
-    g.slots.forEach((slot, j) => {
-      if (j < Math.min(R, keep)) {
-        if (setSlotImageUrl(pages, slot, serviceImages[j])) {
-          reused += 1;
-          filled.set(slot, serviceImages[j]);
-          say(`[photo-slot] 复用 —— ${slotWhere(slot)} · ${serviceImages[j]}`);
-        }
-      } else if (j < keep) {
-        floorJobs.push(slot);
-      }
-    });
-    const floorHere = Math.max(0, keep - Math.min(R, keep));
-    if (floorHere) {
-      const pageNew = kept.filter((s) => s.pageSlug === g.pageSlug).length;
-      if (pageNew + floorHere > perPage) {
-        say(`[photo-slot] 超出每页上限 ${perPage}：页面 ${g.pageSlug} 为了块 ${g.secType} 的 minItems ${g.minItems} 多生成 ${pageNew + floorHere - perPage} 张（可复用的服务页图 ${R} 张）`);
-      }
+  // 复用之后还没图的项要新生成。名额 = 站上限剩下的（③ 用掉 calls 张，② 留够了每个 gallery 的 minItems）：
+  // 先给每个 gallery 补到 minItems，剩下的再按页面顺序分给后面的项；分不到的项截掉。
+  const toGen = galleries.map((g) => g.slots.slice(Math.min(R, g.slots.length)));
+  galleries.forEach((g) => g.slots.forEach((slot, j) => {
+    if (j >= R) return;
+    if (setSlotImageUrl(pages, slot, serviceImages[j])) {
+      reused += 1;
+      filled.set(slot, serviceImages[j]);
+      say(`[photo-slot] 复用 —— ${slotWhere(slot)} · ${serviceImages[j]}`);
     }
-  }
-  await runPool(floorJobs.length, concurrency, (i) => generate(floorJobs[i]));
+  }));
+  let left = Number.isFinite(cap) ? Math.max(0, cap - calls) : Infinity;
+  const allow = galleries.map((g, k) => {
+    const n = Math.min(toGen[k].length, Math.max(0, g.minItems - Math.min(R, g.slots.length)));
+    left -= n;
+    return n;
+  });
+  galleries.forEach((g, k) => {
+    const more = Math.min(toGen[k].length - allow[k], Math.max(0, left));
+    allow[k] += more;
+    left -= more;
+  });
+  const galleryJobs = [];
+  const cut = new Set();
+  galleries.forEach((g, k) => {
+    toGen[k].forEach((slot, j) => (j < allow[k] ? galleryJobs.push(slot) : cut.add(slot)));
+    const n = toGen[k].length - allow[k];
+    if (n) say(`[photo-slot] 超出上限 ${cap}：页面 ${g.pageSlug} 块 ${g.secType} 截掉 ${n} 项（留 ${g.slots.length - n} 项，不少于 minItems ${g.minItems}）`);
+  });
+  await runPool(galleryJobs.length, concurrency, (i) => generate(galleryJobs[i]));
 
-  // 没图的 gallery 项删掉（Keep 之后的、地板生成失败的）—— 从后往前删，下标不乱。
+  // 没图的 gallery 项删掉（站上限截掉的、生成失败的）—— 从后往前删，下标不乱。
   for (const g of galleries) {
     const page = (pages || []).find((p) => p && p.slug === g.pageSlug);
     const section = page && blocksOf(page)[g.secIdx];
     const items = section && section.data && section.data[g.slotName];
     if (!Array.isArray(items)) continue;
-    const drop = g.slots.filter((s) => !filled.has(s)).map((s) => s.itemIdx).sort((a, b) => b - a);
-    for (const j of drop) items.splice(j, 1);
-    if (drop.length) say(`[photo-slot] ${g.secType}：页面 ${g.pageSlug} 删掉 ${drop.length} 个没图的项（留 ${items.length} 项）`);
+    const gone = g.slots.filter((s) => !filled.has(s));
+    const failed = gone.filter((s) => !cut.has(s)).length;
+    for (const j of gone.map((s) => s.itemIdx).sort((a, b) => b - a)) items.splice(j, 1);
+    if (failed) say(`[photo-slot] ${g.secType}：页面 ${g.pageSlug} 删掉 ${failed} 个图生成失败的项（留 ${items.length} 项）`);
   }
 
   const images = { requested: calls + reused, generated, reused };

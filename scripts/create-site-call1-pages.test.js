@@ -45,7 +45,14 @@ const Module = require('module');
 const fs = require('fs');
 const cfg = JSON.parse(fs.readFileSync(process.env.C1_STUB_CFG, 'utf8'));
 const seen = {};
-globalThis.fetch = async () => { throw new Error('offline (test stub)'); };
+// #1594 —— cfg.images：生图接口（Nano Banana）回一张 1×1 的 PNG，其余一律离线。url 由 create-site 按槽的 key 拼 ⟹ 每个槽一个不同的 url。
+const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+globalThis.fetch = async (url) => {
+  if (cfg.images && String(url).startsWith('https://generativelanguage.googleapis.com/')) {
+    return { ok: true, json: async () => ({ candidates: [{ content: { parts: [{ inlineData: { data: PNG_1PX } }] } }] }) };
+  }
+  throw new Error('offline (test stub)');
+};
 const DESC_KW = (kw) => `${kw}就在 Toronto：Silky Hair Salon 在多伦多为每一位顾客提供细致的${kw}服务，预约简单，到店即享专业建议，环境舒适安心，欢迎随时来店体验焕然一新的造型。`;
 const BODY = '我们在多伦多为每一位顾客提供细致的护理与造型服务，预约简单，到店即享专业建议，环境舒适安心，欢迎随时来店体验我们团队带来的放松时光与焕然一新的造型。';
 // #1601 —— 非首页的块序由整站配方定，写在提示词里（`write exactly these N, in this order: "a" → "b"`）：桩照它回，
@@ -60,7 +67,28 @@ const BLOCK = {
   cta: () => ({ type: 'cta', data: { headline: '现在预约', body: '告诉我们您想要的造型。', ctas: [{ label: '预约', href: '/contact', style: 'solid' }] } }),
   contact: () => ({ type: 'contact', data: { headline: '联系我们', body: '留下联系方式，我们尽快回复。', form: { id: 'contact' }, options: { form: 'full' } } }),
 };
+// #1594 —— cfg.images：AI 在每个能放图的地方都要图（主图带图对象 + 打开旋钮；features 条目带 image + itemImage 打开；
+//    首页多一块 6 项的 gallery）。服务页的块序和预设由配方定 ⟹ 预设会把这些旋钮盖回 none，看「看不见的槽不求图」那一条。
+function withImages(sec) {
+  const d = { ...sec.data };
+  if (['page-header', 'content', 'cta', 'hero'].includes(sec.type)) {
+    d.image = { alt: `${d.headline || sec.type}的照片` };
+    d.options = { ...(d.options || {}), image: sec.type === 'hero' ? 'left' : 'right' };
+  }
+  if (sec.type === 'features' && Array.isArray(d.items)) {
+    d.items = d.items.map((it) => ({ ...it, image: { alt: it.title } }));
+    d.options = { ...(d.options || {}), itemImage: 'top' };
+  }
+  return { ...sec, data: d };
+}
+const GALLERY6 = { type: 'gallery', data: { headline: '作品集', items: [1, 2, 3, 4, 5, 6].map((n) => ({ image: { imageUrl: '/images/grid-pattern.svg', alt: `作品 ${n}` }, title: `作品 ${n}`, caption: `第 ${n} 次造型。` })) } };
 function sectionsFor(slug, title, prompt) {
+  const out = sectionsFor0(slug, title, prompt);
+  if (!cfg.images) return out;
+  const secs = out.map(withImages);
+  return slug === 'home' ? [secs[0], GALLERY6, ...secs.slice(1)] : secs;
+}
+function sectionsFor0(slug, title, prompt) {
   const fixed = (prompt.match(/write exactly these \d+, in this order: ([^\n]+?)\. Do not add/) || [])[1];
   if (fixed) return fixed.split(' → ').map((t) => BLOCK[JSON.parse(t)](title, prompt));
   const tail = [
@@ -298,6 +326,61 @@ check('#1594：真 AI 路发一条 images 事件（requested / generated / reuse
   assert.strictEqual(report.path, 'ai');
   assert.deepStrictEqual(report.images, images);
 });
+
+// #1594 —— 整条建站流程、配方开着、生图打桩（每个槽一个不同的 url）：QA2 r1 那次探针的固化。单测的夹具量不到配方预设那一层
+//    （#1601 的预设把服务页 page-header / content / cta 的 image、features 的 itemImage 全写成 none）。
+console.log('── #1594 整条建站流程：配方开着、生图打桩');
+const IMG = run('images', PAYLOAD({ geminiApiKey: 'stub-gemini' }), { images: true });
+{
+  const bm = require(path.join(IMG.work, 'scripts', 'lib', 'block-manifest.js'));
+  const { effectiveKnobs } = require(path.join(IMG.work, 'scripts', 'lib', 'block-knobs.js'));
+  const ms = bm.loadManifests(path.join(IMG.work, 'blocks'));
+  const pagesDir = path.join(IMG.work, 'site', 'zh', 'pages');
+  const readPage = (slug) => JSON.parse(fs.readFileSync(path.join(pagesDir, `${slug}.json`), 'utf8'));
+  const ours = (u) => typeof u === 'string' && u.startsWith('/photos/');
+  // 落盘后每一个被我们填上图的槽：{ slug, where, shown }。shown = 它所在块落盘后的旋钮让它显示得出来。
+  const filled = [];
+  for (const slug of BUILT) {
+    for (const b of readPage(slug).blocks || []) {
+      const m = ms.get(b.type);
+      if (!m) continue;
+      const d = b.data || {};
+      const k = effectiveKnobs(m, b.shape, d.options);
+      for (const sl of bm.imageSlotsOf(m)) {
+        if (sl.kind === 'object') {
+          if (d[sl.name] && ours(d[sl.name].imageUrl)) filled.push({ slug, where: `${b.type}.${sl.name}`, shown: !(sl.name in k) || k[sl.name] !== 'none' });
+        } else if (sl.kind === 'list') {
+          (Array.isArray(d[sl.name]) ? d[sl.name] : []).forEach((it, j) => {
+            const u = sl.imageKey ? it && it[sl.imageKey] && it[sl.imageKey].imageUrl : it && it.imageUrl;
+            // 管列表项图的旋钮按正文写死（features.items ← itemImage，features/Section.tsx:179），不读 manifest 的 imageKnob ——
+            //    读它的话 manifest 漏声明时检查这一侧跟着失明，这一格恒绿。
+            const knob = { 'features.items': 'itemImage' }[`${b.type}.${sl.name}`];
+            if (ours(u)) filled.push({ slug, where: `${b.type}.${sl.name}[${j}]`, shown: !knob || k[knob] !== 'none' });
+          });
+        }
+      }
+    }
+  }
+  check('#1594 整条流程：建站成功', () => assert.strictEqual(IMG.rc, 0, `${IMG.error}\n${IMG.stderr.slice(-800)}`));
+  check('#1594 整条流程：首页 gallery 仍 6 项、每项有图，title 原样', () => {
+    const g = (readPage('home').blocks || []).find((b) => b.type === 'gallery');
+    assert.ok(g, '首页没有 gallery');
+    assert.strictEqual(g.data.items.length, 6, JSON.stringify(g.data.items.map((it) => it.title)));
+    assert.ok(g.data.items.every((it) => ours(it.image && it.image.imageUrl)), JSON.stringify(g.data.items.map((it) => it.image)));
+    assert.deepStrictEqual(g.data.items.map((it) => it.title), [1, 2, 3, 4, 5, 6].map((n) => `作品 ${n}`));
+  });
+  check('#1594 整条流程：每一个被填上图的槽，它所在块落盘后的旋钮都让它显示得出来', () => {
+    assert.ok(filled.length >= 7, `只找到 ${filled.length} 个填上的槽（至少要 hero 1 + gallery 6）—— 判空`);
+    assert.deepStrictEqual(filled.filter((x) => !x.shown).map((x) => `${x.slug} ${x.where}`), []);
+  });
+  check('#1594 整条流程：images 事件的 generated = nano-banana-photo cost 事件条数 = 落盘填上的槽数（这一跑没有服务页主图 ⟹ reused 0）', () => {
+    const ev = IMG.events.filter((e) => e.event === 'images');
+    assert.strictEqual(ev.length, 1, JSON.stringify(ev));
+    const costs = IMG.events.filter((e) => e.event === 'cost' && e.operation === 'nano-banana-photo').length;
+    assert.strictEqual(ev[0].generated, costs, `generated ${ev[0].generated} · cost ${costs}`);
+    assert.strictEqual(ev[0].generated + ev[0].reused, filled.length, `${JSON.stringify(ev[0])} · 落盘 ${filled.length}`);
+  });
+}
 
 const B = run('retry1', PAYLOAD(), { failCalls: { [FAIL_SLUG]: 1 } });
 check(`AC 重试：失败一次 ⟹ 日志「重试第 ${FAIL_I} 页」、建站成功`, () => {

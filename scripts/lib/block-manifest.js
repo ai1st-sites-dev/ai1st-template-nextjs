@@ -156,7 +156,12 @@ function imageSlotsOf(m) {
       // #1475 —— 列表项的图可能平铺（`[{imageUrl, alt?}]`）也可能嵌一层（features 的
       // `image?: {imageUrl, alt}`）。写回那一侧要知道写到哪，判据读 shape 自己，不写块名单。
       const nested = spec.shape.match(/(\w+)\??\s*:\s*\{[^{}]*\bimageUrl\b/);
-      out.push(nested ? { name, kind: 'list', imageKey: nested[1] } : { name, kind: 'list' });
+      const slot = nested ? { name, kind: 'list', imageKey: nested[1] } : { name, kind: 'list' };
+      // #1594 —— 列表项的图归哪个旋钮管（features.items 归 `itemImage`）：显式带出来，§image-slots.js collectImageSlots
+      //    据它只在这一块的 options 里那个旋钮不是 "none" 时才收它的项。没声明 = 这个块没有管它的旋钮 ⟹ 图恒显示、照旧收。
+      //    跟 `generateImages: false`（静态：这个槽永远不求图）不是一回事，这一条按这一块当时的 options 判。
+      if (typeof spec.imageKnob === 'string') slot.imageKnob = spec.imageKnob;
+      out.push(slot);
     }
   }
   // #1425 —— 主图排在同一块的别的图槽前面：建站求图有上限、按先后截（§image-slots.js capImageSlots），
@@ -473,6 +478,15 @@ function checkManifestShape(name, m) {
     if (s.itemRequires !== undefined) {
       const okShape = Array.isArray(s.itemRequires) && s.itemRequires.length > 0 && s.itemRequires.every((x) => isStr(x) && /^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)*$/.test(x));
       if (!okShape || s.kind !== 'list') bad(`slots.${slot}.itemRequires 只能写 ["字段" / "字段.子字段", …]，而且只给 list 槽（现在是 ${JSON.stringify(s.itemRequires)}，kind ${s.kind}）`);
+    }
+    // #1594 —— `imageKnob`：管这个列表槽的项图显示不显示的旋钮名（features.items 的 `itemImage`）。建站据它不为看不见的
+    //    条目图求图（§imageSlotsOf → image-slots.js collectImageSlots）。写歪了的失败方向是静默的：一个不存在的旋钮名
+    //    在 options 里永远读不到 ⟹ 这个槽一张图都不再求。所以只给 list 槽、值必须是这个块 options 里真有的旋钮。
+    if (s.imageKnob !== undefined) {
+      const known = knobsOf(m).some((k) => k && k.name === s.imageKnob);
+      if (s.kind !== 'list' || !isStr(s.imageKnob) || !known) {
+        bad(`slots.${slot}.imageKnob 只给 list 槽，值必须是这个块 slots.options.knobs 里的旋钮名（现在是 ${JSON.stringify(s.imageKnob)}，kind ${s.kind}）`);
+      }
     }
     // #1479 —— `max`：list 槽最多几项（`cta.ctas` = 2）。admin 工具栏据它派生「数量」那一维（0 … max，
     //    manager §manifestCounts · 单格页 §knobOverrides 同一条判据）。跟旋钮的 `knobs[].maxItems` 不是一回事。

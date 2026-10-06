@@ -725,7 +725,9 @@ check('AC2：300 字节、没有连字符的 id ⟹ 硬截到正好上限（顶�
 // 生图那一通打桩回假图（cfg.images）。读数取 create-site 自己打的逐槽日志（`[photo-slot] 填上 / 没拿到图 —— 页面 <slug>`）
 // 和盘上的 public/photos/。改前（2cac58e30）同一份输入：这一页 success 0、每条原因 ENAMETOOLONG。
 console.log('── #1566：顶格 slug 的那一页，图片文件名放得下');
-const IMG_FEATURES = { type: 'features', data: { headline: 'Drain cleaning: why us', items: [{ title: 'Fast', text: 'Same day.' }, { title: 'Clear', text: 'Written price.' }, { title: 'Tidy', text: 'We clean up.' }] } };
+// 📌 #1594 —— `options.itemImage: 'top'`：条目图要这个旋钮打开才显示（features/Section.tsx），#1594 起建站也只为显示得出来的
+//    条目图求图。不写它 = none ⟹ 这一页 0 个图槽，下面「至少 3 个」那条防空线当场红。
+const IMG_FEATURES = { type: 'features', data: { headline: 'Drain cleaning: why us', options: { itemImage: 'top' }, items: [{ title: 'Fast', text: 'Same day.' }, { title: 'Clear', text: 'Written price.' }, { title: 'Tidy', text: 'We clean up.' }] } };
 function photoReport(R, slug) {
   const lines = R.stderr.split('\n');
   const mine = (tag) => lines.filter((l) => l.startsWith(`[photo-slot] ${tag} —— 页面 ${slug} · `));
