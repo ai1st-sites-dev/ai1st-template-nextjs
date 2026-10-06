@@ -1957,16 +1957,20 @@ function writeThemeColorScheme(siteDir, colorScheme) {
 
 // TICKET-268e —— 每个站都要有一页导航点得进去的 Contact（表单 → /api/leads）；AI 没给就由代码补一页。返回补上的那一页（没补 ⟹ null）。
 // #1633 —— `words` 是站级那一通给的主语言字（形状同第二语言的 contactPage：title · navLabel · description · headline ·
-//    subheadline · formHeadline · formBody），只在主语言不是英文时传；缺哪个字段那个字段退回今天的英文。
+//    subheadline · formHeadline · formBody），只在主语言不是英文时传；缺哪个字段那个字段退回字表主语言那一行（#1631）。
 //    description 里的品牌名取 `brand.name[主语言]`（同 seo-problems.js §brandNameOf）—— brand.name 是按语言的对象，
 //    直接拼进模板串就是 `Get in touch with [object Object]`。
 function ensureContactPage(content, defaultLocale, disabledBlocks = [], words = null) {
   const w = words && typeof words === 'object' ? words : {};
-  const pick = (k, en) => (typeof w[k] === 'string' && w[k].trim() ? w[k].trim() : en);
+  // #1631 —— AI 没给的那几句不再退回英文，退回字表里主语言那一行（`lib/locale-words.js`）；字表里没有的语言才是英文。
+  //    优先级 AI > 字表 > 英文。`en` 那一行逐字等于改之前的英文常量，英文站这一页一个字节不变。
+  const brandName = brandNameOf(content.brand, defaultLocale);
+  const fb = localeWords.contactPageWords(defaultLocale, brandName);
+  const pick = (k) => (typeof w[k] === 'string' && w[k].trim() ? w[k].trim() : fb[k]);
   const contactOff = new Set(disabledBlocks);
   const contactSections = [
-    { type: 'page-header', data: { headline: pick('headline', 'Contact Us'), subheadline: pick('subheadline', "Send us a message and we'll get back to you shortly.") } },
-    { type: 'contact', data: { headline: pick('formHeadline', 'Get in touch'), body: pick('formBody', 'Leave your details and we will reach out soon.'), form: { id: 'contact' }, options: { form: 'full' } } },
+    { type: 'page-header', data: { headline: pick('headline'), subheadline: pick('subheadline') } },
+    { type: 'contact', data: { headline: pick('formHeadline'), body: pick('formBody'), form: { id: 'contact' }, options: { form: 'full' } } },
   ].filter((sec) => !contactOff.has(sec.type));
   // 🔴 `contact` 被关掉时**整页不插**，不是插一个只剩标题的 Contact 页。268e 要的是
   //    「有一条看得见的联系路径」（那个表单 POST 到 /api/leads，进老板的 Customers），而一个
@@ -1975,10 +1979,9 @@ function ensureContactPage(content, defaultLocale, disabledBlocks = [], words = 
   const contactPageWanted = !contactOff.has('contact') && contactSections.length > 0;
   if (content.pages.some((p) => p.slug === 'contact') || !contactPageWanted) return null;
   const maxOrder = content.pages.reduce((m, p) => Math.max(m, p.navOrder ?? 0), 0);
-  const brandName = brandNameOf(content.brand, defaultLocale) || 'us';
   const page = {
-    slug: 'contact', title: pick('title', 'Contact Us'), description: pick('description', `Get in touch with ${brandName}`),
-    navLabel: pick('navLabel', 'Contact'), navOrder: maxOrder + 1, changeFrequency: 'monthly', priority: 0.7,
+    slug: 'contact', title: pick('title'), description: pick('description'),
+    navLabel: pick('navLabel'), navOrder: maxOrder + 1, changeFrequency: 'monthly', priority: 0.7,
     sections: contactSections,
   };
   content.pages.push(page);

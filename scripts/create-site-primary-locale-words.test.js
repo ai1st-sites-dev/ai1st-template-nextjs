@@ -238,14 +238,18 @@ check('AC3：日志里有 `[seo] 检查 contact` 一行，而且只有一行（�
 });
 
 // ── AC2：主语言 zh，站级那一通【不】给那几处字 ⟹ 退回英文，但品牌名对 ──
-console.log('── AC2：主语言 zh，站级那一通没给那几处字（退回今天的英文）');
+console.log('── AC2：主语言 zh，站级那一通没给那几处字（联系页退回字表 zh 那一行 #1631，导航仍是英文常量）');
 const B = run('zh-nowords', 'zh', fixture('zh'));
 check('建站成功', () => { assert.strictEqual(B.error, ''); assert.strictEqual(B.rc, 0, B.stderr.slice(-1500)); });
 check('全站落盘 JSON 里 [object Object] 命中 0', () => assert.deepStrictEqual(objectObjectHits(B), []));
 const cB = B.read('zh/pages/contact.json');
-check('退回英文那一跑：contact 的 title / navLabel 是今天的英文常量，description 含主语言品牌名', () => {
-  assert.strictEqual(cB.title, 'Contact Us');
-  assert.strictEqual(cB.navLabel, 'Contact');
+// #1631 —— 这一跑原来退回英文常量；#1631 把「AI 没给」的落点换成字表里主语言那一行（`lib/locale-words.js`）⟹ 中文。
+//    逐字比字表那一行（不在这里抄一份中文），品牌名照旧要在 description 里。
+check('没给字那一跑：contact 的 title / navLabel 是字表里 zh 那一行（#1631；不再是英文常量），description 含主语言品牌名', () => {
+  const zhRow = require(path.join(NEXT, 'scripts', 'lib', 'locale-words.js')).contactPageWords('zh', BRAND);
+  assert.strictEqual(cB.title, zhRow.title);
+  assert.strictEqual(cB.navLabel, zhRow.navLabel);
+  assert.notStrictEqual(cB.title, 'Contact Us');
   assert.ok(cB.description.includes(BRAND), cB.description);
 });
 check('退回英文那一跑：导航是今天的英文常量', () => {
