@@ -11,6 +11,7 @@
  * ③ 死链：数与 dead-links 事件一致；一个 html 都没看到（pages 0）是「没查」⟹ null，不是 0 条
  * ④ seoPass 跑两次（整站 + 代码补的详情页）⟹ 按 slug 合并、修补数累加
  * ⑤ scripts/finish-build-report.js：并进死链 + 耗时、打一行 build-report 事件；没有报告文件 ⟹ 什么都不打、rc 0
+ * ⑥ 降级清单（#1596）：degradedSteps 原样进 degraded 那一格（三个字段）；一条都没有是 []（数过了）不是 null；不是数组 ⟹ 不动
  */
 
 'use strict';
@@ -36,7 +37,7 @@ const SEO_RESULT = {
   checked: 3,
   rewritten: 2,
   dropped: [{ slug: 'services/plumbing/emergency-plumber', keyword: 'emergency plumber', problems: ['[1 title] title 不含目标词「emergency plumber」：「Plumbing」'] }],
-  fatalPages: [],
+  degradedPages: [],
   pages: [
     { slug: 'home', targetKeyword: 'plumber toronto', rules: [1, 2, 3, 4, 5, 6, 7, 8], first: [], final: [], rewritten: false, outcome: 'pass' },
     { slug: 'services', targetKeyword: null, rules: [1, 2, 3, 5, 6, 8],
@@ -109,6 +110,27 @@ check('写盘再读回：九个键仍都在（JSON 里 null 不会被丢）', ()
     const back = JSON.parse(fs.readFileSync(path.join(dir, br.REPORT_FILE), 'utf8'));
     assert.deepStrictEqual(br.REPORT_KEYS.filter((k) => !(k in back)), []);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+console.log('── ⑥ 降级清单（#1596）');
+check('一条降级 ⟹ degraded 恰好一条，step / target / reason 三个字段对得上，不带别的键', () => {
+  const r = br.createReport();
+  br.recordDegraded(r, [{ step: 'page', target: 'services/drain', reason: 'Page 3/5 could not be generated after one retry —— 发骨架页', extra: 1 }]);
+  assert.deepStrictEqual(r.degraded, [{ step: 'page', target: 'services/drain', reason: 'Page 3/5 could not be generated after one retry —— 发骨架页' }]);
+});
+check('一条都没有 ⟹ []（数过了、真的是零），不是 null', () => {
+  const r = br.createReport();
+  br.recordDegraded(r, []);
+  assert.deepStrictEqual(r.degraded, []);
+});
+check('传进来的不是数组 ⟹ 不动（留 null）；之后再往原数组里加，报告不跟着变（存的是副本）', () => {
+  const r = br.createReport();
+  br.recordDegraded(r, undefined);
+  assert.strictEqual(r.degraded, null);
+  const list = [{ step: 'seo', target: 'home', reason: 'x' }];
+  br.recordDegraded(r, list);
+  list.push({ step: 'seo', target: 'about', reason: 'y' });
+  assert.strictEqual(r.degraded.length, 1);
 });
 
 console.log('── ③ 死链');

@@ -81,9 +81,12 @@ function answer(req) {
         : first.includes('An automatic SEO check found the problems') ? 'seo-rewrite' : 'other';
   const slug = kind === 'page' || kind === 'keyword' ? (first.match(/- slug: "([^"]+)"/) || [])[1] : null;
   fs.appendFileSync(process.env.RS_STUB_CALLS, JSON.stringify({ kind, slug }) + '\n');
+  // #1596 —— 站级那一通被截断 ⟹ create-site 用代码拼的站级计划（降级记一笔）
+  if (kind === 'site' && cfg.site === 'truncated') return { json: cfg.plan, out: 4000, stop: 'max_tokens' };
   if (kind === 'site') return { json: cfg.locales ? { ...cfg.plan, locales: cfg.locales } : cfg.plan, out: 4000 };
   if (kind === 'page') {
-    const page = cfg.plan.pages.find((p) => p.slug === slug);
+    // #1596 —— 走代码拼的站级计划时，页面清单不是 plan() 那份（services/<拼音 id>、contact）⟹ 认不出的页用 slug 当标题
+    const page = cfg.plan.pages.find((p) => p.slug === slug) || { slug, title: slug };
     const sections = sectionsFor(slug, page.title);
     return { json: grouped ? { zh: { sections }, en: enGroup(page, sections) } : { sections }, out: 3000 };
   }
@@ -114,7 +117,7 @@ class FakeAnthropic {
       stream: (req) => ({
         finalMessage: async () => {
           const a = answer(req);
-          return { content: [{ type: 'text', text: JSON.stringify(a.json) }], usage: { input_tokens: 100, output_tokens: a.out }, stop_reason: 'end_turn' };
+          return { content: [{ type: 'text', text: JSON.stringify(a.json) }], usage: { input_tokens: 100, output_tokens: a.out }, stop_reason: a.stop || 'end_turn' };
         },
       }),
     };
@@ -210,13 +213,13 @@ function containerAt(label, bare, sha) {
   return { root, work, bare: own };
 }
 
-function run(label, work, payload) {
+function run(label, work, payload, extra = {}) {
   const dir = path.dirname(work);
   const stub = path.join(dir, 'stub.js');
   const cfgFile = path.join(dir, 'cfg.json');
   const calls = path.join(dir, `calls-${label}.jsonl`);
   fs.writeFileSync(stub, STUB);
-  fs.writeFileSync(cfgFile, JSON.stringify({ plan: plan(), ...((payload.secondaryLocales || []).includes('en') ? { locales: { en: EN_SITE } } : {}) }));
+  fs.writeFileSync(cfgFile, JSON.stringify({ plan: plan(), ...((payload.secondaryLocales || []).includes('en') ? { locales: { en: EN_SITE } } : {}), ...extra }));
   fs.writeFileSync(calls, '');
   const r = cp.spawnSync(process.execPath, ['--require', stub, path.join(work, 'scripts', 'create-site.js')], {
     input: JSON.stringify(payload), cwd: work, encoding: 'utf8', maxBuffer: 64 << 20, timeout: 300000,
@@ -425,6 +428,40 @@ for (const from of ['pages', 'keywordPages']) {
     assert.deepStrictEqual(enFiles(X.work), enFiles(L.work));
     assert.deepStrictEqual(Object.keys(f).sort(), Object.keys(filesL).sort());
     assert.deepStrictEqual(Object.keys(filesL).filter((k) => f[k] !== filesL[k]), []);
+  });
+}
+
+// ── M：#1596 的降级跟着存档走 —— 站级那一通被截断（降级成代码拼的站级计划），从 pages / keywordPages 之后续跑 ─────────
+//    ① 建站报告的 degraded 那一格仍有那一笔 site-plan（它记在 plan 阶段，续跑那一截不会再记）
+//    ② brand.json 仍没有 email 键（「brand 是代码拼的」那一位记在 plan / pages 存档里；丢了它续跑就落进 'info@example.com' 兜底）
+console.log('── M：站级那一通被截断（#1596 降级），从头建一次，再从 pages / keywordPages 之后续跑');
+const M = freshRepo('degraded');
+const RM = run('degraded', M.work, PAYLOAD(), { site: 'truncated' });
+const degradedOfReport = (work) => JSON.parse(fs.readFileSync(path.join(work, REPORT), 'utf8')).degraded;
+const brandOf = (work) => JSON.parse(fs.readFileSync(path.join(work, 'site', 'brand.json'), 'utf8'));
+check('对照：从头建 rc 0，恰好一笔 site-plan 降级（事件 = 报告），brand.json 没有 email 键', () => {
+  assertOk(RM);
+  const ev = RM.events.filter((e) => e.event === 'degraded').map(({ step, target, reason }) => ({ step, target, reason }));
+  assert.deepStrictEqual(ev.map((d) => d.step), ['site-plan'], JSON.stringify(ev));
+  assert.deepStrictEqual(degradedOfReport(M.work), ev);
+  assert.ok(!('email' in brandOf(M.work)), JSON.stringify(brandOf(M.work).email));
+});
+const byPhaseM = Object.fromEntries(phaseCommits(M.bare).map((c) => [c.phase, c.sha]));
+const filesM = siteFiles(M.work);
+for (const from of ['pages', 'keywordPages']) {
+  const X = containerAt(`degraded-from-${from}`, M.bare, byPhaseM[from]);
+  const RX = run(`degraded-from-${from}`, X.work, PAYLOAD({ resume: true }), { site: 'truncated' });
+  check(`从 ${from} 续跑：站级调用 0、这一截没有新的降级事件；报告的 degraded 跟从头建那次相同（仍是那一笔 site-plan）`, () => {
+    assertOk(RX);
+    assert.strictEqual(count(RX, 'site'), 0);
+    assert.deepStrictEqual(RX.events.filter((e) => e.event === 'degraded'), []);
+    assert.deepStrictEqual(degradedOfReport(X.work), degradedOfReport(M.work));
+  });
+  check(`从 ${from} 续跑：brand.json 仍没有 email 键，整个 site/ 跟从头建那次逐字节相同`, () => {
+    assert.ok(!('email' in brandOf(X.work)), JSON.stringify(brandOf(X.work).email));
+    const f = siteFiles(X.work);
+    assert.deepStrictEqual(Object.keys(f).sort(), Object.keys(filesM).sort());
+    assert.deepStrictEqual(Object.keys(filesM).filter((k) => f[k] !== filesM[k]), []);
   });
 }
 

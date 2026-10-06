@@ -16,9 +16,10 @@
  *      断言：主语言每页一行 `[seo] 检查`（页数 = 主语言页数）· 没有目标词的页只跑 1/2/3/5/6/8 · 「修补一次」·
  *      第 8 条「编造的事实」· 「丢掉 <slug>」+「关键词页 2/3」· 那页不在站里、页脚里也没有指向它的链接 ·
  *      次语言的页不出现在任何 `[seo]` 行里 · 提示词里的 title 预算是按品牌名算的数（不是 60）
- *   A' 反向对照：同一份夹具，about 的修补不修 ⟹ 建站失败 —— 证明 A 里 about 能过是因为那次修补
- *   B  about 页两次都出两个 H1 ⟹ 建站失败，信息写明 about 与「恰好一个 H1」；about 没被丢掉
- *   C  首页的目标词换成页面里不可能出现的词 ⟹ 日志里有首页的「修补一次」（提示词有 MUST 行），仍不合格 ⟹ 建站失败、信息写明 home 和哪条
+ *   A' 反向对照：同一份夹具，about 的修补不修 ⟹ about 照发 + 一条 degraded（#1596 起不再建站失败）—— 证明 A 里 about 能过是因为那次修补
+ *   B  about 页两次都出两个 H1 ⟹ about 照发 + 一条 degraded，写明 about 与「恰好一个 H1」；about 没被丢掉
+ *   C  首页的目标词换成页面里不可能出现的词 ⟹ 日志里有首页的「修补一次」（提示词有 MUST 行），仍不合格 ⟹ 首页照发 + 一条 degraded、写明 home 和哪条
+ *   📌 A' / B / C 三格在 #1596 之前断言的是「建站失败」。#1596 第 11 条把「SEO 修补一次仍不合格」改成降级（正文写明本票负责改掉这类断言）。
  *   D  （#1549 重开）主语言 zh：发给 AI 的 description 长度都是 50–80；服务页 description（中文）只缺地点
  *      ⟹ #1593 起检查之前代码补上地点（「｜Markham」）、零次修补调用、建站成功
  *   E  （#1549 重开 r3，QA1 / QA2 2026-10-05 的阻断）主语言 zh、服务页 description 是中英混排且拉丁字母过半、太短：
@@ -260,6 +261,9 @@ function run(label, scenario, payload) {
 }
 const seoLines = (stderr) => stderr.split('\n').filter((l) => l.startsWith('[seo]'));
 const errorOf = (res) => (res.events.find((e) => e.event === 'error') || {}).message || '';
+// #1596 —— 第 11 条的降级事件（step = seo），以及「那一页照样在产物里」。
+const seoDegraded = (res) => res.events.filter((e) => e.event === 'degraded' && e.step === 'seo');
+const pageShipped = (res, slug) => fs.readdirSync(res.site, { withFileTypes: true }).some((d) => d.isDirectory() && fs.existsSync(path.join(res.site, d.name, 'pages', `${slug}.json`)));
 
 console.log('\n── A 成功的双语站：每页都查了、about 修补一次修好、一个关键词页丢掉');
 const A = run('A', {
@@ -319,25 +323,28 @@ const A = run('A', {
   check(rwT.includes(`"title": ${spec}`), '标题出问题的那页，修补提示词里 title 的预算是同一个数（46）', rwT.slice(0, 900));
 }
 
-console.log('\n── A\' 反向对照：about 的修补不修 ⟹ 建站失败');
+console.log('\n── A\' 反向对照：about 的修补不修 ⟹ about 照发 + 一条 degraded（#1596）');
 if (!ONLY) {
   const R = run('A2', { call1: call1({ aboutBody: 'Serving Markham since 2015, we grew by word of mouth.' }), call2: call2(), rewrites: { about: 'echo', [KW_SLUGS[2]]: 'echo' } }, PAYLOAD());
-  check(R.rc !== 0 && errorOf(R).includes('about') && errorOf(R).includes('[8 事实出处]'), `建站失败，信息写明 about 与第 8 条（rc=${R.rc}）`, errorOf(R).slice(0, 400));
+  const d = seoDegraded(R);
+  check(R.rc === 0 && !errorOf(R), `建站成功（rc=${R.rc}）`, errorOf(R).slice(0, 400));
+  check(d.length === 1 && d[0].target === 'about' && d[0].reason.includes('[8 事实出处]'), '恰好一条 step=seo 的 degraded，指向 about、写明第 8 条', JSON.stringify(d).slice(0, 400));
+  check(pageShipped(R, 'about'), 'about 照发（在产物里）');
 }
 
-console.log('\n── B about 两次都出两个 H1 ⟹ 建站失败，不是丢掉 about');
+console.log('\n── B about 两次都出两个 H1 ⟹ about 照发 + 一条 degraded，不是丢掉 about（#1596）');
 if (!ONLY) {
   const B = run('B', { call1: call1({ aboutTwoH1: true }), call2: call2(), rewrites: { about: 'echo', [KW_SLUGS[2]]: 'echo' } }, PAYLOAD());
-  const msg = errorOf(B);
-  check(B.rc !== 0, `建站失败（rc=${B.rc}）`);
-  check(msg.includes('about') && msg.includes('[3 H1] 要恰好一个 H1'), '失败信息写明 about 页和「恰好一个 H1」那一条', msg.slice(0, 400));
-  check(!seoLines(B.stderr).some((l) => l.startsWith('[seo] 丢掉 about')), 'about 没被丢掉（没有目标词的页走「建站失败」那一支）');
+  const d = seoDegraded(B);
+  check(B.rc === 0 && !errorOf(B), `建站成功（rc=${B.rc}）`, errorOf(B).slice(0, 400));
+  check(d.length === 1 && d[0].target === 'about' && d[0].reason.includes('[3 H1] 要恰好一个 H1'), '恰好一条 step=seo 的 degraded，写明 about 页和「恰好一个 H1」那一条', JSON.stringify(d).slice(0, 400));
+  check(!seoLines(B.stderr).some((l) => l.startsWith('[seo] 丢掉 about')) && pageShipped(B, 'about'), 'about 没被丢掉（没有目标词的页走「照发 + 降级」那一支），在产物里');
   // #1593 —— 两个 H1 没有字段可改：不发修补调用，直接按「修补后仍不合格」处置
   check(!B.prompts.some((p) => p.includes('An automatic SEO check found the problems') && p.includes('\nPAGE: about\n'))
     && seoLines(B.stderr).some((l) => l.startsWith('[seo] 不修补 about：')), 'about 没发修补调用（两个 H1 没有字段可改），日志「不修补 about」');
 }
 
-console.log('\n── C 首页的目标词换成不可能出现的词 ⟹ 修补一次、仍不合格、建站失败');
+console.log('\n── C 首页的目标词换成不可能出现的词 ⟹ 修补一次、仍不合格、照发 + degraded（#1596）');
 if (!ONLY) {
   const C = run('C', { call1: call1(), call2: call2(), rewrites: { home: 'echo', [KW_SLUGS[2]]: 'echo' } },
     PAYLOAD({ keywords: { ...KEYWORDS('zzqx flurbington'), 'Drain Cleaning': KEYWORDS('zzqx flurbington')['Drain Cleaning'].map((k) => (k.isPrimary ? { ...k, goldIndex: 99 } : k)) } }));
@@ -347,8 +354,9 @@ if (!ONLY) {
   check(!!rwH, '首页被带着问题修补了一次（发出去了修补提示词）');
   check(/HARD REQUIREMENTS[^\n]*\n- MUST: "siteTitle" contains "zzqx flurbington" exactly as written/.test(rwH), '修补提示词把「必须含目标词」单列成 MUST 行（首页是 siteTitle）', rwH.slice(rwH.indexOf('PROBLEMS TO FIX'), rwH.indexOf('PROBLEMS TO FIX') + 700));
   check(lines.some((l) => l.startsWith('[seo] 修补一次后 home ')), '日志里有首页「修补一次后」那一行');
-  const msg = errorOf(C);
-  check(C.rc !== 0 && msg.includes('home:') && msg.includes('[1 title]'), `建站失败，信息写明 home 和哪条（rc=${C.rc}）`, msg.slice(0, 400));
+  const d = seoDegraded(C);
+  check(C.rc === 0 && !errorOf(C), `建站成功（rc=${C.rc}）`, errorOf(C).slice(0, 400));
+  check(d.some((x) => x.target === 'home' && x.reason.includes('[1 title]')) && pageShipped(C, 'home'), '一条 step=seo 的 degraded 写明 home 和哪条，首页照发', JSON.stringify(d).slice(0, 400));
 }
 
 console.log('\n── D 主语言 zh：description 长度按 CJK 那一档发给 AI；只缺地点 ⟹ 检查之前代码补、零次修补调用（#1593 把补地点挪到检查之前）');

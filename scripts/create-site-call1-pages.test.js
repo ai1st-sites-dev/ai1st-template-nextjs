@@ -9,10 +9,12 @@
 // 量的是正文验收里这几条（逐条标在格子名上）：
 //   AC 打桩跑   建站成功、每页一行进度、没有 truncated
 //   AC 按页发   prompt 事件（排除 `Keyword page: ` / `SEO rewrite ` 两族）== 1 + 页数；cost 那一族 ≥ 1 + 页数、每条 out < 32000
-//   AC 重试     一张服务详情页调用失败一次 ⟹ 「重试第 i 页」、建站成功、只有它被请求两次；两次都失败 ⟹ 建站失败、信息写明是哪一页
+//   AC 重试     一张服务详情页调用失败一次 ⟹ 「重试第 i 页」、建站成功、只有它被请求两次；两次都失败 ⟹ 那一页发骨架页 + 一条 degraded
+//               写明是哪一页（#1596 之前是建站失败）
 //   AC haiku    模型 haiku-4.5、上限 128000 ⟹ 发给 API 的上限 64000（不是被拒）；sonnet 那一臂照发 128000（阳性对照）
 //   做什么 2    每页提示词只带那一页：自己的 slug / brief / 目标词，没有别页的 brief；站级那一份不带块菜单
-//   块库        一页第一次块库不合格 ⟹ 只重试这一页；整站缺「行业必需的块」⟹ 首页那一通补一次，补不上建站失败
+//   块库        一页第一次块库不合格 ⟹ 只重试这一页；整站缺「行业必需的块」⟹ 首页那一通补一次，补不上 ⟹ 原样发 + 一条 degraded
+//               （#1596 之前是建站失败）
 //   r2 关键词页 站级回包的页面清单混进关键词页（顶层 / `<服务>/<词>` / `services/<id>/<词>`）⟹ 丢掉、不生成、各一行日志，Call 2 照常建
 'use strict';
 
@@ -160,8 +162,9 @@ const PAYLOAD = (extra = {}) => ({
   language: 'zh', services: SERVICES.map(([, n]) => n), homepageFingerprint: false, ...extra,
 });
 
-function run(label, payload, cfg) {
+function run(label, payload, cfg, prep) {
   const work = makeTree(label);
+  if (prep) prep(work);
   const dir = path.dirname(work);
   const stub = path.join(dir, 'stub.js');
   const cfgFile = path.join(dir, 'cfg.json');
@@ -265,14 +268,35 @@ check('AC 重试：只有它被请求两次，别的页各一次', () => {
   }
 });
 const C = run('retry2', PAYLOAD(), { failCalls: { [FAIL_SLUG]: 2 } });
-check(`AC 重试：两次都失败 ⟹ 建站失败，信息写明是哪一页（${FAIL_SLUG}、第 ${FAIL_I}/${N} 页）`, () => {
-  assert.notStrictEqual(C.rc, 0);
-  assert.ok(C.error.includes(`"${FAIL_SLUG}"`) && C.error.includes(`Page ${FAIL_I}/${N}`), C.error);
+check(`AC 重试：两次都失败 ⟹ 建站成功，那一页发骨架页 + 恰好一条 degraded，写明是哪一页（${FAIL_SLUG}、第 ${FAIL_I}/${N} 页）（#1596）`, () => {
+  assert.strictEqual(C.rc, 0, `${C.error}\n${C.stderr.slice(-600)}`);
+  const d = C.events.filter((e) => e.event === 'degraded' && e.step === 'page');
+  assert.strictEqual(d.length, 1, JSON.stringify(d));
+  assert.strictEqual(d[0].target, FAIL_SLUG);
+  assert.ok(d[0].reason.includes(`"${FAIL_SLUG}"`) && d[0].reason.includes(`Page ${FAIL_I}/${N}`), d[0].reason);
+  const pg = JSON.parse(fs.readFileSync(path.join(C.work, 'site', 'zh', 'pages', `${FAIL_SLUG}.json`), 'utf8'));
+  assert.deepStrictEqual((pg.blocks || pg.sections).map((b) => b.type), ['page-header', 'features', 'cta']);
+  assert.strictEqual(pg.seo && pg.seo.placeholder, true);
 });
+// r2 那一格守的是 fatal() 退出前把 stdout 冲干净。#1596 之后「一页两次都失败」不再 fatal，换一个仍然会 fatal、而且
+// 在全部提示词发完之后才 fatal 的地方：`Git commit failed`。#1598 起每个阶段各提交一次，第一次（plan）在每页那几通之前
+// ⟹ 工作树做成真 git 仓，commit-msg 钩子只放行 plan 那一次，pages 阶段那次提交（全部 1 + N 份提示词都发完之后）被拒。
+const rejectAfterPlan = (work) => {
+  const git = (...a) => cp.execFileSync('git', a, { cwd: work, stdio: 'pipe' });
+  git('init', '-q', '-b', 'main');
+  git('config', 'user.email', 'stub@example.com');
+  git('config', 'user.name', 'stub');
+  git('config', 'core.hooksPath', '.git/hooks');
+  fs.mkdirSync(path.join(work, '.git', 'hooks'), { recursive: true });
+  fs.writeFileSync(path.join(work, '.git', 'hooks', 'commit-msg'), '#!/bin/sh\ngrep -q "(phase: plan " "$1" || { echo "rejected by test hook" >&2; exit 1; }\n', { mode: 0o755 });
+};
+const Cx = run('flush', PAYLOAD({ repoUrl: 'https://github.com/test/not-a-repo.git' }), {}, rejectAfterPlan);
 check('r2：建站失败退出时 stdout 没丢尾巴 —— 全部 1 + N 份 Call 1 提示词都到了，最后一条事件就是 error', () => {
   // 失败前一口气发了 1 + N 份大提示词事件；stdout 不是阻塞写时 process.exit 会丢掉还没冲出去的尾巴（含 error 那条）。
-  assert.strictEqual(call1Prompts(C.events).length, 1 + N, call1Prompts(C.events).map((p) => p.name).join(' · '));
-  assert.strictEqual(C.events[C.events.length - 1].event, 'error');
+  assert.notStrictEqual(Cx.rc, 0);
+  assert.ok(Cx.error.startsWith('Git commit failed'), Cx.error);
+  assert.strictEqual(call1Prompts(Cx.events).length, 1 + N, call1Prompts(Cx.events).map((p) => p.name).join(' · '));
+  assert.strictEqual(Cx.events[Cx.events.length - 1].event, 'error');
 });
 check('反向对照：失败的那一页之外没有页被重试（每页各一次、它两次）', () => {
   assert.strictEqual(C.calls.filter((c) => c.kind === 'page' && c.slug === FAIL_SLUG).length, 2);
@@ -299,9 +323,18 @@ check('整站缺 gallery（photography 必需）⟹ 首页那一通补一次、�
   assert.ok((home.blocks || home.sections).some((b) => b.type === 'gallery'));
 });
 const F = run('sitefix-no', PAYLOAD({ industry: 'photography' }), {});
-check('反向对照：首页那一通补不上 ⟹ 建站失败（同 #999「只重试一次」）', () => {
-  assert.notStrictEqual(F.rc, 0);
-  assert.ok(F.error.includes('still breaks the block library') && F.error.includes('gallery'), F.error);
+check('反向对照：首页那一通补不上 ⟹ 原样发（不补块）+ 恰好一条 degraded，target 是 gallery（#1596，以前建站失败）', () => {
+  assert.strictEqual(F.rc, 0, `${F.error}\n${F.stderr.slice(-600)}`);
+  const d = F.events.filter((e) => e.event === 'degraded' && e.step === 'site-blocks');
+  assert.strictEqual(d.length, 1, JSON.stringify(d));
+  assert.strictEqual(d[0].target, 'gallery');
+  assert.ok(d[0].reason.includes('still breaks the block library'), d[0].reason);
+  const pagesDir = path.join(F.work, 'site', 'zh', 'pages');
+  const all = [];
+  const walk = (dir) => { for (const e of fs.readdirSync(dir, { withFileTypes: true })) { const f = path.join(dir, e.name); if (e.isDirectory()) walk(f); else all.push(JSON.parse(fs.readFileSync(f, 'utf8'))); } };
+  walk(pagesDir);
+  assert.ok(all.length > 0);
+  assert.ok(!all.some((pg) => (pg.blocks || pg.sections || []).some((b) => b.type === 'gallery')), '站里多出了一块 gallery');
 });
 
 // ── r2：站级回包混进关键词页 ─────────────────────────────────────────────────────────────────────────

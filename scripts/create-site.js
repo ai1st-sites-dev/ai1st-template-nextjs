@@ -56,6 +56,8 @@ const blockDataLine = (type) => blockDataLineFor(loadBlockManifests().get(type))
 const { siteFormsFrom } = require('./lib/site-forms');
 // #1548 —— 挖出来的关键词落盘（seo.json 的 targetKeywords + 每页 seo.targetKeyword）。真 AI 与 skipAI 两条路共用这一份。
 const targetKw = require('./lib/target-keywords');
+// #1596 —— AI 那一步没给出能用的东西时代码拼的站级计划 / 骨架页（只用中性句式，事实只从 payload 取）。
+const fallbackSite = require('./lib/fallback-site');
 // #1598 —— 建站五个阶段的存档（阶段表、site_meta.json 的 buildPhase、site/.build/state.json、续跑点怎么读）。
 const buildPhases = require('./lib/build-phases');
 // #1549 —— 每页生成后的 SEO 检查（八条，设计文档 S2）。检查本身是纯函数，重写 / 丢页 / 失败的处置在本文件 §seoPass。
@@ -161,6 +163,20 @@ function progress(message, percent) {
 function fatal(message) {
   emit('error', { message });
   process.exit(1);
+}
+
+// #1596 —— 付钱之后「某一步没做好」不再让整站失败：那一步降级（站级计划 / 骨架页 / 丢页 / 照发），并在这里记一笔。
+//    每一笔同时发一条 `degraded` 事件（worker 原样转发未知事件类型），并进建站报告（T8 #1600）的 `degraded` 那一格：
+//    真 AI 路收尾时 `recordDegraded(buildReport, degradedSteps)`（形状 { step, target, reason }）。导出它只为单测在进程退出时读得到。
+const degradedSteps = [];
+module.exports.degradedSteps = degradedSteps;
+function degrade(step, target, reason) {
+  const d = { step, target: String(target), reason: String(reason) };
+  degradedSteps.push(d);
+  // #1598 —— 建站报告跟着阶段存档走：当场记进去，续跑时读回来的那份报告里就带着之前阶段的降级（见 main 读续跑点那段）。
+  if (buildReport) buildReportLib.recordDegraded(buildReport, degradedSteps);
+  emit('degraded', d);
+  debug(`[degraded] ${step} · ${d.target} —— ${d.reason}`);
 }
 
 // #1548 —— 关键词分配的结果：词进 seo.json、页挂上 seo.targetKeyword，再把「对不上 / 没分到页」按词报出来。
@@ -915,6 +931,8 @@ async function main() {
       // #1600 的建站报告也从存档里接着记：SEO 检查和关键词页 N/M 记在 keywordPages 阶段里，从它之后续跑时那几格没人再记，
       // 新建的一份会是 null（= 「没有生产者」），而这次建站其实跑过。
       if (point.state && point.state.buildReport) buildReport = buildReportLib.normalize(point.state.buildReport);
+      // #1596 —— 之前阶段记下的降级接着算（不然这次收尾的 recordDegraded 只剩续跑之后那几笔）。
+      if (Array.isArray(buildReport.degraded)) degradedSteps.push(...buildReport.degraded);
     }
   }
   if (resume && resume.index === buildPhases.BUILD_PHASES.length - 1) {
@@ -1472,7 +1490,7 @@ async function main() {
       debug(`[seo] alt：补了 ${alts.written} 张 · ${alts.keyworded} 页的第一张内容图带上了目标词`);
     }
 
-    // #1549 —— 主语言每一页跑 seoProblems；有问题重写那一页一次；仍有问题：关键词页丢掉，其余页建站失败（§seoPass）。
+  // #1549 —— 主语言每一页跑 seoProblems；有问题修补一次；仍有问题：关键词页丢掉，其余页照发 + 一笔降级（§seoPass，#1596 起不再建站失败）。
     progress('Checking every page for SEO...', 68);
     const seoResult = await seoPass({
       content, payload: input, locale: defaultLocale, industry, location, companyName, disabledBlocks,
@@ -1584,6 +1602,8 @@ async function main() {
     }
   }
 
+  // #1596 —— 降级清单进报告的 `degraded` 那一格（一处没降级是 []）。skipAI 那条路不走这里，那一格留 null。
+  buildReportLib.recordDegraded(buildReport, degradedSteps);
   finishBuildReport(siteDir);
   // Done — entrypoint.sh handles sync-config + the static preview (`next build` → `serve out`)
   progress('Site generated, starting preview...', 85);
@@ -1623,6 +1643,16 @@ function contactPageIn(page, words) {
   return out;
 }
 
+// #1596 —— 骨架页（§pageSkeleton，`seo.placeholder: true`）是代码拼的、不经 AI 回包 ⟹ book 里没有它的第二语言。跟 contact 一样由代码给：
+// 照主语言那一页原样（占位文案本来就是英文通用句，正文接受）。不给的话下面「pages missing」把整个第二语言放弃掉（PM 2026-10-06 A）。
+function placeholderPageIn(page) {
+  if (!(page.seo && page.seo.placeholder === true)) return null;
+  const out = JSON.parse(JSON.stringify(page));
+  // 目标词不是这个语言挖的（同 LocaleBook.build）⟹ translated: true，validateSite 第 ① 条跳过它。
+  if (typeof out.seo.targetKeyword === 'string') out.seo.translated = true;
+  return out;
+}
+
 function buildSecondaryContent({ content, locale, book, industry, disabledBlocks = [], secondaryKeywordsByPage = {} }) {
   const filled = (v) => typeof v === 'string' && v.trim() !== '';
   const t = (content.ai && content.ai.locales && typeof content.ai.locales[locale] === 'object' && content.ai.locales[locale]) || {};
@@ -1644,7 +1674,7 @@ function buildSecondaryContent({ content, locale, book, industry, disabledBlocks
   // 页：AI 写的页按主语言骨架拼；代码补的页 / 块对第二语言再补一次。
   const pages = [];
   for (const p of content.pages) {
-    const b = book.build(p, locale) || (p.slug === 'contact' ? contactPageIn(p, t.contactPage) : null);
+    const b = book.build(p, locale) || (p.slug === 'contact' ? contactPageIn(p, t.contactPage) : null) || placeholderPageIn(p);
     if (b) pages.push(b);
   }
   const keptServiceIds = [...new Set(content.pages.filter((p) => p.keywordPage === true).map((p) => kwPages.serviceIdOfKeywordPath(p.slug)).filter(Boolean))];
@@ -2483,7 +2513,7 @@ IMAGE PLACEMENT RULES:
   // （Chris 2026-10-04 site-7f87c5c3：等了 424 秒、花了 $0.51，`truncated`，整站失败）。现在照 Call 2（#1550）的形状拆成两步：
   //   ① 站级一次（prompt 名 `Base Site`）：品牌 / 导航 / SEO / 服务 / 表单 + 页面清单，每页带一句 `brief`（这一页承载什么），不写 sections；
   //   ② 每页一次（prompt 名 `Page: <slug>`）：只写这一页的 sections。提示词只带站级结构 + 这一页的目标词 + 表格里的事实 + 块菜单。
-  // 一页不合格 / 调不通只重试这一页一次；仍不行 ⟹ 建站失败并写明是哪一页（T5 #1549 对首页 / 服务详情页 / 其它页的处置）。
+  // 一页不合格 / 调不通只重试这一页一次；仍不行 ⟹ 那一页发骨架页 + 一笔降级，写明是哪一页（#1596 第 6 条；以前是建站失败）。
   const brandNameRule = `CRITICAL BRAND NAME RULE (TICKET-137):
 The brand name "${companyName}" is canonical and MUST appear LITERALLY VERBATIM in all
 generated content — hero headlines, subtitles, page descriptions, footer description,
@@ -2616,8 +2646,11 @@ ${FACTS_ONLY_FROM_FORM_RULE}
   // ── #1598 plan 阶段：站级那一通 + 收服务 id。plan 已存档 ⟹ 整段跳过、拿存档里那份（一通调用都不发）。
   let ai;
   let idRenames;
+  // #1596 —— brand 是代码拼的站级计划给的（不是 AI 回包）⟹ payload 没给邮箱就不写 brand.email（不落进 'info@example.com' 那个兜底）。
+  //    brand 在 pages 阶段之后才写 ⟹ 这一位跟着 plan / pages 两份存档走，续跑的站照样认得它。
+  let brandByCode = false;
   if (resumeFrom >= 0) {
-    ({ ai, idRenames = [] } = resumeState);
+    ({ ai, idRenames = [], brandByCode = false } = resumeState);
     debug(`[resume] 跳过 plan 阶段（站级那一通）：存档里 ${ai.pages.length} 页`);
   } else {
     emit('prompt', { name: 'Base Site', content: sitePrompt });
@@ -2644,24 +2677,29 @@ ${FACTS_ONLY_FROM_FORM_RULE}
       response = result.response;
     } catch (e) {
       // Preserve original debug behavior: save raw response on final failure.
+      // #1596 —— 存在 site/ 外面：这次失败不再结束建站，site/ 之后会整个提交进客户的站仓。
       if (e.lastText) {
-        const debugPath = path.join(__dirname, '..', 'site', '_ai-response.txt');
+        const debugPath = path.join(__dirname, '..', '_ai-response.txt');
         try { fs.writeFileSync(debugPath, e.lastText); } catch {}
         debug('Raw AI response saved to:', debugPath);
       }
-      // TICKET-148: classify outer fatal by error type to avoid the "Failed to
+      // TICKET-148: classify by error type to avoid the "Failed to
       // parse AI response as JSON" misnomer for Anthropic API overload errors.
-      if (/max_tokens hit/.test(e.message || '')) {
-        fatal('AI response was truncated (hit token limit) while planning the site.');
-      } else if (e.constructor?.name === 'APIError' || isRetryableApiError(e) || (e.status && e.status >= 400)) {
-        fatal(`AI service error: ${e.message}`);
-      } else if (e.lastText) {
-        fatal(`Failed to parse AI response as JSON after retries`);
-      } else {
-        fatal(`AI call failed: ${e.message}`);
-      }
+      // #1596 第 1–4 条 —— 这四种以前各是一句 fatal，现在都降级成代码拼的站级计划；之后每页那一通照常调 AI。
+      const why = /max_tokens hit/.test(e.message || '') ? 'AI response was truncated (hit token limit) while planning the site.'
+        : (e.constructor?.name === 'APIError' || isRetryableApiError(e) || (e.status && e.status >= 400)) ? `AI service error: ${e.message}`
+          : e.lastText ? 'Failed to parse AI response as JSON after retries'
+            : `AI call failed: ${e.message}`;
+      degrade('site-plan', 'site plan', `${why} —— 用代码拼的站级计划（home + services + 每个服务一页 + contact）`);
+      ai = fallbackSite.fallbackSitePlan({ companyName, services, location: rawLocation, address, phone, email, locale: locales.primary.code });
+      brandByCode = true;
+      // 第二语言的站级字也由代码给（同 §contactPageIn 对 contact 那一页）：给一份空的 ⟹ 写盘时每一格退回主语言那句通用话
+      // （§buildSecondaryContent「站级的字缺哪一格，那一格退回主语言」）。不给的话下面那段把整个第二语言放弃掉（PM 2026-10-06 A）。
+      ai.locales = Object.fromEntries(others.map((o) => [o.code, {}]));
+      response = null;
     }
-    const usage1 = response.usage || {};
+    // 站级那一通没成时没有回包 ⟹ 这一通按 0 记（#1596）。
+    const usage1 = (response && response.usage) || {};
     const cost1 = ((usage1.input_tokens || 0) * pricing.input + (usage1.output_tokens || 0) * pricing.output) / 1_000_000;
     const call1Duration = ((Date.now() - call1Start) / 1000).toFixed(1);
     debug(`Call 1 site plan cost: $${cost1.toFixed(4)} (${usage1.input_tokens} in / ${usage1.output_tokens} out, ${call1Duration}s)`);
@@ -2677,7 +2715,8 @@ ${FACTS_ONLY_FROM_FORM_RULE}
     }
 
     // 站级回包里的页面清单：每页要有 slug（文件名就是它）。sections 不归这一通管 —— 写回来了也丢掉，由下面每页那一通写。
-    ai.pages = (Array.isArray(ai && ai.pages) ? ai.pages : []).filter((p) => p && typeof p === 'object' && typeof p.slug === 'string' && p.slug.trim());
+    if (!ai || typeof ai !== 'object' || Array.isArray(ai)) ai = {}; // 回包不是对象 ⟹ 当成什么都没给（第 5 条接住）
+    ai.pages = (Array.isArray(ai.pages) ? ai.pages : []).filter((p) => p && typeof p === 'object' && typeof p.slug === 'string' && p.slug.trim());
     for (const p of ai.pages) delete p.sections;
     // #1568 r2 —— 关键词页不归这一通：它写进页面清单的关键词页丢掉（Call 2 按 T6 的计划建，否则同一个词两张页、两份调用费）。
     //    放在收服务 id 之前：判「是不是服务详情页」用的是这一通回来的原样 id。
@@ -2691,7 +2730,16 @@ ${FACTS_ONLY_FROM_FORM_RULE}
       for (const d of dropped) debug(`[pages] 站级回包里的「${d.slug}」${d.why} ⟹ 丢掉，关键词页由代码按计划建（#1568）`);
       ai.pages = kept;
     }
-    if (!ai.pages.length) fatal('The site plan from the AI has no pages (#1568: Call 1 site-level answer without a usable "pages" list).');
+    // #1596 第 5 条 —— 回包里别的字段照用，只有页面清单换成代码拼的那份（缺的站级字段也从那份里补，免得下面读到 undefined）。
+    if (!ai.pages.length) {
+      degrade('site-plan-pages', 'pages', 'The site plan from the AI has no pages (#1568: Call 1 site-level answer without a usable "pages" list) —— 页面清单换成代码拼的那份');
+      const plan = fallbackSite.fallbackSitePlan({ companyName, services, location: rawLocation, address, phone, email, locale: locales.primary.code });
+      if (!ai.brand || typeof ai.brand !== 'object') brandByCode = true;
+      for (const k of ['brand', 'seo', 'navigation']) if (!ai[k] || typeof ai[k] !== 'object') ai[k] = plan[k];
+      if (!Array.isArray(ai.services) || !ai.services.some((s) => s && typeof s.id === 'string' && s.id)) ai.services = plan.services;
+      ai.pages = fallbackSite.fallbackPages({ companyName, services: ai.services, location: rawLocation, locale: locales.primary.code });
+      ai.navigation.ctaPage = 'contact'; // 这份清单里唯一的联系页
+    }
 
     // #1565 —— 服务 id 是 AI 写的，会原样变成文件名（pages/services/<id>.json）：收进跟关键词页 slug 同一个上限。
     //    #1568 —— 放在站级那一通之后、每页那几通之前：每页的提示词里给的就是收过的 id（链接按它写）。
@@ -2699,7 +2747,7 @@ ${FACTS_ONLY_FROM_FORM_RULE}
     for (const r of idRenames) {
       debug(`[services] AI 写的服务 id 有 ${Buffer.byteLength(r.from)} 字节，超过文件名能放的上限，网址改用 ${r.to}（${Buffer.byteLength(r.to)} 字节）`);
     }
-    checkpoint('plan', { ai, idRenames });
+    checkpoint('plan', { ai, idRenames, brandByCode });
   }
 
   // ── #1598 pages 阶段：每页一通 + 整站那一条块库检查。pages 已存档 ⟹ 整段跳过（存档里那份 ai 每页都已带着 sections）。
@@ -2812,12 +2860,21 @@ ${rules}${others.length ? `\n\n${localesLib.languagesPrompt({
     };
     const N = ai.pages.length;
     // 提示词**先全部算好、全部发出去**，再开始调用：发射顺序 = 页面清单的顺序（日志可读、可比），
-    // 而且任何一页建站失败（fatal 当场退出）都不会让后面那几页的提示词从日志里消失。
+    // 而且进程中途退出（真正的程序错误走到兜底 catch）时，后面那几页的提示词也不会从日志里消失。
     const prompts = ai.pages.map((p) => pagePromptFor(p));
     ai.pages.forEach((p, i) => emit('prompt', { name: `Page: ${p.slug}`, content: prompts[i] }));
     debug(`[pages] 站级那一通给了 ${N} 页：${ai.pages.map((p) => p.slug).join(' · ')}；每页一次调用，≤${PAGE_CONCURRENCY} 页同时在飞`);
 
-    const pageFatal = (i, why) => fatal(`Page ${i + 1}/${N} "${ai.pages[i].slug}" could not be generated after one retry (#1568): ${why}`);
+    // #1596 第 6 条 —— 这一页两次都没生成好 ⟹ 发骨架页（lib/fallback-site.js §skeletonSections：中性句式，事实只从 payload / 站级计划取），
+    //    标 `seo.placeholder: true`（seoPass 跳过它，不花一次 AI 重写占位文案），记一笔降级。以前这里是整站失败。
+    const pageSkeleton = (i, why) => {
+      const page = ai.pages[i];
+      degrade('page', page.slug, `Page ${i + 1}/${N} "${page.slug}" could not be generated after one retry (#1568): ${why} —— 发骨架页`);
+      page.seo = { ...(page.seo && typeof page.seo === 'object' ? page.seo : {}), placeholder: true };
+      pagesDone += 1;
+      progress(`Page ${pagesDone}/${N} written: ${page.slug}`, 25 + Math.round((15 * pagesDone) / N));
+      return fallbackSite.skeletonSections(page, { companyName, sitePages: ai.pages, ctaPage: ai.navigation && ai.navigation.ctaPage, disabledBlocks });
+    };
     let pagesDone = 0;
     const onePage = async (i) => {
       const page = ai.pages[i];
@@ -2889,9 +2946,9 @@ ${rules}${others.length ? `\n\n${localesLib.languagesPrompt({
         // 调不通（截断 / API 错 / 解析不了）⟹ 重来一次这一页，别的页不动。
         debug(`[pages] ${where} 调用失败：${e.message} —— 重试第 ${i + 1} 页`);
         let retried;
-        try { retried = await call([{ role: 'user', content: prompts[i] }], `Page ${page.slug} (retry)`); } catch (e2) { return pageFatal(i, `AI call failed twice: ${e2.message}`); }
+        try { retried = await call([{ role: 'user', content: prompts[i] }], `Page ${page.slug} (retry)`); } catch (e2) { return pageSkeleton(i, `AI call failed twice: ${e2.message}`); }
         const p = problemsOf(retried.sections);
-        if (p.block.length) return pageFatal(i, `the retry still breaks the block library:\n  ${p.block.join('\n  ')}`);
+        if (p.block.length) return pageSkeleton(i, `the retry still breaks the block library:\n  ${p.block.join('\n  ')}`);
         if (p.skin.length) debug(`[fingerprint] ⚠️  ${where} 首页开场仍跟配方对不上,放行:\n  ${p.skin.join('\n  ')}`);
         return finish(retried.sections, [retried]);
       }
@@ -2912,14 +2969,14 @@ ${rules}${others.length ? `\n\n${localesLib.languagesPrompt({
       } catch (e) {
         // 块库干净时第一次那份本来就能用（骨架问题不让建站失败，见下面 afterRetry 那一段；第二语言对不上只放弃那个语言）。
         if (!p1.block.length) { debug(`[pages] ⚠️  ${where} 为骨架 / 第二语言发起的重试调不通（${e.message}），用第一次那份`); return finish(first.sections, [first]); }
-        return pageFatal(i, `AI call failed on the retry: ${e.message}`);
+        return pageSkeleton(i, `AI call failed on the retry: ${e.message}`);
       }
       const p2 = problemsOf(second.sections);
-      // #1034 —— 判决写在 lib/homepage-recipe.js 的 afterRetry() 里:'fatal' = 块库两次都不合格;
+      // #1034 —— 判决写在 lib/homepage-recipe.js 的 afterRetry() 里:'skeleton' = 块库两次都不合格（#1596 起发骨架页，以前是 fatal）;
       // 'revert' = 第一次块库干净、只因骨架撞车（或第二语言对不上）才重试，而重试把块库改坏了 ⟹ 退回第一次。
       switch (afterRetry({ firstBlockProblems: p1.block.length, retryBlockProblems: p2.block.length })) {
-        case 'fatal':
-          return pageFatal(i, `this page's layout still breaks the block library after a retry:\n  ${p2.block.join('\n  ')}`);
+        case 'skeleton':
+          return pageSkeleton(i, `this page's layout still breaks the block library after a retry:\n  ${p2.block.join('\n  ')}`);
         case 'revert':
           debug(`[fingerprint] ⚠️  ${where} 重试(块库本来干净)把块库改坏了 ${p2.block.length} 处,退回第一次那份:\n  ${p2.block.join('\n  ')}`);
           return finish(first.sections, [second, first]);
@@ -2936,21 +2993,26 @@ ${rules}${others.length ? `\n\n${localesLib.languagesPrompt({
 
     // ── 全站那一条（#999 第 ④ 条「整个站里没有 X」）：只有全部页都回来才问得了 ──────────────────────────────
     //    每页自己的毛病上面已经一页一页清掉了，这里剩下的只会是全站那一条。它交给首页那一通补一次（行业必需的块放首页最自然）；
-    //    补完仍缺 ⟹ 建站失败（同 #999：再重试等于把「AI 今天不听话」变成看不见的账单）。
+    //    补完仍缺 ⟹ 原样发 + 每个缺的块一笔降级（#1596 第 7 条；以前是建站失败）。不再重试（同 #999：再重试等于把「AI 今天不听话」变成看不见的账单）。
     {
       const whole = validateBlocks({ pages: ai.pages, industry, disabledBlocks, forms });
       // #1013 洞 1 —— 行业是自由文本，认不出来的写法一定存在；认不出来时这条检查的射程要说出来。
       for (const w of whole.warnings) debug(`[blocks] ⚠️  ${w}`);
       debug(`[blocks] 行业 "${industry}" 认出来是: ${whole.industryKeys.join(' / ') || '（一个都没认出来）'}`);
       if (whole.problems.length) {
-        const hi = ai.pages.findIndex((p) => p.slug === 'home');
-        const fixAt = hi >= 0 ? hi : 0;
-        const target = ai.pages[fixAt];
-        debug(`[blocks] 全部页回来之后整站还有 ${whole.problems.length} 处不合规，让第 ${fixAt + 1} 页（${target.slug}）补一次:\n  ${whole.problems.join('\n  ')}`);
+        // #1596 r5 —— 骨架页（§pageSkeleton，`seo.placeholder: true`）不交给 AI 补：补过的块会顶掉骨架、placeholder 却留着 ⟹
+        //    seoPass 跳过一页真 AI 内容，降级记录还说它是骨架页。首页是骨架 ⟹ 换第一张不是骨架的页补；全是骨架 ⟹ 不调 AI，按「补不上」记降级。
+        const isSkeleton = (p) => !!(p.seo && p.seo.placeholder === true);
+        const hi = ai.pages.findIndex((p) => p.slug === 'home' && !isSkeleton(p));
+        const fixAt = hi >= 0 ? hi : ai.pages.findIndex((p) => !isSkeleton(p));
+        const target = fixAt >= 0 ? ai.pages[fixAt] : null;
+        debug(target
+          ? `[blocks] 全部页回来之后整站还有 ${whole.problems.length} 处不合规，让第 ${fixAt + 1} 页（${target.slug}）补一次:\n  ${whole.problems.join('\n  ')}`
+          : `[blocks] 全部页回来之后整站还有 ${whole.problems.length} 处不合规，而每一页都是骨架页 ⟹ 不补:\n  ${whole.problems.join('\n  ')}`);
         progress('Checking the layout against the block library...', 40);
         let fixed = null;
         let fixedOthers = {};
-        try {
+        if (target) try {
           // #1593 —— 有第二语言时这一页的回包是按语言分组的（提示词 prompts[fixAt] 里写着），重查这一通照样要全部语言回来。
           const echo = otherCodes.length
             ? { [locales.primary.code]: { sections: target.sections }, ...Object.fromEntries(otherCodes.map((loc) => {
@@ -2982,35 +3044,52 @@ ${rules}${others.length ? `\n\n${localesLib.languagesPrompt({
         } catch (e) {
           debug(`[blocks] 补的那一通调不通：${e.message}`);
         }
+        // 用补过的那组块：#1593 —— 这一页换了一组新块，第二语言那几份按新块重新挂；对不上 ⟹ 放弃那个第二语言（这一页没有可用的第二语言版本）。
+        const useFixed = () => {
+          target.sections = fixed;
+          for (const loc of otherCodes) {
+            if (book.failed.has(loc)) continue;
+            const kw = typeof pageKeywords[target.slug] === 'string' ? pageKeywords[target.slug] : '';
+            const p = localesLib.secondaryPageProblems({ page: target, sections: fixed, group: fixedOthers[loc], needKeyword: !!kw });
+            if (p.length) {
+              book.fail(loc, `page "${target.slug}" (site re-check): ${p.join('; ')}`);
+              debug(`[locales] 整站补块那一通的 ${loc} 那一份对不上主语言（${p.join('; ')}）⟹ 放弃整个第二语言 ${loc}，主语言照常`);
+            } else {
+              book.link(target, fixed, loc, fixedOthers[loc]);
+            }
+          }
+        };
         const trial = ai.pages.map((p, i) => (i === fixAt && fixed ? { ...p, sections: fixed } : p));
         const after = validateBlocks({ pages: trial, industry, disabledBlocks, forms }).problems;
         if (!fixed || after.length) {
-          fatal(`The generated layout still breaks the block library after a retry:\n  ${(after.length ? after : whole.problems).join('\n  ')}`);
-        }
-        target.sections = fixed;
-        // #1593 —— 这一页换了一组新块：第二语言那几份按新块重新挂；对不上 ⟹ 放弃那个第二语言（这一页没有可用的第二语言版本）。
-        for (const loc of otherCodes) {
-          if (book.failed.has(loc)) continue;
-          const kw = typeof pageKeywords[target.slug] === 'string' ? pageKeywords[target.slug] : '';
-          const p = localesLib.secondaryPageProblems({ page: target, sections: fixed, group: fixedOthers[loc], needKeyword: !!kw });
-          if (p.length) {
-            book.fail(loc, `page "${target.slug}" (site re-check): ${p.join('; ')}`);
-            debug(`[locales] 整站补块那一通的 ${loc} 那一份对不上主语言（${p.join('; ')}）⟹ 放弃整个第二语言 ${loc}，主语言照常`);
-          } else {
-            book.link(target, fixed, loc, fixedOthers[loc]);
+          // #1596 第 7 条 —— 补不上：不补块（代码不往站里塞一块占位），原样发，每个仍缺的块记一笔降级（target = 块名）。
+          //    补的那一通若把这一页改出了新的逐块问题，丢掉补的那份、用补之前的这一页；没改坏就用补过的那份。
+          if (fixed) {
+            const editProblems = (pg) => validateBlocks({ pages: [pg], industry, disabledBlocks, forms, scope: 'edit' }).problems;
+            const before = new Set(editProblems(target));
+            const added = editProblems({ ...target, sections: fixed }).filter((x) => !before.has(x));
+            if (added.length) debug(`[blocks] 补的那一通把 ${target.slug} 改出 ${added.length} 处逐块问题，丢掉、用补之前那一页:\n  ${added.join('\n  ')}`);
+            else useFixed();
           }
+          const left = validateBlocks({ pages: ai.pages, industry, disabledBlocks, forms }).problems;
+          const missing = fallbackSite.missingBlockTypes(left.length ? left : whole.problems);
+          for (const t of missing.length ? missing : ['site']) { // 取不出块名也至少记一笔，不静默放过
+            degrade('site-blocks', t, `The generated layout still breaks the block library after a retry: ${(left.length ? left : whole.problems).join(' · ')} —— 原样发，不补块`);
+          }
+        } else {
+          useFixed();
+          if (target.slug === 'home' && homeRecipe) {
+            const skin = recipeProblems(ai.pages, homeRecipe);
+            if (skin.length) debug(`[fingerprint] ⚠️  补过之后首页开场跟配方对不上,放行:\n  ${skin.join('\n  ')}`);
+          }
+          debug('[blocks] 补过之后块库检查全部通过');
         }
-        if (target.slug === 'home' && homeRecipe) {
-          const skin = recipeProblems(ai.pages, homeRecipe);
-          if (skin.length) debug(`[fingerprint] ⚠️  补过之后首页开场跟配方对不上,放行:\n  ${skin.join('\n  ')}`);
-        }
-        debug('[blocks] 补过之后块库检查全部通过');
       }
       // 没写 role 的块按 manifest 的 roleDefault 补上（D4 的兜底那一半;上面那条只拦"写了但降级"）。
       const filled = applyBlockRoleDefaults(ai.pages);
       debug(`[blocks] 校验通过;按 roleDefault 补了 ${filled} 个 role`);
     }
-    checkpoint('pages', { ai });
+    checkpoint('pages', { ai, brandByCode });
   }
 
   progress('Parsing AI response...', 42);
@@ -3044,6 +3123,8 @@ ${rules}${others.length ? `\n\n${localesLib.languagesPrompt({
     googleFormUrl: "https://docs.google.com/forms/d/e/YOUR_FORM_ID/viewform",
     googleFormEntries: { source: "entry.0000000000", services: "entry.0000000000", propertyType: "entry.0000000000", urgency: "entry.0000000000" }
   };
+  // #1596 —— 代码拼的站级计划那条路：payload 没给邮箱 ⟹ 没有这个键（上面那个 'info@example.com' 兜底是 AI 那条路的既有行为，不动）。
+  if (brandByCode && !ai.brand.email) delete brand.email;
 
   // Write socialLinks to brand.json deterministically (not relying on Claude prompt)
   if (onlinePresence && onlinePresence.socialLinks) {
@@ -3380,10 +3461,11 @@ async function generateKeywordPages(opts) {
  *   ② 一个服务下的关键词页一页都没留下：代码补的服务（PM ①(b)）撤掉、重算 seo.targetKeywords；AI 自己写的详情页留着，
  *      拿掉它上面指向这个服务的空列表。（PM 02:08 约束 1：组里没有页就没有父路径要立。）
  *   ③ 有关键词页留下来的服务，`/services/<id>` 必须存在并列出它下面的全部关键词页 —— 由代码保证，不靠提示词（正文做什么 4）。
- *      代码补出来的详情页**单独再过一次 seoPass**（同样的八条、重写一次、仍不合格建站失败 —— 跟 AI 写的服务页同一个待遇）。
- *      放在主 seoPass 之后补，是为了不让「下面一页都没留下」的服务因为一张本该撤掉的页建站失败。
+ *      代码补出来的详情页**单独再过一次 seoPass**（同样的八条、修补一次、仍不合格照发 + 一笔降级 —— 跟 AI 写的服务页同一个待遇）。
+ *      放在主 seoPass 之后补，是为了不让「下面一页都没留下」的服务因为一张本该撤掉的页多出一页、多记降级。
+ *      #1596 第 8–9 条：补不出来 / 补出来的块不合格 ⟹ 丢掉那个服务下的关键词页 + 一笔降级（以前是建站失败）。
  *   ④ 再跑一次 §ensureServiceDetailPages 只为把列表那一组指回 `under = services/<id>`：seoPass 重写过的详情页，回来的那一份里
- *      这一组不一定还对。这一次不该再补出页来（详情页是非关键词页，seoPass 不丢它），补出来了就是逻辑出错，建站失败。
+ *      这一组不一定还对。这一次不该再补出页来（详情页是非关键词页，seoPass 不丢它），补出来了就是逻辑出错 ⟹ #1596 第 10 条：拿掉它、丢掉那个服务下的关键词页 + 一笔降级（以前是建站失败）。
  *   ⑤ 兄弟页那一组、相似度、页脚栏都按留下来的页算。兄弟页加在 seoPass 之后：多一个 H2 不碰八条里任何一条。
  */
 async function finishKeywordPages({
@@ -3400,9 +3482,29 @@ async function finishKeywordPages({
   //    后面 §addRelatedBlocks 就地改 `r.page`，所以光改判据不够，引用本身也得换。
   const current = new Map(content.pages.map((p) => [p.slug, p]));
   for (const r of kwOk) if (current.has(r.entry.path)) r.page = current.get(r.entry.path);
-  const kept = kwOk.filter((r) => !goneSlugs.has(r.entry.path) && current.has(r.entry.path));
+  let kept = kwOk.filter((r) => !goneSlugs.has(r.entry.path) && current.has(r.entry.path));
   kwReport.ok = kept.length;
   const keptServiceIds = [...new Set(kept.map((r) => r.entry.serviceId))];
+
+  // #1596 第 8–10 条 —— 关键词页的父页（服务详情页）出了问题：丢掉那几个服务下的关键词页，每个服务记一笔降级
+  //    （reason 里写「关键词页 N/M」）。以前这三处各是一句 fatal。代码补的服务下面一页都没留下就撤掉，父页上那组空列表拿掉（同 ②）。
+  const dropKeywordPagesUnder = (ids, step, why) => {
+    const gone = new Set(ids);
+    const lost = kept.filter((r) => gone.has(r.entry.serviceId));
+    const lostSlugs = new Set(lost.map((r) => r.entry.path));
+    content.pages = content.pages.filter((p) => !lostSlugs.has(p.slug));
+    for (const r of lost) kwReport.failed.push({ keyword: r.entry.keyword, slug: r.entry.path, problems: [why] });
+    kept = kept.filter((r) => !gone.has(r.entry.serviceId));
+    kwReport.ok = kept.length;
+    for (const id of ids) {
+      if (kwReport.addedServices.some((a) => a.id === id)) {
+        content.services = content.services.filter((x) => x.id !== id);
+        kwReport.addedServices = kwReport.addedServices.filter((a) => a.id !== id);
+      }
+      kwPages.removePagesListBlocks(content.pages.find((p) => p.slug === `services/${id}`), id);
+      degrade(step, `services/${id}`, `${why} —— 丢掉这个服务下的关键词页（关键词页 ${kwReport.ok}/${kwReport.total}）`);
+    }
+  };
 
   // ②
   for (const id of [...new Set(kwOk.map((r) => r.entry.serviceId))].filter((x) => !keptServiceIds.includes(x))) {
@@ -3418,7 +3520,7 @@ async function finishKeywordPages({
   // ③
   const detail = kwPages.ensureServiceDetailPages({ pages: content.pages, services: content.services, serviceIds: keptServiceIds, locale, disabledBlocks });
   if (detail.failed.length) {
-    fatal(`关键词页的父页面补不出来：服务 ${detail.failed.join(', ')} 在服务目录里没有（或没有名字），/services/<id> 会是 404`);
+    dropKeywordPagesUnder(detail.failed, 'keyword-parent', `关键词页的父页面补不出来：服务 ${detail.failed.join(', ')} 在服务目录里没有（或没有名字），/services/<id> 会是 404`);
   }
   if (detail.patched.length) debug(`[keyword-pages] 详情页上「下面的关键词页」那组由代码填（under = services/<id>）：${detail.patched.join(', ')}`);
   const assignment = assign();
@@ -3426,9 +3528,17 @@ async function finishKeywordPages({
   if (detail.added.length) {
     debug(`[keyword-pages] AI 没给这些服务生成详情页，代码补上了：${detail.added.map((id) => `/services/${id}`).join(', ')}`);
     const addedSlugs = new Set(detail.added.map((id) => `services/${id}`));
-    const fresh = content.pages.filter((p) => addedSlugs.has(p.slug));
+    let fresh = content.pages.filter((p) => addedSlugs.has(p.slug));
     const issues = validateBlocks({ pages: fresh, industry, disabledBlocks, forms: siteFormsFrom(content.ai && content.ai.forms), scope: 'edit' }).problems;
-    if (issues.length) fatal(`代码补出来的服务详情页过不了块库检查：\n  ${issues.join('\n  ')}`);
+    if (issues.length) {
+      // 过不了的那几张详情页拿掉，它们服务下的关键词页一起丢（父页不在就是 404）。问题归不到哪一页时当作全部不合格。
+      let bad = fresh.filter((p) => issues.some((x) => x.startsWith(`${p.slug} `)));
+      if (!bad.length) bad = fresh;
+      const badSlugs = new Set(bad.map((p) => p.slug));
+      content.pages = content.pages.filter((p) => !badSlugs.has(p.slug));
+      fresh = fresh.filter((p) => !badSlugs.has(p.slug));
+      dropKeywordPagesUnder(bad.map((p) => p.slug.replace(/^services\//, '')), 'keyword-parent-blocks', `代码补出来的服务详情页过不了块库检查：${issues.join(' · ')}`);
+    }
     targetKw.applyPageKeywords(fresh, assignment.pageKeywords);
     for (const pg of fresh) {
       if (ensureH2Slots(pg, content.services.find((x) => x.id === pg.parentService), disabledBlocks)) debug(`[keyword-pages] ${pg.slug} 只有 1 个 H2 槽 ⟹ 补一个 content 块给 SEO 修补写标题（#1593）`);
@@ -3444,9 +3554,13 @@ async function finishKeywordPages({
   }
 
   // ④
-  const again = kwPages.ensureServiceDetailPages({ pages: content.pages, services: content.services, serviceIds: keptServiceIds, locale, disabledBlocks });
+  const again = kwPages.ensureServiceDetailPages({ pages: content.pages, services: content.services, serviceIds: [...new Set(kept.map((r) => r.entry.serviceId))], locale, disabledBlocks });
   if (again.added.length || again.failed.length) {
-    fatal(`seoPass 之后服务详情页不见了：${[...again.added, ...again.failed].map((id) => `/services/${id}`).join(', ')}`);
+    // 这一次补回来的详情页没过 SEO 检查 ⟹ 也拿掉，回到 seoPass 之后的样子；它们服务下的关键词页丢掉。
+    const reAdded = new Set(again.added.map((id) => `services/${id}`));
+    content.pages = content.pages.filter((p) => !reAdded.has(p.slug));
+    const ids = [...again.added, ...again.failed];
+    dropKeywordPagesUnder(ids, 'keyword-parent-after-seo', `seoPass 之后服务详情页不见了：${ids.map((id) => `/services/${id}`).join(', ')}`);
   }
   if (again.patched.length) debug(`[keyword-pages] seoPass 重写过的详情页，列表那一组重新指回 under = services/<id>：${again.patched.join(', ')}`);
 
@@ -3478,8 +3592,10 @@ async function finishKeywordPages({
 //     没有字段可改的问题（第 3 条 H1 个数、第 5 条 slug）不发修补调用，直接按「修补后仍不合格」处置。
 //     修补回来的字若让这一页新增块库问题（比如超了某个块的字数上限），这次修补作废、用原来的字。
 //   · 主语言修补一次仍不合格 ⟹ 关键词页丢掉（日志「丢掉 <slug>：…」+「关键词页 N/M」，页脚里指向它的链接一起删）；
-//     首页 / 服务页 / 没有目标词的页 ⟹ 建站失败，信息写明哪页哪条（T2 #1596 落地后改成降级，那张票改这里）。
+//     首页 / 服务页 / 没有目标词的页 ⟹ 页面照发、每页记一笔降级（#1596 第 11 条；以前是建站失败），信息写明哪页哪条。
+//     没有目标词的页不丢：它们在导航里，丢了就是站内死链。
 //   · 第二语言修补一次仍不合格 ⟹ 记日志、照常发布，不丢页、不让建站失败（第二语言从不拦主语言）。
+//   · #1596 —— 骨架页（`seo.placeholder: true`，§pageSkeleton）不进检查：修补占位文案只是多花一次 AI，它已经有自己那一笔降级。
 //   · 「关键词页 N/M」只进日志和 `seo-check` 事件（只有主语言发）。建站页显示的是 #1550 的 `keyword-pages` 事件。
 
 /** 一页的目标词（T4 #1548 挂在 `page.seo.targetKeyword`）。 */
@@ -3691,8 +3807,9 @@ async function fixPageFieldsForSeo(args) {
 
 /**
  * 每一页：代码补（长度 / 地点）→ 检查 → 有问题字段级修补一次 → 再补、再查 → 处置。就地改 `content`（页、seo、页脚）。
- * 主语言建站失败时 fatal()；`secondary: true`（第二语言）只记日志、不丢页、不失败、不发 seo-check 事件。
- * 回 `{ checked, rewritten, dropped, fatalPages, pages }`（单测读它）；`pages` 是逐页的首查 / 复查结果（#1600 建站报告读它）。
+ * 从不让建站失败（#1596）：主语言修补一次仍不合格的关键词页丢掉，其余页照发并各记一笔降级；
+ * `secondary: true`（第二语言）只记日志、不丢页、不发 seo-check 事件。骨架页（`seo.placeholder`）不查。
+ * 回 `{ checked, rewritten, dropped, degradedPages, pages }`（单测读它）；`pages` 是逐页的首查 / 复查结果（#1600 建站报告读它）。
  * 🔴 `rewritten` 这个键名是 T8 #1600 的建站报告「修补页数 / 总页数」取数的地方（§lib/build-report.js recordSeo），#1593 起含义是
  *    「做了字段级修补的页数」，不再是「整页重写过的页数」；`pages[].rewritten` 同一个意思（这一页的字段被修补写回了）。
  *    第二语言那一次（`secondary: true`）的结果**不**记进报告：它的页跟主语言同 slug，recordSeo 按 slug 合并会盖掉主语言那几行。
@@ -3709,6 +3826,10 @@ async function seoPass({ content, payload, locale, industry, location, companyNa
   // #1600 —— 逐页结果（首查 / 复查）给建站报告：只记录，不参与下面任何判断。
   const perPage = new Map();
   for (const page of content.pages) {
+    if (page.seo && page.seo.placeholder === true) {
+      debug(`${who} 跳过 ${page.slug}：骨架页（占位文案，已记一笔降级）`);
+      continue;
+    }
     const problems = seoCheckPage({ page, ...ctx });
     const kw = seoTargetOf(page);
     perPage.set(page.slug, {
@@ -3738,7 +3859,7 @@ async function seoPass({ content, payload, locale, industry, location, companyNa
   }));
 
   const dropped = [];
-  const fatalPages = [];
+  const degradedPages = [];
   const unresolved = [];
   let rewritten = 0;
   for (const { page, fields, out } of fixes) {
@@ -3774,12 +3895,12 @@ async function seoPass({ content, payload, locale, industry, location, companyNa
       dropped.push({ slug: page.slug, keyword: seoTargetOf(page), problems: after });
       debug(`[seo] 丢掉 ${page.slug}：${after.join(' · ')}`);
     } else {
-      fatalPages.push({ slug: page.slug, problems: after });
+      degradedPages.push({ slug: page.slug, problems: after });
     }
   }
   if (secondary) {
     debug(`${who} ${content.pages.length} 页 · 字段级修补 ${rewritten} 页 · 修补后仍不合格 ${unresolved.length} 页（照常发布）`);
-    return { checked: content.pages.length, rewritten, dropped, fatalPages, unresolved, pages: [...perPage.values()] };
+    return { checked: content.pages.length, rewritten, dropped, degradedPages, unresolved, pages: [...perPage.values()] };
   }
   buildStats.addSeoFixed(rewritten);
 
@@ -3806,14 +3927,16 @@ async function seoPass({ content, payload, locale, industry, location, companyNa
     keywordPages: { ok: kept, total: planned },
   });
 
-  if (fatalPages.length) {
-    fatal(`SEO check failed after one rewrite (#1549) —\n${fatalPages.map((f) => `  ${f.slug}:\n    ${f.problems.join('\n    ')}`).join('\n')}`);
+  // #1596 第 11 条 —— 以前这里是整站失败；现在页面照发，每页记一笔（问题原样写进 reason）。
+  for (const f of degradedPages) {
+    degrade('seo', f.slug, `SEO check failed after one rewrite (#1549): ${f.problems.join(' · ')} —— 页面照发`);
   }
-  return { checked: content.pages.length + dropped.length, rewritten, dropped, fatalPages, pages: [...perPage.values()] };
+  return { checked: content.pages.length + dropped.length, rewritten, dropped, degradedPages, pages: [...perPage.values()] };
 }
 
 // ─── Run ──────────────────────────────────────────────────────────────────────
 
 main().catch(err => {
+  // #1596 —— 前面的路都降级之后，走到这里的只剩真正的程序错误（读输入 / 输入、主题、凭据校验 / git commit 与读回那次提交（#1598）那几处是有意留着的 fatal）。
   fatal(err.stack || err.message || String(err));
 });

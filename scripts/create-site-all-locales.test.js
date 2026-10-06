@@ -10,7 +10,7 @@
 //   AC1c 哪些格子取主语言      按「值在块里是什么」判（r2，QA2 打回）：team / testimonials 的 role 是字 ⟹ 取各自那份；颜色槽（featuredColor / bg）
 //                               是版式 ⟹ 取主语言，第二语言没写也不算「坏了」；块那一层的 role、引用写法、_sourced 取主语言；块 type 对不上算坏
 //   AC1b 整站补块那一通        首页重查的回包也按语言分组：两种语言一起补；en 那份没补 ⟹ 放弃 en、主语言照常
-//   AC2 第二语言那份坏了        en 缺字段、重试仍缺 ⟹ 建站成功、site/zh 全在、site/en 不存在、一次 secondary-locale-failed（en）；反向：zh 缺 ⟹ 建站失败（pageFatal 那句）
+//   AC2 第二语言那份坏了        en 缺字段、重试仍缺 ⟹ 建站成功、site/zh 全在、site/en 不存在、一次 secondary-locale-failed（en）；反向：zh 缺 ⟹ #1596 起是骨架页 + degraded（en 那一页也由代码拼，不丢 en）
 //   AC3 第二语言修补仍不合格    en 某页 description 缺目标词、修补回包仍缺 ⟹ 建站成功、这一页照常写进 site/en、日志有这一页没过的记录
 //   AC4 字段级修补              description 缺目标词 ⟹ 一次修补、detail 以 SEO fix 开头、提示词无别的块文案、回包只有 description、页面除 description 外不变；
 //                               只缺地点 ⟹ 零次修补；中文站提示词里是 50–80 chars
@@ -491,9 +491,22 @@ check('发了一次 secondary-locale-failed，locale 为 en', () => {
   assert.ok(!B.events.some((e) => e.event === 'secondary-locale-success'));
 });
 const B2 = run('ac2r', PAYLOAD(), { ...fixture(), badPrimary: { about: 2 } });
-check('反向：zh 那一份缺 sections、重试仍缺 ⟹ 建站失败，报错是 pageFatal 那句', () => {
-  assert.notStrictEqual(B2.rc, 0);
-  assert.ok(/^Page \d+\/\d+ "about" could not be generated after one retry \(#1568\)/.test(B2.error), B2.error);
+// 🔴 #1596 有意推翻这一格（PM 2026-10-06 06:47 裁定 #1596 赢、授权改它）：#1593 落地时它断言的是「建站失败、报错是 pageFatal
+//    那句」；#1596 第 6 条把那一页改成骨架页 + 一条 degraded，而且 #1596 AC8 要求第二语言那一页也由代码拼（不丢整个 en）。
+check('反向：zh 那一份缺 sections、重试仍缺 ⟹ 建站成功，about 是骨架页 + 一条 degraded（#1596 起不再建站失败）', () => {
+  assert.strictEqual(B2.error, '');
+  assert.strictEqual(B2.rc, 0, B2.stderr.slice(-800));
+  const d = B2.events.filter((e) => e.event === 'degraded');
+  assert.deepStrictEqual(d.map((x) => [x.step, x.target]), [['page', 'about']], JSON.stringify(d));
+  assert.ok(/^Page \d+\/\d+ "about" could not be generated after one retry \(#1568\)/.test(d[0].reason), d[0].reason);
+  assert.strictEqual(((B2.pagesOf('zh') || {}).about || {}).seo.placeholder, true);
+});
+check('反向（#1596 AC8）：第二语言没被放弃 —— site/en 的页面集合 = site/zh，en 的 about 也是骨架页，0 条 secondary-locale-failed', () => {
+  const z = B2.pagesOf('zh') || {};
+  const e = B2.pagesOf('en') || {};
+  assert.deepStrictEqual(Object.keys(e).sort(), Object.keys(z).sort());
+  assert.strictEqual(e.about.seo.placeholder, true);
+  assert.ok(!B2.events.some((x) => x.event === 'secondary-locale-failed'));
 });
 
 // ── AC3 ─────────────────────────────────────────────────────────────────────────────────────────

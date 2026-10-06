@@ -37,19 +37,24 @@ export function LocalBusinessJsonLd({ locale }: { locale: string }) {
     url: seo.domain,
     telephone: loc?.phone,
     email: brand.email,
-    areaServed: seo.schema.areaServed.map((area) => ({
-      '@type': area.type,
-      name: area.name,
-    })),
+    // #1596 —— 代码拼的站级计划（站级那一通失败时）只写老板给过的：没给地点 ⟹ areaServed / addresses 是空的，整项不出。
+    ...(seo.schema.areaServed.length ? {
+      areaServed: seo.schema.areaServed.map((area) => ({
+        '@type': area.type,
+        name: area.name,
+      })),
+    } : {}),
     // 街道 / 邮编只有一份（第一个地点的），挂在第一个地址上。
-    address: seo.schema.addresses.map((addr, i) => ({
-      '@type': 'PostalAddress',
-      ...(i === 0 && loc?.streetAddress ? { streetAddress: loc.streetAddress } : {}),
-      addressLocality: addr.locality,
-      addressRegion: addr.region,
-      ...(i === 0 && loc?.postalCode ? { postalCode: loc.postalCode } : {}),
-      addressCountry: addr.country,
-    })),
+    ...(seo.schema.addresses.length ? {
+      address: seo.schema.addresses.map((addr, i) => ({
+        '@type': 'PostalAddress',
+        ...(i === 0 && loc?.streetAddress ? { streetAddress: loc.streetAddress } : {}),
+        addressLocality: addr.locality,
+        addressRegion: addr.region,
+        ...(i === 0 && loc?.postalCode ? { postalCode: loc.postalCode } : {}),
+        addressCountry: addr.country,
+      })),
+    } : {}),
     ...(geo ? { geo: { '@type': 'GeoCoordinates', latitude: geo.lat, longitude: geo.lng } } : {}),
     ...(sameAs.length ? { sameAs } : {}),
     hasOfferCatalog: {
@@ -64,7 +69,7 @@ export function LocalBusinessJsonLd({ locale }: { locale: string }) {
         },
       })),
     },
-    priceRange: seo.schema.priceRange,
+    ...(seo.schema.priceRange ? { priceRange: seo.schema.priceRange } : {}),
     ...(segments.length ? {
       openingHoursSpecification: segments.map((seg) => ({
         '@type': 'OpeningHoursSpecification',
@@ -121,10 +126,12 @@ export function ServiceJsonLd({ locale, serviceName, serviceDescription, service
     name: serviceName,
     description: serviceDescription,
     url: serviceUrl,
-    areaServed: seo.schema.areaServed.slice(0, 2).map((area) => ({
-      '@type': area.type,
-      name: area.name,
-    })),
+    ...(seo.schema.areaServed.length ? {
+      areaServed: seo.schema.areaServed.slice(0, 2).map((area) => ({
+        '@type': area.type,
+        name: area.name,
+      })),
+    } : {}),
   };
 
   return (
