@@ -62,7 +62,7 @@ const fallbackSite = require('./lib/fallback-site');
 const buildPhases = require('./lib/build-phases');
 // #1549 —— 每页生成后的 SEO 检查（八条，设计文档 S2）。检查本身是纯函数，重写 / 丢页 / 失败的处置在本文件 §seoPass。
 const { seoProblems, rulesFor: seoRulesFor, pageTitleBudget, MIN_PAGE_TITLE_BUDGET, promptLocation, missingPhrases, sitePlace, hasPhrase,
-  contentImagesOf, words: seoWords, NOT_TEXT: SEO_NOT_TEXT, H1_BLOCKS: SEO_H1_BLOCKS, H2_BLOCKS: SEO_H2_BLOCKS } = require('./lib/seo-problems');
+  contentImagesOf, brandNameOf, words: seoWords, NOT_TEXT: SEO_NOT_TEXT, H1_BLOCKS: SEO_H1_BLOCKS, H2_BLOCKS: SEO_H2_BLOCKS } = require('./lib/seo-problems');
 // #1600 —— 建站报告（`site/build-report.json`）：各阶段往里记，结束时写盘；死链由 entrypoint 在 next build 之后并进来。
 const buildReportLib = require('./lib/build-report');
 // 这一次建站的那份报告（main 里建；seoPass 有两个**主语言**调用点，都往这一份里记；第二语言那一次不记，见 §seoPass 头注）。
@@ -1603,6 +1603,19 @@ async function main() {
     const heroForm = applyHeroLeadForm({ content, industry, disabledBlocks });
     debug(`[hero lead form] ${heroForm.applied ? '带上了' : '没带'} 首页第一个 hero 的表单（options.form） — ${heroForm.reason}`);
 
+    // #1633 —— AI 没给 contact 页 ⟹ 代码补一页（主语言不是英文时用站级那一通给的主语言字），并且这一页也过 SEO 检查。
+    //    以前它是写盘那一步（§writeSiteConfig）里才插的，落在上面主 seoPass 之后 ⟹ 没有任何检查看得到它。
+    //    只把这一页单独交给 seoPass（同 §finishKeywordPages 里代码补的服务详情页）：主 seoPass 第 5 条「站内唯一」吃整站页表，
+    //    提前塞进去会改别的页的判定输入。
+    const contactPage = ensureContactPage(content, defaultLocale, disabledBlocks,
+      defaultLocale !== 'en' && content.ai ? content.ai.contactPage : null);
+    if (contactPage) {
+      const sub = { ...content, pages: [contactPage] };
+      buildReportLib.recordSeo(buildReport, await seoPass({ content: sub, payload: input, locale: defaultLocale, industry, location, companyName, disabledBlocks }));
+      const i = content.pages.findIndex((p) => p.slug === 'contact');
+      if (i >= 0 && sub.pages[0] && sub.pages[0].slug === 'contact') content.pages[i] = sub.pages[0];
+    }
+
     writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks);
 
     // #1472 —— 站级深浅：AI 按行业给的默认（酒吧 / 健身房 dark，牙科 / 律所 light），老板之后可改成 auto。
@@ -1649,7 +1662,7 @@ async function main() {
   }
 
   // #1593 —— 建站的四个数（只算 create-site.js 这个进程，口径见 lib/build-stats.js 文件头），交给 T8 #1600 的建站报告：
-  //   seoFixed / pages → 报告的 repair 格（seoPass 回值经 recordSeo 累加，两个主语言调用点）；durationSec → finishBuildReport；
+  //   seoFixed / pages → 报告的 repair 格（seoPass 回值经 recordSeo 累加，三个主语言调用点 —— #1633 加了代码补的 contact 页那一处）；durationSec → finishBuildReport；
   //   costUsd → 报告顶层 `costUsd`（九格里没有费用那一格；manager 按 `cost` 前缀把它从给客户的那份剥掉）。
   //   skipAI 那条路不经这里 ⟹ 它的 costUsd 留空（null），不是 0。
   const stats = buildStats.summary({ pages: content.pages.length });
@@ -1904,6 +1917,36 @@ function writeThemeColorScheme(siteDir, colorScheme) {
   fs.writeFileSync(p, JSON.stringify(meta, null, 2) + '\n');
 }
 
+// TICKET-268e —— 每个站都要有一页导航点得进去的 Contact（表单 → /api/leads）；AI 没给就由代码补一页。返回补上的那一页（没补 ⟹ null）。
+// #1633 —— `words` 是站级那一通给的主语言字（形状同第二语言的 contactPage：title · navLabel · description · headline ·
+//    subheadline · formHeadline · formBody），只在主语言不是英文时传；缺哪个字段那个字段退回今天的英文。
+//    description 里的品牌名取 `brand.name[主语言]`（同 seo-problems.js §brandNameOf）—— brand.name 是按语言的对象，
+//    直接拼进模板串就是 `Get in touch with [object Object]`。
+function ensureContactPage(content, defaultLocale, disabledBlocks = [], words = null) {
+  const w = words && typeof words === 'object' ? words : {};
+  const pick = (k, en) => (typeof w[k] === 'string' && w[k].trim() ? w[k].trim() : en);
+  const contactOff = new Set(disabledBlocks);
+  const contactSections = [
+    { type: 'page-header', data: { headline: pick('headline', 'Contact Us'), subheadline: pick('subheadline', "Send us a message and we'll get back to you shortly.") } },
+    { type: 'contact', data: { headline: pick('formHeadline', 'Get in touch'), body: pick('formBody', 'Leave your details and we will reach out soon.'), form: { id: 'contact' }, options: { form: 'full' } } },
+  ].filter((sec) => !contactOff.has(sec.type));
+  // 🔴 `contact` 被关掉时**整页不插**，不是插一个只剩标题的 Contact 页。268e 要的是
+  //    「有一条看得见的联系路径」（那个表单 POST 到 /api/leads，进老板的 Customers），而一个
+  //    导航里点得进去、进去什么都没有的页面比没有这一页更坏。`page-header` 被单独关掉时那一页
+  //    照插，只是没有标题块 —— 表单还在，路径还在。
+  const contactPageWanted = !contactOff.has('contact') && contactSections.length > 0;
+  if (content.pages.some((p) => p.slug === 'contact') || !contactPageWanted) return null;
+  const maxOrder = content.pages.reduce((m, p) => Math.max(m, p.navOrder ?? 0), 0);
+  const brandName = brandNameOf(content.brand, defaultLocale) || 'us';
+  const page = {
+    slug: 'contact', title: pick('title', 'Contact Us'), description: pick('description', `Get in touch with ${brandName}`),
+    navLabel: pick('navLabel', 'Contact'), navOrder: maxOrder + 1, changeFrequency: 'monthly', priority: 0.7,
+    sections: contactSections,
+  };
+  content.pages.push(page);
+  return page;
+}
+
 function writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks = []) {
   // TICKET-122a: multi-locale schema (layout B — locale top-level subtree).
   //   brand.json:           cross-locale shared (kept at site/ root); brand.tagline wrapped to { [defaultLocale]: string } here
@@ -1950,24 +1993,9 @@ function writeSiteConfig(siteDir, content, defaultLocale, disabledBlocks = []) {
   // 关掉 `contact` 而这里照插，就等于后台那个开关对每一个新站都是假的。
   // 📌 #1425（T3）—— 旧库的 `contact-form` 删了；表单住在新库 `contact` 块上（槽 `form: { id? }`，选站级表单库
   //    `forms.json` 里哪一张 —— 这一页用 `contact` 那张），提交路径照旧是 /api/leads。
-  const contactOff = new Set(disabledBlocks);
-  const contactSections = [
-    { type: 'page-header', data: { headline: 'Contact Us', subheadline: "Send us a message and we'll get back to you shortly." } },
-    { type: 'contact', data: { headline: 'Get in touch', body: 'Leave your details and we will reach out soon.', form: { id: 'contact' }, options: { form: 'full' } } },
-  ].filter((sec) => !contactOff.has(sec.type));
-  // 🔴 `contact` 被关掉时**整页不插**，不是插一个只剩标题的 Contact 页。268e 要的是
-  //    「有一条看得见的联系路径」（那个表单 POST 到 /api/leads，进老板的 Customers），而一个
-  //    导航里点得进去、进去什么都没有的页面比没有这一页更坏。`page-header` 被单独关掉时那一页
-  //    照插，只是没有标题块 —— 表单还在，路径还在。
-  const contactPageWanted = !contactOff.has('contact') && contactSections.length > 0;
-  if (!content.pages.some((p) => p.slug === 'contact') && contactPageWanted) {
-    const maxOrder = content.pages.reduce((m, p) => Math.max(m, p.navOrder ?? 0), 0);
-    content.pages.push({
-      slug: 'contact', title: 'Contact Us', description: `Get in touch with ${content.brand?.name || 'us'}`,
-      navLabel: 'Contact', navOrder: maxOrder + 1, changeFrequency: 'monthly', priority: 0.7,
-      sections: contactSections,
-    });
-  }
+  // #1633 —— 真 AI 那条路在写盘前、带着 AI 给的主语言字已经插过了（§ensureContactPage）；这里是 skipAI 示例站等其余路径的兜底，
+  //    见到已有 contact 就什么都不做。
+  ensureContactPage(content, defaultLocale, disabledBlocks);
 
   // #999 — 角色兜底在**写盘前**再补一次，不能只在 AI 输出那一刻补。
   // 上面这两段（268b / 268e）是脚本自己插进去的页面，它们在校验之后才出现 ⟹ 第一版实测:真 AI 建站
@@ -2596,6 +2624,13 @@ IMAGE PLACEMENT RULES:
   //   ① 站级一次（prompt 名 `Base Site`）：品牌 / 导航 / SEO / 服务 / 表单 + 页面清单，每页带一句 `brief`（这一页承载什么），不写 sections；
   //   ② 每页一次（prompt 名 `Page: <slug>`）：只写这一页的 sections。提示词只带站级结构 + 这一页的目标词 + 表格里的事实 + 块菜单。
   // 一页不合格 / 调不通只重试这一页一次；仍不行 ⟹ 那一页发骨架页 + 一笔降级，写明是哪一页（#1596 第 6 条；以前是建站失败）。
+  // #1633 —— 主语言不是英文的站：代码自己写的那几处字（导航的首页、页脚第一栏标题、代码补的联系页）也向站级这一通要主语言的。
+  //    字段形状与说法照第二语言那份（lib/all-locales.js §languagesPrompt 的 homeLabel / quickLinksTitle / contactPage），
+  //    但放在回包【顶层】—— 单语言站根本没有 locales。主语言是英文 ⟹ 这一段是空串，提示词逐字不变（写盘照用英文常量）。
+  const primaryWordsShape = locales.primary.code === 'en' ? '' : `  "homeLabel": "<nav label for the home page, in ${locales.primary.name}>",
+  "quickLinksTitle": "<footer column title, like Quick Links, in ${locales.primary.name}>",
+  "contactPage": { "title": "<like Contact Us>", "navLabel": "<like Contact>", "description": "<like Get in touch with ${companyName}>", "headline": "<like Contact Us>", "subheadline": "<like Send us a message and we'll get back to you shortly.>", "formHeadline": "<like Get in touch>", "formBody": "<like Leave your details and we will reach out soon.>" },
+`;
   const brandNameRule = `CRITICAL BRAND NAME RULE (TICKET-137):
 The brand name "${companyName}" is canonical and MUST appear LITERALLY VERBATIM in all
 generated content — hero headlines, subtitles, page descriptions, footer description,
@@ -2652,7 +2687,7 @@ Generate a JSON object with this EXACT structure:
     "ctaPage": "${recipePlan ? recipePlan.ctaPage : '<slug of the CTA target page, e.g. quote>'}",
     "footerDescription": "<1 sentence with location + primary keyword>"
   },
-  "seo": {
+${primaryWordsShape}  "seo": {
     "siteTitle": "<max 60 chars>",
     "siteDescription": "<${descSpec}, location + services + CTA>",
     "areaServed": [{"type":"City","name":"<city>"}],
@@ -3415,10 +3450,13 @@ ${rules}${others.length ? `\n\n${localesLib.languagesPrompt({
 
   // Header nav: regular pages only (service detail + keyword pages excluded)
   // Footer: Quick Links column (service links handled by hardcoded Footer.tsx section)
+  // #1633 —— 主语言不是英文时用站级那一通给的主语言字；没给 / 英文站 ⟹ 今天的英文常量。
+  const primaryWord = (v, en) => (defaultLocale !== 'en' && typeof v === 'string' && v.trim() ? v.trim() : en);
+  const homeLabel = primaryWord(ai.homeLabel, "Home");
   const footerColumns = [{
-    title: "Quick Links",
+    title: primaryWord(ai.quickLinksTitle, "Quick Links"),
     links: [
-      { label: "Home", href: "/" },
+      { label: homeLabel, href: "/" },
       ...regularPages
         .filter(p => p.navLabel)
         .map(p => ({ label: p.navLabel, href: `/${p.slug}` }))
@@ -3428,7 +3466,7 @@ ${rules}${others.length ? `\n\n${localesLib.languagesPrompt({
   const navigation = {
     header: {
       links: [
-        { label: "Home", href: "/" },
+        { label: homeLabel, href: "/" },
         // #1601 —— 配方定顶部导航放哪几页（判据：到得了每一张服务页）；照抄参照站结构那条老路仍是全部普通页。
         ...(recipeNav ? allNonHome.filter((p) => recipeNav.has(p.slug)) : regularPages)
           .filter(p => p.navLabel && p.slug !== ctaPage)
