@@ -286,6 +286,19 @@ check('做什么 2：服务详情页的提示词点名它自己的服务、带�
 const FAIL_SLUG = 'services/perm';
 const FAIL_I = BUILT.indexOf(FAIL_SLUG) + 1;
 console.log(`── 重试：${FAIL_SLUG}（第 ${FAIL_I} 页）调用失败一次 / 两次`);
+// #1594 —— 真 AI 那条路（create-site.js 里 generateSlotPhotos 之后那个调用点）也发 `images` 事件、也写进建站报告。
+//    打桩跑没有 Gemini key ⟹ 每张都求不到（generated 0），这一格量的是「接上了」，不是数本身（数由 image-slots.test.js ⑫ 量）。
+check('#1594：真 AI 路发一条 images 事件（requested / generated / reused 三个数），建站报告的 images 那一格跟它相同', () => {
+  const ev = A.events.filter((e) => e.event === 'images');
+  assert.strictEqual(ev.length, 1, JSON.stringify(ev));
+  const { event, elapsed, ...images } = ev[0];
+  assert.deepStrictEqual(Object.keys(images).sort(), ['generated', 'requested', 'reused']);
+  assert.ok(Object.values(images).every((v) => Number.isInteger(v)), JSON.stringify(images));
+  const report = JSON.parse(fs.readFileSync(path.join(A.work, 'site', 'build-report.json'), 'utf8'));
+  assert.strictEqual(report.path, 'ai');
+  assert.deepStrictEqual(report.images, images);
+});
+
 const B = run('retry1', PAYLOAD(), { failCalls: { [FAIL_SLUG]: 1 } });
 check(`AC 重试：失败一次 ⟹ 日志「重试第 ${FAIL_I} 页」、建站成功`, () => {
   assert.strictEqual(B.rc, 0, `${B.error}\n${B.stderr.slice(-600)}`);
