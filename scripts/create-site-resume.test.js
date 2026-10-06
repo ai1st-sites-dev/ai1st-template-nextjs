@@ -52,7 +52,21 @@ const cfg = JSON.parse(fs.readFileSync(process.env.RS_STUB_CFG, 'utf8'));
 globalThis.fetch = async () => { throw new Error('offline (test stub)'); };
 const BODY = '我们在多伦多为每一位顾客提供细致的护理与造型服务，预约简单，到店即享专业建议，环境舒适安心，欢迎随时来店体验我们团队带来的放松时光与焕然一新的造型。';
 const DESC_KW = (kw) => `${kw}就在 Toronto：Silky Hair Salon 在多伦多为每一位顾客提供细致的${kw}服务，预约简单，到店即享专业建议，环境舒适安心，欢迎随时来店体验焕然一新的造型。`;
-function sectionsFor(slug, title) {
+// #1601 —— 非首页的块序由整站配方定，写在提示词里（`write exactly these N, in this order: "a" → "b"`）：桩照它回，
+//    每种块一份过得了块库的 data（同 create-site-call1-pages.test.js 的桩）。
+const BLOCK = {
+  'page-header': (title) => ({ type: 'page-header', data: { headline: title } }),
+  content: (title) => ({ type: 'content', data: { headline: `关于${title}`, body: BODY } }),
+  features: (title, prompt) => ({ type: 'features', data: /"features": write "items": \{"source": "services"\}/.test(prompt)
+    ? { headline: '我们的服务', items: { source: 'services' } }
+    : { headline: `${title}的亮点`, items: [1, 2, 3].map((n) => ({ title: `亮点${n}`, text: '每一步都由资深发型师完成。' })) } }),
+  faq: () => ({ type: 'faq', data: { headline: '常见问题', items: [{ question: '需要预约吗？', answer: '建议提前预约，也欢迎直接到店。' }] } }),
+  cta: () => ({ type: 'cta', data: { headline: '现在预约', body: '告诉我们您想要的造型。', ctas: [{ label: '预约', href: '/contact', style: 'solid' }] } }),
+  contact: () => ({ type: 'contact', data: { headline: '联系我们', body: '留下联系方式，我们尽快回复。', form: { id: 'contact' }, options: { form: 'full' } } }),
+};
+function sectionsFor(slug, title, prompt) {
+  const fixed = (prompt.match(/write exactly these \d+, in this order: ([^\n]+?)\. Do not add/) || [])[1];
+  if (fixed) return fixed.split(' → ').map((t) => BLOCK[JSON.parse(t)](title, prompt));
   const tail = [
     { type: 'faq', data: { headline: '常见问题', items: [{ question: '需要预约吗？', answer: '建议提前预约，也欢迎直接到店。' }] } },
     { type: 'cta', data: { headline: '现在预约', body: '告诉我们您想要的造型。', ctas: [{ label: '预约', href: '/quote', style: 'solid' }] } },
@@ -87,7 +101,7 @@ function answer(req) {
   if (kind === 'page') {
     // #1596 —— 走代码拼的站级计划时，页面清单不是 plan() 那份（services/<拼音 id>、contact）⟹ 认不出的页用 slug 当标题
     const page = cfg.plan.pages.find((p) => p.slug === slug) || { slug, title: slug };
-    const sections = sectionsFor(slug, page.title);
+    const sections = sectionsFor(slug, page.title, first);
     return { json: grouped ? { zh: { sections }, en: enGroup(page, sections) } : { sections }, out: 3000 };
   }
   if (kind === 'keyword') {
@@ -144,13 +158,16 @@ function plan() {
   return {
     colorScheme: 'light',
     brand: { tagline: '让头发如丝般顺滑', logoIcon: 'scissors', email: 'hi@silky.test', locations: [{ label: '店面', address: 'Toronto, ON', phone: '(416) 555-0199' }] },
-    navigation: { ctaLabel: '立即预约', ctaPage: 'quote', footerDescription: '多伦多的美发沙龙。' },
+    navigation: { ctaLabel: '立即预约', ctaPage: 'contact', footerDescription: '多伦多的美发沙龙。' },
     seo: { siteTitle: 'Silky Hair Salon 多伦多美发', siteDescription: DESC('多伦多美发'), areaServed: [{ type: 'City', name: 'Toronto' }], addresses: [], priceRange: '$$', offerCatalogName: '服务' },
     services: SERVICES.map(([id, name]) => ({ id, name, shortDescription: `${name}服务`, fullDescription: `${name}，在多伦多。`, icon: 'scissors', features: ['细致'], products: [] })),
     forms: [{ id: 'quote', name: '预约', buttonText: '提交', successMessage: '谢谢' }, { id: 'contact', name: '联系', buttonText: '提交', successMessage: '谢谢' }],
+    // #1601 —— 页面清单由整站配方定（hair salon = beauty 组：首页 · services · 每个服务一页 · contact），回包照配方给；
+    //    配方外的页（about / quote …）回了也不采用，那一面归 create-site-call1-pages.test.js 的 AC2。
     pages: [
-      page('home', '首页', 0), page('services', '服务', 1), page('about', '关于我们', 2), page('quote', '预约', 3),
+      page('home', '首页', 0), page('services', '服务', 1),
       ...SERVICES.map(([id, name], i) => page(`services/${id}`, name, 10 + i, { serviceDetailPage: true, parentService: id })),
+      page('contact', '联系我们', 9),
     ],
   };
 }
@@ -318,6 +335,24 @@ check('提交里不带 token（推送的凭据只进环境变量）', () => {
   assert.notStrictEqual(git(A.bare, ['log', built, '--format=%H', '-S', '剪发店']), '', '对照失效：-S 连写进过仓的词都找不到');
   assert.ok(!RA.stdout.includes(TOKEN) && !RA.stderr.includes(TOKEN));
 });
+// #1601 × #1598 —— 配方给每页的块序按对象身份记，续跑读回来的是新对象 ⟹ 它要跟着存档走（create-site.js §recipeSnapshot）。
+const RECIPE_SLUGS = ['services', ...SERVICES.map(([id]) => `services/${id}`), 'contact'];
+check('#1601 配方跟着存档走：plan / pages 两个存档都带 recipe（顶部导航 services；首页之外 9 页各有块序）', () => {
+  for (const ph of ['plan', 'pages']) {
+    const r = showJson(A.bare, byPhase[ph], 'site/.build/state.json').recipe;
+    assert.ok(r, `${ph} 存档里没有 recipe`);
+    assert.deepStrictEqual(r.nav, ['services'], ph);
+    assert.deepStrictEqual(Object.keys(r.blocks).sort(), [...RECIPE_SLUGS].sort(), ph);
+    assert.deepStrictEqual(r.blocks.contact.map((x) => x.type), ['page-header', 'contact'], ph);
+  }
+});
+// 配方预设写进了块的 options（阳性对照：下面 P 那一跑要跟它逐字节相同，这一格证明那份比较里真有预设）。
+const presetKnobsIn = (work, slug) => JSON.parse(fs.readFileSync(path.join(work, 'site', 'zh', 'pages', `${slug}.json`), 'utf8'))
+  .blocks.filter((x) => x.data && x.data.options && Object.keys(x.data.options).length).length;
+check('#1601 对照：从头建那次 services 页、services/cut 页的块带着配方预设写的 options', () => {
+  assert.ok(presetKnobsIn(A.work, 'services') >= 2, `services ${presetKnobsIn(A.work, 'services')}`);
+  assert.ok(presetKnobsIn(A.work, 'services/cut') >= 2, `services/cut ${presetKnobsIn(A.work, 'services/cut')}`);
+});
 const filesA = siteFiles(A.work);
 if (commitsA.length !== 5) die(`A 没有 5 个阶段提交（${commitsA.length}），下面的续跑格子没有起点`);
 
@@ -361,6 +396,27 @@ check('续跑只补了后三个阶段的提交（pages 之后 images / keywordPa
   assert.deepStrictEqual(phaseCommits(B.bare).map((c) => c.phase), PHASES);
   assert.deepStrictEqual(git(B.bare, ['log', '--format=%s', `${byPhase.pages}..main`]).split('\n').reverse(),
     ['images 3/5', 'keywordPages 4/5', 'secondaryLocales 5/5'].map((p) => `Generate site: rs159801 (phase: ${p})`));
+});
+
+// ── P：在 plan 之后续跑（#1601 × #1598）：每页那几通要重发，而它们的块序 / 预设来自配方 —— 配方按对象身份记，得从存档挂回来 ─────
+console.log('── P：buildPhase = plan 的仓 resume:true（每页那几通重发，块序和预设从存档里的配方来）');
+const P = containerAt('from-plan', A.bare, byPhase.plan);
+const RP = run('from-plan', P.work, PAYLOAD({ resume: true }));
+check('建站成功；站级 0 通、每页 N 通（plan 跳过、pages 重跑）；日志说配方跟着存档回来了', () => {
+  assertOk(RP);
+  assert.strictEqual(count(RP, 'site'), 0);
+  assert.strictEqual(count(RP, 'page'), N);
+  assert.ok(RP.stderr.includes('[resume] 整站配方跟着存档回来：9 页的块序；顶部导航 services'), RP.stderr.split('\n').filter((l) => l.includes('[resume]')).join('\n'));
+});
+check('#1601：续跑那几通每页提示词照样锁着配方的块序（首页之外 9 页都有 FIXED 那一行）', () => {
+  const fixedPrompts = RP.events.filter((e) => e.event === 'prompt' && /^Page: /.test(e.name) && /This page's sections are FIXED/.test(e.content));
+  assert.deepStrictEqual(fixedPrompts.map((e) => e.name.replace(/^Page: /, '')).sort(), [...RECIPE_SLUGS].sort());
+});
+check('#1601：最终站点文件跟从头建那次逐字节相同（块序、配方预设、导航、按钮全在）', () => {
+  const f = siteFiles(P.work);
+  assert.deepStrictEqual(Object.keys(f).sort(), Object.keys(filesA).sort());
+  assert.deepStrictEqual(Object.keys(filesA).filter((k) => f[k] !== filesA[k]), []);
+  assert.ok(presetKnobsIn(P.work, 'services/cut') >= 2);
 });
 
 // ── C / D：在 images 之后、keywordPages 之后续跑 ───────────────────────────────────────────────────────────

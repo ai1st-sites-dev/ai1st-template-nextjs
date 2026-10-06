@@ -318,6 +318,9 @@ function keywordPagePrompt({
   titleSpec = 'max 60 chars',
   // #1549 重开 —— meta description 的长度说法（description-fit.js §descriptionSpec：CJK 主语言 50–80，其余 70–155）。
   descriptionSpec = '70–155 chars',
+  // #1601 —— 站的行动按钮指哪一页（navigation.header.cta.href）。整站配方的站没有 /quote 页（按钮落点是 /contact），
+  //    写死 "/quote" 就是让每张关键词页的 CTA 指一张不存在的页。不给时退回老说法。
+  ctaHref = '',
 }) {
   const m = material;
   const facts = [];
@@ -374,7 +377,9 @@ function keywordPagePrompt({
     '- Every image object you write ({"imageUrl", "alt"}) gets an "alt": one plain sentence saying what the photo shows (no "image of").',
     '- content body should be 2-3 substantial paragraphs (400-600 words) of unique copy, not 1-2 sentences.',
     '- FAQ answers 2-3 sentences each.',
-    `- CTA href points to "/quote" or the contact page${detailPageExists ? `, or to /services/${page.serviceId}` : ''}.`,
+    ctaHref
+      ? `- CTA href points to "${ctaHref}"${detailPageExists ? ` or to /services/${page.serviceId}` : ''} — no other page of this website takes enquiries.`
+      : `- CTA href points to "/quote" or the contact page${detailPageExists ? `, or to /services/${page.serviceId}` : ''}.`,
     '- navOrder 50+ (keyword pages sort after regular pages).',
   ];
   return lines.filter((l, i, a) => l !== '' || (i > 0 && a[i - 1] !== '')).join('\n').replace(/\n{3,}/g, '\n\n').trim();

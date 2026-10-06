@@ -60,7 +60,21 @@ globalThis.fetch = async () => { throw new Error('offline (test stub)'); };
 const P = cfg.place || '多伦多';
 const BODY = `我们在${P}为每一位顾客提供细致的护理与造型服务，预约简单，到店即享专业建议，环境舒适安心，欢迎随时来店体验我们团队带来的放松时光与焕然一新的造型。`;
 const DESC_KW = (kw) => `${kw}就在 ${P}：Silky Hair Salon 在${P}为每一位顾客提供细致的${kw}服务，预约简单，到店即享专业建议，环境舒适安心，欢迎随时来店体验焕然一新的造型。`;
-function sectionsFor(slug, title) {
+// #1601 —— 非首页的块序由整站配方定，写在提示词里（`write exactly these N, in this order: "a" → "b"`）：桩照它回，
+//    每种块一份过得了块库的 data（同 create-site-resume.test.js 的桩）。
+const BLOCK = {
+  'page-header': (title) => ({ type: 'page-header', data: { headline: title } }),
+  content: (title) => ({ type: 'content', data: { headline: `关于${title}`, body: BODY } }),
+  features: (title, prompt) => ({ type: 'features', data: /"features": write "items": \{"source": "services"\}/.test(prompt)
+    ? { headline: '我们的服务', items: { source: 'services' } }
+    : { headline: `${title}的亮点`, items: [1, 2, 3].map((n) => ({ title: `亮点${n}`, text: '每一步都由资深发型师完成。' })) } }),
+  faq: () => ({ type: 'faq', data: { headline: '常见问题', items: [{ question: '需要预约吗？', answer: '建议提前预约，也欢迎直接到店。' }] } }),
+  cta: () => ({ type: 'cta', data: { headline: '现在预约', body: '告诉我们您想要的造型。', ctas: [{ label: '预约', href: '/contact', style: 'solid' }] } }),
+  contact: () => ({ type: 'contact', data: { headline: '联系我们', body: '留下联系方式，我们尽快回复。', form: { id: 'contact' }, options: { form: 'full' } } }),
+};
+function sectionsFor(slug, title, prompt) {
+  const fixed = (prompt.match(/write exactly these \d+, in this order: ([^\n]+?)\. Do not add/) || [])[1];
+  if (fixed) return fixed.split(' → ').map((t) => BLOCK[JSON.parse(t)](title, prompt));
   const tail = [
     { type: 'faq', data: { headline: '常见问题', items: [{ question: '需要预约吗？', answer: '建议提前预约，也欢迎直接到店。' }] } },
     { type: 'cta', data: { headline: '现在预约', body: '告诉我们您想要的造型。', ctas: [{ label: '预约', href: '/contact', style: 'solid' }] } },
@@ -97,7 +111,7 @@ function answer(req) {
   if (kind === 'page') {
     if ((cfg.failCalls || {})[slug] >= seen[slug]) { const e = new Error(`stub: page ${slug} refused (call ${seen[slug]})`); e.status = 400; throw e; }
     const page = (cfg.plan.pages || []).find((p) => p.slug === slug) || { title: slug };
-    let sections = sectionsFor(slug, page.title);
+    let sections = sectionsFor(slug, page.title, first);
     // AC8：有第二语言时回包按语言分组（#1593）—— 第二语言那份 = 同一组块（字都在），页名 / 描述 / 目标词各一句。
     if (first.includes('Respond with ONE JSON object keyed by language code')) {
       const g = { [cfg.primary]: { sections } };
@@ -420,7 +434,7 @@ console.log('── 第 6 条：首页 + services/perm 两次都失败（首页�
   check('两页都标 seo.placeholder: true；别的页没有', () => {
     assert.strictEqual(readPage(R, 'home').seo.placeholder, true);
     assert.strictEqual(readPage(R, 'services/perm').seo.placeholder, true);
-    assert.ok(!(readPage(R, 'about').seo || {}).placeholder);
+    assert.ok(!(readPage(R, 'services').seo || {}).placeholder); // #1601：配方站没有 about，换同一类的普通页
   });
   check('seoPass 没为骨架页发起修补（没有 SEO fix 提示词，日志「跳过 … 骨架页」各一行）', () => {
     // #1593 起提示词叫「SEO fix <slug>」（以前叫 SEO rewrite —— 只认旧名在今天恒为 0 条，这格会恒绿）。
@@ -503,12 +517,14 @@ for (const [arm, what, cfg, want] of GALLERY_ARMS) {
 }
 {
   console.log('── r5 G：photography 站缺 gallery，每一页都两次失败（全是骨架页）⟹ 不调 AI 补');
-  const all = Object.fromEntries(plan().pages.map((p) => [p.slug, 2]));
+  // #1601 —— 页面清单由配方定（photography → events 组，比 plan() 多一张 faq）⟹ 「每一页」按配方那份数，不按站级回包。
+  const recipeSlugs = require('./lib/site-recipe').sitePagesFor('photography', { services: plan().services }).pages.map((p) => p.slug);
+  const all = Object.fromEntries(recipeSlugs.map((slug) => [slug, 2]));
   const R = run('sitefix-G', PAYLOAD({ industry: 'photography' }), { failCalls: all, siteFix: 'obeys' });
   check('G：建站成功；没有补的那一通；每页一条 page 降级 + 一条 site-blocks:gallery；首页仍是骨架页', () => {
     assertOk(R);
     assert.deepStrictEqual(fixCalls(R), []);
-    assert.strictEqual(degradedOf(R, 'page').length, plan().pages.length);
+    assert.strictEqual(degradedOf(R, 'page').length, recipeSlugs.length);
     assert.deepStrictEqual(degradedOf(R, 'site-blocks').map((d) => d.target), ['gallery']);
     assert.deepStrictEqual(typesOf(readPage(R, 'home')), SKELETON_HOME);
     assert.ok(R.stderr.includes('每一页都是骨架页 ⟹ 不补'), R.stderr.split('\n').filter((l) => l.startsWith('[blocks]')).join('\n'));
@@ -528,7 +544,10 @@ const CASES = [
 ];
 for (const [mode, step, text, p] of CASES) {
   console.log(`── 第 8–10 条：${mode}（${text}）`);
-  const R = run(`kw-${mode}`, PAYLOAD({ keywords: KW }), { plan: p, ensure: { mode, service: 'cut' } });
+  // #1601 —— 配方站的服务详情页由配方给（services/cut 一定在）⟹「代码补出来的详情页」那一支只在照抄参照站结构的老路上走得到：
+  //    badblock 那一臂勾 structure，页面清单照旧来自站级回包（它拿掉了 services/cut）。
+  const ref = mode === 'badblock' ? { refSite: 'https://ref.test', refPrefs: ['structure'], refAnalysis: { navLinks: ['Home', 'Services', 'About', 'Contact'] } } : {};
+  const R = run(`kw-${mode}`, PAYLOAD({ keywords: KW, ...ref }), { plan: p, ensure: { mode, service: 'cut' } });
   check(`建站成功；恰好一条 step=${step}，target services/cut，reason 里是「${text}」和「关键词页 0/2」`, () => {
     assertOk(R);
     const d = degradedOf(R, step);
@@ -605,7 +624,8 @@ const BILINGUAL = (extra = {}) => CALGARY({ secondaryLocales: ['en'], ...extra }
 const NO_PLACEHOLDER_EN = [' || placeholderPageIn(p);', ';'];
 const NO_SITEPLAN_EN = ['    ai.locales = Object.fromEntries(others.map((o) => [o.code, {}]));\n', ''];
 const AC8 = [
-  ['① about 两次都失败 ⟹ 骨架页', { plan: { ...plan('Calgary', 'Calgary'), locales: { en: { tagline: 'Silky-smooth hair' } } }, place: 'Calgary', failCalls: { about: 2 } }, NO_PLACEHOLDER_EN, 'page'],
+  // #1601：配方站没有 about ⟹ 换成配方里同一类的普通页 services（骨架同为 page-header · content · cta）
+  ['① services 两次都失败 ⟹ 骨架页', { plan: { ...plan('Calgary', 'Calgary'), locales: { en: { tagline: 'Silky-smooth hair' } } }, place: 'Calgary', failCalls: { services: 2 } }, NO_PLACEHOLDER_EN, 'page'],
   ['② 站级计划失败（第 1 条）', { site: 'truncated', place: 'Calgary' }, NO_SITEPLAN_EN, 'site-plan'],
 ];
 for (const [name, cfg, mut, step] of AC8) {
@@ -623,9 +643,9 @@ for (const [name, cfg, mut, step] of AC8) {
   });
   if (step === 'page') {
     check(`${name}：en 那一页也是骨架页（seo.placeholder: true，块跟 zh 那一页相同）`, () => {
-      const en = JSON.parse(fs.readFileSync(path.join(R.work, 'site', 'en', 'pages', 'about.json'), 'utf8'));
+      const en = JSON.parse(fs.readFileSync(path.join(R.work, 'site', 'en', 'pages', 'services.json'), 'utf8'));
       assert.strictEqual(en.seo.placeholder, true);
-      assert.deepStrictEqual(typesOf(en), typesOf(readPage(R, 'about')));
+      assert.deepStrictEqual(typesOf(en), typesOf(readPage(R, 'services')));
       assert.deepStrictEqual(typesOf(en), ['page-header', 'content', 'cta']);
     });
   }

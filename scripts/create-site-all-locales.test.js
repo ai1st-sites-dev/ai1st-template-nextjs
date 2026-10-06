@@ -211,6 +211,11 @@ function fixture({ primary = 'zh', secondary = ['en'], descOf = {} } = {}) {
 const PAYLOAD = (extra = {}) => ({
   siteId: 'al159301', siteUrl: 'https://silky.test', companyName: BRAND, industry: 'hair salon', location: 'Toronto, ON', locationLocalized: '多伦多, 安大略省, 加拿大',
   language: 'zh', secondaryLocales: ['en'], services: SERVICES.map(([, zh]) => zh), homepageFingerprint: false,
+  // #1601 —— 页面清单从此由整站配方给（beauty 组没有 about / quote / reviews / process / team），而这份夹具的场景就长在
+  //    这几页上（team 的职位、reviews 的顾客身份、about 的颜色槽）。本测试量的是「一次写全部语言」，不是谁挑页：走「照抄
+  //    参照站结构」那条仍由 AI 定页面清单的老路（create-site.js §pagesInstruction 的例外），场景一个字不改。配方那条路上的
+  //    第二语言由本文件末尾 #1601 那一跑覆盖。
+  refSite: 'https://reference.test', refPrefs: ['structure'], refAnalysis: { navLinks: ['Home', 'About', 'Quote', 'Reviews', 'Process', 'Team'] },
   keywords: {
     剪发: [{ keyword: '剪发', isPrimary: true, selected: true, goldIndex: 50, volume: 900 }],
     染发: [{ keyword: '染发', isPrimary: true, selected: true, goldIndex: 20, volume: 300 }],
@@ -633,6 +638,113 @@ check('#1600 报告：被字段级修补救回的那一页 outcome=fixed、rewri
   assert.strictEqual(pg.outcome, 'fixed', JSON.stringify(pg));
   assert.strictEqual(pg.rewritten, true);
   assert.strictEqual(pg.checks['2'], 'fixed', JSON.stringify(pg.checks));
+});
+
+// ── #1601：整站配方那条路上的第二语言 ──────────────────────────────────────────────────────────────────
+// 上面各跑都走「照抄参照站结构」那条老路（见 PAYLOAD 的注释）；这一跑不勾它 ⟹ 页面清单与每页块序由 beauty 组配方给。
+// 要量的是两件事接得上：配方的预设是在每页那一通【之后】写进主语言块的 options（create-site.js §按配方写预设），
+// 而第二语言那一页是写盘时按主语言的块拼出来的（§LocaleBook.build）⟹ en 页必须拿到同一份预设，不是 AI 写的那份、也不是空的。
+console.log('── #1601：整站配方 + 第二语言（不勾 structure）');
+const SR = require('./lib/site-recipe');
+const RP = SR.sitePagesFor('hair salon', { services: SERVICES.map(([id]) => id) });
+const RECIPE_TEXT = { services: ['服务', 'Services'], contact: ['联系我们', 'Contact us'] };
+function recipeFixture() {
+  const cfg = fixture();
+  const langs = [cfg.primary, ...cfg.secondary];
+  const titleOf = (slug, lang) => {
+    const zh = lang === 'zh';
+    const svc = SERVICES.find(([id]) => `services/${id}` === slug);
+    const t = svc ? (zh ? svc[1] : svc[2]) : RECIPE_TEXT[slug][zh ? 0 : 1];
+    const k = KW[slug] ? KW[slug][zh ? 0 : 1] : '';
+    return { t, k, title: k ? `${k}｜${t}` : t, description: DESC[lang](k, t), navLabel: t };
+  };
+  const block = (type, lang, { t, k }) => {
+    const zh = lang === 'zh';
+    const h = (x) => (k ? `${k}${zh ? '：' : ': '}${x}` : x);
+    const body = zh ? `${k || t}：我们在多伦多为每一位顾客提供细致的护理与造型服务，预约简单，到店即享专业建议，环境舒适安心。`
+      : `${k || t}: we give every guest in Toronto careful care and styling, easy booking, expert advice and a calm place to relax.`;
+    switch (type) {
+      case 'page-header': return { type, data: { headline: k || t } };
+      case 'content': return { type, data: { headline: h(zh ? '怎么做' : 'How we do it'), body } };
+      case 'features': return { type, data: t === RECIPE_TEXT.services[zh ? 0 : 1]
+        ? { headline: zh ? '我们的服务' : 'Our services', items: { source: 'services' } }
+        : { headline: h(zh ? '亮点' : 'Highlights'), items: [1, 2, 3].map((n) => ({ title: zh ? `亮点${n}` : `Point ${n}`, text: zh ? '每一步都由资深发型师完成。' : 'A senior stylist does every step.' })) } };
+      case 'faq': return { type, data: { headline: h(zh ? '常见问题' : 'Questions'), items: [{ question: zh ? '需要预约吗？' : 'Do I need to book?', answer: zh ? '建议提前预约，也欢迎直接到店。' : 'Booking ahead is best, walk-ins are welcome.' }] } };
+      case 'cta': return { type, data: { headline: zh ? '现在预约' : 'Book now', body: zh ? '告诉我们您想要的造型。' : 'Tell us the look you want.', ctas: [{ label: zh ? '联系' : 'Contact', href: '/contact', style: 'solid' }] } };
+      case 'contact': return { type, data: { headline: zh ? '联系我们' : 'Contact us', body: zh ? '留下联系方式，我们尽快回复。' : 'Leave your details and we will reply soon.', form: { id: 'contact' }, options: { form: 'full' } } };
+      default: throw new Error(`夹具没写 ${type}`);
+    }
+  };
+  // 站级回包照旧多列 about / quote / reviews / process / team（AI 不听话的样子），再补上配方要的 services / contact。
+  for (const slug of ['services', 'contact']) {
+    const z = titleOf(slug, 'zh');
+    cfg.site.pages.push({ slug, title: z.title, description: z.description, navLabel: z.navLabel, navOrder: 1, changeFrequency: 'monthly', priority: 0.8, brief: `这一页讲${z.t}。` });
+  }
+  for (const rp of RP.pages) {
+    if (!rp.blocks.length) continue; // 首页不受整站配方锁（#1034 的首页配方管它），回包用上面那份
+    cfg.replies[rp.slug] = {};
+    for (const lang of langs) {
+      const x = titleOf(rp.slug, lang);
+      const secs = rp.blocks.map((b) => block(b.type, lang, x));
+      cfg.replies[rp.slug][lang] = lang === cfg.primary ? { sections: secs }
+        : { title: x.title, description: x.description, navLabel: x.navLabel, ...(x.k ? { targetKeyword: x.k } : {}), sections: secs };
+    }
+  }
+  return cfg;
+}
+const { refSite: _rs, refPrefs: _rp, refAnalysis: _ra, ...NO_REF } = PAYLOAD();
+const RG = run('recipe-locales', NO_REF, recipeFixture());
+const zhR = RG.pagesOf('zh') || {}; const enR = RG.pagesOf('en') || {};
+const recipeSlugs = RP.pages.map((p) => p.slug).sort();
+check('建站成功、en 没被放弃（走的是配方那条路）', () => {
+  assert.strictEqual(RG.rc, 0, RG.stderr.slice(-800));
+  assert.deepStrictEqual(RG.events.filter((e) => e.event === 'secondary-locale-failed'), []);
+  assert.ok(RG.stderr.includes('[recipe] 整站配方（beauty）'), RG.stderr.slice(-800));
+});
+check(`单页调用 = 配方页数（${RP.pages.length}），每一通都要两种语言；回包里配方外的页一张没调`, () => {
+  const pages = RG.calls.filter((c) => c.kind === 'page');
+  assert.deepStrictEqual(pages.map((c) => c.slug).sort(), recipeSlugs);
+  assert.ok(pages.every((c) => c.grouped));
+});
+check('site/zh 与 site/en 的页面集合相同，且都是配方那一份（about / quote / team 一张没有）', () => {
+  const kwOnly = (o) => Object.keys(o).filter((k) => !recipeSlugs.includes(k));
+  assert.deepStrictEqual(Object.keys(enR).sort(), Object.keys(zhR).sort());
+  for (const slug of recipeSlugs) assert.ok(zhR[slug] && enR[slug], slug);
+  for (const extra of kwOnly(zhR)) assert.ok(zhR[extra].keywordPage || /^services\/[^/]+\/./.test(extra), `配方外的页 ${extra}`);
+});
+check('en 页的块序 = 配方；每块的 options 跟 zh 逐字相同，且含配方预设的旋钮（预设跟到了第二语言）', () => {
+  const manifests = require('./lib/block-manifest').loadManifests();
+  let knobbed = 0;
+  for (const rp of RP.pages) {
+    if (!rp.blocks.length) continue;
+    const z = blocksOf(zhR[rp.slug]); const e = blocksOf(enR[rp.slug]);
+    assert.deepStrictEqual(e.map((b) => b.type), rp.blocks.map((b) => b.type), rp.slug);
+    rp.blocks.forEach((_, i) => {
+      assert.deepStrictEqual((e[i].data || {}).options, (z[i].data || {}).options, `${rp.slug} #${i}`);
+    });
+    // 期望的旋钮 = 同一个 applyPresets 在空块上写出来的那份（预设名 → 旋钮的解析不在这里重抄）
+    const probe = rp.blocks.map((b) => ({ type: b.type, data: {} }));
+    SR.applyPresets(probe, rp.blocks, manifests);
+    probe.forEach((p, i) => {
+      for (const [k, v] of Object.entries((p.data && p.data.options) || {})) {
+        assert.deepStrictEqual(((e[i].data || {}).options || {})[k], v, `${rp.slug} #${i} ${p.type} 旋钮 ${k}`);
+        knobbed += 1;
+      }
+    });
+  }
+  assert.ok(knobbed > 0, '一个预设旋钮都没量到 ⟹ 这一格是空的');
+});
+check('两种语言的顶部导航都到得了服务列表页、按钮都指 contact（配方的导航与按钮跟到了第二语言）', () => {
+  for (const loc of ['zh', 'en']) {
+    const nav = JSON.parse(fs.readFileSync(path.join(RG.site, loc, 'navigation.json'), 'utf8'));
+    assert.deepStrictEqual(nav.header.links.map((l) => l.href), ['/', '/services'], loc);
+    assert.strictEqual(nav.header.cta.href, '/contact', loc);
+  }
+});
+check('文案各取各的：en 的服务页是英文那份', () => {
+  assert.strictEqual(blocksOf(enR['services/color'])[1].data.headline, 'hair coloring: How we do it');
+  assert.strictEqual(blocksOf(zhR['services/color'])[1].data.headline, '染发：怎么做');
+  assert.strictEqual(enR.contact.title, 'Contact us');
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

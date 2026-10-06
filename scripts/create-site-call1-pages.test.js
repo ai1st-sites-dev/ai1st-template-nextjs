@@ -48,7 +48,21 @@ const seen = {};
 globalThis.fetch = async () => { throw new Error('offline (test stub)'); };
 const DESC_KW = (kw) => `${kw}就在 Toronto：Silky Hair Salon 在多伦多为每一位顾客提供细致的${kw}服务，预约简单，到店即享专业建议，环境舒适安心，欢迎随时来店体验焕然一新的造型。`;
 const BODY = '我们在多伦多为每一位顾客提供细致的护理与造型服务，预约简单，到店即享专业建议，环境舒适安心，欢迎随时来店体验我们团队带来的放松时光与焕然一新的造型。';
-function sectionsFor(slug, title) {
+// #1601 —— 非首页的块序由整站配方定，写在提示词里（`write exactly these N, in this order: "a" → "b"`）：桩照它回，
+//    每种块一份过得了块库的 data。
+const BLOCK = {
+  'page-header': (title) => ({ type: 'page-header', data: { headline: title } }),
+  content: (title) => ({ type: 'content', data: { headline: `关于${title}`, body: BODY } }),
+  features: (title, prompt) => ({ type: 'features', data: /"features": write "items": \{"source": "services"\}/.test(prompt)
+    ? { headline: '我们的服务', items: { source: 'services' } }
+    : { headline: `${title}的亮点`, items: [1, 2, 3].map((n) => ({ title: `亮点${n}`, text: '每一步都由资深发型师完成。' })) } }),
+  faq: () => ({ type: 'faq', data: { headline: '常见问题', items: [{ question: '需要预约吗？', answer: '建议提前预约，也欢迎直接到店。' }] } }),
+  cta: () => ({ type: 'cta', data: { headline: '现在预约', body: '告诉我们您想要的造型。', ctas: [{ label: '预约', href: '/contact', style: 'solid' }] } }),
+  contact: () => ({ type: 'contact', data: { headline: '联系我们', body: '留下联系方式，我们尽快回复。', form: { id: 'contact' }, options: { form: 'full' } } }),
+};
+function sectionsFor(slug, title, prompt) {
+  const fixed = (prompt.match(/write exactly these \d+, in this order: ([^\n]+?)\. Do not add/) || [])[1];
+  if (fixed) return fixed.split(' → ').map((t) => BLOCK[JSON.parse(t)](title, prompt));
   const tail = [
     { type: 'faq', data: { headline: '常见问题', items: [{ question: '需要预约吗？', answer: '建议提前预约，也欢迎直接到店。' }] } },
     { type: 'cta', data: { headline: '现在预约', body: '告诉我们您想要的造型。', ctas: [{ label: '预约', href: '/quote', style: 'solid' }] } },
@@ -77,8 +91,8 @@ function answer(req) {
   if (kind === 'page') {
     // failCalls[slug] = 这一页前几次调用回 400（不可重试的 API 错 ⟹ callAIWithRetry 当场抛）
     if ((cfg.failCalls || {})[slug] >= seen[slug]) { const e = new Error(`stub: page ${slug} refused (call ${seen[slug]})`); e.status = 400; throw e; }
-    const page = cfg.plan.pages.find((p) => p.slug === slug);
-    let sections = sectionsFor(slug, page.title);
+    const title = (first.match(/\n- title: ([^\n]+)/) || [])[1] || slug;
+    let sections = sectionsFor(slug, title, first);
     // badFirst[slug]：第一次给一个块库不认的块（只重试这一页）
     if ((cfg.badFirst || []).includes(slug) && seen[slug] === 1) sections = [...sections, { type: 'not-a-block', data: {} }];
     // gallery：整站检查之后首页那一通补（cfg.siteFix）—— 只在那一通（问题里点名整站）才加
@@ -99,8 +113,13 @@ function answer(req) {
     return { json: { slug, title: `${kw}｜多伦多`, description: DESC_KW(kw), navLabel: kw, navOrder: 50, changeFrequency: 'monthly', priority: 0.6, sections }, out: 2000 };
   }
   if (kind === 'seo-rewrite') {
-    const env = JSON.parse((first.match(/\n\n(\{[\s\S]*?\n\})\n\nPROBLEMS TO FIX/) || [])[1]);
-    return { json: env, out: 1000 };
+    // #1593 之后修补是字段级：提示词里 `TEXTS TO FIX:` 是 { 名字: 字 }，回包 {"fields": { 名字: 新的字 }}。
+    const fields = JSON.parse((first.match(/TEXTS TO FIX:\n(\{[\s\S]*?\n\})\n\nPROBLEMS TO FIX/) || [])[1]);
+    // cfg.seoFixDesc（#1601）：站级回包漏了配方里的某一页 ⟹ 那一页的 description 是代码兜的短句，要靠这一通重写补长
+    //    （真 AI 就是这么修的）。只在点名的那几跑打开；别的跑照旧原样退回。
+    const pageSlug = (first.match(/^PAGE: (.+)$/m) || [])[1] || '';
+    if (cfg.seoFixDesc && typeof fields.description === 'string') fields.description = `${pageSlug}：Silky Hair Salon 在多伦多为每一位顾客提供细致的护理与造型服务，预约简单，到店即享专业建议，环境舒适安心，欢迎随时来店体验。`;
+    return { json: { fields }, out: 1000 };
   }
   throw new Error('桩不认识这一通调用：' + first.slice(0, 120));
 }
@@ -153,10 +172,16 @@ function plan() {
     pages: [
       page('home', '首页', 0), page('services', '服务', 1), page('about', '关于我们', 2), page('quote', '预约', 3),
       ...SERVICES.map(([id, name], i) => page(`services/${id}`, name, 10 + i, { serviceDetailPage: true, parentService: id })),
+      // #1601 —— 站级提示词点名要 contact（配方的按钮落点）、events 组还要 faq（photography 那两跑）；
+      //    about / quote 是「AI 照旧多列的页」，salon 的配方不采用（faq 对 salon 也一样）。
+      page('contact', '联系我们', 4), page('faq', '常见问题', 5),
     ],
   };
 }
-const N = plan().pages.length; // 4 + 7 = 11
+// #1601 —— 建出来的页不再是站级回包那份（它仍是 home / services / about / quote + 7 张服务页，模拟 AI 照旧列页），
+//    而是 beauty 组配方给的：首页 + 服务列表页 + 每个服务一页 + contact。
+const BUILT = ['home', 'services', ...SERVICES.map(([id]) => `services/${id}`), 'contact'];
+const N = BUILT.length; // 2 + 7 + 1 = 10
 const PAYLOAD = (extra = {}) => ({
   siteId: 'c1zh0001', siteUrl: 'https://silky.test', companyName: 'Silky Hair Salon', industry: 'hair salon', location: 'Toronto, ON',
   language: 'zh', services: SERVICES.map(([, n]) => n), homepageFingerprint: false, ...extra,
@@ -207,7 +232,7 @@ check(`AC 打桩跑：每页一行进度（${N} 行「Page i/${N} written」，i
 check(`AC 按页发：prompt 事件（排除两族）== 1 + ${N}，名字是 Base Site + 每页一个 Page: <slug>`, () => {
   const ps = call1Prompts(A.events);
   assert.strictEqual(ps.length, 1 + N, ps.map((p) => p.name).join(' · '));
-  assert.deepStrictEqual(ps.map((p) => p.name), ['Base Site', ...plan().pages.map((p) => `Page: ${p.slug}`)]);
+  assert.deepStrictEqual(ps.map((p) => p.name), ['Base Site', ...BUILT.map((slug) => `Page: ${slug}`)]);
 });
 check(`AC 按页发（前置）：cost 那一族条数 ≥ 1 + ${N}`, () => {
   const cs = call1Costs(A.events);
@@ -220,15 +245,15 @@ check('AC 按页发（判空）：那一族每条回包 out < 32000（打桩：�
 });
 check('页面一页一次调用：每页恰好一通、站级一通', () => {
   assert.strictEqual(A.calls.filter((c) => c.kind === 'site').length, 1);
-  for (const p of plan().pages) assert.strictEqual(A.calls.filter((c) => c.kind === 'page' && c.slug === p.slug).length, 1, p.slug);
+  for (const slug of BUILT) assert.strictEqual(A.calls.filter((c) => c.kind === 'page' && c.slug === slug).length, 1, slug);
 });
 check('落盘：每页的块就是那一页那一通回的 sections，页面文件里没有 brief', () => {
   const dir = path.join(A.work, 'site', 'zh', 'pages');
-  for (const p of plan().pages) {
-    const j = JSON.parse(fs.readFileSync(path.join(dir, `${p.slug}.json`), 'utf8'));
-    assert.ok(!('brief' in j), `${p.slug} 带着 brief`);
+  for (const slug of BUILT) {
+    const j = JSON.parse(fs.readFileSync(path.join(dir, `${slug}.json`), 'utf8'));
+    assert.ok(!('brief' in j), `${slug} 带着 brief`);
     const types = (j.blocks || j.sections || []).map((b) => b.type);
-    assert.strictEqual(types[0], p.slug === 'home' ? 'hero' : 'page-header', `${p.slug}: ${types.join(',')}`);
+    assert.strictEqual(types[0], slug === 'home' ? 'hero' : 'page-header', `${slug}: ${types.join(',')}`);
   }
 });
 check('做什么 2：每页提示词只带这一页（自己的 slug / brief 各一次，别页的 brief 0 次）；站级那一份不带块菜单', () => {
@@ -238,16 +263,20 @@ check('做什么 2：每页提示词只带这一页（自己的 slug / brief 各
   for (const p of ps.slice(1)) {
     const slug = p.name.replace(/^Page: /, '');
     assert.strictEqual(p.content.split(`- slug: "${slug}"`).length - 1, 1, `${slug}：自己的 slug 行不是恰好一次`);
-    assert.ok(p.content.includes(`BRIEF<${slug}>`), `${slug}：没有自己的 brief`);
+    // contact 是配方加的页，站级回包（桩）没给它 brief ⟹ 它那一份没有 brief 行。
+    if (plan().pages.some((x) => x.slug === slug)) assert.ok(p.content.includes(`BRIEF<${slug}>`), `${slug}：没有自己的 brief`);
+    else assert.ok(!p.content.includes('- what it must cover:'), `${slug}：回包没给 brief 却有 brief 行`);
     const others = plan().pages.filter((x) => x.slug !== slug && p.content.includes(`BRIEF<${x.slug}>`)).map((x) => x.slug);
     assert.deepStrictEqual(others, [], `${slug} 的提示词里有别页的 brief`);
     assert.ok(p.content.includes('AVAILABLE SECTION TYPES'), `${slug}：没有块菜单`);
   }
 });
-check('做什么 2：服务详情页的提示词点名它自己的服务、带 5-7 块那一行；首页的带首页那几条', () => {
+check('做什么 2：服务详情页的提示词点名它自己的服务、带配方给它的块序（#1601：不再是「5-7 块」那一行）；首页的带首页那几条', () => {
   const ps = call1Prompts(A.events);
   const perm = ps.find((p) => p.name === 'Page: services/perm').content;
-  assert.ok(perm.includes('This is the detail page of the service "烫发" (id perm). It needs 5-7 sections:'), perm.slice(0, 200));
+  assert.ok(perm.includes('This is the detail page of the service "烫发" (id perm). Write unique'), perm.slice(0, 200));
+  assert.ok(!perm.includes('It needs 5-7 sections'), '服务页还带着让 AI 自己挑块的那一行');
+  assert.ok(/- This page's sections are FIXED: write exactly these 5, in this order: "page-header" → "content" → "features" → "faq" → "cta"\./.test(perm), perm.slice(0, 1500));
   const home = ps.find((p) => p.name === 'Page: home').content;
   assert.ok(home.includes('- This is the HOME page.') && /There are \d+ section types/.test(home));
   assert.ok(!perm.includes('- This is the HOME page.') && !/There are \d+ section types/.test(perm));
@@ -255,7 +284,7 @@ check('做什么 2：服务详情页的提示词点名它自己的服务、带 5
 
 // ── 重试：一张服务详情页失败一次 / 两次 ─────────────────────────────────────────────────────────────
 const FAIL_SLUG = 'services/perm';
-const FAIL_I = plan().pages.findIndex((p) => p.slug === FAIL_SLUG) + 1;
+const FAIL_I = BUILT.indexOf(FAIL_SLUG) + 1;
 console.log(`── 重试：${FAIL_SLUG}（第 ${FAIL_I} 页）调用失败一次 / 两次`);
 const B = run('retry1', PAYLOAD(), { failCalls: { [FAIL_SLUG]: 1 } });
 check(`AC 重试：失败一次 ⟹ 日志「重试第 ${FAIL_I} 页」、建站成功`, () => {
@@ -263,8 +292,8 @@ check(`AC 重试：失败一次 ⟹ 日志「重试第 ${FAIL_I} 页」、建站
   assert.ok(B.stderr.includes(`重试第 ${FAIL_I} 页`), B.stderr.split('\n').filter((l) => l.startsWith('[pages]')).join('\n'));
 });
 check('AC 重试：只有它被请求两次，别的页各一次', () => {
-  for (const p of plan().pages) {
-    assert.strictEqual(B.calls.filter((c) => c.kind === 'page' && c.slug === p.slug).length, p.slug === FAIL_SLUG ? 2 : 1, p.slug);
+  for (const slug of BUILT) {
+    assert.strictEqual(B.calls.filter((c) => c.kind === 'page' && c.slug === slug).length, slug === FAIL_SLUG ? 2 : 1, slug);
   }
 });
 const C = run('retry2', PAYLOAD(), { failCalls: { [FAIL_SLUG]: 2 } });
@@ -305,13 +334,13 @@ check('反向对照：失败的那一页之外没有页被重试（每页各一�
 
 // ── 块库：一页不合格只重试这一页；整站缺块首页补 ────────────────────────────────────────────────────
 console.log('── 块库：一页第一次不合格 / 整站缺「行业必需的块」');
-const D = run('badblock', PAYLOAD(), { badFirst: ['about'] });
-check('about 第一次块库不合格 ⟹ 只重试 about（问题原样退回，三轮对话），建站成功', () => {
+const D = run('badblock', PAYLOAD(), { badFirst: ['services'] });
+check('services 第一次块库不合格 ⟹ 只重试 services（问题原样退回，三轮对话），建站成功', () => {
   assert.strictEqual(D.rc, 0, `${D.error}\n${D.stderr.slice(-600)}`);
-  const about = D.calls.filter((c) => c.kind === 'page' && c.slug === 'about');
-  assert.deepStrictEqual(about.map((c) => c.turns), [1, 3]);
-  assert.ok(/not-a-block/.test(about[1].last), about[1].last.slice(0, 300));
-  assert.ok(D.calls.filter((c) => c.kind === 'page' && c.slug !== 'about').every((c) => c.turns === 1));
+  const svc = D.calls.filter((c) => c.kind === 'page' && c.slug === 'services');
+  assert.deepStrictEqual(svc.map((c) => c.turns), [1, 3]);
+  assert.ok(/not-a-block/.test(svc[1].last), svc[1].last.slice(0, 300));
+  assert.ok(D.calls.filter((c) => c.kind === 'page' && c.slug !== 'services').every((c) => c.turns === 1));
 });
 const E = run('sitefix', PAYLOAD({ industry: 'photography' }), { siteFix: true });
 check('整站缺 gallery（photography 必需）⟹ 首页那一通补一次、建站成功', () => {
@@ -359,7 +388,7 @@ check('建站成功', () => {
   assert.strictEqual(K.rc, 0, `${K.error}\n${K.stderr.slice(-800)}`);
 });
 check(`混进来的 ${STRAY.length} 页一页都没生成：Call 1 的 prompt 只有 Base Site + 原来的 ${N} 页，桩也没收到它们的每页调用`, () => {
-  assert.deepStrictEqual(call1Prompts(K.events).map((p) => p.name), ['Base Site', ...plan().pages.map((p) => `Page: ${p.slug}`)]);
+  assert.deepStrictEqual(call1Prompts(K.events).map((p) => p.name), ['Base Site', ...BUILT.map((slug) => `Page: ${slug}`)]);
   assert.deepStrictEqual(K.calls.filter((c) => c.kind === 'page' && STRAY.includes(c.slug)).map((c) => c.slug), []);
   const lines = K.events.filter((e) => e.event === 'progress' && /^Page \d+\/\d+ written: /.test(e.message));
   assert.strictEqual(lines.length, N, lines.map((e) => e.message).join(' | '));
@@ -403,7 +432,7 @@ check('payload 不带上限 ⟹ 本地兜底 128000（create-site.js 的模块�
 
 // ── 目标词进了那一页的提示词（只看提示词：用 call1-prompts.testkit 的桩，不建站）────────────────────────
 console.log('── 做什么 2：这一页的目标词');
-check('首页带站主词、服务详情页带它服务的主词、about 不带目标词', () => {
+check('首页带站主词、服务详情页带它服务的主词、faq 不带目标词（#1601：plumbing 的配方没有 about，有 faq）', () => {
   const work = makeTree('kw');
   const { call1Prompts: promptsOf } = require('./lib/call1-prompts.testkit');
   const r = promptsOf(work, {
@@ -418,8 +447,163 @@ check('首页带站主词、服务详情页带它服务的主词、about 不带�
   assert.ok(pg('home').includes('- target keyword: "drain cleaning toronto"'), pg('home').slice(0, 400));
   assert.ok(pg('services/drain-cleaning').includes('- target keyword: "drain cleaning toronto"'));
   assert.ok(pg('services/water-heaters').includes('- target keyword: "water heater repair"'));
-  assert.ok(!pg('about').includes('- target keyword:') && pg('about').length > 0);
+  assert.ok(!pg('faq').includes('- target keyword:') && pg('faq').length > 0);
   assert.ok(!pg('services/sump-pumps').includes('- target keyword:'), '没有关键词的服务');
+});
+
+// ══ #1601 整站配方（AC2–AC5）：同一套桩，站级回包照旧列一大堆页 ════════════════════════════════════════
+// 期望值在这里写死（不从 lib/site-recipe.js 读）：beauty 组 = 首页 + 服务列表页 + 每个服务一页 + contact；
+// 每页的块序按 #1601 交付里那张表抄（services 列表页 / 服务页 / contact 三种）。
+console.log('── #1601 AC2：站级回包塞 15 页（含 gallery / faq / quote），建出来的是配方那一份');
+const FIFTEEN = (() => {
+  const p = plan();
+  const page = (slug, title, navOrder) => ({ slug, title, description: DESC(title), navLabel: title, navOrder, changeFrequency: 'monthly', priority: 0.7, brief: `BRIEF<${slug}>` });
+  p.pages = [
+    page('home', '首页', 0), page('services', '服务', 1), page('about', '关于我们', 2), page('gallery', '作品', 3),
+    page('faq', '常见问题', 4), page('quote', '预约', 5), page('contact', '联系我们', 6),
+    ...SERVICES.map(([id, name], i) => ({ ...page(`services/${id}`, name, 10 + i), serviceDetailPage: true, parentService: id })),
+    page('jian-fa-dian', '剪发店', 30),
+  ];
+  return p;
+})();
+const R1 = run('recipe-15', KW_PAYLOAD, { plan: FIFTEEN });
+const pagesOn = (work) => {
+  const dir = path.join(work, 'site', 'zh', 'pages');
+  const out = [];
+  const walk = (d, pre) => { for (const f of fs.readdirSync(d)) { const full = path.join(d, f); if (fs.statSync(full).isDirectory()) walk(full, `${pre}${f}/`); else if (f.endsWith('.json')) out.push(`${pre}${f.slice(0, -5)}`); } };
+  walk(dir, '');
+  return out.sort();
+};
+check('AC2：回包有 15 页，站的页面集合 == 配方（首页 · services · 7 张服务页 · contact）+ 2 张关键词页；about / gallery / faq / quote 一张都不在', () => {
+  assert.strictEqual(FIFTEEN.pages.length, 15);
+  assert.strictEqual(R1.rc, 0, `${R1.error}\n${R1.stderr.slice(-800)}`);
+  assert.deepStrictEqual(pagesOn(R1.work), [...BUILT, 'services/cut/jian-fa-dian', 'services/cut/nan-shi-li-fa'].sort());
+});
+check('AC2：配方外那几页各一行日志说不采用', () => {
+  const log = R1.stderr.split('\n').filter((l) => l.startsWith('[recipe] 站级回包里的'));
+  assert.deepStrictEqual(log.map((l) => (l.match(/「([^」]+)」/) || [])[1]).sort(), ['about', 'faq', 'gallery', 'quote']);
+});
+check('AC2：站级提示词不再让 AI 挑页（没有 DYNAMIC PAGE SELECTION / 「choose 2-4 more pages」/ 原型清单），而是点名这几页、按钮指 contact', () => {
+  const site = call1Prompts(R1.events)[0].content;
+  for (const gone of ['DYNAMIC PAGE SELECTION', 'choose 2-4 more pages', '"gallery" — Portfolio', 'Skip service detail pages']) assert.ok(!site.includes(gone), `还有「${gone}」`);
+  assert.ok(site.includes('PAGES OF THIS WEBSITE (fixed'), site.slice(0, 600));
+  assert.ok(site.includes('- navigation.ctaPage must be "contact".'));
+  assert.ok(site.includes('"ctaPage": "contact"'));
+});
+check('AC2：每页那一通的提示词写着配方给这一页的块序（三种页各对一次）', () => {
+  const ps = call1Prompts(R1.events);
+  const order = (slug) => ((ps.find((p) => p.name === `Page: ${slug}`) || {}).content || '').match(/write exactly these \d+, in this order: ([^\n]+?)\. Do not/);
+  assert.strictEqual((order('services') || [])[1], '"page-header" → "features" → "cta"');
+  assert.strictEqual((order('services/perm') || [])[1], '"page-header" → "content" → "features" → "faq" → "cta"');
+  assert.strictEqual((order('contact') || [])[1], '"page-header" → "contact"');
+  assert.strictEqual(order('home'), null, '首页归 #1034 的配方，不该有固定块序');
+});
+check('AC2：落盘的块序就是配方那一份；预设写进了 options（服务列表页的 features = Cards 那组旋钮）', () => {
+  const read = (slug) => JSON.parse(fs.readFileSync(path.join(R1.work, 'site', 'zh', 'pages', `${slug}.json`), 'utf8'));
+  const types = (slug) => (read(slug).blocks || read(slug).sections).map((b) => b.type);
+  assert.deepStrictEqual(types('services'), ['page-header', 'features', 'cta']);
+  assert.deepStrictEqual(types('contact'), ['page-header', 'contact']);
+  const feat = (read('services').blocks || read('services').sections).find((b) => b.type === 'features');
+  const cards = JSON.parse(fs.readFileSync(path.join(NEXT, 'blocks', 'features', 'manifest.json'), 'utf8')).presets.find((p) => p.name === 'Cards').knobs;
+  for (const [k, v] of Object.entries(cards)) assert.strictEqual(feat.data.options[k], v, `features.options.${k}`);
+});
+check('AC2 反向对照：块序不照配方写 ⟹ 当作块库不合格重试这一页（桩第一次多塞一块，第二次照写）', () => {
+  // badFirst 那一跑（上面 D）：services 第一次多了一块 not-a-block ⟹ 退回的问题里点名块序。
+  const svc = D.calls.filter((c) => c.kind === 'page' && c.slug === 'services');
+  assert.ok(/this page's sections must be exactly "page-header" → "features" → "cta"/.test(svc[1].last), svc[1].last.slice(0, 400));
+});
+
+check('AC2：关键词页那一通的 CTA 指站的按钮落点 /contact，不再写死 "/quote"（配方的站没有 quote 页）', () => {
+  const kw = R1.events.filter((e) => e.event === 'prompt' && /^Keyword page: /.test(e.name || ''));
+  assert.strictEqual(kw.length, 2, kw.map((e) => e.name).join(' · '));
+  for (const e of kw) {
+    assert.ok(/- CTA href points to "\/contact"/.test(e.content), `${e.name}: ${(e.content.match(/- CTA href[^\n]*/) || ['（没有 CTA 那一行）'])[0]}`);
+    assert.ok(!e.content.includes('"/quote"'), `${e.name} 还写着 "/quote"`);
+  }
+});
+
+console.log('── #1601 AC3：导航与按钮（同 AC2 那个站，读 navigation.json）');
+const NAV = () => JSON.parse(fs.readFileSync(path.join(R1.work, 'site', 'zh', 'navigation.json'), 'utf8'));
+check('AC3：行动按钮的 href 指向的页在建成的页面集合里', () => {
+  const href = NAV().header.cta.href;
+  const slug = href === '/' ? 'home' : href.replace(/^\//, '');
+  assert.ok(pagesOn(R1.work).includes(slug), `${href} 不在 ${pagesOn(R1.work).join(' ')}`);
+});
+/** 顶部导航到得了哪些服务页：直接在链接里的，加上链接里某一页上 `items: {source: "services"}` 那一块列出的（有那张服务页才带链接）。 */
+const reachableServices = (work, links) => {
+  const out = new Set();
+  for (const l of links) {
+    const slug = l.href === '/' ? 'home' : l.href.replace(/^\//, '');
+    if (/^services\/[^/]+$/.test(slug)) out.add(slug);
+    const f = path.join(work, 'site', 'zh', 'pages', `${slug}.json`);
+    if (!fs.existsSync(f)) continue;
+    const j = JSON.parse(fs.readFileSync(f, 'utf8'));
+    if ((j.blocks || j.sections || []).some((b) => b.type === 'features' && b.data && b.data.items && b.data.items.source === 'services')) {
+      for (const s of pagesOn(work)) if (/^services\/[^/]+$/.test(s)) out.add(s);
+    }
+  }
+  return [...out].sort();
+};
+check('AC3：7 张服务页，每一张要么在顶部导航的链接里、要么是导航里某一页上 {source: "services"} 那一块列出的', () => {
+  const svcPages = pagesOn(R1.work).filter((s) => /^services\/[^/]+$/.test(s));
+  assert.strictEqual(svcPages.length, 7);
+  assert.deepStrictEqual(reachableServices(R1.work, NAV().header.links), svcPages);
+});
+
+// AC3 对抗臂：回包里没有服务列表页、没有 quote 页，按钮却写着 ctaPage: 'quote'（今天 AI 回包的常见形状）。
+//    在 origin/main 上这一跑两格都红：顶部导航只剩 Home、按钮指一张不存在的 /quote。
+const R3x = run('recipe-nav-adversarial', PAYLOAD(), { plan: (() => {
+  const p = plan();
+  p.pages = p.pages.filter((x) => x.slug === 'home' || x.serviceDetailPage);
+  p.navigation = { ...p.navigation, ctaPage: 'quote' };
+  return p;
+})(), seoFixDesc: true });
+check('AC3 对抗臂：回包不给服务列表页、按钮写 quote ⟹ 按钮仍指建成的页，7 张服务页仍都到得了', () => {
+  assert.strictEqual(R3x.rc, 0, `${R3x.error}\n${R3x.stderr.slice(-800)}`);
+  const nav = JSON.parse(fs.readFileSync(path.join(R3x.work, 'site', 'zh', 'navigation.json'), 'utf8'));
+  const href = nav.header.cta.href;
+  assert.ok(pagesOn(R3x.work).includes(href === '/' ? 'home' : href.replace(/^\//, '')), `${href} 不在 ${pagesOn(R3x.work).join(' ')}`);
+  const svcPages = pagesOn(R3x.work).filter((s) => /^services\/[^/]+$/.test(s));
+  assert.strictEqual(svcPages.length, 7);
+  assert.deepStrictEqual(reachableServices(R3x.work, nav.header.links), svcPages);
+});
+
+console.log('── #1601 AC4：勾了「照抄参照站结构」⟹ 不走配方');
+const REF = { refSite: 'https://ref.test', refPrefs: ['structure'], refAnalysis: { navLinks: ['Home', 'Services', 'Gallery', 'Contact'] } };
+const R4 = run('recipe-structure', PAYLOAD(REF), { plan: FIFTEEN });
+const R4n = run('recipe-structure-off', PAYLOAD({ ...REF, refPrefs: [] }), { plan: FIFTEEN });
+check('AC4：勾 structure ⟹ 页面清单仍来自参照站那条老路（gallery 在），站级提示词是老的那段', () => {
+  assert.strictEqual(R4.rc, 0, `${R4.error}\n${R4.stderr.slice(-800)}`);
+  assert.ok(pagesOn(R4.work).includes('gallery'), pagesOn(R4.work).join(' '));
+  assert.ok(call1Prompts(R4.events)[0].content.includes('REFERENCE SITE NAVIGATION (HARD COPY'));
+  assert.ok(!call1Prompts(R4.events)[0].content.includes('PAGES OF THIS WEBSITE (fixed'));
+});
+check('AC4 反向读数：同一份 payload 不勾 structure ⟹ gallery 不出现（上一格不是恒绿）', () => {
+  assert.strictEqual(R4n.rc, 0, `${R4n.error}\n${R4n.stderr.slice(-800)}`);
+  assert.ok(!pagesOn(R4n.work).includes('gallery'), pagesOn(R4n.work).join(' '));
+});
+
+console.log('── #1601 AC5：只填 1 个服务');
+const ONE = (() => {
+  const p = plan();
+  p.services = p.services.slice(0, 1);
+  // 回包里一张服务页都不给 —— 照老提示词（少于 3 个服务就「Skip service detail pages」）办事的 AI 就是这么回的。
+  //    服务页要从配方来，不是从回包来（这一格在 origin/main 上读红：那里 1 个服务的站没有服务页）。
+  p.pages = p.pages.filter((x) => !x.serviceDetailPage);
+  return p;
+})();
+const R5 = run('recipe-one', PAYLOAD({ services: ['剪发'] }), { plan: ONE, seoFixDesc: true });
+check('AC5：1 个服务 ⟹ 有 1 张 services/<id>，顶部导航（按 AC3 的判法）到得了它', () => {
+  assert.strictEqual(R5.rc, 0, `${R5.error}\n${R5.stderr.slice(-800)}`);
+  const svc = pagesOn(R5.work).filter((s) => /^services\/[^/]+$/.test(s));
+  assert.deepStrictEqual(svc, ['services/cut']);
+  const nav = JSON.parse(fs.readFileSync(path.join(R5.work, 'site', 'zh', 'navigation.json'), 'utf8'));
+  assert.deepStrictEqual(reachableServices(R5.work, nav.header.links), ['services/cut']);
+});
+check('AC5：站级提示词里没有「Skip service detail pages」，服务页那一行写的是 1 page', () => {
+  const site = call1Prompts(R5.events)[0].content;
+  assert.ok(!site.includes('Skip service detail pages'));
+  assert.ok(site.includes('one page for EACH service (1 page)'), site.slice(0, 1500));
 });
 
 console.log(`\n══ 汇总: 通过 ${pass} · 失败 ${fail} ══`);

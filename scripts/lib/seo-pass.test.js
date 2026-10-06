@@ -242,6 +242,11 @@ const PAYLOAD = (extra = {}) => ({
   siteUrl: 'https://seo1549t.preview.test', // #1547 之后 create-site 要它；之前的版本忽略这个键
   // 首页开场配方（#1034）按 siteId 每站不同、不合就多要一次 Call 1b —— 跟本票那一维无关，关掉免得夹具去追配方
   homepageFingerprint: false,
+  // #1601 —— 页面清单从此由整站配方给（plumbing 那一组没有 about / quote），而这份夹具的几个场景就长在 AI 挑出来的
+  //    about / quote 上（about 编年份、about 两个 H1）。本测试量的是 seoPass，不是谁挑页：走「照抄参照站结构」那条
+  //    仍由 AI 定页面清单的老路（create-site.js §pagesInstruction 的例外），场景一个字不改。配方那条路上的 seoPass
+  //    由 create-site-call1-pages.test.js 的 #1601 AC2 那一跑覆盖（它的每一页都过 seo 检查）。
+  refSite: 'https://reference.test', refPrefs: ['structure'], refAnalysis: { navLinks: ['Home', 'About', 'Quote'] },
   ...extra,
 });
 

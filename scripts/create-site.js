@@ -81,6 +81,8 @@ const {
   fingerprintEnabled,
   afterRetry,
 } = require('./lib/homepage-recipe');
+// #1601 — 整站配方：页面清单、每页的块序与预设、顶部导航放哪几页、行动按钮指哪一页，按行业组给（AI 只填内容）。
+const siteRecipe = require('./lib/site-recipe');
 // #998 — 写页面 JSON 时把 AI 产出的 `sections` 转成 `blocks`（补 id / role / region / weight）。
 // 归一化和角色兜底表跟 sync-config.js 用的是同一份实现，两处各写一遍必然分叉。
 const { pageWithBlocks } = require('./blocks');
@@ -1457,6 +1459,7 @@ async function main() {
         forms: siteFormsFrom(content.ai && content.ai.forms),
         additionalContext,
         sitePrimaryKeyword: (targetKw.sitePrimaryOf(kwGroups, { siteType, keyword: leadKeyword }) || {}).keyword || '',
+        ctaHref: (content.navigation && content.navigation.header && content.navigation.header.cta && content.navigation.header.cta.href) || '',
       });
       for (const r of results) {
         if (r.ok) kwOk.push(r);
@@ -2462,27 +2465,28 @@ ${designInstruction}\n`;
     }
   }
 
-  // Page selection — always include home + services. AI picks the rest.
+  // Page selection.
   // TICKET-120: when structure hard-copy is active, the REFERENCE SITE NAVIGATION
   // block above is the source of truth for nav pages — suppress the generic
-  // "always include services" and "choose 2-4 more archetypes" mandates that
-  // would otherwise pull Claude away from the hard-copied list.
+  // "always include services" mandate that would otherwise pull Claude away from the hard-copied list.
+  // #1601 —— 其余情况页面清单由整站配方给（lib/site-recipe.js），AI 不再挑页；勾了「照抄参照站结构」时用户点名要的那个赢
+  //    （同首页配方的先例，见上面 `wantsRefLayout` 那段），走下面这条老路。
   const structureHardCopy = refPrefs.includes('structure') && refAnalysis && Array.isArray(refAnalysis.navLinks) && parseRefNavLinks(refAnalysis.navLinks).length > 0;
-  const pagesInstruction = `${structureHardCopy
-    ? `DYNAMIC PAGE SELECTION: Always include "home". The header nav pages are SPECIFIED by the REFERENCE SITE NAVIGATION (HARD COPY) block above — generate ONLY those archetypes as regular nav pages. Do NOT add any other regular pages. Do NOT add a "services" page unless it appears in the hard-copy archetypes list above.`
-    : `DYNAMIC PAGE SELECTION: Always include "home". Because this business has ${servicesList.length} services, always include a "services" page.
-Additionally, choose 2-4 more pages from these archetypes that make sense for a ${industry} business:
-- "about" — Company story, team, values
-- "quote" — Quote/contact request form
-- "menu" — Menu or product catalog (restaurants, bakeries, cafes)
-- "gallery" — Portfolio or project showcase (creative, construction)
-- "pricing" — Pricing tiers/packages (SaaS, consulting, memberships)
-- "faq" — Frequently asked questions (complex services, insurance, legal)
-- "team" — Team members showcase (agencies, clinics, law firms)
-- "areas" — Service area coverage (home services, delivery, contractors)
-- "testimonials" — Customer reviews page
-- "process" — How it works / our process
-- "case-studies" — Project showcases with details`}
+  // 这里只为写提示词：服务 id 要等站级那一通回来才有（下面 §采用配方 再按真 id 取一次），先拿一个占位 id 问「服务页有没有」。
+  const recipePlan = structureHardCopy ? null : siteRecipe.sitePagesFor(industry, { services: ['{service-id}'], disabledBlocks });
+  const RECIPE_PAGE_LINES = {
+    home: () => '- "home" — the home page (navOrder 0)',
+    services: () => '- "services" — the list of all the services, each linking to its own page',
+    about: () => '- "about" — who the business is: its story, its people, why customers trust it',
+    faq: () => '- "faq" — the questions customers really ask this kind of business',
+    contact: (p) => `- "contact" — how to reach the business, with the contact form${recipePlan.ctaPage === p.slug ? ' (the call-to-action page)' : ''}`,
+  };
+  const pagesInstruction = recipePlan
+    ? `PAGES OF THIS WEBSITE (fixed — write one entry in "pages" for EACH of these, and do NOT add, remove or rename any page):
+${recipePlan.pages.filter((p) => p.kind !== 'service').map((p) => RECIPE_PAGE_LINES[p.kind](p)).join('\n')}
+${recipePlan.pages.some((p) => p.kind === 'service') ? `- "services/{service-id}" — one page for EACH service (${servicesList.length} page${servicesList.length === 1 ? '' : 's'}): use the EXACT service id from the "services" array; set serviceDetailPage: true and parentService: "{service-id}"; navOrder 10-19, priority 0.8, changeFrequency "monthly"
+` : ''}- navigation.ctaPage must be "${recipePlan.ctaPage}".`
+    : `DYNAMIC PAGE SELECTION: Always include "home". The header nav pages are SPECIFIED by the REFERENCE SITE NAVIGATION (HARD COPY) block above — generate ONLY those archetypes as regular nav pages. Do NOT add any other regular pages. Do NOT add a "services" page unless it appears in the hard-copy archetypes list above.
 
 SERVICE DETAIL PAGES:
 ${servicesList.length >= 3 ? `Generate an individual service detail page for EACH service (${servicesList.length} pages total).
@@ -2573,7 +2577,7 @@ Generate a JSON object with this EXACT structure:
   },
   "navigation": {
     "ctaLabel": "<CTA button text, max 25 chars>",
-    "ctaPage": "<slug of the CTA target page, e.g. quote>",
+    "ctaPage": "${recipePlan ? recipePlan.ctaPage : '<slug of the CTA target page, e.g. quote>'}",
     "footerDescription": "<1 sentence with location + primary keyword>"
   },
   "seo": {
@@ -2655,8 +2659,23 @@ ${FACTS_ONLY_FROM_FORM_RULE}
   // #1596 —— brand 是代码拼的站级计划给的（不是 AI 回包）⟹ payload 没给邮箱就不写 brand.email（不落进 'info@example.com' 那个兜底）。
   //    brand 在 pages 阶段之后才写 ⟹ 这一位跟着 plan / pages 两份存档走，续跑的站照样认得它。
   let brandByCode = false;
+  // #1601 —— 配方给每页的块序（按页面对象记：§采用配方 之后 capServiceIds 还会改服务页的 slug）和顶部导航放哪几页。
+  // #1601 × #1598 —— 续跑时的页是从存档 JSON 读回来的新对象，按对象身份记的块序会跟丢（同 LocaleBook）⟹ 跟着存档走：
+  //    存档点按【那一刻的 slug】写进 state（§recipeSnapshot，slug 那时已收完），续跑时按 slug 挂回读回来的页。
+  //    不带上它，从 plan 续跑的站每页那一通不锁块序、不写预设，从 pages 续跑的站顶部导航退回全部普通页。
+  const recipeBlocksOf = new WeakMap();
+  let recipeNav = null;
+  const recipeSnapshot = () => (recipeNav
+    ? { nav: [...recipeNav], blocks: Object.fromEntries(ai.pages.filter((p) => recipeBlocksOf.has(p)).map((p) => [p.slug, recipeBlocksOf.get(p)])) }
+    : null);
   if (resumeFrom >= 0) {
-    ({ ai, idRenames = [], brandByCode = false } = resumeState);
+    let recipe;
+    ({ ai, idRenames = [], brandByCode = false, recipe = null } = resumeState);
+    if (recipe) {
+      for (const p of ai.pages) if (recipe.blocks[p.slug]) recipeBlocksOf.set(p, recipe.blocks[p.slug]);
+      recipeNav = new Set(recipe.nav);
+      debug(`[resume] 整站配方跟着存档回来：${Object.keys(recipe.blocks).length} 页的块序；顶部导航 ${recipe.nav.join(' · ') || '（只有首页）'}`);
+    }
     debug(`[resume] 跳过 plan 阶段（站级那一通）：存档里 ${ai.pages.length} 页`);
   } else {
     emit('prompt', { name: 'Base Site', content: sitePrompt });
@@ -2746,6 +2765,41 @@ ${FACTS_ONLY_FROM_FORM_RULE}
       ai.pages = fallbackSite.fallbackPages({ companyName, services: ai.services, location: rawLocation, locale: locales.primary.code });
       ai.navigation.ctaPage = 'contact'; // 这份清单里唯一的联系页
     }
+    // #1601 —— 采用配方：页面清单从配方来（按回包里的服务 id 展开每个服务一页），站级回包只取每页的文字
+    //    （title / description / navLabel / navOrder / brief …）。回包里配方外的页一张都不采用，各记一行日志。
+    //    每页的块序记在 `recipeBlocksOf`（见上面它的声明）。
+    if (recipePlan) {
+      const plan = siteRecipe.sitePagesFor(industry, { services: ai.services, disabledBlocks });
+      const inPlan = new Set(plan.pages.map((p) => p.slug));
+      for (const p of ai.pages) if (!inPlan.has(p.slug)) debug(`[recipe] 站级回包里的「${p.slug}」不在配方里 ⟹ 不采用`);
+      const fromAi = new Map(ai.pages.map((p) => [p.slug, p]));
+      const svcName = new Map((Array.isArray(ai.services) ? ai.services : []).filter((x) => x && x.id).map((x) => [x.id, x.name || x.id]));
+      const TEXT = ['title', 'description', 'navLabel', 'navOrder', 'changeFrequency', 'priority', 'brief'];
+      let svcOrder = 10;
+      // #1601 × #1596 —— 站级回包（或代码拼的站级计划）没给这一页的 description ⟹ 代码写一句，长度落在区间内
+      //    （同 lib/fallback-site.js §fittedDescription 的理由：短了每页多一次 SEO 修补、多一条 seo 降级）。
+      //    站级计划里有的页用它那句；配方多出来的页（about / faq）用一句通用话。
+      const planDesc = new Map(fallbackSite.fallbackPages({ companyName, services: ai.services, location: rawLocation, locale: locales.primary.code }).map((p) => [p.slug, p.description]));
+      const inLoc = typeof rawLocation === 'string' && rawLocation.trim() ? ` in ${rawLocation.trim()}` : '';
+      const codeDesc = (slug, title) => planDesc.get(slug)
+        || fallbackSite.fittedDescription(`${title} — ${companyName}${inLoc}. Find out more about how we work and what to expect, then get in touch with our team today.`, locales.primary.code);
+      ai.pages = plan.pages.map((rp) => {
+        const got = fromAi.get(rp.slug) || {};
+        const name = rp.kind === 'service' ? svcName.get(rp.parentService) : null;
+        const base = rp.kind === 'home' ? { title: 'Home', navLabel: 'Home', navOrder: 0, changeFrequency: 'weekly', priority: 1 }
+          : rp.kind === 'service' ? { title: name, navLabel: name, navOrder: svcOrder++, changeFrequency: 'monthly', priority: 0.8 }
+            : { ...siteRecipe.PAGE_DEFAULTS[rp.kind] };
+        const page = { slug: rp.slug, ...base };
+        for (const k of TEXT) if (got[k] !== undefined && got[k] !== null && got[k] !== '') page[k] = got[k];
+        if (!page.description) page.description = rp.kind === 'home' ? ((ai.seo && ai.seo.siteDescription) || companyName) : codeDesc(rp.slug, page.title);
+        if (rp.serviceDetailPage) { page.serviceDetailPage = true; page.parentService = rp.parentService; }
+        if (rp.blocks.length) recipeBlocksOf.set(page, rp.blocks);
+        return page;
+      });
+      ai.navigation = { ...(ai.navigation || {}), ctaPage: plan.ctaPage };
+      recipeNav = new Set(plan.nav);
+      debug(`[recipe] 整站配方（${plan.sector || '认不出行业组 ⟹ 默认配方'}）：${ai.pages.length} 页 ${ai.pages.map((p) => p.slug).join(' · ')}；顶部导航 ${plan.nav.join(' · ') || '（只有首页）'}；按钮指 ${plan.ctaPage}`);
+    }
 
     // #1565 —— 服务 id 是 AI 写的，会原样变成文件名（pages/services/<id>.json）：收进跟关键词页 slug 同一个上限。
     //    #1568 —— 放在站级那一通之后、每页那几通之前：每页的提示词里给的就是收过的 id（链接按它写）。
@@ -2753,7 +2807,7 @@ ${FACTS_ONLY_FROM_FORM_RULE}
     for (const r of idRenames) {
       debug(`[services] AI 写的服务 id 有 ${Buffer.byteLength(r.from)} 字节，超过文件名能放的上限，网址改用 ${r.to}（${Buffer.byteLength(r.to)} 字节）`);
     }
-    checkpoint('plan', { ai, idRenames, brandByCode });
+    checkpoint('plan', { ai, idRenames, brandByCode, recipe: recipeSnapshot() });
   }
 
   // ── #1598 pages 阶段：每页一通 + 整站那一条块库检查。pages 已存档 ⟹ 整段跳过（存档里那份 ai 每页都已带着 sections）。
@@ -2775,7 +2829,7 @@ ${FACTS_ONLY_FROM_FORM_RULE}
       ...[...svcById.values()].map((s) => `  - ${s.id} → ${s.name}${s.shortDescription ? `: ${s.shortDescription}` : ''}`),
       '- Pages of this website (link to them with these hrefs):',
       ...ai.pages.map((p) => `  - "${hrefOf(p.slug)}" — ${p.navLabel || p.title || p.slug}`),
-      ai.navigation && ai.navigation.ctaPage ? `- Call-to-action page: "/${ai.navigation.ctaPage}"${ai.navigation.ctaLabel ? ` (button text "${ai.navigation.ctaLabel}")` : ''}` : null,
+      ai.navigation && ai.navigation.ctaPage ? `- Call-to-action page: "${hrefOf(ai.navigation.ctaPage)}"${ai.navigation.ctaLabel ? ` (button text "${ai.navigation.ctaLabel}")` : ''}` : null,
       `- Forms: ${forms.map((f) => `"${f.id}"${f.name ? ` (${f.name})` : ''}`).join(', ')}`,
     ].filter((l) => l !== null).join('\n');
 
@@ -2784,6 +2838,12 @@ ${FACTS_ONLY_FROM_FORM_RULE}
       .map((k) => (k && typeof k.keyword === 'string' ? k.keyword : '')).filter(Boolean);
     const pagePromptFor = (page) => {
       const isHome = page.slug === 'home';
+      // #1601 —— 配方定了这一页的块序（首页除外：首页归 #1034 的配方）⟹ AI 只填内容，不挑块。
+      const fixed = recipeBlocksOf.get(page) || null;
+      const fixedLines = fixed ? [
+        `- This page's sections are FIXED: write exactly these ${fixed.length}, in this order: ${siteRecipe.blockOrderLine(fixed)}. Do not add, drop or reorder any section.`,
+        ...fixed.filter((x) => x.note).map((x) => `  - "${x.type}": ${x.note}`),
+      ] : [];
       const svc = page.serviceDetailPage === true ? svcById.get(page.parentService) || svcById.get(page.slug.replace(/^services\//, '')) : null;
       const kw = typeof pageKeywords[page.slug] === 'string' ? pageKeywords[page.slug] : '';
       const thisPage = [
@@ -2793,8 +2853,10 @@ ${FACTS_ONLY_FROM_FORM_RULE}
         page.brief ? `- what it must cover: ${page.brief}` : null,
         kw ? `- target keyword: "${kw}" — use that exact phrase in the page's single H1 (the "headline" of its one "hero" or "page-header" section), within its first 100 words, and in at least two H2s (the "headline" of other sections).` : null,
         isHome ? '- This is the HOME page. Choose 7-10 sections — the homepage must feel unique: do NOT use all sections, pick what fits the industry.'
-          : svc ? `- This is the detail page of the service "${svc.name}" (id ${svc.id}). It needs 5-7 sections: ${serviceDetailSectionRule}. Write unique, detailed SEO content for this service.`
-            : null,
+          : svc && fixed ? `- This is the detail page of the service "${svc.name}" (id ${svc.id}). Write unique, detailed SEO content for this service.`
+            : svc ? `- This is the detail page of the service "${svc.name}" (id ${svc.id}). It needs 5-7 sections: ${serviceDetailSectionRule}. Write unique, detailed SEO content for this service.`
+              : null,
+        ...fixedLines,
       ].filter((l) => l !== null).join('\n');
       const rules = [
         '- Return {"sections": [ ... ]}: this page\'s sections in order, each { "type": "<section type>", "data": { ... } } as described under AVAILABLE SECTION TYPES.',
@@ -2803,7 +2865,7 @@ ${FACTS_ONLY_FROM_FORM_RULE}
           `- There are ${offeredTypeCount} section types. USE THIS VARIETY. Each site should feel different.`,
           varySectionOrderRule,
           homeRecipe ? recipePromptLines(homeRecipe, disabledBlocks) : rareSectionExamplesRule,
-        ] : [criticalBlockRules]),
+        ] : fixed ? [] : [criticalBlockRules]),
         contentAmountsRule,
         FACTS_ONLY_FROM_FORM_RULE,
         '- For stats, use ONLY numbers the business details above give (years, counts, prices, ratings). When they give none, use values without an invented number (e.g. "24/7", "Same-day", "Local") — never make one up.',
@@ -2838,7 +2900,7 @@ ${brandNameRule}
 ${iconsBlock}
 
 AVAILABLE SECTION TYPES:
-You are a layout designer. For this page, you choose WHICH sections to include and in WHAT order. Not every page needs every section. Mix it up based on what makes sense for this industry.
+${fixed ? 'The sections of this page are fixed (see THIS PAGE above). Below is the data each section type takes — write the data of the fixed sections only.' : 'You are a layout designer. For this page, you choose WHICH sections to include and in WHAT order. Not every page needs every section. Mix it up based on what makes sense for this industry.'}
 
 HOMEPAGE SECTIONS (pick 7-10 from these, in any order):
 ${blockPromptSection('homepage', undefined, { ...(isHome && homeRecipe ? { order: homeRecipe.promptOrder } : {}), omit: disabledBlocks })}
@@ -2903,8 +2965,11 @@ ${rules}${others.length ? `\n\n${localesLib.languagesPrompt({
       const problemsOf = (sections) => {
         if (!sections) return { block: ['回包里没有 sections 数组'], skin: [] };
         const trial = { ...page, sections };
+        const fixed = recipeBlocksOf.get(page);
         return {
-          block: validateBlocks({ pages: [trial], industry, disabledBlocks, forms, scope: 'edit' }).problems,
+          // #1601 —— 块序跟配方对不上算块库问题：同一次重试、同一条失败路。
+          block: [...(fixed ? siteRecipe.blockOrderProblems(sections, fixed) : []),
+            ...validateBlocks({ pages: [trial], industry, disabledBlocks, forms, scope: 'edit' }).problems],
           skin: isHome && homeRecipe ? recipeProblems([trial], homeRecipe) : [],
         };
       };
@@ -2994,6 +3059,12 @@ ${rules}${others.length ? `\n\n${localesLib.languagesPrompt({
     };
     const pageSections = await runPool(N, PAGE_CONCURRENCY, onePage);
     ai.pages.forEach((p, i) => { p.sections = pageSections[i]; delete p.brief; });
+    // #1601 —— 每块的预设由配方定：写进 options 的旋钮（覆盖 AI 写的同名旋钮）。在 pages 存档点之前写 ⟹ 存档里的块已带着预设。
+    if (recipeNav) {
+      const manifests = loadBlockManifests();
+      const n = ai.pages.reduce((sum, p) => sum + (recipeBlocksOf.has(p) ? siteRecipe.applyPresets(p.sections, recipeBlocksOf.get(p), manifests) : 0), 0);
+      debug(`[recipe] 按配方写了 ${n} 个块的预设`);
+    }
     // 每页那几通若仍写了收之前的长 id（链接 / under），套同一份 renames（#1565 的「页面里指着旧 id 的地方一起改」）。
     kwPages.renameServiceIds(idRenames, { pages: ai.pages });
 
@@ -3095,7 +3166,7 @@ ${rules}${others.length ? `\n\n${localesLib.languagesPrompt({
       const filled = applyBlockRoleDefaults(ai.pages);
       debug(`[blocks] 校验通过;按 roleDefault 补了 ${filled} 个 role`);
     }
-    checkpoint('pages', { ai, brandByCode });
+    checkpoint('pages', { ai, brandByCode, recipe: recipeSnapshot() });
   }
 
   progress('Parsing AI response...', 42);
@@ -3262,7 +3333,8 @@ ${rules}${others.length ? `\n\n${localesLib.languagesPrompt({
   }
 
   const ctaPage = ai.navigation.ctaPage || 'quote';
-  const ctaSlug = `/${ctaPage}`;
+  // #1601 —— 配方在 contact 被后台关掉时让按钮指首页（lib/site-recipe.js §sitePagesFor）。
+  const ctaSlug = ctaPage === 'home' ? '/' : `/${ctaPage}`;
 
   const allNonHome = ai.pages.filter(p => p.slug !== 'home').sort((a, b) => (a.navOrder ?? 99) - (b.navOrder ?? 99));
   const serviceDetailPages = allNonHome.filter(p => p.serviceDetailPage === true);
@@ -3284,7 +3356,8 @@ ${rules}${others.length ? `\n\n${localesLib.languagesPrompt({
     header: {
       links: [
         { label: "Home", href: "/" },
-        ...regularPages
+        // #1601 —— 配方定顶部导航放哪几页（判据：到得了每一张服务页）；照抄参照站结构那条老路仍是全部普通页。
+        ...(recipeNav ? allNonHome.filter((p) => recipeNav.has(p.slug)) : regularPages)
           .filter(p => p.navLabel && p.slug !== ctaPage)
           .map(p => ({ label: p.navLabel, href: `/${p.slug}` }))
       ],
@@ -3360,6 +3433,8 @@ async function generateKeywordPages(opts) {
     titleSpec = 'max 60 chars',
     // #1549 重开 —— meta description 的长度说法（§description-fit.js descriptionSpec，按主语言）。
     descriptionSpec: descSpec = '70–155 chars',
+    // #1601 —— 站的行动按钮落点（navigation.header.cta.href），关键词页的 CTA 指它（§keywordPagePrompt）。
+    ctaHref = '',
     // #1346 —— 后台关掉的块。关键词页有它**自己**那份写死的块清单（`keyword-page-options.js`），关掉的块要从那里剔掉。
     disabledBlocks = [],
     // #1593 —— 第二语言一次写完（同 generateContent 那两个参数）。没传 / 没有第二语言 ⟹ 提示词与回包跟改之前一样。
@@ -3381,7 +3456,7 @@ async function generateKeywordPages(opts) {
       material: kwPages.keywordPageMaterial(entry, payload),
       companyName, industry, location, languageInstruction,
       tagline: brand && brand.tagline, siteDescription: seo && seo.siteDescription,
-      additionalContext, sectionOptions, sitePrimaryKeyword, titleSpec, descriptionSpec: descSpec,
+      additionalContext, sectionOptions, sitePrimaryKeyword, titleSpec, descriptionSpec: descSpec, ctaHref,
     }) + (others.length ? `\n\n${localesLib.languagesPrompt({ primary: locales.primary, others, kind: 'keyword', hasKeyword: true })}` : '');
     emit('prompt', { name: `Keyword page: ${entry.keyword}`, content: prompt });
     // #1593 —— 有第二语言时回包按语言分组：主语言那一份是整页对象（跟改之前一样判），第二语言那几份等主语言定下来再挂进 book。

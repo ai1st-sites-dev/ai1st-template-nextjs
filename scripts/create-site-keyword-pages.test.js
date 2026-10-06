@@ -248,7 +248,12 @@ function run(label, payload, stubCfg, opts = {}) {
   fs.writeFileSync(cfgFile, JSON.stringify(stubCfg));
   fs.writeFileSync(calls, '');
   const r = cp.spawnSync(process.execPath, ['--require', stub, path.join(work, 'scripts', 'create-site.js')], {
-    input: JSON.stringify({ siteId: `kw${label}`.slice(0, 12), siteUrl: 'https://brightpipes.test', industry: 'plumbing', location: 'Toronto, ON', language: 'en', homepageFingerprint: false, ...payload }),
+    // #1601 —— 页面清单从此由整站配方给，而本测试的前提就是「站级那一通自己挑页」（AC9：Call 1 一张详情页都不给 ⟹ 代码补）。
+    //    配方按构造每个服务都给一张详情页，那条路上 AC9 走不到。本测试量的是关键词页（Call 2），所以走「照抄参照站结构」那条
+    //    仍由 AI 定页面清单的老路（create-site.js §pagesInstruction 的例外）；配方那条路上的关键词页由
+    //    create-site-call1-pages.test.js 的 #1601 AC2 那一跑覆盖。
+    input: JSON.stringify({ siteId: `kw${label}`.slice(0, 12), siteUrl: 'https://brightpipes.test', industry: 'plumbing', location: 'Toronto, ON', language: 'en', homepageFingerprint: false,
+      refSite: 'https://reference.test', refPrefs: ['structure'], refAnalysis: { navLinks: ['Home', 'Services', 'About', 'Contact'] }, ...payload }),
     cwd: work, encoding: 'utf8', maxBuffer: 64 << 20, timeout: 300000,
     env: { ...process.env, ANTHROPIC_API_KEY: 'stub-not-used', KW_STUB_CFG: cfgFile, KW_STUB_CALLS: calls },
   });
