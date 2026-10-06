@@ -802,11 +802,17 @@ console.log('── #1600 建站报告（G：两页重写救回、一页丢掉�
 const BR_KEYS = require('./lib/build-report').REPORT_KEYS;
 const brOf = (R) => JSON.parse(fs.readFileSync(path.join(R.work, 'site', 'build-report.json'), 'utf8'));
 const GR = brOf(G);
-check('#1600：site/build-report.json 九个键都在；path=ai；死链（entrypoint 才并进来）与没有生产者的四格是 null', () => {
+check('#1600：site/build-report.json 九个键都在；path=ai；死链（entrypoint 才并进来）与没有生产者的三格是 null', () => {
   assert.deepStrictEqual(BR_KEYS.filter((k) => !(k in GR)), []);
   assert.strictEqual(GR.path, 'ai');
-  for (const k of ['deadLinks', 'lighthouse', 'stages', 'images', 'degraded', 'archive']) assert.strictEqual(GR[k], null, k);
+  for (const k of ['deadLinks', 'lighthouse', 'stages', 'images', 'archive']) assert.strictEqual(GR[k], null, k);
   assert.ok(Number.isInteger(GR.durationSec) && GR.durationSec >= 0, String(GR.durationSec));
+});
+check('#1596：degraded 这一格有生产者了 —— 真 AI 路是数组（不是 null），与同一次建站的 degraded 事件逐项相同（G 这一跑被 SEO 丢的是关键词页，不算降级 ⟹ []）', () => {
+  assert.ok(Array.isArray(GR.degraded), JSON.stringify(GR.degraded));
+  const ev = G.events.filter((e) => e.event === 'degraded').map(({ step, target, reason }) => ({ step, target, reason }));
+  assert.deepStrictEqual(GR.degraded, ev);
+  assert.deepStrictEqual(GR.degraded, []);
 });
 check('#1600：keywordPages 与 keyword-pages 事件逐项相同（5/6，失败的就是被丢的那一页）', () => {
   assert.deepStrictEqual([GR.keywordPages.ok, GR.keywordPages.total], [G.report.ok, G.report.total]);

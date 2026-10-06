@@ -9,7 +9,9 @@
 //      deadLinks                    worker/entrypoint.sh 在 next build 之后跑 check-dead-links.js，经
 //                                   scripts/finish-build-report.js 并进来（两条路都有）
 //      lighthouse                   恒 null：preview-started 之后才跑，进不了这份文件；admin 卡从 site_quality 取
-//      stages / images / degraded / archive   T7 #1599 / T5 #1594 / T2 #1596 / T1 #1592 接上之前是 null
+//      degraded                     create-site.js 真 AI 路的 degradedSteps（#1596：那 11 处降级各一条）；真 AI 路没降级是 []，
+//                                   skipAI 走不到那 11 步 ⟹ null
+//      stages / images / archive    T7 #1599 / T5 #1594 / T1 #1592 接上之前是 null
 //
 // 📌 这份文件不进站仓（.gitignore），数据库 `site_build_reports` 那一行才是权威（manager 收 `build-report` 事件落库）。
 
@@ -121,6 +123,16 @@ function recordDeadLinks(report, ev) {
   return report;
 }
 
+/**
+ * 降级清单（create-site.js 的 degradedSteps，#1596）：每条 `{ step, target, reason }`，跟 `degraded` 事件同形。
+ * 真 AI 路恒调它 ⟹ 一处没降级是 `[]`（数过了、真的是零），不是 null。
+ */
+function recordDegraded(report, list) {
+  if (!report || !Array.isArray(list)) return report;
+  report.degraded = list.map((d) => ({ step: String(d.step), target: String(d.target), reason: String(d.reason) }));
+  return report;
+}
+
 /** 补齐九个键（读回来的旧文件 / 手改过的文件也照样九个键都在）。 */
 function normalize(report) {
   const r = report && typeof report === 'object' ? report : createReport();
@@ -150,5 +162,5 @@ function readReport(siteDir) {
 
 module.exports = {
   REPORT_VERSION, REPORT_KEYS, SEO_RULES, REPORT_FILE, DEAD_LIST_MAX,
-  createReport, ruleOf, pageChecks, recordSeo, recordKeywordPages, recordDeadLinks, normalize, reportPath, writeReport, readReport,
+  createReport, ruleOf, pageChecks, recordSeo, recordKeywordPages, recordDeadLinks, recordDegraded, normalize, reportPath, writeReport, readReport,
 };

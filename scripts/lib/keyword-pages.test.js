@@ -298,7 +298,7 @@ check('AI 写了详情页、没列关键词页 ⟹ 补一个 features，插在�
   assert.deepStrictEqual(pages[0].sections.map((b) => b.type), ['page-header', 'features', 'cta']);
   assert.strictEqual(pages[0].sections[1].data.headline, '相关页面');
 });
-check('服务目录里没有这个 id ⟹ failed（调用方让建站失败）', () => {
+check('服务目录里没有这个 id ⟹ failed（调用方丢掉这个服务下的关键词页，#1596）', () => {
   const r = K.ensureServiceDetailPages({ pages: [], services: SERVICES, serviceIds: ['nope'], locale: 'en' });
   assert.deepStrictEqual(r.failed, ['nope']);
 });

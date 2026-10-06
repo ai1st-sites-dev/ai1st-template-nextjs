@@ -346,15 +346,16 @@ function fingerprintEnabled(input) {
  * 重试跑完、块库仍有问题时该怎么办（#1034）。写成一个纯函数是为了能测 —— 那条分支只有 AI 参与时
  * 才走得到，而它恰恰是本票新开的口子带来的风险。
  *
- * 改动之前：只有「块库有问题」才进得了重试 ⟹ 重试后仍有问题 = 这个站本来就是坏的 ⟹ `fatal` 是对的。
+ * 改动之前：只有「块库有问题」才进得了重试 ⟹ 重试后仍有问题 = 这一页本来就是坏的。#1034 时那一支是 `fatal`
+ * （整站失败）；#1596 起是 `skeleton`：这一页发骨架页、记一笔降级，站照样建出来（付钱之后不再因为一页整站失败）。
  * 改动之后：「只有首页骨架跟配方对不上」也能进重试。那时第一次的输出**块库是干净的**，而重试可能
- * 把它改坏 —— 据此 fatal 等于「为了骨架撞车让一次建站失败」，正是本文件头上那段理由要防的事。
+ * 把它改坏 —— 据此丢掉这一页等于「为了骨架撞车毁掉一页好内容」，正是本文件头上那段理由要防的事 ⟹ revert。
  *
- * @returns {'ok'|'fatal'|'revert'}  revert = 丢掉重试的产物，用第一次那份
+ * @returns {'ok'|'skeleton'|'revert'}  revert = 丢掉重试的产物，用第一次那份；skeleton = 这一页发骨架页（create-site.js §pageSkeleton）
  */
 function afterRetry({ firstBlockProblems = 0, retryBlockProblems = 0 } = {}) {
   if (retryBlockProblems === 0) return 'ok';
-  return firstBlockProblems > 0 ? 'fatal' : 'revert';
+  return firstBlockProblems > 0 ? 'skeleton' : 'revert';
 }
 
 module.exports = {

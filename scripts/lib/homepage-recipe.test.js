@@ -495,9 +495,12 @@ console.log('── ⑨ 重试跑完块库仍有问题时的判决（afterRetry�
 {
   afterRetry({ firstBlockProblems: 0, retryBlockProblems: 0 }) === 'ok'
     ? ok('重试之后块库干净 ⟹ ok') : bad('块库干净却不是 ok');
-  afterRetry({ firstBlockProblems: 2, retryBlockProblems: 1 }) === 'fatal'
-    ? ok('第一次就有块库问题、重试没修好 ⟹ fatal（逐字保持改动之前的行为）')
-    : bad('第一次有块库问题时不再 fatal —— 那是行为回退');
+  // 🔴 #1596 有意推翻了这一格原来的断言：它曾要求这一支返回 'fatal'，并把「不再 fatal」叫做「行为回退」。
+  //    #1596（付钱之后不再 fatal，Chris 2026-10-05 立的 epic）把这一页改成发骨架页 + 记一笔降级 ⟹ 判决叫 'skeleton'。
+  //    下面 'revert' 那一格一个字没动：第一次干净、重试改坏 ⟹ 仍是退回第一次，不是骨架页。
+  afterRetry({ firstBlockProblems: 2, retryBlockProblems: 1 }) === 'skeleton'
+    ? ok('第一次就有块库问题、重试没修好 ⟹ skeleton（这一页发骨架页，#1596 之前是 fatal）')
+    : bad('第一次有块库问题、重试没修好时判决不是 skeleton —— create-site.js 那一支接不上');
   afterRetry({ firstBlockProblems: 0, retryBlockProblems: 1 }) === 'revert'
     ? ok('第一次块库干净（只为骨架撞车才重试）、重试把它改坏 ⟹ revert，不是 fatal')
     : bad('只为骨架撞车发起的重试会让整个站建不出来 —— 方向反了');
@@ -512,17 +515,18 @@ console.log('── ⑩ 接线：create-site.js 用的就是 afterRetry 的判�
 {
   const src = fs.readFileSync(path.join(NEXT, 'scripts/create-site.js'), 'utf8');
   // 📌 #1568 —— Call 1 按页拆之后，afterRetry 判的是**一页**的两次（首页骨架只在首页那一通里），那句 fatal 也换成点名那一页的。
+  // 📌 #1596 —— 那一支从 fatal 改成骨架页（pageSkeleton）；原文作为降级的 reason 留着，这一格认它落在哪一支。
   const FATAL = "this page's layout still breaks the block library after a retry";
   const fatalCount = src.split(FATAL).length - 1;
-  fatalCount === 1 ? ok('那句 fatal 全文只有一处') : bad(`那句 fatal 出现 ${fatalCount} 次，接线判据失效`);
+  fatalCount === 1 ? ok('那句原文全文只有一处') : bad(`那句原文出现 ${fatalCount} 次，接线判据失效`);
   /switch \(afterRetry\(\{ firstBlockProblems: p1\.block\.length, retryBlockProblems: p2\.block\.length \}\)\)/.test(src)
     ? ok('判决的两个入参就是这一页第一次的块库问题数 p1.block.length 与重试后的 p2.block.length')
     : bad('create-site.js 没有把这两个数喂给 afterRetry —— 判决可能拿错了数');
-  // 那句 fatal 必须落在 case 'fatal' 之后、下一个 case 之前。
-  const seg = src.slice(src.indexOf("case 'fatal':"), src.indexOf("case 'revert':"));
-  seg && seg.includes(FATAL)
-    ? ok(`那句 fatal 落在 case 'fatal' 那一支里（改动之前它是无条件的）`)
-    : bad('那句 fatal 不在 fatal 分支里');
+  // 那句原文必须落在 case 'skeleton' 之后、下一个 case 之前，而且是 pageSkeleton( 的参数（#1596：不再是 fatal）。
+  const seg = src.slice(src.indexOf("case 'skeleton':"), src.indexOf("case 'revert':"));
+  seg && seg.includes(FATAL) && seg.includes('return pageSkeleton(i, `' + FATAL)
+    ? ok(`那句原文落在 case 'skeleton' 那一支里，交给 pageSkeleton（改动之前它是无条件的 fatal）`)
+    : bad('那句原文不在 skeleton 分支的 pageSkeleton 调用里');
   // 判别力:把源码里的 afterRetry 调用抹掉，上面第二条必须翻红。恒真的尺子读不出接线断了。
   /switch \(afterRetry\(/.test(src.replace('switch (afterRetry(', 'switch (somethingElse('))
     ? bad('这把尺子恒真 —— 源码被改坏了它也读不出来')

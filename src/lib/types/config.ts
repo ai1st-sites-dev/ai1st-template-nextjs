@@ -20,8 +20,10 @@ export interface BrandFonts {
 
 export interface BrandLocation {
   label: string;
-  address: string;
-  phone: string;
+  /** #1596 —— 地址 / 电话只从老板给的料来，没给就没有这一格（站级那一通失败、代码拼站级计划时就会这样）；
+   *  读的地方一律按「可能没有」处理（`scripts/lib/contact-facts.js` · `item-sources.js` · `llms-txt.ts` · JsonLd）。 */
+  address?: string;
+  phone?: string;
   /** #1489 —— 这个地址的坐标：建站 / 改地址时由 `scripts/lib/geocode.js`（Nominatim）查一次写进来，页面打开时不查。
    *  contact 的地图点开时拿它算 bbox / marker；没有就不画地图。 */
   geo?: { lat: number; lng: number };
@@ -54,7 +56,8 @@ export interface BrandConfig {
   // #1003: 两种形状 —— #961 的枚举词，或生成的主题用的数值。二选一，同一套主题不许混写
   // （schemas/theme-tokens.schema.json 判这件事）；`settingsToCssVars` 按 `radius` 的类型分支。
   settings?: Partial<ThemeSettings> | Partial<NumericThemeSettings>;
-  email: string;
+  // #1596 —— 代码拼的站级计划那条路上，老板没给邮箱就没有这一项（读它的地方 —— JsonLd · llms-txt · contact-facts —— 都按「没有」处理）。
+  email?: string;
   locations: BrandLocation[];
   socialLinks?: { platform: string; url: string }[] | Record<string, string>;
   googleFormUrl: string;
@@ -163,7 +166,8 @@ export interface SeoConfig {
     openingHours?: OpeningHoursSegment | OpeningHoursSegment[];
     /** #1551 —— 抓到的真实平台评分（`onlinePresence.platformRatings`，§ratingFrom）。没有就没有这一项，不编。 */
     aggregateRating?: { ratingValue: number; reviewCount: number };
-    priceRange: string;
+    /** #1596 —— 代码拼的站级计划不写价位（老板没给过，不编）⟹ 没有这一项，JSON-LD 不出 `priceRange`。 */
+    priceRange?: string;
     offerCatalogName: string;
   };
   pages?: SeoPage[];
