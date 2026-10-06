@@ -94,6 +94,9 @@ const { applyHeroLeadForm } = require('./lib/hero-lead-form');
 //    文件本身留着：`package.json` 的 `lint:scripts` 清单点了它的名，而本票要求 package.json 一字不动。
 const kwPages = require('./lib/keyword-pages');
 const { mostSimilarPages } = require('./lib/similarity');
+// FastBuild T2 #1596 第 4 条先行落地（2026-10-06 site-87c53d50 站级回包 3/3 没转义引号）：先严格解析、失败再修一次；
+// 修不好才算一次重试，并把原始回包存到 /tmp/ai-raw（§ai-json.js 头注）。
+const { parseAiJson, saveRawResponse } = require('./lib/ai-json');
 // #1549 回修 —— description 超长由代码裁到 155，不叫 AI 重写、不让整站失败（§description-fit.js 头注）。
 // #1549 重开 —— description 的长度区间按主语言取（中 / 日 / 韩 50–80，其余 70–155），提示词与检查同一个函数；重写后仍缺地点由代码补。
 const { fitPageDescriptions, appendPlace, placeFits, descriptionRange, descriptionSpec } = require('./lib/description-fit');
@@ -637,13 +640,16 @@ async function callAIWithRetry({ client, baseOptions, costContext, label, maxAtt
 
     const text = response.content[0].text.trim();
     lastText = text;
-    const jsonStr = text.replace(/^```[\w]*\n?/, '').replace(/\n?```$/, '');
     try {
-      debug(`[ai-retry] ${label} attempt ${attempt}/${maxAttempts}: parse succeeded`);
-      return { parsed: JSON.parse(jsonStr), response, text };
+      const { parsed, repaired } = parseAiJson(text);
+      debug(`[ai-retry] ${label} attempt ${attempt}/${maxAttempts}: ${repaired ? 'JSON 严格解析失败，jsonrepair 修复后解析成功' : 'parse succeeded'}`);
+      return { parsed, response, text, repaired };
     } catch (parseErr) {
       lastParseError = parseErr;
-      debug(`[ai-retry] ${label} attempt ${attempt}/${maxAttempts}: JSON.parse failed: ${parseErr.message}`);
+      const rawFile = saveRawResponse(label, attempt, text);
+      debug(`[ai-retry] ${label} attempt ${attempt}/${maxAttempts}: JSON.parse failed（修复也没成）: ${parseErr.message}`
+        + (rawFile ? ` —— 原始回包存在 ${rawFile}` : '')
+        + (parseErr.context ? `\n    出错位置前后：${JSON.stringify(parseErr.context.slice(0, 400))}` : ''));
       if (attempt >= maxAttempts) break;
 
       // Augment messages: truncated excerpt (cost-control) + retry instruction.
