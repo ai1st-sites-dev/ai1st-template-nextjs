@@ -155,6 +155,33 @@ check('导航 == 普通页里除了按钮那一页（sync-config 每次构建按
   }
 });
 
+// ── #1627 服务页有一张主图，其余页的页头没有 ─────────────────────────────────────────────────────────
+// 旋钮值按 manifest 现算（header-knobs §presetKnobs），不手抄预设名：判据是「这个预设把 image 旋钮开在哪」。
+check('#1627 服务页的 page-header 预设 image ≠ none；services / about / faq / contact 的页头 image 仍是 none（16 组 + 默认）', () => {
+  const { presetsOf, presetKnobs } = require('./header-knobs');
+  const imageOf = (preset) => {
+    const k = presetKnobs(presetsOf(MANIFESTS.get('page-header')), preset);
+    assert.ok(k, `page-header 没有叫 "${preset}" 的预设`);
+    return k.image;
+  };
+  const rows = [...SECTORS.map((s) => [s.key, WORD_OF[s.key]]), ['default', 'zzz-unknown-trade']];
+  const bad = [];
+  for (const [label, w] of rows) {
+    const plan = R.sitePagesFor(w, { services: SVC });
+    const head = (p) => p.blocks.find((x) => x.type === 'page-header');
+    const cells = [];
+    for (const p of plan.pages) {
+      const h = head(p);
+      if (!h) continue;
+      const img = imageOf(h.preset);
+      cells.push(`${p.slug}=${h.preset}/${img}`);
+      if (p.serviceDetailPage ? img === 'none' : img !== 'none') bad.push(`${label} ${p.slug}: ${h.preset} image=${img}`);
+    }
+    console.log(`     ${label.padEnd(18)} ${cells.join(' · ')}`);
+  }
+  assert.deepStrictEqual(bad, []);
+});
+
 // ── 块序 / 预设的两个小函数 ──────────────────────────────────────────────────────────────────────────
 check('blockOrderProblems：对得上回 []，少一块 / 换了顺序 / 多一块各报一条', () => {
   const blocks = [{ type: 'page-header' }, { type: 'faq' }, { type: 'cta' }];
