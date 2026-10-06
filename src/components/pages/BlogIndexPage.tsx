@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { BreadcrumbJsonLd } from '@/components/JsonLd';
-import { getSeo, getBlogPosts, getBrandName, isValidLocale, localeUrl } from '@/lib/config';
+import { getBlogPosts, getBrandName, isValidLocale, localeUrl } from '@/lib/config';
 import { getLabels } from '@/lib/component-labels';
 
 // #1426（T4）—— Tailwind 退场，按 Webpixels 的 `section-blog-1`（`docs/reference/webpixels/components.json`）重写：
@@ -19,18 +18,11 @@ const COVERS: Array<[string, string]> = [
 
 export default function BlogIndexPage({ locale }: { locale: string }) {
   if (!isValidLocale(locale)) notFound();
-  const seo = getSeo(locale);
   const blogPosts = getBlogPosts(locale);
   const labels = getLabels(locale);
 
   return (
     <>
-      <BreadcrumbJsonLd
-        items={[
-          { name: labels.home, url: `${seo.domain}${localeUrl('home', locale)}` }, // #1552：首项按语言取词
-          { name: labels.blog, url: `${seo.domain}${localeUrl('', locale, 'blogIndex')}` },
-        ]}
-      />
       <section className="py-16 py-lg-24">
         <div className="container">
           <div className="text-center mb-12">

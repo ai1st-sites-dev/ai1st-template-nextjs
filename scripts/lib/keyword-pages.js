@@ -407,7 +407,7 @@ function keywordPageProblems(got, page, validate) {
 
 // ── 服务详情页兜底 + 互链（正文做什么 4 / 5）────────────────────────────────────────────────────
 
-const pagesRef = (serviceId) => ({ source: 'pages', under: `services/${serviceId}` });
+const pagesRef = (serviceId, extra = {}) => ({ source: 'pages', under: `services/${serviceId}`, ...extra });
 const isPagesRef = (v) => isObj(v) && v.source === 'pages';
 const sectionsOf = (p) => (Array.isArray(p.sections) ? p.sections : (p.sections = []));
 /** 插在最后一个 cta 之前（页尾那一组在行动号召之上）；没有 cta 就接在最后。 */
@@ -475,18 +475,26 @@ function removePagesListBlocks(page, serviceId) {
   return before - page.sections.length;
 }
 
-/** 每个关键词页页尾一组「相关页面」= 同服务的兄弟页（展开时排除本页，`item-sources.js §pages`）。一个服务只有一页就不加。 */
+/**
+ * 每个关键词页页尾一组「相关页面」= 先一条链回它的服务详情页、再是同服务的兄弟页（展开时排除本页，
+ * `item-sources.js §pages` 的 `withParent`）。#1630：面包屑删了之后这是关键词页回服务详情页唯一的路，所以一个服务
+ * 只有一页时也加（原来「同服务少于 2 页就不加」那条去掉了）。
+ */
 function addRelatedBlocks(kwPages, locale, disabledBlocks = []) {
   if (new Set(disabledBlocks).has('features')) return 0;
   const label = labelsFor(locale).related;
-  const count = new Map();
-  for (const p of kwPages) { const id = serviceIdOfKeywordPath(p.slug); if (id) count.set(id, (count.get(id) || 0) + 1); }
   let n = 0;
   for (const p of kwPages) {
     const id = serviceIdOfKeywordPath(p.slug);
-    if (!id || count.get(id) < 2) continue;
-    if (sectionsOf(p).some((b) => b && b.type === 'features' && b.data && isPagesRef(b.data.items))) continue;
-    insertBeforeTrailingCta(sectionsOf(p), { type: 'features', data: { headline: label, items: pagesRef(id) } });
+    if (!id) continue;
+    // AI 自己已经写了一组本服务的页面列表：不再加第二组，给它补上父页那一条（指向别的服务的那种不算，照加）。
+    const own = sectionsOf(p).filter((b) => b && b.type === 'features' && b.data && isPagesRef(b.data.items)
+      && b.data.items.under === `services/${id}`);
+    if (own.length) {
+      for (const b of own) b.data.items = { ...b.data.items, withParent: true };
+      continue;
+    }
+    insertBeforeTrailingCta(sectionsOf(p), { type: 'features', data: { headline: label, items: pagesRef(id, { withParent: true }) } });
     n += 1;
   }
   return n;

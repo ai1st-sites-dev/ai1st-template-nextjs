@@ -5,15 +5,16 @@
  * 跑法:  node scripts/page-header-render.test.js   （或 `npm run test:scripts`，它按文件名发现）
  * 退出码: 0 全过 · 1 有失败 · 2 跑不起来（**不许当成通过**）
  *
- * 管哪几条：AC1（5 个预设逐字、旋钮名 / 值逐字、目录集合、两两不同）· AC3（恰好一个 h1）· AC4（面包屑按页面路径算：
- * 三级 / 中间页不在 / 改页面 title 块数据不动 / 一层两级）· AC5 的块那一半（块单独渲染里 BreadcrumbList 0 段）·
+ * 管哪几条：AC1（5 个预设逐字、旋钮名 / 值逐字、目录集合、两两不同）· AC3（恰好一个 h1）·
+ * #1630 验收 3（不出面包屑：5 个形态、几种页面路径都没有那一行，原来这里断言的是「出」）·
+ * AC5 的块那一半（块单独渲染里 BreadcrumbList 0 段；#1630 起整站都不出，SubPage / 博客两页也查）·
  * AC9 的 DOM 那一半（bg 纯色 / 渐变给 tone）· AC10（validateSite）· AC11（block-roles · 首页池 · 提示词）·
  * AC13 的 schema 那一半（面包屑不是字段）· AC14（旧块 / create-site / keyword-page-options 零改动，SubPage 只两处）。
  * 几何（16 种组合三端无横向滚动、副标题宽、两列比例、图 40%、计算色）要浏览器：
- * `tests/e2e/specs/1502-page-header-new-knobs.spec.ts`。面包屑函数本身在 `scripts/breadcrumbs.test.js`。
+ * `tests/e2e/specs/1502-page-header-new-knobs.spec.ts`。（`scripts/breadcrumbs.test.js` 随 `src/lib/breadcrumbs.ts` 在 #1630 删了。）
  *
  * 🔴 每一段都带反向对照（同一进程、单变量），证明判据真会红。
- * 载的是**真的** `breadcrumbs.ts` + `config.ts` + `component-labels.ts`，只把 `config-data`（站点数据）换成替身。
+ * 载的是**真的** `config.ts` + `component-labels.ts`，只把 `config-data`（站点数据）换成替身。
  */
 
 'use strict';
@@ -79,7 +80,7 @@ function loadSection(override) {
 }
 
 const page = (slug, title) => ({ slug, title, description: '', blocks: [] });
-/** AC4 的夹具站：有 services/water-heaters 与 water-heaters/burnaby 两页。 */
+/** 夹具站：有 services/water-heaters 与 water-heaters/burnaby 两页（#1502 那时面包屑会画成三级的那种路径）。 */
 const SITE = () => ({
   en: [page('home', 'Maple Ridge Plumbing'), page('about', 'About Us'), page('services', 'Services'),
     page('services/water-heaters', 'Water Heater Repair'), page('water-heaters/burnaby', 'Water Heaters in Burnaby')],
@@ -111,15 +112,8 @@ const count = (html, needle) => html.split(needle).length - 1;
 const own = (r) => r.problems.filter((p) => p.includes('("page-header")'));
 const sectionTag = (html) => (/<section[^>]*>/.exec(html) || [''])[0];
 const attr = (html, name) => { const m = new RegExp(`\\s${name}="([^"]*)"`).exec(sectionTag(html)); return m ? m[1] : null; };
-/** 面包屑那一行：每个 <li> 的 [文字, href|null, 是不是当前页]。 */
-const crumbs = (html) => {
-  const nav = (/<nav[^>]*aria-label="Breadcrumb"[^>]*>([\s\S]*?)<\/nav>/.exec(html) || [])[1];
-  if (nav === undefined) return null;
-  return [...nav.matchAll(/<li([^>]*)>([\s\S]*?)<\/li>/g)].map(([, a, inner]) => {
-    const link = /<a href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/.exec(inner);
-    return [link ? link[2] : inner, link ? link[1] : null, /aria-current="page"/.test(a)];
-  });
-};
+/** #1630 —— 面包屑的痕迹：那一行的 class / 无障碍标签 / 结构化数据类型，大小写不分，数出现几处。 */
+const crumbHits = (html) => (html.match(/phn-crumbs|breadcrumb/gi) || []).length;
 
 // ══ AC1 ════════════════════════════════════════════════════════════════════════════════════════════
 console.log('── AC1 五个预设');
@@ -164,43 +158,32 @@ console.log('\n── AC3 h1');
   check(count(render('simple', clone(DEMO)), '<h2') === 0, '块里没有 h2（标题就是那一个 h1）');
 }
 
-// ══ AC4：面包屑按页面路径算 ═══════════════════════════════════════════════════════════════════════
-console.log('\n── AC4 面包屑按页面路径算');
+// ══ #1630 验收 3：不出面包屑（#1502 的 AC4 断言的是「出」，这里改成「不出」）══════════════════════════════
+console.log('\n── #1630 不出面包屑');
 {
   setSite(SITE());
-  const three = crumbs(render('simple', clone(DEMO)));
-  check(JSON.stringify(three) === JSON.stringify([['Home', '/', false], ['Water Heater Repair', '/services/water-heaters', false], ['Water Heaters in Burnaby', null, true]]),
-    'water-heaters/burnaby ⟹ 3 个 <li>：Home（链到首页）→ services/water-heaters 那页的 title（链过去）→ 本页 title（不是链接、aria-current）', JSON.stringify(three));
-  const html3 = render('simple', clone(DEMO));
-  check(/<nav[^>]*aria-label="Breadcrumb"[^>]*><ol class="breadcrumb[^"]*">/.test(html3), '结构：<nav aria-label="Breadcrumb"><ol class="breadcrumb">');
-
-  const noMid = SITE(); noMid.en = noMid.en.filter((p) => p.slug !== 'services/water-heaters'); setSite(noMid);
-  const gone = crumbs(render('simple', clone(DEMO)));
-  check(JSON.stringify(gone[1]) === JSON.stringify(['Water Heaters', null, false]), '删掉 services/water-heaters ⟹ 中间一级是 slug 转出来的名字、没有链接', JSON.stringify(gone));
-
-  const renamed = SITE(); renamed.en.find((p) => p.slug === 'water-heaters/burnaby').title = 'Burnaby Water Heaters'; setSite(renamed);
-  const data = clone(DEMO); const before = JSON.stringify(data);
-  const re = crumbs(render('simple', data));
-  check(re[2][0] === 'Burnaby Water Heaters' && JSON.stringify(data) === before, '把本页 title 改掉、块数据一个字节不动 ⟹ 最后一级跟着变');
-
-  setSite(SITE());
-  const two = crumbs(render('simple', clone(DEMO), { slug: 'about' }));
-  check(JSON.stringify(two) === JSON.stringify([['Home', '/', false], ['About Us', null, true]]), '只有一层的页（about）⟹ 2 个 <li>', JSON.stringify(two));
-  const fr = crumbs(render('simple', clone(DEMO), { slug: 'about', locale: 'fr' }));
-  check(fr && fr[0][0] === 'Accueil' && fr[0][1] === '/fr', `fr ⟹ 第一级是本地化的「Home」（${fr && fr[0][0]}），链到 /fr`);
-  check(crumbs(render('simple', clone(DEMO), { slug: null })) === null, '没给 pageSlug（首页 / 不知道是哪一页）⟹ 不画那一行');
-  check(crumbs(render('simple', clone(DEMO), { slug: 'home' })) === null, 'pageSlug=home ⟹ 不画');
-
-  // 块不读 data.breadcrumbs：塞一份进去，画出来的一字不变。
+  // 五个形态 × 几种页面路径（#1502 那时分别画三级 / 两级 / 法语两级），外加没给 pageSlug。每一份都是 0 处。
+  const cases = [
+    ['water-heaters/burnaby', 'en'], ['about', 'en'], ['about', 'fr'], ['services/water-heaters', 'en'], [null, 'en'],
+  ];
+  for (const p of M.presets) {
+    const hits = cases.map(([slug, locale]) => crumbHits(render(p.shape, clone(DEMO), { slug, locale })));
+    check(hits.every((n) => n === 0), `${p.name}：${cases.length} 种页面路径下 phn-crumbs / breadcrumb 都是 0 处`, hits.join(' / '));
+  }
+  const html = render('simple', clone(DEMO));
+  check(!/<nav\b/.test(html) && !/<ol\b/.test(html), '块里没有 <nav> / <ol>（那一行整段不在了，不是藏起来）');
+  // 块不读 data.breadcrumbs：塞一份进去，画出来的一字不变（AI 照旧写了也不会冒出来）。
   const planted = { ...clone(DEMO), breadcrumbs: [{ label: 'AI WROTE THIS', href: '/x' }] };
   check(render('simple', planted) === render('simple', clone(DEMO)), '块不读 data.breadcrumbs（塞一份进去，HTML 逐字不变）');
-  // 反向对照：组件改成读 data.breadcrumbs ⟹ 上一条要红。
+  // 反向对照：把 #1502 那一行原样塞回 markup ⟹ 上面的判据要红。
   const src = fs.readFileSync(SECTION, 'utf-8');
-  const needle = "const crumbs = pageSlug && pageSlug !== 'home' ? breadcrumbsFor(pageSlug, locale) : [];";
-  if (!src.includes(needle)) die('AC4 反向对照找不到面包屑那一行');
-  const Bad = loadSection(src.replace(needle, 'const crumbs = ((d as any).breadcrumbs || []).map((c: any) => ({ label: c.label, href: c.href, url: "" }));'));
-  check(render('simple', planted, { Comp: Bad }) !== render('simple', clone(DEMO), { Comp: Bad }), '反向对照：组件改成读 data.breadcrumbs ⟹ 两份 HTML 不再相同 —— 判据分得开');
+  const needle = '<div className="phn-inner">';
+  if (!src.includes(needle)) die('#1630 反向对照找不到 phn-inner 那一行');
+  const Bad = loadSection(src.replace(needle, '<nav className="phn-crumbs" aria-label="Breadcrumb"><ol className="breadcrumb"><li className="breadcrumb-item">Home</li></ol></nav>' + needle));
+  check(crumbHits(render('simple', clone(DEMO), { Comp: Bad })) > 0, '反向对照：把那一行塞回 Section.tsx ⟹ 计数不再是 0 —— 判据分得开');
   loadSection();
+  const blockCss = fs.readFileSync(path.join(BLOCK, 'block.css'), 'utf-8').replace(/\/\*[\s\S]*?\*\//g, '');
+  check(crumbHits(blockCss) === 0, 'block.css（剥掉注释）里没有 .phn-crumbs / .breadcrumb 规则');
 }
 
 // ══ AC5（块那一半）：块单独渲染里没有 BreadcrumbList ═════════════════════════════════════════════════
@@ -211,6 +194,12 @@ console.log('\n── AC5 块不出结构化数据');
   check(count(all, 'BreadcrumbList') === 0 && count(all, 'application/ld+json') === 0, '5 个预设的渲染里 BreadcrumbList 0 段、ld+json 0 段');
   const srcTxt = fs.readFileSync(SECTION, 'utf-8');
   check(!/BreadcrumbJsonLd|from '@\/components\/JsonLd'/.test(srcTxt.replace(/^\s*\/\/.*$/gm, '')), 'Section.tsx 不引 BreadcrumbJsonLd');
+  // #1630 —— 整站都不出：原来出 BreadcrumbList 的三个页面组件和那个函数、那份算法文件都没了（剥掉注释再查）。
+  const code = (rel) => fs.readFileSync(path.join(SRC, rel), 'utf-8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  for (const rel of ['components/pages/SubPage.tsx', 'components/pages/BlogIndexPage.tsx', 'components/pages/BlogPostPage.tsx', 'components/JsonLd.tsx']) {
+    check(!/Breadcrumb/i.test(code(rel)), `#1630 ${rel} 的代码里没有 Breadcrumb`);
+  }
+  check(!fs.existsSync(path.join(SRC, 'lib', 'breadcrumbs.ts')), '#1630 src/lib/breadcrumbs.ts 已删');
 }
 
 // ══ AC9（DOM 那一半）：bg 纯色 / 渐变 ⟹ tone（计算色在 e2e）═════════════════════════════════════════
@@ -246,26 +235,19 @@ console.log('\n── image 部件');
 console.log('\n── AC10 validateSite');
 {
   const run = (data) => own(manifestLib.validateSite({ pages: [{ slug: 'about', title: 'About', blocks: [{ type: 'page-header', data }] }] }));
+  // #1630 —— manifest 不再声明 computed.breadcrumbs：写了它就是一个不存在的槽，报通用的那一条。
+  check(M.computed === undefined, '#1630 manifest 里没有 computed（面包屑那一项随面包屑删了）');
   const withCrumbs = run({ headline: 'About', breadcrumbs: [{ label: 'Home', href: '/' }, { label: 'About' }] });
-  check(withCrumbs.length === 1 && /"breadcrumbs"/.test(withCrumbs[0]) && /computed from the page path/.test(withCrumbs[0]),
-    'data 里写了 breadcrumbs ⟹ 报一条（点名 breadcrumbs、说按页面路径算）', JSON.stringify(withCrumbs));
+  check(withCrumbs.length === 1 && /"breadcrumbs"/.test(withCrumbs[0]) && !/computed from the page path/.test(withCrumbs[0]),
+    'data 里写了 breadcrumbs ⟹ 报一条通用的（点名 breadcrumbs，不再说「按页面路径算」）', JSON.stringify(withCrumbs));
   const noHead = run({ subheadline: 'x' });
   check(noHead.length === 1 && /headline/.test(noHead[0]), 'headline 缺失 ⟹ 报一条', JSON.stringify(noHead));
   check(run({ headline: 'About', ctas: [1, 2, 3].map((i) => ({ label: `B${i}`, href: '#' })) }).length === 0, 'ctas 3 个不报（max 只管工具栏，同 cta）');
   // 演示夹具带图而 options 留空（图由预设那一组旋钮打开）⟹ 按它在图册里的样子（Photo 形态）校验。
   const demoRun = own(manifestLib.validateSite({ pages: [{ slug: 'about', title: 'About', blocks: [{ type: 'page-header', shape: 'photo', data: clone(DEMO) }] }] }));
   check(demoRun.length === 0, '演示夹具（Photo 形态）0 条', JSON.stringify(demoRun));
-  // 反向对照：manifest 里拿掉 computed ⟹ 仍报一条（通用的「没有这个槽」），但不再说「按页面路径算」。
   // 🔴 loadManifests 按目录缓存、而且只缓存一份 ⟹ 每次改 manifest 用一个新目录；这一段之后下面各段重新取 manifest。
-  const tmp = fs.mkdtempSync(path.join(NEXT, 'scripts', 'tmp-phn-blocks-'));
-  try {
-    fs.cpSync(path.join(NEXT, 'blocks'), tmp, { recursive: true });
-    const mp = path.join(tmp, 'page-header', 'manifest.json');
-    const mj = JSON.parse(fs.readFileSync(mp, 'utf-8')); delete mj.computed; fs.writeFileSync(mp, JSON.stringify(mj));
-    const r = manifestLib.validateSite({ dir: tmp, pages: [{ slug: 'about', title: 'About', blocks: [{ type: 'page-header', data: { headline: 'A', breadcrumbs: [] } }] }] });
-    const o = own(r);
-    check(o.length === 1 && !/computed from the page path/.test(o[0]), `反向对照：manifest 拿掉 computed ⟹ 只剩通用那条、不说为什么（${o[0] && o[0].slice(0, 60)}…）—— 判据分得开`);
-  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+  //    （#1502 这里还有一格「manifest 拿掉 computed」的反向对照；#1630 起 manifest 本来就没有 computed，那一格没有对象了。）
   const tmp2 = fs.mkdtempSync(path.join(NEXT, 'scripts', 'tmp-phn-blocks-'));
   try {
     fs.cpSync(path.join(NEXT, 'blocks'), tmp2, { recursive: true });
@@ -292,7 +274,7 @@ console.log('\n── AC11 block-roles · 首页池 · 提示词');
   const inner = manifestLib.promptSection('page-specific');
   const line = inner.split('\n').find((l) => l.includes('"page-header"')) || '';
   check(/never both on one page/.test(line) && /always the first section on non-home pages/.test(line), `内页提示词里有 page-header 和「never both」（${line.slice(0, 90)}…）`);
-  check(/do NOT write breadcrumbs/.test(inner), '提示词里写着「不要写 breadcrumbs」');
+  check(!/breadcrumb/i.test(line), '#1630 page-header 那一行提示词里不再提 breadcrumbs', line.slice(0, 120));
 }
 
 // ══ AC13（schema 那一半）：Puck 字段里没有面包屑 ════════════════════════════════════════════════════

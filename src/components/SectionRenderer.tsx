@@ -19,9 +19,10 @@ interface SectionRendererProps {
    */
   siteFacts?: ContactSiteFacts;
   /**
-   * #1502 —— 这一页的 slug（`about` / `services/x` …）。要按页面路径算东西的块（`page-header` 的面包屑，
-   * `src/lib/breadcrumbs.ts`）拿它；别的块不读。内页由 `SubPage` 传真 slug，编辑器画布传正在编辑的那一页，
-   * 单格页传夹具页；首页不传。没给就**不挂**这个 prop（同 `iconTable`）。
+   * #1502 —— 这一页的 slug（`about` / `services/x` …），给要按页面路径算东西的块。内页由 `SubPage` 传真 slug，
+   * 编辑器画布传正在编辑的那一页，单格页传夹具页；首页不传。没给就**不挂**这个 prop（同 `iconTable`）。
+   * 📌 当初唯一读它的是 `page-header` 的面包屑，#1630 删了面包屑，今天没有块读它（列表槽展开另走
+   * `itemSourceContext(locale, slug)`，不经这里）。
    */
   pageSlug?: string;
 }

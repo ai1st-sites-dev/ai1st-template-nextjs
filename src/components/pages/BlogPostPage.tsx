@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { ArticleJsonLd, BreadcrumbJsonLd } from '@/components/JsonLd';
-import { getSeo, getBlogPosts, isValidLocale, localeUrl } from '@/lib/config';
+import { ArticleJsonLd } from '@/components/JsonLd';
+import { getBlogPosts, isValidLocale, localeUrl } from '@/lib/config';
 import { getLabels } from '@/lib/component-labels';
 
 // #1426（T4）—— Tailwind 退场，按 Webpixels 的 `blog-content-1`（`docs/reference/webpixels/components.json`）重写。
@@ -13,18 +13,10 @@ export default function BlogPostPage({ locale, slug }: { locale: string; slug: s
   const post = getBlogPosts(locale).find((p) => p.slug === slug);
   if (!post) redirect(localeUrl('', locale, 'blogIndex'));
 
-  const seo = getSeo(locale);
   const labels = getLabels(locale);
 
   return (
     <>
-      <BreadcrumbJsonLd
-        items={[
-          { name: labels.home, url: `${seo.domain}${localeUrl('home', locale)}` }, // #1552：首项按语言取词
-          { name: labels.blog, url: `${seo.domain}${localeUrl('', locale, 'blogIndex')}` },
-          { name: post.title, url: `${seo.domain}${localeUrl(post.slug, locale, 'blogPost')}` },
-        ]}
-      />
       <ArticleJsonLd locale={locale} post={post} />
 
       <article className="py-12 py-lg-16">

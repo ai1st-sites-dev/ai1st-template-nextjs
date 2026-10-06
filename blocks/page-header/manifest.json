@@ -20,9 +20,6 @@
     { "name": "Photo", "shape": "photo", "knobs": { "headlinePosition": "top", "textAlign": "left", "image": "right" } },
     { "name": "Cover", "shape": "cover", "knobs": { "headlinePosition": "top", "textAlign": "center", "image": "background" } }
   ],
-  "computed": {
-    "breadcrumbs": "the breadcrumb trail is computed from the page path (Home → parent page → this page) — do not write it"
-  },
   "slots": {
     "options": {
       "kind": "object",
@@ -90,7 +87,7 @@
     "headExtra": null,
     "lines": [
       "@data",
-      "do NOT write breadcrumbs — they are computed from the page path; headline is this page's title (the page's only h1); write image only when there is a fitting picture; bg is the background colour, top-level in data (not inside options)"
+      "headline is this page's title (the page's only h1); write image only when there is a fitting picture; bg is the background colour, top-level in data (not inside options)"
     ]
   },
   "toolbarGroups": [

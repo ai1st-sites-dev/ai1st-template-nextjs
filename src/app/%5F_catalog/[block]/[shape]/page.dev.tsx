@@ -233,7 +233,8 @@ export default async function CatalogCellPage({ params, searchParams }: Props) {
 
   const data = demoDataFor(m, { minimal: fill === 'minimal' });
   // #1497 —— blog 读站点博客：同一个图册夹具 locale 下挂着一份博客（catalogShared §registerCatalogFixtureBlogPosts）。
-  // #1502 —— page-header 的面包屑按「当前页」算：单格页当自己在看夹具页 `CATALOG_PAGE_HEADER_SLUG`（catalogShared）。
+  // #1502 —— 单格页的 page-header 当自己在看夹具页 `CATALOG_PAGE_HEADER_SLUG`（catalogShared）。当初是给面包屑用的，
+  //    #1630 删了面包屑之后块不读它，留着不影响画面。
   const isPageHeader = block === 'page-header';
   const usesFixtureLocale = block === 'blog' || isPageHeader;
   const locale = usesFixtureLocale ? CATALOG_LOCALE : defaultLocale;

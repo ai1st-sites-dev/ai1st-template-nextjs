@@ -2587,7 +2587,7 @@ IMAGE PLACEMENT RULES:
   const brandNameRule = `CRITICAL BRAND NAME RULE (TICKET-137):
 The brand name "${companyName}" is canonical and MUST appear LITERALLY VERBATIM in all
 generated content — hero headlines, subtitles, page descriptions, footer description,
-copyright, breadcrumbs, CTA text, and ANY user-visible string that references the brand.
+copyright, CTA text, and ANY user-visible string that references the brand.
 
 DO NOT translate, transliterate, localize, or create alternative versions of the brand name.
 This rule applies in ALL languages — even when the surrounding text is non-English, the brand

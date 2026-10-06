@@ -3581,34 +3581,14 @@
   }
 }
 
-/* ── 根 / 面包屑 / 副标题列这三个 class 各要一条自己的规则（#1502 r2，theme-css「unstyled class」）。都是收窄用的：
+/* ── 根 / 副标题列这两个 class 各要一条自己的规则（#1502 r2，theme-css「unstyled class」）。都是收窄用的：
    · .phn —— 标题是 display-4，手机上一个长单词（Waterproofing / 长地名）比屏宽还宽时折行，不撑出横向滚动。
-   · .phn-crumbs —— 面包屑每一级是 flex 子项，break-word 不改它的最小宽度 ⟹ 用 anywhere，长页面名在 390 上折行。
    · .phn-main —— headlinePosition=left 时它是 1fr 那一列，grid 子项默认 min-width:auto，长内容会把 1:1 撑歪。 */
 [data-block="page-header"].phn {
   overflow-wrap: break-word;
 }
-[data-block="page-header"] .phn-crumbs {
-  overflow-wrap: anywhere;
-}
 [data-block="page-header"] .phn-main {
   min-width: 0;
-}
-
-/* ── 面包屑：Bootstrap 的 .breadcrumb；分隔符 #94a3b8，链接正文色、悬停主色，当前页 #64748b。 */
-[data-block="page-header"] .breadcrumb {
-  --x-breadcrumb-divider-color: var(--scheme-ink-faint);
-  flex-wrap: wrap;
-}
-[data-block="page-header"] .breadcrumb a {
-  color: var(--x-body-color, #334155);
-  text-decoration: none;
-}
-[data-block="page-header"] .breadcrumb a:hover {
-  color: var(--scheme-primary-ink, var(--x-primary));
-}
-[data-block="page-header"] .breadcrumb .active {
-  color: var(--scheme-ink-muted);
 }
 
 /* ── 标题块离副标题 1.25rem；按钮离副标题 2rem。副标题不限宽（Chris 2026-09-30），占满文字那一列。 */
@@ -3622,17 +3602,15 @@
   margin-top: 2rem;
 }
 
-/* ── textAlign：面包屑 / 标题 / 副标题 / 按钮一起对齐；center 时面包屑和按钮行也居中。 */
+/* ── textAlign：标题 / 副标题 / 按钮一起对齐；center 时按钮行也居中。 */
 [data-block="page-header"][data-text-align="center"] .phn-text {
   text-align: center;
 }
-[data-block="page-header"][data-text-align="center"] .breadcrumb,
 [data-block="page-header"][data-text-align="center"] .phn-ctas {
   justify-content: center !important;
 }
 
-/* ── headlinePosition=left：≥992 标题一列、副标题 + 按钮一列（各 1fr，间距 4rem，底边对齐）；面包屑仍在最上面
-   一整行（它在 .phn-inner 外面）。小屏回到上下排。 */
+/* ── headlinePosition=left：≥992 标题一列、副标题 + 按钮一列（各 1fr，间距 4rem，底边对齐）。小屏回到上下排。 */
 @media (min-width: 992px) {
   [data-block="page-header"][data-headline-position="left"] .phn-inner {
     display: grid;
@@ -3668,22 +3646,10 @@
   background: linear-gradient(180deg, rgba(15, 23, 42, 0.55), rgba(15, 23, 42, 0.75));
 }
 
-/* ── 深底（bg 深色 / brand / 铺图）：标题反白（副标题白 .92 是全站一条 `.text-muted` 规则，
-   `scripts/lib/site-css.js` §ON_DEEP_MUTED，#1477），面包屑白 .85、分隔符白 .6，描边按钮反白，
-   dash / plain 两种 eyebrow 白 .85。
-   🔴 各块共有的那几条（根上字色 · 标题 · eyebrow · 主按钮 / 描边 / link 按钮反白）住 `scripts/lib/site-css.js`
-      §DEEP_COMMON，全站一份（#1533）；这里只留本块特有的，别再抄回来（`scripts/block-deep-common.test.js`）。 */
-
-[data-block="page-header"][data-tone="dark"] .breadcrumb,
-[data-block="page-header"][data-tone="brand"] .breadcrumb {
-  --x-breadcrumb-divider-color: rgba(255, 255, 255, 0.6);
-}
-[data-block="page-header"][data-tone="dark"] .breadcrumb a,
-[data-block="page-header"][data-tone="brand"] .breadcrumb a,
-[data-block="page-header"][data-tone="dark"] .breadcrumb .active,
-[data-block="page-header"][data-tone="brand"] .breadcrumb .active {
-  color: rgba(255, 255, 255, 0.85);
-}
+/* ── 深底（bg 深色 / brand / 铺图）：本块没有特有的规则。标题反白、副标题白 .92（`.text-muted`，
+   `scripts/lib/site-css.js` §ON_DEEP_MUTED，#1477）、描边按钮反白、dash / plain 两种 eyebrow 白 .85，
+   都是各块共有的那几条，住 `scripts/lib/site-css.js` §DEEP_COMMON，全站一份（#1533）；别再抄回来
+   （`scripts/block-deep-common.test.js`）。#1630 之前这里有面包屑反白那两条，随面包屑一起删了。 */
 
 /* ── 按钮的底色和字色：接平台按这个站最终配色算好的那几个变量（`scripts/lib/button-ink.js`，同 cta）。 */
 [data-block="page-header"] .btn-primary {

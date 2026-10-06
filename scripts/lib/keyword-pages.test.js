@@ -310,13 +310,56 @@ check('features 被后台关掉 ⟹ 页照补，不加列表块', () => {
 
 // ── 互链 ──────────────────────────────────────────────────────────────────────────────────────────
 console.log('── 互链：页尾兄弟页 / 页脚');
-check('同服务 ≥2 页：每页页尾加一组兄弟页（插在 cta 前）；只有 1 页的服务不加', () => {
+check('每个关键词页页尾都加一组（插在 cta 前），1 页的服务也加；引用带 withParent', () => {
   const pg = (slug) => ({ slug, sections: [{ type: 'content', data: {} }, { type: 'cta', data: {} }] });
   const pages = [pg('services/a/x'), pg('services/a/y'), pg('services/b/z')];
-  assert.strictEqual(K.addRelatedBlocks(pages, 'en'), 2);
+  assert.strictEqual(K.addRelatedBlocks(pages, 'en'), 3);
   assert.deepStrictEqual(pages[0].sections.map((b) => b.type), ['content', 'features', 'cta']);
-  assert.deepStrictEqual(pages[0].sections[1].data.items, { source: 'pages', under: 'services/a' });
-  assert.deepStrictEqual(pages[2].sections.map((b) => b.type), ['content', 'cta']);
+  assert.deepStrictEqual(pages[0].sections[1].data.items, { source: 'pages', under: 'services/a', withParent: true });
+  assert.deepStrictEqual(pages[2].sections.map((b) => b.type), ['content', 'features', 'cta']);
+  assert.deepStrictEqual(pages[2].sections[1].data.items, { source: 'pages', under: 'services/b', withParent: true });
+});
+check('AI 自己写了一组本服务的页面列表 ⟹ 不加第二组，给它补 withParent；指向别的服务的那组不算', () => {
+  const p1 = { slug: 'services/a/x', sections: [{ type: 'features', data: { items: { source: 'pages', under: 'services/a' } } }] };
+  const p2 = { slug: 'services/a/y', sections: [{ type: 'features', data: { items: { source: 'pages', under: 'services/b' } } }] };
+  assert.strictEqual(K.addRelatedBlocks([p1, p2], 'en'), 1);
+  assert.deepStrictEqual(p1.sections.map((b) => b.data.items), [{ source: 'pages', under: 'services/a', withParent: true }]);
+  assert.deepStrictEqual(p2.sections.map((b) => b.data.items.under), ['services/b', 'services/a']);
+});
+
+// #1630 验收 4 —— 两个站，从 addRelatedBlocks 写引用一直走到 item-sources 展开出链接（真站渲染前调的就是这一个展开函数）。
+//    站一：服务 solo 只有 1 个关键词页 ⟹ 页尾只有那一条父页链接。站二：服务 drains 有 3 个 ⟹ 每页 = 父页 + 另外 2 个兄弟页。
+const IS = require('./item-sources');
+function linksOnKeywordPages(services, kwSlugs) {
+  const detail = services.map((s) => ({ slug: `services/${s.id}`, title: `${s.name} — SEO title`, sections: [] }));
+  const kwp = kwSlugs.map((slug) => ({ slug, title: slug.split('/').pop(), sections: [{ type: 'cta', data: {} }] }));
+  K.addRelatedBlocks(kwp, 'en');
+  const all = [...detail, ...kwp];
+  return kwp.map((p) => {
+    const ctx = { services, pages: all, url: (x) => `/${x}`, learnMore: 'Learn more', pageSlug: p.slug };
+    const out = IS.resolveItemSources(p.sections, ctx).find((b) => b.type === 'features');
+    return { slug: p.slug, items: out ? out.data.items.map((it) => ({ title: it.title, href: it.link.href })) : [] };
+  });
+}
+check('站一：服务只有 1 个关键词页 ⟹ 页尾有指向 /services/<id> 的链接，文字是服务名（不是详情页的 SEO title）', () => {
+  const [only] = linksOnKeywordPages([{ id: 'solo', name: 'Solo Service' }], ['services/solo/kw-1']);
+  assert.deepStrictEqual(only.items, [{ title: 'Solo Service', href: '/services/solo' }]);
+});
+check('站二：服务有 3 个关键词页 ⟹ 每页 = 父页链接 + 另外 2 个兄弟页、不含自己', () => {
+  const slugs = ['services/drains/kw-1', 'services/drains/kw-2', 'services/drains/kw-3'];
+  const got = linksOnKeywordPages([{ id: 'drains', name: 'Drain Cleaning' }], slugs);
+  for (const g of got) {
+    const hrefs = g.items.map((x) => x.href);
+    assert.deepStrictEqual(hrefs, ['/services/drains', ...slugs.filter((s) => s !== g.slug).map((s) => `/${s}`)], g.slug);
+    assert.strictEqual(g.items[0].title, 'Drain Cleaning');
+  }
+});
+check('反向对照：同一个引用去掉 withParent ⟹ 站一那页一条都没有（父页那条只来自 withParent）', () => {
+  const services = [{ id: 'solo', name: 'Solo Service' }];
+  const pages = [{ slug: 'services/solo', title: 'x' }, { slug: 'services/solo/kw-1', title: 'kw-1' }];
+  const ctx = { services, pages, url: (x) => `/${x}`, pageSlug: 'services/solo/kw-1' };
+  assert.deepStrictEqual(IS.expandRef({ source: 'pages', under: 'services/solo' }, ctx), []);
+  assert.strictEqual(IS.expandRef({ source: 'pages', under: 'services/solo', withParent: true }, ctx).length, 1);
 });
 const kwPage = (id, n) => ({ slug: `services/${id}/kw-${n}`, title: `Page ${n}` });
 check('页脚：≤10 页全列，栏名取服务目录里的名字', () => {
