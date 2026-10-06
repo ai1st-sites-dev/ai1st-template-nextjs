@@ -224,6 +224,44 @@ class LocaleBook {
     }
     return out;
   }
+
+  /**
+   * #1598 —— 把这本账写成能存进 `site/.build/state.json` 的样子。账挂在页 / 块**对象**上（WeakMap），存档读回来的是新对象
+   * ⟹ 按「第几页、第几块」记，`pages` 必须是跟这份存档一起写进去的那一组页（续跑时 §restore 拿读回来的同一组页挂回去）。
+   */
+  snapshot(pages) {
+    return {
+      failed: [...this.failed],
+      pages: (pages || []).map((p) => ({
+        slug: p && p.slug,
+        meta: this.pageMeta.get(p) || null,
+        sections: (p && Array.isArray(p.sections) ? p.sections : []).map((s) => (isObj(s) && this.sectionText.get(s)) || null),
+      })),
+    };
+  }
+
+  /**
+   * #1598 —— §snapshot 的反过来：挂回读回来的页上。存档里没有这本账、或者页对不上（页数 / slug / 块数不同 —— 有人手改过存档）
+   * ⟹ 不拿半本账去拼，放弃全部第二语言（发 `secondary-locale-failed`，主语言照常），跟一个语言在建站时坏掉是同一个处置。
+   */
+  restore(pages, snap) {
+    if (!this.locales.length) return;
+    const list = pages || [];
+    const giveUp = (why) => { for (const l of this.locales) this.fail(l, `resume: ${why}`); };
+    if (!snap || !Array.isArray(snap.pages) || !Array.isArray(snap.failed)) return giveUp('the saved build has no second-language texts');
+    if (snap.pages.length !== list.length) return giveUp(`the saved build has ${snap.pages.length} pages of second-language texts, the saved site has ${list.length}`);
+    const bad = list.findIndex((p, i) => {
+      const e = snap.pages[i];
+      return !e || e.slug !== p.slug || !Array.isArray(e.sections) || e.sections.length !== (Array.isArray(p.sections) ? p.sections.length : 0);
+    });
+    if (bad >= 0) return giveUp(`page ${bad + 1} ("${list[bad].slug}") does not match its saved second-language texts`);
+    for (const [l, why] of snap.failed) this.fail(l, why);
+    list.forEach((p, i) => {
+      const e = snap.pages[i];
+      if (e.meta) this.pageMeta.set(p, e.meta);
+      (p.sections || []).forEach((s, j) => { if (isObj(s) && e.sections[j]) this.sectionText.set(s, e.sections[j]); });
+    });
+  }
 }
 
 module.exports = { STRUCT_KEYS, keepsPrimary, localeShapeProblems, mergeLocale, secondaryPageProblems, splitLocaleReply, languagesPrompt, LocaleBook };
