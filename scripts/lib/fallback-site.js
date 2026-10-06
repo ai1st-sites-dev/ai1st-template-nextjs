@@ -111,10 +111,13 @@ function fallbackSitePlan({ companyName, services, location, address, phone, ema
   };
 }
 
-/** 本站页面清单里第一个存在的联系页（contact → quote → 站的 CTA 页），都没有就回首页。 */
+/**
+ * 本站页面清单里第一个存在的联系页（contact → quote → 站的 CTA 页），都没有就回首页。
+ * #1623 —— 命中的是 `home` 时路径是 `/`（首页的真实路由），不是 `/home`：配方关掉 contact 时 ctaPage 就是 `home`。
+ */
 function contactHrefOf(sitePages, ctaPage) {
   const slugs = new Set((Array.isArray(sitePages) ? sitePages : []).map((p) => p && p.slug));
-  for (const s of ['contact', 'quote', str(ctaPage)]) if (s && slugs.has(s)) return `/${s}`;
+  for (const s of ['contact', 'quote', str(ctaPage)]) if (s && slugs.has(s)) return s === 'home' ? '/' : `/${s}`;
   return '/';
 }
 

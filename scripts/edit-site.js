@@ -54,6 +54,8 @@ const linkHref = require('./lib/link-href');
 const blockScope = require('./lib/block-scope');
 // #1410 —— 模型边写边出的字，编辑器里的聊天逐字显示（文件头说为什么攒批、为什么带轮次）。
 const { createTextRelay } = require('./lib/text-relay');
+// #1623 —— 提示词里站级块示例的按钮落点取配方那一页，不手抄（配方里没有 quote 页）。
+const { CTA_PAGE } = require('./lib/site-recipe');
 // #1489 —— 改了地址就重查一次坐标（contact 的地图），理由整段在那个文件头。
 const { refreshGeoAfterEdit } = require('./lib/geocode');
 const { siteFactsFrom, scrubContactCopies } = require('./lib/contact-facts');
@@ -1221,7 +1223,7 @@ each page. The file is a JSON **object** that maps an id to one block — not an
     "data": {
       "headline": "Ready to get started?",
       "body": "Tell us what you need and we will get back to you the same day.",
-      "ctas": [{ "label": "Get a quote", "href": "/quote" }]
+      "ctas": [{ "label": "Contact us", "href": "/${CTA_PAGE}" }]
     }
   }
 }
